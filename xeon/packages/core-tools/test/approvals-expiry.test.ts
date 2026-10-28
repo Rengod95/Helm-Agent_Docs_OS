@@ -6,6 +6,8 @@ import {
 } from "@xeon/contracts/records";
 import type { ApprovalBody, ApprovalRequestInput } from "@xeon/contracts/services";
 import { createApprovalService } from "../src/approvals/service.ts";
+import { unattendedPlan } from "../src/approvals/unattended.ts";
+import { systemScheduler } from "../src/approvals/timer.ts";
 import {
   callTool,
   createHarness,
@@ -321,4 +323,140 @@ test("a subagent call in an unattended run is still refused at once", async () =
   });
   expect(out.blocked).toContain("noninteractive_ask_denied");
   expect(h.runtime.approvals.pending(h.thread)).toEqual([]);
+});
+
+test("the production default (settings unset) expires an unattended ask after 3600 seconds", async () => {
+  const time = manualTime(NOW);
+  const h = await createHarness({ clock: time.clock, scheduler: time.scheduler, unattended: null });
+  const probe = registerWorkspace(h);
+  const { done } = await startUnattendedBash(h, "call_u6");
+  await until(() => h.runtime.approvals.pending(h.thread).length > 0);
+  expect(h.runtime.approvals.pending(h.thread)[0]?.expiresAt).toBe(NOW + 3_600_000);
+  await time.advance(3_599_999);
+  expect(h.runtime.approvals.pending(h.thread)).toHaveLength(1);
+  await time.advance(1);
+  expect((await done).blocked).toContain("approval_expired");
+  expect(probe.calls).toEqual([]);
+});
+
+test("without an injected scheduler the runtime still arms an expiry timer (no unattended turn waits forever)", async () => {
+  const h = await createHarness({
+    clock: { now: () => Date.now() },
+    unattended: { approval: "expire", timeoutSeconds: 1 },
+  });
+  registerWorkspace(h);
+  const { done } = await startUnattendedBash(h, "call_u7");
+  const out = await done;
+  expect(out.blocked).toContain("approval_expired");
+});
+
+test("systemScheduler fires a timer once and clearTimeout cancels one", async () => {
+  const scheduler = systemScheduler();
+  const fired: string[] = [];
+  scheduler.setTimeout(() => fired.push("a"), 5);
+  const cancelled = scheduler.setTimeout(() => fired.push("b"), 5);
+  scheduler.clearTimeout(cancelled);
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 40);
+  });
+  expect(fired).toEqual(["a"]);
+});
+
+test("unattendedPlan: only a main-caller depth-0 turn on its own surface follows the policy, for every turn source", async () => {
+  const h = await createHarness();
+  const main = {
+    caller: "main",
+    depth: 0,
+    threadId: h.thread,
+    surfaceThreadId: h.thread,
+  } as const;
+  const wait = { approval: "wait", timeoutSeconds: 60 } as const;
+  const expire = { approval: "expire", timeoutSeconds: 60 } as const;
+  const deny = { approval: "deny", timeoutSeconds: 60 } as const;
+  // drive, schedule, extension, delegation, resumed 모두 같은 실행 문맥(main, 깊이 0)을 받는다: 정책은 입력 출처와 무관하다
+  expect(unattendedPlan(main, wait, 1000)).toEqual({ silent: false, timeoutAt: null });
+  expect(unattendedPlan(main, expire, 1000)).toEqual({ silent: false, timeoutAt: 61_000 });
+  expect(unattendedPlan(main, deny, 1000)).toEqual({ silent: true });
+  expect(unattendedPlan({ ...main, caller: "subagent:x" }, wait, 1000)).toEqual({ silent: true });
+  expect(unattendedPlan({ ...main, depth: 1 }, wait, 1000)).toEqual({ silent: true });
+  expect(unattendedPlan({ ...main, surfaceThreadId: h.deps.ids.next("thr") }, wait, 1000)).toEqual({
+    silent: true,
+  });
+});
+
+// ── 커밋 실패와 예외 ───────────────────────────────────────────────────
+
+function flakyService(h: Harness, time: ReturnType<typeof manualTime>) {
+  const state = { throwing: false };
+  const service = createApprovalService({
+    session: {
+      commit: (request) => {
+        if (state.throwing) throw new Error("store exploded");
+        return h.deps.session.commit(request);
+      },
+      readBranch: (threadId) => h.deps.session.readBranch(threadId),
+    },
+    producer: h.deps.producer,
+    ids: h.deps.ids,
+    clock: time.clock,
+    scheduler: time.scheduler,
+    ext: h.deps.ext,
+    logger: undefined,
+    callOf: () => undefined,
+    modeOf: () => "default",
+    setMode: (_thread, mode) => Promise.resolve({ ok: true, mode }),
+  });
+  return { state, service };
+}
+
+test("an expiry commit that throws leaves the request pending and re-arms the timer", async () => {
+  const time = manualTime(NOW);
+  const h = await createHarness({ clock: time.clock, scheduler: time.scheduler });
+  const { state, service } = flakyService(h, time);
+  expectOk(await service.open(requestOf(h, { expiresAt: NOW + 1000 })));
+  state.throwing = true;
+  await time.advance(1000);
+  expect(service.pending(h.thread)).toHaveLength(1);
+  expect(time.timers()).toBe(1);
+  state.throwing = false;
+  await time.advance(5000);
+  expect(service.pending(h.thread)).toEqual([]);
+  expect(resolvedEvents(h).map((event) => event.resolvedBy)).toEqual(["expired"]);
+});
+
+test("a respond whose commit throws leaves the request pending, and a retry works", async () => {
+  const time = manualTime(NOW);
+  const h = await createHarness({ clock: time.clock, scheduler: time.scheduler });
+  const { state, service } = flakyService(h, time);
+  const opened = expectOk(await service.open(requestOf(h, {})));
+  const id = opened.request.approvalId;
+  const answer = { decision: "answer", answer: { color: { selected: ["red"] } } } as const;
+  state.throwing = true;
+  let thrown = false;
+  try {
+    await service.respond(id, answer);
+  } catch (error) {
+    thrown = error instanceof Error && error.message === "store exploded";
+  }
+  expect(thrown).toBe(true);
+  expect(service.pending(h.thread)).toHaveLength(1);
+  state.throwing = false;
+  expect(await service.respond(id, answer)).toEqual({ applied: true });
+});
+
+test("after a failed expiry commit a late response is refused and the expiry is retried", async () => {
+  const time = manualTime(NOW);
+  const h = await createHarness({ clock: time.clock, scheduler: time.scheduler });
+  const opened = expectOk(await h.runtime.approvals.open(requestOf(h, { expiresAt: NOW + 1000 })));
+  h.session.setFault(() => ({ kind: "disk_full" }));
+  await time.advance(1000);
+  expect(h.runtime.approvals.pending(h.thread)).toHaveLength(1);
+  const late = await h.runtime.approvals.respond(opened.request.approvalId, {
+    decision: "answer",
+    answer: { color: { selected: ["red"] } },
+  });
+  expect(late).toEqual({ applied: false, reason: "already_resolved" });
+  h.session.setFault(undefined);
+  await time.advance(5000);
+  expect(resolvedEvents(h).map((event) => event.resolvedBy)).toEqual(["expired"]);
 });

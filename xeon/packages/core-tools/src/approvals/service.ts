@@ -269,17 +269,33 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       arm(entry, undefined);
       return;
     }
-    entry.state = "settling";
-    const committed = await commitResolution(entry, expiredResolution(entry.request, deps.logger));
-    if (!committed.ok) {
-      entry.state = "pending";
-      deps.logger?.warn("tools.approval_expire_commit_failed", {
-        approvalId: entry.request.approvalId,
-      });
-      arm(entry, EXPIRE_RETRY_MS);
-      return;
+    let done = false;
+    try {
+      const committed = await commitSettling(entry, expiredResolution(entry.request, deps.logger));
+      done = committed.ok;
+    } finally {
+      // 커밋이 실패하거나 던져도 요청은 대기로 돌아와 있다. 잠시 뒤 다시 만료를 시도한다
+      if (!done && stateOf(entry) === "pending") {
+        deps.logger?.warn("tools.approval_expire_commit_failed", {
+          approvalId: entry.request.approvalId,
+        });
+        arm(entry, EXPIRE_RETRY_MS);
+      }
     }
-    deps.logger?.info("tools.approval_expired", { approvalId: entry.request.approvalId });
+    if (done) deps.logger?.info("tools.approval_expired", { approvalId: entry.request.approvalId });
+  }
+
+  /** 해결 커밋 동안 요청을 `settling`으로 두고, 해결되지 않은 채 끝나면(실패, 예외) 대기로 되돌린다 */
+  async function commitSettling(
+    entry: Entry,
+    resolution: ApprovalResolution,
+  ): Promise<Result<void, CommitFailure>> {
+    entry.state = "settling";
+    try {
+      return await commitResolution(entry, resolution);
+    } finally {
+      if (stateOf(entry) === "settling") entry.state = "pending";
+    }
   }
 
   function applyRemember(entry: Entry, resolution: ApprovalResolution): void {
@@ -614,9 +630,10 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     // 해결됐거나 다른 응답이 해결을 커밋하는 중이다. 맞지 않는 응답을 이 상태에서 검사하지 않는다: 고쳐 보내도 달라질 것이 없다
     if (entry.state !== "pending") return { applied: false, reason: "already_resolved" };
     // 만료 시각이 지났으면 타이머가 깨기 전이라도 만료가 먼저다
+    // 만료 커밋이 실패해 아직 대기여도 만료 시각 뒤의 응답은 받지 않는다(만료는 다시 시도한다)
     if (overdue(entry)) {
       await expire(entry);
-      if (stateOf(entry) !== "pending") return { applied: false, reason: "already_resolved" };
+      return { applied: false, reason: "already_resolved" };
     }
     const checked = validateResponse(entry.request, response);
     if (!checked.ok) {
@@ -630,7 +647,6 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
         detail: invalidDetail(checked.error).slice(0, DETAIL_MAX),
       };
     }
-    entry.state = "settling";
     const resolution: ApprovalResolution = {
       approvalId,
       decision: checked.value.decision,
@@ -639,9 +655,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       requestedRemember: checked.value.requestedRemember,
       resolvedBy: "user",
     };
-    const committed = await commitResolution(entry, resolution);
+    const committed = await commitSettling(entry, resolution);
     if (!committed.ok) {
-      entry.state = "pending";
       deps.logger?.warn("tools.approval_resolve_failed", { approvalId });
       return { applied: false, reason: "commit_failed" };
     }
@@ -654,12 +669,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   ): Promise<{ readonly applied: boolean }> {
     const entry = byId.get(approvalId);
     if (entry?.state !== "pending") return { applied: false };
-    entry.state = "settling";
-    const committed = await commitResolution(entry, cancelledResolution(entry.request));
-    if (!committed.ok) {
-      entry.state = "pending";
-      return { applied: false };
-    }
+    const committed = await commitSettling(entry, cancelledResolution(entry.request));
+    if (!committed.ok) return { applied: false };
     deps.logger?.info("tools.approval_cancelled", { approvalId, reason });
     return { applied: true };
   }
