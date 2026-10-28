@@ -84,7 +84,7 @@ xeon/apps/host/
     service/
       registration.ts      # ServiceRegistrationSchema, read/write/removeRegistration
       ensure.ts            # ensureService, 자기 실행 명령
-      lifetime.ts          # startService, decideIdle, 종료 협조, SERVICE_STARTUP_GRACE_MS
+      lifetime.ts          # startService(소켓 선점, 조립, 허브 연결, 등록 파일, L0 IdleMonitor 연결, 종료 협조), SERVICE_STARTUP_GRACE_MS
       auth.ts              # 소켓 디렉터리·파일 권한 설정과 검사
       schedule-tick.ts     # L2.schedule 틱 시작·정지, scheduler 실행권
       notify.ts            # 알림 라우팅(HS-42)
@@ -159,8 +159,8 @@ xeon/apps/host/
 | H19 | stdio 종료 절차: HS-31~HS-36, `stopAtSafeBoundary` 연결, 신호 처리 | H5, `L1.loop.plan` 안전 경계 정지 | M | M2 |
 | H15 | spike: `bun build --compile` 바이너리에서 (a) `process.execPath`·`Bun.main` 값, (b) `Bun.listen({ unix })` 서버와 `Bun.connect`, (c) stdin EOF 감지, (d) detached self-exec를 macOS arm64와 Linux x64에서 확인한다. 결과를 spec §3.2·§5와 `_research/notes/`에 남긴다 | H5 | S | M2(H19 전) |
 | H10 | 서비스 등록과 `ensure`: `registration.ts`(SV-01), `listenServiceSocket`과 활성화 잠금(SV-02), `ensureService`(SV-03), `connectServiceTransport`, `startService` 시작 순서(§4.9.1), detached 자기 실행(SV-06) | H15, H19, `L0.process.plan` detached spawn·활성화 잠금 | L | M3 |
-| H11 | 유휴 종료: `decideIdle`, 유휴 타이머, `host.status.idleShutdownAt`, 종료 협조(SV-04, SV-07), `service stop`의 SIGTERM → SIGKILL | H10 | M | M3 |
-| H12 | 인증: 소켓 디렉터리 0700·파일 0600 생성과 시작 시 검사(SV-05). 토큰 처리는 F wire §10 미결 4가 정해지면 더한다 | H10 | S | M3 |
+| H11 | 유휴 종료: L0 `createIdleMonitor`(M3b B1-SVC 구현됨, 시험 `test/int/service-idle.int.test.ts`), `host.status.idleShutdownAt`, 종료 협조(SV-04, SV-07), `service stop`의 SIGTERM → SIGKILL | H10 | M | M3 |
+| H12 | 인증: 소켓 디렉터리 0700·파일 0600 생성과 시작 시 검사(SV-05). TCP 토큰은 `host.hello`의 `auth.token`(M3b B1-SVC 구현됨, `test/int/service-lifecycle.int.test.ts`) | H10 | S | M3 |
 | H13 | 예약 틱: 서비스 시작·종료에 틱 연결, `scheduler` 실행권, in-process·stdio에서 `l0.process.service.enabled=false`일 때만 틱(HS-39~HS-41) | H11, `L2.schedule.plan` 틱 API | S | M3 |
 | H14 | 알림: 연결 유무에 따른 라우팅(HS-42), `UserNotifyPort` 어댑터 | H13, `L0.os.plan` 알림 | S | M3 |
 | H21 | 상태 디렉터리 API `resolveHostStatePaths`(spec §3.3.6): `OsDirs.state` 아래 `cli/state.json`, 0700 디렉터리 생성, 오류 값 `HostStatePathError`, 테스트 덮어쓰기 인자. CLI `connectEngine`이 이 값으로 `paths.cliStateFile`을 채우고 `XEON_CLI_STATE_FILE`은 덮어쓰기로만 쓴다(review.decisions-2 B-07) | H2 | S | M1 |
@@ -213,7 +213,7 @@ spec SV-01~SV-08에 대응한다. [제안] 항목마다 테스트를 하나 이�
 | SV-01 | `registration-unknown-field-preserved` | unit | 같음 | `{..., futureField: 1}`이 있는 파일에 다시 쓰면 `futureField`가 남고, `readRegistration`이 `ok`를 돌려준다 |
 | SV-02 | `bind-race-loser-connects` | int | `test/int/bind-race.int.test.ts` | `service run` 자식 두 개를 동시에 띄우면 하나만 등록 파일을 쓰고 다른 하나는 종료코드 0이다. 이어서 부른 `ensureService`가 `connected`이고 hello가 성공한다. 낡은 소켓 파일을 미리 둔 경우도 같다 |
 | SV-03 | `version-mismatch-idle-restart` | int | `test/int/version-mismatch.int.test.ts` | 등록 버전이 다른 한가한 서비스에 `ensureService`를 부르면 `restarted`이고 새 등록 파일의 pid가 다르다. live turn이 있는 서비스면 `versionWarning`이고 pid가 그대로다 |
-| SV-04 | `idle-exit-requires-no-conn-no-task-no-schedule` | unit | `test/service/lifetime.test.ts` | `decideIdle`이 연결 1, `liveTasks` 1, `pendingSchedules` 1, 시작 유예 안 각각에서 `idle: false`와 맞는 `reason`을 돌려주고, 모두 0이며 유예가 지나면 `idle: true`다 |
+| SV-04 | `idle-exit-requires-no-conn-no-task-no-schedule` | unit | `test/service/lifetime.test.ts` | 판정은 L0 `createIdleMonitor`가 한다(`platform-process/test/service-idle.test.ts`). 이 파일의 시험은 `int/service-idle.int.test.ts`: 승인 대기 세션이 있으면 종료하지 않고, 연결 0·live 0·대기 예약 0이면 유예 뒤 종료한다 |
 | SV-04 | `approval-waiting-counts-live` | unit | 같음 | `waitingApprovals: 1`, 나머지 0이면 `countApprovalAsLive: true`에서 `{ idle: false, reason: "approvals" }`, `false`에서 `idle: true`다 |
 | SV-05 | `socket-perm-owner-only` | int | `test/int/socket-auth.int.test.ts` | 서비스 시작 뒤 소켓 디렉터리 모드 0700, 소켓 파일 0600이다. 디렉터리 권한이 넓으면 시작이 거부된다 |
 | SV-06 | `stdio-eof-checkpoint-exit` | int | `test/int/stdio-eof.int.test.ts` | 모델 테이프로 turn을 진행 중인 `host --stdio` 자식의 stdin을 닫으면 체크포인트 이벤트가 커밋되고 종료코드 0으로 끝난다. 다시 열면 복구 표식이 없다 |

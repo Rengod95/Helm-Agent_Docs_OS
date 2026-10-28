@@ -85,8 +85,10 @@ import {
 } from "./assembly/default-plugins.ts";
 import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
+import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
-import { createSettingsEngine } from "./assembly/settings-engine.ts";
+import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-engine.ts";
+import type { SettingCatalog } from "@xeon/contracts/settings";
 import {
   execOptionsOf,
   logLevelOf,
@@ -142,6 +144,12 @@ export class AssembleError extends Error {
     super(`assemble failed: ${issues.map(describeIssue).join("; ")}`, options);
     this.issues = issues;
   }
+}
+
+/** `x.operations.safeMode.default`가 켜져 있는가. 카탈로그에 없으면 꺼진 것이다 */
+function safeModeSettingOn(catalog: SettingCatalog, settings: SettingsEngine): boolean {
+  const key = "x.operations.safeMode.default";
+  return catalog.has(key) && settings.value(key) === true;
 }
 
 function describeIssue(issue: AssembleIssue): string {
@@ -433,6 +441,17 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     late.logger = logger;
     await settings.loadUserFile(join(os.dirs.config, "settings.json"));
     for (const line of settings.diagnostics) logger.warn(line);
+    // 안전 모드(X.operations.spec §4.6.1): 시작 옵션(`options.safeMode`, CLI `--safe-mode`)이나 설정 `x.operations.safeMode.default`(관리·사용자 범위)가 켠다.
+    // 옵션이 `false`를 명시하면 설정보다 앞서 끈다
+    const safeModeSource: "flag" | "setting" | undefined =
+      options.safeMode === true
+        ? "flag"
+        : options.safeMode === false
+          ? undefined
+          : safeModeSettingOn(built.catalog, settings)
+            ? "setting"
+            : undefined;
+    const safeMode = safeModeSource !== undefined;
     const reportSetting = (message: string): void => {
       logger.warn("settings.invalid", { message });
     };
@@ -600,7 +619,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         ext,
         learning,
         ...(options.defaultGroups === undefined ? {} : { defaultGroups: options.defaultGroups }),
-        ...(options.safeMode === undefined ? {} : { safeMode: options.safeMode }),
+        safeMode,
         groups: {
           catalog: built.catalog,
           store: () => portsHandle?.ports.settings,
@@ -656,10 +675,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           return typeof value === "boolean" ? value : undefined;
         },
         cwd: process.cwd(),
+        projects: options.mode === "service" ? "on_demand" : "cwd",
         signal: lifetime.signal,
-        ...(options.safeMode === true
-          ? { startup: { safeMode: { active: true, source: "flag" as const }, disabled: [] } }
-          : {}),
+        ...(safeModeSource === undefined
+          ? {}
+          : { startup: { safeMode: { active: true, source: safeModeSource }, disabled: [] } }),
       });
       external.loader = loaded.loader;
       externalGroups.push(...loaded.manifests);
@@ -669,7 +689,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 4. 서비스 확인: 포트가 요구하는 서비스가 모두 올라왔는지 본다
     const session = requirePort(ext, SESSION_KEY, "xeon.session");
     const storeService = requirePort(ext, STORE_KEY, "xeon.store");
-    if (learningLoaded({ defaultGroups: options.defaultGroups, safeMode: options.safeMode })) {
+    if (learningLoaded({ defaultGroups: options.defaultGroups, safeMode })) {
       const failed = registerLearningProjection({
         session,
         store: storeService,
@@ -737,12 +757,23 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }),
       configDir: os.dirs.config,
       trust: projectTrust,
+      projectExtensions: createProjectExtensions({
+        mode: options.mode,
+        loader: () => external.loader,
+        trust: projectTrust,
+        logger: os.logger("project-ext"),
+      }),
+      workspaceOf,
+      ...(options.pendingSchedules === undefined
+        ? {}
+        : { pendingSchedules: options.pendingSchedules }),
       signal: lifetime.signal,
     });
     const engine: Engine = {
       mode: options.mode,
       storeId: storeId.value,
       catalog: built.catalog,
+      safeMode,
       startedAt,
       ports: portsHandle.ports,
       shutdown: shutdownCoordinator,

@@ -27,8 +27,19 @@ export interface HostLimits {
   readonly sendQueueMaxBytes?: number;
 }
 
+/**
+ * 연결의 접속 인증(L0.process.spec §4.4.5, M3-REQ-43). TCP 연결만 토큰이 필요하다. `host.hello`의 `auth.token`을 `verify`로 검사하고,
+ * 없거나 틀리면 `host.authFailed`로 응답한 뒤 연결을 닫는다. Unix 소켓·stdio·in-process는 이 필드를 두지 않는다
+ */
+export interface ServeAuth {
+  readonly requiresToken: boolean;
+  verify(presented: unknown): boolean;
+}
+
 export interface ServeOptions {
   readonly limits: HostLimits;
+  /** 없으면 인증하지 않는다 */
+  readonly auth?: ServeAuth;
   /** 결과 스키마 검사(F wire §4.3 7단계). in-process JSON 왕복은 전송 쪽이 한다 */
   readonly devChecks: boolean;
 }
@@ -85,6 +96,8 @@ export interface ConnectionState {
   /** 이 연결이 관찰로 연 thread. 다른 프로세스가 쥔 thread의 커밋을 폴링으로 받는다(HS-16) */
   readonly observedThreads: Set<ThreadId>;
   readonly limits: HostLimits;
+  /** 접속 인증이 필요한 연결(TCP)이면 그 규칙 */
+  readonly auth: ServeAuth | undefined;
   readonly sender: SendQueue;
   /** 응답이 송신 큐에 들어간 직후 실행한다. 처리기가 오류를 던지면 실행하지 않는다 */
   afterResponse(rpcId: RpcId, fn: () => void): void;

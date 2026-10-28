@@ -21,6 +21,8 @@ import { isNotImplemented } from "./not-implemented.ts";
 /** 호스트 프로세스의 수명 신호. `host.shutdown`이 협조 종료를 마치고 응답이 나간 뒤 부른다(HS-31) */
 export interface HostLifecycle {
   stopRequested(reason: "shutdown_request" | "version_replace"): void;
+  /** 유휴 종료 예정 시각(epoch ms). 서비스 모드만 있고 타이머가 없으면 null. host.status.idleShutdownAt의 원천 */
+  idleShutdownAt?(): number | null;
 }
 
 export interface HostInfo {
@@ -73,6 +75,16 @@ export function createHostHelloHandler(
     const state = hub().state(context.connectionId);
     if (state === undefined) return Promise.reject(wireError("request.cancelled"));
     if (state.phase !== "awaitingHello") return Promise.reject(wireError("host.helloDuplicate"));
+    // 접속 인증(TCP, M3-REQ-43)은 버전 검사보다 먼저다. 토큰 값은 오류에 싣지 않고 사유만 싣는다
+    if (state.auth?.requiresToken === true) {
+      const presented = params.auth?.token;
+      if (presented === undefined) {
+        return Promise.reject(wireError("host.authFailed", { details: { reason: "missing" } }));
+      }
+      if (!state.auth.verify(presented)) {
+        return Promise.reject(wireError("host.authFailed", { details: { reason: "invalid" } }));
+      }
+    }
     if (!isCompatible(params.protocolVersion, WIRE_PROTOCOL_VERSION)) {
       // HS-02: 연결은 awaitingHello에 남긴다. 닫기는 클라이언트가 한다
       return Promise.reject(
@@ -135,15 +147,19 @@ export function createHostStatusHandler(
   engine: Engine,
   hub: () => ConnectionHub,
   info: HostInfo,
+  lifecycle?: HostLifecycle,
 ): WireHandler<"host.status"> {
   return async (params, context) => {
+    const idleAt = lifecycle?.idleShutdownAt?.() ?? null;
     const status = {
       mode: engine.mode,
       pid: info.pid,
       startedAt: new Date(engine.startedAt).toISOString(),
       connections: hub().size,
       liveTurns: engine.ports.activity.snapshot().liveTurns,
-      idleShutdownAt: null,
+      idleShutdownAt: idleAt === null ? null : new Date(idleAt).toISOString(),
+      // 안전 모드일 때만 싣는다(F wire host.status). 켜지 않았으면 필드를 두지 않는다
+      ...(engine.safeMode ? { safeMode: true } : {}),
     };
     if (params.includeBinaries !== true) return status;
     const diagnosed = await engine.diagnose(context.signal);

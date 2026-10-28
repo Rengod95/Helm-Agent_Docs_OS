@@ -101,6 +101,11 @@ export interface AssembleOptions {
    */
   readonly safeMode?: boolean;
   /**
+   * 대기 예약 수의 출처(유휴 종료 판정, `ActivitySnapshot.pendingSchedules`). 예약 능력(cap-schedule)이 조립에 들어오면 조립 루트가 채운다.
+   * 생략하면 항상 0이다 [결정: 오케스트레이터 기본값, M3b B1-SVC]. 시험이 값을 넣어 유휴 판정을 확인한다
+   */
+  readonly pendingSchedules?: PendingSchedulesPort;
+  /**
    * 기본 플러그인 번들 뿌리(`<뿌리>/<이름>/.xeon-plugin/plugin.json`). 생략하면 실행 파일 옆 `default-plugins/`다.
    * 개발 실행과 시험이 번들 위치를 바꿀 때 쓴다
    */
@@ -149,8 +154,16 @@ export interface EngineDiagnostics {
   readonly binaries: Result<BinaryCheckReport, { readonly kind: "cancelled" }>;
 }
 
+/** 대기 예약 수. 값이 바뀌면 `onChange`로 알린다(유휴 종료 판정이 다시 계산한다) */
+export interface PendingSchedulesPort {
+  count(): number;
+  onChange(listener: () => void): Unsubscribe;
+}
+
 export interface Engine {
   readonly mode: HostMode;
+  /** 안전 모드로 열렸는가(`AssembleOptions.safeMode`). host.status.safeMode의 원천 */
+  readonly safeMode: boolean;
   readonly storeId: StoreId;
   readonly catalog: SettingCatalog;
   /** ms. host.status.startedAt의 원천 */

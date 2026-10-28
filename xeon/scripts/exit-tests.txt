@@ -24,7 +24,7 @@ X3 scripts core-diff-check.test.ts
 # The owning track removes the leading "# " when its test file exists and replaces <파일> with the real path.
 # An uncommented line with an unfilled <파일> fails as missing, so an unfinished condition cannot pass by accident.
 # Track B1-SVC
-# X4 apps/host test/int/service-idle.int.test.ts
+X4 apps/host test/int/service-idle.int.test.ts test/int/service-lifecycle.int.test.ts
 # Track B2-RMT
 # X5 apps/host test/int/service-transport.int.test.ts
 # Track B1-NTF

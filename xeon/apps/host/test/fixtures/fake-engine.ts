@@ -356,6 +356,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     mode: options.mode ?? "in-process",
     storeId,
     catalog: built.catalog,
+    safeMode: false,
     startedAt: RECORDED_AT,
     ports,
     shutdown,

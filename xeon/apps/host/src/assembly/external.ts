@@ -36,6 +36,8 @@ export interface ExternalLoadingDeps {
   /** `ext.<name>.enabled` 유효 값. 값이 없으면 undefined */
   readonly enabled: (name: string) => boolean | undefined;
   readonly cwd: string;
+  /** 서비스 모드는 "on_demand": 시작 때 프로젝트를 싣지 않고 작업 폴더를 여는 때 `loadProject`가 싣는다 */
+  readonly projects?: "cwd" | "on_demand";
   readonly signal: AbortSignal;
   readonly startup?: StartupOptions;
 }
@@ -50,7 +52,7 @@ export interface ExternalLoading {
   }[];
 }
 
-/** 사용자 위치의 외부 확장을 싣는다. 프로젝트 확장은 싣지 않는다(프로젝트 신뢰를 거부로 고정, 프로젝트 확장 적재는 M3 이후) */
+/** 사용자 위치의 외부 확장을 싣는다. 프로젝트 확장은 cwd의 프로젝트만 판정해 싣고, 서비스 모드는 작업 폴더를 여는 때 싣는다(project-extensions.ts) */
 export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise<ExternalLoading> {
   const loader = createExtensionLoader({
     host: deps.ext,
@@ -67,6 +69,7 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
     cwd: deps.cwd,
     mode: "headless",
     trustOverride: false,
+    ...(deps.projects === undefined ? {} : { projects: deps.projects }),
     signal: deps.signal,
     ...(deps.startup === undefined ? {} : { startup: deps.startup }),
   });

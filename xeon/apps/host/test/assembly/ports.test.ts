@@ -321,6 +321,8 @@ function harness(): Harness {
         isTrusted: () => Promise.resolve(false),
         explicitVerdict: () => Promise.resolve("none"),
       },
+      projectExtensions: { ensure: () => Promise.resolve() },
+      workspaceOf: () => undefined,
     },
   });
 }

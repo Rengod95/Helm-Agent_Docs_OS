@@ -475,11 +475,11 @@ export declare function startStdioHost(options: StdioHostOptions): Promise<HostE
 
 export type HostCommand =
   | { readonly kind: "host-stdio" }
-  | { readonly kind: "service-run" }
-  | { readonly kind: "service-start" }
+  | { readonly kind: "service-run"; readonly safeMode: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // `xeon service run`, `xeon host --service [--safe-mode] [--listen-tcp <host>:<port>]`
+  | { readonly kind: "service-start"; readonly start?: ServiceCommand; readonly safeMode?: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // safeMode·tcp는 새로 띄울 때 `service run`의 인자가 된다
   | { readonly kind: "service-status"; readonly json: boolean }
   | { readonly kind: "service-stop" }
-  | { readonly kind: "service-ensure" }
+  | { readonly kind: "service-ensure"; readonly start?: ServiceCommand; readonly safeMode?: boolean }
   | { readonly kind: "service-launch-mode" }
   | { readonly kind: "config-schema"; readonly scope: "managed" | "user" | "project" | "local"; readonly out?: string; readonly coreOnly: boolean };
 
@@ -493,39 +493,55 @@ export declare function runHostCommand(command: HostCommand, io: CommandIo): Pro
 ```
 
 ```ts
-// src/service/lifetime.ts
-export interface ServiceOptions {
-  readonly assemble?: Omit<AssembleOptions, "mode">;
-  readonly registrationPath?: string;            // 없으면 L0.os 상태 디렉터리의 service.json
-  readonly socketPath?: string;                  // 없으면 L0.os 런타임 디렉터리의 xeon.sock
-  readonly startupGraceMs?: number;              // 기본 SERVICE_STARTUP_GRACE_MS
-}
+// src/service/lifetime.ts (구현됨, M3b B1-SVC)
 export declare const SERVICE_STARTUP_GRACE_MS: 10_000;
 
+export interface ServiceOptions {
+  readonly assemble?: Omit<AssembleOptions, "mode">;   // safeMode, pendingSchedules 등
+  readonly runtimeDir?: string;                  // 서비스 파일 디렉터리. 없으면 L0.os의 dirs.runtime
+  readonly startupGraceMs?: number;              // 기본 SERVICE_STARTUP_GRACE_MS
+  readonly idleGraceMs?: number;                 // 기본 설정 l0.process.service.idleGraceMs(60000)
+  readonly tcp?: { readonly host: string; readonly port: number };   // TCP로도 연다. 토큰 필수(SV-05)
+  readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };   // 유휴 타이머용. 시험이 수동 시간을 넘긴다
+  readonly handleSignals?: boolean;              // SIGTERM·SIGINT 처리. 기본 true
+  readonly random?: (bytes: number) => Uint8Array;   // 토큰용
+}
+
 export interface ServiceHandle {
-  readonly registration: ServiceRegistration;
+  readonly registration: ServiceRegistration;    // 지금 등록 파일 내용(토큰을 돌리면 새 토큰)
+  readonly tcpAddress: string | undefined;
   readonly exited: Promise<HostExit>;
+  idleShutdownAt(): number | null;
+  connections(): number;
   shutdown(reason: "signal" | "idle" | "stop"): Promise<void>;
+  rotateToken(): string;                         // 새 토큰, 등록 파일 다시 쓰기. 이전 토큰은 새 연결에 즉시 무효
 }
 export type ServiceStart =
   | { readonly started: true; readonly handle: ServiceHandle }
-  | { readonly started: false; readonly existing: ServiceRegistration };   // 소켓 선점에 진 경우(SV-02)
+  | { readonly started: false; readonly reason: "in_use"; readonly existing: ServiceRegistration | null }   // 소켓 선점에 진 경우(SV-02)
+  | { readonly started: false; readonly reason: "failed"; readonly message: string };                       // 경로·소켓·조립 실패
 
 export declare function startService(options?: ServiceOptions): Promise<ServiceStart>;
 ```
 
 ```ts
-// src/service/ensure.ts
-export interface EnsureOptions {
-  readonly registrationPath?: string;
-  readonly ownVersion: string;
-  readonly spawnTimeoutMs?: number;              // 기본 5,000
+// src/service/ensure.ts, control.ts, commands.ts, launch-mode.ts (구현됨)
+export interface ServiceCommand { readonly command: string; readonly args: readonly string[] }   // 서비스를 띄우는 전체 명령(`... service run`)
+export interface EnsureHostServiceOptions {
+  readonly runtimeDir?: string;
+  readonly start: ServiceCommand;
+  readonly startTimeoutMs?: number;              // 기본 10000
+  readonly retryMs?: number;                     // 기본 200
+  readonly ownVersion?: string;                  // 기본 엔진 버전
 }
-export type EnsureResult =
-  | { readonly ok: true; readonly registration: ServiceRegistration; readonly action: "connected" | "spawned" | "restarted" | "versionWarning" }
-  | { readonly ok: false; readonly reason: "spawnTimeout" | "protocolUnsupported" | "registrationInvalid" };
-
-export declare function ensureService(options: EnsureOptions): Promise<EnsureResult>;
+export interface EnsuredService { readonly outcome: EnsureOutcome; readonly paths: ServicePaths }
+/** L0.process의 ensureService를 host.hello·host.status·host.shutdown과 detached 기동으로 채운다. 접속은 돌려주지 않는다(registration.socket으로 새로 접속) */
+export declare function ensureHostService(options: EnsureHostServiceOptions): Promise<Result<EnsuredService, EnsureHostServiceError>>;
+export declare function serviceStatus(options?: ServiceControlOptions): Promise<Result<ServiceStatusResult, ServicePathError>>;
+export declare function stopHostService(options?: ServiceControlOptions): Promise<Result<ServiceStopResult, ServicePathError>>;
+export declare function connectServiceTransport(endpoint: ServiceEndpoint): Promise<Result<Transport, SocketError>>;
+export declare function defaultServiceCommand(extra?: { readonly safeMode?: boolean; readonly tcp?: { readonly host: string; readonly port: number } }): ServiceCommand;   // 이 실행 파일을 `service run [--safe-mode] [--listen-tcp h:p]`로. 소스 실행(bun 진입 파일)과 컴파일 바이너리를 가른다
+export declare function resolveLaunchMode(): Promise<"in-process" | "service">;   // 사용자 설정 파일의 l0.process.service.enabled. 관리 범위 파일은 읽지 않는다 [미결]
 ```
 
 ```ts
@@ -617,7 +633,7 @@ M1:
 
 | 메서드 | 처리 | 서비스 | 오류 |
 |---|---|---|---|
-| `host.hello` | `isCompatible(params.protocolVersion, WIRE_PROTOCOL_VERSION)` 검사, opt-in 실험 기능 기록, 연결을 ready로 바꾼다. 결과의 `features`는 구현한 메서드·알림의 `WIRE_METHODS` 항목(status, since)이다 | 엔진 `storeId`, 연결 허브 | 1002 `host.helloDuplicate`, 1003 `protocol.unsupported` |
+| `host.hello` | 접속 인증, `isCompatible(params.protocolVersion, WIRE_PROTOCOL_VERSION)` 검사, opt-in 실험 기능 기록, 연결을 ready로 바꾼다. 인증은 연결이 `ServeOptions.auth.requiresToken`(TCP 연결)일 때만 하고 `params.auth.token`을 상수 시간으로 비교한다. 결과의 `features`는 구현한 메서드·알림의 `WIRE_METHODS` 항목(status, since)이다 | 엔진 `storeId`, 연결 허브 | 1002 `host.helloDuplicate`, 1003 `protocol.unsupported`, 1004 `host.authFailed`(`details.reason`은 `missing`·`invalid`, 응답이 나간 뒤 연결을 닫는다) |
 | `thread.create` | thread를 만들고 쓰기 소유를 함께 얻는다(F wire §3.3.1 제안: M1에서는 create가 소유를 얻는다). `workspace`는 절대 경로이고 있는 폴더여야 하며 정규 경로로 저장한다(HS-76). 아니면 -32602(`path: "workspace"`) | `ThreadPort.create`(L1.persistence), `SessionLockPort.tryAcquire`(L0.process) | 3002 `thread.locked`(새 thread라 정상 경로에서는 없다. 잠금 서비스 실패 시) |
 | `turn.start` | 쓰기 소유를 확인하고 없으면 암묵 획득(HS-28)한 뒤 입력을 제출한다. `requestId`가 같으면 처음 `turnId` | `SessionLockPort.holds`·`tryAcquire`, `TurnPort.submit`(L1.tasks) | 3001 `thread.notFound`, 3002 `thread.locked`, 3003 `turn.busy` |
 | `events.subscribe` | §4.4 재전송 알고리즘 | `EventFeedPort`(L1.persistence, L0.store) | 2001 `replay.outOfRange`, 2003 `events.subscriptionLimit`, 2004 `events.filterInvalid` |
@@ -650,7 +666,7 @@ M2:
 | `settings.set` | `checkSettingWrite(catalog, layers, key, scope, value)` 통과 뒤 §4.14의 범위별 저장, 결과는 `resolveSetting`. `session`·`project`·`local` 범위는 `threadId`가 필요하고 `project`·`local`은 그 thread의 workspace가 신뢰되어 있어야 한다. 없으면 3103에 `details.reason` `workspaceRequired`·`untrustedProject`, `managed`는 `managedReadOnly`. 모델 참조 키는 카탈로그에 없는 모델이면 3102(HS-78). 사용자 범위 `l1.models.providers` 쓰기 뒤에는 연결된 비밀에 모델 provider 사용 하나를 허용한다(HS-45) | `SettingsStorePort.write`, `SecretsPort.linkModelProviders` | 3001, 3002, 3101, 3102, 3103, 3104, 3105 |
 | `settings.reset` | 키·범위·잠금 검사 뒤 그 범위 값을 지운다(`checkSettingWrite`의 값 검사는 건너뛴다). 저장은 `settings.set`과 같다 | `SettingsStorePort.reset` | 3001, 3002, 3101, 3103, 3104 |
 | `settings.list` | 카탈로그를 `SettingDefWire`(`toSettingDefWire`)로 바꿔 키 순으로 돌려준다. `prefix`로 거르고 폐기된 키는 `includeDeprecated`일 때, 읽는 코드가 없는 `stage: "reserved"` 키는 `includeReserved`일 때만 싣는다(HS-71). `type`은 `toJsonSchema(def.type)`이고 `range`는 따로 싣는다 | 카탈로그 | - |
-| `host.status` | 모드, pid, 시작 시각(ISO), 연결 수, `liveTurns`, 유휴 종료 예정 시각(서비스만, 아니면 `null`). `includeBinaries: true`면 `Engine.diagnose`의 `binaries`를 `HostBinaryReport`로 옮겨 `binaries`에 싣는다(HS-69). 생략하거나 거짓이면 점검하지 않는다 | 연결 허브, `ActivityPort`, 수명 관리, `Engine.diagnose` | `request.cancelled`(점검이 중단된 경우) |
+| `host.status` | 모드, pid, 시작 시각(ISO), 연결 수, `liveTurns`, 유휴 종료 예정 시각(서비스만, 아니면 `null`), 안전 모드로 열렸으면 `safeMode: true`(아니면 필드 없음). `includeBinaries: true`면 `Engine.diagnose`의 `binaries`를 `HostBinaryReport`로 옮겨 `binaries`에 싣는다(HS-69). 생략하거나 거짓이면 점검하지 않는다 | 연결 허브, `ActivityPort`, 수명 관리, `Engine.diagnose` | `request.cancelled`(점검이 중단된 경우) |
 | `secret.list` | 관리 서비스 목록을 값 없는 `SecretListEntry`로 바꾼다. `meta: true`일 때만 메타를 싣고, `usage: true`면 마지막 사용 시각을 감사 파일에서 채운다 | `SecretsPort.admin.ls`(L0.secrets) | - |
 | `secret.meta` | 준 필드만 메타에 적용하고 바뀐 항목을 상태와 함께 돌려준다 | `SecretsPort.admin.meta`, `ls` | -32602(메타 검사 실패), §4.12의 비밀 오류 |
 | `secret.remove` | 확인을 거친 삭제로 본다. 이미 없는 이름은 `removed: false`다 | `SecretsPort.admin.rm` | §4.12의 비밀 오류(활성 lease가 있으면 `in_use`) |
@@ -678,6 +694,8 @@ M2 마감(m2c, 항목 ID는 `review.milestone-audit`):
 ### 3.5 서비스 등록 파일
 
 [결정: ADR-0006 §3.4] 등록 파일은 권한 0600이고 소켓 주소, pid, 버전, 시작 시각 지문, 무작위 토큰을 담는다. 스키마에 없는 필드를 보존한다.
+
+[결정: 오케스트레이터 기본값, §10 7번] 스키마와 읽기·쓰기는 `L0.process.spec` §3.2(`ServiceRegistration`, `createRegistrationStore`)가 정본이다. 아래 블록은 초안이고 어긋나면 L0 쪽이 맞다: `startedAt`은 epoch ms 정수, `schemaVersion`·`protocolVersion`·`storeId`가 더 있고, 읽기·쓰기는 동기 `Result`이며 `readRegistration` 등 이름은 `RegistrationStore` 메서드다. 서비스는 TCP로 열면 `tcp: "host:port"` 필드를 더한다(모르는 필드로 보존된다).
 
 ```ts
 // src/service/registration.ts
@@ -748,12 +766,12 @@ export declare function resolveLaunchMode(options?: { readonly dataDir?: string 
 
 1. 경로: `dataDir`가 없으면 L0.os에서 기본 데이터 디렉터리를 받는다.
 2. 루트 컨텍스트: ext-host가 제공하는 루트 생성 API로 Cordis 루트 컨텍스트를 만든다. `apps/host`는 Cordis를 직접 import하지 않는다(DR-11). L4는 Cordis 서비스를 제공하지 않는다(`architecture.layers.spec` §4.4).
-3. 플러그인 등록: 기본 플러그인을 의존 순서로 싣고(§4.15), 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`거나 `safeMode`가 참이면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다. `defaultGroups`가 `false`가 아니면 기본 플러그인(Helm)을 사용자 확장 위치(`<config>/extensions/helm/`)에 설치하고(`installDefaultPlugin`, 번들 버전 비교, 호스트 상태의 표지 `<state>/default-plugins.json`) 외부 로더가 `user` 등급으로 싣는다. 사용자가 설치본을 지우면 표지가 있어 다시 설치하지 않는다. 설치본이 낸 서브에이전트 정의(`agents/*.md`)는 엔진 조립에 필요해 단위 목록보다 먼저 읽어 `agentDefinitions`에 더한다. 확장이 `registerCommand`로 올린 명령(`/helm`)은 명령 서비스(`command.list`·`command.run`)에 이어 준다. 호출 id는 명령 입력의 `requestId`를 `invocationId`로 넘긴다(재시도에도 같은 값). 번들이 외부 import로 남기는 SDK 모듈 가운데 `@xeon/group-kit`만 호스트가 가상 모듈로 넘긴다(나머지는 X가 등록한다). 프로젝트 확장은 싣지 않는다(프로젝트 신뢰를 거부로 고정). 그룹의 켜기·끄기는 `ext.helm.enabled`(`reservedExtensionSettings`로 카탈로그에 실린다)와 `l3.learning.*`이 정하고, Helm 동작 설정은 `ext.helm.*`이다(외부 그룹은 X의 `settingValue`로 자기 키를 읽는다). 신뢰 판정은 X(`X.loading-trust.spec`)가 한다.
+3. 플러그인 등록: 기본 플러그인을 의존 순서로 싣고(§4.15), 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`거나 안전 모드이면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다. 안전 모드는 `AssembleOptions.safeMode`(CLI `--safe-mode`)가 참이거나, 옵션이 없고 사용자 설정 `x.operations.safeMode.default`가 참일 때다(옵션이 `false`를 명시하면 설정보다 앞서 끈다). `Engine.safeMode`와 `host.status.safeMode`가 이 값을 알린다. `defaultGroups`가 `false`가 아니면 기본 플러그인(Helm)을 사용자 확장 위치(`<config>/extensions/helm/`)에 설치하고(`installDefaultPlugin`, 번들 버전 비교, 호스트 상태의 표지 `<state>/default-plugins.json`) 외부 로더가 `user` 등급으로 싣는다. 사용자가 설치본을 지우면 표지가 있어 다시 설치하지 않는다. 설치본이 낸 서브에이전트 정의(`agents/*.md`)는 엔진 조립에 필요해 단위 목록보다 먼저 읽어 `agentDefinitions`에 더한다. 확장이 `registerCommand`로 올린 명령(`/helm`)은 명령 서비스(`command.list`·`command.run`)에 이어 준다. 호출 id는 명령 입력의 `requestId`를 `invocationId`로 넘긴다(재시도에도 같은 값). 번들이 외부 import로 남기는 SDK 모듈 가운데 `@xeon/group-kit`만 호스트가 가상 모듈로 넘긴다(나머지는 X가 등록한다). 프로젝트 확장은 모드에 따라 다르다: in-process·stdio는 시작 때 `loadAll`이 `cwd`의 프로젝트를 판정해 싣고, 서비스 모드는 시작 때 싣지 않고(`projects: "on_demand"`) 작업 폴더를 여는 때 싣는다(§4.9.4, M3-REQ-38). 그룹의 켜기·끄기는 `ext.helm.enabled`(`reservedExtensionSettings`로 카탈로그에 실린다)와 `l3.learning.*`이 정하고, Helm 동작 설정은 `ext.helm.*`이다(외부 그룹은 X의 `settingValue`로 자기 키를 읽는다). 신뢰 판정은 X(`X.loading-trust.spec`)가 한다.
 4. 서비스 확인: 포트가 요구하는 서비스(§3.3.2)가 모두 주입됐는지 확인한다. 없으면 `missingService`.
 5. 카탈로그: 모든 패키지의 설정 그룹과 확장 매니페스트에서 나온 정의를 `buildCatalog`에 넣는다. 결과가 `{ ok: false }`이면 기동을 거부한다(`catalog`). 단, F wire §5 규칙대로 확장 키 문제(`foreignNamespace`, 확장 사이 `duplicateKey`)는 X 로더가 그 확장의 설정을 빼고 다시 조립하므로 여기까지 오는 문제는 코어 키 문제다 [가정: 재조립 절차는 `X.loading-trust.spec`이 정한다].
 6. 설정 범위: `SettingsStorePort.layers(undefined)`로 파일 범위를 읽는다. 값 검사 실패는 진단으로 남기고 시작을 막지 않는다(F wire §4.8).
 7. 열 때 복구: L1.persistence가 표식(`running_since`, `resume_attempts`)을 확인하고 결과 불명 도구 호출을 정리한다(`architecture.runtime-flow.design` §4.4). 실행은 시작하지 않는다(ADR-0006 §3.1, durable `Harness.open`과 같다).
-8. 자동 재개: `mode === "service"`이고 `l1.persistence.autoResume`이 `true`일 때만 표식이 남은 thread를 재개한다. 키와 재개 횟수 상한(`l1.persistence.maxResumeAttempts`)은 L1.persistence가 소유한다(`L1.persistence.spec` §6).
+8. 자동 재개: `mode === "service"`이고 `l1.persistence.autoResume`이 `true`일 때만 표식이 남은 thread를 재개한다. 구현은 `startService`가 연결을 받기 시작한 뒤 백그라운드로 한다(`service/auto-resume.ts`): 표식이 남은 thread마다 서비스가 쓰기 소유를 얻고(`tryAcquire`, 다른 프로세스가 쥔 thread는 건너뛴다) `turn.resume`과 같은 `TurnPort.resume`을 부른다. 키와 재개 횟수 상한(`l1.persistence.maxResumeAttempts`)은 L1.persistence가 소유한다(`L1.persistence.spec` §6).
 
 `Engine.close()`는 역순으로 닫는다: 예약 틱 정지, 플러그인 dispose, 저장소 닫기. task 결과를 쓰지 않는다.
 
@@ -889,7 +907,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 - SV-02 기동 경합 [결정: ADR-0006 §3.7 2번]
   - 고정 소켓 경로 바인드가 판정 지점이다. `listenServiceSocket(path)`의 절차:
     1. 경로에 접속을 시도한다. 접속되고 `host.hello`에 응답하면 `inUse`를 돌려준다.
-    2. 접속이 거부되면(파일은 있으나 듣는 프로세스 없음) 낡은 소켓 파일이다. 낡은 파일 삭제와 바인드는 활성화 잠금을 쥔 동안에만 한다. 활성화 잠금은 `SessionLockPort`와 같은 L0.process 잠금 수단을 키 `service-activation`으로 쓴다 [제안]. 잠금을 못 얻은 쪽은 `inUse`로 본다.
+    2. 접속이 거부되면(파일은 있으나 듣는 프로세스 없음) 낡은 소켓 파일이다. 낡은 파일 삭제와 바인드는 활성화 잠금을 쥔 동안에만 한다. 활성화 잠금은 L0.os의 `fileLock.withLock`(`<runtimeDir>/service.activation`, 기다리지 않음)을 `ActivationLock`으로 감싸 L0.process의 `bindServiceSocket`에 넘긴다 [결정: 오케스트레이터 기본값]. 잠금을 못 얻은 쪽은 `inUse`로 본다.
     3. 바인드한다. `EADDRINUSE`이면 `inUse`.
   - `inUse`를 받은 `startService`는 `{ started: false, existing }`을 돌려주고, `service run`은 종료코드 0으로 끝난다. 그 프로세스를 띄운 `ensure`는 기존 서비스에 접속한다.
   - 두 프로세스가 같은 DB에 대해 서비스 둘을 여는 경우는 생기지 않는다. 포트 0처럼 늘 성공하는 바인드는 쓰지 않는다(opencode `background-service.ts:49-52`의 이유와 같다).
@@ -901,23 +919,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
      - 한가하지 않으면 경고를 남기고 그대로 접속한다(`action: "versionWarning"`). hello가 1003이면 `{ ok: false, reason: "protocolUnsupported" }`이고, CLI는 `xeon service stop` 뒤 다시 시도하라고 안내한다.
   4. 기동: L0.process로 자기 실행 명령(§3.2)에 `service run`을 붙여 detached로 띄운다(SV-06). 소켓이 hello에 응답할 때까지 조건 대기(100ms 간격, 상한 `spawnTimeoutMs`)한다.
 - SV-04 유휴 종료 [결정: ADR-0006 §3.7 4번]
-  - 판정은 순수 함수 `decideIdle`로 한다.
-
-    ```ts
-    // src/service/lifetime.ts
-    export interface IdleInputs {
-      readonly connections: number;
-      readonly activity: ActivitySnapshot;
-      readonly sinceStartMs: number;
-      readonly startupGraceMs: number;
-      readonly countApprovalAsLive: boolean;      // 기본 true [제안]
-    }
-    export type IdleDecision =
-      | { readonly idle: true }
-      | { readonly idle: false; readonly reason: "startupGrace" | "connections" | "tasks" | "approvals" | "schedules" };
-    export declare function decideIdle(inputs: IdleInputs): IdleDecision;
-    ```
-
+  - 판정은 L0.process의 `createIdleMonitor`가 한다(`L0.process.spec` §3.2, §4.4.4). 서비스는 `IdleInputs { connections, liveTasks, pendingSchedules }`를 입력이 바뀔 때마다 넘긴다. `liveTasks`는 `ActivitySnapshot.liveTasks + waitingApprovals`다(승인 대기 세션 포함). `pendingSchedules`는 `ActivitySnapshot.pendingSchedules`이고 값의 출처는 `AssembleOptions.pendingSchedules`(`PendingSchedulesPort { count, onChange }`)다. 예약 능력(L2.schedule)이 조립에 들어오면 조립 루트가 이 포트를 채우고, 그 전에는 0이다 [결정: 오케스트레이터 기본값, M3b B1-SVC].
   - 유휴는 다섯 조건이 모두 성립할 때다: 연결 0, `liveTasks` 0, (`countApprovalAsLive`이면) `waitingApprovals` 0, `pendingSchedules` 0, 시작 뒤 `SERVICE_STARTUP_GRACE_MS`(10초) 경과.
   - 유휴가 되면 `l0.process.service.idleGraceMs` 타이머를 건다. 타이머가 끝나기 전에 조건이 하나라도 깨지면 타이머를 지운다. 끝나면 HS-31 절차를 `reason: "idle"`로 실행한다. 판정은 `ConnectionHub.onSizeChange`와 `ActivityPort.onChange`가 올 때마다 다시 한다. 시계는 엔진 `Clock`과 L0.os 타이머를 쓴다(테스트 주입).
   - `host.status.idleShutdownAt`은 타이머가 걸려 있으면 그 시각, 아니면 `null`이다.
@@ -932,7 +934,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
   - 서비스는 L0.process의 detached spawn으로 띄운다. 요구 동작: 새 세션(setsid), stdin·stdout·stderr를 부모와 공유하지 않음(로그는 L0.os 로그 파일), 부모 이벤트 루프에서 `unref`. 부모(`ensure`를 부른 CLI)가 끝나도 서비스는 남는다(pi `PX/process.ts:40-70`).
 - SV-07 종료 협조 [결정: ADR-0006 §3.7 7번]
   - 서비스는 SIGTERM을 받으면 HS-31 절차를 `reason: "signal"`로 실행하고, 등록 파일을 지우고, 소켓을 닫고, 종료코드 0으로 끝난다.
-  - `xeon service stop`은 등록 파일을 읽고 `host.status`로 pid·startedAt을 확인한 뒤 SIGTERM을 보낸다. `l0.process.shutdown.timeoutMs` + 2000ms 안에 등록 파일이 사라지지 않으면 SIGKILL을 보낸다. SIGKILL 뒤 남은 등록 파일과 소켓 파일은 다음 `ensure`가 낡은 기록으로 처리한다.
+  - `xeon service stop`(`stopHostService`)은 등록 파일을 읽고 `host.status`로 pid가 같은지 확인한 뒤 먼저 `host.shutdown`(reason `user`)을 보내 협조 종료를 시도하고 `l0.process.shutdown.timeoutMs` + 1000ms 안에 등록 파일이 사라지기를 기다린다. 남아 있으면 `stopProcess`(L0.process)로 SIGTERM, 시한 안에 안 끝나면 SIGKILL을 보낸다. SIGKILL 뒤 남은 등록 파일과 소켓 파일은 다음 `ensure`가 낡은 기록으로 처리한다.
   - 비협조 확장 코드는 안전 경계 도달을 막을 수 있다(ADR-0006 §4.2). 시한 뒤 SIGKILL이 마지막 수단이고, 진행 중 단계는 다음 열기에서 복구한다.
 - SV-08 단일 장애점 [결정: ADR-0006 §3.7 8번]
   - 서비스가 죽어도 DB와 복구 표식은 남는다. 다음 `ensure`가 새 서비스를 띄우고, 그 서비스가 §4.1의 7·8단계(열 때 복구, 설정 시 자동 재개)를 한다.
@@ -943,6 +945,13 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 
 - HS-37. [제안] CLI는 시작할 때 `l0.process.service.enabled`를 사용자·관리 범위 파일에서 읽는다. `false`면 `startInProcessHost`, `true`면 `ensureService` 뒤 `connectServiceTransport`를 쓴다. 이 값을 읽는 함수는 엔진 없이 설정 파일만 읽는다(`resolveLaunchMode`, `src/settings.ts`).
 - HS-38. 데스크톱은 서비스 사용 설정이 켜져 있으면 사이드카 엔진을 띄우지 않고, 셸(Rust)이 서비스 소켓 바이트를 WebView로 중계한다(`L4.desktop.spec` §4.8). 이를 위해 이 문서는 `xeon service ensure --json` 서브커맨드를 둔다 [제안]. 동작은 `ensureService`이고, stdout에 JSON 한 줄 `{ "ok": true, "socket": <경로>, "version": <버전>, "action": <EnsureResult.action> }` 또는 `{ "ok": false, "reason": <EnsureResult.reason> }`을 쓰고 끝난다. 종료코드는 성공 0, 실패 1이다. 셸은 이 명령을 짧게 실행해 소켓 경로를 얻는다. 셸은 엔진 카탈로그를 읽지 못하므로 서비스 경로로 갈지는 먼저 `xeon service launch-mode --json`(§3.2, `resolveLaunchMode`)으로 정한다 [제안]. 사이드카가 stdio와 소켓 사이를 중계하는 안은 쓰지 않는다. 엔진 프로세스가 하나 더 생기고, 데스크톱 쪽 소켓 중계(`EnginePipe`)가 이미 같은 일을 하기 때문이다.
+
+#### 4.9.4 서비스 모드의 프로젝트 확장 [결정: 오케스트레이터 기본값, M3-REQ-38]
+
+- 서비스는 시작 때 프로젝트 확장을 싣지 않는다. 쓰기 소유를 얻는 thread(`thread.create`, `thread.open` write)의 작업 폴더와 `trust.decide`가 끝난 폴더에 대해 `ProjectExtensions.ensure(workspace)`(`assembly/project-extensions.ts`)를 부른다.
+- `ensure`는 `ProjectTrust.resolve`로 판정하고 신뢰된 폴더만 로더의 `loadProject`로 싣는다(단위는 프로젝트 루트, `X.loading-trust.spec` §4.7.8). 결정이 없는 폴더는 싣지 않는다.
+- 프롬프트를 받을 클라이언트는 그 폴더를 연 연결이다. 클라이언트가 `trust.get`으로 선택지를 읽고 `trust.decide`로 정한다(thread 없는 신뢰 경로). `trust.decide`가 허용을 돌려주면 같은 호출 안에서 그 프로젝트의 확장을 싣는다. "이번 세션만" 결정은 서비스 프로세스 수명 동안 유지한다.
+- 프로젝트 확장의 설정 키는 시작 때 만든 카탈로그에 없다 [미결].
 
 ### 4.10 예약과 알림
 
@@ -1156,7 +1165,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 4. [결정: review.decisions-2 U-11] 원격 사용은 M3이고 로컬 서비스 소켓을 SSH 터널·사설망으로 연결한다. 내장 TLS + 토큰 WebSocket은 2차다(§4.11).
 5. [결정: adr.0020] 클라이언트 연결 코드(`createHostConnection`)와 설정 view-model, CLI·데스크톱 공유 로직은 새 L4 공유 패키지 `xeon/packages/client`(`@xeon/client`, F만 import)로 옮긴다(`review.m3-design-inputs` D-M3-26 b 변형). `@xeon/host/client`는 M3a 구현에서 `@xeon/client`를 다시 내보내는 얇은 파일로 남겼고(허용 목록 `DR-10/host-client`), F는 런타임 로직 없는 계약(stdio 줄 프레이밍 제외)으로 둔다. [미결] 재노출을 없애는 안은 호스트 시험의 `@xeon/client` import에 시험 한정 DR-10 예외가 필요하다. `apps/cli`·`apps/desktop` → `@xeon/client`는 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`다(`architecture.layers.spec` §3.2).
 6. [결정: review.m3-design-inputs D-M3-13 행 2] 승인 대기 세션은 유휴 종료 판정에서 live다(SV-04).
-7. [미결] 등록 파일 스키마의 정본 위치. 이 문서(§3.5)와 `L0.process.spec` 중 하나로 정한다. 작성자 결정(L0.process 작성자와 조율).
+7. [결정: 오케스트레이터 기본값, M3b B1-SVC] 등록 파일 스키마의 정본은 `L0.process.spec` §3.2다(§3.5).
 8. (닫힘 m2c G1-02) 비정상 종료 표식의 "이어서 실행" 후보는 `ThreadSummary.resumable`로 알리고 `turn.resume`으로 이어 실행한다(HS-30, HS-74).
 9. (닫힘) 종료 협조용 메시지는 F `host.shutdown`(M2)이다(`F.wire-settings.spec` §4). M2 전까지 stdin 닫기로 대신한다(HS-34).
 10. [결정: review.m3-design-inputs D-M3-16 c] 서비스 인증: 로컬 Unix 소켓은 파일 권한만 쓰고, TCP로 열 때만 `host.hello` 토큰이 필수다(SV-05). 원격 형태는 자체 호스트 서버의 호스트에 다른 기기의 데스크톱·CLI가 접속하는 것과 자기 컴퓨터에서 호스트를 켜는 것 둘이다([결정: review.m3-design-inputs D-M3-17]).

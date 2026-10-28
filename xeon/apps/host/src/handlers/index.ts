@@ -53,7 +53,7 @@ export function createWireHandlers(
 ): WireHandlers {
   const table: WireHandlers = {
     "host.hello": createHostHelloHandler(engine, hub, info, () => table),
-    "host.status": createHostStatusHandler(engine, hub, info),
+    "host.status": createHostStatusHandler(engine, hub, info, lifecycle),
     // in-process 호스트는 CLI 프로세스 안에 있어 클라이언트가 호스트 종료를 요청하지 않는다: 수명 신호가 없으면 열지 않는다
     "host.shutdown":
       lifecycle === undefined
