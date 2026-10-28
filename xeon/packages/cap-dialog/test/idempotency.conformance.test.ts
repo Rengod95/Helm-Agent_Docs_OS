@@ -16,7 +16,7 @@ import { realApprovals } from "./support/real-approvals.ts";
 
 // M3-REQ-88·89, ADR-0015 §3.6: 멱등 쓰기(`dialog.ask.ask`)는 같은 requestId를 두 번 불러도 효과가 한 번이고 결과가 같다.
 // 승인 서비스는 core-tools의 실제 구현이다. 사이에 새 서비스를 세워 재시작을 흉내 낸다.
-// `dialog.notify.emit`은 선언만 있고 공급자는 M3(plan D11)에서 만든다. 그 적합성 시험은 공급자가 들어올 때 더한다.
+// `dialog.notify.emit`은 공급자가 없어 선언 없음이고, 공급자는 M3(plan D11)에서 만든다. 그 적합성 시험은 공급자가 들어올 때 더한다.
 
 const SCOPE: AskQuestion = {
   id: "scope",
@@ -56,10 +56,10 @@ describe("dialog effect classes", () => {
       "dialog.status.clearItem none unsafe",
       "dialog.status.list readOnly safe",
       "dialog.attachments.add none unsafe",
-      "dialog.aside.ask readOnly safe",
+      "dialog.aside.ask none unsafe",
       "dialog.styles.register none unsafe",
       "dialog.styles.select none unsafe",
-      "dialog.notify.emit idempotent safe",
+      "dialog.notify.emit none unsafe",
       "dialog.notify.list readOnly safe",
     ]);
   });
