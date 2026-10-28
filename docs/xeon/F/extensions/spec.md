@@ -203,6 +203,8 @@ export type Handler<N extends PointName, S = unknown> =
     ? (payload: Readonly<P>, ctx: HandlerContext<S>) => D | undefined | Promise<D | undefined>
   : PointSignatures[N] extends ChainSig<infer P, infer V, infer X>
     ? (payload: Readonly<P>, current: Readonly<V>, ctx: HandlerContext<S>) => X | undefined | Promise<X | undefined>
+  : PointSignatures[N] extends CollectSig<infer P, infer _V, infer C>
+    ? (payload: Readonly<P>, ctx: HandlerContext<S>) => C | undefined | Promise<C | undefined>
   : never;
 
 export type PostWhen = "steer" | "followUp" | "next";

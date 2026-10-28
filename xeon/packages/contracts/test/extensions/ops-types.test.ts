@@ -2,6 +2,8 @@ import { test } from "bun:test";
 import type { ApiOf } from "../../src/capabilities/index.ts";
 import type {
   BoundaryPatch,
+  BeforeAgentStartPatch,
+  BeforeAgentStartPayload,
   BoundaryValue,
   DriveFn,
   ExtensionOps,
@@ -55,14 +57,30 @@ export type StateFlows = Expect<
   Equal<Parameters<Handler<"session.start", { n: number }>>[1]["state"], Readonly<{ n: number }>>
 >;
 
+/** collect 지점: 핸들러는 payload와 ctx만 받고 기여(또는 undefined)를 반환한다. current는 없다 */
+export type CollectParams = Expect<
+  Equal<
+    Parameters<Handler<"input.agent.before">>,
+    [payload: Readonly<BeforeAgentStartPayload>, ctx: Ctx]
+  >
+>;
+export type CollectReturn = Expect<
+  Equal<
+    ReturnType<Handler<"input.agent.before">>,
+    BeforeAgentStartPatch | undefined | Promise<BeforeAgentStartPatch | undefined>
+  >
+>;
+
 /** 잘못된 반환은 컴파일 오류다 */
 export function wrongReturnsAreRejected(g: ExtensionOps<unknown>): void {
   // @ts-expect-error -- tap 핸들러는 값을 반환할 수 없다 (F.extensions.spec §9 5)
   g.on("session.start", () => ({ block: true, reason: "x" }));
   // @ts-expect-error -- first 핸들러는 패치가 아니라 결정을 반환한다 (F.extensions.spec §9 5)
   g.on("tool.call.before", () => ({ continue: true }));
-  // @ts-expect-error -- 지점 이름은 pi snake_case 41개뿐이다 (F.extensions.spec §4.10)
+  // @ts-expect-error -- 지점 이름은 표의 46개뿐이다 (F.extensions.spec §4.10)
   g.on("tool.before", () => undefined);
+  // @ts-expect-error -- collect 핸들러는 current를 받지 않는다(두 번째 인자는 ctx다)
+  g.on("input.agent.before", (_payload, current) => ({ systemPrompt: current.systemPrompt }));
 }
 
 /** 올바른 핸들러는 통과한다 */
