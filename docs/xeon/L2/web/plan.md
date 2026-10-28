@@ -184,6 +184,7 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 | 파일 | 테스트 이름 | 확인할 동작 |
 |---|---|---|
 | `test/defs.test.ts` | `four web capabilities validate with zero issues` | `validateCapability` 4건과 `validateCapabilitySet` 이슈 0건 |
+| `test/read-only.conformance.test.ts` | `the declared classes are the reads and the undeclared writes`, `search and fetch change nothing outside the cap_web tables and the raw blob cache` | 능력 적합성(ADR-0015 §3.6, M3-REQ-88·89). web 열 메서드의 분류와 `replay`가 spec 효과 분류 표와 같다. `search`·`fetch`를 두 번씩 부른 뒤 `cap_web_` 표와 원문 사본(`sys_blobs`) 밖의 어느 표도 행 수가 같다. web에는 멱등 쓰기가 없다 |
 | 같음 | `search tool params exclude provider` | 도구 파라미터에 `provider`가 없고 `toInput` 결과가 서비스 입력 스키마를 통과 |
 | `test/chain.test.ts` | `chain order table` | 표 주도 테스트: (호출 인자, 설정, 플러그인 유무·순서, SearXNG 주소 설정 여부, 래퍼 가용) 조합마다 시도 순서가 §4.8.2와 같음. 명시 선택은 원소 하나 |
 | 같음 | `explicit provider does not fall back` | 호출 인자 provider가 탐침 실패면 `unavailable`, `detail.reason` 있음, 다른 provider 호출 0 |
