@@ -1,5 +1,5 @@
 import type { TSchema } from "typebox";
-import type { ToolName } from "../capabilities/index.ts";
+import type { CallerInfo, ToolName } from "../capabilities/index.ts";
 import type { JsonValue, ThreadId, Usage } from "../conversation/index.ts";
 import type { Result } from "../base/index.ts";
 import type {
@@ -226,7 +226,15 @@ export interface ToolResourceDef {
   readonly replay: "safe" | "unsafe";
   execute(
     args: JsonValue,
-    ctx: { readonly threadId: ThreadId; readonly signal: AbortSignal },
+    ctx: {
+      /** 도구가 실행된 대화. 위임 자식 대화에서 실행되면 그 자식 대화다 */
+      readonly threadId: ThreadId;
+      readonly signal: AbortSignal;
+      /** 이 호출의 id. X가 멱등 키의 디스패치 키로 쓴다(M3-REQ-102) */
+      readonly toolCallId: string;
+      /** 호출 주체. 이번 turn에 untrusted 도구 결과를 읽었으면 `afterUntrusted`가 참이다(M3-REQ-100) */
+      readonly caller: CallerInfo;
+    },
   ): Promise<unknown>;
 }
 /** 모양은 L1.models.spec이 정한다 */

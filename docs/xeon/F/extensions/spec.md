@@ -402,7 +402,7 @@ export type ExtensionEntry = (host: {
 // ports.ts
 import type { TSchema } from "typebox";
 import type { ThreadId, ItemId, JsonValue, StepId, TurnOrigin, Usage } from "../conversation/index.ts";
-import type { CallerId, ToolHints, ToolName, ToolRisk } from "../capabilities/index.ts";
+import type { CallerId, CallerInfo, ToolHints, ToolName, ToolRisk } from "../capabilities/index.ts";
 import type { ProjectorRegistry, StoreService, RecordCommitPort, StoreError } from "../records/index.ts";
 import type { Result } from "../base/index.ts";
 import type { Unsubscribe, PostItem, PostWhen } from "./ops.ts";
@@ -578,7 +578,12 @@ export interface ToolResourceDef {
   readonly description: string;
   readonly parameters: TSchema;
   readonly replay: "safe" | "unsafe";
-  execute(args: JsonValue, ctx: { readonly threadId: ThreadId; readonly signal: AbortSignal }): Promise<unknown>;
+  execute(args: JsonValue, ctx: {
+    readonly threadId: ThreadId;     // 도구가 실행된 대화. 위임 자식 대화에서 실행되면 그 자식 대화
+    readonly signal: AbortSignal;
+    readonly toolCallId: string;     // 호출 id. X가 멱등 키의 디스패치 키로 쓴다(M3-REQ-102)
+    readonly caller: CallerInfo;     // 호출 주체. caller.afterUntrusted는 이번 turn이 untrusted 도구 결과를 읽었는지(M3-REQ-100)
+  }): Promise<unknown>;
 }
 /** 모양은 L1.models.spec이 정한다 */
 export type ProviderResourceDef = JsonValue;
