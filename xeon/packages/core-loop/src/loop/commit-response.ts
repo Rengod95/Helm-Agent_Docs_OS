@@ -1,6 +1,7 @@
 import { Bug, err, ok, type Result } from "@xeon/contracts";
 import type { AssistantMessage, LifecycleEvent } from "@xeon/contracts/conversation";
 import { responseRequest } from "../commits.ts";
+import { guardFinalOutput } from "./guard-output.ts";
 import {
   commitStep,
   currentStep,
@@ -38,7 +39,9 @@ export async function commitResponse(
     },
   );
   const patchedMessage = patched.value.message;
-  const finalMessage = patchedMessage.role === "assistant" ? patchedMessage : original;
+  const chained = patchedMessage.role === "assistant" ? patchedMessage : original;
+  // 표시와 기록 전에 출력 가드를 거친다. 차단된 답은 사유 한 줄로 바뀌어 대화 기록에 남는다
+  const finalMessage = await guardFinalOutput(run, chained);
   const notes = mapper.map({ type: "message_end", message: finalMessage });
   const completed = itemCompletedOf(notes);
   if (completed === undefined || completed.item.kind !== "assistant") {

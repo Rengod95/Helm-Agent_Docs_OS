@@ -357,7 +357,7 @@ export interface BoundAgentEventMapper extends AgentEventMapper {
 
 | 지점 | 시점 | 커밋 내용 | 커밋 키 | 체크포인트 |
 |---|---|---|---|---|
-| T1 turn 시작 | 구동기가 turn을 열 때 | `item.recorded`(입력 item들, user·custom) → `input.placed`(큐 입력이면) → `turn.started{inputItemIds, requestId, scopeId}`(`scopeId`는 drive turn만, 그 밖은 null. FR-L8) | `turn:<turnId>:start` | 없음 |
+| T1 turn 시작 | 구동기가 turn을 열 때 | `item.recorded`(입력 item들, user·custom) → `input.placed`(큐 입력이면) → `turn.started{inputItemIds, requestId, scopeId, origin}`(`scopeId`는 drive turn만, 그 밖은 null. FR-L8. `origin`은 입력 출처, §4.4b) | `turn:<turnId>:start` | 없음 |
 | T2 단계 시작 | 루프 `openStep` | `step.started{stepIndex}` | `step:<turnId>:<i>:start` | 없음 |
 | T3 응답 확정 | 루프 `commitResponse`, `boundary.message.after` chain 뒤 | 도구 선언 차이 system item(`xeon.models`가 계산, adr.0009 §3.5)의 `item.recorded` → `part.recorded`×N → `item.recorded`(assistant) | `resp:<turnId>:<i>` | 도구 호출이 있으면 `checkpoint.step{next:"tools", pendingToolCalls}` |
 | (도구) | L1.tools | `effect.intent`, `effect.exec`, `effect.result` + toolResult `item.recorded` | L1.tools.spec | L1.tools.spec |
@@ -512,6 +512,13 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 | 모델을 해석하지 못함(`xeon.models.resolve`가 `err`: 모르는 모델 id, 차단, provider 없음) | `failed` | `"model_unavailable: <ModelError.kind>: <ModelError.message>"`. 사용자가 설정으로 고칠 수 있는 원인이라 화면이 그대로 보인다 [결정: M2 Mac 실기] |
 | 자식 turn 한도(`ChildTurnRequest.limits`) 도달 | `interrupted` | `"child_limit"` |
 
+### 4.4b 입력 출처 origin
+
+- [결정: M3-REQ-77, M3-13] `turn.started.origin`과 `boundary.turn.before`·`boundary.settle.after` 페이로드의 `origin`은 turn을 연 입력의 출처다. 큐 입력은 첫 입력의 `source`에서 정한다(`user` → `user`, `delegation` → `delegation`, `schedule` → `scheduled`, `extension` → `other`). drive turn은 `drive`, 자식 thread turn(`runChildTurn`)은 `delegation`이다. 재개한 turn은 기록된 `turn.started.origin`을 쓰고 없으면 `user`다.
+- `boundary.settle.after`는 `status`(`completed`, `aborted`=중단됨, `error`=실패), `hasFinalAnswer`(`completed`이고 어시스턴트 답이 있음), `lastItemId`(turn의 마지막 어시스턴트 item)를 싣는다.
+- [미결] `input.queued.origin`은 `xeon.tasks.inputs.enqueue`(core-tasks)가 쓰고 F `InputDraft`에 `origin` 필드가 없어 core-loop가 명시하지 못한다. 없으면 스키마 규칙(`source`에서 정함)으로 읽는다. 필드는 F 변경과 core-tasks 변경이 필요하다.
+- [미결] `큐 입력과 drive turn 요청이 함께 기다리면 큐 입력이 먼저` [제안, M3-REQ-77]는 이번에 구현하지 않았다.
+
 ### 4.4 입력 큐 연결
 
 | 모드 | 루프 쪽 처리 |
@@ -610,9 +617,14 @@ runTurn(req: LoopTurnRequest):
 - 알림: 휘발 `turn.updated`에 알림 필드를 실어 L4가 보인다. `TurnUpdatedPayload`에 선택 필드 `notice`를 더하도록 F에 요청한다(FR-L5). 모델 컨텍스트에는 넣지 않는다.
 - 참고 구현 omp `session/tool-call-loop-redirect.ts`는 AgentSession 결합이라 읽기 자료다(`_research/packages.md` §4.3 L1-b 반복 감지 행).
 
-### 4.11 입출력 가드레일 (보류)
+### 4.11 입출력 가드레일
 
-- 계획 v2 L1-b "입출력 가드레일"의 단계는 "보류"다. 조건(신뢰할 수 없는 사용자를 받는 배포)이 생기면 정한다.
+- [결정: adr.0017 §3.6, M3-REQ-109] 가드 지점은 값을 바꾸지 못하고 차단만 하며(`GuardDecision`), 핸들러 예외와 디스패처 실패도 차단이다(fail-closed). 내장 검사는 없다. 차단 사유는 대화 기록에 남는다.
+  - `guard.model.before`: 모델 요청 직전, `request.provider.before` 체인이 끝난 최종 페이로드로 발화한다. 차단이면 요청을 보내지 않고 오류 응답(`stopReason: "error"`, `[xeon:denied_by_guard] <사유>`)으로 끝난다. 발화 위치는 core-models(`L1.models.spec` §4.3 5b)다.
+  - `guard.tool.before`: core-tools 파이프라인이 정책·승인 뒤, `effect.intent` 전에 발화한다(`L1.tools.spec` §4.2 5c2). 차단이면 도구를 실행하지 않고 `[xeon:denied_by_guard]` 결과를 모델에 돌려준다.
+  - `guard.output.before`: 도구 호출 없이 turn을 끝내는 어시스턴트 답을 `boundary.message.after` 체인 뒤, 표시와 기록 전에 `target: "display"`로 보인다(`loop/guard-output.ts`). 차단이면 텍스트 블록을 `[xeon:withheld_by_guard] <사유>` 한 줄로 바꾼 메시지가 표시되고 `item.recorded`로 남는다. 스트리밍 중 부분 출력(`message_update`)에는 걸지 않는다 [제안]: 이미 나간 조각은 막을 수 없고, 최종 답에서 막는다.
+  - [미결] `target: "execution"`(출력을 실행에 넘기는 경로)은 L1에 해당 경로가 없어 발화하지 않는다. 산출물 적용 직전(L2 artifacts)의 발화는 L2 몫이다.
+- (보류 부분) 계획 v2 L1-b "입출력 가드레일"의 신뢰 경계 조건(신뢰할 수 없는 사용자를 받는 배포)은 정하지 않았다. 아래는 이전 초안이다.
 - [제안] 자리와 이름만 둔다. 가드레일은 플러그인으로 두고, 확장 이름 `guardrail`을 예약한다(X.loading-trust.spec 예약 이름 목록 요청). 차단 지점 후보는 `input`(chain, `handled`), `tool.call.before`(first, `block`), `boundary.message.after`(chain)다. core-loop는 이 플러그인을 위해 따로 바꾸는 것이 없다.
 
 ### 4.12 결정성

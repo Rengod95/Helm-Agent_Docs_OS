@@ -19,7 +19,7 @@ export async function openStep(
     emitEvent(run, { type: "agent_start" });
     await ctx.ext.dispatch(
       "boundary.turn.before",
-      { turnId },
+      { turnId, origin: run.spec.origin },
       tapOptions(run, `${turnId}:boundary.turn.before`),
     );
   }

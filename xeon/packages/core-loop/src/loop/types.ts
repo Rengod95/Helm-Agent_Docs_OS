@@ -8,6 +8,7 @@ import type {
   StopReason,
   ToolResultMessage,
   TurnId,
+  TurnOrigin,
   Usage,
 } from "@xeon/contracts/conversation";
 import type { EffectIntent } from "@xeon/contracts/records";
@@ -72,6 +73,8 @@ export interface TurnRunSpec {
   readonly scope: TaskScope;
   readonly entry: TurnEntry;
   readonly interactive: boolean;
+  /** 이 turn의 입력 출처(`boundary.turn.before`·`boundary.settle.after` 페이로드) */
+  readonly origin: TurnOrigin;
   /** drive turn이면 임대 scope id(모델 해석의 그룹 덮어쓰기 키) */
   readonly scopeId: string | null;
   /** drive turn이면 임대 id(경계 신호의 drivenBy) */

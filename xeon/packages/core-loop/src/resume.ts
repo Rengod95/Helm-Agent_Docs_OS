@@ -11,6 +11,7 @@ import {
   type ToolCall,
   type ToolResultMessage,
   type TurnId,
+  type TurnOrigin,
   type Usage,
 } from "@xeon/contracts/conversation";
 import {
@@ -45,6 +46,8 @@ interface OpenStep {
 export interface OpenTurnReduction {
   readonly turnId: TurnId;
   readonly scopeId: string | null;
+  /** `turn.started`에 기록된 입력 출처. 없으면(옛 기록) `user`다 */
+  readonly origin: TurnOrigin;
   readonly requestId: string | null;
   readonly prompt: string;
   readonly images: readonly ImageContent[];
@@ -98,6 +101,7 @@ export function reduceOpenTurn(
 ): OpenTurnReduction | undefined {
   let started = false;
   let scopeId: string | null = null;
+  let origin: TurnOrigin = "user";
   let requestId: string | null = null;
   let prompt = "";
   let images: readonly ImageContent[] = [];
@@ -146,6 +150,7 @@ export function reduceOpenTurn(
       if (payload.ok) {
         scopeId = payload.value.scopeId;
         requestId = payload.value.requestId;
+        origin = payload.value.origin ?? "user";
       }
     } else if (event.kind === "step.started") {
       const payload = parse(StepStartedPayloadSchema, event.payload);
@@ -186,6 +191,7 @@ export function reduceOpenTurn(
   return {
     turnId,
     scopeId,
+    origin,
     requestId,
     prompt,
     images,
