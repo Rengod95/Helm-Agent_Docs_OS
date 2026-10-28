@@ -315,10 +315,10 @@ M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`
 
 | plan ID | 상태 | 비고 |
 |---|---|---|
-| G-14 | 완료(thread 연결은 [미결]) | `GroupApi.delegate(spec, options?)`가 `xeon.agents` 포트의 `AgentService.delegate`를 부른다. `owner`는 `{ kind: "scope", scopeId }`, `ownerRequestId`는 `requestId`다. 멱등은 L1이 보장한다. 호출자가 thread를 넘기거나 X가 재실행 문맥을 알려 주어야 한다(spec §3.13 요청 6). 결과는 `lifecycle.agent.settled`로 소유 scope에만 온다. 시험 대역 `fakeAgents` |
+| G-14 | 완료 | `GroupApi.delegate(spec, options?)`가 `xeon.agents` 포트의 `AgentService.delegate`를 부른다. `owner`는 `{ kind: "scope", scopeId }`, `ownerRequestId`는 `requestId`다. 멱등은 L1이 보장한다. on 핸들러와 drive 함수에서는 X `hostOf(g).callContext()`의 thread와 신호를 쓰고, 명령 처리기와 도구 `execute`는 `options`로 넘긴다(spec §3.13 요청 6). 결과는 `lifecycle.agent.settled`로 소유 scope에만 온다. 시험 대역 `fakeAgents` |
 | G-19 | 완료 | `scanDriveSource`와 SD-00(구문 오류, [제안])·SD-01~SD-10. `group-kit/package.json`에 `@swc/core` 의존을 더했다. DR-07 `MODULE_OWNERS` 표 행 추가는 승인 대기([미결]) |
 | G-20 | 일부 완료 | 효과 계수(`EffectCounts`, `ReplayHarness.run`의 `effects`, `expectEffects`, `effects-doubled`, `effects-mismatch`). 지점 목록 지정, 사용자 입력 시작, 첫 차이 이벤트 표시는 남았다 |
 | G-22 | 완료(M2) | `registerTool`·`registerCommand`는 M2에 끝났다. 학습 그룹의 `learning_propose` 등록(LR-06)은 이 연산을 그대로 쓴다. M3a에서 바꾼 것이 없다 |
-| G-28 | 완료 | `GroupApi.delegateStatus`, `cancelDelegates`(`CancelTarget { ownerScopeId }`). 반환은 값이다(spec §10). 재실행 문맥 거부는 X 요청 6 뒤에 완성된다 |
+| G-28 | 완료 | `GroupApi.delegateStatus`, `cancelDelegates`(`CancelTarget { ownerScopeId }`). 반환은 값이다(spec §10). 재실행 문맥 거부는 X `callContext`로 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`) |
 | G-29 | 완료 | `DelegateSpec.report`는 선택이고 없으면 L1 요청에도 싣지 않는다 |
 | G-30 | 완료(거부 사유 노출은 [미결]) | `createGroupService`가 커밋 피드(`lease.rejected`, `lease.released`, `lease.acquired`, `scope.changed`)로 `GroupStatus.drive "rejected"`를 채우고 `onChange`로 알린다 |

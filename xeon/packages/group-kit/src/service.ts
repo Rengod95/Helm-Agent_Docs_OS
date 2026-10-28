@@ -7,7 +7,7 @@ import {
   type ScopeId,
   type Unsubscribe,
 } from "@xeon/contracts/extensions";
-import type { ExtHost, ScopeInfo } from "@xeon/ext-host";
+import { SessionFeedPortKey, type ExtHost, type ScopeInfo } from "@xeon/ext-host";
 import {
   GroupServiceName,
   type DriveHolderSetting,
@@ -24,7 +24,6 @@ import { defaultDriveArbiter, leaseArbiterPort, type DriveArbiter } from "./arbi
 import type { GroupServiceWithSetting } from "./commands.ts";
 import { createLeaseRejections } from "./lease-rejections.ts";
 import type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
-import { GroupFeedPortKey } from "./ports/feed.ts";
 import type {
   DriveHolderSettingsPort,
   HolderSettingScope,
@@ -119,7 +118,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSett
 
   /** 커밋 피드 포트가 올라와 있으면 구독한다. 포트가 늦게 올라올 수 있어 읽을 때마다 확인한다 */
   function attachFeed(): void {
-    const feed = deps.host.ports.get(GroupFeedPortKey);
+    const feed = deps.host.ports.get(SessionFeedPortKey);
     if (feed !== undefined) rejections.attach(feed, schedule);
   }
 

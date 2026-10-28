@@ -9,12 +9,11 @@ import type {
   EventFeed,
 } from "@xeon/contracts/records";
 import type { GroupStatus } from "@xeon/contracts/services";
-import { withDriveDefaults } from "@xeon/ext-host";
+import { SessionFeedPortKey, withDriveDefaults } from "@xeon/ext-host";
 import { createTestHost, memoryRecordStore, type TestHost } from "@xeon/ext-host/testing";
 import { Type } from "typebox";
 import { createGroupService, defineGroup, type GroupModule } from "../src/index.ts";
 import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
-import { GroupFeedPortKey } from "../src/ports/feed.ts";
 import { install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
@@ -114,7 +113,7 @@ async function rig() {
     setup(ctx) {
       ctx.providePort(LeaseArbiterPortKey, service);
       ctx.providePort(RecordCommitPortKey, records);
-      ctx.providePort(GroupFeedPortKey, feed.feed);
+      ctx.providePort(SessionFeedPortKey, feed.feed);
     },
   });
   await install(t, modules[0] ?? stableGroup("unreachable"), 0);

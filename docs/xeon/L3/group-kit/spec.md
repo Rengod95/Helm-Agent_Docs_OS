@@ -348,7 +348,7 @@ export type DelegateError =
 
 /**
  * 호출이 속한 대화와 취소 신호 [제안]. on 핸들러는 `ctx.threadId`·`ctx.signal`을, 명령 처리기와 도구 `execute`는 자기 호출 문맥의
- * thread를 넘긴다. 생략하면 X가 알려 주는 재실행 문맥(§3.13 요청 6)을 쓰고, 그것도 없으면 `group.delegateUnavailable`이다
+ * thread를 넘긴다. on 핸들러와 drive 함수에서는 생략하면 X의 호출 문맥(`hostOf(g).callContext()`, §3.13 요청 6)을 쓰고, 문맥이 없는 곳에서 생략하면 `group.delegateUnavailable`이다
  */
 export interface DelegateCallOptions {
   readonly threadId?: ThreadId;
@@ -1035,15 +1035,15 @@ X.primitives.spec에 있는 것:
 | 상태 커밋과 크기 상한 | `commit`의 `expectStateRev`, `state_too_large` | §4.6.1 |
 | 유휴 토글 적용 | 유휴면 다음 매크로태스크에 적용 | §4.5.5 |
 
-X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(요청 4 일부)이 xeon/foundation에 병합됐다]:
+X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(요청 4 일부)이 xeon/foundation에 병합됐고, 요청 6·7은 M3a X-3이 닫았다]:
 
 1. `LeaseCandidate.enabledAtSeq: number | null`(마지막 `scope.changed{status:"enabled"}`의 seq). [반영] F `LeaseCandidate`에 있다.
 2. 현재 임대의 `leaseId` 조회. [반영] `ExtHost.leaseOf(threadId)`가 `LeaseInfo{leaseId, scopeId, leaseEpoch, status}`를 돌려준다. `GroupStatus.leaseId`에 쓴다.
 3. scope 상태·임대 상태 변경 구독. [반영] `ExtHost.onChange(listener)`가 `ExtChange{kind: "scope" | "lease", scopeId, threadId}`를 경계 커밋 뒤 알린다. `GroupService.onChange`에 쓴다.
 4. 테스트 호스트 재시작. [반영] `TestHost.restart()`.
 5. 2차: 계측·승격 집계용 내구 이벤트 조회(kind 접두 필터)와 도구 소유 scope 조회(`ExtHost.resources`의 `ResourceRecord.scopeId`로 대신할 수 있다). [미결]
-6. [M3a, 미결] 재실행 문맥 조회: `hostOf(g).callContext(): { kind: "on" | "drive"; threadId: ThreadId; signal: AbortSignal } | undefined`. X의 ambient 문맥에는 이 값이 있지만 L3가 읽을 공개 연산이 없다. 없는 동안 group-kit은 `delegate`·`delegateStatus`가 호출자가 넘긴 `options.threadId`만 쓰고, drive 함수 안에서는 thread를 알 수 없어 `group.delegateUnavailable`이다. `delegateStatus`의 on 핸들러 거부와 `cancelDelegates`의 on·drive 거부(`group.effectNotAllowed`)도 이 값이 있어야 가려낸다. 구현은 `GroupHostAccess.callContext()`에 있고 실제 접근은 undefined를 돌려준다.
-7. [M3a, 미결] `SessionFeedPortKey`(`{ name: "xeon.session", member: "feed" }`)를 `@xeon/ext-host` 공개 진입점으로 내보낸다. 지금은 group-kit이 같은 값(`GroupFeedPortKey`)을 직접 적는다(§3.8 "거부 표시").
+6. [반영, M3a X-3] 재실행 문맥 조회: `hostOf(g).callContext(): { kind: "on" | "drive"; threadId: ThreadId; signal: AbortSignal; point?: PointName } | undefined`(X.primitives.spec §3.8). setup, 명령 처리기, 도구 `execute`, drive의 `turn`·`spawn` 안에서는 undefined다. `GroupHostAccess.callContext()`가 이 값을 그대로 돌려준다. `delegate`는 on 핸들러와 drive 함수 안에서 문맥의 thread와 신호를 쓰고, `{ threadId, signal }` 옵션은 명령 처리기와 도구 `execute`에서만 필요하다. `delegateStatus`의 on 거부와 `cancelDelegates`의 on·drive 거부(`group.effectNotAllowed`)는 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`).
+7. [반영, M3a X-3] `SessionFeedPortKey`(`{ name: "xeon.session", member: "feed" }`)를 `@xeon/ext-host` 공개 진입점에서 내보낸다. group-kit은 이 키를 쓰고 자체 키(`GroupFeedPortKey`)는 없앴다(§3.8 "거부 표시").
 
 - 설정 읽기와 쓰기는 설정 서비스(F.wire-settings.spec `EffectiveSetting`, `WriteCheck`)로 한다. X에는 이 용도의 API가 없다 [가정: 서비스 이름은 F.wire-settings.spec].
 - 임대 교체 [가정]: X는 반납 경계에서 `lease.released`를 기록하고(X.primitives.spec §4.5.3 끄기 2번), 다음 판단(§4.4.1 3번)에서 새 `lease.acquired`를 기록한다. 같은 경계 훅에서 반납과 부여가 함께 일어나면 같은 경계 커밋에 실린다고 본다. X 문서가 다르게 정하면 §5 6번을 고친다.
@@ -1275,7 +1275,6 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [결정: review.decisions-2 U-18] 그룹 이름 규칙은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)이다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.
 - [미결] `scanDriveSource`의 파서 `@swc/core`를 group-kit이 import하려면 DR-07 `MODULE_OWNERS` 항목이 필요하다. M3a는 `group-kit/package.json`에 `@swc/core`(`catalog:`)를 더했고 `check-layers`는 통과한다. `eng.dependency-rules.guide` 표와 `MODULE_OWNERS`에 행을 더하는 승인은 아직 없다.
 - [미결] [M3a] `delegate_capability` 검사(§3.3): 위임 능력 ID가 F에 없고 L1 서비스는 포트(`xeon.agents`)라 매니페스트로 선언할 수 없다. 포트는 내장 확장만 읽으므로 외부 그룹의 위임 허용 여부는 신뢰 등급 정책이 정한다.
-- [미결] [M3a] `delegate`·`delegateStatus`의 thread와 재실행 문맥 구별은 X 요청 6(§3.13)이 닫힌 뒤 `GroupHostAccess.callContext`를 연결해야 완성된다. 그 전에는 on 핸들러와 명령 처리기가 `options.threadId`를 넘긴다 [제안].
 - [미결] [M3a] 옛 스펙의 `cancelDelegates(reason): Promise<{ cancelled: number }>`와 `delegateStatus(requestId): DelegateStatus | undefined`를 값 반환(`CancelDelegatesResult`, `DelegateStatusResult`)으로 바꿨다. L1 `cancel`은 `{ cancelled: boolean }`을 돌려주어 개수를 알 수 없고, 서비스 없음과 문맥 거부는 값으로 알려야 하기 때문이다(TY-11). 학습 스펙 §3·§4.3의 호출 예(`g.cancelDelegates("group_disabled")`)는 그대로 쓸 수 있고 반환값을 쓰는 곳만 맞춘다.
 - [미결] [M3a] G-30의 "실패 값": `GroupStatus.drive`의 `"rejected"`만 채웠다. 거부 사유(`reason`, `requestSeq`)를 `GroupStatus`나 `GroupError`에 싣는 안은 F `services/groups.ts` 변경이 필요해 하지 않았다.
 - [미결] [M3a] `replayDrive`의 지점 목록 지정(`cutAt`)과 사용자 입력 시작(`input`), 실패 보고의 첫 차이 이벤트 표시는 G-20 남은 몫이다.

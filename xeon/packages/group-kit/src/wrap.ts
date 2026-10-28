@@ -1,6 +1,5 @@
 import { Bug, attempt, attemptAsync, parse, rethrow } from "@xeon/contracts";
 import type { ServiceKey } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
 import type {
   DriveFn,
   DriveOptions,
@@ -18,6 +17,7 @@ import {
   hostOf,
   PrimitiveError,
   type CommandResourceDef,
+  type ScopeCallContext,
   type StateMigration,
 } from "@xeon/ext-host";
 import {
@@ -42,15 +42,8 @@ import type {
   GroupSettingValues,
 } from "./types.ts";
 
-/**
- * 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수)의 thread와 취소 신호.
- * X의 ambient 문맥이 원천이고 L3는 읽을 수단이 없어 X 요청이다(L3.group-kit.spec §3.13 요청 6)
- */
-export interface GroupCallContext {
-  readonly kind: "on" | "drive";
-  readonly threadId: ThreadId;
-  readonly signal: AbortSignal;
-}
+/** 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수)의 thread와 취소 신호. 원천은 X `hostOf(g).callContext()`다 */
+export type GroupCallContext = ScopeCallContext;
 
 /** wrap이 X의 hostOf를 통해 쓰는 연산. checkGroup 같은 도구가 대역으로 바꿀 수 있게 좁게 나눈다 */
 export interface GroupHostAccess {
@@ -83,9 +76,7 @@ export function realHostAccess<S>(api: ScopeApi<S>): GroupHostAccess {
     },
     settingsSource: () => optionalPort(api, GroupSettingsSourceKey),
     agents: () => optionalPort(api, AgentServicePortKey),
-    // X에는 ambient 문맥을 읽는 공개 연산이 없다. X가 hostOf(g).callContext()를 내기 전까지 undefined라
-    // delegate는 group.delegateUnavailable을 돌려준다(보고: M3a T-K [미결])
-    callContext: () => undefined,
+    callContext: () => hostOf(api).callContext(),
   };
 }
 
