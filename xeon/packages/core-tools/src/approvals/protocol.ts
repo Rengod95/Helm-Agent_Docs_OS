@@ -84,6 +84,9 @@ export function requestIssue(input: ApprovalRequestInput): string | undefined {
     }
     case "question":
       return questionIssue(body.question);
+    case "review":
+      // 검토 승인(adr.0018)의 요청 경로는 M3-REQ-74가 구현한다. 그때까지는 거부해 응답 검사 없는 대기가 생기지 않게 한다
+      return "review approvals are not implemented yet";
     default:
       return assertNever(body, "requestIssue");
   }
@@ -262,6 +265,9 @@ export function validateResponse(
       const answer = checkQuestionAnswer(request.body.question, response.answer);
       return answer.ok ? applied(answer.value) : answer;
     }
+    case "review":
+      // requestIssue가 이 kind의 요청을 막으므로 도달하지 않는다. 구현(M3-REQ-74) 전까지 모든 응답을 거부한다
+      return err({ kind: "decision_not_allowed", decision });
     default:
       return assertNever(request.body, "validateResponse");
   }

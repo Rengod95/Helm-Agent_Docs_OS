@@ -67,6 +67,8 @@ export function approvalBodyOf(body: ApprovalBodyJson): ApprovalBody | undefined
     }
     case "question":
       return { kind: "question", question: { questions: body.question.questions } };
+    case "review":
+      return { kind: "review", review: body.review };
     default:
       return assertNever(body, "approvals.bodyOf");
   }
