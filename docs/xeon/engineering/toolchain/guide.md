@@ -450,6 +450,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 - 체크아웃은 `fetch-depth: 0`이다. `--affected`는 기준 커밋이 있어야 한다. 얕은 체크아웃이면 turbo가 모든 패키지를 바뀐 것으로 본다(`_research/stack-status.md §5-B`, §9).
 - 기준 커밋: PR은 `origin/<base_ref>`, push는 `origin/main`(`TURBO_SCM_BASE`).
 - 각 job은 `jdx/mise-action`으로 `mise.toml`의 Bun 1.4.3을 설치하고 just 1.58.0을 쓴다.
+- 워크플로의 액션은 태그 대신 커밋 SHA로 고정합니다. 줄 끝 주석에 판을 적습니다(`uses: owner/repo@<sha> # v4.4.0`). 올릴 때는 같은 메이저 안의 최신 정식 판을 고르고 SHA를 새로 적습니다.
 - 원격 캐시는 쓰지 않는다 [제안]. 필요해지면 TC-04 절차로 더한다.
 - macOS job: `.github/workflows/xeon-macos.yml`. `workflow_dispatch`나 PR 라벨 `ci:macos`로만 돈다(`review.m2-plan` §8 D1). `macos-15`에서 `platform-store`(FTS5와 `setCustomSQLite`, TC-11), `platform-os`, `platform-sandbox`(Seatbelt), `platform-secrets`, `cap-knowledge` 시험, `just exit-tests`, `aarch64-apple-darwin` 사이드카 빌드, `just desktop-test`를 돈다. 결과는 `review.macos-checklist`에 적는다.
 
