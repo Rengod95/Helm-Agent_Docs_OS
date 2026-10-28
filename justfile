@@ -92,7 +92,7 @@ verify:
     WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps
     ws check
 
-# verify 단계 묶음: setup fmt-check lint typecheck check-layers check-ts-rules depcruise knip docs-route test를 차례로, 단계마다 guard.sh run scope 하나. 처음 실패에서 멈추고 종료코드를 그대로 낸다 (xeon/scripts/verify-steps.sh)
+# verify 단계 묶음: setup, 가벼운 검사(fmt-check check-layers check-ts-rules docs-route knip, 같이), lint typecheck depcruise test를 차례로, 단계마다 guard.sh run scope 하나. 처음 실패에서 멈추고 종료코드를 그대로 낸다 (xeon/scripts/verify-steps.sh)
 [private]
 _verify-steps:
     bash xeon/scripts/verify-steps.sh

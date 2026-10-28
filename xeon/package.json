@@ -23,7 +23,7 @@
     "check-ts-rules": "bun scripts/check-ts-rules.ts",
     "docs-route": "bun scripts/docs-route.ts",
     "depcruise": "depcruise packages apps plugins --config .dependency-cruiser.cjs",
-    "knip": "knip"
+    "knip": "knip --cache"
   },
   "devDependencies": {
     "@swc/core": "catalog:",
