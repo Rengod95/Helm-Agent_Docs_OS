@@ -19,7 +19,14 @@ import type {
   ScopeId,
   Unsubscribe,
 } from "@xeon/contracts/extensions";
-import { eraseDrive, eraseHandler, hostApiAs, serviceAs, stateAs } from "../erase.ts";
+import {
+  eraseDrive,
+  eraseHandler,
+  restoreAs,
+  serviceAs,
+  stateAs,
+  type TypeWitness,
+} from "../erase.ts";
 import type { CapabilityBindings } from "./bindings.ts";
 import {
   EFFECT_KEY_MAX,
@@ -124,7 +131,8 @@ export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S> {
   if (found === undefined) {
     throw new PrimitiveError("no_context", "hostOf needs a ScopeApi created by ext-host");
   }
-  return hostApiAs<S>(found);
+  const witness: TypeWitness<ScopeHostApi<S>> = {};
+  return restoreAs(witness, found);
 }
 
 /** 패키지 안에서만 쓴다. ext-host가 만든 g의 호스트 핵심과 scope 기록 */

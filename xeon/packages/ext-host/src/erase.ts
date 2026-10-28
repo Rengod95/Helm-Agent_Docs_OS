@@ -26,7 +26,6 @@ import type {
   DispatchOptions,
   DispatchOutcome,
 } from "./primitives/dispatch-types.ts";
-import type { ScopeHostApi } from "./primitives/host-api.ts";
 import type { HandlerEntry } from "./primitives/registry.ts";
 
 // 타입 지움과 복원이 일어나는 유일한 파일이다(eng.typescript.guide TY-06 허용 목록 A3).
@@ -70,10 +69,15 @@ export function eraseScope<S>(
   };
 }
 
-/** 상태 타입 S를 지운 부가 API를 scope의 상태 타입으로 되돌린다. 같은 정의에서 만든 g의 것이다 */
-export function hostApiAs<S>(host: ScopeHostApi<AnyState>): ScopeHostApi<S> {
-  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 복원: 부가 API는 g와 같은 scope 정의에서 만들어졌다 (eng.typescript.guide TY-06)
-  return host as unknown as ScopeHostApi<S>;
+/** 타입만 싣는 증인. 값은 없고 반환 타입 T를 호출자가 정한다(erase.ts가 primitives를 import하지 않게 하는 장치) */
+export interface TypeWitness<T> {
+  readonly witness?: T;
+}
+
+/** 상태 타입 S를 지운 보관 값을 증인의 타입으로 되돌린다. 보관한 쪽이 같은 정의에서 만들었다(예: scope의 부가 API) */
+export function restoreAs<T>(_witness: TypeWitness<T>, stored: unknown): T {
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 복원: 보관한 값은 증인의 타입과 같은 정의에서 만들어졌다 (eng.typescript.guide TY-06)
+  return stored as T;
 }
 
 /** 스키마 검사를 거친 상태 문서를 지운 상태 타입으로 본다 */
