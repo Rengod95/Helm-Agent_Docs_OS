@@ -60,6 +60,7 @@ function retryableOf(kind: KnowledgeFailureKind): boolean {
     case "timeout":
     case "upstream_error":
     case "aborted":
+    case "effect_not_allowed":
     case "internal":
       return DEFAULT_RETRYABLE[kind];
     case "rollback_unsafe":
