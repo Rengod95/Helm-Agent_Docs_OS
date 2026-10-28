@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "bun:test";
+import { createRegistrationStore } from "@xeon/platform-process";
 import { createHostConnection } from "../../src/client.ts";
 import {
   connectServiceTransport,
@@ -198,6 +199,48 @@ describe("tcp listener and token", () => {
         await stale.closed;
         const fresh = await connectedClient(endpoint, next);
         await fresh.close();
+      } finally {
+        await handle.shutdown("stop");
+        runtime.dispose();
+      }
+    },
+    60_000,
+  );
+});
+
+describe("tcp loopback rule and identity", () => {
+  realTest(
+    "startService refuses a non-loopback tcp host with tcp_not_loopback and leaves nothing behind",
+    async () => {
+      const runtime = scratchRuntimeDir();
+      try {
+        const result = await startService(
+          optionsFor(runtime.dir, { tcp: { host: "0.0.0.0", port: 0 } }),
+        );
+        expect(result.started).toBe(false);
+        if (!result.started && result.reason === "failed") {
+          expect(result.message).toContain("tcp_not_loopback");
+        }
+        expect(existsSync(join(runtime.dir, "service.json"))).toBe(false);
+      } finally {
+        runtime.dispose();
+      }
+    },
+    60_000,
+  );
+
+  realTest(
+    "serviceStatus does not report a service whose registration start time differs from the running process",
+    async () => {
+      const runtime = scratchRuntimeDir();
+      const handle = await started(optionsFor(runtime.dir));
+      try {
+        const real = await serviceStatus({ runtimeDir: runtime.dir });
+        expect(real.ok && real.value.running).toBe(true);
+        const store = createRegistrationStore({ path: join(runtime.dir, "service.json") });
+        store.write({ ...handle.registration, startedAt: handle.registration.startedAt + 1 });
+        const forged = await serviceStatus({ runtimeDir: runtime.dir });
+        expect(forged).toEqual({ ok: true, value: { running: false, reason: "unreachable" } });
       } finally {
         await handle.shutdown("stop");
         runtime.dispose();

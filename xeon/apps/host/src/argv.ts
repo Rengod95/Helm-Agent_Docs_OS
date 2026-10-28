@@ -1,3 +1,4 @@
+import { isLoopbackHost } from "@xeon/platform-process";
 import type { HostCommand } from "./host-command.ts";
 import type { SettingsFileScope } from "./settings.ts";
 
@@ -42,14 +43,17 @@ function parseConfigSchema(rest: readonly string[]): ParsedArgv {
   };
 }
 
-/** `service run`와 `host --service`의 인자: `--safe-mode`, `--listen-tcp <host:port>` */
+/** `service run`와 `host --service`의 인자: `--safe-mode`, `--listen-tcp <host:port>`, `--allow-non-loopback` */
 function parseServiceRun(rest: readonly string[]): ParsedArgv {
   let safeMode = false;
   let tcp: { readonly host: string; readonly port: number } | undefined;
+  let allowNonLoopback = false;
   for (let index = 0; index < rest.length; index += 1) {
     const arg = rest[index];
     if (arg === "--safe-mode") {
       safeMode = true;
+    } else if (arg === "--allow-non-loopback") {
+      allowNonLoopback = true;
     } else if (arg === "--listen-tcp") {
       const value = rest[index + 1];
       index += 1;
@@ -69,9 +73,21 @@ function parseServiceRun(rest: readonly string[]): ParsedArgv {
       return { ok: false, message: `unknown argument: ${arg ?? ""}` };
     }
   }
+  // 루프백이 아닌 주소는 명시 허용 없이는 거부한다 [결정: 오케스트레이터 기본값]
+  if (tcp !== undefined && !allowNonLoopback && !isLoopbackHost(tcp.host)) {
+    return {
+      ok: false,
+      message: `tcp_not_loopback: ${tcp.host} is not a loopback address; add --allow-non-loopback to open it`,
+    };
+  }
   return {
     ok: true,
-    command: { kind: "service-run", safeMode, ...(tcp === undefined ? {} : { tcp }) },
+    command: {
+      kind: "service-run",
+      safeMode,
+      ...(tcp === undefined ? {} : { tcp }),
+      ...(allowNonLoopback ? { allowNonLoopback: true } : {}),
+    },
   };
 }
 

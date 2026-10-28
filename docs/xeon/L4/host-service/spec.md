@@ -475,7 +475,7 @@ export declare function startStdioHost(options: StdioHostOptions): Promise<HostE
 
 export type HostCommand =
   | { readonly kind: "host-stdio" }
-  | { readonly kind: "service-run"; readonly safeMode: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // `xeon service run`, `xeon host --service [--safe-mode] [--listen-tcp <host>:<port>]`
+  | { readonly kind: "service-run"; readonly safeMode: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // `xeon service run`, `xeon host --service [--safe-mode] [--listen-tcp <host>:<port> [--allow-non-loopback]]`
   | { readonly kind: "service-start"; readonly start?: ServiceCommand; readonly safeMode?: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // safeMode·tcp는 새로 띄울 때 `service run`의 인자가 된다
   | { readonly kind: "service-status"; readonly json: boolean }
   | { readonly kind: "service-stop" }
@@ -501,7 +501,7 @@ export interface ServiceOptions {
   readonly runtimeDir?: string;                  // 서비스 파일 디렉터리. 없으면 L0.os의 dirs.runtime
   readonly startupGraceMs?: number;              // 기본 SERVICE_STARTUP_GRACE_MS
   readonly idleGraceMs?: number;                 // 기본 설정 l0.process.service.idleGraceMs(60000)
-  readonly tcp?: { readonly host: string; readonly port: number };   // TCP로도 연다. 토큰 필수(SV-05)
+  readonly tcp?: { readonly host: string; readonly port: number; readonly allowNonLoopback?: boolean };   // TCP로도 연다. 토큰 필수, 루프백이 아니면 allowNonLoopback 필수(`tcp_not_loopback`, SV-05)
   readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };   // 유휴 타이머용. 시험이 수동 시간을 넘긴다
   readonly handleSignals?: boolean;              // SIGTERM·SIGINT 처리. 기본 true
   readonly random?: (bytes: number) => Uint8Array;   // 토큰용
@@ -514,7 +514,7 @@ export interface ServiceHandle {
   idleShutdownAt(): number | null;
   connections(): number;
   shutdown(reason: "signal" | "idle" | "stop"): Promise<void>;
-  rotateToken(): string;                         // 새 토큰, 등록 파일 다시 쓰기. 이전 토큰은 새 연결에 즉시 무효
+  rotateToken(): string;                         // 등록 파일을 먼저 쓰고 성공해야 토큰을 바꾼다(실패하면 던지고 이전 토큰 유지). 이전 토큰은 새 연결에 즉시 무효
 }
 export type ServiceStart =
   | { readonly started: true; readonly handle: ServiceHandle }
@@ -928,13 +928,13 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
   - 로컬은 Unix 소켓과 파일 권한으로 인증한다. 소켓은 권한 0700 디렉터리 안에 두고 소켓 파일 자체도 0600으로 만든다. 같은 사용자만 접속할 수 있다.
   - 시작할 때 소켓 디렉터리의 소유자가 현재 사용자가 아니거나 그룹·기타 권한이 열려 있으면 시작을 거부한다(종료코드 1). 권한을 대신 좁히지 않는다. 다른 사용자가 만든 디렉터리를 쓰지 않기 위해서다 [제안].
   - 등록 파일의 `token`은 TCP·WebSocket 전송용이다. Unix 소켓 접속에는 요구하지 않는다. 토큰을 `host.hello`에 실을지는 F wire §10 미결 4에 맞춘다(§10 미결 10). F가 정하기 전에는 토큰 필드를 계약에 더하지 않는다.
-  - 비루프백 리스너는 만들지 않는다. 원격 전송이 생기면 토큰 없는 기동을 금지하고 인증을 `host.hello` 전에 끝낸다(ADR-0006 §3.2).
+  - TCP 리스너는 루프백 주소만 기본으로 연다. 비루프백은 `--allow-non-loopback`(`ServiceOptions.tcp.allowNonLoopback`)을 명시할 때만 열리고 아니면 `tcp_not_loopback`으로 시작을 거부한다 [결정: 오케스트레이터 기본값]. 원격 전송이 생기면 토큰 없는 기동을 금지하고 인증을 `host.hello` 전에 끝낸다(ADR-0006 §3.2).
 - SV-06 부모-자식 수명 [결정: ADR-0006 §3.7 6번]
   - 자식 엔진(stdio)은 stdin EOF 임대로 정리한다(HS-32).
   - 서비스는 L0.process의 detached spawn으로 띄운다. 요구 동작: 새 세션(setsid), stdin·stdout·stderr를 부모와 공유하지 않음(로그는 L0.os 로그 파일), 부모 이벤트 루프에서 `unref`. 부모(`ensure`를 부른 CLI)가 끝나도 서비스는 남는다(pi `PX/process.ts:40-70`).
 - SV-07 종료 협조 [결정: ADR-0006 §3.7 7번]
   - 서비스는 SIGTERM을 받으면 HS-31 절차를 `reason: "signal"`로 실행하고, 등록 파일을 지우고, 소켓을 닫고, 종료코드 0으로 끝난다.
-  - `xeon service stop`(`stopHostService`)은 등록 파일을 읽고 `host.status`로 pid가 같은지 확인한 뒤 먼저 `host.shutdown`(reason `user`)을 보내 협조 종료를 시도하고 `l0.process.shutdown.timeoutMs` + 1000ms 안에 등록 파일이 사라지기를 기다린다. 남아 있으면 `stopProcess`(L0.process)로 SIGTERM, 시한 안에 안 끝나면 SIGKILL을 보낸다. SIGKILL 뒤 남은 등록 파일과 소켓 파일은 다음 `ensure`가 낡은 기록으로 처리한다.
+  - `xeon service stop`(`stopHostService`)은 등록 파일을 읽고 `host.status`로 pid가 같은지 확인한 뒤 먼저 `host.shutdown`(reason `user`)을 보내 협조 종료를 시도하고 `l0.process.shutdown.timeoutMs` + 1000ms 안에 등록 파일이 사라지기를 기다린다. 남아 있으면 SIGTERM, 시한 안에 안 끝나면 SIGKILL을 보낸다. 신호는 보내기 직전마다 그 pid가 등록 파일의 서비스인지(살아 있고 L0.os 시작 시각 지문 == `startedAt`) 다시 확인하고, 확인하지 못하면(지문 없음, 불일치 = pid 재사용) 보내지 않고 `not_running`이다. 등록 파일은 있고 프로세스가 같은데 hello·status에 답하지 않는 멈춘 서비스는 `host.shutdown` 없이 바로 SIGTERM → SIGKILL이다. `serviceStatus`도 `host.status`의 pid와 `startedAt`이 등록 파일과 같을 때만 실행 중으로 본다. SIGKILL 뒤 남은 등록 파일과 소켓 파일은 다음 `ensure`가 낡은 기록으로 처리한다.
   - 비협조 확장 코드는 안전 경계 도달을 막을 수 있다(ADR-0006 §4.2). 시한 뒤 SIGKILL이 마지막 수단이고, 진행 중 단계는 다음 열기에서 복구한다.
 - SV-08 단일 장애점 [결정: ADR-0006 §3.7 8번]
   - 서비스가 죽어도 DB와 복구 표식은 남는다. 다음 `ensure`가 새 서비스를 띄우고, 그 서비스가 §4.1의 7·8단계(열 때 복구, 설정 시 자동 재개)를 한다.

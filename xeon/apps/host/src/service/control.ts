@@ -1,10 +1,18 @@
 import {
   isProcessAlive,
-  stopProcess,
   type ServiceRegistration,
   createRegistrationStore,
 } from "@xeon/platform-process";
-import { ok, attemptAsync, type Clock, type Result, type Scheduler } from "@xeon/contracts";
+import { createOsService, readOsRuntime } from "@xeon/platform-os";
+import { hostResourceDir } from "../state-paths.ts";
+import {
+  ok,
+  attemptAsync,
+  repeatAsync,
+  type Clock,
+  type Result,
+  type Scheduler,
+} from "@xeon/contracts";
 import type { WireResult } from "@xeon/contracts/wire";
 import { connectServiceTransport, createHostConnection, helloService } from "./connect.ts";
 import { requestServiceShutdown, waitServiceGone } from "./ensure.ts";
@@ -16,6 +24,39 @@ import { systemTime } from "./time.ts";
 export interface ServiceControlOptions {
   readonly runtimeDir?: string;
   readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };
+  /**
+   * pid의 프로세스 시작 시각 지문(L0.os `processStartFingerprint`). 없거나 모르면 null이다. 기본은 L0.os 구현.
+   * 등록 파일의 `startedAt`과 같을 때만 그 pid를 같은 서비스로 본다(pid 재사용 방지)
+   */
+  readonly fingerprint?: (pid: number) => number | null;
+}
+
+/** 기본 지문 읽기: L0.os 서비스를 한 번 만들어 읽고 닫는다 */
+async function defaultFingerprint(pid: number): Promise<number | null> {
+  const started = await createOsService(
+    { resourceDir: hostResourceDir(), logSink: () => undefined, logRedact: (line) => line },
+    readOsRuntime(),
+  );
+  if (!started.ok) return null;
+  try {
+    const read = started.value.service.processStartFingerprint(pid);
+    return read.ok ? read.value : null;
+  } finally {
+    await started.value.dispose();
+  }
+}
+
+/** pid가 등록 파일의 서비스인가: 살아 있고 시작 시각 지문이 `startedAt`과 같다. 확인할 수 없으면 거짓이다 */
+async function sameProcess(
+  options: ServiceControlOptions,
+  registration: ServiceRegistration,
+): Promise<boolean> {
+  if (!isProcessAlive(registration.pid)) return false;
+  const print =
+    options.fingerprint === undefined
+      ? await defaultFingerprint(registration.pid)
+      : options.fingerprint(registration.pid);
+  return print !== null && print === registration.startedAt;
 }
 
 export type ServiceStatusResult =
@@ -55,8 +96,13 @@ export async function serviceStatus(
       connection.request("host.status", {}, { timeoutMs: 3000 }),
     );
     if (!status.ok) return ok({ running: false, reason: "unreachable" });
-    // 등록 파일의 pid·시작 시각 지문과 같은 서비스인지 확인한다(pid 재사용 오인 방지)
-    if (status.value.pid !== registration.pid) return ok({ running: false, reason: "unreachable" });
+    // 등록 파일의 pid·시작 시각과 같은 서비스인지 확인한다(pid 재사용 오인 방지)
+    if (
+      status.value.pid !== registration.pid ||
+      new Date(status.value.startedAt).getTime() !== registration.startedAt
+    ) {
+      return ok({ running: false, reason: "unreachable" });
+    }
     return ok({ running: true, registration, status: status.value });
   } finally {
     await connection.close();
@@ -87,28 +133,39 @@ export async function stopHostService(
   const store = createRegistrationStore({ path: paths.value.registrationPath });
   const time = options.time ?? systemTime();
   const timeoutMs = options.shutdownTimeoutMs ?? 3000;
+  const registered = store.read();
+  if (!registered.ok) return ok({ kind: "not_running" });
+  const registration = registered.value;
   if (!status.value.running) {
-    // 등록은 남았는데 접속할 수 없고 프로세스도 없으면 낡은 기록이다. 정리는 다음 기동이 한다
-    return ok({ kind: "not_running" });
+    // 등록은 있는데 hello·status에 답하지 않는다. 같은 프로세스가 살아 있으면(멈춘 서비스) 신호로 끝낸다.
+    // 프로세스가 없거나 지문이 다르면(pid 재사용) 낡은 기록이다. 아무것도 죽이지 않는다
+    if (!(await sameProcess(options, registration))) return ok({ kind: "not_running" });
+  } else {
+    const accepted = await requestServiceShutdown(registration, "user");
+    if (accepted && (await waitServiceGone(store, time, timeoutMs + 1000))) {
+      return ok({ kind: "stopped" });
+    }
   }
-  const { registration } = status.value;
-  const accepted = await requestServiceShutdown(registration, "user");
-  if (accepted && (await waitServiceGone(store, time, timeoutMs + 1000)))
-    return ok({ kind: "stopped" });
-  if (!isProcessAlive(registration.pid)) return ok({ kind: "stopped" });
-  const outcome = await stopProcess(
-    {
-      kill: (pid, signal) => {
-        process.kill(pid, signal);
-      },
-      alive: isProcessAlive,
-      clock: time.clock,
-      scheduler: time.scheduler,
-    },
-    registration.pid,
-    { termWaitMs: timeoutMs, killWaitMs: timeoutMs },
-  );
-  if (outcome === "terminated" || outcome === "killed") return ok({ kind: "signalled", outcome });
-  if (outcome === "already_gone") return ok({ kind: "stopped" });
+  // 신호를 보내기 직전마다 같은 프로세스인지 다시 확인한다. 확인하지 못하면 보내지 않는다
+  const send = async (signal: "SIGTERM" | "SIGKILL"): Promise<boolean> => {
+    if (!(await sameProcess(options, registration))) return false;
+    process.kill(registration.pid, signal);
+    return true;
+  };
+  const exited = (ms: number): Promise<boolean> => {
+    const deadline = time.clock.now() + ms;
+    return repeatAsync<boolean>(async () => {
+      if (!isProcessAlive(registration.pid)) return { value: true };
+      if (time.clock.now() >= deadline) return { value: false };
+      await new Promise<void>((resolve) => {
+        time.scheduler.setTimeout(resolve, 50);
+      });
+      return undefined;
+    });
+  };
+  if (!(await send("SIGTERM"))) return ok({ kind: "not_running" });
+  if (await exited(timeoutMs)) return ok({ kind: "signalled", outcome: "terminated" });
+  if (!(await send("SIGKILL"))) return ok({ kind: "signalled", outcome: "terminated" });
+  if (await exited(timeoutMs)) return ok({ kind: "signalled", outcome: "killed" });
   return ok({ kind: "failed", message: "the service did not exit after SIGKILL" });
 }

@@ -47,9 +47,13 @@ export interface ServiceOptions {
   readonly idleGraceMs?: number;
   /**
    * TCP로도 연다(원격 사용, M3-REQ-43). 등록 파일의 토큰이 필요하고 `host.hello`의 `auth.token`으로 검사한다.
-   * 비루프백 주소도 토큰이 있으므로 열 수 있다. 기본은 열지 않는다
+   * 루프백이 아닌 주소는 `allowNonLoopback`을 명시해야 열린다(`tcp_not_loopback`). 기본은 열지 않는다
    */
-  readonly tcp?: { readonly host: string; readonly port: number };
+  readonly tcp?: {
+    readonly host: string;
+    readonly port: number;
+    readonly allowNonLoopback?: boolean;
+  };
   /** 유휴 타이머의 시계. 없으면 L0.os의 시계. 시험이 수동 시계를 넘긴다 */
   readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };
   /** SIGTERM을 받으면 종료한다. 기본 true. 시험은 끈다 */
@@ -187,6 +191,7 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
       host: options.tcp.host,
       port: options.tcp.port,
       token: gate.current(),
+      ...(options.tcp.allowNonLoopback === true ? { allowNonLoopback: true } : {}),
     });
     if (!listened.ok) {
       await closeHost(running);
@@ -320,10 +325,15 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
     connections: () => hub.size,
     shutdown,
     rotateToken() {
-      const next = gate.rotate();
-      const rewritten = registrationStore.write(registrationOf());
-      if (!rewritten.ok)
-        log.error("service.registration_rewrite_failed", { kind: rewritten.error.kind });
+      // 등록 파일을 먼저 쓰고 성공해야 토큰을 바꾼다. 쓰기가 실패하면 이전 토큰이 그대로 유효하다
+      const next = gate.rotate((candidate) => {
+        const rewritten = registrationStore.write({ ...registrationOf(), token: candidate });
+        if (!rewritten.ok) {
+          log.error("service.registration_rewrite_failed", { kind: rewritten.error.kind });
+        }
+        return rewritten.ok;
+      });
+      if (next === undefined) throw new Error("the registration file could not be rewritten");
       return next;
     },
   };

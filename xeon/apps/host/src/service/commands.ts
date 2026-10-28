@@ -35,12 +35,14 @@ export function defaultServiceCommand(
   extra: {
     readonly safeMode?: boolean;
     readonly tcp?: { readonly host: string; readonly port: number };
+    readonly allowNonLoopback?: boolean;
   } = {},
 ): ServiceCommand {
   const entry = Bun.main;
   const isScript = /\.(ts|js|mjs)$/.test(entry) && !entry.startsWith("/$bunfs/");
   const flags = [
     ...(extra.safeMode === true ? ["--safe-mode"] : []),
+    ...(extra.allowNonLoopback === true ? ["--allow-non-loopback"] : []),
     ...(extra.tcp === undefined
       ? []
       : ["--listen-tcp", `${extra.tcp.host}:${String(extra.tcp.port)}`]),
@@ -64,7 +66,14 @@ export async function runServiceCommand(
     case "service-run": {
       const started = await startService({
         assemble: command.safeMode ? { safeMode: true } : {},
-        ...(command.tcp === undefined ? {} : { tcp: command.tcp }),
+        ...(command.tcp === undefined
+          ? {}
+          : {
+              tcp: {
+                ...command.tcp,
+                ...(command.allowNonLoopback === true ? { allowNonLoopback: true } : {}),
+              },
+            }),
       });
       if (!started.started) {
         if (started.reason === "in_use") return 0;
@@ -85,6 +94,9 @@ export async function runServiceCommand(
             ...(command.safeMode === true ? { safeMode: true } : {}),
             ...(command.kind === "service-start" && command.tcp !== undefined
               ? { tcp: command.tcp }
+              : {}),
+            ...(command.kind === "service-start" && command.allowNonLoopback === true
+              ? { allowNonLoopback: true }
               : {}),
           }),
       });
