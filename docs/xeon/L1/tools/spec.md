@@ -252,7 +252,7 @@ export interface ToolService extends ToolsPort {
 ```
 
 - [결정: review.decisions-2 D-04] `ToolService`는 `ToolsPort`(`F.extensions.spec` §3.2.1 `ports.ts`, X.primitives.spec §3.9)를 확장한다(`F.capabilities.spec` §3.12 규칙 2, `services/tools.ts`). X는 같은 서비스 이름 `xeon.tools`에 별도 인터페이스를 등록하지 않고, 확장의 `hostOf(g).registerTool(def)`는 `register(owner, def)` 오버로드로 들어온다. 이 오버로드가 `ToolsPort`를 충족한다.
-- `register(owner, def)` 변환 규칙 [제안]: `orderKey`는 `ext.<owner의 확장 이름>`, `tool`은 `def.name`·`def.description`·`def.parameters`와 `def.execute`를 감싼 `AgentTool`, 재생 정책은 `def.replay`다. `hints`·`policy`·`exposure`·`outputLimits`는 생략하고 §4.6 유도 규칙을 따른다. 반환 `Unregister`는 F `Unsubscribe`와 같은 모양(`() => void`)이다. owner scope가 dispose되면 X가 이 함수를 부른다.
+- `register(owner, def)` 변환 규칙 [제안]: `orderKey`는 `ext.<owner의 확장 이름>`, `tool`은 `def.name`·`def.description`·`def.parameters`와 `def.execute`를 감싼 `AgentTool`, 재생 정책은 `def.replay`다. `def.risk`와 `def.hints`가 있으면 `ToolMeta.risk`·`hints`로 쓰고(`risk`가 없으면 `hints.readOnly`로 유도하고 그것도 없으면 `exec`), `policy`·`exposure`·`outputLimits`는 생략하고 §4.6 유도 규칙을 따른다 [제안: M3-REQ-78]. 선언의 신뢰는 core-tools가 가리지 않는다: builtin이 아닌 확장의 `read`·`write`·`hints.readOnly` 선언은 X의 `registerTool`이 `tool_risk_reserved`로 거부해 이 오버로드까지 오지 않는다(X.primitives.spec §4.6.6). 그래서 learning 같은 builtin 그룹의 도구가 `risk: "read"`로 등록되면 무인 위임 자식에서도 승인 없이 돈다. 반환 `Unregister`는 F `Unsubscribe`와 같은 모양(`() => void`)이다. owner scope가 dispose되면 X가 이 함수를 부른다.
 
 ```ts
 /** `prepare`를 통과해 실행할 수 있는 호출. 인자는 도구 스키마 검증과 변환을 마친 값이다 */
