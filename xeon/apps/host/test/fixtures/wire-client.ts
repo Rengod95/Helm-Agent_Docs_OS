@@ -108,3 +108,13 @@ export async function compactWhenIdle(
     return rethrow(cause);
   });
 }
+
+/** 조건이 참이 될 때까지 폴링한다. 기한을 넘기면 조건의 마지막 값을 돌려준다 */
+export async function until(condition: () => boolean, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition() && Date.now() < deadline) {
+    // eslint-disable-next-line no-await-in-loop -- 폴링
+    await Bun.sleep(10);
+  }
+  return condition();
+}

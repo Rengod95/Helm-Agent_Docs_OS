@@ -10,7 +10,7 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { SECRET_REF, SECRET_TOOL, startSecretEnvScenario } from "../fixtures/secret-env.ts";
-import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
+import { collectEvents, HELLO_PARAMS, startTurnWhenIdle, until } from "../fixtures/wire-client.ts";
 
 // M2 E5 (HOST.6): 질문 도구(cap-dialog), 계획 승인(cap-work), MCP 서버 주도 질문(cap-mcp), 도구 승인(L1.tools)과 비밀 사용 승인(L1.tools)이
 // 같은 승인 요청 레코드 모양으로 기록되고, 출처(origin)의 turnId, stepId, toolCallId, caller가 같은 규칙의 값을 갖는다.
@@ -37,7 +37,12 @@ interface Settled {
 async function runScenario(
   steps: readonly ToolStep[],
   settled: Settled,
-  options: { readonly settings?: JsonObject; readonly lead?: readonly string[] } = {},
+  options: {
+    readonly settings?: JsonObject;
+    readonly lead?: readonly string[];
+    /** warm turn 전에 기다릴 조건. 연결은 세션 시작을 막지 않아 느린 러너(macOS)에서는 warm turn이 연결보다 먼저 끝날 수 있다 */
+    readonly ready?: () => boolean;
+  } = {},
 ): Promise<Scenario> {
   const home = useEngineHome();
   writeUserSettings(home, { ...TAPE_SETTINGS, ...options.settings });
@@ -54,6 +59,8 @@ async function runScenario(
     const created = await connection.request("thread.create", {});
     // MCP 서버 도구는 연결된 다음 turn 시작에 오른다. 앞선 turn 하나로 연결을 기다린다(`lead`는 그 turn의 모델 응답이다)
     if ((options.lead ?? []).length > 0) {
+      const ready = options.ready;
+      if (ready !== undefined) expect(await until(ready, 10_000)).toBe(true);
       const warm = await startTurnWhenIdle(connection, {
         threadId: created.threadId,
         input: "warm",
@@ -236,6 +243,7 @@ realTest(
         { decision: "answer", answer: { q1: { selected: [], text: "Ada" } } },
         {
           lead: ["warmed up."],
+          ready: () => stub.requests.some((request) => request.method === "tools/list"),
           settings: {
             "l2.mcp.servers": {
               fixture: {

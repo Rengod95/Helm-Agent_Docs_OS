@@ -7,22 +7,13 @@ import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
-import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
+import { collectEvents, HELLO_PARAMS, startTurnWhenIdle, until } from "../fixtures/wire-client.ts";
 
 // HOST.6 cap-mcp (int): 설정에 적은 HTTP MCP 서버에 연결하고(루프백 스텁 서버), 서버가 광고한 도구가 도구 표에 올라
 // 모델이 부를 수 있다. stdio 서버는 cap-mcp-stdio.int.test.ts다. 서버 도구는 연결된 다음 turn 시작(단계 경계)에 오른다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
-
-async function until(condition: () => boolean, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (!condition() && Date.now() < deadline) {
-    // eslint-disable-next-line no-await-in-loop -- 폴링
-    await Bun.sleep(10);
-  }
-  return condition();
-}
 
 realTest(
   "a configured HTTP server connects and its tool is callable in the next turn",
