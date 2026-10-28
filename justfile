@@ -8,7 +8,7 @@
 # 7. 환경·비밀 동사(secret-add, dotenv …)는 ~/.config/ws/ws.just에서 온다. 여기서 다시 만들지 않는다.
 # 8. 고친 뒤 `just --list`, `just verify`.
 # 9. test·verify는 scripts/guard.sh(기기 슬롯, 공용 메모리 예산) 아래에서 돈다: `scripts/guard.sh run -- <명령>`, verify는 `scripts/guard.sh verify -- just _verify-steps`.
-# 이 저장소: verify는 기기에서 한 번에 하나(WS_GUARD_SLOTS=1)이고 _verify-steps(xeon/scripts/verify-steps.sh)가 단계마다 guard.sh run scope(2G, XEON_VERIFY_STEP_MAX)를 따로 만든다. test 단계는 패키지마다 1.5G.
+# 이 저장소: verify는 기기에서 한 번에 하나(WS_GUARD_SLOTS=1)이고 _verify-steps(xeon/scripts/verify-steps.sh)가 단계마다 guard.sh run scope(2G, XEON_VERIFY_STEP_MAX)를 따로 만든다. test 단계는 turbo(동시 2개)로 패키지마다 1.5G, 캐시에 맞는 패키지는 다시 돌지 않는다.
 # 병렬 작업 중에는 `just check <패키지>`·`just test <패키지>`만 돌린다. 저장소 전체 verify·lint·typecheck는 마지막 병합 단계 한 곳에서만.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set allow-duplicate-recipes
@@ -41,7 +41,7 @@ lint:
 typecheck:
     cd xeon && just typecheck
 
-# Xeon 단위 테스트: scripts와 패키지를 하나씩 scripts/guard.sh run 상한 아래에서. 인자로 패키지 디렉터리 (xeon/scripts/test-capped.sh)
+# Xeon 단위 테스트: scripts는 매번, 패키지는 turbo 캐시(모든 worktree 공용)에 맞으면 재생하고 아니면 scripts/guard.sh run 상한 아래에서. 인자로 패키지 디렉터리 (xeon/scripts/test-capped.sh)
 [group('quality')]
 test *targets:
     cd xeon && just test {{targets}}

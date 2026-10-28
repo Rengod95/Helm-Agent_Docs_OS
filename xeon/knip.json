@@ -25,7 +25,7 @@
       "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]
     },
     "apps/desktop": {
-      "entry": ["test/**/*.test.ts", "src/main.tsx"]
+      "entry": ["test/**/*.test.{ts,tsx}", "src/main.tsx"]
     },
     "apps/host": {
       "entry": [
