@@ -578,6 +578,10 @@ export interface ToolResourceDef {
   readonly description: string;
   readonly parameters: TSchema;
   readonly replay: "safe" | "unsafe";
+  /** 선언한 위험 등급(ToolRisk). 생략하면 hints로 유도하고 그것도 없으면 exec다 [제안: M3-REQ-78]. exec보다 낮은 선언은 builtin 확장만 낼 수 있다 */
+  readonly risk?: ToolRisk;
+  /** 정책 힌트(ToolHints). readOnly: true 선언은 risk와 같은 신뢰 규칙을 따른다 */
+  readonly hints?: ToolHints;
   execute(args: JsonValue, ctx: {
     readonly threadId: ThreadId;     // 도구가 실행된 대화. 위임 자식 대화에서 실행되면 그 자식 대화
     readonly signal: AbortSignal;

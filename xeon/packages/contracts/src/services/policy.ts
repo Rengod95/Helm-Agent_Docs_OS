@@ -67,6 +67,7 @@ function agentNameOf(caller: CallerId): string | null {
  * - 자식 관점: 같은 호출을 `child`의 값으로 바꿔 `rules`에 `child.definitionRules`를 더해 평가한다.
  * - 정의 제한: `parent.allow`(정의 tools 제한 glob)가 있고 도구 이름이 어느 glob에도 맞지 않으면 deny다.
  *   빈 배열이면 모든 도구가 막힌다. 생략하면 제한이 없다. ruleId는 `agent.<이름>.tools`다.
+ * - 호출자 거부: `parent.deny`(glob)에 도구 이름이 맞으면 deny다. ruleId는 `agent.<이름>.tools.deny`다. 정의 제한과 호출자 거부의 거부 문장 끝에는 `parent.denyHint`를 붙인다.
  * - 합친 결과가 ask이고 `call.interactive`가 거짓이면 deny(`reason: "noninteractive"`)다.
  *
  * 그래서 자식은 부모가 거부한 도구를 쓸 수 없고, 정의가 allow 규칙을 더해도 부모 결정보다 넓어지지 않는다.
@@ -89,14 +90,25 @@ export function childDecision(
     childRules,
   );
   let merged = stricter(parentView, childView);
+  const hint = parent.denyHint === undefined ? "" : ` ${parent.denyHint}`;
+  const name = agentNameOf(child.caller);
+  const ruleId = name === null ? "agent.tools" : `agent.${name}.tools`;
   if (parent.allow !== undefined && !parent.allow.some((glob) => matchToolGlob(glob, call.tool))) {
-    const name = agentNameOf(child.caller);
     merged = stricter(merged, {
       effect: "deny",
       reason: "rule",
-      ruleId: name === null ? "agent.tools" : `agent.${name}.tools`,
+      ruleId,
       tier: null,
-      message: `[xeon:denied_by_policy] Tool call "${call.tool}" is not in the tool list of this subagent definition.`,
+      message: `[xeon:denied_by_policy] Tool call "${call.tool}" is not in the tool list of this subagent definition.${hint}`,
+    });
+  }
+  if (parent.deny !== undefined && parent.deny.some((glob) => matchToolGlob(glob, call.tool))) {
+    merged = stricter(merged, {
+      effect: "deny",
+      reason: "rule",
+      ruleId: name === null ? "agent.tools.deny" : `agent.${name}.tools.deny`,
+      tier: null,
+      message: `[xeon:denied_by_policy] Tool call "${call.tool}" is denied for this subagent.${hint}`,
     });
   }
   if (merged.effect === "ask" && !call.interactive) {

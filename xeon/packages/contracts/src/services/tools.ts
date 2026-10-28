@@ -325,6 +325,10 @@ export interface PolicyCeiling {
   readonly mode: PermissionMode;
   /** 정의 파일 tools 제한(glob). 없으면 제한 없음 */
   readonly allow?: readonly string[];
+  /** 호출자가 준 거부 도구 이름 glob. 광고에서 빼지 않고 실행 시점에 거부한다 [제안: M3-REQ-78] */
+  readonly deny?: readonly string[];
+  /** `allow` 밖이거나 `deny`에 걸린 호출의 거부 문장에 붙일 안내 */
+  readonly denyHint?: string;
 }
 
 /** 규칙 정적 검사가 찾는 문제 */

@@ -1,5 +1,5 @@
 import type { TSchema } from "typebox";
-import type { CallerInfo, ToolName } from "../capabilities/index.ts";
+import type { CallerInfo, ToolHints, ToolName, ToolRisk } from "../capabilities/index.ts";
 import type { JsonValue, ThreadId, Usage } from "../conversation/index.ts";
 import type { Result } from "../base/index.ts";
 import type {
@@ -224,6 +224,13 @@ export interface ToolResourceDef {
   readonly description: string;
   readonly parameters: TSchema;
   readonly replay: "safe" | "unsafe";
+  /**
+   * 선언한 위험 등급(`ToolRisk`). 생략하면 `hints`로 유도하고 그것도 없으면 `exec`다 [제안: M3-REQ-78].
+   * `read`보다 낮은 승인 요구를 만드는 선언은 builtin 확장만 낼 수 있다. 그 밖의 확장이 `exec`보다 낮게 선언하면 X가 등록을 거부한다
+   */
+  readonly risk?: ToolRisk;
+  /** 정책 힌트(`ToolHints`). 위험 등급을 유도하는 데 쓴다. `readOnly: true` 선언은 `risk`와 같은 신뢰 규칙을 따른다 */
+  readonly hints?: ToolHints;
   execute(
     args: JsonValue,
     ctx: {
