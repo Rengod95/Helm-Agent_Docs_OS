@@ -7,6 +7,7 @@ import type {
   Proposal,
   ProposalsInput,
   ProposalsOutput,
+  WritableSkillScope,
   WriteOutcome,
 } from "@xeon/contracts/capabilities";
 import { actorOf } from "../actor.ts";
@@ -33,6 +34,8 @@ interface ReplayCall {
   readonly input: unknown;
   readonly actor: KnowledgeActor;
   readonly proposalId: string;
+  /** 제안 당시의 `afterUntrusted`. 원장 행에 그대로 남긴다 */
+  readonly afterUntrusted: boolean;
   /** `decide`의 메모. 원장 `reason`이 된다 */
   readonly note: string | undefined;
   readonly signal: AbortSignal | undefined;
@@ -54,6 +57,33 @@ export interface ProposalQueue {
   ): Promise<Result<DecideOutput, KnowledgeFailure>>;
   /** 만료 기한이 지난 pending 제안을 expired로 바꾼다. 시작 정리와 목록·결정 앞에서 부른다 */
   expire(): Result<number, KnowledgeFailure>;
+}
+
+function scopeRefused(message: string): KnowledgeFailure {
+  return failure("invalid_input", message, { detail: { reason: "scope_not_allowed" } });
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** 승인 때 고른 범위를 저장한 입력에 반영한다. 새 스킬(`skills.create`)만 범위를 바꿀 수 있다(D-M3-09) */
+function withChosenScope(
+  record: ProposalRecord,
+  stored: unknown,
+  chosen: WritableSkillScope,
+): Result<unknown, KnowledgeFailure> {
+  if (record.proposal.target.kind !== "skill") {
+    return err(scopeRefused("only a skill proposal has a scope"));
+  }
+  if (chosen === (record.proposal.target.scope ?? "user")) return ok(stored);
+  if (record.method !== "skills.create") {
+    return err(scopeRefused("only a new skill can be applied to another scope"));
+  }
+  if (!isRecord(stored)) {
+    return err(failure("internal", "the proposal input is not a JSON object"));
+  }
+  return ok({ ...stored, scope: chosen });
 }
 
 /** 대상이 제안 이후 바뀌었음을 뜻하는 실패. 제안은 stale이 된다 */
@@ -110,8 +140,14 @@ export function createProposalQueue(deps: QueueDeps): ProposalQueue {
     if (!swept.ok) return swept;
     const read = db.read((tx) =>
       listProposals(tx, {
-        ...(input.status === undefined ? {} : { status: input.status }),
+        statuses: [
+          ...new Set([
+            ...(input.status === undefined ? [] : [input.status]),
+            ...(input.statuses ?? []),
+          ]),
+        ],
         limit: input.limit ?? DEFAULT_LIMIT,
+        ...(input.before === undefined ? {} : { before: input.before }),
       }),
     );
     if (!read.ok) return err(fromStoreError(read.error, "proposal list"));
@@ -149,11 +185,17 @@ export function createProposalQueue(deps: QueueDeps): ProposalQueue {
     }
     const parsed = parseJson(new TextDecoder().decode(stored.value));
     if (!parsed.ok) return err(failure("internal", "the proposal input is not JSON"));
+    const chosen =
+      input.scope === undefined
+        ? ok(parsed.value)
+        : withChosenScope(record, parsed.value, input.scope);
+    if (!chosen.ok) return chosen;
     const replay = deps.replayers[record.method];
     const applied = await replay({
-      input: parsed.value,
+      input: chosen.value,
       actor: record.proposal.actor,
       proposalId: record.proposal.proposalId,
+      afterUntrusted: record.proposal.afterUntrusted === true,
       note: input.note,
       signal: options?.signal,
     });

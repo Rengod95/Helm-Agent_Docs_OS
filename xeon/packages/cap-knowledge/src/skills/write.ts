@@ -29,7 +29,7 @@ import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import { utf8DecodeStrict, utf8Encode } from "../hash.ts";
 import { hashOfTarget, readTarget, type ChangeTarget } from "../ledger/target.ts";
 import { checkWriteExtras, scanForWrite, type ScanTarget } from "../write/scan.ts";
-import type { WritePlan, Writer } from "../write/pipeline.ts";
+import type { DecidedProposal, WritePlan, Writer } from "../write/pipeline.ts";
 import { describeSkill, mainFileOf } from "./document.ts";
 import { isAddressableSkillFile } from "./paths.ts";
 import type { SkillsDeps } from "./service.ts";
@@ -102,7 +102,7 @@ interface Caller {
   readonly context: CallContext | undefined;
   readonly requestId: string | undefined;
   readonly signal: AbortSignal | undefined;
-  readonly decided: { readonly proposalId: string } | undefined;
+  readonly decided: DecidedProposal | undefined;
   readonly note: string | undefined;
 }
 
@@ -212,7 +212,7 @@ function replayWith<S extends TSchema>(
       context: undefined,
       requestId: undefined,
       signal: call.signal,
-      decided: { proposalId: call.proposalId },
+      decided: { proposalId: call.proposalId, afterUntrusted: call.afterUntrusted },
       note: call.note,
     });
   };

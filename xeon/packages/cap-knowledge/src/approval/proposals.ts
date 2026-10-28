@@ -69,6 +69,8 @@ export interface NewProposal {
   readonly scan: ScanSummary;
   readonly preview: string;
   readonly requestId: string | undefined;
+  /** 제안한 쓰기가 untrusted 도구 결과를 읽은 turn에서 나왔다. 생략하면 거짓이다 */
+  readonly afterUntrusted?: boolean;
 }
 
 function textOf(row: SqlRow, column: string): string | undefined {
@@ -149,6 +151,7 @@ function toRecord(row: SqlRow): Result<ProposalRecord, KnowledgeFailure> {
     preview,
     scan: scan.value,
     ...(ledgerId === null ? {} : { ledgerId }),
+    ...(intOf(row, "after_untrusted") === 1 ? { afterUntrusted: true } : {}),
   };
   return ok({ proposal, method, input: input.value, requestId, decidedAt });
 }
@@ -159,8 +162,8 @@ export function insertProposal(tx: SqlTx, row: NewProposal): void {
   tx.run(
     `INSERT INTO cap_knowledge_proposals (
        proposal_id, created_at, actor, method, input, target_kind, target_name, target_scope, op,
-       base_hash, status, scan, preview, request_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+       base_hash, status, scan, preview, request_id, after_untrusted)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
     [
       row.proposalId,
       row.createdAt,
@@ -175,6 +178,7 @@ export function insertProposal(tx: SqlTx, row: NewProposal): void {
       json(row.scan),
       row.preview,
       row.requestId ?? null,
+      row.afterUntrusted === true ? 1 : 0,
     ],
   );
 }
@@ -195,21 +199,34 @@ export function findProposalByRequestId(
   return row === undefined ? ok(undefined) : toRecord(row);
 }
 
-/** 최신순. 상태를 주면 그 상태만 */
+export interface ProposalQuery {
+  /** 이 상태들 가운데 하나(합집합). 비우면 거르지 않는다 */
+  readonly statuses: readonly ProposalStatus[];
+  readonly limit: number;
+  /** 이 항목보다 오래된 쪽부터. 정렬 키는 (createdAt, proposalId) 내림차순이다 */
+  readonly before?: { readonly createdAt: number; readonly proposalId: string };
+}
+
+/** 최신순. 상태를 주면 그 상태만, `before`가 있으면 그 항목 뒤부터 */
 export function listProposals(
   tx: SqlTx,
-  query: { readonly status?: ProposalStatus; readonly limit: number },
+  query: ProposalQuery,
 ): Result<readonly ProposalRecord[], KnowledgeFailure> {
-  const rows =
-    query.status === undefined
-      ? tx.all(
-          "SELECT * FROM cap_knowledge_proposals ORDER BY created_at DESC, proposal_id DESC LIMIT ?",
-          [query.limit],
-        )
-      : tx.all(
-          "SELECT * FROM cap_knowledge_proposals WHERE status = ? ORDER BY created_at DESC, proposal_id DESC LIMIT ?",
-          [query.status, query.limit],
-        );
+  const where: string[] = [];
+  const params: (string | number)[] = [];
+  if (query.statuses.length > 0) {
+    where.push(`status IN (${query.statuses.map(() => "?").join(", ")})`);
+    params.push(...query.statuses);
+  }
+  if (query.before !== undefined) {
+    where.push("(created_at < ? OR (created_at = ? AND proposal_id < ?))");
+    params.push(query.before.createdAt, query.before.createdAt, query.before.proposalId);
+  }
+  const clause = where.length === 0 ? "" : ` WHERE ${where.join(" AND ")}`;
+  const rows = tx.all(
+    `SELECT * FROM cap_knowledge_proposals${clause} ORDER BY created_at DESC, proposal_id DESC LIMIT ?`,
+    [...params, query.limit],
+  );
   const records: ProposalRecord[] = [];
   for (const row of rows) {
     const record = toRecord(row);

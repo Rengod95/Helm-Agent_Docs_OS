@@ -230,6 +230,20 @@ export const DEFAULT_KNOWLEDGE_SETTINGS: KnowledgeSettings = {
   search: { enabled: true, defaultScope: "all", includeHiddenDefault: false, likeScanLimit: 20000 },
 };
 
+/**
+ * 조립 루트가 선언하는 신뢰 증거 출처를 설정 값에 합친다(M3-REQ-104, D-11). 내장 그룹이 자기 대기열의 사람 승인을 증거로
+ * 실을 때 L2가 승인 요청을 한 번 더 내지 않게 하려는 것이다. 이 패키지는 그룹 이름을 알지 못하고 조립 루트가 `<확장 이름>.<대기열 이름>`을
+ * 넘긴다. 합쳐도 증거의 유효성 규칙(첫 마디가 호출 확장 이름과 같아야 한다)은 그대로다.
+ */
+export function withTrustedEvidence(
+  settings: KnowledgeSettings,
+  sources: readonly string[] | undefined,
+): KnowledgeSettings {
+  if (sources === undefined || sources.length === 0) return settings;
+  const merged = [...new Set([...settings.write.trustedEvidenceSources, ...sources])];
+  return { ...settings, write: { ...settings.write, trustedEvidenceSources: merged } };
+}
+
 /** 설정 층을 돌려준다. 호출마다 읽으므로 변경이 다음 호출부터 적용된다 */
 export interface KnowledgeSettingsSource {
   layers(threadId: string | undefined): ScopeStack;

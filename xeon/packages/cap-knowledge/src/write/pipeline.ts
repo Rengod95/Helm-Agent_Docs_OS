@@ -56,6 +56,12 @@ export interface WritePlan {
   readonly captureFailure: ChangeSpec["captureFailure"];
 }
 
+/** 제안 결정으로 사람이 이미 승인한 쓰기. 원장에 제안 id와 제안 당시의 afterUntrusted를 남긴다 */
+export interface DecidedProposal {
+  readonly proposalId: string;
+  readonly afterUntrusted: boolean;
+}
+
 export interface WriteRequest {
   readonly plan: WritePlan;
   readonly actor: KnowledgeActor;
@@ -66,7 +72,7 @@ export interface WriteRequest {
   readonly evidence: ApprovalEvidence | undefined;
   readonly signal: AbortSignal | undefined;
   /** 제안 결정으로 사람이 이미 승인했다. 게이트를 건너뛰고 원장에 제안 id를 남긴다 */
-  readonly decided: { readonly proposalId: string } | undefined;
+  readonly decided: DecidedProposal | undefined;
 }
 
 export interface Writer {
@@ -189,6 +195,7 @@ export function createWriter(deps: WriterDeps): Writer {
         scan: plan.scan,
         preview: previewDiff(plan.current, plan.next),
         requestId,
+        ...(request.context?.caller.afterUntrusted === true ? { afterUntrusted: true } : {}),
       });
       return ok({ status: "queued", proposalId, scan: plan.scan, indexChanged: false });
     });
@@ -218,6 +225,10 @@ export function createWriter(deps: WriterDeps): Writer {
       reason: plan.reason,
       proposalId: request.decided?.proposalId,
       rollbackOf: plan.rollbackOf,
+      afterUntrusted:
+        request.decided === undefined
+          ? request.context?.caller.afterUntrusted === true
+          : request.decided.afterUntrusted,
       captureFailure: plan.captureFailure,
     });
   }

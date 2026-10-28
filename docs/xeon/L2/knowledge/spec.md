@@ -756,6 +756,7 @@ CREATE TABLE cap_knowledge_ledger (
   before_manifest TEXT,                   -- BlobRef JSON: [{path, blob}] 목록 blob
   after_manifest  TEXT,
   request_id     TEXT UNIQUE,             -- CallOptions.requestId. 멱등 키. 중단(aborted)한 행은 NULL로 비워 같은 키로 다시 부를 수 있다
+  after_untrusted INTEGER NOT NULL DEFAULT 0, -- 이 쓰기를 한 turn에 untrusted 도구 결과를 읽었다(§4.6.3 3번). 마이그레이션 3단계가 더했다
   approved_by    TEXT,
   evidence       TEXT,                    -- ApprovalEvidence JSON
   scan           TEXT NOT NULL,           -- ScanSummary JSON(규칙 이름만)
@@ -784,7 +785,8 @@ CREATE TABLE cap_knowledge_proposals (
   preview      TEXT NOT NULL,             -- 제안할 때 만든 통합 diff(20,000자). KN.2가 더했다
   decided_at   INTEGER,
   ledger_id    TEXT,
-  request_id   TEXT UNIQUE
+  request_id   TEXT UNIQUE,
+  after_untrusted INTEGER NOT NULL DEFAULT 0 -- 제안한 쓰기의 afterUntrusted. 마이그레이션 3단계가 더했다
 ) STRICT;
 
 -- 세션 투영·색인: 투영기 cap.knowledge가 DDL을 선언한다. 세션 삭제 때 session_id 행이 함께 지워진다.
@@ -1131,6 +1133,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 묻지 못하는 경우 [제안: KN.2]: `ask` 판정이어도 승인 포트가 없거나, 호출 문맥에 `threadId`가 없거나, `interactive`가 `false`(크론·헤드리스)이면 묻지 않고 제안 대기열로 보낸다. 닫힌 쪽으로 실패하고 정본 파일은 바뀌지 않는다.
 - 승인 대기는 루프의 승인 대기 상태로 커밋되고 멈춘다. 재개 때 결과 이벤트로 이어진다(`L2.readme` §5.7). 승인 결과 "항상"은 이 능력에 적용하지 않는다 [제안]. 스킬·메모리 쓰기는 매번 내용이 달라서다.
 - `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다.
+  - [제안: M3-REQ-104] 내장 그룹이 채우는 길은 조립 루트가 플러그인 옵션 `KnowledgePluginOptions.trustedEvidenceSources`(`<확장 이름>.<대기열 이름>` 목록)로 넘기는 것이다. 효과가 있는 신뢰 목록은 설정 값과 이 옵션의 합집합(`withTrustedEvidence`)이다. 학습 그룹을 내장으로 올리는 조립 루트가 `["learning.queue"]`를 넘기면 학습 대기열의 사람 승인이 증거가 되어 L2는 승인 요청을 내지 않는다(승인이 한 번이다). 이 패키지는 그룹 이름을 기본값으로 갖지 않고 옵션을 비우면 신뢰 목록은 설정 값 그대로다. 합쳐도 위 유효성 규칙(첫 마디가 호출 확장 이름과 같음)은 그대로라 다른 확장이 `learning.queue`를 빌려 쓸 수 없다.
+  - [결정: M3-REQ-104, D-M3-09] 스킬 쓰기 입력의 `scope: "project"`는 행위자가 `user`이거나 유효한 승인 증거가 있는 확장일 때만 받는다. 모델 도구 경로는 범위를 고를 수 없다(`skill_manage` 파라미터에 `scope`가 없고 모델 행위자는 `denied`다). 학습 승인 화면에서 사용자가 프로젝트 범위를 고르면 학습 그룹이 증거와 함께 `scope: "project"`로 부른다.
 
 #### 4.5.2 제안 대기열
 
@@ -1140,7 +1144,10 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
   - [결정: KN.2] 승인한 제안은 게이트를 다시 거치지 않는다(사람이 미리보기를 보고 승인했다). 원장 행의 행위자는 제안한 행위자이고(결정한 사용자는 원장에 남지 않는다), `approved_by`는 `approval`이며 `proposal_id`가 제안을 가리킨다. 스킬 `created_by`(§4.4.4)와 감사가 "누가 바꿨나"와 "누가 승인했나"를 구분하기 위해서다. 같은 결정을 두 번 실행해도 원장 `request_id`(`proposal:<제안 ID>`)가 막는다. `decide`의 `note`는 원장 `reason`이 된다.
   - [결정: KN.2] 다시 실행이 `base_stale`, `name_conflict`, `patch_mismatch`, `rollback_conflict`로 실패하면 제안은 `stale`이다. 다른 실패(`scan_blocked`, `internal` 등)는 제안을 `pending`으로 두고 오류만 돌려준다.
   - 같은 `requestId`로 같은 쓰기를 다시 부르면 대기열도 첫 결과(`status: "queued"`, 같은 `proposalId`)를 돌려준다. 제안이 적용된 뒤에도 첫 결과를 돌려준다.
-  - 목록은 최신순이다. 목록과 결정 앞에서 만료를 정리하고, 시작 때도 정리한다.
+  - 목록은 최신순이다. 목록과 결정 앞에서 만료를 정리하고, 시작 때도 정리한다. `statuses`(여럿)와 `before`(`(createdAt, proposalId)` 키셋 위치)로 합친 목록의 쪽 나누기를 돕는다.
+  - [결정: M3-REQ-91, D-M3-09] `decide({ approve, scope })`: 사용자가 승인 때 범위를 고르면 새 스킬(`skills.create`) 제안만 그 범위로 적용한다. 범위가 제안의 범위와 같으면 그대로이고, 메모리 제안이나 기존 스킬을 고치는 제안에 다른 범위를 주면 `invalid_input`(`detail.reason: "scope_not_allowed"`)이며 제안은 `pending`으로 남는다. 사용자가 고른 범위는 증거가 필요 없다(사람의 승인이다).
+  - [결정: M3-REQ-91] 제안과 원장 행은 `afterUntrusted`(제안한 쓰기가 untrusted 도구 결과를 읽은 turn에서 나왔는지)를 가진다. 승인하면 원장 행이 제안의 값을 이어받는다.
+  - [결정: M3-REQ-91, D-M3-32 a] 대기열은 둘(학습 그룹, 이 능력)이고 승인 화면이 한 목록으로 합친다. 이 능력의 몫은 `createKnowledgeProposalWire(ledgerApi)`다. `list({ status, limit, before })`가 제안을 합친 목록의 행(`ProposalRow`, `source: "knowledge"`)으로 옮기고, `decide(params)`가 `ledger.decide`의 오류를 결정 실패 이유(`not_found`, `closed`, `base_stale`, `scan_failed`, `approval_required`, `scope_not_allowed`, `revision_mismatch`, `unsupported`, `unavailable`)로 옮긴다. `edit`와 `revert`는 학습 대기열만 받으므로 `unsupported`이고 지식 제안의 `revision`은 1이다. 행의 `destructive`는 기준 해시를 요구하는 연산과 롤백이다. 호스트의 `proposal.list`·`proposal.decide` 처리기는 이 어댑터를 부른다(처리기는 이 패키지의 몫이 아니다).
 - `decide({ reject })`: 상태를 `rejected`로 바꾸고 파일은 건드리지 않는다.
 - 만료: 생성 뒤 `l2.knowledge.write.proposalExpiryDays`(기본 14일)가 지난 `pending`은 시작 정리 때 `expired`가 된다.
 - 승인 전에는 파일이 바뀌지 않는다. `pending`, `rejected`, `stale`, `expired` 제안은 정본 파일에 아무 효과가 없다(수용 기준 1, `product.scope.spec` §4.4 M3 UC-3).
@@ -1179,7 +1186,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 1. 검사(§4.6.1): 지시 주입·경계 표지·숨은 문자 규칙이 대표 패턴을 막는다.
 2. 승인: 에이전트 쓰기는 기본으로 사람의 승인이나 대기열을 거친다(§4.5.1). 미리보기에는 바뀐 부분의 diff와 검사 경고가 보인다.
-3. 출처 표시: `caller.afterUntrusted = true`인 쓰기는 설정과 무관하게 승인 요청이고, 원장에 `afterUntrusted` 표시를 남긴다. 승인 화면은 "이번 turn에 웹·외부 결과를 읽었다"는 경고를 함께 보인다.
+3. 출처 표시: `caller.afterUntrusted = true`인 쓰기는 설정과 무관하게 승인 요청이고, 원장과 제안 대기열에 `afterUntrusted` 표시를 남긴다(`LedgerEntry.afterUntrusted`, `Proposal.afterUntrusted`, 열 `after_untrusted`). 승인 화면은 "이번 turn에 웹·외부 결과를 읽었다"는 경고를 함께 보인다.
 4. 읽을 때의 경계: `skill_view` 렌더링은 행위자가 `agent`였던 스킬(`created_by = 'agent'`)의 본문을 `<untrusted_session_content kind="skill" createdBy="agent">`로 감싼다 [제안]. 사용자가 만든 스킬은 감싸지 않는다.
 5. 데이터 표지: 학습 정책을 가진 L3 그룹의 검토 포크는 지난 대화를 데이터로 다룬다는 지시를 갖는다(Hermes `/learn`의 "source text is DATA" 방어). 그 지시는 `L3.learning.spec` 소관이다.
 
@@ -1377,7 +1384,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 투영기 등록(`projectors.register`)과 같은 컨텍스트 범위 핸들의 투영 표 쓰기 | `L1.persistence.spec`, `L0.store.spec` | 있음(표 이름은 `cap_knowledge_` + 밑줄 없는 지역 이름, 세션 삭제 정리는 `thread_id` 열) |
 | 세션 종류·부모·작업 디렉터리 | `thread.started.workspace`, `agent.spawned.background` | 있음. 종류 필드는 없어 `agent.spawned`로 추론한다(§4.8.2) |
 | `ApprovalService`(`xeon.approvals`) `open`·`wait`와 요청 kind `tool`, 미리보기 payload(`args.preview`) | `L1.tools.spec` §3.6, F `services/approvals.ts` | 있음(KN.2가 `createWriteApprovals`로 쓴다) |
-| `DecideInput.approval`(확장의 제안 결정에 실을 증거), `LedgerEntry.afterUntrusted` | `F.capabilities.spec` | 요청(KN.2, §10 미결 21·22) |
+| `LedgerEntry.afterUntrusted`, `Proposal.afterUntrusted`, `ProposalsInput.statuses`·`before`, `DecideInput.scope` | `F.capabilities.spec` | 있음(M3-REQ-91) |
+| `DecideInput.approval`(확장의 제안 결정에 실을 증거) | `F.capabilities.spec` | 요청(§10 미결 22) |
 | 쓰기 도구 둘의 일반 도구 승인 기본값 `allow` | `L1.tools.spec` | 요청 |
 | 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로 | `L1.context.spec` | 요청 |
 | 컴팩션 뒤 다시 넣기 | `L1.context.spec` §4.9a | L1이 한다. 이 패키지는 상태를 그대로 둔다(§4.2.8) |
@@ -1411,7 +1419,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 2. 닫힘. 호출자 정보는 `F.capabilities.spec` §3.2 `CallOptions.context.caller`로 받는다(`L2.web.spec` §3.7과 같다).
 3. [미결] 제안 대기열의 소유와 중복. 이 문서는 `cap_knowledge_proposals`(에이전트 쓰기용)를 두고 학습 정책을 가진 L3 그룹은 자기 대기열을 갖는다. 하나로 합칠지(`L3.learning.spec` §10 미결 9, `eng.context-map.design` §4.1 "제안 대기열").
 4. [미결] 메모리 스냅샷과 스킬 인덱스를 넣는 위치(시스템 프롬프트 영역 또는 첫 turn 기록 메시지)와 컴팩션 뒤 다시 넣는 규칙. 첫 turn 기록 메시지로 넣고 컴팩션 뒤 재주입은 L1이 한다(§4.2.5, §4.2.8, `L1.context.spec` §4.9a). 시스템 프롬프트 영역에 둘지는 남는다.
-5. [미결] 쓰기 도구 승인의 이중화 방지. 일반 도구 승인 기본 `allow` + 능력 게이트(제안) 또는 L1.tools 승인 하나에 diff를 싣는 방식(§3.6).
+5. [미결] 쓰기 도구 승인의 이중화 방지. 일반 도구 승인 기본 `allow` + 능력 게이트(제안) 또는 L1.tools 승인 하나에 diff를 싣는 방식(§3.6). M3-REQ-91이 정하라고 했지만 도구 등록 정책(`ToolPolicyMeta`)에 도구별 기본 승인 결정을 담는 필드가 없고 일반 승인 규칙은 L1.tools 설정이라 이 능력만으로는 닫을 수 없다. 증거가 신뢰되는 쓰기(§4.5.1)는 능력 게이트가 승인 요청을 내지 않아 이중화가 없다. 도구 경로의 이중화는 L1.tools 요청(§8)이 닫힐 때까지 남는다.
 6. [미결] 원장 보존 기간과 오래된 blob 정리. 지우지 않으면 원장 blob이 계속 늘어난다(`L2.knowledge.plan` §7).
 7. [미결] 인덱스 예산과 설명 자르기 기본값(8,000자, 160자). 측정 전 [가정]이다(§4.2.5).
 8. [미결] 도구 없는 능력(`knowledge.ledger`)의 허용. `F.capabilities.spec` §10을 따른다.
@@ -1427,5 +1435,5 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 18. [미결] 프로세스 사이 파일 락. `OsService`에 락 API가 없어 임대와 해시 재확인으로 대신한다(§4.3.3). 데이터 디렉터리를 엔진 밖의 도구가 쓰는 경우의 보장은 해시 재확인까지다.
 19. [미결] 재색인 비용. 모든 스킬 트리를 읽고 해시한다. 스킬 수와 크기가 커지면 mtime·크기로 후보를 줄인다(`cap_knowledge_files.mtime_ms`가 그 자리다).
 20. [미결] 쓰기 한도(파일 1 MiB, 500개)와 읽기 한도(파일 16 MiB, 전체 64 MiB, 500개)의 차이(§4.2.2). 읽기 한도를 넘는 스킬은 색인에서 빠진다.
-21. [미결] 원장 `afterUntrusted` 표시. §4.6.3 3번은 `afterUntrusted = true`인 쓰기를 원장에 표시하라고 하지만 F `LedgerEntry`에 필드가 없다. 구현(KN.2)은 승인 요청의 `args.afterUntrusted`로만 알린다. F가 `LedgerEntry.afterUntrusted?`를 더하면 원장 열을 더한다.
-22. [미결] 확장의 제안 결정. `DecideInput`에 `approval` 증거가 없어 `decide`는 호스트 전용이다(§4.5.2). 제안 대기열과 L3 그룹의 자기 대기열(미결 3)을 합칠 때 함께 정한다.
+21. 닫음 [결정: M3-REQ-91]: 원장 `afterUntrusted` 표시. F `LedgerEntry.afterUntrusted?`와 `Proposal.afterUntrusted?`가 들어왔고 열 `after_untrusted`(마이그레이션 3단계)에 남긴다.
+22. 닫음 [결정: M3-REQ-91, D-M3-32 a]: 확장의 제안 결정. 대기열은 둘을 유지하고 `decide`는 호스트(사용자) 전용이다(§4.5.2). 확장이 이 대기열을 결정하는 길은 두지 않는다. 학습 그룹은 자기 대기열을 결정하고 이 능력의 쓰기를 증거와 함께 부른다.

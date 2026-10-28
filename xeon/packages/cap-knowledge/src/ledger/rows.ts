@@ -66,6 +66,8 @@ export interface NewLedgerRecord {
   readonly reason: string | undefined;
   readonly proposalId: string | undefined;
   readonly rollbackOf: string | undefined;
+  /** 이 쓰기를 한 turn에 untrusted 도구 결과를 읽었다. 생략하면 거짓이다 */
+  readonly afterUntrusted?: boolean;
   readonly status: LedgerStatus;
   readonly indexChanged: boolean;
   readonly outcome: WriteOutcome | undefined;
@@ -181,6 +183,7 @@ function toRecord(row: SqlRow): Result<LedgerRecord, KnowledgeFailure> {
     ...(proposalId === null ? {} : { proposalId }),
     ...(rollbackOf === null ? {} : { rollbackOf }),
     ...(rolledBackBy === null ? {} : { rolledBackBy }),
+    ...(intCell(row, "after_untrusted") === 1 ? { afterUntrusted: true } : {}),
   };
   return ok({
     seq: intCell(row, "seq"),
@@ -203,8 +206,8 @@ export function insertRecord(tx: SqlTx, record: NewLedgerRecord): void {
     `INSERT INTO cap_knowledge_ledger (
        ledger_id, at, actor, target_kind, target_name, target_scope, target_path, op, status,
        before_hash, after_hash, before_manifest, after_manifest, request_id, approved_by, evidence,
-       scan, reason, proposal_id, rollback_of, index_changed, outcome)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       scan, reason, proposal_id, rollback_of, index_changed, outcome, after_untrusted)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       record.ledgerId,
       record.at,
@@ -228,6 +231,7 @@ export function insertRecord(tx: SqlTx, record: NewLedgerRecord): void {
       record.rollbackOf ?? null,
       record.indexChanged ? 1 : 0,
       record.outcome === undefined ? null : json(record.outcome),
+      record.afterUntrusted === true ? 1 : 0,
     ],
   );
 }

@@ -29,7 +29,7 @@ import { hashOfTarget, readTarget, type ChangeTarget } from "../ledger/target.ts
 import type { KnowledgeSettings } from "../settings.ts";
 import { getFileState } from "../skills/store.ts";
 import { treeOf, type Tree } from "../skills/tree.ts";
-import type { WritePlan, Writer } from "../write/pipeline.ts";
+import type { DecidedProposal, WritePlan, Writer } from "../write/pipeline.ts";
 import { checkWriteExtras, scanForWrite } from "../write/scan.ts";
 import {
   checkEntryText,
@@ -100,7 +100,7 @@ interface Caller {
   readonly context: CallOptions["context"];
   readonly requestId: string | undefined;
   readonly signal: AbortSignal | undefined;
-  readonly decided: { readonly proposalId: string } | undefined;
+  readonly decided: DecidedProposal | undefined;
   readonly note: string | undefined;
 }
 
@@ -353,7 +353,7 @@ function replayWith<S extends TSchema>(
       context: undefined,
       requestId: undefined,
       signal: call.signal,
-      decided: { proposalId: call.proposalId },
+      decided: { proposalId: call.proposalId, afterUntrusted: call.afterUntrusted },
       note: call.note,
     });
     return done.ok ? ok(done.value.outcome) : done;

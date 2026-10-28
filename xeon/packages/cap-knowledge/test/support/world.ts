@@ -10,7 +10,7 @@ import {
   type KnowledgeRuntime,
 } from "../../src/service.ts";
 import type { WriteApprovals } from "../../src/ports/approvals.ts";
-import { readKnowledgeSettings } from "../../src/settings.ts";
+import { readKnowledgeSettings, withTrustedEvidence } from "../../src/settings.ts";
 import { resolveSkillRoots } from "../../src/skills/roots.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock, type ManualClock } from "./clock.ts";
 import { createMemoryFs, type MemoryFs } from "./memory-fs.ts";
@@ -79,6 +79,8 @@ export interface WorldOptions {
   readonly path?: string;
   /** 있으면 이 파일 시스템을 쓴다. 저장소를 다시 열어도 정본 파일이 남아 있게 한다 */
   readonly fs?: MemoryFs;
+  /** 조립 루트가 선언하는 신뢰 증거 출처(`KnowledgePluginOptions.trustedEvidenceSources`와 같다) */
+  readonly trustedEvidenceSources?: readonly string[];
   /** 저장소 능력 판정을 덮어쓴다(FTS5 없음, 낡은 SQLite 시험) */
   readonly capabilities?: { readonly fts5: boolean; readonly sqliteVersion: string };
 }
@@ -124,7 +126,8 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
     clock,
     ids: fixedLocalIds(),
     logger,
-    settings: () => readKnowledgeSettings(layers),
+    settings: () =>
+      withTrustedEvidence(readKnowledgeSettings(layers), options.trustedEvidenceSources),
     roots: () => {
       const settings = readKnowledgeSettings(layers);
       return Promise.resolve({

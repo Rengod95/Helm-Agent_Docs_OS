@@ -6,5 +6,11 @@ export {
   DEFAULT_KNOWLEDGE_SETTINGS,
   KNOWLEDGE_SETTING_DEFS,
   readKnowledgeSettings,
+  withTrustedEvidence,
 } from "./settings.ts";
 export type { KnowledgeSettings, KnowledgeSettingsSource } from "./settings.ts";
+export {
+  createKnowledgeProposalWire,
+  type KnowledgeProposalListInput,
+  type KnowledgeProposalWire,
+} from "./approval/wire.ts";

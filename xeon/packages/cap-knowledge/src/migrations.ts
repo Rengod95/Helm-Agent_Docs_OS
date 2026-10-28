@@ -8,7 +8,7 @@ export const KNOWLEDGE_OWNER = "cap.knowledge";
 
 export const KNOWLEDGE_MIGRATIONS: MigrationSet = {
   owner: KNOWLEDGE_OWNER,
-  version: 2,
+  version: 3,
   steps: [
     {
       version: 1,
@@ -87,6 +87,14 @@ export const KNOWLEDGE_MIGRATIONS: MigrationSet = {
   request_id   TEXT UNIQUE
 ) STRICT`,
         "CREATE INDEX cap_knowledge_proposals_status ON cap_knowledge_proposals(status, created_at)",
+      ],
+    },
+    {
+      version: 3,
+      sql: [
+        // M3-REQ-91: 쓰기를 한 turn이 untrusted 도구 결과를 읽었는지(`CallerInfo.afterUntrusted`)를 원장과 대기열에 남긴다
+        "ALTER TABLE cap_knowledge_ledger ADD COLUMN after_untrusted INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE cap_knowledge_proposals ADD COLUMN after_untrusted INTEGER NOT NULL DEFAULT 0",
       ],
     },
   ],

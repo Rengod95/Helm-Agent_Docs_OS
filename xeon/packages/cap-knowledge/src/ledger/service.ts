@@ -21,7 +21,7 @@ import { actorOf } from "../actor.ts";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { ProposalQueue, Replayer } from "../approval/queue.ts";
 import { scanText } from "../scan/rules.ts";
-import type { Writer } from "../write/pipeline.ts";
+import type { DecidedProposal, Writer } from "../write/pipeline.ts";
 import type { LedgerDeps } from "./change.ts";
 import { planRollback } from "./rollback.ts";
 import { findById, listRecords } from "./rows.ts";
@@ -93,7 +93,7 @@ export function createLedgerRuntime(deps: LedgerServiceDeps): LedgerRuntime {
       readonly context: CallContext | undefined;
       readonly requestId: string | undefined;
       readonly signal: AbortSignal | undefined;
-      readonly decided: { readonly proposalId: string } | undefined;
+      readonly decided: DecidedProposal | undefined;
     },
   ): Promise<Result<WriteOutcome, KnowledgeFailure>> => {
     const known = deps.writer.recall(request.requestId);
@@ -135,7 +135,7 @@ export function createLedgerRuntime(deps: LedgerServiceDeps): LedgerRuntime {
         context: undefined,
         requestId: undefined,
         signal: call.signal,
-        decided: { proposalId: call.proposalId },
+        decided: { proposalId: call.proposalId, afterUntrusted: call.afterUntrusted },
       },
     );
   };

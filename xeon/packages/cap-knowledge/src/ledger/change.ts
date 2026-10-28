@@ -63,6 +63,8 @@ export interface ChangeSpec {
   readonly proposalId: string | undefined;
   /** 롤백이면 되돌리는 원래 항목의 id */
   readonly rollbackOf: string | undefined;
+  /** 이 쓰기를 한 turn에 untrusted 도구 결과를 읽었다. 생략하면 거짓이다 */
+  readonly afterUntrusted?: boolean;
   /** 안전 캡처가 실패했을 때의 오류 종류. 일반 쓰기는 internal, 롤백은 rollback_unsafe */
   readonly captureFailure: Extract<KnowledgeFailureKind, "internal" | "rollback_unsafe">;
 }
@@ -162,6 +164,7 @@ export function createChangeExecutor(deps: LedgerDeps): ChangeExecutor {
       reason: spec.reason,
       proposalId: spec.proposalId,
       rollbackOf: spec.rollbackOf,
+      ...(spec.afterUntrusted === true ? { afterUntrusted: true } : {}),
       status: "prepared",
       indexChanged: false,
       outcome: undefined,
