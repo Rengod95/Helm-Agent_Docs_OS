@@ -1042,9 +1042,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     if (trust === null) return finish(null, false);
     if (!trust.trusted) return finish(trust, false);
     if (loadedProjects.has(trust.projectRoot)) return finish(trust, true);
-    // 신뢰 필요 자원이 없는 폴더는 판정만 하고 싣을 것이 없다. 그래도 한 번 본 루트로 기억한다
-    loadedProjects.add(trust.projectRoot);
+    // 실리기 전에 중단되거나 실패하면 기억하지 않는다. 다음 호출이 다시 싣는다
     await loadProjectCandidates(trust.projectRoot, options.signal);
+    loadedProjects.add(trust.projectRoot);
     for (const record of order) assertNotEssentialFailure(record);
     return finish(trust, false);
   }

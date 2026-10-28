@@ -180,3 +180,41 @@ test("safe mode makes loadProject a no-op with a safe_mode diagnostic", async ()
   expect(report.diagnostics.map((entry) => entry.code)).toEqual(["safe_mode"]);
   expect(harness.loader.list()).toEqual([]);
 });
+
+test("a load that is cancelled midway is not remembered and the next call loads the project", async () => {
+  await writePlugin(join(projectA, ".xeon", "extensions"), "proj-a", { name: "proj-a" });
+  const controller = new AbortController();
+  const harness = await harnessOf({
+    loader: {
+      fs: {
+        ...realLoaderFs,
+        // 프로젝트 확장 위치를 훑을 때 중단한다
+        listDir: (path) => {
+          if (path.endsWith(join(".xeon", "extensions"))) controller.abort();
+          return realLoaderFs.listDir(path);
+        },
+      },
+    },
+  });
+  await harness.loader.loadAll(harness.options([], { cwd: "/", projects: "on_demand" }));
+  const aborted = await harness.loader
+    .loadProject({
+      projectRoot: projectA,
+      mode: "headless",
+      trustOverride: true,
+      signal: controller.signal,
+    })
+    .then(
+      () => "loaded",
+      () => "cancelled",
+    );
+  expect(aborted).toBe("cancelled");
+  const retry = await harness.loader.loadProject({
+    projectRoot: projectA,
+    mode: "headless",
+    trustOverride: true,
+    signal,
+  });
+  expect(retry.alreadyLoaded).toBe(false);
+  expect(retry.extensions.map((info) => info.name)).toEqual(["proj-a"]);
+});
