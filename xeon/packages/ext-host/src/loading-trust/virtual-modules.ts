@@ -1,14 +1,44 @@
 import { err, ok, type Result } from "@xeon/contracts";
+import * as contracts from "@xeon/contracts";
+import * as capabilities from "@xeon/contracts/capabilities";
+import * as conversation from "@xeon/contracts/conversation";
+import * as extensions from "@xeon/contracts/extensions";
+import * as records from "@xeon/contracts/records";
+import * as services from "@xeon/contracts/services";
+import * as settings from "@xeon/contracts/settings";
+import * as wire from "@xeon/contracts/wire";
+import * as typebox from "typebox";
 
 /**
- * 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 하는 SDK 가상 모듈의 지정자(X.loading-trust.spec §4.4.5).
- * 조립 루트는 이 지정자마다 호스트가 쓰는 모듈 객체를 넘긴다
+ * 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 하는 SDK 가상 모듈의 지정자(X.loading-trust.spec §4.4.6).
+ * `@xeon/contracts`와 그 하위 경로(번들이 `CapabilityError`·`Result` 같은 값을 하위 경로에서 import한다), `typebox`는 X가 직접 등록하고
+ * `@xeon/group-kit`은 L3라 조립 루트가 넘긴다
  */
-export const SDK_MODULE_SPECIFIERS: readonly ["@xeon/contracts", "@xeon/group-kit", "typebox"] = [
+export const SDK_MODULE_SPECIFIERS: readonly string[] = [
   "@xeon/contracts",
+  "@xeon/contracts/capabilities",
+  "@xeon/contracts/conversation",
+  "@xeon/contracts/extensions",
+  "@xeon/contracts/records",
+  "@xeon/contracts/services",
+  "@xeon/contracts/settings",
+  "@xeon/contracts/wire",
   "@xeon/group-kit",
   "typebox",
 ];
+
+/** X가 자기 의존으로 등록하는 SDK 모듈. 호스트가 같은 지정자를 다른 객체로 넘기면 `conflict`다 */
+export const X_SDK_MODULES: SdkModules = {
+  "@xeon/contracts": contracts,
+  "@xeon/contracts/capabilities": capabilities,
+  "@xeon/contracts/conversation": conversation,
+  "@xeon/contracts/extensions": extensions,
+  "@xeon/contracts/records": records,
+  "@xeon/contracts/services": services,
+  "@xeon/contracts/settings": settings,
+  "@xeon/contracts/wire": wire,
+  typebox,
+};
 
 /** 지정자 → 호스트의 모듈 객체(보통 `import * as ns`의 결과) */
 export type SdkModules = Readonly<Record<string, Readonly<Record<string, unknown>>>>;

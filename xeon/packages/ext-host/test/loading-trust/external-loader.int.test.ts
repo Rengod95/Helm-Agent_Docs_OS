@@ -69,6 +69,31 @@ test("a user extension loads from <userDir>/extensions and its on handler fires"
   expect(fakeGroupKit.seen).toEqual(["hello:shared:true:true", "hello:fired"]);
 });
 
+test("a plugin importing a contracts subpath gets the host's module without the host registering it", async () => {
+  // 조립 루트는 group-kit만 넘긴다. `@xeon/contracts/*` 하위 경로는 X가 등록해 `instanceof CapabilityError`가 호스트와 맞는다
+  const kitSpecifier = ["@xeon", "group-kit"].join("/");
+  await writePlugin(userExtensions, "sub", {
+    name: "sub",
+    points: [],
+    entry: `import * as kit from "${kitSpecifier}";
+import { CapabilityError } from "@xeon/contracts/capabilities";
+import { ok } from "@xeon/contracts";
+export const extension = ({ scope }) => {
+  scope("sub", {}, (g) => {
+    kit.record("sub:error:" + String(CapabilityError === kit.capabilityError));
+    kit.record("sub:ok:" + String(typeof ok));
+  });
+};
+`,
+  });
+  const harness = await harnessOf({
+    loader: { sdkModules: { "@xeon/group-kit": fakeGroupKit } },
+  });
+  const report = await harness.loader.loadAll(loadOptions(harness));
+  expect(report.diagnostics).toEqual([]);
+  expect(fakeGroupKit.seen).toEqual(["sub:error:true", "sub:ok:function"]);
+});
+
 test("safe mode skips user extensions without importing them", async () => {
   await writePlugin(userExtensions, "hello", { name: "hello" });
   const harness = await harnessOf();

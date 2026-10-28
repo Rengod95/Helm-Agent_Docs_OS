@@ -336,8 +336,8 @@ export interface LoaderDeps {
   readonly storageAdmin?: ExtStorageAdmin;
   readonly clock: { now(): number };
   /**
-   * 플러그인 번들에 줄 SDK 가상 모듈. 지정자 → 호스트가 쓰는 모듈 객체(§4.4.6). `@xeon/group-kit`은 L3라 X가 import할 수 없어
-   * 조립 루트가 넘긴다. 없으면 외부 확장의 SDK import가 실패한다(`entry_import_failed`)
+   * 플러그인 번들에 줄 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트가 쓰는 모듈 객체(§4.4.6). `@xeon/contracts`와
+   * 하위 경로, `typebox`는 X가 등록한다. `@xeon/group-kit`은 L3라 X가 import할 수 없어 조립 루트가 넘기며, 없으면 그 import가 실패한다(`entry_import_failed`)
    */
   readonly sdkModules?: SdkModules;
   /** `session.trust.before` 발화(§4.7.3 4번). 없으면 결정 없음으로 본다 */
@@ -766,8 +766,8 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 #### 4.4.6 SDK 가상 모듈
 
-- [제안] 플러그인 번들은 `@xeon/contracts`, `@xeon/group-kit`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 세 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
-- 모듈 객체는 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. `@xeon/group-kit`은 L3 패키지라 X가 import할 수 없기 때문이다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
+- [제안] 플러그인 번들은 `@xeon/contracts`와 그 하위 경로(`/capabilities`, `/conversation`, `/extensions`, `/records`, `/services`, `/settings`, `/wire`), `@xeon/group-kit`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof CapabilityError`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 이 밖의 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
+- `@xeon/contracts`와 하위 경로, `typebox`는 X가 자기 의존으로 직접 등록한다(`X_SDK_MODULES`). 조립 루트는 넘기지 않아도 된다. `@xeon/group-kit`은 L3 패키지라 X가 import할 수 없으므로 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. 조립 루트가 X 몫의 지정자를 다른 객체로 넘기면 `conflict`다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
 - 등록은 `Bun.plugin`이라 프로세스 전역이고 첫 import 뒤에는 바꿀 수 없다. 같은 지정자에 같은 객체를 다시 등록하면 아무 일도 하지 않고, 다른 객체를 등록하려 하면 `conflict`다. 이 오류는 외부 확장의 `entry_import_failed`로 보인다. Bun이 아닌 런타임에서는 `unavailable`이다.
 - 등록한 지정자는 같은 프로세스의 Xeon 패키지가 import해도 같은 객체를 받는다. 호스트가 넘긴 객체가 곧 호스트가 쓰는 모듈이므로 결과가 같다.
 

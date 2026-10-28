@@ -5,11 +5,27 @@ import {
   registerSdkModules,
   SDK_MODULE_SPECIFIERS,
 } from "../../src/loading-trust/index.ts";
+import { X_SDK_MODULES } from "../../src/loading-trust/virtual-modules.ts";
 import { fakeGroupKit, SDK } from "./support/plugin-fixture.ts";
 
-test("the SDK specifiers are the three modules the spec names", () => {
-  expect([...SDK_MODULE_SPECIFIERS]).toEqual(["@xeon/contracts", "@xeon/group-kit", "typebox"]);
-  expect(Object.keys(SDK).toSorted()).toEqual([...SDK_MODULE_SPECIFIERS].toSorted());
+test("the SDK specifiers are contracts with its subpaths, group-kit and typebox", () => {
+  expect([...SDK_MODULE_SPECIFIERS]).toEqual([
+    "@xeon/contracts",
+    "@xeon/contracts/capabilities",
+    "@xeon/contracts/conversation",
+    "@xeon/contracts/extensions",
+    "@xeon/contracts/records",
+    "@xeon/contracts/services",
+    "@xeon/contracts/settings",
+    "@xeon/contracts/wire",
+    "@xeon/group-kit",
+    "typebox",
+  ]);
+  // X가 직접 등록하는 모듈과 조립 루트가 넘기는 group-kit이 지정자 전체가 된다
+  expect([...Object.keys(X_SDK_MODULES), "@xeon/group-kit"].toSorted()).toEqual(
+    [...SDK_MODULE_SPECIFIERS].toSorted(),
+  );
+  expect(Object.keys(SDK).toSorted()).toEqual(["@xeon/contracts", "@xeon/group-kit", "typebox"]);
 });
 
 test("registering the same objects again does nothing, another object is refused", () => {

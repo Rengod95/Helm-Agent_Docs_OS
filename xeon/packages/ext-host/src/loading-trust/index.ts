@@ -53,7 +53,7 @@ import {
 } from "./trust/levels.ts";
 import { resolveProjectTrust, type ProjectTrustResult } from "./trust/resolve.ts";
 import { createProjectTrustStore } from "./trust/store.ts";
-import { registerSdkModules, type SdkModules } from "./virtual-modules.ts";
+import { registerSdkModules, X_SDK_MODULES, type SdkModules } from "./virtual-modules.ts";
 
 export {
   BUILTIN_LAYER_ORDER,
@@ -183,8 +183,8 @@ export interface LoaderDeps {
   /** 코어가 제공하는 능력과 버전. 6단계가 매니페스트 provides와 함께 본다 [가정: 코어 능력 레지스트리 API는 X.primitives] */
   readonly coreCapabilities?: ReadonlyMap<CapabilityId, SemVer>;
   /**
-   * 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 할 SDK 가상 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`).
-   * 지정자 → 호스트의 모듈 객체. `@xeon/group-kit`은 L3라 X가 import할 수 없어 조립 루트가 넘긴다(M3-REQ-110)
+   * 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 할 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트의 모듈 객체.
+   * `@xeon/contracts`와 하위 경로, `typebox`는 X가 등록하므로 넘기지 않아도 된다. `@xeon/group-kit`은 L3라 X가 import할 수 없어 조립 루트가 넘긴다(M3-REQ-110)
    */
   readonly sdkModules?: SdkModules;
   /** `session.trust.before` 발화(X.loading-trust.spec §4.7.3 4번). 없으면 결정 없음으로 본다 */
@@ -661,20 +661,19 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     if (module !== null) return unitOfBuiltin(module, manifest, loadIndex, initialEnabled);
     const root = record.candidate.root;
     if (root === null) return undefined;
-    if (deps.sdkModules !== undefined) {
-      const registered = registerSdkModules(deps.sdkModules);
-      if (!registered.ok) {
-        fail(
-          record,
-          "error",
-          "entry",
-          "entry_import_failed",
-          registered.error.kind === "conflict"
-            ? `SDK module ${registered.error.specifier} is already registered with another instance`
-            : "SDK virtual modules need the Bun runtime",
-        );
-        return undefined;
-      }
+    // X가 쓰는 SDK 모듈(contracts와 하위 경로, typebox)은 항상 등록하고, 조립 루트가 넘긴 것(group-kit 등)을 더한다
+    const registered = registerSdkModules({ ...X_SDK_MODULES, ...deps.sdkModules });
+    if (!registered.ok) {
+      fail(
+        record,
+        "error",
+        "entry",
+        "entry_import_failed",
+        registered.error.kind === "conflict"
+          ? `SDK module ${registered.error.specifier} is already registered with another instance`
+          : "SDK virtual modules need the Bun runtime",
+      );
+      return undefined;
     }
     const loaded = await importExternalEntry(deps.fs, root, manifest);
     if (!loaded.ok) {

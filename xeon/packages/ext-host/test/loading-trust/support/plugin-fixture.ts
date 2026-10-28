@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import * as contracts from "@xeon/contracts";
+import { CapabilityError } from "@xeon/contracts/capabilities";
 import type { SdkModules } from "../../../src/loading-trust/index.ts";
 import * as typebox from "typebox";
 import { putFile } from "./real-fs.ts";
@@ -9,11 +10,14 @@ export const fakeGroupKit: {
   readonly marker: symbol;
   readonly seen: string[];
   record(value: string): void;
+  /** 호스트의 `CapabilityError`. 하위 경로 지정자로 받은 클래스가 같은 값인지 플러그인이 비교한다 */
+  readonly capabilityError: unknown;
   /** 플러그인이 받은 typebox와 contracts가 호스트 것과 같은 값인지 기록한다 */
   verify(name: string, type: unknown, ok: unknown): void;
 } = {
   marker: Symbol("host-group-kit"),
   seen: [],
+  capabilityError: CapabilityError,
   record(value) {
     fakeGroupKit.seen.push(value);
   },
