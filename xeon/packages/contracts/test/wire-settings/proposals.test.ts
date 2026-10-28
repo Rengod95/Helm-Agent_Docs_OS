@@ -101,24 +101,29 @@ describe("proposal.* wire (M3-REQ-18, D-M3-32 a)", () => {
   test("proposal.decide params are a union keyed by decision", () => {
     const { params } = WIRE_METHODS["proposal.decide"];
     const target = { source: "learning", id: "prop_1" };
-    expect(accepts(params, { ...target, decision: "approve" })).toBe(true);
+    expect(accepts(params, { ...target, decision: "approve", revision: 1 })).toBe(true);
     expect(accepts(params, { ...target, decision: "approve", revision: 2, scope: "project" })).toBe(
       true,
     );
     expect(accepts(params, { ...target, decision: "reject", note: "no" })).toBe(true);
-    expect(accepts(params, { ...target, decision: "edit", body: "new body" })).toBe(true);
+    expect(accepts(params, { ...target, decision: "edit", revision: 3, body: "new body" })).toBe(
+      true,
+    );
     expect(accepts(params, { ...target, decision: "revert" })).toBe(true);
-    expect(accepts(params, { ...target, decision: "approve", _meta: {} })).toBe(true);
+    expect(accepts(params, { ...target, decision: "approve", revision: 1, _meta: {} })).toBe(true);
     for (const bad of [
-      { ...target, decision: "approve", body: "x" },
+      { ...target, decision: "approve" },
+      { ...target, decision: "approve", body: "x", revision: 1 },
       { ...target, decision: "reject", revision: 1 },
       { ...target, decision: "edit" },
-      { ...target, decision: "edit", body: "" },
+      { ...target, decision: "edit", body: "new body" },
+      { ...target, decision: "edit", revision: 0, body: "new body" },
+      { ...target, decision: "edit", revision: 1, body: "" },
       { ...target, decision: "revert", note: "x" },
       { ...target, decision: "approve", scope: "global" },
       { ...target, decision: "approve", revision: 0 },
       { ...target, decision: "archive" },
-      { source: "learning", decision: "approve" },
+      { source: "learning", decision: "approve", revision: 1 },
       { ...target, source: "x", decision: "approve" },
     ]) {
       expect(accepts(params, bad)).toBe(false);

@@ -16,7 +16,7 @@ import { ThreadIdSchema } from "../../conversation/index.ts";
 
 // 지식 제안 대기열 wire(M3-REQ-18, D-M3-32 a). 대기열은 둘이다: 학습 그룹의 `x_learning_proposals`(source "learning")와
 // L2.knowledge의 쓰기 승인 대기열 `cap_knowledge_proposals`(source "knowledge"). 이 wire는 두 출처를 한 목록으로 조회하고 결정한다.
-// 이름과 모양은 모두 [제안]이다(L3.learning.spec §3.8 `ProposalView`와 L2.knowledge.spec §3.5 `Proposal`의 공통 부분).
+// 모양은 L3.learning.spec §3.8 `ProposalView`와 L2.knowledge.spec §3.5 `Proposal`의 공통 부분이다.
 
 /** 대기열 출처. L4가 목록의 출처 열에 그대로 보인다 */
 export const ProposalSourceSchema: TUnion<[TLiteral<"learning">, TLiteral<"knowledge">]> =
@@ -157,14 +157,14 @@ export const ProposalApproveParamsSchema: TObject<{
   source: typeof ProposalSourceSchema;
   id: TString;
   decision: TLiteral<"approve">;
-  revision: TOptional<TInteger>;
+  revision: TInteger;
   scope: TOptional<TUnion<[TLiteral<"user">, TLiteral<"project">]>>;
 }> = Type.Object(
   {
     ...ProposalTarget,
     decision: Type.Literal("approve"),
-    /** 학습 출처는 목록에서 본 판을 맞춰 보낸다. 없으면 현재 판으로 본다 */
-    revision: Type.Optional(Type.Integer({ minimum: 1 })),
+    /** 목록에서 본 판. 필수다. 현재 판과 다르면 `revision_mismatch`다(생략해 "현재 판"으로 읽는 경로는 없다) */
+    revision: Type.Integer({ minimum: 1 }),
     /** 스킬 후보의 적용 범위(D-M3-09). 기본 user */
     scope: Type.Optional(Type.Union([Type.Literal("user"), Type.Literal("project")])),
   },
@@ -188,11 +188,14 @@ export const ProposalEditParamsSchema: TObject<{
   source: typeof ProposalSourceSchema;
   id: TString;
   decision: TLiteral<"edit">;
+  revision: TInteger;
   body: TString;
 }> = Type.Object(
   {
     ...ProposalTarget,
     decision: Type.Literal("edit"),
+    /** 수정 전에 본 판. 필수다. 현재 판과 다르면 `revision_mismatch`다 */
+    revision: Type.Integer({ minimum: 1 }),
     body: Type.String({ minLength: 1, maxLength: 200_000 }),
   },
   { additionalProperties: false },
