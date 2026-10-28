@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import {
+  renameSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "bun:test";
@@ -102,6 +110,19 @@ test("a plugin the user deleted is not installed again, even when the bundle is 
   expect(await install()).toEqual([{ name: "helm", action: "removed_by_user" }]);
   expect(existsSync(join(extensionsDir, "helm"))).toBe(false);
   expect(markerOf()).toEqual({ schemaVersion: 1, installed: { helm: "0.1.0" } });
+});
+
+test("an upgrade interrupted between the two renames is recovered, not treated as a user delete", async () => {
+  writeBundle("0.1.0");
+  await install();
+  // 교체 도중 끊긴 상태: 대상은 없고 이전 설치본이 .old에 있다
+  const staging = join(root, "config", ".staging");
+  mkdirSync(staging, { recursive: true });
+  renameSync(join(extensionsDir, "helm"), join(staging, "helm.old"));
+  writeBundle("0.2.0");
+  expect(await install()).toEqual([{ name: "helm", action: "replaced", version: "0.2.0" }]);
+  expect(readFileSync(join(extensionsDir, "helm", "dist", "index.js"), "utf8")).toContain("0.2.0");
+  expect(existsSync(join(staging, "helm.old"))).toBe(false);
 });
 
 test("deleting the marker too asks for a fresh install", async () => {

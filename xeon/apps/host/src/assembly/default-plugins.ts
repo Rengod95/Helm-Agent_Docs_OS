@@ -132,7 +132,11 @@ async function installOne(
   const destination = join(deps.extensionsDir, name);
   if (!(await exists(source))) return { outcome: { name, action: "no_bundle" } };
   const before = marker.installed[name];
-  if (before !== undefined && !(await exists(destination))) {
+  // 갱신 도중 끊기면 대상이 없고 `.old`(이전 설치본)나 `.new`가 남는다. 사용자가 지운 것이 아니라 복구 대상이다
+  const staging = deps.stagingRoot ?? join(dirname(dirname(destination)), ".staging");
+  const interrupted =
+    (await exists(join(staging, `${name}.old`))) || (await exists(join(staging, `${name}.new`)));
+  if (before !== undefined && !interrupted && !(await exists(destination))) {
     return { outcome: { name, action: "removed_by_user" } };
   }
   const installed = await installDefaultPlugin({

@@ -46,30 +46,26 @@ function report(claim: string): string {
   return `\`\`\`json\n${JSON.stringify({ findings: [{ claim, sources: [], confidence: "medium" }] })}\n\`\`\``;
 }
 
-function diverseModels(): NonNullable<Parameters<typeof startInProcessHost>[0]>["buildModels"] {
-  return tapeBuildModels(
-    tapeProvider(
-      tapePlayer(
-        tape("helm-uc2", [
-          answer("user turn", "안녕하세요."),
-          {
-            role: "main" as const,
-            label: "diverge: tries bash",
-            response: {
-              type: "message" as const,
-              content: [t.toolCall("bash", { command: "echo should-not-run" }, "call_bash")],
-              stopReason: "toolUse" as const,
-            },
-          },
-          answer("diverge: answers after the denial", "쓰기 없이 정리합니다."),
-          answer("explorer 1", report("관점 하나")),
-          answer("explorer 2", report("관점 둘")),
-          answer("explorer 3", report("관점 셋")),
-          answer("apply", "발견을 적용했습니다."),
-        ]),
-        { clock: realTapeClock() },
-      ),
-    ),
+function uc2Player(): ReturnType<typeof tapePlayer> {
+  return tapePlayer(
+    tape("helm-uc2", [
+      answer("user turn", "안녕하세요."),
+      {
+        role: "main" as const,
+        label: "diverge: tries bash",
+        response: {
+          type: "message" as const,
+          content: [t.toolCall("bash", { command: "echo should-not-run" }, "call_bash")],
+          stopReason: "toolUse" as const,
+        },
+      },
+      answer("diverge: answers after the denial", "쓰기 없이 정리합니다."),
+      answer("explorer 1", report("관점 하나")),
+      answer("explorer 2", report("관점 둘")),
+      answer("explorer 3", report("관점 셋")),
+      answer("apply", "발견을 적용했습니다."),
+    ]),
+    { clock: realTapeClock() },
   );
 }
 
@@ -83,12 +79,13 @@ test("every module the Helm bundle leaves external is one X or the host register
 realTest(
   "uc2.real-engine: Helm is loaded, bash is denied while diverging, 3 lens subagents run and exactly one apply turn follows",
   async () => {
+    const player = uc2Player();
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
     const host = await startInProcessHost({
       devChecks: true,
       defaultPluginsDir: bundleRoot,
-      buildModels: diverseModels(),
+      buildModels: tapeBuildModels(tapeProvider(player)),
     });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
@@ -119,9 +116,38 @@ realTest(
     expect(JSON.stringify(denied.payload)).toContain("Helm 확산 단계");
     // 거부는 정책·승인 앞에서 일어나므로 사용자 승인 창이 뜨지 않는다
     expect(collector.events.filter((event) => event.kind === "approval.requested")).toEqual([]);
+    const finished = await collector.waitFor(
+      (event) => event.kind === "grp.helm.inquiry.finished",
+      30_000,
+    );
+    expect(finished.payload).toMatchObject({
+      payload: { outcome: "applied", lensCount: 3, failedLenses: 0, findingCount: 3 },
+    });
+    // 모델 응답은 하나도 남지 않고 하나도 모자라지 않았다
+    expect(player.remaining()).toBe(0);
+    // explorer 자식 3개. 모두 부모 thread 아래 agent.spawned로 한 번씩 남는다
+    const spawned = collector.events.filter((event) => event.kind === "agent.spawned");
+    expect(spawned).toHaveLength(3);
+    expect(spawned.every((event) => JSON.stringify(event.payload).includes('"explorer"'))).toBe(
+      true,
+    );
     expect(
-      collector.events.filter((event) => event.kind === "grp.helm.state.committed").length,
-    ).toBeGreaterThanOrEqual(2);
+      new Set(
+        spawned.map((event) =>
+          JSON.stringify(event.payload)
+            .match(/thr_[0-9A-Z]{26}/g)
+            ?.join(),
+        ),
+      ),
+    ).toHaveProperty("size", 3);
+    // 부모 thread의 turn은 사용자, 발산, 적용 셋이고 적용 turn은 정확히 한 번이다
+    const parentTurns = collector.events.filter(
+      (event) => event.kind === "turn.started" && event.threadId === created.threadId,
+    );
+    expect(parentTurns).toHaveLength(3);
+    expect(
+      parentTurns.filter((event) => JSON.stringify(event.payload).includes(":turn:apply:")),
+    ).toHaveLength(1);
     await connection.close();
     await host.close();
     home.dispose();
