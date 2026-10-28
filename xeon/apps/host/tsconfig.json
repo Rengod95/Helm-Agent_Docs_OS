@@ -8,6 +8,9 @@
   "include": ["src", "test"],
   "references": [
     {
+      "path": "../../packages/client"
+    },
+    {
       "path": "../../packages/contracts"
     },
     {

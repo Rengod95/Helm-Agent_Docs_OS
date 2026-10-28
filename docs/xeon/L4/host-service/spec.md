@@ -157,7 +157,7 @@ macOS arm64에서의 (a)~(d)는 이 기기에 없어 확인하지 못했다. CI 
 | 진입점 | 파일 | 내용 | 소비자 |
 |---|---|---|---|
 | `.` | `src/index.ts` | `assemble`, `startInProcessHost`, `startStdioHost`, `startService`, `ensureService`, `runHostCommand`, `renderSettingsSchema`, 타입 | `apps/cli` |
-| `./client` | `src/client.ts` | `createHostConnection`, `connectServiceTransport`. 엔진 패키지를 import하지 않는다 | `apps/cli`, (선택) `apps/desktop`(§10 미결 5) |
+| `./client` | `src/client.ts` | `@xeon/client`의 `createHostConnection`을 다시 내보낸다(adr.0020), `connectServiceTransport`. 엔진 패키지를 import하지 않는다 | `apps/cli`, (선택) `apps/desktop`(§10 미결 5) |
 
 F에서 가져오는 이름은 `F.wire-settings.spec` 그대로다: `Transport`, `TransportKind`, `CloseInfo`, `Unsubscribe`, `HostConnection`, `WireHandlers`, `WireHandler`, `WireRequestContext`, `StdioTransportOptions`, `SocketTransportOptions`, `WireMethodName`, `WireParams`, `WireResult`, `JsonRpcMessage`, `RpcId`, `StreamPosition`, `StoreId`, `Seq`, `EventFilter`, `WIRE_METHODS`, `WIRE_ERRORS`, `WIRE_LIMITS`, `WIRE_PROTOCOL_VERSION`, `isCompatible`, `checkEnvelope`, `toEventWire`, `toVolatileEventWire`, `SettingCatalog`, `SettingScope`, `ScopeStack`, `buildCatalog`, `CatalogIssue`, `resolveSetting`, `checkSettingWrite`, `settingsJsonSchema`, `defineSettings`. 새 공용 이름은 만들지 않는다. 아래 이름은 `@xeon/host` 안의 이름이다.
 
@@ -527,7 +527,7 @@ export declare function ensureService(options: EnsureOptions): Promise<EnsureRes
 ```
 
 ```ts
-// src/client.ts  ("./client". 엔진 패키지를 import하지 않는다)
+// src/client.ts  ("./client". 엔진 패키지를 import하지 않는다. `createHostConnection`은 `@xeon/client`에서 다시 내보낸다)
 import type { HostConnection, SocketTransportFactory, Transport } from "@xeon/contracts/wire";
 
 export interface HostConnectionOptions {
@@ -536,7 +536,7 @@ export interface HostConnectionOptions {
 }
 /**
  * F의 HostConnection 구현. 요청 id는 연결마다 r1, r2, … 를 쓴다(F wire §3.1).
- * 구현은 F `@xeon/contracts/wire`(`wire/client.ts`)로 옮겼고 이 파일은 같은 이름을 다시 내보낸다(m2 F.8)
+ * 구현은 L4 공유 패키지 `@xeon/client`(`src/connection.ts`)에 있고 이 파일은 같은 이름을 다시 내보낸다(adr.0020)
  */
 export declare function createHostConnection(transport: Transport, options?: HostConnectionOptions): HostConnection;
 
@@ -1151,7 +1151,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 2. [미결] 바이너리 구성. 단일 `xeon`(제안)과 `apps/host` 단독 사이드카 중 선택(§3.2). 사용자 확인.
 3. [미결] 문서 수정 요청: `eng.toolchain.guide` TC-10과 같은 문서 §2 바이너리 행, `xeon/apps/desktop/README.md`의 사이드카 문구(§3.2). 2번이 확정되면 작성자가 고친다.
 4. [결정: review.decisions-2 U-11] 원격 사용은 M3이고 로컬 서비스 소켓을 SSH 터널·사설망으로 연결한다. 내장 TLS + 토큰 WebSocket은 2차다(§4.11).
-5. [결정: adr.0020] 클라이언트 연결 코드(`createHostConnection`)와 설정 view-model, CLI·데스크톱 공유 로직은 새 L4 공유 패키지 `xeon/packages/client`(`@xeon/client`, F만 import)로 옮긴다(`review.m3-design-inputs` D-M3-26 b 변형). `@xeon/host/client` 서브패스는 두지 않고, F는 런타임 로직 없는 계약으로 둔다. `apps/cli`·`apps/desktop` → `@xeon/client`는 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`다(`architecture.layers.spec` §3.2).
+5. [결정: adr.0020] 클라이언트 연결 코드(`createHostConnection`)와 설정 view-model, CLI·데스크톱 공유 로직은 새 L4 공유 패키지 `xeon/packages/client`(`@xeon/client`, F만 import)로 옮긴다(`review.m3-design-inputs` D-M3-26 b 변형). `@xeon/host/client`는 M3a 구현에서 `@xeon/client`를 다시 내보내는 얇은 파일로 남겼고(허용 목록 `DR-10/host-client`), F는 런타임 로직 없는 계약(stdio 줄 프레이밍 제외)으로 둔다. [미결] 재노출을 없애는 안은 호스트 시험의 `@xeon/client` import에 시험 한정 DR-10 예외가 필요하다. `apps/cli`·`apps/desktop` → `@xeon/client`는 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`다(`architecture.layers.spec` §3.2).
 6. [결정: review.m3-design-inputs D-M3-13 행 2] 승인 대기 세션은 유휴 종료 판정에서 live다(SV-04).
 7. [미결] 등록 파일 스키마의 정본 위치. 이 문서(§3.5)와 `L0.process.spec` 중 하나로 정한다. 작성자 결정(L0.process 작성자와 조율).
 8. (닫힘 m2c G1-02) 비정상 종료 표식의 "이어서 실행" 후보는 `ThreadSummary.resumable`로 알리고 `turn.resume`으로 이어 실행한다(HS-30, HS-74).

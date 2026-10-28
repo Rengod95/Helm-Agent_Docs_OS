@@ -9,5 +9,5 @@
   },
   "include": ["src", "test", "spike", "package.json"],
   "exclude": ["spike/out"],
-  "references": [{ "path": "../../packages/contracts" }]
+  "references": [{ "path": "../../packages/client" }, { "path": "../../packages/contracts" }]
 }

@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "catalog:",
+    "@xeon/client": "workspace:*",
     "@xeon/contracts": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",

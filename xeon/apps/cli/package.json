@@ -13,6 +13,7 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
+    "@xeon/client": "workspace:*",
     "@xeon/contracts": "workspace:*",
     "@xeon/core-models": "workspace:*",
     "@xeon/group-kit": "workspace:*",

@@ -412,10 +412,10 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 
 | # | 규칙 | 이유 |
 |---|---|---|
-| W1 | `src/transport/**`는 `src/views/**`, `src/settings/**`를 import하지 않는다 | 전송 코드는 화면 코드에 의존하지 않는다. M1 적합성 테스트가 화면 없이 전송만 돈다 |
+| W1 | `src/transport/**`는 `src/views/**`를 import하지 않는다 | 전송 코드는 화면 코드에 의존하지 않는다. M1 적합성 테스트가 화면 없이 전송만 돈다 |
 | W2 | `@tauri-apps/*`는 `src/transport/ipc.ts`와 `src/shell/**`(창, 트레이, 알림)만 import한다 | Tauri 의존을 교체 가능한 좁은 면에 둔다. 테스트는 `DesktopIpc` 가짜를 쓴다 |
-| W3 | `src/settings/**`(settings-ui 소유)는 `src/transport`의 공개 진입점과 `src/settings-store`만 import한다 | 경계: 화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop |
-| W4 | `src/views/**`는 `src/settings/**`의 `index.ts`만 import한다 | 설정 화면 진입점 하나만 연다 |
+| W3 | 설정 view-model(`@xeon/client/settings`, settings-ui 소유)은 React와 Tauri를 import하지 않는다. `@xeon/contracts`와 typebox만 쓴다 [결정: adr.0020] | 경계: 화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop |
+| W4 | `src/views/**`는 `@xeon/client/settings`의 진입점만 import한다 | 설정 화면 진입점 하나만 연다 |
 | W5 | TS 코드에 OS 분기를 두지 않는다. 플랫폼 차이는 Rust가 처리하고, WebView에는 기능 유무(`features`)로만 전달한다 | `eng.dependency-rules.guide` DR-13. `src-tauri/`는 규칙 밖 |
 | W6 | `@xeon/host`, `@xeon/cli`를 import하지 않는다 | DR-10 |
 | W7 | WebView 코드는 `node:*`, `bun:*`, Bun 전역을 쓰지 않는다. `test/**`와 빌드 스크립트는 예외다 | WebView에는 Bun 런타임이 없다 |
@@ -526,7 +526,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 
 ### 4.14 최소 설정 화면 [결정: M2 마감 D-b, G2-08]
 
-`L4.settings-ui.spec`의 전체 화면(12탭, 비밀 관리 패널)은 M3다. M2에는 데스크톱에서 첫 대화를 시작하는 데 필요한 것만 둔다. 상태 표시줄의 "설정" 단추가 연다(`Screen = "settings"`, `src/views/settings.tsx`). 판단과 변환은 `src/settings/`의 순수 함수가 하고, wire 호출은 `src/app/setup.ts`가 한다.
+`L4.settings-ui.spec`의 전체 화면(12탭, 비밀 관리 패널)은 M3다. M2에는 데스크톱에서 첫 대화를 시작하는 데 필요한 것만 둔다. 상태 표시줄의 "설정" 단추가 연다(`Screen = "settings"`, `src/views/settings.tsx`). 판단과 변환은 `@xeon/client/settings`(`xeon/packages/client/src/settings/`)의 순수 함수가 하고, wire 호출은 `src/app/setup.ts`가 한다.
 
 | 영역 | 내용 | 쓰는 wire |
 |---|---|---|
@@ -538,7 +538,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 쓰기 범위는 `user`다. `l1.models.providers`는 목록 전체가 한 키이므로(병합 단위는 키 하나) 현재 값을 읽어 해당 provider 원소만 바꾼 목록을 보낸다. baseUrl은 그대로 둔다.
 - 키 값은 wire와 로그 어디에도 없다. 호스트가 값을 받을 수 있는 연결에서는 값 없는 `secret.beginEntry { name, action }`이 시작하고 값은 호스트가 wire 밖에서 받는다(`L4.settings-ui.spec` §4.6.4 C안).
 - 사이드카(stdio) 호스트에는 값을 받을 수단이 없어 `secret.beginEntry`가 `started: false`를 돌려준다(`L4.host-service.spec` HS-44, 서비스 쪽 OS 입력 창은 M3). 이 연결에서는 셸이 값을 받는다(§4.14.1).
-- 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `src/settings/diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `xeon doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
+- 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `@xeon/client/settings`의 `diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `xeon doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
 - `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
 - 저장이 거절되면(`settings.set`의 3102) 화면은 host가 준 첫 문제의 문장을 그대로 보인다: `저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5, …)`. 기본 모델은 저장하기 전에 host가 카탈로그에서 검사한다(`L4.host-service.spec` HS-78). "provider에 연결"은 그 키의 모델 provider 사용을 허용하는 행위이기도 하다(`L4.host-service.spec` HS-45): 같은 연결을 다시 저장하면 이전 빌드가 빈 정책으로 만든 키의 허용이 다시 맞춰진다 [결정: M2 Mac 실기]. 연결 뒤에는 `secret.meta` 없이 모델 호출이 된다.
 - 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("설정 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
@@ -555,7 +555,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `xeon` 명령이 설치되어 있지 않
 
 채택한 경로는 비밀 저장 로직을 Rust에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `xeon` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
 
-흐름(`src-tauri/src/secret_entry.rs`, `src/settings/key-entry.ts`):
+흐름(`src-tauri/src/secret_entry.rs`, `xeon/packages/client/src/settings/key-entry.ts`):
 
 1. 화면이 "키 등록"에서 값 없는 `secret.beginEntry`를 먼저 부른다. `started: true`(값을 호스트가 받음)면 기존 흐름대로 provider에 연결한다. `started: false`이거나 메서드가 없으면(`unsupported`) 화면 안에 등록 창을 연다.
 2. 등록 창은 제어하지 않는 `type="password"` 입력란이다. 값은 DOM 노드에만 있고 React 상태, zustand 거울, props에 들어가지 않는다. 저장을 누르면 `submitKey`가 첫 `await` 전에 입력란을 읽고 곧바로 비우며, 앞뒤 공백과 줄바꿈을 지운 뒤 UTF-8 바이트 배열 하나로 바꾼다. 취소와 창이 사라지는 것도 입력란을 비운다.

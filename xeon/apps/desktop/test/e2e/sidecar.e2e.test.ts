@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { type EngineProcess, processesWithHome, startEngine } from "./harness.ts";
-import { binaryViewOf } from "../../src/settings/index.ts";
+import { binaryViewOf } from "@xeon/client/settings";
 import { HostBinaryReportSchema, type HostBinaryReport } from "@xeon/contracts/wire";
 import { parse } from "@xeon/contracts";
 import { binaryReportOf, CLI_MAIN, nthReply, runScenario, sidecarPath } from "./scenario.ts";

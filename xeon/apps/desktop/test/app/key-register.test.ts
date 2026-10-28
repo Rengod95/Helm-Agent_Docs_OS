@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { parse } from "@xeon/contracts";
 import { SecretNameSchema } from "@xeon/contracts/capabilities";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { submitKey, type KeyField, type KeyOutcome } from "../../src/settings/index.ts";
+import { submitKey, type KeyField, type KeyOutcome } from "@xeon/client/settings";
 import { rejectLikeShell, tauriMockIpc } from "../transport/tauri-mock.ts";
 import { engineFake, makeAppOver, until } from "./support.ts";
 

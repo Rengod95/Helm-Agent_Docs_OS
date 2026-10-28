@@ -121,7 +121,7 @@ xeon/apps/host/
 }
 ```
 
-- [제안] `client.ts`는 `@xeon/contracts`만 import한다. 연결 계층 코드에서 엔진 패키지가 끌려오지 않게 하기 위해서다. 검사는 H3의 import 검사 테스트로 한다.
+- [제안] `client.ts`는 `@xeon/client`(연결 구현, adr.0020)와 `@xeon/contracts`만 import한다. 연결 계층 코드에서 엔진 패키지가 끌려오지 않게 하기 위해서다. 검사는 H3의 import 검사 테스트로 한다.
 - 테스트의 자식 프로세스 [미결]: `int`·`fault` 테스트는 `service run`, `host --stdio` 자식을 띄운다. DR-07은 `Bun.spawn`을 L0 패키지에만 허용하므로 `L4.desktop.plan` R10과 같은 하나의 결정(허용 목록 항목 또는 `platform-process`의 `testing` 도우미)을 따른다. 테스트 코드는 spawn을 `test/fixtures/spawn-host.ts` 한 곳에 모아 결정이 바뀌어도 고칠 곳을 하나로 둔다 [제안].
 - 조립 루트 예외(DR-14 예외 2)로 `assemble.ts`는 모든 패키지를 import한다. 처리기(`handlers/*`)와 `connection.ts`는 `EnginePorts`만 쓰고 아래 층 패키지를 import하지 않는다 [제안]. 어댑터가 `assemble.ts` 한 곳에 모이므로 L1 서비스 이름이 바뀌어도 고칠 곳이 하나다.
 
@@ -247,7 +247,7 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 | `settings-schema-committed` | unit | 같음 | `--core-only` 카탈로그 출력과 `schema/` 커밋본 네 파일이 같다 | AH-12 |
 | `service-ensure-json` | int | `test/int/service-ensure.int.test.ts` | `runHostCommand({ kind: "service-ensure" })`가 stdout에 JSON 한 줄(`ok`, `socket`, `version`, `action`)만 쓰고 종료코드 0이다. 서비스를 띄울 수 없으면 `ok: false`와 종료코드 1 | HS-38 |
 | `turn-start-implicit-acquire` | int | `test/int/thread-locked.int.test.ts` | 다른 프로세스가 만든 기존 thread에 `turn.start`를 보내면 잠금을 얻어 제출한다. 소유자가 살아 있으면 3002와 `options` | HS-28 |
-| `client-import-boundary` | unit | `test/client-boundary.test.ts` | `src/client.ts`의 import 그래프에 `@xeon/contracts` 외 워크스페이스 패키지가 없다 | §2 |
+| `client-import-boundary` | unit | `test/client-boundary.test.ts` | `src/client.ts`의 import 그래프에 `@xeon/client`, `@xeon/contracts` 외 워크스페이스 패키지가 없다 | §2 |
 
 ## 6. 완료 기준
 

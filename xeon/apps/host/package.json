@@ -20,6 +20,7 @@
     "@xeon/cap-web": "workspace:*",
     "@xeon/cap-work": "workspace:*",
     "@xeon/cap-workspace": "workspace:*",
+    "@xeon/client": "workspace:*",
     "@xeon/contracts": "workspace:*",
     "@xeon/core-agents": "workspace:*",
     "@xeon/core-context": "workspace:*",

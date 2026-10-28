@@ -14,7 +14,7 @@ import {
   type BinaryView,
   type SetupSnapshot,
   type SetupStep,
-} from "../settings/index.ts";
+} from "@xeon/client/settings";
 import { useCommands, type CommandError } from "./commands.ts";
 
 // 최소 설정 화면(G2-08, L4.desktop.spec §4.14): 첫 실행 안내, 외부 도구 점검 결과, 모델 키 등록, 기본 모델.
