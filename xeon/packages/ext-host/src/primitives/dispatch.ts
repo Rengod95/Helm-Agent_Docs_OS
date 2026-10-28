@@ -308,7 +308,14 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       if (decl.finalize === "boundary" && options.finalize === undefined) {
         throw new Bug(`dispatch.finalize_missing: ${point} requires options.finalize`);
       }
-      const entries = sortEntries(deps.registry.snapshot(point, options.threadId), policy);
+      const entries = sortEntries(
+        deps.registry
+          .snapshot(point, options.threadId)
+          .filter(
+            (entry) => options.onlyScope === undefined || entry.scopeId === options.onlyScope,
+          ),
+        policy,
+      );
       const fold = decl.fold;
       if (fold === "tap" && decl.dispatch === "detached") {
         // 완료를 기다리지 않는다. 핸들러는 이 호출이 돌아온 뒤에 순서대로 실행하고, 실패는 정책과 진단으로만 보고한다.

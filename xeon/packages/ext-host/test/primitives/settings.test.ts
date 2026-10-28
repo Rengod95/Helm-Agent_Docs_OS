@@ -16,6 +16,7 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
     "x.primitives.capabilityProviders",
     "x.primitives.driveDefaultLimits",
     "x.primitives.driveLimits",
+    "x.primitives.leaseWaitLimit",
   ]);
   expect(primitivesSettings.defs.driveLimits.default).toEqual({});
   expect(primitivesSettings.defs.driveDefaultLimits.default).toEqual({
@@ -31,6 +32,7 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
     expect(def.allowedScopes).toEqual(["managed", "user", "project", "session"]);
     expect(def.ui?.widget).toBe("table");
   }
+  expect(primitivesSettings.defs.leaseWaitLimit.default).toBe(8);
   expect(primitivesSettings.defs.activeDriveGroup.default).toBeNull();
   expect(primitivesSettings.defs.capabilityProviders.default).toEqual({});
   expect(primitivesSettings.defs.driveLimits.runtimeChange).toBe("nextTurn");

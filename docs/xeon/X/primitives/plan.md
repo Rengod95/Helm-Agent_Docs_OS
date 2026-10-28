@@ -108,11 +108,16 @@ xeon/packages/ext-host/
 | P-23 | 상태 마이그레이션: `hostOf(g).migrateState`, 버전 비교, 마이그레이션 판 커밋, `future_version` 거부 | P-12 | S | M2 |
 | P-24 | `resources.ts` 전체: `ResourceRegistry`, `ResourcePolicy` 결합, 도구·provider·MCP 포트 위임, 명령·키 조합·플래그·렌더러 X 보관, effect 자동 해제, 구독 알림 | P-07, P-13, L1.tools.spec·L1.models.spec·L2.mcp.spec 포트 합의 | L | M2 |
 | P-25 | 진짜 detached tap: 대기 없는 실행, 늦은 실패 보고, 세션 종료 뒤 결과 폐기 | P-06 | S | M2 |
-| P-26 | 그룹 간 이벤트 격리: 확장에 Cordis 이벤트 미노출 검사, pi `events` 어댑터용 휘발 버스(접두 강제, 읽기 선언 검사)를 X.loading-trust와 함께 | P-13, X.loading-trust.plan | M | M2 |
+| P-26 | 그룹 간 이벤트 격리: 확장에 Cordis 이벤트 미노출 검사. pi `events` 어댑터용 휘발 버스는 ADR-0017 §3.7로 지웠다(M3a) | P-13 | M | M2 |
 | P-27 | 공급자 여럿의 선택(`capabilityProviders`), major 불일치 공급자 제외, `capability_ambiguous` 진단 | P-17, P-18 | S | M2 |
 | P-28 | thread별 scope 켜짐 상태와 fiber 수명(한 thread 이상 켜짐 동안 유지) | P-09, P-16 | M | M2 |
 | P-29 | `ExtHost.registerPlatform`(`PlatformModule`, `PlatformContext`, L0 fiber, dispose 역순)과 `ExtHost.ports`(`PortLookup`) | P-07, P-13 | S | M0 |
 | P-30 | 포트 키 재export 추가: `ProjectorRegistryPortKey`(`xeon.session`의 `projectors`), `ScopedStorePortKey`(`xeon.store`), `ProcessPortKey`(`xeon.process`)와 `testing/ports.ts`의 가짜 구현(`register`는 `Result<{ dispose }, ProjectorRegisterError>`, `scoped(owner)`). O-14(저장 영역), O-23(외부 훅), L-22(격리)의 선행 | P-02, P-29 | S | M1 |
+| P-32 | 능력 래퍼 문맥 검사(`capability-guard.ts`, `ExtHostDeps.capabilityDefs`), drive 멱등 쓰기 기본 키 [제안] (M3-REQ-22) | P-13 | M | M3a |
+| P-33 | 효과 워커(`effect-worker.ts`, `requestEffect`, `EffectWorkerPort`) (M3-REQ-27) | P-32 | M | M3a |
+| P-34 | 상태 커밋 줄, `updateState`, `commitWith` (M3-REQ-23·24) | P-13 | M | M3a |
+| P-35 | 임대 대기 상한과 `lease.rejected`, `leaseEpoch` 기록 (M3-REQ-25·28) | P-10 | M | M3a |
+| P-36 | 수명주기 지점 디스패치(`lifecycle.ts`, `xeon.session` 피드, 소유 scope 거르기), 이벤트 버스 제거 (M3-REQ-26·102·108) | P-06 | M | M3a |
 | P-31 | 포트 재export 확인: `primitives/ports.ts`·`resources.ts`, loading-trust의 로더 포트, operations의 훅 포트에 자기 정의가 없고 모두 F `ports.ts` 이름을 다시 export하는지(spec §3.6, §3.9, [결정: review.decisions-2 U-14, D-04]), `src/index.ts` 공개 이름이 spec §3.1 표와 같은지 타입 테스트로 확인 | P-02, P-30, F.extensions.plan E10 | S | M1 |
 
 순서 요약: P-01 → P-02 → (P-03, P-04, P-05, P-07 병렬) → P-06 → P-08 → P-09 → P-12 → P-10 → P-11 → P-13 → P-29 → P-14 → P-20 (M0 끝) → P-15~P-19, P-21, P-30 (M1) → P-22~P-28 (M2 이후).
@@ -226,6 +231,16 @@ xeon/packages/ext-host/
 | N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`의 `Result`화(`ExtRowError`). 다른 패키지 호출처는 없다 |
 | P-24 | 완료 | `resources.ts`: `ResourceRegistry`(`list`·`subscribe`·`setFlag`), `ResourcePolicy` 결합(쌍 판정 + 집합 판정 `exposeAll`), 도구·provider·MCP 포트 위임, 명령·단축키·플래그·렌더러 보관, effect 자동 해제, `hostOf(g).register*`·`getFlag`. `resources.test.ts` |
 | P-25 | 완료 | detached tap은 완료를 기다리지 않고 `detached: true`를 돌려준다. 핸들러는 그 뒤 순서대로 실행되고 실패는 정책·진단으로만 보고된다. 예산은 받고 thread가 닫히면 중단·폐기한다. `dispatch-detached.test.ts` |
-| P-26 | 완료 | 확장에 Cordis 이벤트·컨텍스트 API가 없음을 시험으로 고정하고, 호스트 안쪽 휘발 버스(`event-bus.ts`, 패키지 내부)를 접두 강제·읽기 선언 검사와 함께 구현했다. pi 어댑터는 두지 않는다(adr.0017 §3.7). `event-isolation.test.ts` |
+| P-26 | 완료 | 확장에 Cordis 이벤트·컨텍스트 API가 없음을 시험으로 고정했다. pi events 어댑터용 휘발 버스는 M3a에서 지웠다(ADR-0017 §3.7). 그룹 격리는 kind 접두 필터이고 `event-isolation.test.ts`가 확인한다 |
 | N-01 | 완료(X 쪽) | `openThread`가 이미 열린 세대를 그 thread의 켜짐 집합에 올리고(`seedThread`) 저장된 켜짐 기록과 같으면 `scope.changed`를 쓰지 않는다. 같은 프로세스 재열기·재시작 시험(`thread-scope.test.ts`). core-persistence가 `loadThread.enabled`를 비워 돌려주는 M1 대역(PS-16 전)에서는 중복이 남는다 |
 | N-02 | 완료 | 결정 D8(b): 공급자 재시작 뒤 Cordis가 apply를 다시 불러도 setup을 바로 다시 실행하지 않고 `stale` 표시 후 다음 단계 경계(유휴면 곧바로)에서 새 세대로 만든다. `provider-restart.test.ts` |
+
+### M3a 구현 현황 (T-X2)
+
+| 작업 | 상태 | 내용 |
+|---|---|---|
+| P-32 | 완료 | `capability-guard.ts`, 시험 `replay-effects.test.ts`. 기본 키는 [제안], ADR 확정 대기 |
+| P-33 | 완료 | `effect-worker.ts`, 시험 `replay-effects.test.ts` |
+| P-34 | 완료 | `state.ts` 줄·`updateState`·`commitWith`, 시험 `state-queue.test.ts` |
+| P-35 | 완료 | `lease.ts` 대기 계수·`lease.rejected`, 시험 `lifecycle.test.ts`. 설정 `x.primitives.leaseWaitLimit` |
+| P-36 | 완료 | `lifecycle.ts`, `event-bus.ts` 삭제, 시험 `lifecycle.test.ts`·`event-isolation.test.ts` |

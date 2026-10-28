@@ -42,6 +42,11 @@ export interface PrimitivesSettingsSource {
   activeDriveGroup(threadId: ThreadId): ScopeId | null;
   /** x.primitives.capabilityProviders */
   capabilityProviders(): Readonly<Record<string, ExtensionName>>;
+  /**
+   * x.primitives.leaseWaitLimit [제안]. 임대를 받지 못한 후보가 `turn_settled`·`idle` 경계를 이만큼 넘기면 요청을 거부한다
+   * (review.m3-design-inputs D-M3-05 a). 없으면 `DEFAULT_LEASE_WAIT_LIMIT`
+   */
+  leaseWaitLimit?(threadId: ThreadId): number;
 }
 
 /** 이미 기본값이 채워진 호스트 의존 */
@@ -197,6 +202,14 @@ export interface BoundaryTxn {
   readonly releasing: LeaseRuntime[];
   /** 이 커밋에서 부여가 기록될 임대 */
   grant: LeaseRuntime | null;
+  /** 이 커밋에서 `lease.rejected`로 기록될 임대 요청(M3-REQ-28) */
+  readonly rejected: LeaseRejection[];
+}
+
+/** 대기 상한을 넘겨 거부된 임대 요청 하나 */
+interface LeaseRejection {
+  readonly scopeId: ScopeId;
+  readonly requestSeq: number;
 }
 
 export interface ThreadRuntime {
@@ -218,6 +231,12 @@ export interface ThreadRuntime {
   enabledAtSeq: Map<ScopeId, number>;
   leaseEpochs: Map<ScopeId, number>;
   lease: LeaseRuntime | null;
+  /** 임대를 받지 못하고 기다리는 후보. requestSeq는 대기를 시작한 순번, waited는 넘긴 `turn_settled`·`idle` 경계 수 */
+  leaseWait: Map<ScopeId, { readonly requestSeq: number; waited: number }>;
+  /** 대기 상한을 넘겨 거부된 scope. 다음 임대 반납이 커밋되면 다시 후보가 된다 */
+  leaseRejected: Set<ScopeId>;
+  /** 다음 임대 요청 순번 */
+  nextRequestSeq: number;
   /** 임대를 반납한 scope가 다음 turn_settled 또는 상태 판 변화 전까지 후보에서 빠지는 표(반납 때의 판) */
   cooldown: Map<ScopeId, number>;
   txn: BoundaryTxn | null;

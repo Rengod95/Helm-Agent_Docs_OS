@@ -26,6 +26,7 @@ import type {
 } from "./core.ts";
 import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
+import { DEFAULT_LEASE_WAIT_LIMIT } from "./settings.ts";
 import type { StateService } from "./state.ts";
 
 export interface LeaseBroker {
@@ -234,7 +235,13 @@ export function createLeaseBroker(
       return;
     }
     const baseRev = stateService.revOf(thread.threadId, lease.scopeId);
-    const invocation: DriveInvocation = { leaseId: lease.leaseId, baseRev, i: 0, effects: 0 };
+    const invocation: DriveInvocation = {
+      leaseId: lease.leaseId,
+      leaseEpoch: lease.leaseEpoch,
+      baseRev,
+      i: 0,
+      effects: 0,
+    };
     lease.lastBaseRev = baseRev;
     const handle = makeLoopHandle(thread, lease, invocation);
     try {
@@ -324,6 +331,139 @@ export function createLeaseBroker(
     return out;
   }
 
+  /** 임대가 없을 때 후보를 골라 `lease.acquired` 초안과 `txn.grant`를 만든다 */
+  function decide(thread: ThreadRuntime, txn: BoundaryTxn): void {
+    if (thread.lease !== null || txn.grant !== null || txn.releasing.length > 0) return;
+    const loop = core.ports.get(LoopPortKey);
+    const records = core.ports.get(RecordCommitPortKey);
+    const candidates = candidatesFor(thread, txn);
+    if (candidates.length === 0) return;
+    if (loop === undefined || records === undefined) {
+      warnPortOnce(thread, loop === undefined ? "xeon.loop" : "xeon.session");
+      return;
+    }
+    let chosen: ScopeRecord | undefined;
+    const arbiter = core.ports.get(LeaseArbiterPortKey);
+    if (arbiter !== undefined) {
+      const picked = arbiter.choose(
+        thread.threadId,
+        candidates.map((record) => ({
+          scopeId: record.id,
+          extension: record.extension,
+          loadIndex: record.loadIndex,
+          defaultEnabled: record.def.defaultEnabled ?? record.manifest.defaultEnabled ?? true,
+          enabledAtSeq: thread.enabledAtSeq.get(record.id) ?? null,
+        })),
+      );
+      chosen = candidates.find((record) => record.id === picked);
+    } else if (candidates.length === 1) {
+      chosen = candidates[0];
+    } else {
+      const active = core.deps.settings.activeDriveGroup(thread.threadId);
+      chosen = candidates.find((record) => record.id === active);
+      if (chosen === undefined) {
+        core.deps.report({
+          level: "warning",
+          code: "drive_conflict",
+          message: `drive groups ${candidates.map((record) => record.id).join(", ")} are enabled; set x.primitives.activeDriveGroup`,
+        });
+      }
+    }
+    const generation = chosen?.generation;
+    if (chosen === undefined || generation === null || generation === undefined) return;
+    const drive = generation.drive;
+    if (drive === null) return;
+    const { limits, clamped } = effectiveLimits(
+      core.deps.settings.driveDefaultLimits(thread.threadId),
+      core.deps.settings.driveLimits(thread.threadId),
+      drive.options.limits,
+    );
+    if (clamped.length > 0) {
+      core.deps.report({
+        level: "info",
+        code: "drive_limits_clamped",
+        scopeId: chosen.id,
+        extension: chosen.extension,
+        message: `drive limits ${clamped.join(", ")} were clamped to the ceiling x.primitives.driveLimits`,
+      });
+    }
+    const leaseEpoch = (thread.leaseEpochs.get(chosen.id) ?? 0) + 1;
+    const draft = makeDraft(core.deps.ids, {
+      threadId: thread.threadId,
+      kind: "lease.acquired",
+      payload: { leaseId: "", scopeId: chosen.id, limits, leaseEpoch },
+      turnId: txn.signal.turnId,
+      stepId: txn.signal.stepId,
+    });
+    // 임대 id는 부여 초안의 이벤트 id를 그대로 쓴다(불투명 문자열, 40자 이하)
+    const leaseId = draft.id;
+    txn.drafts.push({ ...draft, payload: { leaseId, scopeId: chosen.id, limits, leaseEpoch } });
+    txn.grant = {
+      leaseId,
+      scopeId: chosen.id,
+      threadId: thread.threadId,
+      leaseEpoch,
+      limits,
+      used: { turns: 0, spawns: 0, tokens: 0 },
+      status: "active",
+      reason: undefined,
+      abort: new AbortController(),
+      idleStreak: 0,
+      idleRev: null,
+      lastBaseRev: null,
+      running: false,
+      wantInvoke: true,
+      missed: false,
+      committed: false,
+    };
+  }
+
+  /**
+   * 임대를 받지 못한 후보의 대기를 센다(M3-REQ-28, D-M3-05 a). 대기는 `turn_settled`·`idle` 경계마다 하나씩 늘고,
+   * `x.primitives.leaseWaitLimit`을 넘으면 `lease.rejected` 초안을 경계 기여에 넣는다. 거부된 scope는 다음 반납이 커밋될 때까지 다시 세지 않는다
+   */
+  function trackWaiting(thread: ThreadRuntime, txn: BoundaryTxn): void {
+    if (
+      core.ports.get(LoopPortKey) === undefined ||
+      core.ports.get(RecordCommitPortKey) === undefined
+    )
+      return;
+    const holder = txn.grant?.scopeId ?? thread.lease?.scopeId ?? null;
+    const waiting = candidatesFor(thread, txn).filter(
+      (record) => record.id !== holder && !thread.leaseRejected.has(record.id),
+    );
+    const names = new Set(waiting.map((record) => record.id));
+    for (const id of thread.leaseWait.keys()) {
+      if (!names.has(id)) thread.leaseWait.delete(id);
+    }
+    const limit = core.deps.settings.leaseWaitLimit?.(thread.threadId) ?? DEFAULT_LEASE_WAIT_LIMIT;
+    for (const record of waiting) {
+      let entry = thread.leaseWait.get(record.id);
+      if (entry === undefined) {
+        entry = { requestSeq: thread.nextRequestSeq, waited: 0 };
+        thread.nextRequestSeq += 1;
+        thread.leaseWait.set(record.id, entry);
+      }
+      if (txn.signal.kind === "step_end") continue;
+      entry.waited += 1;
+      if (entry.waited <= limit) continue;
+      txn.drafts.push(
+        makeDraft(core.deps.ids, {
+          threadId: thread.threadId,
+          kind: "lease.rejected",
+          payload: {
+            groupId: record.extension,
+            reason: "wait_limit",
+            requestSeq: entry.requestSeq,
+          },
+          turnId: txn.signal.turnId,
+          stepId: txn.signal.stepId,
+        }),
+      );
+      txn.rejected.push({ scopeId: record.id, requestSeq: entry.requestSeq });
+    }
+  }
+
   return {
     restore(thread, open) {
       if (open === null) return;
@@ -391,88 +531,8 @@ export function createLeaseBroker(
       txn.releasing.push(lease);
     },
     grant(thread, txn) {
-      if (thread.lease !== null || txn.grant !== null || txn.releasing.length > 0) return;
-      const loop = core.ports.get(LoopPortKey);
-      const records = core.ports.get(RecordCommitPortKey);
-      const candidates = candidatesFor(thread, txn);
-      if (candidates.length === 0) return;
-      if (loop === undefined || records === undefined) {
-        warnPortOnce(thread, loop === undefined ? "xeon.loop" : "xeon.session");
-        return;
-      }
-      let chosen: ScopeRecord | undefined;
-      const arbiter = core.ports.get(LeaseArbiterPortKey);
-      if (arbiter !== undefined) {
-        const picked = arbiter.choose(
-          thread.threadId,
-          candidates.map((record) => ({
-            scopeId: record.id,
-            extension: record.extension,
-            loadIndex: record.loadIndex,
-            defaultEnabled: record.def.defaultEnabled ?? record.manifest.defaultEnabled ?? true,
-            enabledAtSeq: thread.enabledAtSeq.get(record.id) ?? null,
-          })),
-        );
-        chosen = candidates.find((record) => record.id === picked);
-      } else if (candidates.length === 1) {
-        chosen = candidates[0];
-      } else {
-        const active = core.deps.settings.activeDriveGroup(thread.threadId);
-        chosen = candidates.find((record) => record.id === active);
-        if (chosen === undefined) {
-          core.deps.report({
-            level: "warning",
-            code: "drive_conflict",
-            message: `drive groups ${candidates.map((record) => record.id).join(", ")} are enabled; set x.primitives.activeDriveGroup`,
-          });
-        }
-      }
-      const generation = chosen?.generation;
-      if (chosen === undefined || generation === null || generation === undefined) return;
-      const drive = generation.drive;
-      if (drive === null) return;
-      const { limits, clamped } = effectiveLimits(
-        core.deps.settings.driveDefaultLimits(thread.threadId),
-        core.deps.settings.driveLimits(thread.threadId),
-        drive.options.limits,
-      );
-      if (clamped.length > 0) {
-        core.deps.report({
-          level: "info",
-          code: "drive_limits_clamped",
-          scopeId: chosen.id,
-          extension: chosen.extension,
-          message: `drive limits ${clamped.join(", ")} were clamped to the ceiling x.primitives.driveLimits`,
-        });
-      }
-      const draft = makeDraft(core.deps.ids, {
-        threadId: thread.threadId,
-        kind: "lease.acquired",
-        payload: { leaseId: "", scopeId: chosen.id, limits },
-        turnId: txn.signal.turnId,
-        stepId: txn.signal.stepId,
-      });
-      // 임대 id는 부여 초안의 이벤트 id를 그대로 쓴다(불투명 문자열, 40자 이하)
-      const leaseId = draft.id;
-      txn.drafts.push({ ...draft, payload: { leaseId, scopeId: chosen.id, limits } });
-      txn.grant = {
-        leaseId,
-        scopeId: chosen.id,
-        threadId: thread.threadId,
-        leaseEpoch: (thread.leaseEpochs.get(chosen.id) ?? 0) + 1,
-        limits,
-        used: { turns: 0, spawns: 0, tokens: 0 },
-        status: "active",
-        reason: undefined,
-        abort: new AbortController(),
-        idleStreak: 0,
-        idleRev: null,
-        lastBaseRev: null,
-        running: false,
-        wantInvoke: true,
-        missed: false,
-        committed: false,
-      };
+      decide(thread, txn);
+      trackWaiting(thread, txn);
     },
     applyCommitted(thread, txn) {
       for (const lease of txn.releasing) {
@@ -489,6 +549,16 @@ export function createLeaseBroker(
         thread.lease = grant;
         thread.leaseEpochs.set(grant.scopeId, grant.leaseEpoch);
         core.notify({ kind: "lease", scopeId: grant.scopeId, threadId: thread.threadId });
+      }
+      for (const rejection of txn.rejected) {
+        thread.leaseWait.delete(rejection.scopeId);
+        thread.leaseRejected.add(rejection.scopeId);
+        core.notify({ kind: "lease", scopeId: rejection.scopeId, threadId: thread.threadId });
+      }
+      if (txn.releasing.length > 0) {
+        // 새 임대 판단이 시작된다. 거부된 요청도 다시 후보가 된다
+        thread.leaseRejected.clear();
+        thread.leaseWait.clear();
       }
       // 반납이 커밋되면 같은 경계에서 못 한 다음 후보의 부여를 이어서 판단한다
       if (txn.releasing.length > 0) hooks.requestApply(thread.threadId);

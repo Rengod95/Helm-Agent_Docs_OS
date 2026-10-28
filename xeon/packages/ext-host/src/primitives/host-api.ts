@@ -1,5 +1,5 @@
 import type { ServiceKey } from "@xeon/contracts/capabilities";
-import { Bug } from "@xeon/contracts";
+import { Bug, ok, type Result } from "@xeon/contracts";
 import type { JsonValue } from "@xeon/contracts/conversation";
 import type {
   DriveOptions,
@@ -19,8 +19,15 @@ import type {
   ScopeId,
   Unsubscribe,
 } from "@xeon/contracts/extensions";
-import { eraseDrive, eraseHandler, serviceAs, stateAs } from "../erase.ts";
+import { eraseDrive, eraseHandler, hostApiAs, serviceAs, stateAs } from "../erase.ts";
 import type { CapabilityBindings } from "./bindings.ts";
+import {
+  EFFECT_KEY_MAX,
+  effectKindOf,
+  type EffectRequest,
+  type EffectWorkerPort,
+} from "./effect-worker.ts";
+import { guardCapabilityService, type CapabilityDefLookup } from "./capability-guard.ts";
 import type { Generation, HostCore, ScopeRecord } from "./core.ts";
 import type { AnyState } from "./erased-types.ts";
 import { PrimitiveError } from "./errors.ts";
@@ -40,12 +47,12 @@ import type {
 } from "./resources.ts";
 import type { StateMigration } from "./state-migration.ts";
 import { awaitUser } from "./user-wait.ts";
-import type { StateService } from "./state.ts";
+import type { RecordInput, StateService, StateUpdateError } from "./state.ts";
 
 export type { StateMigration } from "./state-migration.ts";
 
 /** setup이 받은 g에 붙는 부가 API(X.primitives.spec §3.8) */
-export interface ScopeHostApi {
+export interface ScopeHostApi<S = unknown> {
   readonly scopeId: ScopeId;
   readonly extension: ExtensionName;
   /** 능력 공급자 등록. key.capability는 매니페스트 provides에 있어야 한다. fiber effect로 추적한다 */
@@ -59,6 +66,26 @@ export interface ScopeHostApi {
    * 이 함수로 옮기고 스키마를 검사한 뒤 새 판으로 커밋한다(P-23)
    */
   migrateState(fn: StateMigration): void;
+  /**
+   * 상태 커밋과 그룹 레코드를 한 트랜잭션으로 낸다(M3-REQ-24 [제안]). 레코드 kind는 `record`와 같은 검사를 받는다.
+   * F `ScopeApi.commit`에는 둘째 인자가 없어 이 메서드를 둔다. 상태가 충돌하면 레코드도 남지 않는다
+   */
+  /**
+   * 선언 없는 쓰기 요청(ADR-0015 §3.5, M3-REQ-27 [제안]). 요청 레코드를 커밋하고 효과 워커가 재실행되지 않는 문맥에서 실행한다.
+   * 재실행돼도 같은 `key`라 요청은 한 번만 남는다. 결과는 `<kind 접두>effect.settled` 레코드로 `readRecords`에서 읽는다.
+   * 능력은 매니페스트 requires나 optional에 있어야 한다
+   */
+  requestEffect(request: EffectRequest): Promise<void>;
+  commitWith(next: S, records: readonly RecordInput[]): Promise<Readonly<S>>;
+  /**
+   * 줄 세운 읽기-계산-커밋(M3-REQ-23 [제안]). 같은 (thread, scope)의 `commit`·`updateState`는 호출 순서대로 하나씩 실행된다.
+   * fn은 줄 안에서 최신 상태로 불리고, 저장소의 판 충돌은 한 번 다시 시도한 뒤 `state_conflict` 값으로 돌려준다. 던지지 않는다.
+   * `records`가 있으면 계산된 상태와 같은 트랜잭션에 실린다
+   */
+  updateState(
+    fn: (prev: Readonly<S>) => S,
+    records?: (next: S) => readonly RecordInput[],
+  ): Promise<Result<Readonly<S>, StateUpdateError>>;
   // 리소스 등록(X.primitives.spec §4.8). 모두 fiber effect로 추적되어 scope가 꺼지면 자동 해제된다.
   // 이름 충돌은 resource_conflict, 이름 형식 위반은 resource_name_invalid, 대상 포트가 없으면 port_unavailable이다
   registerTool(def: ToolResourceDef): void;
@@ -88,16 +115,16 @@ export interface ScopeInternals {
   readonly generation: Generation;
 }
 
-const hostApis = new WeakMap<object, ScopeHostApi>();
+const hostApis = new WeakMap<object, ScopeHostApi<AnyState>>();
 const internals = new WeakMap<object, ScopeInternals>();
 
 /** setup이 받은 g로 부가 API를 얻는다. ext-host가 만든 g가 아니면 PrimitiveError("no_context") */
-export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi {
+export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S> {
   const found = hostApis.get(g);
   if (found === undefined) {
     throw new PrimitiveError("no_context", "hostOf needs a ScopeApi created by ext-host");
   }
-  return found;
+  return hostApiAs<S>(found);
 }
 
 /** 패키지 안에서만 쓴다. ext-host가 만든 g의 호스트 핵심과 scope 기록 */
@@ -115,6 +142,8 @@ export interface ScopeApiDeps {
   readonly post: PostQueue;
   readonly bindings: CapabilityBindings;
   readonly resources: ResourceStore;
+  readonly capabilityDefs: CapabilityDefLookup;
+  readonly effects: EffectWorkerPort;
 }
 
 function assertOpen(record: ScopeRecord, generation: Generation): void {
@@ -252,7 +281,16 @@ export function createScopeApi(
           },
         );
       }
-      return serviceAs(key, service);
+      return serviceAs(
+        key,
+        guardCapabilityService({
+          id,
+          service,
+          defs: deps.capabilityDefs,
+          extension: record.extension,
+          scopeId: record.id,
+        }),
+      );
     },
     onDispose(fn) {
       assertOpen(record, generation);
@@ -260,7 +298,7 @@ export function createScopeApi(
     },
   };
 
-  const host: ScopeHostApi = {
+  const host: ScopeHostApi<AnyState> = {
     scopeId: record.id,
     extension: record.extension,
     provide<Api>(key: ServiceKey<Api>, impl: Api): void {
@@ -304,6 +342,50 @@ export function createScopeApi(
         );
       }
       generation.migration = fn;
+    },
+    async requestEffect(request) {
+      assertOpen(record, generation);
+      const declared =
+        (manifest.requires ?? []).some((entry) => entry.id === request.capability) ||
+        (manifest.optional ?? []).some((entry) => entry.id === request.capability);
+      if (!declared) {
+        throw new PrimitiveError(
+          "capability_undeclared",
+          `requestEffect on ${request.capability} is not in requires or optional`,
+          { scopeId: record.id },
+        );
+      }
+      if (request.key.length < 1 || request.key.length > EFFECT_KEY_MAX) {
+        throw new TypeError(`effect key must be 1-${EFFECT_KEY_MAX} chars`);
+      }
+      generation.usage.capabilities.add(request.capability);
+      await deps.state.recordPrivate(record, generation, effectKindOf(manifest, "requested"), {
+        key: request.key,
+        capability: request.capability,
+        method: request.method,
+        input: request.input,
+      });
+      const threadId = ambient()?.threadId;
+      if (threadId !== undefined) {
+        deps.effects.schedule({
+          threadId,
+          scopeId: record.id,
+          extension: record.extension,
+          kind: manifest.kind === "group" ? "group" : "plugin",
+        });
+      }
+    },
+    async commitWith(next, records) {
+      return stateAs(await deps.state.commitWith(record, generation, next, records));
+    },
+    async updateState(fn, records) {
+      const done = await deps.state.update(
+        record,
+        generation,
+        (prev) => fn(stateAs(prev)),
+        (next) => records?.(stateAs(next)) ?? [],
+      );
+      return done.ok ? ok(stateAs(done.value)) : done;
     },
     registerTool(def: ToolResourceDef): void {
       register("tool", def.name, def);

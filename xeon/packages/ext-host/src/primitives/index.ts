@@ -19,6 +19,7 @@ export {
   type RecordCommitPort,
   type ScopedStorePort,
 } from "./ports.ts";
+export { capabilityDefTable, type CapabilityDefLookup } from "./capability-guard.ts";
 export { capabilityServiceName, isReservedServiceName, providerServiceName } from "./services.ts";
 export {
   DEFAULT_DISPATCH_POLICY,
@@ -50,6 +51,7 @@ export {
   type PlatformSetupError,
   type ScopeToggleSourceOf,
 } from "./host.ts";
+export { SessionFeedPortKey } from "./lifecycle.ts";
 export { hostOf, type ScopeHostApi, type StateMigration } from "./host-api.ts";
 export {
   McpPortKey,

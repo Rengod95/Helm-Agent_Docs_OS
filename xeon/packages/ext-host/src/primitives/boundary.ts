@@ -14,6 +14,8 @@ import type { BoundarySignal, BoundaryTxn, HostCore, ThreadRuntime } from "./cor
 import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
 import { keyPart } from "./keys.ts";
+import type { EffectWorkerPort } from "./effect-worker.ts";
+import type { Lifecycle } from "./lifecycle.ts";
 import type { LeaseBroker } from "./lease.ts";
 import type { ScopeRuntime } from "./scope.ts";
 
@@ -80,6 +82,9 @@ function commitPlanOf(
       (id) => `scope:${keyScopeId(id)}:${generationOf(id)}${flipOf(id)}:disabled`,
     ),
     ...txn.releasing.map((lease) => `lease:${keyPart(lease.leaseId)}:released`),
+    ...txn.rejected.map(
+      (rejection) => `lease:${keyScopeId(rejection.scopeId)}:rejected.${rejection.requestSeq}`,
+    ),
     ...(txn.grant === null
       ? []
       : [`lease:${keyScopeId(txn.grant.scopeId)}:${txn.grant.leaseEpoch}`]),
@@ -116,6 +121,8 @@ export function createBoundary(
   core: HostCore,
   scope: ScopeRuntime,
   lease: LeaseBroker,
+  effects: EffectWorkerPort,
+  lifecycle: Lifecycle,
 ): BoundaryService {
   function reconcile(thread: ThreadRuntime, txn: BoundaryTxn): void {
     // 이 경계가 끝난 뒤 이 thread에서 켜져 있을 scope
@@ -179,6 +186,7 @@ export function createBoundary(
       recordDisabled: [],
       releasing: [],
       grant: null,
+      rejected: [],
     };
     thread.txn = txn;
     if (signal.kind !== "turn_settled") await scope.applyToggles(thread, txn);
@@ -229,6 +237,8 @@ export function createBoundary(
       if (txn.recordEnabled.length > 0) await refreshEnabledAtSeq(thread, txn.recordEnabled);
       lease.applyCommitted(thread, txn);
       lease.onBoundary(thread, signal);
+      // 이 경계 커밋에 실린 이벤트의 수명주기 지점은 커밋 뒤에만 발화한다(M3-REQ-108)
+      await lifecycle.afterCommit(thread.threadId, txn.drafts);
     } else {
       txn.grant?.abort.abort();
     }
@@ -347,6 +357,9 @@ export function createBoundary(
         leaseEpochs: new Map(Object.entries(snapshot.leaseEpochs)),
         lease: null,
         cooldown: new Map(),
+        leaseWait: new Map(),
+        leaseRejected: new Set(),
+        nextRequestSeq: 0,
         txn: null,
         warnedPorts: new Set(),
         applying: false,
@@ -356,6 +369,17 @@ export function createBoundary(
       // 이미 세대가 열린 scope를 이 thread에서 켠다. 저장된 켜짐 기록과 같으면 scope.changed를 다시 남기지 않는다(N-01)
       await scope.seedThread(thread);
       lease.restore(thread, snapshot.openLease);
+      // 재시작 전에 커밋된 요청 가운데 끝나지 않은 것을 이어서 처리한다(ADR-0015 §3.5 2번 3)
+      for (const scopeId of thread.active) {
+        const record = core.scopes.get(scopeId);
+        if (record === undefined) continue;
+        effects.schedule({
+          threadId,
+          scopeId,
+          extension: record.extension,
+          kind: record.manifest.kind === "group" ? "group" : "plugin",
+        });
+      }
       requestApply(threadId);
     },
     async closeThread(threadId) {

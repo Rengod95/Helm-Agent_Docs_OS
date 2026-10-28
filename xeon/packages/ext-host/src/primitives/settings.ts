@@ -12,6 +12,9 @@ import type { PrimitivesSettingsSource } from "./core.ts";
 export type { PrimitivesSettingsSource } from "./core.ts";
 
 /** 상한을 명시하지 않은 drive 임대의 일반 기본 상한(X.primitives.spec §4.4.2, review.decisions-2 U-12) */
+/** 임대 대기 상한 기본값: 임대를 받지 못한 후보가 넘기는 `turn_settled`·`idle` 경계 수 [제안] */
+export const DEFAULT_LEASE_WAIT_LIMIT = 8;
+
 export const DEFAULT_DRIVE_LIMITS: Required<DriveLimits> = {
   maxTurns: 4,
   maxSpawns: 8,
@@ -39,6 +42,7 @@ export const primitivesSettings: SettingGroup<
     readonly driveLimits: SettingDefInput;
     readonly activeDriveGroup: SettingDefInput;
     readonly capabilityProviders: SettingDefInput;
+    readonly leaseWaitLimit: SettingDefInput;
   }
 > = defineSettings("x.primitives", {
   driveDefaultLimits: {
@@ -83,6 +87,20 @@ export const primitivesSettings: SettingGroup<
     },
     since: "0.1.0",
   },
+  leaseWaitLimit: {
+    type: Type.Integer({ minimum: 1 }),
+    default: DEFAULT_LEASE_WAIT_LIMIT,
+    runtimeChange: "nextTurn",
+    allowedScopes: ["user", "project", "session"],
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 111,
+      label: "임대 대기 상한",
+      help: "drive 임대를 받지 못한 그룹이 기다리는 turn 정착·유휴 경계 수. 넘으면 요청을 거부하고 lease.rejected를 남긴다.",
+    },
+    since: "0.1.0",
+  },
   capabilityProviders: {
     type: Type.Record(Type.String(), Type.String()),
     default: {},
@@ -104,6 +122,7 @@ export interface StaticPrimitivesSettings {
   readonly driveLimits?: DriveLimits;
   readonly activeDriveGroup?: ScopeId | null;
   readonly capabilityProviders?: Readonly<Record<string, ExtensionName>>;
+  readonly leaseWaitLimit?: number;
 }
 
 /**
@@ -123,5 +142,6 @@ export function createStaticPrimitivesSettings(
     driveLimits: (_threadId: ThreadId) => values.driveLimits ?? {},
     activeDriveGroup: (_threadId: ThreadId) => values.activeDriveGroup ?? null,
     capabilityProviders: () => values.capabilityProviders ?? {},
+    leaseWaitLimit: (_threadId: ThreadId) => values.leaseWaitLimit ?? DEFAULT_LEASE_WAIT_LIMIT,
   };
 }

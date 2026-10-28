@@ -50,6 +50,8 @@ export {
   LeaseArbiterPortKey,
   ExtHostPortKey,
   // primitives §3.7, §3.8
+  capabilityDefTable,
+  type CapabilityDefLookup,
   capabilityServiceName,
   providerServiceName,
   isReservedServiceName,

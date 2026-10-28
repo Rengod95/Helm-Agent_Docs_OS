@@ -26,6 +26,7 @@ import type {
   DispatchOptions,
   DispatchOutcome,
 } from "./primitives/dispatch-types.ts";
+import type { ScopeHostApi } from "./primitives/host-api.ts";
 import type { HandlerEntry } from "./primitives/registry.ts";
 
 // 타입 지움과 복원이 일어나는 유일한 파일이다(eng.typescript.guide TY-06 허용 목록 A3).
@@ -67,6 +68,12 @@ export function eraseScope<S>(
     // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: setup은 g: ScopeApi<S>를 받고 같은 정의의 g만 넘긴다 (eng.typescript.guide TY-06)
     setup: setup as unknown as ScopeSetup<AnyState>,
   };
+}
+
+/** 상태 타입 S를 지운 부가 API를 scope의 상태 타입으로 되돌린다. 같은 정의에서 만든 g의 것이다 */
+export function hostApiAs<S>(host: ScopeHostApi<AnyState>): ScopeHostApi<S> {
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 복원: 부가 API는 g와 같은 scope 정의에서 만들어졌다 (eng.typescript.guide TY-06)
+  return host as unknown as ScopeHostApi<S>;
 }
 
 /** 스키마 검사를 거친 상태 문서를 지운 상태 타입으로 본다 */

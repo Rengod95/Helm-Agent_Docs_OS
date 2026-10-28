@@ -23,6 +23,8 @@ interface DispatchOptionsBase {
   readonly dispatchKey: string;
   /** 디스패치 전체의 취소 신호. 핸들러 ctx.signal의 부모다 */
   readonly signal?: AbortSignal;
+  /** 있으면 그 scope의 핸들러만 실행한다. 수명주기 지점의 소유 scope 거르기에 쓴다(ADR-0017 §3.6) */
+  readonly onlyScope?: ScopeId;
 }
 
 export type DispatchOptions<N extends PointName> =
