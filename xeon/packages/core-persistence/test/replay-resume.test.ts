@@ -8,6 +8,7 @@ import {
   PERSISTENCE_SETTING_DEFS,
   type PersistenceSettings,
 } from "../src/index.ts";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import { completeTurn } from "./support/branching.ts";
 import {
   expectOk,
@@ -38,6 +39,14 @@ function headOf(h: Harness): number {
   return expectOk(h.service.feed.headSeq());
 }
 
+/** thread의 마지막 이벤트 seq(지우기 전에 잰다) */
+function lastSeqOf(h: Harness, threadId: ThreadId): number {
+  const read = expectOk(
+    h.service.feed.read(0, headOf(h), { threadIds: [threadId] }, 10_000, 10_000),
+  );
+  return Math.max(...read.events.map((event) => event.seq));
+}
+
 describe("oldestReplayableSeq follows the retention prune (M3-REQ-80)", () => {
   test("it is 0 until a thread is pruned, then the largest seq of the removed events", async () => {
     const h = await openHarness({ settings: withSettings({ retentionMaxCount: 1 }) });
@@ -45,10 +54,11 @@ describe("oldestReplayableSeq follows the retention prune (M3-REQ-80)", () => {
     const second = await agedThread(h, "second");
     expect(h.service.feed.oldestReplayableSeq()).toBe(0);
     const headBeforePrune = headOf(h);
+    const lastOfFirst = lastSeqOf(h, first.threadId);
     expect(expectOk(h.retention.prune())).toEqual([first.threadId]);
     const floor = h.service.feed.oldestReplayableSeq();
-    // 지운 thread의 이벤트가 앞쪽 seq이고, 남은 thread의 이벤트는 그 뒤에 있다
-    expect(floor).toBeGreaterThan(0);
+    // 하한은 지운 thread의 마지막 seq이고, 남은 thread의 이벤트는 그 뒤에 있다
+    expect(floor).toBe(lastOfFirst);
     expect(floor).toBeLessThan(headBeforePrune);
     const remaining = expectOk(
       h.service.feed.read(0, headBeforePrune, { threadIds: [second.threadId] }, 1000, 1000),
@@ -58,12 +68,13 @@ describe("oldestReplayableSeq follows the retention prune (M3-REQ-80)", () => {
 
   test("the floor never goes down and survives a restart", async () => {
     const h = await openHarness({ settings: withSettings({ retentionMaxCount: 1 }) });
-    await agedThread(h, "first");
-    await agedThread(h, "second");
+    const first = await agedThread(h, "first");
+    const second = await agedThread(h, "second");
     await agedThread(h, "third");
+    const expected = Math.max(lastSeqOf(h, first.threadId), lastSeqOf(h, second.threadId));
     expectOk(h.retention.prune());
     const floor = h.service.feed.oldestReplayableSeq();
-    expect(floor).toBeGreaterThan(0);
+    expect(floor).toBe(expected);
     const restarted = await reopenHarness(h, { settings: withSettings({ retentionMaxCount: 1 }) });
     expect(restarted.service.feed.oldestReplayableSeq()).toBe(floor);
     // 정리할 것이 더 없으면 하한은 그대로다
@@ -78,8 +89,9 @@ describe("oldestReplayableSeq follows the retention prune (M3-REQ-80)", () => {
     const doomed = newThread(h, "doomed");
     completeTurn(h, doomed.threadId);
     expect(h.service.feed.oldestReplayableSeq()).toBe(0);
+    const lastOfDoomed = lastSeqOf(h, doomed.threadId);
     expectOk(h.service.threads.remove(doomed.threadId));
-    expect(h.service.feed.oldestReplayableSeq()).toBeGreaterThan(0);
+    expect(h.service.feed.oldestReplayableSeq()).toBe(lastOfDoomed);
   });
 });
 
