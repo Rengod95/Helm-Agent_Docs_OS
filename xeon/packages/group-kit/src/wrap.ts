@@ -182,6 +182,21 @@ export function wrap<S, D extends GroupSettingDefs>(
 ): GroupApi<S, D> {
   const access = hostAccess(api);
   const counter = createMetricsCounter(def.manifest.name);
+  /**
+   * 위임 서비스(`xeon.agents`). 포트 조회는 scope의 generation이 닫히면 거부되고 `onDispose`는 닫힌 뒤에 돌므로,
+   * 처음 얻은 값을 기억해 `cancelDelegates`가 `onDispose` 안에서도 쓰게 한다(L3.group-kit.spec §4.10)
+   */
+  let agentsHandle: AgentService | undefined;
+  const agentsOf = (): AgentService | undefined => {
+    const found = attempt(() => access.agents());
+    if (found.ok) {
+      agentsHandle = found.value ?? agentsHandle;
+      return agentsHandle;
+    }
+    if (agentsHandle !== undefined) return agentsHandle;
+    return rethrow(found.error.cause);
+  };
+  agentsOf();
   /** onDispose가 시작되면 참. 꺼지는 중인 그룹의 delegate는 group.disabling이다(§4.10) */
   let disposing = false;
   api.onDispose(() => {
@@ -241,7 +256,7 @@ export function wrap<S, D extends GroupSettingDefs>(
       const invalid = checkDelegateSpec(spec, def.manifest.name);
       if (invalid !== undefined) return { ok: false, error: invalid };
       if (disposing) return { ok: false, error: { kind: "group.disabling", id: api.id } };
-      const agents = access.agents();
+      const agents = agentsOf();
       const context = access.callContext();
       const threadId = options?.threadId ?? context?.threadId;
       if (agents === undefined || threadId === undefined) {
@@ -278,7 +293,7 @@ export function wrap<S, D extends GroupSettingDefs>(
           error: { kind: "group.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
         };
       }
-      const agents = access.agents();
+      const agents = agentsOf();
       const threadId = options?.threadId ?? context?.threadId;
       if (agents === undefined || threadId === undefined) {
         return { ok: false, error: { kind: "group.delegateUnavailable" } };
@@ -298,7 +313,7 @@ export function wrap<S, D extends GroupSettingDefs>(
           },
         };
       }
-      const agents = access.agents();
+      const agents = agentsOf();
       if (agents === undefined) return { ok: false, error: { kind: "group.delegateUnavailable" } };
       const called = await attemptAsync(() =>
         agents.cancel({ ownerScopeId: api.id }, reason ?? "group disabled"),

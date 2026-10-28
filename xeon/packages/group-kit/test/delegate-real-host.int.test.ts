@@ -2,7 +2,8 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { createTestHost } from "@xeon/ext-host/testing";
-import type { GroupApi } from "../src/index.ts";
+import { AgentServicePortKey } from "@xeon/contracts/services";
+import { defineGroup, type GroupApi } from "../src/index.ts";
 import { fakeAgents } from "../src/testing/index.ts";
 import { installInjected } from "./support/injected-group.ts";
 import { groupManifestOf } from "./support/manifests.ts";
@@ -87,4 +88,37 @@ test("real-host.outside-on-and-drive-needs-an-explicit-thread", async () => {
   expect(done).toMatchObject({ ok: true, receipt: { status: "accepted" } });
   expect(agents.delegated[0]?.origin.signal).toBe(abort.signal);
   expect(await g.cancelDelegates()).toEqual({ ok: true, cancelled: true });
+});
+
+test("real-host.cancel-delegates-works-inside-on-dispose-after-the-generation-closed", async () => {
+  const t = await createTestHost();
+  const agents = fakeAgents({ ids: t.ids });
+  await t.host.registerPlatform({
+    name: "real-agents",
+    setup(ctx) {
+      ctx.providePort(AgentServicePortKey, agents);
+    },
+  });
+  const results: unknown[] = [];
+  const module = defineGroup({
+    manifest: groupManifestOf({ name: "rh-dispose" }),
+    setup(g) {
+      g.onDispose(async () => {
+        results.push(await g.cancelDelegates("group_disabled"));
+      });
+    },
+  });
+  await t.host.install({
+    manifest: module.manifest,
+    entry: module.entry,
+    loadIndex: 0,
+    builtin: true,
+  });
+  await t.host.uninstall("rh-dispose");
+  // onDispose는 scope의 generation이 닫힌 뒤에 돈다. 포트를 다시 조회하지 않고 setup에서 잡아 둔 서비스로 취소한다
+  expect(results).toEqual([{ ok: true, cancelled: false }]);
+  expect(agents.cancels).toEqual([
+    { target: { ownerScopeId: "rh-dispose" }, reason: "group_disabled" },
+  ]);
+  expect(t.diagnostics.filter((entry) => entry.level === "error")).toEqual([]);
 });
