@@ -40,7 +40,7 @@ export interface ScopeApi<S> extends ExtensionOps<S> {
    * [결정(잠정): review.decisions-2 T-21]
    */
   recordPrivate(kind: RecordKind, payload: JsonValue): Promise<void>;
-  /** 능력 서비스 API. key의 능력은 매니페스트 requires나 optional에 있어야 한다 */
+  /** 능력 서비스 API. key의 능력은 매니페스트 requires나 optional에 있어야 한다. 공급자 등록(provide)은 F에 두지 않고 X `hostOf(g).provide`다 [결정: M3-REQ-13] */
   capability<Api>(key: ServiceKey<Api>): Api;
   /** 비활성화나 언로드 때 실행할 정리 동작 */
   onDispose(fn: () => void | Promise<void>): void;

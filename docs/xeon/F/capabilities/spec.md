@@ -366,11 +366,11 @@ export function serviceKey<const D extends AnyCapabilityDef>(def: D): ServiceKey
 - Cordis 서비스 이름은 X가 `CapabilityId`에서 유도한다. 유도 규칙은 `X.primitives.spec` §3.7이고 능력마다 `cap:<id>` 바인딩 하나다. L0·L1 서비스 이름 `xeon.*`(§3.12, `eng.context-map.design` §5.3)와 이름 공간이 겹치지 않는다.
 - [제안] 도메인 서비스 묶음 타입(예: `WebService`)은 같은 도메인 능력 API를 모은 TypeScript 타입일 뿐이고 Cordis 서비스로 등록하지 않는다. consumer는 능력 단위 `ServiceKey`로 API를 얻는다(`L2.readme` §5.6과의 정리).
 - [결정: review.decisions-2 D-04] 예외는 `xeon.mcp` 하나다. L2 서비스 이름 중 Cordis에 등록되는 것은 `xeon.mcp`뿐이고, 인터페이스는 `McpService`(`McpPort` 확장, §3.12 `services/mcp.ts`)다. X가 확장의 MCP 서버 등록을 `McpPort`로 넘겨야 하기 때문이다(`F.extensions.spec` §3.2.1). `xeon.workspace`, `xeon.web`, `xeon.knowledge`, `xeon.work`, `xeon.dialog`, `xeon.artifacts`, `xeon.schedule`은 등록하지 않는 묶음 이름이다.
-- [미결] Cordis `Context` 타입에 대한 선언 병합을 F가 해야 하는지. 아래 장단을 사용자 확인 항목으로 남긴다(§10).
+- [결정: review.m3-design-inputs A-01, M3-REQ-13] A안이다. F는 `ServiceKey<Api>`만 두고 Cordis `Context`에 대한 선언 병합을 하지 않는다. 타입 복원은 X의 래퍼(`ScopeApi.capability(key)`, `ApiOf<K>`)가 한다. 공급자 등록 `provide(key, impl)`은 `ScopeApi`에 두지 않고 X의 `hostOf(g).provide`로 둔다(`X.primitives.spec`, M3-REQ-30). 아래 표는 선택 근거로 남긴다.
 
 | 안 | 내용 | 장점 | 단점 |
 |---|---|---|---|
-| A (현재 제안) | F는 `ServiceKey<Api>`만 둔다. X가 `ctx.capability(key)` 같은 래퍼로 타입을 복원한다 | F가 Cordis rc API에 묶이지 않는다. F를 쓰는 모든 층(L0 포함)이 vendored Cordis 타입을 끌어오지 않는다. 키가 값이므로 정적 검사(매니페스트 선언 대조)가 쉽다 | Cordis의 `ctx.get('name')` 직접 호출은 타입이 없다. 래퍼를 거치지 않는 코드가 생기면 타입 안전이 빠진다 |
+| A (채택) | F는 `ServiceKey<Api>`만 둔다. X가 `ctx.capability(key)` 같은 래퍼로 타입을 복원한다 | F가 Cordis rc API에 묶이지 않는다. F를 쓰는 모든 층(L0 포함)이 vendored Cordis 타입을 끌어오지 않는다. 키가 값이므로 정적 검사(매니페스트 선언 대조)가 쉽다 | Cordis의 `ctx.get('name')` 직접 호출은 타입이 없다. 래퍼를 거치지 않는 코드가 생기면 타입 안전이 빠진다 |
 | B | F가 `declare module "cordis" { interface Context { "web.search": ... } }`로 선언 병합한다 | Cordis 관용 코드(`ctx.inject`, `ctx.get`)에 타입이 그대로 붙는다 | F가 `xeon/vendor/cordis` 타입에 의존한다. Cordis rc 변경이 F를 깨뜨린다. 전역 병합이라 능력 정의를 추가할 때마다 F의 선언이 늘어나고, 외부 플러그인 능력은 F 밖에서 병합해야 한다 |
 | C | X 패키지가 선언 병합을 맡는다 | F 순수성을 지키면서 Cordis 관용 코드에 타입이 붙는다 | 병합 대상 목록을 X가 F 정의에서 유도해야 한다. 외부 플러그인 능력은 여전히 각자 병합한다 |
 
@@ -1110,7 +1110,7 @@ export type NotifyError =
 
 - [미결] 능력 ID 네임스페이스 규칙(§3.1): 내장 도메인 예약, 외부 플러그인의 확장 이름 접두, 예약 접두 목록을 확정해야 한다.
 - 닫음: 도구 이름 네임스페이스. 후보 (b) `<확장 이름>__<이름>`으로 정했다(§3.1, `X.operations.spec` §4.5). 내장 능력끼리의 충돌은 `tool_name_conflict` 오류로 거부한다.
-- [미결] Cordis 선언 병합을 F에서 할지(§3.5 표의 A·B·C).
+- 닫음 [결정: review.m3-design-inputs A-01, M3-REQ-13]: A안(§3.5). F는 `ServiceKey<Api>`만 둔다.
 - 닫음 [결정: M3-REQ-07]: 도구 없는 능력은 허용한다(§4.4).
 - 닫음: 내장 L2 능력 정의의 위치는 F `capabilities/defs/<domain>.ts`다(§3.9).
 - [결정: review.decisions-2 U-08] 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`와 부속 타입)은 §3.10 `secrets.ts` 블록이 정본이다. `SECRET_REF_PATTERN` 정본도 F다.

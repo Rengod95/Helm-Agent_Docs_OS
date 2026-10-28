@@ -224,7 +224,7 @@ F가 정하지 않는 것:
 
 1. [결정: review.decisions-2 U-01] 용어: pi turn = Xeon step, pi run = Xeon turn(`F.conversation.spec` §10 1번). scope 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(`F.extensions.spec` §4.5). 사용자 확인 대상이다.
 2. [미결] boundary fold: `F.extensions.spec`은 fold 3종을 유지하고 chain 교체 + `finalize` 표지로 표현하자고 제안한다. 4번째 fold(collect)나 지점별 예외 표를 둘지 결정이 필요하다(`F.extensions.spec` §4.1, §10, `_research/notes/F-1.md` §3).
-3. [미결] Cordis 선언 병합을 F, X 중 어디서 할지(`F.capabilities.spec` §3.5 A·B·C안).
+3. [결정: review.m3-design-inputs A-01] Cordis 선언 병합은 하지 않는다. F는 `ServiceKey<Api>`만 두고(A안), `provide`는 X `hostOf(g).provide`다(`F.capabilities.spec` §3.5).
 4. [미결] 설정 우선순위 표: 관리 > 세션 > 로컬 > 프로젝트 > 사용자 > 기본값 제안과 관리 기본값 여부(`F.wire-settings.spec` §4.7).
 5. [결정: review.decisions-2 U-02] 승인 요청 방향은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`)이다(`F.wire-settings.spec` §4.6). `F.records.spec` §3.3.1 코어 카탈로그의 승인 kind가 이 결정을 따른다. 사용자 확인 대상이다.
 6. [미결] 재생 정책 이름: `safe|unsafe`와 F `AgentTool.replay`의 `never|safe` 통일(`F.records.spec` §10 미결 4). 정의 위치는 `F.conversation.spec` §3.6이다.
