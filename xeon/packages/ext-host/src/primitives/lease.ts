@@ -237,7 +237,6 @@ export function createLeaseBroker(
     const baseRev = stateService.revOf(thread.threadId, lease.scopeId);
     const invocation: DriveInvocation = {
       leaseId: lease.leaseId,
-      leaseEpoch: lease.leaseEpoch,
       baseRev,
       i: 0,
       effects: 0,

@@ -110,7 +110,7 @@ test("on handler: only idempotent writes with an explicit requestId reach the pr
   expect(provider.state.callers).toEqual([{ kind: "extension", extension: "re-on" }]);
 });
 
-test("drive function: reads and idempotent writes pass, undeclared writes are refused", async () => {
+test("drive function: reads and keyed idempotent writes pass, undeclared and keyless writes are refused", async () => {
   const { t, provider } = await setup();
   const thread = t.newThread();
   const codes: Record<string, string> = {};
@@ -122,17 +122,23 @@ test("drive function: reads and idempotent writes pass, undeclared writes are re
           const svc = g.capability(svcKey);
           codes.read = await codeOf(() => svc.peek({}));
           codes.undeclared = await codeOf(() => svc.poke({}));
-          codes.write = await codeOf(() => svc.echo({}));
+          codes.noKey = await codeOf(() => svc.echo({}));
+          codes.keyed = await codeOf(() => svc.echo({}, { requestId: "re-drv:1" }));
         });
       },
     ),
   );
   await t.host.openThread(thread);
   await t.settled();
-  expect(codes).toEqual({ read: "ok", undeclared: "effect_not_allowed", write: "ok" });
+  expect(codes).toEqual({
+    read: "ok",
+    undeclared: "effect_not_allowed",
+    noKey: "invalid_input",
+    keyed: "ok",
+  });
   expect(provider.state.calls).toBe(2);
-  // 기본 키는 [제안]: 능력 접두, scope 해시, 임대 차수, 호출 시작 판.일련번호
-  expect(provider.state.requestIds[0]).toMatch(/^cap:[0-9a-f]{12}:1:0\.0$/);
+  // 기본 키는 없다([결정: adr.0015] §3.4 3번). 명시 키만 공급자에 닿는다
+  expect(provider.state.requestIds).toEqual(["re-drv:1"]);
 });
 
 test("replaying a drive twice produces the effect once", async () => {
@@ -145,7 +151,7 @@ test("replaying a drive twice produces the effect once", async () => {
       (g) => {
         g.drive(async (loop) => {
           invocations += 1;
-          await g.capability(svcKey).echo({ text: "once" });
+          await g.capability(svcKey).echo({ text: "once" }, { requestId: "re-twice:1" });
           await loop.turn({ input: { kind: "user", content: "go" } });
         });
       },

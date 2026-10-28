@@ -15,7 +15,6 @@ import {
   type ScopeId,
 } from "@xeon/contracts/extensions";
 import { ambient, type Ambient } from "./ambient.ts";
-import { hash12 } from "./keys.ts";
 
 /**
  * 능력 id로 정의를 찾는다. `g.capability`가 돌려주는 서비스는 호출 때 메서드의 효과 분류(`idempotent`, `readOnly`)를 알아야 하는데
@@ -61,18 +60,6 @@ function replayContextOf(amb: Ambient | undefined): ReplayContext | null {
   return amb.drive === null ? "on" : "drive";
 }
 
-/**
- * drive 안 `idempotent` 쓰기의 기본 `requestId` [제안, ADR-0015 §6 미결 "drive의 idempotent 쓰기에 기본 키"].
- * ADR §3.4 3번 문장은 명시 키만 받는다고 적는다. 이 구현은 임대 차수(`leaseEpoch`)와 호출 시작 판·일련번호를 키로 준다.
- * 임대 차수는 `lease.acquired.leaseEpoch`로 커밋되고 재개 때 같은 임대가 같은 차수로 이어지므로 같은 상태 판의 재호출은 같은 키를 낸다.
- * scope id는 해시로 넣어 다른 scope의 키와 섞이지 않게 한다
- */
-function defaultDriveRequestId(scopeId: ScopeId, drive: NonNullable<Ambient["drive"]>): string {
-  const n = drive.i;
-  drive.i += 1;
-  return `cap:${hash12(scopeId)}:${drive.leaseEpoch}:${drive.baseRev}.${n}`;
-}
-
 function refuse(
   id: CapabilityId,
   method: string,
@@ -112,7 +99,7 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
         const given: CallOptions | undefined = isIndexable(options) ? options : undefined;
         const amb = ambient();
         const context = replayContextOf(amb);
-        let requestId = given?.requestId;
+        const requestId = given?.requestId;
         if (context !== null) {
           if (!isEffectAllowed(effect, context)) {
             return refuse(
@@ -123,19 +110,13 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
             );
           }
           if (effect === "capability.idempotent" && requestId === undefined) {
-            const drive = amb?.drive;
-            requestId =
-              context === "drive" && drive !== undefined && drive !== null
-                ? defaultDriveRequestId(target.scopeId, drive)
-                : undefined;
-            if (requestId === undefined) {
-              return refuse(
-                id,
-                name,
-                "invalid_input",
-                `${id}.${name} is idempotent and needs an explicit requestId when called from a handler`,
-              );
-            }
+            // 명시 키만 받는다([결정: adr.0015] §3.4 3번). 기본 키는 주지 않는다
+            return refuse(
+              id,
+              name,
+              "invalid_input",
+              `${id}.${name} is idempotent and needs an explicit requestId in a ${context === "on" ? "handler" : "drive function"}`,
+            );
           }
           if (
             requestId !== undefined &&

@@ -6,8 +6,6 @@ import type { HandlerGate } from "./dispatch-types.ts";
 /** drive 호출 하나의 멱등 키 재료(X.primitives.spec §4.4.3, §4.6.1) */
 export interface DriveInvocation {
   readonly leaseId: string;
-  /** 임대 차수(`lease.acquired.leaseEpoch`). 능력 쓰기의 기본 `requestId` 재료다(ADR-0015 §3.4, [제안]) */
-  readonly leaseEpoch: number;
   /** 호출 시작 때의 상태 판 */
   readonly baseRev: number;
   /** 호출 안 일련번호. turn·spawn·commit·record가 함께 쓴다 */
