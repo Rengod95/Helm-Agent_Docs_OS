@@ -25,7 +25,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 
 - CLI, 데스크톱, 서비스가 함께 쓰는 호스트 계약 하나와, 그 계약을 나르는 전송(Transport) 인터페이스 3종의 시그니처.
 - JSON-RPC 2.0 envelope 규칙, 메서드 이름 규칙, 메서드·알림 레지스트리와 각 params/result 스키마.
-- 런타임 중립 `HostConnection` 구현(`createHostConnection`)과 JSON Lines stdio 전송(`createStdioTransport`, 줄 프레이밍). Bun·Node API 없이 웹 스트림만 쓰므로 CLI, 호스트, 데스크톱 WebView가 같은 코드를 쓴다 [결정: m2 F.8].
+- JSON Lines stdio 전송(`createStdioTransport`, 줄 프레이밍). Bun·Node API 없이 웹 스트림만 쓰고 서버 쪽(`@xeon/platform-process`, `@xeon/host`)과 클라이언트가 같은 코드를 쓴다 [결정: m2 F.8].
 - 이벤트 구독의 seq 커서, 재전송 계약, 휘발 스트림 규칙.
 - 오류 객체 모양과 오류 코드 구간, `_meta`와 추적 컨텍스트 전파 규약.
 - 계약 버전 정책과 기능 수명주기(Active, Deprecated, Removed, 실험 opt-in, 능력 탐지).
@@ -35,7 +35,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 
 ### 1.2 다루지 않는 것
 
-- 전송 구현 가운데 stdio 줄 프레이밍과 `HostConnection` 구현은 F가 가진다(§3.1). 프로세스 기동, 소켓 서버, Tauri 릴레이는 `L0.process.spec`, `L4.host-service.spec`, `L4.desktop.spec`, `L4.cli.spec`가 맡는다.
+- `HostConnection` 구현(`createHostConnection`)은 L4 공유 패키지 `@xeon/client`가 가진다(§3.1, [결정: adr.0020]). F는 `HostConnection` 인터페이스만 둔다. 전송 구현 가운데 stdio 줄 프레이밍은 서버 쪽(L0, 호스트)도 써서 F가 가진다. 프로세스 기동, 소켓 서버, Tauri 릴레이는 `L0.process.spec`, `L4.host-service.spec`, `L4.desktop.spec`, `L4.cli.spec`가 맡는다.
 - 엔진 쪽 메서드 처리기 구현: `L4.host-service.spec`이 L1 서비스를 엮어 구현한다.
 - 세션 소유 잠금 구현: `L0.process.spec`, `L1.persistence.spec`.
 - 설정 파일 위치, 파일 감시, 병합 실행: `L1.persistence.spec`과 `L4.host-service.spec` [가정. 아래 §4.9 참조].
@@ -164,10 +164,10 @@ export type WireHandler<M extends WireMethodName> = (params: WireParams<M>, cont
 export type WireHandlers = { readonly [M in WireMethodName]: WireHandler<M> };
 ```
 
-[결정: m2 F.8] 클라이언트 쪽 구현은 F `wire/`에 있다. 소비 패키지가 복사본을 두지 않는다.
+[결정: adr.0020] 클라이언트 쪽 `HostConnection` 구현은 L4 공유 패키지 `@xeon/client`로 옮겼다(m2 F.8에서 F로 옮긴 것을 되돌린다). F는 런타임 로직 없는 계약과 stdio 줄 프레이밍만 둔다. 소비 패키지가 복사본을 두지 않는다.
 
 ```ts
-// wire/client.ts: 런타임 중립. import는 F 안의 base와 wire뿐이다
+// @xeon/client(src/connection.ts): 런타임 중립. import는 F(`@xeon/contracts`)뿐이다
 export function createHostConnection(transport: Transport, options?: HostConnectionOptions): HostConnection;
 export interface HostConnectionOptions {
   readonly defaultTimeoutMs?: number;                         // 요청마다 따로 주지 않았을 때의 시한. 없으면 시한 없음
@@ -186,7 +186,9 @@ export function createLineFramer(options?: { readonly maxFrameBytes?: number }):
 
 - 요청 id는 연결마다 `r1`, `r2`, …로 발급한다. 응답은 `WIRE_METHODS[m].result`로, 알림은 `WIRE_NOTIFICATIONS[n].params`로 검증한 뒤 넘긴다. 맞지 않는 응답은 `HostClientError("invalidResponse")`이고 맞지 않는 알림은 처리기를 부르지 않는다(TY-10).
 - 전송은 수신 순서를 지키고, 처리기가 붙기 전에 도착한 메시지는 첫 처리기가 붙을 때 비운다. 처리기 없이 EOF가 오면 쌓인 메시지를 먼저 비운 뒤 닫힘을 알린다. 송신은 직렬이다(앞 쓰기가 끝난 뒤 `writer.ready`를 기다려 다음을 쓴다).
-- `@xeon/platform-process`, `@xeon/host`(`./client`, `./transport/stdio`), `@xeon/cli`는 이 구현을 다시 내보내기만 한다. 데스크톱 WebView는 `@xeon/contracts/wire`에서 직접 가져온다(Node 모듈을 끌어오지 않는다).
+- `createStdioTransport`와 줄 프레이밍(`wire/stdio.ts`, `wire/framing.ts`)은 F에 남는다. 서버 쪽 `@xeon/platform-process`(L0)와 `@xeon/host`가 같은 코드를 쓰고, L0와 호스트는 L4인 `@xeon/client`를 import할 수 없기 때문이다. 클라이언트(CLI, 데스크톱 WebView)는 `@xeon/client/stdio`로 가져온다(F 구현을 다시 내보낸다. Node 모듈을 끌어오지 않는다). `createHostConnection`은 `@xeon/client`(`.`)에서 가져오고, `@xeon/cli`와 `@xeon/host`(`./client`)는 이를 다시 내보내기만 한다.
+- [결정: adr.0020] `Transport` 인터페이스(위)가 전송을 꽂는 자리다. 소켓 전송(M3b)과 브라우저 전송(M4)은 이 인터페이스를 구현해 `createHostConnection`에 넘긴다. `@xeon/client`는 `Transport` 타입을 다시 내보낸다.
+- [미결] 줄 프레이밍과 stdio 전송 구현도 `@xeon/client`로 옮길지(adr.0020 §3.4). 서버 쪽 소비자(L0 `platform-process`, `apps/host`)가 있어 옮기려면 서버용 구현을 따로 두어야 한다.
 
 - [제안] `HostConnection`과 처리기 표는 전송 종류에 따라 바뀌지 않는다. 전송 적합성 스위트(§9 수용 기준 A10)가 in-process와 stdio에서 같은 케이스를 돌려 이를 확인한다.
 - [제안] in-process 전송도 envelope 검사, 메서드 이름 검사, params 검사를 똑같이 한다. 직렬화만 건너뛴다. 개발 빌드는 JSON 왕복(`JSON.parse(JSON.stringify(m))`) 검사를 켤 수 있다. 그래야 in-process에서만 통과하는 비직렬화 값(함수, `undefined`, `Date`, `bigint`)이 생기지 않는다.
