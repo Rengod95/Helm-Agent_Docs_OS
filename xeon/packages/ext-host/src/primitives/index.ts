@@ -78,6 +78,7 @@ export {
   type ShortcutResourceDef,
   type ToolResourceDef,
   type ToolsPort,
+  webProviderRegistrationOf,
 } from "./resources.ts";
 export type { ExtChange } from "./core.ts";
 export type { ScopeInfo, ScopeSetupOutcome } from "./scope.ts";

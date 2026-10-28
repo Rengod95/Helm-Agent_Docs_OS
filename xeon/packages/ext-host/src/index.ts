@@ -80,6 +80,7 @@ export {
   type ShortcutResourceDef,
   type ToolResourceDef,
   type ToolsPort,
+  webProviderRegistrationOf,
   // primitives §3.9, §3.10, §6
   type ScopeInfo,
   PrimitiveError,

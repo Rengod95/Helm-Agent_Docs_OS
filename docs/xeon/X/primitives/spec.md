@@ -99,6 +99,7 @@ import type {
 | `capabilityDefTable`, `CapabilityDefLookup` | 함수, 타입 | 이 문서 §4.4.7 |
 | `hostOf`, `ScopeHostApi`, `ScopeCallContext`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
 | `ScopeInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스 | 이 문서 §3.9 |
+| `webProviderRegistrationOf` | 함수 | 이 문서 §3.9, §3.9.1 |
 | `ToolsPort`, `ModelsPort`, `McpPort`, `ToolsPortKey`, `ModelsPortKey`, `McpPortKey`, `ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef` | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.9) |
 | `PrimitiveError`, `PrimitiveErrorCode` | 클래스, 타입 | 이 문서 §3.10 |
 | `primitivesSettings`, `withDriveDefaults` | `defineSettings` 결과, 함수 | 이 문서 §6, §4.4.2 |
@@ -631,6 +632,8 @@ export interface ScopeHostApi<S = unknown> {
   registerProvider(name: string, config: ProviderResourceDef): void;
   registerMcpServer(name: string, config: McpServerResourceDef): void;
   registerMessageRenderer(customType: RecordKind, renderer: RendererResourceDef): void;
+  // 웹 provider 등록(M3-REQ-37). WebProviderRegistration은 @xeon/contracts/capabilities가 정한다. 이름은 능력 ID다(§3.9.1)
+  registerWebProvider(registration: WebProviderRegistration): void;
 }
 
 /** setup이 받은 g로 부가 API를 얻는다. ext-host가 만든 g가 아니면 PrimitiveError("no_context") */
@@ -658,7 +661,7 @@ export interface ScopeInfo {
 }
 
 // primitives/resources.ts
-export type ResourceKind = "tool" | "command" | "shortcut" | "flag" | "provider" | "mcp_server" | "message_renderer";
+export type ResourceKind = "tool" | "command" | "shortcut" | "flag" | "provider" | "mcp_server" | "message_renderer" | "web_provider";
 
 export interface ResourceRecord {
   readonly kind: ResourceKind;
@@ -673,7 +676,7 @@ export interface ResourceRecord {
   readonly def: unknown;              // kind별 *ResourceDef
 }
 
-/** L4가 읽는다. command, shortcut, flag, message_renderer는 X가 보관하고, 나머지는 포트로 넘긴 기록만 보관한다 */
+/** L4가 읽는다. command, shortcut, flag, message_renderer, web_provider는 X가 보관하고, 나머지는 포트로 넘긴 기록만 보관한다 */
 export interface ResourceRegistry {
   list(kind?: ResourceKind): readonly ResourceRecord[];
   subscribe(listener: (change: { readonly type: "added" | "removed"; readonly record: ResourceRecord }) => void): Unsubscribe;
@@ -733,6 +736,21 @@ export {
 - [결정: review.decisions-2 D-04] 세 포트는 같은 서비스 이름에 등록되는 서비스 인터페이스의 부분형이다. `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `McpService extends McpPort`이고 세 인터페이스는 F `@xeon/contracts/services`에 있다(F.capabilities.spec §3.12). X가 같은 서비스 이름에 별도 인터페이스를 등록하지 않는다(§3.6 규칙 6 표).
 - 등록 메서드의 이름과 인자, 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`)의 모양은 F.extensions.spec §3.2.1이 정한다. `ProviderResourceDef`와 `McpServerResourceDef`의 내용 모양은 각각 L1.models.spec과 L2.mcp.spec(`McpServerDefSchema`)이 정한다. X가 보관만 하는 리소스(`CommandResourceDef`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef`)는 위 블록이 정본이다.
 - 위장 provider 플러그인(`plugins/*`, L1 순위)은 이 포트를 쓰지 않는다. F provider 인터페이스로 `core-models` 서비스에 등록한다([결정: review.decisions-2 U-16]). `ModelsPort`는 확장의 `hostOf(g).registerProvider` 경로다.
+
+#### 3.9.1 웹 provider 등록 (M3-REQ-37)
+
+```ts
+// primitives/resources.ts
+export function webProviderRegistrationOf(record: ResourceRecord): WebProviderRegistration | undefined;
+```
+
+- 웹 검색, 가져오기, 브라우즈 공급자 플러그인은 엔트리에서 `hostOf(g).registerWebProvider(registration)`을 부릅니다. `registration.capability`(`web.search`, `web.fetch`, `web.browse` 중 하나)가 리소스 이름이 됩니다. 포트를 거치지 않고 `web_provider` 기록으로 `ExtHost.resources`에 남으며, 해제는 scope 세대에 묶입니다(§4.8 규칙 1, 8).
+- 같은 scope가 같은 능력을 두 번 등록하면 `resource_conflict`입니다. 한 scope가 `web.search`와 `web.fetch`를 함께 등록하는 것은 허용합니다.
+- 이 종류는 다른 확장이 같은 이름을 내도 거부하지 않습니다. 이름이 능력 ID라서 여러 확장이 같은 능력을 공급하는 것이 정상입니다. 그래서 충돌 판정은 같은 scope 안에서만 하고 `ResourcePolicy`를 부르지 않습니다. 여러 공급자 가운데 고르는 일은 소비자가 합니다 [결정: 오케스트레이터 기본값]. §4.8 규칙 3의 예외입니다.
+- 소비자는 cap-web입니다. 조립 루트를 거쳐 `ExtHost.resources.list("web_provider")`로 기록을 읽고, `webProviderRegistrationOf(record)`로 등록 값을 받습니다. 다른 종류의 기록이거나, 능력 ID가 셋 중 하나가 아니거나, `create`가 함수가 아니면 `undefined`입니다.
+- 공급자 식별자는 `plugin:<확장 이름>`입니다. X는 이 값을 만들거나 검사하지 않고 `ResourceRecord.extension`만 보관합니다. 식별자 형식과 능력별 후보 목록의 검사는 cap-web이 합니다(L2.web.spec §3.6.1).
+- 헤더 비밀(`manifest.auth.secrets`)은 X가 다루지 않습니다. 값을 헤더에 넣는 치환은 `GuardedHttp`가 전송 직전에 하며, 이 일은 cap-web과 L0 `xeon.secrets`가 맡습니다. 등록 값은 능력 ID와 `create`뿐이고 비밀 값을 담지 않습니다.
+- `create`가 돌려주는 객체(`WebSearchProvider`, `WebFetchProvider`, `WebBrowseProvider`)의 모양은 X가 실행 때 검사하지 않습니다. 이 타입은 `@xeon/contracts/capabilities`가 정하고, 소비자가 그 타입으로 씁니다.
 
 ### 3.10 오류
 
@@ -1343,8 +1361,8 @@ recordPrivate(kind, payload):
 등록 규칙:
 
 1. 모든 등록은 호출한 scope 세대의 fiber effect다. `fiber.effect(() => { const off = port.register(...); return off })` 형태다. scope가 꺼지면(§4.5.3 4단계) 해제기가 자동으로 실행된다. pi는 확장을 내릴 때 자동 해제가 없고, 도구와 명령은 해제 API 자체가 없다(`docs/extensions.md:160` "hidden으로 재등록").
-2. 대상 포트가 없으면 `port_unavailable`이다. X가 보관하는 종류(command, shortcut, flag, message_renderer)는 포트 없이 등록된다.
-3. 이름 충돌은 노출 이름(`ResourceRecord.exposed`) 기준이다. 정책이 `exposeAll`을 가지면(도구, 명령, 단축키, 플래그) 등록과 해제마다 그 kind 전체 레코드로 부르고, 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`의 등록을 해제하고 새 이름으로 다시 등록한다). 그래서 먼저 등록된 쪽도 나중에 정식 이름이 되고, 한쪽이 해제되면 남은 쪽이 짧은 이름을 되찾는다. `exposeAll`이 없으면 같은 노출 이름이 이미 있을 때 `ResourcePolicy.resolve`가 판정하고(reject, replace, rename), 정책이 없으면 `resource_conflict`로 거부한다. provider, MCP 서버, 메시지 렌더러는 같은 이름이면 정책이 reject로 답한다. 같은 scope가 같은 kind·이름을 두 번 등록하는 것은 정책 없이 `resource_conflict`다. 이름 충돌 규칙 자체는 X.operations.spec 소유다.
+2. 대상 포트가 없으면 `port_unavailable`이다. X가 보관하는 종류(command, shortcut, flag, message_renderer, web_provider)는 포트 없이 등록된다.
+3. 이름 충돌은 노출 이름(`ResourceRecord.exposed`) 기준이다. 정책이 `exposeAll`을 가지면(도구, 명령, 단축키, 플래그) 등록과 해제마다 그 kind 전체 레코드로 부르고, 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`의 등록을 해제하고 새 이름으로 다시 등록한다). 그래서 먼저 등록된 쪽도 나중에 정식 이름이 되고, 한쪽이 해제되면 남은 쪽이 짧은 이름을 되찾는다. `exposeAll`이 없으면 같은 노출 이름이 이미 있을 때 `ResourcePolicy.resolve`가 판정하고(reject, replace, rename), 정책이 없으면 `resource_conflict`로 거부한다. provider, MCP 서버, 메시지 렌더러는 같은 이름이면 정책이 reject로 답한다. 같은 scope가 같은 kind·이름을 두 번 등록하는 것은 정책 없이 `resource_conflict`다. `web_provider`는 이 규칙의 예외다. 같은 scope의 중복만 거부하고 다른 확장의 같은 이름은 모두 남긴다(§3.9.1). 이름 충돌 규칙 자체는 X.operations.spec 소유다.
 4. 등록과 해제는 `ResourceRegistry.subscribe` 구독자에게 알린다. 노출 이름이 바뀌면 `removed`(옛 이름) 뒤에 `added`(새 이름)를 알린다. 구독자의 예외는 `report`로 남기고 다음 구독자에게 이어 간다. L4는 이 표를 읽어 명령 목록과 키 조합를 갱신한다.
 5. 도구 등록은 setup 안이나 세대가 열린 동안 할 수 있다. 등록한 도구가 모델에 보이는 시점(다음 요청)은 L1.tools.spec이 정한다. 도구 포트에는 노출 이름을 정의의 `name`으로 넘긴다(`execute`는 원본 정의를 그대로 부른다). 포트가 이름을 거부하면(`ToolRegisterError.name_conflict`) `resource_conflict`다.
 6. 이름 형식: 1~64자, 공백·제어 문자 없음. 도구는 `TOOL_NAME_WIRE_PATTERN`(`^[a-zA-Z0-9_-]{1,64}$`)을 따른다. 어기면 `resource_name_invalid`다. 정식 이름이 64자를 넘는 외부 도구는 `exposeAll`의 `too_long`으로 `resource_name_invalid`이다.
@@ -1537,6 +1555,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 43. (M2, X.2) 핸들러가 `hostOf(g).awaitUser`로 감싼 대기는 핸들러 시간 예산에 들어가지 않고, 감싸지 않은 같은 대기는 시간 초과다. `wait`가 받는 신호는 핸들러 신호와 호출자 신호를 합친 것이다.
 44. (M2, X.3) detached 지점(`session.info.after` 등)에 디스패치하면 핸들러를 기다리지 않고 `detached: true`를 돌려주고, 핸들러는 그 뒤 등록 순서로 실행된다. 늦은 예외는 `policy.onHandlerFailure`로만 보고되고 결과의 `failures`는 비어 있다. 예산을 넘기면 `timeout`이다. thread를 닫으면 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행되지 않으며 실패로 세지 않는다.
 45. (M2, X.3, M3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 그룹 사이 격리는 kind 접두 필터(자기 접두, `readsRecordKinds`)다. 이벤트 버스는 없다(§4.9).
+54. (M3b, B2-WEB, M3-REQ-37) `hostOf(g).registerWebProvider({ capability: "web.search", create })`는 `ExtHost.resources`에 kind `web_provider`, 이름 `web.search`로 기록되고, `webProviderRegistrationOf`가 같은 등록 객체를 돌려준다. 한 scope가 같은 능력을 두 번 등록하면 `resource_conflict`이고, `web.search`와 `web.fetch`는 한 scope에 함께 등록된다. 다른 확장이 같은 능력을 등록하면 둘 다 남는다(§3.9.1). scope를 끄면 기록이 사라지고 구독자가 `removed`를 받는다. 다른 종류의 기록이나 `create`가 없는 등록 값은 `webProviderRegistrationOf`가 `undefined`를 돌려준다.
 
 ## 10. 미결 사항
 
