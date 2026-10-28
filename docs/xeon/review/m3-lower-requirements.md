@@ -114,7 +114,7 @@ binds: []
 | M3-REQ-31 | X | `X.loading-trust.spec` | 외부 확장이 공급하는 능력의 `idempotent` 선언을 믿는 조건(신뢰 등급, 적합성 시험 강제 방법)과 `trust.level` 값 집합, 외부 그룹 신뢰 등급을 정한다 | ADR-0015 §4.2·§6, C-130, A-48, U-35, G-IN-16, REQ-X-10 | 1 ← M3-REQ-01 |
 | M3-REQ-32 | X | `X.operations.spec` | 샌드박스 강제 위치(L0 실행 경로)와 `tool_call` 지점 처리 순서를 적는다. Helm 쓰기 거부(`first`)가 샌드박스 검사보다 먼저 돈다 [제안] | A-26, H-IN-16, REQ-X-11 | 1 |
 | M3-REQ-33 | X | `X.primitives.spec` | Cordis dispose와 `onDispose`의 정리 순서를 적는다(그룹 끄기 때 위임 취소 M3-REQ-65와 같은 순서표) | A-25, G-IN-08, REQ-X-12 | 1 |
-| M3-REQ-34 | X | `X.loading-trust.spec`, `X.operations.spec` | 외부 확장 로더(자체 확장 API만)와 안전 모드를 정한다 [결정: review.m3-design-inputs D-M3-11 c]. pi 어댑터, pi 가상 모듈, `x.loading-trust.piCompat`, pi 확장 디렉터리는 두지 않는다. 외부 훅은 c안 원문상 M3 밖이다(§8 [미결]). `ExtHost.install` 취소 신호, 등록부 payload 검사, 확장 서브에이전트 정의 위치를 포함한다. 비협조 확장 코드는 같은 프로세스의 한계를 받아들이고 격리는 M4다 [가정: D-M3-11 행 5는 답이 없어 권고를 적용] | M3-15, D-M3-11, B-13, A-58, A-116, U-97, AG-08, DG-11 | 2 ← M3-REQ-31 |
+| M3-REQ-34 | X | `X.loading-trust.spec`, `X.operations.spec` | 외부 확장 로더(자체 확장 API만)와 안전 모드를 정한다 [결정: review.m3-design-inputs D-M3-11 c]. pi 어댑터, pi 가상 모듈, `x.loading-trust.piCompat`, pi 확장 디렉터리는 두지 않는다. 외부 훅은 M3 밖이고 M4로 옮겼다 [결정: 2026-10-28 사용자]. `ExtHost.install` 취소 신호, 등록부 payload 검사, 확장 서브에이전트 정의 위치를 포함한다. 비협조 확장 코드는 같은 프로세스의 한계를 받아들이고 격리는 M4다 [가정: D-M3-11 행 5는 답이 없어 권고를 적용] | M3-15, D-M3-11, B-13, A-58, A-116, U-97, AG-08, DG-11 | 2 ← M3-REQ-31 |
 | M3-REQ-35 | X | `X.operations.spec` | 자동 끄기 알림 `scope.handler_failed`를 발신한다. 자동 끄기는 프로세스 단위이고 설정 파일에는 사용자 조작만 쓴다 | M3-22, §3.8 A-30 | 1 |
 | M3-REQ-36 | X | `X.operations.spec`, `L1.persistence.spec` | 필수 투영기 예외 격리 경로와 예외 주입 시험을 정한다 | M3-31, A-37, PS-08 | 1 |
 | M3-REQ-37 | X | `X.primitives.spec` | 웹 검색 플러그인 provider 등록 API를 둔다 | M3-12, WB-19 | 1 |
@@ -131,7 +131,7 @@ binds: []
 |---|---|---|---|---|---|
 | M3-REQ-42 | L0 | `L0.process.spec` 서비스 모드 | 등록 파일, `ensure`, 이중 기동 방지, 유휴 판정, 감독을 구현 범위로 확정한다. 유휴 판정에서 승인 대기 세션은 live다 [결정: review.m3-design-inputs D-M3-13 행 2] | M3-new-04, D-M3-13 행 2, A-95, TL-01, U-46 | 1 |
 | M3-REQ-43 | L0 | `L0.process.spec` 인증 | Unix 소켓은 파일 권한(0600)으로 막고, TCP로 열 때만 토큰을 검사한다. TCP 열기 옵션과 토큰 회전을 적는다 | D-M3-16, A-16 | 1 ← M3-REQ-19 |
-| M3-REQ-44 | L0 | `L0.process.spec` 전송 | `connectServiceTransport`로 SSH 터널·사설망 접속을 지원하고 PR-20 중계 시험을 둔다. 원격 형태는 둘이다: (1) 자체 호스트 서버에서 켜 둔 호스트에 다른 기기의 데스크톱·CLI가 접속, (2) 자기 컴퓨터에서 데스크톱·CLI가 호스트를 켜서 실행 [결정: review.m3-design-inputs D-M3-17]. 웹 클라이언트 범위는 M3 /plan에서 정한다 | M3-new-05, B-11, D-M3-17 행 1, `review.decisions-2` U-11 | 1 ← M3-REQ-42, 43 |
+| M3-REQ-44 | L0 | `L0.process.spec` 전송 | `connectServiceTransport`로 SSH 터널·사설망 접속을 지원하고 PR-20 중계 시험을 둔다. 원격 형태는 둘이다: (1) 자체 호스트 서버에서 켜 둔 호스트에 다른 기기의 데스크톱·CLI가 접속, (2) 자기 컴퓨터에서 데스크톱·CLI가 호스트를 켜서 실행 [결정: review.m3-design-inputs D-M3-17]. 웹 클라이언트는 M3에 넣지 않는다. 웹 UI는 M4다 [결정: 2026-10-28 사용자] | M3-new-05, B-11, D-M3-17 행 1, `review.decisions-2` U-11 | 1 ← M3-REQ-42, 43 |
 | M3-REQ-45 | L0 | `L0.exec.spec` | `ExecService.withCwd`의 세션별 cwd를 서비스 모드 시험으로 확인한다 | A-100, M3-new-04 | 2 ← M3-REQ-42 |
 | M3-REQ-46 | L0 | `L0.exec.spec` §10 6 | 무인 경로(예약, 루프)의 명령 실행 안전 시간 상한을 둔다. 일반 대화의 `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지하고 무인 경로 값은 호출자가 넘긴다 | M3-16, A-103 | 1 |
 | M3-REQ-47 | L0 | `L0.exec.spec` | spill 파일의 삭제 시점, 보관 정리, 디스크 상한을 정한다. 보존 기본값은 지우지 않음이다 [결정: review.m3-design-inputs D-M3-21 a] | A-98, M3-24, D-M3-21 | 1 |
@@ -349,7 +349,7 @@ binds: []
 - [제안] 요청 레코드 워커는 X가 소유한다(M3-REQ-27). ADR-0015 §6 미결의 답 후보이고 `X.primitives.spec` 작업에서 확정한다.
 - [제안] 읽기 표지 이름은 `readOnly`다(M3-REQ-01). ADR-0015 §6 미결의 답 후보이고 `F.capabilities.spec` 작업에서 확정한다.
 - 닫음: 사용자 답을 기다리던 조건부 행(M3-REQ-03, 09, 18, 76, 91, 99)은 2026-10-26 답으로 고쳤다(§6).
-- [미결] 외부 훅(`X.operations.spec` 외부 훅)의 M3 포함 여부. D-M3-11 c안 원문은 "로더·안전 모드만"이라 이 문서는 M3 밖으로 적었다(M3-REQ-34). 사용자 확인이 필요하다.
+- 닫음: 외부 훅은 M3 밖이고 M4로 옮겼다(M3-REQ-34) [결정: 2026-10-28 사용자].
 - [미결] 지점 이름 규칙과 새 이름표(M3-REQ-106). 가드레일 지점·수명주기 지점의 이름도 이 표에서 정한다. 정하기 전에는 다른 행이 옛 pi 이름을 쓴다.
 - [미결] 가드레일 지점의 정확한 발화 위치(M3-REQ-109의 [제안] 세 곳). 특히 "출력 표시·실행 직전"이 스트리밍 중 부분 출력에도 걸리는지 `L1.loop.spec` 작업에서 정한다.
 - [가정] 플러그인 번들이 가상 모듈로 받은 `@xeon/group-kit`이 호스트 쪽 인스턴스와 같다(M3-REQ-110). `Bun.plugin` 모듈 등록의 프로세스 전역 동작에 기댄다. 스파이크로 확인한다.

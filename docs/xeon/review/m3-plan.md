@@ -16,6 +16,7 @@ binds: []
 - 이 문서는 M3 작업 분해 전의 입력 목록입니다. M3 트랙과 작업 ID는 M3 착수 때 `review.m2-plan` 형식으로 정합니다.
 - 항목 번호 `M3-NN`은 이 문서 안에서만 씁니다. 원천 칸에는 재점검 번호(G1-14 등)나 원 감사 ID를 적습니다.
 - M3의 범위와 종료 조건 정본은 `product.scope.spec` §4.3·§4.4입니다.
+- 2026-10-28 사용자 결정으로 M3를 M3a와 M3b로 나눴다. M3a의 트랙은 §7에 적었다. M3b는 M3a 마감 때 계획한다. M3b가 끝나면 첫 공개 릴리즈 후보다 [결정: 2026-10-28 사용자].
 - M3 설계 단계 입력은 `review.m3-design-inputs`(미결 수집과 사용자 결정 D-M3-01~32)와 `review.m3-lower-requirements`(하위 층 요구 M3-REQ-NN)입니다. 2026-10-26 사용자 결정을 이 문서의 항목에 반영했습니다. 결정 인용은 `[결정: review.m3-design-inputs D-M3-NN]` 형식입니다.
 
 ## 2. M2에서 옮긴 항목 (2026-10-25 결정)
@@ -43,7 +44,7 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-12 | 웹 검색 플러그인 provider를 등록할 X API와 헤더 비밀 해석 경로(`L2.web.plan` §8.5), 키 플러그인 첫 사용 고지. 자동 선택 순서는 설정 화면 드래그앤드롭(등록된 검색 도구 목록, 기본 웹 검색 도구 포함, 플러그인 기본 후순위), 여러 provider 동시 질의 기본 기능, robots.txt 기본 무시 + 옵션. Parallel·Jina는 넣지 않습니다 [결정: review.m3-design-inputs D-M3-23] | L2-06, A-14 | `X.primitives.spec`, `L0.secrets.spec`, `L2.web.spec`, `L4.settings-ui.spec`, `architecture.security.spec` T-08 |
 | M3-13 | 학습 그룹이 입력 출처(사용자, 예약, 원격)를 알 수 있는 지점 페이로드 | L3-05 | `F.extensions.spec`, `L1.loop.spec`, `L3.learning.spec` |
 | M3-14 | 샌드박스 네트워크 정책(SB-13)과 비격리 실행 감사 이벤트(`tool.sandbox_bypassed`)의 소유자, MCP stdio 서버별 샌드박스 정책. 네트워크는 기본 허용 + 차단 도메인 목록, 자격 파일 읽기는 기본 허용 + 옵션으로 막음, 샌드박스 밖 재시도는 기본 끔·매번 승인 [결정: review.m3-design-inputs D-M3-18]. MCP stdio 서버는 출처별 기본값(프로젝트 출처 켬, 사용자 출처 끔)이고 sampling은 지원하지 않습니다 [결정: review.m3-design-inputs D-M3-19] | L0-05, ADR-0011 §3.7 | `L0.sandbox.spec`, `L2.mcp.spec`, `eng.context-map.design` |
-| M3-15 | 외부 확장 로더(자체 확장 API, `.xeon-plugin/plugin.json`)와 안전 모드. pi 어댑터(X.5)는 만들지 않습니다(pi 호환 없음) [결정: review.m3-design-inputs D-M3-11 c]. 기본 플러그인 Helm을 싣는 경로와 가상 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`) 등록을 포함합니다. 외부 훅의 M3 포함 여부는 확인 대기입니다(§7) | X-03, `review.m2-plan` §8 D9 | `X.loading-trust.plan`, `X.operations.spec`, `product.scope.spec` §4.4 M3 |
+| M3-15 | 외부 확장 로더(자체 확장 API, `.xeon-plugin/plugin.json`)와 안전 모드. pi 어댑터(X.5)는 만들지 않습니다(pi 호환 없음) [결정: review.m3-design-inputs D-M3-11 c]. 기본 플러그인 Helm을 싣는 경로와 가상 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`) 등록을 포함합니다. 외부 훅은 M3 밖이고 M4로 옮겼습니다(§7) [결정: 2026-10-28 사용자] | X-03, `review.m2-plan` §8 D9 | `X.loading-trust.plan`, `X.operations.spec`, `product.scope.spec` §4.4 M3 |
 | M3-16 | 무인 경로(예약, 루프)의 명령 실행 안전 시간 상한. 일반 대화의 기본값은 0(제한 없음) | L0-16 | `L0.exec.spec` §10 6, `L2.workspace.spec`, `L2.schedule.spec` |
 | M3-17 | `xeon group new`와 그룹 템플릿을 2차로 확정하고, M3 S1 확인을 학습 그룹 변경의 diff 검사 스크립트 하나로 줄이기 | L3-07 | `L3.slots.plan`, `L4.cli.spec` |
 | M3-18 | 지식 제안 대기열 wire. 대기열은 둘(학습 그룹, L2.knowledge)이고 L4가 한 목록으로 합쳐 보입니다 [결정: review.m3-design-inputs D-M3-32 a] | A-22 | `F.wire-settings.spec`, `L2.knowledge.spec`, `L3.learning.spec` |
@@ -93,7 +94,7 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-new-02 | 백그라운드 위임과 목표 판정: core-agents 스텁 해소, `completeStructured`, `agent_before_settle` 연결, `agent.judged`. 판정 실패는 `stop`, `maxRuns` 도달 뒤 turn 종료와 알림 [결정: review.m3-design-inputs D-M3-15]. `work.reports`도 M3 [결정: review.m3-design-inputs D-M3-30 행 2] | CD-01, AG-05, AG-14, LP-11, MD-09, WK-11 | `L1.agents.spec`, `L2.work.spec` |
 | M3-new-03 | 학습 그룹 1차(LR-01~LR-18, UC-3 스모크)와 L4 연계. 내장 그룹, 기본 켬 [결정: review.m3-design-inputs D-M3-02] | M-05, KN-22 | `L3.learning.plan` |
 | M3-new-04 | 공유 서비스 모드: `xeon service`, 소켓, ensure, 유휴 종료(승인 대기 세션은 live), 자동 재개(기본 꺼짐, 서비스 모드에서 설정으로 켬), 리플레이 커서, `ExecService.withCwd` [결정: review.m3-design-inputs D-M3-13] | M-01, M-18, PS-10, U-73, A-100 | `adr.0006`, `L0.process.spec`, `L4.host-service.spec` |
-| M3-new-05 | 원격 사용. 형태는 둘입니다. (1) 자체 호스트 서버에 켜 둔 `xeon` 호스트에 다른 기기의 데스크톱·CLI가 접속, (2) 자기 컴퓨터에서 클라이언트가 호스트를 켬 [결정: review.m3-design-inputs D-M3-17]. 접속은 SSH 터널 또는 사설망 TCP이고 TCP일 때만 토큰 필수 [결정: review.m3-design-inputs D-M3-16 c]. PR-20 중계 시험. 웹 클라이언트 범위는 M3 /plan에서 정합니다 | M-02, B-11 | `L0.process.spec`, `L4.host-service.spec`, `adr.0006` |
+| M3-new-05 | 원격 사용. 형태는 둘입니다. (1) 자체 호스트 서버에 켜 둔 `xeon` 호스트에 다른 기기의 데스크톱·CLI가 접속, (2) 자기 컴퓨터에서 클라이언트가 호스트를 켬 [결정: review.m3-design-inputs D-M3-17]. 접속은 SSH 터널 또는 사설망 TCP이고 TCP일 때만 토큰 필수 [결정: review.m3-design-inputs D-M3-16 c]. PR-20 중계 시험. 웹 클라이언트는 M3에 넣지 않습니다. CLI와 데스크톱만 SSH 터널이나 사설망으로 원격 호스트에 접속하고, 웹 UI는 M4입니다. `packages/client`의 전송 계층은 나중의 브라우저 클라이언트가 쓸 수 있게 분리해 둡니다 [결정: 2026-10-28 사용자] | M-02, B-11 | `L0.process.spec`, `L4.host-service.spec`, `adr.0006` |
 | M3-new-06 | 설정 화면 M3: 비밀 탭과 값 열람, 전용 편집기, 게이지, 첫 실행 권장, 관리 잠금 사유, `SettingsTab`, 검색 provider 순서 드래그앤드롭(M3-12). TUI 설정 화면은 만들지 않되 나중에 만들 수 있게 view-model을 `packages/client`에 둡니다 [결정: review.m3-design-inputs D-M3-30 행 3] | M-10, M-17, B-19, U-88, U-89, U-86 | `L4.settings-ui.spec` |
 | M3-new-07 | 모델 계정 풀과 레이트 리밋 | MD-08 | `L1.models.spec`, M3-new-23 |
 | M3-new-08 | 설정 파일 외부 변경 감시와 통지 | M-16, A-72 | `L0.os.spec`, `L4.host-service.spec` |
@@ -134,8 +135,10 @@ M2 Mac 실기(`review.macos-checklist` M-10~M-13, `xeon/foundation` `c8afa8b`)�
 
 ## 7. 미결 사항
 
-- [미결] M3 트랙 나눔과 순서. M3 착수 때 정합니다.
+- M3 트랙 나눔 [결정: 2026-10-28 사용자]. M3a 트랙은 A0~A6이다. A0은 결정 기록, A1은 확장 지점 개정과 `packages/client`와 작은 정리, A2는 F 추가와 X 로더, A3는 X 원시 연산과 L1 에이전트(목표 판정 구현 포함)와 L1 도구·루프, A4는 L2와 group-kit, A5는 Helm과 학습, A6은 마감이다. M3b는 M3a 마감 때 계획한다.
 - 닫음: `product.scope.spec` §10 미결 4(Helm 내부 설계 착수 시점)는 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(ADR-0015)"으로 닫았습니다.
-- [미결] 외부 훅의 M3 포함 여부(M3-15). D-M3-11 c안 원문은 "로더·안전 모드만"입니다(ADR-0017 §6).
-- [미결] 웹 클라이언트의 M3 범위(D-M3-17). M3 /plan에서 정합니다.
-- [미결] Helm이 플러그인이 된 뒤 설정 키 이름공간(`l3.helm.*` 유지 대 `ext.helm.*`)(`L3.helm.spec` §10).
+- 닫음: 외부 훅은 M3 밖이고 M4로 옮겼다(M3-15, ADR-0017 §6, `X.operations.spec` §10 21) [결정: 2026-10-28 사용자].
+- 닫음: 웹 클라이언트는 M3에 넣지 않는다. CLI와 데스크톱만 쓰고 웹 UI는 M4다. `packages/client`의 전송 계층은 브라우저 클라이언트가 쓸 수 있게 분리해 둔다 [결정: 2026-10-28 사용자].
+- [제안] Helm 설정 키 이름공간은 `l3.helm.*`을 그대로 쓰고, Helm 켜기·끄기는 `ext.helm.enabled`로 한다(`L3.helm.spec` §10). 기본값이며 사용자 결정은 아니다.
+- [제안] 소켓 전송의 클라이언트 구현은 `packages/client`에 둔다. 구현은 M3b 서비스 트랙이다(ADR-0020 §6). 기본값이며 사용자 결정은 아니다.
+- 닫음: 위장 provider·계정 회전 플러그인(M3-new-23, D-M3-22)과 모델 계정 풀(M3-new-07)은 M3b에 둔다 [결정: 2026-10-28 사용자].

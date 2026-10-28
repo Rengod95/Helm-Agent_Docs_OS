@@ -23,7 +23,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 | 3 | 확장 전용 저장 영역 | 1차 | §3.4, §4.4 |
 | 4 | 이름 충돌 규칙 | 2차 | §3.5, §4.5 |
 | 5 | 안전 모드 | 2차. M3에 넣는다 [결정: review.m3-design-inputs D-M3-11 c] | §3.6, §4.6 |
-| 6 | 외부 훅 프로토콜 | 2차. D-M3-11 c안 원문("로더·안전 모드만")에 따라 M3 밖이다. 확인 대기는 §10 21 | §3.7, §4.7 |
+| 6 | 외부 훅 프로토콜 | M4로 옮김. M3 밖이다 [결정: 2026-10-28 사용자]. 근거는 D-M3-11 c안 원문("로더·안전 모드만")과 §10 21 | §3.7, §4.7 |
 
 정하는 것:
 
@@ -601,7 +601,7 @@ export interface StartupHealthStore {
 export function shouldSuggestSafeMode(consecutiveFailures: number, threshold: number): boolean;
 ```
 
-### 3.7 외부 훅 (`hooks/*.ts`, 2차)
+### 3.7 외부 훅 (`hooks/*.ts`, M4)
 
 ```ts
 // hooks/config.ts
@@ -1082,7 +1082,7 @@ pi 어댑터에서의 처리:
 - 같은 탭의 확장 목록에 자동으로 꺼진 확장과 안전 모드로 빠진 확장을 사유와 함께 보인다.
 - 안전 모드 키는 `x.operations.safeMode.*`다. `L4.settings-ui.spec` §4.1 "plugins" 탭 행도 안전 모드를 `x.operations.*` 아래로 적는다(§10 12번, 해소).
 
-### 4.7 외부 훅 프로토콜 (2차)
+### 4.7 외부 훅 프로토콜 (M4)
 
 #### 4.7.1 설정 위치와 형식
 
@@ -1337,4 +1337,4 @@ pi 어댑터에서의 처리:
 18. (해소) setup 시간 예산 키는 `x.operations.budget.setupMs`다. X.loading-trust.spec §4.3.1도 같은 이름을 쓴다. 값은 `OperationsPolicy.setupBudgetMs` → `ExtHostDeps.setupBudgetMs` 경로로 primitives의 scope setup에 걸린다.
 19. [결정: review.m3-design-inputs D-M3-07 a] 안전 모드에서 L3 내장 그룹을 끈다(§4.6.2). Helm은 기본 플러그인(D-M3-01 c)이라 `user` tier로 실리고 같이 꺼진다.
 20. [미결] 샌드박스 강제를 on 핸들러(`tool_call` first)로 둘지, L0 실행 경로에서만 할지(§3.1, §4.1.2). [제안] L0 실행 경로에서 하고 on 핸들러는 두지 않는다. on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다. `L0.sandbox.spec`, `L1.tools.spec`과 정한다.
-21. [미결] 외부 훅(§3.7, §4.7)의 M3 포함 여부. D-M3-11 c안 원문은 "로더·안전 모드만"이라 이 문서는 M3 밖으로 적었다. 사용자 답 "pi 호환 없음, 자체 확장 API만"은 훅을 따로 말하지 않아 확인이 필요하다(`review.m3-lower-requirements` §8).
+21. [결정: 2026-10-28 사용자] 외부 훅(§3.7, §4.7)은 M3 밖이고 M4로 옮긴다. D-M3-11 c안 원문("로더·안전 모드만")과 같은 판단이다. 이 항목은 닫았다.

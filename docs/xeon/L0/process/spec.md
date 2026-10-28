@@ -25,7 +25,7 @@ binds: [xeon/packages/platform-process/**]
 5. 세션 잠금 실패 때 동작 정책 `LockFallbackPolicy`
 6. 복구 표식 기반 '이어서 실행' 제시 정책
 7. OS 서비스 등록 provider(2차)
-8. X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1) 구현: 외부 훅 실행 `run`(M2)과 격리 확장 자식 기동 `spawn`(2차). `ProcessService`가 이 포트를 확장한다(§3.1, §4.8)
+8. X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1) 구현: 외부 훅 실행 `run`(포트는 M2, 외부 훅 소비자는 M4 [결정: 2026-10-28 사용자])과 격리 확장 자식 기동 `spawn`(2차). `ProcessService`가 이 포트를 확장한다(§3.1, §4.8)
 
 원격 사용은 1차(M3)이고 새 전송을 두지 않는다. 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 
@@ -606,7 +606,7 @@ ensureService():
 
 `ProcessService`는 `ProcessPort`의 두 메서드를 구현한다. 메서드 이름과 인자 모양은 `F.extensions.spec` §3.2.1이 정본이고, 아래는 이 패키지의 동작 규칙이다 [제안]. ext-host는 `Bun.spawn`, `node:child_process`를 import하지 않으므로(DR-07) 이 두 경로는 이 패키지만 실행한다.
 
-`run(spec: HookRunSpec): Promise<HookRawRun>`(외부 훅, `X.operations.spec` §3.7, M2):
+`run(spec: HookRunSpec): Promise<HookRawRun>`(외부 훅, `X.operations.spec` §3.7, 포트는 M2, 소비자는 M4):
 
 1. `argv[0]`을 셸 없이 직접 실행한다. `cwd`와 `env`는 받은 값만 쓰고 부모 env를 상속하지 않는다. env 허용 목록 구성은 호출자(`hookEnv`, `X.operations.spec` §3.7)의 일이다.
 2. `stdin` 문자열을 쓰고 닫는다. stdout·stderr는 각각 `maxStdoutChars`·`maxStderrChars`에서 자르고, stdout을 잘랐으면 `stdoutTruncated: true`다.

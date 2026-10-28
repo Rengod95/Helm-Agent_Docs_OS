@@ -44,7 +44,7 @@ binds: [xeon/packages/client/**, xeon/packages/contracts/src/wire-settings/**, x
 
 - F가 계약만 담는다. F 변경이 런타임 동작을 바꾸지 않는다.
 - 데스크톱이 엔진 코드 없이 연결 코드를 쓴다. WebView 번들 크기와 검사 경계가 분명하다.
-- CLI와 데스크톱의 공유 로직이 한 곳에 모인다. 나중의 TUI 설정 화면(D-M3-30 행 3)이나 웹 클라이언트(D-M3-17, 범위는 M3 /plan)도 같은 패키지를 쓴다.
+- CLI와 데스크톱의 공유 로직이 한 곳에 모인다. 나중의 TUI 설정 화면(D-M3-30 행 3)이나 웹 클라이언트(M4, D-M3-17)도 같은 패키지를 쓴다. 전송 계층은 브라우저 클라이언트가 쓸 수 있게 분리해 둔다 [결정: 2026-10-28 사용자].
 
 ### 4.2 감수할 점
 
@@ -62,4 +62,4 @@ binds: [xeon/packages/client/**, xeon/packages/contracts/src/wire-settings/**, x
 
 ## 6. 미결 사항
 
-- [미결] 소켓 전송의 클라이언트 구현(서비스 모드, 원격)을 이 패키지에 둘지 `L0.process`의 `connectServiceTransport`를 CLI가 계속 쓸지. 데스크톱은 L0를 import하지 않으므로 데스크톱 원격 접속(D-M3-17 형태 1)은 Rust 셸의 소켓 릴레이나 이 패키지 구현이 필요하다. M3 서비스·원격 작업에서 정한다.
+- [제안] 소켓 전송의 클라이언트 구현은 이 패키지에 둔다. 구현은 M3b 서비스 트랙이다. 기본값이며 사용자 결정은 아니다. 기존 `L0.process`의 `connectServiceTransport`를 CLI가 계속 쓸지는 그 트랙에서 정한다 [미결].

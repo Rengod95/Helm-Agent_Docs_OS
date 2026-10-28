@@ -1369,7 +1369,7 @@ M3 판에서 닫은 항목:
 10. [미결] 탐구가 없을 때 turn마다 생기는 임대 부여·`idle` 반납 비용(§3.3, H-IN-15). M3 구현 뒤 turn당 `lease.*` 이벤트 수를 재고, 문제가 되면 X에 후보 제외 조건을 요청한다.
 11. [가정] `tool_call` 지점이 정책·승인보다 먼저 디스패치된다(§4.6, REQ-X-11).
 12. [가정] 지식 검색 도구 결과의 빈 결과 판정 형식(§3.5). L2.knowledge.spec과 맞춘다.
-13. [미결] 플러그인이 된 Helm의 설정 네임스페이스. F.wire-settings.spec §3.8.3 규칙 2는 확장이 코어 네임스페이스에 키를 더하지 못하게 한다. [제안] 설정 정의는 호스트 카탈로그가 `@xeon/group-helm`의 `helmSettings`로 정적으로 싣고 키 이름 `l3.helm.*`를 유지한다(M2 키 `l3.helm.driveLimits`와 같다). 다른 안은 `ext.helm.*`로 옮기는 것이다. F.wire-settings 작성자와 함께 정한다.
+13. [제안] 플러그인이 된 Helm의 설정 네임스페이스. F.wire-settings.spec §3.8.3 규칙 2는 확장이 코어 네임스페이스에 키를 더하지 못하게 한다. 설정 정의는 호스트 카탈로그가 `@xeon/group-helm`의 `helmSettings`로 정적으로 싣고 키 이름 `l3.helm.*`를 유지한다(M2 키 `l3.helm.driveLimits`와 같다). 켜기·끄기는 X 예약 키 `ext.helm.enabled`를 쓴다(C5, 2026-10-28 기본값). 다른 안 `ext.helm.*`은 채택하지 않는다. 사용자 결정이 아니라 기본값이다.
 14. [미결] 플러그인 엔트리의 가상 모듈 의존(§3.1 의존 해석). X 로더가 자체 패키지를 가상 모듈로 등록하는 방식이 같은 모듈 인스턴스를 주는지는 X.loading-trust 스파이크에서 확인한다 [가정].
 
 하위 층 반영 대기(§8 요구 표): REQ-F-01, REQ-F-02, REQ-F-04, REQ-F-05, REQ-X-01, REQ-X-02, REQ-X-03, REQ-X-08, REQ-X-09, REQ-X-11, REQ-L1-01, REQ-L1-04, REQ-L2-01, G-IN-02, `lease.rejected` 이벤트, `GroupStatus.drive`의 `"rejected"`.

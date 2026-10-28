@@ -78,7 +78,7 @@ binds: [xeon/packages/platform-process/**, xeon/apps/host/**, xeon/apps/cli/**]
 | service | `xeon service`에 접속하는 CLI·데스크톱 | 로컬 Unix 소켓 | 서비스 프로세스 | 1차(OS 등록은 2차) |
 
 - [결정: review.decisions-2 U-11] 원격 사용은 1차(M3)에 넣는다. 다른 기기의 클라이언트는 service 전송의 로컬 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 전송 종류와 호스트 계약은 service와 같고, 인증은 SSH·사설망 인증과 소켓 파일 권한이 맡는다. 내장 TLS + 토큰 WebSocket 전송은 2차다. 인증서 관리와 외부 노출 위험이 큰 내장 서버 없이 원격 사용을 얻기 위해서다.
-- [결정: review.m3-design-inputs D-M3-17] M3 원격 사용 형태는 둘이다. (1) 자체 호스트 서버에서 `xeon` 호스트를 켜 두고 다른 기기의 데스크톱 앱과 CLI가 접속해 개발한다. (2) 자기 컴퓨터에서 데스크톱이나 CLI가 호스트를 켜서 쓴다. 웹 클라이언트 범위는 M3 구현 계획에서 정하고, 웹·모바일 알림은 후순위다.
+- [결정: review.m3-design-inputs D-M3-17] M3 원격 사용 형태는 둘이다. (1) 자체 호스트 서버에서 `xeon` 호스트를 켜 두고 다른 기기의 데스크톱 앱과 CLI가 접속해 개발한다. (2) 자기 컴퓨터에서 데스크톱이나 CLI가 호스트를 켜서 쓴다. 웹 클라이언트는 M3에 넣지 않는다. 웹 UI는 M4다 [결정: 2026-10-28 사용자]. 웹·모바일 알림은 후순위다.
 
 [제안] 호스트 쪽 전송 인터페이스는 다음 형태로 둔다. 메시지 타입 `HostMessage`는 F `wire-settings`가 정한다.
 
