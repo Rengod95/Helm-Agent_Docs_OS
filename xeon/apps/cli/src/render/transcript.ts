@@ -258,6 +258,23 @@ export function approvalViewOf(
           })),
         },
       };
+    case "review":
+      // 검토 승인(adr.0018)의 CLI 화면은 L4 CLI 트랙이 만든다. 지금은 요약 줄과 허용·거부 프롬프트만 보인다
+      return {
+        approvalId,
+        title,
+        body: [
+          ...callerLine(payload.origin.caller),
+          `검토: ${body.review.title} (라운드 ${String(body.review.round)})`,
+          ...body.review.files.map(
+            (file) => `${file.change} ${file.path} (hunk ${String(file.hunks)})`,
+          ),
+          ...expiryLine(payload),
+        ],
+        allowsAnswer: false,
+        remember,
+        form: { kind: "tool" },
+      };
     default:
       return assertNever(body, "ApprovalBody");
   }

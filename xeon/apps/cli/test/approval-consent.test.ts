@@ -315,3 +315,26 @@ test("print mode tells when its deny answer was not applied", async () => {
     '승인 요청 "bash 실행"에 비대화 모드라 거부로 답했으나 적용되지 않았다 (already_resolved)',
   );
 });
+
+test("a review approval shows its title, round and one row per file (compile fix for ADR-0018 review)", () => {
+  const review = {
+    kind: "review",
+    review: {
+      reviewId: "rvw_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      artifactId: "art_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      title: "refactor loader",
+      round: 2,
+      files: [
+        { path: "src/a.ts", change: "modified", binary: false, hunks: 3 },
+        { path: "logo.png", change: "added", binary: true, hunks: 0 },
+      ],
+    },
+  };
+  const view = approvalViewOf("evt_1", payloadOf({ body: review }));
+  expect(view.body.slice(-3)).toEqual([
+    "검토: refactor loader (라운드 2)",
+    "modified src/a.ts (hunk 3)",
+    "added logo.png (hunk 0)",
+  ]);
+  expect(view.allowsAnswer).toBe(false);
+});

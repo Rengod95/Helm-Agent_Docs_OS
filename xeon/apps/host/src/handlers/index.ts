@@ -79,6 +79,9 @@ export function createWireHandlers(
     "settings.set": createSettingsSetHandler(engine),
     "settings.reset": createSettingsResetHandler(engine),
     "settings.list": createSettingsListHandler(engine),
+    // 지식 제안 대기열 wire(M3-REQ-18)의 처리기는 L4 호스트 트랙이 구현한다
+    "proposal.list": notImplemented("proposal.list"),
+    "proposal.decide": notImplemented("proposal.decide"),
     ...createSecretHandlers(engine),
     ...createTrustHandlers(engine),
     ...createCommandHandlers(engine, hub),
