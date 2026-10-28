@@ -795,7 +795,7 @@ export type CollectPointName = { [N in PointName]: PointSignatures[N]["fold"] ex
 | 15 | `tool.execution.before` | tool | tap | ToolExecutionStartPayload | void | open |  | `tool_execution_start` | types.ts:1066 | runner.ts:1089 emit | 같음 |
 | 16 | `tool.execution.update` | tool | tap | ToolExecutionUpdatePayload | void | open |  | `tool_execution_update` | types.ts:1076 | runner.ts:1089 emit | 같음 |
 | 17 | `tool.execution.after` | tool | tap | ToolExecutionEndPayload | void | open |  | `tool_execution_end` | types.ts:1087 | runner.ts:1089 emit | 같음. `input`과 `stepId`를 더 싣는다(M3-REQ-04) |
-| 18 | `boundary.turn.before` | boundary | tap | AgentStartPayload | void | open |  | `agent_start` | types.ts:932 | runner.ts:1089 emit | Xeon turn 시작. 페이로드 `{ turnId, origin: TurnOrigin }`(M3-REQ-06) |
+| 18 | `boundary.turn.before` | boundary | tap | AgentStartPayload | void | open |  | `agent_start` | types.ts:932 | runner.ts:1089 emit | Xeon turn 시작. 페이로드 `{ turnId, origin?: TurnOrigin }`(M3-REQ-06, 선택은 L1이 채우기 전까지) |
 | 19 | `boundary.step.before` | boundary | tap | TurnStartPayload | void | open | ● | `turn_start` | types.ts:1030 | runner.ts:1089 emit | Xeon step 시작 |
 | 20 | `boundary.message.before` | boundary | tap | MessageStartPayload | void | open |  | `message_start` | types.ts:1047 | runner.ts:1089 emit | 같음 |
 | 21 | `boundary.message.update` | boundary | tap | MessageUpdatePayload | void | open |  | `message_update` | types.ts:1053 | runner.ts:1089 emit | 같음 |
@@ -874,12 +874,15 @@ export interface ToolCallPayload {
   readonly input: Readonly<Record<string, JsonValue>>;
   /** 능력 도구면 대응 능력과 메서드(F.capabilities.spec §7) */
   readonly capability?: CapabilityRef;
-  /** 도구의 효과 범위. 미선언은 "exec"(L1.tools가 채운다). 그룹 핸들러의 쓰기 판정에 쓴다 [결정: M3-REQ-04] */
-  readonly risk: ToolRisk;
+  /**
+   * 도구의 효과 범위. 미선언은 "exec"(L1.tools가 채운다). 그룹 핸들러의 쓰기 판정에 쓴다 [결정: M3-REQ-04].
+   * 선택이다 [제안]: L1.tools가 채우기 전(M3-REQ-71)의 호출자가 컴파일되도록 열어 둔다. L1.tools가 채운 뒤에는 항상 있고, 그때 필수로 올릴지 다시 본다
+   */
+  readonly risk?: ToolRisk;
   /** 도구 작성자의 정책 힌트. 검증되지 않는 선언이다 */
   readonly hints?: ToolHints;
-  /** 호출 주체. 자식 대화(서브에이전트)의 호출을 구분한다 */
-  readonly caller: CallerId;
+  /** 호출 주체. 자식 대화(서브에이전트)의 호출을 구분한다. risk와 같은 이유로 선택이다 [제안] */
+  readonly caller?: CallerId;
 }
 export interface ToolCallDecision {
   readonly block: true;
@@ -897,10 +900,10 @@ export interface ToolResultPayload extends Omit<ToolCallPayload, "input"> {
 export interface ToolExecutionEndPayload {
   readonly toolCallId: string;
   readonly toolName: ToolName;
-  /** 호출 인자(비밀을 가린 값) */
-  readonly input: Readonly<Record<string, JsonValue>>;
-  /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다 */
-  readonly stepId: StepId;
+  /** 호출 인자(비밀을 가린 값). 선택이다 [제안]: L1.tools가 채우기 전(M3-REQ-71)의 호출자가 컴파일되도록 열어 둔다 */
+  readonly input?: Readonly<Record<string, JsonValue>>;
+  /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다. input과 같은 이유로 선택이다 [제안] */
+  readonly stepId?: StepId;
   readonly result: unknown;
   readonly isError: boolean;
   readonly durationMs?: number;
@@ -957,14 +960,17 @@ export interface AgentBeforeSettlePayload {   // Xeon turn 정착 직전
 export interface AgentSettledPayload {
   readonly turnId: TurnId;
   readonly aborted: boolean;
+  // 아래 네 필드는 선택이다 [제안]: L1.loop가 채우기 전(M3-REQ-77)의 호출자가 컴파일되도록 열어 둔다.
+  // 없을 때 읽는 쪽의 기본: origin "user", status는 aborted가 참이면 "aborted" 아니면 "completed", hasFinalAnswer 참, lastItemId 없음
+  // (학습 그룹은 lastItemId가 없으면 검토 포크를 시작하지 않는다). 채운 뒤 필수로 올릴지 다시 본다
   /** 입력 출처 [제안: M3-REQ-06, 100]. 값은 F.conversation.spec §3.5의 TurnOrigin */
-  readonly origin: TurnOrigin;
+  readonly origin?: TurnOrigin;
   /** "aborted"이면 aborted가 참이다 */
-  readonly status: "completed" | "aborted" | "error";
+  readonly status?: "completed" | "aborted" | "error";
   /** turn이 사용자에게 보일 최종 어시스턴트 답으로 끝났는가 */
-  readonly hasFinalAnswer: boolean;
+  readonly hasFinalAnswer?: boolean;
   /** turn의 마지막 item. 없으면 null. 학습 그룹의 검토 포크 지점이다 */
-  readonly lastItemId: ItemId | null;
+  readonly lastItemId?: ItemId | null;
 }
 
 // points/session.ts

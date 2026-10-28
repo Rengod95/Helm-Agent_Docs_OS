@@ -53,9 +53,9 @@ export const ToolCallPayloadSchema: TObject<{
   toolName: typeof ToolNameSchema;
   input: typeof ToolInputSchema;
   capability: TOptional<typeof CapabilityRefSchema>;
-  risk: typeof ToolRiskSchema;
+  risk: TOptional<typeof ToolRiskSchema>;
   hints: TOptional<typeof ToolHintsSchema>;
-  caller: typeof CallerIdSchema;
+  caller: TOptional<typeof CallerIdSchema>;
 }> = Type.Object(
   {
     toolCallId: Type.String({ minLength: 1, maxLength: 256 }),
@@ -66,12 +66,15 @@ export const ToolCallPayloadSchema: TObject<{
     input: ToolInputSchema,
     /** 능력 도구면 대응 능력과 메서드 */
     capability: Type.Optional(CapabilityRefSchema),
-    /** 도구의 효과 범위(미선언은 "exec"). 그룹 핸들러의 쓰기 판정에 쓴다(M3-REQ-04) */
-    risk: ToolRiskSchema,
+    /**
+     * 도구의 효과 범위(미선언은 "exec"). 그룹 핸들러의 쓰기 판정에 쓴다(M3-REQ-04).
+     * 선택이다: L1.tools가 채우기 전(M3-REQ-71)의 호출자가 컴파일되도록 열어 둔다. 채운 뒤에는 항상 있다 [제안]
+     */
+    risk: Type.Optional(ToolRiskSchema),
     /** 도구 작성자의 정책 힌트. 검증되지 않는 선언이다 */
     hints: Type.Optional(ToolHintsSchema),
-    /** 호출 주체(주 대화 또는 서브에이전트). 자식 대화의 호출을 구분한다 */
-    caller: CallerIdSchema,
+    /** 호출 주체(주 대화 또는 서브에이전트). 자식 대화의 호출을 구분한다. `risk`와 같은 이유로 선택이다 [제안] */
+    caller: Type.Optional(CallerIdSchema),
   },
   { additionalProperties: false },
 );
@@ -101,9 +104,9 @@ export const ToolResultPayloadSchema: TObject<{
   toolName: typeof ToolNameSchema;
   input: typeof ToolInputSchema;
   capability: TOptional<typeof CapabilityRefSchema>;
-  risk: typeof ToolRiskSchema;
+  risk: TOptional<typeof ToolRiskSchema>;
   hints: TOptional<typeof ToolHintsSchema>;
-  caller: typeof CallerIdSchema;
+  caller: TOptional<typeof CallerIdSchema>;
 }> = Type.Object(
   {
     toolCallId: Type.String({ minLength: 1, maxLength: 256 }),
@@ -111,9 +114,9 @@ export const ToolResultPayloadSchema: TObject<{
     toolName: ToolNameSchema,
     input: ToolInputSchema,
     capability: Type.Optional(CapabilityRefSchema),
-    risk: ToolRiskSchema,
+    risk: Type.Optional(ToolRiskSchema),
     hints: Type.Optional(ToolHintsSchema),
-    caller: CallerIdSchema,
+    caller: Type.Optional(CallerIdSchema),
   },
   { additionalProperties: false },
 );
@@ -194,8 +197,8 @@ export type ToolExecutionUpdatePayload = Static<typeof ToolExecutionUpdatePayloa
 export const ToolExecutionEndPayloadSchema: TObject<{
   toolCallId: TString;
   toolName: typeof ToolNameSchema;
-  input: typeof ToolInputSchema;
-  stepId: typeof StepIdSchema;
+  input: TOptional<typeof ToolInputSchema>;
+  stepId: TOptional<typeof StepIdSchema>;
   result: TUnknown;
   isError: TBoolean;
   durationMs: TOptional<TNumber>;
@@ -204,10 +207,10 @@ export const ToolExecutionEndPayloadSchema: TObject<{
   {
     toolCallId: Type.String({ minLength: 1, maxLength: 256 }),
     toolName: ToolNameSchema,
-    /** 호출 인자(비밀을 가린 값). 결과 한 건만으로 무엇을 실행했는지 알 수 있게 한다(M3-REQ-04) */
-    input: ToolInputSchema,
-    /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다 */
-    stepId: StepIdSchema,
+    /** 호출 인자(비밀을 가린 값). 결과 한 건만으로 무엇을 실행했는지 알 수 있게 한다(M3-REQ-04). 선택이다: L1.tools가 채우기 전의 호출자가 컴파일되도록 열어 둔다 [제안] */
+    input: Type.Optional(ToolInputSchema),
+    /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다. `input`과 같은 이유로 선택이다 [제안] */
+    stepId: Type.Optional(StepIdSchema),
     result: Type.Unknown(),
     isError: Type.Boolean(),
     /** execute()가 걸린 시간(단조 시계). 도구가 실행되지 않았으면 없다 */

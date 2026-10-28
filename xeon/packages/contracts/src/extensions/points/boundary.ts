@@ -77,12 +77,12 @@ const MessagesSchema: TArray<typeof AgentMessageSchema> = Type.Array(AgentMessag
 
 export const AgentStartPayloadSchema: TObject<{
   turnId: typeof TurnIdSchema;
-  origin: typeof TurnOriginSchema;
+  origin: TOptional<typeof TurnOriginSchema>;
 }> = Type.Object(
   {
     turnId: TurnIdSchema,
-    /** 이 turn의 입력 출처 [제안: M3-REQ-06] */
-    origin: TurnOriginSchema,
+    /** 이 turn의 입력 출처 [제안: M3-REQ-06]. 선택이다: L1.loop가 채우기 전(M3-REQ-77)의 호출자가 컴파일되도록 열어 둔다. 없으면 "user"로 본다 */
+    origin: Type.Optional(TurnOriginSchema),
   },
   { additionalProperties: false },
 );
@@ -100,22 +100,29 @@ export type AgentEndPayload = Static<typeof AgentEndPayloadSchema>;
 export const AgentSettledPayloadSchema: TObject<{
   turnId: typeof TurnIdSchema;
   aborted: TBoolean;
-  origin: typeof TurnOriginSchema;
-  status: TUnion<[TLiteral<"completed">, TLiteral<"aborted">, TLiteral<"error">]>;
-  hasFinalAnswer: TBoolean;
-  lastItemId: TUnion<[TUnsafe<ItemId>, TNull]>;
+  origin: TOptional<typeof TurnOriginSchema>;
+  status: TOptional<TUnion<[TLiteral<"completed">, TLiteral<"aborted">, TLiteral<"error">]>>;
+  hasFinalAnswer: TOptional<TBoolean>;
+  lastItemId: TOptional<TUnion<[TUnsafe<ItemId>, TNull]>>;
 }> = Type.Object(
   {
     turnId: TurnIdSchema,
     aborted: Type.Boolean(),
+    /**
+     * 아래 네 필드는 선택이다: L1.loop가 채우기 전(M3-REQ-77)의 호출자가 컴파일되도록 열어 둔다 [제안].
+     * 없을 때 읽는 쪽의 기본: origin "user", status는 aborted가 참이면 "aborted" 아니면 "completed", hasFinalAnswer 참, lastItemId 없음
+     * (학습 그룹은 lastItemId가 없으면 검토 포크를 시작하지 않는다)
+     */
     /** 이 turn의 입력 출처 [제안: M3-REQ-06, 100] */
-    origin: TurnOriginSchema,
+    origin: Type.Optional(TurnOriginSchema),
     /** turn의 끝. `aborted`가 참이면 "aborted"다 */
-    status: Type.Union([Type.Literal("completed"), Type.Literal("aborted"), Type.Literal("error")]),
+    status: Type.Optional(
+      Type.Union([Type.Literal("completed"), Type.Literal("aborted"), Type.Literal("error")]),
+    ),
     /** turn이 사용자에게 보일 최종 어시스턴트 답으로 끝났는가 */
-    hasFinalAnswer: Type.Boolean(),
+    hasFinalAnswer: Type.Optional(Type.Boolean()),
     /** turn의 마지막 item. 없으면 null. 포크 지점이 된다(학습 그룹) */
-    lastItemId: Nullable(ItemIdSchema),
+    lastItemId: Type.Optional(Nullable(ItemIdSchema)),
   },
   { additionalProperties: false },
 );

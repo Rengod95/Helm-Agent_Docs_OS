@@ -23,10 +23,15 @@ describe("ToolCallPayload risk, hints, caller (M3-REQ-04)", () => {
     expect(value).toEqual(full);
   });
 
-  test("risk and caller are required, hints is optional", () => {
+  test("risk, caller and hints are optional until L1.tools fills them, and a payload without them still parses", () => {
+    expect(accepts(ToolCallPayloadSchema, base)).toBe(true);
     expect(accepts(ToolCallPayloadSchema, { ...base, risk: "read", caller: "main" })).toBe(true);
-    expect(accepts(ToolCallPayloadSchema, { ...base, caller: "main" })).toBe(false);
-    expect(accepts(ToolCallPayloadSchema, { ...base, risk: "read" })).toBe(false);
+    expect(accepts(ToolCallPayloadSchema, { ...base, caller: "main" })).toBe(true);
+    expect(accepts(ToolCallPayloadSchema, { ...base, risk: "read" })).toBe(true);
+    // 값이 있으면 검사한다
+    expect(accepts(ToolCallPayloadSchema, { ...base, risk: undefined, caller: undefined })).toBe(
+      true,
+    );
   });
 
   test("rejects unknown risk, caller shapes and hint keys", () => {
@@ -41,7 +46,9 @@ describe("ToolCallPayload risk, hints, caller (M3-REQ-04)", () => {
 
   test("ToolResultPayload carries the same three fields", () => {
     expect(accepts(ToolResultPayloadSchema, full)).toBe(true);
-    expect(accepts(ToolResultPayloadSchema, base)).toBe(false);
+    expect(accepts(ToolResultPayloadSchema, base)).toBe(true);
+    expect(accepts(ToolResultPayloadSchema, { ...full, risk: "delete" })).toBe(false);
+    expect(accepts(ToolResultPayloadSchema, { ...full, caller: "sub" })).toBe(false);
   });
 
   test("shared value schemas", () => {
@@ -71,11 +78,12 @@ describe("ToolExecutionEndPayload input and stepId (M3-REQ-04)", () => {
     expect(value).toEqual(end);
   });
 
-  test("input and stepId are required, stepId must be an stp id", () => {
-    const noInput = { ...end, input: undefined };
-    const noStep = { ...end, stepId: undefined };
-    expect(accepts(ToolExecutionEndPayloadSchema, noInput)).toBe(false);
-    expect(accepts(ToolExecutionEndPayloadSchema, noStep)).toBe(false);
+  test("input and stepId are optional, but a given stepId must be an stp id and input an object", () => {
+    const { toolCallId, toolName, result, isError } = end;
+    expect(accepts(ToolExecutionEndPayloadSchema, { toolCallId, toolName, result, isError })).toBe(
+      true,
+    );
     expect(accepts(ToolExecutionEndPayloadSchema, { ...end, stepId: "step_1" })).toBe(false);
+    expect(accepts(ToolExecutionEndPayloadSchema, { ...end, input: "a.txt" })).toBe(false);
   });
 });

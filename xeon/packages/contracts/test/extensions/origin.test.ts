@@ -28,9 +28,9 @@ describe("TurnOrigin (M3-REQ-06, 100)", () => {
     }
   });
 
-  test("AgentStartPayload requires origin", () => {
+  test("AgentStartPayload carries an optional origin that is checked when present", () => {
     expect(accepts(AgentStartPayloadSchema, { turnId, origin: "remote" })).toBe(true);
-    expect(accepts(AgentStartPayloadSchema, { turnId })).toBe(false);
+    expect(accepts(AgentStartPayloadSchema, { turnId })).toBe(true);
     expect(accepts(AgentStartPayloadSchema, { turnId, origin: "cron" })).toBe(false);
   });
 
@@ -47,9 +47,13 @@ describe("TurnOrigin (M3-REQ-06, 100)", () => {
     expect(accepts(AgentSettledPayloadSchema, settled)).toBe(true);
     expect(accepts(AgentSettledPayloadSchema, { ...settled, lastItemId: null })).toBe(true);
     expect(accepts(AgentSettledPayloadSchema, { ...settled, status: "error" })).toBe(true);
+    // 네 필드는 L1.loop가 채우기 전까지 선택이다
+    expect(accepts(AgentSettledPayloadSchema, { turnId, aborted: false })).toBe(true);
     for (const key of ["origin", "status", "hasFinalAnswer", "lastItemId"]) {
-      expect(accepts(AgentSettledPayloadSchema, { ...settled, [key]: undefined })).toBe(false);
+      expect(accepts(AgentSettledPayloadSchema, { ...settled, [key]: undefined })).toBe(true);
     }
+    expect(accepts(AgentSettledPayloadSchema, { ...settled, origin: "cron" })).toBe(false);
+    expect(accepts(AgentSettledPayloadSchema, { ...settled, hasFinalAnswer: "yes" })).toBe(false);
     expect(accepts(AgentSettledPayloadSchema, { ...settled, status: "interrupted" })).toBe(false);
     expect(accepts(AgentSettledPayloadSchema, { ...settled, lastItemId: "itm_x" })).toBe(false);
   });
