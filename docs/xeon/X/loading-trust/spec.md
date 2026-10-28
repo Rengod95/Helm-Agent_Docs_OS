@@ -267,7 +267,36 @@ export interface LoadOptions {
   readonly startup?: StartupOptions;
   /** x.loading-trust.paths 유효 값. 각 경로는 `extensions/`와 같은 모양의 디렉터리이고 user 위치로 본다(§4.2.1) [제안] */
   readonly extraPaths?: readonly string[];
+  /**
+   * 프로젝트 확장을 어떻게 싣는가. 기본 "cwd"는 cwd의 프로젝트를 이 호출에서 판정하고 싣는다(in-process·stdio 호스트).
+   * "on_demand"는 판정도 적재도 하지 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 loadProject를 부른다(§4.7.8)
+   */
+  readonly projects?: "cwd" | "on_demand";
   readonly signal: AbortSignal;
+}
+
+/** loadProject 입력(§4.7.8) */
+export interface LoadProjectOptions {
+  /** 작업 폴더. 판정은 이 폴더의 프로젝트 루트(정규화한 경로)에 대해 한다 */
+  readonly projectRoot: string;
+  readonly mode: LoaderMode;
+  /** 이 호출 전용 프롬프트 수단. 없으면 LoaderDeps.prompter */
+  readonly prompter?: TrustPrompter;
+  /** 호출자가 이미 정한 판정(저장하지 않는다) */
+  readonly trustOverride?: boolean;
+  readonly signal: AbortSignal;
+}
+
+export interface ProjectLoadReport {
+  /** 정규화한 프로젝트 루트. 판정이 실패했거나 안전 모드이면 null */
+  readonly projectRoot: string | null;
+  readonly projectTrust: ProjectTrustResult | null;
+  /** 이 루트의 확장을 앞선 호출에서 이미 실었다. 다시 싣지 않았다 */
+  readonly alreadyLoaded: boolean;
+  /** 이 호출이 새로 시도한 프로젝트 확장 */
+  readonly extensions: readonly LoadedExtensionInfo[];
+  /** 이 호출이 남긴 진단 */
+  readonly diagnostics: readonly LoadDiagnostic[];
 }
 
 export interface LoadReport {
@@ -305,6 +334,8 @@ export interface RemoveResult {
 export interface ExtensionLoader {
   /** 시작 때 한 번. 파이프라인 전체를 실행한다 */
   loadAll(options: LoadOptions): Promise<LoadReport>;
+  /** 프로젝트 하나를 판정하고 신뢰되면 그 프로젝트의 확장을 싣는다(서비스 모드, §4.7.8). loadAll 뒤에 부른다 */
+  loadProject(options: LoadProjectOptions): Promise<ProjectLoadReport>;
   /** ext.<name>.enabled가 거짓에서 참이 되면 부른다. 아직 로드되지 않은 확장을 로드한다 */
   ensureLoaded(name: ExtensionName, signal: AbortSignal): Promise<LoadedExtensionInfo>;
   list(): readonly LoadedExtensionInfo[];
@@ -956,6 +987,17 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 - 손상 상태에서 `setMany`는 쓰지 않고 `err({ kind: "corrupt", reason })`를 돌려준다. `resolveProjectTrust`는 저장에 실패해도 결정을 유지하고 결과의 `storeError`로 알린다. 진단 `trust_store_corrupt`를 남기고, L4는 파일 경로와 복구 방법(직접 수정, 초기화 명령)을 보인다.
 - pi 형식(`Record<path, boolean | null>`) 파일을 읽으면 [제안] 손상으로 보지 않고 버전 0으로 읽어 같은 의미로 변환한다. 다음 쓰기 때 버전 1로 바꾼다.
 
+#### 4.7.8 서비스 모드의 프로젝트 확장 [결정: review.m3-lower-requirements M3-REQ-38, 오케스트레이터 기본값]
+
+여러 작업 폴더를 동시에 여는 서비스 프로세스(adr.0006)에서 프로젝트 확장을 싣는 규칙이다. 시작 때는 프로젝트를 싣지 않고(`loadAll({ projects: "on_demand" })`), 작업 폴더를 여는 때 `loadProject`가 싣는다.
+
+1. 단위: 프로젝트 루트(정규화한 경로) 하나다. 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 서비스 프로세스 안의 확장 이름은 하나뿐이라(§4.2.2) 먼저 실린 프로젝트의 확장이 이름을 쥐고, 다른 프로젝트의 같은 이름은 `name_conflict`로 거부된다. 서비스를 다시 띄우면 처음부터 다시 정한다.
+2. 시점: thread를 만들거나 여는 작업 폴더에 대해 호스트가 부른다. 신뢰가 아직 정해지지 않은 폴더는 아무것도 싣지 않고(`trust_undecided`) 결정은 기억하지 않는다. 결정이 나온 뒤 다음 호출이 싣는다.
+3. 프롬프트를 받을 클라이언트: 그 폴더를 연 연결이다. thread가 없는 시점이므로 `session.trust.before` 지점(thread 필요)은 이 경로에서 발화하지 않는다. 호스트는 wire `trust.get`(선택지)과 `trust.decide`(결정)를 쓰고 `approval.requested`와 같은 A안 모양(F wire, review.decisions-2 U-02)이다. `trust.decide`가 `allow`를 반환하면 호스트가 그 결과를 `trustOverride`로 `loadProject`에 넘긴다. 로더에 직접 프롬프트를 연결하는 구현(`LoadProjectOptions.prompter`)도 같은 규칙을 따르되 그 호출의 `prompter`로만 간다.
+4. "이번 세션만" 결정은 서비스 프로세스 수명 동안 유지한다(§10 7번).
+5. 안전 모드이면 판정하지 않고 `safe_mode` 진단만 남긴다.
+6. 프로젝트 확장이 선언한 설정 그룹(`ext.<name>`)은 시작 때 만든 카탈로그에 없다. 서비스 모드에서 프로젝트 확장의 설정 키는 카탈로그에 추가되지 않는다 [미결].
+
 ### 4.8 능력 요구 충족
 
 - 6단계는 `requires`의 각 `{ id, range }`에 대해 다음 둘 중 하나가 있는지 본다. (a) 같은 판정 집합 안에서 `rejected`, `disabled`가 아닌 확장의 `provides`에 `id`가 같고 `version`이 `range`를 만족하는 항목, (b) 코어 능력 레지스트리의 같은 조건 항목 [가정: 레지스트리 API는 X.primitives.spec].
@@ -1092,7 +1134,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `createExtensionLoader`, `ExtensionLoader`, `LoadOptions`, `LoadReport`, `LoadAbortError`, `LoaderDeps`, `BuiltinExtensionModule`, `RemovalPreview`, `RemoveResult` | L4.host-service.spec(조립 3·5단계, 로더를 직접 보유), L4.settings-ui.spec·L4.cli.spec(제거 확인) |
+| `createExtensionLoader`, `ExtensionLoader`, `LoadOptions`, `LoadProjectOptions`, `LoadReport`, `ProjectLoadReport`, `LoadAbortError`, `LoaderDeps`, `BuiltinExtensionModule`, `RemovalPreview`, `RemoveResult` | L4.host-service.spec(조립 3·5단계, 로더를 직접 보유), L4.settings-ui.spec·L4.cli.spec(제거 확인) |
 | `LoadedExtensionInfo`, `LoadDiagnostic`, `LoadDiagnosticSchema`, `LoadState` | L4.settings-ui.spec, L4.host-service.spec(`host.status`), X.operations.spec |
 | `TrustLevel`, `TRUST_LEVELS`, `TRUST_MATRIX`, `SOURCE_TRUST` | F.extensions.spec(`TrustRequestSchema` 값 확정), X.primitives.spec(연산 허용 검사), X.operations.spec |
 | `ProjectTrustResult`, `TrustPrompter`·`TrustPromptRequest`·`TrustChoice`(F 이름 재export) | L4.cli.spec, L4.desktop.spec(프롬프트 구현) |
@@ -1160,7 +1202,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 9. (닫힘) pi `pi-coding-agent` 도구 팩토리 15종의 대응. pi 어댑터를 만들지 않으므로 대상이 없다 [결정: review.m3-design-inputs D-M3-11 c].
 10. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다. 가상 모듈 `typebox`가 플러그인 번들에 워크스페이스와 같은 판을 준다.
 11. [미결] eng.context-map.design §4.1이 ext-host 소유 데이터로 `xh_*`(신뢰 결정, 설치·신뢰 등급)를 적었다. 이 문서는 신뢰 결정을 사용자 영역 파일(`<userDir>/trust.json`)에 둔다 [제안]. DB 테이블을 둘지, context-map 표를 고칠지 정해야 한다.
-12. [미결] 서비스 모드에서 프로젝트 확장의 단위. 여러 작업 폴더를 동시에 여는 서비스 프로세스에서 프로젝트 확장을 작업 폴더별로 따로 로드할지, 프롬프트를 어느 클라이언트에 보낼지. [제안] 작업 폴더를 처음 여는 thread 시점에 판정하고, 프롬프트는 그 thread를 연 연결로 보낸다. wire 방식은 승인 요청과 같은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`, [결정: review.decisions-2 U-02])을 따른다. 남은 결정은 프로젝트 확장의 로드 단위다.
+12. [결정: review.m3-lower-requirements M3-REQ-38, 오케스트레이터 기본값] 서비스 모드에서 프로젝트 확장의 단위는 프로젝트 루트다. 작업 폴더를 여는 때 `loadProject`로 판정하고 싣고, 프롬프트는 그 폴더를 연 연결에 `trust.get`·`trust.decide`로 보낸다(§4.7.8). 프로젝트 확장의 설정 키 추가는 [미결]이다.
 13. (해소) 이벤트 kind 접두는 F 규칙 `x.<name>.`/`grp.<name>.`이다([결정: review.decisions-2 T-21]).
 14. [미결] eng.dependency-rules.guide DR-07 표에 `vscode-jsonrpc` → `ext-host` 행 추가 요청.
 15. (해소, 일부) Bun 직접 `import()`와 `Bun.plugin` 모듈 등록은 스파이크로 확인했다(§4.4.1). `bun build --compile` 바이너리에서 외부 `.ts`를 불러오는지, 질의 접미로 캐시를 피할 수 있는지는 확인 전이다 [가정].

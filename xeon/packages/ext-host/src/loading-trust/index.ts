@@ -128,7 +128,36 @@ export interface LoadOptions {
   readonly startup?: StartupOptions;
   /** `x.loading-trust.paths` 유효 값. 각 경로는 `extensions/`와 같은 모양의 디렉터리다(그 아래 한 단계가 확장 하나) */
   readonly extraPaths?: readonly string[];
+  /**
+   * 프로젝트 확장을 어떻게 싣는가. 기본 `"cwd"`는 `cwd`의 프로젝트를 이 호출에서 판정하고 싣는다(in-process·stdio 호스트).
+   * `"on_demand"`는 프로젝트를 판정하지도 싣지도 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 `loadProject`로 싣는다(spec §4.7.8)
+   */
+  readonly projects?: "cwd" | "on_demand";
   readonly signal: AbortSignal;
+}
+
+/** `loadProject` 입력. 프로젝트 하나의 판정과 적재 */
+export interface LoadProjectOptions {
+  /** 작업 폴더. 판정은 이 폴더의 프로젝트 루트(정규화한 경로)에 대해 한다 */
+  readonly projectRoot: string;
+  readonly mode: LoaderMode;
+  /** 이 호출 전용 프롬프트 수단. 서비스 모드에서는 그 thread를 연 연결로 보내는 구현이다. 없으면 `LoaderDeps.prompter` */
+  readonly prompter?: TrustPrompter;
+  /** 호출자가 이미 정한 판정(저장하지 않는다). 서비스 호스트가 클라이언트의 `trust.decide` 결과를 넘길 때 쓴다 */
+  readonly trustOverride?: boolean;
+  readonly signal: AbortSignal;
+}
+
+export interface ProjectLoadReport {
+  /** 정규화한 프로젝트 루트. 판정이 실패했으면 null */
+  readonly projectRoot: string | null;
+  readonly projectTrust: ProjectTrustResult | null;
+  /** 이 루트의 확장을 앞선 호출에서 이미 실었다. 다시 싣지 않았다 */
+  readonly alreadyLoaded: boolean;
+  /** 이 호출이 새로 시도한 프로젝트 확장 */
+  readonly extensions: readonly LoadedExtensionInfo[];
+  /** 이 호출이 남긴 진단 */
+  readonly diagnostics: readonly LoadDiagnostic[];
 }
 
 export interface LoadReport {
@@ -197,6 +226,12 @@ export interface LoaderDeps {
 export interface ExtensionLoader {
   /** 시작 때 한 번. 파이프라인 전체를 실행한다 */
   loadAll(options: LoadOptions): Promise<LoadReport>;
+  /**
+   * 프로젝트 하나를 판정하고 신뢰되면 그 프로젝트의 확장을 싣는다(서비스 모드, X.loading-trust.spec §4.7.8).
+   * 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 불신이면 아무것도 싣지 않고 결정은 기억하지 않아 다음 호출이 다시 판정한다.
+   * 안전 모드이면 판정하지 않고 `safe_mode` 진단만 남긴다. `loadAll` 뒤에 불러야 한다
+   */
+  loadProject(options: LoadProjectOptions): Promise<ProjectLoadReport>;
   /** ext.<name>.enabled가 거짓에서 참이 되면 부른다. 아직 로드되지 않은 확장을 로드한다 */
   ensureLoaded(name: ExtensionName, signal: AbortSignal): Promise<LoadedExtensionInfo>;
   /**
@@ -270,6 +305,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   let startup: StartupOptions = NO_STARTUP_OPTIONS;
   /** "이번 세션만" 결정은 호스트 프로세스 수명 동안 유지한다(§4.7.3) */
   const sessionTrust = new Map<string, "allow" | "deny">();
+  /** `loadProject`가 이미 실은 프로젝트 루트(정규화한 경로) */
+  const loadedProjects = new Set<string>();
 
   function missingDependency(): string | undefined {
     const required: readonly (readonly [string, unknown])[] = [
@@ -896,7 +933,13 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   }
 
   /** 프로젝트 신뢰를 정하고 거부·미결정이면 진단을 남긴다. 판정 자체가 실패하면 불신으로 둔다 */
-  async function resolveProject(options: LoadOptions): Promise<ProjectTrustResult | null> {
+  async function resolveProject(options: {
+    readonly cwd: string;
+    readonly mode: LoaderMode;
+    readonly prompter?: TrustPrompter | undefined;
+    readonly trustOverride?: boolean | undefined;
+    readonly signal: AbortSignal;
+  }): Promise<ProjectTrustResult | null> {
     const store = createProjectTrustStore(
       deps.trustBackend,
       (path) => deps.fs.realpath(path),
@@ -911,7 +954,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         store,
         fs: deps.fs,
         homeDir: deps.paths.homeDir,
-        ...(deps.prompter === undefined ? {} : { prompter: deps.prompter }),
+        ...(options.prompter === undefined && deps.prompter === undefined
+          ? {}
+          : { prompter: options.prompter ?? deps.prompter }),
         emitProjectTrust: deps.emitProjectTrust ?? (() => Promise.resolve(undefined)),
         sessionMemory: sessionTrust,
         signal: options.signal,
@@ -945,6 +990,65 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return result;
   }
 
+  /** 신뢰된 프로젝트 루트의 확장을 찾아 한 묶음으로 싣는다 */
+  async function loadProjectCandidates(projectRoot: string, signal: AbortSignal): Promise<void> {
+    const project = await discoverExternal(
+      deps.fs,
+      externalLocations({
+        paths: deps.paths,
+        extraPaths: [],
+        projectRoot,
+        sources: ["project"],
+      }),
+    );
+    allDiagnostics.push(...project.diagnostics);
+    await processBatch(project.candidates, signal);
+  }
+
+  async function loadProject(options: LoadProjectOptions): Promise<ProjectLoadReport> {
+    throwIfCancelled(options.signal, "project trust");
+    const diagnosticsBefore = allDiagnostics.length;
+    const recordsBefore = new Set(records.values());
+    const finish = (
+      projectTrust: ProjectTrustResult | null,
+      alreadyLoaded: boolean,
+    ): ProjectLoadReport => ({
+      projectRoot: projectTrust?.projectRoot ?? null,
+      projectTrust,
+      alreadyLoaded,
+      extensions: [...records.values()]
+        .filter((record) => !recordsBefore.has(record))
+        .toSorted((a, b) => a.name.localeCompare(b.name))
+        .map(infoOf),
+      diagnostics: allDiagnostics.slice(diagnosticsBefore),
+    });
+    if (startup.safeMode.active) {
+      allDiagnostics.push(
+        projectDiagnostic(
+          "safe_mode",
+          "info",
+          "project extensions are not discovered in safe mode",
+        ),
+      );
+      return finish(null, false);
+    }
+    const trust = await resolveProject({
+      cwd: options.projectRoot,
+      mode: options.mode,
+      prompter: options.prompter,
+      trustOverride: options.trustOverride,
+      signal: options.signal,
+    });
+    if (trust === null) return finish(null, false);
+    if (!trust.trusted) return finish(trust, false);
+    if (loadedProjects.has(trust.projectRoot)) return finish(trust, true);
+    // 신뢰 필요 자원이 없는 폴더는 판정만 하고 싣을 것이 없다. 그래도 한 번 본 루트로 기억한다
+    loadedProjects.add(trust.projectRoot);
+    await loadProjectCandidates(trust.projectRoot, options.signal);
+    for (const record of order) assertNotEssentialFailure(record);
+    return finish(trust, false);
+  }
+
   return {
     async loadAll(options) {
       const missing = missingDependency();
@@ -974,8 +1078,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         options.signal,
       );
 
-      // 2. 프로젝트 신뢰와 프로젝트 확장. 안전 모드에서는 프로젝트 확장을 싣지 않으므로 판정(프롬프트)도 하지 않는다
+      // 2. 프로젝트 신뢰와 프로젝트 확장. 안전 모드에서는 프로젝트 확장을 싣지 않으므로 판정(프롬프트)도 하지 않는다.
+      //    on_demand(서비스 모드)에서는 여기서 판정하지 않고 작업 폴더를 여는 때 loadProject가 한다
       let projectTrust: ProjectTrustResult | null = null;
+      loadedProjects.clear();
       if (safeMode) {
         allDiagnostics.push(
           projectDiagnostic(
@@ -984,21 +1090,12 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
             "project extensions are not discovered in safe mode",
           ),
         );
-      } else {
+      } else if (options.projects !== "on_demand") {
         throwIfCancelled(options.signal, "project trust");
         projectTrust = await resolveProject(options);
         if (projectTrust?.trusted === true) {
-          const project = await discoverExternal(
-            deps.fs,
-            externalLocations({
-              paths: deps.paths,
-              extraPaths: [],
-              projectRoot: projectTrust.projectRoot,
-              sources: ["project"],
-            }),
-          );
-          allDiagnostics.push(...project.diagnostics);
-          await processBatch(project.candidates, options.signal);
+          loadedProjects.add(projectTrust.projectRoot);
+          await loadProjectCandidates(projectTrust.projectRoot, options.signal);
         }
       }
       for (const record of order) assertNotEssentialFailure(record);
@@ -1009,6 +1106,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         settingGroups: settingGroupsOf(),
       };
     },
+    loadProject,
     ensureLoaded,
     async settingChanged(name, signal) {
       const record = records.get(name);

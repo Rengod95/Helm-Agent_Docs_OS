@@ -124,6 +124,8 @@ export {
   type SdkModules,
   type LoadOptions,
   type LoadReport,
+  type LoadProjectOptions,
+  type ProjectLoadReport,
   type LoadStage,
   type LoadState,
   type ProjectTrustResult,
