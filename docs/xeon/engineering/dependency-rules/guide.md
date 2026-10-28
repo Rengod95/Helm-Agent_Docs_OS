@@ -733,8 +733,8 @@ export const AllowList = Type.Array(AllowEntry);
     "rule": "DR-02",
     "from": "packages/group-learning",
     "to": "@xeon/group-kit",
-    "entries": ["."],
-    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15).",
+    "entries": [".", "./testing"],
+    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15). The group tests use the group-kit fakes (fake agents, replayDrive) through ./testing (L3.learning.plan section 2, DR-14 exception 5).",
     "approvedBy": "review.decisions-2"
   },
   {

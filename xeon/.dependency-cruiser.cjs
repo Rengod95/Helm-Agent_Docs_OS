@@ -43,7 +43,13 @@ const sameLayerGroups = [
     own: "^plugins/$1/",
   },
   { name: "L2", from: "^packages/(cap-[^/]+)/", to: "^packages/cap-", own: "^packages/$1/" },
-  { name: "L3", from: "^packages/(group-[^/]+)/", to: "^packages/group-", own: "^packages/$1/" },
+  // DR-02/group-kit-helm, DR-02/group-kit-learning (scripts/dependency-allowlist.json): a group may import the group-kit entries "." and "./testing".
+  {
+    name: "L3",
+    from: "^packages/(group-[^/]+)/",
+    to: "^packages/group-",
+    own: ["^packages/$1/", "^packages/group-kit/src/(index|testing/index)\\.ts$"],
+  },
   // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @xeon/host entries "." and "./client" only.
   // DR-10/cli-client, DR-10/desktop-client, DR-10/host-client: apps may import packages/client, so it is not in the "to" of the app groups.
   {
