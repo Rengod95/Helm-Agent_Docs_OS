@@ -47,7 +47,7 @@ export type {
 } from "./proposals/reader.ts";
 export { applyLearningEvent, type ProjectionRows } from "./proposals/rows.ts";
 export { decodeEvent, eventKindOf, LEARNING_EVENT_KINDS } from "./proposals/events.ts";
-export { createSqlReader, learningProjector } from "./proposals/sql.ts";
+export { createLearningProjector, createSqlReader, learningProjector } from "./proposals/sql.ts";
 export type { CommandReport, DecisionResult, LearningError, QueueSweep } from "./results.ts";
 export { learningSettings } from "./settings.ts";
 export { manifest as learningManifest } from "./manifest.ts";

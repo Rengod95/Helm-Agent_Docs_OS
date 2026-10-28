@@ -100,6 +100,8 @@ export function applyLearningEvent(rows: ProjectionRows, event: LearningEvent): 
   }
   if (event.kind === "proposal.created") {
     const { proposal } = event;
+    // 다시 재생된 제안 기록이 이미 결정된 후보를 pending으로 되돌리지 않는다
+    if (rows.getProposal(proposal.id) !== undefined) return;
     rows.putProposal({
       ...proposal,
       diff: proposal.body === "" ? "" : renderDiff(proposal.op, proposal.target, proposal.body),

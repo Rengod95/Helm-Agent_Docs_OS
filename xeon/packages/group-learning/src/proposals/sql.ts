@@ -219,23 +219,28 @@ function sqlRows(tx: ProjectionTx): ProjectionRows {
   };
 }
 
-/** 투영기(L3.learning.spec §3.7.2). 세션 DB의 투영기 등록부에 조립 루트가 등록한다. `ext.learning`이 소유한다 */
-export const learningProjector: Projector = {
-  name: "ext.learning",
-  version: 1,
-  tables: ["x_learning_proposals", "x_learning_reviews"],
-  ddl: [
-    PROPOSALS_DDL,
-    "CREATE INDEX x_learning_pstatus ON x_learning_proposals (status, created_at)",
-    REVIEWS_DDL,
-    "CREATE INDEX x_learning_rchild ON x_learning_reviews (child_thread_id)",
-  ],
-  kinds: LEARNING_EVENT_KINDS.map((kind) => `grp.learning.${kind}` as const),
-  apply(tx: ProjectionTx, event: DurableEventEnvelope): void {
-    const decoded = decodeEvent(event.kind, event.payload);
-    if (decoded !== undefined) applyLearningEvent(sqlRows(tx), decoded);
-  },
-};
+/** 투영기(L3.learning.spec §3.7.2). 세션 DB의 투영기 등록부에 조립 루트가 등록한다. `ext.learning`이 소유한다. `onSkipped`는 해독하지 못해 건너뛴 기록의 kind를 받는다(투영은 던지지 않는다: 던지면 커밋이 롤백된다) */
+export function createLearningProjector(onSkipped?: (kind: string) => void): Projector {
+  return {
+    name: "ext.learning",
+    version: 1,
+    tables: ["x_learning_proposals", "x_learning_reviews"],
+    ddl: [
+      PROPOSALS_DDL,
+      "CREATE INDEX x_learning_pstatus ON x_learning_proposals (status, created_at)",
+      REVIEWS_DDL,
+      "CREATE INDEX x_learning_rchild ON x_learning_reviews (child_thread_id)",
+    ],
+    kinds: LEARNING_EVENT_KINDS.map((kind) => `grp.learning.${kind}` as const),
+    apply(tx: ProjectionTx, event: DurableEventEnvelope): void {
+      const decoded = decodeEvent(event.kind, event.payload);
+      if (decoded === undefined) onSkipped?.(event.kind);
+      else applyLearningEvent(sqlRows(tx), decoded);
+    },
+  };
+}
+
+export const learningProjector: Projector = createLearningProjector();
 
 function failure(detail: string): StoreFailure {
   return { kind: "learning.storeUnavailable", detail };
