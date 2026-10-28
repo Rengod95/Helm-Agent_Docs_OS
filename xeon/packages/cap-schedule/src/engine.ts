@@ -75,17 +75,18 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
   }
 
   function track(work: Promise<unknown>, label: string): void {
-    const settled = settleQuietly(work, label);
+    const slot: { promise?: Promise<void> } = {};
+    const settled = (async () => {
+      try {
+        await work;
+      } catch (cause) {
+        deps.report?.("schedule.background_failed", { label, cause: String(cause) });
+      } finally {
+        if (slot.promise !== undefined) inflight.delete(slot.promise);
+      }
+    })();
+    slot.promise = settled;
     inflight.add(settled);
-    void settled.then(() => inflight.delete(settled));
-  }
-
-  async function settleQuietly(work: Promise<unknown>, label: string): Promise<void> {
-    try {
-      await work;
-    } catch (cause) {
-      deps.report?.("schedule.background_failed", { label, cause: String(cause) });
-    }
   }
 
   /** 상태를 바꾸고 저장한다. 저장은 호출 순서대로 하나씩 돈다 */

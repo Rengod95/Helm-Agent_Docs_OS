@@ -35,12 +35,12 @@ export class MemoryStore {
   }
 }
 
-export interface PendingRun {
+interface PendingRun {
   readonly request: RunRequest;
   settle(outcome: RunOutcome): void;
 }
 
-export class FakeRunner {
+class FakeRunner {
   readonly started: PendingRun[] = [];
   failNext = false;
   start(request: RunRequest): Promise<Result<StartedRun, RunnerFailure>> {
