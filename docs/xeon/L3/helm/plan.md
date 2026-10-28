@@ -48,18 +48,21 @@ xeon/packages/group-helm/
     explorer.md           # explorer 서브에이전트 정의(형식은 L1.agents.spec) [가정]
   src/
     manifest.ts           # helmManifest
-    state.ts              # HelmState 스키마, INITIAL_HELM_STATE, helmStateDecl, fitState, updateState,
-                          # HelmEvent, transition, TRANSITIONS
+    state.ts              # HelmState 스키마, INITIAL_HELM_STATE, helmStateDecl, fitState, updateState
+    phase.ts              # HelmEvent, transition, TRANSITIONS (state.ts와 failures.ts의 순환을 피해 나눔)
+    reaction.ts           # reactionOf, HelmReaction
+    findings.ts           # ExplorerReportSchema, parseExplorerAnswer, dedupeFindings
+    inject.ts             # injectLens(input.agent.before collect 핸들러)
     signals.ts            # SIGNAL_DEFAULTS, HelmTurnTally, openTally, observeToolEnd, extractTerms, settleTurn,
                           # inquiryIdFrom, decideAction, observeTool(tool.execution.after tap), settle(boundary.settle.after tap)
     lenses.ts             # LensDef, BUILTIN_LENSES(6개), LENS_PRIORITY, selectLenses
     prompts.ts            # LensBlock, lensBlockFor, renderLensBlock, divergePrompt, applyPrompt, explorerTask,
                           # postRequestId, injectLens(input.agent.before chain), 알림 post 도우미
     guard.ts              # WRITE_DENY_REASON, ToolCallMetaView, isWriteCall, isGuardedCaller, guardWrite(tool.call.before first)
-    drive.ts              # helmDrive, minLimits, turnRequestId, spawnRequestId, ExplorerReportSchema,
-                          # parseExplorerAnswer, dedupeFindings, ActiveInquiry, activeInquiry, guarded
+    drive.ts              # helmDrive, minLimits, turnRequestId, spawnRequestId,
+                          # ActiveInquiry, activeInquiry, guarded
     knowledge.ts          # KnowledgeDigest, gatherContext, callSource, degradeOf, 외부 텍스트 감싸기
-    failures.ts           # HelmFailure, failureOf, reactionOf, HelmReaction, HelmCommandError(스펙 §3.12, §4.12)
+    failures.ts           # HelmFailure, failureOf, HelmCommandError(스펙 §3.12, §4.12)
     records.ts            # 레코드 payload 스키마 3종, HELM_RECORD_KINDS, recordDiscoveries, recordFinished, linkWork
     commands.ts           # HelmCommand, HelmStatusView, parseHelmCommand, runHelmCommand, helmCommand
     settings.ts           # AutoStartSchema, helmSettings, HelmSettings
@@ -88,7 +91,7 @@ xeon/packages/group-helm/
 | H-02 | 매니페스트와 레코드 스키마: `manifest.ts`, `records.ts`의 payload 스키마 3종과 `HELM_RECORD_KINDS` | H-01, F.extensions M0(`defineManifest`, `RecordKindDecl`, `validateManifest`) | S |
 | H-03 | 상태 스키마: `HelmStateSchema`, `INITIAL_HELM_STATE`, `helmStateDecl`, `fitState`(직렬화 60 KiB 예산), `updateState`(직렬 큐 + `fitState`) | H-02 | S |
 | H-04 | 설정: `helmSettings`(`defineSettings("l3.helm", …)`)에 `autoStart`, `maxLenses`, `writeGuard`를 더해 4개 키(M3-04). `driveLimits`는 M2에 있다. `HelmSettings` | H-01, F.wire-settings `defineSettings`·`checkSettingDef` | S |
-| H-05 | 신호: 순수 함수(`openTally`, `observeToolEnd`, `settleTurn`, `extractTerms`(스펙 §3.5 규칙), `inquiryIdFrom`, `decideAction`)와 tap 핸들러 2개(`tool.execution.after`는 메모리 집계만, `boundary.settle.after`는 기록과 turn당 1회 커밋). suggest 모드 post(`when: "next"`). `input`이 없으면 `repeat` 집계를 건너뛴다 | H-03, H-04, M3-02(`tool_execution_end.input`) | M |
+| H-05 | 신호: 순수 함수(`openTally`, `observeToolEnd`, `settleTurn`, `extractTerms`(스펙 §3.5 규칙), `inquiryIdFrom`, `decideAction`)와 tap 핸들러 2개(`tool.execution.after`는 메모리 집계만, `boundary.settle.after`는 기록과 turn당 1회 커밋). suggest 모드 post(`when: "next"`). `input`이 없으면 `repeat` 집계를 건너뛴다 | H-03, H-04, M3-02(`tool.execution.after.input`) | M |
 | H-06 | 단계 전이: `HelmEvent`, `transition`, `TRANSITIONS`. 스펙 §4.2 표와 1:1. 임대 필요 판정 훅은 두지 않는다(스펙 §3.3) | H-03 | M |
 | H-07 | 주입: `lenses.ts`(내장 렌즈 6개, `LENS_PRIORITY`, `selectLenses(pending, …)`), `prompts.ts`(블록 구조, 단계별 문구 본문, turn 입력, explorer 과제, requestId), `input.agent.before` chain 핸들러, 알림 post(`when: "next"`), `agents/explorer.md` 본문과 `risk: read` 도구 목록 | H-06 | M |
 | H-08 | 쓰기 거부: `ToolCallMetaView`, `isWriteCall`(`risk !== "read"`), `isGuardedCaller`(`main`, `subagent:explorer`), `guardWrite`. 메타 없음 경고(`/helm status`) | H-03, H-04, M3-02(`ToolCallPayload.risk`·`hints`·`caller`) | S |
@@ -149,7 +152,7 @@ xeon/packages/group-helm/
 
 | # | 테스트 이름 | 확인할 동작 |
 |---|---|---|
-| 1 | `manifest.valid-and-usage-matches` | `helmManifest`가 `validateManifest` 오류 0, setup 뒤 `validateUsage` 오류 0. `points` 5개, `usesDrive`·`usesPost` 참 |
+| 1 | `manifest.valid-and-usage-matches` | `helmManifest`가 `validateManifest` 오류 0, setup 뒤 `validateUsage` 오류 0. `points` 6개, `usesDrive`·`usesPost` 참 |
 | 2 | `records.discovery-schema-valid` | 예시 발견 payload가 `DiscoveryRecordedPayloadSchema`와 F `validateGroupRecord`를 통과하고, `confidence` 범위 밖 값은 실패 |
 | 3 | `records.kinds-have-group-prefix` | `HELM_RECORD_KINDS` 3개가 `grp.helm.` 접두와 `RECORD_KIND_PATTERN`을 만족 |
 | 4 | `state.initial-valid` | `INITIAL_HELM_STATE`가 스키마를 통과하고 `helmStateDecl.version`이 1 |
@@ -167,10 +170,10 @@ xeon/packages/group-helm/
 | 13 | `transitions.finish-resets-inquiry` | `idle`로 가는 전이가 탐구 필드를 초기화하고 `finished`를 채운다 |
 | 14 | `guard.denies-write-in-diverge-only` | `diverge`·`explore`에서 쓰기 도구는 `{ block: true }`, 읽기 도구는 `undefined`. `idle`(pending 포함)·`converge`·`apply`에서는 모두 `undefined` |
 | 15 | `guard.respects-write-guard-setting` | `writeGuard` 거짓이면 확산 단계에서도 `undefined` |
-| 16 | `guard.exception-becomes-deny` | 메타 조회가 예외를 내면 테스트 호스트의 first 디스패치 결과가 `FIRST_DENY.tool_call` |
+| 16 | `guard.exception-becomes-deny` | 메타 조회가 예외를 내면 테스트 호스트의 first 디스패치 결과가 `FIRST_DENY["tool.call.before"]` |
 | 17 | `guard.unknown-meta-is-write` | `risk`가 없는 도구는 확산 단계에서 거부. `hints.readOnly: true`여도 `risk: exec`면 거부. `caller`가 `subagent:explorer`가 아닌 서브에이전트면 허용 |
 | 18 | `inject.one-lens-at-a-time` | 어느 단계에서도 시스템 프롬프트 블록에 렌즈 본문이 둘 이상 들어가지 않는다 |
-| 19 | `inject.appends-to-current` | 다른 핸들러가 먼저 낸 `systemPrompt` 패치 뒤에 Helm 블록이 붙고 앞 패치가 남는다 |
+| 19 | `inject.appends-to-current` | 핸들러가 받은 원본 `payload.systemPrompt` 뒤에 Helm 블록이 붙는다(collect 지점이라 다른 핸들러의 패치를 보지 않는다) |
 | 20 | `inject.requestid-dedup` | `postRequestId`가 같은 (inquiryId, phase, round)에 같은 값, 64자 이하. 같은 알림 두 번 post면 두 번째가 `duplicate: true` |
 | 21 | `drive.recall-from-committed-state-spawns-once` | `replayDrive`로 각 커밋 뒤 drive를 다시 호출해도 렌즈별 spawn 1회, 적용 turn 1회 |
 | 22 | `drive.n-lenses-n-spawns-then-one-apply-turn` | 렌즈 N(1, 3, 8)개면 spawn N회, 모든 결과 커밋 이벤트 뒤 적용 turn 1회 |

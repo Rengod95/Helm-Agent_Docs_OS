@@ -9,6 +9,18 @@
   "references": [
     {
       "path": "../contracts"
+    },
+    {
+      "path": "../group-kit"
+    },
+    {
+      "path": "../ext-host"
+    },
+    {
+      "path": "../core-models"
+    },
+    {
+      "path": "../core-agents"
     }
   ]
 }

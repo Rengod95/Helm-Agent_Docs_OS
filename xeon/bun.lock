@@ -319,10 +319,14 @@
       "version": "0.0.0",
       "dependencies": {
         "@xeon/contracts": "workspace:*",
+        "@xeon/group-kit": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/core-agents": "workspace:*",
+        "@xeon/core-models": "workspace:*",
+        "@xeon/ext-host": "workspace:*",
       },
     },
     "packages/group-kit": {

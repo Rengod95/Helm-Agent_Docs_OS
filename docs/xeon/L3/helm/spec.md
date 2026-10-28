@@ -150,7 +150,7 @@ export const helmManifest = defineManifest({
   description: "탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 의도 그룹",
   layer: "L3",
   kind: "group",
-  entry: "./src/index.ts",
+  entry: "./dist/index.js",                    // 번들 산출물(H-22). 소스 진입점은 src/index.ts
   defaultEnabled: true,                        // [결정: D-M3-01] 기본 플러그인. 설치되어 있으면 켠다
   usesDrive: true,
   usesPost: true,
@@ -160,6 +160,7 @@ export const helmManifest = defineManifest({
     "tool.execution.after",                      // tap: 신호 입력 갱신(§4.3)
     "boundary.settle.after",                           // tap: 신호 판정, 정착 처리(§4.3)
     "session.start",                           // tap: 상태 복원 확인(§4.9)
+    "lifecycle.lease.rejected",                // tap: 대기 거부 처리(§4.13). 지점 이름은 ADR-0017
   ],
   requires: [],                                // §4.7 저하 동작으로 모든 능력이 없어도 켜진다
   optional: [
@@ -194,6 +195,8 @@ export const helmManifest = defineManifest({
 ```ts
 import { Type, type Static } from "typebox";
 
+// 구현 메모: isolatedDeclarations 때문에 상태 타입은 손으로 쓴 인터페이스이고 스키마는
+// `Type.Unsafe<T>(shape satisfies SchemaProof<T, typeof shape>)`로 만든다(TY-26). 필드와 제약은 아래와 같다.
 export const HELM_STATE_VERSION = 1 as const;
 
 export const HelmPhaseSchema = Type.Union([
@@ -264,7 +267,7 @@ export const HelmPendingSchema = Type.Object({
 });
 export type HelmPending = Static<typeof HelmPendingSchema>;
 
-/** turn을 넘어 이어지는 연속 횟수. agent_settled에서 turn당 한 번 커밋한다(§4.3) [제안] */
+/** turn을 넘어 이어지는 연속 횟수. `boundary.settle.after`에서 turn당 한 번 커밋한다(§4.3) [제안] */
 export const HelmWatchSchema = Type.Object({
   /** `${toolName}:${errorDigest}` */
   errorKey: Type.Union([Type.String({ maxLength: 96 }), Type.Null()]),
@@ -280,7 +283,6 @@ export type HelmWatch = Static<typeof HelmWatchSchema>;
  * (threadId, turnId)로 구분하고 boundary.settle.after 커밋 뒤 버린다
  */
 export interface HelmTurnTally {
-  readonly turnId: TurnId;
   /** 커밋된 watch에서 시작해 이 turn의 도구 결과로 갱신한 값 */
   readonly watch: HelmWatch;
   /** 이미 반영한 toolCallId. 같은 페이로드의 재실행을 한 번으로 센다 */
@@ -291,6 +293,8 @@ export interface HelmTurnTally {
   readonly promptTerms: readonly string[];
   /** 이 turn에서 넘은 신호. 중복 없이 최대 3개 */
   readonly crossed: readonly HelmSignalKind[];
+  /** 신호별 근거 요약(도구 이름, 횟수). 신호 기록의 `evidence`가 된다 */
+  readonly evidence: Readonly<Partial<Record<HelmSignalKind, { readonly toolName?: string; readonly count: number }>>>;
 }
 
 export const HelmStateSchema = Type.Object({
@@ -349,9 +353,9 @@ export function updateState(
 - 바이트 상한 [제안]: 개수 상한만으로는 group-kit 상태 문서 상한(직렬화 UTF-8 64 KiB, L3.group-kit.spec §3.6, §4.5)을 지키지 못한다. 한국어 `claim` 1000자는 약 3 KB이고 발견 24개면 그것만으로 64 KiB를 넘는다. 그래서 `updateState`는 커밋 전 `fitState`로 직렬화 크기를 `HELM_STATE_BUDGET_BYTES`(60 KiB) 이하로 줄인다. 빈 탐구 필드의 상태는 예산 안이므로 이 절차는 항상 끝난다. 버린 발견은 `grp.helm.discovery.recorded`에도 쓰지 않는다. 초과 커밋은 group-kit이 거부하고(L3.group-kit.spec §5 9번) drive 예외와 임대 `error` 반납으로 이어지므로 이 검사는 커밋 앞에서 한다.
 - 긴 본문은 상태에 두지 않는다. explorer 답 원문은 상태에 넣지 않고(§4.5), 발견은 요약 주장과 출처 참조만 싣는다(L3.group-kit.spec §4.5 규칙 5).
 
-### 3.3 단계 전이 (`src/state.ts`)
+### 3.3 단계 전이 (`src/phase.ts`)
 
-전이 함수는 상태 스키마와 같은 파일에 둔다. 파일이 커지면 `src/phase.ts`로 나눌 수 있다(공개 이름은 같다).
+전이 함수는 `src/phase.ts`에 둔다. `state.ts`가 `updateState`의 실패 값(`failures.ts`)을 import하고 `phase.ts`가 상태를 import하므로, 순환을 피하려고 전이와 `HelmReaction`(`src/reaction.ts`)을 `state.ts` 밖에 둔다. `parseExplorerAnswer`와 `dedupeFindings`는 `explored` 전이가 쓰므로 `src/findings.ts`에 둔다(§3.7).
 
 ```ts
 export type HelmEvent =
@@ -496,7 +500,6 @@ export interface ToolExecutionEndView {
   readonly isError: boolean;
   readonly result: unknown;
   readonly input?: Readonly<Record<string, JsonValue>>;
-  readonly capability?: CapabilityRef;
 }
 
 /** 순수 함수. 집계표를 갱신하고 넘은 신호를 crossed에 더한다. seenToolCallIds에 있는 호출은 그대로 돌려준다 */
@@ -506,8 +509,8 @@ export function observeToolEnd(
   thresholds: typeof SIGNAL_DEFAULTS,
 ): HelmTurnTally;
 
-/** 순수 함수. turn의 첫 지점에서 커밋된 watch로 빈 집계표를 만든다 */
-export function openTally(turnId: TurnId, watch: Readonly<HelmWatch>): HelmTurnTally;
+/** 순수 함수. turn의 첫 지점에서 커밋된 watch로 빈 집계표를 만든다. `tool.execution.after`·`input.agent.before` 페이로드에는 turnId가 없어 집계표는 thread별로 두고 turnId는 `boundary.settle.after`에서 받는다 */
+export function openTally(watch: Readonly<HelmWatch>): HelmTurnTally;
 
 /** 순수 함수. 사용자 입력에서 분야 용어 후보를 뽑는다. 규칙은 아래 목록 */
 export function extractTerms(prompt: string): readonly string[];
@@ -516,7 +519,11 @@ export function extractTerms(prompt: string): readonly string[];
 export function settleTurn(
   tally: Readonly<HelmTurnTally>,
   thresholds: typeof SIGNAL_DEFAULTS,
-): { readonly watch: HelmWatch; readonly crossed: readonly HelmSignalKind[] };
+): {
+  readonly watch: HelmWatch;
+  readonly crossed: readonly HelmSignalKind[];
+  readonly evidence: HelmTurnTally["evidence"];
+};
 
 /** 순수 함수. 결정적 inquiryId. "h" + base32(fnv1a64(seed)) 13자 */
 export function inquiryIdFrom(seed: string): InquiryId;
@@ -526,6 +533,7 @@ export function decideAction(
   state: Readonly<HelmState>,
   crossed: readonly HelmSignalKind[],
   autoStart: AutoStart,
+  seed: { readonly turnId: string; readonly evidence: HelmTurnTally["evidence"]; readonly terms: readonly string[] },
 ): { readonly action: SignalDetectedPayload["action"]; readonly pending?: HelmPending };
 ```
 
@@ -535,6 +543,7 @@ export function decideAction(
 - 인자 다이제스트: `input`의 키를 정렬한 정규 JSON(`JSON.stringify`에 정렬 키)을 `fnv1a64`로 줄인다. `input`이 없으면(F에 필드가 들어오기 전) `repeat` 집계를 건너뛴다. `stuck`과 `newDomain`은 `input` 없이 동작한다.
 - 용어 추출(`extractTerms`): 사용자 입력에서 다음을 순서대로 모은다. (1) 백틱 안 문자열, (2) 대문자 두 자 이상 약어(`[A-Z][A-Z0-9]{1,}`), (3) 낙타 표기 영문 낱말(소문자 뒤에 대문자가 오는 낱말)과 하이픈으로 이은 영문 낱말, (4) 한글 낱말 가운데 `extractTerms`의 내장 불용어 목록에 없고 3자 이상인 것. 소문자로 맞추고 중복을 지운 뒤 앞 16개, 각 64자까지 남긴다. 모델·사전 호출을 쓰지 않는 순수 함수다.
 - `newDomain` 조합: 한 turn에 지식 검색 빈 결과가 2회 이상이면 참이다. 빈 결과가 1회이고 용어 후보가 하나 이상이면 참이다. 지식 검색 도구는 `ToolExecutionEndView.capability.id === "knowledge.search"`로 알아보고, 빈 결과는 `structuredContent`의 결과 수 0으로 판정한다 [가정: L2.knowledge.spec 도구 결과 형식].
+- 지식 검색 도구 식별: `tool.execution.after` 페이로드에는 능력 참조(`capability`)가 없으므로 모델 도구 이름 `knowledge_search`(L2.knowledge `KnowledgeSearch.tools`)로 알아보고, 빈 결과는 결과의 `structuredContent.hits` 길이 0으로 판정한다 [가정: 도구 결과 형식].
 - 임계를 설정으로 노출하지 않는 이유: M3에서 신호 품질을 잴 기준 데이터가 없다. 계측(M3-new-09)으로 신호 수와 `/helm start` 전환율을 모은 뒤 노출 여부를 정한다.
 
 ### 3.6 주입 (`src/lenses.ts`, `src/prompts.ts`)
@@ -830,8 +839,10 @@ export type HelmReaction =
   | { readonly type: "finish"; readonly event: HelmEvent }           // 전이로 탐구를 끝낸다
   | { readonly type: "degrade"; readonly source: "web" | "knowledge" | "session" | "work" }   // 그 출처만 건너뛴다
   | { readonly type: "retry_once" }                                  // 상태를 다시 읽고 같은 단계를 한 번 더
-  | { readonly type: "yield" };                                      // 커밋 없이 반환. X가 다음 경계에서 다시 부른다
+  | { readonly type: "yield" }                                       // 커밋 없이 반환. X가 다음 경계에서 다시 부른다
+  | { readonly type: "lens_failed"; readonly lensId: string };      // spawn 실패 하나. 그 렌즈만 failed로 세고 수렴한다(§4.2)
 ```
+`HelmReaction`과 `reactionOf`는 순환을 피하려고 `src/reaction.ts`에 둔다. `reactionOf(failure, phase, source?)`의 `source`는 같은 능력(`knowledge.search`)이 두 출처(스킬, 세션)를 맡을 때 호출한 쪽이 알린다. `failureOf`의 `at`에는 `limit`(`lease_budget`이 어느 상한인지)를 더한다. ext-host를 import하지 않으므로 `PrimitiveError`는 이름과 `code`로 알아본다.
 
 - kind 이름은 X `PrimitiveErrorCode`(X.primitives.spec §3.10)와 F `CapabilityErrorCode`를 그대로 옮기지 않고 Helm의 처리 단위로 묶는다. 처리가 같은 코드는 한 kind로 모은다.
 - `failureOf`가 `undefined`를 돌려준 예외(설계 위반, `Bug`, 알 수 없는 오류)는 다시 던진다. drive에서 던지면 X가 임대를 반납하고 drive 등록을 오류로 표시한다(F.extensions.spec §5 6번, `GroupStatus.lastError` `group.driveThrew`).
@@ -919,7 +930,7 @@ export type HelmReaction =
 | turn 입력 | `loop.turn({ input })` | `diverge`, `apply` | `divergePrompt(state)`, `applyPrompt(state)` |
 | 입력 큐 | `post` | 제안, 상한 도달·부분 실패·종료 알림 | `kind: "context"`, `display: true`, `when: "next"`(adr.0013). 단계 중간에 방법 힌트를 넣을 때만 `when: "steer"`이고, 임대를 가진 탐구 turn이 실행 중일 때로 한정한다 |
 
-- chain 패치 [가정]: F.extensions.spec §3.4 3행의 `BeforeAgentStartPayload`, `BeforeAgentStartPatch`는 아직 필드가 없다. pi `BeforeAgentStartEvent`(`prompt`, `images`, `systemPrompt`)와 `BeforeAgentStartEventResult`(`systemPrompt`, `message`)를 따른다고 보고, Helm 핸들러는 `{ systemPrompt: current.systemPrompt + "\n\n" + block }`을 돌려준다. 원본 `payload`가 아닌 누적값 `current`에 붙여 다른 그룹의 추가분을 지우지 않는다(F.extensions.spec §4.1 chain 보충 규칙).
+- collect 패치 [결정: ADR-0017]: `input.agent.before`는 collect 지점이다. 모든 핸들러가 원본 `payload`(`prompt`, `systemPrompt`)를 받고 반환값(`BeforeAgentStartPatch`의 `systemPrompt`, `message`)이 등록 순서로 모인다. 시스템 프롬프트 교체값은 마지막으로 정의한 핸들러가 이긴다. Helm 핸들러는 `{ systemPrompt: payload.systemPrompt + "\n\n" + block }`을 돌려준다. 다른 그룹이 같은 지점에서 교체값을 내면 순서에 따라 한쪽이 이긴다 [미결: 병합 규칙이 바뀌면 이 문장을 고친다].
 - 한 시점에 렌즈 하나만 주입한다 [제안]. `explore` 단계에서 부모 대화의 블록에는 렌즈 목록 제목만 넣고, 렌즈별 지시는 각 explorer 과제에만 넣는다. `diverge`, `converge`, `apply`의 블록에는 렌즈 본문을 넣지 않는다.
 - 블록 구조(`LensBlock`): 머리줄(`[helm] inquiry <id> round <n> phase <phase>`), 단계 규칙 목록(예: 확산 단계 쓰기 금지 고지), 현재 렌즈 제목. 문구 본문은 다음 단계에서 정한다.
 - 대상 thread: 핸들러는 `ctx.threadId`가 Helm 상태를 가진 대화일 때만 패치를 낸다 [가정]. explorer 자식 대화에서 같은 지점이 발화하는지는 L1.agents.spec이 정한다.
@@ -1068,7 +1079,7 @@ export function guardWrite(g: GroupApi<HelmState>): Handler<"tool.call.before", 
 - 대상 대화(`caller`) [제안]: `main`과 `subagent:explorer`를 거부 대상으로 본다. 그 밖의 서브에이전트(다른 그룹의 위임, 학습 검토 포크)는 Helm 탐구와 관계가 없으므로 거부하지 않는다. `caller`가 없으면 `main`으로 본다. 핸들러는 그 밖에 `ctx.threadId`가 Helm 상태를 가진 대화이거나 그 자식인지에 기대지 않는다. 자식 대화에서 그룹 핸들러가 발화하는 범위는 L1.agents가 정한다(REQ-L1-04). 자식 대화에서 발화하지 않으면 explorer의 쓰기 차단은 아래 정의 상한 하나가 맡는다.
 - explorer 도구 상한 [제안]: explorer 정의의 도구 목록은 `risk: read` 도구(`read`, `ls`, `grep`, `find`, `web_search`, `web_fetch`, 지식 검색 도구)만 둔다. 이 상한은 L1.agents 권한 상한(§4.3)으로 집행되고 Helm 핸들러 발화와 상관없이 적용된다.
 - 처리 순서 [가정] (H-IN-16, REQ-X-11): `tool.call.before` 지점 디스패치는 인자 검증 뒤, 정책 판정·승인 요청 앞에서 실행된다. 그래서 Helm이 거부한 호출은 사용자 승인 창을 띄우지 않는다. 샌드박스는 실행 경로(L0)에서 따로 걸리므로 Helm 거부와 겹치지 않는다. 순서가 다르게 정해지면 이 절의 "승인 창을 띄우지 않는다" 문장만 고친다.
-- 핸들러 예외는 `FIRST_DENY.tool_call`로 바뀌어 호출이 거부된다(F.extensions.spec §4.1 first fail-closed). 이 거부는 Helm 단계와 상관없이 일어나므로 핸들러는 상태 읽기와 순수 판정만 하고 I/O를 하지 않는다.
+- 핸들러 예외는 `FIRST_DENY["tool.call.before"]`로 바뀌어 호출이 거부된다(F.extensions.spec §4.1 first fail-closed). 이 거부는 Helm 단계와 상관없이 일어나므로 핸들러는 상태 읽기와 순수 판정만 하고 I/O를 하지 않는다.
 - 강제력: 이 거부는 모델의 응답 내용과 상관없이 도구 실행 전에 적용된다. 모델이 쓰기 금지 고지(§4.4)를 무시하고 쓰기 도구를 불러도 도구는 실행되지 않는다.
 - 메타가 F에 들어오기 전: M3-02가 Helm 본체(M3-01)의 선행이다(`review.m3-plan` §2). 구현 순서상 메타 없는 기간은 없지만, 필드가 비어 있으면 위 표의 "`risk` 없음" 행으로 모두 쓰기로 본다. 그때는 확산 단계에서 읽기 도구도 거부되므로 `/helm status`가 "도구 메타 없음" 경고를 보인다.
 
