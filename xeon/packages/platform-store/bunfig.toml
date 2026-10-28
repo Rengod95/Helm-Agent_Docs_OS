@@ -2,3 +2,5 @@
 coverageSkipTestFiles = true
 coveragePathIgnorePatterns = ["../contracts/**", "../ext-host/**", "test/**"]
 coverageThreshold = { lines = 0.9, functions = 0.9 }
+# 임시 파일 시험의 scratch를 /dev/shm으로 돌린다(eng.testing.guide TS-07, scripts/test-preload.ts)
+preload = ["../../scripts/test-preload.ts"]
