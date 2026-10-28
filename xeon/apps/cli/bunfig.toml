@@ -1,4 +1,6 @@
 [test]
+# 임시 파일 시험의 scratch를 /dev/shm으로 돌린다(eng.testing.guide TS-07, scripts/test-preload.ts)
+preload = ["../../scripts/test-preload.ts"]
 # L4 coverage threshold (eng.testing.guide TS-10). 다른 패키지(host가 끌어오는 하위 층 전체)는 이 패키지의 커버리지가 아니다.
 coverageThreshold = { lines = 0.5, functions = 0.5 }
 coverageSkipTestFiles = true
