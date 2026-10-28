@@ -149,13 +149,13 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
         listener?.stop();
       });
       // 스레드를 다시 열 때 승인 요청이 빠진 판을 다시 요청하고 모드 복원을 마무리한다(spec §4.5)
-      g.on("session_start", async (payload) => {
+      g.on("session.start", async (payload) => {
         const resumed = await attemptAsync(() => plans.resume(payload.threadId));
         if (!resumed.ok) logger.error("work.plans.resume_failed", { thread: payload.threadId });
       });
 
       // L2.work.spec §4.1.6. 질의만 하고 이벤트를 쓰지 않는다
-      g.on("before_agent_start", (_payload, _current, ctx) => {
+      g.on("input.agent.before", (_payload, ctx) => {
         const reminderTurns = deps.settings(ctx.threadId).tasks.reminderTurns;
         if (reminderTurns <= 0) return undefined;
         const tasks = readTasks(reader, ctx.threadId);

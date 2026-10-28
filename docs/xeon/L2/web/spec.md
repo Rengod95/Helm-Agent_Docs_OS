@@ -1257,7 +1257,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 - 모델 도구 경로의 fetch·navigate URL이 그 세션 대화에 나온 적이 없으면 `l2.web.policy.unseenUrl`(기본 `ask`)을 적용한다(`_research/web-tools.md` §5.2 2번, Anthropic web_fetch의 "대화에 나온 URL만" 규칙).
   - "나온 URL" 집합은 이 세션에서 웹 능력이 돌려준 URL(검색 결과, fetch의 `links`, 리다이렉트 `to`)과 사용자 입력 텍스트에서 뽑은 URL이다.
   - 비교 키는 실제로 나가는 요청의 모양이다: 스킴·호스트(소문자)·경로·전체 쿼리(이름 순 정렬)이고 프래그먼트만 뺀다. 추적 파라미터(`utm_*`, `gclid` 등)를 지우는 §4.3.3 정규화는 쓰지 않는다. 본 URL 뒤에 `?utm_content=<대화 내용>`을 붙이면 질문 없이 대화 내용이 나가기 때문이다.
-  - [제안] 사용자 입력 URL은 `cap-web`이 `input` 지점(F.extensions.spec #1, chain)에서 패치 없이 읽어 세션별 메모리 집합에 넣는다. 재시작 뒤에는 §4.2.1과 같은 방식으로 세션 이벤트를 읽어 다시 채운다.
+  - [제안] 사용자 입력 URL은 `cap-web`이 `input.user.before` 지점(F.extensions.spec #1, chain)에서 패치 없이 읽어 세션별 메모리 집합에 넣는다. 재시작 뒤에는 §4.2.1과 같은 방식으로 세션 이벤트를 읽어 다시 채운다.
 - 쿼리 문자열이나 경로에 비밀 패턴(키 접두 `sk-`, `ghp_`, `AKIA`, JWT 형태 등)이 보이면 `ask`다. 등록된 비밀 값이면 §4.1 3단계에서 이미 거부된다.
 - `caller.afterUntrusted = true`인 모델 호출의 쓰기성 브라우저 동작(`act`의 `fill`, `type`, `upload`, 폼 제출)은 승인을 요구한다 [제안]. 웹 결과를 읽은 뒤의 위험 동작에 승인을 거는 plan-then-execute 완화다(`_research/web-tools.md` §5.2 3번).
 
@@ -1433,7 +1433,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
   - 동작 수 `l2.web.browse.maxActions`(기본 200)
   - 비용 `l2.web.browse.maxUsd`(기본 0.5달러). 로컬 provider는 0달러지만 클라우드 provider 플러그인을 위해 둔다.
 - 대화 세션 하나가 동시에 여는 브라우저 세션은 `l2.web.browse.maxSessions`(기본 3)까지다.
-- 대화 세션이 끝나면(`session_shutdown` 지점, tap) 그 세션이 연 브라우저 세션을 닫는다.
+- 대화 세션이 끝나면(`session.shutdown` 지점, tap) 그 세션이 연 브라우저 세션을 닫는다.
 
 #### 4.10.2 이동 정책과 필터 프록시
 
@@ -1680,12 +1680,12 @@ export const webSettings = defineSettings("l2.web", {
 ## 7. 확장 지점
 
 - 이 문서는 새 지점을 정의하지 않는다.
-- 모델 도구 경로는 `F.extensions.spec`의 tool 지점(`tool_call` first, `tool_result` chain, `tool_execution_*` tap)을 지난다. 페이로드의 `capability` 필드(`{ id: "web.fetch", method: "fetch" }` 등)로 핸들러가 웹 능력을 골라 거부하거나 결과를 바꿀 수 있다(`F.capabilities.spec` §7). Helm이 확산 단계에서 쓰기 도구를 막는 경로와 같다.
+- 모델 도구 경로는 `F.extensions.spec`의 tool 지점(`tool.call.before` first, `tool.result` chain, `tool_execution_*` tap)을 지난다. 페이로드의 `capability` 필드(`{ id: "web.fetch", method: "fetch" }` 등)로 핸들러가 웹 능력을 골라 거부하거나 결과를 바꿀 수 있다(`F.capabilities.spec` §7). Helm이 확산 단계에서 쓰기 도구를 막는 경로와 같다.
 - 그룹 코드의 서비스 호출(`g.capability(WebSearchKey).search(...)`)은 tool 지점을 지나지 않는다. 그래서 정책·상한·untrusted 표식은 앞단 서비스 안에서 적용한다(§4.1). 도구 어댑터에만 두면 그룹 경로가 빠진다.
 - `cap-web`이 거는 지점(구독만, 결과를 바꾸지 않음):
-  - `input`(#1, chain): 사용자 입력에서 URL을 뽑아 "나온 URL" 집합에 넣는다. 패치를 돌려주지 않는다(§4.6.6).
-  - `session_shutdown`(#39, tap): 그 세션의 브라우저 세션을 닫고 `retention='session'` rawRef를 정리 대상으로 표시한다.
-  - `turn_start`(#19, tap): `l2.web.search.modelTool = auto` 판정을 세션 첫 턴에 한 번 계산해 고정한다(§4.8.1).
+  - `input.user.before`(#1, chain): 사용자 입력에서 URL을 뽑아 "나온 URL" 집합에 넣는다. 패치를 돌려주지 않는다(§4.6.6).
+  - `session.shutdown`(#39, tap): 그 세션의 브라우저 세션을 닫고 `retention='session'` rawRef를 정리 대상으로 표시한다.
+  - `boundary.step.before`(#19, tap): `l2.web.search.modelTool = auto` 판정을 세션 첫 턴에 한 번 계산해 고정한다(§4.8.1).
 - drive와의 관계: L2는 drive를 쓰지 않는다(`L2.readme` §4). L3 그룹 `drive` 함수 안의 `web.search` 호출은 일반 서비스 호출이다.
 - post: 쓰지 않는다. `web.research`의 완료 알림을 대화에 넣는 경로는 2차 설계 때 정한다.
 
@@ -1747,7 +1747,7 @@ export const webSettings = defineSettings("l2.web", {
 1. 닫힘. `F.capabilities.spec` §3.9 `web.search` 예시는 간추린 설명용 예시로 선언되었고 정본은 `defs/web.ts`와 이 문서 §3.2다. provider 메타는 `meta`(`ProviderSelectionMeta`, F.capabilities §3.11)다.
 2. 닫힘. 호출자 정보는 `F.capabilities.spec` §3.2 `CallOptions.context.caller`로 받는다(§3.7). `L2.knowledge.spec`도 같다.
 3. [미결] 모델용 도구 경로 ①의 광고 방식(hosted, function, auto)과 L1.models와의 책임 경계. 제안은 auto(세션 시작 때 판정 고정)다(§4.8.1). ADR-0005 ①은 "provider 내장 검색을 그대로 노출"이라 A안에 가깝다.
-   - M2 조사 결과(M2 마감 재검토 4): 구현하지 않았다. 요청 쪽은 막힘이 없다. `before_provider_request`(chain)의 `ProviderPayloadPatch`가 페이로드를 통째로 바꾸므로 서버 도구 한 개를 `tools`에 더하는 일은 지금 계약으로 된다. 막히는 곳은 응답 쪽이다.
+   - M2 조사 결과(M2 마감 재검토 4): 구현하지 않았다. 요청 쪽은 막힘이 없다. `request.provider.before`(chain)의 `ProviderPayloadPatch`가 페이로드를 통째로 바꾸므로 서버 도구 한 개를 `tools`에 더하는 일은 지금 계약으로 된다. 막히는 곳은 응답 쪽이다.
    - (a) pi-ai 1.3.0의 `AssistantMessage.content`는 `TextContent | ThinkingContent | ToolCall`뿐이다(`types.d.ts:364`). anthropic-messages 어댑터는 `text`, `thinking`, `redacted_thinking`, `tool_use` 블록만 모으고 `server_tool_use`와 `web_search_tool_result`는 버린다(소스에 `web_search`, `server_tool_use` 문자열이 없다). 다음 요청의 대화 이력 변환도 그 세 가지만 내보낸다. 그래서 `encrypted_content`를 보관하고 반송할 자리가 없고, 이전 턴의 검색 결과와 텍스트 인용(`cited_text`)이 이력에서 빠진다.
    - (b) `pause_turn`은 어댑터가 `stopReason: "stop"`(`rawStopReason: "pause_turn"`)으로 바꾼다(`mapStopReason`). 루프는 이를 턴 끝으로 읽어 본문이 잘린 채 끝난다. 이어 요청은 서버 도구 블록을 포함한 직전 content를 다시 보내야 하므로 (a) 없이는 못 한다.
    - (c) 메인 턴의 hosted 결과(`HostedSearchResponse` 모양)를 `normalizeHostedSearch`로 넘기는 경로가 없다. L4 인용 렌더링에 쓰려면 F에 이벤트나 레코드가 필요하다.

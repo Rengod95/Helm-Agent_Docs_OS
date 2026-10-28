@@ -123,7 +123,7 @@ xeon/packages/cap-work/
 | 참고 구현 | 위치 | 가져오는 설계 | 바꾸는 점 |
 |---|---|---|---|
 | Claude Code 작업 도구(TaskCreate/Update/Get/List, `dependencies`) | `_research/refs/claude-code.md` 217행, `_research/l2e.md` §3.1 A1·A7 | 순번 ID, 선행 관계 필드, 목록 연산 | 도구 네 개를 `task_write` 하나로 합친다. 선행 관계에 순환 거부를 더한다 |
-| omp `session/todo-tracker.ts`, `tools/todo.ts` | `_research/packages.md` §4.4 L2-e 행, `_research/l2e.md` 부록(omp 로컬 경로) | 상태 5종, `todo_reminder` 방치 알림 | 상태 이름을 이 문서 표로 맞춘다. 알림은 이벤트 대신 `before_agent_start` 질의로 만든다 |
+| omp `session/todo-tracker.ts`, `tools/todo.ts` | `_research/packages.md` §4.4 L2-e 행, `_research/l2e.md` 부록(omp 로컬 경로) | 상태 5종, `todo_reminder` 방치 알림 | 상태 이름을 이 문서 표로 맞춘다. 알림은 이벤트 대신 `input.agent.before` 질의로 만든다 |
 | omp `goals/runtime.ts` | `_research/l2e.md` 부록, `_research/refs/oh-my-pi.md` 숨김 도구 `goal` | 목표 상태, 완료 보고에 토큰·시간 | 자가 판정(`goal` 도구)을 쓰지 않고 별도 판정자로 바꾼다 |
 | Hermes `hermes_cli/goals.py` | `_research/l2e.md` 부록, `_research/refs/hermes.md` | 보조 모델 판정자, 턴 종료 뒤 판정 | 실패 시 계속을 기본으로 두지 않고 설정으로 고른다(W-7). 판정 결과를 내구 이벤트로 남긴다 |
 
@@ -216,7 +216,7 @@ M3:
 | T3 `work.tasks` 서비스(create, update, link, list, write), 스레드별 쓰기 큐 | 완료 | `src/tasks/service.ts`, `src/tasks/queue.ts` |
 | T3 `task_write` 도구 등록(`risk: "read"`) | 완료 | `src/plugin.ts` |
 | T3 투영기 `cap.work` 버전 1(작업 부분) | 완료 | `src/projection/*` |
-| T3 방치 알림(`before_agent_start`) | 완료 | `src/tasks/reminder.ts`, `src/plugin.ts` |
+| T3 방치 알림(`input.agent.before`) | 완료 | `src/tasks/reminder.ts`, `src/plugin.ts` |
 | T8 설정 키 여섯 개 선언과 읽기 | 완료(선언은 여섯 개 모두, 읽는 곳은 `tasks.*` 둘) | `src/settings.ts` |
 
 파일 배치는 §2와 두 곳이 다르다.

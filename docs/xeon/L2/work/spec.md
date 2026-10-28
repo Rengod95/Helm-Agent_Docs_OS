@@ -931,7 +931,7 @@ CREATE TABLE cap_work_meta (
 #### 4.1.6 방치 알림
 
 - [제안] 설정 `l2.work.tasks.reminderTurns`가 N(> 0)이면, `pending`이나 `in_progress` 작업이 있고 마지막 작업 변경 뒤 완료된 턴이 N개 이상일 때 다음 턴 시작에 알림 문장을 컨텍스트에 더한다. omp `todo_reminder` 이벤트와 같은 목적이다(`_research/refs/oh-my-pi.md` 확장 이벤트 표).
-- 구현은 `before_agent_start` 지점(chain) 핸들러다. 핸들러는 투영을 읽는 질의만 하고 이벤트를 쓰지 않는다(F.extensions.spec §4.3). 패치는 확장 메시지 추가(`BeforeAgentStartPatch`의 message 병합)다. `customType`은 `x.cap-work.tasks.reminder`, `display: false`다.
+- 구현은 `input.agent.before` 지점(collect) 핸들러다. 핸들러는 투영을 읽는 질의만 하고 이벤트를 쓰지 않는다(F.extensions.spec §4.3). 패치는 확장 메시지 추가(`BeforeAgentStartPatch`의 message 병합)다. `customType`은 `x.cap-work.tasks.reminder`, `display: false`다.
 - 기본값은 0(끔)이다. 알림 문장은 프롬프트 캐시 접두 뒤에 붙으므로 캐시를 깨지 않는다 [가정: L1.context가 확장 메시지를 대화 끝에 둔다].
 
 ### 4.2 계획 모드와 승인
@@ -1141,7 +1141,7 @@ export interface GoalEvidence {
 }
 ```
 
-- `GoalEvidence`는 `JudgeInput`으로 바꿔 넘긴다. `goal.text` = `condition`, `goal.criteria` = `rubric`, `evidence`는 `finalText`(`assistant_text`), 도구 호출 요약(`tool_result`), 작업 목록(`work_item`), 직전 판정(`note`)이다.
+- `GoalEvidence`는 `JudgeInput`으로 바꿔 넘긴다. `goal.text` = `condition`, `goal.criteria` = `rubric`, `evidence`는 `finalText`(`assistant_text`), 도구 호출 요약(`tool.result`), 작업 목록(`work_item`), 직전 판정(`note`)이다.
 - 증거는 `xeon.session`의 이벤트 읽기로 모은다(eng.context-map.design §4.1 work 행의 의존 `xeon.session`). 다른 컨텍스트의 테이블을 직접 읽지 않는다(CM-02).
 - 결과 대응: `judged`·`recorded`의 `record.verdict`가 `met`이면 `met: true`, `not_met`·`undecidable`이면 `met: false`다. `reason`은 `record.rationale`, `missing`은 `record.missing`이다. `failed`는 판정 실패이고 `failure.code`는 `upstream_error`다. `capped`는 §4.3.2의 상한 처리다.
 - 사용량은 `record.usage`를 `work.goal_judged.usage`에 남긴다. 보고의 `resources.judge`가 이 합계다.
@@ -1160,7 +1160,7 @@ export interface JudgePort {
 - `judge: { kind: "delegated", owner }` 목표는 판정 모델을 부르지 않는다. 턴이 끝나면 cap-work는 판정 대기 상태가 되고, `owner` 주체가 `work.goals.judge({ goalId, turnId, verdict })`를 부르면 그 값을 판정으로 기록한다.
 - `judge` 호출 검사: 목표가 `active`이고 `delegated`여야 한다(`goal_not_delegated`). `turnId`는 판정 대기 중인 턴이어야 한다(`goal_turn_stale`). 같은 턴의 판정이 이미 있으면 기존 판정을 돌려준다(멱등).
 - 대기 시간이 `timeoutSec`(생략하면 `l2.work.goal.delegatedTimeoutSec`)을 넘으면 판정 실패(`failure.code = "timeout"`)로 기록한다.
-- delegated 판정자(L3 그룹의 기준 검사기 등)는 `agent_settled` 지점 핸들러에서 `goals.status`로 대기 상태를 확인하고 `judge`를 부른다. 이 호출에는 `requestId`를 넘긴다. on 핸들러의 외부 효과 금지(F.extensions.spec §4.3)와의 관계는 그 L3 문서가 정한다.
+- delegated 판정자(L3 그룹의 기준 검사기 등)는 `boundary.settle.after` 지점 핸들러에서 `goals.status`로 대기 상태를 확인하고 `judge`를 부른다. 이 호출에는 `requestId`를 넘긴다. on 핸들러의 외부 효과 금지(F.extensions.spec §4.3)와의 관계는 그 L3 문서가 정한다.
 - 그룹이 판정자를 바꾸는 방법은 목표를 걸 때 `judge`를 지정하는 것뿐이다. 판정자 교체는 `set({ replace: true, judge })`다.
 - `owner` 확인: 다른 주체가 `judge`를 부르는 것을 막으려면 호출자 식별이 필요하다. [제안] `CallOptions.context.caller.extension`(`F.capabilities.spec` §3.2, `L2.readme` §5.8)이 `owner`와 같을 때만 받고, 다르면 `denied`다(§10 W-6).
 
@@ -1193,7 +1193,7 @@ export interface JudgePort {
 
 ### 4.5 재개
 
-세션을 다시 열 때(`session_start` 지점) cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
+세션을 다시 열 때(`session.start` 지점) cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
 
 | 상황 | 동작 |
 |---|---|
@@ -1286,20 +1286,20 @@ export const manifest = defineManifest({
     { id: "artifacts.registry", range: "^1.0.0" },
     { id: "dialog.commands", range: "^1.0.0" },   // §6.2, [미결] W-10
   ],
-  points: ["before_agent_start"],
+  points: ["input.agent.before"],
   usesPost: true,
   usesDrive: false,
 });
 ```
 
-- `before_agent_start`(chain): 방치 알림 메시지 추가(§4.1.6). 질의만 한다.
+- `input.agent.before`(collect): 방치 알림 메시지 추가(§4.1.6). 질의만 한다.
 - `post`: 목표 미충족 시 다음 턴 시작(§4.3.5). 멱등 키 필수.
 - drive: 쓰지 않는다. L2는 drive 임대를 갖지 않는다(`L2.readme` §4.2).
 - 피드 구독: 판정 계기(`turn.completed`)와 승인 해결 뒤 모드 복원(`approval.resolved`)은 `xeon.session`의 내구 피드 구독으로 받는다. 확장 지점은 쓰지 않는다(eng.events.design §4.6 `SessionFeed.subscribe`). 구독자는 `seq`로 중복을 거른다(EV-05).
 
 ### 7.2 도구 지점
 
-- `task_write`, `enter_plan_mode`, `exit_plan_mode`, `submit_plan`은 일반 도구처럼 `tool_call`(first), `tool_result`(chain) 지점을 지난다(F.capabilities.spec §7). 페이로드의 `capability` 필드로 `work.tasks` 등을 고를 수 있다.
+- `task_write`, `enter_plan_mode`, `exit_plan_mode`, `submit_plan`은 일반 도구처럼 `tool.call.before`(first), `tool.result`(chain) 지점을 지난다(F.capabilities.spec §7). 페이로드의 `capability` 필드로 `work.tasks` 등을 고를 수 있다.
 
 ### 7.3 L3와의 관계
 

@@ -102,7 +102,7 @@ export interface McpDeps {
   readonly store: McpStorePort | undefined;
   /** 내장 도구 이름 등 서버 도구가 쓰면 안 되는 기계 이름 */
   readonly reservedToolNames: () => ReadonlySet<string>;
-  /** `mcp_servers_change` 지점 발화(tap). 서버 상태나 도구 집합이 바뀐 단계 경계에서 한 번 부른다 */
+  /** `session.mcp.after` 지점 발화(tap). 서버 상태나 도구 집합이 바뀐 단계 경계에서 한 번 부른다 */
   readonly onServersChange: ((payload: McpServersChangePayload) => void) | undefined;
   readonly client: { readonly name: string; readonly version: string };
   /** stdio 서버 종료 유예(SIGTERM 뒤 SIGKILL 전) */
@@ -133,7 +133,7 @@ export interface McpRuntime {
    * 단계 경계마다 불러도 된다: 지문이 같으면 연결을 건드리지 않는다. 설정 `l2.mcp.servers`의 `nextTurn` 변경과 프로젝트 전환을 따라간다
    */
   reload(signal: AbortSignal, options?: McpLoadOptions): Promise<boolean>;
-  /** 단계 경계: 모아 둔 변화를 도구 표에 한 번에 반영하고 `mcp_servers_change`를 발화한다 */
+  /** 단계 경계: 모아 둔 변화를 도구 표에 한 번에 반영하고 `session.mcp.after`를 발화한다 */
   applyBoundary(): Promise<BoundaryReport>;
   diagnostics(): readonly LoaderDiagnostic[];
   /** 진행 중인 연결 시도가 끝나기를 기다린다(시험과 종료) */

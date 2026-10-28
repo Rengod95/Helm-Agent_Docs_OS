@@ -359,7 +359,7 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 | 대상 | 요청 | 근거 |
 |---|---|---|
 | X 레인 | 능력별 provider 후보를 등록·조회하는 API. 플러그인 엔트리가 `WebProviderRegistration` 목록을 넘기고 `cap-web`이 `RegistrationSource.list()`로 읽는 모양이면 된다. X.2 리소스 레지스트리(`tool`, `provider`, `mcp_server`)에는 웹 provider 종류가 없다 | `X.primitives.spec` [가정], 이 plan §8.3 |
-| HOST.6 | `createWebRuntime`에 실제 포트를 연결한다: `xeon.store`(`WebStorePort`), `L2ApprovalsPort`(`createAskAdapter`), `xeon.session` 이벤트 읽기(`WebSessionSourcesPort`: `tool.settled`의 `structuredContent.sources`), `Redactor.containsKnown`(`OutboundSecretGuard`), 설정 층(`readWebSettings`), `input`·`session_shutdown`·`turn_start` 지점 구독(`SeenUrls.noteText`, 브라우저·원문 정리, `decideModelSearchTool`) | m2-plan HOST.6, 스펙 §7 |
+| HOST.6 | `createWebRuntime`에 실제 포트를 연결한다: `xeon.store`(`WebStorePort`), `L2ApprovalsPort`(`createAskAdapter`), `xeon.session` 이벤트 읽기(`WebSessionSourcesPort`: `tool.settled`의 `structuredContent.sources`), `Redactor.containsKnown`(`OutboundSecretGuard`), 설정 층(`readWebSettings`), `input.user.before`·`session.shutdown`·`boundary.step.before` 지점 구독(`SeenUrls.noteText`, 브라우저·원문 정리, `decideModelSearchTool`) | m2-plan HOST.6, 스펙 §7 |
 | L1.tools | `redactForPersistence`를 `tool.settled` 영속 사본에 적용하는 경로. 이 패키지는 순수 함수만 낸다 | 스펙 §4.3.4, §8 요구 표 |
 | L0.secrets | `HeaderSecretResolver`(플러그인 provider 인증 값을 전송 직전에만 읽는 경로). M3 플러그인이 들어올 때 필요하다 | 스펙 §3.6.1 |
 | F 레인 | 없음. `defs/web.ts`, `web-provider.ts`는 그대로 썼다. 다만 `WebFetchPage.status`가 100~599만 받아, 일괄 호출에서 실패한 URL의 페이지는 합성 상태 값을 쓴다(스펙 §4.9.1) | 스펙 §4.9.1 |
@@ -372,13 +372,13 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 - `computeCost`는 provider가 `basis: "estimated"`로 알린 `cost`를 사용량으로만 읽고 가격표로 다시 계산한다(spec §4.4.1). 내장 래퍼가 이 경로를 쓴다. 플러그인 provider가 `estimated`를 알리면 금액이 가격표 값으로 바뀐다.
 - `GuardedHttp`의 로컬 endpoint 비교(`endpointMatches`)가 대괄호 IPv6(`[::1]:8888`)를 호스트와 포트로 나누어 비교하도록 고쳤다. 전에는 대괄호를 붙인 채 비교해 IPv6 로컬 endpoint가 항상 거부됐다(M2 검토 18). 시험: `guarded-http.test.ts`.
 - 모델 테이프는 포트 수준 JSON(`HostedSearchResponse`와 `HostedSearchError`의 나열)이다. 모델 provider의 원시 스트림 테이프는 core-models의 `hosted-search.test.ts`가 시험한다. 두 시험이 `HostedSearchPort` 계약에서 만난다.
-- 이 레인이 하지 않은 일: 확장 엔트리의 `input`·`session_shutdown`·`turn_start` 구독(HOST.6), `normalizeHostedSearch`를 쓰는 모델용 hosted 경로(`modelTool: hosted`)의 L1.models 연결, 실제 키 측정(D11).
+- 이 레인이 하지 않은 일: 확장 엔트리의 `input.user.before`·`session.shutdown`·`boundary.step.before` 구독(HOST.6), `normalizeHostedSearch`를 쓰는 모델용 hosted 경로(`modelTool: hosted`)의 L1.models 연결, 실제 키 측정(D11).
 - 소유 경계 밖 수정 하나: `core-models/test/hosted-search.test.ts`의 `hostedSearch` 널 검사 세 줄. F.8이 `ModelService.hostedSearch`를 필수로 올린 뒤 `no-unnecessary-condition`이 실패했다(`just lint`). 동작 변경은 없다.
 
 ### 8.7 M2 마감 구현 기록 (m2-plan H1, G4-05)
 
 - H1: SearXNG 자동 감지를 없앴다. `searxng.ts`는 `l2.web.search.searxng.url` 하나만 쓰고, 설정 키 `searxng.detect`와 감지 후보 주소 목록을 지웠다. `SearchCandidate.enabled`(호출마다 읽음)가 주소가 비어 있는 SearXNG를 후보에서 뺀다. 기본 설정의 auto 체인은 내장 래퍼뿐이고 어느 주소에도 요청을 보내지 않는다(`e4-search-selection.int.test.ts`, `web-search-tool.int.test.ts`).
-- 모델용 도구 판정의 입력 `wrapperOnlyChain`은 `isWrapperOnlyChain(catalog.searchCandidates())`로 얻는다. 호출은 조립 루트(`turn_start`의 `modelTool` 판정, spec §7)가 한다. 이 패키지는 확장 엔트리를 내지 않으므로 아직 연결되지 않았다.
+- 모델용 도구 판정의 입력 `wrapperOnlyChain`은 `isWrapperOnlyChain(catalog.searchCandidates())`로 얻는다. 호출은 조립 루트(`boundary.step.before`의 `modelTool` 판정, spec §7)가 한다. 이 패키지는 확장 엔트리를 내지 않으므로 아직 연결되지 않았다.
 - G4-05: `web_search` 도구 정의(`WebSearch.tools[0]`)의 파라미터 파싱 → `toInput` → 서비스 → `toContent`를 실제 조립(`createWebRuntime`)에서 걸고, 출력이 `WebSearchOutputSchema`를 만족하는지 본다. SearXNG는 루프백 가짜 서버와 운영 전송(`createHttpTransport`)으로 연결한다. public 모드 SSRF 방어가 Bun에서 도는지(실제 DNS)는 이 시험으로 확인하지 못했다(`review.fake-only` FK-11). host 수준 시험은 T2의 조립(G1-12) 뒤에 한다.
 - F 계약 `ProviderOrigin`의 `detected` 이름이 남았다(spec §10 미결 18).
 - 이 변경의 소비 쪽 정리: `apps/host`의 설정 스키마 산출물(`schema/settings.*.schema.json`)과 host 시험(`test/int/cap-web.int.test.ts`)에서 `l2.web.search.searxng.detect`를 뺐다(m2c H2). 남은 것은 `apps/cli`의 `doctor`가 읽는 `searxng.detect`, `L4.cli.spec` §4.7.1의 감지 결과 줄, `L4.settings-ui.spec` §4의 SearXNG 감지 결과 칸이다(각 소유 트랙).

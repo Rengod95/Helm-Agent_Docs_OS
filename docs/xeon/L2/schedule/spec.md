@@ -1187,7 +1187,7 @@ export const SCHEDULE_CAPABILITIES = [ScheduleLoops, ScheduleJobs, ScheduleSessi
 
 - 루프는 같은 세션에 같은 프롬프트를 `post`로 반복 투입한다. `PostItem`은 `{ kind: "user", content: prompt }`, `when`은 `"next"`, `requestId`는 `loop:<loopId>:<iteration>`이다. `next`는 다음 경계 뒤에 모델 요청을 정확히 한 번 일으키는 입력이다(`F.extensions.spec` §4.4).
 - 한 세션에 도는 루프는 하나다(`loop_already_running`). 투영의 부분 유일 인덱스가 같은 규칙을 강제한다.
-- 반복 경계는 그 반복이 만든 turn의 정착이다. provider는 `agent_settled`(F.extensions.spec #26, tap) 핸들러에서 반복 종료를 감지한다. 핸들러는 판정만 하고, 다음 투입은 커밋 밖에서 한다(TX-01).
+- 반복 경계는 그 반복이 만든 turn의 정착이다. provider는 `boundary.settle.after`(F.extensions.spec #26, tap) 핸들러에서 반복 종료를 감지한다. 핸들러는 판정만 하고, 다음 투입은 커밋 밖에서 한다(TX-01).
 - 반복 n의 투입 순서: (1) 종료 조건 판정, (2) 멈추지 않으면 간격만큼 대기, (3) `schedule.loop_iterated { iteration: n }` 커밋, (4) post. (3)과 (4) 사이에 프로세스가 죽어도 재시작 뒤 같은 `requestId`로 post하면 한 번만 들어간다.
 - 사용자 입력이 루프 반복 사이에 끼어도 루프는 계속된다. 사용자가 루프를 멈추려면 `stop`(명령 `/loop stop`)을 쓴다.
 - 근거: Claude Code `/loop`(같은 세션 반복, 세션이 열려 있어야 함, 7일 만료), omp `/loop --until`, Hermes `/loop`의 `LOOP_COMPLETE`(`_research/l2e.md` §3.4 D2, `_research/refs/claude-code.md` 148행).
@@ -1227,7 +1227,7 @@ export const SCHEDULE_CAPABILITIES = [ScheduleLoops, ScheduleJobs, ScheduleSessi
 
 - 루프·웨이크업·감시의 대기는 프로세스 메모리의 타이머다. 그래서 세션을 실행하던 프로세스가 끝나면 멈춘다. 서비스 모드가 꺼진 상태에서 앱이나 CLI를 닫으면 루프가 멈춘다는 뜻이다. `start`는 서비스 모드가 꺼져 있을 때 결과의 사용자 표시용 문구로 이 점을 알린다(L4가 표시).
 - 서비스 모드에서는 세션의 쓰기 소유자가 서비스다(ADR-0006 §3.6). 클라이언트가 모두 끊겨도 서비스가 루프를 계속 돌린다. 이 동안 서비스는 `liveSchedulerTasks() > 0`이므로 유휴 종료하지 않는다(§3.9) [제안: ActivitySnapshot.liveTasks에 루프를 포함].
-- 재시작 정리: 세션을 연 프로세스는 `session_start`(#30) 때 투영에 `running`인 루프와 `pending` 웨이크업·`active` 감시가 있고 자기 메모리에 해당 타이머가 없으면 `schedule.loop_stopped { reason: "host_exit" }`, `wakeup_cancelled { reason: "host_exit" }`, `watch_stopped { reason: "host_exit" }`를 커밋한다. 자동으로 다시 시작하지 않는다 [제안]. ADR-0006 §3.6 5번의 자동 재개 기본값 꺼짐과 맞춘다. L4가 "루프를 다시 시작" 제안을 보여 줄 수 있다.
+- 재시작 정리: 세션을 연 프로세스는 `session.start`(#30) 때 투영에 `running`인 루프와 `pending` 웨이크업·`active` 감시가 있고 자기 메모리에 해당 타이머가 없으면 `schedule.loop_stopped { reason: "host_exit" }`, `wakeup_cancelled { reason: "host_exit" }`, `watch_stopped { reason: "host_exit" }`를 커밋한다. 자동으로 다시 시작하지 않는다 [제안]. ADR-0006 §3.6 5번의 자동 재개 기본값 꺼짐과 맞춘다. L4가 "루프를 다시 시작" 제안을 보여 줄 수 있다.
 
 ### 4.2 백그라운드 작업 모니터
 
@@ -1345,7 +1345,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 - 실행 시작 순서: (1) 세션 생성(키 2), (2) `cap_schedule_runs`를 `started`, `session_id` 기록(펜싱), (3) 실행 세션에 `schedule.run_started` 커밋, (4) 프롬프트 post(키 3).
 - 재시작 복구: 틱을 시작할 때 `claimed`이거나 `started`인데 `run_finished`가 없는 실행을 찾는다. `claimed`는 (1)부터 다시 한다(키가 같아 중복이 없다). `started`는 세션의 턴 상태를 보고, 진행 중 턴이 없고 투입된 입력도 없으면 (4)를 다시 한다. 턴이 결과 불명으로 끝났으면 `failed`(사유 `host_exit`)로 닫는다 [제안]. 자동 재개 기본값 꺼짐(ADR-0006 §3.6 5번)과 맞춘다.
-- 결과: 실행 세션의 턴이 정착하면(`agent_settled`) `schedule.run_finished { outcome }`을 커밋하고 실행 행을 `finished`로 바꾼다. `outcome`은 턴 결과(`completed`, `aborted`, `failed`, `awaiting_approval`)다. 알림은 호스트가 이 이벤트 kind로 라우팅한다(HS-42).
+- 결과: 실행 세션의 턴이 정착하면(`boundary.settle.after`) `schedule.run_finished { outcome }`을 커밋하고 실행 행을 `finished`로 바꾼다. `outcome`은 턴 결과(`completed`, `aborted`, `failed`, `awaiting_approval`)다. 알림은 호스트가 이 이벤트 kind로 라우팅한다(HS-42).
 - 승인 대기: 실행 세션이 승인을 기다리면 `outcome: "awaiting_approval"`로 끝나고 작업 상태는 needs_input이다. 승인은 로컬 클라이언트나 원격(§4.5)으로 답한다. 예약 실행의 도구 승인 정책을 따로 둘지(Hermes는 cron에서 승인을 거부한다, `_research/refs/hermes.md` 78행)는 L1.tools의 일이다. [제안] L1.tools에 "세션 origin이 timer이면 승인 요청을 거부할지 대기할지" 설정을 요청한다(§10 미결 6).
 - 워치독: `started` 실행 세션에서 진행 중 턴이 있고 마지막 내구 이벤트 뒤 `l2.schedule.timers.runIdleTimeoutSeconds`(기본 600초)가 지나면 `xeon.tasks.interrupt`로 턴을 중단하고 `schedule.run_stalled`를 커밋한다. 실행 행은 `stalled`다. 진행 중인 세션은 자르지 않고 멈춘 세션만 중단하는 Hermes 규칙을 따른다(`_research/refs/hermes.md` §3.10.4 "유휴 600초 워치독"). 승인 대기 중인 세션은 멈춘 것으로 보지 않는다.
 - 비용 상한: 최근 1시간 안에 시작한 실행이 `l2.schedule.timers.maxRunsPerHour`(기본 20)에 이르면 새 기한을 `skipped`(사유 `rate_limited`)로 기록한다. 예약 폭주가 모델 비용을 키우지 않게 하려는 것이다.
@@ -1476,9 +1476,9 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 | 지점 / 연산 | 이 능력의 쓰임 |
 |---|---|
-| `agent_settled` (#26, tap) | 루프 반복 경계, 웨이크업 투입 시점, 예약 실행 결과(§4.1.1, §4.1.3, §4.4.5). `dispatch: detached` |
-| `session_start` (#30, tap) | 재시작 정리(§4.1.5) |
-| `session_shutdown` (#39, tap) | 이 세션의 메모리 타이머를 지운다. 이벤트는 쓰지 않는다(다음 열기 때 정리) |
+| `boundary.settle.after` (#26, tap) | 루프 반복 경계, 웨이크업 투입 시점, 예약 실행 결과(§4.1.1, §4.1.3, §4.4.5). `dispatch: detached` |
+| `session.start` (#30, tap) | 재시작 정리(§4.1.5) |
+| `session.shutdown` (#39, tap) | 이 세션의 메모리 타이머를 지운다. 이벤트는 쓰지 않는다(다음 열기 때 정리) |
 | post | `xeon.tasks.post`로 반복·웨이크업·감시·예약 입력을 넣는다. 키 형식 `loop:`, `wake:`, `watch:`, `timer:` |
 | drive | 쓰지 않는다. 다음 턴 시작은 post로만 한다(`L2.readme` §4.2) |
 | scope | 능력이 꺼지면 도구가 다음 단계 경계에서 빠진다. 도는 루프는 멈추지 않는다 [제안]. 끄려면 `stop`을 쓴다 |

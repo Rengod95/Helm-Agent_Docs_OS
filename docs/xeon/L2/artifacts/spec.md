@@ -50,7 +50,7 @@ binds: [xeon/packages/cap-artifacts/**]
 | diff 정규화와 hunk ID 규칙 | workspace 도구 결과 `details`의 diff (`L2.workspace.spec`) | 파일 쓰기 도구와 그 결과 형식(L2.workspace) |
 | 코멘트를 에이전트 입력으로 만드는 규칙과 멱등 키 | 입력 큐 `xeon.tasks` post (`L1.tasks.spec`) | 입력 큐, 전달 모드, `input.*` 이벤트(L1.tasks) |
 | 거절 hunk의 역패치 계산 | 파일 되돌림 `workspace.files` 또는 L1 복원 ([미결] §4.2.5) | 체크포인트와 되감기, 파일 상태 복원(L1.persistence) |
-| 세션 라벨과 `artifact.session_labeled` | 제목 변경 `xeon.session` retitle (`L1.persistence.spec`) | 제목 이벤트(`session.retitled`)와 `session_info_changed` 지점 디스패치(L1·X) |
+| 세션 라벨과 `artifact.session_labeled` | 제목 변경 `xeon.session` retitle (`L1.persistence.spec`) | 제목 이벤트(`session.retitled`)와 `session.info.after` 지점 디스패치(L1·X) |
 | 자동 제목 생성 시점과 프롬프트 | 소형 모델 호출 `xeon.models` 용도 라우팅 (`L1.models.spec`) | 모델 라우팅과 용도 이름(L1.models) |
 | 메타 목록·검색(제목, 라벨, 산출물 수) | 없음 | 세션 본문 전문 검색(`knowledge.search`) |
 | 핸드오프 패키지 형식(2차) | 세션 생성 `xeon.session`, 입력 post `xeon.tasks` | 컴팩션 요약 생성(`L1.context.spec`) |
@@ -1256,7 +1256,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 #### 4.2.7 자동 리뷰 요청
 
-- 설정 `l2.artifacts.reviews.autoRequest`가 `"turnEnd"`이면 provider는 `agent_settled` 지점(F.extensions.spec #26, tap)에서 그 턴에 workspace 쓰기 도구 결과가 있었는지 보고 `open({ changes: { type: "turn", turnId }, requestApproval: true })`를 부른다. `requestId`는 `review:auto:<turnId>`다.
+- 설정 `l2.artifacts.reviews.autoRequest`가 `"turnEnd"`이면 provider는 `boundary.settle.after` 지점(F.extensions.spec #26, tap)에서 그 턴에 workspace 쓰기 도구 결과가 있었는지 보고 `open({ changes: { type: "turn", turnId }, requestApproval: true })`를 부른다. `requestId`는 `review:auto:<turnId>`다.
 - 기본값은 `"off"`다. 매 턴 리뷰 요청은 사용 흐름을 끊기 때문이다.
 
 ### 4.3 세션 제목과 메타
@@ -1269,7 +1269,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 #### 4.3.2 자동 제목
 
-- 트리거: 세션의 첫 turn이 정착할 때(`agent_settled`, #26, `dispatch: detached` 핸들러) 세션 제목이 없고 `l2.artifacts.autoTitle.enabled`가 참이면 만든다. 이후 턴에서는 만들지 않는다 [제안]. 제목이 붙은 세션의 주제가 바뀌어도 사용자가 고치기 전에는 그대로 둔다.
+- 트리거: 세션의 첫 turn이 정착할 때(`boundary.settle.after`, #26, `dispatch: detached` 핸들러) 세션 제목이 없고 `l2.artifacts.autoTitle.enabled`가 참이면 만든다. 이후 턴에서는 만들지 않는다 [제안]. 제목이 붙은 세션의 주제가 바뀌어도 사용자가 고치기 전에는 그대로 둔다.
 - 모델: `xeon.models`에 용도(purpose) `l2.artifacts.autoTitle.purpose`(기본 `"title"`)로 요청한다. 용도 이름에서 실제 모델로 가는 라우팅은 `L1.models.spec`이 정한다(opencode의 요청 종류 `title`, `_research/refs/opencode.md` 169행). 입력은 첫 사용자 메시지 앞 2,000자와 첫 어시스턴트 텍스트 앞 1,000자다. 도구 결과와 첨부는 넣지 않는다.
 - 출력 처리: 한 줄, 60자 이하로 자르고, 앞뒤 따옴표와 마침표를 지운다. 비면 제목을 붙이지 않는다.
 - 기록: `retitle({ title, source: "auto", onlyIfUntitled: true }, { requestId: "retitle:auto:<turnId>" })`. `onlyIfUntitled`는 모델 호출 중에 사용자가 이름을 붙였을 때 덮어쓰지 않게 하려는 조건이다 [가정: L1.persistence가 이 조건을 커밋 안에서 검사].
@@ -1282,9 +1282,9 @@ export const ReviewAnswerSchema = Type.Object({
 - `search`는 제목과 라벨만 본다. 비교는 NFC 정규화 뒤 대소문자 무시 부분 문자열(SQLite `instr(lower(...))`, ASCII 범위만 소문자화)이다. FTS를 쓰지 않는다. 그래서 `knowledge.search`의 세션 본문 색인과 겹치지 않는다.
 - 경계 [제안]: 대화 내용으로 세션을 찾는 기능은 `knowledge.search`다. L4 세션 목록 화면이 두 결과를 함께 보여 줄 수 있지만, artifacts는 knowledge를 호출하지 않는다(`L2.readme` §6에 이 간선이 없다). knowledge도 라벨을 색인하지 않는다.
 
-#### 4.3.4 `session_info_changed` 지점과의 관계
+#### 4.3.4 `session.info.after` 지점과의 관계
 
-- `session_info_changed`(F.extensions.spec #31, session, tap, `dispatch: detached`)는 세션 정보(이름 등)가 바뀐 뒤 확장에게 알리는 관찰 지점이다. pi에서는 세션 이름 변경 뒤 발사된다(`types.ts:750`).
+- `session.info.after`(F.extensions.spec #31, session, tap, `dispatch: detached`)는 세션 정보(이름 등)가 바뀐 뒤 확장에게 알리는 관찰 지점이다. pi에서는 세션 이름 변경 뒤 발사된다(`types.ts:750`).
 - [제안] 이 지점의 디스패치는 제목 이벤트를 쓴 L1(session-core가 커밋한 뒤 X가 디스패치)이 한다. artifacts는 이 지점을 발사하지 않는다. 자동 제목이든 `session_rename`이든 같은 L1 경로를 타므로 지점이 한 번만 발사된다.
 - artifacts는 이 지점에 핸들러를 달지 않는다. 투영이 제목 이벤트를 직접 읽기 때문이다. 지점 핸들러로 상태를 만들면 재생 때 다시 실행되지 않는다(`eng.events.design` EV-08).
 - 라벨 변경은 이 지점을 발사하지 않는다 [제안]. `SessionInfoChangedPayload`에 라벨을 넣을지는 §10 미결 7이다.
@@ -1391,9 +1391,9 @@ export const ReviewAnswerSchema = Type.Object({
 
 | 지점 / 연산 | 이 능력의 쓰임 |
 |---|---|
-| `agent_settled` (#26, tap) | 자동 제목(§4.3.2)과 자동 리뷰 요청(§4.2.7)의 트리거. 핸들러는 `dispatch: detached`로 등록하고 모델 호출은 커밋 밖에서 한다 |
-| `session_info_changed` (#31, tap) | 발사하지 않고 핸들러도 달지 않는다(§4.3.4) |
-| `tool_call` / `tool_result` (#13, #14) | 이 능력의 도구도 지난다. 이 능력이 핸들러를 달지는 않는다 |
+| `boundary.settle.after` (#26, tap) | 자동 제목(§4.3.2)과 자동 리뷰 요청(§4.2.7)의 트리거. 핸들러는 `dispatch: detached`로 등록하고 모델 호출은 커밋 밖에서 한다 |
+| `session.info.after` (#31, tap) | 발사하지 않고 핸들러도 달지 않는다(§4.3.4) |
+| `tool.call.before` / `tool.result` (#13, #14) | 이 능력의 도구도 지난다. 이 능력이 핸들러를 달지는 않는다 |
 | post | 직접 쓰지 않고 `xeon.tasks.post`를 쓴다(코멘트 전달 §4.2.6, 핸드오프 입력 §4.4). 멱등 키 규칙은 `F.extensions.spec` §4.4와 같다 |
 | drive | 쓰지 않는다. L2는 drive를 쓰지 않는다(`L2.readme` §4.2) |
 | scope | 능력 켜기·끄기는 X의 scope 규칙을 따른다. 꺼지면 도구가 다음 단계 경계에서 빠지고 열린 리뷰는 그대로 남는다 |

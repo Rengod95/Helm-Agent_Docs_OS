@@ -24,7 +24,7 @@ export function workManifest(): ExtensionManifest {
       { id: WorkTasks.id, version: WorkTasks.version },
       { id: WorkPlans.id, version: WorkPlans.version },
     ],
-    points: ["before_agent_start", "session_start"],
+    points: ["input.agent.before", "session.start"],
     usesDrive: false,
     trust: { level: "builtin" },
   });

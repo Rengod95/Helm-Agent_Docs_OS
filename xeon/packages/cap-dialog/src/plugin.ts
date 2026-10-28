@@ -153,21 +153,21 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
       }
 
       // 입력 지점: 셸 주입이 없는 템플릿 명령만 치환한다(질의와 치환만 하고 효과를 내지 않는다)
-      g.on("input", async (_payload, current, ctx) => {
+      g.on("input.user.before", async (_payload, current, ctx) => {
         if (current.handled) return undefined;
         const text = await runtime.commands.transformInput(current.text, ctx.threadId, ctx.signal);
         return text === undefined ? undefined : { action: "transform", text };
       });
-      g.on("tool_execution_start", (payload, ctx) => {
+      g.on("tool.execution.before", (payload, ctx) => {
         runtime.status.onToolStart(ctx.threadId, payload.toolCallId, payload.toolName);
       });
-      g.on("tool_execution_end", (payload, ctx) => {
+      g.on("tool.execution.after", (payload, ctx) => {
         runtime.status.onToolEnd(ctx.threadId, payload.toolCallId);
       });
-      g.on("before_agent_start", async (_payload, current, ctx) => {
+      g.on("input.agent.before", async (payload, ctx) => {
         const fragment = await runtime.commands.advertisement(ctx.threadId, ctx.signal);
         if (fragment === undefined) return undefined;
-        const base = current.systemPrompt;
+        const base = payload.systemPrompt;
         return { systemPrompt: base === "" ? fragment : `${base}\n\n${fragment}` };
       });
 

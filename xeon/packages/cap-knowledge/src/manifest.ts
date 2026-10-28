@@ -29,7 +29,7 @@ export function knowledgeManifest(): ExtensionManifest {
       { id: KnowledgeSearch.id, version: KnowledgeSearch.version },
       { id: KnowledgeLedger.id, version: KnowledgeLedger.version },
     ],
-    points: ["session_start", "before_agent_start", "session_shutdown"],
+    points: ["session.start", "input.agent.before", "session.shutdown"],
     usesDrive: false,
     trust: { level: "builtin" },
   });

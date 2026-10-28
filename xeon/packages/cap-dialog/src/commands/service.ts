@@ -49,13 +49,13 @@ export interface BuiltinCommandDecl {
 
 export interface CommandsService {
   readonly api: CommandsServiceApi;
-  /** `input` 지점: `/`로 시작하는 입력 중 셸 주입이 없는 템플릿 명령만 치환한다. 그 밖은 undefined다 */
+  /** `input.user.before` 지점: `/`로 시작하는 입력 중 셸 주입이 없는 템플릿 명령만 치환한다. 그 밖은 undefined다 */
   transformInput(
     text: string,
     threadId: ThreadId,
     signal: AbortSignal,
   ): Promise<string | undefined>;
-  /** `before_agent_start` 지점에 붙일 시스템 프롬프트 조각. 광고를 끄면 undefined다 */
+  /** `input.agent.before` 지점에 붙일 시스템 프롬프트 조각. 광고를 끄면 undefined다 */
   readonly advertisement: (threadId: ThreadId, signal: AbortSignal) => Promise<string | undefined>;
 }
 

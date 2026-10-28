@@ -56,7 +56,7 @@ export interface KnowledgePluginOptions {
   readonly ids: LocalIdFactory;
   /** 시험이 메모리 가짜를 넣는다. 기본은 node:fs 구현 */
   readonly fs?: KnowledgeFs;
-  /** `resources_discover`가 알린 확장 제공 스킬 루트(spec §4.2.7) */
+  /** `session.resources`가 알린 확장 제공 스킬 루트(spec §4.2.7) */
   readonly extensionSkillRoots?: () => readonly {
     readonly dir: string;
     readonly extension: string;
@@ -221,14 +221,14 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
         memory: runtime.memory,
         logger,
       });
-      g.on("session_start", async (payload) => {
+      g.on("session.start", async (payload) => {
         await turnContext.start(payload.threadId, payload.reason);
       });
-      g.on("before_agent_start", async (_payload, _current, ctx) => {
+      g.on("input.agent.before", async (_payload, ctx) => {
         const message = await turnContext.beforeAgentStart(ctx.threadId);
         return message === undefined ? undefined : { message };
       });
-      g.on("session_shutdown", (_payload, ctx) => {
+      g.on("session.shutdown", (_payload, ctx) => {
         turnContext.shutdown(ctx.threadId);
       });
 

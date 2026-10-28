@@ -86,12 +86,12 @@ export function reduceCore(state: CoreState, event: DurableEventEnvelope): CoreS
   return state;
 }
 
-/** 도구 실행이 시작되었다(`tool_execution_start` 지점) */
+/** 도구 실행이 시작되었다(`tool.execution.before` 지점) */
 export function toolStarted(state: CoreState, toolCallId: string, toolName: string): CoreState {
   return { ...state, tools: new Map(state.tools).set(toolCallId, toolName) };
 }
 
-/** 도구 실행이 끝났다(`tool_execution_end` 지점) */
+/** 도구 실행이 끝났다(`tool.execution.after` 지점) */
 export function toolEnded(state: CoreState, toolCallId: string): CoreState {
   const tools = new Map(state.tools);
   tools.delete(toolCallId);

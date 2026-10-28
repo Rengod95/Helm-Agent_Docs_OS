@@ -17,7 +17,7 @@ export interface RootsInput {
   readonly projectTrusted: boolean;
   /** `l2.knowledge.skills.paths` */
   readonly paths: readonly string[];
-  /** `resources_discover`가 알린 확장 제공 스킬 루트 */
+  /** `session.resources`가 알린 확장 제공 스킬 루트 */
   readonly extension: readonly { readonly dir: string; readonly extension: string }[];
 }
 

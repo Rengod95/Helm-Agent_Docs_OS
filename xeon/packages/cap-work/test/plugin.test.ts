@@ -166,7 +166,7 @@ describe("manifest", () => {
       { id: "work.tasks", version: "1.0.0" },
       { id: "work.plans", version: "1.0.0" },
     ]);
-    expect(checked.manifest?.points).toEqual(["before_agent_start", "session_start"]);
+    expect(checked.manifest?.points).toEqual(["input.agent.before", "session.start"]);
     expect(checked.manifest?.usesDrive).toBe(false);
   });
 });
@@ -261,7 +261,7 @@ describe("plugin", () => {
 
 async function dispatch(t: TestHost, threadId: ReturnType<TestHost["newThread"]>) {
   return await t.host.dispatch(
-    "before_agent_start",
+    "input.agent.before",
     { prompt: "go on", systemPrompt: "", systemPromptOptions: {} },
     {
       threadId,
@@ -307,7 +307,7 @@ describe("work.plans through the plugin", () => {
     );
     expect(approvals.requests).toHaveLength(0);
     await t.host.dispatch(
-      "session_start",
+      "session.start",
       { reason: "resume", threadId: opened.threadId },
       { threadId: opened.threadId, dispatchKey: "start-1" },
     );

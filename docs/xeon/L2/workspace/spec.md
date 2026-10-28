@@ -569,7 +569,7 @@ export interface WorkspaceService {
 |---|---|---|---|
 | 파일 도구 경로의 정규화, `..`·심볼릭 링크 탈출 검사 | 소유(위 1~5) | 결과를 받는다 | 관여 없음 |
 | 허용 root 목록(작업 디렉터리, 추가 디렉터리, 사용자 승인으로 넓힌 경로) | 조회만 한다 | 소유(권한 모드, 규칙, 승인) | 쓰기 경로 설정을 공유한다 |
-| 쓰기 도구의 승인 여부(묻기, 자동 허용) | 관여 없음 | 소유(`tool_call` 앞단 파이프라인) | 관여 없음 |
+| 쓰기 도구의 승인 여부(묻기, 자동 허용) | 관여 없음 | 소유(`tool.call.before` 앞단 파이프라인) | 관여 없음 |
 | bash 명령 문자열 안의 경로 | 검사하지 않는다(명령 해석은 불가) | 명령 패턴 규칙과 승인 | 커널 수준 강제(쓰기 root 밖 쓰기 거부, 보호 경로 읽기 거부, 네트워크 허용 목록) |
 | 보호 경로 목록 | 조회해 파일 도구에도 적용 | 관여 없음 | 소유 |
 
@@ -705,8 +705,8 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 ## 7. 확장 지점
 
 - 이 문서는 지점을 새로 정의하지 않는다.
-- 7개 도구 호출은 `tool_call`(fold first), `tool_result`(fold chain), `tool_execution_start`·`update`·`end`(tap)를 지난다(`F.extensions.spec` §3.4 13~17번). 페이로드의 `capability: { id, method }`로 대상을 고를 수 있다(`F.capabilities.spec` §7).
-- 사용 예: L3 그룹은 쓰기를 막는 단계에서 `tool_call`의 `first` 핸들러로 `workspace.files`의 `write`·`edit`과 `workspace.shell`의 `run`을 거부한다(`product.scope.spec` §4.4 M2 종료 조건). 판정 근거는 도구 이름 대신 `capability.id`와 `hints.readOnly`를 쓰는 쪽을 [제안]한다.
+- 7개 도구 호출은 `tool.call.before`(fold first), `tool.result`(fold chain), `tool.execution.before`·`update`·`end`(tap)를 지난다(`F.extensions.spec` §3.4 13~17번). 페이로드의 `capability: { id, method }`로 대상을 고를 수 있다(`F.capabilities.spec` §7).
+- 사용 예: L3 그룹은 쓰기를 막는 단계에서 `tool.call.before`의 `first` 핸들러로 `workspace.files`의 `write`·`edit`과 `workspace.shell`의 `run`을 거부한다(`product.scope.spec` §4.4 M2 종료 조건). 판정 근거는 도구 이름 대신 `capability.id`와 `hints.readOnly`를 쓰는 쪽을 [제안]한다.
 - 그룹 코드가 `WorkspaceFilesKey`로 서비스를 직접 부르면 tool 지점을 지나지 않는다(`F.capabilities.spec` §3.9 그룹 경로). 이때도 §4.3 경로 검사와 §4.2 샌드박스는 그대로 적용된다. 승인 파이프라인(L1.tools)은 거치지 않는다.
 
 ## 8. 다른 문서와의 인터페이스

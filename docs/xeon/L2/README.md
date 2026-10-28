@@ -308,7 +308,7 @@ flowchart LR
 - 각 spec의 "설정 노출" 절은 다음 열로 표를 쓴다: 키, 타입, 기본값, range, runtimeChange, allowedScopes, ui.tab, secret. L4 노출(화면, 파일, 명령)이나 단위 같은 설명이 필요하면 마지막에 "비고" 열 하나를 더할 수 있다.
 - 표 값 표기 [제안]: allowedScopes는 범위 이름 전체를 쉼표로 늘어놓는다(`managed, user, project, local, session`). 약어를 쓰지 않는다. secret은 `true`/`false`다. range는 수 범위면 `min <최소>, max <최대>`(한쪽만 있으면 그쪽만), 열거형이면 `enum <값>, <값>`, 없으면 `—`다.
 - `since` [제안]: 첫 사용 버전(M3 종료)까지 만드는 L2 키는 모두 `since: "0.1.0"`이다. 그 뒤에 더하는 키만 더한 버전을 적는다.
-- 범위 제한 규칙 [제안]: project 범위 값은 저장소에 들어 있는 파일이라 저장소를 여는 것만으로 적용된다. 그래서 보안 경계를 넓히는 키는 allowedScopes에 `project`를 넣지 않는다. 해당하는 키는 실행 파일·바이너리 경로, 사설망·루프백 접근 같은 네트워크 방어 해제, 검색어·내용을 보내는 외부 호스트 주소, 원격 기능 켜기, 브라우저 JS 실행·파일 업로드·로그인 프로필 사용, 쓰기 승인·스캔 끄기다(`L2.workspace.spec` §6 `grep.rgPath`, `L2.web.spec` §6, `L2.schedule.spec` §4.5.3, `L2.knowledge.spec` §6). 프로젝트가 정의하는 실행 대상(MCP stdio 서버)은 `project` 범위를 허용하되 프로젝트가 신뢰된 상태(`project_trust` 지점, `F.extensions.spec` §3.4)에서만 적용한다(`L2.mcp.spec` §6).
+- 범위 제한 규칙 [제안]: project 범위 값은 저장소에 들어 있는 파일이라 저장소를 여는 것만으로 적용된다. 그래서 보안 경계를 넓히는 키는 allowedScopes에 `project`를 넣지 않는다. 해당하는 키는 실행 파일·바이너리 경로, 사설망·루프백 접근 같은 네트워크 방어 해제, 검색어·내용을 보내는 외부 호스트 주소, 원격 기능 켜기, 브라우저 JS 실행·파일 업로드·로그인 프로필 사용, 쓰기 승인·스캔 끄기다(`L2.workspace.spec` §6 `grep.rgPath`, `L2.web.spec` §6, `L2.schedule.spec` §4.5.3, `L2.knowledge.spec` §6). 프로젝트가 정의하는 실행 대상(MCP stdio 서버)은 `project` 범위를 허용하되 프로젝트가 신뢰된 상태(`session.trust.before` 지점, `F.extensions.spec` §3.4)에서만 적용한다(`L2.mcp.spec` §6).
 
 ### 7.2 L4 탭
 
