@@ -11,7 +11,7 @@ binds: []
 # M3b 구현 계획 (M3 2단계: 서비스·원격·예약·알림, 설정 비시각 부분, cap 확장, i18n, 릴리즈)
 
 - 기준: `xeon/foundation`(M3a 마감, `61f137b..HEAD` 129커밋). 원천은 `review.m3-plan`, `product.scope.spec` §4.3·§4.4, `review.m3-lower-requirements`, M3a 계획의 "M3b로 넘기는 것", M3a 이월 목록(carryover)입니다.
-- 에이전트: 계획 Opus medium, 구현 Sonnet medium(설계·여러 층·상태 기계) 또는 Haiku 5.5 xhigh(기계적 작업), 차수마다 검증 Sonnet medium 1명, 동시 구현 4명 이하입니다.
+- 에이전트: 계획 Opus medium. 트랙마다 Sonnet medium 리드가 서브 오케스트레이터로 일을 나누고 누락·보완 검증을 맡습니다. 실구현은 Haiku 5.5 xhigh가 주로 하고, 리드는 상태 기계 같은 어려운 핵심만 직접 씁니다. 동시 트랙은 4개 이하입니다(§3.4, 2026-10-29 개정).
 - 공통 규칙은 M3a와 같습니다: 한 커밋 한 층, 문서 같은 커밋, contracts는 F 트랙만, `as`·`!`·`any`·`Reflect.get` 금지, 값 비교 시험, 명시적 `git add`, 워크트리는 `~/xeon-wt/<트랙>`.
 - 검증: 트랙마다 `just check <pkg>`, 병합마다 빠른 `just verify`, `just verify-full`은 B6 마감에서 한 번만 돌립니다.
 
@@ -28,7 +28,7 @@ binds: []
 | X6 | 목표 판정이 `l1.agents.judge.maxRuns`에서 멈춤 | 그대로. 구현은 M3a, 실제 core-loop 경로 시험을 더함 | NTF |
 | X7 | 설정 화면에서 레이트 리밋·계정 회전을 바꾸면 F5 설정 파일에 같은 키로 저장(I14) | 재범위: `packages/client` 모델 계정 view-model과 `settings.writeFile`로 확인. 화면은 M4 | MDL |
 | X8 | 비밀 탭이 재인증 뒤 값을 보임(UC-6) | 재범위: 비밀 view-model이 재인증 결과를 받아 값 상태로 바뀌는지 시험. 탭 화면은 M4 | SET, SBX |
-| X9 | "도구와 웹" 탭과 `xeon doctor`가 검색 provider 상태, SearXNG 주소, 키 플러그인 권장(Exa, Brave)을 보임 | 분할: `xeon doctor` 부분은 그대로, 탭 부분은 view-model 시험으로. 화면은 M4 | WEB |
+| X9 | "도구와 웹" 탭과 `xeon doctor`가 검색 provider 상태, 키 플러그인 권장(Exa, Brave)을 보임 | 분할: `xeon doctor` 부분은 그대로, 탭 부분은 view-model 시험으로. 화면은 M4. SearXNG 항목은 M3b 계획에서 뺍니다 [결정: 2026-10-29 사용자 지시]. M2에 있는 SearXNG provider 코드는 그대로 둡니다 | WEB |
 | X10 | 설정 화면 항목·설정 파일 키·설정 명령이 같은 F5 스키마에서 생성(키 집합 = 항목 집합) | 재범위: view-model 항목 집합과 CLI 설정 명령 키 집합이 스키마 키 집합과 같은지 시험. 화면 렌더는 M4 | SET |
 | X11 | macOS와 Linux 릴리즈 빌드가 같은 스모크 통과 | 그대로. Linux는 CI, macOS는 GitHub macOS job. 서명·공증과 Mac 실기는 사용자 묶음 | REL |
 
@@ -123,7 +123,8 @@ binds: []
 - 작업: M3-12(첫 사용 고지, 동시 질의, robots.txt 기본 무시 + 옵션), M3-new-13.
 - Stagehand는 새 의존입니다. 승인 전에는 MCP stdio provider 경로와 가짜 브라우저 provider로 구현하고, Stagehand 패키지 추가는 사용자 묶음입니다 [결정: 오케스트레이터 기본값].
 - 의존: B0-SBX(56, 60).
-- 끝 시험: X9. `xeon doctor` 출력 테이프 시험(provider 상태, SearXNG 주소, Exa·Brave 권장)과 "도구와 웹" view-model 값 비교.
+- SearXNG 관련 작업(주소 표시, 감지, 권장)은 하지 않습니다 [결정: 2026-10-29 사용자 지시].
+- 끝 시험: X9. `xeon doctor` 출력 테이프 시험(provider 상태, Exa·Brave 권장)과 "도구와 웹" view-model 값 비교.
 
 ### B3 보안·설정·데이터·L1 잔여 (B2 병합 뒤, 병렬 4)
 
@@ -219,6 +220,40 @@ binds: []
 - 검증 담당은 차수 끝마다 `bun scripts/req-ledger.ts`를 돌립니다. 상태가 빈 행, "M3b"인데 트랙 id가 없는 행, 이번 차수 트랙에 배정됐는데 끝 시험이 없는 행을 결함으로 냅니다.
 - 이월 목록(carryover)의 항목도 장부 끝 표에 트랙 id를 적어 같은 검사를 받습니다.
 - 현재 배정에서 빠진 하위 요구는 없습니다. B0-LED가 03·25·30·33·68·76의 M3a 완료 여부를 확인하고 미완이면 L1M·GRP에 넣습니다.
+
+### 3.4 실행 방식 (2026-10-29 개정)
+
+차수 경계를 없애고 선행 트랙만 기다리는 대기열로 돌립니다. 위 B1~B5 제목의 "(X 병합 뒤)"는 아래 선행 칸으로 바꿔 읽습니다 [결정: 2026-10-29 사용자 지시].
+
+- 동시 트랙은 4개 이하입니다. 트랙 안에서는 Haiku 구현자를 한 번에 1명만 돌리고, 리드는 그동안 시험을 돌리지 않습니다. 시험을 돌리는 에이전트가 4명을 넘지 않습니다.
+- 트랙 리드(Sonnet medium)의 일:
+  1. 요구 행, 이월 항목, 끝 시험을 작업 목록으로 나눕니다.
+  2. 어려운 핵심만 직접 씁니다. 나머지는 Haiku에게 작업 단위로 맡깁니다.
+  3. Haiku 결과를 요구 행과 대조해 누락·보완 항목을 찾고 다시 Haiku에게 돌립니다.
+  4. 끝 시험, `req-ledger`, 문서 동기화를 확인하고 오케스트레이터에게 보고합니다.
+- 오케스트레이터는 마지막 diff 검토, rebase와 `--ff-only` 병합, 병합마다 빠른 `just verify`를 맡습니다. `apps/host` 충돌은 먼저 끝난 트랙이 먼저 병합하고 뒤 트랙이 rebase합니다.
+
+| 트랙 | 선행 | 리드가 직접 쓰는 부분 | Haiku 몫 |
+|---|---|---|---|
+| B1-SCH | 없음 | 예약 상태 기계(따라잡기 1회, 300초 간격) | print 모드 허용 규칙, `ActivitySnapshot` 루프, host·CLI 조립, 시험 |
+| B1-NTF | 없음 | 없음(검토만) | `dialog.notify`, provider 연결, `status.list`, 이월 5건, `goal-judge.int.test.ts` |
+| B1-WS | 없음 | 원자적 쓰기, 동시 변경 감지 | `grep`·`find`(rg), host 조립, 시험 |
+| B2-RMT | 없음 | 전송, 터널 시험 | CLI 플래그, 설정 키, 문서 |
+| B2-WEB | 없음 | browse provider 자동 선택 | provider 등록 API 배관, doctor 출력, view-model, 시험 |
+| B2-MDL | 없음 | 계정 풀, 레이트 리밋, 회전 | 플러그인 2개 패키징, view-model, 시작 점검 |
+| B3-L1M | 없음 | 대부분(L1 미묘한 수정) | 문안, 문서, 시험 보강 |
+| B3-DATA | 없음 | `pinBlob`, 블롭 GC | `db export`, 자동 제목, 투영기 예외 시험 |
+| B4-DSK | 없음 | 없음(검토만) | 전부 |
+| B2-ART | B1-WS | 리뷰 승인 흐름 | 레코드 카탈로그, CLI 리뷰 카드 |
+| B3-SET | B2-MDL | `settings.json` 잠금, 슬래시 명령 라우팅 | 탭·항목 view-model, 키 정리 |
+| B3-SEC | B2-WEB | 대부분(보안 경로) | 감사 이벤트, 시험 |
+| B4-GRP | B3-L1M | 내구 이벤트 접두 조회 | G-17·G-18, `xeon group new` 템플릿 |
+| B4-I18N | 모든 L4 구현 트랙 | 포트, 카탈로그 생성, 검사 | 앱별 문자열 이전 |
+| B5-CLN | B4-I18N | 없음 | 전부 |
+| B5-REL·PERF | B4-I18N | 릴리즈 스크립트, 측정 게이트 | 문서, CI 단계 |
+| B5-DOC | 나머지 전부 | 없음 | 전부 |
+
+- 시작 순서: 뒤 트랙을 여는 트랙을 먼저 띄웁니다. 첫 4개는 B1-WS, B2-WEB, B2-MDL, B1-SCH, 다음은 B3-L1M, B1-NTF, B2-RMT, B3-DATA, B4-DSK 순입니다.
 
 ## 4. 사용자 확인 묶음 (B6 뒤 한 번에)
 
