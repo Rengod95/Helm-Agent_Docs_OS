@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { Bug, parse } from "../../src/index.ts";
 import {
+  ARTIFACT_EVENT_CATALOG,
+  SCHEDULE_EVENT_CATALOG,
   CORE_EVENT_CATALOG,
   CORE_EVENT_KINDS,
   DIALOG_EVENT_CATALOG,
@@ -41,8 +43,14 @@ describe("core catalog", () => {
 
   test("kinds are unique and the merged catalog adds no duplicates", () => {
     expect(new Set(CORE_EVENT_CATALOG.map((e) => e.kind)).size).toBe(41);
-    // 코어 41종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종)가 이어 붙는다
-    expect(EVENT_CATALOG.length).toBe(41 + WORK_EVENT_CATALOG.length + DIALOG_EVENT_CATALOG.length);
+    // 코어 41종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종, artifact 12종, schedule 15종)가 이어 붙는다
+    expect(EVENT_CATALOG.length).toBe(
+      41 +
+        WORK_EVENT_CATALOG.length +
+        DIALOG_EVENT_CATALOG.length +
+        ARTIFACT_EVENT_CATALOG.length +
+        SCHEDULE_EVENT_CATALOG.length,
+    );
     expect(new Set(EVENT_CATALOG.map((e) => e.kind)).size).toBe(EVENT_CATALOG.length);
     expect(EVENT_CATALOG.slice(0, 41)).toEqual([...CORE_EVENT_CATALOG]);
     const entry = CORE_EVENT_CATALOG[0];

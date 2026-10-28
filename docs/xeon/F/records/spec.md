@@ -577,7 +577,7 @@ export interface SecretMaskedPayload {
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
 6. 외부 확장이 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓰면 `reserved_area`다. 외부 확장이 L2 도메인 이름을 확장 이름으로 쓰는 경우는 `F.extensions.spec` §4.7 `name_reserved`가 막는다.
-7. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구)와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`, `schedule`은 M3에서 더한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
+7. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구)와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`(12종)와 `schedule`(15종)은 M3b B0-F가 더했다(`catalog/artifact.ts`, `catalog/schedule.ts`, M3-REQ-14). payload 모양의 정본은 `L2.artifacts.spec` §3.6과 `L2.schedule.spec` §3.7이고, kind·durable 표는 `test/records/artifact-schedule-catalog.test.ts`가 코드와 대조한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
 
 ### 3.4 내구/휘발과 큰 값 분리
 

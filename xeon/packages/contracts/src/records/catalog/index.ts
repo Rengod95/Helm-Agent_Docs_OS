@@ -21,8 +21,10 @@ import {
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
 } from "./agent.ts";
+import { ARTIFACT_EVENT_CATALOG } from "./artifact.ts";
 import { DIALOG_EVENT_CATALOG } from "./dialog.ts";
 import type { CatalogEntry } from "./entry.ts";
+import { SCHEDULE_EVENT_CATALOG } from "./schedule.ts";
 import { WORK_EVENT_CATALOG } from "./work.ts";
 import { ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema } from "./approval.ts";
 import { ItemRecordedPayloadSchema, PartRecordedPayloadSchema } from "./content.ts";
@@ -129,12 +131,14 @@ export function mergeCatalogs(
 
 /**
  * 코어 카탈로그와 내장 L2 도메인 카탈로그를 이은 병합 카탈로그.
- * 도메인 카탈로그는 work, dialog가 채워져 있다. artifact, schedule은 각 L2 plan이 M3에서 더한다.
+ * 도메인 카탈로그는 work, dialog, artifact, schedule이 채워져 있다.
  */
 export const EVENT_CATALOG: readonly CatalogEntry[] = mergeCatalogs(
   CORE_EVENT_CATALOG,
   WORK_EVENT_CATALOG,
   DIALOG_EVENT_CATALOG,
+  ARTIFACT_EVENT_CATALOG,
+  SCHEDULE_EVENT_CATALOG,
 );
 
 const CORE_BY_KIND: ReadonlyMap<string, CatalogEntry> = new Map(
@@ -150,10 +154,12 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry {
 export type { CatalogEntry } from "./entry.ts";
 export * from "./agent.ts";
 export * from "./approval.ts";
+export * from "./artifact.ts";
 export * from "./content.ts";
 export * from "./dialog.ts";
 export * from "./extension-ops.ts";
 export * from "./input.ts";
+export * from "./schedule.ts";
 export * from "./secret.ts";
 export * from "./settings.ts";
 export * from "./thread.ts";
