@@ -58,6 +58,8 @@ describe("WIRE_ERRORS", () => {
       "settings.locked": 3104,
       "settings.secretValue": 3105,
       "settings.reserved": 3106,
+      "settings.fileConflict": 3107,
+      "settings.fileInvalid": 3108,
       "secret.notFound": 3201,
       "secret.denied": 3202,
       "secret.providerUnavailable": 3203,

@@ -19,6 +19,7 @@ import {
   CommandInfoSchema,
   CommandRunOutput,
   SecretApprovalSchema,
+  SecretEntryMetaSchema,
   SecretMetaSchema,
   SecretNameSchema,
   SecretUsePolicySchema,
@@ -65,6 +66,14 @@ import {
   ProposalRejectParamsSchema,
   ProposalRevertParamsSchema,
 } from "./proposals.ts";
+import {
+  SettingsReadFileParamsSchema,
+  SettingsReadFileResultSchema,
+  SettingsWriteFileParamsSchema,
+  SettingsWriteFileResultSchema,
+  UsageGetParamsSchema,
+  UsageGetResultSchema,
+} from "./settings-files.ts";
 import { FeatureInfoSchema, FeatureNameSchema, type FeatureStatus } from "./version.ts";
 import {
   CancelRequestParamsSchema,
@@ -1096,10 +1105,13 @@ export type SecretReferencesResult = Static<typeof SecretReferencesResultSchema>
 export const SecretBeginEntryParamsSchema: TObject<{
   name: typeof SecretNameSchema;
   action: TUnion<[TLiteral<"add">, TLiteral<"set">, TLiteral<"rotate">]>;
+  meta: TOptional<typeof SecretEntryMetaSchema>;
 }> = Type.Object(
   {
     name: SecretNameSchema,
     action: Type.Union([Type.Literal("add"), Type.Literal("set"), Type.Literal("rotate")]),
+    /** `add`가 함께 보내는 값 없는 메타(M3-REQ-17). 생략하면 호스트의 기본 메타다 */
+    meta: Type.Optional(SecretEntryMetaSchema),
   },
   { additionalProperties: false },
 );
@@ -1368,6 +1380,18 @@ interface WireSchemas {
     params: WithMeta<typeof HostShutdownParamsSchema>;
     result: typeof HostShutdownResultSchema;
   };
+  "settings.readFile": {
+    params: WithMeta<typeof SettingsReadFileParamsSchema>;
+    result: typeof SettingsReadFileResultSchema;
+  };
+  "settings.writeFile": {
+    params: WithMeta<typeof SettingsWriteFileParamsSchema>;
+    result: typeof SettingsWriteFileResultSchema;
+  };
+  "usage.get": {
+    params: WithMeta<typeof UsageGetParamsSchema>;
+    result: typeof UsageGetResultSchema;
+  };
   "secret.list": {
     params: WithMeta<typeof SecretListParamsSchema>;
     result: typeof SecretListResultSchema;
@@ -1509,6 +1533,17 @@ export const WIRE_METHODS: {
   "settings.set": spec(withMeta(SettingsSetParamsSchema), SettingsSetResultSchema, "M2"),
   "settings.reset": spec(withMeta(SettingsResetParamsSchema), SettingsSetResultSchema, "M2"),
   "settings.list": spec(withMeta(SettingsListParamsSchema), SettingsListResultSchema, "M2"),
+  "settings.readFile": spec(
+    withMeta(SettingsReadFileParamsSchema),
+    SettingsReadFileResultSchema,
+    "M3",
+  ),
+  "settings.writeFile": spec(
+    withMeta(SettingsWriteFileParamsSchema),
+    SettingsWriteFileResultSchema,
+    "M3",
+  ),
+  "usage.get": spec(withMeta(UsageGetParamsSchema), UsageGetResultSchema, "M3"),
   "host.shutdown": spec(withMeta(HostShutdownParamsSchema), HostShutdownResultSchema, "M2"),
   "secret.list": spec(withMeta(SecretListParamsSchema), SecretListResultSchema, "M2"),
   "secret.meta": spec(withMeta(SecretMetaParamsSchema), SecretMetaResultSchema, "M2"),

@@ -7,6 +7,7 @@ import {
   type TLiteral,
   type TNull,
   type TObject,
+  type TOptional,
   type TString,
   type TUnion,
   type TUnsafe,
@@ -237,6 +238,34 @@ export interface SecretMeta {
   readonly ttlSeconds: number;
   readonly maxUses: number;
 }
+
+/**
+ * `add` 입력에 함께 맡기는 값 없는 메타 [결정: M3-REQ-17, 오케스트레이터 기본값]. 모든 필드가 선택이고 생략하면 호스트의 기본 메타를 쓴다
+ * (`SecretMetaParams`와 같은 필드에서 `name`을 뺀 모양). 값은 어디에도 없다. `SecretEntryOffer.meta`와 `secret.beginEntry`의 `meta`가 쓴다.
+ */
+export const SecretEntryMetaSchema: TObject<{
+  desc: TOptional<TString>;
+  scope: TOptional<typeof SecretScopeSchema>;
+  expiresAt: TOptional<TUnion<[TString, TNull]>>;
+  use: TOptional<typeof SecretUsePolicySchema>;
+  approval: TOptional<typeof SecretApprovalSchema>;
+  ttlSeconds: TOptional<TInteger>;
+  maxUses: TOptional<TInteger>;
+}> = Type.Object(
+  {
+    desc: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+    scope: Type.Optional(SecretScopeSchema),
+    expiresAt: Type.Optional(
+      Type.Union([Type.String({ format: "date", maxLength: 10 }), Type.Null()]),
+    ),
+    use: Type.Optional(SecretUsePolicySchema),
+    approval: Type.Optional(SecretApprovalSchema),
+    ttlSeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 86_400 })),
+    maxUses: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000 })),
+  },
+  { additionalProperties: false },
+);
+export type SecretEntryMeta = Static<typeof SecretEntryMetaSchema>;
 
 // ── 마스킹 결과와 감사 레코드 (L0.secrets.spec §3.5, §3.9) ───────────────
 

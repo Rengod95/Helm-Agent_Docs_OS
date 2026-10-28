@@ -96,6 +96,7 @@ export const SettingsTabSchema: TUnion<
     TLiteral<"tools">,
     TLiteral<"plugins">,
     TLiteral<"execution">,
+    TLiteral<"sandbox">,
     TLiteral<"appearance">,
     TLiteral<"advanced">,
   ]
@@ -110,6 +111,7 @@ export const SettingsTabSchema: TUnion<
   Type.Literal("tools"),
   Type.Literal("plugins"),
   Type.Literal("execution"),
+  Type.Literal("sandbox"),
   Type.Literal("appearance"),
   Type.Literal("advanced"),
 ]);
@@ -138,9 +140,34 @@ export const SettingWidgetSchema: TUnion<
 ]);
 export type SettingWidget = Static<typeof SettingWidgetSchema>;
 
+/**
+ * 전용 편집기 힌트 [결정: M3-REQ-15, 오케스트레이터 기본값]. `ui.widget`이 일반 위젯이면 화면은 그 위젯으로 그리고,
+ * `editor`가 있으면 클라이언트가 아는 전용 편집기로 바꿔 그린다. 모르는 값은 일반 위젯으로 그린다(키 이름에 묶지 않는다).
+ * 값은 `L4.settings-ui.spec` §4.2.4 표의 전용 편집기 여섯 가지다.
+ */
+export const SettingEditorSchema: TUnion<
+  [
+    TLiteral<"modelRoles">,
+    TLiteral<"fallbackChain">,
+    TLiteral<"permissionRules">,
+    TLiteral<"sandboxLists">,
+    TLiteral<"searchOrder">,
+    TLiteral<"accountPool">,
+  ]
+> = Type.Union([
+  Type.Literal("modelRoles"),
+  Type.Literal("fallbackChain"),
+  Type.Literal("permissionRules"),
+  Type.Literal("sandboxLists"),
+  Type.Literal("searchOrder"),
+  Type.Literal("accountPool"),
+]);
+export type SettingEditor = Static<typeof SettingEditorSchema>;
+
 export const SettingUiSchema: TObject<{
   tab: typeof SettingsTabSchema;
   widget: typeof SettingWidgetSchema;
+  editor: TOptional<typeof SettingEditorSchema>;
   order: TInteger;
   label: TString;
   help: TOptional<TString>;
@@ -149,6 +176,7 @@ export const SettingUiSchema: TObject<{
   {
     tab: SettingsTabSchema,
     widget: SettingWidgetSchema,
+    editor: Type.Optional(SettingEditorSchema),
     order: Type.Integer({ minimum: 0, maximum: 9999 }),
     label: Type.String({ minLength: 1, maxLength: 80 }),
     help: Type.Optional(Type.String({ maxLength: 500 })),
