@@ -649,6 +649,15 @@ export function resolveRole(input: {
 - 상태 저장: `core_models_accounts`(계정 메타, 참조만), `core_models_usage_windows`(계정·창별 합계), `core_models_cooldowns`(대기 종료 시각)를 `xeon.store.scoped("core_models_")`로 쓴다(`eng.context-map.design` §5.2). 세션 투영이 아니므로 재생으로 다시 만들지 않는다.
 - 읽기 자료: omp `usage-limit.ts`, `credential-pin.ts`. AgentSession에 결합된 구현이라 코드를 가져오지 않는다(`_research/packages.md` §4.3 L1-c 레이트 리밋 행).
 - 단계: M3다. 설정(`l1.models.accounts`, `l1.models.rateLimit`)은 M3 설정 화면에서 조작한다 [결정: review.decisions-2 U-21].
+- 구현(M3b B2-MDL): `core-models/src/accounts.ts`(풀 상태기계), `rotation.ts`(호출 하나를 계정 위에서 돌림), `pipeline.ts`(회전 분기). 규칙은 아래와 같다.
+  - 기본 꺼짐: 회전은 `account-rotation` 플러그인 scope가 켜져 있고(`xeon.ext` scope 상태) `ext.account-rotation.acknowledgeRisk`가 true일 때만 돈다. 어느 하나라도 아니면 계정 설정은 무시하고 provider 설정의 키를 쓴다. 첫 사용 고지 문구는 플러그인 userConfig와 설정 화면이 보인다(§4.11.3 위장 provider와 같은 방식).
+  - 정책이 없는 provider는 `{ minIntervalMs: 0, onLimit: "switch", maxWaitMs: 0 }`이다 [결정: 오케스트레이터 기본값].
+  - 계정 선택: 우선순위 오름차순(같으면 설정 순서)으로 쉬는 중이 아니고 `minIntervalMs`가 지난 첫 계정을 고른다. 쓸 수 없지만 곧 생기는 계정이 있으면 대기 대상이다. 간격 대기는 `maxWaitMs` 안에서 늘 허용하고, 한도(쿨다운) 대기는 `onLimit: "wait"`일 때만 허용한다. 넘거나 허용하지 않으면 마지막 한도 오류를 그대로 낸다.
+  - `rate_limited`: 오류 문구의 `retry-after`(초 또는 ms)만큼, 없으면 60초 그 계정을 쉬게 한다 [결정: 오케스트레이터 기본값]. `onLimit`이 `fail`이면 바로 오류를 내고, 아니면 다음 계정으로 같은 요청을 다시 보낸다. `quota_exhausted`는 그 계정을 1시간 뺀다 [결정: 오케스트레이터 기본값, 창 종료 시각을 알 수 없다].
+  - 콘텐츠를 한 조각이라도 낸 호출은 다시 보내지 않는다. 실패한 시도의 사건(start, error)은 소비자에게 가지 않는다. 회전 중에는 pi-ai 요청 단계 재시도(`maxRetries`)를 끈다(한도 오류를 같은 키로 되풀이하지 않기 위해).
+  - 호출자가 `apiKey`를 넘긴 호출과 hosted 검색 같은 내부 호출은 회전하지 않는다.
+  - [미결] 상태 저장(`core_models_*` 테이블)은 아직 없다. 쉬는 시각과 마지막 요청 시각은 프로세스 메모리에만 있어 재시작하면 사라진다.
+  - [미결] 창 사용률(`reservePct` 비교)을 채우는 출처가 없다. 풀의 `reportUtilization`만 있고 호출하는 곳이 없다.
 - [미결] 구독 계정 회전은 provider 약관 검토가 필요하다(`_research/settings.md` §2.5 계정 행). M3 착수 전에 별도 설계 문서에서 정한다. 검토 결과가 부정이면 구독 계정 회전만 빼고 API 키 계정 회전과 레이트 리밋은 M3에 둔다.
 
 ### 4.9 폴백 체인 (2차)
@@ -772,6 +781,7 @@ export function resolveRole(input: {
 | `l1.models.retry` | `{ maxRetries: 0~10, baseDelayMs, maxDelayMs }` | `{ 3, 2000, 60000 }`(pi 기본, `_research/settings.md` §2.5) | M U | nextTurn | advanced / table | M1 |
 | `l1.models.accounts` | `AccountDef[]` | `[]` | M U | live | providers / table | M3 |
 | `l1.models.rateLimit` | `{ [provider]: RateLimitPolicy }` | `{}` | M U P | live | budgets / table | M3 |
+| `ext.account-rotation.acknowledgeRisk` | `boolean` | `false` | U | live | plugins / switch | M3 |
 | `l1.models.fallbackChains` | `{ [role]: ModelRefString[] }`(역할당 최대 3) | `{}` | M U P | nextTurn | models / table | 2차 |
 | `l1.models.structuredOutputAttempts` | `integer 1~5` | `3` | M U P | nextTurn | advanced / number | 2차 |
 

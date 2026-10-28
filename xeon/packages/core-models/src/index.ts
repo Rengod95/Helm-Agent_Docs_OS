@@ -25,6 +25,7 @@ export {
   DEFAULT_MODELS_SETTINGS,
   DEFAULT_RETRY_SETTINGS,
   DEFAULT_THINKING_BUDGETS,
+  ROTATION_ACK_KEY,
   MODELS_SETTING_DEFS,
   modelsSettingsOf,
   type ModelsSettingReader,
@@ -32,3 +33,9 @@ export {
   type ProviderSetting,
   type RetrySettings,
 } from "./settings.ts";
+export {
+  type AccountDef,
+  type AccountPool,
+  type RateLimitPolicy,
+  type UsageLimitAction,
+} from "./accounts.ts";

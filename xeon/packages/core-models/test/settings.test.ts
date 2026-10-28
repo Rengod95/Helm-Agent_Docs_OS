@@ -13,7 +13,7 @@ function row(apiKeyRef: string | null): unknown {
 }
 
 describe("settings_defs_pass_checks", () => {
-  test("declares exactly the M1 and M2 keys of spec section 6", () => {
+  test("declares exactly the M1, M2 and M3 account keys of spec section 6", () => {
     expect(MODELS_SETTING_DEFS.map((def) => def.key).toSorted()).toEqual(
       [
         "l1.models.default",
@@ -30,6 +30,8 @@ describe("settings_defs_pass_checks", () => {
         "l1.models.providers",
         "l1.models.cacheRetention",
         "l1.models.retry",
+        "l1.models.accounts",
+        "l1.models.rateLimit",
       ].toSorted(),
     );
   });
@@ -76,6 +78,8 @@ describe("settings_defs_pass_checks", () => {
       "l1.models.providers": [],
       "l1.models.cacheRetention": "short",
       "l1.models.retry": { maxRetries: 3, baseDelayMs: 2000, maxDelayMs: 60_000 },
+      "l1.models.accounts": [],
+      "l1.models.rateLimit": {},
     });
     expect(defaults["l1.models.retry"]).toEqual(DEFAULT_RETRY_SETTINGS);
   });

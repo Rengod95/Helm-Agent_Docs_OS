@@ -35,6 +35,7 @@ import {
   type SecretResolver,
 } from "./secrets-bridge.ts";
 import type { ProviderSetting, RetrySettings, ThinkingBudgetSettings } from "./settings.ts";
+import { createRotation, type RotationDeps } from "./rotation.ts";
 import { observeStream } from "./stream-observer.ts";
 import type { UsageRecorder } from "./usage.ts";
 
@@ -58,6 +59,12 @@ export interface PipelineDeps {
   /** 헤더 값의 비밀 참조 해석 */
   readonly resolver: SecretResolver;
   readonly logger?: Logger;
+  /** 계정 회전 설정. null이면 회전하지 않는다(기본 꺼짐, L1.models.spec §4.8) */
+  readonly rotation:
+    | (Pick<RotationDeps<CallSpec>, "pool" | "scheduler" | "accounts" | "policy"> & {
+        readonly enabled: () => boolean;
+      })
+    | null;
 }
 
 /** 호출 하나의 입력. stream, streamFn이 같은 모양으로 만들어 넘긴다 */
@@ -395,7 +402,8 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
     }
   }
 
-  function start(spec: CallSpec): AssistantMessageEventStream {
+  /** 계정 하나(또는 계정 풀 없이 설정의 키)로 보내는 한 번의 요청 */
+  function startOnce(spec: CallSpec): AssistantMessageEventStream {
     const failureMark = deps.failures.mark();
     const model = deps.models.getModel(spec.provider, spec.modelId);
     const setting = deps.providerSetting(spec.provider);
@@ -481,6 +489,38 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
         });
       },
     });
+  }
+
+  const rotation =
+    deps.rotation === null
+      ? null
+      : createRotation({
+          pool: deps.rotation.pool,
+          clock: deps.clock,
+          scheduler: deps.rotation.scheduler,
+          resolver: deps.resolver,
+          accounts: deps.rotation.accounts,
+          policy: deps.rotation.policy,
+          startOnce,
+          failed: (spec, kind, text) => failedSource(spec, "unknown", kind, text),
+          onCredentialFailure: (failure) => {
+            deps.failures.record(failure);
+          },
+        });
+  const rotationEnabled = deps.rotation?.enabled;
+
+  function start(spec: CallSpec): AssistantMessageEventStream {
+    // 회전은 호출자가 키를 정해 넘긴 호출(apiKey)과 hosted 검색 같은 내부 호출에는 쓰지 않는다
+    if (
+      rotation !== null &&
+      rotationEnabled?.() === true &&
+      spec.apiKey === undefined &&
+      spec.internal === undefined &&
+      rotation.active(spec.provider)
+    ) {
+      return rotation.run(spec);
+    }
+    return startOnce(spec);
   }
 
   return { start };
