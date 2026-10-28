@@ -141,6 +141,9 @@
     "packages/cap-schedule": {
       "name": "@xeon/cap-schedule",
       "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
       },
