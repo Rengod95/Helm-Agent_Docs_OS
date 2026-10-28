@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import { AGENTS_SETTING_DEFS, JUDGE_MAX_RUNS_DEFAULT } from "@xeon/core-agents";
 import {
   defineSettings,
   resolveSetting,
@@ -184,4 +185,20 @@ export function readWorkSettings(layers: ScopeStack): WorkSettings {
       ),
     },
   };
+}
+
+const JUDGE_MAX_RUNS_DEF: SettingDef | undefined = AGENTS_SETTING_DEFS.find(
+  (def) => def.key === "l1.agents.judge.maxRuns",
+);
+
+/**
+ * 목표 판정 상한 `l1.agents.judge.maxRuns`의 유효 값. 상한 키는 L1.agents가 소유하므로 그쪽 정의로 읽는다(spec §4.3.2).
+ * 정의를 찾지 못하거나 값이 정수가 아니면 L1.agents의 기본값이다
+ */
+export function readJudgeMaxRuns(layers: ScopeStack): number {
+  if (JUDGE_MAX_RUNS_DEF === undefined) return JUDGE_MAX_RUNS_DEFAULT;
+  const { value } = resolveSetting(JUDGE_MAX_RUNS_DEF, layers).setting;
+  return typeof value === "number" && Number.isInteger(value) && value >= 1
+    ? value
+    : JUDGE_MAX_RUNS_DEFAULT;
 }

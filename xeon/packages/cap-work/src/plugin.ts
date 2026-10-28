@@ -1,7 +1,9 @@
 import { attemptAsync, err, ok } from "@xeon/contracts";
 import {
+  WorkGoalsKey,
   WorkPlans,
   WorkPlansKey,
+  WorkReportsKey,
   WorkTasks,
   WorkTasksKey,
   type CommandActionRegistry,
@@ -9,16 +11,20 @@ import {
 import type { IdFactory } from "@xeon/contracts/conversation";
 import { ScopedStorePortKey, type ExtensionEntry, type PortKey } from "@xeon/contracts/extensions";
 import {
+  AgentServicePortKey,
   ApprovalServicePortKey,
   OsPortKey,
   SessionPortKey,
   ToolServicePortKey,
   type ToolRegistration,
+  type AgentService,
   type ApprovalService,
   type ToolService,
 } from "@xeon/contracts/services";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
 import { registerWorkCommands } from "./commands.ts";
+import { createSettleGate } from "./goals/gate.ts";
+import { createGoals } from "./goals/service.ts";
 import type { WorkPlansDeps } from "./deps.ts";
 import { workManifest } from "./manifest.ts";
 import { createWorkProjector } from "./projection/projector.ts";
@@ -28,7 +34,7 @@ import { createPlans } from "./plans/service.ts";
 import { planApprovalsOver, type PlanApprovalsFactory } from "./ports/approvals.ts";
 import type { PlanArtifactsPort } from "./ports/artifacts.ts";
 import { toolsPermissionMode, type PermissionModePort } from "./ports/permission-mode.ts";
-import { readWorkSettings, type WorkSettingsSource } from "./settings.ts";
+import { readJudgeMaxRuns, readWorkSettings, type WorkSettingsSource } from "./settings.ts";
 import { reminderMessage } from "./tasks/reminder.ts";
 import { createTasksApi } from "./tasks/service.ts";
 
@@ -102,7 +108,8 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
       const host = hostOf(g);
       const session = host.port(SessionPortKey);
       const reader = host.port(ScopedStorePortKey).scoped(WORK_PRODUCER);
-      const logger = host.port(OsPortKey).logger("work");
+      const os = host.port(OsPortKey);
+      const logger = os.logger("work");
       const tools = optionalPort<ToolService>(host, ToolServicePortKey);
       const approvalService = optionalPort<ApprovalService>(host, ApprovalServicePortKey);
 
@@ -144,6 +151,27 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
         });
         g.onDispose(unregister);
       }
+      // 목표 지속(M3-REQ-90): 판정과 완료 보고. 완료 게이트는 `boundary.settle.before` chain 핸들러 하나다
+      const goals = createGoals({
+        ...deps,
+        clock: os.time.clock,
+        maxRuns: (threadId) => readJudgeMaxRuns(options.settings.layers(threadId)),
+      });
+      host.provide(WorkGoalsKey, goals.goalsApi);
+      host.provide(WorkReportsKey, goals.reportsApi);
+      const gate = createSettleGate({
+        goals,
+        reader,
+        agents: () => optionalPort<AgentService>(host, AgentServicePortKey),
+        ids: options.ids,
+        clock: os.time.clock,
+        logger,
+      });
+      g.on("boundary.step.after", (payload, _current, ctx) => {
+        gate.rememberStep(payload.stepId, ctx.threadId);
+        return undefined;
+      });
+      g.on("boundary.settle.before", (payload, current, ctx) => gate.settle(payload, current, ctx));
       const listener = startPlanModeListener(session, plans, logger);
       g.onDispose(() => {
         listener?.stop();

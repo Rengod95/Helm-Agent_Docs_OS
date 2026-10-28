@@ -99,10 +99,10 @@ xeon/packages/cap-work/
 | T6 | `submit_plan` → `xeon.approvals`(kind `plan`) 연결: `ApprovalsPort`, 제출 흐름(§4.2.4), `input_required`/`decided` 출력, `approve`/`reject`/`revise` 편의 메서드, 승인 해결 뒤 모드 복원 리스너, 재개 절차의 계획 부분 | T4, T5, L1.tools 승인 프로토콜 | L | M2 |
 | T7 | 계획 산출물 등록(`artifacts.registry` 선택 의존, 제출 시점): 사용 가능 확인, 첫 판 `register`·다음 판 `update`(requestId `plan:<planId>:<planVersion>`), 실패 시 `artifact: null` | T6, L2.artifacts 정의 | S | M2(산출물 능력이 없으면 비활성 경로만 테스트) |
 | T8 | 설정 키 6개(`settings.ts`), 명령 등록(`dialog.commands` 선택 의존, §6.2) | T3, T6, L2.dialog D5 | S | M2(명령은 W-10 확정 뒤) |
-| T9 | 목표 저장과 상태 머신: `set`/`status`/`clear`, `continuation` 필드, `work.goal_set`·`work.goal_settled`, 투영(`cap_work_goals`) | T3, T8 | M | M3 |
-| T10 | 판정자 인터페이스와 기본 판정 모델 호출: `GoalEvidence` 수집(`xeon.session` 읽기), `JudgePort`(`xeon.agents`의 `judge`, `GoalEvidence` → `JudgeInput` 변환, `JudgeOutcome` 대응), `delegated` 판정자와 `judge` 메서드, 대기 시간 제한 | T9, L1.agents `judge` | L | M3 |
-| T11 | 판정 러너: `turn.completed` 피드 구독, 판정 커밋(키 `work:goal:<goalId>:judge:<turnId>`), 상한(`l1.agents.judge.maxRuns`, `capped`)·종결, 판정 실패 정책, `post` 다음 턴 시작(drive 임대 중과 `continuation: "external"`이면 생략), 재개 시 재판정 방지(§4.5) | T10 | L | M3 |
-| T12 | 완료 보고 스키마와 생성: `reports.build`, 목표 종결 커밋에 `work.report_built` 포함, 사용량·시간 합계, 남은 항목, 산출물 합집합 | T11 | M | M3 |
+| T9 | 목표 저장과 상태 머신: `set`/`status`/`clear`, `continuation` 필드, `work.goal_set`·`work.goal_settled`, 투영(`cap_work_goals`, `cap_work_judgments`) | T3, T8 | M | M3(완료: M3a A4) |
+| T10 | 판정자와 증거: `GoalEvidence` 수집(정착 지점 컨텍스트와 투영 읽기), `xeon.agents.judge` 호출과 `JudgeOutcome` 대응, `delegated` 판정자와 `judge` 메서드(대기 시간 제한은 제외, spec §4.3.5) | T9, L1.agents `judge` | L | M3(완료: M3a A4) |
+| T11 | 완료 게이트: `boundary.settle.before` chain 핸들러(`goalGateDecision`), 판정 커밋(키 `work:goal:<goalId>:judge:<run>`), 상한·종결, 판정 실패 stop, 지시·안내 custom 항목, 재개 시 같은 판정 순번 한 번만 기록. `turn.completed` 러너와 `post`는 쓰지 않는다(M3-new-02) | T10 | L | M3(완료: M3a A4) |
+| T12 | 완료 보고 스키마와 생성: `reports.build`, 목표 종결 커밋에 `work.report_built` 포함, 사용량·시간 합계, 남은 항목. 산출물 합집합은 `L2.artifacts` 범위 조회가 생길 때 더한다 | T11 | M | M3(완료: M3a A4) |
 
 순서: T1 → T2 → T3 → T4 → (T5, T7 병행) → T6 → T8 → T9 → T10 → T11 → T12.
 
@@ -149,13 +149,9 @@ xeon/packages/cap-work/
 | `test/plans-mode.test.ts` | 승인 전 실행 단계 진입 금지 | `requireApproval = true`에서 승인 전 `exitMode`는 `plan_not_approved`이고 `restore` 호출이 없다. 승인 뒤 `exitOnApprove`면 `restore` 한 번 |
 | `test/plans-resume.fault.test.ts` | 승인 대기 중 재시작 복원 | `work.plan_submitted` 커밋 직후 강제 종료(고장 주입) → 재개 시 같은 키로 승인 요청이 한 번만 있다. 대기 중 재시작 뒤 응답하면 `submit` 재호출이 `decided`를 한 번 낸다 |
 | `test/plans-artifact.test.ts` | 산출물 선택 의존 | 능력이 없으면 `artifact: null`, 등록 실패여도 제출은 성공. 등록 requestId가 `plan:<planId>:<planVersion>`이고, 등록 뒤 커밋 전 종료 후 재시도해도 등록 호출의 결과가 같다(가짜 registry의 멱등) |
-| `test/goals-limit.int.test.ts` | 판정 상한 | `l1.agents.judge.maxRuns = 3`, 가짜 판정 `not_met` 3회 → 세 번째 커밋에 `goal_settled(limit_reached)`와 `report_built`, 네 번째 post 없음. `capped` 응답이면 판정 기록 없이 같은 종결 |
-| `test/goals-resume.fault.test.ts` | 재개 후 재판정 없음 | 판정 커밋 뒤 종료하고 재개하면 가짜 판정 포트 호출이 더 없다. 판정 커밋 전 종료면 한 번 호출되고 `recorded`를 받아도 같은 판정으로 기록한다. 미충족 뒤 post 전 종료면 재개 때 post가 한 번 들어간다(`duplicate` 확인) |
-| `test/goals-failure.test.ts` | 판정 실패 정책 | 가짜 판정 `failed`에서 `stop`이면 `judge_failed`, `continue`면 n 증가 없이 post, 연속 실패가 `maxRuns`에 이르면 `judge_failed` |
-| `test/goals-delegated.test.ts` | 판정자 교체 | delegated 목표에서 판정 모델 포트 호출 0회, `judge`가 판정을 기록, 같은 턴 두 번째 `judge`는 기존 판정 반환, 다른 턴은 `goal_turn_stale`, 대기 시간 초과는 `failure.code = "timeout"` |
-| `test/goals-runner.test.ts` | 판정 계기 | `interrupted` 턴은 판정하지 않고 `failed` 턴은 판정한다. drive 임대 중에는 post하지 않는다 |
-| `test/goals-runner.test.ts` | 외부 투입 목표 | `continuation: "external"` 목표에서 미충족 판정 3회 동안 post 0회. 판정은 기록된다(spec §9-11) |
-| `test/reports-build.test.ts` | 보고 스키마 | 이벤트 목록에서 사용량 합계, `durationMs`, 남은 작업, 계획 참조를 계산하고 `WorkReportSchema`를 통과한다 |
+| `test/goals-service.int.test.ts` | `set`·`status`·`clear`·`judge`, 보고 | 실제 SQLite와 세션 위에서 목표 기본값과 판정 상한 값, `goal_active`와 `replace`(종결 보고가 같은 커밋), `clear`의 보고와 `goal_closed`, 같은 `requestId`는 처음 결과와 같은 거부를 되풀이하고 이벤트를 쓰지 않음, 위임 판정(`goal_not_delegated`, 소유자만, `goal_turn_stale`, 같은 턴은 첫 판정, `met`·`limit_reached` 종결과 보고), `reports.build`(턴 사용량 합계, 남은 작업, 알 수 없는 대상) |
+| `test/goals-gate.test.ts` | 완료 게이트 | 가짜 `xeon.agents.judge`로 `boundary.settle.before` 핸들러를 직접 부른다. `not_met`·`undecidable`은 지시 항목과 `continue: true`, 증거(최종 텍스트, 도구 호출, 작업, 직전 판정), `met`은 종결과 보고, `capped`는 판정 기록 없이 `limit_reached`와 안내 항목, 마지막 허용 실행의 미충족은 바로 종결, 판정 실패(`failed`, 던짐, `xeon.agents` 없음)는 `judge_failed`와 stop, 중단·오류 turn·위임 목표·판정 중 해제는 끼어들지 않음, 단계 id가 없으면 엔트리 없이 결정만, 같은 답이 다시 오면 이벤트가 늘지 않음 |
+| `test/idempotency.conformance.test.ts` | 능력 적합성 | ADR-0015 §3.6, M3-REQ-88·89. 멱등 쓰기 아홉 개(`tasks.create`·`update`·`link`·`write`, `plans.submit`, `goals.set`·`clear`·`judge`, `reports.build`)를 같은 `requestId`로 저장소를 닫았다 다시 열고 두 번 부른다. 결과가 같고 이벤트 수와 `cap_work_` 표가 그대로다. 분류 값이 spec 표와 같고, 계획 결정(`approve`·`reject`·`revise`)은 `requestId`를 기억하지 않아 같은 키의 반복이 `plan_closed`임을 고정한다 |
 | `test/defs.contract.test.ts` | 정의 검증 | 네 정의의 `validateCapability` 이슈 0건(W-3 확정 전에는 `tools: []` 관련 이슈만 허용 목록), `validateCapabilitySet`에서 도구 이름 충돌 없음 |
 | `test/catalog.contract.test.ts` | 카탈로그 일치 | `WORK_EVENT_CATALOG`의 kind가 `parseEventKind`를 통과하고 `TYPE_PREFIX_OWNERS`의 `work.` 소유가 `cap.work`이며 스펙 §3.7 표와 집합이 같다 |
 
@@ -167,14 +163,14 @@ spec §9 수용 기준과 테스트의 대응:
 |---|---|---|
 | 1 | `test/plans-decision.int.test.ts` · 같은 레코드 형식(`L2.dialog.plan` `test/ask-flow.test.ts` · 같은 레코드 형식과 공동) | M2 |
 | 2 | `test/tasks-graph.test.ts` · 간선 순환 거부 | M2 |
-| 3 | `test/goals-limit.int.test.ts` · 판정 상한 | M3 |
-| 4 | `test/goals-resume.fault.test.ts` · 재개 후 재판정 없음 | M3 |
+| 3 | `test/goals-gate.test.ts` · 판정 상한과 완료 게이트 | M3 |
+| 4 | `test/goals-gate.test.ts` · 재개 때 같은 판정 순번은 한 번만 기록 | M3 |
 | 5 | `test/plans-mode.test.ts` · 승인 전 실행 단계 진입 금지 | M2 |
 | 6 | `test/defs.contract.test.ts` · 정의 검증 | M2 |
 | 7 | `test/projection.int.test.ts` · 재생성 동일성 | M2 |
 | 8 | `test/tasks-service.int.test.ts` · 같은 requestId 재호출 | M2 |
 | 9 | `test/plans-resume.fault.test.ts` · 승인 대기 중 재시작 복원 | M2 |
-| 10 | `test/goals-delegated.test.ts` · 판정자 교체 | M3 |
+| 10 | `test/goals-service.int.test.ts` · 위임 판정자 | M3 |
 | 11 | `test/goals-runner.test.ts` · 외부 투입 목표(루프 결합 부분은 `L2.schedule.plan` 루프 테스트와 공동) | M3 |
 
 M2:

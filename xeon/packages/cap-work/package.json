@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@xeon/contracts": "workspace:*",
+    "@xeon/core-agents": "workspace:*",
     "@xeon/ext-host": "workspace:*",
     "typebox": "catalog:"
   },
