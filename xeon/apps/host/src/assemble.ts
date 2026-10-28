@@ -56,6 +56,7 @@ import {
   type StoreOpenError,
   type StoreWarning,
 } from "@xeon/platform-store";
+import { capabilityDefsOf } from "./assembly/capability-defs.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
@@ -329,6 +330,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     policy: operations,
     setupBudgetMs: () => operations.setupBudgetMs(),
     settings: primitivesSource(settings),
+    capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     report: (diagnostic) => {
       diagnostics.push(diagnostic);
       late.logger?.warn("ext.diagnostic", {

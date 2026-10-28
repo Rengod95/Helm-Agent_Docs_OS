@@ -3450,6 +3450,29 @@
           "widget": "table"
         }
       }
+    },
+    "x.primitives.leaseWaitLimit": {
+      "default": 8,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project",
+          "session"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "drive 임대를 받지 못한 그룹이 기다리는 turn 정착·유휴 경계 수. 넘으면 요청을 거부하고 lease.rejected를 남긴다.",
+          "label": "임대 대기 상한",
+          "order": 111,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
     }
   },
   "type": "object",

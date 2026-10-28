@@ -1,5 +1,5 @@
 import type { Clock, Result, Scheduler } from "@xeon/contracts";
-import type { SecretMeta, SecretName } from "@xeon/contracts/capabilities";
+import type { AnyCapabilityDef, SecretMeta, SecretName } from "@xeon/contracts/capabilities";
 import type { IdFactory, ItemId, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   DurableEventEnvelope,
@@ -62,6 +62,11 @@ export interface AssembleOptions {
   readonly dataDir?: string;
   /** 테스트용 그룹, 모델 테이프 provider */
   readonly extraPlugins?: readonly HostPluginModule[];
+  /**
+   * 확장이 공급하는 능력의 정의. 내장 L2 정의 표에 더해 능력 래퍼에 넘긴다(X.primitives.spec §4.4.7).
+   * 정의에 `idempotent`·`readOnly`가 없는 메서드는 on 핸들러와 drive 함수에서 거부된다
+   */
+  readonly extraCapabilityDefs?: readonly AnyCapabilityDef[];
   /**
    * 테스트 주입: pi-ai 모델 모음을 만드는 함수(모델 테이프 provider를 더한 것). 운영은 생략하고 그러면 pi-ai 내장 provider를 쓴다.
    * `extraPlugins`로는 모델 서비스를 바꿀 수 없다: core-models가 먼저 올라 xeon.models를 이미 냈기 때문이다(L4.host-service.plan §7).
