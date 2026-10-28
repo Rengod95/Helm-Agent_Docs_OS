@@ -8,6 +8,14 @@ export {
   openProcessStdio,
   rejectionFrame,
   writableFromSink,
+  connectSocket,
+  listenSocket,
+  UNIX_SOCKET_PATH_LIMIT,
+  type PeerInfo,
+  type SocketConnectOptions,
+  type SocketError,
+  type SocketListenOptions,
+  type SocketListener,
   type ByteSink,
   type ByteStreams,
   type EncodeError,
@@ -98,3 +106,4 @@ export {
   type PipedSpawnError,
   type PipedSpawnInput,
 } from "./port/spawn-piped.ts";
+export * from "./service/index.ts";
