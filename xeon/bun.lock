@@ -327,6 +327,7 @@
       "name": "@xeon/group-kit",
       "version": "0.0.0",
       "dependencies": {
+        "@swc/core": "catalog:",
         "@xeon/contracts": "workspace:*",
         "@xeon/ext-host": "workspace:*",
         "typebox": "catalog:",

@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
-import { replayDrive } from "../src/testing/index.ts";
-import { badDriveGroup, goodDriveGroup, silentDriveGroup } from "./fixtures/drive-groups.ts";
+import { NO_EFFECTS, replayDrive } from "../src/testing/index.ts";
+import {
+  badDriveGroup,
+  doubledEffectGroup,
+  goodDriveGroup,
+  onceEffectGroup,
+  silentDriveGroup,
+} from "./fixtures/drive-groups.ts";
 import { createReplayHarness } from "./support/replay-harness.ts";
 
 test("replay.cut-at-every-commit-yields-same-events", async () => {
@@ -33,4 +39,39 @@ test("replay.fails-above-the-commit-limit", async () => {
     maxCommits: 2,
   });
   expect(report).toMatchObject({ ok: false, failure: "max-commits-exceeded", commits: 3 });
+});
+
+test("replay.counts-effects-and-asserts-each-happened-once", async () => {
+  const harness = createReplayHarness();
+  const report = await replayDrive({
+    group: onceEffectGroup(harness),
+    harness,
+    expectEffects: { turn: 3, spawn: 3, delegate: 3, post: 3, capabilityWrite: 0 },
+  });
+  expect(report.failure).toBeUndefined();
+  expect(report.effects).toEqual({ turn: 3, spawn: 3, delegate: 3, capabilityWrite: 0, post: 3 });
+  expect(report.cuts.map((cut) => cut.effects)).toEqual([NO_EFFECTS, NO_EFFECTS, NO_EFFECTS]);
+  expect(report.cuts.every((cut) => cut.equal)).toBe(true);
+  expect(report.ok).toBe(true);
+});
+
+test("replay.fails-with-effects-doubled-when-events-match-but-effects-repeat", async () => {
+  const harness = createReplayHarness();
+  const report = await replayDrive({ group: doubledEffectGroup(harness), harness });
+  // 가짜 루프·큐·위임 서비스는 이벤트를 쓰지 않으므로 이벤트열 비교만으로는 통과한다
+  expect(report.cuts.every((cut) => cut.equal)).toBe(true);
+  expect(report).toMatchObject({ ok: false, failure: "effects-doubled" });
+  const repeated = report.cuts.map((cut) => cut.effects?.turn);
+  expect(repeated.some((count) => count !== undefined && count > 0)).toBe(true);
+});
+
+test("replay.fails-with-effects-mismatch-when-the-baseline-count-is-not-as-expected", async () => {
+  const harness = createReplayHarness();
+  const report = await replayDrive({
+    group: onceEffectGroup(harness),
+    harness,
+    expectEffects: { delegate: 1 },
+  });
+  expect(report).toMatchObject({ ok: false, failure: "effects-mismatch" });
+  expect(report.effects?.delegate).toBe(3);
 });

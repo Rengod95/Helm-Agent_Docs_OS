@@ -1,15 +1,18 @@
-import { Bug, attempt, parse, rethrow } from "@xeon/contracts";
+import { Bug, attempt, attemptAsync, parse, rethrow } from "@xeon/contracts";
 import type { ServiceKey } from "@xeon/contracts/capabilities";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import type {
   DriveFn,
   DriveOptions,
   ExtensionManifest,
   LoopHandle,
+  PortKey,
   ScopeApi,
   SpawnSpec,
   StateDecl,
   ToolResourceDef,
 } from "@xeon/contracts/extensions";
+import { AgentServicePortKey, type AgentService } from "@xeon/contracts/services";
 import type { SettingDef, SettingGroup } from "@xeon/contracts/settings";
 import {
   hostOf,
@@ -17,7 +20,17 @@ import {
   type CommandResourceDef,
   type StateMigration,
 } from "@xeon/ext-host";
-import { checkDelegateSpec, type DelegateResult, type DelegateSpec } from "./delegate.ts";
+import {
+  checkDelegateSpec,
+  delegateResultOf,
+  delegateStatusOf,
+  toDelegateRequest,
+  type CancelDelegatesResult,
+  type DelegateCallOptions,
+  type DelegateResult,
+  type DelegateSpec,
+  type DelegateStatusResult,
+} from "./delegate.ts";
 import { createMetricsCounter, type MetricsCounter } from "./metrics/counter.ts";
 import { GroupSettingsSourceKey, type GroupSettingsSource } from "./ports/settings.ts";
 import { checkPostItem, checkRecordKind, type RecordCheck } from "./records.ts";
@@ -29,6 +42,16 @@ import type {
   GroupSettingValues,
 } from "./types.ts";
 
+/**
+ * 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수)의 thread와 취소 신호.
+ * X의 ambient 문맥이 원천이고 L3는 읽을 수단이 없어 X 요청이다(L3.group-kit.spec §3.13 요청 6)
+ */
+export interface GroupCallContext {
+  readonly kind: "on" | "drive";
+  readonly threadId: ThreadId;
+  readonly signal: AbortSignal;
+}
+
 /** wrap이 X의 hostOf를 통해 쓰는 연산. checkGroup 같은 도구가 대역으로 바꿀 수 있게 좁게 나눈다 */
 export interface GroupHostAccess {
   registerTool(def: ToolResourceDef): void;
@@ -36,6 +59,10 @@ export interface GroupHostAccess {
   migrateState(fn: StateMigration): void;
   /** 설정 읽기 포트. 없거나 내장 확장이 아니면 undefined */
   settingsSource(): GroupSettingsSource | undefined;
+  /** L1 위임 서비스(`xeon.agents`). 없거나 내장 확장이 아니면 undefined */
+  agents(): AgentService | undefined;
+  /** 재실행 문맥 안이면 그 문맥. 문맥 밖(명령 처리기, 도구 execute, onDispose)이면 undefined */
+  callContext(): GroupCallContext | undefined;
 }
 
 export type HostAccessFactory<S> = (api: ScopeApi<S>) => GroupHostAccess;
@@ -54,14 +81,21 @@ export function realHostAccess<S>(api: ScopeApi<S>): GroupHostAccess {
     migrateState: (fn) => {
       hostOf(api).migrateState(fn);
     },
-    settingsSource: () => {
-      const found = attempt(() => hostOf(api).port(GroupSettingsSourceKey));
-      if (found.ok) return found.value;
-      const cause = found.error.cause;
-      if (cause instanceof PrimitiveError && PORT_ABSENT.has(cause.code)) return undefined;
-      return rethrow(cause);
-    },
+    settingsSource: () => optionalPort(api, GroupSettingsSourceKey),
+    agents: () => optionalPort(api, AgentServicePortKey),
+    // X에는 ambient 문맥을 읽는 공개 연산이 없다. X가 hostOf(g).callContext()를 내기 전까지 undefined라
+    // delegate는 group.delegateUnavailable을 돌려준다(보고: M3a T-K [미결])
+    callContext: () => undefined,
   };
+}
+
+/** 포트가 없거나 쓸 수 없는 확장이면 undefined. 그 밖의 오류는 버그라 다시 던진다 */
+function optionalPort<S, Api>(api: ScopeApi<S>, key: PortKey<Api>): Api | undefined {
+  const found = attempt(() => hostOf(api).port(key));
+  if (found.ok) return found.value;
+  const cause = found.error.cause;
+  if (cause instanceof PrimitiveError && PORT_ABSENT.has(cause.code)) return undefined;
+  return rethrow(cause);
 }
 
 /** wrap이 읽는 GroupDef의 부분 */
@@ -156,6 +190,11 @@ export function wrap<S, D extends GroupSettingDefs>(
 ): GroupApi<S, D> {
   const access = hostAccess(api);
   const counter = createMetricsCounter(def.manifest.name);
+  /** onDispose가 시작되면 참. 꺼지는 중인 그룹의 delegate는 group.disabling이다(§4.10) */
+  let disposing = false;
+  api.onDispose(() => {
+    disposing = true;
+  });
   if (def.state !== undefined && def.state.version >= 2) {
     access.migrateState(migrationChain(def.state.version, def.migrations));
   }
@@ -203,11 +242,82 @@ export function wrap<S, D extends GroupSettingDefs>(
       api.onDispose(fn);
     },
     settings: () => readSettings(def.settings, access.settingsSource(), def.manifest.name),
-    delegate: (spec: DelegateSpec): Promise<DelegateResult> => {
+    delegate: async (
+      spec: DelegateSpec,
+      options?: DelegateCallOptions,
+    ): Promise<DelegateResult> => {
       const invalid = checkDelegateSpec(spec, def.manifest.name);
-      if (invalid !== undefined) return Promise.resolve({ ok: false, error: invalid });
-      // L1-g 위임 서비스는 M3(G-14)에서 연결한다
-      return Promise.resolve({ ok: false, error: { kind: "group.delegateUnavailable" } });
+      if (invalid !== undefined) return { ok: false, error: invalid };
+      if (disposing) return { ok: false, error: { kind: "group.disabling", id: api.id } };
+      const agents = access.agents();
+      const context = access.callContext();
+      const threadId = options?.threadId ?? context?.threadId;
+      if (agents === undefined || threadId === undefined) {
+        return { ok: false, error: { kind: "group.delegateUnavailable" } };
+      }
+      const called = await attemptAsync(() =>
+        agents.delegate(toDelegateRequest(spec), {
+          parentThreadId: threadId,
+          owner: { kind: "scope", scopeId: api.id },
+          caller: "main",
+          depth: 0,
+          ownerRequestId: spec.requestId,
+          signal: options?.signal ?? context?.signal ?? new AbortController().signal,
+        }),
+      );
+      if (!called.ok) {
+        return {
+          ok: false,
+          error: { kind: "group.delegateFailed", message: describeCause(called.error.cause) },
+        };
+      }
+      const result = delegateResultOf(called.value);
+      if (result.ok && result.receipt.status === "accepted") counter.bump("delegates");
+      return result;
+    },
+    delegateStatus: (
+      requestId: string,
+      options?: Pick<DelegateCallOptions, "threadId">,
+    ): DelegateStatusResult => {
+      const context = access.callContext();
+      if (context?.kind === "on") {
+        return {
+          ok: false,
+          error: { kind: "group.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
+        };
+      }
+      const agents = access.agents();
+      const threadId = options?.threadId ?? context?.threadId;
+      if (agents === undefined || threadId === undefined) {
+        return { ok: false, error: { kind: "group.delegateUnavailable" } };
+      }
+      const found = agents.status(threadId, requestId);
+      return { ok: true, status: found === undefined ? undefined : delegateStatusOf(found) };
+    },
+    cancelDelegates: async (reason?: string): Promise<CancelDelegatesResult> => {
+      const context = access.callContext();
+      if (context !== undefined) {
+        return {
+          ok: false,
+          error: {
+            kind: "group.effectNotAllowed",
+            effect: "g.cancelDelegates",
+            context: context.kind,
+          },
+        };
+      }
+      const agents = access.agents();
+      if (agents === undefined) return { ok: false, error: { kind: "group.delegateUnavailable" } };
+      const called = await attemptAsync(() =>
+        agents.cancel({ ownerScopeId: api.id }, reason ?? "group disabled"),
+      );
+      if (!called.ok) {
+        return {
+          ok: false,
+          error: { kind: "group.delegateFailed", message: describeCause(called.error.cause) },
+        };
+      }
+      return { ok: true, cancelled: called.value.cancelled };
     },
     metrics: counter.handle,
     registerTool: (toolDef) => {
@@ -217,4 +327,8 @@ export function wrap<S, D extends GroupSettingDefs>(
       access.registerCommand(name, commandDef);
     },
   };
+}
+
+function describeCause(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }
