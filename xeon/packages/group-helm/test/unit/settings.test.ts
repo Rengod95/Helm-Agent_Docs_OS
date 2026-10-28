@@ -11,12 +11,12 @@ import {
 test("settings.defs-pass-check", () => {
   const defs = Object.values(helmSettings.defs);
   for (const def of defs) expect(checkSettingDef(def)).toEqual([]);
-  expect(buildCatalog([{ owner: "group-helm", namespace: "l3.helm", defs }]).ok).toBe(true);
+  expect(buildCatalog([{ owner: "group-helm", namespace: "ext.helm", defs }]).ok).toBe(true);
   expect(Object.fromEntries(defs.map((def) => [def.key, def.default]))).toEqual({
-    "l3.helm.autoStart": "suggest",
-    "l3.helm.driveLimits": { maxTurns: 4, maxSpawns: 8, maxTokens: 400000 },
-    "l3.helm.maxLenses": 3,
-    "l3.helm.writeGuard": true,
+    "ext.helm.autoStart": "suggest",
+    "ext.helm.driveLimits": { maxTurns: 4, maxSpawns: 8, maxTokens: 400000 },
+    "ext.helm.maxLenses": 3,
+    "ext.helm.writeGuard": true,
   });
   expect(helmSettings.defs.driveLimits.default).toEqual(DEFAULT_HELM_DRIVE_LIMITS);
   expect(helmSettings.defs.autoStart.range).toEqual({ enum: ["off", "suggest", "auto"] });

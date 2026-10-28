@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseJson } from "@xeon/contracts";
 import { validateManifest } from "@xeon/contracts/extensions";
+import { SDK_MODULE_SPECIFIERS } from "@xeon/ext-host";
 import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
 import { helmManifest } from "../../src/index.ts";
 import { buildHelmPlugin, type PluginBuild } from "../../scripts/build-plugin.ts";
-import { loaderFor, SDK_MODULES } from "../support/loader.ts";
+import { loaderFor } from "../support/loader.ts";
 import {
   DEFS,
   callCommand,
@@ -45,7 +46,9 @@ test("plugin.json is the manifest as JSON and the bundle keeps the host SDK modu
   expect(checked.manifest?.entry).toBe("./dist/index.js");
   expect(checked.manifest?.trust).toEqual({ level: "user" });
   // 번들이 가져오는 패키지는 호스트가 가상 모듈로 등록하는 것뿐이다
-  expect(built.externals.every((specifier) => specifier in SDK_MODULES)).toBe(true);
+  expect(built.externals.filter((specifier) => !SDK_MODULE_SPECIFIERS.includes(specifier))).toEqual(
+    [],
+  );
   expect(built.externals).toContain("@xeon/group-kit");
   expect(built.externals).toContain("typebox");
   const bundle = await Bun.file(join(built.outDir, "dist", "index.js")).text();

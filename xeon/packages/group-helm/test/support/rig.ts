@@ -36,7 +36,7 @@ import {
   type TestHostOptions,
 } from "@xeon/ext-host/testing";
 import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-kit";
-import { helmBuiltinGroup, helmGroup } from "../../src/index.ts";
+import { helmGroup } from "../../src/index.ts";
 import { fakeService } from "./unsafe.ts";
 
 export const DEFS: CapabilityDefLookup = capabilityDefTable([
@@ -273,17 +273,21 @@ function lensOf(request: LoopSpawnRequest): string {
 export function scriptedLoop(
   ids: IdFactory,
   answers: LensAnswers,
-  onTurn?: (request: LoopTurnRequest) => void,
+  hooks: {
+    readonly onTurn?: (request: LoopTurnRequest) => void | Promise<void>;
+    readonly onSpawn?: (request: LoopSpawnRequest) => void | Promise<void>;
+  } = {},
 ): MemoryLoopOptions {
   return {
-    runTurn: (request) => {
-      onTurn?.(request);
-      return Promise.resolve({
+    runTurn: async (request) => {
+      await hooks.onTurn?.(request);
+      return {
         outcome: { turnId: ids.next("trn"), status: "completed" },
         usage: fakeUsage(10),
-      });
+      };
     },
-    runSpawn: (request) => {
+    runSpawn: async (request) => {
+      await hooks.onSpawn?.(request);
       const answer = answers[lensOf(request)];
       const childThreadId = ids.next("thr");
       const outcome =
@@ -292,7 +296,7 @@ export function scriptedLoop(
           : answer === ABORTED
             ? { childThreadId, status: "aborted" as const }
             : { childThreadId, status: "completed" as const, answer };
-      return Promise.resolve({ outcome, usage: fakeUsage(5) });
+      return { outcome, usage: fakeUsage(5) };
     },
   };
 }
@@ -302,11 +306,12 @@ export interface RigOptions extends WorldOptions {
   readonly host?: TestHostOptions;
   /** 제공하지 않을 능력 */
   readonly without?: readonly Provided[];
-  /** 설정 `l3.helm.*` 값. 주면 내장 신뢰판 그룹으로 올려 g.settings()가 이 값을 읽는다 */
+  /** 설정 `ext.helm.*` 값. 주면 내장 신뢰판 그룹으로 올려 g.settings()가 이 값을 읽는다 */
   readonly settings?: Readonly<Record<string, unknown>>;
   readonly module?: GroupModule;
-  /** 시험이 turn 하나를 더 가로챈다 */
-  readonly onTurn?: (request: LoopTurnRequest) => void;
+  /** 시험이 turn·spawn 하나를 가로챈다 */
+  readonly onTurn?: (request: LoopTurnRequest) => void | Promise<void>;
+  readonly onSpawn?: (request: LoopSpawnRequest) => void | Promise<void>;
 }
 
 export interface Rig {
@@ -353,7 +358,9 @@ async function provideSettings(
   });
 }
 
-/** 등록된 /helm 명령 처리기를 부른다 */
+const invocations = { count: 0 };
+
+/** 등록된 /helm 명령 처리기를 부른다. 호출마다 다른 invocationId를 넘긴다 */
 export async function callCommand(t: TestHost, thread: ThreadId, args: string): Promise<void> {
   const def: unknown = t.host.resources.list("command").find((entry) => entry.name === "helm")?.def;
   if (typeof def !== "object" || def === null || !("handler" in def)) {
@@ -361,7 +368,10 @@ export async function callCommand(t: TestHost, thread: ThreadId, args: string): 
   }
   const handler: unknown = def.handler;
   if (typeof handler !== "function") throw new Error("the helm command has no handler");
-  const done: unknown = Reflect.apply(handler, def, [args, { threadId: thread }]);
+  const done: unknown = Reflect.apply(handler, def, [
+    args,
+    { threadId: thread, invocationId: `inv-${String((invocations.count += 1))}` },
+  ]);
   await done;
 }
 
@@ -383,12 +393,15 @@ export async function createRig(options: RigOptions = {}): Promise<Rig> {
   const t = await createTestHost({
     capabilityDefs: DEFS,
     ...options.host,
-    loop: scriptedLoop(fixedIdFactory(9000), options.answers ?? defaultAnswers(), options.onTurn),
+    loop: scriptedLoop(fixedIdFactory(9000), options.answers ?? defaultAnswers(), {
+      ...(options.onTurn === undefined ? {} : { onTurn: options.onTurn }),
+      ...(options.onSpawn === undefined ? {} : { onSpawn: options.onSpawn }),
+    }),
   });
   const loadIndex = await installWorld(t, world, options.without);
   const values = options.settings;
   if (values !== undefined) await provideSettings(t, values);
-  const module = options.module ?? (values === undefined ? helmGroup : helmBuiltinGroup);
+  const module = options.module ?? helmGroup;
   await t.host.install({
     manifest: module.manifest,
     entry: module.entry,

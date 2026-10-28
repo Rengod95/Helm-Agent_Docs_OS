@@ -43,19 +43,19 @@ const DRIVE_LIMITS_TYPE: TObject<{
 );
 
 /**
- * l3.helm.* 설정 키 네 개(L3.helm.spec §6, M3-04). `driveLimits`는 `DriveOptions.limits`로 넘어가
+ * ext.helm.* 설정 키 네 개(L3.helm.spec §6, M3-04). `driveLimits`는 `DriveOptions.limits`로 넘어가
  * X 일반 기본값 `x.primitives.driveDefaultLimits`를 Helm에 한해 덮어쓰고, 천장 `x.primitives.driveLimits`로 다시 잘린다.
  * 일반 대화 턴에는 상한이 없다.
  */
 export const helmSettings: SettingGroup<
-  "l3.helm",
+  "ext.helm",
   {
     readonly autoStart: SettingDefInput<TString>;
     readonly driveLimits: SettingDefInput<typeof DRIVE_LIMITS_TYPE>;
     readonly maxLenses: SettingDefInput<TInteger>;
     readonly writeGuard: SettingDefInput<TBoolean>;
   }
-> = defineSettings("l3.helm", {
+> = defineSettings("ext.helm", {
   autoStart: {
     type: Type.String({ maxLength: 16 }),
     default: "suggest",

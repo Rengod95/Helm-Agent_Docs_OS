@@ -33,17 +33,18 @@ function leaseReleases(rig: Rig): readonly unknown[] {
 test("disable.at-step-boundary-releases-lease: the inquiry resumes from the same phase after re-enabling", async () => {
   const holder: { rig?: Rig } = {};
   const rig = await createRig({
-    onTurn: (request) => {
-      if (request.requestId.includes(":turn:diverge:")) holder.rig?.t.host.scope("helm")?.disable();
+    onTurn: async (request) => {
+      const target = holder.rig;
+      if (target === undefined || !request.requestId.includes(":turn:diverge:")) return;
+      // diverge turn 도중 끄기를 요청하고, 턴 안의 단계 경계가 그것을 적용한다
+      target.t.host.scope("helm")?.disable();
+      await target.t.boundary(target.thread).stepEnd();
     },
   });
   holder.rig = rig;
   await rig.command("start 캐시 무효화");
   await rig.settle("s");
-  // 임대를 받고(turnSettled), diverge turn을 돌리고(idle), 다음 단계 경계(idle)가 끄기를 적용한다
-  await rig.drain(1);
-  await rig.drain(1, "idle");
-  await rig.drain(1, "idle");
+  await rig.drain();
   const disabled = leaseReleases(rig).filter(
     (payload) =>
       typeof payload === "object" &&
@@ -53,7 +54,7 @@ test("disable.at-step-boundary-releases-lease: the inquiry resumes from the same
   );
   expect(disabled).toHaveLength(1);
   const stopped = statesOf(rig.t.records.events(rig.thread)).at(-1);
-  expect(stopped?.phase).toBe("explore");
+  expect(stopped?.phase).toBe("diverge");
   expect(rig.t.loop.spawns).toHaveLength(0);
   const inquiryId = stopped?.inquiryId;
   expect(inquiryId).not.toBeNull();
@@ -62,7 +63,10 @@ test("disable.at-step-boundary-releases-lease: the inquiry resumes from the same
   const finished = rig.records("grp.helm.inquiry.finished");
   expect(finished).toHaveLength(1);
   expect(finished[0]).toMatchObject({ inquiryId, outcome: "applied" });
-  expect(rig.t.loop.turns).toHaveLength(2);
+  // 같은 requestId라 diverge turn은 기록된 결과를 돌려받고 적용 turn은 한 번이다
+  expect(
+    rig.t.loop.turns.filter((request) => request.requestId.includes(":turn:apply:")),
+  ).toHaveLength(1);
 });
 
 test("coexist.learning-on-while-helm-holds-lease: another group's on handler and post keep working", async () => {

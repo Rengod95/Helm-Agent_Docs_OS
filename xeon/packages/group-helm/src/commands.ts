@@ -113,7 +113,8 @@ export async function runHelmCommand(
 }
 
 function failedWrite(failure: StateWriteFailure): Result<never, HelmCommandError> {
-  if (failure.kind === "disabled") return err({ kind: "disabled" });
+  if (failure.kind === "disabled" || failure.kind === "lease_lost")
+    return err({ kind: "disabled" });
   return err({ kind: "state_write", failure });
 }
 

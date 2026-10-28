@@ -138,37 +138,47 @@ function toLensResults(
   });
 }
 
-/** g.drive에 넘기는 함수. 클로저 지역 변수에 진행 상태를 두지 않는다(EV-09). 한 호출은 현재 단계 하나만 처리한다 */
+/**
+ * g.drive에 넘기는 함수. 클로저 지역 변수에 진행 상태를 두지 않는다(EV-09). 한 호출은 현재 단계 하나만 처리하고 커밋한다.
+ * 다음 단계는 X가 다시 부를 때 처리한다(상태만 커밋하고 반환하면 X가 새 판으로 다시 부른다)
+ */
 export function helmDrive(g: DriveApi, settings: () => HelmSettings): DriveFn<HelmState> {
-  return async (loop, st) => {
-    if (st.stopRequested) {
-      await settle(g, st, await step(g, { type: "stopRequested" }));
-      return;
-    }
-    if (st.phase === "idle") {
-      if (st.pending === null) return;
-      const lenses = selectLenses(st.pending, settings().maxLenses, BUILTIN_LENSES);
-      await settle(g, st, await step(g, { type: "leaseGranted", lenses }));
-      return;
-    }
-    const inquiry = activeInquiry(st);
-    if (!inquiry.ok) {
-      await settle(g, st, inquiry);
-      return;
-    }
-    switch (st.phase) {
-      case "diverge":
-        return diverge(g, loop, st, inquiry.value);
-      case "explore":
-        return explore(g, loop, st, inquiry.value);
-      case "converge":
-        return converge(g, loop, st, inquiry.value);
-      case "apply":
-        return apply(g, loop, st, inquiry.value);
-      default:
-        return assertNever(st.phase, "helmDrive");
-    }
-  };
+  return (loop, st) => branch(g, settings, loop, st);
+}
+
+async function branch(
+  g: DriveApi,
+  settings: () => HelmSettings,
+  loop: LoopHandle,
+  st: Readonly<HelmState>,
+): Promise<void> {
+  if (st.stopRequested) {
+    await settle(g, st, await step(g, { type: "stopRequested" }));
+    return;
+  }
+  if (st.phase === "idle") {
+    if (st.pending === null) return;
+    const lenses = selectLenses(st.pending, settings().maxLenses, BUILTIN_LENSES);
+    await settle(g, st, await step(g, { type: "leaseGranted", lenses }));
+    return;
+  }
+  const inquiry = activeInquiry(st);
+  if (!inquiry.ok) {
+    await settle(g, st, inquiry);
+    return;
+  }
+  switch (st.phase) {
+    case "diverge":
+      return diverge(g, loop, st, inquiry.value);
+    case "explore":
+      return explore(g, loop, st, inquiry.value);
+    case "converge":
+      return converge(g, loop, st, inquiry.value);
+    case "apply":
+      return apply(g, loop, st, inquiry.value);
+    default:
+      return assertNever(st.phase, "helmDrive");
+  }
 }
 
 async function diverge(

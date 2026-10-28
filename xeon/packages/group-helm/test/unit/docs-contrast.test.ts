@@ -57,10 +57,10 @@ test("spec 6 settings table matches the setting definitions", () => {
     expect(row?.[4]).toContain(def.runtimeChange);
     expect(row?.[6]).toBe(def.ui?.widget ?? "");
   }
-  expect(byKey.get("l3.helm.autoStart")?.[2]).toContain("suggest");
-  expect(byKey.get("l3.helm.maxLenses")?.[2]).toContain("3");
-  expect(byKey.get("l3.helm.writeGuard")?.[2]).toContain("true");
-  expect(byKey.get("l3.helm.driveLimits")?.[2]).toContain(
+  expect(byKey.get("ext.helm.autoStart")?.[2]).toContain("suggest");
+  expect(byKey.get("ext.helm.maxLenses")?.[2]).toContain("3");
+  expect(byKey.get("ext.helm.writeGuard")?.[2]).toContain("true");
+  expect(byKey.get("ext.helm.driveLimits")?.[2]).toContain(
     "maxTurns: 4, maxSpawns: 8, maxTokens: 400000",
   );
 });

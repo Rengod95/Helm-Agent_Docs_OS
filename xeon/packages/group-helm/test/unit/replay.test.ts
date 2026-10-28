@@ -1,28 +1,8 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import {
-  createTestHost,
-  fixedIdFactory,
-  memoryInputQueue,
-  memoryLoopPort,
-  type MemoryInputQueue,
-  type MemoryLoopPort,
-  type TestHost,
-} from "@xeon/ext-host/testing";
 import { NO_EFFECTS, replayDrive } from "@xeon/group-kit/testing";
 import { helmGroup } from "../../src/index.ts";
+import { crashAndResume } from "../support/crash.ts";
 import { createHelmReplay } from "../support/replay.ts";
-import {
-  DEFS,
-  callCommand,
-  createWorld,
-  defaultAnswers,
-  drainRounds,
-  installWorld,
-  scriptedLoop,
-  settleOnce,
-  type World,
-} from "../support/rig.ts";
 
 test("drive.recall-from-committed-state-spawns-once", async () => {
   const replay = createHelmReplay();
@@ -50,64 +30,6 @@ test("replay.twice-effects-once: new turns 2, spawns 3, tasks 2, finish notice 1
   expect(report.effects).toEqual({ turn: 2, spawn: 3, delegate: 0, capabilityWrite: 2, post: 1 });
   expect(report.ok).toBe(true);
 });
-
-/** 프로세스 강제 종료 뒤 같은 기록 저장소·루프·큐·능력 세계로 다시 시작해 탐구를 끝낸다 */
-async function crashAndResume(crash: {
-  readonly taskCall?: number;
-  readonly post?: boolean;
-}): Promise<{
-  readonly world: World;
-  readonly loop: MemoryLoopPort;
-  readonly queue: MemoryInputQueue;
-  readonly records: ReturnType<TestHost["records"]["events"]>;
-  readonly thread: ThreadId;
-}> {
-  const loop = memoryLoopPort(scriptedLoop(fixedIdFactory(9000), defaultAnswers()));
-  const queue = memoryInputQueue();
-  const world = createWorld();
-  if (crash.taskCall !== undefined) world.hooks.crashOnTaskCall = crash.taskCall;
-  const armed = { post: crash.post === true };
-  const crashing: MemoryInputQueue = {
-    get items() {
-      return queue.items;
-    },
-    enqueue(request) {
-      if (armed.post && request.requestId.endsWith(":finished")) {
-        armed.post = false;
-        throw new TypeError("simulated crash");
-      }
-      return queue.enqueue(request);
-    },
-  };
-  const first = await createTestHost({ capabilityDefs: DEFS, shared: { loop, queue: crashing } });
-  const thread = first.newThread();
-  await installWorld(first, world);
-  await first.host.install({
-    manifest: helmGroup.manifest,
-    entry: helmGroup.entry,
-    loadIndex: 4,
-    builtin: true,
-  });
-  await first.host.openThread(thread);
-  await first.settled();
-  await callCommand(first, thread, "start 캐시 무효화");
-  await settleOnce(first, thread, "start");
-  await drainRounds(first, thread, 8);
-  // 강제 종료: 같은 저장소·포트로 새 호스트를 만든다. 첫 호스트는 그대로 둔다
-  world.hooks.crashOnTaskCall = null;
-  const second = await first.restart();
-  await installWorld(second, world);
-  await second.host.install({
-    manifest: helmGroup.manifest,
-    entry: helmGroup.entry,
-    loadIndex: 4,
-    builtin: true,
-  });
-  await second.host.openThread(thread);
-  await second.settled();
-  await drainRounds(second, thread, 8);
-  return { world, loop, queue, records: second.records.events(thread), thread };
-}
 
 /** 읽는 쪽 규칙: 발견은 (inquiryId, findingId), 종료는 inquiryId로 중복을 지운다(L3.helm.spec §4.8) */
 function distinct(

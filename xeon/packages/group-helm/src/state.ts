@@ -285,7 +285,7 @@ export function fitState(state: HelmState): {
 
 export type StateWriteFailure = Extract<
   HelmFailure,
-  { kind: "state_conflict" | "state_too_large" | "storage" | "disabled" }
+  { kind: "state_conflict" | "state_too_large" | "storage" | "disabled" | "lease_lost" }
 >;
 
 /** scope마다 하나인 직렬 큐. 같은 scope의 updateState가 앞선 커밋을 덮지 않게 한다 */
@@ -306,7 +306,8 @@ async function commitFitted(
     (failure.kind !== "state_conflict" &&
       failure.kind !== "state_too_large" &&
       failure.kind !== "storage" &&
-      failure.kind !== "disabled")
+      failure.kind !== "disabled" &&
+      failure.kind !== "lease_lost")
   ) {
     return rethrow(committed.error.cause);
   }

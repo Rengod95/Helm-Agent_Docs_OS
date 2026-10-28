@@ -20,7 +20,7 @@ binds: [xeon/packages/group-helm/**]
 |---|---|---|
 | M0 | 없음. 의존 대상(`contracts`의 extensions·records·capabilities·settings 타입)만 준비된다 | 없음 |
 | M1 | 스캐폴드: 패키지 디렉터리, `package.json`(`xeon.layer: "L3"`, `xeon.domain: "helm"`), `tsconfig.json`, 빈 `src/index.ts`, `test/` 디렉터리. 호스트 조립 루트는 Helm을 등록하지 않는다 | H-01(완료) |
-| M2 | 설정 `l3.helm.driveLimits` 하나(`src/settings.ts`). 본체 없음 | 완료 |
+| M2 | 설정 `ext.helm.driveLimits` 하나(`src/settings.ts`). 본체 없음 | 완료 |
 | M3 | Helm 본체 1차. L3-b 구성요소 5개 전부, 명령, 설정 3키 추가(M3-04), ADR-0015 효과 계수 시험, 실패 값, UC-2 통합 테스트(E1), 학습 그룹 공존 확인, `scanDriveSource` 정적 검사, 기본 플러그인 패키징(D-M3-01) | H-02 ~ H-22 |
 | 2차 이후 | 렌즈 제안 경로(L3.helm.spec §10 미결 6), 다회 라운드와 종료 판정(미결 7), 신호 임계 설정 노출(미결 8) | 미배정 |
 
@@ -90,7 +90,7 @@ xeon/packages/group-helm/
 | H-01 | 스캐폴드(M1): 패키지 디렉터리, `package.json`, `tsconfig.json`, 빈 `src/index.ts`, `test/` 구조. `check-layers`가 `xeon.layer`·`xeon.domain`을 통과 | P0 워크스페이스 골격, group-kit 스캐폴드(L3.group-kit.plan) | S |
 | H-02 | 매니페스트와 레코드 스키마: `manifest.ts`, `records.ts`의 payload 스키마 3종과 `HELM_RECORD_KINDS` | H-01, F.extensions M0(`defineManifest`, `RecordKindDecl`, `validateManifest`) | S |
 | H-03 | 상태 스키마: `HelmStateSchema`, `INITIAL_HELM_STATE`, `helmStateDecl`, `fitState`(직렬화 60 KiB 예산), `updateState`(직렬 큐 + `fitState`) | H-02 | S |
-| H-04 | 설정: `helmSettings`(`defineSettings("l3.helm", …)`)에 `autoStart`, `maxLenses`, `writeGuard`를 더해 4개 키(M3-04). `driveLimits`는 M2에 있다. `HelmSettings` | H-01, F.wire-settings `defineSettings`·`checkSettingDef` | S |
+| H-04 | 설정: `helmSettings`(`defineSettings("ext.helm", …)`)에 `autoStart`, `maxLenses`, `writeGuard`를 더해 4개 키(M3-04). `driveLimits`는 M2에 있다. `HelmSettings` | H-01, F.wire-settings `defineSettings`·`checkSettingDef` | S |
 | H-05 | 신호: 순수 함수(`openTally`, `observeToolEnd`, `settleTurn`, `extractTerms`(스펙 §3.5 규칙), `inquiryIdFrom`, `decideAction`)와 tap 핸들러 2개(`tool.execution.after`는 메모리 집계만, `boundary.settle.after`는 기록과 turn당 1회 커밋). suggest 모드 post(`when: "next"`). `input`이 없으면 `repeat` 집계를 건너뛴다 | H-03, H-04, M3-02(`tool.execution.after.input`) | M |
 | H-06 | 단계 전이: `HelmEvent`, `transition`, `TRANSITIONS`. 스펙 §4.2 표와 1:1. 임대 필요 판정 훅은 두지 않는다(스펙 §3.3) | H-03 | M |
 | H-07 | 주입: `lenses.ts`(내장 렌즈 6개, `LENS_PRIORITY`, `selectLenses(pending, …)`), `prompts.ts`(블록 구조, 단계별 문구 본문, turn 입력, explorer 과제, requestId), `input.agent.before` chain 핸들러, 알림 post(`when: "next"`), `agents/explorer.md` 본문과 `risk: read` 도구 목록 | H-06 | M |
@@ -210,8 +210,8 @@ eng.testing.guide TS-01의 `scenario` 태그는 저장소 전체에 1개(`apps/c
 
 | 파일 | 이름 | 내용 | 확인 |
 |---|---|---|---|
-| `test/int/uc2.int.test.ts` | `uc2.write-deny-and-n-lenses` (M3 E1 스모크) | 테스트 확장 호스트에 Helm을 켜고 `/helm start`. 테이프: 발산 turn에서 모델이 `bash`(`risk: exec`)와 `write`(`risk: write`, `cap-workspace`가 있을 때)를 호출 → 거부 결과를 받고 답한다. 가짜 explorer 3개 응답. 적용 turn 1회. 그 뒤 Helm을 끄고 같은 쓰기 호출을 담은 turn 실행 | UC-2 수용 기준 2개: 거부 사유가 도구 결과로 모델에 돌아가고 도구는 실행되지 않음, 끈 다음 turn에서 같은 호출 실행. spawn 3회와 `explored` 커밋 뒤 적용 turn 1회. 테이프 `assertExhausted()` |
-| `test/fault/resume.fault.test.ts` | `resume.after-kill-in-explore` | 자식 프로세스로 테스트 호스트를 띄우고 `explore` 단계에서 spawn 2개 커밋 뒤 SIGKILL(`XEON_TEST_KILLPOINT`, eng.testing.guide TS-08). 같은 데이터 디렉터리로 재시작 | 렌즈별 서브에이전트 결과 1개, 적용 turn 1회, `inquiry.finished` 1건. 불변식 비교(D1), 이벤트열 바이트 비교 안 함 |
+| `test/int/uc2.int.test.ts` | `uc2.write-deny-and-n-lenses` (M3 E1 스모크) | 테스트 확장 호스트에 Helm을 켜고 `/helm start`. 작은 루프(`test/support/mini-loop.ts`)가 L1처럼 `input.agent.before`·`tool.call.before`·`tool.execution.after`를 발화하고 모델 응답은 테이프가 정한다. 테이프: 발산 turn에서 모델이 `bash`(`risk: exec`)와 `write`(`risk: write`, `cap-workspace`가 있을 때)를 호출 → 거부 결과를 받고 답한다. 가짜 explorer 3개 응답. 적용 turn 1회. 그 뒤 Helm을 끄고 같은 쓰기 호출을 담은 turn 실행 | UC-2 수용 기준 2개: 거부 사유가 도구 결과로 모델에 돌아가고 도구는 실행되지 않음, 끈 다음 turn에서 같은 호출 실행. spawn 3회와 `explored` 커밋 뒤 적용 turn 1회. 테이프 `assertExhausted()` |
+| `test/fault/resume.fault.test.ts` | `resume.after-kill-in-explore` | 테스트 호스트에서 `explore` 단계의 두 번째 spawn 실행이 던져 drive가 끊기게 하고, 같은 기록 저장소·루프·큐 위에 새 호스트를 올려 재개한다(자식 프로세스 SIGKILL과 세션 DB 멱등은 core-agents·core-persistence 시험이 맡는다) [제안] | 렌즈별 서브에이전트 결과 1개, 적용 turn 1회, `inquiry.finished` 1건. 불변식 비교(D1), 이벤트열 바이트 비교 안 함 |
 
 ## 6. 완료 기준
 
@@ -252,7 +252,7 @@ eng.testing.guide TS-01의 `scenario` 태그는 저장소 전체에 1개(`apps/c
 | # | 위험 | 대응 |
 |---|---|---|
 | 1 | M3 판에서 정한 내부 설계(렌즈 6개, 신호 임계, 프롬프트 문구)가 사용 뒤 바뀐다 | 공개 시그니처(`selectLenses`, `lensBlockFor`, `observeToolEnd`, `settleTurn`, `transition`)와 상태 스키마를 고정하고, 내용은 파일 단위(`lenses.ts`, `prompts.ts`, `signals.ts` 판정부)로 바꾼다. 테스트는 렌즈 선택 규칙(`lenses.priority-by-signal`)만 보고 렌즈 문구에 기대지 않는다 |
-| 2 | 서브에이전트 병렬 실행 비용이 커진다 | 임대 상한(`maxSpawns`, `maxTokens`)을 `l3.helm.driveLimits`로 걸고 천장 `x.primitives.driveLimits`로 자른다(review.decisions-2 U-12). 기본 `maxLenses` 3. 남은 spawn 예산보다 렌즈가 많으면 앞 렌즈만 실행한다(`drive.limit-reached-releases-lease`) |
+| 2 | 서브에이전트 병렬 실행 비용이 커진다 | 임대 상한(`maxSpawns`, `maxTokens`)을 `ext.helm.driveLimits`로 걸고 천장 `x.primitives.driveLimits`로 자른다(review.decisions-2 U-12). 기본 `maxLenses` 3. 남은 spawn 예산보다 렌즈가 많으면 앞 렌즈만 실행한다(`drive.limit-reached-releases-lease`) |
 | 3 | 프롬프트 주입: 웹·지식·explorer 답의 숨은 지시가 적용 turn이나 쓰기를 유도한다 | 외부 텍스트를 DATA로 감싸고 코드 경로가 그 내용으로 분기하지 않는다(L3.helm.spec §4.7). 확산 단계 쓰기 거부, explorer 정의의 쓰기 도구 제외, 적용 단계의 일반 승인·샌드박스 정책. `knowledge.untrusted-text-wrapped` |
 | 4 | drive 클로저 상태 실수로 재개 뒤 동작이 바뀐다 | 단계당 한 분기·커밋 후 반환 구조, `replayDrive` 재호출 테스트(`drive.recall-from-committed-state-spawns-once`), 리뷰 규칙 EV-09. M3 이후 `scanDriveSource` 정적 검사(H-18)를 더한다 |
 | 5 | 선행 계약(M3-02 도구 메타, M3-new-01 ADR-0015 구현, REQ-L1-01 spawn 멱등 내구 기록)이 늦어진다 | Helm 작업을 선행별로 나눴다(§3 선행 열). 메타가 없으면 모두 쓰기로 보는 안전 쪽 동작, 효과 등급 선언이 없으면 `effect_not_allowed` 저하 경로로 동작한다. E1 완료 판정은 선행이 모두 들어온 뒤 한다 |

@@ -41,7 +41,7 @@ async function stuckTurn(rig: Rig, key: string, turnId?: TurnId): Promise<void> 
 }
 
 test("signals.autostart-modes: off records only", async () => {
-  const rig = await createRig({ settings: { "l3.helm.autoStart": "off" } });
+  const rig = await createRig({ settings: { "ext.helm.autoStart": "off" } });
   await stuckTurn(rig, "a");
   expect(rig.records("grp.helm.signal.detected")).toEqual([
     expect.objectContaining({ signal: "stuck", action: "recorded", inquiryId: null }),
@@ -51,7 +51,7 @@ test("signals.autostart-modes: off records only", async () => {
 });
 
 test("signals.autostart-modes: suggest posts one next-turn notice and never opens a turn", async () => {
-  const rig = await createRig({ settings: { "l3.helm.autoStart": "suggest" } });
+  const rig = await createRig({ settings: { "ext.helm.autoStart": "suggest" } });
   await stuckTurn(rig, "a");
   expect(rig.records("grp.helm.signal.detected")).toEqual([
     expect.objectContaining({ signal: "stuck", action: "suggested" }),
@@ -73,7 +73,7 @@ test("signals.autostart-modes: suggest posts one next-turn notice and never open
 });
 
 test("signals.autostart-modes: auto commits pending and the next boundary starts the inquiry", async () => {
-  const rig = await createRig({ settings: { "l3.helm.autoStart": "auto" } });
+  const rig = await createRig({ settings: { "ext.helm.autoStart": "auto" } });
   await stuckTurn(rig, "a");
   expect(rig.records("grp.helm.signal.detected")).toEqual([
     expect.objectContaining({ signal: "stuck", action: "requested" }),
@@ -85,7 +85,7 @@ test("signals.autostart-modes: auto commits pending and the next boundary starts
 });
 
 test("signals.pure-query-no-side-effect: the same dispatch keys again leave state and records as they were", async () => {
-  const rig = await createRig({ settings: { "l3.helm.autoStart": "off" } });
+  const rig = await createRig({ settings: { "ext.helm.autoStart": "off" } });
   await stuckTurn(rig, "a");
   const records = rig.records("grp.helm.signal.detected").length;
   const states = statesOf(rig).length;
@@ -97,7 +97,7 @@ test("signals.pure-query-no-side-effect: the same dispatch keys again leave stat
 });
 
 test("signals.commit-once-per-turn: five tool calls and one settle commit the state once", async () => {
-  const rig = await createRig({ settings: { "l3.helm.autoStart": "off" } });
+  const rig = await createRig({ settings: { "ext.helm.autoStart": "off" } });
   const before = statesOf(rig).length;
   // 한 turn의 순서: 입력 지점이 집계표를 열고, 도구 결과가 쌓이고, 정착에서 한 번 커밋한다
   await rig.t.host.dispatch(

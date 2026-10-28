@@ -2,7 +2,14 @@ import { expect, test } from "bun:test";
 import { parse } from "@xeon/contracts";
 import { HelmStateSchema, type HelmState } from "../../src/state.ts";
 import { InquiryFinishedPayloadSchema } from "../../src/records.ts";
-import { ABORTED, ERROR, createRig, defaultAnswers, type Rig } from "../support/rig.ts";
+import {
+  ABORTED,
+  ERROR,
+  createRig,
+  defaultAnswers,
+  drainRounds,
+  type Rig,
+} from "../support/rig.ts";
 
 function finishedOf(rig: Rig): readonly unknown[] {
   return rig.records("grp.helm.inquiry.finished");
@@ -25,7 +32,7 @@ for (const lenses of [1, 3, 6]) {
     const seen: { phase: string; findings: number }[] = [];
     const holder: { rig?: Rig } = {};
     const rig = await createRig({
-      settings: { "l3.helm.maxLenses": lenses },
+      settings: { "ext.helm.maxLenses": lenses },
       onTurn: (request) => {
         const rigNow = holder.rig;
         if (rigNow === undefined || !request.requestId.includes(":turn:apply:")) return;
@@ -92,7 +99,7 @@ test("a run where every lens fails ends failed without an apply turn", async () 
 
 test("drive.limit-reached-releases-lease: maxSpawns 2 with 3 lenses skips one and announces the limit", async () => {
   const rig = await createRig({
-    settings: { "l3.helm.driveLimits": { maxTurns: 4, maxSpawns: 2, maxTokens: 400000 } },
+    settings: { "ext.helm.driveLimits": { maxTurns: 4, maxSpawns: 2, maxTokens: 400000 } },
   });
   await rig.runInquiry("캐시 무효화");
   expect(rig.t.loop.spawns).toHaveLength(2);
@@ -105,7 +112,7 @@ test("drive.limit-reached-releases-lease: maxSpawns 2 with 3 lenses skips one an
 
 test("drive.limit-reached: maxTurns 1 stops before the apply turn and records the discoveries unapplied", async () => {
   const rig = await createRig({
-    settings: { "l3.helm.driveLimits": { maxTurns: 1, maxSpawns: 8, maxTokens: 400000 } },
+    settings: { "ext.helm.driveLimits": { maxTurns: 1, maxSpawns: 8, maxTokens: 400000 } },
   });
   await rig.runInquiry("캐시 무효화");
   expect(rig.t.loop.turns).toHaveLength(1);
@@ -126,4 +133,33 @@ test("drive.limit-reached: maxTurns 1 stops before the apply turn and records th
   const notices = rig.t.queue.items.filter((item) => item.requestId.endsWith(":limit"));
   expect(notices).toHaveLength(1);
   expect(statesOf(rig).at(-1)?.phase).toBe("idle");
+});
+
+test("ext.helm.driveLimits changed between inquiries takes effect on the next lease", async () => {
+  const settings: Record<string, unknown> = {
+    "ext.helm.driveLimits": { maxTurns: 1, maxSpawns: 8, maxTokens: 400000 },
+  };
+  const rig = await createRig({ settings });
+  await rig.runInquiry("첫 탐구");
+  expect(finishedOf(rig)).toEqual([expect.objectContaining({ outcome: "limit", limit: "turns" })]);
+  settings["ext.helm.driveLimits"] = { maxTurns: 4, maxSpawns: 8, maxTokens: 400000 };
+  await rig.runInquiry("둘째 탐구");
+  expect(finishedOf(rig)).toHaveLength(2);
+  expect(finishedOf(rig)[1]).toMatchObject({ outcome: "applied" });
+});
+
+test("a thread without inquiry state, such as a subagent child, gets no effect from the drive", async () => {
+  const rig = await createRig();
+  const child = rig.t.newThread();
+  await rig.t.host.openThread(child);
+  await rig.t.settled();
+  const before = rig.t.records.events(child).length;
+  await drainRounds(rig.t, child, 4);
+  expect(rig.t.loop.turns).toHaveLength(0);
+  expect(rig.t.loop.spawns).toHaveLength(0);
+  const kinds = rig.t.records
+    .events(child)
+    .slice(before)
+    .map((event) => event.kind);
+  expect(kinds.filter((kind) => kind.startsWith("grp.helm."))).toEqual([]);
 });

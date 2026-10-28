@@ -76,30 +76,33 @@ test("commands.start-stop-status", async () => {
   expect(noticeTexts(rig).some((text) => text.includes("사용법"))).toBe(true);
 });
 
-test("commands: stop during an inquiry sets stopRequested and the next drive ends it stopped", async () => {
-  const holder: { rig?: Rig } = {};
+test("commands: stop issued while the lenses run ends the inquiry stopped before the apply turn", async () => {
+  const holder: { rig?: Rig; sent: boolean } = { sent: false };
   const rig = await createRig({
-    onTurn: (request) => {
-      if (request.requestId.includes(":turn:diverge:")) void holder.rig?.command("stop");
+    onSpawn: async () => {
+      const target = holder.rig;
+      if (target === undefined || holder.sent) return;
+      holder.sent = true;
+      // 명령 처리기는 요청을 쌓고, 다음 on 지점(여기서는 정착 지점)이 상태에 반영한다
+      await target.command("stop");
+      await target.settle("during-explore");
     },
   });
   holder.rig = rig;
   await rig.command("start 캐시 무효화");
   await rig.settle("s");
-  await rig.drain(2);
-  // 명령은 다음 on 지점에서 이어받는다
-  await rig.settle("s2");
   await rig.drain();
   const finished = rig.records("grp.helm.inquiry.finished");
   expect(finished).toHaveLength(1);
   expect(finished[0]).toMatchObject({ outcome: "stopped" });
   expect(rig.t.loop.turns).toHaveLength(1);
+  expect(rig.t.loop.spawns).toHaveLength(3);
 });
 
 test("guard.exception-becomes-deny", async () => {
   let armed = false;
   const values = {
-    get "l3.helm.writeGuard"(): boolean {
+    get "ext.helm.writeGuard"(): boolean {
       if (armed) throw new Error("settings unavailable");
       return true;
     },
