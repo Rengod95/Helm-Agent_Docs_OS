@@ -278,7 +278,7 @@ export const WebSearch = defineCapability({
         description: "검색어로 웹 문서를 찾아 순위, 발췌, 출처를 돌려준다.",
         input: WebSearchInputSchema,
         output: WebSearchOutputSchema,
-        replay: "safe",
+        replay: "safe", readOnly: true,
         errors: {
           query_rejected: { description: "provider가 검색어를 거부함(금칙어, 길이 등)", retryable: false },
           session_limit: { description: "세션당 검색 호출 상한(l2.web.limits.searchPerSession)을 넘음", retryable: false },
@@ -393,7 +393,7 @@ export const WebFetch = defineCapability({
         description: "url, urls, rawRef 중 정확히 하나를 받아 페이지 본문을 돌려준다.",
         input: WebFetchInputSchema,
         output: WebFetchOutputSchema,
-        replay: "safe",
+        replay: "safe", readOnly: true,
         errors: {
           session_limit: { description: "세션당 fetch 상한(l2.web.limits.fetchPerSession)을 넘음", retryable: false },
           robots_disallowed: { description: "자동 수집 경로에서 robots.txt가 금지함", retryable: false },
@@ -556,8 +556,8 @@ export const WebBrowse = defineCapability({
     methods: {
       open:  { description: "브라우저 세션을 연다.", input: BrowseOpenInputSchema, output: BrowseOpenOutputSchema, replay: "unsafe", errors: browseErrors },
       act:   { description: "동작 하나를 실행한다.", input: BrowseActInputSchema, output: BrowseActOutputSchema, replay: "unsafe", errors: browseErrors },
-      read:  { description: "스냅샷, 텍스트, 부분 찾기, 화면 캡처를 읽는다.", input: BrowseReadInputSchema, output: BrowseReadOutputSchema, replay: "safe", errors: browseErrors },
-      close: { description: "세션을 닫는다. 이미 닫혔으면 closed=false.", input: BrowseCloseInputSchema, output: BrowseCloseOutputSchema, replay: "safe" },
+      read:  { description: "스냅샷, 텍스트, 부분 찾기, 화면 캡처를 읽는다.", input: BrowseReadInputSchema, output: BrowseReadOutputSchema, replay: "safe", readOnly: true, errors: browseErrors },
+      close: { description: "세션을 닫는다. 이미 닫혔으면 closed=false.", input: BrowseCloseInputSchema, output: BrowseCloseOutputSchema, replay: "unsafe" },
     },
   },
   tools: [
@@ -572,7 +572,7 @@ export const WebBrowse = defineCapability({
       replay: "safe", executionMode: "sequential", hints: { readOnly: true, openWorld: true } },
     { name: "web_browse_close", label: "브라우저 닫기", description: "브라우저 세션을 닫는다.",
       method: "close", parameters: BrowseCloseInputSchema, toContent: renderBrowseClose,
-      replay: "safe", executionMode: "sequential", hints: { readOnly: false, idempotent: true } },
+      replay: "unsafe", executionMode: "sequential", hints: { readOnly: false, idempotent: true } },
   ],
 });
 export const WebBrowseKey = serviceKey(WebBrowse);
@@ -654,9 +654,9 @@ export const WebResearch = defineCapability({
       start:  { description: "조사를 시작하고 runId를 돌려준다.", input: WebResearchInputSchema,
                 output: Type.Object({ runId: ResearchRunIdSchema, status: ResearchStatusSchema }), replay: "unsafe" },
       get:    { description: "조사 상태와 결과를 읽는다.", input: Type.Object({ runId: ResearchRunIdSchema }),
-                output: ResearchRunSchema, replay: "safe" },
+                output: ResearchRunSchema, replay: "safe", readOnly: true },
       cancel: { description: "조사를 취소한다. 이미 끝났으면 현재 상태를 돌려준다.", input: Type.Object({ runId: ResearchRunIdSchema }),
-                output: Type.Object({ runId: ResearchRunIdSchema, status: ResearchStatusSchema }), replay: "safe" },
+                output: Type.Object({ runId: ResearchRunIdSchema, status: ResearchStatusSchema }), replay: "unsafe" },
       run:    { description: "조사를 시작하고 끝난 뒤 결과를 돌려준다.", input: WebResearchInputSchema,
                 output: ResearchRunSchema, replay: "unsafe" },
     },
@@ -1033,6 +1033,23 @@ export const WEB_CAPABILITIES = [WebSearch, WebFetch, WebBrowse, WebResearch] as
 
 - 묶음 값은 provider 체인을 거치는 앞단이다(§4.1, `L2.readme` §5.1). provider 플러그인은 이 묶음을 등록하지 않고 능력별 후보로 등록한다(§3.6).
 - consumer는 `ScopeApi.capability(WebSearchKey)`처럼 능력 단위 키로 API를 얻는다(`L2.readme` §5.6).
+
+### 3.10 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태, 세션 DB 이벤트, 작업 공간, 사용자 데이터, 외부 시스템에 효과를 남기지 않는 읽기다. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `web.browse.open` | 선언 없음 | unsafe | 외부 브라우저 세션을 연다 |
+| `web.browse.act` | 선언 없음 | unsafe | 페이지에 동작을 일으킨다 |
+| `web.browse.read` | readOnly | safe | 스냅숏·텍스트 조회 |
+| `web.browse.close` | 선언 없음 | unsafe | 외부 세션 상태를 바꾼다. `requestId` 멱등이 없다 |
+| `web.fetch.fetch` | readOnly | safe | 외부 페이지 읽기. 응답 캐시는 다시 만들 수 있는 사본이다 |
+| `web.research.start` | 선언 없음 | unsafe | 백그라운드 조사를 시작한다 |
+| `web.research.get` | readOnly | safe | 상태 조회 |
+| `web.research.cancel` | 선언 없음 | unsafe | 조사 상태를 바꾼다. `requestId` 멱등이 없다 |
+| `web.research.run` | 선언 없음 | unsafe | 조사를 시작한다 |
+| `web.search.search` | readOnly | safe | 외부 검색. 호출마다 비용이 들지만 상태를 바꾸지 않는다(Helm `gatherContext`) |
 
 ## 4. 동작 규칙
 

@@ -380,6 +380,7 @@ export const WorkTasks: CapabilityDef<
         input: TaskCreateInput,
         output: TaskOutput,
         replay: "safe",
+        idempotent: true,
         errors: TASK_ERRORS,
       },
       update: {
@@ -387,6 +388,7 @@ export const WorkTasks: CapabilityDef<
         input: TaskUpdateInput,
         output: TaskOutput,
         replay: "safe",
+        idempotent: true,
         errors: TASK_ERRORS,
       },
       link: {
@@ -394,6 +396,7 @@ export const WorkTasks: CapabilityDef<
         input: TaskLinkInput,
         output: TaskOutput,
         replay: "safe",
+        idempotent: true,
         errors: TASK_ERRORS,
       },
       list: {
@@ -401,12 +404,14 @@ export const WorkTasks: CapabilityDef<
         input: TaskListInput,
         output: TaskListOutput,
         replay: "safe",
+        readOnly: true,
       },
       write: {
         description: "여러 연산을 한 번에 적용한다. 전부 적용되거나 하나도 적용되지 않는다.",
         input: TaskWriteInput,
         output: TaskWriteOutput,
         replay: "safe",
+        idempotent: true,
         errors: TASK_ERRORS,
       },
     },
@@ -751,7 +756,7 @@ export const WorkPlans: CapabilityDef<
         description: "권한 모드를 계획 모드로 바꾸도록 L1.tools에 요청한다.",
         input: PlanEnterModeInput,
         output: PlanModeOutput,
-        replay: "safe",
+        replay: "unsafe",
         errors: PLAN_ERRORS,
       },
       exitMode: {
@@ -759,7 +764,7 @@ export const WorkPlans: CapabilityDef<
           "계획 모드를 끝내고 이전 모드로 돌린다. 승인 필수면 승인된 계획이 있어야 한다.",
         input: PlanExitModeInput,
         output: PlanModeOutput,
-        replay: "safe",
+        replay: "unsafe",
         errors: PLAN_ERRORS,
       },
       submit: {
@@ -767,6 +772,7 @@ export const WorkPlans: CapabilityDef<
         input: PlanSubmitInput,
         output: PlanSubmitOutput,
         replay: "safe",
+        idempotent: true,
         errors: PLAN_ERRORS,
       },
       approve: {
@@ -774,6 +780,7 @@ export const WorkPlans: CapabilityDef<
         input: PlanApproveInput,
         output: PlanOutput,
         replay: "safe",
+        idempotent: true,
         errors: PLAN_ERRORS,
       },
       reject: {
@@ -781,6 +788,7 @@ export const WorkPlans: CapabilityDef<
         input: PlanRejectInput,
         output: PlanOutput,
         replay: "safe",
+        idempotent: true,
         errors: PLAN_ERRORS,
       },
       revise: {
@@ -788,6 +796,7 @@ export const WorkPlans: CapabilityDef<
         input: PlanReviseInput,
         output: PlanOutput,
         replay: "safe",
+        idempotent: true,
         errors: PLAN_ERRORS,
       },
       versions: {
@@ -795,6 +804,7 @@ export const WorkPlans: CapabilityDef<
         input: PlanVersionsInput,
         output: PlanVersionsOutput,
         replay: "safe",
+        readOnly: true,
       },
     },
   },
@@ -805,7 +815,7 @@ export const WorkPlans: CapabilityDef<
       description: "쓰기 도구를 막는 계획 모드로 들어간다. 큰 변경 전에 조사와 계획만 할 때 쓴다.",
       method: "enterMode",
       parameters: PlanEnterModeInput,
-      replay: "safe",
+      replay: "unsafe",
       executionMode: "sequential",
       hints: { readOnly: false, destructive: false, idempotent: true, openWorld: false },
     },
@@ -816,7 +826,7 @@ export const WorkPlans: CapabilityDef<
         "계획 모드를 끝낸다. 승인 필수 설정이면 submit_plan으로 승인받은 뒤에만 끝낼 수 있다.",
       method: "exitMode",
       parameters: PlanExitModeInput,
-      replay: "safe",
+      replay: "unsafe",
       executionMode: "sequential",
       hints: { readOnly: false, destructive: false, idempotent: true, openWorld: false },
     },
@@ -1083,6 +1093,7 @@ export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapabil
         input: GoalSetInput,
         output: GoalOutput,
         replay: "safe",
+        idempotent: true,
         errors: GOAL_ERRORS,
       },
       status: {
@@ -1090,12 +1101,14 @@ export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapabil
         input: GoalStatusInput,
         output: GoalStatusOutput,
         replay: "safe",
+        readOnly: true,
       },
       clear: {
         description: "목표를 해제한다.",
         input: GoalClearInput,
         output: GoalOutput,
         replay: "safe",
+        idempotent: true,
         errors: GOAL_ERRORS,
       },
       judge: {
@@ -1103,6 +1116,7 @@ export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapabil
         input: GoalJudgeInput,
         output: GoalJudgeOutput,
         replay: "safe",
+        idempotent: true,
         errors: GOAL_ERRORS,
       },
     },
@@ -1290,6 +1304,7 @@ export const WorkReports: CapabilityDef<ReportsMethods, readonly []> = defineCap
         input: ReportBuildInput,
         output: ReportBuildOutput,
         replay: "safe",
+        idempotent: true,
       },
     },
   },

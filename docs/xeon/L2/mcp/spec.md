@@ -336,8 +336,8 @@ export const McpClient = defineCapability({
   service: {
     methods: {
       listServers: { description: "정의된 서버와 상태 목록.", input: Type.Object({}),
-        output: Type.Object({ servers: Type.Array(McpServerStatusSchema) }), replay: "safe" },
-      status: { description: "서버 하나의 상태.", input: ServerRef, output: McpServerStatusSchema, replay: "safe", errors: MCP_ERRORS },
+        output: Type.Object({ servers: Type.Array(McpServerStatusSchema) }), replay: "safe", readOnly: true },
+      status: { description: "서버 하나의 상태.", input: ServerRef, output: McpServerStatusSchema, replay: "safe", readOnly: true, errors: MCP_ERRORS },
       connect: { description: "꺼진 서버를 이 세션에서 켜고 연결한다.", input: ServerRef, output: McpServerStatusSchema, errors: MCP_ERRORS },
       reconnect: { description: "연결을 닫고 다시 연결한다. 도구 목록을 다시 읽는다.", input: ServerRef, output: McpServerStatusSchema, errors: MCP_ERRORS },
       disable: { description: "이 세션에서 서버를 끈다. 도구는 다음 단계 경계에서 빠진다.", input: ServerRef, output: McpServerStatusSchema, errors: MCP_ERRORS },
@@ -346,11 +346,11 @@ export const McpClient = defineCapability({
       callTool: { description: "서버 도구를 호출한다. input_required면 연속 정보를 돌려준다.",
         input: CallToolInput, output: CallToolOutput, replay: "unsafe", errors: MCP_ERRORS },
       listPrompts: { description: "서버 프롬프트 목록.", input: ServerRef,
-        output: Type.Object({ prompts: Type.Array(PromptInfoSchema) }), replay: "safe", errors: MCP_ERRORS },
-      getPrompt: { description: "프롬프트를 인자로 펼친다.", input: GetPromptInput, output: GetPromptOutput, replay: "safe", errors: MCP_ERRORS },
+        output: Type.Object({ prompts: Type.Array(PromptInfoSchema) }), replay: "safe", readOnly: true, errors: MCP_ERRORS },
+      getPrompt: { description: "프롬프트를 인자로 펼친다.", input: GetPromptInput, output: GetPromptOutput, replay: "safe", readOnly: true, errors: MCP_ERRORS },
       listResources: { description: "리소스 목록. server가 없으면 연결된 모든 서버.", input: ListResourcesInput,
-        output: ListResourcesOutput, replay: "safe", errors: MCP_ERRORS },
-      readResource: { description: "리소스 하나를 읽는다.", input: ReadResourceInput, output: ReadResourceOutput, replay: "safe", errors: MCP_ERRORS },
+        output: ListResourcesOutput, replay: "safe", readOnly: true, errors: MCP_ERRORS },
+      readResource: { description: "리소스 하나를 읽는다.", input: ReadResourceInput, output: ReadResourceOutput, replay: "safe", readOnly: true, errors: MCP_ERRORS },
     },
   },
   tools: [
@@ -488,6 +488,24 @@ CREATE TABLE cap_mcp_servers (
 
 - 이 테이블은 재생으로 다시 만들지 않는다. 재시작 뒤 화면이 마지막 오류를 보여 주는 용도다.
 - 서버 주도 요청의 승인 기록을 `cap_mcp_`에도 둘지는 [미결 3]이다. 승인 요청과 해결은 `approval.*` 이벤트(L1.tools 소유)로 세션에 남으므로 이 도메인은 복사본을 두지 않는 쪽을 제안한다.
+
+### 3.6 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태, 세션 DB 이벤트, 작업 공간, 사용자 데이터, 외부 시스템에 효과를 남기지 않는 읽기다. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `mcp.client.listServers` | readOnly | safe | 메모리 상태 조회 |
+| `mcp.client.status` | readOnly | safe | 같음 |
+| `mcp.client.connect` | 선언 없음 | unsafe | 서버 연결 상태를 바꾼다 |
+| `mcp.client.reconnect` | 선언 없음 | unsafe | 같음 |
+| `mcp.client.disable` | 선언 없음 | unsafe | 같음 |
+| `mcp.client.listTools` | readOnly | safe | MCP `tools/list`. 서버 상태를 바꾸지 않는다 |
+| `mcp.client.callTool` | 선언 없음 | unsafe | 서버 쪽 효과를 알 수 없다 |
+| `mcp.client.listPrompts` | readOnly | safe | MCP `prompts/list` |
+| `mcp.client.getPrompt` | readOnly | safe | MCP `prompts/get`(사양상 읽기) |
+| `mcp.client.listResources` | readOnly | safe | MCP `resources/list` |
+| `mcp.client.readResource` | readOnly | safe | MCP `resources/read`(사양상 읽기) |
 
 ## 4. 동작 규칙
 

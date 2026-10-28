@@ -300,7 +300,7 @@ export const WorkspaceFiles = defineCapability({
     methods: {
       read: {
         description: "텍스트 파일을 줄 범위로 읽는다. 이미지 파일이면 이미지 참조를 돌려준다.",
-        input: ReadInput, output: ReadOutput, replay: "safe",
+        input: ReadInput, output: ReadOutput, replay: "safe", readOnly: true,
         errors: {
           read_binary: { description: "이미지가 아닌 바이너리 파일", retryable: false },
           offset_beyond_end: { description: "offset이 파일 줄 수보다 큼", retryable: false },
@@ -323,16 +323,16 @@ export const WorkspaceFiles = defineCapability({
       },
       list: {
         description: "디렉터리 항목을 이름 순으로 돌려준다.",
-        input: ListInput, output: ListOutput, replay: "safe",
+        input: ListInput, output: ListOutput, replay: "safe", readOnly: true,
       },
       grep: {
         description: "파일 내용을 정규식이나 문자열로 검색한다. .gitignore를 따른다.",
-        input: GrepInput, output: GrepOutput, replay: "safe",
+        input: GrepInput, output: GrepOutput, replay: "safe", readOnly: true,
         errors: { pattern_invalid: { description: "정규식 문법 오류", retryable: false } },
       },
       find: {
         description: "glob으로 파일을 찾는다. .gitignore를 따른다.",
-        input: FindInput, output: FindOutput, replay: "safe",
+        input: FindInput, output: FindOutput, replay: "safe", readOnly: true,
         errors: { pattern_invalid: { description: "glob 문법 오류", retryable: false } },
       },
     },
@@ -482,9 +482,9 @@ export const WorkspaceImages = defineCapability({
   description: "이미지를 모델이 받을 수 있는 형식과 크기로 맞추고 blob으로 등록한다.",
   service: {
     methods: {
-      load: { description: "파일에서 이미지를 읽어 준비하고 등록한다.", input: LoadImageInput, output: WorkspaceImageSchema, replay: "safe", errors: IMAGE_ERRORS },
-      resize: { description: "등록된 이미지를 다른 한도로 다시 준비한다.", input: ResizeImageInput, output: WorkspaceImageSchema, replay: "safe", errors: IMAGE_ERRORS },
-      register: { description: "base64 이미지 데이터를 준비하고 등록한다. 붙여넣기 첨부에 쓴다.", input: RegisterImageInput, output: WorkspaceImageSchema, replay: "safe", errors: IMAGE_ERRORS },
+      load: { description: "파일에서 이미지를 읽어 준비하고 등록한다.", input: LoadImageInput, output: WorkspaceImageSchema, replay: "safe", readOnly: true, errors: IMAGE_ERRORS },
+      resize: { description: "등록된 이미지를 다른 한도로 다시 준비한다.", input: ResizeImageInput, output: WorkspaceImageSchema, replay: "safe", readOnly: true, errors: IMAGE_ERRORS },
+      register: { description: "base64 이미지 데이터를 준비하고 등록한다. 붙여넣기 첨부에 쓴다.", input: RegisterImageInput, output: WorkspaceImageSchema, replay: "unsafe", errors: IMAGE_ERRORS },
     },
   },
   tools: [],
@@ -519,6 +519,23 @@ export interface WorkspaceService {
 - 이벤트 접두사 `workspace.`는 예약만 한다. 이 문서는 이벤트 type을 정의하지 않는다. 도구 호출 기록은 L1.tools의 `tool.*` 이벤트다(`eng.context-map.design` §5.1).
 - 테이블 접두사 `cap_workspace_`도 예약만 한다. 테이블을 만들지 않는다.
 - 파일 변경 기록은 도구 결과에 싣는다. `write`, `edit`의 `toContent`는 `details`에 `FileChange`를 넣고, `structuredContent`에도 같은 값이 있다. `L2.artifacts.spec`의 리뷰는 이 `details`를 근거로 한다.
+
+### 3.7 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태, 세션 DB 이벤트, 작업 공간, 사용자 데이터, 외부 시스템에 효과를 남기지 않는 읽기다. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `workspace.files.read` | readOnly | safe | 파일 조회. 이미지 읽기가 만드는 blob은 같은 바이트의 사본이다 |
+| `workspace.files.write` | 선언 없음 | unsafe | 파일을 쓴다(spec §3.2. 같은 내용이어도 중간에 다른 쓰기가 끼일 수 있다) |
+| `workspace.files.edit` | 선언 없음 | unsafe | 파일을 바꾼다 |
+| `workspace.files.list` | readOnly | safe | 디렉터리 조회 |
+| `workspace.files.grep` | readOnly | safe | 파일 조회 |
+| `workspace.files.find` | readOnly | safe | 파일 조회 |
+| `workspace.images.load` | readOnly | safe | 파일을 읽어 같은 바이트의 blob 사본을 만든다. 원본이 남아 있다 |
+| `workspace.images.resize` | readOnly | safe | 등록된 blob에서 다시 만든다. 공급자는 2차 |
+| `workspace.images.register` | 선언 없음 | unsafe | 붙여넣은 데이터가 유일한 사본인 blob을 저장한다. `requestId` 멱등이 없다 |
+| `workspace.shell.run` | 선언 없음 | unsafe | 외부 명령을 실행한다 |
 
 ## 4. 동작 규칙
 

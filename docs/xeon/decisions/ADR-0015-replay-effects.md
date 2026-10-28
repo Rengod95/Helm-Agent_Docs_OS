@@ -129,7 +129,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 | `X.primitives.spec` §4.4.3, §4.4.4, §4.6, §9 | 능력 래퍼의 문맥 검사, drive 쓰기 호출의 명시 키 요구(§3.4 3번), `effects` 계수 규칙, 워커 소유(§3.5) | 대기 |
 | `L1.loop.spec` §4.8 | drive 효과 목록 문장을 이 ADR로 바꾼다 | 대기 |
 | `L1.agents.spec` | `delegate`의 (부모 대화, `requestId`) 멱등이 재시작 뒤에도 유지된다는 문장과 시험 | 대기 |
-| L2 각 spec(`work`, `knowledge`, `web`, `dialog`, `artifacts`, `schedule`, `mcp`, `workspace`) | 메서드마다 `readOnly`·`idempotent`·선언 없음 분류. 멱등 쓰기의 내구 기록 근거 | 대기 |
+| L2 각 spec(`work`, `knowledge`, `web`, `dialog`, `mcp`, `workspace`) | 메서드마다 `readOnly`·`idempotent`·선언 없음 분류. 멱등 쓰기의 내구 기록 근거 | 반영(M3a A4 T-L2). `artifacts`, `schedule`은 정의가 없어 해당 패키지 구현 때 분류한다 |
 | L2 각 plan | 능력 적합성 시험(§3.6 2번 둘째 항목)을 공급자 패키지마다 단위 테스트 목록에 더한다 | 대기 |
 | `L3.group-kit.spec` §3.4, §10 | on 핸들러 `delegate` 허용, 공통 모순 2 닫음 | 반영 |
 | `L3.group-kit.spec` §3.10 / plan G-20 | `replayDrive`의 효과 계수 확인(§3.6 2번 첫째 항목), `delegateStatus`·`cancelDelegates`·`report?`·`GroupStatus.drive "rejected"` 작업 | 반영(group-kit plan G-20 확장, G-28~G-30 추가) |

@@ -198,7 +198,7 @@ export const DialogAsk = defineCapability({
         description: "질문 묶음을 사용자에게 보내고 답을 받는다.",
         input: AskInput,
         output: AskOutput,
-        replay: "safe",
+        replay: "safe", idempotent: true,
         errors: {
           ask_invalid_questions: { description: "질문 정의가 규칙(checkAskQuestions)을 어김", retryable: false,
             detail: Type.Object({ issues: Type.Array(Type.String()) }) },
@@ -357,9 +357,9 @@ export const DialogCommands = defineCapability({
   description: "슬래시 명령과 프롬프트 템플릿. 모델은 명령을 호출하지 않는다.",
   service: {
     methods: {
-      register: { description: "템플릿 명령을 등록한다.", input: CommandRegisterInput, output: Type.Object({ command: CommandInfoSchema }), replay: "safe", errors: CommandErrors },
-      list: { description: "명령 목록과 인자 선언을 돌려준다.", input: CommandListInput, output: Type.Object({ commands: Type.Array(CommandInfoSchema) }), replay: "safe" },
-      expand: { description: "입력이 명령이면 치환 결과를 돌려준다. 아무것도 실행하지 않는다.", input: CommandExpandInput, output: CommandExpandOutput, replay: "safe", errors: CommandErrors },
+      register: { description: "템플릿 명령을 등록한다.", input: CommandRegisterInput, output: Type.Object({ command: CommandInfoSchema }), replay: "unsafe", errors: CommandErrors },
+      list: { description: "명령 목록과 인자 선언을 돌려준다.", input: CommandListInput, output: Type.Object({ commands: Type.Array(CommandInfoSchema) }), replay: "safe", readOnly: true },
+      expand: { description: "입력이 명령이면 치환 결과를 돌려준다. 아무것도 실행하지 않는다.", input: CommandExpandInput, output: CommandExpandOutput, replay: "safe", readOnly: true, errors: CommandErrors },
       run: { description: "명령을 실행한다. 템플릿은 최종 텍스트를, 동작 명령은 처리기 결과를 돌려준다.", input: CommandRunInput, output: CommandRunOutput, replay: "unsafe", errors: CommandErrors },
     },
   },
@@ -425,9 +425,9 @@ export const DialogStatus = defineCapability({
   description: "상태줄 세그먼트 등록. 변경은 휘발 이벤트 dialog.status로만 나간다.",
   service: {
     methods: {
-      setItem: { description: "세그먼트를 만들거나 바꾼다.", input: StatusItemSchema, output: Type.Object({}), replay: "safe" },
-      clearItem: { description: "세그먼트를 지운다.", input: Type.Object({ id: Type.String({ pattern: STATUS_ITEM_ID_PATTERN }) }, { additionalProperties: false }), output: Type.Object({}), replay: "safe" },
-      list: { description: "현재 세그먼트 전체(재접속 뒤 다시 그리기용).", input: Type.Object({}, { additionalProperties: false }), output: Type.Object({ items: Type.Array(StatusItemSchema) }), replay: "safe" },
+      setItem: { description: "세그먼트를 만들거나 바꾼다.", input: StatusItemSchema, output: Type.Object({}), replay: "unsafe" },
+      clearItem: { description: "세그먼트를 지운다.", input: Type.Object({ id: Type.String({ pattern: STATUS_ITEM_ID_PATTERN }) }, { additionalProperties: false }), output: Type.Object({}), replay: "unsafe" },
+      list: { description: "현재 세그먼트 전체(재접속 뒤 다시 그리기용).", input: Type.Object({}, { additionalProperties: false }), output: Type.Object({ items: Type.Array(StatusItemSchema) }), replay: "safe", readOnly: true },
     },
   },
   tools: [],
@@ -489,7 +489,7 @@ export const DialogAttachments = defineCapability({
         description: "첨부 하나를 검사하고 저장한 뒤 입력 파트를 만든다.",
         input: AttachmentAddInput,
         output: AttachmentAddOutput,
-        replay: "safe",
+        replay: "unsafe",
         errors: {
           attachment_too_large: { description: "l2.dialog.attachments.maxBytes 초과", retryable: false,
             detail: Type.Object({ size: Type.Integer(), limit: Type.Integer() }) },
@@ -525,7 +525,7 @@ export const DialogAside = defineCapability({
   description: "본류 컨텍스트를 읽기만 하는 별도 질문. 본류 기록을 바꾸지 않는다.",
   service: {
     methods: {
-      ask: { description: "본류 스냅숏을 읽고 별도 모델 호출로 답한다.", input: AsideAskInput, output: AsideAskOutput, replay: "safe" },
+      ask: { description: "본류 스냅숏을 읽고 별도 모델 호출로 답한다.", input: AsideAskInput, output: AsideAskOutput, replay: "safe", readOnly: true },
     },
   },
   tools: [],
@@ -550,12 +550,12 @@ export const DialogStyles = defineCapability({
   description: "세션 단위 출력 스타일. 적용은 다음 턴 시작이다.",
   service: {
     methods: {
-      register: { description: "스타일을 등록한다.", input: StyleSchema, output: Type.Object({}), replay: "safe" },
+      register: { description: "스타일을 등록한다.", input: StyleSchema, output: Type.Object({}), replay: "unsafe" },
       select: {
         description: "이 세션의 스타일을 고른다. null은 기본 스타일.",
         input: Type.Object({ id: Type.Union([StyleIdSchema, Type.Null()]) }, { additionalProperties: false }),
         output: Type.Object({ active: StyleIdSchema, appliesAt: Type.Literal("next_turn") }),
-        replay: "safe",
+        replay: "unsafe",
         errors: { style_unknown: { description: "등록되지 않은 스타일", retryable: false } },
       },
     },
@@ -617,8 +617,8 @@ export const DialogNotify = defineCapability({
   description: "사용자 주의가 필요한 상태를 5종으로 분류하고 알린다.",
   service: {
     methods: {
-      emit: { description: "그룹·플러그인이 알림을 직접 낸다(내구 기록).", input: NotifyEmitInput, output: Type.Object({ notice: NoticeSchema }), replay: "safe" },
-      list: { description: "afterSeq 뒤의 알림을 분류해 돌려준다(당겨 읽기).", input: NotifyListInput, output: Type.Object({ notices: Type.Array(NoticeSchema), nextSeq: Type.Integer() }), replay: "safe" },
+      emit: { description: "그룹·플러그인이 알림을 직접 낸다(내구 기록).", input: NotifyEmitInput, output: Type.Object({ notice: NoticeSchema }), replay: "safe", idempotent: true },
+      list: { description: "afterSeq 뒤의 알림을 분류해 돌려준다(당겨 읽기).", input: NotifyListInput, output: Type.Object({ notices: Type.Array(NoticeSchema), nextSeq: Type.Integer() }), replay: "safe", readOnly: true },
     },
   },
   tools: [],
@@ -677,6 +677,27 @@ export const DIALOG_EVENT_CATALOG: readonly CatalogEntry[] = [
 - `dialog.status`는 휘발 이름 규칙 `<대상>.status`를 따른다(eng.events.design §4.5 규칙 2). 재생 대상이 아니다.
 - `dialog.notified`는 M3다. `eng.context-map.design` §5.1의 `dialog.` 행은 내구 type을 "L2.dialog.spec 카탈로그"로 두었으므로 이 표가 그 카탈로그다.
 - `notification.` 접두사는 금지 접두사다(eng.events.design §4.5 규칙 4). 그래서 내구 이벤트 이름을 `dialog.notified`로 둔다.
+
+### 3.8 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태, 세션 DB 이벤트, 작업 공간, 사용자 데이터, 외부 시스템에 효과를 남기지 않는 읽기다. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `dialog.ask.ask` | idempotent | safe | `requestId` 필수. 승인 요청이 같은 키로 하나만 생기고 다시 부르면 그 요청의 현재 상태를 돌려준다(§4.1) |
+| `dialog.aside.ask` | readOnly | safe | 본류에 이벤트를 쓰지 않고 답은 반환값으로만 남는다(§4.6). 모델 호출 비용만 든다 [제안] |
+| `dialog.attachments.add` | 선언 없음 | unsafe | blob을 저장한다. `requestId` 멱등 기록이 없다 |
+| `dialog.commands.register` | 선언 없음 | unsafe | 메모리 등록부를 바꾼다. 내구 기록이 없다 |
+| `dialog.commands.list` | readOnly | safe | 등록부 조회 |
+| `dialog.commands.expand` | readOnly | safe | 치환만 하고 실행하지 않는다 |
+| `dialog.commands.run` | 선언 없음 | unsafe | 동작 명령 처리기를 실행한다. 처리기 안의 효과는 처리기가 `requestId`로 지킨다 |
+| `dialog.notify.emit` | idempotent | safe | `dialog.notified`를 `dialog:notify:<requestId>` 커밋 키로 남긴다(§3.7). 공급자는 M3(D11)에서 만든다 |
+| `dialog.notify.list` | readOnly | safe | 내구 이벤트 조회 |
+| `dialog.status.setItem` | 선언 없음 | unsafe | 휘발 스냅숏을 바꾼다. 내구 기록이 없어 `requestId`로 기억할 곳이 없다 |
+| `dialog.status.clearItem` | 선언 없음 | unsafe | 같음 |
+| `dialog.status.list` | readOnly | safe | 스냅숏 조회 |
+| `dialog.styles.register` | 선언 없음 | unsafe | 메모리 등록부를 바꾼다. 공급자는 2차 |
+| `dialog.styles.select` | 선언 없음 | unsafe | 세션 설정을 쓴다. `requestId` 멱등이 없다. 공급자는 2차 |
 
 ## 4. 동작 규칙
 

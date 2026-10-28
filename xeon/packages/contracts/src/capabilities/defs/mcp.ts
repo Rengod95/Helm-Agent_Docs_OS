@@ -675,12 +675,14 @@ export const McpClient: CapabilityDef<
         input: ListServersInput,
         output: ListServersOutput,
         replay: "safe",
+        readOnly: true,
       },
       status: {
         description: "서버 하나의 상태.",
         input: McpServerRefSchema,
         output: McpServerStatusSchema,
         replay: "safe",
+        readOnly: true,
         errors: MCP_ERRORS,
       },
       connect: {
@@ -706,6 +708,7 @@ export const McpClient: CapabilityDef<
         input: McpServerRefSchema,
         output: ListToolsOutput,
         replay: "safe",
+        readOnly: true,
         errors: MCP_ERRORS,
       },
       callTool: {
@@ -720,6 +723,7 @@ export const McpClient: CapabilityDef<
         input: McpServerRefSchema,
         output: ListPromptsOutput,
         replay: "safe",
+        readOnly: true,
         errors: MCP_ERRORS,
       },
       getPrompt: {
@@ -727,6 +731,7 @@ export const McpClient: CapabilityDef<
         input: GetPromptInput,
         output: GetPromptOutput,
         replay: "safe",
+        readOnly: true,
         errors: MCP_ERRORS,
       },
       listResources: {
@@ -734,6 +739,7 @@ export const McpClient: CapabilityDef<
         input: ListResourcesInput,
         output: ListResourcesOutput,
         replay: "safe",
+        readOnly: true,
         errors: MCP_ERRORS,
       },
       readResource: {
@@ -741,6 +747,7 @@ export const McpClient: CapabilityDef<
         input: ReadResourceInput,
         output: ReadResourceOutput,
         replay: "safe",
+        readOnly: true,
         errors: MCP_ERRORS,
       },
     },

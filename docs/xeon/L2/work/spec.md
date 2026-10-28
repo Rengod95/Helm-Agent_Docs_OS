@@ -113,7 +113,7 @@ export type ArtifactRef = Static<typeof ArtifactRefSchema>;
 
 - [제안] 작업·계획·목표·보고 ID는 ULID 접두 ID(eng.domain-types.guide DT-06)를 쓰지 않고 스레드 안 순번을 쓴다. 모델이 `task_write`에서 ID를 직접 적어야 하므로 짧아야 한다(Claude Code 작업 도구도 순번 ID를 쓴다, `_research/l2e.md` §3.1 A1). DT-06의 "외부 발급 ID는 브랜드만 붙이고 패턴은 따로 둔다" 규칙과 같은 처리다. 다른 스레드의 같은 ID와 구별할 일이 없다. 모든 조회는 스레드 범위다.
 - 호출 문맥: 서비스 메서드는 대상 스레드를 알아야 한다. 대상 스레드는 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`의 `threadId`다(`L2.readme` §5.8). 도구 경로에서는 L1.tools가 도구 호출의 스레드로 채우고, 그룹 경로에서는 X의 capability 래퍼가 `HandlerContext.threadId`(F.extensions.spec §3.2)로 채운다. 없으면 `invalid_input`이다.
-- 쓰기 메서드의 `requestId`는 필수다 [제안]. 없으면 `invalid_input`이다. 같은 `requestId`의 재호출은 이벤트를 다시 쓰지 않고 처음 결과를 돌려준다(eng.transactions.design §4.7, TX-05). 그래서 쓰기 메서드의 `replay`를 `"safe"`로 둔다.
+- 쓰기 메서드의 `requestId`는 필수다 [제안]. 없으면 `invalid_input`이다. 같은 `requestId`의 재호출은 이벤트를 다시 쓰지 않고 처음 결과를 돌려준다(eng.transactions.design §4.7, TX-05). 그래서 쓰기 메서드에 `replay: "safe"`와 `idempotent: true`를 선언한다. 예외는 `enterMode`와 `exitMode`다. 권한 모드는 L1.tools가 소유해 `requestId` 결과를 기억하지 않으므로 선언 없음(`replay: "unsafe"`)이다(§3.9 표).
 
 ### 3.2 `work.tasks`
 
@@ -269,11 +269,11 @@ export const WorkTasks = defineCapability({
   description: "턴 사이에 유지되는 작업 목록과 선행 간선.",
   service: {
     methods: {
-      create: { description: "작업 하나를 만든다.", input: TaskCreateInput, output: TaskOutput, replay: "safe", errors: TaskErrors },
-      update: { description: "작업의 내용, 상태, owner를 바꾼다.", input: TaskUpdateInput, output: TaskOutput, replay: "safe", errors: TaskErrors },
-      link: { description: "선행 간선을 더하거나 뺀다. 순환이 생기면 거부한다.", input: TaskLinkInput, output: TaskOutput, replay: "safe", errors: TaskErrors },
-      list: { description: "작업 목록을 조회한다.", input: TaskListInput, output: TaskListOutput, replay: "safe" },
-      write: { description: "여러 연산을 한 번에 적용한다. 전부 적용되거나 하나도 적용되지 않는다.", input: TaskWriteInput, output: TaskWriteOutput, replay: "safe", errors: TaskErrors },
+      create: { description: "작업 하나를 만든다.", input: TaskCreateInput, output: TaskOutput, replay: "safe", idempotent: true, errors: TaskErrors },
+      update: { description: "작업의 내용, 상태, owner를 바꾼다.", input: TaskUpdateInput, output: TaskOutput, replay: "safe", idempotent: true, errors: TaskErrors },
+      link: { description: "선행 간선을 더하거나 뺀다. 순환이 생기면 거부한다.", input: TaskLinkInput, output: TaskOutput, replay: "safe", idempotent: true, errors: TaskErrors },
+      list: { description: "작업 목록을 조회한다.", input: TaskListInput, output: TaskListOutput, replay: "safe", readOnly: true },
+      write: { description: "여러 연산을 한 번에 적용한다. 전부 적용되거나 하나도 적용되지 않는다.", input: TaskWriteInput, output: TaskWriteOutput, replay: "safe", idempotent: true, errors: TaskErrors },
     },
   },
   tools: [
@@ -416,13 +416,13 @@ export const WorkPlans = defineCapability({
   description: "계획 객체와 승인 흐름. 계획 모드의 쓰기 차단은 L1.tools가 한다.",
   service: {
     methods: {
-      enterMode: { description: "권한 모드를 계획 모드로 바꾸도록 L1.tools에 요청한다.", input: PlanEnterModeInput, output: PlanModeOutput, replay: "safe", errors: PlanErrors },
-      exitMode: { description: "계획 모드를 끝내고 이전 모드로 돌린다. 승인 필수면 승인된 계획이 있어야 한다.", input: PlanExitModeInput, output: PlanModeOutput, replay: "safe", errors: PlanErrors },
-      submit: { description: "계획을 제출하고 승인을 요청한다.", input: PlanSubmitInput, output: PlanSubmitOutput, replay: "safe", errors: PlanErrors },
-      approve: { description: "승인 대기 중인 버전을 승인한다.", input: PlanApproveInput, output: PlanOutput, replay: "safe", errors: PlanErrors },
-      reject: { description: "승인 대기 중인 버전을 반려한다.", input: PlanRejectInput, output: PlanOutput, replay: "safe", errors: PlanErrors },
-      revise: { description: "승인 대기 중인 버전에 수정을 요청한다.", input: PlanReviseInput, output: PlanOutput, replay: "safe", errors: PlanErrors },
-      versions: { description: "계획의 모든 버전을 조회한다.", input: PlanVersionsInput, output: PlanVersionsOutput, replay: "safe" },
+      enterMode: { description: "권한 모드를 계획 모드로 바꾸도록 L1.tools에 요청한다.", input: PlanEnterModeInput, output: PlanModeOutput, replay: "unsafe", errors: PlanErrors },
+      exitMode: { description: "계획 모드를 끝내고 이전 모드로 돌린다. 승인 필수면 승인된 계획이 있어야 한다.", input: PlanExitModeInput, output: PlanModeOutput, replay: "unsafe", errors: PlanErrors },
+      submit: { description: "계획을 제출하고 승인을 요청한다.", input: PlanSubmitInput, output: PlanSubmitOutput, replay: "safe", idempotent: true, errors: PlanErrors },
+      approve: { description: "승인 대기 중인 버전을 승인한다.", input: PlanApproveInput, output: PlanOutput, replay: "safe", idempotent: true, errors: PlanErrors },
+      reject: { description: "승인 대기 중인 버전을 반려한다.", input: PlanRejectInput, output: PlanOutput, replay: "safe", idempotent: true, errors: PlanErrors },
+      revise: { description: "승인 대기 중인 버전에 수정을 요청한다.", input: PlanReviseInput, output: PlanOutput, replay: "safe", idempotent: true, errors: PlanErrors },
+      versions: { description: "계획의 모든 버전을 조회한다.", input: PlanVersionsInput, output: PlanVersionsOutput, replay: "safe", readOnly: true },
     },
   },
   tools: [
@@ -432,7 +432,7 @@ export const WorkPlans = defineCapability({
       description: "쓰기 도구를 막는 계획 모드로 들어간다. 큰 변경 전에 조사와 계획만 할 때 쓴다.",
       method: "enterMode",
       parameters: PlanEnterModeInput,
-      replay: "safe",
+      replay: "unsafe",
       executionMode: "sequential",
       hints: { readOnly: false, destructive: false, idempotent: true, openWorld: false },
     },
@@ -442,7 +442,7 @@ export const WorkPlans = defineCapability({
       description: "계획 모드를 끝낸다. 승인 필수 설정이면 submit_plan으로 승인받은 뒤에만 끝낼 수 있다.",
       method: "exitMode",
       parameters: PlanExitModeInput,
-      replay: "safe",
+      replay: "unsafe",
       executionMode: "sequential",
       hints: { readOnly: false, destructive: false, idempotent: true, openWorld: false },
     },
@@ -581,10 +581,10 @@ export const WorkGoals = defineCapability({
   description: "완료 조건을 걸고 턴마다 별도 판정자의 판정으로 다음 턴을 이어 간다. 모델 도구는 없다.",
   service: {
     methods: {
-      set: { description: "목표를 건다.", input: GoalSetInput, output: GoalOutput, replay: "safe", errors: GoalErrors },
-      status: { description: "활성 목표(또는 지정 목표)와 최근 판정을 조회한다.", input: GoalStatusInput, output: GoalStatusOutput, replay: "safe" },
-      clear: { description: "목표를 해제한다.", input: GoalClearInput, output: GoalOutput, replay: "safe", errors: GoalErrors },
-      judge: { description: "delegated 판정자가 판정을 넣는다.", input: GoalJudgeInput, output: GoalJudgeOutput, replay: "safe", errors: GoalErrors },
+      set: { description: "목표를 건다.", input: GoalSetInput, output: GoalOutput, replay: "safe", idempotent: true, errors: GoalErrors },
+      status: { description: "활성 목표(또는 지정 목표)와 최근 판정을 조회한다.", input: GoalStatusInput, output: GoalStatusOutput, replay: "safe", readOnly: true },
+      clear: { description: "목표를 해제한다.", input: GoalClearInput, output: GoalOutput, replay: "safe", idempotent: true, errors: GoalErrors },
+      judge: { description: "delegated 판정자가 판정을 넣는다.", input: GoalJudgeInput, output: GoalJudgeOutput, replay: "safe", idempotent: true, errors: GoalErrors },
     },
   },
   tools: [],
@@ -675,7 +675,7 @@ export const WorkReports = defineCapability({
   description: "완료 보고를 정해진 스키마로 만들고 이벤트로 남긴다. 턴 결과 형식이며 모델 도구는 없다.",
   service: {
     methods: {
-      build: { description: "대상(목표 또는 턴)의 완료 보고를 만든다.", input: ReportBuildInput, output: ReportBuildOutput, replay: "safe" },
+      build: { description: "대상(목표 또는 턴)의 완료 보고를 만든다.", input: ReportBuildInput, output: ReportBuildOutput, replay: "safe", idempotent: true },
     },
   },
   tools: [],
@@ -878,6 +878,30 @@ CREATE TABLE cap_work_meta (
 - 투영기 `cap.work` 버전 2는 `cap_work_tasks`, `cap_work_edges`, `cap_work_plans`, `cap_work_meta` 넷을 만든다(버전 1은 `cap_work_plans` 없이 작업 셋). 목표·보고 테이블은 해당 작업(T9~T12)이 더하면서 투영 버전을 올린다.
 - [결정: WK.2] 권한 모드 추적은 `settings.changed`가 세션 범위에서 나온 변경만 본다. 파일 설정(사용자·프로젝트 범위)이 정한 모드는 이벤트가 없으므로 `mode_before_plan`은 세션 범위 이력의 직전 값이고, 그런 이력이 없으면 default다. 이 프로세스가 직접 계획 모드에 넣은 스레드는 메모리에 실제 직전 모드를 두고 우선한다(재시작 뒤에는 투영 값). L1.tools가 직전 모드를 이벤트로 남기면 이 한계가 사라진다(§10 W-16).
 - `approval.resolved` payload의 결정 필드 이름은 L1.tools.spec이 정한다. 투영기는 F에 있는 그 payload 스키마만 import한다(§10 W-2).
+
+### 3.9 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태, 세션 DB 이벤트, 작업 공간, 사용자 데이터, 외부 시스템에 효과를 남기지 않는 읽기다. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `work.goals.set` | idempotent | safe | `work.goal_set`을 `work:goals:<requestId>` 커밋 키로 남긴다 |
+| `work.goals.status` | readOnly | safe | 투영 조회 |
+| `work.goals.clear` | idempotent | safe | `work.goal_settled`(cleared)를 `work:goals:<requestId>` 커밋 키로 남긴다 |
+| `work.goals.judge` | idempotent | safe | `work.goal_judged`를 `work:goals:<requestId>` 커밋 키로 남기고 같은 턴 판정이 있으면 기존 판정을 돌려준다 |
+| `work.plans.enterMode` | 선언 없음 | unsafe | 모드는 L1.tools가 소유하고 `requestId` 결과를 기억하지 않는다. 두 번째 호출은 `previousMode: null`을 돌려준다 |
+| `work.plans.exitMode` | 선언 없음 | unsafe | 같음. 모드가 이미 풀렸으면 `plan_mode_inactive`다 |
+| `work.plans.submit` | idempotent | safe | `work:plans:<requestId>` 커밋 키(`commitPlans`) |
+| `work.plans.approve` | idempotent | safe | 같음 |
+| `work.plans.reject` | idempotent | safe | 같음 |
+| `work.plans.revise` | idempotent | safe | 같음 |
+| `work.plans.versions` | readOnly | safe | 투영 조회 |
+| `work.reports.build` | idempotent | safe | `work.report_built`를 `work:reports:<requestId>` 커밋 키로 남긴다 |
+| `work.tasks.create` | idempotent | safe | `work:tasks:<requestId>` 커밋 키(TX-05) |
+| `work.tasks.update` | idempotent | safe | 같음 |
+| `work.tasks.link` | idempotent | safe | 같음 |
+| `work.tasks.list` | readOnly | safe | 투영 조회(쓰기 큐 뒤에서 읽는다) |
+| `work.tasks.write` | idempotent | safe | 같음. 처음 결과의 `created`를 이벤트에서 복원한다 |
 
 ## 4. 동작 규칙
 

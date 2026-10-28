@@ -107,10 +107,14 @@ describe("work definitions", () => {
     expect(MAX_WORK_TASKS).toBe(500);
   });
 
-  test("every service method is replay safe (writes dedupe by requestId)", () => {
+  test("only the plan mode switches are replay unsafe (the mode is not keyed by requestId)", () => {
+    const unsafe: string[] = [];
     for (const def of DEFS) {
-      for (const method of Object.values(def.service.methods)) expect(method.replay).toBe("safe");
+      for (const [name, method] of Object.entries(def.service.methods)) {
+        if (method.replay !== "safe") unsafe.push(`${def.id}.${name}`);
+      }
     }
+    expect(unsafe).toEqual(["work.plans.enterMode", "work.plans.exitMode"]);
   });
 
   test("submit_plan hides wait from the model and forces it off", () => {

@@ -126,15 +126,16 @@ describe("knowledge definitions", () => {
     expect(parse(MemoryManageInputSchema, memory).ok).toBe(true);
   });
 
-  test("write methods replay as unsafe and reads as safe", () => {
+  test("writes dedupe by requestId so they replay safe, decide and reindex replay unsafe", () => {
     const skills = KnowledgeSkills.service.methods;
     for (const name of ["create", "edit", "patch", "writeFile", "remove", "manage"] as const) {
-      expect(skills[name].replay ?? "unsafe").toBe("unsafe");
-    }
-    for (const name of ["list", "view", "reindex"] as const) {
       expect(skills[name].replay).toBe("safe");
     }
-    expect(KnowledgeLedger.service.methods.rollback.replay ?? "unsafe").toBe("unsafe");
+    for (const name of ["list", "view"] as const) {
+      expect(skills[name].replay).toBe("safe");
+    }
+    expect(skills.reindex.replay).toBe("unsafe");
+    expect(KnowledgeLedger.service.methods.rollback.replay).toBe("safe");
     expect(KnowledgeLedger.service.methods.decide.replay ?? "unsafe").toBe("unsafe");
     expect(KnowledgeLedger.service.methods.scan.replay).toBe("safe");
   });

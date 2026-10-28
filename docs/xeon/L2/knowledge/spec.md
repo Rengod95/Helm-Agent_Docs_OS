@@ -305,17 +305,17 @@ export const KnowledgeSkills = defineCapability({
   description: "Agent Skills 스킬의 색인, 본문 지연 로딩, 승인과 원장을 거친 쓰기.",
   service: {
     methods: {
-      list:      { description: "스킬 인덱스를 돌려준다.", input: SkillListInputSchema, output: SkillListOutputSchema, replay: "safe" },
-      view:      { description: "스킬 본문이나 지원 파일 하나를 읽는다.", input: SkillViewInputSchema, output: SkillViewOutputSchema, replay: "safe" },
-      create:    { description: "새 스킬을 만든다.", input: SkillCreateInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      edit:      { description: "설명이나 본문 전체를 바꾼다.", input: SkillEditInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      patch:     { description: "본문이나 지원 파일에 정확 일치 치환을 적용한다.", input: SkillPatchInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      writeFile: { description: "지원 파일 하나를 쓴다.", input: SkillWriteFileInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      remove:    { description: "스킬이나 지원 파일을 보관함으로 옮기거나 지운다.", input: SkillRemoveInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      manage:    { description: "action에 따라 create·edit·patch·writeFile·remove 중 하나로 보낸다.", input: SkillManageInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
+      list:      { description: "스킬 인덱스를 돌려준다.", input: SkillListInputSchema, output: SkillListOutputSchema, replay: "safe", readOnly: true },
+      view:      { description: "스킬 본문이나 지원 파일 하나를 읽는다.", input: SkillViewInputSchema, output: SkillViewOutputSchema, replay: "safe", readOnly: true },
+      create:    { description: "새 스킬을 만든다.", input: SkillCreateInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      edit:      { description: "설명이나 본문 전체를 바꾼다.", input: SkillEditInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      patch:     { description: "본문이나 지원 파일에 정확 일치 치환을 적용한다.", input: SkillPatchInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      writeFile: { description: "지원 파일 하나를 쓴다.", input: SkillWriteFileInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      remove:    { description: "스킬이나 지원 파일을 보관함으로 옮기거나 지운다.", input: SkillRemoveInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      manage:    { description: "action에 따라 create·edit·patch·writeFile·remove 중 하나로 보낸다.", input: SkillManageInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
       reindex:   { description: "스킬 루트를 다시 훑어 색인과 파일을 맞춘다. 바깥 편집은 원장에 external로 남긴다.",
                    input: Type.Object({}), output: Type.Object({ added: Type.Integer(), changed: Type.Integer(), removed: Type.Integer(), indexVersion: Type.Integer() }),
-                   replay: "safe" },
+                   replay: "unsafe" },
     },
   },
   tools: [
@@ -332,7 +332,7 @@ export const KnowledgeSkills = defineCapability({
 export const KnowledgeSkillsKey = serviceKey(KnowledgeSkills);
 ```
 
-- 쓰기 메서드의 `replay`는 생략(`"unsafe"`)이다. 같은 `requestId`의 두 번째 호출은 원장에서 첫 결과를 돌려주므로(§4.4.5) 그룹의 재시도는 안전하지만, 결과 불명인 모델 도구 호출을 다시 실행하면 승인 요청이 다시 뜰 수 있어 재생하지 않는다 [제안].
+- [결정: M3-REQ-88] 쓰기 메서드(`create`·`edit`·`patch`·`writeFile`·`remove`·`manage`, 메모리 쓰기, `ledger.rollback`)는 `replay: "safe"`와 `idempotent: true`를 선언한다. 같은 `requestId`의 두 번째 호출은 원장(`request_id`)과 대기열이 저장한 첫 결과를 돌려주므로(§4.4.5) 재실행되는 코드(on 핸들러, drive)가 불러도 효과가 한 번이다. 결과 불명인 모델 도구 호출을 다시 실행하면 승인 요청이 다시 뜰 수 있어 도구 `skill_manage`·`memory_manage`의 `replay`는 `"unsafe"`로 둔다(도구가 메서드보다 좁아도 된다). `decide`와 `reindex`는 `requestId` 멱등이 없어 선언 없음(`replay: "unsafe"`)이다.
 - `manage`는 다른 쓰기 메서드와 같은 경로로 보내는 분배기다. 모델 도구가 메서드 하나에 대응해야 하므로(`F.capabilities.spec` §4.2) 둔다. `action`별 필수 필드 검사(예: `patch`는 `baseHash`, `edits`)는 런타임에서 하고 실패하면 `invalid_input`이다.
 - `skill_manage`의 `scope`는 모델 파라미터에 없다. 모델 쓰기는 `user` 범위로 간다. 프로젝트 스킬(`.xeon/skills`)은 사용자나 확장(증거 있음)만 쓴다 [제안]. 저장소에 커밋되는 파일을 에이전트가 승인 없이 바꾸지 않게 하기 위해서다.
 
@@ -418,11 +418,11 @@ export const KnowledgeMemory = defineCapability({
   description: "사용자 정보(user)와 환경 사실(env) 두 저장소의 한도 있는 상주 메모리.",
   service: {
     methods: {
-      read:    { description: "현재 메모리 상태를 읽는다. 세션 스냅샷과 다를 수 있다.", input: MemoryReadInputSchema, output: MemoryReadOutputSchema, replay: "safe" },
-      add:     { description: "항목 하나를 더한다.", input: MemoryAddInputSchema, output: MemoryWriteOutputSchema, errors: memoryWriteErrors },
-      replace: { description: "항목 하나를 바꾼다.", input: MemoryReplaceInputSchema, output: MemoryWriteOutputSchema, errors: memoryWriteErrors },
-      remove:  { description: "항목 하나를 지운다.", input: MemoryRemoveInputSchema, output: MemoryWriteOutputSchema, errors: memoryWriteErrors },
-      manage:  { description: "action에 따라 add·replace·remove 또는 batch로 보낸다. batch는 원자적이다.", input: MemoryManageInputSchema, output: MemoryWriteOutputSchema, errors: memoryWriteErrors },
+      read:    { description: "현재 메모리 상태를 읽는다. 세션 스냅샷과 다를 수 있다.", input: MemoryReadInputSchema, output: MemoryReadOutputSchema, replay: "safe", readOnly: true },
+      add:     { description: "항목 하나를 더한다.", input: MemoryAddInputSchema, output: MemoryWriteOutputSchema, replay: "safe", idempotent: true, errors: memoryWriteErrors },
+      replace: { description: "항목 하나를 바꾼다.", input: MemoryReplaceInputSchema, output: MemoryWriteOutputSchema, replay: "safe", idempotent: true, errors: memoryWriteErrors },
+      remove:  { description: "항목 하나를 지운다.", input: MemoryRemoveInputSchema, output: MemoryWriteOutputSchema, replay: "safe", idempotent: true, errors: memoryWriteErrors },
+      manage:  { description: "action에 따라 add·replace·remove 또는 batch로 보낸다. batch는 원자적이다.", input: MemoryManageInputSchema, output: MemoryWriteOutputSchema, replay: "safe", idempotent: true, errors: memoryWriteErrors },
     },
   },
   tools: [
@@ -527,10 +527,10 @@ export const KnowledgeSearch = defineCapability({
   description: "스킬·메모리·지난 세션 전문 검색. 세션은 LLM 요약 없이 원문을 돌려준다.",
   service: {
     methods: {
-      query:  { description: "질의어로 스킬·메모리·세션 메시지를 찾는다.", input: KnowledgeQueryInputSchema, output: KnowledgeQueryOutputSchema, replay: "safe" },
-      scroll: { description: "세션의 한 메시지 앞뒤를 읽는다.", input: SessionScrollInputSchema, output: SessionMessagesOutputSchema, replay: "safe" },
-      read:   { description: "세션 메시지를 seq 순으로 읽는다.", input: SessionReadInputSchema, output: SessionMessagesOutputSchema, replay: "safe" },
-      list:   { description: "최근 세션 목록을 돌려준다.", input: SessionListInputSchema, output: SessionListOutputSchema, replay: "safe" },
+      query:  { description: "질의어로 스킬·메모리·세션 메시지를 찾는다.", input: KnowledgeQueryInputSchema, output: KnowledgeQueryOutputSchema, replay: "safe", readOnly: true },
+      scroll: { description: "세션의 한 메시지 앞뒤를 읽는다.", input: SessionScrollInputSchema, output: SessionMessagesOutputSchema, replay: "safe", readOnly: true },
+      read:   { description: "세션 메시지를 seq 순으로 읽는다.", input: SessionReadInputSchema, output: SessionMessagesOutputSchema, replay: "safe", readOnly: true },
+      list:   { description: "최근 세션 목록을 돌려준다.", input: SessionListInputSchema, output: SessionListOutputSchema, replay: "safe", readOnly: true },
     },
   },
   tools: [
@@ -628,11 +628,11 @@ export const KnowledgeLedger = defineCapability({
   service: {
     methods: {
       list:      { description: "원장 항목을 최신순으로 돌려준다.", input: LedgerListInputSchema,
-                   output: Type.Object({ entries: Type.Array(LedgerEntrySchema, { maxItems: 200 }) }), replay: "safe" },
+                   output: Type.Object({ entries: Type.Array(LedgerEntrySchema, { maxItems: 200 }) }), replay: "safe", readOnly: true },
       show:      { description: "원장 항목 하나와 파일별 diff를 돌려준다.", input: Type.Object({ ledgerId: LedgerIdSchema }),
-                   output: LedgerShowOutputSchema, replay: "safe" },
+                   output: LedgerShowOutputSchema, replay: "safe", readOnly: true },
       rollback:  { description: "원장 항목 하나를 되돌린다. 되돌림도 원장에 남는다.", input: Type.Object({ ledgerId: LedgerIdSchema, reason: Type.Optional(Type.String({ maxLength: 500 })) }),
-                   output: WriteOutcomeSchema,
+                   output: WriteOutcomeSchema, replay: "safe", idempotent: true,
                    errors: {
                      rollback_conflict: { description: "대상의 현재 해시가 그 항목의 afterHash와 다름(뒤에 다른 변경이 있음)", retryable: false },
                      rollback_unsafe: { description: "현재 내용의 안전 캡처에 실패해 되돌리지 않음", retryable: true },
@@ -641,11 +641,11 @@ export const KnowledgeLedger = defineCapability({
       scan:      { description: "쓰기 없이 위협 패턴 검사만 한다.", input: Type.Object({
                      kind: Type.Union([Type.Literal("skill"), Type.Literal("memory")]),
                      text: Type.String({ maxLength: 1_048_576 }),
-                   }), output: ScanSummarySchema, replay: "safe" },
+                   }), output: ScanSummarySchema, replay: "safe", readOnly: true },
       proposals: { description: "제안 대기열을 돌려준다.", input: Type.Object({
                      status: Type.Optional(ProposalSchema.properties.status),
                      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 50 })),
-                   }), output: Type.Object({ proposals: Type.Array(ProposalSchema, { maxItems: 200 }) }), replay: "safe" },
+                   }), output: Type.Object({ proposals: Type.Array(ProposalSchema, { maxItems: 200 }) }), replay: "safe", readOnly: true },
       decide:    { description: "제안 하나를 승인하거나 거절한다. 승인하면 쓰기 경로로 적용한다.", input: Type.Object({
                      proposalId: ProposalIdSchema,
                      decision: Type.Union([Type.Literal("approve"), Type.Literal("reject")]),
@@ -829,6 +829,37 @@ CREATE VIRTUAL TABLE cap_knowledge_session_fts USING fts5(
 | `knowledge.ledger.rollback` | `knowledge.ledger.rollback` | 실패 사유 `hash_mismatch` → `rollback_conflict` |
 | `KnowledgeChange.createdBy: "agent"` | 행위자가 `agent`나 `extension`이면 `created_by = 'agent'` | 큐레이터 대상 판정(`L3.learning.spec` §4.8.1)에 쓴다 |
 | `KnowledgeChange.kind: "script"` | 1차 범위 밖 | 반복 작업 스크립트 제안은 2차(`L3.learning.spec` §4.8.3). 저장 위치는 [미결] |
+
+### 3.10 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태, 세션 DB 이벤트, 작업 공간, 사용자 데이터, 외부 시스템에 효과를 남기지 않는 읽기다. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `knowledge.ledger.list` | readOnly | safe | 원장 조회 |
+| `knowledge.ledger.show` | readOnly | safe | 원장 조회 |
+| `knowledge.ledger.rollback` | idempotent | safe | 같은 `requestId`는 계산 앞에서 원장 `request_id`를 보고 첫 결과를 돌려준다(§4.5.3) |
+| `knowledge.ledger.scan` | readOnly | safe | 순수 검사 |
+| `knowledge.ledger.proposals` | readOnly | safe | 대기열 조회. 만료 기한이 지난 제안은 조회가 `expired`로 정리한다(내용을 바꾸는 효과가 아니다) [제안] |
+| `knowledge.ledger.decide` | 선언 없음 | unsafe | 사람만 부른다. 같은 `requestId`를 기억하지 않고 두 번째 결정은 `proposal_closed`다 |
+| `knowledge.memory.read` | readOnly | safe | 파일 조회 |
+| `knowledge.memory.add` | idempotent | safe | 원장 `request_id`와 대기열이 첫 결과를 기억한다(§4.4.5) |
+| `knowledge.memory.replace` | idempotent | safe | 같음 |
+| `knowledge.memory.remove` | idempotent | safe | 같음 |
+| `knowledge.memory.manage` | idempotent | safe | 같음 |
+| `knowledge.search.query` | readOnly | safe | 색인 조회 |
+| `knowledge.search.scroll` | readOnly | safe | 세션 이벤트 조회 |
+| `knowledge.search.read` | readOnly | safe | 세션 이벤트 조회 |
+| `knowledge.search.list` | readOnly | safe | 투영 조회 |
+| `knowledge.skills.list` | readOnly | safe | 색인 조회. 바깥 편집을 맞추는 지연 재색인은 이미 일어난 변경을 따라가는 것이라 이 호출의 효과로 세지 않는다 [제안] |
+| `knowledge.skills.view` | readOnly | safe | 같음 |
+| `knowledge.skills.reindex` | readOnly | safe | 바깥 편집을 원장에 `external`로 남긴다. `requestId` 멱등이 없다 |
+| `knowledge.skills.create` | idempotent | safe | 원장 `request_id`와 대기열이 첫 결과를 기억한다(§4.4.5) |
+| `knowledge.skills.edit` | idempotent | safe | 같음 |
+| `knowledge.skills.patch` | idempotent | safe | 같음 |
+| `knowledge.skills.writeFile` | idempotent | safe | 같음 |
+| `knowledge.skills.remove` | idempotent | safe | 같음 |
+| `knowledge.skills.manage` | idempotent | safe | 같음 |
 
 ## 4. 동작 규칙
 
@@ -1222,13 +1253,15 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 | 메서드 | replay | 결과 불명일 때 |
 |---|---|---|
-| `skills.list`, `skills.view`, `skills.reindex` | safe | 다시 실행한다 |
-| `skills.create`·`edit`·`patch`·`writeFile`·`remove`·`manage` | unsafe | 중단 결과를 합성한다. 같은 `requestId`로 다시 부르면 원장의 첫 결과가 돌아온다 |
-| `memory.read` | safe | 다시 실행한다 |
-| `memory.add`·`replace`·`remove`·`manage` | unsafe | 같음 |
-| `search.*` | safe | 다시 실행한다. 색인이 그 사이 늘었으면 결과가 다를 수 있다 |
-| `ledger.list`·`show`·`scan`·`proposals` | safe | 다시 실행한다 |
-| `ledger.rollback`·`decide` | unsafe | 중단 결과를 합성한다 |
+| `skills.list`, `skills.view` | safe(readOnly) | 다시 실행한다 |
+| `skills.reindex` | unsafe | 중단 결과를 합성한다. 색인은 다시 훑으면 맞춰지므로 사용자가 다시 부른다 |
+| `skills.create`·`edit`·`patch`·`writeFile`·`remove`·`manage` | safe(idempotent). 도구 `skill_manage`는 unsafe | 메서드는 같은 `requestId`로 다시 부르면 원장의 첫 결과가 돌아온다. 도구는 중단 결과를 합성한다 |
+| `memory.read` | safe(readOnly) | 다시 실행한다 |
+| `memory.add`·`replace`·`remove`·`manage` | safe(idempotent). 도구 `memory_manage`는 unsafe | 같음 |
+| `search.*` | safe(readOnly) | 다시 실행한다. 색인이 그 사이 늘었으면 결과가 다를 수 있다 |
+| `ledger.list`·`show`·`scan`·`proposals` | safe(readOnly) | 다시 실행한다 |
+| `ledger.rollback` | safe(idempotent) | 같은 `requestId`로 다시 부르면 원장의 첫 결과가 돌아온다 |
+| `ledger.decide` | unsafe | 중단 결과를 합성한다 |
 
 - 렌더러(`renderSkillView`, `renderWriteOutcome`, `renderMemoryWrite`, `renderHits`, `renderMessages`)는 순수 함수다.
 - 첫 turn 스냅샷·인덱스 블록은 기록 메시지로 남는다는 제안(§4.2.5, §4.3.4)을 따르면 재개 때 다시 계산하지 않는다. 기록하지 않는 방식이 정해지면 블록은 세션별 저장 사본에서 다시 만들어야 한다(§10 미결 4).

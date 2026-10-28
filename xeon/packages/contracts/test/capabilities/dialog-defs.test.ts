@@ -119,17 +119,22 @@ describe("dialog definitions", () => {
     expect(parse(AskParams, { ...params, wait: true }).ok).toBe(false);
   });
 
-  test("only run is replay unsafe among the commands methods", () => {
+  test("only the reads of commands are replay safe", () => {
     const methods = DialogCommands.service.methods;
     expect(methods.run.replay).toBe("unsafe");
-    expect([methods.register, methods.list, methods.expand].every((m) => m.replay === "safe")).toBe(
-      true,
-    );
+    expect(methods.register.replay).toBe("unsafe");
+    expect([methods.list, methods.expand].every((m) => m.replay === "safe")).toBe(true);
   });
 
-  test("status and notify methods are replay safe", () => {
-    for (const def of [DialogStatus, DialogNotify]) {
-      for (const method of Object.values(def.service.methods)) expect(method.replay).toBe("safe");
+  test("status writes are replay unsafe, status list and notify are replay safe", () => {
+    const status = DialogStatus.service.methods;
+    expect([status.setItem.replay, status.clearItem.replay, status.list.replay]).toEqual([
+      "unsafe",
+      "unsafe",
+      "safe",
+    ]);
+    for (const method of Object.values(DialogNotify.service.methods)) {
+      expect(method.replay).toBe("safe");
     }
   });
 });
