@@ -1,4 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
+import { ReviewAnswerSchema } from "@xeon/contracts/records";
+import { parse } from "@xeon/contracts";
 import { EXIT } from "../src/exit-codes.ts";
 import {
   approvalRequested,
@@ -150,6 +152,55 @@ test("a plan approval with no modes and no note allows with an empty answer", as
   const s = scenario({ body, replies: ["y", ""] });
   await s.h.run(["chat"]);
   expect(s.responds[0]).toMatchObject({ decision: "allow", answer: {} });
+});
+
+const REVIEW_BODY = {
+  kind: "review",
+  review: {
+    reviewId: "rvw_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    artifactId: "art_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    title: "refactor loader",
+    round: 1,
+    files: [{ path: "src/a.ts", change: "modified", binary: false, hunks: 2 }],
+  },
+};
+
+test("a review approval shows the file summary; y approves every hunk and submits as a ReviewAnswer", async () => {
+  const s = scenario({ body: REVIEW_BODY, replies: ["y"] });
+  expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+  expect(s.input.prompts[1]).toBe("[y] 모두 승인  [c] 수정 요청  [n] 거부 > ");
+  expect(s.h.stderrText()).toContain("modified src/a.ts (hunk 2)");
+  expect(s.responds).toHaveLength(1);
+  const answer = {
+    decisions: [],
+    comments: [],
+    submit: true,
+    approveRemaining: true,
+  };
+  expect(s.responds[0]).toEqual({ approvalId: expect.any(String), decision: "answer", answer });
+  expect(parse(ReviewAnswerSchema, answer).ok).toBe(true);
+});
+
+test("c on a review sends the feedback as a review-level comment without submitting; empty feedback asks again", async () => {
+  const s = scenario({ body: REVIEW_BODY, replies: ["c", "", "c", "로더 이름을 바꿔 줘"] });
+  await s.h.run(["chat"]);
+  expect(s.h.stdoutText()).toContain("수정 요청에는 내용이 필요하다");
+  expect(s.responds).toHaveLength(1);
+  const answer = {
+    decisions: [],
+    comments: [{ target: { type: "review" }, body: "로더 이름을 바꿔 줘" }],
+    submit: false,
+  };
+  expect(s.responds[0]).toEqual({ approvalId: expect.any(String), decision: "answer", answer });
+  expect(parse(ReviewAnswerSchema, answer).ok).toBe(true);
+});
+
+test("n on a review asks for a reason and sends a deny answer; an unknown key asks again", async () => {
+  const s = scenario({ body: REVIEW_BODY, replies: ["x", "n", "범위가 넓다"] });
+  await s.h.run(["chat"]);
+  expect(s.h.stdoutText()).toContain("y, c, n 중 하나를 입력한다");
+  expect(s.responds).toHaveLength(1);
+  expect(s.responds[0]).toMatchObject({ decision: "deny", answer: { feedback: "범위가 넓다" } });
 });
 
 const QUESTION_BODY = {

@@ -336,5 +336,6 @@ test("a review approval shows its title, round and one row per file (compile fix
     "modified src/a.ts (hunk 3)",
     "added logo.png (hunk 0)",
   ]);
-  expect(view.allowsAnswer).toBe(false);
+  expect(view.allowsAnswer).toBe(true);
+  expect(view.form).toEqual({ kind: "review" });
 });

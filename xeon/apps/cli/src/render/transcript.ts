@@ -259,7 +259,7 @@ export function approvalViewOf(
         },
       };
     case "review":
-      // 검토 승인(adr.0018)의 CLI 화면은 L4 CLI 트랙이 만든다. 지금은 요약 줄과 허용·거부 프롬프트만 보인다
+      // 검토 승인(ADR-0018). 요약(파일, hunk 수)만 보이고 hunk 본문은 싣지 않는다. 답은 ReviewAnswer(approval.ts)
       return {
         approvalId,
         title,
@@ -271,9 +271,9 @@ export function approvalViewOf(
           ),
           ...expiryLine(payload),
         ],
-        allowsAnswer: false,
+        allowsAnswer: true,
         remember,
-        form: { kind: "tool" },
+        form: { kind: "review" },
       };
     default:
       return assertNever(body, "ApprovalBody");

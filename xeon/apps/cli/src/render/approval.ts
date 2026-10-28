@@ -1,8 +1,9 @@
+import { assertNever } from "@xeon/contracts";
 import type { ApprovalRespondParams, ApprovalRespondResult } from "@xeon/contracts/wire";
 import type { ApprovalView, QuestionView, RememberChoice } from "./ops.ts";
 
 // L4.cli.spec §4.11. 승인 프롬프트. 줄 입력으로 허용·거부·답을 받아 approval.respond 인자로 바꾼다.
-// 질문(question)은 QuestionAnswer, 계획(plan)의 허용은 PlanAnswer, 거부는 DenyAnswer가 정본 모양이다(F wire §3.3.1).
+// 질문(question)은 QuestionAnswer, 계획(plan)의 허용은 PlanAnswer, 검토(review)는 ReviewAnswer, 거부는 DenyAnswer가 정본 모양이다(F wire §3.3.1).
 
 /** approval.respond에서 approvalId를 뺀 부분 */
 export type ApprovalResponse = Omit<ApprovalRespondParams, "approvalId">;
@@ -118,6 +119,49 @@ async function askPlan(
   };
 }
 
+/**
+ * 검토 승인(ADR-0018): 모두 승인, 수정 요청, 거부. 카드가 hunk 본문 없이 요약만 보이므로 hunk별 결정은 받지 않는다.
+ * 승인은 남은 hunk를 모두 승인하고 제출한다(`approveRemaining`, `submit`). 수정 요청은 검토 전체에 코멘트 하나를 달고 제출하지 않는다:
+ * hunk는 pending으로 남고 되돌림은 일어나지 않는다. 거부는 DenyAnswer다
+ */
+async function askReview(io: PromptIo, signal: AbortSignal): Promise<AskOutcome | "retry"> {
+  const line = await io.readLine("[y] 모두 승인  [c] 수정 요청  [n] 거부 > ", signal);
+  if (isAborted(signal)) return { kind: "dismissed" };
+  if (line === null) return { kind: "answered", response: DENY_ONLY };
+  const choice = line.trim().toLowerCase();
+  if (choice === "y" || choice === "yes") {
+    return {
+      kind: "answered",
+      response: {
+        decision: "answer",
+        answer: { decisions: [], comments: [], submit: true, approveRemaining: true },
+      },
+    };
+  }
+  if (choice === "c") {
+    const feedbackLine = await io.readLine("수정 요청 내용: ", signal);
+    if (isAborted(signal)) return { kind: "dismissed" };
+    const body = feedbackLine?.trim() ?? "";
+    if (body.length === 0) {
+      await io.stdout("수정 요청에는 내용이 필요하다\n");
+      return "retry";
+    }
+    return {
+      kind: "answered",
+      response: {
+        decision: "answer",
+        answer: { decisions: [], comments: [{ target: { type: "review" }, body }], submit: false },
+      },
+    };
+  }
+  if (choice === "n" || choice === "no") {
+    const denied = await askFeedback(io, signal);
+    return isAborted(signal) ? { kind: "dismissed" } : { kind: "answered", response: denied };
+  }
+  await io.stdout("y, c, n 중 하나를 입력한다\n");
+  return "retry";
+}
+
 function describeQuestion(question: QuestionView, index: number, total: number): string {
   const lines: string[] = [];
   const header = question.header === null ? "" : `[${question.header}] `;
@@ -192,6 +236,24 @@ async function askQuestions(
   return { kind: "answered", response: { decision: "answer", answer: answers } };
 }
 
+function askForm(
+  form: Exclude<ApprovalView["form"], { readonly kind: "question" }>,
+  view: ApprovalView,
+  io: PromptIo,
+  signal: AbortSignal,
+): Promise<AskOutcome | "retry"> {
+  switch (form.kind) {
+    case "tool":
+      return askTool(view, io, signal);
+    case "plan":
+      return askPlan(form.nextModes, io, signal);
+    case "review":
+      return askReview(io, signal);
+    default:
+      return assertNever(form, "ApprovalForm");
+  }
+}
+
 /** 승인 요청 하나를 사람에게 묻는다. 요청 제목과 본문은 트랜스크립트가 이미 보였다 */
 async function askApproval(
   view: ApprovalView,
@@ -202,9 +264,7 @@ async function askApproval(
   if (form.kind === "question") return askQuestions(form.questions, io, signal);
   for (;;) {
     // oxlint-disable-next-line no-await-in-loop -- 알아듣는 입력이 올 때까지 같은 질문을 다시 묻는다 (L4.cli.spec §4.11)
-    const outcome = await (form.kind === "tool"
-      ? askTool(view, io, signal)
-      : askPlan(form.nextModes, io, signal));
+    const outcome = await askForm(form, view, io, signal);
     if (outcome !== "retry") return outcome;
   }
 }

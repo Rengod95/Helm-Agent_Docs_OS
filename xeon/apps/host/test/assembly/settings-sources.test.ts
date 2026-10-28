@@ -7,6 +7,7 @@ import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { createSettingsEngine, type SettingsEngine } from "../../src/assembly/settings-engine.ts";
 import {
+  agentsSource,
   execOptionsOf,
   hostLimitsOf,
   logLevelOf,
@@ -168,6 +169,11 @@ test("l1.loop.maxSteps, tools and workspace sources read the same layers", async
   expect(workspaceSource(settings).layers(undefined)).toHaveLength(1);
   // 형식이 thread id가 아닌 문자열은 thread 없는 층으로 읽는다
   expect(workspaceSource(settings).layers("not-a-thread")).toHaveLength(1);
+});
+
+test("l1.agents.judge.maxRuns reaches the agents source and defaults to 3", async () => {
+  expect(agentsSource(await engineWith({ "l1.agents.judge.maxRuns": 5 })).judgeMaxRuns?.()).toBe(5);
+  expect(agentsSource(await engineWith({})).judgeMaxRuns?.()).toBe(3);
 });
 
 test("undeclared package keys are read raw: persistence, store, exec, shutdown", async () => {
