@@ -72,15 +72,7 @@ export {
   type TrustLevel,
   type TrustPermissions,
 } from "./trust/levels.ts";
-export {
-  discoverExternal,
-  externalLocations,
-  type BuiltinExtensionModule,
-  type ExtensionCandidate,
-  type ExternalLocation,
-  type LoaderFs,
-  type LoaderPaths,
-} from "./discover.ts";
+export { type BuiltinExtensionModule, type LoaderFs, type LoaderPaths } from "./discover.ts";
 export {
   installDefaultPlugin,
   type DefaultPluginInstallError,
@@ -88,12 +80,7 @@ export {
   type DefaultPluginInstallOutcome,
   type PluginInstallFs,
 } from "./default-plugin.ts";
-export {
-  registerSdkModules,
-  SDK_MODULE_SPECIFIERS,
-  type SdkModules,
-  type SdkRegisterError,
-} from "./virtual-modules.ts";
+export { registerSdkModules, SDK_MODULE_SPECIFIERS, type SdkModules } from "./virtual-modules.ts";
 export { compareVersions } from "./semver.ts";
 export {
   LoadDiagnosticSchema,
@@ -127,7 +114,7 @@ export {
   type TrustStoreError,
   type TrustVerdict,
 } from "./trust/store.ts";
-export { importExternalEntry, verdictOfInstall } from "./entry-loader.ts";
+export { verdictOfInstall } from "./entry-loader.ts";
 
 export type { LoaderMode } from "./trust/levels.ts";
 

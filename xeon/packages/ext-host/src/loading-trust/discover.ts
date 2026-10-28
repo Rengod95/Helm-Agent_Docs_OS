@@ -58,7 +58,7 @@ export function orderKeyOfBuiltin(manifest: ExtensionManifest): OrderKey {
 export const MANIFEST_RELATIVE_PATH: string = join(".xeon-plugin", "plugin.json");
 
 /** 프로젝트 확장 디렉터리. 프로젝트 루트 기준 상대 경로다(X.loading-trust.spec §4.2.1) */
-export const PROJECT_EXTENSIONS_DIR: string = join(".xeon", "extensions");
+const PROJECT_EXTENSIONS_DIR: string = join(".xeon", "extensions");
 
 export interface ExternalLocation {
   readonly source: Exclude<InstallSource, "builtin">;

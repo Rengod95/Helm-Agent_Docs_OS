@@ -52,7 +52,7 @@ xeon/packages/ext-host/
     naming.ts            # M2. NamedResourceKind, ResourceClaim, ResolvedName, qualifiedName, ReservedNames,
                          # resolveNames, createResourcePolicy
     safe-mode.ts         # M3a. SafeModeSource, StartupOptions, LoadCandidate, SkipReason, startupFilter,
-                         # allowedInSafeMode, StartupHealthStore, shouldSuggestSafeMode
+                         # allowedInSafeMode, shouldSuggestSafeMode
     hooks/
       config.ts          # M2. HOOK_ID_PATTERN, HOOK_POINTS, HookPointName, HookDefSchema, HookDef,
                          # HookDefListSchema, HookSource, LoadedHook, loadHooks
@@ -105,7 +105,7 @@ xeon/packages/ext-host/
 | O-17 | `doc-constants.test.ts`: 스펙 §4.2.2 표·§6 표의 기본값과 §3.1 tier 이름을 코드 상수와 대조 | O-05, O-10, O-02 | S | M1 |
 | O-18 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(`ResourcePolicy.resolve` 쌍 판정) | P-24(리소스 레지스트리, `ResourcePolicy`) | M | M2 |
 | O-19 | `ExtHostDeps.resourcePolicy` 연결, 집합 판정 메서드 추가를 primitives와 합의(스펙 §10 미결 17), pi 어댑터의 `registerTool`·`registerCommand`·`registerShortcut`·`registerFlag` 매핑 확인 | L-19(pi 어댑터), O-18 | M | M2 |
-| O-20 | `safe-mode.ts`: `startupFilter`, `allowedInSafeMode`, `shouldSuggestSafeMode`. `OperationsPolicy.startupFilter`(후보별 `assignTier` 뒤 `startupFilter`), `StartupHealthStore` 포트, 2차 안전 모드 키 2개. 로더 5a단계 연결은 L-29 | L-08(로더), L4.host-service.plan(시작 상태 파일, `--safe-mode`·`--disable-ext` 파싱), O-02 | M | M2 |
+| O-20 | `safe-mode.ts`: `startupFilter`, `allowedInSafeMode`, `shouldSuggestSafeMode`. `OperationsPolicy.startupFilter`(후보별 `assignTier` 뒤 `startupFilter`), `StartupHealthStore` 포트(호스트가 시작 상태 파일을 연결할 때 정의합니다. 2026-10-28 미사용 export 정리), 2차 안전 모드 키 2개. 로더 5a단계 연결은 L-29 | L-08(로더), L4.host-service.plan(시작 상태 파일, `--safe-mode`·`--disable-ext` 파싱), O-02 | M | M2 |
 | O-21 | `hooks/config.ts`: `HookDefSchema`, 범위별 목록 병합, tier 부여, 프로젝트 신뢰 조건, 2차 훅 키 3개 | L-17(프로젝트 신뢰), F.wire-settings.plan(배열 키 병합, 스펙 §10 미결 13), O-02 | M | M4 |
 | O-22 | `hooks/protocol.ts`: `HookInput` 직렬화, `HookOutputSchema`, `interpretHookRun`(스펙 §4.7.3 표 전체) | F.extensions.plan(`POINTS[point].result` 스키마), O-21 | M | M4 |
 | O-23 | `hooks/run.ts`: `hookEnv`, `HookProcessPort`(`ProcessPortKey`로 조회)로 실행, 출력 상한, 예산, 결과를 `HandlerOutcomeRecord`로 보고 | P-30(`ProcessPortKey`), L0.process.plan(`ProcessService` 실행 메서드, 프로세스 그룹 종료), O-22, O-08 | M | M4 |

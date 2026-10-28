@@ -53,14 +53,6 @@ export function startupFilter(
   return { load, skipped };
 }
 
-/** 연속 시작 실패 기록 포트. 구현과 파일 위치는 L4.host-service.spec [가정] */
-export interface StartupHealthStore {
-  /** 이번 시작을 "진행 중"으로 표시하고 직전까지의 연속 실패 수를 돌려준다 */
-  beginStartup(): number;
-  /** 첫 사용자 입력을 받을 준비가 되면 부른다. 연속 실패 수를 0으로 */
-  markStarted(): void;
-}
-
 /** 순수 함수. 연속 실패 수가 기준 이상이면 시작 화면에 안전 모드를 제안한다 */
 export function shouldSuggestSafeMode(consecutiveFailures: number, threshold: number): boolean {
   return consecutiveFailures >= threshold;

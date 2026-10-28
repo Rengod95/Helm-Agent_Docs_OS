@@ -43,7 +43,7 @@ export interface PluginFiles {
 }
 
 /** `boundary.settle.after`에 `on` 핸들러를 걸고 호출 때 `<이름>:fired`를 기록하는 엔트리 */
-export function defaultEntry(name: string): string {
+function defaultEntry(name: string): string {
   // 플러그인 본문은 문자열이다. 층 검사가 import로 읽지 않게 지정자를 조립한다
   const kitSpecifier = ["@xeon", "group-kit"].join("/");
   return `import * as kit from "${kitSpecifier}";
