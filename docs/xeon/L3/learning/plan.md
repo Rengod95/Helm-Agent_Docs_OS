@@ -86,7 +86,7 @@ xeon/packages/group-learning/
 | id | 내용 | 선행 | 규모 |
 |---|---|---|---|
 | LR-01 | 매니페스트와 상태: `manifest.ts`, `state.ts`, `index.ts`의 `defineGroup` 뼈대. `validateManifest` 통과 테스트 | group-kit M2(`defineGroup`, `GroupDef<S>`) | S |
-| LR-02 | 설정: `settings.ts`에 spec §6.1의 13개 키 `SettingDef`. 설정 읽기 실패 시 fail-closed 경로 | LR-01, F.wire-settings `defineSettings` | S |
+| LR-02 | 설정: `settings.ts`에 spec §6.1의 12개 키 `SettingDef`. 설정 읽기 실패 시 fail-closed 경로 | LR-01, F.wire-settings `defineSettings` | S |
 | LR-03 | 카운터 집계: `boundary.turn.before`로 집계표 열기, `boundary.step.after`(chain, `undefined` 반환)로 step당 도구 반복 계수와 `stepId` 중복 방지, 도구 이름 기반 스킬 쓰기 판정(spec §4.2) | LR-01, F `TurnEndPayload` | M |
 | LR-04 | 임계 판정 순수 함수: `applyTurn`(규칙 0 `in_flight` 포함), `reviewRequestId`, `boundary.settle.after` 핸들러의 상태 커밋(턴당 1회). `origin`·`status`·`hasFinalAnswer`·`lastItemId` 읽기와 필드가 없을 때의 임시 규칙 | LR-02, LR-03, REQ-LN-01 | S |
 | LR-05 | 포크 호출: `buildReviewSpec`(`fork: { at: "item" }`, `report` 없음 [결정: review.m3-design-inputs D-M3-03]), `reviewTokenBudget`, `reviewStartOutcome`, on 핸들러의 `g.delegate`(ADR-0015)와 "위임 먼저, 커밋 나중" 순서, `delegateFailures`, `grp.learning.fork.started`, `agents/learning-review.md` 정의 | LR-04, REQ-LN-05·07·08, group-kit `GroupApi.delegate`(G-14) | M |
@@ -147,7 +147,7 @@ xeon/packages/group-learning/
 | 테스트 이름 | 확인할 동작 | 작업 |
 |---|---|---|
 | `manifest.validates` | `validateManifest` 오류 0, `usesDrive: false`, 지점 4개, 레코드 8종 접두 `grp.learning.` | LR-01 |
-| `settings.defs-valid` | 13개 키가 `checkSettingDef`를 통과하고 기본값이 spec §6.1과 같다 | LR-02 |
+| `settings.defs-valid` | 12개 키가 `checkSettingDef`를 통과하고 기본값이 spec §6.1과 같다 | LR-02 |
 | `settings.read-failure-fails-closed` | 설정 읽기 실패 시 `g.delegate`와 `apply` 호출 0 | LR-02 |
 | `triggers.counts-user-turns` | 사용자 turn 10회째 `boundary.settle.after`에서 `review/user_turns` | LR-03, LR-04 |
 | `triggers.counts-tool-iterations-per-step` | 한 step의 도구 3개는 반복 1회(`boundary.step.after` 하나). 같은 `stepId`의 `boundary.step.after` 재발화도 1회. 핸들러 반환값은 `undefined` | LR-03 |
@@ -261,31 +261,31 @@ xeon/packages/group-learning/
 
 ## 8. M3a 구현 현황 (T-LR)
 
-`xeon/packages/group-learning`, 시험 83개. `just check packages/group-learning`가 통과한다. 코어(F·X·L0·L1) 경로의 diff는 0이다(`core-diff-check.ts`).
+`xeon/packages/group-learning`, 시험 91개. `just check packages/group-learning`가 통과한다. 코어(F·X·L0·L1) 경로의 diff는 0이다(`core-diff-check.ts`, 기준은 `m3a/x-ambient` 머리). 대기열은 ambient(M3-REQ-102)가 들어온 뒤 설계대로 비공개 기록과 투영기로 돌렸다. 저장소 포트와 호스트 SQLite 저장소는 없앴다.
 
 | 작업 | 상태 | 내용 |
 |---|---|---|
-| LR-01 | 완료 | `manifest.ts`, `state.ts`(`lastTurnId`를 더함), `index.ts`는 default export 대신 팩토리 `createLearningGroup(deps)`다. 대기열 저장소와 ID 발급기를 주입해야 해서다. 시험 `manifest.test.ts` |
-| LR-02 | 완료 | `settings.ts`의 12개 키(spec §6.1 표와 같다. 큐레이터 4개는 `stage: "reserved"`). 설정을 읽지 못하면 fail-closed. spec §10 15·16이 남는다 |
+| LR-01 | 완료 | `manifest.ts`, `state.ts`(`lastTurnId`, `lastItemId`를 더함), `index.ts`는 default export 대신 팩토리 `createLearningGroup(deps)`다. 읽기 면을 주입해야 해서다. 시험 `manifest.test.ts` |
+| LR-02 | 완료 | `settings.ts`의 12개 키(spec §6.1 표와 같다. 큐레이터 4개는 `stage: "reserved"`). 설정을 읽지 못하면 fail-closed. spec §10 15가 남는다 |
 | LR-03 | 완료 | `handlers.ts`의 집계표(`boundary.turn.before`, `boundary.step.after`). `triggers.test.ts` |
 | LR-04 | 완료 | `triggers.ts`의 `applyTurn`과 `boundary.settle.after` 핸들러. 같은 turn의 재발화를 `lastTurnId`로 한 번만 반영한다 |
 | LR-05 | 완료 | `review/fork.ts`, 위임 먼저 커밋 나중, `agents/learning-review.md`. `fork.started`는 `duplicate`에서도 쓴다. `fork.test.ts` |
-| LR-06 | 완료 | `review/propose.ts`. 입력에 `description`을 더했다. `afterUntrusted`는 알 수 없어 거짓(spec §10 14). `propose.test.ts` |
+| LR-06 | 완료 | `review/propose.ts`. 입력에 `description`을 더했다. 후보 id와 비공개 기록 키는 `toolCallId`에서 정한다. `propose.test.ts`, `ambient.test.ts` |
 | LR-07 | 완료 | `review/prompts.ts`(영어). 표지 문자열 시험 `prompts.test.ts` |
-| LR-08 | 부분 | 비공개 기록 `fork.started`·`fork.finished`와 저장소 포트(`proposals/store.ts`, 메모리 구현). 투영기·DDL·`proposal.*` 비공개 기록은 없다(spec §10 13) |
+| LR-08 | 완료 | `proposals/events.ts`(비공개 기록 9종), `proposals/rows.ts`(투영 규칙, 결정 경로와 같은 `transition`), `proposals/sql.ts`(DDL, `learningProjector`, `createSqlReader`). `queue.test.ts`, `records.test.ts`, `ambient.test.ts` |
 | LR-09 | 완료 | `proposals/queue.ts`(전이 표), `proposals/ops.ts`(결정, 명령 진입 지연 정리). `queue.test.ts` |
 | LR-10 | 완료 | `proposals/knowledge.ts`가 `apply.ts` 자리다. 멱등 키 `learning:apply:<id>:<rev>`, 승인 증거 `learning.queue` |
-| LR-11 | 완료 | `proposals/scan.ts`. 걸린 후보는 본문·diff를 비운다 |
+| LR-11 | 완료 | `proposals/scan.ts`. 걸린 후보는 본문·diff를 비운다. 본문 상한 150,000 바이트 |
 | LR-12 | 비움 | 번호를 비워 둔다 |
 | LR-13 | 완료 | 피드백 후보(`user/work-style`)와 메모리 `user` 영역 적용. `feedback.test.ts` |
-| LR-14 | 부분 | 공개 레코드 8종 선언과 `proposed`·`review.finished` 기록. `approved`·`rejected`·`applied`는 결정 경로에 ambient가 없어 쓰지 못한다(spec §3.7.1). `records.test.ts` |
-| LR-15 | 완료 | `commands.ts`. 승인·수정은 `--revision` 필수. 결과는 `report` 콜백으로 낸다(spec §6.2 미결). `commands.test.ts` |
+| LR-14 | 완료 | 공개 레코드 8종 선언과 `proposed`·`review.finished`·`approved`·`rejected`·`applied` 기록. `records.test.ts` |
+| LR-15 | 완료 | `commands.ts`. 승인·수정은 `--revision` 필수. 결과는 `report(report, invocationId)` 콜백으로 낸다(spec §6.2). `commands.test.ts`, `ambient.test.ts` |
 | LR-16 | 완료 | `coexist.test.ts`: drive 임대를 쥔 대역 아래에서 포크가 돈다. 루프 turn이 늘지 않는다 |
-| LR-17 | 부분 | 검토 행과 `review.finished`에 토큰을 남긴다. `GroupMetrics`는 연결하지 않았다 |
-| LR-18 | 완료 | `uc3.int.test.ts`(X2). 대기열은 메모리 저장소다. SQLite 저장소와 호스트 처리기는 L4(`apps/host`)에서 시험한다. 코어 diff 0은 `core-diff-check.ts` |
-| LR-23 | 완료 | 구독 핸들러, `reviewFinishOutcome`. 대체 경로는 `delegateStatus` 대신 저장소 검토 행(spec §4.3). `settled.test.ts` |
-| LR-24 | 완료 | `onDispose`가 위임을 취소하고 검토 행을 닫는다. group-kit이 `onDispose`에서 `cancelDelegates`가 동작하게 고쳤다. `dispose.test.ts` |
+| LR-17 | 부분 | 검토 행과 `fork.finished`, `review.finished`에 토큰을 남긴다. group-kit `GroupMetricsHandle`에 더하는 연산이 없어 연결하지 못했다(spec §10 17) |
+| LR-18 | 완료 | `uc3.int.test.ts`(X2, 이벤트를 접은 읽기 면). 실제 SQLite 경로는 `apps/host/test/int/proposals.int.test.ts`다: 모델 테이프가 `learning_propose`를 부르고 승인 전 파일 불변, 승인 뒤 스킬 파일 생성을 확인한다. 코어 diff 0은 `core-diff-check.ts` |
+| LR-23 | 완료 | 구독 핸들러, `reviewFinishOutcome`. `settled.test.ts` |
+| LR-24 | 완료 | `onDispose`가 `g.cancelDelegates`를 부른다. `onDispose`에는 ambient가 없어 끝난 검토의 표지는 `boundary.settle.after`의 2시간 규칙이나 `/learning` 진입의 `delegateStatus`가 비운다. group-kit이 `onDispose`에서 `cancelDelegates`가 동작하게 고쳤다. `dispose.test.ts` |
 | LR-25 | 완료 | `replay.test.ts`: `replayDrive`의 효과 계수, 모든 상태 커밋 지점에서 끊고 재발화. 하니스는 `test/support/replay-harness.ts` |
-| LR-26 | 부분 | 범위 선택(`approve --scope`)과 `scopeNotAllowed` 완료. `afterUntrusted` 기록은 항상 거짓 |
+| LR-26 | 완료 | 범위 선택(`approve --scope`), `scopeNotAllowed`, `ctx.caller.afterUntrusted` 기록. `ambient.test.ts` |
 | LR-27 | 완료 | `name_exists`, `conflictsWith` |
-| LR-28 | 완료 | `results.ts` |
+| LR-28 | 완료 | `results.ts`(`learning.noConversation`을 더했다) |

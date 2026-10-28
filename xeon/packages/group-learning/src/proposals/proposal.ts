@@ -8,8 +8,8 @@ import {
 import { Type, type TUnsafe } from "typebox";
 
 // L3.learning.spec §3.6, §3.8. 후보(Proposal)의 형식, 대기열 행의 검증, 화면용 보기.
-// [제안] 후보에 본문 `body`와 부모 thread `threadId`, 스킬 설명 `description`을 더했다. 비공개 기록 경로(recordPrivate)가
-// 도구 execute와 명령 처리기에서 아직 열리지 않아(M3-REQ-102) 본문 blob 자리가 없고, 대기열 행이 본문을 가진다.
+// [제안] 후보에 본문 `body`와 부모 thread `threadId`, 스킬 설명 `description`을 더했다. 본문은 blob을 쓰지 않고 비공개 기록 `proposal.created`·`proposal.edited`의 payload에 실리고
+// 투영이 행에 둔다. diff는 기록에 싣지 않고 투영기가 본문에서 만든다.
 
 export type ProposalKind = "skill" | "memory" | "feedback" | "script";
 /** 삭제 연산은 없다. 스킬은 archive만 둔다 */

@@ -34,8 +34,8 @@ M3 설계 단계(사용자 결정 2026-10-25의 순서)에서 이 문서를 M3 �
 
 M3a 구현(`xeon/packages/group-learning`)에서 아래를 문서에 맞췄다. 코어(F·X·L0·L1)는 고치지 않는다(S1).
 
-- 대기열 저장소: 도구 `execute`와 명령 처리기에서 `recordPrivate`·`record`·`commit`을 부를 ambient가 X에 아직 없다(REQ-LN-03·04, `review.m3-lower-requirements` M3-REQ-102). 그래서 후보 행과 검토 행은 조립 루트가 넘기는 저장소 포트(`LearningQueueStore`, `x_learning_*`의 읽기·쓰기 면)에 직접 쓴다(§3.7.1). 비공개 기록·공개 레코드·상태 커밋은 ambient가 있는 on 핸들러와 구독 핸들러에서만 쓴다. M3-REQ-102가 들어오면 저장소 포트를 투영기로 바꾼다 [미결].
-- 상태 `lastTurnId`(§3.2)를 더했다. 같은 turn의 `boundary.settle.after` 재발화를 한 번으로 만든다(§4.2).
+- 대기열: 도구 `execute`와 명령 처리기가 호출마다 ambient를 연다(M3-REQ-102, X.primitives.spec §4.6.6). 그래서 후보 행과 검토 행은 설계대로 비공개 기록 아홉 종(`grp.learning.proposal.*`, `grp.learning.fork.*`)을 `recordPrivate`로 쓰고 투영기(`learningProjector`)가 `x_learning_*`로 접는다(§3.7.1, §3.7.2). 사용자 결정의 공개 레코드(`skill.approved`·`rejected`·`applied`)는 `record`로, 상태는 `commit`·`updateState`로 쓴다. 조립 루트가 넘기는 것은 읽기 면(`LearningQueueReader`)과 목록 면(`LearningQueueApi.list`)뿐이고 쓰기 포트는 없다. 호스트는 결정과 지연 정리를 `/learning` 명령으로 실행한다(§6.2). `onDispose`에는 ambient가 없다.
+- 상태 `lastTurnId`와 `lastItemId`(§3.2)를 더했다. `lastTurnId`는 같은 turn의 `boundary.settle.after` 재발화를 한 번으로 만든다(§4.2). `lastItemId`는 수동 검토의 포크 지점이다(§4.3).
 - 승인과 수정에 판(`revision`)을 필수로 둔다. F wire `proposal.decide`와 같다(§3.6, §6.2).
 - 스킬 `patch` 본문은 L2 `skills.patch`의 치환 목록(JSON)이다. 통합 diff는 쓰지 않는다(§3.5).
 
@@ -323,8 +323,8 @@ export type ProposeRefusal =
 - 읽기 선행 가드: `patch`, `replace`, `archive`, `remove`는 `baseHash`가 필수이고, 도구 실행 시점에 L2-d 읽기로 구한 현재 해시와 같아야 한다. 다르면 `base_stale`을 돌려준다. Hermes의 "패치 전 같은 검토 안에서 다시 읽기" 가드(`hermes.md` §3.10.1 (다), `tools/skill_manager_guards.py:211-221`)를 해시 비교로 옮긴 것이다 [제안].
 - 한 검토에서 받을 후보 수 상한은 8개다 [제안]. 넘으면 `limit`.
 - 대상 범위: 입력에 범위 필드가 없다. 도구로 만든 후보는 모두 사용자 범위(`user`) 스킬이다. 프로젝트 범위는 승인 화면에서 사용자가 고를 때만 쓴다 [결정: review.m3-design-inputs D-M3-09](§4.5 규칙 8).
-- 신뢰 표지: 도구 실행 문맥의 `caller.afterUntrusted`(L2.knowledge.spec §4.6.3, 요구 REQ-LN-01)가 참이면 후보에 `afterUntrusted: true`를 적는다. [미결] 지금 `ToolResourceDef.execute`의 문맥은 `{ threadId, signal }`뿐이라 이 값을 알 수 없고 구현은 항상 거짓을 적는다. 검토 포크는 부모 스냅샷을 복제하므로 부모가 웹·MCP 결과를 읽은 뒤면 참이다. 승인 화면은 이 후보에 경고를 보인다 [제안].
-- 실행 문맥: 이 도구는 재실행되는 코드가 아니다. 도구 `execute` 안의 능력 호출(`knowledge.skills.view`, `knowledge.memory.read`, `knowledge.ledger.scan`, `knowledge.search.query`)은 ADR-0015 대상이 아니고 L1.tools의 효과 3단 커밋을 따른다(ADR-0015 §3.1 1번). 비공개 기록은 도구 호출 id를 디스패치 키로 쓴다(요구 REQ-LN-03, 쓰는 대화는 REQ-LN-04).
+- 신뢰 표지: 도구 실행 문맥의 `caller.afterUntrusted`(L2.knowledge.spec §4.6.3, M3-REQ-100, 요구 REQ-LN-01)가 참이면 후보에 `afterUntrusted: true`를 적는다. 값은 L1.tools가 채우고 X는 그대로 넘긴다(X.primitives.spec §4.6.6). 검토 포크는 부모 스냅샷을 복제하므로 부모가 웹·MCP 결과를 읽은 뒤면 참이다. 승인 화면은 이 후보에 경고를 보인다 [제안].
+- 실행 문맥: 이 도구는 재실행되는 코드가 아니다. 도구 `execute` 안의 능력 호출(`knowledge.skills.view`, `knowledge.memory.read`, `knowledge.ledger.scan`, `knowledge.search.query`)은 ADR-0015 대상이 아니고 L1.tools의 효과 3단 커밋을 따른다(ADR-0015 §3.1 1번). 비공개 기록은 `tool:<toolCallId>`를 디스패치 키로 쓰고(X.primitives.spec §4.6.6) 후보 id도 호출 id에서 정한다(`prop_` + 호출 id 해시 26자). 같은 호출의 재실행은 같은 후보다. 위임 자식 대화에서 실행되면 기록은 그 자식 대화에 쓰이고 투영은 세션 단위로 모은다(REQ-LN-04).
 
 ### 3.6 승인 대기열 (`proposals/queue.ts`, `proposals/apply.ts`, `proposals/scan.ts`)
 
@@ -448,7 +448,7 @@ F.records.spec §3.2 규칙 2의 그룹 kind 형식 `grp.<groupId>.<영역>.<이
 |---|---|---|
 | `grp.learning.fork.started` | `{ requestId, epoch, childThreadId, reasons, parentThreadId }` | 위임 접수(`accepted`) 직후 |
 | `grp.learning.fork.finished` | `{ requestId, outcome: "completed" \| "aborted" \| "error" \| "budget", proposalIds, usage }` | 포크 종료 통지를 받았을 때 |
-| `grp.learning.proposal.created` | `Proposal`(status `pending` 또는 `rejected`) | 제안 도구 처리 |
+| `grp.learning.proposal.created` | `Proposal`에서 `diff`를 뺀 값(status `pending` 또는 `rejected`). 투영기가 본문에서 diff를 만든다 | 제안 도구 처리 |
 | `grp.learning.proposal.edited` | `{ id, revision, diff, bodyHash }` | 사용자 수정 |
 | `grp.learning.proposal.decided` | `{ id, revision, status: "approved" \| "rejected", reason, decidedAt, scope }` | 사용자 결정. `scope`는 승인 때 고른 범위(§4.5 규칙 8) |
 | `grp.learning.proposal.applied` | `{ id, ledgerId, afterHash }` | L2-d 적용 성공 |
@@ -456,7 +456,7 @@ F.records.spec §3.2 규칙 2의 그룹 kind 형식 `grp.<groupId>.<영역>.<이
 | `grp.learning.proposal.reverted` | `{ id, ledgerId }` | 원장 롤백 성공 |
 | `grp.learning.proposal.expired` | `{ id, at }` | 만료 판정 |
 
-- 쓰기 경로 구현 현황 [미결]: 도구 `execute`와 명령 처리기에는 `recordPrivate`·`record`·`commit`·`state()`를 부를 ambient가 없다(REQ-LN-03·04). 그래서 `grp.learning.proposal.*` 아홉 종과 `x_learning_*` 투영기는 만들지 않았고, 후보 행(`Proposal`)과 검토 행(`ReviewRow`)은 저장소 포트 `LearningQueueStore`에 직접 쓴다. 포트의 구현은 조립 루트가 넘긴다(L4 호스트는 SQLite, 시험은 메모리). `grp.learning.fork.started`·`fork.finished`는 on 핸들러와 구독 핸들러에서 `recordPrivate`로 쓴다. 공개 레코드는 `skill.proposed`·`memory.proposed`·`feedback.proposed`(검토 종료 때, 그 검토가 만든 후보)와 `review.finished`만 쓴다. `skill.approved`·`rejected`·`applied`는 결정 경로(명령·호스트 처리기)에 ambient가 없어 쓰지 못한다. M3-REQ-102가 들어오면 이 문단과 아래 항목을 원래 설계로 돌린다.
+- 쓰기 경로 구현 현황 [결정: M3-REQ-102]: 아홉 종 모두 `recordPrivate`로 쓰고 `learningProjector`(`ext.learning`)가 접는다. 도구는 `proposal.created`를, `/learning` 명령은 `edited`·`decided`·`applied`·`apply_failed`·`reverted`·`expired`를, on·구독 핸들러는 `fork.started`·`fork.finished`를 쓴다. 모든 payload에 시각 `at`을 싣는다: 투영은 시계를 읽지 않는다(eng.events.design EV-06) [제안]. 후보 본문은 `proposal.created`·`proposal.edited` payload에 싣고(blob을 쓰지 않는다) diff는 싣지 않는다. 그래서 본문 상한을 150,000 바이트로 두고(`scan.ts`) 넘는 본문은 스캔 단계에서 `rejected/scan_failed`가 되어 본문이 비워진다 [제안]. 결정 명령은 한 호출에서 `decided`와 `applied`(또는 `apply_failed`)를 잇달아 쓴다. 적용 멱등 키는 `learning:apply:<id>:<revision>`, 롤백은 `learning:revert:<id>`다. `apply_failed.nextStatus`는 `pending`·`rejected` 외에 `applied`를 가진다: 롤백이 거부되면 후보는 `applied`로 남는다 [제안]. 공개 레코드는 `skill.proposed`·`memory.proposed`·`feedback.proposed`(검토 종료 때, 그 검토가 만든 후보)와 `review.finished`, 스킬 결정의 `approved`·`rejected`·`applied`다.
 - 쓰기 경로 [결정: review.decisions-2 T-21]: 비공개 기록은 X 연산 `ScopeApi.recordPrivate(kind, payload)`로 쓴다. 이 문서가 기대는 조건은 다음과 같다. (1) kind는 자기 접두 `grp.<name>.*`(플러그인은 `x.<name>.*`)만 받는다. (2) `readsRecordKinds`와 다른 그룹의 `readRecords`로 조회되지 않는다. (3) 큰 값(`Proposal.diff`, 제안 본문)은 blob으로 분리하고 이벤트에는 참조만 싣는다. (4) 멱등 키는 공개 `record`와 같은 규칙 `rec:<scope 해시>:<dispatchKey>:<n>`이고, 재실행된 같은 호출은 `replayed`다. (5) 이 kind들은 매니페스트 `recordKinds`(`learningRecordKindDecls`)에 선언하지 않는다. 공개 kind와 같은 이름, 영역 `state`, 다른 접두는 `record_private_invalid`로 거부된다. (6) 핸들러 안의 호출은 따로 커밋된다. 공개 `record`는 payload 상한 16 KiB이고 다른 그룹이 읽을 수 있는 kind라 이 용도에 쓰지 않는다. group-kit `GroupApi`는 이 연산을 그대로 전달한다(L3.group-kit.spec §3.2). 연산 정의는 X.primitives.spec §4.6.5다.
 - 대체안(scope 상태 `commit`)의 한계: 상태 문서 상한은 64 KiB이고(L3.group-kit.spec §3.6) `Proposal.diff`는 최대 200,000자, 제안 본문은 최대 100,000자다. 그래서 대기열 전체를 상태에 둘 수 없다. 대체안을 쓰려면 상태에는 대기열 색인(`id`, `kind`, `op`, `target`, `status`, `revision`, `bodyHash`, `baseHash`, `reason`, `ledgerId`)만 두고 본문·diff는 상태 밖에 둬야 한다. 상태 밖 위치 후보는 L2-d 제안 대기열(`knowledge.ledger.proposals`, L2.knowledge.spec §4.5.2)과의 통합이고, 이는 대기열 소유(아래 항목)와 같은 결정이다. `recordPrivate`가 정해졌으므로(review.decisions-2 T-21) 이 문서는 대체안을 쓰지 않는다.
 - 대기열 소유 [결정: review.m3-design-inputs D-M3-32](L-IN-09): 학습 후보는 이 그룹의 대기열(`x_learning_proposals`)에 두고, L2-d `cap_knowledge_proposals`(주 대화·하위 에이전트의 쓰기 대기)와 합치지 않는다. 이유는 셋이다. (1) 학습 후보는 근거 이벤트, 검토 id, 피드백 신호, 충돌 대상, 사용자 수정(`edit`)을 가지며 L2 `ProposalSchema`에 이 필드가 없다. (2) L2.knowledge.spec §4.5.2 마지막 항목이 이미 "자기 대기열을 가진 L3 그룹은 사람의 결정 뒤 증거와 함께 쓰기 메서드를 부른다"로 두 대기열을 전제한다. (3) 승인은 증거(`ApprovalEvidence`)로 한 번만 하므로 승인이 두 번 생기지 않는다(L-IN-16). 사용자에게는 한 화면으로 보인다. L4 승인 화면은 두 출처를 한 목록에 합치고 출처 열을 둔다(요구 REQ-LN-10). 사용자가 이 안(대기열 둘 유지)을 골랐다. L2.knowledge.spec §10 미결 3·22는 이 결정으로 닫는다(L2 문서 쪽 반영).
@@ -482,8 +482,8 @@ export const learningProjector = {
 
 | 테이블 | 열 | 키 |
 |---|---|---|
-| `x_learning_proposals` | `id`, `session_id`, `kind`, `op`, `target`, `status`, `reason`, `revision`, `body_hash`, `base_hash`, `diff`, `rationale`, `evidence_json`, `review_id`, `conflicts_with`, `destructive`, `scope`, `after_untrusted`, `ledger_id`, `created_at`, `updated_at` | `id` |
-| `x_learning_reviews` | `request_id`, `session_id`, `epoch`, `child_thread_id`, `outcome`, `proposal_count`, `input_tokens`, `output_tokens`, `started_seq`, `finished_seq` | `(session_id, request_id)` |
+| `x_learning_proposals` | `id`, `thread_id`, `kind`, `op`, `target`, `status`, `reason`, `revision`, `body_hash`, `base_hash`, `diff`, `body`, `description`, `rationale`, `evidence_json`, `review_id`, `conflicts_with`, `destructive`, `scope`, `after_untrusted`, `findings_json`, `ledger_id`, `created_at`, `updated_at` | `id`. 색인 `x_learning_pstatus (status, created_at)` |
+| `x_learning_reviews` | `request_id`, `thread_id`, `child_thread_id`, `epoch`, `started_at`, `finished_at`, `outcome`, `input_tokens`, `output_tokens` | `(thread_id, request_id)`. 색인 `x_learning_rchild (child_thread_id)` |
 
 #### 3.7.3 공개 레코드 `grp.learning.*`
 
@@ -695,7 +695,7 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
 - 순서 근거: 3을 4보다 먼저 한다. 3과 4 사이에서 크래시가 나면 같은 지점이 다시 발화하고(F.extensions.spec §4.3), 커밋되지 않은 상태로 같은 `epoch + 1`을 계산하므로 같은 `requestId`가 나온다. L1-g는 `duplicate`를 돌려주고 4가 다시 실행된다. 4를 먼저 하면 크래시 뒤 카운터가 0이 되어 검토를 잃는다.
 - 선후 경합 [제안]: 3과 4 사이에 자식이 정착해 `agent.settled` 구독 핸들러가 4보다 먼저 돌 수 있다(예: 즉시 오류). 이때 구독 핸들러는 `inFlightReviewId`가 아직 비어 있어 비울 대상이 없다. 그래서 구독 핸들러는 항상 `settledReviewId`를 커밋하고(아래 처리 2번), 4는 위처럼 `settledReviewId`를 보고 `inFlightReviewId`를 세우지 않는다. 이 규칙이 없으면 4가 이미 끝난 검토의 `inFlightReviewId`를 세워 `/learning` 명령을 부르기 전까지 새 검토가 시작되지 않는다.
 - on 핸들러 효과 규칙 [결정: adr.0015]: on 핸들러에서 `requestId` 멱등 `g.delegate`를 부를 수 있다. 코어(L1-g)가 (부모 대화, `requestId`) 멱등을 보장하고, 그 기억은 재시작 뒤에도 남아야 한다(REQ-L1-01). 키 `learning:review:<epoch>`는 커밋된 상태의 `epoch`에서 만들므로 결정적이다(ADR-0015 §3.4). 옛 대체안(검토 요청 레코드 + L1-g 워커)은 쓰지 않는다. 학습 그룹의 재실행 효과 전체는 §4.10 표다.
-- 수동 검토 `/learning review`는 명령 처리기(재실행되지 않는 코드)에서 위임만 한다. 키는 `learning:review:manual:<n>`이고 `n`은 이 대화의 수동 검토 행 수 + 1이다. 명령 처리기에는 ambient가 없어 상태를 읽거나 커밋하지 못한다. 그래서 진행 중 판정은 저장소의 끝나지 않은 검토 행으로 하고(있으면 `learning.reviewBusy`), `epoch`와 `inFlightReviewId`는 건드리지 않는다. 포크 지점은 이 프로세스가 본 마지막 `lastItemId`이고 아직 없으면 `learning.noSnapshot`이다 [제안].
+- 수동 검토 `/learning review`는 명령 처리기가 ambient 안에서 위임하고 상태를 커밋한다(M3-REQ-102). 키는 `learning:review:manual:<n>`이고 `n`은 `epoch + 1`이다. 위임이 접수되면 `epoch`, `lastReviewId`, `inFlightReviewId`를 커밋하므로 자동 검토와 키가 겹치지 않고 다음 자동 검토는 순번을 이어 쓴다. 진행 중 검토가 있으면 `learning.reviewBusy`다. 포크 지점은 상태의 `lastItemId`이고 아직 없으면 `learning.noSnapshot`이다 [제안].
 
 포크 실행 속성:
 
@@ -720,7 +720,7 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
 - 사용량: `agent.settled.usage`를 `grp.learning.fork.finished.usage`와 `x_learning_reviews`에 남긴다. 부모 합계에 더하는 일은 화면이 한다(L1.agents.spec §3.5 사용량 귀속 [제안]).
 - 완료 보고 post [결정: review.m3-design-inputs D-M3-03]: `DelegateSpec.report`를 넣지 않는다. L1-g는 `agent.settled`만 커밋하고 보고 입력(`input.queued`)을 만들지 않는다. 검토 결과는 부모 대화의 모델 입력에 들어가지 않는다. 프롬프트 캐시를 깨지 않고 토큰을 늘리지 않는다. 이를 위해 group-kit `DelegateSpec.report`와 L1 `DelegateRequest.report`를 선택 필드로 바꾸도록 요구한다(REQ-LN-08, REQ-L1-05).
   - `kind: "user"` 보고도 쓰지 않는다. 사용자 발화처럼 대화에 섞이기 때문이다(`_research/notes/L3-1.md` §3.3).
-- 진행 중 표지 정리 [제안]: 구독 핸들러가 돌지 못한 검토(그룹이 꺼져 있는 동안 끝남, 그룹 끄기 취소)는 저장소의 검토 행이 닫혀 있는지로 안다. 구독 핸들러와 그룹 끄기가 검토 행에 `finishedAt`을 쓰고, `boundary.settle.after` 핸들러가 판정 전에 `inFlightReviewId`가 가리키는 행이 닫혔으면 `inFlightReviewId = null`, `settledReviewId = 그 id`로 둔다. 옛 대체안(`/learning` 명령 진입 때 `g.delegateStatus`로 조회하고 명령 처리기에서 기록)은 명령 처리기에서 상태를 커밋할 수 없어 쓰지 않는다.
+- 진행 중 표지 정리 [제안]: 구독 핸들러가 돌지 못한 검토(그룹이 꺼져 있는 동안 끝남, 그룹 끄기 취소)는 두 경로로 닫는다. (1) `/learning` 명령 진입이 `g.delegateStatus`로 그 검토가 끝났는지 묻고 끝났으면 `fork.finished`, `review.finished`, 상태 커밋(`inFlightReviewId = null`, `settledReviewId`)을 쓴다. 명령 처리기에 ambient가 있어 가능하다(M3-REQ-102). (2) `boundary.settle.after` 핸들러가 판정 전에 투영의 검토 행이 닫혔거나 시작한 지 2시간이 지났으면 `inFlightReviewId = null`로 둔다. `onDispose`에는 ambient가 없어 그룹 끄기는 `g.cancelDelegates("group_disabled")`만 부른다.
 
 ### 4.4 검토 지시의 요구 사항 (`review/prompts.ts`)
 
@@ -854,7 +854,7 @@ M3 1차 범위 밖이고 M4 이후에 둔다(`product/scope/spec.md` 4.5, `_rese
 | 15 | `agent.settled` 구독 경로가 없음(REQ-LN-02 미반영) | `inFlightReviewId`가 남아 새 검토가 시작되지 않는다. `/learning` 명령 진입 때 `g.delegateStatus`로 조회해 비운다(§4.3 대체). 명령을 쓰지 않으면 검토가 한 번만 돈다. 그래서 REQ-LN-02는 M3 학습 그룹 착수의 선행 조건이다(L3.learning.plan §3) |
 | 16 | 위임 자식이 정착했는데 부모 대화가 삭제됨 | L1-g는 `agent.settled`를 남기지 않을 수 있다(L1.agents.spec §5 7번). 부모 대화가 없으므로 그 대화의 학습 상태도 없다. 대기열의 그 검토 후보는 세션 단위로 남는다 |
 | 17 | `AgentSettledPayload.lastItemId` 없음 | 검토를 시작하지 않고 카운터를 유지한다(`skip/excluded`로 기록하지 않는다). REQ-LN-01이 들어오기 전에는 학습 그룹이 검토를 시작할 수 없다 |
-| 18 | 승인 때 `scope: "project"`인데 L2-d가 프로젝트 쓰기를 거부 | 적용 결과 `approval_required` 또는 `invalid`. 후보는 `approved`에 남고 사용자에게 사유를 보인다. 범위를 `user`로 바꿔 다시 승인할 수 있다 |
+| 18 | 승인 때 `scope: "project"`인데 L2-d가 프로젝트 쓰기를 거부 | 적용 결과가 `approval_required`(증거를 믿지 않는 구성)이면 후보는 `approved`에 남고 사용자에게 사유를 보인다. 다음 지연 정리가 다시 적용한다. 결과가 `invalid`이면 `apply_failed` 기록과 함께 `rejected/apply_failed`로 닫는다. 범위를 `user`로 바꾼 새 제안이 필요하다 |
 
 ## 6. 설정 노출
 
@@ -896,7 +896,7 @@ F.wire-settings.spec §3.8의 `SettingDef`로 선언한다(`settings.ts`, `defin
 | `/learning history [--since <date>]` | 학습 이력 시간순 보기 | 2차 |
 
 - 명령은 `g.registerCommand("learning", …)`로 등록한다(L3.group-kit.spec §3.2, X `hostOf(g).registerCommand`). CLI는 `xeon` 대화 입력에서, 데스크톱은 승인 화면 버튼에서 같은 명령을 부른다.
-- [미결] F `CommandResourceDef.handler`는 값을 돌려주지 않아 명령 처리기가 결과를 낼 길이 없다. 구현은 결과(`CommandReport`)를 조립 루트가 넘기는 `report` 콜백으로 낸다. 승인 화면은 이 명령 대신 wire `proposal.list`·`proposal.decide`로 같은 대기열을 읽고 결정한다(L4 호스트 처리기, REQ-LN-10).
+- F `CommandResourceDef.handler`는 값을 돌려주지 않는다. 구현은 결과(`CommandReport`)를 조립 루트가 넘기는 `report(report, invocationId)` 콜백으로 낸다. 호출 id(`invocationId`)는 L4가 명령 호출마다 정하고 같은 호출을 다시 실행하면 같은 값을 넘긴다(X.primitives.spec §4.6.6). 호스트 처리기는 `proposal.decide`를 `decisionCommandLine`으로 만든 명령 줄로 실행하고 `invocationId`로 자기 결과를 찾는다. 명령은 후보의 부모 대화에서, 그 대화가 이 호스트에서 열려 있지 않으면 가장 최근에 연 대화에서 실행한다. 열린 대화가 없으면 쓰기 명령은 `learning.noConversation`이고 목록은 투영을 읽는다. 승인 화면은 목록을 wire `proposal.list`로 읽고 결정을 `proposal.decide`로 보낸다(L4 호스트 처리기, REQ-LN-10).
 - 모든 하위 명령은 진입 때 지연 정리(§4.5 규칙 7)를 먼저 하고, 결과를 `DecisionResult`·`QueueSweep`(§3.9) 값으로 돌려준다. `--json` 출력은 이 값을 그대로 직렬화한다.
 
 ## 7. 확장 지점
@@ -1019,11 +1019,11 @@ M3 설계 개정(2026-10-26)에서 옛 번호를 정리했다. 닫은 항목은 
 
 M3a 구현에서 남은 항목:
 
-13. [미결] 도구 `execute`·명령 처리기·`onDispose`의 ambient(REQ-LN-03·04, M3-REQ-102). 이것이 들어오기 전까지 대기열은 저장소 포트에 직접 쓰고(§3.7.1) 결정 경로의 공개 레코드(`approved`·`rejected`·`applied`)와 투영기는 없다.
-14. [미결] 도구 실행 문맥의 `caller.afterUntrusted`(REQ-LN-01). 도구 `execute`의 문맥이 `{ threadId, signal }`뿐이라 `Proposal.afterUntrusted`는 항상 거짓이다.
+13. (닫힘) [결정: M3-REQ-102] 도구 `execute`와 명령 처리기의 ambient(REQ-LN-03·04). 대기열은 비공개 기록과 투영기로 돌아왔다(§3.7.1). `onDispose`에는 ambient가 없고 이 그룹은 거기서 `g.cancelDelegates`만 부르므로 요구하지 않는다(X.primitives.spec §4.6.6).
+14. (닫힘) [결정: M3-REQ-100] 도구 실행 문맥의 `caller.afterUntrusted`. `Proposal.afterUntrusted`가 이 값을 적는다(§3.5).
 15. [미결] `l3.learning.review.tokenBudget`(정수 또는 null)와 `review.model`(문자열 또는 null)은 설정 정의 규칙 D8(number·select 위젯은 숫자·enum 타입만)에 맞는 위젯이 없다. `tokenBudget`은 화면 없이(파일·명령만), `model`은 `text` 위젯으로 선언했다. 이 문서의 `number`·`select` 위젯 표기는 맞지 않는다.
-16. [미결] 설정 키 수: plan LR-02는 13개로 적지만 §6.1 표는 12개다. 구현은 12개이고 큐레이터 4개(`curator.*`)는 읽는 코드가 없어 `stage: "reserved"`다.
-17. [미결] 사용량 계측: 검토별 입력·출력 토큰은 저장소의 검토 행과 `review.finished`에 남기지만 `GroupMetrics`에는 연결하지 않았다(LR-17).
+16. (닫힘) 설정 키 수: §6.1 표와 구현은 12개이고 plan LR-02의 13개는 12개로 고쳤다. 큐레이터 4개(`curator.*`)는 읽는 코드가 없어 `stage: "reserved"`다.
+17. [미결] 사용량 계측: 검토별 입력·출력 토큰은 `fork.finished`와 투영의 검토 행, `review.finished`에 남긴다. group-kit `GroupMetricsHandle`은 조회(`snapshot`)뿐이고 토큰을 더하는 연산이 없다. 토큰 집계는 `lease.*`·`turn.completed`가 필요한 group-kit G-17의 몫이라 학습 그룹은 연결하지 않았다(LR-17).
 
 닫힌 항목:
 
