@@ -822,7 +822,7 @@ export type CollectPointName = { [N in PointName]: PointSignatures[N]["fold"] ex
 | 42 | `guard.model.before` | guard | first | BeforeProviderRequestPayload | GuardDecision | closed |  | — | — | — | 제공자 요청 본문이 확정된 뒤, 전송 전. `request.provider.before`의 모든 핸들러 뒤 최종 값으로 발화한다 |
 | 43 | `guard.tool.before` | guard | first | ToolCallPayload | GuardDecision | closed |  | — | — | — | 도구 호출 허가 판정이 끝난 뒤, 실행 전. `tool.call.before` 뒤에 발화한다 |
 | 44 | `guard.output.before` | guard | first | GuardOutputPayload | GuardDecision | closed |  | — | — | — | 모델 출력이 표시나 실행 경로로 넘어가기 전. 출력 대상(`display`, `execution`)은 [가정] |
-| 45 | `lifecycle.agent.settled` | lifecycle | tap | AgentSettledEventPayload | void | open |  | — | — | — | 내구 이벤트 `agent.settled`(위임 정착)의 커밋 뒤. 이름이 같은 `boundary.settle.after`는 turn 끝 지점이고 다른 지점이다 |
+| 45 | `lifecycle.agent.settled` | lifecycle | tap | AgentSettledEventPayload | void | open |  | — | — | — | 내구 이벤트 `agent.settled`(위임 정착)의 커밋 뒤. 이름이 같은 `boundary.settle.after`는 turn 끝 지점이고 다른 지점이다. 페이로드의 `owner`(위임 주체)와 `limitHit`(상한 종료 표지)로 그룹이 자기 위임의 정착만 읽는다(M3-REQ-103, REQ-LN-02. 소유 scope 거르기는 X) |
 | 46 | `lifecycle.lease.rejected` | lifecycle | tap | LeaseRejectedPayload | void | open |  | — | — | — | 내구 이벤트 `lease.rejected`(임대 요청 거부)의 커밋 뒤 |
 
 집계: kind는 input 3, request 9, tool 5, boundary 9, session 15, lifecycle 2, guard 3이다(46행). fold는 tap 24, first 10, chain 10, collect 2다. 실패는 closed 9, open 27, skip 10이다. pi에서 결과를 돌려받는 지점은 18개(반환 기반)와 제자리 변경 1개(`request.headers.before`)이고 pi의 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2). guard와 lifecycle 5행은 pi에 없다.

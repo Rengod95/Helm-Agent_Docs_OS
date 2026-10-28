@@ -502,6 +502,13 @@ export interface AgentSettledEventPayload {
   answerItemId: ItemId | null;
   usage: Usage | null;            // 자식 사용량은 여기에만 남는다
   error: string | null;
+  /**
+   * 자식을 만든 쪽(agent.spawned.owner와 같은 값). 그룹이 자기 scope가 맡긴 위임만 거를 때 쓴다(kind "scope"의 scopeId).
+   * 선택이라 version을 올리지 않는다. 없으면(옛 기록) agent.spawned의 owner를 읽는다 [제안: M3-REQ-103, REQ-LN-02]
+   */
+  owner?: SpawnOwnerJson;
+  /** 상한에 닿아 끝났으면 어느 상한인가(maxSteps는 "steps", maxInputTokens는 "tokens"). 아니면 null. status는 그대로 세 값 중 하나다 [제안: M3-REQ-103, REQ-LN-07] */
+  limitHit?: "steps" | "tokens" | null;
 }
 export interface AgentJudgedPayload {
   goalRef: string;
