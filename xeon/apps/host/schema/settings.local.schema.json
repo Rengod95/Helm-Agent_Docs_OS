@@ -1069,6 +1069,63 @@
         }
       }
     },
+    "l1.tools.unattended.approval": {
+      "default": "expire",
+      "enum": [
+        "wait",
+        "deny",
+        "expire"
+      ],
+      "maxLength": 16,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "wait는 답이 올 때까지 기다리고, deny는 바로 거부하고, expire는 기다리다 제한 시간이 지나면 거부한다",
+          "label": "무인 실행의 승인 요청",
+          "order": 40,
+          "tab": "permissions",
+          "widget": "select"
+        }
+      }
+    },
+    "l1.tools.unattended.timeoutSeconds": {
+      "default": 3600,
+      "maximum": 604800,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "무인 승인이 expire일 때 이 시간이 지나면 거부로 끝낸다",
+          "label": "무인 실행의 승인 제한 시간",
+          "order": 50,
+          "tab": "permissions",
+          "unit": "초",
+          "widget": "number"
+        }
+      }
+    },
     "l2.dialog.ask.timeoutSec": {
       "default": 0,
       "maximum": 86400,
