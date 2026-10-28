@@ -26,15 +26,16 @@ export async function until(condition: () => boolean, label: string): Promise<vo
   });
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 function paramsOf(message: unknown): unknown {
-  return typeof message === "object" && message !== null
-    ? Reflect.get(message, "params")
-    : undefined;
+  return isRecord(message) ? message["params"] : undefined;
 }
 
 function methodOf(message: unknown): string {
-  const method: unknown =
-    typeof message === "object" && message !== null ? Reflect.get(message, "method") : undefined;
+  const method: unknown = isRecord(message) ? message["method"] : undefined;
   return typeof method === "string" ? method : "";
 }
 

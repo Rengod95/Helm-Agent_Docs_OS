@@ -21,6 +21,10 @@ function start(probed: string[], settings: Readonly<Record<string, unknown>> = {
   return cli;
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 test("doctor --json carries the host's binary report, and the exit code follows its ready flag", async () => {
   const cli = start([]);
   const code = await cli.harness.run(["doctor", "--json"]);
@@ -28,9 +32,8 @@ test("doctor --json carries the host's binary report, and the exit code follows 
     { method: "host.status", params: { includeBinaries: true } },
   ]);
   const doc: unknown = JSON.parse(cli.harness.stdoutText());
-  const binaries = typeof doc === "object" && doc !== null ? Reflect.get(doc, "binaries") : null;
-  const ready: unknown =
-    typeof binaries === "object" && binaries !== null ? Reflect.get(binaries, "ready") : null;
+  const binaries = isRecord(doc) ? doc["binaries"] : null;
+  const ready: unknown = isRecord(binaries) ? binaries["ready"] : null;
   expect(typeof ready).toBe("boolean");
   expect(binaries).toMatchObject({
     platform: process.platform,

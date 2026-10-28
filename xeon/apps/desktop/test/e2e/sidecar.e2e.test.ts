@@ -32,9 +32,7 @@ describe("source entry (harness regression)", () => {
     expect(run.strayStdout).toEqual([]);
     // 기본 켜짐 scope가 하나 이상 있고 한 묶음으로 커밋된다
     expect(run.scopeCount).toBeGreaterThan(0);
-    const kinds = run.events.map((event): unknown =>
-      typeof event === "object" && event !== null ? Reflect.get(event, "kind") : undefined,
-    );
+    const kinds = run.events.map((event): unknown => (isRecord(event) ? event["kind"] : undefined));
     expect(kinds[0]).toBe("thread.started");
     expect(kinds.filter((k) => k === "scope.changed")).toHaveLength(run.scopeCount);
     const exit = await engine.shutdown({ message: true });
@@ -54,12 +52,13 @@ describe("source entry (harness regression)", () => {
   }, 90_000);
 });
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 /** 응답 프레임의 result 또는 error에서 필드를 꺼낸다 */
 function pick(reply: unknown, ...path: readonly string[]): unknown {
-  return path.reduce<unknown>(
-    (node, key) => (typeof node === "object" && node !== null ? Reflect.get(node, key) : undefined),
-    reply,
-  );
+  return path.reduce<unknown>((node, key) => (isRecord(node) ? node[key] : undefined), reply);
 }
 
 function shape(report: HostBinaryReport): unknown {

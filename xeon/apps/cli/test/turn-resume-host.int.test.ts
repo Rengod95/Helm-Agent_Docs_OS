@@ -48,8 +48,12 @@ async function killedWhileAsking(
   return { threadId, approvalId: asked.id };
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 function idOf(value: unknown, key: string): string {
-  const found = typeof value === "object" && value !== null ? Reflect.get(value, key) : undefined;
+  const found = isRecord(value) ? value[key] : undefined;
   if (typeof found !== "string") throw new Error(`no ${key} in the result`);
   return found;
 }

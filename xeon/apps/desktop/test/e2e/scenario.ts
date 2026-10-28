@@ -62,12 +62,16 @@ function normalizer(roots: readonly string[] = []): (value: unknown) => unknown 
   return (value) => walk(value, undefined);
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 // ── 순서 경합을 시간이 아닌 조건으로 닫는다 ──────────────────────────────
 
 function eventsOf(message: Message): readonly Message[] {
   const params = message["params"];
-  if (typeof params !== "object" || params === null) return [];
-  const events: unknown = Reflect.get(params, "events");
+  if (!isRecord(params)) return [];
+  const events: unknown = params["events"];
   return Array.isArray(events)
     ? events.filter((e: unknown): e is Message => typeof e === "object" && e !== null)
     : [];
@@ -127,7 +131,7 @@ export type ScenarioRun = {
 /** 응답 메시지의 result 필드 하나. 오류 응답이면 undefined */
 function resultField(reply: Message, field: string): unknown {
   const result = reply["result"];
-  return typeof result === "object" && result !== null ? Reflect.get(result, field) : undefined;
+  return isRecord(result) ? result[field] : undefined;
 }
 
 /** 신뢰 판정의 선택지 중 "이 폴더 신뢰"(저장하는 허용). 데스크톱 신뢰 카드의 주 버튼과 같은 선택이다 */
@@ -135,18 +139,14 @@ function trustFolderChoice(trust: Message): unknown {
   const options = resultField(trust, "options");
   if (!Array.isArray(options)) return undefined;
   const picked: unknown = options.find(
-    (option: unknown) =>
-      typeof option === "object" &&
-      option !== null &&
-      Reflect.get(option, "label") === "trust-folder",
+    (option: unknown) => isRecord(option) && option["label"] === "trust-folder",
   );
-  return typeof picked === "object" && picked !== null ? Reflect.get(picked, "choice") : undefined;
+  return isRecord(picked) ? picked["choice"] : undefined;
 }
 
 function keysOf(notification: Message): readonly unknown[] {
   const params = notification["params"];
-  const keys: unknown =
-    typeof params === "object" && params !== null ? Reflect.get(params, "keys") : undefined;
+  const keys: unknown = isRecord(params) ? params["keys"] : undefined;
   return Array.isArray(keys) ? keys : [];
 }
 
@@ -230,10 +230,7 @@ export async function binaryReportOf(engine: EngineProcess): Promise<unknown> {
 
 /** 정규화한 응답열에서 메서드의 n번째 응답 프레임(`reply`)을 꺼낸다 */
 export function nthReply(responses: readonly unknown[], method: string, n: number): unknown {
-  const matching = responses.filter(
-    (entry) =>
-      typeof entry === "object" && entry !== null && Reflect.get(entry, "method") === method,
-  );
+  const matching = responses.filter((entry) => isRecord(entry) && entry["method"] === method);
   const entry: unknown = matching[n];
-  return typeof entry === "object" && entry !== null ? Reflect.get(entry, "reply") : undefined;
+  return isRecord(entry) ? entry["reply"] : undefined;
 }
