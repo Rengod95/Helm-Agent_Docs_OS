@@ -22,7 +22,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   - 이벤트 종류, 내구·휘발 구분, 재생 규칙은 `eng.events.design`(`../events/design.md`)이, 원자성과 트랜잭션 경계는 `eng.transactions.design`(`../transactions/design.md`)이 정한다. AP-S의 저장 항목은 그 설계를 어기는 모양이다.
   - 도구 설정과 버전 고정은 `eng.toolchain.guide`(`../toolchain/guide.md`), 테스트 작성법은 `eng.testing.guide`(`../testing/guide.md`)가 정한다.
 - 규칙이 서로 다르게 읽히면 위 문서들의 규칙이 이 문서보다 앞선다. 이 문서의 예제는 그 규칙의 사례다.
-- 예제의 확장 지점 이름(`tool_call`, `tool_result`, `turn_end` 등)은 pi 이벤트명을 따른 [가정]이다. 지점 목록은 `F.extensions.spec`이 확정한다(ADR-0007 §3.3).
+- 예제의 확장 지점 이름(`tool.call.before`, `tool.result`, `boundary.step.after` 등)은 `F.extensions.spec` §3.4 표의 이름이다. 지점 목록은 `F.extensions.spec`이 확정한다(ADR-0007 §3.3).
 - 예제의 `Result`, `ok`, `err`, 브랜드 타입, `Clock`, `IdFactory`, `RandomSource`는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06의 이름이다. 이벤트 kind와 envelope 필드(`DurableEventEnvelope`, `kind`, `version`, `payload`, `recordedAt`)는 `F.records.spec`과 `eng.events.design`, 세션 쓰기 경로(`SessionService.commit`, `CommitRequest`)는 `eng.transactions.design`과 `L1.persistence.spec` §3.2~§3.3, 서비스 이름은 `eng.context-map.design` 5.3절의 이름이다.
 
 ## 2. 안티패턴
@@ -179,7 +179,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   ```ts
   // 그룹 상태는 그룹 scope의 상태 레코드가 소유하고, 커밋은 단일 DB 트랜잭션이 원자성을 맡는다.
   export const Helm = scope("helm", { state: doc<HelmState>() }, (g) => {
-    g.on("turn_end", async (t, st) => { await g.commit(nextPhase(st, t)); }); // [가정] 지점 이름
+    g.on("boundary.step.after", async (t, st) => { await g.commit(nextPhase(st, t)); }); // [가정] 지점 이름
   });
   ```
 
@@ -268,7 +268,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   export function setup(g: GroupApi<HelmState>) {
-    g.on("turn_end", (t, st) => {
+    g.on("boundary.step.after", (t, st) => {
       if (!needsHint(st)) return undefined;
       g.post(hintMessage(st), { when: "next", requestId: requestIdFor("helm", st.turn) }); // 멱등 주입
       return undefined;
@@ -330,7 +330,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   export const Learning = scope("learning", { state: doc<LearnState>() }, (g) => {
-    g.on("turn_end", async (t, st) => {     // 관찰 + 커밋. 검토 포크는 L1 백그라운드 위임으로 돌린다
+    g.on("boundary.step.after", async (t, st) => {     // 관찰 + 커밋. 검토 포크는 L1 백그라운드 위임으로 돌린다
       await g.commit(countTurn(st, t));
     });
   });
@@ -392,7 +392,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 나쁜 예:
 
   ```ts
-  g.on("tool_call", (call, st) => {
+  g.on("tool.call.before", (call, st) => {
     try {
       return policy.check(call, st);   // 정책 검사 실패 = 허용으로 바뀐다
     } catch {
@@ -404,7 +404,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 좋은 예:
 
   ```ts
-  g.on("tool_call", (call, st) => {
+  g.on("tool.call.before", (call, st) => {
     const verdict = policy.check(call, st);          // 예상 가능한 실패는 Result로 받는다
     if (!verdict.ok) return { deny: verdict.error.kind };
     return verdict.value.allowed ? undefined : { deny: verdict.value.reason };

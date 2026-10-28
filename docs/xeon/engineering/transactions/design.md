@@ -87,7 +87,7 @@ PRAGMA application_id = 1480937294;  -- 0x58454F4E 'XEON'. 새 파일에서만 �
 ```
 
 - [제안] 쓰기 연결은 `synchronous`를 바꾸지 않고 FULL로 둔다. adr.0004는 단계 경계 FULL의 구현 방식(연결 단위 전환 대 단계 경계 직후 체크포인트)을 `L0.store.spec`에 넘겼고, `L0.store.spec` §4.3이 이 "항상 FULL" 권고를 채택했다. 단계 경계가 아닌 커밋(효과 커밋, 임대 하트비트, 입력 수락)도 FULL이다. 커밋마다 모드를 바꾸면 바꾸는 코드에 오류가 생길 자리가 늘고, 효과 의도가 디스크에 없으면 외부 효과를 낸 뒤 흔적이 없을 수 있다.
-- [제안] 커밋 단위: 경계 하나(4.1절 표의 행 하나)의 쓰기는 커밋 하나에 모두 들어가고, 여러 커밋으로 나누지 않는다(TX-08). 효과는 도구 호출마다 의도(E1), 실행 시작(E2), 결과(E3)를 각각 커밋한다(`L1.persistence.spec` §4.2, `architecture.runtime-flow.design` §3). 그래서 모든 커밋이 FULL이면 커밋 수가 fsync 수이고, 한 모델 단계의 커밋 수는 `1(S1) + 1(C3) + 3 × 도구 수 + 1(C5)` = `3 + 3 × 도구 수`다. turn마다 C2와 C6이 하나씩 더해지고, C2b는 `before_agent_start`가 메시지를 더할 때만, C1은 유휴 thread의 입력일 때 하나 더 있다. 취소 의도(X1)와 승인 요청(A1)은 일어날 때만 더한다. fsync 비용은 모델 호출 시간보다 작다고 본다 [가정]. 측정은 `L1.persistence.plan` §6, `L0.store.plan` ST-17이다.
+- [제안] 커밋 단위: 경계 하나(4.1절 표의 행 하나)의 쓰기는 커밋 하나에 모두 들어가고, 여러 커밋으로 나누지 않는다(TX-08). 효과는 도구 호출마다 의도(E1), 실행 시작(E2), 결과(E3)를 각각 커밋한다(`L1.persistence.spec` §4.2, `architecture.runtime-flow.design` §3). 그래서 모든 커밋이 FULL이면 커밋 수가 fsync 수이고, 한 모델 단계의 커밋 수는 `1(S1) + 1(C3) + 3 × 도구 수 + 1(C5)` = `3 + 3 × 도구 수`다. turn마다 C2와 C6이 하나씩 더해지고, C2b는 `input.agent.before`가 메시지를 더할 때만, C1은 유휴 thread의 입력일 때 하나 더 있다. 취소 의도(X1)와 승인 요청(A1)은 일어날 때만 더한다. fsync 비용은 모델 호출 시간보다 작다고 본다 [가정]. 측정은 `L1.persistence.plan` §6, `L0.store.plan` ST-17이다.
 - [결정: review.decisions-2 U-10] 도구별 효과 커밋(E1 의도, E2 실행 시작, E3 결과)은 adr.0004 §3.2 3번의 보충으로 올린다. 단계당 커밋 수는 `3 + 3n`(n은 도구 수)이다. adr.0004 §3.2 아래 "한 단계에 커밋 한 번" 문장은 이 결정에 맞게 고친다(decisions 문서 담당).
 - 읽기 연결은 `readonly: true`로 열고 `PRAGMA query_only = ON`, `busy_timeout = 5000`을 건다. bun:sqlite는 `fileMustExist`를 지원하지 않으므로 열기 전에 파일 존재를 검사한다(`_research/notes/eng-3.md §2.2`).
 - 종료 때 `PRAGMA wal_checkpoint(TRUNCATE)` 뒤 닫는다.
@@ -146,7 +146,7 @@ CREATE TABLE sys_leases (
 |---|---|---|---|
 | C1 입력 수락 | `input.queued` | `in:<sourceKey>:<requestId>` | 아니오 |
 | C2 turn 시작 | `turn.started`, `input.placed`, user `item.recorded`, 확장 기여 | `turn:<turnId>:start` | 아니오 |
-| C2b turn 시작 보충 | `before_agent_start`가 추가한 custom `item.recorded`(있을 때만) | `turn:<turnId>:prestart` | 아니오 |
+| C2b turn 시작 보충 | `input.agent.before`가 추가한 custom `item.recorded`(있을 때만) | `turn:<turnId>:prestart` | 아니오 |
 | S1 단계 시작 | `step.started` | `step:<turnId>:<stepIndex>:start` | 아니오 |
 | C3 모델 응답 확정 | assistant `item.recorded` + `part.recorded`들, 확장 기여 | `resp:<turnId>:<stepIndex>` | 아니오 |
 | E1 효과 의도 | `effect.intent`(도구 호출마다) | `tool:<toolCallId>:intent` | 아니오 |
@@ -159,8 +159,8 @@ CREATE TABLE sys_leases (
 
 - 체크포인트는 단계 경계(C5)와 승인 대기(A1)에만 쓴다(`L1.persistence.spec` §4.2). A1은 `step.completed` 없는 체크포인트라 `F.records.spec` §3.6에 예외를 적도록 요청 중이다(`L1.persistence.spec` FR-P4). `L1.loop.spec` T3은 도구 호출이 있으면 C3에 `next: "tools"` 체크포인트를 요청한다. 이 요청은 F의 결정 뒤 이 표에 반영한다 [미결](`L1.readme` §13 (j)).
 - 확장 기여: 그 지점의 `on` 핸들러(`chain`, `first`)가 돌려준 확장 이벤트 초안과 X의 경계 기여(`scope.changed`, `lease.acquired`, `lease.released`, `X.primitives.spec` 용어표)다. 핸들러는 커밋 전에 트랜잭션 밖에서 실행하고(await 허용), 결과 초안만 커밋에 넣는다. `tap` 핸들러는 커밋 뒤에 실행하고, 기록이 필요하면 자기 커밋 키로 따로 커밋한다.
-- 확장 지점 이름(`tool_call`, `turn_end`, `before_agent_start`)은 adr.0007 §3.3의 pi 이벤트명을 따른 [가정]이다. 목록은 `F.extensions.spec`이 확정한다.
-- `tool_call`(`first`)은 C3 뒤, E1 전에 실행한다. `tool_call`은 허용·거부·결과 대체만 하고 인자를 바꾸지 않는다([결정: review.decisions-2 U-06]). 통과한 호출은 모델이 낸 인자 그대로 `effect.intent`를 남긴다. 거부된 호출은 `effect.intent`도 `effect.result`도 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`). 재개 때는 `effect.intent`의 인자를 쓰고 핸들러를 다시 부르지 않는다(`eng.events.design` 7.1절).
+- 확장 지점 이름(`tool.call.before`, `boundary.step.after`, `input.agent.before`)은 `F.extensions.spec` §3.4 표의 이름이다. 목록은 `F.extensions.spec`이 확정한다.
+- `tool.call.before`(`first`)은 C3 뒤, E1 전에 실행한다. `tool.call.before`은 허용·거부·결과 대체만 하고 인자를 바꾸지 않는다([결정: review.decisions-2 U-06]). 통과한 호출은 모델이 낸 인자 그대로 `effect.intent`를 남긴다. 거부된 호출은 `effect.intent`도 `effect.result`도 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`). 재개 때는 `effect.intent`의 인자를 쓰고 핸들러를 다시 부르지 않는다(`eng.events.design` 7.1절).
 - 진행 중 스트리밍 응답은 C3 전까지 저장하지 않는다. C3 전에 크래시가 나면 같은 단계의 모델 요청을 다시 보낸다.
 - 이전 판의 C4(도구 정착 한 커밋)는 E1~E3으로 나눴으므로 쓰지 않는다.
 
@@ -452,7 +452,7 @@ sequenceDiagram
   participant Env as L0 exec·sandbox
   Loop->>Store: C3 commit: assistant item.recorded + part.recorded
   Store-->>Loop: committed
-  Loop->>Ext: tool_call (first), 트랜잭션 밖
+  Loop->>Ext: tool.call.before (first), 트랜잭션 밖
   Ext-->>Loop: 통과 또는 거부
   Tools->>Store: E1 commit: effect.intent(최종 인자, replay)
   Store-->>Tools: committed
@@ -466,7 +466,7 @@ sequenceDiagram
 불변식:
 
 - 도구는 커밋된 `effect.intent` 없이 실행되지 않는다(12 CR-3, TX-02). 예외는 두지 않는다. 읽기 도구도 의도를 먼저 커밋한다. 커밋이 늘지만 규칙이 하나가 된다 [제안].
-- `effect.intent`가 있는 호출마다 `effect.result`는 0 또는 1건이다. 같은 커밋 키(`tool:<toolCallId>:result`)와 `build`의 `already_settled` 거부가 이를 지킨다. `effect.intent` 전에 거부된 호출(`tool_call` 핸들러 거부, 정책·승인 거부)은 효과 이벤트 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`).
+- `effect.intent`가 있는 호출마다 `effect.result`는 0 또는 1건이다. 같은 커밋 키(`tool:<toolCallId>:result`)와 `build`의 `already_settled` 거부가 이를 지킨다. `effect.intent` 전에 거부된 호출(`tool.call.before` 핸들러 거부, 정책·승인 거부)은 효과 이벤트 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`).
 - 결과 없는 의도의 판정은 실행 시작 여부를 구분한다. `effect.exec`가 없으면 실행 시작 전 중단이므로 효과가 없었다(`not_started`, status `abandoned`). `effect.exec`가 있으면 효과가 났을 수 있다(`outcome_unknown`, status `interrupted`)(`F.records.spec` §3.5 결정표).
 - assistant item에 toolCall이 있고 그 `effect.intent`가 없으면 효과는 일어나지 않았다. 재개는 그 호출을 정상 파이프라인으로 다시 돌린다(`L1.persistence.spec` §4.7.4).
 
@@ -500,7 +500,7 @@ export function decideOpenEffect(input: OpenEffectInput): EffectRecovery;
 | 없음 | 있음 | 그 밖 | 그 밖 | `synthesize`, `outcome_unknown`, status `interrupted` |
 
 - 의도 시점 선언과 현재 선언이 모두 `safe`여야 재실행한다. 나중에 `safe`로 바꾼 선언으로 과거 호출의 재실행을 허가하지 않는다(12 §3.7.2, durable `spec.md` 3136-3170 "Recovery does not let a changed registry declaration alter the stored replay policy"). 도구가 사라졌으면(`currentReplay: null`) `unsafe`와 같게 처리한다.
-- 재실행: `effect.exec`를 `tool:<toolCallId>:exec:<attempt>` 키로 커밋하고, 트랜잭션 밖에서 `effect.intent`에 저장된 최종 인자로 실행한 뒤 `effect.result`를 처음과 같은 `tool:<toolCallId>:result` 키로 커밋한다. `tool_call` 핸들러는 다시 부르지 않는다. 실행 주체는 core-loop(`ToolService.rerun`)이고 판정은 core-persistence `recover`다(`L1.persistence.spec` §4.7.1).
+- 재실행: `effect.exec`를 `tool:<toolCallId>:exec:<attempt>` 키로 커밋하고, 트랜잭션 밖에서 `effect.intent`에 저장된 최종 인자로 실행한 뒤 `effect.result`를 처음과 같은 `tool:<toolCallId>:result` 키로 커밋한다. `tool.call.before` 핸들러는 다시 부르지 않는다. 실행 주체는 core-loop(`ToolService.rerun`)이고 판정은 core-persistence `recover`다(`L1.persistence.spec` §4.7.1).
 - 재실행 수는 `effect.exec` 건수로 센다. 재실행 수 = `max(0, execCount - 1)`이다. `MAX_REPLAY_ATTEMPTS`(2)에 이르면 다음 판정은 `outcome_unknown` 합성이다(`L1.persistence.spec` §4.7.3). 이전 판의 `tool.replay_started` 이벤트와 `OpenIntent.replayAttempts`는 두지 않는다.
 - 이전 판의 도구 주 버전 비교(`majorOf(toolVersion)`)는 F 결정표에 없어 두지 않는다.
 - 합성 결과: `effect.result{status, synthesized: true, output: null}`과 `isError: true`인 toolResult `item.recorded`를 한 커밋으로 쓴다. 커밋 키는 `tool:<toolCallId>:result`다(`F.records.spec` §4.5 3번). 본문은 5.3절이다.
@@ -694,7 +694,7 @@ session.commit(resultRequest(call.toolCallId, out));
 
 ```ts
 // group-helm: on 지점 결과로 확장 이벤트 초안을 돌려준다 (C5·C6 경계 커밋에 함께 들어간다)
-g.on("turn_end", (t, st) => ({
+g.on("boundary.step.after", (t, st) => ({
   drafts: [helm.draft({ kind: "grp.helm.phase.changed", causationId: t.eventId,
     payload: { from: st.phase, to: next(st) } /* … */ })],
 }));

@@ -24,7 +24,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
   - 층 순위와 import 규칙은 `eng.dependency-rules.guide`(`../dependency-rules/guide.md`)가 정한다.
   - 이 문서는 위 규칙을 바꾸지 않는다. 위 문서와 다르게 읽히는 곳이 있으면 위 문서가 앞선다.
 - 예제 표기:
-  - [가정] 예제의 확장 지점 이름(`tool_call`, `tool_result`, `turn_end`, `before_agent_start`, `tool_execution_end`)은 pi 이벤트명을 따른 것이다. 지점 이름 목록과 fold는 `F.extensions.spec`이 정한다(ADR-0007 §3.3).
+  - [가정] 예제의 확장 지점 이름(`tool.call.before`, `tool.result`, `boundary.step.after`, `input.agent.before`, `tool.execution.after`)은 `F.extensions.spec` §3.4 표의 이름이다. 지점 이름 목록과 fold는 `F.extensions.spec`이 정한다(ADR-0007 §3.3).
   - [가정] `scope`, `GroupApi`, `LoopHandle`, `Deny`, `PostWhen`, `ScopeId`는 ADR-0007 §3.7 인터페이스 초안의 이름이다. 최종 이름은 `X.primitives.spec`이 정한다. 멱등 키 `requestId`는 브랜드 없는 문자열이다(`F.conversation.spec` §3.5).
   - [가정] `Result`, `ok`, `err`는 `eng.typescript.guide`가 정한 이름이다. 예제는 `{ ok: true; value } | { ok: false; error }` 모양을 쓴다.
   - 이벤트 kind 이름과 envelope 필드(`kind`, `version`, `threadId`, `payload`, `recordedAt`)는 `F.records.spec` §3.1~§3.3과 `eng.events.design` 4.1·4.4·4.5절을 따른다. 쓰기 경로는 `SessionService.commit`이다(`eng.transactions.design` 4.2절, `L1.persistence.spec` §3.3).
@@ -106,14 +106,14 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
   // 어댑터: 판정 결과를 확장 지점 반환값으로 바꾼다
   export function setup(g: GroupApi<HelmState>) {
-    g.on("tool_call", (call, st) => (st.phase === "diverge" && isWriteCall(call) ? { deny: "helm.readonly_phase" } : undefined));
+    g.on("tool.call.before", (call, st) => (st.phase === "diverge" && isWriteCall(call) ? { deny: "helm.readonly_phase" } : undefined));
   }
   ```
 
 - 나쁜 예:
 
   ```ts
-  g.on("tool_call", async (call, st) => {
+  g.on("tool.call.before", async (call, st) => {
     const isMac = process.platform === "darwin";                 // 소비자 코드의 OS 분기
     const stat = await Bun.file(call.args.path).exists();         // 지점 핸들러 안의 파일 I/O
     if (st.phase === "diverge" && stat && !isMac) return { deny: "읽기 전용" };
@@ -147,12 +147,12 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
   ```ts
   export const Helm = scope("helm", { state: doc<HelmState>() }, (g) => {
-    g.on("tool_execution_end", (ev) => { metrics.observe(ev); });                       // 관찰: tap
-    g.on("tool_call", (call, st) =>                                                     // 차단: first
+    g.on("tool.execution.after", (ev) => { metrics.observe(ev); });                       // 관찰: tap
+    g.on("tool.call.before", (call, st) =>                                                     // 차단: first
       st.phase === "diverge" && isWriteCall(call) ? { deny: "helm.readonly_phase" } : undefined);
-    g.on("before_agent_start", (req, st) =>                                             // 변형: chain
+    g.on("input.agent.before", (req, st) =>                                             // 변형: chain
       ({ ...req, systemPrompt: req.systemPrompt + lensFor(st.phase) }));
-    g.on("turn_end", (t, st) => {                                                       // 주입: post
+    g.on("boundary.step.after", (t, st) => {                                                       // 주입: post
       if (needsFollowUp(st, t)) g.post(followUpPrompt(st), { when: "followUp", requestId: requestIdFor("helm", st.turn) });
       return undefined;
     });
@@ -554,7 +554,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
 ## 5. 미결 사항
 
-- [미결] 확장 지점 이름 목록. 예제의 `tool_call`, `tool_result`, `turn_end`, `before_agent_start`, `tool_execution_end`는 [가정]이며 `F.extensions.spec`이 확정한다. fold에 `collect`를 더할지도 같은 문서에서 정한다(`_research/notes/F-1.md §7`).
+- [미결] 확장 지점 이름 목록. 예제의 `tool.call.before`, `tool.result`, `boundary.step.after`, `input.agent.before`, `tool.execution.after`는 [가정]이며 `F.extensions.spec`이 확정한다. fold에 `collect`를 더할지도 같은 문서에서 정한다(`_research/notes/F-1.md §7`).
 - `Logger` 인터페이스는 F 루트 base(`F.readme` §3 루트 진입점)에 있고 운영 구현은 `platform-os`다. BP-05, BP-12 예제의 메서드 모양은 `L0.os.spec`이 확정한다. `Clock`, `Scheduler`, `IdFactory`, `RandomSource`는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06이 정했다([결정: review.decisions-2 U-03]).
 - [미결] BP-12를 L2·L3까지 강제할지(현재 [제안]).
 - [미결] BP-11의 "한 PR"이 커밋 단위 로컬 작업(push 전)에도 적용되는지.

@@ -643,7 +643,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 ## 7. 확장 지점
 
-- `xeon.exec`는 `on` 지점을 선언하지 않는다. 도구 실행 전후 지점(`tool_call`, `tool_result`)은 L1이 선언한다(`F.extensions.spec`).
+- `xeon.exec`는 `on` 지점을 선언하지 않는다. 도구 실행 전후 지점(`tool.call.before`, `tool.result`)은 L1이 선언한다(`F.extensions.spec`).
 - `post`, `drive`와 관계가 없다. drive 임대 반납·단계 경계 비활성화가 진행 중 명령을 끝낼 때는 L1이 `CancelScope.abortSignal`을 취소한다(B-17).
 - 확장은 `scope`로 `ExecServiceName`을 주입받아 쓸 수 있다. 확장이 자기 셸 데코레이터를 끼우는 것은 이 문서가 열지 않는다. `Shell` 데코레이터 조립 지점은 L1 tools와 apps/host 하나다(3.7절) [제안].
 

@@ -33,7 +33,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 | 행위자 | 유즈케이스를 시작하거나 그 결과를 받는 주체. 사용자, 모델, 그룹, 서비스 프로세스, 원격 클라이언트. |
 | 입력 큐 | 사용자 입력과 `post` 항목이 들어가는 내구 큐. L1-a(`core-tasks`)가 소유한다. |
 | 큐 모드 | `post`의 `when` 값. 정의는 ADR-0007 §3.1 표를 따른다. `steer`는 다음 도구 라운드 뒤 입력으로 들어간다. `followUp`은 에이전트 정착 뒤 입력으로 들어간다. `next`는 경계 뒤 정확히 한 요청에 들어간다. `next`가 그 요청을 스스로 시작하는지는 [미결](ADR-0007 §6)이다. |
-| 단계 경계 | step(모델 요청 한 번과 그 도구 실행)이 끝나고 다음 step이 시작하기 전의 지점이다. `turn_end` 지점 처리 직후이며 한 턴 안에 여러 번 있다. 그룹 켜기·끄기, drive 임대 부여, 임대 반납이 여기서 적용된다(`F.conversation.spec` §2.1, `F.extensions.spec` §4.5). 사용자 결정 원문의 '턴 경계'는 이 지점으로 읽는다 [결정: review.decisions-2 U-01]. |
+| 단계 경계 | step(모델 요청 한 번과 그 도구 실행)이 끝나고 다음 step이 시작하기 전의 지점이다. `boundary.step.after` 지점 처리 직후이며 한 턴 안에 여러 번 있다. 그룹 켜기·끄기, drive 임대 부여, 임대 반납이 여기서 적용된다(`F.conversation.spec` §2.1, `F.extensions.spec` §4.5). 사용자 결정 원문의 '턴 경계'는 이 지점으로 읽는다 [결정: review.decisions-2 U-01]. |
 | 공유 서비스 모드 | `xeon service`. 클라이언트가 없으면 자동 기동하고 연결과 작업이 없으면 유휴 종료하는 엔진 프로세스. ADR-0006. |
 | 모델 테이프 | 기록해 둔 모델 응답을 재생하는 테스트용 가짜 모델. `eng.testing.guide`. |
 
@@ -56,8 +56,8 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 - 주 흐름
   1. 사용자가 CLI(`xeon chat`) 또는 데스크톱에서 입력한다. 두 클라이언트는 같은 호스트 계약으로 엔진에 입력을 보낸다.
   2. 입력이 입력 큐에 들어가고, 실행 중인 턴이 없으면 새 턴이 시작된다.
-  3. 컨텍스트가 조립되고 모델 요청이 나간다. request 종류 지점(`before_agent_start` 등)의 chain 핸들러가 있으면 요청이 형성된다.
-  4. 모델이 도구를 호출하면 `tool_call` 지점(tool 종류)의 first 핸들러와 정책 엔진을 거쳐 실행된다. 기본 도구는 `read`, `ls`, `bash`다. `bash`는 OS 샌드박스 안에서 실행되며, 샌드박스 범위 안의 명령은 매번 묻지 않는다(layer-plan-v2-notes.md "OS 샌드박스가 왜 필요한가").
+  3. 컨텍스트가 조립되고 모델 요청이 나간다. request 종류 지점(`input.agent.before` 등)의 chain 핸들러가 있으면 요청이 형성된다.
+  4. 모델이 도구를 호출하면 `tool.call.before` 지점(tool 종류)의 first 핸들러와 정책 엔진을 거쳐 실행된다. 기본 도구는 `read`, `ls`, `bash`다. `bash`는 OS 샌드박스 안에서 실행되며, 샌드박스 범위 안의 명령은 매번 묻지 않는다(layer-plan-v2-notes.md "OS 샌드박스가 왜 필요한가").
   5. 도구 결과와 완성된 메시지 파트가 이벤트로 저장되고 투영이 같은 트랜잭션에서 갱신된다. 스트리밍 토큰은 휘발 이벤트로 클라이언트에 전달된다.
   6. 모델이 도구 호출 없이 답하면 턴이 끝난다. step마다 그 step이 끝난 직후 단계 경계 처리가 실행된다.
 - 실행 중 입력(큐 모드)
@@ -93,8 +93,8 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 - 주 흐름
   1. 사용자가 작업 중에 모르는 분야의 문제를 꺼낸다. Helm의 tap 핸들러가 턴 결과에서 탐구 신호를 기록한다.
   2. Helm이 탐구를 시작하면 drive 임대를 얻는다. 상한 `{maxTurns, maxSpawns, maxTokens}`가 함께 걸린다.
-  3. request 종류 지점(`before_agent_start`)의 chain 핸들러가 현재 단계에 맞는 관점(렌즈)을 시스템 프롬프트에 더한다.
-  4. 확산 단계 동안 `tool_call` 지점(tool 종류)의 first 핸들러가 쓰기 도구 호출을 거부한다. 읽기와 웹 검색은 허용된다.
+  3. request 종류 지점(`input.agent.before`)의 chain 핸들러가 현재 단계에 맞는 관점(렌즈)을 시스템 프롬프트에 더한다.
+  4. 확산 단계 동안 `tool.call.before` 지점(tool 종류)의 first 핸들러가 쓰기 도구 호출을 거부한다. 읽기와 웹 검색은 허용된다.
   5. drive 함수가 렌즈마다 `loop.spawn`으로 서브에이전트를 병렬로 띄운다. 서브에이전트는 `web.search`, `web.fetch`, 지식 검색을 쓴다.
   6. 결과가 모이면 그룹 상태로 커밋한다(`g.commit`).
   7. drive 함수가 커밋된 상태에서 적용 프롬프트를 만들어 `loop.turn`을 실행한다. 이 턴에서 발견을 현재 작업에 적용한다. 파일 쓰기는 그 시점에 있는 쓰기 도구로 한다. `cap-workspace`의 `write`, `edit`이 생기기 전(M3 전)에는 쓰기 도구가 `bash`뿐이다(`product.scope.spec` §4.3).

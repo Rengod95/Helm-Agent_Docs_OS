@@ -451,7 +451,7 @@ export function selectSandboxProvider(input: {
 
 ## 7. 확장 지점
 
-- `xeon.sandbox`는 `on` 지점을 선언하지 않는다. 도구 실행 지점(`tool_call` first, `tool_result` chain)은 L1이 선언하고(`F.extensions.spec`), 자동 허용 판정 결과를 쓰는 곳도 L1이다.
+- `xeon.sandbox`는 `on` 지점을 선언하지 않는다. 도구 실행 지점(`tool.call.before` first, `tool.result` chain)은 L1이 선언하고(`F.extensions.spec`), 자동 허용 판정 결과를 쓰는 곳도 L1이다.
 - `post`, `drive`와 관계없다.
 - 확장(플러그인)이 정책을 완화하는 경로는 없다. 확장은 `scope`로 `SandboxServiceName`을 주입받아 `status()`, `protectedPaths()`, `autoAllow()`를 읽을 수 있다. `wrapShell`을 직접 써서 자기 프로세스를 감쌀 수 있다 [제안].
 

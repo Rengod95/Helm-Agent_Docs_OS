@@ -461,7 +461,7 @@ import type { Context } from "cordis";                      // DR-11
 
 [결정] `_research/foundation-plan.md §3`: 지점 이름, fold, 페이로드 타입을 F4에 둔다.
 
-- 선언 위치: `packages/contracts/src/extensions/**`(`F.extensions.spec`). 선언 객체의 모양은 adr.0007 §3.7의 `PointDecl`(`name`, `kind`, `fold`, `payload`, `result`)이다. 지점 이름은 pi 이벤트명(`tool_call`, `turn_end` 등, adr.0007 §3.3)을 따른다 [가정: 목록은 `F.extensions.spec`이 확정한다].
+- 선언 위치: `packages/contracts/src/extensions/**`(`F.extensions.spec`). 선언 객체의 모양은 adr.0007 §3.7의 `PointDecl`(`name`, `kind`, `fold`, `payload`, `result`)이다. 지점 이름은 `<종류>.<대상>[.<시점>]` 규칙(`tool.call.before`, `boundary.step.after` 등, adr.0017 §3.2)을 따르고 목록은 `F.extensions.spec`이 정한다.
 - L1은 선언 객체를 import해 지점을 연다. X(`ext-host`)는 같은 선언을 import해 등록과 실행을 검사한다. 확장(L2·L3·플러그인)은 adr.0007 §3.7의 `g.on(<지점 이름>, handler)`로 처리기를 단다. 지점 이름 인자의 타입은 F 선언에서 만든 `PointName` 유니온이므로 선언에 없는 이름은 컴파일 오류다.
 - 금지: L1 패키지 안에서 지점 선언 객체나 지점 이름 문자열을 새로 만들기, X가 L1을 import해 지점 목록을 얻기(DR-01 위반이기도 하다).
 
@@ -472,12 +472,12 @@ import type { Context } from "cordis";                      // DR-11
 ```ts
 // packages/contracts/src/extensions/points.ts  (F)
 export const ToolCallPoint = {
-  name: "tool_call",
+  name: "tool.call.before",
   kind: "tool",
   fold: "first",
   payload: ToolCallPayloadSchema,      // TypeBox 스키마
   result: ToolCallResultSchema,        // Deny를 포함한다(adr.0007 §3.7)
-} as const satisfies PointDecl<"tool_call", typeof ToolCallPayloadSchema, typeof ToolCallResultSchema>;
+} as const satisfies PointDecl<"tool.call.before", typeof ToolCallPayloadSchema, typeof ToolCallResultSchema>;
 ```
 
 ```ts
@@ -488,14 +488,14 @@ const verdict = await ext.dispatch(ToolCallPoint, payload);
 
 ```ts
 // packages/group-helm/src/setup.ts  (L3): adr.0007 §3.7 모양으로 처리기를 단다
-g.on("tool_call", (call, st) => (st.phase === "diverge" && isWrite(call) ? { deny: "helm.readonly_phase" } : undefined));
+g.on("tool.call.before", (call, st) => (st.phase === "diverge" && isWrite(call) ? { deny: "helm.readonly_phase" } : undefined));
 ```
 
 나쁜 예:
 
 ```ts
 // packages/core-tools/src/pipeline.ts  (L1)
-await ext.dispatch({ name: "tool_call", fold: "first" }, payload);   // DR-12: L1에서 지점 선언을 새로 만든다
+await ext.dispatch({ name: "tool.call.before", fold: "first" }, payload);   // DR-12: L1에서 지점 선언을 새로 만든다
 ```
 
 `PointDecl`, `PointName`, `g.on`은 adr.0007 §3.7 초안의 이름이다. `ToolCallPoint`, `ext.dispatch`(L1이 지점을 여는 호출)의 정확한 이름과 시그니처는 `F.extensions.spec`과 `X.primitives.spec`이 정한다. 위 예시의 이름은 설명용이다 [가정].
