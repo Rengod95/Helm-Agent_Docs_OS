@@ -10,7 +10,6 @@ import {
   type TRecord,
   type TString,
   type TUnion,
-  type TUnknown,
 } from "typebox";
 import {
   CallerIdSchema,
@@ -21,6 +20,8 @@ import {
 } from "../../capabilities/index.ts";
 import {
   ImageContentSchema,
+  AgentToolResultSchema,
+  DeepJsonObjectSchema,
   JsonValueSchema,
   StepIdSchema,
   TextContentSchema,
@@ -163,13 +164,13 @@ export type ToolResultPatch = Static<typeof ToolResultPatchSchema>;
 export const ToolExecutionStartPayloadSchema: TObject<{
   toolCallId: TString;
   toolName: typeof ToolNameSchema;
-  args: TUnknown;
+  args: typeof DeepJsonObjectSchema;
   parentToolCallId: TOptional<TString>;
 }> = Type.Object(
   {
     toolCallId: Type.String({ minLength: 1, maxLength: 256 }),
     toolName: ToolNameSchema,
-    args: Type.Unknown(),
+    args: DeepJsonObjectSchema,
     parentToolCallId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
   },
   { additionalProperties: false },
@@ -179,15 +180,15 @@ export type ToolExecutionStartPayload = Static<typeof ToolExecutionStartPayloadS
 export const ToolExecutionUpdatePayloadSchema: TObject<{
   toolCallId: TString;
   toolName: typeof ToolNameSchema;
-  args: TUnknown;
-  partialResult: TUnknown;
+  args: typeof DeepJsonObjectSchema;
+  partialResult: typeof AgentToolResultSchema;
   parentToolCallId: TOptional<TString>;
 }> = Type.Object(
   {
     toolCallId: Type.String({ minLength: 1, maxLength: 256 }),
     toolName: ToolNameSchema,
-    args: Type.Unknown(),
-    partialResult: Type.Unknown(),
+    args: DeepJsonObjectSchema,
+    partialResult: AgentToolResultSchema,
     parentToolCallId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
   },
   { additionalProperties: false },
@@ -199,7 +200,7 @@ export const ToolExecutionEndPayloadSchema: TObject<{
   toolName: typeof ToolNameSchema;
   input: TOptional<typeof ToolInputSchema>;
   stepId: TOptional<typeof StepIdSchema>;
-  result: TUnknown;
+  result: typeof AgentToolResultSchema;
   isError: TBoolean;
   durationMs: TOptional<TNumber>;
   parentToolCallId: TOptional<TString>;
@@ -211,7 +212,7 @@ export const ToolExecutionEndPayloadSchema: TObject<{
     input: Type.Optional(ToolInputSchema),
     /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다. `input`과 같은 이유로 선택이다 [제안] */
     stepId: Type.Optional(StepIdSchema),
-    result: Type.Unknown(),
+    result: AgentToolResultSchema,
     isError: Type.Boolean(),
     /** execute()가 걸린 시간(단조 시계). 도구가 실행되지 않았으면 없다 */
     durationMs: Type.Optional(Type.Number({ minimum: 0 })),

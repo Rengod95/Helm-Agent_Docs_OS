@@ -274,11 +274,11 @@ export interface LocalIdFactory {
 - 지역 ID를 이벤트 payload에 담는 것은 허용한다. envelope의 소속 필드(`threadId`, `turnId`, `stepId`, `id`)에는 쓰지 않는다.
 - 소비 문서의 현재 표기와 이 표의 대응: `L2.web`의 `wc_`·`wb_`·`wr_`(정규식 `^wc_[0-9A-Za-z]{8,40}$` 등, ULID 아님)는 `wcl`·`wbr`·`wrs`, `L2.knowledge`의 `kl_`·`kp_`는 `knl`·`knp`, `L0.process`의 `bg_`는 `bgp`로 읽는다. 그 문서들의 "IdFactory로 만든다"는 `LocalIdFactory`로 읽는다. 소비 문서 수정은 그 문서의 몫이다.
 
-### 3.3 pi 타입의 런타임 스키마 [제안]
+### 3.3 pi 타입의 런타임 스키마 [결정: M3-REQ-20]
 
 pi 타입은 TS 인터페이스라 런타임 스키마가 없다. 이벤트 payload 검증(`F.records.spec`의 `item.recorded` 등)에는 런타임 검증이 필요하다. 방식은 다음으로 정한다.
 
-- role(또는 `type`) 판별 + 얕은 검증을 하는 TypeBox 스키마를 직접 쓰고 `Type.Unsafe<PiType>(...)`로 감싼다. 정적 타입은 pi 타입 그대로이고, 런타임 검증은 판별 필드와 필수 최상위 필드만 본다.
+- role(또는 `type`) 판별 + 깊은 검증을 하는 TypeBox 스키마를 직접 쓰고 `Type.Unsafe<PiType>(...)`로 감싼다. 정적 타입은 pi 타입 그대로이고, 런타임 검증은 판별 필드, 필수 필드, 선택 필드의 타입(서명, `diagnostics`, `deferred`, `nestedCalls`, `toolsAdded`·`sections`)과 JSON 필드(`ToolCall.arguments`, `details`, `data`)의 재귀 값까지 본다. 재귀 JSON 스키마(`DeepJsonValueSchema`, `DeepJsonObjectSchema`)는 `$ref`를 쓰므로 능력 정의의 JSON Schema에는 쓰지 않는다. 그쪽은 얕은 `JsonValueSchema`를 유지한다.
 - 모든 객체 스키마는 `additionalProperties: true`다. pi가 minor에서 선택 필드를 더해도 옛 기록과 새 기록이 모두 통과한다.
 - 파일: `src/conversation/message-schema.ts`. `pi.ts`는 타입 전용으로 둔다(값 import 검사를 단순하게 하려는 선택).
 
@@ -323,7 +323,7 @@ export const AssistantMessageEventSchema: TUnsafe<AssistantMessageEvent>;
 
 한계:
 
-1. 깊은 필드(예: `AssistantMessage.diagnostics`, `SystemMessage.toolsAdded`의 `Tool.parameters`, `DeferredHandle`)는 검사하지 않는다.
+1. `Tool.parameters`는 JSON Schema라 객체인지만 본다. 그 안의 키워드는 검사하지 않는다.
 2. `Type.Unsafe`는 정적 타입과 스키마의 일치를 컴파일러가 보장하지 않는다. pi 타입을 비춘 이 파일들(`message-schema.ts`, `agent-schema.ts`)은 `eng.typescript.guide` TY-26의 허용 행 U2이고, 일치는 픽스처 왕복 테스트와 판별 값 목록 테스트로만 확인한다(§9 수용 기준 2, 6). Xeon이 소유한 객체 타입은 `SchemaProof`로 컴파일 시점에 증명한다(U5). `AgentToolResultSchema`는 `additionalProperties: false`이고 여섯 필드를 모두 가진다.
 3. `ToolResultMessage<TDetails>`는 `TDetails`가 JSON 호환일 때만 성립하는 조건부 타입이다(`_research/notes/F-2.md` §5.1). 스키마는 기본 인자 `JsonValue`만 다룬다.
 4. TypeBox 1.x의 `Value.Check`가 `Unsafe`로 감싼 객체 스키마의 키워드를 그대로 검사한다고 본다 [가정]. C3 작업의 첫 테스트가 이를 확인한다(`F.conversation.plan`).
@@ -765,6 +765,6 @@ export * from "./tool-result.ts";
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-01] 용어: pi turn = Xeon step, pi run = Xeon turn이다. 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§2.1). 사용자 확인 대상이다.
-2. [미결] 런타임 스키마 방식: `Type.Unsafe` 래핑 + 얕은 검증(§3.3)으로 충분한지, pi 타입 전체를 TypeBox로 재정의해 깊은 검증까지 할지. 재정의안은 pi minor마다 추종 비용이 커진다. [결정: review.m2-plan §8] 이 판단은 M3로 미룬다. M2는 얕은 검증을 유지한다.
+2. [결정: M3-REQ-20] 런타임 스키마 방식: `Type.Unsafe` 래핑을 유지하되 객체를 깊게 검사한다(§3.3). 모든 객체가 열려 있어 pi가 선택 필드를 더해도 옛 기록이 통과한다. pi를 올릴 때는 이 파일의 스키마를 함께 고친다.
 3. [결정: M2 마감 G5-03] ULID 단조성은 L0 `createIdFactory`·`createLocalIdFactory`(`L0.os.spec` §3.4, `platform-os/src/ids.ts`)가 지킨다. 같은 밀리초이거나 시계가 뒤로 가면 직전 시각을 유지하고 난수 부분을 1 올리며, 80비트가 넘치면 시각을 1ms 올린다. L1 래퍼는 두지 않는다. `platform-os/test/ids.test.ts`가 연속 발급의 사전순 증가를 확인한다.
 4. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 고정한 판과 같아 한 사본만 설치한다.

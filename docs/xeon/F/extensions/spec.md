@@ -771,7 +771,7 @@ export type CollectPointName = { [N in PointName]: PointSignatures[N]["fold"] ex
 ```
 
 - 페이로드 스키마는 지점 종류별 파일 `points/input.ts`, `points/request.ts`, `points/tool.ts`, `points/boundary.ts`, `points/session.ts`, `points/guard.ts`에 둔다. lifecycle 지점의 페이로드는 내구 이벤트 payload 스키마(`records/catalog`의 `AgentSettledEventPayloadSchema`, `LeaseRejectedPayloadSchema`)를 그대로 쓴다.
-- 페이로드 형태 규칙: pi 이벤트 인터페이스에서 `type` 필드를 빼고 필드 이름을 그대로 쓴다. pi coding-agent 고유 타입(`BashOperations`, `CompactionPreparation`, `SessionEntry` 등)은 F 타입으로 바꾼다. 바꿀 F 타입이 아직 없으면 그 필드를 `Type.Unknown()`으로 두고 M1 이후 정확화한다. pi coding-agent 패키지에는 의존하지 않는다.
+- 페이로드 형태 규칙: pi 이벤트 인터페이스에서 `type` 필드를 빼고 필드 이름을 그대로 쓴다. pi coding-agent 고유 타입(`BashOperations`, `CompactionPreparation`, `SessionEntry` 등)은 F 타입으로 바꾼다. 바꿀 F 타입이 아직 없으면 JSON 값(`DeepJsonValueSchema`·`DeepJsonObjectSchema`)이나 F 타입(`AgentToolResult`)으로 정확히 정한다 [결정: M3-REQ-05]. 지점 페이로드에 `Type.Unknown()` 필드는 남기지 않는다. pi coding-agent 패키지에는 의존하지 않는다.
 
 ### 3.4 지점 선언 표
 
@@ -789,7 +789,7 @@ export type CollectPointName = { [N in PointName]: PointSignatures[N]["fold"] ex
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | `input.user.before` | input | chain | InputPayload | InputPatch | skip | ● | `input` | types.ts:1143/1156 | runner.ts:1520 emitInput | `handled`는 `stop` 규칙으로 표현 |
 | 2 | `input.bash.before` | input | first | UserBashPayload | UserBashDecision | closed |  | `user_bash` | types.ts:1125/1438 | runner.ts:1262 emitUserBash | 결정에 `deny` 변형 추가. pi는 예외를 다시 던짐 |
-| 3 | `input.agent.before` | input | collect | BeforeAgentStartPayload | BeforeAgentStartPatch | open |  | `before_agent_start` | types.ts:919/1468 | runner.ts:1420 emitBeforeAgentStart | pi의 message 수집을 `collect`로 받는다. `systemPrompt`는 마지막으로 정의한 값이 이긴다(병합 규칙). `systemPromptOptions` 제자리 변경은 지원하지 않음 |
+| 3 | `input.agent.before` | input | collect | BeforeAgentStartPayload | BeforeAgentStartPatch | open |  | `before_agent_start` | types.ts:919/1468 | runner.ts:1420 emitBeforeAgentStart | pi의 message 수집을 `collect`로 받는다. `systemPrompt`는 마지막으로 정의한 값이 이긴다(병합 규칙). `systemPromptOptions`(JSON 객체, 읽기 전용) 제자리 변경은 지원하지 않음 |
 | 4 | `request.context.before` | request | chain | ContextPayload | ContextPatch | skip | ● | `context` | types.ts:871/1415 | runner.ts:1298 emitContext 1단계 | 제자리 수정 대신 패치 반환만 |
 | 5 | `request.system.before` | request | chain | ContextPayload | ContextPatch | skip |  | `context_with_system` | types.ts:881/1415 | runner.ts:1298 emitContext 2단계 | 같음 |
 | 6 | `request.cache.before` | request | chain | CacheWarmingDecisionPayload | CacheWarmingPatch | skip |  | `cache_warming_decision` | cache-warmer.ts:112/117 | runner.ts:1121 emitCacheWarmingDecision | pi collect(마지막 정의값). 핸들러가 원본 payload를 받으므로 결과가 같다 |
@@ -867,10 +867,10 @@ export interface BeforeProviderRequestPayload {
   readonly provider: string;
   readonly modelId: string;
   readonly role: string;          // L1.models.spec ModelRole
-  readonly payload: unknown;
+  readonly payload: JsonObject;   // 제공자 요청 본문(JSON 객체, 끝까지 검사)
 }
-export interface ProviderPayloadValue { readonly payload: unknown }
-export interface ProviderPayloadPatch { readonly payload: unknown }              // 교체
+export interface ProviderPayloadValue { readonly payload: JsonObject }
+export interface ProviderPayloadPatch { readonly payload: JsonObject }              // 교체
 
 // points/tool.ts
 export interface CapabilityRef { readonly id: CapabilityId; readonly method: string }
@@ -913,7 +913,7 @@ export interface ToolExecutionEndPayload {
   readonly input?: Readonly<Record<string, JsonValue>>;
   /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다. input과 같은 이유로 선택이다 [제안] */
   readonly stepId?: StepId;
-  readonly result: unknown;
+  readonly result: AgentToolResult;   // M3-REQ-05: unknown에서 정확화
   readonly isError: boolean;
   readonly durationMs?: number;
   readonly parentToolCallId?: string;
@@ -1014,7 +1014,7 @@ export interface AfterProviderResponsePayload {
   readonly provider: string; readonly modelId: string; readonly role: string;
   readonly status: number; readonly headers: Readonly<Record<string, string>>;   // 인증·쿠키 헤더 제외
 }
-export interface ProviderStreamPayload { readonly provider: string; readonly api: string; readonly model: string; readonly data: unknown }
+export interface ProviderStreamPayload { readonly provider: string; readonly api: string; readonly model: string; readonly data: JsonValue }
 export interface ModelSelectPayload {
   readonly binding: ModelBindingJson;
   readonly previous: ModelBindingJson | null;

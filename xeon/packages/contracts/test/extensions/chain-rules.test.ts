@@ -200,7 +200,7 @@ describe("CHAIN_RULES replace rules", () => {
       messages: [userText],
     });
     expect(
-      CHAIN_RULES["request.provider.before"].merge({ payload: 1 }, { payload: { a: 2 } }),
+      CHAIN_RULES["request.provider.before"].merge({ payload: { a: 1 } }, { payload: { a: 2 } }),
     ).toEqual({
       payload: { a: 2 },
     });

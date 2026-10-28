@@ -3,7 +3,11 @@ import type { TSchema } from "typebox";
 import { parse } from "../../src/base/index.ts";
 import { CallerIdSchema, ToolHintsSchema, ToolRiskSchema } from "../../src/capabilities/index.ts";
 import {
+  BeforeAgentStartPayloadSchema,
+  BeforeProviderRequestPayloadSchema,
+  ProviderStreamPayloadSchema,
   ToolCallPayloadSchema,
+  ToolExecutionStartPayloadSchema,
   ToolExecutionEndPayloadSchema,
   ToolResultPayloadSchema,
 } from "../../src/extensions/index.ts";
@@ -68,7 +72,7 @@ describe("ToolExecutionEndPayload input and stepId (M3-REQ-04)", () => {
     toolName: "read",
     input: { path: "a" },
     stepId: rawId("stp", 1),
-    result: "ok",
+    result: { content: [{ type: "text", text: "ok" }], details: null },
     isError: false,
   };
 
@@ -85,5 +89,56 @@ describe("ToolExecutionEndPayload input and stepId (M3-REQ-04)", () => {
     );
     expect(accepts(ToolExecutionEndPayloadSchema, { ...end, stepId: "step_1" })).toBe(false);
     expect(accepts(ToolExecutionEndPayloadSchema, { ...end, input: "a.txt" })).toBe(false);
+  });
+});
+
+describe("JSON payload fields are checked deeply (M3-REQ-05)", () => {
+  test("tool execution payload args and result reject non-JSON values", () => {
+    const start = { toolCallId: "c", toolName: "read" };
+    expect(
+      accepts(ToolExecutionStartPayloadSchema, { ...start, args: { a: [1, { b: null }] } }),
+    ).toBe(true);
+    expect(accepts(ToolExecutionStartPayloadSchema, { ...start, args: 1 })).toBe(false);
+    expect(accepts(ToolExecutionStartPayloadSchema, { ...start, args: { a: () => 1 } })).toBe(
+      false,
+    );
+    const end = { ...start, isError: false };
+    expect(
+      accepts(ToolExecutionEndPayloadSchema, {
+        ...end,
+        result: { content: [], details: { ok: [true] } },
+      }),
+    ).toBe(true);
+    expect(
+      accepts(ToolExecutionEndPayloadSchema, {
+        ...end,
+        result: { content: "ok", details: null },
+      }),
+    ).toBe(false);
+  });
+
+  test("provider request payload is a JSON object and stream data is JSON", () => {
+    const req = { provider: "p", modelId: "m", role: "main" };
+    expect(accepts(BeforeProviderRequestPayloadSchema, { ...req, payload: { messages: [] } })).toBe(
+      true,
+    );
+    expect(accepts(BeforeProviderRequestPayloadSchema, { ...req, payload: "x" })).toBe(false);
+    const stream = { provider: "p", api: "a", model: "m" };
+    expect(accepts(ProviderStreamPayloadSchema, { ...stream, data: [1, { a: null }] })).toBe(true);
+    expect(accepts(ProviderStreamPayloadSchema, { ...stream, data: { a: undefined } })).toBe(false);
+    expect(
+      accepts(BeforeAgentStartPayloadSchema, {
+        prompt: "p",
+        systemPrompt: "s",
+        systemPromptOptions: { cwd: "/x", tools: ["a"] },
+      }),
+    ).toBe(true);
+    expect(
+      accepts(BeforeAgentStartPayloadSchema, {
+        prompt: "p",
+        systemPrompt: "s",
+        systemPromptOptions: 1,
+      }),
+    ).toBe(false);
   });
 });

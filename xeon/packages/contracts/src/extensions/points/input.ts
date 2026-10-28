@@ -9,9 +9,9 @@ import {
   type TOptional,
   type TString,
   type TUnion,
-  type TUnknown,
 } from "typebox";
 import {
+  DeepJsonObjectSchema,
   ImageContentSchema,
   JsonValueSchema,
   TextContentSchema,
@@ -143,7 +143,7 @@ export const BeforeAgentStartPayloadSchema: TObject<{
   prompt: TString;
   images: TOptional<typeof ImagesSchema>;
   systemPrompt: TString;
-  systemPromptOptions: TUnknown;
+  systemPromptOptions: typeof DeepJsonObjectSchema;
 }> = Type.Object(
   {
     /** 확장을 거친 사용자 프롬프트 텍스트 */
@@ -151,8 +151,8 @@ export const BeforeAgentStartPayloadSchema: TObject<{
     images: Type.Optional(ImagesSchema),
     /** 핸들러가 돌기 전 시스템 프롬프트(원본). 누적은 current.systemPrompt에 쌓인다 */
     systemPrompt: Type.String({ maxLength: TEXT_MAX }),
-    /** pi NormalizedBuildSystemPromptOptions. F 타입이 없어 읽기 전용 Unknown이다 [가정] */
-    systemPromptOptions: Type.Unknown(),
+    /** pi NormalizedBuildSystemPromptOptions를 JSON 객체로 직렬화한 값. 읽기 전용이다 */
+    systemPromptOptions: DeepJsonObjectSchema,
   },
   { additionalProperties: false },
 );
