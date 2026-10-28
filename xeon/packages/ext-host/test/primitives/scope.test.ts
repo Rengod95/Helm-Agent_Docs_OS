@@ -320,3 +320,52 @@ test("re-enabling a scope after a restart is not swallowed by a commit key an ea
   // 이전 실행이 이미 쓴 키를 다시 만나 재생으로 돌려받는 일(재시도)이 없다: 커밋은 한 번에 통과했다
   expect(second.records.commitCalls).toBe(first.records.commitCalls);
 });
+
+async function ticks(count: number): Promise<void> {
+  if (count > 0) {
+    await Promise.resolve();
+    await ticks(count - 1);
+  }
+}
+
+/** 끄기 요청이 유휴 적용을 예약하고, 미세작업 `delay`번 뒤에 다른 경계가 prepare를 부른다 */
+async function disableRacingIdle(
+  delay: number,
+): Promise<{ readonly statuses: string[]; readonly handle: string | undefined }> {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.install(
+    makeGroupUnit({ name: "scp-race" }, (g) => {
+      g.drive(async (loop) => {
+        await loop.turn({ input: { kind: "user", content: "go" } });
+      });
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  t.host.scope("scp-race")?.disable();
+  await ticks(delay);
+  await t.boundary(thread).idle();
+  await t.settled();
+  return {
+    statuses: t.records
+      .events(thread)
+      .filter((event) => event.kind === "scope.changed")
+      .map((event) => {
+        const payload: unknown = event.payload;
+        return typeof payload === "object" && payload !== null && "status" in payload
+          ? String(payload.status)
+          : "";
+      }),
+    handle: t.host.scope("scp-race")?.status,
+  };
+}
+
+test("a disable that races an explicit idle boundary writes one disabled event and ends disabled", async () => {
+  const delays = Array.from({ length: 12 }, (_, delay) => delay);
+  const outcomes = await Promise.all(delays.map((delay) => disableRacingIdle(delay)));
+  expect(outcomes.map((outcome) => outcome.statuses)).toEqual(
+    delays.map(() => ["enabled", "disabled"]),
+  );
+  expect(outcomes.map((outcome) => outcome.handle)).toEqual(delays.map(() => "disabled"));
+});

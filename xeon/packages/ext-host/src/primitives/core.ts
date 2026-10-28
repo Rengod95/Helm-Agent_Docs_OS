@@ -251,6 +251,10 @@ export interface ThreadRuntime {
   applying: boolean;
   /** 진행 중에 적용 요청이 또 들어왔다 */
   applyAgain: boolean;
+  /** 진행 중인 유휴 적용(prepare, 커밋, settle 전체). 다른 경계의 prepare는 이것이 끝나기를 기다린다 */
+  idleApply: Promise<void> | null;
+  /** 경계 txn이 정산되기 전이라 유휴 적용을 시작하지 못했다. 그 txn이 정산되면 다시 요청한다 */
+  applyDeferred: boolean;
 }
 
 // ── 호스트 핵심 ────────────────────────────────────────────────────────────

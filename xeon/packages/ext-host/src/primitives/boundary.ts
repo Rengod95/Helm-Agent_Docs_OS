@@ -167,8 +167,23 @@ export function createBoundary(
     return thread;
   }
 
+  /**
+   * 경계 기여를 계산한다. 유휴 적용이 진행 중이면 그 적용이 끝난 뒤에 시작한다. 유휴 적용은 자기 prepare·커밋·settle을 끝까지 하므로
+   * 기다려도 멈추지 않고, 기다리지 않으면 이쪽 prepare가 아직 커밋 중인 유휴 적용을 실패로 되돌려 같은 끄기·켜기가 두 번 기록된다
+   */
   async function prepare(signal: BoundarySignal): Promise<BoundaryContribution> {
     const thread = threadOf(signal.threadId);
+    if (thread.idleApply !== null) {
+      await thread.idleApply;
+      return await prepare(signal);
+    }
+    return await prepareNow(thread, signal);
+  }
+
+  async function prepareNow(
+    thread: ThreadRuntime,
+    signal: BoundarySignal,
+  ): Promise<BoundaryContribution> {
     if (thread.txn !== null) {
       // 정산되지 않은 이전 prepare는 실패로 되돌린다
       const stale = thread.txn;
@@ -227,6 +242,10 @@ export function createBoundary(
     if (thread === undefined || txn === null || txn === undefined) return;
     thread.txn = null;
     await scope.settle(thread, txn, result);
+    if (thread.applyDeferred) {
+      thread.applyDeferred = false;
+      requestApply(thread.threadId);
+    }
     if (result === "committed") {
       for (const id of txn.recordEnabled) {
         thread.recordedEnabled.add(id);
@@ -250,8 +269,24 @@ export function createBoundary(
 
   /** 유휴 thread의 적용: whenIdle 안에서 prepare → 따로 커밋 → settle(X.primitives.spec §4.5.5) */
   async function applyIdleOnce(thread: ThreadRuntime): Promise<void> {
+    // 루프가 커밋한 경계(turn_settled)가 아직 정산되지 않았다. 그 txn을 되돌리지 않고 정산된 뒤에 적용한다
+    if (thread.txn !== null) {
+      thread.applyDeferred = true;
+      return;
+    }
+    const finished = Promise.withResolvers<void>();
+    thread.idleApply = finished.promise;
+    try {
+      await applyIdle(thread);
+    } finally {
+      thread.idleApply = null;
+      finished.resolve();
+    }
+  }
+
+  async function applyIdle(thread: ThreadRuntime): Promise<void> {
     const signal: BoundarySignal = { threadId: thread.threadId, kind: "idle" };
-    const contribution = await prepare(signal);
+    const contribution = await prepareNow(thread, signal);
     let committed = true;
     if (contribution.drafts.length > 0) {
       const port = core.ports.get(RecordCommitPortKey);
@@ -368,6 +403,8 @@ export function createBoundary(
         warnedPorts: new Set(),
         applying: false,
         applyAgain: false,
+        idleApply: null,
+        applyDeferred: false,
       };
       core.threads.set(threadId, thread);
       // 이미 세대가 열린 scope를 이 thread에서 켠다. 저장된 켜짐 기록과 같으면 scope.changed를 다시 남기지 않는다(N-01)
