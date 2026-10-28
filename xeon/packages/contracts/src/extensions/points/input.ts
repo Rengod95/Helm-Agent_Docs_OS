@@ -197,7 +197,7 @@ export const BeforeAgentStartPatchSchema: TObject<{
   {
     /** 추가한다(merge). 여러 핸들러의 메시지가 순서대로 쌓인다 */
     message: Type.Optional(CustomMessageDraftSchema),
-    /** 시스템 프롬프트 전체 교체. 뒤 핸들러는 이 값을 current로 본다 */
+    /** 시스템 프롬프트 전체 교체. 여러 핸들러 중 마지막으로 정의한 값이 이긴다(collect 병합). 핸들러는 모두 원본을 본다 */
     systemPrompt: Type.Optional(Type.String({ maxLength: TEXT_MAX })),
   },
   { additionalProperties: false },

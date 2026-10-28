@@ -44,7 +44,7 @@ binds: [xeon/packages/contracts/src/records/**]
 | 투영 | 내구 이벤트에서 파생한 조회 테이블(메시지, 파트, 체크포인트). 같은 트랜잭션에서 갱신한다 |
 | leaf | thread의 현재 가지 끝 이벤트 id |
 | 효과 | 부작용이 있을 수 있는 도구 실행 하나 |
-| 단계 경계 | step이 끝나는 시점(pi `turn_end`). 용어는 `F.conversation.spec` §2를 따른다 |
+| 단계 경계 | step이 끝나는 시점(pi `boundary.step.after`). 용어는 `F.conversation.spec` §2를 따른다 |
 | 업캐스터 | kind별 payload를 버전 n에서 n+1로 바꾸는 순수 함수 |
 
 ## 3. 인터페이스
@@ -172,7 +172,7 @@ export type CoreEventKind =
   | "part.recorded"
   | "effect.intent" | "effect.exec" | "effect.result"
   | "checkpoint.step"
-  | "scope.changed" | "scope.handler_failed" | "lease.acquired" | "lease.released"
+  | "scope.changed" | "scope.handler_failed" | "lease.acquired" | "lease.released" | "lease.rejected"
   | "post.accepted" /* retired: review.decisions-2 U-05 */ | "settings.changed"
   | "approval.requested" | "approval.resolved"
   | "input.queued" | "input.placed" | "input.withdrawn"
@@ -244,7 +244,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[];
 export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 ```
 
-코어 카탈로그(40종, 모두 version 1). 아래 표는 `xeon/scripts/check-event-catalog.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 표 행을 고치면 코드도 고친다.
+코어 카탈로그(41종, 모두 version 1). 아래 표는 `xeon/scripts/check-event-catalog.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 표 행을 고치면 코드도 고친다.
 
 <!-- catalog:start -->
 | kind | durable | payload 스키마 | 요약 |
@@ -275,6 +275,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `scope.handler_failed` | 아니오 | `ScopeHandlerFailedPayloadSchema` | 확장 핸들러 실패 알림(`X.operations.spec` §4.3.4) |
 | `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | drive 배타 임대 획득 |
 | `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 임대 해제 |
+| `lease.rejected` | 예 | `LeaseRejectedPayloadSchema` | drive 임대 요청이 대기 상한 뒤 거부됨(`{ groupId, reason, requestSeq }`). 수명주기 지점 `lifecycle.lease.rejected`의 페이로드 [결정: adr.0017, `review.m3-lower-requirements` M3-REQ-99] |
 | `post.accepted` | 예 | `PostAcceptedPayloadSchema` | retired(`retired: true`, [결정: review.decisions-2 U-05]). 새로 쓰지 않는다. M1 개발 DB에 남은 행을 읽을 때만 스키마를 쓴다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`)다 |
 | `settings.changed` | 예 | `SettingsChangedPayloadSchema` | 세션 범위 설정 변경 |
 | `approval.requested` | 예 | `ApprovalRequestedPayloadSchema` | 승인 요청. `body.kind`는 `tool` \| `question` \| `plan`. 승인 id = 이 이벤트 id |
@@ -341,6 +342,12 @@ export interface LeaseReleasedPayload {
   /** disabled: 그룹 끄기(§4.5), budget: 상한 도달(§4.6), error: drive 함수 예외, idle: 효과 없는 반환 반복(§5 7번),
    *  revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리. 번호는 F.extensions.spec 절 */
   reason: "disabled" | "budget" | "error" | "idle" | "revoked" | "restart";
+}
+/** drive 임대 요청이 대기 상한 뒤 거부됐다 [결정: adr.0017, M3-REQ-99]. X가 커밋하고 group-kit이 `GroupStatus.drive: "rejected"`를 채운다 */
+export interface LeaseRejectedPayload {
+  groupId: string;                // 요청한 그룹(ExtensionName)
+  reason: string;                 // 거부 사유. 값 집합은 X.primitives.spec이 정한다 [미결]
+  requestSeq: number;             // 거부된 요청의 순번(0 이상)
 }
 export interface PostAcceptedPayload {
   requestId: string;              // F.extensions.spec PostOptions.requestId. 대화 범위 멱등 키
@@ -532,7 +539,7 @@ export interface SecretMaskedPayload {
 규칙:
 
 1. 각 파일은 `CatalogEntry[]`를 export한다. 휘발 kind는 `durable: false`다. 이름은 §3.2 규칙 1(점 하나, snake_case)을 따른다.
-2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 40종만 담고 `check-event-catalog.ts`는 코어 표(§3.3)와 각 도메인 문서의 카탈로그 표를 따로 대조한다.
+2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 41종만 담고 `check-event-catalog.ts`는 코어 표(§3.3)와 각 도메인 문서의 카탈로그 표를 따로 대조한다.
 3. 접두 표기: 이벤트 영역은 단수 `artifact`다. 능력 id·서비스·테이블의 복수 `artifacts`(`cap.artifacts`, `L2.artifacts.spec`)는 그대로 두고 둘의 대응은 위 표가 정한다(`L2.readme` §2 표 주석).
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
@@ -635,7 +642,7 @@ export const NOT_STARTED_TEXT: string;
 
 기록 순서 [제안]:
 
-1. `effect.intent`: `tool_call` 지점(first, 인자 변경 불가. `F.extensions.spec` §3.4 #13)을 통과한 뒤 L1.tools가 검증·정규화한 최종 인자로 실행 전에 커밋한다. 인자 변경 경로(`F.extensions.spec` §10 후보 b·c)를 채택하면 이 문장을 그 경로를 거친 인자로 고친다.
+1. `effect.intent`: `tool.call.before` 지점(first, 인자 변경 불가. `F.extensions.spec` §3.4 #13)을 통과한 뒤 L1.tools가 검증·정규화한 최종 인자로 실행 전에 커밋한다. 인자 변경 경로(`F.extensions.spec` §10 후보 b·c)를 채택하면 이 문장을 그 경로를 거친 인자로 고친다.
 2. `effect.exec`: 실행 직전에 커밋한다. `intent`와 같은 커밋에 넣어도 된다. 둘을 나누면 "실행 시작 전 중단"과 "실행 중 중단"을 구분할 수 있다.
 3. `effect.result`: 결과 toolResult `item.recorded`와 같은 커밋에 쓴다(pi durable `harness/tool.ts:588-630`, `_research/notes/F-3.md` §7).
 
@@ -1149,7 +1156,7 @@ export interface RecordCommitPort {
 ## 7. 확장 지점
 
 - 확장과 의도 그룹은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
-- X의 네 연산 중 scope, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool_result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool_call` 지점은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
+- X의 네 연산 중 scope, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool.result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool.call.before` 지점은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
 - 그룹 간 레코드 형식은 `F.extensions.spec`이 정한다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -1177,8 +1184,8 @@ export interface RecordCommitPort {
 4. `decideEffectRecovery`는 순수 함수이며 결정표 다섯 행을 그대로 낸다. intent만 있는 `unsafe` 효과는 `synthesize`/`not_started`, intent+exec만 있는 `unsafe` 효과는 `synthesize`/`outcome_unknown`으로 닫힌다.
 5. `@xeon/contracts/records`가 export하는 `ReplayPolicy`, `ReplayPolicySchema`, `toReplayPolicy`는 `@xeon/contracts/conversation`의 것과 같은 심볼이다(동일 참조). 매핑 값은 `F.conversation.spec` §9 수용 기준 9가 확인한다.
 6. 직렬화 크기가 262,145바이트인 envelope는 `checkEnvelopeSize`에서 `ok: false`(`event_too_large`)다. 262,144바이트는 `ok: true`다.
-7. `parseEventKind`는 코어 kind 40개와 병합된 도메인 카탈로그 kind를 통과시키고, 접두 없는 비코어·비도메인 kind, `ReservedDomainArea` kind, 형식 위반을 거부한다.
-8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(40종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
+7. `parseEventKind`는 코어 kind 41개와 병합된 도메인 카탈로그 kind를 통과시키고, 접두 없는 비코어·비도메인 kind, `ReservedDomainArea` kind, 형식 위반을 거부한다.
+8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(41종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
 9. 카탈로그의 모든 payload 스키마가 대표 픽스처의 JSON 왕복 뒤 검증을 통과한다.
 10. `StepCheckpointSchema`는 `schemaVersion` 누락과 `stepIndex` 음수를 거부한다.
 11. `ChunkMigration.runChunk`는 동기이고 실행기가 같은 `tx`에 커서를 저장한다. 청크 중간에 던지면 그 청크의 행과 커서가 함께 롤백된다.

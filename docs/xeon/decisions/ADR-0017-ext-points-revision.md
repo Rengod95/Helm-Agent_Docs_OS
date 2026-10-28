@@ -134,8 +134,9 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xe
 
 ## 6. 미결 사항
 
-- [미결] 자체 이름 표의 최종안. §3.2 3번 초안을 M3 F 첫 작업이 확정한다.
-- [미결] `collect` 최종 배정과 boundary 엔트리 추가의 표현(§3.3).
+- [결정: 2026-10-28 오케스트레이터] 자체 이름 표는 `F.extensions.spec` §3.4가 정본이다. lifecycle 지점은 `lifecycle.agent.settled`, `lifecycle.lease.rejected`로 종류 접두 규칙을 지키고, 내구 레코드 kind(`agent.settled`, `lease.rejected`)는 다른 이름 공간으로 둔다. 둘의 대응은 `LIFECYCLE_POINTS` 표 하나다. 명사형 마지막 마디는 `update`, `failed`, `start`, `shutdown`, `stream`을 허용한다. 옛 `agent_settled`는 `boundary.settle.after`다.
+- [결정: 2026-10-28 오케스트레이터] `collect`는 `input.agent.before`와 `session.resources`에만 배정한다. boundary 엔트리 추가(`boundary.step.after`, `boundary.settle.before`)는 chain + `finalize`로 둔다. `collect`로 옮기면 `entries`가 교체에서 추가로 바뀌므로 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다. `request.cache.before`는 chain으로 둔다.
+- [결정: 2026-10-28 오케스트레이터] 가드 출력 페이로드는 최소형 `GuardOutputPayload { threadId, turnId, target: "display" | "execution", content }`이고 `target` 값은 [가정]이다. 가드 결정은 `{ block: true, reason }`이며 값이 없으면 통과다.
 - [결정: 2026-10-28 사용자] 외부 훅(`X.operations.spec` §3.7)은 M3 밖이고 M4로 옮긴다. 근거는 D-M3-11 행 1 c안 원문("로더·안전 모드만")이다. 이 ADR은 외부 훅을 M3 범위에 넣지 않는다(§3.7 2번).
 - [미결] 그룹 간 이벤트 격리(ADR-0007 §6 같은 항목). REQ-X-05가 정한다.
 - [가정] 가드 지점의 출력 대상(표시와 실행 경로)은 L1·L4 출력 경로 목록이 정해진 뒤 확정한다.

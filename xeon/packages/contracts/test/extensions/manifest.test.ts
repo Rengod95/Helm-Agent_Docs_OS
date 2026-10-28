@@ -106,7 +106,7 @@ describe("ExtensionManifest", () => {
     const manifest = validateManifest(smokeGroup).manifest;
     if (manifest === undefined) throw new Error("fixture must be valid");
     const issues = validateUsage(manifest, {
-      on: ["tool_call", "turn_end"],
+      on: ["tool.call.before", "boundary.step.after"],
       post: true,
       drive: true,
       capabilities: [],
@@ -124,11 +124,11 @@ describe("ExtensionManifest", () => {
       layer: "plugin",
       kind: "plugin",
       entry: "./src/index.ts",
-      points: ["tool_call"],
+      points: ["tool.call.before"],
       usesDrive: false,
     });
     expect(validateManifest(manifest).issues).toEqual([]);
-    expect(manifest.points).toEqual(["tool_call"]);
+    expect(manifest.points).toEqual(["tool.call.before"]);
   });
 
   test("an unknown point name is point_unknown", () => {

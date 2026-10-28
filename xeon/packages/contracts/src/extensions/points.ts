@@ -131,6 +131,18 @@ import {
   type SessionTreePayload,
   type UIPromptPayload,
 } from "./points/session.ts";
+import {
+  AgentSettledEventPayloadSchema,
+  LeaseRejectedPayloadSchema,
+  type AgentSettledEventPayload,
+  type LeaseRejectedPayload,
+} from "../records/index.ts";
+import {
+  GuardDecisionSchema,
+  GuardOutputPayloadSchema,
+  type GuardDecision,
+  type GuardOutputPayload,
+} from "./points/guard.ts";
 import { assertNever } from "../base/index.ts";
 
 export * from "./points/input.ts";
@@ -138,11 +150,19 @@ export * from "./points/request.ts";
 export * from "./points/tool.ts";
 export * from "./points/boundary.ts";
 export * from "./points/session.ts";
+export * from "./points/guard.ts";
 
 // ── 기본 타입 ────────────────────────────────────────────────────────────
 
-export type Fold = "tap" | "first" | "chain";
-export type PointKind = "input" | "request" | "tool" | "boundary" | "session";
+export type Fold = "tap" | "first" | "chain" | "collect";
+export type PointKind =
+  | "input"
+  | "request"
+  | "tool"
+  | "boundary"
+  | "session"
+  | "lifecycle"
+  | "guard";
 
 export interface TapSig<P> {
   readonly fold: "tap";
@@ -160,61 +180,77 @@ export interface ChainSig<P, V, X> {
   readonly patch: X;
 }
 
-/** 지점 이름 → 정적 시그니처. F.extensions.spec §3.4 표와 같은 41행 */
+/**
+ * collect: 모든 핸들러가 원본 payload를 받고 반환값(contribution)을 등록 순서대로 모은다.
+ * 병합은 지점의 순수 함수(`COLLECT_RULES`)가 한 번 한다
+ */
+export interface CollectSig<P, V, C> {
+  readonly fold: "collect";
+  readonly payload: P;
+  readonly value: V;
+  readonly contribution: C;
+}
+
+/** 지점 이름 → 정적 시그니처. F.extensions.spec §3.4 표와 같은 46행 */
 export interface PointSignatures {
-  input: ChainSig<InputPayload, InputValue, InputPatch>;
-  user_bash: FirstSig<UserBashPayload, UserBashDecision>;
-  before_agent_start: ChainSig<
+  "input.user.before": ChainSig<InputPayload, InputValue, InputPatch>;
+  "input.bash.before": FirstSig<UserBashPayload, UserBashDecision>;
+  "input.agent.before": CollectSig<
     BeforeAgentStartPayload,
     BeforeAgentStartValue,
     BeforeAgentStartPatch
   >;
-  context: ChainSig<ContextPayload, ContextValue, ContextPatch>;
-  context_with_system: ChainSig<ContextPayload, ContextValue, ContextPatch>;
-  cache_warming_decision: ChainSig<
+  "request.context.before": ChainSig<ContextPayload, ContextValue, ContextPatch>;
+  "request.system.before": ChainSig<ContextPayload, ContextValue, ContextPatch>;
+  "request.cache.before": ChainSig<
     CacheWarmingDecisionPayload,
     CacheWarmingValue,
     CacheWarmingPatch
   >;
-  before_provider_request: ChainSig<
+  "request.provider.before": ChainSig<
     BeforeProviderRequestPayload,
     ProviderPayloadValue,
     ProviderPayloadPatch
   >;
-  before_provider_headers: ChainSig<BeforeProviderHeadersPayload, HeadersValue, HeadersPatch>;
-  after_provider_response: TapSig<AfterProviderResponsePayload>;
-  provider_stream_event: TapSig<ProviderStreamPayload>;
-  model_select: TapSig<ModelSelectPayload>;
-  thinking_level_select: TapSig<ThinkingLevelSelectPayload>;
-  tool_call: FirstSig<ToolCallPayload, ToolCallDecision>;
-  tool_result: ChainSig<ToolResultPayload, ToolResultValue, ToolResultPatch>;
-  tool_execution_start: TapSig<ToolExecutionStartPayload>;
-  tool_execution_update: TapSig<ToolExecutionUpdatePayload>;
-  tool_execution_end: TapSig<ToolExecutionEndPayload>;
-  agent_start: TapSig<AgentStartPayload>;
-  turn_start: TapSig<TurnStartPayload>;
-  message_start: TapSig<MessageStartPayload>;
-  message_update: TapSig<MessageUpdatePayload>;
-  message_end: ChainSig<MessageEndPayload, MessageEndValue, MessageEndPatch>;
-  turn_end: ChainSig<TurnEndPayload, BoundaryValue, BoundaryPatch>;
-  agent_before_settle: ChainSig<AgentBeforeSettlePayload, BoundaryValue, BoundaryPatch>;
-  agent_end: TapSig<AgentEndPayload>;
-  agent_settled: TapSig<AgentSettledPayload>;
-  project_trust: FirstSig<ProjectTrustPayload, ProjectTrustDecision>;
-  resources_discover: ChainSig<ResourcesDiscoverPayload, ResourcesValue, ResourcesPatch>;
-  mcp_servers_change: TapSig<McpServersChangePayload>;
-  session_start: TapSig<SessionStartPayload>;
-  session_info_changed: TapSig<SessionInfoChangedPayload>;
-  session_before_switch: FirstSig<SessionBeforeSwitchPayload, SessionCancelDecision>;
-  session_before_fork: FirstSig<SessionBeforeForkPayload, SessionBeforeForkDecision>;
-  session_before_compact: FirstSig<SessionBeforeCompactPayload, SessionBeforeCompactDecision>;
-  session_compact: TapSig<SessionCompactPayload>;
-  session_compact_failed: TapSig<SessionCompactFailedPayload>;
-  session_before_tree: FirstSig<SessionBeforeTreePayload, SessionBeforeTreeDecision>;
-  session_tree: TapSig<SessionTreePayload>;
-  session_shutdown: TapSig<SessionShutdownPayload>;
-  ui_prompt_start: TapSig<UIPromptPayload>;
-  ui_prompt_end: TapSig<UIPromptPayload>;
+  "request.headers.before": ChainSig<BeforeProviderHeadersPayload, HeadersValue, HeadersPatch>;
+  "request.provider.after": TapSig<AfterProviderResponsePayload>;
+  "request.stream": TapSig<ProviderStreamPayload>;
+  "request.model.after": TapSig<ModelSelectPayload>;
+  "request.thinking.after": TapSig<ThinkingLevelSelectPayload>;
+  "tool.call.before": FirstSig<ToolCallPayload, ToolCallDecision>;
+  "tool.result": ChainSig<ToolResultPayload, ToolResultValue, ToolResultPatch>;
+  "tool.execution.before": TapSig<ToolExecutionStartPayload>;
+  "tool.execution.update": TapSig<ToolExecutionUpdatePayload>;
+  "tool.execution.after": TapSig<ToolExecutionEndPayload>;
+  "boundary.turn.before": TapSig<AgentStartPayload>;
+  "boundary.step.before": TapSig<TurnStartPayload>;
+  "boundary.message.before": TapSig<MessageStartPayload>;
+  "boundary.message.update": TapSig<MessageUpdatePayload>;
+  "boundary.message.after": ChainSig<MessageEndPayload, MessageEndValue, MessageEndPatch>;
+  "boundary.step.after": ChainSig<TurnEndPayload, BoundaryValue, BoundaryPatch>;
+  "boundary.settle.before": ChainSig<AgentBeforeSettlePayload, BoundaryValue, BoundaryPatch>;
+  "boundary.turn.after": TapSig<AgentEndPayload>;
+  "boundary.settle.after": TapSig<AgentSettledPayload>;
+  "session.trust.before": FirstSig<ProjectTrustPayload, ProjectTrustDecision>;
+  "session.resources": CollectSig<ResourcesDiscoverPayload, ResourcesValue, ResourcesPatch>;
+  "session.mcp.after": TapSig<McpServersChangePayload>;
+  "session.start": TapSig<SessionStartPayload>;
+  "session.info.after": TapSig<SessionInfoChangedPayload>;
+  "session.switch.before": FirstSig<SessionBeforeSwitchPayload, SessionCancelDecision>;
+  "session.fork.before": FirstSig<SessionBeforeForkPayload, SessionBeforeForkDecision>;
+  "session.compact.before": FirstSig<SessionBeforeCompactPayload, SessionBeforeCompactDecision>;
+  "session.compact.after": TapSig<SessionCompactPayload>;
+  "session.compact.failed": TapSig<SessionCompactFailedPayload>;
+  "session.tree.before": FirstSig<SessionBeforeTreePayload, SessionBeforeTreeDecision>;
+  "session.tree.after": TapSig<SessionTreePayload>;
+  "session.shutdown": TapSig<SessionShutdownPayload>;
+  "session.prompt.before": TapSig<UIPromptPayload>;
+  "session.prompt.after": TapSig<UIPromptPayload>;
+  "guard.model.before": FirstSig<BeforeProviderRequestPayload, GuardDecision>;
+  "guard.tool.before": FirstSig<ToolCallPayload, GuardDecision>;
+  "guard.output.before": FirstSig<GuardOutputPayload, GuardDecision>;
+  "lifecycle.agent.settled": TapSig<AgentSettledEventPayload>;
+  "lifecycle.lease.rejected": TapSig<LeaseRejectedPayload>;
 }
 
 export type PointName = keyof PointSignatures;
@@ -224,53 +260,61 @@ export type FirstPointName = {
 export type ChainPointName = {
   [N in PointName]: PointSignatures[N]["fold"] extends "chain" ? N : never;
 }[PointName];
+export type CollectPointName = {
+  [N in PointName]: PointSignatures[N]["fold"] extends "collect" ? N : never;
+}[PointName];
 export type TapPointName = {
   [N in PointName]: PointSignatures[N]["fold"] extends "tap" ? N : never;
 }[PointName];
 
-/** §3.4 표 순서(번호 1~41)의 지점 이름 */
+/** §3.4 표 순서(번호 1~46)의 지점 이름 */
 export const POINT_NAMES: readonly PointName[] = [
-  "input",
-  "user_bash",
-  "before_agent_start",
-  "context",
-  "context_with_system",
-  "cache_warming_decision",
-  "before_provider_request",
-  "before_provider_headers",
-  "after_provider_response",
-  "provider_stream_event",
-  "model_select",
-  "thinking_level_select",
-  "tool_call",
-  "tool_result",
-  "tool_execution_start",
-  "tool_execution_update",
-  "tool_execution_end",
-  "agent_start",
-  "turn_start",
-  "message_start",
-  "message_update",
-  "message_end",
-  "turn_end",
-  "agent_before_settle",
-  "agent_end",
-  "agent_settled",
-  "project_trust",
-  "resources_discover",
-  "mcp_servers_change",
-  "session_start",
-  "session_info_changed",
-  "session_before_switch",
-  "session_before_fork",
-  "session_before_compact",
-  "session_compact",
-  "session_compact_failed",
-  "session_before_tree",
-  "session_tree",
-  "session_shutdown",
-  "ui_prompt_start",
-  "ui_prompt_end",
+  "input.user.before",
+  "input.bash.before",
+  "input.agent.before",
+  "request.context.before",
+  "request.system.before",
+  "request.cache.before",
+  "request.provider.before",
+  "request.headers.before",
+  "request.provider.after",
+  "request.stream",
+  "request.model.after",
+  "request.thinking.after",
+  "tool.call.before",
+  "tool.result",
+  "tool.execution.before",
+  "tool.execution.update",
+  "tool.execution.after",
+  "boundary.turn.before",
+  "boundary.step.before",
+  "boundary.message.before",
+  "boundary.message.update",
+  "boundary.message.after",
+  "boundary.step.after",
+  "boundary.settle.before",
+  "boundary.turn.after",
+  "boundary.settle.after",
+  "session.trust.before",
+  "session.resources",
+  "session.mcp.after",
+  "session.start",
+  "session.info.after",
+  "session.switch.before",
+  "session.fork.before",
+  "session.compact.before",
+  "session.compact.after",
+  "session.compact.failed",
+  "session.tree.before",
+  "session.tree.after",
+  "session.shutdown",
+  "session.prompt.before",
+  "session.prompt.after",
+  "guard.model.before",
+  "guard.tool.before",
+  "guard.output.before",
+  "lifecycle.agent.settled",
+  "lifecycle.lease.rejected",
 ];
 
 /** POINTS 키의 문자열 열거 */
@@ -278,15 +322,23 @@ export const PointNameSchema: TUnsafe<PointName> = Type.Unsafe<PointName>(
   Type.String({ enum: POINT_NAMES, minLength: 1, maxLength: 48 }),
 );
 
-export type OnError = "record" | "deny" | "skip";
-export type FoldOnError<F extends Fold> = F extends "tap"
-  ? "record"
+/**
+ * 지점별 실패 정책(adr.0017 §3.4). closed: 핸들러 예외가 그 지점의 거부값이 된다.
+ * open: 기록하고 그 핸들러의 몫만 버린 채 계속한다. skip: 그 핸들러의 패치만 버리고 계속한다.
+ */
+export type FailurePolicy = "closed" | "open" | "skip";
+/** fold별 기본값. first는 closed가 기본이고 지점이 open으로 바꿀 수 있다 */
+export type FoldFailure<F extends Fold> = F extends "tap" | "collect"
+  ? "open"
   : F extends "first"
-    ? "deny"
+    ? "closed" | "open"
     : "skip";
 
+/** 지점이 fold 기본값과 다른 실패 정책을 가진 지점(사유는 POINTS 선언 주석) */
+export type FailOpenFirstPointName = "session.compact.before";
+
 export interface PiSource {
-  /** pi 이벤트명. 지점 이름과 같다 */
+  /** 옛 pi 이벤트명. 지점 이름과 다르다(지점 이름은 `name`) */
   readonly event: string;
   /** 정의 위치. 예: "types.ts:1228/1426" */
   readonly def: string;
@@ -299,22 +351,24 @@ export interface PointDecl<N extends PointName = PointName> {
   readonly name: N;
   readonly kind: PointKind;
   readonly fold: PointSignatures[N]["fold"];
-  readonly onError: FoldOnError<PointSignatures[N]["fold"]>;
+  /** 핸들러 실패 정책. fold 기본값과 다르면 선언에 사유 주석을 단다 */
+  readonly failure: FoldFailure<PointSignatures[N]["fold"]>;
   /** tap만 detached 허용. detached는 디스패처가 완료를 기다리지 않는다 */
   readonly dispatch: "await" | "detached";
   readonly payload: TSchema;
-  /** first: decision 스키마, chain: patch 스키마, tap: 없음 */
+  /** first: decision 스키마, chain: patch 스키마, collect: contribution 스키마, tap: 없음 */
   readonly result?: TSchema;
   /** boundary 지점의 최종 검증 여부(§4.1) */
   readonly finalize?: "boundary";
   /**
    * 참이면 thread 없이 호스트 수준에서 발화하는 지점이다(§7). 페이로드에 threadId가 없고 발화 문맥에도 thread가 없다.
-   * 지금은 `project_trust`뿐이다(thread를 만들기 전에 폴더 신뢰를 판정한다).
+   * 지금은 `session.trust.before`뿐이다(thread를 만들기 전에 폴더 신뢰를 판정한다).
    */
   readonly threadless?: true;
   /** M1 스모크에서 페이로드를 정확화한 지점 */
   readonly m1: boolean;
-  readonly pi: PiSource;
+  /** pi 이벤트에서 온 41행의 출처. 새로 연 지점(guard, lifecycle)은 없다 */
+  readonly pi?: PiSource;
 }
 
 function pi(event: string, def: string, emit: string, piFold: PiSource["piFold"]): PiSource {
@@ -322,37 +376,37 @@ function pi(event: string, def: string, emit: string, piFold: PiSource["piFold"]
 }
 
 /**
- * 지점 선언 표. 41행 모두 fold, kind, payload, onError, pi 출처를 가진다.
+ * 지점 선언 표. 46행 모두 fold, kind, payload, failure를 가진다. pi 출처는 pi에서 온 41행만 가진다.
  * 이 표와 F.extensions.spec §3.4 표가 일치하는지는 test/extensions/points.doc.test.ts가 대조한다.
  */
 export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
-  input: {
-    name: "input",
+  "input.user.before": {
+    name: "input.user.before",
     kind: "input",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: InputPayloadSchema,
     result: InputPatchSchema,
     m1: true,
     pi: pi("input", "types.ts:1143/1156", "runner.ts:1520 emitInput", "chain"),
   },
-  user_bash: {
-    name: "user_bash",
+  "input.bash.before": {
+    name: "input.bash.before",
     kind: "input",
     fold: "first",
-    onError: "deny",
+    failure: "closed",
     dispatch: "await",
     payload: UserBashPayloadSchema,
     result: UserBashDecisionSchema,
     m1: false,
     pi: pi("user_bash", "types.ts:1125/1438", "runner.ts:1262 emitUserBash", "first"),
   },
-  before_agent_start: {
-    name: "before_agent_start",
+  "input.agent.before": {
+    name: "input.agent.before",
     kind: "input",
-    fold: "chain",
-    onError: "skip",
+    fold: "collect",
+    failure: "open",
     dispatch: "await",
     payload: BeforeAgentStartPayloadSchema,
     result: BeforeAgentStartPatchSchema,
@@ -364,33 +418,33 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "chain",
     ),
   },
-  context: {
-    name: "context",
+  "request.context.before": {
+    name: "request.context.before",
     kind: "request",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: ContextPayloadSchema,
     result: ContextPatchSchema,
     m1: true,
     pi: pi("context", "types.ts:871/1415", "runner.ts:1298 emitContext 1단계", "chain"),
   },
-  context_with_system: {
-    name: "context_with_system",
+  "request.system.before": {
+    name: "request.system.before",
     kind: "request",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: ContextPayloadSchema,
     result: ContextPatchSchema,
     m1: false,
     pi: pi("context_with_system", "types.ts:881/1415", "runner.ts:1298 emitContext 2단계", "chain"),
   },
-  cache_warming_decision: {
-    name: "cache_warming_decision",
+  "request.cache.before": {
+    name: "request.cache.before",
     kind: "request",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: CacheWarmingDecisionPayloadSchema,
     result: CacheWarmingPatchSchema,
@@ -402,11 +456,11 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "collect",
     ),
   },
-  before_provider_request: {
-    name: "before_provider_request",
+  "request.provider.before": {
+    name: "request.provider.before",
     kind: "request",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: BeforeProviderRequestPayloadSchema,
     result: ProviderPayloadPatchSchema,
@@ -418,11 +472,11 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "chain",
     ),
   },
-  before_provider_headers: {
-    name: "before_provider_headers",
+  "request.headers.before": {
+    name: "request.headers.before",
     kind: "request",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: BeforeProviderHeadersPayloadSchema,
     result: HeadersPatchSchema,
@@ -434,154 +488,154 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "tap-mutate",
     ),
   },
-  after_provider_response: {
-    name: "after_provider_response",
+  "request.provider.after": {
+    name: "request.provider.after",
     kind: "request",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: AfterProviderResponsePayloadSchema,
     m1: false,
     pi: pi("after_provider_response", "types.ts:903", "runner.ts:1089 emit", "tap"),
   },
-  provider_stream_event: {
-    name: "provider_stream_event",
+  "request.stream": {
+    name: "request.stream",
     kind: "request",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: ProviderStreamPayloadSchema,
     m1: false,
     pi: pi("provider_stream_event", "types.ts:910", "runner.ts:1089 emit", "tap"),
   },
-  model_select: {
-    name: "model_select",
+  "request.model.after": {
+    name: "request.model.after",
     kind: "request",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: ModelSelectPayloadSchema,
     m1: false,
     pi: pi("model_select", "types.ts:1106", "runner.ts:1089 emit", "tap"),
   },
-  thinking_level_select: {
-    name: "thinking_level_select",
+  "request.thinking.after": {
+    name: "request.thinking.after",
     kind: "request",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "detached",
     payload: ThinkingLevelSelectPayloadSchema,
     m1: false,
     pi: pi("thinking_level_select", "types.ts:1114", "runner.ts:1089 emit (대기 안 함)", "tap"),
   },
-  tool_call: {
-    name: "tool_call",
+  "tool.call.before": {
+    name: "tool.call.before",
     kind: "tool",
     fold: "first",
-    onError: "deny",
+    failure: "closed",
     dispatch: "await",
     payload: ToolCallPayloadSchema,
     result: ToolCallDecisionSchema,
     m1: true,
     pi: pi("tool_call", "types.ts:1228/1426", "runner.ts:1242 emitToolCall", "first"),
   },
-  tool_result: {
-    name: "tool_result",
+  "tool.result": {
+    name: "tool.result",
     kind: "tool",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: ToolResultPayloadSchema,
     result: ToolResultPatchSchema,
     m1: true,
     pi: pi("tool_result", "types.ts:1303/1455", "runner.ts:1183 emitToolResult", "chain"),
   },
-  tool_execution_start: {
-    name: "tool_execution_start",
+  "tool.execution.before": {
+    name: "tool.execution.before",
     kind: "tool",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: ToolExecutionStartPayloadSchema,
     m1: false,
     pi: pi("tool_execution_start", "types.ts:1066", "runner.ts:1089 emit", "tap"),
   },
-  tool_execution_update: {
-    name: "tool_execution_update",
+  "tool.execution.update": {
+    name: "tool.execution.update",
     kind: "tool",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: ToolExecutionUpdatePayloadSchema,
     m1: false,
     pi: pi("tool_execution_update", "types.ts:1076", "runner.ts:1089 emit", "tap"),
   },
-  tool_execution_end: {
-    name: "tool_execution_end",
+  "tool.execution.after": {
+    name: "tool.execution.after",
     kind: "tool",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: ToolExecutionEndPayloadSchema,
     m1: false,
     pi: pi("tool_execution_end", "types.ts:1087", "runner.ts:1089 emit", "tap"),
   },
-  agent_start: {
-    name: "agent_start",
+  "boundary.turn.before": {
+    name: "boundary.turn.before",
     kind: "boundary",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: AgentStartPayloadSchema,
     m1: false,
     pi: pi("agent_start", "types.ts:932", "runner.ts:1089 emit", "tap"),
   },
-  turn_start: {
-    name: "turn_start",
+  "boundary.step.before": {
+    name: "boundary.step.before",
     kind: "boundary",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: TurnStartPayloadSchema,
     m1: true,
     pi: pi("turn_start", "types.ts:1030", "runner.ts:1089 emit", "tap"),
   },
-  message_start: {
-    name: "message_start",
+  "boundary.message.before": {
+    name: "boundary.message.before",
     kind: "boundary",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: MessageStartPayloadSchema,
     m1: false,
     pi: pi("message_start", "types.ts:1047", "runner.ts:1089 emit", "tap"),
   },
-  message_update: {
-    name: "message_update",
+  "boundary.message.update": {
+    name: "boundary.message.update",
     kind: "boundary",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: MessageUpdatePayloadSchema,
     m1: false,
     pi: pi("message_update", "types.ts:1053", "runner.ts:1089 emit", "tap"),
   },
-  message_end: {
-    name: "message_end",
+  "boundary.message.after": {
+    name: "boundary.message.after",
     kind: "boundary",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: MessageEndPayloadSchema,
     result: MessageEndPatchSchema,
     m1: false,
     pi: pi("message_end", "types.ts:1060/1463", "runner.ts:1144 emitMessageEnd", "chain"),
   },
-  turn_end: {
-    name: "turn_end",
+  "boundary.step.after": {
+    name: "boundary.step.after",
     kind: "boundary",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: TurnEndPayloadSchema,
     result: BoundaryPatchSchema,
@@ -589,11 +643,11 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: true,
     pi: pi("turn_end", "types.ts:1037/994", "runner.ts:1029 emitBoundary", "chain"),
   },
-  agent_before_settle: {
-    name: "agent_before_settle",
+  "boundary.settle.before": {
+    name: "boundary.settle.before",
     kind: "boundary",
     fold: "chain",
-    onError: "skip",
+    failure: "skip",
     dispatch: "await",
     payload: AgentBeforeSettlePayloadSchema,
     result: BoundaryPatchSchema,
@@ -601,31 +655,31 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: true,
     pi: pi("agent_before_settle", "types.ts:1000/994", "runner.ts:1029 emitBoundary", "chain"),
   },
-  agent_end: {
-    name: "agent_end",
+  "boundary.turn.after": {
+    name: "boundary.turn.after",
     kind: "boundary",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: AgentEndPayloadSchema,
     m1: false,
     pi: pi("agent_end", "types.ts:937", "runner.ts:1089 emit", "tap"),
   },
-  agent_settled: {
-    name: "agent_settled",
+  "boundary.settle.after": {
+    name: "boundary.settle.after",
     kind: "boundary",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: AgentSettledPayloadSchema,
     m1: true,
     pi: pi("agent_settled", "types.ts:1005", "runner.ts:1089 emit", "tap"),
   },
-  project_trust: {
-    name: "project_trust",
+  "session.trust.before": {
+    name: "session.trust.before",
     kind: "session",
     fold: "first",
-    onError: "deny",
+    failure: "closed",
     dispatch: "await",
     payload: ProjectTrustPayloadSchema,
     result: ProjectTrustDecisionSchema,
@@ -633,11 +687,11 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("project_trust", "types.ts:686/693", "runner.ts:295 emitProjectTrustEvent", "first"),
   },
-  resources_discover: {
-    name: "resources_discover",
+  "session.resources": {
+    name: "session.resources",
     kind: "session",
-    fold: "chain",
-    onError: "skip",
+    fold: "collect",
+    failure: "open",
     dispatch: "await",
     payload: ResourcesDiscoverPayloadSchema,
     result: ResourcesPatchSchema,
@@ -649,41 +703,41 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "collect",
     ),
   },
-  mcp_servers_change: {
-    name: "mcp_servers_change",
+  "session.mcp.after": {
+    name: "session.mcp.after",
     kind: "session",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "detached",
     payload: McpServersChangePayloadSchema,
     m1: false,
     pi: pi("mcp_servers_change", "types.ts:730", "runner.ts:459 emit (대기 안 함)", "tap"),
   },
-  session_start: {
-    name: "session_start",
+  "session.start": {
+    name: "session.start",
     kind: "session",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: SessionStartPayloadSchema,
     m1: true,
     pi: pi("session_start", "types.ts:741", "runner.ts:1089 emit", "tap"),
   },
-  session_info_changed: {
-    name: "session_info_changed",
+  "session.info.after": {
+    name: "session.info.after",
     kind: "session",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "detached",
     payload: SessionInfoChangedPayloadSchema,
     m1: false,
     pi: pi("session_info_changed", "types.ts:750", "runner.ts:1089 emit (대기 안 함)", "tap"),
   },
-  session_before_switch: {
-    name: "session_before_switch",
+  "session.switch.before": {
+    name: "session.switch.before",
     kind: "session",
     fold: "first",
-    onError: "deny",
+    failure: "closed",
     dispatch: "await",
     payload: SessionBeforeSwitchPayloadSchema,
     result: SessionCancelDecisionSchema,
@@ -695,84 +749,86 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "first",
     ),
   },
-  session_before_fork: {
-    name: "session_before_fork",
+  "session.fork.before": {
+    name: "session.fork.before",
     kind: "session",
     fold: "first",
-    onError: "deny",
+    failure: "closed",
     dispatch: "await",
     payload: SessionBeforeForkPayloadSchema,
     result: SessionBeforeForkDecisionSchema,
     m1: false,
     pi: pi("session_before_fork", "types.ts:764/1478", "runner.ts:1089 emit", "first"),
   },
-  session_before_compact: {
-    name: "session_before_compact",
+  "session.compact.before": {
+    name: "session.compact.before",
     kind: "session",
     fold: "first",
-    onError: "deny",
+    // fail-open 예외(adr.0017 §3.4.3). 컨텍스트가 넘친 상태에서 핸들러 예외가 컴팩션을 막으면 대화를 이어 갈 수 없다.
+    // 예외를 낸 핸들러는 결정 없음으로 보고 다음 핸들러로 간다
+    failure: "open",
     dispatch: "await",
     payload: SessionBeforeCompactPayloadSchema,
     result: SessionBeforeCompactDecisionSchema,
     m1: false,
     pi: pi("session_before_compact", "types.ts:771/1483", "runner.ts:1089 emit", "first"),
   },
-  session_compact: {
-    name: "session_compact",
+  "session.compact.after": {
+    name: "session.compact.after",
     kind: "session",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: SessionCompactPayloadSchema,
     m1: false,
     pi: pi("session_compact", "types.ts:784", "runner.ts:1089 emit", "tap"),
   },
-  session_compact_failed: {
-    name: "session_compact_failed",
+  "session.compact.failed": {
+    name: "session.compact.failed",
     kind: "session",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: SessionCompactFailedPayloadSchema,
     m1: false,
     pi: pi("session_compact_failed", "types.ts:795", "runner.ts:1089 emit", "tap"),
   },
-  session_before_tree: {
-    name: "session_before_tree",
+  "session.tree.before": {
+    name: "session.tree.before",
     kind: "session",
     fold: "first",
-    onError: "deny",
+    failure: "closed",
     dispatch: "await",
     payload: SessionBeforeTreePayloadSchema,
     result: SessionBeforeTreeDecisionSchema,
     m1: false,
     pi: pi("session_before_tree", "types.ts:833/1488", "runner.ts:1089 emit", "first"),
   },
-  session_tree: {
-    name: "session_tree",
+  "session.tree.after": {
+    name: "session.tree.after",
     kind: "session",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: SessionTreePayloadSchema,
     m1: false,
     pi: pi("session_tree", "types.ts:840", "runner.ts:1089 emit", "tap"),
   },
-  session_shutdown: {
-    name: "session_shutdown",
+  "session.shutdown": {
+    name: "session.shutdown",
     kind: "session",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "await",
     payload: SessionShutdownPayloadSchema,
     m1: true,
     pi: pi("session_shutdown", "types.ts:810", "runner.ts:258 emitSessionShutdownEvent", "tap"),
   },
-  ui_prompt_start: {
-    name: "ui_prompt_start",
+  "session.prompt.before": {
+    name: "session.prompt.before",
     kind: "session",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "detached",
     payload: UIPromptPayloadSchema,
     m1: false,
@@ -783,29 +839,105 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "tap",
     ),
   },
-  ui_prompt_end: {
-    name: "ui_prompt_end",
+  "session.prompt.after": {
+    name: "session.prompt.after",
     kind: "session",
     fold: "tap",
-    onError: "record",
+    failure: "open",
     dispatch: "detached",
     payload: UIPromptPayloadSchema,
     m1: false,
     pi: pi("ui_prompt_end", "types.ts:1022", "runner.ts:595, 611 (대기 안 함)", "tap"),
   },
+  "guard.model.before": {
+    name: "guard.model.before",
+    kind: "guard",
+    fold: "first",
+    failure: "closed",
+    dispatch: "await",
+    payload: BeforeProviderRequestPayloadSchema,
+    result: GuardDecisionSchema,
+    m1: false,
+  },
+  "guard.tool.before": {
+    name: "guard.tool.before",
+    kind: "guard",
+    fold: "first",
+    failure: "closed",
+    dispatch: "await",
+    payload: ToolCallPayloadSchema,
+    result: GuardDecisionSchema,
+    m1: false,
+  },
+  "guard.output.before": {
+    name: "guard.output.before",
+    kind: "guard",
+    fold: "first",
+    failure: "closed",
+    dispatch: "await",
+    payload: GuardOutputPayloadSchema,
+    result: GuardDecisionSchema,
+    m1: false,
+  },
+  "lifecycle.agent.settled": {
+    name: "lifecycle.agent.settled",
+    kind: "lifecycle",
+    fold: "tap",
+    failure: "open",
+    dispatch: "await",
+    payload: AgentSettledEventPayloadSchema,
+    m1: false,
+  },
+  "lifecycle.lease.rejected": {
+    name: "lifecycle.lease.rejected",
+    kind: "lifecycle",
+    fold: "tap",
+    failure: "open",
+    dispatch: "await",
+    payload: LeaseRejectedPayloadSchema,
+    m1: false,
+  },
 };
+
+/** guard 지점 셋(adr.0017 §3.6). 키는 발화 시점의 대상이다 */
+export const GUARD_POINTS: {
+  readonly request: "guard.model.before";
+  readonly tool: "guard.tool.before";
+  readonly output: "guard.output.before";
+} = {
+  request: "guard.model.before",
+  tool: "guard.tool.before",
+  output: "guard.output.before",
+};
+
+/**
+ * lifecycle 지점과 내구 이벤트 kind의 대응. 디스패치 키는 이벤트 id이고, 레코드 kind에서 지점 이름으로 가는 길은 이 표 하나다.
+ * 이름이 다른 이유: kind는 내구 이벤트의 이름 공간(`<영역>.<이름>`)이고 지점 이름은 `<종류>.<대상>.<시점>` 규칙을 따른다
+ */
+export const LIFECYCLE_POINTS: {
+  readonly "agent.settled": "lifecycle.agent.settled";
+  readonly "lease.rejected": "lifecycle.lease.rejected";
+} = {
+  "agent.settled": "lifecycle.agent.settled",
+  "lease.rejected": "lifecycle.lease.rejected",
+};
+export type LifecycleEventKind = keyof typeof LIFECYCLE_POINTS;
 
 const DENY_REASON = "extension handler failed";
 
-/** first 지점의 거부값. 핸들러 예외는 이 값으로 바뀐다(fail-closed) */
-export const FIRST_DENY: { readonly [N in FirstPointName]: PointSignatures[N]["decision"] } = {
-  user_bash: { type: "deny", reason: DENY_REASON },
-  tool_call: { block: true, reason: DENY_REASON, terminate: false },
-  project_trust: { trusted: "no" },
-  session_before_switch: { cancel: true, reason: DENY_REASON },
-  session_before_fork: { cancel: true, reason: DENY_REASON },
-  session_before_compact: { cancel: true, reason: DENY_REASON },
-  session_before_tree: { cancel: true, reason: DENY_REASON },
+/** fail-closed first 지점의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open 지점(FailOpenFirstPointName)은 거부값이 없다 */
+export const FIRST_DENY: {
+  readonly [N in Exclude<FirstPointName, FailOpenFirstPointName>]: PointSignatures[N]["decision"];
+} = {
+  "input.bash.before": { type: "deny", reason: DENY_REASON },
+  "tool.call.before": { block: true, reason: DENY_REASON, terminate: false },
+  "session.trust.before": { trusted: "no" },
+  "session.switch.before": { cancel: true, reason: DENY_REASON },
+  "session.fork.before": { cancel: true, reason: DENY_REASON },
+  "session.tree.before": { cancel: true, reason: DENY_REASON },
+  "guard.model.before": { block: true, reason: DENY_REASON },
+  "guard.tool.before": { block: true, reason: DENY_REASON },
+  "guard.output.before": { block: true, reason: DENY_REASON },
 };
 
 // ── chain 병합 규칙 ──────────────────────────────────────────────────────
@@ -841,17 +973,10 @@ const inputRule: ChainRule<InputValue, InputPatch> = {
       case "handled":
         return { ...current, handled: true };
       default:
-        return assertNever(patch, "CHAIN_RULES.input.merge");
+        return assertNever(patch, "CHAIN_RULES[input.user.before].merge");
     }
   },
   stop: (value) => value.handled,
-};
-
-const beforeAgentStartRule: ChainRule<BeforeAgentStartValue, BeforeAgentStartPatch> = {
-  merge: (current, patch) => ({
-    messages: patch.message === undefined ? current.messages : [...current.messages, patch.message],
-    systemPrompt: patch.systemPrompt ?? current.systemPrompt,
-  }),
 };
 
 const replaceMessagesRule: ChainRule<ContextValue, ContextPatch> = {
@@ -901,8 +1026,8 @@ const messageEndRule: ChainRule<MessageEndValue, MessageEndPatch> = {
   merge: (current, patch) => {
     if (patch.message.role !== current.message.role) {
       throw new ChainMergeError(
-        "message_end",
-        `message_end patch must keep the role "${current.message.role}", got "${patch.message.role}"`,
+        "boundary.message.after",
+        `boundary.message.after patch must keep the role "${current.message.role}", got "${patch.message.role}"`,
       );
     }
     return { message: patch.message };
@@ -916,30 +1041,56 @@ const boundaryRule: ChainRule<BoundaryValue, BoundaryPatch> = {
   }),
 };
 
-const resourcesRule: ChainRule<ResourcesValue, ResourcesPatch> = {
-  merge: (current, patch) => ({
-    skillPaths: [...current.skillPaths, ...(patch.skillPaths ?? [])],
-    promptPaths: [...current.promptPaths, ...(patch.promptPaths ?? [])],
-    themePaths: [...current.themePaths, ...(patch.themePaths ?? [])],
-  }),
-};
-
 export const CHAIN_RULES: {
   readonly [N in ChainPointName]: ChainRule<
     PointSignatures[N]["value"],
     PointSignatures[N]["patch"]
   >;
 } = {
-  input: inputRule,
-  before_agent_start: beforeAgentStartRule,
-  context: replaceMessagesRule,
-  context_with_system: replaceMessagesRule,
-  cache_warming_decision: cacheWarmingRule,
-  before_provider_request: providerPayloadRule,
-  before_provider_headers: headersRule,
-  tool_result: toolResultRule,
-  message_end: messageEndRule,
-  turn_end: boundaryRule,
-  agent_before_settle: boundaryRule,
-  resources_discover: resourcesRule,
+  "input.user.before": inputRule,
+  "request.context.before": replaceMessagesRule,
+  "request.system.before": replaceMessagesRule,
+  "request.cache.before": cacheWarmingRule,
+  "request.provider.before": providerPayloadRule,
+  "request.headers.before": headersRule,
+  "tool.result": toolResultRule,
+  "boundary.message.after": messageEndRule,
+  "boundary.step.after": boundaryRule,
+  "boundary.settle.before": boundaryRule,
+};
+
+/** collect 지점의 병합 규칙. initial에 모은 기여를 등록 순서대로 한 번 합친다. 순수 함수 */
+export interface CollectRule<V, C> {
+  readonly merge: (initial: V, contributions: readonly C[]) => V;
+}
+
+const beforeAgentStartRule: CollectRule<BeforeAgentStartValue, BeforeAgentStartPatch> = {
+  merge: (initial, contributions) => ({
+    messages: [
+      ...initial.messages,
+      ...contributions.flatMap((patch) => (patch.message === undefined ? [] : [patch.message])),
+    ],
+    systemPrompt: contributions.reduce<string>(
+      (prompt, patch) => patch.systemPrompt ?? prompt,
+      initial.systemPrompt,
+    ),
+  }),
+};
+
+const resourcesRule: CollectRule<ResourcesValue, ResourcesPatch> = {
+  merge: (initial, contributions) => ({
+    skillPaths: [...initial.skillPaths, ...contributions.flatMap((p) => p.skillPaths ?? [])],
+    promptPaths: [...initial.promptPaths, ...contributions.flatMap((p) => p.promptPaths ?? [])],
+    themePaths: [...initial.themePaths, ...contributions.flatMap((p) => p.themePaths ?? [])],
+  }),
+};
+
+export const COLLECT_RULES: {
+  readonly [N in CollectPointName]: CollectRule<
+    PointSignatures[N]["value"],
+    PointSignatures[N]["contribution"]
+  >;
+} = {
+  "input.agent.before": beforeAgentStartRule,
+  "session.resources": resourcesRule,
 };

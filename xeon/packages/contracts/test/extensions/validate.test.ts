@@ -20,16 +20,21 @@ const noUsage: ExtensionUsage = {
 
 describe("validateUsage", () => {
   test("undeclared point", () => {
-    const manifest = validManifest(pluginJson({ points: ["tool_call"] }));
-    const issues = validateUsage(manifest, { ...noUsage, on: ["tool_call", "turn_end"] });
+    const manifest = validManifest(pluginJson({ points: ["tool.call.before"] }));
+    const issues = validateUsage(manifest, {
+      ...noUsage,
+      on: ["tool.call.before", "boundary.step.after"],
+    });
     expect(issues).toHaveLength(1);
     expect(issues[0]?.code).toBe("point_undeclared");
     expect(issues[0]?.severity).toBe("error");
   });
 
   test("unused point is a warning", () => {
-    const manifest = validManifest(pluginJson({ points: ["tool_call", "turn_end"] }));
-    const issues = validateUsage(manifest, { ...noUsage, on: ["tool_call"] });
+    const manifest = validManifest(
+      pluginJson({ points: ["tool.call.before", "boundary.step.after"] }),
+    );
+    const issues = validateUsage(manifest, { ...noUsage, on: ["tool.call.before"] });
     expect(issues.map((i) => [i.code, i.severity, i.path])).toEqual([
       ["point_unused", "warning", "/points/1"],
     ]);
@@ -153,7 +158,9 @@ describe("validateManifest rules", () => {
   });
 
   test("point duplicate", () => {
-    const result = validateManifest(pluginJson({ points: ["tool_call", "tool_call"] }));
+    const result = validateManifest(
+      pluginJson({ points: ["tool.call.before", "tool.call.before"] }),
+    );
     expect(codesOf(result.issues)).toEqual(["point_duplicate"]);
     expect(result.issues[0]?.path).toBe("/points/1");
   });

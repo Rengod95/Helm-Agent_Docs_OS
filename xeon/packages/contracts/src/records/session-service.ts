@@ -297,7 +297,7 @@ export type LifecycleError =
     }
   | {
       readonly kind: "cancelled_by_extension";
-      readonly point: "session_before_fork" | "session_before_tree" | "session_before_switch";
+      readonly point: "session.fork.before" | "session.tree.before" | "session.switch.before";
       readonly reason: string | null;
     };
 

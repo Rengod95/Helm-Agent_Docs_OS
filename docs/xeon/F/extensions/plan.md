@@ -16,8 +16,8 @@ binds: [xeon/packages/contracts/src/extensions/**]
 
 | 마일스톤 | 범위 | 소비자 |
 |---|---|---|
-| M0 | 지점 종류 5·fold 3 타입, `PointSignatures`·`PointDecl`·`POINTS` 41행 전체, `FIRST_DENY`, `CHAIN_RULES`, M1 지점(스펙 §3.4 M1 열 ●: `input`, `context`, `before_provider_request`, `tool_call`, `tool_result`, `turn_start`, `turn_end`, `agent_before_settle`, `agent_settled`, `session_start`, `session_shutdown`)의 페이로드·결정·패치 정확화, 4연산 타입(`ExtensionOps`, `Handler`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`), `ExtensionManifest`, `validateManifest`, `validateUsage`, `validateManifestSet`, `GroupRecord`·`RecordKindDecl`과 `grp.`/`x.` 접두 검증, 문서 표 대조 검사 | X ext-host 최소형(on/post/drive/scope), L1 core-loop·core-tools의 지점 발화 |
-| M1 | 걷는 골격 스모크: 테스트용 그룹이 이 타입으로 `on`(`tool_call`, `turn_end`), `post`, `drive`를 쓴다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 이 그룹의 매니페스트는 `validateManifest`와 `validateUsage`를 통과해야 한다. 스모크에서 드러난 페이로드 누락을 반영한다 | X, L1, L3 테스트 그룹 |
+| M0 | 지점 종류 7·fold 4 타입, `PointSignatures`·`PointDecl`·`POINTS` 46행 전체(M3 개정, adr.0017), `FIRST_DENY`, `CHAIN_RULES`, M1 지점(스펙 §3.4 M1 열 ●: `input.user.before`, `request.context.before`, `request.provider.before`, `tool.call.before`, `tool.result`, `boundary.step.before`, `boundary.step.after`, `boundary.settle.before`, `boundary.settle.after`, `session.start`, `session.shutdown`)의 페이로드·결정·패치 정확화, 4연산 타입(`ExtensionOps`, `Handler`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`), `ExtensionManifest`, `validateManifest`, `validateUsage`, `validateManifestSet`, `GroupRecord`·`RecordKindDecl`과 `grp.`/`x.` 접두 검증, 문서 표 대조 검사 | X ext-host 최소형(on/post/drive/scope), L1 core-loop·core-tools의 지점 발화 |
+| M1 | 걷는 골격 스모크: 테스트용 그룹이 이 타입으로 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓴다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 이 그룹의 매니페스트는 `validateManifest`와 `validateUsage`를 통과해야 한다. 스모크에서 드러난 페이로드 누락을 반영한다 | X, L1, L3 테스트 그룹 |
 | M2 이후 | M1 밖 지점의 페이로드 중 `Type.Unknown()`으로 둔 필드 정확화(F.records의 투영 타입, 컴팩션 타입이 정해진 뒤), 열거형 확장 예약(파트·이벤트 종류 접두, 선언 병합 규칙), 격리 필드(`isolation: "process"`)의 와이어 직렬화 요구 반영, 미결 사항 결정 반영 | X.loading-trust(격리), L3 전체 |
 
 - M0에서 나머지 30개 지점은 같은 PR에서 표만 채운다. `PointDecl`의 모든 필드를 채우되 페이로드 스키마의 pi 고유 하위 타입은 `Type.Unknown()`으로 둘 수 있다(스펙 §3.3 페이로드 형태 규칙).
@@ -30,7 +30,7 @@ xeon/packages/contracts/
   src/extensions/
     manifest.ts          # ExtensionManifestSchema, ExtensionManifest, 하위 스키마, defineManifest, EXTENSION_NAME_PATTERN
     points.ts            # Fold, PointKind, TapSig/FirstSig/ChainSig, PointSignatures, PointName(+Schema),
-                         # PointDecl, PiSource, POINTS(41행), FIRST_DENY, CHAIN_RULES, FirstPointName, ChainPointName
+                         # PointDecl, PiSource, POINTS(46행), FIRST_DENY, CHAIN_RULES, COLLECT_RULES, GUARD_POINTS, LIFECYCLE_POINTS, FirstPointName, ChainPointName, CollectPointName
     points/
       input.ts           # input, user_bash, before_agent_start 페이로드·결정·패치
       request.ts         # context, context_with_system, cache_warming_decision, before_provider_request,
@@ -67,7 +67,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 POINTS 대조 [�
 | E1 | `points.ts` 기본 타입: `Fold`, `PointKind`, `TapSig`·`FirstSig`·`ChainSig`, `OnError`, `FoldOnError`, `PiSource`, `PointDecl`, `FirstPointName`, `ChainPointName` | F.capabilities.plan P1 | S |
 | E2 | `points/<kind>.ts` 페이로드 스키마: pi 이벤트 인터페이스에서 `type`을 빼고 필드 이름을 유지한다. M1 지점 11개는 스펙 §3.5 형태로 정확화하고, 나머지는 pi 고유 하위 타입을 `Type.Unknown()`으로 둔다. ID 필드는 F.conversation의 브랜드 ID를 쓴다 | E1, F.records.plan R1(`DurableEventDraft`)·R2(`EventKind`), F.conversation.plan C1(`ThreadId` 등 ID)·C2(메시지 재노출) | L |
 | E3 | 반환 타입: first 결정(`ToolCallDecision`의 deny 형태, `UserBashDecision`, `ProjectTrustDecision`, `SessionCancelDecision` 등), chain 값·패치(`InputPatch`, `ContextPatch`, `HeadersPatch`, `ToolResultPatch`, `BoundaryValue`·`BoundaryPatch`(entries + continue), `ResourcesPatch` 등)와 각 스키마 | E2 | M |
-| E4 | pi 이벤트 → 지점 매핑 표 코드화: `PointSignatures` 41행, `POINTS` 41행(kind, fold, onError, dispatch, payload, result, finalize, m1, pi 출처), `FIRST_DENY` 7행, `CHAIN_RULES` 12행(merge, stop). `PointNameSchema` | E1, E2, E3 | M |
+| E4 | pi 이벤트 → 지점 매핑 표 코드화: `PointSignatures` 46행, `POINTS` 46행(kind, fold, failure, dispatch, payload, result, finalize, m1, pi 출처), `FIRST_DENY` 9행, `CHAIN_RULES` 10행(merge, stop), `COLLECT_RULES` 2행(merge). `PointNameSchema` | E1, E2, E3 | M |
 | E5 | `ops.ts`: `HandlerContext`, `Handler`(fold별 조건부 타입), `PostItem`, `PostOptions`, `PostReceipt`, `ExtensionOps` | E4, F.conversation.plan C2(`TextContent`, `ImageContent`, `JsonValue`). `requestId`는 `string`이다(스펙 §2) | S |
 | E6 | `drive.ts`와 `scope.ts`: `DriveFn`, `LoopHandle`, `LeaseBudget`, `DriveLease`, `DriveLimits`, `TurnInput`·`TurnOutcome`, `SpawnSpec`·`SpawnOutcome`, `ScopeDef`, `StateDecl`, `ScopeApi`(`capability(key)`, `recordPrivate(kind, payload)` 포함. `recordPrivate`는 review.decisions-2 T-21), `ScopeHandle`, `ScopeFn`, `ExtensionEntry` | E5, F.capabilities.plan P3(`ServiceKey`) | M |
 | E7 | `manifest.ts`: `ExtensionManifestSchema`와 하위 스키마, `defineManifest`. Claude Code `plugin.json` 메타 필드 + Xeon 필드 | E4, E8, F.capabilities.plan P1 | M |
@@ -96,14 +96,14 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 POINTS 대조 [�
 
 | 파일 | 테스트 | 확인할 동작 |
 |---|---|---|
-| `points.test.ts` | `every row has fold and payload` | `POINTS` 41행 모두 `fold`, `kind`, `payload`, `onError`, `dispatch`, `pi`가 있다 |
-| | `onError derived from fold` | tap→`record`, first→`deny`, chain→`skip` |
+| `points.test.ts` | `every row has fold and payload` | `POINTS` 46행 모두 `fold`, `kind`, `payload`, `failure`, `dispatch`가 있다(`pi`는 pi 출처 41행만) |
+| | `failure follows the fold default except the declared exception` | tap·collect→`open`, first→`closed`, chain→`skip`. 다른 행은 `session.compact.before`(`open`) 하나 |
 | | `names unique and complete` | 이름 중복이 없고 pi 41개 이름 목록(테스트 안 상수, `types.ts:1377-1409`를 펼친 것)과 집합이 같다 |
 | | `pi mapping complete` | 모든 행의 `pi.event`가 지점 이름과 같고 `pi.def`, `pi.emit`이 비어 있지 않다 |
 | | `kind and fold counts` | kind 3/9/5/9/15, fold tap 22·first 7·chain 12 |
 | | `first and chain tables` | first 행은 모두 `FIRST_DENY`에, chain 행은 모두 `CHAIN_RULES`에 있고 그 밖의 키는 없다 |
 | | `detached only for tap` | `dispatch: "detached"`인 행은 모두 tap이고 5개다 |
-| | `finalize only on boundary chain` | `finalize`가 있는 행은 `turn_end`, `agent_before_settle` 둘뿐이다 |
+| | `finalize only on boundary chain` | `finalize`가 있는 행은 `boundary.step.after`, `boundary.settle.before` 둘뿐이다 |
 | `chain-rules.test.ts` | `tool_result content drops structured` | `content`만 바꾸면 `structuredContent` 제거, 둘 다 주면 유지 |
 | | `input handled stops` | `handled` 패치 뒤 `stop`이 참 |
 | | `resources append` | 두 패치의 경로가 순서대로 이어진다 |
@@ -136,7 +136,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 POINTS 대조 [�
 | | `read own prefix rejected` | 그룹 `learning`의 `readsRecordKinds`에 `grp.learning.*`가 있으면 `read_kind_invalid` |
 | | `payload validated` | 선언된 payload 스키마 위반은 `record_payload_invalid`, 미등록 종류는 `record_kind_unregistered` |
 | | `version unknown` | 선언보다 큰 `version`의 레코드는 `record_version_unknown` 경고 |
-| `ops.type-test.ts` | `handler narrows by fold` | `Handler<"tool_call">` 반환이 `ToolCallDecision \| undefined`(Promise 포함), `Handler<"turn_end">`가 `(payload, current: BoundaryValue, ctx)`를 받고 `BoundaryPatch \| undefined`를 반환, `Handler<"session_start">`가 `void`를 반환 |
+| `ops.type-test.ts` | `handler narrows by fold` | `Handler<"tool.call.before">` 반환이 `ToolCallDecision \| undefined`(Promise 포함), `Handler<"boundary.step.after">`가 `(payload, current: BoundaryValue, ctx)`를 받고 `BoundaryPatch \| undefined`를 반환, `Handler<"session.start">`가 `void`를 반환 |
 | | `wrong return rejected` | tap 핸들러가 값을 반환하거나 first 핸들러가 패치를 반환하면 `// @ts-expect-error` |
 | | `capability typed by key` | `ScopeApi.capability(WebSearchKey)`의 반환 타입이 `ApiOf<typeof WebSearchKey>`와 같다 |
 | | `drive fn signature` | `DriveFn<S>`가 `(loop: LoopHandle, state: Readonly<S>) => Promise<void>` |

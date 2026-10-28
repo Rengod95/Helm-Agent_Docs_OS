@@ -23,14 +23,14 @@ binds: [xeon/packages/contracts/src/extensions/**]
 - [결정] 확장 지점은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다(`_research/decisions-log.md` 20행, 2026-10-21 계획 v2).
 - 계획 v2 본문의 확장 지점 절과 층 사이 규칙(`_research/layer-plan-v2-notes.md`).
 - 안 1과 안 3 결합안(`_research/ext-points.md` §5 안 1, §6).
-- pi 이벤트 41종 대조(`_research/notes/F-1.md`).
+- pi 이벤트 41종 대조(`_research/notes/F-1.md`)와 guard·lifecycle 5종 추가.
 - L1의 확장 지점 선언(지점 이름, fold, 페이로드 타입)은 F4에 두고 L1과 X가 공유한다(`_research/foundation-plan.md` §3 층 순위와 의존 방향).
 
 정하는 것:
 
 - `ExtensionManifest` TypeBox 스키마와 정적 검사 `validateManifest`, `validateUsage`, `validateManifestSet`
 - 4연산의 타입: `on`, `post`, `drive`, `scope`, 그리고 `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`
-- 지점 선언 표 전체(pi 이벤트 41종)와 `POINTS` 상수, `PointDecl` 타입
+- 지점 선언 표 전체(pi 이벤트 41종과 guard·lifecycle 5종)와 `POINTS` 상수, `PointDecl` 타입
 - fold별 실패 규칙과 재생 계약
 - 그룹 간 레코드 `GroupRecord`, 확장 레코드 종류 등록 `RecordKindDecl`, 접두 규칙
 - X가 쓰는 호스트 포트 타입(`ports.ts`, §3.2.1)
@@ -51,7 +51,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 | 플러그인 (plugin) | 능력 provider, 도구, 관찰·형성 핸들러를 제공하는 확장. `drive`를 쓰지 않는다 |
 | 그룹 (group) | L3 의도 그룹. 여러 지점, 입력 주입, 구동을 한 단위로 묶어 켜고 끈다. Helm과 학습 그룹은 L3 기본 그룹이다 |
 | 지점 (point) | 확장이 `on`으로 핸들러를 거는 이름 붙은 위치. 이름은 pi 이벤트명을 그대로 쓴다 |
-| 지점 종류 (kind) | `input`, `request`, `tool`, `boundary`, `session` 다섯 가지 |
+| 지점 종류 (kind) | `input`, `request`, `tool`, `boundary`, `session`, `lifecycle`, `guard` 일곱 가지 |
 | fold | 한 지점에 걸린 여러 핸들러의 결과를 합치는 규칙. `tap`, `first`, `chain` 세 가지. 지점 선언이 정하고 확장은 고르지 않는다 |
 | 페이로드 (payload) | 지점이 핸들러에 넘기는 읽기 전용 값 |
 | 결정 (decision) | `first` 지점에서 핸들러가 돌려주는 값 |
@@ -63,7 +63,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 턴과 step [제안]:
 
 - pi의 `turn_start`, `turn_end`는 모델 요청 한 번과 그 도구 라운드 단위로 발화한다. Xeon 용어로 이 단위는 step이다. 그래서 pi `turn_*` 지점은 Xeon의 step 경계에서 발화한다.
-- Xeon의 turn은 입력 하나가 들어와 정착(settle)할 때까지다. pi의 `agent_start`, `agent_end`, `agent_before_settle`, `agent_settled`가 Xeon turn 경계에서 발화한다.
+- Xeon의 turn은 입력 하나가 들어와 정착(settle)할 때까지다. pi의 `agent_start`, `agent_end`, `agent_before_settle`, `agent_settled`가 Xeon turn 경계에서 발화한다. Xeon 이름은 `boundary.turn.before`, `boundary.turn.after`, `boundary.settle.before`, `boundary.settle.after`다.
 - 이 대응은 F.conversation.spec §2 용어표(thread, turn, step, item)와 §2.1을 따른다. pi의 세션(session)은 Xeon의 thread다.
 
 다른 F 도메인에서 가져오는 이름:
@@ -665,33 +665,36 @@ export interface TrustPrompter {
 - 로더 포트의 값 판정 함수(`discover`, `resolveProjectTrust`, `trustOptions`)와 신뢰 파일 스키마(`TrustFileSchema`)는 X에 남는다. F에는 L0·L4가 구현하는 포트 모양만 둔다.
 
 - 모든 확장은 최소 하나의 scope를 만든다 [제안]. 주 scope의 id는 매니페스트 `name`이다. 상태가 없는 플러그인은 `state`를 생략한다. 이렇게 하면 플러그인과 그룹이 같은 등록·토글·정리 경로를 쓴다.
-- Helm 의사코드(`_research/layer-plan-v2-notes.md` 확장 지점 절)의 `g.on("request", …)`, `g.on("tool.before", …)`, `g.on("turn.end", …)`는 예시 표기다. 이 계약에서는 `g.on("before_provider_request", …)`, `g.on("tool_call", …)`, `g.on("turn_end", …)`처럼 pi 이벤트명을 쓴다(§4.10 [미결]).
+- Helm 의사코드(`_research/layer-plan-v2-notes.md` 확장 지점 절)의 `g.on("request", …)`, `g.on("tool.before", …)`, `g.on("turn.end", …)`는 예시 표기다. 이 계약에서는 `g.on("request.provider.before", …)`, `g.on("tool.call.before", …)`, `g.on("boundary.step.after", …)`처럼 §3.4 표의 이름을 쓴다(§4.10).
 
 ### 3.3 지점 선언 타입 (`points.ts`, `points/<kind>.ts`)
 
 ```ts
-export type Fold = "tap" | "first" | "chain";
-export type PointKind = "input" | "request" | "tool" | "boundary" | "session";
+export type Fold = "tap" | "first" | "chain" | "collect";
+export type PointKind = "input" | "request" | "tool" | "boundary" | "session" | "lifecycle" | "guard";
 
 export interface TapSig<P> { readonly fold: "tap"; readonly payload: P }
 export interface FirstSig<P, D> { readonly fold: "first"; readonly payload: P; readonly decision: D }
 export interface ChainSig<P, V, X> { readonly fold: "chain"; readonly payload: P; readonly value: V; readonly patch: X }
+export interface CollectSig<P, V, C> { readonly fold: "collect"; readonly payload: P; readonly value: V; readonly contribution: C }
 
-/** 지점 이름 → 정적 시그니처. §3.4 표와 같은 41행 */
+/** 지점 이름 → 정적 시그니처. §3.4 표와 같은 46행 */
 export interface PointSignatures {
-  input: ChainSig<InputPayload, InputValue, InputPatch>;
-  user_bash: FirstSig<UserBashPayload, UserBashDecision>;
+  "input.user.before": ChainSig<InputPayload, InputValue, InputPatch>;
+  "input.bash.before": FirstSig<UserBashPayload, UserBashDecision>;
   // … §3.4 표의 모든 행
-  turn_end: ChainSig<TurnEndPayload, BoundaryValue, BoundaryPatch>;
+  "lifecycle.lease.rejected": TapSig<LeaseRejectedPayload>;
 }
 export type PointName = keyof PointSignatures & string;
 export const PointNameSchema: TSchema;   // POINTS 키의 Type.Union(Literal…)
 
-export type OnError = "record" | "deny" | "skip";
-export type FoldOnError<F extends Fold> = F extends "tap" ? "record" : F extends "first" ? "deny" : "skip";
+/** closed: 핸들러 예외가 거부값이 된다. open: 기록하고 그 핸들러의 몫만 버린다. skip: 그 핸들러의 패치만 버린다 */
+export type FailurePolicy = "closed" | "open" | "skip";
+/** fold별 기본값. first는 지점이 open으로 바꿀 수 있다 */
+export type FoldFailure<F extends Fold> = F extends "tap" | "collect" ? "open" : F extends "first" ? "closed" | "open" : "skip";
 
 export interface PiSource {
-  readonly event: string;            // pi 이벤트명. 지점 이름과 같다
+  readonly event: string;            // 옛 pi 이벤트명. 지점 이름과 다르다
   readonly def: string;              // 정의 위치. 예: "types.ts:1228/1426"
   readonly emit: string;             // 합성 위치. 예: "runner.ts:1242 emitToolCall"
   readonly piFold: "tap" | "tap-mutate" | "first" | "chain" | "collect";
@@ -701,25 +704,32 @@ export interface PointDecl<N extends PointName = PointName> {
   readonly name: N;
   readonly kind: PointKind;
   readonly fold: PointSignatures[N]["fold"];
-  readonly onError: FoldOnError<PointSignatures[N]["fold"]>;
+  /** 핸들러 실패 정책. fold 기본값과 다르면 선언에 사유 주석을 단다 */
+  readonly failure: FoldFailure<PointSignatures[N]["fold"]>;
   /** tap만 detached 허용. detached는 디스패처가 완료를 기다리지 않는다 */
   readonly dispatch: "await" | "detached";
   readonly payload: TSchema;
-  /** first: decision 스키마, chain: patch 스키마, tap: 없음 */
+  /** first: decision 스키마, chain: patch 스키마, collect: contribution 스키마, tap: 없음 */
   readonly result?: TSchema;
   /** boundary 지점의 최종 검증 여부(§4.1) */
   readonly finalize?: "boundary";
-  /** 참이면 thread 없이 호스트 수준에서 발화한다(§7). 지금은 project_trust뿐이다 */
+  /** 참이면 thread 없이 호스트 수준에서 발화한다(§7). 지금은 session.trust.before뿐이다 */
   readonly threadless?: true;
   /** M1 스모크에서 페이로드를 정확화한 지점 */
   readonly m1: boolean;
-  readonly pi: PiSource;
+  /** pi 이벤트에서 온 41행의 출처. guard와 lifecycle 지점은 없다 */
+  readonly pi?: PiSource;
 }
 
 export const POINTS: { readonly [N in PointName]: PointDecl<N> };
 
-/** first 지점의 거부값. 핸들러 예외는 이 값으로 바뀐다 */
-export const FIRST_DENY: { readonly [N in FirstPointName]: PointSignatures[N]["decision"] };
+/** guard 지점 셋. 키는 발화 시점의 대상이다 */
+export const GUARD_POINTS: { readonly request: "guard.model.before"; readonly tool: "guard.tool.before"; readonly output: "guard.output.before" };
+/** lifecycle 지점과 내구 이벤트 kind의 대응. 레코드 kind에서 지점 이름으로 가는 길은 이 표 하나다 */
+export const LIFECYCLE_POINTS: { readonly "agent.settled": "lifecycle.agent.settled"; readonly "lease.rejected": "lifecycle.lease.rejected" };
+
+/** fail-closed first 지점의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open first 지점(session.compact.before)은 없다 */
+export const FIRST_DENY: { readonly [N in Exclude<FirstPointName, "session.compact.before">]: PointSignatures[N]["decision"] };
 
 /** chain 지점의 병합·중단 규칙. 순수 함수 */
 export interface ChainRule<V, X> {
@@ -730,66 +740,84 @@ export const CHAIN_RULES: {
   readonly [N in ChainPointName]: ChainRule<PointSignatures[N]["value"], PointSignatures[N]["patch"]>;
 };
 
+/** collect 지점의 병합 규칙. 모은 기여를 등록 순서대로 한 번 합친다. 순수 함수 */
+export interface CollectRule<V, C> {
+  readonly merge: (initial: V, contributions: readonly C[]) => V;
+}
+export const COLLECT_RULES: {
+  readonly [N in CollectPointName]: CollectRule<PointSignatures[N]["value"], PointSignatures[N]["contribution"]>;
+};
+
 export type FirstPointName = { [N in PointName]: PointSignatures[N]["fold"] extends "first" ? N : never }[PointName];
 export type ChainPointName = { [N in PointName]: PointSignatures[N]["fold"] extends "chain" ? N : never }[PointName];
+export type CollectPointName = { [N in PointName]: PointSignatures[N]["fold"] extends "collect" ? N : never }[PointName];
 ```
 
-- 페이로드 스키마는 지점 종류별 파일 `points/input.ts`, `points/request.ts`, `points/tool.ts`, `points/boundary.ts`, `points/session.ts`에 둔다.
+- 페이로드 스키마는 지점 종류별 파일 `points/input.ts`, `points/request.ts`, `points/tool.ts`, `points/boundary.ts`, `points/session.ts`, `points/guard.ts`에 둔다. lifecycle 지점의 페이로드는 내구 이벤트 payload 스키마(`records/catalog`의 `AgentSettledEventPayloadSchema`, `LeaseRejectedPayloadSchema`)를 그대로 쓴다.
 - 페이로드 형태 규칙: pi 이벤트 인터페이스에서 `type` 필드를 빼고 필드 이름을 그대로 쓴다. pi coding-agent 고유 타입(`BashOperations`, `CompactionPreparation`, `SessionEntry` 등)은 F 타입으로 바꾼다. 바꿀 F 타입이 아직 없으면 그 필드를 `Type.Unknown()`으로 두고 M1 이후 정확화한다. pi coding-agent 패키지에는 의존하지 않는다.
 
 ### 3.4 지점 선언 표
 
-- 표의 지점 이름은 아직 pi 이벤트명이다. 지점 이름은 자체 규칙으로 정리하고 pi snake_case 정본 제약은 없앤다 [결정: adr.0017]. 규칙과 새 이름표(옛 pi 이름 대응 열 포함)는 M3 F 첫 작업이 이 절에 적는다(`review.m3-lower-requirements` M3-REQ-106). 같은 작업에서 지점 선언에 실패 정책 열, fold `collect`, 가드레일 지점 셋, 수명주기 지점을 더한다(M3-REQ-12, 101, 105, 107).
+- 이름 규칙 [결정: adr.0017, 2026-10-28 오케스트레이터]: 소문자 점 표기 `<종류>.<대상>[.<시점>]`이다. 첫 마디는 `kind`와 같다. 시점은 `before`, `after` 둘이다. 시점이 없는 명사형 대상은 마지막 마디로 `update`, `failed`, `start`, `shutdown`, `stream`만 쓴다(예: `tool.result`, `tool.execution.update`, `session.start`, `request.stream`). 별칭은 두지 않는다. Xeon 용어가 pi와 다르면 Xeon 용어를 쓴다: pi의 agent는 turn, pi의 turn은 step이다(`boundary.turn.*`, `boundary.step.*`).
+- `lifecycle` 지점은 이름이 `lifecycle.<내구 kind>`다. 내구 레코드 kind(`agent.settled`, `lease.rejected`)는 따로 있는 이름 공간이고, 레코드 kind에서 지점 이름으로 가는 대응은 `LIFECYCLE_POINTS` 표 하나가 정한다. 디스패치는 이 표를 쓴다.
+- 이름 대응(옛 pi 이름)은 표의 `pi 이름` 열이다. 코드의 `PiSource.event`와 같다. 문서 대조 시험이 이 열을 코드와 맞춘다.
 - pi 위치 약어: 정의는 `~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/types.ts`의 줄(이벤트/결과), 합성은 같은 디렉터리 `runner.ts`의 줄이다. `cache-warmer.ts`는 `core/cache-warmer.ts`다. 줄 번호는 pi 1.1.0 소스 기준이다(`_research/notes/F-1.md` §2).
-- 실패 열은 fold에서 파생된다(§4.1). `record` = 기록 후 계속, `deny` = 거부값(`FIRST_DENY`)으로 처리, `skip` = 그 핸들러의 패치만 버림.
+- 실패 열은 지점 선언의 `failure` 필드다 [결정: adr.0017 §3.4]. `closed` = 핸들러 예외를 거부값(`FIRST_DENY`)으로 처리, `open` = 기록하고 그 핸들러의 몫만 버린 채 계속, `skip` = 그 핸들러의 패치만 버림. fold 기본값은 tap·collect `open`, first `closed`, chain `skip`이고, 기본값과 다른 지점은 `session.compact.before`(first, `open`) 하나다. 사유는 `POINTS` 선언의 주석에 적는다.
 - M1 열의 ●는 M1 스모크에서 페이로드를 정확화하는 지점이다(F.extensions.plan).
-- pi 차이 열은 Xeon fold가 pi 합성과 다른 점이다. 41종의 pi fold 분포는 tap 22, 제자리 변경 tap 1, first 7, chain 9, collect 2다(`_research/notes/F-1.md` §2.6). Xeon 표에서는 tap 22, first 7, chain 12다.
+- pi 차이 열은 Xeon fold가 pi 합성과 다른 점이다. 41종의 pi fold 분포는 tap 22, 제자리 변경 tap 1, first 7, chain 9, collect 2다(`_research/notes/F-1.md` §2.6). Xeon 표의 pi 41행은 tap 22, first 7, chain 10, collect 2다. `request.cache.before`은 pi collect지만 핸들러가 원본을 받으므로 chain으로 둔다 [결정: 2026-10-28 오케스트레이터].
+- `collect` 배정은 `input.agent.before`와 `session.resources` 둘이다. boundary 엔트리 추가(`boundary.step.after`, `boundary.settle.before`)는 chain + `finalize`로 둔다. `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 [결정: 2026-10-28 오케스트레이터].
+- guard 지점(42~44)은 `GuardDecision`(`{ block: true, reason }`, 값이 없으면 통과)으로 결정한다. 허용을 값으로 내면 `first`가 뒤 가드를 멈추므로 두지 않는다. 출력 대상 `display`, `execution`은 [가정]이다(L1·L4 출력 경로 목록이 정해진 뒤 확정, adr.0017 §6). 내장 검사는 없다(M3-REQ-107).
 
-| # | 지점 | kind | fold | 페이로드 | 반환 | 실패 | M1 | pi 정의 | pi 합성 | pi와 차이 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | `input` | input | chain | InputPayload | InputPatch | skip | ● | types.ts:1143/1156 | runner.ts:1520 emitInput | `handled`는 `stop` 규칙으로 표현 |
-| 2 | `user_bash` | input | first | UserBashPayload | UserBashDecision | deny | | types.ts:1125/1438 | runner.ts:1262 emitUserBash | 결정에 `deny` 변형 추가. pi는 예외를 다시 던짐 |
-| 3 | `before_agent_start` | input | chain | BeforeAgentStartPayload | BeforeAgentStartPatch | skip | | types.ts:919/1468 | runner.ts:1420 emitBeforeAgentStart | pi의 message 수집은 merge(추가)로, `systemPromptOptions` 제자리 변경은 지원하지 않음 |
-| 4 | `context` | request | chain | ContextPayload | ContextPatch | skip | ● | types.ts:871/1415 | runner.ts:1298 emitContext 1단계 | 제자리 수정 대신 패치 반환만 |
-| 5 | `context_with_system` | request | chain | ContextPayload | ContextPatch | skip | | types.ts:881/1415 | runner.ts:1298 emitContext 2단계 | 같음 |
-| 6 | `cache_warming_decision` | request | chain | CacheWarmingDecisionPayload | CacheWarmingPatch | skip | | cache-warmer.ts:112/117 | runner.ts:1121 emitCacheWarmingDecision | pi collect(마지막 정의값). 핸들러가 원본 payload를 받으므로 결과가 같다 |
-| 7 | `before_provider_request` | request | chain | BeforeProviderRequestPayload | ProviderPayloadPatch | skip | ● | types.ts:887/1422 | runner.ts:1361 emitBeforeProviderRequest | 같음 |
-| 8 | `before_provider_headers` | request | chain | BeforeProviderHeadersPayload | HeadersPatch | skip | | types.ts:897/— | runner.ts:1392 emitBeforeProviderHeaders | pi는 제자리 변경 tap. Xeon은 헤더 패치(null은 삭제) |
-| 9 | `after_provider_response` | request | tap | AfterProviderResponsePayload | void | record | | types.ts:903 | runner.ts:1089 emit | 같음 |
-| 10 | `provider_stream_event` | request | tap | ProviderStreamPayload | void | record | | types.ts:910 | runner.ts:1089 emit | 같음 |
-| 11 | `model_select` | request | tap | ModelSelectPayload | void | record | | types.ts:1106 | runner.ts:1089 emit | 같음 |
-| 12 | `thinking_level_select` | request | tap | ThinkingLevelSelectPayload | void | record | | types.ts:1114 | runner.ts:1089 emit (대기 안 함) | `dispatch: detached` |
-| 13 | `tool_call` | tool | first | ToolCallPayload | ToolCallDecision | deny | ● | types.ts:1228/1426 | runner.ts:1242 emitToolCall | `input` 제자리 변경 미지원(§10). 비차단 결과는 없음 |
-| 14 | `tool_result` | tool | chain | ToolResultPayload | ToolResultPatch | skip | ● | types.ts:1303/1455 | runner.ts:1183 emitToolResult | 같음(필드별 병합) |
-| 15 | `tool_execution_start` | tool | tap | ToolExecutionStartPayload | void | record | | types.ts:1066 | runner.ts:1089 emit | 같음 |
-| 16 | `tool_execution_update` | tool | tap | ToolExecutionUpdatePayload | void | record | | types.ts:1076 | runner.ts:1089 emit | 같음 |
-| 17 | `tool_execution_end` | tool | tap | ToolExecutionEndPayload | void | record | | types.ts:1087 | runner.ts:1089 emit | 같음 |
-| 18 | `agent_start` | boundary | tap | AgentStartPayload | void | record | | types.ts:932 | runner.ts:1089 emit | Xeon turn 시작 |
-| 19 | `turn_start` | boundary | tap | TurnStartPayload | void | record | ● | types.ts:1030 | runner.ts:1089 emit | Xeon step 시작 |
-| 20 | `message_start` | boundary | tap | MessageStartPayload | void | record | | types.ts:1047 | runner.ts:1089 emit | 같음 |
-| 21 | `message_update` | boundary | tap | MessageUpdatePayload | void | record | | types.ts:1053 | runner.ts:1089 emit | 같음 |
-| 22 | `message_end` | boundary | chain | MessageEndPayload | MessageEndPatch | skip | | types.ts:1060/1463 | runner.ts:1144 emitMessageEnd | 같음(role 불일치 패치는 건너뜀) |
-| 23 | `turn_end` | boundary | chain | TurnEndPayload | BoundaryPatch | skip | ● | types.ts:1037/994 | runner.ts:1029 emitBoundary | Xeon step 끝. 최종 검증(`finalize`) |
-| 24 | `agent_before_settle` | boundary | chain | AgentBeforeSettlePayload | BoundaryPatch | skip | ● | types.ts:1000/994 | runner.ts:1029 emitBoundary | Xeon turn 정착 직전. 최종 검증(`finalize`) |
-| 25 | `agent_end` | boundary | tap | AgentEndPayload | void | record | | types.ts:937 | runner.ts:1089 emit | 같음 |
-| 26 | `agent_settled` | boundary | tap | AgentSettledPayload | void | record | ● | types.ts:1005 | runner.ts:1089 emit | Xeon turn 끝 |
-| 27 | `project_trust` | session | first | ProjectTrustPayload | ProjectTrustDecision | deny | | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Xeon은 불신(no). thread 없이 호스트 수준에서 발화한다(`threadless`, §7) |
-| 28 | `resources_discover` | session | chain | ResourcesDiscoverPayload | ResourcesPatch | skip | | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. merge가 경로를 확장 이름과 함께 추가 |
-| 29 | `mcp_servers_change` | session | tap | McpServersChangePayload | void | record | | types.ts:730 | runner.ts:459 emit (대기 안 함) | `dispatch: detached` |
-| 30 | `session_start` | session | tap | SessionStartPayload | void | record | ● | types.ts:741 | runner.ts:1089 emit | 같음 |
-| 31 | `session_info_changed` | session | tap | SessionInfoChangedPayload | void | record | | types.ts:750 | runner.ts:1089 emit (대기 안 함) | `dispatch: detached` |
-| 32 | `session_before_switch` | session | first | SessionBeforeSwitchPayload | SessionCancelDecision | deny | | types.ts:757/1474 | runner.ts:1089 emit (cancel 중단 1096-1103) | pi fail-open. Xeon은 예외 시 취소 |
-| 33 | `session_before_fork` | session | first | SessionBeforeForkPayload | SessionBeforeForkDecision | deny | | types.ts:764/1478 | runner.ts:1089 emit | 같은 차이 |
-| 34 | `session_before_compact` | session | first | SessionBeforeCompactPayload | SessionBeforeCompactDecision | deny | | types.ts:771/1483 | runner.ts:1089 emit | pi는 cancel 외 필드를 마지막 정의값으로 모음. Xeon은 첫 결정 |
-| 35 | `session_compact` | session | tap | SessionCompactPayload | void | record | | types.ts:784 | runner.ts:1089 emit | 같음 |
-| 36 | `session_compact_failed` | session | tap | SessionCompactFailedPayload | void | record | | types.ts:795 | runner.ts:1089 emit | 같음 |
-| 37 | `session_before_tree` | session | first | SessionBeforeTreePayload | SessionBeforeTreeDecision | deny | | types.ts:833/1488 | runner.ts:1089 emit | 34번과 같은 차이 |
-| 38 | `session_tree` | session | tap | SessionTreePayload | void | record | | types.ts:840 | runner.ts:1089 emit | 같음 |
-| 39 | `session_shutdown` | session | tap | SessionShutdownPayload | void | record | ● | types.ts:810 | runner.ts:258 emitSessionShutdownEvent | 같음 |
-| 40 | `ui_prompt_start` | session | tap | UIPromptPayload | void | record | | types.ts:1014 | runner.ts:611 emitUIPromptEvent (대기 안 함) | `dispatch: detached` |
-| 41 | `ui_prompt_end` | session | tap | UIPromptPayload | void | record | | types.ts:1022 | runner.ts:595, 611 (대기 안 함) | `dispatch: detached` |
+| # | 지점 | kind | fold | 페이로드 | 반환 | 실패 | M1 | pi 이름 | pi 정의 | pi 합성 | pi와 차이 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | `input.user.before` | input | chain | InputPayload | InputPatch | skip | ● | `input` | types.ts:1143/1156 | runner.ts:1520 emitInput | `handled`는 `stop` 규칙으로 표현 |
+| 2 | `input.bash.before` | input | first | UserBashPayload | UserBashDecision | closed |  | `user_bash` | types.ts:1125/1438 | runner.ts:1262 emitUserBash | 결정에 `deny` 변형 추가. pi는 예외를 다시 던짐 |
+| 3 | `input.agent.before` | input | collect | BeforeAgentStartPayload | BeforeAgentStartPatch | open |  | `before_agent_start` | types.ts:919/1468 | runner.ts:1420 emitBeforeAgentStart | pi의 message 수집을 `collect`로 받는다. `systemPrompt`는 마지막으로 정의한 값이 이긴다(병합 규칙). `systemPromptOptions` 제자리 변경은 지원하지 않음 |
+| 4 | `request.context.before` | request | chain | ContextPayload | ContextPatch | skip | ● | `context` | types.ts:871/1415 | runner.ts:1298 emitContext 1단계 | 제자리 수정 대신 패치 반환만 |
+| 5 | `request.system.before` | request | chain | ContextPayload | ContextPatch | skip |  | `context_with_system` | types.ts:881/1415 | runner.ts:1298 emitContext 2단계 | 같음 |
+| 6 | `request.cache.before` | request | chain | CacheWarmingDecisionPayload | CacheWarmingPatch | skip |  | `cache_warming_decision` | cache-warmer.ts:112/117 | runner.ts:1121 emitCacheWarmingDecision | pi collect(마지막 정의값). 핸들러가 원본 payload를 받으므로 결과가 같다 |
+| 7 | `request.provider.before` | request | chain | BeforeProviderRequestPayload | ProviderPayloadPatch | skip | ● | `before_provider_request` | types.ts:887/1422 | runner.ts:1361 emitBeforeProviderRequest | 같음 |
+| 8 | `request.headers.before` | request | chain | BeforeProviderHeadersPayload | HeadersPatch | skip |  | `before_provider_headers` | types.ts:897/— | runner.ts:1392 emitBeforeProviderHeaders | pi는 제자리 변경 tap. Xeon은 헤더 패치(null은 삭제) |
+| 9 | `request.provider.after` | request | tap | AfterProviderResponsePayload | void | open |  | `after_provider_response` | types.ts:903 | runner.ts:1089 emit | 같음 |
+| 10 | `request.stream` | request | tap | ProviderStreamPayload | void | open |  | `provider_stream_event` | types.ts:910 | runner.ts:1089 emit | 같음 |
+| 11 | `request.model.after` | request | tap | ModelSelectPayload | void | open |  | `model_select` | types.ts:1106 | runner.ts:1089 emit | 같음 |
+| 12 | `request.thinking.after` | request | tap | ThinkingLevelSelectPayload | void | open |  | `thinking_level_select` | types.ts:1114 | runner.ts:1089 emit (대기 안 함) | `dispatch: detached` |
+| 13 | `tool.call.before` | tool | first | ToolCallPayload | ToolCallDecision | closed | ● | `tool_call` | types.ts:1228/1426 | runner.ts:1242 emitToolCall | `input` 제자리 변경 미지원(§10). 비차단 결과는 없음 |
+| 14 | `tool.result` | tool | chain | ToolResultPayload | ToolResultPatch | skip | ● | `tool_result` | types.ts:1303/1455 | runner.ts:1183 emitToolResult | 같음(필드별 병합) |
+| 15 | `tool.execution.before` | tool | tap | ToolExecutionStartPayload | void | open |  | `tool_execution_start` | types.ts:1066 | runner.ts:1089 emit | 같음 |
+| 16 | `tool.execution.update` | tool | tap | ToolExecutionUpdatePayload | void | open |  | `tool_execution_update` | types.ts:1076 | runner.ts:1089 emit | 같음 |
+| 17 | `tool.execution.after` | tool | tap | ToolExecutionEndPayload | void | open |  | `tool_execution_end` | types.ts:1087 | runner.ts:1089 emit | 같음 |
+| 18 | `boundary.turn.before` | boundary | tap | AgentStartPayload | void | open |  | `agent_start` | types.ts:932 | runner.ts:1089 emit | Xeon turn 시작 |
+| 19 | `boundary.step.before` | boundary | tap | TurnStartPayload | void | open | ● | `turn_start` | types.ts:1030 | runner.ts:1089 emit | Xeon step 시작 |
+| 20 | `boundary.message.before` | boundary | tap | MessageStartPayload | void | open |  | `message_start` | types.ts:1047 | runner.ts:1089 emit | 같음 |
+| 21 | `boundary.message.update` | boundary | tap | MessageUpdatePayload | void | open |  | `message_update` | types.ts:1053 | runner.ts:1089 emit | 같음 |
+| 22 | `boundary.message.after` | boundary | chain | MessageEndPayload | MessageEndPatch | skip |  | `message_end` | types.ts:1060/1463 | runner.ts:1144 emitMessageEnd | 같음(role 불일치 패치는 건너뜀) |
+| 23 | `boundary.step.after` | boundary | chain | TurnEndPayload | BoundaryPatch | skip | ● | `turn_end` | types.ts:1037/994 | runner.ts:1029 emitBoundary | Xeon step 끝. 최종 검증(`finalize`). boundary 엔트리 추가의 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 |
+| 24 | `boundary.settle.before` | boundary | chain | AgentBeforeSettlePayload | BoundaryPatch | skip | ● | `agent_before_settle` | types.ts:1000/994 | runner.ts:1029 emitBoundary | Xeon turn 정착 직전. 최종 검증(`finalize`). boundary 엔트리 추가의 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 |
+| 25 | `boundary.turn.after` | boundary | tap | AgentEndPayload | void | open |  | `agent_end` | types.ts:937 | runner.ts:1089 emit | 같음 |
+| 26 | `boundary.settle.after` | boundary | tap | AgentSettledPayload | void | open | ● | `agent_settled` | types.ts:1005 | runner.ts:1089 emit | Xeon turn 끝 |
+| 27 | `session.trust.before` | session | first | ProjectTrustPayload | ProjectTrustDecision | closed |  | `project_trust` | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Xeon은 불신(no). thread 없이 호스트 수준에서 발화한다(`threadless`, §7) |
+| 28 | `session.resources` | session | collect | ResourcesDiscoverPayload | ResourcesPatch | open |  | `resources_discover` | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. 병합 규칙이 경로를 확장 이름과 함께 추가 |
+| 29 | `session.mcp.after` | session | tap | McpServersChangePayload | void | open |  | `mcp_servers_change` | types.ts:730 | runner.ts:459 emit (대기 안 함) | `dispatch: detached` |
+| 30 | `session.start` | session | tap | SessionStartPayload | void | open | ● | `session_start` | types.ts:741 | runner.ts:1089 emit | 같음 |
+| 31 | `session.info.after` | session | tap | SessionInfoChangedPayload | void | open |  | `session_info_changed` | types.ts:750 | runner.ts:1089 emit (대기 안 함) | `dispatch: detached` |
+| 32 | `session.switch.before` | session | first | SessionBeforeSwitchPayload | SessionCancelDecision | closed |  | `session_before_switch` | types.ts:757/1474 | runner.ts:1089 emit (cancel 중단 1096-1103) | pi fail-open. Xeon은 예외 시 취소 |
+| 33 | `session.fork.before` | session | first | SessionBeforeForkPayload | SessionBeforeForkDecision | closed |  | `session_before_fork` | types.ts:764/1478 | runner.ts:1089 emit | 같은 차이 |
+| 34 | `session.compact.before` | session | first | SessionBeforeCompactPayload | SessionBeforeCompactDecision | open |  | `session_before_compact` | types.ts:771/1483 | runner.ts:1089 emit | pi는 cancel 외 필드를 마지막 정의값으로 모음. Xeon은 첫 결정. pi와 같이 fail-open이다(핸들러 예외는 결정 없음). 컨텍스트가 넘친 상태에서 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4] |
+| 35 | `session.compact.after` | session | tap | SessionCompactPayload | void | open |  | `session_compact` | types.ts:784 | runner.ts:1089 emit | 같음 |
+| 36 | `session.compact.failed` | session | tap | SessionCompactFailedPayload | void | open |  | `session_compact_failed` | types.ts:795 | runner.ts:1089 emit | 같음 |
+| 37 | `session.tree.before` | session | first | SessionBeforeTreePayload | SessionBeforeTreeDecision | closed |  | `session_before_tree` | types.ts:833/1488 | runner.ts:1089 emit | 34번과 같은 차이 |
+| 38 | `session.tree.after` | session | tap | SessionTreePayload | void | open |  | `session_tree` | types.ts:840 | runner.ts:1089 emit | 같음 |
+| 39 | `session.shutdown` | session | tap | SessionShutdownPayload | void | open | ● | `session_shutdown` | types.ts:810 | runner.ts:258 emitSessionShutdownEvent | 같음 |
+| 40 | `session.prompt.before` | session | tap | UIPromptPayload | void | open |  | `ui_prompt_start` | types.ts:1014 | runner.ts:611 emitUIPromptEvent (대기 안 함) | `dispatch: detached` |
+| 41 | `session.prompt.after` | session | tap | UIPromptPayload | void | open |  | `ui_prompt_end` | types.ts:1022 | runner.ts:595, 611 (대기 안 함) | `dispatch: detached` |
+| 42 | `guard.model.before` | guard | first | BeforeProviderRequestPayload | GuardDecision | closed |  | — | — | — | 제공자 요청 본문이 확정된 뒤, 전송 전. `request.provider.before`의 모든 핸들러 뒤 최종 값으로 발화한다 |
+| 43 | `guard.tool.before` | guard | first | ToolCallPayload | GuardDecision | closed |  | — | — | — | 도구 호출 허가 판정이 끝난 뒤, 실행 전. `tool.call.before` 뒤에 발화한다 |
+| 44 | `guard.output.before` | guard | first | GuardOutputPayload | GuardDecision | closed |  | — | — | — | 모델 출력이 표시나 실행 경로로 넘어가기 전. 출력 대상(`display`, `execution`)은 [가정] |
+| 45 | `lifecycle.agent.settled` | lifecycle | tap | AgentSettledEventPayload | void | open |  | — | — | — | 내구 이벤트 `agent.settled`(위임 정착)의 커밋 뒤. 이름이 같은 `boundary.settle.after`는 turn 끝 지점이고 다른 지점이다 |
+| 46 | `lifecycle.lease.rejected` | lifecycle | tap | LeaseRejectedPayload | void | open |  | — | — | — | 내구 이벤트 `lease.rejected`(임대 요청 거부)의 커밋 뒤 |
 
-집계: kind는 input 3, request 9, tool 5, boundary 9, session 15다. fold는 tap 22, first 7, chain 12다. pi에서 결과를 돌려받는 지점은 18개(반환 기반)와 제자리 변경 1개(`before_provider_headers`)이고 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2).
+집계: kind는 input 3, request 9, tool 5, boundary 9, session 15, lifecycle 2, guard 3이다(46행). fold는 tap 24, first 10, chain 10, collect 2다. 실패는 closed 9, open 27, skip 10이다. pi에서 결과를 돌려받는 지점은 18개(반환 기반)와 제자리 변경 1개(`request.headers.before`)이고 pi의 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2). guard와 lifecycle 5행은 pi에 없다.
 
 ### 3.5 M1 지점의 페이로드와 반환 타입
 
@@ -811,7 +839,7 @@ export interface InputValue {
 export type InputPatch =
   | { readonly action: "transform"; readonly text: string; readonly images?: readonly ImageContent[] }
   | { readonly action: "handled" };
-// CHAIN_RULES.input: transform → text·images 교체, handled → handled=true. stop: value.handled
+// CHAIN_RULES["input.user.before"]: transform → text·images 교체, handled → handled=true. stop: value.handled
 
 // points/request.ts
 export interface ContextPayload { readonly messages: readonly AgentMessage[] }
@@ -845,7 +873,7 @@ export interface ToolCallDecision {
   /** 이 배치의 모든 결과가 terminate면 배치 뒤 멈춘다(pi-agent-core 1.3.0 규칙을 옮긴 core-loop tool-batch.ts, adr.0009 §3.3) */
   readonly terminate?: boolean;
 }
-// FIRST_DENY.tool_call = { block: true, reason: "extension handler failed", terminate: false }
+// FIRST_DENY["tool.call.before"] = { block: true, reason: "extension handler failed", terminate: false }
 
 export interface ToolResultPayload extends Omit<ToolCallPayload, "input"> {
   readonly input: Readonly<Record<string, JsonValue>>;
@@ -858,7 +886,7 @@ export interface ToolResultValue {
   readonly usage?: Usage;
 }
 export type ToolResultPatch = Partial<ToolResultValue>;
-// CHAIN_RULES.tool_result: 정의된 필드만 덮어쓴다. content를 바꾸고 structuredContent를 주지 않으면
+// CHAIN_RULES["tool.result"]: 정의된 필드만 덮어쓴다. content를 바꾸고 structuredContent를 주지 않으면
 // structuredContent를 지운다(pi types.ts:1450-1455 주석과 같은 규칙)
 
 // points/boundary.ts
@@ -944,7 +972,7 @@ export interface ThinkingLevelSelectPayload { readonly role: string; readonly le
 export interface ProjectTrustPayload { readonly cwd: string }
 /** pi ProjectTrustEventResult에서 "undecided"를 뺀 것. 결정하지 않으려면 undefined를 돌려준다 */
 export interface ProjectTrustDecision { readonly trusted: "yes" | "no"; readonly remember?: boolean }
-// FIRST_DENY.project_trust = { trusted: "no" }
+// FIRST_DENY["session.trust.before"] = { trusted: "no" }
 
 export interface McpServersChangePayload {
   readonly servers: readonly { readonly id: string; readonly status: "connected" | "disconnected" | "error" | "disabled" }[];
@@ -968,7 +996,7 @@ export interface SessionBeforeCompactPayload {
 export type SessionBeforeCompactDecision =
   | { readonly cancel: true; readonly reason: string }
   | { readonly cancel: false; readonly compaction: { readonly summary: string; readonly firstKeptEventId: EventId; readonly details: JsonValue | null } };
-// FIRST_DENY.session_before_compact = { cancel: true, reason: "extension handler failed" }
+// session.compact.before는 fail-open이라 FIRST_DENY 항목이 없다(§4.1)
 
 export interface SessionCompactPayload {
   readonly threadId: ThreadId;
@@ -986,7 +1014,7 @@ export interface SessionCompactFailedPayload {
 ```
 
 - `McpServersChangePayload.servers[].status` 값 집합은 [가정]이다. `L2.mcp.spec`의 서버 상태 이름이 다르면 그쪽 이름으로 고친다.
-- pi `model_select`의 `source: "cycle"`은 Xeon에 대응 기능이 없어 뺐다(`L1.models.spec` §7.2).
+- pi `model_select`(`request.model.after`)의 `source: "cycle"`은 Xeon에 대응 기능이 없어 뺐다(`L1.models.spec` §7.2).
 
 ### 3.6 그룹 간 레코드 (`group-record.ts`)
 
@@ -1097,19 +1125,23 @@ export function validateGroupRecord(record: GroupRecord, decl: RecordKindDecl | 
 
 ### 4.1 fold 규칙
 
-[결정] 실패 정책은 세 줄이다(`_research/layer-plan-v2-notes.md` 확장 지점 절).
+[결정: adr.0017] fold는 네 가지이고 실패 정책은 지점 선언의 `failure` 필드가 정한다. 아래는 fold별 합성 방식과 기본 실패 정책이다.
 
-1. `tap`: 모든 핸들러를 실행한다. 핸들러 예외는 기록하고 다음 핸들러로 간다. 반환값은 쓰지 않는다.
-2. `first`: 등록 순서대로 실행하고 `undefined`가 아닌 첫 반환값을 결정으로 쓴다. 뒤 핸들러는 실행하지 않는다. 핸들러 예외는 그 지점의 거부값(`FIRST_DENY`)을 결정으로 쓴다(fail-closed).
-3. `chain`: 지점이 초기값을 만들고, 핸들러마다 `(payload, current)`를 넘긴다. 반환 패치가 있으면 `CHAIN_RULES[point].merge(current, patch)`로 다음 값을 만든다. 핸들러 예외나 병합 거부(예: `message_end`의 role 불일치)는 그 핸들러의 패치만 버리고 계속한다. `stop(value)`가 참이면 뒤 핸들러를 실행하지 않는다.
+1. `tap`: 모든 핸들러를 실행한다. 반환값은 쓰지 않는다. 기본 실패 정책은 `open`이다. 핸들러 예외는 기록하고 다음 핸들러로 간다.
+2. `first`: 등록 순서대로 실행하고 `undefined`가 아닌 첫 반환값을 결정으로 쓴다. 뒤 핸들러는 실행하지 않는다. 기본 실패 정책은 `closed`다. 핸들러 예외는 그 지점의 거부값(`FIRST_DENY`)을 결정으로 쓴다(fail-closed). `open`인 지점(`session.compact.before`)은 예외를 낸 핸들러를 결정 없음으로 보고 다음 핸들러로 가며 거부값이 없다.
+3. `chain`: 지점이 초기값을 만들고, 핸들러마다 `(payload, current)`를 넘긴다. 반환 패치가 있으면 `CHAIN_RULES[point].merge(current, patch)`로 다음 값을 만든다. 정책은 `skip`이다. 핸들러 예외나 병합 거부(예: `boundary.message.after`의 role 불일치)는 그 핸들러의 패치만 버리고 계속한다. `stop(value)`가 참이면 뒤 핸들러를 실행하지 않는다.
+4. `collect`: 모든 핸들러가 원본 `payload`만 받는다(`current`는 없다). 지점이 초기값을 만들고, `undefined`가 아닌 반환값(기여)을 등록 순서대로 목록에 모은 뒤 `COLLECT_RULES[point].merge(initial, contributions)`가 한 번 합친다. 정책은 `open`이다. 예외를 낸 핸들러는 그 기여만 빼고 계속한다.
+
+권한·차단 지점(`input.bash.before`, `tool.call.before`, `session.trust.before`, `session.switch.before`, `session.fork.before`, `session.tree.before`, guard 지점 셋)은 `closed`다. `session.compact.before`는 `open` 예외다. 컨텍스트가 넘친 상태에서 핸들러 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4].
 
 chain의 보충 규칙 [제안]:
 
-- 핸들러가 받는 `payload`는 디스패치 내내 원본 그대로다. 누적은 `current`에만 쌓인다. 이 분리로 pi의 collect 2종(`resources_discover`, `cache_warming_decision`)과 `before_agent_start`의 message 수집을 chain 하나로 표현한다. 핸들러가 원본을 받으므로 `cache_warming_decision`의 반례(`_research/notes/F-1.md` §3.3)가 생기지 않는다.
-- 병합 규칙은 지점별 순수 함수(`CHAIN_RULES`)로 F에 둔다. 기본은 교체이고, `tool_result`는 필드별 병합, `resources_discover`와 `before_agent_start.message`는 추가다.
-- boundary의 최종 검증(`finalize: "boundary"`): `turn_end`와 `agent_before_settle`은 모든 핸들러 뒤에 L1이 최종 값을 검증한다. 엔트리로 컨텍스트를 재구성할 수 없으면 `{ entries: [], continue: false }`로 바꾼다(`runner.ts:1075-1077`과 같다). 중간 단계의 무효 상태는 허용하고 기록만 한다. `continue`는 L1이 `canContinue`로 다시 승인한다. 검증 로직은 L1.loop.spec이 정하고 F는 표지만 둔다.
-- [결정: adr.0017] 4번째 fold `collect`를 더한다. 모든 핸들러의 반환값을 등록 순서대로 모으고, 예외를 낸 핸들러는 그 기여만 뺀다(fail-open). boundary의 "엔트리 추가 + 계속"을 chain 교체 + `finalize`로 둘지 `collect`로 옮길지는 지점 배정 문제이고 M3 F 첫 작업이 §3.4 표에서 정한다(`review.m3-lower-requirements` M3-REQ-105). 위 세 줄 규칙은 `collect`를 더해 네 줄이 된다.
-- [결정: adr.0017] 실패 정책은 지점 선언이 정한다. 권한·차단 지점(`tool_call`, `user_bash`, `project_trust`, `session_before_*`, 가드레일 지점)은 fail-closed, 관찰·추가 지점(`tap`, `collect`)은 fail-open, 변형 지점(`chain`)은 그 핸들러만 건너뛴다. `session_before_compact`는 fail-open 예외로 둔다 [제안]. 선언 필드와 표는 M3-REQ-12가 §3.4에 적는다.
+- 핸들러가 받는 `payload`는 디스패치 내내 원본 그대로다. 누적은 `current`에만 쌓인다. 핸들러가 원본을 받으므로 pi `cache_warming_decision`의 반례(`_research/notes/F-1.md` §3.3)가 생기지 않는다. 그래서 pi collect인 `request.cache.before`는 chain으로 둔다.
+- 병합 규칙은 지점별 순수 함수(`CHAIN_RULES`, `COLLECT_RULES`)로 F에 둔다. chain의 기본은 교체이고, `tool.result`는 필드별 병합이다. collect인 `session.resources`와 `input.agent.before`는 추가다(`input.agent.before`의 `systemPrompt`는 마지막으로 정의한 값이 이긴다). [결정: 2026-10-28 오케스트레이터] collect에서 핸들러는 원본 payload만 보고 `systemPrompt`는 마지막으로 정의한 값이 이기므로, `systemPrompt`를 기여하는 핸들러는 하나만 둔다. 두 번째 기여자가 생기면 그때 다시 본다.
+- boundary의 최종 검증(`finalize: "boundary"`): `boundary.step.after`와 `boundary.settle.before`는 모든 핸들러 뒤에 L1이 최종 값을 검증한다. 엔트리로 컨텍스트를 재구성할 수 없으면 `{ entries: [], continue: false }`로 바꾼다(`runner.ts:1075-1077`과 같다). 중간 단계의 무효 상태는 허용하고 기록만 한다. `continue`는 L1이 `canContinue`로 다시 승인한다. 검증 로직은 L1.loop.spec이 정하고 F는 표지만 둔다.
+- [결정: 2026-10-28 오케스트레이터] boundary의 "엔트리 추가 + 계속"은 chain 교체 + `finalize`로 둔다. `collect`로 옮기면 `entries`가 교체에서 추가로 바뀌므로 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다. `collect` 배정은 `input.agent.before`와 `session.resources`다(`review.m3-lower-requirements` M3-REQ-105).
+- guard 지점은 같은 대상의 일반 지점(`request.provider.before`, `tool.call.before`)의 모든 핸들러가 끝난 뒤 최종 값으로 발화한다. 가드 핸들러는 값을 바꾸지 못하고 `{ block: true, reason }` 또는 결정 없음(통과)만 낸다. 핸들러가 없으면 발화 비용이 없다.
+- lifecycle 지점은 해당 내구 이벤트가 커밋된 뒤 발화한다. 디스패치 키는 이벤트 id이고, 레코드 kind에서 지점 이름은 `LIFECYCLE_POINTS` 표 하나로 찾는다.
 
 ### 4.2 디스패치 순서
 
@@ -1140,7 +1172,7 @@ chain의 보충 규칙 [제안]:
 ### 4.5 켜기·끄기
 
 - [결정] 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 5).
-- [결정: review.decisions-2 U-01] 적용 시점은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤, `turn_end` 처리 뒤)다(F.conversation.spec §2, §2.1). drive 임대 교대도 같은 시점이다. turn의 마지막 step이 끝나는 시점도 단계 경계이므로 turn 정착 시점을 따로 두지 않는다. 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec이 정한다. drive 임대의 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다.
+- [결정: review.decisions-2 U-01] 적용 시점은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤, `boundary.step.after` 처리 뒤)다(F.conversation.spec §2, §2.1). drive 임대 교대도 같은 시점이다. turn의 마지막 step이 끝나는 시점도 단계 경계이므로 turn 정착 시점을 따로 두지 않는다. 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec이 정한다. drive 임대의 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다.
 - `enable()`, `disable()`은 요청만 기록한다. 상태는 `enabling`, `disabling`을 거쳐 적용 지점에서 바뀐다.
 - 비활성화 적용 순서 [제안]: on 핸들러 제외 → drive 임대 반납 → `onDispose` 정리 동작 실행. 큐에 이미 들어간 post 항목은 그대로 둔다.
 
@@ -1215,8 +1247,10 @@ chain의 보충 규칙 [제안]:
 
 ### 4.10 지점 이름 표기
 
-- [결정: adr.0017] 지점 이름은 자체 규칙으로 정리한다. 계획 v2의 "지점 이름은 pi 이벤트명을 그대로 씁니다"(`_research/layer-plan-v2-notes.md` 확장 지점 절)는 pi 확장 호환을 전제로 했고, pi 어댑터를 두지 않기로 해(`review.m3-design-inputs` D-M3-11 c) 그 전제가 없어졌다. 새 이름표가 나오기 전까지 이 문서는 pi 이벤트명을 쓴다.
-- 같은 자료의 Helm 의사코드와 `_research/ext-points.md` §5는 `request`, `tool.before`, `tool.after`, `turn.end` 같은 점 표기를 쓴다. 이 표기는 새 이름 규칙의 후보 자료로만 본다. 별칭은 두지 않는다 [제안]. 규칙과 이름표는 M3 F 첫 작업(M3-REQ-106)이 정한다.
+- [결정: adr.0017] 지점 이름은 자체 규칙 `<종류>.<대상>[.<시점>]`이다(§3.4). 계획 v2의 "지점 이름은 pi 이벤트명을 그대로 씁니다"(`_research/layer-plan-v2-notes.md` 확장 지점 절)는 pi 확장 호환을 전제로 했고, pi 어댑터를 두지 않기로 해(`review.m3-design-inputs` D-M3-11 c) 그 전제가 없어졌다.
+- 허용하는 명사형 마지막 마디는 `update`, `failed`, `start`, `shutdown`, `stream`이다 [결정: 2026-10-28 오케스트레이터]. 시점이 있는 이름은 `before`, `after`만 쓴다. lifecycle 지점은 `lifecycle.<내구 kind>`이고 이 규칙의 예외다.
+- 별칭은 두지 않는다. 옛 pi 이름은 표의 `pi 이름` 열과 `PiSource.event`에만 남는다.
+- Helm 의사코드(`_research/layer-plan-v2-notes.md`)와 `_research/ext-points.md` §5의 `request`, `tool.before`, `tool.after`, `turn.end` 표기는 후보 자료였고 §3.4 표가 확정한 이름으로 대체했다.
 
 ## 5. 실패와 경계 사례
 
@@ -1229,7 +1263,7 @@ chain의 보충 규칙 [제안]:
 7. drive 함수가 `loop.turn` 없이 반환함: 다음 경계에서 다시 호출된다. 같은 상태로 연속 두 번 아무 효과 없이 반환하면 X가 임대를 반납한다 [제안].
 8. `readRecords`의 대상 그룹이 제거됨: 이미 기록된 레코드는 이벤트 로그에 남으므로 계속 읽힌다. 새 레코드만 없다.
 9. 레코드 `version`이 읽는 쪽이 아는 버전보다 큼: `record_version_unknown` 경고와 함께 payload를 원형 그대로 돌려준다. 해석 실패 처리는 읽는 그룹 몫이다.
-10. pi 확장을 그대로 올릴 때 `tool_call`의 `event.input` 제자리 수정에 의존하는 경우: 페이로드가 읽기 전용이라 동작하지 않는다. `tool_call`은 인자 변경을 지원하지 않는다(허용·거부·결과 대체만) [결정: review.decisions-2 U-06]. 인자 변경이 필요하면 2차에 chain 지점을 따로 더한다.
+10. pi 확장을 그대로 올릴 때 `tool.call.before`의 `event.input` 제자리 수정에 의존하는 경우: 페이로드가 읽기 전용이라 동작하지 않는다. `tool.call.before`는 인자 변경을 지원하지 않는다(허용·거부·결과 대체만) [결정: review.decisions-2 U-06]. 인자 변경이 필요하면 2차에 chain 지점을 따로 더한다.
 
 ## 6. 설정 노출
 
@@ -1249,15 +1283,17 @@ chain의 보충 규칙 [제안]:
 
 | kind | 발화하는 문서 |
 |---|---|
-| input | L1.loop.spec(`input`, `user_bash`, `before_agent_start`) |
+| input | L1.loop.spec(`input.user.before`, `input.bash.before`, `input.agent.before`) |
 | request | L1.context.spec, L1.models.spec |
 | tool | L1.tools.spec |
 | boundary | L1.loop.spec |
-| session | L1.persistence.spec(아래 나머지), L1.context.spec(`session_before_compact`, `session_compact`, `session_compact_failed`), L1.tools.spec(`ui_prompt_start`, `ui_prompt_end`. 승인 프로토콜), X.loading-trust.spec(`project_trust`, `resources_discover`), L2.mcp.spec(`mcp_servers_change`) |
+| lifecycle | L1.agents.spec(`lifecycle.agent.settled`), X.primitives.spec(`lifecycle.lease.rejected`). 커밋 뒤 발화 |
+| guard | L1.loop.spec, L1.tools.spec(발화 위치는 M3-REQ-109) |
+| session | L1.persistence.spec(아래 나머지), L1.context.spec(`session.compact.before`, `session.compact.after`, `session.compact.failed`), L1.tools.spec(`session.prompt.before`, `session.prompt.after`. 승인 프로토콜), X.loading-trust.spec(`session.trust.before`, `session.resources`), L2.mcp.spec(`session.mcp.after`) |
 
-- [제안] 지점별 발화 문서는 `L1.readme` §6 소유표와 같다. 컴팩션은 core-context가 수행하므로 `session_*compact*`는 L1.context, 승인 화면 알림은 승인 프로토콜 소유라 `ui_prompt_*`는 L1.tools가 발화한다. `input` 지점은 L1.loop가 발화한다(`architecture.runtime-flow` 그림의 tasks 표기는 그쪽 문서가 고친다).
+- [제안] 지점별 발화 문서는 `L1.readme` §6 소유표와 같다. 컴팩션은 core-context가 수행하므로 `session.compact.*`는 L1.context, 승인 화면 알림은 승인 프로토콜 소유라 `session.prompt.*`는 L1.tools가 발화한다. `input.*` 지점은 L1.loop가 발화한다(`architecture.runtime-flow` 그림의 tasks 표기는 그쪽 문서가 고친다).
 
-- [결정: m2c G1-03] `project_trust`는 kind가 `session`이지만 thread 없이 호스트 수준에서 발화한다. 폴더 신뢰는 thread를 만들거나 열기 전에 판정해야 하기 때문이다(`X.loading-trust.spec` §4.7.4). `PointDecl.threadless: true`가 이 지점을 표시하고, 페이로드(`{ cwd }`)와 발화 문맥에 `threadId`가 없다. 그래서 핸들러는 thread 상태(`stateOf`)나 thread 신호를 쓰지 못하고, 예산·진단은 호스트 수준 한도를 따른다. 그 밖의 `session` 지점은 모두 thread에 묶여 발화한다. 발화 규칙의 구현(디스패처의 thread 없는 경로, 예산, 진단)은 X.primitives가 정한다. M2의 호스트는 이 지점에 핸들러를 거는 확장이 없어 발화하지 않는다.
+- [결정: m2c G1-03] `session.trust.before`는 kind가 `session`이지만 thread 없이 호스트 수준에서 발화한다. 폴더 신뢰는 thread를 만들거나 열기 전에 판정해야 하기 때문이다(`X.loading-trust.spec` §4.7.4). `PointDecl.threadless: true`가 이 지점을 표시하고, 페이로드(`{ cwd }`)와 발화 문맥에 `threadId`가 없다. 그래서 핸들러는 thread 상태(`stateOf`)나 thread 신호를 쓰지 못하고, 예산·진단은 호스트 수준 한도를 따른다. 그 밖의 `session` 지점은 모두 thread에 묶여 발화한다. 발화 규칙의 구현(디스패처의 thread 없는 경로, 예산, 진단)은 X.primitives가 정한다. M2의 호스트는 이 지점에 핸들러를 거는 확장이 없어 발화하지 않는다.
 - 능력 도구 호출은 tool 지점을 지난다. 페이로드의 `capability` 필드로 능력을 식별한다(F.capabilities.spec §7).
 - [결정: adr.0017] 지점 5종 밖 Xeon 고유 이벤트는 수명주기 지점으로 연다. 첫 목록은 L3 요구분(위임 정착 `agent.settled`, 임대 거부 `lease.rejected`)이고 나머지(승인 요청·응답, 그룹 레코드 쓰기, scope 토글 등)는 요구가 생길 때 더한다(`review.m3-lower-requirements` M3-REQ-101).
 
@@ -1268,7 +1304,7 @@ chain의 보충 규칙 [제안]:
 | 이름 | 쓰는 문서 |
 |---|---|
 | `ExtensionManifest`, `ExtensionManifestSchema`, `defineManifest`, `validateManifest`, `validateUsage`, `validateManifestSet` | X.loading-trust.spec, 모든 확장 패키지 |
-| `PointName`, `PointSignatures`, `PointDecl`, `POINTS`, `FIRST_DENY`, `CHAIN_RULES`, 페이로드·결정·패치 타입 | X.primitives.spec, L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec |
+| `PointName`, `PointSignatures`, `PointDecl`, `POINTS`, `FIRST_DENY`, `CHAIN_RULES`, `COLLECT_RULES`, `GUARD_POINTS`, `LIFECYCLE_POINTS`, 페이로드·결정·패치 타입 | X.primitives.spec, L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec |
 | `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ScopeFn`, `ExtensionEntry` | X.primitives.spec, L3.group-kit.spec, L3.helm.spec, L3.learning.spec |
 | `GroupRecord`, `RecordKind`, `RecordKindDecl`, `RecordSubject`, `validateGroupRecord` | L3 전체, L1.persistence.spec |
 | `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort` 포함), `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입, 각 `*PortKey`, `RecordCommitPort` 재노출 | X.primitives.spec, X.operations.spec, L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-kit.spec, F.capabilities.spec §3.12 |
@@ -1287,15 +1323,15 @@ chain의 보충 규칙 [제안]:
 ## 9. 수용 기준
 
 1. 매니페스트 `points`에 없는 지점에 `on`을 건 사용 기록은 `validateUsage`가 `point_undeclared` 오류를 낸다.
-2. `POINTS`의 41행 모두 `fold`, `kind`, `payload` 스키마, `onError`, `pi` 출처를 가진다. `first` 행은 `FIRST_DENY`에, `chain` 행은 `CHAIN_RULES`에 항목이 있다.
-3. `POINTS`의 지점 이름은 중복이 없고, pi `ExtensionEvent` 합집합(`types.ts:1377-1409`)을 펼친 41개 이름과 집합이 같다.
+2. `POINTS`의 46행 모두 `fold`, `kind`, `payload` 스키마, `failure`를 가진다. pi에서 온 41행은 `pi` 출처도 가진다. `first` 행은 `FIRST_DENY`에, `chain` 행은 `CHAIN_RULES`에 항목이 있다.
+3. `POINTS`의 지점 이름은 중복이 없고, pi `ExtensionEvent` 합집합(`types.ts:1377-1409`)을 펼친 41개 이름의 새 이름과 guard 3개, lifecycle 2개를 더한 집합과 같다(46개).
 4. `drive`를 쓰고 기본 활성인 그룹 매니페스트 두 개를 `validateManifestSet`에 넣으면 `drive_conflict` 경고가 나온다.
-5. `Handler<"tool_call">`의 반환 타입은 `ToolCallDecision | undefined`(Promise 포함)이고, `Handler<"turn_end">`는 `(payload, current: BoundaryValue, ctx)`를 받아 `BoundaryPatch | undefined`를 반환하며, `Handler<"session_start">`는 `void`를 반환한다(타입 테스트).
+5. `Handler<"tool.call.before">`의 반환 타입은 `ToolCallDecision | undefined`(Promise 포함)이고, `Handler<"boundary.step.after">`는 `(payload, current: BoundaryValue, ctx)`를 받아 `BoundaryPatch | undefined`를 반환하며, `Handler<"session.start">`는 `void`를 반환한다(타입 테스트).
 6. `kind: "group"`이 아닌 매니페스트에 `usesDrive: true`면 `drive_requires_group` 오류다.
 7. 그룹 `learning`이 `grp.helm.item.tagged` 종류를 선언하면 `record_kind_prefix` 오류다. `grp.learning.skill.proposed`는 통과하고 F.records.spec의 `parseEventKind`도 통과한다.
 8. `ExtensionManifest`의 `requires[].id` 스키마는 F.capabilities.spec의 `CapabilityIdSchema`와 같은 객체다(동일 참조 테스트).
-9. `CHAIN_RULES.tool_result`로 `content`만 바꾸면 `structuredContent`가 사라지고, 둘 다 주면 둘 다 유지된다.
-10. `CHAIN_RULES.input`에서 `handled` 패치 뒤 `stop`이 참이다.
+9. `CHAIN_RULES["tool.result"]`로 `content`만 바꾸면 `structuredContent`가 사라지고, 둘 다 주면 둘 다 유지된다.
+10. `CHAIN_RULES["input.user.before"]`에서 `handled` 패치 뒤 `stop`이 참이다.
 11. 스펙 §3.4 표의 지점 이름·kind·fold와 코드 `POINTS`가 일치한다(문서 대조 스크립트, F.extensions.plan E9).
 12. `ports.ts`의 모든 `*PortKey` 상수의 `name`은 `xeon.`으로 시작하고 §3.2.1 표의 서비스 이름과 같다. `RecordCommitPortKey.member`는 `"ext"`, `ProjectorRegistryPortKey.member`는 `"projectors"`이고 나머지 키에는 `member`가 없다(값 테스트).
 13. `F.capabilities.spec` §3.12의 `LoopService`, `TaskService`, `ProcessService`, `ToolService`, `ModelService`, `McpService`, `GroupService`는 각각 `LoopPort`, `InputQueuePort`, `ProcessPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `LeaseArbiterPort`에 대입 가능하다. `StoreService`는 `ScopedStorePort`에, `SessionService["ext"]`는 `RecordCommitPort`에, `SessionService["projectors"]`는 `ProjectorRegistryPort`에 대입 가능하다(타입 테스트).
@@ -1303,11 +1339,11 @@ chain의 보충 규칙 [제안]:
 
 ## 10. 미결 사항
 
-- [결정: adr.0017] 4번째 fold `collect`를 더하고 지점별 실패 정책 표를 둔다(§4.1). 계획 v2의 fold 3종 결정을 ADR-0017이 부분 대체한다. boundary 지점의 배정은 M3 F 첫 작업이 정한다.
-- [결정: adr.0017] `session_before_*`, `project_trust`는 fail-closed다. `session_before_compact`만 fail-open 예외다 [제안](§4.1).
-- [결정: review.decisions-2 U-06] `tool_call`의 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. 인자 변경이 필요하면 2차에 pi 밖 이름의 chain 지점을 따로 더한다.
+- [결정: adr.0017] 4번째 fold `collect`를 더하고 지점별 실패 정책 표를 둔다(§4.1). 계획 v2의 fold 3종 결정을 ADR-0017이 부분 대체한다. boundary 엔트리 추가는 chain + `finalize`로 두고 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 [결정: 2026-10-28 오케스트레이터].
+- [결정: adr.0017] `session.switch.before`, `session.fork.before`, `session.tree.before`, `session.trust.before`는 fail-closed다. `session.compact.before`만 fail-open 예외다 [제안](§4.1).
+- [결정: review.decisions-2 U-06] `tool.call.before`의 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. 인자 변경이 필요하면 2차에 pi 밖 이름의 chain 지점을 따로 더한다.
 - [결정: adr.0017] 지점 5종 밖 이벤트는 수명주기 지점으로 연다(§7).
-- [결정: adr.0017] 지점 이름은 자체 규칙으로 정리하고 별칭은 두지 않는다 [제안](§4.10). 규칙과 이름표는 M3 F 첫 작업이다.
+- [결정: adr.0017] 지점 이름은 자체 규칙으로 정리하고 별칭은 두지 않는다 [제안](§4.10). 규칙과 이름표는 §3.4가 정했다(M3 F 첫 작업).
 - [결정: adr.0017] 가드레일 지점 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 fold `first`, fail-closed로 선언한다. 내장 검사는 두지 않는다(`review.m3-design-inputs` D-M3-30 행 1). 선언은 M3-REQ-107이다.
 - [미결] 능력·확장 이름 네임스페이스(예약 이름 목록, 외부 확장의 L2 도메인 이름 사용 금지). F.capabilities.spec §10과 함께 정한다.
 - [미결] 매니페스트 신뢰 필드 범위: `trust.level` 값 집합과 매니페스트가 요청할 수 있는 범위. X.loading-trust.spec과 함께 정한다.

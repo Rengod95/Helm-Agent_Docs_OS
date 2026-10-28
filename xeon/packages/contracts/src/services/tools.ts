@@ -541,7 +541,7 @@ export interface ToolService extends ToolsPort {
   advertise(input: AdvertiseInput): Promise<Result<AdvertisedToolset, AdvertiseError>>;
 
   /**
-   * 도구 호출 하나의 준비(adr.0009 §3.4). 도구 조회, 인자 검증, `tool_call` 지점, 정책·승인, E1(`effect.intent`) 커밋을 차례로 한다.
+   * 도구 호출 하나의 준비(adr.0009 §3.4). 도구 조회, 인자 검증, `tool.call.before` 지점, 정책·승인, E1(`effect.intent`) 커밋을 차례로 한다.
    * 실패는 던지지 않고 `settled`로 돌려준다. 미발견·인자 오류·거부·중단 호출은 결과 item까지 기록된 상태다.
    * 루프는 준비를 항상 원래 순서대로 하나씩 부른다.
    */
@@ -552,7 +552,7 @@ export interface ToolService extends ToolsPort {
   ): Promise<CallPreparation>;
 
   /**
-   * 준비를 마친 호출의 실행과 마감: E2(`effect.exec`), 실행, 마스킹, `tool_result` chain, 경계화, E3(`effect.result` + toolResult item).
+   * 준비를 마친 호출의 실행과 마감: E2(`effect.exec`), 실행, 마스킹, `tool.result` chain, 경계화, E3(`effect.result` + toolResult item).
    * 병렬로 불러도 된다. 도구가 던진 오류는 `isError` 결과가 되어 돌아온다.
    */
   execute(

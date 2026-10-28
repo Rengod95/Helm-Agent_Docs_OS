@@ -28,6 +28,7 @@ import { ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema } from ".
 import { ItemRecordedPayloadSchema, PartRecordedPayloadSchema } from "./content.ts";
 import {
   LeaseAcquiredPayloadSchema,
+  LeaseRejectedPayloadSchema,
   LeaseReleasedPayloadSchema,
   PostAcceptedPayloadSchema,
   ScopeChangedPayloadSchema,
@@ -93,6 +94,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[] = [
   core("scope.handler_failed", false, ScopeHandlerFailedPayloadSchema),
   core("lease.acquired", true, LeaseAcquiredPayloadSchema),
   core("lease.released", true, LeaseReleasedPayloadSchema),
+  core("lease.rejected", true, LeaseRejectedPayloadSchema),
   retiredCore("post.accepted", true, PostAcceptedPayloadSchema),
   core("settings.changed", true, SettingsChangedPayloadSchema),
   core("approval.requested", true, ApprovalRequestedPayloadSchema),

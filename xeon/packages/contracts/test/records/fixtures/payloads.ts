@@ -134,13 +134,14 @@ export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<st
     "scope.changed": { scopeId: "helm", status: "enabled", reason: "request" },
     "scope.handler_failed": {
       owner: "ext:helm",
-      point: "tool_call",
+      point: "tool.call.before",
       result: "threw",
       message: "boom",
       consecutive: 1,
     },
     "lease.acquired": { leaseId: "lease-1", scopeId: "helm", limits: { maxTurns: 4 } },
     "lease.released": { leaseId: "lease-1", scopeId: "helm", reason: "budget" },
+    "lease.rejected": { groupId: "helm", reason: "wait_limit", requestSeq: 3 },
     "post.accepted": {
       requestId: "post-1",
       scopeId: "helm",

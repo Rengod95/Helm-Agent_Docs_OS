@@ -144,6 +144,25 @@ export const LeaseReleasedPayloadSchema: TObject<{
 );
 export type LeaseReleasedPayload = Static<typeof LeaseReleasedPayloadSchema>;
 
+/**
+ * drive 임대 요청이 대기 상한 뒤 거부됐다(M3-REQ-99, review.m3-design-inputs D-M3-05 a).
+ * groupId는 요청한 그룹(ExtensionName), requestSeq는 거부된 요청의 순번이다.
+ * 수명주기 지점 `lifecycle.lease.rejected`의 페이로드이기도 하다.
+ */
+export const LeaseRejectedPayloadSchema: TObject<{
+  groupId: TString;
+  reason: TString;
+  requestSeq: TInteger;
+}> = Type.Object(
+  {
+    groupId: Type.String({ minLength: 1, maxLength: 96 }),
+    reason: Type.String({ minLength: 1, maxLength: 64 }),
+    requestSeq: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type LeaseRejectedPayload = Static<typeof LeaseRejectedPayloadSchema>;
+
 /** ScopeApi.post 호출의 영수증. 큐 항목 사실은 같은 커밋의 input.queued가 적는다 */
 export const PostAcceptedPayloadSchema: TObject<{
   requestId: TString;

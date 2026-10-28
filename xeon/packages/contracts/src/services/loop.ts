@@ -48,7 +48,7 @@ export type AdmitResult =
   /** input 지점 chain이 handled로 끝났다. 아무것도 기록하지 않는다 */
   | { readonly status: "handled" };
 
-/** 사용자 셸(`!명령`, `!!명령`) 실행 요청. L1.loop.spec §3.1 `runUserBash`, 확장 지점 `user_bash` */
+/** 사용자 셸(`!명령`, `!!명령`) 실행 요청. L1.loop.spec §3.1 `runUserBash`, 확장 지점 `input.bash.before` */
 export interface UserBashRequest {
   readonly threadId: ThreadId;
   /** 접두 `!`·`!!`를 뗀 명령줄 */
@@ -63,11 +63,11 @@ export interface UserBashRequest {
 
 export type UserBashOutcome =
   /**
-   * 실행이 끝났다. `replaced`가 참이면 `user_bash` 핸들러가 결과를 대체해 명령을 실행하지 않았다.
+   * 실행이 끝났다. `replaced`가 참이면 `input.bash.before` 핸들러가 결과를 대체해 명령을 실행하지 않았다.
    * 실행 결과는 `xeon.tools`의 `runUserShell` 효과 3단(`effect.intent`·`effect.exec`·`effect.result`)으로 남는다
    */
   | { readonly status: "completed"; readonly result: UserBashResult; readonly replaced: boolean }
-  /** `user_bash` 지점이나 정책 deny가 막았다. 명령을 실행하지 않았다. `reason`은 사용자에게 보이는 문장이다 */
+  /** `input.bash.before` 지점이나 정책 deny가 막았다. 명령을 실행하지 않았다. `reason`은 사용자에게 보이는 문장이다 */
   | { readonly status: "denied"; readonly reason: string };
 
 /** 자식 thread turn 실행 요청. L1.agents가 부른다 */
@@ -135,7 +135,7 @@ export interface LoopService extends LoopPort {
   /** 자식 thread turn. 주 대화와 같은 래퍼로 돈다. 같은 requestId면 기록된 결과를 돌려주거나 열린 turn을 이어 끝낸다 */
   runChildTurn(request: ChildTurnRequest): Promise<Result<LoopTurnResult, LoopError>>;
   /**
-   * 사용자 셸 입력(`!명령`). `user_bash`(first)를 발화하고 거부가 아니면 `xeon.tools.runUserShell`로 실행한다.
+   * 사용자 셸 입력(`!명령`). `input.bash.before`(first)를 발화하고 거부가 아니면 `xeon.tools.runUserShell`로 실행한다.
    * turn을 열지 않으므로 turn이 실행 중이어도 부를 수 있다. 결과가 모델 컨텍스트에 들어가는지는 `excludeFromContext`가 정한다.
    * 실행 실패(명령 오류, 종료 코드)는 `completed`의 `result`로 돌려주고, `LoopError`는 실행 전의 실패(저장소, 없는 대화)다
    */

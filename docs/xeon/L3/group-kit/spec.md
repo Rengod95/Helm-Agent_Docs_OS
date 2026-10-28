@@ -576,7 +576,8 @@ export interface GroupMetricsSummary {
   readonly leaseMs: number;
 }
 
-export type DriveRole = "holder" | "waiting" | "none" | "error";
+/** rejected: drive 임대 요청이 대기 상한 뒤 거부됐다(`lease.rejected`, M3-REQ-99). 채우는 일은 X 커밋이 낸 이벤트를 읽는 group-kit 작업이 한다 */
+export type DriveRole = "holder" | "waiting" | "none" | "error" | "rejected";
 
 export interface GroupError {
   readonly kind: "group.driveThrew" | "group.setupFailed" | "group.stateInvalid" | "group.migrationFailed";

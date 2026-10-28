@@ -337,10 +337,10 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - 점검이 중단되면(`cancelled`) 결과 없이 `request.cancelled`(5001)로 실패한다. 점검 결과가 `ready: false`여도 요청은 성공이다: 환경 문제의 판단과 안내는 클라이언트가 한다.
 - [결정: m2c G2-01] `thread.compact`는 사용자가 지금 대화를 요약하라고 요청하는 메서드다(`/compact`). 자동 컴팩션(요청 전 임계, 오버플로우 복구)은 루프가 하고(`L1.loop.spec` §4.2) 이 메서드는 이유 `manual`의 컴팩션 한 번이다(`ContextService.compact`, `CompactRequest.reason`).
   - 쓰기 소유가 필요해서 `turn.start`처럼 암묵 획득을 한 번 시도하고 실패하면 `thread.locked`(3002)다. 진행 중인 turn이 있으면 `turn.busy`(3003)이다: 루프가 같은 가지에 컴팩션을 커밋할 수 있어 끼어들지 않는다. 없는 thread는 `thread.notFound`(3001), 닫힌 thread는 `thread.closed`(3007)다.
-  - `instructions`는 `/compact` 뒤에 적은 요약 지침이다. 생략하면 기본 요약 지침을 쓴다. 상한 20000자는 `session_before_compact`의 `instructions`와 같다.
+  - `instructions`는 `/compact` 뒤에 적은 요약 지침이다. 생략하면 기본 요약 지침을 쓴다. 상한 20000자는 `session.compact.before`의 `instructions`와 같다.
   - 결과 `compacted`는 `thread.compacted` 이벤트를 커밋했다는 뜻이다. `eventId`가 그 이벤트, `position`이 그 이벤트를 반영한 저장소 위치(`thread.rename`의 `position`과 같은 규칙), `tokensBefore`가 요약 전 추정 토큰 수, `fromExtension`이 요약 내용을 낸 확장 이름이다. 컴팩션 뒤 다음 turn에서 스킬 색인과 메모리 스냅샷을 다시 놓는 일은 L1.context가 하고 클라이언트가 할 일이 아니다.
   - 결과 `skipped`는 요약할 것이 없거나(`nothing_to_summarize`), 마지막 항목이 이미 컴팩션이거나(`last_entry_is_compaction`), `l1.context.autoCompact` 같은 설정으로 꺼져 있다(`disabled`)는 뜻이다. 아무것도 커밋하지 않았고 오류가 아니다.
-  - 실패는 오류 값이다. 확장이 `session_before_compact`에서 막으면 `thread.cancelledByExtension`(3006, `point: "session_before_compact"`), 요약을 만들거나 커밋하지 못하면 `thread.compactFailed`(3008, `reason`)다. 요청이 취소되면 `request.cancelled`(5001)다. 저장소 오류는 `store.*`(5003~5007)다. 오류에 모델 출력이나 제공자 응답 본문은 싣지 않는다.
+  - 실패는 오류 값이다. 확장이 `session.compact.before`에서 막으면 `thread.cancelledByExtension`(3006, `point: "session.compact.before"`), 요약을 만들거나 커밋하지 못하면 `thread.compactFailed`(3008, `reason`)다. 요청이 취소되면 `request.cancelled`(5001)다. 저장소 오류는 `store.*`(5003~5007)다. 오류에 모델 출력이나 제공자 응답 본문은 싣지 않는다.
 - [결정: m2c G2-12] `thread.rename`은 대화 제목을 바꾼다. 목록이 모두 "제목 없음"으로 보이는 문제(`L1.persistence.spec` §4.10.5 `setTitle`)를 클라이언트가 풀 길이다. 호스트는 `thread.updated { title }`를 커밋하고 그 위치를 `position`으로 돌려준다. 제목은 1~200자이며(`ThreadSummary.title`, `thread.create`의 `title`과 같은 상한) 지우는 길은 없다. 쓰기 소유가 필요해서 `turn.start`처럼 암묵 획득을 한 번 시도하고 실패하면 `thread.locked`(3002)다. 없는 thread는 `thread.notFound`(3001), 닫힌 thread는 `thread.closed`(3007)다. 진행 중인 turn이 있어도 바꿀 수 있다.
   - 첫 입력에서 제목을 정하는 규칙(M2): 첫 `turn.start` 입력의 앞 80자(줄바꿈은 공백 하나로)를 제목으로 쓴다. 정하는 주체는 호스트이고 이 메서드와 같은 커밋 경로를 쓴다. 이미 제목이 있는 thread는 바꾸지 않는다. 모델이 만드는 자동 제목은 M3다.
 - [결정: m2c G1-07] 비밀 wire 보강 네 가지다(`L4.host-service.spec` §10 19번, 23번).
@@ -355,7 +355,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - `trust.decide`의 `choice`가 그 폴더의 `options`에 없으면 `jsonrpc.invalidParams`(`path: "choice"`)다. `session`은 저장하지 않고 그 호스트 프로세스 동안만 유지한다. `workspace`가 절대 경로가 아니면 `jsonrpc.invalidParams`(`path: "workspace"`)이고, 결정을 저장하지 못하면(손상된 저장 파일, 쓰기 실패) `store.io`(`details.code: "trust_store"`)다. `trust.get`은 아무것도 바꾸지 않는다. 신뢰 필요 자원이 없는 폴더도 `trust.decide`로 미리 정할 수 있다.
   - 결정 뒤 호스트는 그 폴더의 project·local 설정 파일 층을 다시 읽고 `settings.invalidated`(§3.3.2)를 보낸다. 프로젝트 스킬은 다음 thread를 열 때, MCP 서버 정의는 다음 서버 로드 때 반영된다. 이미 열린 thread가 새 결정을 모두 받게 하려면 결정을 thread 열기 전에 한다.
   - 저장 파일 `trust.json`은 두 클라이언트(CLI의 `xeon trust`, 데스크톱 카드)가 같은 호스트를 거쳐 쓴다. 프로세스 사이 쓰기 충돌은 L0.os의 `fileLock`이 막는다(`review.m2-plan` G1-10). wire는 이 잠금을 드러내지 않는다.
-  - `project_trust` 확장 지점은 이 메서드와 별개다. 확장이 결정을 내는 길이고 thread 없이 호스트 수준에서 발화한다(`F.extensions.spec` §7). M2에는 그 지점에 핸들러를 거는 확장이 없어 호스트는 발화하지 않고 저장소 판정만 쓴다.
+  - `session.trust.before` 확장 지점은 이 메서드와 별개다. 확장이 결정을 내는 길이고 thread 없이 호스트 수준에서 발화한다(`F.extensions.spec` §7). M2에는 그 지점에 핸들러를 거는 확장이 없어 호스트는 발화하지 않고 저장소 판정만 쓴다.
 - [결정: m2c G1-02] `turn.resume`은 프로세스 종료로 끊긴 turn을 이어 실행하는 메서드다(`L1.loop.spec` §4.6 `LoopService.resume`, `L4.host-service.spec` §10 21번). `thread.list`가 `ThreadSummary.resumable`로 후보를 알리고(§3.3.1 아래 코드), 클라이언트가 사용자 확인 뒤 이 메서드를 부른다. 호스트는 자동 재개를 하지 않는다. 한 thread에 열린 turn은 하나라서 `turnId`를 받지 않는다.
   - 결과 세 모양은 `ResumeResult`(`services/loop.ts`)와 같아 변환이 없다. `resumed`는 이어 실행을 접수했다는 뜻이고 진행은 `events.subscribe`의 이벤트로 온다. `from`은 이어 시작한 단계다. 승인을 기다리던 turn은 `tools`로 이어지고 `approval.list`의 대기 승인이 다시 응답을 받는다.
   - `closed`는 이어 실행하지 않고 닫았다는 뜻이다. 끊기기 전에 중단 요청이 있었으면 `abort_requested`, 소유자가 취소했으면 `owner_cancelled`다. `nothing`은 열린 turn이 없다는 뜻이다. 둘 다 오류가 아니다.
@@ -802,7 +802,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3003 | `turn.busy` | true | 진행 중 turn이 있어 새 turn을 받을 수 없다 | `turnId` |
 | 3004 | `thread.hasForks` | false | 이 thread를 `forkedFrom`으로 가리키는 thread가 있어 `thread.delete`를 거절했다 | `forks: ThreadId[]` |
 | 3005 | `thread.invalidTarget` | false | `thread.fork`·`thread.revert`의 대상이 맞지 않는다. `thread.read`의 `before`가 이 thread에 없거나(`item_not_found`) 현재 가지에 없을 때(`not_on_branch`)도 이 오류다 | `reason: "item_not_found"\|"not_on_branch"\|"inside_turn"\|"open_tool_calls"` |
-| 3006 | `thread.cancelledByExtension` | false | 확장이 thread 전환·분기·되감기·컴팩션을 막았다 | `point: "session_before_fork"\|"session_before_tree"\|"session_before_switch"\|"session_before_compact"`, `reason: string \| null` |
+| 3006 | `thread.cancelledByExtension` | false | 확장이 thread 전환·분기·되감기·컴팩션을 막았다 | `point: "session.fork.before"\|"session.tree.before"\|"session.switch.before"\|"session.compact.before"`, `reason: string \| null` |
 | 3007 | `thread.closed` | false | 이미 닫힌 thread에 쓰기나 수명 주기 호출(`turn.start`, `turn.resume`, `thread.open(write)`, `thread.fork`, `thread.revert`)을 했다. `thread.read`, `thread.list`, `thread.delete`는 닫힌 thread에도 된다 | `threadId` |
 | 3008 | `thread.compactFailed` | false | `thread.compact`가 요약을 만들거나 커밋하지 못했다. 요청 취소는 5001이고 확장이 막은 것은 3006이다 | `reason: "read_failed"\|"projection_failed"\|"summary_failed"\|"summary_has_tool_call"\|"summary_truncated"\|"commit_failed"` |
 | 3101 | `settings.unknownKey` | false | 등록되지 않은 키 | `key` |
@@ -1334,7 +1334,7 @@ wire:
 - A3. `from: "head"`이면 응답 시점 이후에 커밋된 이벤트만 온다.
 - A4. `from.storeId`가 다르면 `2001`에 `reason: "storeMismatch"`, `from.seq > headSeq`이면 `reason: "aheadOfHead"`가 온다.
 - A5. 배열 메시지는 `-32600` 하나(`id: null`)를 받는다. 숫자 `id`는 `-32600`, 배열 `params`는 `-32602`, 깊이 65 메시지는 `-32600`이다.
-- A6. `classifyMethodName`은 `turn.start`를 `core`, `$/cancelRequest`를 `control`, `ext.web-exa.search`를 `extension`으로 분류하고 `Turn.start`, `turn`, `turn.start.now`, `turn_start`는 거부한다.
+- A6. `classifyMethodName`은 `turn.start`를 `core`, `$/cancelRequest`를 `control`, `ext.web-exa.search`를 `extension`으로 분류하고 `Turn.start`, `turn`, `turn.start.now`, `boundary.step.before`는 거부한다.
 - A7. `host.hello` 전의 `turn.start`는 1001을 받는다. opt-in하지 않은 `experimental` 메서드는 `-32601`을 받는다. hello 뒤에 `$/connectionReset`을 보내면 `host.hello`를 다시 보내도 성공하고(`host.helloDuplicate`가 아니다), hello 전의 `$/connectionReset`은 무시된다.
 - A8. `WireParams<"turn.start">`와 `Static<typeof WIRE_METHODS["turn.start"]["params"]>`가 같은 타입이다(타입 테스트). `WireMethodMap`과 `WIRE_METHODS`의 키 집합이 같다.
 - A9. 이 문서 §3.3.1 표의 메서드 이름·단계 집합과 `WIRE_METHODS`의 것이 같다(문서 검사).

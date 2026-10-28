@@ -14,7 +14,7 @@ import { err, ok, parse, type Result } from "../../src/index.ts";
 import { Type } from "typebox";
 
 describe("core kinds", () => {
-  test("all 40 parse as core", () => {
+  test("all 41 parse as core", () => {
     for (const kind of CORE_EVENT_KINDS) {
       const result = parseEventKind(kind);
       expect(result.ok).toBe(true);

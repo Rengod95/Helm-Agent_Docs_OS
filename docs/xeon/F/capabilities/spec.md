@@ -601,7 +601,7 @@ export const WebSearchKey = serviceKey(WebSearch);   // ServiceKey<{ search(inpu
 ```
 
 - 위 코드는 읽기 쉽도록 export 상수의 타입 주석을 생략했다. 생략은 이 예시에만 해당한다. `isolatedDeclarations`는 `xeon/tsconfig.base.json`에서 contracts 전체에 켜져 있으므로(`_research/foundation-plan.md` §2 언어 행) 실제 정의 파일은 export 상수마다 명시 타입 주석을 단다(`_research/notes/eng-2.md` §8).
-- 모델 경로: 모델이 `web_search`를 호출하면 L1.tools가 `tool_call` 지점(F.extensions.spec, fold first)을 거쳐 `search(params, { signal, requestId })`를 호출한다. 결과는 `renderSearch`로 바꾸고 `tool_result` 지점(fold chain)을 거쳐 모델에게 돌아간다.
+- 모델 경로: 모델이 `web_search`를 호출하면 L1.tools가 `tool.call.before` 지점(F.extensions.spec, fold first)을 거쳐 `search(params, { signal, requestId })`를 호출한다. 결과는 `renderSearch`로 바꾸고 `tool.result` 지점(fold chain)을 거쳐 모델에게 돌아간다.
 - 그룹 경로: L3 그룹(예: Helm)은 매니페스트 `requires`에 `{ id: "web.search", range: "^1.0.0" }`을 선언한다. 그룹 코드는 `g.capability(WebSearchKey)`로 API를 얻고, 모델 턴 밖(예: `drive` 함수 안의 병렬 탐색 준비, 경계 처리)에서 `await web.search({ query })`를 호출한다. 이 호출은 tool 지점을 거치지 않는다. 서비스 호출 정책은 X와 L1.tools가 정한다.
 - 정의 파일의 위치 [제안, 확정]: 내장 L2 능력의 정의는 F의 `xeon/packages/contracts/src/capabilities/defs/<domain>.ts`에 둔다. 층 사이 규칙 2에 따라 L3가 provider 패키지(`cap-web`)를 import하지 않고 정의를 쓸 수 있어야 하기 때문이다. `L2.readme` §3·§5.1과 L2 plan의 첫 작업이 이 경로를 전제하므로 대안(각 cap 패키지가 구현 없는 `def` 서브패스를 export)은 쓰지 않는다. 정의의 내용은 각 `L2.<domain>.spec`이 정하고, F에는 데이터만 둔다. 외부 플러그인의 능력 정의는 구현과 분리된 정의 전용 모듈로 배포한다 [제안].
 
@@ -1027,7 +1027,7 @@ export type NotifyError =
 ## 7. 확장 지점
 
 - 이 문서는 지점을 새로 정의하지 않는다.
-- 능력의 모델 도구 호출은 F.extensions.spec의 tool 지점을 지난다. 호출 전 `tool_call`(fold first), 결과 후 `tool_result`(fold chain), 관찰용 `tool_execution_start`, `tool_execution_update`, `tool_execution_end`(fold tap)다. 두 지점의 페이로드에는 `capability?: { id: CapabilityId; method: string }`가 실려서 핸들러가 도구 이름 대신 능력으로 대상을 고를 수 있다(F.extensions.spec §3.5).
+- 능력의 모델 도구 호출은 F.extensions.spec의 tool 지점을 지난다. 호출 전 `tool.call.before`(fold first), 결과 후 `tool.result`(fold chain), 관찰용 `tool.execution.before`, `tool.execution.update`, `tool.execution.after`(fold tap)다. 두 지점의 페이로드에는 `capability?: { id: CapabilityId; method: string }`가 실려서 핸들러가 도구 이름 대신 능력으로 대상을 고를 수 있다(F.extensions.spec §3.5).
 - 그룹 코드가 서비스를 직접 호출하는 경로(§3.9 그룹 경로)는 tool 지점을 지나지 않는다.
 - 확장이 능력을 쓰려면 매니페스트 `requires`나 `optional`에 선언해야 한다. 선언하지 않은 능력의 `capability(key)` 호출은 `validateUsage` 오류다(F.extensions.spec §4.7).
 

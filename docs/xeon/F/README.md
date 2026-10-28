@@ -110,7 +110,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | 이벤트 kind | 코어 `<영역>.<이름>`(snake_case, 점 하나). 내장 L2 도메인 `<도메인 영역>.<이름>`(`DomainArea`: `work`, `dialog`, `artifact`, `schedule`). 확장 `x.<extId>.<영역>.<이름>`, 의도 그룹 `grp.<groupId>.<영역>.<이름>`(`ExtensionEventKind`) | `F.records.spec` §3.2, §3.3.2 |
 | 그룹 레코드 kind, 커스텀 메시지 `customType` | 확장 이벤트 kind와 같은 형식(`RecordKind` = `ExtensionEventKind`). 예: `grp.learning.skill.proposed` | `F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2 |
 | 확장 이름 | `^[a-z][a-z0-9-]{1,31}$`(`ExtensionName`, 소문자·숫자·하이픈, 밑줄 없음). 매니페스트 `kind`는 `plugin` 또는 `group`. 확장 테이블 접두는 `x_<이름의 하이픈을 밑줄로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다 [결정: review.decisions-2 U-18] | `F.extensions.spec` §3.1 |
-| 확장 지점 이름 | pi 이벤트 이름을 그대로 쓴다(snake_case, 예: `tool_call`, `turn_start`). 41종, 지점 종류 input·request·tool·boundary·session. fold는 tap, first, chain | `F.extensions.spec` §3.3~§3.4 |
+| 확장 지점 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(예: `tool.call.before`, `boundary.step.before`)이고 pi 이름은 별칭 없이 대응 열에만 남긴다 [결정: adr.0017]. 46종, 지점 종류 input·request·tool·boundary·session·lifecycle·guard. fold는 tap, first, chain, collect. 실패 정책은 지점 선언의 `failure` 필드 | `F.extensions.spec` §3.3~§3.4 |
 | 능력 id | `<도메인>.<이름>` 소문자·하이픈, 2~4마디(예: `web.search`) | `F.capabilities.spec` §3.1 |
 | 도구 이름 | 내장 능력 작성 규칙 `^[a-z][a-z0-9_]{0,63}$`, 확장 도구 `<확장 이름>__<이름>`, 허용 문자 `^[a-zA-Z0-9_-]{1,64}$`. 표시 제목은 `label` | `F.capabilities.spec` §3.1, §3.3 |
 | wire 메서드 | `<영역>.<동사>` 소문자 낙타, `$/` 제어 예약, 확장은 `ext.<id>.<동사>`(M2 이후) | `F.wire-settings.spec` §3.2 |
@@ -124,12 +124,12 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | Xeon | 뜻 | pi 대응 |
 |---|---|---|
 | thread | 대화 하나. 분기 트리 포함 | 세션 파일 하나 |
-| turn | 사용자 입력 하나에 대한 작업 전체 | run(`agent_start`~`agent_end`) |
-| step | 모델 응답 1회와 그 도구 결과 묶음. 체크포인트 단위 | turn(`turn_start`~`turn_end`) |
+| turn | 사용자 입력 하나에 대한 작업 전체 | run(`boundary.turn.before`~`boundary.turn.after`) |
+| step | 모델 응답 1회와 그 도구 결과 묶음. 체크포인트 단위 | turn(`boundary.step.before`~`boundary.step.after`) |
 | item | 입출력 단위(메시지, 도구 호출, 도구 결과) | message, tool_execution |
 | part | 어시스턴트 메시지 블록 하나의 id 레코드 | `contentIndex` |
 
-[결정: review.decisions-2 U-01] pi turn = Xeon step이다. 지점 이름은 pi 이름을 그대로 쓰므로 `turn_start` 지점은 Xeon step 경계에서 발화한다. 켜기·끄기와 drive 임대 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
+[결정: review.decisions-2 U-01] pi turn = Xeon step이다. 지점 이름은 pi 이름을 그대로 쓰므로 `boundary.step.before` 지점은 Xeon step 경계에서 발화한다. 켜기·끄기와 drive 임대 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
 
 ### 4.2 대표 타입
 
@@ -264,13 +264,13 @@ F가 정하지 않는 것:
 | G1-01 | `command.list`, `command.run`, `command.list`의 선택 params `threadId` | `F.wire-settings.spec` §3.3.1 |
 | G2-07 | `host.status`의 선택 params `includeBinaries`와 결과 `binaries`(외부 바이너리 점검) | `F.wire-settings.spec` §3.3.1 |
 | G1-02 | `turn.resume` | `F.wire-settings.spec` §3.3.1 |
-| G1-03 | `trust.get`, `trust.decide`, `project_trust`의 `threadless` 표시 | `F.wire-settings.spec` §3.3.1, `F.extensions.spec` §3.4, §7 |
+| G1-03 | `trust.get`, `trust.decide`, `session.trust.before`의 `threadless` 표시 | `F.wire-settings.spec` §3.3.1, `F.extensions.spec` §3.4, §7 |
 | G1-07 | `secret.references`, `secret.test` 결과 확장, `secret.*` 오류 kind 3201~3212, `thread.closed` 3007 | `F.wire-settings.spec` §3.3.1, §3.5.2 |
 | G1-09 | 승인 origin 필드별 공급 규칙, `ApprovalCaller`와 `approvalCallerOf`, `CallerInfo.agentName`, 직접 등록 도구의 호출 문맥, `approval.respond` 결과의 `reason` | `F.records.spec` §3.3.1, `F.capabilities.spec` §3.2, §3.12, `F.wire-settings.spec` §3.3.1 |
 | G1-11 | 승인 만료 계약 필드 `expiresAt`, `onExpire`, 해결자 `expired`(구현은 M3) | `F.records.spec` §3.3.1, `F.capabilities.spec` §3.12 |
 | G2-11 | `thread.read`의 fork 연속성 규칙(`before`·`limit`은 이미 있었다) | `F.wire-settings.spec` §3.4.6 |
 | G2-12 | `thread.rename` | `F.wire-settings.spec` §3.3.1 |
-| G2-01 | `thread.compact`, `thread.compactFailed` 3008, `thread.cancelledByExtension`의 `session_before_compact` | `F.wire-settings.spec` §3.3.1, §3.5.2 |
+| G2-01 | `thread.compact`, `thread.compactFailed` 3008, `thread.cancelledByExtension`의 `session.compact.before` | `F.wire-settings.spec` §3.3.1, §3.5.2 |
 | G5-04 | `SettingDef.stage`, `settings.reserved` 3106, `settings.list`의 `includeReserved` | `F.wire-settings.spec` §3.8.2 |
 | G2-06 | 저장소 열기 실패 분류(`future_version`, `corrupt`, `migration_failed`, `unavailable`), `store.corrupt` 5007 | `F.records.spec` §3.7, `F.wire-settings.spec` §3.5.2 |
 
