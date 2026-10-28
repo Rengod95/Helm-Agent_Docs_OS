@@ -217,6 +217,34 @@
         }
       }
     },
+    "l0.sandbox.network.blockedDomains": {
+      "default": [],
+      "items": {
+        "maxLength": 253,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 256,
+      "type": "array",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L0",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Shell commands in the sandbox cannot reach these domains. Everything else stays reachable.",
+          "label": "Blocked network domains",
+          "order": 105,
+          "tab": "permissions",
+          "widget": "list"
+        }
+      }
+    },
     "l0.sandbox.protectedPaths.extra": {
       "default": [],
       "items": {

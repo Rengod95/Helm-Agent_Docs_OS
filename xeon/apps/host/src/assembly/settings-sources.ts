@@ -219,7 +219,7 @@ export function secretsSource(settings: SettingsEngine): () => SecretsConfig {
       sops: { files: sopsFiles, binary: stringOrNull(raw["sops.binary"]) },
       ageKey: {
         source:
-          source === "keychain" || source === "file" || source === "auto"
+          source === "keychain" || source === "file" || source === "auto" || source === "auto-file"
             ? source
             : base.ageKey.source,
         filePath: stringOrNull(raw["ageKey.filePath"]),

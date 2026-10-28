@@ -263,6 +263,30 @@
         }
       }
     },
+    "l0.exec.unattendedTimeoutMs": {
+      "default": 1800000,
+      "maximum": 2147483647,
+      "minimum": 1000,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "예약·루프처럼 사람이 없는 경로의 명령에만 적용한다. 일반 대화는 제한 없음",
+          "label": "무인 실행 명령 시간 상한",
+          "order": 115,
+          "tab": "execution",
+          "unit": "ms",
+          "widget": "number"
+        }
+      }
+    },
     "l0.os.dirs.override": {
       "maxLength": 4096,
       "minLength": 1,
@@ -481,6 +505,32 @@
         }
       }
     },
+    "l0.sandbox.credentialFiles": {
+      "default": "allow",
+      "enum": [
+        "allow",
+        "deny"
+      ],
+      "maxLength": 8,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "deny also blocks reading them from sandboxed shell commands.",
+          "label": "Credential files such as ~/.npmrc and ~/.config/gh",
+          "order": 106,
+          "tab": "permissions",
+          "widget": "select"
+        }
+      }
+    },
     "l0.sandbox.enabled": {
       "default": true,
       "type": "boolean",
@@ -520,6 +570,55 @@
           "order": 104,
           "tab": "permissions",
           "widget": "toggle"
+        }
+      }
+    },
+    "l0.sandbox.nestedNamespaces": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Needed to start a browser inside the sandbox. It weakens isolation, so keep it off otherwise.",
+          "label": "Allow nested namespaces for browser tools",
+          "order": 107,
+          "tab": "permissions",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l0.sandbox.network.blockedDomains": {
+      "default": [],
+      "items": {
+        "maxLength": 253,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 256,
+      "type": "array",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L0",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Shell commands in the sandbox cannot reach these domains. Everything else stays reachable.",
+          "label": "Blocked network domains",
+          "order": 105,
+          "tab": "permissions",
+          "widget": "list"
         }
       }
     },
@@ -654,6 +753,7 @@
       "default": "auto",
       "enum": [
         "auto",
+        "auto-file",
         "keychain",
         "file"
       ],

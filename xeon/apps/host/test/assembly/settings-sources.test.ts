@@ -253,6 +253,9 @@ test("l0.secrets.* build the secrets config and drop malformed sops files", asyn
   expect(set.lease).toEqual({ ttlSeconds: 60, maxUses: 200 });
   const odd = secretsSource(await engineWith({ "l0.secrets.ageKey.source": "magic" }))();
   expect(odd.ageKey.source).toBe("auto");
+  // 원격 호스트용 값(Secret Service 먼저, 없으면 확인 없이 파일 폴백)이 그대로 전달된다
+  const remote = secretsSource(await engineWith({ "l0.secrets.ageKey.source": "auto-file" }))();
+  expect(remote.ageKey.source).toBe("auto-file");
 });
 
 test("host limits read the live value every time", async () => {
