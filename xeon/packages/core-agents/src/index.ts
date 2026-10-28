@@ -37,3 +37,14 @@ export {
   type FrontmatterError,
   type ParsedFrontmatter,
 } from "./definitions/frontmatter.ts";
+export {
+  completeStructured,
+  JudgeAnswerSchema,
+  STRUCTURED_TOOL_NAME,
+  type StructuredError,
+  type StructuredModels,
+  type StructuredRequest,
+  type StructuredSuccess,
+} from "./structured.ts";
+export { createJudge, JUDGE_MAX_RUNS_DEFAULT, type JudgeDeps } from "./judge.ts";
+export { goalGateDecision, type GoalGateDecision, type GoalGateReason } from "./goal-gate.ts";

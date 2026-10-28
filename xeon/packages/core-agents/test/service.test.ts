@@ -98,7 +98,7 @@ describe("spawn", () => {
     expect(h.session.events.filter((event) => event.kind === "turn.completed")).toEqual([]);
   });
 
-  test("failures are values: unknown definition, depth, background, deny, parent aborting", async () => {
+  test("failures are values: unknown definition, depth, background spawn, parent aborting", async () => {
     const h = openHarness({ maxDepth: 1 });
     const { origin, controller } = h.openToolCall("tc-1");
     const unknown = await h.service.spawn({ agent: "ghost", task: "t" }, origin);
@@ -113,12 +113,7 @@ describe("spawn", () => {
       { agent: "explorer", task: "t", background: true },
       origin,
     );
-    expect(background.answer).toContain("agents.unavailable");
-    const denied = await h.service.spawn(
-      { agent: "explorer", task: "t", tools: { deny: ["bash"] } },
-      origin,
-    );
-    expect(denied.answer).toContain("agents.invalid_request");
+    expect(background.answer).toContain("agents.invalid_request");
     controller.abort();
     const aborting = await h.service.spawn({ agent: "explorer", task: "t" }, origin);
     expect(aborting.answer).toContain("agents.parent_aborting");
@@ -359,7 +354,7 @@ describe("cancellation and settling order", () => {
     });
   });
 
-  test("cancel by owner scope returns cancelled false until background delegation exists (M3-REQ-11 compile fix)", async () => {
+  test("cancel by owner scope finds nothing when no delegation is live", async () => {
     const h = openHarness({ run: () => Promise.resolve({ status: "completed" }) });
     expect(await h.service.cancel({ ownerScopeId: "learning" }, "group off")).toEqual({
       cancelled: false,

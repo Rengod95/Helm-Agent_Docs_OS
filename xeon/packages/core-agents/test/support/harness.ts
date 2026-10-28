@@ -15,6 +15,7 @@ import {
   type StaticAgentsSettings,
 } from "../../src/index.ts";
 import { fakeChildLoop, type FakeChildLoop, type FakeChildTurn } from "../../src/testing/index.ts";
+import type { FakeModels } from "./fake-models.ts";
 import { fakeSession, type FakeSession } from "./fake-session.ts";
 import { fakeTasks, type FakeTasks } from "./fake-tasks.ts";
 import { fakeTools, type FakeTools } from "./fake-tools.ts";
@@ -67,12 +68,14 @@ export interface HarnessOptions extends StaticAgentsSettings {
   /** 이전 하네스의 세션을 이어 쓴다(프로세스 재시작 흉내) */
   readonly session?: FakeSession;
   readonly definitions?: readonly AgentDefinition[];
+  /** 판정이 부르는 xeon.models 대역 */
+  readonly models?: FakeModels;
 }
 
 export function openHarness(options: HarnessOptions = {}): Harness {
   const ids = fixedIdFactory(options.session === undefined ? 1 : 2);
   const session = options.session ?? fakeSession(fixedIdFactory(7));
-  const tasks = fakeTasks();
+  const tasks = fakeTasks({ producer: session.producer("core.tasks"), ids });
   const tools = fakeTools();
   const loop = fakeChildLoop({
     ids,
@@ -100,6 +103,8 @@ export function openHarness(options: HarnessOptions = {}): Harness {
       },
     },
     log: NOOP_LOG,
+    now: () => 1_767_571_200_000,
+    ...(options.models === undefined ? {} : { models: () => options.models }),
   });
   service.syncRules();
   for (const definition of options.definitions ?? [EXPLORER]) service.define(definition);

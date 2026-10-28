@@ -99,8 +99,8 @@ xeon/packages/core-agents/
 | AG-4 | 완료 | `denylist.ts`, `service.ts`(`syncRules`) |
 | AG-5 | 완료 | `result-guard.ts`, `report-reader.ts` |
 | AG-6 | 완료 | `request-id.ts`, `service.ts`(`attach`: 정착, 진행 중, 끊김) |
-| AG-7 | M3 | `delegate`는 `agents.unavailable` |
-| AG-8 | M3 | `judge`는 `failed` |
+| AG-7 | 완료(M3) | `service.ts`(`provision`, `attachBackground`, `startInBackground`, `cancel`), `tool.ts`(`background: true`). 시험 `test/delegate.test.ts` |
+| AG-8 | 완료(M3) | `judge.ts`, `structured.ts`(`completeStructured`), `goal-gate.ts`. 시험 `test/judge.test.ts` |
 | AG-9 | 완료(M2 범위) | `definitions/loader.ts`, `definitions/registry.ts`(우선순위 등록부) |
 | AG-10 | 완료 | `plugin.ts`, `tool.ts`, `settings.ts`, `ports.ts`(F에 키가 없어 `AgentServicePortKey`·`LoopServicePortKey`를 이 패키지가 만든다) |
 | AG-11 | 완료 | `gate.ts`(루트별 `maxConcurrent`), 전체 풀 `limiter("subagents")`. `tools` 슬롯 `suspendWhile`(C2)은 `agent` 도구가 `ToolService.suspendWhile` 안에서 `spawn`을 기다려 해소(M2 검토 3). `l1.tasks.limits.tools = 1`에서 `agent` 호출의 자식이 도구를 부르는 통합 시험 `agent_waits_for_child_without_holding_the_tools_slot`이 실제 엔진(SQLite 저장소, 실제 풀·파이프라인·`runChildTurn`, 모델만 테이프)에서 통과한다. `suspendWhile`을 빼면 같은 시험이 교착으로 시간 초과가 되는 것을 확인했다 [L1F] |
