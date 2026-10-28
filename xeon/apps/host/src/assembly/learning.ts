@@ -6,6 +6,7 @@ import {
   createLearningBridge,
   createLearningGroup,
   createSqlReader,
+  createLearningProjector,
   learningProjector,
   type CommandReport,
   type LearningBridge,
@@ -108,9 +109,14 @@ export function createLearningRunner(deps: LearningRunnerDeps): LearningRunner {
       }
       // 호출 id는 호출마다 새로 만든다. 같은 호출을 다시 실행해야 하는 호출자(재시도)는 같은 값을 넘겨야 하고, 이 경로는 재시도하지 않는다
       const invocationId = deps.ids.next("evt");
-      await record.def.handler(line, { threadId, invocationId });
-      const report = reports.get(invocationId);
-      reports.delete(invocationId);
+      let report: CommandReport | undefined;
+      try {
+        await record.def.handler(line, { threadId, invocationId });
+      } finally {
+        // 처리기가 던져도 결과 자리를 남기지 않는다
+        report = reports.get(invocationId);
+        reports.delete(invocationId);
+      }
       return report === undefined
         ? { kind: "unavailable", detail: "the learning command returned no result" }
         : { kind: "report", report };
@@ -196,6 +202,8 @@ export interface LearningProjectionDeps {
   readonly session: SessionService;
   readonly store: StoreService;
   readonly wiring: LearningWiring;
+  /** 해독하지 못해 건너뛴 학습 기록의 kind를 받는다 */
+  readonly onSkipped: (kind: string) => void;
 }
 
 /**
@@ -205,7 +213,7 @@ export interface LearningProjectionDeps {
 export function registerLearningProjection(deps: LearningProjectionDeps): string | undefined {
   const owner = deps.store.extensions.register("learning");
   if (!owner.ok) return `learning tables were not registered: ${owner.error.kind}`;
-  const registered = deps.session.projectors.register(learningProjector);
+  const registered = deps.session.projectors.register(createLearningProjector(deps.onSkipped));
   if (!registered.ok) return `the learning projector was not registered: ${registered.error.kind}`;
   deps.wiring.reader.current = createSqlReader(deps.store.scoped(learningProjector.name));
   return undefined;

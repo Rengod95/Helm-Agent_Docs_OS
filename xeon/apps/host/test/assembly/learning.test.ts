@@ -125,3 +125,29 @@ test("learning.reader-slot: reads are store failures until the projection fills 
   };
   expect(await reader.listProposals({})).toEqual({ ok: true, value: [] });
 });
+
+test("learning.runner leaves no result behind when the command handler throws", async () => {
+  const stored: string[] = [];
+  const runner: LearningRunner = createLearningRunner({
+    resources: () =>
+      registry((call) => {
+        runner.report({ kind: "cancel", cancelled: true }, call.invocationId);
+        stored.push(call.invocationId);
+        throw new Error("boom");
+      }),
+    ids: fixedIdFactory(7),
+    heldThreads: () => [FIRST],
+    activeThread: () => FIRST,
+  });
+  let thrown = false;
+  try {
+    await runner.run("queue", FIRST);
+  } catch (error) {
+    thrown = error instanceof Error;
+  }
+  expect(thrown).toBe(true);
+  // 같은 id로 다시 보고하는 일이 없으니 남은 항목은 다음 실행에 섞이지 않는다
+  const later = await runnerOf([], [FIRST], FIRST).run("queue", FIRST);
+  expect(later.kind).toBe("report");
+  expect(stored).toHaveLength(1);
+});

@@ -38,6 +38,10 @@ const LEARNING_STATUSES: ReadonlySet<ProposalStatusWire> = new Set<ProposalStatu
 ]);
 
 const DEFAULT_LIMIT = 50;
+/** 쪽 크기 상한. 요청한 `limit`이 더 커도 이 크기로 줄여 돌려주고 `nextCursor`가 이어 간다 */
+const PAGE_MAX = 100;
+/** 같은 `createdAt`의 행이 쪽 경계에 걸릴 때를 위한 여유 행 수(지식 어댑터의 같은 시각 정렬은 id 내림차순이라 합친 목록과 반대다) */
+const TIE_PAD = 50;
 
 export interface ProposalPortDeps {
   /** 학습 그룹이 켜져 있으면 대기열 면, 꺼졌거나 안전 모드면 undefined */
@@ -248,13 +252,24 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
       deps.report("proposal.learning_list_failed", { error: listed.error.kind });
       return undefined;
     }
-    return listed.value.map(learningRowOf);
+    // 근거의 thread id가 `thr` 형식이 아니면 wire 행에 실을 수 없어 그 항목을 뺀다. 조용히 빼지 않고 알린다
+    return listed.value.map((view) => {
+      const mapped = learningRowOf(view);
+      if (mapped.evidence.length < view.evidence.length) {
+        deps.report("proposal.evidence_dropped", {
+          id: view.id,
+          dropped: view.evidence.length - mapped.evidence.length,
+        });
+      }
+      return mapped;
+    });
   }
 
   /** 지식 출처의 행. 어댑터가 없거나 읽기가 실패하면 undefined */
   async function knowledgeRows(
     params: ProposalListParams,
     limit: number,
+    cursor: RowKey | undefined,
     signal: AbortSignal,
   ): Promise<readonly ProposalRow[] | undefined> {
     const wire = deps.knowledge();
@@ -264,6 +279,8 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
         {
           ...(params.status === undefined ? {} : { status: params.status }),
           limit: Math.min(limit, 200),
+          // 커서가 있으면 그 시각 이전(같은 시각 포함)부터 읽는다. 같은 시각의 앞선 행은 호출한 쪽이 `afterCursor`로 거른다
+          ...(cursor === undefined ? {} : { before: { createdAt: cursor.createdAt + 1, id: "" } }),
         },
         hostCall(signal),
       ),
@@ -280,7 +297,8 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
     async list(params, signal) {
       const wanted: readonly ProposalSource[] =
         params.source === undefined ? ["learning", "knowledge"] : [params.source];
-      const limit = params.limit ?? DEFAULT_LIMIT;
+      // 지식 어댑터는 한 번에 200행까지 준다. 한 쪽(page)이 그 안에서 `limit + 1`행과 같은 시각의 중복 여유(TIE_PAD)를 채우도록 쪽 크기를 제한한다
+      const limit = Math.min(params.limit ?? DEFAULT_LIMIT, PAGE_MAX);
       const cursor = decodeCursor(params.cursor);
       const unavailable: ProposalSource[] = [];
       const rows: ProposalRow[] = [];
@@ -290,12 +308,7 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
         else rows.push(...learning);
       }
       if (wanted.includes("knowledge")) {
-        // 커서 뒤에서 `limit + 1`행이 남도록 넉넉히 읽는다(커서 앞의 행은 아래에서 거른다)
-        const knowledge = await knowledgeRows(
-          params,
-          limit + (cursor === undefined ? 1 : 200),
-          signal,
-        );
+        const knowledge = await knowledgeRows(params, limit + 1 + TIE_PAD, cursor, signal);
         if (knowledge === undefined) unavailable.push("knowledge");
         else rows.push(...knowledge);
       }

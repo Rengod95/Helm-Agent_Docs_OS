@@ -670,7 +670,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const session = requirePort(ext, SESSION_KEY, "xeon.session");
     const storeService = requirePort(ext, STORE_KEY, "xeon.store");
     if (learningLoaded({ defaultGroups: options.defaultGroups, safeMode: options.safeMode })) {
-      const failed = registerLearningProjection({ session, store: storeService, wiring: learning });
+      const failed = registerLearningProjection({
+        session,
+        store: storeService,
+        wiring: learning,
+        onSkipped: (kind) => logger.warn("learning.projection_skipped", { kind }),
+      });
       if (failed !== undefined) {
         throw new AssembleError([{ code: "plugin", plugin: "learning", message: failed }]);
       }

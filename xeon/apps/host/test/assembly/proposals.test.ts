@@ -154,10 +154,17 @@ function rig(options: {
       }
       const all =
         options.knowledge === undefined || options.knowledge === "down" ? [] : options.knowledge;
-      const filtered = all.filter(
-        (found) => input.status === undefined || input.status.includes(found.status),
-      );
-      return Promise.resolve(filtered);
+      // 실제 어댑터처럼 (createdAt, id) 내림차순으로 `before` 뒤에서 `limit`행을 돌려준다
+      const filtered = all
+        .filter((found) => input.status === undefined || input.status.includes(found.status))
+        .filter(
+          (found) =>
+            input.before === undefined ||
+            found.createdAt < input.before.createdAt ||
+            (found.createdAt === input.before.createdAt && found.id < input.before.id),
+        )
+        .toSorted((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
+      return Promise.resolve(filtered.slice(0, input.limit ?? 50));
     },
     decide:
       options.knowledgeDecide ??
@@ -522,4 +529,38 @@ test("proposal.decide says unavailable when the source cannot be reached", async
     SIGNAL,
   );
   expect(knowledgeDown).toMatchObject({ ok: false, reason: "unavailable" });
+});
+
+test("proposal.list pages through more than 200 knowledge rows without losing any or ending early", async () => {
+  const knowledge = Array.from({ length: 450 }, (_, n) =>
+    row({ id: `knp_${String(n).padStart(4, "0")}`, createdAt: 100_000 - n }),
+  );
+  const learning = Array.from({ length: 3 }, (_, n) =>
+    view({ id: `prop_${String(n)}`, createdAt: 99_700 - n }),
+  );
+  const { port } = rig({ learning, knowledge });
+  const collected: string[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 20; page += 1) {
+    // eslint-disable-next-line no-await-in-loop -- 페이지는 차례로 읽는다
+    const next = await port.list(
+      { limit: 100, ...(cursor === undefined ? {} : { cursor }) },
+      SIGNAL,
+    );
+    collected.push(...next.proposals.map((entry) => entry.id));
+    if (next.nextCursor === null) break;
+    cursor = next.nextCursor;
+  }
+  expect(collected).toHaveLength(453);
+  expect(new Set(collected).size).toBe(453);
+});
+
+test("proposal.list reports learning evidence it cannot put on the wire instead of dropping it silently", async () => {
+  const { port, calls } = rig({
+    learning: [view({ id: "prop_1", evidence: [{ eventId: "evt_1", threadId: "not-a-thread" }] })],
+    knowledge: [],
+  });
+  const listed = await port.list({}, SIGNAL);
+  expect(listed.proposals[0]?.evidence).toEqual([]);
+  expect(calls.reports).toContain("proposal.evidence_dropped");
 });
