@@ -32,7 +32,7 @@ import {
   type DelegateStatusResult,
 } from "./delegate.ts";
 import { createMetricsCounter, type MetricsCounter } from "./metrics/counter.ts";
-import { GroupSettingsSourceKey, type GroupSettingsSource } from "./ports/settings.ts";
+import type { GroupSettingsSource } from "./ports/settings.ts";
 import { checkPostItem, checkRecordKind, type RecordCheck } from "./records.ts";
 import { checkStateCommit, migrationChain, type StateMigrations } from "./state.ts";
 import type {
@@ -50,7 +50,7 @@ export interface GroupHostAccess {
   registerTool(def: ToolResourceDef): void;
   registerCommand(name: string, def: CommandResourceDef): void;
   migrateState(fn: StateMigration): void;
-  /** 설정 읽기 포트. 없거나 내장 확장이 아니면 undefined */
+  /** 설정 읽기. 내장 그룹은 모든 키, 그 밖의 그룹은 자기 `ext.<id>.*` 키만 값이 나온다 */
   settingsSource(): GroupSettingsSource | undefined;
   /** L1 위임 서비스(`xeon.agents`). 없거나 내장 확장이 아니면 undefined */
   agents(): AgentService | undefined;
@@ -74,7 +74,8 @@ export function realHostAccess<S>(api: ScopeApi<S>): GroupHostAccess {
     migrateState: (fn) => {
       hostOf(api).migrateState(fn);
     },
-    settingsSource: () => optionalPort(api, GroupSettingsSourceKey),
+    // 내장이 아닌 그룹은 `xeon.*` 포트를 못 쓰므로 X의 `settingValue`를 거친다. 자기 `ext.<id>.*` 키만 읽힌다(X.primitives.spec §3.8)
+    settingsSource: () => ({ value: (key) => hostOf(api).settingValue(key) }),
     agents: () => optionalPort(api, AgentServicePortKey),
     callContext: () => hostOf(api).callContext(),
   };
