@@ -4,7 +4,7 @@ import type { ThreadId } from "@xeon/contracts/conversation";
 import type { PointName } from "@xeon/contracts/extensions";
 import { hostOf } from "../../src/primitives/index.ts";
 import { makeDraft } from "../../src/primitives/drafts.ts";
-import { createTestHost } from "../../src/testing/index.ts";
+import { createTestHost, fixedIdFactory } from "../../src/testing/index.ts";
 import { echoDefs, makeGroupUnit, makeUnit, rejectionOf } from "./fixtures/support.ts";
 
 // ADR-0015 §3.2, §3.4, §3.6: 재실행되는 코드의 능력 호출 검사와 "재생 2회, 효과 1회"
@@ -265,4 +265,68 @@ test("after a restart, a started request without a result is closed as unknown w
     .events(thread)
     .find((event) => event.kind === "grp.ew-grp.effect.settled");
   expect(settled?.payload).toEqual({ key: "ew:9", outcome: { kind: "unknown" } });
+});
+
+test("a turn started by a drive is not a replayed context for the tools inside it", async () => {
+  const provider = makeProvider();
+  const holder: { svc?: Svc } = {};
+  const codes: string[] = [];
+  const ids = fixedIdFactory(500);
+  const t = await createTestHost({
+    capabilityDefs: echoDefs,
+    loop: {
+      runTurn: async () => {
+        // 도구 실행처럼 turn 안에서 선언 없는 쓰기를 부른다. drive의 검사를 받지 않는다
+        const svc = holder.svc;
+        codes.push(svc === undefined ? "no service" : await codeOf(() => svc.poke({})));
+        return { outcome: { turnId: ids.next("trn"), status: "completed" }, usage: null };
+      },
+    },
+  });
+  const thread = t.newThread();
+  await t.host.install(
+    makeUnit({ name: "re-provider", provides: [{ id: "demo.echo", version: "1.0.0" }] }, (g) => {
+      hostOf(g).provide(svcKey, provider.service);
+    }),
+  );
+  await t.host.install(
+    makeGroupUnit(
+      { name: "re-turn", loadIndex: 1, requires: [{ id: "demo.echo", range: "^1.0.0" }] },
+      (g) => {
+        holder.svc = g.capability(svcKey);
+        g.drive(async (loop) => {
+          await loop.turn({ input: { kind: "user", content: "go" } });
+        });
+      },
+    ),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  expect(codes).toEqual(["ok"]);
+  expect(provider.state.effects).toBe(1);
+});
+
+test("members outside the capability definition pass through the wrapper", async () => {
+  const t = await createTestHost({ capabilityDefs: echoDefs });
+  const extra = { registerAction: () => "registered" };
+  await t.host.install(
+    makeUnit({ name: "re-provider", provides: [{ id: "demo.echo", version: "1.0.0" }] }, (g) => {
+      hostOf(g).provide(svcKey, { ...makeProvider().service, ...extra });
+    }),
+  );
+  const seen: unknown[] = [];
+  await t.host.install(
+    makeUnit(
+      { name: "re-extra", loadIndex: 1, requires: [{ id: "demo.echo", range: "^1.0.0" }] },
+      (g) => {
+        const service: unknown = g.capability(svcKey);
+        seen.push(
+          typeof service === "object" && service !== null && "registerAction" in service
+            ? typeof service.registerAction
+            : "missing",
+        );
+      },
+    ),
+  );
+  expect(seen).toEqual(["function"]);
 });

@@ -14,7 +14,7 @@ import {
   type TurnOutcome,
 } from "@xeon/contracts/extensions";
 import type { Usage } from "@xeon/contracts/conversation";
-import { withAmbient, type DriveInvocation } from "./ambient.ts";
+import { withAmbient, withoutAmbient, type DriveInvocation } from "./ambient.ts";
 import type {
   BoundarySignal,
   BoundaryTxn,
@@ -165,16 +165,19 @@ export function createLeaseBroker(
         const index = invocation.i;
         invocation.i += 1;
         const requestId = input.requestId ?? `${lease.leaseId}:${invocation.baseRev}.${index}`;
-        const result = await loop.runTurn({
-          threadId: lease.threadId,
-          scopeId: lease.scopeId,
-          leaseId: lease.leaseId,
-          leaseEpoch: lease.leaseEpoch,
-          requestId,
-          input: input.input,
-          // 반납이 진행 중인 turn을 끊지 않게 lease.signal이 아니라 thread 신호를 넘긴다
-          signal: thread.abort.signal,
-        });
+        // turn 안의 도구와 서비스는 재실행되는 문맥이 아니다. drive의 ambient가 따라 들어가지 않게 끊는다(ADR-0015 §3.1 1번)
+        const result = await withoutAmbient(() =>
+          loop.runTurn({
+            threadId: lease.threadId,
+            scopeId: lease.scopeId,
+            leaseId: lease.leaseId,
+            leaseEpoch: lease.leaseEpoch,
+            requestId,
+            input: input.input,
+            // 반납이 진행 중인 turn을 끊지 않게 lease.signal이 아니라 thread 신호를 넘긴다
+            signal: thread.abort.signal,
+          }),
+        );
         if (!result.replayed) {
           lease.used.turns += 1;
           lease.used.tokens += tokensOf(result.usage);
@@ -189,15 +192,17 @@ export function createLeaseBroker(
         const index = invocation.i;
         invocation.i += 1;
         const requestId = spec.requestId ?? `${lease.leaseId}:${invocation.baseRev}.${index}`;
-        const result = await loop.spawn({
-          threadId: lease.threadId,
-          scopeId: lease.scopeId,
-          leaseId: lease.leaseId,
-          leaseEpoch: lease.leaseEpoch,
-          requestId,
-          spec,
-          signal: lease.abort.signal,
-        });
+        const result = await withoutAmbient(() =>
+          loop.spawn({
+            threadId: lease.threadId,
+            scopeId: lease.scopeId,
+            leaseId: lease.leaseId,
+            leaseEpoch: lease.leaseEpoch,
+            requestId,
+            spec,
+            signal: lease.abort.signal,
+          }),
+        );
         if (!result.replayed) {
           lease.used.spawns += 1;
           lease.used.tokens += tokensOf(result.usage);

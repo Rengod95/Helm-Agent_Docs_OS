@@ -86,7 +86,7 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
   const def = defs(id);
   if (!isIndexable(service)) return {};
   const names = def === undefined ? Object.keys(service) : Object.keys(def.service.methods);
-  const wrapped: [string, AnyMethod][] = [];
+  const wrapped: [string, unknown][] = [];
   for (const name of names) {
     const method = service[name];
     if (!isMethod(method)) continue;
@@ -95,7 +95,7 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
       decl === undefined ? "capability.undeclared" : capabilityEffectOf(decl);
     wrapped.push([
       name,
-      (input, options) => {
+      (input: unknown, options?: unknown) => {
         const given: CallOptions | undefined = isIndexable(options) ? options : undefined;
         const amb = ambient();
         const context = replayContextOf(amb);
@@ -137,5 +137,23 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
       },
     ]);
   }
+  if (def !== undefined) {
+    // 정의 밖 멤버(예: `dialog.commands` 공급자의 TS 메서드 `registerAction`)는 능력 메서드가 아니므로 그대로 넘긴다
+    for (const name of memberNames(service)) {
+      if (name in def.service.methods) continue;
+      const member = service[name];
+      wrapped.push([name, isMethod(member) ? member.bind(service) : member]);
+    }
+  }
   return Object.fromEntries(wrapped);
+}
+
+/** 서비스 객체의 자기 키와 클래스 프로토타입의 메서드 이름 */
+function memberNames(service: Readonly<Record<string, unknown>>): readonly string[] {
+  const proto: unknown = Object.getPrototypeOf(service);
+  const inherited =
+    isIndexable(proto) && proto !== Object.prototype ? Object.getOwnPropertyNames(proto) : [];
+  return [...new Set([...Object.keys(service), ...inherited])].filter(
+    (name) => name !== "constructor",
+  );
 }
