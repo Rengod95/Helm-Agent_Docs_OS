@@ -497,7 +497,15 @@ export interface TurnStartedPayload {
   requestId: string | null;
   /** drive turn이면 임대한 scope id, 그 밖은 null. drive turn 멱등 키 (scopeId, requestId)의 근거(L1.loop.spec FR-L8, L1.persistence.spec FR-P10) */
   scopeId: string | null;
+  /** 입력 출처. 선택이라 version을 올리지 않는다. 없으면(옛 기록) "user"다 [제안: M3-REQ-06] */
+  origin?: TurnOrigin;
 }
+/**
+ * turn 입력의 출처 [제안: M3-REQ-06. 이름 origin, 값 집합은 학습 그룹 요구 REQ-LN-01의 TurnOrigin].
+ * delegation은 위임 자식 대화의 turn, drive는 drive 함수의 loop.turn, scheduled는 예약 실행, remote는 원격 입력, other는 나머지 확장 post다.
+ * 값 목록 상수는 TURN_ORIGINS, 스키마는 TurnOriginSchema다
+ */
+export type TurnOrigin = "user" | "scheduled" | "remote" | "delegation" | "drive" | "other";
 /** 사용자에게만 보이는 휘발 알림. 모델 컨텍스트에는 넣지 않는다 [결정: m2 F.8, L1.loop.spec FR-L5] */
 export interface TurnNotice {
   code: "repeat_detected" | "gate_limit";   // 반복 감지(L1.loop.spec §4.10), 완료 게이트 계속 상한 도달(§4.9)

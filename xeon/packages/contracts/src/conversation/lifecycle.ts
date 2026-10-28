@@ -96,16 +96,52 @@ export type ThreadClosed = Notification<"thread.closed", ThreadClosedPayload>;
 export type ThreadEvent = ThreadStarted | ThreadUpdated | ThreadClosed;
 
 // ── turn ────────────────────────────────────────────────────────────────
+
+/**
+ * turn 입력의 출처 [제안: M3-REQ-06, 이름 `origin`. 값 집합은 학습 그룹 요구 REQ-LN-01의 `TurnOrigin`].
+ * delegation은 위임 자식 대화의 turn, drive는 drive 함수의 `loop.turn`, scheduled는 예약 실행, remote는 원격 입력이다.
+ * other는 위 다섯에 들지 않는 확장 post다
+ */
+export type TurnOrigin = "user" | "scheduled" | "remote" | "delegation" | "drive" | "other";
+export const TURN_ORIGINS: readonly TurnOrigin[] = [
+  "user",
+  "scheduled",
+  "remote",
+  "delegation",
+  "drive",
+  "other",
+];
+export const TurnOriginSchema: TUnion<
+  [
+    TLiteral<"user">,
+    TLiteral<"scheduled">,
+    TLiteral<"remote">,
+    TLiteral<"delegation">,
+    TLiteral<"drive">,
+    TLiteral<"other">,
+  ]
+> = Type.Union([
+  Type.Literal("user"),
+  Type.Literal("scheduled"),
+  Type.Literal("remote"),
+  Type.Literal("delegation"),
+  Type.Literal("drive"),
+  Type.Literal("other"),
+]);
+
 export const TurnStartedPayloadSchema: TObject<{
   inputItemIds: TArray<TUnsafe<ItemId>>;
   requestId: TUnion<[TString, TNull]>;
   scopeId: TUnion<[TString, TNull]>;
+  origin: TAddOptional<typeof TurnOriginSchema>;
 }> = Type.Object(
   {
     inputItemIds: Type.Array(ItemIdSchema, { maxItems: 1024 }),
     requestId: Nullable(Type.String({ minLength: 1, maxLength: 64 })),
     /** drive turn이면 임대한 scope id, 그 밖은 null. drive turn 멱등 키 (scopeId, requestId)의 근거 */
     scopeId: Nullable(Type.String({ minLength: 1, maxLength: 96 })),
+    /** 입력 출처. 선택이라 `version`을 올리지 않는다. 없으면(옛 기록) "user"로 읽는다 [제안: M3-REQ-06] */
+    origin: Type.Optional(TurnOriginSchema),
   },
   { additionalProperties: false },
 );

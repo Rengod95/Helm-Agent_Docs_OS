@@ -401,7 +401,7 @@ export type ExtensionEntry = (host: {
 ```ts
 // ports.ts
 import type { TSchema } from "typebox";
-import type { ThreadId, JsonValue, StepId, Usage } from "../conversation/index.ts";
+import type { ThreadId, ItemId, JsonValue, StepId, TurnOrigin, Usage } from "../conversation/index.ts";
 import type { CallerId, ToolHints, ToolName, ToolRisk } from "../capabilities/index.ts";
 import type { ProjectorRegistry, StoreService, RecordCommitPort, StoreError } from "../records/index.ts";
 import type { Result } from "../base/index.ts";
@@ -795,7 +795,7 @@ export type CollectPointName = { [N in PointName]: PointSignatures[N]["fold"] ex
 | 15 | `tool.execution.before` | tool | tap | ToolExecutionStartPayload | void | open |  | `tool_execution_start` | types.ts:1066 | runner.ts:1089 emit | 같음 |
 | 16 | `tool.execution.update` | tool | tap | ToolExecutionUpdatePayload | void | open |  | `tool_execution_update` | types.ts:1076 | runner.ts:1089 emit | 같음 |
 | 17 | `tool.execution.after` | tool | tap | ToolExecutionEndPayload | void | open |  | `tool_execution_end` | types.ts:1087 | runner.ts:1089 emit | 같음. `input`과 `stepId`를 더 싣는다(M3-REQ-04) |
-| 18 | `boundary.turn.before` | boundary | tap | AgentStartPayload | void | open |  | `agent_start` | types.ts:932 | runner.ts:1089 emit | Xeon turn 시작 |
+| 18 | `boundary.turn.before` | boundary | tap | AgentStartPayload | void | open |  | `agent_start` | types.ts:932 | runner.ts:1089 emit | Xeon turn 시작. 페이로드 `{ turnId, origin: TurnOrigin }`(M3-REQ-06) |
 | 19 | `boundary.step.before` | boundary | tap | TurnStartPayload | void | open | ● | `turn_start` | types.ts:1030 | runner.ts:1089 emit | Xeon step 시작 |
 | 20 | `boundary.message.before` | boundary | tap | MessageStartPayload | void | open |  | `message_start` | types.ts:1047 | runner.ts:1089 emit | 같음 |
 | 21 | `boundary.message.update` | boundary | tap | MessageUpdatePayload | void | open |  | `message_update` | types.ts:1053 | runner.ts:1089 emit | 같음 |
@@ -803,7 +803,7 @@ export type CollectPointName = { [N in PointName]: PointSignatures[N]["fold"] ex
 | 23 | `boundary.step.after` | boundary | chain | TurnEndPayload | BoundaryPatch | skip | ● | `turn_end` | types.ts:1037/994 | runner.ts:1029 emitBoundary | Xeon step 끝. 최종 검증(`finalize`). boundary 엔트리 추가의 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 |
 | 24 | `boundary.settle.before` | boundary | chain | AgentBeforeSettlePayload | BoundaryPatch | skip | ● | `agent_before_settle` | types.ts:1000/994 | runner.ts:1029 emitBoundary | Xeon turn 정착 직전. 최종 검증(`finalize`). boundary 엔트리 추가의 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 |
 | 25 | `boundary.turn.after` | boundary | tap | AgentEndPayload | void | open |  | `agent_end` | types.ts:937 | runner.ts:1089 emit | 같음 |
-| 26 | `boundary.settle.after` | boundary | tap | AgentSettledPayload | void | open | ● | `agent_settled` | types.ts:1005 | runner.ts:1089 emit | Xeon turn 끝 |
+| 26 | `boundary.settle.after` | boundary | tap | AgentSettledPayload | void | open | ● | `agent_settled` | types.ts:1005 | runner.ts:1089 emit | Xeon turn 끝. `origin`, `status`, `hasFinalAnswer`, `lastItemId`를 싣는다(M3-REQ-100, §3.5 블록) |
 | 27 | `session.trust.before` | session | first | ProjectTrustPayload | ProjectTrustDecision | closed |  | `project_trust` | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Xeon은 불신(no). thread 없이 호스트 수준에서 발화한다(`threadless`, §7) |
 | 28 | `session.resources` | session | collect | ResourcesDiscoverPayload | ResourcesPatch | open |  | `resources_discover` | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. 병합 규칙이 경로를 확장 이름과 함께 추가 |
 | 29 | `session.mcp.after` | session | tap | McpServersChangePayload | void | open |  | `mcp_servers_change` | types.ts:730 | runner.ts:459 emit (대기 안 함) | `dispatch: detached` |
@@ -954,7 +954,18 @@ export interface AgentBeforeSettlePayload {   // Xeon turn 정착 직전
   readonly context: BoundaryContextPreview;
   readonly outcome: "completed" | "aborted" | "error";
 }
-export interface AgentSettledPayload { readonly turnId: TurnId; readonly aborted: boolean }
+export interface AgentSettledPayload {
+  readonly turnId: TurnId;
+  readonly aborted: boolean;
+  /** 입력 출처 [제안: M3-REQ-06, 100]. 값은 F.conversation.spec §3.5의 TurnOrigin */
+  readonly origin: TurnOrigin;
+  /** "aborted"이면 aborted가 참이다 */
+  readonly status: "completed" | "aborted" | "error";
+  /** turn이 사용자에게 보일 최종 어시스턴트 답으로 끝났는가 */
+  readonly hasFinalAnswer: boolean;
+  /** turn의 마지막 item. 없으면 null. 학습 그룹의 검토 포크 지점이다 */
+  readonly lastItemId: ItemId | null;
+}
 
 // points/session.ts
 export interface SessionStartPayload {

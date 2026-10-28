@@ -22,7 +22,9 @@ import {
   StepIdSchema,
   ToolResultMessageSchema,
   TurnIdSchema,
+  TurnOriginSchema,
   type EventId,
+  type ItemId,
 } from "../../conversation/index.ts";
 import { DurableEventEnvelopeSchema } from "../../records/index.ts";
 
@@ -73,8 +75,15 @@ const MessagesSchema: TArray<typeof AgentMessageSchema> = Type.Array(AgentMessag
 
 // ── #18 agent_start, #25 agent_end, #26 agent_settled (Xeon turn 경계) ────
 
-export const AgentStartPayloadSchema: TObject<{ turnId: typeof TurnIdSchema }> = Type.Object(
-  { turnId: TurnIdSchema },
+export const AgentStartPayloadSchema: TObject<{
+  turnId: typeof TurnIdSchema;
+  origin: typeof TurnOriginSchema;
+}> = Type.Object(
+  {
+    turnId: TurnIdSchema,
+    /** 이 turn의 입력 출처 [제안: M3-REQ-06] */
+    origin: TurnOriginSchema,
+  },
   { additionalProperties: false },
 );
 export type AgentStartPayload = Static<typeof AgentStartPayloadSchema>;
@@ -91,8 +100,23 @@ export type AgentEndPayload = Static<typeof AgentEndPayloadSchema>;
 export const AgentSettledPayloadSchema: TObject<{
   turnId: typeof TurnIdSchema;
   aborted: TBoolean;
+  origin: typeof TurnOriginSchema;
+  status: TUnion<[TLiteral<"completed">, TLiteral<"aborted">, TLiteral<"error">]>;
+  hasFinalAnswer: TBoolean;
+  lastItemId: TUnion<[TUnsafe<ItemId>, TNull]>;
 }> = Type.Object(
-  { turnId: TurnIdSchema, aborted: Type.Boolean() },
+  {
+    turnId: TurnIdSchema,
+    aborted: Type.Boolean(),
+    /** 이 turn의 입력 출처 [제안: M3-REQ-06, 100] */
+    origin: TurnOriginSchema,
+    /** turn의 끝. `aborted`가 참이면 "aborted"다 */
+    status: Type.Union([Type.Literal("completed"), Type.Literal("aborted"), Type.Literal("error")]),
+    /** turn이 사용자에게 보일 최종 어시스턴트 답으로 끝났는가 */
+    hasFinalAnswer: Type.Boolean(),
+    /** turn의 마지막 item. 없으면 null. 포크 지점이 된다(학습 그룹) */
+    lastItemId: Nullable(ItemIdSchema),
+  },
   { additionalProperties: false },
 );
 export type AgentSettledPayload = Static<typeof AgentSettledPayloadSchema>;

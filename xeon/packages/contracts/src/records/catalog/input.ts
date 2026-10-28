@@ -1,6 +1,7 @@
 import {
   Type,
   type Static,
+  type TAddOptional,
   type TArray,
   type TBoolean,
   type TLiteral,
@@ -16,6 +17,7 @@ import {
   JsonValueSchema,
   TextContentSchema,
   ThreadIdSchema,
+  TurnOriginSchema,
   type EventId,
   type ImageContent,
   type ItemId,
@@ -85,6 +87,7 @@ export const InputQueuedPayloadSchema: TObject<{
   source: TUnion<
     [typeof UserSource, typeof ExtensionSource, typeof DelegationSource, typeof ScheduleSource]
   >;
+  origin: TAddOptional<typeof TurnOriginSchema>;
 }> = Type.Object(
   {
     /** "aside"는 F.extensions.spec PostWhen 결정(§10 미결)에 따른다 */
@@ -97,6 +100,11 @@ export const InputQueuedPayloadSchema: TObject<{
     item: Type.Union([UserInput, ContextInput]),
     requestId: Type.String({ minLength: 1, maxLength: 64 }),
     source: Type.Union([UserSource, ExtensionSource, DelegationSource, ScheduleSource]),
+    /**
+     * 이 입력이 시작하는 turn의 출처. 입력을 넣은 쪽이 밝힌다. 선택이라 `version`을 올리지 않는다.
+     * 없으면 `source`에서 정한다: user → user, delegation → delegation, schedule → scheduled, extension → other [제안: M3-REQ-06]
+     */
+    origin: Type.Optional(TurnOriginSchema),
   },
   { additionalProperties: false },
 );

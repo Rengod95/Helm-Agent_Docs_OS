@@ -90,7 +90,7 @@ export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
     result: "ok",
     isError: false,
   },
-  "boundary.turn.before": { turnId: TURN },
+  "boundary.turn.before": { turnId: TURN, origin: "user" },
   "boundary.step.before": { stepIndex: 0, stepId: STEP, timestamp: 1_700_000_000_000 },
   "boundary.message.before": { message: userText },
   "boundary.message.update": {
@@ -114,7 +114,14 @@ export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
   },
   "boundary.settle.before": { turnId: TURN, context, outcome: "completed" },
   "boundary.turn.after": { turnId: TURN, messages: [userText, assistantStop] },
-  "boundary.settle.after": { turnId: TURN, aborted: false },
+  "boundary.settle.after": {
+    turnId: TURN,
+    aborted: false,
+    origin: "user",
+    status: "completed",
+    hasFinalAnswer: true,
+    lastItemId: ITEM,
+  },
   "session.trust.before": { cwd: "/work" },
   "session.resources": { cwd: "/work", reason: "startup" },
   "session.mcp.after": {

@@ -447,6 +447,11 @@ export interface InputQueuedPayload {
     | { type: "extension"; scopeId: string }
     | { type: "delegation"; childThreadId: ThreadId }
     | { type: "schedule"; timerId: string };
+  /**
+   * 이 입력이 시작하는 turn의 출처. 입력을 넣은 쪽이 밝힌다. 선택이라 version을 올리지 않는다.
+   * 없으면 source에서 정한다: user → user, delegation → delegation, schedule → scheduled, extension → other [제안: M3-REQ-06]
+   */
+  origin?: TurnOrigin;
 }
 export interface InputPlacedPayload { inputId: EventId; itemId: ItemId }      // inputId = input.queued 이벤트 id
 export interface InputWithdrawnPayload { inputId: EventId; reason: "user" | "aborted" | "superseded" }
