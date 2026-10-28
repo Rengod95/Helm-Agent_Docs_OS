@@ -401,15 +401,15 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 |---|---|---|
 | E0 | 조건부 | 병합 전 각 워크트리에서 `just verify`가 통과했습니다(§10). `xeon/foundation` `c8afa8b`에서 `TURBO_FORCE=true just verify`, push, CI 실행 기록은 아직 없습니다. 이 셋이 끝나야 충족입니다 |
 | E1 | M3로 옮김(D-a) | `review.m3-plan` M3-01 |
-| E2 | Linux 충족, Mac 조건부 | `just exit-tests` 10/10줄, 건너뜀 0(WSL2, `m2f/e23` `1cfc743`, 2026-10-26, 로그 `~/.cache/xeon/scratch-backup/e23-exit-tests.log`). E2 줄: `platform-process` 45 통과, `apps/host`(`transport-parity`) 1 통과, `apps/desktop`(사이드카 e2e, 이 실행에서 빌드한 Linux 바이너리) 8 통과. 바이너리 한 턴 비교는 [미결](§5). macOS: 바이너리 e2e 3건이 한 번 돌았고(M-07), M-09 결과 대기 |
-| E3 | Linux 충족, Mac 조건부 | 같은 `exit-tests` 실행의 E3 줄: `apps/host`(`stdio-shutdown.int.test.ts`) 4 통과, `apps/desktop` 사이드카 e2e 8 통과. Tauri 앱 정상 종료 뒤 사이드카 0개는 M-09 결과 대기 |
+| E2 | 충족 | `just exit-tests` 10/10줄, 건너뜀 0(WSL2, `m2f/e23` `1cfc743`, 2026-10-26, 로그 `~/.cache/xeon/scratch-backup/e23-exit-tests.log`). E2 줄: `platform-process` 45 통과, `apps/host`(`transport-parity`) 1 통과, `apps/desktop`(사이드카 e2e, 이 실행에서 빌드한 Linux 바이너리) 8 통과. 바이너리 한 턴 비교는 [미결](§5). macOS: 바이너리 e2e 3건이 한 번 돌았고(M-07), 프리뷰 앱에서 실제 provider로 한 턴이 끝났습니다(M-09, M-12) |
+| E3 | 충족 | 같은 `exit-tests` 실행의 E3 줄: `apps/host`(`stdio-shutdown.int.test.ts`) 4 통과, `apps/desktop` 사이드카 e2e 8 통과. macOS 프리뷰 앱을 Cmd+Q로 끈 뒤 사이드카 프로세스 0개(M-09, 2026-10-28) |
 | E4 | 충족 | `exit-tests` E4 줄: `cap-web` 9 통과(`cap-web.int.test.ts`의 설정 없음·SearXNG 설정함), `apps/host` 4 통과. M2 마감 재검토 판정과 같습니다 |
 | E5 | 충족 | `exit-tests` E5 줄: `apps/host`(`approval-shapes.int.test.ts`) 1 통과. M2 마감 재검토 판정과 같습니다 |
 | E6 | 충족 | `exit-tests` E6 줄: `apps/host`(`cap-mcp.int.test.ts`, `cap-mcp-stdio.int.test.ts`) 2 통과. M2 마감 재검토 판정과 같습니다 |
 | E7 | Linux 충족, macOS M3로 옮김 | `exit-tests` E7 줄: `platform-secrets` 14 통과(`admin.int.test.ts`의 `tty-confirm`). Mac 실기에서 키 등록과 `secret ls`가 동작했습니다(`review.macos-checklist` M-12). macOS `os-auth`(Touch ID)는 구현되지 않아(`osAuthAvailable` 기본값 false) `review.m3-plan` M3-m2c-01로 옮깁니다 |
 
 - 절차 진행(2026-10-27):
-  - 3번 Mac 확인: M-10, M-11, M-12, M-13이 통과했습니다. M-09는 측정 중이고 M-05는 M3로 옮깁니다(`review.macos-checklist` §3, §5).
+  - 3번 Mac 확인: M-10, M-11, M-12, M-13이 통과했습니다. M-09도 2026-10-28에 통과했고 M-05는 M3로 옮깁니다(`review.macos-checklist` §3, §5).
   - 4번 GitHub macOS 수동 job(`xeon-macos.yml`): 아직 돌리지 않았습니다.
   - 5번 D-e: 테이프 녹화는 `bef8c87`. `just bench`는 서버(WSL2)에서 `cold_start_cli` 중앙값 189.8 ms, `cold_start_sidecar` 중앙값 46.9 ms, `just bench --first-token --yes`는 `first_token` 1289.5 ms(1회, 실제 provider)입니다(`eng.performance.guide` §2). 예산은 정하지 않았고 예산표는 틀로 남깁니다. 예산은 M3에서 정합니다(`review.m3-plan` M3-29). §8 D11의 래퍼 측정과 FTS 측정은 실행 기록이 없습니다.
   - 6번: `TURBO_FORCE=true just verify`, PR #2 갱신은 아직입니다.
