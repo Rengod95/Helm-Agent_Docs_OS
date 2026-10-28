@@ -23,6 +23,8 @@ import type {
   ExtChange,
   HostCore,
   InstalledUnit,
+  ScopeRecord,
+  ThreadRuntime,
   PrimitivesSettingsSource,
   ResolvedDeps,
 } from "./core.ts";
@@ -425,7 +427,14 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   }
 
   const resources = createResourceStore({ ports, policy: deps.resourcePolicy, report });
-  const state = createStateService(core);
+  const kick: { directCommitted: (thread: ThreadRuntime, record: ScopeRecord) => void } = {
+    directCommitted: () => {},
+  };
+  const state = createStateService(core, {
+    directCommitted: (thread, record) => {
+      kick.directCommitted(thread, record);
+    },
+  });
   services.state = state;
   const post = createPostQueue(core);
   const effects =
@@ -433,6 +442,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   // 순환 참조(경계 ↔ 임대 ↔ scope)는 지연 호출 자리로 푼다
   const late: { requestApply: (threadId: ThreadId) => void } = { requestApply: () => {} };
   const lease = createLeaseBroker(core, state, { requestApply: (id) => late.requestApply(id) });
+  kick.directCommitted = (thread, record) => {
+    lease.onDirectCommit(thread, record.id);
+  };
   const scope = createScopeRuntime(core, {
     makeApi: (record, generation) =>
       createScopeApi(

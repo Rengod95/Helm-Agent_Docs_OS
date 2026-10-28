@@ -1006,6 +1006,7 @@ invoke(lease):
 - 예외 [제안]: 임대를 `error` 사유로 반납하고 drive 등록을 오류 상태로 표시한다. on 핸들러와 post는 계속 동작한다. 그 scope는 사용자가 끄고 다시 켤 때까지 후보에서 빠진다(자동 재시도 없음). 끄고 켜면 새 세대에서 등록이 새로 생기므로 오류 표시가 지워진다.
 - 동시 실행 금지: 한 임대의 drive 함수는 한 번에 한 호출만 돈다. 앞 호출이 끝나지 않았으면 다음 호출을 예약하지 않는다.
 - [결정] 상태만 커밋하고 반환한 호출 뒤의 재호출. 한 호출이 `loop.turn`·`loop.spawn` 없이 상태(`commit`)만 바꾸고 반환하면 그 호출 안에서는 경계가 생기지 않아 위 표의 셋째 행이 일어날 시점이 오지 않는다. X는 임대가 `active`이고 thread가 유휴이고 상태 판이 호출 시작 때와 달라졌으면 새 판으로 drive 함수를 바로 다시 부른다. 그래서 drive 함수는 한 호출에서 분기를 여러 개 이어 갈 필요가 없다(한 호출에 한 분기만 진행해도 된다). 경계 없이 이어 부르는 횟수는 `MAX_CHAINED_REINVOKES`(8) [제안]로 막고, 넘으면 `scope_notice` 정보 진단을 남기고 멈춘다. 다음 경계(`turn_settled`·`idle`)가 오면 횟수는 0으로 돌아가고 상태가 바뀌었으면 다시 부른다. 상태가 그대로인 반환(효과 없음)은 이 재호출을 일으키지 않고 idle 반납 규칙을 따른다.
+- [결정] drive 호출 밖의 상태 커밋 뒤 호출. 명령 처리기나 도구 `execute`(§4.6.6)가 상태 판을 올리면 그 호출은 drive 호출이 아니라서 위 재호출 경로가 닿지 않는다. 그래서 `StateService`가 직접 호출 ambient(`invocation`이 있고 `drive`가 없다)의 커밋을 `LeaseBroker.onDirectCommit`에 알린다. 이 함수는 lifecycle 디스패치처럼 `setImmediate`로 한 번 넘겨 명령이 반환한 뒤에 판단한다. 그 scope가 `active`이고 커밋된 임대를 들고 있고 thread가 유휴이고 상태 판이 마지막 호출 때와 다르거나 아직 한 번도 부르지 않았으면 drive를 한 번 부른다. 임대가 없으면 후보 판단을 요청해 부여 경계가 돌게 한다. drive가 실행 중이면 `missed`로 표시해 반환 뒤에 이어 부르고, thread에서 turn이 돌고 있으면 부르지 않는다. 그 turn이 끝나는 `turn_settled` 경계가 위 표의 셋째 행으로 부른다. 같은 판은 `lastBaseRev`로 걸러 두 번 부르지 않는다. 이어 부르는 횟수는 `MAX_CHAINED_REINVOKES`를 그대로 따른다.
 
 #### 4.4.4 LoopHandle과 기본 requestId
 
@@ -1282,6 +1283,7 @@ recordPrivate(kind, payload):
 
 - thread: 도구는 `ctx.threadId`(도구가 실행된 대화)이고 명령은 `ctx.threadId`다. 위임 자식 대화에서 실행된 도구는 그 자식 대화에 쓴다(REQ-LN-04). 부모 대화에는 쓰지 않는다. thread가 열려 있지 않으면 `no_thread`다. 명령의 `ctx.threadId`가 `null`이면 ambient를 열지 않고 `no_thread`다.
 - 디스패치 키: 도구는 `tool:<toolCallId>`, 명령은 `command:<invocationId>`다. `toolCallId`는 `ToolResourceDef.execute`의 `ctx.toolCallId`(F.extensions.spec §3.2.1), `invocationId`는 `CommandResourceDef.handler`의 `ctx.invocationId`이고 L4가 명령 호출마다 정한다. 카운터는 호출마다 0에서 시작하므로 멱등 키는 §4.6.1, §4.6.4, §4.6.5와 같은 모양(`rec:<scope 해시>:<디스패치 키>:<n>`, 상태는 `st:`)이다. 같은 호출 id로 다시 실행하면 같은 키를 받아 저장소 결과가 `replayed`이고 효과는 한 번만 남는다. 호출 id가 다르면 새 효과다. 도구와 명령의 키 접두가 달라 같은 문자열의 id끼리 겹치지 않는다.
+- drive 재호출: 두 호출이 상태 판을 올리면(`commit`, `updateState`) X는 호출이 반환한 뒤 그 scope의 drive를 한 번 예약한다. 임대가 있고 thread가 유휴일 때다. turn이 도는 중이면 다음 `turn_settled` 경계가 부른다(§4.4.3). 그래서 사용자가 입력을 더 보내지 않아도 명령이 바꾼 상태로 drive가 이어진다.
 - 재실행 검사 제외: 두 호출은 재실행되는 코드가 아니다(ADR-0015 §3.1 1번). ambient에 `invocation`(`"tool"` 또는 `"command"`)을 두어 능력 래퍼(§4.4.7)가 on 핸들러로 보지 않게 한다. `callContext()`는 계속 `undefined`다.
 - 시간 예산과 취소: 두 호출은 핸들러 시간 예산(`handler`)이 없다. 도구의 취소는 `ctx.signal`이 알리고 `g.awaitUser`는 scope 세대 신호를 쓴다.
 - 도구 `execute`의 `ctx.caller`(`CallerInfo`)는 L1.tools가 채운다. `caller.afterUntrusted`는 이번 turn이 웹·MCP 도구 결과를 읽었는지다(M3-REQ-100, L1.tools.spec §4.3). X는 값을 건드리지 않고 정의에 그대로 넘긴다.

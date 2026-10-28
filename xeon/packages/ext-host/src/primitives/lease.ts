@@ -49,6 +49,8 @@ export interface LeaseBroker {
   applyCommitted(thread: ThreadRuntime, txn: BoundaryTxn): void;
   /** settle 뒤: 경계 종류에 맞게 drive 함수를 부른다 */
   onBoundary(thread: ThreadRuntime, signal: BoundarySignal): void;
+  /** 명령·도구 호출이 상태 판을 올렸다: 임대가 있고 thread가 유휴면 drive를 한 번 예약한다(X.primitives.spec §4.4.3) */
+  onDirectCommit(thread: ThreadRuntime, scopeId: ScopeId): void;
   /** 임대를 반납 예정으로 바꾼다. 활성이 아니면 아무 일도 하지 않는다 */
   release(lease: LeaseRuntime, reason: ReleaseReason): void;
 }
@@ -611,6 +613,33 @@ export function createLeaseBroker(
       }
       // 반납이 커밋되면 같은 경계에서 못 한 다음 후보의 부여를 이어서 판단한다
       if (txn.releasing.length > 0) hooks.requestApply(thread.threadId);
+    },
+    onDirectCommit(thread, scopeId) {
+      // 명령이 돌아온 뒤에 실행하려고 lifecycle 디스패치처럼 한 번 넘긴다
+      core.track(
+        (async () => {
+          await new Promise<void>((resolve) => {
+            setImmediate(resolve);
+          });
+          const lease = thread.lease;
+          if (lease === null) {
+            // 임대가 없으면 유휴 경계에서 후보 판단을 받는다
+            if (core.threads.get(thread.threadId) === thread) hooks.requestApply(thread.threadId);
+            return;
+          }
+          if (lease.scopeId !== scopeId || lease.status !== "active" || !lease.committed) return;
+          const record = core.scopes.get(scopeId);
+          if (record === undefined || record.generation?.open !== true) return;
+          if (lease.running) {
+            lease.missed = true;
+            return;
+          }
+          const changed = stateService.revOf(thread.threadId, scopeId) !== lease.lastBaseRev;
+          // thread가 실행 중이면 turn_settled 경계가 부른다
+          if ((changed || lease.wantInvoke) && loopStatusIdle(thread.threadId))
+            start(thread, lease);
+        })(),
+      );
     },
     onBoundary(thread, signal) {
       if (signal.kind === "turn_settled") thread.cooldown.clear();

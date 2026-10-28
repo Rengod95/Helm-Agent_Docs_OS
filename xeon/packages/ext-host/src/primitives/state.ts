@@ -198,7 +198,12 @@ function queueKey(thread: ThreadRuntime, record: ScopeRecord): string {
   return `${thread.threadId}|${record.id}`;
 }
 
-export function createStateService(core: HostCore): StateService {
+export interface StateHooks {
+  /** 명령·도구 호출(ambient의 `invocation`)이 상태 판을 올렸다. 임대 쪽이 drive 재호출을 예약한다(X.primitives.spec §4.6.6) */
+  directCommitted(thread: ThreadRuntime, record: ScopeRecord): void;
+}
+
+export function createStateService(core: HostCore, hooks: StateHooks): StateService {
   function threadOf(amb: Ambient | undefined, record: ScopeRecord): ThreadRuntime {
     if (amb === undefined) {
       throw new PrimitiveError("no_thread", "no thread context (setup body or detached callback)", {
@@ -472,6 +477,8 @@ export function createStateService(core: HostCore): StateService {
           doc: deepFreeze(next),
         });
         noteEffect(amb);
+        if (amb.invocation !== undefined && amb.drive === null)
+          hooks.directCommitted(thread, record);
         return { kind: "done", doc: deepFreeze(next) };
       case "replayed": {
         const stored = result.stored;
