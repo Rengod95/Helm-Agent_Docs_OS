@@ -133,6 +133,7 @@ zod4와 TypeBox 공존: 경계 변환 지점 [제안]:
 | 파일 | 테스트 | 확인할 동작 |
 |---|---|---|
 | `test/defs.test.ts` | `mcp.client def has no issues` | `validateCapability(McpClient)` 이슈 0건 |
+| `test/read-only.conformance.test.ts` | `the declared readOnly methods are exactly the reads`, `calling every read leaves the stored server rows and the server side untouched` | 능력 적합성(ADR-0015 §3.6, M3-REQ-88·89). readOnly 일곱 메서드의 집합과 선언 없음 네 메서드(`replay` unsafe)가 spec §3.6과 같다. 읽기 일곱을 부른 뒤 `cap_mcp_servers` 행이 같고 스텁 서버가 `tools/call`이나 알림을 받지 않는다. `mcp.client`에는 멱등 쓰기가 없다 |
 | | `static tools are read only` | 정적 도구 3개가 `replay: "safe"`, `hints.readOnly: true` |
 | `test/connect.test.ts` | `connects and lists tools` | 스텁 서버 연결 → `listTools`가 스텁 도구 2개 |
 | | `exposes tools at next step boundary` | 연결 뒤 첫 단계 경계에서 도구 집합에 2개가 `added`로 들어간다(spec §9-1) |
