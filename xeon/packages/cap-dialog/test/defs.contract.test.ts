@@ -13,13 +13,6 @@ import {
 } from "@xeon/contracts/capabilities";
 import { dialogManifest } from "../src/manifest.ts";
 
-// L2 정의의 readOnly·idempotent 분류는 M3-REQ-88이 채운다. 그 전까지 분류 경고(effect_class_missing)는 이슈로 세지 않는다.
-function withoutClassWarnings(
-  issues: ReturnType<typeof validateCapability>,
-): ReturnType<typeof validateCapability> {
-  return issues.filter((issue) => issue.code !== "effect_class_missing");
-}
-
 const M2: readonly AnyCapabilityDef[] = [
   DialogAsk,
   DialogCommands,
@@ -29,15 +22,14 @@ const M2: readonly AnyCapabilityDef[] = [
 
 describe("정의 검증", () => {
   test("M2 정의 넷이 validateCapability 이슈 0건이고 집합에도 이름 충돌이 없다", () => {
-    for (const def of M2) expect(withoutClassWarnings(validateCapability(def))).toEqual([]);
+    for (const def of M2) expect(validateCapability(def)).toEqual([]);
     // 첨부가 requires로 가리키는 workspace.images가 같은 집합에 있어야 한다
     expect(validateCapabilitySet([...M2, WorkspaceImages])).toEqual([]);
     expect(validateCapabilitySet(M2).map((issue) => issue.code)).toEqual(["requires_unresolved"]);
   });
 
   test("일곱 정의 전체도 이슈가 없다", () => {
-    for (const def of DIALOG_CAPABILITIES)
-      expect(withoutClassWarnings(validateCapability(def))).toEqual([]);
+    for (const def of DIALOG_CAPABILITIES) expect(validateCapability(def)).toEqual([]);
     expect(validateCapabilitySet([...DIALOG_CAPABILITIES, WorkspaceImages])).toEqual([]);
   });
 

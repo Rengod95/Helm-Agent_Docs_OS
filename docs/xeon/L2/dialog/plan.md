@@ -138,6 +138,7 @@ xeon/packages/cap-dialog/
 
 | 테스트 파일 | 테스트 이름 | 확인할 동작 |
 |---|---|---|
+| `test/idempotency.conformance.test.ts` | 능력 적합성 | ADR-0015 §3.6, M3-REQ-88·89. 일곱 능력의 분류와 `replay`가 spec 효과 분류 표와 같다. `ask`를 같은 `requestId`로 재시작을 사이에 두고 두 번 부르면 승인 요청이 하나이고 결과가 같다. 다른 `requestId`는 다른 요청이고 `requestId`가 없으면 요청 전에 `invalid_input`이다. `notify.emit`의 시험은 공급자(D11)가 들어올 때 더한다 |
 | `test/ask-schema.test.ts` | 질문 스키마 검증 | 질문 0개·5개, 선택지 1개·9개 거부. 같은 질문 id, 추천 둘 이상, 선택지 id 중복은 `checkAskQuestions` 이슈 |
 | `test/ask-schema.test.ts` | 답 검증 | `validateAskAnswer`의 이슈 6종이 각각 나오는 사례와 통과 사례. `buildAskAnswerSchema` 결과로 JSON Schema 검사한 결과가 구조 규칙과 같다 |
 | `test/ask-defaults.test.ts` | 선택지 추천·시간 제한 기본값 | 모든 질문에 추천이 있으면 `defaultAskAnswer`가 답을 만들고 하나라도 없으면 null. 입력 `timeoutSec` 생략 시 설정값, 0이면 만료 없음 |
