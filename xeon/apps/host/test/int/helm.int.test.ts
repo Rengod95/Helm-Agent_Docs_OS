@@ -46,10 +46,10 @@ function report(claim: string): string {
   return `\`\`\`json\n${JSON.stringify({ findings: [{ claim, sources: [], confidence: "medium" }] })}\n\`\`\``;
 }
 
-function uc2Player(): ReturnType<typeof tapePlayer> {
+function uc2Player(userTurn = true): ReturnType<typeof tapePlayer> {
   return tapePlayer(
     tape("helm-uc2", [
-      answer("user turn", "안녕하세요."),
+      ...(userTurn ? [answer("user turn", "안녕하세요.")] : []),
       {
         role: "main" as const,
         label: "diverge: tries bash",
@@ -145,6 +145,52 @@ realTest(
       (event) => event.kind === "turn.started" && event.threadId === created.threadId,
     );
     expect(parentTurns).toHaveLength(3);
+    expect(
+      parentTurns.filter((event) => JSON.stringify(event.payload).includes(":turn:apply:")),
+    ).toHaveLength(1);
+    await connection.close();
+    await host.close();
+    home.dispose();
+  },
+  60_000,
+);
+
+realTest(
+  "uc2.command-only: /helm start alone, with no user message after it, opens the diverging turn, 3 lenses and one apply turn",
+  async () => {
+    // 결함 회귀: 명령이 상태만 커밋하고 사용자 입력이 더 없으면 drive가 다시 불리지 않았다
+    const player = uc2Player(false);
+    const home = useEngineHome();
+    writeUserSettings(home, TAPE_SETTINGS);
+    const host = await startInProcessHost({
+      devChecks: true,
+      defaultPluginsDir: bundleRoot,
+      buildModels: tapeBuildModels(tapeProvider(player)),
+    });
+    const connection = createHostConnection(host.client);
+    await connection.request("host.hello", HELLO_PARAMS);
+    const collector = collectEvents(connection);
+    await connection.request("events.subscribe", { from: "head" });
+    const created = await connection.request("thread.create", {});
+    const started = await connection.request("command.run", {
+      threadId: created.threadId,
+      text: "/helm start 캐시 무효화",
+    });
+    expect(started).toMatchObject({ status: "done", name: "helm" });
+    const finished = await collector.waitFor(
+      (event) => event.kind === "grp.helm.inquiry.finished",
+      30_000,
+    );
+    expect(finished.payload).toMatchObject({
+      payload: { outcome: "applied", lensCount: 3, failedLenses: 0, findingCount: 3 },
+    });
+    expect(player.remaining()).toBe(0);
+    expect(collector.events.filter((event) => event.kind === "agent.spawned")).toHaveLength(3);
+    // 사용자 turn 없이 부모 thread의 turn은 발산과 적용 둘이다
+    const parentTurns = collector.events.filter(
+      (event) => event.kind === "turn.started" && event.threadId === created.threadId,
+    );
+    expect(parentTurns).toHaveLength(2);
     expect(
       parentTurns.filter((event) => JSON.stringify(event.payload).includes(":turn:apply:")),
     ).toHaveLength(1);
