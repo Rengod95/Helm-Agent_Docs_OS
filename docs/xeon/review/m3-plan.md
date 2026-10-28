@@ -139,6 +139,27 @@ M2 Mac 실기(`review.macos-checklist` M-10~M-13, `xeon/foundation` `c8afa8b`)�
 - 닫음: `product.scope.spec` §10 미결 4(Helm 내부 설계 착수 시점)는 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(ADR-0015)"으로 닫았습니다.
 - 닫음: 외부 훅은 M3 밖이고 M4로 옮겼다(M3-15, ADR-0017 §6, `X.operations.spec` §10 21) [결정: 2026-10-28 사용자].
 - 닫음: 웹 클라이언트는 M3에 넣지 않는다. CLI와 데스크톱만 쓰고 웹 UI는 M4다. `packages/client`의 전송 계층은 브라우저 클라이언트가 쓸 수 있게 분리해 둔다 [결정: 2026-10-28 사용자].
-- [제안] Helm 설정 키 이름공간은 `l3.helm.*`을 그대로 쓰고, Helm 켜기·끄기는 `ext.helm.enabled`로 한다(`L3.helm.spec` §10). 기본값이며 사용자 결정은 아니다.
+- 닫음: Helm은 사용자 신뢰 수준의 기본 플러그인이라 설정 이름공간을 `ext.helm.*`로 옮겼다(A5, `L3.helm.spec` C5) [결정: 2026-10-28 오케스트레이터].
 - [제안] 소켓 전송의 클라이언트 구현은 `packages/client`에 둔다. 구현은 M3b 서비스 트랙이다(ADR-0020 §6). 기본값이며 사용자 결정은 아니다.
 - 닫음: 위장 provider·계정 회전 플러그인(M3-new-23, D-M3-22)과 모델 계정 풀(M3-new-07)은 M3b에 둔다 [결정: 2026-10-28 사용자].
+
+## 8. M3a 마감 판정 (2026-10-28)
+
+- 범위: `61f137b..HEAD`(M2 병합 뒤 M3a 전체). 마지막 확인 시점의 foundation은 A5 병합과 마감 수정(`/helm start` 직후 drive 재호출)까지다.
+- 마감 정책: 전체 강제 검증(`just verify-full`)은 M3b 마감 때 M3 전체에 한 번 돌린다 [결정: 2026-10-28 사용자]. M3a는 병합마다 빠른 `just verify`와 `just exit-tests`로 확인했다.
+
+| 조건 | 판정 | 근거 |
+|---|---|---|
+| X1 Helm(E1·UC-2) | 충족 | `exit-tests` X1 줄: `group-helm` `test/int/uc2.int.test.ts`·`plugin.int.test.ts`, `apps/host` `test/int/helm.int.test.ts`(실제 엔진: 확산 단계 bash 거부와 승인 창 없음, explorer 3개 생성, 결과 3개 커밋, 적용 turn 1회, 명령만 보낸 경우 `uc2.command-only`). 15/15줄 통과, 건너뜀 0(2026-10-28) |
+| X2 학습(UC-3) | 충족 | `exit-tests` X2 줄: `group-learning` `test/uc3.int.test.ts`, `apps/host` `test/int/proposals.int.test.ts`(실제 SQLite 투영, 승인 전 파일 0, 승인 창 없음) |
+| X3 S1 무수정 | 충족 | `bun scripts/core-diff-check.ts efe8d83 --head dc920ae`: 바뀐 경로 91개 중 contracts·ext-host·platform-*·core-* 0개. 학습 그룹에 필요한 하위 층 변경은 별도 트랙(T-X4·T-X5·T-X6)으로 먼저 들어갔다 |
+| T-F1 확장 지점 개정 | 충족 | 옛 이름 리터럴 0(grep), `contracts/test/extensions/points.doc.test.ts`가 `F.extensions.spec` §3.4 표와 일치 |
+| T-C `@xeon/client` | 충족 | CLI·데스크톱이 `@xeon/client`로 접속, 사이드카 e2e(E2·E3) 통과 |
+| T-X1 로더·안전 모드 | 충족 | `ext-host/test/loading-trust/external-loader.int.test.ts`, `group-helm/test/int/plugin.int.test.ts` |
+| T-X2·T-K 재생 2회 효과 1회 | 부분 | `group-kit/test/replay.test.ts`, Helm·학습 `replay.test.ts`. group-kit 하네스가 능력 쓰기 효과를 세지 않는다(Helm은 자체 하네스로 셈). M3b B4-GRP |
+| T-L1a 위임·판정 | 충족 | `core-agents/test/delegate.test.ts`, `cap-work/test/goals-gate.test.ts`. 실제 core-loop 경로 시험은 M3b B1-NTF(X6) |
+| Mac 실기 | 부분 | 데스크톱에서 Helm 기본 플러그인 첫 실행 설치 확인. 데스크톱이 슬래시 명령을 `command.run`으로 보내지 않아 `/helm`이 채팅으로 갔다(M3b B3-SET). CLI에서 엔진 명령 목록에 `helm`·`learning` 확인, `/helm start` 뒤 drive가 다음 입력까지 멈추는 결함을 찾아 고쳤다(`e3ce1db`). 수정 뒤 Mac 재확인은 M3b 사용자 묶음 |
+
+- M3a 중 추가된 트랙: T-X4(M3-REQ-102 ambient), T-X5(`loop.spawn` 실구현 등 Helm이 찾은 하위 층 틈), T-X6(M3-REQ-78 확장 도구 위험 선언). 하위 요구가 트랙에 배정되지 않아 생긴 일이라 M3b는 차수마다 요구 장부 검사를 둔다(`review.m3b-plan` §3.3).
+- 이월: `review.m3b-plan` §2 각 트랙의 "이월" 항목.
+
