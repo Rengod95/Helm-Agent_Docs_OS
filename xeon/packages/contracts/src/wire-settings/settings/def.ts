@@ -164,13 +164,26 @@ export const SettingEditorSchema: TUnion<
 ]);
 export type SettingEditor = Static<typeof SettingEditorSchema>;
 
+/**
+ * 메시지 키 [결정: M3-REQ-21, adr.0016]. 화면 문자열은 키로 싣고 ko·en 카탈로그(JSON, `@xeon/client`)가 문장을 낸다.
+ * 점으로 이은 낙타 표기 식별자다. 예: `settings.l1.loop.maxSteps.label`.
+ */
+export const MESSAGE_KEY_PATTERN: string = "^[a-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$";
+export const MessageKeySchema: TString = Type.String({
+  minLength: 1,
+  maxLength: 128,
+  pattern: MESSAGE_KEY_PATTERN,
+});
+
 export const SettingUiSchema: TObject<{
   tab: typeof SettingsTabSchema;
   widget: typeof SettingWidgetSchema;
   editor: TOptional<typeof SettingEditorSchema>;
   order: TInteger;
   label: TString;
+  labelKey: TOptional<TString>;
   help: TOptional<TString>;
+  helpKey: TOptional<TString>;
   unit: TOptional<TString>;
 }> = Type.Object(
   {
@@ -178,8 +191,13 @@ export const SettingUiSchema: TObject<{
     widget: SettingWidgetSchema,
     editor: Type.Optional(SettingEditorSchema),
     order: Type.Integer({ minimum: 0, maximum: 9999 }),
+    /** 개발·진단용 대체 문구. `labelKey`가 있으면 클라이언트는 카탈로그 문장을 쓰고 이 값은 키가 없을 때만 쓴다 */
     label: Type.String({ minLength: 1, maxLength: 80 }),
+    /** 라벨의 메시지 키(M3-REQ-21). 생성 TS id로 선언하고 호스트·화면이 같은 키를 쓴다 */
+    labelKey: Type.Optional(MessageKeySchema),
     help: Type.Optional(Type.String({ maxLength: 500 })),
+    /** 설명의 메시지 키 */
+    helpKey: Type.Optional(MessageKeySchema),
     unit: Type.Optional(Type.String({ maxLength: 16 })),
   },
   { additionalProperties: false },

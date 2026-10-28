@@ -3,11 +3,14 @@ import {
   type Static,
   type TBoolean,
   type TInteger,
+  type TNull,
+  type TNumber,
   type TObject,
   type TOptional,
   type TRecord,
   type TSchema,
   type TString,
+  type TUnion,
   type TUnknown,
 } from "typebox";
 
@@ -19,6 +22,7 @@ export const WireErrorDataSchema: TObject<{
   retryable: TBoolean;
   retryAfterMs: TOptional<TInteger>;
   details: TOptional<TRecord<"^.*$", TUnknown>>;
+  args: TOptional<TRecord<"^.*$", TUnion<[TString, TNumber, TBoolean, TNull]>>>;
   traceId: TOptional<TString>;
 }> = Type.Object(
   {
@@ -27,6 +31,16 @@ export const WireErrorDataSchema: TObject<{
     retryable: Type.Boolean(),
     retryAfterMs: Type.Optional(Type.Integer({ minimum: 0 })),
     details: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    /**
+     * 문장에 끼울 인자(M3-REQ-21). 문장은 클라이언트가 `kind`를 메시지 키로 카탈로그에서 만든다. `message`는 개발자용 영어로 남는다.
+     * 값은 문자열·숫자·불리언·null이고 비밀 값을 싣지 않는다
+     */
+    args: Type.Optional(
+      Type.Record(
+        Type.String(),
+        Type.Union([Type.String(), Type.Number(), Type.Boolean(), Type.Null()]),
+      ),
+    ),
     traceId: Type.Optional(Type.String({ maxLength: 64 })),
   },
   { additionalProperties: true },
@@ -565,6 +579,8 @@ export interface WireErrorOptions {
   readonly retryAfterMs?: number;
   readonly traceId?: string;
   readonly details?: Readonly<Record<string, unknown>>;
+  /** 문장에 끼울 인자(M3-REQ-21). 클라이언트가 kind를 키로 문장을 만든다 */
+  readonly args?: Readonly<Record<string, string | number | boolean | null>>;
 }
 
 /** 표에 있는 kind로 WireError를 만든다. details 스키마 검사는 호출자 몫이다 */
@@ -575,6 +591,7 @@ export function wireError(kind: WireErrorKind, options: WireErrorOptions = {}): 
     retryable: spec.retryable,
     ...(options.retryAfterMs !== undefined ? { retryAfterMs: options.retryAfterMs } : {}),
     ...(options.details !== undefined ? { details: options.details } : {}),
+    ...(options.args !== undefined ? { args: options.args } : {}),
     ...(options.traceId !== undefined ? { traceId: options.traceId } : {}),
   };
   return new WireError(spec.code, options.message ?? spec.kind, data);

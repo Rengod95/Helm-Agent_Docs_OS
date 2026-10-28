@@ -870,6 +870,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 5000 ~ 5999 | 호스트(L4) | 호스트 상태, 취소, 서비스 모드 |
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |
 
+- [결정: M3-REQ-21, M3-REQ-112, adr.0016] 오류 문장은 wire에 싣지 않는다. 오류는 `kind`와 인자로 가고 문장은 클라이언트가 `kind`를 메시지 키로 ko·en 카탈로그(`@xeon/client`, JSON [제안])에서 만든다. 문장에 끼울 값은 `WireErrorData.args`(문자열·숫자·불리언·null, 비밀 값 금지)다. `details`는 구조 정보로 그대로 둔다. `message`는 개발자용 영어 한 줄로 남고 화면에 쓰지 않는다. 설정 라벨과 설명은 `SettingUi.labelKey`·`helpKey`(`MessageKey`)로 싣고 `label`·`help`는 키가 없을 때의 대체 문구다. 모델용 도구 설명은 영어 원문을 유지한다. 시각은 UTC로 저장하고 날짜·숫자 표시는 클라이언트의 `Intl`이 한다.
 - [제안] 클라이언트는 분기 판단에 `code`보다 `kind`를 쓴다. 확장 구간은 코드가 겹칠 수 있기 때문이다.
 - [결정: m2-plan F.5] 구간 표는 코드 상수 `WIRE_CODE_RANGES`(`wire/errors.ts`)다. 순수 함수 `codeRangeOf(code)`는 코드가 속한 구간을 돌려주고, 어느 구간에도 속하지 않는 코드(0~999, 6000~9999, 20000 이상, 정수가 아닌 값)는 `null`이다. `wireErrorCodeMatchesKind(code, kind)`는 능력 구간의 `cap.`, 확장 구간의 `ext.` 접두를 `kind`가 지키는지 검사한다. 능력 오류 코드 4000은 `WIRE_CAPABILITY_ERROR_CODE`다. 등록된 `WIRE_ERRORS`의 모든 코드는 시험이 이 두 함수로 확인한다.
 - 근거: MCP `JSON_RPC_ERROR_CODES`(`_research/packages.md` §4.1 F5 "오류 코드 구간"), 19 §3.3.4.
@@ -985,13 +986,17 @@ export const SettingEditor = Type.Union([
   Type.Literal("modelRoles"), Type.Literal("fallbackChain"), Type.Literal("permissionRules"),
   Type.Literal("sandboxLists"), Type.Literal("searchOrder"), Type.Literal("accountPool"),
 ]);
+/** 점으로 이은 낙타 표기 식별자: ^[a-z][A-Za-z0-9]*(\.[A-Za-z][A-Za-z0-9]*)*$, 최대 128자 */
+export const MessageKey = Type.String({ minLength: 1, maxLength: 128, pattern: MESSAGE_KEY_PATTERN });
 export const SettingUi = Obj({
   tab: SettingsTab,
   widget: SettingWidget,
   editor: Type.Optional(SettingEditor),
   order: Type.Integer({ minimum: 0, maximum: 9999 }),
-  label: Type.String({ minLength: 1, maxLength: 80 }),
+  label: Type.String({ minLength: 1, maxLength: 80 }),     // 대체 문구. labelKey가 있으면 카탈로그 문장이 앞선다
+  labelKey: Type.Optional(MessageKey),                     // 메시지 키 [결정: M3-REQ-21, adr.0016]
   help: Type.Optional(Type.String({ maxLength: 500 })),
+  helpKey: Type.Optional(MessageKey),
   unit: Type.Optional(Type.String({ maxLength: 16 })),
 });
 export const SettingRange = Obj({
