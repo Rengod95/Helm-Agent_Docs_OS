@@ -771,7 +771,7 @@ export type CollectPointName = { [N in PointName]: PointSignatures[N]["fold"] ex
 ```
 
 - 페이로드 스키마는 지점 종류별 파일 `points/input.ts`, `points/request.ts`, `points/tool.ts`, `points/boundary.ts`, `points/session.ts`, `points/guard.ts`에 둔다. lifecycle 지점의 페이로드는 내구 이벤트 payload 스키마(`records/catalog`의 `AgentSettledEventPayloadSchema`, `LeaseRejectedPayloadSchema`)를 그대로 쓴다.
-- 페이로드 형태 규칙: pi 이벤트 인터페이스에서 `type` 필드를 빼고 필드 이름을 그대로 쓴다. pi coding-agent 고유 타입(`BashOperations`, `CompactionPreparation`, `SessionEntry` 등)은 F 타입으로 바꾼다. 바꿀 F 타입이 아직 없으면 JSON 값(`DeepJsonValueSchema`·`DeepJsonObjectSchema`)이나 F 타입(`AgentToolResult`)으로 정확히 정한다 [결정: M3-REQ-05]. 지점 페이로드에 `Type.Unknown()` 필드는 남기지 않는다. pi coding-agent 패키지에는 의존하지 않는다.
+- 페이로드 형태 규칙: pi 이벤트 인터페이스에서 `type` 필드를 빼고 필드 이름을 그대로 쓴다. pi coding-agent 고유 타입(`BashOperations`, `CompactionPreparation`, `SessionEntry` 등)은 F 타입으로 바꾼다. 바꿀 F 타입이 아직 없으면 JSON 값 스키마로 정한다 [결정: M3-REQ-05]. 인자·시스템 프롬프트 옵션은 정적 타입도 `JsonObject`(`DeepJsonObjectSchema`)이고, 제공자 요청 본문·스트림 데이터·도구 결과는 호출자 호환을 위해 정적 타입을 `unknown`으로 두고 런타임만 JSON을 끝까지 검사한다(`CheckedJsonObjectSchema`·`CheckedJsonValueSchema`). 호출자가 좁힌 뒤 정적 타입도 좁힌다 [제안]. 지점 페이로드에 `Type.Unknown()` 필드는 남기지 않는다. pi coding-agent 패키지에는 의존하지 않는다.
 
 ### 3.4 지점 선언 표
 
@@ -867,10 +867,10 @@ export interface BeforeProviderRequestPayload {
   readonly provider: string;
   readonly modelId: string;
   readonly role: string;          // L1.models.spec ModelRole
-  readonly payload: JsonObject;   // 제공자 요청 본문(JSON 객체, 끝까지 검사)
+  readonly payload: unknown;      // 제공자 요청 본문. 런타임은 JSON 객체를 끝까지 검사한다(CheckedJsonObjectSchema). 정적 타입은 호출자 호환으로 unknown이다
 }
-export interface ProviderPayloadValue { readonly payload: JsonObject }
-export interface ProviderPayloadPatch { readonly payload: JsonObject }              // 교체
+export interface ProviderPayloadValue { readonly payload: unknown }
+export interface ProviderPayloadPatch { readonly payload: unknown }              // 교체              // 교체
 
 // points/tool.ts
 export interface CapabilityRef { readonly id: CapabilityId; readonly method: string }
@@ -913,7 +913,7 @@ export interface ToolExecutionEndPayload {
   readonly input?: Readonly<Record<string, JsonValue>>;
   /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다. input과 같은 이유로 선택이다 [제안] */
   readonly stepId?: StepId;
-  readonly result: AgentToolResult;   // M3-REQ-05: unknown에서 정확화
+  readonly result: unknown;   // M3-REQ-05: 런타임은 JSON 값을 끝까지 검사한다(CheckedJsonValueSchema). 정적 타입은 호출자 호환으로 unknown이다
   readonly isError: boolean;
   readonly durationMs?: number;
   readonly parentToolCallId?: string;
@@ -1014,7 +1014,7 @@ export interface AfterProviderResponsePayload {
   readonly provider: string; readonly modelId: string; readonly role: string;
   readonly status: number; readonly headers: Readonly<Record<string, string>>;   // 인증·쿠키 헤더 제외
 }
-export interface ProviderStreamPayload { readonly provider: string; readonly api: string; readonly model: string; readonly data: JsonValue }
+export interface ProviderStreamPayload { readonly provider: string; readonly api: string; readonly model: string; readonly data: unknown }   // 런타임은 JSON 값을 끝까지 검사한다
 export interface ModelSelectPayload {
   readonly binding: ModelBindingJson;
   readonly previous: ModelBindingJson | null;

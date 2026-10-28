@@ -112,7 +112,7 @@ describe("JSON payload fields are checked deeply (M3-REQ-05)", () => {
     expect(
       accepts(ToolExecutionEndPayloadSchema, {
         ...end,
-        result: { content: "ok", details: null },
+        result: { n: undefined },
       }),
     ).toBe(false);
   });

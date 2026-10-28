@@ -15,8 +15,8 @@ import {
 import { Nullable } from "../../base/index.ts";
 import {
   AgentMessageSchema,
-  DeepJsonObjectSchema,
-  DeepJsonValueSchema,
+  CheckedJsonObjectSchema,
+  CheckedJsonValueSchema,
   ModelThinkingLevelSchema,
 } from "../../conversation/index.ts";
 
@@ -90,26 +90,26 @@ export const BeforeProviderRequestPayloadSchema: TObject<{
   provider: TString;
   modelId: TString;
   role: TString;
-  payload: typeof DeepJsonObjectSchema;
+  payload: typeof CheckedJsonObjectSchema;
 }> = Type.Object(
   {
     provider: Type.String({ minLength: 1, maxLength: 128 }),
     modelId: Type.String({ minLength: 1, maxLength: 256 }),
     /** L1.models.spec ModelRole */
     role: Type.String({ minLength: 1, maxLength: 64 }),
-    payload: DeepJsonObjectSchema,
+    payload: CheckedJsonObjectSchema,
   },
   { additionalProperties: false },
 );
 export type BeforeProviderRequestPayload = Static<typeof BeforeProviderRequestPayloadSchema>;
 
-export const ProviderPayloadValueSchema: TObject<{ payload: typeof DeepJsonObjectSchema }> =
-  Type.Object({ payload: DeepJsonObjectSchema }, { additionalProperties: false });
+export const ProviderPayloadValueSchema: TObject<{ payload: typeof CheckedJsonObjectSchema }> =
+  Type.Object({ payload: CheckedJsonObjectSchema }, { additionalProperties: false });
 export type ProviderPayloadValue = Static<typeof ProviderPayloadValueSchema>;
 
 /** 교체 */
-export const ProviderPayloadPatchSchema: TObject<{ payload: typeof DeepJsonObjectSchema }> =
-  Type.Object({ payload: DeepJsonObjectSchema }, { additionalProperties: false });
+export const ProviderPayloadPatchSchema: TObject<{ payload: typeof CheckedJsonObjectSchema }> =
+  Type.Object({ payload: CheckedJsonObjectSchema }, { additionalProperties: false });
 export type ProviderPayloadPatch = Static<typeof ProviderPayloadPatchSchema>;
 
 // ── #8 before_provider_headers (chain) ───────────────────────────────────
@@ -170,13 +170,13 @@ export const ProviderStreamPayloadSchema: TObject<{
   provider: TString;
   api: TString;
   model: TString;
-  data: typeof DeepJsonValueSchema;
+  data: typeof CheckedJsonValueSchema;
 }> = Type.Object(
   {
     provider: Type.String({ minLength: 1, maxLength: 128 }),
     api: Type.String({ minLength: 1, maxLength: 128 }),
     model: Type.String({ minLength: 1, maxLength: 256 }),
-    data: DeepJsonValueSchema,
+    data: CheckedJsonValueSchema,
   },
   { additionalProperties: false },
 );

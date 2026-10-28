@@ -20,7 +20,7 @@ import {
 } from "../../capabilities/index.ts";
 import {
   ImageContentSchema,
-  AgentToolResultSchema,
+  CheckedJsonValueSchema,
   DeepJsonObjectSchema,
   JsonValueSchema,
   StepIdSchema,
@@ -181,14 +181,14 @@ export const ToolExecutionUpdatePayloadSchema: TObject<{
   toolCallId: TString;
   toolName: typeof ToolNameSchema;
   args: typeof DeepJsonObjectSchema;
-  partialResult: typeof AgentToolResultSchema;
+  partialResult: typeof CheckedJsonValueSchema;
   parentToolCallId: TOptional<TString>;
 }> = Type.Object(
   {
     toolCallId: Type.String({ minLength: 1, maxLength: 256 }),
     toolName: ToolNameSchema,
     args: DeepJsonObjectSchema,
-    partialResult: AgentToolResultSchema,
+    partialResult: CheckedJsonValueSchema,
     parentToolCallId: Type.Optional(Type.String({ minLength: 1, maxLength: 256 })),
   },
   { additionalProperties: false },
@@ -200,7 +200,7 @@ export const ToolExecutionEndPayloadSchema: TObject<{
   toolName: typeof ToolNameSchema;
   input: TOptional<typeof ToolInputSchema>;
   stepId: TOptional<typeof StepIdSchema>;
-  result: typeof AgentToolResultSchema;
+  result: typeof CheckedJsonValueSchema;
   isError: TBoolean;
   durationMs: TOptional<TNumber>;
   parentToolCallId: TOptional<TString>;
@@ -212,7 +212,7 @@ export const ToolExecutionEndPayloadSchema: TObject<{
     input: Type.Optional(ToolInputSchema),
     /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다. `input`과 같은 이유로 선택이다 [제안] */
     stepId: Type.Optional(StepIdSchema),
-    result: AgentToolResultSchema,
+    result: CheckedJsonValueSchema,
     isError: Type.Boolean(),
     /** execute()가 걸린 시간(단조 시계). 도구가 실행되지 않았으면 없다 */
     durationMs: Type.Optional(Type.Number({ minimum: 0 })),

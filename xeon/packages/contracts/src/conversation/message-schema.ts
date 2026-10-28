@@ -249,6 +249,13 @@ export const DeepJsonValueSchema: TUnsafe<JsonValue> = Type.Unsafe<JsonValue>(js
 export const DeepJsonObjectSchema: TUnsafe<JsonObject> = Type.Unsafe<JsonObject>(jsonObjectShape);
 
 /**
+ * 정적 타입은 `unknown`으로 두고 런타임에서만 JSON 객체·값을 끝까지 검사한다. 정적 타입을 `JsonObject`·`JsonValue`로 좁히면
+ * `unknown`을 넘기던 호출자(core-models의 제공자 요청)가 컴파일되지 않아서 두는 호환 형태다. 호출자가 좁힌 뒤 `Deep*`로 바꾼다 [제안].
+ */
+export const CheckedJsonObjectSchema: TUnsafe = Type.Unsafe(jsonObjectShape);
+export const CheckedJsonValueSchema: TUnsafe = Type.Unsafe(jsonValueShape);
+
+/**
  * 모든 JSON 값. 능력 정의의 JSON Schema 생성에도 쓰이므로 `$ref` 없는 얕은 스키마로 둔다.
  * 메시지 안의 JSON 필드는 재귀 검사(jsonValueShape)를 쓴다(M3-REQ-20).
  */
