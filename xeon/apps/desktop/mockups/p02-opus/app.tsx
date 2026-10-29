@@ -1,13 +1,7 @@
-// P-02 대화 셸. AppShell(제목 띠, 시작, 무대, 끝) + 상태 표시줄(AppShell 아래, 같은 창 바탕) + 대화 상자들.
-import {
-  AppShell,
-  AppShellEnd,
-  AppShellStage,
-  AppShellStart,
-  AppShellTitlebar,
-} from "@caustic/react";
-import { useEffect, useId } from "react";
-import { EndPanel } from "./end-panel";
+// P-02 대화 셸(2차, DP-01~10). AppShell 대신 이 화면에 맞춘 레이아웃: 제목 띠 없음.
+// 왼쪽 패널(표면) | 대화 영역(투명, 창 바탕 그대로) | 오른쪽 떠 있는 세로 막대 + 펼친 well. 아래 상태 표시줄.
+import { useEffect } from "react";
+import { RightPanel } from "./right-panel";
 import { status } from "./fixtures";
 import { LockedDialog } from "./locked-dialog";
 import { Palette } from "./palette";
@@ -15,7 +9,6 @@ import { StatusBar, TokenBar, type StatusCell } from "./parts/status-bar";
 import { StageContent } from "./stage";
 import { StartPanel } from "./start-panel";
 import { useMock } from "./store";
-import { Titlebar } from "./titlebar";
 
 function useShortcuts() {
   const m = useMock();
@@ -155,34 +148,52 @@ function statusCells(m: ReturnType<typeof useMock>): { start: StatusCell[]; end:
 
 export function App() {
   const m = useMock();
-  const startId = useId();
-  const endId = useId();
   useShortcuts();
   const cells = statusCells(m);
+  const compact = m.layout === "compact";
+  const skip = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    document.getElementById(STAGE_ID)?.focus();
+  };
   return (
     <>
-      <AppShell
-        layout={m.layout}
-        skipLabel="본문으로"
-        size={m.layout === "compact" ? "sm" : "md"}
-        className="h-auto min-h-0 flex-1 pb-0"
+      <a
+        href={`#${STAGE_ID}`}
+        onClick={skip}
+        className="absolute top-2 left-2 z-40 -translate-y-[200%] rounded-lg bg-control-raised px-3 py-2 text-ui-strong text-text-primary opacity-0 outline-none focus:translate-y-0 focus:opacity-100 focus-visible:focus-ring"
       >
-        <AppShellTitlebar className="min-w-0 px-1">
-          <Titlebar startId={startId} endId={endId} />
-        </AppShellTitlebar>
-        <AppShellStart className={m.startOpen || m.layout === "compact" ? undefined : "-me-2.5"}>
-          <StartPanel id={startId} />
-        </AppShellStart>
-        <AppShellStage stageLabel="대화" className="flex flex-col bg-surface-base">
+        본문으로
+      </a>
+      {/* 창 안쪽 여백은 이 한 곳(1.5)에서만 준다. 패널과 대화 영역은 자기 안쪽만 책임진다(DP-07). */}
+      <div className="relative flex min-h-0 flex-1 gap-1.5 p-1.5 pb-0">
+        <div
+          className={
+            compact
+              ? m.startOpen
+                ? "absolute inset-y-1.5 start-1.5 z-30 flex w-[min(20rem,calc(100%-3rem))] animate-enter-panel enter-from-start"
+                : "absolute"
+              : m.startOpen
+                ? "flex"
+                : "-me-1.5 flex"
+          }
+        >
+          <StartPanel floating={compact} />
+        </div>
+        <main
+          id={STAGE_ID}
+          tabIndex={-1}
+          aria-label="대화"
+          className="flex min-w-0 flex-1 flex-col outline-none"
+        >
           <StageContent />
-        </AppShellStage>
-        <AppShellEnd className={m.endOpen || m.layout !== "wide" ? undefined : "-ms-2.5"}>
-          <EndPanel id={endId} />
-        </AppShellEnd>
-      </AppShell>
+        </main>
+        <RightPanel />
+      </div>
       <StatusBar start={cells.start} end={cells.end} />
       <Palette />
       <LockedDialog />
     </>
   );
 }
+
+const STAGE_ID = "conversation";

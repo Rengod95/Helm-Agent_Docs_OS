@@ -12,8 +12,8 @@
 |---|---|
 | `main.tsx` | 진입점, URL 상태·테마, 개발용 띠 |
 | `store.tsx` | 목업 로컬 상태(S1~S7 초기값, 패널, 승인 결정, 입력, 폭 단계) |
-| `app.tsx` | `AppShell` 조립, 전역 바로 가기 키, 상태 표시줄 칸 |
-| `titlebar.tsx`, `start-panel.tsx`, `stage.tsx`, `end-panel.tsx` | 제목 띠, 시작 영역, 무대, 끝 영역 |
+| `app.tsx` | 자체 레이아웃(제목 띠 없음: 왼쪽 패널 · 투명 대화 영역 · 오른쪽 막대), 건너뛰기 링크, 전역 바로 가기 키, 상태 표시줄 칸 |
+| `start-panel.tsx`, `stage.tsx`, `right-panel.tsx` | 왼쪽 패널(찾기·내비·대화 목록·설정), 대화 영역, 오른쪽 세로 떠 있는 막대 + well |
 | `tool-approval.tsx` | 도구 승인 카드(`AgentRequest` 조합) |
 | `palette.tsx`, `locked-dialog.tsx` | S7 팔레트, S5 O-01 잠긴 대화 |
 | `fixtures.ts` | 스펙 §8.2 고정 데이터 그대로(타입만 덧붙임) |
@@ -23,9 +23,9 @@
 
 ## 쓴 caustic 부품
 
-`AppShell`, `AppShellTitlebar`, `AppShellStart`, `AppShellStage`, `AppShellEnd`, `SidePanel`(start inspector 폭 끌기, end pane),
-`ListNavigation`/`ListNavigationGroup`/`ListNavigationItem`(navigation, sessions), `Breadcrumb`/`BreadcrumbItem`/`BreadcrumbCurrent`,
-`IconButton`, `Button`, `Badge`, `Chip`, `Kbd`, `Menu`/`MenuItem`/`MenuSeparator`, `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent`,
+`SidePanel`(왼쪽, inspector 폭 끌기, size sm), `FloatingBar`/`FloatingBarItem`(vertical, 새 `badge` prop), `Card`(variant well)/`CardPanel`,
+`ListNavigation`/`ListNavigationGroup`/`ListNavigationItem`(navigation, sessions, size sm),
+`IconButton`, `Button`, `Badge`, `Menu`/`MenuItem`/`MenuSeparator`,
 `EmptyState`(dashed, agent), `ScrollArea`, `Message`, `MessageCode`, `Thinking`, `ToolCall`, `AgentRequest`(permission, 기록 allowed/denied/answered),
 `ChoiceGroup`/`ChoiceGroupItem`(answer), `Input`, `Card`, `Composer`(모드 steer/followUp, 모델, 사용량 고리, 보내기·중단),
 `Suggestions`/`SuggestionsItem`, `Alert`(warning), `Dialog`(alert, 팔레트), `DialogTitle`, `DialogDescription`,
@@ -46,17 +46,27 @@
 
 `mockup.css`는 caustic 스타일 import, 목업 폴더 `@source`, 높이 100%, 커서 깜빡임 keyframes(색 없음)만 둡니다.
 
+## 설계 원칙 반영(스펙 §13.1 DP-01~10)
+
+- 표면은 왼쪽 패널과 오른쪽 well뿐. 대화 영역은 창 바탕(bg-app) 그대로이고 카드로 감싸지 않습니다.
+- 제목 띠·경로 없음. 찾기는 왼쪽 패널 머리, 패널 열기는 대화 머리(닫혔을 때만), 받은 요청·탐구·작업은 오른쪽 막대, 설정은 왼쪽 패널 바닥.
+- 키 칩·단축키 표기 없음(단축키는 동작만).
+- 여백은 창 바깥 한 곳(6px)과 각 부품 안쪽 한 곳에서만.
+- 오른쪽: 접으면 `FloatingBar` 세로 막대(받은 요청 수 배지), 펼치면 누른 아이콘 모서리에서 커지는 `Card variant="well"` 안에 `CardPanel`. 넓은 폭은 대화 영역을 밀고(헤어라인), 1100px 이하는 대화 위에 떠 그림자 하나.
+- well 안의 승인·질문 카드는 상자 없이(`flat`) 간격으로만 묶습니다. 대화 안의 같은 카드는 헤어라인 표면입니다.
+
 ## 강조·깊이 규칙(2차 수정)
 
 - 항목마다 강조는 하나: 지금 화면 내비는 굵기만, 고른 대화 행만 올린 바탕, 예약 실패는 빨간 숫자만, 대화 행 승인 수는 색 없는 글자, 알림은 종류 아이콘 색만.
-- 보이는 깊이는 한 단계: 시작·끝 패널과 승인·질문 카드는 그림자 대신 `border-subtle` 헤어라인. 떠 있는 것은 입력창(`Composer`)과 시트로 뜬 패널(AppShell의 그림자, 헤어라인 없음), 대화 상자뿐.
+- 보이는 깊이는 한 단계: 패널과 대화 안 승인·질문 카드는 그림자 대신 `border-subtle` 헤어라인. 떠 있는 것은 입력창(`Composer`), 오른쪽 막대, 좁은 폭에서 뜬 패널(그림자 하나, 헤어라인 없음), 대화 상자뿐.
 - 장식 띠 제거: 시작 영역 머리("새 대화" 줄) 없음(새 대화는 폴더 묶음 +, ⌘N, 팔레트), 무대 머리는 한 줄(제목 · 목표). 작업 폴더는 제목 띠 경로에 있으므로 좁은 폭에서만 무대 머리에 보임.
 - 상자 남발 제거: 제안·알림은 패널 위 행, 빈 상태는 점선 상자 없이, 입력창 아래 키 안내 줄 없음(placeholder가 말함), 버튼 안 `Kbd` 칩 없음(승인 카드는 한 줄 키 안내).
 
 ## 브리프와 다르게 한 것
 
 - 승인 카드 버튼 순서는 caustic 규칙을 따랐습니다: 거부(N)가 시작 쪽, "이 대화에서 항상(⇧Y)"과 "허용(Y)"이 끝 쪽. 와이어프레임은 허용이 앞입니다.
-- 개발용 `Select`는 앱 제목 띠를 가리지 않도록 창 위 별도 띠(오른쪽)에 둡니다. DOM에서는 맨 뒤라 앱 Tab 순서(건너뛰기 → 제목 띠 → 시작 → 무대 → 입력창 → 끝 → 상태 표시줄)를 흐트리지 않습니다.
+- 개발용 `Select`는 창 위 별도 띠(목업 전용)에 둡니다. DOM에서는 맨 뒤라 앱 Tab 순서(건너뛰기 → 왼쪽 패널 → 대화 → 입력창 → 오른쪽 막대·well → 상태 표시줄)를 흐트리지 않습니다.
+- 브리프의 제목 띠, Breadcrumb, 무대 머리의 탐구·작업 버튼, `Kbd` 표기, 끝 영역 `Tabs`는 DP-05·06·10에 따라 없앴습니다(기능은 위 자리로 옮김).
 - 무대 머리에서 작업 폴더를 뺐습니다(제목 띠 경로와 겹침, 사용자 2차 피드백). 좁은 폭(경로에서 폴더가 빠질 때)에만 보입니다.
 - 메시지 앞 "나/어시스턴트" 이름 줄은 두지 않았습니다. caustic `Message`가 사람(산세리프 말풍선)과 에이전트(세리프)를 목소리로 나눕니다.
 - 실행 중에는 `Composer`가 Enter 제출을 막으므로, 실행 중 Enter는 큐 입력(steer)으로 받아 "다음 도구 라운드 뒤 들어가요 (steer)"와 함께 붙입니다.
@@ -64,7 +74,7 @@
 
 ## 확인한 것
 
-- 1280·1000·700px에서 가로 스크롤 없음. 1000px은 끝 영역이 시트(⌘J나 받은 요청 버튼), 700px은 시작 영역도 시트(⌘\ 또는 제목 띠 토글). Esc로 시트를 닫습니다.
+- 1280·1000·700px에서 가로 스크롤 없음. 1000px은 오른쪽 well이 대화 위에 뜨고(막대 아이콘이나 ⌘J), 700px은 왼쪽 패널도 뜹니다(대화 머리의 열기 버튼이나 ⌘\). Esc로 닫습니다.
 - `grep -E '#[0-9a-fA-F]{3,6}|rgb\(' mockups/p02-*`(이 폴더) 비어 있음.
 - 랜드마크: `main`(대화) 하나, `aside` 두 개(대화와 이동, 맥락 패널), `role="status"` 하나. 라벨 없는 버튼 0, 중복 id 0(헤드리스 Chrome DOM 검사).
 - axe는 돌리지 못했습니다: 작업 트리에 `axe-core`가 없고 설치는 목업 범위 밖이라 위 DOM 검사로 대신했습니다.

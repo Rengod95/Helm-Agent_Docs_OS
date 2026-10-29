@@ -13,9 +13,6 @@ export function ObserveBand({ onRetry }: { onRetry: () => void }) {
       <Eye aria-hidden className="size-icon-md shrink-0 text-text-tertiary" />
       <div className="min-w-0 flex-1">
         <p className="m-0 text-ui-strong text-text-primary">관찰 중이에요</p>
-        <p className="m-0 text-ui-sm text-text-secondary">
-          터미널(xeon CLI)이 이 대화를 쓰는 동안은 읽기만 해요.
-        </p>
       </div>
       <Button size="sm" tone="neutral" variant="outline" onClick={onRetry}>
         쓰기 다시 시도

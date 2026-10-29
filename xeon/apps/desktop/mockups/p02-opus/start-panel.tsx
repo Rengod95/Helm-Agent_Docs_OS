@@ -1,5 +1,11 @@
-// 시작 영역: 주 내비(다섯 항목) + 작업 폴더별 대화 목록 + 맨 아래 설정.
-import { ListNavigation, ListNavigationGroup, ListNavigationItem, SidePanel } from "@caustic/react";
+// 시작 영역(표면): 찾기 + 주 내비(다섯 항목) + 작업 폴더별 대화 목록 + 맨 아래 설정. 제목 띠가 없어서 찾기와 접기가 여기 머리에 온다.
+import {
+  Button,
+  ListNavigation,
+  ListNavigationGroup,
+  ListNavigationItem,
+  SidePanel,
+} from "@caustic/react";
 import { nav, threads, type Thread } from "./fixtures";
 import {
   CalendarClock,
@@ -9,6 +15,7 @@ import {
   MessageSquare,
   Plug,
   RotateCcw,
+  Search,
   Settings,
 } from "./icons";
 import { useMock } from "./store";
@@ -41,13 +48,12 @@ function threadMeta(t: Thread) {
   return undefined;
 }
 
-export function StartPanel({ id }: { id: string }) {
+export function StartPanel({ floating }: { floating: boolean }) {
   const m = useMock();
   const folders = [...new Set(threads.map((t) => t.folder))];
 
   return (
     <SidePanel
-      id={id}
       side="start"
       preset="inspector"
       label="대화와 이동"
@@ -57,21 +63,35 @@ export function StartPanel({ id }: { id: string }) {
       formatWidthText={(w) => `${w}픽셀`}
       collapsed={!m.startOpen}
       onCollapsedChange={(c) => m.setStartOpen(!c)}
-      // 머리 띠는 비운다(제목 띠가 이미 창 정보를 보인다). SidePanel이 그리는 빈 머리 줄은 숨긴다.
-      shadow="none"
-      className="shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] [&>[data-slot=side-panel-header]]:hidden"
+      size="sm"
+      collapseLabel="사이드바 닫기"
+      // 붙박이면 헤어라인 한 줄, 좁은 폭에서 대화 위로 뜨면 그림자 하나(깊이 신호는 하나만).
+      // 머리·바닥 띠의 좌우 여백은 한 단계(1.5)만 두고, 안의 행이 자기 여백을 가진다(DP-07).
+      shadow={floating ? "3" : "none"}
+      className={`${floating ? "" : "shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] "}[&>[data-slot=side-panel-footer]]:px-1.5 [&>[data-slot=side-panel-header]]:px-1.5`}
+      header={
+        <Button
+          size="sm"
+          tone="neutral"
+          variant="soft"
+          iconStart={<Search />}
+          onClick={() => m.setPaletteOpen(true)}
+          aria-label="명령 또는 대화 찾기"
+          className="w-full justify-start font-normal text-text-tertiary"
+        >
+          찾기
+        </Button>
+      }
       footer={
-        <ListNavigation aria-label="설정" kind="navigation" as="div" className="w-full">
+        <ListNavigation aria-label="설정" kind="navigation" size="sm" as="div" className="w-full">
           <ListNavigationGroup>
-            <ListNavigationItem icon={<Settings />} meta="⌘,">
-              설정
-            </ListNavigationItem>
+            <ListNavigationItem icon={<Settings />}>설정</ListNavigationItem>
           </ListNavigationGroup>
         </ListNavigation>
       }
     >
-      <div className="grid gap-3 px-2 pt-2 pb-3">
-        <ListNavigation aria-label="주 내비게이션" kind="navigation">
+      <div className="grid gap-2 px-1.5 pb-2">
+        <ListNavigation aria-label="주 내비게이션" kind="navigation" size="sm">
           <ListNavigationGroup>
             {nav.map((n) => (
               <ListNavigationItem
@@ -102,9 +122,7 @@ export function StartPanel({ id }: { id: string }) {
           </ListNavigationGroup>
         </ListNavigation>
 
-        <div aria-hidden className="mx-2 h-px bg-border-subtle" />
-
-        <ListNavigation aria-label="대화 목록" kind="sessions" as="div">
+        <ListNavigation aria-label="대화 목록" kind="sessions" size="sm" as="div">
           {m.view === "empty" && (
             <ListNavigationGroup heading="새로 시작">
               <ListNavigationItem current meta="작성 전">

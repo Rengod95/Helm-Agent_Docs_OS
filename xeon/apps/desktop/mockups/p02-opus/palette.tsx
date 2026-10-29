@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogDescription,
   DialogTitle,
-  Kbd,
   type ComboboxGroupData,
 } from "@caustic/react";
 import { palette, threads } from "./fixtures";
@@ -37,7 +36,6 @@ const groups: ComboboxGroupData[] = palette.map((g) => ({
               ),
           }
         : {}),
-      ...(it.kbd !== undefined ? { meta: <Kbd size="xs">{it.kbd}</Kbd> } : {}),
     };
   }),
 }));
@@ -73,18 +71,6 @@ export function Palette() {
           resultsLabel={(n) => `결과 ${n}개`}
           onValueChange={run}
         />
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border-subtle px-2 pt-2 text-ui-xs text-text-tertiary">
-          <span>
-            <Kbd size="xs">↑</Kbd>
-            <Kbd size="xs">↓</Kbd> 이동
-          </span>
-          <span>
-            <Kbd size="xs">Enter</Kbd> 실행
-          </span>
-          <span>
-            <Kbd size="xs">Esc</Kbd> 닫기
-          </span>
-        </div>
       </div>
     </Dialog>
   );

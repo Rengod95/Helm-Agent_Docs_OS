@@ -22,6 +22,8 @@ export interface QuestionCardProps {
   /** 끝 영역 요약: 질문 한 줄과 "답하기"만 보이고, 누르면 펼친다 */
   summary?: { onOpen: () => void } | undefined;
   autoFocus?: boolean;
+  /** 표면 안에 놓일 때 상자 없이 */
+  flat?: boolean;
 }
 
 export function QuestionCard({
@@ -34,6 +36,7 @@ export function QuestionCard({
   onDeny,
   locked = false,
   summary,
+  flat = false,
   autoFocus,
 }: QuestionCardProps) {
   const titleId = useId();
@@ -72,7 +75,12 @@ export function QuestionCard({
       data-slot="question-card"
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="grid min-w-0 gap-2.5 rounded-2xl bg-surface-base px-inset-compact-x py-inset-compact-y shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none animate-rise focus-visible:focus-ring"
+      variant={flat ? "ghost" : "surface"}
+      className={
+        flat
+          ? "grid min-w-0 gap-2.5 rounded-none p-0 shadow-none outline-none focus-visible:focus-ring"
+          : "grid min-w-0 gap-2.5 rounded-2xl bg-surface-base px-inset-compact-x py-inset-compact-y shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none animate-rise focus-visible:focus-ring"
+      }
     >
       <div className="flex min-w-0 items-center gap-3">
         <span
@@ -139,11 +147,6 @@ export function QuestionCard({
               거부
             </Button>
             <span aria-hidden className="flex-1" />
-            {!ready && (
-              <span className="text-ui-xs text-text-tertiary">
-                하나를 고르거나 직접 적어 주세요
-              </span>
-            )}
             <Button size="sm" tone="neutral" variant="solid" disabled={!ready} onClick={onAnswer}>
               답하기
             </Button>

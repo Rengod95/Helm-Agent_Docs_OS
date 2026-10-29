@@ -13,6 +13,8 @@ export interface ToolApprovalCardProps {
   subtitle: string;
   onDecide: (d: "allowed" | "always" | "denied") => void;
   locked?: boolean;
+  /** 이미 표면 안(오른쪽 well 카드)에 놓일 때: 상자 없이 간격으로만(DP-03). */
+  flat?: boolean;
 }
 
 const ACTION_TO_DECISION = { deny: "denied", always: "always", once: "allowed" } as const;
@@ -23,6 +25,7 @@ export function ToolApprovalCard({
   subtitle,
   onDecide,
   locked = false,
+  flat = false,
 }: ToolApprovalCardProps) {
   if (decision === "gone") return null;
   if (decision !== "pending") {
@@ -65,9 +68,15 @@ export function ToolApprovalCard({
       <AgentRequest
         kind="permission"
         title={
-          <>
-            도구 승인 · <span className="font-mono">{approval.tool}</span>
-          </>
+          <span className="flex items-center gap-2">
+            <span>
+              <span className="sr-only">도구 승인: </span>
+              <span className="font-mono">{approval.tool}</span>
+            </span>
+            <Badge size="xs" tone="warning">
+              위험도 {approval.risk}
+            </Badge>
+          </span>
         }
         subtitle={subtitle}
         tabIndex={-1}
@@ -75,7 +84,12 @@ export function ToolApprovalCard({
         onKeyDown={onKeyDown}
         // 한 단계 깊이만: 패널·무대 위 카드는 그림자 대신 border-subtle 헤어라인 하나.
         shadow="none"
-        className="shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:focus-ring"
+        {...(flat ? { variant: "ghost" as const } : {})}
+        className={
+          flat
+            ? "px-0 py-0 outline-none focus-visible:focus-ring"
+            : "shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:focus-ring"
+        }
         actions={[
           { id: "deny", label: "거부", tone: "danger" },
           { id: "always", label: "이 대화에서 항상", tone: "secondary" },
@@ -83,20 +97,12 @@ export function ToolApprovalCard({
         ]}
         onAction={(id) => onDecide(ACTION_TO_DECISION[id as keyof typeof ACTION_TO_DECISION])}
       >
-        <div className="grid gap-1">
-          <span className="flex items-center gap-2 text-ui-xs text-text-tertiary">
-            실행할 명령
-            <Badge size="xs" tone="warning">
-              위험도 {approval.risk}
-            </Badge>
-          </span>
+        {/* 명령 전문과 비밀 핸들은 이름표 없이 간격으로만 묶는다($와 열쇠 표시가 무엇인지 말한다). */}
+        <div className="grid gap-1.5">
           <MessageCode className="block whitespace-pre-wrap break-all px-2 py-1.5">
             $ {approval.command}
           </MessageCode>
-        </div>
-        <div className="grid gap-1">
-          <span className="text-ui-xs text-text-tertiary">이 호출이 쓸 비밀</span>
-          <ul className="m-0 grid list-none gap-1 p-0">
+          <ul aria-label="이 호출이 쓸 비밀" className="m-0 grid list-none gap-1 p-0">
             {approval.secrets.map((s) => (
               <li
                 key={s.env}
@@ -122,7 +128,6 @@ export function ToolApprovalCard({
             ))}
           </dl>
         </Disclosure>
-        <p className="m-0 text-ui-xs text-text-tertiary">Y 허용 · ⇧Y 이 대화에서 항상 · N 거부</p>
       </AgentRequest>
     </fieldset>
   );

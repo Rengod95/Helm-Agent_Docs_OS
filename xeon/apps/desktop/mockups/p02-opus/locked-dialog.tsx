@@ -14,7 +14,6 @@ export function LockedDialog() {
       onOpenChange={m.setLockedOpen}
       icon={<Lock />}
       title="이 대화는 터미널(xeon CLI)이 쓰고 있어요"
-      description="한 대화는 한 곳에서만 쓸 수 있어요. 여기서는 지켜보거나, 지금까지를 분기해서 새 대화로 이어 쓸 수 있어요."
       footer={
         <>
           <Button size="sm" tone="neutral" variant="ghost" onClick={close}>

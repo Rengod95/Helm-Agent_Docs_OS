@@ -18,15 +18,14 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { approvals, transcript, type TranscriptItem } from "./fixtures";
 import {
   Archive,
-  Compass,
   Ellipsis,
   FlaskConical,
   FolderTree,
   GitBranch,
   History,
-  ListChecks,
   Minimize2,
   Pencil,
+  PanelLeft,
   SquarePen,
   Trash2,
 } from "./icons";
@@ -38,53 +37,41 @@ import { ToolRow } from "./parts/tool-row";
 import { useMock } from "./store";
 import { ToolApprovalCard } from "./tool-approval";
 
-const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-5";
+// 읽기 열: 가운데 46rem. 좌우 여백은 좁은 폭에서 가장자리에 닿지 않을 만큼만(3) 한 번 준다.
+const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
 
 function StageHead() {
   const m = useMock();
   return (
-    // 한 줄 머리: 제목과 목표. 작업 폴더는 제목 띠 경로에 이미 있어 되풀이하지 않는다(좁은 폭에서만 보인다).
-    <header className="flex h-12 min-w-0 flex-none items-center gap-1 border-b border-border-subtle pr-3 pl-5">
-      <div className="flex min-w-0 flex-1 items-baseline gap-3">
+    // 한 줄 머리: (사이드바가 닫혔을 때만) 열기, 제목, 작업 폴더, 목표. 선이나 띠 없이 간격으로만 나눈다.
+    // 탐구·작업은 오른쪽 막대가 맡고, 찾기는 왼쪽 패널 머리가 맡는다(DP-05).
+    <header className={`${READ_WIDTH} flex h-10 flex-none items-center gap-1`}>
+      {!m.startOpen && (
+        <IconButton
+          size="sm"
+          variant="ghost"
+          label="사이드바 열기"
+          aria-expanded={false}
+          onClick={() => m.setStartOpen(true)}
+          className="-ms-1.5"
+        >
+          <PanelLeft />
+        </IconButton>
+      )}
+      <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
         <h1 className="m-0 truncate font-ui text-ui-strong text-text-primary">{m.currentTitle}</h1>
-        {m.layout === "compact" && (
-          <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
-        )}
+        <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
         {m.view === "thread" && (
           <button
             type="button"
             onClick={() => m.openEnd("work")}
-            aria-label="목표 3개 중 2개 이룸, 작업 탭 열기"
+            aria-label="목표 3개 중 2개 이룸, 작업 열기"
             className="shrink-0 rounded-sm text-ui-sm tabular-nums text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
           >
             목표 2/3
           </button>
         )}
       </div>
-      {m.view === "thread" && (
-        <>
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="ghost"
-            iconStart={<Compass />}
-            onClick={() => m.openEnd("helm")}
-            className="max-[520px]:hidden"
-          >
-            탐구
-          </Button>
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="ghost"
-            iconStart={<ListChecks />}
-            onClick={() => m.openEnd("work")}
-            className="max-[520px]:hidden"
-          >
-            작업
-          </Button>
-        </>
-      )}
       <Menu
         align="end"
         aria-label="대화 메뉴"
@@ -204,7 +191,7 @@ function Transcript() {
         role="log"
         aria-live="polite"
         aria-label="대화 기록"
-        className={`${READ_WIDTH} grid gap-5 py-6`}
+        className={`${READ_WIDTH} grid gap-4 pt-1 pb-3`}
       >
         {m.currentId !== null &&
           transcript
@@ -230,14 +217,8 @@ function EmptyThread() {
   const m = useMock();
   return (
     <div className="flex min-h-0 flex-1 flex-col justify-end overflow-auto">
-      <div className={`${READ_WIDTH} grid gap-6 py-6`}>
-        <EmptyState
-          variant="agent"
-          surface="none"
-          size="sm"
-          title="무엇부터 할까요?"
-          description="~/code/xeon에서 새 대화를 시작해요. 아래에서 고르거나 바로 적어 주세요."
-        />
+      <div className={`${READ_WIDTH} grid gap-4 pb-3`}>
+        <EmptyState variant="agent" surface="none" size="sm" title="무엇부터 할까요?" />
         <Suggestions aria-label="추천 시작 문장" variant="outline">
           <SuggestionsItem
             icon={<FolderTree />}
@@ -273,7 +254,7 @@ function ComposerArea() {
 
   if (m.observing)
     return (
-      <div className={`${READ_WIDTH} flex-none pt-2 pb-4`}>
+      <div className={`${READ_WIDTH} flex-none pb-1.5`}>
         <ObserveBand onRetry={() => m.setLockedOpen(true)} />
       </div>
     );
@@ -299,7 +280,7 @@ function ComposerArea() {
 
   return (
     <div
-      className={`${READ_WIDTH} grid flex-none gap-1.5 pt-2 pb-4`}
+      className={`${READ_WIDTH} grid flex-none gap-1 pb-1.5`}
       onKeyDownCapture={onKeyDownCapture}
     >
       <Composer
@@ -309,7 +290,7 @@ function ComposerArea() {
         rows={2}
         inputLabel="메시지"
         sendLabel="보내기"
-        stopLabel="중단 (⌘.)"
+        stopLabel="중단"
         attachLabel="맥락 더하기"
         modeLabel="실행 중 보낸 입력"
         modes={["steer", "followUp"]}
@@ -317,11 +298,7 @@ function ComposerArea() {
         modelLabel="sonnet-5-5"
         usage={m.currentId === null ? 0 : 41}
         usageLabel={(p) => `문맥 ${p}% 사용`}
-        placeholder={
-          locked
-            ? "연결이 돌아오면 보낼 수 있어요"
-            : "메시지를 입력하세요. Enter 보내기, ⇧Enter 줄바꿈"
-        }
+        placeholder={locked ? "연결이 돌아오면 보낼 수 있어요" : "메시지를 입력하세요"}
         running={m.running && !locked}
         disabled={locked}
         onAttach={() => {}}
@@ -331,12 +308,6 @@ function ComposerArea() {
           setValue("");
         }}
       />
-      {/* 키 안내는 입력란 placeholder가 말한다. 잠겼을 때만 이유 한 줄을 둔다. */}
-      {locked && (
-        <p role="note" className="m-0 px-2 text-ui-xs text-text-tertiary">
-          연결이 끊겨 입력창을 잠갔어요. 다시 연결되면 쓴 글을 보낼 수 있어요.
-        </p>
-      )}
     </div>
   );
 }
@@ -345,12 +316,23 @@ export function StageContent() {
   const m = useMock();
   if (m.view === "none") {
     return (
-      <div className="grid min-h-0 flex-1 place-items-center p-6">
+      <div className="relative grid min-h-0 flex-1 place-items-center">
+        {!m.startOpen && (
+          <IconButton
+            size="sm"
+            variant="ghost"
+            label="사이드바 열기"
+            aria-expanded={false}
+            onClick={() => m.setStartOpen(true)}
+            className="absolute top-1.5 start-1.5"
+          >
+            <PanelLeft />
+          </IconButton>
+        )}
         <EmptyState
           icon={<SquarePen />}
           surface="none"
           title="왼쪽에서 대화를 고르거나 새로 만드세요"
-          description="대화는 작업 폴더별로 묶여 있어요."
           actions={
             <Button
               size="sm"
@@ -359,7 +341,7 @@ export function StageContent() {
               onClick={m.newThread}
               aria-keyshortcuts="Meta+N"
             >
-              새 대화 <span className="font-normal text-ink-on-muted">⌘N</span>
+              새 대화
             </Button>
           }
         />
@@ -370,7 +352,7 @@ export function StageContent() {
     <>
       <StageHead />
       {m.reconnecting && (
-        <div className={`${READ_WIDTH} flex-none pt-3`}>
+        <div className={`${READ_WIDTH} flex-none pb-2`}>
           <Alert
             tone="warning"
             action={
