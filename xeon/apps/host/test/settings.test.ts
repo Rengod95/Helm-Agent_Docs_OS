@@ -59,6 +59,10 @@ test("each scope's schema lists only the keys that scope allows, and the host ke
     const keys = keysOf(JSON.parse(renderSettingsSchema(catalog, scope)));
     expect(keys).toContain("l1.tools.unattended.approval");
     expect(keys).toContain("l1.tools.unattended.timeoutSeconds");
+    // 반복 감지 키(M3-REQ-87)도 네 범위 모두에 있다
+    expect(keys).toContain("l1.loop.repeat.enabled");
+    expect(keys).toContain("l1.loop.repeat.actionObservation");
+    expect(keys).toContain("l1.loop.repeat.actionError");
   }
 });
 

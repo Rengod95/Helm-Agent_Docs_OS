@@ -1716,6 +1716,81 @@
         }
       }
     },
+    "l1.loop.repeat.actionError": {
+      "default": 3,
+      "maximum": 50,
+      "minimum": 2,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.3.0",
+        "ui": {
+          "label": "같은 행동-오류 반복 임계",
+          "order": 32,
+          "tab": "budgets",
+          "unit": "회",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.loop.repeat.actionObservation": {
+      "default": 4,
+      "maximum": 50,
+      "minimum": 2,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.3.0",
+        "ui": {
+          "label": "같은 행동-관찰 반복 임계",
+          "order": 31,
+          "tab": "budgets",
+          "unit": "회",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.loop.repeat.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.3.0",
+        "ui": {
+          "label": "반복 감지 알림",
+          "order": 30,
+          "tab": "budgets",
+          "widget": "toggle"
+        }
+      }
+    },
     "l1.models.accounts": {
       "default": [],
       "items": {
