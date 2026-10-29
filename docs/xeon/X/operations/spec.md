@@ -936,7 +936,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 실패마다 휘발 이벤트를 보낸다. kind `scope.handler_failed`(코어 영역 `scope`, 휘발)이며 F.records 코어 카탈로그(`ScopeHandlerFailedPayloadSchema`)에 있다(§10 미결 4). payload는 `{ owner: HandlerOwnerKey, point, result, message, consecutive }`다. `message`는 `outcome.message ?? ""`를 4000자로 자른 값이고, `consecutive`는 1 이상이다. L4는 같은 확장의 알림을 묶어 보인다.
 - 구현은 `createVolatileNotifier`(`operations/auto-disable.ts`)다. `handlerFailed`는 `createLogNotifier`와 같은 운영 로그 줄을 남기고 `emit`으로 페이로드를 보낸다. `autoDisabled`는 운영 로그 줄만 남긴다. 자동 끄기 사실은 아래 `scope.changed`가 이미 적는다.
 - `emit`이 던지면 호출자에게 던지지 않고 `scope.handler_failed not emitted: <owner> <point> (<원인 메시지>)` 줄을 운영 로그에 남긴다.
-- [제안] 조립의 기본 알림기는 이 구현이다. host가 `emit`과 `log`를 넘긴다. `createOperationsPolicy`의 기본 알림기를 이 구현으로 바꾸고 host에서 연결하는 일은 B1-NTF H1이다(`X.operations.plan` §9). 그 전까지 `createOperationsPolicy`는 `createLogNotifier`를 쓴다.
+- 조립 루트(`apps/host`)가 이 구현을 `createOperationsPolicy`의 `notifier`로 넘긴다. `emit`은 열린 thread마다 휘발 이벤트를 보내고(`L4.host-service` HS-80), `log`는 운영 로그다. `notifier`를 생략한 조립(시험 등)은 `createLogNotifier`를 쓴다.
 - 자동 끄기가 적용되면 `scope.changed`(내구, `F.records.spec` §3.3)를 `status: "disabled"`로 남긴다. 사유는 payload의 `reason` 필드(`ScopeChangeReason`, `F.records.spec` §3.3)로 구분한다. 사유를 primitives에 넘기는 인자는 §10 미결 4의 남은 일이다.
 - 사용자 알림 문구 예: "확장 acme-notes가 연속 5번 실패해 꺼졌다. 다시 켜기: xeon ext enable acme-notes". 문구와 위치는 `L4.cli.spec`, `L4.settings-ui.spec`이 정한다.
 

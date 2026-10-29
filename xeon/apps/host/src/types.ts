@@ -137,6 +137,11 @@ export interface AssembleOptions {
   /** 테스트 주입(eng.testing.guide TS-03) */
   readonly clock?: Clock;
   readonly ids?: IdFactory;
+  /**
+   * 지금 어떤 연결이든 연 thread. 확장 핸들러 실패 알림(`scope.handler_failed`)은 이 thread마다 한 번씩 나간다(L4.host-service HS-80).
+   * 연결 허브는 엔진을 만든 뒤에 생기므로 호스트 실행 루틴(`startHost`)이 늦게 읽는 함수를 넘긴다. 생략하면 열린 thread가 없어 운영 로그만 남는다
+   */
+  readonly openThreads?: () => readonly ThreadId[];
 }
 
 export type AssembleIssue =

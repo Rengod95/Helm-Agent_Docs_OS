@@ -2954,33 +2954,6 @@
         }
       }
     },
-    "l2.work.goal.onJudgeError": {
-      "default": "stop",
-      "enum": [
-        "stop",
-        "continue"
-      ],
-      "type": "string",
-      "x-xeon": {
-        "allowedScopes": [
-          "user",
-          "project",
-          "local",
-          "session"
-        ],
-        "layer": "L2",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "stop이면 목표를 멈추고, continue면 판정 없이 다음 턴을 시작합니다",
-          "label": "목표 판정 실패 때 동작",
-          "order": 300,
-          "tab": "budgets",
-          "widget": "select"
-        }
-      }
-    },
     "l2.work.plans.exitOnApprove": {
       "default": true,
       "type": "boolean",

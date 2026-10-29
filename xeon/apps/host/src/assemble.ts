@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { assertNever, attemptAsync, Bug, parse, type Logger } from "@xeon/contracts";
+import { assertNever, attemptAsync, Bug, err, parse, type Logger } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { ExtensionManifest, PortKey } from "@xeon/contracts/extensions";
 import {
@@ -33,6 +33,7 @@ import {
   createExtHost,
   createOperationsPolicy,
   createScopeControl,
+  createVolatileNotifier,
   scopeToggleSourceOf,
   type ExtDiagnostic,
   type ExtHost,
@@ -67,6 +68,7 @@ import {
   registerLearningProjection,
 } from "./assembly/learning.ts";
 import { createHostSchedule, type ScheduleRunnerPorts } from "./assembly/schedule.ts";
+import { createHandlerFailedEmitter } from "./assembly/handler-failed.ts";
 import { createProposalPort } from "./assembly/proposals.ts";
 import type { WebStatusHolder } from "./assembly/web-providers.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
@@ -314,7 +316,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     host: ExtHost | undefined;
     scopes: ScopeControl | undefined;
     logger: Logger | undefined;
-  } = { host: undefined, scopes: undefined, logger: undefined };
+    /** 4단계에서 채운다. 그 전의 확장 실패 알림은 발신하지 못하고 운영 로그에 남는다 */
+    session: SessionService | undefined;
+  } = { host: undefined, scopes: undefined, logger: undefined, session: undefined };
   const opened: { store: OpenedStore | undefined; registered: boolean } = {
     store: undefined,
     registered: false,
@@ -335,6 +339,20 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       runtime.scheduler.clearTimeout(handle);
     };
   };
+  const logOperations = (line: string): void => {
+    late.logger?.warn("ext.operations", { line });
+  };
+  // 확장 핸들러 실패를 `scope.handler_failed` 휘발 이벤트로 보낸다(M3-REQ-35, L4.host-service HS-80). 열린 thread는 허브가 있어야 읽을 수 있어 옵션으로 받는다
+  const handlerFailed = createHandlerFailedEmitter({
+    emitVolatile: (event) => {
+      late.session?.emitVolatile(event);
+    },
+    headSeq: () => late.session?.feed.headSeq() ?? err({ kind: "unavailable" }),
+    openThreads: () => options.openThreads?.() ?? [],
+    ids,
+    clock,
+    log: logOperations,
+  });
   const operations = createOperationsPolicy({
     now: () => clock.now(),
     setTimer,
@@ -343,9 +361,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     ports: {
       get: (key) => late.host?.ports.get(key),
     },
-    log: (line) => {
-      late.logger?.warn("ext.operations", { line });
-    },
+    notifier: createVolatileNotifier({ emit: handlerFailed, log: logOperations }),
+    log: logOperations,
   });
   const diagnostics: ExtDiagnostic[] = [];
   const ext = createExtHost({
@@ -698,6 +715,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
     // 4. 서비스 확인: 포트가 요구하는 서비스가 모두 올라왔는지 본다
     const session = requirePort(ext, SESSION_KEY, "xeon.session");
+    late.session = session;
     const storeService = requirePort(ext, STORE_KEY, "xeon.store");
     if (learningLoaded({ defaultGroups: options.defaultGroups, safeMode })) {
       const failed = registerLearningProjection({
