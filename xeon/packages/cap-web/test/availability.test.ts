@@ -78,4 +78,18 @@ describe("availability", () => {
     provider.setAvailability({ ok: true });
     expect(await cache.probe(provider, SIGNAL)).toEqual({ ok: true });
   });
+
+  test("a probe that throws becomes an unreachable failure instead of rejecting the call", async () => {
+    const provider = fakeSearchProvider("plugin:web-throws");
+    const throwing = {
+      ...provider,
+      isAvailable: (): Promise<never> => Promise.reject(new Error("socket hang up")),
+    };
+    const cache = createProbeCache(manualClock());
+    expect(await cache.probe(throwing, SIGNAL)).toEqual({
+      ok: false,
+      reason: "unreachable",
+      detail: "probe threw",
+    });
+  });
 });

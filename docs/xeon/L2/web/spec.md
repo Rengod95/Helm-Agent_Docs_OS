@@ -1331,7 +1331,7 @@ ADR-0005 §3.3(2026-10-25 개정)과 `L2.readme` §5.2를 따른다.
 
 1. 호출 인자 `provider`가 있으면 그 provider만 쓴다.
 2. `l2.web.search.provider`가 `"auto"`가 아니면 그 provider만 쓴다. ADR-0005의 키 `web.search.provider`는 키 문법에 맞춘 `l2.web.search.provider`로 읽는다.
-3. `"auto"`이면 `l2.web.search.order` 목록의 순서로 쓴다. 목록은 설정 화면에서 끌어 옮겨 정하며, 등록된 검색 도구 전부(내장 기본 검색 도구 포함)가 대상이다. 목록에 없는 도구나 등록되지 않은 id는 건너뛴다.
+3. `"auto"`이면 `l2.web.search.order` 목록의 순서로 쓴다. 목록은 설정 화면에서 끌어 옮겨 정하며, 등록된 검색 도구 전부(내장 기본 검색 도구 포함)가 대상이다. 등록되지 않은 id는 건너뛴다.
 4. 목록에 없는 후보는 목록 뒤에 붙는다: 사용자가 `l2.web.search.searxng.url`을 설정한 SearXNG, 내장 검색 래퍼, 플러그인 순이다. 각 묶음 안은 id 바이트 순이다. 플러그인은 사용자가 순서에 올리기 전까지 기본 후순위다.
 5. 후보가 하나도 없거나 모두 실패하면 `unavailable`이다. 아무것도 설정하지 않은 상태의 기본 경로는 내장 검색 래퍼다.
 
@@ -1346,6 +1346,7 @@ ADR-0005 §3.3(2026-10-25 개정)과 `L2.readme` §5.2를 따른다.
 - auto 체인에서 탐침 실패는 다음 후보로 내려가고 `meta.fallbacks`에 `{ provider, stage: "probe", reason }`을 남긴다. `search`는 `replay: "safe"`이므로 호출 중 오류 `unavailable`, `rate_limited`, `upstream_error`도 다음 후보로 내려가며 `stage: "call"`로 남긴다.
 - 구현은 `timeout`도 다음 후보로 내려가는 호출 오류에 넣는다 [제안]. 응답하지 않는 provider 하나가 검색 전체를 막지 않게 하려는 것이다. 이 밖의 코드(`invalid_input`, `denied`, `query_rejected` 등)는 바로 실패한다.
 - 모든 후보가 실패하면 `unavailable` 오류이고 `detail.fallbacks`에 전체 기록을 싣는다.
+- provider의 `isAvailable`이 던지면 탐침 캐시가 `unreachable`(`detail: "probe threw"`) 실패로 바꾸고 `web.probe_threw`를 기록한다. 호출 전체가 거부되지 않고 auto 체인은 다음 후보로 내려간다.
 - 탐침 결과는 provider별로 5분 메모리 캐시한다. 실패 결과는 30초만 둔다 [제안]. 매 호출마다 탐침 요청을 보내지 않기 위해서다.
 - 모델용 도구의 판정(§4.8.1)에 쓰는 "체인이 래퍼뿐인가"는 이 후보 목록으로 정한다. `isWrapperOnlyChain(catalog.searchCandidates())`가 그 값이며, 키 플러그인이나 주소를 설정한 SearXNG가 하나라도 있으면 거짓이다. 기본 설정(둘 다 없음)에서는 참이고, `modelTool = auto`이면 활성 모델의 호스티드 검색이 모델용 도구가 된다.
 - 키 없는 무료 MCP 층(Exa·Parallel 익명 MCP)은 체인에 넣지 않는다. 품질·한도·약관이 불명확하고 공개 릴리즈 기본값에서 뺀다(`_research/web-tools.md` §5.4).

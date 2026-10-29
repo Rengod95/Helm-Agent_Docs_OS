@@ -171,7 +171,7 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     logger: options.logger,
     extensionSetting: options.extensionSetting ?? (() => undefined),
   });
-  const probes = createProbeCache(options.clock);
+  const probes = createProbeCache(options.clock, options.logger);
   const notices =
     options.store === undefined
       ? createMemoryFirstUseNotices()
