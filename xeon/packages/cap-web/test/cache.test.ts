@@ -139,6 +139,7 @@ describe("search memo", () => {
     expect(limitBucket(20)).toBe(20);
     const base = {
       chain: ["searxng"],
+      parallel: 1,
       query: "xeon  agents",
       objective: undefined,
       recency: undefined,
@@ -157,6 +158,7 @@ describe("search memo", () => {
   test("the memo key separates chain, filters and content", () => {
     const base = {
       chain: ["searxng", "builtin-wrapper"],
+      parallel: 1,
       query: "xeon",
       objective: undefined,
       recency: undefined,
@@ -170,6 +172,7 @@ describe("search memo", () => {
       searchMemoKey({ ...base, domains: { allow: ["b.example", "a.example"], deny: [] } }),
     ).toBe(key);
     expect(searchMemoKey({ ...base, chain: ["builtin-wrapper"] })).not.toBe(key);
+    expect(searchMemoKey({ ...base, parallel: 2 })).not.toBe(key);
     expect(searchMemoKey({ ...base, recency: "week" })).not.toBe(key);
     expect(searchMemoKey({ ...base, content: "full" })).not.toBe(key);
     expect(searchMemoKey({ ...base, domains: { allow: [], deny: ["a.example"] } })).not.toBe(key);

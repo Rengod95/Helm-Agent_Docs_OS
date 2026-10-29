@@ -55,10 +55,12 @@ export function createSearchMemo<T>(
   };
 }
 
-/** 검색 메모 키의 재료(§4.3.1): 체인 식별, 정규화 쿼리, 필터, limit 버킷, content, freshness */
+/** 검색 메모 키의 재료(§4.3.1): 체인 식별, 동시 질의 수, 정규화 쿼리, 필터, limit 버킷, content, freshness */
 export interface SearchMemoKeyInput {
   /** 시도 순서의 provider ID들. 명시 선택이면 원소 하나 */
   readonly chain: readonly string[];
+  /** `l2.web.search.parallel`. 같은 체인이라도 동시 질의 수가 다르면 답한 provider 묶음이 달라질 수 있다 */
+  readonly parallel: number;
   readonly query: string;
   readonly objective: string | undefined;
   readonly recency: string | undefined;
@@ -76,6 +78,7 @@ export function searchMemoKey(input: SearchMemoKeyInput): string {
   return sha256Hex(
     JSON.stringify([
       input.chain,
+      input.parallel,
       input.query.trim().replace(/\s+/g, " "),
       input.objective ?? null,
       input.recency ?? null,

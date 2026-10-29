@@ -28,12 +28,12 @@ import {
 import { createSingleFlight } from "../cache/single-flight.ts";
 import { buildMeta } from "../contract/meta.ts";
 import { normalizeUrl } from "../contract/url.ts";
-import { computeCost } from "../cost/meter.ts";
+import { computeCost, sumCosts } from "../cost/meter.ts";
 import type { WebDeps } from "../deps.ts";
 import { guarded, invalidInput, type WebFailure } from "../errors.ts";
 import { buildSource } from "../fetch/source.ts";
 import type { SearchCandidate } from "../ports/providers.ts";
-import { planChain, runChain, type ChainPlan } from "./chain.ts";
+import { planChain, runChain, type ChainAnswer, type ChainPlan } from "./chain.ts";
 import { SEARXNG_JSON_DISABLED_WARNING } from "./providers/searxng.ts";
 import {
   applyPostFilters,
@@ -54,12 +54,24 @@ interface ShapedAnswer {
   readonly citations: readonly { readonly url: string; readonly citedText: string | undefined }[];
 }
 
+/** 항목 하나를 준 provider와 그 provider의 캐시 정책 */
+interface ItemOrigin {
+  readonly providerId: string;
+  readonly cachePolicy: CacheUsage;
+}
+
 /** provider 응답을 후처리 필터까지 거친 결과. 세션마다 달라지는 sN, 메타는 아직 없다(메모에 담긴다) */
 interface Shaped {
   readonly items: readonly ProviderSearchItem[];
   readonly answer: ShapedAnswer | undefined;
   readonly relaxed: readonly SearchRelaxed[];
+  /** 메타의 provider. 동시 질의에서는 순서가 가장 앞선 성공 provider다 */
   readonly providerId: string;
+  /** 답한 provider ID들(시도 순서). 둘 이상이면 동시 질의 결과이고 메모에 넣지 않는다 */
+  readonly answered: readonly string[];
+  /** 남은 항목의 URL마다 그 항목을 준 provider. 동시 질의에서는 항목마다 다를 수 있다 */
+  readonly providerByUrl: ReadonlyMap<string, ItemOrigin>;
+  /** 답한 provider들의 캐시 정책 중 가장 엄격한 값 */
   readonly cachePolicy: CacheUsage;
   readonly selectedBy: WebCallMeta["selectedBy"];
   readonly fallbacks: readonly WebProviderFallback[];
@@ -126,17 +138,55 @@ function shapeAnswer(result: ProviderSearchResult): ShapedAnswer | undefined {
   return { text: result.answer.text, citations };
 }
 
-function dedupe(items: readonly ProviderSearchItem[]): ProviderSearchItem[] {
-  const seen = new Set<string>();
-  const out: ProviderSearchItem[] = [];
-  for (const item of items) {
-    const normalized = normalizeUrl(item.url);
-    const key = normalized.ok ? normalized.value : item.url;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
+/** 답한 provider의 항목 하나. 합치기와 중복 제거에 쓴다 */
+interface Sourced {
+  readonly item: ProviderSearchItem;
+  readonly origin: ItemOrigin;
+}
+
+/** 답한 provider들의 항목을 차례로 한 건씩 번갈아 모은다. 한쪽 목록이 먼저 끝나면 나머지가 이어진다 */
+function interleave(answers: readonly ChainAnswer[]): Sourced[] {
+  const rounds = Math.max(0, ...answers.map((answer) => answer.result.items.length));
+  const out: Sourced[] = [];
+  for (let round = 0; round < rounds; round += 1) {
+    for (const answer of answers) {
+      const item = answer.result.items[round];
+      if (item === undefined) continue;
+      out.push({
+        item,
+        origin: {
+          providerId: answer.candidate.provider.id,
+          cachePolicy: answer.candidate.cachePolicy,
+        },
+      });
+    }
   }
   return out;
+}
+
+/** URL이 같은 항목은 먼저 나온 것만 둔다. 비교는 정규화한 URL로 한다 */
+function dedupeBy<T>(entries: readonly T[], urlOf: (entry: T) => string): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const entry of entries) {
+    const url = urlOf(entry);
+    const normalized = normalizeUrl(url);
+    const key = normalized.ok ? normalized.value : url;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
+}
+
+const CACHE_RANK: Readonly<Record<CacheUsage, number>> = { none: 0, session: 1, persist: 2 };
+
+/** 가장 엄격한 캐시 정책(none < session < persist에서 가장 낮은 값) */
+function mostRestrictive(policies: readonly CacheUsage[]): CacheUsage {
+  return policies.reduce<CacheUsage>(
+    (strictest, policy) => (CACHE_RANK[policy] < CACHE_RANK[strictest] ? policy : strictest),
+    "persist",
+  );
 }
 
 function textLength(
@@ -168,7 +218,10 @@ export function createSearchApi(deps: WebDeps): {
     return [SEARXNG_JSON_DISABLED_WARNING];
   }
 
-  /** provider 호출을 마치고 후처리 필터를 적용한 결과를 만든다 */
+  /**
+   * provider 호출을 마치고 후처리 필터를 적용한 결과를 만든다. 동시 질의면 답한 provider의 항목을 번갈아 합치고 URL로 중복을 뺀다.
+   * 답변 본문은 첫 provider의 것이고, 비용은 답한 provider마다 따로 계산해 기록한다.
+   */
   async function execute(
     candidates: readonly SearchCandidate[],
     plan: ChainPlan,
@@ -176,47 +229,81 @@ export function createSearchApi(deps: WebDeps): {
     context: FilterContext,
     signal: AbortSignal,
     fitFor: (manifest: WebProviderManifest) => DomainFit,
+    parallel: number,
   ): Promise<Result<Shaped, WebFailure>> {
-    const ran = await runChain(deps, candidates, plan, request, signal);
+    const ran = await runChain(deps, candidates, plan, request, signal, parallel);
     if (!ran.ok) return ran;
     const { candidate, result } = ran.value;
-    const manifest = candidate.provider.manifest;
+    const answers: readonly ChainAnswer[] = [{ candidate, result }, ...ran.value.extras];
+    const answered = answers.map((answer) => answer.candidate.provider.id);
+    const fanned = answers.length > 1;
     const native = new Set(result.appliedNatively);
+    // 여러 provider가 답했으면 한 provider라도 직접 걸지 않은 차원은 앞단이 다시 건다
+    for (const answer of ran.value.extras) {
+      for (const dimension of native) {
+        if (!answer.result.appliedNatively.includes(dimension)) native.delete(dimension);
+      }
+    }
     // 요청의 도메인 조건은 첫 후보의 한계에 맞춰 만들었다. 다른 후보가 답했거나 조건을 다 넘기지 못했으면 앞단이 다시 건다
-    const limited = fitFor(manifest).truncated;
-    if (limited || candidate.provider.id !== plan.order[0]) native.delete("domains");
-    const deduped = dedupe(result.items);
-    const filtered = applyPostFilters(deduped, context, native);
-    const stableWarnings = [...result.warnings];
-    if (limited) stableWarnings.push(`domain_filter_limited:${candidate.provider.id}`);
+    const stableWarnings = answers.flatMap((answer) => answer.result.warnings);
+    let limited = false;
+    for (const answer of answers) {
+      if (!fitFor(answer.candidate.provider.manifest).truncated) continue;
+      limited = true;
+      stableWarnings.push(`domain_filter_limited:${answer.candidate.provider.id}`);
+    }
+    if (limited || answered.some((id) => id !== plan.order[0])) native.delete("domains");
+    const deduped = dedupeBy(interleave(answers), (entry) => entry.item.url);
+    const originByUrl = new Map(deduped.map((entry) => [entry.item.url, entry.origin]));
+    const filtered = applyPostFilters(
+      deduped.map((entry) => entry.item),
+      context,
+      native,
+    );
+    const kept = new Set(filtered.items.map((item) => item.url));
+    const providerByUrl: ReadonlyMap<string, ItemOrigin> = new Map(
+      [...originByUrl].filter(([url]) => kept.has(url)),
+    );
+    if (fanned) stableWarnings.push(`fanout:${answered.join(",")}`);
     if (filtered.relaxed.length > 0)
       stableWarnings.push(`filters_relaxed:${filtered.relaxed.join(",")}`);
-    const answer = shapeAnswer(result);
-    const priced = computeCost(
-      {
-        provider: candidate.provider.id,
-        pricing: manifest.pricing,
-        ...(result.cost === undefined ? {} : { reported: result.cost }),
-        units: [{ name: "search", count: 1 }],
-        contextChars: textLength(filtered.items, answer),
-      },
-      deps.clock.now(),
-    );
-    const callWarnings = [...priced.warnings];
-    if (deps.meter !== undefined) {
-      const recorded = deps.meter.record(candidate.provider.id, priced.cost, manifest.pricing);
-      if (recorded.ok) callWarnings.push(...recorded.value);
-      else deps.logger.warn("web.usage_record_failed", { kind: recorded.error.kind });
+    const shapedAnswer = shapeAnswer(result);
+    const callWarnings: string[] = [];
+    const costs: Cost[] = [];
+    for (const [position, answerOf] of answers.entries()) {
+      const id = answerOf.candidate.provider.id;
+      const manifest = answerOf.candidate.provider.manifest;
+      const own = filtered.items.filter((item) => providerByUrl.get(item.url)?.providerId === id);
+      const priced = computeCost(
+        {
+          provider: id,
+          pricing: manifest.pricing,
+          ...(answerOf.result.cost === undefined ? {} : { reported: answerOf.result.cost }),
+          units: [{ name: "search", count: 1 }],
+          // 답변 본문은 첫 provider의 것이므로 그 provider의 비용에만 든다
+          contextChars: textLength(own, position === 0 ? shapedAnswer : undefined),
+        },
+        deps.clock.now(),
+      );
+      costs.push(priced.cost);
+      callWarnings.push(...priced.warnings);
+      if (deps.meter !== undefined) {
+        const recorded = deps.meter.record(id, priced.cost, manifest.pricing);
+        if (recorded.ok) callWarnings.push(...recorded.value);
+        else deps.logger.warn("web.usage_record_failed", { kind: recorded.error.kind });
+      }
     }
     const shaped: Shaped = {
       items: filtered.items,
-      answer,
+      answer: shapedAnswer,
       relaxed: filtered.relaxed,
       providerId: candidate.provider.id,
-      cachePolicy: candidate.cachePolicy,
+      answered,
+      providerByUrl,
+      cachePolicy: mostRestrictive(answers.map((answerOf) => answerOf.candidate.cachePolicy)),
       selectedBy: ran.value.selectedBy,
       fallbacks: ran.value.fallbacks,
-      cost: priced.cost,
+      cost: sumCosts(costs),
       stableWarnings,
       callWarnings,
     };
@@ -254,14 +341,18 @@ export function createSearchApi(deps: WebDeps): {
       idByUrl.set(item.url, id.value);
       const published =
         item.publishedAt === undefined ? undefined : parse(IsoTimeSchema, item.publishedAt);
+      const origin = shaped.providerByUrl.get(item.url) ?? {
+        providerId: shaped.providerId,
+        cachePolicy: shaped.cachePolicy,
+      };
       const source = buildSource({
         id: id.value,
         url: item.url,
         finalUrl: undefined,
         title: item.title,
         publishedAt: item.publishedAt,
-        provider: shaped.providerId,
-        cache: shaped.cachePolicy,
+        provider: origin.providerId,
+        cache: origin.cachePolicy,
         rawSha256: undefined,
         rawRef: undefined,
         retrievedAtMs: now,
@@ -363,6 +454,7 @@ export function createSearchApi(deps: WebDeps): {
     const freshness = input.freshness ?? "cached-ok";
     const contentMode = input.content ?? "snippets";
     const candidates = deps.catalog.searchCandidates();
+    const parallel = settings.search.parallel;
     const plan = planChain(
       candidates,
       input.provider,
@@ -378,6 +470,7 @@ export function createSearchApi(deps: WebDeps): {
 
     const key = searchMemoKey({
       chain: plan.order,
+      parallel,
       query: JSON.stringify([providerTerms, parsed.directives]),
       objective: input.objective,
       recency: input.recency,
@@ -430,13 +523,21 @@ export function createSearchApi(deps: WebDeps): {
 
     const shared = await flight.run(
       `${key}|${freshness}`,
-      () => execute(candidates, plan, request, filterContext, signal, fitFor),
+      () => execute(candidates, plan, request, filterContext, signal, fitFor, parallel),
       { signal, wasCancelled: (value) => !value.ok && value.error.code === "aborted" },
     );
     if (!shared.ok) return shared;
     const shaped = shared.value;
     const answeredFirst = shaped.providerId === firstId;
-    if (freshness !== "live" && shaped.cachePolicy !== "none" && answeredFirst && ttlMs > 0) {
+    // 동시 질의 결과는 그 호출에서 답한 provider 묶음에 달려 있으므로 메모에 넣지 않는다
+    const single = shaped.answered.length === 1;
+    if (
+      freshness !== "live" &&
+      shaped.cachePolicy !== "none" &&
+      answeredFirst &&
+      single &&
+      ttlMs > 0
+    ) {
       memo.store(key, shaped, ttlMs);
     }
     return assemble(

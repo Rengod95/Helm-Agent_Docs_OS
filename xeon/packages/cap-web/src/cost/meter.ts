@@ -81,6 +81,31 @@ export function computeCost(input: CostInput, nowMs: number): CostResult {
   };
 }
 
+function basisOf(costs: readonly Cost[]): Cost["basis"] {
+  if (costs.some((cost) => cost.basis === "estimated")) return "estimated";
+  if (costs.some((cost) => cost.basis === "reported")) return "reported";
+  return "free";
+}
+
+/**
+ * 동시 질의에서 provider마다 따로 계산한 비용을 합친다(§4.8.2). 금액은 더하고, 기준은 하나라도 추정이면 estimated,
+ * 아니면 reported가 있으면 reported, 아니면 free다. 단위는 이름별로 합쳐 16개까지 둔다. 하나뿐이면 그 값을 그대로 돌려준다.
+ */
+export function sumCosts(costs: readonly Cost[]): Cost {
+  const [only, ...rest] = costs;
+  if (only === undefined) return { usd: 0, basis: "free", units: [] };
+  if (rest.length === 0) return only;
+  // 가장 오래된 가격표 기준일을 쓴다. 합계가 가장 오래된 가격에 기대고 있다는 뜻이다
+  const asOfs = costs.flatMap((cost) => (cost.pricingAsOf === undefined ? [] : [cost.pricingAsOf]));
+  const pricingAsOf = asOfs.toSorted()[0];
+  return {
+    usd: costs.reduce((sum, cost) => sum + cost.usd, 0),
+    basis: basisOf(costs),
+    units: mergeUnits(costs.flatMap((cost) => cost.units)).slice(0, 16),
+    ...(pricingAsOf === undefined ? {} : { pricingAsOf }),
+  };
+}
+
 export type MeterError =
   | { readonly kind: "write"; readonly detail: string }
   | { readonly kind: "read"; readonly detail: string }

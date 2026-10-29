@@ -1122,7 +1122,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | 계층 | 범위 | 키 | TTL | 대상 |
 |---|---|---|---|---|
 | (1) single-flight | 프로세스, 요청 수명 | 해당 계층 키와 같음 | 진행 중인 동안 | 동시에 들어온 같은 요청은 provider 호출 1회를 공유한다. `cachePolicy: "none"`도 적용한다 |
-| (2) 메모리 검색 메모 | 프로세스 메모리, LRU 500항목 | provider 체인 식별 + 정규화 쿼리 + 필터 + limit 버킷(10/20) + content + freshness | `l2.web.cache.searchTtlMinutes`(기본 20분) | `search` 결과 |
+| (2) 메모리 검색 메모 | 프로세스 메모리, LRU 500항목 | provider 체인 식별 + 동시 질의 수(`parallel`) + 정규화 쿼리 + 필터 + limit 버킷(10/20) + content + freshness | `l2.web.cache.searchTtlMinutes`(기본 20분) | `search` 결과 |
 | (3) 디스크 fetch 캐시 | `cap_web_fetch_cache` + blob | sha256(정규화 URL, format, render, provider) | `l2.web.cache.fetchTtlMinutes`(기본 15분) | `fetch` 결과 중 `persist`인 것 |
 
 - 근거: `_research/web-tools.md` §4.7(hermes single-flight·20분, Claude Code 15분).
@@ -1168,6 +1168,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - provider가 `basis: "estimated"`인 `cost`를 주면 그 금액은 믿지 않고 `units`(잰 사용량)만 받아 위와 같이 가격표로 다시 계산한다 [제안: WEB.6]. 모델 provider가 금액 없이 토큰·검색 수만 주는 내장 래퍼가 이 경로를 쓴다.
 - 단위에는 컨텍스트에 들어간 텍스트 길이 `context_chars`를 항상 넣는다. 본문 토큰이 검색 요금보다 클 수 있기 때문이다(`_research/web-tools.md` §5.3).
 - 래퍼는 L1.models가 돌려준 토큰 사용량(`tokens_in`, `tokens_out`)과 검색 요청 수(`search`)로 계산한다. 이어 요청(`pause_turn`)을 보냈으면 응답마다 사용량을 더한다. 1회 약 $0.011은 ADR-0005 §3.2 산식이고 토큰 수는 측정하지 않은 [가정]이다. 실제 키 측정은 사용자 승인 뒤에 한다(m2-plan 결정 D11).
+- 동시 질의(§4.8.2)에서는 답한 provider마다 위 계산을 따로 한다. 각 사용량은 그 provider의 행으로 `cap_web_usage`에 기록하고, `meta.cost`는 그 합이다. 기준(`basis`)은 하나라도 추정이면 `estimated`, 아니면 하나라도 `reported`면 `reported`, 아니면 `free`다. 단위는 이름별로 합쳐 16개까지 두고, `pricingAsOf`는 추정에 쓴 가격표 중 가장 오래된 기준일이다.
 
 #### 4.4.2 가격표 기준일
 
@@ -1330,7 +1331,7 @@ ADR-0005 §3.3(2026-10-25 개정)과 `L2.readme` §5.2를 따른다.
 
 - [결정] 후보에는 사용자가 설정한 provider만 들어간다(사용자 결정 H1, ADR-0005 §3.3). 주소를 설정하지 않은 SearXNG는 후보에서 빠지므로 탐침 요청도, `meta.fallbacks` 항목도 없다. 구현은 `SearchCandidate.enabled`(호출마다 읽는다)가 후보 목록에서 걸러낸다. `l2.web.search.provider`를 `searxng`로 고정했는데 주소가 비어 있으면 후보에 없으므로 `unavailable`이고 `detail.reason`은 `unknown_provider`다.
 - [결정: review.m3-design-inputs D-M3-23 행 1] 옛 규칙(키 플러그인 → SearXNG → 래퍼)과 `pluginOrder` 키를 위 규칙과 `order` 키로 바꾼다. 순서 규칙은 `cap-web/src/select/order.ts`의 `planSelection` 하나이고 검색과 브라우저가 같이 쓴다. F `orderProviderCandidates`는 fetch 승격이 계속 쓴다.
-- 여러 provider 동시 질의: `l2.web.search.parallel`이 2 이상이고 선택이 auto이면, 순서에서 탐침을 통과한 앞의 N개를 동시에 호출한다. 결과는 provider 차례로 한 건씩 번갈아 합치고 URL이 같은 항목은 먼저 나온 것만 둔다. `meta.provider`는 순서가 가장 앞선 성공 provider이고 합친 provider 목록은 `meta.warnings`의 `fanout:<id>,<id>`에 남긴다. 비용은 provider마다 계산해 사용량 표에 기록하고 `meta.cost`는 그 합이다. 일부가 실패하면 성공한 것만 합치고 실패는 `meta.fallbacks`(`stage: "call"`)에 남긴다. 모두 실패하면 순차 체인과 같은 오류다. 명시 선택(1, 2)에는 적용하지 않는다. [결정: 오케스트레이터 기본값] 기본값은 1이다. 동시 질의는 검색어를 여러 수신자에게 보내고 비용도 늘기 때문에 사용자가 올린다. D-M3-23의 "기본 기능"은 기능이 기본으로 들어 있다는 뜻으로 읽는다.
+- 여러 provider 동시 질의: `l2.web.search.parallel`이 2 이상이고 선택이 auto이면, 순서대로 탐침하며 가용한 provider를 `parallel`개 모은 뒤 그 묶음을 동시에 호출한다. 성공한 결과는 provider 차례로 한 건씩 번갈아 합치고 URL이 같은 항목은 먼저 나온 것만 둔다. 항목마다 `sources[].provider`는 그 항목을 준 provider다. `meta.provider`는 순서가 가장 앞선 성공 provider이고, 답한 provider 목록은 `meta.warnings`의 `fanout:<id>,<id>`에 남긴다. 한 provider만 답했으면 이 경고는 없다. 답변(`answer`)은 첫 provider의 것만 쓴다. 비용은 답한 provider마다 §4.4.1대로 계산해 사용량 표에 기록하고 `meta.cost`는 그 합이다. 일부가 실패하면 성공한 것만 합치고 실패는 `meta.fallbacks`(`stage: "call"`)에 남긴다. `invalid_input` 같은 그 밖의 실패는 다른 provider가 답했어도 검색 전체를 실패로 만든다. 묶음이 하나도 답하지 못하면 묶음 밖에 남은 후보를 순차 체인으로 이어 간다(실패 기록은 그대로 남는다). 그래도 모두 실패하면 순차 체인과 같은 `unavailable`이다. 합친 결과의 `cachePolicy`는 답한 provider 중 가장 엄격한 값이다. 여러 provider가 답한 결과는 검색 메모에 넣지 않는다(§4.3.1). 메모 키에는 `parallel`을 넣는다. 도메인 조건(`domains`)은 첫 provider가 아닌 provider가 답했거나 조건을 다 넘기지 못한 provider가 있으면 앞단이 다시 건다. 다른 차원은 답한 provider 모두가 직접 건 것만 앞단이 생략한다. 명시 선택(1, 2)에는 적용하지 않는다. [결정: 오케스트레이터 기본값] 기본값은 1이다. 동시 질의는 검색어를 여러 수신자에게 보내고 비용도 늘기 때문에 사용자가 올린다. D-M3-23의 "기본 기능"은 기능이 기본으로 들어 있다는 뜻으로 읽는다.
 - 키 플러그인 첫 사용 고지: 플러그인 provider(`auth.kind`가 `none`이 아닌 것)가 처음 호출에 쓰이면 `meta.warnings`에 `first_use_notice:<provider>`를 한 번 싣고 그 provider를 고지한 것으로 저장소에 남긴다(표 `cap_web_notices`). 고지 문구는 L4가 만든다: 검색어가 이 provider의 수신자에게 나간다는 것과 가격표 기준일이다. 승인을 요구하지 않는다.
 - 명시 선택(1, 2)은 다른 후보로 내려가지 않는다. 탐침이 실패하면 `unavailable` 오류이고 `detail.reason`에 사유를 싣는다(`L2.readme` §5.2).
 - auto 체인에서 탐침 실패는 다음 후보로 내려가고 `meta.fallbacks`에 `{ provider, stage: "probe", reason }`을 남긴다. `search`는 `replay: "safe"`이므로 호출 중 오류 `unavailable`, `rate_limited`, `upstream_error`도 다음 후보로 내려가며 `stage: "call"`로 남긴다.
@@ -1792,6 +1793,7 @@ export const webSettings = defineSettings("l2.web", {
 24. 헤더 비밀 치환: `header`와 `bearer` 매니페스트의 요청에서 전송 대역은 `x-api-key`(또는 `authorization: Bearer <값>`)에 값을 받는다. provider에 돌아가는 요청 객체, 응답, 오류 어디에도 값이 없다. provider가 같은 이름의 헤더를 주면 비밀 헤더가 이긴다. 설정이 비었으면 전송 0회이고 `unavailable`(`no-key`, `detail.setting`은 그 설정 키)이다(`test/guarded-http.test.ts`).
 25. 응답 에코: 본문 텍스트나 헤더에 비밀 값이 있으면 `upstream_error`(`secret_echoed`)이고 본문과 헤더를 돌려주지 않는다(`test/guarded-http.test.ts`).
 26. 질의 인증과 헤더 이름 없는 `header`: `query` kind나 헤더 이름 없는 비밀은 등록 때 `web.provider_rejected`(reason `auth_kind_unsupported`, `secret_header_missing`)로 거부되고 후보가 되지 않는다(`test/registry.test.ts`).
+27. 동시 질의: `l2.web.search.parallel`이 2이고 선택이 auto이면 앞의 두 provider를 탐침한 뒤 함께 호출한다(둘 다 응답 전에 호출되는 것을 보류 호출로 확인한다). 결과는 번갈아 합치고 URL 중복은 먼저 나온 것만 둔다. `meta.provider`는 앞선 provider이고 `meta.warnings`에 `fanout:<id>,<id>`가 있다. 비용은 provider마다 기록하고 `meta.cost`는 그 합이다. 한 provider의 `rate_limited`는 `meta.fallbacks`(`stage: "call"`)에 남고 다른 provider의 결과가 나간다. `invalid_input`은 검색 전체를 실패시킨다. 명시 선택과 `parallel` 1은 첫 provider만 부른다. 여러 provider가 답한 결과는 메모에 들지 않으며 메모 키는 `parallel`을 포함한다(`test/search-fanout.test.ts`).
 
 ## 10. 미결 사항
 
