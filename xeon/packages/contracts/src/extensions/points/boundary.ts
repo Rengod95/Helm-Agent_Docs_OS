@@ -242,11 +242,14 @@ export type TurnEndPayload = Static<typeof TurnEndPayloadSchema>;
 
 export const AgentBeforeSettlePayloadSchema: TObject<{
   turnId: typeof TurnIdSchema;
+  stepId: TOptional<typeof StepIdSchema>;
   context: typeof BoundaryContextPreviewSchema;
   outcome: TUnion<[TLiteral<"completed">, TLiteral<"aborted">, TLiteral<"error">]>;
 }> = Type.Object(
   {
     turnId: TurnIdSchema,
+    /** 정착 후보를 판단하는 단계. 판정처럼 단계마다 한 번만 해야 하는 핸들러가 재개를 알아보는 데 쓴다 */
+    stepId: Type.Optional(StepIdSchema),
     context: BoundaryContextPreviewSchema,
     outcome: Type.Union([
       Type.Literal("completed"),

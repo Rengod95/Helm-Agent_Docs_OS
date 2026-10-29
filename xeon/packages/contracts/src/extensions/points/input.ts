@@ -197,7 +197,7 @@ export const BeforeAgentStartPatchSchema: TObject<{
   {
     /** 추가한다(merge). 여러 핸들러의 메시지가 순서대로 쌓인다 */
     message: Type.Optional(CustomMessageDraftSchema),
-    /** 시스템 프롬프트 전체 교체. 여러 핸들러 중 마지막으로 정의한 값이 이긴다(collect 병합). 핸들러는 모두 원본을 본다 */
+    /** 시스템 프롬프트. 원본 뒤에 덧붙인 값은 여러 핸들러의 덧붙임이 순서대로 쌓이고, 원본으로 시작하지 않는 전체 교체는 마지막 값이 이긴다(collect 병합). 핸들러는 모두 원본을 본다 */
     systemPrompt: Type.Optional(Type.String({ maxLength: TEXT_MAX })),
   },
   { additionalProperties: false },

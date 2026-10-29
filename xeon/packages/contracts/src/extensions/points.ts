@@ -1070,12 +1070,34 @@ const beforeAgentStartRule: CollectRule<BeforeAgentStartValue, BeforeAgentStartP
       ...initial.messages,
       ...contributions.flatMap((patch) => (patch.message === undefined ? [] : [patch.message])),
     ],
-    systemPrompt: contributions.reduce<string>(
-      (prompt, patch) => patch.systemPrompt ?? prompt,
+    systemPrompt: mergeSystemPrompts(
       initial.systemPrompt,
+      contributions.flatMap((patch) =>
+        patch.systemPrompt === undefined ? [] : [patch.systemPrompt],
+      ),
     ),
   }),
 };
+
+/**
+ * 핸들러는 모두 원본 시스템 프롬프트를 본다. 원본으로 시작하는 값은 덧붙임으로 보고 덧붙인 부분을 순서대로 모으고,
+ * 원본으로 시작하지 않는 값은 전체 교체로 보고 마지막 교체가 이긴다(이전 덧붙임은 새 교체 앞에서 버리지 않고 뒤에 이어 붙인다).
+ * 그래서 두 핸들러가 각자 덧붙여도 서로 덮지 않는다
+ */
+function mergeSystemPrompts(original: string, prompts: readonly string[]): string {
+  let base = original;
+  const additions: string[] = [];
+  for (const prompt of prompts) {
+    if (prompt.startsWith(original)) {
+      const added = prompt.slice(original.length).trim();
+      if (added !== "") additions.push(added);
+    } else {
+      base = prompt;
+    }
+  }
+  if (additions.length === 0) return base;
+  return base === "" ? additions.join("\n\n") : `${base}\n\n${additions.join("\n\n")}`;
+}
 
 const resourcesRule: CollectRule<ResourcesValue, ResourcesPatch> = {
   merge: (initial, contributions) => ({

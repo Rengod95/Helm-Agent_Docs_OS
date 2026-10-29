@@ -1,6 +1,6 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof } from "../base/index.ts";
-import type { EventId, ItemId, ThreadId, TurnId, Usage } from "../conversation/index.ts";
+import type { EventId, ItemId, StepId, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type { LeaseToken } from "../records/index.ts";
 import type {
   LeaseId,
@@ -247,6 +247,11 @@ export interface JudgeEvidence {
 export interface JudgeInput {
   readonly threadId: ThreadId;
   readonly turnId: TurnId;
+  /**
+   * 판정을 요청한 단계. 있으면 같은 단계의 재호출(재개)을 알아보고 기록된 판정을 `recorded`로 돌려준다.
+   * 한 turn 안에서 게이트가 여러 번 판정할 수 있어 `turnId`만으로는 구분하지 못한다
+   */
+  readonly stepId?: StepId | null;
   /** L2.work의 목표 참조. 상한 집계 단위 */
   readonly goalRef: string;
   readonly goal: { readonly text: string; readonly criteria: readonly string[] };
