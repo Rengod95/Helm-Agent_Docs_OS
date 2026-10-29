@@ -1,4 +1,9 @@
-import type { Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
+
+/** 실제 시각을 읽는 Clock. 자식 프로세스를 띄우는 int 테스트에서만 쓴다 */
+export function realClock(): Clock {
+  return { now: () => Date.now() };
+}
 
 // 실제 타이머를 쓰는 Scheduler. 자식 프로세스를 띄우는 int 테스트에서만 쓴다(eng.testing.guide TS-03).
 export function realScheduler(): Scheduler {

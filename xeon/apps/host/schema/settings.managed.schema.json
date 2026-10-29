@@ -533,6 +533,26 @@
         }
       }
     },
+    "l0.process.service.remote": {
+      "default": "",
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "원격 서비스 주소",
+          "order": 15,
+          "tab": "execution",
+          "widget": "text"
+        }
+      }
+    },
     "l0.process.service.startTimeoutMs": {
       "default": 10000,
       "maximum": 120000,

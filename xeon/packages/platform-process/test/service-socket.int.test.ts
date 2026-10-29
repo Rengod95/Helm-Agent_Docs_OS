@@ -86,6 +86,22 @@ describe("unix socket", () => {
     expect(await waitFor(() => listener.connectionCount === 0, 1000)).toBe(true);
   });
 
+  test("listening leaves the process umask as it was, on success and on address_in_use, and a permissive umask still gives 0600", async () => {
+    const path = join(scratch(), "x.sock");
+    const before = process.umask(0o000);
+    try {
+      const listener = must(await listenSocket({ kind: "unix", path }));
+      listeners.push(listener);
+      expect(process.umask(0o000)).toBe(0o000);
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+      const second = await listenSocket({ kind: "unix", path });
+      expect(second).toEqual({ ok: false, error: { kind: "address_in_use", path } });
+      expect(process.umask(0o000)).toBe(0o000);
+    } finally {
+      process.umask(before);
+    }
+  });
+
   test("a client that connects and writes before any handler exists is served by the first handler", async () => {
     const path = join(scratch(), "x.sock");
     const listener = must(await listenSocket({ kind: "unix", path }));
