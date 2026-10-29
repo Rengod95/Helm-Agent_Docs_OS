@@ -18,10 +18,12 @@ export interface CollectedDiff {
 
 const PAGE = 2000;
 
-/** 한 대화의 이벤트 중 접두가 맞는 것을 커밋 순서로 모두 읽는다 */
+/**
+ * 접두가 맞는 이벤트를 커밋 순서로 모두 읽는다. `threadId`가 없으면 모든 세션의 이벤트다(산출물 목록과 찾기에 쓴다).
+ */
 export function readEvents(
   feed: Pick<EventFeed, "headSeq" | "read">,
-  threadId: ThreadId,
+  threadId: ThreadId | undefined,
   kindPrefixes: readonly string[],
 ): Result<readonly DurableEventEnvelope[], ReadFailure> {
   const head = feed.headSeq();
@@ -32,7 +34,7 @@ export function readEvents(
     const page = feed.read(
       after,
       head.value,
-      { threadIds: [threadId], kindPrefixes },
+      threadId === undefined ? { kindPrefixes } : { threadIds: [threadId], kindPrefixes },
       PAGE,
       PAGE * 4,
     );

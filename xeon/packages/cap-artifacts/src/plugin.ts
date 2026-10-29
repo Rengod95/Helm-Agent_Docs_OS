@@ -1,11 +1,13 @@
 import { attemptAsync, detach, err, ok } from "@xeon/contracts";
 import {
+  ArtifactsRegistry,
+  ArtifactsRegistryKey,
   ArtifactsReviews,
   ArtifactsReviewsKey,
   CapabilityError,
   WorkspaceFilesKey,
 } from "@xeon/contracts/capabilities";
-import type { IdFactory, LocalIdFactory } from "@xeon/contracts/conversation";
+import type { IdFactory, LocalIdFactory, ThreadId } from "@xeon/contracts/conversation";
 import { InputQueuePortKey, type ExtensionEntry, type PortKey } from "@xeon/contracts/extensions";
 import type { Unsubscribe } from "@xeon/contracts/records";
 import {
@@ -24,6 +26,12 @@ import type { ExecutionGuardPort, ReviewFilesPort, ReviewQueuePort } from "./por
 import { createAnswerHandler } from "./reviews/answer.ts";
 import { REVIEWS_PRODUCER } from "./reviews/kernel.ts";
 import { createReviews } from "./reviews/service.ts";
+import { createRegistry } from "./registry/service.ts";
+import {
+  readArtifactsSettings,
+  type ArtifactsSettings,
+  type ArtifactsSettingsSource,
+} from "./settings.ts";
 
 // L2.artifacts.spec §7. 구현 패키지를 import하지 않고 F 서비스 인터페이스를 포트로만 받는다. Cordis는 import하지 않는다(DR-11).
 
@@ -33,6 +41,8 @@ export interface ArtifactsPluginOptions {
   /** `xeon.approvals`를 검토 승인(kind review)을 내는 포트로 감싸는 함수. 조립 루트가 넘긴다. 없으면 열 때 승인 요청을 내지 않는다 */
   readonly approvals?: (service: ApprovalService) => L2ApprovalsPort;
   readonly loadIndex?: number;
+  /** 설정 층. 없으면 기본값(`DEFAULT_ARTIFACTS_SETTINGS`)으로 돈다 */
+  readonly settings?: ArtifactsSettingsSource;
 }
 
 function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
@@ -63,6 +73,10 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
       const queuePort = optionalPort(host, InputQueuePortKey);
       const approvalService = optionalPort(host, ApprovalServicePortKey);
       const tools = optionalPort(host, ToolServicePortKey);
+      // 생산자 핸들은 한 번만 받는다(리뷰와 산출물 레지스트리가 같이 쓴다)
+      const producer = session.producer(REVIEWS_PRODUCER);
+      const settingsAt = (threadId: ThreadId | undefined): ArtifactsSettings =>
+        readArtifactsSettings(options.settings?.layers(threadId) ?? []);
 
       const files: ReviewFilesPort = {
         async replace(input) {
@@ -100,9 +114,23 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
         options.approvals === undefined || approvalService === undefined
           ? undefined
           : options.approvals(approvalService);
+      const registry = createRegistry({
+        session,
+        producer,
+        ids: options.ids,
+        localIds: options.localIds,
+        blobs: store,
+        logger,
+        settings: (threadId) => {
+          const current = settingsAt(threadId);
+          return { maxPerSession: current.maxPerSession, maxContentBytes: current.maxContentBytes };
+        },
+      });
+      host.provide(ArtifactsRegistryKey, registry.api);
+
       const reviews = createReviews({
         session,
-        producer: session.producer(REVIEWS_PRODUCER),
+        producer,
         ids: options.ids,
         localIds: options.localIds,
         blobs: store,
@@ -111,7 +139,7 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
         approvals,
         queue,
         logger,
-        settings: () => ({ deliverAs: "followUp" }),
+        settings: (threadId) => ({ deliverAs: settingsAt(threadId).reviews.deliverAs }),
       });
       host.provide(ArtifactsReviewsKey, reviews.api);
       if (approvals === undefined) {
@@ -152,18 +180,39 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
       });
 
       if (tools === undefined) {
-        logger.warn("artifacts.tools_missing", { effect: "review_request is not advertised" });
+        logger.warn("artifacts.tools_missing", {
+          effect: "artifact and review tools are not advertised",
+        });
         return ok(undefined);
       }
-      const registered = tools.register({
-        kind: "capability",
-        def: ArtifactsReviews,
-        key: ArtifactsReviewsKey,
-        // 리뷰를 열 뿐 파일을 바꾸지 않는다. 승인 대기는 대화를 막지 않는다(spec §4.2.4)
-        policy: { review_request: { risk: "read" } },
-      });
-      if (!registered.ok) return err({ reason: registered.error.kind, cause: registered.error });
-      g.onDispose(registered.value);
+      const registrations = [
+        // 산출물 만들기·고치기는 대화 안에서 쓰는 텍스트 결과만 다룬다. 파일과 승인 대기를 쓰지 않는다
+        tools.register({
+          kind: "capability",
+          def: ArtifactsRegistry,
+          key: ArtifactsRegistryKey,
+          policy: { artifact_create: { risk: "read" }, artifact_update: { risk: "read" } },
+        }),
+      ];
+      if (settingsAt(undefined).tools.reviewRequest) {
+        registrations.push(
+          tools.register({
+            kind: "capability",
+            def: ArtifactsReviews,
+            key: ArtifactsReviewsKey,
+            // 리뷰를 열 뿐 파일을 바꾸지 않는다. 승인 대기는 대화를 막지 않는다(spec §4.2.4)
+            policy: { review_request: { risk: "read" } },
+          }),
+        );
+      } else {
+        logger.info("artifacts.review_request_hidden", {
+          effect: "review_request is not advertised",
+        });
+      }
+      for (const registered of registrations) {
+        if (!registered.ok) return err({ reason: registered.error.kind, cause: registered.error });
+        g.onDispose(registered.value);
+      }
       return ok(undefined);
     });
   };

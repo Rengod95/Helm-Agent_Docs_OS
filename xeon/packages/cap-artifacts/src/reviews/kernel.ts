@@ -49,7 +49,8 @@ export interface ReviewsDeps {
   /** 없으면 제출해도 에이전트 입력으로 전달하지 않는다 */
   readonly queue: ReviewQueuePort | undefined;
   readonly logger: Logger;
-  readonly settings: () => ReviewSettings;
+  /** 그 스레드의 리뷰 설정. 호출마다 읽는다 */
+  readonly settings: (threadId: ThreadId) => ReviewSettings;
 }
 
 /** 승인 요청 하나가 가리키는 리뷰 */

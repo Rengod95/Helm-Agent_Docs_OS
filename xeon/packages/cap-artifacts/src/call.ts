@@ -12,6 +12,17 @@ export interface CallScope {
   readonly signal: AbortSignal | undefined;
 }
 
+/** 이미 중단된 호출을 거부한다. 스레드를 보지 않는 메서드도 쓴다 */
+export function assertLive(
+  capability: CapabilityId,
+  method: string,
+  options: CallOptions | undefined,
+): void {
+  if (options?.signal?.aborted === true) {
+    throw reject(capability, method, "aborted", "The call was aborted.");
+  }
+}
+
 /** 중단 신호와 스레드 문맥을 검사한다. `fallbackThread`는 입력이 스레드를 명시했을 때의 값이다 */
 export function scopeOf(
   capability: CapabilityId,
@@ -19,9 +30,7 @@ export function scopeOf(
   options: CallOptions | undefined,
   fallbackThread?: string,
 ): CallScope {
-  if (options?.signal?.aborted === true) {
-    throw reject(capability, method, "aborted", "The call was aborted.");
-  }
+  assertLive(capability, method, options);
   const raw = fallbackThread ?? options?.context?.threadId;
   if (raw === undefined) {
     throw reject(capability, method, "invalid_input", "The call has no thread context.");

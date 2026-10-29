@@ -292,7 +292,7 @@ export function createReviews(deps: ReviewsDeps): ReviewsRuntime {
             patchSha256: hunk.patchSha256,
           })),
         })),
-        deliverAs: input.deliverAs ?? deps.settings().deliverAs,
+        deliverAs: input.deliverAs ?? deps.settings(scope.threadId).deliverAs,
         approvalId: null,
       };
       const committed = kernel.commit({

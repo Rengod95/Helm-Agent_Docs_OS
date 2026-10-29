@@ -1,7 +1,7 @@
 // 실제 SQLite(platform-store) 위에 core-persistence 세션 서비스를 올리고 리뷰 서비스(createReviews)를 붙이는 시험 조립.
 // 포트는 test/support/ports.ts의 대역이다. 저장소를 배열로 흉내 내지 않는다(eng.testing.guide TS-07).
 import { Bug, type Clock, type Logger, type LogFields } from "@xeon/contracts";
-import type { CallOptions } from "@xeon/contracts/capabilities";
+import type { CallerInfo, CallOptions } from "@xeon/contracts/capabilities";
 import {
   isId,
   isLocalId,
@@ -22,6 +22,11 @@ import type {
 import { createSessionService } from "@xeon/core-persistence";
 import { openTestStore, TEST_HOLDER_A, type TestStore } from "@xeon/platform-store/testing";
 import { REVIEWS_PRODUCER } from "../../src/reviews/kernel.ts";
+import {
+  createRegistry,
+  type RegistryRuntime,
+  type RegistrySettings,
+} from "../../src/registry/service.ts";
 import { createReviews, type ReviewsRuntime } from "../../src/reviews/service.ts";
 import {
   fakeApprovals,
@@ -138,11 +143,21 @@ export function fixedLocalIds(seed: number): LocalIdFactory {
   };
 }
 
-/** 리뷰 시험용 조립. 파일 내용(경로 → 텍스트)을 주면 그 파일들이 작업 공간에 있다 */
-export async function openReviews(
-  initialFiles: Readonly<Record<string, string>> = {},
-): Promise<ReviewsHarness> {
-  const clock: Clock = { now: () => T0 };
+interface Boot {
+  readonly clock: Clock;
+  /** 시계를 앞으로 민다. 기본 시계는 T0에 멈춰 있다 */
+  readonly advance: (ms: number) => void;
+  readonly ids: IdFactory;
+  readonly localIds: LocalIdFactory;
+  readonly store: TestStore;
+  readonly session: SessionService;
+  readonly logs: LogLine[];
+}
+
+/** 저장소와 세션 서비스를 연다. 실패하면 저장소를 닫고 던진다 */
+async function bootSession(): Promise<Boot> {
+  let now = T0;
+  const clock: Clock = { now: () => now };
   const ids = fixedIds(1);
   const localIds = fixedLocalIds(1);
   const store = await openTestStore({ clock, ids });
@@ -162,8 +177,25 @@ export async function openReviews(
     await store[Symbol.asyncDispose]();
     throw new Bug("harness could not create the session service", { cause: created.error });
   }
-  const session = created.value;
+  return {
+    clock,
+    advance: (ms) => {
+      now += ms;
+    },
+    ids,
+    localIds,
+    store,
+    session: created.value,
+    logs,
+  };
+}
 
+/** 새 대화를 만들고 이 시험이 쓰기 자격을 쥔다 */
+function createWriteThread({
+  ids,
+  store,
+  session,
+}: Pick<Boot, "ids" | "store" | "session">): ThreadId {
   const threadId = ids.next("thr");
   const made = session.threads.create({ threadId });
   if (!made.ok) throw new Bug("harness: thread create failed", { cause: made.error });
@@ -171,6 +203,15 @@ export async function openReviews(
   if (!token.ok) throw new Bug("harness: lease failed", { cause: token.error });
   const opened = session.openForWrite(threadId, token.value);
   if (!opened.ok) throw new Bug("harness: open failed", { cause: opened.error });
+  return threadId;
+}
+
+/** 리뷰 시험용 조립. 파일 내용(경로 → 텍스트)을 주면 그 파일들이 작업 공간에 있다 */
+export async function openReviews(
+  initialFiles: Readonly<Record<string, string>> = {},
+): Promise<ReviewsHarness> {
+  const { ids, localIds, store, session, logs } = await bootSession();
+  const threadId = createWriteThread({ ids, store, session });
 
   const commits: CommitRecord[] = [];
   const files = fakeFiles(initialFiles);
@@ -316,6 +357,94 @@ export async function openReviews(
         seq: 1,
         parentId: null,
       };
+    },
+    async [Symbol.asyncDispose]() {
+      await store[Symbol.asyncDispose]();
+    },
+  };
+}
+
+export interface RegistryHarness extends AsyncDisposable {
+  readonly ids: IdFactory;
+  readonly localIds: LocalIdFactory;
+  readonly store: TestStore;
+  readonly session: SessionService;
+  /** 처음 만든 대화. 쓰기 호출의 기본 문맥이다 */
+  readonly threadId: ThreadId;
+  readonly api: RegistryRuntime["api"];
+  /** 호출마다 읽는 상한. 시험이 바꾸면 다음 호출부터 적용된다 */
+  readonly limits: RegistrySettings;
+  readonly logs: LogLine[];
+  /** 시계를 앞으로 민다(밀리초). 이후 이벤트의 recordedAt이 커진다 */
+  advance(ms: number): void;
+  /** 같은 저장소에 새 대화를 만들고 쓰기 자격을 쥔다 */
+  newThread(): ThreadId;
+  /**
+   * 호출 옵션. requestId를 생략하면 호출마다 새 값을 만든다. `contextThread`는 호출 문맥의 대화,
+   * `turnId`와 `toolCallId`를 주면 그 문맥을 싣는다(도구 경로는 `toolCallId`가 있다)
+   */
+  opts(
+    requestId?: string,
+    extra?: {
+      readonly contextThread?: ThreadId;
+      readonly turnId?: TurnId;
+      readonly toolCallId?: string;
+      readonly caller?: CallerInfo;
+    },
+  ): CallOptions;
+  /** 한 대화의 내구 이벤트를 커밋 순서로 읽는다. prefix를 주면 그 접두의 종류만 */
+  events(threadId: ThreadId, prefix?: string): Promise<DurableEventEnvelope[]>;
+}
+
+/** 산출물 레지스트리 시험용 조립. 리뷰와 같은 저장소 위에 `createRegistry`를 붙인다 */
+export async function openRegistry(
+  limits: RegistrySettings = { maxPerSession: 500, maxContentBytes: 26214400 },
+): Promise<RegistryHarness> {
+  const { advance, ids, localIds, store, session, logs } = await bootSession();
+  const threadId = createWriteThread({ ids, store, session });
+  const runtime = createRegistry({
+    session,
+    producer: session.producer(REVIEWS_PRODUCER),
+    ids,
+    localIds,
+    blobs: store.service,
+    logger: recordingLogger(logs),
+    settings: () => limits,
+  });
+
+  let counter = 0;
+  return {
+    ids,
+    localIds,
+    store,
+    session,
+    threadId,
+    api: runtime.api,
+    limits,
+    logs,
+    advance,
+    newThread() {
+      return createWriteThread({ ids, store, session });
+    },
+    opts(requestId, extra) {
+      counter += 1;
+      return {
+        requestId: requestId ?? `req-${counter}`,
+        context: {
+          threadId: extra?.contextThread ?? threadId,
+          ...(extra?.turnId === undefined ? {} : { turnId: extra.turnId }),
+          ...(extra?.toolCallId === undefined ? {} : { toolCallId: extra.toolCallId }),
+          caller: extra?.caller ?? { kind: "model", agent: "main" },
+        },
+      };
+    },
+    async events(target, prefix) {
+      const out: DurableEventEnvelope[] = [];
+      for await (const item of session.readFrom(0, { threadId: target })) {
+        if (!item.ok) throw new Bug("harness: event read failed", { cause: item.error });
+        if (prefix === undefined || item.value.kind.startsWith(prefix)) out.push(item.value);
+      }
+      return out;
     },
     async [Symbol.asyncDispose]() {
       await store[Symbol.asyncDispose]();

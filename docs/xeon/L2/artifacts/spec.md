@@ -1164,6 +1164,17 @@ await registry.register(
 - 계획 상태(제출, 승인, 반려)는 `work.` 이벤트가 정본이다. 산출물은 사본이고 목록·미리보기·핸드오프에 쓰인다.
 - 제출 시점에 등록하므로 반려·수정 요청·철회된 판도 산출물 버전으로 남는다. artifacts는 판의 승인 여부를 싣지 않는다. 화면은 `meta.custom`의 `planId`·`planVersion`으로 `work.plans`를 조회해 판의 상태를 함께 보인다 [제안].
 
+#### 4.1.6 M3b 구현 결정 [결정: 오케스트레이터 기본값]
+
+- 상한, 버전 충돌, 보관 검사는 커밋 `build` 안에서 거부 계획으로 한다. 같은 `requestId`의 재시도는 저장된 결과를 받으므로 거부된 재시도도 새 이벤트를 만들지 않는다.
+- 상한은 세션의 `artifact.registered` 수로 센다. 보관된 산출물도 센다. 보관은 이벤트와 blob을 지우지 않기 때문이다.
+- 목록은 `threadId`를 생략하면 모든 세션을 본다. 기본 상태는 `active`이고 정렬은 최근 갱신(`updatedAt`) 순, 같은 시각이면 `artifactId` 순이다. 커서는 오프셋 문자열이다.
+- `updatedAt`은 마지막 `artifact.updated`의 `recordedAt`이다. 보관은 갱신이 아니므로 바꾸지 않는다.
+- 도구 경로의 갱신은 호출한 세션의 산출물에만 한다. 다른 세션이면 `denied`다(§5 6번을 갱신에도 적용한다).
+- 줄 수는 끝의 줄바꿈을 세지 않는다. 빈 본문은 0줄이다. CSV의 `rows`는 머리 줄을 포함한다. 이 계산은 근사다.
+- `file` 본문은 `file_unreadable`로 거부한다. 파일 읽기 경로(`xeon.exec`)는 아직 없다 [미결].
+- 저장소 실패는 `unavailable`이다. 잠깐 막힌 경우(`busy`)만 `retryable`이다.
+
 ### 4.2 리뷰와 diff 승인
 
 #### 4.2.1 변경 수집
@@ -1286,7 +1297,7 @@ export const ReviewAnswerSchema = Type.Object({
 - 같은 파일의 diff가 여러 개면 하나의 파일로 합치되 hunk는 시간 순서로 이어 붙인다(기준 복원과 재계산을 하지 않는다). 되돌림은 hunk마다 `workspace.files.edit` 하나를 내고 뒤 hunk부터 푼다. 파일 단위 원자성은 두지 않는다.
 - 되돌림 직전에 `guard.output.before`(target `execution`)를 `xeon.loop`의 `guardExecution`으로 부른다. 막히면 그 hunk는 `conflict`이고 파일에 쓰지 않는다. 리뷰를 연 turn이 없으면 가드를 부를 수 없어 `conflict`다.
 - 새 파일을 만든 hunk, 이름 바꿈, 삭제, 이진 파일은 되돌리지 않고 `skipped`로 기록한다.
-- 설정 키 `l2.artifacts.*`는 M3b에 더하지 않는다. 전달 모드는 `followUp`으로 고정한다 [미결].
+- 설정은 `l2.artifacts.maxPerSession`, `maxContentBytes`, `reviews.deliverAs`, `tools.reviewRequest`, `tools.sessionRename` 다섯 키만 읽는다(`xeon/packages/cap-artifacts/src/settings.ts`). 전달 모드는 `reviews.deliverAs`를 따르고 기본은 `followUp`이다. `tools.reviewRequest`가 거짓이면 `review_request` 도구를 등록하지 않는다. 도구 등록은 설치 때 한 번 하므로 바꾼 값은 다음 설치부터 적용된다 [미결].
 - 재시작 때 해결됐으나 반영하지 못한 승인은 다시 처리하지 않는다 [미결].
 - 검토 승인에 `allow`로 답하면 L1.tools의 응답 검사(`validateResponse`, 허용 결정은 `answer`·`deny`뿐)가 `decision_not_allowed`로 거부한다. 응답이 해결로 기록되지 않으므로 이 능력은 `allow`를 받지 않는다 [결정: L1.tools.spec §3.6].
 
@@ -1417,6 +1428,7 @@ export const ReviewAnswerSchema = Type.Object({
 - L4 노출 구분: "화면"은 설정 화면 항목(`ui`가 있음), "명령"은 CLI 명령(`/rename`, `/export`, `/handoff`, `xeon session label`)이 같은 키나 메서드를 쓰는 경우, "파일만"은 `ui`를 두지 않는 키다(`F.wire-settings.spec` §3.8.2 `ui` 주석). 명령 이름은 `L4.cli.spec`이 정한다.
 - `autoTitle.purpose`가 존재하지 않는 용도 이름이면 L1.models가 기본 모델로 대신하는지 거부하는지는 `L1.models.spec`을 따른다. 거부하면 자동 제목을 건너뛴다.
 - 도구 노출 키(`l2.artifacts.tools.*`)는 L1.tools의 도구 켜기·끄기 규칙과 겹친다. [제안] 이 키는 능력의 기본 노출값이고, L1.tools의 사용자 규칙이 있으면 그것이 우선한다.
+- M3b가 읽는 키는 `maxPerSession`, `maxContentBytes`, `reviews.deliverAs`, `tools.reviewRequest`, `tools.sessionRename` 다섯 개다. `autoTitle.*`, `retentionDays`, `reviews.autoRequest`, `reviews.fuzzLines`, `export.*`, `handoff.*`는 M3b에서 읽는 코드가 없어 선언하지 않는다 [미결].
 
 ## 7. 확장 지점
 

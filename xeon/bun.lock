@@ -96,6 +96,7 @@
       "dependencies": {
         "@xeon/contracts": "workspace:*",
         "@xeon/ext-host": "workspace:*",
+        "typebox": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
