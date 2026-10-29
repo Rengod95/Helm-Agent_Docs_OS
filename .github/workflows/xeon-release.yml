@@ -40,6 +40,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # caustic(xeon/external/caustic)은 private submodule이다. 읽기 전용 토큰이 없으면 checkout이 실패한다
+          submodules: true
+          token: ${{ secrets.CAUSTIC_READ_TOKEN || github.token }}
       # Linux takes bwrap, socat and rg from the system (xeon doctor names them); macOS bundles sops, age and rg.
       - if: runner.os == 'Linux'
         run: |
