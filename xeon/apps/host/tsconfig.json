@@ -84,9 +84,6 @@
     },
     {
       "path": "../../packages/group-account-rotation"
-    },
-    {
-      "path": "../../packages/group-provider-anthropic-oauth"
     }
   ]
 }

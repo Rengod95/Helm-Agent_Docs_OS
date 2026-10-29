@@ -25,7 +25,6 @@ import { accountRotationManifest, accountRotationSettings } from "@xeon/group-ac
 import { helmManifest, helmSettings } from "@xeon/group-helm";
 import { learningSettings } from "@xeon/group-learning";
 import { groupKitSettings } from "@xeon/group-kit";
-import { providerAnthropicOauthSettings } from "@xeon/group-provider-anthropic-oauth";
 import {
   loadingTrustSettings,
   operationsSettings,
@@ -96,8 +95,6 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
       "ext.account-rotation",
       reservedExtensionSettings(accountRotationManifest, "user").defs,
     ),
-    // 위장 provider 플러그인은 기본 플러그인이 아니다(L1.models.spec §4.11.4). 고지 설정만 카탈로그에 든다
-    ofGroup("group-provider-anthropic-oauth", providerAnthropicOauthSettings),
     ofGroup("host", hostSettings),
   ];
 }

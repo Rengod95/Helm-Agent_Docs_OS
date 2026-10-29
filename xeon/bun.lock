@@ -76,7 +76,6 @@
         "@xeon/group-helm": "workspace:*",
         "@xeon/group-kit": "workspace:*",
         "@xeon/group-learning": "workspace:*",
-        "@xeon/group-provider-anthropic-oauth": "workspace:*",
         "@xeon/platform-exec": "workspace:*",
         "@xeon/platform-os": "workspace:*",
         "@xeon/platform-process": "workspace:*",
