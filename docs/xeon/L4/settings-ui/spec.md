@@ -517,6 +517,19 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 - `toolsWebViewOf`는 결과가 스키마를 통과했다고 보고 다시 검사하지 않는다(연결이 검사한다). 비밀 값과 헤더 이름은 wire에 없고 이 모듈이 만들지도 않는다.
 - `orderUpdateOf`와 `moveInOrder`의 규칙은 §4.11이 정한다. 값이 맞는지는 `test/web/tools-web.test.ts`가 값 비교로 확인한다.
 
+### 3.7 명령, 제안, 비밀 열람 view-model (M3b B3-SET)
+
+`@xeon/client/settings`의 순수 함수다. 호출과 화면은 앱이 맡는다. 시험은 `test/settings/`의 같은 이름 파일이다.
+
+| 모듈 | 공개 이름 | 내용 |
+|---|---|---|
+| `commands.ts` | `slashLineOf`, `commandListView`, `completeSlash`, `slashStepOf` | 입력 줄이 슬래시 명령인지(`/이름` + 공백이나 끝, 이름 규칙 `COMMAND_NAME_PATTERN`), `command.list` 결과를 이름순 목록 행으로, 이름·첫 인자 선택지 자동완성, `command.run` 결과 한 걸음(`chat`, `send`, `confirm`, `show`)을 정한다. 데스크톱은 §4.1.3의 설정 원천과 무관하게 `sendTurn`에서 이를 쓴다(`L4.desktop.spec` §4.13) |
+| `proposals.ts` | `proposalListView`, `decisionParams`, `decisionOutcomeOf` | `proposal.list`의 두 출처(학습, 지식)를 한 목록의 행으로(출처·종류·상태 문구, 할 수 있는 동작, 경고, 스킬의 적용 범위 선택), 동작을 `proposal.decide` params로(판 `revision` 필수, 범위 기본 user, 거절 메모 500자, 수정 본문 필수, 되돌리기는 학습의 적용된 제안만), 결과를 문구로(실패 9가지, 목록이 오래된 사유는 다시 읽기 신호) 바꾼다. 서버의 `detail`은 화면에 쓰지 않는다 |
+| `secret-reveal.ts` | `createSecretReveal`, `revealViaWire`, `REVEAL_VISIBLE_MS` | 값 보기 상태 기계(§4.6.3 "값 보기 view-model"). X8이 확인한다 |
+
+- 제안 목록 화면은 M4다. 목록 갱신은 `proposal.list`를 다시 부르는 것으로 하고(알림 없음), 결정이 `reload`를 요구하면 다시 부른다.
+- [결정: 오케스트레이터 기본값] 되돌리기는 학습 출처의 `applied` 제안에만 열린다. 지식 출처의 되돌리기는 `unsupported`라(`F.wire-settings.spec` `proposal.decide`) 버튼을 두지 않는다.
+
 ## 4. 동작 규칙
 
 ### 4.1 탭 생성 규칙
@@ -861,6 +874,7 @@ sequenceDiagram
 | 정책 편집 | 허용 도구, 호스트, 모드, 승인. 기본은 거부 | 없음 |
 | 삭제 | 참조하는 정책과 세션, 그리고 이 화면이 아는 설정 키 참조(§4.6.1 3번 목록)를 보인 뒤 확인. 사용 중이면 거부 | 없음 |
 
+- 값 보기 view-model [결정: M3-REQ-17, M3b B3-SET]: `@xeon/client/settings`의 `createSecretReveal({ port, scheduler, visibleMs? })`가 상태를 `hidden` → `reauth` → `revealed` | `failed`로 옮긴다. `reveal(name)`은 셸 포트 `SecretRevealPort.reveal(name)`을 부르고(재인증은 포트가 한다), 성공이면 `revealed`, 실패면 `failed`에 이유(`reauth_denied`, `reauth_expired`, `unavailable`, `not_started`, `not_found`, `failed`)만 싣는다. 값은 `revealed` 상태의 `RevealedValue` 안에만 있고(`read()`는 사본, `toJSON()`은 가려진 표시) 숨기기·시한(`REVEAL_VISIBLE_MS`, 기본 30초)·다른 이름 열기·실패 때 0으로 덮어 지운다. 재인증이 진행 중이면 두 번째 `reveal`은 무시한다. 포트가 던지면 값 없이 `failed`다. wire만 쓰는 연결의 어댑터 `revealViaWire`는 `secret.beginReveal`을 불러 호스트가 값을 자기 창에 보이게 하고(`started: true`), 이 view-model은 `revealed`에 값 없음(`value: null`)을 둔다. `started: false`는 `not_started`다(재인증 미완료와 열람 수단 없음을 wire가 가르지 않는다). 시험은 X8이다(`test/settings/x8.test.ts`).
 - 설정 키 참조 목록은 화면이 이미 가진 `EffectiveSetting`에서 계산한다(값이 `secret://<이름>`인 키). 정책·세션 참조는 L0.secrets가 돌려줘야 한다.
 
 #### 4.6.4 값 입력과 열람 경로 비교
@@ -908,7 +922,7 @@ sequenceDiagram
 
 1. 기본 문구는 "관리 정책으로 잠겨 있어요"다.
 2. `source.path`가 있으면 "정책 파일: {경로}"를 덧붙인다. 없으면 경로 자리를 비운다.
-3. 잠금 사유를 짐작해 만들지 않는다. F에는 사유 문자열 필드가 없다(`settings.locked`의 `details`는 `lockedBy: "managed"`뿐). [미결] 관리 정책 파일에 사유 문구를 두고 `EffectiveSetting`에 실을지(§10 미결 10).
+3. 잠금 사유는 문장이 아니라 종류다 [결정: M3-REQ-15 `EffectiveSetting.lockReason`]. `managed_file`(생략하면 이 값)은 위 1·2번 문구를 그대로 쓰고, `managed_policy`(OS 정책 등 파일 밖 수단)는 "관리 정책(파일 밖 수단)으로 잠겨 있어요"이며 경로 자리가 없다. 종류에 없는 사유를 짐작해 만들지 않는다. 사유 문구를 관리자가 정책 파일에 적는 방법은 [미결]이다(§10 미결 10).
 4. 잠긴 키를 바꾸려면 관리자에게 문의하라는 안내 문구는 두지 않는다. 본인 사용이 첫 대상이라 관리자가 곧 사용자인 경우가 많기 때문이다 [가정].
 
 ### 4.9 코드 위치
@@ -1062,7 +1076,7 @@ sequenceDiagram
 7. [미결] 검사용 병합 함수 `toValueJsonSchema`를 F에 둘지, `settings.list`가 병합한 `type`을 실을지(`_research/notes/L4-3.md` §4 P1, `L4.host-service.spec` §10 미결 11과 같은 항목). 두면 settings-ui의 같은 이름 함수를 지우고 F 것을 쓴다. 그 전까지는 settings-ui에 두고 계약 테스트로 F `settingsJsonSchema`와 같은지 확인한다.
 8. [미결] `SettingsTab` enum과 `SettingUi` 변경. 현재 변경은 필요 없다고 본다. 전용 편집기 힌트 필드를 더할지, 탭을 더할지는 M3 전용 편집기 작업 때 F 부 버전 변경 요청으로 올린다(§4.1.2, §4.2.4).
 9. [결정: adr.0016] i18n 방침. `ui.label`·`ui.help`는 메시지 키이고 ko·en 카탈로그를 `packages/client`에 둔다(§4.8.2).
-10. [미결] 관리 잠금 사유 문구를 F에 실을지(§4.8.3).
+10. [미결] 관리자가 정책 파일에 적는 자유 문구 사유를 F에 실을지(§4.8.3). 잠금 사유의 종류(`managed_file`, `managed_policy`)는 닫혔다.
 11. [결정: adr.0020] 설정 화면 렌더러는 `apps/desktop/src/views`에 두고, view-model은 `packages/client`로 옮긴다(§4.9).
 12. [결정: adr.0020] CLI와 view-model 공유 위치는 `packages/client`다(`DR-10/cli-client`, `DR-10/desktop-client`). CLI의 TUI 설정 화면은 M3에 만들지 않는다 [결정: review.m3-design-inputs D-M3-30 행 3].
 13. [미결] 확장의 맞춤 설정 패널 허용 여부와 시점(§7).
