@@ -35,6 +35,7 @@ import type {
   ToolService,
 } from "@xeon/contracts/services";
 import { WireError } from "@xeon/contracts/wire";
+import type { ScheduleService } from "@xeon/cap-schedule";
 import type { ExtHost } from "@xeon/ext-host";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
@@ -84,6 +85,8 @@ interface Harness {
     remove: ReturnType<SessionService["threads"]["remove"]>;
   };
   lostCallback: (() => void) | undefined;
+  /** 예약 서비스 가짜의 값과 구독 목록. 시험이 바꾸고 알림을 낸다 */
+  readonly schedule: { pending: number; loops: number; readonly listeners: Set<() => void> };
 }
 
 const TOKEN: LeaseToken = { resource: `session:${THREAD}`, holderId: "h", epoch: 4 };
@@ -154,6 +157,7 @@ function harness(): Harness {
     resolvedRoles: [],
     state,
     lostCallback: undefined,
+    schedule: { pending: 0, loops: 0, listeners: new Set() },
   };
   const logger: Logger = {
     debug: () => undefined,
@@ -288,6 +292,16 @@ function harness(): Harness {
       session,
       store,
       loop,
+      schedule: partial<ScheduleService>({
+        pendingSchedules: () => result.schedule.pending,
+        liveSchedulerTasks: () => result.schedule.loops,
+        onChange: (listener) => {
+          result.schedule.listeners.add(listener);
+          return () => {
+            result.schedule.listeners.delete(listener);
+          };
+        },
+      }),
       context: partial<ContextService>({
         compact: async (threadId, request) => {
           result.compactRequests.push({ threadId, request });
@@ -716,8 +730,46 @@ describe("locks", () => {
   });
 });
 
+describe("the activity counters with schedules (M3-10)", () => {
+  test("live loops count as live tasks and waiting schedules as pending", () => {
+    const h = harness();
+    h.schedule.pending = 2;
+    h.schedule.loops = 1;
+    const { ports } = createEnginePorts(h.deps);
+    expect(ports.activity.snapshot()).toEqual({
+      liveTurns: 1,
+      liveTasks: 4,
+      waitingApprovals: 0,
+      pendingSchedules: 2,
+    });
+  });
+
+  test("an injected pending count wins over the schedule service", () => {
+    const h = harness();
+    h.schedule.pending = 2;
+    const { ports } = createEnginePorts({
+      ...h.deps,
+      pendingSchedules: { count: () => 7, onChange: () => () => undefined },
+    });
+    expect(ports.activity.snapshot().pendingSchedules).toBe(7);
+  });
+
+  test("a schedule change reaches the activity listeners until they unsubscribe", () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    const seen: number[] = [];
+    const off = ports.activity.onChange(() => {
+      seen.push(1);
+    });
+    for (const listener of h.schedule.listeners) listener();
+    off();
+    for (const listener of h.schedule.listeners) listener();
+    expect(seen).toEqual([1]);
+  });
+});
+
 describe("the small ports", () => {
-  test("activity maps the task counters and leaves approvals and schedules at zero until M2·M3", () => {
+  test("activity maps the task counters and keeps approvals and idle schedules at zero", () => {
     const { ports } = createEnginePorts(harness().deps);
     expect(ports.activity.snapshot()).toEqual({
       liveTurns: 1,

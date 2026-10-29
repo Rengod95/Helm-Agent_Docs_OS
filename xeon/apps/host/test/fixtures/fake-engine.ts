@@ -10,6 +10,8 @@ import type { LoopError } from "@xeon/contracts/services";
 import type { ScopeStack } from "@xeon/contracts/settings";
 import type { StoreId, StreamPosition } from "@xeon/contracts/wire";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { ScheduleService } from "@xeon/cap-schedule";
+import { partial } from "./unsafe.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
@@ -330,6 +332,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       snapshot: () => ({ liveTurns: 0, liveTasks: 0, waitingApprovals: 0, pendingSchedules: 0 }),
       onChange: () => () => undefined,
     },
+    // 예약 서비스는 이 가짜가 쓰지 않는다(활동은 위 가짜가 낸다). 부르면 undefined라 시험이 바로 실패한다
+    schedule: partial<ScheduleService>({}),
     notify: { show: () => Promise.resolve() },
     log: {
       error: (message, fields) => {

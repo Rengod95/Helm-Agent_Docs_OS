@@ -71,6 +71,9 @@
       "path": "../../packages/cap-mcp"
     },
     {
+      "path": "../../packages/cap-schedule"
+    },
+    {
       "path": "../../packages/cap-work"
     },
     {

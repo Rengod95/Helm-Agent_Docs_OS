@@ -40,6 +40,7 @@ import {
   type ExtensionUnit,
   type ScopeControl,
 } from "@xeon/ext-host";
+import type { ScheduleService } from "@xeon/cap-schedule";
 import { createExecPlatformModule, detectExecPlatform } from "@xeon/platform-exec";
 import {
   createIdFactory,
@@ -65,6 +66,7 @@ import {
   learningLoaded,
   registerLearningProjection,
 } from "./assembly/learning.ts";
+import { createHostSchedule, type ScheduleRunnerPorts } from "./assembly/schedule.ts";
 import { createProposalPort } from "./assembly/proposals.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
 import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
@@ -368,6 +370,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   let portsHandle: PortsHandle | undefined;
   let shutdownCoordinator: ProcessShutdown | undefined;
   const osSlot: { handle: OsServiceHandle | undefined } = { handle: undefined };
+  /** 예약 서비스. 서비스 등록 뒤(4단계)에 채운다. 닫을 때 아직 없으면 건너뛴다 */
+  const scheduleSlot: { service: ScheduleService | undefined } = { service: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
   /** 외부 확장 로더(기본 플러그인 포함). 닫을 때 먼저 내린다 */
   const external: { loader: ExtensionLoader | undefined; unbridge: (() => void) | undefined } = {
@@ -377,6 +381,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
   async function closeAll(): Promise<void> {
     try {
+      // 예약을 먼저 멈춘다: 틱과 감시를 끊고 진행 중인 저장을 기다린다. 저장소를 닫기 전이어야 한다
+      await scheduleSlot.service?.close();
       await portsHandle?.releaseAll();
       external.unbridge?.();
       await external.loader?.dispose();
@@ -706,6 +712,26 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const tools = requirePort(ext, TOOLS_KEY, "xeon.tools");
     const models = requirePort(ext, MODELS_KEY, "xeon.models");
     const context = requirePort(ext, CONTEXT_KEY, "xeon.context");
+    // 예약 서비스(M3b, L4.host-service.spec §4.17). 실행이 쓰는 엔진 포트는 엔진 포트를 만든 뒤에 채운다(아래)
+    const scheduleRunner: { ports: ScheduleRunnerPorts | undefined } = { ports: undefined };
+    const schedule = createHostSchedule({
+      os,
+      clock,
+      ids,
+      tasks,
+      loop,
+      ownerKind: ownerKindOf(options.mode),
+      runnerPorts: () => {
+        if (scheduleRunner.ports === undefined) {
+          // xeon-disable-next-line xeon/bug-for-expected -- 틱은 엔진 포트가 채워진 뒤에만 시작한다. 여기서 비면 조립 순서가 깨진 것이다 (eng.typescript.guide TY-24)
+          throw new Bug("schedule runner used before the engine ports exist");
+        }
+        return scheduleRunner.ports;
+      },
+      logger: os.logger("schedule"),
+      ...(options.schedule === undefined ? {} : { overrides: options.schedule }),
+    });
+    scheduleSlot.service = schedule;
 
     // 5~6. 카탈로그는 위에서 만들었다. 세션 범위 설정을 연결한다
     settings.bindSession(session.sessionSettings);
@@ -764,11 +790,23 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         logger: os.logger("project-ext"),
       }),
       workspaceOf,
+      schedule,
       ...(options.pendingSchedules === undefined
         ? {}
         : { pendingSchedules: options.pendingSchedules }),
       signal: lifetime.signal,
     });
+    scheduleRunner.ports = portsHandle.ports;
+    // 틱은 서비스 모드에서만 돈다. in-process·stdio는 프로세스 사이 임대가 없어 틱의 실행권을 정할 수 없다(HS-40)
+    if (options.mode === "service") {
+      const started = await schedule.start();
+      if (!started.ok) {
+        logger.error("schedule.start_failed", {
+          kind: started.error.kind,
+          message: started.error.message,
+        });
+      }
+    }
     const engine: Engine = {
       mode: options.mode,
       storeId: storeId.value,

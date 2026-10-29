@@ -41,6 +41,13 @@ import type {
   WireResult,
 } from "@xeon/contracts/wire";
 import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
+import type {
+  ScheduleClock,
+  ScheduleService,
+  ScheduleStore,
+  ScheduleTicker,
+  SchedulePolicy,
+} from "@xeon/cap-schedule";
 import type { ModelsExtensionOptions } from "@xeon/core-models";
 import type { SecretsRuntime, SecretsRuntimeDeps } from "@xeon/platform-secrets";
 import type { BuiltinExtensionModule } from "@xeon/ext-host";
@@ -101,10 +108,15 @@ export interface AssembleOptions {
    */
   readonly safeMode?: boolean;
   /**
-   * 대기 예약 수의 출처(유휴 종료 판정, `ActivitySnapshot.pendingSchedules`). 예약 능력(cap-schedule)이 조립에 들어오면 조립 루트가 채운다.
-   * 생략하면 항상 0이다 [결정: 오케스트레이터 기본값, M3b B1-SVC]. 시험이 값을 넣어 유휴 판정을 확인한다
+   * 대기 예약 수의 출처. 생략하면 예약 서비스(`EnginePorts.schedule`)가 낸다(L4.host-service.spec §4.17). 넣으면 그 값이 이긴다.
+   * 시험이 값을 넣어 유휴 판정을 확인한다
    */
   readonly pendingSchedules?: PendingSchedulesPort;
+  /**
+   * 예약 서비스의 시험 주입(L4.host-service.spec §4.17). 운영은 생략한다. 시계와 틱, 저장소, 정책을 바꾼다.
+   * 서비스 모드에서만 틱이 돈다(in-process·stdio는 임대가 없어 틱을 돌리지 않는다, HS-40)
+   */
+  readonly schedule?: ScheduleOverrides;
   /**
    * 기본 플러그인 번들 뿌리(`<뿌리>/<이름>/.xeon-plugin/plugin.json`). 생략하면 실행 파일 옆 `default-plugins/`다.
    * 개발 실행과 시험이 번들 위치를 바꿀 때 쓴다
@@ -154,6 +166,14 @@ export interface EngineDiagnostics {
   readonly binaries: Result<BinaryCheckReport, { readonly kind: "cancelled" }>;
 }
 
+/** 예약 서비스 시험 주입. 모든 항목이 선택이다 */
+export interface ScheduleOverrides {
+  readonly clock?: ScheduleClock;
+  readonly ticker?: ScheduleTicker;
+  readonly store?: ScheduleStore;
+  readonly policy?: Partial<SchedulePolicy>;
+}
+
 /** 대기 예약 수. 값이 바뀌면 `onChange`로 알린다(유휴 종료 판정이 다시 계산한다) */
 export interface PendingSchedulesPort {
   count(): number;
@@ -193,8 +213,10 @@ export interface EnginePorts {
   readonly settings: SettingsStorePort;
   /** L1.tools */
   readonly approvals: ApprovalPort;
-  /** L1.tasks, L1.tools, L2.schedule */
+  /** L1.tasks, L1.tools, L2.schedule. 활동 집계는 예약 서비스의 대기·루프 수를 더한다 */
   readonly activity: ActivityPort;
+  /** L2.schedule 예약 서비스(M3b). 서비스 모드에서만 `start`로 틱을 돌린다. 실행은 이 서비스의 실행 포트가 한다 */
+  readonly schedule: ScheduleService;
   /** L0.os */
   readonly notify: UserNotifyPort;
   /** L0.os */

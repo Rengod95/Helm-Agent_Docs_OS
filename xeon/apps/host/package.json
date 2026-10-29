@@ -17,6 +17,7 @@
     "@xeon/cap-dialog": "workspace:*",
     "@xeon/cap-knowledge": "workspace:*",
     "@xeon/cap-mcp": "workspace:*",
+    "@xeon/cap-schedule": "workspace:*",
     "@xeon/cap-web": "workspace:*",
     "@xeon/cap-work": "workspace:*",
     "@xeon/cap-workspace": "workspace:*",

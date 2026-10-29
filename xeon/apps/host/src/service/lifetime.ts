@@ -1,3 +1,4 @@
+import type { ScheduleService } from "@xeon/cap-schedule";
 import { detach, err, ok, type Clock, type Scheduler } from "@xeon/contracts";
 import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
 import { createOsService, readOsRuntime, type OsServiceHandle } from "@xeon/platform-os";
@@ -77,6 +78,8 @@ export interface ServiceHandle {
   shutdown(reason: "signal" | "idle" | "stop"): Promise<void>;
   /** 새 TCP 토큰으로 바꾸고 등록 파일을 다시 쓴다. 이전 토큰은 즉시 무효이고 열린 연결은 그대로다 */
   rotateToken(): string;
+  /** 엔진의 예약 서비스(L4.host-service.spec §4.17). 시험과 서비스 관리가 대기 예약을 본다 */
+  schedule(): ScheduleService;
 }
 
 export type ServiceStart =
@@ -324,6 +327,7 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
     idleShutdownAt: () => idle.idleShutdownAt,
     connections: () => hub.size,
     shutdown,
+    schedule: () => engine.ports.schedule,
     rotateToken() {
       // 등록 파일을 먼저 쓰고 성공해야 토큰을 바꾼다. 쓰기가 실패하면 이전 토큰이 그대로 유효하다
       const next = gate.rotate((candidate) => {

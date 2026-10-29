@@ -38,6 +38,7 @@ import {
   type WireResult,
 } from "@xeon/contracts/wire";
 import { isAbsolute } from "node:path";
+import type { ScheduleService } from "@xeon/cap-schedule";
 import { itemPagesOf } from "@xeon/core-persistence";
 import { PrimitiveError, type ExtHost } from "@xeon/ext-host";
 import type {
@@ -112,7 +113,9 @@ export interface PortsDeps {
   readonly projectExtensions: ProjectExtensions;
   /** thread의 작업 디렉터리(없으면 undefined) */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
-  /** 대기 예약 수의 출처. 없으면 0이다(유휴 판정, M3b B1-SVC) */
+  /** 예약 서비스(L4.host-service.spec §4.17). 대기 예약·루프 수를 활동 집계에 낸다 */
+  readonly schedule: ScheduleService;
+  /** 대기 예약 수의 시험 주입. 있으면 예약 서비스의 대기 수 대신 이 값을 쓴다 */
   readonly pendingSchedules?: PendingSchedulesPort;
 }
 
@@ -139,7 +142,7 @@ function toLogValue(value: unknown): LogValue {
   return `[${typeof value}]`;
 }
 
-function toLogFields(fields: Readonly<Record<string, unknown>>): LogFields {
+export function toLogFields(fields: Readonly<Record<string, unknown>>): LogFields {
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, toLogValue(value)]));
 }
 
@@ -577,21 +580,24 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const snapshot = tasks.activity();
       return {
         liveTurns: snapshot.liveTurns,
-        liveTasks: snapshot.liveTasks,
+        // 켜진 루프는 백그라운드 작업으로 센다(M3-10)
+        liveTasks: snapshot.liveTasks + deps.schedule.liveSchedulerTasks(),
         // 대기 예약은 유휴 종료 판정이 쓴다. 승인 대기는 이 프로세스가 쥔 thread의 미해결 요청이다
         waitingApprovals: Array.from(held.keys()).reduce(
           (sum, threadId) => sum + deps.approvals.pending(threadId).length,
           0,
         ),
-        pendingSchedules: deps.pendingSchedules?.count() ?? 0,
+        pendingSchedules: deps.pendingSchedules?.count() ?? deps.schedule.pendingSchedules(),
       };
     },
     onChange: (listener) => {
       const offTasks = tasks.onActivity(listener);
       const offSchedules = deps.pendingSchedules?.onChange(listener);
+      const offSchedule = deps.schedule.onChange(listener);
       return () => {
         offTasks();
         offSchedules?.();
+        offSchedule();
       };
     },
   };
@@ -628,6 +634,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
     proposals: deps.proposals,
     trust,
+    schedule: deps.schedule,
     ids: deps.ids,
     clock: deps.clock,
     scheduler: deps.scheduler,

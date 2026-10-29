@@ -32,6 +32,7 @@ import { knowledgePlugin } from "@xeon/cap-knowledge";
 import { APPROVAL_SOURCE } from "@xeon/group-learning";
 import { workPlugin } from "@xeon/cap-work";
 import { workspacePlugin } from "@xeon/cap-workspace";
+import { readUnattendedTimeoutMs } from "@xeon/platform-exec";
 import type { AgentDefinition } from "@xeon/contracts/services";
 import { agentsPlugin } from "@xeon/core-agents";
 import { contextSettingsOf, createContextExtension } from "@xeon/core-context";
@@ -292,7 +293,13 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
     ],
     [
       "cap-workspace",
-      (loadIndex) => workspacePlugin({ settings: workspaceSource(settings), loadIndex }),
+      (loadIndex) =>
+        workspacePlugin({
+          settings: workspaceSource(settings),
+          // 무인 호출(예약·루프)의 명령 시간 상한. 설정은 호출마다 읽는다(M3-16, l0.exec.unattendedTimeoutMs)
+          unattendedTimeoutMs: () => readUnattendedTimeoutMs((key) => settings.value(key)),
+          loadIndex,
+        }),
     ],
     [
       "cap-dialog",
