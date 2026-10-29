@@ -1,18 +1,18 @@
 import { attemptAsync, eachAsync, err, ok, type Result } from "@xeon/contracts";
-import {
-  orderProviderCandidates,
-  type ProviderSearchRequest,
-  type ProviderSearchResult,
-  type WebCallMeta,
-  type WebProviderFallback,
+import type {
+  ProviderSearchRequest,
+  ProviderSearchResult,
+  WebCallMeta,
+  WebProviderFallback,
 } from "@xeon/contracts/capabilities";
 import type { WebDeps } from "../deps.ts";
 import type { WebFailure } from "../errors.ts";
 import type { SearchCandidate } from "../ports/providers.ts";
 import { failureOfThrown } from "../provider-errors.ts";
+import { planSelection, type SelectionPlan } from "../select/order.ts";
 
-// L2.web.spec §4.8.2 선택 체인. 호출 인자 provider → 설정 provider → auto(키 플러그인 pluginOrder 순 → 사용자가 주소를 설정한
-// SearXNG → 내장 래퍼). 후보에는 사용자가 설정한 provider만 들어간다. 주소를 찾아 나서는 감지는 없다. 명시 선택(호출 인자, 설정)은 다른 후보로 내려가지 않는다. auto에서는 탐침 실패와 호출 중 일부 오류가 다음
+// L2.web.spec §4.8.2 선택 체인. 호출 인자 provider → 설정 provider → auto(사용자가 정한 `order` 목록 → 사용자가 주소를 설정한
+// SearXNG → 내장 래퍼 → 플러그인). 순서 규칙은 `select/order.ts`다. 후보에는 사용자가 설정한 provider만 들어간다. 주소를 찾아 나서는 감지는 없다. 명시 선택(호출 인자, 설정)은 다른 후보로 내려가지 않는다. auto에서는 탐침 실패와 호출 중 일부 오류가 다음
 // 후보로 내려가고 `meta.fallbacks`에 남는다.
 
 /** auto 체인에서 다음 후보로 내려가는 호출 오류 코드. `invalid_input` 같은 입력 결함은 바로 실패한다 */
@@ -23,26 +23,22 @@ const FALLBACK_CODES: ReadonlySet<string> = new Set([
   "timeout",
 ]);
 
-export interface ChainPlan {
-  readonly selectedBy: WebCallMeta["selectedBy"];
-  /** 시도 순서의 provider ID. 명시 선택이면 원소 하나, 후보에 없으면 빈 배열 */
-  readonly order: readonly string[];
-}
+export type ChainPlan = SelectionPlan;
 
 export function planChain(
   candidates: readonly SearchCandidate[],
   callProvider: string | undefined,
   settingProvider: string,
-  pluginOrder: readonly string[],
+  order: readonly string[],
 ): ChainPlan {
-  return orderProviderCandidates({
+  return planSelection({
     candidates: candidates.map((candidate) => ({
       id: candidate.provider.id,
       origin: candidate.origin,
     })),
     ...(callProvider === undefined ? {} : { callProvider }),
     settingProvider,
-    pluginOrder,
+    order,
   });
 }
 

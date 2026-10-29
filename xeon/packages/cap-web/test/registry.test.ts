@@ -4,6 +4,7 @@ import { effectiveCachePolicy } from "../src/cache/policy.ts";
 import { createProviderRegistry, type PluginRegistration } from "../src/search/registry.ts";
 import { fakeResolver } from "../src/testing/fake-resolver.ts";
 import { fixtureTransport } from "../src/testing/http-fixtures.ts";
+import { fakeBrowseProvider } from "../src/testing/fake-browser.ts";
 import {
   fakeFetchProvider,
   fakeManifest,
@@ -49,7 +50,63 @@ function searchRegistration(extension: string, manifest?: WebProviderManifest): 
   };
 }
 
+function browseRegistration(extension: string, manifest?: WebProviderManifest): PluginRegistration {
+  return {
+    extension,
+    registration: {
+      capability: "web.browse",
+      create: () =>
+        fakeBrowseProvider(`plugin:${extension}`, manifest === undefined ? {} : { manifest }),
+    },
+  };
+}
+
 describe("provider registry", () => {
+  test("plugin browse registrations become browse candidates with the plugin origin", () => {
+    const catalog = registry(() => [browseRegistration("web-a")]);
+    expect(
+      catalog.browseCandidates().map((candidate) => [candidate.provider.id, candidate.origin]),
+    ).toEqual([["plugin:web-a", "plugin"]]);
+    expect(catalog.searchCandidates()).toEqual([]);
+    expect(catalog.fetchCandidates()).toEqual([]);
+  });
+
+  test("a browse provider whose manifest does not declare browse is rejected with its reason", () => {
+    const logged: unknown[] = [];
+    const catalog = createProviderRegistry({
+      source: {
+        list: () => [browseRegistration("web-b", fakeManifest("web-b", { services: ["search"] }))],
+      },
+      builtin: { search: [], fetch: [] },
+      http: {
+        resolver: fakeResolver(),
+        transport: fixtureTransport(),
+        secrets: undefined,
+        guard: undefined,
+      },
+      clock: manualClock(),
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: (event, fields) => {
+          logged.push([event, fields]);
+        },
+        error: () => {},
+        child() {
+          return this;
+        },
+      },
+      extensionSetting: () => undefined,
+    });
+    expect(catalog.browseCandidates()).toEqual([]);
+    expect(logged).toEqual([
+      [
+        "web.provider_rejected",
+        { extension: "web-b", capability: "web.browse", reason: "service_not_declared" },
+      ],
+    ]);
+  });
+
   test("plugin registrations become candidates with the plugin origin", () => {
     const catalog = registry(() => [searchRegistration("web-a")]);
     const candidates = catalog.searchCandidates();

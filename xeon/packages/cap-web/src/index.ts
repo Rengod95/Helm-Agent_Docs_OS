@@ -107,7 +107,13 @@ export type { ConvertInput, ConvertResult, Extractor } from "./fetch/convert/con
 export { markdownToPlainText, sliceText } from "./fetch/truncate.ts";
 export { createProbeCache } from "./search/probe-cache.ts";
 export type { ProbeCache } from "./search/probe-cache.ts";
-export type { FetchCandidate, SearchCandidate, WebProviderCatalog } from "./ports/providers.ts";
+export type {
+  BrowseCandidate,
+  FetchCandidate,
+  SearchCandidate,
+  WebProviderCatalog,
+} from "./ports/providers.ts";
+export type { BrowseConfirmPort, BrowseConfirmRequest } from "./ports/confirm.ts";
 export type { WebDeps } from "./deps.ts";
 export { failureOfThrown } from "./provider-errors.ts";
 export { createWebRuntime } from "./runtime.ts";

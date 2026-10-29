@@ -43,12 +43,34 @@ const webSettings = defineSettings("l2.web", {
     },
     since: "0.1.0",
   },
-  "search.pluginOrder": {
+  "search.order": {
     type: Type.Array(ProviderChoiceType, { maxItems: 32 }),
     default: [],
     runtimeChange: "nextTurn",
     allowedScopes: NO_SESSION,
-    ui: { tab: "tools", widget: "list", order: 101, label: "검색 플러그인 순서" },
+    ui: {
+      tab: "tools",
+      widget: "list",
+      order: 101,
+      label: "검색 도구 순서",
+      help: "등록된 검색 도구를 끌어 옮겨 정한다. 목록에 없는 도구는 뒤에 붙고 플러그인이 마지막이다",
+    },
+    since: "0.1.0",
+  },
+  "search.parallel": {
+    type: Type.Integer(),
+    default: 1,
+    range: { min: 1, max: 4 },
+    runtimeChange: "nextTurn",
+    allowedScopes: NO_SESSION,
+    ui: {
+      tab: "tools",
+      widget: "number",
+      order: 103,
+      label: "동시 질의 검색 도구 수",
+      help: "1이면 순서대로 하나씩 쓴다. 2 이상이면 순서의 앞에서부터 그 수만큼 동시에 질의해 결과를 합친다. 검색어가 여러 수신자에게 나간다",
+      unit: "개",
+    },
     since: "0.1.0",
   },
   "search.searxng.url": {
@@ -190,11 +212,17 @@ const webSettings = defineSettings("l2.web", {
   },
   "policy.robots": {
     type: Type.String(),
-    default: "auto",
+    default: "never",
     range: { enum: ["auto", "always", "never"] },
     runtimeChange: "nextTurn",
     allowedScopes: NO_SESSION,
-    ui: { tab: "tools", widget: "select", order: 125, label: "robots.txt 적용" },
+    ui: {
+      tab: "tools",
+      widget: "select",
+      order: 125,
+      label: "robots.txt 적용",
+      help: "never(기본)는 따르지 않는다. auto는 자동 수집 경로만, always는 모든 fetch에 적용한다",
+    },
     since: "0.1.0",
   },
   "cache.searchTtlMinutes": {
@@ -267,6 +295,20 @@ const webSettings = defineSettings("l2.web", {
       order: 150,
       label: "브라우저 provider",
       help: "auto 또는 provider ID",
+    },
+    since: "0.1.0",
+  },
+  "browse.order": {
+    type: Type.Array(ProviderChoiceType, { maxItems: 32 }),
+    default: [],
+    runtimeChange: "nextTurn",
+    allowedScopes: NO_SESSION,
+    ui: {
+      tab: "tools",
+      widget: "list",
+      order: 161,
+      label: "브라우저 도구 순서",
+      help: "등록된 브라우저 도구를 끌어 옮겨 정한다. 목록에 없는 도구는 뒤에 붙고 플러그인이 마지막이다",
     },
     since: "0.1.0",
   },
@@ -406,10 +448,24 @@ export const WEB_SETTING_DEFS: readonly SettingDef[] = Object.values(webSettings
 export interface WebSettings {
   readonly search: {
     readonly provider: string;
-    readonly pluginOrder: readonly string[];
+    readonly order: readonly string[];
+    /** 동시에 질의하는 검색 도구 수(1이면 순서대로 하나씩) */
+    readonly parallel: number;
     readonly searxng: { readonly url: string };
     readonly wrapper: { readonly model: string; readonly maxContinuations: number };
     readonly modelTool: "auto" | "hosted" | "function" | "off";
+  };
+  readonly browse: {
+    readonly provider: string;
+    readonly order: readonly string[];
+    readonly headless: boolean;
+    readonly maxMinutes: number;
+    readonly maxActions: number;
+    readonly maxUsd: number;
+    readonly maxSessions: number;
+    readonly allowNamedProfiles: boolean;
+    readonly allowJavascriptExec: boolean;
+    readonly allowFileUpload: boolean;
   };
   readonly fetch: {
     readonly extractor: "readability" | "defuddle";
@@ -438,10 +494,23 @@ export interface WebSettings {
 export const DEFAULT_WEB_SETTINGS: WebSettings = {
   search: {
     provider: "auto",
-    pluginOrder: [],
+    order: [],
+    parallel: 1,
     searxng: { url: "" },
     wrapper: { model: "auto", maxContinuations: 3 },
     modelTool: "auto",
+  },
+  browse: {
+    provider: "auto",
+    order: [],
+    headless: true,
+    maxMinutes: 30,
+    maxActions: 200,
+    maxUsd: 0.5,
+    maxSessions: 3,
+    allowNamedProfiles: false,
+    allowJavascriptExec: false,
+    allowFileUpload: false,
   },
   fetch: {
     extractor: "readability",
@@ -456,7 +525,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     deny: [],
     allowPrivateNetwork: false,
     unseenUrl: "ask",
-    robots: "auto",
+    robots: "never",
   },
   cache: { searchTtlMinutes: 20, fetchTtlMinutes: 15, maxMegabytes: 256 },
   limits: { searchPerSession: 100, fetchPerSession: 300 },
@@ -477,6 +546,10 @@ function effective(key: keyof typeof webSettings.defs, layers: ScopeStack): unkn
 
 function integerOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isInteger(value) ? value : fallback;
+}
+
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 function booleanOr(value: unknown, fallback: boolean): boolean {
@@ -531,7 +604,8 @@ export function readWebSettings(layers: ScopeStack): WebSettings {
   return {
     search: {
       provider: stringOr(effective("search.provider", layers), fallback.search.provider),
-      pluginOrder: stringList(effective("search.pluginOrder", layers)),
+      order: stringList(effective("search.order", layers)),
+      parallel: integerOr(effective("search.parallel", layers), fallback.search.parallel),
       searxng: {
         url: stringOr(effective("search.searxng.url", layers), fallback.search.searxng.url),
       },
@@ -546,6 +620,27 @@ export function readWebSettings(layers: ScopeStack): WebSettings {
         effective("search.modelTool", layers),
         ["auto", "hosted", "function", "off"],
         fallback.search.modelTool,
+      ),
+    },
+    browse: {
+      provider: stringOr(effective("browse.provider", layers), fallback.browse.provider),
+      order: stringList(effective("browse.order", layers)),
+      headless: booleanOr(effective("browse.headless", layers), fallback.browse.headless),
+      maxMinutes: integerOr(effective("browse.maxMinutes", layers), fallback.browse.maxMinutes),
+      maxActions: integerOr(effective("browse.maxActions", layers), fallback.browse.maxActions),
+      maxUsd: numberOr(effective("browse.maxUsd", layers), fallback.browse.maxUsd),
+      maxSessions: integerOr(effective("browse.maxSessions", layers), fallback.browse.maxSessions),
+      allowNamedProfiles: booleanOr(
+        effective("browse.allowNamedProfiles", layers),
+        fallback.browse.allowNamedProfiles,
+      ),
+      allowJavascriptExec: booleanOr(
+        effective("browse.allowJavascriptExec", layers),
+        fallback.browse.allowJavascriptExec,
+      ),
+      allowFileUpload: booleanOr(
+        effective("browse.allowFileUpload", layers),
+        fallback.browse.allowFileUpload,
       ),
     },
     fetch: {

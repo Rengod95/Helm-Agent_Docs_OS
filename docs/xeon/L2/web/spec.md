@@ -863,7 +863,7 @@ export interface BrowserOpenOptions {
   readonly profile: "ephemeral" | `named:${string}`;
   readonly headless: boolean;
   /** 모든 브라우저 트래픽이 지나는 앞단 필터 프록시(§4.10.2) */
-  readonly proxy: { readonly server: string };
+  readonly proxy?: { readonly server: string };
   readonly allowedOrigins: readonly string[];
 }
 export interface BrowserSessionHandle {
@@ -1280,10 +1280,10 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 ### 4.7 robots.txt
 
-- [제안] 자동 수집 경로는 robots.txt를 지킨다. 해당 경로: `web.research`의 하위 fetch, `urls` 일괄 fetch 중 사용자가 직접 적지 않은 URL, 앞으로 생길 crawl.
+- [결정: review.m3-design-inputs D-M3-23 행 4] 기본(`never`)은 robots.txt를 따르지 않는다. 따르려면 `auto`나 `always`로 바꾼다. `auto`는 아래 자동 수집 경로에 적용한다. 해당 경로: `web.research`의 하위 fetch, `urls` 일괄 fetch 중 사용자가 직접 적지 않은 URL, 앞으로 생길 crawl.
 - 사용자 대행 단건 fetch는 robots.txt 검사 대상이 아니다. 해당 경로: 사용자가 대화에 적은 URL의 fetch, 모델이 검색 결과 하나를 읽는 fetch, 그룹 코드의 단건 fetch. Anthropic web_fetch는 robots.txt를 차단 기준으로 쓰므로 이 선택은 공개 릴리즈 전에 다시 정한다(`_research/web-tools.md` §4.9, §10 미결 6).
 - 구현은 `auto`를 이렇게 읽는다: 자동 수집 경로(조사의 하위 fetch)이거나, 호출자가 호스트가 아닌 `urls` 일괄 fetch이면 적용한다. 일괄 호출의 URL이 사용자 입력에서 왔는지는 구분하지 않는다 [제안].
-- 설정 `l2.web.policy.robots`: `auto`(위 규칙), `always`(모든 fetch에 적용), `never`(적용 안 함, 관리 범위에서 잠글 수 있음).
+- 설정 `l2.web.policy.robots`: `never`(기본, 적용 안 함), `auto`(위 규칙), `always`(모든 fetch에 적용). 관리 범위에서 잠글 수 있다.
 - 처리: 호스트별 `/robots.txt`를 24시간 메모리 캐시한다. 사용자 에이전트 토큰은 `Xeon`이다. 4xx는 전부 허용, 5xx·연결 실패는 전부 금지로 본다(RFC 9309 §2.3.1) [제안].
 - UA 문자열은 `Xeon/<버전> (+<프로젝트 URL>)`로 정직하게 밝힌다. Cloudflare 챌린지 같은 봇 차단을 우회하지 않는다(`_research/web-tools.md` §4.9, §5.1 크롤링 윤리 행).
 
@@ -1316,12 +1316,14 @@ ADR-0005 §3.3(2026-10-25 개정)과 `L2.readme` §5.2를 따른다.
 
 1. 호출 인자 `provider`가 있으면 그 provider만 쓴다.
 2. `l2.web.search.provider`가 `"auto"`가 아니면 그 provider만 쓴다. ADR-0005의 키 `web.search.provider`는 키 문법에 맞춘 `l2.web.search.provider`로 읽는다.
-3. `"auto"`이면 사용자가 키를 등록한 플러그인을 `l2.web.search.pluginOrder` 순으로 쓴다.
-4. 플러그인이 없거나 모두 실패하면, 사용자가 `l2.web.search.searxng.url`을 설정한 경우에만 그 SearXNG를 쓴다.
-5. 위가 모두 없거나 실패하면 내장 검색 래퍼를 쓴다. 아무것도 설정하지 않은 상태의 기본 경로가 이것이다.
+3. `"auto"`이면 `l2.web.search.order` 목록의 순서로 쓴다. 목록은 설정 화면에서 끌어 옮겨 정하며, 등록된 검색 도구 전부(내장 기본 검색 도구 포함)가 대상이다. 목록에 없는 도구나 등록되지 않은 id는 건너뛴다.
+4. 목록에 없는 후보는 목록 뒤에 붙는다: 사용자가 `l2.web.search.searxng.url`을 설정한 SearXNG, 내장 검색 래퍼, 플러그인 순이다. 각 묶음 안은 id 바이트 순이다. 플러그인은 사용자가 순서에 올리기 전까지 기본 후순위다.
+5. 후보가 하나도 없거나 모두 실패하면 `unavailable`이다. 아무것도 설정하지 않은 상태의 기본 경로는 내장 검색 래퍼다.
 
 - [결정] 후보에는 사용자가 설정한 provider만 들어간다(사용자 결정 H1, ADR-0005 §3.3). 주소를 설정하지 않은 SearXNG는 후보에서 빠지므로 탐침 요청도, `meta.fallbacks` 항목도 없다. 구현은 `SearchCandidate.enabled`(호출마다 읽는다)가 후보 목록에서 걸러낸다. `l2.web.search.provider`를 `searxng`로 고정했는데 주소가 비어 있으면 후보에 없으므로 `unavailable`이고 `detail.reason`은 `unknown_provider`다.
-- [제안] 3번(플러그인)을 4번(SearXNG)보다 앞에 둔다. 둘 다 사용자 설정이지만 키 등록은 검색어가 새 수신자에게 나가는 명시 행위이고, 이 순서는 `foundation-plan.md` §1 6번에 명시되어 있지 않다. ADR-0005 §6 [미결]을 그대로 승계한다(§10 미결 4).
+- [결정: review.m3-design-inputs D-M3-23 행 1] 옛 규칙(키 플러그인 → SearXNG → 래퍼)과 `pluginOrder` 키를 위 규칙과 `order` 키로 바꾼다. 순서 규칙은 `cap-web/src/select/order.ts`의 `planSelection` 하나이고 검색과 브라우저가 같이 쓴다. F `orderProviderCandidates`는 fetch 승격이 계속 쓴다.
+- 여러 provider 동시 질의: `l2.web.search.parallel`이 2 이상이고 선택이 auto이면, 순서에서 탐침을 통과한 앞의 N개를 동시에 호출한다. 결과는 provider 차례로 한 건씩 번갈아 합치고 URL이 같은 항목은 먼저 나온 것만 둔다. `meta.provider`는 순서가 가장 앞선 성공 provider이고 합친 provider 목록은 `meta.warnings`의 `fanout:<id>,<id>`에 남긴다. 비용은 provider마다 계산해 사용량 표에 기록하고 `meta.cost`는 그 합이다. 일부가 실패하면 성공한 것만 합치고 실패는 `meta.fallbacks`(`stage: "call"`)에 남긴다. 모두 실패하면 순차 체인과 같은 오류다. 명시 선택(1, 2)에는 적용하지 않는다. [결정: 오케스트레이터 기본값] 기본값은 1이다. 동시 질의는 검색어를 여러 수신자에게 보내고 비용도 늘기 때문에 사용자가 올린다. D-M3-23의 "기본 기능"은 기능이 기본으로 들어 있다는 뜻으로 읽는다.
+- 키 플러그인 첫 사용 고지: 플러그인 provider(`auth.kind`가 `none`이 아닌 것)가 처음 호출에 쓰이면 `meta.warnings`에 `first_use_notice:<provider>`를 한 번 싣고 그 provider를 고지한 것으로 저장소에 남긴다(표 `cap_web_notices`). 고지 문구는 L4가 만든다: 검색어가 이 provider의 수신자에게 나간다는 것과 가격표 기준일이다. 승인을 요구하지 않는다.
 - 명시 선택(1, 2)은 다른 후보로 내려가지 않는다. 탐침이 실패하면 `unavailable` 오류이고 `detail.reason`에 사유를 싣는다(`L2.readme` §5.2).
 - auto 체인에서 탐침 실패는 다음 후보로 내려가고 `meta.fallbacks`에 `{ provider, stage: "probe", reason }`을 남긴다. `search`는 `replay: "safe"`이므로 호출 중 오류 `unavailable`, `rate_limited`, `upstream_error`도 다음 후보로 내려가며 `stage: "call"`로 남긴다.
 - 구현은 `timeout`도 다음 후보로 내려가는 호출 오류에 넣는다 [제안]. 응답하지 않는 provider 하나가 검색 전체를 막지 않게 하려는 것이다. 이 밖의 코드(`invalid_input`, `denied`, `query_rejected` 등)는 바로 실패한다.
@@ -1459,7 +1461,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 - [제안] 하위 리소스와 스크립트가 여는 연결(XHR, WebSocket, 이미지, 워커)까지 막기 위해 브라우저의 모든 트래픽을 `cap-web`이 띄운 로컬 필터 프록시로 보낸다. 브라우저는 `--proxy-server=http://127.0.0.1:<port>`로 실행하고, 프록시는 CONNECT·HTTP 요청마다 도메인 정책과 연결 시점 IP 검사(§4.6.3)를 한다. Playwright의 `--allowed-origins` 경로 가로채기는 옵션 설명 스스로 보안 경계로 쓸 수 없다고 밝히므로 경계로 쓰지 않는다(`_research/browser-tools.md` 주류 도구 절, `_research/web-tools.md` §5.2 4번).
   - 프록시는 `browse/proxy.ts`에 있고 루프백에만 바인딩한다. 프록시를 우회하는 Chromium 플래그(`--proxy-bypass-list`)는 쓰지 않는다.
   - WebRTC는 프록시를 거치지 않으므로 끈다(`--force-webrtc-ip-handling-policy=disable_non_proxied_udp`) [가정: playwright-core 1.64.1의 Chromium에서 플래그가 동작한다. B10에서 확인].
-- 대안은 `L0.sandbox`의 네트워크 필터를 쓰는 것이다. 어느 쪽을 1차로 둘지는 §10 미결 8이다.
+- 대안은 `L0.sandbox`의 네트워크 필터를 쓰는 것이다. 어느 쪽을 1차로 둘지는 §10 미결 8이다. 프록시를 띄우지 않는 기본 경로(§4.10.4a)는 샌드박스 필터를 쓴다.
 
 #### 4.10.3 기본 비활성 기능과 사람 확인
 
@@ -1471,7 +1473,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
   - `caller.afterUntrusted = true`인 `fill`, `type`, 폼 제출(§4.6.6).
 - 어휘 판정은 완전하지 않다. 그래서 브라우저 세션은 격리된 새 프로필(자격 증명 없음)을 기본으로 두는 것이 1차 방어다.
 
-#### 4.10.4 `playwright-local` provider
+#### 4.10.4 `playwright-local` provider (미구현, 기본 경로 아님: §4.10.4a)
 
 - playwright-core 1.64.1을 쓴다. auto-wait와 actionability 검사, 실행한 동작의 코드 출력(`BrowseActOutput.code`)을 제공한다(`_research/layer-plan-v2.json` L2-c, `_research/browser-tools.md` 주류 도구 절).
 - 스냅샷은 `ariaSnapshot` 계열 API로 만들고 `e<N>` ref를 붙인다. ref는 마지막 스냅샷 기준으로 해석한다. 문서가 바뀐 뒤의 ref는 `ref_invalid`다 [가정: ref 부여 방식의 세부 API는 `L2.web.plan` B10에서 정한다].
@@ -1484,7 +1486,16 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 - Bun 경로에서 쓰지 않는 기능: `recordHar`(Bun 이벤트 루프 교착 보고, oven-sh/bun#30652), 클라이언트 인증서(oven-sh/bun#44523)(`_research/notes/L2-2.md` §1).
 - `headless`는 `l2.web.browse.headless`(기본 참)다.
 
-#### 4.10.5 `agent-browser` provider (2차)
+#### 4.10.4a MCP stdio provider와 기본 경로
+
+- [결정: 오케스트레이터 기본값] Stagehand는 아직 승인되지 않았다(새 외부 의존). 기본 경로는 MCP stdio provider다. 도구는 Playwright MCP(`playwright-mcp`)이고 origin은 `builtin`이다. 이 provider는 좁은 포트 `BrowserMcpPort` 뒤에 둔다. 포트는 다음 단위에서 추가하며 지금 코드에는 없다. 시험은 가짜 브라우저 provider(`src/testing/fake-browser.ts`)로 한다.
+- 트래픽 필터: 필터 프록시를 띄우지 않는 조립(MCP stdio 경로)에서는 `BrowserOpenOptions.proxy`가 없다. 브라우저의 하위 요청 트래픽은 샌드박스 네트워크 필터가 맡는다(§10 미결 8). 앞단은 이동 URL만 검사한다. 검사하는 곳은 `open`의 `url`, `navigate` 동작, 동작 뒤의 모든 최상위 문서 이동이다(§4.10.2).
+- 세션 상한은 구현되어 있다(§4.10.1). 기본값은 대화마다 동시 세션 3개(`maxSessions`), 30분(`maxMinutes`), 200회(`maxActions`), 0.5달러(`maxUsd`)다. 동시 세션 수를 넘으면 새 세션을 거부한다. 시간, 동작 수, 비용을 넘으면 `session_budget`을 내고 세션을 닫는다.
+- 비활성 동작과 사람 확인도 구현되어 있다(§4.10.3). `evaluate`와 `upload`는 설정이 꺼져 있으면 `action_disabled`다. 명명 프로필은 설정이 켜져 있고 호출마다 확인을 받아야 열린다. 확인 포트 `BrowseConfirmPort`(`src/ports/confirm.ts`)가 없거나 `unavailable`이면 확인이 필요한 동작은 `confirmation_denied`다. 어휘는 `browse/confirm.ts`의 상수이고 보수적이다. "Order history"처럼 탐색용 이름도 `order` 어휘에 걸려 확인을 받는다.
+- 후보: `catalog.browseCandidates()`는 `createWebRuntime({ builtin: { browse } })`로 받은 내장 후보와 플러그인 등록을 낸다. 플러그인 등록은 능력 `web.browse`이고 provider ID는 `plugin:<확장 이름>`, origin은 `plugin`이다. 매니페스트의 `services`에 `browse`가 없으면 `service_not_declared`로 거부한다.
+- 순서는 검색과 같은 `planSelection`(`src/select/order.ts`)이 정한다(§4.8.2). 사용자가 `l2.web.browse.order`에 올린 순서가 먼저이고, 목록에 없는 후보는 내장 다음 플러그인 순이다.
+
+#### 4.10.5 `agent-browser` provider (2차, 미구현)
 
 - agent-browser 0.39.1의 네이티브 바이너리를 직접 호출한다. npm 래퍼는 Node 24를 요구하지만 소스 빌드에만 필요하므로 쓰지 않는다(`_research/notes/L2-2.md` §2.4, §5).
 - 호출 형식: `<바이너리> --json --session <id> [--allowed-domains <목록>] <명령…>`. 실행은 `xeon.process`로 한다.
@@ -1610,7 +1621,8 @@ stateDiagram-v2
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret |
 |---|---|---|---|---|---|---|---|
 | `l2.web.search.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.search.pluginOrder` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
+| `l2.web.search.order` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
+| `l2.web.search.parallel` | integer | `1` | min 1, max 4 | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.search.searxng.url` | string(URL 또는 빈 문자열) | `""` | — | nextTurn | managed, user, local | tools | false |
 | `l2.web.search.wrapper.model` | string(`"auto"` 또는 모델 ID) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.search.wrapper.maxContinuations` | integer | `3` | min 0, max 10 | nextTurn | managed, user, project, local, session | tools | false |
@@ -1625,13 +1637,14 @@ stateDiagram-v2
 | `l2.web.policy.deny` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.policy.allowPrivateNetwork` | boolean | `false` | — | nextTurn | managed, user, local | tools | false |
 | `l2.web.policy.unseenUrl` | string | `"ask"` | enum ask, allow, deny | nextTurn | managed, user, local, session | tools | false |
-| `l2.web.policy.robots` | string | `"auto"` | enum auto, always, never | nextTurn | managed, user, project, local | tools | false |
+| `l2.web.policy.robots` | string | `"never"` | enum auto, always, never | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.cache.searchTtlMinutes` | integer | `20` | min 0, max 1440 | live | managed, user, project, local | tools | false |
 | `l2.web.cache.fetchTtlMinutes` | integer | `15` | min 0, max 1440 | live | managed, user, project, local | tools | false |
 | `l2.web.cache.maxMegabytes` | integer | `256` | min 16, max 8192 | live | managed, user | tools | false |
 | `l2.web.limits.searchPerSession` | integer | `100` | min 0, max 100000 | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.limits.fetchPerSession` | integer | `300` | min 0, max 100000 | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.browse.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.browse.order` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.browse.headless` | boolean | `true` | — | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.browse.runtime` | string | `"auto"` | enum auto, bun, node | restart | managed, user | tools | false |
 | `l2.web.browse.executablePath` | string | `""` | — | restart | managed, user, local | tools | false |
@@ -1647,7 +1660,7 @@ stateDiagram-v2
 | `l2.web.research.keepUnverified` | boolean | `false` | — | nextTurn | managed, user, project, local, session | tools | false |
 
 - 플러그인 키는 `ext.<확장 이름>.*`이다. 예: `ext.web-exa.apiKey`(string, `secret://` 참조, `secret: true`, 기본값 없음, ui.tab `plugins`)(`F.wire-settings.spec` §3.8.3). L2 키에는 비밀이 없다.
-- `l2.web.search.provider`, `l2.web.browse.provider`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `xeon.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
+- `l2.web.search.provider`, `l2.web.browse.provider`, `order`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `xeon.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
 - 도메인 목록 세 키는 범위별 값을 합친다(§4.5.2). 다른 키는 `F.wire-settings.spec` §3.9 일반 규칙(높은 범위 하나)을 따른다.
 - `l2.web.browse.allowNamedProfiles`는 관리·사용자 범위만 허용한다. 프로젝트 파일로 로그인 프로필을 켜는 경로를 막기 위해서다.
 - `l2.web.policy.allow`(허용 목록)와 `l2.web.policy.unseenUrl`(대화에 없던 URL 확인)은 project 범위를 허용하지 않는다 [제안]. 저장소 설정 파일이 `allow: ["*"]`와 `unseenUrl: "allow"`를 넣으면 기본 `ask`가 모든 도메인에서 꺼지고 대화 내용을 쿼리에 실어 내보내는 경로를 막는 검사도 꺼진다. project 범위는 `ask`와 `deny`처럼 막는 쪽 목록에만 더할 수 있다.
@@ -1758,6 +1771,13 @@ export const webSettings = defineSettings("l2.web", {
 14. `web.browse`: 정책이 막는 호스트로의 `navigate`는 `denied`다. 허용 호스트에서 스크립트 이동으로 금지 호스트에 가면 페이지가 비워지고 `denied`다. 설정이 꺼진 `evaluate`와 `upload`는 `action_disabled`다.
 15. `web.research`(2차): 인용문이 rawRef 본문에 없는 주장은 보고서에서 빠지고 `removedClaims`가 늘어난다. 예산을 넘으면 상태가 `budget_exceeded`이고 부분 결과가 있다. 상태는 종료 상태에서 바뀌지 않는다.
 16. `web_search` 모델 도구 경로: 도구 정의의 파라미터 파싱, 서비스 입력 변환, 서비스 호출, 모델용 결과 렌더링을 실제 조립(`createWebRuntime`)에서 걸면 출력이 `WebSearchOutputSchema`를 만족하고 본문이 `<untrusted_web_content`로 시작하며 `[s1]` 인용을 담는다. 기본 설정에서는 후보가 내장 래퍼뿐이고(`isWrapperOnlyChain` 참) 요청이 나가지 않으며, 주소를 설정하면 루프백 SearXNG가 운영 전송으로 답하고 모델용 도구는 `function`이다(G4-05).
+17. `web.browse` 선택 순서: 값 표 `test/select-order.test.ts`가 호출 인자, 설정, auto의 순서를 본다. auto에서 목록에 없는 후보는 내장 다음 플러그인 순이고, 사용자 `l2.web.browse.order`가 플러그인을 앞세울 수 있다(`test/browse.test.ts` 선택 묶음).
+18. 자동 선택의 대체: auto에서 탐침 실패, `unavailable`·`rate_limited`·`upstream_error`·`timeout` 호출 오류는 다음 후보로 내려가고 `meta.fallbacks`에 남는다. 명시 선택과 `invalid_input`은 내려가지 않는다. 후보가 없으면 `detail.reason`은 `no_provider`, 등록되지 않은 id면 `unknown_provider`다.
+19. 세션 상한: 동시 세션 수를 넘으면 새 세션을 `session_budget`으로 거부한다. 시간, 동작 수, 비용을 넘으면 `session_budget`이고 세션이 닫힌다. 다른 대화의 세션 ID는 `not_found`이고, 그 대화는 이 세션을 닫지 못한다. 대화가 끝나면 `closeThread`가 그 대화의 세션을 닫는다(`test/browse.test.ts` 세션 묶음).
+20. 동작 비용: 가격표 `browse_action` 단가로 동작마다 `meta.cost`가 `estimated`로 붙고, `close`의 `stats.usd`는 열기와 동작 비용의 합이다.
+21. 사람 확인: 결제·송금·삭제 어휘의 `click`, 다른 origin으로 가는 폼 제출, 외부 내용을 읽은 뒤의 `fill`은 `BrowseConfirmPort`로 묻는다. 거부되거나 포트가 없으면 `confirmation_denied`다. 명명 프로필은 설정과 확인이 모두 있어야 열린다(기본은 `action_disabled`). 어휘 시험은 `test/browse-confirm.test.ts`다.
+22. 이동 뒤 검사: 열기나 동작 뒤 최상위 이동이 금지 주소이면 페이지를 `about:blank`로 바꾸고 `denied`(`detail.reason`은 `navigation_denied`, 원인은 `cause`)다. 열기 중에 그랬다면 세션을 닫는다.
+23. 플러그인 등록: `web.browse` 등록은 `plugin:<확장>` 후보(origin `plugin`)가 된다. 매니페스트에 `browse`가 없으면 `service_not_declared`로 거부된다(`test/registry.test.ts`).
 
 ## 10. 미결 사항
 
@@ -1770,12 +1790,12 @@ export const webSettings = defineSettings("l2.web", {
    - (c) 메인 턴의 hosted 결과(`HostedSearchResponse` 모양)를 `normalizeHostedSearch`로 넘기는 경로가 없다. L4 인용 렌더링에 쓰려면 F에 이벤트나 레코드가 필요하다.
    - 풀려면 다음 중 하나가 필요하다. 어느 쪽이든 M2 범위 밖이라 `m3-plan`으로 넘긴다. 1) pi-ai 어댑터 패치(서버 도구 블록을 content에 싣고 이력 변환에서 되돌린다), 2) F `AssistantMessage` 확장 또는 provider 불투명 블록 레코드와 루프의 `pause_turn` 이어 요청. 둘 다 F 계약이나 vendor 변경이다.
    - 영향: 기능 손실은 없다. 기본 설정(체인이 래퍼뿐)에서 모델의 검색이 `web_search` 함수 도구 → 내장 래퍼 경로로 처리되어 검색마다 모델 호출이 하나 더 든다(§4.8.1 B안의 단점). `l2.web.search.modelTool`의 `hosted`와 `auto`는 지금 `function`과 같게 동작한다.
-4. [결정: review.m3-design-inputs D-M3-23 행 1] 자동 선택 순서는 사용자가 설정 화면에서 끌어 옮겨 정한다. 목록은 등록된 검색 도구 전부이고 기본 웹 검색 도구를 포함한다. 플러그인은 기본 후순위다. 여러 provider 동시 질의를 기본 기능으로 둔다. 선택 체인(§4.8.2) 본문은 M3 작업에서 이 규칙으로 고친다.
+4. 닫힘. [결정: review.m3-design-inputs D-M3-23 행 1] 자동 선택 순서는 사용자가 설정 화면에서 끌어 옮겨 정한다(`l2.web.search.order`). 선택 체인(§4.8.2)이 이 규칙으로 바뀌었다. 끌어 옮기는 화면은 M4다.
 5. 닫힘. 자동 감지는 없앴고 사용자가 주소를 설정한 SearXNG만 후보다(사용자 결정 H1, 2026-10-25, ADR-0005 §3.3 개정, §4.8.3). 설정한 주소의 탐침 형식은 §4.8.3이다.
-6. [결정: review.m3-design-inputs D-M3-23 행 4] robots.txt는 기본으로 따르지 않고, 설정으로 따르게 할 수 있다(§4.7). 크롤링 자동화는 사용자 프로그램과 플러그인의 영역이다.
+6. 닫힘. [결정: review.m3-design-inputs D-M3-23 행 4] robots.txt는 기본으로 따르지 않고, 설정으로 따르게 할 수 있다(§4.7, 기본값 `never`). 크롤링 자동화는 사용자 프로그램과 플러그인의 영역이다.
 7. [미결] 세션당 호출 상한 카운터의 영속화. 제안은 프로세스 메모리다(§4.4.4).
 8. [미결] 브라우저 트래픽 필터를 `cap-web` 로컬 프록시로 할지 `L0.sandbox`의 네트워크 필터로 할지(§4.10.2). playwright-local에서 `allowedDomains`를 강제하는 방법은 선행 조사에서도 확인되지 않았다(`_research/notes/L2-2.md` §6).
-9. [미결] 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다.
+9. [미결] 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다. [결정: 오케스트레이터 기본값] Stagehand는 승인 전이라 기본 경로가 아니다. 기본 경로는 §4.10.4a의 MCP stdio provider다.
 10. [미결] `web.research` 실행 기록의 영속화와 재개(2차, §4.11.4).
 11. [미결] provider 선택 키의 값 목록 표시. 플러그인 설치 상태에 따라 바뀌는 선택지를 `SettingDef`로 표현하는 방법(`L4.settings-ui.spec`과 함께, §6).
 12. [미결] 기본 추출기. 제안은 readability 0.6.0 + linkedom 0.18.13이고 defuddle 0.19.5는 설정으로 고른다. 우리 샘플 페이지로 비교 측정한 뒤 정한다(`_research/web-tools.md` §2.3 "측정마다 순위가 뒤집힌다").

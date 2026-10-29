@@ -367,7 +367,7 @@ export function createSearchApi(deps: WebDeps): {
       candidates,
       input.provider,
       settings.search.provider,
-      settings.search.pluginOrder,
+      settings.search.order,
     );
     const filterContext: FilterContext = {
       merged,

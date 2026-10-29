@@ -45,34 +45,43 @@ describe("search chain", () => {
       candidates: typeof ALL;
       call: string | undefined;
       setting: string;
-      pluginOrder: readonly string[];
+      listing: readonly string[];
       selectedBy: string;
       order: readonly string[];
     }[] = [
       {
-        name: "plugins in the configured order, then searxng, then the wrapper",
+        name: "the user's order list comes first, then searxng, the wrapper, and unlisted plugins last",
         candidates: ALL,
         call: undefined,
         setting: "auto",
-        pluginOrder: ["plugin:web-b", "plugin:web-a"],
+        listing: ["plugin:web-b", "plugin:web-a"],
         selectedBy: "auto",
         order: ["plugin:web-b", "plugin:web-a", "searxng", "builtin-wrapper"],
       },
       {
-        name: "unlisted plugins follow the listed ones in byte order",
+        name: "a built-in tool can be dragged ahead of plugins, unknown ids are skipped",
         candidates: ALL,
         call: undefined,
         setting: "auto",
-        pluginOrder: ["plugin:web-b", "plugin:not-installed"],
+        listing: ["builtin-wrapper", "plugin:not-installed", "plugin:web-b"],
         selectedBy: "auto",
-        order: ["plugin:web-b", "plugin:web-a", "searxng", "builtin-wrapper"],
+        order: ["builtin-wrapper", "plugin:web-b", "searxng", "plugin:web-a"],
+      },
+      {
+        name: "plugins are last by default, in byte order",
+        candidates: ALL,
+        call: undefined,
+        setting: "auto",
+        listing: [],
+        selectedBy: "auto",
+        order: ["searxng", "builtin-wrapper", "plugin:web-a", "plugin:web-b"],
       },
       {
         name: "no plugin: searxng then the wrapper",
         candidates: [searchCandidate(SEARXNG, "detected"), searchCandidate(WRAPPER, "builtin")],
         call: undefined,
         setting: "auto",
-        pluginOrder: [],
+        listing: [],
         selectedBy: "auto",
         order: ["searxng", "builtin-wrapper"],
       },
@@ -81,7 +90,7 @@ describe("search chain", () => {
         candidates: [searchCandidate(WRAPPER, "builtin")],
         call: undefined,
         setting: "auto",
-        pluginOrder: [],
+        listing: [],
         selectedBy: "auto",
         order: ["builtin-wrapper"],
       },
@@ -90,7 +99,7 @@ describe("search chain", () => {
         candidates: ALL,
         call: "searxng",
         setting: "plugin:web-a",
-        pluginOrder: [],
+        listing: [],
         selectedBy: "call",
         order: ["searxng"],
       },
@@ -99,7 +108,7 @@ describe("search chain", () => {
         candidates: ALL,
         call: undefined,
         setting: "plugin:web-b",
-        pluginOrder: ["plugin:web-a"],
+        listing: ["plugin:web-a"],
         selectedBy: "setting",
         order: ["plugin:web-b"],
       },
@@ -108,7 +117,7 @@ describe("search chain", () => {
         candidates: ALL,
         call: "plugin:ghost",
         setting: "auto",
-        pluginOrder: [],
+        listing: [],
         selectedBy: "call",
         order: [],
       },
@@ -117,13 +126,13 @@ describe("search chain", () => {
         candidates: [],
         call: undefined,
         setting: "auto",
-        pluginOrder: [],
+        listing: [],
         selectedBy: "auto",
         order: [],
       },
     ];
     for (const row of table) {
-      const plan = planChain(row.candidates, row.call, row.setting, row.pluginOrder);
+      const plan = planChain(row.candidates, row.call, row.setting, row.listing);
       expect([row.name, plan.selectedBy, plan.order]).toEqual([
         row.name,
         row.selectedBy,
@@ -167,6 +176,7 @@ describe("search chain", () => {
     });
     const wrapper = fakeSearchProvider("builtin-wrapper");
     const world = await makeWebWorld({
+      settings: { search: { order: ["plugin:web-x"] } },
       catalog: fakeCatalog([
         searchCandidate(keyless, "plugin"),
         searchCandidate(searx, "detected"),
@@ -204,6 +214,7 @@ describe("search chain", () => {
     limited.failWith(capabilityError("rate_limited", { retryAfterMs: 2000 }));
     const wrapper = fakeSearchProvider("builtin-wrapper");
     const world = await makeWebWorld({
+      settings: { search: { order: ["plugin:web-limited"] } },
       catalog: fakeCatalog([
         searchCandidate(limited, "plugin"),
         searchCandidate(wrapper, "builtin"),
@@ -237,6 +248,7 @@ describe("search chain", () => {
     broken.failWith(new Error("socket hang up"));
     const wrapper = fakeSearchProvider("builtin-wrapper");
     const world = await makeWebWorld({
+      settings: { search: { order: ["plugin:web-broken"] } },
       catalog: fakeCatalog([
         searchCandidate(broken, "plugin"),
         searchCandidate(wrapper, "builtin"),
@@ -257,6 +269,7 @@ describe("search chain", () => {
       availability: { ok: false, reason: "unsupported-model" },
     });
     const world = await makeWebWorld({
+      settings: { search: { order: ["plugin:web-one"] } },
       catalog: fakeCatalog([searchCandidate(one, "plugin"), searchCandidate(two, "builtin")]),
     });
     const failure = await rejection(world.search({ query: "xeon" }));

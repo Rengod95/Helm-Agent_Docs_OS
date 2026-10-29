@@ -97,7 +97,7 @@ binds: []
 | `l0.sandbox.enabled`, `l0.sandbox.onUnavailable` | T-02 | `L0.sandbox.spec` §6 |
 | `x.loading-trust.defaultProjectTrust` | T-03 | `X.loading-trust.spec` §3.6 |
 | `l2.mcp.servers` | T-04 | `L2.mcp.spec` §6 |
-| `l2.web.search.provider`, `l2.web.search.searxng.url`, `l2.web.search.pluginOrder` | T-08 | `L2.web.spec` §6 |
+| `l2.web.search.provider`, `l2.web.search.searxng.url`, `l2.web.search.order`, `l2.web.search.parallel` | T-08 | `L2.web.spec` §6 |
 | `l0.secrets.*` | T-05, T-06 | `L0.secrets.spec` §6.1 |
 
 ## 7. 확장 지점

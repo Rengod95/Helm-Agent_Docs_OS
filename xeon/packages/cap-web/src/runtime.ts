@@ -14,7 +14,12 @@ import { createContentHttp } from "./policy/content-http.ts";
 import type { ProviderHttpDeps } from "./policy/guarded-http.ts";
 import { createSeenUrls } from "./policy/seen-urls.ts";
 import type { WebAskPort } from "./ports/ask.ts";
-import type { WebProviderCatalog, FetchCandidate, SearchCandidate } from "./ports/providers.ts";
+import type {
+  BrowseCandidate,
+  FetchCandidate,
+  SearchCandidate,
+  WebProviderCatalog,
+} from "./ports/providers.ts";
 import type { DnsResolver } from "./ports/resolver.ts";
 import type { HeaderSecretResolver, OutboundSecretGuard } from "./ports/secrets.ts";
 import type { WebSessionSourcesPort } from "./ports/session-sources.ts";
@@ -23,6 +28,8 @@ import type { HttpTransport } from "./ports/transport.ts";
 import { createProbeCache, type ProbeCache } from "./search/probe-cache.ts";
 import { createBuiltinSearchCandidates } from "./search/providers/builtin.ts";
 import { createProviderRegistry, type RegistrationSource } from "./search/registry.ts";
+import { createBrowseApi, type BrowseController } from "./browse/service.ts";
+import type { BrowseConfirmPort } from "./ports/confirm.ts";
 import { createWebService } from "./service.ts";
 import type { WebSettings } from "./settings.ts";
 import { createHttpTransport } from "./transport/http-transport.ts";
@@ -48,6 +55,8 @@ export interface WebRuntimeOptions {
   readonly asker?: WebAskPort;
   readonly guard?: OutboundSecretGuard;
   readonly headerSecrets?: HeaderSecretResolver;
+  /** 브라우저 동작의 사람 확인(L2.web.spec §4.10.3). 없으면 확인이 필요한 동작은 거부한다 */
+  readonly browseConfirm?: BrowseConfirmPort;
   /** 플러그인 provider 등록 목록(X가 넘긴다). 기본은 비어 있다 */
   readonly registrations?: RegistrationSource;
   /**
@@ -61,6 +70,7 @@ export interface WebRuntimeOptions {
   readonly builtin?: {
     readonly search: readonly SearchCandidate[];
     readonly fetch: readonly FetchCandidate[];
+    readonly browse?: readonly BrowseCandidate[];
   };
   /** `ext.<이름>.<키>` 설정 읽기 */
   readonly extensionSetting?: (extension: string, key: string) => unknown;
@@ -71,6 +81,8 @@ export interface WebRuntime {
   readonly deps: WebDeps;
   readonly catalog: WebProviderCatalog;
   readonly probes: ProbeCache;
+  /** 브라우저 세션 제어(대화 종료 때 닫기). 서비스의 `browse` 메서드는 `service.browse`다 */
+  readonly browse: BrowseController;
   /** 디스크 캐시가 켜져 있는가(저장소가 없거나 마이그레이션이 실패하면 거짓) */
   readonly cacheEnabled: boolean;
   /** 살아 있지 않은 세션의 session 원문 행을 지운다. 세션 목록은 호출자가 `xeon.session`에서 읽는다 */
@@ -128,6 +140,7 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     builtin: {
       search: [...builtinSearch, ...(options.builtin?.search ?? [])],
       fetch: options.builtin?.fetch ?? [],
+      browse: options.builtin?.browse ?? [],
     },
     http: providerHttp,
     clock: options.clock,
@@ -153,8 +166,13 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     catalog,
     probes,
   };
+  const browse = createBrowseApi(
+    deps,
+    options.browseConfirm === undefined ? {} : { confirm: options.browseConfirm },
+  );
   return {
-    service: createWebService(deps),
+    service: createWebService(deps, browse),
+    browse,
     deps,
     catalog,
     probes,
@@ -168,6 +186,9 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
       }
       return purged.value.removed;
     },
-    close: () => convert.close(),
+    async close() {
+      await browse.closeAll();
+      await convert.close();
+    },
   };
 }
