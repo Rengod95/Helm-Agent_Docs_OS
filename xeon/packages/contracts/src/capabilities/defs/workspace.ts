@@ -523,6 +523,10 @@ export const WorkspaceFiles: CapabilityDef<
           edit_overlap: { description: "두 편집의 구간이 겹침", retryable: false },
           edit_empty_old_text: { description: "oldText가 빈 문자열", retryable: false },
           edit_no_change: { description: "편집 결과가 원본과 같음", retryable: false },
+          edit_conflict: {
+            description: "읽은 뒤 다른 쓰기가 파일을 바꿈. 아무것도 쓰지 않음",
+            retryable: false,
+          },
         },
       },
       list: {
