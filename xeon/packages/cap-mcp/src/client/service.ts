@@ -3,6 +3,7 @@ import {
   attempt,
   attemptAsync,
   canonicalJson,
+  detach,
   eachAsync,
   parse,
   type Clock,
@@ -58,6 +59,8 @@ import {
   type McpSettingsSource,
 } from "../settings.ts";
 import type { TransportFactory } from "../transport/factory.ts";
+import type { McpStartGate } from "../ports/start-gate.ts";
+import { checkDefinitionValues } from "../servers/values.ts";
 import type { LoaderDiagnostic, ServerDefinition } from "../types.ts";
 import { convertBlock, convertBlocks, limitContent, type BlobPutter } from "./content.ts";
 import {
@@ -93,6 +96,8 @@ export interface McpDeps {
   readonly files: McpFileReader;
   readonly trust: McpProjectTrust;
   readonly transports: TransportFactory;
+  /** 기동 승인 응답을 알리는 쪽(전송 팩토리가 쓰는 게이트와 같은 객체). 없으면 승인 대기 서버는 대화가 생기거나 `connect`를 부를 때만 다시 시도한다 */
+  readonly startGate?: Pick<McpStartGate, "onResolved"> | undefined;
   /** 동적 도구를 올리는 쪽. 없으면 도구 집합 계산만 한다 */
   readonly tools: McpToolRegistrar | undefined;
   /** 연속 정보 전달 경로가 생기기 전의 우회(없어도 된다) */
@@ -241,7 +246,7 @@ function inputRequiredOutput(
       `the server asked for input more than ${settings.maxInputRounds} times`,
     );
   }
-  const questions = buildQuestions(server, raw.inputRequests, settings.sampling === "ask");
+  const questions = buildQuestions(server, raw.inputRequests);
   if (!questions.ok) throw mcpError(method, "input_unsupported", questions.error.message);
   return {
     status: "input_required",
@@ -321,12 +326,16 @@ export function createMcp(deps: McpDeps): McpRuntime {
       deps.logger.warn("mcp.state_save_failed", { server: serverId, kind: outcome.error.kind });
   }
 
+  /** 기동 승인을 올릴 대화: 가장 최근에 대화를 지정해 정의를 읽은 곳 */
+  let startThread: string | undefined;
+
   const registry: ServerRegistry = createRegistry({
     clock: deps.clock,
     scheduler: deps.scheduler,
     logger: deps.logger,
     masker: deps.masker,
     transports: deps.transports,
+    threadOf: () => startThread,
     settings: () => loaded?.settings ?? currentSettings(),
     client: deps.client,
     onChanged: (serverId) => {
@@ -778,6 +787,10 @@ export function createMcp(deps: McpDeps): McpRuntime {
     if (!def.ok) {
       throw mcpError(method, "invalid_input", `server ${name} has an invalid definition`);
     }
+    const issue = checkDefinitionValues(def.value);
+    if (issue !== undefined) {
+      throw mcpError(method, "invalid_input", `server ${name}: ${issue.message}`);
+    }
     if (ext.has(name) || (loaded?.servers ?? []).some((server) => server.id === name)) {
       throw mcpError(method, "invalid_input", `MCP server id ${name} is already defined`);
     }
@@ -818,11 +831,33 @@ export function createMcp(deps: McpDeps): McpRuntime {
     );
   }
 
+  /** 기동 승인을 기다리던 서버를 다시 시도한다. 승인 응답이 왔거나 승인을 올릴 대화가 생겼을 때 부른다 */
+  function retryAwaitingApproval(only?: string): void {
+    for (const snapshot of registry.list()) {
+      if (snapshot.blockedReason !== "approval_required") continue;
+      if (only !== undefined && snapshot.definition.id !== only) continue;
+      detach(registry.connect(snapshot.definition.id), (cause) =>
+        deps.logger.error("mcp.start_retry_failed", {
+          server: snapshot.definition.id,
+          message: cause instanceof Error ? deps.masker.mask(cause.message) : "unknown",
+        }),
+      );
+    }
+  }
+
+  deps.startGate?.onResolved((server) => retryAwaitingApproval(server));
+
   async function reloadNow(
     signal: AbortSignal,
     options: McpLoadOptions | undefined,
   ): Promise<boolean> {
     const result = await readDefinitions(signal, options);
+    if (options?.threadId !== undefined) {
+      const gained = startThread === undefined;
+      startThread = options.threadId;
+      // 승인을 올릴 대화가 처음 생겼다: 대화가 없어 기다리기만 하던 서버가 이제 승인을 요청할 수 있다
+      if (gained) queueMicrotask(() => retryAwaitingApproval());
+    }
     const print = definitionsFingerprint(result);
     // 서버와 상관없는 설정(승인 모드, 한도)은 호출 때 읽지만 경계 반영이 쓰는 사본은 항상 새로 둔다
     loaded = result;

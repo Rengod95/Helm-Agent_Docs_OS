@@ -18,7 +18,7 @@ import {
   type RawTool,
 } from "../adapter.ts";
 import type { McpMasker } from "../ports/secrets.ts";
-import type { McpSettings } from "../settings.ts";
+import { sandboxOf, type McpSettings } from "../settings.ts";
 import type { OpenedTransport, TransportFactory } from "../transport/factory.ts";
 import type { BlockedReason, ServerDefinition } from "../types.ts";
 import { backoffDelayMs } from "./backoff.ts";
@@ -34,6 +34,8 @@ export interface RegistryDeps {
   readonly masker: McpMasker;
   readonly transports: TransportFactory;
   readonly settings: () => McpSettings;
+  /** 기동 승인을 올릴 대화(가장 최근에 정의를 읽은 대화). 없으면 undefined */
+  readonly threadOf?: () => string | undefined;
   readonly client: { readonly name: string; readonly version: string };
   /** 서버 상태나 도구 목록이 바뀌었다. 단계 경계에서 반영할 서버를 모으는 쪽이 받는다 */
   readonly onChanged: (serverId: string) => void;
@@ -110,6 +112,8 @@ interface Entry {
   idle: (() => void)[];
   /** 우리가 닫는 중이라 연결 끊김을 장애로 보지 않는다 */
   closing: boolean;
+  /** 비밀 env 서버가 사용자의 기동 승인을 기다린다(상태 blocked, 사유 approval_required) */
+  awaitingApproval: boolean;
 }
 
 function freshEntry(definition: ServerDefinition, blockedReason: BlockedReason | undefined): Entry {
@@ -133,6 +137,7 @@ function freshEntry(definition: ServerDefinition, blockedReason: BlockedReason |
     inflight: 0,
     idle: [],
     closing: false,
+    awaitingApproval: false,
   };
 }
 
@@ -144,7 +149,8 @@ function snapshotOf(entry: Entry): ServerSnapshot {
   return {
     definition: entry.definition,
     state: entry.state,
-    blockedReason: entry.blockedReason,
+    blockedReason:
+      entry.blockedReason ?? (entry.awaitingApproval ? "approval_required" : undefined),
     protocolVersion: entry.protocolVersion,
     tools: entry.tools,
     prompts: entry.prompts,
@@ -221,8 +227,20 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     entry.abort = abort;
     const settings = deps.settings();
     const connectMs = entry.definition.def.timeouts?.connectMs ?? settings.connectTimeoutMs;
-    const opened = await deps.transports.open(entry.definition, abort.signal);
+    entry.awaitingApproval = false;
+    const opened = await deps.transports.open(entry.definition, abort.signal, {
+      sandbox: sandboxOf(entry.definition, settings),
+      threadId: deps.threadOf?.(),
+    });
     if (stale()) return;
+    if (!opened.ok && opened.error.code === "approval_required") {
+      // 사용자의 기동 승인을 기다린다. 장애가 아니라서 재시도 타이머와 실패 횟수를 쓰지 않는다. 응답이 오면 연결을 다시 시작한다
+      entry.awaitingApproval = true;
+      entry.lastError = undefined;
+      setState(entry, "blocked");
+      deps.onChanged(entry.definition.id);
+      return;
+    }
     if (!opened.ok) {
       failAttempt(entry, opened.error.code, opened.error.message);
       return;

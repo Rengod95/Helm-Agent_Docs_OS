@@ -528,7 +528,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 2. `l2.mcp.importMcpJson`이 참이고 프로젝트가 신뢰된 상태면(`session.trust.before` 지점, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 프로젝트 루트 `.mcp.json`과 `.xeon/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6]. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다.
    - 이름 변환: 소문자로 바꾸고 `[a-z0-9-]` 밖 문자를 `-`로 바꾸고 32자로 자른다. 결과가 형식에 맞지 않거나 1번 목록의 id와 겹치면 그 항목을 건너뛰고 진단을 남긴다.
    - `type` 생략 + `command` 있음 → `stdio`, `type: "http"`·`"streamable-http"` → `http`, `type: "sse"` → `sse`.
-   - `env`·`headers` 값이 `secret://`가 아니면 그 서버를 건너뛰고 "평문 비밀을 쓸 수 없음" 진단을 남긴다 [제안, §10 미결 4].
+   - [결정: M3-REQ-97] `env`·`headers` 값은 `secret://` 참조이거나 평문이다. 평문은 허용하되 이름이 비밀처럼 보이면 그 서버를 건너뛰고 `plaintext_secret` 진단(값 없음)을 남긴다. 이름은 `_`·`-`·대소문자 경계로 낱말을 나눠 `KEY`, `APIKEY`, `TOKEN`, `SECRET`(S), `PASSWORD`, `PASSWD`, `PWD`, `CREDENTIAL`(S), `AUTH`, `AUTHORIZATION`, `COOKIE`, `BEARER` 중 하나가 있으면 비밀 이름이다(`MAX_TOKENS`, `KEYBOARD`는 아니다). `secret://`로 시작하는데 참조 형식이 아닌 값은 `invalid_definition`이다(오타가 평문으로 나가지 않게 한다). 같은 검사를 설정 `l2.mcp.servers`와 `registerServer`에도 한다.
    - 출처는 루트 `.mcp.json`이 `mcpjson:project`, `.xeon/mcp.json`이 `mcpjson:xeon`이다. 같은 id가 있으면 설정이 이기고, 두 파일 사이에서는 `.xeon/mcp.json`이 이긴다.
    - 확장이 `registerServer`로 등록한 서버(§3.2 `xeon.mcp` 등록)를 더한다. 출처는 `ext:<확장 이름>`이고, 설정·`.mcp.json`의 id와 겹치는 등록은 등록 시점에 거부되었으므로 여기서 다시 겹치지 않는다.
 3. 허용·차단(§4.4)을 적용해 `blocked` 서버를 표시한다.
@@ -540,7 +540,8 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - `env`의 `secret://` 값은 `cap-mcp`가 풀지 않는다. 참조 그대로 `xeon.process`에 넘기고 L0.secrets가 실행 직전에 주입한다(`_research/secrets.md` §6, `L0.secrets.spec`).
 - HTTP·SSE: SDK의 `StreamableHTTPClientTransport`, `SSEClientTransport`를 쓴다(공개 export, `_research/notes/L2-1.md` §2). `headers`의 `secret://` 값은 요청 직전에 `xeon.secrets`로 풀어 붙이는 fetch 감싸기를 전송 옵션으로 넘긴다 [확인: 두 전송의 옵션 모두 `fetch`를 받는다, `L2.mcp.plan` §8.2].
 - 비밀 값은 `cap-mcp`의 로그, 이벤트, 오류 `message`, `cap_mcp_servers`, 모델 요청에 나타나지 않는다. 서버 stderr와 오류 메시지는 L0.secrets 마스킹을 거친 뒤 저장한다.
-- 샌드박스: M2는 사용자가 등록한 명령을 사용자 권한으로 실행한다 [결정: review.m2-plan §8 D6]. L0 샌드박스 적용은 [미결 5]다.
+- 기동 승인 [결정: M3-05, D-M3-19 행 2 권고 적용]: `env`에 `secret://` 값이 있는 stdio 서버는 정의 해시마다 한 번 사용자의 기동 승인을 받아야 뜬다. 승인 포트 `McpStartGate`(`src/ports/start-gate.ts`)가 판정하고(`L1.tools.spec` §4.12.1), 전송 팩토리가 spawn 전에 부른다. `pending`이면 서버는 `blocked`(`blockedReason: "approval_required"`)로 두고 spawn하지 않으며 재시도 타이머를 쓰지 않는다. 응답이 오면 게이트가 서버 id로 알리고 레지스트리가 연결을 다시 시작한다. `denied`면 spawn하지 않고 `lastError.code = "secret_denied"`다. 승인 증거는 `McpSpawnSpec.approval`로 L0에 가고 `mcp.start:<서버 id>` 맥락으로 비밀을 푼다(`L0.process.spec` §4.9). 승인을 올릴 대화는 가장 최근에 정의를 읽은 대화다. 대화가 없으면 대화가 생기는 첫 단계 경계에서 다시 시도한다. 평문 env는 `McpSpawnSpec.env`로 간다.
+- 샌드박스 [결정: M3-REQ-97, D-M3-19 행 1]: stdio 서버를 샌드박스에 넣을지는 서버별 `sandbox`(F `McpServerDef`)가 있으면 그 값이고, 없으면 출처별 설정 키다. 사용자 설정(`settings:user`) 출처는 `l2.mcp.sandbox.userSource`(기본 끔), 그 밖의 출처(`settings:project`, `settings:local`, `mcpjson:*`, `ext:*`)는 `l2.mcp.sandbox.projectSource`(기본 켬)다. 두 키는 managed·user 범위만 받는다(프로젝트가 스스로 끄지 못한다). 결과는 `McpSpawnSpec.sandbox`로 L0에 가고 L0가 강제한다(`L0.sandbox.spec` §4.8).
 
 ### 4.4 허용, 차단, 도구 노출, 승인
 
@@ -604,7 +605,7 @@ sequenceDiagram
 3. 응답 변환: 사용자 응답을 입력 요청 키별 `inputResponses`로 바꾼다.
    - elicitation form: `{ action: "accept", content: <폼 값> }`, 거절은 `{ action: "decline" }`, 닫기는 `{ action: "cancel" }`. 폼 값은 `requestedSchema`로 검증한 뒤 넣는다.
    - elicitation url: 사용자가 URL 흐름을 마쳤다고 답하면 `{ action: "accept" }`. URL 열기는 L4가 한다.
-   - sampling: 기본 거부다(§4.7). `l2.mcp.sampling = "ask"`이면 질문을 보이고, 승인되어도 [미결 6] 해소 전에는 거부 응답을 보낸다.
+   - sampling: 지원하지 않는다(§4.7). 서버가 보내면 `input_unsupported` 오류 결과다.
 4. 재시도: L1.tools는 승인 해결 뒤 같은 `toolCallId`, 같은 인자로 `execute`를 다시 부르고 `continuation = { round: 이전 라운드 + 1, inputResponses, requestState }`를 넘긴다. `cap-mcp`는 원래 params에 `inputResponses`와 `requestState`(바이트 그대로)를 붙여 같은 요청을 다시 보낸다(MRTR 클라이언트 요구 2·3, `_research/notes/L2-1.md` §3). SDK가 새 JSON-RPC id를 붙인다.
 5. 라운드 상한: `round`가 `l2.mcp.inputRequired.maxRounds`(기본 10, SDK 기본과 같음)를 넘으면 `input_rounds_exceeded` 오류 결과다.
 6. `requestId` 규칙: 라운드 r의 요청 키는 `<기본 requestId>#r<r>`이다. 기본값은 `CallOptions.requestId`이고, 합친 길이가 64자를 넘으면 기본값 부분을 SHA-256 앞 32자 hex로 줄인다. 같은 라운드를 다시 보낼 때 같은 키를 쓴다(`eng.transactions.design` TX-05).
@@ -615,7 +616,7 @@ sequenceDiagram
 
 ### 4.7 sampling과 roots
 
-- sampling [제안]: 기본 거부다. 능력을 선언하지 않으므로 사양을 지키는 서버는 sampling 입력 요청을 보내지 않는다. 그래도 오면 `input_unsupported` 오류 결과다. 2026-07-28에서 deprecated이고(`_research/notes/L2-1.md` §5), 서버가 사용자 모델 비용을 쓰게 하는 경로라 기본으로 열지 않는다.
+- sampling [결정: M3-REQ-97, D-M3-19 행 4]: 지원하지 않는다. 능력을 선언하지 않으므로 사양을 지키는 서버는 sampling 입력 요청을 보내지 않는다. 그래도 오면 `input_unsupported` 오류 결과다. 설정 키 `l2.mcp.sampling`은 없다. 2026-07-28에서 deprecated이고(`_research/notes/L2-1.md` §5), 서버가 사용자 모델 비용을 쓰게 하는 경로라 열지 않는다.
 - roots [제안]: 선언하지 않는다. deprecated이고, 작업 디렉터리를 알려야 하는 서버는 서버 정의 `args`나 도구 인자로 받는다(`_research/notes/L2-1.md` §9 신규 행).
 
 ### 4.8 재연결
@@ -672,7 +673,7 @@ sequenceDiagram
 | 8 | 승인 대기 중 서버 정의 삭제 | 응답 뒤 재시도 때 `server_unknown` 오류 결과 |
 | 9 | 승인 대기 중 앱 재시작 | 대기 상태 복원. 응답 뒤 새 연결로 재시도(§4.6 7번) |
 | 10 | 비밀 참조 미등록 | 연결 실패, `lastError.code = "secret_missing"`(L0.secrets 오류 코드를 따른다). 값이나 참조 이름 외 정보는 남기지 않는다 |
-| 11 | `.mcp.json`에 평문 env 값 | 그 서버만 건너뛰고 진단 |
+| 11 | `.mcp.json`에 비밀 이름의 평문 env·header 값, 형식이 틀린 `secret://` 값 | 그 서버만 건너뛰고 진단(값 없음) |
 | 12 | 신뢰하지 않는 프로젝트의 `.mcp.json` | 읽지 않는다. 상태 `blocked`(`untrusted_project`)로 목록에만 보인다 |
 | 13 | 서버가 2025 사양만 지원 | `auto` 협상으로 2025 연결. MRTR 대신 2025 서버 → 클라이언트 elicitation 요청이 올 수 있다. 수동 모드에서 처리기를 두지 않아 SDK가 그 요청을 오류로 거절한다(`mrtr.test.ts`로 확인) |
 | 14 | 도구 `inputSchema`가 한도 초과 | 노출하지 않음(`schema_invalid`) |
@@ -692,7 +693,8 @@ sequenceDiagram
 | `l2.mcp.allowedServers` | array(string) | `[]` | — | nextTurn | managed, user | tools | false |
 | `l2.mcp.deniedServers` | array(string) | `[]` | — | nextTurn | managed, user, project | tools | false |
 | `l2.mcp.managedOnly` | boolean | false | — | restart | managed | tools | false |
-| `l2.mcp.sampling` | string | `"deny"` | enum deny, ask | nextTurn | managed, user | tools | false |
+| `l2.mcp.sandbox.userSource` | boolean | false | — | nextTurn | managed, user | tools | false |
+| `l2.mcp.sandbox.projectSource` | boolean | true | — | nextTurn | managed, user | tools | false |
 | `l2.mcp.inputRequired.maxRounds` | integer | 10 | min 1, max 50 | nextTurn | managed, user, project | tools | false |
 | `l2.mcp.result.maxBytes` | integer | 51200 | min 1024, max 10485760 | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.mcp.reconnect.maxDelayMs` | integer | 60000 | min 1000, max 3600000 | nextTurn | managed, user | tools | false |
@@ -762,9 +764,9 @@ sequenceDiagram
 1. [미결] 서버 도구 기계 이름 형식(`F.capabilities.spec` §10의 a/b/c). 이 문서는 정하지 않고 `mcpToolName` 한 곳에 모은다. `eng.context-map.design` CM-03 예시의 `mcp:<서버>:<도구>`는 `TOOL_NAME_WIRE_PATTERN`과 맞지 않으므로 예시를 고치도록 요청한다.
 2. [결정: review.m2-plan §8 D5] `input_required` 흐름의 책임 나눔(§4.6)은 L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출하는 (a)안이다. `cap-mcp`는 `askWithApprovals`(`L2ApprovalsPort`)로 같은 질문을 올리는 경로도 갖고 있어 그룹 코드가 쓴다. F 요청 12(`L1.tools.spec` §8.3)의 F 쪽은 닫혔다(m2 F.8): `CallOptions.continuation`(`CallContinuation`)과 질문 옮기기 규칙(F `defs/mcp-questions.ts`의 `planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`)이다. cap-mcp의 `callTool`·`getPrompt`·`readResource`는 `options.continuation`을 입력의 `continuation`보다 먼저 읽는다. core-tools 어댑터 연결과 동적 도구 경로(`AgentTool.execute`에 연속 정보 자리가 없음)는 [미결]이다.
 3. [미결] 서버 주도 요청의 승인 기록을 `cap_mcp_`에 둘지. 제안은 두지 않는 것이다.
-4. [결정: review.m3-design-inputs D-M3-19 행 3] 서버 정의 `env`·`headers`에 평문 값을 허용하되, 비밀 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 키의 평문은 거부한다. 명시 답이 없어 권고를 적용했다 [가정]. M3 구현 전까지 이 문서의 현행 규칙(`secret://` 참조만)이 동작한다.
+4. [결정: review.m3-design-inputs D-M3-19 행 3] 서버 정의 `env`·`headers`에 평문 값을 허용하되, 비밀 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 키의 평문은 거부한다. 명시 답이 없어 권고를 적용했다 [가정]. 구현했다(§4.2).
 5. [결정: review.m2-plan §8 D6] M2는 stdio 서버를 사용자 권한으로 실행하고 `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽는다. 샌드박스 적용 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.
-6. [결정: review.m3-design-inputs D-M3-19 행 4] sampling은 지원하지 않는다. 2026-07-28 MCP 명세 개정에서 Deprecated다(SEP-2577). 서버의 sampling 요청은 거부로 답한다.
+6. [결정: review.m3-design-inputs D-M3-19 행 4, 구현 M3-REQ-97] sampling은 지원하지 않는다. 설정 키 `l2.mcp.sampling`을 지웠다. 이전 기록: sampling은
 7. [미결] Tasks 명세 본문의 필드와 `notifications/tasks` 존재 여부(`_research/notes/L2-1.md` §4.5, §10). 확인 전에는 Tasks 어댑터를 구현하지 않는다.
 8. [미결] `_research/packages.md` §4.4 L2-b "MCP Tasks: 그대로" 판정을 "자체 어댑터(명시 스키마 요청)"로 고칠지. 이 문서는 고친 판정을 따른다.
 9. [결정: L2.mcp.plan §8.2] 2025 사양 서버의 서버 → 클라이언트 elicitation 요청은 수동 모드에서 처리기가 없어 오류로 거절된다(§5 13번). 사람에게 묻는 2025 경로는 필요가 생기면 그 요청만 승인 프로토콜로 옮기는 처리기를 둔다.

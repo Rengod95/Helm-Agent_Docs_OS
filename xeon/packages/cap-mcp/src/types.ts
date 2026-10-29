@@ -1,16 +1,12 @@
-import type { McpServerDef } from "@xeon/contracts/capabilities";
+import type { McpBlockedReason, McpServerDef } from "@xeon/contracts/capabilities";
 
 // 패키지 내부 공용 타입. SDK 타입을 담지 않는다(adapter.ts 경계).
 
 /** 서버 정의 출처 표기(McpServerStatus.source). 예: "settings:user", "mcpjson:project", "ext:helm" */
 type ServerSource = string;
 
-/** 서버가 막히는 이유(McpServerStatus.blockedReason) */
-export type BlockedReason =
-  | "denied_by_policy"
-  | "not_in_allowlist"
-  | "managed_only"
-  | "untrusted_project";
+/** 서버가 막히는 이유(McpServerStatus.blockedReason). `approval_required`는 비밀 env 서버가 기동 승인을 기다리는 상태다 */
+export type BlockedReason = McpBlockedReason;
 
 /** 이름이 정해진 서버 정의 하나 */
 export interface ServerDefinition {

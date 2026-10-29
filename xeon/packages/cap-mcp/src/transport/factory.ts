@@ -2,6 +2,8 @@ import { err, ok, type Result, type Scheduler } from "@xeon/contracts";
 import type { FetchLike } from "@modelcontextprotocol/client";
 import type { TransportHandle } from "../adapter.ts";
 import type { McpProcessPort } from "../ports/process.ts";
+import type { McpStartEvidence, McpStartGate } from "../ports/start-gate.ts";
+import { splitEnv } from "../servers/values.ts";
 import type { McpHeaderSecrets } from "../ports/secrets.ts";
 import type { ServerDefinition } from "../types.ts";
 import { createHttpTransport } from "./http.ts";
@@ -20,6 +22,7 @@ type OpenFailureCode =
   | "secret_missing"
   | "secret_denied"
   | "unsupported"
+  | "approval_required"
   | "invalid_url";
 
 export interface OpenFailure {
@@ -27,10 +30,19 @@ export interface OpenFailure {
   readonly message: string;
 }
 
+/** 연결 시도마다 레지스트리가 정해 넘기는 맥락 */
+interface OpenContext {
+  /** stdio 서버를 샌드박스에 넣는가(`sandboxOf`) */
+  readonly sandbox: boolean;
+  /** 기동 승인을 올릴 대화. 아직 대화가 없으면 undefined */
+  readonly threadId: string | undefined;
+}
+
 export interface TransportFactory {
   open(
     server: ServerDefinition,
     signal: AbortSignal,
+    context?: OpenContext,
   ): Promise<Result<OpenedTransport, OpenFailure>>;
 }
 
@@ -40,24 +52,55 @@ export interface DefaultTransportDeps {
   readonly scheduler: Scheduler;
   readonly fetch: FetchLike | undefined;
   readonly stdioGraceMs: number;
+  /** 비밀 env stdio 서버의 기동 승인. 없으면 비밀 env 서버는 승인 증거 없이 띄우려다 `secret_denied`가 된다 */
+  readonly startGate?: McpStartGate | undefined;
 }
 
 const STDERR_TAIL_LINES = 20;
 
 export function createTransportFactory(deps: DefaultTransportDeps): TransportFactory {
   return {
-    async open(server, signal) {
+    async open(server, signal, context) {
       const transport = server.def.transport;
       if (transport.type === "stdio") {
         if (deps.process === undefined) {
           return err({ code: "unsupported", message: "no process port is connected" });
+        }
+        const { plain, secret } = splitEnv(transport.env);
+        let approval: McpStartEvidence | null = null;
+        if (Object.keys(secret).length > 0 && deps.startGate !== undefined) {
+          const verdict = await deps.startGate.check(
+            {
+              server: server.id,
+              source: server.source,
+              command: transport.command,
+              args: transport.args ?? [],
+              cwd: transport.cwd ?? null,
+              env: plain,
+              secretEnv: secret,
+            },
+            { threadId: context?.threadId },
+          );
+          if (verdict.kind === "pending") {
+            return err({
+              code: "approval_required",
+              message: "waiting for the user to approve starting this server definition",
+            });
+          }
+          if (verdict.kind === "denied") {
+            return err({ code: "secret_denied", message: verdict.reason });
+          }
+          approval = verdict.evidence;
         }
         const spawned = await deps.process.spawn(
           {
             command: transport.command,
             args: transport.args ?? [],
             cwd: transport.cwd,
-            secretEnv: transport.env ?? {},
+            env: plain,
+            secretEnv: secret,
+            approval,
+            sandbox: context?.sandbox ?? false,
             label: `mcp:${server.id}`,
             server: server.id,
           },

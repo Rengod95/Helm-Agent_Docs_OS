@@ -6,13 +6,13 @@ import {
 } from "@xeon/contracts/capabilities";
 import { Type } from "typebox";
 import { asJsonObject } from "../json.ts";
+import { checkDefinitionValues } from "./values.ts";
 import type { LoaderDiagnostic, ServerDefinition } from "../types.ts";
 
 // L2.mcp.spec §4.2. 설정 `l2.mcp.servers`와 프로젝트 `.mcp.json`(루트)·`.xeon/mcp.json`을 합친다.
 // 파일은 프로젝트 신뢰가 확인된 뒤에만 읽는다(결정 D6). 이 파일은 읽기를 하지 않고 이미 읽은 텍스트를 받는다.
 
 const ID_REGEX = new RegExp(MCP_SERVER_ID_PATTERN);
-const SECRET_REF = /^secret:\/\/[a-z][a-z0-9-]{1,63}$/;
 
 /** `.mcp.json` 이름 변환: 소문자로 바꾸고 [a-z0-9-] 밖 문자를 `-`로 바꾸고 32자로 자른다 */
 export function normalizeServerName(raw: string): string {
@@ -39,14 +39,6 @@ export interface McpJsonResult {
   readonly diagnostics: readonly LoaderDiagnostic[];
 }
 
-function plaintextEntry(values: Readonly<Record<string, string>> | undefined): string | undefined {
-  if (values === undefined) return undefined;
-  for (const [name, value] of Object.entries(values)) {
-    if (!SECRET_REF.test(value)) return name;
-  }
-  return undefined;
-}
-
 type Conversion =
   | { readonly ok: true; readonly def: McpServerDef }
   | { readonly ok: false; readonly code: LoaderDiagnostic["code"]; readonly message: string };
@@ -63,14 +55,6 @@ function convertEntry(raw: unknown): Conversion {
     if (entry.command === undefined || entry.command.length === 0) {
       return { ok: false, code: "invalid_definition", message: "stdio entry needs a command" };
     }
-    const plain = plaintextEntry(entry.env);
-    if (plain !== undefined) {
-      return {
-        ok: false,
-        code: "plaintext_secret",
-        message: `env ${plain} must be a secret:// reference`,
-      };
-    }
     transport = {
       type: "stdio",
       command: entry.command,
@@ -81,14 +65,6 @@ function convertEntry(raw: unknown): Conversion {
   } else if (kind === "http" || kind === "streamable-http" || kind === "sse") {
     if (entry.url === undefined) {
       return { ok: false, code: "invalid_definition", message: `${kind} entry needs a url` };
-    }
-    const plain = plaintextEntry(entry.headers);
-    if (plain !== undefined) {
-      return {
-        ok: false,
-        code: "plaintext_secret",
-        message: `header ${plain} must be a secret:// reference`,
-      };
     }
     transport =
       kind === "sse"
@@ -109,6 +85,8 @@ function convertEntry(raw: unknown): Conversion {
   if (!def.ok) {
     return { ok: false, code: "invalid_definition", message: "entry failed definition checks" };
   }
+  const issue = checkDefinitionValues(def.value);
+  if (issue !== undefined) return { ok: false, code: issue.code, message: issue.message };
   return { ok: true, def: def.value };
 }
 

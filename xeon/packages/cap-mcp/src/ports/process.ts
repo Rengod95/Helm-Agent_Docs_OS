@@ -1,4 +1,5 @@
 import type { Result } from "@xeon/contracts";
+import type { McpStartEvidence } from "./start-gate.ts";
 
 // stdio 서버를 띄우는 포트(L2.mcp.spec §4.3). 자식 프로세스의 표준 입출력을 SDK 전송으로 감싸려면 스트림이 필요한데
 // F의 `ProcessPort.spawn`(격리 확장용)과 `ExecService.startBackground`(스트림 없음)는 둘 다 맞지 않는다.
@@ -13,6 +14,12 @@ export interface McpSpawnSpec {
    * 참조가 아닌 값은 서버 정의 검사에서 이미 걸러진다.
    */
   readonly secretEnv: Readonly<Record<string, string>>;
+  /** 평문 환경 변수(비밀 이름 패턴은 정의를 읽을 때 이미 거부했다, M3-REQ-97) */
+  readonly env?: Readonly<Record<string, string>>;
+  /** 비밀 env의 기동 승인 증거(정의 해시마다 한 번 받은 것). `secretEnv`가 있을 때 쓴다 */
+  readonly approval?: McpStartEvidence | null;
+  /** 샌드박스에 넣어 띄우는가(출처별 기본값과 서버별 설정으로 정한 값, L2.mcp.spec §4.3) */
+  readonly sandbox?: boolean;
   /** 화면 표시. 비밀 값을 넣지 않는다 */
   readonly label: string;
   /** BackgroundOwner.ref에 들어가는 서버 id */
