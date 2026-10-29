@@ -49,7 +49,13 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     range: { enum: ["system", "dark", "light"] },
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "local", "session"],
-    ui: { tab: "appearance", widget: "select", order: 100, label: "CLI 색 테마" },
+    ui: {
+      tab: "appearance",
+      widget: "select",
+      order: 100,
+      label: "CLI color theme",
+      labelKey: "settings.l4.cli.theme.label",
+    },
     since: "0.1.0",
   },
   statusLine: {
@@ -68,7 +74,13 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     default: ["model", "cwd", "session"],
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "local"],
-    ui: { tab: "appearance", widget: "list", order: 110, label: "CLI 상태 줄 항목" },
+    ui: {
+      tab: "appearance",
+      widget: "list",
+      order: 110,
+      label: "CLI status line items",
+      labelKey: "settings.l4.cli.statusLine.label",
+    },
     since: "0.1.0",
   },
   keybindingsFile: {
@@ -76,7 +88,13 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     default: null,
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "appearance", widget: "text", order: 120, label: "CLI 키 바인딩 파일" },
+    ui: {
+      tab: "appearance",
+      widget: "text",
+      order: 120,
+      label: "CLI key bindings file",
+      labelKey: "settings.l4.cli.keybindingsFile.label",
+    },
     since: "0.1.0",
   },
   outputMode: {
@@ -85,7 +103,13 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     range: { enum: ["text", "json"] },
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "project", "local", "session"],
-    ui: { tab: "appearance", widget: "select", order: 130, label: "print 모드 기본 출력" },
+    ui: {
+      tab: "appearance",
+      widget: "select",
+      order: 130,
+      label: "Default output for print mode",
+      labelKey: "settings.l4.cli.outputMode.label",
+    },
     since: "0.1.0",
   },
 });

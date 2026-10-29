@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { resolveLocale, setActiveLocale, UI_LOCALE_KEY } from "@xeon/client/i18n";
+import { resolveLocale, setActiveLocale, t, UI_LOCALE_KEY } from "@xeon/client/i18n";
 import { assertNever } from "@xeon/contracts";
 import { parseArgv, type CliCommand } from "./cli/command.ts";
 import type { CommandContext } from "./commands/context.ts";
@@ -128,7 +128,7 @@ async function runFromProcess(): Promise<never> {
 if (import.meta.main) {
   runFromProcess().catch((caught: unknown) => {
     const text = caught instanceof Error ? (caught.stack ?? caught.message) : String(caught);
-    process.stderr.write(`xeon: 내부 오류\n${text}\n`);
+    process.stderr.write(`xeon: ${t("cli.errors.internal.message")}\n${text}\n`);
     process.exit(EXIT.error);
   });
 }

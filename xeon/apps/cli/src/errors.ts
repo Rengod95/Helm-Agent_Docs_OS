@@ -1,5 +1,6 @@
 import { assertNever } from "@xeon/contracts";
 import { WireError } from "@xeon/contracts/wire";
+import { t, type MessageId } from "@xeon/client/i18n";
 import type { ExportError } from "@xeon/platform-store";
 import { HostClientError } from "./host-client.ts";
 import type { UsageError } from "./cli/command.ts";
@@ -8,6 +9,7 @@ import type { EngineStartError, EngineStartErrorKind } from "./engine.ts";
 
 // L4.cli.spec §4.10. 모든 오류 출력은 두 줄이다: `xeon: <무엇이 잘못됐다>`와 `  해결: <한 줄>`.
 // wire message(영어 개발자용)를 그대로 쓰지 않고 kind와 details로 만든다(F wire §3.5.1). 값은 싣지 않는다.
+// 문장은 카탈로그 id를 호출할 때 `t()`로 만든다(ADR-0016). 로케일이 바뀐 뒤에도 현재 로케일로 나온다.
 
 export interface Failure {
   readonly message: string;
@@ -16,7 +18,7 @@ export interface Failure {
 }
 
 export function renderFailure(failure: Pick<Failure, "message" | "fix">): string {
-  return `xeon: ${failure.message}\n  해결: ${failure.fix}\n`;
+  return `xeon: ${failure.message}\n  ${t("cli.errors.fixLabel")} ${failure.fix}\n`;
 }
 
 export function failureOfUsage(error: UsageError): Failure {
@@ -55,16 +57,17 @@ function detailText(error: WireError, key: string): string | undefined {
 }
 
 /** 확장이 막을 수 있는 지점(`thread.cancelledByExtension`의 point)을 사람이 읽는 말로 바꾼다. 모르는 값은 그대로 보인다 */
-const POINT_TEXT: Readonly<Record<string, string>> = {
-  "session.compact.before": "컴팩션",
-  "session.fork.before": "분기",
-  "session.tree.before": "되감기",
-  "session.switch.before": "세션 전환",
-};
+const POINT_LABEL_ID: ReadonlyMap<string, MessageId> = new Map<string, MessageId>([
+  ["session.compact.before", "cli.errors.point.compact"],
+  ["session.fork.before", "cli.errors.point.fork"],
+  ["session.tree.before", "cli.errors.point.tree"],
+  ["session.switch.before", "cli.errors.point.switch"],
+]);
 
 function pointText(point: string | undefined): string {
-  if (point === undefined) return "이";
-  return POINT_TEXT[point] ?? point;
+  if (point === undefined) return t("cli.errors.point.none");
+  const id = POINT_LABEL_ID.get(point);
+  return id === undefined ? t("cli.errors.point.other", { name: point }) : t(id);
 }
 
 function firstIssueText(error: WireError): string | undefined {
@@ -78,7 +81,7 @@ function firstIssueText(error: WireError): string | undefined {
 
 function allowedScopesText(error: WireError): string {
   const scopes = error.data.details?.["allowedScopes"];
-  if (!Array.isArray(scopes)) return "문서의 허용 범위";
+  if (!Array.isArray(scopes)) return t("cli.errors.allowedScopesUnknown");
   return scopes.filter((scope): scope is string => typeof scope === "string").join(", ");
 }
 
@@ -121,44 +124,50 @@ function secretFailure(error: WireError): Failure | undefined {
   return typeof kind === "string" ? secretFailureOf(kind, field) : undefined;
 }
 
+/** sops 파일 준비 실패의 원인(code)별 해결 id. 모르는 원인은 기본 해결을 쓴다 */
+const SOPS_FILE_FIX_ID: ReadonlyMap<string, MessageId> = new Map<string, MessageId>([
+  ["sops_encrypt_failed", "cli.errors.secret.sopsEncryptFailed.fix"],
+  ["recipient_unknown", "cli.errors.secret.recipientUnknown.fix"],
+  ["unsupported_format", "cli.errors.secret.unsupportedFormat.fix"],
+  ["lock_timeout", "cli.errors.secret.lockTimeout.fix"],
+]);
+
 /** 첫 등록이 기본 SOPS 파일이나 age 키를 준비하다 실패했다. 원인(code)별로 고칠 곳을 말한다. 경로와 값은 wire에 없다 */
 function writeFailure(target: string | undefined, code: string | undefined): Failure {
-  const suffix = code === undefined ? "" : ` (${code})`;
   if (target === "sops_file") {
-    const fixes: Readonly<Record<string, string>> = {
-      sops_encrypt_failed:
-        "sops가 파일을 암호화하지 못했다. sops 버전을 확인하고 xeon doctor로 진단한다",
-      recipient_unknown:
-        "age 키는 있는데 수신자 기록이 없다. 이미 쓰는 SOPS 파일이 있으면 l0.secrets.sops.files에 { env, path }로 적는다",
-      unsupported_format:
-        "빈 SOPS 파일을 만들 수 없는 형식이다. l0.secrets.sops.files의 경로를 .yaml이나 .json으로 정한다",
-      lock_timeout: "다른 xeon이 같은 비밀 파일에 쓰고 있다. 끝난 뒤 다시 실행한다",
-    };
+    const fixId = code === undefined ? undefined : SOPS_FILE_FIX_ID.get(code);
     return {
-      message: `기본 비밀 파일을 준비하지 못했다${suffix}`,
-      fix:
-        (code === undefined ? undefined : fixes[code]) ??
-        "xeon 설정 디렉터리의 secrets/sops 폴더 권한과 디스크 상태를 확인한다",
+      message:
+        code === undefined
+          ? t("cli.errors.secret.sopsFile.message")
+          : t("cli.errors.secret.sopsFile.messageWithCode", { code }),
+      fix: fixId === undefined ? t("cli.errors.secret.sopsFile.fix") : t(fixId),
       code: EXIT.environment,
     };
   }
   if (target === "key_store") {
     return {
-      message: `age 키를 OS 키 저장소에 만들지 못했다${suffix}`,
-      fix: "키체인 접근을 허용하고 다시 실행한다. 키를 디스크 파일에 두려면 xeon config set l0.secrets.ageKey.source file로 저장한다",
+      message:
+        code === undefined
+          ? t("cli.errors.secret.keyStore.message")
+          : t("cli.errors.secret.keyStore.messageWithCode", { code }),
+      fix: t("cli.errors.secret.keyStore.fix"),
       code: EXIT.environment,
     };
   }
   if (target === "key_file") {
     return {
-      message: `age 키 파일을 만들지 못했다${suffix}`,
-      fix: "xeon 설정 디렉터리의 secrets/age 폴더 권한을 확인한다. 이미 있는 키 파일은 덮어쓰지 않는다",
+      message:
+        code === undefined
+          ? t("cli.errors.secret.keyFile.message")
+          : t("cli.errors.secret.keyFile.messageWithCode", { code }),
+      fix: t("cli.errors.secret.keyFile.fix"),
       code: EXIT.environment,
     };
   }
   return {
-    message: "비밀 저장소에 쓰지 못했다",
-    fix: "데이터 디렉터리의 권한과 디스크 상태를 확인한다",
+    message: t("cli.errors.secret.writeFailed.message"),
+    fix: t("cli.errors.common.checkDataDirAndDisk.fix"),
     code: EXIT.environment,
   };
 }
@@ -170,43 +179,47 @@ function secretFailureOf(
   switch (kind) {
     case "secret_missing":
       return {
-        message: "그 이름의 비밀이 없다",
-        fix: "xeon secret ls로 이름을 확인하거나 xeon secret add <이름>으로 만든다",
+        message: t("cli.errors.secret.missing.message"),
+        fix: t("cli.errors.secret.missing.fix"),
         code: EXIT.error,
       };
     case "already_exists":
       return {
-        message: "이미 있는 이름이다",
-        fix: "값을 바꾸려면 xeon secret set <이름>을 쓴다",
+        message: t("cli.errors.secret.alreadyExists.message"),
+        fix: t("cli.errors.secret.alreadyExists.fix"),
         code: EXIT.error,
       };
     case "in_use":
       return {
-        message: `사용 중인 비밀이라 지울 수 없다 (활성 lease ${field("activeLeases") ?? "?"}개)`,
-        fix: "사용이 끝난 뒤 다시 지운다. 값만 바꾸려면 xeon secret rotate <이름>을 쓴다",
+        message: t("cli.errors.secret.inUse.message", { leases: field("activeLeases") ?? "?" }),
+        fix: t("cli.errors.secret.inUse.fix"),
         code: EXIT.error,
       };
     case "provider_unavailable": {
       const reason = field("reason");
-      const message = `비밀 제공자(${field("provider") ?? "sops"})를 쓸 수 없다${reason === undefined ? "" : ` (${reason})`}`;
+      const provider = field("provider") ?? "sops";
+      const message =
+        reason === undefined
+          ? t("cli.errors.secret.providerUnavailable.message", { provider })
+          : t("cli.errors.secret.providerUnavailable.messageWithReason", { provider, reason });
       if (reason === "not_registered") {
         // 값을 놓을 제공자가 정해지지 않았다. SOPS 파일이 없는 것은 원인이 아니다: 기본 파일은 첫 등록이 만든다
         return {
           message,
-          fix: "l0.secrets.defaultProvider가 sops인지 확인한다 (xeon config get l0.secrets.defaultProvider). 다른 위치의 SOPS 파일을 쓰려면 l0.secrets.sops.files에 { env, path }를 적는다",
+          fix: t("cli.errors.secret.providerUnavailable.notRegistered.fix"),
           code: EXIT.environment,
         };
       }
       if (reason === "version_too_old") {
         return {
           message,
-          fix: "sops를 3.10.0 이상(권장 3.12.0 이상)으로 올리고 xeon doctor로 확인한다",
+          fix: t("cli.errors.secret.providerUnavailable.versionTooOld.fix"),
           code: EXIT.environment,
         };
       }
       return {
         message,
-        fix: "sops와 age를 설치하고 xeon doctor로 확인한다",
+        fix: t("cli.errors.secret.providerUnavailable.fix"),
         code: EXIT.environment,
       };
     }
@@ -214,51 +227,55 @@ function secretFailureOf(
       if (field("key") === "file" && field("reason") === "access_denied") {
         // 자동 선택이 파일 키로 떨어졌고 사람이 아직 확인하지 않았다(L0.secrets.spec §4.7 5번)
         return {
-          message: "복호화 키를 아직 쓸 수 없다 (OS 키 저장소가 없어 파일 키가 필요하다)",
-          fix: "키를 디스크 파일에 두는 것을 확인했다면 xeon config set l0.secrets.ageKey.source file로 저장하고 다시 실행한다",
+          message: t("cli.errors.secret.keyUnavailable.fileAccessDenied.message"),
+          fix: t("cli.errors.secret.keyUnavailable.fileAccessDenied.fix"),
           code: EXIT.environment,
         };
       }
       if (field("reason") === "item_missing") {
         return {
-          message: "복호화 키를 찾을 수 없다 (키 항목이 없다)",
-          fix: "처음 등록하는 것이면 xeon secret add가 키를 만든다. 이미 쓰는 SOPS 파일이 있으면 그 age 키 위치를 확인하고 xeon doctor로 진단한다",
+          message: t("cli.errors.secret.keyUnavailable.itemMissing.message"),
+          fix: t("cli.errors.secret.keyUnavailable.itemMissing.fix"),
           code: EXIT.environment,
         };
       }
       return {
-        message: "복호화 키를 찾을 수 없다",
-        fix: "age 키 위치를 확인하고 xeon doctor로 진단한다",
+        message: t("cli.errors.secret.keyUnavailable.message"),
+        fix: t("cli.errors.secret.keyUnavailable.fix"),
         code: EXIT.environment,
       };
     }
     case "decrypt_failed":
       return {
-        message: "비밀을 복호화하지 못했다",
-        fix: "age 키가 이 파일의 수신자인지 확인한다",
+        message: t("cli.errors.secret.decryptFailed.message"),
+        fix: t("cli.errors.secret.decryptFailed.fix"),
         code: EXIT.error,
       };
     case "read_only_provider":
       return {
-        message: "읽기 전용 제공자라 쓸 수 없다",
-        fix: "sops 제공자를 쓴다",
+        message: t("cli.errors.secret.readOnlyProvider.message"),
+        fix: t("cli.errors.secret.readOnlyProvider.fix"),
         code: EXIT.error,
       };
     case "cancelled":
-      return { message: "비밀 입력을 취소했다", fix: "필요하면 다시 실행한다", code: EXIT.error };
+      return {
+        message: t("cli.errors.secret.cancelled.message"),
+        fix: t("cli.errors.common.runAgainIfNeeded.fix"),
+        code: EXIT.error,
+      };
     case "denied":
     case "reauth_required":
       return {
-        message: "사람 확인이 끝나지 않아 거부되었다",
-        fix: "다시 실행해 확인 문구를 입력한다",
+        message: t("cli.errors.secret.deniedConfirmation.message"),
+        fix: t("cli.errors.secret.deniedConfirmation.fix"),
         code: EXIT.error,
       };
     case "write_failed":
       return writeFailure(field("target"), field("code"));
     case "audit_unwritable":
       return {
-        message: "비밀 저장소에 쓰지 못했다",
-        fix: "데이터 디렉터리의 권한과 디스크 상태를 확인한다",
+        message: t("cli.errors.secret.writeFailed.message"),
+        fix: t("cli.errors.common.checkDataDirAndDisk.fix"),
         code: EXIT.environment,
       };
     // xeon-disable-next-line xeon/switch-default-never -- 비밀 오류 kind는 서버가 더 새로우면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
@@ -275,22 +292,25 @@ function commandFailure(error: WireError): Failure | undefined {
     case "command_args_invalid": {
       const reason = detailText(error, "message");
       return {
-        message: `명령 인자가 선언에 맞지 않다${reason === undefined ? "" : `: ${reason}`}`,
-        fix: "/help로 명령의 사용법을 확인한다",
+        message:
+          reason === undefined
+            ? t("cli.errors.command.argsInvalid.message")
+            : t("cli.errors.command.argsInvalid.messageWithReason", { reason }),
+        fix: t("cli.errors.command.argsInvalid.fix"),
         code: EXIT.usage,
       };
     }
     case "command_shell_disabled":
       return {
-        message: "셸 주입이 설정에서 꺼져 있어 이 명령을 실행하지 않는다",
-        fix: "l2.dialog.commands.shellInjection 설정을 확인한다 (xeon config get)",
+        message: t("cli.errors.command.shellDisabled.message"),
+        fix: t("cli.errors.command.shellDisabled.fix"),
         code: EXIT.error,
       };
     // xeon-disable-next-line xeon/switch-default-never -- 명령 오류 code는 능력이 더하면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return {
-        message: `슬래시 명령을 실행하지 못했다 (${error.data.kind})`,
-        fix: "/help로 명령을 확인한다",
+        message: t("cli.errors.command.commandFailed.message", { kind: error.data.kind }),
+        fix: t("cli.errors.command.commandFailed.fix"),
         code: EXIT.error,
       };
   }
@@ -302,152 +322,211 @@ export function failureOfWire(error: WireError): Failure {
   switch (kind) {
     case "thread.notFound":
       return {
-        message: `세션 ${detailText(error, "threadId") ?? ""}이(가) 없다`,
-        fix: "xeon sessions ls로 id를 확인한다",
+        message: t("cli.errors.wire.threadNotFound.message", {
+          threadId: detailText(error, "threadId") ?? "",
+        }),
+        fix: t("cli.errors.wire.threadNotFound.fix"),
         code: EXIT.error,
       };
     case "thread.locked":
       return {
-        message: `다른 프로세스(${detailText(error, "ownerKind") ?? "알 수 없음"})가 이 세션을 쓰고 있다`,
-        fix: "끝날 때까지 두거나 새 세션을 연다",
+        message: t("cli.errors.wire.threadLocked.message", {
+          ownerKind: detailText(error, "ownerKind") ?? t("cli.errors.common.unknown"),
+        }),
+        fix: t("cli.errors.wire.threadLocked.fix"),
         code: EXIT.lockDenied,
       };
     case "thread.hasForks":
       return {
-        message: "이 세션에서 분기한 세션이 있어 지울 수 없다",
-        fix: "분기한 세션을 먼저 지운다 (xeon sessions ls)",
+        message: t("cli.errors.wire.threadHasForks.message"),
+        fix: t("cli.errors.wire.threadHasForks.fix"),
         code: EXIT.error,
       };
-    case "thread.invalidTarget":
+    case "thread.invalidTarget": {
+      const reason = detailText(error, "reason");
       return {
-        message: `분기할 수 없는 위치다${detailText(error, "reason") === undefined ? "" : ` (${detailText(error, "reason") ?? ""})`}`,
-        fix: "xeon sessions show로 항목 id를 확인한다",
+        message:
+          reason === undefined
+            ? t("cli.errors.wire.invalidTarget.message")
+            : t("cli.errors.wire.invalidTarget.messageWithReason", { reason }),
+        fix: t("cli.errors.wire.invalidTarget.fix"),
         code: EXIT.error,
       };
+    }
     case "thread.closed":
       return {
-        message: `닫힌 세션이라 쓸 수 없다: ${detailText(error, "threadId") ?? ""}`,
-        fix: "xeon sessions fork로 분기하거나 새 세션을 연다",
+        message: t("cli.errors.wire.threadClosed.message", {
+          threadId: detailText(error, "threadId") ?? "",
+        }),
+        fix: t("cli.errors.wire.threadClosed.fix"),
         code: EXIT.error,
       };
     case "turn.busy":
-      return { message: "진행 중인 turn이 있다", fix: "끝난 뒤 다시 보낸다", code: EXIT.error };
+      return {
+        message: t("cli.errors.wire.turnBusy.message"),
+        fix: t("cli.errors.wire.turnBusy.fix"),
+        code: EXIT.error,
+      };
     case "thread.cancelledByExtension": {
       const reason = detailText(error, "reason");
+      const point = pointText(detailText(error, "point"));
       return {
-        message: `확장이 ${pointText(detailText(error, "point"))} 작업을 막았다${reason === undefined ? "" : `: ${reason}`}`,
-        fix: "확장의 설정을 확인한다 (xeon config get)",
+        message:
+          reason === undefined
+            ? t("cli.errors.wire.cancelledByExtension.message", { point })
+            : t("cli.errors.wire.cancelledByExtension.messageWithReason", { point, reason }),
+        fix: t("cli.errors.wire.cancelledByExtension.fix"),
         code: EXIT.error,
       };
     }
     case "thread.compactFailed":
       return {
-        message: `대화를 요약하지 못했다 (${detailText(error, "reason") ?? "원인 알 수 없음"})`,
-        fix: "잠시 뒤 다시 /compact를 실행한다. 반복되면 xeon doctor를 실행하고 보고한다",
+        message: t("cli.errors.wire.compactFailed.message", {
+          reason: detailText(error, "reason") ?? t("cli.errors.common.unknownCause"),
+        }),
+        fix: t("cli.errors.wire.compactFailed.fix"),
         code: EXIT.error,
       };
     case "request.cancelled":
-      return { message: "요청이 취소되었다", fix: "필요하면 다시 실행한다", code: EXIT.error };
+      return {
+        message: t("cli.errors.wire.requestCancelled.message"),
+        fix: t("cli.errors.common.runAgainIfNeeded.fix"),
+        code: EXIT.error,
+      };
     case "settings.unknownKey":
       return {
-        message: `등록되지 않은 설정 키: ${detailText(error, "key") ?? ""}`,
-        fix: "xeon config list로 키를 확인한다",
+        message: t("cli.errors.wire.settingsUnknownKey.message", {
+          key: detailText(error, "key") ?? "",
+        }),
+        fix: t("cli.errors.wire.settingsUnknownKey.fix"),
         code: EXIT.usage,
       };
-    case "settings.invalidValue":
+    case "settings.invalidValue": {
+      const issue = firstIssueText(error);
       return {
-        message: `값이 형식이나 범위에 맞지 않다${firstIssueText(error) === undefined ? "" : `: ${firstIssueText(error) ?? ""}`}`,
-        fix: "허용 범위를 확인한다",
+        message:
+          issue === undefined
+            ? t("cli.errors.wire.settingsInvalidValue.message")
+            : t("cli.errors.wire.settingsInvalidValue.messageWithIssue", { issue }),
+        fix: t("cli.errors.wire.settingsInvalidValue.fix"),
         code: EXIT.usage,
       };
+    }
     case "settings.scopeNotAllowed":
       return {
-        message: `그 범위에는 ${detailText(error, "key") ?? "이 키"}를 쓸 수 없다`,
-        fix: `허용 범위: ${allowedScopesText(error)}`,
+        message: t("cli.errors.wire.settingsScopeNotAllowed.message", {
+          key: detailText(error, "key") ?? t("cli.errors.common.thisKey"),
+        }),
+        fix: t("cli.errors.wire.settingsScopeNotAllowed.fix", {
+          scopes: allowedScopesText(error),
+        }),
         code: EXIT.usage,
       };
     case "settings.locked":
       return {
-        message: `관리 설정이 잠근 키다: ${detailText(error, "key") ?? ""}`,
-        fix: "관리자에게 요청한다",
+        message: t("cli.errors.wire.settingsLocked.message", {
+          key: detailText(error, "key") ?? "",
+        }),
+        fix: t("cli.errors.wire.settingsLocked.fix"),
         code: EXIT.error,
       };
     case "settings.reserved":
       return {
-        message: `아직 읽는 코드가 없는 예약 키다: ${detailText(error, "key") ?? ""}`,
-        fix: "xeon config list로 쓸 수 있는 키를 확인한다",
+        message: t("cli.errors.wire.settingsReserved.message", {
+          key: detailText(error, "key") ?? "",
+        }),
+        fix: t("cli.errors.wire.settingsReserved.fix"),
         code: EXIT.usage,
       };
     case "settings.secretValue":
       return {
-        message: "비밀 키에는 참조만 쓸 수 있다",
-        fix: "xeon secret add <name> 뒤 secret://<name>을 쓴다",
+        message: t("cli.errors.wire.settingsSecretValue.message"),
+        fix: t("cli.errors.wire.settingsSecretValue.fix"),
         code: EXIT.usage,
       };
     case "protocol.unsupported":
       return {
-        message: "CLI와 엔진의 계약 버전이 다르다",
-        fix: "같은 버전의 바이너리를 쓰거나 서비스를 다시 띄운다",
+        message: t("cli.errors.protocolMismatch.message"),
+        fix: t("cli.errors.protocolMismatch.fix"),
         code: EXIT.environment,
       };
     case "host.shuttingDown":
-      return { message: "엔진이 종료 중이다", fix: "잠시 뒤 다시 실행한다", code: EXIT.error };
+      return {
+        message: t("cli.errors.wire.hostShuttingDown.message"),
+        fix: t("cli.errors.common.runAgainShortly.fix"),
+        code: EXIT.error,
+      };
     case "store.busy":
       return {
-        message: "저장소가 다른 쓰기로 바쁘다",
-        fix: "잠시 뒤 다시 실행한다",
+        message: t("cli.errors.wire.storeBusy.message"),
+        fix: t("cli.errors.common.runAgainShortly.fix"),
         code: EXIT.error,
       };
     case "store.diskFull":
       return {
-        message: "저장 공간이 가득 찼다",
-        fix: "디스크 공간을 비우고 다시 실행한다",
+        message: t("cli.errors.common.storageFull.message"),
+        fix: t("cli.errors.common.storageFull.fix"),
         code: EXIT.environment,
       };
     case "store.readOnly":
       return {
-        message: "저장소가 읽기 전용이라 쓸 수 없다",
-        fix: "다른 엔진이 쓰는 중인지 xeon service status로 확인한다",
+        message: t("cli.errors.wire.storeReadOnly.message"),
+        fix: t("cli.errors.wire.storeReadOnly.fix"),
         code: EXIT.error,
       };
     case "store.corrupt":
       return {
-        message: `저장된 데이터가 스키마와 다르다 (${detailText(error, "where") ?? "위치 알 수 없음"})`,
-        fix: "xeon doctor를 실행하고 보고한다. 데이터 디렉터리를 복원하기 전에 복사해 둔다",
+        message: t("cli.errors.wire.storeCorrupt.message", {
+          where: detailText(error, "where") ?? t("cli.errors.common.unknownLocation"),
+        }),
+        fix: t("cli.errors.wire.storeCorrupt.fix"),
         code: EXIT.error,
       };
     case "store.io":
       if (detailText(error, "code") === "trust_store") {
         return {
-          message: "프로젝트 신뢰 결정을 저장하지 못했다",
-          fix: "신뢰 저장 파일(trust.json)의 권한과 내용을 확인한다",
+          message: t("cli.errors.wire.trustStoreFailed.message"),
+          fix: t("cli.errors.wire.trustStoreFailed.fix"),
           code: EXIT.environment,
         };
       }
       return {
-        message: "저장소 입출력에 실패했다",
-        fix: "데이터 디렉터리의 권한과 디스크 상태를 확인한다",
+        message: t("cli.errors.wire.storeIoFailed.message"),
+        fix: t("cli.errors.common.checkDataDirAndDisk.fix"),
         code: EXIT.environment,
       };
-    case "jsonrpc.methodNotFound":
+    case "jsonrpc.methodNotFound": {
+      const method = detailText(error, "method");
       return {
-        message: `이 엔진은 아직 그 요청을 처리하지 않는다${detailText(error, "method") === undefined ? "" : ` (${detailText(error, "method") ?? ""})`}`,
-        fix: "같은 빌드의 엔진과 CLI를 쓴다 (xeon version으로 확인한다)",
+        message:
+          method === undefined
+            ? t("cli.errors.wire.jsonrpcMethodNotFound.message")
+            : t("cli.errors.wire.jsonrpcMethodNotFound.messageWithMethod", { method }),
+        fix: t("cli.errors.wire.jsonrpcMethodNotFound.fix"),
         code: EXIT.error,
       };
-    case "jsonrpc.invalidParams":
+    }
+    case "jsonrpc.invalidParams": {
+      const issue = firstIssueText(error);
       return {
-        message: `요청 값이 맞지 않다${firstIssueText(error) === undefined ? "" : `: ${firstIssueText(error) ?? ""}`}`,
-        fix: "입력을 확인한다",
+        message:
+          issue === undefined
+            ? t("cli.errors.wire.invalidParams.message")
+            : t("cli.errors.wire.invalidParams.messageWithIssue", { issue }),
+        fix: t("cli.errors.wire.invalidParams.fix"),
         code: EXIT.usage,
       };
+    }
     case "internal": {
       const secret = secretFailure(error);
       if (secret !== undefined) return secret;
       const traceId = error.data.traceId;
       return {
-        message: `내부 오류${traceId === undefined ? "" : `(traceId ${traceId})`}`,
-        fix: "xeon doctor를 실행하고 traceId를 보고한다",
+        message:
+          traceId === undefined
+            ? t("cli.errors.internal.message")
+            : t("cli.errors.internal.messageWithTrace", { traceId }),
+        fix: t("cli.errors.internal.fix"),
         code: EXIT.error,
       };
     }
@@ -458,8 +537,8 @@ export function failureOfWire(error: WireError): Failure {
       const command = commandFailure(error);
       if (command !== undefined) return command;
       return {
-        message: `엔진이 요청을 처리하지 못했다 (${kind})`,
-        fix: "이 kind를 보고한다",
+        message: t("cli.errors.wire.unknownKind.message", { kind }),
+        fix: t("cli.errors.wire.unknownKind.fix"),
         code: EXIT.error,
       };
     }
@@ -475,38 +554,40 @@ export function failureOfExport(error: ExportError): Failure {
   switch (error.kind) {
     case "dest_not_empty":
       return {
-        message: "내보낼 폴더가 비어 있지 않다 (아무것도 바꾸지 않았다)",
-        fix: "비어 있거나 없는 폴더를 지정한다",
+        message: t("cli.errors.export.destNotEmpty.message"),
+        fix: t("cli.errors.export.destNotEmpty.fix"),
         code: EXIT.usage,
       };
     case "foreign_database":
       return {
-        message: `Xeon 데이터베이스가 아니다 (application_id ${String(error.applicationId)})`,
-        fix: "XEON_HOME으로 데이터 디렉터리를 확인한다. xeon.db가 다른 프로그램의 파일이면 옮긴다",
+        message: t("cli.errors.export.foreignDatabase.message", {
+          applicationId: error.applicationId,
+        }),
+        fix: t("cli.errors.export.foreignDatabase.fix"),
         code: EXIT.environment,
       };
     case "not_a_database":
       return {
-        message: "데이터베이스 파일이 없거나 SQLite 파일이 아니다",
-        fix: "xeon chat을 한 번 실행해 데이터베이스를 만든 뒤 다시 실행한다. 위치는 XEON_HOME으로 바꾼다",
+        message: t("cli.errors.export.notDatabase.message"),
+        fix: t("cli.errors.export.notDatabase.fix"),
         code: EXIT.environment,
       };
     case "busy":
       return {
-        message: "데이터베이스가 다른 쓰기로 바쁘다",
-        fix: "잠시 뒤 다시 실행한다",
+        message: t("cli.errors.export.busy.message"),
+        fix: t("cli.errors.common.runAgainShortly.fix"),
         code: EXIT.environment,
       };
     case "disk_full":
       return {
-        message: "저장 공간이 가득 찼다",
-        fix: "디스크 공간을 비우고 다시 실행한다",
+        message: t("cli.errors.common.storageFull.message"),
+        fix: t("cli.errors.common.storageFull.fix"),
         code: EXIT.environment,
       };
     case "io":
       return {
-        message: `내보내기 중 입출력 오류가 났다 (${error.code})`,
-        fix: "대상 폴더와 데이터 디렉터리의 권한과 디스크 상태를 확인한다",
+        message: t("cli.errors.export.io.message", { code: error.code }),
+        fix: t("cli.errors.export.io.fix"),
         code: EXIT.environment,
       };
     default:
@@ -520,8 +601,10 @@ export function failureOfCaught(caught: unknown): Failure | undefined {
   if (caught instanceof HostClientError) {
     return {
       message:
-        caught.kind === "closed" ? "엔진 연결이 끊겼다" : `엔진에 요청하지 못했다 (${caught.kind})`,
-      fix: "xeon service status로 엔진 상태를 확인한다",
+        caught.kind === "closed"
+          ? t("cli.errors.connection.closed.message")
+          : t("cli.errors.connection.request.message", { kind: caught.kind }),
+      fix: t("cli.errors.connection.fix"),
       code: EXIT.error,
     };
   }

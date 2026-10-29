@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever, attemptAsync, err, ok, type Clock, type Result } from "@xeon/contracts";
 import type { SecretOutOfBandPort } from "@xeon/contracts/services";
 import type { SettingDefInput, SettingGroup, SettingNamespace } from "@xeon/contracts/settings";
@@ -237,21 +238,21 @@ function storeError(message: string): EngineStartError {
     case "fts5Missing":
       return {
         kind: "fts5Missing",
-        message: "SQLite에 FTS5가 없다",
-        fix: "FTS5가 들어 있는 SQLite를 설치한다 (macOS: brew install sqlite)",
+        message: t("cli.errors.engineStart.fts5Missing.message"),
+        fix: t("cli.errors.engineStart.fts5Missing.fix"),
       };
     case "dataDirPermission":
       return {
         kind: "dataDirPermission",
-        message: "데이터 디렉터리에 쓸 수 없다",
-        fix: "디렉터리 권한과 파일 시스템 종류를 확인한다",
+        message: t("cli.errors.engineStart.dataDirPermission.message"),
+        fix: t("cli.errors.engineStart.dataDirPermission.fix"),
       };
     // xeon-disable-next-line xeon/switch-default-never -- AssembleIssue 메시지 키는 문자열이다. 모르는 키는 일반 저장소 오류로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return {
         kind: "storeUnavailable",
-        message: "세션 저장소를 열지 못했다",
-        fix: "데이터 디렉터리와 디스크 상태를 확인하고 다시 실행한다",
+        message: t("cli.errors.engineStart.storeUnavailable.message"),
+        fix: t("cli.errors.engineStart.storeUnavailable.fix"),
       };
   }
 }
@@ -262,8 +263,8 @@ export function startErrorOf(error: AssembleError): EngineStartError {
   if (issue === undefined) {
     return {
       kind: "storeUnavailable",
-      message: "엔진을 조립하지 못했다",
-      fix: "다시 실행하고 계속되면 보고한다",
+      message: t("cli.errors.engineStart.assembleFailed.message"),
+      fix: t("cli.errors.engineStart.assembleFailed.fix"),
     };
   }
   switch (issue.code) {
@@ -274,8 +275,13 @@ export function startErrorOf(error: AssembleError): EngineStartError {
         .slice(0, 3);
       return {
         kind: "catalogConflict",
-        message: `설정 키 정의가 충돌한다${keys.length === 0 ? "" : ` (${keys.join(", ")})`}`,
-        fix: "설치본이나 확장이 같은 키를 정의하지 않는지 확인한다",
+        message:
+          keys.length === 0
+            ? t("cli.errors.engineStart.catalogConflict.message")
+            : t("cli.errors.engineStart.catalogConflict.messageWithKeys", {
+                keys: keys.join(", "),
+              }),
+        fix: t("cli.errors.engineStart.catalogConflict.fix"),
       };
     }
     case "store":
@@ -283,22 +289,25 @@ export function startErrorOf(error: AssembleError): EngineStartError {
     case "missingService":
       return {
         kind: "missingService",
-        message: `필요한 서비스 ${issue.service}가 올라오지 않았다`,
-        fix: "설치본이 온전한지 확인한다. 계속되면 이 메시지를 보고한다",
+        message: t("cli.errors.engineStart.missingService.message", { service: issue.service }),
+        fix: t("cli.errors.engineStart.missingService.fix"),
       };
     case "plugin": {
       const sops = issue.plugin === "platform-secrets" || /sops|age/i.test(issue.message);
       if (sops) {
         return {
           kind: "sopsMissing",
-          message: "sops 또는 age를 찾을 수 없다",
-          fix: "sops와 age를 설치한다 (macOS: brew install sops age)",
+          message: t("cli.errors.engineStart.sopsMissing.message"),
+          fix: t("cli.errors.engineStart.sopsMissing.fix"),
         };
       }
       return {
         kind: "pluginFailed",
-        message: `플러그인 ${issue.plugin} 설치에 실패했다: ${issue.message}`,
-        fix: "이 메시지를 설치본 관리자나 개발자에게 보고한다",
+        message: t("cli.errors.engineStart.pluginFailed.message", {
+          plugin: issue.plugin,
+          detail: issue.message,
+        }),
+        fix: t("cli.errors.engineStart.pluginFailed.fix"),
       };
     }
     default:
@@ -349,14 +358,14 @@ function statePathError(error: HostStatePathError): EngineStartError {
     case "dirs_unavailable":
       return {
         kind: "dataDirPermission",
-        message: "상태 디렉터리 위치를 정하지 못했다",
-        fix: "HOME(Windows는 USERPROFILE)과 XEON_HOME 설정을 확인한다",
+        message: t("cli.errors.engineStart.stateDirUnknown.message"),
+        fix: t("cli.errors.engineStart.stateDirUnknown.fix"),
       };
     case "permission":
       return {
         kind: "dataDirPermission",
-        message: `상태 디렉터리를 만들 수 없다 (${error.path})`,
-        fix: "디렉터리 권한과 소유자를 확인한다",
+        message: t("cli.errors.engineStart.stateDirPermission.message", { path: error.path }),
+        fix: t("cli.errors.engineStart.stateDirPermission.fix"),
       };
     default:
       return assertNever(error, "statePathError");
@@ -372,22 +381,21 @@ export function invalidRemoteError(
   if (resolution.from === "flag" && !resolution.text.includes("@")) {
     return {
       kind: "invalidRemote",
-      message: `--remote 주소 형식이 맞지 않다: ${oneLine(resolution.text, 80)}`,
-      fix: `--remote 값을 ${forms} 중 하나로 고친다`,
+      message: t("cli.errors.engineStart.invalidRemote.flagValue.message", {
+        address: oneLine(resolution.text, 80),
+      }),
+      fix: t("cli.errors.engineStart.invalidRemote.flagValue.fix", { forms }),
     };
   }
   return {
     kind: "invalidRemote",
     message:
       resolution.from === "flag"
-        ? "--remote 주소 형식이 맞지 않다"
-        : "설정 l0.process.service.remote의 주소 형식이 맞지 않다",
-    fix: `xeon config get l0.process.service.remote로 값을 확인하고 ${forms} 중 하나로 고친다`,
+        ? t("cli.errors.engineStart.invalidRemote.flag.message")
+        : t("cli.errors.engineStart.invalidRemote.setting.message"),
+    fix: t("cli.errors.engineStart.invalidRemote.fix", { forms }),
   };
 }
-
-const REACHABLE_FIX = "원격 서비스가 켜져 있고 주소가 맞는지 확인한다";
-const STATUS_FIX = "xeon service status로 서비스 상태를 확인한다";
 
 function unreachable(message: string, fix: string): EngineStartError {
   return { kind: "serviceUnreachable", message, fix };
@@ -396,8 +404,8 @@ function unreachable(message: string, fix: string): EngineStartError {
 function protocolUnsupported(): EngineStartError {
   return {
     kind: "protocolUnsupported",
-    message: "CLI와 엔진의 계약 버전이 다르다",
-    fix: "같은 버전의 바이너리를 쓰거나 서비스를 다시 띄운다",
+    message: t("cli.errors.protocolMismatch.message"),
+    fix: t("cli.errors.protocolMismatch.fix"),
   };
 }
 
@@ -430,27 +438,36 @@ type ServiceHelloError = Extract<AttachError, { readonly kind: "hello_failed" }>
 export function serviceConnectErrorOf(error: ServiceConnectError): EngineStartError {
   switch (error.kind) {
     case "not_found":
-      return unreachable("서비스 소켓이 없다", REACHABLE_FIX);
+      return unreachable(
+        t("cli.errors.engineStart.service.connect.notFound.message"),
+        t("cli.errors.common.checkServiceAddress.fix"),
+      );
     case "refused":
-      return unreachable("서비스가 연결을 거부했다", REACHABLE_FIX);
+      return unreachable(
+        t("cli.errors.engineStart.service.connect.refused.message"),
+        t("cli.errors.common.checkServiceAddress.fix"),
+      );
     case "permission":
       return unreachable(
-        "서비스 소켓에 접근할 수 없다",
-        "소켓 파일과 그 폴더의 소유자와 권한을 확인한다",
+        t("cli.errors.engineStart.service.connect.permission.message"),
+        t("cli.errors.engineStart.service.connect.permission.fix"),
       );
     case "io":
-      return unreachable(`서비스에 접속하지 못했다 (${oneLine(error.code, 40)})`, STATUS_FIX);
+      return unreachable(
+        t("cli.errors.engineStart.service.connect.io.message", { code: oneLine(error.code, 40) }),
+        t("cli.errors.common.checkServiceStatus.fix"),
+      );
     case "tunnel_unavailable":
       return unreachable(
-        "원격 접속 기능(ssh 터널)이 이 빌드에 없다",
-        "xeon을 다시 설치하거나 같은 버전의 바이너리를 쓴다",
+        t("cli.errors.engineStart.service.connect.tunnelUnavailable.message"),
+        t("cli.errors.engineStart.service.connect.tunnelUnavailable.fix"),
       );
     case "tunnel_failed": {
       const detail = firstLineOf(error.failure.detail);
       const reason = detail === "" ? `(${error.failure.kind})` : oneLine(detail, 160);
       return unreachable(
-        `ssh 터널을 열지 못했다: ${reason}`,
-        "ssh 키나 ssh-agent로 암호 없이 접속되는지 확인한다",
+        t("cli.errors.engineStart.service.connect.tunnelFailed.message", { reason }),
+        t("cli.errors.engineStart.service.connect.tunnelFailed.fix"),
       );
     }
     default:
@@ -463,15 +480,23 @@ function helloErrorStart(error: ServiceHelloError): EngineStartError {
     case "auth_failed":
       // 토큰 값은 메시지에 싣지 않는다. 없는 것과 틀린 것을 나눈다
       return unreachable(
-        error.reason === "missing" ? "원격 접속 토큰이 없다" : "원격 접속 토큰이 맞지 않다",
-        "XEON_REMOTE_TOKEN을 서버의 토큰과 맞추고, 서버에서 xeon service status로 상태를 본다",
+        error.reason === "missing"
+          ? t("cli.errors.engineStart.service.auth.missing.message")
+          : t("cli.errors.engineStart.service.auth.invalid.message"),
+        t("cli.errors.engineStart.service.auth.fix"),
       );
     case "protocol_unsupported":
       return protocolUnsupported();
     case "timeout":
-      return unreachable("서비스가 시간 안에 응답하지 않았다", STATUS_FIX);
+      return unreachable(
+        t("cli.errors.engineStart.service.timeout.message"),
+        t("cli.errors.common.checkServiceStatus.fix"),
+      );
     case "closed":
-      return unreachable("서비스 연결이 응답 전에 닫혔다", STATUS_FIX);
+      return unreachable(
+        t("cli.errors.engineStart.service.closed.message"),
+        t("cli.errors.common.checkServiceStatus.fix"),
+      );
     default:
       return assertNever(error, "ServiceHelloError");
   }
@@ -480,7 +505,10 @@ function helloErrorStart(error: ServiceHelloError): EngineStartError {
 function attachErrorStart(error: AttachError): EngineStartError {
   switch (error.kind) {
     case "ensure_failed":
-      return unreachable(`이 기기의 서비스를 띄우지 못했다 (${error.reason})`, STATUS_FIX);
+      return unreachable(
+        t("cli.errors.engineStart.service.ensureFailed.message", { reason: error.reason }),
+        t("cli.errors.common.checkServiceStatus.fix"),
+      );
     case "connect_failed":
       return serviceConnectErrorOf(error.error);
     case "hello_failed":
