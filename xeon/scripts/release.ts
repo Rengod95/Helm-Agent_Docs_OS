@@ -9,7 +9,7 @@
 //     THIRD-PARTY-NOTICES.txt, SHA256SUMS
 //   release   <triple|host> [--version <v>] [--out <dir>] [--binaries-dir <dir>] [--no-build]
 // `--binaries-dir` is where sops, age and rg of the pinned versions already are (a macOS target needs it; the other targets
-// ignore it). `--no-build` reuses the sidecar binary that build-sidecar left. Signing (release-sign.sh) runs inside this script before the hashes are taken and skips without secrets.
+// ignore it). A build writes the sidecar to <out>/.sidecar-build, never to the development sidecar path; `--no-build` reuses the development sidecar binary that build-sidecar left. Signing (release-sign.sh) runs inside this script before the hashes are taken and skips without secrets.
 // This file imports no workspace package (eng.dependency-rules.guide section 1); shared values live in release-bundle.json.
 // Exit codes: 0 built, 1 fix (config, missing input, build failure), 2 environment (unsupported host, tar missing).
 import { createHash } from "node:crypto";
@@ -242,8 +242,26 @@ export interface ReleaseRequest {
 }
 
 /** The build-sidecar command of one release: the release version is injected into the binary (L4.release.spec 8.1). */
-export function sidecarCommand(triple: string, version: string): string[] {
-  return [process.execPath, join("scripts", "build-sidecar.ts"), triple, "--version", version];
+export function sidecarCommand(triple: string, version: string, outDir: string): string[] {
+  return [
+    process.execPath,
+    join("scripts", "build-sidecar.ts"),
+    triple,
+    "--version",
+    version,
+    "--out-dir",
+    outDir,
+  ];
+}
+
+/** Where a release build puts its own sidecar: next to the archive, never the development sidecar path. */
+export function releaseSidecarDir(outDir: string): string {
+  return join(outDir, ".sidecar-build");
+}
+
+/** The development sidecar directory (build-sidecar's default). Only `--no-build` reads it; no release build writes it. */
+export function devSidecarDir(xeonRoot: string): string {
+  return join(xeonRoot, "apps", "desktop", "src-tauri", "binaries");
 }
 
 /** Lays out and packs one release. Returns the archive path. */
@@ -261,18 +279,12 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   }
   const bundled = target?.binaries ?? [];
 
+  const sidecarDir = request.build ? releaseSidecarDir(request.outDir) : devSidecarDir(xeonRoot);
   if (request.build) {
-    const built = await run("build-sidecar", sidecarCommand(triple, version), xeonRoot);
+    const built = await run("build-sidecar", sidecarCommand(triple, version, sidecarDir), xeonRoot);
     if (!built.ok) return built;
   }
-  const sidecar = join(
-    xeonRoot,
-    "apps",
-    "desktop",
-    "src-tauri",
-    "binaries",
-    outputFileName("xeon", triple),
-  );
+  const sidecar = join(sidecarDir, outputFileName("xeon", triple));
   if (!existsSync(sidecar)) return fail({ kind: "input.missing", path: sidecar });
 
   const stage = join(request.outDir, `xeon-${version}-${triple}`);

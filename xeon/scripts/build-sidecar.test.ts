@@ -178,6 +178,18 @@ test("a build runs bun with the mapped target and reports the size against the c
   ]);
 });
 
+test("an out-dir request writes there and leaves the development sidecar path alone", async () => {
+  const { io, calls } = fakeIo({ config: CONFIG_TEXT, size: MIB });
+  const result = await buildSidecar(
+    { desktopDir: DESKTOP, triple: "x86_64-unknown-linux-gnu", bytecode: true, outDir: "/o/rel" },
+    io,
+  );
+  expect(result.ok && result.value.outFile).toBe("/o/rel/xeon-x86_64-unknown-linux-gnu");
+  expect(calls.dirs).toEqual(["/o/rel"]);
+  expect(calls.args[0]?.at(-1)).toBe("/o/rel/xeon-x86_64-unknown-linux-gnu");
+  expect(calls.args[0]?.join(" ")).not.toContain("src-tauri");
+});
+
 test("the Windows build writes an .exe", async () => {
   const { io } = fakeIo({ config: CONFIG_TEXT, size: 96 * MIB });
   const result = await buildSidecar(

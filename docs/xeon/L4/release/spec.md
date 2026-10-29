@@ -154,6 +154,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - [결정: 오케스트레이터 기본값] 자원 디렉터리는 실행 파일이 든 폴더입니다. 그룹 템플릿의 탐색 순서는 §3.2의 세 단계입니다.
 - [결정: 오케스트레이터 기본값] 릴리즈 스크립트는 workspace 패키지를 import하지 않습니다(`eng.dependency-rules.guide` §1). 스크립트가 함께 쓰는 값은 `xeon/scripts/release-bundle.json`에 둡니다.
 - [결정: 오케스트레이터 기본값] M3b에는 자동 업데이트가 없습니다(§5).
+- [결정: 오케스트레이터 기본값] 개발 사이드카 보호(M3b B6-FIX). 릴리즈 빌드는 `build-sidecar.ts --out-dir <출력 폴더>/.sidecar-build`로 사이드카를 따로 만들고(`release.ts`의 `releaseSidecarDir`), 개발 사이드카 경로 `apps/desktop/src-tauri/binaries/xeon-<triple>`에는 쓰지 않습니다. 그 경로는 e2e 시험과 `ensure-sidecar.sh`가 `0.0.0` 빌드로 다시 쓰기 때문입니다. `--no-build`만 개발 사이드카를 읽습니다. `ensure-sidecar.sh`는 실행되는 바이너리의 `version --json`이 `0.0.0`이 아닌 `cli` 값을 알리면 낡은 것으로 보고 다시 만듭니다. X11 시험(`release-smoke.test.ts`)은 스모크 전후로 개발 사이드카 파일이 같은지 확인합니다.
 - [결정: 오케스트레이터 기본값] 버전 주입(M3b B5-FIX2). `release.ts`가 `--version`을 `build-sidecar.ts`에 넘기고, 빌드가 `bun build --define XEON_BUILD_VERSION="<버전>"`으로 문자열 상수를 넣습니다. `CLI_VERSION`(`xeon/apps/cli/src/commands/version.ts`)과 `ENGINE_VERSION`(`xeon/apps/host/src/assemble.ts`)은 `typeof XEON_BUILD_VERSION`이 문자열이면 그 값을, 아니면(소스 실행, 개발 빌드) `"0.0.0"`을 씁니다. 버전은 `x.y.z` 또는 `x.y.z-<꼬리>` 모양만 받습니다. `xeon-release.yml`은 `v<x.y.z>` 태그에서 태그의 버전을 `XEON_RELEASE_VERSION`으로 넘기고, 그 밖에는 스모크 기본값 `0.0.0-smoke`입니다. 스모크는 `xeon version` 출력에 아카이브 버전이 있는지 확인합니다(`run.version-injected`). 앱 번들(Tauri) 버전과의 정합은 M4 패키징 몫입니다.
 
 ### 8.2 미결

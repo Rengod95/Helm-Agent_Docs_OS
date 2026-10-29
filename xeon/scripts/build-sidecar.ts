@@ -2,7 +2,9 @@
 // Sidecar build (m2-plan DESK.3, L4.desktop.plan 2.1, D3). Compiles the engine entry named in
 // apps/desktop/sidecar.json with `bun build --compile --minify --bytecode` for one Rust target triple and
 // checks the size cap. Output: apps/desktop/src-tauri/binaries/<name>-<triple>[.exe] (not committed, TC-05).
-//   build-sidecar <triple|host> [--no-bytecode] [--version x.y.z]
+//   build-sidecar <triple|host> [--no-bytecode] [--version x.y.z] [--out-dir <dir>]
+// `--out-dir` writes the binary there instead of src-tauri/binaries. Release builds use it so a release version never lands on the
+// development sidecar (the e2e tests and ensure-sidecar reuse that one and expect "0.0.0").
 // `--version` defines the string constant XEON_BUILD_VERSION (bun build --define); CLI_VERSION and ENGINE_VERSION read it.
 //   build-sidecar --list
 // Decision (user, 2026-10-24): start-up and response speed come before binary size. The size cap only catches
@@ -209,6 +211,8 @@ export interface BuildRequest {
   readonly bytecode: boolean;
   /** The release version to inject; undefined builds the "0.0.0" development binary. */
   readonly version?: string | undefined;
+  /** Where the binary goes. Default: apps/desktop/src-tauri/binaries (the development sidecar). */
+  readonly outDir?: string | undefined;
 }
 
 /** Compiles the sidecar for one triple and checks the size cap. Nothing is thrown for expected failures. */
@@ -227,9 +231,7 @@ export async function buildSidecar(
   if (!target.ok) return target;
 
   const outFile = join(
-    request.desktopDir,
-    "src-tauri",
-    "binaries",
+    request.outDir ?? join(request.desktopDir, "src-tauri", "binaries"),
     outputFileName(config.value.name, target.value.triple),
   );
   io.ensureDir(dirname(outFile));
@@ -346,6 +348,7 @@ if (import.meta.main) {
     options: {
       "no-bytecode": { type: "boolean", default: false },
       version: { type: "string" },
+      "out-dir": { type: "string" },
       list: { type: "boolean", default: false },
     },
   });
@@ -371,7 +374,7 @@ if (import.meta.main) {
   const requested = positionals[0];
   if (requested === undefined || positionals.length > 1) {
     process.stderr.write(
-      "usage: build-sidecar <triple|host> [--no-bytecode] [--version x.y.z] | --list\n",
+      "usage: build-sidecar <triple|host> [--no-bytecode] [--version x.y.z] [--out-dir dir] | --list\n",
     );
     process.exit(1);
   }
@@ -390,7 +393,13 @@ if (import.meta.main) {
     process.stderr.write("build-sidecar: WARNING --no-bytecode is not the release configuration\n");
   }
   const result = await buildSidecar(
-    { desktopDir, triple: triple.value, bytecode, version: values.version },
+    {
+      desktopDir,
+      triple: triple.value,
+      bytecode,
+      version: values.version,
+      outDir: values["out-dir"] === undefined ? undefined : resolve(values["out-dir"]),
+    },
     io,
   );
   if (!result.ok) {
