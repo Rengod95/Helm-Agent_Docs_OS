@@ -101,6 +101,6 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
 /** 요청 메시지의 id. 시험 엔진이 같은 id로 응답한다 */
 export function requestId(message: unknown): string {
   const id: unknown =
-    typeof message === "object" && message !== null ? Reflect.get(message, "id") : undefined;
+    typeof message === "object" && message !== null && "id" in message ? message.id : undefined;
   return typeof id === "string" ? id : "";
 }
