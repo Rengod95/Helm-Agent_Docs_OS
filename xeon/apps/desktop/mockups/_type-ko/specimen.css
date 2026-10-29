@@ -1,0 +1,6 @@
+/* 한글 타이포 견본: caustic 글자 역할 × 잉크 단계, ko와 en. 색과 글자는 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@source "./";
+/* main.tsx가 역할·잉크 이름으로 조합하는 클래스 */
+@source inline("text-{display,title-1,title-2,title-3,title-4,body,ui-lg,ui-strong,ui,ui-sm,footnote,label,caption,hint,voice,thought,mono}");
+@source inline("text-text-{primary,secondary,tertiary,placeholder}");

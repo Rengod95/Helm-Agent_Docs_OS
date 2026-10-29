@@ -2086,3 +2086,12 @@ export const palette = [
 - DP-09 caustic 지침 우선: caustic의 원칙·지침(`FOUNDATION.md`, `PLAN.md`)과 쓸 수 있는 부품을 먼저 찾습니다. 목적에 필요하면 caustic 자체를 고칩니다.
 - DP-10 오른쪽 패널: 접으면 아이콘만 있는 세로 떠 있는 막대(vertical floating bar)가 됩니다. 펼치면 누른 아이콘에서 표면이 두 단계로 펼쳐지는 느낌을 줍니다(바깥 well 표면 안에 내용 카드).
 - DP-11 한글 타이포그래피: 한글 자간을 영문보다 좁게(기본 0 또는 음수) 둡니다. 굵기와 글자색 단계(진함·보통·연함)의 차이가 눈에 띄게 둡니다.
+
+### 13.2 DP-11 한글 타이포 규칙 (2026-10-29)
+
+DP-11을 caustic 토큰으로 정했습니다(caustic `d2c73f2`, `FOUNDATION.md` Typography). 견본은 `xeon/apps/desktop/mockups/_type-ko`입니다.
+
+- DP-11a 자간은 언어를 따릅니다. `lang="ko"` 아래에서 ui·voice 역할은 크기별 한글 자간을 씁니다. 30px 이상 −0.025em, 18px 이상 −0.02em, 13.5px 이상 −0.015em, 12.5px 이상 −0.01em, 그보다 작으면 0입니다. `caption`은 0(대문자 자간 없음), mono는 영문 값 그대로입니다. 영문(`lang="en"` 등) 하위 영역은 영문 값으로 돌아갑니다. 앱 루트에는 `lang="ko"`를 둡니다.
+- DP-11b 한글 글꼴: Geist 다음 SUIT, Pretendard(설치돼 있으면), 그다음 Noto Sans KR입니다. 앱은 `@caustic/tokens/fonts.css`를 다른 스타일보다 먼저 가져와 Noto Sans KR 300–700을 웹 글꼴로 받습니다. 그래야 굵기 400·500·600·700이 한글에서도 모두 다르게 보입니다.
+- DP-11c 굵기 단계: 본문 400, 강조·라벨 500, 제목 600. 굵기를 새로 만들지 않고 이 셋만 씁니다. 한글 500은 Geist 500보다 진해 보이므로 작은 글자의 강조는 500에서 멈춥니다.
+- DP-11d 글자색 단계: primary·secondary·tertiary·placeholder = neutral 11·10·9·8. surface.base 위 대비가 라이트 20 : 11.6 : 7.7 : 5.9, 다크 16.7 : 8.8 : 6.5 : 5.2입니다(이전 라이트 secondary 13.9, 다크 9.9 : 7.0 : 5.7). 모든 단계가 WCAG 4.5:1 이상입니다.
