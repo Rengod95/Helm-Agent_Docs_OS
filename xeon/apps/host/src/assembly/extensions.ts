@@ -18,7 +18,9 @@ import {
   type StoreDb,
 } from "@xeon/contracts/records";
 import {
+  ArtifactsRegistry,
   ArtifactsReviews,
+  ArtifactsSessions,
   DialogAsk,
   KnowledgeSkills,
   McpClient,
@@ -167,7 +169,9 @@ const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   WorkPlans,
   DialogAsk,
   McpClient,
+  ArtifactsRegistry,
   ArtifactsReviews,
+  ArtifactsSessions,
 ];
 
 /**
@@ -331,6 +335,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.ids,
           localIds: deps.localIds,
           approvals: (service) => createBareL2ApprovalsPort(service),
+          settings: layersSource(settings),
           loadIndex,
         }),
     ],

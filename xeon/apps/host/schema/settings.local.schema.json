@@ -1296,6 +1296,131 @@
         }
       }
     },
+    "l2.artifacts.maxContentBytes": {
+      "default": 26214400,
+      "maximum": 268435456,
+      "minimum": 1024,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "산출물 본문 최대 크기",
+          "order": 410,
+          "tab": "sessions",
+          "unit": "B",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.artifacts.maxPerSession": {
+      "default": 500,
+      "maximum": 10000,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "세션당 산출물 최대 개수",
+          "order": 400,
+          "tab": "sessions",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.artifacts.reviews.deliverAs": {
+      "default": "followUp",
+      "enum": [
+        "steer",
+        "followUp",
+        "next"
+      ],
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "리뷰 결과 전달 방식",
+          "order": 320,
+          "tab": "tools",
+          "widget": "select"
+        }
+      }
+    },
+    "l2.artifacts.tools.reviewRequest": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "끄면 모델이 리뷰를 요청하는 도구를 쓸 수 없습니다",
+          "label": "리뷰 요청 도구 노출",
+          "order": 330,
+          "tab": "tools",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l2.artifacts.tools.sessionRename": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "세션 이름 바꾸기 도구 노출",
+          "order": 340,
+          "tab": "tools",
+          "widget": "toggle"
+        }
+      }
+    },
     "l2.dialog.ask.timeoutSec": {
       "default": 0,
       "maximum": 86400,

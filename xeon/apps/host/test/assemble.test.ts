@@ -80,6 +80,7 @@ test("the core groups build one catalog with the keys of every package that decl
   if (!built.ok) return;
   const owners = new Set(coreSettingGroups().map((group) => group.owner));
   expect([...owners].toSorted()).toEqual([
+    "cap-artifacts",
     "cap-dialog",
     "cap-knowledge",
     "cap-mcp",

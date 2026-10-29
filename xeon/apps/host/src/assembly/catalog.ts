@@ -17,6 +17,7 @@ import {
 } from "@xeon/contracts/settings";
 import { DIALOG_SETTING_DEFS } from "@xeon/cap-dialog";
 import { KNOWLEDGE_SETTING_DEFS } from "@xeon/cap-knowledge";
+import { ARTIFACTS_SETTING_DEFS } from "@xeon/cap-artifacts";
 import { MCP_SETTING_DEFS } from "@xeon/cap-mcp";
 import { WEB_SETTING_DEFS } from "@xeon/cap-web";
 import { WORK_SETTING_DEFS } from "@xeon/cap-work";
@@ -83,6 +84,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("cap-knowledge", "l2.knowledge", KNOWLEDGE_SETTING_DEFS),
     ofDefs("cap-mcp", "l2.mcp", MCP_SETTING_DEFS),
     ofDefs("cap-work", "l2.work", WORK_SETTING_DEFS),
+    ofDefs("cap-artifacts", "l2.artifacts", ARTIFACTS_SETTING_DEFS),
     ofDefs("cap-dialog", "l2.dialog", DIALOG_SETTING_DEFS),
     ofGroup("group-kit", groupKitSettings),
     ofGroup("group-helm", helmSettings),
