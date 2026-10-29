@@ -48,7 +48,10 @@ async function runCheckLayers(
         type: "module",
         exports: { ".": "./src/index.ts" },
         dependencies: Object.fromEntries(pkg.deps.map((dep) => [dep, "workspace:*"])),
-        xeon: { layer: "L3", domain: pkg.dir.slice("group-".length) },
+        xeon: {
+          layer: "L3",
+          domain: pkg.dir === "group-kit" ? "group-kit" : pkg.dir.slice("group-".length),
+        },
       }),
     );
     writeFileSync(
