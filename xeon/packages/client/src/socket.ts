@@ -50,8 +50,6 @@ export type ServiceConnectError =
   | { readonly kind: "refused"; readonly path: string }
   | { readonly kind: "permission"; readonly path: string }
   | { readonly kind: "io"; readonly code: string }
-  /** tcp 접속에는 토큰이 필요하다 */
-  | { readonly kind: "token_required" }
   /** ssh 주소인데 터널 포트가 주어지지 않았다 */
   | { readonly kind: "tunnel_unavailable" }
   | { readonly kind: "tunnel_failed"; readonly failure: TunnelFailure };
@@ -224,14 +222,15 @@ export async function connectServiceTransport(
     case "unix":
       return connectNet({ path: endpoint.path }, options.maxFrameBytes);
     case "tcp": {
-      if (endpoint.token === undefined || endpoint.token === "") {
-        return err({ kind: "token_required" });
-      }
       const connected = await connectNet(
         { host: endpoint.host, port: endpoint.port },
         options.maxFrameBytes,
       );
-      return connected.ok ? ok(injectHelloAuth(connected.value, endpoint.token)) : connected;
+      // 토큰이 없어도 접속은 한다: 거절은 서버의 `host.authFailed`가 값으로 알린다(호출자가 그 오류를 보여 줄 수 있다)
+      const { token } = endpoint;
+      return connected.ok && token !== undefined && token !== ""
+        ? ok(injectHelloAuth(connected.value, token))
+        : connected;
     }
     case "ssh": {
       if (options.tunnel === undefined) return err({ kind: "tunnel_unavailable" });

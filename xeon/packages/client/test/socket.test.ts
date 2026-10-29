@@ -138,13 +138,14 @@ describe("unix", () => {
 });
 
 describe("tcp", () => {
-  test("without a token it is token_required and nothing connects", async () => {
+  test("without a token it still connects and sends host.hello bare, so the server's host.authFailed can be shown", async () => {
     const { port, state } = await tcpServer();
-    expect(await connectServiceTransport({ kind: "tcp", host: "127.0.0.1", port })).toEqual({
-      ok: false,
-      error: { kind: "token_required" },
-    });
-    expect(state.sockets).toEqual([]);
+    const transport = must(await connectServiceTransport({ kind: "tcp", host: "127.0.0.1", port }));
+    const answer = reply(transport);
+    await transport.send(HELLO);
+    await answer;
+    expect(state.received).toEqual([HELLO]);
+    await transport.close();
   });
 
   test("host.hello carries auth.token; a hello that already has auth is left alone; other messages are untouched", async () => {
