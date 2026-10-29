@@ -20,8 +20,10 @@ import { collectEvents, HELLO_PARAMS, until } from "../fixtures/wire-client.ts";
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 
-/** `l1.agents.judge.maxRuns`. 두 번 모두 미달이면 목표가 limit_reached로 끝난다 */
-const MAX_RUNS = 2;
+/** 세션 범위 `l1.agents.judge.maxRuns`. 세 번 모두 미달이면 목표가 limit_reached로 끝난다 */
+const MAX_RUNS = 3;
+/** 파일 범위 값. 세션 값을 읽지 못하는 agentsSource는 이 값에서 세 번째 판정을 capped로 막아 판정이 두 번에 그친다 */
+const FILE_MAX_RUNS = 2;
 const GOAL_CONDITION = "The report section is written and checked against the sources.";
 /** thread 이름을 이 값으로 바꾸면 시험용 확장이 목표를 건다(`session.info.after`) */
 const SET_GOAL_ON_RENAME = "목표를 건다";
@@ -82,6 +84,15 @@ const player = tapePlayer(
       },
     },
     {
+      role: "main",
+      label: "third answer",
+      response: {
+        type: "message",
+        content: [t.text("The third draft is done.")],
+        stopReason: "stop",
+      },
+    },
+    {
       role: "judge",
       label: "judge 1: not met",
       response: {
@@ -119,6 +130,25 @@ const player = tapePlayer(
         stopReason: "toolUse",
       },
     },
+    {
+      role: "judge",
+      label: "judge 3: not met",
+      response: {
+        type: "message",
+        content: [
+          t.toolCall(
+            "final_answer",
+            {
+              verdict: "not_met",
+              rationale: "The report section is still missing.",
+              missing: ["the report section"],
+            },
+            "judge_call_3",
+          ),
+        ],
+        stopReason: "toolUse",
+      },
+    },
   ]),
   { clock: realTapeClock() },
 );
@@ -134,7 +164,7 @@ realTest(
     const home = useEngineHome();
     writeUserSettings(home, {
       ...TAPE_SETTINGS,
-      "l1.agents.judge.maxRuns": MAX_RUNS,
+      "l1.agents.judge.maxRuns": FILE_MAX_RUNS,
       "l1.models.routing.judge": `tape/${JUDGE_MODEL}`,
     });
     const running = await startHost({
@@ -169,6 +199,12 @@ realTest(
     await first.request("events.subscribe", { from: "head" });
 
     const created = await first.request("thread.create", {});
+    await first.request("settings.set", {
+      key: "l1.agents.judge.maxRuns",
+      value: MAX_RUNS,
+      scope: "session",
+      threadId: created.threadId,
+    });
     await first.request("thread.rename", {
       threadId: created.threadId,
       title: SET_GOAL_ON_RENAME,
@@ -180,7 +216,7 @@ realTest(
     // 묶음 창을 넘겨도 두 번째 알림이 오지 않아야 한다
     await Bun.sleep(COALESCE_WINDOW_PASS_MS);
 
-    // 목표 흐름: 설정, 판정 두 번(실행 번호 1, 2), 한도 종결 한 번, 턴 완료 한 번
+    // 목표 흐름: 설정, 판정 세 번(실행 번호 1, 2, 3), 한도 종결 한 번, 턴 완료 한 번
     const kinds = collector.events
       .map((event) => event.kind)
       .filter((kind) =>
@@ -190,6 +226,7 @@ realTest(
       "work.goal_set",
       "work.goal_judged",
       "work.goal_judged",
+      "work.goal_judged",
       "work.goal_settled",
       "turn.completed",
     ]);
@@ -197,16 +234,19 @@ realTest(
     expect(judged.map((event) => event.payload)).toMatchObject([
       { goalId: "g1", n: 1, verdict: { met: false }, judgeKind: "model" },
       { goalId: "g1", n: 2, verdict: { met: false }, judgeKind: "model" },
+      { goalId: "g1", n: 3, verdict: { met: false }, judgeKind: "model" },
     ]);
     const settled = collector.events.filter((event) => event.kind === "work.goal_settled");
     expect(settled.map((event) => event.payload)).toEqual([
-      { goalId: "g1", status: "limit_reached", judgments: 2 },
+      { goalId: "g1", status: "limit_reached", judgments: 3 },
     ]);
     const turnDone = collector.events.filter((event) => event.kind === "turn.completed");
     expect(turnDone.map((event) => event.payload)).toMatchObject([{ status: "completed" }]);
 
     // 모델 호출: 주 역할은 답할 때마다 한 번, 판정 역할은 판정마다 한 번. 테이프의 답을 모두 쓰고 어긋남이 없어야 한다
     expect(handle.calls().map((call) => `${call.role}:${call.modelId}`)).toEqual([
+      "main:tape-1",
+      "judge:tape-judge",
       "main:tape-1",
       "judge:tape-judge",
       "main:tape-1",
@@ -224,7 +264,7 @@ realTest(
     const goalNotice: Notice = {
       kind: "completed",
       title: "목표 판정 한도에 도달했다",
-      body: "판정 2회",
+      body: "판정 3회",
       seq: settledEvent.seq,
       sourceType: "work.goal_settled",
     };

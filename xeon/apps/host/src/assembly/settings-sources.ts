@@ -146,7 +146,7 @@ export function agentsSource(settings: SettingsEngine): AgentsSettingsSource {
     maxDepth: () => intOr(settings.value("l1.agents.maxDepth"), 1),
     maxConcurrent: () => intOr(settings.value("l1.agents.maxConcurrent"), 8),
     resultMaxChars: () => intOr(settings.value("l1.agents.resultMaxChars"), 24_000),
-    judgeMaxRuns: () => intOr(settings.value("l1.agents.judge.maxRuns"), 3),
+    judgeMaxRuns: (threadId) => intOr(settings.value("l1.agents.judge.maxRuns", threadId), 3),
   };
 }
 

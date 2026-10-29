@@ -188,6 +188,28 @@ test("l1.agents.judge.maxRuns reaches the agents source and defaults to 3", asyn
   expect(agentsSource(await engineWith({})).judgeMaxRuns?.()).toBe(3);
 });
 
+test("the judge cap is read for the judged thread, so a session scope value applies", async () => {
+  const settings = await engineWith({ "l1.agents.judge.maxRuns": 2 });
+  settings.bindSession({
+    layer: (threadId) => ({
+      scope: "session",
+      values:
+        threadId === THREAD
+          ? new Map<string, unknown>([["l1.agents.judge.maxRuns", 4]])
+          : new Map<string, unknown>(),
+    }),
+    set: () => {
+      throw new Bug("not used");
+    },
+    reset: () => {
+      throw new Bug("not used");
+    },
+  });
+  const source = agentsSource(settings);
+  expect(source.judgeMaxRuns?.(THREAD)).toBe(4);
+  expect(source.judgeMaxRuns?.(fixedIdFactory(5).next("thr"))).toBe(2);
+});
+
 test("undeclared package keys are read raw: persistence, store, exec, shutdown", async () => {
   const reports: string[] = [];
   const settings = await engineWith({
