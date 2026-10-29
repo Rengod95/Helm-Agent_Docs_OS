@@ -38,6 +38,7 @@ function failed(
 interface Recorder {
   readonly requests: string[];
   readonly notices: string[];
+  readonly projections: string[];
   readonly scopes: ScopeControl;
   readonly notifier: OperationsNotifier;
 }
@@ -45,9 +46,11 @@ interface Recorder {
 function recorder(): Recorder {
   const requests: string[] = [];
   const notices: string[] = [];
+  const projections: string[] = [];
   return {
     requests,
     notices,
+    projections,
     scopes: {
       requestDisable: (scopeId: string, reason: ScopeChangeReason) => {
         requests.push(`disable:${scopeId}:${reason}`);
@@ -64,11 +67,21 @@ function recorder(): Recorder {
       autoDisabled: (key, verdict) => {
         notices.push(`disabled:${key}:${verdict.rule}`);
       },
+      projectionFailed: (key, cause, disabled) => {
+        projections.push(`projection:${key}:${cause}:${disabled}`);
+      },
     },
   };
 }
 
-function disablerOf(rec: Recorder, policy: AutoDisablePolicy = DEFAULT_AUTO_DISABLE) {
+interface DisablerOptions {
+  readonly policy?: AutoDisablePolicy;
+  readonly isExempt?: (key: string) => boolean;
+  readonly tierOf?: (key: string) => Tier | undefined;
+}
+
+function disablerOf(rec: Recorder, options: DisablerOptions = {}) {
+  const policy = options.policy ?? DEFAULT_AUTO_DISABLE;
   const ledger = createFailureLedger({ windowSize: policy.windowSize });
   const hooks: string[] = [];
   const disabler = createAutoDisabler({
@@ -80,6 +93,8 @@ function disablerOf(rec: Recorder, policy: AutoDisablePolicy = DEFAULT_AUTO_DISA
       enable: (id) => hooks.push(`enable:${id}`),
     },
     notifier: rec.notifier,
+    ...(options.isExempt === undefined ? {} : { isExempt: options.isExempt }),
+    ...(options.tierOf === undefined ? {} : { tierOf: options.tierOf }),
   });
   return { disabler, ledger, hooks };
 }
@@ -179,6 +194,51 @@ test("autoDisable: hooks and forced disable", () => {
   expect(hooks).toEqual(["disable:audit", "enable:audit"]);
 });
 
+test("autoDisable: projection failure disables a non-essential extension once and reports it", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec);
+  disabler.disableNow("ext:proj-ext", "projection_failed");
+  expect(rec.requests).toEqual([
+    "disable:proj-ext:auto_disable",
+    "disable:proj-ext/sub:auto_disable",
+  ]);
+  expect(rec.projections).toEqual(["projection:ext:proj-ext:projection_failed:true"]);
+  expect(disabler.disabled()).toEqual(["ext:proj-ext"]);
+  // 이미 끈 주체는 두 번 끄지도, 두 번 알리지도 않는다
+  disabler.disableNow("ext:proj-ext", "projection_failed");
+  expect(rec.requests).toHaveLength(2);
+  expect(rec.projections).toHaveLength(1);
+});
+
+test("autoDisable: projection failure of an essential extension is never disabled and is reported on every failure", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec, { isExempt: (key) => key === "ext:ess-ext" });
+  disabler.disableNow("ext:ess-ext", "projection_failed");
+  disabler.disableNow("ext:ess-ext", "projection_failed");
+  expect(rec.requests).toEqual([]);
+  expect(disabler.disabled()).toEqual([]);
+  expect(rec.projections).toEqual([
+    "projection:ext:ess-ext:projection_failed:false",
+    "projection:ext:ess-ext:projection_failed:false",
+  ]);
+});
+
+test("autoDisable: exempt tier is reported, not disabled; a key without a tier is judged by isExempt only", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec, {
+    tierOf: (key) => (key === "ext:core-ext" ? "core" : undefined),
+  });
+  disabler.disableNow("ext:core-ext", "projection_failed");
+  expect(rec.requests).toEqual([]);
+  expect(rec.projections).toEqual(["projection:ext:core-ext:projection_failed:false"]);
+  disabler.disableNow("ext:plain-ext", "projection_failed");
+  expect(rec.requests).toEqual([
+    "disable:plain-ext:auto_disable",
+    "disable:plain-ext/sub:auto_disable",
+  ]);
+  expect(rec.projections.at(-1)).toBe("projection:ext:plain-ext:projection_failed:true");
+});
+
 test("autoDisable: log notifier and scope control adapter", () => {
   const lines: string[] = [];
   const notifier = createLogNotifier((line) => lines.push(line));
@@ -190,6 +250,8 @@ test("autoDisable: log notifier and scope control adapter", () => {
     totalFailures: 2,
   });
   expect(lines[0]).toContain("ext:flaky-ext");
+  notifier.projectionFailed("ext:flaky-ext", "projection_failed", false);
+  expect(lines[1]).toBe("forced disable: ext:flaky-ext (projection_failed) kept enabled (exempt)");
   const calls: string[] = [];
   const control = createScopeControl({
     scopes: () => [

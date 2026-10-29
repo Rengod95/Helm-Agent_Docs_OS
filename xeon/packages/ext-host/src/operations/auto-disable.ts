@@ -94,6 +94,15 @@ export interface OperationsNotifier {
     key: HandlerOwnerKey,
     verdict: Extract<AutoDisableVerdict, { readonly disable: true }>,
   ): void;
+  /**
+   * disableNow 호출을 알린다. disabled가 거짓이면 면제 주체라 끄지 않았다(M3-REQ-36).
+   * 이름은 투영기 실패 경로에서 먼저 쓰였고, cause는 격리 재시작 한도 초과도 받는다(X.operations.spec §4.3.4)
+   */
+  projectionFailed(
+    key: HandlerOwnerKey,
+    cause: "isolation_restart_limit" | "projection_failed",
+    disabled: boolean,
+  ): void;
 }
 
 /** 운영 로그에만 남기는 기본 알림. 휘발 이벤트 kind scope.handler_failed 발신은 L4 조립이 연결한다(O-09) */
@@ -106,6 +115,9 @@ export function createLogNotifier(log: (line: string) => void): OperationsNotifi
     },
     autoDisabled(key, verdict) {
       log(`auto-disabled: ${key} by ${verdict.rule}`);
+    },
+    projectionFailed(key, cause, disabled) {
+      log(`forced disable: ${key} (${cause}) ${disabled ? "disabled" : "kept enabled (exempt)"}`);
     },
   };
 }
@@ -152,6 +164,9 @@ export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNo
     autoDisabled(key, verdict) {
       logOnly.autoDisabled(key, verdict);
     },
+    projectionFailed(key, cause, disabled) {
+      logOnly.projectionFailed(key, cause, disabled);
+    },
   };
 }
 
@@ -160,7 +175,10 @@ export interface AutoDisabler {
   onOutcome(outcome: HandlerOutcomeRecord): void;
   /** 사용자가 다시 켤 때. 장부를 비우고 requestEnable을 부른다 */
   reenable(key: HandlerOwnerKey): void;
-  /** 기준과 무관하게 바로 끈다. 격리 확장의 재시작 한도 초과와 투영기 실패에서 쓴다 */
+  /**
+   * 기준과 무관하게 바로 끈다. 격리 확장의 재시작 한도 초과와 투영기 실패에서 쓴다.
+   * 면제 주체(isExempt, 면제 tier)는 끄지 않고 projectionFailed(…, false)만 보낸다. 이미 꺼진 주체는 다시 알리지 않는다
+   */
   disableNow(key: HandlerOwnerKey, cause: "isolation_restart_limit" | "projection_failed"): void;
   /** 이번 프로세스에서 자동으로 꺼진 주체 */
   disabled(): readonly HandlerOwnerKey[];
@@ -173,8 +191,13 @@ export interface AutoDisablerDeps {
   readonly scopes: ScopeControl;
   readonly hooks: { disable(id: HookId): void; enable(id: HookId): void };
   readonly notifier: OperationsNotifier;
-  /** essential 확장 등 tier 밖의 면제. 없으면 tier만 본다 */
+  /** essential 확장 등 tier 밖의 면제. 없으면 면제 tier만 본다 */
   readonly isExempt?: (key: HandlerOwnerKey) => boolean;
+  /**
+   * 주체의 tier 조회. disableNow는 호출자가 tier를 주지 않으므로 이것으로 면제 tier를 본다.
+   * 표에 없으면(undefined) tier 면제는 적용되지 않고 isExempt만 본다
+   */
+  readonly tierOf?: (key: HandlerOwnerKey) => Tier | undefined;
 }
 
 export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
@@ -222,9 +245,20 @@ export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
         deps.hooks.enable(key.slice("hook:".length));
       }
     },
-    disableNow(key) {
+    disableNow(key, cause) {
+      const tier = deps.tierOf?.(key);
+      const exempt =
+        (tier !== undefined && AUTO_DISABLE_EXEMPT_TIERS.has(tier)) ||
+        deps.isExempt?.(key) === true;
+      if (exempt) {
+        // 면제 주체는 실패가 날 때마다 알린다. 끄지 않으므로 중복 억제 대상이 아니다
+        deps.notifier.projectionFailed(key, cause, false);
+        return;
+      }
+      // 이미 끈 주체는 두 번 끄지도, 두 번 알리지도 않는다
       if (disabled.has(key)) return;
       applyDisable(key);
+      deps.notifier.projectionFailed(key, cause, true);
     },
     disabled: () => [...disabled],
   };

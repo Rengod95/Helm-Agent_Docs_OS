@@ -200,6 +200,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
     hooks: deps.hooks ?? NOOP_HOOKS,
     notifier: deps.notifier ?? createLogNotifier(deps.log ?? (() => {})),
     isExempt: (key) => key.startsWith("ext:") && essentials.has(key.slice("ext:".length)),
+    tierOf: (key) => (key.startsWith("ext:") ? tiers.get(key.slice("ext:".length)) : undefined),
   });
   const storage = createExtStorageManager({
     ports: deps.ports,

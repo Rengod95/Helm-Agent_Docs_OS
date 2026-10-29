@@ -326,6 +326,8 @@ export interface ScopeControl {
 export interface OperationsNotifier {
   handlerFailed(outcome: HandlerOutcomeRecord, stats: FailureStats): void;
   autoDisabled(key: HandlerOwnerKey, verdict: Extract<AutoDisableVerdict, { disable: true }>): void;
+  /** disableNow 호출을 알린다. disabled가 거짓이면 면제 주체라 끄지 않았다(§4.3.4, [결정: 오케스트레이터 기본값, M3-REQ-36]) */
+  projectionFailed(key: HandlerOwnerKey, cause: "isolation_restart_limit" | "projection_failed", disabled: boolean): void;
 }
 
 /** 휘발 발신 포트. 발신과 운영 로그는 조립 루트가 넘긴다(§4.3.4) */
@@ -342,7 +344,10 @@ export interface AutoDisabler {
   onOutcome(outcome: HandlerOutcomeRecord): void;
   /** 사용자가 다시 켤 때. 장부를 비우고 requestEnable을 부른다 */
   reenable(key: HandlerOwnerKey): void;
-  /** 기준과 무관하게 바로 끈다. 격리 확장의 재시작 한도 초과(X.loading-trust.spec §4.9.7)에서 쓴다 */
+  /**
+   * 기준과 무관하게 바로 끈다. 격리 확장의 재시작 한도 초과(X.loading-trust.spec §4.9.7)와 투영기 실패(§5 6번)에서 쓴다.
+   * 면제 주체(isExempt, 면제 tier)는 끄지 않고 projectionFailed(…, false)만 보낸다. 이미 꺼진 주체는 다시 알리지 않는다
+   */
   disableNow(key: HandlerOwnerKey, cause: "isolation_restart_limit" | "projection_failed"): void;
   /** 이번 프로세스에서 자동으로 꺼진 주체 */
   disabled(): readonly HandlerOwnerKey[];
@@ -354,6 +359,8 @@ export function createAutoDisabler(deps: {
   readonly scopes: ScopeControl;
   readonly hooks: { disable(id: HookId): void; enable(id: HookId): void };
   readonly notifier: OperationsNotifier;
+  readonly isExempt?: (key: HandlerOwnerKey) => boolean;   // essential 확장 면제. 조립 루트(createOperationsPolicy)가 admit 정보로 준다
+  readonly tierOf?: (key: HandlerOwnerKey) => Tier | undefined; // 면제 tier 판정용. 표에 없으면(undefined) tier 면제는 없고 isExempt만 본다
 }): AutoDisabler;
 ```
 
@@ -954,6 +961,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 요청 뒤 적용 전까지의 호출도 실패 처리 규칙은 그대로 적용한다. 그 사이의 실패는 장부에 넣지만 두 번째 요청을 만들지 않는다.
 - drive 임대를 가진 그룹이 꺼지면 임대 반납 순서는 `F.extensions.spec` §4.5 비활성화 적용 순서를 따른다(`lease.released`의 `reason: "disabled"`).
 - 예외: `AUTO_DISABLE_EXEMPT_TIERS`(`guard`, `core`)와 `essential: true` 확장(X.loading-trust.spec §4.3.2)은 끄지 않는다. 이 tier의 실패는 fold 규칙대로 처리하고(가드의 first는 거부로 남아 fail-closed가 유지된다) 알림만 보낸다. 사용자가 이 tier를 끌 수 없는 이유는 보안 가드와 코어 기본 동작이 빠지면 안전과 기본 기능이 함께 빠지기 때문이다.
+- 기준과 무관한 `disableNow`(투영기 실패, §5 6번)도 같은 면제를 받는다. 면제 주체는 끄지 않고 `projectionFailed(key, cause, false)`를 실패마다 보낸다. 면제 tier는 `tierOf`로 본다. `tierOf`가 tier를 돌려주지 않는 주체(표에 없는 확장, 훅)는 tier 면제가 없고 `isExempt`만 본다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이미 끈 주체는 다시 끄지도, 다시 알리지도 않는다.
 - 외부 훅은 같은 기준으로 그 훅만 끈다. 훅 끄기는 다음 디스패치부터 적용한다(훅은 scope가 없다).
 - 자동 끄기 상태는 설정 파일에 쓰지 않는다 [제안]. `ext.<name>.enabled` 값은 바뀌지 않고, 다음 시작에서 다시 실린다. 반복되는 경우는 §10 미결 7이다.
 
@@ -965,6 +973,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 조립 루트(`apps/host`)가 이 구현을 `createOperationsPolicy`의 `notifier`로 넘긴다. `emit`은 열린 thread마다 휘발 이벤트를 보내고(`L4.host-service` HS-80), `log`는 운영 로그다. `notifier`를 생략한 조립(시험 등)은 `createLogNotifier`를 쓴다.
 - 자동 끄기가 적용되면 `scope.changed`(내구, `F.records.spec` §3.3)를 `status: "disabled"`로 남긴다. 사유는 payload의 `reason` 필드(`ScopeChangeReason`, `F.records.spec` §3.3)로 구분한다. 사유를 primitives에 넘기는 인자는 §10 미결 4의 남은 일이다.
 - 사용자 알림 문구 예: "확장 acme-notes가 연속 5번 실패해 꺼졌다. 다시 켜기: xeon ext enable acme-notes". 문구와 위치는 `L4.cli.spec`, `L4.settings-ui.spec`이 정한다.
+- `disableNow`가 불리면 `OperationsNotifier.projectionFailed(key, cause, disabled)`를 보낸다. 끈 주체는 `disabled: true`로 한 번, 면제 주체는 실패마다 `disabled: false`로 보낸다. 운영 로그(`createLogNotifier`)는 이 둘을 모두 남긴다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이 알림도 휘발 이벤트 발신은 L4 조립이 연결한다.
 
 #### 4.3.5 다시 켜기
 
@@ -1225,7 +1234,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 3. 대화상자를 연 채로 사용자가 응답하지 않음: 예산은 멈춰 있다. 사용자 중단(`outer` abort)이나 대화상자 자체 시간 제한이 끝낸다. 이 경우는 `aborted`이고 실패가 아니다.
 4. 가드 핸들러가 계속 실패함: 자동 끄기 대상이 아니다. first 지점은 거부가 계속되어 도구 호출이 막힌다. 알림이 계속 나가므로 사용자가 원인을 고친다. 가드를 끄는 설정은 두지 않는다.
 5. 자동 끄기 요청 뒤 경계 전에 같은 확장이 drive 임대를 받으려 함: 끄기 요청이 있는 scope에는 임대를 주지 않는다 [제안]. 중재는 `X.primitives.spec`이다.
-6. 확장 투영 `apply`가 오류를 돌려주거나 예외를 던짐: 코어 커밋 전체가 롤백되고 투영기 실패로 보고된다. 쓰려는 행이 선언과 다르면(`row_invalid`) `apply`가 그 오류를 돌려준다. 같은 이벤트로 다시 커밋해도 같은 결과이므로 세션 진행이 막힌다. [제안] X는 그 확장 투영기를 해제하고 확장을 끈 뒤(`reason: "auto_disable"`) 커밋을 다시 시도하는 복구 경로를 둔다. 세부는 `L1.persistence.spec`과 정한다(§10 미결 6).
+6. 확장 투영 `apply`가 오류를 돌려주거나 예외를 던짐: 코어 커밋 전체가 롤백되고 투영기 실패로 보고된다. 쓰려는 행이 선언과 다르면(`row_invalid`) `apply`가 그 오류를 돌려준다. [결정: 오케스트레이터 기본값, M3-REQ-36] 저장 영역의 `onFailure`를 받을 때 저장소는 그 확장 투영기를 이미 정지하고 커밋을 다시 시도한 뒤다(정지와 재시도는 `L1.persistence.spec`). X는 자동 끄기 판정만 한다. 면제가 아닌 확장은 `disableNow`가 끄고 `projectionFailed(…, true)`를 보낸다. 필수(`essential: true`) 확장은 끄지 않는다. 그 확장은 켜진 채 두고 `projectionFailed(…, false)`를 실패마다 보낸다. 그 투영기는 다음 쓰기 열기 때 다시 만들어질 때까지 정지 상태로 남는다(세션 진행은 막히지 않는다). 읽기 전용으로 여는 복구는 두지 않는다(§10 미결 6, 해소).
 7. 두 확장의 변환 이름이 같은 테이블 이름을 만듦: §4.4.2 규칙상 생기지 않는다. 소유 장부가 마지막 방어로 `table_owned`를 낸다.
 8. `xh_ext_tables`에 없는 `x_` 테이블이 DB에 있음: 이전 버전이나 수동 생성의 흔적이다. 건드리지 않고 진단에 보인다.
 9. 안전 모드에서 사용자가 외부 확장을 켬: 설정 값은 저장하되 이번 실행에는 적용하지 않고 "안전 모드라 다음 정상 시작에 적용"을 알린다.
@@ -1360,7 +1369,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
    - 휘발 kind `scope.handler_failed`는 `F.records.spec` §3.3 코어 카탈로그에 코어 영역 `scope`로 들어갔다(`ScopeHandlerFailedPayloadSchema`).
    - [미결] 남은 일: `ScopeHandle.enable`/`disable`에 사유 인자가 없어 `ScopeControl`의 사유를 `scope.changed`에 싣는 경로가 없다. `X.primitives.spec` §3.2에 사유 인자 추가를 요청한다.
 5. (해소, M2 O-07) [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않고 X 공개 API의 별도 함수 `hostOf(g).awaitUser`로 연결했다(§4.2.3). 핸들러에 UI 포트 자체를 주는 일은 L2.dialog가 정한다.
-6. [미결] 확장 투영 `apply` 예외의 복구 경로(§5 6번). 투영기 해제와 확장 끄기 뒤 커밋을 다시 시도할지, 세션을 읽기 전용으로 열지. `L1.persistence.spec`, `eng.events.design` 투영 실패 규칙과 정한다.
+6. (해소, M3-REQ-36) [결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영 `apply` 예외의 복구 경로(§5 6번)는 투영기를 정지한 뒤 커밋을 다시 시도하는 것으로 정했다. 세션을 읽기 전용으로 여는 방식은 채택하지 않았다. 정지와 재시도의 구현 위치는 `L1.persistence.spec`이다.
 7. [미결] 자동 끄기의 영속 여부. 현재 [제안]은 프로세스 단위(재시작하면 다시 실림)다. 여러 번의 시작에서 반복해 꺼지는 확장을 `ext.<name>.enabled=false`로 기록할지, 사용자 확인을 받을지.
 8. [미결] 이벤트에서 다시 만들 수 없는 부가 데이터 테이블(보존 테이블)을 허용할지. 허용하면 `eng.context-map.design` §5.2의 "`x_`는 확장 투영기만 쓴다, 재생 가능"을 바꾸고, 직접 쓰기 경로(커밋 계획에 데이터 연산 목록을 싣는 F `CommitPlan` 확장)와 열 추가 마이그레이션(`storage/migrate.ts`)이 필요하다.
 9. [미결] `ExtQuery`의 범위 조건(`gt`, `lt`, `in`, 접두 일치)과 집계. 그리고 SQLite authorizer(§4.4.6 C안)를 `bun:sqlite`에서 쓸 수 있는지 확인.
