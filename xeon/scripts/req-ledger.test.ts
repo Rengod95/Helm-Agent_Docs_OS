@@ -64,13 +64,14 @@ test("a track id the plan does not declare is unknown_track, so the typo B9-X fa
   ]);
 });
 
-test("M3a, M4 and M3b with a declared track id are all valid, and counts keep the status names", () => {
+test("M3a, M3b, M4 and M3b with a declared track id are all valid, and counts keep the status names", () => {
   const scanned = scanOk(
-    `${HEADER}\n| M3-REQ-01 | F | x | 0 | M3a |\n| M3-REQ-02 | F | x | 0 | M4 |\n| M3-REQ-03 | F | x | 0 | M3b:B3-L1M |\n| M3-REQ-04 | F | x | 0 | M3b:B3-L1M |\n`,
+    `${HEADER}\n| M3-REQ-01 | F | x | 0 | M3a |\n| M3-REQ-02 | F | x | 0 | M4 |\n| M3-REQ-03 | F | x | 0 | M3b:B3-L1M |\n| M3-REQ-04 | F | x | 0 | M3b:B3-L1M |\n| M3-REQ-05 | F | x | 0 | M3b |\n`,
   );
   expect(scanned.problems).toEqual([]);
   expect(countStatuses(scanned.requirements)).toEqual([
     ["M3a", 1],
+    ["M3b", 1],
     ["M3b:B3-L1M", 2],
     ["M4", 1],
   ]);
