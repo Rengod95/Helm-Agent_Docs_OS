@@ -255,7 +255,8 @@ export interface ExtHost {
   /** 이벤트가 커밋된 뒤 부른다. kind가 `LIFECYCLE_POINTS`에 있으면 수명주기 지점을 디스패치한다(§4.11). 끝나기를 기다린다 */
   afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
   /** thread를 열 때(새로 만들거나 재개할 때) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
-  openThread(threadId: ThreadId): Promise<void>;
+  /** `options.child`가 참이면 서브에이전트 자식 대화다. 확장은 켜지만 drive 임대는 받지 않는다(§4.4.1 3a) */
+  openThread(threadId: ThreadId, options?: { readonly child?: boolean }): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
   /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null. L3.group-kit.spec §3.13 요청 2의 답이다 */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
@@ -948,6 +949,7 @@ lifecycle [결정: adr.0017]:
 1. `g.drive(fn, options)`는 setup 안에서만 부를 수 있다. 밖에서 부르면 `drive_outside_setup`이다. 매니페스트 `kind`가 `group`이 아니면 `drive_requires_group`, `usesDrive`가 참이 아니면 `drive_undeclared`, 같은 scope에서 두 번 부르면 `drive_duplicate`다. 그룹당 슬롯은 하나다([결정] ADR-0007 §3.1).
 2. 등록은 임대를 만들지 않는다. 등록은 fiber effect이고, scope가 꺼지면 함께 사라진다.
 3. 임대는 thread마다 하나다. 한 thread에서 동시에 임대를 가진 scope는 최대 하나다([결정] ADR-0007 §3.6). 임대 부여는 경계 훅(`step_end`, `turn_settled`, `idle`)과 `openThread`에서만 판단한다.
+3a. [결정: M3b B3-L1M, 오케스트레이터 기본값] `openThread(threadId, { child: true })`로 연 서브에이전트 자식 대화에는 임대를 부여하지 않는다. 자식 대화의 구동은 위임한 쪽(`loop.spawn`, 그룹 `delegate`)이 맡으므로 그 대화에서 drive 함수가 돌면 안 된다. 호스트는 자식 turn을 여는 감싸개에서 이 인자를 준다.
 4. 후보는 그 thread에서 켜져 있고 drive 등록이 있고 오류 상태가 아닌 scope다. 고르는 순서 [제안]:
    - `LeaseArbiterPort`가 있으면 그 결과를 쓴다(L3.group-kit.spec의 `DriveArbiter`).
    - 없으면 후보가 하나일 때 그 scope를 고른다.

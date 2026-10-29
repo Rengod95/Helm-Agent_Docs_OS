@@ -24,6 +24,7 @@ import type {
   HostCore,
   InstalledUnit,
   ScopeRecord,
+  ThreadOpenOptions,
   ThreadRuntime,
   PrimitivesSettingsSource,
   ResolvedDeps,
@@ -173,7 +174,7 @@ export interface ExtHost {
    */
   afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
   /** thread를 열 때(새로 만들거나 재개할 때, 되감기 뒤) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
-  openThread(threadId: ThreadId): Promise<void>;
+  openThread(threadId: ThreadId, options?: ThreadOpenOptions): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
   /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null(L3.group-kit.spec §3.13 요청 2) */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
@@ -646,9 +647,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       settle: (signal, result) => boundary.settle(signal, result),
     },
     afterCommit: (threadId, events) => lifecycle.afterCommit(threadId, events),
-    openThread: async (threadId) => {
+    openThread: async (threadId, options) => {
       lifecycle.attach();
-      await boundary.openThread(threadId);
+      await boundary.openThread(threadId, options);
       core.track(lifecycle.flush(threadId));
     },
     closeThread: (threadId) => boundary.closeThread(threadId),

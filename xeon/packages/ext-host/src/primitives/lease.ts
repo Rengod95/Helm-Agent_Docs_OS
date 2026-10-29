@@ -366,6 +366,7 @@ export function createLeaseBroker(
 
   /** 임대가 없을 때 후보를 골라 `lease.acquired` 초안과 `txn.grant`를 만든다 */
   function decide(thread: ThreadRuntime, txn: BoundaryTxn): void {
+    if (thread.child) return;
     if (thread.lease !== null || txn.grant !== null || txn.releasing.length > 0) return;
     const loop = core.ports.get(LoopPortKey);
     const records = core.ports.get(RecordCommitPortKey);

@@ -219,10 +219,18 @@ interface LeaseRejection {
   readonly holderEpoch: number;
 }
 
+/** `ExtHost.openThread`의 선택 인자 */
+export interface ThreadOpenOptions {
+  /** 서브에이전트 자식 대화면 참. 이 thread는 drive 임대를 받지 않는다 */
+  readonly child?: boolean;
+}
+
 export interface ThreadRuntime {
   readonly threadId: ThreadId;
   /** closeThread에서 abort. drive의 loop.turn에 넘기는 thread 취소 신호 */
   readonly abort: AbortController;
+  /** 서브에이전트 자식 대화다. 확장은 켜지만 drive 임대는 받지 않는다(L1.agents 자식은 위임 주체가 구동한다) */
+  readonly child: boolean;
   states: Map<ScopeId, StateCacheEntry>;
   /** 저장소에 기록된 켜짐 집합(활성 가지 기준). scope.changed 초안은 이 집합과 active의 차이로 만든다 */
   recordedEnabled: Set<ScopeId>;
