@@ -194,6 +194,8 @@ export const ArtifactRefSchema = Type.Object({
 - [제안] kind는 닫힌 내장 목록과 확장 접두 문자열의 합이다. 내장 kind는 L4가 반드시 미리보기를 제공한다. 확장 kind(예: `x.mermaid.diagram.flow`)는 L4가 렌더러를 찾지 못하면 `mediaType` 기준 기본 미리보기(텍스트, 이미지, 내려받기)로 대신한다. 이 규칙 덕분에 kind를 늘려도 L4 변경이 강제되지 않는다(§7 위험은 `L2.artifacts.plan` §7).
 - [제안] `ArtifactMetaSchema.sources`는 내보내기 필터(§4.5.3)의 입력이다. 웹 결과를 바탕으로 만든 산출물은 생산자가 출처와 `cache` 값을 그대로 옮겨 적어야 한다. 옮겨 적지 않으면 내보내기가 그 본문을 걸러 낼 근거가 없다(§5 사례 12).
 
+- [결정: M3b B2-ART] 등록·갱신 본문의 blob 참조는 `ArtifactBlobRefSchema`로 적는다. defs는 records를 import하지 않으므로 F.records.spec §3.4 BlobRef와 같은 모양을 여기 둔다. 같은 모양인지는 artifacts-defs.test가 확인한다. `ArtifactRefSchema`는 `ArtifactVersionRefSchema`로 이름을 바꾼다. `work.ts`의 `ArtifactRefSchema`(작업 항목용 `{artifactId, kind, title}`)와 `export *`에서 이름이 겹치기 때문이다. `ArtifactMetaSchema.custom`의 값은 `Type.Unknown()` 대신 `JsonValueSchema`(`TUnsafe<JsonValue>`)로 적는다. `Unknown`이면 `structuredContent`(`JsonValue`)에 메타를 실을 때 타입이 맞지 않는다. `HandoffIdSchema`는 2차 handoff에서만 쓰여 이번에 정의하지 않는다. [미결] `work.ts`의 참조 모양과 이 정의를 하나로 맞추는 일은 남았다.
+
 ### 3.2 `artifacts.registry`
 
 ```ts
@@ -376,6 +378,8 @@ export const ArtifactsRegistryKey = serviceKey(ArtifactsRegistry);
 - `replay: "safe"`의 근거: `register`·`update`·`archive`는 커밋할 때 `CallOptions.requestId`를 세션 커밋의 멱등 키로 쓴다(§4.1.3). 같은 키로 다시 부르면 저장된 결과가 돌아오고 이벤트가 늘지 않는다(`eng.transactions.design` §4.7 결과 저장 규칙). 도구 경로의 `requestId`는 `toolCallId`에서 결정적으로 만들어지므로(`F.capabilities.spec` §4.2 규칙 3) 재실행이 효과를 두 번 내지 않는다. 그룹 코드가 `requestId` 없이 부르면 멱등이 보장되지 않는다. 그 경우 provider는 `requestId`를 `art:<새 ULID>`로 만들고 경고 로그를 남긴다 [제안].
 - `artifact_update` 도구의 `meta`는 `summary`만 바꾼다. 도구 경로에서 `toInput`은 `meta`를 `{ summary }`로 통째로 바꾸므로 기존 `tags`·`sources`가 사라진다. [제안] provider는 도구 경로(`producer: "model"` 또는 `CallContext.toolCallId`가 있는 호출)의 `meta`를 기존 메타와 `summary` 필드만 병합한다. 서비스 경로는 §3.2 주석대로 전체 교체다.
 - `artifact_create`의 `kind`는 텍스트로 만들 수 있는 4종으로 줄였다. `changeset`은 리뷰가, `file`·`image`는 서비스 경로가 등록한다.
+
+- [결정: M3b B2-ART] `register`·`update`·`archive`는 `idempotent: true`, `list`·`get`은 `readOnly: true`로 선언한다. 위 코드 블록에는 두 플래그가 없다. `validateCapability`는 플래그 없이 `replay: "safe"`인 메서드에 `effect_class_missing` 경고를 내므로 이 플래그를 더한다.
 
 ### 3.3 `artifacts.reviews`
 
@@ -811,6 +815,10 @@ export const ArtifactsSessionsKey = serviceKey(ArtifactsSessions);
 
 - `session_rename`과 `handoff` 도구는 `toContent`가 `structuredContent`를 채우지 않으므로 `outputSchema`를 두지 않는다(`F.capabilities.spec` §4.2 부속 규칙 3).
 - `LabelSchema`의 `\p{L}` 정규식은 `u` 플래그가 필요하다. [가정] TypeBox `Value.Check`와 L1.tools의 JSON Schema 검사기가 `pattern`을 `u` 플래그로 해석한다. 아니면 F `toJsonSchema` 규칙에 맞춰 ASCII와 한글 범위(`[0-9A-Za-z가-힣]`)로 좁힌다. 확인은 plan A1의 테스트로 한다.
+
+- [결정: M3b B2-ART] handoff·export와 handoff 도구는 2차라 정의에 넣지 않는다. 능력 설명에서도 두 항목을 뺀다.
+- [결정: M3b B2-ART] `setMeta`는 `idempotent: true`, `list`·`search`는 `readOnly: true`로 선언한다(§3.2와 같은 규칙).
+- [결정: M3b B2-ART] `LabelSchema`의 `\p{L}`은 그대로 둔다. TypeBox `Compile`과 `Value.Check`가 `u` 플래그로 해석함을 artifacts-defs.test가 확인한다. 한글과 확장 라틴 문자는 통과하고 첫 글자 `_`는 거부된다. 라벨은 `session_rename` 파라미터에 없어 모델 도구 스키마에 나오지 않는다. 그래서 ASCII·한글 대체 패턴은 쓰지 않는다. 위 [가정]의 TypeBox 부분은 이 테스트가 확인한다. L1.tools 쪽 확인은 남는다.
 
 ### 3.5 `CallContext`
 
