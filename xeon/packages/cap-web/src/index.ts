@@ -58,8 +58,11 @@ export type { AskReason, WebAskError, WebAskPort, WebAskRequest } from "./ports/
 export type { DnsResolver, ResolveError } from "./ports/resolver.ts";
 export type {
   HeaderSecretError,
-  HeaderSecretResolver,
+  HeaderSecretSender,
+  HeaderSecretTarget,
+  HeaderSendResponse,
   OutboundSecretGuard,
+  SecretHeader,
 } from "./ports/secrets.ts";
 export type {
   HttpTransport,

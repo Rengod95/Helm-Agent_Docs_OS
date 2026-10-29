@@ -21,7 +21,7 @@ import type {
   WebProviderCatalog,
 } from "./ports/providers.ts";
 import type { DnsResolver } from "./ports/resolver.ts";
-import type { HeaderSecretResolver, OutboundSecretGuard } from "./ports/secrets.ts";
+import type { HeaderSecretSender, OutboundSecretGuard } from "./ports/secrets.ts";
 import type { WebSessionSourcesPort } from "./ports/session-sources.ts";
 import type { WebStorePort } from "./ports/store.ts";
 import type { HttpTransport } from "./ports/transport.ts";
@@ -54,7 +54,8 @@ export interface WebRuntimeOptions {
   readonly store?: WebStorePort;
   readonly asker?: WebAskPort;
   readonly guard?: OutboundSecretGuard;
-  readonly headerSecrets?: HeaderSecretResolver;
+  /** 플러그인 provider의 헤더 비밀 통로(L2.web.spec §3.6.1). 조립 쪽이 L0 `withHttp` 경로로 채운다. 없으면 비밀 헤더 provider는 no-key다 */
+  readonly headerSecrets?: HeaderSecretSender;
   /** 브라우저 동작의 사람 확인(L2.web.spec §4.10.3). 없으면 확인이 필요한 동작은 거부한다 */
   readonly browseConfirm?: BrowseConfirmPort;
   /** 플러그인 provider 등록 목록(X가 넘긴다). 기본은 비어 있다 */

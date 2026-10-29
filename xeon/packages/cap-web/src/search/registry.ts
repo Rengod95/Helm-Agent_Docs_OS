@@ -93,6 +93,18 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): WebProviderC
         reject("service_not_declared");
         return undefined;
       }
+      // 질의 인증(`query`)은 지원하지 않는다. 비밀 값이 URL에 들어가 로그와 리퍼러로 샐 수 있어서다(L2.web.spec §3.6.1)
+      if (manifest.value.auth.kind === "query") {
+        reject("auth_kind_unsupported");
+        return undefined;
+      }
+      if (
+        manifest.value.auth.kind === "header" &&
+        manifest.value.auth.secrets.some((secret) => secret.header === undefined)
+      ) {
+        reject("secret_header_missing");
+        return undefined;
+      }
       bound.bind(manifest.value);
       const effective = effectiveCachePolicy(manifest.value);
       if (effective.downgraded) {

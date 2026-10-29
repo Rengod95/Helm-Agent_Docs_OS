@@ -61,6 +61,36 @@ function browseRegistration(extension: string, manifest?: WebProviderManifest): 
   };
 }
 
+/** 매니페스트 하나를 등록해 거부 로그(`web.provider_rejected`의 이벤트와 필드)를 돌려준다. 후보는 비어 있어야 한다 */
+function rejectionsOf(manifest: WebProviderManifest): unknown[] {
+  const logged: unknown[] = [];
+  const catalog = createProviderRegistry({
+    source: { list: () => [searchRegistration(manifest.name, manifest)] },
+    builtin: { search: [], fetch: [] },
+    http: {
+      resolver: fakeResolver(),
+      transport: fixtureTransport(),
+      secrets: undefined,
+      guard: undefined,
+    },
+    clock: manualClock(),
+    logger: {
+      debug: () => {},
+      info: () => {},
+      warn: (event, fields) => {
+        logged.push([event, fields]);
+      },
+      error: () => {},
+      child() {
+        return this;
+      },
+    },
+    extensionSetting: () => undefined,
+  });
+  expect(catalog.searchCandidates()).toEqual([]);
+  return logged;
+}
+
 describe("provider registry", () => {
   test("plugin browse registrations become browse candidates with the plugin origin", () => {
     const catalog = registry(() => [browseRegistration("web-a")]);
@@ -103,6 +133,30 @@ describe("provider registry", () => {
       [
         "web.provider_rejected",
         { extension: "web-b", capability: "web.browse", reason: "service_not_declared" },
+      ],
+    ]);
+  });
+
+  test("a query-kind auth manifest is rejected at registration with auth_kind_unsupported", () => {
+    const manifest = fakeManifest("web-q", {
+      auth: { kind: "query", secrets: [{ setting: "ext.web-q.apiKey", query: "key" }] },
+    });
+    expect(rejectionsOf(manifest)).toEqual([
+      [
+        "web.provider_rejected",
+        { extension: "web-q", capability: "web.search", reason: "auth_kind_unsupported" },
+      ],
+    ]);
+  });
+
+  test("a header secret without a header name is rejected at registration", () => {
+    const manifest = fakeManifest("web-h", {
+      auth: { kind: "header", secrets: [{ setting: "ext.web-h.apiKey" }] },
+    });
+    expect(rejectionsOf(manifest)).toEqual([
+      [
+        "web.provider_rejected",
+        { extension: "web-h", capability: "web.search", reason: "secret_header_missing" },
       ],
     ]);
   });

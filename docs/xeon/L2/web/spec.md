@@ -726,8 +726,9 @@ export const WebProviderManifestSchema = Type.Object({
   /** 이 provider가 요청을 보낼 수 있는 호스트. 사용자 도메인 정책과 별도로 이 목록만 허용한다 */
   endpoints: Type.Array(Type.String({ pattern: "^[a-z0-9.-]{1,253}(:[0-9]{1,5})?$" }), { maxItems: 16 }),
   auth: Type.Object({
+    /** "query"는 계약에 남지만 cap-web이 등록 때 거부한다(§3.6.1) */
     kind: Type.Union([Type.Literal("none"), Type.Literal("header"), Type.Literal("bearer"), Type.Literal("query")]),
-    /** 비밀 설정 키와 주입 위치. 값은 GuardedHttp가 전송 직전에 치환한다 */
+    /** 비밀 설정 키와 주입 위치. 값은 전송 직전에 `HeaderSecretSender`가 헤더에 넣는다(§3.6.1). 헤더 이름은 `header` kind에서 필수다 */
     secrets: Type.Array(Type.Object({
       setting: Type.String({ pattern: "^ext\\.[a-z][a-z0-9-]*\\.[a-z][A-Za-z0-9]*$" }),
       header: Type.Optional(Type.String({ maxLength: 64 })),
@@ -935,7 +936,14 @@ export const registrations: readonly WebProviderRegistration[] = [
 ```
 
 - ProviderId는 `plugin:<확장 이름>`이다(`L2.readme` §5.2). 한 확장이 여러 능력을 제공해도 ID는 같고, 능력별 후보 목록에서 구분된다.
-- 키는 `ext.web-exa.apiKey`에 `secret://<name>` 참조로만 저장한다(`F.wire-settings.spec` §3.8.1 D2·D3). provider는 키 값을 읽지 않는다. `manifest.auth.secrets`에 `{ setting: "ext.web-exa.apiKey", header: "x-api-key" }`를 적으면 `GuardedHttp`가 전송 직전에 `xeon.secrets`로 값을 받아 헤더에 넣는다(`_research/secrets.md` §6.2 M3 런타임 HTTP 모드). 값은 provider 코드, 로그, 오류, 이벤트에 나타나지 않는다.
+- 키는 `ext.web-exa.apiKey`에 `secret://<name>` 참조로만 저장한다(`F.wire-settings.spec` §3.8.1 D2·D3). provider는 키 값을 읽지 않는다. `manifest.auth.secrets`에 `{ setting: "ext.web-exa.apiKey", header: "x-api-key" }`를 적으면 `GuardedHttp`가 전송 직전에 값을 헤더에 넣는다. 값은 provider 코드, 로그, 오류, 이벤트에 나타나지 않는다.
+- 헤더 비밀의 전송 규칙 [결정: M3-REQ-60, WB-18]. 치환은 L0 플러그인 HTTP 통로를 거친다(`L0.secrets.spec` §3.6, `createPluginHttp(service, { purpose: "web.search" })`의 `send`, 안에서 `SecretService.withHttp`를 쓴다). cap-web은 값을 얻지 않고 포트 `HeaderSecretSender`(`src/ports/secrets.ts`)만 부른다. 포트는 `ext.<이름>.<키>` 설정을 확인하고, 값은 `send` 콜백 안에서만 헤더에 붙는다.
+  - 주입 위치는 두 가지다. `header`는 지정한 헤더 이름에, `bearer`는 `authorization: Bearer <값>`에 넣는다. `none`은 비밀이 없다.
+  - `query`(질의 문자열 인증)는 지원하지 않는다[결정: 오케스트레이터 기본값]. 비밀 값이 URL에 들어가 로그와 리퍼러로 새기 쉽기 때문이다. 등록 때 `web.provider_rejected`(reason `auth_kind_unsupported`)로 거부한다. `header` kind에 헤더 이름이 없으면 `secret_header_missing`으로 거부한다. 계약 스키마 `WebProviderManifestSchema`(F)는 바꾸지 않는다.
+  - provider가 준 같은 이름의 헤더는 버린다. 비밀 헤더가 이긴다.
+  - 설정이 비었거나 참조를 풀 수 없으면(`unset`, `unavailable`) 전송하지 않고 `unavailable`, `detail.reason`은 `no-key`, `detail.setting`은 그 설정 키다.
+  - 응답 본문 텍스트(`text/*`, JSON, XML)나 헤더 값이 비밀 값을 되돌리면(에코) 본문과 헤더를 버리고 `upstream_error`, `detail.reason`은 `secret_echoed`다(§5 32행). 텍스트가 아닌 본문은 에코 검사 대상이 아니다(L0 계약, `bodyText`가 null).
+  - 조립 쪽 어댑터: `HeaderSecretSender`를 구현해 `SecretService.withHttp`를 부르는 어댑터는 조립 쪽이 맡는다. 이 문서 시점에는 아직 연결되지 않았고 L4 후속 유닛에서 잇는다. 그 전에는 `headerSecrets`가 없는 provider의 비밀 헤더 요청이 `no-key`다.
 - 키 설정이 비어 있으면 `isAvailable`은 `{ ok: false, reason: "no-key" }`다. 앞단이 provider를 부르기 전에 같은 판정을 한 번 더 한다.
 - 유료 provider(Exa, Parallel, Brave, Firecrawl)는 모두 이 구조의 플러그인이다(`_research/decisions-log.md` 2026-10-21 결정(2차)). 내장 패키지 `cap-web`에는 유료 provider 코드가 없다.
 
@@ -1613,6 +1621,9 @@ stateDiagram-v2
 | 28 | 플러그인 매니페스트 `cachePolicy: persist`인데 `reviewedAt` 없음 | `session`으로 낮추고 로드 경고 | — |
 | 29 | 페이지 본문에 `</untrusted_web_content>` 문자열 | `&lt;/untrusted_web_content>`로 바꿔 감싼다 | — |
 | 30 | 모델 도구가 대화에 없던 URL을 fetch | `unseenUrl` 설정(기본 승인 요청) | — |
+| 31 | 플러그인 provider의 비밀 설정이 비었거나 참조를 풀 수 없음 | 전송 없이 거부(§3.6.1) | `unavailable`(`detail.reason: "no-key"`) |
+| 32 | 응답 본문이나 헤더가 비밀 값을 되돌림 | 본문과 헤더를 버리고 거부(§3.6.1) | `upstream_error`(`detail.reason: "secret_echoed"`) |
+| 33 | 매니페스트 인증이 `query`이거나 `header` kind에 헤더 이름이 없음 | 등록 때 거부하고 후보가 되지 않음(§3.6.1) | — (`web.provider_rejected`) |
 
 ## 6. 설정 노출
 
@@ -1745,7 +1756,7 @@ export const webSettings = defineSettings("l2.web", {
 | `ApprovalService`(`xeon.approvals`) 요청 kind `tool`·`plan`, 기억 범위 | `L1.tools.spec` | [가정] |
 | `redactForPersistence` 적용 경로(영속 사본) | `L1.tools.spec`, `L1.persistence.spec` | 요청 [가정] |
 | 서브에이전트 실행과 위임 옵션의 웹 규칙 필드 | `L1.agents.spec` | 2차 [가정] |
-| 비밀 값 헤더 치환(M3), 마스킹 등록부 조회 | `L0.secrets.spec`(`xeon.secrets`) | [가정] |
+| 플러그인 provider 헤더 비밀 치환(M3), 마스킹 등록부 조회 | `L0.secrets.spec` §3.5, §3.6(`createPluginHttp`, `withHttp`) | 통로는 있음. 조립 쪽 어댑터(`HeaderSecretSender` 구현)는 L4 후속 유닛에서 잇는다 [결정: 오케스트레이터 기본값] |
 | `putBlob`, `readBlob`, `scoped("cap_web_")`, blob GC | `L0.store.spec`(`xeon.store`) | 있음(`eng.transactions.design` §4.2) |
 | 자식 프로세스 실행(Node 우회, agent-browser) | `L0.process.spec`(`xeon.process`) | [가정] |
 | 브라우저 네트워크 필터 대안 | `L0.sandbox.spec` | 선택 [미결] |
@@ -1778,6 +1789,9 @@ export const webSettings = defineSettings("l2.web", {
 21. 사람 확인: 결제·송금·삭제 어휘의 `click`, 다른 origin으로 가는 폼 제출, 외부 내용을 읽은 뒤의 `fill`은 `BrowseConfirmPort`로 묻는다. 거부되거나 포트가 없으면 `confirmation_denied`다. 명명 프로필은 설정과 확인이 모두 있어야 열린다(기본은 `action_disabled`). 어휘 시험은 `test/browse-confirm.test.ts`다.
 22. 이동 뒤 검사: 열기나 동작 뒤 최상위 이동이 금지 주소이면 페이지를 `about:blank`로 바꾸고 `denied`(`detail.reason`은 `navigation_denied`, 원인은 `cause`)다. 열기 중에 그랬다면 세션을 닫는다.
 23. 플러그인 등록: `web.browse` 등록은 `plugin:<확장>` 후보(origin `plugin`)가 된다. 매니페스트에 `browse`가 없으면 `service_not_declared`로 거부된다(`test/registry.test.ts`).
+24. 헤더 비밀 치환: `header`와 `bearer` 매니페스트의 요청에서 전송 대역은 `x-api-key`(또는 `authorization: Bearer <값>`)에 값을 받는다. provider에 돌아가는 요청 객체, 응답, 오류 어디에도 값이 없다. provider가 같은 이름의 헤더를 주면 비밀 헤더가 이긴다. 설정이 비었으면 전송 0회이고 `unavailable`(`no-key`, `detail.setting`은 그 설정 키)이다(`test/guarded-http.test.ts`).
+25. 응답 에코: 본문 텍스트나 헤더에 비밀 값이 있으면 `upstream_error`(`secret_echoed`)이고 본문과 헤더를 돌려주지 않는다(`test/guarded-http.test.ts`).
+26. 질의 인증과 헤더 이름 없는 `header`: `query` kind나 헤더 이름 없는 비밀은 등록 때 `web.provider_rejected`(reason `auth_kind_unsupported`, `secret_header_missing`)로 거부되고 후보가 되지 않는다(`test/registry.test.ts`).
 
 ## 10. 미결 사항
 

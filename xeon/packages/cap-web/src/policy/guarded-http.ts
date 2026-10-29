@@ -7,13 +7,24 @@ import type {
 } from "@xeon/contracts/capabilities";
 import { deniedFailure, type WebFailure } from "../errors.ts";
 import type { DnsResolver } from "../ports/resolver.ts";
-import type { HeaderSecretResolver, OutboundSecretGuard } from "../ports/secrets.ts";
-import type { HttpTransport, TransportMode } from "../ports/transport.ts";
+import type {
+  HeaderSendResponse,
+  HeaderSecretSender,
+  OutboundSecretGuard,
+  SecretHeader,
+} from "../ports/secrets.ts";
+import type {
+  HttpTransport,
+  TransportFailure,
+  TransportMode,
+  TransportResponse,
+} from "../ports/transport.ts";
 import { resolvedVerdict, checkUrlSyntax } from "./ssrf.ts";
 import { transportFailureToWeb } from "./transport-errors.ts";
 
-// L2.web.spec §3.6, §4.6.5. 플러그인과 내장 provider가 쓰는 HTTP. 요청 호스트가 그 provider의 manifest.endpoints에
-// 있을 때만 보내고, 비밀 헤더는 전송 직전에 치환한다. 사용자 도메인 정책은 적용하지 않는다(콘텐츠 URL 규칙과 다르다).
+// L2.web.spec §3.6, §3.6.1, §4.6.5. 플러그인과 내장 provider가 쓰는 HTTP. 요청 호스트가 그 provider의 manifest.endpoints에
+// 있을 때만 보낸다. 비밀 헤더(header, bearer)는 `HeaderSecretSender.send`의 콜백 안에서만 값이 붙고, 값은 provider에 돌아가지
+// 않는다. 응답 에코가 감지되면 본문과 헤더를 버린다. 사용자 도메인 정책은 적용하지 않는다(콘텐츠 URL 규칙과 다르다).
 // 리다이렉트는 따르지 않는다(3xx 응답을 그대로 돌려준다).
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -54,8 +65,8 @@ export class WebHttpError extends Error {
 export interface ProviderHttpDeps {
   readonly resolver: DnsResolver;
   readonly transport: HttpTransport;
-  /** 없으면 manifest.auth.secrets가 있는 provider의 요청은 no-key로 거부한다 */
-  readonly secrets: HeaderSecretResolver | undefined;
+  /** 없으면 비밀 헤더가 있는 provider의 요청은 no-key로 거부한다. 조립 쪽 어댑터가 L0 `withHttp` 경로로 채운다 */
+  readonly secrets: HeaderSecretSender | undefined;
   readonly guard: OutboundSecretGuard | undefined;
 }
 
@@ -117,6 +128,47 @@ function noKey(name: string, setting?: string): WebFailure {
     retryable: false,
     detail: setting === undefined ? { reason: "no-key" } : { reason: "no-key", setting },
   };
+}
+
+/** 전송 한 번의 결과를 `send` 콜백의 반환값으로 싣는다. 전송이 실패하면 상태 0과 빈 헤더, 본문 null로 채운다 */
+interface SecretAttempt extends HeaderSendResponse {
+  readonly sent: Result<TransportResponse, TransportFailure>;
+}
+
+/**
+ * manifest 인증 선언을 비밀 헤더 목록으로 바꾼다. `none`은 빈 목록이다. `query`는 지원하지 않으므로 undefined이고,
+ * 헤더 이름이 없는 `header`도 undefined다. 레지스트리가 둘 다 등록 때 거부하므로 여기에 오면 조립 결함이다.
+ */
+function secretHeadersOf(auth: WebProviderManifest["auth"]): readonly SecretHeader[] | undefined {
+  if (auth.kind === "none") return [];
+  if (auth.kind === "query") return undefined;
+  const headers: SecretHeader[] = [];
+  for (const secret of auth.secrets) {
+    if (auth.kind === "bearer") {
+      headers.push({ header: "authorization", setting: secret.setting, scheme: "Bearer" });
+    } else {
+      if (secret.header === undefined) return undefined;
+      headers.push({ header: secret.header, setting: secret.setting });
+    }
+  }
+  return headers;
+}
+
+/** 텍스트 본문(text/*, JSON, XML)만 UTF-8로 풀어 에코 검사에 준다. 그 밖의 본문은 null이다 */
+function textBodyOf(sent: TransportResponse): string | null {
+  const type = (sent.headers["content-type"] ?? "").split(";", 1)[0]?.trim().toLowerCase() ?? "";
+  const textual = type.startsWith("text/") || type.includes("json") || type.includes("xml");
+  return textual ? new TextDecoder().decode(sent.body) : null;
+}
+
+/** provider가 준 헤더에 비밀 헤더를 덮어 쓴다. 같은 이름의 provider 헤더는 버려진다 */
+function withSecretHeaders(
+  headers: Readonly<Record<string, string>>,
+  secretValues: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const merged: Record<string, string> = { ...headers };
+  for (const [name, value] of Object.entries(secretValues)) merged[name.toLowerCase()] = value;
+  return merged;
 }
 
 export function createBoundProviderHttp(
@@ -209,46 +261,70 @@ export function createBoundProviderHttp(
     const mode: TransportMode = verdict.mode;
 
     const headers = lowerHeaders(req.headers);
-    const target = new URL(url.href);
-    const resolver = deps.secrets;
-    if (bound.auth.secrets.length > 0 && resolver === undefined) {
-      return err(noKey(bound.name));
-    }
-    if (resolver !== undefined) {
-      const values = await Promise.all(
-        bound.auth.secrets.map((secret) => resolver.valueOf(secret.setting, signal)),
-      );
-      for (const [index, secret] of bound.auth.secrets.entries()) {
-        const value = values[index];
-        if (value === undefined || !value.ok) return err(noKey(bound.name, secret.setting));
-        if (bound.auth.kind === "bearer") headers["authorization"] = `Bearer ${value.value}`;
-        else if (bound.auth.kind === "header" && secret.header !== undefined) {
-          headers[secret.header.toLowerCase()] = value.value;
-        } else if (bound.auth.kind === "query" && secret.query !== undefined) {
-          target.searchParams.set(secret.query, value.value);
-        }
-      }
+    const secretHeaders = secretHeadersOf(bound.auth);
+    if (secretHeaders === undefined) return err(noKey(bound.name));
+    const maxBytes = Math.min(req.maxBytes ?? DEFAULT_MAX_BYTES, HARD_MAX_BYTES);
+    const transmit = (
+      secretValues: Readonly<Record<string, string>>,
+    ): Promise<Result<TransportResponse, TransportFailure>> =>
+      deps.transport.send({
+        method: req.method,
+        url: url.href,
+        headers: withSecretHeaders(headers, secretValues),
+        ...(req.body === undefined ? {} : { body: req.body }),
+        mode,
+        addressPolicy,
+        timeoutMs: req.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+        maxBytes,
+        signal,
+      });
+
+    if (secretHeaders.length === 0) {
+      const sent = await transmit({});
+      if (!sent.ok) return err(transportFailureToWeb(sent.error, host));
+      return ok({
+        status: sent.value.status,
+        url: url.href,
+        headers: sent.value.headers,
+        body: sent.value.body,
+      });
     }
 
-    const maxBytes = Math.min(req.maxBytes ?? DEFAULT_MAX_BYTES, HARD_MAX_BYTES);
-    const sent = await deps.transport.send({
-      method: req.method,
-      url: target.href,
-      headers,
-      ...(req.body === undefined ? {} : { body: req.body }),
-      mode,
-      addressPolicy,
-      timeoutMs: req.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      maxBytes,
+    const secrets = deps.secrets;
+    if (secrets === undefined) return err(noKey(bound.name));
+    // 비밀 값은 `send` 콜백 안에서만 헤더에 붙는다. 콜백은 전송 결과를 값으로 돌려주고, 실패한 전송도 값으로 싣는다
+    const outcome = await secrets.send(
+      secretHeaders,
+      { method: req.method, url: url.href, body: req.body ?? null },
       signal,
-    });
-    if (!sent.ok) return err(transportFailureToWeb(sent.error, host));
-    // 응답 URL에는 질의 비밀(auth.kind "query")이 들어갈 수 있어 요청 URL 그대로 돌려주지 않는다
+      async (secretValues): Promise<SecretAttempt> => {
+        const sent = await transmit(secretValues);
+        if (!sent.ok) return { status: 0, headers: {}, bodyText: null, sent };
+        return {
+          status: sent.value.status,
+          headers: sent.value.headers,
+          bodyText: textBodyOf(sent.value),
+          sent,
+        };
+      },
+    );
+    if (!outcome.ok) return err(noKey(bound.name, outcome.error.setting));
+    const { response, echoed } = outcome.value;
+    // 응답이 비밀 값을 되돌렸다. 본문과 헤더는 provider에 돌려주지 않는다(L2.web.spec §5)
+    if (echoed) {
+      return err({
+        code: "upstream_error",
+        message: "The provider response echoed a secret and was dropped.",
+        detail: { reason: "secret_echoed" },
+      });
+    }
+    if (!response.sent.ok) return err(transportFailureToWeb(response.sent.error, host));
+    // 응답 URL에는 질의 비밀이 들어갈 수 없다(질의 인증은 지원하지 않는다). 요청 URL 그대로 돌려준다
     return ok({
-      status: sent.value.status,
+      status: response.sent.value.status,
       url: url.href,
-      headers: sent.value.headers,
-      body: sent.value.body,
+      headers: response.sent.value.headers,
+      body: response.sent.value.body,
     });
   }
 

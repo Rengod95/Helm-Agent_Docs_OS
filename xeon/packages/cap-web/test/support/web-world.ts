@@ -8,7 +8,7 @@ import { createWebRuntime, type WebRuntime } from "../../src/runtime.ts";
 import { createBrowseApi, type BrowseController } from "../../src/browse/service.ts";
 import type { BrowseConfirmPort } from "../../src/ports/confirm.ts";
 import { createWebService } from "../../src/service.ts";
-import type { HeaderSecretResolver } from "../../src/ports/secrets.ts";
+import type { HeaderSecretSender } from "../../src/ports/secrets.ts";
 import type {
   BrowseCandidate,
   WebProviderCatalog,
@@ -60,7 +60,7 @@ export interface WebWorldOptions {
   readonly builtinSearch?: boolean;
   readonly hostedSearch?: HostedSearchPort;
   readonly asker?: FakeAsker;
-  readonly headerSecrets?: HeaderSecretResolver;
+  readonly headerSecrets?: HeaderSecretSender;
   readonly extensionSetting?: (extension: string, key: string) => unknown;
   /** 변환 실행기. 기본은 같은 프로세스에서 직접 변환한다 */
   readonly convert?: ConvertRunner;
