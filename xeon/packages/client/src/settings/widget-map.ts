@@ -143,13 +143,25 @@ function fixedOf(core: Schema): WidgetVM | null {
   return { kind: "table", shape: "fixed", columns, maxItems: null };
 }
 
-/** 원시 값 맵: 속성이 없고 `additionalProperties`가 원시 값 스키마다 */
+/**
+ * 이름 → 값 맵: 속성이 없고 값 스키마가 `additionalProperties`이거나, TypeBox `Type.Record`가 내는 항목 하나짜리 `patternProperties`다.
+ * 값이 원시 값이면 그 종류의 열이고, 객체 같은 중첩 값이면 `json` 열이다(읽기만 하고 편집은 파일 편집기로 넘긴다, §4.2.1)
+ */
+function recordValueSchema(core: Schema): Schema | null {
+  const extra = core["additionalProperties"];
+  if (isSchema(extra)) return extra;
+  const patterns = core["patternProperties"];
+  if (!isSchema(patterns)) return null;
+  const values = Object.values(patterns);
+  const [only] = values;
+  return values.length === 1 && isSchema(only) ? only : null;
+}
+
 function recordOf(core: Schema): WidgetVM | null {
   if (core["type"] !== "object" || propertiesOf(core) !== null) return null;
-  const extra = core["additionalProperties"];
-  if (!isSchema(extra)) return null;
-  const valueKind = primitiveOf(coreOf(extra));
-  if (valueKind === null) return null;
+  const value = recordValueSchema(core);
+  if (value === null) return null;
+  const valueKind = primitiveOf(coreOf(value)) ?? "json";
   const columns: readonly TableColumn[] = [
     { name: "이름", kind: "string", options: null, required: true },
     { name: "값", kind: valueKind, options: null, required: true },

@@ -435,28 +435,32 @@ describe("real models definitions (l1.models.*)", () => {
     });
   });
 
-  test("routing.* declares a table over a nullable string, so it resolves to read-only (mismatch, open item)", () => {
+  test("routing.* (a nullable model reference) is a text field, groupRouting and rateLimit are record tables, thinkingBudgets is a fixed table", () => {
     for (const role of ["review", "summary", "subagent", "judge", "search"]) {
-      expect(fieldOf(view, `l1.models.routing.${role}`)?.widget).toEqual({ kind: "readonly" });
+      expect(fieldOf(view, `l1.models.routing.${role}`)?.widget.kind).toBe("text");
     }
+    expect(fieldOf(view, "l1.models.groupRouting")?.widget).toMatchObject({
+      kind: "table",
+      shape: "record",
+    });
+    expect(fieldOf(view, "l1.models.rateLimit")?.widget).toMatchObject({
+      kind: "table",
+      shape: "record",
+    });
+    expect(fieldOf(view, "l1.models.thinkingBudgets")?.widget).toMatchObject({
+      kind: "table",
+      shape: "fixed",
+    });
   });
 
-  test("every models definition is placed in its tab, and the mismatches are exactly the known list", () => {
+  test("every models definition is placed in its tab and none is a widget mismatch", () => {
     const mismatches = view.diagnostics
       .filter(
         (diagnostic): diagnostic is Extract<ViewDiagnostic, { code: "widgetMismatch" }> =>
           diagnostic.code === "widgetMismatch",
       )
       .map((diagnostic) => diagnostic.key);
-    expect(mismatches).toEqual([
-      "l1.models.groupRouting",
-      "l1.models.rateLimit",
-      "l1.models.routing.judge",
-      "l1.models.routing.review",
-      "l1.models.routing.search",
-      "l1.models.routing.subagent",
-      "l1.models.routing.summary",
-    ]);
+    expect(mismatches).toEqual([]);
     expect(view.fileOnly).toEqual([]);
     expect(settingsViewKeys(view)).toHaveLength(wires.length);
   });

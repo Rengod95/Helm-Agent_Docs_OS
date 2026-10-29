@@ -227,12 +227,25 @@ describe("widget map: table shapes", () => {
     });
   });
 
-  test("record: TypeBox Type.Record serializes as patternProperties, which is not the record shape yet [미결]", () => {
-    const record = typed(Type.Record(Type.String(), Type.Integer()), "table");
-    expect(resolveWidget(record).diagnostic).toEqual({
-      code: "widgetMismatch",
-      key: "l1.models.sample",
-      widget: "table",
+  test("record: TypeBox Type.Record (patternProperties) is the record shape, with a json value column for object values", () => {
+    const ints = resolveWidget(typed(Type.Record(Type.String(), Type.Integer()), "table"));
+    expect(ints.diagnostic).toBeNull();
+    expect(ints.widget).toMatchObject({
+      kind: "table",
+      shape: "record",
+      columns: [
+        { name: "이름", kind: "string" },
+        { name: "값", kind: "integer" },
+      ],
+    });
+    const objects = resolveWidget(
+      typed(Type.Record(Type.String(), Type.Object({ a: Type.Integer() })), "table"),
+    );
+    expect(objects.diagnostic).toBeNull();
+    expect(objects.widget).toMatchObject({
+      kind: "table",
+      shape: "record",
+      columns: [{ name: "이름" }, { name: "값", kind: "json" }],
     });
   });
 
