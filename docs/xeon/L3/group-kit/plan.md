@@ -350,3 +350,4 @@ M3b에서 정한 것은 L3.group-kit.spec §4.9와 §10에 적었다. 기록은 
 |---|---|---|
 | G-18 | 완료 | `promotion/report.ts`(`buildPromotionReport`, 순수 함수)와 `promotion/gather.ts`(`gatherPromotionInput`, `queryEvents`·`toolOwner`로 입력을 모음). `/group status`의 `승격 후보:` 줄. 시험은 `test/promotion.test.ts`(끝 시험 `promotion.report-values-from-a-real-event-log`). 집계 규칙은 spec §3.12 |
 | 계측 쓰기 실패 | 완료 | 경계 기록의 `recordPrivate` 실패가 그룹 핸들러를 실패시키지 않는다(spec §4.9). 시험 `metrics.recorded-failure-keeps-the-handler-and-carries-the-delta` |
+| 저장 상태 재설정 경로 | 완료 | `/group reset <이름>`과 `GroupServiceWithUsage.resetState`(X `resetScopeState`를 부른다). 오류 종류는 `GroupResetError`(spec §3.9). 시험은 `test/reset.test.ts`. 성공 문구의 `/group on` 안내는 [미결](spec §10) |

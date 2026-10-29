@@ -21,7 +21,7 @@ import {
   type ToggleReceipt,
 } from "@xeon/contracts/services";
 import { defaultDriveArbiter, leaseArbiterPort, type DriveArbiter } from "./arbiter.ts";
-import type { GroupServiceWithUsage } from "./commands.ts";
+import type { GroupResetError, GroupServiceWithUsage } from "./commands.ts";
 import { gatherPromotionInput } from "./promotion/gather.ts";
 import { buildPromotionReport, type PromotionReport } from "./promotion/report.ts";
 import { defaultMetricsRegistry } from "./metrics/registry.ts";
@@ -39,7 +39,14 @@ export { GroupServiceName };
 /** 서비스가 ExtHost에서 읽는 부분. 시험에서는 테스트 호스트의 `host`를 그대로 넘긴다 */
 export type GroupHostView = Pick<
   ExtHost,
-  "scopes" | "scope" | "leaseOf" | "onChange" | "ports" | "queryEvents" | "toolOwner"
+  | "scopes"
+  | "scope"
+  | "leaseOf"
+  | "onChange"
+  | "ports"
+  | "queryEvents"
+  | "toolOwner"
+  | "resetScopeState"
 >;
 
 export interface GroupServiceDeps {
@@ -288,6 +295,23 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     list,
     currentThread: () => deps.currentThread(),
     promotionReport: () => (deps.promotion ?? defaultPromotion)(),
+    async resetState(id) {
+      if (find(id) === undefined) {
+        return { ok: false, error: { kind: "group.unknown", id, known: knownIds() } };
+      }
+      const thread = deps.currentThread();
+      if (thread === null) return { ok: false, error: { kind: "group.noThread" } };
+      const reset = await deps.host.resetScopeState(thread, id);
+      if (reset.ok) {
+        schedule();
+        return { ok: true, value: reset.value };
+      }
+      const error: GroupResetError =
+        reset.error.kind === "not_refused"
+          ? { kind: "group.notResettable", id }
+          : { kind: "group.resetFailed", id, message: reset.error.kind };
+      return { ok: false, error };
+    },
     async refreshUsage(threadId) {
       const leases = await deps.host.queryEvents(threadId, { kindPrefix: "lease." });
       const turns = await deps.host.queryEvents(threadId, { kindPrefix: "turn." });

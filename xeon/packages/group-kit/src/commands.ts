@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type {
   DriveHolderSetting,
@@ -13,14 +13,15 @@ import type { PromotionCandidate, PromotionReport } from "./promotion/report.ts"
 export type GroupCommand =
   | { readonly op: "status"; readonly id?: string }
   | { readonly op: "on" | "off"; readonly id: string }
-  | { readonly op: "drive"; readonly target: string };
+  | { readonly op: "drive"; readonly target: string }
+  | { readonly op: "reset"; readonly id: string };
 
 export type GroupCommandParse =
   | { readonly ok: true; readonly command: GroupCommand }
   | { readonly ok: false; readonly usage: string };
 
 export const GROUP_USAGE =
-  "사용법: /group status [이름] | on <이름> | off <이름> | drive <이름|auto>";
+  "사용법: /group status [이름] | on <이름> | off <이름> | drive <이름|auto> | reset <이름>";
 
 const NAME_REGEX = new RegExp(GROUP_NAME_PATTERN);
 
@@ -46,6 +47,10 @@ export function parseGroupCommand(args: string): GroupCommandParse {
     if (name === undefined || (name !== "auto" && !NAME_REGEX.test(name))) return usage();
     return { ok: true, command: { op: "drive", target: name } };
   }
+  if (sub === "reset") {
+    if (name === undefined || !NAME_REGEX.test(name)) return usage();
+    return { ok: true, command: { op: "reset", id: name } };
+  }
   return usage();
 }
 
@@ -63,6 +68,16 @@ export interface GroupServiceWithSetting extends GroupService {
   driveHolderSetting(): DriveHolderSetting;
 }
 
+/**
+ * `/group reset`과 `resetState`의 오류(L3.group-kit.spec §3.9). F 계약(`GroupError`)이 아니라 group-kit이 정한다.
+ * `group.resetFailed`의 `message`는 X `resetScopeState`가 돌려준 오류 kind다.
+ */
+export type GroupResetError =
+  | { readonly kind: "group.unknown"; readonly id: string; readonly known: readonly string[] }
+  | { readonly kind: "group.noThread" }
+  | { readonly kind: "group.notResettable"; readonly id: string }
+  | { readonly kind: "group.resetFailed"; readonly id: string; readonly message: string };
+
 /** createGroupService가 돌려주는 서비스. 상태를 보일 thread를 알려 주고 그 thread의 이벤트 집계를 갱신한다 */
 export interface GroupServiceWithUsage extends GroupServiceWithSetting {
   /** 상태를 보이는 thread. 없으면 null */
@@ -71,6 +86,11 @@ export interface GroupServiceWithUsage extends GroupServiceWithSetting {
   refreshUsage(threadId: ThreadId): Promise<void>;
   /** 현재 thread의 승격 집계(L3.group-kit.spec §3.12). `/group status`의 후보 줄에 쓴다 */
   promotionReport(): Promise<PromotionReport>;
+  /**
+   * 저장 상태 오류(`group.stateInvalid`)가 남은 그룹의 상태를 선언 초기값의 새 판으로 되돌린다(X `resetScopeState`, L3.group-kit.spec §5 9번).
+   * 그룹을 켜지 않는다. 성공하면 새 판 번호를 돌려준다.
+   */
+  resetState(id: string): Promise<Result<{ readonly rev: number }, GroupResetError>>;
 }
 
 function hasSetting(service: GroupService): service is GroupServiceWithSetting {
@@ -83,6 +103,10 @@ function hasUsage(service: GroupService): service is GroupServiceWithUsage {
 
 function hasPromotion(service: GroupService): service is GroupServiceWithUsage {
   return "promotionReport" in service;
+}
+
+function hasReset(service: GroupService): service is GroupServiceWithUsage {
+  return "resetState" in service;
 }
 
 /** `/group status`가 보이기 전에 현재 thread의 이벤트 집계를 갱신한다. thread가 없으면 아무것도 하지 않는다 */
@@ -138,6 +162,32 @@ function errorText(error: GroupCommandError): string {
     default:
       return assertNever(error, "GroupCommandError");
   }
+}
+
+function resetErrorText(error: GroupResetError): string {
+  switch (error.kind) {
+    case "group.unknown":
+      return unknownText(error.id, error.known);
+    case "group.noThread":
+      return "재설정할 대화가 없다";
+    case "group.notResettable":
+      return `${error.id} 그룹은 되돌릴 저장 상태 오류가 없다`;
+    case "group.resetFailed":
+      return `${error.id} 그룹의 저장 상태를 되돌리지 못했다: ${error.message}`;
+    default:
+      return assertNever(error, "GroupResetError");
+  }
+}
+
+async function runReset(service: GroupService, id: string): Promise<CommandOutput> {
+  if (!hasReset(service)) return failure("이 서비스는 저장 상태 재설정을 지원하지 않는다");
+  const result = await service.resetState(id);
+  if (!result.ok) return failure(resetErrorText(result.error));
+  return {
+    ok: true,
+    text: `${id}: 저장 상태를 초기값으로 되돌렸습니다. /group on ${id}로 다시 켜세요.`,
+    pending: false,
+  };
 }
 
 function failure(text: string): CommandOutput {
@@ -242,6 +292,8 @@ export function runGroupCommand(
       return Promise.resolve(runToggle(service, command.op, command.id));
     case "drive":
       return runDrive(service, command.target);
+    case "reset":
+      return runReset(service, command.id);
     default:
       return assertNever(command, "GroupCommand");
   }

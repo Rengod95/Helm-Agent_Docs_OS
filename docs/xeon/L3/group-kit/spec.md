@@ -704,6 +704,7 @@ sub       = "status" [ SP name ]
           | "on" SP name
           | "off" SP name
           | "drive" SP ( name | "auto" )
+          | "reset" SP name
 name      = %x61-7A 1*31( %x61-7A / DIGIT / "-" )   ; GROUP_NAME_PATTERN
 ```
 
@@ -712,7 +713,8 @@ name      = %x61-7A 1*31( %x61-7A / DIGIT / "-" )   ; GROUP_NAME_PATTERN
 export type GroupCommand =
   | { readonly op: "status"; readonly id?: string }
   | { readonly op: "on" | "off"; readonly id: string }
-  | { readonly op: "drive"; readonly target: string };   // "auto" 또는 그룹 이름
+  | { readonly op: "drive"; readonly target: string }    // "auto" 또는 그룹 이름
+  | { readonly op: "reset"; readonly id: string };       // 저장 상태 재설정(B4-GRP). 켜기 상태는 바꾸지 않는다
 
 export type GroupCommandParse =
   | { readonly ok: true; readonly command: GroupCommand }
@@ -758,8 +760,14 @@ export function groupCommand(service: GroupService): GroupCommandRegistration;
 | drive 지정(지정한 그룹이 후보가 아니어서 현재 임대를 유지) | `구동 그룹을 지정했다: helm. review의 임대가 반납된 뒤 적용한다` |
 | drive 지정(이미 holder) | `구동 그룹을 지정했다: helm` |
 | drive auto | `구동 그룹 선택을 바꿨다: auto. 현재 holder는 유지한다` |
+| 저장 상태 재설정 성공 [B4-GRP] | `<id>: 저장 상태를 초기값으로 되돌렸습니다. /group on <id>로 다시 켜세요.`(문구는 [미결], §10) |
+| 저장 상태 재설정 대상이 아님 [B4-GRP] | `<id> 그룹은 되돌릴 저장 상태 오류가 없다` |
+| 재설정할 대화가 없음 [B4-GRP] | `재설정할 대화가 없다` |
+| 재설정 실패 [B4-GRP] | `<id> 그룹의 저장 상태를 되돌리지 못했다: <X 오류 kind>` |
 
 - 한국어 조사(을/를, 으로/로)는 그룹 이름의 발음에 따라 달라져 문자열로 정할 수 없으므로 이름 뒤에 조사를 붙이지 않는 문장으로 쓴다.
+
+`/group reset <이름>`(B4-GRP)은 `GroupServiceWithUsage.resetState(id)`를 부른다. 이 메서드는 group-kit 서비스 타입에만 있고 F `GroupService`에는 없다. 반환은 `Result<{ rev }, GroupResetError>`다. `GroupResetError`는 `group.unknown`(설치 목록에 없는 이름, `known`을 싣는다), `group.noThread`(현재 thread 없음), `group.notResettable`(X `not_refused`), `group.resetFailed`(X 오류 kind를 `message`에 싣는다, 예: `thread_not_open`)다. 성공하면 X `ExtHost.resetScopeState(thread, id)`가 선언 초기값을 새 판으로 쓰고 오류를 지우고 적용을 예약한다. 명령은 `enable`·`disable`을 부르지 않는다.
 
 `/group status`는 그룹마다 한 줄을 낸다: `<이름>  <켜짐|꺼짐|켜는 중(다음 단계 경계)|끄는 중(다음 단계 경계)>  drive=<구동|대기|없음|오류>  [오류: <message>]`. 첫 줄은 `구동 그룹 설정: <auto|이름>`이고, 설정이 설치되지 않은 그룹을 가리키면 `구동 그룹 설정: review(설치되지 않음)`이다. 첫 줄은 서비스가 `driveHolderSetting()`을 가질 때(`GroupServiceWithSetting`)만 낸다. 출력 구현은 `runGroupCommand`·`groupCommand`(`commands.ts`)다.
 이름 없는 `/group status`는 그룹 줄 뒤에 승격 후보가 있을 때만 `승격 후보: <도구> (<소유 그룹> -> <소비자>, …)` 줄을 더한다. 후보가 여럿이면 `; `로 잇는다. 후보 계산은 §3.12다 [결정: 오케스트레이터 기본값, B4-GRP].
@@ -1210,6 +1218,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | 12 | `delegate`의 `requestId`가 48자 초과이거나 `report.customType`이 자기 접두가 아님 | 호출 전 `{ ok: false, error: { kind: "group.delegateInvalid" } }`. 위임은 만들지 않는다 |
 | 13 | `x.primitives.activeDriveGroup`이 drive를 쓰지 않는 그룹으로 설정 파일에 적힘 | `named-unavailable`과 같게 처리하고 설정 경고를 남긴다 |
 | 14 | drive 그룹이 하나도 없음 | `decide`는 `no-candidate`. 상태줄에는 `[구동]` 항목이 없다 |
+| 15 | 저장 상태가 스키마를 어겨 켜지지 못함(X `state_schema`) | `GroupStatus.lastError = group.stateInvalid`. 상태는 그대로 두고 그룹을 켜지 않는다. `/group reset <이름>`(B4-GRP, §3.9)이 선언 초기값을 새 판으로 쓰고 오류를 지운다. 켜기 상태(`scope`)는 바꾸지 않으며 적용은 다음 단계 경계에 일어난다(시험 `reset.command-restores-the-declared-initial-and-the-group-runs-at-the-next-boundary`) |
 
 ## 6. 설정 노출
 
@@ -1328,6 +1337,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - (닫힘) `RuntimeChange`의 단계 경계 값: 이 값을 쓰던 group-kit의 구동 그룹 키를 지웠다(§6, review.decisions-2 S-15).
 - [결정: 오케스트레이터 기본값, M3b] 계측 등록부는 프로세스 전역 `defaultMetricsRegistry`다(§4.9). 조립 루트의 배선은 두지 않는다.
 - [미결] [B4-GRP] 위임·spawn 자식 thread의 turn 출처(§3.12). `turn.started`의 `origin`이 `delegation`이면 자식을 만든 scope를 이벤트에서 알 수 없다. 자식과 부모를 잇는 이벤트(예: `agent.spawned`, 위임 수명주기)를 함께 읽어야 한다. 그 전까지 이 호출은 집계에서 빠진다.
+- [미결] [B4-GRP] `/group reset` 성공 문구(§3.9)는 `/group on <id>로 다시 켜세요`라고 적는다. 그러나 저장 상태 오류 그룹은 켜기 상태가 `enabled`로 남고 X가 재설정 뒤 적용을 예약하므로, `/group on` 없이 다음 단계 경계에 핸들러가 돈다(시험으로 확인). 문구를 바꿀지, 재설정 때 그룹을 끌지 정해야 한다. 지금은 명령 문구를 그대로 쓰고 켜기 상태를 바꾸지 않는다.
 - [결정: 오케스트레이터 기본값, B4-GRP] `PromotionInput.calls[].origin`은 `ScopeId`로 적는다. spec §3.12의 `ScopeId | "user"`는 `ScopeId`가 string이라 같은 타입이고, lint가 중복 유니온을 막는다. 사용자 입력 표지 `"user"`는 값으로만 쓴다.
 - [결정: 오케스트레이터 기본값, M3b] `addUsage`의 잘못된 인자는 `Bug`다. 그룹 코드가 만든 값의 불변 조건 위반이라 TY-24에 따른다. 호출자가 외부 확장이 되면 오류 값으로 바꾸고 시그니처를 `Result`로 고친다.
 - [결정: 오케스트레이터 기본값, M3b] `grp.<그룹>.metrics.recorded`의 stepId는 경계 turnId다.

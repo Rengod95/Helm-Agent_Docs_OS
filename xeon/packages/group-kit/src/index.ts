@@ -87,6 +87,7 @@ export {
   type GroupCommand,
   type GroupCommandParse,
   type GroupCommandRegistration,
+  type GroupResetError,
   type GroupServiceWithSetting,
   type GroupServiceWithUsage,
 } from "./commands.ts";
