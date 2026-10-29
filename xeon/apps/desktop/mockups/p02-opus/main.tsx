@@ -1,3 +1,4 @@
+import "@caustic/tokens/fonts.css";
 // P-02 대화 셸 목업 진입점. ?state=S1..S7 로 화면 상태, ?theme=light|dark 로 테마를 고른다(기본 S1, 라이트).
 import "./mockup.css";
 import { StrictMode, useEffect, useState } from "react";
