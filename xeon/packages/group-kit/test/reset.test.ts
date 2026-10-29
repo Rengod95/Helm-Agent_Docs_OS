@@ -82,10 +82,11 @@ test("reset.command-restores-the-declared-initial-and-the-group-runs-at-the-next
     value: { scope: "enabled", lastError: { kind: "group.stateInvalid" } },
   });
 
-  // 재설정 명령은 초기값을 새 판으로 쓰고 오류를 지운다. 명령은 켜기 상태를 바꾸지 않는다
+  // 재설정 명령은 초기값을 새 판으로 쓰고 오류를 지운다. 명령은 켜기 상태를 바꾸지 않는다.
+  // 켜진 그룹에는 다시 켜라는 말을 붙이지 않는다. X가 다음 경계에 다시 실행한다
   expect(await command.run("reset stateful")).toEqual({
     ok: true,
-    text: "stateful: 저장 상태를 초기값으로 되돌렸습니다. /group on stateful로 다시 켜세요.",
+    text: "stateful: 저장 상태를 초기값으로 되돌렸습니다. 다음 단계 경계에서 다시 실행됩니다.",
     pending: false,
   });
   expect(service.status("stateful")).toMatchObject({
@@ -111,6 +112,36 @@ test("reset.command-restores-the-declared-initial-and-the-group-runs-at-the-next
   );
   await second.settled();
   expect(seen).toEqual([{ n: 10 }]);
+});
+
+test("reset.disabled-group-also-says-how-to-turn-it-on", async () => {
+  const { second, thread } = await brokenByStricterSchema("stateful");
+  const seen: unknown[] = [];
+  await install(second, strictGroup("stateful", seen));
+  await second.host.openThread(thread);
+  await second.settled();
+  const service = serviceOf(second, [strictGroup("stateful", seen)], thread);
+  const command = groupCommand(service);
+
+  // 저장 상태 오류가 남은 채 그룹을 끈다. 꺼진 그룹은 다음 경계에 돌지 않는다
+  service.disable("stateful");
+  await second.boundary(thread).stepEnd();
+  await second.settled();
+  expect(service.status("stateful")).toMatchObject({
+    ok: true,
+    value: { scope: "disabled", lastError: { kind: "group.stateInvalid" } },
+  });
+
+  // 꺼진 그룹은 재설정 뒤 /group on으로 켜라고 덧붙인다. 켜기 상태는 그대로 꺼짐이다
+  expect(await command.run("reset stateful")).toEqual({
+    ok: true,
+    text: "stateful: 저장 상태를 초기값으로 되돌렸습니다. 다음 단계 경계에서 다시 실행됩니다. /group on stateful로 켜세요.",
+    pending: false,
+  });
+  expect(service.status("stateful")).toMatchObject({
+    ok: true,
+    value: { scope: "disabled", lastError: null },
+  });
 });
 
 test("reset.error-kinds", async () => {

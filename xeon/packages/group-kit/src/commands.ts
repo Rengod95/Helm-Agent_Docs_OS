@@ -183,9 +183,13 @@ async function runReset(service: GroupService, id: string): Promise<CommandOutpu
   if (!hasReset(service)) return failure("이 서비스는 저장 상태 재설정을 지원하지 않는다");
   const result = await service.resetState(id);
   if (!result.ok) return failure(resetErrorText(result.error));
+  // 켜진 그룹은 X가 다음 경계에 다시 실행한다. 꺼진 그룹은 켜야 돈다(L3.group-kit.spec §3.9)
+  const status = service.status(id);
+  const disabled = status.ok && status.value.scope === "disabled";
+  const text = `${id}: 저장 상태를 초기값으로 되돌렸습니다. 다음 단계 경계에서 다시 실행됩니다.`;
   return {
     ok: true,
-    text: `${id}: 저장 상태를 초기값으로 되돌렸습니다. /group on ${id}로 다시 켜세요.`,
+    text: disabled ? `${text} /group on ${id}로 켜세요.` : text,
     pending: false,
   };
 }

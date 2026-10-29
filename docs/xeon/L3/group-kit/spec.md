@@ -760,7 +760,7 @@ export function groupCommand(service: GroupService): GroupCommandRegistration;
 | drive 지정(지정한 그룹이 후보가 아니어서 현재 임대를 유지) | `구동 그룹을 지정했다: helm. review의 임대가 반납된 뒤 적용한다` |
 | drive 지정(이미 holder) | `구동 그룹을 지정했다: helm` |
 | drive auto | `구동 그룹 선택을 바꿨다: auto. 현재 holder는 유지한다` |
-| 저장 상태 재설정 성공 [B4-GRP] | `<id>: 저장 상태를 초기값으로 되돌렸습니다. /group on <id>로 다시 켜세요.`(문구는 [미결], §10) |
+| 저장 상태 재설정 성공 [B4-GRP] | `<id>: 저장 상태를 초기값으로 되돌렸습니다. 다음 단계 경계에서 다시 실행됩니다.`. 그룹이 꺼진 상태(`scope`가 `disabled`)면 뒤에 ` /group on <id>로 켜세요.`를 덧붙인다(§10 닫힘) |
 | 저장 상태 재설정 대상이 아님 [B4-GRP] | `<id> 그룹은 되돌릴 저장 상태 오류가 없다` |
 | 재설정할 대화가 없음 [B4-GRP] | `재설정할 대화가 없다` |
 | 재설정 실패 [B4-GRP] | `<id> 그룹의 저장 상태를 되돌리지 못했다: <X 오류 kind>` |
@@ -1337,7 +1337,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - (닫힘) `RuntimeChange`의 단계 경계 값: 이 값을 쓰던 group-kit의 구동 그룹 키를 지웠다(§6, review.decisions-2 S-15).
 - [결정: 오케스트레이터 기본값, M3b] 계측 등록부는 프로세스 전역 `defaultMetricsRegistry`다(§4.9). 조립 루트의 배선은 두지 않는다.
 - [미결] [B4-GRP] 위임·spawn 자식 thread의 turn 출처(§3.12). `turn.started`의 `origin`이 `delegation`이면 자식을 만든 scope를 이벤트에서 알 수 없다. 자식과 부모를 잇는 이벤트(예: `agent.spawned`, 위임 수명주기)를 함께 읽어야 한다. 그 전까지 이 호출은 집계에서 빠진다.
-- [미결] [B4-GRP] `/group reset` 성공 문구(§3.9)는 `/group on <id>로 다시 켜세요`라고 적는다. 그러나 저장 상태 오류 그룹은 켜기 상태가 `enabled`로 남고 X가 재설정 뒤 적용을 예약하므로, `/group on` 없이 다음 단계 경계에 핸들러가 돈다(시험으로 확인). 문구를 바꿀지, 재설정 때 그룹을 끌지 정해야 한다. 지금은 명령 문구를 그대로 쓰고 켜기 상태를 바꾸지 않는다.
+- (닫힘) [결정: 사용자 지시, B4-GRP] `/group reset` 성공 문구를 바꿨다. 저장 상태 오류 그룹은 켜기 상태가 `enabled`로 남고 X가 재설정 뒤 적용을 예약하므로, 켜진 그룹에는 `다음 단계 경계에서 다시 실행됩니다`만 말하고 `/group on`을 붙이지 않는다. 꺼진 그룹(`scope`가 `disabled`)에는 ` /group on <id>로 켜세요.`를 덧붙인다. 재설정은 켜기 상태를 바꾸지 않는다(시험 `reset.command-restores-the-declared-initial-and-the-group-runs-at-the-next-boundary`, `reset.disabled-group-also-says-how-to-turn-it-on`).
 - [결정: 오케스트레이터 기본값, B4-GRP] `PromotionInput.calls[].origin`은 `ScopeId`로 적는다. spec §3.12의 `ScopeId | "user"`는 `ScopeId`가 string이라 같은 타입이고, lint가 중복 유니온을 막는다. 사용자 입력 표지 `"user"`는 값으로만 쓴다.
 - [결정: 오케스트레이터 기본값, M3b] `addUsage`의 잘못된 인자는 `Bug`다. 그룹 코드가 만든 값의 불변 조건 위반이라 TY-24에 따른다. 호출자가 외부 확장이 되면 오류 값으로 바꾸고 시그니처를 `Result`로 고친다.
 - [결정: 오케스트레이터 기본값, M3b] `grp.<그룹>.metrics.recorded`의 stepId는 경계 turnId다.
