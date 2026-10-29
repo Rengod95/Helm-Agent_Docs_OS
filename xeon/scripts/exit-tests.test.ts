@@ -84,6 +84,7 @@ test("the repository list parses and names every exit condition it covers", () =
     "X2",
     "X3",
     "X4",
+    "X5",
     "X7",
   ]);
 });
@@ -120,6 +121,16 @@ test("X4 names the idle, lifecycle and schedule host tests (the first and second
         "test/int/service-schedule.int.test.ts",
       ],
     ],
+  ]);
+});
+
+test("X5 names the socat fake-tunnel remote-use host test", () => {
+  const text = readFileSync(join(import.meta.dir, "exit-tests.txt"), "utf8");
+  const parsed = parseExitList(text);
+  if (!parsed.ok) throw new Error(parsed.error);
+  const x5 = parsed.value.filter((entry) => entry.condition === "X5");
+  expect(x5.map((entry) => [entry.dir, entry.files])).toEqual([
+    ["apps/host", ["test/int/service-transport.int.test.ts"]],
   ]);
 });
 

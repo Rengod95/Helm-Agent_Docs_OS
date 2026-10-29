@@ -26,7 +26,7 @@ X3 scripts core-diff-check.test.ts
 # Track B1-SVC (X4 first half: idle shutdown) and B1-SCH (X4 second half: a timer runs after every client has left)
 X4 apps/host test/int/service-idle.int.test.ts test/int/service-lifecycle.int.test.ts test/int/service-schedule.int.test.ts
 # Track B2-RMT
-# X5 apps/host test/int/service-transport.int.test.ts
+X5 apps/host test/int/service-transport.int.test.ts
 # Track B1-NTF
 # X6 apps/host test/int/goal-judge.int.test.ts
 # Track B2-MDL (view-model)
