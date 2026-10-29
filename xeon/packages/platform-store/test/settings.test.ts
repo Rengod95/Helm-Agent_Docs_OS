@@ -9,6 +9,7 @@ describe("resolveStoreSettings", () => {
       leaseTtlMs: 30_000,
       busyTimeoutMs: 5000,
       blobGraceMs: 86_400_000,
+      blobGcEnabled: false,
       requireFts5: false,
       macFullFsync: true,
       customSqlitePath: null,
@@ -21,6 +22,7 @@ describe("resolveStoreSettings", () => {
       leaseTtlMs: 9000,
       busyTimeoutMs: 0,
       blobGraceMs: 600_000,
+      blobGcEnabled: true,
       requireFts5: true,
       macFullFsync: false,
       customSqlitePath: "/opt/sqlite/libsqlite3.dylib",
@@ -32,6 +34,7 @@ describe("resolveStoreSettings", () => {
         leaseTtlMs: 9000,
         busyTimeoutMs: 0,
         blobGraceMs: 600_000,
+        blobGcEnabled: true,
         requireFts5: true,
         macFullFsync: false,
         customSqlitePath: "/opt/sqlite/libsqlite3.dylib",
@@ -69,6 +72,7 @@ describe("resolveStoreSettings", () => {
     const resolved = resolveStoreSettings({
       heartbeatMs: "5000",
       leaseTtlMs: 1.5,
+      blobGcEnabled: "yes",
       requireFts5: "yes",
       macFullFsync: 1,
       customSqlitePath: "relative/path",
@@ -76,6 +80,7 @@ describe("resolveStoreSettings", () => {
     expect(resolved.ok).toBe(false);
     if (resolved.ok) return;
     expect(resolved.error.map((issue) => issue.name).toSorted()).toEqual([
+      "blobGcEnabled",
       "customSqlitePath",
       "heartbeatMs",
       "leaseTtlMs",

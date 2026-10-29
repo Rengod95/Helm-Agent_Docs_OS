@@ -10,6 +10,7 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   leaseTtlMs: 30_000,
   busyTimeoutMs: 5000,
   blobGraceMs: 86_400_000,
+  blobGcEnabled: false,
   requireFts5: false,
   macFullFsync: true,
   customSqlitePath: null,
@@ -63,6 +64,21 @@ const group = defineSettings("l0.store", {
       order: 300,
       label: "미참조 블롭 보존 시간",
       unit: "ms",
+    },
+    since: "0.1.0",
+  },
+  // 기본 끔. 블롭 소비자 가운데 아직 pinBlob을 쓰지 않는 곳이 있어(L0.store.spec §6 [미결]) 켜면 참조 없는 블롭을 지울 수 있다
+  blobGcEnabled: {
+    type: Type.Boolean(),
+    default: DEFAULT_STORE_SETTINGS.blobGcEnabled,
+    runtimeChange: "live",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "sessions",
+      widget: "toggle",
+      order: 305,
+      label: "미참조 블롭 정리 켜기",
+      help: "모든 블롭 소비자가 블롭을 고정한 뒤에만 켠다",
     },
     since: "0.1.0",
   },
@@ -147,13 +163,17 @@ export function resolveStoreSettings(
   if (integers.leaseTtlMs < integers.heartbeatMs * 3) {
     issues.push({ name: "leaseTtlMs", message: "must be at least three times heartbeatMs" });
   }
-  const flag = (name: "requireFts5" | "macFullFsync", fallback: boolean): boolean => {
+  const flag = (
+    name: "requireFts5" | "macFullFsync" | "blobGcEnabled",
+    fallback: boolean,
+  ): boolean => {
     const value = input[name];
     if (value === undefined) return fallback;
     if (typeof value === "boolean") return value;
     issues.push({ name, message: "must be a boolean" });
     return fallback;
   };
+  const blobGcEnabled = flag("blobGcEnabled", DEFAULT_STORE_SETTINGS.blobGcEnabled);
   const requireFts5 = flag("requireFts5", DEFAULT_STORE_SETTINGS.requireFts5);
   const macFullFsync = flag("macFullFsync", DEFAULT_STORE_SETTINGS.macFullFsync);
   const path = input["customSqlitePath"];
@@ -163,5 +183,5 @@ export function resolveStoreSettings(
     else issues.push({ name: "customSqlitePath", message: "must be an absolute path or null" });
   }
   if (issues.length > 0) return err(issues);
-  return ok({ ...integers, requireFts5, macFullFsync, customSqlitePath });
+  return ok({ ...integers, blobGcEnabled, requireFts5, macFullFsync, customSqlitePath });
 }

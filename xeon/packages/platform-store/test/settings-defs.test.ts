@@ -15,6 +15,7 @@ describe("l0.store settings", () => {
       "l0.store.leaseTtlMs",
       "l0.store.busyTimeoutMs",
       "l0.store.blobGraceMs",
+      "l0.store.blobGcEnabled",
       "l0.store.requireFts5",
       "l0.store.macFullFsync",
       "l0.store.customSqlitePath",
@@ -40,6 +41,7 @@ describe("l0.store settings", () => {
       "l0.store.leaseTtlMs": 30000,
       "l0.store.busyTimeoutMs": 5000,
       "l0.store.blobGraceMs": 86400000,
+      "l0.store.blobGcEnabled": false,
       "l0.store.requireFts5": false,
       "l0.store.macFullFsync": true,
       "l0.store.customSqlitePath": null,
@@ -51,6 +53,12 @@ describe("l0.store settings", () => {
     expect(validateSettingValue(defOf("l0.store.customSqlitePath"), "/var/db/sqlite.so").ok).toBe(
       true,
     );
+  });
+
+  test("blob GC is opt-in and applies live", () => {
+    const def = defOf("l0.store.blobGcEnabled");
+    expect(def.default).toBe(false);
+    expect(def.runtimeChange).toBe("live");
   });
 
   test("project, local and session scopes are not allowed", () => {

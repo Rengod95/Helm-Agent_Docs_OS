@@ -330,6 +330,7 @@ export interface StoreSettings {
   readonly leaseTtlMs: number;
   readonly busyTimeoutMs: number;
   readonly blobGraceMs: number;
+  readonly blobGcEnabled: boolean;                                 // §6 l0.store.blobGcEnabled. 조립 루트가 gcBlobs를 부를지 정한다
   readonly requireFts5: boolean;
   readonly macFullFsync: boolean;
   readonly customSqlitePath: string | null;
@@ -746,6 +747,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 1. 고아 행: `sys_blobs` 중 `sys_blob_refs`에 행이 없고 `last_put_at < now - blobGraceMs`이며 `liveRefs`(아래)에 없는 것. 행을 한 트랜잭션에서 먼저 지우고 그 뒤 파일을 지운다(행만 남고 파일이 없는 상태를 만들지 않는다). 사이에 죽으면 2번 규칙이 파일을 거둔다.
 2. 행 없는 파일: `blobs/<ab>/*` 중 `sys_blobs`에 없고 mtime이 `now - blobGraceMs`보다 오래된 것. 블롭을 쓰고 8단계 전에 죽은 경우다.
 3. 임시 파일: `blobs/tmp/*.tmp` 중 mtime이 `blobGraceMs`보다 오래된 것.
+- 호출 여부는 조립 루트가 `l0.store.blobGcEnabled`(§6)로 정한다. 꺼져 있으면 `gcBlobs`를 부르지 않는다 [결정: 오케스트레이터 기본값, M3-REQ-84].
 - 유예 시간 동안은 참조 없는 블롭도 지우지 않는다. 블롭 선쓰기 뒤 이벤트 커밋 전인 블롭을 지우지 않기 위해서다. 같은 해시를 다시 `putBlob`하면 `last_put_at`이 갱신되어 유예가 다시 시작된다(omp의 mtime 갱신 규칙에 해당).
 - 실행 시점: 열기 뒤 한 번(지연 실행)과 하루 한 번. `scheduler` 임대를 쥔 프로세스만 한다 [제안]. 한 번에 지우는 수 상한 1000개.
 - 행 삭제와 파일 삭제 사이에 크래시가 나면 다음 GC가 2번 규칙에서 그 파일을 지운다. 파일이 이미 없으면 무시한다. 파일 삭제가 실패하면(사용 중 등) 그 항목은 `deferred`로 세고 다음 주기로 미룬다.
@@ -859,6 +861,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | `l0.store.leaseTtlMs` | integer | 30000 | 3000~600000, `heartbeatMs`의 3배 이상(카탈로그 검사) | restart | managed, user | `advanced` 탭 |
 | `l0.store.busyTimeoutMs` | integer | 5000 | 0~60000 | restart | managed, user | 파일만 |
 | `l0.store.blobGraceMs` | integer | 86400000(24시간) [제안] | 600000~2592000000 | live | managed, user | `sessions` 탭 |
+| `l0.store.blobGcEnabled` | boolean | false [결정: 오케스트레이터 기본값, M3-REQ-84] | - | live | managed, user | `sessions` 탭, `toggle` |
 | `l0.store.requireFts5` | boolean | false | - | restart | managed, user | `advanced` 탭 |
 | `l0.store.macFullFsync` | boolean | true [제안] | - | restart | managed, user | `advanced` 탭(macOS만 표시) |
 | `l0.store.customSqlitePath` | string \| null | null | 절대 경로 | restart | managed, user | 파일만 |
@@ -866,6 +869,14 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - `project`, `local`, `session` 범위는 허용하지 않는다. DB는 사용자 단위 자원이다.
 - 주기 값(5초, 30초)을 설정 키로 노출하는 것은 `eng.transactions.design` 미결 T-6에 대한 이 문서의 답이다 [제안].
 - `blobGraceMs` 기본값 근거: 블롭 선쓰기와 커밋 사이 시간은 보통 1초 안이지만 승인 대기처럼 커밋이 늦는 경로를 넉넉히 덮는다 [가정].
+- `blobGcEnabled`는 기본으로 끕니다 [결정: 오케스트레이터 기본값, M3-REQ-84]. 보존 기간이 있어도 보존 밖의 참조 없는 블롭은 지워집니다. 블롭 소비자 가운데 일부는 `pinBlob`으로 블롭을 고정하지 않으므로, 그 블롭이 이벤트 참조(`p_blob_refs`)에도 없으면 GC가 지울 수 있습니다. 조립 루트(apps/host, `L4.host-service` §4.17)는 이 값이 참일 때만 `gcBlobs`를 부릅니다.
+- 켜는 것은 아래 소비자가 모두 `pinBlob`을 쓰게 된 뒤에만 안전합니다. 지금은 아래가 고정하지 않습니다(`pinBlob` 호출처 0건, 실측 2026-10-29).
+  - [미결] cap-web 가져오기 캐시(`packages/cap-web/src/cache/fetch-cache.ts`의 `putBlob`).
+  - [미결] cap-knowledge 매니페스트(`packages/cap-knowledge/src/ledger/manifest.ts`)와 쓰기 파이프라인(`packages/cap-knowledge/src/write/pipeline.ts`).
+  - [미결] cap-mcp 내용 블롭(`packages/cap-mcp/src/client/content.ts`, `service.ts`).
+  - [미결] cap-dialog 첨부(`packages/cap-dialog/src/attachments/service.ts`).
+  - [미결] cap-workspace 이미지(`packages/cap-workspace/src/images/prepare.ts`).
+  - [미결] core-tools 도구 출력과 `pipeline.ts`의 블롭이 이벤트 참조로만 살아 있는지 확인한다. 고정이 없어도 이벤트가 참조하면 `p_blob_refs`로 보존된다.
 
 ## 7. 확장 지점
 
