@@ -3,7 +3,7 @@ id: review.m3b-plan
 layer: meta
 domain: review
 kind: review
-status: draft
+status: accepted
 depends_on: [review.m3-plan, product.scope.spec, review.m3-lower-requirements]
 binds: []
 ---
@@ -192,6 +192,23 @@ binds: []
 - 작업: M3-28(운영·진단 런북, 용어집, 구현 상태 지도, 데이터·개인정보, 비기능 요구 절), M3-25 복구 런북.
 - 끝 시험: `docs-route`와 문서 검사 통과.
 
+### 추가 트랙 (M3b 중 선언, B6 마감에서 기록)
+
+차수 계획에 없던 트랙입니다. 병합을 마친 뒤 B5-DOC이 선언 누락을 지적해 기록합니다. 트랙 id는 `req-ledger`가 보는 굵은 제목입니다.
+
+**B1-SCH2 예약 wire·CLI** · Sonnet medium · `contracts` → `cap-schedule`(L2) → `apps/host`·`apps/cli`(L4) · M
+- 작업: `schedule.entries` 능력과 `schedule.create/list/cancel/fire` wire 메서드, `xeon schedule add|list|cancel|run`, 손상된 상태 파일 위에 쓰지 않는 보호, 예약 실행 thread 생성 키.
+- 끝 시험: X4 끝 시험 `service-schedule-wire.int.test.ts`.
+
+**B3-FIX cap 수정** · Sonnet medium · `cap-workspace`·`cap-knowledge`·`cap-web`·`group-kit` · S
+- 작업: 블롭 고정(pin) 틈과 이미지 블롭을 고정하지 않는 근거의 시험·문서, 사용량 게이지 틈.
+
+**B3-SEC2 MCP stdio 샌드박스 연결** · Sonnet medium · `apps/host`(L4) · S
+- 작업: stdio MCP 서버의 샌드박스 요청을 `xeon.sandbox` `wrapArgv`에 잇고 실제 bwrap으로 밖 읽기·밖 쓰기 거부를 확인.
+
+**B5-FIX2 S-15·반복 감지 설정** · Sonnet medium · `core-persistence`·`apps/host`·문서 · S
+- 작업: 자리표시 참조를 `p_blob_refs`에 모아 GC가 지우지 않게 하고(S-15), `l1.loop.repeat.*` 설정을 루프 설정 원천에 잇고 성능 지침에 맞춥니다.
+
 ### B6 마감 (순차)
 
 1. 검증 담당이 M3b 전체를 다시 봅니다: X4~X11 항목별 충족, `req-ledger` 미배정 0, 이월 목록 처리 여부.
@@ -253,6 +270,10 @@ binds: []
 | B5-CLN | B4-I18N | 없음 | 전부 |
 | B5-REL·PERF | B4-I18N | 릴리즈 스크립트, 측정 게이트 | 문서, CI 단계 |
 | B5-DOC | 나머지 전부 | 없음 | 전부 |
+| B1-SCH2 | B1-SCH | 없음(검토만) | 전부(wire, CLI, 시험) |
+| B3-FIX | B3-DATA | 없음 | 전부 |
+| B3-SEC2 | B3-SEC | 샌드박스 연결 | 시험 |
+| B5-FIX2 | B3-DATA, B4-GRP | 없음 | 전부 |
 
 - 시작 순서: 뒤 트랙을 여는 트랙을 먼저 띄웁니다. 첫 4개는 B1-WS, B2-WEB, B2-MDL, B1-SCH, 다음은 B3-L1M, B1-NTF, B2-RMT, B3-DATA, B4-DSK 순입니다.
 
