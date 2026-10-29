@@ -63,7 +63,7 @@ layout:
       learning: "xeon/packages/group-learning/**"
       # slots는 코드 없음 (템플릿 문서만)
   L4:
-    domains: [cli, desktop, host-service, settings-ui, release]
+    domains: [cli, desktop, host-service, settings-ui, release, desktop-ux]
     paths:
       cli: "xeon/apps/cli/**"
       desktop: "xeon/apps/desktop/**"
@@ -73,6 +73,8 @@ layout:
       # 도메인 밖의 릴리즈 경로 두 개(층 수준 하위 경로, L4.release.spec binds)
       release-bundle: "xeon/scripts/release-bundle.json"
       release-workflow: ".github/workflows/xeon-release.yml"
+      # 데스크톱 화면 구성과 UX(M4). 화면 렌더러 경로이고 desktop binds 안에 들어간다
+      desktop-ux: "xeon/apps/desktop/src/views/**"
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.readme, L1.models.spec, L1.models.plan]
