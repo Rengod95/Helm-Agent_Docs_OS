@@ -4,7 +4,7 @@ layer: L4
 domain: settings-ui
 kind: spec
 status: draft
-depends_on: [F.wire-settings.spec, F.records.spec, L4.desktop.spec, L4.host-service.spec, L0.secrets.spec, L1.models.spec, L2.web.spec, L2.dialog.spec, X.primitives.spec, adr.0005, adr.0008]
+depends_on: [F.wire-settings.spec, F.records.spec, L4.desktop.spec, L4.host-service.spec, L0.secrets.spec, L1.models.spec, L2.web.spec, L2.dialog.spec, X.primitives.spec, adr.0005, adr.0008, adr.0020]
 binds: [xeon/packages/client/src/settings/**]
 ---
 
@@ -27,6 +27,7 @@ binds: [xeon/packages/client/src/settings/**]
 - 쓰기 흐름: 편집, 클라이언트 즉시 검사, `settings.set`, 오류 코드의 필드 문구 변환, 변경 수신, 재시작 안내(§4.4, §4.5).
 - 비밀 화면: 참조와 상태 표시, 값 입력과 열람 경로의 비교와 제안(§4.6).
 - 첫 실행 권장 화면: 검색 provider 상태, SearXNG 주소, 무료 크레딧 API 플러그인 권장 목록(§4.10, ADR-0005 ④, `product.scope.spec` I10 M3).
+- 도구와 웹 탭의 view-model(`@xeon/client/web`): `web.providers` 결과에서 provider 행, 현재·고정 표시, 추천 키 플러그인 상태를 만들고, 끌어 옮긴 순서를 `settings.set` 값으로 바꾸는 규칙(§3.6, §4.11, M3-12 비시각 부분).
 - 상태 게이지 자리(§4.7), 접근성과 문구 규칙(§4.8), 코드 위치(§4.9).
 - 화면 로직을 DOM과 무관한 순수 TS view-model(`settings/model`)과 렌더링 부분(`settings/views`)으로 나누는 경계(§3).
 
@@ -444,6 +445,78 @@ export declare function reduceSettings(state: SettingsState, action: SettingsAct
 
 - 이 문서가 정하는 이름은 settings-ui 내부 이름이다. 다른 패키지가 import하지 않는다. desktop은 `index.ts`의 `createSettingsController`, `SettingsHostPort`, `SettingsController`만 쓴다.
 
+### 3.6 도구와 웹 view-model
+
+도구와 웹 탭의 값은 `@xeon/client/web`(`xeon/packages/client/src/web/`, adr.0020)이 만든다. 입력은 `web.providers`의 결과 `WebProvidersResult`(F `wire/web-providers.ts`)다. 모든 함수는 순수 함수이고 I/O가 없다. 공개 이름은 아래 여섯 개와 타입 셋이고, `index.ts`가 `tools-web.ts`를 그대로 다시 내보낸다. 사용처는 `xeon doctor`(다음 유닛, `L4.cli.spec` §4.7.1)와 M4 설정 화면이다. 두 곳 모두 이 값을 그대로 쓴다.
+
+```ts
+// xeon/packages/client/src/web/tools-web.ts
+import type { Result } from "@xeon/contracts";
+import type { WebProviderAuth, WebProviderCapability, WebProviderOrigin, WebProvidersResult } from "@xeon/contracts/wire";
+
+export type WebToolRow = {
+  readonly id: string;
+  readonly capability: WebProviderCapability;   // "web.search" | "web.fetch" | "web.browse"
+  readonly displayName: string;
+  readonly origin: WebProviderOrigin;
+  readonly auth: WebProviderAuth;
+  readonly ok: boolean;
+  readonly reason: string | null;               // unavailable.reason, 쓸 수 있으면 null
+  readonly detail: string | null;               // 탐침 상세, 200자에서 자른다. note에 넣지 않는다
+  readonly note: string;                        // 한 줄 문구(§4.11 표)
+  readonly rank: number | null;                 // wire autoRank, fetch는 null
+  readonly current: boolean;                    // 다음 자동 호출이 먼저 쓰는 provider
+  readonly pinned: boolean;                     // 설정이 이 provider를 고정했다
+  readonly noticePending: boolean;              // 키 플러그인의 첫 사용 고지가 남았다
+  readonly price: { readonly asOf: string; readonly stale: boolean } | null;
+};
+
+export type WebSection = {
+  readonly capability: WebProviderCapability;
+  readonly provider: string;                    // 설정 값. "auto" 또는 provider id. fetch는 "auto"
+  readonly order: readonly string[];            // 사용자 순서 목록, 저장된 그대로
+  readonly rows: readonly WebToolRow[];
+};
+
+export type WebRecommendation = {
+  readonly label: "Exa" | "Brave";
+  readonly providerId: string;                  // plugin:web-exa | plugin:web-brave
+  readonly secretName: string;                  // exa-api-key | brave-api-key
+  readonly state: "not-installed" | "needs-key" | "ready" | "unavailable";
+  readonly hint: string;
+};
+
+export type ToolsWebView = {
+  readonly search: WebSection;
+  readonly browse: WebSection;
+  readonly fetch: WebSection;
+  readonly parallel: number;
+  readonly robots: { readonly value: "auto" | "always" | "never"; readonly follows: boolean };
+  readonly recommendations: readonly WebRecommendation[];
+  readonly noticesPending: readonly string[];   // provider id, 정렬하고 중복을 없앤다
+};
+
+export type OrderUpdate = {
+  readonly key: "l2.web.search.order" | "l2.web.browse.order";
+  readonly value: readonly string[];
+};
+
+export type OrderUpdateError =
+  | { readonly kind: "unknown_id"; readonly id: string }
+  | { readonly kind: "duplicate_id"; readonly id: string };
+
+export declare function toolsWebViewOf(result: WebProvidersResult): ToolsWebView;
+export declare function orderUpdateOf(
+  capability: "web.search" | "web.browse",
+  ids: readonly string[],
+  known: ToolsWebView,
+): Result<OrderUpdate, OrderUpdateError>;
+export declare function moveInOrder(ids: readonly string[], from: number, to: number): readonly string[];
+```
+
+- `toolsWebViewOf`는 결과가 스키마를 통과했다고 보고 다시 검사하지 않는다(연결이 검사한다). 비밀 값과 헤더 이름은 wire에 없고 이 모듈이 만들지도 않는다.
+- `orderUpdateOf`와 `moveInOrder`의 규칙은 §4.11이 정한다. 값이 맞는지는 `test/web/tools-web.test.ts`가 값 비교로 확인한다.
+
 ## 4. 동작 규칙
 
 ### 4.1 탭 생성 규칙
@@ -571,7 +644,7 @@ export declare function reduceSettings(state: SettingsState, action: SettingsAct
 | 폴백 체인 | models | 폴백 체인(`L1.models.spec`) | 순서 끌어 옮기기, 발동 조건 설명 |
 | 권한 규칙 편집기 | permissions | 권한 규칙(`L1.tools.spec`) | 허용·거부·질문 열, 규칙 충돌 표시 |
 | 샌드박스 경로·도메인 목록 | permissions | 쓰기 경로, 차단 도메인(`L0.sandbox.spec`. 네트워크 기본 허용 + 차단 목록, [결정: review.m3-design-inputs D-M3-18]) | 차단 우선 표시, 경로 형식 검사 |
-| 검색 도구 순서 | tools | 자동 선택 순서(`L2.web.spec`) | 등록된 검색 도구 목록(기본 웹 검색 도구 포함)을 끌어 옮겨 순서를 정한다. 플러그인은 기본 후순위다 [결정: review.m3-design-inputs D-M3-23] |
+| 검색 도구 순서 | tools | 자동 선택 순서(`L2.web.spec`) | 등록된 검색 도구 목록(기본 웹 검색 도구 포함)을 끌어 옮겨 순서를 정한다. 플러그인은 기본 후순위다 [결정: review.m3-design-inputs D-M3-23]. 끌어 옮긴 결과는 `@xeon/client/web`의 `orderUpdateOf`가 `settings.set` 값으로 바꾼다(§4.11) |
 | 계정 풀 | providers | 계정 목록, 우선순위, 예약 %(`L1.models.spec`). API 키 계정과 구독 계정 모두. 회전은 기본 꺼짐이고 켤 때 첫 사용 고지(약관 위험)를 보인다 [결정: review.m3-design-inputs D-M3-22] | 순위 끌어 옮기기, 키 참조는 `secret` 위젯 |
 
 - 전용 편집기를 고르는 기준은 키 이름이다(예: 정의 키가 정해진 목록에 있음). [미결] 키 이름에 묶는 대신 F `SettingUi`에 편집기 힌트 필드를 더할지(§10 미결 8).
@@ -842,6 +915,7 @@ sequenceDiagram
 
 - [결정: adr.0020] view-model은 `xeon/packages/client/src/settings/`(`@xeon/client/settings`)에 두고 렌더러는 `xeon/apps/desktop/src/views/`에 둔다. 별도 앱은 두지 않는다.
 - `package.json`의 `xeon.domain`은 `desktop`이다. settings-ui는 별도 패키지가 아니므로 층 검사(`check-layers.ts`)는 desktop 패키지 단위로 돈다.
+- [결정: adr.0020] 도구와 웹 탭의 view-model은 `xeon/packages/client/src/web/`(`@xeon/client/web`)에 둔다. 화면 부품(M4)은 `apps/desktop/src/views/`에 둔다(§3.6, §4.11).
 - [결정: adr.0020] CLI와 데스크톱이 view-model을 함께 쓰는 위치는 `packages/client`다. `apps/cli`와 `apps/desktop`은 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`로 import한다.
   - 공유 패키지로 내린다. L4 아래 층에 화면 view-model을 두는 것이 층 뜻과 맞는지 정해야 한다.
   - `apps/` 아래 라이브러리 패키지(앱이 아닌 L4 패키지)를 허용한다. DR-10과 `architecture.layers.spec` §10 "같은 층 예외"를 바꾸는 일이다.
@@ -858,12 +932,49 @@ sequenceDiagram
 |---|---|---|
 | 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 사용자가 끌어 옮겨 정한 순서(기본 웹 검색 도구 포함, 플러그인 기본 후순위) [결정: review.m3-design-inputs D-M3-23] | `settings.get`, `L2.web.spec` §4.8.2 선택 체인 |
 | SearXNG 주소 | `l2.web.search.searxng.url` 입력란. 비어 있으면 SearXNG는 체인에 들어가지 않는다 | `settings.get`·`settings.set`, `L2.web.spec` §4.8.3 설정한 SearXNG |
-| 권장 목록 | 무료 크레딧 API 플러그인(Exa, Brave)과 월 크레딧 안내, 키 등록 버튼 | ADR-0005 §3.1 ④, 키 등록은 §4.6 C안 경로 |
+| 권장 목록 | 무료 크레딧 API 플러그인(Exa, Brave)과 월 크레딧 안내, 키 등록 버튼 | ADR-0005 §3.1 ④, 키 등록은 §4.6 C안 경로, 상태는 `recommendations`(§4.11) |
 
 - 키 등록 버튼은 §4.6.4 C안(`secret.beginEntry`)을 쓰고, 값은 이 화면을 지나지 않는다. 호스트가 값을 받을 수 없는 사이드카 연결의 M2 최소 화면만 예외다: 그 화면의 등록 창이 값을 한 번 받는다(§4.6.4, `L4.desktop.spec` §4.14.1). 등록 뒤 provider 설정에는 `secret://<이름>` 참조만 쓴다.
 - [결정: review.m2-plan §9 H1] SearXNG 자동 감지는 없다. SearXNG는 사용자가 주소를 설정했을 때만 체인에 들어가므로 이 화면에 감지 결과 칸을 두지 않는다. provider 상태 행은 설정 값으로 계산한 체인만 보인다.
 - [가정] 마지막 검색에서 실제로 쓴 provider와 탐침 결과(`unreachable`, `json-disabled`)를 읽는 wire 수단은 없다. 이 값을 화면에 보이려면 F 변경 요청이 필요하고 M3 첫 실행 화면 작업에서 정한다. 그 전까지 탐침 실패는 `meta.warnings`와 L4 진단으로만 보인다(`L2.web.spec` §4.8.3).
 - CLI는 같은 내용을 `xeon doctor`의 검색 provider 묶음으로 보인다(`L4.cli.spec` §4.7.1).
+
+### 4.11 도구와 웹 탭 규칙 (M3-12, M3-REQ-96)
+
+이 절은 `@xeon/client/web`(§3.6)의 값이 어떻게 정해지는지 적는다. 값의 원천은 F `web.providers` 결과 하나다.
+
+- [결정: 오케스트레이터 기본값] 순위는 호스트가 cap-web에서 정해 wire `autoRank`로 싣는다. 값은 자동 선택 순서(`L2.web.spec` §4.8.2 `planSelection`)와 같다. 화면과 CLI는 순위를 다시 계산하지 않는다.
+- 행 순서: 검색과 브라우즈는 `autoRank` 오름차순이고 없으면 뒤로 간다. 같으면 id 순서다. 가져오기는 id 순서다.
+- 현재(`current`)와 고정(`pinned`):
+  1. 설정 provider가 `auto`이면 순위가 있는 행 가운데 쓸 수 있는(`ok`) 첫 행이 현재다.
+  2. 설정 provider가 id이면 그 행만 고정과 현재를 받는다. 그 행이 쓸 수 없는 상태여도 그렇다. 자동 순서로 되돌아가지 않으므로 다음 호출이 그 provider를 먼저 쓰고 실패한다.
+- 가져오기(`web.fetch`): wire에 가져오기 설정과 순서가 없다. `provider`는 `"auto"`, `order`는 빈 목록이고, 현재 표시는 모두 거짓이다 [미결: §10 19].
+- 첫 사용 고지(`noticePending`): `firstUseNoticed`가 거짓인 행이다. wire 규칙상 인증이 `none`이거나 출처가 `plugin`이 아니면 참이므로, 거짓인 행은 키 플러그인뿐이다. `noticesPending`은 그 id를 정렬하고 중복을 없앤 목록이다.
+- 가격(`price`): 가격표 기준일이 없으면 null이고, 있으면 기준일과 `pricingStale`이다. 오래됨을 어떻게 보일지는 화면이 정한다.
+- 문구(`note`)는 다음 표를 따른다. 탐침 상세(`detail`)는 200자에서 자르고 문구에 넣지 않는다.
+
+| 상태 | note |
+|---|---|
+| 쓸 수 있음 | 사용할 수 있다 |
+| `no-key`, `plugin:web-exa` | 키가 없다 — 해결: xeon secret add exa-api-key |
+| `no-key`, `plugin:web-brave` | 키가 없다 — 해결: xeon secret add brave-api-key |
+| `no-key`, 그 밖의 provider | 키가 없다 — 해결: 키 플러그인 설정에서 키를 등록한다 |
+| `unreachable` | 응답이 없다 |
+| `json-disabled` | JSON 응답이 꺼져 있다 |
+| `org-disabled` | 조직 설정에서 막혀 있다 |
+| `unsupported-model` | 현재 모델에서 쓸 수 없다 |
+| 그 밖의 사유 | 사유 코드 그대로 |
+
+- [제안] 세 사유(`json-disabled`, `org-disabled`, `unsupported-model`)의 한국어 문구는 이 문서가 정한다. wire에는 문구가 없다.
+- 추천 키 플러그인(`recommendations`): [결정: ADR-0005 §3.1 ④, review.m3-design-inputs D-M3-23] Exa(`plugin:web-exa`, 비밀 이름 `exa-api-key`)와 Brave(`plugin:web-brave`, `brave-api-key`) 둘이다. Parallel과 Jina는 넣지 않는다. 상태는 다음과 같다.
+  - 행이 없으면 `not-installed`이고 hint는 "플러그인을 설치한다"다.
+  - `no-key`면 `needs-key`이고 hint는 `xeon secret add <비밀 이름>`이다.
+  - 쓸 수 있으면 `ready`이고 hint는 빈 문자열이다.
+  - 그 밖의 사유면 `unavailable`이고 hint는 사유 코드다 [미결: §10 20].
+- 순서 끌어 옮기기: 끌어 옮긴 뒤 같은 탭의 전체 id 목록을 `orderUpdateOf(capability, ids, view)`에 넘긴다. 같은 탭에 보이지 않는 id(다른 능력의 id 포함)는 `unknown_id`로, 두 번 나온 id는 `duplicate_id`로 값 거부한다. 성공하면 `{ key, value }`를 `settings.set` 한 번으로 보낸다. 키는 `l2.web.search.order` 또는 `l2.web.browse.order`다(`L2.web.spec` §4.8.2). 빠진 id는 지금 거부하지 않는다 [미결: §10 21].
+- `moveInOrder(ids, from, to)`는 `from` 자리 항목을 빼고 `to`가 가리키는 자리에 넣는다. `to`는 옮긴 뒤 그 항목이 갖는 자리다. 범위 밖이거나 정수가 아닌 입력이면 바꾸지 않은 복사본을 돌려준다.
+- 로봇(`robots`): `value`를 그대로 보인다. `follows`는 `value`가 `never`가 아닐 때 참이다. 기본값 `never`는 robots.txt를 따르지 않는다(D-M3-23 행 4, `L2.web.spec` §4.7).
+- 병렬 질의 수(`parallel`)는 `settings.searchParallel`이다. 기본값은 1이다(`L2.web.spec` §4.8.2).
 
 ## 5. 실패와 경계 사례
 
@@ -917,6 +1028,7 @@ sequenceDiagram
 | 요구 | `L1.models.spec` | 사용량 투영(게이지 자리, §4.7), 라우팅·폴백·계정 풀 키 모양(전용 편집기, §4.2.4) |
 | 요구 | 각 층 spec(X, L0~L4) | "설정 노출" 표의 `ui` 필드. 탭 배치는 §4.1.1 안내를 참고한다 |
 | 제공 | `L4.cli.spec` | 없음. view-model 공유는 §10 미결 12 |
+| 제공 | `@xeon/client/web` (adr.0020) | `toolsWebViewOf`, `orderUpdateOf`, `moveInOrder`와 타입(§3.6). 사용처는 `xeon doctor`(다음 유닛)와 M4 설정 화면이다 |
 | 참고 | `adr.0008` | Tauri 2 WebView 렌더링, stdio JSON-RPC 연결 |
 
 ## 9. 수용 기준
@@ -937,6 +1049,7 @@ sequenceDiagram
 - AC14. `l4.desktop.*` 정의는 로컬 저장소로, 나머지 정의는 `settings.*` 메서드로 읽고 쓴다. 엔진 연결이 없을 때도 desktop 원천 항목의 쓰기가 성공한다.
 - AC15. 키 플러그인이 없고 `l2.web.search.searxng.url`이 비어 있는 fixture로 첫 실행 권장 화면 view-model을 만들면 provider 상태 행, SearXNG 주소 입력란, Exa·Brave 권장 항목 셋이 있고, 어느 항목에도 비밀 값 필드가 없다(§4.10).
 - AC16. 테스트 카탈로그 fixture에서 `x.primitives.activeDriveGroup`과 `ext.helm.enabled`는 plugins 탭, `l1.agents.judge.maxRuns`는 models 탭, `l2.dialog.notify.os`는 execution 탭, `l0.secrets.approval.default`는 permissions 탭에 나타난다(§4.1.1, 소유 층 `ui.tab`).
+- AC17. `web.providers` 결과 fixture로 `toolsWebViewOf`를 만들면 검색과 브라우즈 행은 `autoRank` 순서이고, 설정이 provider를 고정하면 그 행만 `current`다. `orderUpdateOf`는 보이지 않는 id와 중복 id를 값으로 거부한다. 추천 키 플러그인 상태는 없음, 키 없음, 준비됨, 그 밖의 사유 넷을 낸다(§3.6, §4.11, `test/web/tools-web.test.ts`).
 
 ## 10. 미결 사항
 
@@ -958,3 +1071,7 @@ sequenceDiagram
 16. [미결] 화면 프레임워크와 렌더러 형식, 화면 부품 테스트(`ui` 태그)와 시각 회귀(`visual`) 도입 여부. `eng.testing.guide` TS-01에서 보류이고 `L4.desktop.spec`이 정한다. AC4의 "렌더러가 8종 모두를 그린다"와 AC6의 DOM 확인은 이 결정 뒤에 테스트 형식이 정해진다. 프레임워크는 React 19 + Zustand 5로 정해졌다(adr.0010, `L4.desktop.spec` §10 미결 11 닫힘). 렌더러 형식과 `ui`·`visual` 시험 도입은 남는다.
 17. [미결] `L4.desktop.spec` §4.9 규칙 W3의 허용 목록에 `@xeon/contracts/{wire,settings,conversation}`와 `typebox/schema`를 넣을지(§3.1). W3을 문자 그대로 읽으면 F 서브패스 import가 빠진다.
 18. [미결] 설정 원천 둘(§4.1.3). `L4.desktop.spec` §10 미결 6과 같은 항목이다. 로컬 저장소 키의 관리 잠금(`locked`)을 어떻게 채울지도 그 결정에 따른다.
+19. [미결] 가져오기(`web.fetch`) 행의 현재 표시. wire에 가져오기 설정과 순서가 없어 `current`를 정하지 않는다(§4.11). 가져오기 순서를 `web.providers`에 실을지는 F 변경 요청으로 정한다.
+20. [미결] 추천 키 플러그인의 `unavailable` hint에 사유 코드를 쓴다. 한국어 문구로 바꿀지와 문구 자리(§4.11 표)는 M4 화면 작업에서 정한다.
+21. [미결] 순서 저장에서 빠진 id를 거부할지. 현재 `orderUpdateOf`는 보이지 않는 id와 중복만 거부한다. 빠진 후보는 `planSelection`(`cap-web/src/select/order.ts`)이 목록 뒤에 내장·플러그인 순으로 붙이므로 자동 선택에서 빠지지 않는다. 다만 `L2.web.spec` §4.8.2의 "건너뛴다" 문장과 어긋나므로 어느 쪽을 고칠지 M4 전에 정한다.
+22. [미결] `_routing/routes.yaml`의 L4 settings-ui 경로는 `xeon/packages/client/src/settings/**`뿐이라 `src/web/**`가 이 문서로 라우팅되지 않는다. 지금은 `adr.0020`의 binds(`xeon/packages/client/**`)로 찾는다. 경로를 넓힐지는 라우팅 정본을 고치는 쪽이 정한다.
