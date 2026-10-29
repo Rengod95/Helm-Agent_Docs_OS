@@ -7,7 +7,7 @@ import {
 } from "@xeon/contracts/settings";
 
 // L2.workspace.spec §6. 읽는 키만 선언한다(M1: read.*, shell.*, list.maxEntries, M2: images.*; plan W8).
-// 나머지 키(grep.*, find.*, edit.fuzzy)는 그 키를 읽는 도구가 들어오는 마일스톤(M3)에 더한다.
+// 나머지 키(grep.*, find.*)는 그 키를 읽는 도구가 들어오는 마일스톤(M3b)에 더한다. edit.fuzzy는 edit와 함께 들어왔다.
 // 키를 더하거나 바꾸면 apps/host/schema/settings.<범위>.schema.json을 다시 만든다(settings-schema-committed 시험이 막는다):
 // `cd xeon/apps/host && mise exec -- bun src/main.ts config schema --scope <managed|user|project|local> --core-only --out schema/settings.<범위>.schema.json`
 

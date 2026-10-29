@@ -2996,6 +2996,30 @@
         }
       }
     },
+    "l2.workspace.edit.fuzzy": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "정확 일치가 없을 때 따옴표, 대시, 공백 차이를 무시하고 찾는다",
+          "label": "퍼지 일치 편집",
+          "order": 210,
+          "tab": "tools",
+          "widget": "toggle"
+        }
+      }
+    },
     "l2.workspace.images.maxBytes": {
       "default": 4718592,
       "maximum": 52428800,
