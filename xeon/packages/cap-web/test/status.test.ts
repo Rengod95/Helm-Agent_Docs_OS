@@ -6,6 +6,7 @@ import {
   WebSettingsWireSchema,
   type WebProviderStatus,
 } from "@xeon/contracts/wire";
+import type { WebDeps } from "../src/deps.ts";
 import { describeWebProviders, describeWebSettings } from "../src/status.ts";
 import { DEFAULT_WEB_SETTINGS } from "../src/settings.ts";
 import { browseCandidate, fakeBrowseProvider } from "../src/testing/fake-browser.ts";
@@ -32,6 +33,7 @@ const HOST: CallOptions = {
 };
 const ROW_KEYS = [
   "auth",
+  "autoRank",
   "capability",
   "displayName",
   "firstUseNoticed",
@@ -122,6 +124,7 @@ describe("web.providers rows", () => {
         pricingAsOf: "2026-10-20",
         pricingStale: false,
         firstUseNoticed: true,
+        autoRank: 0,
       },
       {
         id: "plugin:web-key",
@@ -133,6 +136,7 @@ describe("web.providers rows", () => {
         pricingAsOf: "2025-01-01",
         pricingStale: true,
         firstUseNoticed: false,
+        autoRank: 2,
       },
       {
         id: "plugin:web-nokey",
@@ -144,6 +148,7 @@ describe("web.providers rows", () => {
         pricingAsOf: "2026-10-20",
         pricingStale: false,
         firstUseNoticed: false,
+        autoRank: 3,
       },
       {
         id: "plugin:web-free",
@@ -155,6 +160,7 @@ describe("web.providers rows", () => {
         pricingAsOf: null,
         pricingStale: false,
         firstUseNoticed: true,
+        autoRank: 1,
       },
       {
         id: "plugin:web-fetch",
@@ -166,6 +172,7 @@ describe("web.providers rows", () => {
         pricingAsOf: "2026-10-20",
         pricingStale: false,
         firstUseNoticed: false,
+        autoRank: null,
       },
       {
         id: "plugin:web-browse",
@@ -177,6 +184,7 @@ describe("web.providers rows", () => {
         pricingAsOf: "2026-10-20",
         pricingStale: false,
         firstUseNoticed: false,
+        autoRank: 0,
       },
     ]);
 
@@ -232,7 +240,135 @@ describe("web.providers rows", () => {
         pricingAsOf: "2026-10-20",
         pricingStale: false,
         firstUseNoticed: true,
+        autoRank: 0,
       },
+    ]);
+  });
+});
+
+async function ranksOf(deps: WebDeps): Promise<[string, number | null][]> {
+  const rows = await describeWebProviders(deps, SIGNAL);
+  return rows.map((row): [string, number | null] => [row.id, row.autoRank]);
+}
+
+describe("auto rank and probe isolation (L2.web.spec §4.8.2, §6.1)", () => {
+  test("search rows rank in the auto order: the user order first, then detected, builtin, and plugins by id", async () => {
+    const detected = fakeSearchProvider("searxng", {
+      manifest: fakeManifest("searxng", { services: ["search"] }),
+    });
+    const wrapper = fakeSearchProvider("builtin-wrapper");
+    const alpha = fakeSearchProvider("plugin:alpha");
+    const beta = fakeSearchProvider("plugin:beta");
+    const world = await makeWebWorld({
+      catalog: fakeCatalog([
+        searchCandidate(beta, "plugin"),
+        searchCandidate(wrapper, "builtin"),
+        searchCandidate(alpha, "plugin"),
+        searchCandidate(detected, "detected"),
+      ]),
+    });
+    expect(await ranksOf(world.deps)).toEqual([
+      ["plugin:beta", 3],
+      ["builtin-wrapper", 1],
+      ["plugin:alpha", 2],
+      ["searxng", 0],
+    ]);
+
+    // 사용자 순서 목록이 먼저다. 목록에 없는 id는 건너뛰고, 나머지는 감지, 내장, 플러그인 순으로 붙는다
+    world.setSettings({
+      ...world.settings(),
+      search: { ...world.settings().search, order: ["plugin:beta", "ghost", "builtin-wrapper"] },
+    });
+    expect(await ranksOf(world.deps)).toEqual([
+      ["plugin:beta", 0],
+      ["builtin-wrapper", 1],
+      ["plugin:alpha", 3],
+      ["searxng", 2],
+    ]);
+
+    // 설정 provider와 동시 질의 수는 자동 순서를 바꾸지 않는다
+    world.setSettings({
+      ...world.settings(),
+      search: { ...world.settings().search, provider: "plugin:alpha", parallel: 2 },
+    });
+    expect(await ranksOf(world.deps)).toEqual([
+      ["plugin:beta", 0],
+      ["builtin-wrapper", 1],
+      ["plugin:alpha", 3],
+      ["searxng", 2],
+    ]);
+  });
+
+  test("browse rows rank by the browse order, and the search order does not apply to them", async () => {
+    const one = fakeBrowseProvider("plugin:browse-one", {
+      manifest: fakeManifest("browse-one", { services: ["browse"] }),
+    });
+    const two = fakeBrowseProvider("plugin:browse-two", {
+      manifest: fakeManifest("browse-two", { services: ["browse"] }),
+    });
+    const world = await makeWebWorld({
+      catalog: fakeCatalog(
+        [],
+        [],
+        [browseCandidate(one, "plugin"), browseCandidate(two, "plugin")],
+      ),
+      settings: {
+        search: { order: ["plugin:browse-one"] },
+        browse: { order: ["plugin:browse-two"] },
+      },
+    });
+    expect(await ranksOf(world.deps)).toEqual([
+      ["plugin:browse-one", 1],
+      ["plugin:browse-two", 0],
+    ]);
+  });
+
+  test("a probe that throws marks only its own row unreachable, and the other rows still come back", async () => {
+    const healthy = fakeSearchProvider("plugin:web-healthy", {
+      manifest: fakeManifest("web-healthy", { services: ["search"] }),
+    });
+    const throwing = {
+      ...fakeSearchProvider("plugin:web-broken", {
+        manifest: fakeManifest("web-broken", { services: ["search"] }),
+      }),
+      isAvailable: () => Promise.reject(new Error("probe exploded")),
+    };
+    const world = await makeWebWorld({
+      catalog: fakeCatalog([
+        searchCandidate(throwing, "plugin"),
+        searchCandidate(healthy, "plugin"),
+      ]),
+    });
+    const rows = await describeWebProviders(world.deps, SIGNAL);
+    expect(rows.map((row) => [row.id, row.status, row.autoRank])).toEqual([
+      [
+        "plugin:web-broken",
+        { kind: "unavailable", reason: "unreachable", detail: "probe threw" },
+        0,
+      ],
+      ["plugin:web-healthy", { kind: "ok" }, 1],
+    ]);
+    for (const row of rows) expect(parse(WebProviderStatusSchema, row).ok).toBe(true);
+    // 원인 메시지는 행에 싣지 않는다. 기록은 Logger에 provider id만 남는다
+    expect(JSON.stringify(rows)).not.toContain("probe exploded");
+    expect(
+      world.logs
+        .filter((record) => record.event === "web.probe_threw")
+        .map((record) => record.fields),
+    ).toEqual([{ provider: "plugin:web-broken" }]);
+  });
+
+  test("a long probe detail is cut to 200 characters", async () => {
+    const verbose = fakeSearchProvider("plugin:web-verbose", {
+      manifest: fakeManifest("web-verbose", { services: ["search"] }),
+      availability: { ok: false, reason: "unreachable", detail: "d".repeat(300) },
+    });
+    const world = await makeWebWorld({
+      catalog: fakeCatalog([searchCandidate(verbose, "plugin")]),
+    });
+    const rows = await describeWebProviders(world.deps, SIGNAL);
+    expect(rows.map((row) => row.status)).toEqual([
+      { kind: "unavailable", reason: "unreachable", detail: "d".repeat(200) },
     ]);
   });
 });

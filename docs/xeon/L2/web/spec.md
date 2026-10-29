@@ -1761,7 +1761,8 @@ export const webSettings = defineSettings("l2.web", {
 호스트의 `web.providers`(M3-REQ-96)는 `runtime.providerStatus(signal)`와 `describeWebSettings(settings)`로 값을 채운다(`status.ts`). 읽기 전용이고 비밀 값을 싣지 않는다. 키 값, 주입 위치, 헤더 이름은 행의 필드에 없다.
 
 - 행은 검색, fetch, 브라우저 후보마다 하나다. 후보가 등록되어 있으면 내장과 플러그인 모두 나온다. `capability`는 `web.search`, `web.fetch`, `web.browse` 가운데 하나이고, `origin`, `displayName`, `auth`는 후보와 매니페스트에서 온다.
-- `status`는 탐침 캐시(§4.8.2)의 결과다. 탐침은 provider마다 동시에 돌고 모두 끝나면 값을 돌려준다. 한 provider가 느려도 나머지를 막지 않는다. 사유는 provider가 돌려준 `ProviderUnavailableReason`을 그대로 싣고 `detail`은 512자에서 자른다.
+- `status`는 탐침 캐시(§4.8.2)의 결과다. 탐침은 provider마다 동시에 돌고 모두 끝나면 값을 돌려준다. 한 provider가 느려도 나머지를 막지 않는다. 사유는 provider가 돌려준 `ProviderUnavailableReason`을 그대로 싣고 `detail`은 200자에서 자른다. 탐침(`isAvailable`)이 예외로 끝나면 그 행만 `{ kind: "unavailable", reason: "unreachable", detail: "probe threw" }`이고, 나머지 행은 그대로 돌려준다. 예외의 원인은 주입된 Logger에 `web.probe_threw`(provider id만)로 남고 행에는 싣지 않는다(TY-25).
+- `autoRank`는 자동 선택(`auto`)이 provider를 시도하는 순서에서의 0부터 센 자리다. `web.search`와 `web.browse` 행에만 값이 있고, `web.fetch` 행은 사용자 순서가 없어서 `null`이다. 순서는 §4.8.2의 `planSelection`이 정한다. 호출 인자 `provider`와 설정 `provider`, `l2.web.search.parallel`은 이 값을 바꾸지 않는다. 검색은 `l2.web.search.order`, 브라우저는 `l2.web.browse.order`를 쓴다. `status.ts`는 검색과 브라우저 후보마다 `planSelection`을 설정 `order`와 함께 `settingProvider: "auto"`로 부르고, 각 후보의 자리를 행에 싣는다. 이 값은 탐침 결과에 따라 달라지지 않는다. 실패한 provider도 자리를 가진다.
 - `pricingAsOf`는 가격표 기준일이다. 가격표가 없거나 단위 단가가 모두 0이면 `null`이다. `pricingStale`은 기준일이 §4.4.2의 90일을 넘었을 때 참이다.
 - `firstUseNoticed`는 고지가 필요 없는 provider(출처가 `plugin`이 아니거나 `auth`가 `none`)면 참이다. 고지가 필요하면 `cap_web_notices`에 기록이 있을 때 참이다(§3.8, §4.8.2).
 - `settings`는 `l2.web.search.*`(provider, order, parallel), `l2.web.browse.provider`, `l2.web.browse.order`, `l2.web.policy.robots`의 유효 값이다. 목록은 64개, 문자열은 96자에서 자른다.
