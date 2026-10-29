@@ -309,6 +309,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       prepare: () => Promise.resolve(),
       write: () => Promise.reject(new Error("write is not part of the fake")),
       reset: () => Promise.reject(new Error("reset is not part of the fake")),
+      readFile: () => Promise.reject(new Error("readFile is not part of the fake")),
+      writeFile: () => Promise.reject(new Error("writeFile is not part of the fake")),
+      refreshUserFile: () => Promise.resolve(),
       onChange(listener) {
         settingsListeners.add(listener);
         return () => {

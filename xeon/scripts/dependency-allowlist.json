@@ -13,8 +13,8 @@
     "rule": "DR-10",
     "from": "apps/cli",
     "to": "@xeon/client",
-    "entries": [".", "./web"],
-    "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
+    "entries": [".", "./web", "./settings"],
+    "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020). The X10 test compares the settings view-model item set with the config command key set.",
     "approvedBy": "adr.0020"
   },
   {
@@ -31,8 +31,8 @@
     "rule": "DR-10",
     "from": "apps/host",
     "to": "@xeon/client",
-    "entries": [".", "./endpoint", "./socket"],
-    "reason": "apps/host keeps the @xeon/host/client re-export, its tests drive the host through the client connection, and connectServiceTransport/attachToService/bridgeStdioToService use the client socket transport and endpoint grammar (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
+    "entries": [".", "./endpoint", "./socket", "./accounts"],
+    "reason": "apps/host keeps the @xeon/host/client re-export, its tests drive the host through the client connection (the X7 settings-file test also drives the model account view-model from ./accounts), and connectServiceTransport/attachToService/bridgeStdioToService use the client socket transport and endpoint grammar (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
     "approvedBy": "adr.0020"
   },
   {

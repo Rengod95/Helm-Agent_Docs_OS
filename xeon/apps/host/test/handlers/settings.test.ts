@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@xeon/contracts";
 import { WireError } from "@xeon/contracts/wire";
-import type { SettingsWriteFailure } from "../../src/types.ts";
+import type {
+  SettingsFileFailure,
+  SettingsFileRead,
+  SettingsWriteFailure,
+} from "../../src/types.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
@@ -539,5 +543,157 @@ test("settings.set tells the secret service about provider links only for the us
     scope: "project",
   });
   expect(host.fake.secrets.linkCalls()).toBe(1);
+  await connection.close();
+});
+
+// ── settings.readFile, settings.writeFile (HS-98) ────────────────────────────
+
+const FILE_TEXT = '{"l4.host-service.maxReplayEvents":5000,"ext.future.key":{"keep":true}}\n';
+const SHA = "a".repeat(64);
+
+function fileRead(text: string): SettingsFileRead {
+  return { path: "/home/u/settings.json", exists: true, readOnly: false, text, sha256: SHA };
+}
+
+test("settings.readFile returns the port's file with the keys the catalog does not know", async () => {
+  const calls: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      settings: {
+        readFile: (scope, threadId) => {
+          calls.push([scope, threadId]);
+          return Promise.resolve(ok(fileRead(FILE_TEXT)));
+        },
+      },
+    },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const read = await connection.request("settings.readFile", { scope: "user" });
+  expect(read).toEqual({
+    scope: "user",
+    path: "/home/u/settings.json",
+    exists: true,
+    readOnly: false,
+    text: FILE_TEXT,
+    sha256: SHA,
+    unknownKeys: ["ext.future.key"],
+  });
+  expect(calls).toEqual([["user", undefined]]);
+  await connection.close();
+});
+
+test("settings.readFile of a file that is not an object reports no unknown keys, and an unknown thread is thread.notFound", async () => {
+  const host = createFakeHost({
+    overrides: {
+      settings: { readFile: () => Promise.resolve(ok(fileRead("[1, 2]"))) },
+    },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  expect((await connection.request("settings.readFile", { scope: "user" })).unknownKeys).toEqual(
+    [],
+  );
+  const missing = await wireErrorOf(
+    connection.request("settings.readFile", {
+      scope: "project",
+      threadId: fixedIdFactory(77).next("thr"),
+    }),
+  );
+  expect(missing.code).toBe(3001);
+  await connection.close();
+});
+
+test("settings.writeFile checks the text first, then writes through the port with the base hash", async () => {
+  const writes: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      settings: {
+        writeFile: (scope, text, base, threadId) => {
+          writes.push([scope, text, base, threadId]);
+          return Promise.resolve(ok({ path: "/home/u/settings.json", sha256: SHA }));
+        },
+      },
+    },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const written = await connection.request("settings.writeFile", {
+    scope: "user",
+    text: FILE_TEXT,
+    baseSha256: null,
+  });
+  expect(written).toEqual({
+    path: "/home/u/settings.json",
+    sha256: SHA,
+    unknownKeys: ["ext.future.key"],
+  });
+  expect(writes).toEqual([["user", FILE_TEXT, null, undefined]]);
+
+  const issuesOf = async (text: string): Promise<unknown> => {
+    const error = await wireErrorOf(
+      connection.request("settings.writeFile", { scope: "user", text, baseSha256: SHA }),
+    );
+    expect(error.code).toBe(3108);
+    return error.data.details;
+  };
+  expect(await issuesOf("[1]")).toEqual({
+    scope: "user",
+    issues: [{ path: "", message: "the settings file must be a JSON object" }],
+  });
+  expect(await issuesOf("not json")).toMatchObject({ scope: "user" });
+  const outOfRange = await issuesOf('{"l4.host-service.maxReplayEvents":5}');
+  expect(outOfRange).toMatchObject({
+    scope: "user",
+    issues: [{ path: expect.stringContaining("l4.host-service.maxReplayEvents") }],
+  });
+  // 검사에서 막힌 요청은 포트에 닿지 않는다
+  expect(writes).toHaveLength(1);
+  await connection.close();
+});
+
+test("settings.writeFile never repeats a secret key's wrong value, and maps the port's failures", async () => {
+  const secretKey = "l1.models.providers";
+  const cases: readonly [SettingsFileFailure, number][] = [
+    [{ kind: "conflict", scope: "user" }, 3107],
+    [{ kind: "untrusted_project", workspace: "/w" }, 3108],
+    [{ kind: "workspace_required", scope: "project" }, 3108],
+    [{ kind: "file_unwritable", path: "/p", code: "EACCES" }, 5006],
+    [{ kind: "disk_full" }, 5004],
+  ];
+  await Promise.all(
+    cases.map(async ([failure, code]) => {
+      const host = createFakeHost({
+        overrides: { settings: { writeFile: () => Promise.resolve(err(failure)) } },
+      });
+      const { connection } = host.connect();
+      await connection.request("host.hello", HELLO_PARAMS);
+      const error = await wireErrorOf(
+        connection.request("settings.writeFile", {
+          scope: "user",
+          text: FILE_TEXT,
+          baseSha256: SHA,
+        }),
+      );
+      expect(error.code).toBe(code);
+      expect(JSON.stringify(error.data)).not.toContain("/p");
+      await connection.close();
+    }),
+  );
+  const host = createFakeHost();
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const secret = "plain-text-not-a-reference-0001";
+  const error = await wireErrorOf(
+    connection.request("settings.writeFile", {
+      scope: "user",
+      text: JSON.stringify({
+        [secretKey]: [{ id: "x", enabled: true, apiKeyRef: secret, baseUrl: null }],
+      }),
+      baseSha256: null,
+    }),
+  );
+  expect(error.code).toBe(3108);
+  expect(JSON.stringify(error.data)).not.toContain(secret);
   await connection.close();
 });

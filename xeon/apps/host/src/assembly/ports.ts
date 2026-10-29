@@ -41,6 +41,7 @@ import { isAbsolute } from "node:path";
 import type { ScheduleService } from "@xeon/cap-schedule";
 import { itemPagesOf } from "@xeon/core-persistence";
 import { PrimitiveError, type ExtHost } from "@xeon/ext-host";
+import type { FileLock } from "@xeon/platform-os";
 import type {
   ActivityPort,
   ApprovalPort,
@@ -113,6 +114,8 @@ export interface PortsDeps {
   readonly proposals: ProposalPort;
   /** 사용자 설정 파일이 없을 때 새로 만들 디렉터리(L0.os의 `dirs.config`) */
   readonly configDir: string;
+  /** 프로세스 사이 파일 잠금(`OsServiceHandle.fileLock`). 설정 파일 쓰기가 이 안에서 일어난다(M3-REQ-82) */
+  readonly fileLock: FileLock;
   readonly trust: ProjectTrust;
   /** 서비스 모드의 프로젝트 확장 적재(M3-REQ-38). 쓰기 소유를 얻은 thread의 작업 폴더와 신뢰 결정 뒤에 부른다 */
   readonly projectExtensions: ProjectExtensions;
@@ -546,6 +549,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     engine: deps.settings,
     session,
     configDir: deps.configDir,
+    fileLock: deps.fileLock,
     trust: deps.trust,
     ids: deps.ids,
     logger: logger.child({ component: "settings" }),

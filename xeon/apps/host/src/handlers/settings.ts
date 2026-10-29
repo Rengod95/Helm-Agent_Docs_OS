@@ -1,4 +1,4 @@
-import { assertNever, type Bug } from "@xeon/contracts";
+import { assertNever, parseJson, type Bug } from "@xeon/contracts";
 import { parseModelRef } from "@xeon/contracts/services";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
@@ -9,10 +9,16 @@ import {
   type SettingDef,
   type SettingScope,
 } from "@xeon/contracts/settings";
-import { wireError, type WireError, type WireHandler } from "@xeon/contracts/wire";
+import {
+  SETTINGS_FILE_TEXT_MAX,
+  wireError,
+  type SettingsFileScope,
+  type WireError,
+  type WireHandler,
+} from "@xeon/contracts/wire";
 import { keyReusedBug, wireErrorOfStore } from "../store-error.ts";
 import { settingProblemOf } from "../settings-problems.ts";
-import type { Engine, SettingsWriteFailure } from "../types.ts";
+import type { Engine, SettingsFileFailure, SettingsWriteFailure } from "../types.ts";
 import { threadLocked } from "./owner.ts";
 
 // L4.host-service.spec §3.4. settings.get(M1)과 settings.set, settings.reset, settings.list(M2, HOST.2).
@@ -227,5 +233,170 @@ export function createSettingsListHandler(engine: Engine): WireHandler<"settings
       .toSorted((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
       .map((def) => toSettingDefWire(def));
     return Promise.resolve({ defs });
+  };
+}
+
+// ── settings.readFile, settings.writeFile (M3-REQ-15, HS-98) ─────────────────
+
+type FileIssue = { readonly path: string; readonly message: string };
+
+const FILE_ISSUES_MAX = 20;
+const UNKNOWN_KEYS_MAX = 256;
+const UNKNOWN_KEY_LENGTH_MAX = 128;
+
+function isJsonObject(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** 원문의 최상위 키 가운데 카탈로그에 없는 것. 파일에는 그대로 보존한다(F wire §4.8). 원문이 JSON 객체가 아니면 빈 목록이다 */
+function unknownKeysOf(text: string, engine: Engine): string[] {
+  if (text.trim() === "") return [];
+  const decoded = parseJson(text);
+  if (!decoded.ok || !isJsonObject(decoded.value)) return [];
+  return Object.keys(decoded.value)
+    .filter((key) => !engine.catalog.has(key) && key.length <= UNKNOWN_KEY_LENGTH_MAX)
+    .toSorted()
+    .slice(0, UNKNOWN_KEYS_MAX);
+}
+
+function fileInvalid(scope: SettingsFileScope, issues: readonly FileIssue[]): WireError {
+  return wireError("settings.fileInvalid", {
+    details: { scope, issues: issues.slice(0, FILE_ISSUES_MAX) },
+  });
+}
+
+/**
+ * 파일 원문을 그 범위의 스키마로 검사한다(F wire §3.3.1). JSON 객체여야 하고, 카탈로그에 있는 키는 값 검사를 통과해야 한다.
+ * 카탈로그에 없는 키는 보존하는 키라 통과한다. 읽는 코드가 없는 `reserved` 키와 그 범위가 허용하지 않는 키는 `settings.set`이
+ * 막는 것이지 파일의 스키마가 막는 것이 아니라서(`settingsJsonSchema`) 통과한다. 비밀 키의 값은 이슈에 싣지 않는다.
+ */
+function checkFileText(
+  engine: Engine,
+  scope: SettingsFileScope,
+  text: string,
+): readonly FileIssue[] {
+  const decoded = text.trim() === "" ? { ok: true as const, value: {} } : parseJson(text);
+  if (!decoded.ok || !isJsonObject(decoded.value)) {
+    return [{ path: "", message: "the settings file must be a JSON object" }];
+  }
+  const issues: FileIssue[] = [];
+  for (const [key, value] of Object.entries(decoded.value)) {
+    const def = engine.catalog.get(key);
+    if (def === undefined || def.stage === "reserved" || !def.allowedScopes.includes(scope))
+      continue;
+    const checked = checkSettingWrite(engine.catalog, [], key, scope, value);
+    if (checked.ok) continue;
+    if (checked.kind === "settings.secretValue") {
+      issues.push({ path: key, message: "a secret key takes a secret:// reference or null" });
+      continue;
+    }
+    const found = checked.details["issues"];
+    if (Array.isArray(found) && found.length > 0) {
+      for (const issue of found) {
+        if (!isJsonObject(issue)) continue;
+        const detail = issue["path"];
+        const message = issue["message"];
+        issues.push({
+          path: `${key}${typeof detail === "string" ? detail : ""}`.slice(0, 512),
+          message: typeof message === "string" ? message.slice(0, 512) : "invalid value",
+        });
+      }
+    } else {
+      issues.push({ path: key, message: "invalid value" });
+    }
+  }
+  return issues;
+}
+
+/** 파일 쓰기·읽기 실패를 와이어 오류로 옮긴다 */
+function fileFailure(failure: SettingsFileFailure, scope: SettingsFileScope): WireError | Bug {
+  switch (failure.kind) {
+    case "conflict":
+      return wireError("settings.fileConflict", { details: { scope } });
+    case "thread_required":
+      return wireError("jsonrpc.invalidParams", {
+        details: {
+          issues: [
+            { path: "threadId", message: "threadId is required for the project and local scopes" },
+          ],
+        },
+      });
+    case "workspace_required":
+      return fileInvalid(scope, [{ path: "scope", message: "the thread has no workspace" }]);
+    case "untrusted_project":
+      return fileInvalid(scope, [{ path: "scope", message: "the project is not trusted" }]);
+    case "managed_read_only":
+      return fileInvalid(scope, [{ path: "scope", message: "the managed file is read only" }]);
+    case "not_owner":
+      return threadLocked(null);
+    case "file_invalid":
+      return wireError("store.io", {
+        message: "settings.writeFile: the settings file is not a JSON object",
+        details: { code: "settings_file_invalid" },
+      });
+    case "file_unwritable":
+      return wireError("store.io", {
+        message: "settings.writeFile: the settings file cannot be written",
+        details: { code: failure.code.slice(0, 64) },
+      });
+    case "key_reused":
+      return keyReusedBug(failure, "settings.writeFile");
+    case "busy":
+    case "disk_full":
+    case "io":
+    case "ownership_lost":
+    case "read_only":
+    case "thread_not_found":
+    case "row_invalid":
+      return wireErrorOfStore(failure, "settings.writeFile");
+    default:
+      return assertNever(failure, "SettingsFileFailure");
+  }
+}
+
+export function createSettingsReadFileHandler(engine: Engine): WireHandler<"settings.readFile"> {
+  const { ports } = engine;
+  return async (params) => {
+    requireThreadIfGiven(engine, params.threadId, "settings.readFile");
+    const read = await ports.settings.readFile(params.scope, params.threadId);
+    if (!read.ok) throw fileFailure(read.error, params.scope);
+    const file = read.value;
+    // 편집기가 열지 않는 크기다(F wire SETTINGS_FILE_TEXT_MAX). 응답 스키마도 이 길이를 넘기지 못한다
+    if (file.text.length > SETTINGS_FILE_TEXT_MAX) {
+      throw fileInvalid(params.scope, [
+        { path: "", message: "the settings file is too large to edit" },
+      ]);
+    }
+    return {
+      scope: params.scope,
+      path: file.path,
+      exists: file.exists,
+      readOnly: file.readOnly,
+      text: file.text,
+      sha256: file.sha256,
+      unknownKeys: unknownKeysOf(file.text, engine),
+    };
+  };
+}
+
+export function createSettingsWriteFileHandler(engine: Engine): WireHandler<"settings.writeFile"> {
+  const { ports } = engine;
+  return async (params) => {
+    requireThreadIfGiven(engine, params.threadId, "settings.writeFile");
+    if (params.threadId !== undefined) await ports.settings.prepare(params.threadId);
+    const issues = checkFileText(engine, params.scope, params.text);
+    if (issues.length > 0) throw fileInvalid(params.scope, issues);
+    const written = await ports.settings.writeFile(
+      params.scope,
+      params.text,
+      params.baseSha256,
+      params.threadId,
+    );
+    if (!written.ok) throw fileFailure(written.error, params.scope);
+    return {
+      path: written.value.path,
+      sha256: written.value.sha256,
+      unknownKeys: unknownKeysOf(params.text, engine),
+    };
   };
 }

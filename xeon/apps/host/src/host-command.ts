@@ -1,5 +1,6 @@
 import type { ServiceCommand } from "./service/ensure.ts";
 import type { SettingsFileScope } from "./settings.ts";
+import type { AssembleOptions } from "./types.ts";
 
 // L4.host-service.spec §3.3.4. runHostCommand가 받는 명령과 입출력.
 
@@ -38,6 +39,8 @@ export type HostCommand =
       readonly scope: SettingsFileScope;
       readonly out?: string;
       readonly coreOnly: boolean;
+      /** 앱이 카탈로그에 더하는 설정 그룹(CLI의 `l4.cli.*`). `coreOnly`면 쓰지 않는다. 엔진을 세울 때 넘기는 `AssembleOptions.settingGroups`와 같다 */
+      readonly settingGroups?: AssembleOptions["settingGroups"];
     };
 
 export interface CommandIo {

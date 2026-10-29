@@ -934,7 +934,7 @@
           "label": "판정 모델",
           "order": 23,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },
@@ -966,7 +966,7 @@
           "label": "검토 모델",
           "order": 20,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },
@@ -998,7 +998,7 @@
           "label": "검색 모델",
           "order": 24,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },
@@ -1030,7 +1030,7 @@
           "label": "서브에이전트 모델",
           "order": 22,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },
@@ -1062,7 +1062,7 @@
           "label": "요약 모델",
           "order": 21,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },

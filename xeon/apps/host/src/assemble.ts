@@ -77,6 +77,7 @@ import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
+import { watchUserSettings, type SettingsWatch } from "./assembly/settings-watch.ts";
 import {
   createSecretsPort,
   effectiveSecretsConfig,
@@ -397,8 +398,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     unbridge: undefined,
   };
 
+  const settingsWatchSlot: { watch: SettingsWatch | undefined } = { watch: undefined };
+
   async function closeAll(): Promise<void> {
     try {
+      // 설정 파일 감시를 먼저 닫는다: 닫은 뒤에는 다시 읽기가 시작되지 않는다
+      await settingsWatchSlot.watch?.close();
       // 예약을 먼저 멈춘다: 틱과 감시를 끊고 진행 중인 저장을 기다린다. 저장소를 닫기 전이어야 한다
       await scheduleSlot.service?.close();
       await portsHandle?.releaseAll();
@@ -814,6 +819,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
       }),
       configDir: os.dirs.config,
+      fileLock: osHandle.fileLock,
       trust: projectTrust,
       projectExtensions: createProjectExtensions({
         mode: options.mode,
@@ -829,6 +835,17 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       signal: lifetime.signal,
     });
     scheduleRunner.ports = portsHandle.ports;
+    // 다른 프로세스가 사용자 설정 파일을 바꾸면 메모리 층을 다시 읽고 알린다(M3-REQ-49)
+    const userSettingsPath = settings.userPath();
+    const settingsPort = portsHandle.ports.settings;
+    if (userSettingsPath !== undefined) {
+      settingsWatchSlot.watch = await watchUserSettings({
+        os,
+        userPath: userSettingsPath,
+        refresh: () => settingsPort.refreshUserFile(),
+        logger: os.logger("settings-watch"),
+      });
+    }
     // 틱은 서비스 모드에서만 돈다. in-process·stdio는 프로세스 사이 임대가 없어 틱의 실행권을 정할 수 없다(HS-40)
     if (options.mode === "service") {
       const started = await schedule.start();

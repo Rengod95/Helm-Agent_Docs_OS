@@ -350,7 +350,21 @@ export interface SettingsStorePort {
   prepare(threadId: ThreadId): Promise<void>;
   write(scope: SettingScope, key: SettingKey, value: unknown, threadId: ThreadId | undefined): Promise<Result<void, SettingsWriteFailure>>;
   reset(scope: SettingScope, key: SettingKey, threadId: ThreadId | undefined): Promise<Result<void, SettingsWriteFailure>>;
+  /** 범위 하나의 설정 파일 원문(`settings.readFile`, HS-98). 작업 폴더를 정할 수 없으면 path가 null이고, 신뢰하지 않은 폴더는 읽기 전용이다 */
+  readFile(scope: SettingsFileScope, threadId: ThreadId | undefined): Promise<Result<SettingsFileRead, SettingsWriteFailure>>;
+  /** 파일 전체를 바꾼다(`settings.writeFile`, HS-98). 파일 잠금 안에서 지금 파일의 해시가 baseSha256과 같을 때만 쓴다 */
+  writeFile(scope: "user" | "project" | "local", text: string, baseSha256: string | null, threadId: ThreadId | undefined): Promise<Result<{ path: string; sha256: string }, SettingsWriteFailure | { kind: "conflict"; scope: SettingScope }>>;
+  /** 사용자 설정 파일을 다시 읽어 메모리 층에 반영하고 값이 달라진 키를 알린다(HS-99). 읽을 수 없거나 JSON 객체가 아니면 앞 값을 둔다 */
+  refreshUserFile(): Promise<void>;
   onChange(listener: () => void): Unsubscribe;
+}
+
+export interface SettingsFileRead {
+  readonly path: string | null;
+  readonly exists: boolean;
+  readonly readOnly: boolean;
+  readonly text: string;
+  readonly sha256: string | null;          // 원문의 SHA-256(hex). 파일이 없으면 null
 }
 
 export interface ApprovalPort {
@@ -448,7 +462,7 @@ export declare function createWireHandlers(engine: Engine, hub: () => Connection
 ```
 
 - `WireHandlers`는 모든 `WireMethodName`에 처리기를 요구한다(`F.wire-settings.spec` §3.1). 아직 구현하지 않은 메서드는 `notImplemented(method)` 처리기로 채운다. 이 처리기는 `-32601`(`jsonrpc.methodNotFound`)을 돌려주고, 그 메서드는 `host.hello`의 `features`에서 빠진다 [제안]. 그래서 M1 호스트도 타입상 완전한 표를 갖는다.
-- M2(HOST.2·HOST.4)에서 메서드 표가 구현되었다. M3b B1-NTF(H4)에서 `notify.list`(HS-82)와 `usage.get`(HS-83)이 더해졌다. 지금 `notImplemented`로 남는 것은 수명 신호(`lifecycle`)가 없는 호스트(in-process)의 `host.shutdown`과 M3 설정 파일 메서드 `settings.readFile`·`settings.writeFile`이다.
+- M2(HOST.2·HOST.4)에서 메서드 표가 구현되었다. M3b B1-NTF(H4)에서 `notify.list`(HS-82)와 `usage.get`(HS-83)이 더해졌다. M3b B3-SET에서 `settings.readFile`·`settings.writeFile`(HS-98)이 더해졌다. 지금 `notImplemented`로 남는 것은 수명 신호(`lifecycle`)가 없는 호스트(in-process)의 `host.shutdown`뿐이다.
 
 #### 3.3.4 호스트 시작 함수
 
@@ -1078,6 +1092,9 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - HS-95. 사용량 게이지 [결정: M3-REQ-15]. `usage.get`은 HS-93과 같은 방식으로 `EnginePorts.usage`(`UsagePort.gauges`, `types.ts`)를 부른다. 원천이 받는 입력은 `providerId`와 `threadId`뿐이고 호출자 `host`의 문맥은 싣지 않는다. 처리기는 `providerId`로 한 번 더 거르고, 응답의 `asOf`는 엔진 시계의 ISO 시각이다. 조립 기본 원천(`assembly/usage.ts`)은 빈 목록이다. 레이트 리밋과 계정 풀 게이지(B2-MDL 트랙)가 원천을 채우기 전까지 `gauges`는 비어 있다. 원천의 실패를 값으로 돌려줄지(`Result`)와 던질지는 B2-MDL이 정한다(§10 35번).
 - HS-96. 비밀 env stdio MCP 서버의 기동 승인 [결정: m3b-plan B3-SEC, M3-05, M3-REQ-75]. `cap-mcp.ts`가 `xeon.approvals`가 있으면 `mcp-start.ts`의 `createHostMcpStart`로 게이트를 만들어 전송 팩토리와 `createMcp`에 잇는다. 정의 해시는 `platform-secrets`의 `mcpDefinitionHash`, 승인 흐름과 승인 레코드(`argsHash`·`args.definitionHash`)는 `core-tools`의 `createMcpStartGate`다(`L1.tools.spec` §4.12.1). 승인 서비스가 없으면 게이트가 없어 비밀 env 서버는 `secret_denied`다. 끝 시험은 `test/int/mcp-secret-env.int.test.ts`(승인 1회 뒤 기동, 정의를 바꾸면 다시 승인). 엔진의 서버 도구는 연결이 끝난 뒤 다음 단계 경계에 도구 표에 오른다.
 - HS-97. 브라우저 MCP 직접 호출 경로의 승인과 사람 확인 [결정: 오케스트레이터 기본값, §10 42·43번 닫음]. (1) `createBrowserMcpPort`는 `l2.mcp`의 유효 승인 모드(`tools.approval[도구]` > `approvalMode`)를 읽어 `deny`를 이 경로에서도 거부한다. `prompt`는 호출을 감싼 `web_browse_*` 도구가 L1.tools 승인(쓰기 등급)을 이미 받았으므로 다시 묻지 않고, `auto`는 묻지 않는다. (2) `web-browse-confirm.ts`가 cap-web `BrowseConfirmPort`를 `xeon.approvals`의 차단형 승인(kind `tool`, 도구 이름 `web_browse_confirm`)으로 잇는다. 대화를 모르면 `unavailable`이라 동작은 거부된다.
+- HS-98. 설정 파일 잠금과 파일 단위 읽기·쓰기 [결정: M3-REQ-82, M3-REQ-15. 잠금 소유는 오케스트레이터 기본값]. (1) 설정 파일(user는 `<config>/settings.json`, project·local은 신뢰한 작업 폴더의 `.xeon/settings*.json`)을 바꾸는 읽고-고치고-쓰기는 모두 `OsServiceHandle.fileLock.withLock(<파일 경로>)`(`L0.os.spec` §3.11) 안에서 한다. 키 하나를 바꾸는 `settings.set`·`settings.reset`과 파일 전체를 바꾸는 `settings.writeFile`이 같은 잠금을 쓰므로 호스트 둘(CLI, 데스크톱 사이드카, 서비스)이 같은 파일에 동시에 써도 앞 쓰기를 덮지 않는다. 잠금 파일은 `<파일 경로>.lock`이고 그 디렉터리는 먼저 만든다(0700). 잠금을 얻지 못하면(시한 5초, 중단, 입출력) `file_unwritable`(코드 `LOCK_TIMEOUT`, `LOCK_CANCELLED`, errno)이고 파일은 그대로다. (2) `settings.readFile`은 잠금 없이 읽는다(쓰기가 임시 파일을 바꿔 넣으므로 옛 파일이나 새 파일 하나를 본다). `sha256`은 원문 바이트의 SHA-256 hex이고 파일이 없으면 null이다. `managed`는 관리 정책 파일의 위치가 정해지지 않아(F wire §3.9) 경로가 null인 읽기 전용 빈 파일이다. `project`·`local`은 `threadId`의 작업 폴더가 없으면 경로가 null이고 신뢰하지 않은 폴더는 `readOnly: true`로 읽는다. `unknownKeys`는 카탈로그에 없는 최상위 키(정렬, 128자 이하, 256개까지)이고 파일에는 그대로 보존한다. (3) `settings.writeFile`은 잠금 안에서 지금 파일의 해시가 `baseSha256`과 같을 때만 쓴다(없던 파일은 null). 다르면 `settings.fileConflict`(3107)다. 쓰기 전에 원문을 검사한다: JSON 객체여야 하고(빈 문자열은 빈 객체), 카탈로그에 있고 그 범위가 허용하며 `reserved`가 아닌 키는 `checkSettingWrite`와 같은 값 검사(잠금 검사는 뺀다)를 통과해야 한다. 어기면 `settings.fileInvalid`(3108)에 `issues`(`path`는 키와 값 안 경로)를 싣는다. 비밀 키에 참조가 아닌 값을 넣으면 값을 싣지 않고 키만 알린다. 카탈로그에 없는 키와 그 범위가 허용하지 않는 키는 스키마가 막지 않으므로(`settingsJsonSchema`의 `additionalProperties: true`) 통과한다. project·local은 `thread_required`(`jsonrpc.invalidParams`), 작업 폴더 없음과 신뢰하지 않음(`settings.fileInvalid`, `issues[0].path = "scope"`)으로 거절한다. (4) 쓰기에 성공하면 메모리 층(user는 값 전체, project·local은 작업 폴더 층)을 바꾸고 `settings.invalidated`를 보낸다. user는 달라진 키 목록, project·local은 키 없이 범위만 싣는다. 사용자 범위 `l1.models.providers`를 파일 단위로 바꿔도 연결된 비밀의 사용 정책(HS-45)은 고치지 않는다: 그 허용은 `settings.set` 경로의 사람 행위만 근거로 한다 [제안].
+- HS-99. 설정 파일 외부 변경 통지 [결정: M3-REQ-49, M3-new-08]. 조립 루트(`assembly/settings-watch.ts`)가 `OsService.watch(<config 디렉터리>)`를 열고 사용자 설정 파일의 변경 배치를 받으면 `SettingsStorePort.refreshUserFile`을 차례로 부른다. 다시 읽은 값이 메모리 층과 같으면(우리 자신의 쓰기가 되울린 경우 포함) 알리지 않고, 다른 키만 모아 `settings.invalidated { keys, scopes: ["user"], threadId: null }`를 연결 전체에 보낸다. 파일이 JSON 객체가 아니거나 읽을 수 없으면(사람이 고치던 중간 상태) 앞 값을 두고 경고(`settings.user_reload_skipped`)만 남긴다. 감시를 열 수 없으면(`outside_app_dirs`, 백엔드 없음) 경고(`settings.watch_failed`)만 남기고 감시 없이 돈다. 모든 호스트 모드(in-process, stdio, 서비스)가 같은 감시를 연다. 작업 폴더의 project·local 파일은 감시하지 않는다(작업 공간 감시는 `L0.exec.spec`의 몫이고 신뢰 판정과 함께 다음에 `prepare`가 읽는다) [제안]. 감시는 종료 때 먼저 닫는다.
+
 
 ## 5. 실패와 경계 사례
 
@@ -1134,7 +1151,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 [제안] F wire §4.9 표가 이 문서에 맡긴 생성 명령이다.
 
-- 명령: `xeon config schema --scope <managed|user|project|local> [--out <path>]`. `--out`이 없으면 stdout에 쓴다. `session`은 파일이 없으므로 받지 않는다(종료코드 2).
+- 명령: `xeon config schema --scope <managed|user|project|local> [--out <path>]`. `--out`이 없으면 stdout에 쓴다. 앱이 카탈로그에 더하는 설정 그룹(CLI의 `l4.cli.*`)은 `HostCommand`의 `settingGroups`로 받아 파일 스키마에 넣는다(`--core-only`면 넣지 않는다). 그래서 `xeon config schema`의 키 집합이 `xeon config list`의 키 집합과 같다(X10) [결정: M3b B3-SET]. `session`은 파일이 없으므로 받지 않는다(종료코드 2).
 - 내용: `renderSettingsSchema(engine.catalog, scope)`. `settingsJsonSchema` 결과를 `JSON.stringify(value, null, 2) + "\n"`으로 쓴다. 키 정렬은 `settingsJsonSchema`가 보장하므로(F wire §4.10 9번) 같은 카탈로그와 범위면 바이트가 같다(F wire S10).
 - 카탈로그는 `assemble({ defaultGroups: true })`의 결과다. 외부 확장은 사용자 환경에 따라 다르므로, 저장소에 커밋하는 스키마 파일은 외부 확장 없이 만든다. 명령은 외부 확장을 싣지 않는 옵션 `--core-only`를 둔다 [제안].
 - 커밋본: `xeon/apps/host/schema/settings.<scope>.schema.json` 네 파일. 테스트가 `--core-only` 출력과 커밋본을 바이트 비교한다(plan §5 `settings-schema-committed`). 커밋본에는 `ext.account-rotation.*` 키가 듭니다(HS-80).

@@ -524,7 +524,7 @@ export function createFileWatcher(deps: {
 - `fs.watch` 구현의 종류 판정: 이벤트는 파일 이름만 주므로 `stat`으로 정한다. `rename`이고 파일이 없으면 `delete`, 있고 처음 보는 경로면 `create`, 아는 경로면 `update`다. `change`는 `update`다.
 - 합치기: 한 배치 안에서 같은 경로는 마지막 상태가 이기되 `create` 뒤 `update`는 `create`로, `delete` 뒤 `create`는 `update`로 남긴다. `ignore`는 root 기준 상대 경로에 glob(`**`, `*`, `?`)로 적용한다. `debounceMs`는 0~5000으로 자르고 기본 100이다.
 - 감시 root 완화 [결정: 오케스트레이터 기본값, M3-REQ-48]: 허용 root는 `OsDirs`의 config·data·state와 조립 루트가 `PlatformOsConfig.extraWatchRoots`로 명시한 절대 경로(워크트리 루트 등)다. 목록 밖은 `outside_app_dirs`이고 기본 목록은 비어 있다. 작업 공간 파일 감시는 여전히 exec 책임이다.
-- 설정 파일 외부 변경 통지(M3-REQ-49): L1이 `OsService.watch(<config 디렉터리>, …)`로 `settings.json` 변경 배치를 받는다. 이 패키지는 파일 이름을 해석하지 않는다.
+- 설정 파일 외부 변경 통지(M3-REQ-49): 호스트가 `OsService.watch(<config 디렉터리>, …)`로 `settings.json` 변경 배치를 받는다(`L4.host-service.spec` HS-99). 이 패키지는 파일 이름을 해석하지 않는다.
 - 디바운스: 백엔드 원시 변경을 `debounceMs` 동안 모아 경로별 마지막 상태로 합친 배열 하나를 `onBatch`에 넘긴다. 타이머는 주입된 `Scheduler`로 건다(테스트는 `manualClock`).
 - [가정] `bun build --compile` 바이너리에서 `@parcel/watcher`의 네이티브 모듈을 로드할 수 있다. 실측은 `L0.os.plan`이 한다. 안 되면 폴링이 기본이 된다.
 - 서비스가 `dispose`될 때 열린 감시를 모두 닫는다.
@@ -638,7 +638,7 @@ export interface FileLock {
 - `scope`는 `cross_process`(flock 사용)이거나 `process`다. `process`는 Windows(M2 범위 밖)와 FFI를 읽지 못한 환경이고, 같은 프로세스 안에서만 배타다. 이때 서비스 시작 로그에 `os.file_lock.process_only`를 남긴다.
 - `withLock`은 `fn`이 던지면 잠금을 놓고 그 오류를 그대로 거부로 전한다. `updateText`의 `fn`이 던지면 파일은 바뀌지 않는다(신뢰 저장소가 손상 파일을 `corrupt`로 알리는 경로).
 - `updateText`는 같은 디렉터리의 임시 파일(`<path>.<pid>.<번호>.tmp`, 0600)에 쓰고 `rename`한다. 읽기 실패 가운데 `ENOENT`는 `fn(null)`이고 나머지는 `io`다. fsync는 하지 않는다(신뢰·설정 파일은 마지막 값이 사라져도 이전 값으로 돌아갈 뿐이다) [제안].
-- 같은 잠금을 감사 파일의 프로세스 간 정리(prune)에도 쓴다(M3-REQ-61): `platform-secrets`가 `withLock(<감사 파일 경로>, …)`로 정리와 덧붙이기를 직렬화한다. 이 패키지는 도구를 주고 적용은 `L0.secrets.spec`이 한다. `settings.json` 쓰기 적용(M3-REQ-82)은 `L1.persistence.spec`이다.
+- 같은 잠금을 감사 파일의 프로세스 간 정리(prune)에도 쓴다(M3-REQ-61): `platform-secrets`가 `withLock(<감사 파일 경로>, …)`로 정리와 덧붙이기를 직렬화한다. 이 패키지는 도구를 주고 적용은 `L0.secrets.spec`이 한다. `settings.json` 쓰기 적용(M3-REQ-82)은 호스트(`SettingsStorePort`)가 이 잠금으로 한다(`L1.persistence.spec` §6.2, `L4.host-service.spec` HS-98).
 - `TrustStoreBackend.update`(F)가 이 메서드와 같은 모양이다: 호스트 조립 루트가 `updateText`를 `update`에, 잠금 없는 읽기를 `read`에 연결한다.
 
 ### 3.12 제품 이름 상수
@@ -803,7 +803,7 @@ F에 요청:
 9. [미결] `l0.os.dirs.override`의 관리 설정 파일 위치. 사용자 설정 파일이 config 디렉터리 안에 있어 순환이 생기므로 관리 범위만 허용했다.
 10. [미결] 2차 의존의 정확한 버전과 이름. `@parcel/watcher`는 조사 시점 2.6.0이고 catalog 확정 전이다. `pi-telemetry` 1.3.0의 npm 범위 이름(`@earendil-works/` 여부)과 라이선스(MIT 여부)는 확인하지 않았다. 둘 다 OS-14·OS-15 착수 전에 npm 레지스트리에서 확인해 catalog와 `L0.os.plan` §4 표에 정확히 적는다.
 11. [미결] `processStartFingerprint`의 macOS 수단(`ps -o lstart=`는 초 단위)과 Windows 수단(`GetProcessTimes`). macOS 해상도로 pid 재사용을 충분히 구분하는지 실측한다.
-12. [미결] F 요청, `OsService.fileLock`. 지금은 `OsServiceHandle.fileLock`으로만 낸다. F가 `OsService`에 같은 모양을 더하면 조립 루트가 핸들 대신 서비스에서 받는다. `settings.json` 쓰기에 같은 잠금을 쓰는 일은 M3다.
+12. [미결] F 요청, `OsService.fileLock`. 지금은 `OsServiceHandle.fileLock`으로만 낸다. F가 `OsService`에 같은 모양을 더하면 조립 루트가 핸들 대신 서비스에서 받는다. `settings.json` 쓰기에는 호스트가 같은 잠금을 쓴다(M3b, HS-98).
 13. [실측: macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25] macOS의 `libSystem.B.dylib` `flock`, `__error`, EWOULDBLOCK(35)이 `file-lock.int.test.ts`의 자식 프로세스 시험에서 `scope === "cross_process"`와 SIGKILL 뒤 해제로 통과했다. 라이브러리 판정은 파일 존재가 아니라 dlopen 시도다(macOS 11+는 `/usr/lib/libSystem.B.dylib`가 디스크에 없고 dyld 공유 캐시에 있지만 `dlopen("libSystem.B.dylib")`는 된다). `process` 범위로 내려가는 것은 dlopen이 정말 실패할 때뿐이다. `service.test.ts`의 가짜 Linux 플랫폼 시험이 macOS에서 `libc.so.6` dlopen 실패로 `os.file_lock.process_only`를 남긴 것은 시험이 실제 dlopen을 부른 탓이었고(결함 아님), 이제 `OsRuntime.createFlock`을 주입한다. Linux는 `file-lock.int.test.ts`가 자식 프로세스 넷의 읽기-수정-쓰기 100회가 한 줄도 잃지 않음을 확인한다.
 14. [미결] 제품 이름 상수의 소유 문서. L0.os가 앱 디렉터리 이름을 정하고 F가 서버 이름을 정하는 배치를 유지할지 M4 개명 작업 전에 정한다(§3.12).
 15. [미결] F 요청, `OsService.worktrees`. 지금은 `OsServiceHandle.worktrees`로만 낸다(§3.13).

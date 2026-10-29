@@ -38,6 +38,8 @@ import type {
 } from "@xeon/contracts/settings";
 import type {
   EventFilter,
+  SettingsFileScope,
+  SettingsWritableFileScope,
   StoreId,
   StreamPosition,
   TurnStartInput,
@@ -516,6 +518,21 @@ export type SettingsWriteFailure =
   | { readonly kind: "key_reused"; readonly requestKey: string }
   | StoreError;
 
+/** 파일 단위 쓰기(`settings.writeFile`)가 실패한 이유. 키 단위 쓰기의 이유에 "읽은 뒤 파일이 바뀌었다"를 더한다 */
+export type SettingsFileFailure =
+  | SettingsWriteFailure
+  | { readonly kind: "conflict"; readonly scope: SettingScope };
+
+/** `settings.readFile`이 읽은 파일. 경로가 없으면(작업 폴더 없음, 관리 정책 파일 위치 미정) `exists`는 거짓이고 읽기 전용이다 */
+export interface SettingsFileRead {
+  readonly path: string | null;
+  readonly exists: boolean;
+  readonly readOnly: boolean;
+  readonly text: string;
+  /** 원문의 SHA-256(hex). 파일이 없으면 null */
+  readonly sha256: string | null;
+}
+
 /**
  * 설정이 바뀌었다는 신호. wire 알림 `settings.invalidated`의 원천이다(F wire §3.3.2). 값이 없다.
  * `keys`가 비면 어느 키인지 모르는 변경(신뢰 결정으로 project·local 층을 통째로 다시 읽음)이고, `threadId`는 `session` 범위일 때만 있다
@@ -545,6 +562,29 @@ export interface SettingsStorePort {
     key: SettingKey,
     threadId: ThreadId | undefined,
   ): Promise<Result<void, SettingsWriteFailure>>;
+  /**
+   * 범위 하나의 설정 파일 원문을 읽는다(`settings.readFile`). `project`·`local`은 thread의 작업 폴더를 쓴다.
+   * 작업 폴더를 정할 수 없으면 경로가 null이고, 신뢰하지 않은 폴더는 읽기 전용이다
+   */
+  readFile(
+    scope: SettingsFileScope,
+    threadId: ThreadId | undefined,
+  ): Promise<Result<SettingsFileRead, SettingsWriteFailure>>;
+  /**
+   * 파일 전체를 바꾼다(`settings.writeFile`). 원문 검사는 호출자가 마쳤다(JSON 객체, 범위의 스키마). 파일 잠금 안에서 지금 파일의 해시가
+   * `baseSha256`과 같을 때만 쓴다(없던 파일은 null). 성공하면 메모리 층을 바꾸고 `settings.invalidated`를 보낸다
+   */
+  writeFile(
+    scope: SettingsWritableFileScope,
+    text: string,
+    baseSha256: string | null,
+    threadId: ThreadId | undefined,
+  ): Promise<Result<{ readonly path: string; readonly sha256: string }, SettingsFileFailure>>;
+  /**
+   * 사용자 설정 파일을 다시 읽어 메모리 층에 반영하고, 값이 달라진 키가 있으면 알린다. 파일 감시(M3-REQ-49)가 외부 변경을 알릴 때 부른다.
+   * 읽을 수 없거나 JSON 객체가 아니면 앞 값을 둔다
+   */
+  refreshUserFile(): Promise<void>;
   onChange(listener: (change: SettingsChange) => void): Unsubscribe;
 }
 

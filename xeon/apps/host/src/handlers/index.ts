@@ -19,8 +19,10 @@ import { createSecretHandlers } from "./secret.ts";
 import {
   createSettingsGetHandler,
   createSettingsListHandler,
+  createSettingsReadFileHandler,
   createSettingsResetHandler,
   createSettingsSetHandler,
+  createSettingsWriteFileHandler,
 } from "./settings.ts";
 import {
   createThreadCloseHandler,
@@ -83,8 +85,8 @@ export function createWireHandlers(
     "settings.set": createSettingsSetHandler(engine),
     "settings.reset": createSettingsResetHandler(engine),
     "settings.list": createSettingsListHandler(engine),
-    "settings.readFile": notImplemented("settings.readFile"),
-    "settings.writeFile": notImplemented("settings.writeFile"),
+    "settings.readFile": createSettingsReadFileHandler(engine),
+    "settings.writeFile": createSettingsWriteFileHandler(engine),
     "usage.get": createUsageGetHandler(engine),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine),
