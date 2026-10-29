@@ -186,6 +186,7 @@ binds: []
 - 작업: 남은 `Reflect.get` 85곳(M3-41 잔여), `X/operations/plan.md` "pi 어댑터" 문구, M3-new-17 잔여(open-issues E-01~E-05, N-07, V-05, 린트 항목), M3-35(`kit`·`group-kit`, `host`·`host-service` 이름 맞춤), 학습 superseded 커밋 처리 확인.
 - 패키지마다 1커밋입니다. 다른 트랙과 겹치지 않게 B5에 둡니다.
 - 끝 시험: `check-ts-rules`에서 `Reflect.get` 0, `docs-route` 통과.
+- 학습 superseded 커밋(확인 2026-10-29): `ecbc1f9a`와 `608713e0`은 `xeon/foundation` 이력에 없고 어떤 ref에도 닿지 않습니다. `608713e0`은 `m3a/learning` 리베이스의 reflog에만 남습니다. 같은 작업은 foundation의 `0d07cbe9`(group-learning)와 `dc920ae3`(host 학습 내장)으로 들어가 있어 이력을 고치지 않습니다(squash 없음) [결정: 오케스트레이터 기본값]
 
 **B5-DOC 운영 문서** · Haiku xhigh · `docs/xeon` · S
 - 작업: M3-28(운영·진단 런북, 용어집, 구현 상태 지도, 데이터·개인정보, 비기능 요구 절), M3-25 복구 런북.
