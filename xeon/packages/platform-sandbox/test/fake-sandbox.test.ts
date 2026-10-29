@@ -63,4 +63,25 @@ describe("fakeSandbox", () => {
       sandbox.autoAllow(policy, { command: "x", cwd: "/w", workspaceRoots: ["/w"], tempDir: "/t" }),
     ).toEqual({ allow: false, blocks: ["escape_requested"] });
   });
+
+  test("wrapArgv records the request and returns the argv for an available sandbox", async () => {
+    const sandbox = fakeSandbox();
+    const policy = sandbox.defaultPolicy({ workspaceRoots: ["/w"], tempDir: "/t" });
+    const request = { command: "node", args: ["server.js"], cwd: "/w" };
+    const result = await sandbox.wrapArgv(policy, request, NO_CANCEL);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sandboxed).toBe(true);
+    expect(result.value.argv).toEqual(["node", "server.js"]);
+    expect(sandbox.wrappedArgv).toEqual([{ request, policy }]);
+  });
+
+  test("wrapArgv with an unavailable disable_execute status is err unavailable", async () => {
+    const sandbox = fakeSandbox({ status: { available: false, reason: "unsupported_os" } });
+    const policy = sandbox.defaultPolicy({ workspaceRoots: ["/w"], tempDir: "/t" });
+    const request = { command: "node", args: [], cwd: undefined };
+    const result = await sandbox.wrapArgv(policy, request, NO_CANCEL);
+    expect(!result.ok && result.error).toEqual({ kind: "unavailable", reason: "unsupported_os" });
+    expect(sandbox.wrappedArgv.length).toBe(1);
+  });
 });

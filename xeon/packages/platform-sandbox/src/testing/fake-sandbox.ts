@@ -1,7 +1,8 @@
-import { assertNever, err } from "@xeon/contracts";
+import { assertNever, err, ok } from "@xeon/contracts";
 import type {
   AutoAllowDecision,
   ProtectedPathEntry,
+  SandboxArgvRequest,
   SandboxPolicy,
   SandboxService,
   SandboxStatus,
@@ -29,6 +30,11 @@ export interface FakeSandbox extends SandboxService {
     readonly command: string | readonly string[];
     readonly policy: SandboxPolicy;
   }[];
+  /** wrapArgv 호출 기록: 요청, 정책 */
+  readonly wrappedArgv: readonly {
+    readonly request: SandboxArgvRequest;
+    readonly policy: SandboxPolicy;
+  }[];
 }
 
 function fakeStatus(options: FakeSandboxOptions): SandboxStatus {
@@ -47,6 +53,26 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
   const status = fakeStatus(options);
   const protectedPaths = options.protectedPaths ?? [];
   const wrapped: { command: string | readonly string[]; policy: SandboxPolicy }[] = [];
+
+  const wrappedArgv: { request: SandboxArgvRequest; policy: SandboxPolicy }[] = [];
+
+  /** 격리하지 않고 요청 그대로의 argv를 돌려준다. 판정은 실제 규칙을 쓰고, cleanup 호출 수를 센다 */
+  const wrapArgv: SandboxService["wrapArgv"] = (policy, request) => {
+    wrappedArgv.push({ request, policy });
+    const decision = decideExecution(status, policy, false);
+    if (decision.action === "reject") {
+      return Promise.resolve(err({ kind: "unavailable", reason: status.reason }));
+    }
+    return Promise.resolve(
+      ok({
+        argv: [request.command, ...request.args],
+        env: {},
+        sandboxed: decision.action === "sandboxed",
+        ...(decision.action === "plain" ? { unsandboxedBy: decision.by } : {}),
+        cleanup: () => {},
+      }),
+    );
+  };
 
   const wrapShell = (shell: Shell, policy: SandboxPolicy): Shell => ({
     async exec(command, execOptions, context) {
@@ -77,6 +103,7 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
 
   return {
     wrapped,
+    wrappedArgv,
     status: () => status,
     defaultPolicy: (input) => ({
       writeRoots: [...input.workspaceRoots, input.tempDir],
@@ -87,6 +114,7 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
     }),
     protectedPaths: () => protectedPaths,
     wrapShell,
+    wrapArgv,
     autoAllow: (policy, request) =>
       options.autoAllow ?? decideAutoAllow(policy, request, status, []),
     selfTest: (): Promise<SelfTestReport> =>

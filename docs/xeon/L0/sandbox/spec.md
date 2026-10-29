@@ -193,7 +193,7 @@ export interface SandboxedArgv {
   env: Readonly<Record<string, string>>;
   sandboxed: boolean;
   /** sandboxed가 거짓일 때만 */
-  unsandboxedBy?: "disabled" | "run_unsandboxed";
+  unsandboxedBy?: "disabled" | "escape" | "run_unsandboxed";
   /** 프로세스가 끝났거나 spawn에 실패하면 부른다. 여러 번 불러도 한 번만 한다 */
   cleanup(): void;
 }
@@ -416,18 +416,32 @@ export function selectSandboxProvider(input: {
 
 ### 4.7 감싸는 범위
 
-- 감싸는 것: bash 계열 셸 명령과 그 자식 프로세스(`wrapShell`을 거친 `Shell.exec`).
-- 감싸지 않는 것: 파일 도구(read, write, edit, ls, grep·find 중 in-process 구현), 웹 도구, 로컬 MCP 서버, 확장 코드 자체(`_research/refs/claude-code.md` §3.2, `_research/notes/L0-1.md` §0 8번). 그래서 파일 도구는 realpath 기준 보호 경로 검사를 L1·L2에서 해야 한다(18 R-12, 8.3절 요구).
-- MCP stdio 서버 프로세스는 §4.8의 출처별 판정으로 정한다. 켬이면 서버 프로세스 실행이 `wrapShell`을 거친 `Shell`을 쓴다.
+- 감싸는 것: bash 계열 셸 명령과 그 자식 프로세스(`wrapShell`을 거친 `Shell.exec`), 켠 stdio MCP 서버 프로세스(`wrapArgv`, 4.9절).
+- 감싸지 않는 것: 파일 도구(read, write, edit, ls, grep·find 중 in-process 구현), 웹 도구, 출처 판정으로 끈 로컬 MCP 서버(4.8절), 확장 코드 자체(`_research/refs/claude-code.md` §3.2, `_research/notes/L0-1.md` §0 8번). 그래서 파일 도구는 realpath 기준 보호 경로 검사를 L1·L2에서 해야 한다(18 R-12, 8.3절 요구).
+- MCP stdio 서버 프로세스는 §4.8의 출처별 판정으로 정한다. 켬이면 서버 프로세스의 명령줄을 `wrapArgv`(4.9절)로 받고, 호출자가 스트림을 연다.
 
 ### 4.8 MCP stdio 서버와 중첩 네임스페이스
 
 [결정: review.m3-design-inputs D-M3-19 행 1, M3-REQ-57·56]
 
 - `decideMcpStdioSandbox(source, serverSetting)`(`src/mcp-stdio.ts`)가 서버 정의 출처(`L2.mcp.spec` §3.1 `source`)로 격리 여부를 정한다. `settings:user`는 끔이고 `settings:project`, `mcpjson:project`, `mcpjson:xeon`, `ext:<이름>`, 알 수 없는 출처는 켬이다. 서버별 설정 값(참·거짓)이 있으면 출처 기본값보다 우선한다. 알 수 없는 출처를 켬으로 두는 것은 [결정: 오케스트레이터 기본값]이다.
-- `shellForMcpStdio(service, shell, policy, decision)`은 켬이면 `service.wrapShell(shell, policy)`, 끔이면 받은 `shell`을 돌려준다. 격리를 쓸 수 없는 상태의 처리는 §4.5가 그대로 정한다. 서버별 설정 키와 호출은 `L2.mcp.spec`이 가진다(B3-SEC).
+- `shellForMcpStdio(service, shell, policy, decision)`은 켬이면 `service.wrapShell(shell, policy)`, 끔이면 받은 `shell`을 돌려준다. 격리를 쓸 수 없는 상태의 처리는 §4.5가 그대로 정한다. 서버별 설정 키와 호출은 `L2.mcp.spec`이 가진다(B3-SEC). `platform-process`의 MCP stdio 띄우기는 이 함수 대신 `wrapArgv`(4.9절)를 쓴다.
 - 브라우저 provider는 샌드박스 셸 안에서 자체 샌드박스를 띄우려고 중첩 사용자 네임스페이스가 필요하다. 설정 `l0.sandbox.nestedNamespaces`를 켜면 srt `enableWeakerNestedSandbox`가 참이 된다. 기본은 거짓이고 `restart` 반영이다. 켠 상태는 시작 로그에 경고로 남긴다 [제안]. 중첩 허용 때문에 쓰기 거부가 약해질 수 있어(`_research/notes/L0-1.md` §3.6) 브라우저를 쓰지 않는 사용자는 켜지 않는다.
 - `tool.sandbox_bypassed`(샌드박스 밖 실행 감사 이벤트)의 소유자는 L1 tools(`tool.` 접두)이다 [결정: 오케스트레이터 기본값, 10절 2번의 후보 채택]. `platform-sandbox`는 `ShellExecResult.sandbox.unsandboxedBy`만 돌려주고 이벤트를 내지 않는다.
+
+### 4.9 wrapArgv
+
+`wrapArgv(policy, request, context)`는 stdio MCP 서버처럼 오래 사는 프로세스를 위한 메서드입니다. `wrapShell`은 `Shell.exec`가 끝난 뒤에야 결과를 돌려주므로 프로세스의 입출력 스트림을 호출자에게 넘기지 못합니다. `wrapArgv`는 감싼 명령줄(`argv`), env 추가분, `cleanup`을 돌려주고, 호출자가 `argv`를 자기 파이프 스트림으로 직접 spawn합니다. 판정과 변환은 `wrapShell`과 같은 함수를 씁니다.
+
+처리 순서는 다음과 같습니다.
+
+1. `context.abortSignal`이 이미 중단되었으면 `err({ kind: "aborted" })`를 돌려줍니다.
+2. 탈출과 격리 불가 판정은 4.2절 2~3단계와 4.5절 표를 그대로 따릅니다. 거부하면 `err({ kind: "unavailable", reason })`를 돌려주고, `reason`은 `status().reason`입니다. 격리가 가능한 상태에서 거부된 탈출 요청은 `reason`이 없습니다. 실행을 허락하는 경우(`disabled`, `run_unsandboxed`, 승인된 `escape`)는 감싸지 않고 `ok({ argv: [command, ...args], env: {}, sandboxed: false, unsandboxedBy, cleanup })`를 돌려줍니다. 이때 `cleanup`은 아무 일도 하지 않습니다.
+3. 그 밖의 경우 4.2절 1단계(정책 병합)와 4·6·7단계를 따릅니다. 정책을 srt 파일 설정으로 바꾸고 명령을 래핑하는 일은 `wrapShell`과 같은 함수(`srtWrap`)가 합니다. 명령은 `[command, ...args]`를 POSIX 작은따옴표 규칙으로 이은 셸 문자열 하나이고, `binShell`은 `"bash"`입니다. 상대 경로의 기준은 `cwd`가 절대 경로일 때 그 값이고, 아니면 `/`입니다. 정책의 `network.allowedDomains`가 비어 있지 않으면 `err({ kind: "failed" })`입니다. 네트워크는 `wrapShell`과 같이 서비스의 차단 목록 정책을 따릅니다. 래핑이 throw하면 `message`에는 오류의 이름과 code만 싣고, `cleanupAfterCommand()`는 부르지 않습니다.
+4. 성공하면 `ok({ argv, env, sandboxed: true, cleanup })`를 돌려줍니다. `argv`는 srt가 돌려준 값입니다. `env`는 srt가 돌려준 env에서 부모 env와 값이 같은 항목을 뺀 차이입니다(4.2절 8단계). `cleanup()`은 `cleanupAfterCommand()`를 한 번만 부릅니다. 여러 번 불러도 한 번만 실행합니다.
+5. 호출자는 `argv`를 spawn하고, 프로세스가 끝났거나 spawn이 실패하면 `cleanup()`을 부릅니다. 여러 장수 프로세스의 정리 시점이 겹치는 문제는 10절 11번의 [미결]입니다.
+
+위반 기록은 모으지 않습니다. 그래서 결과에 `sandbox` 보고가 없고, 수집 방식은 10절 10번의 [미결]입니다.
 
 ## 5. 실패와 경계 사례
 
@@ -494,9 +508,9 @@ export function selectSandboxProvider(input: {
 
 | 이름 | 소비 문서 |
 |---|---|
-| `xeon.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `wrapShell`, `autoAllow`, `selfTest` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor) |
+| `xeon.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `wrapShell`, `wrapArgv`, `autoAllow`, `selfTest` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor), `platform-process`(stdio MCP 서버, 4.9절) |
 | `describeSandboxStatus`(F `services/sandbox.ts`의 순수 함수, review.decisions-2 D-04) | `L4.cli.spec`, `L4.settings-ui.spec`. 구현 패키지를 import하지 않고 F에서 가져온다(DR-14) |
-| `@xeon/platform-sandbox/testing`: `fakeSandbox`(상태와 판정을 표로 고정, `wrapShell`은 기록만 하는 통과 데코레이터) | `L1.tools.plan`, `L2.workspace.plan` |
+| `@xeon/platform-sandbox/testing`: `fakeSandbox`(상태와 판정을 표로 고정, `wrapShell`은 기록만 하는 통과 데코레이터, `wrapArgv`는 요청을 `wrappedArgv`에 기록하고 판정대로 argv를 돌려준다) | `L1.tools.plan`, `L2.workspace.plan` |
 
 ### 8.2 F에 요청
 
@@ -535,6 +549,7 @@ export function selectSandboxProvider(input: {
 11. srt 래핑이 throw하면 `sandbox_failed`이고 `cleanupAfterCommand` 호출이 0회다.
 12. 실제 srt와 OS 격리(Linux bubblewrap, macOS Seatbelt)로 `sandbox.int.test.ts`가 다음을 확인한다. 각 거부 시험은 같은 명령을 감싸지 않은 Shell로 돌려 성공함을 보이는 대조를 함께 둔다. (a) 쓰기 루트 안 쓰기는 성공하고 `sandbox.sandboxed`가 참이다. (b) 쓰기 루트 밖 쓰기가 종료 코드 0이 아니고 파일이 생기지 않는다(M1 종료 조건). (c) 쓰기 루트 안의 `.git/hooks` 쓰기가 거부된다. (d) `<xeonData>/selftest/canary` 읽기가 거부된다. (e) 호출자 `readDeny`·`writeDeny`가 비어도 (c)와 `protectedPaths.extra` 경로 읽기 거부가 그대로다. (f) 로컬 TCP 서버로 가는 `/dev/tcp` 연결이 거부되고 서버가 연결을 받지 못한다. (g) 자가 시험 여섯 항목이 모두 통과한다.
 13. 12번 시험의 필수 바이너리(Linux: `bwrap`, `socat`, `rg` / macOS: `rg`)가 없으면, 환경 변수 `XEON_REQUIRE_SANDBOX=1`이거나 `CI=true`일 때 종료 코드 2(환경 문제)로 끝나고 stderr에 `ENV sandbox.int: missing <이름>. <설치 안내>`를 쓴다. 그 밖의 기기에서는 건너뛰고 stderr에 `SKIPPED ENV sandbox.int: …`를 한 줄 남긴다. CI가 이 파일을 건너뛴 채 통과하지 않게 하는 쪽은 Z 트랙(G4-07)이 `test-capped.sh`의 종료 코드 전달과 건너뜀 수 출력으로 잇는다.
+14. `test/wrap-argv.test.ts`가 4.9절을 값으로 확인한다. 격리 가능 시 srt가 준 argv와 한 번만 인용한 명령 문자열, 부모 env와 다른 항목만 든 env, `wrapShell`과 같은 srt 설정, `cleanup` 두 번 호출에 `cleanupAfterCommand` 한 번, 래핑 실패의 `failed`(이름과 code만)와 `cleanupAfterCommand` 0회, 중단의 `aborted`, 격리 불가의 `unavailable`, 실행 허락 시 요청 그대로의 argv와 `unsandboxedBy`, 허용 도메인의 `failed`.
 
 근거 위치: `_research/packages.md` §4.2 L0-b, `_research/refs/claude-code.md` §3.2·326행, `_research/notes/L0-1.md`, `_research/settings.md` §2.2·§4, `docs/design/18-security.md` §3.11.1·§3.11.4·§3.11.5, `docs/design/13-tools-and-execution.md` §3.5·§3.6.
 
@@ -549,3 +564,5 @@ export function selectSandboxProvider(input: {
 7. [결정: review.m3-design-inputs D-M3-18 행 2] 자격 파일 행(`~/.npmrc`, `~/.config/gh` 등)은 기본으로 읽기를 허용하고, 설정 `l0.sandbox.credentialFiles`(`allow`·`deny`)로 거부할 수 있다(§3.3). 이전 질문: 자격 파일 행의 읽기 거부 기본값. 안전하지만 `gh`, 사설 레지스트리 `npm`이 샌드박스 안에서 인증 없이 돈다. 비밀 env 주입(`L0.exec.spec` §3.6)으로 대신할 수 있는지 `L0.secrets.spec`과 함께 정한다.
 8. [미결] `SettingsTab`의 `"sandbox"` 추가(F 변경).
 9. [미결] 프록시 훅(후속, sentinel 모드). `L0.secrets.spec` §4.3 M2 sentinel 설계는 자식 HTTPS가 `xeon.sandbox` 프록시를 지나고 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 요구한다. 이 문서는 아직 그 훅을 정하지 않았다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안을 `L0.sandbox.plan` SB-16에서 비교하고 TLS 종단(`L0.secrets.spec` §10 6번)과 함께 정한다.
+10. [미결] `wrapArgv`의 위반 수집. 장수 프로세스는 위반 줄을 언제 모을지 정해야 한다(종료 때 한 번, 주기적으로 등). 1차는 모으지 않고, `SandboxedArgv`에도 위반 필드가 없다(4.9절).
+11. [미결] `cleanupAfterCommand`의 전역 범위. srt 상태는 프로세스 전역이고, 이 함수는 실행 중인 다른 샌드박스가 쓰는 마운트 지점을 지울 수 있다(`_research/notes/L0-1.md` §8). `wrapArgv`의 `cleanup`은 호출 횟수만 한 번으로 막는다. 여러 장수 프로세스의 정리 시점을 어떻게 정할지 정해야 한다(4.9절).

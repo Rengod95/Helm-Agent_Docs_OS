@@ -49,6 +49,7 @@ import {
   formatStatusLine,
   type Detection,
 } from "./status.ts";
+import { wrapArgvWith } from "./wrap-argv.ts";
 import { wrapShellWith, type WrapShellDeps } from "./wrap-shell.ts";
 
 // L0.sandbox.spec §3.1 SandboxService 구현. exec·secrets·os 패키지를 import하지 않고 F 서비스 인터페이스만 받는다.
@@ -428,6 +429,7 @@ export async function createSandboxService(
     defaultPolicy,
     protectedPaths: () => withGitEntries(baseProtectedEntries(), [...knownRoots]),
     wrapShell: (shell, policy) => wrapShellWith(wrapDeps(true), shell, policy),
+    wrapArgv: (policy, request, context) => wrapArgvWith(wrapDeps(true), policy, request, context),
     autoAllow: (policy, request) =>
       decideAutoAllow(policy, request, currentStatus(true), BLOCKED_NETWORK.allowedDomains),
     selfTest,
