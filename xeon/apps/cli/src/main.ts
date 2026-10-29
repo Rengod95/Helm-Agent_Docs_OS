@@ -81,6 +81,10 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       const { runDoctor } = await import("./commands/doctor.ts");
       return runDoctor(ctx, command);
     }
+    case "group.new": {
+      const { runGroup } = await import("./commands/group.ts");
+      return runGroup(ctx, command);
+    }
     case "host": {
       const { runHostStdio } = await import("./commands/host.ts");
       return runHostStdio(ctx);

@@ -107,6 +107,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 원격 서비스에 중계한다(HS-89). 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표). 원격이면 `resolveRemoteEndpoint`, `bridgeStdioToService` | M2(컴파일 바이너리 서브커맨드, 구현됨) |
 | `xeon doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`, `web.providers`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
 | `xeon db export <폴더> [--json]` | 저장소 파일(데이터 디렉터리의 `xeon.db`)을 엔진을 띄우지 않고 읽기 전용으로 `<폴더>`에 내보낸다. 엔진이 떠 있어도 된다. 상대 경로는 작업 폴더(`-C`) 기준이다(§4.13). 종료코드: 성공 0, 폴더 인자 누락과 비어 있지 않은 대상 2, 저장소·디스크 오류와 데이터 디렉터리 위치 실패 3(§4.10) | 없음. `deps.exportDatabase`(`L0.store.spec` §4.10)와 `deps.resolveDataDir`(`resolveOsDirs`)를 부른다 | M3(구현됨, M3b B3-DATA) |
+| `xeon group new <이름> [--drive\|--policy] [--dir <폴더>] [--json]` | 그룹 골격을 만든다. 기본은 observe 템플릿, `--drive`는 drive, `--policy`는 policy 템플릿이다. 두 플래그를 함께 주면 사용법 오류(2)다. 대상 폴더는 비어 있어야 하고 기본은 작업 폴더의 `<이름>`이다. 엔진에 연결하지 않고 템플릿 파일만 읽는다(§3.8) | 없음. 파일 작업(`CliDeps.groupTemplates`) | M3b(구현됨, M3b B4-GRP) |
 | `xeon version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
 
 - 근거: 명령 모양은 omp `config list/get/set/reset`(`_research/settings.md` §1, §3 [S36]), pi 모드 4종(TUI, print, JSON, RPC: `_research/refs/pi.md` "같은 AgentSession을 네 모드가 쓴다", `~/projects/_ref/pi-src/packages/coding-agent/src/modes/`), 비밀 명령은 `_research/secrets.md` §6.6, 서비스 명령은 adr.0006 §3.4다.
@@ -351,6 +352,7 @@ export declare function runCli(argv: readonly string[], io: CliIo, deps: CliDeps
   - `EngineHandle.secretOutOfBand`: in-process 접속에서 값 입력·열람 수단을 wire 밖으로 맡기는 통로(`SecretOutOfBandPort`, `InProcessHost.secretOutOfBand`). 서비스 접속은 null이다.
   - `EngineHandle.supports(feature)`: `host.hello`의 `features`(active, experimental)에 그 이름이 있는지. 호스트가 아직 구현하지 않은 메서드(`turn.interrupt`, `thread.open`, `approval.list`, `events.unsubscribe`)를 쓰기 전에 거른다.
 - M3b B3-DATA에서 더한 필드: `CliDeps.exportDatabase`(`@xeon/platform-store`의 `exportDatabase`를 감싼 비동기 함수. 부를 때 모듈을 읽는다)와 `CliDeps.resolveDataDir`(`@xeon/platform-os`의 `resolveOsDirs`가 정한 데이터 디렉터리의 절대 경로, 정할 수 없으면 null). 둘 다 엔진을 띄우지 않는다. 시험은 가짜를 넣는다.
+  - M3b에서 더한 필드: `CliDeps.groupTemplates`(`GroupTemplatesPort`, §3.8). 실제 값은 `src/group/fs-port.ts`의 `createGroupTemplatesFs`이고 `runtime.ts`가 조립한다.
 - `main.ts`의 최상위 코드는 `process.argv.slice(2)`, 실제 `CliIo`, `CliDeps`(`connectEngine`과 `@xeon/host`의 `runHostCommand`)로 `runCli`를 부르고 `process.exit(code)`만 한다. 최상위 await를 쓰지 않는다(`bun build --compile --bytecode`). 실제 `CliIo`·`CliDeps`를 만드는 코드는 `runtime.ts`에 있고 `main.ts`가 필요할 때 읽는다.
 
 ### 3.5 렌더러
@@ -455,6 +457,7 @@ export const EXIT: {
 - 이 표는 제품 CLI의 종료 코드다. 개발 레시피의 종료코드 규칙(1 고침, 2 환경, 3 사람 확인, `eng.toolchain.guide` 3.2절)과 섞지 않는다. 특히 제품의 3은 "환경 문제"이고 개발 레시피의 3은 "사람 확인 필요"다.
 - 129, 143은 pi print 모드의 신호 종료 값을 따라 더한 것이다 [제안](`print-mode.ts:60`).
 - `runHostCommand`를 부르는 명령(`host --stdio`, `service *`, `config schema`)은 반환값 0·1·2를 그대로 종료 코드로 쓴다. 이 경로의 시작 거부(SV-05 권한 검사, `AssembleError`)는 3이 아닌 1이다(`L4.host-service.spec` §3.3.5).
+- `group new`(§3.8)의 종료 코드: 2는 플래그 충돌, 이름 형식이나 예약 이름, 설치된 확장과 이름 겹침, 대상 폴더가 비어 있지 않음, 생성한 매니페스트의 검사 실패다. 3은 템플릿 위치나 색인 문제, 파일 읽기와 쓰기 실패다.
 
 ### 3.7 CLI 상태 파일
 
@@ -480,6 +483,36 @@ export type CliState = Static<typeof CliStateSchema>;
 - 위치는 `EngineHandle.paths.cliStateFile`이다. 경로 계산(OS 분기)은 CLI가 하지 않는다(DR-13).
 - 쓰기는 임시 파일에 쓴 뒤 이름 바꾸기로 한다. 권한은 0600 [제안].
 - 이 파일은 캐시다. 깨졌거나 스키마가 맞지 않으면 버리고 `--continue`는 "이어 열 세션이 없다"로 처리한다. M2부터 `--continue`는 `thread.list`를 정본으로 쓰고 이 파일은 위치(`position`)만 제공한다.
+
+### 3.8 그룹 생성 명령 `xeon group new` [M3b]
+
+명령의 요구(R1~R6)는 `L3.slots.spec` §3.3.6이 정한다. 이 절은 구현 계약이다.
+
+```ts
+// src/io.ts (CliDeps의 필드)
+export interface GroupTemplatesPort {
+  readIndex(): Promise<Result<string, GroupIoError>>;                  // templates/index.json 텍스트
+  readTemplateFile(rel: string): Promise<Result<Uint8Array, GroupIoError>>;
+  installedExtensionNames(workspace: string): Promise<Result<readonly string[], GroupIoError>>;
+  targetState(path: string): Promise<Result<"absent" | "empty" | "occupied", GroupIoError>>;
+  makeDir(path: string): Promise<Result<void, GroupIoError>>;
+  writeFile(path: string, bytes: Uint8Array): Promise<Result<void, GroupIoError>>;
+  removeDir(path: string, options: { readonly keepRoot: boolean }): Promise<Result<void, GroupIoError>>;
+}
+```
+
+- [spec에 더한 형식] 실패할 수 있는 호출은 `Result`를 돌려준다(`eng.typescript.guide` TY-11). 시험 가짜는 `test/support/group-fs.ts`다. `targetState`는 `isEmptyDir` 대신 세 상태를 준다. 그래야 실패할 때 처음부터 없던 폴더만 지우고 빈 폴더는 남긴다.
+- [결정: 오케스트레이터 기본값] 이름 규칙은 `src/group/rules.ts`가 가진다. `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`, 색인 스키마는 `group-kit`의 값을 옮겨 적은 복사본이다(DR-14). `test/group-rules.test.ts`가 `group-kit/src/define-group.ts` 텍스트와 비교해 목록이 갈라지면 실패한다.
+- 검사 순서. 파서가 플래그 충돌(R1)과 이름 형식, 예약 이름(R2 앞부분)을 본다. 명령은 색인을 읽고 설치된 확장 이름과 겹치는지 본다(R2). 대상 폴더가 비어 있는지 본다(R3). 템플릿을 메모리에서 읽고 치환한 뒤에 쓴다. 쓴 뒤 `.xeon-plugin/plugin.json`을 F `validateManifest`로 검사한다(R4). 오류가 있으면 쓴 것을 지운다. 처음부터 있던 빈 폴더는 지우지 않는다.
+- [결정: 오케스트레이터 기본값] R4 실패는 사용법 오류(2)다. 실패의 원인은 템플릿 결함이지만 명령이 생성 결과를 거부한 것이라 환경 문제(3)로 두지 않았다. 템플릿 위치와 색인, 파일 읽기와 쓰기 실패는 3이다.
+- 치환 자리. `__ID__`는 이름, `__TITLE__`은 이름(표시 이름 옵션은 두지 않는다), `__VERSION__`은 `0.1.0`이다. 파일 내용과 경로에 모두 적용한다. 치환 뒤 경로는 템플릿 묶음 이름(`common`, 종류 이름) 한 마디를 뗀 상대 경로다.
+- 대상 폴더. `--dir`이 없으면 작업 폴더 아래 `<이름>`이다. `--dir`이 상대 경로면 작업 폴더 기준이다. 빈 값은 사용법 오류다.
+- 설치된 확장 이름. 사용자 설정 폴더(`<OsDirs.config>/extensions/*`)와 작업 폴더(`.xeon/extensions/*`)의 `.xeon-plugin/plugin.json` `name`을 모은다. 작업 폴더의 확장은 신뢰 여부와 관계없이 센다(보수적). 폴더 없이 설치된 기본 그룹 `helm`, `learning`, `account-rotation`은 `runtime.ts`에 옮겨 적었다([미결] §10 28번). `<OsDirs.config>`는 `@xeon/platform-os`의 `resolveOsDirs`로 구한다. 같은 함수를 호스트가 쓴다. 매니페스트가 없는 폴더는 건너뛴다. 있는데 읽지 못하면 환경 문제다.
+- 템플릿 위치. 환경 변수 `XEON_GROUP_TEMPLATES_DIR`가 있으면 그 폴더를 쓴다. 없으면 실행 파일의 소스 위치에서 위로 올라가며 `packages/group-kit/templates`를 찾는다([결정: 오케스트레이터 기본값]). 컴파일 바이너리에는 소스 위치가 없어 찾지 못하고 3으로 끝난다. 릴리즈에 템플릿을 싣는 일은 [미결] §10 29번이다.
+- R5. 템플릿 코드는 실행하지 않는다. 명령은 파일을 읽고 치환해 쓸 뿐이다. 의존은 설치하지 않고 `bun install`과 `bun test`를 안내한다. 생성 `package.json`에는 의존을 적지 않는다([미결] §10 30번).
+- 옵션을 더하지 않는다. 저장소 안 그룹의 `src/manifest.ts` 형식(`L3.slots.spec` §3.3.2)은 만들지 않고 외부 형식 `.xeon-plugin/plugin.json`만 쓴다.
+- 출력. 텍스트는 만든 파일 목록과 다음 단계를 쓴다. `--json`은 `{ name, template, dir, files }` 한 개를 쓴다.
+- 시험. `test/group-new.test.ts`는 메모리 가짜로 플래그, 이름, 치환, 정확한 매니페스트 텍스트, 충돌, 비어 있지 않은 폴더, R4 되돌리기, 쓰기 실패 되돌리기, 색인 없음을 본다. `test/group-new-core-diff.test.ts`(`group-new.output-passes-core-diff-check-with-zero-lines`)는 실제 파일 시스템과 실제 `templates/`로 만든 세 그룹을 임시 저장소에 커밋하고, `scripts/core-diff-check.ts`가 보호 경로를 0줄로 보고하는지 본다. 같은 시험에서 `ext-host` README를 바꾸면 그 경로를 보고하는지도 본다.
 
 ## 4. 동작 규칙
 
@@ -1051,3 +1084,7 @@ $ echo $?
 25. [미결] `db export`의 저장소 파일 이름(`xeon.db`)과 데이터 디렉터리 위치. 이름은 `apps/host/src/assemble.ts`의 `DB_FILE_NAME`과 같고 호스트가 내보내지 않아 `apps/cli/src/commands/db.ts`에 한 번 더 있다. 위치는 `runtime.ts`가 `@xeon/platform-os`의 `resolveOsDirs`로 정한다. 호스트가 데이터 디렉터리를 공개 API로 내보내면 두 곳을 그 값으로 바꾼다(§4.13).
 26. [미결] `apps/cli` → `@xeon/platform-store` 간선. `L0.store.spec` §3.2는 `openStore`와 `exportDatabase`를 조립 루트 `apps/host`만 import한다고 적는다. 이 간선은 DR-14 예외 목록에 없다. 의존 검사(`just depcruise`)는 통과하지만, 문서와 맞추려면 허용 목록 항목을 더하거나 호스트 공개 API로 옮기는 결정이 필요하다.
 27. [결정: 오케스트레이터 기본값, M3b B1-SCH2] `schedule add`의 기본값과 상한: `--workspace`를 빼면 host의 기본 작업 폴더를 쓴다(`L2.schedule.spec` §4.4.1). `--every`와 `--expires-in`은 1년(31536000초) 이하, `--loop`는 0 이상 1년 이하, `--max-iterations`는 1~10000, `--debounce`는 기본 1000 ms이고 0~3600000 ms, `--watch` 경로는 16개 이하다. 사용자 확인은 남아 있다.
+28. [미결] 기본 그룹 이름 목록의 출처(M3b B4-GRP). `runtime.ts`의 `BUILTIN_GROUP_NAMES`(`helm`, `learning`, `account-rotation`)는 `apps/host/src/assembly/catalog.ts`가 올리는 기본 그룹을 옮겨 적은 값이다. CLI가 host 조립 코드를 import하지 않으려고 둔다(DR-10은 엔진 조립 코드만 허용한다). host가 이름 목록을 내면 그쪽으로 옮기고 이 상수를 없앤다. 그 전까지 기본 그룹을 추가하면 이 목록도 같이 고친다.
+29. [미결] 템플릿 패키징(B5-REL). 릴리즈 빌드가 `packages/group-kit/templates`를 어디에 싣는지 정하지 않았다. 지금은 `XEON_GROUP_TEMPLATES_DIR` 또는 저장소 체크아웃에서 찾는다. 컴파일 바이너리는 소스 위치가 없어 `group new`가 3으로 끝난다.
+30. [미결] 생성 패키지의 의존 선언. 생성한 `package.json`이 `@xeon/group-kit`이나 `@xeon/contracts`를 적을지 정하지 않았다(`L3.slots.spec` §3.3.2, S-01 구현 기록). 지금은 적지 않는다. 저장소 안에 만든 그룹은 워크스페이스 해석에 기댄다.
+31. [미결] `apps/cli/package.json`의 `@xeon/group-kit` 워크스페이스 의존은 소스가 쓰지 않는다. knip은 잡지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 작업 범위 밖이다. 다음 정리 때 지운다.

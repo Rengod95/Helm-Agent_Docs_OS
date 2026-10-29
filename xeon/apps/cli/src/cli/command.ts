@@ -7,6 +7,7 @@ import {
   type ThreadId,
 } from "@xeon/contracts/conversation";
 import { SettingKeySchema, type SettingKey, type SettingScope } from "@xeon/contracts/settings";
+import { checkGroupName, type GroupTemplateKind } from "../group/rules.ts";
 import { titleProblem } from "../threads.ts";
 
 // L4.cli.spec §3.2. 명령 모델과 인자 파서. 순수 함수이고 외부 라이브러리를 쓰지 않는다: 비밀 값 argv 금지 같은 규칙을
@@ -80,6 +81,16 @@ export type ConfigCommand =
       readonly out: string | null;
       readonly coreOnly: boolean;
     };
+
+/** `xeon group new <이름> [--drive|--policy] [--dir <폴더>] [--json]`(L3.slots.spec §3.3.6, L4.cli.spec §3.1) */
+export interface GroupNewCommand {
+  readonly kind: "group.new";
+  readonly name: string;
+  readonly template: GroupTemplateKind;
+  /** `--dir`의 원문. 없으면 null이고 작업 폴더 아래 `<이름>`을 쓴다. 절대 경로로 바꾸는 일은 명령이 한다 */
+  readonly dir: string | null;
+  readonly output: OutputMode;
+}
 
 type TrustScope = "folder" | "parent" | "session";
 
@@ -190,6 +201,7 @@ export type DbCommand = {
 type CliCommand =
   | ChatCommand
   | SessionsCommand
+  | GroupNewCommand
   | ConfigCommand
   | SecretCommand
   | TrustCommand
@@ -224,7 +236,8 @@ type UsageErrorCode =
   | "jsonRequiresPrint"
   | "autoApproveRequiresPrint"
   | "inputRequired"
-  | "revealRequiresTty";
+  | "revealRequiresTty"
+  | "invalidGroupName";
 
 export interface UsageError {
   readonly code: UsageErrorCode;
@@ -1657,6 +1670,91 @@ function parseJsonOnly(
   return ok({ kind, output: outputOf(scanned.value) });
 }
 
+const GROUP_FLAGS: FlagTable = {
+  "--drive": { value: "none" },
+  "--policy": { value: "none" },
+  "--dir": { value: "required" },
+  "--json": { value: "none" },
+};
+
+/** 그룹 이름 검사(L3.slots.spec §3.3.4). 형식과 예약 이름을 본다. 설치된 확장과의 충돌은 명령이 본다 */
+function groupNameOf(text: string): Result<string, UsageError> {
+  const checked = checkGroupName(text);
+  if (checked.ok) return ok(text);
+  const message =
+    checked.error.reason === "reserved"
+      ? `"${text}"은 예약된 그룹 이름이다`
+      : `"${text}"은 그룹 이름 형식에 맞지 않는다`;
+  return err(
+    usage(
+      "invalidGroupName",
+      message,
+      "소문자로 시작해 소문자·숫자·하이픈 2~32자로 쓴다(예약 이름은 쓸 수 없다)",
+    ),
+  );
+}
+
+function parseGroup(acc: GlobalAcc, rest: readonly string[]): Result<GroupNewCommand, UsageError> {
+  const [action, ...tail] = rest;
+  switch (action) {
+    case "new": {
+      const scanned = scanArgs(acc, tail, GROUP_FLAGS);
+      if (!scanned.ok) return scanned;
+      const drive = has(scanned.value, "--drive");
+      const policy = has(scanned.value, "--policy");
+      if (drive && policy) {
+        return err(
+          usage(
+            "conflictingFlags",
+            "--drive와 --policy는 함께 쓸 수 없다",
+            "둘 중 하나만 쓴다. 없으면 관찰 그룹(observe)을 만든다",
+          ),
+        );
+      }
+      const [nameText, ...extra] = scanned.value.positionals;
+      if (nameText === undefined) {
+        return err(
+          usage(
+            "missingArgument",
+            "group new에는 그룹 이름이 필요하다",
+            "xeon group new <이름> [--drive|--policy]",
+          ),
+        );
+      }
+      if (extra.length > 0) {
+        return err(usage("unexpectedArgument", "group new에 인자가 너무 많다", "이름 하나만 쓴다"));
+      }
+      const name = groupNameOf(nameText);
+      if (!name.ok) return name;
+      const dir = valueOf(scanned.value, "--dir");
+      if (dir === "") {
+        return err(usage("missingArgument", "--dir에 폴더가 없다", "--dir <폴더> 형식으로 쓴다"));
+      }
+      const template: GroupTemplateKind = drive ? "drive" : policy ? "policy" : "observe";
+      return ok({
+        kind: "group.new",
+        name: name.value,
+        template,
+        dir,
+        output: outputOf(scanned.value),
+      });
+    }
+    case undefined:
+      return err(
+        usage(
+          "missingArgument",
+          "group에는 하위 명령이 필요하다",
+          "xeon group new <이름> [--drive|--policy]",
+        ),
+      );
+    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    default:
+      return err(
+        usage("unknownCommand", `모르는 명령 group ${action}`, "xeon group new <이름>을 쓴다"),
+      );
+  }
+}
+
 // ── 진입 ─────────────────────────────────────────────────────────────────
 
 const COMMAND_WORDS: ReadonlySet<string> = new Set([
@@ -1669,6 +1767,7 @@ const COMMAND_WORDS: ReadonlySet<string> = new Set([
   "service",
   "db",
   "host",
+  "group",
   "doctor",
   "version",
   "help",
@@ -1705,6 +1804,8 @@ function commandOf(
       return parseDb(acc, rest);
     case "host":
       return parseHost(acc, rest);
+    case "group":
+      return parseGroup(acc, rest);
     case "doctor":
       return parseJsonOnly(acc, "doctor", rest);
     case "version":

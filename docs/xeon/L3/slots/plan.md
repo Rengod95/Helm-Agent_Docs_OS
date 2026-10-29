@@ -188,6 +188,7 @@ xeon/packages/group-kit/
 | S-01 | 완료 | 템플릿 `xeon/packages/group-kit/templates/`(`index.json`, `common/`, `drive/`, `policy/`, `observe/`). 색인 스키마는 `xeon/packages/group-kit/src/templates.ts`, 이름 검사는 `src/define-group.ts`의 `checkGroupName` |
 | S-03 | 완료 | drive 골격의 `test/replay.test.ts`(생성 뒤 `bun test`로 통과). 시험 `template.replay-test-cuts-at-every-commit`, `template.generated-tests-pass` |
 | S-04 | 완료 | `common/test/manifest.test.ts`와 시험 `template.manifest-passes-validateManifest`, `template.name-check-rejects-bad-names` |
+| S-05 | 완료 | 생성 명령은 L4가 구현한다(`L4.cli.spec` §3.8). `apps/cli/src/commands/group.ts`(명령), `src/group/rules.ts`(이름과 색인 규칙의 복사본), `src/group/fs-port.ts`(파일 작업). R1~R6은 명령 파서·검사·되돌리기로 구현했다. 시험은 `apps/cli/test/group-new.test.ts`, `group-rules.test.ts`, `group-new-core-diff.test.ts`(`group-new.output-passes-core-diff-check-with-zero-lines`) |
 
 S-01 구현에서 바뀐 점은 다음과 같다. 골격의 계약은 `L3.slots.spec` §3.3.5에 같이 적었다.
 

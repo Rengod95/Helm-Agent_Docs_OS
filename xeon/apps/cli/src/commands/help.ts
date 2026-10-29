@@ -42,6 +42,9 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
   service start|status|stop|ensure [--json] [--safe-mode] [--listen-tcp <호스트>:<포트> [--allow-non-loopback]]
                             공유 서비스 모드. start·ensure는 서비스를 띄우고(이미 떠 있으면 붙는다),
                             status·stop은 조회·정지한다. 안전 모드와 TCP는 새로 띄울 때만 적용된다
+  group new <이름> [--drive|--policy] [--dir <폴더>] [--json]
+                            그룹 골격을 만든다. 기본은 관찰 그룹, --drive는 구동, --policy는 정책 그룹이다.
+                            대상 폴더는 비어 있어야 하고, 의존은 설치하지 않는다
   doctor [--json]           진단: 엔진, 저장소, 비밀 저장소, 터미널, 검색 provider
   version [--json]          버전
 

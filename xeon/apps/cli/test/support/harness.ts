@@ -22,7 +22,7 @@ import { createHostConnection } from "../../src/host-client.ts";
 import type { TerminalFacts } from "../../src/cli/command.ts";
 import { createConnectEngine, type ConnectEngine, type HostApi } from "../../src/engine.ts";
 import type { ExitCode } from "../../src/exit-codes.ts";
-import type { CliDeps, CliIo, CliSignal, DoctorProbes } from "../../src/io.ts";
+import type { CliDeps, CliIo, CliSignal, DoctorProbes, GroupTemplatesPort } from "../../src/io.ts";
 import { runCli } from "../../src/main.ts";
 import {
   createFakeStore,
@@ -32,6 +32,7 @@ import {
 } from "./fake-server.ts";
 import { materialize, type EventDraft } from "./events.ts";
 import { storeId } from "./ids.ts";
+import { createMemoryGroupFs } from "./group-fs.ts";
 import { createTransportPair } from "./memory-transport.ts";
 
 // 시험 도구: 가짜 CliIo(출력 수집, 입력 대본, 신호), 가짜 호스트 서버 위에서 도는 connectEngine, 임시 상태 파일.
@@ -85,6 +86,8 @@ export interface HarnessOptions {
   readonly exportDatabase?: CliDeps["exportDatabase"];
   /** 데이터 디렉터리 위치. null이면 정할 수 없는 상황이다. 없으면 `<임시 폴더>/data` */
   readonly dataDir?: string | null;
+  /** `group new`의 파일 작업 가짜. 없으면 템플릿이 없는 메모리 가짜다 */
+  readonly groupTemplates?: GroupTemplatesPort;
 }
 
 /** 가짜 값 전달 통로. 맡긴 수단을 쌓아 두고 호스트 쪽 가짜 처리기가 꺼내 쓴다 */
@@ -325,6 +328,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     bridgeStdio:
       options.bridgeStdio ?? (() => Promise.resolve({ code: 0, reason: "stdin_closed" })),
     probes: options.probes ?? { probeSearxng: () => Promise.resolve("unreachable") },
+    groupTemplates: options.groupTemplates ?? createMemoryGroupFs().port,
     clock,
     devWireRoundTrip: options.devWireRoundTrip ?? false,
     bunVersion: "1.4.3",

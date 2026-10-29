@@ -112,6 +112,7 @@ xeon/apps/cli/
 | C14 | 바이너리 빌드와 측정: 타깃 4개 빌드 레시피, 크기·기동 시간·시작 메모리 측정(§4.3) | C2 | S | M1 |
 | C15 | `doctor`. 검색 provider 상태 묶음(spec §4.7.1) 포함 | C1, 진단 경로 결정(spec §10 5번), `L2.web.spec` provider 상태 조회 | S | M2 |
 | C16 | 컴파일 바이너리의 `host --stdio` 진입: `runHostCommand({ kind: "host-stdio" })` 또는 `l4.cli.*` 그룹을 넘기는 `startStdioHost` 호출. M3b B2-RMT: 원격 주소가 있으면 `bridgeStdioToService`로 중계한다(HS-89) | C1, `L4.host-service.plan` H5(stdio 진입, M1 개발 진입은 이미 있음) | S | M2 |
+| C17 | `group new`(spec §3.8): 인자 파서(`--drive`·`--policy` 충돌, `--dir`, `--json`), 이름 검사(group-kit 값의 복사본), 색인 읽기와 치환, 대상 폴더 검사, 쓰기와 R4 되돌리기, 생성 결과 시험(실제 파일 시스템과 `scripts/core-diff-check.ts`) | C1, `L3.slots` S-01·S-04 | S | M3b |
 
 순서(M1): C0 → C1 → C3 → C2 → C5 → C4 → C6 → C7 → C14.
 
@@ -288,6 +289,16 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 
 - 아직 CLI가 쓰지 않는 wave 1 계약: `settings.invalidated` 알림(대화형 Tab 완성의 키 목록과 엔진 명령 목록을 다시 읽는 데 쓸 수 있다). 대화형 시작 때 한 번만 읽는 현재 동작으로도 어긋나지 않아서 M3로 둔다(spec §10 16번).
 
+### 4.7 M3b 구현 기록 (C17 `group new`, B4-GRP, 2026-10-29)
+
+| 작업 | 상태 | 구현 위치 |
+|---|---|---|
+| C17 `group new` | 구현: 플래그 충돌(R1), 이름 검사와 예약 이름(R2), 설치 이름 겹침(R2), 대상 폴더 검사(R3), 메모리 치환과 쓰기, F `validateManifest`와 되돌리기(R4), 안내와 `--json`(R5) | `src/cli/command.ts`(`parseGroup`), `src/commands/group.ts`, `src/group/rules.ts`, `src/group/fs-port.ts`, `src/io.ts`(`GroupTemplatesPort`), `src/runtime.ts`(조립), `src/main.ts`(분기), `src/commands/help.ts` |
+
+- 바뀐 점: 이름 상수와 색인 스키마는 `group-kit`을 import하지 않고 옮겨 적었다(DR-14). 시험이 원본 텍스트와 비교한다.
+- 바뀐 점: `apps/cli/package.json`의 `@xeon/group-kit` 의존은 그대로 두었다. 소스가 쓰지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 트랙 범위 밖이다([미결] spec §10 31번).
+- 시험 결과: `just test apps/cli`가 554개 중 553개 통과, 1개 건너뜀(기존 건너뜀)이다. 이전에는 526개였다. `just check apps/cli`의 타입 검사 단계는 의존 패키지 `@xeon/core-persistence`의 시험 파일 오류(`MemoryRecordStore`에 `readBranch`가 없다)에서 멈춘다. 이 파일은 이 변경의 범위 밖이다. 대신 `tsc -p apps/cli`로 직접 확인하니 이 변경의 파일에는 타입 오류가 없었다. 나머지 오류는 빌드하지 않은 참조의 TS6305와 그에 딸린 `any` 오류이고, 손대지 않은 `doctor.ts`, `host.ts`, `engine.ts`, `errors.ts`에 있다.
+
 ## 5. 단위 테스트 목록
 
 ### 5.1 unit·int
@@ -339,6 +350,35 @@ M3b B3-DATA에서 더한 시험(`db export`, spec §4.13). 파서와 실행은 �
 |---|---|---|---|
 | db-export | `test/db-export.test.ts` | unit | 파서(폴더 인자, `--json`, 누락·초과·모르는 하위 명령은 사용법 오류), 성공 문구와 `--json` 값, 누락 블롭 경고(열 줄 상한과 개수 줄), `-C` 기준 대상 경로, ExportError 여섯 kind의 종료 코드와 두 줄 문구, 데이터 디렉터리 실패, 엔진 연결 없음 |
 | db-export-round-trip | `test/db-export.int.test.ts` | int | 실제 저장소에 행과 블롭을 쓰고 원본을 연 채로 `db export`를 돌린 뒤, 사본을 읽기 전용 `openStore`로 열어 행과 블롭 바이트가 원본과 같은지 값으로 비교한다 |
+
+M3b C17 시험(`group new`). 이름은 시험 제목을 줄여 적었다. 정확한 제목은 각 파일에서 본다.
+
+| 테스트 이름 | 파일 | 태그 | 확인할 동작 | 마일스톤 |
+|---|---|---|---|---|
+| group-new.observe-default-files | `test/group-new.test.ts` | unit | 플래그가 없으면 observe 템플릿의 다섯 파일이 `<작업 폴더>/<이름>` 아래에 생긴다 | M3b |
+| group-new.drive-policy-files | `test/group-new.test.ts` | unit | `--drive`와 `--policy`는 색인이 그 종류에 적은 파일만 쓴다 | M3b |
+| group-new.placeholders-in-content-and-path | `test/group-new.test.ts` | unit | `__ID__`, `__TITLE__`, `__VERSION__`이 내용과 경로에서 바뀐다 | M3b |
+| group-new.plugin-json-exact-text | `test/group-new.test.ts` | unit | 고정 이름 `focus-lens`의 `plugin.json` 텍스트가 한 글자도 다르지 않다 | M3b |
+| group-new.conflicting-flags-write-nothing | `test/group-new.test.ts` | unit | `--drive --policy`는 사용법 오류 2이고 두 줄 오류 문구가 맞으며 아무것도 쓰지 않는다 | M3b |
+| group-new.invalid-names-usage | `test/group-new.test.ts` | unit | `Focus`, `focus_lens`, `core`, 1자, 33자는 사용법 오류이고 쓰지 않는다. 32자는 통과한다 | M3b |
+| group-new.installed-name-clash | `test/group-new.test.ts` | unit | 설치된 `helm`과 겹치는 이름은 사용법 오류이고 쓰지 않는다 | M3b |
+| group-new.non-empty-target-untouched | `test/group-new.test.ts` | unit | 비어 있지 않은 대상은 거부되고 기존 파일 내용이 그대로다. 빈 대상은 허용된다 | M3b |
+| group-new.dir-option | `test/group-new.test.ts` | unit | `--dir`는 작업 폴더 기준으로 풀린다 | M3b |
+| group-new.manifest-failure-rollback | `test/group-new.test.ts` | unit | `validateManifest`가 실패하면 쓴 파일과 폴더가 모두 지워지고 종료 코드는 2다(R4) | M3b |
+| group-new.write-failure-rollback | `test/group-new.test.ts` | unit | 쓰기 하나가 실패하면 이미 쓴 것을 지우고 종료 코드는 3이다 | M3b |
+| group-new.missing-index-environment | `test/group-new.test.ts` | unit | 색인이 없으면 종료 코드 3이고 아무것도 쓰지 않는다 | M3b |
+| group-new.template-code-never-runs | `test/group-new.test.ts` | unit | 템플릿 소스의 코드가 실행되지 않는다(R5) | M3b |
+| group-new.json-output | `test/group-new.test.ts` | unit | `--json`은 `name`, `template`, `dir`, `files`를 쓴다 | M3b |
+| group-new.text-output-next-steps | `test/group-new.test.ts` | unit | 텍스트 출력은 파일 목록과 `bun install`, `bun test` 안내를 보인다 | M3b |
+| group-new.malformed-commands | `test/group-new.test.ts` | unit | `group`, `group new`, 인자 초과, `--dir ""`, 모르는 하위 명령은 사용법 오류다 | M3b |
+| group-new.help-lists-command | `test/group-new.test.ts` | unit | 도움말 개요에 `group new` 줄이 있다 | M3b |
+| group-rules.reserved-names-match-group-kit | `test/group-rules.test.ts` | unit | 예약 이름 목록이 group-kit `RESERVED_GROUP_NAMES`와 값과 순서가 같다 | M3b |
+| group-rules.pattern-matches-group-kit | `test/group-rules.test.ts` | unit | 이름 패턴이 group-kit `GROUP_NAME_PATTERN`과 같다 | M3b |
+| group-rules.check-group-name | `test/group-rules.test.ts` | unit | 형식 위반과 예약 이름을 구분해 거부한다 | M3b |
+| group-rules.real-index | `test/group-rules.test.ts` | unit | 실제 `templates/index.json`이 파싱되고 종류별 파일 수가 10, 8, 9다 | M3b |
+| group-rules.index-refuses-other-version | `test/group-rules.test.ts` | unit | `schemaVersion`이 다르면 거부한다 | M3b |
+| group-rules.paths-and-placeholders | `test/group-rules.test.ts` | unit | 안전하지 않은 상대 경로를 거르고, 묶음 이름을 뗀 대상 경로를 낸다 | M3b |
+| group-new.output-passes-core-diff-check-with-zero-lines | `test/group-new-core-diff.test.ts` | int | 실제 파일 시스템과 실제 `templates/`로 만든 세 그룹(drive 10, observe 9, policy 8 파일)을 임시 저장소에 커밋하면 `scripts/core-diff-check.ts`가 보호 경로 0줄로 통과한다. `ext-host` README를 바꾸면 그 경로 한 줄을 보고한다 | M3b |
 
 ### 5.2 scenario
 
