@@ -88,7 +88,7 @@ describe("projector registry", () => {
     expect(registry.list().map((entry) => entry.name)).toEqual(["core", "ext.alpha"]);
   });
 
-  test("extension_cannot_write_foreign_prefix: apply on a foreign table is rolled back under the guard", async () => {
+  test("extension_cannot_write_foreign_prefix", async () => {
     const h = await openHarness({ guardProjectors: true });
     const { threadId } = newThread(h);
     const failures: ProjectorFailure[] = [];
@@ -102,13 +102,17 @@ describe("projector registry", () => {
       },
     };
     expectOk(h.service.projectors.register(evil));
-    const before = h.store.rowCounts();
-    expect(
-      h.service.ext.commit({ threadId, requestId: "n1", drafts: [note(h, threadId, "x")] }),
-    ).rejects.toThrow("store.prefix_not_owned");
-    await Promise.resolve();
-    expect(h.store.rowCounts()).toEqual(before);
+    const result = await h.service.ext.commit({
+      threadId,
+      requestId: "n1",
+      drafts: [note(h, threadId, "x")],
+    });
+    expect(result).toEqual({ status: "committed" });
+    // 금지 문장은 실행되지 않았다: 스레드 행이 남는다
+    expect(h.store.rowCounts()["p_threads"]).toBe(1);
     expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ projector: "ext.alpha", requestId: "n1" });
+    expect(failures[0]?.message).toContain("store.prefix_not_owned");
   });
 
   test("extension_projection_commits_with_core_event", async () => {
@@ -131,7 +135,7 @@ describe("projector registry", () => {
     expect(state?.last_seq).toBe(2);
   });
 
-  test("extension_projector_failure_notifies_and_rolls_back", async () => {
+  test("extension_projector_failure_suspends_notifies_and_commits_the_retry", async () => {
     const h = await openHarness();
     const { threadId } = newThread(h);
     const failures: ProjectorFailure[] = [];
@@ -139,15 +143,21 @@ describe("projector registry", () => {
       failures.push(failure);
     });
     expectOk(h.service.projectors.register(notesProjector({ fail: true })));
-    const before = h.store.rowCounts();
-    expect(
-      h.service.ext.commit({ threadId, requestId: "n1", drafts: [note(h, threadId, "boom")] }),
-    ).rejects.toThrow("store.projection_failed");
-    await Promise.resolve();
-    expect(h.store.rowCounts()).toEqual(before);
+    const result = await h.service.ext.commit({
+      threadId,
+      requestId: "n1",
+      drafts: [note(h, threadId, "boom")],
+    });
+    // 롤백된 시도는 남지 않고, 정지된 투영기를 뺀 같은 요청이 커밋된다
+    expect(result).toEqual({ status: "committed" });
+    // 생성 때 thread.started 하나와 이 노트 하나
+    expect(h.store.rowCounts()).toMatchObject({ events: 2 });
+    expect(rows(h)).toEqual([]);
     expect(failures).toHaveLength(1);
     expect(failures[0]).toMatchObject({ projector: "ext.alpha", requestId: "n1" });
     expect(failures[0]?.event.kind).toBe(NOTE_KIND);
+    expect(h.service.projectors.list().map((entry) => entry.name)).toEqual(["core", "ext.alpha"]);
+    expect(h.logs).toContain("error:session.projector_suspended");
   });
 
   test("a changed projection version rebuilds only that projector, and dispose keeps the table", async () => {

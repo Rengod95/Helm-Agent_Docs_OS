@@ -1,6 +1,7 @@
 // 확장 투영기 등록부(L1.persistence.spec §3.4 ProjectorRegistry, §4.5.2~§4.5.3, PS-4).
 // 등록은 이름과 테이블 소유를 검사하고, 투영 버전이 저장된 값과 다르면 등록 전에 그 투영기만 다시 만든다.
-// 투영기가 커밋에서 던지면 커밋은 롤백되고 onFailure로 알린다(X가 그 확장을 끈다).
+// 확장 투영기가 커밋에서 던지면 커밋은 롤백되고, 그 투영기는 정지된 뒤 onFailure로 알려진다(X가 그 확장을 끈다).
+// 정지한 투영기는 커밋에서 빠진 채 다시 낸 커밋이 적용하고, 다음 쓰기 열기(ensure)가 이벤트에서 다시 만든다(§4.5.2).
 import { attempt, err, ok, type Logger, type Result } from "@xeon/contracts";
 import type {
   Projector,
@@ -22,8 +23,13 @@ export interface ProjectorController {
   active(): readonly Projector[];
   /** 열 때 확인할 투영기 전부(뒤처진 것 포함) */
   all(): readonly Projector[];
-  /** 투영 버전·last_seq가 어긋난 투영기를 다시 만든다. 성공하면 뒤처짐 표시를 지운다 */
+  /** 투영 버전·last_seq가 어긋난 투영기를 다시 만든다. 성공하면 뒤처짐·정지 표시를 지운다 */
   ensure(): Result<readonly string[], StoreWriteError | RowFault>;
+  /**
+   * 확장 투영기가 던져 롤백된 커밋의 그 투영기를 정지한다. `active()`에서 빠지고 `list()`에는 남는다.
+   * 정지 사유는 `session.projector_suspended`로 기록한다
+   */
+  suspend(name: string, message: string): void;
   /** 롤백된 커밋의 투영기 실패를 알린다 */
   notifyFailure(failure: ProjectorFailure): void;
 }
@@ -61,6 +67,7 @@ function ownsTable(prefix: string, table: string): boolean {
 export function createProjectorController(deps: ProjectorControllerDeps): ProjectorController {
   const { db, catalog, core, logger } = deps;
   const registered: Projector[] = [];
+  /** 뒤처졌거나 정지한 투영기 이름. `active()`에서 뺀다. 다음 `ensure()`가 다시 만들면 지운다 */
   const stale = new Set<string>();
   const listeners = new Set<(failure: ProjectorFailure) => void>();
 
@@ -132,6 +139,10 @@ export function createProjectorController(deps: ProjectorControllerDeps): Projec
     registry,
     all,
     active: () => all().filter((projector) => !stale.has(projector.name)),
+    suspend(name, message): void {
+      stale.add(name);
+      logger?.error("session.projector_suspended", { projector: name, message });
+    },
     ensure() {
       // core의 저장소 오류는 열기 실패로 올리고, 확장 투영기의 실패는 뒤처짐으로 두고 기록한다
       const coreDone = ensureProjectors(db, [core], catalog);

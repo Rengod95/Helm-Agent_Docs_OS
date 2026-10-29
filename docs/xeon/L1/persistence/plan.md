@@ -74,7 +74,7 @@ xeon/packages/core-persistence/
       migrations.ts        # L0 마이그레이션 실행기에 넘기는 목록
     projector/
       core.ts              # 코어 투영기 core. kind별 리듀서 표
-      registry.ts          # ProjectorRegistry: 등록 검사, 해제, onFailure
+      registry.ts          # ProjectorRegistry: 등록 검사, 해제, 정지(suspend), onFailure
       tx.ts                # ProjectionTx: 소유 테이블 검사(디버그 빌드), 금지 문장
       rebuild.ts           # 재생성(한 트랜잭션), 청크 재생성(M3), projector_state
     subscribe.ts           # EventFeed, subscribe, 커밋 뒤 동기 방출, 휘발 전달
@@ -105,6 +105,7 @@ xeon/packages/core-persistence/
     requests.test.ts
     projector.test.ts
     ext-projector.test.ts
+    projector-isolation.test.ts   # 확장 투영기 격리: 롤백, 정지, 재시도, 재생성(M3-REQ-36)
     recovery.test.ts
     resume.int.test.ts
     lifecycle.test.ts
@@ -170,6 +171,16 @@ xeon/packages/core-persistence/
 
 시험 대역은 `platform-store/testing`의 실제 저장소다(`test/support/sqlite-store.ts`가 감싼다, open-issues M-04). `bunfig.toml`의 preload가 시험마다 저장소를 닫는다.
 
+### 3.2 M3-REQ-36 구현 상태 (2026-10-29, 레인 B3-DATA)
+
+[결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영기 예외는 세션을 멈추지 않는다(§4.5.2).
+
+| 항목 | 상태 | 위치 |
+|---|---|---|
+| 확장 투영기 예외 격리: 롤백, 정지, `onFailure` 알림, 같은 계획으로 재시도 | 완료 | `writer.ts`(`runCommit`의 `projector_failed` 재시도), `service.ts`(`onProjectorFailure`가 정지와 알림을 함) |
+| 정지(`ProjectorController.suspend`)와 `session.projector_suspended` 기록 | 완료 | `projector/registry.ts` |
+| 정지한 투영기 재생성: 다음 쓰기 열기(`ensure`)와 다시 등록(`register`) | 완료 | `projector/registry.ts`, `projector/rebuild.ts` |
+
 ## 4. 채택 코드
 
 [결정] 코드 포크는 없다. 자체 구현한다(`_research/foundation-plan.md` §1 결정 1, `_research/packages.md` §4.3 L1-f 행 "자체", "설계").
@@ -220,9 +231,17 @@ xeon/packages/core-persistence/
 | `projection_rebuild_equals_live` | `projector.test.ts` | 투영 테이블 삭제 후 재생성 행 해시 = 실시간 갱신 행 해시 | PS-11 |
 | `projection_version_bump_rebuilds_only_that_projector` | `projector.test.ts` | 버전 오른 투영기만 다시 만든다 | PS-11 |
 | `projector_has_no_io` | `projector.test.ts` | 같은 이벤트 열을 두 번 재생한 결과 바이트 동일(D0) | PS-3 |
-| `extension_cannot_write_foreign_prefix` | `ext-projector.test.ts` | 남의 접두 테이블 등록 → `table_not_owned`. `apply`가 남의 테이블에 쓰면 디버그 빌드에서 `store.prefix_not_owned`와 롤백 | PS-4 |
+| `extension_cannot_write_foreign_prefix` | `ext-projector.test.ts` | 남의 접두 테이블 등록 → `table_not_owned`. `apply`가 남의 테이블에 쓰면 디버그 빌드에서 그 문장은 실행되지 않고, 투영기는 정지하며, 커밋은 `committed`(§9 11) | PS-4 |
 | `extension_projection_commits_with_core_event` | `ext-projector.test.ts` | 확장 테이블 행과 코어 이벤트가 같이 커밋되거나 같이 롤백 | PS-4 |
-| `extension_projector_failure_notifies_and_rolls_back` | `ext-projector.test.ts` | 확장 `apply` 예외 → 롤백, `onFailure` 1회, Bug | PS-4 |
+| `extension_projector_failure_suspends_notifies_and_commits_the_retry` | `ext-projector.test.ts` | 확장 `apply` 예외 → 롤백, 정지, `onFailure` 1회, 같은 요청 재시도 `committed`, 확장 테이블에 그 이벤트 행 없음 | PS-4, M3-REQ-36 |
+| `extension_failure_suspends_rolls_back_and_retries` | `projector-isolation.test.ts` | `apply`가 `item.recorded`에서 던지면 확장 테이블에 실패한 커밋의 행이 없고, 코어 행(`events`, `p_threads`, `p_turns`, `p_items`)은 있으며, `onFailure` 1건(투영기·requestId), `list()`에 정지한 투영기가 남고, 같은 키의 재시도는 `replayed`다 | PS-4, M3-REQ-36 |
+| `suspended_projector_is_not_applied_or_notified_again` | `projector-isolation.test.ts` | 정지 뒤 커밋은 그 투영기의 `apply`를 부르지 않고(호출 수 불변), `onFailure`를 다시 알리지 않는다 | PS-4, M3-REQ-36 |
+| `healthy_projector_keeps_rows_while_failing_one_is_suspended` | `projector-isolation.test.ts` | 같이 등록한 건강한 투영기는 두 커밋의 모든 이벤트 행을 받고, 정지한 투영기 테이블에는 정지 뒤 행이 없다 | PS-4, M3-REQ-36 |
+| `restart_registration_rebuilds_suspended_projector` | `projector-isolation.test.ts` | 재시작 뒤 고친 투영기를 등록하면 이벤트 전체에서 다시 만들어 테이블 행 값이 `events`와 같다 | PS-4, PS-11 |
+| `next_write_open_rebuilds_suspended_projector` | `projector-isolation.test.ts` | 다음 쓰기 열기(`openForWrite` → `ensure`)가 정지한 투영기를 이벤트에서 다시 만들고, 다음 커밋에 다시 들어간다 | PS-4, PS-11 |
+| `one_later_event_failure_does_not_stop_session` | `projector-isolation.test.ts` | 두 번째 `item.recorded`에서만 던져도 뒤의 커밋은 모두 `committed`이고, 확장 테이블에는 정지 전 턴의 행만 있다 | PS-4, M3-REQ-36 |
+| `two_failing_extensions_take_two_retries` | `projector-isolation.test.ts` | 확장 둘이 한 커밋에서 던지면 재시도 둘로 커밋되고, `onFailure`는 두 건이며 순서는 등록 순서다 | PS-4, M3-REQ-36 |
+| `core_projection_failure_stays_a_bug` | `projector-isolation.test.ts` | 코어 색인 위반은 `store.projection_failed` Bug로 던져지고 롤백되며, 정지와 알림은 없다(회귀 보호) | PS-4, M3-REQ-36 |
 | `subscribe_emits_only_after_commit` | `subscribe.test.ts` | `before_commit` 장애 때 방출 0회, 성공 때 1회. seq 순서. 리스너 예외가 다른 리스너에 영향 없음 | PS-12 |
 | `subscribe_catch_up_then_live_has_no_gap` | `subscribe.test.ts` | `afterSeq` 따라잡기와 실시간 사이 빈칸·중복 없음 | PS-12 |
 | `upcast_on_read_and_read_only_on_future_version` | `upcast.test.ts` | 읽기 경로 업캐스트, 모르는 코어 kind와 미래 버전이면 쓰기 열기 거부 | PS-13 |
@@ -276,6 +295,6 @@ xeon/packages/core-persistence/
 | bun:sqlite 저장점 의미(eng 미결 T-2) | 중첩 write가 저장점이 되어 부분 커밋처럼 보일 수 있다 | 중첩 write 금지 테스트(`commit_nested_inside_listener_is_bug`, L0의 중첩 write 테스트)로 고정한다. 결과는 L0.store.plan과 공유 |
 | `p_inputs`, `p_approvals`의 kind가 F에 없다(FR-P9) | 투영 코드를 쓸 수 없다 | M1은 `input.*`만 필요하다. F 결론 전에는 L1.tasks.spec §3.8 payload로 투영을 쓰고 kind 이름이 바뀌면 같은 PR에서 고친다 |
 | X `RecordCommitPort` 이름 충돌(`commit`) | X가 `xeon.session`을 그대로 포트로 쓰지 못한다 | `SessionService.ext` 하위 객체(스펙 §3.3)를 X.primitives 트랙과 M1 전에 합의한다. X의 포트 계약 스위트(`X.primitives.plan` P-19)를 이 패키지 테스트에서 돌린다 |
-| 확장 투영기 예외가 세션 진행을 막는다 | 확장 하나 때문에 커밋이 반복 실패 | `onFailure` 알림과 X의 확장 끄기 경로(X.operations 미결 6)를 M2 통합 테스트로 확인한다. 그 전에는 M1 테스트 그룹 투영을 단순 삽입 하나로 제한한다(X.operations.plan과 같은 대응) |
+| 확장 투영기 예외가 세션 진행을 막는다 | 확장 하나 때문에 커밋이 반복 실패 | 정지한 뒤 같은 계획으로 다시 커밋한다(§4.5.2, M3-REQ-36). `projector-isolation.test.ts`가 확인한다. 자동 끄기는 X가 `onFailure`로 판정한다(X.operations 미결 6 해소) |
 | adr.0004·adr.0006 개정(OS 잠금 + `sys_leases.epoch` 펜싱, review.decisions-2 U-09)이 늦음 | 문서 정본이 잠시 둘로 보인다 | 소유 확인을 `leases.holds(tx, token)` 호출 하나로 모은다. 가짜 `LeaseService`를 테스트에 둔다 |
 | 설정 파일 소유 이전 제안(스펙 §6.2)이 거절된다 | L1이 파일 I/O를 맡아야 하고 `xeon.os` 의존이 생긴다 | 거절되면 `settings-files.ts`를 더하고 context-map (d)열에 `xeon.os`를 더하는 요청을 낸다. M1 범위에는 영향 없음(M1 `settings.get`은 호스트가 파일을 읽는다) |
