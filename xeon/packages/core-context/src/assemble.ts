@@ -265,6 +265,7 @@ export async function assembleContext(
     prefixIndex,
     prefixMessage,
     deps.reinject,
+    settings.reinjectRecentFiles,
   );
   messages.push(...appended);
 

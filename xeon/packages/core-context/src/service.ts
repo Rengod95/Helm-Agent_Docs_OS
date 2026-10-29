@@ -111,6 +111,7 @@ export function createContextService(deps: ContextServiceDeps): ContextService {
         prefixIndex,
         systemMessageOf(projected.value[prefixIndex]),
         reinject,
+        settings().reinjectRecentFiles,
       );
       const current = settings();
       const tokens = deps.models.tokens.estimateContext(messages).tokens;

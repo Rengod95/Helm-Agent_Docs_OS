@@ -226,3 +226,49 @@ test("spawn_rejects_a_background_request", async () => {
   );
   expect(rejection?.loopError.kind).toBe("input_invalid");
 });
+
+test("spawn_with_a_stale_lease_epoch_is_fenced_before_any_child_is_created", async () => {
+  const spawned: string[] = [];
+  const h = await createHarness({
+    agents: () => ({
+      spawn: (request) => {
+        spawned.push(request.requestId ?? "");
+        return Promise.reject(new Error("must not be called"));
+      },
+    }),
+  });
+  // 저장된 scope 임대 차수(5)가 요청 차수(3)보다 높다: 늦게 도착한 spawn이다(§4.8 펜싱)
+  h.fake.setLeaseEpoch(h.threadId, "smoke-group", 5);
+  const rejection = await rejectionOf(h.loop.spawn(spawnRequest(h, { leaseEpoch: 3 })));
+  expect(rejection?.loopError).toEqual({
+    kind: "stale_lease",
+    scopeId: "smoke-group",
+    leaseEpoch: 3,
+  });
+  expect(spawned).toEqual([]);
+  expect(countKind(h.fake.events(h.threadId), "turn.started")).toBe(0);
+});
+
+test("spawn_with_the_current_lease_epoch_passes_the_fence_and_calls_agents", async () => {
+  const spawned: string[] = [];
+  const h = await createHarness({
+    agents: () => ({
+      spawn: (request) => {
+        spawned.push(request.requestId ?? "");
+        return Promise.resolve({
+          childThreadId: CHILD_THREAD,
+          status: "completed",
+          answer: "found",
+          requestId: request.requestId ?? "",
+          report: null,
+          usage: CHILD_USAGE,
+          reused: false,
+        });
+      },
+    }),
+  });
+  h.fake.setLeaseEpoch(h.threadId, "smoke-group", 5);
+  const result = await h.loop.spawn(spawnRequest(h, { leaseEpoch: 5 }));
+  expect(result.outcome.status).toBe("completed");
+  expect(spawned).toEqual(["lease-1:0.0"]);
+});

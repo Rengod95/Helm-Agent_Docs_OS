@@ -77,6 +77,25 @@ describe("judge", () => {
     expect(gate.notice).toContain("2 runs");
   });
 
+  test("a repeated judge call for the same step returns the recorded judgement without asking the model again", async () => {
+    const models = fakeModels([NOT_MET, MET]);
+    const h = openHarness({ models });
+    const stepId = h.ids.next("stp");
+    const input: JudgeInput = { ...inputOf(h), stepId };
+    const first = await h.service.judge(input);
+    expect(first.kind).toBe("judged");
+    const again = await h.service.judge(input);
+    expect(again.kind).toBe("recorded");
+    if (first.kind !== "judged" || again.kind !== "recorded") return;
+    expect(again.record).toEqual(first.record);
+    expect(models.calls).toHaveLength(1);
+    expect(judgedEvents(h).map((record) => record.run)).toEqual([1]);
+    // 다른 단계의 판정은 같은 목표라도 다시 센다
+    const other = await h.service.judge({ ...inputOf(h), stepId: h.ids.next("stp") });
+    expect(other).toMatchObject({ kind: "judged", record: { run: 2 } });
+    expect(models.calls).toHaveLength(2);
+  });
+
   test("a judge failure stops: failed outcome, no record, not counted, gate does not continue", async () => {
     const models = fakeModels([{ kind: "error", message: "provider down" }, MET]);
     const h = openHarness({ models, judgeMaxRuns: 1 });

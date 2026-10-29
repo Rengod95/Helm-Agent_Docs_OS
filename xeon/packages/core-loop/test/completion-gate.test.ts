@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
 import type { ExtensionUnit } from "@xeon/ext-host";
-import { createHarness, type Harness } from "./support/harness.ts";
+import { createHarness, recordedCallId, type Harness } from "./support/harness.ts";
 import { countKind, firstOfKind } from "./support/inspect.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
 
@@ -86,7 +86,7 @@ test("gate_ignores_continue_on_non_final_step: a boundary.step.after continue on
   await start(h, continuing("boundary.step.after"));
   // 도구 단계 둘의 continue는 세지 않는다. 마지막 단계에서 한 번만 계속하고 상한에 닿는다
   expect(h.models.requests).toHaveLength(4);
-  expect(h.tools.executed).toEqual(["c1", "c2"]);
+  expect(h.tools.executed).toEqual([recordedCallId(h, "c1"), recordedCallId(h, "c2")]);
   expect(countKind(h.fake.events(h.threadId), "turn.completed")).toBe(1);
 });
 

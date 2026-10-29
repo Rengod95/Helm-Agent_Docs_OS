@@ -179,7 +179,7 @@ export async function endStep(
       stopReason === "aborted" ? "aborted" : stopReason === "error" ? "error" : "completed";
     const settle = await ctx.ext.dispatch(
       "boundary.settle.before",
-      { turnId, context: preview, outcome },
+      { turnId, stepId: step.stepId, context: preview, outcome },
       {
         threadId,
         dispatchKey: dispatchKey(run, step.stepId, "boundary.settle.before"),

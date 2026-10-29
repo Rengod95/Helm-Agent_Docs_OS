@@ -258,7 +258,22 @@ export function fakeSession(ids: IdFactory): FakeSession {
               };
         return ok({ threadId: input.threadId, headSeq: seq, replayed: false, token });
       },
-      list: () => ({ threads: [], nextCursor: null }),
+      list: () => ({
+        threads: [...threads].map(([threadId, thread]) => ({
+          threadId,
+          title: null,
+          status: thread.status,
+          workspace: null,
+          createdAt: 0,
+          updatedAt: 0,
+          headSeq: seq,
+          forkedFrom: null,
+          marker: null,
+          queuedInputs: 0,
+          pendingApprovals: 0,
+        })),
+        nextCursor: null,
+      }),
       close: () => unsupported("threads.close"),
       remove: () => unsupported("threads.remove"),
       fork: () => Promise.reject(new Bug("fakeSession: threads.fork is not supported")),

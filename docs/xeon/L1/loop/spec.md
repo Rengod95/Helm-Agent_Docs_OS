@@ -304,6 +304,7 @@ turn 순서: T1(구동기) → `input.agent.before`(entry `fresh`) → `boundary
 4. 취소 확인 위치: 각 준비 뒤, 순차 호출 사이, 병렬 실행 시작 전. 취소되면 남은 호출을 `tools.settleRejected(rest, "not_executed")`로 같은 배치 안에서 닫는다. 결과 없는 호출이 남지 않으므로 단계 끝의 별도 닫기가 필요 없다.
 5. `stopReason: "length"`이면 호출을 실행하지 않고 `tools.settleRejected(all, "truncated")`로 닫는다(원본 478-506).
 6. `terminate`: 배치의 모든 결과가 `terminate: true`일 때만 정착 후보가 된다(원본 690-692).
+7. [결정: 오케스트레이터 기본값] 도구 호출 id 염: 응답을 받은 자리(`streamResponse`)에서 제공자가 준 id마다 `_<단계 id 끝 8자>`를 붙여 기록한다. 제공자가 응답마다 같은 id를 다시 써도 X의 `tool:<id>` 요청 키, core-tools의 closedKey, 학습 제안 id가 다른 호출과 겹치지 않는다. 기록·재개·도구 결과는 염을 친 id만 본다. 이미 같은 염이 붙은 id에는 다시 붙이지 않는다.
 
 pi 루프 대비 처리표. 이전 판의 훅 판정표(07 §3.5 A1~A7)를 자체 루프 기준으로 다시 적는다.
 
@@ -527,8 +528,8 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 
 - [결정: M3-REQ-77, M3-13] `turn.started.origin`과 `boundary.turn.before`·`boundary.settle.after` 페이로드의 `origin`은 turn을 연 입력의 출처다. 큐 입력은 첫 입력의 `source`에서 정한다(`user` → `user`, `delegation` → `delegation`, `schedule` → `scheduled`, `extension` → `other`). drive turn은 `drive`, 자식 thread turn(`runChildTurn`)은 `delegation`이다. 재개한 turn은 기록된 `turn.started.origin`을 쓰고 없으면 `user`다.
 - `boundary.settle.after`는 `status`(`completed`, `aborted`=중단됨, `error`=실패), `hasFinalAnswer`(`completed`이고 어시스턴트 답이 있음), `lastItemId`(turn의 마지막 어시스턴트 item)를 싣는다.
-- [결정: M3a T-L4] `InputDraft.origin`(F)이 `input.queued.origin`이 된다(core-tasks `enqueue`가 적는다). core-loop는 자기 `enqueue` 호출(사용자 입력, `admit`)에서 위 대응으로 정한 값을 싣고, 큐 입력이 turn을 열 때는 첫 입력의 `origin`을 먼저 쓰고 없으면 `source`에서 정한다. 위임 완료 보고(core-agents)와 확장 post(core-tasks)는 `origin`을 싣지 않으므로 `source`에서 정한 값이 같다.
-- [미결] `큐 입력과 drive turn 요청이 함께 기다리면 큐 입력이 먼저` [제안, M3-REQ-77]는 이번에 구현하지 않았다.
+- [결정: M3a T-L4] `InputDraft.origin`(F)이 `input.queued.origin`이 된다(core-tasks `enqueue`가 적는다). core-loop는 자기 `enqueue` 호출(사용자 입력, `admit`)에서 위 대응으로 정한 값을 싣고, 큐 입력이 turn을 열 때는 첫 입력의 `origin`을 먼저 쓰고 없으면 `source`에서 정한다. 위임 완료 보고(core-agents)는 `origin: "delegation"`, 확장 post(core-tasks `enqueuePost`)는 `origin: "other"`를 명시해서 싣는다. `source`에서 정한 값과 같다.
+- [결정: M3b B3-L1M] 큐 입력과 drive turn 요청이 함께 기다리면 큐 입력이 먼저다(M3-REQ-77 [제안]). thread 구동기의 잠금이 큐 입력(`admit`, 정착 뒤 follow-up)에 우선순위 0, `runTurn`·`runChildTurn`·`whenIdle`에 1을 주고 같은 우선순위는 도착 순서로 세운다(`thread-gate.ts`). 시험은 `test/thread-gate.test.ts`와 `test/drive.test.ts`가 맡는다.
 
 ### 4.5 `next` 판별자별 재진입
 

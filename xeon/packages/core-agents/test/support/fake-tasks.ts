@@ -189,6 +189,8 @@ export function fakeTasks(options: FakeTasksOptions): FakeTasks {
             item: draft.item,
             requestId: draft.requestId,
             source: draft.source,
+            // core-tasks의 queuedPayloadOf와 같다: origin이 있으면 input.queued에 싣는다
+            ...(draft.origin === undefined ? {} : { origin: draft.origin }),
           },
         });
         return { drafts: [stamped], existing: undefined };

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createHarness, type Harness } from "./support/harness.ts";
+import { createHarness, recordedCallId, type Harness } from "./support/harness.ts";
 import { contextHash } from "./support/hash.ts";
 import { countKind, firstOfKind, kindsOf } from "./support/inspect.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
@@ -100,8 +100,14 @@ test("resume_tools_phase_uses_pending_tool_calls", async () => {
   ];
   const h = await createHarness({ tools, script: [two] });
   // 호출 A는 끝났고 B는 의도 커밋 전에 끊긴다
-  await startAndCrash(h, (key) => key === "tool:call_b:intent", "before");
-  expect(h.tools.executed).toEqual(["call_a"]);
+  await startAndCrash(
+    h,
+    (key) => key.startsWith("tool:call_b_") && key.endsWith(":intent"),
+    "before",
+  );
+  const callA = recordedCallId(h, "call_a");
+  const callB = recordedCallId(h, "call_b");
+  expect(h.tools.executed).toEqual([callA]);
 
   const h2 = await h.restart({ tools, script: [text("all done")] });
   const resumed = await h2.loop.resume(h2.threadId);
@@ -109,7 +115,7 @@ test("resume_tools_phase_uses_pending_tool_calls", async () => {
   await h2.settle();
 
   // 결과가 있는 호출은 다시 실행하지 않고 의도 없는 호출만 실행한다
-  expect(h2.tools.executed).toEqual(["call_b"]);
+  expect(h2.tools.executed).toEqual([callB]);
   const events = h2.fake.events(h2.threadId);
   expect(countKind(events, "turn.completed")).toBe(1);
   const stepEnds = events.filter((event) => event.kind === "step.completed");
@@ -120,7 +126,7 @@ test("resume_tools_phase_uses_pending_tool_calls", async () => {
   const resultIds = next.flatMap((message) =>
     message.role === "toolResult" ? [message.toolCallId] : [],
   );
-  expect(resultIds).toEqual(["call_a", "call_b"]);
+  expect(resultIds).toEqual([callA, callB]);
 });
 
 test("resume_closes_a_step_cut_after_the_response_commit_by_running_the_step_end", async () => {
@@ -242,7 +248,7 @@ test("new_input_after_a_crash_closes_the_open_effects_of_the_stale_turn_with_syn
   const tools = [{ name: "read" }];
   const h = await createHarness({ tools, script: [read("c1")] });
   // 실행은 시작됐지만 결과 커밋 전에 끊긴다(결과 불명 효과)
-  await startAndCrash(h, (key) => key === "tool:c1:result", "before");
+  await startAndCrash(h, (key) => key.startsWith("tool:c1_") && key.endsWith(":result"), "before");
   expect(countKind(h.fake.events(h.threadId), "effect.exec")).toBe(1);
   expect(countKind(h.fake.events(h.threadId), "effect.result")).toBe(0);
 
@@ -340,7 +346,7 @@ test("resume_reruns_a_safe_effect_whose_result_was_not_recorded", async () => {
   const tools = [{ name: "read", replay: "safe" as const }];
   const h = await createHarness({ tools, script: [read("c1")] });
   // 실행은 시작됐지만 결과 커밋 전에 끊긴다
-  await startAndCrash(h, (key) => key === "tool:c1:result", "before");
+  await startAndCrash(h, (key) => key.startsWith("tool:c1_") && key.endsWith(":result"), "before");
   expect(countKind(h.fake.events(h.threadId), "effect.exec")).toBe(1);
   expect(countKind(h.fake.events(h.threadId), "effect.result")).toBe(0);
 
@@ -348,7 +354,7 @@ test("resume_reruns_a_safe_effect_whose_result_was_not_recorded", async () => {
   const resumed = await h2.loop.resume(h2.threadId);
   expect(resumed.ok && resumed.value).toMatchObject({ status: "resumed", from: "tools" });
   await h2.settle();
-  expect(h2.tools.reran).toEqual(["c1"]);
+  expect(h2.tools.reran).toEqual([recordedCallId(h2, "c1")]);
   expect(countKind(h2.fake.events(h2.threadId), "turn.completed")).toBe(1);
   expect(h2.models.requests).toHaveLength(1);
 });
@@ -356,7 +362,7 @@ test("resume_reruns_a_safe_effect_whose_result_was_not_recorded", async () => {
 test("resume_closes_an_unsafe_effect_with_an_outcome_unknown_result_and_does_not_run_it_again", async () => {
   const tools = [{ name: "read" }];
   const h = await createHarness({ tools, script: [read("c1")] });
-  await startAndCrash(h, (key) => key === "tool:c1:result", "before");
+  await startAndCrash(h, (key) => key.startsWith("tool:c1_") && key.endsWith(":result"), "before");
 
   const h2 = await h.restart({ tools, script: [text("noted")] });
   await h2.loop.resume(h2.threadId);
@@ -398,15 +404,16 @@ test("an_interrupt_during_a_tool_closes_the_calls_that_never_ran", async () => {
   await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
   await h.settle();
   // 두 번째 호출은 실행되지 않았고 루프가 단계 끝 커밋 전에 닫는다
-  expect(h.tools.executed).toEqual(["c1"]);
-  expect(h.tools.closed).toEqual(["c2"]);
+  const c2 = recordedCallId(h, "c2");
+  expect(h.tools.executed).toEqual([recordedCallId(h, "c1")]);
+  expect(h.tools.closed).toEqual([c2]);
   const events = h.fake.events(h.threadId);
   expect(firstOfKind(events, "turn.completed")?.payload).toMatchObject({
     status: "interrupted",
     error: "user",
   });
   const keys = h.fake.commitKeys(h.threadId);
-  expect(keys.filter((key) => key === "tool:c2:result").length).toBeGreaterThan(0);
+  expect(keys.filter((key) => key === `tool:${c2}:result`).length).toBeGreaterThan(0);
 });
 
 // L1A.4 (LP12): 승인 대기 중 끊긴 turn은 await_input으로 재개하고, 응답이 기록되면 같은 호출이 주 경로로 실행된다
@@ -419,16 +426,17 @@ test("await_input_resumes_after_approval_response", async () => {
   const tools = [{ name: "bash", requiresApproval: true }];
   const h = await createHarness({ tools, script: [bash], withApprovals: true });
   // 승인 요청과 대기 체크포인트가 커밋된 직후 끊긴다
-  h.fake.crashAfter((key) => key === "approval:call_a:request");
+  h.fake.crashAfter((key) => key.startsWith("approval:call_a_") && key.endsWith(":request"));
   await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
   await h.settle();
+  const callId = recordedCallId(h, "call_a");
   const before = h.fake.events(h.threadId);
   expect(countKind(before, "approval.requested")).toBe(1);
   expect(countKind(before, "effect.intent")).toBe(0);
   const waiting = before.findLast((event) => event.kind === "checkpoint.step");
   expect(waiting?.payload).toMatchObject({
     next: "await_input",
-    pendingToolCalls: [{ toolCallId: "call_a", effectId: null, waiting: "approval" }],
+    pendingToolCalls: [{ toolCallId: callId, effectId: null, waiting: "approval" }],
   });
 
   const h2 = await h.restart({ tools, script: [text("all done")], withApprovals: true });
@@ -439,13 +447,13 @@ test("await_input_resumes_after_approval_response", async () => {
   expect(h2.restored).toEqual([h2.threadId]);
   expect(h2.models.requests).toHaveLength(0);
   expect(h2.tools.executed).toEqual([]);
-  expect(h2.tools.waitingApproval).toEqual(["call_a"]);
+  expect(h2.tools.waitingApproval).toEqual([callId]);
   expect(countKind(h2.fake.events(h2.threadId), "approval.requested")).toBe(1);
 
   // 응답이 기록되면 같은 호출이 prepare·execute로 실행되고 단계가 마감된다
-  expect(await h2.tools.respondApproval("call_a")).toBe(true);
+  expect(await h2.tools.respondApproval(callId)).toBe(true);
   await h2.settle();
-  expect(h2.tools.executed).toEqual(["call_a"]);
+  expect(h2.tools.executed).toEqual([callId]);
   const events = h2.fake.events(h2.threadId);
   expect(countKind(events, "approval.requested")).toBe(1);
   expect(countKind(events, "approval.resolved")).toBe(1);
@@ -483,7 +491,7 @@ test("closing a stale turn cancels the approval requests it left behind", async 
   };
   const tools = [{ name: "bash", requiresApproval: true }];
   const h = await createHarness({ tools, script: [bash], withApprovals: true });
-  h.fake.crashAfter((key) => key === "approval:call_a:request");
+  h.fake.crashAfter((key) => key.startsWith("approval:call_a_") && key.endsWith(":request"));
   await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
   await h.settle();
   const requested = h.fake.events(h.threadId).find((event) => event.kind === "approval.requested");
@@ -506,7 +514,7 @@ test("closing a stale turn cancels the approval requests it left behind", async 
 test("closing_an_open_turn_logs_no_run_rejection", async () => {
   const tools = [{ name: "read" }];
   const h = await createHarness({ tools, script: [read("c1")] });
-  await startAndCrash(h, (key) => key === "tool:c1:result", "before");
+  await startAndCrash(h, (key) => key.startsWith("tool:c1_") && key.endsWith(":result"), "before");
   const h2 = await h.restart({ tools, script: [text("fresh answer")] });
   const admitted = await h2.loop.admit({
     threadId: h2.threadId,

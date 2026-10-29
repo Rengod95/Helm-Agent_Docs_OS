@@ -500,7 +500,7 @@ export type StructuredResult<T> =
   | { readonly ok: false; readonly kind: "schema_mismatch" | ModelErrorKind; readonly attempts: number; readonly lastError: string };
 ```
 
-`ModelService`에는 `completeStructured<T>(request: StructuredRequest<T>): Promise<StructuredResult<T>>`를 더한다. 계획 v2는 구조화 출력을 2차로 두었다. 그러나 목표 판정(`L1.agents.spec` §4.8, 제품 범위 I11은 M3)이 구조화 판정 출력을 쓰므로 [제안] `completeStructured`의 최소형(재시도 루프와 횟수 상한만)을 M3에 당긴다. 계정 풀·폴백과 함께 쓰는 형태는 2차에 남긴다.
+[결정: M3b B3-L1M, 오케스트레이터 기본값] 최소형 `completeStructured`는 `ModelService`에 더하지 않고 core-agents의 `structured.ts`(`L1.agents.spec` §4.8)에 둔다. 아래 서명은 계정 풀·폴백과 함께 쓰는 2차 형태가 필요해질 때 `ModelService`로 옮기는 후보다. 그때까지 이 절의 `ModelService` 항목은 쓰지 않는다. 후보 서명: `ModelService`에는 `completeStructured<T>(request: StructuredRequest<T>): Promise<StructuredResult<T>>`를 더한다. 계획 v2는 구조화 출력을 2차로 두었다. 그러나 목표 판정(`L1.agents.spec` §4.8, 제품 범위 I11은 M3)이 구조화 판정 출력을 쓰므로 [제안] `completeStructured`의 최소형(재시도 루프와 횟수 상한만)을 M3에 당긴다. 계정 풀·폴백과 함께 쓰는 형태는 2차에 남긴다.
 
 ### 3.11 위장 provider 플러그인
 
