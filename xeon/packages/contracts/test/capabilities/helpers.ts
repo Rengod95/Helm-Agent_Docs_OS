@@ -52,7 +52,7 @@ export function loose(
 export function propertyNames(schema: TSchema): readonly string[] {
   const json: unknown = toJsonSchema(schema);
   if (typeof json !== "object" || json === null) return [];
-  const properties: unknown = Reflect.get(json, "properties");
+  const properties: unknown = "properties" in json ? json.properties : undefined;
   if (typeof properties !== "object" || properties === null) return [];
   return Object.keys(properties);
 }

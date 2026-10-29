@@ -13,10 +13,19 @@ import { rawId } from "../helpers/ids.ts";
 
 function noticeKindJson(): unknown {
   const root: unknown = toJsonSchema(DialogNotifiedSchema);
-  if (typeof root !== "object" || root === null) return undefined;
-  const notice: unknown = Reflect.get(Reflect.get(root, "properties") ?? {}, "notice");
+  const properties: unknown =
+    typeof root === "object" && root !== null && "properties" in root ? root.properties : undefined;
+  const notice: unknown =
+    typeof properties === "object" && properties !== null && "notice" in properties
+      ? properties.notice
+      : undefined;
   if (typeof notice !== "object" || notice === null) return undefined;
-  return Reflect.get(Reflect.get(notice, "properties") ?? {}, "kind");
+  const noticeProperties: unknown = "properties" in notice ? notice.properties : undefined;
+  return typeof noticeProperties === "object" &&
+    noticeProperties !== null &&
+    "kind" in noticeProperties
+    ? noticeProperties.kind
+    : undefined;
 }
 
 const THREAD = rawId("thr", 2);

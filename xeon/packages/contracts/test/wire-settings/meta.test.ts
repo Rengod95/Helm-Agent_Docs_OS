@@ -124,12 +124,16 @@ describe("withMeta and the registry", () => {
 
   test("every registry row has _meta among its params properties (every variant for a union)", () => {
     for (const [name, spec] of Object.entries(WIRE_METHODS)) {
-      const variants: unknown = Reflect.get(spec.params, "anyOf");
-      const schemas: readonly unknown[] = Array.isArray(variants) ? variants : [spec.params];
+      const params: unknown = spec.params;
+      const variants: unknown =
+        typeof params === "object" && params !== null && "anyOf" in params
+          ? params.anyOf
+          : undefined;
+      const schemas: readonly unknown[] = Array.isArray(variants) ? variants : [params];
       const hasMeta = schemas.map((schema) => {
         const properties: unknown =
-          typeof schema === "object" && schema !== null
-            ? Reflect.get(schema, "properties")
+          typeof schema === "object" && schema !== null && "properties" in schema
+            ? schema.properties
             : undefined;
         return typeof properties === "object" && properties !== null && "_meta" in properties;
       });
