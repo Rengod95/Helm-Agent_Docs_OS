@@ -2,7 +2,8 @@
 // Sidecar build (m2-plan DESK.3, L4.desktop.plan 2.1, D3). Compiles the engine entry named in
 // apps/desktop/sidecar.json with `bun build --compile --minify --bytecode` for one Rust target triple and
 // checks the size cap. Output: apps/desktop/src-tauri/binaries/<name>-<triple>[.exe] (not committed, TC-05).
-//   build-sidecar <triple|host> [--no-bytecode]
+//   build-sidecar <triple|host> [--no-bytecode] [--version x.y.z]
+// `--version` defines the string constant XEON_BUILD_VERSION (bun build --define); CLI_VERSION and ENGINE_VERSION read it.
 //   build-sidecar --list
 // Decision (user, 2026-10-24): start-up and response speed come before binary size. The size cap only catches
 // regressions (500 MiB per triple), it is not a size target.
@@ -134,11 +135,21 @@ export function outputFileName(name: string, triple: string): string {
   return triple.includes("-windows-") ? `${name}-${triple}.exe` : `${name}-${triple}`;
 }
 
+/** The global the build defines (`--define`). `apps/cli` and `apps/host` read it as `typeof XEON_BUILD_VERSION`. */
+export const VERSION_DEFINE_NAME = "XEON_BUILD_VERSION";
+
+/** Plain dotted version with an optional pre-release tail; the same rule as release.ts `isSafeVersion`. */
+export function isBuildVersion(version: string): boolean {
+  return /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/.test(version);
+}
+
 export interface CompileOptions {
   readonly entry: string;
   readonly outFile: string;
   readonly bunTarget: string;
   readonly bytecode: boolean;
+  /** Injected as the string constant `XEON_BUILD_VERSION`. Without it the binary reports "0.0.0". */
+  readonly version?: string | undefined;
 }
 
 /** Arguments after the `bun` executable. */
@@ -149,6 +160,9 @@ export function compileArgs(options: CompileOptions): string[] {
     "--minify",
     ...(options.bytecode ? ["--bytecode"] : []),
     `--target=${options.bunTarget}`,
+    ...(options.version === undefined
+      ? []
+      : ["--define", `${VERSION_DEFINE_NAME}=${JSON.stringify(options.version)}`]),
     options.entry,
     "--outfile",
     options.outFile,
@@ -193,6 +207,8 @@ export interface BuildRequest {
   readonly desktopDir: string;
   readonly triple: string;
   readonly bytecode: boolean;
+  /** The release version to inject; undefined builds the "0.0.0" development binary. */
+  readonly version?: string | undefined;
 }
 
 /** Compiles the sidecar for one triple and checks the size cap. Nothing is thrown for expected failures. */
@@ -222,6 +238,7 @@ export async function buildSidecar(
     outFile,
     bunTarget: target.value.bunTarget,
     bytecode: request.bytecode,
+    version: request.version,
   });
   const run = await io.runBun(args, request.desktopDir);
   if (run instanceof Error) return fail({ kind: "build.spawn", message: run.message });
@@ -328,6 +345,7 @@ if (import.meta.main) {
     allowPositionals: true,
     options: {
       "no-bytecode": { type: "boolean", default: false },
+      version: { type: "string" },
       list: { type: "boolean", default: false },
     },
   });
@@ -352,7 +370,13 @@ if (import.meta.main) {
 
   const requested = positionals[0];
   if (requested === undefined || positionals.length > 1) {
-    process.stderr.write("usage: build-sidecar <triple|host> [--no-bytecode] | --list\n");
+    process.stderr.write(
+      "usage: build-sidecar <triple|host> [--no-bytecode] [--version x.y.z] | --list\n",
+    );
+    process.exit(1);
+  }
+  if (values.version !== undefined && !isBuildVersion(values.version)) {
+    process.stderr.write(`build-sidecar: --version must look like 1.2.3 or 1.2.3-rc.1\n`);
     process.exit(1);
   }
   const triple =
@@ -365,7 +389,10 @@ if (import.meta.main) {
   if (!bytecode) {
     process.stderr.write("build-sidecar: WARNING --no-bytecode is not the release configuration\n");
   }
-  const result = await buildSidecar({ desktopDir, triple: triple.value, bytecode }, io);
+  const result = await buildSidecar(
+    { desktopDir, triple: triple.value, bytecode, version: values.version },
+    io,
+  );
   if (!result.ok) {
     process.stderr.write(`build-sidecar: ${describeError(result.error)}\n`);
     process.exit(exitCodeOf(result.error));

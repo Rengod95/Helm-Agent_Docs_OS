@@ -241,6 +241,11 @@ export interface ReleaseRequest {
   readonly build: boolean;
 }
 
+/** The build-sidecar command of one release: the release version is injected into the binary (L4.release.spec 8.1). */
+export function sidecarCommand(triple: string, version: string): string[] {
+  return [process.execPath, join("scripts", "build-sidecar.ts"), triple, "--version", version];
+}
+
 /** Lays out and packs one release. Returns the archive path. */
 export async function buildRelease(request: ReleaseRequest): Promise<Result<string, ReleaseError>> {
   const { xeonRoot, triple, version } = request;
@@ -257,11 +262,7 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   const bundled = target?.binaries ?? [];
 
   if (request.build) {
-    const built = await run(
-      "build-sidecar",
-      [process.execPath, join("scripts", "build-sidecar.ts"), triple],
-      xeonRoot,
-    );
+    const built = await run("build-sidecar", sidecarCommand(triple, version), xeonRoot);
     if (!built.ok) return built;
   }
   const sidecar = join(

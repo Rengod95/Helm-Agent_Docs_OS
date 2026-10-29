@@ -154,10 +154,11 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - [결정: 오케스트레이터 기본값] 자원 디렉터리는 실행 파일이 든 폴더입니다. 그룹 템플릿의 탐색 순서는 §3.2의 세 단계입니다.
 - [결정: 오케스트레이터 기본값] 릴리즈 스크립트는 workspace 패키지를 import하지 않습니다(`eng.dependency-rules.guide` §1). 스크립트가 함께 쓰는 값은 `xeon/scripts/release-bundle.json`에 둡니다.
 - [결정: 오케스트레이터 기본값] M3b에는 자동 업데이트가 없습니다(§5).
+- [결정: 오케스트레이터 기본값] 버전 주입(M3b B5-FIX2). `release.ts`가 `--version`을 `build-sidecar.ts`에 넘기고, 빌드가 `bun build --define XEON_BUILD_VERSION="<버전>"`으로 문자열 상수를 넣습니다. `CLI_VERSION`(`xeon/apps/cli/src/commands/version.ts`)과 `ENGINE_VERSION`(`xeon/apps/host/src/assemble.ts`)은 `typeof XEON_BUILD_VERSION`이 문자열이면 그 값을, 아니면(소스 실행, 개발 빌드) `"0.0.0"`을 씁니다. 버전은 `x.y.z` 또는 `x.y.z-<꼬리>` 모양만 받습니다. `xeon-release.yml`은 `v<x.y.z>` 태그에서 태그의 버전을 `XEON_RELEASE_VERSION`으로 넘기고, 그 밖에는 스모크 기본값 `0.0.0-smoke`입니다. 스모크는 `xeon version` 출력에 아카이브 버전이 있는지 확인합니다(`run.version-injected`). 앱 번들(Tauri) 버전과의 정합은 M4 패키징 몫입니다.
 
 ### 8.2 미결
 
-1. [미결] 버전 값. `CLI_VERSION`과 `ENGINE_VERSION`은 모두 `"0.0.0"`이고, 릴리즈 빌드는 버전을 넣지 않습니다(`xeon/apps/cli/src/commands/version.ts`, `xeon/apps/host/src/assemble.ts`). 버전 주입은 M4 패키징과 함께 정합니다.
+1. [해소] 버전 값은 §8.1의 버전 주입으로 정했습니다.
 2. [미결] Tauri 자원 매핑. `xeon/apps/desktop/src-tauri/tauri.conf.json`에는 `externalBin`만 있습니다. 템플릿과 기본 플러그인을 `Contents/MacOS`에 두는 설정(`resources`와 macOS 파일 매핑)은 M4입니다.
 3. [미결] 고지 파일의 라이선스 전문. BSD-3-Clause(age)는 배포물과 함께 저작권 고지와 조건을 두라고 합니다. 현재 고지는 출처 주소만 적습니다. 전문을 넣을지 사용자가 정합니다.
 4. [미결] 체크섬의 출처. `.sha256`과 아카이브는 같은 곳에서 받습니다. 서명된 체크섬이나 별도 공개 키는 없습니다.
