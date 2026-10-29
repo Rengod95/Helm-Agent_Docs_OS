@@ -5,7 +5,7 @@ import type { ScopeHandlerFailedPayload, VolatileEventEnvelope } from "@xeon/con
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { createHandlerFailedEmitter } from "../../src/assembly/handler-failed.ts";
 
-// M3-REQ-35(HS-80): 확장 핸들러 실패는 열린 thread마다 `scope.handler_failed` 휘발 이벤트 하나가 된다.
+// M3-REQ-35(HS-92): 확장 핸들러 실패는 열린 thread마다 `scope.handler_failed` 휘발 이벤트 하나가 된다.
 // 열린 thread가 없으면 보내지 않고 운영 로그만 남긴다. 발신이 던져도 호출자에게 던지지 않는다.
 
 const threads = fixedIdFactory(700);

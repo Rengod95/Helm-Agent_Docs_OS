@@ -5,7 +5,7 @@ import { WireError, type WireParams, type WireResult } from "@xeon/contracts/wir
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// status.list, attachments.add(F wire §3.3.1, HS-81, M3-REQ-16). 가짜 엔진 위의 실제 처리기다. 능력 쪽은 test/assembly/dialog-wire.test.ts,
+// status.list, attachments.add(F wire §3.3.1, HS-93, M3-REQ-16). 가짜 엔진 위의 실제 처리기다. 능력 쪽은 test/assembly/dialog-wire.test.ts,
 // 실제 cap-dialog 위의 시험은 test/int/dialog-wire.int.test.ts다.
 
 async function open(host: FakeHost) {
@@ -261,7 +261,7 @@ test("host.hello lists status.list, attachments.add and notify.list now that the
   await connection.close();
 });
 
-// notify.list(F wire §3.3.1, HS-82, M3-REQ-16). 목록만 읽고 쓰기 소유를 얻지 않는다. 입력 거절은 `afterSeq`를 가리킨다.
+// notify.list(F wire §3.3.1, HS-94, M3-REQ-16). 목록만 읽고 쓰기 소유를 얻지 않는다. 입력 거절은 `afterSeq`를 가리킨다.
 
 const NOTICES: WireResult<"notify.list"> = {
   notices: [

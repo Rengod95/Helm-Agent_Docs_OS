@@ -2,7 +2,7 @@ import { wireError, type WireHandler } from "@xeon/contracts/wire";
 import type { Engine } from "../types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 
-// F wire §3.3.1 usage.get. L4.host-service.spec HS-83, M3-REQ-15. 사용량 게이지를 원천(`EnginePorts.usage`)에서 읽어 돌려준다.
+// F wire §3.3.1 usage.get. L4.host-service.spec HS-95, M3-REQ-15. 사용량 게이지를 원천(`EnginePorts.usage`)에서 읽어 돌려준다.
 // 읽기만 하므로 쓰기 소유를 얻지 않는다. 원천이 없으면 빈 목록이다(assembly/usage.ts).
 
 /** wire 결과 `gauges`의 상한(F wire §3.3.1 `UsageGetResultSchema` maxItems 256) */

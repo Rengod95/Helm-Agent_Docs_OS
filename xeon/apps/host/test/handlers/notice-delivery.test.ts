@@ -5,7 +5,7 @@ import { flushMicrotasks, settleUntil } from "../fixtures/clock.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 import type { ServerNotificationParams } from "@xeon/contracts/wire";
 
-// notify.delivered(F wire §3.3.2, L4.host-service HS-82, D-M3-17). 알림 하나를 준비된(ready) 연결 모두에 한 번씩 보낸다. 종류별 설정
+// notify.delivered(F wire §3.3.2, L4.host-service HS-94, D-M3-17). 알림 하나를 준비된(ready) 연결 모두에 한 번씩 보낸다. 종류별 설정
 // `l2.dialog.notify.<kind>`가 꺼져 있으면 보내지 않는다. 구독은 호스트 fan-out을 멈추면 뗀다. 실제 엔진 시험은 test/int/notify.int.test.ts다.
 
 const COMPLETED: Notice = {

@@ -8,7 +8,7 @@ import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// M3-REQ-35(HS-80) (int): 확장 핸들러가 던지면 그 thread를 연 연결이 `scope.handler_failed` 휘발 이벤트를 `stream.chunk`로 받는다.
+// M3-REQ-35(HS-92) (int): 확장 핸들러가 던지면 그 thread를 연 연결이 `scope.handler_failed` 휘발 이벤트를 `stream.chunk`로 받는다.
 // 실패는 thread의 이름 바꾸기가 낸 `session.info.after` 지점에서 난다. 이 지점은 분리(detached)라 실패가 호출 뒤에 알려진다.
 
 const gate = await realEngineGate();

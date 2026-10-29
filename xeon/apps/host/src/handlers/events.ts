@@ -371,7 +371,7 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       });
     }
   });
-  // 알림이 생기면 연결 전체에 `notify.delivered`를 보낸다(HS-82). 값과 설정 판정은 notice-delivery.ts가 한다
+  // 알림이 생기면 연결 전체에 `notify.delivered`를 보낸다(HS-94). 값과 설정 판정은 notice-delivery.ts가 한다
   const offNotices = startNoticeDelivery(engine, hub);
   return {
     watchObserved: () => {

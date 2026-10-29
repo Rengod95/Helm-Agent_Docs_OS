@@ -8,7 +8,7 @@ import {
 import type { DialogWireFailure, Engine } from "../types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 
-// F wire §3.3.1 status.list, attachments.add, notify.list. L4.host-service.spec HS-81, HS-82. 상태줄 스냅숏과 첨부 추가(M3-REQ-16, M3-20),
+// F wire §3.3.1 status.list, attachments.add, notify.list. L4.host-service.spec HS-93, HS-94. 상태줄 스냅숏과 첨부 추가(M3-REQ-16, M3-20),
 // 알림 목록(M3-REQ-16). 셋 다 읽거나 저장만 하고 thread의 쓰기 소유를 얻지 않는다. 서비스는 cap-dialog의 `dialog.status`·`dialog.attachments`·
 // `dialog.notify`다(assembly/dialog-wire.ts).
 

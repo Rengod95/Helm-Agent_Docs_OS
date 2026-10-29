@@ -342,7 +342,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const logOperations = (line: string): void => {
     late.logger?.warn("ext.operations", { line });
   };
-  // 확장 핸들러 실패를 `scope.handler_failed` 휘발 이벤트로 보낸다(M3-REQ-35, L4.host-service HS-80). 열린 thread는 허브가 있어야 읽을 수 있어 옵션으로 받는다
+  // 확장 핸들러 실패를 `scope.handler_failed` 휘발 이벤트로 보낸다(M3-REQ-35, L4.host-service HS-92). 열린 thread는 허브가 있어야 읽을 수 있어 옵션으로 받는다
   const handlerFailed = createHandlerFailedEmitter({
     emitVolatile: (event) => {
       late.session?.emitVolatile(event);

@@ -34,7 +34,7 @@ export async function startHost(
   options: AssembleOptions,
   lifecycle?: HostLifecycle,
 ): Promise<RunningHost> {
-  // 허브는 엔진 뒤에 생기므로 열린 thread는 슬롯을 통해 그때그때 읽는다(확장 실패 알림, HS-80)
+  // 허브는 엔진 뒤에 생기므로 열린 thread는 슬롯을 통해 그때그때 읽는다(확장 실패 알림, HS-92)
   const slot: { hub: ConnectionHub | undefined } = { hub: undefined };
   const engine = await assemble({
     ...options,
