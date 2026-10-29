@@ -32,6 +32,7 @@ function countOf(text: string, needle: string): number {
 /**
  * 한 turn의 입력. 창이 13000토큰이라, 두 turn이 쌓이면 셋째 turn 요청 전에 임계(창 - 1024)를 넘긴다.
  * grep과 find의 도구 정의가 시스템 프롬프트에 더해져 창을 12000에서 올렸다(시험으로 12300에서 통과, 12100에서 실패를 확인했다).
+ * 웹 브라우즈 도구 네 개의 정의도 요청에 들어간다(같은 두 turn 예산 유지).
  */
 function bigInput(topic: string): string {
   return `${topic} ${"build cache notes and the reasons behind each decision. ".repeat(200)}`;

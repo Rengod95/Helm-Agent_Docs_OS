@@ -30,6 +30,7 @@ import type {
   SubmitOutcome,
   CommandPort,
   EngineDiagnostics,
+  WebPort,
   ThreadPort,
   ProposalPort,
   TrustPort,
@@ -81,6 +82,7 @@ export interface FakeEngineOptions {
     readonly approvals?: Partial<ApprovalPort>;
     readonly trust?: Partial<TrustPort>;
     readonly commands?: Partial<CommandPort>;
+    readonly web?: Partial<WebPort>;
     readonly proposals?: Partial<ProposalPort>;
   };
 }
@@ -317,6 +319,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       list: () => Promise.reject(new Error("command.list is not part of the fake")),
       run: () => Promise.reject(new Error("command.run is not part of the fake")),
       ...options.overrides?.commands,
+    },
+    web: {
+      providers: () => Promise.reject(new Error("web.providers is not part of the fake")),
+      ...options.overrides?.web,
     },
     proposals: {
       list: () => Promise.reject(new Error("proposal.list is not part of the fake")),

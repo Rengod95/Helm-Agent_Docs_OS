@@ -21,6 +21,7 @@ import {
   DialogAsk,
   KnowledgeSkills,
   McpClient,
+  WebBrowse,
   WebFetch,
   WebSearch,
   WorkPlans,
@@ -55,6 +56,7 @@ import {
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
+import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { GroupCatalogEntry } from "@xeon/group-kit";
 import type { SettingCatalog } from "@xeon/contracts/settings";
@@ -90,6 +92,8 @@ export interface ExtensionDeps {
   readonly settings: SettingsEngine;
   /** 명령 등록부 자리. 조립 루트가 만들고 엔진 포트(`command.*`)도 같은 자리를 읽는다 */
   readonly commands: CommandRegistryHolder;
+  /** 웹 런타임 자리(`web.providers`). cap-web 확장이 채운다 */
+  readonly web: WebStatusHolder;
   /** thread의 작업 디렉터리(없으면 undefined). `input.bash.before` 지점 페이로드의 cwd가 된다 */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
   readonly db: StoreDb;
@@ -154,6 +158,7 @@ function kindLookup(kind: string): CatalogEntry | undefined {
 const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   WebSearch,
   WebFetch,
+  WebBrowse,
   KnowledgeSkills,
   WorkTasks,
   WorkPlans,
@@ -346,6 +351,9 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
         hostWebPlugin({
           ids: deps.localIds,
           layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined),
+          settingValue: (key) => settings.value(key),
+          resources: () => deps.ext.resources,
+          status: deps.web,
           onSettingsChange: (listener) => settings.onChange(() => listener()),
           heldThreads: deps.groups.heldThreads,
           ...(deps.webPorts?.resolver === undefined ? {} : { resolver: deps.webPorts.resolver }),

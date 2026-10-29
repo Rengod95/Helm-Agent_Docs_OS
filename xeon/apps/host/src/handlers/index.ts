@@ -33,6 +33,7 @@ import {
   createThreadRevertHandler,
 } from "./thread.ts";
 import { createTrustHandlers } from "./trust.ts";
+import { createWebHandlers } from "./web.ts";
 import {
   createTurnInterruptHandler,
   createTurnResumeHandler,
@@ -90,6 +91,7 @@ export function createWireHandlers(
     ...createSecretHandlers(engine),
     ...createTrustHandlers(engine),
     ...createCommandHandlers(engine, hub),
+    ...createWebHandlers(engine),
   };
   return table;
 }

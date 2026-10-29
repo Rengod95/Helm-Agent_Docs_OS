@@ -227,6 +227,8 @@ export interface EnginePorts {
   readonly models: ModelCatalogPort;
   /** L2.dialog 슬래시 명령 */
   readonly commands: CommandPort;
+  /** L2.web provider 상태와 웹 설정 값(`web.providers`, M3-REQ-96). 읽기 전용 */
+  readonly web: WebPort;
   /** 지식 제안 대기열 둘(학습 그룹, L2.knowledge)을 한 목록으로 보이고 결정한다(M3-REQ-18, D-M3-32 a) */
   readonly proposals: ProposalPort;
   /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */
@@ -358,6 +360,14 @@ export interface CommandPort {
     params: Omit<WireParams<"command.run">, "threadId">,
     signal: AbortSignal,
   ): Promise<Result<WireResult<"command.run">, CommandFailure>>;
+}
+
+/**
+ * 웹 provider 상태와 웹 설정 값(`web.providers`, F wire-settings, M3-REQ-96). 읽기 전용이고 비밀 값을 싣지 않는다. cap-web이 올라와 있지 않으면
+ * provider 목록은 비고 설정 값은 설정 층에서 읽는다(assembly/web-providers.ts)
+ */
+export interface WebPort {
+  providers(signal: AbortSignal): Promise<WireResult<"web.providers">>;
 }
 
 /**

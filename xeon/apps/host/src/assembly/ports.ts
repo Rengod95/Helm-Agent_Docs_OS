@@ -67,6 +67,7 @@ import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
 import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
+import { createWebPort, type WebStatusHolder } from "./web-providers.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import { createSettingsStore } from "./settings-store.ts";
 import { createThreadGate } from "./thread-gate.ts";
@@ -104,6 +105,8 @@ export interface PortsDeps {
   readonly secrets: SecretsPort;
   /** 명령 등록부 자리. 브리지 확장이 명령 서비스 API를 채운다 */
   readonly commands: CommandRegistryHolder;
+  /** 웹 런타임 자리. cap-web 확장이 채운다(`web.providers`) */
+  readonly web: WebStatusHolder;
   /** 지식 제안 대기열 둘의 합친 조회·결정(`proposal.*`) */
   readonly proposals: ProposalPort;
   /** 사용자 설정 파일이 없을 때 새로 만들 디렉터리(L0.os의 `dirs.config`) */
@@ -632,6 +635,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     secrets: deps.secrets,
     models: { modelIds: (provider) => modelIdsOf(deps.models, provider) },
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
+    web: createWebPort({ holder: deps.web, settings: deps.settings }),
     proposals: deps.proposals,
     trust,
     schedule: deps.schedule,

@@ -401,3 +401,16 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 
 남은 것: 안전 모드를 켜는 입구(CLI 인자, 설정)는 이 단계에 없다. `AssembleOptions.safeMode`만 있다 [미결].
 
+## 11. M3b 구현 기록 (B2-WEB의 L4 몫)
+
+| 작업 | 상태 | 내용과 시험 |
+|---|---|---|
+| M3-REQ-37 등록 목록 | 구현 | `webRegistrationSource`(`assembly/cap-web.ts`)가 `web_provider` 기록을 cap-web `registrations`로 넘긴다(spec HS-91 (1)). `test/assembly/cap-web-bridge.test.ts`(유효한 기록만 확장 이름과 함께, 종류가 다른 기록과 모양이 어긋난 기록은 뺀다) |
+| M3-REQ-96 헤더 비밀 | 구현 | `createWebHeaderSecrets`(`assembly/web-header-secrets.ts`)가 `createPluginHttp`로 `withHttp`를 부른다. 목적 `web.search`(HS-91 (2)). HOST.14의 "headerSecrets는 가져오지 않았다"(HS-75)는 이 행으로 대체한다. `test/assembly/web-header-secrets.test.ts`(값은 전송 인자에만, 템플릿과 오류에는 없다, 미설정과 참조 아님은 `unset`, 나머지는 `unavailable`) |
+| M3-REQ-96 브라우저 MCP | 구현 | `createBrowserMcpPort`(`assembly/web-browser-mcp.ts`)가 `mcp.client`를 `BrowserMcpPort`로 맞춘다. 서버 `playwright`(HS-91 (3)). `test/assembly/web-browser-mcp.test.ts`(연결 여부, 텍스트와 이미지 조립, isError, input_required, 호출 실패, 중단) |
+| M3-REQ-96 브라우저 도구 | 구현 | `WebBrowse`를 능력 공급자로 내고 네 도구를 등록한다(열기·조작·닫기 `write`, 읽기 `read`, HS-91 (4)). `L2_TOOL_CAPABILITIES`에 더한다(HS-60). 매니페스트 `provides`에 `web.browse`를 더한다 |
+| 세션 종료 | 구현 | `onWebSessionShutdown`이 `closeThread`를 기다리고 원문을 정리한다(HS-91 (5)). `test/assembly/cap-web-bridge.test.ts` |
+| `web.providers` | 구현 | 처리기 `handlers/web.ts`, 포트 `EnginePorts.web`(`assembly/web-providers.ts`, holder가 런타임을 잇는다). 처리기 표에 행을 더했다(spec §3.4, HS-91 (6)). `test/handlers/web.test.ts`, `test/assembly/web-providers.test.ts`, `test/int/web-providers.int.test.ts`(실제 엔진, 내장 래퍼 행과 기본 설정) |
+| 시험 조정 | 구현 | `test/int/compact-reinject.int.test.ts`의 창을 12000에서 13000토큰으로 올렸다. 브라우즈 도구 정의 네 개가 요청에 더해져 두 turn 만에 임계를 넘었다. 두 turn은 임계 아래, 셋째 turn 요청 전에 넘는 예산은 그대로다 |
+
+남은 것: 브라우저 사람 확인 포트 `browseConfirm`(spec §10 35), 브라우저 MCP 직접 호출의 승인(spec §10 34). 설정 스키마 커밋본(`apps/host/schema/`)은 `l2.web.browse.*` 키(53c9d53)가 들어온 뒤로 다시 쓰이지 않아 `settings-schema-committed` 시험이 실패한다. 이 단위가 바꾼 설정은 없고, 병합 때 오케스트레이터가 다시 쓴다(m3b-plan §3.4).

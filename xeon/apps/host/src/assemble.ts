@@ -68,6 +68,7 @@ import {
 } from "./assembly/learning.ts";
 import { createHostSchedule, type ScheduleRunnerPorts } from "./assembly/schedule.ts";
 import { createProposalPort } from "./assembly/proposals.ts";
+import type { WebStatusHolder } from "./assembly/web-providers.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
 import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
@@ -575,6 +576,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
     const commands: CommandRegistryHolder = { current: undefined, api: undefined };
+    // 웹 런타임 자리(`web.providers`). cap-web 확장이 올라올 때 채운다
+    const web: WebStatusHolder = { current: undefined };
     // 학습 그룹의 읽기 면(세션 DB의 x_learning_* 투영)과 명령 실행기, 그룹·L2 대기열을 잇는 자리. 읽기 면은 세션 서비스가 올라온 뒤(아래 4단계)에 채운다
     const learning = createLearningWiring({
       resources: () => ext.resources,
@@ -608,6 +611,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         commands,
+        web,
         mode: options.mode,
         clock,
         ids,
@@ -773,6 +777,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         }),
       ),
       commands,
+      web,
       proposals: createProposalPort({
         learning: () => learning.bridge.api(),
         runner: learning.runner,
