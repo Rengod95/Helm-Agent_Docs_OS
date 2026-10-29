@@ -272,6 +272,38 @@ export function memoryEnv(options: { readonly cwd?: string } = {}): MemoryEnv {
         };
         return Promise.resolve(ok(reader(key, bytesOf)));
       },
+      joinPath: (parts) => Promise.resolve(ok(normalize(parts.join("/")))),
+      readTextFile: (path) => {
+        const real = realpath(path);
+        if (!real.ok) return Promise.resolve(err(real.error));
+        const node = nodes.get(real.value);
+        if (node?.kind !== "file") {
+          return Promise.resolve(
+            err(new FileError("is_directory", `is a directory: ${path}`, path)),
+          );
+        }
+        return Promise.resolve(ok(decoder.decode(node.bytes)));
+      },
+      writeFile: (path, content) => {
+        put(path, typeof content === "string" ? content : content.slice());
+        return Promise.resolve(ok(undefined));
+      },
+      flushFile: () => Promise.resolve(ok(undefined)),
+      renameFile: (source, destination) => {
+        const from = normalize(source);
+        const node = nodes.get(from);
+        if (node === undefined) {
+          return Promise.resolve(err(new FileError("not_found", `not found: ${source}`, source)));
+        }
+        nodes.set(normalize(destination), node);
+        nodes.delete(from);
+        mtimes.set(normalize(destination), (clock += 1));
+        return Promise.resolve(ok(undefined));
+      },
+      remove: (path) => {
+        nodes.delete(normalize(path));
+        return Promise.resolve(ok(undefined));
+      },
       exec: (command, execOptions, context: CancelScope) => {
         calls.push({ command, options: execOptions });
         const next = replies.shift() ?? { exitCode: 0 };

@@ -319,6 +319,7 @@ export const WorkspaceFiles = defineCapability({
           edit_overlap: { description: "두 편집의 구간이 겹침", retryable: false },
           edit_empty_old_text: { description: "oldText가 빈 문자열", retryable: false },
           edit_no_change: { description: "편집 결과가 원본과 같음", retryable: false },
+          edit_conflict: { description: "읽은 뒤 다른 쓰기가 파일을 바꿈. 아무것도 쓰지 않음", retryable: false },
         },
       },
       list: {
@@ -620,7 +621,10 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 - 오류 `detail`은 `{ editIndex, totalEdits }`를 공통으로 싣는다. 원본 메시지 문구(`edits[i].oldText ...`)는 `message`에 그대로 둔다.
 - 같은 경로의 동시 변경은 durable `tools/file-mutation-queue.ts`로 경로별로 줄 세운다. 다른 경로는 병렬로 돈다.
-- 쓰기는 같은 디렉터리의 임시 파일에 쓰고 이름을 바꾸는 방식이 원자적이다. 포크 원본이 직접 덮어쓰는지 확인한 뒤 바꿀지 정한다 [미결 4].
+- 쓰기(`write`, `edit`)는 원자적이다. 포크 원본의 `writeFile`은 직접 덮어쓰므로 쓰지 않고, `files/atomic.ts`가 같은 디렉터리의 임시 파일(`.<이름>.xeon-tmp-<uuid>`)에 쓰고 `flushFile`로 디스크에 내린 뒤 `renameFile`로 대상을 바꾼다. 쓰는 도중 프로세스가 SIGKILL로 죽어도 대상은 원본이거나 새 내용 전체다. 실패하면 임시 파일을 지운다. 죽은 쓰기가 남긴 임시 파일은 지우지 않으며 다음 쓰기를 막지 않는다 [결정: 오케스트레이터 기본값].
+- 동시 변경 감지: `edit`는 읽은 내용을 보관하고, 이름을 바꾸기 직전에 대상을 다시 읽어 같은지 비교한다. 다르거나 파일이 없어졌으면 `edit_conflict`(`detail.reason: "changed" | "removed"`)로 거부하고 아무것도 쓰지 않는다. 다른 프로세스나 `bash`의 쓰기가 대상이다. 확인과 이름 바꾸기 사이의 짧은 틈은 남으므로 이 검사는 잠금이 아니라 감지다. `write`는 파일 전체를 바꾸는 도구라 감지하지 않는다 [결정: 오케스트레이터 기본값].
+- 같은 프로세스 안의 같은 경로 변경은 `files/queue.ts`가 차례로 세운다(포크 원본 `file-mutation-queue.ts`의 동작, 키는 파일 시스템 id와 정규 경로).
+- 알려진 제약: 이름 바꾸기로 파일을 바꾸므로 기존 파일의 실행 권한 등 모드 비트와 하드 링크는 유지되지 않는다. `ExecutionEnv`에 모드를 다루는 메서드가 없다 [미결 14].
 - `FileChange.diff`는 외부 라이브러리 없이 `files/diff.ts`가 만든다(통합 diff, 문맥 3줄); pi의 `diff` 패키지는 쓰지 않는다 [결정: 오케스트레이터 기본값].
 
 줄 해시 편집(2차, 설계 메모) [제안]:
@@ -688,7 +692,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | 9 | 도구 실행 중 사용자 중단 | `aborted`. L1.tools가 중단 결과로 처리 |
 | 10 | ripgrep 바이너리를 찾지 못함 | `grep`, `find`가 `unavailable`, `detail.reason: "rg_missing"` |
 | 11 | 같은 파일에 `edit` 두 개가 한 라운드에서 병렬로 옴 | 경로별 줄 세우기로 차례로 적용. 두 번째 편집은 첫 번째 결과를 원본으로 본다 |
-| 12 | 편집 중 다른 프로세스가 파일을 바꿈 | 읽은 시점 내용을 기준으로 쓰므로 그 변경을 덮어쓴다. 감지는 하지 않는다 [미결 4] |
+| 12 | 편집 중 다른 프로세스가 파일을 바꿈 | 이름을 바꾸기 직전 비교에서 감지해 `edit_conflict`로 거부한다. 대상은 그 프로세스가 쓴 그대로다(§4.4) |
 | 13 | photon 로드 실패 | 처리기 없음 상태로 동작. 큰 이미지는 `image_too_large` |
 | 14 | 이미지 blob이 요청 조립 시점에 없음 | L1.context가 텍스트 자리표시로 바꾼다(§4.6) |
 | 15 | `ExecutionEnv`가 원격(SSH) 백엔드 | 같은 규칙으로 동작한다. 정규 경로와 root는 원격 파일 시스템 기준이다. ripgrep은 원격에 있어야 한다 [가정] |
@@ -770,7 +774,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 1. [결정: review.decisions-2 D-08] 절단 함수 위치. 포크 원본은 `platform-exec`에 두고 `cap-workspace`는 F 서비스(`ExecutionEnv`)로 호출한다(§4.5).
 2. [결정: review.m2-plan DG.3] `workspace.images` 최소형(처리기 없음)을 M2에 둔다. JSON은 "이미지와 첨부 처리" 2차이고 `dialog.attachments`(M2)는 이 능력을 필수로 쓴다(`L2.readme` §2 각주). 구현은 §4.6.
 3. [미결] `ImageBlobRefSchema`의 중복. F capabilities는 records를 import하지 않으므로 같은 모양을 적었다. `BlobRef`를 conversation이나 base로 내려 공유할지 F 문서가 정한다. 그 전까지는 두 스키마의 JSON이 같은지 테스트로 확인한다.
-4. [미결] 원자적 쓰기와 동시 변경 감지. 포크 원본의 `writeFile`이 직접 덮어쓰는지 확인하고, 임시 파일 + 이름 바꾸기와 읽은 시점 해시 비교(낙관적 동시성)를 넣을지 정한다.
+4. [결정: 오케스트레이터 기본값] 원자적 쓰기와 동시 변경 감지. 포크 원본은 직접 덮어쓰므로 임시 파일 + 이름 바꾸기로 바꾸고, `edit`는 읽은 내용 비교로 동시 변경을 감지한다(§4.4).
 5. [미결] 도구 없는 능력(`workspace.images`) 허용(`F.capabilities.spec` §4.4).
 6. [미결] `find`의 엔진. pi coding-agent `find`는 `fd`를 내려받아 쓴다(`core/tools/find.ts` `ensureTool("fd")`). 내려받기를 피하려고 `rg --files --glob`로 바꾸는 것을 제안한다. glob 의미(기본 이름 일치 대 전체 경로 일치)가 `fd`와 달라질 수 있어 테스트로 고정한다.
 7. [미결] 허용 root 조회 API의 이름과 모양(`L1.tools.spec`). M1은 cwd 하나, M2는 대화의 작업 폴더 하나로 둔다(§4.3, open-issues M-06). 추가 디렉터리와 사용자가 승인해 넓힌 경로는 L1.tools의 API가 정해진 뒤에 더한다.
@@ -780,3 +784,4 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 11. [미결] `l2.workspace.images.*`를 세션 범위에서 바꿀 수 있게 할지. 지금은 세션 범위를 뺐다.
 12. [미결] 패치 적용 메서드. `L2.artifacts.spec`의 거절 hunk 되돌림 안 A는 `workspace.files`에 패치 적용 서비스 메서드(`applyPatch` 후보, 도구 없음, `unsafe`)를 요구한다. 그 안이 채택되면 `workspace.files` minor 버전으로 더하고 §4.3 경로 검사와 §4.4 줄 세우기를 그대로 적용한다. 채택 전에는 `edit`로 같은 일을 할 수 있다.
 13. [미결] 내용 주소(sha256) blob 쓰기(`images.register`)의 분류. 같은 바이트는 같은 blob이라 재실행해도 결과와 효과가 같지만, ADR-0015 §3.3은 `requestId` 기억이 있는 쓰기만 `idempotent`로 둔다. 지금은 선언 없음이다. 내용 주소 쓰기를 `idempotent`로 인정하려면 ADR의 정의를 넓혀야 한다.
+14. [미결] 원자적 쓰기가 기존 파일의 모드 비트(실행 권한)를 잃는다. `FileInfo`에 모드가 없고 `ExecutionEnv`에 chmod가 없어 L0.exec 확장이 필요하다. 그 전까지 실행 파일을 `edit`하면 권한을 다시 줘야 한다.

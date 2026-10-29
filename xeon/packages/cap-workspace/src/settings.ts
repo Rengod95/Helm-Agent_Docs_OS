@@ -77,6 +77,20 @@ const workspaceSettings = defineSettings("l2.workspace", {
     ui: { tab: "tools", widget: "number", order: 205, label: "목록 최대 항목 수", unit: "개" },
     since: "0.1.0",
   },
+  "edit.fuzzy": {
+    type: Type.Boolean(),
+    default: true,
+    runtimeChange: "nextTurn",
+    allowedScopes: ALL_SCOPES,
+    ui: {
+      tab: "tools",
+      widget: "toggle",
+      order: 210,
+      label: "퍼지 일치 편집",
+      help: "정확 일치가 없을 때 따옴표, 대시, 공백 차이를 무시하고 찾는다",
+    },
+    since: "0.1.0",
+  },
   "images.maxWidth": {
     type: Type.Integer(),
     default: 2000,
@@ -141,6 +155,7 @@ export interface WorkspaceSettings {
     readonly defaultTimeoutSec: number;
   };
   readonly list: { readonly maxEntries: number };
+  readonly edit: { readonly fuzzy: boolean };
   readonly images: {
     readonly maxWidth: number;
     readonly maxHeight: number;
@@ -155,6 +170,7 @@ export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   read: { maxLines: 2000, maxBytes: 51200 },
   shell: { maxLines: 2000, maxBytes: 51200, defaultTimeoutSec: 0 },
   list: { maxEntries: 500 },
+  edit: { fuzzy: true },
   images: { maxWidth: 2000, maxHeight: 2000, maxBytes: 4718592, maxInputBytes: 41943040 },
 };
 
@@ -166,6 +182,11 @@ export interface WorkspaceSettingsSource {
 function integerValue(def: SettingDef, layers: ScopeStack, fallback: number): number {
   const { value } = resolveSetting(def, layers).setting;
   return typeof value === "number" && Number.isInteger(value) ? value : fallback;
+}
+
+function booleanValue(def: SettingDef, layers: ScopeStack, fallback: boolean): boolean {
+  const { value } = resolveSetting(def, layers).setting;
+  return typeof value === "boolean" ? value : fallback;
 }
 
 /** 유효 값을 읽는다. 형식이나 범위가 틀린 층은 `resolveSetting`이 건너뛰고, 값이 없으면 기본값이다 */
@@ -187,6 +208,7 @@ export function readWorkspaceSettings(layers: ScopeStack): WorkspaceSettings {
       ),
     },
     list: { maxEntries: integerValue(defs["list.maxEntries"], layers, fallback.list.maxEntries) },
+    edit: { fuzzy: booleanValue(defs["edit.fuzzy"], layers, fallback.edit.fuzzy) },
     images: {
       maxWidth: integerValue(defs["images.maxWidth"], layers, fallback.images.maxWidth),
       maxHeight: integerValue(defs["images.maxHeight"], layers, fallback.images.maxHeight),

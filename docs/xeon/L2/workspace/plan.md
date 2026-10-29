@@ -85,7 +85,7 @@ xeon/packages/cap-workspace/
 | `D/tools/write.ts` | 39 | `src/files/upstream/write.ts` | M3 | 도구 타입 치환. `FileChange` 계산(이전 내용 읽기 + `generateUnifiedPatch`) 추가 |
 | `D/tools/file-mutation-queue.ts` | 55 | `src/files/upstream/file-mutation-queue.ts` | M3 | `Context` 치환 |
 | `D/tools/edit.ts` | 144 | `src/edit/upstream/edit.ts` | M3 | 도구 타입 치환. `prepareEditArguments`는 F 정의의 `toEditInput`으로 옮겼으므로 지운다. 오류 메시지 문자열 대신 고유 코드로 던진다(`edit_not_found` 등) |
-| `D/tools/edit-diff.ts` | 500 | `src/edit/upstream/edit-diff.ts` | M3 | 오류 생성 함수 5개(`getNotFoundError` 등)가 코드 달린 오류를 만들도록 고친다. 정규화 규칙은 바꾸지 않는다 |
+| `D/tools/edit-diff.ts` | 500 | `src/files/upstream/edit-diff.ts` | M3 | 오류 생성 함수 5개(`getNotFoundError` 등)가 코드 달린 오류를 만들도록 고친다. 정규화 규칙은 바꾸지 않는다 |
 | `CA/grep.ts` | 323 | `src/files/upstream/grep.ts` | M3 | `ensureTool` 내려받기 제거, `xeon.os`가 제공하는 `rg` 경로(`platform-os`의 `@vscode/ripgrep` 연결) 또는 `l2.workspace.grep.rgPath`. 실행은 `ExecutionEnv.exec`. 출력 파싱은 `rg --json`으로 고정 |
 | `CA/find.ts` | 318 | `src/files/upstream/find.ts` | M3 | `fd` 대신 `rg --files --glob`(spec §10 미결 6). 실행은 `ExecutionEnv.exec` |
 | `D/truncate.ts` | 205 | 이 패키지에 두지 않는다. `platform-exec`(L0.exec.plan)가 포크한다 | M1 | spec §4.5 D-08. 이 패키지는 `xeon.exec`(F `ExecutionEnv`)로 호출한다 |
@@ -173,7 +173,7 @@ Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키�
 | | `bash timeout keeps output` | 가짜 exec `timeout` → `timeout` 오류, `detail`에 출력 |
 | | `bash abort` | `signal` 취소 → `aborted` |
 | | `tail truncation and spill path` | 출력이 한도를 넘으면 `truncated: true`, `fullOutputPath` 있음 |
-| `test/edit.test.ts` | spec §4.4의 E1~E17 테스트 이름 17개 | 표의 각 규칙. 이름은 표와 문자 그대로 같다 |
+| `test/edit-diff.test.ts` | spec §4.4의 E1~E17 테스트 이름 17개 | 표의 각 규칙. 이름은 표와 문자 그대로 같다 |
 | | `edit rules table matches tests` | spec 표의 테스트 이름 목록(fixture로 복사)과 이 파일의 테스트 이름 집합이 같다 |
 | | `edit reports FileChange` | `diff`, `added`, `removed`, `firstChangedLine` |
 | | `concurrent edits on same path serialize` | 같은 경로 두 편집이 차례로 적용된다 |

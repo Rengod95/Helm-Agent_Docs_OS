@@ -21,7 +21,7 @@ function layer(scope: ScopeLayer["scope"], values: Record<string, unknown>): Sco
 
 describe("settings", () => {
   test("settings defs pass checks", () => {
-    // 읽는 키만 선언한다: read.*, shell.*, list.maxEntries(M1), images.*(M2). plan W8
+    // 읽는 키만 선언한다: read.*, shell.*, list.maxEntries(M1), images.*(M2), edit.fuzzy(M3b). plan W8
     expect(WORKSPACE_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l2.workspace.read.maxLines",
       "l2.workspace.read.maxBytes",
@@ -29,6 +29,7 @@ describe("settings", () => {
       "l2.workspace.shell.maxBytes",
       "l2.workspace.shell.defaultTimeoutSec",
       "l2.workspace.list.maxEntries",
+      "l2.workspace.edit.fuzzy",
       "l2.workspace.images.maxWidth",
       "l2.workspace.images.maxHeight",
       "l2.workspace.images.maxBytes",
@@ -55,6 +56,7 @@ describe("settings", () => {
       read: { maxLines: 2000, maxBytes: 51200 },
       shell: { maxLines: 2000, maxBytes: 51200, defaultTimeoutSec: 0 },
       list: { maxEntries: 500 },
+      edit: { fuzzy: true },
       images: { maxWidth: 2000, maxHeight: 2000, maxBytes: 4718592, maxInputBytes: 41943040 },
     });
   });

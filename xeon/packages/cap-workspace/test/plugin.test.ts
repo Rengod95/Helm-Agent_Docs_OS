@@ -191,10 +191,8 @@ describe("plugin", () => {
     const run = await apis.shell?.run({ command: "echo ok" });
     expect(run).toMatchObject({ exitCode: 0, output: "ok\n", sandboxed: true });
     // 구현하지 않은 메서드는 unsupported로 거부한다
-    const write = await rejection(
-      apis.files?.write({ path: "x", content: "y" }) ?? Promise.resolve(),
-    );
-    expect(write.data.code).toBe("unsupported");
+    const grep = await rejection(apis.files?.grep({ pattern: "x" }) ?? Promise.resolve());
+    expect(grep.data.code).toBe("unsupported");
   });
 
   test("only implemented tools reach L1.tools, with their risk", async () => {
@@ -208,6 +206,8 @@ describe("plugin", () => {
     expect(files?.kind === "capability" ? files.key : undefined).toEqual(WorkspaceFilesKey);
     expect(files?.kind === "capability" ? files.policy : undefined).toEqual({
       read: { risk: "read" },
+      write: { risk: "write" },
+      edit: { risk: "write" },
       ls: { risk: "read" },
     });
     expect(shell?.kind === "capability" ? shell.def.tools.map((tool) => tool.name) : []).toEqual([

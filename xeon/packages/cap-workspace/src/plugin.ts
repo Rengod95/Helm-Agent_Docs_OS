@@ -40,7 +40,7 @@ const ToolsPortKey: PortKey<ToolService> = { name: ToolServiceName };
  * M1에서 L1.tools에 올리는 `workspace.files` 도구 이름. 아직 구현하지 않은 도구(write, edit, grep, find)는
  * 광고하지 않는다(plan W4 "미구현 도구는 노출하지 않는지 확인"). M3(W5, W6)에서 이 목록을 늘린다.
  */
-export const IMPLEMENTED_FILES_TOOLS: readonly string[] = ["read", "ls"];
+export const IMPLEMENTED_FILES_TOOLS: readonly string[] = ["read", "write", "edit", "ls"];
 
 export interface WorkspacePluginOptions {
   /** 설정 층. 파일 범위와 세션 범위를 합친 스택을 호출마다 돌려준다 */
@@ -140,7 +140,12 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
           kind: "capability",
           def: advertisedFilesDef(),
           key: WorkspaceFilesKey,
-          policy: { read: { risk: "read" }, ls: { risk: "read" } },
+          policy: {
+            read: { risk: "read" },
+            write: { risk: "write" },
+            edit: { risk: "write" },
+            ls: { risk: "read" },
+          },
         },
         {
           kind: "capability",

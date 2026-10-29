@@ -18,6 +18,9 @@
       "entry": ["test/**/*.test.ts"],
       "ignoreBinaries": ["mkfifo"]
     },
+    "packages/cap-workspace": {
+      "entry": ["test/**/*.test.ts", "test/support/atomic-victim.ts"]
+    },
     "packages/core-persistence": {
       "entry": ["test/**/*.test.ts", "test/support/crash-child.ts"]
     },

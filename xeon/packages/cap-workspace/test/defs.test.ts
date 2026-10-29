@@ -18,11 +18,11 @@ describe("workspace definitions", () => {
     expect(validateCapabilitySet(ALL)).toEqual([]);
   });
 
-  test("the advertised subset (M1 tools) has no issues either", () => {
+  test("the advertised subset has no issues either", () => {
     const advertised = advertisedFilesDef();
     expect(validateCapability(advertised)).toEqual([]);
     expect(validateCapabilitySet([advertised, WorkspaceShell])).toEqual([]);
-    expect(advertised.tools.map((tool) => tool.name)).toEqual(["read", "ls"]);
+    expect(advertised.tools.map((tool) => tool.name)).toEqual(["read", "write", "edit", "ls"]);
     expect(advertised.service).toBe(WorkspaceFiles.service);
     expect(advertised.id).toBe(WorkspaceFiles.id);
   });
@@ -31,7 +31,7 @@ describe("workspace definitions", () => {
     const declared = WorkspaceFiles.tools.map((tool) => tool.name);
     for (const name of IMPLEMENTED_FILES_TOOLS) expect(declared).toContain(name);
     const hidden = declared.filter((name) => !IMPLEMENTED_FILES_TOOLS.includes(name));
-    expect(hidden.toSorted()).toEqual(["edit", "find", "grep", "write"]);
+    expect(hidden.toSorted()).toEqual(["find", "grep"]);
   });
 
   test("replay and execution policy declared", () => {
@@ -70,8 +70,10 @@ describe("workspace definitions", () => {
       orderTools([WorkspaceShell, WorkspaceImages, WorkspaceFiles]).map((tool) => tool.name),
     ).toEqual(["edit", "find", "grep", "ls", "read", "write", "bash"]);
     expect(orderTools([WorkspaceShell, advertisedFilesDef()]).map((tool) => tool.name)).toEqual([
+      "edit",
       "ls",
       "read",
+      "write",
       "bash",
     ]);
   });
