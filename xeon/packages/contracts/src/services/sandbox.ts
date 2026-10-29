@@ -1,11 +1,12 @@
 import { Type, type TUnsafe } from "typebox";
-import type { SchemaProof } from "../base/index.ts";
+import type { Result, SchemaProof } from "../base/index.ts";
 import type { CancelScope, Shell } from "./exec.ts";
+import type { SandboxRunReport, SandboxViolation } from "./sandbox-report.ts";
 
 // L0.sandbox.spec §3.1. 구현은 platform-sandbox다. exec와 sandbox는 서로 import하지 않고 F의 Shell 인터페이스로만 만난다.
 // SandboxRunReport·SandboxViolation은 ./sandbox-report.ts다(exec.ts와 이 파일이 함께 쓴다).
 
-export type { SandboxRunReport, SandboxViolation } from "./sandbox-report.ts";
+export type { SandboxRunReport, SandboxViolation };
 
 export const SandboxServiceName = "xeon.sandbox" as const;
 
@@ -328,6 +329,36 @@ export function describeSandboxStatus(status: SandboxStatus): SandboxStatusSumma
   }
 }
 
+/** `wrapArgv`에 넘기는 요청. 오래 사는 프로세스(stdio MCP 서버 등)의 명령줄이다 */
+export interface SandboxArgvRequest {
+  readonly command: string;
+  readonly args: readonly string[];
+  /** 절대 경로. 정책의 상대 경로 기준이고 감싼 프로세스의 작업 디렉터리다. 없으면 호출 프로세스의 것을 따른다 */
+  readonly cwd: string | undefined;
+}
+
+/**
+ * 샌드박스 안에서 돌릴 명령줄. 호출자가 이 argv를 스트림 그대로 spawn한다.
+ * `sandboxed`가 거짓이면 격리 없이 도는 명령줄이고(`unsandboxedBy`가 이유), argv는 요청 그대로다.
+ */
+export interface SandboxedArgv {
+  readonly argv: readonly string[];
+  /** 자식 env에 더할 항목(프록시 주소 등). 부모 env 전체가 아니라 부모와 다른 항목만이다 */
+  readonly env: Readonly<Record<string, string>>;
+  readonly sandboxed: boolean;
+  /** `sandboxed`가 거짓일 때만. 사용자가 끄거나(`disabled`) 격리 불가 시 실행을 허락한(`run_unsandboxed`) 경우다 */
+  readonly unsandboxedBy?: NonNullable<SandboxRunReport["unsandboxedBy"]>;
+  /** 프로세스가 끝났거나 spawn에 실패하면 한 번 부른다. 여러 번 불러도 한 번만 한다 */
+  cleanup(): void;
+}
+
+export type SandboxWrapError =
+  /** 격리를 쓸 수 없고 `onUnavailable`이 실행을 허락하지 않는다(L0.sandbox.spec §4.5) */
+  | { readonly kind: "unavailable"; readonly reason: SandboxUnavailableReason | undefined }
+  /** 정책 변환이나 래핑이 실패했다. `message`에 경로나 값을 싣지 않는다 */
+  | { readonly kind: "failed"; readonly message: string }
+  | { readonly kind: "aborted" };
+
 export interface SandboxService {
   status(): SandboxStatus;
   /** 작업 공간 root와 임시 디렉터리로 기본 정책을 만든다. 보호 경로와 설정 추가분이 들어간다 */
@@ -336,6 +367,15 @@ export interface SandboxService {
   protectedPaths(): readonly ProtectedPathEntry[];
   /** F Shell을 받아 F Shell을 돌려준다. exec 패키지를 import하지 않는다 */
   wrapShell(shell: Shell, policy: SandboxPolicy): Shell;
+  /**
+   * 오래 사는 프로세스를 정책 안에서 돌릴 명령줄을 만든다(stdio MCP 서버). `wrapShell`과 같은 정책 변환과
+   * 격리 불가 판정(§4.5)을 쓰고, 끝난 결과가 아니라 argv를 돌려준다. 예상 가능한 실패는 값이다
+   */
+  wrapArgv(
+    policy: SandboxPolicy,
+    request: SandboxArgvRequest,
+    context: CancelScope,
+  ): Promise<Result<SandboxedArgv, SandboxWrapError>>;
   /** 판정만 한다. 승인 UI와 적용은 L1 tools */
   autoAllow(
     policy: SandboxPolicy,

@@ -186,6 +186,22 @@ export const SelfTestReportSchema: Schema<SelfTestReport>;
 export interface SandboxStatusSummary { severity: "ok" | "warn" | "critical"; summary: string; hints: string[] }
 export function describeSandboxStatus(status: SandboxStatus): SandboxStatusSummary;
 
+export interface SandboxArgvRequest { command: string; args: readonly string[]; cwd: string | undefined }
+export interface SandboxedArgv {
+  argv: readonly string[];
+  /** 자식 env에 더할 항목. 부모 env와 다른 항목만이다 */
+  env: Readonly<Record<string, string>>;
+  sandboxed: boolean;
+  /** sandboxed가 거짓일 때만 */
+  unsandboxedBy?: "disabled" | "run_unsandboxed";
+  /** 프로세스가 끝났거나 spawn에 실패하면 부른다. 여러 번 불러도 한 번만 한다 */
+  cleanup(): void;
+}
+export type SandboxWrapError =
+  | { kind: "unavailable"; reason: SandboxUnavailableReason | undefined }
+  | { kind: "failed"; message: string }
+  | { kind: "aborted" };
+
 export interface SandboxService {
   status(): SandboxStatus;
   /** 작업 공간 root와 임시 디렉터리로 기본 정책을 만든다. 보호 경로와 설정 추가분이 들어간다 */
@@ -194,6 +210,8 @@ export interface SandboxService {
   protectedPaths(): readonly ProtectedPathEntry[];
   /** F Shell을 받아 F Shell을 돌려준다. exec 패키지를 import하지 않는다 */
   wrapShell(shell: Shell, policy: SandboxPolicy): Shell;
+  /** 오래 사는 프로세스(stdio MCP 서버)를 정책 안에서 돌릴 명령줄을 만든다(4.9절). 호출자가 argv를 스트림 그대로 spawn한다 */
+  wrapArgv(policy: SandboxPolicy, request: SandboxArgvRequest, context: CancelScope): Promise<Result<SandboxedArgv, SandboxWrapError>>;
   /** 판정만 한다. 승인 UI와 적용은 L1 tools */
   autoAllow(policy: SandboxPolicy, request: { command: string | readonly string[]; cwd: string; workspaceRoots: readonly string[]; tempDir: string }): AutoAllowDecision;
   /** 주어진 Shell을 감싸 자가 시험을 실행하고 status에 반영한다 */

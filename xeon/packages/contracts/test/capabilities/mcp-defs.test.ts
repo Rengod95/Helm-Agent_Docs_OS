@@ -185,13 +185,14 @@ describe("mcp schemas", () => {
     expect(parse(McpServerStatusSchema, { ...status, state: "sleeping" }).ok).toBe(false);
   });
 
-  test("blockedReason takes exactly the five block reasons", () => {
+  test("blockedReason takes exactly the six block reasons", () => {
     expect(McpBlockedReasonSchema.anyOf.map((member) => member.const)).toEqual([
       "denied_by_policy",
       "not_in_allowlist",
       "managed_only",
       "untrusted_project",
       "approval_required",
+      "sandbox_unavailable",
     ]);
     const blocked = {
       server: "github",

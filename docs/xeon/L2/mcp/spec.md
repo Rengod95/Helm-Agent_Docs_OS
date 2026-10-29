@@ -157,7 +157,7 @@ export const McpServerStatusSchema = Type.Object({
   resourceCount: Type.Optional(Type.Integer({ minimum: 0 })),
   /** 비밀 값을 담지 않는다 */
   lastError: Type.Optional(Type.Object({ code: Type.String(), message: Type.String(), at: Type.Integer() })),
-  /** blocked일 때 사유: "denied_by_policy" | "not_in_allowlist" | "managed_only" | "untrusted_project" | "approval_required" */
+  /** blocked일 때 사유: "denied_by_policy" | "not_in_allowlist" | "managed_only" | "untrusted_project" | "approval_required" | "sandbox_unavailable" */
   blockedReason: Type.Optional(Type.String()),
 });
 
