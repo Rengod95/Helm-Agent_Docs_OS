@@ -198,12 +198,18 @@ export async function smoke(archive: string): Promise<readonly SmokeFailure[]> {
     const doctor = await runXeon(binary, ["doctor"], cwd, home);
     const names = triple.includes("-apple-") ? ["sops", "age", "rg"] : ["rg", "bwrap", "socat"];
     for (const name of names)
-      check("run.doctor", doctor.output.includes(`외부 바이너리 ${name}`), `no line for ${name}`);
+      check(
+        "run.doctor",
+        new RegExp(`(외부 바이너리|External binary) ${name}`).test(doctor.output),
+        `no line for ${name}`,
+      );
     if (triple.includes("-apple-")) {
       for (const name of names) {
         check(
           "run.doctor.bundled",
-          new RegExp(`외부 바이너리 ${name}: .*\\(번들\\)`).test(doctor.output),
+          new RegExp(`(외부 바이너리|External binary) ${name}: .*\\((번들|bundled)\\)`).test(
+            doctor.output,
+          ),
           `${name} is not bundled`,
         );
       }
