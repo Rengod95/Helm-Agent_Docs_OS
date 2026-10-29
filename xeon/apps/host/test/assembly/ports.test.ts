@@ -360,6 +360,50 @@ describe("threads", () => {
     }
   });
 
+  test("a create with the same creationKey gives back the first thread, and the list keeps one thread", async () => {
+    const h = harness();
+    // 세션 가짜: 같은 creationKey의 두 번째 생성은 처음 thread를 replayed로 돌려주고 목록에 행을 더하지 않는다(L1.persistence §4.10.1)
+    const firstByKey = new Map<string, ThreadId>();
+    const rows: ThreadSummaryRow[] = [];
+    const session = partial<SessionService>({
+      threads: partial<SessionService["threads"]>({
+        create: (input) => {
+          const key = input.creationKey;
+          const known = key === undefined ? undefined : firstByKey.get(key);
+          if (known !== undefined) {
+            return ok({ threadId: known, headSeq: 5, replayed: true, token: null });
+          }
+          if (key !== undefined) firstByKey.set(key, input.threadId);
+          rows.push(
+            partial<ThreadSummaryRow>({
+              threadId: input.threadId,
+              title: input.title ?? null,
+              status: "idle",
+              workspace: null,
+              createdAt: 1,
+              updatedAt: 1,
+              headSeq: 1,
+              forkedFrom: null,
+              marker: null,
+              queuedInputs: 0,
+              pendingApprovals: 0,
+            }),
+          );
+          return ok({ threadId: input.threadId, headSeq: 1, replayed: false, token: null });
+        },
+        list: () => ({ threads: rows, nextCursor: "next" }),
+      }),
+      feed: h.deps.session.feed,
+    });
+    const { ports } = createEnginePorts({ ...h.deps, session });
+    const key = "timer:sch_01ARZ3NDEKTSV4RRFFQ69G5FAV:601000:create";
+    const first = await ports.threads.create({ title: "예약", creationKey: key });
+    const second = await ports.threads.create({ title: "예약", creationKey: key });
+    expect(second.threadId).toBe(first.threadId);
+    const listed = await ports.threads.list({});
+    expect(listed.threads.map((thread) => thread.threadId)).toEqual([first.threadId]);
+  });
+
   test("a refused create is a store.* wire error, not a Bug", async () => {
     const h = harness();
     h.state.threadsCreate = err({ kind: "busy" });

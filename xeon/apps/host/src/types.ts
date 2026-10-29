@@ -286,9 +286,14 @@ export type ThreadCompactFailure =
   | { readonly kind: "context_failed"; readonly error: ContextError };
 
 export interface ThreadPort {
+  /**
+   * `creationKey`가 있으면 같은 키로 이미 만든 thread를 돌려준다. 돌려준 `threadId`는 처음 만든 것이고 새 thread는 없다
+   * (L1.persistence §4.10.1). 예약 실행은 `timer:<scheduleId>:<dueAt>:create`를 쓴다(L2.schedule §4.4.4)
+   */
   create(input: {
     readonly workspace?: string;
     readonly title?: string;
+    readonly creationKey?: string;
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;

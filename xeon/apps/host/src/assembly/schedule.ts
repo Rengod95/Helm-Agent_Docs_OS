@@ -255,9 +255,12 @@ function runnerOf(deps: HostScheduleDeps): ScheduleRunner {
   return {
     async start(request: RunRequest): Promise<Result<StartedRun, RunnerFailure>> {
       const ports = deps.runnerPorts();
+      // 재시작 뒤 `claimed` 실행은 같은 요청으로 다시 시작한다. 생성 키가 같으므로 처음 만든 thread를 돌려받고 thread는 하나다
+      // (L2.schedule §4.4.4 둘째 장치). 돌려받은 thread에는 임대를 다시 얻고 같은 요청 키로 입력을 넣는다
       const created = await attemptAsync(() =>
         ports.threads.create({
           title: titleOf(request),
+          creationKey: `timer:${request.scheduleId}:${request.dueAt}:create`,
           ...(request.workspace === null ? {} : { workspace: request.workspace }),
         }),
       );

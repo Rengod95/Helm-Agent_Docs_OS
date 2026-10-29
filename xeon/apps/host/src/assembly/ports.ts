@@ -216,11 +216,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         if (!canonical.ok) throw wireErrorOfWorkspace(canonical.error);
         workspace = canonical.value;
       }
+      // 같은 creationKey의 재생이면 세션이 처음 thread의 id를 돌려준다. 여기서 발급한 id는 쓰이지 않고 버려진다
       const threadId = deps.ids.next("thr");
       const created = session.threads.create({
         threadId,
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(workspace === undefined ? {} : { workspace }),
+        ...(input.creationKey === undefined ? {} : { creationKey: input.creationKey }),
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
       const head = session.feed.headSeq();
