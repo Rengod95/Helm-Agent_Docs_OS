@@ -13,7 +13,7 @@
     "rule": "DR-10",
     "from": "apps/cli",
     "to": "@xeon/client",
-    "entries": ["."],
+    "entries": [".", "./web"],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
     "approvedBy": "adr.0020"
   },
