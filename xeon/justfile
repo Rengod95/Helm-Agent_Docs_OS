@@ -130,4 +130,10 @@ tape-record scenario *flags:
 # 속도 기준선: 콜드 스타트(CLI, 사이드카). --first-token은 실제 모델 호출이라 --yes 없이는 종료코드 3 (scripts/bench.ts, ADR-0012)
 [group('local')]
 bench *flags:
-    {{bun}} scripts/bench.ts {{flags}}
+    bash ../scripts/guard.sh run -- {{bun}} scripts/bench.ts {{flags}}
+
+# 서버 측정 결과의 예산 판정: 예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패 (scripts/bench-gate.ts)
+[group('local')]
+bench-gate *flags:
+    bash ../scripts/guard.sh run -- bash -c '{{bun}} scripts/bench-server.ts --json | {{bun}} scripts/bench-gate.ts {{flags}}'
+

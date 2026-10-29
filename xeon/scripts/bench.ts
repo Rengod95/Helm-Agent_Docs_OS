@@ -3,6 +3,7 @@
 // before what calls a real model.
 //   bench [--runs <n>]                 cold start of `xeon version` (bun entry) and of the compiled sidecar, if built
 //   bench --first-token [--yes]        also time to the first stream.chunk of one real `xeon chat -p` turn
+//   bench --server                     also the server benches (bench-server.ts: index, lease, dispatch, store); judge them with bench-gate.ts
 // --first-token calls the configured model provider (cost, key). Without --yes it prints what it would do and exits 3
 // (decision D-e: one run before M2 closes, confirmed each time).
 // Exit codes: 0 measured, 1 bad arguments, 2 environment (bun or the CLI cannot start, the turn fails), 3 needs --yes.
@@ -142,6 +143,7 @@ if (import.meta.main) {
       runs: { type: "string" },
       "first-token": { type: "boolean", default: false },
       yes: { type: "boolean", default: false },
+      server: { type: "boolean", default: false },
     },
   });
   const planned = planBench({
@@ -189,6 +191,15 @@ if (import.meta.main) {
     process.stdout.write(
       `${formatRow("cold_start_sidecar", result instanceof Error ? `failed: ${result.message}` : result)}\n`,
     );
+  }
+
+  if (values.server) {
+    const server = Bun.spawn([process.execPath, join(xeonRoot, "scripts", "bench-server.ts")], {
+      cwd: xeonRoot,
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    if ((await server.exited) !== 0) process.exit(2);
   }
 
   if (plan.firstToken === "off") {

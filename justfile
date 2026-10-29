@@ -152,3 +152,8 @@ tape-record scenario *flags:
 [group('local')]
 bench *flags:
     cd xeon && just bench {{flags}}
+
+# 서버 측정 결과의 예산 판정(예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패) (xeon/scripts/bench-gate.ts)
+[group('local')]
+bench-gate *flags:
+    cd xeon && just bench-gate {{flags}}
