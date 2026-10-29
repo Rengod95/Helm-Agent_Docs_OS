@@ -124,11 +124,14 @@ export function createAttachmentsApi(deps: DialogDeps): AttachmentsApi {
       }
     }
     if (deps.blobs === undefined) throw blobsMissing();
+    // 직접 등록한 블롭도 고정하지 않는다(아래 putBlob 주석, L0.store §10 미결 S-15)
     const stored = deps.blobs.putBlob(source.bytes, mimeType);
     if (!stored.ok) throw storeFailure(stored.error.kind);
     return { image: { blob: stored.value, mimeType }, processed: false };
   }
 
+  // 블롭은 고정하지 않는다(L0.store §10 미결 S-15). 이 패키지는 참조를 자기 표나 상태에 적지 않고, 고정을 풀 시점(첨부 폐기, 턴 소비)도 알 수 없다.
+  // 텍스트 본문은 파트에 그대로 들어가므로 이 blob을 가리키는 이벤트가 없다. 이미지 참조는 입력 파트의 자리표시뿐이다(L2.dialog §4.5).
   function putBlob(bytes: Uint8Array, mediaType: string): BlobRef {
     if (deps.blobs === undefined) throw blobsMissing();
     const stored = deps.blobs.putBlob(bytes, mediaType);

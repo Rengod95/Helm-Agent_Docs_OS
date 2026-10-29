@@ -401,3 +401,37 @@ describe("상대 경로는 thread의 작업 폴더 기준이다", () => {
     expect(missing.data.code).toBe("not_found");
   });
 });
+
+describe("블롭 고정은 하지 않는다(L0.store §10 미결 S-15)", () => {
+  test("첨부는 pinBlob·unpinBlob을 부르지 않고, 이미지 참조는 입력 파트의 자리표시로만 남는다", async () => {
+    const blobs = memoryBlobs();
+    const pinCalls: string[] = [];
+    // 고정 호출이 생기면 기록이 빈 목록이 아니게 되어 이 시험이 실패한다
+    const recording = Object.assign(blobs, {
+      pinBlob: (owner: string, sha256: string, refKey: string) => {
+        pinCalls.push(`pin ${owner} ${sha256} ${refKey}`);
+      },
+      unpinBlob: (owner: string, refKey: string) => {
+        pinCalls.push(`unpin ${owner} ${refKey}`);
+      },
+    });
+    const h = harness({ blobs: recording, images: fakeImages(recording) });
+    const api = createAttachmentsApi(h.deps);
+    h.files.put("/home/user/shots/a.png", pngBytes(4, 3, 64));
+    h.files.put("/home/user/notes.md", "안녕");
+
+    const image = await api.add({ source: { kind: "path", path: "/home/user/shots/a.png" } });
+    const text = await api.add({ source: { kind: "path", path: "/home/user/notes.md" } });
+
+    expect(blobs.puts).toBe(2);
+    expect(pinCalls).toEqual([]);
+    const sha = image.attachment.blob?.sha256;
+    expect(image.parts[0]).toEqual({
+      type: "image",
+      data: `blob:sha256:${sha}`,
+      mimeType: "image/png",
+    });
+    // 텍스트 첨부는 본문을 파트에 그대로 넣으므로 그 blob을 가리키는 자리표시가 없다
+    expect(JSON.stringify(text.parts)).not.toContain("blob:sha256:");
+  });
+});
