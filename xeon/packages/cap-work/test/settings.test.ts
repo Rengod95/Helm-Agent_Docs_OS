@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { buildCatalog, checkSettingDef, type ScopeLayer } from "@xeon/contracts/settings";
+import {
+  buildCatalog,
+  checkSettingDef,
+  checkSettingWrite,
+  type ScopeLayer,
+} from "@xeon/contracts/settings";
 import { DEFAULT_WORK_SETTINGS, readWorkSettings, WORK_SETTING_DEFS } from "../src/settings.ts";
 
 function layer(scope: ScopeLayer["scope"], values: Record<string, unknown>): ScopeLayer {
@@ -7,9 +12,8 @@ function layer(scope: ScopeLayer["scope"], values: Record<string, unknown>): Sco
 }
 
 describe("settings", () => {
-  test("the six keys of the spec table pass the definition checks", () => {
+  test("the five keys of the spec table pass the definition checks", () => {
     expect(WORK_SETTING_DEFS.map((def) => def.key)).toEqual([
-      "l2.work.goal.onJudgeError",
       "l2.work.goal.delegatedTimeoutSec",
       "l2.work.plans.requireApproval",
       "l2.work.plans.exitOnApprove",
@@ -34,7 +38,6 @@ describe("settings", () => {
     expect(byKey.get("l2.work.plans.exitOnApprove")?.allowedScopes).not.toContain("managed");
     expect(byKey.get("l2.work.tasks.autoStart")?.ui?.tab).toBe("tools");
     expect(byKey.get("l2.work.goal.delegatedTimeoutSec")?.allowedScopes).not.toContain("session");
-    expect(byKey.get("l2.work.goal.onJudgeError")?.ui?.tab).toBe("budgets");
   });
 
   test("defaults match the spec table", () => {
@@ -42,8 +45,29 @@ describe("settings", () => {
     expect(DEFAULT_WORK_SETTINGS).toEqual({
       tasks: { autoStart: false, reminderTurns: 0 },
       plans: { requireApproval: true, exitOnApprove: true },
-      goal: { onJudgeError: "stop", delegatedTimeoutSec: 300 },
+      goal: { delegatedTimeoutSec: 300 },
     });
+  });
+
+  test("a stored value for the removed goal.onJudgeError is ignored like an unknown key", () => {
+    const removed = readWorkSettings([layer("user", { "l2.work.goal.onJudgeError": "continue" })]);
+    const unknown = readWorkSettings([layer("user", { "l2.work.goal.noSuchKey": "continue" })]);
+    expect(removed).toEqual(unknown);
+    expect(removed).toEqual(DEFAULT_WORK_SETTINGS);
+  });
+
+  test("a write of the removed key is refused as an unknown key, like an unregistered one", () => {
+    const built = buildCatalog([
+      { owner: "cap-work", namespace: "l2.work", defs: WORK_SETTING_DEFS },
+    ]);
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(
+      checkSettingWrite(built.catalog, [], "l2.work.goal.onJudgeError", "user", "continue"),
+    ).toMatchObject({ ok: false, kind: "settings.unknownKey" });
+    expect(
+      checkSettingWrite(built.catalog, [], "l2.work.goal.noSuchKey", "user", "continue"),
+    ).toMatchObject({ ok: false, kind: "settings.unknownKey" });
   });
 
   test("values from a scope layer win, and invalid values fall back", () => {
@@ -51,11 +75,11 @@ describe("settings", () => {
       layer("user", {
         "l2.work.tasks.autoStart": true,
         "l2.work.tasks.reminderTurns": 3,
-        "l2.work.goal.onJudgeError": "continue",
+        "l2.work.goal.delegatedTimeoutSec": 60,
       }),
     ]);
     expect(set.tasks).toEqual({ autoStart: true, reminderTurns: 3 });
-    expect(set.goal.onJudgeError).toBe("continue");
+    expect(set.goal.delegatedTimeoutSec).toBe(60);
     const bad = readWorkSettings([
       layer("user", { "l2.work.tasks.reminderTurns": 51, "l2.work.tasks.autoStart": "yes" }),
     ]);

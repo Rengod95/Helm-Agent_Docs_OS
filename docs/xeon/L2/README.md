@@ -318,7 +318,7 @@ flowchart LR
 |---|---|
 | `tools` | workspace 한도, MCP 서버·승인 모드·허용·차단, 웹 provider 선택·도메인 정책, 스킬·메모리 켜기와 쓰기 승인, 명령·첨부·질문 시간 제한(dialog), 작업 목록(work), 리뷰·산출물 도구 켜기(artifacts), schedule 도구 켜기 |
 | `models` | L2가 고르는 모델 용도 이름(artifacts 자동 제목·핸드오프 용도). work 목표 판정은 `L1.models.spec` 역할 `judge`(`l1.models.routing.judge`)와 상한 `l1.agents.judge.maxRuns`를 쓰고 L2 키를 두지 않는다 |
-| `budgets` | 비용과 반복 횟수 정책(work 판정 실패 정책 `l2.work.goal.onJudgeError`). 판정 상한 키는 `l1.agents.judge.maxRuns` 하나이고 L1.agents 소유다 [결정: review.decisions-2 S-06] |
+| `budgets` | 비용과 반복 횟수 정책. work는 이 탭에 키를 두지 않는다. 판정 상한 키는 `l1.agents.judge.maxRuns` 하나이고 L1.agents 소유다 [결정: review.decisions-2 S-06] |
 | `providers` | provider 플러그인 우선순위(`pluginOrder`)의 표시. 플러그인 자체 설정은 `plugins` 탭 |
 | `secrets` | L2 키가 참조하는 `secret://` 이름의 표시(예: `l2.schedule.remote.tokenRef`). 값 관리는 L0.secrets 소관 |
 | `sessions` | 세션 제목·메타, 핸드오프, 내보내기, 산출물 한도(artifacts), 메모리·세션 검색(knowledge) |

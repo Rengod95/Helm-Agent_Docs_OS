@@ -1207,7 +1207,7 @@ export interface JudgePort {
 
 - 판정 실패는 L1.agents가 `failed`를 돌려준 경우다. 이때 `agent.judged`가 없으므로 L1.agents의 상한 셈(`agent.judged` 수)에 들지 않는다. `undecidable`은 판정으로 기록되고 상한 셈에 든다.
 - [결정: review.m3-design-inputs D-M3-15, M3-new-02] 판정 실패는 `stop`이다. 목표를 `judge_failed`로 끝내고 `work.report_built`를 남기며 turn을 끝낸다. 판정 모델이 계속 실패하는 상태에서 작업 단계를 이어 가면 판정 없이 비용만 쌓이기 때문이다. `xeon.agents`가 없거나 `judge`가 던지거나 판정 기록 커밋이 실패한 경우도 같다(커밋이 실패하면 목표는 활성으로 남고 turn만 끝나며 재개 때 같은 판정을 다시 기록한다).
-- 설정 `l2.work.goal.onJudgeError`는 정의에 남아 있지만 게이트는 값을 읽지 않는다. D-M3-15가 `stop`으로 닫았으므로 `"continue"`는 효과가 없다 [미결: 설정 키를 지울지, 이 문서가 닫은 W-7과 함께 사용자가 정한다].
+- 설정 `l2.work.goal.onJudgeError`는 지운다. 게이트는 이 값을 읽지 않았고, D-M3-15가 판정 실패를 `stop`으로 닫았으므로 정책을 고르는 설정이 필요 없다 [결정: 키 삭제, W-7].
 
 ### 4.4 완료 보고
 
@@ -1263,7 +1263,6 @@ export interface JudgePort {
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret | 비고(L4) |
 |---|---|---|---|---|---|---|---|---|
-| `l2.work.goal.onJudgeError` | string | `"stop"` [결정: D-M3-15. 게이트는 값을 읽지 않는다, §4.3.6] | enum `stop`, `continue` | nextTurn | user, project, local, session | budgets | false | 화면, 파일 |
 | `l2.work.goal.delegatedTimeoutSec` | integer | 300 | min 1, max 3600 | nextTurn | user, project, local | advanced | false | 파일 |
 | `l2.work.plans.requireApproval` | boolean | true | — | nextTurn | managed, user, project, local, session | permissions | false | 화면, 파일 |
 | `l2.work.plans.exitOnApprove` | boolean | true | — | nextTurn | user, project, local, session | permissions | false | 화면, 파일 |
@@ -1385,7 +1384,7 @@ export const manifest = defineManifest({
 - W-4 [미결] 이벤트 카탈로그 형식은 `F.records.spec` §3.3.2(`records/catalog/work.ts`, `WORK_EVENT_CATALOG`, `TYPE_PREFIX_OWNERS`)로 정해졌다. 남은 것은 records 카탈로그가 capabilities 정의를 import할 수 있는지이고 F.records.plan이 정한다.
 - W-5 [미결] 되감기 뒤 cap 투영. M2는 활성 가지 기준 재생성을 제안한다. 조회 시점에 가지로 거르는 방식이 eng.events.design §6에 맞는지 L1.persistence.spec과 정한다.
 - W-6 [미결] `goals.judge` 호출자 확인. `owner`와 `CallOptions.context.caller.extension`을 대조한다(§4.3.4). X의 capability 래퍼가 그룹 호출에 이 값을 채운다(`F.capabilities.spec` §3.2 주석). 채우는 값이 그룹 이름인지 scope id인지는 `X.primitives.spec`과 맞춘다.
-- W-7 닫힘 [결정: review.m3-design-inputs D-M3-15]: 판정 실패는 `stop`이다(§4.3.6). 설정 `l2.work.goal.onJudgeError`의 처리는 미결이다.
+- W-7 닫힘 [결정: review.m3-design-inputs D-M3-15]: 판정 실패는 `stop`이다(§4.3.6). 설정 `l2.work.goal.onJudgeError`는 [결정: 키를 지운다. 게이트가 값을 읽지 않았고 정책이 `stop`으로 닫혔으므로 설정이 필요 없다. §6.1 표에서도 뺐다].
 - W-8 [미결] `l2.work.plans.requireApproval`, `exitOnApprove`의 탭(`permissions` 제안). `L2.readme` §7.2 표는 이 제안에 맞췄다. 최종 배치는 L4.settings-ui.spec이 정한다.
 - W-9 [미결] `work.reports` 마일스톤. 이 문서와 `L2.readme` §2는 목표 종결 보고 때문에 M3로 둔다. JSON의 2차 표기와 다른 배치이므로 `L2.readme` §10 미결 17에서 사용자가 확인한다.
 - W-10 [미결] work → `dialog.commands` 선택 의존. `L2.readme` §6 표에 [미결] 간선으로 올렸다(`L2.readme` §10 미결 16). 순환은 생기지 않는다(dialog는 work를 부르지 않고 등록된 처리기만 실행한다, `L2.dialog.spec` §4.3). 넣지 않으면 명령 등록을 L4 클라이언트가 직접 한다.
