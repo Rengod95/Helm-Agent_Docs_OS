@@ -7,7 +7,11 @@ import { CircleAlert, CircleCheck, Sparkles } from "../icons";
 const KIND = {
   error: { icon: <CircleAlert />, tone: "text-danger-graphic", word: "오류" },
   completed: { icon: <CircleCheck />, tone: "text-success-graphic", word: "완료" },
-  background_completed: { icon: <Sparkles />, tone: "text-text-tertiary", word: "백그라운드" },
+  background_completed: {
+    icon: <Sparkles emphasis="muted" />,
+    tone: "text-text-tertiary",
+    word: "백그라운드",
+  },
 } as const;
 
 export function NoticeList({ notices }: { notices: Notice[] }) {

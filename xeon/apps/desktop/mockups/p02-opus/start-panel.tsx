@@ -22,8 +22,9 @@ import {
 } from "./icons";
 import { useMock } from "./store";
 
+// 지금 화면(chat)은 라벨 굵기와 함께 아이콘도 selected(Phosphor fill, Solar bold)로 그린다(DP-17).
 const NAV_ICONS = {
-  chat: <MessageSquare />,
+  chat: <MessageSquare emphasis="selected" />,
   inbox: <Inbox />,
   proposals: <Lightbulb />,
   schedules: <CalendarClock />,

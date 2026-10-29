@@ -10,7 +10,7 @@ export function ObserveBand({ onRetry }: { onRetry: () => void }) {
       data-slot="observe-band"
       className="flex min-h-14 items-center gap-3 rounded-2xl bg-neutral-well px-4 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]"
     >
-      <Eye aria-hidden className="size-icon-md shrink-0 text-text-tertiary" />
+      <Eye aria-hidden emphasis="muted" className="size-icon-md shrink-0 text-text-tertiary" />
       <div className="min-w-0 flex-1">
         <p className="m-0 text-ui-strong text-text-primary">관찰 중이에요</p>
       </div>

@@ -17,7 +17,7 @@
 | `tool-approval.tsx` | 도구 승인 카드(`AgentRequest` 조합) |
 | `palette.tsx`, `locked-dialog.tsx` | S7 팔레트, S5 O-01 잠긴 대화 |
 | `fixtures.ts` | 스펙 §8.2 고정 데이터 그대로(타입만 덧붙임) |
-| `icons.ts` | lucide-react 진입점(아래 "환경" 참고) |
+| `icons.ts` | caustic 아이콘 어댑터 진입점(아래 "환경" 참고) |
 | `fonts.ts` | caustic `fonts.css`를 렌더를 막지 않게 싣기(원격 `@import`를 비동기 `<link>`로, DP-15) |
 | `parts/` | caustic에 없어 직접 만든 부품(아래 표) |
 | `shots/S1.png`~`S7.png` | 1280px 라이트 스크린숏 |
@@ -93,5 +93,5 @@
 
 ## 환경
 
-데스크톱 패키지는 `lucide-react`를 직접 의존하지 않아(bun 격리 설치) 목업 폴더에서 맨 이름 import가 풀리지 않습니다.
-`icons.ts`가 caustic이 쓰는 같은 lucide-react를 상대 경로로 다시 내보냅니다. 앱 코드로 옮길 때 `package.json`에 `lucide-react`를 넣고 이 파일을 지우면 됩니다.
+`icons.ts`는 caustic 아이콘 어댑터(`@caustic/react/icons`)를 다시 내보냅니다(DP-17). 이름은 lucide 이름 그대로입니다.
+세트는 빌드 때 고릅니다: `CAUSTIC_ICON_SET=phosphor`(기본) 또는 `CAUSTIC_ICON_SET=solar`를 `bun run mockup`/`mockup:build` 앞에 붙입니다.

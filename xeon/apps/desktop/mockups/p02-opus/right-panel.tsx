@@ -85,7 +85,11 @@ function InboxContent() {
       {proposal !== undefined && (
         <Section title="제안" count={3}>
           <div className="flex min-w-0 items-center gap-2.5">
-            <Sparkles aria-hidden className="size-icon-sm shrink-0 text-text-tertiary" />
+            <Sparkles
+              aria-hidden
+              emphasis="muted"
+              className="size-icon-sm shrink-0 text-text-tertiary"
+            />
             <div className="min-w-0 flex-1 truncate text-ui-sm text-text-primary">
               {proposal.kind} <span className="font-mono text-mono-sm">{proposal.target}</span>{" "}
               <span className="text-text-tertiary">{proposal.extra}</span>
