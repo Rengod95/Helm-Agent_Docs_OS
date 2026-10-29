@@ -54,6 +54,19 @@ function normalizeIds(events: readonly JsonValue[]): JsonValue[] {
   return events.map(visit);
 }
 
+/**
+ * 계측 기록(`grp.<그룹>.metrics.recorded`)을 재생 비교에서 뺀다. 증가분은 프로세스가 뜬 뒤의 값이라 재시작한 실행마다 다르다
+ * (L3.group-kit.spec §4.9). 상태 커밋과 효과 계수는 그대로 비교한다.
+ */
+function comparable(events: readonly JsonValue[]): JsonValue[] {
+  return events.filter((event) => {
+    const record: unknown = event;
+    const kind =
+      typeof record === "object" && record !== null && "kind" in record ? record.kind : undefined;
+    return typeof kind !== "string" || !kind.endsWith(".metrics.recorded");
+  });
+}
+
 function isEventOfKind(event: JsonValue, kind: string): boolean {
   if (typeof event !== "object" || event === null || Array.isArray(event)) return false;
   return Object.entries(event).some(([key, value]) => key === "kind" && value === kind);
@@ -235,10 +248,10 @@ export function createLearningReplayHarness(
       };
       return { events: events.slice(0, end), commitPoints, effects };
     },
-    digest: (events) => canonicalJson(normalizeIds(events)),
+    digest: (events) => canonicalJson(normalizeIds(comparable(events))),
     firstDiff(a, b) {
-      const left = normalizeIds(a).map((event) => canonicalJson(event));
-      const right = normalizeIds(b).map((event) => canonicalJson(event));
+      const left = normalizeIds(comparable(a)).map((event) => canonicalJson(event));
+      const right = normalizeIds(comparable(b)).map((event) => canonicalJson(event));
       const length = Math.max(left.length, right.length);
       for (let index = 0; index < length; index += 1) {
         if (left[index] !== right[index]) return index;
