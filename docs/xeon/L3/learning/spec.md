@@ -709,7 +709,7 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
 | 재귀 방지 | 포크 대화에서는 학습 트리거가 돌지 않는다(카운터 0과 같은 효과). `learning-review` 정의와 `toolPolicy.allow`에는 위임 도구가 없다 | `hermes.md` §3.10.1 (나) 11 |
 | 사용량 귀속 | 포크의 토큰 사용량은 부모 세션 사용량에 합산한다. `grp.learning.fork.finished.usage`에도 남긴다 [가정: L1.agents.spec이 부모 귀속 집계를 제공] | `hermes.md` §3.10.1 (나) 11 |
 | 캐시 접두 공유 | [가정] L1.agents.spec이 부모 이력 fork와 같은 모델·시스템 프롬프트·도구 배열 유지를 지원한다. 네 조건(모델, 도구 배열 순서 포함, 시스템 프롬프트, 메시지 접두)이 모두 같을 때만 공유된다. 그래서 검토 지시는 마지막 user 메시지로 넣고 시스템 프롬프트를 바꾸지 않는다. `review.model`이 부모와 다르면 공유를 기대하지 않는다 | `_research/notes/L3-1.md` §3.6, `hermes.md` §3.10.1 (나) 8 |
-| 부모 중단 | 백그라운드 위임은 부모 abort가 전파되지 않는다. 학습 그룹은 부모 turn 중단과 무관하게 포크를 둔다. 명시 취소는 그룹 비활성화(§5 사례 5)와 `/learning review --cancel`뿐이다 | `_research/notes/L3-1.md` §3.7 |
+| 부모 중단 | 백그라운드 위임은 부모 abort가 전파되지 않는다. 학습 그룹은 부모 turn 중단과 무관하게 포크를 둔다. 명시 취소는 그룹 비활성화(§5 사례 5), `/learning review --cancel`, 그리고 `/learning review` 호출을 취소한 신호(`ctx.signal`, B4-GRP)뿐이다 | `_research/notes/L3-1.md` §3.7 |
 | 동시 실행 | 대화당 하나(`inFlightReviewId`, §4.2 규칙 0). 프로세스 전체 상한은 L1-g 백그라운드 풀이 정한다(REQ-L1-03) | [제안] |
 
 완료 통지:

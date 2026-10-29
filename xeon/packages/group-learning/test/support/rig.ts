@@ -150,7 +150,8 @@ export interface Rig {
     extra?: Partial<AgentSettledEventPayload>,
   ): Promise<AgentSettledEventPayload | undefined>;
   tool(): ToolResourceDef;
-  command(args: string, threadId?: ThreadId | null): Promise<CommandReport>;
+  /** 명령 하나를 부른다. `signal`은 호출한 쪽의 신호(ctx.signal)이고 생략하면 취소되지 않는 신호다 */
+  command(args: string, threadId?: ThreadId | null, signal?: AbortSignal): Promise<CommandReport>;
   /** 이 thread에서 학습 기록을 접는 순서: 후보를 만든 자식 thread가 먼저다 */
   foldedEvents(): readonly FoldedEvent[];
 }
@@ -368,14 +369,14 @@ export async function rigOn(
     },
     tool: toolDef,
     foldedEvents,
-    async command(args, threadId = rigThread) {
+    async command(args, threadId = rigThread, signal = new AbortController().signal) {
       const found = t.host.resources.list("command").find((record) => record.name === "learning");
       if (found === undefined) throw new Error("/learning is not registered");
       const def: unknown = found.def;
       if (!isCommandDef(def)) throw new Error("registered command is not a CommandResourceDef");
       commandCounter += 1;
       const invocationId = `cmd_${String(commandCounter)}`;
-      await def.handler(args, { threadId, invocationId, signal: new AbortController().signal });
+      await def.handler(args, { threadId, invocationId, signal });
       const report = reportOf.get(invocationId);
       if (report === undefined) throw new Error("the command reported nothing");
       return report;
