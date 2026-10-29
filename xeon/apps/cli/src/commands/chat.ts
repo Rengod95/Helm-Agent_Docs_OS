@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever, attemptAsync, detach, err, ok, rethrow, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { ChatCommand, ChatTarget } from "../cli/command.ts";
@@ -41,8 +42,6 @@ import {
 } from "./context.ts";
 
 // L4.cli.spec §4.1~§4.6. `xeon chat`: print 모드(-p), JSON 모드(--json), 최소 대화형. 엔진은 in-process다(M1).
-
-const IDLE_CTRL_C_HINT = "(한 번 더 누르면 끝낸다)\n";
 
 /** turn 하나의 끝 상태를 종료 코드로 바꾼다(§3.6) */
 export function exitCodeOfTurn(end: TurnEnd): ExitCode {
@@ -91,9 +90,11 @@ async function runPrint(
       renderFailure({
         message:
           end.status === "failed"
-            ? `turn이 실패했다${end.error === null ? "" : `: ${end.error}`}`
-            : "turn이 중단되었다",
-        fix: "--json 없이 실행하면 사람이 읽는 출력으로 이유를 볼 수 있다",
+            ? end.error === null
+              ? t("cli.errors.chat.turnFailed.message")
+              : t("cli.errors.chat.turnFailedDetail.message", { error: end.error })
+            : t("cli.errors.chat.turnInterrupted.message"),
+        fix: t("cli.errors.chat.turnEnd.fix"),
       }),
     );
   }
@@ -105,26 +106,26 @@ async function runPrint(
  * `--auto-approve`의 허용과 기본·질문·계획·검토의 거부를 다른 문구로 가른다
  */
 function autoNotice(view: { readonly title: string }, result: AutoResult): string {
-  const head = `승인 요청 "${view.title}"`;
+  const title = view.title;
   if (result.decision === "allow") {
     switch (result.kind) {
       case "applied":
-        return `${head}을 --auto-approve로 허용했다\n`;
+        return t("cli.chat.autoApprove.allowed", { title });
       case "notApplied":
-        return `${head}을 --auto-approve로 허용하려 했으나 적용되지 않았다 (${result.reason})\n`;
+        return t("cli.chat.autoApprove.allowNotApplied", { title, reason: result.reason });
       case "failed":
-        return `${head}을 --auto-approve로 허용하려 했으나 host가 응답을 받지 못했다\n`;
+        return t("cli.chat.autoApprove.allowFailed", { title });
       default:
         return assertNever(result, "AutoResult");
     }
   }
   switch (result.kind) {
     case "applied":
-      return `${head}에 비대화 모드라 거부로 답했다\n`;
+      return t("cli.chat.autoDeny.denied", { title });
     case "notApplied":
-      return `${head}에 비대화 모드라 거부로 답했으나 적용되지 않았다 (${result.reason})\n`;
+      return t("cli.chat.autoDeny.deniedNotApplied", { title, reason: result.reason });
     case "failed":
-      return `${head}에 비대화 모드라 거부로 답하려 했으나 host가 응답을 받지 못했다\n`;
+      return t("cli.chat.autoDeny.deniedFailed", { title });
     default:
       return assertNever(result, "AutoResult");
   }
@@ -134,10 +135,10 @@ function autoNotice(view: { readonly title: string }, result: AutoResult): strin
 function supersededText(reason: "already_resolved" | "unknown_approval" | "unspecified"): string {
   switch (reason) {
     case "unknown_approval":
-      return "(host가 모르는 승인이다. 재시작으로 사라졌을 수 있다)\n";
+      return t("cli.chat.superseded.unknownApproval");
     case "already_resolved":
     case "unspecified":
-      return "(다른 곳에서 이미 답한 승인이다)\n";
+      return t("cli.chat.superseded.answeredElsewhere");
     default:
       return assertNever(reason, "SupersededReason");
   }
@@ -169,7 +170,7 @@ async function chatWork(
     const stateRead = await loadInitialState(handle.paths.cliStateFile);
     if (stateRead.kind === "discarded" && command.target.kind !== "continue") {
       // 깨진 상태 파일은 버린다. --continue는 이어 열 세션이 없다는 오류로 같은 이유를 알린다
-      await io.stderr(`CLI 상태 파일을 읽지 못해 버렸다 (${stateRead.reason})\n`);
+      await io.stderr(t("cli.chat.stateDiscarded", { reason: stateRead.reason }));
     }
     const keeper = createPositionKeeper({
       path: handle.paths.cliStateFile,
@@ -334,7 +335,7 @@ async function chatWork(
                 const reopened = await openWith({ kind: "resume", threadId: previous.threadId });
                 return reopened.ok ? err(next.error) : reopened;
               }
-              await io.stdout(`세션 ${next.value.threadId}으로 바꿨다\n`);
+              await io.stdout(t("cli.chat.switchedSession", { threadId: next.value.threadId }));
               await Promise.race([next.value.caughtUp(), wiring.exit.requested]);
               await offerResume(next.value, exitAbort.signal);
               return ok(undefined);
@@ -345,7 +346,7 @@ async function chatWork(
     holder.approvals?.dispose();
     if (keeper.writeFailed) {
       // 상태 파일은 캐시라 대화는 계속했다. 다음 --continue가 이 세션을 못 찾을 수 있음을 알린다
-      await io.stderr("CLI 상태 파일을 쓰지 못했다. --continue가 이 세션을 찾지 못할 수 있다\n");
+      await io.stderr(t("cli.chat.stateWriteFailed"));
     }
     return await closeEngine(handle, code);
   } catch (caught) {
@@ -391,7 +392,7 @@ export async function runChat(ctx: CommandContext, command: ChatCommand): Promis
     },
     hint: () => {
       // stdout이 닫혔으면(EPIPE) 출력을 멈추고 종료 요청, 0 [제안]. tap의 쓰기 실패와 같은 처리다
-      detach(io.stdout(IDLE_CTRL_C_HINT), () => {
+      detach(io.stdout(t("cli.chat.idleCtrlCHint")), () => {
         wiring.exit.request(EXIT.ok);
       });
     },

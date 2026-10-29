@@ -1,4 +1,5 @@
 import { join, resolve } from "node:path";
+import { t } from "@xeon/client/i18n";
 import { err, ok, parseJson, type Result } from "@xeon/contracts";
 import { validateManifest } from "@xeon/contracts/extensions";
 import type { GroupNewCommand } from "../cli/command.ts";
@@ -35,16 +36,16 @@ interface CreatedGroup {
 
 function environmentFailure(error: GroupIoError): Failure {
   return {
-    message: `${error.path}을 읽거나 쓰지 못했다: ${error.message}`,
-    fix: "설치 위치와 권한을 확인한다. 템플릿은 XEON_GROUP_TEMPLATES_DIR로 고칠 수 있다",
+    message: t("cli.errors.group.io.message", { path: error.path, message: error.message }),
+    fix: t("cli.errors.group.io.fix"),
     code: EXIT.environment,
   };
 }
 
 function brokenTemplates(detail: string): Failure {
   return {
-    message: `그룹 템플릿이 잘못됐다: ${detail}`,
-    fix: "xeon을 다시 설치하거나 XEON_GROUP_TEMPLATES_DIR가 templates 폴더를 가리키는지 확인한다",
+    message: t("cli.errors.group.brokenTemplates.message", { detail }),
+    fix: t("cli.errors.group.brokenTemplates.fix"),
     code: EXIT.environment,
   };
 }
@@ -57,14 +58,14 @@ async function planFiles(
 ): Promise<Result<readonly PlannedFile[], Failure>> {
   const unsafe = rels.find((rel) => !isSafeRelativePath(rel));
   if (unsafe !== undefined)
-    return err(brokenTemplates(`색인 경로가 템플릿 밖을 가리킨다: ${unsafe}`));
+    return err(brokenTemplates(t("cli.group.detail.unsafePath", { path: unsafe })));
   const reads = await Promise.all(rels.map((rel) => port.readTemplateFile(rel)));
   const planned: PlannedFile[] = [];
   for (const [index, read] of reads.entries()) {
     if (!read.ok) return err(environmentFailure(read.error));
     const rel = rels[index] ?? "";
     const target = targetPathOf(rel);
-    if (target === null) return err(brokenTemplates(`색인 경로에 묶음 이름만 있다: ${rel}`));
+    if (target === null) return err(brokenTemplates(t("cli.group.detail.nameOnly", { path: rel })));
     planned.push({
       path: fillPlaceholders(target, values),
       text: fillPlaceholders(new TextDecoder().decode(read.value), values),
@@ -76,7 +77,7 @@ async function planFiles(
 /** 매니페스트 검사(F validateManifest). 문제가 없으면 null, 있으면 첫 오류 한 줄이다 */
 function manifestProblemOf(text: string): string | null {
   const json = parseJson(text);
-  if (!json.ok) return "JSON이 아니다";
+  if (!json.ok) return t("cli.state.discarded.notJson");
   const checked = validateManifest(json.value);
   const first = checked.issues.find((issue) => issue.severity === "error");
   return first === undefined ? null : `${first.path} ${first.message}`;
@@ -92,7 +93,7 @@ async function rollback(
   const removed = await port.removeDir(target, { keepRoot });
   return removed.ok
     ? failure
-    : { ...failure, fix: `${failure.fix}. 남은 파일을 직접 지운다: ${target}` };
+    : { ...failure, fix: t("cli.errors.group.leftover.fix", { fix: failure.fix, target }) };
 }
 
 async function createGroup(
@@ -103,14 +104,14 @@ async function createGroup(
   const indexText = await port.readIndex();
   if (!indexText.ok) return err(environmentFailure(indexText.error));
   const index = parseTemplateIndex(indexText.value);
-  if (!index.ok) return err(brokenTemplates(`색인 ${index.error}`));
+  if (!index.ok) return err(brokenTemplates(t("cli.group.detail.index", { reason: index.error })));
 
   const installed = await port.installedExtensionNames(ctx.workspace);
   if (!installed.ok) return err(environmentFailure(installed.error));
   if (installed.value.includes(command.name)) {
     return err({
-      message: `"${command.name}"은 설치된 확장 이름과 겹친다`,
-      fix: "다른 이름을 고른다",
+      message: t("cli.errors.group.nameTaken.message", { name: command.name }),
+      fix: t("cli.errors.group.nameTaken.fix"),
       code: EXIT.usage,
     });
   }
@@ -120,8 +121,8 @@ async function createGroup(
   if (!state.ok) return err(environmentFailure(state.error));
   if (state.value === "occupied") {
     return err({
-      message: `대상 폴더가 비어 있지 않다: ${target}`,
-      fix: "빈 폴더를 주거나 --dir로 다른 폴더를 고른다",
+      message: t("cli.errors.group.targetOccupied.message", { target }),
+      fix: t("cli.errors.group.targetOccupied.fix"),
       code: EXIT.usage,
     });
   }
@@ -137,7 +138,8 @@ async function createGroup(
   const planned = await planFiles(port, entry.files, values);
   if (!planned.ok) return err(planned.error);
   const manifest = planned.value.find((file) => file.path === MANIFEST_PATH);
-  if (manifest === undefined) return err(brokenTemplates(`템플릿에 ${MANIFEST_PATH}가 없다`));
+  if (manifest === undefined)
+    return err(brokenTemplates(t("cli.group.detail.noManifest", { path: MANIFEST_PATH })));
 
   const made = await port.makeDir(target);
   if (!made.ok) return err(await rollback(port, target, keepRoot, environmentFailure(made.error)));
@@ -155,8 +157,8 @@ async function createGroup(
   if (problem !== null) {
     return err(
       await rollback(port, target, keepRoot, {
-        message: `생성한 ${MANIFEST_PATH}이 검사를 통과하지 못했다: ${problem}`,
-        fix: "생성 결과는 지웠다. 템플릿의 매니페스트를 고친다",
+        message: t("cli.errors.group.manifestCheck.message", { path: MANIFEST_PATH, problem }),
+        fix: t("cli.errors.group.manifestCheck.fix"),
         code: EXIT.usage,
       }),
     );
@@ -180,12 +182,17 @@ async function printCreated(
     return;
   }
   const lines = [
-    `그룹 ${command.name}을 만들었다: ${created.target} (${command.template}, 파일 ${String(created.files.length)}개)`,
+    t("cli.group.created.header", {
+      name: command.name,
+      target: created.target,
+      template: command.template,
+      count: created.files.length,
+    }),
     ...created.files.map((file) => `  ${file}`),
-    "다음 단계",
+    t("cli.group.created.nextSteps"),
     `  cd ${created.target}`,
-    "  bun install   의존을 설치한다. 생성 명령은 의존을 적거나 설치하지 않는다",
-    "  bun test      생성된 시험을 돌린다",
+    t("cli.group.created.installHint"),
+    t("cli.group.created.testHint"),
   ];
   await ctx.io.stdout(`${lines.join("\n")}\n`);
 }

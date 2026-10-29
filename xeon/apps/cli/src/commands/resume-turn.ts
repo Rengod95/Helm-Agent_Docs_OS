@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever, attemptAsync } from "@xeon/contracts";
 import type { ThreadResumable, TurnResumeResult } from "@xeon/contracts/wire";
 import type { EngineHandle } from "../engine.ts";
@@ -14,21 +15,21 @@ export function describeResumable(resumable: ThreadResumable): string {
   const attempts =
     resumable.resumeAttempts === 0
       ? ""
-      : `, 이어 실행을 ${String(resumable.resumeAttempts)}번 시도했다`;
-  return `이 세션에 끊긴 turn이 있다 (시작 ${resumable.runningSince}${attempts})\n`;
+      : t("cli.chat.resume.attempts", { count: resumable.resumeAttempts });
+  return t("cli.chat.resume.describe", { since: resumable.runningSince, attempts });
 }
 
 /** 이어 실행 결과를 사람이 읽는 한 줄로 */
 export function resumeResultText(result: TurnResumeResult): string {
   switch (result.status) {
     case "resumed":
-      return `이어서 실행한다 (${result.from} 단계부터)\n`;
+      return t("cli.chat.resume.resumed", { from: result.from });
     case "closed":
       return result.reason === "abort_requested"
-        ? "중단 요청이 있었던 turn이라 이어 실행하지 않고 닫았다\n"
-        : "소유자가 취소한 turn이라 이어 실행하지 않고 닫았다\n";
+        ? t("cli.chat.resume.closedAbort")
+        : t("cli.chat.resume.closedCancelled");
     case "nothing":
-      return "이어서 실행할 turn이 없다\n";
+      return t("cli.chat.resume.nothing");
     default:
       return assertNever(result, "TurnResumeResult");
   }
@@ -54,10 +55,10 @@ export async function offerTurnResume(options: {
   const resumable = listed.ok ? (listed.value?.resumable ?? null) : null;
   if (resumable === null) return false;
   await io.stdout(describeResumable(resumable));
-  const answer = await io.readLine("이어서 실행할까요? [y/N] ", options.signal);
+  const answer = await io.readLine(t("cli.chat.resume.prompt"), options.signal);
   const text = answer?.trim().toLowerCase() ?? "";
   if (text !== "y" && text !== "yes") {
-    await io.stdout("이어서 실행하지 않았다\n");
+    await io.stdout(t("cli.chat.resume.declined"));
     return false;
   }
   const resumed = await attemptAsync(() => session.resumeTurn());

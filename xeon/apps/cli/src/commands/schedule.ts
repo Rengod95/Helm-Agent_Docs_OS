@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { t } from "@xeon/client/i18n";
 import { assertNever, type Clock } from "@xeon/contracts";
 import type {
   ScheduleError,
@@ -15,15 +16,19 @@ import { printFailure, withEngine, type CommandContext } from "./context.ts";
 // 기대한 실패(간격 미달, 없음, 원격 아님, 꺼짐, 상한, 저장 실패)는 `ok: false` 값이라 문구와 종료 코드로 바꾼다.
 // 예약 파일 위치는 host가 정하므로 CLI는 문구에서 `schedule/state.json`만 말한다.
 
-const UNSUPPORTED: Failure = {
-  message: "연결한 host가 예약 명령을 아직 지원하지 않는다",
-  fix: "host를 갱신한다 (xeon version으로 버전을 확인한다)",
-  code: EXIT.environment,
-};
+/** 연결한 host가 예약 명령을 모를 때의 실패. 문구는 쓸 때 현재 로케일로 만든다 */
+function unsupportedFailure(): Failure {
+  return {
+    message: t("cli.errors.schedule.unsupported.message"),
+    fix: t("cli.errors.schedule.unsupported.fix"),
+    code: EXIT.environment,
+  };
+}
 
 /** 서비스 모드가 꺼져 있으면 host는 저장만 하고 틱을 돌리지 않는다(apps/host handlers/schedule.ts) */
-const SERVICE_MODE_OFF_WARNING =
-  "경고: 서비스 모드가 꺼져 있어 이 예약은 실행되지 않는다. xeon service start로 서비스를 띄운 뒤에 실행된다\n";
+function serviceModeOffWarning(): string {
+  return t("cli.schedule.serviceModeOff");
+}
 
 const LIST_NAME_MAX = 40;
 
@@ -40,15 +45,22 @@ function isoOf(ms: number): string {
 function triggerText(trigger: ScheduleTrigger): string {
   switch (trigger.kind) {
     case "interval":
-      return `간격 ${String(trigger.everySeconds)}초`;
+      return t("cli.schedule.trigger.interval", { seconds: trigger.everySeconds });
     case "at":
-      return `시각 ${isoOf(trigger.atMs)}`;
+      return t("cli.schedule.trigger.at", { time: isoOf(trigger.atMs) });
     case "file_watch":
-      return `감시 ${trigger.paths.join(", ")} (디바운스 ${String(trigger.debounceMs)}ms)`;
+      return t("cli.schedule.trigger.watch", {
+        paths: trigger.paths.join(", "),
+        debounce: trigger.debounceMs,
+      });
     case "remote":
-      return "원격";
+      return t("cli.schedule.trigger.remote");
     case "loop":
-      return `루프 ${String(trigger.intervalSeconds)}초 간격, 최대 ${String(trigger.maxIterations)}회, 만료 ${isoOf(trigger.expiresAtMs)}`;
+      return t("cli.schedule.trigger.loop", {
+        seconds: trigger.intervalSeconds,
+        max: trigger.maxIterations,
+        expires: isoOf(trigger.expiresAtMs),
+      });
     default:
       return assertNever(trigger, "ScheduleTrigger");
   }
@@ -87,14 +99,21 @@ function listLine(item: ScheduleListItem): string {
   const next = entry.nextDueAt === null ? "-" : isoOf(entry.nextDueAt);
   const last =
     lastRun === null
-      ? "없음"
+      ? t("cli.secret.none")
       : `${lastRun.status}/${lastRun.outcome ?? "-"} ${isoOf(lastRun.claimedAt)}`;
   // 줄바꿈이 든 프롬프트가 목록 한 줄을 깨지 않게 공백을 한 칸으로 줄인다
   const name = Array.from((entry.title ?? entry.prompt).replace(/\s+/g, " "))
     .slice(0, LIST_NAME_MAX)
     .join("");
   const state = entry.enabled ? "on" : "off";
-  return `${entry.id}  ${state}  ${triggerText(entry.trigger)}  다음 ${next}  마지막 ${last}  ${name}`;
+  return t("cli.schedule.listLine", {
+    id: entry.id,
+    state,
+    trigger: triggerText(entry.trigger),
+    next,
+    last,
+    name,
+  });
 }
 
 /** 기대한 실패 값을 문구와 종료 코드로 바꾼다. 간격 최소값은 host가 준 값을 싣는다 */
@@ -102,51 +121,53 @@ function failureOf(error: ScheduleError): Failure {
   switch (error.kind) {
     case "interval_too_short":
       return {
-        message: `간격이 최소값(${String(error.minSeconds)}초)보다 짧다`,
-        fix: `--every를 ${String(error.minSeconds)} 이상으로 쓴다`,
+        message: t("cli.errors.schedule.intervalTooShort.message", {
+          minSeconds: error.minSeconds,
+        }),
+        fix: t("cli.errors.schedule.intervalTooShort.fix", { minSeconds: error.minSeconds }),
         code: EXIT.error,
       };
     case "at_in_past":
       return {
-        message: "시각이 이미 지났다",
-        fix: "--at에 앞으로의 시각을 쓴다",
+        message: t("cli.errors.schedule.atInPast.message"),
+        fix: t("cli.errors.schedule.atInPast.fix"),
         code: EXIT.error,
       };
     case "invalid_trigger":
       return {
-        message: `트리거 값이 엔진 규칙에 맞지 않다 (${error.reason})`,
-        fix: "xeon help schedule로 트리거 규칙을 확인한다",
+        message: t("cli.errors.schedule.invalidTrigger.message", { reason: error.reason }),
+        fix: t("cli.errors.schedule.invalidTrigger.fix"),
         code: EXIT.error,
       };
     case "limit_reached":
       return {
-        message: `켜진 예약이 상한(${String(error.max)}개)이라 더 만들 수 없다`,
-        fix: "xeon schedule list로 예약을 보고 필요 없는 것은 xeon schedule cancel <id>로 끈다",
+        message: t("cli.errors.schedule.limitReached.message", { max: error.max }),
+        fix: t("cli.errors.schedule.limitReached.fix"),
         code: EXIT.error,
       };
     case "not_found":
       return {
-        message: "그런 예약이 없다",
-        fix: "xeon schedule list --all로 id를 확인한다",
+        message: t("cli.errors.schedule.notFound.message"),
+        fix: t("cli.errors.schedule.notFound.fix"),
         code: EXIT.error,
       };
     case "not_remote":
       return {
-        message: "원격 트리거 예약만 지금 실행할 수 있다",
-        fix: "간격·시각 예약은 기한이 되면 실행된다. 원격 예약은 xeon schedule add --remote로 만든다",
+        message: t("cli.errors.schedule.notRemote.message"),
+        fix: t("cli.errors.schedule.notRemote.fix"),
         code: EXIT.error,
       };
     case "disabled":
       return {
-        message: "꺼진 예약이라 실행하지 않는다",
-        fix: "xeon schedule add로 새 예약을 만든다",
+        message: t("cli.errors.schedule.disabled.message"),
+        fix: t("cli.errors.schedule.disabled.fix"),
         code: EXIT.error,
       };
     case "store_failed":
       // 저장소 실패는 환경 문제다. host가 준 메시지는 싣지 않는다(§4.10: 값과 원문을 문구에 옮기지 않는다)
       return {
-        message: "예약 상태 파일을 읽거나 쓰지 못했다",
-        fix: "상태 디렉터리의 schedule/state.json을 고치거나 지운다. 지우면 예약이 모두 사라진다",
+        message: t("cli.errors.schedule.storeFailed.message"),
+        fix: t("cli.errors.schedule.storeFailed.fix"),
         code: EXIT.environment,
       };
     default:
@@ -160,7 +181,7 @@ async function fail(ctx: CommandContext, failure: Failure): Promise<ExitCode> {
 }
 
 async function unsupported(ctx: CommandContext): Promise<ExitCode> {
-  return fail(ctx, UNSUPPORTED);
+  return fail(ctx, unsupportedFailure());
 }
 
 async function runAdd(
@@ -178,9 +199,11 @@ async function runAdd(
   });
   if (!created.ok) return fail(ctx, failureOf(created.error));
   const { entry, warnings } = created;
-  const next = entry.nextDueAt === null ? "없음" : isoOf(entry.nextDueAt);
-  await ctx.io.stdout(`예약했다: ${entry.id}  ${triggerText(entry.trigger)}  다음 실행 ${next}\n`);
-  if (warnings.includes("service_mode_off")) await ctx.io.stderr(SERVICE_MODE_OFF_WARNING);
+  const next = entry.nextDueAt === null ? t("cli.secret.none") : isoOf(entry.nextDueAt);
+  await ctx.io.stdout(
+    t("cli.schedule.added", { id: entry.id, trigger: triggerText(entry.trigger), next }),
+  );
+  if (warnings.includes("service_mode_off")) await ctx.io.stderr(serviceModeOffWarning());
   return EXIT.ok;
 }
 
@@ -202,7 +225,7 @@ async function runList(
   } else if (items.length > 0) {
     await ctx.io.stdout(`${items.map(listLine).join("\n")}\n`);
   }
-  if (items.length === 0) await ctx.io.stderr("예약이 없다\n");
+  if (items.length === 0) await ctx.io.stderr(t("cli.schedule.listEmpty"));
   return EXIT.ok;
 }
 
@@ -216,7 +239,7 @@ async function runCancel(
     scheduleId: command.scheduleId,
   });
   if (!cancelled.ok) return fail(ctx, failureOf(cancelled.error));
-  await ctx.io.stdout(`껐다: ${cancelled.entry.id}\n`);
+  await ctx.io.stdout(t("cli.schedule.cancelled", { id: cancelled.entry.id }));
   return EXIT.ok;
 }
 
@@ -231,7 +254,9 @@ async function runFire(
   });
   if (!fired.ok) return fail(ctx, failureOf(fired.error));
   const { run } = fired;
-  await ctx.io.stdout(`실행했다: ${command.scheduleId}  run ${run.runId}  ${run.status}\n`);
+  await ctx.io.stdout(
+    t("cli.schedule.fired", { id: command.scheduleId, runId: run.runId, status: run.status }),
+  );
   return EXIT.ok;
 }
 
