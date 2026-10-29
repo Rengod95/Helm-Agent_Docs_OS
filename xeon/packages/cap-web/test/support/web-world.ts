@@ -7,6 +7,7 @@ import { directConvertRunner, type ConvertRunner } from "../../src/fetch/convert
 import { createWebRuntime, type WebRuntime } from "../../src/runtime.ts";
 import { createBrowseApi, type BrowseController } from "../../src/browse/service.ts";
 import type { BrowseConfirmPort } from "../../src/ports/confirm.ts";
+import type { BrowserMcpPort } from "../../src/ports/browser-mcp.ts";
 import { createWebService } from "../../src/service.ts";
 import type { HeaderSecretSender } from "../../src/ports/secrets.ts";
 import type {
@@ -56,6 +57,8 @@ export interface WebWorldOptions {
   };
   /** 브라우저 동작의 사람 확인 대역. 없으면 확인이 필요한 동작은 거부된다 */
   readonly browseConfirm?: BrowseConfirmPort;
+  /** 브라우저 MCP 포트 대역. 있으면 `playwright-mcp` 후보가 등록된다 */
+  readonly browserMcp?: BrowserMcpPort;
   /** true면 내장 검색 provider(searxng, builtin-wrapper)를 후보에 넣는다. 기본은 넣지 않는다 */
   readonly builtinSearch?: boolean;
   readonly hostedSearch?: HostedSearchPort;
@@ -154,6 +157,7 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
     ...(options.registrations === undefined ? {} : { registrations: options.registrations }),
     builtin: options.builtin ?? { search: [], fetch: [] },
     ...(options.browseConfirm === undefined ? {} : { browseConfirm: options.browseConfirm }),
+    ...(options.browserMcp === undefined ? {} : { browserMcp: options.browserMcp }),
     builtinSearch: options.builtinSearch === true,
     ...(options.hostedSearch === undefined ? {} : { hostedSearch: options.hostedSearch }),
     ...(options.headerSecrets === undefined ? {} : { headerSecrets: options.headerSecrets }),

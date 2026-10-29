@@ -955,6 +955,7 @@ export const registrations: readonly WebProviderRegistration[] = [
 | `builtin-wrapper` | search | builtin | `session` | 검색 수수료 + 토큰. `_research/durable-and-search-facts.md` §B-1 값으로 asOf 2026-10-21 | Anthropic 약관 미확인이라 `session`(`_research/web-tools.md` §4.7) |
 | `local` | fetch | builtin | `persist` | `free` | 로컬 파이프라인(§4.9) |
 | `playwright-local` | browse | builtin | `persist` | `browser_minutes` 0달러(로컬) | §4.10 |
+| `playwright-mcp` | browse | builtin | `none` | 가격표 단위 없음(0달러) | §4.10.4a. 기본 경로. `browserMcp` 포트가 있을 때만 후보다 |
 | `agent-browser` | browse | builtin(2차) | `persist` | 0달러(로컬) | 2차, §4.10.5 |
 | `native` | research | builtin(2차) | 하위 호출을 따른다 | 하위 호출 합산 | §4.11 |
 
@@ -1505,11 +1506,39 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 
 #### 4.10.4a MCP stdio provider와 기본 경로
 
-- [결정: 오케스트레이터 기본값] Stagehand는 아직 승인되지 않았다(새 외부 의존). 기본 경로는 MCP stdio provider다. 도구는 Playwright MCP(`playwright-mcp`)이고 origin은 `builtin`이다. 이 provider는 좁은 포트 `BrowserMcpPort` 뒤에 둔다. 포트는 다음 단위에서 추가하며 지금 코드에는 없다. 시험은 가짜 브라우저 provider(`src/testing/fake-browser.ts`)로 한다.
+- [결정: 오케스트레이터 기본값] Stagehand는 아직 승인되지 않았다(새 외부 의존). 기본 경로는 MCP stdio provider다. 도구는 Playwright MCP(`playwright-mcp`)이고 origin은 `builtin`, cachePolicy는 `none`이다. 구현은 `browse/mcp-provider.ts`의 `createMcpBrowseProvider`다. 시험은 가짜 포트(`testing/fake-browser-mcp.ts`)로 한다.
+- 포트 `BrowserMcpPort`(`ports/browser-mcp.ts`)가 서버와의 경계다. `available(signal)`은 서버가 설정되어 연결되었는지를 `{ ok: true }` 또는 `{ ok: false, detail }`로 답한다. 연결이 없으면 탐침 사유는 `unreachable`이다. `callTool(tool, args, signal)`은 도구 하나를 부르고 `text`, `images`, `isError`를 담은 `Result`를 돌려준다. 포트 실패는 `unavailable`(재시도 가능)이나 `aborted`다. cap-web은 cap-mcp를 import하지 않는다. 조립(`createWebRuntime`의 `browserMcp` 옵션)이 `McpService`를 이 포트에 맞춘다.
+- 도구 매핑. Playwright MCP의 도구 이름과 인자는 이 저장소에서 검증하지 않았다 [가정]. 아래 표가 이 구현의 매핑이다.
+
+| 동작 | 호출하는 도구와 인자 |
+|---|---|
+| `open`의 `url`, `navigate` | `browser_navigate {url}`, 이어서 `browser_snapshot {}` |
+| `click` | `browser_click {element, ref}` |
+| `type`, `fill` | `browser_type {element, ref, text, submit: false}`. `fill`도 같은 도구를 쓴다 [가정] |
+| `key` | `browser_press_key {key}` |
+| `hover` | `browser_hover {element, ref}` |
+| `select` | `browser_select_option {element, ref, values}` |
+| `scroll` | `browser_press_key`를 `amount`번(상한 20) 부른다. 키는 `up` `PageUp`, `down` `PageDown`, `left` `ArrowLeft`, `right` `ArrowRight`다. 방향과 양을 생략하면 `down`과 1이다 [가정] |
+| `wait` | `browser_wait_for {time}`. `time`은 `timeoutMs`를 초로 올림한 값이고 최소 1이다. `waitFor`는 무시한다 [가정] |
+| `back` | `browser_navigate_back {}` |
+| `evaluate` | `browser_evaluate {function: text}` |
+| `forward`, `upload` | 도구를 부르지 않고 `unsupported`다 |
+| 좌표 `target` | 도구를 부르지 않고 `invalid_input`이다. ref만 받는다 |
+| `describe`(확인 판정) | 도구를 부르지 않는다. 마지막 스냅샷의 ref 표에서 역할과 이름을 낸다 |
+| `read`의 `snapshot`, `text`, `find` | `browser_snapshot {}` |
+| `read`의 `screenshot` | `browser_snapshot {}`, 이어서 `browser_take_screenshot {}` |
+| `close` | `browser_close {}`. 결과는 쓰지 않고 세션 슬롯은 비운다 |
+
+- `element` 인자는 마지막 스냅샷의 ref에서 역할과 이름을 알면 `button "Pay now"` 꼴이고, 이름이 없으면 ref 자체(예: `e7`)다 [가정].
+- 모든 동작 뒤에 `browser_snapshot`을 부르고 그 결과로 ref 표를 새로 만든다. 동작 입력의 `snapshot: false`는 응답에서 스냅샷을 빼는 데만 쓰고 도구 호출은 줄이지 않는다. `read`는 모든 모드에서 먼저 `browser_snapshot`을 부른다.
+- 스냅샷 해석: 응답 Markdown의 `- Page URL:`, `- Page Title:`과 yaml 블록을 정규식으로 읽는다. 주소와 제목은 `BrowsePageSchema`, 스냅샷은 `BrowseSnapshotSchema`로 검사한다. ref는 `- <역할> "<이름>" [ref=eN]` 꼴의 줄에서 읽고 4000개까지 둔다. `revision`은 스냅샷마다 1씩 올라 첫 값이 1이다. `kind`는 항상 `full`이다(`delta`는 무시한다 [가정]). 값이 하나라도 없거나 검사에 실패하면 `upstream_error`다. `navigations`는 동작 뒤의 페이지 주소 하나다.
+- 읽기 모드: `text`는 스냅샷의 yaml 본문만 담고 `snapshot` 필드는 없다. `find`는 질의가 역할이나 이름에 들어 있는(대소문자 무시) ref의 줄만 이어 붙인다. 질의가 없으면 `invalid_input`이다. `screenshot`은 응답의 첫 이미지를 쓰고 형식은 `image/png`나 `image/jpeg`만 받는다. 다른 형식이면 `upstream_error`다. 응답에 픽셀 크기가 없어 `width`와 `height`는 1이다 [가정]. `maxChars`는 이 경로에서 자르지 않는다 [미결].
+- 한 세션: 한 MCP 서버는 브라우저 컨텍스트 하나를 가진다. 열린 세션이 있으면 두 번째 `open`은 `unavailable`(메시지 `playwright-mcp supports one session`, `retryable` 거짓)이다. 자동 선택은 이 오류에서 다음 후보로 내려간다. `close`가 슬롯을 비운다. 닫힌 핸들의 동작은 `not_found`이고 도구를 부르지 않는다. 명명 프로필(`named:`)은 `unsupported`다. 이 경로는 서버가 정한 컨텍스트 하나만 쓰므로 프로필을 고를 수 없다. `headless`와 `allowedOrigins`는 이 경로에서 쓰지 않는다 [미결].
+- 도구 실패: 도구 응답의 `isError`는 `upstream_error`이고 본문 앞 500자를 메시지에 싣는다. 포트 실패는 위와 같이 `unavailable`이나 `aborted`다.
 - 트래픽 필터: 필터 프록시를 띄우지 않는 조립(MCP stdio 경로)에서는 `BrowserOpenOptions.proxy`가 없다. 브라우저의 하위 요청 트래픽은 샌드박스 네트워크 필터가 맡는다(§10 미결 8). 앞단은 이동 URL만 검사한다. 검사하는 곳은 `open`의 `url`, `navigate` 동작, 동작 뒤의 모든 최상위 문서 이동이다(§4.10.2).
 - 세션 상한은 구현되어 있다(§4.10.1). 기본값은 대화마다 동시 세션 3개(`maxSessions`), 30분(`maxMinutes`), 200회(`maxActions`), 0.5달러(`maxUsd`)다. 동시 세션 수를 넘으면 새 세션을 거부한다. 시간, 동작 수, 비용을 넘으면 `session_budget`을 내고 세션을 닫는다.
 - 비활성 동작과 사람 확인도 구현되어 있다(§4.10.3). `evaluate`와 `upload`는 설정이 꺼져 있으면 `action_disabled`다. 명명 프로필은 설정이 켜져 있고 호출마다 확인을 받아야 열린다. 확인 포트 `BrowseConfirmPort`(`src/ports/confirm.ts`)가 없거나 `unavailable`이면 확인이 필요한 동작은 `confirmation_denied`다. 어휘는 `browse/confirm.ts`의 상수이고 보수적이다. "Order history"처럼 탐색용 이름도 `order` 어휘에 걸려 확인을 받는다.
-- 후보: `catalog.browseCandidates()`는 `createWebRuntime({ builtin: { browse } })`로 받은 내장 후보와 플러그인 등록을 낸다. 플러그인 등록은 능력 `web.browse`이고 provider ID는 `plugin:<확장 이름>`, origin은 `plugin`이다. 매니페스트의 `services`에 `browse`가 없으면 `service_not_declared`로 거부한다.
+- 후보: `catalog.browseCandidates()`는 `createWebRuntime({ builtin: { browse } })`로 받은 내장 후보와 플러그인 등록을 낸다. 플러그인 등록은 능력 `web.browse`이고 provider ID는 `plugin:<확장 이름>`, origin은 `plugin`이다. 매니페스트의 `services`에 `browse`가 없으면 `service_not_declared`로 거부한다. `browserMcp` 포트로 만든 `playwright-mcp` 후보는 `builtin.browse` 뒤에 붙는다.
 - 순서는 검색과 같은 `planSelection`(`src/select/order.ts`)이 정한다(§4.8.2). 사용자가 `l2.web.browse.order`에 올린 순서가 먼저이고, 목록에 없는 후보는 내장 다음 플러그인 순이다.
 
 #### 4.10.5 `agent-browser` provider (2차, 미구현)
@@ -1815,6 +1844,12 @@ export const webSettings = defineSettings("l2.web", {
 28. 키 플러그인 첫 사용 고지: 키 플러그인의 첫 `search`는 `meta.warnings`에 `first_use_notice:<id>`를 한 번 싣고, 두 번째 호출과 메모에서 나온 호출은 싣지 않는다. 키 없는 플러그인과 내장 provider는 싣지 않는다. 동시 질의에서 답한 키 플러그인은 각각 한 번씩 싣는다. 같은 저장소로 다시 조립한 런타임은 기록을 읽어 다시 싣지 않는다. 승격 fetch와 `web.browse` 열기도 같다(`test/first-use-notice.test.ts`).
 29. `web.providers` 행: 행은 `WebProviderStatusSchema`를 통과하고 그 밖의 필드가 없다. 무료 가격표면 `pricingAsOf`가 `null`이고, 기준일이 90일을 넘으면 `pricingStale`이 참이다. 탐침이 실패하면 `status.kind`가 `unavailable`이고 `reason`이 provider의 사유다. 브라우저 후보도 행을 가진다. 고지 전에는 `firstUseNoticed`가 거짓이고 첫 사용 뒤 참이다(`test/status.test.ts`).
 30. 마이그레이션 버전 2: `cap_web_notices` 표를 만들고 버전 1의 `cap_web_usage` 행은 그대로 남는다. 두 번째 적용은 아무것도 바꾸지 않는다. 기록 쓰기가 실패하면 `web.notice_write_failed`를 한 번 남기고 이 프로세스에서 고지 기록은 메모리로 이어진다(`test/first-use-notice.test.ts`).
+31. MCP 후보: `createWebRuntime`에 `browserMcp` 포트를 주면 `web.browse` 내장 후보에 `playwright-mcp`(origin `builtin`, cachePolicy `none`)가 붙고 자동 선택이 이를 고른다(`selectedBy` `auto`, `meta.provider` `playwright-mcp`). 포트가 없으면 후보가 없다(`test/mcp-browse-provider.test.ts`의 `web.browse에서` 묶음).
+32. MCP 도구 매핑: 열기와 이동은 `browser_navigate`, `browser_snapshot` 순서다. 클릭, 입력, 키, 스크롤, 대기, 뒤로, 평가는 §4.10.4a 표의 도구와 인자 값을 그대로 보낸다. `forward`, `upload`는 도구를 부르지 않고 `unsupported`이며, 좌표 `target`은 `invalid_input`이다(`test/mcp-browse-provider.test.ts`의 `동작 매핑` 묶음).
+33. MCP 한 세션: 열린 세션이 있으면 두 번째 `open`은 `unavailable`이고 `close` 뒤에는 열린다. 닫은 핸들의 동작은 `not_found`이고 도구를 부르지 않는다. 명명 프로필은 `unsupported`이고 도구를 한 번도 부르지 않는다(`test/mcp-browse-provider.test.ts`의 `한 세션과 닫기` 묶음).
+34. MCP 페이지 상태: 응답의 주소, 제목, yaml 블록에서 페이지와 스냅샷을 만들고 ref는 4000개까지 둔다. 값이 `BrowsePageSchema`나 `BrowseSnapshotSchema` 검사를 통과하지 못하면 `upstream_error`다. `isError` 응답은 본문 앞 500자를 메시지에 싣는다. 포트의 `unavailable`과 `aborted`는 그대로 옮긴다(`test/mcp-browse-provider.test.ts`의 `열기와 이동`과 `동작 매핑` 묶음).
+35. MCP 사람 확인: 결제 어휘의 `click`은 확인 포트가 없으면 `confirmation_denied`이고 `browser_click`을 부르지 않는다. 같은 페이지의 "Docs" 링크 `click`은 도구를 부른다(`test/mcp-browse-provider.test.ts`의 `web.browse에서` 묶음).
+36. MCP 읽기: `text`는 `snapshot` 필드 없이 본문만, `find`는 질의에 맞는 ref의 줄만 준다. `screenshot`은 첫 이미지를 PNG나 JPEG일 때만 주고 크기는 1×1이다. 다른 형식은 `upstream_error`다(`test/mcp-browse-provider.test.ts`의 `읽기` 묶음).
 
 ## 10. 미결 사항
 

@@ -31,6 +31,8 @@ import { createProbeCache, type ProbeCache } from "./search/probe-cache.ts";
 import { createBuiltinSearchCandidates } from "./search/providers/builtin.ts";
 import { createProviderRegistry, type RegistrationSource } from "./search/registry.ts";
 import { createBrowseApi, type BrowseController } from "./browse/service.ts";
+import { createMcpBrowseProvider } from "./browse/mcp-provider.ts";
+import type { BrowserMcpPort } from "./ports/browser-mcp.ts";
 import type { BrowseConfirmPort } from "./ports/confirm.ts";
 import { createWebService } from "./service.ts";
 import type { WebSettings } from "./settings.ts";
@@ -70,6 +72,11 @@ export interface WebRuntimeOptions {
   readonly hostedSearch?: HostedSearchPort;
   /** false면 내장 검색 provider(searxng, builtin-wrapper)를 후보에 넣지 않는다. 기본 true. 체인을 직접 짜는 시험이 쓴다 */
   readonly builtinSearch?: boolean;
+  /**
+   * 브라우저 MCP 포트(L2.web.spec §4.10.4a). 있으면 `playwright-mcp` 후보가 내장 `web.browse` 후보 뒤에 붙는다.
+   * 서버 연결은 조립 쪽이 맡는다
+   */
+  readonly browserMcp?: BrowserMcpPort;
   /** 이 밖에 더하는 내장 provider 후보. 기본은 비어 있다 */
   readonly builtin?: {
     readonly search: readonly SearchCandidate[];
@@ -141,12 +148,23 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
           logger: options.logger,
           hosted: options.hostedSearch,
         });
+  const browseBuiltin: readonly BrowseCandidate[] =
+    options.browserMcp === undefined
+      ? (options.builtin?.browse ?? [])
+      : [
+          ...(options.builtin?.browse ?? []),
+          {
+            provider: createMcpBrowseProvider(options.browserMcp),
+            origin: "builtin",
+            cachePolicy: "none",
+          },
+        ];
   const catalog = createProviderRegistry({
     source: options.registrations ?? EMPTY_SOURCE,
     builtin: {
       search: [...builtinSearch, ...(options.builtin?.search ?? [])],
       fetch: options.builtin?.fetch ?? [],
-      browse: options.builtin?.browse ?? [],
+      browse: browseBuiltin,
     },
     http: providerHttp,
     clock: options.clock,

@@ -117,6 +117,12 @@ export type {
   WebProviderCatalog,
 } from "./ports/providers.ts";
 export type { BrowseConfirmPort, BrowseConfirmRequest } from "./ports/confirm.ts";
+export type {
+  BrowserMcpError,
+  BrowserMcpImage,
+  BrowserMcpPort,
+  BrowserMcpResult,
+} from "./ports/browser-mcp.ts";
 export type { WebDeps } from "./deps.ts";
 export { failureOfThrown } from "./provider-errors.ts";
 export { createWebRuntime } from "./runtime.ts";
