@@ -261,3 +261,39 @@ describe("definitions", () => {
     expect(WorkspaceImages.tools).toEqual([]);
   });
 });
+
+describe("블롭 고정은 하지 않는다(L0.store §10 미결 S-15)", () => {
+  test("등록, 파일 적재, 읽기는 pinBlob·unpinBlob을 부르지 않고, 결과 참조는 자리표시로만 남는다", async () => {
+    const blobs = memoryBlobs();
+    const pinCalls: string[] = [];
+    // 고정 호출이 생기면 기록이 빈 목록이 아니게 되어 이 시험이 실패한다
+    const recording = Object.assign(blobs, {
+      pinBlob: (owner: string, sha256: string, refKey: string) => {
+        pinCalls.push(`pin ${owner} ${sha256} ${refKey}`);
+      },
+      unpinBlob: (owner: string, refKey: string) => {
+        pinCalls.push(`unpin ${owner} ${refKey}`);
+      },
+    });
+    const env = memoryEnv({ cwd: "/work" });
+    env.mkdir("/work");
+    env.put("/work/shot.png", pngBytes(4, 3, 64));
+    const deps = depsFor(env, { blobs: recording });
+    const service = createWorkspaceService(deps);
+    const files = createFilesApi(deps);
+
+    const pasted = await service.images.register({
+      data: toBase64(pngBytes(4, 3, 100)),
+      mimeType: "image/png",
+    });
+    const loaded = await service.images.load({ path: "shot.png" });
+    const read = await callTool(WorkspaceFiles, files, "read", { path: "shot.png" });
+
+    expect(blobs.puts).toBe(3);
+    expect(pinCalls).toEqual([]);
+    expect(pasted).toMatchObject({ mimeType: "image/png", blob: { type: "blob", size: 100 } });
+    expect(loaded).toMatchObject({ mimeType: "image/png", size: { width: 4, height: 3 } });
+    const image = read.content?.content.find((part) => part.type === "image");
+    expect(image?.type === "image" ? image.data : "").toBe(`blob:sha256:${loaded.blob.sha256}`);
+  });
+});

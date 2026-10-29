@@ -40,6 +40,8 @@ export function prepareImage(
       { detail: { encodedBytes, maxBytes: limits.maxBytes } },
     );
   }
+  // 블롭은 고정하지 않는다(L0.store §10 미결 S-15). 이 패키지는 참조를 자기 표나 상태에 적지 않고, 고정을 풀 시점(이미지 폐기, 턴 소비)도 알 수 없다.
+  // 참조는 호출자에게만 가고, 커밋되는 도구 결과와 첨부 파트에는 blob:sha256:<hex> 자리표시로만 남는다(L2.workspace §4.6). 자리표시는 p_blob_refs가 보지 않는다.
   const stored = blobs.putBlob(bytes, mimeType);
   if (!stored.ok) {
     throw new WorkspaceFailure(

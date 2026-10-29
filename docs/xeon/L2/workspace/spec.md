@@ -664,6 +664,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
   - 이미지 바이트는 L0 blob API로 `sys_blobs`에 sha256 키로 둔다. 같은 내용은 한 번만 저장된다.
   - 모델용 결과의 `ImageContent.data`에는 base64 대신 자리표시 문자열 `blob:sha256:<hex>`를 넣는다(`F.records.spec` §3.4 `BLOB_PLACEHOLDER_PREFIX`와 같은 형식). 이벤트와 아이템에는 이 참조만 남는다.
   - 모델 요청을 조립할 때 L1.context가 자리표시를 blob 내용(base64)으로 바꾼다. 이 치환 규칙은 `L1.context.spec`에 요청한다 [가정]. 치환 전 blob이 없으면 그 이미지를 `[이미지 없음: <hex>]` 텍스트로 바꾼다.
+  - 블롭 고정은 하지 않는다 [미결 S-15]. `prepareImage`(`src/images/prepare.ts`)는 `BlobSink.putBlob`만 부르고 `pinBlob`과 `unpinBlob`을 부르지 않는다. 이 패키지는 블롭 참조를 자기 표나 상태에 적지 않는다. 참조는 `register`, `load`, `read`의 결과로 호출자에게만 가고, 커밋되는 쪽에는 `blob:sha256:<hex>` 자리표시로만 남는다. 자리표시는 `p_blob_refs`가 보지 않으므로 이 참조를 GC로부터 지키는 방법은 `core-persistence` 쪽에서 정한다(L0.store §10 S-15). 고정을 풀 시점을 이 패키지가 알 수 없어 고정하면 풀리지 않는다. 시험은 `test/images.test.ts`의 "블롭 고정은 하지 않는다" 묶음이다.
 - [가정] photon wasm은 `bun build --compile` 산출물 안에서 로드된다. 확인하지 않았다(ADR-0003 §4.2). 대체 경로:
   1. wasm 파일을 Bun의 파일 임베드(`import ... with { type: "file" }`)로 바이너리에 넣고 실행 중에 읽는다.
   2. 그래도 로드에 실패하면 처리기 없이 동작한다(위 최소형). 시작 때 한 번 탐침하고 결과를 상태(`imageProcessor: "photon" | "none"`)로 둔다.
