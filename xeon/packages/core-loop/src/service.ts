@@ -36,6 +36,7 @@ import { planReentry, reduceOpenTurn, type OpenTurnReduction } from "./resume.ts
 import { runTurn as runLoopTurn } from "./loop/run-turn.ts";
 import type { TurnEntry, TurnRunResult } from "./loop/types.ts";
 import { createThreadGate } from "./thread-gate.ts";
+import { createGuardExecution } from "./guard-execution.ts";
 import { createUserBash } from "./user-bash.ts";
 import {
   originOfSource,
@@ -130,6 +131,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     drafter: createDrafter({ session: deps.session, ids: deps.ids }),
   };
   const userBash = createUserBash(ctx);
+  const guardExecution = createGuardExecution(ctx);
   const threads = new Map<ThreadId, ThreadRuntime>();
   const leaves = new Map<ThreadId, EventId>();
 
@@ -919,6 +921,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     whenIdle: (threadId, fn) => runtimeOf(threadId).gate.run(1, fn),
     // user_bash 지점 발화, xeon.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
     runUserBash: (request) => userBash.run(request),
+    guardExecution: (request) => guardExecution.run(request),
     admit,
     runChildTurn,
     async interrupt(threadId, turnId) {

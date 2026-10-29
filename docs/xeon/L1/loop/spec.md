@@ -197,6 +197,7 @@ export interface LoopService extends LoopPort {
    * turn을 열지 않으므로 turn이 실행 중이어도 부를 수 있다. 실행 실패(명령 오류, 종료 코드)는 completed의 result로, LoopError는 실행 전의 실패(저장소, 없는 대화)다
    */
   runUserBash(request: UserBashRequest): Promise<Result<UserBashOutcome, LoopError>>;
+  guardExecution(request: GuardExecutionRequest): Promise<Result<GuardExecutionOutcome, LoopError>>;
   /** 사용자 중단(Esc). xeon.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
   interrupt(threadId: ThreadId, turnId?: TurnId): Promise<boolean>;
   /** 열린 turn을 재개한다. 자동 재개는 하지 않는다(§4.6) */
@@ -212,6 +213,7 @@ export interface LoopService extends LoopPort {
 - `TurnOutcome`은 `F.extensions.spec` §3.2의 것이다. `LoopTurnResult.outcome.status`는 `turn.completed.status`에서 `completed` → `"completed"`, `interrupted` → `"aborted"`, `failed` → `"error"`로 옮긴다.
 - L4 `TurnPort`(`L4.host-service.spec` §3.3)의 `submit`은 `admit`, `interrupt`는 `interrupt`, `stopAtSafeBoundary`는 같은 이름에 대응한다. `SubmitOutcome`의 `busy`는 `AdmitResult.status: "queued"`에 대응하고 그때 `turnId`는 `runningTurnId`다 [가정: host 어댑터가 옮긴다].
 - `input.bash.before` 지점(`!명령` 입력)의 진입점은 `runUserBash(request)`다. [결정: m2 F.8] F `LoopService`에 시그니처가 들어갔다(`UserBashRequest`, `UserBashOutcome`). `input.bash.before`(first)를 발화한 뒤 거부가 아니면 `xeon.tools`의 사용자 셸 경로(`runUserShell`, `includeInContext = !excludeFromContext`)로 실행한다(`L1.tools.spec` 요구). 거부는 `denied`로 돌려주고 실행하지 않는다. 구현은 `src/user-bash.ts`다 [결정: L1F].
+- 출력을 실행에 넘기기 직전의 가드 진입점은 `guardExecution(request)`다 [결정: M3b B2-ART]. `guard.output.before`를 `target: "execution"`으로 발화하고 `allowed` 또는 `blocked`를 `Result`로 돌려준다(`requestId` 길이 오류는 `input_invalid`). turn을 열지 않고 `requestId`(1~64자)를 디스패치 키로 쓴다. 구현은 `src/guard-execution.ts`다.
   - 순서: (1) 요청 검사(빈 명령, 64자를 넘는 `requestId`는 `input_invalid`)와 대화 확인(`thread_not_found`, 닫힌 대화는 `input_invalid`). (2) `input.bash.before`(first) 발화. `deny` 결정이나 핸들러 실패는 `denied`(핸들러 실패는 fail-closed)이고, `result` 결정은 명령을 실행하지 않은 `completed{ replaced: true }`다. (3) 거부가 아니면 `xeon.tools.runUserShell`로 실행한다. 레코드의 `details.code`가 `not_executed`·`tool_unavailable`이면 명령이 돌지 않은 것이라 `denied`다. 그 밖에는 성공의 `structuredContent`나 0이 아닌 종료의 오류 상세(`detail`)에서 `UserBashResult`(`output`, `exitCode`, `truncated`, `fullOutputPath`)를 만들고, 요약이 없는 오류(중단 등)는 본문을 `output`으로, `cancelled`는 `aborted` 코드일 때 참으로 둔다.
   - 도구 쪽 실행 맥락(`ToolRunContext`)은 turn을 열지 않으므로 이 호출 전용의 새 `turnId`·`stepId`로 만든다. caller `main`, 깊이 0, 대화형이고 `signal`은 요청의 것이다. 이 id는 어떤 `turn.*` 이벤트와도 이어지지 않아 열린 turn의 재개 판정(`reduceOpenTurn`)에 끼지 않는다. `toolResultItem`·`waitingCheckpoint` 초안은 만들지 않는다(사용자 셸은 toolResult item도 승인 대기도 없다).
   - 컨텍스트 기록: `!`(`excludeFromContext = false`)이면 명령과 출력을 `custom` item 하나로 커밋한다. `customType`은 `core.loop.user_bash`, 본문은 명령 줄("Ran" 다음에 백틱으로 감싼 명령), 출력, 중단·종료 코드·절단 안내 순이고 `details`는 `{ command, exitCode?, cancelled, truncated, replaced }`다. F에 `bashExecution` 역할이 없어(L1.context.spec §10 4번) `custom`으로 흡수했고, `custom` item은 컨텍스트 조립 때 `UserMessage`가 된다. `!!`이면 item을 남기지 않고 효과 3단만 남는다. 커밋 키는 `ubash:<commitKeyPart(requestId)>`다.
@@ -640,7 +642,7 @@ runTurn(req: LoopTurnRequest):
   - `guard.model.before`: 모델 요청 직전, `request.provider.before` 체인이 끝난 최종 페이로드로 발화한다. 차단이면 요청을 보내지 않고 오류 응답(`stopReason: "error"`, `[xeon:denied_by_guard] <사유>`)으로 끝난다. 발화 위치는 core-models(`L1.models.spec` §4.3 5b)다.
   - `guard.tool.before`: core-tools 파이프라인이 정책·승인 뒤, `effect.intent` 전에 발화한다(`L1.tools.spec` §4.2 5c2). 차단이면 도구를 실행하지 않고 `[xeon:denied_by_guard]` 결과를 모델에 돌려준다.
   - `guard.output.before`: 도구 호출 없이 turn을 끝내는 어시스턴트 답을 `boundary.message.after` 체인 뒤, 표시와 기록 전에 `target: "display"`로 보인다(`loop/guard-output.ts`). 차단이면 텍스트 블록을 `[xeon:withheld_by_guard] <사유>` 한 줄로 바꾼 메시지가 표시되고 `item.recorded`로 남는다. 스트리밍 중 부분 출력(`message_update`)에는 걸지 않는다 [제안]: 이미 나간 조각은 막을 수 없고, 최종 답에서 막는다.
-  - [미결] `target: "execution"`(출력을 실행에 넘기는 경로)은 L1에 해당 경로가 없어 발화하지 않는다. 산출물 적용 직전(L2 artifacts)의 발화는 L2 몫이다.
+  - `target: "execution"`(출력을 실행에 넘기는 경로)은 `guardExecution`이 발화한다 [결정: M3b B2-ART]. 산출물 적용 직전(L2 artifacts)에 L2가 부른다. 차단이면 `blocked`와 사유를 돌려주고, 핸들러 예외와 디스패치 실패도 `blocked`다(fail-closed). 호출자는 실행하지 않는다.
 - (보류 부분) 계획 v2 L1-b "입출력 가드레일"의 신뢰 경계 조건(신뢰할 수 없는 사용자를 받는 배포)은 정하지 않았다. 아래는 이전 초안이다.
 - [제안] 자리와 이름만 둔다. 가드레일은 플러그인으로 두고, 확장 이름 `guardrail`을 예약한다(X.loading-trust.spec 예약 이름 목록 요청). 차단 지점 후보는 `input`(chain, `handled`), `tool.call.before`(first, `block`), `boundary.message.after`(chain)다. core-loop는 이 플러그인을 위해 따로 바꾸는 것이 없다.
 
