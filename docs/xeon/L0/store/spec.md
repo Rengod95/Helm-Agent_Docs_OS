@@ -138,6 +138,10 @@ export interface StoreService {
   /** 트랜잭션 밖에서만 부른다(TX-04). 같은 해시면 파일을 다시 쓰지 않는다 */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
+  /** 범위 핸들 소유자(`cap.*`, `ext.*`)의 블롭 참조 기록(M3-REQ-62). 트랜잭션 밖에서 부른다. 블롭 행이 없으면 `blob_missing`. 등록 안 된 소유자는 Bug(store.prefix_not_owned) */
+  pinBlob(owner: string, sha256: string, refKey: string): Result<void, BlobError>;
+  /** `(owner, refKey)` 참조를 모두 해제한다. 해제한 행 수를 돌려준다 */
+  unpinBlob(owner: string, refKey: string): Result<number, BlobError>;
 }
 ```
 
