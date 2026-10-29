@@ -913,6 +913,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 - [결정: review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
 - [결정: review.m3-design-inputs D-M3-16] P-10. Unix 소켓은 파일 권한으로 막고 TCP로 열 때만 토큰을 요구한다(§4.4.5). `host.hello`의 `auth` 필드와 `host.authFailed` 오류는 F에 반영되었다.
 - [미결 P-11] Windows에서 `.cmd` 셔임(`npx.cmd` 등)으로 stdio MCP 서버를 띄우는 방법. 셸 없이 실행할 수 없어 `cross-spawn` 같은 해석이 필요하다. 1차 지원 OS(macOS, Linux, WSL)에는 해당이 없다.
+- [미결 P-15] `McpSpawnSpec.sandbox`(출처별 샌드박스 결정, `L2.mcp.spec` §4.3)를 이 포트가 아직 강제하지 못한다. `L0.sandbox` `wrapShell`은 끝난 결과만 돌려주고 stdio 서버에는 스트림이 필요하다. 켬 요청이 오면 격리 없이 띄우고 경고 `mcp.sandbox_not_enforced`를 남긴다. 스트림을 주는 래핑(`SandboxService`에 argv 래핑)을 정해야 한다.
 - [해소 P-12, M3-05] 비밀 env가 있는 MCP stdio 서버의 기동 승인은 정의 해시마다 한 번이다(`L0.secrets.spec` §4.3.1). `L2.mcp`가 승인을 받아 증거를 `McpSpawnSpec.approval`에 싣는다(`L2.mcp.spec` §4.3).
 - [미결 P-13] 사설망 TCP와 비루프백 리스너. `review.m3-design-inputs` D-M3-16 c는 소켓을 사설망에 TCP로 여는 경우에 토큰을 요구하고, 이 문서 §4.4.5는 `allowNonLoopback`으로 그것을 허용한다. 그러나 `product.scope.spec` X5와 `architecture.security.spec` T-10은 M3 원격에서 서비스가 비루프백 리스너를 열지 않는다고 적는다. 이 문서는 X5·T-10을 따라 원격에 TCP 리스너를 새로 열지 않는다. 그래서 `tcp://` 원격 값은 루프백 주소에서만 뜻이 있다. 사설망 주소(Tailscale 등)를 허용할지는 사용자가 정해야 하고, 허용하면 §4.4.5, X5, T-10을 함께 고친다.
 - [가정] Bun 1.4.3의 `node:child_process` `detached`·`unref`와 `Bun.listen({ unix })`의 macOS 동작은 실측하지 않았다.

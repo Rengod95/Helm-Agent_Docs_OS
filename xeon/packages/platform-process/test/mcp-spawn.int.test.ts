@@ -53,6 +53,7 @@ function stringRecord(value: unknown): Record<string, string> {
 interface Opened {
   readonly background: BackgroundRegistryController;
   readonly port: McpProcessPort;
+  readonly log: ReturnType<typeof memoryLogger>;
 }
 
 const children: McpChild[] = [];
@@ -75,17 +76,18 @@ function open(
     logger: memoryLogger(),
   });
   registries.push(background);
+  const log = memoryLogger();
   const port = createMcpProcessPort({
     platform: processPlatform,
     background,
     secrets,
     scheduler: realScheduler(),
     parentEnv,
-    logger: memoryLogger(),
+    logger: log,
     drainMs: 300,
     ...(stdinCloseMs === undefined ? {} : { stdinCloseMs }),
   });
-  return { background, port };
+  return { background, port, log };
 }
 
 function specOf(mode: string, overrides: Partial<McpSpawnSpec> = {}): McpSpawnSpec {
@@ -264,6 +266,19 @@ describe("McpProcessPort.spawn", () => {
     const env = stringRecord(parsed.ok ? parsed.value : undefined);
     expect(env["LOG_LEVEL"]).toBe("debug");
     expect(env["GITHUB_TOKEN"]).toBe(SECRET_VALUE);
+  });
+
+  test("a sandbox request is not enforced yet: the server still starts and the gap is logged", async () => {
+    const { port, log } = open(undefined, { PATH: process.env["PATH"] });
+    await started(port, specOf("echo", { sandbox: true }));
+    expect(log.records.filter((record) => record.event === "mcp.sandbox_not_enforced")).toEqual([
+      { level: "warn", event: "mcp.sandbox_not_enforced", fields: { server: "fixture" } },
+    ]);
+    const quiet = open(undefined, { PATH: process.env["PATH"] });
+    await started(quiet.port, specOf("echo", { sandbox: false }));
+    expect(quiet.log.records.some((record) => record.event === "mcp.sandbox_not_enforced")).toBe(
+      false,
+    );
   });
 
   test("a plaintext env name that is not a valid variable name fails before anything starts", async () => {

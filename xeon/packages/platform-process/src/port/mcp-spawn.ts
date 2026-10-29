@@ -29,6 +29,11 @@ export interface McpSpawnSpec {
   readonly secretEnv: Readonly<Record<string, string>>;
   /** 평문 환경 변수. 생략하면 없다. `secretEnv`와 이름이 겹치면 `secretEnv`가 이긴다 */
   readonly env?: Readonly<Record<string, string>>;
+  /**
+   * 샌드박스에 넣어 띄우라는 요청(L2 `sandboxOf`의 결과, M3-REQ-97). 스트림을 주는 샌드박스 래핑이 아직 없어 이 포트는 격리하지 못하고
+   * 격리 없이 띄운다. 그때 경고 `mcp.sandbox_not_enforced`를 남긴다(L0.process.spec §4.9 [미결 P-15])
+   */
+  readonly sandbox?: boolean;
   /** 비밀 env의 기동 승인 증거(정의 해시마다 한 번 받은 것). 비밀 env가 없으면 쓰지 않는다 */
   readonly approval?: ApprovalEvidence | null;
   /** 화면 표시. 비밀 값을 넣지 않는다 */
@@ -260,6 +265,9 @@ export function createMcpProcessPort(deps: McpProcessDeps): McpProcessPort {
         if (!VALID_ENV_NAME.test(name)) {
           return spawnFailed("env_denied", `Invalid environment variable name: ${name}`);
         }
+      }
+      if (spec.sandbox === true) {
+        deps.logger.warn("mcp.sandbox_not_enforced", { server: spec.server });
       }
       const secretEnv = await acquireSecretEnv(spec, deps.secrets, signal);
       if (!secretEnv.ok) return secretEnv;
