@@ -637,7 +637,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 ## 6. 설정 노출
 
-[제안] 아래 키는 `defineSettings("l4.desktop", ...)`로 `xeon/apps/desktop/src/settings-store/defs.ts`에 선언하고 §3.6 저장소가 쓴다. 열은 `F.wire-settings.spec` §6 형식이다. 모든 키의 `layer`는 `"L4"`, `since`는 `"0.1.0"`, `secret`은 없다(false).
+셸이 읽는 세 키(`window.closeBehavior`, `engine.restartLimit`, `engine.shutdownGraceMs`)는 `defineSettings("l4.desktop", ...)`로 `xeon/apps/desktop/src/settings-store/defs.ts`에 선언했다(M3-38). 나머지 키는 각 기능이 들어오는 단계에서 선언한다 [제안]. 열은 `F.wire-settings.spec` §6 형식이다. 모든 키의 `layer`는 `"L4"`, `since`는 `"0.1.0"`, `secret`은 없다(false).
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab / widget | 단계 |
 |---|---|---|---|---|---|---|---|

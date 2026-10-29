@@ -505,7 +505,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 | stdin-eof-checkpoint | `test/stdin-eof-checkpoint.int.test.ts` | int | 테이프로 turn을 진행하는 중에 stdin을 닫으면 엔진이 `l0.process.shutdown.timeoutMs`(테스트에서는 1초로 줄임) 안에 끝나고, DB에 비정상 종료 표식 또는 체크포인트가 남는다 | E5, D-02 | M2 |
 | no-grandchild-left | `test/no-grandchild-left.int.test.ts` | int | 엔진이 손자 프로세스(긴 `sleep` 명령 도구 호출)를 띄운 상태에서 정상 종료 순서를 돌리면 그룹 안 프로세스가 0개가 된다. Linux·macOS 한정 | E3, E9, D-01 | M2 |
 | engine-state-schema | `src/transport/ipc.test.ts` | unit | `EngineStateSchema`가 여섯 상태를 받아들이고 모르는 `kind`와 여분 필드를 거부한다 | §3.3 | M1 |
-| desktop-settings-defs | `src/settings-store/defs.test.ts` | unit | `l4.desktop.*` 정의가 F `checkSettingDef` 규칙 1~8을 통과하고, 키 접두가 `l4.desktop.`, `layer`가 `"L4"`다 | §6 | M1 |
+| desktop-settings-defs | `test/settings-defs.test.ts` | unit | 셸이 읽는 세 키(`window.closeBehavior`, `engine.restartLimit`, `engine.shutdownGraceMs`)가 spec §6 표와 같은 키, layer `"L4"`, 범위, 기본값을 갖고 F `checkSettingDef` 규칙을 통과한다. Rust 기본값과 범위 상수를 소스 글자로 맞춘다 | §6 | M1, M3b(M3-38). 상태: 통과(Linux) |
 | epoch-guard | `test/epoch-guard.test.ts` | unit | 가짜 `DesktopIpc`에서 이전 세대의 `write`가 거부되고, 새 세대 첫 메시지가 `$/connectionReset`(F 수용 뒤) 또는 엔진 재기동 요청(수용 전)이다 | D-09, §4.5 | M2 |
 | restart-policy | `src-tauri/src/engine.rs` 안 Rust 테스트 | unit(cargo) | 백오프 단계, 10분 창 상한, `restartLimit` 0이면 재기동 없음, 10분 안정 뒤 횟수 초기화 | §4.4, D-05 | M2 |
 | relay-no-payload-log | `src-tauri/src/relay.rs` 안 Rust 테스트 | unit(cargo) | 릴레이 로그 기록기가 바이트 수·프레임 수·세대만 남기고 프레임 내용을 남기지 않는다 | E11, D-08 | M2 |
