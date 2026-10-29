@@ -35,7 +35,7 @@ import {
 import { createMetricsCounter, type MetricsCounter } from "./metrics/counter.ts";
 import { countedHandler } from "./metrics/handler.ts";
 import { defaultMetricsRegistry } from "./metrics/registry.ts";
-import { INSTRUMENTATION_KEY, recordBoundaryMetrics } from "./metrics/record.ts";
+import { createBoundaryRecorder, INSTRUMENTATION_KEY } from "./metrics/record.ts";
 import type { GroupSettingsSource } from "./ports/settings.ts";
 import { checkPostItem, checkRecordKind, type RecordCheck } from "./records.ts";
 import { checkStateCommit, migrationChain, type StateMigrations } from "./state.ts";
@@ -191,14 +191,15 @@ export function wrap<S, D extends GroupSettingDefs>(
   const access = hostAccess(api);
   const counter = createMetricsCounter(def.manifest.name);
   defaultMetricsRegistry.register(def.manifest.name, counter.handle);
-  // 설정을 읽지 못하면(외부 그룹이 ext 밖의 키를 읽는 경우 등) 계측을 켠 것으로 본다(L3.group-kit.spec §4.9)
-  if (def.manifest.points.includes("boundary.settle.after")) {
-    recordBoundaryMetrics(api, {
-      groupId: def.manifest.name,
-      counter,
-      enabled: () => access.settingsSource()?.value(INSTRUMENTATION_KEY) !== false,
-    });
-  }
+  // 경계 기록은 그룹 자신의 boundary.settle.after 핸들러가 끝난 뒤 그 호출 안에서 쓴다(§4.9). 설정을 읽지 못하면 켠 것으로 본다
+  const afterSettle = def.manifest.points.includes("boundary.settle.after")
+    ? createBoundaryRecorder({
+        api,
+        groupId: def.manifest.name,
+        counter,
+        enabled: () => access.settingsSource()?.value(INSTRUMENTATION_KEY) !== false,
+      })
+    : undefined;
   /**
    * 위임 서비스(`xeon.agents`). 포트 조회는 scope의 generation이 닫히면 거부되고 `onDispose`는 닫힌 뒤에 돌므로,
    * 처음 얻은 값을 기억해 `cancelDelegates`가 `onDispose` 안에서도 쓰게 한다(L3.group-kit.spec §4.10)
@@ -224,7 +225,16 @@ export function wrap<S, D extends GroupSettingDefs>(
   }
   return {
     id: api.id,
-    on: (point, handler) => api.on(point, countedHandler(point, handler, counter)),
+    on: (point, handler) =>
+      api.on(
+        point,
+        countedHandler(
+          point,
+          handler,
+          counter,
+          point === "boundary.settle.after" ? afterSettle : undefined,
+        ),
+      ),
     post: async (item, options) => {
       ensure(checkPostItem(def.manifest, item), api.id);
       const receipt = await api.post(item, options);

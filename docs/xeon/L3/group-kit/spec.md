@@ -1161,8 +1161,16 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - **이벤트 집계(M3b, G-17).** `summarizeUsage(events)`는 순수 함수다. 한 thread의 이벤트열을 scope별로 접는다. `lease.acquired`는 임대 수를 올리고, 같은 `leaseId`의 `lease.released`는 `recordedAt` 차이를 임대 시간에 더한다. 풀리지 않은 임대는 수에만 든다. `turn.started`의 scopeId가 null이 아니면 그 turnId의 `turn.completed` 사용량을 그 scope에 더한다. 검사에 실패한 payload는 건너뛴다. 시계는 읽지 않는다(TY-21).
 - **서비스 캐시와 상태(M3b).** `refreshUsage(threadId)`는 `queryEvents(threadId, { kindPrefix: "lease." })`와 `{ kindPrefix: "turn." }`을 읽어 `seq` 순으로 합치고 `summarizeUsage`로 접는다. 결과는 그 thread의 캐시가 된다. 조회가 하나라도 실패하면 캐시를 그대로 두고 던지지 않는다. `/group status`는 상태를 보이기 전에 현재 thread를 한 번 갱신한다. `GroupStatus.metrics`는 등록부의 카운터(denies, posts, spawns, delegates)와 캐시를 합친다. `costUsd`는 카운터 `addUsage` 비용과 `turn.completed` 비용의 합이고, `leaseMs`는 `lease.*` 구간의 합이다. 캐시는 마지막으로 갱신한 thread의 값만 보인다. 다른 thread를 보면 이벤트 값은 0이다.
 - **등록부(M3b).** `wrap`은 그룹 이름으로 계측 핸들을 프로세스 전역 등록부(`defaultMetricsRegistry`)에 등록한다. 같은 이름으로 다시 등록하면 새 핸들이 옛 핸들을 대신한다. 조립 루트의 배선은 없다 [결정: 오케스트레이터 기본값, M3b].
-- **단계 경계 기록(M3b).** 매니페스트 `points`에 `boundary.settle.after`가 있으면 `wrap`이 그룹 핸들러보다 먼저 `boundary.settle.after` 핸들러를 등록한다. 핸들러는 경계마다 설정 읽기 포트(`settingsSource`)로 `l3.group-kit.instrumentation`을 읽는다. 값이 `false`가 아니면(읽지 못하거나 값이 없으면 참) 마지막 기록 뒤의 증가분을 구한다. 0이 아닌 값이 하나라도 있을 때만 `grp.<그룹>.metrics.recorded`를 그 그룹의 `recordPrivate`로 쓴다. payload는 `{ stepId: 경계 turnId, delta }`다 [결정: 오케스트레이터 기본값, M3b]. 쓰기가 성공했을 때만 기준을 옮긴다. 끄는 동안에는 기준을 옮기지 않으므로, 다시 켠 첫 경계의 기록에는 끈 동안의 증가분도 든다.
-- **기록의 한계(M3b).** 기록 핸들러가 setup 전에 등록되어 먼저 돈다. 그래서 같은 경계에서 그룹 핸들러가 올린 값은 다음 경계의 기록에 든다. 마지막 경계에서 올린 값은 다음 경계가 없어 기록되지 않는다. 기준은 프로세스가 뜬 뒤 0에서 시작한다. 재시작 뒤 첫 기록은 재시작 뒤의 증가분만 담고, 옛 프로세스의 값은 기록에 없다. 매니페스트에 `boundary.settle.after`를 선언하지 않은 그룹에는 기록 핸들러가 없어 `grp.<그룹>.metrics.recorded`를 쓰지 않는다. 그 그룹의 값은 `snapshot`과 `/group status`에서만 본다.
+- **단계 경계 기록(M3b).** 기록은 그룹 자신의 `boundary.settle.after` 핸들러가 끝난 뒤, 그 핸들러 호출 안에서 쓴다. 별도 핸들러로 쓰지 않는다. X는 핸들러 호출마다 멱등 키의 번호를 0에서 세므로, 같은 scope가 같은 호출 키로 쓰는 별도 핸들러의 `recordPrivate`는 그룹 핸들러의 기록과 같은 키(`rec:<scope>:<키>:0`)를 받는다. 그러면 그룹 쪽 기록이 거부된다. 그래서 기록은 그룹 핸들러 안에서, 그 핸들러가 부른 기록과 커밋 뒤의 번호를 이어받아 쓴다 [결정: 오케스트레이터 기본값, M3b].
+  - 핸들러가 정상으로 끝난 뒤 설정 읽기 포트(`settingsSource`)로 `l3.group-kit.instrumentation`을 읽는다. 값이 `false`가 아니면(읽지 못하거나 값이 없으면 참) 마지막 기록 뒤의 증가분을 구한다. 0이 아닌 값이 하나라도 있을 때만 `grp.<그룹>.metrics.recorded`를 그 그룹의 `recordPrivate`로 쓴다. payload는 `{ stepId: 경계 turnId, delta }`다 [결정: 오케스트레이터 기본값, M3b].
+  - 같은 호출(dispatch)에서는 한 번만 쓴다. 이 프로세스에서 기록을 마친 turn(최근 64개)은 다시 발화해도 쓰지 않는다. 이 검사가 재발화 때 같은 키의 기록이 거부되어 그룹 핸들러의 실패로 돌아가는 것을 막는다.
+  - 쓰기가 성공했을 때만 기준을 옮긴다. 쓰기가 실패하면 증가분은 다음 기록에 그대로 든다. 끄는 동안에는 기준을 옮기지 않으므로, 다시 켠 첫 경계의 기록에는 끈 동안의 증가분도 든다.
+  - 그룹이 핸들러 호출 안에서 올린 값(게시, 커밋, 위임 등)은 같은 경계의 기록에 든다.
+- **기록의 한계(M3b).**
+  - 매니페스트가 `boundary.settle.after`를 선언하고도 경계 핸들러를 달지 않은 그룹에는 기록을 쓰지 않는다. 기록은 그룹 핸들러에 붙어 있으므로 핸들러가 없으면 쓸 곳이 없다. 그 그룹의 값은 `snapshot`과 `/group status`에서만 본다. 기록을 쓰려면 경계 핸들러를 달아야 한다.
+  - 기준은 프로세스가 뜬 뒤 0에서 시작한다. 재시작 뒤 첫 기록은 재시작 뒤의 증가분만 담고, 옛 프로세스의 값은 기록에 없다.
+  - 재시작 뒤에 이미 기록한 경계가 다시 발화하면, 새 프로세스의 증가분과 옛 기록의 payload가 달라 같은 키의 기록이 거부될 수 있다. 그 오류는 그룹 핸들러의 실패로 보고된다(`handler_failed`). 상태 커밋은 이미 끝났으므로 상태에는 영향이 없다. [미결]: 거부를 기록 실패로 돌리는 방법은 정하지 않았다(§10).
+  - 마지막 경계 뒤에 그룹 밖에서 올린 값은 다음 경계가 있어야 기록된다.
 - 계측 코드는 시계를 직접 읽지 않는다(TY-21).
 - kind 소유 [결정: review.decisions-2 T-21]: `grp.<그룹>.metrics.recorded`의 접두 소유자는 각 그룹이고 생산 코드는 group-kit `wrap`이다. `grp.<그룹>.state.committed`는 X가 쓴다(X.primitives.spec §4.6.1). 커밋 단위는 X.primitives.spec §4.6.5를 따른다. 멱등 키는 `record`와 같아 재실행된 같은 호출은 `replayed`다. kind는 매니페스트 `recordKinds`에 선언하지 않는다(공개 kind와 같은 이름이면 `record_private_invalid`).
 
@@ -1308,7 +1316,8 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [결정: 오케스트레이터 기본값, M3b] 계측 등록부는 프로세스 전역 `defaultMetricsRegistry`다(§4.9). 조립 루트의 배선은 두지 않는다.
 - [결정: 오케스트레이터 기본값, M3b] `addUsage`의 잘못된 인자는 `Bug`다. 그룹 코드가 만든 값의 불변 조건 위반이라 TY-24에 따른다. 호출자가 외부 확장이 되면 오류 값으로 바꾸고 시그니처를 `Result`로 고친다.
 - [결정: 오케스트레이터 기본값, M3b] `grp.<그룹>.metrics.recorded`의 stepId는 경계 turnId다.
-- [미결] M3b 기록은 같은 경계에서 그룹 핸들러가 올린 증가분을 다음 기록으로 미룬다(§4.9 기록의 한계). 마지막 경계의 값은 기록되지 않는다. 경계 뒤에 쓰려면 기록 핸들러를 그룹 setup 뒤에 등록해야 하는데, 그 순서는 `defineGroup`의 진입 순서를 바꾼다.
+- [미결] M3b 재시작 뒤 같은 경계의 재발화는 같은 키의 기록을 거부당할 수 있다(§4.9 기록의 한계). 그 오류는 그룹 핸들러의 실패로 보고된다. 거부를 기록 실패로 돌려 막으려면 X의 재생 키 규칙이나 기록 payload의 결정 방식을 바꿔야 한다.
+- [결정: 오케스트레이터 기본값, M3b] 별도 `boundary.settle.after` 핸들러로 쓰는 안은 같은 scope의 호출 키 충돌로 학습 그룹의 기록을 거부시켰다(시험 6건). 그래서 기록은 그룹 핸들러 안에서 쓴다(§4.9).
 - [미결] M3b의 이벤트 집계는 마지막으로 갱신한 thread만 보인다. 여러 thread의 임대 시간과 비용을 한 줄로 보일지는 정하지 않았다.
 - [미결] 학습 그룹의 `addUsage` 연결(LR-17)은 이 변경에 없다. 학습 스펙 §10 17이 연결 가능 상태를 적는다.
 - [결정: review.decisions-2 U-17] `group-kit`의 `@xeon/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 그룹 패키지는 `@xeon/ext-host`를 import하지 않는다(L3.readme §3).

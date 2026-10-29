@@ -36,6 +36,11 @@ async function postVia(t: TestHost, thread: ThreadId, requestId: string): Promis
   await t.settled();
 }
 
+/** 경계 핸들러가 아무것도 하지 않는다. 기록은 그룹의 경계 핸들러가 있어야 쓰인다 */
+function boundaryHandler(g: GroupApi<never>): void {
+  g.on("boundary.settle.after", () => undefined);
+}
+
 /** 게시를 올리는 그룹. 경계와 도구 호출 지점을 선언한다 */
 function poster(
   name: string,
@@ -138,7 +143,10 @@ test("metrics.recorded-is-absent-when-instrumentation-is-off", async () => {
   });
   const thread = t.newThread();
   const sink: { api?: GroupApi<never> } = {};
-  await install(t, poster("quiet", ["boundary.settle.after", "tool.call.before"], sink));
+  await install(
+    t,
+    poster("quiet", ["boundary.settle.after", "tool.call.before"], sink, boundaryHandler),
+  );
   await t.host.openThread(thread);
   await t.settled();
 
@@ -201,4 +209,85 @@ test("metrics.status-is-null-when-instrumentation-is-off", async () => {
     ok: true,
     value: { metrics: { denies: 0, posts: 0, spawns: 0, delegates: 0, costUsd: 0, leaseMs: 0 } },
   });
+});
+
+test("metrics.recorded-does-not-collide-with-the-groups-own-private-record", async () => {
+  // 그룹이 자기 boundary.settle.after 핸들러에서 recordPrivate를 쓰면서 계측이 켜져 있는 시험.
+  // 기록이 별도 핸들러였다면 두 호출이 같은 멱등 키(호출 번호 0)를 받아 그룹 쪽 기록이 거부됐다
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const sink: { api?: GroupApi<never> } = {};
+  await install(
+    t,
+    poster("own-record", ["boundary.settle.after", "tool.call.before"], sink, (g) => {
+      g.on("boundary.settle.after", async (payload) => {
+        await g.recordPrivate("grp.own-record.review.started", { turn: payload.turnId });
+        await g.post(
+          { kind: "user", content: "after" },
+          { when: "next", requestId: `after-${payload.turnId}` },
+        );
+      });
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+
+  await postVia(t, thread, "o1");
+  const turn = await boundary(t, thread, "own-b1");
+
+  expect(t.diagnostics.map((entry) => entry.code)).toEqual([]);
+  expect(
+    t.records
+      .events(thread)
+      .filter((draft) => draft.kind === "grp.own-record.review.started")
+      .map((draft) => draft.payload),
+  ).toEqual([{ turn }]);
+  // 경계 핸들러가 올린 게시도 같은 경계의 기록에 든다. 기록은 그룹 핸들러가 끝난 뒤에 쓴다
+  expect(recordedOf(t, thread, "own-record")).toEqual([
+    { stepId: turn, delta: delta({ posts: 2 }) },
+  ]);
+});
+
+test("metrics.recorded-needs-a-boundary-handler", async () => {
+  // 지점을 선언만 하고 경계 핸들러를 달지 않은 그룹은 계측 기록을 쓰지 않는다(L3.group-kit.spec §4.9)
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const sink: { api?: GroupApi<never> } = {};
+  await install(t, poster("declared-only", ["boundary.settle.after", "tool.call.before"], sink));
+  await t.host.openThread(thread);
+  await t.settled();
+
+  await postVia(t, thread, "d1");
+  await boundary(t, thread, "d-b1");
+  expect(sink.api?.metrics.snapshot().posts).toBe(1);
+  expect(recordedOf(t, thread, "declared-only")).toEqual([]);
+});
+
+test("metrics.recorded-skips-a-turn-already-recorded", async () => {
+  // 같은 turn의 경계가 다른 호출로 다시 발화해도 기록은 한 번이다. 그 사이의 증가분은 다음 turn의 기록에 든다
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const sink: { api?: GroupApi<never> } = {};
+  await install(
+    t,
+    poster("refire", ["boundary.settle.after", "tool.call.before"], sink, boundaryHandler),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+
+  await postVia(t, thread, "r1");
+  const first = await boundary(t, thread, "refire-b1");
+  await postVia(t, thread, "r2");
+  await t.host.dispatch(
+    "boundary.settle.after",
+    { turnId: first, aborted: false },
+    { threadId: thread, dispatchKey: "refire-again" },
+  );
+  await t.settled();
+  const second = await boundary(t, thread, "refire-b2");
+
+  expect(recordedOf(t, thread, "refire")).toEqual([
+    { stepId: first, delta: delta({ posts: 1 }) },
+    { stepId: second, delta: delta({ posts: 1 }) },
+  ]);
 });
