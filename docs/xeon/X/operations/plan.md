@@ -208,4 +208,4 @@ xeon/packages/ext-host/
 
 | 작업 | 상태 | 비고 |
 |---|---|---|
-| O-09 | 완료(ext-host) | `createVolatileNotifier`(`auto-disable.ts`)를 만들고 루트에서 재export한다. 실패마다 `scope.handler_failed`를 발신하고 같은 운영 로그를 남긴다. 발신이 던지면 운영 로그에 남기고 호출자에게 던지지 않는다(M3-REQ-35). 시험은 `auto-disable.test.ts`다. 조립 기본 알림기 교체와 host 연결은 B1-NTF H1에서 끝났다(`apps/host/src/assembly/handler-failed.ts`, `L4.host-service` HS-80, 시험 `apps/host/test/assembly/handler-failed.test.ts`와 `test/int/handler-failed.int.test.ts`) |
+| O-09 | 완료(ext-host) | `createVolatileNotifier`(`auto-disable.ts`)를 만들고 루트에서 재export한다. 실패마다 `scope.handler_failed`를 발신하고 같은 운영 로그를 남긴다. 발신이 던지면 운영 로그에 남기고 호출자에게 던지지 않는다(M3-REQ-35). 시험은 `auto-disable.test.ts`다. 조립 기본 알림기 교체와 host 연결은 B1-NTF H1에서 끝났다(`apps/host/src/assembly/handler-failed.ts`, `L4.host-service` HS-92, 시험 `apps/host/test/assembly/handler-failed.test.ts`와 `test/int/handler-failed.int.test.ts`) |
