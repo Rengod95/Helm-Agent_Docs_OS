@@ -614,16 +614,16 @@ export interface GroupTemplatesPort {
 확장 핸들러 실패와 알림 전달은 진행 줄이 아니라 `notice` 줄로 그린다. 문구와 묶음 규칙은 `render/notices.ts`의 순수 함수가 정한다.
 
 - 확장 핸들러 실패(`stream.chunk`의 `scope.handler_failed`, `L4.host-service.spec` HS-92, `X.operations.spec` §4.3.4):
-  - 문구: `확장 <이름>의 <point> 핸들러가 실패했다 (연속 <n>회): <message>`. `owner`의 `ext:` 접두어는 "확장"으로, `hook:`은 "훅"으로 바꾸고 이름만 보인다. `message`는 줄바꿈과 제어 문자를 칸으로 바꾸고 앞 120자(코드 포인트)만 보인다. 잘리면 `…`를 붙인다. 비어 있으면 `: <message>`를 붙이지 않는다.
+  - 문구: 카탈로그 id `cli.render.notices.handlerFailed`에서 현재 로케일로 만듭니다. 한국어 값은 `확장 <이름>의 <point> 핸들러가 실패했다 (연속 <n>회): <message>`입니다. `owner`의 `ext:` 접두어는 `cli.render.notices.owner.extension`(확장), `hook:`은 `cli.render.notices.owner.hook`(훅)으로 바꾸고 이름만 보입니다. `message`는 줄바꿈과 제어 문자를 칸으로 바꾸고 앞 120자(코드 포인트)만 보인다. 잘리면 `…`를 붙인다. 비어 있으면 `: <message>`를 붙이지 않는다.
   - 묶음: `consecutive`가 1이거나 5의 배수인 실패만 그리고 나머지는 버린다. 세는 일은 호스트가 한 `consecutive`를 그대로 쓰므로 CLI 세션은 상태를 두지 않는다. 5는 `X.operations.spec` §4.3.3의 자동 끄기 기본 기준(연속 5회)과 맞춘 값이다.
   - thread: 이 세션의 thread(`event.threadId`)가 보낸 것만 그린다. 호스트는 thread를 연 연결마다 한 번씩 보내므로, 다른 thread의 것은 같은 실패의 중복이거나 이 화면 밖의 일이다.
   - 순서: 진행 줄 조각과 달리 `afterSeq`가 앞서도 기다리지 않고 도착 순서대로 그린다 [제안].
 - 알림 전달(`notify.delivered`, `L4.host-service.spec` HS-94):
   - 대화형에서만 그린다. print 모드는 turn 하나를 끝내고 끝나므로 완료 알림을 stderr에 쓰지 않는다. 성공한 실행의 stderr를 비운다(§4.2). JSON 모드는 `RenderSink`가 없어 그리지 않는다. 그 메시지는 JSON 줄로 그대로 나간다.
-  - 문구: 첫 줄은 `[<종류>] <제목>`이다. 종류 이름은 `completed`는 완료, `approval_waiting`은 승인 대기, `question_waiting`은 질문 대기, `error`는 오류, `background_completed`는 백그라운드 완료다. `body`가 있으면 둘째 줄이다. 제어 문자는 칸으로 바꾼다.
+  - 문구: 첫 줄은 `[<종류>] <제목>`입니다. 종류 이름은 카탈로그 id `cli.render.notices.kind.<이름>`에서 읽습니다. `completed`는 `kind.completed`, `approval_waiting`은 `kind.approvalWaiting`, `question_waiting`은 `kind.questionWaiting`, `error`는 `kind.error`, `background_completed`는 `kind.backgroundCompleted`입니다. 한국어 값은 완료, 승인 대기, 질문 대기, 오류, 백그라운드 완료입니다. `body`가 있으면 둘째 줄입니다. 제어 문자는 칸으로 바꿉니다.
   - thread: `threadId`가 null이거나 이 세션의 thread면 그대로 쓴다. 다른 thread의 알림이면 첫 줄 끝에 ` (다른 대화)`를 붙인다.
   - 등록은 `host.hello`의 `features`에 `notify.delivered`가 없어도 한다. 오지 않으면 그릴 것이 없다.
-  - 문구는 카탈로그 id(`cli.render.notices.*`)에서 현재 로케일로 만듭니다. 종류 이름과 ` (다른 대화)`도 카탈로그에서 읽습니다(ADR-0016).
+  - 문구는 카탈로그 id(`cli.render.notices.*`)에서 현재 로케일로 만듭니다. ` (다른 대화)`는 `cli.render.notices.otherThread`에서 읽습니다(ADR-0016).
 - 알림은 turn이 끝난 뒤 비동기로 온다. 세션이 먼저 끝나면 그 알림은 보이지 않을 수 있다(§10 24번).
 
 ### 4.6 입력, 중단, 신호
@@ -788,7 +788,7 @@ export interface GroupTemplatesPort {
 
 ### 4.10 오류 문구
 
-모든 오류 출력은 두 줄이다: `xeon: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016). 인자 오류 문구(`cli.usage.*`, `parseArgv`가 돌려주는 `UsageError`), 도움말 본문(`cli.help.*`), `config list`의 정의 줄(`cli.config.*`), `version`과 `--set`의 문장도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 예약(`schedule`)·세션(`sessions`)·그룹 만들기(`group new`)·대화(`chat`)의 문장, 슬래시 명령의 도움말과 문구도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다(`cli.schedule.*`, `cli.sessions.*`, `cli.group.*`, `cli.chat.*`, `cli.slash.*`, `cli.usage.slash.*`).
+모든 오류 출력은 두 줄이다: `xeon: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016). 인자 오류 문구(`cli.usage.*`, `parseArgv`가 돌려주는 `UsageError`), 도움말 본문(`cli.help.*`), `config list`의 정의 줄(`cli.config.*`), `version`과 `--set`의 문장도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 예약(`schedule`)·세션(`sessions`)·그룹 만들기(`group new`)·대화(`chat`)의 문장, 슬래시 명령의 도움말과 문구도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다(`cli.schedule.*`, `cli.sessions.*`, `cli.group.*`, `cli.chat.*`, `cli.slash.*`, `cli.usage.slash.*`). 렌더링 문장(`cli.render.approval.*`, `cli.render.lock.*`, `cli.render.notices.*`, `cli.render.textSink.*`, `cli.render.tools.*`, `cli.render.transcript.*`, `cli.render.trust.*`)과 최소 TUI 문장(`cli.tui.minimal.*`)도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 그 밖의 명령과 상태 문장(`cli.doctor.*`, `cli.secret.*`, `cli.trust.*`, `cli.db.*`, `cli.state.*`, `cli.host.*`, `cli.threads.*`, `cli.overrides.*`)도 카탈로그 id입니다.
 
 | kind | 문구 요지 | 해결 한 줄 | 종료 코드 |
 |---|---|---|---|
@@ -1073,7 +1073,7 @@ $ echo $?
 14. [결정: m2c G1-07] 비밀 삭제 전 참조 표시. `secret.references`로 설정 키, 활성 lease 수, 최근 사용한 세션을 보인다(§4.7 `rm`).
 15. [미결] 끊긴 turn을 연 세션의 질문 순서. 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(`L4.host-service.spec` HS-52) 승인 카드가 `이어서 실행할까요? [y/N]`보다 먼저 선다. 이어 실행을 먼저 묻고 승인 카드를 그 뒤로 미루려면 승인 프롬프트를 이어 실행 질문이 끝날 때까지 붙잡는 장치가 CLI에 필요하다. 지금은 두 질문이 같은 입력 줄을 순서대로 쓰고 어느 쪽으로도 잘못 응답되지 않는다(`turn-resume-host.int.test.ts`). 작성자 결정.
 16. [미결] `settings.invalidated` 구독(M2 마감 재검토 T6 메모). 이 문서가 M2에 요구하는 동작은 "시작할 때 `settings.list`와 `command.list`를 한 번 읽는다"(§4.12)이고 CLI는 알림을 구독하지 않는다. 대화 중에 다른 연결이 설정이나 신뢰를 바꾸면 Tab 완성의 키 목록과 엔진 명령 목록이 낡는다. 알림을 받아 두 목록을 다시 읽는 일은 M3에 한다(`L4.cli.plan` §4.6 끝 항목).
-17. [결정: adr.0016] CLI 출력 문장은 `@formatjs/intl`과 `packages/client`의 ko·en 카탈로그로 만든다. 로케일은 `ui.locale`(기본 auto, OS 로케일, 영어 폴백)을 따른다. 지금 소스에 하드코딩된 한국어 문자열의 이전은 M3 작업이다(`review.m3-plan` M3-39). 표시 언어 설정 키는 `l4.ui.locale`이고(`packages/client`의 `uiSettings`, `cliSettingGroups`로 엔진 조립에 넘긴다), `runCli`는 시작할 때 OS 단서(`LC_ALL`, `LC_MESSAGES`, `LANG`)로, `chat`의 `--set l4.ui.locale=<값>`이 있으면 그 값으로 현재 로케일을 정한다. 단서가 없으면 처음 값 `en`을 쓴다 [결정: 오케스트레이터 기본값].
+17. [결정: adr.0016] CLI 출력 문장은 `packages/client`의 ko·en 카탈로그 id로 만들고 현재 로케일로 풉니다. 포맷은 `Intl` 기반 포트(`packages/client/src/i18n/format.ts`, ICU MessageFormat 부분집합)입니다. ADR-0016 §3.1의 FormatJS(`@formatjs/intl`)는 승인 전이라 쓰지 않습니다 [결정: 오케스트레이터 기본값]. 로케일은 `ui.locale`(기본 auto, OS 로케일, 영어 폴백)을 따릅니다. 표시 언어 설정 키는 `l4.ui.locale`이고(`packages/client`의 `uiSettings`, `cliSettingGroups`로 엔진 조립에 넘깁니다), `runCli`는 시작할 때 OS 단서(`LC_ALL`, `LC_MESSAGES`, `LANG`)로, `chat`의 `--set l4.ui.locale=<값>`이 있으면 그 값으로 현재 로케일을 정합니다. 단서가 없으면 처음 값 `en`을 씁니다. CLI 문장의 한국어 이전은 M3b B4-I18N에서 끝났습니다. L4 `src`(apps/host, apps/cli, apps/desktop, packages/client)의 한국어 문자열 리터럴은 `xeon/hardcoded-korean` 규칙(`xeon/scripts/check-ts-rules.ts`)이 막습니다(시험과 `.tsx` 뷰는 제외). 테이프 스모크 `apps/cli/test/chat.scenario.test.ts`의 scenario-4는 `--set l4.ui.locale=en`이면 print 모드 턴의 거부 문장이 영어이고, 설정이 없으면 같은 테이프가 한국어로 나오는지 실제 자식 프로세스로 확인합니다.
 18. [결정: 오케스트레이터 기본값] `invalidRemote`의 종료 코드는 2다. HS-87이 주소 문법 오류를 "사용 오류"라고 하고 §3.6의 2는 인자 값의 오류를 포함한다. 설정 파일의 같은 값 오류(`settings.invalidValue`)도 2라서 맞췄다.
 19. [제안] `host --stdio`의 원격 중계(HS-89)는 M3b B2-RMT에 넣었다. 접속 실패의 종료 코드는 §4.10의 연결 오류 코드(3)를 따르고, HS-89의 1은 원격이 끊기거나 중계가 실패한 경우에만 쓴다. HS-89 문장과 맞는지 host-service 문서에서 확인한다.
 20. [미결] 주소 문구에서 `@`가 든 값을 가리는 규칙(자격 증명 방어)은 HS-87에 없다. 이 문서의 구현이 먼저 두었다. host-service 문서로 옮길지 정한다.
