@@ -106,6 +106,23 @@ test("E2 and E3 each name the host test and the sidecar e2e test, and the e2e li
   expect(needsSidecar(parsed.value)).toBe(true);
 });
 
+test("X4 names the idle, lifecycle and schedule host tests (the first and second halves of the condition)", () => {
+  const text = readFileSync(join(import.meta.dir, "exit-tests.txt"), "utf8");
+  const parsed = parseExitList(text);
+  if (!parsed.ok) throw new Error(parsed.error);
+  const x4 = parsed.value.filter((entry) => entry.condition === "X4");
+  expect(x4.map((entry) => [entry.dir, entry.files])).toEqual([
+    [
+      "apps/host",
+      [
+        "test/int/service-idle.int.test.ts",
+        "test/int/service-lifecycle.int.test.ts",
+        "test/int/service-schedule.int.test.ts",
+      ],
+    ],
+  ]);
+});
+
 test("a line for several conditions parses, and only desktop lines need the sidecar", () => {
   const parsed = parseExitList(
     "E2,E3 apps/desktop test/e2e/x.e2e.test.ts\nE4 apps/host test/a.ts\n",
