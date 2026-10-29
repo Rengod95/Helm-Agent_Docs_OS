@@ -157,6 +157,12 @@ manifest:
     - eng.testing.guide
     - eng.toolchain.guide
     - eng.frontend-state.guide
+    - eng.operations.runbook
+    - eng.operations.recovery
+    - eng.operations.glossary
+    - eng.operations.status-map
+    - eng.operations.data-privacy
+    - eng.operations.nfr
   decisions:
     - adr.0001   # 스택(Bun, TS7, oxlint/oxfmt, bun test, turbo)
     - adr.0002   # DI는 Cordis 하나
