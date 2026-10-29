@@ -980,7 +980,7 @@ sequenceDiagram
 | `unsupported-model` | 현재 모델에서 쓸 수 없다 |
 | 그 밖의 사유 | 사유 코드 그대로 |
 
-- [제안] 세 사유(`json-disabled`, `org-disabled`, `unsupported-model`)의 한국어 문구는 이 문서가 정한다. wire에는 문구가 없다.
+- [제안] 세 사유(`json-disabled`, `org-disabled`, `unsupported-model`)의 한국어 문구는 이 문서가 정한다. wire에는 문구가 없다. 소스에서는 `client.web.note.*` 메시지 id로 두고, 같은 id의 영어 문구를 `packages/client`의 en 카탈로그에 함께 둔다(ADR-0016).
 - 추천 키 플러그인(`recommendations`): [결정: ADR-0005 §3.1 ④, review.m3-design-inputs D-M3-23] Exa(`plugin:web-exa`, 비밀 이름 `exa-api-key`)와 Brave(`plugin:web-brave`, `brave-api-key`) 둘이다. Parallel과 Jina는 넣지 않는다. 상태는 다음과 같다.
   - 행이 없으면 `not-installed`이고 hint는 "플러그인을 설치한다"다.
   - `no-key`면 `needs-key`이고 hint는 `xeon secret add <비밀 이름>`이다.

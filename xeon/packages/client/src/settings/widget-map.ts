@@ -4,6 +4,7 @@ import {
   type SettingDefWire,
   type SettingWidget,
 } from "@xeon/contracts/settings";
+import { t } from "../i18n/index.ts";
 import type { ListItemKind, TableColumn, ViewDiagnostic, WidgetVM } from "./types.ts";
 
 // 위젯 대응(L4.settings-ui §4.2.1). 정의의 `ui.widget`이 JSON Schema 모양과 맞는지 보고, 맞지 않으면 읽기 전용과 진단을 낸다.
@@ -163,8 +164,13 @@ function recordOf(core: Schema): WidgetVM | null {
   if (value === null) return null;
   const valueKind = primitiveOf(coreOf(value)) ?? "json";
   const columns: readonly TableColumn[] = [
-    { name: "이름", kind: "string", options: null, required: true },
-    { name: "값", kind: valueKind, options: null, required: true },
+    { name: t("client.settings.widget.recordName"), kind: "string", options: null, required: true },
+    {
+      name: t("client.settings.widget.recordValue"),
+      kind: valueKind,
+      options: null,
+      required: true,
+    },
   ];
   return { kind: "table", shape: "record", columns, maxItems: numberOrNull(core["maxProperties"]) };
 }

@@ -6,6 +6,7 @@ import type {
   SettingLockReason,
   SettingSource,
 } from "@xeon/contracts/settings";
+import { t, type MessageId } from "../i18n/index.ts";
 import type {
   BadgeScope,
   DeprecatedVM,
@@ -17,31 +18,32 @@ import type {
 
 // 항목 공통 배지와 잠금 문구(L4.settings-ui §4.3, §4.8.3). 글자는 색과 함께 쓴다(§4.8.1).
 
-const SCOPE_TEXT: Readonly<Record<BadgeScope, string>> = {
-  managed: "관리",
-  user: "사용자",
-  project: "프로젝트",
-  local: "로컬",
-  session: "세션",
-  default: "기본값",
+// 배지 글자는 id로 들고 있다가 쓸 때 현재 로케일로 만든다(모듈이 읽힐 때의 로케일에 묶이지 않게 한다)
+const SCOPE_TEXT_ID: Readonly<Record<BadgeScope, MessageId>> = {
+  managed: "client.settings.scope.managed",
+  user: "client.settings.scope.user",
+  project: "client.settings.scope.project",
+  local: "client.settings.scope.local",
+  session: "client.settings.scope.session",
+  default: "client.settings.scope.default",
 };
 
-const RUNTIME_TEXT: Readonly<Record<RuntimeChange, string>> = {
-  live: "즉시 적용",
-  nextTurn: "다음 턴부터",
-  restart: "재시작 필요",
+const RUNTIME_TEXT_ID: Readonly<Record<RuntimeChange, MessageId>> = {
+  live: "client.settings.runtime.live",
+  nextTurn: "client.settings.runtime.nextTurn",
+  restart: "client.settings.runtime.restart",
 };
 
-const PENDING_TEXT: Readonly<Record<"nextTurn" | "restart", string>> = {
-  nextTurn: "다음 턴부터 적용돼요",
-  restart: "재시작해야 적용돼요",
+const PENDING_TEXT_ID: Readonly<Record<"nextTurn" | "restart", MessageId>> = {
+  nextTurn: "client.settings.pending.nextTurn",
+  restart: "client.settings.pending.restart",
 };
 
 /** 기본 쓰기 범위의 우선순위(§4.3.6 규칙 4) */
 const DEFAULT_SCOPE_ORDER: readonly WritableScope[] = ["user", "project", "local", "session"];
 
 export function scopeBadge(source: SettingSource): ScopeBadge {
-  return { scope: source.scope, text: SCOPE_TEXT[source.scope], tone: source.scope };
+  return { scope: source.scope, text: t(SCOPE_TEXT_ID[source.scope]), tone: source.scope };
 }
 
 export function runtimeBadgeOf(
@@ -50,9 +52,9 @@ export function runtimeBadgeOf(
 ): RuntimeBadge {
   return {
     change,
-    text: RUNTIME_TEXT[change],
+    text: t(RUNTIME_TEXT_ID[change]),
     pending: pendingUntil,
-    pendingText: pendingUntil === null ? null : PENDING_TEXT[pendingUntil],
+    pendingText: pendingUntil === null ? null : t(PENDING_TEXT_ID[pendingUntil]),
   };
 }
 
@@ -68,14 +70,16 @@ export function lockInfo(setting: EffectiveSetting): LockInfo | null {
   if (!setting.locked) return null;
   const reason: SettingLockReason = setting.lockReason ?? "managed_file";
   if (reason === "managed_policy") {
-    return { reason, path: null, text: "관리 정책(파일 밖 수단)으로 잠겨 있어요" };
+    return { reason, path: null, text: t("client.settings.lock.managedPolicy") };
   }
   const path = setting.source.path ?? null;
   return {
     reason,
     path,
     text:
-      path === null ? "관리 정책으로 잠겨 있어요" : `관리 정책으로 잠겨 있어요 정책 파일: ${path}`,
+      path === null
+        ? t("client.settings.lock.managedFile")
+        : t("client.settings.lock.managedFilePath", { path }),
   };
 }
 

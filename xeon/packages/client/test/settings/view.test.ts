@@ -1,10 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { MODELS_SETTING_DEFS } from "@xeon/core-models";
 import {
   toSettingDefWire,
   type EffectiveSetting,
   type SettingDefWire,
 } from "@xeon/contracts/settings";
+import { activeLocale, setActiveLocale, type Locale } from "../../src/i18n/index.ts";
 import {
   TAB_ORDER,
   TAB_SPECS,
@@ -473,3 +474,117 @@ describe("real models definitions (l1.models.*)", () => {
     expect(missing).toHaveLength(wires.length);
   });
 });
+
+describe("labels, help and the restart banner come from the catalog", () => {
+  // 호스트가 보내는 정의와 같은 모양: 영어 대체 문구와 메시지 키
+  const replayDef = wireDef({
+    key: "l4.hostService.maxReplayEvents",
+    type: { type: "integer" },
+    ui: {
+      tab: "execution",
+      widget: "number",
+      order: 1,
+      label: "Maximum events replayed per subscription",
+      labelKey: "settings.l4.hostService.maxReplayEvents.label",
+      help: "Events one subscription can replay. Beyond this, subscribe again from a newer position",
+      helpKey: "settings.l4.hostService.maxReplayEvents.help",
+    },
+  });
+
+  let saved: Locale = "ko";
+  beforeEach(() => {
+    saved = activeLocale();
+  });
+  afterEach(() => {
+    setActiveLocale(saved);
+  });
+
+  function replayField(): FieldVM | undefined {
+    return fieldOf(viewOf([replayDef], valuesOf(effectiveOf(replayDef.key, 500))), replayDef.key);
+  }
+
+  test("ko: a definition with labelKey shows the Korean catalog sentence for label and help", () => {
+    setActiveLocale("ko");
+    expect(replayField()?.label).toBe("구독 재전송 최대 이벤트 수");
+    expect(replayField()?.help).toBe(
+      "구독 한 번에 다시 보낼 수 있는 이벤트 수. 넘으면 새 위치에서 다시 구독해야 한다",
+    );
+  });
+
+  test("en: the same definition shows the English catalog sentence, not the definition text", () => {
+    setActiveLocale("en");
+    expect(replayField()?.label).toBe("Maximum events replayed per subscription");
+    expect(replayField()?.help).toBe(
+      "Events one subscription can replay. Beyond this, subscribe again from a newer position",
+    );
+  });
+
+  test("without labelKey, or with a key the catalog does not have, the definition text is shown in both locales", () => {
+    const plain = wireDef({
+      key: "l4.plain",
+      type: { type: "integer" },
+      ui: {
+        tab: "execution",
+        widget: "number",
+        order: 2,
+        label: "Plain label",
+        help: "Plain help",
+      },
+    });
+    const unknown = wireDef({
+      key: "l4.unknown",
+      type: { type: "integer" },
+      ui: {
+        tab: "execution",
+        widget: "number",
+        order: 3,
+        label: "Unknown label",
+        labelKey: "settings.no.such.label",
+      },
+    });
+    const values = valuesOf(effectiveOf(plain.key, 1), effectiveOf(unknown.key, 2));
+    for (const locale of ["ko", "en"] as const) {
+      setActiveLocale(locale);
+      const view = viewOf([plain, unknown], values);
+      expect(fieldOf(view, plain.key)?.label).toBe("Plain label");
+      expect(fieldOf(view, plain.key)?.help).toBe("Plain help");
+      expect(fieldOf(view, unknown.key)?.label).toBe("Unknown label");
+      expect(fieldOf(view, unknown.key)?.help).toBeNull();
+    }
+  });
+
+  test("the restart banner counts in Korean and in English with the singular and plural forms", () => {
+    const a = restartDef("l4.a");
+    const b = restartDef("l4.b");
+    expect(bannerOf("en", [a], [pending("l4.a")])).toBe("1 change needs a restart to take effect.");
+    expect(bannerOf("en", [a, b], [pending("l4.a"), pending("l4.b")])).toBe(
+      "2 changes need a restart to take effect.",
+    );
+    expect(bannerOf("ko", [a, b], [pending("l4.a"), pending("l4.b")])).toBe(
+      "재시작해야 적용되는 변경이 2개 있어요",
+    );
+  });
+});
+
+function restartDef(key: string): SettingDefWire {
+  return wireDef({
+    key,
+    type: { type: "string" },
+    runtimeChange: "restart",
+    ui: { tab: "execution", widget: "text", order: 1, label: key },
+  });
+}
+
+function pending(key: string): EffectiveSetting {
+  return effectiveOf(key, "x", { runtimeChange: "restart", pendingUntil: "restart" });
+}
+
+/** 배너 문장은 view를 만들 때의 로케일로 정해지므로 로케일을 바꾼 뒤 view를 만든다 */
+function bannerOf(
+  locale: Locale,
+  defs: readonly SettingDefWire[],
+  settings: readonly EffectiveSetting[],
+): string | undefined {
+  setActiveLocale(locale);
+  return viewOf(defs, valuesOf(...settings)).restartBanner?.text;
+}

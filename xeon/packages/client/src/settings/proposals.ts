@@ -6,6 +6,7 @@ import type {
   ProposalRow,
   ProposalSource,
 } from "@xeon/contracts/wire";
+import { t, type MessageId } from "../i18n/index.ts";
 
 // 지식 제안 목록 view-model(M3-REQ-18, M3-18 L4, D-M3-32 a). 대기열은 둘(학습 `x_learning_proposals`, L2.knowledge)이고 호스트가 한 목록으로
 // 합쳐 `proposal.list`로 준다. 이 모듈은 그 행을 화면 값으로 바꾸고, 사용자의 동작을 `proposal.decide` params로, 결과를 문구로 바꾼다.
@@ -14,24 +15,29 @@ import type {
 export type ProposalAction = "approve" | "reject" | "edit" | "revert";
 export type ProposalScope = "user" | "project";
 
-const SOURCE_LABELS: Readonly<Record<ProposalSource, string>> = {
-  learning: "학습",
-  knowledge: "지식",
+// 표시 글자는 id로 들고 있다가 쓸 때 현재 로케일로 만든다
+const SOURCE_LABELS: Readonly<Record<ProposalSource, MessageId>> = {
+  learning: "client.settings.proposals.source.learning",
+  knowledge: "client.settings.proposals.source.knowledge",
 };
-const KIND_LABELS: Readonly<Record<ProposalRow["kind"], string>> = {
-  skill: "스킬",
-  memory: "메모리",
-  feedback: "피드백",
-  script: "스크립트",
+const KIND_LABELS: Readonly<Record<ProposalRow["kind"], MessageId>> = {
+  skill: "client.settings.proposals.kind.skill",
+  memory: "client.settings.proposals.kind.memory",
+  feedback: "client.settings.proposals.kind.feedback",
+  script: "client.settings.proposals.kind.script",
 };
-const STATUS_LABELS: Readonly<Record<ProposalRow["status"], string>> = {
-  pending: "대기 중",
-  approved: "승인됨",
-  applied: "적용됨",
-  rejected: "거절됨",
-  stale: "오래됨",
-  expired: "만료됨",
-  reverted: "되돌림",
+const STATUS_LABELS: Readonly<Record<ProposalRow["status"], MessageId>> = {
+  pending: "client.settings.proposals.status.pending",
+  approved: "client.settings.proposals.status.approved",
+  applied: "client.settings.proposals.status.applied",
+  rejected: "client.settings.proposals.status.rejected",
+  stale: "client.settings.proposals.status.stale",
+  expired: "client.settings.proposals.status.expired",
+  reverted: "client.settings.proposals.status.reverted",
+};
+const UNAVAILABLE_TEXTS: Readonly<Record<ProposalSource, MessageId>> = {
+  learning: "client.settings.proposals.unavailable.learning",
+  knowledge: "client.settings.proposals.unavailable.knowledge",
 };
 
 export type ProposalRowVM = {
@@ -90,12 +96,12 @@ function rowOf(row: ProposalRow): ProposalRowVM {
   return {
     key: `${row.source}:${row.id}`,
     source: row.source,
-    sourceLabel: SOURCE_LABELS[row.source],
+    sourceLabel: t(SOURCE_LABELS[row.source]),
     id: row.id,
-    kindLabel: KIND_LABELS[row.kind],
+    kindLabel: t(KIND_LABELS[row.kind]),
     op: row.op,
     target: row.target,
-    statusLabel: STATUS_LABELS[row.status],
+    statusLabel: t(STATUS_LABELS[row.status]),
     status: row.status,
     actions: actionsOf(row),
     destructive: row.destructive,
@@ -114,13 +120,11 @@ function rowOf(row: ProposalRow): ProposalRowVM {
 /** `proposal.list` 결과를 목록 값으로 바꾼다. 행 순서는 호스트가 정한 그대로다(최신 먼저) */
 export function proposalListView(result: ProposalListResult): ProposalListVM {
   const rows = result.proposals.map(rowOf);
-  const unavailableTexts = result.unavailable.map(
-    (source) => `${SOURCE_LABELS[source]} 제안을 불러오지 못했어요`,
-  );
+  const unavailableTexts = result.unavailable.map((source) => t(UNAVAILABLE_TEXTS[source]));
   return {
     rows,
     unavailableTexts,
-    emptyText: rows.length === 0 ? "대기 중인 제안이 없어요" : null,
+    emptyText: rows.length === 0 ? t("client.settings.proposals.empty") : null,
     nextCursor: result.nextCursor,
   };
 }
@@ -194,26 +198,32 @@ export type DecisionOutcome =
 const FAILURE_TEXTS: Readonly<
   Record<
     Extract<ProposalDecideResult, { ok: false }>["reason"],
-    { readonly text: string; readonly reload: boolean }
+    { readonly textId: MessageId; readonly reload: boolean }
   >
 > = {
-  not_found: { text: "제안을 찾을 수 없어요. 목록을 새로 불러왔어요", reload: true },
+  not_found: { textId: "client.settings.proposals.failed.notFound", reload: true },
   revision_mismatch: {
-    text: "다른 곳에서 제안이 바뀌었어요. 목록을 새로 불러왔어요",
+    textId: "client.settings.proposals.failed.revisionMismatch",
     reload: true,
   },
-  closed: { text: "이미 처리된 제안이에요. 목록을 새로 불러왔어요", reload: true },
-  scope_not_allowed: { text: "이 범위에는 적용할 수 없어요", reload: false },
-  unsupported: { text: "이 출처에서는 쓸 수 없는 동작이에요", reload: false },
-  base_stale: { text: "대상이 바뀌어 제안이 오래되었어요. 목록을 새로 불러왔어요", reload: true },
-  scan_failed: { text: "내용 검사를 통과하지 못해 적용하지 않았어요", reload: false },
-  approval_required: { text: "쓰기 승인이 먼저 필요해요", reload: false },
-  unavailable: { text: "지금은 처리할 수 없어요. 잠시 뒤 다시 해 주세요", reload: false },
+  closed: { textId: "client.settings.proposals.failed.closed", reload: true },
+  scope_not_allowed: {
+    textId: "client.settings.proposals.failed.scopeNotAllowed",
+    reload: false,
+  },
+  unsupported: { textId: "client.settings.proposals.failed.unsupported", reload: false },
+  base_stale: { textId: "client.settings.proposals.failed.baseStale", reload: true },
+  scan_failed: { textId: "client.settings.proposals.failed.scanFailed", reload: false },
+  approval_required: {
+    textId: "client.settings.proposals.failed.approvalRequired",
+    reload: false,
+  },
+  unavailable: { textId: "client.settings.proposals.failed.unavailable", reload: false },
 };
 
 /** `proposal.decide` 결과를 화면 값으로 바꾼다. 서버의 `detail`은 쓰지 않는다 */
 export function decisionOutcomeOf(result: ProposalDecideResult): DecisionOutcome {
   if (result.ok) return { kind: "done", proposal: rowOf(result.proposal), applied: result.applied };
   const failure = FAILURE_TEXTS[result.reason];
-  return { kind: "failed", text: failure.text, reload: failure.reload };
+  return { kind: "failed", text: t(failure.textId), reload: failure.reload };
 }

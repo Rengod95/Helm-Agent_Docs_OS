@@ -6,6 +6,7 @@ import type {
   WebProviderStatus,
   WebProvidersResult,
 } from "@xeon/contracts/wire";
+import { t, type MessageId } from "../i18n/index.ts";
 
 // 도구와 웹 탭의 view-model(L4.settings-ui §3.6, §4.11, M3-12 비시각 부분, M3-REQ-96). `web.providers` 결과를 화면 값으로 바꾸고,
 // 끌어 옮긴 순서를 `settings.set` 값으로 바꾼다. 순위와 현재 provider는 호스트가 `autoRank`로 정해 싣는다(F.wire-settings.spec
@@ -104,12 +105,12 @@ const RECOMMENDED: readonly RecommendedKey[] = [
   { label: "Brave", providerId: "plugin:web-brave", secretName: "brave-api-key" },
 ];
 
-// 사유 코드별 한 줄 문구. 목록에 없는 사유는 코드 그대로 보인다
-const NOTE_BY_REASON: ReadonlyMap<string, string> = new Map([
-  ["unreachable", "응답이 없다"],
-  ["json-disabled", "JSON 응답이 꺼져 있다"],
-  ["org-disabled", "조직 설정에서 막혀 있다"],
-  ["unsupported-model", "현재 모델에서 쓸 수 없다"],
+// 사유 코드별 한 줄 문구의 id. 목록에 없는 사유는 코드 그대로 보인다
+const NOTE_ID_BY_REASON: ReadonlyMap<string, MessageId> = new Map<string, MessageId>([
+  ["unreachable", "client.web.note.unreachable"],
+  ["json-disabled", "client.web.note.jsonDisabled"],
+  ["org-disabled", "client.web.note.orgDisabled"],
+  ["unsupported-model", "client.web.note.unsupportedModel"],
 ]);
 
 function compareCodeUnits(a: string, b: string): number {
@@ -128,15 +129,16 @@ function byRankThenId(a: WebProviderStatus, b: WebProviderStatus): number {
 
 function keyNoteOf(providerId: string): string {
   const key = RECOMMENDED.find((entry) => entry.providerId === providerId);
-  if (key === undefined) return "키가 없다 — 해결: 키 플러그인 설정에서 키를 등록한다";
-  return `키가 없다 — 해결: xeon secret add ${key.secretName}`;
+  if (key === undefined) return t("client.web.note.noKeyPlugin");
+  return t("client.web.note.noKeyCommand", { secretName: key.secretName });
 }
 
 function noteOf(row: WebProviderStatus): string {
   const { status } = row;
-  if (status.kind === "ok") return "사용할 수 있다";
+  if (status.kind === "ok") return t("client.web.note.ok");
   if (status.reason === "no-key") return keyNoteOf(row.id);
-  return NOTE_BY_REASON.get(status.reason) ?? status.reason;
+  const id = NOTE_ID_BY_REASON.get(status.reason);
+  return id === undefined ? status.reason : t(id);
 }
 
 function rowOf(row: WebProviderStatus, current: boolean, pinned: boolean): WebToolRow {
@@ -190,7 +192,7 @@ function recommendationOf(
 ): WebRecommendation {
   const row = providers.find((entry) => entry.id === key.providerId);
   if (row === undefined) {
-    return { ...key, state: "not-installed", hint: "플러그인을 설치한다" };
+    return { ...key, state: "not-installed", hint: t("client.web.hint.installPlugin") };
   }
   if (row.status.kind === "ok") return { ...key, state: "ready", hint: "" };
   if (row.status.reason === "no-key") {

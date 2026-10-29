@@ -1,7 +1,7 @@
 import {
-  ROTATION_RISK_NOTICE,
   accountsOf,
   rateLimitOf,
+  rotationRiskNotice,
   type AccountRow,
   type RateLimitEntry,
 } from "./accounts.ts";
@@ -57,7 +57,7 @@ export function modelAccountsView(input: ModelAccountsInput): ModelAccountsView 
   }));
   const rotation: RotationView = {
     state: rotationStateOf(input.pluginEnabled, input.acknowledged),
-    notice: ROTATION_RISK_NOTICE,
+    notice: rotationRiskNotice(),
   };
   return { providers, rotation };
 }
