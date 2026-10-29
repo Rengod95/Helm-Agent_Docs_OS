@@ -188,6 +188,8 @@ zod4와 TypeBox 공존: 경계 변환 지점 [제안]:
 | | `stderr masked in lastError` | stderr에 비밀 값 → `lastError.message`에 마스킹 표지 |
 | `test/state.test.ts` | `persists server status` | 상태 변경이 `cap_mcp_servers`에 반영, 재시작 뒤 `lastError` 조회 |
 | `test/boundary.test.ts` | `sdk types stay inside adapter` | `src/` 파일 중 허용 목록 밖에서 `@modelcontextprotocol/*`·`zod` import 0건(spec §9-10, 소스 텍스트 검사) |
+| `test/transport-stdio.test.ts` | `a sandbox the port cannot provide is an open failure, and the sandbox flag follows the source` | 포트의 `sandbox_unavailable`은 열기 실패 `sandbox_unavailable`(고정 문구). 기동 요청의 `sandbox`는 `mcpjson:project`에서 참, `settings:user`에서 거짓(spec §4.3) |
+| `test/start-gate.test.ts` | `sandbox_unavailable keeps the server blocked until a new attempt` | 프로젝트 `.mcp.json` 서버의 기동이 `sandbox_unavailable`로 실패 → `blocked(sandbox_unavailable)`, `lastError.code` 같음. 한 시간 뒤에도 기동 1회, 타이머 없음. 도구 0개, 호출은 `server_blocked`(`reason`). `reconnect` 뒤 `connected`이고 사유가 없다(spec §4.3, §5 16번) |
 
 ## 6. 완료 기준
 

@@ -542,6 +542,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - 비밀 값은 `cap-mcp`의 로그, 이벤트, 오류 `message`, `cap_mcp_servers`, 모델 요청에 나타나지 않는다. 서버 stderr와 오류 메시지는 L0.secrets 마스킹을 거친 뒤 저장한다.
 - 기동 승인 [결정: M3-05, D-M3-19 행 2 권고 적용]: `env`에 `secret://` 값이 있는 stdio 서버는 정의 해시마다 한 번 사용자의 기동 승인을 받아야 뜬다. 승인 포트 `McpStartGate`(`src/ports/start-gate.ts`)가 판정하고(`L1.tools.spec` §4.12.1), 전송 팩토리가 spawn 전에 부른다. `pending`이면 서버는 `blocked`(`blockedReason: "approval_required"`)로 두고 spawn하지 않으며 재시도 타이머를 쓰지 않는다. 응답이 오면 게이트가 서버 id로 알리고 레지스트리가 연결을 다시 시작한다. `denied`면 spawn하지 않고 `lastError.code = "secret_denied"`다. 승인 증거는 `McpSpawnSpec.approval`로 L0에 가고 `mcp.start:<서버 id>` 맥락으로 비밀을 푼다(`L0.process.spec` §4.9). 승인을 올릴 대화는 가장 최근에 정의를 읽은 대화다. 대화가 없으면 대화가 생기는 첫 단계 경계에서 다시 시도한다. 평문 env는 `McpSpawnSpec.env`로 간다.
 - 샌드박스 [결정: M3-REQ-97, D-M3-19 행 1]: stdio 서버를 샌드박스에 넣을지는 서버별 `sandbox`(F `McpServerDef`)가 있으면 그 값이고, 없으면 출처별 설정 키다. 사용자 설정(`settings:user`) 출처는 `l2.mcp.sandbox.userSource`(기본 끔), 그 밖의 출처(`settings:project`, `settings:local`, `mcpjson:*`, `ext:*`)는 `l2.mcp.sandbox.projectSource`(기본 켬)다. 두 키는 managed·user 범위만 받는다(프로젝트가 스스로 끄지 못한다). 결과는 `McpSpawnSpec.sandbox`로 L0에 가고 L0가 강제한다(`L0.sandbox.spec` §4.8).
+- 샌드박스 격리 불가 [해소 P-15]: 샌드박스에 넣을 stdio 서버는 `sandbox`가 참인 `McpSpawnSpec`으로 `McpProcessPort.spawn`을 부른다. L0는 샌드박스 명령줄(`wrapArgv`)로 띄우고, 격리를 쓸 수 없으면 `sandbox_unavailable`(`reason`)을 돌려준다(`L0.process.spec` §4.9). 전송 팩토리는 이를 열기 실패 `sandbox_unavailable`로 바꾼다. 서버는 띄우지 않고 `blocked`(`blockedReason: "sandbox_unavailable"`), `lastError.code = "sandbox_unavailable"`로 둔다. 재시도 타이머와 실패 횟수는 쓰지 않는다(기동 승인 대기와 같다). 같은 서버는 다음 연결 시도에서 다시 판정한다. 다음 연결 시도는 `connect`나 `reconnect` 메서드 호출, 또는 정의가 바뀌어 서버를 다시 시작할 때다. `l2.mcp.sandbox.*` 값만 바뀐 경우는 서버를 다시 시작하지 않으므로 다시 판정하지 않는다 [미결 15]. 격리 없이 띄우는 것은 사용자가 정한 때뿐이다. 서버별 `sandbox: false`나 출처 키를 끈 것은 격리를 요청하지 않는 설정이다. 격리를 요청한 채 `l0.sandbox.enabled`를 끄거나 `l0.sandbox.onUnavailable`을 `run_unsandboxed`로 둔 때는 L0가 경고 `mcp.sandbox_not_enforced`를 남기고 띄운다.
 
 ### 4.4 허용, 차단, 도구 노출, 승인
 
@@ -679,6 +680,7 @@ sequenceDiagram
 | 13 | 서버가 2025 사양만 지원 | `auto` 협상으로 2025 연결. MRTR 대신 2025 서버 → 클라이언트 elicitation 요청이 올 수 있다. 수동 모드에서 처리기를 두지 않아 SDK가 그 요청을 오류로 거절한다(`mrtr.test.ts`로 확인) |
 | 14 | 도구 `inputSchema`가 한도 초과 | 노출하지 않음(`schema_invalid`) |
 | 15 | 같은 도구 호출이 병렬로 여럿 | 모두 진행. 서버 쪽 동시성 한도는 서버 몫 |
+| 16 | 샌드박스를 요청한 stdio 서버를 이 기기에서 격리할 수 없음 | 띄우지 않는다. `blocked`(`sandbox_unavailable`), `lastError.code = "sandbox_unavailable"`, 재시도 타이머 없음(§4.3). 도구는 노출하지 않고 호출은 `server_blocked`(`reason: "sandbox_unavailable"`)다 |
 
 ## 6. 설정 노출
 
@@ -776,3 +778,4 @@ sequenceDiagram
 12. [미결] 사용자 범위 서버 정의 파일(설정 파일 밖의 별도 `mcp.json`)을 둘지. 이 문서는 설정 키 하나와 프로젝트 `.mcp.json` 가져오기만 둔다.
 13. [미결] 작업 폴더가 서로 다른 대화가 한 엔진에서 동시에 돌 때 프로젝트 출처 서버 정의의 범위. 지금은 단계를 연 대화의 루트를 따르므로 번갈아 열면 재연결이 일어난다. 대화(작업 폴더)별 레지스트리로 나누는 안이 있다(`L2.readme` §5.10).
 14. [결정: review.m3-design-inputs D-M3-19 행 2] 비밀 env 서버의 기동 승인은 서버 정의마다 한 번이고 정의가 바뀌면 다시 받는다. 승인 레코드에 정의 해시를 싣는다. 명시 답이 없어 권고를 적용했다 [가정]. 샌드박스는 출처별 기본값(프로젝트 출처 켬, 사용자 출처 끔)이다(D-M3-19 행 1). 이전 기록: 비밀 env가 있는 stdio 서버. env 모드는 실행마다 승인 증거를 요구하는데(`L0.secrets.spec` §4.2) 서버 시작에는 승인 지점이 없어 `secret_denied`로 끝난다(`L0.process.spec` 미결 P-12, ADR-0011). 구현은 M3다(`review.m3-plan`). 비밀 없는 서버와 HTTP 서버는 영향이 없다.
+15. [미결] `l2.mcp.sandbox.*` 값만 바뀐 때 서버를 다시 판정할지. 지금 레지스트리는 정의나 정책 막힘 사유가 바뀔 때만 서버를 다시 시작한다(§4.9). 그래서 샌드박스 키를 바꿔도 `sandbox_unavailable`로 막힌 서버는 다음 `connect`·`reconnect`나 정의 변경 전까지 그대로다. §4.9는 지문이 바뀌면 서버를 맞춘다고 적었다. 샌드박스 값을 다시 시작 조건으로 넣을지 정한다.

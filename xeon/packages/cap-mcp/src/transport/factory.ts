@@ -21,6 +21,7 @@ type OpenFailureCode =
   | "spawn_failed"
   | "secret_missing"
   | "secret_denied"
+  | "sandbox_unavailable"
   | "unsupported"
   | "approval_required"
   | "invalid_url";
@@ -110,6 +111,12 @@ export function createTransportFactory(deps: DefaultTransportDeps): TransportFac
           const failure = spawned.error;
           if (failure.kind === "spawn_failed") {
             return err({ code: "spawn_failed", message: `${failure.code}: ${failure.message}` });
+          }
+          if (failure.kind === "sandbox_unavailable") {
+            return err({
+              code: "sandbox_unavailable",
+              message: `the sandbox is unavailable (${failure.reason}), so the server was not started`,
+            });
           }
           return err({ code: failure.kind, message: `${failure.kind}: ${failure.ref}` });
         }

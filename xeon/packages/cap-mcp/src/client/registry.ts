@@ -112,8 +112,12 @@ interface Entry {
   idle: (() => void)[];
   /** 우리가 닫는 중이라 연결 끊김을 장애로 보지 않는다 */
   closing: boolean;
-  /** 비밀 env 서버가 사용자의 기동 승인을 기다린다(상태 blocked, 사유 approval_required) */
-  awaitingApproval: boolean;
+  /**
+   * 연결 시도 중에 정해진 막힘. 정의 정책의 막힘(`blockedReason`)과 달리 다음 시도에서 다시 판정한다.
+   * approval_required는 비밀 env 서버가 사용자의 기동 승인을 기다리는 것이고,
+   * sandbox_unavailable은 격리해야 하는 서버를 이 기기에서 격리할 수 없는 것이다(L0.process.spec §4.9)
+   */
+  dynamicBlock: "approval_required" | "sandbox_unavailable" | undefined;
 }
 
 function freshEntry(definition: ServerDefinition, blockedReason: BlockedReason | undefined): Entry {
@@ -137,7 +141,7 @@ function freshEntry(definition: ServerDefinition, blockedReason: BlockedReason |
     inflight: 0,
     idle: [],
     closing: false,
-    awaitingApproval: false,
+    dynamicBlock: undefined,
   };
 }
 
@@ -149,8 +153,7 @@ function snapshotOf(entry: Entry): ServerSnapshot {
   return {
     definition: entry.definition,
     state: entry.state,
-    blockedReason:
-      entry.blockedReason ?? (entry.awaitingApproval ? "approval_required" : undefined),
+    blockedReason: entry.blockedReason ?? entry.dynamicBlock,
     protocolVersion: entry.protocolVersion,
     tools: entry.tools,
     prompts: entry.prompts,
@@ -227,7 +230,7 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     entry.abort = abort;
     const settings = deps.settings();
     const connectMs = entry.definition.def.timeouts?.connectMs ?? settings.connectTimeoutMs;
-    entry.awaitingApproval = false;
+    entry.dynamicBlock = undefined;
     const opened = await deps.transports.open(entry.definition, abort.signal, {
       sandbox: sandboxOf(entry.definition, settings),
       threadId: deps.threadOf?.(),
@@ -235,8 +238,16 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     if (stale()) return;
     if (!opened.ok && opened.error.code === "approval_required") {
       // 사용자의 기동 승인을 기다린다. 장애가 아니라서 재시도 타이머와 실패 횟수를 쓰지 않는다. 응답이 오면 연결을 다시 시작한다
-      entry.awaitingApproval = true;
+      entry.dynamicBlock = "approval_required";
       entry.lastError = undefined;
+      setState(entry, "blocked");
+      deps.onChanged(entry.definition.id);
+      return;
+    }
+    if (!opened.ok && opened.error.code === "sandbox_unavailable") {
+      // 격리할 수 없는 기기에서는 띄우지 않는다. 재시도 타이머를 쓰지 않는다. 정의가 바뀌거나 사용자가 다시 시작하면 새로 판정한다(샌드박스 설정만 바뀐 경우는 다시 시작하지 않는다, spec §10 15번)
+      entry.dynamicBlock = "sandbox_unavailable";
+      recordError(entry, "sandbox_unavailable", opened.error.message);
       setState(entry, "blocked");
       deps.onChanged(entry.definition.id);
       return;

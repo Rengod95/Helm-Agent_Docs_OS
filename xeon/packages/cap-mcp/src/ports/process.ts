@@ -18,7 +18,10 @@ export interface McpSpawnSpec {
   readonly env?: Readonly<Record<string, string>>;
   /** 비밀 env의 기동 승인 증거(정의 해시마다 한 번 받은 것). `secretEnv`가 있을 때 쓴다 */
   readonly approval?: McpStartEvidence | null;
-  /** 샌드박스에 넣어 띄우는가(출처별 기본값과 서버별 설정으로 정한 값, L2.mcp.spec §4.3) */
+  /**
+   * 샌드박스에 넣어 띄우는가(출처별 기본값과 서버별 설정으로 정한 값, L2.mcp.spec §4.3).
+   * 참이면 격리를 쓸 수 없을 때 띄우지 않고 `sandbox_unavailable`을 돌려받는다
+   */
   readonly sandbox?: boolean;
   /** 화면 표시. 비밀 값을 넣지 않는다 */
   readonly label: string;
@@ -38,7 +41,9 @@ export interface McpChild {
 export type McpSpawnError =
   | { readonly kind: "spawn_failed"; readonly code: string; readonly message: string }
   | { readonly kind: "secret_missing"; readonly ref: string }
-  | { readonly kind: "secret_denied"; readonly ref: string };
+  | { readonly kind: "secret_denied"; readonly ref: string }
+  /** 샌드박스에 넣어야 하는데 이 기기에서 격리할 수 없다. 서버는 띄우지 않는다(L0.process.spec §4.9) */
+  | { readonly kind: "sandbox_unavailable"; readonly reason: string };
 
 export interface McpProcessPort {
   spawn(spec: McpSpawnSpec, signal: AbortSignal): Promise<Result<McpChild, McpSpawnError>>;

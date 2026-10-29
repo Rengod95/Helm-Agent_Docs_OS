@@ -5,10 +5,12 @@ import type { McpStartDefinition, McpStartGate, McpStartVerdict } from "../src/p
 import { createTransportFactory } from "../src/transport/factory.ts";
 import { DEFAULT_MCP_SETTINGS, sandboxOf } from "../src/settings.ts";
 import type { ServerDefinition } from "../src/types.ts";
+import type { McpSpawnError } from "../src/ports/process.ts";
 import type { McpServerDef } from "@xeon/contracts/capabilities";
 import { flush } from "./support/flush.ts";
+import { rejection } from "./support/rejection.ts";
 import { fixedClock, manualScheduler } from "./support/time.ts";
-import { buildWorld, startWorld } from "./support/world.ts";
+import { buildWorld, fakeFiles, startWorld } from "./support/world.ts";
 
 // M3-05, M3-REQ-97, L2.mcp.spec §4.3. 비밀 env stdio 서버는 기동 승인 뒤에만 뜨고, 승인 증거와 평문 env, 샌드박스 요청이 spawn에 실린다.
 
@@ -215,5 +217,90 @@ describe("per-source sandbox keys", () => {
     const status = await keyOn.runtime.service.client.listServers({});
     expect(status.servers[0]?.state).toBe("connected");
     await keyOn.runtime.shutdown();
+  });
+});
+
+// P-15, L2.mcp.spec §4.3. 샌드박스를 요청한 서버를 이 기기에서 격리할 수 없으면 띄우지 않고 blocked(sandbox_unavailable)로 둔다. 재시도 타이머는 없다.
+
+const PROJECT_ROOT = "/proj";
+
+/** 프로젝트 `.mcp.json`의 서버 하나(출처 `mcpjson:project`, 기본 샌드박스 켬). 첫 기동은 `verdict`로 실패한다 */
+function projectWorld(verdict: McpSpawnError) {
+  let process: ReturnType<typeof createStubProcessPort> | undefined;
+  const world = buildWorld({
+    servers: { gh: { stub: { era: "modern", tools: [{ name: "t" }] } } },
+    user: { servers: {} },
+    overrides: {
+      projectRoot: PROJECT_ROOT,
+      files: fakeFiles({
+        [`${PROJECT_ROOT}/.mcp.json`]: JSON.stringify({
+          mcpServers: { gh: { command: "gh-mcp" } },
+        }),
+      }),
+    },
+    transportsFor: (stubs) => {
+      const stub = stubs["gh"];
+      if (stub === undefined) throw new Error("stub missing");
+      process = createStubProcessPort(stub);
+      process.failNext(verdict);
+      return createTransportFactory({
+        process: process.port,
+        secrets: undefined,
+        scheduler: manualScheduler(fixedClock()),
+        stdioGraceMs: 10,
+        fetch: undefined,
+      });
+    },
+  });
+  const spawned = () => process?.spawned ?? [];
+  return { world, spawned };
+}
+
+describe("sandbox_unavailable keeps the server blocked until a new attempt", () => {
+  test("a project server that cannot be isolated stays blocked with no retry, and a reconnect starts it", async () => {
+    const { world, spawned } = projectWorld({
+      kind: "sandbox_unavailable",
+      reason: "missing_dependency",
+    });
+    await startWorld(world);
+    const client = world.runtime.service.client;
+    const blocked = await client.status({ server: "gh" });
+    expect(blocked).toMatchObject({
+      server: "gh",
+      source: "mcpjson:project",
+      state: "blocked",
+      blockedReason: "sandbox_unavailable",
+      lastError: {
+        code: "sandbox_unavailable",
+        message: "the sandbox is unavailable (missing_dependency), so the server was not started",
+      },
+      toolCount: 0,
+    });
+    expect(spawned()).toHaveLength(1);
+    expect(spawned()[0]).toMatchObject({ command: "gh-mcp", sandbox: true });
+
+    // 재시도 타이머가 없다. 오래 기다려도 다시 띄우지 않는다
+    expect(world.scheduler.pending()).toEqual([]);
+    world.scheduler.advance(60 * 60 * 1000);
+    await world.runtime.settled();
+    expect(spawned()).toHaveLength(1);
+    expect((await client.status({ server: "gh" })).state).toBe("blocked");
+
+    // 막힌 서버의 도구는 노출되지 않고, 호출은 사유와 함께 막힌다
+    await world.runtime.applyBoundary();
+    expect(world.registrar.names()).toEqual([]);
+    const refused = await rejection(client.callTool({ server: "gh", tool: "t", arguments: {} }));
+    expect(refused).toMatchObject({
+      data: { code: "server_blocked", detail: { reason: "sandbox_unavailable" } },
+    });
+
+    // 사용자가 다시 시작하면 새로 판정한다. 이번에는 격리를 쓸 수 있어 연결되고 막힘 사유가 사라진다
+    const revived = await client.reconnect({ server: "gh" });
+    expect(revived.state).toBe("connected");
+    expect(revived.blockedReason).toBeUndefined();
+    expect(spawned()).toHaveLength(2);
+    await world.runtime.applyBoundary();
+    expect(world.registrar.names()).toEqual(["t"]);
+    await world.runtime.shutdown();
   });
 });
