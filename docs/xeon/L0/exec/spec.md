@@ -494,6 +494,8 @@ export interface ExecServiceOptions {
   readonly outputSpillBytes: number;            // l0.exec.outputSpillBytes, 0이면 기본 spill 없음
   readonly envExtra: readonly string[];         // l0.exec.envAllowlist.extra
   readonly tempDir?: string;                    // 임시 디렉터리와 spill 파일 위치. 조립 루트가 <dirs.state>/spill을 넘긴다
+  readonly spillMaxBytes?: number;              // l0.exec.spillMaxBytes, 없거나 0이면 상한 없음(3.8.2절)
+  readonly now?: () => number;                  // 상한 사용량 캐시의 시계(epoch ms). 시험이 주입한다. 없으면 Date.now
 }
 
 /** 포크 NodeExecutionEnv와 provider, env 빌더, 비밀 주입을 묶는다. Cordis 등록은 ext-host API로 한다 */
@@ -508,12 +510,30 @@ export function createExecService(
 - `defaultTimeoutMs`는 호출자가 `timeout`을 주지 않았을 때만 쓴다. 원본 `timeout`이 초 단위이므로 `defaultTimeoutMs / 1000`으로 넘긴다.
 - `outputSpillBytes`는 호출자가 `spill`을 주지 않았을 때 `{ afterBytes: outputSpillBytes, afterLines: Number.MAX_SAFE_INTEGER }`로 넘긴다.
 - `tempDir`는 `createTempDir`·`createTempFile`과 spill 파일의 위치다(PATCHES P19). 있으면 그 디렉터리를 0700으로 만들고(없을 때) 아래에 `tmp-XXXX/`(0700)를 두며, 임시 파일은 0600이다. 없으면 원본대로 OS 임시 폴더다. 운영 조립은 항상 `<xeon.os dirs.state>/spill`을 넘긴다 [결정: m2 마감 G2-05].
+- `spillMaxBytes`는 `tempDir` 아래 사용량이 상한 이상이면 새 spill을 시작하지 않는다. 호출자가 준 `spill`도 같다. 규칙은 3.8.2절이다.
 
 ### 3.8.1 무인 경로 시간 상한 [결정: M3-REQ-46]
 
 - 일반 대화의 `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지한다. 예약·루프처럼 사람이 없는 경로는 `withUnattendedTimeout(shell, capMs)`(`src/unattended.ts`)로 `Shell`을 감싼다. 감싼 `exec`는 호출의 `timeout`(초)을 `capMs / 1000` 이하로 맞춘다. 호출자가 더 짧은 값을 주면 그 값이 이기고, 없거나 0이거나 더 길면 상한으로 바꾼다. 상한은 호출자가 넘긴다.
 - `capMs`의 기본 공급원은 `l0.exec.unattendedTimeoutMs`(기본 1,800,000 = 30분)이고 `readUnattendedTimeoutMs(read)`가 읽는다. 값이 없거나 범위 밖이면 기본값이다. 이 상수는 [결정: 오케스트레이터 기본값]이다. 호출과 연결은 B1-SCH(`L2.schedule.spec`, M3-16)가 한다.
 - 시간이 넘으면 기존 규칙대로 `ExecutionError("timeout")`이고 프로세스 트리를 정리한다(§4.3). `startBackground`는 `timeout`을 받지 않으므로 이 상한과 관계없다.
+
+### 3.8.2 spill 보관 정리와 디스크 상한 [결정: M3-REQ-47]
+
+- 삭제 시점: 명령이 끝나도 spill 파일을 지우지 않는다. 세션이 끝나도 지우지 않는다. 기본은 보존이다. 기록은 기본으로 지우지 않고 설정에서 기간을 정한다(review.m3-design-inputs D-M3-21 a) [결정: 오케스트레이터 기본값].
+- 보관 정리는 `l0.exec.spillRetentionDays`(기본 0, 지우지 않음)가 정한다. `exec` 안에서는 정리하지 않는다. 조립 루트가 `pruneSpill({ dir, maxAgeDays, now })`(`src/spill-store.ts`)를 부른다. 호출 시점은 조립 루트 작업이 정한다(10절 4).
+- `pruneSpill`은 `dir`의 일반 파일과 `tmp-*` 디렉터리 안의 일반 파일 가운데 mtime이 `now - maxAgeDays`일보다 오래된 것을 지운다. `maxAgeDays`가 0이면 디스크를 읽지 않고 `removed`, `bytesFreed`, `failed`가 모두 0인 보고를 돌려준다.
+- 비운 `tmp-*` 디렉터리 가운데 오래된 것도 지운다. 디렉터리 시각은 안의 파일을 지우기 전에 잰 값을 쓴다.
+- 심볼릭 링크는 따라가지도 지우지도 않는다. `tmp-*`가 아닌 하위 디렉터리는 들어가지 않는다.
+- 파일 하나를 지우지 못하면 `failed`에 세고 나머지를 계속 지운다. `dir`이 없으면 아무것도 하지 않는다. `maxAgeDays`가 0 이상의 정수가 아니면 `invalid_max_age` 오류를 돌려준다.
+- 사용량: `spillUsageBytes(dir)`는 `dir` 아래 일반 파일 크기의 합이다. 하위 디렉터리를 재귀로 세고, 심볼릭 링크는 따라가지도 세지도 않는다.
+- 디스크 상한은 `l0.exec.spillMaxBytes`(기본 1,073,741,824 = 1 GiB, 0이면 상한 없음)다 [결정: 오케스트레이터 기본값]. `tempDir`이 없으면 상한을 적용하지 않는다. OS 임시 폴더에는 다른 파일이 섞이기 때문이다 [결정: 오케스트레이터 기본값].
+- 상한 검사는 spill을 시작하려는 명령에서만 한다. 측정값은 30초(`SPILL_USAGE_TTL_MS`) 동안 재사용하고, spill 파일이 생긴 명령 뒤에는 버린다. 측정값이 상한 이상이면 그 명령은 spill을 시작하지 않는다. `spillPath`가 없고, 출력은 `onOutput`으로만 전달되며 원출력은 파일로 남지 않는다.
+- 검사는 명령을 시작할 때 한 번 한다. 이미 시작된 spill은 상한을 넘어 자랄 수 있다 [결정: 오케스트레이터 기본값].
+- 사용량을 잴 수 없으면 상한 이상으로 본다. spill을 시작하지 않고 Logger `exec.spill_usage_failed`를 남긴다 [결정: 오케스트레이터 기본값].
+- 상한 때문에 spill을 막으면 Logger `exec.spill_cap_reached`(`usedBytes`, `capBytes`)를 30초 구간마다 한 번 남긴다.
+- 두 기본값을 함께 쓰면(보관 정리 0, 상한 1 GiB) 사용량이 상한 이상이 된 뒤 spill은 기간을 정하거나 상한을 올리거나 파일을 직접 지울 때까지 멈춘다. 이 결과를 기본값으로 받아들인다 [결정: 오케스트레이터 기본값].
+- 두 키는 값을 읽는 조립 루트 커밋이 들어올 때까지 `stage: reserved`다. 그 전에는 설정 목록과 `settings.set`에서 빠진다(`settings.reserved`, `F.wire-settings.spec` §3.8.2) [결정: 오케스트레이터 기본값].
 
 ### 3.9 백그라운드 실행 `startBackground` [제안]
 
@@ -568,7 +588,7 @@ export function createExecService(
 
 - 취소는 `CancelScope.abortSignal`로만 받는다. 취소되면 그 명령의 프로세스 그룹(POSIX) 또는 프로세스 트리(win32)를 끝내고 `aborted`를 돌려준다.
 - `cleanup()`은 소유자 종료 때만 부른다. 도구 호출 하나가 끝날 때 부르지 않는다. 다른 요청의 명령까지 끝내기 때문이다(B-18).
-- spill 파일은 원본이 OS 임시 디렉터리에 `pi-output-<uuid>.log`로 만들고 지우지 않는다(`node.ts:780`, `:1206-1214`). 지우는 시점과 위치는 10절 [미결] 4다.
+- spill 파일은 원본이 OS 임시 디렉터리에 `pi-output-<uuid>.log`로 만들고 지우지 않는다(`node.ts:780`, `:1206-1214`). 이 패키지는 위치를 `tempDir`로 옮긴다. 지우지 않는 기본과 보관 정리는 3.8.2절이고, 결정 근거는 10절 4다.
 
 ### 4.4 줄 스캔 API
 
@@ -595,6 +615,10 @@ export function createExecService(
 | lease 실패 | `secret_unavailable`, 실행하지 않음, 얻은 lease 폐기(3.6절) |
 | 감시 대상 트리가 상한(기본 디렉터리 10,000개)을 넘음 | `WatchChange { error }`, 이후 호출 없음(`node-watch.ts:54`) |
 | 지원 밖 OS | `select.ts`가 `unsupported_platform`. 서비스를 등록하지 않고 시작 로그와 doctor에 남긴다 |
+| 사용량이 디스크 상한(`spillMaxBytes`) 이상임 | spill을 시작하지 않는다. `spillPath`가 없고 출력은 `onOutput`으로만 전달된다. Logger `exec.spill_cap_reached`(3.8.2절). 명령 자체는 그대로 실행한다 |
+| 상한 사용량을 잴 수 없음 | spill을 시작하지 않는다. Logger `exec.spill_usage_failed`(3.8.2절) |
+| 보관 정리에서 파일 하나를 지우지 못함 | 그 파일만 `failed`에 센다. 나머지는 계속 지운다(`pruneSpill`, 3.8.2절) |
+| 보관 정리: `maxAgeDays` 0 또는 `dir` 없음 | 아무것도 지우지 않는다. `maxAgeDays` 0이면 디스크를 읽지도 않는다 |
 
 ### 5.2 플랫폼별 제약
 
@@ -641,9 +665,11 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 | `l0.exec.defaultTimeoutMs` | `integer` | `0`(호출자가 정하지 않으면 제한 없음) | `managed`, `user`, `project` | `nextTurn` | 탭 `execution`, `number`, 단위 ms [제안] |
 | `l0.exec.unattendedTimeoutMs` | `integer` | `1800000`(30분, 무인 경로만 적용, 3.8.1절) | `managed`, `user` | `nextTurn` | 탭 `execution`, `number`, 단위 ms |
 | `l0.exec.outputSpillBytes` | `integer` | `10485760`(10 MiB) | `managed`, `user`, `project` | `nextTurn` | 탭 `advanced`(파일 편집기만) [제안] |
+| `l0.exec.spillRetentionDays` | `integer` | `0`(지우지 않음) | `managed`, `user` | `nextTurn` | 탭 `execution`, `number`, 단위 일. `stage: reserved`(3.8.2절) [결정: 오케스트레이터 기본값] |
+| `l0.exec.spillMaxBytes` | `integer` | `1073741824`(1 GiB, 0이면 상한 없음) | `managed`, `user` | `nextTurn` | 탭 `execution`, `number`, 단위 B. `stage: reserved`(3.8.2절) [결정: 오케스트레이터 기본값] |
 | `l0.exec.envAllowlist.extra` | `string[]`(이름 패턴 `^[A-Za-z_][A-Za-z0-9_]{0,127}$`) | `[]` | `managed`, `user` | `nextTurn` | 탭 `execution`, `list` [제안] |
 
-- `range`: `defaultTimeoutMs` 0~2,147,483,647, `unattendedTimeoutMs` 1,000~2,147,483,647, `outputSpillBytes` 0~1,073,741,824.
+- `range`: `defaultTimeoutMs` 0~2,147,483,647, `unattendedTimeoutMs` 1,000~2,147,483,647, `outputSpillBytes` 0~1,073,741,824, `spillRetentionDays` 0~3,650, `spillMaxBytes` 0~1,099,511,627,776.
 - `l0.exec.shell`과 `l0.exec.envAllowlist.extra`는 `project` 범위를 받지 않는다 [제안]. 저장소 파일이 실행 셸을 바꾸거나 부모 env를 자식에 열면 저장소를 여는 것만으로 코드 실행이나 정보 노출이 생긴다(`_research/notes/L0-1.md` §3.6과 같은 신뢰 원칙).
 - `envAllowlist.extra`는 더하기만 가능하다. `deny` 패턴(3.5절)에 맞는 이름은 쓰기 검사(`checkSettingWrite`)에서 거부하고, 그 이유를 화면에 보인다. 비밀 값은 `secretEnv`로만 넣고 이 키로는 넣지 않는다.
 - [제안] L4 탭 이름 '실행'은 F `SettingsTab`의 `"execution"`이다(`F.wire-settings.spec` §3.8.2, `_research/settings.md` §4 10번 "실행과 알림").
@@ -665,6 +691,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 | 파일 감시 책임 경계 문장(1절 다루지 않는 것 표) | `L0.os.spec` §3.8 |
 | `@xeon/platform-exec/testing`: `fakeExec`(명령별 응답 표), `memoryFs`, `registerExecConformance` | `eng.testing.guide` TS-05, `L2.workspace.plan`, 다른 `ExecutionEnv` 구현(Docker 어댑터) |
 | 동작 보장 표(4.1절), 플랫폼 제약 표(5.2절) | `L2.workspace.spec` §4.2·§4.3 |
+| `pruneSpill`, `spillUsageBytes`(3.8.2절). 보관 정리는 조립 루트가 부른다 | 조립 루트 apps/host(L4.host) |
 
 ### 8.2 F에 요청
 
@@ -710,7 +737,9 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 1. [미결] `abortSignal`의 `undefined` 허용 여부와 `eng.typescript.guide` §1.2·TY-22 문구 정정. 위치는 F `services/exec.ts`로 정해졌다([결정: review.decisions-2 D-04], 3.2절).
 2. [미결] `ExecService.withCwd` 추가와 `eng.context-map.design` §5.3 표 정정(3.1절). 공유 서비스 모드에서 세션별 cwd를 어떻게 줄지 `L0.process.spec`과 함께 정한다.
 3. [미결] 포크 업그레이드 정책(정기 diff 또는 보안·버그 수정 때만). adr.0003 §6을 이어받는다.
-4. [결정: m2 마감 G2-05] spill 파일 위치는 `ExecServiceOptions.tempDir`(조립 루트가 `<dirs.state>/spill`)이고 소유자 전용이다(디렉터리 0700, 파일 0600). 원본은 OS 임시 디렉터리에 남겼다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다. 세션 종료 때 삭제, 보관 기간 정리, 디스크 상한은 정하지 않았다 [미결, M3 G2-05 나머지]. 조립 루트가 `tempDir`을 넘기도록 고치는 일은 L4.host 작업이다.
+4. [결정: m2 마감 G2-05] spill 파일 위치는 `ExecServiceOptions.tempDir`(조립 루트가 `<dirs.state>/spill`)이고 소유자 전용이다(디렉터리 0700, 파일 0600). 원본은 OS 임시 디렉터리에 남겼다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다.
+   [결정: review.m3-design-inputs D-M3-21 a, 오케스트레이터 기본값, M3-REQ-47] 삭제 시점은 기본으로 세션 종료 때도 지우지 않는다. 보관 기간은 `l0.exec.spillRetentionDays`(기본 0, 지우지 않음)로 정하고 `pruneSpill`이 지운다. 디스크 상한은 `l0.exec.spillMaxBytes`(기본 1 GiB, 0이면 없음)로 정하고, 사용량이 상한 이상이면 새 spill을 시작하지 않는다. 세부는 3.8.2절이다.
+   [미결] 조립 루트(apps/host)가 `tempDir`, `spillMaxBytes`를 넘기고 `pruneSpill`을 부르도록 고치는 일과 두 키의 `stage: reserved`를 빼는 일은 L4.host 작업이다. 그 전까지 두 키는 읽히지 않는다. 정리 호출 시점도 그 작업에서 정한다.
 5. [미결] 적합성 스위트의 watch 사례(사례당 최대 30초)를 `int` 파일 10초 상한(`eng.testing.guide` TS-01)에 맞추는 방법: 파일 분할, 별도 태그, 상한 예외 중 하나.
 6. [결정: review.m3-lower-requirements M3-REQ-46] `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지하고 무인 경로 상한은 3.8.1절의 `withUnattendedTimeout`이 건다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.
 7. [미결] Windows 네이티브 적합성 기대 표(5.2절)는 실행하지 않은 [가정]이다. M2 이후 Windows CI에서 확인한다.

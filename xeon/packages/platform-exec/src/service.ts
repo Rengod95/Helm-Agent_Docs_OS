@@ -1,5 +1,5 @@
 import { access } from "node:fs/promises";
-import { attemptAsync, err, ok, type Logger, type Result } from "@xeon/contracts";
+import { attemptAsync, err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
 import {
   ExecutionError,
   type BackgroundExecHandle,
@@ -15,11 +15,15 @@ import { BASE_ENV_POLICY, buildChildEnv } from "./env-builder.ts";
 import type { ExecPlatformProvider } from "./provider.ts";
 import { forwardFileSystem } from "./forward.ts";
 import { acquireSecretEnv, type SecretEnvSource } from "./secret-env.ts";
+import { spillUsageBytes, type SpillError } from "./spill-store.ts";
 import { getShellConfig, NodeExecutionEnv, resolvePath } from "./upstream/env/node.ts";
 import { formatSize, truncateHead, truncateHeadOf } from "./upstream/truncate.ts";
 
-// L0.exec.spec §3.8. 포크 NodeExecutionEnv와 provider, env 빌더, 비밀 주입을 묶는다.
+// L0.exec.spec §3.8, §3.8.2. 포크 NodeExecutionEnv와 provider, env 빌더, 비밀 주입을 묶는다.
 // Cordis 등록은 ext-host의 서비스 등록 API로 한다(조립 루트). 이 파일은 Cordis를 import하지 않는다(DR-11).
+
+/** 상한 사용량 측정 결과를 재사용하는 기간(L0.exec.spec §3.8.2 [결정: M3-REQ-47]) */
+const SPILL_USAGE_TTL_MS = 30_000;
 
 export interface ExecServiceOptions {
   /** 엔진 시작 cwd */
@@ -37,6 +41,20 @@ export interface ExecServiceOptions {
    * 없으면 OS 임시 폴더를 쓴다(원본 동작). 평문 출력이 남으므로 운영 조립은 항상 넘긴다.
    */
   readonly tempDir?: string;
+  /**
+   * l0.exec.spillMaxBytes. undefined나 0이면 상한이 없다. 상한은 `tempDir` 아래 사용량으로 잰다.
+   * `tempDir`이 없으면 OS 임시 폴더에는 다른 파일이 섞이므로 상한을 적용하지 않는다(L0.exec.spec §3.8.2).
+   */
+  readonly spillMaxBytes?: number;
+  /** 사용량 캐시의 시계(epoch ms). 시험이 주입한다. 없으면 Date.now */
+  readonly now?: () => number;
+}
+
+/** 상한 사용량 표본. 같은 표본 구간에서는 기록을 한 번만 남긴다 */
+interface SpillUsageSample {
+  readonly takenAt: number;
+  readonly scan: Promise<Result<number, SpillError>>;
+  logged: boolean;
 }
 
 export interface ExecServiceDeps {
@@ -59,6 +77,50 @@ interface PreparedRun {
 
 export function createExecService(options: ExecServiceOptions, deps: ExecServiceDeps): ExecService {
   const extraPass = [...options.envExtra, ...deps.platform.envAllowlistExtra];
+  const clock = options.now ?? (() => Date.now());
+  /** 상한 사용량 표본. spill이 생긴 명령 뒤에는 버린다. 한 spill 디렉터리를 모든 파생 env가 쓴다 */
+  let usage: SpillUsageSample | undefined;
+
+  /** 기록은 표본 구간마다 한 번만 남긴다 */
+  function noteOnce(sample: SpillUsageSample, event: string, fields: LogFields): void {
+    if (sample.logged) return;
+    sample.logged = true;
+    deps.logger?.warn(event, fields);
+  }
+
+  /** 새 spill을 시작하면 안 되는지 본다. 사용량이 상한 이상이거나 잴 수 없으면 true다 */
+  async function spillCapReached(): Promise<boolean> {
+    const maxBytes = options.spillMaxBytes ?? 0;
+    const dir = options.tempDir;
+    if (maxBytes <= 0 || dir === undefined) return false;
+    const nowMs = clock();
+    const current = usage;
+    const sample: SpillUsageSample =
+      current !== undefined &&
+      nowMs >= current.takenAt &&
+      nowMs - current.takenAt < SPILL_USAGE_TTL_MS
+        ? current
+        : { takenAt: nowMs, logged: false, scan: spillUsageBytes(dir) };
+    usage = sample;
+    const scanned = await sample.scan;
+    if (!scanned.ok) {
+      // 잴 수 없는 디렉터리에는 spill을 늘리지 않는다(L0.exec.spec §3.8.2 [결정: 오케스트레이터 기본값])
+      noteOnce(sample, "exec.spill_usage_failed", { kind: scanned.error.kind });
+      return true;
+    }
+    if (scanned.value < maxBytes) return false;
+    noteOnce(sample, "exec.spill_cap_reached", { usedBytes: scanned.value, capBytes: maxBytes });
+    return true;
+  }
+
+  /** 명령에 넘길 spill. 호출자가 준 것이나 기본 spill이 상한에 막히면 undefined다 */
+  async function spillFor(
+    execOptions: ShellExecOptions | undefined,
+  ): Promise<ShellExecOptions["spill"]> {
+    const requested = execOptions?.spill ?? defaultSpill(options);
+    if (requested === undefined) return undefined;
+    return (await spillCapReached()) ? undefined : requested;
+  }
 
   /** 1. 허용 목록 env, 2. 취소 확인, 3. 비밀 lease. 하나라도 실패하면 얻은 것을 모두 폐기하고 실행하지 않는다 */
   async function prepareRun(
@@ -123,7 +185,7 @@ export function createExecService(options: ExecServiceOptions, deps: ExecService
       try {
         const { childEnv, secretRequest } = prepared.value;
         // 비밀이 출력에 섞이면 spill 파일에 원문이 남는다. spill 위치가 정해지기 전에는 끈다(L0.exec.plan R-9).
-        const spill = secretRequest === undefined ? defaultSpill(execOptions, options) : undefined;
+        const spill = secretRequest === undefined ? await spillFor(execOptions) : undefined;
         const timeout = execOptions?.timeout ?? defaultTimeout(options);
         // 4. 포크 exec에는 항상 inheritEnv: false와 완성된 env를 넘긴다.
         const forwarded: ShellExecOptions = {
@@ -135,7 +197,12 @@ export function createExecService(options: ExecServiceOptions, deps: ExecService
           ...(spill === undefined ? {} : { spill }),
           ...(execOptions?.window === undefined ? {} : { window: execOptions.window }),
         };
-        return await inner.exec(command, forwarded, context);
+        const result = await inner.exec(command, forwarded, context);
+        // spill 파일이 생겼으면 사용량이 바뀌었으므로 다음 명령이 다시 잰다(L0.exec.spec §3.8.2)
+        if ((result.ok ? result.value.spillPath : result.error.spillPath) !== undefined) {
+          usage = undefined;
+        }
+        return result;
       } finally {
         // 5. 성공, 실패, 취소, 시간 초과 모두 lease를 폐기하고 env 사본의 참조를 버린다.
         prepared.value.dispose();
@@ -253,11 +320,7 @@ function defaultTimeout(options: ExecServiceOptions): number | undefined {
   return options.defaultTimeoutMs > 0 ? options.defaultTimeoutMs / 1000 : undefined;
 }
 
-function defaultSpill(
-  execOptions: ShellExecOptions | undefined,
-  options: ExecServiceOptions,
-): ShellExecOptions["spill"] {
-  if (execOptions?.spill !== undefined) return execOptions.spill;
+function defaultSpill(options: ExecServiceOptions): ShellExecOptions["spill"] {
   if (options.outputSpillBytes <= 0) return undefined;
   return { afterBytes: options.outputSpillBytes, afterLines: Number.MAX_SAFE_INTEGER };
 }

@@ -8,6 +8,9 @@ import { defineSettings, validateSettingValue, type SettingDef } from "@xeon/con
 /** 기본값은 이 상수 한 곳에만 둔다(BP-06) */
 const OUTPUT_SPILL_DEFAULT_BYTES = 10_485_760;
 
+/** spill 디렉터리 사용량 상한 기본값(1 GiB). 0이면 상한이 없다 [결정: M3-REQ-47, 오케스트레이터 기본값] */
+const SPILL_MAX_DEFAULT_BYTES = 1_073_741_824;
+
 /** 무인 경로 명령 상한 기본값(30분). 일반 대화의 defaultTimeoutMs는 0을 유지한다(M3-REQ-46) */
 const UNATTENDED_TIMEOUT_DEFAULT_MS = 1_800_000;
 
@@ -63,6 +66,41 @@ const group = defineSettings("l0.exec", {
     range: { min: 0, max: 1_073_741_824 },
     runtimeChange: "nextTurn",
     allowedScopes: ["managed", "user", "project"],
+    since: "0.1.0",
+  },
+  // 아래 두 키는 값을 읽는 코드가 아직 없다. 조립 루트(apps/host)가 읽는 커밋에서 `stage`를 뺀다 [결정: 오케스트레이터 기본값]
+  spillRetentionDays: {
+    type: Type.Integer(),
+    default: 0,
+    range: { min: 0, max: 3650 },
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user"],
+    stage: "reserved",
+    ui: {
+      tab: "execution",
+      widget: "number",
+      order: 125,
+      label: "출력 파일 보관 기간",
+      help: "0이면 지우지 않는다. 이 기간보다 오래된 명령 출력 파일을 정리 때 지운다",
+      unit: "일",
+    },
+    since: "0.1.0",
+  },
+  spillMaxBytes: {
+    type: Type.Integer(),
+    default: SPILL_MAX_DEFAULT_BYTES,
+    range: { min: 0, max: 1_099_511_627_776 },
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user"],
+    stage: "reserved",
+    ui: {
+      tab: "execution",
+      widget: "number",
+      order: 130,
+      label: "출력 파일 디스크 상한",
+      help: "0이면 상한이 없다. 넘으면 새 명령의 출력 파일을 만들지 않는다",
+      unit: "B",
+    },
     since: "0.1.0",
   },
   "envAllowlist.extra": {
