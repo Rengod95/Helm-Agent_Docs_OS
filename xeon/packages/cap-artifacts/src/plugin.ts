@@ -19,7 +19,7 @@ import {
   type L2ApprovalsPort,
 } from "@xeon/contracts/services";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
-import { artifactsManifest } from "./manifest.ts";
+import { ARTIFACTS_EXTENSION_NAME, artifactsManifest } from "./manifest.ts";
 import type { ExecutionGuardPort, ReviewFilesPort, ReviewQueuePort } from "./ports.ts";
 import { createAnswerHandler } from "./reviews/answer.ts";
 import { REVIEWS_PRODUCER } from "./reviews/kernel.ts";
@@ -71,6 +71,11 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
               { path: input.path, edits: [{ oldText: input.oldText, newText: input.newText }] },
               {
                 requestId: input.requestId.slice(0, 64),
+                // 대화의 작업 폴더를 알려 상대 경로를 그 폴더 기준으로 푼다
+                context: {
+                  threadId: input.threadId,
+                  caller: { kind: "extension", extension: ARTIFACTS_EXTENSION_NAME },
+                },
                 ...(input.signal === undefined ? {} : { signal: input.signal }),
               },
             ),
