@@ -79,7 +79,13 @@ export type WidgetVM =
       readonly maxLength: number | null;
       readonly pattern: string | null;
     }
-  | { readonly kind: "list"; readonly item: ListItemKind; readonly maxItems: number | null }
+  | {
+      readonly kind: "list";
+      readonly item: ListItemKind;
+      /** 원소가 고를 수 있는 값(열거형 원소). 자유 입력이면 null */
+      readonly options: readonly (string | number)[] | null;
+      readonly maxItems: number | null;
+    }
   | {
       /** fixed: 속성이 고정된 객체(예: `l1.models.thinkingBudgets`). rows: 객체 배열. record: 원시 값 맵 */
       readonly kind: "table";

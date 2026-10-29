@@ -205,9 +205,17 @@ function widgetFor(widget: SettingWidget, def: SettingDefWire): WidgetVM | null 
     case "list": {
       const items = core["items"];
       if (core["type"] !== "array" || !isSchema(items)) return null;
-      const item = primitiveOf(coreOf(items));
+      const itemCore = coreOf(items);
+      const options = enumOf(itemCore);
+      // 열거형 원소(TypeBox Union of Literal)는 고르는 목록이다. 원소 종류는 선택지의 값에서 읽는다
+      const item =
+        options === null
+          ? primitiveOf(itemCore)
+          : typeof options[0] === "number"
+            ? "number"
+            : "string";
       if (item === null) return null;
-      return { kind: "list", item, maxItems: numberOrNull(core["maxItems"]) };
+      return { kind: "list", item, options, maxItems: numberOrNull(core["maxItems"]) };
     }
     case "table":
       return tableOf(core);

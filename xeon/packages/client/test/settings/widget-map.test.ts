@@ -119,17 +119,27 @@ describe("widget map: text, list", () => {
       {
         kind: "list",
         item: "string",
+        options: null,
         maxItems: 3,
       },
     );
     expect(resolveWidget(typed(Type.Array(Type.Integer()), "list")).widget).toEqual({
       kind: "list",
       item: "integer",
+      options: null,
       maxItems: null,
     });
     expect(
       resolveWidget(typed(Type.Array(Type.Object({ a: Type.String() })), "list")).diagnostic?.code,
     ).toBe("widgetMismatch");
+    expect(
+      resolveWidget(
+        typed(
+          Type.Array(Type.Union([Type.Literal("a"), Type.Literal("b")]), { uniqueItems: true }),
+          "list",
+        ),
+      ).widget,
+    ).toEqual({ kind: "list", item: "string", options: ["a", "b"], maxItems: null });
   });
 });
 
