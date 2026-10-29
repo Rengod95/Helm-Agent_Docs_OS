@@ -27,7 +27,7 @@ export const isStateId = (v: string | null): v is StateId => STATES.some((s) => 
 export type Layout = "wide" | "medium" | "compact";
 const layoutOf = (w: number): Layout => (w <= 720 ? "compact" : w <= 1100 ? "medium" : "wide");
 
-export function useWindowLayout(): Layout {
+function useWindowLayout(): Layout {
   const [layout, setLayout] = useState<Layout>(() => layoutOf(window.innerWidth));
   useEffect(() => {
     const update = () => setLayout(layoutOf(window.innerWidth));

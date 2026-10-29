@@ -1,6 +1,6 @@
 // P-02 셸 목업 고정 데이터. 스펙 §8.2 "고정 데이터"를 그대로 옮겼다(값을 바꾸지 않는다). 타입만 덧붙였다.
 
-export type ThreadStatus = "running" | "idle" | "failed" | "locked" | "resumable";
+type ThreadStatus = "running" | "idle" | "failed" | "locked" | "resumable";
 export interface Thread {
   id: string;
   folder: string;
@@ -36,13 +36,13 @@ export interface ToolApproval {
   args: Record<string, string | number>;
   remember: string[];
 }
-export interface QuestionOption {
+interface QuestionOption {
   id: string;
   label: string;
   description?: string;
   recommended?: boolean;
 }
-export interface Question {
+interface Question {
   id: string;
   header: string;
   text: string;
