@@ -230,6 +230,6 @@ export interface ScheduleService {
   /** 켜진 루프 수. `ActivitySnapshot.liveTasks`에 더한다(M3-10) */
   liveSchedulerTasks(): number;
   onChange(listener: () => void): Unsubscribe;
-  /** 진행 중 저장을 기다린다 */
+  /** 틱과 감시를 멈추고 진행 중 저장을 기다린다. 진행 중인 실행의 정착은 기다리지 않는다(재시작하면 host_exit로 닫힌다) */
   close(): Promise<void>;
 }

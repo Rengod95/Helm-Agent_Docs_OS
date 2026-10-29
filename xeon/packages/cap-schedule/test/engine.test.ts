@@ -53,7 +53,7 @@ test("an interval timer fires on its due time in a cron session and records star
   expect(h.service.list()[0]?.nextDueAt).toBe(h.clock.now + 600 * SECOND);
 
   h.runner.started[0]?.settle("completed");
-  await h.service.close();
+  await settleAll(h);
   expect(h.service.runs(entry.id)[0]).toMatchObject({ status: "finished", outcome: "completed" });
 });
 
@@ -73,7 +73,7 @@ test("intervals under 300 seconds are rejected at creation and a second fire ins
   const first = await h.service.fire(remote.id);
   expect(first.ok && first.value.status).toBe("started");
   h.runner.started[0]?.settle("completed");
-  await h.service.close();
+  await settleAll(h);
   h.clock.now += 299 * SECOND;
   const second = await h.service.fire(remote.id);
   expect(second.ok && second.value).toMatchObject({ status: "skipped", reason: "min_interval" });
@@ -177,7 +177,7 @@ test("a loop reruns after each settle until max iterations, counts as a live tas
   // 실행 중에는 다음 기한이 없다
   expect(h.service.list()[0]?.nextDueAt).toBeNull();
   h.runner.started[0]?.settle("completed");
-  await h.service.close();
+  await settleAll(h);
   expect(h.service.list()[0]?.nextDueAt).toBe(h.clock.now + 60 * SECOND);
   expect(h.service.liveSchedulerTasks()).toBe(1);
   expect(entry.trigger.kind).toBe("loop");

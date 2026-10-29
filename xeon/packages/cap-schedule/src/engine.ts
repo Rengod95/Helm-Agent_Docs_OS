@@ -1,4 +1,4 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, detach, err, ok, type Result } from "@xeon/contracts";
 import type { Unsubscribe } from "@xeon/contracts/extensions";
 import { everyMsOf, planDue } from "./due.ts";
 import {
@@ -60,7 +60,6 @@ function firstDueOf(input: CreateInput, now: number): number | null {
 export function createScheduleService(deps: ScheduleDeps): ScheduleService {
   const policy = { ...DEFAULT_POLICY, ...deps.policy };
   const listeners = new Set<() => void>();
-  const inflight = new Set<Promise<unknown>>();
   const watchers = new Map<string, Unsubscribe>();
   /** 파일 감시 항목별 첫 변경 시각. 틱이 디바운스 시간이 지났는지 보고 실행한다 */
   const signals = new Map<string, number>();
@@ -74,19 +73,11 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     for (const listener of listeners) listener();
   }
 
+  /** 기다리지 않는 작업. 거부는 보고한다(종료가 정착을 기다리지 않으므로 별도 추적은 하지 않는다) */
   function track(work: Promise<unknown>, label: string): void {
-    const slot: { promise?: Promise<void> } = {};
-    const settled = (async () => {
-      try {
-        await work;
-      } catch (cause) {
-        deps.report?.("schedule.background_failed", { label, cause: String(cause) });
-      } finally {
-        if (slot.promise !== undefined) inflight.delete(slot.promise);
-      }
-    })();
-    slot.promise = settled;
-    inflight.add(settled);
+    detach(work, (cause) => {
+      deps.report?.("schedule.background_failed", { label, cause: String(cause) });
+    });
   }
 
   /** 상태를 바꾸고 저장한다. 저장은 호출 순서대로 하나씩 돈다 */
@@ -569,7 +560,6 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
 
     async close() {
       stop();
-      await Promise.allSettled(Array.from(inflight));
       await saving;
     },
   };
