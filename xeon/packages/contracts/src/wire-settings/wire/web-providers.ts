@@ -77,6 +77,7 @@ export const WebProviderStatusSchema: TObject<{
   pricingAsOf: TUnion<[TString, TNull]>;
   pricingStale: TBoolean;
   firstUseNoticed: TBoolean;
+  autoRank: TUnion<[TInteger, TNull]>;
 }> = Type.Object(
   {
     id: ProviderIdSchema,
@@ -91,6 +92,11 @@ export const WebProviderStatusSchema: TObject<{
     pricingStale: Type.Boolean(),
     /** 고지가 필요 없는 provider(인증 `none`)거나 사용자의 첫 사용 고지를 이미 보였으면 참이다 */
     firstUseNoticed: Type.Boolean(),
+    /**
+     * 자동 선택(`auto`)이 이 provider를 시도하는 순서에서의 0부터 센 자리다. 설정 provider가 `auto`가 아니어도 이 값은 자동 순서 기준이다.
+     * 웹 fetch 행은 사용자 순서가 없으므로 null이다.
+     */
+    autoRank: Nullable(Type.Integer({ minimum: 0 })),
   },
   { additionalProperties: false },
 );

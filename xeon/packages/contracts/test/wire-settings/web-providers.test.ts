@@ -25,6 +25,7 @@ const exa = {
   pricingAsOf: "2026-10-01",
   pricingStale: false,
   firstUseNoticed: false,
+  autoRank: 1,
 };
 const brave = {
   id: "plugin:brave-search",
@@ -36,6 +37,7 @@ const brave = {
   pricingAsOf: null,
   pricingStale: false,
   firstUseNoticed: true,
+  autoRank: 0,
 };
 const stagehand = {
   id: "stagehand",
@@ -47,9 +49,22 @@ const stagehand = {
   pricingAsOf: null,
   pricingStale: false,
   firstUseNoticed: true,
+  autoRank: 0,
+};
+const fetching = {
+  id: "plugin:web-fetch",
+  capability: "web.fetch",
+  origin: "plugin",
+  displayName: "Web Fetch",
+  auth: "query",
+  status: { kind: "ok" },
+  pricingAsOf: "2026-10-01",
+  pricingStale: false,
+  firstUseNoticed: false,
+  autoRank: null,
 };
 const sample = {
-  providers: [exa, brave, stagehand],
+  providers: [exa, brave, stagehand, fetching],
   settings: {
     searchProvider: "auto",
     searchOrder: ["plugin:brave-search", "exa"],
@@ -74,6 +89,25 @@ describe("web.providers (M3-REQ-96)", () => {
     expect(parsed(resultSchema, sample)).toEqual(sample);
     expect(parsed(WebProviderStatusSchema, exa)).toEqual(exa);
     expect(parsed(WebProviderStatusSchema, brave)).toEqual(brave);
+    expect(parsed(WebProviderStatusSchema, fetching)).toEqual(fetching);
+  });
+
+  test("auto rank is a 0-based integer or null: a valid rank is kept, a negative or fractional one is rejected", () => {
+    expect(parsed(WebProviderStatusSchema, { ...exa, autoRank: 0 })).toEqual({
+      ...exa,
+      autoRank: 0,
+    });
+    expect(parsed(WebProviderStatusSchema, { ...exa, autoRank: 7 })).toEqual({
+      ...exa,
+      autoRank: 7,
+    });
+    expect(parsed(WebProviderStatusSchema, { ...exa, autoRank: null })).toEqual({
+      ...exa,
+      autoRank: null,
+    });
+    expect(parse(WebProviderStatusSchema, { ...exa, autoRank: -1 }).ok).toBe(false);
+    expect(parse(WebProviderStatusSchema, { ...exa, autoRank: 1.5 }).ok).toBe(false);
+    expect(parse(WebProviderStatusSchema, { ...exa, autoRank: "1" }).ok).toBe(false);
   });
 
   test("a wrong capability, origin or auth kind is rejected", () => {
@@ -111,6 +145,8 @@ describe("web.providers (M3-REQ-96)", () => {
     expect(parse(WebProviderStatusSchema, withoutFirst).ok).toBe(false);
     const { pricingAsOf: _asOf, ...withoutAsOf } = exa;
     expect(parse(WebProviderStatusSchema, withoutAsOf).ok).toBe(false);
+    const { autoRank: _rank, ...withoutRank } = exa;
+    expect(parse(WebProviderStatusSchema, withoutRank).ok).toBe(false);
     const { providers: _providers, ...withoutProviders } = sample;
     expect(parse(resultSchema, withoutProviders).ok).toBe(false);
   });
@@ -138,6 +174,7 @@ describe("web.providers (M3-REQ-96)", () => {
     ]);
     expect(Object.keys(WebProviderStatusSchema.properties).toSorted()).toEqual([
       "auth",
+      "autoRank",
       "capability",
       "displayName",
       "firstUseNoticed",
