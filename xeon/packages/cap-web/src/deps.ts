@@ -1,6 +1,7 @@
 import type { Clock, Logger } from "@xeon/contracts";
 import type { LocalIdFactory, ThreadId } from "@xeon/contracts/conversation";
 import type { FetchCache } from "./cache/fetch-cache.ts";
+import type { FirstUseNotices } from "./cache/notices.ts";
 import type { SourceIdRegistry } from "./contract/source-ids.ts";
 import type { SessionLimits } from "./cost/limits.ts";
 import type { UsageMeter } from "./cost/meter.ts";
@@ -35,4 +36,6 @@ export interface WebDeps {
   readonly sourceIds: SourceIdRegistry;
   readonly catalog: WebProviderCatalog;
   readonly probes: ProbeCache;
+  /** 키 플러그인 첫 사용 고지의 기록(L2.web.spec §4.8.2). 저장소가 없으면 프로세스 메모리다 */
+  readonly notices: FirstUseNotices;
 }

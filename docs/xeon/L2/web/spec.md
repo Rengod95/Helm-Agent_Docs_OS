@@ -1016,10 +1016,15 @@ CREATE TABLE cap_web_usage (
   usd           REAL NOT NULL,
   PRIMARY KEY (provider, month, unit)
 ) STRICT;
+CREATE TABLE cap_web_notices (
+  provider      TEXT PRIMARY KEY,          -- 고지한 provider ID
+  noticed_at    INTEGER NOT NULL           -- epoch ms
+) STRICT;
 ```
 
 - `cap_web_raw`의 `url`부터 `published_at`까지 열은 재조회 결과의 `Source`(sN 재사용, 제목, 게시일)를 만들려고 더했다. 같은 바이트의 원문은 `raw_ref`가 같아 처음 저장한 URL의 출처가 남는다.
 - `cap_web_raw`의 `retention='session'` 행은 세션 종료 후 첫 시작 정리 때 지운다. 세션 존재 여부는 `xeon.session`의 목록 API로 확인하고 세션 테이블을 직접 읽지 않는다(CM-02).
+- `cap_web_notices`는 키 플러그인 첫 사용 고지의 기록이다(§4.8.2). provider마다 한 행이고 지우지 않는다. 마이그레이션 버전 2에서 더했고 버전 1의 표와 행은 그대로 남는다(`cache/migrations.ts`).
 - 이벤트: 내구 이벤트 type을 1차에 두지 않는다. 웹 호출의 기록은 도구 3단 기록(`tool.intended`, `tool.settled`)이 맡는다. 휘발 접두사 `web.`은 예약이고 2차에 `web.research_progress`를 더한다.
 
 ### 3.9 서비스 묶음
@@ -1333,6 +1338,9 @@ ADR-0005 §3.3(2026-10-25 개정)과 `L2.readme` §5.2를 따른다.
 - [결정: review.m3-design-inputs D-M3-23 행 1] 옛 규칙(키 플러그인 → SearXNG → 래퍼)과 `pluginOrder` 키를 위 규칙과 `order` 키로 바꾼다. 순서 규칙은 `cap-web/src/select/order.ts`의 `planSelection` 하나이고 검색과 브라우저가 같이 쓴다. F `orderProviderCandidates`는 fetch 승격이 계속 쓴다.
 - 여러 provider 동시 질의: `l2.web.search.parallel`이 2 이상이고 선택이 auto이면, 순서대로 탐침하며 가용한 provider를 `parallel`개 모은 뒤 그 묶음을 동시에 호출한다. 성공한 결과는 provider 차례로 한 건씩 번갈아 합치고 URL이 같은 항목은 먼저 나온 것만 둔다. 항목마다 `sources[].provider`는 그 항목을 준 provider다. `meta.provider`는 순서가 가장 앞선 성공 provider이고, 답한 provider 목록은 `meta.warnings`의 `fanout:<id>,<id>`에 남긴다. 한 provider만 답했으면 이 경고는 없다. 답변(`answer`)은 첫 provider의 것만 쓴다. 비용은 답한 provider마다 §4.4.1대로 계산해 사용량 표에 기록하고 `meta.cost`는 그 합이다. 일부가 실패하면 성공한 것만 합치고 실패는 `meta.fallbacks`(`stage: "call"`)에 남긴다. `invalid_input` 같은 그 밖의 실패는 다른 provider가 답했어도 검색 전체를 실패로 만든다. 묶음이 하나도 답하지 못하면 묶음 밖에 남은 후보를 순차 체인으로 이어 간다(실패 기록은 그대로 남는다). 그래도 모두 실패하면 순차 체인과 같은 `unavailable`이다. 합친 결과의 `cachePolicy`는 답한 provider 중 가장 엄격한 값이다. 여러 provider가 답한 결과는 검색 메모에 넣지 않는다(§4.3.1). 메모 키에는 `parallel`을 넣는다. 도메인 조건(`domains`)은 첫 provider가 아닌 provider가 답했거나 조건을 다 넘기지 못한 provider가 있으면 앞단이 다시 건다. 다른 차원은 답한 provider 모두가 직접 건 것만 앞단이 생략한다. 명시 선택(1, 2)에는 적용하지 않는다. [결정: 오케스트레이터 기본값] 기본값은 1이다. 동시 질의는 검색어를 여러 수신자에게 보내고 비용도 늘기 때문에 사용자가 올린다. D-M3-23의 "기본 기능"은 기능이 기본으로 들어 있다는 뜻으로 읽는다.
 - 키 플러그인 첫 사용 고지: 플러그인 provider(`auth.kind`가 `none`이 아닌 것)가 처음 호출에 쓰이면 `meta.warnings`에 `first_use_notice:<provider>`를 한 번 싣고 그 provider를 고지한 것으로 저장소에 남긴다(표 `cap_web_notices`). 고지 문구는 L4가 만든다: 검색어가 이 provider의 수신자에게 나간다는 것과 가격표 기준일이다. 승인을 요구하지 않는다.
+  - 판정은 출처가 `plugin`이고 `auth.kind`가 `none`이 아닌 provider에만 한다. 내장 provider는 인증 방식과 무관하게 제외한다. 동시 질의에서는 답한 키 플러그인마다 따로 본다.
+  - 경고는 호출 시점에만 붙는다. 메모에서 꺼낸 결과에는 붙지 않는다. 같은 규칙을 승격 fetch(§4.9.1)와 `web.browse` 열기(§4.10)에도 적용한다.
+  - 기록을 쓰지 못하면 `web.notice_write_failed`를 한 번 남기고 이 프로세스 동안은 메모리에만 기록한다. 읽기 실패는 `web.notice_read_failed`로 같게 처리한다(구현: `cache/notices.ts`).
 - 명시 선택(1, 2)은 다른 후보로 내려가지 않는다. 탐침이 실패하면 `unavailable` 오류이고 `detail.reason`에 사유를 싣는다(`L2.readme` §5.2).
 - auto 체인에서 탐침 실패는 다음 후보로 내려가고 `meta.fallbacks`에 `{ provider, stage: "probe", reason }`을 남긴다. `search`는 `replay: "safe"`이므로 호출 중 오류 `unavailable`, `rate_limited`, `upstream_error`도 다음 후보로 내려가며 `stage: "call"`로 남긴다.
 - 구현은 `timeout`도 다음 후보로 내려가는 호출 오류에 넣는다 [제안]. 응답하지 않는 provider 하나가 검색 전체를 막지 않게 하려는 것이다. 이 밖의 코드(`invalid_input`, `denied`, `query_rejected` 등)는 바로 실패한다.
@@ -1719,6 +1727,16 @@ export const webSettings = defineSettings("l2.web", {
 
 - `defineSettings`의 키 인자는 이름 부분이고 점을 포함할 수 있다 [가정: `F.wire-settings.spec` §3.8.3의 `SettingDefInput` 레코드 키가 `search.provider` 같은 점 표기를 허용한다]. 허용하지 않으면 중첩 그룹(`defineSettings("l2.web.search", …)`)으로 나눈다.
 
+### 6.1 provider 상태 조회(`web.providers`)
+
+호스트의 `web.providers`(M3-REQ-96)는 `runtime.providerStatus(signal)`와 `describeWebSettings(settings)`로 값을 채운다(`status.ts`). 읽기 전용이고 비밀 값을 싣지 않는다. 키 값, 주입 위치, 헤더 이름은 행의 필드에 없다.
+
+- 행은 검색, fetch, 브라우저 후보마다 하나다. 후보가 등록되어 있으면 내장과 플러그인 모두 나온다. `capability`는 `web.search`, `web.fetch`, `web.browse` 가운데 하나이고, `origin`, `displayName`, `auth`는 후보와 매니페스트에서 온다.
+- `status`는 탐침 캐시(§4.8.2)의 결과다. 탐침은 provider마다 동시에 돌고 모두 끝나면 값을 돌려준다. 한 provider가 느려도 나머지를 막지 않는다. 사유는 provider가 돌려준 `ProviderUnavailableReason`을 그대로 싣고 `detail`은 512자에서 자른다.
+- `pricingAsOf`는 가격표 기준일이다. 가격표가 없거나 단위 단가가 모두 0이면 `null`이다. `pricingStale`은 기준일이 §4.4.2의 90일을 넘었을 때 참이다.
+- `firstUseNoticed`는 고지가 필요 없는 provider(출처가 `plugin`이 아니거나 `auth`가 `none`)면 참이다. 고지가 필요하면 `cap_web_notices`에 기록이 있을 때 참이다(§3.8, §4.8.2).
+- `settings`는 `l2.web.search.*`(provider, order, parallel), `l2.web.browse.provider`, `l2.web.browse.order`, `l2.web.policy.robots`의 유효 값이다. 목록은 64개, 문자열은 96자에서 자른다.
+
 ## 7. 확장 지점
 
 - 이 문서는 새 지점을 정의하지 않는다.
@@ -1794,6 +1812,9 @@ export const webSettings = defineSettings("l2.web", {
 25. 응답 에코: 본문 텍스트나 헤더에 비밀 값이 있으면 `upstream_error`(`secret_echoed`)이고 본문과 헤더를 돌려주지 않는다(`test/guarded-http.test.ts`).
 26. 질의 인증과 헤더 이름 없는 `header`: `query` kind나 헤더 이름 없는 비밀은 등록 때 `web.provider_rejected`(reason `auth_kind_unsupported`, `secret_header_missing`)로 거부되고 후보가 되지 않는다(`test/registry.test.ts`).
 27. 동시 질의: `l2.web.search.parallel`이 2이고 선택이 auto이면 앞의 두 provider를 탐침한 뒤 함께 호출한다(둘 다 응답 전에 호출되는 것을 보류 호출로 확인한다). 결과는 번갈아 합치고 URL 중복은 먼저 나온 것만 둔다. `meta.provider`는 앞선 provider이고 `meta.warnings`에 `fanout:<id>,<id>`가 있다. 비용은 provider마다 기록하고 `meta.cost`는 그 합이다. 한 provider의 `rate_limited`는 `meta.fallbacks`(`stage: "call"`)에 남고 다른 provider의 결과가 나간다. `invalid_input`은 검색 전체를 실패시킨다. 명시 선택과 `parallel` 1은 첫 provider만 부른다. 여러 provider가 답한 결과는 메모에 들지 않으며 메모 키는 `parallel`을 포함한다(`test/search-fanout.test.ts`).
+28. 키 플러그인 첫 사용 고지: 키 플러그인의 첫 `search`는 `meta.warnings`에 `first_use_notice:<id>`를 한 번 싣고, 두 번째 호출과 메모에서 나온 호출은 싣지 않는다. 키 없는 플러그인과 내장 provider는 싣지 않는다. 동시 질의에서 답한 키 플러그인은 각각 한 번씩 싣는다. 같은 저장소로 다시 조립한 런타임은 기록을 읽어 다시 싣지 않는다. 승격 fetch와 `web.browse` 열기도 같다(`test/first-use-notice.test.ts`).
+29. `web.providers` 행: 행은 `WebProviderStatusSchema`를 통과하고 그 밖의 필드가 없다. 무료 가격표면 `pricingAsOf`가 `null`이고, 기준일이 90일을 넘으면 `pricingStale`이 참이다. 탐침이 실패하면 `status.kind`가 `unavailable`이고 `reason`이 provider의 사유다. 브라우저 후보도 행을 가진다. 고지 전에는 `firstUseNoticed`가 거짓이고 첫 사용 뒤 참이다(`test/status.test.ts`).
+30. 마이그레이션 버전 2: `cap_web_notices` 표를 만들고 버전 1의 `cap_web_usage` 행은 그대로 남는다. 두 번째 적용은 아무것도 바꾸지 않는다. 기록 쓰기가 실패하면 `web.notice_write_failed`를 한 번 남기고 이 프로세스에서 고지 기록은 메모리로 이어진다(`test/first-use-notice.test.ts`).
 
 ## 10. 미결 사항
 

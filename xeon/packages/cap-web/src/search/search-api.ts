@@ -25,6 +25,7 @@ import {
   searchMemoKey,
   type SearchMemo,
 } from "../cache/search-memo.ts";
+import { firstUseWarnings } from "../cache/notices.ts";
 import { createSingleFlight } from "../cache/single-flight.ts";
 import { buildMeta } from "../contract/meta.ts";
 import { normalizeUrl } from "../contract/url.ts";
@@ -287,6 +288,8 @@ export function createSearchApi(deps: WebDeps): {
       );
       costs.push(priced.cost);
       callWarnings.push(...priced.warnings);
+      // 답한 키 플러그인마다 처음 한 번 고지한다. 메모에서 꺼낸 호출에는 붙지 않는다(callWarnings는 메모에 따라가지 않는다)
+      callWarnings.push(...firstUseWarnings(deps.notices, id, answerOf.candidate.origin, manifest));
       if (deps.meter !== undefined) {
         const recorded = deps.meter.record(id, priced.cost, manifest.pricing);
         if (recorded.ok) callWarnings.push(...recorded.value);

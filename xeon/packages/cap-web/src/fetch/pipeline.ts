@@ -18,6 +18,7 @@ import { buildMeta, NO_COST } from "../contract/meta.ts";
 import type { SourceIdTable } from "../contract/source-ids.ts";
 import { normalizeUrl } from "../contract/url.ts";
 import { cacheKeyOf, type CachedPage } from "../cache/fetch-cache.ts";
+import { firstUseWarnings } from "../cache/notices.ts";
 import { computeCost } from "../cost/meter.ts";
 import type { ProviderPricing } from "../cost/pricing.ts";
 import type { WebDeps } from "../deps.ts";
@@ -461,7 +462,16 @@ export function createFetchApi(deps: WebDeps): {
       reported: result.cost,
       cache,
       fallbacks,
-      warnings: result.warnings,
+      // 승격 provider가 답한 호출이므로 키 플러그인은 처음 쓸 때 고지한다(§4.8.2). 캐시 hit에는 붙지 않는다
+      warnings: [
+        ...result.warnings,
+        ...firstUseWarnings(
+          deps.notices,
+          candidate.provider.id,
+          candidate.origin,
+          candidate.provider.manifest,
+        ),
+      ],
     });
   }
 

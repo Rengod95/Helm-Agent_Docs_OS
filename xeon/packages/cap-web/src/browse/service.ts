@@ -19,6 +19,7 @@ import {
   type WebProviderFallback,
 } from "@xeon/contracts/capabilities";
 import type { ThreadId } from "@xeon/contracts/conversation";
+import { firstUseWarnings } from "../cache/notices.ts";
 import { buildMeta, NO_COST } from "../contract/meta.ts";
 import { computeCost } from "../cost/meter.ts";
 import type { WebDeps } from "../deps.ts";
@@ -409,7 +410,13 @@ export function createBrowseApi(
             sessionId: session.id,
             page: step === undefined ? blankPage() : pageOf(step),
             ...(step === undefined ? {} : snapshotOf(step, true)),
-            meta: metaOf(session, startedAt, cost, []),
+            // 열기가 성공한 호출이므로 키 플러그인은 처음 쓸 때 고지한다(§4.8.2와 같은 규칙)
+            meta: metaOf(
+              session,
+              startedAt,
+              cost,
+              firstUseWarnings(deps.notices, id, candidate.origin, candidate.provider.manifest),
+            ),
           }),
         };
       },

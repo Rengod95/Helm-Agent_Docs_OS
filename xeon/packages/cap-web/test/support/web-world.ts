@@ -66,6 +66,8 @@ export interface WebWorldOptions {
   readonly convert?: ConvertRunner;
   /** false면 저장소 없이 조립한다(디스크 캐시와 rawRef가 없는 모드) */
   readonly withStore?: boolean;
+  /** 다른 세계와 같은 저장소를 쓴다(재시작 시험: 두 번째 세계가 첫 세계의 기록을 읽는다) */
+  readonly store?: TestStore | undefined;
   readonly secretValues?: readonly string[];
 }
 
@@ -133,7 +135,8 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
   let settings = mergeSettings(options.settings);
   const resolver = fakeResolver({ "example.com": [PUBLIC_IP], ...options.hosts });
   const transport = fixtureTransport(options.routes ?? {}, resolver);
-  const store = options.withStore === false ? undefined : await openWebStore(clock);
+  const store =
+    options.store ?? (options.withStore === false ? undefined : await openWebStore(clock));
   const asker = options.asker ?? fakeAsker("allow");
   const runtime = createWebRuntime({
     clock,

@@ -121,6 +121,7 @@ export type { WebDeps } from "./deps.ts";
 export { failureOfThrown } from "./provider-errors.ts";
 export { createWebRuntime } from "./runtime.ts";
 export type { WebRuntime, WebRuntimeOptions } from "./runtime.ts";
+export { describeWebSettings } from "./status.ts";
 export { createWebService } from "./service.ts";
 export { WEB_EXTENSION_NAME, webManifest } from "./manifest.ts";
 export { effectiveCachePolicy } from "./cache/policy.ts";

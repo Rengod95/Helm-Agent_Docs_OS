@@ -2,11 +2,13 @@ import type { Clock, Logger } from "@xeon/contracts";
 import type { WebService } from "@xeon/contracts/capabilities";
 import type { HostedSearchPort } from "@xeon/contracts/services";
 import type { LocalIdFactory, ThreadId } from "@xeon/contracts/conversation";
+import type { WebProviderStatus } from "@xeon/contracts/wire";
 import { createFetchCache, type FetchCache } from "./cache/fetch-cache.ts";
 import { createSourceIdRegistry } from "./contract/source-ids.ts";
 import { createSessionLimits } from "./cost/limits.ts";
 import { createUsageMeter } from "./cost/meter.ts";
 import type { WebDeps } from "./deps.ts";
+import { createFirstUseNotices, createMemoryFirstUseNotices } from "./cache/notices.ts";
 import { createWorkerConvertRunner, type ConvertRunner } from "./fetch/convert-runner.ts";
 import { createRobotsGate } from "./fetch/robots-gate.ts";
 import { createAccess } from "./policy/access.ts";
@@ -34,6 +36,7 @@ import { createWebService } from "./service.ts";
 import type { WebSettings } from "./settings.ts";
 import { createHttpTransport } from "./transport/http-transport.ts";
 import { createSystemResolver } from "./transport/system-resolver.ts";
+import { describeWebProviders } from "./status.ts";
 
 // 조립. 포트(저장소, 승인, 세션 이벤트, 비밀 판정, provider 후보 목록)를 받아 `WebService`와 `WebDeps`를 만든다.
 // 실제 포트 연결은 HOST 트랙의 조립이 한다(m2-plan HOST.6). 포트를 주지 않은 항목은 안전한 쪽으로 동작한다:
@@ -88,6 +91,8 @@ export interface WebRuntime {
   readonly cacheEnabled: boolean;
   /** 살아 있지 않은 세션의 session 원문 행을 지운다. 세션 목록은 호출자가 `xeon.session`에서 읽는다 */
   purgeSessionRaw(liveSessions: ReadonlySet<string>): number;
+  /** `web.providers`의 provider 목록(L2.web.spec §6.1). 탐침은 캐시를 쓰고 provider마다 동시에 돈다 */
+  providerStatus(signal: AbortSignal): Promise<readonly WebProviderStatus[]>;
   close(): Promise<void>;
 }
 
@@ -149,6 +154,14 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     extensionSetting: options.extensionSetting ?? (() => undefined),
   });
   const probes = createProbeCache(options.clock);
+  const notices =
+    options.store === undefined
+      ? createMemoryFirstUseNotices()
+      : createFirstUseNotices({
+          store: options.store,
+          clock: options.clock,
+          logger: options.logger,
+        });
   const deps: WebDeps = {
     clock: options.clock,
     ids: options.ids,
@@ -166,6 +179,7 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     sourceIds: createSourceIdRegistry(options.sessionSources),
     catalog,
     probes,
+    notices,
   };
   const browse = createBrowseApi(
     deps,
@@ -187,6 +201,7 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
       }
       return purged.value.removed;
     },
+    providerStatus: (signal) => describeWebProviders(deps, signal),
     async close() {
       await browse.closeAll();
       await convert.close();
