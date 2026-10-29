@@ -12,8 +12,14 @@
     "test": "bash ../../scripts/test-pkg.sh",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
+  "dependencies": {
+    "@xeon/contracts": "workspace:*",
+    "@xeon/ext-host": "workspace:*"
+  },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "@xeon/core-persistence": "workspace:*",
+    "@xeon/platform-store": "workspace:*"
   },
   "xeon": {
     "layer": "L2",

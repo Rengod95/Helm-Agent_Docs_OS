@@ -1216,7 +1216,7 @@ export const ReviewAnswerSchema = Type.Object({
 - 리뷰 승인 요청은 도구 호출을 막지 않는다. `review_request` 도구는 리뷰를 연 뒤 바로 돌아가고, 승인 대기는 대화 진행과 별개다. 그래서 승인 요청은 L1.tools의 "도구 승인 대기"와 달리 턴을 멈추지 않는 비차단 요청이어야 한다 [가정: L1.tools.spec이 비차단 승인 요청을 허용]. 허용하지 않으면 리뷰 결정은 L4의 리뷰 화면이 `approve`/`reject`/`comment`/`submit`을 부르는 경로로만 들어오고, 그 경로는 F wire 메서드 추가가 필요하다(§10 미결 4).
 - 그룹 코드는 서비스 메서드(`approve`, `reject`, `comment`, `submit`)를 직접 부른다. 이때 `by`는 `group`이다.
 
-#### 4.2.5 거절 적용 [미결]
+#### 4.2.5 거절 적용 [결정: M3b B2-ART는 후보 A]
 
 거절한 hunk를 파일에서 되돌리는 방법은 정하지 않았다. 후보를 비교한다.
 
@@ -1266,6 +1266,20 @@ export const ReviewAnswerSchema = Type.Object({
 
 - 설정 `l2.artifacts.reviews.autoRequest`가 `"turnEnd"`이면 provider는 `boundary.settle.after` 지점(F.extensions.spec #26, tap)에서 그 턴에 workspace 쓰기 도구 결과가 있었는지 보고 `open({ changes: { type: "turn", turnId }, requestApproval: true })`를 부른다. `requestId`는 `review:auto:<turnId>`다.
 - 기본값은 `"off"`다. 매 턴 리뷰 요청은 사용 흐름을 끊기 때문이다.
+
+#### 4.2.8 M3b 구현 결정 [결정: 오케스트레이터 기본값]
+
+- 리뷰 상태는 투영 테이블 없이 `artifact.review_*` 이벤트를 커밋 순서로 접어 얻는다(`reviews/state.ts`). 같은 리뷰의 연산은 리뷰 id별로 줄을 세운다.
+- 승인 요청은 비차단이다(`blocking: false`, 출처에 도구 호출 id를 싣지 않는다). 답은 `approval.resolved`를 내구 피드로 받아 반영한다. 사람이 아닌 해결(`noninteractive`, `cancelled`, `superseded`, `expired`)은 리뷰를 바꾸지 않는다.
+- `ReviewAnswer`의 `submit: false`는 결정과 코멘트만 남기고 리뷰를 열린 채로 둔다. 해결된 승인을 대신해 같은 라운드의 새 승인 요청을 낸다. 되돌림과 전달은 일어나지 않는다.
+- `submit: true`인데 pending hunk가 남고 `approveRemaining`이 거짓이면 제출하지 않고 새 승인 요청을 낸다.
+- 리뷰 단위 코멘트(`target.type: "review"`)는 어느 hunk에도 붙지 않는 코멘트다. 결정에 영향이 없고, 제출 때 "리뷰 전체" 줄로 에이전트에 전달된다.
+- 승인 거부(`deny`)는 되돌릴 수 있는 모든 hunk를 거절하고 제출한다. 거부 사유는 리뷰 단위 코멘트가 된다.
+- 같은 파일의 diff가 여러 개면 하나의 파일로 합치되 hunk는 시간 순서로 이어 붙인다(기준 복원과 재계산을 하지 않는다). 되돌림은 hunk마다 `workspace.files.edit` 하나를 내고 뒤 hunk부터 푼다. 파일 단위 원자성은 두지 않는다.
+- 되돌림 직전에 `guard.output.before`(target `execution`)를 `xeon.loop`의 `guardExecution`으로 부른다. 막히면 그 hunk는 `conflict`이고 파일에 쓰지 않는다. 리뷰를 연 turn이 없으면 가드를 부를 수 없어 `conflict`다.
+- 새 파일을 만든 hunk, 이름 바꿈, 삭제, 이진 파일은 되돌리지 않고 `skipped`로 기록한다.
+- 설정 키 `l2.artifacts.*`는 M3b에 더하지 않는다. 전달 모드는 `followUp`으로 고정한다 [미결].
+- 재시작 때 해결됐으나 반영하지 못한 승인은 다시 처리하지 않는다 [미결].
 
 ### 4.3 세션 제목과 메타
 
@@ -1456,9 +1470,9 @@ export const ReviewAnswerSchema = Type.Object({
 1. 닫힘. `CallOptions.context`(`CallContext`)는 `F.capabilities.spec` §3.2에 있다(§3.5).
 2. [미결] 제목 이벤트 이름: `session.retitled`(eng.events.design §4.4) 대 `thread.updated`의 `title`(F.records.spec §3.3). 제목 출처(`source: user | auto | model`)를 payload에 둘지도 함께 정한다. 이 문서의 `titleSource` 투영은 그 필드를 전제한다.
 3. [결정: review.decisions-2 K-09] 새 ID 접두 `art`, `rvw`, `cmt`, `hof`는 F `IdPrefix`에 더하지 않고 F.conversation.spec §3.2.1 `LocalIdPrefix` 표의 지역 ID로 둔다.
-4. [미결] 리뷰 결정의 도착 경로(§4.2.4). (a) 승인 프로토콜에 비차단 `review` kind 추가(제안), (b) `question` kind + `answerSchema`, (c) F wire에 `artifacts.review.*` 메서드 추가. L1.tools.spec·F.wire-settings.spec 소유자와 정한다.
+4. 닫힘 [결정: M3b B2-ART]. 리뷰 결정은 승인 kind `review`의 답(`ReviewAnswer`)으로 들어온다(§4.2.4 M3b 구현). (a) 승인 프로토콜에 비차단 `review` kind 추가(제안), (b) `question` kind + `answerSchema`, (c) F wire에 `artifacts.review.*` 메서드 추가. L1.tools.spec·F.wire-settings.spec 소유자와 정한다.
 5. [미결] `eng.context-map.design` §4.1 artifacts 행 (d)열에 `xeon.tasks`, `xeon.approvals`, `xeon.models`, `xeon.exec`를 더하는 개정(§3.8). CM-04에 따라 그 문서를 먼저 고친다.
-6. [미결] 거절 적용 경로(§4.2.5): A `workspace.files`(제안), B L1 복원, C 직접 쓰기. A로 정하면 `L2.workspace.spec`에 패치 적용 서비스 메서드와 F `WorkspaceDiffDetailsSchema`를 요청한다. 정해지면 `L2.readme` §10 미결 5도 닫는다.
+6. 닫힘 [결정: M3b B2-ART]. 거절 적용은 A(`workspace.files.edit`)로 한다(§4.2.5 M3b 구현). 후보: A `workspace.files`(제안), B L1 복원, C 직접 쓰기. A로 정하면 `L2.workspace.spec`에 패치 적용 서비스 메서드와 F `WorkspaceDiffDetailsSchema`를 요청한다. 정해지면 `L2.readme` §10 미결 5도 닫는다.
 7. [미결] `SessionInfoChangedPayload`에 라벨을 넣고 라벨 변경 때도 #31을 발사할지(§4.3.4). F.extensions.spec 소유.
 8. [미결] `cache: "session"` 출처 본문을 내보내기에서 뺄지(§4.5.3). 제안은 뺀다. `L2.web.spec`의 정의와 맞춘다.
 9. [미결] 핸드오프 입력의 형식. 지금은 `PostItem kind: "user"` 텍스트다. `context` kind로 바꾸면 `customType`은 `x.cap-artifacts.handoff`다(`F.records.spec` §3.2 규칙 3). 어느 쪽을 쓸지만 남았다.

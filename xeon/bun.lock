@@ -56,6 +56,7 @@
       "name": "@xeon/host",
       "version": "0.0.0",
       "dependencies": {
+        "@xeon/cap-artifacts": "workspace:*",
         "@xeon/cap-dialog": "workspace:*",
         "@xeon/cap-knowledge": "workspace:*",
         "@xeon/cap-mcp": "workspace:*",
@@ -92,8 +93,14 @@
     "packages/cap-artifacts": {
       "name": "@xeon/cap-artifacts",
       "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+        "@xeon/ext-host": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/core-persistence": "workspace:*",
+        "@xeon/platform-store": "workspace:*",
       },
     },
     "packages/cap-dialog": {
