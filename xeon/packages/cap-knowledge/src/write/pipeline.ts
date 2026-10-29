@@ -24,6 +24,7 @@ import {
 } from "../approval/proposals.ts";
 import { sha256Hex, utf8Encode } from "../hash.ts";
 import type { ChangeExecutor, ChangeSpec, LedgerDeps } from "../ledger/change.ts";
+import { pinBlobs, unpinBlobs } from "../ledger/manifest.ts";
 import { findByRequestId } from "../ledger/rows.ts";
 import type { ChangeTarget } from "../ledger/target.ts";
 import type { WriteApprovals } from "../ports/approvals.ts";
@@ -124,6 +125,12 @@ function queuedOutcome(record: ProposalRecord): WriteOutcome {
   };
 }
 
+/** 대기열 행을 쓴 결과. `inserted`가 거짓이면 같은 requestId의 기존 제안을 돌려준 것이다 */
+interface Enqueued {
+  readonly inserted: boolean;
+  readonly outcome: WriteOutcome;
+}
+
 function writingActorOf(actor: KnowledgeActor): WritingActor | undefined {
   switch (actor.kind) {
     case "user":
@@ -183,13 +190,21 @@ export function createWriter(deps: WriterDeps): Writer {
       );
     }
     const proposalId = ids.next("knp");
-    const written = db.write((tx): Result<WriteOutcome, KnowledgeFailure> => {
+    // 제안 행을 쓰기 전에 입력 블롭을 제안 id로 고정한다. 제안 행이 쓰이지 않으면(실패, 같은 requestId의 기존 제안) 고정을 푼다
+    const pinned = pinBlobs(blobs, proposalId, [stored.value]);
+    if (!pinned.ok) {
+      unpinBlobs(blobs, deps.logger, proposalId);
+      return err(pinned.error);
+    }
+    const written = db.write((tx): Result<Enqueued, KnowledgeFailure> => {
       if (requestId !== undefined) {
         const duplicate = findProposalByRequestId(tx, requestId.key);
         if (!duplicate.ok) return duplicate;
         if (duplicate.value !== undefined) {
           const clash = keyReused(duplicate.value.requestFingerprint, requestId);
-          return clash === undefined ? ok(queuedOutcome(duplicate.value)) : err(clash);
+          return clash === undefined
+            ? ok({ inserted: false, outcome: queuedOutcome(duplicate.value) })
+            : err(clash);
         }
       }
       insertProposal(tx, {
@@ -211,10 +226,17 @@ export function createWriter(deps: WriterDeps): Writer {
         requestFingerprint: requestId?.fingerprint,
         ...(request.context?.caller.afterUntrusted === true ? { afterUntrusted: true } : {}),
       });
-      return ok({ status: "queued", proposalId, scan: plan.scan, indexChanged: false });
+      return ok({
+        inserted: true,
+        outcome: { status: "queued", proposalId, scan: plan.scan, indexChanged: false },
+      });
     });
+    if (!written.ok || !written.value.ok || !written.value.value.inserted) {
+      unpinBlobs(blobs, deps.logger, proposalId);
+    }
     if (!written.ok) return err(fromStoreError(written.error, "proposal enqueue"));
-    return written.value;
+    if (!written.value.ok) return err(written.value.error);
+    return ok(written.value.value.outcome);
   }
 
   async function applyNow(

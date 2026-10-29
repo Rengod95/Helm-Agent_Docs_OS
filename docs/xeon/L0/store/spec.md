@@ -870,9 +870,9 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - 주기 값(5초, 30초)을 설정 키로 노출하는 것은 `eng.transactions.design` 미결 T-6에 대한 이 문서의 답이다 [제안].
 - `blobGraceMs` 기본값 근거: 블롭 선쓰기와 커밋 사이 시간은 보통 1초 안이지만 승인 대기처럼 커밋이 늦는 경로를 넉넉히 덮는다 [가정].
 - `blobGcEnabled`는 기본으로 끕니다 [결정: 오케스트레이터 기본값, M3-REQ-84]. 보존 기간이 있어도 보존 밖의 참조 없는 블롭은 지워집니다. 블롭 소비자 가운데 일부는 `pinBlob`으로 블롭을 고정하지 않으므로, 그 블롭이 이벤트 참조(`p_blob_refs`)에도 없으면 GC가 지울 수 있습니다. 조립 루트(apps/host, `L4.host-service` §4.18)는 이 값이 참일 때만 `gcBlobs`를 부릅니다.
-- 켜는 것은 아래 소비자가 모두 `pinBlob`을 쓰게 된 뒤에만 안전합니다. 지금은 아래가 고정하지 않습니다(`pinBlob` 호출처는 cap-web 가져오기 캐시 하나다).
+- 켜는 것은 아래 소비자가 모두 `pinBlob`을 쓰게 된 뒤에만 안전합니다. `pinBlob` 호출처는 cap-web 가져오기 캐시와 cap-knowledge다. 아래 cap-mcp와 cap-dialog는 아직 고정하지 않습니다.
   - cap-web 가져오기 캐시(`packages/cap-web/src/cache/fetch-cache.ts`)는 고정한다. 소유자는 `cap.web`이고 refKey는 원문 행의 `raw_ref`(`webraw:<sha256>`)다. 저장할 때 원문과 본문 블롭을 `pinBlob`으로 적고, 행을 지우는 `sweep`과 `purgeSessionRaw`가 `unpinBlob`으로 푼다. 시험은 `packages/cap-web/test/fetch-cache-pin.int.test.ts`다.
-  - [미결] cap-knowledge 매니페스트(`packages/cap-knowledge/src/ledger/manifest.ts`)와 쓰기 파이프라인(`packages/cap-knowledge/src/write/pipeline.ts`).
+  - cap-knowledge 매니페스트(`packages/cap-knowledge/src/ledger/manifest.ts`)와 쓰기 파이프라인(`packages/cap-knowledge/src/write/pipeline.ts`)은 고정한다. 소유자는 `cap.knowledge`다. 원장 행의 전후 목록과 파일 블롭은 행 id(`knl…`)로, 제안 입력 블롭은 제안 id(`knp…`)로 고정한다. 행을 쓰기 전에 고정하고, 행이 쓰이지 않으면 푼다. 원장 행은 지우지 않으므로 그 고정은 풀지 않는다. 제안은 승인, 거절, `stale`, 만료로 닫힐 때 푼다. 재색인이 쓰는 `external` 행은 커밋 뒤에 고정하므로, 고정이 실패하면 그 행은 고정 없이 남는다 [미결]. 시험은 `packages/cap-knowledge/test/blob-pins.test.ts`다.
   - [미결] cap-mcp 내용 블롭(`packages/cap-mcp/src/client/content.ts`, `service.ts`).
   - [미결] cap-dialog 첨부(`packages/cap-dialog/src/attachments/service.ts`).
   - [미결] cap-workspace 이미지(`packages/cap-workspace/src/images/prepare.ts`).

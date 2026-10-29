@@ -1138,7 +1138,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.5.2 제안 대기열
 
-- 대기열은 `cap_knowledge_proposals`다. 제안은 메서드 이름과 입력 전체(blob), 대상, 연산, `baseHash`, 검사 결과, 미리보기를 갖는다.
+- 대기열은 `cap_knowledge_proposals`다. 제안은 메서드 이름과 입력 전체(blob), 대상, 연산, `baseHash`, 검사 결과, 미리보기를 갖는다. 입력 blob은 제안을 쓰기 전에 제안 id로 `pinBlob`에 고정하고, 제안이 `applied`, `rejected`, `stale`, `expired`로 닫힐 때 푼다(§4.7.1).
 - `decide({ approve })`: 행위자 `user`일 때, 저장된 입력을 쓰기 경로 2단계부터 다시 실행한다. 원장 행에 `proposal_id`를 남긴다. 그 사이 대상이 바뀌었으면 제안은 `stale`이 되고 `base_stale` 오류다.
   - [결정: KN.2] 호스트(사용자)만 결정한다. `DecideInput`에 증거(`approval`)를 실을 자리가 없어 확장의 결정은 `denied`다. 확장이 결정하려면 F가 `DecideInput.approval`을 더해야 한다(§8 요구).
   - [결정: KN.2] 승인한 제안은 게이트를 다시 거치지 않는다(사람이 미리보기를 보고 승인했다). 원장 행의 행위자는 제안한 행위자이고(결정한 사용자는 원장에 남지 않는다), `approved_by`는 `approval`이며 `proposal_id`가 제안을 가리킨다. 스킬 `created_by`(§4.4.4)와 감사가 "누가 바꿨나"와 "누가 승인했나"를 구분하기 위해서다. 같은 결정을 두 번 실행해도 원장 `request_id`(`proposal:<제안 ID>`)가 막는다. `decide`의 `note`는 원장 `reason`이 된다.
@@ -1198,7 +1198,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 보관함 이름은 `<스킬 디렉터리의 부모>/.archive/<이름>-<UTC 시각>`이다. 같은 초에 같은 이름을 두 번 보관하면 `-2`부터 번호를 붙인다. 중첩된 스킬(`<루트>/묶음/<이름>`)은 자기 부모 디렉터리 아래에 보관된다.
 - 모든 변경(스킬 다섯 연산, 메모리 네 연산, 바깥 편집, 되돌림)을 행위자와 함께 `cap_knowledge_ledger`에 남긴다. Hermes 원장(JSONL + 내용 주소 blob, `tools/skill_ledger.py:1-10`)의 설계를 `sys_blobs` 위로 옮긴 것이다(`_research/refs/hermes.md` §3.10.1 (라), §4.1). Hermes 코드는 Python이라 재작성한다.
 - 전후 내용은 파일별 blob(`xeon.store.putBlob`, 내용 주소)과 그 목록 blob(`before_manifest`, `after_manifest`)으로 둔다. 같은 내용은 한 번만 저장된다.
-- 원장 행은 지우지 않는다. 보존 기간과 오래된 blob 정리는 [미결]이다(§10 미결 6, `L2.knowledge.plan` §7 위험).
+- 블롭 고정(`L0.store` §3.4): 원장 행을 쓰기 전에 그 행 id로 전후 목록과 파일 블롭을 `pinBlob(cap.knowledge, sha256, 행 id)`로 고정한다. 행이 쓰이지 않으면(쓰기 실패, 같은 `requestId`의 기존 행) `unpinBlob(cap.knowledge, 행 id)`로 푼다. 원장 행은 지우지 않으므로 커밋된 행의 고정은 풀지 않는다. 재색인이 쓰는 `external` 행은 트랜잭션 안에서 행 id가 정해지므로 커밋 뒤에 고정한다. 이 고정이 실패하면 그 행은 고정 없이 남고, 재색인은 같은 내용을 다시 적지 않으므로 다음 재색인도 채우지 못한다 [미결](§10 미결 14). 시험은 `test/blob-pins.test.ts`다.
+- 원장 행은 지우지 않는다. 보존 기간과 오래된 blob 정리는 [미결]이다(§10 미결 6, `L2.knowledge.plan` §7 위험). 이 변경 뒤에 쓴 원장 블롭은 고정이 있어 GC가 지우지 않는다(이전 행은 §10 미결 14).
 
 #### 4.7.2 롤백
 
@@ -1378,7 +1379,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `defineCapability`, `serviceKey`, `CapabilityError`, `validateCapability` | `F.capabilities.spec` | 있음 |
 | `CallOptions.context.caller`(`CallerInfo`, `afterUntrusted` 포함) | `F.capabilities.spec` §3.2(`L2.readme` §5.8) | 있음 |
 | `BlobRef`, blob 자리표시 형식 | `F.records.spec` §3.4 | 있음 |
-| `StoreService.scoped`, `putBlob`, `readBlob`, temp 가상 테이블 생성 허용 | `L0.store.spec` | 있음(`eng.transactions.design` §4.2), temp 허용은 [가정] |
+| `StoreService.scoped`, `putBlob`, `readBlob`, `pinBlob`, `unpinBlob`, temp 가상 테이블 생성 허용 | `L0.store.spec` | 있음(`eng.transactions.design` §4.2), temp 허용은 [가정] |
 | `consumer_cursors` 자기 행 쓰기를 범위 핸들에서 허용 | `L0.store.spec`, `L1.persistence.spec` | 없음. 범위 핸들은 session-core 표에 쓸 수 없어 커서를 투영 표로 옮겼다(§4.8.1) |
 | 전역 이벤트 `seq` 구독(`subscribe(afterSeq, listener, filter)`, `kindPrefixes`)과 `hydrate` | `L1.persistence.spec`(`xeon.session`) | 있음 |
 | 투영기 등록(`projectors.register`)과 같은 컨텍스트 범위 핸들의 투영 표 쓰기 | `L1.persistence.spec`, `L0.store.spec` | 있음(표 이름은 `cap_knowledge_` + 밑줄 없는 지역 이름, 세션 삭제 정리는 `thread_id` 열) |
@@ -1428,6 +1429,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 11. [미결] 2글자 질의 LIKE 경로의 탐색 범위(`likeScanLimit`)와 성능 목표(`_research/notes/L2-3.md` §5).
 12. [미결] L3 학습 정책의 `kind: "script"(반복 작업 스크립트) 저장 위치. 2차(§3.9).
 13. [미결] 프로젝트 스킬(`.xeon/skills`)에 대한 에이전트 쓰기 허용. 제안은 모델 도구 경로에서 금지다(§3.2).
+14. [미결] 고정 이전에 쓴 원장 행과 제안 행의 블롭. 이 변경 전 행에는 `pinBlob`이 없다. 채우는 방법(재고정 작업)과 재색인 `external` 행의 고정 실패를 되돌리는 방법을 정하기 전에는 `l0.store.blobGcEnabled`를 켜지 않는다(`L0.store` §3.4 opt-in 목록).
 14. [미결] 되감긴 가지의 메시지를 세션 검색에서 숨길지(§4.8.1).
 15. [가정] macOS 시스템 SQLite의 FTS5·trigram 포함(`_research/notes/L2-3.md` §2.2). 사용자 Mac에서 `pragma compile_options` 확인이 필요하다.
 16. [가정] Hermes 한도 1,375자·2,200자를 한국어 사용에 그대로 쓴다(§4.3.2).

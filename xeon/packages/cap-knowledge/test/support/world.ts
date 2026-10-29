@@ -29,6 +29,12 @@ interface LogLine {
   readonly fields: LogFields | undefined;
 }
 
+/** 블롭 저장과 고정 호출의 기록. 시험이 고정과 해제가 어떤 값으로 불렸는지 본다 */
+type BlobEvent =
+  | { readonly op: "put"; readonly sha256: string }
+  | { readonly op: "pin"; readonly owner: string; readonly sha256: string; readonly refKey: string }
+  | { readonly op: "unpin"; readonly owner: string; readonly refKey: string };
+
 export interface World {
   readonly fs: MemoryFs;
   readonly store: TestStore;
@@ -37,8 +43,10 @@ export interface World {
   readonly runtime: KnowledgeRuntime;
   readonly executor: ChangeExecutor;
   readonly logs: LogLine[];
-  /** 안전 캡처(blob 저장)를 실패시키는 스위치 */
-  readonly blobFault: { putFails: boolean };
+  /** 안전 캡처(blob 저장)와 고정(pin)을 실패시키는 스위치 */
+  readonly blobFault: { putFails: boolean; pinFails: boolean };
+  /** 블롭 호출 기록. 고정 실패로 시도한 호출도 남는다 */
+  readonly blobEvents: BlobEvent[];
   /** `sessions: true`로 열었을 때의 세션 도우미 */
   readonly sessions: SessionKit | undefined;
   /** 색인 소비자가 받은 배치를 모두 처리하기를 기다린다 */
@@ -83,6 +91,8 @@ export interface WorldOptions {
   readonly trustedEvidenceSources?: readonly string[];
   /** 저장소 능력 판정을 덮어쓴다(FTS5 없음, 낡은 SQLite 시험) */
   readonly capabilities?: { readonly fts5: boolean; readonly sqliteVersion: string };
+  /** blob 유예 기간(ms). GC 시험이 시계를 조금 넘겨 지운다 */
+  readonly blobGraceMs?: number;
 }
 
 /** 메모리 파일 시스템 + 실제 SQLite 임시 저장소 + 마이그레이션 적용을 한 번에 만든다 */
@@ -94,18 +104,33 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
     clock,
     ids,
     ...(options.path === undefined ? {} : { path: options.path }),
+    ...(options.blobGraceMs === undefined
+      ? {}
+      : { settings: { blobGraceMs: options.blobGraceMs } }),
   });
   if (options.path === undefined) opened.push(store);
   const migrated = store.service.migrations.apply(KNOWLEDGE_MIGRATIONS);
   if (!migrated.ok) throw new Error(`migration failed: ${migrated.error.kind}`);
   const logs: LogLine[] = [];
-  const blobFault = { putFails: false };
+  const blobFault = { putFails: false, pinFails: false };
+  const blobEvents: BlobEvent[] = [];
   const blobs: BlobPort = {
-    putBlob: (bytes, mediaType) =>
-      blobFault.putFails
-        ? { ok: false, error: { kind: "disk_full" } }
-        : store.service.putBlob(bytes, mediaType),
+    putBlob: (bytes, mediaType) => {
+      if (blobFault.putFails) return { ok: false, error: { kind: "disk_full" } };
+      const stored = store.service.putBlob(bytes, mediaType);
+      if (stored.ok) blobEvents.push({ op: "put", sha256: stored.value.sha256 });
+      return stored;
+    },
     readBlob: (ref) => store.service.readBlob(ref),
+    pinBlob: (owner, sha256, refKey) => {
+      blobEvents.push({ op: "pin", owner, sha256, refKey });
+      if (blobFault.pinFails) return { ok: false, error: { kind: "disk_full" } };
+      return store.service.pinBlob(owner, sha256, refKey);
+    },
+    unpinBlob: (owner, refKey) => {
+      blobEvents.push({ op: "unpin", owner, refKey });
+      return store.service.unpinBlob(owner, refKey);
+    },
   };
   let layers: ScopeStack = [];
   const logger = recordingLogger(logs);
@@ -162,6 +187,7 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
     executor: createChangeExecutor(deps),
     logs,
     blobFault,
+    blobEvents,
     sessions: kit,
     settleIndex: async () => {
       await runtime.indexer()?.settled();

@@ -266,8 +266,8 @@ export function closeProposal(
   return true;
 }
 
-/** 만든 지 `olderThan`(epoch ms)보다 오래된 pending 제안을 expired로 바꾸고 개수를 돌려준다 */
-export function expirePending(tx: SqlTx, olderThan: number, now: number): number {
+/** 만든 지 `olderThan`(epoch ms)보다 오래된 pending 제안을 expired로 바꾸고 그 제안 id들을 돌려준다 */
+export function expirePending(tx: SqlTx, olderThan: number, now: number): readonly string[] {
   const stale = tx.all(
     "SELECT proposal_id FROM cap_knowledge_proposals WHERE status = 'pending' AND created_at < ?",
     [olderThan],
@@ -276,5 +276,5 @@ export function expirePending(tx: SqlTx, olderThan: number, now: number): number
     "UPDATE cap_knowledge_proposals SET status = 'expired', decided_at = ? WHERE status = 'pending' AND created_at < ?",
     [now, olderThan],
   );
-  return stale.length;
+  return stale.map((row) => String(row["proposal_id"]));
 }

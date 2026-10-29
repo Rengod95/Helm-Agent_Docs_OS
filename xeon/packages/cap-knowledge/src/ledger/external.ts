@@ -7,7 +7,7 @@ import { updateDocsAfterChange } from "../search/docs-index.ts";
 import { upsertFileState } from "../skills/store.ts";
 import { treeBytes, type Tree } from "../skills/tree.ts";
 import type { LedgerDeps } from "./change.ts";
-import { putTree } from "./manifest.ts";
+import { pinBlobs, putTree, unpinBlobs } from "./manifest.ts";
 import { insertRecord, manifestForHash } from "./rows.ts";
 import { hashOfTarget, type ChangeTarget } from "./target.ts";
 
@@ -28,12 +28,22 @@ export function recordExternalChange(
   change: ExternalChange,
 ): Result<void, KnowledgeFailure> {
   const { target, previousHash, current } = change;
+  const ledgerId = deps.ids.next("knl");
   let afterManifest: BlobRef | null = null;
   if (current !== null) {
     const stored = putTree(deps.blobs, current);
-    // 새 내용을 보관하지 못하면 되돌림 기준이 없다. 기록은 하되 목록 없이 남긴다
-    if (stored.ok) afterManifest = stored.value;
-    else {
+    if (stored.ok) {
+      // 행을 쓰기 전에 새 내용의 블롭을 행 id로 고정한다(원장 행은 추가만 한다)
+      const pinned = pinBlobs(deps.blobs, ledgerId, stored.value.refs);
+      if (pinned.ok) afterManifest = stored.value.manifest;
+      else {
+        unpinBlobs(deps.blobs, deps.logger, ledgerId);
+        deps.logger.warn("knowledge.external.capture_failed", {
+          target: target.name,
+          cause: pinned.error.message,
+        });
+      }
+    } else {
       deps.logger.warn("knowledge.external.capture_failed", {
         target: target.name,
         cause: stored.error.message,
@@ -42,7 +52,6 @@ export function recordExternalChange(
   }
   const afterHash = hashOfTarget(target.kind, current);
   const now = deps.clock.now();
-  const ledgerId = deps.ids.next("knl");
   const written = deps.db.write((tx) => {
     const scan = { rulesetVersion: SCAN_RULESET_VERSION, findings: [] };
     const outcome: WriteOutcome = {
@@ -99,5 +108,7 @@ export function recordExternalChange(
       });
     }
   });
+  // 행이 쓰이지 않았으면 고정을 푼다. 목록이 없으면 고정도 없다
+  if (!written.ok && afterManifest !== null) unpinBlobs(deps.blobs, deps.logger, ledgerId);
   return written.ok ? ok(undefined) : err(fromStoreError(written.error, "external change"));
 }
