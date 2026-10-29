@@ -589,6 +589,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const mcpProcess = createHostMcpProcessPort({
       ext,
       secrets: secrets.service,
+      tempDir: os.dirs.tmp,
       scheduler: os.time.scheduler,
       parentEnv: process.env,
       logger: os.logger("mcp-process"),

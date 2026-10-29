@@ -428,3 +428,11 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | 저장소 경고 `read_only` | 구현 | `logStoreWarning`이 `store.warning`으로 남긴다(typecheck를 막던 누락 분기) |
 
 남은 것: 블롭 GC는 서비스 모드에서만 돈다. `scheduler` 임대가 생기기 전까지 그렇다 [미결 §10 36]. 자동 제목의 임시 판정은 이 프로세스가 본 첫 입력에 기댄다 [미결 §10 47]. 테이프 시험에는 자격 증명 참조가 없어 긍정 경로의 실제 엔진 시험은 없다 [미결 §10 48]. 블롭 GC를 켜기 전에 소비자 고정 목록을 닫는다 [미결 §10 49].
+
+## 13. M3b 구현 기록 (B3-SEC의 P-15 몫)
+
+| 작업 | 상태 | 내용과 시험 |
+|---|---|---|
+| P-15 샌드박스 연결 | 구현 | `createHostMcpProcessPort`가 `tempDir`을 받고 `xeon.sandbox`를 spawn마다 찾는다(HS-64). `test/assembly/mcp-process.test.ts`: 샌드박스 요청은 `wrapArgv` 명령줄로 뜨고 `defaultPolicy`에 `tempDir`이 넘어간다. 서비스가 나중에 올라와도 그때부터 쓴다. 서비스가 없으면 `service_missing`이고 자식이 뜨지 않는다(같은 요청을 샌드박스 없이 내면 뜬다). 격리 불가 사유는 그대로 옮긴다 |
+| P-15 실제 격리 | 구현 | `test/int/mcp-sandbox.int.test.ts`: 실제 srt와 bwrap으로 보호 디렉터리 읽기 거부, 작업 폴더 밖 쓰기 거부, 차단 도메인 403과 직접 TCP 거부, 작업 폴더 안 쓰기 허용을 보고, 샌드박스 없이 같은 서버는 셋 다 허용하는 대조를 둔다. 필수 바이너리(bwrap, socat, rg)가 없거나 서비스 상태가 쓸 수 없으면 `SKIPPED mcp-sandbox.int: sandbox not runnable here`를 남기고 건너뛴다. `XEON_REQUIRE_SANDBOX=1` 또는 CI에서는 종료 코드 2로 끝난다 |
+| 시험 환경 | 구현 | 이 파일은 `TMPDIR`을 디스크(`/tmp`)로 돌린다. `apps/host`의 preload는 `TMPDIR`을 `/dev/shm`으로 옮기는데, bwrap 안에서는 `/dev/shm`이 보이지 않아 프록시 소켓과 작업 폴더가 쓰이지 않는다. srt는 프로세스 전역이고 `initialize`는 이미 켜져 있으면 설정을 무시하므로, 시험 서비스를 만들기 전에 서비스를 한 번 만들어 끈다 |
