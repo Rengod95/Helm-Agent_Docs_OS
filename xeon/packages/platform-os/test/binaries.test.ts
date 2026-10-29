@@ -402,6 +402,27 @@ describe("resolveBinary: 시스템", () => {
     });
   });
 
+  test("Linux에서 bwrap과 socat이 없으면 apt 설치 안내를 싣는다 (D-M3-25 행 5, M3-REQ-53)", async () => {
+    const { deps } = harness({ fs: fakeFs({}), pathEnv: "/usr/bin" });
+    const resolver = createBinaryResolver(deps);
+    const bwrap = await resolver("bwrap", {}, signal);
+    const socat = await resolver("socat", {}, signal);
+    expect([bwrap, socat].map((result) => (result.ok ? undefined : result.error))).toEqual([
+      {
+        kind: "not_found",
+        name: "bwrap",
+        searched: ["/usr/bin"],
+        hint: "bubblewrap 패키지를 설치한다 (예: apt install bubblewrap)",
+      },
+      {
+        kind: "not_found",
+        name: "socat",
+        searched: ["/usr/bin"],
+        hint: "socat 패키지를 설치한다 (예: apt install socat)",
+      },
+    ]);
+  });
+
   test("동시 호출 합치기: 같은 이름 동시 호출 3회에 탐색 1회", async () => {
     let probes = 0;
     const base = fakeFs({ executables: ["/usr/bin/rg"] });
