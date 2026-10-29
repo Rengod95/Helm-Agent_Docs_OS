@@ -18,12 +18,13 @@
 | `palette.tsx`, `locked-dialog.tsx` | S7 팔레트, S5 O-01 잠긴 대화 |
 | `fixtures.ts` | 스펙 §8.2 고정 데이터 그대로(타입만 덧붙임) |
 | `icons.ts` | lucide-react 진입점(아래 "환경" 참고) |
+| `fonts.ts` | caustic `fonts.css`를 렌더를 막지 않게 싣기(원격 `@import`를 비동기 `<link>`로, DP-15) |
 | `parts/` | caustic에 없어 직접 만든 부품(아래 표) |
 | `shots/S1.png`~`S7.png` | 1280px 라이트 스크린숏 |
 
 ## 쓴 caustic 부품
 
-`SidePanel`(왼쪽, inspector 폭 끌기, size sm), `FloatingBar`/`FloatingBarItem`(vertical, 새 `badge` prop), `Card`(variant well)/`CardPanel`,
+`SidePanel`(왼쪽, docked outline, inspector 폭 끌기, size sm), `ListDescription`/`ListDescriptionRow`, `Input`, `FloatingBar`/`FloatingBarItem`(vertical, 새 `badge` prop), `Card`(variant well)/`CardPanel`,
 `ListNavigation`/`ListNavigationGroup`/`ListNavigationItem`(navigation, sessions, size sm),
 `IconButton`, `Button`, `Badge`, `Menu`/`MenuItem`/`MenuSeparator`,
 `EmptyState`(dashed, agent), `ScrollArea`, `Message`, `MessageCode`, `Thinking`, `ToolCall`, `AgentRequest`(permission, 기록 allowed/denied/answered),
@@ -39,7 +40,6 @@
 | `notice-list.tsx` | C-02 알림함(종류, 안 읽음, 시각) |
 | `tool-row.tsx` | `ToolCall`에 접기·펼치기가 없음(실패한 bash는 처음부터 펼침), C-15 도구 출력 |
 | `question-card.tsx` | `AgentRequest`에 질문 kind가 없음(permission은 방패 고정, proposal은 영어 "Proposal ·" 머리). permission 카드 치수를 따름 |
-| `disclosure.tsx` | 카드 안 작은 접기 줄("인자 (2)"). `Accordion`은 48px 머리라 큼 |
 | `rich-text.tsx` | C-06 Markdown: 백틱 인라인 코드만 `<code>` |
 | `streaming-text.tsx` | `Message streaming`에 작성 중 커서가 없음. 깜빡이는 커서 하나 |
 | `observe-band.tsx` | `Composer`에 "관찰 중" 잠금 상태가 없음 |
@@ -54,6 +54,13 @@
 - 여백은 창 바깥 한 곳(6px)과 각 부품 안쪽 한 곳에서만.
 - 오른쪽: 접으면 `FloatingBar` 세로 막대(받은 요청 수 배지), 펼치면 누른 아이콘 모서리에서 커지는 `Card variant="well"` 안에 `CardPanel`. 넓은 폭은 대화 영역을 밀고(헤어라인), 1100px 이하는 대화 위에 떠 그림자 하나.
 - well 안의 승인·질문 카드는 상자 없이(`flat`) 간격으로만 묶습니다. 대화 안의 같은 카드는 헤어라인 표면입니다.
+
+## 3차(DP-12~16)
+
+- 검은 화면: `fonts.css` 첫 줄의 원격 Google Fonts `@import`가 번들 CSS 맨 앞에 남아, 호스트가 막히면 스타일시트와 모듈 스크립트가 함께 멈춰 React가 마운트되지 않았습니다(호스트를 막은 헤드리스 Chrome에서 재현: `styleSheets 0`, `#root` 비어 있음). `fonts.ts`로 고쳐 막힌 상태에서도 그려지고 SUIT가 실립니다.
+- 승인 상세는 `ListDescription` 한 목록(명령, 위험도, 비밀, 인자).
+- 왼쪽 패널은 위아래 끝까지 붙는 docked 면, 머리는 `Input` 찾기 + 늘 보이는 접기 버튼.
+- 상태 칩은 caustic `ToolCall` 쪽에서 앞 아이콘 여백을 2px로 맞춤.
 
 ## 강조·깊이 규칙(2차 수정)
 

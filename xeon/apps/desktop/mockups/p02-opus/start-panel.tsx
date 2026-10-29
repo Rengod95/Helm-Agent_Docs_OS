@@ -1,6 +1,7 @@
 // 시작 영역(표면): 찾기 + 주 내비(다섯 항목) + 작업 폴더별 대화 목록 + 맨 아래 설정. 제목 띠가 없어서 찾기와 접기가 여기 머리에 온다.
 import {
-  Button,
+  IconButton,
+  Input,
   ListNavigation,
   ListNavigationGroup,
   ListNavigationItem,
@@ -15,6 +16,7 @@ import {
   MessageSquare,
   Plug,
   RotateCcw,
+  PanelLeft,
   Search,
   Settings,
 } from "./icons";
@@ -64,23 +66,41 @@ export function StartPanel({ floating }: { floating: boolean }) {
       collapsed={!m.startOpen}
       onCollapsedChange={(c) => m.setStartOpen(!c)}
       size="sm"
-      collapseLabel="사이드바 닫기"
-      // 붙박이면 헤어라인 한 줄, 좁은 폭에서 대화 위로 뜨면 그림자 하나(깊이 신호는 하나만).
-      // 머리·바닥 띠의 좌우 여백은 한 단계(1.5)만 두고, 안의 행이 자기 여백을 가진다(DP-07).
+      // 붙박이: 창 왼쪽 끝에서 위아래 끝까지 닿는 docked 면(variant outline: 모서리 없음, 오른쪽 헤어라인 하나, DP-13).
+      // 좁은 폭에서 대화 위로 뜰 때만 floating 면(solid)과 그림자 하나.
+      variant={floating ? "solid" : "outline"}
       shadow={floating ? "3" : "none"}
-      className={`${floating ? "" : "shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] "}[&>[data-slot=side-panel-footer]]:px-1.5 [&>[data-slot=side-panel-header]]:px-1.5`}
+      className="[&>[data-slot=side-panel-footer]]:px-1.5 [&>[data-slot=side-panel-header]]:px-1.5"
+      // 찾기 칸이 머리 폭을 다 쓰고, 접기 버튼은 늘 보이는 자리에 둔다(caustic의 hover 때만 보이는 접기 버튼은 빈 자리를 남겨서 쓰지 않는다).
       header={
-        <Button
-          size="sm"
-          tone="neutral"
-          variant="soft"
-          iconStart={<Search />}
-          onClick={() => m.setPaletteOpen(true)}
-          aria-label="명령 또는 대화 찾기"
-          className="w-full justify-start font-normal text-text-tertiary"
-        >
-          찾기
-        </Button>
+        <div className="flex min-w-0 items-center gap-1">
+          <Input
+            size="xs"
+            variant="soft"
+            readOnly
+            prefix={<Search />}
+            placeholder="찾기"
+            aria-label="명령 또는 대화 찾기"
+            aria-haspopup="dialog"
+            onClick={() => m.setPaletteOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                m.setPaletteOpen(true);
+              }
+            }}
+            containerClassName="min-w-0 flex-1"
+            className="cursor-pointer"
+          />
+          <IconButton
+            size="sm"
+            variant="ghost"
+            label="사이드바 닫기"
+            onClick={() => m.setStartOpen(false)}
+          >
+            <PanelLeft />
+          </IconButton>
+        </div>
       }
       footer={
         <ListNavigation aria-label="설정" kind="navigation" size="sm" as="div" className="w-full">

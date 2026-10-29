@@ -1,4 +1,6 @@
-import "@caustic/tokens/fonts.css";
+// 글꼴은 맨 먼저: caustic fonts.css를 렌더를 막지 않게 싣는다(fonts.ts 머리 주석).
+import { loadCausticFonts } from "./fonts";
+loadCausticFonts();
 // P-02 대화 셸 목업 진입점. ?state=S1..S7 로 화면 상태, ?theme=light|dark 로 테마를 고른다(기본 S1, 라이트).
 import "./mockup.css";
 import { StrictMode, useEffect, useState } from "react";

@@ -2095,3 +2095,11 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 - DP-11b 한글 글꼴: Geist 다음 SUIT Variable입니다 [결정: 2026-10-29 사용자]. caustic이 SUIT v2.0.5 가변 woff2(SIL OFL 1.1, 625KB, 굵기 100–900)를 직접 담고, 앱은 `@caustic/tokens/fonts.css`를 다른 스타일보다 먼저 가져옵니다. 한글·CJK 문장부호에만 쓰이고(unicode-range) 영문과 숫자는 Geist입니다. Google의 Noto Sans KR은 더 받지 않습니다. 굵기 400·500·600·700이 한글에서도 모두 다르게 보입니다.
 - DP-11c 굵기 단계: 본문 400, 강조·라벨 500, 제목 600. SUIT 400·500은 Geist와 같은 무게로 보입니다. SUIT 600은 큰 제목에서 Geist 600보다 가벼워, `lang="ko"` 아래 18px 이상 600 역할(display, title-1·2 등)은 700으로 그립니다.
 - DP-11d 글자색 단계: primary·secondary·tertiary·placeholder = neutral 11·10·9·8. surface.base 위 대비가 라이트 20 : 11.6 : 7.7 : 5.9, 다크 16.7 : 8.8 : 6.5 : 5.2입니다(이전 라이트 secondary 13.9, 다크 9.9 : 7.0 : 5.7). 모든 단계가 WCAG 4.5:1 이상입니다.
+
+### 13.3 3차 (2026-10-30)
+
+- DP-12 승인 상세는 caustic `ListDescription`(variant ghost, size xs) 한 목록으로 보입니다. 명령 전문, 위험도(`Badge tone="warning"`), 비밀 핸들(`ENV ← secret://…`), 인자를 행마다 이름표·값으로 둡니다. 따로 흩어진 줄, 이름표 문장, 접기를 두지 않습니다. 카드가 좌우 여백을 주므로 행의 좌우 여백은 0입니다(DP-07).
+- DP-13 왼쪽 패널은 창의 위아래 끝까지 붙는 docked 면입니다(`SidePanel variant="outline"`: 모서리 없음, 오른쪽 헤어라인 하나, 그림자 없음). 창 여백은 그 오른쪽 열에만 줍니다. 좁은 폭에서 대화 위로 뜰 때만 floating 면(solid)과 그림자 하나입니다.
+- DP-14 왼쪽 패널 머리의 찾기는 필드 모양 그대로 `Input`(size xs, variant soft, 검색 prefix, 읽기 전용, 누르거나 Enter면 팔레트)이 머리 폭을 다 쓰고, 접기 `IconButton`은 늘 보이는 자리에 둡니다. 머리에 hover 때만 보이는 버튼으로 빈 자리를 남기지 않습니다.
+- DP-15 원격 글꼴은 렌더를 막지 않습니다. 스타일시트 안의 원격 `@import`(Google Fonts 등)는 호스트가 느리거나 막히면 스타일시트와 그 뒤 모듈 스크립트를 함께 멈춰 빈(다크에서는 검은) 창을 만듭니다. 원격 글꼴은 스크립트가 넣는 `<link>`나 자체 호스팅 `@font-face`로만 싣습니다. 시안은 `fonts.ts`가 `fonts.css`의 원격 `@import`를 떼어 비동기로 붙입니다. caustic `fonts.css`에서 원격 `@import`를 빼는 것을 권합니다.
+- DP-16 앞 아이콘이 있는 알약(상태 칩, 18px)은 시작 쪽 여백을 아이콘 자신의 위아래 여백과 같게((18−14)/2 = 2px) 두고 끝 쪽만 6px입니다. 아이콘이 알약의 둥근 끝에 앉아 좌우가 위아래보다 넓어 보이지 않습니다(caustic `ToolCall` 상태 칩에 반영).

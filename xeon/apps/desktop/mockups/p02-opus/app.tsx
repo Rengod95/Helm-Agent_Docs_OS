@@ -164,32 +164,34 @@ export function App() {
       >
         본문으로
       </a>
-      {/* 창 안쪽 여백은 이 한 곳(1.5)에서만 준다. 패널과 대화 영역은 자기 안쪽만 책임진다(DP-07). */}
-      <div className="relative flex min-h-0 flex-1 gap-1.5 p-1.5 pb-0">
+      {/* 왼쪽 패널은 창의 위아래 끝까지 붙는다(DP-13). 그 오른쪽 열에만 창 여백(1.5)을 한 번 주고, 상태 표시줄은 그 열 아래. */}
+      <div className="relative flex min-h-0 flex-1">
         <div
           className={
             compact
               ? m.startOpen
-                ? "absolute inset-y-1.5 start-1.5 z-30 flex w-[min(20rem,calc(100%-3rem))] animate-enter-panel enter-from-start"
+                ? "absolute inset-y-0 start-0 z-30 flex w-[min(20rem,calc(100%-3rem))] animate-enter-panel enter-from-start"
                 : "absolute"
-              : m.startOpen
-                ? "flex"
-                : "-me-1.5 flex"
+              : "flex"
           }
         >
           <StartPanel floating={compact} />
         </div>
-        <main
-          id={STAGE_ID}
-          tabIndex={-1}
-          aria-label="대화"
-          className="flex min-w-0 flex-1 flex-col outline-none"
-        >
-          <StageContent />
-        </main>
-        <RightPanel />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative flex min-h-0 flex-1 gap-1.5 p-1.5 pb-0">
+            <main
+              id={STAGE_ID}
+              tabIndex={-1}
+              aria-label="대화"
+              className="flex min-w-0 flex-1 flex-col outline-none"
+            >
+              <StageContent />
+            </main>
+            <RightPanel />
+          </div>
+          <StatusBar start={cells.start} end={cells.end} />
+        </div>
       </div>
-      <StatusBar start={cells.start} end={cells.end} />
       <Palette />
       <LockedDialog />
     </>

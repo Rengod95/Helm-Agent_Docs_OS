@@ -1,10 +1,8 @@
 // 도구 승인 카드: caustic AgentRequest(kind permission)에 명령 전문, 비밀 핸들, 위험도, 인자를 담는다.
 // 트랜스크립트 끝과 끝 영역에 같은 부품으로 보인다. 카드에 초점이 있으면 Y(허용), ⇧Y(이 대화에서 항상), N(거부).
-import { AgentRequest, Badge, MessageCode } from "@caustic/react";
+import { AgentRequest, Badge, ListDescription, ListDescriptionRow } from "@caustic/react";
 import type { KeyboardEvent } from "react";
 import type { ToolApproval } from "./fixtures";
-import { KeyRound } from "./icons";
-import { Disclosure } from "./parts/disclosure";
 import type { Decision } from "./store";
 
 export interface ToolApprovalCardProps {
@@ -68,15 +66,10 @@ export function ToolApprovalCard({
       <AgentRequest
         kind="permission"
         title={
-          <span className="flex items-center gap-2">
-            <span>
-              <span className="sr-only">도구 승인: </span>
-              <span className="font-mono">{approval.tool}</span>
-            </span>
-            <Badge size="xs" tone="warning">
-              위험도 {approval.risk}
-            </Badge>
-          </span>
+          <>
+            <span className="sr-only">도구 승인: </span>
+            <span className="font-mono">{approval.tool}</span>
+          </>
         }
         subtitle={subtitle}
         tabIndex={-1}
@@ -97,37 +90,35 @@ export function ToolApprovalCard({
         ]}
         onAction={(id) => onDecide(ACTION_TO_DECISION[id as keyof typeof ACTION_TO_DECISION])}
       >
-        {/* 명령 전문과 비밀 핸들은 이름표 없이 간격으로만 묶는다($와 열쇠 표시가 무엇인지 말한다). */}
-        <div className="grid gap-1.5">
-          <MessageCode className="block whitespace-pre-wrap break-all px-2 py-1.5">
-            $ {approval.command}
-          </MessageCode>
-          <ul aria-label="이 호출이 쓸 비밀" className="m-0 grid list-none gap-1 p-0">
-            {approval.secrets.map((s) => (
-              <li
-                key={s.env}
-                className="flex min-w-0 items-center gap-1.5 font-mono text-mono-sm text-text-primary"
-              >
-                <KeyRound aria-hidden className="size-icon-xs shrink-0 text-text-tertiary" />
-                <span>{s.env}</span>
-                <span aria-label="에서 받음" className="text-text-tertiary">
-                  ←
-                </span>
-                <span className="min-w-0 truncate text-text-secondary">{s.ref}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <Disclosure summary={`인자 (${extraArgs.length})`}>
-          <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 font-mono text-mono-sm">
-            {extraArgs.map(([k, v]) => (
-              <div key={k} className="contents">
-                <dt className="text-text-tertiary">{k}</dt>
-                <dd className="m-0 min-w-0 truncate text-text-primary">{String(v)}</dd>
-              </div>
-            ))}
-          </dl>
-        </Disclosure>
+        {/* 승인에 필요한 사실은 한 목록(caustic ListDescription)으로: 명령 전문, 위험도, 비밀 핸들, 인자. 이름표는 목록이 맡는다(DP-12). */}
+        <ListDescription
+          variant="ghost"
+          size="xs"
+          aria-label="승인 상세"
+          // 카드가 이미 좌우 여백을 준다: 행의 좌우 여백은 0(DP-07). 이름표 열은 가장 긴 이름표(timeoutSeconds) 폭만큼.
+          className="rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
+        >
+          <ListDescriptionRow term="명령" mono>
+            <span className="whitespace-pre-wrap break-all">{approval.command}</span>
+          </ListDescriptionRow>
+          <ListDescriptionRow term="위험도">
+            <Badge size="xs" tone="warning">
+              {approval.risk}
+            </Badge>
+          </ListDescriptionRow>
+          {approval.secrets.map((sec) => (
+            <ListDescriptionRow key={sec.env} term="비밀" mono>
+              <span className="break-all">
+                {sec.env} ← {sec.ref}
+              </span>
+            </ListDescriptionRow>
+          ))}
+          {extraArgs.map(([k, v]) => (
+            <ListDescriptionRow key={k} term={k} mono>
+              {String(v)}
+            </ListDescriptionRow>
+          ))}
+        </ListDescription>
       </AgentRequest>
     </fieldset>
   );
