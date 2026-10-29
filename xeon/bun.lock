@@ -367,6 +367,19 @@
         "@xeon/ext-host": "workspace:*",
       },
     },
+    "packages/group-provider-anthropic-oauth": {
+      "name": "@xeon/group-provider-anthropic-oauth",
+      "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+        "@xeon/group-kit": "workspace:*",
+        "typebox": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@xeon/ext-host": "workspace:*",
+      },
+    },
     "packages/platform-exec": {
       "name": "@xeon/platform-exec",
       "version": "0.0.0",
@@ -943,6 +956,8 @@
     "@xeon/group-kit": ["@xeon/group-kit@workspace:packages/group-kit"],
 
     "@xeon/group-learning": ["@xeon/group-learning@workspace:packages/group-learning"],
+
+    "@xeon/group-provider-anthropic-oauth": ["@xeon/group-provider-anthropic-oauth@workspace:packages/group-provider-anthropic-oauth"],
 
     "@xeon/host": ["@xeon/host@workspace:apps/host"],
 

@@ -73,7 +73,7 @@ export interface XeonPackageField {
 | `DR-10/cli-host` | `apps/cli` → `apps/host` | CLI의 in-process 전송은 호스트의 조립 코드를 같은 프로세스에서 쓴다. 엔진 조립 코드를 한 곳에 둔다 |
 | `DR-10/cli-client`, `DR-10/desktop-client` | `apps/cli`, `apps/desktop` → `packages/client` | CLI와 데스크톱이 연결 코드(`createHostConnection`), 설정 view-model, 공유 로직, i18n 카탈로그를 한 곳에서 쓴다. F는 런타임 로직 없는 계약으로 둔다 [결정: adr.0020] |
 | `DR-10/host-client` | `apps/host` → `packages/client` | 호스트의 `./client` 재노출(`@xeon/host/client`)과 호스트 시험이 클라이언트 연결 구현을 쓴다. [미결] adr.0020 §3.5는 호스트가 `@xeon/client`를 import하지 않는다고 적는다. 재노출을 없애고 시험만 쓰는 방식은 시험 한정 DR-10 예외가 필요하다 |
-| `DR-02/group-kit-*` | `group-helm`, `group-learning`, `group-account-rotation` → `group-kit` | 그룹은 `group-kit`의 `defineGroup`을 쓴다. 그룹 공통 기반을 그룹마다 중복하지 않는다 |
+| `DR-02/group-kit-*` | `group-helm`, `group-learning`, `group-account-rotation`, `group-provider-anthropic-oauth` → `group-kit` | 그룹은 `group-kit`의 `defineGroup`을 쓴다. 그룹 공통 기반을 그룹마다 중복하지 않는다 |
 
 - 예외 대상 패키지(`apps/host`, `packages/client`, `group-kit`) 자신은 같은 층을 import하지 않는다. `check-layers.ts`는 `apps/*` → `packages/client` 간선을 DR-10으로, `packages/client` → `apps/*` 간선을 DR-02로 보고한다. `packages/client`는 F(`contracts`)만 import한다 [결정: adr.0020].
 - `plugins/*`는 L1 순위이고 같은 층 예외를 두지 않는다 [결정: review.decisions-2 U-16]. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`를 import하지 않는다. `plugins/provider-anthropic-oauth`는 F의 provider 인터페이스로 provider를 만들고 `core-models` 서비스에 등록한다.

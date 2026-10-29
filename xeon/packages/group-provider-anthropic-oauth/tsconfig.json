@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": ["src", "test", "scripts"],
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../group-kit"
+    },
+    {
+      "path": "../ext-host"
+    }
+  ]
+}

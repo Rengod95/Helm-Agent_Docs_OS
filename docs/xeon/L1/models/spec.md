@@ -5,7 +5,7 @@ domain: models
 kind: spec
 status: draft
 depends_on: [F.conversation.spec, F.capabilities.spec, F.records.spec, F.extensions.spec, F.wire-settings.spec, eng.context-map.design, adr.0001, adr.0002]
-binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, xeon/packages/group-account-rotation/**]
+binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, xeon/packages/group-account-rotation/**, xeon/packages/group-provider-anthropic-oauth/**]
 ---
 
 # L1 모델 게이트웨이 (models)
@@ -727,6 +727,9 @@ export function resolveRole(input: {
 
 - [가정] Anthropic 서버가 래퍼 경로 요청을 받아들이고 구독 OAuth 토큰을 이 방식으로 쓸 수 있다고 보고 설계한다. 둘 다 확인하지 않았다(`_research/notes/L1-2.md` §6). 공개 배포 여부를 정하기 전에 확인한다.
 - [미결] 별도 플러그인 배포 여부(`product.scope.spec` N6).
+- 구현 위치 [결정: 오케스트레이터 기본값]: 위장 provider 플러그인은 `xeon/packages/group-provider-anthropic-oauth`에 둡니다. kind `group`, layer L3, `defaultEnabled: false`, scope id `provider-anthropic-oauth`입니다. 설정 `ext.provider-anthropic-oauth.acknowledgeRisk`(boolean, 기본 false)와 `ext.provider-anthropic-oauth.credential`(비밀 참조 또는 null, 기본 null)이 모두 참일 때만 setup이 provider `anthropic-oauth`(api `anthropic-messages`, 모델 3개)를 등록합니다. 하나라도 어긋나면 아무것도 등록하지 않으므로 `anthropic-oauth/…` 참조는 `provider_unavailable`이 됩니다. 등록은 setup에서만 일어나므로 설정을 바꾼 뒤에는 scope를 다시 켜야 반영됩니다. 위장은 pi-ai 내장 OAuth 분기에 맡기고 provider id가 `anthropic`이 아니므로 §3.9 가드 밖에서 동작합니다. 와이어 동등 래퍼는 만들지 않았습니다.
+- [미결] M-8 와이어 동등 래퍼를 쓸지 정하지 않았습니다. 고지 동의가 없을 때 진단 메시지를 내라는 위 사용자 확인 `[제안]`은 구현하지 않았습니다. 그룹 API에는 진단 경로가 없어 setup은 조용히 등록을 건너뜁니다.
+- [미결] `xeon/plugins/provider-anthropic-oauth` 스텁을 남길지 정하지 않았습니다. 이 위치는 §3.11이 가리키는 옛 경로입니다.
 
 #### 4.11.4 배포 제외 검사
 
