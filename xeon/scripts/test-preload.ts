@@ -6,6 +6,7 @@
 import { afterAll, beforeAll } from "bun:test";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { setActiveLocale } from "../packages/client/src/i18n/translator.ts";
 
 const SHM = "/dev/shm";
 
@@ -25,3 +26,7 @@ if (process.env["XEON_TEST_DISK_TMP"] !== "1" && usableShm()) {
     scratch = undefined;
   });
 }
+
+// 기존 시험은 한국어 문장을 비교한다. 현재 로케일의 처음 값은 en(ADR-0016 §3.3)이라 시험 프로세스만 ko로 둔다.
+// 영어를 보는 시험은 setActiveLocale("en")을 직접 부르고 끝나면 되돌린다.
+setActiveLocale("ko");
