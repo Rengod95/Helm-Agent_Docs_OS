@@ -25,7 +25,7 @@ const actual: typeof Fs = { ...Fs };
 // XEON-PATCH: P15
 /** Delays a stream's internal write hook. Node documents `_write`/`_writev` as the hooks a stream implementation provides. */
 function delayHook(stream: Fs.WriteStream, name: "_write" | "_writev"): void {
-  const original: unknown = Reflect.get(stream, name);
+  const original: unknown = stream[name];
   if (typeof original !== "function") return;
   Object.defineProperty(stream, name, {
     value: (...args: unknown[]): void => {
