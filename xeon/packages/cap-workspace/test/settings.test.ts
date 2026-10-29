@@ -21,19 +21,23 @@ function layer(scope: ScopeLayer["scope"], values: Record<string, unknown>): Sco
 
 describe("settings", () => {
   test("settings defs pass checks", () => {
-    // 읽는 키만 선언한다: read.*, shell.*, list.maxEntries(M1), images.*(M2), edit.fuzzy(M3b). plan W8
+    // 읽는 키만 선언한다: read.*, shell.*, list.maxEntries(M1), images.*(M2), edit.fuzzy·grep.*·find.*(M3b). plan W8
     expect(WORKSPACE_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l2.workspace.read.maxLines",
       "l2.workspace.read.maxBytes",
       "l2.workspace.shell.maxLines",
       "l2.workspace.shell.maxBytes",
       "l2.workspace.shell.defaultTimeoutSec",
+      "l2.workspace.grep.maxMatches",
+      "l2.workspace.grep.maxLineLength",
+      "l2.workspace.find.maxResults",
       "l2.workspace.list.maxEntries",
       "l2.workspace.edit.fuzzy",
       "l2.workspace.images.maxWidth",
       "l2.workspace.images.maxHeight",
       "l2.workspace.images.maxBytes",
       "l2.workspace.images.maxInputBytes",
+      "l2.workspace.grep.rgPath",
     ]);
     for (const def of WORKSPACE_SETTING_DEFS) {
       expect(checkSettingDef(def)).toEqual([]);
@@ -41,9 +45,14 @@ describe("settings", () => {
       expect(def.layer).toBe("L2");
       expect(def.since).toBe("0.1.0");
       expect(def.secret).toBeUndefined();
-      expect(def.runtimeChange).toBe("nextTurn");
+      // rgPath는 실행 파일을 바꾸므로 다시 시작해야 적용되고, 프로젝트 설정으로는 바꿀 수 없다(spec §6)
+      const rgPath = def.key === "l2.workspace.grep.rgPath";
+      expect(def.runtimeChange).toBe(rgPath ? "restart" : "nextTurn");
       expect(def.ui?.tab).toBe("tools");
     }
+    const rgDef = WORKSPACE_SETTING_DEFS.find((def) => def.key === "l2.workspace.grep.rgPath");
+    expect(rgDef?.allowedScopes).toEqual(["managed", "user"]);
+    expect(rgDef?.default).toBe("");
     const built = buildCatalog([
       { owner: "cap-workspace", namespace: "l2.workspace", defs: WORKSPACE_SETTING_DEFS },
     ]);
@@ -55,10 +64,36 @@ describe("settings", () => {
     expect(DEFAULT_WORKSPACE_SETTINGS).toEqual({
       read: { maxLines: 2000, maxBytes: 51200 },
       shell: { maxLines: 2000, maxBytes: 51200, defaultTimeoutSec: 0 },
+      grep: { maxMatches: 100, maxLineLength: 500, rgPath: "" },
+      find: { maxResults: 1000 },
       list: { maxEntries: 500 },
       edit: { fuzzy: true },
       images: { maxWidth: 2000, maxHeight: 2000, maxBytes: 4718592, maxInputBytes: 41943040 },
     });
+  });
+
+  test("grep and find keys read their ranges and types, and rgPath is only a string", () => {
+    const stack: ScopeStack = [
+      layer("user", {
+        "l2.workspace.grep.maxMatches": 7,
+        "l2.workspace.grep.maxLineLength": 80,
+        "l2.workspace.find.maxResults": 3,
+        "l2.workspace.grep.rgPath": "/opt/rg/bin/rg",
+      }),
+      // 범위 밖(최솟값 80 미만)과 형식 틀림(문자열이 아님)은 건너뛴다
+      layer("managed", {
+        "l2.workspace.grep.maxLineLength": 79,
+        "l2.workspace.find.maxResults": "3",
+      }),
+    ];
+    const settings = readWorkspaceSettings(stack);
+    expect(settings.grep).toEqual({ maxMatches: 7, maxLineLength: 80, rgPath: "/opt/rg/bin/rg" });
+    expect(settings.find).toEqual({ maxResults: 3 });
+    // rgPath는 managed·user 범위만 허용한다. project 층의 값은 읽지 않는다
+    const project = readWorkspaceSettings([
+      layer("project", { "l2.workspace.grep.rgPath": "/tmp/evil" }),
+    ]);
+    expect(project.grep.rgPath).toBe("");
   });
 
   test("scopes follow the precedence and invalid values are skipped", () => {

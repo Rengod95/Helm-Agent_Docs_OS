@@ -3248,6 +3248,84 @@
         }
       }
     },
+    "l2.workspace.find.maxResults": {
+      "default": 1000,
+      "maximum": 100000,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "파일 찾기 최대 결과 수",
+          "order": 213,
+          "tab": "tools",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.grep.maxLineLength": {
+      "default": 500,
+      "maximum": 10000,
+      "minimum": 80,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "검색 결과 최대 줄 길이",
+          "order": 212,
+          "tab": "tools",
+          "unit": "자",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.grep.maxMatches": {
+      "default": 100,
+      "maximum": 10000,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "검색 최대 일치 수",
+          "order": 211,
+          "tab": "tools",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
     "l2.workspace.images.maxBytes": {
       "default": 4718592,
       "maximum": 52428800,
