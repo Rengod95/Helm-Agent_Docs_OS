@@ -431,7 +431,7 @@ export type AgentJudgedPayload = JudgeRecord;
 |---|---|
 | `role_marker` | 줄 머리의 `System:`, `Assistant:`, `Human:`, `User:` |
 | `system_tag` | `<system>`, `<system-reminder>`, `[SYSTEM]` 같은 태그 |
-| `tool_call_markup` | 도구 호출을 흉내 내는 마크업(`<function_calls>`, `<tool_use>`, `"type":"tool_use"`) |
+| `tool_call_markup` | 도구 호출을 흉내 내는 마크업(`<function_calls>`, `<function_results>`, `<tool_use>`, `"type":"tool_use"`, `antml:` 접두 태그) |
 | `override_phrase` | "ignore (all) previous instructions" 계열 문구(영어·한국어 목록) |
 | `wrapper_escape` | 격리 블록 닫는 표지 `</subagent_report` |
 

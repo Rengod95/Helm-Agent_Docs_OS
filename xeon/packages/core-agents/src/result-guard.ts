@@ -19,7 +19,8 @@ const DETECTORS: readonly { readonly flag: MimicryFlag; readonly pattern: RegExp
   },
   {
     flag: "tool_call_markup",
-    pattern: /<\/?(?:function_calls|tool_use|tool_call|invoke)\b[^>]*>|"type"\s*:\s*"tool_use"/i,
+    pattern:
+      /<\/?(?:antml:)?(?:function_calls|function_results|tool_use|tool_call|invoke)\b[^>]*>|"type"\s*:\s*"tool_use"/i,
   },
   {
     flag: "override_phrase",
