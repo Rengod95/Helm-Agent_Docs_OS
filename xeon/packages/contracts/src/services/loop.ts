@@ -102,6 +102,26 @@ export interface ChildTurnRequest {
   readonly signal: AbortSignal;
 }
 
+/**
+ * 출력을 실행에 넘기기 전의 가드 검사 요청. `guard.output.before`를 `target: "execution"`으로 발화한다.
+ * 산출물 적용처럼 모델이나 사용자가 만든 내용을 파일에 쓰기 직전에 L2가 부른다(L1.loop.spec §4.11).
+ */
+export interface GuardExecutionRequest {
+  readonly threadId: ThreadId;
+  /** 가드 페이로드의 turnId. 출력이 비롯된 turn이다 */
+  readonly turnId: TurnId;
+  /** 실행에 넘길 내용 */
+  readonly content: string;
+  /** 대화 범위 멱등 키 1~64자. 디스패치 키가 된다 */
+  readonly requestId: string;
+  readonly signal?: AbortSignal;
+}
+
+export type GuardExecutionOutcome =
+  | { readonly status: "allowed" }
+  /** 가드가 막았거나 디스패치가 실패했다(fail-closed). `reason`은 사용자에게 보이는 문장이다 */
+  | { readonly status: "blocked"; readonly reason: string };
+
 export type ResumeFrom = "turn_start" | "request" | "tools" | "await_input" | "turn_end";
 
 export type ResumeResult =
@@ -144,6 +164,8 @@ export interface LoopService extends LoopPort {
    * 실행 실패(명령 오류, 종료 코드)는 `completed`의 `result`로 돌려주고, `LoopError`는 실행 전의 실패(저장소, 없는 대화)다
    */
   runUserBash(request: UserBashRequest): Promise<Result<UserBashOutcome, LoopError>>;
+  /** 출력을 실행에 넘기기 전의 가드 검사(`guard.output.before`, target `execution`). 차단이거나 디스패치 실패면 blocked다 */
+  guardExecution(request: GuardExecutionRequest): Promise<Result<GuardExecutionOutcome, LoopError>>;
   /** 사용자 중단(Esc). xeon.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
   interrupt(threadId: ThreadId, turnId?: TurnId): Promise<boolean>;
   /** 열린 turn을 재개한다. 자동 재개는 하지 않는다 */
