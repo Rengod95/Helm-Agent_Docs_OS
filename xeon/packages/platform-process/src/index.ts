@@ -104,6 +104,7 @@ export {
   type McpChild,
   type McpProcessDeps,
   type McpProcessPort,
+  type McpSandboxSource,
   type McpSecretSource,
   type McpSpawnError,
   type McpSpawnSpec,
