@@ -10,7 +10,9 @@ const ESC = String.fromCodePoint(27);
 
 function methodOf(line: string): unknown {
   const value: unknown = JSON.parse(line);
-  return typeof value === "object" && value !== null ? Reflect.get(value, "method") : undefined;
+  return typeof value === "object" && value !== null && "method" in value
+    ? value.method
+    : undefined;
 }
 
 const ASSISTANT: RenderOp = {

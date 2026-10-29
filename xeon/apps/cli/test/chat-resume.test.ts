@@ -252,13 +252,15 @@ test("a killed run resumes with only newer seqs and the recovery events (AC2)", 
     .flatMap((line): number[] => {
       const message: unknown = JSON.parse(line);
       if (typeof message !== "object" || message === null) return [];
-      const params: unknown = Reflect.get(message, "params");
+      const params: unknown = "params" in message ? message.params : undefined;
       const events: unknown =
-        typeof params === "object" && params !== null ? Reflect.get(params, "events") : undefined;
+        typeof params === "object" && params !== null && "events" in params
+          ? params.events
+          : undefined;
       return Array.isArray(events)
         ? events.flatMap((event: unknown) => {
             const seq: unknown =
-              typeof event === "object" && event !== null ? Reflect.get(event, "seq") : undefined;
+              typeof event === "object" && event !== null && "seq" in event ? event.seq : undefined;
             return typeof seq === "number" ? [seq] : [];
           })
         : [];
