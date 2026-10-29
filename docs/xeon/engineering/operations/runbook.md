@@ -84,7 +84,7 @@ Intel macOS와 Windows는 이 릴리즈 범위 밖입니다(`L4.release.spec` §
 
 아래 두 레시피는 저장소에서 릴리즈를 만들 때만 씁니다. 사용자는 쓰지 않습니다.
 
-- `just release <triple> [--version x.y.z]`: 루트 `justfile`이 `xeon`의 같은 레시피를 부르고, 그 레시피가 `xeon/scripts/release.ts`를 실행합니다. 아카이브를 만듭니다.
+- `just release-archive <triple> [--version x.y.z]`: 루트 `justfile`이 `xeon`의 같은 레시피를 부르고, 그 레시피가 `xeon/scripts/release.ts`를 실행합니다. 아카이브를 만듭니다.
 - `just release-smoke`: 이 기기의 릴리즈를 만들어 풀고 구성, 실행, 번들을 점검합니다. X11 환경에서만 돕니다.
 
 ## 2. 데이터·상태·로그 위치

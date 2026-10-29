@@ -104,7 +104,7 @@ desktop-sidecar triple *flags:
 
 # 릴리즈 아카이브 빌드 <triple|host> [--version x.y.z] [--binaries-dir 폴더] [--no-build]
 [group('local')]
-release triple *flags:
+release-archive triple *flags:
     {{bun}} scripts/release.ts {{triple}} {{flags}}
 
 # 릴리즈 스모크(X11): 이 기기의 릴리즈를 빌드해 풀고 점검한다. 환경 변수 XEON_RELEASE_VERSION, XEON_RELEASE_OUT
