@@ -22,7 +22,7 @@ import type {
   SqlTx,
   StoreWriteError,
 } from "@xeon/contracts/records";
-import { assertNotInWrite, createStoreDb, type StoreConnections } from "./db.ts";
+import { assertNotInWrite, createStoreDb, readOnlyRefusal, type StoreConnections } from "./db.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
 import type { LockHandle, LockProvider } from "./lock/provider.ts";
 import { leaseColumns } from "./rows.ts";
@@ -256,6 +256,8 @@ export function createLeaseService(deps: LeaseDeps): LeaseController {
       }
       assertNotInWrite(conn.state, "leases.acquire");
       assertOpen();
+      // 읽기 전용 열기는 임대를 쥐지 않는다. OS 잠금 파일을 만들기 전에 쓰기 거절을 행 쓰기 오류와 같은 모양으로 돌려준다
+      if (conn.state.readOnly) return err(mapWriteError(readOnlyRefusal()));
       // OS 잠금이 없는 provider(none)는 프로세스 안 보유 표를 쓰지 않고 DB 행 판정으로 간다
       const prior = locks.kind === "none" ? undefined : owned.get(resource);
       let handle: LockHandle;

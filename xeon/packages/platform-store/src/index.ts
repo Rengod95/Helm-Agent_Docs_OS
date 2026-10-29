@@ -1,4 +1,10 @@
 export { openStore } from "./open.ts";
+export {
+  exportDatabase,
+  type ExportError,
+  type ExportOptions,
+  type ExportReport,
+} from "./export.ts";
 export { storePlugin } from "./service.ts";
 export {
   DEFAULT_STORE_SETTINGS,

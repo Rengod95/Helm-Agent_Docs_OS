@@ -56,6 +56,12 @@ export interface OpenStoreOptions {
   readonly loadCustomSqlite?: (path: string) => unknown;
   /** 범위 핸들의 EXPLAIN 대조를 강제로 켜거나 끈다. 생략하면 XEON_STORE_STRICT와 NODE_ENV로 정한다 */
   readonly strictPrefix?: boolean;
+  /**
+   * 읽기 전용으로 연다(L0.store.spec §4.4). 파일을 만들지 않고, 마이그레이션·잠금·WAL 설정을 하지 않는다.
+   * 다른 Xeon 버전이 만든 DB(sys 버전이 코드보다 높음)도 연다. 그 사실은 `read_only` 경고로 남긴다.
+   * 쓰기는 모두 `SQLITE_READONLY`로 거절한다. 생략하면 쓰기 열기다
+   */
+  readonly readOnly?: boolean;
   readonly engineVersion: string;
 }
 
@@ -80,6 +86,17 @@ export type StoreWarning =
   | { readonly kind: "fs_unknown"; readonly dir: string }
   | { readonly kind: "fts5_missing" }
   | { readonly kind: "lock_provider_none" }
+  /**
+   * 읽기 전용으로 열었다. `future_version`은 owner의 DB 버전이 이 코드보다 높다는 뜻이다(L0.store.spec §5).
+   * 열기 시점에 코드 버전을 아는 owner는 sys뿐이라 이 경고도 sys에 대해서만 낸다
+   */
+  | {
+      readonly kind: "read_only";
+      readonly reason: "future_version";
+      readonly owner: string;
+      readonly dbVersion: number;
+      readonly codeVersion: number;
+    }
   /** 그룹·기타 권한 비트가 있던 디렉터리나 파일을 0700/0600으로 고쳤다 */
   | {
       readonly kind: "permission_fixed";

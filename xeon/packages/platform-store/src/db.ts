@@ -10,6 +10,7 @@ import type {
 } from "@xeon/contracts/records";
 import { classifyStatement, type StatementGuard } from "./prefix.ts";
 import { toSqlRow } from "./rows.ts";
+import { asSqliteFailure } from "./sqlite-env.ts";
 
 /** 연결 수명. write/read 래퍼와 임대·블롭이 함께 본다 */
 export interface StoreState {
@@ -17,10 +18,42 @@ export interface StoreState {
   phase: "open" | "closing" | "closed";
   /** 쓰기 트랜잭션 콜백 안인가. 중첩 write와 트랜잭션 안 블롭·임대 호출을 막는다(TX-04) */
   inWrite: boolean;
+  /** 읽기 전용 열기(L0.store.spec §4.4). 쓰기 경로는 파일을 건드리기 전에 SQLITE_READONLY로 거절한다 */
+  readOnly: boolean;
 }
 
-export function createStoreState(): StoreState {
-  return { phase: "open", inWrite: false };
+export function createStoreState(readOnly: boolean = false): StoreState {
+  return { phase: "open", inWrite: false, readOnly };
+}
+
+/** 읽기 전용 열기에서 쓰기를 거절하는 값. SQLite가 읽기 전용 연결에 쓰려 할 때 내는 코드와 같다 */
+export function readOnlyRefusal(): { readonly kind: "io"; readonly code: "SQLITE_READONLY" } {
+  return { kind: "io", code: "SQLITE_READONLY" };
+}
+
+/** SQLite 오류를 busy·disk_full·io 셋 중 하나로 줄인 값. 손상과 분류 밖의 SQLite 오류는 io(code)다 */
+export type SqliteIoFailure =
+  | { readonly kind: "busy" }
+  | { readonly kind: "disk_full" }
+  | { readonly kind: "io"; readonly code: string };
+
+/** SQLiteError를 SqliteIoFailure로 바꾼다. SQLite 오류가 아니면 undefined(호출자가 파일 시스템 오류 등을 따로 본다) */
+export function sqliteIoFailureOf(caught: unknown): SqliteIoFailure | undefined {
+  const failure = asSqliteFailure(caught);
+  if (failure === undefined) return undefined;
+  const classified = classifySqliteCode(failure.code);
+  switch (classified) {
+    case "busy":
+      return { kind: "busy" };
+    case "disk_full":
+      return { kind: "disk_full" };
+    case "io":
+    case "corrupt":
+    case "other":
+      return { kind: "io", code: failure.code ?? "SQLITE_ERROR" };
+    default:
+      return assertNever(classified, "SqliteCodeClass");
+  }
 }
 
 export interface StoreConnections {
@@ -134,6 +167,7 @@ export function createStoreDb(conn: StoreConnections, options: StoreDbOptions = 
       if (conn.state.inWrite) {
         throw new Bug("store.nested_write: write was called inside a write transaction");
       }
+      if (conn.state.readOnly) return err(readOnlyRefusal());
       conn.state.inWrite = true;
       try {
         const transaction = conn.write.transaction((): T => {

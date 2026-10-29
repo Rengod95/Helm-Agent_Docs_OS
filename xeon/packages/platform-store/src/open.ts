@@ -13,10 +13,11 @@ import { createExtensionTables } from "./ext-tables.ts";
 import { NO_STORE_FAULTS } from "./fault-points.ts";
 import { ensurePrivateDir, ensurePrivateFile } from "./fs-private.ts";
 import { createLeaseService } from "./lease.ts";
+import { createNoneLockProvider } from "./lock/none.ts";
 import { createMigrationRunner } from "./migrations.ts";
 import { syncCoreOwners } from "./owner-table.ts";
-import { APPLICATION_ID, applyReadPragmas, applyWritePragmas, readPragma } from "./pragmas.ts";
-import { isStrictBuild } from "./prefix.ts";
+import { APPLICATION_ID, applyReadPragmas, applyWritePragmas, readIdentity } from "./pragmas.ts";
+import { isStrictBuild, SYS_OWNER } from "./prefix.ts";
 import { createLockProvider, selectPlatformPolicy } from "./select.ts";
 import { MIGRATION_SNAPSHOT_KEEP } from "./snapshot.ts";
 import { assembleStoreService, createPinOwnerCheck, createScopedFactory } from "./service.ts";
@@ -75,29 +76,60 @@ function newStoreId(options: OpenStoreOptions): string {
   return `sto_${options.ids.next("evt").slice(4)}`;
 }
 
+interface SysSnapshot {
+  readonly storeId: string;
+  /** sys owner의 DB 최대 버전 */
+  readonly dbVersion: number;
+}
+
 /**
- * application_id와 스키마 유무를 한 스냅숏에서 읽는다. 다른 프로세스가 같은 순간 새 파일을 초기화해도
- * "표지는 0인데 테이블이 있음"으로 잘못 보지 않는다(표지는 테이블보다 먼저 커밋된다).
+ * 읽기 전용 열기가 읽는 sys 상태를 한 스냅숏에서 읽는다. 읽기 전용은 표를 만들지 않으므로 sys 표나 store_id가 없으면
+ * 스키마 손상(corrupt)이다. 읽기 연결의 BEGIN DEFERRED 안에서 읽어 두 값이 같은 순간을 보게 한다
  */
-function readIdentity(db: SqliteConnection): {
-  readonly applicationId: number;
-  readonly hasSchema: boolean;
-} {
-  return db
-    .transaction(() => {
-      const id = readPragma(db, "application_id");
-      const row = db.query<unknown, []>("SELECT count(*) AS n FROM sqlite_schema").get();
-      return {
-        applicationId: typeof id === "number" ? id : 0,
-        hasSchema: columnInt(toSqlRow(row), "n") > 0,
-      };
-    })
+function readSysSnapshot(db: SqliteConnection): Result<SysSnapshot, StoreOpenError> {
+  const found = db
+    .transaction(
+      (): {
+        readonly complete: boolean;
+        readonly storeId: string | undefined;
+        readonly dbVersion: number;
+      } => {
+        const tables = toSqlRow(
+          db
+            .query<unknown, []>(
+              "SELECT count(*) AS n FROM sqlite_schema WHERE type = 'table' AND name IN ('sys_migrations', 'sys_meta')",
+            )
+            .get(),
+        );
+        if (columnInt(tables, "n") < 2)
+          return { complete: false, storeId: undefined, dbVersion: 0 };
+        const version = toSqlRow(
+          db
+            .query<unknown, []>(
+              "SELECT coalesce(max(version), 0) AS v FROM sys_migrations WHERE owner = 'sys'",
+            )
+            .get(),
+        );
+        const meta = db
+          .query<unknown, []>("SELECT value FROM sys_meta WHERE key = 'store_id'")
+          .get();
+        return {
+          complete: true,
+          storeId: meta === null ? undefined : columnString(toSqlRow(meta), "value"),
+          dbVersion: columnInt(version, "v"),
+        };
+      },
+    )
     .deferred();
+  if (!found.complete) return err({ kind: "corrupt", code: "SYS_SCHEMA_MISSING" });
+  if (found.storeId === undefined) return err({ kind: "corrupt", code: "STORE_ID_MISSING" });
+  return ok({ storeId: found.storeId, dbVersion: found.dbVersion });
 }
 
 /** 열기 절차(L0.store.spec §4.4). 쓰기 연결 PRAGMA 뒤 바로 읽기 연결을 연다(WAL이 이미 만들어져 있다) */
 function openStoreSync(options: OpenStoreOptions): OpenResult {
   const warnings: StoreWarning[] = [];
+  const readOnly = options.readOnly === true;
   const policy = selectPlatformPolicy(options.env.platform);
 
   if (!isAbsolute(options.dbPath)) return err({ kind: "db_path_invalid", reason: "not_absolute" });
@@ -126,6 +158,10 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
     return err({ kind: "unsupported_filesystem", fsKind, dir });
   }
   if (fsKind === "unknown") warnings.push({ kind: "fs_unknown", dir });
+  // 읽기 전용은 파일을 만들지 않는다. 없는 파일은 SQLite가 읽기 전용으로 열 때와 같은 오류다
+  if (readOnly && !existsSync(options.dbPath)) {
+    return err({ kind: "io", code: "SQLITE_CANTOPEN" });
+  }
   const dirReady = ensurePrivateDir(dir, policy.posixPermissions, warnings);
   if (!dirReady.ok) return dirReady;
   const realDir = realpathSync(dir);
@@ -145,28 +181,32 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
     for (const db of opened) db.close();
   };
   try {
-    // 3. 쓰기 연결 열기, application_id 대조, PRAGMA 적용과 검증
-    const write = newDatabase(options.dbPath, { create: true });
+    // 3. 쓰기 연결 열기, application_id 대조, PRAGMA 적용과 검증. 읽기 전용은 readonly로 열고 질의 전용 설정만 건다
+    const write = newDatabase(options.dbPath, readOnly ? { readonly: true } : { create: true });
     opened.push(write);
     // 다른 프로세스가 같은 순간 초기화하고 있을 수 있으므로 첫 읽기 전에 대기 시간부터 건다
     write.run(`PRAGMA busy_timeout = ${options.settings.busyTimeoutMs}`);
     const { applicationId, hasSchema } = readIdentity(write);
-    if (
-      (applicationId !== 0 && applicationId !== APPLICATION_ID) ||
-      (applicationId === 0 && hasSchema)
-    ) {
+    // 읽기 전용은 빈 파일을 초기화할 수 없으므로 표지가 Xeon이 아니면 모두 다른 파일이다
+    const foreign = readOnly
+      ? applicationId !== APPLICATION_ID
+      : (applicationId !== 0 && applicationId !== APPLICATION_ID) ||
+        (applicationId === 0 && hasSchema);
+    if (foreign) {
       closeAll();
       return err({ kind: "foreign_database", applicationId });
     }
-    const written = applyWritePragmas(write, {
-      busyTimeoutMs: options.settings.busyTimeoutMs,
-      stampApplicationId: applicationId === 0,
-      fullFsync: policy.fullFsync && options.settings.macFullFsync,
-      checkpointFullFsync: policy.fullFsync && !options.settings.macFullFsync,
-    });
-    if (!written.ok) {
+    const sealed = readOnly
+      ? applyReadPragmas(write, options.settings.busyTimeoutMs)
+      : applyWritePragmas(write, {
+          busyTimeoutMs: options.settings.busyTimeoutMs,
+          stampApplicationId: applicationId === 0,
+          fullFsync: policy.fullFsync && options.settings.macFullFsync,
+          checkpointFullFsync: policy.fullFsync && !options.settings.macFullFsync,
+        });
+    if (!sealed.ok) {
       closeAll();
-      return err(written.error);
+      return err(sealed.error);
     }
     const read = newDatabase(options.dbPath, { readonly: true });
     opened.push(read);
@@ -189,12 +229,11 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
       }
     }
 
-    const state = createStoreState();
+    const state = createStoreState(readOnly);
     const conn: StoreConnections = { write, read, state };
     const faults = options.storeFaults ?? NO_STORE_FAULTS;
     const strict = options.strictPrefix ?? isStrictBuild(process.env);
 
-    // 4. owner sys 마이그레이션
     const migrations = createMigrationRunner({
       conn,
       clock: options.clock,
@@ -210,54 +249,78 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
       warnings,
       ...(options.takeSnapshot === undefined ? {} : { takeSnapshot: options.takeSnapshot }),
     });
-    const migrated = migrations.apply(SYS_MIGRATION_SET);
-    if (!migrated.ok) {
-      closeAll();
-      return err(migrated.error);
-    }
-
-    // 5~6. sys_meta 기록과 코어 접두사 소유표 등록
-    const internal = createStoreDb(conn, { internal: true });
-    const now = options.clock.now();
-    const stamped = internal.write((tx): string => {
-      const existing = tx.get("SELECT value FROM sys_meta WHERE key = 'store_id'");
-      let id: string;
-      if (existing === undefined) {
-        id = newStoreId(options);
-        tx.run("INSERT INTO sys_meta (key, value) VALUES ('store_id', ?)", [id]);
-        tx.run("INSERT INTO sys_meta (key, value) VALUES ('created_at', ?)", [String(now)]);
-        tx.run("INSERT INTO sys_meta (key, value) VALUES ('created_by', ?)", [
-          options.engineVersion,
-        ]);
-      } else {
-        id = columnString(existing, "value");
+    let storeId: string;
+    if (readOnly) {
+      // 읽기 전용: 마이그레이션도 표지 기록도 하지 않는다. 버전만 읽어 코드보다 높으면 경고를 남기고 연다(L0.store.spec §5)
+      const sys = readSysSnapshot(read);
+      if (!sys.ok) {
+        closeAll();
+        return err(sys.error);
       }
-      tx.run(
-        "INSERT INTO sys_meta (key, value) VALUES ('last_opened_by', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        [options.engineVersion],
-      );
-      syncCoreOwners(tx, now);
-      return id;
-    });
-    if (!stamped.ok) {
-      closeAll();
-      return err(stamped.error);
-    }
-    const storeId = stamped.value;
+      storeId = sys.value.storeId;
+      if (sys.value.dbVersion > SYS_MIGRATION_SET.version) {
+        warnings.push({
+          kind: "read_only",
+          reason: "future_version",
+          owner: SYS_OWNER,
+          dbVersion: sys.value.dbVersion,
+          codeVersion: SYS_MIGRATION_SET.version,
+        });
+      }
+    } else {
+      // 4. owner sys 마이그레이션
+      const migrated = migrations.apply(SYS_MIGRATION_SET);
+      if (!migrated.ok) {
+        closeAll();
+        return err(migrated.error);
+      }
 
-    // 8. LockProvider 선택
-    const locksDir = join(realDir, "locks");
-    const locksReady = ensurePrivateDir(locksDir, policy.posixPermissions, warnings);
-    if (!locksReady.ok) {
-      closeAll();
-      return locksReady;
+      // 5~6. sys_meta 기록과 코어 접두사 소유표 등록
+      const internal = createStoreDb(conn, { internal: true });
+      const now = options.clock.now();
+      const stamped = internal.write((tx): string => {
+        const existing = tx.get("SELECT value FROM sys_meta WHERE key = 'store_id'");
+        let id: string;
+        if (existing === undefined) {
+          id = newStoreId(options);
+          tx.run("INSERT INTO sys_meta (key, value) VALUES ('store_id', ?)", [id]);
+          tx.run("INSERT INTO sys_meta (key, value) VALUES ('created_at', ?)", [String(now)]);
+          tx.run("INSERT INTO sys_meta (key, value) VALUES ('created_by', ?)", [
+            options.engineVersion,
+          ]);
+        } else {
+          id = columnString(existing, "value");
+        }
+        tx.run(
+          "INSERT INTO sys_meta (key, value) VALUES ('last_opened_by', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+          [options.engineVersion],
+        );
+        syncCoreOwners(tx, now);
+        return id;
+      });
+      if (!stamped.ok) {
+        closeAll();
+        return err(stamped.error);
+      }
+      storeId = stamped.value;
     }
-    const locks = createLockProvider(policy.lock, locksDir);
-    if (locks.kind === "none") warnings.push({ kind: "lock_provider_none" });
+
+    // 8. LockProvider 선택. 읽기 전용은 임대를 쓰지 않으므로 잠금 디렉터리를 만들지 않고 잠금 제공자도 고르지 않는다
+    const locksDir = join(realDir, "locks");
+    if (!readOnly) {
+      const locksReady = ensurePrivateDir(locksDir, policy.posixPermissions, warnings);
+      if (!locksReady.ok) {
+        closeAll();
+        return locksReady;
+      }
+    }
+    const locks = readOnly ? createNoneLockProvider() : createLockProvider(policy.lock, locksDir);
+    if (!readOnly && locks.kind === "none") warnings.push({ kind: "lock_provider_none" });
 
     // 9. 블롭 디렉터리
     const blobsDir = join(realDir, "blobs");
-    for (const path of [blobsDir, join(blobsDir, "tmp")]) {
+    const blobDirs = readOnly ? [] : [blobsDir, join(blobsDir, "tmp")];
+    for (const path of blobDirs) {
       const ready = ensurePrivateDir(path, policy.posixPermissions, warnings);
       if (!ready.ok) {
         closeAll();
@@ -306,20 +369,23 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
       if (state.phase !== "open") return;
       state.phase = "closing";
       leases.releaseAll();
-      try {
-        const row = toSqlRow(write.query<unknown, []>("PRAGMA wal_checkpoint(TRUNCATE)").get());
-        const busy = columnInt(row, "busy");
-        if (busy !== 0) {
-          warnings.push({
-            kind: "checkpoint_incomplete",
-            busy,
-            log: columnInt(row, "log"),
-            checkpointed: columnInt(row, "checkpointed"),
-          });
+      // 읽기 전용은 체크포인트도 파일을 쓴다(WAL을 DB에 옮긴다). 하지 않는다
+      if (!readOnly) {
+        try {
+          const row = toSqlRow(write.query<unknown, []>("PRAGMA wal_checkpoint(TRUNCATE)").get());
+          const busy = columnInt(row, "busy");
+          if (busy !== 0) {
+            warnings.push({
+              kind: "checkpoint_incomplete",
+              busy,
+              log: columnInt(row, "log"),
+              checkpointed: columnInt(row, "checkpointed"),
+            });
+          }
+        } catch (caught) {
+          if (asSqliteFailure(caught) === undefined) throw caught;
+          warnings.push({ kind: "checkpoint_incomplete", busy: 1, log: 0, checkpointed: 0 });
         }
-      } catch (caught) {
-        if (asSqliteFailure(caught) === undefined) throw caught;
-        warnings.push({ kind: "checkpoint_incomplete", busy: 1, log: 0, checkpointed: 0 });
       }
       read.close();
       write.close();

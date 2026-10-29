@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { assertNever, Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
 import type { IdFactory } from "@xeon/contracts/conversation";
 import type { BlobError, BlobRef, SqlTx, StoreWriteError } from "@xeon/contracts/records";
-import { assertNotInWrite, createStoreDb, type StoreConnections } from "./db.ts";
+import { assertNotInWrite, createStoreDb, readOnlyRefusal, type StoreConnections } from "./db.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
 import { sha256Hex } from "./hash.ts";
 
@@ -41,7 +41,7 @@ export interface BlobDeps {
 }
 
 /** GC 한 번이 지우는 항목(행·파일) 수 상한(L0.store.spec §4.9) */
-export const BLOB_GC_MAX_REMOVALS = 1000;
+const BLOB_GC_MAX_REMOVALS = 1000;
 
 export interface BlobGcOptions {
   /** 조립 루트가 `query.liveBlobRefs()`로 모은 참조 중 해시. `sys_blob_refs`와 합쳐 지우지 않는다 */
@@ -127,6 +127,8 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
   const putBlob = (bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError> => {
     assertNotInWrite(conn.state, "putBlob");
     if (conn.state.phase !== "open") throw new Bug("store.closed: the store is closed");
+    // 파일을 쓰기 전에 거절한다. 읽기 전용 열기에서 파일만 남는 일이 없게 한다
+    if (conn.state.readOnly) return err(readOnlyRefusal());
     const sha256 = sha256Hex(bytes);
     const size = bytes.byteLength;
     const dest = blobPath(blobsDir, sha256);
@@ -223,6 +225,8 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
   const gc = (options: BlobGcOptions): Result<BlobGcReport, BlobError> => {
     assertNotInWrite(conn.state, "gcBlobs");
     if (conn.state.phase !== "open") throw new Bug("store.closed: the store is closed");
+    // 읽기 전용 열기에서는 행도 파일도 지우지 않는다
+    if (conn.state.readOnly) return err(readOnlyRefusal());
     const cutoff = deps.clock.now() - deps.graceMs;
     let budget = BLOB_GC_MAX_REMOVALS;
     let deferred = 0;

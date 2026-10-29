@@ -321,6 +321,7 @@ export interface OpenStoreOptions {
   readonly ids: IdFactory;
   readonly settings: StoreSettings;                                // §6 l0.store.* 유효 값
   readonly faults?: FaultInjector;                                 // 테스트 전용. 운영은 생략
+  readonly readOnly?: boolean;                                     // §4.11. true면 파일을 만들거나 쓰지 않고 연다. 미래 버전 DB도 연다(read_only 경고)
   readonly engineVersion: string;
 }
 
@@ -360,9 +361,12 @@ export type StoreWarning =
   | { readonly kind: "fs_unknown"; readonly dir: string }
   | { readonly kind: "fts5_missing" }
   | { readonly kind: "lock_provider_none" }
+  | { readonly kind: "read_only"; readonly reason: "future_version"; readonly owner: string; readonly dbVersion: number; readonly codeVersion: number }   // §4.11
   | { readonly kind: "checkpoint_incomplete"; readonly busy: number; readonly log: number; readonly checkpointed: number };
 
 export declare function openStore(options: OpenStoreOptions): Promise<Result<OpenedStore, StoreOpenError>>;
+/** §4.10. 원본을 읽기 전용으로만 열어 `destDir`로 내보낸다. 동기 함수다 */
+export declare function exportDatabase(options: { readonly dbPath: string; readonly destDir: string; readonly clock: Clock }): Result<ExportReport, ExportError>;
 
 /** L0 등록 단위. setup(ctx)가 ctx.providePort로 opened.service를 xeon.store에 등록한다. 조립 루트가 ExtHost.registerPlatform으로 등록한다(X.primitives.spec §3.2) */
 export declare function storePlugin(opened: OpenedStore): PlatformModule;   // name: "platform-store"
@@ -577,11 +581,13 @@ macOS `fullfsync` [제안]:
 9. 블롭 디렉터리(`<db 디렉터리>/blobs`, `blobs/tmp`) 0700 확인
 10. `StoreService` 객체 조립
 
+`readOnly: true`로 열면 3번의 쓰기 연결 PRAGMA 대신 두 연결 모두 `readonly`로 열고 질의 전용 설정만 걸며, 파일 생성(없는 파일은 `io`/`SQLITE_CANTOPEN`), 4·5·6·8번의 쓰기와 9번의 디렉터리 생성을 하지 않는다. 자세한 규칙은 §4.11이다 [결정: 오케스트레이터 기본값].
+
 종료(`close`):
 
 1. 새 `write` 호출을 `Bug(store.closed)`로 막는다
 2. 이 프로세스가 쥔 임대를 모두 `release`한다(keepAlive 정지 포함)
-3. 쓰기 연결에서 `PRAGMA wal_checkpoint(TRUNCATE)`. 결과 `busy`가 0이 아니면 `checkpoint_incomplete` 경고만 남긴다(다른 프로세스가 읽는 중일 수 있다)
+3. 쓰기 연결에서 `PRAGMA wal_checkpoint(TRUNCATE)`. 결과 `busy`가 0이 아니면 `checkpoint_incomplete` 경고만 남긴다(다른 프로세스가 읽는 중일 수 있다). 읽기 전용 열기는 이 단계를 건너뛴다
 4. 읽기 연결, 쓰기 연결 순서로 닫는다
 5. OS 잠금 핸들을 모두 푼다
 
@@ -643,7 +649,7 @@ macOS `fullfsync` [제안]:
 
 #### 4.6.1 마이그레이션 전 스냅샷 [결정: m2 마감 G2-06]
 
-프리뷰 사용자의 DB를 지키기 위한 최소 안전장치다. 내보내기와 복구 런북은 M3다.
+프리뷰 사용자의 DB를 지키기 위한 최소 안전장치다. 사용자가 꺼내 쓰는 내보내기는 §4.10의 `exportDatabase`가 맡는다.
 
 - 시점: `apply`가 남은 단계를 실행하기 직전, 그 owner에 적용된 버전이 1 이상일 때만 만든다. 처음 만드는 DB, owner의 첫 등록, 이미 최신인 호출은 만들지 않는다. 열 때의 `sys` 마이그레이션과 소비자가 부르는 `cap.*`·`core.persistence` 마이그레이션이 같은 규칙이다.
 - 수단: 쓰기 연결의 `VACUUM INTO '<경로>'`다(WAL 내용을 포함한 일관된 복사). 쓰기 트랜잭션 밖에서만 돈다.
@@ -746,11 +752,76 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - 뿌리 집합 [결정: M3-REQ-84, L1.persistence.spec 미결 12 해소]: 지우지 않을 해시는 `sys_blob_refs`에 있는 것과 호출자가 넘기는 `liveRefs`의 합이다. L0은 L1을 부를 수 없으므로 조립 루트(L4 host)가 `query.liveBlobRefs()`(`p_blob_refs`)를 모아 `OpenedStore.gcBlobs({ liveRefs })`에 넘긴다. 한 번의 GC는 동기로 끝나므로 같은 프로세스의 `putBlob`과 끼어들지 않는다.
 - 결과 `BlobGcReport`는 `{ rows, orphanFiles, tmpFiles, deferred, truncated }`이다. `truncated`가 true면 상한(1000) 때문에 후보가 남았다.
 
+### 4.10 DB 내보내기 [결정: M3-REQ-63]
+
+`exportDatabase({ dbPath, destDir, clock })`는 DB 한 벌을 다른 디렉터리로 내보냅니다. 동기 함수이고, 예상 가능한 실패는 `ExportError` 값으로 돌려줍니다. 다른 프로세스가 쓰고 있는 DB와 더 높은 버전이 만든 DB도 내보냅니다.
+
+- 연결: 원본은 `readonly`로만 엽니다. 마이그레이션, 임대, WAL 설정, `PRAGMA user_version` 쓰기를 하지 않습니다. `query_only`는 걸지 않습니다. `VACUUM INTO`가 그 설정에서 `SQLITE_READONLY`로 거절되기 때문입니다(bun 1.4.3 실측).
+- 표지: `application_id`가 `1480937294`여야 합니다. 표지가 0이고 스키마도 없는 파일은 `not_a_database`, 그 밖의 다른 표지는 `foreign_database`입니다.
+- 대상: `destDir`이 없으면 0700으로 만듭니다. 부모 디렉터리는 만들지 않습니다. 있으면 비어 있어야 합니다. 비어 있지 않으면 `dest_not_empty`이고 아무것도 쓰지 않습니다 [결정: 오케스트레이터 기본값].
+- 배치:
+
+| 경로 | 내용 | 모드 |
+|---|---|---|
+| `<destDir>/xeon.sqlite` | `VACUUM INTO`로 만든 복사본. WAL 내용을 포함하고 저널 모드는 delete다 | 0600 |
+| `<destDir>/blobs/<ab>/<rest>` | `sys_blobs`의 행마다 원본 `<db 디렉터리>/blobs/<ab>/<rest>`를 복사한 것 | 디렉터리 0700, 파일 0600 |
+| `<destDir>/manifest.json` | 아래 manifest | 0600 |
+
+- 블롭 목록은 복사본의 `sys_blobs`에서 읽습니다. 그래서 복사된 행과 목록이 같은 내용을 가리킵니다.
+- 블롭 복사: 원본 경로는 `lstat`으로 보고 일반 파일만 복사합니다. 심볼릭 링크는 따라가지 않습니다. 없거나 일반 파일이 아니면 `missingBlobs`에 넣고 건너뜁니다. sha256이 `/^[0-9a-f]{64}$/`와 맞지 않으면 경로를 만들지 않고 `missingBlobs`에 넣습니다. 확인 뒤 복사 사이에 파일이 사라지면 `io`(`ENOENT`)로 실패합니다.
+- manifest:
+
+```json
+{ "format": 1, "exportedAt": 1767571200000, "sqliteFile": "xeon.sqlite", "blobCount": 1, "missingBlobs": [] }
+```
+
+  `format`은 디렉터리 구조의 버전이다. `exportedAt`은 `clock.now()`(epoch ms)다. `missingBlobs`에 든 값은 sha256 문자열이다.
+- 결과: `ExportReport`는 `{ destDir, exportedAt, blobCount, missingBlobs }`이고 manifest와 같은 내용입니다.
+- 오류: `ExportError`는 다음 kind를 가집니다.
+
+| kind | 뜻 |
+|---|---|
+| `foreign_database`(`applicationId`) | Xeon 표지가 아닌 SQLite 파일 |
+| `not_a_database` | 파일이 없거나 SQLite 파일이 아니다. 빈 파일도 여기 든다 |
+| `dest_not_empty` | 대상이 있고 비어 있지 않다. 아무것도 바꾸지 않는다 |
+| `busy` | `SQLITE_BUSY`, `SQLITE_LOCKED` |
+| `disk_full` | `SQLITE_FULL` 또는 `ENOSPC` |
+| `io`(`code`) | 그 밖의 SQLite와 파일 시스템 오류 |
+
+- 실패 정리: 이 호출이 만든 파일과 디렉터리만 만든 순서의 역순으로 지웁니다. 원래 있던 빈 대상 디렉터리는 지우지 않습니다. 정리가 실패하면 원래 오류 대신 정리 오류를 돌려줍니다. `ExportError`에 원인을 실을 필드가 없기 때문입니다 [미결 S-14].
+- 잠금 대기: 원본 연결은 `busy_timeout` 5000ms를 씁니다. WAL 모드에서는 다른 프로세스의 쓰기가 읽기를 막지 않습니다.
+- SQLite 로드: 이 함수도 `newDatabase`를 거치므로 첫 연결이 SQLite 로드 상태를 정합니다. `openStore` 전에 부르면 macOS 커스텀 dylib 지정이 나중에 `Bug(store.sqlite_already_loaded)`가 됩니다 [미결 S-13].
+
+### 4.11 읽기 전용 열기 [결정: M3-REQ-63]
+
+`openStore({ readOnly: true })`는 DB를 읽기 전용으로 엽니다. 다른 Xeon 버전이 만든 DB를 확인하는 경로이고, 쓰기는 모두 거절합니다.
+
+- 파일과 디렉터리를 만들지 않습니다. 없는 파일은 `io`(`SQLITE_CANTOPEN`)입니다.
+- 쓰기 연결과 읽기 연결을 모두 `readonly`로 엽니다. 두 연결에 `query_only`를 겁니다. WAL 설정, 표지 기록, sys 스키마 생성, 마이그레이션, 체크포인트, 잠금 디렉터리 생성을 하지 않습니다. 잠금 제공자는 `none`이며 `lock_provider_none` 경고를 남기지 않습니다.
+- 표지: `application_id`가 Xeon이 아니면 `foreign_database`입니다(0도 포함합니다). sys 표(`sys_migrations`, `sys_meta`)가 없으면 `corrupt`(`code: "SYS_SCHEMA_MISSING"`), `store_id`가 없으면 `corrupt`(`code: "STORE_ID_MISSING"`)입니다 [결정: 오케스트레이터 기본값].
+- 버전: sys 행의 최대 버전이 `SYS_MIGRATION_SET`의 버전보다 높으면 열기는 성공하고 `warnings`에 `{ kind: "read_only", reason: "future_version", owner: "sys", dbVersion, codeVersion }`을 남깁니다. 같거나 낮으면 경고가 없습니다. 열기 시점에 코드 버전을 아는 owner는 sys뿐이므로 경고도 sys에 대해서만 냅니다. 다른 owner의 미래 버전은 소비자의 `migrations.apply`가 `migration_future_version`으로 알립니다.
+- 쓰기 거절: 아래 경로는 파일을 건드리기 전에 거절합니다. DB 파일과 블롭 파일은 바뀌지 않습니다.
+
+| 경로 | 결과 |
+|---|---|
+| `root.write`, `scoped(owner).write` | `err({ kind: "io", code: "SQLITE_READONLY" })` |
+| `putBlob` | 같은 값. 블롭 파일도 쓰지 않는다 |
+| `pinBlob`, `unpinBlob` | 같은 값 |
+| `gcBlobs` | 같은 값. 행과 파일을 모두 지우지 않는다 |
+| `leases.acquire` | `err({ kind: "lock_io", code: "SQLITE_READONLY" })`. 쓰기 오류를 임대 오류로 옮기는 기존 매핑과 같다 [결정: 오케스트레이터 기본값] |
+| `migrations.apply` | 올릴 단계가 없으면 `ok`, 있으면 `migration_failed`(`code: "SQLITE_READONLY"`). 미래 버전이면 기존처럼 `migration_future_version`이다 [결정: 오케스트레이터 기본값] |
+
+- 읽기(`read`, `readBlob`, `leases.inspect`)는 그대로 동작합니다.
+- 닫기에서는 WAL 체크포인트를 하지 않습니다.
+
 ## 5. 실패와 경계 사례
 
 | 경우 | 동작 |
 |---|---|
-| 다른 Xeon 버전이 만든 DB, sys 버전이 코드보다 높음 | `migration_future_version`. 호출자는 읽기 전용 열기를 고를 수 있다 |
+| 다른 Xeon 버전이 만든 DB, sys 버전이 코드보다 높음 | 기본 열기는 `migration_future_version`이다. `readOnly: true`로 열면 성공하고 `warnings`에 `read_only`(`future_version`)를 남긴다(§4.11). 내보내기는 버전과 상관없이 된다(§4.10) |
+| 읽기 전용 열기에서 쓰기 호출 | `SQLITE_READONLY` 오류 값. DB 파일과 블롭 파일은 바뀌지 않는다(§4.11) |
+| 내보내기 대상이 비어 있지 않음 | `dest_not_empty`. 대상의 내용은 바뀌지 않는다(§4.10) |
+| 내보내기 중 블롭 파일이 없음 | `missingBlobs`에 적고 나머지는 복사한다(§4.10) |
 | `application_id`가 다른 파일 | `foreign_database`. 파일을 바꾸지 않는다 |
 | 다른 앱이 SQLite DB를 같은 경로에 둠(`application_id` 0, 테이블 있음) | `foreign_database`(`applicationId: 0`) |
 | 쓰기 중 디스크 가득 | `disk_full`. 롤백되어 행 변화 없음. 같은 `requestId`로 재시도(TX-05) |
@@ -866,6 +937,8 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 16. `extensions.register("Helm")`, `register("ext")`, `register("a_b")`는 `ext_id_invalid`다. `register("acme-notes")`의 `tablePrefix`는 `x_acme_notes_`다. 확장 `ab`(`x_ab_cd`)와 `ab-cd`(`x_ab_cd_ef`)를 둘 다 등록한 뒤 `drop("ab", ["x_ab_cd"])`는 `x_ab_cd`만 지우고 `x_ab_cd_ef`와 `events` 행 수는 그대로다. `drop("ab", ["x_ab_cd_ef"])`는 `table_not_owned`이고 아무것도 지우지 않는다.
 17. `bun:sqlite` import가 `platform-store` 밖에 없다(DR-07 검사).
 18. X의 확장 저장 영역 계약 시나리오(`ext-storage.contract.ts`)가 이 패키지의 실제 bun:sqlite 팩토리로 통과한다. 장애 주입 롤백 시나리오(`after_ext_projection:<n>`)에서 확장 테이블 행 해시가 바뀌지 않는다 [결정: review.decisions-2 D-05]. X 테스트는 L0를 import하지 않으므로 bun:sqlite 실행은 이 스위트만 맡는다.
+19. `exportDatabase`로 낸 `xeon.sqlite`를 `openStore`로 열면 행과 블롭 바이트가 원본과 같다. 미래 버전 DB도 내보내진다. 비어 있지 않은 대상은 `dest_not_empty`이고 내용이 그대로다. 파일이 없는 블롭은 `missingBlobs`에 든다(`test/export.int.test.ts`).
+20. `readOnly: true`로 미래 버전 DB를 열면 성공하고 `warnings`는 `read_only`(`future_version`) 하나다. 쓰기 경로(`root`, `scoped`, `putBlob`, `pinBlob`, `unpinBlob`, `gcBlobs`, `leases.acquire`, `migrations.apply`)는 모두 거절 값을 돌려주고 DB 파일의 SHA-256이 그대로다(`test/open-readonly.int.test.ts`).
 
 ## 10. 미결 사항
 
@@ -879,4 +952,6 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - [미결 S-10] bun:ffi 안정성. Bun 문서의 실험 기능 경고 원문을 확인하고, 문제가 있으면 `none` provider(DB 임대만)를 기본으로 둘지 정한다.
 - [미결 S-11] 블롭 해시 재검증을 운영 빌드에서도 할지(읽기 비용).
 - [미결 S-12] F 요청, 스냅샷 실패 전용 오류 kind. 지금은 `migration_failed`의 `code: "snapshot_failed:<코드>"`로 돌려준다(§4.6.1). `MigrationError`에 `migration_snapshot_failed`를 더하고, 손상(`corrupt`)과 미래 버전(`migration_future_version`) 오류를 사용자 안내 문구로 나누는 일은 F·host가 맡는다 [마감 G2-06].
+- [미결 S-13] 내보내기와 열기는 같은 SQLite 로드 규칙(§4.1)을 쓴다. 열기 전에 내보내면 첫 연결이 SQLite 로드 상태를 번들로 정하므로, macOS에서 나중의 `openStore`가 커스텀 dylib을 지정하면 `Bug(store.sqlite_already_loaded)`가 난다. 호스트가 내보내기를 `openStore` 뒤에 부르는지 M3 호스트 연결 때 정한다.
+- [미결 S-14] 내보내기 실패 뒤 정리가 실패하면 원래 오류 대신 정리 오류를 돌려준다. `ExportError`에 원인 필드가 없어서다. 원인을 실을 필드를 더할지는 F 요청 후보로 둔다(§4.10).
 - [가정] macOS에서 bun:ffi `flock`, `libSystem.B.dylib` 이름, O_CLOEXEC 동작은 실측하지 않았다. Windows 전 구간, WSL `/mnt/c`의 flock도 실측하지 않았다(`_research/notes/L0-2.md §5`).
