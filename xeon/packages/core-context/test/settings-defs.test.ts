@@ -8,6 +8,10 @@ function defOf(key: string) {
   return def;
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 describe("l1.context settings", () => {
   test("declares exactly the keys of the spec table", () => {
     expect(CONTEXT_SETTING_DEFS.map((def) => def.key)).toEqual([
@@ -65,9 +69,10 @@ describe("contextSettingsOf", () => {
   });
 
   test("the defaults in the declaration come from the same constant", () => {
+    const defaults: unknown = DEFAULT_CONTEXT_SETTINGS;
     for (const def of CONTEXT_SETTING_DEFS) {
       const name = def.key.replace("l1.context.", "");
-      expect(def.default).toEqual(Reflect.get(DEFAULT_CONTEXT_SETTINGS, name));
+      expect(def.default).toEqual(isRecord(defaults) ? defaults[name] : undefined);
     }
   });
 
