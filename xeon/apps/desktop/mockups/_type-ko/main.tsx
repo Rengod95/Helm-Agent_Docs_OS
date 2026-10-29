@@ -1,5 +1,5 @@
 // 한글 타이포 견본 (DP-11): caustic 글자 역할 × 잉크 단계를 ko와 en으로 나란히. ?theme=light|dark.
-// 폰트는 @caustic/tokens/fonts.css(Geist, Newsreader, Noto Sans KR, Noto Serif KR)를 맨 먼저 가져온다.
+// 폰트는 @caustic/tokens/fonts.css(Geist, Newsreader, Noto Serif KR, 자체 호스팅 SUIT)를 맨 먼저 가져온다.
 import "@caustic/tokens/fonts.css";
 import "./specimen.css";
 import { createRoot } from "react-dom/client";

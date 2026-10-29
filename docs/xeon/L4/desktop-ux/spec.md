@@ -2089,9 +2089,9 @@ export const palette = [
 
 ### 13.2 DP-11 한글 타이포 규칙 (2026-10-29)
 
-DP-11을 caustic 토큰으로 정했습니다(caustic `d2c73f2`, `FOUNDATION.md` Typography). 견본은 `xeon/apps/desktop/mockups/_type-ko`입니다.
+DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOUNDATION.md` Typography). 견본은 `xeon/apps/desktop/mockups/_type-ko`입니다.
 
-- DP-11a 자간은 언어를 따릅니다. `lang="ko"` 아래에서 ui·voice 역할은 크기별 한글 자간을 씁니다. 30px 이상 −0.025em, 18px 이상 −0.02em, 13.5px 이상 −0.015em, 12.5px 이상 −0.01em, 그보다 작으면 0입니다. `caption`은 0(대문자 자간 없음), mono는 영문 값 그대로입니다. 영문(`lang="en"` 등) 하위 영역은 영문 값으로 돌아갑니다. 앱 루트에는 `lang="ko"`를 둡니다.
-- DP-11b 한글 글꼴: Geist 다음 SUIT, Pretendard(설치돼 있으면), 그다음 Noto Sans KR입니다. 앱은 `@caustic/tokens/fonts.css`를 다른 스타일보다 먼저 가져와 Noto Sans KR 300–700을 웹 글꼴로 받습니다. 그래야 굵기 400·500·600·700이 한글에서도 모두 다르게 보입니다.
-- DP-11c 굵기 단계: 본문 400, 강조·라벨 500, 제목 600. 굵기를 새로 만들지 않고 이 셋만 씁니다. 한글 500은 Geist 500보다 진해 보이므로 작은 글자의 강조는 500에서 멈춥니다.
+- DP-11a 자간은 언어를 따릅니다. `lang="ko"` 아래에서 ui·voice 역할은 크기별 한글 자간을 씁니다. 30px 이상 −0.02em, 18px 이상 −0.015em, 13.5px 이상 −0.01em, 12.5px 이상 −0.005em, 그보다 작으면 0입니다(SUIT 기준). `caption`은 0(대문자 자간 없음), mono는 영문 값 그대로입니다. 영문(`lang="en"` 등) 하위 영역은 영문 값으로 돌아갑니다. 앱 루트에는 `lang="ko"`를 둡니다.
+- DP-11b 한글 글꼴: Geist 다음 SUIT Variable입니다 [결정: 2026-10-29 사용자]. caustic이 SUIT v2.0.5 가변 woff2(SIL OFL 1.1, 625KB, 굵기 100–900)를 직접 담고, 앱은 `@caustic/tokens/fonts.css`를 다른 스타일보다 먼저 가져옵니다. 한글·CJK 문장부호에만 쓰이고(unicode-range) 영문과 숫자는 Geist입니다. Google의 Noto Sans KR은 더 받지 않습니다. 굵기 400·500·600·700이 한글에서도 모두 다르게 보입니다.
+- DP-11c 굵기 단계: 본문 400, 강조·라벨 500, 제목 600. SUIT 400·500은 Geist와 같은 무게로 보입니다. SUIT 600은 큰 제목에서 Geist 600보다 가벼워, `lang="ko"` 아래 18px 이상 600 역할(display, title-1·2 등)은 700으로 그립니다.
 - DP-11d 글자색 단계: primary·secondary·tertiary·placeholder = neutral 11·10·9·8. surface.base 위 대비가 라이트 20 : 11.6 : 7.7 : 5.9, 다크 16.7 : 8.8 : 6.5 : 5.2입니다(이전 라이트 secondary 13.9, 다크 9.9 : 7.0 : 5.7). 모든 단계가 WCAG 4.5:1 이상입니다.
