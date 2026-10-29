@@ -21,11 +21,11 @@ describe("l0.exec settings", () => {
     ]);
   });
 
-  test("spill retention and cap keys are managed or user scope and reserved until the root reads them", () => {
+  test("spill retention and cap keys are managed or user scope and active", () => {
     for (const key of ["l0.exec.spillRetentionDays", "l0.exec.spillMaxBytes"]) {
       expect(defOf(key).allowedScopes).toEqual(["managed", "user"]);
       expect(defOf(key).runtimeChange).toBe("nextTurn");
-      expect(defOf(key).stage).toBe("reserved");
+      expect(defOf(key).stage ?? "active").toBe("active");
     }
     expect(defOf("l0.exec.spillRetentionDays").range).toEqual({ min: 0, max: 3650 });
     expect(defOf("l0.exec.spillMaxBytes").range).toEqual({ min: 0, max: 1_099_511_627_776 });

@@ -533,7 +533,7 @@ export function createExecService(
 - 사용량을 잴 수 없으면 상한 이상으로 본다. spill을 시작하지 않고 Logger `exec.spill_usage_failed`를 남긴다 [결정: 오케스트레이터 기본값].
 - 상한 때문에 spill을 막으면 Logger `exec.spill_cap_reached`(`usedBytes`, `capBytes`)를 30초 구간마다 한 번 남긴다.
 - 두 기본값을 함께 쓰면(보관 정리 0, 상한 1 GiB) 사용량이 상한 이상이 된 뒤 spill은 기간을 정하거나 상한을 올리거나 파일을 직접 지울 때까지 멈춘다. 이 결과를 기본값으로 받아들인다 [결정: 오케스트레이터 기본값].
-- 두 키는 값을 읽는 조립 루트 커밋이 들어올 때까지 `stage: reserved`다. 그 전에는 설정 목록과 `settings.set`에서 빠진다(`settings.reserved`, `F.wire-settings.spec` §3.8.2) [결정: 오케스트레이터 기본값].
+- 두 키의 `stage`는 `active`다. 읽는 쪽은 조립 루트(apps/host)다. `stage: reserved`였던 기간에는 설정 목록과 `settings.set`에서 빠졌다(`settings.reserved`, `F.wire-settings.spec` §3.8.2) [결정: 오케스트레이터 기본값]. 조립 루트가 읽기 전에 키를 켜 두면 값이 보이지만 효과는 없다. 그래서 두 커밋(stage 해제, 조립 루트 연결)은 같은 M3b 묶음 안에서 잇달아 들어간다.
 
 ### 3.9 백그라운드 실행 `startBackground` [제안]
 
@@ -665,8 +665,8 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 | `l0.exec.defaultTimeoutMs` | `integer` | `0`(호출자가 정하지 않으면 제한 없음) | `managed`, `user`, `project` | `nextTurn` | 탭 `execution`, `number`, 단위 ms [제안] |
 | `l0.exec.unattendedTimeoutMs` | `integer` | `1800000`(30분, 무인 경로만 적용, 3.8.1절) | `managed`, `user` | `nextTurn` | 탭 `execution`, `number`, 단위 ms |
 | `l0.exec.outputSpillBytes` | `integer` | `10485760`(10 MiB) | `managed`, `user`, `project` | `nextTurn` | 탭 `advanced`(파일 편집기만) [제안] |
-| `l0.exec.spillRetentionDays` | `integer` | `0`(지우지 않음) | `managed`, `user` | `nextTurn` | 탭 `execution`, `number`, 단위 일. `stage: reserved`(3.8.2절) [결정: 오케스트레이터 기본값] |
-| `l0.exec.spillMaxBytes` | `integer` | `1073741824`(1 GiB, 0이면 상한 없음) | `managed`, `user` | `nextTurn` | 탭 `execution`, `number`, 단위 B. `stage: reserved`(3.8.2절) [결정: 오케스트레이터 기본값] |
+| `l0.exec.spillRetentionDays` | `integer` | `0`(지우지 않음) | `managed`, `user` | `nextTurn` | 탭 `execution`, `number`, 단위 일. `stage: active`(3.8.2절) [결정: 오케스트레이터 기본값] |
+| `l0.exec.spillMaxBytes` | `integer` | `1073741824`(1 GiB, 0이면 상한 없음) | `managed`, `user` | `nextTurn` | 탭 `execution`, `number`, 단위 B. `stage: active`(3.8.2절) [결정: 오케스트레이터 기본값] |
 | `l0.exec.envAllowlist.extra` | `string[]`(이름 패턴 `^[A-Za-z_][A-Za-z0-9_]{0,127}$`) | `[]` | `managed`, `user` | `nextTurn` | 탭 `execution`, `list` [제안] |
 
 - `range`: `defaultTimeoutMs` 0~2,147,483,647, `unattendedTimeoutMs` 1,000~2,147,483,647, `outputSpillBytes` 0~1,073,741,824, `spillRetentionDays` 0~3,650, `spillMaxBytes` 0~1,099,511,627,776.
@@ -739,7 +739,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 3. [미결] 포크 업그레이드 정책(정기 diff 또는 보안·버그 수정 때만). adr.0003 §6을 이어받는다.
 4. [결정: m2 마감 G2-05] spill 파일 위치는 `ExecServiceOptions.tempDir`(조립 루트가 `<dirs.state>/spill`)이고 소유자 전용이다(디렉터리 0700, 파일 0600). 원본은 OS 임시 디렉터리에 남겼다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다.
    [결정: review.m3-design-inputs D-M3-21 a, 오케스트레이터 기본값, M3-REQ-47] 삭제 시점은 기본으로 세션 종료 때도 지우지 않는다. 보관 기간은 `l0.exec.spillRetentionDays`(기본 0, 지우지 않음)로 정하고 `pruneSpill`이 지운다. 디스크 상한은 `l0.exec.spillMaxBytes`(기본 1 GiB, 0이면 없음)로 정하고, 사용량이 상한 이상이면 새 spill을 시작하지 않는다. 세부는 3.8.2절이다.
-   [미결] 조립 루트(apps/host)가 `tempDir`, `spillMaxBytes`를 넘기고 `pruneSpill`을 부르도록 고치는 일과 두 키의 `stage: reserved`를 빼는 일은 L4.host 작업이다. 그 전까지 두 키는 읽히지 않는다. 정리 호출 시점도 그 작업에서 정한다.
+   [미결] 조립 루트(apps/host)가 `tempDir`, `spillMaxBytes`를 넘기고 `pruneSpill`을 부르도록 고치는 일은 L4.host 작업이다. 두 키의 `stage: reserved`는 해제했다(M3-REQ-47, 1b 커밋). 조립 루트 연결 전까지 두 키는 읽히지 않는다. 정리 호출 시점은 L4.host-service §4.17이 정한다.
 5. [미결] 적합성 스위트의 watch 사례(사례당 최대 30초)를 `int` 파일 10초 상한(`eng.testing.guide` TS-01)에 맞추는 방법: 파일 분할, 별도 태그, 상한 예외 중 하나.
 6. [결정: review.m3-lower-requirements M3-REQ-46] `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지하고 무인 경로 상한은 3.8.1절의 `withUnattendedTimeout`이 건다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.
 7. [미결] Windows 네이티브 적합성 기대 표(5.2절)는 실행하지 않은 [가정]이다. M2 이후 Windows CI에서 확인한다.

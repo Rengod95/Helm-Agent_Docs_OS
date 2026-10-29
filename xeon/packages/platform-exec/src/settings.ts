@@ -68,14 +68,13 @@ const group = defineSettings("l0.exec", {
     allowedScopes: ["managed", "user", "project"],
     since: "0.1.0",
   },
-  // 아래 두 키는 값을 읽는 코드가 아직 없다. 조립 루트(apps/host)가 읽는 커밋에서 `stage`를 뺀다 [결정: 오케스트레이터 기본값]
+  // 아래 두 키는 보관 정리와 디스크 상한이다. 조립 루트(apps/host)가 읽는다(L0.exec.spec §3.8.2)
   spillRetentionDays: {
     type: Type.Integer(),
     default: 0,
     range: { min: 0, max: 3650 },
     runtimeChange: "nextTurn",
     allowedScopes: ["managed", "user"],
-    stage: "reserved",
     ui: {
       tab: "execution",
       widget: "number",
@@ -92,7 +91,6 @@ const group = defineSettings("l0.exec", {
     range: { min: 0, max: 1_099_511_627_776 },
     runtimeChange: "nextTurn",
     allowedScopes: ["managed", "user"],
-    stage: "reserved",
     ui: {
       tab: "execution",
       widget: "number",
