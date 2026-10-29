@@ -2607,6 +2607,35 @@
         }
       }
     },
+    "l2.web.browse.order": {
+      "default": [],
+      "items": {
+        "maxLength": 96,
+        "pattern": "^(plugin:[a-z][a-z0-9-]{1,31}|[a-z][a-z0-9-]{0,63})$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "type": "array",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "등록된 브라우저 도구를 끌어 옮겨 정한다. 목록에 없는 도구는 뒤에 붙고 플러그인이 마지막이다",
+          "label": "브라우저 도구 순서",
+          "order": 161,
+          "tab": "tools",
+          "widget": "list"
+        }
+      }
+    },
     "l2.web.browse.provider": {
       "default": "auto",
       "maxLength": 96,
@@ -2929,7 +2958,7 @@
       }
     },
     "l2.web.policy.robots": {
-      "default": "auto",
+      "default": "never",
       "enum": [
         "auto",
         "always",
@@ -2948,6 +2977,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
+          "help": "never(기본)는 따르지 않는다. auto는 자동 수집 경로만, always는 모든 fetch에 적용한다",
           "label": "robots.txt 적용",
           "order": 125,
           "tab": "tools",
@@ -3059,7 +3089,7 @@
         }
       }
     },
-    "l2.web.search.pluginOrder": {
+    "l2.web.search.order": {
       "default": [],
       "items": {
         "maxLength": 96,
@@ -3080,10 +3110,37 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "검색 플러그인 순서",
+          "help": "등록된 검색 도구를 끌어 옮겨 정한다. 목록에 없는 도구는 뒤에 붙고 플러그인이 마지막이다",
+          "label": "검색 도구 순서",
           "order": 101,
           "tab": "tools",
           "widget": "list"
+        }
+      }
+    },
+    "l2.web.search.parallel": {
+      "default": 1,
+      "maximum": 4,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "1이면 순서대로 하나씩 쓴다. 2 이상이면 순서의 앞에서부터 그 수만큼 동시에 질의해 결과를 합친다. 검색어가 여러 수신자에게 나간다",
+          "label": "동시 질의 검색 도구 수",
+          "order": 103,
+          "tab": "tools",
+          "unit": "개",
+          "widget": "number"
         }
       }
     },

@@ -199,7 +199,6 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
   const base = webManifest();
   const manifest = defineManifest({
     ...base,
-    provides: [...(base.provides ?? []), { id: WebBrowse.id, version: WebBrowse.version }],
     // 브라우저 MCP 서버(`playwright`)는 cap-mcp의 `mcp.client`로 부른다. 없으면 브라우저 후보가 빠진다
     optional: [{ id: McpClient.id, range: `^${McpClient.version}` }],
     points: [...WEB_POINTS],
