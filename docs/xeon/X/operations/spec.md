@@ -961,7 +961,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 요청 뒤 적용 전까지의 호출도 실패 처리 규칙은 그대로 적용한다. 그 사이의 실패는 장부에 넣지만 두 번째 요청을 만들지 않는다.
 - drive 임대를 가진 그룹이 꺼지면 임대 반납 순서는 `F.extensions.spec` §4.5 비활성화 적용 순서를 따른다(`lease.released`의 `reason: "disabled"`).
 - 예외: `AUTO_DISABLE_EXEMPT_TIERS`(`guard`, `core`)와 `essential: true` 확장(X.loading-trust.spec §4.3.2)은 끄지 않는다. 이 tier의 실패는 fold 규칙대로 처리하고(가드의 first는 거부로 남아 fail-closed가 유지된다) 알림만 보낸다. 사용자가 이 tier를 끌 수 없는 이유는 보안 가드와 코어 기본 동작이 빠지면 안전과 기본 기능이 함께 빠지기 때문이다.
-- 기준과 무관한 `disableNow`(투영기 실패, §5 6번)도 같은 면제를 받는다. 면제 주체는 끄지 않고 `projectionFailed(key, cause, false)`를 실패마다 보낸다. 면제 tier는 `tierOf`로 본다. `tierOf`가 tier를 돌려주지 않는 주체(표에 없는 확장, 훅)는 tier 면제가 없고 `isExempt`만 본다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이미 끈 주체는 다시 끄지도, 다시 알리지도 않는다.
+- 기준과 무관한 `disableNow` 중 투영기 실패(§5 6번)만 같은 면제를 받는다. 격리 재시작 한도 초과(`isolation_restart_limit`)는 면제 없이 끈다. 면제 주체는 끄지 않고 `projectionFailed(key, cause, false)`를 실패마다 보낸다. 면제 tier는 `tierOf`로 본다. `tierOf`가 tier를 돌려주지 않는 주체(표에 없는 확장, 훅)는 tier 면제가 없고 `isExempt`만 본다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이미 끈 주체는 다시 끄지도, 다시 알리지도 않는다.
 - 외부 훅은 같은 기준으로 그 훅만 끈다. 훅 끄기는 다음 디스패치부터 적용한다(훅은 scope가 없다).
 - 자동 끄기 상태는 설정 파일에 쓰지 않는다 [제안]. `ext.<name>.enabled` 값은 바뀌지 않고, 다음 시작에서 다시 실린다. 반복되는 경우는 §10 미결 7이다.
 

@@ -246,6 +246,11 @@ export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
       }
     },
     disableNow(key, cause) {
+      // 격리 재시작 한도 초과는 이전처럼 면제 없이 끈다. 면제와 알림은 투영기 실패에만 적용한다
+      if (cause !== "projection_failed") {
+        if (!disabled.has(key)) applyDisable(key);
+        return;
+      }
       const tier = deps.tierOf?.(key);
       const exempt =
         (tier !== undefined && AUTO_DISABLE_EXEMPT_TIERS.has(tier)) ||
