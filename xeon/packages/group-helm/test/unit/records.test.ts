@@ -4,6 +4,7 @@ import { validateGroupRecord, RECORD_KIND_PATTERN } from "@xeon/contracts/extens
 import {
   DiscoveryRecordedPayloadSchema,
   HELM_RECORD_KINDS,
+  dedupeInquiryFinished,
   InquiryFinishedPayloadSchema,
   jsonOf,
   type DiscoveryRecordedPayload,
@@ -77,3 +78,51 @@ test("an inquiry.finished payload rejects an unknown outcome", () => {
   expect(parse(InquiryFinishedPayloadSchema, ok).ok).toBe(true);
   expect(parse(InquiryFinishedPayloadSchema, { ...ok, outcome: "done" }).ok).toBe(false);
 });
+
+/** 중복 제거 시험 입력. outcome으로 어느 기록이 남았는지 값으로 본다 */
+interface FinishedRow {
+  readonly inquiryId: string | null;
+  readonly outcome: string;
+}
+
+const FIRST_A: FinishedRow = { inquiryId: "habcdefghijklm", outcome: "applied" };
+const SECOND_A: FinishedRow = { inquiryId: "habcdefghijklm", outcome: "failed" };
+const B: FinishedRow = { inquiryId: "hbbbbbbbbbbbb", outcome: "stopped" };
+const C: FinishedRow = { inquiryId: "hcccccccccccc", outcome: "empty" };
+const NULL_FIRST: FinishedRow = { inquiryId: null, outcome: "limit" };
+const NULL_SECOND: FinishedRow = { inquiryId: null, outcome: "failed" };
+
+const DEDUPE_TABLE: readonly {
+  readonly name: string;
+  readonly input: readonly FinishedRow[];
+  readonly kept: readonly string[];
+}[] = [
+  { name: "empty", input: [], kept: [] },
+  {
+    name: "no-duplicates-keeps-order",
+    input: [B, FIRST_A, C],
+    kept: ["stopped", "applied", "empty"],
+  },
+  {
+    name: "second-finish-of-one-inquiry-is-dropped",
+    input: [FIRST_A, SECOND_A],
+    kept: ["applied"],
+  },
+  {
+    name: "first-per-inquiry-wins-in-order",
+    input: [B, FIRST_A, C, SECOND_A],
+    kept: ["stopped", "applied", "empty"],
+  },
+  {
+    name: "null-inquiry-ids-are-all-kept",
+    input: [NULL_FIRST, FIRST_A, NULL_SECOND, SECOND_A],
+    kept: ["limit", "applied", "failed"],
+  },
+];
+
+for (const row of DEDUPE_TABLE) {
+  test(`records.dedupe-inquiry-finished.${row.name}`, () => {
+    const kept = dedupeInquiryFinished(row.input);
+    expect(kept.map((entry) => entry.outcome)).toEqual([...row.kept]);
+  });
+}
