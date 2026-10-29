@@ -173,7 +173,9 @@ export async function createSandboxService(
    * srt 스키마가 받지 않는 차단 항목은 빼고 `rejectedBlockedDomains`에 남긴다(status와 doctor가 보여 준다).
    * 개수는 로그에도 남긴다. 나머지 차단은 유지한다.
    */
-  const validBlockedDomains = (domains: readonly string[]): string[] => {
+  const splitBlockedDomains = (
+    domains: readonly string[],
+  ): { readonly accepted: string[]; readonly rejected: string[] } => {
     const accepted: string[] = [];
     const rejected: string[] = [];
     for (const domain of domains) {
@@ -183,6 +185,11 @@ export async function createSandboxService(
         rejected.push(domain);
       }
     }
+    return { accepted, rejected };
+  };
+
+  const validBlockedDomains = (domains: readonly string[]): string[] => {
+    const { accepted, rejected } = splitBlockedDomains(domains);
     rejectedBlockedDomains = rejected;
     if (rejected.length > 0) {
       logger.warn("sandbox.blocked_domain_rejected", { count: rejected.length });
@@ -317,7 +324,11 @@ export async function createSandboxService(
         pathEntries.filter((entry) => entry.access === "read_write").map((entry) => entry.path),
       ),
       writeDeny: sortedUnique(pathEntries.map((entry) => entry.path)),
-      network: { allowedDomains: [], deniedDomains: [...deps.settings().blockedDomains] },
+      // srt 스키마가 받지 않는 차단 항목은 정책에 싣지 않는다. 싣으면 호출마다 srt 설정 변환이 실패한다(초기화 때 같은 항목을 이미 뺐다)
+      network: {
+        allowedDomains: [],
+        deniedDomains: splitBlockedDomains(deps.settings().blockedDomains).accepted,
+      },
       allowEscape: false,
     };
   };
