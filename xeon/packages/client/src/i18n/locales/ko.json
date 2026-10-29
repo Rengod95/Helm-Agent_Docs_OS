@@ -1,4 +1,7 @@
 {
+  "settings.l4.hostService.maxReplayEvents.help": "구독 한 번에 다시 보낼 수 있는 이벤트 수. 넘으면 새 위치에서 다시 구독해야 한다",
+  "settings.l4.hostService.maxReplayEvents.label": "구독 재전송 최대 이벤트 수",
+  "settings.l4.hostService.maxSubscriptionsPerConnection.label": "연결당 구독 한도",
   "settings.l4.ui.locale.label": "표시 언어",
   "settings.l4.ui.locale.help": "메시지와 화면의 언어. auto는 운영체제 설정을 따르고 지원하지 않으면 en을 쓴다."
 }

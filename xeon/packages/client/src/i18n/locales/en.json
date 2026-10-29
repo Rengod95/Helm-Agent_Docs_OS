@@ -1,4 +1,7 @@
 {
+  "settings.l4.hostService.maxReplayEvents.help": "Events one subscription can replay. Beyond this, subscribe again from a newer position",
+  "settings.l4.hostService.maxReplayEvents.label": "Maximum events replayed per subscription",
+  "settings.l4.hostService.maxSubscriptionsPerConnection.label": "Subscriptions per connection",
   "settings.l4.ui.locale.label": "Display language",
   "settings.l4.ui.locale.help": "Language of messages and screens. auto follows the operating system and falls back to en."
 }

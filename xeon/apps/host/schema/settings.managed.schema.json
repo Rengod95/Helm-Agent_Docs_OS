@@ -5560,11 +5560,13 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "구독 한 번에 다시 보낼 수 있는 이벤트 수. 넘으면 새 위치에서 다시 구독해야 한다",
-          "label": "구독 재전송 최대 이벤트 수",
+          "help": "Events one subscription can replay. Beyond this, subscribe again from a newer position",
+          "helpKey": "settings.l4.hostService.maxReplayEvents.help",
+          "label": "Maximum events replayed per subscription",
+          "labelKey": "settings.l4.hostService.maxReplayEvents.label",
           "order": 200,
           "tab": "execution",
-          "unit": "개",
+          "unit": "items",
           "widget": "number"
         }
       }
@@ -5584,10 +5586,11 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "연결당 구독 한도",
+          "label": "Subscriptions per connection",
+          "labelKey": "settings.l4.hostService.maxSubscriptionsPerConnection.label",
           "order": 210,
           "tab": "execution",
-          "unit": "개",
+          "unit": "items",
           "widget": "number"
         }
       }
