@@ -861,7 +861,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 #### 4.2.6 클라이언트 선언
 
 - 클라이언트는 `list`로 `CommandInfo[]`를 받아 자동완성을 만든다. 명령 목록이 바뀌면 다음 `list`에서 반영된다.
-- wire 노출 [결정: m2c G1-01]. 명령은 코어 wire 메서드 `command.list`, `command.run`이다(`F.wire-settings.spec` §3.3.1). `CommandInfo`와 `CommandRunOutput`은 이 능력 정의의 스키마를 그대로 쓴다. 첨부(`attachments.add`), 상태줄(`status.list`), 알림(`notify.list`, M3), 곁가지 질문(`aside.ask`, 2차)의 wire 메서드는 아직 없고 [미결]이다(§10 D-2).
+- wire 노출 [결정: m2c G1-01]. 명령은 코어 wire 메서드 `command.list`, `command.run`이다(`F.wire-settings.spec` §3.3.1). `CommandInfo`와 `CommandRunOutput`은 이 능력 정의의 스키마를 그대로 쓴다. 상태줄(`status.list`)과 첨부(`attachments.add`)의 wire 메서드는 M3에서 코어 표에 들었다(`L4.host-service.spec` HS-81, `F.wire-settings.spec` §3.3.1). 알림(`notify.list`, M3)과 곁가지 질문(`aside.ask`, 2차)의 wire 메서드는 아직 없고 [미결]이다(§10 D-2).
 
 ### 4.3 동작 명령과 다른 L2 능력
 
@@ -1105,7 +1105,7 @@ export const manifest = defineManifest({
 ## 10. 미결 사항
 
 - D-1 닫힘. 호출 문맥은 `F.capabilities.spec` §3.2 `CallOptions.context`다(`L2.readme` §5.8).
-- D-2 [일부 닫힘, m2c G1-01] wire 메서드 추가. 닫힌 것: 명령 목록과 실행은 코어 표의 `command.list`, `command.run`이고 `CommandInfo`는 어긋나지 않는다. 남은 것 [미결]: `attachments.add`, `status.list`, `notify.list`, `aside.ask`를 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지.
+- D-2 [일부 닫힘, m2c G1-01] wire 메서드 추가. 닫힌 것: 명령 목록과 실행은 코어 표의 `command.list`, `command.run`이고 `CommandInfo`는 어긋나지 않는다. [결정: M3-REQ-16, M3-20] `status.list`와 `attachments.add`는 코어 표에 두었고 호스트 처리기가 능력을 부른다(HS-81). 상대 경로를 `threadId`의 작업 폴더로 푸는 일은 아직 하지 않는다(`L4.host-service.spec` §10 34번). 남은 것 [미결]: `notify.list`, `aside.ask`를 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지.
 - D-3 닫힘(구현 일부는 M3, review.m2-plan DG.1) L1.tools.spec과의 약속. 닫힌 것: 승인 요청 멱등(같은 `requestKey`, core-tools `open`), `input_required` 재시도(`status: "input_required"`에 `approvalId`, L1A.4), 질문에 `allow` 응답 거부(`applied: false`), 응답 모양(`QuestionAnswer`, §4.1.1). 닫힌 것(m2 F.8): (2) 비대화형 판정(`CallContext.interactive`), (3) `QuestionItem.header`, `QuestionOption.recommended`, (4) F `ApprovalService`의 비차단 `open`·`wait`·`get`(L1.tools.spec §8.3 F 요청 11). (4)로 정식 `ApprovalsPortFactory`(`questionApprovalsOver`)를 만들었고 실제 `ApprovalService` 위에서 시험한다. 같은 키의 서비스 쪽 내용 비교와 재시작 뒤 재요청이 처음 요청의 body를 돌려주는 것은 L1A 쪽 한계로 남았다(어댑터가 메모리 안에서 비교한다). 닫힘(m2c G1-11): (1) 만료 시각과 만료 결과의 계약 필드(`ApprovalRequestInput.expiresAt`·`onExpire`, `L2ApprovalRequest`의 같은 이름 필드, `resolvedBy: "expired"`)는 F에 들어갔다. 만료 타이머와 이 어댑터가 `expiresAt`을 채우는 구현은 M3다(`review.m3-plan` M3-06). 닫힘(m2c G1-09): 승인 origin의 `caller`는 `approvalCallerOf(CallContext.caller)`로 만든다. 이 어댑터는 자기 변환을 두지 않고, 호출 문맥이 없는 요청은 `host`로 본다(`F.records.spec` §3.3.1).
 - D-4 [미결] 상태줄 id와 `dialog.notify.emit`의 `origin` 확인. `CallOptions.context.caller.extension`(`L2.readme` §5.8)과 대조한다. X의 capability 래퍼가 채우는 값이 확장 이름인지 scope id인지 `X.primitives.spec`과 맞춘다(`L2.work.spec` W-6과 같은 문제).
 - D-5 [미결] 곁가지 질문의 기록 위치와 사용량 집계(2차).

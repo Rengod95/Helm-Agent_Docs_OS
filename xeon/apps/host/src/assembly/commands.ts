@@ -60,7 +60,10 @@ export function createCommandPort(deps: CommandPortDeps): CommandPort {
   };
 }
 
-/** 호스트가 사람의 입력으로 부르는 호출의 문맥. `interactive`를 생략하면 대화형이다(F `CallContext`) */
-function hostContext(threadId: CallContext["threadId"]): CallContext {
+/**
+ * 호스트가 사람의 입력으로 부르는 호출의 문맥. `interactive`를 생략하면 대화형이다(F `CallContext`).
+ * 상태줄·첨부 포트(`dialog-wire.ts`)도 같은 문맥을 쓴다
+ */
+export function hostContext(threadId: CallContext["threadId"]): CallContext {
   return { ...(threadId === undefined ? {} : { threadId }), caller: { kind: "host" } };
 }

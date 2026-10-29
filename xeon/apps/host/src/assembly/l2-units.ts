@@ -2,10 +2,17 @@ import { err, ok } from "@xeon/contracts";
 import {
   DialogAsk,
   DialogAskKey,
+  DialogAttachments,
+  DialogAttachmentsKey,
   DialogCommands,
   DialogCommandsKey,
+  DialogNotify,
+  DialogNotifyKey,
+  DialogStatus,
+  DialogStatusKey,
   type CapabilityApi,
   type CommandActionRegistry,
+  type NoticeFeed,
 } from "@xeon/contracts/capabilities";
 import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
 import { OsPortKey, ToolServicePortKey, type ToolRegistration } from "@xeon/contracts/services";
@@ -17,14 +24,23 @@ import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
 
 /** `dialog.commands` 능력의 서비스 API(목록, 실행). 호스트의 `command.*` 처리기가 쓴다 */
 export type CommandsApi = CapabilityApi<typeof DialogCommands>;
+/** `dialog.status` 능력의 서비스 API. 호스트의 `status.list` 처리기가 쓴다 */
+export type StatusApi = CapabilityApi<typeof DialogStatus>;
+/** `dialog.attachments` 능력의 서비스 API. 호스트의 `attachments.add` 처리기가 쓴다 */
+export type AttachmentsApi = CapabilityApi<typeof DialogAttachments>;
+/** `dialog.notify` 능력의 서비스 API와 같은 프로세스 구독. 알림 목록(`notify.list`)이 쓴다 */
+type NotifyApi = CapabilityApi<typeof DialogNotify> & NoticeFeed;
 
 /**
- * 동작 명령 등록부와 명령 서비스 API를 나중에 채우는 자리. 브리지 확장이 채우고 cap-work가 등록 시점에(`current`),
- * 호스트의 `command.list`·`command.run` 처리기가 호출 시점에(`api`) 읽는다
+ * 동작 명령 등록부와 대화 능력 API(명령, 상태줄, 첨부, 알림)를 나중에 채우는 자리. 브리지 확장이 채우고 cap-work가 등록 시점에(`current`),
+ * 호스트의 `command.*`·`status.list`·`attachments.add` 처리기가 호출 시점에(`api`, `status`, `attachments`) 읽는다
  */
 export interface CommandRegistryHolder {
   current: CommandActionRegistry | undefined;
   api: CommandsApi | undefined;
+  status: StatusApi | undefined;
+  attachments: AttachmentsApi | undefined;
+  notify: NotifyApi | undefined;
 }
 
 /**
@@ -63,6 +79,35 @@ function isCommandsApi(value: unknown): value is CommandsApi {
   );
 }
 
+/** 상태줄 서비스 API인가. 호스트가 부르는 `list`를 본다 */
+function isStatusApi(value: unknown): value is StatusApi {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "list" in value &&
+    typeof value.list === "function"
+  );
+}
+
+/** 첨부 서비스 API인가. 호스트가 부르는 `add`를 본다 */
+function isAttachmentsApi(value: unknown): value is AttachmentsApi {
+  return (
+    typeof value === "object" && value !== null && "add" in value && typeof value.add === "function"
+  );
+}
+
+/** 알림 서비스 API인가. 목록과 같은 프로세스 구독을 본다 */
+function isNotifyApi(value: unknown): value is NotifyApi {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "list" in value &&
+    typeof value.list === "function" &&
+    "subscribe" in value &&
+    typeof value.subscribe === "function"
+  );
+}
+
 const DIALOG_BRIDGE_NAME = "host-dialog-bridge";
 
 /**
@@ -70,6 +115,7 @@ const DIALOG_BRIDGE_NAME = "host-dialog-bridge";
  * - 질문 도구(`ask_user`)를 L1.tools에 올린다. cap-dialog는 `dialog.ask` 능력만 제공하고 도구 등록은 하지 않는다.
  *   질문은 사용자 응답을 기다리므로 `user_interaction` 부류를 달아 서브에이전트에서 막을 수 있게 한다(L1.agents.spec §4.6)
  * - `dialog.commands` 능력의 동작 명령 등록부를 `holder`에 채운다(cap-work의 `/plan`, `/tasks`)
+ * - 상태줄, 첨부, 알림 능력 API를 `holder`에 채운다(`status.list`, `attachments.add`, M3-REQ-16)
  */
 export function dialogBridgePlugin(
   holder: CommandRegistryHolder,
@@ -86,7 +132,12 @@ export function dialogBridgePlugin(
     layer: "L2",
     kind: "plugin",
     entry: "./src/index.ts",
-    requires: [{ id: DialogCommands.id, range: `^${DialogCommands.version}` }],
+    requires: [
+      { id: DialogCommands.id, range: `^${DialogCommands.version}` },
+      { id: DialogStatus.id, range: `^${DialogStatus.version}` },
+      { id: DialogAttachments.id, range: `^${DialogAttachments.version}` },
+      { id: DialogNotify.id, range: `^${DialogNotify.version}` },
+    ],
     points: [],
     usesDrive: false,
     trust: { level: "builtin" },
@@ -107,9 +158,24 @@ export function dialogBridgePlugin(
         logger.warn("dialog.command_registry_missing", {
           effect: "/plan and /tasks are not registered",
         });
+      const status: unknown = g.capability(DialogStatusKey);
+      if (isStatusApi(status)) holder.status = status;
+      else logger.warn("dialog.status_api_missing", { effect: "status.list is unavailable" });
+      const attachments: unknown = g.capability(DialogAttachmentsKey);
+      if (isAttachmentsApi(attachments)) holder.attachments = attachments;
+      else
+        logger.warn("dialog.attachments_api_missing", {
+          effect: "attachments.add is unavailable",
+        });
+      const notify: unknown = g.capability(DialogNotifyKey);
+      if (isNotifyApi(notify)) holder.notify = notify;
+      else logger.warn("dialog.notify_api_missing", { effect: "notify.list is unavailable" });
       g.onDispose(() => {
         holder.current = undefined;
         holder.api = undefined;
+        holder.status = undefined;
+        holder.attachments = undefined;
+        holder.notify = undefined;
       });
       const registration: ToolRegistration = {
         kind: "capability",

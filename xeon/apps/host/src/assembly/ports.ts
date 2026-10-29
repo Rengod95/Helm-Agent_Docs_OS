@@ -65,6 +65,7 @@ import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-
 import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
+import { createDialogWirePort } from "./dialog-wire.ts";
 import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
 import { createWebPort, type WebStatusHolder } from "./web-providers.ts";
@@ -636,6 +637,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     models: { modelIds: (provider) => modelIdsOf(deps.models, provider) },
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
     web: createWebPort({ holder: deps.web, settings: deps.settings }),
+    dialog: createDialogWirePort({ holder: deps.commands }),
     proposals: deps.proposals,
     trust,
     schedule: deps.schedule,

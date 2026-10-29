@@ -54,7 +54,13 @@ function bridge(defs: Readonly<Record<string, ExtensionHandler>>): Bridged {
     error: () => undefined,
     child: () => logger,
   };
-  const holder: CommandRegistryHolder = { current: actions, api: undefined };
+  const holder: CommandRegistryHolder = {
+    current: actions,
+    api: undefined,
+    status: undefined,
+    attachments: undefined,
+    notify: undefined,
+  };
   bridgeExtensionCommands({ resources }, holder, logger);
   return { handlers, warnings };
 }

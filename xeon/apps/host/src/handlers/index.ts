@@ -3,6 +3,7 @@ import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine } from "../types.ts";
 import { createApprovalListHandler, createApprovalRespondHandler } from "./approval.ts";
 import { createCommandHandlers } from "./command.ts";
+import { createDialogHandlers } from "./dialog.ts";
 import { createEventsSubscribeHandler, createEventsUnsubscribeHandler } from "./events.ts";
 import {
   createHostHelloHandler,
@@ -84,14 +85,13 @@ export function createWireHandlers(
     "settings.readFile": notImplemented("settings.readFile"),
     "settings.writeFile": notImplemented("settings.writeFile"),
     "usage.get": notImplemented("usage.get"),
-    "status.list": notImplemented("status.list"),
-    "attachments.add": notImplemented("attachments.add"),
     "notify.list": notImplemented("notify.list"),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine),
     ...createTrustHandlers(engine),
     ...createCommandHandlers(engine, hub),
     ...createWebHandlers(engine),
+    ...createDialogHandlers(engine),
   };
   return table;
 }

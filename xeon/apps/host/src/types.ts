@@ -234,6 +234,8 @@ export interface EnginePorts {
   readonly commands: CommandPort;
   /** L2.web provider 상태와 웹 설정 값(`web.providers`, M3-REQ-96). 읽기 전용 */
   readonly web: WebPort;
+  /** L2.dialog 상태줄 스냅숏과 첨부 추가(`status.list`, `attachments.add`, M3-REQ-16) */
+  readonly dialog: DialogWirePort;
   /** 지식 제안 대기열 둘(학습 그룹, L2.knowledge)을 한 목록으로 보이고 결정한다(M3-REQ-18, D-M3-32 a) */
   readonly proposals: ProposalPort;
   /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */
@@ -365,6 +367,30 @@ export interface CommandPort {
     params: Omit<WireParams<"command.run">, "threadId">,
     signal: AbortSignal,
   ): Promise<Result<WireResult<"command.run">, CommandFailure>>;
+}
+
+/** 상태줄 스냅숏과 첨부 추가가 실패한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.3.1 status.list, attachments.add) */
+export type DialogWireFailure =
+  /** 상태줄 서비스(`dialog.status`)나 첨부 서비스(`dialog.attachments`)를 가진 확장이 올라와 있지 않다 */
+  | { readonly kind: "unavailable" }
+  /** 능력이 입력을 거절했다. `code`는 능력 오류 코드(`attachment_too_large`, `not_found` 등)다 */
+  | { readonly kind: "rejected"; readonly code: string; readonly message: string };
+
+/**
+ * 상태줄 세그먼트 스냅숏과 첨부 추가(M3-REQ-16, M3-20). 명령과 같이 호스트가 사람의 입력으로 부르고(호출자 `host`) thread가 있으면 그
+ * 문맥을 싣는다. 첨부 원천의 상대 경로를 thread의 작업 폴더 기준으로 풀지는 능력이 정한다(L4.host-service.spec §10 미결)
+ */
+export interface DialogWirePort {
+  /** thread의 상태줄 세그먼트 전체. 목록만 읽으므로 쓰기 소유를 얻지 않는다 */
+  statusList(
+    threadId: ThreadId,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"status.list">, DialogWireFailure>>;
+  /** 첨부 하나를 검사하고 저장해 입력 파트를 만든다. `threadId`가 있으면 그 thread 문맥으로 부른다 */
+  attachmentsAdd(
+    params: WireParams<"attachments.add">,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"attachments.add">, DialogWireFailure>>;
 }
 
 /**

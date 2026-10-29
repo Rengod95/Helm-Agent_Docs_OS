@@ -592,7 +592,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
     const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
-    const commands: CommandRegistryHolder = { current: undefined, api: undefined };
+    const commands: CommandRegistryHolder = {
+      current: undefined,
+      api: undefined,
+      status: undefined,
+      attachments: undefined,
+      notify: undefined,
+    };
     // 웹 런타임 자리(`web.providers`). cap-web 확장이 올라올 때 채운다
     const web: WebStatusHolder = { current: undefined };
     // 학습 그룹의 읽기 면(세션 DB의 x_learning_* 투영)과 명령 실행기, 그룹·L2 대기열을 잇는 자리. 읽기 면은 세션 서비스가 올라온 뒤(아래 4단계)에 채운다

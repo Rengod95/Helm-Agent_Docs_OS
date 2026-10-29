@@ -29,6 +29,7 @@ import type {
   SettingsStorePort,
   SubmitOutcome,
   CommandPort,
+  DialogWirePort,
   EngineDiagnostics,
   WebPort,
   ThreadPort,
@@ -83,6 +84,7 @@ export interface FakeEngineOptions {
     readonly trust?: Partial<TrustPort>;
     readonly commands?: Partial<CommandPort>;
     readonly web?: Partial<WebPort>;
+    readonly dialog?: Partial<DialogWirePort>;
     readonly proposals?: Partial<ProposalPort>;
   };
 }
@@ -323,6 +325,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     web: {
       providers: () => Promise.reject(new Error("web.providers is not part of the fake")),
       ...options.overrides?.web,
+    },
+    dialog: {
+      statusList: () => Promise.reject(new Error("status.list is not part of the fake")),
+      attachmentsAdd: () => Promise.reject(new Error("attachments.add is not part of the fake")),
+      ...options.overrides?.dialog,
     },
     proposals: {
       list: () => Promise.reject(new Error("proposal.list is not part of the fake")),
