@@ -5,7 +5,7 @@ domain: models
 kind: spec
 status: draft
 depends_on: [F.conversation.spec, F.capabilities.spec, F.records.spec, F.extensions.spec, F.wire-settings.spec, eng.context-map.design, adr.0001, adr.0002]
-binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
+binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, xeon/packages/group-account-rotation/**]
 ---
 
 # L1 모델 게이트웨이 (models)
@@ -659,6 +659,7 @@ export function resolveRole(input: {
   - [미결] 상태 저장(`core_models_*` 테이블)은 아직 없다. 쉬는 시각과 마지막 요청 시각은 프로세스 메모리에만 있어 재시작하면 사라진다.
   - [미결] 창 사용률(`reservePct` 비교)을 채우는 출처가 없다. 풀의 `reportUtilization`만 있고 호출하는 곳이 없다.
 - [미결] 구독 계정 회전은 provider 약관 검토가 필요하다(`_research/settings.md` §2.5 계정 행). M3 착수 전에 별도 설계 문서에서 정한다. 검토 결과가 부정이면 구독 계정 회전만 빼고 API 키 계정 회전과 레이트 리밋은 M3에 둔다.
+- 플러그인 패키지 [결정: 오케스트레이터 기본값]: 계정 회전 플러그인은 `packages/group-account-rotation`(kind `group`, layer L3, `defaultEnabled: false`)에 둡니다. 이 그룹은 고지 설정 `ext.account-rotation.acknowledgeRisk`(기본 false)를 읽기만 하고 아무것도 등록하지 않습니다. 회전 게이트는 위 두 조건을 core-models가 봅니다. 패키지의 `build:plugin` 스크립트가 `.xeon-plugin/plugin.json`과 `dist/index.js`를 만듭니다.
 
 ### 4.9 폴백 체인 (2차)
 

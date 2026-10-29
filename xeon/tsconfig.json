@@ -80,6 +80,9 @@
       "path": "./packages/group-learning"
     },
     {
+      "path": "./packages/group-account-rotation"
+    },
+    {
       "path": "./plugins/provider-anthropic-oauth"
     },
     {

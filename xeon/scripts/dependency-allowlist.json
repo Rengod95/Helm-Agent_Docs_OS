@@ -63,6 +63,15 @@
     "approvedBy": "review.decisions-2"
   },
   {
+    "id": "DR-02/group-kit-account-rotation",
+    "rule": "DR-02",
+    "from": "packages/group-account-rotation",
+    "to": "@xeon/group-kit",
+    "entries": [".", "./testing"],
+    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15, DR-02/group-kit-* covers every group). The plugin defines its group with defineGroup and its tests use checkGroup from ./testing.",
+    "approvedBy": "review.decisions-2"
+  },
+  {
     "id": "DR-07/group-kit-test-spawn",
     "rule": "DR-07",
     "from": "packages/group-kit",

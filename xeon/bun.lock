@@ -314,6 +314,19 @@
         "@types/bun": "catalog:",
       },
     },
+    "packages/group-account-rotation": {
+      "name": "@xeon/group-account-rotation",
+      "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+        "@xeon/group-kit": "workspace:*",
+        "typebox": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@xeon/ext-host": "workspace:*",
+      },
+    },
     "packages/group-helm": {
       "name": "@xeon/group-helm",
       "version": "0.0.0",
@@ -922,6 +935,8 @@
     "@xeon/desktop": ["@xeon/desktop@workspace:apps/desktop"],
 
     "@xeon/ext-host": ["@xeon/ext-host@workspace:packages/ext-host"],
+
+    "@xeon/group-account-rotation": ["@xeon/group-account-rotation@workspace:packages/group-account-rotation"],
 
     "@xeon/group-helm": ["@xeon/group-helm@workspace:packages/group-helm"],
 
