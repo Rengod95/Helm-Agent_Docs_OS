@@ -34,6 +34,11 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
   trust allow|deny [--scope folder|parent|session]
                             신뢰 결정을 보낸다. 신뢰하면 .mcp.json, 프로젝트 스킬, 프로젝트 명령을 읽는다
   db export <폴더> [--json] 저장소 파일을 엔진 없이 읽기 전용으로 내보낸다. 엔진이 떠 있어도 된다
+  schedule add <프롬프트…> (--every <초> | --at <시각> | --remote | --watch <경로>[,…] | --loop <초> …)
+                            예약을 만든다. 서비스 모드가 꺼져 있으면 저장만 되고 실행되지 않는다. 자세히는 xeon help schedule
+  schedule list [--all] [--json]
+  schedule cancel <id>      예약을 끈다
+  schedule run <id>         원격 예약을 지금 한 번 실행한다
   service start|status|stop|ensure [--json] [--safe-mode] [--listen-tcp <호스트>:<포트> [--allow-non-loopback]]
                             공유 서비스 모드. start·ensure는 서비스를 띄우고(이미 떠 있으면 붙는다),
                             status·stop은 조회·정지한다. 안전 모드와 TCP는 새로 띄울 때만 적용된다
@@ -75,6 +80,23 @@ const TOPICS: Readonly<Record<string, string>> = {
        xeon config set <키> <값> [--scope user|project|local]
        xeon config reset <키> [--scope user|project|local]
        xeon config list [--prefix <p>] [--deprecated] [--json]
+`,
+  schedule: `사용법: xeon schedule add <프롬프트…> (--every <초> | --at <시각> | --remote | --watch <경로>[,<경로>…] | --loop <초> --max-iterations <n> --expires-in <초>)
+                       [--title <제목>] [--workspace <폴더>] [--disabled]
+       xeon schedule list [--all] [--json]
+       xeon schedule cancel <id>
+       xeon schedule run <id>
+
+  --every <초>           이 초마다 프롬프트를 새 세션에서 실행한다. 최소 300초다
+  --at <시각>            RFC 3339 시각에 한 번 실행한다
+  --remote               기한에 실행하지 않는다. xeon schedule run <id>로 지금 실행한다
+  --watch <경로>[,…]     경로가 바뀌면 실행한다. --debounce <ms>(기본 1000)만큼 기다린 뒤 실행한다
+  --loop <초>            같은 프롬프트를 반복한다. --max-iterations와 --expires-in은 함께 준다
+  --title <제목>         목록에 보일 제목 (200자 이하)
+  --workspace <폴더>     실행 세션의 작업 폴더. 없으면 호스트 기본 폴더다
+  --disabled             만들되 끈 상태로 둔다
+  --remote는 트리거 플래그다. 원격 서비스 주소는 명령 앞에 쓴다 (xeon --remote <주소> schedule list)
+  예약은 서비스 모드에서만 실행된다. 꺼져 있으면 저장만 되고 경고가 한 줄 나온다
 `,
 };
 

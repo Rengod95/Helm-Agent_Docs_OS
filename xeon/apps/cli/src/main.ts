@@ -70,6 +70,13 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       const { runDb } = await import("./commands/db.ts");
       return runDb(ctx, command);
     }
+    case "schedule.add":
+    case "schedule.list":
+    case "schedule.cancel":
+    case "schedule.run": {
+      const { runSchedule } = await import("./commands/schedule.ts");
+      return runSchedule(ctx, command);
+    }
     case "doctor": {
       const { runDoctor } = await import("./commands/doctor.ts");
       return runDoctor(ctx, command);

@@ -1,5 +1,5 @@
 import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
-import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
+import { ScheduleIdSchema, SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
 import {
   ItemIdSchema,
   ThreadIdSchema,
@@ -91,6 +91,42 @@ export type TrustCommand =
       readonly scope: TrustScope;
     };
 
+/**
+ * `schedule add`의 트리거 한 가지. 값은 파싱한 모양이고 wire 모양으로 옮기는 일은 runner가 한다.
+ * `expiresInSeconds`는 시계를 읽기 전의 초다(파서는 순수 함수라서 `expiresAtMs`를 만들지 않는다)
+ */
+export type ScheduleTriggerArg =
+  | { readonly kind: "every"; readonly everySeconds: number }
+  | { readonly kind: "at"; readonly atMs: number }
+  | { readonly kind: "remote" }
+  | {
+      readonly kind: "watch";
+      /** 상대 경로는 작업 폴더 기준이다. runner가 절대 경로로 바꾼다 */
+      readonly paths: readonly string[];
+      readonly debounceMs: number;
+    }
+  | {
+      readonly kind: "loop";
+      readonly intervalSeconds: number;
+      readonly maxIterations: number;
+      readonly expiresInSeconds: number;
+    };
+
+export type ScheduleCommand =
+  | {
+      readonly kind: "schedule.add";
+      readonly prompt: string;
+      readonly trigger: ScheduleTriggerArg;
+      readonly title: string | null;
+      /** 상대 경로는 작업 폴더 기준이다. 없으면 host가 기본 작업 폴더를 고른다 */
+      readonly workspace: string | null;
+      /** `--disabled`: 만들되 끈 상태로 둔다 */
+      readonly disabled: boolean;
+    }
+  | { readonly kind: "schedule.list"; readonly all: boolean; readonly output: OutputMode }
+  | { readonly kind: "schedule.cancel"; readonly scheduleId: string }
+  | { readonly kind: "schedule.run"; readonly scheduleId: string };
+
 export interface SecretMetaFlags {
   readonly provider?: "sops" | "op" | "bws" | "keychain";
   readonly desc?: string;
@@ -157,6 +193,7 @@ type CliCommand =
   | ConfigCommand
   | SecretCommand
   | TrustCommand
+  | ScheduleCommand
   | ServiceCommand
   | DbCommand
   | CliHostCommand
@@ -180,6 +217,7 @@ type UsageErrorCode =
   | "invalidSettingKey"
   | "invalidOverride"
   | "invalidThreadId"
+  | "invalidScheduleId"
   | "invalidSecretName"
   | "secretValueInArgv"
   | "conflictingFlags"
@@ -338,9 +376,12 @@ function scanArgs(
   if (values.has("--no-color")) acc.noColor = true;
   const dir = values.get("-C")?.[0];
   if (dir !== undefined) acc.cwd = dir;
-  const remote = values.get("--remote")?.[0];
-  if (remote === "") fail(missingRemote());
-  else if (remote !== undefined) acc.remote = remote;
+  // `schedule add --remote`는 트리거 플래그라서 공통 플래그가 아니다. 명령이 표를 덮었으면 공통 값을 읽지 않는다
+  if (specs["--remote"] === GLOBAL_FLAGS["--remote"]) {
+    const remote = values.get("--remote")?.[0];
+    if (remote === "") fail(missingRemote());
+    else if (remote !== undefined) acc.remote = remote;
+  }
   if (problem.current !== undefined) return err(problem.current);
   return ok({ values, bare, positionals });
 }
@@ -741,6 +782,311 @@ function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustComman
     );
   }
   return ok({ kind: "trust.set", verdict: action, scope });
+}
+
+// ── 예약 ─────────────────────────────────────────────────────────────────
+
+type TriggerFlag = "--every" | "--at" | "--remote" | "--watch" | "--loop";
+
+const SCHEDULE_ADD_FLAGS: FlagTable = {
+  "--every": { value: "required" },
+  "--at": { value: "required" },
+  "--remote": { value: "none" },
+  "--watch": { value: "required" },
+  "--debounce": { value: "required" },
+  "--loop": { value: "required" },
+  "--max-iterations": { value: "required" },
+  "--expires-in": { value: "required" },
+  "--title": { value: "required" },
+  "--workspace": { value: "required" },
+  "--disabled": { value: "none" },
+};
+
+/** 트리거 플래그. 정확히 하나를 쓴다 */
+const TRIGGER_FLAGS: readonly TriggerFlag[] = ["--every", "--at", "--remote", "--watch", "--loop"];
+const SCHEDULE_ADD_USAGE =
+  "xeon schedule add <프롬프트> (--every <초> | --at <시각> | --remote | --watch <경로>[,<경로>…] | --loop <초> --max-iterations <n> --expires-in <초>) [--title <제목>] [--workspace <폴더>] [--disabled]";
+const LOOP_USAGE =
+  "xeon schedule add <프롬프트> --loop <초> --max-iterations <n> --expires-in <초>";
+const SCHEDULE_MAX_SECONDS = 31536000;
+const DEFAULT_DEBOUNCE_MS = 1000;
+const DEBOUNCE_MAX_MS = 3600000;
+const WATCH_MAX_PATHS = 16;
+const WATCH_PATH_MAX = 4096;
+const MAX_ITERATIONS_MAX = 10000;
+
+/** 십진 정수 문자열이고 min 이상 max 이하이면 그 값, 아니면 null */
+function wholeOf(text: string, min: number, max: number): number | null {
+  if (!/^[0-9]+$/.test(text)) return null;
+  const value = Number(text);
+  return value >= min && value <= max ? value : null;
+}
+
+function badNumber(flag: string, min: number, max: number): UsageError {
+  return usage(
+    "unexpectedArgument",
+    `${flag} 값이 맞지 않다 (${String(min)} 이상 ${String(max)} 이하의 정수)`,
+    `${flag} <값>으로 쓴다`,
+  );
+}
+
+/** 쉼표로 나눈 경로 목록. 빈 경로, 상한을 넘는 개수나 길이는 null */
+function watchPathsOf(text: string): readonly string[] | null {
+  const paths = text.split(",").map((path) => path.trim());
+  if (paths.length > WATCH_MAX_PATHS) return null;
+  if (paths.some((path) => path.length === 0 || path.length > WATCH_PATH_MAX)) return null;
+  return paths;
+}
+
+/** Date.parse가 읽는 시각. 읽지 못하거나 1 미만(1970 이전 포함)이면 null */
+function atMsOf(text: string): number | null {
+  const ms = Date.parse(text);
+  return Number.isInteger(ms) && ms >= 1 ? ms : null;
+}
+
+function triggerOf(flags: Scanned, flag: TriggerFlag): Result<ScheduleTriggerArg, UsageError> {
+  switch (flag) {
+    case "--every": {
+      const everySeconds = wholeOf(valueOf(flags, flag) ?? "", 1, SCHEDULE_MAX_SECONDS);
+      if (everySeconds === null) return err(badNumber(flag, 1, SCHEDULE_MAX_SECONDS));
+      return ok({ kind: "every", everySeconds });
+    }
+    case "--at": {
+      const atMs = atMsOf(valueOf(flags, flag) ?? "");
+      if (atMs === null) {
+        return err(
+          usage(
+            "unexpectedArgument",
+            "--at 시각을 읽지 못했다",
+            "RFC 3339 형식으로 쓴다 (예: 2026-11-01T09:00:00+09:00)",
+          ),
+        );
+      }
+      return ok({ kind: "at", atMs });
+    }
+    case "--remote":
+      return ok({ kind: "remote" });
+    case "--watch": {
+      const paths = watchPathsOf(valueOf(flags, flag) ?? "");
+      if (paths === null) {
+        return err(
+          usage(
+            "unexpectedArgument",
+            `--watch 경로가 맞지 않다 (1~${String(WATCH_MAX_PATHS)}개, 빈 경로 없이 쉼표로 나눈다)`,
+            "--watch <경로>[,<경로>…]로 쓴다",
+          ),
+        );
+      }
+      const debounceText = valueOf(flags, "--debounce");
+      const debounceMs =
+        debounceText === null ? DEFAULT_DEBOUNCE_MS : wholeOf(debounceText, 0, DEBOUNCE_MAX_MS);
+      if (debounceMs === null) return err(badNumber("--debounce", 0, DEBOUNCE_MAX_MS));
+      return ok({ kind: "watch", paths, debounceMs });
+    }
+    case "--loop": {
+      const intervalSeconds = wholeOf(valueOf(flags, flag) ?? "", 0, SCHEDULE_MAX_SECONDS);
+      if (intervalSeconds === null) return err(badNumber(flag, 0, SCHEDULE_MAX_SECONDS));
+      const maxText = valueOf(flags, "--max-iterations");
+      const expiresText = valueOf(flags, "--expires-in");
+      // 상한 없는 루프는 만들 수 없다(L2.schedule.spec §4.1.2)
+      if (maxText === null || expiresText === null) {
+        return err(
+          usage(
+            "missingArgument",
+            "--loop에는 --max-iterations와 --expires-in이 필요하다",
+            LOOP_USAGE,
+          ),
+        );
+      }
+      const maxIterations = wholeOf(maxText, 1, MAX_ITERATIONS_MAX);
+      if (maxIterations === null) {
+        return err(badNumber("--max-iterations", 1, MAX_ITERATIONS_MAX));
+      }
+      const expiresInSeconds = wholeOf(expiresText, 1, SCHEDULE_MAX_SECONDS);
+      if (expiresInSeconds === null) {
+        return err(badNumber("--expires-in", 1, SCHEDULE_MAX_SECONDS));
+      }
+      return ok({ kind: "loop", intervalSeconds, maxIterations, expiresInSeconds });
+    }
+    default:
+      return assertNever(flag, "TriggerFlag");
+  }
+}
+
+function parseScheduleAdd(
+  acc: GlobalAcc,
+  rest: readonly string[],
+): Result<ScheduleCommand, UsageError> {
+  const scanned = scanArgs(acc, rest, SCHEDULE_ADD_FLAGS);
+  if (!scanned.ok) return scanned;
+  const flags = scanned.value;
+  const triggers = TRIGGER_FLAGS.filter((name) => has(flags, name));
+  const [only, ...others] = triggers;
+  if (only === undefined) {
+    return err(
+      usage(
+        "missingArgument",
+        "예약 트리거가 없다 (--every, --at, --remote, --watch, --loop 가운데 하나)",
+        SCHEDULE_ADD_USAGE,
+      ),
+    );
+  }
+  if (others.length > 0) {
+    return err(
+      usage(
+        "conflictingFlags",
+        `트리거 플래그를 둘 쓸 수 없다 (${triggers.join(", ")})`,
+        "--every, --at, --remote, --watch, --loop 가운데 하나만 쓴다",
+      ),
+    );
+  }
+  const prompt = flags.positionals.join(" ").trim();
+  if (prompt.length === 0) {
+    return err(usage("missingArgument", "예약 프롬프트가 없다", SCHEDULE_ADD_USAGE));
+  }
+  // 트리거에 딸린 값 플래그는 그 트리거와 함께만 쓴다
+  if (only !== "--watch" && has(flags, "--debounce")) {
+    return err(usage("conflictingFlags", "--debounce는 --watch와 함께 쓴다", SCHEDULE_ADD_USAGE));
+  }
+  if (only !== "--loop" && has(flags, "--max-iterations", "--expires-in")) {
+    return err(
+      usage(
+        "conflictingFlags",
+        "--max-iterations와 --expires-in은 --loop와 함께 쓴다",
+        SCHEDULE_ADD_USAGE,
+      ),
+    );
+  }
+  const trigger = triggerOf(flags, only);
+  if (!trigger.ok) return trigger;
+
+  const titleText = valueOf(flags, "--title");
+  const title = titleText === null ? null : titleText.trim();
+  if (title !== null) {
+    const problem = titleProblem(title);
+    if (problem !== null) {
+      return err(
+        usage(
+          title.length === 0 ? "missingArgument" : "unexpectedArgument",
+          `--title: ${problem}`,
+          "--title <제목>으로 쓴다 (1~200자)",
+        ),
+      );
+    }
+  }
+  const workspace = valueOf(flags, "--workspace");
+  if (workspace === "") {
+    return err(usage("missingArgument", "--workspace에 폴더가 없다", "--workspace <폴더>로 쓴다"));
+  }
+  return ok({
+    kind: "schedule.add",
+    prompt,
+    trigger: trigger.value,
+    title,
+    workspace,
+    disabled: has(flags, "--disabled"),
+  });
+}
+
+function parseScheduleList(
+  acc: GlobalAcc,
+  rest: readonly string[],
+): Result<ScheduleCommand, UsageError> {
+  const scanned = scanArgs(acc, rest, {
+    "--all": { value: "none" },
+    "--json": { value: "none" },
+  });
+  if (!scanned.ok) return scanned;
+  if (scanned.value.positionals.length > 0) {
+    return err(
+      usage(
+        "unexpectedArgument",
+        "schedule list는 위치 인자를 받지 않는다",
+        "xeon schedule list [--all] [--json]",
+      ),
+    );
+  }
+  return ok({
+    kind: "schedule.list",
+    all: has(scanned.value, "--all"),
+    output: outputOf(scanned.value),
+  });
+}
+
+/** `schedule cancel|run <id>`의 id 하나를 받는다 */
+function scheduleIdArg(
+  acc: GlobalAcc,
+  action: "cancel" | "run",
+  rest: readonly string[],
+): Result<string, UsageError> {
+  const scanned = scanArgs(acc, rest, {});
+  if (!scanned.ok) return scanned;
+  const [idText, ...extra] = scanned.value.positionals;
+  if (idText === undefined) {
+    return err(
+      usage(
+        "missingArgument",
+        `schedule ${action}에는 예약 id가 필요하다`,
+        `xeon schedule ${action} <id>`,
+      ),
+    );
+  }
+  if (extra.length > 0) {
+    return err(
+      usage("unexpectedArgument", `schedule ${action}에 인자가 너무 많다`, "id 하나만 쓴다"),
+    );
+  }
+  const parsed = parse(ScheduleIdSchema, idText);
+  if (!parsed.ok) {
+    return err(
+      usage(
+        "invalidScheduleId",
+        "예약 id 형식이 맞지 않다",
+        "xeon schedule list --all로 sch_로 시작하는 id를 확인한다",
+      ),
+    );
+  }
+  return ok(parsed.value);
+}
+
+function parseSchedule(
+  acc: GlobalAcc,
+  rest: readonly string[],
+): Result<ScheduleCommand, UsageError> {
+  const [action, ...tail] = rest;
+  switch (action) {
+    case "add":
+      return parseScheduleAdd(acc, tail);
+    case "list":
+      return parseScheduleList(acc, tail);
+    case "cancel": {
+      const id = scheduleIdArg(acc, "cancel", tail);
+      if (!id.ok) return id;
+      return ok({ kind: "schedule.cancel", scheduleId: id.value });
+    }
+    case "run": {
+      const id = scheduleIdArg(acc, "run", tail);
+      if (!id.ok) return id;
+      return ok({ kind: "schedule.run", scheduleId: id.value });
+    }
+    case undefined:
+      return err(
+        usage(
+          "missingArgument",
+          "schedule에는 하위 명령이 필요하다",
+          "add, list, cancel, run 중 하나를 쓴다",
+        ),
+      );
+    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    default:
+      return err(
+        usage(
+          "unknownCommand",
+          `모르는 명령 schedule ${action}`,
+          "add, list, cancel, run 중 하나를 쓴다",
+        ),
+      );
+  }
 }
 
 function parseSessions(
@@ -1319,6 +1665,7 @@ const COMMAND_WORDS: ReadonlySet<string> = new Set([
   "config",
   "secret",
   "trust",
+  "schedule",
   "service",
   "db",
   "host",
@@ -1350,6 +1697,8 @@ function commandOf(
       return parseSecret(acc, rest, terminal);
     case "trust":
       return parseTrust(acc, rest);
+    case "schedule":
+      return parseSchedule(acc, rest);
     case "service":
       return parseService(acc, rest);
     case "db":

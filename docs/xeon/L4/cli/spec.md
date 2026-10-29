@@ -4,7 +4,7 @@ layer: L4
 domain: cli
 kind: spec
 status: draft
-depends_on: [F.wire-settings.spec, F.conversation.spec, F.records.spec, adr.0006, L4.host-service.spec, eng.testing.guide, eng.toolchain.guide, L0.secrets.spec, L1.tools.spec, L1.models.spec, L0.process.spec, L2.web.spec]
+depends_on: [F.wire-settings.spec, F.conversation.spec, F.records.spec, adr.0006, L4.host-service.spec, eng.testing.guide, eng.toolchain.guide, L0.secrets.spec, L1.tools.spec, L1.models.spec, L0.process.spec, L2.web.spec, L2.schedule.spec]
 binds: [xeon/apps/cli/**]
 ---
 
@@ -96,6 +96,10 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정: review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
 | `xeon trust [status] [--json]` | 이 작업 폴더의 프로젝트 신뢰 상태(폴더, 불러오려는 자원, 판정과 출처, 선택지)를 보인다. 신뢰할 자원이 없으면 stderr에 한 줄이다 | `trust.get { workspace }` | M2 |
 | `xeon trust allow\|deny [--scope folder\|parent\|session]` | 선택지 하나를 host에 보낸다. 범위 기본값은 `folder`. host가 낸 선택지에 없는 조합이면 2다 | `trust.get`, `trust.decide { workspace, choice }` | M2 |
+| `xeon schedule add <프롬프트…> (--every <초> \| --at <시각> \| --remote \| --watch <경로>[,<경로>…] \| --loop <초> --max-iterations <n> --expires-in <초>) [--title <제목>] [--workspace <폴더>] [--disabled]` | 예약을 만든다. 트리거 플래그는 정확히 하나다(§4.14). 서비스 모드가 꺼져 있으면 저장만 되고 실행되지 않는다는 경고를 stderr에 쓴다 | `schedule.create { trigger, prompt, workspace?, title?, enabled? }` | M3(구현됨, M3b B1-SCH2) |
+| `xeon schedule list [--all] [--json]` | 예약 목록. 기본은 켜진 항목이고 `--all`은 끈 항목까지 본다. 한 항목이 한 줄이고 `--json`은 항목 배열이다(§4.14) | `schedule.list { enabled? }` | M3(구현됨, M3b B1-SCH2) |
+| `xeon schedule cancel <id>` | 예약을 끈다. 이미 꺼진 항목은 그대로 둔다 | `schedule.cancel { scheduleId }` | M3(구현됨, M3b B1-SCH2) |
+| `xeon schedule run <id>` | 원격 트리거 예약을 지금 한 번 실행한다. 원격이 아니거나 꺼진 예약은 거부된다(§4.14) | `schedule.fire { scheduleId }` | M3(구현됨, M3b B1-SCH2) |
 | `xeon service start\|status\|stop [--json] [--safe-mode] [--listen-tcp <호스트>:<포트>]` | 서비스 기동(이미 떠 있으면 붙는다), 상태, 종료. `install`/`uninstall`은 2차. `--safe-mode`와 `--listen-tcp`는 서비스를 새로 띄울 때만 적용된다(이미 떠 있는 서비스의 모드는 바뀌지 않는다). `--listen-tcp`는 TCP로도 열고 접속에는 등록 파일의 토큰이 필요하다. 루프백이 아닌 주소는 `--allow-non-loopback`을 함께 써야 하고 없으면 사용법 오류(2)다 | 없음. `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" })`(§3.3). status는 그 안에서 `host.status`를 부른다. 종료코드: start 0·실패 1, status 떠 있음 0·없음 1, stop 0·실패 1 | M3(구현됨, M3b B1-SVC) |
 | `xeon service ensure --json` | `ensure`만 하고 소켓 경로를 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.host-service.spec` HS-38) | 없음. `runHostCommand({ kind: "service-ensure" })`. `--safe-mode`는 새로 띄울 때만 적용된다 | M3(구현됨) |
 | `xeon service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
@@ -180,6 +184,20 @@ export type SecretCommand =
   | { readonly kind: "secret.test"; readonly name: SecretName }
   | { readonly kind: "secret.reveal"; readonly name: SecretName };
 
+/** `schedule add`의 트리거. 파서는 시계를 읽지 않으므로 만료는 초로 받는다(runner가 `expiresAtMs`로 바꾼다) */
+export type ScheduleTriggerArg =
+  | { readonly kind: "every"; readonly everySeconds: number }
+  | { readonly kind: "at"; readonly atMs: number }
+  | { readonly kind: "remote" }
+  | { readonly kind: "watch"; readonly paths: readonly string[]; readonly debounceMs: number }
+  | { readonly kind: "loop"; readonly intervalSeconds: number; readonly maxIterations: number; readonly expiresInSeconds: number };
+
+export type ScheduleCommand =
+  | { readonly kind: "schedule.add"; readonly prompt: string; readonly trigger: ScheduleTriggerArg; readonly title: string | null; readonly workspace: string | null; readonly disabled: boolean }
+  | { readonly kind: "schedule.list"; readonly all: boolean; readonly output: OutputMode }
+  | { readonly kind: "schedule.cancel"; readonly scheduleId: string }
+  | { readonly kind: "schedule.run"; readonly scheduleId: string };
+
 export type ServiceCommand = {
   readonly kind: "service";
   readonly action: "start" | "status" | "stop" | "ensure" | "launch-mode" | "run";   // launch-mode·run은 도움말에 숨김
@@ -198,7 +216,7 @@ export type HelpCommand = { readonly kind: "help"; readonly topic: string | null
 
 export type CliCommand =
   | ChatCommand | SessionsCommand | ConfigCommand | SecretCommand
-  | ServiceCommand | DbCommand | CliHostCommand | DoctorCommand | VersionCommand | HelpCommand;
+  | ScheduleCommand | ServiceCommand | DbCommand | CliHostCommand | DoctorCommand | VersionCommand | HelpCommand;
 
 export interface GlobalOptions {
   readonly cwd: string;
@@ -207,7 +225,7 @@ export interface GlobalOptions {
 
 export type UsageErrorCode =
   | "unknownCommand" | "unknownFlag" | "missingArgument" | "unexpectedArgument"
-  | "invalidSettingKey" | "invalidOverride" | "invalidThreadId" | "invalidSecretName"
+  | "invalidSettingKey" | "invalidOverride" | "invalidThreadId" | "invalidScheduleId" | "invalidSecretName"
   | "secretValueInArgv" | "conflictingFlags" | "jsonRequiresPrint" | "autoApproveRequiresPrint" | "inputRequired" | "revealRequiresTty";
 
 export interface UsageError {
@@ -426,9 +444,9 @@ export const EXIT: {
 | 코드 | 뜻 | 예 |
 |---|---|---|
 | 0 | 정상 | turn이 `completed`로 끝났다. 명령이 성공했다 |
-| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 세션, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1 |
-| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 비밀 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`) |
-| 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`)와 데이터 디렉터리 위치를 정하지 못함 |
+| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 세션, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1, `schedule`의 기대한 실패(없는 예약, 원격 아님, 꺼진 예약, 간격 미달, 상한, 지난 시각) |
+| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 비밀 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`) |
+| 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`)와 데이터 디렉터리 위치를 정하지 못함. `schedule`의 `store_failed`(예약 상태 파일) |
 | 4 | 세션 잠금 실패 후 사용자 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않았다. M1은 프롬프트 없이 바로 4다 |
 | 129 | SIGHUP | 터미널이 닫혔다(pi print 모드와 같은 값, `~/projects/_ref/pi-src/packages/coding-agent/src/modes/print-mode.ts:60`) |
 | 130 | 중단 | Ctrl+C(SIGINT)로 끝냈다. print 모드 turn이 `interrupted`로 끝났다 |
@@ -875,6 +893,36 @@ $ echo $?
 
 [미결] `xeon.db`라는 이름과 데이터 디렉터리 위치는 `apps/host`의 `DB_FILE_NAME`과 `os.dirs.data`에서 옵니다. 호스트가 이 이름을 공개 API로 내보내기 전까지 `apps/cli/src/commands/db.ts`가 같은 이름을 한 번 더 적습니다(§10 18번).
 
+### 4.14 예약 명령
+
+[결정: 오케스트레이터 기본값, M3b B1-SCH2] 예약 명령은 `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`를 한 번씩 부르고 결과를 문구로 옮긴다. 저장과 실행은 host가 한다(`L2.schedule.spec` §4.4.9).
+
+- 트리거 플래그는 `--every`, `--at`, `--remote`, `--watch`, `--loop` 가운데 정확히 하나다. 없거나 둘 이상이면 사용법 오류(2)다. `--debounce`는 `--watch`와, `--max-iterations`와 `--expires-in`은 `--loop`와만 쓴다. `--loop`는 두 상한을 함께 받는다. 상한 없는 루프는 만들 수 없다(`L2.schedule.spec` §4.1.2).
+- 프롬프트는 위치 인자 낱말을 공백 하나로 이어 붙이고 앞뒤 공백을 뗀다. 비어 있으면 사용법 오류다. `--` 뒤의 낱말은 플래그로 읽지 않는다.
+- 값 검사는 파서가 한다. `--every`는 1~31536000 정수 초다. 300초 미만은 파서가 막지 않고 host가 `interval_too_short`로 거부한다. `--loop <초>`는 0~31536000, `--max-iterations`는 1~10000, `--expires-in`은 1~31536000 정수 초다 [결정: 오케스트레이터 기본값]. `--at`은 `Date.parse`가 읽는 시각이다. 1970년 이전이거나 읽지 못하면 사용법 오류다. `--watch`는 쉼표로 나눈 경로 1~16개이고 빈 항목이 없어야 한다. `--debounce`는 0~3600000 ms이고 기본은 1000 ms다.
+- 파서는 시계를 읽지 않는다. runner가 `--expires-in`을 `expiresAtMs`(지금 시각 + n초)로 바꾼다. 시계는 명령 문맥의 `deps.clock`이다. 상대 경로인 `--watch` 항목과 `--workspace`는 작업 폴더 기준 절대 경로로 바꿔 보낸다. `--workspace`를 빼면 `workspace`를 보내지 않아 host의 기본 작업 폴더를 쓴다 [결정: 오케스트레이터 기본값]. `--title`은 앞뒤 공백을 뗀 뒤 1~200자다. `--disabled`는 `enabled: false`를 보내고, 빼면 `enabled`를 보내지 않는다(host 기본은 켜짐).
+- `add`의 결과 줄은 `예약했다: <id>  <트리거>  다음 실행 <ISO|없음>`이다. 트리거 요약은 `간격 300초`, `시각 <ISO>`, `감시 <경로들> (디바운스 <ms>ms)`, `원격`, `루프 <초>초 간격, 최대 <n>회, 만료 <ISO>` 가운데 하나다. `warnings`에 `service_mode_off`가 있으면 그 뒤에 stderr로 `경고: 서비스 모드가 꺼져 있어 이 예약은 실행되지 않는다. xeon service start로 서비스를 띄운 뒤에 실행된다` 한 줄을 쓴다. 종료 코드는 0이다. CLI는 서비스를 띄우지 않는다.
+- `list`는 기본으로 `{ enabled: true }`를, `--all`이면 `{}`를 보낸다. 항목마다 한 줄이고 형식은 `<id>  <on|off>  <트리거>  다음 <ISO|->  마지막 <status>/<outcome|-> <claimedAt ISO>  <제목 또는 프롬프트 앞 40자>`다. 실행 기록이 없으면 `마지막 없음`이다. 제목이 없으면 프롬프트를 쓴다. 줄바꿈과 연속 공백은 한 칸으로 줄인다. `--json`은 항목 배열을 들여쓰기 두 칸으로 쓴다. 항목이 없으면 stderr에 `예약이 없다`를 쓴다. `--json`은 그때도 `[]`를 stdout에 쓴다.
+- `cancel`은 `껐다: <id>`를, `run`은 `실행했다: <id>  run <runId>  <status>`를 쓴다. `run`의 status는 응답을 만든 시점의 기록이다. 원격 예약의 턴은 그 뒤에 끝난다.
+- `ok: false` 값은 아래 표의 문구와 종료 코드로 바꾼다. host가 준 메시지 원문은 문구에 싣지 않는다.
+
+| kind | 문구 | 해결 | 종료 코드 |
+|---|---|---|---|
+| `interval_too_short` | 간격이 최소값(`minSeconds`초)보다 짧다 | `--every`를 최소값 이상으로 쓴다 | 1 |
+| `at_in_past` | 시각이 이미 지났다 | `--at`에 앞으로의 시각을 쓴다 | 1 |
+| `invalid_trigger` | 트리거 값이 엔진 규칙에 맞지 않다 (`reason`) | `xeon help schedule`로 트리거 규칙을 확인한다 | 1 |
+| `limit_reached` | 켜진 예약이 상한(`max`개)이라 더 만들 수 없다 | `xeon schedule list`로 보고 필요 없는 것은 `cancel`로 끈다 | 1 |
+| `not_found` | 그런 예약이 없다 | `xeon schedule list --all`로 id를 확인한다 | 1 |
+| `not_remote` | 원격 트리거 예약만 지금 실행할 수 있다 | 간격·시각 예약은 기한이 되면 실행된다. 원격 예약은 `--remote`로 만든다 | 1 |
+| `disabled` | 꺼진 예약이라 실행하지 않는다 | `xeon schedule add`로 새 예약을 만든다 | 1 |
+| `store_failed` | 예약 상태 파일을 읽거나 쓰지 못했다 | 상태 디렉터리의 `schedule/state.json`을 고치거나 지운다. 지우면 예약이 모두 사라진다 | 3 |
+
+- `store_failed`의 해결 문구가 말하는 파일은 host의 상태 디렉터리 아래 `schedule/state.json`이다(`L2.schedule.spec` §4.4.9). host는 읽지 못한 파일을 빈 상태로 덮어 쓰지 않는다.
+- host가 `schedule.*` 메서드를 알리지 않으면(`host.hello`의 `features`에 없으면) 네 명령 모두 환경 문제(3)로 끝난다. 문구는 "연결한 host가 예약 명령을 아직 지원하지 않는다"다.
+- `--auto-approve`는 예약 명령에 없다. 알 수 없는 플래그(2)다.
+- 명령 뒤의 `--remote`는 트리거 플래그다. 원격 서비스 주소는 명령 앞에 `xeon --remote <주소> schedule …`로 쓴다(§3.1 공통 플래그). 명령 앞의 `--remote`는 그대로 공통 플래그다.
+- 예약 id는 `sch_`로 시작하는 영숫자다. 형식이 맞지 않으면 엔진에 보내지 않고 사용법 오류(2, `invalidScheduleId`)다.
+
 ## 5. 실패와 경계 사례
 
 | 사례 | 처리 |
@@ -894,6 +942,8 @@ $ echo $?
 | `--remote` 주소 문법이 틀리다 | 엔진을 열지 않고 `invalidRemote`, 2. 로컬로 가지 않는다(HS-87) |
 | 원격 서비스의 ssh 터널이 열리지 않는다 | `serviceUnreachable`, 3. ssh 출력의 첫 줄을 문구에 싣는다 [제안] |
 | `host --stdio`의 원격 연결이 끊겼다 | 종료 코드 1(HS-89). stdin이 닫히면 0이다 |
+| 예약 상태 파일이 깨졌거나 쓸 수 없다 | `store_failed`, 3. 해결: 상태 디렉터리의 `schedule/state.json`을 고치거나 지운다(§4.14). 읽지 못한 파일은 덮어 쓰지 않는다 |
+| 서비스 모드가 꺼진 채 예약을 만들었다 | 예약은 저장되고 stderr에 경고 한 줄이 나온다. 종료 코드는 0이다. 실행은 `xeon service start` 뒤에 한다(§4.14) |
 
 ## 6. 설정 노출
 
@@ -933,6 +983,7 @@ $ echo $?
 | 요구 | `L0.secrets.spec` | 비밀 관리 동작(`secret.*`의 의미, §8.3 R4의 값 없는 메서드), 값 비노출 규칙, `secret test`의 해시 규칙 |
 | 요구 | `L1.tools.spec` | `approval.requested` payload |
 | 요구 | `L1.models.spec` | `/model` 별칭이 가리킬 설정 키 |
+| 요구 | `L2.schedule.spec` | `schedule.create`·`list`·`cancel`·`fire`의 입력과 오류 값(§4.4.9), 서비스 모드가 꺼졌을 때의 `service_mode_off` 경고 |
 | 요구 | `eng.testing.guide` | `scenario` 태그(저장소 1개), 테이프 형식, TS-08 강제 종료 규칙, L4 커버리지 임계 |
 | 요구 | `eng.toolchain.guide` | TC-05(산출물 비커밋), TC-10(`bun build --compile`), TC-11(FTS5) |
 | 요구 | adr.0006 | in-process 기본, 서비스 사용 시 `ensure` 후 socket, 잠금 3선택, 종료 협조 |
@@ -969,6 +1020,8 @@ $ echo $?
 - AC25. `--remote`(또는 설정 주소)가 있으면 엔진 명령은 엔진을 열지 않고 그 주소로 `attachToService`를 부른다. 주소 문법이 틀리면 엔진을 열지 않고 `invalidRemote`(2)로 끝난다. `host --stdio`는 같은 주소에 중계하고 stdin이 닫히면 0으로 끝난다. 원격 토큰 값은 오류 출력에 없다(HS-87~HS-89). 시험: `test/engine-start.test.ts`, `test/host-stdio.test.ts`, `test/parse-chat-flags.test.ts`.
 - AC26. `xeon db export <폴더>`는 엔진에 연결하지 않는다. 실제 저장소에 행과 블롭을 쓰고 원본을 연 채로 내보낸 사본을 읽기 전용 `openStore`로 열면 행과 블롭 바이트가 원본과 같다(`test/db-export.int.test.ts`). 대상 폴더가 비어 있으면 2, 저장소·디스크 오류는 3이다(`test/db-export.test.ts`).
 
+- AC26. `xeon schedule add --every 300 "<프롬프트>"`는 `schedule.create`를 한 번 보내고, `trigger`가 `{ kind: "interval", everySeconds: 300 }`, `prompt`가 입력과 같다. 결과 줄은 `예약했다: <id>  간격 300초  다음 실행 <ISO>`다. 서비스 모드가 꺼져 있으면 stderr에 경고 한 줄이 더 나온다. `--auto-approve`와 `--json`은 알 수 없는 플래그다. `list`는 `{ enabled: true }`를, `--all`은 `{}`를 보낸다. 원격이 아닌 항목에 `schedule run`을 하면 `not_remote` 문구와 종료 코드 1이다. 시험: `test/schedule-parse.test.ts`, `test/schedule.test.ts`, `test/schedule-host.int.test.ts`.
+
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-15] `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1). 남은 [미결]: 엔진 바이너리 이름 `xeon`([제안], 같은 문서 §10 미결 2). `EngineHandle.paths.cliStateFile`의 원천은 정했다 [결정: review.decisions-2 B-07]: `@xeon/host`의 `resolveHostStatePaths()`가 L0.os `OsDirs.state` 아래 `cli/state.json`을 돌려준다(`L4.host-service.spec` §3.3.6). CLI는 경로를 계산하지 않는다(DR-13). 환경 변수 `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남는다.
@@ -997,3 +1050,4 @@ $ echo $?
 24. [미결] 알림 도착과 세션 종료의 경합. 시험(`slash-commands-host.int.test.ts`, `/compact`)에서 turn 세 개 가운데 한 건의 완료 알림만 세션 종료 전에 도착했다. 종료 직전에 알림 대기열을 짧게 비우는 방법(시간 상한 포함)을 정한다.
 25. [미결] `db export`의 저장소 파일 이름(`xeon.db`)과 데이터 디렉터리 위치. 이름은 `apps/host/src/assemble.ts`의 `DB_FILE_NAME`과 같고 호스트가 내보내지 않아 `apps/cli/src/commands/db.ts`에 한 번 더 있다. 위치는 `runtime.ts`가 `@xeon/platform-os`의 `resolveOsDirs`로 정한다. 호스트가 데이터 디렉터리를 공개 API로 내보내면 두 곳을 그 값으로 바꾼다(§4.13).
 26. [미결] `apps/cli` → `@xeon/platform-store` 간선. `L0.store.spec` §3.2는 `openStore`와 `exportDatabase`를 조립 루트 `apps/host`만 import한다고 적는다. 이 간선은 DR-14 예외 목록에 없다. 의존 검사(`just depcruise`)는 통과하지만, 문서와 맞추려면 허용 목록 항목을 더하거나 호스트 공개 API로 옮기는 결정이 필요하다.
+27. [결정: 오케스트레이터 기본값, M3b B1-SCH2] `schedule add`의 기본값과 상한: `--workspace`를 빼면 host의 기본 작업 폴더를 쓴다(`L2.schedule.spec` §4.4.1). `--every`와 `--expires-in`은 1년(31536000초) 이하, `--loop`는 0 이상 1년 이하, `--max-iterations`는 1~10000, `--debounce`는 기본 1000 ms이고 0~3600000 ms, `--watch` 경로는 16개 이하다. 사용자 확인은 남아 있다.
