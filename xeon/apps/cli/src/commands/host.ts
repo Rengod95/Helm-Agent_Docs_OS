@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever } from "@xeon/contracts";
 import type { ServiceEndpoint } from "@xeon/host";
 import { failureOfStart, type Failure } from "../errors.ts";
@@ -60,14 +61,14 @@ async function bridgeToRemote(
       return reportFailure(io, failureOfStart(serviceConnectErrorOf(exit.error)));
     case "remote_closed":
       return reportFailure(io, {
-        message: "원격 서비스 연결이 끊겼다",
-        fix: "xeon service status로 원격 서비스를 확인하고 다시 실행한다",
+        message: t("cli.host.remoteClosed.message"),
+        fix: t("cli.host.remoteCheck.fix"),
         code: EXIT.error,
       });
     case "relay_failed":
       return reportFailure(io, {
-        message: "원격 서비스와 중계하지 못했다",
-        fix: "xeon service status로 원격 서비스를 확인하고 다시 실행한다",
+        message: t("cli.host.relayFailed.message"),
+        fix: t("cli.host.remoteCheck.fix"),
         code: EXIT.error,
       });
     default:
