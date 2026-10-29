@@ -557,6 +557,8 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 - `xeon` 필드는 저장소 안 그룹일 때 check-layers가 쓴다(`architecture.layers.spec` §3 규칙 3). 저장소 안에 넣으면 routes.yaml layout L3에 도메인을 더해야 `xeon.domain` 검사를 통과한다. 이것은 문서 변경이고 코어 코드 변경은 아니다 [제안].
 
+- [결정: B4-GRP 구현] 생성 결과가 `bun test`를 통과하도록 골격을 다음과 같이 맞췄다. 자세한 목록은 `L3.slots.plan` §8이다. (1) 식별자에는 이름을 넣지 않는다(`stateSchema`, `settings`). 그룹 이름에는 하이픈이 올 수 있어 `__ID__State` 같은 식별자가 성립하지 않는다. (2) drive는 `loop.budget.turns === 0`으로 멈추지 않고 커밋된 단계 수로 멈춘다. 임대의 남은 예산은 임대마다 새로 정해지므로 재생 복원 뒤 임대 경계가 달라지고 이벤트열 비교가 깨진다. (3) `loop.turn`에는 커밋된 상태에서 정한 `requestId`를 준다(ADR-0015 §3.4). (4) 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 위 본문의 `tape`, `cutAt` 인자는 아직 없다.
+
 #### 3.3.6 생성 명령의 요구 인터페이스
 
 명령 `xeon group new <이름> [--drive|--policy]`의 실행은 `L4.cli.spec`이 소유한다. 이 문서는 요구만 정한다.
@@ -716,7 +718,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 ## 10. 미결 사항
 
-- [미결] 템플릿 파일 위치(`eng.context-map.design` C-2). 이 문서는 `group-kit/templates/`를 [제안]한다(3.3.1).
+- [결정: 오케스트레이터 기본값] 템플릿 파일 위치는 `xeon/packages/group-kit/templates/`다(3.3.1). `eng.context-map.design` C-2의 문서 쪽 반영은 그 문서의 몫이다.
 - [미결] 정책 플러그인의 group/plugin 구분 기준의 최종 확정(4.2.1).
 - (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 지점 셋으로 바꿨다(ADR-0017, 3.2.4절, 4.2.4절). 모델 분류기 사용은 4.2.4 5번의 [제안]이다.
 - [미결] 외부 그룹의 신뢰 등급 값 집합과 다른 그룹 import를 X 로더가 거부할지(`X.loading-trust.spec`, `F.extensions.spec` §10).

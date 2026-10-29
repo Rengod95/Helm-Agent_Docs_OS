@@ -6,6 +6,7 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
   "include": ["src", "test"],
+  "exclude": ["templates", "test/.generated"],
   "references": [
     {
       "path": "../contracts"

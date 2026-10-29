@@ -350,4 +350,7 @@ M3b에서 정한 것은 L3.group-kit.spec §4.9와 §10에 적었다. 기록은 
 |---|---|---|
 | G-18 | 완료 | `promotion/report.ts`(`buildPromotionReport`, 순수 함수)와 `promotion/gather.ts`(`gatherPromotionInput`, `queryEvents`·`toolOwner`로 입력을 모음). `/group status`의 `승격 후보:` 줄. 시험은 `test/promotion.test.ts`(끝 시험 `promotion.report-values-from-a-real-event-log`). 집계 규칙은 spec §3.12 |
 | 계측 쓰기 실패 | 완료 | 경계 기록의 `recordPrivate` 실패가 그룹 핸들러를 실패시키지 않는다(spec §4.9). 시험 `metrics.recorded-failure-keeps-the-handler-and-carries-the-delta` |
+| G-24 | 완료 | (L3.slots S-01) `templates/`(`index.json`, `common/`, `drive/`, `policy/`, `observe/`)와 `src/templates.ts`(`TemplateIndexSchema`, `TemplateKindSchema`, `TEMPLATE_PLACEHOLDERS`), `checkGroupName`(`src/define-group.ts`). `tsconfig.json` `exclude`, oxlint·oxfmt `ignorePatterns`, knip `ignore`, `bunfig.toml`의 시험 루트에서 `templates/`를 뺀다. 세부는 `L3.slots.plan` §8 |
+| G-26 | 완료 | (L3.slots S-03) `test/slots/templates.test.ts`의 `template.replay-test-cuts-at-every-commit`과 `template.generated-tests-pass`. drive 골격의 `test/replay.test.ts`가 생성 직후 통과한다 |
+| G-27 | 완료 | (L3.slots S-04) 같은 파일의 `template.manifest-passes-validateManifest`, `template.drive-group-loads-and-toggles`, `template.policy-*`(거부, 예외, 끄기), `template.observe-group-records-turn-count`. 생성기 시험은 `test/support/generate-template.ts` |
 | 저장 상태 재설정 경로 | 완료 | `/group reset <이름>`과 `GroupServiceWithUsage.resetState`(X `resetScopeState`를 부른다). 오류 종류는 `GroupResetError`(spec §3.9). 시험은 `test/reset.test.ts`. 성공 문구의 `/group on` 안내는 [미결](spec §10) |

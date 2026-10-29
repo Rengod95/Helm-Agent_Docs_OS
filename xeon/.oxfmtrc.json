@@ -17,6 +17,7 @@
     "apps/host/schema/*.json",
     "**/*.md",
     "**/*.html",
-    "**/*.toml"
+    "**/*.toml",
+    "packages/group-kit/templates/**"
   ]
 }

@@ -279,7 +279,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 8. [결정: 계획 v2 규칙 2, DR-14] L3 → `cap-*` import 금지는 기본 규칙이다(`architecture.layers.spec` 3.1절 판정). depcruise 규칙 추가는 `architecture.layers.spec` §9가 다룬다.
 9. [미결] Helm 내부 설계(단계·신호 식별자와 전이표의 확정, 렌즈 목록, 종료 판정, 부분 결과 허용)(`L3.helm.spec` §10 미결 1·2·3·16, `product.usecases.spec` 미결 1). 단계 순서(발산, 다른 분야 탐색, 수렴, 현재 작업 적용)와 신호 종류 셋(막힘, 반복, 새 분야 진입)은 계획 v2로 정해졌다 [결정]. `L3.helm.spec`은 식별자(`diverge` 등, `stuck` 등)와 전이표를 [제안]으로 둔다.
 10. (닫힘) 제안 대기열 소유는 대기열 둘 유지다 [결정: review.m3-design-inputs D-M3-32]. 학습 그룹 소유와 L2 knowledge 소유를 L4가 한 목록으로 보인다. 병합 규칙은 `L3.learning.spec` §4.5 규칙 4([제안]: 같은 이름 거부, 자동 병합 없음)로 닫았다.
-11. [미결] `slots` 템플릿 파일 위치(`eng.context-map.design` C-2). `L3.slots.spec`은 `group-kit/templates/`를 [제안]한다.
+11. [결정: 오케스트레이터 기본값] `slots` 템플릿 파일 위치는 `group-kit/templates/`다(`L3.slots.spec` §3.3.1). `eng.context-map.design` C-2의 문서 쪽 반영은 남는다.
 12. [미결] 정책 플러그인을 `kind: "group"`으로 둘지 `kind: "plugin"`으로 둘지의 최종 기준(`L3.slots.spec` §4.2).
 13. (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 지점 셋으로 바꿨다(adr.0017, `L3.slots.spec` §3.2.4).
 14. [결정: review.decisions-2 U-18] 새 그룹 이름 규칙: 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)을 따른다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.

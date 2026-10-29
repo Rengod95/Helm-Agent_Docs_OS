@@ -1,0 +1,13 @@
+{
+  "name": "@xeon/group-__ID__",
+  "version": "__VERSION__",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "xeon": {
+    "layer": "L3",
+    "domain": "__ID__"
+  }
+}

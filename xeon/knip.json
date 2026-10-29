@@ -8,6 +8,10 @@
     "packages/*": {
       "entry": ["test/**/*.test.ts"]
     },
+    "packages/group-kit": {
+      "entry": ["test/**/*.test.ts"],
+      "ignore": ["templates/**"]
+    },
     "plugins/*": {
       "entry": ["test/**/*.test.ts"]
     },

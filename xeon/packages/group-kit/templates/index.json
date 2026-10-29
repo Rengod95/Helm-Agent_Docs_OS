@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "templates": {
+    "drive": {
+      "description": "구동 그룹. drive 함수가 턴을 돌리고 커밋한 상태에서 이어 간다. replayDrive 재생 시험을 함께 만든다",
+      "files": [
+        "common/package.json",
+        "common/tsconfig.json",
+        "common/README.md",
+        "common/test/manifest.test.ts",
+        "drive/.xeon-plugin/plugin.json",
+        "drive/src/index.ts",
+        "drive/src/state.ts",
+        "drive/src/settings.ts",
+        "drive/test/unit.test.ts",
+        "drive/test/replay.test.ts"
+      ],
+      "usesDrive": true
+    },
+    "policy": {
+      "description": "정책 그룹. tool.call.before의 first 지점에서 설정한 도구 호출을 막는다. 상태가 없다",
+      "files": [
+        "common/package.json",
+        "common/tsconfig.json",
+        "common/README.md",
+        "common/test/manifest.test.ts",
+        "policy/.xeon-plugin/plugin.json",
+        "policy/src/index.ts",
+        "policy/src/settings.ts",
+        "policy/test/unit.test.ts"
+      ],
+      "usesDrive": false
+    },
+    "observe": {
+      "description": "관찰 그룹. boundary.settle.after tap에서 턴 수를 세고 상태와 기록을 쓴다. 구동하지 않는다",
+      "files": [
+        "common/package.json",
+        "common/tsconfig.json",
+        "common/README.md",
+        "common/test/manifest.test.ts",
+        "observe/.xeon-plugin/plugin.json",
+        "observe/src/index.ts",
+        "observe/src/state.ts",
+        "observe/src/settings.ts",
+        "observe/test/unit.test.ts"
+      ],
+      "usesDrive": false
+    }
+  }
+}

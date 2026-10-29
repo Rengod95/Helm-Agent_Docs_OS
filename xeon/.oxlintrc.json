@@ -16,7 +16,8 @@
     "**/node_modules/**",
     "**/.turbo/**",
     "**/coverage/**",
-    "vendor/**"
+    "vendor/**",
+    "packages/group-kit/templates/**"
   ],
   "rules": {
     "eqeqeq": "error",

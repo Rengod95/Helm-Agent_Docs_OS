@@ -1,11 +1,13 @@
 export {
   GROUP_NAME_PATTERN,
   RESERVED_GROUP_NAMES,
+  checkGroupName,
   defineGroup,
   groupManifest,
   validateGroupDef,
   type GroupApi,
   type GroupDef,
+  type GroupNameError,
   type GroupDefIssue,
   type GroupDefIssueCode,
   type GroupDefShape,
@@ -78,6 +80,15 @@ export {
 } from "./state.ts";
 export { checkRecordKind, checkPostItem, kindVisibleTo, type RecordCheck } from "./records.ts";
 export { groupKitSettings } from "./settings.ts";
+export {
+  TEMPLATE_PLACEHOLDERS,
+  TemplateIndexSchema,
+  TemplateKindSchema,
+  type TemplateEntry,
+  type TemplateIndex,
+  type TemplateKind,
+  type TemplatePlaceholder,
+} from "./templates.ts";
 export {
   GROUP_USAGE,
   groupCommand,

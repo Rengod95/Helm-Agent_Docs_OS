@@ -1249,6 +1249,8 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 | 이름 | 쓰는 문서 |
 |---|---|
 | `defineGroup`, `GroupDef`, `GroupApi`(`registerTool`, `registerCommand`, `registerProvider` 포함), `GroupModule`, `validateGroupDef`, `groupManifest`, `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`(예약 이름 정본) | L3.helm.spec, L3.learning.spec, L3.slots.spec 템플릿, L3.readme §4 |
+| `checkGroupName`, `GroupNameError`(R2 이름 검사, 순수 함수) | L3.slots.spec §3.3.4, `L4.cli.spec`(DR-14로 같은 규칙을 따로 구현) |
+| `TemplateKindSchema`, `TemplateIndexSchema`, `TEMPLATE_PLACEHOLDERS`, `TemplateKind`, `TemplateIndex` | L3.slots.spec §3.3.3(`templates/index.json`), `L4.cli.spec` |
 | `DelegateSpec`, `DelegateReceipt`, `DelegateResult`, `DelegateError`, `DelegateReport`, `DelegateToolPolicy`, `DelegateLimits`, `DelegateFork` | L3.learning.spec, L3.helm.spec, L1.agents.spec(`DelegateRequest` 대응) |
 | `DriveArbiter`, `defaultDriveArbiter`, `leaseArbiterPort`, `ArbiterInput`, `ArbiterDecision` | X.primitives.spec(`LeaseArbiterPort` 구현), L4.settings-ui.spec |
 | `GroupService`와 부속 타입(§3.8)의 필드 정의. 정의 위치는 F `services/groups.ts`(F.capabilities.spec §3.12)이고 group-kit은 다시 내보내며 `service.ts`에서 구현한다 | F.capabilities.spec §3.12, L4.cli.spec, L4.desktop.spec, L4.host-service.spec, L3.helm.spec, L3.learning.spec |
@@ -1316,7 +1318,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - (닫힘) [결정: review.m3-design-inputs D-M3-05] 대기 vs 거부: 대기가 기본이고 대기 상한을 넘으면 거부한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
 - (닫힘) 선점 허용: X가 이름 지정에 한해 다음 경계에서 `revoked`로 회수한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). `auto`는 선점하지 않는다(§3.5 규칙 4, §4.3 4번). `auto` 우선순위 선점은 두지 않는다.
 - (닫힘) [결정: review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 둔다(F.capabilities.spec §3.12, 이 문서 §3.8). `eng.context-map.design` §5.3의 F 위치 열은 그 문서 쪽에서 services로 고친다.
-- [미결] 템플릿 위치: `eng.context-map.design` C-2. 이 문서와 L3.group-kit.plan §2는 L3.slots.plan §2.1 후보 a(`xeon/packages/group-kit/templates/`, 정식 예는 `src/testing/policies/`)를 [제안]으로 따른다. 스캐폴드 명령의 실행은 L4.cli.spec이 맡는다(L3.slots.spec §3.3.6).
+- [결정: 오케스트레이터 기본값] 템플릿 위치: `xeon/packages/group-kit/templates/`(L3.slots.spec §3.3.1, B4-GRP 구현). `eng.context-map.design` C-2의 문서 쪽 반영은 그 문서의 몫이다. 이 문서와 L3.group-kit.plan §2는 L3.slots.plan §2.1 후보 a(`xeon/packages/group-kit/templates/`, 정식 예는 `src/testing/policies/`)를 [제안]으로 따른다. 스캐폴드 명령의 실행은 L4.cli.spec이 맡는다(L3.slots.spec §3.3.6).
 - [결정: review.decisions-2 U-15] DR-02 방법 (b)(허용 목록 `DR-02/group-kit-*`). `eng.context-map.design` C-5와 같은 항목이다.
 - (닫힘) 정책 포트 타입 `LeaseArbiterPort`·`LeaseCandidate`의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. group-kit은 `@xeon/contracts/extensions`에서 가져온다. 역할 분담은 §3.5 표로 정했다.
 - (닫힘) X에 요청한 4개 항목(§3.13)은 X.1과 테스트 호스트 재시작으로 반영됐다. 2차 계측·승격 집계용 조회(§3.13 5번)만 남았다.
