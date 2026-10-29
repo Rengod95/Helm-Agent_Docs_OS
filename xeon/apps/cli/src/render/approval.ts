@@ -1,6 +1,6 @@
 import { assertNever } from "@xeon/contracts";
 import type { ApprovalRespondParams, ApprovalRespondResult } from "@xeon/contracts/wire";
-import type { ApprovalView, QuestionView, RememberChoice } from "./ops.ts";
+import type { ApprovalView, QuestionView, RememberChoice, ReviewFileView } from "./ops.ts";
 
 // L4.cli.spec §4.11. 승인 프롬프트. 줄 입력으로 허용·거부·답을 받아 approval.respond 인자로 바꾼다.
 // 질문(question)은 QuestionAnswer, 계획(plan)의 허용은 PlanAnswer, 검토(review)는 ReviewAnswer, 거부는 DenyAnswer가 정본 모양이다(F wire §3.3.1).
@@ -119,13 +119,31 @@ async function askPlan(
   };
 }
 
+/** 검토 카드가 보인 hunk id 전부(`f<파일 순번>h<hunk 순번>`, L2.artifacts.spec §4.2.4). 파일 순서는 요청 files 순서다 */
+function reviewHunkIds(files: readonly ReviewFileView[]): string[] {
+  return files.flatMap((file, fileIndex) =>
+    Array.from(
+      { length: file.hunks },
+      (_, hunkIndex) => `f${String(fileIndex)}h${String(hunkIndex)}`,
+    ),
+  );
+}
+
 /**
- * 검토 승인(ADR-0018): 모두 승인, 수정 요청, 거부. 카드가 hunk 본문 없이 요약만 보이므로 hunk별 결정은 받지 않는다.
- * 승인은 남은 hunk를 모두 승인하고 제출한다(`approveRemaining`, `submit`). 수정 요청은 검토 전체에 코멘트 하나를 달고 제출하지 않는다:
- * hunk는 pending으로 남고 되돌림은 일어나지 않는다. 거부는 DenyAnswer다
+ * 검토 승인(ADR-0018): 모두 승인, 일부 거절, 수정 요청, 모두 거절. 카드는 hunk 본문 없이 요약만 보이므로
+ * 일부 거절은 hunk id를 받아 그 hunk만 거절하고 나머지는 승인한다(`approveRemaining`, `submit`).
+ * 모두 승인도 같은 제출이고 거절할 hunk가 없다. 수정 요청은 검토 전체에 코멘트 하나를 달고 제출하지 않는다:
+ * 새 승인 요청이 같은 라운드로 다시 온다. 모두 거절은 DenyAnswer다(검토 전체 거절과 피드백)
  */
-async function askReview(io: PromptIo, signal: AbortSignal): Promise<AskOutcome | "retry"> {
-  const line = await io.readLine("[y] 모두 승인  [c] 수정 요청  [n] 거부 > ", signal);
+async function askReview(
+  files: readonly ReviewFileView[],
+  io: PromptIo,
+  signal: AbortSignal,
+): Promise<AskOutcome | "retry"> {
+  const line = await io.readLine(
+    "[y] 모두 승인  [r] 일부 거절  [c] 수정 요청  [n] 모두 거절 > ",
+    signal,
+  );
   if (isAborted(signal)) return { kind: "dismissed" };
   if (line === null) return { kind: "answered", response: DENY_ONLY };
   const choice = line.trim().toLowerCase();
@@ -138,6 +156,7 @@ async function askReview(io: PromptIo, signal: AbortSignal): Promise<AskOutcome 
       },
     };
   }
+  if (choice === "r") return askRejectedHunks(files, io, signal);
   if (choice === "c") {
     const feedbackLine = await io.readLine("수정 요청 내용: ", signal);
     if (isAborted(signal)) return { kind: "dismissed" };
@@ -158,8 +177,58 @@ async function askReview(io: PromptIo, signal: AbortSignal): Promise<AskOutcome 
     const denied = await askFeedback(io, signal);
     return isAborted(signal) ? { kind: "dismissed" } : { kind: "answered", response: denied };
   }
-  await io.stdout("y, c, n 중 하나를 입력한다\n");
+  await io.stdout("y, r, c, n 중 하나를 입력한다\n");
   return "retry";
+}
+
+/**
+ * `r`: 거절할 hunk id를 쉼표로 받는다(`all`은 전부). 알 수 없는 id나 빈 입력이면 알리고 검토 프롬프트로 돌아간다(retry).
+ * 고른 hunk는 `rejected`, 나머지는 `approveRemaining`으로 승인하고 제출한다. 거절할 hunk가 하나도 없으면 고를 수 없다
+ */
+async function askRejectedHunks(
+  files: readonly ReviewFileView[],
+  io: PromptIo,
+  signal: AbortSignal,
+): Promise<AskOutcome | "retry"> {
+  const known = reviewHunkIds(files);
+  if (known.length === 0) {
+    await io.stdout("거절할 hunk가 없다\n");
+    return "retry";
+  }
+  const line = await io.readLine("거절할 hunk (쉼표로 구분, 예 f0h1,f1h0 / all = 전부) > ", signal);
+  if (isAborted(signal)) return { kind: "dismissed" };
+  if (line === null) return { kind: "answered", response: DENY_ONLY };
+  const text = line.trim().toLowerCase();
+  const tokens =
+    text === "all"
+      ? known
+      : text
+          .split(",")
+          .map((token) => token.trim())
+          .filter((token) => token.length > 0);
+  if (tokens.length === 0) {
+    await io.stdout("알 수 없는 hunk: (비어 있음)\n");
+    return "retry";
+  }
+  const valid = new Set(known);
+  const unknown = tokens.find((id) => !valid.has(id));
+  if (unknown !== undefined) {
+    await io.stdout(`알 수 없는 hunk: ${unknown}\n`);
+    return "retry";
+  }
+  const rejected = [...new Set(tokens)].map(
+    (hunkId): { readonly hunkId: string; readonly decision: "rejected" } => ({
+      hunkId,
+      decision: "rejected",
+    }),
+  );
+  return {
+    kind: "answered",
+    response: {
+      decision: "answer",
+      answer: { decisions: rejected, comments: [], submit: true, approveRemaining: true },
+    },
+  };
 }
 
 function describeQuestion(question: QuestionView, index: number, total: number): string {
@@ -248,7 +317,7 @@ function askForm(
     case "plan":
       return askPlan(form.nextModes, io, signal);
     case "review":
-      return askReview(io, signal);
+      return askReview(form.files, io, signal);
     default:
       return assertNever(form, "ApprovalForm");
   }

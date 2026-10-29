@@ -775,7 +775,11 @@ export type CliState = Static<typeof CliStateSchema>;
   6. 구현 (대화형 줄 입력): 요청 payload의 `remember`가 허용하는 범위만 보인다.
      - 도구: `[y]` 이번만 허용, `[t]` 이 세션 동안 허용(`thread`가 있을 때), `[a]` 항상 허용(`always`가 있을 때), `[n]` 거부. `n` 뒤에 이유를 받아 있으면 `answer: { feedback }`으로 보낸다.
      - 계획: `[y]` 승인이면 `nextModes` 중 하나(엔터는 지금 모드)와 메모를 받아 `answer: { mode?, note? }`로 보낸다. `[n]`은 도구와 같다.
-     - 검토(`review`, ADR-0018): 카드는 제목, 라운드, 파일별 변경 종류와 hunk 수 요약만 보인다(hunk 본문은 요청에 없다). `[y]` 모두 승인은 `decision: "answer"`와 `ReviewAnswer { decisions: [], comments: [], submit: true, approveRemaining: true }`로 보낸다. `[c]` 수정 요청은 내용(필수)을 받아 `ReviewAnswer { decisions: [], comments: [{ target: { type: "review" }, body }], submit: false }`로 보낸다. `[n]` 거부는 도구와 같다. hunk별 결정은 받지 않는다.
+     - 검토(`review`, ADR-0018): 카드는 제목, 라운드, 파일별 변경 종류와 hunk 수 요약만 보인다(hunk 본문은 요청에 없다). 프롬프트는 `[y] 모두 승인  [r] 일부 거절  [c] 수정 요청  [n] 모두 거절`이다. 그 밖의 입력은 `y, r, c, n 중 하나를 입력한다`를 보이고 다시 묻는다.
+       - `[y]` 모두 승인은 `decision: "answer"`와 `ReviewAnswer { decisions: [], comments: [], submit: true, approveRemaining: true }`로 보낸다.
+       - `[r]` 일부 거절은 `거절할 hunk (쉼표로 구분, 예 f0h1,f1h0 / all = 전부) > `를 한 번 더 묻는다. hunk id는 카드의 파일 순서대로 `f<파일 순번>h<hunk 순번>`이고 둘 다 0부터 센다. `all`은 카드가 보인 hunk id 전부다. 목록에 없는 id는 `알 수 없는 hunk: <id>`를, 빈 입력은 `알 수 없는 hunk: (비어 있음)`을 보이고 검토 프롬프트로 돌아간다. hunk가 하나도 없는 카드에서는 `[r]`을 받지 않고 `거절할 hunk가 없다`를 보인 뒤 검토 프롬프트로 돌아간다. 고른 id는 `rejected`로, 나머지는 승인하고 제출한다: `decision: "answer"`와 `ReviewAnswer { decisions: [{ hunkId, decision: "rejected" }, …], comments: [], submit: true, approveRemaining: true }`로 보낸다.
+       - `[c]` 수정 요청은 내용(필수)을 받아 `ReviewAnswer { decisions: [], comments: [{ target: { type: "review" }, body }], submit: false }`로 보낸다. 제출하지 않으므로 같은 라운드의 새 승인 요청이 카드로 다시 온다.
+       - `[n]` 모두 거절은 도구의 `[n]`과 같다. 이유를 받아 `decision: "deny"`로 보낸다. 호스트는 되돌릴 수 있는 hunk를 모두 거절하고 제출하며, 이유는 리뷰 단위 코멘트가 된다.
      - 질문: 질문마다 번호(여러 선택이면 쉼표)나 직접 입력(`allowFreeText`)을 받아 `decision: "answer"`와 `QuestionAnswer`(`{ [질문 id]: { selected, text? } }`)로 보낸다. `/deny`는 요청 전체를 거부한다.
      - 프롬프트는 한 번에 하나다. 입력 줄이 읽는 중에 승인이 오면 입력 줄을 닫고 승인을 먼저 묻는다.
      - 세션을 열 때 이전 기록을 다 그린 뒤 `approval.list { threadId }`로 아직 답하지 않은 승인을 되살려 묻는다(재시작 뒤 복원). 이벤트로 이미 받은 승인은 `approvalId`로 중복을 거른다.

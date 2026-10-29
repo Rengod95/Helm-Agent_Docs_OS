@@ -273,7 +273,10 @@ export function approvalViewOf(
         ],
         allowsAnswer: true,
         remember,
-        form: { kind: "review" },
+        form: {
+          kind: "review",
+          files: body.review.files.map((file) => ({ path: file.path, hunks: file.hunks })),
+        },
       };
     default:
       return assertNever(body, "ApprovalBody");

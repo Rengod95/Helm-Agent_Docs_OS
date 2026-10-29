@@ -168,7 +168,7 @@ const REVIEW_BODY = {
 test("a review approval shows the file summary; y approves every hunk and submits as a ReviewAnswer", async () => {
   const s = scenario({ body: REVIEW_BODY, replies: ["y"] });
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
-  expect(s.input.prompts[1]).toBe("[y] 모두 승인  [c] 수정 요청  [n] 거부 > ");
+  expect(s.input.prompts[1]).toBe("[y] 모두 승인  [r] 일부 거절  [c] 수정 요청  [n] 모두 거절 > ");
   expect(s.h.stderrText()).toContain("modified src/a.ts (hunk 2)");
   expect(s.responds).toHaveLength(1);
   const answer = {
@@ -198,10 +198,88 @@ test("c on a review sends the feedback as a review-level comment without submitt
 test("n on a review asks for a reason and sends a deny answer; an unknown key asks again", async () => {
   const s = scenario({ body: REVIEW_BODY, replies: ["x", "n", "범위가 넓다"] });
   await s.h.run(["chat"]);
-  expect(s.h.stdoutText()).toContain("y, c, n 중 하나를 입력한다");
+  expect(s.h.stdoutText()).toContain("y, r, c, n 중 하나를 입력한다");
   expect(s.responds).toHaveLength(1);
   expect(s.responds[0]).toMatchObject({ decision: "deny", answer: { feedback: "범위가 넓다" } });
 });
+
+test("r asks which hunks to reject; the chosen hunk is rejected, the rest approved, and it is submitted", async () => {
+  const s = scenario({ body: REVIEW_BODY, replies: ["r", "f0h1"] });
+  await s.h.run(["chat"]);
+  expect(s.input.prompts[2]).toBe("거절할 hunk (쉼표로 구분, 예 f0h1,f1h0 / all = 전부) > ");
+  expect(s.responds).toHaveLength(1);
+  const answer = {
+    decisions: [{ hunkId: "f0h1", decision: "rejected" }],
+    comments: [],
+    submit: true,
+    approveRemaining: true,
+  };
+  expect(s.responds[0]).toEqual({ approvalId: expect.any(String), decision: "answer", answer });
+  expect(parse(ReviewAnswerSchema, answer).ok).toBe(true);
+});
+
+test("r with all rejects every hunk the card shows", async () => {
+  const s = scenario({ body: REVIEW_BODY, replies: ["r", "all"] });
+  await s.h.run(["chat"]);
+  const answer = {
+    decisions: [
+      { hunkId: "f0h0", decision: "rejected" },
+      { hunkId: "f0h1", decision: "rejected" },
+    ],
+    comments: [],
+    submit: true,
+    approveRemaining: true,
+  };
+  expect(s.responds).toEqual([{ approvalId: expect.any(String), decision: "answer", answer }]);
+  expect(parse(ReviewAnswerSchema, answer).ok).toBe(true);
+});
+
+test("r with an unknown hunk id says so and asks the review prompt again", async () => {
+  const s = scenario({ body: REVIEW_BODY, replies: ["r", "f0h9", "r", "f0h0"] });
+  await s.h.run(["chat"]);
+  expect(s.h.stdoutText()).toContain("알 수 없는 hunk: f0h9");
+  expect(s.input.prompts[3]).toBe("[y] 모두 승인  [r] 일부 거절  [c] 수정 요청  [n] 모두 거절 > ");
+  expect(s.responds).toHaveLength(1);
+  expect(s.responds[0]).toMatchObject({
+    decision: "answer",
+    answer: { decisions: [{ hunkId: "f0h0", decision: "rejected" }], submit: true },
+  });
+});
+
+test("r with an empty hunk list says so and asks again; a file list with no hunks refuses r", async () => {
+  const empty = scenario({ body: REVIEW_BODY, replies: ["r", "", "y"] });
+  await empty.h.run(["chat"]);
+  expect(empty.h.stdoutText()).toContain("알 수 없는 hunk: (비어 있음)");
+  expect(empty.responds[0]).toMatchObject({
+    decision: "answer",
+    answer: { decisions: [], submit: true, approveRemaining: true },
+  });
+
+  const none = {
+    kind: "review",
+    review: {
+      ...REVIEW_BODY.review,
+      files: [{ path: "a.bin", change: "modified", binary: true, hunks: 0 }],
+    },
+  };
+  const refused = scenario({ body: none, replies: ["r", "y"] });
+  await refused.h.run(["chat"]);
+  expect(refused.h.stdoutText()).toContain("거절할 hunk가 없다");
+  expect(refused.input.prompts[2]).toBe(
+    "[y] 모두 승인  [r] 일부 거절  [c] 수정 요청  [n] 모두 거절 > ",
+  );
+  expect(refused.responds[0]).toMatchObject({ decision: "answer", answer: { submit: true } });
+});
+
+// 카드가 내는 검토 답(y, r, c)은 모두 ReviewAnswer 모양이어야 한다. n은 거부 답이라 대상이 아니다
+for (const replies of [["y"], ["r", "f0h1"], ["r", "all"], ["r", "f0h0,f0h1"], ["c", "고쳐 줘"]]) {
+  test(`the review answer for ${replies.join(" then ")} passes ReviewAnswerSchema`, async () => {
+    const s = scenario({ body: REVIEW_BODY, replies });
+    await s.h.run(["chat"]);
+    expect(s.responds).toHaveLength(1);
+    expect(parse(ReviewAnswerSchema, s.responds[0]?.["answer"]).ok).toBe(true);
+  });
+}
 
 const QUESTION_BODY = {
   kind: "question",
