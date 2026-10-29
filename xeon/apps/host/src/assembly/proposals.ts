@@ -228,12 +228,13 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
   /** 학습 출처의 행. 읽지 못하면 undefined(출처를 `unavailable`에 올린다) */
   async function learningRows(
     params: ProposalListParams,
+    signal: AbortSignal,
   ): Promise<readonly ProposalRow[] | undefined> {
     const api = deps.learning();
     if (api === undefined) return undefined;
     // 화면을 열 때 지연 정리가 돈다: 만료와 승인된 미적용 재적용(L3.learning.spec §4.5 규칙 7). `/learning queue`가 진입 때 정리하므로
     // 그 명령을 열린 대화에서 실행한다. 대화가 없거나 실패해도 목록은 읽는다
-    const swept = await deps.runner.run("queue", undefined);
+    const swept = await deps.runner.run("queue", undefined, signal);
     if (swept.kind === "unavailable")
       deps.report("proposal.sweep_skipped", { detail: swept.detail });
     else if (swept.report.kind === "error")
@@ -303,7 +304,7 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
       const unavailable: ProposalSource[] = [];
       const rows: ProposalRow[] = [];
       if (wanted.includes("learning")) {
-        const learning = await learningRows(params);
+        const learning = await learningRows(params, signal);
         if (learning === undefined) unavailable.push("learning");
         else rows.push(...learning);
       }
@@ -331,7 +332,11 @@ export function createProposalPort(deps: ProposalPortDeps): ProposalPort {
         const owner = listed.ok
           ? listed.value.find((view) => view.id === params.id)?.evidence[0]?.threadId
           : undefined;
-        const ran = await deps.runner.run(decisionCommandLine(learningDecision(params)), owner);
+        const ran = await deps.runner.run(
+          decisionCommandLine(learningDecision(params)),
+          owner,
+          signal,
+        );
         return ran.kind === "unavailable"
           ? decideFailure("unavailable", ran.detail)
           : resultOfReport(ran.report);
