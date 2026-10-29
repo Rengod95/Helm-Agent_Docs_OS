@@ -89,6 +89,10 @@ function toRunOutput(outcome: BashOutcome, durationMs: number): RunResult {
     ...(outcome.fullOutputPath === undefined ? {} : { fullOutputPath: outcome.fullOutputPath }),
     durationMs,
     sandboxed: outcome.sandbox?.sandboxed ?? false,
+    // 샌드박스 밖 실행의 이유. L1이 감사 이벤트 tool.sandbox_bypassed로 남긴다(L1.tools.spec §4.12.2)
+    ...(outcome.sandbox?.sandboxed === false && outcome.sandbox.unsandboxedBy !== undefined
+      ? { unsandboxedBy: outcome.sandbox.unsandboxedBy }
+      : {}),
   };
 }
 

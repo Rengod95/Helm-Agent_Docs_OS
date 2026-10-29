@@ -121,10 +121,15 @@ describe("bash", () => {
         violationsTruncated: false,
       },
     });
-    expect((await off.shell.run({ command: "true" })).sandboxed).toBe(false);
+    const ran = await off.shell.run({ command: "true" });
+    expect(ran.sandboxed).toBe(false);
+    // 밖에서 돈 이유가 출력에 실려 L1이 감사 이벤트를 남길 수 있다
+    expect(ran.unsandboxedBy).toBe("disabled");
     // 보고가 없으면 격리했다고 주장하지 않는다
     const silent = setup({ sandbox: passthrough });
-    expect((await silent.shell.run({ command: "true" })).sandboxed).toBe(false);
+    const quiet = await silent.shell.run({ command: "true" });
+    expect(quiet.sandboxed).toBe(false);
+    expect(quiet.unsandboxedBy).toBeUndefined();
   });
 
   test("bash timeout keeps output", async () => {
