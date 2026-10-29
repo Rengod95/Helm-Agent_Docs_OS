@@ -183,6 +183,52 @@ test("l1.loop.maxSteps, tools and workspace sources read the same layers", async
   expect(workspaceSource(settings).layers("not-a-thread")).toHaveLength(1);
 });
 
+// M3-REQ-87: l1.loop.repeat.*의 기본값은 켜짐, 임계 4와 3이다. 사용자 값과 끄기가 루프 설정 원천까지 간다
+test("l1.loop.repeat.* reaches the loop source: defaults true, 4, 3; configured values and enabled=false are read", async () => {
+  expect(loopSource(await engineWith({})).repeat(THREAD)).toEqual({
+    enabled: true,
+    actionObservation: 4,
+    actionError: 3,
+  });
+  const configured = await engineWith({
+    "l1.loop.repeat.actionObservation": 6,
+    "l1.loop.repeat.actionError": 5,
+  });
+  expect(loopSource(configured).repeat(THREAD)).toEqual({
+    enabled: true,
+    actionObservation: 6,
+    actionError: 5,
+  });
+  const off = await engineWith({ "l1.loop.repeat.enabled": false });
+  expect(loopSource(off).repeat(THREAD)).toEqual({
+    enabled: false,
+    actionObservation: 4,
+    actionError: 3,
+  });
+});
+
+test("l1.loop.repeat.actionError from a session scope applies to that thread only", async () => {
+  const settings = await engineWith({ "l1.loop.repeat.actionError": 9 });
+  settings.bindSession({
+    layer: (threadId) => ({
+      scope: "session",
+      values:
+        threadId === THREAD
+          ? new Map<string, unknown>([["l1.loop.repeat.actionError", 2]])
+          : new Map<string, unknown>(),
+    }),
+    set: () => {
+      throw new Bug("not used");
+    },
+    reset: () => {
+      throw new Bug("not used");
+    },
+  });
+  const source = loopSource(settings);
+  expect(source.repeat(THREAD).actionError).toBe(2);
+  expect(source.repeat(fixedIdFactory(5).next("thr")).actionError).toBe(9);
+});
+
 test("l1.agents.judge.maxRuns reaches the agents source and defaults to 3", async () => {
   expect(
     agentsSource(await engineWith({ "l1.agents.judge.maxRuns": 5 })).judgeMaxRuns?.(THREAD),
