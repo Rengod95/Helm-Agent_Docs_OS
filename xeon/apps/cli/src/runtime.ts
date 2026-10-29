@@ -1,6 +1,7 @@
+import { dirname } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import { attemptAsync, parseJson } from "@xeon/contracts";
-import { systemClock } from "@xeon/platform-os";
+import { resolveOsDirs, systemClock } from "@xeon/platform-os";
 import { devWireRoundTripOf } from "./dev-mode.ts";
 import type { CliDeps, CliIo, CliSignal, DoctorProbes } from "./io.ts";
 
@@ -293,6 +294,17 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
     probes: REAL_PROBES,
     // 합성 루트의 시계는 L0.os의 운영 시계다(eng.typescript.guide TY-21). 엔진 안의 시각도 같은 구현이 낸다
     clock: systemClock(),
+    // 엔진 없이 저장소를 내보낸다. 모듈은 부를 때 읽는다: version·help가 SQLite 모듈을 끌어오지 않게 한다
+    exportDatabase: async (options) => {
+      const { exportDatabase } = await import("@xeon/platform-store");
+      return exportDatabase(options);
+    },
+    // 데이터 디렉터리는 호스트와 같은 resolveOsDirs가 정한다(XEON_HOME 포함). 자원 디렉터리는 데이터 위치와 무관하고
+    // resolveOsDirs가 절대 경로를 요구해 실행 파일 옆을 넘긴다(@xeon/host의 hostResourceDir과 같은 값)
+    resolveDataDir: () => {
+      const dirs = resolveOsDirs({ resourceDir: dirname(process.execPath) });
+      return dirs.ok ? dirs.value.data : null;
+    },
     devWireRoundTrip: devWireRoundTripOf(env, Bun.main),
     bunVersion: Bun.version,
     stateFile: env[STATE_FILE_ENV] ?? null,

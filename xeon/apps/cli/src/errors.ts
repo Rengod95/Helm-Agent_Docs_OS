@@ -1,5 +1,6 @@
 import { assertNever } from "@xeon/contracts";
 import { WireError } from "@xeon/contracts/wire";
+import type { ExportError } from "@xeon/platform-store";
 import { HostClientError } from "./host-client.ts";
 import type { UsageError } from "./cli/command.ts";
 import { EXIT, type ExitCode } from "./exit-codes.ts";
@@ -462,6 +463,54 @@ export function failureOfWire(error: WireError): Failure {
         code: EXIT.error,
       };
     }
+  }
+}
+
+/**
+ * `db export`의 내보내기 오류를 문구와 종료 코드로 바꾼다(L4.cli.spec §4.10, §4.13). 대상 폴더가 비어 있지 않은 것은
+ * 사용자가 다른 폴더를 고르면 되므로 사용법 오류(2)다. 나머지는 저장소 파일이나 디스크의 환경 문제(3)다.
+ * `error.code`(io)는 파일 시스템의 원래 코드(EACCES 등)이고 값은 싣지 않는다.
+ */
+export function failureOfExport(error: ExportError): Failure {
+  switch (error.kind) {
+    case "dest_not_empty":
+      return {
+        message: "내보낼 폴더가 비어 있지 않다 (아무것도 바꾸지 않았다)",
+        fix: "비어 있거나 없는 폴더를 지정한다",
+        code: EXIT.usage,
+      };
+    case "foreign_database":
+      return {
+        message: `Xeon 데이터베이스가 아니다 (application_id ${String(error.applicationId)})`,
+        fix: "XEON_HOME으로 데이터 디렉터리를 확인한다. xeon.db가 다른 프로그램의 파일이면 옮긴다",
+        code: EXIT.environment,
+      };
+    case "not_a_database":
+      return {
+        message: "데이터베이스 파일이 없거나 SQLite 파일이 아니다",
+        fix: "xeon chat을 한 번 실행해 데이터베이스를 만든 뒤 다시 실행한다. 위치는 XEON_HOME으로 바꾼다",
+        code: EXIT.environment,
+      };
+    case "busy":
+      return {
+        message: "데이터베이스가 다른 쓰기로 바쁘다",
+        fix: "잠시 뒤 다시 실행한다",
+        code: EXIT.environment,
+      };
+    case "disk_full":
+      return {
+        message: "저장 공간이 가득 찼다",
+        fix: "디스크 공간을 비우고 다시 실행한다",
+        code: EXIT.environment,
+      };
+    case "io":
+      return {
+        message: `내보내기 중 입출력 오류가 났다 (${error.code})`,
+        fix: "대상 폴더와 데이터 디렉터리의 권한과 디스크 상태를 확인한다",
+        code: EXIT.environment,
+      };
+    default:
+      return assertNever(error, "ExportError");
   }
 }
 

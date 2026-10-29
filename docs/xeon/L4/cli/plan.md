@@ -19,7 +19,7 @@ binds: [xeon/apps/cli/**]
 | M0 | 없음. 현재 스캐폴드(`xeon/apps/cli`)를 유지한다 | M0 범위는 `contracts`, `ext-host`, `platform-store`, `platform-exec`다(`_research/foundation-plan.md` §5 P4). CLI 작업은 M1에 시작한다 |
 | M1 | 걸어 다니는 골격의 입구. 모델 테이프로 `xeon chat` 한 턴, 강제 종료 뒤 재개 | `main.ts` 명령 분기, `chat -p`(in-process), `--json`, `--continue`/`--resume`, 최소 대화형, `config get`, `config schema`(로컬 명령), `version`, 저장소 유일의 scenario 테스트, 바이너리 빌드와 측정 |
 | M2 | 세션·설정·비밀 관리와 승인 | `sessions`, `config set/reset/list`, `secret` 명령, `--set`, 슬래시 명령, 승인 프롬프트, `thread.locked` 프롬프트, `turn.interrupt` 연결, `host --stdio`(컴파일 바이너리 서브커맨드), `doctor`, TUI 채택 스파이크와 pi-tui 화면 |
-| M3 | 서비스 | `service start/status/stop/ensure/launch-mode/run`, (선택) TUI 설정 목록 |
+| M3 | 서비스 | `service start/status/stop/ensure/launch-mode/run`, (선택) TUI 설정 목록, `db export`(M3-REQ-63, M3b B3-DATA) |
 
 - [제안] M1 host 처리기는 다섯(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`)이다(`F.wire-settings.spec` §3.3.1의 [제안]. M1 범위는 `_research/foundation-plan.md` §5 P4). 그래서 M1 CLI는 이 다섯 메서드와 wire 없는 로컬 명령 `config schema`만 쓴다.
 - M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다.
@@ -332,6 +332,13 @@ M2 CLI.1~CLI.4에서 더한 시험(가짜 호스트 서버 위, `test/support/fa
 추가 unit [제안]: `tool-renderers`(read·ls·bash의 `details` 표시, 렌더러가 없을 때 `content` 20줄), `state-file`(깨진 파일 버림, 원자 쓰기), `keybindings-conflict`(충돌 목록 출력). 이 셋은 위 목록의 이름 규칙을 따른다.
 
 추가 unit(M2 CLI.5): `width`(한글·한자·이모지의 칸 수와 폭 자르기, §4.4.4), `no-top-level-await`(`src` 안 최상위 await 금지, §4.3).
+
+M3b B3-DATA에서 더한 시험(`db export`, spec §4.13). 파서와 실행은 가짜 `exportDatabase`로, 왕복은 실제 저장소로 확인합니다.
+
+| 테스트 이름 | 파일 | 태그 | 확인할 동작 |
+|---|---|---|---|
+| db-export | `test/db-export.test.ts` | unit | 파서(폴더 인자, `--json`, 누락·초과·모르는 하위 명령은 사용법 오류), 성공 문구와 `--json` 값, 누락 블롭 경고(열 줄 상한과 개수 줄), `-C` 기준 대상 경로, ExportError 여섯 kind의 종료 코드와 두 줄 문구, 데이터 디렉터리 실패, 엔진 연결 없음 |
+| db-export-round-trip | `test/db-export.int.test.ts` | int | 실제 저장소에 행과 블롭을 쓰고 원본을 연 채로 `db export`를 돌린 뒤, 사본을 읽기 전용 `openStore`로 열어 행과 블롭 바이트가 원본과 같은지 값으로 비교한다 |
 
 ### 5.2 scenario
 

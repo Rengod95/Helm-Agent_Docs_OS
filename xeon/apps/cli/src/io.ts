@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock, Result } from "@xeon/contracts";
 import type {
   BridgeExit,
   BridgeOptions,
@@ -8,6 +8,7 @@ import type {
   RemoteResolution,
   StdioHostOptions,
 } from "@xeon/host";
+import type { ExportError, ExportOptions, ExportReport } from "@xeon/platform-store";
 import type { TerminalFacts } from "./cli/command.ts";
 import type { ConnectEngine, EngineAssembleOverrides } from "./engine.ts";
 
@@ -81,6 +82,17 @@ export interface CliDeps {
   readonly devWireRoundTrip: boolean;
   /** `xeon version`이 보이는 Bun 버전 */
   readonly bunVersion: string;
+  /**
+   * 저장소 내보내기(`db export`, L4.cli.spec §4.13). 실제 값은 @xeon/platform-store의 exportDatabase다.
+   * 엔진을 띄우지 않으므로 이 함수가 원본 DB를 읽기 전용으로 연다. 모듈은 부를 때 읽는다(runtime.ts)
+   * [spec에 더한 필드: M3b B3-DATA]
+   */
+  readonly exportDatabase: (options: ExportOptions) => Promise<Result<ExportReport, ExportError>>;
+  /**
+   * 데이터 디렉터리(OsDirs.data)의 절대 경로. 엔진을 띄우지도 디렉터리를 만들지도 않고 위치만 묻는다.
+   * 정할 수 없으면 null이다. 실제 값은 runtime.ts가 @xeon/platform-os의 resolveOsDirs로 정한다 [spec에 더한 필드: M3b B3-DATA]
+   */
+  readonly resolveDataDir: () => string | null;
   /** 조립 옵션 덮어쓰기. 모델 테이프와 테스트용 그룹을 넣는 자리다. 운영 진입은 넘기지 않는다 */
   readonly assemble?: EngineAssembleOverrides;
   /** CLI 상태 파일 위치. 없으면 null(@xeon/host가 경로 API를 내기 전까지의 틈, engine.ts 참고) */

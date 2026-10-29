@@ -33,6 +33,7 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
   trust [status] [--json]   이 작업 폴더의 프로젝트 신뢰 상태와 선택지를 보인다
   trust allow|deny [--scope folder|parent|session]
                             신뢰 결정을 보낸다. 신뢰하면 .mcp.json, 프로젝트 스킬, 프로젝트 명령을 읽는다
+  db export <폴더> [--json] 저장소 파일을 엔진 없이 읽기 전용으로 내보낸다. 엔진이 떠 있어도 된다
   service start|status|stop|ensure [--json] [--safe-mode] [--listen-tcp <호스트>:<포트> [--allow-non-loopback]]
                             공유 서비스 모드. start·ensure는 서비스를 띄우고(이미 떠 있으면 붙는다),
                             status·stop은 조회·정지한다. 안전 모드와 TCP는 새로 띄울 때만 적용된다
@@ -52,6 +53,13 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
 `;
 
 const TOPICS: Readonly<Record<string, string>> = {
+  db: `사용법: xeon db export <폴더> [--json]
+
+  <폴더>        내보낼 폴더. 없으면 만들고, 있으면 비어 있어야 한다. 상대 경로는 작업 폴더(-C) 기준이다
+  --json        내보내기 결과(destDir, exportedAt, blobCount, missingBlobs)를 JSON으로 쓴다
+
+  <폴더>/xeon.sqlite, <폴더>/blobs/, <폴더>/manifest.json을 만든다. 엔진을 띄우지 않는다.
+`,
   chat: `사용법: xeon chat [-p [<입력>]] [--json] [--auto-approve] [--continue | --resume <id>] [--set <키>=<값>]…
 
   -p, --print [<입력>]   print 모드. 입력이 없거나 -이면 stdin 전체를 입력으로 쓴다

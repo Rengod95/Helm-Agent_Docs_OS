@@ -144,6 +144,12 @@ interface HelpCommand {
   readonly kind: "help";
   readonly topic: string | null;
 }
+/** `db export <폴더>`. 엔진을 띄우지 않고 저장소 파일을 내보낸다(L4.cli.spec §4.13). destDir은 작업 폴더 기준 상대 경로일 수 있다 */
+export type DbCommand = {
+  readonly kind: "db.export";
+  readonly destDir: string;
+  readonly output: OutputMode;
+};
 
 type CliCommand =
   | ChatCommand
@@ -152,6 +158,7 @@ type CliCommand =
   | SecretCommand
   | TrustCommand
   | ServiceCommand
+  | DbCommand
   | CliHostCommand
   | DoctorCommand
   | VersionCommand
@@ -1258,6 +1265,37 @@ function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostComma
   return ok({ kind: "host", stdio: true });
 }
 
+function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, UsageError> {
+  const [action, ...tail] = rest;
+  switch (action) {
+    case "export": {
+      const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+      if (!scanned.ok) return scanned;
+      const [destDir, ...extra] = scanned.value.positionals;
+      if (destDir === undefined || destDir === "") {
+        return err(
+          usage("missingArgument", "db export에는 내보낼 폴더가 필요하다", "xeon db export <폴더>"),
+        );
+      }
+      if (extra.length > 0) {
+        return err(usage("unexpectedArgument", "db export에 인자가 너무 많다", "폴더 하나만 쓴다"));
+      }
+      return ok({ kind: "db.export", destDir, output: outputOf(scanned.value) });
+    }
+    case undefined:
+      return err(usage("missingArgument", "db에는 하위 명령이 필요하다", "xeon db export <폴더>"));
+    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    default:
+      return err(
+        usage(
+          "unknownCommand",
+          `모르는 명령 db ${action}`,
+          "export 명령을 쓴다: xeon db export <폴더>",
+        ),
+      );
+  }
+}
+
 function parseJsonOnly(
   acc: GlobalAcc,
   kind: "doctor" | "version",
@@ -1282,6 +1320,7 @@ const COMMAND_WORDS: ReadonlySet<string> = new Set([
   "secret",
   "trust",
   "service",
+  "db",
   "host",
   "doctor",
   "version",
@@ -1313,6 +1352,8 @@ function commandOf(
       return parseTrust(acc, rest);
     case "service":
       return parseService(acc, rest);
+    case "db":
+      return parseDb(acc, rest);
     case "host":
       return parseHost(acc, rest);
     case "doctor":

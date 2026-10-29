@@ -102,13 +102,14 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 자기 바이너리를 detached로 띄울 때 붙이는 인자다(`L4.host-service.spec` §3.2, SV-06). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-run", safeMode, tcp? })`. `--safe-mode`·`--listen-tcp`를 받는다 | M3(구현됨) |
 | `xeon host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 원격 서비스에 중계한다(HS-89). 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표). 원격이면 `resolveRemoteEndpoint`, `bridgeStdioToService` | M2(컴파일 바이너리 서브커맨드, 구현됨) |
 | `xeon doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`, `web.providers`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
+| `xeon db export <폴더> [--json]` | 저장소 파일(데이터 디렉터리의 `xeon.db`)을 엔진을 띄우지 않고 읽기 전용으로 `<폴더>`에 내보낸다. 엔진이 떠 있어도 된다. 상대 경로는 작업 폴더(`-C`) 기준이다(§4.13). 종료코드: 성공 0, 폴더 인자 누락과 비어 있지 않은 대상 2, 저장소·디스크 오류와 데이터 디렉터리 위치 실패 3(§4.10) | 없음. `deps.exportDatabase`(`L0.store.spec` §4.10)와 `deps.resolveDataDir`(`resolveOsDirs`)를 부른다 | M3(구현됨, M3b B3-DATA) |
 | `xeon version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
 
 - 근거: 명령 모양은 omp `config list/get/set/reset`(`_research/settings.md` §1, §3 [S36]), pi 모드 4종(TUI, print, JSON, RPC: `_research/refs/pi.md` "같은 AgentSession을 네 모드가 쓴다", `~/projects/_ref/pi-src/packages/coding-agent/src/modes/`), 비밀 명령은 `_research/secrets.md` §6.6, 서비스 명령은 adr.0006 §3.4다.
 - [결정] 서비스 모드는 1차이고 OS 서비스 등록은 2차다(adr.0006 §1). [제안] CLI의 `service` 명령은 M3에 둔다. M1·M2는 in-process와 stdio로 충분하고, 서비스 본체는 `L4.host-service.plan`의 일정을 따른다.
 - [제안] M1 host 처리기는 `host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get` 다섯이다(`F.wire-settings.spec` §3.3.1의 [제안]. M1 범위는 `_research/foundation-plan.md` §5 P4). 그래서 M1의 `config`는 `get`과 로컬 명령 `schema`만 있고, `sessions ls`는 `thread.list`가 생기는 M2다.
 - M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다. 데스크톱의 M1 적합성 테스트는 개발 진입을 쓴다(`L4.desktop.plan` D1).
-- `service`, `host --stdio`, `config schema`는 엔진 연결 없이 `runHostCommand`를 부르고 그 반환값을 종료 코드로 쓴다(§3.6).
+- `service`, `host --stdio`, `config schema`는 엔진 연결 없이 `runHostCommand`를 부르고 그 반환값을 종료 코드로 쓴다(§3.6). `db export`도 엔진 연결 없이 끝난다(§4.13).
 - `secret run -- <cmd>`(`_research/secrets.md` §6.6 마지막 행)는 이 문서에 두지 않는다 [미결 §10 3번].
 
 공통 플래그:
@@ -187,6 +188,8 @@ export type ServiceCommand = {
   readonly listenTcp: { readonly host: string; readonly port: number } | null;      // --listen-tcp. start·run만
   readonly allowNonLoopback: boolean;                                               // --allow-non-loopback. --listen-tcp와 함께만
 };
+/** `db export <폴더>`. destDir은 작업 폴더 기준 상대 경로일 수 있다. 엔진을 띄우지 않는다(§4.13) */
+export type DbCommand = { readonly kind: "db.export"; readonly destDir: string; readonly output: OutputMode };
 /** @xeon/host의 HostCommand(runHostCommand 입력)와 다른 타입이다. 이름을 나눠 둔다. */
 export type CliHostCommand = { readonly kind: "host"; readonly stdio: true };
 export type DoctorCommand = { readonly kind: "doctor"; readonly output: OutputMode };
@@ -195,7 +198,7 @@ export type HelpCommand = { readonly kind: "help"; readonly topic: string | null
 
 export type CliCommand =
   | ChatCommand | SessionsCommand | ConfigCommand | SecretCommand
-  | ServiceCommand | CliHostCommand | DoctorCommand | VersionCommand | HelpCommand;
+  | ServiceCommand | DbCommand | CliHostCommand | DoctorCommand | VersionCommand | HelpCommand;
 
 export interface GlobalOptions {
   readonly cwd: string;
@@ -329,6 +332,7 @@ export declare function runCli(argv: readonly string[], io: CliIo, deps: CliDeps
   - `CliDeps.startStdioHost`: `@xeon/host`의 `startStdioHost` 그대로(§3.3 표). `CliDeps.probes.probeSearxng`: doctor의 SearXNG 탐침(§4.7.1).
   - `EngineHandle.secretOutOfBand`: in-process 접속에서 값 입력·열람 수단을 wire 밖으로 맡기는 통로(`SecretOutOfBandPort`, `InProcessHost.secretOutOfBand`). 서비스 접속은 null이다.
   - `EngineHandle.supports(feature)`: `host.hello`의 `features`(active, experimental)에 그 이름이 있는지. 호스트가 아직 구현하지 않은 메서드(`turn.interrupt`, `thread.open`, `approval.list`, `events.unsubscribe`)를 쓰기 전에 거른다.
+- M3b B3-DATA에서 더한 필드: `CliDeps.exportDatabase`(`@xeon/platform-store`의 `exportDatabase`를 감싼 비동기 함수. 부를 때 모듈을 읽는다)와 `CliDeps.resolveDataDir`(`@xeon/platform-os`의 `resolveOsDirs`가 정한 데이터 디렉터리의 절대 경로, 정할 수 없으면 null). 둘 다 엔진을 띄우지 않는다. 시험은 가짜를 넣는다.
 - `main.ts`의 최상위 코드는 `process.argv.slice(2)`, 실제 `CliIo`, `CliDeps`(`connectEngine`과 `@xeon/host`의 `runHostCommand`)로 `runCli`를 부르고 `process.exit(code)`만 한다. 최상위 await를 쓰지 않는다(`bun build --compile --bytecode`). 실제 `CliIo`·`CliDeps`를 만드는 코드는 `runtime.ts`에 있고 `main.ts`가 필요할 때 읽는다.
 
 ### 3.5 렌더러
@@ -423,8 +427,8 @@ export const EXIT: {
 |---|---|---|
 | 0 | 정상 | turn이 `completed`로 끝났다. 명령이 성공했다 |
 | 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 세션, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1 |
-| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 비밀 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`) |
-| 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치) |
+| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 비밀 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`) |
+| 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`)와 데이터 디렉터리 위치를 정하지 못함 |
 | 4 | 세션 잠금 실패 후 사용자 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않았다. M1은 프롬프트 없이 바로 4다 |
 | 129 | SIGHUP | 터미널이 닫혔다(pi print 모드와 같은 값, `~/projects/_ref/pi-src/packages/coding-agent/src/modes/print-mode.ts:60`) |
 | 130 | 중단 | Ctrl+C(SIGINT)로 끝냈다. print 모드 turn이 `interrupted`로 끝났다 |
@@ -760,6 +764,13 @@ export type CliState = Static<typeof CliStateSchema>;
 | `EngineStartError`(`invalidRemote`) | `--remote` 또는 설정 `l0.process.service.remote`의 주소 문법이 틀리다. 플래그 값은 보이고, 설정 값과 `@`가 든 값은 보이지 않는다 | `unix:/abs`, `tcp://host:port`, `ssh://[user@]host[:port]/abs/socket` 중 하나로 고친다 | 2 |
 | `EngineStartError`(`serviceUnreachable`) | 서비스에 접속하지 못했다(소켓 없음, 거부, 권한, ssh 터널 실패, 토큰 불일치, 응답 없음). 원인별 문구는 §3.3 | 원인별 한 줄(§3.3) | 3 |
 | `EngineStartError`(그 밖의 kind) | `message` | `fix` | 3 |
+| `db export`, `dest_not_empty` | 내보낼 폴더가 비어 있지 않다. 아무것도 바꾸지 않았다 | 비어 있거나 없는 폴더를 지정한다 | 2 |
+| `db export`, `foreign_database` | Xeon 데이터베이스가 아니다(`application_id`) | `XEON_HOME`으로 데이터 디렉터리를 확인하고 `xeon.db`가 다른 프로그램의 파일이면 옮긴다 | 3 |
+| `db export`, `not_a_database` | 데이터베이스 파일이 없거나 SQLite 파일이 아니다 | `xeon chat`을 한 번 실행해 데이터베이스를 만든 뒤 다시 실행한다. 위치는 `XEON_HOME`으로 바꾼다 | 3 |
+| `db export`, `busy` | 데이터베이스가 다른 쓰기로 바쁘다 | 잠시 뒤 다시 실행한다 | 3 |
+| `db export`, `disk_full` | 저장 공간이 가득 찼다 | 디스크 공간을 비우고 다시 실행한다 | 3 |
+| `db export`, `io`(`code`) | 내보내기 중 입출력 오류가 났다(`code`) | 대상 폴더와 데이터 디렉터리의 권한과 디스크 상태를 확인한다 | 3 |
+| 데이터 디렉터리 위치를 정하지 못함(`db export`) | 데이터 디렉터리 위치를 정하지 못했다 | HOME(Windows는 USERPROFILE)과 XEON_HOME 설정을 확인한다 | 3 |
 
 ### 4.11 승인 요청과 잠금 프롬프트
 
@@ -830,6 +841,39 @@ export type CliState = Static<typeof CliStateSchema>;
 - Tab 완성: `/set ` 뒤는 session 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
 - 실패한 슬래시 명령(없는 키, 허용되지 않은 범위)은 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다.
 - 확장이 슬래시 명령을 더하는 경로(L2-e 프롬프트 템플릿)는 등록 쪽이 엔진 안이라 이 문서에 두지 않는다. 클라이언트는 위의 `command.list`와 `command.run`만 부른다.
+
+### 4.13 DB 내보내기 (`db export`)
+
+`xeon db export <폴더>`는 저장소 파일을 `<폴더>`에 내보냅니다. 엔진을 띄우지 않고, 내보내기는 `L0.store.spec` §4.10의 `exportDatabase`가 합니다. 복구와 보관에 쓰는 명령입니다.
+
+- 원본: 데이터 디렉터리(`OsDirs.data`)의 `xeon.db`입니다. 위치는 호스트와 같은 `resolveOsDirs`가 정하므로 `XEON_HOME`이 적용됩니다. 엔진이 이 파일을 열고 있어도 됩니다. 원본은 읽기 전용으로만 열고 아무것도 쓰지 않습니다.
+- 대상: `<폴더>`가 없으면 만듭니다. 있으면 비어 있어야 합니다. 비어 있지 않으면 `dest_not_empty`로 끝나고(종료 코드 2) 아무것도 바꾸지 않습니다. 상대 경로는 작업 폴더(`-C`, 없으면 현재 폴더) 기준입니다.
+- 사람용 출력(stdout): `exported <N> blobs to <절대 경로>` 한 줄입니다.
+- 누락 블롭: `missingBlobs`의 sha256마다 stderr에 `경고: 블롭 파일이 없어 빠졌다: <sha256>` 한 줄을 씁니다. 열 줄을 넘으면 앞의 열 줄만 쓰고, `경고: 나머지 <M>개도 빠졌다 (전체 <K>개, manifest.json의 missingBlobs)` 한 줄로 개수를 알립니다. 누락 블롭이 있어도 내보내기는 성공이고 종료 코드는 0입니다. 사본에는 복사된 블롭만 있습니다.
+- `--json`: `ExportReport`(`destDir`, `exportedAt`, `blobCount`, `missingBlobs`)를 JSON 문서 하나로 stdout에 씁니다. 이 경우 누락 블롭 경고는 stderr에 쓰지 않습니다.
+- 오류: 문구와 종료 코드는 §4.10 표를 따릅니다. 실패하면 `exportDatabase`가 이 호출로 만든 파일과 디렉터리만 지웁니다.
+- 사본을 열 때는 `openStore`를 씁니다. 다른 Xeon 버전이 만든 파일도 내보내집니다. 사본을 데이터 디렉터리로 되돌리는 절차는 이 명령이 하지 않고 M3 복구 런북(`review.m3-plan` M3-25)이 정합니다.
+
+예:
+
+```
+$ xeon db export ~/backup/xeon-2026-10-29
+exported 3 blobs to /home/user/backup/xeon-2026-10-29
+$ xeon db export ~/backup/xeon-2026-10-29 --json
+{
+  "destDir": "/home/user/backup/xeon-2026-10-29",
+  "exportedAt": 1767571200000,
+  "blobCount": 3,
+  "missingBlobs": []
+}
+$ xeon db export ~/backup/xeon-2026-10-29
+xeon: 내보낼 폴더가 비어 있지 않다 (아무것도 바꾸지 않았다)
+  해결: 비어 있거나 없는 폴더를 지정한다
+$ echo $?
+2
+```
+
+[미결] `xeon.db`라는 이름과 데이터 디렉터리 위치는 `apps/host`의 `DB_FILE_NAME`과 `os.dirs.data`에서 옵니다. 호스트가 이 이름을 공개 API로 내보내기 전까지 `apps/cli/src/commands/db.ts`가 같은 이름을 한 번 더 적습니다(§10 18번).
 
 ## 5. 실패와 경계 사례
 
@@ -923,6 +967,7 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC22. `xeon sessions rename <id> <제목>`과 `/rename <제목>`은 `thread.rename { threadId, title }`를 한 번 보내고, 바뀐 제목이 `sessions ls`와 `/resume` 목록에 보인다. 제목이 비었거나 200자를 넘으면 호스트에 보내지 않는다. 첫 입력에서 제목을 정하는 일(80자)은 호스트가 하며 CLI는 하지 않는다.
 - AC23. `/compact`는 `thread.compact { threadId }`를 한 번 보내고(`/compact <지침>`이면 `instructions`를 함께), `compacted`이면 요약 전 토큰 수를, `skipped`이면 이유를 stdout에 쓰며 `turn.start`를 보내지 않는다. 확장이 막거나 요약이 실패하거나 turn이 진행 중이면 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다. 같은 이름의 엔진 명령이 있어도 `command.run`을 부르지 않는다.
 - AC25. `--remote`(또는 설정 주소)가 있으면 엔진 명령은 엔진을 열지 않고 그 주소로 `attachToService`를 부른다. 주소 문법이 틀리면 엔진을 열지 않고 `invalidRemote`(2)로 끝난다. `host --stdio`는 같은 주소에 중계하고 stdin이 닫히면 0으로 끝난다. 원격 토큰 값은 오류 출력에 없다(HS-87~HS-89). 시험: `test/engine-start.test.ts`, `test/host-stdio.test.ts`, `test/parse-chat-flags.test.ts`.
+- AC26. `xeon db export <폴더>`는 엔진에 연결하지 않는다. 실제 저장소에 행과 블롭을 쓰고 원본을 연 채로 내보낸 사본을 읽기 전용 `openStore`로 열면 행과 블롭 바이트가 원본과 같다(`test/db-export.int.test.ts`). 대상 폴더가 비어 있으면 2, 저장소·디스크 오류는 3이다(`test/db-export.test.ts`).
 
 ## 10. 미결 사항
 
@@ -950,3 +995,5 @@ export type CliState = Static<typeof CliStateSchema>;
 22. [미결] 서비스 쪽 값 입력 창(§4.7, `L4.settings-ui.spec` §4.6.4 C안)은 아직 없다. `secret.ts`의 두 줄 오류 문구는 "서비스 모드는 M3에서 제공한다"라고 쓰는데, M3b에서도 그 창이 없으면 이 문구가 틀린다. 창을 만드는 단위와 문구를 정한다.
 23. [미결] 대화형 완료 알림의 노이즈. §4.5.1 규칙대로면 turn이 끝날 때마다 `[완료] 작업이 끝났다`가 한 줄 붙는다. 같은 thread의 답은 화면에 이미 보이므로 이 줄은 잉여다. 같은 thread의 `completed`를 접을지, 다른 thread의 알림에만 쓸지 사용자가 정한다. 그 전까지 규칙은 §4.5.1 그대로다.
 24. [미결] 알림 도착과 세션 종료의 경합. 시험(`slash-commands-host.int.test.ts`, `/compact`)에서 turn 세 개 가운데 한 건의 완료 알림만 세션 종료 전에 도착했다. 종료 직전에 알림 대기열을 짧게 비우는 방법(시간 상한 포함)을 정한다.
+25. [미결] `db export`의 저장소 파일 이름(`xeon.db`)과 데이터 디렉터리 위치. 이름은 `apps/host/src/assemble.ts`의 `DB_FILE_NAME`과 같고 호스트가 내보내지 않아 `apps/cli/src/commands/db.ts`에 한 번 더 있다. 위치는 `runtime.ts`가 `@xeon/platform-os`의 `resolveOsDirs`로 정한다. 호스트가 데이터 디렉터리를 공개 API로 내보내면 두 곳을 그 값으로 바꾼다(§4.13).
+26. [미결] `apps/cli` → `@xeon/platform-store` 간선. `L0.store.spec` §3.2는 `openStore`와 `exportDatabase`를 조립 루트 `apps/host`만 import한다고 적는다. 이 간선은 DR-14 예외 목록에 없다. 의존 검사(`just depcruise`)는 통과하지만, 문서와 맞추려면 허용 목록 항목을 더하거나 호스트 공개 API로 옮기는 결정이 필요하다.

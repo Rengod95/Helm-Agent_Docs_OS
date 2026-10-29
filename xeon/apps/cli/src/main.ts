@@ -66,6 +66,10 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       const { runTrust } = await import("./commands/trust.ts");
       return runTrust(ctx, command);
     }
+    case "db.export": {
+      const { runDb } = await import("./commands/db.ts");
+      return runDb(ctx, command);
+    }
     case "doctor": {
       const { runDoctor } = await import("./commands/doctor.ts");
       return runDoctor(ctx, command);

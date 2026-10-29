@@ -81,6 +81,10 @@ export interface HarnessOptions {
   /** host --stdio의 원격 중계 가짜(기본은 stdin이 닫힌 것) */
   readonly bridgeStdio?: (options: BridgeOptions) => Promise<BridgeExit>;
   readonly probes?: DoctorProbes;
+  /** 저장소 내보내기 가짜(db export). 없으면 호출이 실패한다: 쓰는 시험이 넣어야 한다 */
+  readonly exportDatabase?: CliDeps["exportDatabase"];
+  /** 데이터 디렉터리 위치. null이면 정할 수 없는 상황이다. 없으면 `<임시 폴더>/data` */
+  readonly dataDir?: string | null;
 }
 
 /** 가짜 값 전달 통로. 맡긴 수단을 쌓아 두고 호스트 쪽 가짜 처리기가 꺼내 쓴다 */
@@ -325,6 +329,10 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     devWireRoundTrip: options.devWireRoundTrip ?? false,
     bunVersion: "1.4.3",
     stateFile: options.stateFile === false ? null : stateFile,
+    exportDatabase:
+      options.exportDatabase ??
+      (() => Promise.reject(new Error("exportDatabase was not injected"))),
+    resolveDataDir: () => (options.dataDir === undefined ? join(dir, "data") : options.dataDir),
   };
 
   return {
