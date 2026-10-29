@@ -42,4 +42,4 @@ X9 packages/client test/web/tools-web.test.ts
 # Track B3-SET (schema key set = view-model item set = CLI config key set)
 X10 apps/cli test/x10-settings-keys.int.test.ts
 # Track B5-REL (release smoke, Linux CI and macOS job)
-# X11 scripts <파일>.test.ts
+X11 scripts release-smoke.test.ts

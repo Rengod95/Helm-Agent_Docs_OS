@@ -65,3 +65,7 @@ jobs:
       - name: desktop Rust shell tests
         if: always()
         run: just desktop-test
+      # X11: the release archive of this machine (bundled sops, age, rg from mise above), unpacked and run; the signing step skips without secrets.
+      - name: release smoke (X11)
+        if: always()
+        run: just release-smoke

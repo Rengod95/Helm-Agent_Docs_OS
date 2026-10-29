@@ -1,0 +1,70 @@
+name: Xeon Release
+
+# Release build and smoke (M3b B5-REL, exit condition X11, docs/xeon/L4/release/spec.md). Linux x86_64 and macOS arm64 run the
+# same script (xeon/scripts/release-smoke.sh) with the same inputs. It runs on a release tag, by hand, and on a pull request
+# that touches the release files. The macOS job is also started by hand at milestone close.
+# Signing and notarization (macOS) need the repository secrets APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD,
+# APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD. Without them the step skips and the archive is unsigned.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "xeon/scripts/release*"
+      - "xeon/packages/group-kit/templates/**"
+      - ".github/workflows/xeon-release.yml"
+
+concurrency:
+  group: xeon-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/xeon
+
+jobs:
+  smoke:
+    name: release smoke ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux x86_64
+            os: ubuntu-latest
+          - name: macos arm64
+            os: macos-15
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # Linux takes bwrap, socat and rg from the system (xeon doctor names them); macOS bundles sops, age and rg.
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat ripgrep
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+        with:
+          working_directory: xeon
+      - if: runner.os == 'macOS'
+        run: mise use --global sops@3.13.3 age@1.3.2 ripgrep@15.0.0
+      - uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2.0.0
+        with:
+          just-version: "1.58.0"
+      - run: just setup
+      - name: release smoke (build, unpack, run)
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: just release-smoke
+      - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        with:
+          name: xeon-release-${{ runner.os }}
+          path: xeon/dist/release-smoke/*.tar.gz*
+          if-no-files-found: error

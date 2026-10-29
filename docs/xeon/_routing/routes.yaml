@@ -63,12 +63,16 @@ layout:
       learning: "xeon/packages/group-learning/**"
       # slots는 코드 없음 (템플릿 문서만)
   L4:
-    domains: [cli, desktop, host-service, settings-ui]
+    domains: [cli, desktop, host-service, settings-ui, release]
     paths:
       cli: "xeon/apps/cli/**"
       desktop: "xeon/apps/desktop/**"
       host-service: "xeon/apps/host/**"
       settings-ui: "xeon/packages/client/src/settings/**"   # view-model(adr.0020). 렌더러는 xeon/apps/desktop/src/views
+      release: "xeon/scripts/release*"
+      # 도메인 밖의 릴리즈 경로 두 개(층 수준 하위 경로, L4.release.spec binds)
+      release-bundle: "xeon/scripts/release-bundle.json"
+      release-workflow: ".github/workflows/xeon-release.yml"
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.readme, L1.models.spec, L1.models.plan]

@@ -82,6 +82,7 @@ test("the repository list parses and names every exit condition it covers", () =
     "M1",
     "X1",
     "X10",
+    "X11",
     "X2",
     "X3",
     "X4",
@@ -194,7 +195,7 @@ test("no matching file is missing, a non-zero exit is failed, a clean run is ok"
   expect(describeVerdict(ENTRY, ok)).toBe("E7\tpackages/platform-secrets\tok\tpass 5, skip 0");
 });
 
-test("X7 names the view-model test and the host test through the real settings.writeFile, X8 and X10 name their tests", () => {
+test("X7 names the view-model test and the host test through the real settings.writeFile, X8, X10 and X11 name their tests", () => {
   const text = readFileSync(join(import.meta.dir, "exit-tests.txt"), "utf8");
   const parsed = parseExitList(text);
   if (!parsed.ok) throw new Error(parsed.error);
@@ -209,4 +210,5 @@ test("X7 names the view-model test and the host test through the real settings.w
   ]);
   expect(linesOf("X8")).toEqual([["packages/client", ["test/settings/x8.test.ts"]]]);
   expect(linesOf("X10")).toEqual([["apps/cli", ["test/x10-settings-keys.int.test.ts"]]]);
+  expect(linesOf("X11")).toEqual([["scripts", ["release-smoke.test.ts"]]]);
 });

@@ -102,6 +102,16 @@ web-pricing:
 desktop-sidecar triple *flags:
     {{bun}} scripts/build-sidecar.ts {{triple}} {{flags}}
 
+# 릴리즈 아카이브 빌드 <triple|host> [--version x.y.z] [--binaries-dir 폴더] [--no-build]
+[group('local')]
+release triple *flags:
+    {{bun}} scripts/release.ts {{triple}} {{flags}}
+
+# 릴리즈 스모크(X11): 이 기기의 릴리즈를 빌드해 풀고 점검한다. 환경 변수 XEON_RELEASE_VERSION, XEON_RELEASE_OUT
+[group('local')]
+release-smoke:
+    scripts/release-smoke.sh
+
 # 데스크톱 화면 번들 (bun build → apps/desktop/src-tauri/ui). 인자 dev는 불변식 검사를 켠 개발 빌드. just verify 밖
 [group('local')]
 desktop-ui mode="release":
