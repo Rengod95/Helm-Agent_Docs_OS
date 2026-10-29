@@ -1,6 +1,7 @@
 // 시험용 L0 저장소. platform-store의 실제 저장소(`@xeon/platform-store/testing`)를 열고, 이 패키지 시험이 쓰는 모양
 // (raw 검사 연결, 동기 rowCounts·tableHashes, takeover·loseLease가 붙은 leases)으로 감싼다(open-issues M-04).
 import { Database } from "bun:sqlite";
+import { dirname, join } from "node:path";
 import { Bug, canonicalJson } from "@xeon/contracts";
 import type {
   LeaseHolder,
@@ -37,6 +38,10 @@ export interface TestStore {
   readonly migrations: MigrationRunner;
   /** 실제 저장소 서비스(blob, 확장 테이블 포함) */
   readonly service: StoreService;
+  /** 블롭 GC(실제 저장소). 시험이 liveRefs를 넘겨 고아 블롭을 지운다 */
+  readonly gcBlobs: PlatformTestStore["opened"]["gcBlobs"];
+  /** 블롭 파일이 놓이는 폴더(저장소 DB 파일 옆 blobs/) */
+  readonly blobsDir: string;
   /** 사용자 테이블(sqlite_ 제외)의 행 수 */
   rowCounts(): Readonly<Record<string, number>>;
   /** 사용자 테이블마다 기본 키 정렬 행 해시(행 수와 내용이 같음을 대조한다) */
@@ -93,6 +98,8 @@ export async function openTestStore(options: TestStoreOptions): Promise<TestStor
     leases,
     migrations: inner.service.migrations,
     service: inner.service,
+    gcBlobs: inner.opened.gcBlobs,
+    blobsDir: join(dirname(inner.path), "blobs"),
     rowCounts() {
       const counts: Record<string, number> = {};
       for (const table of userTables()) {
