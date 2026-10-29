@@ -828,6 +828,32 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 예 4 (`chain`, `tool.result`): `user` 확장 A가 `content`를 요약으로 바꾸고, `builtin`의 학습 그룹이 `details`만 바꾼다. `CHAIN_RULES.tool_result`는 필드별 병합이라 두 변경이 모두 남는다. 순서가 바뀌어도 결과가 같다.
 
+#### 4.1.4 샌드박스 강제 위치와 `tool_call` 처리 순서 [결정: M3-REQ-32]
+
+샌드박스는 on 핸들러가 아니라 L0 실행 경로에서 강제합니다. X는 샌드박스를 알지 못하고, `GUARD_EXTENSIONS`에는 L1 권한 판정 핸들러(`core-tools`)만 있습니다(§10 미결 20 닫음).
+
+| 구분 | 위치 | 하는 일 |
+|---|---|---|
+| 강제 | 도구 실행(`L1.tools.spec` §4.2 단계 8)이 부르는 `xeon.exec`의 `Shell`. 셸 도구는 `xeon.sandbox`의 `wrapShell(shell, policy)`로 감싼 `Shell`을 쓴다(`L0.sandbox.spec` §4.2) | 감싸기·거부·감싸지 않고 실행의 판정은 `decideExecution`(`L0.sandbox.spec` §4.5)이다. 결과의 `sandbox.unsandboxedBy`가 있으면 L1이 감사 이벤트 `tool.sandbox_bypassed`를 남긴다(`L1.tools.spec` §4.12) |
+| 가장자리 | stdio MCP 서버 프로세스 | 출처별로 켬·끔을 정한다(`L0.sandbox.spec` §4.8, `L2.mcp.spec` §4.3) |
+| 해당 없음 | 파일 도구, 웹 도구, 확장 코드 | 샌드박스로 감싸지 않는다. 파일 도구는 보호 경로 검사를 L1·L2가 한다 |
+
+한 도구 호출이 지나는 순서는 아래와 같고 앞 단계의 거부가 뒤 단계를 실행하지 않습니다.
+
+| 순서 | 단계 | 지점 또는 위치 | 거부하는 쪽 |
+|---|---|---|---|
+| 1 | 스키마 검증 | `prepare` 단계 4 | `core-tools` |
+| 2 | `tool.call.before`(first), tier 순서 `guard` → `user` → `project` → `builtin` → `core` | 단계 5a | Helm 쓰기 거부는 기본 플러그인(`user` tier)의 first 핸들러라 여기서 나온다. 샌드박스를 부르기 전이다 [제안] |
+| 3 | 정책 평가와 승인 | 단계 5b, 5c | `core-tools` 권한 판정 |
+| 4 | `guard.tool.before`(first) | 단계 5c2 | 가드 핸들러 |
+| 5 | 의도 커밋, 잠금, 슬롯 | 단계 6, 7 | — |
+| 6 | 도구 실행. 셸 도구는 여기서 샌드박스를 거친다 | 단계 8 | `xeon.sandbox`(`sandbox_unavailable`, 쓰기·네트워크 위반) |
+| 7 | `tool.result`(chain)와 결과 기록 | 단계 9, 10 | — |
+
+- Helm 쓰기 거부가 샌드박스보다 먼저인 이유: 거부된 호출은 실행하지 않으므로 샌드박스의 허용·거부 판정이 필요 없고, 승인 대기와 감사 이벤트도 남기지 않습니다. 샌드박스는 허용된 호출의 마지막 방어선입니다.
+- 샌드박스를 쓸 수 없을 때(`disable_execute`, `ask`)의 결과는 거부 오류이고, `run_unsandboxed`이면 실행한 뒤 `tool.sandbox_bypassed`가 남습니다.
+- 확장이 `tool.call.before`에서 샌드박스를 우회하게 하는 경로는 없습니다. 이 지점의 결정에는 허용 변형이 없고(`ToolCallDecision`), `allowEscape`는 호출자(도구 구현)만 정하며 항상 승인 대상입니다(`L0.sandbox.spec` §4.2).
+
 ### 4.2 핸들러 시간 예산
 
 #### 4.2.1 선례 비교
@@ -1348,5 +1374,5 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 17. (해소, M2 O-19) `ResourcePolicy.exposeAll`(집합 판정)을 X.primitives.spec §3.9에 더했고 `createResourcePolicy`가 구현한다(§4.5).
 18. (해소) setup 시간 예산 키는 `x.operations.budget.setupMs`다. X.loading-trust.spec §4.3.1도 같은 이름을 쓴다. 값은 `OperationsPolicy.setupBudgetMs` → `ExtHostDeps.setupBudgetMs` 경로로 primitives의 scope setup에 걸린다.
 19. [결정: review.m3-design-inputs D-M3-07 a] 안전 모드에서 L3 내장 그룹을 끈다(§4.6.2). Helm은 기본 플러그인(D-M3-01 c)이라 `user` tier로 실리고 같이 꺼진다.
-20. [미결] 샌드박스 강제를 on 핸들러(`tool.call.before` first)로 둘지, L0 실행 경로에서만 할지(§3.1, §4.1.2). [제안] L0 실행 경로에서 하고 on 핸들러는 두지 않는다. on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다. `L0.sandbox.spec`, `L1.tools.spec`과 정한다.
+20. (해소, M3-REQ-32) 샌드박스 강제는 L0 실행 경로에서 하고 on 핸들러는 두지 않는다(§4.1.4). on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다.
 21. [결정: 2026-10-28 사용자] 외부 훅(§3.7, §4.7)은 M3 밖이고 M4로 옮긴다. D-M3-11 c안 원문("로더·안전 모드만")과 같은 판단이다. 이 항목은 닫았다.

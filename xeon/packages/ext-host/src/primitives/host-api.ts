@@ -344,6 +344,7 @@ export function createScopeApi(
           id,
           service,
           defs: deps.capabilityDefs,
+          providerTrusted: () => deps.bindings.providerIsBuiltin(id),
           extension: record.extension,
           scopeId: record.id,
         }),
@@ -373,7 +374,14 @@ export function createScopeApi(
       const fiber = fiberOf(generation);
       fiber.provide(name, impl);
       fiber.effect(
-        () => deps.bindings.addProvider(id, record.extension, provision.version, key.version),
+        () =>
+          deps.bindings.addProvider(
+            id,
+            record.extension,
+            provision.version,
+            key.version,
+            record.builtin,
+          ),
         `provider(${id})`,
       );
     },
