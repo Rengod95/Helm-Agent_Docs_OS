@@ -32,7 +32,8 @@ describe("secret reference input checks (spec §3.1)", () => {
       expect(parsed.ok).toBe(false);
       if (!parsed.ok) {
         expect<string>(parsed.error.kind).toBe(kind);
-        expect(Reflect.get(parsed.error, "reason")).toBe(reason);
+        const actualReason: unknown = "reason" in parsed.error ? parsed.error.reason : undefined;
+        expect(actualReason).toBe(reason);
       }
     }
   });
@@ -51,7 +52,8 @@ describe("secret reference input checks (spec §3.1)", () => {
       expect(parsed.ok).toBe(false);
       if (!parsed.ok) {
         expect(parsed.error.kind).toBe("unsupported_ref_syntax");
-        expect(Reflect.get(parsed.error, "syntax")).toBe(syntax);
+        const actualSyntax: unknown = "syntax" in parsed.error ? parsed.error.syntax : undefined;
+        expect(actualSyntax).toBe(syntax);
       }
     }
   });
