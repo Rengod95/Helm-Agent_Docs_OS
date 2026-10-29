@@ -351,6 +351,7 @@ export interface OpenedStore extends AsyncDisposable {
   readonly service: StoreService;                                  // Cordis xeon.store로 등록
   readonly root: StoreDb;                                          // core-persistence 전용 (eng.transactions.design §4.2)
   readonly blobPins: BlobPins;                                     // core-persistence 전용 (§3.4)
+  readonly gcBlobs: (options: { readonly liveRefs: ReadonlySet<string> }) => Result<BlobGcReport, BlobError>; // §4.9 GC 한 번. 조립 루트 전용
   readonly warnings: readonly StoreWarning[];
   close(): Promise<void>;                                          // §4.4 종료 절차
 }
@@ -463,7 +464,7 @@ export interface BlobPins {
 }
 ```
 
-- [제안] `OpenedStore.blobPins`로 `core-persistence`에만 넘긴다. 범위 핸들 소유자(`cap.*`, `ext.*`)가 블롭을 참조할 때는 `StoreService`에 `pinBlob(owner, …)`을 열지 [미결 S-7]이다. M1 범위의 블롭 소비자는 `core-persistence`뿐이다.
+- [제안] `OpenedStore.blobPins`로 `core-persistence`에만 넘긴다. 범위 핸들 소유자(`cap.*`, `ext.*`)는 `StoreService.pinBlob(owner, sha256, refKey)`와 `unpinBlob(owner, refKey)`로 같은 `sys_blob_refs`에 참조를 적고 푼다 [결정: M3-REQ-62, 미결 S-7 해소]. 소유자 검사는 `scoped`와 같다(루트 전용·미등록은 Bug `store.prefix_not_owned`). 블롭 행이 없으면 `blob_missing`이다.
 
 ```ts
 // xeon/packages/platform-store/src/lock/provider.ts
@@ -736,12 +737,14 @@ macOS `fullfsync` [제안]:
 
 GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙만 차용, `_research/packages.md §2.3`):
 
-1. 고아 행: `sys_blobs` 중 `sys_blob_refs`에 행이 없고 `last_put_at < now - blobGraceMs`인 것. 파일을 지운 뒤 행을 지운다.
+1. 고아 행: `sys_blobs` 중 `sys_blob_refs`에 행이 없고 `last_put_at < now - blobGraceMs`이며 `liveRefs`(아래)에 없는 것. 행을 한 트랜잭션에서 먼저 지우고 그 뒤 파일을 지운다(행만 남고 파일이 없는 상태를 만들지 않는다). 사이에 죽으면 2번 규칙이 파일을 거둔다.
 2. 행 없는 파일: `blobs/<ab>/*` 중 `sys_blobs`에 없고 mtime이 `now - blobGraceMs`보다 오래된 것. 블롭을 쓰고 8단계 전에 죽은 경우다.
 3. 임시 파일: `blobs/tmp/*.tmp` 중 mtime이 `blobGraceMs`보다 오래된 것.
 - 유예 시간 동안은 참조 없는 블롭도 지우지 않는다. 블롭 선쓰기 뒤 이벤트 커밋 전인 블롭을 지우지 않기 위해서다. 같은 해시를 다시 `putBlob`하면 `last_put_at`이 갱신되어 유예가 다시 시작된다(omp의 mtime 갱신 규칙에 해당).
 - 실행 시점: 열기 뒤 한 번(지연 실행)과 하루 한 번. `scheduler` 임대를 쥔 프로세스만 한다 [제안]. 한 번에 지우는 수 상한 1000개.
-- 파일 삭제와 행 삭제 사이에 크래시가 나면 다음 GC가 1번 규칙에서 `blob_missing` 없이 행만 지운다(파일 없음은 무시한다).
+- 행 삭제와 파일 삭제 사이에 크래시가 나면 다음 GC가 2번 규칙에서 그 파일을 지운다. 파일이 이미 없으면 무시한다. 파일 삭제가 실패하면(사용 중 등) 그 항목은 `deferred`로 세고 다음 주기로 미룬다.
+- 뿌리 집합 [결정: M3-REQ-84, L1.persistence.spec 미결 12 해소]: 지우지 않을 해시는 `sys_blob_refs`에 있는 것과 호출자가 넘기는 `liveRefs`의 합이다. L0은 L1을 부를 수 없으므로 조립 루트(L4 host)가 `query.liveBlobRefs()`(`p_blob_refs`)를 모아 `OpenedStore.gcBlobs({ liveRefs })`에 넘긴다. 한 번의 GC는 동기로 끝나므로 같은 프로세스의 `putBlob`과 끼어들지 않는다.
+- 결과 `BlobGcReport`는 `{ rows, orphanFiles, tmpFiles, deferred, truncated }`이다. `truncated`가 true면 상한(1000) 때문에 후보가 남았다.
 
 ## 5. 실패와 경계 사례
 
@@ -870,7 +873,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - [결정: review.decisions-2 U-09] S-2. adr.0006 §3.6 규칙 4의 `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. `L0.process.spec` P-2와 같은 항목이다.
 - [미결 S-4] FTS5 프로브 실패 시 운영 시작 동작. 권고는 저장소를 열고 `capabilities.fts5 = false`로 검색만 끄는 것이다(TC-11, adr.0004 §6).
 - [미결 S-5] Windows `LockProvider` 수단: named mutex(`CreateMutexW`) 또는 `LockFileEx`. bun:ffi 실측 뒤 정한다(`_research/notes/L0-2.md §6`).
-- [미결 S-7] 범위 핸들 소유자(`cap.*`, `ext.*`)에게 블롭 참조 기록(`pinBlob`)을 열지.
+- [해소 S-7] 범위 핸들 소유자에게 `pinBlob`·`unpinBlob`을 연다(§3.4).
 - [미결 S-8] 접두사 밖 문장 거부를 운영 빌드에도 켤지. `EXPLAIN` 대조 비용 측정(ST-07) 뒤 정한다.
 - [미결 S-9] macOS `fullfsync` 기본값. 제안은 켬이고 성능 측정(ST-17) 뒤 확정한다.
 - [미결 S-10] bun:ffi 안정성. Bun 문서의 실험 기능 경고 원문을 확인하고, 문제가 있으면 `none` provider(DB 임대만)를 기본으로 둘지 정한다.

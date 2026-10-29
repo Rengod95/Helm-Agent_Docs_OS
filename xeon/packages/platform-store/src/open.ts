@@ -19,7 +19,7 @@ import { APPLICATION_ID, applyReadPragmas, applyWritePragmas, readPragma } from 
 import { isStrictBuild } from "./prefix.ts";
 import { createLockProvider, selectPlatformPolicy } from "./select.ts";
 import { MIGRATION_SNAPSHOT_KEEP } from "./snapshot.ts";
-import { assembleStoreService, createScopedFactory } from "./service.ts";
+import { assembleStoreService, createPinOwnerCheck, createScopedFactory } from "./service.ts";
 import {
   asSqliteFailure,
   initSqlite,
@@ -283,6 +283,7 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
       faults,
       directoryFsync: policy.directoryFsync,
       verifyHash: strict,
+      graceMs: options.settings.blobGraceMs,
     });
     const capabilities: StoreCapabilities = {
       fts5: probe.fts5,
@@ -298,6 +299,7 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
       extensions: createExtensionTables({ conn, clock: options.clock }),
       leases,
       blobs,
+      assertPinOwner: createPinOwnerCheck(conn),
     });
 
     const closeNow = (): void => {
@@ -329,6 +331,7 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
       service,
       root: createStoreDb(conn),
       blobPins: blobs.pins,
+      gcBlobs: (gcOptions) => blobs.gc(gcOptions),
       warnings,
       faults: options.faults ?? NO_FAULTS,
       close,

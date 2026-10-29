@@ -15,7 +15,7 @@ export type {
   StoreSettings,
   StoreWarning,
 } from "./types.ts";
-export type { BlobPins } from "./blob.ts";
+export type { BlobGcOptions, BlobGcReport, BlobPins } from "./blob.ts";
 export type { LockAcquireError, LockHandle, LockProvider } from "./lock/provider.ts";
 export type { SqliteProbe, ProbeDriver } from "./sqlite-env.ts";
 export type { StoreFaultInjector, StoreFaultPoint } from "./fault-points.ts";

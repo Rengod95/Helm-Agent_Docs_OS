@@ -2,7 +2,7 @@ import type { Clock, Result, Scheduler } from "@xeon/contracts";
 import type { IdFactory } from "@xeon/contracts/conversation";
 import type { FaultInjector, MigrationError, StoreDb, StoreService } from "@xeon/contracts/records";
 import type { FsKind } from "@xeon/contracts/services";
-import type { BlobPins } from "./blob.ts";
+import type { BlobPins, BlobStore } from "./blob.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
 import type { snapshotBeforeMigration } from "./snapshot.ts";
 import type { SqliteProbe } from "./sqlite-env.ts";
@@ -111,6 +111,8 @@ export interface OpenedStore extends AsyncDisposable {
   readonly root: StoreDb;
   /** core-persistence 전용 */
   readonly blobPins: BlobPins;
+  /** 참조 없는 블롭 GC 한 번(L0.store.spec §4.9). 조립 루트가 `scheduler` 임대를 쥔 프로세스에서만 부른다 */
+  readonly gcBlobs: BlobStore["gc"];
   /** 열기 때 모인 경고에 close()에서 생긴 경고가 더해진다 */
   readonly warnings: readonly StoreWarning[];
   /** options.faults 그대로. 없으면 아무것도 하지 않는 주입기 */

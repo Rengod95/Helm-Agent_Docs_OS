@@ -35,6 +35,19 @@ export function createScopedFactory(
   };
 }
 
+/** `pinBlob` 소유자 검사. `scoped`와 같은 규칙이다 */
+export function createPinOwnerCheck(conn: StoreConnections): (owner: string) => void {
+  return (owner: string): void => {
+    if (conn.state.phase !== "open") throw new Bug("store.closed: the store is closed");
+    if (isRootOnlyOwner(owner)) {
+      throw new Bug(`store.prefix_not_owned: ${owner} has no scoped handle (root handle only)`);
+    }
+    if (readOwnerSpec(conn.write, owner) === undefined) {
+      throw new Bug(`store.prefix_not_owned: ${owner} is not registered in sys_prefixes`);
+    }
+  };
+}
+
 export interface StoreServiceParts {
   readonly storeId: string;
   readonly capabilities: StoreCapabilities;
@@ -43,6 +56,8 @@ export interface StoreServiceParts {
   readonly extensions: ExtensionTables;
   readonly leases: LeaseService;
   readonly blobs: BlobStore;
+  /** 루트 전용·미등록 소유자는 Bug(store.prefix_not_owned) */
+  readonly assertPinOwner: (owner: string) => void;
 }
 
 /** F StoreService 구현(L0.store.spec §3.1). X 포트 ScopedStorePort(Pick<StoreService, "scoped">)를 그대로 만족한다 */
@@ -59,6 +74,14 @@ export function assembleStoreService(parts: StoreServiceParts): StoreService {
     },
     readBlob(ref: BlobRef): Result<Uint8Array, BlobError> {
       return parts.blobs.readBlob(ref);
+    },
+    pinBlob(owner: string, sha256: string, refKey: string): Result<void, BlobError> {
+      parts.assertPinOwner(owner);
+      return parts.blobs.pinRef(sha256, owner, refKey);
+    },
+    unpinBlob(owner: string, refKey: string): Result<number, BlobError> {
+      parts.assertPinOwner(owner);
+      return parts.blobs.unpinRefs(owner, refKey);
     },
   };
 }
