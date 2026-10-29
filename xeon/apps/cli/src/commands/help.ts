@@ -1,114 +1,22 @@
+import { t, type MessageId } from "@xeon/client/i18n";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 
 // L4.cli.spec §3.1 명령 표. 도움말에 보이지 않는 명령(host --stdio, service launch-mode, service run)은 싣지 않는다.
 
-const OVERVIEW = `xeon: 대화형 에이전트 런타임
-
-사용법: xeon [공통 플래그] [명령] [인자]
-
-명령
-  chat                      대화형 모드 (기본). 터미널이 아니면 print 모드로 바뀐다
-  chat -p <입력>            print 모드: 입력 하나로 turn 하나를 돌리고 응답을 stdout에 쓴다
-                            -p - 또는 -p만 쓰면 stdin 전체가 입력이다
-  chat -p <입력> --json     JSON 모드: 연결에서 오간 JSON-RPC 메시지를 한 줄에 하나씩 쓴다
-  chat -p <입력> --auto-approve
-                            print 모드에서 도구 승인을 한 번 허용한다. 질문·계획·검토는 거부한다
-  chat --continue           현재 작업 폴더의 마지막 세션을 이어 연다
-  chat --resume <id>        지정한 세션을 이어 연다
-  chat --set <키>=<값>      이 세션에만 설정을 덮어쓴다 (여러 번 쓸 수 있다)
-  sessions ls [--all] [--limit n] [--json]
-  sessions show <id> [--json]
-  sessions fork <id> [--at <항목 id>]
-  sessions rm <id> [--yes]  세션 목록, 보기, 분기, 삭제
-  sessions rename <id> <제목>  세션 제목을 바꾼다 (200자 이하)
-  config get [<키>…]        유효 값과 출처를 보인다
-  config schema --scope <managed|user|project|local> [--out <경로>] [--core-only]
-                            설정 파일 JSON Schema를 쓴다
-  config set <키> <값> [--scope user|project|local]
-  config reset <키> [--scope user|project|local]
-  config list [--prefix <p>] [--deprecated] [--json]
-                            설정 쓰기, 지우기, 목록
-  secret ls|add|set|meta|rotate|rm|test|reveal
-                            비밀 관리. 값은 프롬프트나 stdin으로만 받는다. reveal은 터미널에서만 쓴다
-  trust [status] [--json]   이 작업 폴더의 프로젝트 신뢰 상태와 선택지를 보인다
-  trust allow|deny [--scope folder|parent|session]
-                            신뢰 결정을 보낸다. 신뢰하면 .mcp.json, 프로젝트 스킬, 프로젝트 명령을 읽는다
-  db export <폴더> [--json] 저장소 파일을 엔진 없이 읽기 전용으로 내보낸다. 엔진이 떠 있어도 된다
-  schedule add <프롬프트…> (--every <초> | --at <시각> | --remote | --watch <경로>[,…] | --loop <초> …)
-                            예약을 만든다. 서비스 모드가 꺼져 있으면 저장만 되고 실행되지 않는다. 자세히는 xeon help schedule
-  schedule list [--all] [--json]
-  schedule cancel <id>      예약을 끈다
-  schedule run <id>         원격 예약을 지금 한 번 실행한다
-  service start|status|stop|ensure [--json] [--safe-mode] [--listen-tcp <호스트>:<포트> [--allow-non-loopback]]
-                            공유 서비스 모드. start·ensure는 서비스를 띄우고(이미 떠 있으면 붙는다),
-                            status·stop은 조회·정지한다. 안전 모드와 TCP는 새로 띄울 때만 적용된다
-  group new <이름> [--drive|--policy] [--dir <폴더>] [--json]
-                            그룹 골격을 만든다. 기본은 관찰 그룹, --drive는 구동, --policy는 정책 그룹이다.
-                            대상 폴더는 비어 있어야 하고, 의존은 설치하지 않는다
-  doctor [--json]           진단: 엔진, 저장소, 비밀 저장소, 터미널, 검색 provider
-  version [--json]          버전
-
-공통 플래그
-  -h, --help                도움말
-  --no-color                색 끄기 (NO_COLOR 환경 변수도 같다)
-  -C <폴더>                 작업 폴더
-  --remote <주소>           원격 서비스 주소. 설정 l0.process.service.remote보다 우선한다
-                          unix:/abs, tcp://host:port, ssh://[user@]host[:port]/abs/socket
-
-종료 코드
-  0 정상   1 일반 오류   2 사용법 오류   3 환경 문제   4 세션 잠금
-  129 SIGHUP   130 중단(Ctrl+C)   143 SIGTERM
-`;
-
-const TOPICS: Readonly<Record<string, string>> = {
-  db: `사용법: xeon db export <폴더> [--json]
-
-  <폴더>        내보낼 폴더. 없으면 만들고, 있으면 비어 있어야 한다. 상대 경로는 작업 폴더(-C) 기준이다
-  --json        내보내기 결과(destDir, exportedAt, blobCount, missingBlobs)를 JSON으로 쓴다
-
-  <폴더>/xeon.sqlite, <폴더>/blobs/, <폴더>/manifest.json을 만든다. 엔진을 띄우지 않는다.
-`,
-  chat: `사용법: xeon chat [-p [<입력>]] [--json] [--auto-approve] [--continue | --resume <id>] [--set <키>=<값>]…
-
-  -p, --print [<입력>]   print 모드. 입력이 없거나 -이면 stdin 전체를 입력으로 쓴다
-  --json                 print 모드에서 JSON-RPC 메시지를 한 줄에 하나씩 쓴다
-  --auto-approve         print 모드에서 도구 승인을 한 번 허용한다. 승인마다 stderr에 알린다
-                         질문·계획·검토 승인은 거부한다. 대화형과 함께 쓰면 사용법 오류다
-  --continue             현재 작업 폴더의 마지막 세션을 이어 연다
-  --resume <id>          지정한 세션을 이어 연다
-  --set <키>=<값>        이 세션에만 설정을 덮어쓴다 (여러 번 쓸 수 있다)
-`,
-  config: `사용법: xeon config get [<키>…] [--json]
-       xeon config schema --scope <managed|user|project|local> [--out <경로>] [--core-only]
-       xeon config set <키> <값> [--scope user|project|local]
-       xeon config reset <키> [--scope user|project|local]
-       xeon config list [--prefix <p>] [--deprecated] [--json]
-`,
-  schedule: `사용법: xeon schedule add <프롬프트…> (--every <초> | --at <시각> | --remote | --watch <경로>[,<경로>…] | --loop <초> --max-iterations <n> --expires-in <초>)
-                       [--title <제목>] [--workspace <폴더>] [--disabled]
-       xeon schedule list [--all] [--json]
-       xeon schedule cancel <id>
-       xeon schedule run <id>
-
-  --every <초>           이 초마다 프롬프트를 새 세션에서 실행한다. 최소 300초다
-  --at <시각>            RFC 3339 시각에 한 번 실행한다
-  --remote               기한에 실행하지 않는다. xeon schedule run <id>로 지금 실행한다
-  --watch <경로>[,…]     경로가 바뀌면 실행한다. --debounce <ms>(기본 1000)만큼 기다린 뒤 실행한다
-  --loop <초>            같은 프롬프트를 반복한다. --max-iterations와 --expires-in은 함께 준다
-  --title <제목>         목록에 보일 제목 (200자 이하)
-  --workspace <폴더>     실행 세션의 작업 폴더. 없으면 호스트 기본 폴더다
-  --disabled             만들되 끈 상태로 둔다
-  --remote는 트리거 플래그다. 원격 서비스 주소는 명령 앞에 쓴다 (xeon --remote <주소> schedule list)
-  예약은 서비스 모드에서만 실행된다. 꺼져 있으면 저장만 되고 경고가 한 줄 나온다
-`,
-};
+/** 주제 이름 → 도움말 id. 본문은 카탈로그에 있고 보여 줄 때 현재 로케일로 만든다 */
+const TOPICS: ReadonlyMap<string, MessageId> = new Map<string, MessageId>([
+  ["db", "cli.help.topic.db"],
+  ["chat", "cli.help.topic.chat"],
+  ["config", "cli.help.topic.config"],
+  ["schedule", "cli.help.topic.schedule"],
+]);
 
 /** 도움말을 stdout에 쓴다. 모르는 주제는 전체 도움말이다 */
 export async function runHelp(
   topic: string | null,
   stdout: (text: string) => Promise<void>,
 ): Promise<ExitCode> {
-  const text = topic === null ? undefined : TOPICS[topic];
-  await stdout(text ?? OVERVIEW);
+  const id = topic === null ? undefined : TOPICS.get(topic);
+  await stdout(t(id ?? "cli.help.overview"));
   return EXIT.ok;
 }

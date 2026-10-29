@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
 import type { OutputMode } from "../cli/command.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
@@ -29,7 +30,9 @@ export async function runVersion(
     });
     await stdout(`${line}\n`);
   } else {
-    await stdout(`xeon ${facts.cli}\n계약 ${WIRE_PROTOCOL_VERSION}\nBun ${facts.bun}\n`);
+    await stdout(
+      t("cli.version.text", { cli: facts.cli, contract: WIRE_PROTOCOL_VERSION, bun: facts.bun }),
+    );
   }
   return EXIT.ok;
 }

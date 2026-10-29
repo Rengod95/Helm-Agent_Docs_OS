@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever } from "@xeon/contracts";
 import type { EffectiveSetting, SettingDefWire, SettingSource } from "@xeon/contracts/settings";
 import type { HostConnection } from "@xeon/contracts/wire";
@@ -102,12 +103,15 @@ function describeDef(def: SettingDefWire): string {
   const type = def.type["type"];
   if (typeof type === "string") parts.push(type);
   const { range } = def;
-  if (range?.enum !== undefined) parts.push(`선택: ${range.enum.join(" | ")}`);
+  if (range?.enum !== undefined)
+    parts.push(t("cli.config.choices", { values: range.enum.join(" | ") }));
   if (range?.min !== undefined || range?.max !== undefined) {
-    parts.push(`범위: ${String(range.min ?? "")}..${String(range.max ?? "")}`);
+    parts.push(
+      t("cli.config.range", { min: String(range.min ?? ""), max: String(range.max ?? "") }),
+    );
   }
-  parts.push(`적용: ${def.runtimeChange}`);
-  parts.push(`쓸 수 있는 범위: ${def.allowedScopes.join(", ")}`);
+  parts.push(t("cli.config.applies", { change: def.runtimeChange }));
+  parts.push(t("cli.config.writableScopes", { scopes: def.allowedScopes.join(", ") }));
   if (def.deprecated !== undefined) parts.push("deprecated");
   return `  ${parts.join(" · ")}`;
 }
@@ -136,7 +140,7 @@ async function runConfigList(
       const setting = values.get(def.key);
       const head =
         setting === undefined
-          ? [`${def.key} = (읽지 못함)`]
+          ? [t("cli.config.unreadable", { key: def.key })]
           : formatSettings([setting]).trimEnd().split("\n");
       lines.push(...head, describeDef(def));
     }

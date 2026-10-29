@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
 import { ScheduleIdSchema, SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
 import {
@@ -303,7 +304,11 @@ interface GlobalAcc {
 
 /** `--remote`에 주소가 없거나 빈 문자열이다. 빈 주소는 원격을 끄는 것과 헷갈리므로 사용법 오류로 본다 */
 function missingRemote(): UsageError {
-  return usage("missingArgument", "--remote에 주소가 없다", "--remote <주소> 형식으로 쓴다");
+  return usage(
+    "missingArgument",
+    t("cli.usage.remote.missing.message"),
+    t("cli.usage.remote.missing.fix"),
+  );
 }
 
 function scanArgs(
@@ -325,7 +330,13 @@ function scanArgs(
     const spec = specs[name];
     const list = values.get(name) ?? [];
     if (list.length > 0 && spec?.repeat !== true) {
-      fail(usage("conflictingFlags", `${name}을 두 번 이상 썼다`, `${name}은 한 번만 쓸 수 있다`));
+      fail(
+        usage(
+          "conflictingFlags",
+          t("cli.usage.flag.repeated.message", { name }),
+          t("cli.usage.flag.repeated.fix", { name }),
+        ),
+      );
       return;
     }
     list.push(value);
@@ -350,8 +361,8 @@ function scanArgs(
         onUnknownFlag?.(name) ??
           usage(
             "unknownFlag",
-            `모르는 플래그 ${name}`,
-            "xeon --help로 쓸 수 있는 플래그를 확인한다",
+            t("cli.usage.flag.unknown.message", { name }),
+            t("cli.usage.flag.unknown.fix"),
           ),
       );
       continue;
@@ -360,7 +371,13 @@ function scanArgs(
       token.startsWith("--") && token.includes("=") ? token.slice(name.length + 1) : null;
     if (spec.value === "none") {
       if (inline !== null) {
-        fail(usage("unexpectedArgument", `${name}은 값을 받지 않는다`, `${name}만 쓴다`));
+        fail(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.flag.noValue.message", { name }),
+            t("cli.usage.flag.noValue.fix", { name }),
+          ),
+        );
       } else {
         put(name, "");
       }
@@ -375,7 +392,13 @@ function scanArgs(
       next !== undefined && (spec.value === "required" || next === "-" || !next.startsWith("-"));
     if (!takesNext) {
       if (spec.value === "required") {
-        fail(usage("missingArgument", `${name}에 값이 없다`, `${name} <값> 형식으로 쓴다`));
+        fail(
+          usage(
+            "missingArgument",
+            t("cli.usage.flag.missingValue.message", { name }),
+            t("cli.usage.flag.missingValue.fix", { name }),
+          ),
+        );
       } else {
         bare.add(name);
         put(name, "");
@@ -424,8 +447,8 @@ function threadIdOf(text: string): Result<ThreadId, UsageError> {
   return err(
     usage(
       "invalidThreadId",
-      "세션 id 형식이 맞지 않다",
-      "xeon sessions ls로 id를 확인한다 (thr_로 시작하는 30자)",
+      t("cli.usage.threadId.invalid.message"),
+      t("cli.usage.threadId.invalid.fix"),
     ),
   );
 }
@@ -436,8 +459,8 @@ function itemIdOf(text: string): Result<ItemId, UsageError> {
   return err(
     usage(
       "invalidThreadId",
-      "항목 id 형식이 맞지 않다",
-      "xeon sessions show로 itm_로 시작하는 id를 확인한다",
+      t("cli.usage.itemId.invalid.message"),
+      t("cli.usage.itemId.invalid.fix"),
     ),
   );
 }
@@ -448,8 +471,8 @@ function settingKeyOf(text: string): Result<SettingKey, UsageError> {
   return err(
     usage(
       "invalidSettingKey",
-      `설정 키 형식이 맞지 않다: ${text}`,
-      "<층>.<도메인>.<이름> 형식으로 쓴다. xeon config list로 키를 확인한다",
+      t("cli.usage.settingKey.invalid.message", { text }),
+      t("cli.usage.settingKey.invalid.fix"),
     ),
   );
 }
@@ -460,8 +483,8 @@ function secretNameOf(text: string): Result<SecretName, UsageError> {
   return err(
     usage(
       "invalidSecretName",
-      "비밀 이름 형식이 맞지 않다",
-      "소문자로 시작하는 소문자, 숫자, 하이픈 2~64자로 쓴다",
+      t("cli.usage.secretName.invalid.message"),
+      t("cli.usage.secretName.invalid.fix"),
     ),
   );
 }
@@ -477,20 +500,30 @@ function fileScopeOf(text: string | null): Result<FileScope, UsageError> {
     return err(
       usage(
         "conflictingFlags",
-        `--scope ${text}은 config 명령에서 받지 않는다`,
-        "세션 범위는 chat --set이나 /set으로 바꾼다. 파일 범위는 user, project, local이다",
+        t("cli.usage.scope.notForConfig.message", { text }),
+        t("cli.usage.scope.notForConfig.fix"),
       ),
     );
   }
   return err(
-    usage("unexpectedArgument", "--scope 값이 맞지 않다", "user, project, local 중 하나를 쓴다"),
+    usage(
+      "unexpectedArgument",
+      t("cli.usage.flagValue.invalid.message", { flag: "--scope" }),
+      t("cli.usage.oneOf.fix", { list: "user, project, local" }),
+    ),
   );
 }
 
 function parseOverride(text: string): Result<SessionOverride, UsageError> {
   const eq = text.indexOf("=");
   if (eq <= 0) {
-    return err(usage("invalidOverride", "--set 값에 =가 없다", "--set <키>=<값> 형식으로 쓴다"));
+    return err(
+      usage(
+        "invalidOverride",
+        t("cli.usage.set.noEquals.message"),
+        t("cli.usage.set.noEquals.fix"),
+      ),
+    );
   }
   const key = settingKeyOf(text.slice(0, eq));
   if (!key.ok) return key;
@@ -522,14 +555,18 @@ function parseChat(
     return err(
       usage(
         "unexpectedArgument",
-        "chat 명령은 위치 인자를 받지 않는다",
-        "입력은 -p <입력>으로 준다",
+        t("cli.usage.chat.positional.message"),
+        t("cli.usage.chat.positional.fix"),
       ),
     );
   }
   if (has(flags, "--continue") && has(flags, "--resume")) {
     return err(
-      usage("conflictingFlags", "--continue와 --resume을 함께 쓸 수 없다", "둘 중 하나만 쓴다"),
+      usage(
+        "conflictingFlags",
+        t("cli.usage.chat.continueResume.message"),
+        t("cli.usage.onlyOne.fix"),
+      ),
     );
   }
   let target: ChatTarget = { kind: "new" };
@@ -561,8 +598,8 @@ function parseChat(
     return err(
       usage(
         "inputRequired",
-        "stdout이 터미널이 아닌데 입력이 없다",
-        "-p <입력>으로 입력을 주거나 stdin으로 넘긴다",
+        t("cli.usage.chat.inputRequired.message"),
+        t("cli.usage.chat.inputRequired.fix"),
       ),
     );
   } else {
@@ -571,15 +608,19 @@ function parseChat(
   const output = outputOf(flags);
   if (output === "json" && mode === "interactive") {
     return err(
-      usage("jsonRequiresPrint", "--json은 print 모드에서만 쓴다", "-p <입력>과 함께 쓴다"),
+      usage(
+        "jsonRequiresPrint",
+        t("cli.usage.chat.jsonRequiresPrint.message"),
+        t("cli.usage.chat.withPrint.fix"),
+      ),
     );
   }
   if (has(flags, "--auto-approve") && mode === "interactive") {
     return err(
       usage(
         "autoApproveRequiresPrint",
-        "--auto-approve는 print 모드에서만 쓴다",
-        "-p <입력>과 함께 쓴다",
+        t("cli.usage.chat.autoApprove.message"),
+        t("cli.usage.chat.withPrint.fix"),
       ),
     );
   }
@@ -617,8 +658,8 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
         return err(
           usage(
             "missingArgument",
-            "config set에는 키와 값이 필요하다",
-            "xeon config set <키> <값> [--scope user|project|local]",
+            t("cli.usage.config.setMissing.message"),
+            t("cli.usage.config.setMissing.fix"),
           ),
         );
       }
@@ -626,8 +667,8 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
         return err(
           usage(
             "unexpectedArgument",
-            "config set에 인자가 너무 많다",
-            "값에 공백이 있으면 따옴표로 묶는다",
+            t("cli.usage.tooManyArgs.message", { command: "config set" }),
+            t("cli.usage.config.setExtra.fix"),
           ),
         );
       }
@@ -645,14 +686,18 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
         return err(
           usage(
             "missingArgument",
-            "config reset에는 키가 필요하다",
-            "xeon config reset <키> [--scope …]",
+            t("cli.usage.config.resetMissing.message"),
+            t("cli.usage.config.resetMissing.fix"),
           ),
         );
       }
       if (extra.length > 0) {
         return err(
-          usage("unexpectedArgument", "config reset에 인자가 너무 많다", "키 하나만 쓴다"),
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.tooManyArgs.message", { command: "config reset" }),
+            t("cli.usage.oneKey.fix"),
+          ),
         );
       }
       const key = settingKeyOf(keyText);
@@ -672,8 +717,8 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
         return err(
           usage(
             "unexpectedArgument",
-            "config list는 위치 인자를 받지 않는다",
-            "--prefix <접두>를 쓴다",
+            t("cli.usage.noPositional.message", { command: "config list" }),
+            t("cli.usage.config.listPositional.fix"),
           ),
         );
       }
@@ -695,8 +740,8 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
         return err(
           usage(
             "unexpectedArgument",
-            "config schema는 위치 인자를 받지 않는다",
-            "--scope <범위>를 쓴다",
+            t("cli.usage.noPositional.message", { command: "config schema" }),
+            t("cli.usage.config.schemaPositional.fix"),
           ),
         );
       }
@@ -705,7 +750,7 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
         return err(
           usage(
             "missingArgument",
-            "config schema에는 --scope가 필요하다",
+            t("cli.usage.config.schemaScopeMissing.message"),
             "xeon config schema --scope managed|user|project|local",
           ),
         );
@@ -715,8 +760,8 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
         return err(
           usage(
             "unexpectedArgument",
-            "--scope 값이 맞지 않다",
-            "managed, user, project, local 중 하나를 쓴다",
+            t("cli.usage.flagValue.invalid.message", { flag: "--scope" }),
+            t("cli.usage.oneOf.fix", { list: "managed, user, project, local" }),
           ),
         );
       }
@@ -731,8 +776,8 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
       return err(
         usage(
           "missingArgument",
-          "config에는 하위 명령이 필요하다",
-          "get, set, reset, list, schema 중 하나를 쓴다",
+          t("cli.usage.subcommandMissing.message", { command: "config" }),
+          t("cli.usage.oneOf.fix", { list: "get, set, reset, list, schema" }),
         ),
       );
     // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
@@ -740,8 +785,8 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
       return err(
         usage(
           "unknownCommand",
-          `모르는 명령 config ${action}`,
-          "get, set, reset, list, schema 중 하나를 쓴다",
+          t("cli.usage.unknownCommand.message", { command: `config ${action}` }),
+          t("cli.usage.oneOf.fix", { list: "get, set, reset, list, schema" }),
         ),
       );
   }
@@ -760,8 +805,8 @@ function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustComman
       return err(
         usage(
           "unexpectedArgument",
-          "trust status는 위치 인자를 받지 않는다",
-          "--json만 쓸 수 있다",
+          t("cli.usage.noPositional.message", { command: "trust status" }),
+          t("cli.usage.jsonOnly.fix"),
         ),
       );
     }
@@ -769,7 +814,11 @@ function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustComman
   }
   if (action !== "allow" && action !== "deny") {
     return err(
-      usage("unknownCommand", `모르는 명령 trust ${action}`, "status, allow, deny 중 하나를 쓴다"),
+      usage(
+        "unknownCommand",
+        t("cli.usage.unknownCommand.message", { command: `trust ${action}` }),
+        t("cli.usage.oneOf.fix", { list: "status, allow, deny" }),
+      ),
     );
   }
   const scanned = scanArgs(acc, tail, { "--scope": { value: "required" } });
@@ -778,7 +827,7 @@ function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustComman
     return err(
       usage(
         "unexpectedArgument",
-        `trust ${action}는 위치 인자를 받지 않는다`,
+        t("cli.usage.noPositional.message", { command: `trust ${action}` }),
         `xeon trust ${action} [--scope folder|parent|session]`,
       ),
     );
@@ -789,8 +838,8 @@ function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustComman
     return err(
       usage(
         "unexpectedArgument",
-        "--scope 값이 맞지 않다",
-        "folder, parent, session 중 하나를 쓴다",
+        t("cli.usage.flagValue.invalid.message", { flag: "--scope" }),
+        t("cli.usage.oneOf.fix", { list: "folder, parent, session" }),
       ),
     );
   }
@@ -817,10 +866,12 @@ const SCHEDULE_ADD_FLAGS: FlagTable = {
 
 /** 트리거 플래그. 정확히 하나를 쓴다 */
 const TRIGGER_FLAGS: readonly TriggerFlag[] = ["--every", "--at", "--remote", "--watch", "--loop"];
-const SCHEDULE_ADD_USAGE =
-  "xeon schedule add <프롬프트> (--every <초> | --at <시각> | --remote | --watch <경로>[,<경로>…] | --loop <초> --max-iterations <n> --expires-in <초>) [--title <제목>] [--workspace <폴더>] [--disabled]";
-const LOOP_USAGE =
-  "xeon schedule add <프롬프트> --loop <초> --max-iterations <n> --expires-in <초>";
+function scheduleAddUsage(): string {
+  return t("cli.usage.schedule.addSyntax");
+}
+function loopUsage(): string {
+  return t("cli.usage.schedule.loopSyntax");
+}
 const SCHEDULE_MAX_SECONDS = 31536000;
 const DEFAULT_DEBOUNCE_MS = 1000;
 const DEBOUNCE_MAX_MS = 3600000;
@@ -838,8 +889,8 @@ function wholeOf(text: string, min: number, max: number): number | null {
 function badNumber(flag: string, min: number, max: number): UsageError {
   return usage(
     "unexpectedArgument",
-    `${flag} 값이 맞지 않다 (${String(min)} 이상 ${String(max)} 이하의 정수)`,
-    `${flag} <값>으로 쓴다`,
+    t("cli.usage.number.invalid.message", { flag, min: String(min), max: String(max) }),
+    t("cli.usage.number.invalid.fix", { flag }),
   );
 }
 
@@ -870,8 +921,8 @@ function triggerOf(flags: Scanned, flag: TriggerFlag): Result<ScheduleTriggerArg
         return err(
           usage(
             "unexpectedArgument",
-            "--at 시각을 읽지 못했다",
-            "RFC 3339 형식으로 쓴다 (예: 2026-11-01T09:00:00+09:00)",
+            t("cli.usage.at.unreadable.message"),
+            t("cli.usage.at.unreadable.fix"),
           ),
         );
       }
@@ -885,8 +936,8 @@ function triggerOf(flags: Scanned, flag: TriggerFlag): Result<ScheduleTriggerArg
         return err(
           usage(
             "unexpectedArgument",
-            `--watch 경로가 맞지 않다 (1~${String(WATCH_MAX_PATHS)}개, 빈 경로 없이 쉼표로 나눈다)`,
-            "--watch <경로>[,<경로>…]로 쓴다",
+            t("cli.usage.watch.invalid.message", { max: String(WATCH_MAX_PATHS) }),
+            t("cli.usage.watch.invalid.fix"),
           ),
         );
       }
@@ -904,11 +955,7 @@ function triggerOf(flags: Scanned, flag: TriggerFlag): Result<ScheduleTriggerArg
       // 상한 없는 루프는 만들 수 없다(L2.schedule.spec §4.1.2)
       if (maxText === null || expiresText === null) {
         return err(
-          usage(
-            "missingArgument",
-            "--loop에는 --max-iterations와 --expires-in이 필요하다",
-            LOOP_USAGE,
-          ),
+          usage("missingArgument", t("cli.usage.loop.missingOptions.message"), loopUsage()),
         );
       }
       const maxIterations = wholeOf(maxText, 1, MAX_ITERATIONS_MAX);
@@ -937,37 +984,33 @@ function parseScheduleAdd(
   const [only, ...others] = triggers;
   if (only === undefined) {
     return err(
-      usage(
-        "missingArgument",
-        "예약 트리거가 없다 (--every, --at, --remote, --watch, --loop 가운데 하나)",
-        SCHEDULE_ADD_USAGE,
-      ),
+      usage("missingArgument", t("cli.usage.schedule.triggerMissing.message"), scheduleAddUsage()),
     );
   }
   if (others.length > 0) {
     return err(
       usage(
         "conflictingFlags",
-        `트리거 플래그를 둘 쓸 수 없다 (${triggers.join(", ")})`,
-        "--every, --at, --remote, --watch, --loop 가운데 하나만 쓴다",
+        t("cli.usage.schedule.triggerConflict.message", { triggers: triggers.join(", ") }),
+        t("cli.usage.schedule.triggerConflict.fix"),
       ),
     );
   }
   const prompt = flags.positionals.join(" ").trim();
   if (prompt.length === 0) {
-    return err(usage("missingArgument", "예약 프롬프트가 없다", SCHEDULE_ADD_USAGE));
+    return err(
+      usage("missingArgument", t("cli.usage.schedule.promptMissing.message"), scheduleAddUsage()),
+    );
   }
   // 트리거에 딸린 값 플래그는 그 트리거와 함께만 쓴다
   if (only !== "--watch" && has(flags, "--debounce")) {
-    return err(usage("conflictingFlags", "--debounce는 --watch와 함께 쓴다", SCHEDULE_ADD_USAGE));
+    return err(
+      usage("conflictingFlags", t("cli.usage.schedule.debounce.message"), scheduleAddUsage()),
+    );
   }
   if (only !== "--loop" && has(flags, "--max-iterations", "--expires-in")) {
     return err(
-      usage(
-        "conflictingFlags",
-        "--max-iterations와 --expires-in은 --loop와 함께 쓴다",
-        SCHEDULE_ADD_USAGE,
-      ),
+      usage("conflictingFlags", t("cli.usage.schedule.loopOnly.message"), scheduleAddUsage()),
     );
   }
   const trigger = triggerOf(flags, only);
@@ -982,14 +1025,20 @@ function parseScheduleAdd(
         usage(
           title.length === 0 ? "missingArgument" : "unexpectedArgument",
           `--title: ${problem}`,
-          "--title <제목>으로 쓴다 (1~200자)",
+          t("cli.usage.schedule.title.fix"),
         ),
       );
     }
   }
   const workspace = valueOf(flags, "--workspace");
   if (workspace === "") {
-    return err(usage("missingArgument", "--workspace에 폴더가 없다", "--workspace <폴더>로 쓴다"));
+    return err(
+      usage(
+        "missingArgument",
+        t("cli.usage.folderMissing.message", { flag: "--workspace" }),
+        t("cli.usage.workspace.folderFix"),
+      ),
+    );
   }
   return ok({
     kind: "schedule.add",
@@ -1014,7 +1063,7 @@ function parseScheduleList(
     return err(
       usage(
         "unexpectedArgument",
-        "schedule list는 위치 인자를 받지 않는다",
+        t("cli.usage.noPositional.message", { command: "schedule list" }),
         "xeon schedule list [--all] [--json]",
       ),
     );
@@ -1039,14 +1088,18 @@ function scheduleIdArg(
     return err(
       usage(
         "missingArgument",
-        `schedule ${action}에는 예약 id가 필요하다`,
+        t("cli.usage.schedule.idMissing.message", { command: `schedule ${action}` }),
         `xeon schedule ${action} <id>`,
       ),
     );
   }
   if (extra.length > 0) {
     return err(
-      usage("unexpectedArgument", `schedule ${action}에 인자가 너무 많다`, "id 하나만 쓴다"),
+      usage(
+        "unexpectedArgument",
+        t("cli.usage.tooManyArgs.message", { command: `schedule ${action}` }),
+        t("cli.usage.oneId.fix"),
+      ),
     );
   }
   const parsed = parse(ScheduleIdSchema, idText);
@@ -1054,8 +1107,8 @@ function scheduleIdArg(
     return err(
       usage(
         "invalidScheduleId",
-        "예약 id 형식이 맞지 않다",
-        "xeon schedule list --all로 sch_로 시작하는 id를 확인한다",
+        t("cli.usage.scheduleId.invalid.message"),
+        t("cli.usage.scheduleId.invalid.fix"),
       ),
     );
   }
@@ -1086,8 +1139,8 @@ function parseSchedule(
       return err(
         usage(
           "missingArgument",
-          "schedule에는 하위 명령이 필요하다",
-          "add, list, cancel, run 중 하나를 쓴다",
+          t("cli.usage.subcommandMissing.message", { command: "schedule" }),
+          t("cli.usage.oneOf.fix", { list: "add, list, cancel, run" }),
         ),
       );
     // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
@@ -1095,8 +1148,8 @@ function parseSchedule(
       return err(
         usage(
           "unknownCommand",
-          `모르는 명령 schedule ${action}`,
-          "add, list, cancel, run 중 하나를 쓴다",
+          t("cli.usage.unknownCommand.message", { command: `schedule ${action}` }),
+          t("cli.usage.oneOf.fix", { list: "add, list, cancel, run" }),
         ),
       );
   }
@@ -1119,8 +1172,8 @@ function parseSessions(
         return err(
           usage(
             "unexpectedArgument",
-            "sessions ls는 위치 인자를 받지 않는다",
-            "--all, --limit만 쓴다",
+            t("cli.usage.noPositional.message", { command: "sessions ls" }),
+            t("cli.usage.sessions.ls.positional.fix"),
           ),
         );
       }
@@ -1128,7 +1181,11 @@ function parseSessions(
       const limit = limitText === null ? 20 : Number(limitText);
       if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
         return err(
-          usage("unexpectedArgument", "--limit은 1~200 정수여야 한다", "--limit 20처럼 쓴다"),
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.sessions.limit.message"),
+            t("cli.usage.sessions.limit.fix"),
+          ),
         );
       }
       return ok({
@@ -1146,14 +1203,18 @@ function parseSessions(
         return err(
           usage(
             "missingArgument",
-            "sessions show에는 세션 id가 필요하다",
+            t("cli.usage.sessionId.missing.message", { command: "sessions show" }),
             "xeon sessions show <id>",
           ),
         );
       }
       if (scanned.value.positionals.length > 1) {
         return err(
-          usage("unexpectedArgument", "sessions show에 인자가 너무 많다", "id 하나만 쓴다"),
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.tooManyArgs.message", { command: "sessions show" }),
+            t("cli.usage.oneId.fix"),
+          ),
         );
       }
       const threadId = threadIdOf(idText);
@@ -1172,14 +1233,18 @@ function parseSessions(
         return err(
           usage(
             "missingArgument",
-            "sessions fork에는 세션 id가 필요하다",
-            "xeon sessions fork <id> [--at <항목 id>]",
+            t("cli.usage.sessionId.missing.message", { command: "sessions fork" }),
+            t("cli.usage.sessions.forkSyntax"),
           ),
         );
       }
       if (scanned.value.positionals.length > 1) {
         return err(
-          usage("unexpectedArgument", "sessions fork에 인자가 너무 많다", "id 하나만 쓴다"),
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.tooManyArgs.message", { command: "sessions fork" }),
+            t("cli.usage.oneId.fix"),
+          ),
         );
       }
       const threadId = threadIdOf(idText);
@@ -1201,13 +1266,19 @@ function parseSessions(
         return err(
           usage(
             "missingArgument",
-            "sessions rm에는 세션 id가 필요하다",
+            t("cli.usage.sessionId.missing.message", { command: "sessions rm" }),
             "xeon sessions rm <id> [--yes]",
           ),
         );
       }
       if (scanned.value.positionals.length > 1) {
-        return err(usage("unexpectedArgument", "sessions rm에 인자가 너무 많다", "id 하나만 쓴다"));
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.tooManyArgs.message", { command: "sessions rm" }),
+            t("cli.usage.oneId.fix"),
+          ),
+        );
       }
       const threadId = threadIdOf(idText);
       if (!threadId.ok) return threadId;
@@ -1225,8 +1296,8 @@ function parseSessions(
         return err(
           usage(
             "missingArgument",
-            "sessions rename에는 세션 id와 제목이 필요하다",
-            "xeon sessions rename <id> <제목>",
+            t("cli.usage.sessions.renameMissing.message"),
+            t("cli.usage.sessions.renameSyntax"),
           ),
         );
       }
@@ -1240,7 +1311,7 @@ function parseSessions(
           usage(
             title.length === 0 ? "missingArgument" : "unexpectedArgument",
             `sessions rename: ${problem}`,
-            "xeon sessions rename <id> <제목>",
+            t("cli.usage.sessions.renameSyntax"),
           ),
         );
       }
@@ -1250,8 +1321,8 @@ function parseSessions(
       return err(
         usage(
           "missingArgument",
-          "sessions에는 하위 명령이 필요하다",
-          "ls, show, fork, rm, rename 중 하나를 쓴다",
+          t("cli.usage.subcommandMissing.message", { command: "sessions" }),
+          t("cli.usage.oneOf.fix", { list: "ls, show, fork, rm, rename" }),
         ),
       );
     // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
@@ -1259,8 +1330,8 @@ function parseSessions(
       return err(
         usage(
           "unknownCommand",
-          `모르는 명령 sessions ${action}`,
-          "ls, show, fork, rm, rename 중 하나를 쓴다",
+          t("cli.usage.unknownCommand.message", { command: `sessions ${action}` }),
+          t("cli.usage.oneOf.fix", { list: "ls, show, fork, rm, rename" }),
         ),
       );
   }
@@ -1287,8 +1358,8 @@ const SECRET_VALUE_FLAGS: readonly string[] = ["--value", "--secret", "--passwor
 function secretValueInArgv(): UsageError {
   return usage(
     "secretValueInArgv",
-    "비밀 값을 인자로 받을 수 없다",
-    "값 없이 이름만 쓰고, 값은 프롬프트나 stdin으로 넣는다",
+    t("cli.usage.secret.valueInArgv.message"),
+    t("cli.usage.secret.valueInArgv.fix"),
   );
 }
 
@@ -1301,8 +1372,8 @@ function metaFlagsOf(scanned: Scanned): Result<SecretMetaFlags, UsageError> {
       return err(
         usage(
           "unexpectedArgument",
-          "--provider 값이 맞지 않다",
-          "sops, op, bws, keychain 중 하나를 쓴다",
+          t("cli.usage.flagValue.invalid.message", { flag: "--provider" }),
+          t("cli.usage.oneOf.fix", { list: "sops, op, bws, keychain" }),
         ),
       );
     }
@@ -1315,8 +1386,8 @@ function metaFlagsOf(scanned: Scanned): Result<SecretMetaFlags, UsageError> {
     return err(
       usage(
         "unexpectedArgument",
-        "--expires는 YYYY-MM-DD 날짜여야 한다",
-        "--expires 2027-01-31처럼 쓴다",
+        t("cli.usage.secret.expires.message"),
+        t("cli.usage.secret.expires.fix"),
       ),
     );
   }
@@ -1354,8 +1425,8 @@ function parseSecret(
         return err(
           usage(
             "unexpectedArgument",
-            "secret ls는 위치 인자를 받지 않는다",
-            "--meta, --usage만 쓴다",
+            t("cli.usage.noPositional.message", { command: "secret ls" }),
+            t("cli.usage.secret.ls.positional.fix"),
           ),
         );
       }
@@ -1381,8 +1452,8 @@ function parseSecret(
         return err(
           usage(
             "missingArgument",
-            `secret ${action}에는 이름이 필요하다`,
-            `xeon secret ${action} <이름>`,
+            t("cli.usage.secret.nameMissing.message", { command: `secret ${action}` }),
+            t("cli.usage.secret.nameSyntax.fix", { action }),
           ),
         );
       }
@@ -1408,8 +1479,8 @@ function parseSecret(
         return err(
           usage(
             "missingArgument",
-            "secret meta에는 이름이 필요하다",
-            "xeon secret meta <이름> [--desc …]",
+            t("cli.usage.secret.nameMissing.message", { command: "secret meta" }),
+            t("cli.usage.secret.metaSyntax.fix"),
           ),
         );
       }
@@ -1436,14 +1507,18 @@ function parseSecret(
         return err(
           usage(
             "missingArgument",
-            `secret ${action}에는 이름이 필요하다`,
-            `xeon secret ${action} <이름>`,
+            t("cli.usage.secret.nameMissing.message", { command: `secret ${action}` }),
+            t("cli.usage.secret.nameSyntax.fix", { action }),
           ),
         );
       }
       if (extra.length > 0 || nameText.includes("=")) {
         return err(
-          usage("unexpectedArgument", `secret ${action}에 인자가 너무 많다`, "이름 하나만 쓴다"),
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.tooManyArgs.message", { command: `secret ${action}` }),
+            t("cli.usage.oneName.fix"),
+          ),
         );
       }
       const name = secretNameOf(nameText);
@@ -1458,8 +1533,8 @@ function parseSecret(
             return err(
               usage(
                 "revealRequiresTty",
-                "secret reveal은 터미널에서만 쓸 수 있다",
-                "stdin과 stdout이 모두 터미널인 셸에서 실행한다",
+                t("cli.usage.secret.reveal.message"),
+                t("cli.usage.secret.reveal.fix"),
               ),
             );
           }
@@ -1472,8 +1547,8 @@ function parseSecret(
       return err(
         usage(
           "missingArgument",
-          "secret에는 하위 명령이 필요하다",
-          "ls, add, set, meta, rotate, rm, test, reveal 중 하나를 쓴다",
+          t("cli.usage.subcommandMissing.message", { command: "secret" }),
+          t("cli.usage.oneOf.fix", { list: "ls, add, set, meta, rotate, rm, test, reveal" }),
         ),
       );
     // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
@@ -1481,8 +1556,8 @@ function parseSecret(
       return err(
         usage(
           "unknownCommand",
-          `모르는 명령 secret ${action}`,
-          "ls, add, set, meta, rotate, rm, test, reveal 중 하나를 쓴다",
+          t("cli.usage.unknownCommand.message", { command: `secret ${action}` }),
+          t("cli.usage.oneOf.fix", { list: "ls, add, set, meta, rotate, rm, test, reveal" }),
         ),
       );
   }
@@ -1517,8 +1592,8 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     return err(
       usage(
         "missingArgument",
-        "service에는 하위 명령이 필요하다",
-        "start, status, stop 중 하나를 쓴다",
+        t("cli.usage.subcommandMissing.message", { command: "service" }),
+        t("cli.usage.oneOf.fix", { list: "start, status, stop" }),
       ),
     );
   }
@@ -1527,8 +1602,8 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     return err(
       usage(
         "unknownCommand",
-        `모르는 명령 service ${actionText}`,
-        "start, status, stop 중 하나를 쓴다",
+        t("cli.usage.unknownCommand.message", { command: `service ${actionText}` }),
+        t("cli.usage.oneOf.fix", { list: "start, status, stop" }),
       ),
     );
   }
@@ -1543,8 +1618,8 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     return err(
       usage(
         "unexpectedArgument",
-        "service는 위치 인자를 받지 않는다",
-        "--json, --safe-mode, --listen-tcp만 쓸 수 있다",
+        t("cli.usage.noPositional.message", { command: "service" }),
+        t("cli.usage.service.flags.fix"),
       ),
     );
   }
@@ -1554,8 +1629,8 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     return err(
       usage(
         "unexpectedArgument",
-        `service ${action}은 --safe-mode를 받지 않는다`,
-        "--safe-mode는 서비스를 새로 띄우는 start, ensure와 run에만 쓴다",
+        t("cli.usage.service.safeMode.message", { action }),
+        t("cli.usage.service.safeMode.fix"),
       ),
     );
   }
@@ -1566,8 +1641,8 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
       return err(
         usage(
           "unexpectedArgument",
-          `service ${action}은 --listen-tcp를 받지 않는다`,
-          "--listen-tcp는 서비스를 새로 띄우는 start와 run에만 쓴다",
+          t("cli.usage.service.listenTcp.message", { action }),
+          t("cli.usage.service.listenTcp.fix"),
         ),
       );
     }
@@ -1576,8 +1651,8 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
       return err(
         usage(
           "unexpectedArgument",
-          `--listen-tcp 값이 주소가 아니다 (${listen})`,
-          "--listen-tcp <호스트>:<포트> 형식으로 쓴다 (예: 127.0.0.1:7777)",
+          t("cli.usage.service.listenTcp.notAddress.message", { listen }),
+          t("cli.usage.service.listenTcp.notAddress.fix"),
         ),
       );
     }
@@ -1585,8 +1660,8 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
       return err(
         usage(
           "unexpectedArgument",
-          `--listen-tcp 주소가 루프백이 아니다 (${parsed.host})`,
-          "루프백 주소(127.0.0.1, ::1)를 쓰거나 --allow-non-loopback을 함께 쓴다",
+          t("cli.usage.service.listenTcp.notLoopback.message", { host: parsed.host }),
+          t("cli.usage.service.listenTcp.notLoopback.fix"),
         ),
       );
     }
@@ -1597,8 +1672,8 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     return err(
       usage(
         "unexpectedArgument",
-        "--allow-non-loopback은 --listen-tcp와 함께만 쓴다",
-        "--listen-tcp <호스트>:<포트>를 함께 쓴다",
+        t("cli.usage.service.allowNonLoopback.message"),
+        t("cli.usage.service.allowNonLoopback.fix"),
       ),
     );
   }
@@ -1616,10 +1691,18 @@ function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostComma
   const scanned = scanArgs(acc, rest, { "--stdio": { value: "none" } });
   if (!scanned.ok) return scanned;
   if (scanned.value.positionals.length > 0) {
-    return err(usage("unexpectedArgument", "host는 위치 인자를 받지 않는다", "xeon host --stdio"));
+    return err(
+      usage(
+        "unexpectedArgument",
+        t("cli.usage.noPositional.message", { command: "host" }),
+        "xeon host --stdio",
+      ),
+    );
   }
   if (!has(scanned.value, "--stdio")) {
-    return err(usage("missingArgument", "host에는 --stdio가 필요하다", "xeon host --stdio"));
+    return err(
+      usage("missingArgument", t("cli.usage.host.stdioMissing.message"), "xeon host --stdio"),
+    );
   }
   return ok({ kind: "host", stdio: true });
 }
@@ -1633,23 +1716,39 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
       const [destDir, ...extra] = scanned.value.positionals;
       if (destDir === undefined || destDir === "") {
         return err(
-          usage("missingArgument", "db export에는 내보낼 폴더가 필요하다", "xeon db export <폴더>"),
+          usage(
+            "missingArgument",
+            t("cli.usage.db.folderMissing.message"),
+            t("cli.usage.db.exportSyntax"),
+          ),
         );
       }
       if (extra.length > 0) {
-        return err(usage("unexpectedArgument", "db export에 인자가 너무 많다", "폴더 하나만 쓴다"));
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.tooManyArgs.message", { command: "db export" }),
+            t("cli.usage.oneFolder.fix"),
+          ),
+        );
       }
       return ok({ kind: "db.export", destDir, output: outputOf(scanned.value) });
     }
     case undefined:
-      return err(usage("missingArgument", "db에는 하위 명령이 필요하다", "xeon db export <폴더>"));
+      return err(
+        usage(
+          "missingArgument",
+          t("cli.usage.subcommandMissing.message", { command: "db" }),
+          t("cli.usage.db.exportSyntax"),
+        ),
+      );
     // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
           "unknownCommand",
-          `모르는 명령 db ${action}`,
-          "export 명령을 쓴다: xeon db export <폴더>",
+          t("cli.usage.unknownCommand.message", { command: `db ${action}` }),
+          t("cli.usage.db.exportFix"),
         ),
       );
   }
@@ -1664,7 +1763,11 @@ function parseJsonOnly(
   if (!scanned.ok) return scanned;
   if (scanned.value.positionals.length > 0) {
     return err(
-      usage("unexpectedArgument", `${kind}는 위치 인자를 받지 않는다`, "--json만 쓸 수 있다"),
+      usage(
+        "unexpectedArgument",
+        t("cli.usage.noPositional.message", { command: kind }),
+        t("cli.usage.jsonOnly.fix"),
+      ),
     );
   }
   return ok({ kind, output: outputOf(scanned.value) });
@@ -1683,15 +1786,9 @@ function groupNameOf(text: string): Result<string, UsageError> {
   if (checked.ok) return ok(text);
   const message =
     checked.error.reason === "reserved"
-      ? `"${text}"은 예약된 그룹 이름이다`
-      : `"${text}"은 그룹 이름 형식에 맞지 않는다`;
-  return err(
-    usage(
-      "invalidGroupName",
-      message,
-      "소문자로 시작해 소문자·숫자·하이픈 2~32자로 쓴다(예약 이름은 쓸 수 없다)",
-    ),
-  );
+      ? t("cli.usage.group.reserved.message", { text })
+      : t("cli.usage.group.invalidName.message", { text });
+  return err(usage("invalidGroupName", message, t("cli.usage.group.nameFormat.fix")));
 }
 
 function parseGroup(acc: GlobalAcc, rest: readonly string[]): Result<GroupNewCommand, UsageError> {
@@ -1706,8 +1803,8 @@ function parseGroup(acc: GlobalAcc, rest: readonly string[]): Result<GroupNewCom
         return err(
           usage(
             "conflictingFlags",
-            "--drive와 --policy는 함께 쓸 수 없다",
-            "둘 중 하나만 쓴다. 없으면 관찰 그룹(observe)을 만든다",
+            t("cli.usage.group.driveAndPolicy.message"),
+            t("cli.usage.group.driveAndPolicy.fix"),
           ),
         );
       }
@@ -1716,19 +1813,31 @@ function parseGroup(acc: GlobalAcc, rest: readonly string[]): Result<GroupNewCom
         return err(
           usage(
             "missingArgument",
-            "group new에는 그룹 이름이 필요하다",
-            "xeon group new <이름> [--drive|--policy]",
+            t("cli.usage.group.nameMissing.message"),
+            t("cli.usage.group.newSyntax"),
           ),
         );
       }
       if (extra.length > 0) {
-        return err(usage("unexpectedArgument", "group new에 인자가 너무 많다", "이름 하나만 쓴다"));
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.tooManyArgs.message", { command: "group new" }),
+            t("cli.usage.oneName.fix"),
+          ),
+        );
       }
       const name = groupNameOf(nameText);
       if (!name.ok) return name;
       const dir = valueOf(scanned.value, "--dir");
       if (dir === "") {
-        return err(usage("missingArgument", "--dir에 폴더가 없다", "--dir <폴더> 형식으로 쓴다"));
+        return err(
+          usage(
+            "missingArgument",
+            t("cli.usage.folderMissing.message", { flag: "--dir" }),
+            t("cli.usage.flag.folderFormat.fix", { flag: "--dir" }),
+          ),
+        );
       }
       const template: GroupTemplateKind = drive ? "drive" : policy ? "policy" : "observe";
       return ok({
@@ -1743,14 +1852,18 @@ function parseGroup(acc: GlobalAcc, rest: readonly string[]): Result<GroupNewCom
       return err(
         usage(
           "missingArgument",
-          "group에는 하위 명령이 필요하다",
-          "xeon group new <이름> [--drive|--policy]",
+          t("cli.usage.subcommandMissing.message", { command: "group" }),
+          t("cli.usage.group.newSyntax"),
         ),
       );
     // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
-        usage("unknownCommand", `모르는 명령 group ${action}`, "xeon group new <이름>을 쓴다"),
+        usage(
+          "unknownCommand",
+          t("cli.usage.unknownCommand.message", { command: `group ${action}` }),
+          t("cli.usage.group.newUse.fix"),
+        ),
       );
   }
 }
@@ -1815,7 +1928,11 @@ function commandOf(
     // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
-        usage("unknownCommand", `모르는 명령 ${word}`, "xeon --help로 명령 목록을 확인한다"),
+        usage(
+          "unknownCommand",
+          t("cli.usage.unknownCommand.message", { command: word }),
+          t("cli.usage.commandList.fix"),
+        ),
       );
   }
 }
@@ -1838,7 +1955,13 @@ export function parseArgv(
     } else if (token === "-C") {
       const dir = argv[index + 1];
       if (dir === undefined || dir === "") {
-        return err(usage("missingArgument", "-C에 폴더가 없다", "-C <폴더> 형식으로 쓴다"));
+        return err(
+          usage(
+            "missingArgument",
+            t("cli.usage.folderMissing.message", { flag: "-C" }),
+            t("cli.usage.flag.folderFormat.fix", { flag: "-C" }),
+          ),
+        );
       }
       acc.cwd = dir;
       index += 1;
@@ -1856,7 +1979,11 @@ export function parseArgv(
   const isWord = first !== undefined && !first.startsWith("-");
   if (isWord && !COMMAND_WORDS.has(first)) {
     return err(
-      usage("unknownCommand", `모르는 명령 ${first}`, "xeon --help로 명령 목록을 확인한다"),
+      usage(
+        "unknownCommand",
+        t("cli.usage.unknownCommand.message", { command: first }),
+        t("cli.usage.commandList.fix"),
+      ),
     );
   }
   const word = isWord ? first : "chat";

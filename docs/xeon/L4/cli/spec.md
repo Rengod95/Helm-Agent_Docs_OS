@@ -788,7 +788,7 @@ export interface GroupTemplatesPort {
 
 ### 4.10 오류 문구
 
-모든 오류 출력은 두 줄이다: `xeon: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016).
+모든 오류 출력은 두 줄이다: `xeon: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016). 인자 오류 문구(`cli.usage.*`, `parseArgv`가 돌려주는 `UsageError`), 도움말 본문(`cli.help.*`), `config list`의 정의 줄(`cli.config.*`), `version`과 `--set`의 문장도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다.
 
 | kind | 문구 요지 | 해결 한 줄 | 종료 코드 |
 |---|---|---|---|
