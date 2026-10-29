@@ -1,3 +1,4 @@
+import type { Locale } from "@xeon/client/i18n";
 import type { Clock, Scheduler } from "@xeon/contracts";
 import { createHostConnection } from "@xeon/client";
 import { createStdioTransport } from "@xeon/client/stdio";
@@ -7,6 +8,7 @@ import { createUiStore, type UiStore } from "../state/ui/index.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
 import { createCommands } from "./commands.ts";
 import { BUILD_CHECKS } from "./build.ts";
+import { startLocale } from "./locale.ts";
 import { createWebViewLogger, type LogLine, type LogRing } from "./logger.ts";
 import { startSession, type Session } from "./session.ts";
 import type { Commands } from "../views/commands.ts";
@@ -25,6 +27,10 @@ export type AppEnv = {
   readonly frameFallbackMs: number;
   /** 로그 줄을 밖으로 보낼 곳(warn 이상). 기본은 개발자 도구 콘솔이다 */
   readonly logSink?: (line: LogLine) => void;
+  /** WebView 언어 단서(`navigator.languages`). 주면 첫 렌더 전에 로케일을 정하고 설정을 따른다. 없으면 로케일을 건드리지 않는다 */
+  readonly languages?: readonly string[];
+  /** 연결 뒤 `l4.ui.locale`로 로케일이 바뀌었을 때 부른다. 호출자가 다시 그린다 */
+  readonly onLocaleChange?: (locale: Locale) => void;
 };
 
 export type App = {
@@ -50,11 +56,21 @@ export function createApp(env: AppEnv): App {
     monotonic: env.monotonic,
   });
   const ui = createUiStore();
+  // 첫 렌더 전에 언어 단서로 로케일을 정한다. 연결되면 `l4.ui.locale` 값으로 바로잡고 무효화 알림을 따른다
+  const languages = env.languages;
+  const locale =
+    languages === undefined ? null : startLocale(languages, (next) => env.onLocaleChange?.(next));
   const session = startSession({
     ipc: env.ipc,
     engine,
     ui,
     logger: log.logger,
+    onConnection: (connection) =>
+      locale?.follow(connection, (cause) => {
+        log.logger.error("desktop.locale.read_failed", {
+          error: cause instanceof Error ? cause.name : "unknown",
+        });
+      }) ?? (() => {}),
     transport: {
       stdioTransport: createStdioTransport,
       connect: (transport) => createHostConnection(transport),
