@@ -15,7 +15,7 @@ export function openingChildThreads(
 ): AgentsLoop {
   return {
     async runChildTurn(request) {
-      const opened = await attemptAsync(() => ext.openThread(request.threadId));
+      const opened = await attemptAsync(() => ext.openThread(request.threadId, { child: true }));
       if (!opened.ok) {
         const cause = opened.error.cause;
         // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 예상 가능한 실패다. 자식 turn을 시작하지 않고 저장소 오류로 알린다
