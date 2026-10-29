@@ -1280,6 +1280,7 @@ export const ReviewAnswerSchema = Type.Object({
 - 새 파일을 만든 hunk, 이름 바꿈, 삭제, 이진 파일은 되돌리지 않고 `skipped`로 기록한다.
 - 설정 키 `l2.artifacts.*`는 M3b에 더하지 않는다. 전달 모드는 `followUp`으로 고정한다 [미결].
 - 재시작 때 해결됐으나 반영하지 못한 승인은 다시 처리하지 않는다 [미결].
+- 검토 승인에 `allow`로 답하면 L1.tools의 응답 검사(`validateResponse`, 허용 결정은 `answer`·`deny`뿐)가 `decision_not_allowed`로 거부한다. 응답이 해결로 기록되지 않으므로 이 능력은 `allow`를 받지 않는다 [결정: L1.tools.spec §3.6].
 
 ### 4.3 세션 제목과 메타
 
