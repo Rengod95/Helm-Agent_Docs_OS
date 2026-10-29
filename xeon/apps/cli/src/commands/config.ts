@@ -5,6 +5,7 @@ import type { CommandIo, HostCommand } from "@xeon/host";
 import type { ConfigCommand } from "../cli/command.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import { interpretRaw } from "../settings-input.ts";
+import { cliSettings } from "../settings.ts";
 import { withEngine, type CommandContext } from "./context.ts";
 
 // L4.cli.spec §3.1 config, §4.8. get·schema는 M1, set·reset·list는 M2(settings.set/reset/list)다.
@@ -174,6 +175,8 @@ async function runConfigSchema(
     kind: "config-schema",
     scope: command.scope,
     coreOnly: command.coreOnly,
+    // 엔진을 세울 때와 같은 그룹을 넘겨 파일 스키마의 키가 `config list`의 키와 같게 한다(X10)
+    settingGroups: [cliSettings],
     ...(command.out === null ? {} : { out: command.out }),
   };
   const io: CommandIo = {

@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import type { EffectiveSetting } from "@xeon/contracts/settings";
 import type { HostCommand } from "@xeon/host";
+import { cliSettings } from "../src/settings.ts";
 import { formatSettings } from "../src/commands/config.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 
@@ -121,7 +122,9 @@ test("config schema runs the host command without connecting and returns its cod
     },
   });
   expect(await h.run(["config", "schema", "--scope", "user", "--core-only"])).toBe(0);
-  expect(seen).toEqual([{ kind: "config-schema", scope: "user", coreOnly: true }]);
+  expect(seen).toEqual([
+    { kind: "config-schema", scope: "user", coreOnly: true, settingGroups: [cliSettings] },
+  ]);
   expect(h.stdoutText()).toBe("{}\n");
   expect(h.stderrText()).toBe("note\n");
   expect(h.methods()).toEqual([]);
@@ -142,7 +145,13 @@ test("config schema passes --out through and keeps the host's 1 and 2 as they ar
   );
   expect(await failing(2).run(["config", "schema", "--scope", "local"])).toBe(2);
   expect(seen).toEqual([
-    { kind: "config-schema", scope: "managed", coreOnly: false, out: "s.json" },
-    { kind: "config-schema", scope: "local", coreOnly: false },
+    {
+      kind: "config-schema",
+      scope: "managed",
+      coreOnly: false,
+      settingGroups: [cliSettings],
+      out: "s.json",
+    },
+    { kind: "config-schema", scope: "local", coreOnly: false, settingGroups: [cliSettings] },
   ]);
 });

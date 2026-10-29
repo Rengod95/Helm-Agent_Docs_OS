@@ -81,12 +81,14 @@ test("the repository list parses and names every exit condition it covers", () =
     "E7",
     "M1",
     "X1",
+    "X10",
     "X2",
     "X3",
     "X4",
     "X5",
     "X6",
     "X7",
+    "X8",
     "X9",
   ]);
 });
@@ -189,4 +191,21 @@ test("no matching file is missing, a non-zero exit is failed, a clean run is ok"
   const ok = judge(ENTRY.files, ["x"], { exitCode: 0, output: " 5 pass\n 0 fail\n" });
   expect(ok).toEqual({ kind: "ok", summary: { pass: 5, skip: 0, fail: 0 } });
   expect(describeVerdict(ENTRY, ok)).toBe("E7\tpackages/platform-secrets\tok\tpass 5, skip 0");
+});
+
+test("X7 names the view-model test and the host test through the real settings.writeFile, X8 and X10 name their tests", () => {
+  const text = readFileSync(join(import.meta.dir, "exit-tests.txt"), "utf8");
+  const parsed = parseExitList(text);
+  if (!parsed.ok) throw new Error(parsed.error);
+  const linesOf = (condition: string): (string | readonly string[])[][] =>
+    parsed.value
+      .filter((entry) => entry.condition === condition)
+      .map((entry) => [entry.dir, entry.files]);
+  expect(linesOf("X7")).toEqual([
+    ["packages/client", ["test/accounts/x7.test.ts"]],
+    ["packages/core-models", ["test/rotation.test.ts"]],
+    ["apps/host", ["test/int/x7-settings-file.int.test.ts"]],
+  ]);
+  expect(linesOf("X8")).toEqual([["packages/client", ["test/settings/x8.test.ts"]]]);
+  expect(linesOf("X10")).toEqual([["apps/cli", ["test/x10-settings-keys.int.test.ts"]]]);
 });
