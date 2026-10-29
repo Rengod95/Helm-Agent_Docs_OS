@@ -76,6 +76,26 @@ describe("write and edit on a real file system", () => {
     expect(readFileSync(join(root, "f.txt"), "utf8")).toBe("z\n");
   });
 
+  test("edits of one file run in call order even when the first path resolves later", async () => {
+    const root = tempRoot();
+    writeFileSync(join(root, "f.txt"), "x\n");
+    const base = realEnv(root);
+    let resolutions = 0;
+    const env = override(base, {
+      // 첫 호출의 경로 해석만 늦춰, 두 번째 호출이 먼저 해석을 마치는 상황을 만든다
+      canonicalPath: async (path, context) => {
+        resolutions += 1;
+        if (resolutions === 1) await new Promise((resolve) => setTimeout(resolve, 40));
+        return base.canonicalPath(path, context);
+      },
+    });
+    const files = createFilesApi(realDeps(env));
+    const first = files.edit({ path: "f.txt", edits: [{ oldText: "x", newText: "y" }] });
+    const second = files.edit({ path: "f.txt", edits: [{ oldText: "y", newText: "z" }] });
+    await Promise.all([first, second]);
+    expect(readFileSync(join(root, "f.txt"), "utf8")).toBe("z\n");
+  });
+
   test("edit is refused when the file changed after it was read", async () => {
     const root = tempRoot();
     const target = join(root, "f.txt");
