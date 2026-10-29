@@ -1,0 +1,26 @@
+/* P-02 셸 목업: caustic 스타일과 레이아웃만. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+/* 목업 폴더의 Tailwind 유틸리티도 생성하게 한다 */
+@source "./";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--cs-color-bg-app);
+}
+
+/* parts/streaming-text.tsx 커서 깜빡임(caustic에 깜빡임 keyframes가 없음). 색은 없다. */
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
