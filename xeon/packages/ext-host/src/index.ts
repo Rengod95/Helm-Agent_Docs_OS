@@ -14,6 +14,7 @@ export {
   type ExtDiagnostic,
   type ExtChange,
   type LeaseInfo,
+  type ResetScopeStateHostError,
   // primitives §3.3~§3.5
   type PayloadOf,
   type DispatchOptions,
@@ -50,6 +51,9 @@ export {
   LeaseArbiterPortKey,
   ExtHostPortKey,
   SessionFeedPortKey,
+  SessionBranchPortKey,
+  type EventPrefixQuery,
+  type EventQueryError,
   // primitives §3.7, §3.8
   capabilityDefTable,
   type CapabilityDefLookup,

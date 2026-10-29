@@ -229,3 +229,59 @@ test("migrateState is only allowed once, inside setup, for a scope with state", 
     "state_migration_outside_setup",
   ]);
 });
+
+test("resetScopeState rewrites a stored state that breaks its schema with the declared initial, and the scope runs again", async () => {
+  const { first, thread } = await storedV1("mig-reset");
+  const strict = Type.Object({ n: Type.Integer({ minimum: 10 }) });
+  const second = await restarted(first);
+  const ran: unknown[] = [];
+  await second.host.install(
+    makeUnit(
+      {
+        name: "mig-reset",
+        points: ["boundary.settle.after"],
+        def: { state: { schema: strict, initial: { n: 10 }, version: 1 } },
+      },
+      (g) => {
+        g.on("boundary.settle.after", () => {
+          ran.push(g.state());
+        });
+      },
+    ),
+  );
+  await second.host.openThread(thread);
+  await second.settled();
+  const scopeId = second.host.scopes()[0]?.id;
+  expect(second.host.scopes()[0]?.lastError?.code).toBe("state_schema");
+  if (scopeId === undefined) throw new Error("scope missing");
+
+  expect(await second.host.resetScopeState(thread, "nope")).toEqual({
+    ok: false,
+    error: { kind: "unknown_scope" },
+  });
+  expect(await second.host.resetScopeState(second.newThread(), scopeId)).toEqual({
+    ok: false,
+    error: { kind: "thread_not_open" },
+  });
+
+  expect(await second.host.resetScopeState(thread, scopeId)).toEqual({
+    ok: true,
+    value: { rev: 2 },
+  });
+  await second.settled();
+  expect((await snapshotOf(second.records, thread)).states).toMatchObject([
+    { version: 1, rev: 2, doc: { n: 10 } },
+  ]);
+  expect(second.host.scopes()[0]?.lastError).toBeUndefined();
+  await second.host.dispatch(
+    "boundary.settle.after",
+    { turnId: second.ids.next("trn"), aborted: false },
+    { threadId: thread, dispatchKey: "after-reset" },
+  );
+  expect(ran).toEqual([{ n: 10 }]);
+  // 오류가 없으면 다시 쓰지 않는다
+  expect(await second.host.resetScopeState(thread, scopeId)).toEqual({
+    ok: false,
+    error: { kind: "not_refused" },
+  });
+});

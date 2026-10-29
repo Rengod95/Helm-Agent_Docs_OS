@@ -46,12 +46,18 @@ export {
   type ExtensionUnit,
   type InstallResult,
   type LeaseInfo,
+  type ResetScopeStateHostError,
   type PlatformContext,
   type PlatformModule,
   type PlatformSetupError,
   type ScopeToggleSourceOf,
 } from "./host.ts";
 export { SessionFeedPortKey } from "./lifecycle.ts";
+export {
+  SessionBranchPortKey,
+  type EventPrefixQuery,
+  type EventQueryError,
+} from "./event-query.ts";
 export {
   hostOf,
   type ScopeCallContext,

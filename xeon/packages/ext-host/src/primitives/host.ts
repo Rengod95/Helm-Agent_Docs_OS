@@ -1,4 +1,5 @@
 import { err, ok, type Result } from "@xeon/contracts";
+import type { DurableEventEnvelope } from "@xeon/contracts/records";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import { portAs } from "../erase.ts";
 import type {
@@ -16,6 +17,12 @@ import type {
 } from "@xeon/contracts/extensions";
 import { createCapabilityBindings } from "./bindings.ts";
 import { EMPTY_CAPABILITY_DEFS, type CapabilityDefLookup } from "./capability-guard.ts";
+import {
+  createEventQuery,
+  toolOwnerOf,
+  type EventPrefixQuery,
+  type EventQueryError,
+} from "./event-query.ts";
 import { createLifecycle, type CommittedEvent } from "./lifecycle.ts";
 import { createEffectWorker, type EffectWorkerPort } from "./effect-worker.ts";
 import { createBoundary, type BoundaryHooks } from "./boundary.ts";
@@ -47,8 +54,18 @@ import { createPortProvider } from "./port-provider.ts";
 import { eachInOrder } from "./sequence.ts";
 import { createPostQueue } from "./post.ts";
 import { createHandlerRegistry } from "./registry.ts";
-import { createResourceStore, type ResourcePolicy, type ResourceRegistry } from "./resources.ts";
-import { createScopeRuntime, type ScopeInfo, type ScopeSetupOutcome } from "./scope.ts";
+import {
+  createResourceStore,
+  type ResourcePolicy,
+  type ResourceRecord,
+  type ResourceRegistry,
+} from "./resources.ts";
+import {
+  createScopeRuntime,
+  type ResetScopeStateError,
+  type ScopeInfo,
+  type ScopeSetupOutcome,
+} from "./scope.ts";
 import { createStateService } from "./state.ts";
 
 export type {} from "./errors.ts";
@@ -145,6 +162,11 @@ interface InstallOptions {
   readonly signal?: AbortSignal;
 }
 
+export type ResetScopeStateHostError =
+  | ResetScopeStateError
+  | { readonly kind: "unknown_scope" }
+  | { readonly kind: "thread_not_open" };
+
 export interface ExtHost {
   /** L0 플랫폼 패키지를 등록한다. 조립 루트가 확장 설치 전에 부른다. setup이 err를 돌려주면 등록을 거두고 그 오류를 돌려준다(시작 실패). 던지면 그대로 던진다(버그) */
   registerPlatform(module: PlatformModule): Promise<Result<void, PlatformSetupError>>;
@@ -185,6 +207,25 @@ export interface ExtHost {
   onChange(listener: (change: ExtChange) => void): Unsubscribe;
   /** L4가 읽는 명령·키 조합·플래그·렌더러 표(X.primitives.spec §3.9) */
   readonly resources: ResourceRegistry;
+  /**
+   * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-kit.spec §3.13 요청 5). `xeon.session`의 `readBranch` 포트가 없으면
+   * `port_unavailable`이다. 확장 scope에는 열지 않는 호스트용 조회다
+   */
+  queryEvents(
+    threadId: ThreadId,
+    query: EventPrefixQuery,
+  ): Promise<Result<readonly DurableEventEnvelope[], EventQueryError>>;
+  /**
+   * 저장된 상태가 스키마·버전 검사를 못 넘겨 켜지지 못한 scope의 상태를 선언의 `initial`로 다시 쓴다(재설정 경로).
+   * 대상 thread가 열려 있고 그 scope의 마지막 오류가 저장 상태 오류(`state_schema`, `state_future_version`, `state_migration_*`)여야 한다.
+   * 성공해도 scope를 켜지 않는다. setup 실패로 꺼진 scope는 호출자가 `scope(id).enable()`로 다시 켠다
+   */
+  resetScopeState(
+    threadId: ThreadId,
+    scopeId: ScopeId,
+  ): Promise<Result<{ readonly rev: number }, ResetScopeStateHostError>>;
+  /** 도구 이름(노출 이름 또는 등록 이름)을 등록한 scope의 리소스 기록. 없으면 undefined(M3-REQ-39 도구 소유 scope 조회) */
+  toolOwner(name: string): ResourceRecord | undefined;
   /** 모든 scope를 즉시 끄고 Cordis 루트를 해제한다. 프로세스 종료용 */
   dispose(): Promise<void>;
 }
@@ -632,6 +673,15 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
     ports,
     resources,
+    queryEvents: createEventQuery(ports),
+    async resetScopeState(threadId, scopeId) {
+      const record = core.scopes.get(scopeId);
+      if (record === undefined) return err({ kind: "unknown_scope" });
+      const thread = core.threads.get(threadId);
+      if (thread === undefined) return err({ kind: "thread_not_open" });
+      return scope.resetState(record, thread);
+    },
+    toolOwner: (name) => toolOwnerOf(resources, name),
     scope(id) {
       const record = core.scopes.get(id);
       return record === undefined ? undefined : scope.handleOf(record);

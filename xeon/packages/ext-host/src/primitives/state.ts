@@ -112,7 +112,22 @@ export interface StateService {
     generation: Generation,
     thread: ThreadRuntime,
   ): Promise<PrimitiveError | undefined>;
+  /**
+   * 저장된 상태가 스키마·버전 검사를 통과하지 못하는 scope의 상태 문서를 선언의 `initial`로 새 판에 덮어 쓴다(재설정 경로).
+   * 이전 판은 기록에 남고 활성 가지의 최신 판만 바뀐다. 같은 판의 재호출은 같은 키라 한 번만 쓴다
+   */
+  resetStored(
+    record: ScopeRecord,
+    thread: ThreadRuntime,
+  ): Promise<Result<{ readonly rev: number }, StateResetError>>;
 }
+
+export type StateResetError =
+  | { readonly kind: "no_state" }
+  | { readonly kind: "nothing_stored" }
+  | { readonly kind: "port_unavailable" }
+  | { readonly kind: "initial_invalid" }
+  | { readonly kind: "rejected"; readonly code: ExtCommitRejectCode };
 
 /** scope 상태 커밋의 이벤트 kind: <x|grp>.<이름>.state.committed (X.primitives.spec §4.6.1) */
 function stateKindOf(manifest: {
@@ -721,6 +736,69 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
         }
       }
       return rows.map(toGroupRecord);
+    },
+    async resetStored(record, thread) {
+      const decl = record.def.state;
+      if (decl === undefined) return err({ kind: "no_state" });
+      const stored = thread.states.get(record.id);
+      if (stored === undefined) return err({ kind: "nothing_stored" });
+      const port = core.ports.get(RecordCommitPortKey);
+      if (port === undefined) return err({ kind: "port_unavailable" });
+      const initial = toJsonValue(decl.initial);
+      if (initial === undefined || !parse(decl.schema, initial).ok) {
+        return err({ kind: "initial_invalid" });
+      }
+      const draft = makeDraft(core.deps.ids, {
+        threadId: thread.threadId,
+        kind: stateKindOf(record.manifest),
+        payload: {
+          scopeId: record.id,
+          rev: stored.rev + 1,
+          prevEventId: stored.eventId,
+          version: decl.version,
+          doc: initial,
+        },
+      });
+      const result = await port.commit({
+        threadId: thread.threadId,
+        requestId: `reset:${hash12(record.id)}:${stored.rev}`,
+        fingerprintSource: { scopeId: record.id, reset: true, rev: stored.rev },
+        expectStateRev: { scopeId: record.id, rev: stored.rev },
+        drafts: [draft],
+      });
+      switch (result.status) {
+        case "committed":
+          thread.states.set(record.id, {
+            eventId: draft.id,
+            rev: stored.rev + 1,
+            version: decl.version,
+            doc: deepFreeze(initial),
+          });
+          return ok({ rev: stored.rev + 1 });
+        case "replayed": {
+          const after = result.stored;
+          if (after === undefined) {
+            thread.states.set(record.id, {
+              eventId: draft.id,
+              rev: stored.rev + 1,
+              version: decl.version,
+              doc: deepFreeze(initial),
+            });
+            return ok({ rev: stored.rev + 1 });
+          }
+          thread.states.set(record.id, {
+            eventId: after.eventId,
+            rev: after.rev,
+            version: after.version,
+            doc: deepFreeze(after.doc),
+          });
+          return ok({ rev: after.rev });
+        }
+        case "rejected":
+          return err({ kind: "rejected", code: result.code });
+        default:
+          return assertNever(result, "ExtCommitResult");
+      }
     },
     async prepareStored(record, generation, thread) {
       const decl = record.def.state;
