@@ -6,7 +6,9 @@
       "packages/*",
       "apps/*",
       "plugins/*",
-      "vendor/*"
+      "vendor/*",
+      "external/caustic/packages/tokens",
+      "external/caustic/packages/react"
     ]
   },
   "type": "module",

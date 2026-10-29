@@ -21,6 +21,11 @@ envs := "dev"
 setup:
     cd xeon && just setup
 
+# caustic(데스크톱 디자인 시스템 submodule)을 main 최신으로 올린다
+[group('setup')]
+caustic-update:
+    cd xeon && just caustic-update
+
 # Xeon 포매팅 적용 (oxfmt)
 [group('quality')]
 fmt:

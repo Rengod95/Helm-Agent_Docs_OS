@@ -10,7 +10,15 @@ export TURBO_CACHE_DIR := env("TURBO_CACHE_DIR", env("HOME") + "/.cache/xeon/tur
 # 잠금 파일 기준으로 의존성 설치
 [group('setup')]
 setup:
+    git submodule update --init external/caustic
     {{bun}} install --frozen-lockfile
+
+# caustic(디자인 시스템, git submodule)을 main 최신으로 올리고 의존을 다시 설치한다. 커밋은 따로 한다
+[group('setup')]
+caustic-update:
+    git submodule update --remote external/caustic
+    {{bun}} install
+    git -C external/caustic log --oneline -1
 
 # 포매팅 적용
 [group('quality')]

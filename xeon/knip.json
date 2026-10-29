@@ -1,5 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6.42.1/schema.json",
+  "ignoreWorkspaces": ["external/caustic/packages/tokens", "external/caustic/packages/react"],
+  "ignore": ["external/**"],
   "workspaces": {
     ".": {
       "entry": ["scripts/*.ts"],
@@ -32,7 +34,8 @@
       "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]
     },
     "apps/desktop": {
-      "entry": ["test/**/*.test.{ts,tsx}", "src/main.tsx"]
+      "entry": ["test/**/*.test.{ts,tsx}", "src/main.tsx"],
+      "ignoreDependencies": ["@caustic/react", "@caustic/tokens"]
     },
     "apps/host": {
       "entry": [

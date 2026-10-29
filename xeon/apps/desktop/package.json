@@ -20,6 +20,8 @@
     "build:ui:dev": "bun build index.html --outdir src-tauri/ui --define __XEON_CHECKS__=true"
   },
   "dependencies": {
+    "@caustic/react": "workspace:*",
+    "@caustic/tokens": "workspace:*",
     "@tauri-apps/api": "catalog:",
     "@xeon/client": "workspace:*",
     "@xeon/contracts": "workspace:*",
