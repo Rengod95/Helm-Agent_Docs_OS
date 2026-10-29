@@ -16,13 +16,21 @@ export interface GroupFsOptions {
   readonly builtinNames: readonly string[];
 }
 
-/** 템플릿 디렉터리를 찾는다: 환경 변수 XEON_GROUP_TEMPLATES_DIR, 없으면 `from`에서 위로 올라가며 packages/group-kit/templates를 찾는다 */
+/**
+ * 템플릿 디렉터리를 찾는다: 환경 변수 XEON_GROUP_TEMPLATES_DIR, 릴리즈의 자원 디렉터리(`<resourceDir>/group-kit/templates`),
+ * 없으면 `from`에서 위로 올라가며 packages/group-kit/templates를 찾는다(소스 실행)
+ */
 export function locateGroupTemplates(
   env: Readonly<Record<string, string | undefined>>,
   from: string,
+  resourceDir?: string,
 ): string | null {
   const override = env["XEON_GROUP_TEMPLATES_DIR"];
   if (override !== undefined && override !== "") return override;
+  if (resourceDir !== undefined) {
+    const bundled = join(resourceDir, "group-kit", "templates");
+    if (existsSync(join(bundled, "index.json"))) return bundled;
+  }
   let dir = from;
   for (;;) {
     const candidate = join(dir, "packages", "group-kit", "templates");

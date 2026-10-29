@@ -307,7 +307,11 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
     },
     probes: REAL_PROBES,
     groupTemplates: createGroupTemplatesFs({
-      templatesDir: locateGroupTemplates(env, dirname(fileURLToPath(import.meta.url))),
+      templatesDir: locateGroupTemplates(
+        env,
+        dirname(fileURLToPath(import.meta.url)),
+        dirname(process.execPath),
+      ),
       userConfigDir: userConfigDirOf,
       builtinNames: BUILTIN_GROUP_NAMES,
     }),
