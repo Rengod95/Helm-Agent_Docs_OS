@@ -960,7 +960,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | 경로 | 소유 | 상주 수준(`L2.readme` §8) |
 |---|---|---|
 | 같은 프로세스 소비자(L4 in-process 클라이언트, 그룹) | `NoticeFeed.subscribe` | 1 |
-| 클라이언트 당겨 읽기 | `dialog.notify.list`(wire는 §4.2.6 [미결]) | 1 |
+| 클라이언트 당겨 읽기 | `dialog.notify.list`(wire는 `notify.list`, `L4.host-service.spec` HS-82) | 1 |
 | OS 알림(데스크톱 알림 센터) | cap-dialog가 `xeon.os`의 `notify(n, signal)`을 부른다(`L0.os.spec` §3.7, §3.10. 확인함). M3 이전 빌드와 provider `none`이면 `disabled`를 돌려준다. 구현은 `notify/os-delivery.ts`다 [구현: M3b D11] | 1 |
 | 모바일 푸시 | cap-dialog(`dialog.notify`)의 푸시 채널 [제안]. 외부 중계와 인증 계층은 서비스 모드(`L4.host-service.spec`)가 준다 | 2(서비스 모드) |
 
@@ -1106,11 +1106,11 @@ export const manifest = defineManifest({
 ## 10. 미결 사항
 
 - D-1 닫힘. 호출 문맥은 `F.capabilities.spec` §3.2 `CallOptions.context`다(`L2.readme` §5.8).
-- D-2 [일부 닫힘, m2c G1-01] wire 메서드 추가. 닫힌 것: 명령 목록과 실행은 코어 표의 `command.list`, `command.run`이고 `CommandInfo`는 어긋나지 않는다. [결정: M3-REQ-16, M3-20] `status.list`와 `attachments.add`는 코어 표에 두었고 호스트 처리기가 능력을 부른다(HS-81). 상대 경로는 `threadId`의 작업 폴더로 푼다(§4.5, F wire §3.3.1, M3-REQ-92). `L4.host-service.spec` §10 34번은 이 변경으로 닫혔다. 남은 것 [미결]: `notify.list`, `aside.ask`를 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지.
+- D-2 [일부 닫힘, m2c G1-01] wire 메서드 추가. 닫힌 것: 명령 목록과 실행은 코어 표의 `command.list`, `command.run`이고 `CommandInfo`는 어긋나지 않는다. [결정: M3-REQ-16, M3-20] `status.list`와 `attachments.add`는 코어 표에 두었고 호스트 처리기가 능력을 부른다(HS-81). 상대 경로는 `threadId`의 작업 폴더로 푼다(§4.5, F wire §3.3.1, M3-REQ-92). `L4.host-service.spec` §10 34번은 이 변경으로 닫혔다. [구현: M3b B1-NTF H4] `notify.list`도 코어 표에 두었다(HS-82). 남은 것 [미결]: `aside.ask`를 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지.
 - D-3 닫힘(구현 일부는 M3, review.m2-plan DG.1) L1.tools.spec과의 약속. 닫힌 것: 승인 요청 멱등(같은 `requestKey`, core-tools `open`), `input_required` 재시도(`status: "input_required"`에 `approvalId`, L1A.4), 질문에 `allow` 응답 거부(`applied: false`), 응답 모양(`QuestionAnswer`, §4.1.1). 닫힌 것(m2 F.8): (2) 비대화형 판정(`CallContext.interactive`), (3) `QuestionItem.header`, `QuestionOption.recommended`, (4) F `ApprovalService`의 비차단 `open`·`wait`·`get`(L1.tools.spec §8.3 F 요청 11). (4)로 정식 `ApprovalsPortFactory`(`questionApprovalsOver`)를 만들었고 실제 `ApprovalService` 위에서 시험한다. 같은 키의 서비스 쪽 내용 비교와 재시작 뒤 재요청이 처음 요청의 body를 돌려주는 것은 L1A 쪽 한계로 남았다(어댑터가 메모리 안에서 비교한다). 닫힘(m2c G1-11): (1) 만료 시각과 만료 결과의 계약 필드(`ApprovalRequestInput.expiresAt`·`onExpire`, `L2ApprovalRequest`의 같은 이름 필드, `resolvedBy: "expired"`)는 F에 들어갔다. 만료 타이머와 이 어댑터가 `expiresAt`을 채우는 구현은 M3다(`review.m3-plan` M3-06). 닫힘(m2c G1-09): 승인 origin의 `caller`는 `approvalCallerOf(CallContext.caller)`로 만든다. 이 어댑터는 자기 변환을 두지 않고, 호출 문맥이 없는 요청은 `host`로 본다(`F.records.spec` §3.3.1).
 - D-4 [미결] 상태줄 id와 `dialog.notify.emit`의 `origin` 확인. `CallOptions.context.caller.extension`(`L2.readme` §5.8)과 대조한다. X의 capability 래퍼가 채우는 값이 확장 이름인지 scope id인지 `X.primitives.spec`과 맞춘다(`L2.work.spec` W-6과 같은 문제).
 - D-5 [미결] 곁가지 질문의 기록 위치와 사용량 집계(2차).
-- D-6 [미결] 알림 소유 경계. 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 창이 앞에 있을 때 알림을 생략하는 조건의 위치(클라이언트 대 엔진)도 함께 정한다. [결정 2026-10-26, review.m3-design-inputs D-M3-17] 기본은 호스트가 창 상태와 관계없이 알림을 보내고 화면에 띄울지는 클라이언트가 정한다. 생략 조건을 호스트에 둘지와 설정 키 위치는 남아 있다 [미결].
+- D-6 [일부 닫힘, M3b B1-NTF H4] 알림 소유 경계. 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 창이 앞에 있을 때 알림을 생략하는 조건의 위치(클라이언트 대 엔진)도 함께 정한다. [결정 2026-10-26, review.m3-design-inputs D-M3-17] 기본은 호스트가 창 상태와 관계없이 알림을 보내고 화면에 띄울지는 클라이언트가 정한다. [구현: M3b B1-NTF H4] 호스트는 창 상태를 보지 않는다. 알림마다 종류별 설정 `l2.dialog.notify.<kind>`가 켜져 있으면 연결된 클라이언트 모두에 `notify.delivered`로 보내고(`L4.host-service.spec` HS-82), 창이 앞에 있을 때 화면에 띄울지 생략할지는 클라이언트가 정한다. OS 토스트 설정 `l2.dialog.notify.os`는 이 호스트 경로가 보지 않는다. 남은 것 [미결]: 모바일 푸시 채널을 `dialog.notify`가 맡는 확정(`L2.readme` §10 미결 15).
 - D-7 [미결] 명령 우선순위(`builtin` > `capability` > `project` > `user` > `extension`)와 pi 순서(사용자 우선)의 차이.
 - D-8 [미결] 명령 파일 기본 디렉터리 이름(`.xeon/commands`)과 사용자 설정 디렉터리 위치. L4.host-service.spec과 정한다. M2는 사용자 `<홈>/.xeon/commands`, 프로젝트 `<작업 폴더>/.xeon/commands`로 구현했고 `CommandRoots` 포트 한 곳에서 바꾼다.
 - D-9 [미결] `dialog.attachments`의 `workspace.images` 의존 종류. `L2.readme` §6은 `requires`, 브리프는 "없으면 원본"이다. 이 문서는 정의 `requires`를 두고 호출 시 `unavailable`이면 원본으로 계속한다.

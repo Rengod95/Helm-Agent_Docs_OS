@@ -85,7 +85,6 @@ export function createWireHandlers(
     "settings.readFile": notImplemented("settings.readFile"),
     "settings.writeFile": notImplemented("settings.writeFile"),
     "usage.get": notImplemented("usage.get"),
-    "notify.list": notImplemented("notify.list"),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine),
     ...createTrustHandlers(engine),

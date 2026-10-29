@@ -1,5 +1,10 @@
 import type { Clock, Result, Scheduler } from "@xeon/contracts";
-import type { AnyCapabilityDef, SecretMeta, SecretName } from "@xeon/contracts/capabilities";
+import type {
+  AnyCapabilityDef,
+  Notice,
+  SecretMeta,
+  SecretName,
+} from "@xeon/contracts/capabilities";
 import type { IdFactory, ItemId, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   DurableEventEnvelope,
@@ -51,7 +56,7 @@ import type {
 import type { ModelsExtensionOptions } from "@xeon/core-models";
 import type { SecretsRuntime, SecretsRuntimeDeps } from "@xeon/platform-secrets";
 import type { BuiltinExtensionModule } from "@xeon/ext-host";
-import type { BinaryCheckReport } from "@xeon/platform-os";
+import type { BinaryCheckReport, NotifierProvider } from "@xeon/platform-os";
 import type { SecretOfferStore } from "./secrets/offers.ts";
 
 // L4.host-service.spec §3.3.1~§3.3.2. 처리기와 연결 허브는 이 파일의 타입(EnginePorts)만 쓰고 아래 층 패키지를 import하지 않는다
@@ -102,6 +107,11 @@ export interface AssembleOptions {
   readonly secretsRuntime?: (deps: SecretsRuntimeDeps) => SecretsRuntime;
   /** 기본 true. false면 기본 플러그인(Helm) 설치와 외부 확장 적재를 건너뛴다 */
   readonly defaultGroups?: boolean;
+  /**
+   * 테스트 주입: OS 알림 provider(`platform-os` `notifier`). 생략하면 OS 기본 도구(notify-send 등)를 고르고, `null`이면 provider none이라
+   * `notify`가 `disabled`를 돌려준다. 실제 알림 도구를 띄우지 않으려는 시험이 `null`을 넘긴다. 운영은 생략한다
+   */
+  readonly osNotifier?: NotifierProvider | null;
   /**
    * 안전 모드. 참이면 L3 내장 그룹(학습)을 싣지 않는다 [결정: review.m3-design-inputs D-M3-07 a, X.operations.spec §4.6.2]. 대기열은 남고
    * 다시 켜면 그대로 보인다. L1·L2 내장 패키지는 그대로 싣는다. 기본 false
@@ -391,6 +401,19 @@ export interface DialogWirePort {
     params: WireParams<"attachments.add">,
     signal: AbortSignal,
   ): Promise<Result<WireResult<"attachments.add">, DialogWireFailure>>;
+  /**
+   * `afterSeq` 뒤의 알림을 당겨 읽는다(`notify.list`, M3-REQ-16). `threadId`가 있으면 그 thread 문맥으로 부른다. 목록만 읽는다.
+   * 입력 검사는 wire 스키마가 먼저 하고, 서비스의 입력 거절은 `rejected`로 돌아온다
+   */
+  notifyList(
+    params: WireParams<"notify.list">,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"notify.list">, DialogWireFailure>>;
+  /**
+   * 알림 전달 구독(`notify.delivered`의 원천). 서비스(`dialog.notify`의 같은 프로세스 구독)가 아직 없으면 붙지 않고, 서비스가 나타나면
+   * 붙는다. 반환 함수로 구독을 푼다. 서비스가 없어지면 붙은 구독은 떼고 다시 나타나면 다시 붙는다
+   */
+  subscribeNotices(listener: (threadId: ThreadId, notice: Notice) => void): Unsubscribe;
 }
 
 /**

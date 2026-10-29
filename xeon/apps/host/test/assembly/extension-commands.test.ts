@@ -60,6 +60,7 @@ function bridge(defs: Readonly<Record<string, ExtensionHandler>>): Bridged {
     status: undefined,
     attachments: undefined,
     notify: undefined,
+    notifyListeners: new Set(),
   };
   bridgeExtensionCommands({ resources }, holder, logger);
   return { handlers, warnings };

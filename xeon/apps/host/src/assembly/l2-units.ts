@@ -28,8 +28,8 @@ export type CommandsApi = CapabilityApi<typeof DialogCommands>;
 export type StatusApi = CapabilityApi<typeof DialogStatus>;
 /** `dialog.attachments` 능력의 서비스 API. 호스트의 `attachments.add` 처리기가 쓴다 */
 export type AttachmentsApi = CapabilityApi<typeof DialogAttachments>;
-/** `dialog.notify` 능력의 서비스 API와 같은 프로세스 구독. 알림 목록(`notify.list`)이 쓴다 */
-type NotifyApi = CapabilityApi<typeof DialogNotify> & NoticeFeed;
+/** `dialog.notify` 능력의 서비스 API와 같은 프로세스 구독. 알림 목록(`notify.list`)과 알림 전달(`notify.delivered`)이 쓴다 */
+export type NotifyApi = CapabilityApi<typeof DialogNotify> & NoticeFeed;
 
 /**
  * 동작 명령 등록부와 대화 능력 API(명령, 상태줄, 첨부, 알림)를 나중에 채우는 자리. 브리지 확장이 채우고 cap-work가 등록 시점에(`current`),
@@ -41,6 +41,17 @@ export interface CommandRegistryHolder {
   status: StatusApi | undefined;
   attachments: AttachmentsApi | undefined;
   notify: NotifyApi | undefined;
+  /**
+   * `notify`를 채우거나 비운 뒤 부른다. 알림 전달 구독(`DialogWirePort.subscribeNotices`)이 서비스가 나타날 때 붙고 사라질 때 뗀다.
+   * 엔진을 세운 뒤 브리지 확장이 올라오는 순서와 무관하게 구독이 맞물리게 한다
+   */
+  readonly notifyListeners: Set<() => void>;
+}
+
+/** `notify`를 채우거나 비우고 등록된 리스너를 부른다(`CommandRegistryHolder.notifyListeners`) */
+function publishNotify(holder: CommandRegistryHolder, api: NotifyApi | undefined): void {
+  holder.notify = api;
+  for (const listener of Array.from(holder.notifyListeners)) listener();
 }
 
 /**
@@ -168,14 +179,14 @@ export function dialogBridgePlugin(
           effect: "attachments.add is unavailable",
         });
       const notify: unknown = g.capability(DialogNotifyKey);
-      if (isNotifyApi(notify)) holder.notify = notify;
+      if (isNotifyApi(notify)) publishNotify(holder, notify);
       else logger.warn("dialog.notify_api_missing", { effect: "notify.list is unavailable" });
       g.onDispose(() => {
         holder.current = undefined;
         holder.api = undefined;
         holder.status = undefined;
         holder.attachments = undefined;
-        holder.notify = undefined;
+        publishNotify(holder, undefined);
       });
       const registration: ToolRegistration = {
         kind: "capability",

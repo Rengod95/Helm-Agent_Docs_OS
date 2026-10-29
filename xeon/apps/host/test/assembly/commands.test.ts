@@ -48,7 +48,14 @@ function holderWith(
       return run(input);
     },
   };
-  return { current: undefined, api, status: undefined, attachments: undefined, notify: undefined };
+  return {
+    current: undefined,
+    api,
+    status: undefined,
+    attachments: undefined,
+    notify: undefined,
+    notifyListeners: new Set(),
+  };
 }
 
 function capabilityError(code: string, message: string): CapabilityError {
@@ -143,6 +150,7 @@ test("without a command service both calls are unavailable", async () => {
       status: undefined,
       attachments: undefined,
       notify: undefined,
+      notifyListeners: new Set(),
     },
     ids,
   });

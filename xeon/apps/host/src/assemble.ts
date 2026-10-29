@@ -448,6 +448,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           logRedact: (line) => redact.current(line),
           // 설정 l0.os.log.level은 live다: 로그를 낼 때마다 읽어 변경이 다음 줄부터 반영된다(G1-12)
           logLevel: logLevelOf(settings),
+          // 시험이 OS 알림 도구를 띄우지 않도록 provider를 바꿔 끼운다(AssembleOptions.osNotifier). 운영은 생략해 OS 기본을 쓴다
+          ...(options.osNotifier === undefined ? {} : { notifier: options.osNotifier }),
         },
         runtime,
         (handle) => {
@@ -598,6 +600,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       status: undefined,
       attachments: undefined,
       notify: undefined,
+      notifyListeners: new Set(),
     };
     // 웹 런타임 자리(`web.providers`). cap-web 확장이 올라올 때 채운다
     const web: WebStatusHolder = { current: undefined };
