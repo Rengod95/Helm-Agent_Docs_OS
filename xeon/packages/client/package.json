@@ -10,7 +10,8 @@
     "./socket": "./src/socket.ts",
     "./settings": "./src/settings/index.ts",
     "./accounts": "./src/accounts/index.ts",
-    "./web": "./src/web/index.ts"
+    "./web": "./src/web/index.ts",
+    "./i18n": "./src/i18n/index.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",

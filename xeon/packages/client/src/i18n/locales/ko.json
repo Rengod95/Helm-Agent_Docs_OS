@@ -1,0 +1,4 @@
+{
+  "settings.l4.ui.locale.label": "표시 언어",
+  "settings.l4.ui.locale.help": "메시지와 화면의 언어. auto는 운영체제 설정을 따르고 지원하지 않으면 en을 쓴다."
+}

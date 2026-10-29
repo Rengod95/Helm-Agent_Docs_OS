@@ -1,0 +1,4 @@
+{
+  "settings.l4.ui.locale.label": "Display language",
+  "settings.l4.ui.locale.help": "Language of messages and screens. auto follows the operating system and falls back to en."
+}
