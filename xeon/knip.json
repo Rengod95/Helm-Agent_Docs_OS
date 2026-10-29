@@ -27,6 +27,9 @@
     "packages/cap-knowledge": {
       "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
     },
+    "packages/core-context": {
+      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
+    },
     "packages/cap-workspace": {
       "entry": ["test/**/*.test.ts", "test/support/atomic-victim.ts"]
     },
