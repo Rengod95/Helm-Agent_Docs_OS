@@ -37,6 +37,7 @@ import {
   createThreadRevertHandler,
 } from "./thread.ts";
 import { createTrustHandlers } from "./trust.ts";
+import { createScheduleHandlers } from "./schedule.ts";
 import { createWebHandlers } from "./web.ts";
 import {
   createTurnInterruptHandler,
@@ -93,6 +94,7 @@ export function createWireHandlers(
     ...createTrustHandlers(engine),
     ...createCommandHandlers(engine, hub),
     ...createWebHandlers(engine),
+    ...createScheduleHandlers(engine),
     ...createDialogHandlers(engine),
   };
   return table;

@@ -60,7 +60,12 @@ import {
 } from "@xeon/platform-store";
 import { capabilityDefsOf } from "./assembly/capability-defs.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
-import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
+import {
+  builtinUnits,
+  installFailureOf,
+  scheduleUnit,
+  unitOfModule,
+} from "./assembly/extensions.ts";
 import {
   createLearningWiring,
   learningLoaded,
@@ -789,6 +794,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ...(options.schedule === undefined ? {} : { overrides: options.schedule }),
     });
     scheduleSlot.service = schedule;
+    // 예약 플러그인은 서비스가 생긴 뒤에 올린다(`scheduleUnit`). 도구 등록은 core-tools가 이미 올라와 있어야 한다
+    const scheduled = installFailureOf(await ext.install(scheduleUnit(schedule, units.length)));
+    if (scheduled !== undefined) {
+      throw new AssembleError([
+        { code: "plugin", plugin: scheduled.plugin, message: scheduled.message },
+      ]);
+    }
 
     // 5~6. 카탈로그는 위에서 만들었다. 세션 범위 설정을 연결한다
     settings.bindSession(session.sessionSettings);

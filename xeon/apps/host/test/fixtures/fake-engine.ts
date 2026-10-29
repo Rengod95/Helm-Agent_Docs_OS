@@ -89,6 +89,7 @@ export interface FakeEngineOptions {
     readonly dialog?: Partial<DialogWirePort>;
     readonly proposals?: Partial<ProposalPort>;
     readonly usage?: Partial<UsagePort>;
+    readonly schedule?: Partial<ScheduleService>;
   };
 }
 
@@ -365,8 +366,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       snapshot: () => ({ liveTurns: 0, liveTasks: 0, waitingApprovals: 0, pendingSchedules: 0 }),
       onChange: () => () => undefined,
     },
-    // 예약 서비스는 이 가짜가 쓰지 않는다(활동은 위 가짜가 낸다). 부르면 undefined라 시험이 바로 실패한다
-    schedule: partial<ScheduleService>({}),
+    // 예약 서비스는 `overrides.schedule`로 쓰는 멤버만 채운다. 채우지 않은 멤버를 부르면 undefined라 시험이 바로 실패한다
+    schedule: partial<ScheduleService>({ ...options.overrides?.schedule }),
     notify: { show: () => Promise.resolve() },
     log: {
       error: (message, fields) => {
