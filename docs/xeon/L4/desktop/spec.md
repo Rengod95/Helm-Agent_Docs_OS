@@ -266,7 +266,9 @@ export interface DesktopSettingsStore {
 }
 ```
 
-- 파일은 셸이 읽고 쓴다(`desktop_settings_read`, `desktop_settings_write` 명령, [제안]). 파일 위치는 Tauri 앱 설정 디렉터리이고, 범위는 `user` 하나다.
+- 파일 위치는 Tauri 앱 설정 디렉터리(`app_config_dir`)의 `desktop-settings.json`이고, 범위는 `user` 하나다. 형식은 전체 설정 키를 쓰는 평평한 JSON 객체다. 예: `{"l4.desktop.window.closeBehavior":"tray","l4.desktop.engine.shutdownGraceMs":5000,"l4.desktop.engine.restartLimit":2}`. 셸은 시작할 때 한 번 읽는다(§4.2 1단계). 구현은 `src-tauri/src/desktop_settings.rs`다.
+- 읽기 규칙. 파일이 없으면 기본값이고 진단은 없다. 파일이 64 KiB를 넘거나, JSON이 아니거나, 최상위가 객체가 아니면 모든 키를 기본값으로 쓰고 진단을 한 줄 남긴다. 값 하나가 타입이나 범위에 맞지 않으면 그 키만 기본값을 쓰고 진단을 한 줄 남긴다. 범위는 `closeBehavior`가 `"quit"`·`"tray"`, `shutdownGraceMs`가 정수 1000~180000, `restartLimit`이 정수 0~10이다. 알 수 없는 키는 진단 없이 무시한다. 진단은 키 이름과 이유만 담고 값은 담지 않는다(E11).
+- 쓰기는 아직 없다. 셸이 파일을 쓰는 명령 `desktop_settings_read`, `desktop_settings_write`는 M4 설정 화면(B3-SET) 때 더한다 [미결: M4 settings-ui / B3-SET]. 그 전까지 파일은 직접 고친다.
 - 이 저장소는 비밀 키를 두지 않는다. `l4.desktop.*`에는 `secret: true` 키가 없다.
 
 ### 3.7 메모리 측정 인터페이스
@@ -319,7 +321,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 ### 4.2 기동 순서
 
-1. 셸이 시작하면 데스크톱 설정 파일을 읽는다(§3.6). 읽지 못하면 기본값을 쓴다.
+1. 셸이 시작하면 데스크톱 설정 파일을 읽는다(§3.6). 파일이 없거나 읽지 못하면 기본값을 쓴다. 틀린 값은 그 키만 기본값을 쓰고, 진단은 앱 로그에 남긴다. 읽은 엔진 값은 `EngineConfig::from_values`로 바꿔 엔진 감독자에 넘긴다(M3-38).
 2. (M3) 서비스 사용 설정(`l0.process.service.enabled`)이 켜져 있으면 §4.8 서비스 경로로 가고, 꺼져 있으면 3으로 간다. M2는 이 단계 없이 3으로 간다.
    - 이 키는 엔진 카탈로그의 user·managed 범위 파일 값이고, 셸과 WebView는 `l4.desktop.*` 로컬 저장소(§3.6)만 읽는다. `resolveLaunchMode`는 `@xeon/host` 안에 있어 desktop이 import할 수 없다(W6, DR-10). 그래서 읽기 경로를 따로 둔다.
 
@@ -347,6 +349,8 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 - 불변식 [제안]: 셸 대기 `l4.desktop.engine.shutdownGraceMs`는 엔진 시한 `l0.process.shutdown.timeoutMs` + 2000 이상이어야 한다. 두 값의 단위는 모두 ms다. 셸 대기가 엔진 시한과 같거나 짧으면 엔진의 체크포인트 커밋과 그룹 SIGKILL이 경합한다. 셸은 엔진 카탈로그를 읽지 않으므로 이 관계는 기본값(7000 ≥ 3000 + 2000)으로 지킨다. 사용자가 `l0.process.shutdown.timeoutMs`를 5000 넘게 올리면 `shutdownGraceMs`도 함께 올려야 한다 [가정: 두 값을 자동으로 맞추는 수단은 없다].
 
 - [확인: `L4.desktop.plan` §3.1.1 S1, WSL2 WebKitGTK] 앱이 SIGTERM을 받을 때 처리기를 두지 않으면 `RunEvent::ExitRequested`도 `Exit`도 오지 않고 프로세스가 바로 사라진다. `signal-hook` 처리기에서 `app.exit(0)`을 부르면 `ExitRequested`(code `Some(0)`)와 `Exit`가 와서 같은 순서를 탄다. 그러므로 Unix에서는 셸이 SIGTERM·SIGINT 처리기를 둔다 [제안 유지]. 처리기가 없는 경우와 앱 SIGKILL은 E5(EOF 임대)만이 방어다. macOS는 미측정이다.
+- 닫기 동작이 `"tray"`이고 창이 모두 닫혀 생긴 종료(`ExitRequested`의 `code`가 없음)는 이 순서를 타지 않는다. `should_prevent_exit`가 참이면 `prevent_exit()`로 막고 셸과 엔진을 남긴다(§6). 명시 종료(코드가 있는 `app.exit`, 신호)는 닫기 동작과 관계없이 이 순서를 탄다.
+- [미확인: macOS, 소스 읽기] `tauri-runtime-wry` 2.12.3과 `tao` 0.37.2에는 `applicationShouldTerminate` 처리가 보이지 않는다. 그래서 메뉴의 종료(Cmd+Q)가 `ExitRequested` 없이 `RunEvent::Exit`만 낼 수 있다. 그러면 이 순서 대신 `Exit`의 그룹 종료만 돈다. Mac에서 확인해야 한다.
 - [확인: S1] 5단계의 그룹 SIGKILL은 EOF 처리 시한 뒤에 한다. `Exit`에서 곧바로 그룹 SIGKILL을 하면 엔진이 새 세션으로 띄운 손자(E9 위반 구성)를 정리할 기회를 잃어 그 손자가 남았다. 프로세스 그룹을 끄면(E3 위반) 그룹 SIGKILL이 손자에 미치지 않았다.
 
 ### 4.4 비정상 종료와 재기동
@@ -624,11 +628,11 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `engine_write`의 세대가 현재와 다름 | 거부한다. 이전 페이지의 늦은 쓰기가 새 연결에 섞이지 않게 한다 |
 | 종료 중(`stopping`)에 사용자 입력 | 입력창을 잠그고 "종료 중"을 보인다. 엔진은 `host.shuttingDown`(5002)을 돌려줄 수 있다 |
 | 종료 시한 초과 | 그룹 SIGKILL. 진행 중 turn은 다음 실행 때 이어서 실행 후보가 된다 |
-| 앱 두 개를 동시에 실행 | [결정: M2 마감 G2-09] `tauri-plugin-single-instance`를 가장 먼저 등록한다. 두 번째 인스턴스는 다른 초기화(엔진 기동, DB)를 하기 전에 첫 인스턴스에 알리고 끝나며, 첫 인스턴스는 메인 창을 보이고 최소화를 풀고 포커스를 준다(`src-tauri/src/window.rs` `focus_main`). 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 세션 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
+| 앱 두 개를 동시에 실행 | [결정: M2 마감 G2-09] `tauri-plugin-single-instance`를 가장 먼저 등록한다. 두 번째 인스턴스는 다른 초기화(엔진 기동, DB)를 하기 전에 첫 인스턴스에 알리고 끝나며, 첫 인스턴스는 메인 창이 없으면 `tauri.conf.json`의 `main` 항목으로 다시 만들고, 메인 창을 보이고 최소화를 풀고 포커스를 준다(`src-tauri/src/window.rs` `ensure_main`, `focus_main`). 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 세션 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
 | `thread.locked` | 관찰·분기 선택 대화 상자를 보인다. 위임은 서비스 공급원에서만 보인다 |
 | WebKitGTK가 설치되지 않은 Linux | 앱이 뜨지 않는다. 패키지 의존(`L4.desktop.plan` §3 D10)으로 막는다 |
 | WSL에서 WSLg가 없음 | [미결] 지원 범위(§10 미결 9). 지원하지 않으면 시작 시 안내 문구를 띄운다 |
-| 데스크톱 설정 파일 손상 | 그 값을 건너뛰고 기본값을 쓴다. 진단을 남긴다(`F.wire-settings.spec` §4.8 파일 값 규칙과 같다) |
+| 데스크톱 설정 파일 손상 | JSON이 아니거나 최상위가 객체가 아니거나 64 KiB를 넘으면 모든 키를 기본값으로 쓴다. 키 하나가 타입이나 범위에 맞지 않으면 그 키만 기본값을 쓴다. 진단은 앱 로그에 키 이름과 이유만 남긴다(§3.6, `F.wire-settings.spec` §4.8 파일 값 규칙과 같다) |
 | Finder로 띄운 앱에서 sops, age, rg를 찾지 못함 | PATH 보강(E7)으로 Homebrew와 `~/.local/bin`, `~/.nix-profile/bin`을 찾습니다. 그래도 없으면 키 등록은 `rejected`로 끝나고 자식의 오류 문구를 보입니다(§4.14.1) |
 
 ## 6. 설정 노출
@@ -647,7 +651,9 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `l4.desktop.update.auto` | boolean | `false` | - | restart | `managed`, `user` | advanced / toggle | M3 [미결] |
 | `l4.desktop.firstRun.searchHintDismissed` | boolean | `false` | - | live | `user` | tools / toggle | M3 |
 
-- `closeBehavior`의 `tray`: 창을 닫으면 WebView를 해제하고(§4.10 수단 5) 셸과 엔진만 남는다. 진행 중 turn이 계속된다. `quit`이면 §4.3 정상 종료를 탄다.
+- `closeBehavior`의 `tray`: 창을 닫으면 WebView를 해제하고(§4.10 수단 5) 셸과 엔진만 남는다. 진행 중 turn이 계속된다. `quit`이면 §4.3 정상 종료를 탄다. 기본값은 `quit`이다.
+- 트레이 유지 뒤 창을 다시 여는 길은 두 가지다. 두 번째 실행(단일 실행 알림)과 macOS Dock 클릭(`RunEvent::Reopen`)은 메인 창이 없으면 `tauri.conf.json`의 `main` 항목으로 창을 만들고 앞으로 가져온다(`window.rs` `ensure_main`). 새 페이지는 `engine_attach`로 다시 붙는다(§4.5). 이 구현에는 트레이 아이콘이 없어 트레이 항목으로 앱을 끝내는 길도 아직 없다 [미결].
+- [미결] 트레이 유지 e2e(plan `tray-close-no-webview`, D-10)는 Mac에서만 돌린다. Linux에서는 종료 결정 함수와 `ensure_main` 시험까지만 확인했다.
 - `restartLimit` 0은 자동 재기동을 끈다는 뜻이다.
 - `firstRun.searchHintDismissed`: 첫 실행 권장 화면(`L4.settings-ui.spec` §4.10)을 처음 연 뒤 닫으면 참이 된다. 참이면 첫 실행 때 자동으로 띄우지 않고 `tools` 탭 묶음에만 보인다 [제안].
 - `shutdownGraceMs`의 기본 7000은 엔진 체크포인트 시한 `l0.process.shutdown.timeoutMs` 기본 3000에 2000을 더한 하한(5000)보다 2000 크다. 여유분은 엔진 시한을 5000까지 올려도 불변식이 깨지지 않게 둔 값이다. 하한 규칙은 `service stop`의 "`l0.process.shutdown.timeoutMs` + 2000ms 뒤 SIGKILL"(`L4.host-service.spec` SV-07)과 같다 [제안]. 불변식은 §4.3에 둔다. S1 측정 뒤 확정한다.

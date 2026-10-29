@@ -23,6 +23,7 @@ use tokio::sync::{mpsc, watch, Notify};
 use tokio::time::{timeout, timeout_at, Instant};
 
 use crate::applog::AppLog;
+use crate::desktop_settings::{RESTART_LIMIT_RANGE, SHUTDOWN_GRACE_MS_RANGE};
 use crate::env_path::augment_path;
 use crate::relay::{
     spawn_pipe_writer, CommandError, PipeHandle, Relay, StdinSink, WRITE_QUEUE_FRAMES,
@@ -95,7 +96,7 @@ pub enum EngineState {
 // ---------------------------------------------------------------------------------------------
 // 설정
 
-/// 셸이 읽는 `l4.desktop.engine.*` 값. 설정 저장소(DESK.4 이후)가 정해질 때까지 기본값을 쓴다.
+/// 셸이 읽는 `l4.desktop.engine.*` 값. `main.rs`가 `desktop-settings.json`의 값을 `from_values`로 넣는다(§3.6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EngineConfig {
     /// 종료 요청 뒤 엔진이 끝나기를 기다리는 시간(`shutdownGraceMs`).
@@ -115,17 +116,15 @@ impl Default for EngineConfig {
 
 impl EngineConfig {
     /// 설정 파일에서 읽은 값을 검사해 쓴다. 없거나 범위 밖이면 그 값만 기본값으로 둔다
-    /// (`F.wire-settings.spec` 4.8의 파일 값 규칙과 같다).
-    // 설정 저장소(DESK.4 이후)가 연결되면 main.rs가 부른다.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// (`F.wire-settings.spec` 4.8의 파일 값 규칙과 같다). 범위는 `desktop_settings`의 상수와 같다.
     pub fn from_values(shutdown_grace_ms: Option<i64>, restart_limit: Option<i64>) -> Self {
         let default = Self::default();
         let grace = shutdown_grace_ms
-            .filter(|ms| (1000..=180_000).contains(ms))
+            .filter(|ms| SHUTDOWN_GRACE_MS_RANGE.contains(ms))
             .and_then(|ms| u64::try_from(ms).ok())
             .map_or(default.shutdown_grace, Duration::from_millis);
         let limit = restart_limit
-            .filter(|n| (0..=10).contains(n))
+            .filter(|n| RESTART_LIMIT_RANGE.contains(n))
             .and_then(|n| u32::try_from(n).ok())
             .unwrap_or(default.restart_limit);
         Self {

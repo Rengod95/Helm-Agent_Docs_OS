@@ -385,7 +385,7 @@ M2 마감 반영(T7 DESK, Rust 셸과 사이드카 e2e, G2-09·G4-03·원격 점
 
 | 부분 | 파일 | 내용 |
 |---|---|---|
-| 단일 실행 | `src-tauri/src/main.rs`, `window.rs` | `tauri-plugin-single-instance`를 첫 플러그인으로 등록하고 콜백이 `focus_main`(show, unminimize, set_focus)을 부른다. 시험은 `tauri::test` mock 앱으로 창 조회와 레이블 일치를 본다. 실제로 프로세스 둘을 띄운 확인은 하지 않았다 |
+| 단일 실행 | `src-tauri/src/main.rs`, `window.rs` | `tauri-plugin-single-instance`를 첫 플러그인으로 등록하고 콜백이 `ensure_main`을 부른다. 메인 창이 없으면 `main` 항목으로 만들고, `focus_main`(show, unminimize, set_focus)으로 앞에 세운다(M3b, M3-38). 시험은 `tauri::test` mock 앱으로 창 조회, 레이블 일치, 중복 없는 만들기를 본다. 실제로 프로세스 둘을 띄운 확인은 하지 않았다 |
 | 로그 파일 | `main.rs` `debug_log_plugin`, `applog.rs` | 디버그 빌드만. `LogDir` 파일과 표준 출력, 2 MB `KeepOne`. 받는 줄은 `AppLog::line`의 줄과 시작 줄이다(M3b, M3-m2c-04 e, spec §4.15) |
 | 상태 덤프, 스냅샷 | `src-tauri/src/inspect/` | spec §4.15. JSON-RPC 처리(`mod.rs`), 소켓 서버(`server.rs`: 소켓 0600/폴더 0700, 접속 4개, 줄 16 KiB, 낡은 소켓 교체와 일반 파일 보존), 실제 앱 정보(`probe.rs`), macOS 스냅샷(`snapshot_macos.rs`). Rust 시험 65개가 `just desktop-test`로 통과했다 |
 | 릴리스 점검 | `test/inspect-guard.test.ts` | 소스 수준 cfg 보장. 산출물 확인 목록은 spec §4.15. `cargo check --release`는 경고 없이 통과했다 |
@@ -511,7 +511,10 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 | relay-no-payload-log | `src-tauri/src/relay.rs` 안 Rust 테스트 | unit(cargo) | 릴레이 로그 기록기가 바이트 수·프레임 수·세대만 남기고 프레임 내용을 남기지 않는다 | E11, D-08 | M2 |
 | desktop-cli-message-parity | `test/e2e/parity.e2e.test.ts` | e2e | 같은 테이프로 CLI와 데스크톱의 호스트 메시지 열이 정규화 뒤 같다 | D-03 | M2 |
 | app-exit-no-sidecar | `test/e2e/exit.e2e.test.ts` | e2e | 앱 창 닫기 뒤 사이드카와 손자가 없다 | D-01 | M2 |
-| tray-close-no-webview | `test/e2e/tray-close.e2e.test.ts` | e2e | `closeBehavior: "tray"`에서 창을 닫으면 WebView 엔진 프로세스가 0개이고 진행 중 turn이 계속되며, 창을 다시 열면 저장 위치부터 이어 받는다 | D-10 | M2 |
+| tray-close-no-webview | `test/e2e/tray-close.e2e.test.ts` | e2e | `closeBehavior: "tray"`에서 창을 닫으면 WebView 엔진 프로세스가 0개이고 진행 중 turn이 계속되며, 창을 다시 열면 저장 위치부터 이어 받는다 | D-10 | M2. [미결] Mac에서만 돈다. 상태: 미실행 |
+| desktop-settings-parse | `src-tauri/src/desktop_settings.rs` 안 Rust 테스트 | unit(cargo) | 설정 파일 해석: 문서화된 값을 읽고, 값마다 그 키만 건너뛰며 키 이름 진단을 하나 남기고, JSON 오류와 객체가 아닌 파일은 모두 기본값과 진단 하나이고, 알 수 없는 키는 무시하고, 범위 밖 숫자는 `from_values`가 기본값으로 바꾸고, 64 KiB를 넘는 파일은 모두 기본값이며, 없는 디렉터리와 파일은 진단이 없다. 진단은 값을 담지 않는다 | §3.6, §4.2 1단계, §5 | M3b(M3-38). 상태: 통과(Linux) |
+| tray-exit-decision | `src-tauri/src/desktop_settings.rs` 안 Rust 테스트 | unit(cargo) | `closeBehavior` × 종료 코드 모든 조합에서 종료를 막는 것은 `tray`이고 코드 없는 종료(창이 모두 닫힘)뿐이다. 변이 점검에서 조건 하나를 빼면 실패한다 | §4.3, §6 | M3b(M3-38). 상태: 통과(Linux) |
+| window-ensure-main | `src-tauri/src/window.rs` 안 Rust 테스트 | unit(cargo) | `main` 항목으로 메인 창을 한 번만 만들고, 이미 있으면 중복 없이 앞으로 가져오며, 설정에 `main` 항목이 없으면 아무것도 만들지 않는다 | §5, §6 | M3b(M3-38). 상태: 통과(Linux) |
 | engine-env-sanitized | `src-tauri/src/engine.rs` 안 Rust 테스트 | unit(cargo) | spawn 명령 구성 함수가 만든 환경에 `BUN_OPTIONS`가 없고, cwd와 넘기는 모든 경로가 절대 경로다 | D-11, E6, E7 | M2 |
 | env-path-augment | `src-tauri/src/env_path.rs`와 `engine.rs` 안 Rust 테스트 | unit(cargo) | Finder 기본 PATH 뒤에 도구 디렉터리가 정해진 순서로 붙고, 이미 있는 항목은 중복 없이 제자리에 남고, 사용자 항목이 앞에 남고, 홈이 없으면 고정 디렉터리만 붙고, 빈 PATH는 붙인 디렉터리만 되고, 이어 붙일 수 없으면 원래 값이다. `engine_env`는 PATH 값을 바꾸고 없으면 맨 뒤에 넣는다 | E7, §4.14.1 | M3b(m2c-04 a) |
 | applog-log-crate-record | `src-tauri/src/applog.rs` 안 Rust 테스트 | unit(cargo) | `AppLog::line`이 같은 줄을 대상 `xeon_desktop`, 수준 info의 `log` 기록 하나로 낸다. 제어 문자는 공백으로 바뀌고 탭은 남는다 | §4.15 로그 파일 | M3b(m2c-04 e) |
