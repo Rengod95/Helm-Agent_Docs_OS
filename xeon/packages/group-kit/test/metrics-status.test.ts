@@ -141,8 +141,9 @@ test("metrics.status-merges-counters-with-thread-usage-after-the-status-command"
     value: { metrics: { ...counted, costUsd: 0.25, leaseMs: 0 } },
   });
   expect((await runGroupCommand(service, { op: "status" })).ok).toBe(true);
-  // 명령이 현재 thread의 lease.*와 turn.* 이벤트를 읽어 임대 시간 600ms와 비용 0.5를 더한다
-  expect(queried).toEqual(["lease.", "turn."]);
+  // 명령이 현재 thread의 lease.*와 turn.* 이벤트를 읽어 임대 시간 600ms와 비용 0.5를 더한다.
+  // 승격 후보 줄을 정하려고 turn.started와 effect.intent도 읽는다(L3.group-kit.spec §3.12)
+  expect(queried).toEqual(["lease.", "turn.", "turn.started", "effect.intent"]);
   expect(service.status("helm")).toMatchObject({
     ok: true,
     value: { metrics: { ...counted, costUsd: 0.75, leaseMs: 600 } },

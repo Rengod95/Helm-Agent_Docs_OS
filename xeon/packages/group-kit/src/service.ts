@@ -22,6 +22,8 @@ import {
 } from "@xeon/contracts/services";
 import { defaultDriveArbiter, leaseArbiterPort, type DriveArbiter } from "./arbiter.ts";
 import type { GroupServiceWithUsage } from "./commands.ts";
+import { gatherPromotionInput } from "./promotion/gather.ts";
+import { buildPromotionReport, type PromotionReport } from "./promotion/report.ts";
 import { defaultMetricsRegistry } from "./metrics/registry.ts";
 import { summarizeUsage, type ScopeUsage } from "./metrics/usage.ts";
 import { createLeaseRejections } from "./lease-rejections.ts";
@@ -37,7 +39,7 @@ export { GroupServiceName };
 /** 서비스가 ExtHost에서 읽는 부분. 시험에서는 테스트 호스트의 `host`를 그대로 넘긴다 */
 export type GroupHostView = Pick<
   ExtHost,
-  "scopes" | "scope" | "leaseOf" | "onChange" | "ports" | "queryEvents"
+  "scopes" | "scope" | "leaseOf" | "onChange" | "ports" | "queryEvents" | "toolOwner"
 >;
 
 export interface GroupServiceDeps {
@@ -59,6 +61,11 @@ export interface GroupServiceDeps {
    * 등록되지 않은 그룹은 null이다.
    */
   readonly metrics?: (id: GroupId) => GroupMetricsSummary | null;
+  /**
+   * 승격 집계(L3.group-kit.spec §3.12). `/group status`가 후보 줄을 낼 때 부른다. 없으면 현재 thread의 이벤트로 `gatherPromotionInput`과
+   * `buildPromotionReport`를 돌린다. 현재 thread가 없으면 빈 보고다.
+   */
+  readonly promotion?: () => Promise<PromotionReport>;
 }
 
 /** 활성 thread 하나의 이벤트 집계. `refreshUsage`가 채운다 */
@@ -269,10 +276,18 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     return isCandidate(next) ? "nextStepBoundary" : "afterLeaseRelease";
   }
 
+  /** 현재 thread의 이벤트로 승격 보고를 만든다. thread가 없으면 빈 입력이다 */
+  async function defaultPromotion(): Promise<PromotionReport> {
+    const thread = deps.currentThread();
+    const input = await gatherPromotionInput(deps.host, thread === null ? [] : [thread]);
+    return buildPromotionReport(input);
+  }
+
   return {
     choose: (threadId, candidates) => port.choose(threadId, candidates),
     list,
     currentThread: () => deps.currentThread(),
+    promotionReport: () => (deps.promotion ?? defaultPromotion)(),
     async refreshUsage(threadId) {
       const leases = await deps.host.queryEvents(threadId, { kindPrefix: "lease." });
       const turns = await deps.host.queryEvents(threadId, { kindPrefix: "turn." });

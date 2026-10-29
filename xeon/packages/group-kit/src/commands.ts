@@ -8,6 +8,7 @@ import type {
   GroupStatus,
 } from "@xeon/contracts/services";
 import { GROUP_NAME_PATTERN } from "./define-group.ts";
+import type { PromotionCandidate, PromotionReport } from "./promotion/report.ts";
 
 export type GroupCommand =
   | { readonly op: "status"; readonly id?: string }
@@ -68,6 +69,8 @@ export interface GroupServiceWithUsage extends GroupServiceWithSetting {
   currentThread(): ThreadId | null;
   /** thread의 `lease.*`·`turn.*` 이벤트로 임대 시간과 비용 캐시를 다시 셈한다. 조회가 실패하면 캐시를 그대로 둔다 */
   refreshUsage(threadId: ThreadId): Promise<void>;
+  /** 현재 thread의 승격 집계(L3.group-kit.spec §3.12). `/group status`의 후보 줄에 쓴다 */
+  promotionReport(): Promise<PromotionReport>;
 }
 
 function hasSetting(service: GroupService): service is GroupServiceWithSetting {
@@ -76,6 +79,10 @@ function hasSetting(service: GroupService): service is GroupServiceWithSetting {
 
 function hasUsage(service: GroupService): service is GroupServiceWithUsage {
   return "refreshUsage" in service;
+}
+
+function hasPromotion(service: GroupService): service is GroupServiceWithUsage {
+  return "promotionReport" in service;
 }
 
 /** `/group status`가 보이기 전에 현재 thread의 이벤트 집계를 갱신한다. thread가 없으면 아무것도 하지 않는다 */
@@ -137,6 +144,18 @@ function failure(text: string): CommandOutput {
   return { ok: false, text, pending: false };
 }
 
+/** 승격 후보 줄(L3.group-kit.spec §3.12 승격 절차 1번). 후보가 없으면 null이다 */
+function promotionLine(report: PromotionReport): string | null {
+  const candidates = report.candidates.filter((candidate) => candidate.candidate);
+  if (candidates.length === 0) return null;
+  return `승격 후보: ${candidates.map(candidateText).join("; ")}`;
+}
+
+function candidateText(candidate: PromotionCandidate): string {
+  const consumers = candidate.consumers.map((consumer) => consumer.scopeId).join(", ");
+  return `${candidate.tool} (${candidate.owner} -> ${consumers})`;
+}
+
 async function runStatus(service: GroupService, id: string | undefined): Promise<CommandOutput> {
   await refreshCurrent(service);
   const groups = service.list();
@@ -153,6 +172,10 @@ async function runStatus(service: GroupService, id: string | undefined): Promise
     return { ok: true, text: lines.join("\n"), pending: found.value.pendingToggle !== null };
   }
   for (const group of groups) lines.push(statusLine(group));
+  if (hasPromotion(service)) {
+    const line = promotionLine(await service.promotionReport());
+    if (line !== null) lines.push(line);
+  }
   return {
     ok: true,
     text: lines.join("\n"),

@@ -163,7 +163,7 @@ xeon/packages/group-kit/
 | G-15 | `testing/replay/replay-drive.ts` 최소형: every-commit 절단, `ReplayHarness`(L3.group-kit.spec §3.10)로 받은 digest 비교. 하니스는 그룹 테스트 파일이 테스트 호스트·테이프·정규화 함수로 만든다(review.decisions-2 U-03, U-17) | G-05, G-09, `@xeon/ext-host/testing` 재시작 지원 [가정], `@xeon/core-models/testing` 테이프(테스트 파일에서만 import) | L | M2 |
 | G-16 | `smokeGroup`을 `defineGroup`으로 옮기고 M1 스모크가 그대로 통과하는지 확인 | G-04, G-05, G-01 | S | M2 |
 | G-17 | `metrics/record.ts`: 단계 경계 증가분 기록 `grp.<그룹>.metrics.recorded`(`recordPrivate`), 토큰·비용·임대 시간 계산 (완료, §10) | G-05, X `ScopeApi.recordPrivate`(review.decisions-2 T-21) | M | M3 |
-| G-18 | `promotion/report.ts`: `buildPromotionReport`, `/group status` 부가 줄 | G-17, X `events()`·`toolOwner()` [가정] | M | M3 |
+| G-18 | `promotion/report.ts`: `buildPromotionReport`, `/group status` 부가 줄 (완료, §11) | G-17, X `events()`·`toolOwner()` [가정] | M | M3 |
 | G-19 | `scan/`: `scanDriveSource`(`@swc/core` `parseSync`), SD-01~SD-10(SD-07~09 메시지는 ADR-0015 §3.2를 가리킨다), DR-07 `MODULE_OWNERS` 행 추가 | G-04, `eng.dependency-rules.guide` 표 변경 승인 | M | M3 |
 | G-20 | `replayDrive` 확장: 지점 목록 지정, 사용자 입력 시작, 실패 보고에 첫 차이 이벤트 표시, 효과 계수(ADR-0015 §3.6: 끊기 직전의 drive·on 핸들러를 두 번 실행하고 가짜 포트의 `EffectCounts`가 기준과 같은지 확인, 실패는 `effects-doubled`) | G-15, ADR-0015 | M | M3 |
 | G-21 | 통신 검사 샘플: `test/fixtures/cross-group-import`로 check-layers DR-02 실패를 확인하는 테스트 | G-03, `check-layers.ts` fixture 입력 지원(eng.toolchain) | S | M2 |
@@ -343,3 +343,10 @@ M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`
 | LR-17 | 연결 가능 | 학습 그룹은 `addUsage`로 토큰과 비용을 더할 수 있다. 학습 그룹 코드 연결은 이 단계에 없다(학습 spec §10 17) |
 
 M3b에서 정한 것은 L3.group-kit.spec §4.9와 §10에 적었다. 기록은 그룹의 `boundary.settle.after` 핸들러 안에서 경계마다 증가분만 쓴다. 별도 핸들러로 쓰면 같은 scope의 호출 키가 겹쳐 그룹 기록이 거부된다(§10).
+
+## 11. B4-GRP 구현 상태 (2026-10-29, 브랜치 m3b/b4-grp)
+
+| plan ID | 상태 | 비고 |
+|---|---|---|
+| G-18 | 완료 | `promotion/report.ts`(`buildPromotionReport`, 순수 함수)와 `promotion/gather.ts`(`gatherPromotionInput`, `queryEvents`·`toolOwner`로 입력을 모음). `/group status`의 `승격 후보:` 줄. 시험은 `test/promotion.test.ts`(끝 시험 `promotion.report-values-from-a-real-event-log`). 집계 규칙은 spec §3.12 |
+| 계측 쓰기 실패 | 완료 | 경계 기록의 `recordPrivate` 실패가 그룹 핸들러를 실패시키지 않는다(spec §4.9). 시험 `metrics.recorded-failure-keeps-the-handler-and-carries-the-delta` |

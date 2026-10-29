@@ -58,6 +58,14 @@ export {
   type MetricsRegistry,
 } from "./metrics/registry.ts";
 export { summarizeUsage, type ScopeUsage } from "./metrics/usage.ts";
+export { gatherPromotionInput, type PromotionHostView } from "./promotion/gather.ts";
+export {
+  buildPromotionReport,
+  type PromotionCandidate,
+  type PromotionInput,
+  type PromotionReport,
+  type ToolConsumer,
+} from "./promotion/report.ts";
 export { GroupSettingsSourceKey, type GroupSettingsSource } from "./ports/settings.ts";
 export {
   STATE_DOC_MAX_BYTES,

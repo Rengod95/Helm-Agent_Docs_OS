@@ -762,6 +762,7 @@ export function groupCommand(service: GroupService): GroupCommandRegistration;
 - 한국어 조사(을/를, 으로/로)는 그룹 이름의 발음에 따라 달라져 문자열로 정할 수 없으므로 이름 뒤에 조사를 붙이지 않는 문장으로 쓴다.
 
 `/group status`는 그룹마다 한 줄을 낸다: `<이름>  <켜짐|꺼짐|켜는 중(다음 단계 경계)|끄는 중(다음 단계 경계)>  drive=<구동|대기|없음|오류>  [오류: <message>]`. 첫 줄은 `구동 그룹 설정: <auto|이름>`이고, 설정이 설치되지 않은 그룹을 가리키면 `구동 그룹 설정: review(설치되지 않음)`이다. 첫 줄은 서비스가 `driveHolderSetting()`을 가질 때(`GroupServiceWithSetting`)만 낸다. 출력 구현은 `runGroupCommand`·`groupCommand`(`commands.ts`)다.
+이름 없는 `/group status`는 그룹 줄 뒤에 승격 후보가 있을 때만 `승격 후보: <도구> (<소유 그룹> -> <소비자>, …)` 줄을 더한다. 후보가 여럿이면 `; `로 잇는다. 후보 계산은 §3.12다 [결정: 오케스트레이터 기본값, B4-GRP].
 
 상태줄:
 
@@ -1015,18 +1016,30 @@ export interface PromotionReport {
 export interface PromotionInput {
   /** 도구 이름 → 등록한 그룹 [가정: X 리소스 등록부] */
   readonly toolOwners: ReadonlyMap<ToolName, GroupId>;
-  /** tool.execution.after 이벤트와 그 호출이 속한 turn의 시작 주체 */
-  readonly calls: readonly { readonly tool: ToolName; readonly seq: number; readonly threadId: string; readonly origin: ScopeId | "user" }[];
+  /** 도구 호출 하나마다 한 항목. `effect.intent` 이벤트와 그 호출이 속한 turn의 시작 주체다. `origin`이 `"user"`면 사용자 입력 turn이다 [결정: B4-GRP] */
+  readonly calls: readonly { readonly tool: ToolName; readonly seq: number; readonly threadId: string; readonly origin: ScopeId }[];
 }
 
 /** 순수 함수 */
 export function buildPromotionReport(input: PromotionInput): PromotionReport;
 ```
 
-소비자 집계 [제안]:
+소비자 집계 [결정: 오케스트레이터 기본값, B4-GRP]:
 
-- 소비자는 그룹 전용 도구를 호출한 turn을 시작한 scope다. 임대 안 `loop.turn`이 시작한 turn은 holder scope, 위임·spawn 자식 thread의 turn은 그 자식을 만든 scope다. 사용자 입력 turn은 `"user"`로 따로 센다.
+- 소비자는 그룹 전용 도구를 호출한 turn을 시작한 scope다. 임대 안 `loop.turn`이 시작한 turn은 holder scope다. 위임·spawn 자식 thread의 turn은 그 자식을 만든 scope여야 하지만, 자식 turn의 `turn.started`에는 그 scope가 없어 집계에서 뺀다(§10). 사용자 입력 turn은 `"user"`로 따로 센다.
 - 소유 그룹 밖의 scope가 하나라도 있으면 승격 후보다(L3-a "두 번째 소비자를 얻으면 L2로 승격").
+- 소유 그룹 자신의 호출(`origin`이 소유 그룹)은 소비자가 아니다. `throughSeq`와 `threads`에는 든다.
+- 소유 그룹이 없는 도구의 호출은 `throughSeq`, `threads`, 후보 어디에도 세지 않는다.
+- `candidates`는 `toolOwners`의 도구마다 한 항목이고 도구 이름순이다. 호출이 없는 도구는 소비자와 `userCalls`가 0인 항목이다. 소비자는 scope id순이다.
+- `throughSeq`는 소유 그룹이 있는 도구의 호출 가운데 최대 seq다. 호출이 없으면 0이다. `threads`는 그 호출이 든 thread 수다.
+
+집계 입력 [결정: 오케스트레이터 기본값, B4-GRP]. `gatherPromotionInput(host, threadIds)`(`src/promotion/gather.ts`)가 X 이벤트로 만든다.
+
+- 호출 한 건은 `effect.intent` 이벤트 하나다. 도구 실행 전에 한 번 커밋되고 요청 키가 `tool:<키>:intent`라 재실행되어도 한 건이다. `turnId`로 turn 출처와 잇는다.
+- turn 출처는 `turn.started`에서 읽는다. `scopeId`가 null이 아니면 그 scope(drive turn). `scopeId`가 null이고 `origin`이 `user`(또는 없음)이면 `"user"`다. `delegation`, `scheduled`, `remote`, `other` turn은 호출을 만든 scope를 이벤트에서 알 수 없어 입력에서 뺀다 [미결](§10).
+- 도구 소유는 `ExtHost.toolOwner(name)`으로 찾는다. 기록의 `scopeId`가 `scopes()`에 있는 설치된 scope일 때만 그 `extension`(그룹 이름)을 소유 그룹으로 본다. 소유 그룹이 없는 도구의 호출은 입력에 넣지 않는다.
+- 조회는 `queryEvents(threadId, { kindPrefix: "turn.started" })`와 `{ kindPrefix: "effect.intent" }`다. 한 thread의 조회가 하나라도 실패하면(Result err) 그 thread를 건너뛰고 나머지를 모은다.
+- 현재 thread 기본 입력은 `GroupServiceDeps.promotion`이 없을 때 `createGroupService`가 만든다. 현재 thread가 없으면 빈 보고다.
 
 승격 절차 [제안]:
 
@@ -1058,7 +1071,7 @@ X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(
 2. 현재 임대의 `leaseId` 조회. [반영] `ExtHost.leaseOf(threadId)`가 `LeaseInfo{leaseId, scopeId, leaseEpoch, status}`를 돌려준다. `GroupStatus.leaseId`에 쓴다.
 3. scope 상태·임대 상태 변경 구독. [반영] `ExtHost.onChange(listener)`가 `ExtChange{kind: "scope" | "lease", scopeId, threadId}`를 경계 커밋 뒤 알린다. `GroupService.onChange`에 쓴다.
 4. 테스트 호스트 재시작. [반영] `TestHost.restart()`.
-5. 2차: 계측·승격 집계용 내구 이벤트 조회(kind 접두 필터)와 도구 소유 scope 조회(`ExtHost.resources`의 `ResourceRecord.scopeId`로 대신할 수 있다). [미결]
+5. 2차: 계측·승격 집계용 내구 이벤트 조회(kind 접두 필터)와 도구 소유 scope 조회. [반영, B4-GRP] `ExtHost.queryEvents(threadId, { kindPrefix })`(M3-REQ-39, 계측은 M3b부터 쓴다)와 `ExtHost.toolOwner(name)`(`ResourceRecord`의 `scopeId`·`extension`)이 X에 있다. `GroupHostView`가 두 메서드를 쓴다.
 6. [반영, M3a X-3] 재실행 문맥 조회: `hostOf(g).callContext(): { kind: "on" | "drive"; threadId: ThreadId; signal: AbortSignal; point?: PointName } | undefined`(X.primitives.spec §3.8). setup, 명령 처리기, 도구 `execute`, drive의 `turn`·`spawn` 안에서는 undefined다. `GroupHostAccess.callContext()`가 이 값을 그대로 돌려준다. `delegate`는 on 핸들러와 drive 함수 안에서 문맥의 thread와 신호를 쓰고, `{ threadId, signal }` 옵션은 명령 처리기와 도구 `execute`에서만 필요하다. `delegateStatus`의 on 거부와 `cancelDelegates`의 on·drive 거부(`group.effectNotAllowed`)는 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`).
 7. [반영, M3a X-3] `SessionFeedPortKey`(`{ name: "xeon.session", member: "feed" }`)를 `@xeon/ext-host` 공개 진입점에서 내보낸다. group-kit은 이 키를 쓰고 자체 키(`GroupFeedPortKey`)는 없앴다(§3.8 "거부 표시").
 
@@ -1314,6 +1327,8 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [미결] [M3a] `replayDrive`의 지점 목록 지정(`cutAt`)과 사용자 입력 시작(`input`), 실패 보고의 첫 차이 이벤트 표시는 G-20 남은 몫이다.
 - (닫힘) `RuntimeChange`의 단계 경계 값: 이 값을 쓰던 group-kit의 구동 그룹 키를 지웠다(§6, review.decisions-2 S-15).
 - [결정: 오케스트레이터 기본값, M3b] 계측 등록부는 프로세스 전역 `defaultMetricsRegistry`다(§4.9). 조립 루트의 배선은 두지 않는다.
+- [미결] [B4-GRP] 위임·spawn 자식 thread의 turn 출처(§3.12). `turn.started`의 `origin`이 `delegation`이면 자식을 만든 scope를 이벤트에서 알 수 없다. 자식과 부모를 잇는 이벤트(예: `agent.spawned`, 위임 수명주기)를 함께 읽어야 한다. 그 전까지 이 호출은 집계에서 빠진다.
+- [결정: 오케스트레이터 기본값, B4-GRP] `PromotionInput.calls[].origin`은 `ScopeId`로 적는다. spec §3.12의 `ScopeId | "user"`는 `ScopeId`가 string이라 같은 타입이고, lint가 중복 유니온을 막는다. 사용자 입력 표지 `"user"`는 값으로만 쓴다.
 - [결정: 오케스트레이터 기본값, M3b] `addUsage`의 잘못된 인자는 `Bug`다. 그룹 코드가 만든 값의 불변 조건 위반이라 TY-24에 따른다. 호출자가 외부 확장이 되면 오류 값으로 바꾸고 시그니처를 `Result`로 고친다.
 - [결정: 오케스트레이터 기본값, M3b] `grp.<그룹>.metrics.recorded`의 stepId는 경계 turnId다.
 - [수용, B4-GRP] 재시작 뒤 같은 경계의 재발화에서 같은 키의 기록이 거부되면 그 기록은 건너뛴다. 증가분은 다음 기록에 든다(§4.9 기록의 한계). 그룹 핸들러는 실패로 보고되지 않는다. X는 이 거부를 `commit.invalid` Bug로 낸다. 계측 쓰기 실패는 모두 그룹에 전하지 않으므로 이 Bug도 같은 자리에서 삼켜진다.
