@@ -98,6 +98,25 @@ test("settled.usage-counts-into-group-metrics-once: the review usage is added to
   });
 });
 
+test("settled.negative-usage-cost-is-clamped-to-zero-and-the-review-still-finishes", async () => {
+  const review = await startReview();
+  const metrics = defaultMetricsRegistry.get("learning");
+  const usage = {
+    input: 10,
+    output: 5,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 15,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: -0.5 },
+  };
+  await review.rig.settle(review.requestId, "completed", { usage });
+  expect(review.rig.events("grp.learning.review.finished")).toHaveLength(1);
+  expect(metrics?.snapshot()).toMatchObject({
+    tokens: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0 },
+    costUsd: 0,
+  });
+});
+
 test("settled.ignores-foreign-request-ids: another group's delegation and another owner scope leave no trace", async () => {
   const review = await startReview();
   const { rig } = review;

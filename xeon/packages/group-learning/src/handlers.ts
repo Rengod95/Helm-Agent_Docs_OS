@@ -68,16 +68,21 @@ export function writerOf(g: LearningApi): LearningWriter {
   };
 }
 
+function clean(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 /** 검토 사용량을 계측 증가분으로 바꾼다. 사용량이 없으면(`settleInFlight` 경로) 모두 0이다 */
 function usageDeltaOf(usage: Usage | null): GroupUsageDelta {
+  // 스키마는 음수·비유한 값을 막지 않는다. 계측 쓰기는 그런 값을 거부하므로 경계에서 0으로 맞춘다 [결정: 오케스트레이터 기본값]
   return usage === null
     ? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 }
     : {
-        input: usage.input,
-        output: usage.output,
-        cacheRead: usage.cacheRead,
-        cacheWrite: usage.cacheWrite,
-        costUsd: usage.cost.total,
+        input: clean(usage.input),
+        output: clean(usage.output),
+        cacheRead: clean(usage.cacheRead),
+        cacheWrite: clean(usage.cacheWrite),
+        costUsd: clean(usage.cost.total),
       };
 }
 
