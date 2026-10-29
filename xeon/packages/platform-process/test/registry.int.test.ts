@@ -38,7 +38,7 @@ async function startTree(...flags: readonly string[]): Promise<Tree> {
   });
   const parsed: unknown = JSON.parse(line);
   const leafPid =
-    typeof parsed === "object" && parsed !== null ? Reflect.get(parsed, "leaf") : undefined;
+    typeof parsed === "object" && parsed !== null && "leaf" in parsed ? parsed.leaf : undefined;
   if (typeof leafPid !== "number") throw new Error("tree did not report the leaf pid");
   const signals: string[] = [];
   const exited = new Promise<{ code: number | null; signal: string | null }>((resolve) => {
