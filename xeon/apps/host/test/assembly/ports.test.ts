@@ -33,6 +33,7 @@ import type {
   ThreadLoopStatus,
   ToolMeta,
   ToolService,
+  UsageMeter,
 } from "@xeon/contracts/services";
 import { WireError } from "@xeon/contracts/wire";
 import type { ScheduleService } from "@xeon/cap-schedule";
@@ -316,6 +317,8 @@ function harness(): Harness {
           result.resolvedRoles.push(role);
           return state.modelResolve;
         },
+        // 사용량 원천이 조립 때 구독한다. 이 시험은 기록을 보내지 않는다
+        usage: partial<UsageMeter>({ subscribe: () => () => undefined }),
       }),
       tasks,
       approvals: partial<ApprovalService>({

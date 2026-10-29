@@ -67,7 +67,7 @@ import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
-import { emptyUsageSource } from "./usage.ts";
+import { createUsageSource } from "./usage.ts";
 import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
 import { createWebPort, type WebStatusHolder } from "./web-providers.ts";
@@ -96,8 +96,8 @@ export interface PortsDeps {
   readonly loop: LoopService;
   /** 수동 컴팩션(`thread.compact`)이 부른다 */
   readonly context: Pick<ContextService, "compact">;
-  /** 수동 컴팩션이 현재 모델(역할 `main`)의 바인딩과 창 크기를 정할 때 쓴다 */
-  readonly models: Pick<ModelService, "resolve" | "list">;
+  /** 수동 컴팩션이 현재 모델(역할 `main`)의 바인딩과 창 크기를 정할 때 쓴다. `usage`는 사용량 원천(`usage.get`)이 구독한다 */
+  readonly models: Pick<ModelService, "resolve" | "list" | "usage">;
   readonly tasks: TaskService;
   readonly approvals: ApprovalService;
   /** 열 때 복구가 도구의 현재 재실행 정책을 본다(ToolService.meta) */
@@ -643,7 +643,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
     web: createWebPort({ holder: deps.web, settings: deps.settings }),
     dialog: createDialogWirePort({ holder: deps.commands }),
-    usage: emptyUsageSource(),
+    usage: createUsageSource(deps.models.usage),
     proposals: deps.proposals,
     trust,
     schedule: deps.schedule,

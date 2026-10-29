@@ -4,7 +4,7 @@ import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// usage.get(F wire §3.3.1, L4.host-service HS-95, M3-REQ-15). 가짜 엔진의 사용량 원천 위에서 실제 처리기를 시험한다. 조립 기본(빈 목록)은
+// usage.get(F wire §3.3.1, L4.host-service HS-95, M3-REQ-15). 가짜 엔진의 사용량 원천 위에서 실제 처리기를 시험한다. 조립 기본(세션 게이지)은
 // test/assembly/usage.test.ts다.
 
 /** 가짜 엔진의 시계(RECORDED_AT)가 정한 시각 */

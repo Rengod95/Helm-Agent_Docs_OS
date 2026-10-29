@@ -430,8 +430,9 @@ export interface WebPort {
 }
 
 /**
- * 사용량 게이지 원천(`usage.get`, M3-REQ-15). 레이트 리밋과 계정 풀 게이지는 B2-MDL 트랙이 채운다. 조립 기본은 빈 목록이다
- * (`assembly/usage.ts`). `providerId`와 `threadId`는 원천이 쓸 수 있도록 그대로 넘기고, 처리기도 `providerId`로 한 번 더 거른다
+ * 사용량 게이지 원천(`usage.get`, M3-REQ-15). 조립 기본은 L1.models 합산기의 기록으로 만든 thread `session` 게이지(tokens, usd, requests)다
+ * (`assembly/usage.ts`). 창(minute~month), 한도, 계정별 게이지는 L1이 기록을 보관하지 않아 아직 없고, B2-MDL 트랙이 채운다.
+ * `providerId`와 `threadId`는 원천이 쓸 수 있도록 그대로 넘기고, 처리기도 `providerId`로 한 번 더 거른다
  */
 export interface UsagePort {
   gauges(
