@@ -184,8 +184,10 @@ test("l1.loop.maxSteps, tools and workspace sources read the same layers", async
 });
 
 test("l1.agents.judge.maxRuns reaches the agents source and defaults to 3", async () => {
-  expect(agentsSource(await engineWith({ "l1.agents.judge.maxRuns": 5 })).judgeMaxRuns?.()).toBe(5);
-  expect(agentsSource(await engineWith({})).judgeMaxRuns?.()).toBe(3);
+  expect(
+    agentsSource(await engineWith({ "l1.agents.judge.maxRuns": 5 })).judgeMaxRuns?.(THREAD),
+  ).toBe(5);
+  expect(agentsSource(await engineWith({})).judgeMaxRuns?.(THREAD)).toBe(3);
 });
 
 test("the judge cap is read for the judged thread, so a session scope value applies", async () => {
