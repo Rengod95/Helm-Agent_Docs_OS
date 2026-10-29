@@ -64,7 +64,7 @@ function normalizeIds(events: readonly JsonValue[]): JsonValue[] {
 
 function isEventOfKind(event: JsonValue, kind: string): boolean {
   if (typeof event !== "object" || event === null || Array.isArray(event)) return false;
-  const found: unknown = Reflect.get(event, "kind");
+  const found: unknown = "kind" in event ? event.kind : undefined;
   return found === kind;
 }
 
