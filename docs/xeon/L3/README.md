@@ -99,11 +99,11 @@ flowchart TD
 
 | 패키지 | `xeon.layer` | `xeon.domain` | routes.yaml 도메인 | 상태 |
 |---|---|---|---|---|
-| `@xeon/group-kit` | `L3` | `kit` | `group-kit` | 불일치 [미결] |
+| `@xeon/group-kit` | `L3` | `group-kit` | `group-kit` | 맞춤 |
 | `@xeon/group-helm` | `L3` | `helm` | `helm` | 일치 |
 | `@xeon/group-learning` | `L3` | `learning` | `learning` | 일치 |
 
-- [미결] `group-kit`의 `xeon.domain` 값 `kit`과 routes.yaml 도메인 `group-kit`의 불일치(`architecture.layers.spec` §10). [제안] `group-kit`으로 맞춘다. 설정 네임스페이스 `l3.group-kit.*`과 문서 id `L3.group-kit.*`이 모두 `group-kit`을 쓰기 때문이다. 코드 수정은 이 트랙 밖이다.
+- 맞춤(M3-35, 2026-10-29): `group-kit`의 `xeon.domain`을 `kit`에서 `group-kit`으로 바꿨다. routes.yaml 도메인과 같다(`architecture.layers.spec` §10). 설정 네임스페이스 `l3.group-kit.*`과 문서 id `L3.group-kit.*`이 모두 `group-kit`을 쓰기 때문이다. `scripts/check-layers.ts`의 `expectedDomain`이 `group-kit`을 접두 규칙의 예외로 적는다.
 
 ## 4. 이름 규칙 모음
 
@@ -268,7 +268,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 
 1. [결정: review.decisions-2 T-21] 그룹 레코드 이름 접두: 공개 레코드와 비공개 기록 모두 F 형식 `grp.<그룹>.<영역>.<이름>`을 쓴다. 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹의 `readRecords`로 조회되지 않는다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유)다.
 2. (닫힘) [결정: adr.0015] on 핸들러 외부 효과와 `GroupApi.delegate`·`loop.spawn`의 관계. C안(선언형 허용)으로 on 핸들러의 결정적 `requestId` `delegate`를 허용한다. L3 group-kit·Helm·학습·slots 문서에 반영했다.
-3. [미결] `package.json` `xeon.domain`의 `kit` 대 routes.yaml `group-kit`(3절, `architecture.layers.spec` §10).
+3. 맞춤: `package.json` `xeon.domain`의 `kit`을 routes.yaml `group-kit`에 맞췄다(3절, M3-35).
 4. [결정: review.decisions-2 U-15] 같은 층 예외: DR-02 방법 (b), `group-*` → `group-kit` 한 방향 허용 목록(`DR-02/group-kit`)이다(`eng.dependency-rules.guide` DR-02, `architecture.layers.spec` §3.2, `eng.context-map.design` C-5).
 
 도메인 문서에서 모은 것:

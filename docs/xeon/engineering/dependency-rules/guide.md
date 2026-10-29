@@ -162,7 +162,7 @@ import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
 [결정] `_research/foundation-plan.md §3`: `check-layers.ts`와 dependency-cruiser가 이 값으로 위반을 거부한다.
 
 - `layer`는 `F`, `X`, `L0`, `L1`, `L2`, `L3`, `L4` 중 하나다. 디렉터리에서 나온 층(1.1 표)과 같아야 한다.
-- `domain`은 `_routing/routes.yaml`의 `layout.<층>.domains`에 있는 이름이어야 한다. 디렉터리 이름의 접두사를 뺀 값과 같다. 예: `packages/core-loop` → `"domain": "loop"`. [제안] `plugins/*`는 디렉터리 이름 전체를 쓴다(`"domain": "provider-anthropic-oauth"`). 현재 `check-layers.ts`는 `domain`을 검사하지 않으므로 검사를 더해야 한다.
+- `domain`은 `_routing/routes.yaml`의 `layout.<층>.domains`에 있는 이름이어야 한다. 디렉터리 이름의 접두사를 뺀 값과 같다. 예: `packages/core-loop` → `"domain": "loop"`. 예외: `packages/group-kit`은 `"domain": "group-kit"`이다(M3-35, L3.group-kit.spec §10 공통 모순 3). [제안] `plugins/*`는 디렉터리 이름 전체를 쓴다(`"domain": "provider-anthropic-oauth"`). `check-layers.ts`의 DR-03 검사가 `domain`을 보고, L0~L2는 routes 목록과도 맞춘다.
 - `vendor/*`는 `xeon` 필드를 두지 않는다.
 
 이유: 층 판정의 근거가 디렉터리 이름 하나뿐이면, 새 패키지를 잘못된 위치에 만들었을 때 아무 검사도 실패하지 않는다. 선언과 위치가 서로 확인하게 하면 둘 중 하나가 틀렸을 때 바로 드러난다. `domain`은 문서 라우팅(`docs-route`)이 코드 경로에서 문서를 고를 때 쓰는 이름과 같다.

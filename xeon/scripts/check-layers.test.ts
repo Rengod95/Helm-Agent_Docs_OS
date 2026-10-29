@@ -44,7 +44,10 @@ interface PkgOptions {
 function pkg(dir: string, layer: string, deps: string[] = [], options: PkgOptions = {}): void {
   const base = dir.split("/")[1] ?? "";
   const name = `@xeon/${base}`;
-  const domain = options.domain ?? base.replace(/^(?:platform|core|cap|group)-/, "");
+  // group-kit의 도메인은 접두를 뺀 kit이 아니라 group-kit이다(M3-35)
+  const domain =
+    options.domain ??
+    (base === "group-kit" ? base : base.replace(/^(?:platform|core|cap|group)-/, ""));
   const dependencies = Object.fromEntries(deps.map((d) => [d, "workspace:*"]));
   mkdirSync(join(root, dir, "src"), { recursive: true });
   writeFileSync(
@@ -94,7 +97,8 @@ test("expectedLayer maps directories to layers", () => {
 test("expectedDomain strips the layer prefix", () => {
   expect(expectedDomain("packages/core-loop")).toBe("loop");
   expect(expectedDomain("packages/platform-store")).toBe("store");
-  expect(expectedDomain("packages/group-kit")).toBe("kit");
+  expect(expectedDomain("packages/group-kit")).toBe("group-kit");
+  expect(expectedDomain("packages/group-helm")).toBe("helm");
   expect(expectedDomain("packages/contracts")).toBe("contracts");
   expect(expectedDomain("packages/ext-host")).toBe("ext-host");
   expect(expectedDomain("plugins/provider-anthropic-oauth")).toBe("provider-anthropic-oauth");

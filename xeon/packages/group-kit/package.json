@@ -24,6 +24,6 @@
   },
   "xeon": {
     "layer": "L3",
-    "domain": "kit"
+    "domain": "group-kit"
   }
 }

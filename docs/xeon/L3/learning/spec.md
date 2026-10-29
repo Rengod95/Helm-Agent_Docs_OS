@@ -1012,7 +1012,7 @@ M3 설계 개정(2026-10-26)에서 옛 번호를 정리했다. 닫은 항목은 
 
 설계 질문:
 
-9. [미결] 패키지 `xeon.domain` 값(옛 미결 3). group-kit 쪽 `kit` 대 `group-kit`. `review.m3-design-inputs` G-IN-13이 `group-kit`으로 맞추는 안을 따른다(M3-35). 학습 그룹(`learning`)은 영향이 없다.
+9. 맞춤: 패키지 `xeon.domain` 값(옛 미결 3). group-kit 쪽 `kit`은 `group-kit`으로 맞췄다(`review.m3-design-inputs` G-IN-13, M3-35). 학습 그룹(`learning`)은 영향이 없다.
 10. [미결] `agent.settled` 구독 수단(REQ-LN-02)의 F 형태. 매니페스트 선언 필드와 `GroupApi` 연산 이름은 F·X 계약 트랙이 정한다. 정해지기 전에는 §4.3 대체 경로(명령 진입 조회)만 동작한다.
 11. [미결] 대화당 검토 1개(`inFlightReviewId`) 외의 프로세스 전체 상한. L1-g 백그라운드 풀 상한(REQ-L1-03)이 정해지면 그 값을 따른다.
 12. [가정] `ApprovalEvidence{ source: "learning.queue" }`를 L2-d가 믿도록 하는 기본 설정 경로(REQ-LN-09). L2 문서가 D-11에 맞춰 정한다.

@@ -120,12 +120,16 @@ export function expectedLayer(dir: string): Layer | "vendor" | undefined {
   return undefined;
 }
 
-/** Domain a package must declare: the directory name without its layer prefix (DR-03). */
+/**
+ * Domain a package must declare: the directory name without its layer prefix (DR-03).
+ * `group-kit` is the one exception: its domain is the routes.yaml name `group-kit` (M3-35, L3.group-kit.spec §10).
+ */
 export function expectedDomain(dir: string): string | undefined {
   const [root, name = ""] = dir.split("/");
   if (root === "plugins" || root === "apps") return name;
   if (root !== "packages") return undefined;
   if (name === "contracts" || name === "ext-host" || name === CLIENT_DIR_NAME) return name;
+  if (name === "group-kit") return name;
   for (const prefix of ["platform-", "core-", "cap-", "group-"]) {
     if (name.startsWith(prefix)) return name.slice(prefix.length);
   }

@@ -133,7 +133,7 @@ xeon/packages/group-kit/
 }
 ```
 
-- `xeon.domain`: 현재 스캐폴드 값 `kit`을 routes layout 도메인 `group-kit`으로 맞춘다(`architecture.layers.spec` 3.2절, `eng.dependency-rules.guide` DR-03). DR-03의 "디렉터리 이름의 접두사를 뺀 값" 규칙으로는 `kit`이 나오므로, `check-layers.ts`에 DR-03 검사를 넣을 때 `group-kit`을 예외로 적는다. 이 예외의 확정은 L3.group-kit.spec §10 공통 모순 3이다.
+- `xeon.domain`: 스캐폴드 값 `kit`을 routes layout 도메인 `group-kit`으로 맞췄다(M3-35, `architecture.layers.spec` 3.2절, `eng.dependency-rules.guide` DR-03). DR-03의 "디렉터리 이름의 접두사를 뺀 값" 규칙으로는 `kit`이 나오므로, `check-layers.ts`의 `expectedDomain`에 `group-kit`을 예외로 적었다. 이 예외의 확정은 L3.group-kit.spec §10 공통 모순 3이다.
 - `@xeon/ext-host`는 `dependencies`다. 운영 코드가 `hostOf`(`registerTool`, `registerCommand` 래퍼)와 리소스 정의 타입을 쓰기 때문이다(L3.group-kit.spec §3.2). `LeaseArbiterPort`·`LeaseCandidate`는 `@xeon/contracts/extensions`(F.extensions.spec §3.2.1)에서, `GroupService`와 부속 타입은 `@xeon/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 테스트 호스트(`@xeon/ext-host/testing`)는 테스트 파일만 import한다. 운영 코드의 `@xeon/ext-host` import는 DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17].
 - [M2 구현] `replayDrive`는 하니스를 인자로 받으므로 `@xeon/core-models`를 import하지 않는다. `package.json`에 `@xeon/core-models`·`@swc/core`를 더하지 않았고(`typebox`만 더했다), `@swc/core`는 `scanDriveSource`(M3) 때 더한다. 시험의 하니스는 `@xeon/ext-host/testing`의 `createTestHost`와 `restart()`로 만든다.
 - `@xeon/core-models`는 `testing` 서브패스만 쓰므로 `devDependencies`다(DR-08). 다른 패키지의 `testing` 서브패스를 import하는 파일(`replay/`)과 테스트 전용 검사(`scan/`)는 모두 `src/testing/` 아래에 둔다. DR-08은 그 import를 테스트 파일과 `testing` 서브패스 자신에서만 허용한다. 운영 진입점 `.`은 `src/testing/**`를 import하지 않는다.
@@ -318,7 +318,7 @@ xeon/packages/group-kit/
 | GK.3 | G-09, G-10, G-11 | 완료 | `checkStateCommit`, `stateUpcasters`, 레코드·post 검사, `kindVisibleTo`, 설정 2키. 시험은 인메모리 기록 저장소(`memoryRecordStore`)로 한다. 실제 `ext.commit`·`queryRecords`(L1B.1) 연결은 HOST 조립 |
 | GK.4 | G-12, G-13, G-22, G-14(M2분) | 완료 | `createGroupService`, `/group` 해석·실행, 상태줄, `registerTool`·`registerCommand` 해제 시험, `delegate` 입력 검사 |
 | GK.5 | G-15, G-16, G-21 | 완료 | `replayDrive` 최소형, `smokeGroup`의 `defineGroup` 이전, 그룹 간 import 실패 시험 |
-| (G-02 일부) | `xeon.domain` | 미완료 | `package.json`의 `xeon.domain`은 `kit`이다. `group-kit`으로 바꾸려면 `scripts/check-layers.ts`의 DR-03 `expectedDomain`에 예외를 더해야 하는데 이 파일은 공유 파일이다(m2-plan §3 규칙 2) |
+| (G-02 일부) | `xeon.domain` | 완료(M3-35, 2026-10-29) | `package.json`의 `xeon.domain`은 `group-kit`이다. `scripts/check-layers.ts`의 `expectedDomain`에 `group-kit` 예외를 더했다(공유 파일 `scripts/`는 B5-CLN 트랙이 고쳤다) |
 | (G-03) | 허용 목록 | 완료(F.1) | `DR-02/group-kit-helm`, `DR-02/group-kit-learning`이 이미 있다. G-21 시험용으로 `DR-07/group-kit-test-spawn`(scope test)을 더했다 |
 
 M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`는 `arbiter.named-swap-revokes-at-the-next-boundary`로 바꿨다(X.1 P-22). `define-group.migration-required-on-version-bump`는 `define-group.*`와 `state.migration-upgrades-a-lower-stored-version` 둘로 나눴다.

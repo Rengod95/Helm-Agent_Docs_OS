@@ -1363,7 +1363,7 @@ M3 판에서 닫은 항목:
 - (닫힘) 이전 미결 16 식별자와 전이표: 이 판으로 고정한다(§3.2) [제안]. 바꾸려면 상태 버전을 올린다.
 - (닫힘) C1 서비스 키: A안(§3.8, `review.m3-design-inputs` §3.8 A-01).
 - (닫힘) C2 효과 목록: [결정: adr.0015] C안. Helm의 효과 전부를 §4.11에 적었다.
-- (닫힘) C3 `xeon.domain`: Helm은 `group-helm` → `helm`으로 두 규칙의 값이 같다. group-kit 쪽 값은 M3-35가 정한다.
+- (닫힘) C3 `xeon.domain`: Helm은 `group-helm` → `helm`으로 두 규칙의 값이 같다. group-kit 쪽 값은 M3-35에서 `group-kit`으로 맞췄다(L3.group-kit.spec §10 공통 모순 3).
 - [결정: review.decisions-2 T-21] 레코드 kind 접두: 공개·비공개 모두 `grp.<그룹>.<영역>.<이름>`이다.
 
 사용자 결정으로 닫은 항목(`review.m3-design-inputs` §3, 2026-10-26):

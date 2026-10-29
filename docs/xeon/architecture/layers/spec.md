@@ -380,6 +380,8 @@ flowchart TB
 | L3 | 4 | group-kit, helm, learning, slots (slots는 코드 없음) |
 | L4 | 4 | cli, desktop, host-service, settings-ui |
 
+패키지 이름과 도메인 이름의 대응: 패키지 `@xeon/host`(`xeon/apps/host`)는 routes와 L4 spec의 도메인 `host-service`에 대응하고, 패키지 `@xeon/group-kit`은 도메인 `group-kit`에 대응한다. 패키지 이름은 바꾸지 않는다. `xeon.domain`이 `host`로 남은 이유는 §10에 적었다.
+
 ## 5. 실패와 경계 사례
 
 - 층 위반 import는 `just check-layers`가 종료코드 1로 거부한다(9절).
@@ -411,7 +413,7 @@ flowchart TB
 ## 10. 미결 사항
 
 - [미결] L4 앱 이름. routes.yaml 도메인은 `host-service`, 패키지 디렉터리와 `xeon.domain`은 `host`다. 설정 화면(`settings-ui`)은 별도 앱 없이 view-model을 `packages/client/src/settings`, 렌더러를 `apps/desktop/src/views`에 둔다 [결정: adr.0020].
-- [미결] `package.json`의 `xeon.domain` 값과 routes.yaml 도메인의 불일치. `contracts`(routes는 F 도메인 5개), `ext-host`(routes는 X 도메인 3개), `group-kit`의 `kit`(routes는 `group-kit`), `host`(routes는 `host-service`). 패키지 하나가 도메인 여럿을 담는 F·X는 `xeon.domain`을 패키지 이름으로 둘지 정해야 한다.
+- [미결] `package.json`의 `xeon.domain` 값과 routes.yaml 도메인의 불일치. `contracts`(routes는 F 도메인 5개), `ext-host`(routes는 X 도메인 3개), `host`(routes는 `host-service`). 패키지 하나가 도메인 여럿을 담는 F·X는 `xeon.domain`을 패키지 이름으로 둘지 정해야 한다. `group-kit`의 `kit`은 `group-kit`으로 맞췄다(M3-35, `check-layers.ts`의 `expectedDomain` 예외). `apps/host`의 `host-service`는 DR-03이 거부한다(디렉터리 이름 `host`를 요구한다). 바꾸려면 검사 규칙에 L4 예외를 정해야 하고, 이 결정은 아직 없다.
 - [미결] 4.6절 하위 층 수(계획 41개, 실측 33개).
 - [미결] 4.4절 Cordis 서비스 이름. 그룹 사이 이벤트를 전역으로 전달할지 그룹 필터를 기본으로 둘지와 함께 X 문서가 정한다(`_research/notes/arch-1.md` §8).
 - [결정: adr.0020] `packages/client`의 층 판정. `check-layers.ts`의 `expectedLayer`는 디렉터리 이름 `client` 하나를 L4로, `expectedDomain`은 `client`로 대응시킨다. `.dependency-cruiser.cjs`는 L4 경로를 `^(apps/|packages/client/)`로 둔다(`review.m3-lower-requirements` M3-REQ-111).

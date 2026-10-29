@@ -1314,7 +1314,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 - [결정: review.decisions-2 T-21] 공통 모순 1(닫힘): 확장 kind는 F 형식 `grp.<그룹>.<영역>.<이름>` 하나다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유), 계측은 `grp.<그룹>.metrics.recorded`(`recordPrivate`)다. eng 문서의 옛 밑줄 접두 표기는 쓰지 않는다.
 - (닫힘) [결정: adr.0015] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. C안(2026-10-25)으로 `requestId` 멱등 `g.delegate`와 drive 안 `loop.spawn`, 선언된 능력 호출이 허용된다(§3.4, §3.10). F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
-- [미결] 공통 모순 3: `xeon/packages/group-kit/package.json`의 `xeon.domain`이 `kit`이고 routes layout 도메인은 `group-kit`이다. DR-03은 "디렉터리 이름의 접두사를 뺀 값"과 layout 도메인 이름이 같다고 적었는데 `group-kit`에서 두 값이 다르다. [제안] `group-kit`으로 맞추고 DR-03에 `group-kit`을 접두 규칙 예외로 적는다(L3.group-kit.plan G-02).
+- 맞춤(M3-35, 2026-10-29) 공통 모순 3: `xeon/packages/group-kit/package.json`의 `xeon.domain`은 `kit`이었고 routes layout 도메인은 `group-kit`이었다. 이제 `group-kit`이다. DR-03은 `group-kit`을 접두 규칙의 예외로 적는다(`eng.dependency-rules.guide` DR-03, `scripts/check-layers.ts`의 `expectedDomain`). 작업 항목은 L3.group-kit.plan G-02다.
 - (닫힘) [결정: review.m3-design-inputs D-M3-05] 대기 vs 거부: 대기가 기본이고 대기 상한을 넘으면 거부한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
 - (닫힘) 선점 허용: X가 이름 지정에 한해 다음 경계에서 `revoked`로 회수한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). `auto`는 선점하지 않는다(§3.5 규칙 4, §4.3 4번). `auto` 우선순위 선점은 두지 않는다.
 - (닫힘) [결정: review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 둔다(F.capabilities.spec §3.12, 이 문서 §3.8). `eng.context-map.design` §5.3의 F 위치 열은 그 문서 쪽에서 services로 고친다.
