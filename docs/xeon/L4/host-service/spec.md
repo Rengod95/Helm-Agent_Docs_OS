@@ -541,7 +541,15 @@ export interface EnsuredService { readonly outcome: EnsureOutcome; readonly path
 export declare function ensureHostService(options: EnsureHostServiceOptions): Promise<Result<EnsuredService, EnsureHostServiceError>>;
 export declare function serviceStatus(options?: ServiceControlOptions): Promise<Result<ServiceStatusResult, ServicePathError>>;
 export declare function stopHostService(options?: ServiceControlOptions): Promise<Result<ServiceStopResult, ServicePathError>>;
-export declare function connectServiceTransport(endpoint: ServiceEndpoint): Promise<Result<Transport, SocketError>>;
+export declare function connectServiceTransport(endpoint: ServiceEndpoint, options?: ConnectServiceOptions): Promise<Result<Transport, ServiceConnectError>>;   // 구현은 `@xeon/client/socket`(adr.0020). 기본으로 L0 `openTunnel`을 쓰는 SSH 터널 포트(`createSshTunnelPort`)를 끼운다
+/** unix(로컬 서비스), tcp(사설망, 토큰이 있으면 host.hello에 싣는다), ssh(SSH 터널로 이은 원격 Unix 소켓). 문법은 `unix:/경로`, `tcp://호스트:포트`, `ssh://[사용자@]호스트[:포트]/원격/소켓/경로`(`@xeon/client/endpoint`) */
+export type ServiceEndpoint = { kind: "unix"; path: string } | { kind: "tcp"; host: string; port: number; token?: string } | { kind: "ssh"; target: string; remoteSocket: string; port?: number };
+/** 주소를 정해(원격 주소 또는 이 기기의 서비스 ensure) 접속하고 host.hello까지 마친 연결을 돌려준다. 오류는 값이다(ensure_failed, connect_failed, hello_failed) */
+export declare function attachToService(target: AttachTarget, options: AttachOptions): Promise<Result<ServiceAttachment, AttachError>>;
+/** 데스크톱 사이드카 `host --stdio`가 엔진을 열지 않고 원격 서비스에 붙는 중계. 셸은 그대로 사이드카의 stdin/stdout만 중계한다. 메시지마다 envelope 검사만 한다 */
+export declare function bridgeStdioToService(options: BridgeOptions): Promise<BridgeExit>;
+/** `--remote` 플래그, 없으면 사용자 설정 `l0.process.service.remote`. tcp 토큰은 환경 변수 XEON_REMOTE_TOKEN(설정과 argv에는 두지 않는다) [결정: 오케스트레이터 기본값] */
+export declare function resolveRemoteEndpoint(options: { flag?: string; env: Readonly<Record<string, string | undefined>> }): Promise<RemoteResolution>;
 export declare function defaultServiceCommand(extra?: { readonly safeMode?: boolean; readonly tcp?: { readonly host: string; readonly port: number } }): ServiceCommand;   // 이 실행 파일을 `service run [--safe-mode] [--listen-tcp h:p]`로. 소스 실행(bun 진입 파일)과 컴파일 바이너리를 가른다
 export declare function resolveLaunchMode(): Promise<"in-process" | "service">;   // 사용자 설정 파일의 l0.process.service.enabled. 관리 범위 파일은 읽지 않는다 [미결]
 ```
@@ -1054,6 +1062,10 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - HS-84. 활동 집계(M3-10). `liveTasks`는 백그라운드 task 수에 켜진 루프 수(`liveSchedulerTasks`)를 더한다. `pendingSchedules`는 켜진 타이머와 파일 감시 항목 수에 claimed·started 실행 수를 더한 값이다. `AssembleOptions.pendingSchedules`를 넣으면 그 값을 쓴다. `onChange`는 예약 서비스의 변화도 알린다.
 - HS-85. 무인 명령 상한(M3-16). `cap-workspace`는 `unattendedTimeoutMs`를 호출마다 읽는다. 값은 `readUnattendedTimeoutMs`가 `l0.exec.unattendedTimeoutMs`에서 읽는다. 값이 없거나 범위 밖이면 기본값 30분이다. 설정 변경은 다음 무인 호출부터 반영된다.
 - HS-86. 시험 주입과 접근자. `AssembleOptions.schedule`(`clock`, `ticker`, `store`, `policy`)을 넣으면 운영 구현 대신 쓴다. `EnginePorts.schedule`이 서비스이고 `ServiceHandle.schedule()`이 같은 서비스를 돌려준다.
+- HS-87. 원격 사용(M3-REQ-44). 서비스는 비루프백 리스너를 만들지 않는다. 다른 기기의 CLI·데스크톱은 SSH 터널(`ssh -L 로컬소켓:원격소켓`, `BatchMode`라 키나 ssh-agent가 필요하다)이나 사설망으로 서비스의 Unix 소켓(또는 루프백 TCP)에 붙는다. 주소는 설정 `l0.process.service.remote` 또는 CLI 전역 플래그 `--remote`(플래그 우선)이고, 비어 있으면 평소대로 in-process나 로컬 서비스다. 문법이 틀리면 로컬로 가지 않고 사용 오류로 알린다. tcp 주소의 토큰은 환경 변수 `XEON_REMOTE_TOKEN`에서 읽고 `host.hello`의 `auth.token`에 싣는다 [결정: 오케스트레이터 기본값, 설정 파일과 argv에는 비밀을 두지 않는다].
+- HS-88. `xeon chat` 등 엔진을 쓰는 CLI 명령은 원격 주소가 있으면 `attachToService`로 원격에 붙고, 서비스 사용 설정이 켜져 있으면 `ensureHostService` 뒤 로컬 서비스에 붙는다. 서비스 접속에는 값 입력 통로(`secretOutOfBand`)가 없고 종료는 연결을 닫는 것뿐이다(서비스와 진행 중 turn은 계속된다).
+- HS-89. 데스크톱 사이드카 `host --stdio`에 원격 주소가 있으면(플래그 또는 설정) 엔진을 열지 않고 `bridgeStdioToService`로 stdin/stdout을 원격 서비스에 중계한다. 셸(Rust)과 `sidecar.json`은 바뀌지 않는다. stdin이 닫히면 원격 연결만 닫고 종료코드 0, 원격이 끊기면 1이다. HS-38이 로컬 서비스에서 이 중계를 쓰지 않는 이유(엔진 프로세스 추가)는 원격에는 해당하지 않는다: 이 경우 엔진 프로세스를 띄우지 않는다.
+- HS-90. `waitServiceGone`은 기다리는 서비스의 pid와 시작 시각을 받아, 등록이 다른 서비스를 가리키면 내려간 것으로 본다(교체 중 승계 경쟁). 유휴 타이머는 울릴 때 연결·live·예약 수를 다시 읽어 한가하지 않으면 종료하지 않는다.
 
 ## 5. 실패와 경계 사례
 
@@ -1102,7 +1114,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - 기본값 근거: `maxReplayEvents` 100,000과 구독 16은 F wire §3.4.3 한도 기본값이다.
 - 재전송 묶음 크기(500), `scanLimit`(10,000), 송신 lowWater(1 MiB), 시작 유예(10초), 관찰 폴링(250ms)은 상수로 두고 키로 열지 않는다 [제안].
 - 같은 동작을 가리키는 키는 한 층만 정의한다 [제안]. 이 문서가 읽기만 하고 정의하지 않는 키는 아래와 같다.
-  - 서비스 수명: `l0.process.service.enabled`(서비스 사용, HS-37·HS-38·HS-40), `l0.process.service.idleGraceMs`(유휴 유예, SV-04), `l0.process.service.startTimeoutMs`(기동 대기), `l0.process.shutdown.timeoutMs`(종료 체크포인트 시한, HS-31·SV-07). 단위는 ms다. 소유는 `L0.process.spec` §6이다.
+  - 서비스 수명: `l0.process.service.enabled`(서비스 사용, HS-37·HS-38·HS-40), `l0.process.service.idleGraceMs`(유휴 유예, SV-04), `l0.process.service.startTimeoutMs`(기동 대기), `l0.process.service.remote`(원격 서비스 주소, HS-87), `l0.process.shutdown.timeoutMs`(종료 체크포인트 시한, HS-31·SV-07). 단위는 ms다. 소유는 `L0.process.spec` §6이다.
   - 자동 재개: `l1.persistence.autoResume`(§4.1 8단계)과 재개 횟수 상한 `l1.persistence.maxResumeAttempts`. 소유는 `L1.persistence.spec` §6이다.
 - 화면: `L4.settings-ui.spec`의 `execution` 탭("실행과 서비스", ADR-0006 §3.4). 명령: `xeon config get/set/reset l4.host-service.<이름>`(`L4.cli.spec`). 서비스 수명·자동 재개 키는 각 소유 층 이름으로 바꾼다. 파일: 사용자·관리 설정 파일.
 

@@ -31,8 +31,8 @@
     "rule": "DR-10",
     "from": "apps/host",
     "to": "@xeon/client",
-    "entries": ["."],
-    "reason": "apps/host keeps the @xeon/host/client re-export and its tests drive the host through the client connection (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
+    "entries": [".", "./endpoint", "./socket"],
+    "reason": "apps/host keeps the @xeon/host/client re-export, its tests drive the host through the client connection, and connectServiceTransport/attachToService/bridgeStdioToService use the client socket transport and endpoint grammar (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
     "approvedBy": "adr.0020"
   },
   {

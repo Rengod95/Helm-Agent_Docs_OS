@@ -9,6 +9,7 @@ import {
   createTokenGate,
   listenSocket,
   type ActivationLock,
+  type IdleInputs,
   type IdleMonitor,
   type ServiceRegistration,
   type SocketListener,
@@ -265,21 +266,26 @@ export async function startService(options: ServiceOptions = {}): Promise<Servic
   }
 
   // 6. 유휴 감시(SV-04). 판정 입력이 바뀔 때마다 다시 계산한다
+  const currentInputs = (): IdleInputs => {
+    const activity = engine.ports.activity.snapshot();
+    return {
+      connections: hub.size,
+      // 승인 대기 세션은 live다(D-M3-13 행 2)
+      liveTasks: activity.liveTasks + activity.waitingApprovals,
+      pendingSchedules: activity.pendingSchedules,
+    };
+  };
+  // 타이머가 울릴 때 입력을 다시 읽는다: 연결이 막 붙어 알림이 늦은 틈에 한가하지 않은 서비스를 끝내지 않는다
   const idle = createIdleMonitor({
     clock: time.clock,
     scheduler: time.scheduler,
     startupGraceMs: options.startupGraceMs ?? SERVICE_STARTUP_GRACE_MS,
     idleGraceMs: options.idleGraceMs ?? idleGraceOf(read),
+    sample: currentInputs,
   });
   lifecycleSlot.idle = idle;
   const recompute = (): void => {
-    const activity = engine.ports.activity.snapshot();
-    idle.update({
-      connections: hub.size,
-      // 승인 대기 세션은 live다(D-M3-13 행 2)
-      liveTasks: activity.liveTasks + activity.waitingApprovals,
-      pendingSchedules: activity.pendingSchedules,
-    });
+    idle.update(currentInputs());
   };
   hub.onSizeChange(recompute);
   engine.ports.activity.onChange(recompute);

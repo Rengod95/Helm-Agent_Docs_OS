@@ -57,7 +57,23 @@ export type {
   EnsuredService,
   ServiceCommand,
 } from "./service/ensure.ts";
-export { resolveLaunchMode } from "./service/launch-mode.ts";
+export { attachToService } from "./service/attach.ts";
+export type {
+  AttachError,
+  AttachOptions,
+  AttachTarget,
+  ServiceAttachment,
+} from "./service/attach.ts";
+export { bridgeStdioToService } from "./service/bridge.ts";
+export type { BridgeExit, BridgeOptions } from "./service/bridge.ts";
+export { createSshTunnelPort } from "./service/tunnel.ts";
+export type { SshTunnelPortOptions, TunnelCommand } from "./service/tunnel.ts";
+export {
+  REMOTE_TOKEN_ENV,
+  resolveLaunchMode,
+  resolveRemoteEndpoint,
+} from "./service/launch-mode.ts";
+export type { RemoteResolution } from "./service/launch-mode.ts";
 export { SERVICE_STARTUP_GRACE_MS, startService } from "./service/lifetime.ts";
 export type { ServiceHandle, ServiceOptions, ServiceStart } from "./service/lifetime.ts";
 export { resolveServicePaths } from "./service/paths.ts";
