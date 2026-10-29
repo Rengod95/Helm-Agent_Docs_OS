@@ -268,7 +268,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `effect.` | tool-runtime | `core.tools` | `intent`, `exec`, `result` | 없음 |
 | `approval.` | tool-runtime | `core.tools` | `requested`, `resolved` | 없음 |
 | `secret.` | tool-runtime | `core.tools` | `used`, `denied`, `approved`, `masked`(`F.records.spec` §3.3) | 없음 |
-| `tool.` | tool-runtime | `core.tools` | `sandbox_bypassed`(`F.records.spec` §3.3, `L0.sandbox.spec` §10 2번) | 없음 |
+| `tool.` | tool-runtime | `core.tools` | `sandbox_bypassed`(`F.records.spec` §3.3, `L0.sandbox.spec` §10 2번), `untrusted_read`(`F.records.spec` §3.3, `L1.tools.spec` §4.3) | 없음 |
 | `scope.` | extension-host | `xh` | `changed` | `handler_failed` |
 | `lease.` | extension-host | `xh` | `acquired`, `released` | 없음 |
 | `model.` | model-gateway | `core.models` | 없음(예약) | 예약 |

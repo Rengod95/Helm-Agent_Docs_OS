@@ -5,6 +5,7 @@ import {
   CallToolOutput,
   GetPromptOutput,
   MCP_SERVER_ID_PATTERN,
+  McpBlockedReasonSchema,
   McpClient,
   McpClientKey,
   McpQuestionSchema,
@@ -182,6 +183,28 @@ describe("mcp schemas", () => {
     };
     expect(parse(McpServerStatusSchema, status).ok).toBe(true);
     expect(parse(McpServerStatusSchema, { ...status, state: "sleeping" }).ok).toBe(false);
+  });
+
+  test("blockedReason takes exactly the five block reasons", () => {
+    expect(McpBlockedReasonSchema.anyOf.map((member) => member.const)).toEqual([
+      "denied_by_policy",
+      "not_in_allowlist",
+      "managed_only",
+      "untrusted_project",
+      "approval_required",
+    ]);
+    const blocked = {
+      server: "github",
+      source: "settings:user",
+      state: "blocked",
+      transport: "stdio",
+      toolCount: 0,
+      promptCount: 0,
+    };
+    for (const blockedReason of ["approval_required", "untrusted_project"] as const) {
+      expect(parse(McpServerStatusSchema, { ...blocked, blockedReason }).ok).toBe(true);
+    }
+    expect(parse(McpServerStatusSchema, { ...blocked, blockedReason: "sleeping" }).ok).toBe(false);
   });
 
   test("callTool accepts a first round and a continuation from round 2", () => {

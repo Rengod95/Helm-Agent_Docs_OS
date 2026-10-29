@@ -30,3 +30,21 @@ export const ToolSandboxBypassedPayloadSchema: TObject<{
   { additionalProperties: false },
 );
 export type ToolSandboxBypassedPayload = Static<typeof ToolSandboxBypassedPayloadSchema>;
+
+// L1.tools.spec §4.3. 턴 안에서 웹·MCP 도구 결과를 읽은 기록이다. afterUntrusted가 재시작 뒤에도 이어지게 한다.
+// 도구 결과 본문을 싣지 않는다.
+export const ToolUntrustedReadPayloadSchema: TObject<{
+  turnId: TString;
+  toolCallId: TString;
+  toolName: TString;
+  at: TInteger;
+}> = Type.Object(
+  {
+    turnId: Type.String({ minLength: 1, maxLength: 128 }),
+    toolCallId: Type.String({ minLength: 1, maxLength: 256 }),
+    toolName: Type.String({ minLength: 1, maxLength: 128 }),
+    at: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type ToolUntrustedReadPayload = Static<typeof ToolUntrustedReadPayloadSchema>;

@@ -34,25 +34,25 @@ function roundTrip(value: unknown): unknown {
 }
 
 describe("core catalog", () => {
-  test("has the 42 kinds of the spec table, each at version 1", () => {
-    expect(CORE_EVENT_CATALOG.length).toBe(42);
-    expect(CORE_EVENT_KINDS.length).toBe(42);
+  test("has the 43 kinds of the spec table, each at version 1", () => {
+    expect(CORE_EVENT_CATALOG.length).toBe(43);
+    expect(CORE_EVENT_KINDS.length).toBe(43);
     expect(CORE_EVENT_CATALOG.map((e) => e.kind)).toEqual([...CORE_EVENT_KINDS]);
     for (const entry of CORE_EVENT_CATALOG) expect(entry.version).toBe(1);
   });
 
   test("kinds are unique and the merged catalog adds no duplicates", () => {
-    expect(new Set(CORE_EVENT_CATALOG.map((e) => e.kind)).size).toBe(42);
-    // 코어 42종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종, artifact 12종, schedule 15종)가 이어 붙는다
+    expect(new Set(CORE_EVENT_CATALOG.map((e) => e.kind)).size).toBe(43);
+    // 코어 43종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종, artifact 12종, schedule 15종)가 이어 붙는다
     expect(EVENT_CATALOG.length).toBe(
-      42 +
+      43 +
         WORK_EVENT_CATALOG.length +
         DIALOG_EVENT_CATALOG.length +
         ARTIFACT_EVENT_CATALOG.length +
         SCHEDULE_EVENT_CATALOG.length,
     );
     expect(new Set(EVENT_CATALOG.map((e) => e.kind)).size).toBe(EVENT_CATALOG.length);
-    expect(EVENT_CATALOG.slice(0, 42)).toEqual([...CORE_EVENT_CATALOG]);
+    expect(EVENT_CATALOG.slice(0, 43)).toEqual([...CORE_EVENT_CATALOG]);
     const entry = CORE_EVENT_CATALOG[0];
     expect(entry).toBeDefined();
     if (entry !== undefined) {
@@ -210,6 +210,22 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
     rejects(entry, { ...base, output: "secret output" });
     rejects(entry, { ...base, toolCallId: "" });
     rejects(entry, { ...base, toolCallId: "c".repeat(257) });
+    rejects(entry, { ...base, toolName: "t".repeat(129) });
+    rejects(entry, { ...base, at: -1 });
+  });
+
+  test("tool.untrusted_read is durable and carries the turn, call, tool and time only", () => {
+    const entry = catalogEntry("tool.untrusted_read");
+    expect(entry.durable).toBe(true);
+    expect(entry.version).toBe(1);
+    const base = PAYLOAD_FIXTURES["tool.untrusted_read"];
+    expect(parse(entry.payload, base)).toEqual({ ok: true, value: base });
+    rejects(entry, { ...base, output: "web page body" });
+    rejects(entry, { ...base, turnId: "" });
+    rejects(entry, { ...base, turnId: "t".repeat(129) });
+    rejects(entry, { ...base, toolCallId: "" });
+    rejects(entry, { ...base, toolCallId: "c".repeat(257) });
+    rejects(entry, { ...base, toolName: "" });
     rejects(entry, { ...base, toolName: "t".repeat(129) });
     rejects(entry, { ...base, at: -1 });
   });

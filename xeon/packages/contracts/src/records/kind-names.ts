@@ -16,7 +16,7 @@ export type CoreArea =
   | "secret"
   | "tool";
 
-/** 코어 kind 42종. F.records.spec §3.3 표와 같다(scripts/check-event-catalog.ts가 대조한다). */
+/** 코어 kind 43종. F.records.spec §3.3 표와 같다(scripts/check-event-catalog.ts가 대조한다). */
 export const CORE_EVENT_KINDS: readonly [
   "thread.started",
   "thread.updated",
@@ -60,6 +60,7 @@ export const CORE_EVENT_KINDS: readonly [
   "secret.approved",
   "secret.masked",
   "tool.sandbox_bypassed",
+  "tool.untrusted_read",
 ] = [
   "thread.started",
   "thread.updated",
@@ -103,6 +104,7 @@ export const CORE_EVENT_KINDS: readonly [
   "secret.approved",
   "secret.masked",
   "tool.sandbox_bypassed",
+  "tool.untrusted_read",
 ];
 export type CoreEventKind = (typeof CORE_EVENT_KINDS)[number];
 

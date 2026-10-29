@@ -55,7 +55,7 @@ import {
   ThreadResumedPayloadSchema,
 } from "./thread.ts";
 import { TurnAbortRequestedPayloadSchema } from "./turn.ts";
-import { ToolSandboxBypassedPayloadSchema } from "./tool.ts";
+import { ToolSandboxBypassedPayloadSchema, ToolUntrustedReadPayloadSchema } from "./tool.ts";
 
 function core(kind: CoreEventKind, durable: boolean, payload: TSchema): CatalogEntry {
   return { kind, version: 1, durable, payload };
@@ -67,7 +67,7 @@ function retiredCore(kind: CoreEventKind, durable: boolean, payload: TSchema): C
 }
 
 /**
- * 코어 카탈로그 42종, 모두 version 1. F.records.spec §3.3 표와 같다(scripts/check-event-catalog.ts가 대조한다).
+ * 코어 카탈로그 43종, 모두 version 1. F.records.spec §3.3 표와 같다(scripts/check-event-catalog.ts가 대조한다).
  * 휘발 kind: turn.updated, step.updated, item.started, item.updated, scope.handler_failed.
  */
 export const CORE_EVENT_CATALOG: readonly CatalogEntry[] = [
@@ -113,6 +113,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[] = [
   core("secret.approved", true, SecretApprovedPayloadSchema),
   core("secret.masked", true, SecretMaskedPayloadSchema),
   core("tool.sandbox_bypassed", true, ToolSandboxBypassedPayloadSchema),
+  core("tool.untrusted_read", true, ToolUntrustedReadPayloadSchema),
 ];
 
 /** 카탈로그 목록을 이어 붙인다. 같은 kind가 두 번 나오면 Bug다(모듈 로드 시 검사). */

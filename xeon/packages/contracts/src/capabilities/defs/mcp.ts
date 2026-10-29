@@ -151,6 +151,27 @@ export const McpServerStateSchema: TUnion<
 ]);
 export type McpServerState = Static<typeof McpServerStateSchema>;
 
+/**
+ * 서버가 막힌 사유(McpServerStatus.blockedReason). approval_required는 비밀 env가 있는 stdio 서버가
+ * 사용자의 기동 승인을 기다리는 경우다(L2.mcp.spec §4.3).
+ */
+export const McpBlockedReasonSchema: TUnion<
+  [
+    TLiteral<"denied_by_policy">,
+    TLiteral<"not_in_allowlist">,
+    TLiteral<"managed_only">,
+    TLiteral<"untrusted_project">,
+    TLiteral<"approval_required">,
+  ]
+> = Type.Union([
+  Type.Literal("denied_by_policy"),
+  Type.Literal("not_in_allowlist"),
+  Type.Literal("managed_only"),
+  Type.Literal("untrusted_project"),
+  Type.Literal("approval_required"),
+]);
+export type McpBlockedReason = Static<typeof McpBlockedReasonSchema>;
+
 export type McpServerStatus = {
   server: string;
   title?: string;
@@ -165,8 +186,8 @@ export type McpServerStatus = {
   resourceCount?: number;
   /** 비밀 값을 담지 않는다 */
   lastError?: { code: string; message: string; at: number };
-  /** blocked일 때 사유: "denied_by_policy" | "not_in_allowlist" | "managed_only" | "untrusted_project" */
-  blockedReason?: string;
+  /** blocked일 때 사유: "denied_by_policy" | "not_in_allowlist" | "managed_only" | "untrusted_project" | "approval_required" */
+  blockedReason?: McpBlockedReason;
 };
 const mcpServerStatusShape = Type.Object({
   server: McpServerIdSchema,
@@ -181,7 +202,7 @@ const mcpServerStatusShape = Type.Object({
   lastError: Type.Optional(
     Type.Object({ code: Type.String(), message: Type.String(), at: Type.Integer() }),
   ),
-  blockedReason: Type.Optional(Type.String()),
+  blockedReason: Type.Optional(McpBlockedReasonSchema),
 });
 export const McpServerStatusSchema: TUnsafe<McpServerStatus> = Type.Unsafe<McpServerStatus>(
   mcpServerStatusShape satisfies SchemaProof<McpServerStatus, typeof mcpServerStatusShape>,
