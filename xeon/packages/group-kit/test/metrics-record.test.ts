@@ -291,3 +291,35 @@ test("metrics.recorded-skips-a-turn-already-recorded", async () => {
     { stepId: second, delta: delta({ posts: 1 }) },
   ]);
 });
+
+test("metrics.recorded-failure-keeps-the-handler-and-carries-the-delta", async () => {
+  // 기록 쓰기가 거부되어도 그룹의 경계 핸들러는 성공이고 증가분은 다음 기록에 든다(L3.group-kit.spec §4.9)
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const sink: { api?: GroupApi<never> } = {};
+  const seen: string[] = [];
+  await install(
+    t,
+    poster("flaky", ["boundary.settle.after", "tool.call.before"], sink, (g) => {
+      g.on("boundary.settle.after", () => {
+        seen.push("group");
+      });
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+
+  await postVia(t, thread, "f1");
+  // 다음 commit 하나를 거부한다. 이 경계에서 첫 commit은 계측 기록이다
+  t.records.failNext("storage");
+  await boundary(t, thread, "f-b1");
+  await postVia(t, thread, "f2");
+  const recovered = await boundary(t, thread, "f-b2");
+
+  expect(seen).toEqual(["group", "group"]);
+  expect(t.diagnostics.map((entry) => entry.code)).toEqual([]);
+  // 거부된 기록은 저장되지 않았고, 그 증가분(게시 1건)은 다음 기록에 나중 게시 1건과 함께 든다
+  expect(recordedOf(t, thread, "flaky")).toEqual([
+    { stepId: recovered, delta: delta({ posts: 2 }) },
+  ]);
+});

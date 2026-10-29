@@ -1,4 +1,4 @@
-import { parse } from "@xeon/contracts";
+import { attemptAsync, parse } from "@xeon/contracts";
 import {
   AgentSettledPayloadSchema,
   type GroupId,
@@ -56,6 +56,7 @@ function remember(turns: Set<string>, turnId: string): void {
  * 이 함수는 핸들러 호출 안에서 돈다. 그래서 `recordPrivate`의 멱등 키가 그룹 자신의 호출 번호 뒤로 이어지고, 그룹이 쓴 같은 키의 기록과 겹치지 않는다.
  * 같은 호출(dispatch)에서는 한 번만 쓰고, 이 프로세스에서 기록을 마친 turn은 다시 쓰지 않는다.
  * 쓰기가 성공했을 때만 기준을 옮긴다. 쓰기가 실패하면 다음 경계의 기록에 증가분이 그대로 든다.
+ * 쓰기 실패는 그룹 핸들러의 실패가 아니다. 상태 커밋은 이미 끝났고, 계측 쓰기의 거부가 그룹의 `handler_failed`가 되면 안 된다(§4.9).
  */
 export function createBoundaryRecorder(options: BoundaryRecordOptions): AfterRun {
   const kind: RecordKind = `grp.${options.groupId}.metrics.recorded`;
@@ -73,7 +74,9 @@ export function createBoundaryRecorder(options: BoundaryRecordOptions): AfterRun
     if (!options.enabled()) return;
     const { delta, now } = options.counter.unrecorded();
     if (!hasChange(delta)) return;
-    await options.api.recordPrivate(kind, { stepId: turnId, delta });
-    options.counter.markRecorded(now);
+    const written = await attemptAsync(() =>
+      options.api.recordPrivate(kind, { stepId: turnId, delta }),
+    );
+    if (written.ok) options.counter.markRecorded(now);
   };
 }
