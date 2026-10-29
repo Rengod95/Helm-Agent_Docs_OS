@@ -295,6 +295,9 @@ export function createMcp(deps: McpDeps): McpRuntime {
     const migrated = stateStore.migrate();
     if (!migrated.ok) deps.logger.error("mcp.state_migrate_failed", { kind: migrated.error.kind });
   }
+  // 내용 블롭은 고정(pinBlob)하지 않는다. cap-mcp는 참조를 자기 표에 적지 않고, 커밋된 도구 결과 항목에는
+  // `blob:sha256:<hex>` 자리표시로만 남는다. p_blob_refs는 이 자리표시를 모으지 않는다(L0.store.spec §6, §10 S-15).
+  // cap-mcp에는 고정을 풀 시점이 없으므로 여기서 고정하면 풀리지 않는 고정이 된다.
   const blobs: BlobPutter | undefined =
     deps.store === undefined
       ? undefined

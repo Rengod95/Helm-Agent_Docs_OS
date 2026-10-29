@@ -571,6 +571,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
    - `structuredContent` → 그대로 `structuredContent`. 서버가 `outputSchema`를 광고했으면 L1.tools가 검증한다.
 6. 크기 한도: 텍스트 합이 `l2.mcp.result.maxBytes`를 넘으면 앞부분만 남기고 `truncated`와 안내 문장을 붙인다. L1.tools 결과 경계화가 그 뒤에 한 번 더 적용된다.
 7. 시간 초과는 `timeout`, 연결 끊김은 `server_disconnected`, SDK의 사양 위반 오류는 `protocol_error`다.
+8. 블롭은 `pinBlob`으로 고정하지 않는다. `image`와 바이너리 `resource`의 블롭 참조는 cap-mcp의 표나 상태에 남지 않고, 커밋된 도구 결과 항목에 `blob:sha256:<hex>` 자리표시로만 남는다. `p_blob_refs`가 그 자리표시를 모으지 않으므로 고정 대신 `core-persistence`의 색인을 고쳐야 한다(`L0.store.spec` §10 S-15). cap-mcp에는 고정을 풀 시점(스레드 삭제, 항목 폐기)이 없어서 고정하면 풀리지 않는다. `getPrompt`와 `readResource`의 블롭 참조는 이 호출을 부른 쪽이 커밋하지 않는 한 어디에도 남지 않는다.
 
 ### 4.6 서버 주도 요청 (MRTR, 1차)
 

@@ -873,10 +873,10 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - 켜는 것은 아래 소비자가 모두 `pinBlob`을 쓰게 된 뒤에만 안전합니다. `pinBlob` 호출처는 cap-web 가져오기 캐시와 cap-knowledge다. 아래 cap-mcp와 cap-dialog는 아직 고정하지 않습니다.
   - cap-web 가져오기 캐시(`packages/cap-web/src/cache/fetch-cache.ts`)는 고정한다. 소유자는 `cap.web`이고 refKey는 원문 행의 `raw_ref`(`webraw:<sha256>`)다. 저장할 때 원문과 본문 블롭을 `pinBlob`으로 적고, 행을 지우는 `sweep`과 `purgeSessionRaw`가 `unpinBlob`으로 푼다. 시험은 `packages/cap-web/test/fetch-cache-pin.int.test.ts`다.
   - cap-knowledge 매니페스트(`packages/cap-knowledge/src/ledger/manifest.ts`)와 쓰기 파이프라인(`packages/cap-knowledge/src/write/pipeline.ts`)은 고정한다. 소유자는 `cap.knowledge`다. 원장 행의 전후 목록과 파일 블롭은 행 id(`knl…`)로, 제안 입력 블롭은 제안 id(`knp…`)로 고정한다. 행을 쓰기 전에 고정하고, 행이 쓰이지 않으면 푼다. 원장 행은 지우지 않으므로 그 고정은 풀지 않는다. 제안은 승인, 거절, `stale`, 만료로 닫힐 때 푼다. 재색인이 쓰는 `external` 행은 커밋 뒤에 고정하므로, 고정이 실패하면 그 행은 고정 없이 남는다 [미결]. 시험은 `packages/cap-knowledge/test/blob-pins.test.ts`다.
-  - [미결] cap-mcp 내용 블롭(`packages/cap-mcp/src/client/content.ts`, `service.ts`).
+  - cap-mcp 내용 블롭(`packages/cap-mcp/src/client/content.ts`, `service.ts`)은 고정하지 않는다 [미결 S-15]. 근거는 셋이다. (1) cap-mcp의 표 `cap_mcp_servers`와 상태 어디에도 블롭 참조가 없다. (2) 참조는 커밋되는 도구 결과 항목에 `blob:sha256:<hex>` 자리표시 문자열로만 남는다(`packages/cap-mcp/src/client/dynamic-tools.ts`의 `renderContent`, `packages/core-tools/src/pipeline.ts`의 `finishCall`). (3) `p_blob_refs`는 `detached` 필드와 `effect.*`의 BlobRef만 모으므로(`packages/core-persistence/src/projector/core.ts`의 `blobHashesOf`) 이 자리표시를 보지 않는다. 그래서 이벤트가 참조해도 `blobGraceMs` 뒤에 GC가 지울 수 있다. cap-mcp가 고정을 걸면 풀 시점(스레드 삭제, 항목 폐기)을 알 수 없어 고정이 새므로, 고정 대신 `core-persistence`가 자리표시 참조를 `p_blob_refs`에 모아야 한다.
   - [미결] cap-dialog 첨부(`packages/cap-dialog/src/attachments/service.ts`).
   - [미결] cap-workspace 이미지(`packages/cap-workspace/src/images/prepare.ts`).
-  - [미결] core-tools 도구 출력과 `pipeline.ts`의 블롭이 이벤트 참조로만 살아 있는지 확인한다. 고정이 없어도 이벤트가 참조하면 `p_blob_refs`로 보존된다.
+  - [미결] core-tools 도구 출력과 `pipeline.ts`의 블롭이 이벤트 참조로만 살아 있는지 확인한다. 고정이 없어도 이벤트가 참조하면 `p_blob_refs`로 보존된다. 이 보존은 `effect.result.blobRef`로 적힌 블롭에만 성립하며, 자리표시 참조는 [미결 S-15]다.
 
 ## 7. 확장 지점
 
@@ -965,4 +965,5 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - [미결 S-12] F 요청, 스냅샷 실패 전용 오류 kind. 지금은 `migration_failed`의 `code: "snapshot_failed:<코드>"`로 돌려준다(§4.6.1). `MigrationError`에 `migration_snapshot_failed`를 더하고, 손상(`corrupt`)과 미래 버전(`migration_future_version`) 오류를 사용자 안내 문구로 나누는 일은 F·host가 맡는다 [마감 G2-06].
 - [미결 S-13] 내보내기와 열기는 같은 SQLite 로드 규칙(§4.1)을 쓴다. 열기 전에 내보내면 첫 연결이 SQLite 로드 상태를 번들로 정하므로, macOS에서 나중의 `openStore`가 커스텀 dylib을 지정하면 `Bug(store.sqlite_already_loaded)`가 난다. 호스트가 내보내기를 `openStore` 뒤에 부르는지 M3 호스트 연결 때 정한다.
 - [미결 S-14] 내보내기 실패 뒤 정리가 실패하면 원래 오류 대신 정리 오류를 돌려준다. `ExportError`에 원인 필드가 없어서다. 원인을 실을 필드를 더할지는 F 요청 후보로 둔다(§4.10).
+- [미결 S-15] 자리표시(`blob:sha256:<hex>`)로만 커밋 이벤트에 남는 블롭을 `p_blob_refs`가 모을지와 방법. `blobHashesOf`는 `detached` 필드와 `effect.*`의 BlobRef만 본다. 후보는 (a) 항목 내용의 자리표시를 읽어 모으는 것, (b) 그 블롭을 `detached` 필드로 옮기는 것이다. 해당하는 것은 cap-mcp 내용 블롭(§6), cap-dialog 첨부, cap-workspace 이미지다. 이 결정 전에는 `blobGcEnabled`를 켜지 않는다. 소유는 `core-persistence`다 [미결].
 - [가정] macOS에서 bun:ffi `flock`, `libSystem.B.dylib` 이름, O_CLOEXEC 동작은 실측하지 않았다. Windows 전 구간, WSL `/mnt/c`의 flock도 실측하지 않았다(`_research/notes/L0-2.md §5`).
