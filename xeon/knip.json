@@ -30,6 +30,9 @@
     "packages/core-context": {
       "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
     },
+    "packages/ext-host": {
+      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
+    },
     "packages/cap-workspace": {
       "entry": ["test/**/*.test.ts", "test/support/atomic-victim.ts"]
     },
