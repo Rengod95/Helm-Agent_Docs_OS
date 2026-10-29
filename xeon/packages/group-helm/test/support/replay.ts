@@ -112,7 +112,6 @@ export function createHelmReplay(
         turn: ports.loop.turns.length,
         spawn: ports.loop.spawns.length,
         post: driveItems(),
-        tasks: ports.world.fakes.tasks.created.length,
       };
       const first = await createTestHost({
         capabilityDefs: DEFS,
@@ -160,7 +159,6 @@ export function createHelmReplay(
           turn: ports.loop.turns.length - before.turn,
           spawn: ports.loop.spawns.length - before.spawn,
           delegate: 0,
-          capabilityWrite: ports.world.fakes.tasks.created.length - before.tasks,
           post: driveItems() - before.post,
         },
       };

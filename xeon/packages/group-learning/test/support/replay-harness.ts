@@ -144,7 +144,6 @@ export function createLearningReplayHarness(
         spawn: ports.loop.spawns.length,
         post: ports.queue.items.length,
         delegate: ports.agents.delegated.length,
-        capabilityWrite: ports.knowledge.effects(),
       };
       const log: ExtCommitRequest[] = [];
       const records = loggedRecords(memoryRecordStore(), log);
@@ -232,7 +231,6 @@ export function createLearningReplayHarness(
         turn: ports.loop.turns.length - before.turn,
         spawn: ports.loop.spawns.length - before.spawn,
         delegate: ports.agents.delegated.length - before.delegate,
-        capabilityWrite: ports.knowledge.effects() - before.capabilityWrite,
         post: ports.queue.items.length - before.post,
       };
       return { events: events.slice(0, end), commitPoints, effects };

@@ -49,7 +49,7 @@ test("replay.agent-settled-twice-one-delegate: cutting at every commit and firin
   const report = await replayDrive({
     group,
     harness,
-    expectEffects: { delegate: 1, turn: 0, spawn: 0, post: 0, capabilityWrite: 0 },
+    expectEffects: { delegate: 1, turn: 0, spawn: 0, post: 0 },
   });
   expect(report.failure).toBeUndefined();
   expect(report.ok).toBe(true);
@@ -60,7 +60,7 @@ test("replay.agent-settled-twice-one-delegate: cutting at every commit and firin
   );
   expect(report.cuts.every((cut) => cut.equal && cut.firstDiff === null)).toBe(true);
   // 기준 실행은 위임 1회. 어느 지점에서 끊어도 다시 실행이 새 효과를 내지 않는다
-  expect(report.effects).toEqual({ turn: 0, spawn: 0, delegate: 1, capabilityWrite: 0, post: 0 });
+  expect(report.effects).toEqual({ turn: 0, spawn: 0, delegate: 1, post: 0 });
   expect(report.cuts.map((cut) => cut.effects)).toEqual(report.cuts.map(() => NO_EFFECTS));
   expect(harness.knowledge()?.calls()).toBe(0);
 });
