@@ -51,12 +51,34 @@ function isMessage(value: unknown): value is Message {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const TIMEOUT_ENV = "XEON_E2E_TIMEOUT_MS";
+const DEFAULT_TIMEOUT_MS = 60_000;
+// setTimeout은 2^31 - 1 ms를 넘는 지연을 1 ms로 줄여 실행하므로 그보다 큰 값은 쓰지 않는다
+const MAX_TIMER_MS = 2_147_483_647;
+
+/**
+ * 요청·대기·종료 한 번의 상한(ms)을 정한다. 명시한 값이 가장 우선이고, 없으면 `XEON_E2E_TIMEOUT_MS`가 양의 정수일 때 그 값이다.
+ * 없거나, 0·음수·정수가 아니거나, 타이머 상한을 넘으면 기본값 60000이다. 기본값은 부하가 걸린 기기에서 컴파일 사이드카를 처음 띄우는 시간을 본 것이다.
+ */
+export function resolveTimeoutMs(
+  option: number | undefined,
+  env: Readonly<Record<string, string | undefined>>,
+): number {
+  if (option !== undefined) return option;
+  const raw = (env[TIMEOUT_ENV] ?? "").trim();
+  if (/^\d+$/.test(raw)) {
+    const value = Number(raw);
+    if (value > 0 && value <= MAX_TIMER_MS) return value;
+  }
+  return DEFAULT_TIMEOUT_MS;
+}
+
 export async function startEngine(
   command: EngineCommand,
   options: { readonly timeoutMs?: number } = {},
 ): Promise<EngineProcess> {
   const home = newHome();
-  const timeoutMs = options.timeoutMs ?? 20_000;
+  const timeoutMs = resolveTimeoutMs(options.timeoutMs, process.env);
   const proc = Bun.spawn([...command], {
     // XEON_DEV는 비운다: 소스 진입은 스스로 개발 검사를 켜고 컴파일 바이너리는 켜지 않는다. 차이가 wire에 나오지 않아야 한다
     env: { ...process.env, XEON_HOME: home, XEON_DEV: "" },
@@ -104,17 +126,24 @@ export async function startEngine(
     for await (const chunk of proc.stderr) stderrText += decoder.decode(chunk, { stream: true });
   })();
 
-  const withDeadline = <T>(label: string, work: Promise<T>): Promise<T> =>
-    Promise.race([
-      work,
-      new Promise<T>((_resolve, reject) =>
-        setTimeout(() => {
-          reject(
-            new Error(`engine e2e: timed out waiting for ${label}\n${stderrText.slice(-2000)}`),
-          );
-        }, timeoutMs),
-      ),
-    ]);
+  const withDeadline = <T>(label: string, work: Promise<T>): Promise<T> => {
+    const started = performance.now();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const limit = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        const elapsed = Math.round(performance.now() - started);
+        reject(
+          new Error(
+            `engine e2e: timed out waiting for ${label} after ${String(elapsed)} ms (limit ${String(timeoutMs)} ms)\n${stderrText.slice(-2000)}`,
+          ),
+        );
+      }, timeoutMs);
+    });
+    // 일이 성공하든 실패하든 시한 타이머를 지운다. 남은 타이머는 끝난 시험의 프로세스를 붙잡는다
+    return Promise.race([work, limit]).finally(() => {
+      clearTimeout(timer);
+    });
+  };
 
   const engine: EngineProcess = {
     home,
