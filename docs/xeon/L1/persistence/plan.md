@@ -86,6 +86,7 @@ xeon/packages/core-persistence/
     resume.ts              # openForWrite, openForRead, recover, beginResume, AutoResumeVerdict, 열린 thread별 LeaseToken 보관
     lifecycle.ts           # ThreadLifecycle: create(creationKey, inheritOwnerFrom), list, close, remove, fork, revert, moveLeaf, setTitle, prepareSwitch
     branch.ts              # 활성 가지 계산, leaf 이동 대상 검사, fork 출처 해석
+    auto-title.ts          # autoTitleThread(M3-REQ-83): 임시 판정, 활성 가지의 첫 텍스트, TitleModelPort 호출, sanitiseTitle, setTitle(autotitle:<threadId>)
     session-settings.ts    # SessionSettingsStore(settings.changed, p_settings)
     ext-port.ts            # RecordCommitPort 구현(SessionService.ext)
     points.ts              # 확장 지점 7개 발화(ExtHost.dispatch)
@@ -110,6 +111,7 @@ xeon/packages/core-persistence/
     resume.int.test.ts
     lifecycle.test.ts
     branch.test.ts
+    auto-title.test.ts     # 자동 제목: 임시 판정, fork의 출처 텍스트, 정리 표, 모델 실패, 멱등과 key_reused
     subscribe.test.ts
     upcast.test.ts
     ddl.test.ts
@@ -180,6 +182,20 @@ xeon/packages/core-persistence/
 | 확장 투영기 예외 격리: 롤백, 정지, `onFailure` 알림, 같은 계획으로 재시도 | 완료 | `writer.ts`(`runCommit`의 `projector_failed` 재시도), `service.ts`(`onProjectorFailure`가 정지와 알림을 함) |
 | 정지(`ProjectorController.suspend`)와 `session.projector_suspended` 기록 | 완료 | `projector/registry.ts` |
 | 정지한 투영기 재생성: 다음 쓰기 열기(`ensure`)와 다시 등록(`register`) | 완료 | `projector/registry.ts`, `projector/rebuild.ts` |
+
+### 3.3 M3-REQ-83 구현 상태 (2026-10-29, 레인 B3-DATA)
+
+[결정: 오케스트레이터 기본값, M3-REQ-83] 대화 제목은 모델이 만들되 모델 호출은 포트 뒤에 두고, 언제 부를지는 호스트가 정한다(§4.10.6).
+
+| 항목 | 상태 | 위치 |
+|---|---|---|
+| `autoTitleThread`: 임시 판정, 활성 가지의 첫 사용자·어시스턴트 텍스트, `TitleModelPort` 호출, `sanitiseTitle`, `setTitle(autotitle:<threadId>)` | 완료 | `auto-title.ts`, `index.ts`(공개) |
+| 모델 실패, 읽기 실패, 저장 거절을 `AutoTitleError` 값으로 돌려준다(던지지 않는다). 포트가 던진 값은 `threw` | 완료 | `auto-title.ts` |
+| 같은 제목 재시도는 `replayed`, 다른 제목의 같은 키는 `key_reused`를 `skipped(has_human_title)`로 돌려준다 | 완료 | `auto-title.ts`, 시험 `test/auto-title.test.ts` |
+| fork thread의 원본 history 연속성(M3-37, 규칙은 M2) | 완료(기존 코드와 기존 시험을 확인했다. 새 코드는 없다) | `branch.ts`, `lifecycle-branch.ts`, 시험 `test/fork-continuity.test.ts`, 자동 제목의 fork 시험 `test/auto-title.test.ts` |
+| core-context가 fork thread의 원본 item을 조립에서 잇는다는 시험 | [미결] core-context(L1)는 core-persistence(L1)를 의존하지 않고 같은 층 import는 허용되지 않는다. 시험은 이 레인에서 쓰지 않았다. 조립 경로는 `core-context/src/branch.ts`의 `readBranchEvents`가 `session.readBranch`만 읽는 것을 확인했다 | `core-context/src/branch.ts` |
+| fork의 fork의 활성 가지 | 시험 있음(`fork-continuity.test.ts`의 "a fork of a fork walks the whole chain") | `test/fork-continuity.test.ts` |
+| 출처 history에 컴팩션이 있을 때 fork thread의 컨텍스트 조립 | [미결] 시험이 없다. 이번 레인에서 코드와 시험을 바꾸지 않고 보고만 한다 | `core-context/src/branch.ts`, `core-context/src/assemble.ts` |
 
 ## 4. 채택 코드
 
@@ -275,6 +291,14 @@ xeon/packages/core-persistence/
 | `agent_by_request_id_finds_spawned_child` | `projector.test.ts` | `agent.spawned` 커밋 뒤 `TxView.agentByRequestId(부모, requestId)`가 그 자식을 돌려주고, `agent.settled` 뒤 `settled`가 채워진다. 재생성 뒤에도 같다(스펙 §9-22) | PS-23 |
 | `resume_lists_unsettled_children` | `resume.int.test.ts` | 자식 생성 커밋 뒤 SIGKILL, 다시 열면 `ResumePlan.openChildren`에 그 자식이 있고, 부모 turn에 취소 의도가 있으면 재개 대상에서 빠진다 | PS-23 |
 | `step_commit_count_matches_formula` | `commit.test.ts` | 도구 n개 단계의 커밋 수가 `3 + 3n`(S1, C3, E1~E3 × n, C5)이다(스펙 §9-23) | PS-2 |
+| `auto_title_titles_provisional_from_first_texts` | `auto-title.test.ts` | 임시 제목 thread가 첫 사용자·어시스턴트 텍스트만 모델에 받고, 정리된 출력을 `thread.updated` 제목으로 쓴다 | M3-REQ-83 |
+| `auto_title_never_overwrites_human_title` | `auto-title.test.ts` | 사람이 정한 제목이면 모델을 부르지 않고 `skipped(has_human_title)`이다. null 제목은 임시로 보고 쓴다 | M3-REQ-83 |
+| `auto_title_sanitises_model_output` | `auto-title.test.ts` | 따옴표, 백틱, 마크다운 `#`, 여러 줄, 공백, 끝 문장부호, 80 코드 포인트 상한(이모지 포함), 빈 출력 `empty_title` 표 | M3-REQ-83 |
+| `auto_title_model_failure_keeps_title` | `auto-title.test.ts` | 포트의 실패 kind와 던진 값(`threw`)이 `model_failed`로 나오고 저장된 제목이 그대로다 | M3-REQ-83 |
+| `auto_title_fork_uses_source_history` | `auto-title.test.ts` | 자기 turn이 없는 fork가 출처의 첫 사용자·어시스턴트 텍스트로 제목을 정한다 | M3-REQ-83, M3-37 |
+| `auto_title_twice_titles_once_and_replays_same_key` | `auto-title.test.ts` | 두 번째 호출은 `skipped`이고 모델은 한 번만 불린다. 같은 키·같은 제목은 `replayed`로 이벤트를 더하지 않는다. 다른 제목의 같은 키는 `skipped(has_human_title)`이다 | M3-REQ-83 |
+| `auto_title_skips_without_text_and_ignores_images` | `auto-title.test.ts` | 사용자 텍스트나 응답 텍스트가 없으면 `no_user_text`, `no_assistant_text`이고 모델을 부르지 않는다. 이미지 블록은 입력에서 뺀다. 없는 thread는 `thread_not_found`다 | M3-REQ-83 |
+| `auto_title_store_refusal_is_store_failed` | `auto-title.test.ts` | 쓰기 소유를 놓은 뒤 `setTitle`이 `not_owner`로 거절하면 `store_failed{lifecycleKind}`다 | M3-REQ-83 |
 
 ## 6. 완료 기준
 

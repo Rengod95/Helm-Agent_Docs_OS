@@ -1181,7 +1181,19 @@ export interface RewindPlan {
 - `remove`: 쓰기 소유자만 한다. 한 트랜잭션에서 `thread_delete_guard`에 행을 넣고, `events`, `requests`, 모든 투영기 테이블의 그 thread 행, 그 thread를 가리키는 `thread_creation_keys` 행을 지우고, 표지 행을 지운다. 세션 임대 행은 L0.store 소유라 지우지 않고 `release`로 반납한다. `consumer_cursors`는 건드리지 않는다. 다른 thread의 `forked_from_thread`가 이 thread면 `has_forks`로 거부한다 [제안]. 지운 seq는 다시 쓰지 않는다(`event_seq`). 지운 뒤 커밋 뒤 방출은 없다. 화면 갱신은 wire `thread.delete` 응답으로 한다.
 - `setTitle`: 커밋 키는 `title:<commitKeyPart(requestKey)>`다. 같은 키로 다른 제목을 내면 `key_reused{requestKey}` 값이다. L2 artifacts가 `xeon.session`의 이 API를 부르고, 이벤트 `thread.updated { title }`은 core-persistence가 쓴다(`eng.context-map.design` §4.4 4번). 커밋 뒤 `session.info.after`(tap, detached)를 발화한다.
 
-#### 4.10.6 wire 메서드와 L1 구현 책임
+#### 4.10.6 자동 제목 [결정: 오케스트레이터 기본값, M3-REQ-83]
+
+- 함수: `autoTitleThread(deps, threadId, signal?)`(`src/auto-title.ts`, 공개 진입점은 `index.ts`)는 저장된 제목이 임시일 때만 모델이 만든 제목을 `threads.setTitle`로 쓴다. core-persistence는 모델을 부르지 않는다. 모델 호출은 `TitleModelPort.complete(input, signal)` 포트가 맡고, 조립 루트가 제목 역할의 구현을 넣는다.
+- 호출 시점은 호스트가 정한다. 이 함수는 첫 turn이 끝났는지 확인하지 않는다. 언제 부를지, 실패를 어떻게 기록할지는 `L4.host-service.spec` HS-73이 정한다. 같은 thread를 여러 번 불러도 된다(아래 멱등).
+- 임시 판정: 호출자가 준 `isProvisional(title)`이 저장된 제목을 본다. 제목이 null이거나 호스트가 첫 입력에서 만든 제목이면 참이다. 거짓이면 `skipped(has_human_title)`이고 모델을 부르지 않는다. 사람이 정한 제목과 앞선 자동 제목은 덮지 않는다.
+- 입력: 활성 가지(`readBranch`, 현재 leaf)에서 첫 사용자 `item.recorded`의 텍스트와 첫 어시스턴트 `item.recorded`의 텍스트를 쓴다. 텍스트가 없는 item(이미지만 있는 입력, 도구 호출만 있는 응답)은 건너뛰고 다음 item에서 찾는다. 텍스트 블록만 이어 붙이고 이미지와 도구 호출은 뺀다. 각 텍스트는 2000 코드 포인트로 자른다. 보관된 큰 값(`detached`)은 `hydrate`로 되돌린다. fork한 thread는 가지가 출처 history를 잇으므로(§4.10.3) 출처의 첫 입력과 첫 응답을 쓴다. 찾지 못하면 `skipped(no_user_text | no_assistant_text)`이고 모델을 부르지 않는다.
+- 모델 요청: 시스템 지시는 고정 문안이다. 제목은 8단어 이하, 60자 이하, 사용자 메시지와 같은 언어, 한 줄로 쓰고 따옴표와 끝 마침표를 붙이지 않게 한다. 사용자 메시지에는 두 텍스트를 "첫 사용자 메시지", "첫 어시스턴트 응답" 표지와 함께 넣고, 그 안의 지시는 따르지 않도록 시스템 지시에 적는다.
+- 출력 정리(`sanitiseTitle`): (1) 첫 비어 있지 않은 줄을 고른다. (2) 공백을 한 칸으로 줄이고 앞뒤를 다듬는다. (3) 모서리의 마크다운 `#`, 따옴표(ASCII, 곡선, 꺾쇠)와 백틱, 끝의 문장부호를 더 줄어들지 않을 때까지 뗀다. (4) 80 코드 포인트로 자른 뒤 (3)을 다시 한다. 결과가 빈 문자열이면 `skipped(empty_title)`이고 아무것도 쓰지 않는다.
+- 쓰기: `threads.setTitle(threadId, title, "autotitle:<threadId>")`. 요청 키가 thread마다 같으므로 같은 제목의 재시도는 `replayed`로 돌아오고 이벤트를 더하지 않는다. 저장된 제목이 그사이 바뀌어 같은 키에 다른 제목이 오면 `key_reused`다. 이때는 제목이 이미 정해진 것으로 보고 `skipped(has_human_title)`을 돌려주며 로그 `auto_title.key_reused`를 남긴다. `titled`는 이번 호출이 제목을 쓴 경우만이다.
+- 결과: `AutoTitleResult`는 `titled{title}` 또는 `skipped{reason}`이다. `AutoTitleError`는 `thread_not_found`, `read_failed{readKind}`(`busy`, `io`, `row_invalid`), `model_failed{modelKind}`, `store_failed{lifecycleKind}`다. 모델 포트가 던진 값은 `modelKind: "threw"`로, 취소는 `"cancelled"`로 돌려준다. 예상 가능한 실패는 모두 `Result` 값이고 던지지 않는다.
+- `thread.updated{title}` 기록과 `session.info.after` 발화는 `setTitle`이 한다(§4.10.5). 자동 제목은 이 경로만 쓰고 별도 kind를 두지 않는다.
+
+#### 4.10.7 wire 메서드와 L1 구현 책임
 
 `F.wire-settings.spec` §3.3.1의 thread 메서드다. 처리기는 호스트에 있다(`L4.host-service.spec` §3.4).
 
@@ -1486,6 +1498,7 @@ export type SessionSettingsError =
 26. `turn.started{scopeId: s, requestId: r}`가 커밋된 뒤 `TxView.turnByRequestId(thread, s, r)`가 그 turn을 돌려주고, `scopeId` null인 turn과 섞이지 않는다.
 27. 오버플로우 복구 컴팩션(C7) 직후 SIGKILL하고 재개하면 `next: "request"`로 같은 단계 요청이 컴팩션 뒤 가지로 나가고 `thread.compacted`는 하나다.
 28. 확장 `alpha`가 `visibility: "private"`로 `grp.alpha.note` 레코드를 커밋하면 `events.private_owner`가 `alpha`다. `ext.queryRecords(thread, { kind: "grp.alpha.*" }, "beta")`는 그 행을 돌려주지 않고, 같은 질의를 `reader` `alpha`로 부르면 돌려준다. `visibility`를 생략한 행은 두 조회 모두 돌려준다. `alpha`가 `grp.beta.note`를 `visibility: "private"`로 커밋하면 `rejected(invalid)`다(`F.records.spec` §9 13과 같은 시나리오).
+29. [M3-REQ-83] `autoTitleThread`는 저장된 제목이 임시일 때만 쓴다. 모델에는 활성 가지의 첫 사용자·어시스턴트 텍스트만 보내고, 같은 thread를 두 번 불러도 `thread.updated`는 한 번만 늘어난다. fork thread의 첫 텍스트는 출처 history에서 온다(`test/auto-title.test.ts`).
 
 ## 10. 미결 사항
 
