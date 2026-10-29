@@ -387,7 +387,7 @@ export const ChangeSourceSchema = Type.Union([
   Type.Object({ type: Type.Literal("turn"), turnId: Type.Optional(TurnIdSchema) }),
   /** 지정한 도구 호출들의 결과 details.diff */
   Type.Object({ type: Type.Literal("toolCalls"), toolCallIds: Type.Array(ToolCallIdSchema, { minItems: 1, maxItems: 64 }) }),
-  /** L1 체크포인트의 파일 상태와 현재 파일의 차이 */
+  /** L1 체크포인트의 파일 상태와 현재 파일의 차이. [미결] M3b에서는 지원하지 않는다. open은 source_unsupported를 돌려준다(§10 11) */
   Type.Object({
     type: Type.Literal("checkpoint"),
     checkpointId: CheckpointIdSchema,
@@ -504,6 +504,10 @@ export const ArtifactsReviews = defineCapability({
             retryable: false,
             detail: Type.Object({ source: Type.String(), line: Type.Integer({ minimum: 0 }) }),
           },
+          source_unsupported: {
+            description: "이 버전이 지원하지 않는 변경 원본(checkpoint, M3b)",
+            retryable: false,
+          },
           review_too_large: { description: "파일 수나 hunk 수가 상한을 넘음", retryable: false },
         },
       },
@@ -616,6 +620,10 @@ export const ArtifactsReviews = defineCapability({
 });
 export const ArtifactsReviewsKey = serviceKey(ArtifactsReviews);
 ```
+
+- [결정: 오케스트레이터 기본값] `checkpoint` 원본은 M3b에서 지원하지 않는다(§10 11). `open`에 이 원본을 넘기면 `source_unsupported`(재시도 불가)를 돌려준다. 스키마의 네 변형은 그대로 둔다.
+- [제안] 변경 메서드(`open`, `approve`, `reject`, `comment`, `submit`, `close`)는 `idempotent: true`로 선언한다. 같은 `requestId`로 다시 부르면 처음 결과를 돌려준다. 입력에 `requestId` 필드는 두지 않는다. `get`은 `readOnly: true`다. 선언이 없으면 `validateCapability`가 `effect_class_missing` 경고를 낸다(§9 6).
+- [제안] `HunkDecisionSchema`와 `CommentTargetSchema`는 `records/catalog/approval.ts`의 `HunkDecision`, `ReviewCommentTarget`과 같은 모양을 정의 파일에 다시 적는다. `defs/`는 `records/`를 import하지 않는다(`F.readme` §3). 두 모양이 같은지는 `test/capabilities/artifacts-defs.test.ts`가 JSON Schema로 비교해 확인한다.
 
 ### 3.4 `artifacts.sessions`
 
@@ -1455,3 +1463,4 @@ export const ReviewAnswerSchema = Type.Object({
 8. [미결] `cache: "session"` 출처 본문을 내보내기에서 뺄지(§4.5.3). 제안은 뺀다. `L2.web.spec`의 정의와 맞춘다.
 9. [미결] 핸드오프 입력의 형식. 지금은 `PostItem kind: "user"` 텍스트다. `context` kind로 바꾸면 `customType`은 `x.cap-artifacts.handoff`다(`F.records.spec` §3.2 규칙 3). 어느 쪽을 쓸지만 남았다.
 10. [미결] `ArtifactKind` 확장 형식(`x.<ext>.<영역>.<이름>`의 앞 세 마디)을 F에 공용 패턴으로 둘지. 지금은 이 정의 파일 안의 정규식이다.
+11. [미결] checkpoint 변경 수집은 M3b에서 지원하지 않는다(source_unsupported).
