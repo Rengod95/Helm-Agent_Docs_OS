@@ -278,6 +278,17 @@ function isUntrustedSource(entry: ToolEntry): boolean {
   return entry.mcpServer !== undefined || (entry.capability?.id.startsWith("web.") ?? false);
 }
 
+const BYPASS_REASONS = ["escape", "run_unsandboxed", "disabled"] as const;
+
+/** 도구 결과가 샌드박스 밖 실행을 알리면(`sandboxed: false`와 `unsandboxedBy`) 그 이유. 아니면 undefined */
+function sandboxBypassOf(structured: JsonValue | undefined): ToolBypass {
+  if (!isJsonObject(structured) || structured["sandboxed"] !== false) return undefined;
+  const by = structured["unsandboxedBy"];
+  return BYPASS_REASONS.find((reason) => reason === by);
+}
+
+type ToolBypass = (typeof BYPASS_REASONS)[number] | undefined;
+
 export function createPipeline(
   deps: ToolsDeps,
   registry: ToolRegistry,
@@ -289,6 +300,36 @@ export function createPipeline(
 
   /** 웹·MCP 도구 결과를 낸 turn의 id. 같은 turn의 뒤 호출에 `afterUntrusted`를 켠다. 프로세스 안 기억이라 재시작 뒤 이어진 turn은 거짓으로 시작한다 */
   const untrustedTurns = new Set<string>();
+
+  /** 이 turn의 durable 기록(`tool.untrusted_read`)을 이미 찾아 본 turn. 재시작 뒤 첫 조회에서만 저장소를 읽는다 */
+  const restoredTurns = new Set<string>();
+
+  /**
+   * 같은 turn이 웹·MCP 결과를 이미 읽었는가. 메모리에 없으면 turn마다 한 번 durable 기록을 찾아 복원한다(M3-REQ-100, 재시작 뒤에도 이어진다).
+   * 읽기에 실패하면 거짓이 아니라 참으로 본다(안전한 쪽의 오차)
+   */
+  function isAfterUntrusted(run: ToolRunContext): boolean {
+    if (untrustedTurns.has(run.turnId)) return true;
+    if (restoredTurns.has(run.turnId)) return false;
+    const found = deps.session.query.latestEvent(
+      run.threadId,
+      "tool.untrusted_read",
+      { pointer: "/turnId", equals: run.turnId },
+      { onActiveBranch: false },
+    );
+    if (!found.ok) {
+      warn("tools.untrusted_restore_failed", { turnId: run.turnId });
+      return true;
+    }
+    restoredTurns.add(run.turnId);
+    if (restoredTurns.size > UNTRUSTED_TURN_LIMIT) {
+      const oldest = restoredTurns.values().next();
+      if (oldest.done !== true) restoredTurns.delete(oldest.value);
+    }
+    if (found.value === undefined) return false;
+    markUntrusted(run.turnId);
+    return true;
+  }
 
   function markUntrusted(turnId: string): void {
     untrustedTurns.delete(turnId);
@@ -788,6 +829,7 @@ export function createPipeline(
       slot: undefined,
       userApprovalId: undefined,
       secretApproval: null,
+      sandboxBypass: undefined,
       attempt: 0,
       updates: 0,
       maskedHits: new Map(),
@@ -871,7 +913,7 @@ export function createPipeline(
       onUpdate(asAgentResult(masked.result));
     };
     // 같은 배치의 병렬 호출은 서로의 결과를 읽지 못하지만, 먼저 끝난 호출이 표지를 켜면 뒤 호출이 참으로 본다. 안전한 쪽의 오차다
-    const afterUntrusted = untrustedTurns.has(run.turnId);
+    const afterUntrusted = isAfterUntrusted(run);
     try {
       const outcome = await entry.raw({
         run,
@@ -883,7 +925,11 @@ export function createPipeline(
         afterUntrusted,
       });
       state.interrupted = outcome.interrupted;
-      if (isUntrustedSource(entry)) markUntrusted(run.turnId);
+      state.sandboxBypass = sandboxBypassOf(outcome.result.structuredContent);
+      if (isUntrustedSource(entry)) {
+        markUntrusted(run.turnId);
+        restoredTurns.add(run.turnId);
+      }
       return outcome;
     } catch (error) {
       if (error instanceof Bug) throw error;
@@ -1079,6 +1125,44 @@ export function createPipeline(
         }),
       );
     }
+    if (state.sandboxBypass !== undefined) {
+      extra.push(
+        deps.producer.draft({
+          id: deps.ids.next("evt"),
+          kind: "tool.sandbox_bypassed",
+          threadId: run.threadId,
+          turnId: run.turnId,
+          stepId: run.stepId,
+          causationId: null,
+          correlationId: intent.effectId,
+          payload: {
+            toolCallId: state.toolCallId,
+            toolName: entry.name,
+            reason: state.sandboxBypass,
+            at: now,
+          },
+        }),
+      );
+    }
+    if (isUntrustedSource(entry)) {
+      extra.push(
+        deps.producer.draft({
+          id: deps.ids.next("evt"),
+          kind: "tool.untrusted_read",
+          threadId: run.threadId,
+          turnId: run.turnId,
+          stepId: run.stepId,
+          causationId: null,
+          correlationId: intent.effectId,
+          payload: {
+            turnId: run.turnId,
+            toolCallId: state.toolCallId,
+            toolName: entry.name,
+            at: now,
+          },
+        }),
+      );
+    }
     const committed = commitWithRetry(
       deps.session,
       resultRequest(kit, {
@@ -1228,6 +1312,7 @@ export function createPipeline(
       slot: undefined,
       userApprovalId: undefined,
       secretApproval: null,
+      sandboxBypass: undefined,
       attempt: execCount,
       updates: 0,
       maskedHits: new Map(),

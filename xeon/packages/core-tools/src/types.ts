@@ -136,4 +136,6 @@ export interface CallState {
   release: (() => void) | undefined;
   /** 결과를 커밋했을 때의 toolResult item */
   settledItem: ItemId | undefined;
+  /** 실행 결과가 샌드박스 밖에서 돌았다고 알린 이유. 있으면 결과 커밋에 `tool.sandbox_bypassed`를 함께 쓴다(L1.tools.spec §4.12.2) */
+  sandboxBypass: "escape" | "run_unsandboxed" | "disabled" | undefined;
 }
