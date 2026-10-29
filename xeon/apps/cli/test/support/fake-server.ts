@@ -9,6 +9,7 @@ import {
   type EventsBatchParams,
   type EventWire,
   type JsonRpcMessage,
+  type NotifyDeliveredParams,
   type StoreId,
   type Transport,
   type VolatileEventWire,
@@ -81,6 +82,8 @@ export interface FakeServer {
     readonly events: readonly EventWire[];
   }): void;
   chunk(event: VolatileEventWire): void;
+  /** 서버 알림 `notify.delivered`를 보낸다(HS-82) */
+  notifyDelivered(params: NotifyDeliveredParams): void;
   /** 서버 쪽에서 연결을 닫는다 */
   closeFromServer(): Promise<void>;
 }
@@ -174,6 +177,9 @@ export function startFakeServer(
     },
     chunk(event) {
       send({ jsonrpc: "2.0", method: "stream.chunk", params: { event } });
+    },
+    notifyDelivered(params) {
+      send({ jsonrpc: "2.0", method: "notify.delivered", params: { ...params } });
     },
     closeFromServer: () => transport.close("server"),
   };

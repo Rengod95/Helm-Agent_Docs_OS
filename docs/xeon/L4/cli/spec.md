@@ -370,7 +370,7 @@ export type RenderOp =
   | { readonly kind: "approval"; readonly view: ApprovalView }
   | { readonly kind: "approvalResolved"; readonly approvalId: string }
   | { readonly kind: "turnEnd"; readonly status: "completed" | "interrupted" | "failed"; readonly error: string | null }
-  | { readonly kind: "notice"; readonly text: string };
+  | { readonly kind: "notice"; readonly text: string };   // 확장 핸들러 실패와 알림 전달(§4.5.1). text는 여러 줄일 수 있다
 
 export interface TranscriptState {
   readonly position: StreamPosition | null;             // 마지막으로 반영한 (storeId, to)
@@ -523,7 +523,7 @@ export type CliState = Static<typeof CliStateSchema>;
 
 ### 4.5 이벤트 렌더링
 
-- 내구(`events.batch`)는 트랜스크립트, 휘발(`stream.chunk`)은 진행 줄이다(F wire §3.4.4).
+- 내구(`events.batch`)는 트랜스크립트, 휘발(`stream.chunk`)은 진행 줄이다(F wire §3.4.4). 다만 휘발 `scope.handler_failed`와 서버 알림 `notify.delivered`는 알림 줄이다(§4.5.1).
 
 | 이벤트 | 처리 |
 |---|---|
@@ -538,6 +538,8 @@ export type CliState = Static<typeof CliStateSchema>;
 | 확장 kind(`x.<id>.*`, `grp.<id>.*`) | 그리지 않는다. 확장이 보일 내용은 `custom` item으로 낸다(F conversation §3.5.2) |
 | `stream.chunk` `item.updated{part_delta}` | 진행 줄에 텍스트를 이어 붙인다 |
 | `stream.chunk` `item.updated{tool_progress}` | 진행 줄에 도구 진행을 한 줄로 바꿔 쓴다 |
+| `stream.chunk` `scope.handler_failed` | 알림 한 줄(`notice`). §4.5.1 확장 핸들러 실패 규칙 |
+| `notify.delivered` | 대화형에서 알림 한 줄(`notice`), 본문이 있으면 둘째 줄. §4.5.1 알림 전달 규칙 |
 | 같은 item의 `item.recorded` 도착 | 그 item의 진행 줄을 지운다(F wire §3.4.4) |
 
 - `afterSeq`가 현재 위치보다 앞선 조각은 `deferredChunks`에 두고, 그 seq까지 반영한 뒤 적용한다(F wire §3.4.4 마지막 항목).
@@ -551,6 +553,23 @@ export type CliState = Static<typeof CliStateSchema>;
 
 - `isError: true`면 결과 앞에 `error` 표지를 붙인다. `synthesized: true`면 "재개 때 중단됨으로 기록됨" 표지를 붙인다.
 - `redactions`가 있는 이벤트는 가린 필드를 `[redacted]`로 보인다. 값을 복원하지 않는다.
+
+#### 4.5.1 알림 그리기 [결정: 오케스트레이터 기본값]
+
+확장 핸들러 실패와 알림 전달은 진행 줄이 아니라 `notice` 줄로 그린다. 문구와 묶음 규칙은 `render/notices.ts`의 순수 함수가 정한다.
+
+- 확장 핸들러 실패(`stream.chunk`의 `scope.handler_failed`, `L4.host-service.spec` HS-92, `X.operations.spec` §4.3.4):
+  - 문구: `확장 <이름>의 <point> 핸들러가 실패했다 (연속 <n>회): <message>`. `owner`의 `ext:` 접두어는 "확장"으로, `hook:`은 "훅"으로 바꾸고 이름만 보인다. `message`는 줄바꿈과 제어 문자를 칸으로 바꾸고 앞 120자(코드 포인트)만 보인다. 잘리면 `…`를 붙인다. 비어 있으면 `: <message>`를 붙이지 않는다.
+  - 묶음: `consecutive`가 1이거나 5의 배수인 실패만 그리고 나머지는 버린다. 세는 일은 호스트가 한 `consecutive`를 그대로 쓰므로 CLI 세션은 상태를 두지 않는다. 5는 `X.operations.spec` §4.3.3의 자동 끄기 기본 기준(연속 5회)과 맞춘 값이다.
+  - thread: 이 세션의 thread(`event.threadId`)가 보낸 것만 그린다. 호스트는 thread를 연 연결마다 한 번씩 보내므로, 다른 thread의 것은 같은 실패의 중복이거나 이 화면 밖의 일이다.
+  - 순서: 진행 줄 조각과 달리 `afterSeq`가 앞서도 기다리지 않고 도착 순서대로 그린다 [제안].
+- 알림 전달(`notify.delivered`, `L4.host-service.spec` HS-94):
+  - 대화형에서만 그린다. print 모드는 turn 하나를 끝내고 끝나므로 완료 알림을 stderr에 쓰지 않는다. 성공한 실행의 stderr를 비운다(§4.2). JSON 모드는 `RenderSink`가 없어 그리지 않는다. 그 메시지는 JSON 줄로 그대로 나간다.
+  - 문구: 첫 줄은 `[<종류>] <제목>`이다. 종류 이름은 `completed`는 완료, `approval_waiting`은 승인 대기, `question_waiting`은 질문 대기, `error`는 오류, `background_completed`는 백그라운드 완료다. `body`가 있으면 둘째 줄이다. 제어 문자는 칸으로 바꾼다.
+  - thread: `threadId`가 null이거나 이 세션의 thread면 그대로 쓴다. 다른 thread의 알림이면 첫 줄 끝에 ` (다른 대화)`를 붙인다.
+  - 등록은 `host.hello`의 `features`에 `notify.delivered`가 없어도 한다. 오지 않으면 그릴 것이 없다.
+  - 문구는 지금 소스에 한국어로 하드코딩한다. 카탈로그 이전은 §10 17번이다.
+- 알림은 turn이 끝난 뒤 비동기로 온다. 세션이 먼저 끝나면 그 알림은 보이지 않을 수 있다(§10 24번).
 
 ### 4.6 입력, 중단, 신호
 
@@ -925,3 +944,5 @@ export type CliState = Static<typeof CliStateSchema>;
 20. [미결] 주소 문구에서 `@`가 든 값을 가리는 규칙(자격 증명 방어)은 HS-87에 없다. 이 문서의 구현이 먼저 두었다. host-service 문서로 옮길지 정한다.
 21. [미결] 서비스 접속의 `clock`과 `newRequestId`를 CLI의 운영 값으로 낸다([제안]). `L4.host-service.spec` §3.3.5의 `EngineHandle` 정의와 맞출지 확인한다.
 22. [미결] 서비스 쪽 값 입력 창(§4.7, `L4.settings-ui.spec` §4.6.4 C안)은 아직 없다. `secret.ts`의 두 줄 오류 문구는 "서비스 모드는 M3에서 제공한다"라고 쓰는데, M3b에서도 그 창이 없으면 이 문구가 틀린다. 창을 만드는 단위와 문구를 정한다.
+23. [미결] 대화형 완료 알림의 노이즈. §4.5.1 규칙대로면 turn이 끝날 때마다 `[완료] 작업이 끝났다`가 한 줄 붙는다. 같은 thread의 답은 화면에 이미 보이므로 이 줄은 잉여다. 같은 thread의 `completed`를 접을지, 다른 thread의 알림에만 쓸지 사용자가 정한다. 그 전까지 규칙은 §4.5.1 그대로다.
+24. [미결] 알림 도착과 세션 종료의 경합. 시험(`slash-commands-host.int.test.ts`, `/compact`)에서 turn 세 개 가운데 한 건의 완료 알림만 세션 종료 전에 도착했다. 종료 직전에 알림 대기열을 짧게 비우는 방법(시간 상한 포함)을 정한다.

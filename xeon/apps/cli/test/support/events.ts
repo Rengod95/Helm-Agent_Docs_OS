@@ -202,6 +202,30 @@ export function textChunk(options: {
   };
 }
 
+/** 휘발 조각: 확장 핸들러 실패(scope.handler_failed). thread를 연 연결에만 간다(HS-80). payload는 시험이 정한다 */
+export function handlerFailedChunk(options: {
+  readonly thread: ThreadId;
+  readonly n: number;
+  readonly afterSeq: number;
+  readonly payload: unknown;
+}): VolatileEventWire {
+  return {
+    id: eventId(800 + options.n),
+    kind: "scope.handler_failed",
+    version: 1,
+    durable: false,
+    threadId: options.thread,
+    turnId: null,
+    stepId: null,
+    recordedAt: "2026-01-05T00:00:00.000Z",
+    causationId: null,
+    correlationId: null,
+    n: options.n,
+    afterSeq: options.afterSeq,
+    payload: options.payload,
+  };
+}
+
 function iso(n: number): string {
   return new Date(1_767_571_200_000 + n * 1000).toISOString();
 }

@@ -109,7 +109,8 @@ test("/compact summarizes a long conversation on the real engine and a second ca
   const out = cli.harness.stdoutText();
   expect(out).toMatch(/대화를 요약했다 \(요약 전 약 \d+ 토큰\)\n/);
   expect(out).toContain("방금 요약했다. 새 대화가 쌓인 뒤에 다시 요약한다\n");
-  expect(cli.harness.stderrText()).toBe("");
+  // 대화형은 turn이 끝난 뒤 도착한 완료 알림(notify.delivered)을 그린다. 도착 시각은 세션 종료와 겹칠 수 있어 개수는 정하지 않는다
+  expect(cli.harness.stderrText().replaceAll("[완료] 작업이 끝났다\n", "")).toBe("");
 }, 120_000);
 
 test("/compact on a conversation that is too short says there is nothing to summarize", async () => {

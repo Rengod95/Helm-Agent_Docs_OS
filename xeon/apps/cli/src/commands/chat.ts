@@ -246,6 +246,7 @@ async function chatWork(
           sink,
           width: io.terminal.columns ?? 80,
           collapseHistory: interactive,
+          deliveredNotices: interactive,
           keeper,
           approvals,
           restoreApprovals: interactive,
