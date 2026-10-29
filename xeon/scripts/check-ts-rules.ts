@@ -17,6 +17,7 @@
 //   xeon/catch-swallow    `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` or `void <caught>` (TY-25)
 //   xeon/no-void-promise  `void <call>` (and `void (async ...)()`) in non-test code: a Promise and its Result are dropped (TY-22).
 //                         Use `detach(promise, onFailure)` or await it. Tests may start a call and await it later
+//   xeon/reflect-get      `Reflect.get(` in a test file: narrow the value with `in` or a guard (TY-23). Source files are not scanned
 //   xeon/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
 //                         ts-expect-error comments outside tests (TY-08, guide 4.1)
 // A line is exempt from a scan rule by `// xeon-disable-next-line xeon/<rule> -- <reason> (<issue url or doc id>)` above it.
@@ -455,6 +456,18 @@ export function scanSource(file: SourceFile): {
       add("xeon/catch-swallow", line, "`void <caught>` discards the caught value (TY-25)");
     }
   });
+
+  if (test) {
+    // 시험 파일의 Reflect.get은 값의 타입을 지운다. 운영 코드의 Reflect.get은 아직 검사하지 않는다(열린 과제)
+    const code = maskCode(file.text);
+    for (const match of code.matchAll(/\bReflect\.get\s*\(/g)) {
+      add(
+        "xeon/reflect-get",
+        lineOf(file.text, match.index),
+        "Reflect.get hides a type hole; narrow with `in` or a guard (TY-23)",
+      );
+    }
+  }
 
   if (!test) {
     for (const match of file.text.matchAll(/new Bug\(/g)) {

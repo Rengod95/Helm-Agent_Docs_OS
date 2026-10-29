@@ -1206,7 +1206,7 @@ Type.Unsafe<{ capability: `${string}.${string}` }>(shape satisfies SchemaProof<{
 
 ### 3.1 규칙별 강제 수단
 
-oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부는 oxlint 1.89.0 규칙 목록 871개로 확인했다(`_research/notes/eng-1.md §2`, 같은 조사의 규칙 목록 JSON). "추가"는 `xeon/.oxlintrc.json`에 아직 없는 규칙이고 "적용"은 2026-10-23에 넣은 규칙이다. 스캔은 `scripts/check-ts-rules.ts`이고 `just check-ts-rules`로 부르며 `just verify`에 들어 있다. 구현한 스캔 규칙은 `xeon/as-location`, `xeon/bug-for-expected`, `xeon/catch-swallow`, `xeon/directive-format`, `xeon/switch-default-never`, `xeon/type-unsafe` 여섯 가지이고 표의 나머지 스캔 규칙은 [제안]이다.
+oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부는 oxlint 1.89.0 규칙 목록 871개로 확인했다(`_research/notes/eng-1.md §2`, 같은 조사의 규칙 목록 JSON). "추가"는 `xeon/.oxlintrc.json`에 아직 없는 규칙이고 "적용"은 2026-10-23에 넣은 규칙이다. 스캔은 `scripts/check-ts-rules.ts`이고 `just check-ts-rules`로 부르며 `just verify`에 들어 있다. 구현한 스캔 규칙은 `xeon/as-location`, `xeon/bug-for-expected`, `xeon/catch-swallow`, `xeon/directive-format`, `xeon/no-void-promise`, `xeon/reflect-get`, `xeon/switch-default-never`, `xeon/type-unsafe` 여덟 가지이고 표의 나머지 스캔 규칙은 [제안]이다.
 
 | 규칙 | tsconfig | oxlint | 스캔 | 리뷰 |
 |---|---|---|---|---|
@@ -1232,7 +1232,7 @@ oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부
 | TY-20 명시 반환 타입 | `isolatedDeclarations` | `typescript/explicit-module-boundary-types`(추가) | — | — |
 | TY-21 시간·난수·ID 주입 | — | `no-restricted-properties`(추가): `Date.now`, `Math.random`, `crypto.randomUUID`, `crypto.getRandomValues`, `performance.now` | `xeon/no-ambient-time`: 인자 없는 `new Date()` | — |
 | TY-22 Promise | — | `typescript/no-floating-promises`, `typescript/no-misused-promises`, `typescript/await-thenable`, `typescript/require-await` | `xeon/no-void-promise`: `void <호출식>` 검출 | signal 전파 |
-| TY-23 좁히기 수단 | `strict` | TY-06 규칙, `typescript/no-unnecessary-type-parameters`(적용), `typescript/no-unsafe-function-type`(적용), `typescript/no-wrapper-object-types`(correctness 범주로 켜져 있음) | — | 타입 가드가 술어 타입의 필드를 실제로 검사하는가 |
+| TY-23 좁히기 수단 | `strict` | TY-06 규칙, `typescript/no-unnecessary-type-parameters`(적용), `typescript/no-unsafe-function-type`(적용), `typescript/no-wrapper-object-types`(correctness 범주로 켜져 있음) | `xeon/reflect-get`(구현, 시험 파일만): 시험 파일의 `Reflect.get(` 호출을 검출한다. 운영 코드는 아직 검사하지 않는다(열린 과제) | 타입 가드가 술어 타입의 필드를 실제로 검사하는가 |
 | TY-24 Bug 범위 | — | — | `xeon/bug-for-expected`(구현): `new Bug(` 메시지에 예상 가능한 실패 단어나 `Result` 오류 보간, 운영 코드의 `if (!x.ok) throw new Bug(` | 이 Bug는 코드와 설정이 올바라도 생길 수 있는가 |
 | TY-26 `Type.Unsafe` | — | — | `xeon/type-unsafe`(구현): `Type.Unsafe<T>(` 인자가 `Type.String(`로 시작하지 않고, JSON 통과 모양도 아니고, `satisfies SchemaProof<`·`SchemaSound<`도 없고, 허용 파일(`message-schema.ts`, `agent-schema.ts`, `validate-value.ts`)과 시험 경로도 아니면 실패 | 스키마가 `T`보다 느슨하면 허용 행에 이유가 있는가 |
 | TY-25 catch 처리 | — | `no-empty` `{ "allowEmptyCatch": false }`(적용), `preserve-caught-error` `{ "requireCatchParameter": true }`(적용), `no-useless-catch`(correctness 범주로 켜져 있음), `no-unused-vars`(correctness), `typescript/use-unknown-in-catch-callback-variable`(적용) | `xeon/catch-swallow`(구현): `void <식별자>`, `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` | 기록 후 계속하는 catch에 근거 문서가 있는가 |
@@ -1327,7 +1327,7 @@ typed programming 안티패턴을 막는 규칙 전체다. `xeon/.oxlintrc.json`
 `scripts/check-ts-rules.ts`가 있다(2026-10-23). 시험은 `scripts/check-ts-rules.test.ts`다.
 
 - 실행: `just check-ts-rules`(= `bun scripts/check-ts-rules.ts [--exceptions] [루트]`). `just verify`에 포함한다. `--exceptions`는 예외 주석 전체를 표로 찍는다. 실행할 때마다 예외 개수를 종류와 규칙별로 한 줄씩 찍는다.
-- 구현한 규칙: `xeon/as-location`(허용 행마다 허용 파일을 코드에 적었다), `xeon/bug-for-expected`(시험 파일 제외), `xeon/catch-swallow`, `xeon/type-unsafe`(`Type.Unsafe<T>` 호출의 인자 모양을 TY-26 허용 행과 비교한다), `xeon/switch-default-never`(`default` 블록에 `assertNever`가 없으면 실패. 주석·문자열·정규식 리터럴을 가리고 중괄호를 센다), `xeon/no-void-promise`(운영 코드의 `void <호출식>`과 `void (async …)`. 시험 파일과 `testing/`은 제외한다. 대신 `detach(promise, onFailure)`를 쓴다), `xeon/directive-format`(블록 disable, 이유와 `(<이슈 또는 문서 id>)`가 없는 disable, 업스트림 병합 비용을 이유로 든 disable, `ts-ignore`, `ts-nocheck`, 운영 코드의 `ts-expect-error`). 스캔 자신의 파일(`check-ts-rules*.ts`)은 대상에서 뺀다. 규칙 이름과 정규식을 파일에 적기 때문이다.
+- 구현한 규칙: `xeon/as-location`(허용 행마다 허용 파일을 코드에 적었다), `xeon/bug-for-expected`(시험 파일 제외), `xeon/catch-swallow`, `xeon/type-unsafe`(`Type.Unsafe<T>` 호출의 인자 모양을 TY-26 허용 행과 비교한다), `xeon/switch-default-never`(`default` 블록에 `assertNever`가 없으면 실패. 주석·문자열·정규식 리터럴을 가리고 중괄호를 센다), `xeon/no-void-promise`(운영 코드의 `void <호출식>`과 `void (async …)`. 시험 파일과 `testing/`은 제외한다. 대신 `detach(promise, onFailure)`를 쓴다), `xeon/reflect-get`(시험 파일(`test/` 아래와 `*.test.ts`)의 `Reflect.get(` 호출. 값을 `in`이나 타입 가드로 좁힌다(TY-23). 운영 코드와 `testing/`은 대상이 아니다), `xeon/directive-format`(블록 disable, 이유와 `(<이슈 또는 문서 id>)`가 없는 disable, 업스트림 병합 비용을 이유로 든 disable, `ts-ignore`, `ts-nocheck`, 운영 코드의 `ts-expect-error`). 스캔 자신의 파일(`check-ts-rules*.ts`)은 대상에서 뺀다. 규칙 이름과 정규식을 파일에 적기 때문이다.
 - 대상: `packages/**`, `apps/**`, `plugins/**`, `scripts/**`의 `.ts`, `.tsx`. `vendor/**`, `dist/**`, `node_modules/**` 제외.
 - 파서: TS 7.0에는 안정 programmatic API가 없다(`_research/stack-status.md §2`). 줄 단위 정규식 검출로 시작했고 `new Bug(` 인자만 괄호 짝을 센다. 오탐이 문제가 되면 별도 파서로 바꾼다 [미결].
 - 별도 파일로 둔다. 층 검사(`check-layers.ts`)와 구문 검사는 실패 원인이 다르다.
@@ -1415,7 +1415,7 @@ flushLater();
 ## 5. 수용 기준
 
 - 2절의 나쁜 예 각각을 `xeon/scripts/fixtures/ts-rules/bad/TY-NN-<이름>.ts`로 두고, 같은 규칙의 좋은 예를 `good/`에 둔다 [제안]. 픽스처 디렉터리는 일반 `tsc -b`와 lint 대상에서 제외하고 테스트에서만 검사한다. 지금은 oxlint 프로브(2026-10-23)와 `scripts/check-ts-rules.test.ts`의 문자열 시험이 이 자리를 맡는다. 픽스처 파일은 아직 없다 [미결].
-- `scripts/check-ts-rules.test.ts`가 스캔 여섯 규칙의 통과와 실패, 예외 주석 면제, 예외 개수 요약을 시험한다. 이 테스트는 `just test`(`bun test scripts`)에 포함되므로 `just verify`가 실패를 보고한다.
+- `scripts/check-ts-rules.test.ts`가 스캔 규칙의 통과와 실패, 예외 주석 면제, 예외 개수 요약을 시험한다. 이 테스트는 `just test`(`bun test scripts`)에 포함되므로 `just verify`가 실패를 보고한다.
 - 자동 검사 수단이 "리뷰"뿐인 나쁜 예는 이 기준에서 빠진다. 해당 규칙: TY-14 두 번째 나쁜 예(조건부, tsgolint 확인 전), TY-15 첫 번째 나쁜 예, TY-22 세 번째 나쁜 예, TY-23 세 번째 나쁜 예(손 타입 가드). 이 목록이 줄어드는 방향으로 스캔을 늘린다. TY-24 나쁜 예는 `xeon/bug-for-expected`가 맡는다.
 - 4.1절 형식에 맞지 않는 disable 주석이 하나라도 있으면 `just verify`가 실패한다(`xeon/directive-format`).
 - `bun scripts/check-ts-rules.ts --exceptions`가 저장소의 모든 예외 주석을 출력한다.

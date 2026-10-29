@@ -299,3 +299,21 @@ test("void <call> in production code fails and tests, types and void 0 pass", ()
     "// xeon-disable-next-line xeon/no-void-promise -- 시작 신호만 보낸다 (eng.typescript.guide TY-22)\nvoid ping();";
   expect(scan("packages/a/src/x.ts", exempt)).toEqual([]);
 });
+
+test("Reflect.get in test files fails; sources, comments and strings do not", () => {
+  const call = 'const keyCode = Reflect.get(event, "keyCode");';
+  expect(scan("packages/x/test/a.test.ts", call)).toEqual(["1 xeon/reflect-get"]);
+  expect(scan("packages/x/test/support/a.ts", call)).toEqual(["1 xeon/reflect-get"]);
+  expect(scan("packages/x/src/a.ts", call)).toEqual([]);
+  expect(scan("packages/x/test/a.test.ts", "// Reflect.get(event, 'keyCode') is banned")).toEqual(
+    [],
+  );
+  expect(scan("packages/x/test/a.test.ts", "const s = 'Reflect.get(event, 1)';")).toEqual([]);
+  expect(
+    scan(
+      "packages/x/test/a.test.ts",
+      "// xeon-disable-next-line xeon/reflect-get -- 외부 객체의 키를 시험한다 (eng.typescript.guide TY-23)\n" +
+        call,
+    ),
+  ).toEqual([]);
+});
