@@ -39,8 +39,8 @@ export interface AgentsSettingsSource {
   maxConcurrent(): number;
   /** l1.agents.resultMaxChars */
   resultMaxChars(): number;
-  /** l1.agents.judge.maxRuns. 없으면 3(명세 기본값) */
-  judgeMaxRuns?(): number;
+  /** l1.agents.judge.maxRuns. 없으면 3(명세 기본값). 세션 범위 값을 받는 키라 판정 대상 thread로 읽는다 */
+  judgeMaxRuns?(threadId: ThreadId): number;
 }
 
 export interface StaticAgentsSettings {

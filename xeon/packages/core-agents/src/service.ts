@@ -1060,7 +1060,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     producer,
     ids,
     models: deps.models ?? (() => undefined),
-    maxRuns: () => settings.judgeMaxRuns?.() ?? JUDGE_MAX_RUNS_DEFAULT,
+    maxRuns: (input) => settings.judgeMaxRuns?.(input.threadId) ?? JUDGE_MAX_RUNS_DEFAULT,
     now: deps.now ?? Date.now,
     log,
   });
