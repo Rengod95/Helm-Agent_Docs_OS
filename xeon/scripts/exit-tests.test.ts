@@ -86,6 +86,7 @@ test("the repository list parses and names every exit condition it covers", () =
     "X4",
     "X5",
     "X7",
+    "X9",
   ]);
 });
 

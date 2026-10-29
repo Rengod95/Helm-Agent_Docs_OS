@@ -326,7 +326,8 @@ M2 CLI.1~CLI.4에서 더한 시험(가짜 호스트 서버 위, `test/support/fa
 | remote-flag | `test/parse-chat-flags.test.ts`, `test/engine-options.test.ts`, `test/exit-codes.test.ts` | unit | (B2-RMT) `--remote`가 명령 앞뒤의 전역 플래그이고 값이 없거나 빈 값이면 2, 기본값은 null이며 `EngineConnectOptions.remote`로 가고, `invalidRemote`는 종료 코드 2다 |
 | host-stdio-process | `test/host-stdio.int.test.ts` | int | 실제 프로세스로 `host --stdio`: stdout은 JSON-RPC 줄뿐, `l4.cli.theme`이 카탈로그에 있고, 응답 뒤 stdin EOF에서 0(AC16) |
 | entry-bundle | `test/entry-bundle.test.ts` | int | CLI 진입이 `--minify --bytecode`로 묶인다(최상위 await 없음) |
-| doctor | `test/doctor.test.ts` | unit | 검색 세 줄(AC14), 주소가 없으면 탐침 없음, 설정한 주소의 응답·응답 없음·JSON 꺼짐, 키 플러그인 등록 표시, 엔진 실패 항목과 종료 코드, 터미널 항목, 바이너리 점검 줄과 종료 코드와 `--json`(AC24) |
+| doctor | `test/doctor.test.ts` | unit | 검색 세 줄(AC14), 주소가 없으면 탐침 없음, 설정한 주소의 응답·응답 없음·JSON 꺼짐, 줄 1·줄 3이 `web.providers` 값을 따름(고정 provider 표시 포함), 엔진 실패 항목과 종료 코드, 터미널 항목, 바이너리 점검 줄과 종료 코드와 `--json`(AC24) |
+| doctor-web | `test/doctor-web.test.ts` | unit | X9: `검색 provider`와 `웹 provider` 블록 전체를 줄 값으로 비교한다. 기본(내장 현재, Exa 키 필요, Brave 설치 필요), Exa와 Brave 모두 쓸 수 있음(순서가 Exa 우선, 가격표 오래됨, 고지 대기), `web.providers` 없음과 실패(알 수 없다와 기본 설정 주석, 블록 없음), `--json`의 `web`(행 id와 권장 상태 값, 없으면 `null`), 상세 문구가 출력에 없음, 고정·목록에 없는 provider·쓸 수 있는 provider 없음·사용 불가 권장 문구, 빈 목록 |
 
 추가 unit [제안]: `tool-renderers`(read·ls·bash의 `details` 표시, 렌더러가 없을 때 `content` 20줄), `state-file`(깨진 파일 버림, 원자 쓰기), `keybindings-conflict`(충돌 목록 출력). 이 셋은 위 목록의 이름 규칙을 따른다.
 

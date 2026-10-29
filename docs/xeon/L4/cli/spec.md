@@ -101,7 +101,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
 | `xeon service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 자기 바이너리를 detached로 띄울 때 붙이는 인자다(`L4.host-service.spec` §3.2, SV-06). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-run", safeMode, tcp? })`. `--safe-mode`·`--listen-tcp`를 받는다 | M3(구현됨) |
 | `xeon host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 원격 서비스에 중계한다(HS-89). 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표). 원격이면 `resolveRemoteEndpoint`, `bridgeStdioToService` | M2(컴파일 바이너리 서브커맨드, 구현됨) |
-| `xeon doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
+| `xeon doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`, `web.providers`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
 | `xeon version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
 
 - 근거: 명령 모양은 omp `config list/get/set/reset`(`_research/settings.md` §1, §3 [S36]), pi 모드 4종(TUI, print, JSON, RPC: `_research/refs/pi.md` "같은 AgentSession을 네 모드가 쓴다", `~/projects/_ref/pi-src/packages/coding-agent/src/modes/`), 비밀 명령은 `_research/secrets.md` §6.6, 서비스 명령은 adr.0006 §3.4다.
@@ -599,14 +599,31 @@ export type CliState = Static<typeof CliStateSchema>;
 
 #### 4.7.1 검색 provider 상태 출력
 
-[제안] ADR-0005 ④의 첫 실행 권장 내용(`product.scope.spec` I10)을 CLI에서는 `xeon doctor`의 한 묶음으로 보인다. M3 데스크톱 첫 실행 화면은 `L4.settings-ui.spec`이 맡는다.
+[제안] ADR-0005 ④의 첫 실행 권장 내용(`product.scope.spec` I10)을 CLI에서는 `xeon doctor`의 한 묶음으로 보인다. M3 데스크톱 첫 실행 화면은 `L4.settings-ui.spec`이 맡는다. 줄 1, 줄 3과 `웹 provider` 블록은 `web.providers`의 값을 `@xeon/client/web`의 `toolsWebViewOf`로 바꾼 view-model을 읽기만 한다(M3b B2-WEB, M3-12, M3-REQ-96).
 
-- 줄 1: 현재 `web.search` provider(`l2.web.search.provider` 유효 값과 `auto`일 때 고른 provider).
+- 줄 1: 검색 provider. `search` 행과 웹 설정 값에서 정한다.
+  - 설정이 `auto`이면 `검색 provider: auto → <표시 이름> (<id>)`다. 표시 이름과 id는 다음 호출이 쓸 행(`current`)의 것이다. 자동 순서는 호스트가 `autoRank`로 정해 싣고 CLI는 다시 계산하지 않는다(`L2.web.spec` §4.8.2).
+  - 설정이 provider를 고정했으면 `검색 provider: <id> (l2.web.search.provider로 고정)`다. 고정한 행을 쓸 수 없으면 ` — <문구>`를 더한다. 목록에 그 id가 없으면 ` — 목록에 없는 provider다`를 더한다 [결정: 오케스트레이터 기본값].
+  - 자동인데 쓸 수 있는 행이 없으면 `검색 provider: auto → 쓸 수 있는 provider가 없다`다 [결정: 오케스트레이터 기본값].
+  - 웹 provider 목록을 읽지 못했으면 `검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)`다.
 - 줄 2: 설정한 SearXNG 주소의 상태. 자동 감지는 없다 [결정: m2c H1, `L2.web.spec` §4.8.3]. 주소(`l2.web.search.searxng.url`)가 비어 있으면 어디에도 요청하지 않고 "주소를 설정하지 않았다"와 `xeon config set l2.web.search.searxng.url <주소>`를 보인다. 주소가 있으면 그 주소 하나만 탐침해 응답함, JSON 형식 꺼짐, 응답 없음 중 하나를 보인다. 응답이 없으면 검색이 내장 래퍼로 내려간다는 말을 덧붙인다.
-- 줄 3: 등록되지 않은 무료 크레딧 API 플러그인 권장 목록(Exa, Brave)과 키 등록 명령 `xeon secret add <이름>`.
+- 줄 3: 키 플러그인 권장. Exa와 Brave(`plugin:web-exa`, `plugin:web-brave`, `L2.web.spec` §4.8)의 상태에서 만든다. 둘 다 쓸 수 있으면 `키 플러그인: Exa, Brave 모두 쓸 수 있다`다. 아니면 `권장 키 플러그인: ` 뒤에 쓸 수 없는 항목을 쉼표로 잇는다. 항목은 `<표시>(<상태> — <해결>)`이다 [결정: 오케스트레이터 기본값: 해결 문구를 항목 괄호 안에 둔다].
+  - `needs-key`: `Exa(키 필요 — xeon secret add exa-api-key)`처럼 등록 명령 `xeon secret add <비밀 이름>`을 보인다.
+  - `not-installed`(행이 없다): `Brave(설치 필요 — 플러그인을 설치한다)`.
+  - `unavailable`: `Brave(사용 불가 — <사유 코드>)`.
+  - 웹 provider 목록을 읽지 못했으면 `키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)`다.
 - 값은 키 이름과 참조 문자열만 보인다. 비밀 값은 없다.
 - 키 이름과 provider 목록의 정본은 `L2.web.spec`이다. 이 출력은 그 값을 읽기만 한다.
-- 구현 (임시 경로, §10 5번): 설정 세 키(`l2.web.search.provider`, `searxng.url`, `pluginOrder`)를 `settings.get`으로 읽는다. 옛 키 `searxng.detect`와 후보 주소 목록은 없앴다. 엔진에 아직 없는 키는 기본값으로 판정하고 "엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다"를 덧붙인다. 줄 1은 L2.web.spec §4.8.2의 순서(명시 provider, 키 플러그인, 설정한 SearXNG, 내장 래퍼)를 따른다. `l2.web.search.provider`를 `searxng`로 고정했는데 주소가 비어 있으면 "주소가 없어 쓸 수 없다"를 덧붙인다. 설정한 주소의 탐침은 L2.web.spec §4.8.3의 형식(`GET <base>/search?q=xeon&format=json&pageno=1`, 1.5초, 64 KiB, 403이면 `json-disabled`)을 CLI가 같은 값으로 가진다. L2.web의 provider 상태 조회가 조립 진입점으로 나오면 이 복제를 그쪽 조회로 바꾼다.
+- 웹 provider 블록 [제안]: 줄 3 뒤에 `웹 provider` 머리 줄을 내고, 검색, 브라우즈, 가져오기 섹션의 모든 행을 이 순서로 한 줄씩 보인다. 각 섹션 안에서는 view-model의 순서다.
+  - 줄 형식: `  <표시> <id>  <출처> · <능력> · <순위>[ · 현재][ · 고정] · <문구>[ · 첫 사용 고지 대기][ · 가격표 오래됨(<기준일>)]`
+  - 표시: 쓸 수 있으면 `[ok]  `, 못 쓰면 `[경고]`.
+  - 출처: `builtin`은 내장, `plugin`은 플러그인, `detected`는 사용자 설정.
+  - 능력: `web.search`는 검색, `web.browse`는 브라우저, `web.fetch`는 가져오기.
+  - 순위: `autoRank`에 1을 더한 `순위 N`. 순위가 없는 행(가져오기)은 `순위 없음`.
+  - `현재`는 다음 호출이 쓸 행, `고정`은 설정이 고정한 행이다.
+  - 문구는 view-model의 `note`다. 상세 문구(`detail`)는 출력하지 않는다.
+  - `첫 사용 고지 대기`는 고지가 아직 나가지 않은 행이고, `가격표 오래됨`은 가격표 기준일이 오래된 행이다.
+  - 행이 하나도 없으면 `  provider가 없다` 한 줄을 낸다 [결정: 오케스트레이터 기본값]. 웹 provider 목록을 읽지 못했으면 이 블록을 내지 않는다(줄 1과 줄 3이 알 수 없다고 말한다) [결정: 오케스트레이터 기본값].
 - 출력 형식:
 
   ```text
@@ -621,17 +638,23 @@ export type CliState = Static<typeof CliStateSchema>;
     [참고] 서비스 모드: 사용 안 함 (in-process)
     [ok]   터미널: stdin TTY, stdout TTY, 100열, 색 사용
   검색 provider
-    검색 provider: auto → 내장 검색 래퍼 (builtin-wrapper)
+    검색 provider: auto → Built-in search (model provider) (builtin-wrapper)
     SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: xeon config set l2.web.search.searxng.url <주소>
-    권장 키 플러그인: Exa, Brave — 키 등록: xeon secret add exa-api-key, xeon secret add brave-api-key
+    권장 키 플러그인: Exa(키 필요 — xeon secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)
+  웹 provider
+    [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있다
+    [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 키가 없다 — 해결: xeon secret add exa-api-key · 첫 사용 고지 대기
+    [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있다
+    [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있다
   ```
 
-  엔진을 열지 못하면 첫 항목이 `[실패] 엔진을 열 수 없다: <message>`와 해결 줄이 되고 종료 코드는 `EngineStartError` 표(§4.10)를 따른다. 터미널 항목과 검색 세 줄은 엔진 없이도 낸다. `--json`은 같은 내용을 `{ version, checks, binaries, search }` 문서 하나로 쓴다. `binaries`는 호스트가 준 `HostBinaryReport` 그대로이고 점검 결과가 없으면 `null`이다.
+  엔진을 열지 못하면 첫 항목이 `[실패] 엔진을 열 수 없다: <message>`와 해결 줄이 되고 종료 코드는 `EngineStartError` 표(§4.10)를 따른다. 터미널 항목과 검색 세 줄은 엔진 없이도 낸다. 이때 줄 1과 줄 3은 `알 수 없다`다. `--json`은 같은 내용을 `{ version, checks, binaries, search, web }` 문서 하나로 쓴다. `binaries`는 호스트가 준 `HostBinaryReport` 그대로이고 점검 결과가 없으면 `null`이다. `web`은 view-model `ToolsWebView`(검색, 브라우즈, 가져오기 섹션, 키 플러그인 권장, 첫 사용 고지가 남은 id)이고 웹 provider 목록을 읽지 못했으면 `null`이다. `web`의 행에는 view-model이 200자에서 자른 `detail`이 들어 있지만 텍스트 출력에는 없다.
+- 구현 (임시 경로, §10 5번): 엔진에서 SearXNG 주소 키 `l2.web.search.searxng.url` 하나를 `settings.get`으로 읽는다. 웹 provider 목록은 `host.hello`의 `features`에 `web.providers`가 있을 때만 한 번 보내 받는다. 요청이 예상 가능한 실패로 끝나면 목록 없이 판정하고 원인은 줄로 내지 않는다 [결정: 오케스트레이터 기본값]. 예상 가능한 실패가 아닌 오류는 버그이므로 다시 던진다. 목록이나 주소 키가 없으면 `(엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다)`를 덧붙인다. provider 고정 값과 순서는 `web.providers`의 `settings`가 준다. 옛 키 `l2.web.search.pluginOrder`는 없어졌으므로 읽지 않는다. 설정한 주소의 탐침은 L2.web.spec §4.8.3의 형식(`GET <base>/search?q=xeon&format=json&pageno=1`, 1.5초, 64 KiB, 403이면 `json-disabled`)을 CLI가 같은 값으로 가진다. L2.web의 provider 상태 조회가 조립 진입점으로 나오면 이 복제를 그쪽 조회로 바꾼다.
 - 외부 바이너리 점검 [결정: m2c G2-07, `L4.host-service.spec` HS-69]: 엔진을 연 뒤 `host.status { includeBinaries: true }`를 한 번 보내 `binaries`를 받고 바이너리마다 항목 한 줄을 낸다. 점검은 바이너리마다 자식 프로세스를 띄우므로 doctor 말고 다른 명령은 요청하지 않는다.
   - `ok`는 `[ok]   외부 바이너리 <이름>: <버전> (번들|시스템) — <쓰는 곳>`이다.
   - `missing`, `too_old`, `unusable`은 `need`가 `required`이면 `[실패]`, `optional`이면 `[경고]`다. 해결 줄은 `missing`이면 호스트가 준 `hint`, `too_old`이면 필요한 버전 이상으로 올리라는 말, `unusable`이면 설치와 실행 권한을 확인하라는 말이다.
   - 보고서의 `ready`가 거짓(필수 바이너리를 쓸 수 없음)이면 종료 코드는 3(환경 문제)이다. 선택 바이너리만 빠졌으면 0이다. HS-69가 "종료코드 2 계열"이라 적은 자리는 CLI 종료 코드 표(§3.6)에서 환경 문제인 3으로 읽는다.
-  - `host.hello`의 `features`에 `host.status`가 없거나 응답에 `binaries`가 없으면 "점검 결과를 알리지 않는다"를 `[참고]`로 한 줄 낸다. 점검 요청이 실패하면(`request.cancelled` 등) `[경고]` 한 줄로 알리고 doctor는 이어 간다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고 `pluginOrder`에 있으면 등록된 것으로 본다.
+  - `host.hello`의 `features`에 `host.status`가 없거나 응답에 `binaries`가 없으면 "점검 결과를 알리지 않는다"를 `[참고]`로 한 줄 낸다. 점검 요청이 실패하면(`request.cancelled` 등) `[경고]` 한 줄로 알리고 doctor는 이어 간다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고, 등록 여부는 `web.providers` 행의 상태가 준다(줄 3).
 - 설정의 비밀 키(`secret: true`)는 `config get`이 참조 문자열(`secret://<name>`)이나 `null`만 보인다(F wire §4.9).
 
 ### 4.8 설정 명령과 세션 덮어쓰기
@@ -884,7 +907,7 @@ export type CliState = Static<typeof CliStateSchema>;
 2. [미결] M1 중단의 wire 지원. `turn.interrupt`가 M2라서 M1의 Ctrl+C 1회가 종료 요청이다(§4.6). M1에 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기는 F 변경 요청이 필요하다. 기존 세션의 쓰기 소유를 `turn.start`가 얻는 동작은 `L4.host-service.spec` HS-28로 확정되어 이 항목에서 닫았다(§4.3).
 3. [미결] 비밀 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `xeon secret reveal`로 정했다 [결정: review.decisions-2 U-20]. F의 `secret.beginReveal`과 in-process 값 전달 통로(`InProcessHost.secretOutOfBand`)는 구현되어 CLI가 쓴다(§4.7). 남은 것: `secret run -- <cmd>`를 둘지.
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.
-5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 비밀 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정].
+5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 비밀 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정]. M3b(B2-WEB)에서 검색 provider 줄과 웹 provider 블록은 `web.providers`(view-model)로 판정하도록 바꿨다. 설정 키는 SearXNG 주소 하나만 `settings.get`으로 읽는다(§4.7.1).
 6. [결정: review.m2-plan §8 D10] pi-tui 채택은 M2 스파이크의 한글 IME·CJK 폭 확인 통과를 조건으로 한다(§4.9.2). 실패하면 최소 renderer로 유지한다. M2 종료 조건이 아니다. 스파이크 결과(2026-10-24, `L4.cli.plan` §4.4): CJK 폭, IME 확정 입력, 하드웨어 커서 위치, 줄바꿈의 자동 확인은 모두 통과했다. 실제 터미널(macOS·Linux·WSL)의 한국어 IME 확인과 Bun 1.4.3 `--compile` 실행 확인이 남아 채택을 보류하고 최소 renderer를 유지한다. 최소 renderer의 진행 줄이 문자 수로 잘리던 문제는 칸 수 기준으로 고쳤다.
 7. [결정: review.m3-design-inputs D-M3-25 행 4] 릴리즈 형태는 단일 파일이다. native 모듈이 꼭 필요하면 옆 디렉터리를 쓴다. 이전 질문: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
 8. [결정: M2] print 모드에서 승인 요청이 오면 거부로 답하고 stderr에 한 줄 알린다(§4.11 4번). [결정: review.m3-design-inputs D-M3-14] M3 기본은 L1.tools 사전 허용 규칙만 적용하고 나머지는 거부한다. [결정: 오케스트레이터 기본값, M3b B1-SCH] 옵션 플래그는 `--auto-approve`다(이전 [제안] `--yes-all`은 쓰지 않는다). print 모드에서만 쓰고, 도구 승인만 한 번 허용한다. D-M3-14 b의 "모두 허용 포함" 범위는 도구 승인으로 좁힌다. 질문·계획·검토 승인은 이 플래그로도 거부한다(§4.11 4번).

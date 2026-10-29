@@ -1,6 +1,19 @@
 import { dirname } from "node:path";
 import { assertNever, attemptAsync, type Result } from "@xeon/contracts";
-import type { HostBinaryItem, HostBinaryReport, HostConnection } from "@xeon/contracts/wire";
+import type {
+  HostBinaryItem,
+  HostBinaryReport,
+  HostConnection,
+  WebProviderCapability,
+  WebProviderOrigin,
+} from "@xeon/contracts/wire";
+import {
+  toolsWebViewOf,
+  type ToolsWebView,
+  type WebRecommendation,
+  type WebSection,
+  type WebToolRow,
+} from "@xeon/client/web";
 import type { DoctorCommand } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, type Failure } from "../errors.ts";
@@ -22,34 +35,22 @@ interface DoctorCheck {
   readonly fix?: string;
 }
 
-/** 키 플러그인 권장 목록(ADR-0005 §3.1 ④). providerId는 L2.web.spec §4.8의 `plugin:<이름>`이다 */
-const RECOMMENDED: readonly {
-  readonly label: string;
-  readonly plugin: string;
-  readonly secret: string;
-}[] = [
-  { label: "Exa", plugin: "web-exa", secret: "exa-api-key" },
-  { label: "Brave", plugin: "web-brave", secret: "brave-api-key" },
-];
-
+/** doctor가 엔진에서 직접 읽는 검색 설정. provider와 순서, 키 플러그인 권장은 `web.providers`의 값과 행이 준다(§4.7.1) */
 export interface SearchSettings {
-  readonly provider: string;
+  /** `l2.web.search.searxng.url`. 비어 있으면 어디에도 요청하지 않는다 */
   readonly searxngUrl: string;
-  readonly pluginOrder: readonly string[];
 }
 
 const DEFAULT_SEARCH_SETTINGS: SearchSettings = {
-  provider: "auto",
   searxngUrl: "",
-  pluginOrder: [],
 };
 
 export interface SearchStatus {
-  /** 줄 1: 지금 쓰는 web.search provider */
+  /** 줄 1: "검색 provider: …". 웹 provider 목록을 읽지 못했으면 알 수 없다 */
   readonly provider: string;
   /** 줄 2: 설정한 SearXNG 주소의 상태. 주소가 비어 있으면 어디에도 요청하지 않는다 */
   readonly searxng: string;
-  /** 줄 3: 등록하지 않은 키 플러그인 권장 */
+  /** 줄 3: 키 플러그인 권장, 또는 모두 쓸 수 있다는 말. 웹 provider 목록을 읽지 못했으면 알 수 없다 */
   readonly recommended: string;
   /** 설정을 엔진에서 읽지 못해 기본값으로 판정했다 */
   readonly assumedDefaults: boolean;
@@ -64,28 +65,30 @@ async function readOne(connection: HostConnection, key: string): Promise<unknown
   return read.ok ? read.value.settings[0]?.value : undefined;
 }
 
-/** 검색 설정 세 키를 읽는다. 하나라도 엔진에 없으면 그 키는 기본값이다(L2.web 조립 전의 엔진) */
+/** SearXNG 주소 키를 읽는다. 엔진에 없으면 기본값(빈 주소)이고 `complete`가 거짓이다(L2.web 조립 전의 엔진) */
 async function readSearchSettings(
   connection: HostConnection,
 ): Promise<{ readonly settings: SearchSettings; readonly complete: boolean }> {
-  const [provider, url, order] = await Promise.all([
-    readOne(connection, "l2.web.search.provider"),
-    readOne(connection, "l2.web.search.searxng.url"),
-    readOne(connection, "l2.web.search.pluginOrder"),
-  ]);
-  const plugins = Array.isArray(order)
-    ? order.filter((entry): entry is string => typeof entry === "string")
-    : undefined;
-  const complete =
-    stringOf(provider) !== undefined && stringOf(url) !== undefined && plugins !== undefined;
+  const url = stringOf(await readOne(connection, "l2.web.search.searxng.url"));
   return {
-    settings: {
-      provider: stringOf(provider) ?? DEFAULT_SEARCH_SETTINGS.provider,
-      searxngUrl: stringOf(url) ?? DEFAULT_SEARCH_SETTINGS.searxngUrl,
-      pluginOrder: plugins ?? DEFAULT_SEARCH_SETTINGS.pluginOrder,
-    },
-    complete,
+    settings: { searxngUrl: url ?? DEFAULT_SEARCH_SETTINGS.searxngUrl },
+    complete: url !== undefined,
   };
+}
+
+/**
+ * `web.providers`로 웹 provider 목록과 웹 설정 값을 읽는다(M3-REQ-96). 기능이 없거나 요청이 실패하면 undefined다.
+ * 실패 원인이 예상 가능한 종류가 아니면 버그이므로 다시 던진다
+ */
+async function webProvidersOf(handle: EngineHandle): Promise<ToolsWebView | undefined> {
+  if (!handle.supports("web.providers")) return undefined;
+  const read = await attemptAsync(() => handle.connection.request("web.providers", {}));
+  if (!read.ok) {
+    const failure = failureOfCaught(read.error.cause);
+    if (failure === undefined) throw read.error.cause;
+    return undefined;
+  }
+  return toolsWebViewOf(read.value);
 }
 
 /**
@@ -99,25 +102,56 @@ async function probeConfiguredSearxng(
   return probes.probeSearxng(settings.searxngUrl, new AbortController().signal);
 }
 
-/** 검색 provider 상태 세 줄(§4.7.1). 값은 키 이름과 참조 문자열뿐이다 */
+/** 줄 1. 고정이면 고정한 행(쓸 수 없으면 사유), 자동이면 다음 호출이 쓸 행(`current`)을 보인다 */
+function searchLineOf(search: WebSection): string {
+  const current = search.rows.find((row) => row.current);
+  if (search.provider !== "auto") {
+    const head = `검색 provider: ${search.provider} (l2.web.search.provider로 고정)`;
+    if (current === undefined) return `${head} — 목록에 없는 provider다`;
+    return current.ok ? head : `${head} — ${current.note}`;
+  }
+  if (current === undefined) return "검색 provider: auto → 쓸 수 있는 provider가 없다";
+  return `검색 provider: auto → ${current.displayName} (${current.id})`;
+}
+
+/** 줄 3의 항목 하나. 쓸 수 있는 키 플러그인은 항목이 없다. 상태는 괄호 안에, 해결 문구는 `—` 뒤에 적는다 */
+function recommendedItemOf(entry: WebRecommendation): string | undefined {
+  switch (entry.state) {
+    case "ready":
+      return undefined;
+    case "needs-key":
+      return `${entry.label}(키 필요 — ${entry.hint})`;
+    case "not-installed":
+      return `${entry.label}(설치 필요 — ${entry.hint})`;
+    case "unavailable":
+      return `${entry.label}(사용 불가 — ${entry.hint})`;
+    default:
+      return assertNever(entry.state, "WebRecommendation.state");
+  }
+}
+
+/** 줄 3. 모두 쓸 수 있으면 한 줄로 말하고, 아니면 쓸 수 없는 키 플러그인만 권장한다 */
+function recommendedLineOf(recommendations: readonly WebRecommendation[]): string {
+  const items = recommendations.flatMap((entry) => {
+    const item = recommendedItemOf(entry);
+    return item === undefined ? [] : [item];
+  });
+  if (items.length === 0) {
+    const labels = recommendations.map((entry) => entry.label).join(", ");
+    return `키 플러그인: ${labels} 모두 쓸 수 있다`;
+  }
+  return `권장 키 플러그인: ${items.join(", ")}`;
+}
+
+/** 검색 provider 상태 세 줄(§4.7.1). 줄 1과 줄 3은 `web.providers`의 view-model에서, 줄 2는 설정한 주소 하나의 탐침에서 나온다 */
 export async function describeSearch(
   settings: SearchSettings,
   probes: DoctorProbes,
+  web: ToolsWebView | undefined,
   assumedDefaults: boolean,
 ): Promise<SearchStatus> {
   const verdict = await probeConfiguredSearxng(settings, probes);
   const url = settings.searxngUrl;
-  let provider: string;
-  if (settings.provider !== "auto") {
-    provider = `${settings.provider} (l2.web.search.provider로 고정)`;
-    if (settings.provider === "searxng" && verdict === "unset") {
-      provider = `${provider} — 주소가 없어 쓸 수 없다`;
-    }
-  } else if (settings.pluginOrder[0] !== undefined)
-    provider = `auto → ${settings.pluginOrder[0]} (키 플러그인)`;
-  else if (verdict === "ok") provider = `auto → searxng (${url})`;
-  else provider = "auto → 내장 검색 래퍼 (builtin-wrapper)";
-
   let searxng: string;
   switch (verdict) {
     case "ok":
@@ -137,20 +171,16 @@ export async function describeSearch(
       return assertNever(verdict, "SearxngVerdict");
   }
 
-  const missing = RECOMMENDED.filter(
-    (entry) =>
-      !settings.pluginOrder.some((id) => id === entry.plugin || id === `plugin:${entry.plugin}`),
-  );
-  const recommended =
-    missing.length === 0
-      ? "키 플러그인: Exa, Brave 모두 등록됨"
-      : `권장 키 플러그인: ${missing.map((entry) => entry.label).join(", ")} — 키 등록: ${missing
-          .map((entry) => `xeon secret add ${entry.secret}`)
-          .join(", ")}`;
   return {
-    provider: `검색 provider: ${provider}`,
+    provider:
+      web === undefined
+        ? "검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)"
+        : searchLineOf(web.search),
     searxng,
-    recommended,
+    recommended:
+      web === undefined
+        ? "키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)"
+        : recommendedLineOf(web.recommendations),
     assumedDefaults,
   };
 }
@@ -328,10 +358,45 @@ const MARK: Readonly<Record<CheckStatus, string>> = {
   info: "[참고]",
 };
 
+const ORIGIN_LABEL: Readonly<Record<WebProviderOrigin, string>> = {
+  builtin: "내장",
+  plugin: "플러그인",
+  detected: "사용자 설정",
+};
+
+const CAPABILITY_LABEL: Readonly<Record<WebProviderCapability, string>> = {
+  "web.search": "검색",
+  "web.browse": "브라우저",
+  "web.fetch": "가져오기",
+};
+
+/**
+ * `웹 provider` 블록의 한 줄. 쓸 수 있으면 `[ok]`, 못 쓰면 `[경고]`다. 상세 문구(`detail`)는 찍지 않는다.
+ * 가격표가 오래되었으면 기준일을 붙인다
+ */
+function webRowLineOf(row: WebToolRow): string {
+  const rank = row.rank === null ? "순위 없음" : `순위 ${String(row.rank + 1)}`;
+  const parts: string[] = [ORIGIN_LABEL[row.origin], CAPABILITY_LABEL[row.capability], rank];
+  if (row.current) parts.push("현재");
+  if (row.pinned) parts.push("고정");
+  parts.push(row.note);
+  if (row.noticePending) parts.push("첫 사용 고지 대기");
+  if (row.price !== null && row.price.stale) parts.push(`가격표 오래됨(${row.price.asOf})`);
+  return `  ${MARK[row.ok ? "ok" : "warn"]} ${row.id}  ${parts.join(" · ")}`;
+}
+
+/** `웹 provider` 블록의 줄들. 검색, 브라우즈, 가져오기 순서로 모든 행을 한 줄씩 보인다 */
+function webBlockOf(view: ToolsWebView): readonly string[] {
+  const rows = [...view.search.rows, ...view.browse.rows, ...view.fetch.rows];
+  if (rows.length === 0) return ["  provider가 없다"];
+  return rows.map(webRowLineOf);
+}
+
 function formatDoctor(
   version: string,
   checks: readonly DoctorCheck[],
   search: SearchStatus,
+  web: ToolsWebView | undefined,
 ): string {
   const lines = [`xeon doctor (xeon ${version})`, "진단"];
   for (const check of checks) {
@@ -345,6 +410,10 @@ function formatDoctor(
   if (search.assumedDefaults) {
     lines.push("  (엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다)");
   }
+  if (web !== undefined) {
+    lines.push("웹 provider");
+    lines.push(...webBlockOf(web));
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -353,6 +422,7 @@ export async function runDoctor(ctx: CommandContext, command: DoctorCommand): Pr
   const connected: Result<EngineHandle, Failure> = await connectOrReportQuiet(ctx);
   let checks: DoctorCheck[] = [];
   let binaries: HostBinaryReport | null = null;
+  let web: ToolsWebView | undefined;
   let code: ExitCode = EXIT.ok;
   let settings: { readonly settings: SearchSettings; readonly complete: boolean } = {
     settings: DEFAULT_SEARCH_SETTINGS,
@@ -366,6 +436,7 @@ export async function runDoctor(ctx: CommandContext, command: DoctorCommand): Pr
       binaries = engine.binaries;
       // 필수 바이너리를 쓸 수 없으면 환경 문제로 끝낸다(HS-69). 선택 바이너리만 빠진 것은 경고다
       if (binaries?.ready === false) code = EXIT.environment;
+      web = await webProvidersOf(handle);
       settings = await readSearchSettings(handle.connection);
     } finally {
       await handle.shutdown("user");
@@ -375,13 +446,18 @@ export async function runDoctor(ctx: CommandContext, command: DoctorCommand): Pr
     code = connected.error.code;
   }
   checks.push(terminalCheck(io, ctx.global.color));
-  const search = await describeSearch(settings.settings, deps.probes, !settings.complete);
+  const search = await describeSearch(
+    settings.settings,
+    deps.probes,
+    web,
+    web === undefined || !settings.complete,
+  );
   if (command.output === "json") {
     await io.stdout(
-      `${JSON.stringify({ version: CLI_VERSION, checks, binaries, search }, null, 2)}\n`,
+      `${JSON.stringify({ version: CLI_VERSION, checks, binaries, search, web: web ?? null }, null, 2)}\n`,
     );
   } else {
-    await io.stdout(formatDoctor(CLI_VERSION, checks, search));
+    await io.stdout(formatDoctor(CLI_VERSION, checks, search, web));
   }
   return code;
 }
