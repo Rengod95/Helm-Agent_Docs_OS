@@ -129,9 +129,9 @@ test("a plan section 2 with no track headings is an error, not an empty track se
   });
 });
 
-test("the repository plan declares the 23 tracks of sections B0 to B5", () => {
+test("the repository plan declares the 27 tracks of sections B0 to B5 and the follow-ups", () => {
   const declared = declaredTracks(readRepoFile("docs/xeon/review/m3b-plan.md"));
-  expect(declared.ok && declared.value.size).toBe(23);
+  expect(declared.ok && declared.value.size).toBe(27);
   expect(declared.ok && declared.value.has("B0-F")).toBe(true);
   expect(declared.ok && declared.value.has("B5-DOC")).toBe(true);
   expect(declared.ok && declared.value.has("B9-X")).toBe(false);
@@ -158,6 +158,6 @@ test("the repository ledger has a valid status on all 112 rows and a declared tr
   expect(scanned.problems).toEqual([]);
   expect(scanned.carryover.length).toBeGreaterThan(0);
   const byId = new Map(scanned.requirements.map((row) => [row.id, row.status]));
-  expect(byId.get("M3-REQ-112")).toBe("M3b:B4-I18N");
+  expect(byId.get("M3-REQ-112")).toBe("M4");
   expect(byId.get("M3-REQ-33")).toBe("M3a");
 });
