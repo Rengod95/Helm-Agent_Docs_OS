@@ -24,7 +24,7 @@ describe("knowledge definitions", () => {
         if (tool.name !== "skill_manage" && tool.name !== "memory_manage") continue;
         const parameters: unknown = tool.parameters;
         if (typeof parameters !== "object" || parameters === null) throw new Error("not a schema");
-        const properties: unknown = Reflect.get(parameters, "properties");
+        const properties: unknown = "properties" in parameters ? parameters.properties : undefined;
         const names =
           typeof properties === "object" && properties !== null ? Object.keys(properties) : [];
         expect(names).toContain("action");
