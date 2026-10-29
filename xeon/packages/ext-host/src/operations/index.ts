@@ -88,6 +88,7 @@ export {
   createAutoDisabler,
   createLogNotifier,
   createScopeControl,
+  createVolatileNotifier,
   DEFAULT_AUTO_DISABLE,
   judgeAutoDisable,
   type AutoDisablePolicy,

@@ -152,6 +152,7 @@ export type {
 export {
   createOperationsPolicy,
   createResourcePolicy,
+  createVolatileNotifier,
   NO_STARTUP_OPTIONS,
   type SafeModeSource,
   type StartupOptions,

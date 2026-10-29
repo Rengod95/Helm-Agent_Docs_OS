@@ -203,3 +203,9 @@ xeon/packages/ext-host/
 | O-18 | 완료 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(집합 판정 `exposeAll`과 쌍 판정 `resolve`), `NO_RESERVED_NAMES`. `naming.test.ts` |
 | O-19 | 부분 | `ExtHostDeps.resourcePolicy` 연결(`OperationsPolicy.resources`)과 집합 판정 메서드(`ResourcePolicy.exposeAll`) 합의는 끝났다. pi 어댑터는 두지 않으므로(ADR-0017 §3.7) 어댑터의 등록 매핑 확인은 없다. 조립 루트(apps/host)가 `resourcePolicy: policy.resources`를 넘기는 일은 HOST 트랙 몫이다 |
 | 저장 영역 N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`가 `Result<_, ExtRowError>`를 돌려준다(spec §3.4, §4.4.4) |
+
+## 9. M3b 구현 현황 (X 레인)
+
+| 작업 | 상태 | 비고 |
+|---|---|---|
+| O-09 | 완료(ext-host) | `createVolatileNotifier`(`auto-disable.ts`)를 만들고 루트에서 재export한다. 실패마다 `scope.handler_failed`를 발신하고 같은 운영 로그를 남긴다. 발신이 던지면 운영 로그에 남기고 호출자에게 던지지 않는다(M3-REQ-35). 시험은 `auto-disable.test.ts`다. 조립 기본 알림기 교체와 host 연결(발신 함수 전달)은 B1-NTF H1이다 |

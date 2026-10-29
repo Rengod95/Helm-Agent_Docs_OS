@@ -1,9 +1,11 @@
 import { expect, test } from "bun:test";
+import type { ScopeHandlerFailedPayload } from "@xeon/contracts/records";
 import {
   createAutoDisabler,
   createFailureLedger,
   createLogNotifier,
   createScopeControl,
+  createVolatileNotifier,
   DEFAULT_AUTO_DISABLE,
   judgeAutoDisable,
   type AutoDisablePolicy,
@@ -241,4 +243,115 @@ test("autoDisable: applied at step boundary", async () => {
   ]);
   await fire("4");
   expect(calls).toHaveLength(3);
+});
+
+function volatileOf(emitFails = false) {
+  const lines: string[] = [];
+  const emitted: ScopeHandlerFailedPayload[] = [];
+  const notifier = createVolatileNotifier({
+    emit: (payload) => {
+      if (emitFails) throw new Error("bus down");
+      emitted.push(payload);
+    },
+    log: (line) => {
+      lines.push(line);
+    },
+  });
+  return { lines, emitted, notifier };
+}
+
+const TWO_FAILURES = {
+  consecutive: 2,
+  windowCalls: 2,
+  windowFailures: 2,
+  totalCalls: 2,
+  totalFailures: 2,
+};
+
+test("volatile notifier: failed handler emits the exact payload and the log line", () => {
+  const { lines, emitted, notifier } = volatileOf();
+  notifier.handlerFailed({ ...failed("flaky-ext", "user"), message: "boom" }, TWO_FAILURES);
+  expect(emitted).toEqual([
+    {
+      owner: "ext:flaky-ext",
+      point: "tool.result",
+      result: "threw",
+      message: "boom",
+      consecutive: 2,
+    },
+  ]);
+  expect(lines).toEqual(["handler failed: ext:flaky-ext tool.result threw (consecutive 2)"]);
+  const sameLines: string[] = [];
+  createLogNotifier((line) => sameLines.push(line)).handlerFailed(
+    failed("flaky-ext", "user"),
+    TWO_FAILURES,
+  );
+  expect(lines).toEqual(sameLines);
+});
+
+test("volatile notifier: missing message is empty, consecutive is at least 1, message is capped", () => {
+  const { emitted, notifier } = volatileOf();
+  notifier.handlerFailed(failed("flaky-ext", "user"), { ...TWO_FAILURES, consecutive: 0 });
+  notifier.handlerFailed(
+    { ...failed("flaky-ext", "user"), message: "x".repeat(4500) },
+    TWO_FAILURES,
+  );
+  expect(emitted).toEqual([
+    { owner: "ext:flaky-ext", point: "tool.result", result: "threw", message: "", consecutive: 1 },
+    {
+      owner: "ext:flaky-ext",
+      point: "tool.result",
+      result: "threw",
+      message: "x".repeat(4000),
+      consecutive: 2,
+    },
+  ]);
+});
+
+test("volatile notifier: autoDisabled logs only and emits nothing", () => {
+  const { lines, emitted, notifier } = volatileOf();
+  notifier.autoDisabled("ext:flaky-ext", {
+    disable: true,
+    rule: "consecutive",
+    stats: TWO_FAILURES,
+  });
+  expect(emitted).toEqual([]);
+  expect(lines).toEqual(["auto-disabled: ext:flaky-ext by consecutive"]);
+});
+
+test("volatile notifier: a throwing emit is logged and does not reach the caller", () => {
+  const { lines, notifier } = volatileOf(true);
+  expect(() => notifier.handlerFailed(failed("flaky-ext", "user"), TWO_FAILURES)).not.toThrow();
+  expect(lines).toEqual([
+    "handler failed: ext:flaky-ext tool.result threw (consecutive 2)",
+    "scope.handler_failed not emitted: ext:flaky-ext tool.result (bus down)",
+  ]);
+});
+
+test("volatile notifier: the disabler emits one payload per failure and one auto-disable line", () => {
+  const rec = recorder();
+  const { lines, emitted, notifier } = volatileOf();
+  const disabler = createAutoDisabler({
+    ledger: createFailureLedger({ windowSize: DEFAULT_AUTO_DISABLE.windowSize }),
+    policy: () => DEFAULT_AUTO_DISABLE,
+    scopes: rec.scopes,
+    hooks: { disable: () => {}, enable: () => {} },
+    notifier,
+  });
+  for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  expect(emitted.map((payload) => payload.consecutive)).toEqual([1, 2, 3, 4, 5]);
+  expect(emitted[0]).toEqual({
+    owner: "ext:flaky-ext",
+    point: "tool.result",
+    result: "threw",
+    message: "",
+    consecutive: 1,
+  });
+  expect(rec.requests).toEqual([
+    "disable:flaky-ext:auto_disable",
+    "disable:flaky-ext/sub:auto_disable",
+  ]);
+  expect(lines.filter((line) => line.startsWith("auto-disabled:"))).toEqual([
+    "auto-disabled: ext:flaky-ext by consecutive",
+  ]);
 });

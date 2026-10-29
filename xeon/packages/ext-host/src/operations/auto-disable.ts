@@ -1,5 +1,6 @@
+import { attempt } from "@xeon/contracts";
 import type { ExtensionName, ScopeId } from "@xeon/contracts/extensions";
-import type { ScopeChangedPayload } from "@xeon/contracts/records";
+import type { ScopeChangedPayload, ScopeHandlerFailedPayload } from "@xeon/contracts/records";
 import type { FailureLedger, FailureStats, HandlerOutcomeRecord } from "./failure.ts";
 import { ownerKey, type HandlerOwnerKey, type HookId, type Tier } from "./tier.ts";
 
@@ -105,6 +106,51 @@ export function createLogNotifier(log: (line: string) => void): OperationsNotifi
     },
     autoDisabled(key, verdict) {
       log(`auto-disabled: ${key} by ${verdict.rule}`);
+    },
+  };
+}
+
+/** 휘발 발신 포트. 발신(`emit`)과 운영 로그(`log`)는 조립 루트가 넘긴다 */
+export interface VolatileNotifierDeps {
+  readonly emit: (payload: ScopeHandlerFailedPayload) => void;
+  readonly log: (line: string) => void;
+}
+
+/** `scope.handler_failed` 페이로드 message의 상한(F.records ScopeHandlerFailedPayloadSchema) */
+const HANDLER_FAILED_MESSAGE_MAX = 4000;
+
+function reasonOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : "unknown error";
+}
+
+/**
+ * 실패마다 휘발 이벤트 `scope.handler_failed`를 보내고, 같은 운영 로그 줄을 남긴다(`createLogNotifier`와 같은 줄).
+ * autoDisabled는 로그만 남긴다. 자동 끄기 사실은 내구 `scope.changed`(reason auto_disable)가 이미 적는다
+ * (X.operations.spec §4.3.4). 발신이 던지면 운영 로그에 남기고 호출자에게 던지지 않는다.
+ */
+export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNotifier {
+  const logOnly = createLogNotifier(deps.log);
+  return {
+    handlerFailed(outcome, stats) {
+      logOnly.handlerFailed(outcome, stats);
+      const payload: ScopeHandlerFailedPayload = {
+        owner: ownerKey(outcome.owner),
+        point: outcome.point,
+        result: outcome.result,
+        message: (outcome.message ?? "").slice(0, HANDLER_FAILED_MESSAGE_MAX),
+        consecutive: Math.max(1, stats.consecutive),
+      };
+      const sent = attempt(() => {
+        deps.emit(payload);
+      });
+      if (!sent.ok) {
+        deps.log(
+          `scope.handler_failed not emitted: ${payload.owner} ${payload.point} (${reasonOf(sent.error.cause)})`,
+        );
+      }
+    },
+    autoDisabled(key, verdict) {
+      logOnly.autoDisabled(key, verdict);
     },
   };
 }
