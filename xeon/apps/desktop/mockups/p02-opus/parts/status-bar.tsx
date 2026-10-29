@@ -4,7 +4,6 @@
 // 접근성: 띠 전체가 role="status" 하나이고, 개수 칸은 "승인 대기 2개"처럼 문장 라벨을 단다.
 import { Button, Popover, PopoverDescription, PopoverTitle, Progress } from "@caustic/react";
 import type { ReactNode } from "react";
-import { Bell, Compass, Cpu, Server, ShieldAlert, Target } from "../icons";
 
 type Dot = "success" | "warning" | "danger" | "neutral";
 const dotClass: Record<Dot, string> = {
@@ -98,8 +97,6 @@ export function StatusBar({ start, end }: StatusBarProps) {
     </div>
   );
 }
-
-export const statusIcons = { Server, Cpu, Target, Compass, ShieldAlert, Bell };
 
 /** 토큰 사용량 막대(게이지 대용, C-05). */
 export function TokenBar({ ratio }: { ratio: number }) {

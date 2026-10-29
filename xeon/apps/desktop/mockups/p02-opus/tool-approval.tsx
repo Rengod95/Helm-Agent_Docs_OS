@@ -1,9 +1,9 @@
 // 도구 승인 카드: caustic AgentRequest(kind permission)에 명령 전문, 비밀 핸들, 위험도, 인자를 담는다.
 // 트랜스크립트 끝과 끝 영역에 같은 부품으로 보인다. 카드에 초점이 있으면 Y(허용), ⇧Y(이 대화에서 항상), N(거부).
-import { AgentRequest, Badge, Kbd, MessageCode } from "@caustic/react";
+import { AgentRequest, Badge, MessageCode } from "@caustic/react";
 import type { KeyboardEvent } from "react";
 import type { ToolApproval } from "./fixtures";
-import { KeyRound, Terminal } from "./icons";
+import { KeyRound } from "./icons";
 import { Disclosure } from "./parts/disclosure";
 import type { Decision } from "./store";
 
@@ -73,51 +73,23 @@ export function ToolApprovalCard({
         tabIndex={-1}
         aria-keyshortcuts="Y Shift+Y N"
         onKeyDown={onKeyDown}
-        className="outline-none focus-visible:focus-ring"
+        // 한 단계 깊이만: 패널·무대 위 카드는 그림자 대신 border-subtle 헤어라인 하나.
+        shadow="none"
+        className="shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:focus-ring"
         actions={[
-          {
-            id: "deny",
-            label: (
-              <>
-                거부 <Kbd size="xs">N</Kbd>
-              </>
-            ),
-            tone: "danger",
-          },
-          {
-            id: "always",
-            label: (
-              <>
-                이 대화에서 항상 <Kbd size="xs">⇧Y</Kbd>
-              </>
-            ),
-            tone: "secondary",
-          },
-          {
-            id: "once",
-            label: (
-              <>
-                허용{" "}
-                <Kbd size="xs" variant="ghost">
-                  Y
-                </Kbd>
-              </>
-            ),
-            tone: "primary",
-          },
+          { id: "deny", label: "거부", tone: "danger" },
+          { id: "always", label: "이 대화에서 항상", tone: "secondary" },
+          { id: "once", label: "허용", tone: "primary" },
         ]}
         onAction={(id) => onDecide(ACTION_TO_DECISION[id as keyof typeof ACTION_TO_DECISION])}
       >
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge size="sm" icon={<Terminal />}>
-            도구 {approval.tool}
-          </Badge>
-          <Badge size="sm" tone="warning" dot>
-            위험도 {approval.risk}
-          </Badge>
-        </div>
         <div className="grid gap-1">
-          <span className="text-ui-xs text-text-tertiary">실행할 명령</span>
+          <span className="flex items-center gap-2 text-ui-xs text-text-tertiary">
+            실행할 명령
+            <Badge size="xs" tone="warning">
+              위험도 {approval.risk}
+            </Badge>
+          </span>
           <MessageCode className="block whitespace-pre-wrap break-all px-2 py-1.5">
             $ {approval.command}
           </MessageCode>
@@ -150,6 +122,7 @@ export function ToolApprovalCard({
             ))}
           </dl>
         </Disclosure>
+        <p className="m-0 text-ui-xs text-text-tertiary">Y 허용 · ⇧Y 이 대화에서 항상 · N 거부</p>
       </AgentRequest>
     </fieldset>
   );

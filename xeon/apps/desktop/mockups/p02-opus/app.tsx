@@ -11,7 +11,7 @@ import { EndPanel } from "./end-panel";
 import { status } from "./fixtures";
 import { LockedDialog } from "./locked-dialog";
 import { Palette } from "./palette";
-import { StatusBar, statusIcons, TokenBar, type StatusCell } from "./parts/status-bar";
+import { StatusBar, TokenBar, type StatusCell } from "./parts/status-bar";
 import { StageContent } from "./stage";
 import { StartPanel } from "./start-panel";
 import { useMock } from "./store";
@@ -82,7 +82,6 @@ function statusCells(m: ReturnType<typeof useMock>): { start: StatusCell[]; end:
     id: "approvals",
     text: `승인 ${m.pendingApprovals}`,
     label: `승인 대기 ${m.pendingApprovals}개`,
-    icon: <statusIcons.ShieldAlert />,
     title: "승인 대기",
     description: `답을 기다리는 승인이 ${m.pendingApprovals}개 있어요.`,
     action: openInbox,
@@ -94,7 +93,6 @@ function statusCells(m: ReturnType<typeof useMock>): { start: StatusCell[]; end:
       {
         id: "target",
         text: status.target,
-        icon: <statusIcons.Server />,
         title: "대상",
         description: "이 창은 이 컴퓨터의 로컬 사이드카 엔진에 붙어 있어요.",
       },
@@ -111,7 +109,6 @@ function statusCells(m: ReturnType<typeof useMock>): { start: StatusCell[]; end:
       {
         id: "model",
         text: status.model,
-        icon: <statusIcons.Cpu />,
         title: "모델",
         description: "이 대화의 기본 모델이에요. 누르면 모델을 바꿀 수 있어요.",
       },
@@ -129,7 +126,6 @@ function statusCells(m: ReturnType<typeof useMock>): { start: StatusCell[]; end:
               id: "goal",
               text: `목표 ${status.goal}`,
               label: "목표 3개 중 2개 이룸",
-              icon: <statusIcons.Target />,
               title: "목표",
               description: "목표 3개 중 2개를 이뤘어요.",
               action: { label: "작업 탭 열기", onSelect: () => m.openEnd("work") },
@@ -138,7 +134,6 @@ function statusCells(m: ReturnType<typeof useMock>): { start: StatusCell[]; end:
               id: "helm",
               text: "Helm",
               label: `Helm ${status.helm} 중`,
-              icon: <statusIcons.Compass />,
               title: "Helm",
               description: `Helm 탐구가 ${status.helm} 단계예요.`,
               action: { label: "탐구 탭 열기", onSelect: () => m.openEnd("helm") },
@@ -150,7 +145,6 @@ function statusCells(m: ReturnType<typeof useMock>): { start: StatusCell[]; end:
         id: "notices",
         text: `알림 ${status.notices}`,
         label: `알림 ${status.notices}개`,
-        icon: <statusIcons.Bell />,
         title: "알림",
         description: "새 알림이 3개 있어요. 예약 실패 1개가 있어요.",
         action: openInbox,

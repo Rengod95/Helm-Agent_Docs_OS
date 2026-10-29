@@ -2,11 +2,9 @@
 import {
   Alert,
   Button,
-  Chip,
   Composer,
   EmptyState,
   IconButton,
-  Kbd,
   Menu,
   MenuItem,
   MenuSeparator,
@@ -23,7 +21,6 @@ import {
   Compass,
   Ellipsis,
   FlaskConical,
-  FolderOpen,
   FolderTree,
   GitBranch,
   History,
@@ -31,7 +28,6 @@ import {
   Minimize2,
   Pencil,
   SquarePen,
-  Target,
   Trash2,
 } from "./icons";
 import { ObserveBand } from "./parts/observe-band";
@@ -47,26 +43,23 @@ const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-5";
 function StageHead() {
   const m = useMock();
   return (
-    <header className="flex min-w-0 flex-none items-center gap-2 border-b border-border-subtle py-2.5 pr-3 pl-5">
-      <div className="min-w-0 flex-1">
-        <h1 className="m-0 truncate font-ui text-title-4 text-text-primary">{m.currentTitle}</h1>
-        <div className="mt-0.5 flex min-w-0 items-center gap-2 text-ui-xs text-text-tertiary">
-          <span className="inline-flex min-w-0 items-center gap-1">
-            <FolderOpen aria-hidden className="size-icon-xs shrink-0" />
-            <span className="truncate font-mono text-mono-sm">~/code/xeon</span>
-          </span>
-          {m.view === "thread" && (
-            <Chip
-              size="xs"
-              variant="soft"
-              icon={<Target />}
-              onClick={() => m.openEnd("work")}
-              aria-label="목표 3개 중 2개 이룸, 작업 탭 열기"
-            >
-              목표 2/3
-            </Chip>
-          )}
-        </div>
+    // 한 줄 머리: 제목과 목표. 작업 폴더는 제목 띠 경로에 이미 있어 되풀이하지 않는다(좁은 폭에서만 보인다).
+    <header className="flex h-12 min-w-0 flex-none items-center gap-1 border-b border-border-subtle pr-3 pl-5">
+      <div className="flex min-w-0 flex-1 items-baseline gap-3">
+        <h1 className="m-0 truncate font-ui text-ui-strong text-text-primary">{m.currentTitle}</h1>
+        {m.layout === "compact" && (
+          <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
+        )}
+        {m.view === "thread" && (
+          <button
+            type="button"
+            onClick={() => m.openEnd("work")}
+            aria-label="목표 3개 중 2개 이룸, 작업 탭 열기"
+            className="shrink-0 rounded-sm text-ui-sm tabular-nums text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
+          >
+            목표 2/3
+          </button>
+        )}
       </div>
       {m.view === "thread" && (
         <>
@@ -245,7 +238,7 @@ function EmptyThread() {
           title="무엇부터 할까요?"
           description="~/code/xeon에서 새 대화를 시작해요. 아래에서 고르거나 바로 적어 주세요."
         />
-        <Suggestions aria-label="추천 시작 문장">
+        <Suggestions aria-label="추천 시작 문장" variant="outline">
           <SuggestionsItem
             icon={<FolderTree />}
             hint="폴더와 패키지 구성"
@@ -338,27 +331,12 @@ function ComposerArea() {
           setValue("");
         }}
       />
-      <p className="m-0 flex flex-wrap items-center gap-x-3 gap-y-1 px-2 text-ui-xs text-text-tertiary">
-        {locked ? (
-          <span role="note">
-            연결이 끊겨 입력창을 잠갔어요. 다시 연결되면 쓴 글을 보낼 수 있어요.
-          </span>
-        ) : (
-          <>
-            <span>
-              <Kbd size="xs">Enter</Kbd> 보내기
-            </span>
-            <span>
-              <Kbd size="xs">⇧Enter</Kbd> 줄바꿈
-            </span>
-            {m.running && (
-              <span>
-                <Kbd size="xs">⌘.</Kbd> 중단
-              </span>
-            )}
-          </>
-        )}
-      </p>
+      {/* 키 안내는 입력란 placeholder가 말한다. 잠겼을 때만 이유 한 줄을 둔다. */}
+      {locked && (
+        <p role="note" className="m-0 px-2 text-ui-xs text-text-tertiary">
+          연결이 끊겨 입력창을 잠갔어요. 다시 연결되면 쓴 글을 보낼 수 있어요.
+        </p>
+      )}
     </div>
   );
 }
@@ -370,6 +348,7 @@ export function StageContent() {
       <div className="grid min-h-0 flex-1 place-items-center p-6">
         <EmptyState
           icon={<SquarePen />}
+          surface="none"
           title="왼쪽에서 대화를 고르거나 새로 만드세요"
           description="대화는 작업 폴더별로 묶여 있어요."
           actions={
@@ -378,9 +357,9 @@ export function StageContent() {
               tone="neutral"
               variant="solid"
               onClick={m.newThread}
-              iconEnd={<Kbd size="xs">⌘N</Kbd>}
+              aria-keyshortcuts="Meta+N"
             >
-              새 대화
+              새 대화 <span className="font-normal text-ink-on-muted">⌘N</span>
             </Button>
           }
         />
@@ -395,7 +374,7 @@ export function StageContent() {
           <Alert
             tone="warning"
             action={
-              <Button size="xs" tone="warning" variant="soft" onClick={m.reconnect}>
+              <Button size="xs" tone="neutral" variant="ghost" onClick={m.reconnect}>
                 다시 연결
               </Button>
             }

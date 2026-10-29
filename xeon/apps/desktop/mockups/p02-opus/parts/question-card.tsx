@@ -1,17 +1,9 @@
 // caustic 빈틈: AgentRequest의 kind는 proposal·review·permission뿐이라 "질문"(선택지 + 직접 입력 + 답하기/거부)이 없다.
 // permission은 방패 타일이 고정이고 proposal은 "Proposal · " 머리가 영어로 붙는다. 그래서 질문 카드는 caustic Card 위에
-// AgentRequest permission 카드와 같은 치수(2xl 모서리, compact 안쪽 여백, 36px 타일, elevation 2, ui-strong 제목)로 직접 짠다.
+// AgentRequest permission 카드와 같은 치수(2xl 모서리, compact 안쪽 여백, 36px 타일, border-subtle 헤어라인, ui-strong 제목)로 직접 짠다.
 // 선택지는 caustic ChoiceGroup(appearance answer), 직접 입력은 Input, 버튼은 AgentRequest와 같은 규칙(거부 = ghost 시작 쪽,
 // 확정 = 잉크 끝 쪽)이다. 답한 뒤 기록 줄은 AgentRequest의 record(status answered/denied)를 그대로 쓴다.
-import {
-  AgentRequest,
-  Button,
-  Card,
-  ChoiceGroup,
-  ChoiceGroupItem,
-  Input,
-  Kbd,
-} from "@caustic/react";
+import { AgentRequest, Button, Card, ChoiceGroup, ChoiceGroupItem, Input } from "@caustic/react";
 import { useId, type KeyboardEvent } from "react";
 import type { QuestionApproval } from "../fixtures";
 import { MessageCircleQuestion } from "../icons";
@@ -80,7 +72,7 @@ export function QuestionCard({
       data-slot="question-card"
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      className="grid min-w-0 gap-2.5 rounded-2xl bg-surface-base px-inset-compact-x py-inset-compact-y shadow-2 outline-none animate-rise focus-visible:focus-ring"
+      className="grid min-w-0 gap-2.5 rounded-2xl bg-surface-base px-inset-compact-x py-inset-compact-y shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none animate-rise focus-visible:focus-ring"
     >
       <div className="flex min-w-0 items-center gap-3">
         <span
@@ -105,7 +97,7 @@ export function QuestionCard({
           <Button
             size="xs"
             tone="neutral"
-            variant="solid"
+            variant="outline"
             disabled={locked}
             onClick={summary.onOpen}
           >
@@ -143,13 +135,7 @@ export function QuestionCard({
             />
           )}
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="ghost"
-              onClick={onDeny}
-              iconEnd={<Kbd size="xs">N</Kbd>}
-            >
+            <Button size="sm" tone="neutral" variant="ghost" onClick={onDeny}>
               거부
             </Button>
             <span aria-hidden className="flex-1" />

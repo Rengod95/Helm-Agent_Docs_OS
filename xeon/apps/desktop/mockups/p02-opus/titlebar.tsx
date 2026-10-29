@@ -8,7 +8,6 @@ import {
   Kbd,
 } from "@caustic/react";
 import { Inbox, Monitor, PanelLeft, Search, Settings } from "./icons";
-import { CountIconButton } from "./parts/count-icon-button";
 import { useMock } from "./store";
 
 export function Titlebar({ startId, endId }: { startId: string; endId: string }) {
@@ -41,7 +40,7 @@ export function Titlebar({ startId, endId }: { startId: string; endId: string })
       <Button
         size="sm"
         tone="neutral"
-        variant="outline"
+        variant="soft"
         iconStart={<Search />}
         onClick={() => m.setPaletteOpen(true)}
         aria-keyshortcuts="Meta+K"
@@ -53,19 +52,21 @@ export function Titlebar({ startId, endId }: { startId: string; endId: string })
           ⌘K
         </Kbd>
       </Button>
-      <CountIconButton
+      <Button
         size="sm"
+        tone="neutral"
         variant="ghost"
-        count={inboxCount}
-        label={`받은 요청 ${inboxCount}개 (⌘J)`}
+        iconStart={<Inbox />}
+        aria-label={`받은 요청 ${inboxCount}개 (⌘J)`}
         aria-expanded={m.endOpen}
         aria-controls={endId}
         onClick={() =>
           m.endOpen && m.endTab === "inbox" ? m.setEndOpen(false) : m.openEnd("inbox")
         }
+        className="px-2 tabular-nums"
       >
-        <Inbox />
-      </CountIconButton>
+        {inboxCount}
+      </Button>
       <IconButton size="sm" variant="ghost" label="설정 (⌘,)">
         <Settings />
       </IconButton>

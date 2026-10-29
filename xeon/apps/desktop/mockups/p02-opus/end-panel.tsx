@@ -72,7 +72,7 @@ function InboxTab() {
       </Section>
       {proposal !== undefined && (
         <Section title="제안" count={3}>
-          <div className="flex min-w-0 items-center gap-3 rounded-xl bg-surface-base px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
+          <div className="flex min-w-0 items-center gap-3 px-1">
             <Sparkles aria-hidden className="size-icon-md shrink-0 text-text-tertiary" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-ui-strong text-text-primary">
@@ -81,7 +81,7 @@ function InboxTab() {
               </div>
               <div className="text-ui-xs text-text-tertiary">출처 {proposal.source}</div>
             </div>
-            <Button size="xs" tone="neutral" variant="outline">
+            <Button size="xs" tone="neutral" variant="ghost">
               제안 열기
             </Button>
           </div>
@@ -111,7 +111,13 @@ export function EndPanel({ id }: { id: string }) {
         preset="pane"
         label="맥락 패널"
         scrollLabel="받은 요청과 맥락"
-        className="min-h-0 flex-1"
+        // 깊이는 한 단계만: 붙박이일 때는 그림자 없이 헤어라인, 시트일 때는 AppShell이 주는 그림자 하나(헤어라인 없음).
+        shadow="none"
+        className={
+          m.layout === "wide"
+            ? "min-h-0 flex-1 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]"
+            : "min-h-0 flex-1"
+        }
         collapsed={!m.endOpen}
         onCollapsedChange={(c) => m.setEndOpen(!c)}
         collapseLabel="맥락 패널 닫기 (⌘J)"
@@ -132,6 +138,7 @@ export function EndPanel({ id }: { id: string }) {
           <TabsContent value="helm" className="p-3">
             <EmptyState
               size="sm"
+              surface="none"
               icon={<Compass />}
               title="셸 목업에서는 비어 있어요"
               description="Helm 탐구 진행과 렌즈가 여기에 와요."
@@ -142,6 +149,7 @@ export function EndPanel({ id }: { id: string }) {
           <TabsContent value="work" className="p-3">
             <EmptyState
               size="sm"
+              surface="none"
               icon={<ListChecks />}
               title="셸 목업에서는 비어 있어요"
               description="목표와 작업 목록이 여기에 와요."
