@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { CRON_SESSION_KIND, type ScheduleService } from "../src/index.ts";
+import { CRON_SESSION_KIND, type ScheduleService, type StoreFailure } from "../src/index.ts";
 import {
   createHarness,
   HOUR,
@@ -373,6 +373,97 @@ test("start registers one tick period and stop releases the ticker and watchers"
   h.service.stop();
   expect(h.ticks.stopped).toBe(1);
   expect(h.watches[0]?.closed).toBe(true);
+});
+
+/** 항목 `sch_1`(원격)이 저장된 저장소. 새 서비스는 아직 읽지 않은 상태로 이 저장소를 받는다 */
+async function storeWithRemoteEntry(): Promise<MemoryStore> {
+  const seed = createHarness();
+  await created(seed.service, { trigger: { kind: "remote" }, prompt: "go" });
+  return new MemoryStore(seed.store.saved);
+}
+
+const CORRUPT: StoreFailure = { kind: "store_failed", message: "state file is not valid JSON" };
+
+test("a state file that cannot be read blocks create, cancel, fire and start with store_failed and writes nothing until it is repaired", async () => {
+  const store = await storeWithRemoteEntry();
+  store.loadFailure = CORRUPT;
+  const h = createHarness({ store, idStart: 100 });
+
+  expect(
+    await h.service.create({ trigger: { kind: "interval", everySeconds: 600 }, prompt: "x" }),
+  ).toEqual({ ok: false, error: CORRUPT });
+  expect(await h.service.cancel("sch_1")).toEqual({ ok: false, error: CORRUPT });
+  expect(await h.service.fire("sch_1")).toEqual({ ok: false, error: CORRUPT });
+  expect(await h.service.start()).toEqual({ ok: false, error: CORRUPT });
+  expect(store.saves).toBe(0);
+  expect(h.ticks.periods).toEqual([]);
+  expect(h.watches).toEqual([]);
+  expect(h.runner.started).toHaveLength(0);
+  expect(store.saved.entries.map((entry) => entry.id)).toEqual(["sch_1"]);
+  expect(store.saved.entries[0]?.enabled).toBe(true);
+
+  // 파일을 고치면 다음 호출이 다시 읽고, 저장된 기존 항목은 덮어쓰이지 않는다
+  store.loadFailure = null;
+  const fixed = await h.service.create({
+    trigger: { kind: "interval", everySeconds: 600 },
+    prompt: "x",
+  });
+  expect(fixed.ok).toBe(true);
+  expect(store.saves).toBe(1);
+  expect(store.saved.entries.map((entry) => entry.id)).toEqual(["sch_1", "sch_101"]);
+  expect(store.saved.entries[0]).toMatchObject({ prompt: "go", trigger: { kind: "remote" } });
+});
+
+test("a store whose load throws is reported as store_failed, and the next call reads the store again", async () => {
+  const store = await storeWithRemoteEntry();
+  store.loadThrows = true;
+  const h = createHarness({ store, idStart: 100 });
+
+  expect(await h.service.create({ trigger: { kind: "remote" }, prompt: "go" })).toEqual({
+    ok: false,
+    error: { kind: "store_failed", message: "load exploded" },
+  });
+  expect(store.saves).toBe(0);
+
+  store.loadThrows = false;
+  const fixed = await h.service.create({ trigger: { kind: "remote" }, prompt: "go" });
+  expect(fixed.ok).toBe(true);
+  expect(store.loads).toBe(2);
+  expect(store.saved.entries.map((entry) => entry.id)).toEqual(["sch_1", "sch_101"]);
+});
+
+test("a save that throws is reported as store_failed, and the saves after it still go through", async () => {
+  const store = new MemoryStore();
+  const h = createHarness({ store });
+  store.saveThrows = true;
+  expect(await h.service.create({ trigger: { kind: "remote" }, prompt: "first" })).toEqual({
+    ok: false,
+    error: { kind: "store_failed", message: "save exploded" },
+  });
+
+  store.saveThrows = false;
+  const second = await h.service.create({ trigger: { kind: "remote" }, prompt: "second" });
+  expect(second.ok).toBe(true);
+  expect(store.saved.entries.at(-1)).toMatchObject({ prompt: "second" });
+});
+
+test("the store is read once, lazily: create before start keeps the stored entries, and open() does not reload", async () => {
+  const store = await storeWithRemoteEntry();
+  const h = createHarness({ store, idStart: 100 });
+  expect(store.loads).toBe(0);
+
+  expect(await h.service.open()).toEqual({ ok: true, value: undefined });
+  expect(await h.service.open()).toEqual({ ok: true, value: undefined });
+  expect(store.loads).toBe(1);
+  expect(h.service.list().map((entry) => entry.id)).toEqual(["sch_1"]);
+
+  const made = await h.service.create({ trigger: { kind: "remote" }, prompt: "go" });
+  expect(made.ok).toBe(true);
+  expect(h.service.list().map((entry) => entry.id)).toEqual(["sch_1", "sch_101"]);
+  expect((await h.service.start()).ok).toBe(true);
+  expect(store.loads).toBe(1);
+  expect(store.saved.entries.map((entry) => entry.id)).toEqual(["sch_1", "sch_101"]);
+  await h.service.close();
 });
 
 async function settleAll(h: Harness): Promise<void> {

@@ -213,6 +213,11 @@ export type FireError =
 export type CancelError = { readonly kind: "not_found" } | StoreFailure;
 
 export interface ScheduleService {
+  /**
+   * 저장소를 읽어 상태를 올린다(한 번만 읽는다). `list`·`runs`는 읽은 뒤의 상태를 낸다.
+   * 읽지 못하면(파일 손상 포함) 저장소 실패를 돌려주고, 그동안 `create`·`cancel`·`fire`·`start`는 같은 실패를 돌려주며 아무것도 쓰지 않는다
+   */
+  open(): Promise<Result<void, StoreFailure>>;
   create(input: CreateInput): Promise<Result<ScheduleEntry, CreateError>>;
   list(): readonly ScheduleEntry[];
   cancel(scheduleId: string): Promise<Result<ScheduleEntry, CancelError>>;

@@ -1,4 +1,4 @@
-import { assertNever, detach, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, attemptAsync, detach, err, ok, type Result } from "@xeon/contracts";
 import type { Unsubscribe } from "@xeon/contracts/extensions";
 import { everyMsOf, planDue } from "./due.ts";
 import {
@@ -57,6 +57,23 @@ function firstDueOf(input: CreateInput, now: number): number | null {
   }
 }
 
+/**
+ * 저장소 호출 하나를 `Result`로 받는다. 저장소가 Result 대신 던지면 저장소 실패 값으로 바꾼다(TY-25).
+ * 던짐을 그대로 두면 저장 순서열이나 읽기 기억이 거부된 채 남아 이후 호출이 모두 실패한다.
+ */
+function storeCall<T>(
+  call: () => PromiseLike<Result<T, StoreFailure>>,
+): Promise<Result<T, StoreFailure>> {
+  return attemptAsync(call).then((attempt): Result<T, StoreFailure> =>
+    attempt.ok
+      ? attempt.value
+      : err({
+          kind: "store_failed",
+          message: attempt.error.cause instanceof Error ? attempt.error.cause.message : "unknown",
+        }),
+  );
+}
+
 export function createScheduleService(deps: ScheduleDeps): ScheduleService {
   const policy = { ...DEFAULT_POLICY, ...deps.policy };
   const listeners = new Set<() => void>();
@@ -68,6 +85,33 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
   let stopTicker: Unsubscribe | null = null;
   let started = false;
   let ticking = false;
+  /** 저장소를 한 번 읽어 `state`에 올렸는가. 읽기에 실패하면 거짓으로 남아 쓰기가 막힌다 */
+  let loaded = false;
+  let loading: Promise<Result<void, StoreFailure>> | null = null;
+
+  /**
+   * 저장소를 한 번 읽는다. 읽기에 실패한 상태(손상된 파일 포함)에서 쓰면 빈 상태로 파일을 덮어 쓰므로,
+   * 성공하기 전에는 `create`·`cancel`·`fire`·`start`가 저장소 실패 값을 돌려주고 아무것도 쓰지 않는다.
+   * 실패는 기억하지 않아 파일을 고친 뒤 다음 호출이 다시 읽는다.
+   */
+  function ensureLoaded(): Promise<Result<void, StoreFailure>> {
+    if (loaded) return Promise.resolve(ok(undefined));
+    if (loading !== null) return loading;
+    const pending = storeCall(() => deps.store.load()).then(
+      (result): Result<void, StoreFailure> => {
+        loading = null;
+        if (!result.ok) {
+          deps.report?.("schedule.load_failed", { message: result.error.message });
+          return result;
+        }
+        state = result.value;
+        loaded = true;
+        return ok(undefined);
+      },
+    );
+    loading = pending;
+    return pending;
+  }
 
   function notify(): void {
     for (const listener of listeners) listener();
@@ -90,7 +134,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
           : next.runs,
     };
     const snapshot = state;
-    const saved = saving.then(() => deps.store.save(snapshot));
+    const saved = saving.then(() => storeCall(() => deps.store.save(snapshot)));
     saving = saved;
     const result = await saved;
     notify();
@@ -430,7 +474,11 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
   }
 
   return {
+    open: ensureLoaded,
+
     async create(input) {
+      const opened = await ensureLoaded();
+      if (!opened.ok) return opened;
       const now = deps.clock.now();
       const invalid = validate(input, now);
       if (invalid !== null) return err(invalid);
@@ -461,6 +509,8 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     list: () => state.entries,
 
     async cancel(scheduleId) {
+      const opened = await ensureLoaded();
+      if (!opened.ok) return opened;
       const entry = entryOf(scheduleId);
       if (entry === undefined) return err<CancelError>({ kind: "not_found" });
       if (!entry.enabled) return ok(entry);
@@ -479,6 +529,8 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     },
 
     async fire(scheduleId) {
+      const opened = await ensureLoaded();
+      if (!opened.ok) return opened;
       const entry = entryOf(scheduleId);
       if (entry === undefined) return err<FireError>({ kind: "not_found" });
       if (entry.trigger.kind !== "remote") return err({ kind: "not_remote" });
@@ -495,9 +547,8 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
 
     async start() {
       if (started) return ok(undefined);
-      const loaded = await deps.store.load();
-      if (!loaded.ok) return loaded;
-      state = loaded.value;
+      const opened = await ensureLoaded();
+      if (!opened.ok) return opened;
       const now = deps.clock.now();
       // 재시작 복구(spec 4.4.5): claim만 된 실행은 같은 키로 다시 시작하고, 시작한 실행은 host_exit로 닫는다.
       // 루프는 자동으로 다시 시작하지 않는다(spec 4.1.5)

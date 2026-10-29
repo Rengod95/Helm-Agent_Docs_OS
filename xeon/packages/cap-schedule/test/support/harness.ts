@@ -16,21 +16,32 @@ export const SECOND: number = 1000;
 export const MINUTE: number = 60 * SECOND;
 export const HOUR: number = 60 * MINUTE;
 
-/** 메모리 저장소. `saved`는 마지막으로 쓴 상태다(재시작 시험이 같은 객체를 새 서비스에 넘긴다) */
+/**
+ * 메모리 저장소. `saved`는 마지막으로 성공해 쓴 상태다(재시작 시험이 같은 객체를 새 서비스에 넘긴다).
+ * `saves`와 `loads`는 호출 횟수다(실패한 호출도 센다). `loadFailure`는 손상된 파일 대역, `loadThrows`는 던지는 읽기 대역이다.
+ */
 export class MemoryStore {
   saved: ScheduleState;
   saves = 0;
+  loads = 0;
   failSaves = false;
+  saveThrows = false;
+  loadFailure: StoreFailure | null = null;
+  loadThrows = false;
   constructor(initial: ScheduleState = EMPTY_STATE) {
     this.saved = initial;
   }
   load(): Promise<Result<ScheduleState, StoreFailure>> {
+    this.loads += 1;
+    if (this.loadThrows) return Promise.reject(new Error("load exploded"));
+    if (this.loadFailure !== null) return Promise.resolve(err(this.loadFailure));
     return Promise.resolve(ok(this.saved));
   }
   save(state: ScheduleState): Promise<Result<void, StoreFailure>> {
+    this.saves += 1;
+    if (this.saveThrows) return Promise.reject(new Error("save exploded"));
     if (this.failSaves) return Promise.resolve(err({ kind: "store_failed", message: "disk full" }));
     this.saved = state;
-    this.saves += 1;
     return Promise.resolve(ok(undefined));
   }
 }
@@ -72,6 +83,8 @@ export function createHarness(
     readonly store?: MemoryStore;
     readonly clock?: { now: number };
     readonly policy?: ScheduleDeps["policy"];
+    /** 새 id의 시작 번호 뒤부터 센다. 저장소에 이미 있는 항목과 id가 겹치지 않게 한다 */
+    readonly idStart?: number;
   } = {},
 ): Harness {
   const store = options.store ?? new MemoryStore();
@@ -80,7 +93,7 @@ export function createHarness(
   const periods: number[] = [];
   const ticks = { periods, stopped: 0 };
   const watches: Harness["watches"] = [];
-  let counter = 0;
+  let counter = options.idStart ?? 0;
   const service = createScheduleService({
     clock: { now: () => clock.now },
     store,

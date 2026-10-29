@@ -1,3 +1,6 @@
+export { createScheduleApi } from "./api.ts";
+export { scheduleManifest, SCHEDULE_EXTENSION_NAME } from "./manifest.ts";
+export { schedulePlugin, type SchedulePluginOptions } from "./plugin.ts";
 export { createScheduleService } from "./engine.ts";
 export { planDue, type DuePlan } from "./due.ts";
 export {

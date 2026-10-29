@@ -1393,6 +1393,9 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 같은 항목의 이전 실행이 `claimed`·`started`이면 새 기한은 `overlap`으로 건너뛴다.
 - 상태(항목, 실행 기록)는 `ScheduleStore` 포트로 저장한다. claim을 저장하지 못하면 실행을 시작하지 않는다. 재시작하면 `claimed`는 같은 키(`<scheduleId>:<dueAt>`)로 다시 시작하고 `started`는 `host_exit`로 닫으며, 실행 중이던 루프는 `host_exit`로 멈추고 다시 시작하지 않는다.
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 능력 정의와 와이어가 들어왔다. 능력 ID는 `schedule.entries`(F `capabilities/defs/schedule.ts`)이고, §3.5의 cron 기반 `schedule.timers`와 다른 능력이다. 메서드는 `create`, `list`, `cancel`, `fire`이고 모델 도구는 `schedule_create` 하나다. wire는 `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`(F `wire/schedule.ts`)다. 분류는 `list`만 읽기 전용이다. `create`, `cancel`, `fire`는 효과가 있는 쓰기로 분류하지 않는다(`requestId` 기억 전까지 멱등이 아니다, ADR-0015 §3.3).
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 저장소는 처음 쓰일 때 한 번 읽는다(`open()`, 지연 읽기). 읽기가 실패하면(상태 파일이 손상되어 해석하지 못하는 경우를 포함한다) `create`·`cancel`·`fire`·`start`는 `store_failed`를 돌려주고 아무것도 쓰지 않으며, `start`는 틱과 감시를 켜지 않는다. 엔진은 읽지 못한 파일을 빈 상태로 덮어쓰지 않는다. 사용자가 파일을 고치거나 지워야 한다. 실패는 기억하지 않으므로 다음 호출이 다시 읽는다.
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 모델 도구 `schedule_create`는 실행 등급 `exec`로 등록한다(`tools.register`의 정책 `{ schedule_create: { risk: "exec" } }`). 예약은 사용자 없이 나중의 실행을 만들므로 기본 모드에서 승인을 묻는다.
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 플러그인 `cap-schedule`(`schedulePlugin`)은 능력 `schedule.entries`(1.0.0)를 제공하고, 서비스는 호스트가 만들어 `schedulePlugin({ service })`로 넘긴다. 틱과 상태 저장소는 호스트가 맡고 플러그인은 서비스를 시작하지 않는다. 도구 서비스가 없으면 능력만 올리고 도구는 올리지 않으며 예외를 던지지 않는다. 능력 API(`createScheduleApi`)는 엔진의 `Result` 실패를 `CapabilityError`의 `code`로 바꾼다.
 - 이 단계에 없는 것: cron 식과 시간대, `schedule.*` 기록(이벤트)의 생산자, 임대 기반 다중 프로세스 틱, CLI 예약 명령. 호스트가 파일 저장소와 단일 프로세스 틱으로 조립하고 나머지는 [미결]로 둔다.
 
 ### 4.5 원격 제어
