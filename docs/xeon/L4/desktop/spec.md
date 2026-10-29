@@ -307,7 +307,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 | E4 | 종료할 때는 신호 전에 stdin으로 `host.shutdown` 요청을 쓰고 stdin을 닫는다. `RunEvent::ExitRequested`에서 `prevent_exit()`로 종료를 미루고, 엔진 프로세스가 끝나거나 `l4.desktop.engine.shutdownGraceMs`가 지나면 다음 단계로 넘어간다(§4.3) | adr.0008 §3.3 제안 3, arch-2 §3.3, §5 1행 | [제안]. `host.shutdown`은 F 변경 요청(§10 미결 2) |
 | E5 | 엔진은 stdin EOF를 읽으면 안전 경계에서 체크포인트하고 종료한다(stdin EOF 임대). 앱이 어떻게 끝나든 OS가 파이프 쓰기 끝을 닫으므로 앱 SIGKILL에서도 엔진이 스스로 끝난다 | adr.0008 §3.3 [결정], adr.0006 §3.7 6번 | 엔진 쪽 구현은 `L4.host-service.spec` |
 | E6 | 엔진의 cwd와 엔진에 넘기는 모든 경로를 절대 경로로 둔다. cwd는 사용자 홈 디렉터리의 절대 경로다 | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
-| E7 | 엔진 환경에서 `BUN_OPTIONS`를 지운다. 그 밖의 환경은 상속한다 | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
+| E7 | 엔진 환경에서 `BUN_OPTIONS`를 지운다. PATH에는 없는 도구 디렉터리만 뒤에 붙인다(아래 항목). 그 밖의 환경은 상속한다 | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
 | E8 | 세션 DB는 바이너리에 임베드하지 않는다. DB 위치는 엔진이 `L0.os.spec`의 사용자 데이터 디렉터리에서 정하고, 셸은 DB 경로를 넘기지 않는다. 그래야 CLI와 데스크톱이 같은 DB를 연다 | adr.0008 §3.3 제안 5, `_research/stack-status.md §7-C` 임베디드 SQLite 행 | [제안] |
 | E9 | 엔진의 손자 프로세스는 엔진과 같은 프로세스 그룹에 남아야 한다. 엔진 쪽 실행 코드가 손자를 새 그룹이나 새 세션으로 떼어 내면 E3의 그룹 종료가 그 손자에 미치지 않는다. 떼어 낸 손자는 엔진이 EOF·shutdown 처리 때 직접 정리한다 | arch-2 §3.2 그룹 범위 행 | [제안]. `L0.process.spec`에 요구 |
 | E10 | stdout은 JSON Lines 전용이다. 엔진 로그는 stderr로 쓰고, 셸은 stderr를 줄 단위로 앱 로그 파일에 남긴다. stderr 줄 길이는 8 KiB에서 자른다 | `F.wire-settings.spec` §3.1 프레이밍 | [제안] |
@@ -315,6 +315,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 - E5의 체크포인트 시한: 엔진은 EOF 뒤 `l0.process.shutdown.timeoutMs`(기본 3000ms) 안에 종료한다(`L0.process.spec` §6, `L4.host-service.spec` HS-31, HS-32). S4 측정(WSL2, 20회)에서 idle 호스트의 EOF → 종료는 중앙값 약 28 ms, 최대 61 ms였다. 기본값은 종료 경로에 충분하고, 진행 중 turn이 있을 때의 체크포인트 시간은 [미확인]이다(`L4.desktop.plan` §3.1.1 S4).
 - E8의 확인: `L0.os.spec`이 CLI와 엔진 사이드카에 같은 데이터 디렉터리를 돌려주는지는 그 문서의 수용 기준에 요구한다.
+- E7의 PATH 보강: Finder로 띄운 macOS 앱의 PATH는 `/usr/bin:/bin:/usr/sbin:/sbin`뿐이라 sops, age, rg를 찾지 못합니다. `src-tauri/src/env_path.rs`의 `augment_path`는 기존 항목과 순서를 그대로 두고, 없는 디렉터리만 이 순서로 뒤에 붙입니다: `/opt/homebrew/bin`, `/opt/homebrew/sbin`, `/usr/local/bin`, `<홈>/.local/bin`, `<홈>/.nix-profile/bin`(뒤의 둘은 홈이 있을 때만). 이미 있는 디렉터리는 중복하지 않고, 빈 항목은 버립니다. PATH 키가 없으면 붙인 디렉터리만 담은 키를 맨 뒤에 넣습니다. 붙일 수 없는 값이면 원래 PATH를 씁니다. 엔진과 `xeon secret` 자식(§4.14.1)이 같은 함수를 씁니다. 홈은 E6의 작업 디렉터리입니다.
 
 ### 4.2 기동 순서
 
@@ -562,7 +563,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `xeon` 명령이 설치되어 있지 않
 1. 화면이 "키 등록"에서 값 없는 `secret.beginEntry`를 먼저 부른다. `started: true`(값을 호스트가 받음)면 기존 흐름대로 provider에 연결한다. `started: false`이거나 메서드가 없으면(`unsupported`) 화면 안에 등록 창을 연다.
 2. 등록 창은 제어하지 않는 `type="password"` 입력란이다. 값은 DOM 노드에만 있고 React 상태, zustand 거울, props에 들어가지 않는다. 저장을 누르면 `submitKey`가 첫 `await` 전에 입력란을 읽고 곧바로 비우며, 앞뒤 공백과 줄바꿈을 지운 뒤 UTF-8 바이트 배열 하나로 바꾼다. 취소와 창이 사라지는 것도 입력란을 비운다.
 3. WebView가 `secret_register`를 원시 바이트 본문 `<동작> <이름>\n<값>`으로 부른다(JSON 문자열에 싣지 않는다). 호출이 끝나면 그 바이트 배열을 0으로 덮는다.
-4. 셸은 본문을 검사한다(동작은 `add`·`set`, 이름은 `^[a-z][a-z0-9-]{1,63}$`라서 `-`로 시작하는 옵션이 될 수 없다, 값은 1바이트 이상 8 KiB 이하). 번들된 사이드카를 인자 `secret <동작> <이름>`으로 실행한다. 작업 폴더와 환경은 엔진과 같다(홈, `BUN_OPTIONS`만 제거). 그러므로 CLI와 사이드카가 같은 OS 디렉터리를 보고 같은 비밀 저장소(설정 폴더의 비밀 메타 `<config>/secrets/meta`, SOPS 파일, age 키)를 쓴다. 상태 폴더의 `cli/state.json`은 CLI의 자체 상태 파일이고 비밀 저장소가 아니다.
+4. 셸은 본문을 검사한다(동작은 `add`·`set`, 이름은 `^[a-z][a-z0-9-]{1,63}$`라서 `-`로 시작하는 옵션이 될 수 없다, 값은 1바이트 이상 8 KiB 이하). 번들된 사이드카를 인자 `secret <동작> <이름>`으로 실행한다. 작업 폴더와 환경은 엔진과 같다(홈, `BUN_OPTIONS` 제거, PATH 보강은 E7). 그러므로 CLI와 사이드카가 같은 OS 디렉터리를 보고 같은 비밀 저장소(설정 폴더의 비밀 메타 `<config>/secrets/meta`, SOPS 파일, age 키)를 쓴다. 상태 폴더의 `cli/state.json`은 CLI의 자체 상태 파일이고 비밀 저장소가 아니다.
 5. 셸은 요청 본문의 값 조각을 복사하지 않고 자식 stdin에 한 번 쓰고 닫는다(EOF). CLI는 stdin이 TTY가 아니면 EOF까지 읽고 끝의 줄바꿈 하나를 지운다(`L4.cli.spec` §4.7, 상한 64 KiB). 셸 쪽 값 상한 8 KiB는 파이프 버퍼보다 작게 두어 자식이 읽지 않고 끝나도 쓰기가 막히지 않게 한다.
 6. 셸은 자식이 끝나기를 30초까지 기다린다. 넘으면 프로세스 그룹째 끝낸다(자식이 부른 sops와 age 포함). 종료 코드 0이면 성공이다. 아니면 `rejected`이고 `detail`에 자식 stderr의 앞부분(600자)을 싣는다. CLI의 오류 문구는 값을 담지 않는다. 그래도 자식 출력에 값이 그대로 들어 있으면 `detail`을 비운다.
 7. 성공하면 화면은 provider를 연결하고 `secret.list`를 다시 읽어 "등록됨"을 보인다.
@@ -627,6 +628,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | WebKitGTK가 설치되지 않은 Linux | 앱이 뜨지 않는다. 패키지 의존(`L4.desktop.plan` §3 D10)으로 막는다 |
 | WSL에서 WSLg가 없음 | [미결] 지원 범위(§10 미결 9). 지원하지 않으면 시작 시 안내 문구를 띄운다 |
 | 데스크톱 설정 파일 손상 | 그 값을 건너뛰고 기본값을 쓴다. 진단을 남긴다(`F.wire-settings.spec` §4.8 파일 값 규칙과 같다) |
+| Finder로 띄운 앱에서 sops, age, rg를 찾지 못함 | PATH 보강(E7)으로 Homebrew와 `~/.local/bin`, `~/.nix-profile/bin`을 찾습니다. 그래도 없으면 키 등록은 `rejected`로 끝나고 자식의 오류 문구를 보입니다(§4.14.1) |
 
 ## 6. 설정 노출
 
@@ -689,7 +691,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - D-08. 셸 로그와 앱 로그 파일에 프레임 내용이 없다. 비밀 참조를 담은 `settings.get` 응답을 릴레이한 뒤 로그에 `secret://` 문자열과 그 해석 값이 없다.
 - D-09. `engine_write`에 이전 세대 번호를 주면 거부되고 엔진 stdin에 아무것도 쓰이지 않는다.
 - D-10. 트레이 유지 모드에서 창을 닫으면 WebView 엔진 프로세스가 0개가 되고, 진행 중 turn은 계속되며, 창을 다시 열면 D-04와 같이 이어진다.
-- D-11. 엔진 프로세스 환경에 `BUN_OPTIONS`가 없고 cwd가 절대 경로다.
+- D-11. 엔진 프로세스 환경에 `BUN_OPTIONS`가 없고 cwd가 절대 경로다. PATH에 Finder 기본 경로 뒤로 도구 디렉터리가 붙고(E7), 이미 있는 항목은 중복되지 않는다.
 - D-12. `check-layers.ts` 앱 내부 규칙이 W1·W2·W6 위반 샘플 import를 거부한다.
 - D-13. 두 번째 앱 실행은 첫 인스턴스의 메인 창을 앞으로 가져오고 스스로 끝난다. 엔진이 둘 뜨지 않는다(`window.rs` 시험은 창 조회와 레이블 일치까지, 실제 두 프로세스 확인은 Mac에서 한다).
 - D-14. 릴리스 빌드에는 점검 소켓과 `viewport.snapshot`이 없다(§4.15 릴리스 확인).

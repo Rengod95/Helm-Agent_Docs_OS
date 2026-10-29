@@ -78,6 +78,7 @@ xeon/apps/desktop/
       relay.rs                    # 줄 버퍼, 신용, stdin 쓰기 스레드, 셸 명령 engine_* (spec §3.3)
       secret_entry.rs             # 키 등록: 번들 사이드카를 `xeon secret add|set`으로 한 번 실행, 값은 stdin에만 (spec §4.14.1)
       applog.rs                   # 앱 로그 파일(바이트 수만 기록, E11)
+      env_path.rs                 # 엔진과 키 등록 자식의 PATH 보강(Finder 기본 경로에 도구 디렉터리 덧붙임, spec E7)
       time.rs                     # RFC 3339 UTC 문자열
   test/
     transport-conformance-stdio.int.test.ts
@@ -512,6 +513,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 | app-exit-no-sidecar | `test/e2e/exit.e2e.test.ts` | e2e | 앱 창 닫기 뒤 사이드카와 손자가 없다 | D-01 | M2 |
 | tray-close-no-webview | `test/e2e/tray-close.e2e.test.ts` | e2e | `closeBehavior: "tray"`에서 창을 닫으면 WebView 엔진 프로세스가 0개이고 진행 중 turn이 계속되며, 창을 다시 열면 저장 위치부터 이어 받는다 | D-10 | M2 |
 | engine-env-sanitized | `src-tauri/src/engine.rs` 안 Rust 테스트 | unit(cargo) | spawn 명령 구성 함수가 만든 환경에 `BUN_OPTIONS`가 없고, cwd와 넘기는 모든 경로가 절대 경로다 | D-11, E6, E7 | M2 |
+| env-path-augment | `src-tauri/src/env_path.rs`와 `engine.rs` 안 Rust 테스트 | unit(cargo) | Finder 기본 PATH 뒤에 도구 디렉터리가 정해진 순서로 붙고, 이미 있는 항목은 중복 없이 제자리에 남고, 사용자 항목이 앞에 남고, 홈이 없으면 고정 디렉터리만 붙고, 빈 PATH는 붙인 디렉터리만 되고, 이어 붙일 수 없으면 원래 값이다. `engine_env`는 PATH 값을 바꾸고 없으면 맨 뒤에 넣는다 | E7, §4.14.1 | M3b(m2c-04 a) |
 | check-layers-app-rules | `xeon/scripts/check-layers.test.ts`(툴체인 담당에 요청, 위치는 §2 스크립트 위치 미결과 같음) | unit | W1·W2·W6 위반 샘플 import(전송 → 화면, `@tauri-apps/*`를 허용 파일 밖에서 import, `@xeon/host` import)를 앱 내부 규칙이 거부한다 | D-12 | M2 |
 
 - `e2e` 태그는 `just verify`에서 제외한다(`eng.testing.guide` TS-01 표). CI에서 수동 실행과 야간 실행으로 둔다.

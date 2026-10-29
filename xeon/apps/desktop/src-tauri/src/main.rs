@@ -6,6 +6,7 @@
 
 mod applog;
 mod engine;
+mod env_path;
 #[cfg(debug_assertions)]
 mod inspect;
 mod relay;
