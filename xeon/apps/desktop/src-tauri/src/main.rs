@@ -47,6 +47,12 @@ fn main() {
         ])
         .setup(|app| {
             let log = Arc::new(AppLog::open(app.path().app_log_dir().ok().as_deref()));
+            // 시작 줄. 이름과 버전만 쓴다(경로, 프레임 내용 없음, E11). 디버그 로그 파일이 비지 않게 한다.
+            log.line(&format!(
+                "{} {} started",
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION")
+            ));
             let relay = Arc::new(Relay::new(EngineState::Stopped));
             let runtime = tauri::async_runtime::handle().inner().clone();
             let launcher = TauriLauncher::new(app.handle().clone(), runtime.clone());
@@ -151,6 +157,7 @@ fn install_signal_handlers(
 }
 
 /// 디버그 전용 로그 플러그인: 로그 폴더(`LogDir`)의 파일과 표준 출력. 파일은 하나만 두고 2 MB에서 새로 시작한다.
+/// 받는 줄은 `AppLog::line`이 `log` 크레이트로 내는 줄과 시작 줄이다(spec §4.15 로그 파일 행).
 #[cfg(debug_assertions)]
 fn debug_log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
