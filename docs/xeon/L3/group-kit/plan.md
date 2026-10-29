@@ -340,7 +340,7 @@ M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`
 | plan ID | 상태 | 비고 |
 |---|---|---|
 | G-17 | 완료 | `GroupMetricsHandle.addUsage`(LR-17), `on` 래퍼의 `denies`·`chainPatches`·`handlerErrors`, `summarizeUsage`(`metrics/usage.ts`, lease.*·turn.* 이벤트 집계), 기본 등록부(`metrics/registry.ts`), `refreshUsage`와 `/group status` 갱신, 단계 경계 기록(`metrics/record.ts`, `grp.<그룹>.metrics.recorded`). 시험은 `test/metrics.test.ts`, `test/metrics-record.test.ts`, `test/metrics-status.test.ts` |
-| LR-17 | 연결 가능 | 학습 그룹은 `addUsage`로 토큰과 비용을 더할 수 있다. 학습 그룹 코드 연결은 이 단계에 없다(학습 spec §10 17) |
+| LR-17 | 연결됨 (B4-GRP) | 학습 그룹이 검토 종료 때 `addUsage`로 토큰과 비용을 더한다(학습 spec §10 17) |
 
 M3b에서 정한 것은 L3.group-kit.spec §4.9와 §10에 적었다. 기록은 그룹의 `boundary.settle.after` 핸들러 안에서 경계마다 증가분만 쓴다. 별도 핸들러로 쓰면 같은 scope의 호출 키가 겹쳐 그룹 기록이 거부된다(§10).
 

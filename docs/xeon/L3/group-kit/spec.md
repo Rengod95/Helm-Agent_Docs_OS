@@ -1345,5 +1345,5 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [결정: 오케스트레이터 기본값, B4-GRP] 계측 쓰기 실패는 그룹 핸들러의 실패가 아니다(§4.9). 실패 원인은 저장하지 않는다. 실패를 세는 카운터는 spec에 없어 넣지 않았다. 실패한 증가분은 다음 기록에 든다.
 - [결정: 오케스트레이터 기본값, M3b] 별도 `boundary.settle.after` 핸들러로 쓰는 안은 같은 scope의 호출 키 충돌로 학습 그룹의 기록을 거부시켰다(시험 6건). 그래서 기록은 그룹 핸들러 안에서 쓴다(§4.9).
 - [미결] M3b의 이벤트 집계는 마지막으로 갱신한 thread만 보인다. 여러 thread의 임대 시간과 비용을 한 줄로 보일지는 정하지 않았다.
-- [미결] 학습 그룹의 `addUsage` 연결(LR-17)은 이 변경에 없다. 학습 스펙 §10 17이 연결 가능 상태를 적는다.
+- (닫힘) [B4-GRP] 학습 그룹의 `addUsage` 연결(LR-17)은 학습 스펙 §10 17에 따라 검토 종료 때 연결했다.
 - [결정: review.decisions-2 U-17] `group-kit`의 `@xeon/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 그룹 패키지는 `@xeon/ext-host`를 import하지 않는다(L3.readme §3).

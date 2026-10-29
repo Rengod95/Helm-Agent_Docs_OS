@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import type { AgentSettledEventPayload } from "@xeon/contracts/records";
 import { fakeAgents } from "@xeon/group-kit/testing";
+import { defaultMetricsRegistry } from "@xeon/group-kit";
 import { createTestHost } from "@xeon/ext-host/testing";
 import { NEW_SKILL, startReview, submit } from "./support/flow.ts";
 import { rigOn } from "./support/rig.ts";
@@ -69,6 +70,31 @@ test("settled.usage-is-recorded-in-the-review-row", async () => {
   expect(review.rig.payloads("grp.learning.review.finished")[0]).toMatchObject({
     inputTokens: 1200,
     outputTokens: 340,
+  });
+});
+
+test("settled.usage-counts-into-group-metrics-once: the review usage is added to g.metrics once, even when the same agent.settled comes twice", async () => {
+  const review = await startReview();
+  const metrics = defaultMetricsRegistry.get("learning");
+  expect(metrics?.snapshot()).toMatchObject({
+    tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    costUsd: 0,
+  });
+  const usage = {
+    input: 1200,
+    output: 340,
+    cacheRead: 800,
+    cacheWrite: 50,
+    totalTokens: 2390,
+    cost: { input: 0.0012, output: 0.0017, cacheRead: 0.0002, cacheWrite: 0.0001, total: 0.0032 },
+  };
+  await review.rig.settle(review.requestId, "completed", { usage });
+  // 같은 정착 통지가 다시 와도 종료는 한 번이고, 사용량도 한 번만 더해진다
+  await review.rig.settle(review.requestId, "completed", { usage });
+  expect(review.rig.events("grp.learning.review.finished")).toHaveLength(1);
+  expect(metrics?.snapshot()).toMatchObject({
+    tokens: { input: 1200, output: 340, cacheRead: 800, cacheWrite: 50 },
+    costUsd: 0.0032,
   });
 });
 

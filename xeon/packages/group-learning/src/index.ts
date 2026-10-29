@@ -90,7 +90,7 @@ export function createLearningGroup(deps: LearningDeps): GroupModule {
         settings,
         knowledge,
       });
-      const env: HandlerEnv = { g, deps, settings, writer };
+      const env: HandlerEnv = { g, deps, settings, writer, countedReviews: new Set<string>() };
       registerTriggers(env);
       registerSettledWatch(env);
       g.registerTool(

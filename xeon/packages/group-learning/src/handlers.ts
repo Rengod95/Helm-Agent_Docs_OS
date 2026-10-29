@@ -5,9 +5,10 @@ import {
   type ThreadId,
   type TurnId,
   type TurnOrigin,
+  type Usage,
 } from "@xeon/contracts/conversation";
 import type { AgentSettledPayload, HandlerContext } from "@xeon/contracts/extensions";
-import type { GroupApi } from "@xeon/group-kit";
+import type { GroupApi, GroupUsageDelta } from "@xeon/group-kit";
 import type { LearningDeps } from "./deps.ts";
 import type { LearningWriter } from "./proposals/ops.ts";
 import { eventKindOf, payloadOf } from "./proposals/events.ts";
@@ -35,6 +36,11 @@ export interface HandlerEnv {
   readonly deps: LearningDeps;
   readonly settings: () => Result<LearningSettings, SettingsUnavailable>;
   readonly writer: LearningWriter;
+  /**
+   * 사용량을 이미 계측에 더한 검토 id(프로세스 메모리, 그룹 인스턴스마다 하나). 같은 프로세스에서 같은 검토의
+   * 종료가 다시 불려도 사용량을 한 번만 더한다. 재시작 뒤에는 새 인스턴스에서 다시 센다(계측 카운터도 프로세스 메모리다)
+   */
+  readonly countedReviews: Set<string>;
 }
 
 /** 열린 turn의 집계표. 프로세스 메모리에만 둔다(효과가 아니다, §4.2) */
@@ -60,6 +66,19 @@ export function writerOf(g: LearningApi): LearningWriter {
     event: (event) => g.recordPrivate(eventKindOf(event), payloadOf(event)),
     record: (draft) => g.record(draft.kind, draft.subject, draft.payload),
   };
+}
+
+/** 검토 사용량을 계측 증가분으로 바꾼다. 사용량이 없으면(`settleInFlight` 경로) 모두 0이다 */
+function usageDeltaOf(usage: Usage | null): GroupUsageDelta {
+  return usage === null
+    ? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0 }
+    : {
+        input: usage.input,
+        output: usage.output,
+        cacheRead: usage.cacheRead,
+        cacheWrite: usage.cacheWrite,
+        costUsd: usage.cost.total,
+      };
 }
 
 function usageTokens(usage: { readonly input: number; readonly output: number } | null): {
@@ -102,6 +121,11 @@ async function finishReview(
       ...tokens,
     }),
   );
+  // 그룹 계측(LR-17): 검토 사용량을 한 번만 더한다. 커밋 전에 다시 불려도 이 검토는 프로세스 안에서 한 번만 센다
+  if (!env.countedReviews.has(settled.requestId)) {
+    env.countedReviews.add(settled.requestId);
+    g.metrics.addUsage(usageDeltaOf(settled.usage));
+  }
   // 커밋은 마지막이다. 직전에 다시 읽어 선후 경합을 본다(§4.3)
   const latest = g.state();
   const next = reviewFinishOutcome(latest, settled);
