@@ -35,8 +35,8 @@ beforeEach(() => {
   calls.fetch = 0;
   calls.webSocket = 0;
   originals = {
-    fetch: Reflect.get(globalThis, "fetch"),
-    WebSocket: Reflect.get(globalThis, "WebSocket"),
+    fetch: globalThis.fetch,
+    WebSocket: globalThis.WebSocket,
   };
   Reflect.set(globalThis, "fetch", () => {
     calls.fetch += 1;

@@ -41,7 +41,7 @@ describe("convert worker", () => {
       ],
     });
     // 이 프로세스의 전역은 그대로다
-    expect(typeof Reflect.get(globalThis, "fetch")).toBe("function");
+    expect(typeof globalThis.fetch).toBe("function");
     expect(typeof Bun.fetch).toBe("function");
     expect(typeof Bun.connect).toBe("function");
   });
