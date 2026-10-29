@@ -56,7 +56,7 @@ export function fakeSandbox(options: FakeSandboxOptions = {}): FakeSandbox {
 
   const wrappedArgv: { request: SandboxArgvRequest; policy: SandboxPolicy }[] = [];
 
-  /** 격리하지 않고 요청 그대로의 argv를 돌려준다. 판정은 실제 규칙을 쓰고, cleanup 호출 수를 센다 */
+  /** 격리하지 않고 요청 그대로의 argv를 돌려준다. 판정은 실제 규칙을 쓴다. cleanup은 아무 일도 하지 않는다 */
   const wrapArgv: SandboxService["wrapArgv"] = (policy, request) => {
     wrappedArgv.push({ request, policy });
     const decision = decideExecution(status, policy, false);
