@@ -125,7 +125,7 @@ function routingDef(
   readonly allowedScopes: typeof MUPLoS;
   readonly ui: {
     readonly tab: "models";
-    readonly widget: "table";
+    readonly widget: "text";
     readonly order: number;
     readonly label: string;
   };
@@ -136,7 +136,7 @@ function routingDef(
     default: null,
     runtimeChange: "nextTurn",
     allowedScopes: MUPLoS,
-    ui: { tab: "models", widget: "table", order, label },
+    ui: { tab: "models", widget: "text", order, label },
     since: "0.1.0",
   };
 }
