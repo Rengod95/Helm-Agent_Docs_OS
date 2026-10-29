@@ -24,6 +24,10 @@ import {
   SecretNameSchema,
   SecretUsePolicySchema,
   SecretScopeSchema,
+  ScheduleCancelInputSchema,
+  ScheduleCreateInputSchema,
+  ScheduleFireInputSchema,
+  ScheduleListInputSchema,
   SemVerSchema,
   type SemVer,
 } from "../../capabilities/index.ts";
@@ -76,6 +80,12 @@ import {
   StatusListResultSchema,
 } from "./status-notify.ts";
 import { WebProvidersParamsSchema, WebProvidersResultSchema } from "./web-providers.ts";
+import {
+  ScheduleCancelResultSchema,
+  ScheduleCreateResultSchema,
+  ScheduleFireResultSchema,
+  ScheduleListResultSchema,
+} from "./schedule.ts";
 import {
   SettingsReadFileParamsSchema,
   SettingsReadFileResultSchema,
@@ -1479,6 +1489,22 @@ interface WireSchemas {
     params: typeof ProposalDecideRequestSchema;
     result: typeof ProposalDecideResultSchema;
   };
+  "schedule.create": {
+    params: WithMeta<typeof ScheduleCreateInputSchema>;
+    result: typeof ScheduleCreateResultSchema;
+  };
+  "schedule.list": {
+    params: WithMeta<typeof ScheduleListInputSchema>;
+    result: typeof ScheduleListResultSchema;
+  };
+  "schedule.cancel": {
+    params: WithMeta<typeof ScheduleCancelInputSchema>;
+    result: typeof ScheduleCancelResultSchema;
+  };
+  "schedule.fire": {
+    params: WithMeta<typeof ScheduleFireInputSchema>;
+    result: typeof ScheduleFireResultSchema;
+  };
 }
 
 /** 메서드 이름 → { params, result } 정적 타입. 스키마에서 Static으로 만든다 */
@@ -1609,6 +1635,10 @@ export const WIRE_METHODS: {
   "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
   "proposal.list": spec(withMeta(ProposalListParamsSchema), ProposalListResultSchema, "M3"),
   "proposal.decide": spec(ProposalDecideRequestSchema, ProposalDecideResultSchema, "M3"),
+  "schedule.create": spec(withMeta(ScheduleCreateInputSchema), ScheduleCreateResultSchema, "M3"),
+  "schedule.list": spec(withMeta(ScheduleListInputSchema), ScheduleListResultSchema, "M3"),
+  "schedule.cancel": spec(withMeta(ScheduleCancelInputSchema), ScheduleCancelResultSchema, "M3"),
+  "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
 };
 
 export const WIRE_NOTIFICATIONS: {

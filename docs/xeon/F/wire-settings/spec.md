@@ -339,6 +339,10 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 | proposal | `proposal.list` | `{ source?: "learning"\|"knowledge", status?: ProposalStatusWire[], limit?: integer(1..200), cursor?: string }` | `{ proposals: ProposalRow[], nextCursor: string \| null, unavailable: ProposalSource[] }` | M3 |
 | proposal | `proposal.decide` | `{ source, id: string, decision: "approve", revision: integer, scope?: "user"\|"project" }`, `{ source, id, decision: "reject", note?: string }`, `{ source, id, decision: "edit", revision: integer, body: string }`, `{ source, id, decision: "revert" }` | `{ ok: true, proposal: ProposalRow, applied: boolean }`, `{ ok: false, reason: ProposalDecideFailure, detail?: string }` | M3 |
+| schedule | `schedule.create` | `{ trigger: ScheduleTrigger, prompt: string(1..20000), workspace?: string(최대 4096), title?: string(1..200), enabled?: boolean }` | `{ ok: true, entry: ScheduleEntryView, warnings: "service_mode_off"[] }`, `{ ok: false, error: ScheduleError }` | M3 |
+| schedule | `schedule.list` | `{ enabled?: boolean }` | `{ ok: true, items: ScheduleListItem[](최대 200) }`, `{ ok: false, error: ScheduleError }` | M3 |
+| schedule | `schedule.cancel` | `{ scheduleId: ScheduleId }` | `{ ok: true, entry: ScheduleEntryView }`, `{ ok: false, error: ScheduleError }` | M3 |
+| schedule | `schedule.fire` | `{ scheduleId: ScheduleId }` | `{ ok: true, run: RunView }`, `{ ok: false, error: ScheduleError }` | M3 |
 
 - [결정: review.m3-design-inputs D-M3-32 a, M3-REQ-18] 지식 제안 대기열 wire(`proposal.*`, `wire/proposals.ts`). 대기열은 둘이다: 학습 그룹의 `x_learning_proposals`(`source: "learning"`)와 L2.knowledge의 쓰기 승인 대기열 `cap_knowledge_proposals`(`source: "knowledge"`). 이 wire는 두 출처를 한 목록으로 보이는 조회와 결정이고, 대기열을 하나로 합치지 않는다.
   - `proposal.list`는 두 출처를 `createdAt` 내림차순(같으면 `(source, id)` 오름차순)으로 합친다. `ProposalRow`는 두 출처가 같은 모양이다: `source`, `id`, `kind`(`skill`, `memory`, `feedback`, `script`), `op`, `target`, `status`(두 대기열 상태의 합집합: `pending`, `approved`, `applied`, `rejected`, `stale`, `expired`, `reverted`), `destructive`, `diff`, `rationale`, `evidence`, `conflictsWith`, `reason`, `revision`, `scope`, `afterUntrusted`, `createdAt`. 출처에 없는 필드는 빈 값(null, false, 빈 배열, `revision` 1)이다. 한 출처를 읽지 못하면(지식 저장소 없음 등) 그 출처만 `unavailable`에 올리고 나머지 행은 돌려준다. `source`와 `status` 필터는 서버가 건다.
@@ -398,6 +402,12 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   }, { additionalProperties: false });
   ```
 
+- [결정: M3b B1-SCH2] `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`는 예약 항목을 만들고, 읽고, 끄고, 원격으로 한 번 실행하는 메서드다(`wire/schedule.ts`, `L2.schedule.spec` §4.4.9). 능력 `schedule.entries`(`capabilities/defs/schedule.ts`)가 입력과 모델 도구를 정하고, params는 그 능력 입력에 `_meta`를 더한 것이다. 능력 ID는 §3.5의 `schedule.timers`(cron 식)와 다른 능력이다.
+  - 기대한 실패는 JSON-RPC 오류가 아니라 `ok: false`의 `error`(`kind`)다. `proposal.decide`와 같은 규칙이다. `kind`는 `interval_too_short`, `at_in_past`, `invalid_trigger`, `limit_reached`, `not_found`, `not_remote`, `disabled`, `store_failed` 여덟이고, `ScheduleError`는 엔진의 `CreateError`, `CancelError`, `FireError`의 합집합이다.
+  - 트리거는 `interval`, `at`, `file_watch`, `remote`, `loop` 다섯 모양이고 각 모양은 정해진 필드만 받는다. 간격 최소값 300초와 켜진 예약 수 상한은 스키마가 아니라 엔진이 검사한다.
+  - `schedule.list`만 읽기 전용이다(`readOnly`, `replay: "safe"`). `create`, `cancel`, `fire`는 효과가 있는 쓰기이고 `requestId` 기억이 없어 멱등으로 분류하지 않는다(ADR-0015 §3.3). 같은 생성 요청을 두 번 받으면 항목이 두 개 생긴다.
+  - `schedule.create`의 `warnings`는 지금 `service_mode_off` 하나를 받는다. `L2.schedule.spec` §4.4.6은 `keepWithWarning`의 경고를 `runs_only_while_app_open`이라 적는다. 두 이름을 맞추는 일은 [미결]이다(§10).
+  - 모델 도구 `schedule_create`는 `everySeconds`(정수)나 `at`(RFC 3339 날짜시각) 가운데 하나만 받는다. 둘 다 없거나 둘 다 있거나 `at`을 읽지 못하면 메서드 입력 검사가 `invalid_input`으로 거부한다.
 - [제안] M1 범위는 브리프의 최소 셋(`turn.start`, `events.subscribe`, `settings.get`)에 선행 조건 둘(`host.hello`, `thread.create`)을 더한다. 대화를 시작하려면 thread가 있어야 하고, 모든 연결은 hello로 시작하기 때문이다.
 - [제안] `thread.open`을 추가했다. `_research/process.md` §6.3의 세션 단위 쓰기 소유 규칙을 계약에 드러내기 위해서다. 소유 잠금을 얻지 못하면 `thread.locked`(§3.5.2) 오류에 대안(관찰, 분기, 위임)을 싣는다. in-process 단일 클라이언트인 M1에서는 `thread.create`가 소유를 함께 얻는다.
 - [결정: m2 F.2] `thread.read`는 열린 thread의 스냅샷을 돌려주는 읽기 전용 메서드다(L4.desktop 상태 설계 §14 1번). `thread.open` 결과에 items를 싣지 않고 새 메서드를 둔 이유는 셋이다. 첫째, `thread.open`은 쓰기 소유 획득이라는 부작용이 있어서 소유 없이 관찰하는 thread나 재동기화 때마다 부르기에 맞지 않다. 둘째, 스냅샷은 재설정과 재구독마다 다시 읽는데 `thread.open`은 열 때 한 번 부르는 메서드다. 셋째, 긴 thread는 앞부분을 나눠 받아야 해서 `limit`과 `before`가 필요하다. `thread.read`는 소유를 얻지 않고 닫힌 thread도 읽는다. `items`는 현재 가지의 내구 `ItemRecord`를 오래된 것부터 담고, `position`은 그 items가 반영한 저장소 위치다. 이어 붙이는 규칙은 §3.4.6이다.
@@ -1406,6 +1416,7 @@ wire:
 - A16. `createHostConnection`과 `createStdioTransport`는 `@xeon/contracts/wire`의 같은 구현을 CLI, 호스트, 데스크톱이 쓴다. 이 구현의 소스는 Bun·Node 모듈을 import하지 않는다. `HostConnection.notify`는 `$/connectionReset`을 id 없는 알림으로 보낸다.
 - A17. `approval.respond`의 `answer`는 `QuestionAnswer`, `{ mode?, note? }`, `{ feedback }`, `ReviewAnswer` 가운데 하나여야 한다. 질문 id 아래 문자열 하나만 둔 값이나 `AskAnswer` 배열 모양은 `-32602`다.
 - A18. `web.providers`의 결과는 값으로 왕복한다. `capability`가 `web.search`, `web.fetch`, `web.browse`가 아니거나 `status.kind`가 `ok`, `unavailable`이 아니거나 필드가 빠지면 거부된다. 결과와 항목의 속성 이름에는 키나 토큰을 담을 이름이 없고, 알 수 없는 필드는 거부된다(M3-REQ-96).
+- A19. `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`의 params는 능력 입력에 `_meta`를 더한 모양이고 알 수 없는 필드를 거부한다. 트리거 다섯 모양은 정해진 필드만 받고 `atMs: 0`은 거부된다. 결과의 `ok: false`는 `ScheduleError`의 여덟 `kind`를 모두 왕복한다. 네 메서드는 단계 M3다(M3b B1-SCH2).
 
 settings:
 
@@ -1433,3 +1444,4 @@ settings:
 9. [결정: m2-plan F.6] `ThreadSummary`의 필드는 §3.3.1 아래 코드로 정했다. 이어서 실행 후보는 전용 메서드 없이 `resumable` 필드로 알린다.
 10. [결정: m2c G1-08] U-04가 미룬 호스트 계약 요청은 §3.3.4 판정표로 하나씩 받거나 보류하거나 반려했다. 보류 항목은 M3 계획이 받는다. 이전에 받은 항목은 그대로다: 이어서 실행 후보는 `ThreadSummary.resumable`(미결 9), thread 오류 kind 3004~3006(§3.5.2), `secret.beginReveal`(§3.3.1 표).
 11. [결정: m2 F.2] L4.desktop 상태 설계 §14의 1번(스냅샷), 2번과 13번(대기 승인 목록)을 `thread.read`, `approval.list`로 받았다(§3.3.1, §3.4.6). 12번(로딩 신호)은 새 신호 없이 클라이언트가 요청 수명주기로 얻는다(§3.4.6 6항).
+12. [미결: M3b B1-SCH2] `schedule.create`의 `warnings` 값이다. 능력 입력과 wire는 `service_mode_off`만 받도록 정했다. `L2.schedule.spec` §4.4.6은 `keepWithWarning`의 경고를 `runs_only_while_app_open`이라 적는다. 두 이름을 하나로 맞출지(경고 값을 늘릴지, L2 문서를 고칠지) 사용자가 정한다.

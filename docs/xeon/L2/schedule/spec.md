@@ -1392,7 +1392,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 놓친 기한은 `once`로 1회만 따라잡는다. 가장 늦은 기한이 제때(120초 안)면 그것만 실행하고, 놓쳤으면 24시간 안일 때만 `missed`로 하나를 실행한다. 나머지는 요약 한 건(`skippedCount`)으로 `skipped` 기록한다. 최소 간격 300초와 시간당 실행 상한(20)은 `file_watch`·`remote` 포함 모든 트리거에 적용하고 루프의 반복 사이에는 최소 간격을 따로 두지 않는다.
 - 같은 항목의 이전 실행이 `claimed`·`started`이면 새 기한은 `overlap`으로 건너뛴다.
 - 상태(항목, 실행 기록)는 `ScheduleStore` 포트로 저장한다. claim을 저장하지 못하면 실행을 시작하지 않는다. 재시작하면 `claimed`는 같은 키(`<scheduleId>:<dueAt>`)로 다시 시작하고 `started`는 `host_exit`로 닫으며, 실행 중이던 루프는 `host_exit`로 멈추고 다시 시작하지 않는다.
-- 이 단계에 없는 것: cron 식과 시간대, `schedule.*` 기록 카탈로그와 능력 정의, 임대 기반 다중 프로세스 틱, 와이어·CLI 예약 명령. 호스트가 파일 저장소와 단일 프로세스 틱으로 조립하고 나머지는 [미결]로 둔다.
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 능력 정의와 와이어가 들어왔다. 능력 ID는 `schedule.entries`(F `capabilities/defs/schedule.ts`)이고, §3.5의 cron 기반 `schedule.timers`와 다른 능력이다. 메서드는 `create`, `list`, `cancel`, `fire`이고 모델 도구는 `schedule_create` 하나다. wire는 `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`(F `wire/schedule.ts`)다. 분류는 `list`만 읽기 전용이다. `create`, `cancel`, `fire`는 효과가 있는 쓰기로 분류하지 않는다(`requestId` 기억 전까지 멱등이 아니다, ADR-0015 §3.3).
+- 이 단계에 없는 것: cron 식과 시간대, `schedule.*` 기록(이벤트)의 생산자, 임대 기반 다중 프로세스 틱, CLI 예약 명령. 호스트가 파일 저장소와 단일 프로세스 틱으로 조립하고 나머지는 [미결]로 둔다.
 
 ### 4.5 원격 제어
 

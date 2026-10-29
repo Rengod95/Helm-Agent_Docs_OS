@@ -28,8 +28,8 @@ function readItem(n: number): Record<string, unknown> {
 }
 
 describe("WIRE_METHODS", () => {
-  test("has the 44 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(44);
+  test("has the 48 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(48);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
@@ -46,6 +46,10 @@ describe("WIRE_METHODS", () => {
       "web.providers",
       "proposal.list",
       "proposal.decide",
+      "schedule.create",
+      "schedule.list",
+      "schedule.cancel",
+      "schedule.fire",
     ]);
   });
 
