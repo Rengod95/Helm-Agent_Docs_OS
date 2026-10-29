@@ -77,7 +77,7 @@ xeon/packages/group-helm/
     fixtures/             # 가짜 explorer 응답표, 학습 레코드 픽스처, 가짜 능력 provider
 ```
 
-- import 규칙: 소스는 `@xeon/contracts`, `@xeon/group-kit`, `typebox`만 import한다. `group-kit`은 DR-02 허용 목록 `DR-02/group-kit-helm`으로 허용된 유일한 같은 층 대상이다(eng.dependency-rules.guide DR-02, [결정: review.decisions-2 U-15]). `group-learning`, `cap-*`, `core-*`, `ext-host`는 소스에서 import하지 않는다(CM-06, DR-01·DR-02).
+- import 규칙: 소스는 `@xeon/contracts`, `@xeon/group-kit`, `typebox`만 import한다. `group-kit`은 DR-02 허용 목록 `DR-02/group-kit`으로 허용된 유일한 같은 층 대상이다(eng.dependency-rules.guide DR-02, [결정: review.decisions-2 U-15]). `group-learning`, `cap-*`, `core-*`, `ext-host`는 소스에서 import하지 않는다(CM-06, DR-01·DR-02).
 - 테스트 파일은 다른 컨텍스트의 `testing` 서브패스를 import할 수 있다(eng.testing.guide §1.2, DR-14 예외 3): `@xeon/ext-host/testing`(테스트 확장 호스트), `@xeon/core-models/testing`(테이프), `@xeon/core-agents/testing`(가짜 서브에이전트 [가정]). 시계·ID 대역은 F에 `./testing` 서브패스가 없으므로 이 패키지 `test/` 안에 F `Clock`·`IdFactory` 인터페이스로 만든다 [결정: review.decisions-2 U-03].
 - 파일 단위 교체: 내부 설계가 미결인 부분(`lenses.ts`, `prompts.ts`, `signals.ts`의 판정 함수)은 공개 시그니처를 고정하고 파일 안 구현만 바꾼다(§7 위험 1).
 

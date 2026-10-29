@@ -75,7 +75,7 @@ xeon/packages/group-learning/
     fixtures/
 ```
 
-- import 허용: `@xeon/contracts`(F), `@xeon/group-kit`(DR-02 허용 목록 `DR-02/group-kit-learning`, `eng.dependency-rules.guide` DR-02, [결정: review.decisions-2 U-15]), 테스트 파일에서만 `@xeon/core-models/testing`(테이프, `eng.testing.guide` TS-04)과 각 패키지의 `testing` 서브패스(DR-14 예외, review.decisions-2 U-17). F에는 `./testing` 서브패스가 없으므로 시계·ID 대역은 이 패키지 `test/` 안에 둔다(review.decisions-2 U-03).
+- import 허용: `@xeon/contracts`(F), `@xeon/group-kit`(DR-02 허용 목록 `DR-02/group-kit`, `eng.dependency-rules.guide` DR-02, [결정: review.decisions-2 U-15]), 테스트 파일에서만 `@xeon/core-models/testing`(테이프, `eng.testing.guide` TS-04)과 각 패키지의 `testing` 서브패스(DR-14 예외, review.decisions-2 U-17). F에는 `./testing` 서브패스가 없으므로 시계·ID 대역은 이 패키지 `test/` 안에 둔다(review.decisions-2 U-03).
 - import 금지: `cap-*`(L2-d는 `g.capability(<ServiceKey>)`로만 쓴다), `core-*`(위임은 `g.delegate`로만 쓴다), `ext-host`, `platform-*`, `group-helm`(CM-06).
 - 의존 추가: 외부 npm 의존을 더하지 않는다. `typebox`는 workspace catalog의 1.3.27를 쓴다(`catalog:`, L3.group-kit.plan §4 표, eng.toolchain.guide).
 

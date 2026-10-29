@@ -36,48 +36,12 @@
     "approvedBy": "adr.0020"
   },
   {
-    "id": "DR-02/group-kit-helm",
+    "id": "DR-02/group-kit",
     "rule": "DR-02",
-    "from": "packages/group-helm",
-    "to": "@xeon/group-kit",
-    "entries": ["."],
-    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15).",
-    "approvedBy": "review.decisions-2"
-  },
-  {
-    "id": "DR-02/group-kit-testing-helm",
-    "rule": "DR-02",
-    "from": "packages/group-helm",
-    "to": "@xeon/group-kit",
-    "entries": ["./testing"],
-    "reason": "Helm tests use the group-kit test helpers replayDrive (effect counting) and scanDriveSource (L3.helm.plan H-14, H-18, H-19).",
-    "approvedBy": "L3.helm.plan"
-  },
-  {
-    "id": "DR-02/group-kit-learning",
-    "rule": "DR-02",
-    "from": "packages/group-learning",
+    "from": "packages/group-*",
     "to": "@xeon/group-kit",
     "entries": [".", "./testing"],
-    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15). The group tests use the group-kit fakes (fake agents, replayDrive) through ./testing (L3.learning.plan section 2, DR-14 exception 5).",
-    "approvedBy": "review.decisions-2"
-  },
-  {
-    "id": "DR-02/group-kit-account-rotation",
-    "rule": "DR-02",
-    "from": "packages/group-account-rotation",
-    "to": "@xeon/group-kit",
-    "entries": [".", "./testing"],
-    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15, DR-02/group-kit-* covers every group). The plugin defines its group with defineGroup and its tests use checkGroup from ./testing.",
-    "approvedBy": "review.decisions-2"
-  },
-  {
-    "id": "DR-02/group-kit-provider-anthropic-oauth",
-    "rule": "DR-02",
-    "from": "packages/group-provider-anthropic-oauth",
-    "to": "@xeon/group-kit",
-    "entries": [".", "./testing"],
-    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15, DR-02/group-kit-* covers every group). The plugin defines its group with defineGroup and its tests use checkGroup from ./testing and the group-kit settings source port.",
+    "reason": "Every L3 group (packages/group-<name>, group-kit excepted) uses the shared group definition helpers of group-kit through its entries \".\" and \"./testing\" only (review.decisions-2 U-15). Other group paths and other group-kit entries stay violations. The group templates (group-kit/templates) import the same entries.",
     "approvedBy": "review.decisions-2"
   },
   {

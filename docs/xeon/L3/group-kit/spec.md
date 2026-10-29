@@ -84,7 +84,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 
 - [결정] 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4에 스키마가 있는 이벤트와 레코드로만 한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 3, F.extensions.spec §4.8, `eng.context-map.design` CM-06).
 - [제안] `group-kit`은 `@xeon/contracts`의 서브패스(`extensions`, `records`, `capabilities`, `services`, `conversation`, `settings`)와 `@xeon/ext-host`의 `hostOf`, 리소스 정의 타입만 import한다(X.primitives.spec §3.8). `LeaseArbiterPort`·`LeaseCandidate`는 F `@xeon/contracts/extensions`(F.extensions.spec §3.2.1 `ports.ts`)에서, `GroupService`와 부속 타입은 F `@xeon/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 이 import는 DR-14의 `@xeon/ext-host` 예외(하위 층은 서비스 등록·주입 API만 쓴다)에 든다 [결정: review.decisions-2 U-17]. Cordis는 import하지 않는다(ADR-0002 3번 [결정], 4번 [제안], `eng.dependency-rules.guide` DR-11). 확장 호스트 기능은 서비스 `xeon.ext`(`ExtHost`)로 주입받는다(`eng.context-map.design` 4.1절 `group-kit` 행).
-- [결정: review.decisions-2 U-15] 그룹 패키지(`group-helm`, `group-learning`)는 `@xeon/group-kit`의 `.`만 import한다. 이 import는 `eng.dependency-rules.guide` DR-02 방법 (b)의 허용 목록 항목 `DR-02/group-kit-*`(`DR-02/group-kit-helm`, `DR-02/group-kit-learning`)이다. `group-kit`은 어떤 그룹 패키지도 import하지 않는다.
+- [결정: review.decisions-2 U-15] 그룹 패키지(`group-helm`, `group-learning`)는 `@xeon/group-kit`의 `.`만 import한다. 이 import는 `eng.dependency-rules.guide` DR-02 방법 (b)의 허용 목록 항목 `DR-02/group-kit`(`from`은 `packages/group-*`, 진입점 `.`와 `./testing`)이다. `group-kit`은 어떤 그룹 패키지도 import하지 않는다.
 - [결정: 계획 v2 규칙 2, DR-14] L3 패키지는 `cap-*`를 import하지 않는다. 능력은 `g.capability(ServiceKey)`로 쓴다(`architecture.layers.spec` 3.1절 2행, F.capabilities.spec §3.5).
 
 ### 3.2 defineGroup
@@ -1319,7 +1319,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - (닫힘) 선점 허용: X가 이름 지정에 한해 다음 경계에서 `revoked`로 회수한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). `auto`는 선점하지 않는다(§3.5 규칙 4, §4.3 4번). `auto` 우선순위 선점은 두지 않는다.
 - (닫힘) [결정: review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 둔다(F.capabilities.spec §3.12, 이 문서 §3.8). `eng.context-map.design` §5.3의 F 위치 열은 그 문서 쪽에서 services로 고친다.
 - [결정: 오케스트레이터 기본값] 템플릿 위치: `xeon/packages/group-kit/templates/`(L3.slots.spec §3.3.1, B4-GRP 구현). `eng.context-map.design` C-2의 문서 쪽 반영은 그 문서의 몫이다. 이 문서와 L3.group-kit.plan §2는 L3.slots.plan §2.1 후보 a(`xeon/packages/group-kit/templates/`, 정식 예는 `src/testing/policies/`)를 [제안]으로 따른다. 스캐폴드 명령의 실행은 L4.cli.spec이 맡는다(L3.slots.spec §3.3.6).
-- [결정: review.decisions-2 U-15] DR-02 방법 (b)(허용 목록 `DR-02/group-kit-*`). `eng.context-map.design` C-5와 같은 항목이다.
+- [결정: review.decisions-2 U-15] DR-02 방법 (b)(허용 목록 `DR-02/group-kit`). `eng.context-map.design` C-5와 같은 항목이다.
 - (닫힘) 정책 포트 타입 `LeaseArbiterPort`·`LeaseCandidate`의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. group-kit은 `@xeon/contracts/extensions`에서 가져온다. 역할 분담은 §3.5 표로 정했다.
 - (닫힘) X에 요청한 4개 항목(§3.13)은 X.1과 테스트 호스트 재시작으로 반영됐다. 2차 계측·승격 집계용 조회(§3.13 5번)만 남았다.
 - [미결] M2 구현이 남긴 연결: 설정 읽기 포트 `GroupSettingsSourceKey`(`xeon.settings`), `DriveHolderSettingsPort`, `GroupCatalogPort`는 조립 루트(HOST)가 설정 서비스와 로더 보고에 연결한다. 그 전까지 시험은 `memoryDriveHolderSettings`, `groupCatalogOf`를 쓴다.

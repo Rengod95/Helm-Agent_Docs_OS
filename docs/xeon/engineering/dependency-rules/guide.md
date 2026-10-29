@@ -155,7 +155,7 @@ import { resolveModel } from "@xeon/core-models";     // DR-02: 같은 L1
 import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
 ```
 
-- [결정: review.decisions-2 U-15] `group-kit`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-kit` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-kit-helm`, `DR-02/group-kit-learning`으로 기록한다. `group-kit`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
+- [결정: review.decisions-2 U-15] `group-kit`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-kit` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-kit` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/group-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 그룹과 `group-kit`의 나머지 경로는 위반이다. `group-kit`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
 
 ### DR-03 모든 패키지는 `package.json`에 `"xeon": {"layer", "domain"}`을 두고, 값은 위치와 맞아야 한다
 
@@ -556,7 +556,7 @@ const dir = process.platform === "darwin"
   2. 조립 루트 `apps/host`는 플러그인을 등록하려고 모든 패키지를 import한다. `apps/cli`는 엔진 조립 코드를 `apps/host`에서 가져온다(DR-10, 허용 목록 `DR-10/cli-host`).
   3. 테스트 파일(DR-08의 정의: `src/**/*.test.ts`, `test/**`)만 다른 컨텍스트 패키지의 `testing` 서브패스를 import한다. 공용 가짜가 L0 인터페이스 구현이기 때문이다(`eng.testing.guide` TS-05, TS-07). 패키지의 `src/testing/**` 소스는 이 예외에 들지 않는다.
   4. X 위의 패키지(L0~L4, `plugins/*`)는 `@xeon/ext-host`를 import할 수 있다. 쓸 수 있는 것은 서비스 등록·주입 API(`ExtHost.registerPlatform`, `PlatformModule`, `hostOf`, 포트 제공 등 `X.primitives.spec` §3.2가 공개한 이름)뿐이다. 확장 지점 디스패치와 4연산은 F 타입(DR-12)으로 쓴다.
-  5. 4절 허용 목록의 `DR-02/group-kit-*` 쌍은 DR-14도 허용한 것으로 본다.
+  5. 4절 허용 목록의 `DR-02/group-kit` 항목은 DR-14도 허용한 것으로 본다.
 
 이유:
 
@@ -702,7 +702,7 @@ export const AllowEntry = Type.Object({
   /** "<규칙ID>/<이름>" 꼴. 예: "DR-02/group-kit", "TS-05/<모듈 이름>" */
   id: Type.String({ pattern: "^(?:DR|TS)-\\d{2}/[a-z0-9-]+$" }),
   rule: Type.String({ pattern: "^(?:DR|TS)-\\d{2}$" }),
-  /** 예외가 적용되는 import 쪽 패키지 디렉터리 */
+  /** 예외가 적용되는 import 쪽 패키지 디렉터리. 끝에 `*`가 붙으면 `packages/group-*`처럼 가족 패턴이다(마지막 이름 한 단계) */
   from: Type.String(),
   /** 허용하는 대상: 워크스페이스 패키지 이름 또는 외부 모듈 지정자 */
   to: Type.String(),
@@ -721,30 +721,12 @@ export const AllowList = Type.Array(AllowEntry);
 ```json
 [
   {
-    "id": "DR-02/group-kit-helm",
+    "id": "DR-02/group-kit",
     "rule": "DR-02",
-    "from": "packages/group-helm",
-    "to": "@xeon/group-kit",
-    "entries": ["."],
-    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15).",
-    "approvedBy": "review.decisions-2"
-  },
-  {
-    "id": "DR-02/group-kit-testing-helm",
-    "rule": "DR-02",
-    "from": "packages/group-helm",
-    "to": "@xeon/group-kit",
-    "entries": ["./testing"],
-    "reason": "Helm tests use the group-kit test helpers replayDrive (effect counting) and scanDriveSource (L3.helm.plan H-14, H-18, H-19).",
-    "approvedBy": "L3.helm.plan"
-  },
-  {
-    "id": "DR-02/group-kit-learning",
-    "rule": "DR-02",
-    "from": "packages/group-learning",
+    "from": "packages/group-*",
     "to": "@xeon/group-kit",
     "entries": [".", "./testing"],
-    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15). The group tests use the group-kit fakes (fake agents, replayDrive) through ./testing (L3.learning.plan section 2, DR-14 exception 5).",
+    "reason": "Every L3 group uses the shared group definition helpers of group-kit through its entries \".\" and \"./testing\" only (review.decisions-2 U-15).",
     "approvedBy": "review.decisions-2"
   },
   {
@@ -795,7 +777,7 @@ export const AllowList = Type.Array(AllowEntry);
 ]
 ```
 
-- 위 여섯 항목(DR-02 둘, DR-10 넷. `DR-10/*-client` 셋은 [결정: adr.0020]으로 더했다)과 테스트 한정 `DR-07/*-test-spawn` 항목이 이 문서가 미리 승인하는 예외의 전부다. `plugins/*`의 같은 층 예외는 두지 않는다([결정: review.decisions-2 U-16]).
+- 위 다섯 항목(DR-02 하나, DR-10 넷. `DR-10/*-client` 셋은 [결정: adr.0020]으로 더했다)과 테스트 한정 `DR-07/*-test-spawn` 항목이 이 문서가 미리 승인하는 예외의 전부다. `plugins/*`의 같은 층 예외는 두지 않는다([결정: review.decisions-2 U-16]).
 - 테스트 한정 프로세스 실행 [결정: review.decisions-2 B-06]: `scope: "test"`, `rule: "DR-07"`, `to: "Bun.spawn"`(같은 항목이 `Bun.spawnSync`, `node:child_process`도 덮는다) 항목을 미리 승인한다. 대상 패키지는 `apps/cli`(`DR-07/cli-test-spawn`), `packages/core-persistence`(`DR-07/persistence-test-spawn`), `packages/cap-workspace`(`DR-07/workspace-test-spawn`, `test/fork-records.test.ts`), `apps/desktop`(`DR-07/desktop-test-spawn`, `L4.desktop.plan` D1)이다. 위 JSON은 그중 하나만 보인다. L0 소유 패키지(`platform-*`)는 원래 소유자라 항목이 필요 없다. `check-layers.ts`는 `scope: "test"` 항목을 테스트 파일에만 적용하고, 같은 패키지의 `src/**`에서 쓰면 `DR-07`로 실패한다. 검사는 `Bun.spawn`·`Bun.spawnSync` 호출과 `node:child_process` import를 주석을 뺀 소스에서 찾는다. 운영 소스는 소유 표의 다섯 패키지(`platform-exec`, `platform-process`, `platform-sandbox`, `platform-secrets`, `platform-os`)만 쓴다. 테스트 파일은 모든 `platform-*` 패키지와 항목이 있는 패키지만 쓴다(`platform-store` 테스트 보조 파일이 자식 프로세스로 잠금을 시험하기 때문이다) [구현: review.decisions-2 B-06].
 - `TS-NN` 항목은 `eng.testing.guide` TS-05의 `mock.module` 예외를 같은 파일에 기록하는 형식이다. `from`은 테스트 파일이 있는 패키지 디렉터리, `to`는 바꾸는 외부 npm 모듈 지정자다. 미리 승인한 `TS-05` 항목은 없다.
 - 새 항목을 더하는 절차:
@@ -829,5 +811,5 @@ export const AllowList = Type.Array(AllowEntry);
 - [결정: review.decisions-2 U-14] X를 L0 아래(순위 1)에 두는 순위는 유지한다. 1.1절의 세 조건을 지킨다.
 - [미결] oxlint에 `no-restricted-paths`가 없을 때의 보완 방식. 현재는 `check-layers.ts` 정규식 스캔 + dependency-cruiser 경로 규칙이다. 파서 교체(별도 패키지 또는 `Bun.Transpiler`) 여부를 구현 단계에서 정한다(`_research/notes/eng-1.md §7`).
 - [미결] 타입 전용 순환(`import type` 순환)의 허용 여부. oxlint 기본값은 허용, depcruise 현재 설정은 금지다.
-- [결정: review.decisions-2 U-15] `group-kit`은 L3 안의 공용 기반으로 두고 허용 목록 `DR-02/group-kit-*`로 허용한다. 엔진 조립 코드는 `apps/host`에 두고 `apps/cli` → `apps/host`를 `DR-10/cli-host`로 허용한다.
+- [결정: review.decisions-2 U-15] `group-kit`은 L3 안의 공용 기반으로 두고 허용 목록 `DR-02/group-kit`(`from`은 `packages/group-*`)로 허용한다. 엔진 조립 코드는 `apps/host`에 두고 `apps/cli` → `apps/host`를 `DR-10/cli-host`로 허용한다.
 - [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위이고 `core-*`를 import하지 않는다. 같은 층 예외는 두지 않는다(DR-09).

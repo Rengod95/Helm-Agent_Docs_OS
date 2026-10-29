@@ -140,7 +140,7 @@ xeon/packages/group-kit/
 - `templates/`(2차): `exports`에 넣지 않는다. 생성 명령은 import 없이 파일로 읽는다(L3.slots.spec §3.3.6 R3). 템플릿 `.ts`에는 치환 자리(`__ID__`)가 있어 그대로 컴파일하지 않는다. 그래서 `tsconfig.json`의 `include`, oxlint·oxfmt 대상(`src test`만 넘긴다), knip 진입점에서 뺀다. 생성 결과는 `test/slots/`의 테스트가 임시 디렉터리에 만든 뒤 컴파일·로드한다(L3.slots.plan §2.2).
 - `src/testing/policies/`(2차): 정식 예 3종은 `testing` 진입점에서만 내보내므로 기본 배포 카탈로그에 들어가지 않는다(L3.slots.plan §2.3).
 - `@swc/core`는 `scanDriveSource`(2차)가 쓴다. DR-07 `MODULE_OWNERS` 표에 `@swc/core` 행(소유: `group-kit`, dependency-cruiser 설정)을 더하는 작업이 G-19에 있다.
-- 허용 목록 `xeon/scripts/dependency-allowlist.json`에 `DR-02/group-kit-helm`, `DR-02/group-kit-learning`을 등록한다(`eng.dependency-rules.guide` 4절. `DR-02/group-kit-*` 예외는 [결정: review.decisions-2 U-15]). `reason`의 "pending L3.group-kit.spec"은 "L3.group-kit.spec §3.1"로 바꾸고 `approvedBy`는 `eng.dependency-rules.guide`로 둔다.
+- 허용 목록 `xeon/scripts/dependency-allowlist.json`에 `DR-02/group-kit` 한 항목(`from`은 `packages/group-*`)을 둔다(`eng.dependency-rules.guide` 4절, [결정: review.decisions-2 U-15]). 처음에는 그룹마다 항목을 두었고 B4-GRP 커밋 2에서 한 항목으로 합쳤다. `reason`의 "pending L3.group-kit.spec"은 "L3.group-kit.spec §3.1"로 바꾸고 `approvedBy`는 `eng.dependency-rules.guide`로 둔다.
 
 ## 3. 작업 분해
 

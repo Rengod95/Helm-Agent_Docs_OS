@@ -68,13 +68,14 @@ async function runCheckLayers(
   return { code, stderr };
 }
 
+// scripts/dependency-allowlist.json의 DR-02/group-kit와 같은 모양(가족 패턴, 두 진입점)
 const ALLOW_KIT = {
-  id: "DR-02/group-kit-a",
+  id: "DR-02/group-kit",
   rule: "DR-02",
-  from: "packages/group-a",
+  from: "packages/group-*",
   to: "@xeon/group-kit",
-  entries: ["."],
-  reason: "group-a uses the shared group definition helpers (fixture)",
+  entries: [".", "./testing"],
+  reason: "every group uses the shared group definition helpers of group-kit (fixture)",
   approvedBy: "L3.group-kit.plan G-21",
 };
 

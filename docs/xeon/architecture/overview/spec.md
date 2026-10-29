@@ -150,7 +150,7 @@ flowchart TB
 - `apps/host`는 엔진 진입점이다. 모든 층의 패키지를 Cordis 플러그인으로 조립하고, 호스트 계약을 세 전송 중 하나로 노출한다(`_research/foundation-plan.md` §3).
 - `apps/desktop`은 `apps/host`를 import하지 않는다. `bun build --compile`로 만든 엔진 바이너리를 사이드카로 실행한다(ADR-0008).
 - `apps/cli`의 in-process 전송은 같은 층(L4)인 `apps/host`의 코드를 같은 프로세스에서 쓴다. 같은 층 예외 `DR-10/cli-host`로 허용한다 [결정: review.decisions-2 U-15].
-- `group-helm`·`group-learning`이 `group-kit`을 import하는 간선도 같은 층 예외 `DR-02/group-kit-*`로 허용한다 [결정: review.decisions-2 U-15]. 예외 목록은 `architecture.layers.spec` 3.2절과 `eng.dependency-rules.guide` 허용 목록에 있다.
+- `group-helm`·`group-learning`이 `group-kit`을 import하는 간선도 같은 층 예외 `DR-02/group-kit`로 허용한다 [결정: review.decisions-2 U-15]. 예외 목록은 `architecture.layers.spec` 3.2절과 `eng.dependency-rules.guide` 허용 목록에 있다.
 - [결정: 계획 v2 '층 사이 규칙' 2, DR-14] L3 그룹은 `cap-*`를 import하지 않는다. L2 능력은 F3 정의와 Cordis 서비스로만 쓴다(`architecture.layers.spec` 3.1절 2행).
 - `cap --> exthost` 간선은 L2의 플러그인 등록 경로다. 하위 층은 `@xeon/ext-host`의 서비스 등록·주입 API만 import한다(DR-14 예외) [결정: review.decisions-2 U-17].
 - 서비스 주입 점선의 F 서비스 인터페이스(`TaskService`, `LoopService`, `ModelService`, `ToolService`, `ContextService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService` 등)와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 §3 D-04].

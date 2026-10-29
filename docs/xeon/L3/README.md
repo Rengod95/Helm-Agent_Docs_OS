@@ -85,7 +85,7 @@ flowchart TD
 
 | 간선 | 판정 | 근거 |
 |---|---|---|
-| `group-helm`, `group-learning` → `group-kit` | 허용 [결정: review.decisions-2 U-15]. 허용 목록 `DR-02/group-kit-*`(`DR-02/group-kit-helm`, `DR-02/group-kit-learning`) | `eng.dependency-rules.guide` DR-02 (b), 4절, `architecture.layers.spec` §3.2 |
+| `group-helm`, `group-learning` → `group-kit` | 허용 [결정: review.decisions-2 U-15]. 허용 목록 `DR-02/group-kit`(`from`은 `packages/group-*`) | `eng.dependency-rules.guide` DR-02 (b), 4절, `architecture.layers.spec` §3.2 |
 | `group-kit` → 다른 그룹 | 금지 | DR-02 (b) "group-kit은 다른 그룹을 import하지 않는다" |
 | 그룹 ↔ 그룹 (`group-helm` ↔ `group-learning`, 외부 그룹 포함) | 금지 [결정] | `F.extensions.spec` §4.8, `eng.context-map.design` CM-06 |
 | L3 → `cap-*`(L2) | 금지 [결정: 계획 v2 규칙 2, DR-14]. 능력은 F3 정의와 `g.capability(ServiceKey)`로 쓴다 | `architecture.layers.spec` §3.1 2행, §4.2.1 표 |
@@ -269,7 +269,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 1. [결정: review.decisions-2 T-21] 그룹 레코드 이름 접두: 공개 레코드와 비공개 기록 모두 F 형식 `grp.<그룹>.<영역>.<이름>`을 쓴다. 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹의 `readRecords`로 조회되지 않는다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유)다.
 2. (닫힘) [결정: adr.0015] on 핸들러 외부 효과와 `GroupApi.delegate`·`loop.spawn`의 관계. C안(선언형 허용)으로 on 핸들러의 결정적 `requestId` `delegate`를 허용한다. L3 group-kit·Helm·학습·slots 문서에 반영했다.
 3. [미결] `package.json` `xeon.domain`의 `kit` 대 routes.yaml `group-kit`(3절, `architecture.layers.spec` §10).
-4. [결정: review.decisions-2 U-15] 같은 층 예외: DR-02 방법 (b), `group-*` → `group-kit` 한 방향 허용 목록(`DR-02/group-kit-*`)이다(`eng.dependency-rules.guide` DR-02, `architecture.layers.spec` §3.2, `eng.context-map.design` C-5).
+4. [결정: review.decisions-2 U-15] 같은 층 예외: DR-02 방법 (b), `group-*` → `group-kit` 한 방향 허용 목록(`DR-02/group-kit`)이다(`eng.dependency-rules.guide` DR-02, `architecture.layers.spec` §3.2, `eng.context-map.design` C-5).
 
 도메인 문서에서 모은 것:
 

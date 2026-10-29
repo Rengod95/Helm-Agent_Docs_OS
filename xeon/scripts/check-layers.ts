@@ -52,10 +52,10 @@ export interface Violation {
 
 /** One approved exception (guide section 4). TS-NN entries are validated but only DR-NN entries are applied here. */
 export interface AllowEntry {
-  /** "<rule id>/<name>", e.g. DR-02/group-kit-helm. */
+  /** "<rule id>/<name>", e.g. DR-02/group-kit. */
   id: string;
   rule: string;
-  /** Package directory on the importing side. */
+  /** Package directory on the importing side, or a family pattern "packages/group-*" (a trailing "*" in the last segment). */
   from: string;
   /** Allowed target: a workspace package name or an external module specifier. */
   to: string;
@@ -330,6 +330,17 @@ function sameLayerRule(fromDir: string, toDir: string): "DR-02" | "DR-10" {
     : "DR-02";
 }
 
+/**
+ * `from` 값이 패키지 디렉터리 `dir`을 가리키는가. 끝의 `*`는 마지막 이름 한 단계를 가리키는 패턴이다.
+ * "packages/group-*"는 packages/group-helm, packages/group-kit 같은 그룹 전부를 가리키고 packages/group-x/sub는 가리키지 않는다.
+ */
+export function matchesFrom(from: string, dir: string): boolean {
+  if (!from.endsWith("*")) return from === dir;
+  const prefix = from.slice(0, -1);
+  const rest = dir.slice(prefix.length);
+  return dir.startsWith(prefix) && rest.length > 0 && !rest.includes("/");
+}
+
 function isAllowed(
   allow: readonly AllowEntry[],
   rule: string,
@@ -340,7 +351,7 @@ function isAllowed(
   return allow.some(
     (item) =>
       item.rule === rule &&
-      item.from === fromDir &&
+      matchesFrom(item.from, fromDir) &&
       item.to === to &&
       (entry === undefined || (item.entries ?? ["."]).includes(entry)),
   );
@@ -623,7 +634,7 @@ export function checkAllowlist(
       add(entry, `id ${entry.id} must start with ${entry.rule}/`);
     }
     if (!entry.rule.startsWith("DR-")) continue;
-    if (!dirs.has(entry.from))
+    if (![...dirs].some((dir) => matchesFrom(entry.from, dir)))
       add(entry, `from ${entry.from} is not a workspace package directory`);
     if (entry.rule === "DR-07") {
       if (entry.to !== SPAWN_ALLOW_TARGET) {
