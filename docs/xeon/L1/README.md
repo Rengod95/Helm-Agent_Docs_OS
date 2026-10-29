@@ -238,7 +238,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | 네임스페이스 | 주 탭 | 그 밖 탭 | 대표 키 | 문서 |
 |---|---|---|---|---|
 | `l1.tasks` | execution | — | `limits.tools`, `limits.subagents`, `limits.modelCalls`, `queue.steeringMode` | `L1.tasks.spec` §6 |
-| `l1.loop` | budgets | — | `maxSteps`(기본 0, 상한 없음), `gate.maxContinues` | `L1.loop.spec` §6 |
+| `l1.loop` | budgets | — | `maxSteps`(기본 0, 상한 없음), `gate.maxContinues`, `repeat.enabled`, `repeat.actionObservation`, `repeat.actionError` | `L1.loop.spec` §6 |
 | `l1.models` | models | providers(연결·계정), budgets(레이트 리밋, M3), advanced(캐시 보존, 재시도 수치) | `default`, `routing.<role>`, `thinkingBudgets`, `providers` | `L1.models.spec` §6 |
 | `l1.tools` | permissions | tools(출력 한도, 지연 노출) | `permissionMode`, `rules`, `output.maxBytes` | `L1.tools.spec` §6 |
 | `l1.context` | sessions | — | `autoCompact`, `reserveTokens`, `keepRecentTokens` | `L1.context.spec` §6 |

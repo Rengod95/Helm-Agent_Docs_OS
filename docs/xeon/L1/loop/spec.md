@@ -629,11 +629,11 @@ runTurn(req: LoopTurnRequest):
 - `canContinue`(§3.6): 다음이 하나라도 참이면 false다. 마지막 `stopReason`이 `error`·`aborted`, turn에 취소 의도, `maxSteps` 도달, drive 신호·토큰 소진, 게이트 상한 도달, `stopAtSafeBoundary` 진행 중.
 - 목표 판정의 소비 지점 [제안]: `boundary.settle.before`이다. 목표 지속 기능(`L2.work.spec`)이 이 지점에 chain 핸들러를 걸고, 핸들러 안에서 판정 모델 호출을 `xeon.agents`의 판정 API로 한다(`L1.agents.spec`, 결정: 별도 판정 모델 + 실행 횟수 상한, `_research/foundation-plan.md` §1 4번). 판정 결과는 확장 kind 엔트리로 돌려주고 T4에 기록되므로 재개 때 다시 판정하지 않는다(`architecture.runtime-flow.design` §4.5). 미달이면 `continue: true`와 지시 custom item을 낸다. 게이트 상한은 판정 기능의 판정 횟수 상한과 따로 적용된다. M3.
 
-### 4.10 반복 감지 (2차)
+### 4.10 반복 감지
 
-- [제안] 관찰만 하고 막지 않는다. `endStep`에서 이번 단계의 도구 호출 서명(도구 이름 + `argsHash`)과 결과 상태를 turn별 창에 쌓는다.
+- [제안] 관찰만 하고 막지 않는다. `endStep`에서 이번 단계의 도구 호출 서명(도구 이름 + 인자)과 결과(내용, 오류 여부)를 한 쌍으로 묶어 직전 단계의 쌍과 비교한다. 구현(M3b B5-FIX2, M3-REQ-87)은 정규화 JSON(`canonicalJson`)을 키로 쓰고 직전 쌍 하나와 연속 횟수만 쥔다. 도구 호출이 없는 단계는 연속을 끊는다. 한 단계의 호출이 여럿이면 호출 순서 전체가 한 쌍이다. 쌍은 turn 안에서만 센다(재개하면 0부터).
 - 감지 조건: 같은 행동-관찰 쌍이 연속 `l1.loop.repeat.actionObservation`(기본 4)회, 같은 행동-오류 쌍이 연속 `l1.loop.repeat.actionError`(기본 3)회. 출발값은 OpenHands stuck detector(`_research/item-catalog.md` L1-b "반복·이상 패턴 감지").
-- 알림: 휘발 `turn.updated`에 알림 필드를 실어 L4가 보인다. `TurnUpdatedPayload`에 선택 필드 `notice`를 더하도록 F에 요청한다(FR-L5). 모델 컨텍스트에는 넣지 않는다.
+- 알림: 연속 횟수가 임계에 이르는 단계에서 한 번, 휘발 `turn.updated { status: "running", notice: { code: "repeat_detected", detail: { kind: "action_observation" | "action_error", count } } }`를 낸다(FR-L5). 같은 되풀이가 이어져도 다시 알리지 않고 쌍이 달라지면 새로 센다. 행동-오류는 단계의 모든 호출이 오류일 때다. `l1.loop.repeat.enabled`가 false이면 감지하지 않는다. 설정은 turn 시작 때 한 번 읽는다. 모델 컨텍스트와 내구 기록에는 넣지 않는다.
 - 참고 구현 omp `session/tool-call-loop-redirect.ts`는 AgentSession 결합이라 읽기 자료다(`_research/packages.md` §4.3 L1-b 반복 감지 행).
 
 ### 4.11 입출력 가드레일
@@ -709,9 +709,9 @@ runChildTurn(req):
 |---|---|---|---|---|---|---|---|
 | `l1.loop.maxSteps` | integer | 0 | min 0, max 10000 | `nextTurn` | managed, user, project, local, session | budgets, number, order 10, "turn당 최대 단계", help "0이면 상한 없음", unit "단계" | M1 |
 | `l1.loop.gate.maxContinues` | integer | 8 | min 0, max 100 | `nextTurn` | managed, user, project, local, session | budgets, number, order 20, "완료 게이트 연속 계속 상한", help "0이면 boundary 계속 지시를 따르지 않음", unit "회" | M2 |
-| `l1.loop.repeat.enabled` | boolean | true | — | `live` | managed, user, project, local, session | budgets, toggle, order 30, "반복 감지 알림" | 2차 |
-| `l1.loop.repeat.actionObservation` | integer | 4 | min 2, max 50 | `live` | managed, user, project, local, session | budgets, number, order 31, "같은 행동-관찰 반복 임계", unit "회" | 2차 |
-| `l1.loop.repeat.actionError` | integer | 3 | min 2, max 50 | `live` | managed, user, project, local, session | budgets, number, order 32, "같은 행동-오류 반복 임계", unit "회" | 2차 |
+| `l1.loop.repeat.enabled` | boolean | true | — | `live` | managed, user, project, local, session | budgets, toggle, order 30, "반복 감지 알림" | M3b |
+| `l1.loop.repeat.actionObservation` | integer | 4 | min 2, max 50 | `live` | managed, user, project, local, session | budgets, number, order 31, "같은 행동-관찰 반복 임계", unit "회" | M3b |
+| `l1.loop.repeat.actionError` | integer | 3 | min 2, max 50 | `live` | managed, user, project, local, session | budgets, number, order 32, "같은 행동-오류 반복 임계", unit "회" | M3b |
 
 - 모든 키의 `layer`는 `"L1"`, `since`는 그 단계 첫 릴리스 판(M1 키는 `"0.1.0"`)이다.
 - `l1.loop.maxSteps`는 `F.wire-settings.spec` §3.8.3 사용 예와 같은 정의다.

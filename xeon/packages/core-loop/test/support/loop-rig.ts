@@ -5,6 +5,7 @@ import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { createDrafter } from "../../src/drafts.ts";
 import { createTurnRun, type TurnRun } from "../../src/loop/turn-run.ts";
 import type { TurnEntry, TurnRunSpec } from "../../src/loop/types.ts";
+import { DEFAULT_LOOP_SETTINGS } from "../../src/settings.ts";
 import { createThreadGate } from "../../src/thread-gate.ts";
 import type { LoopContext, ThreadRuntime } from "../../src/types.ts";
 import type { Harness } from "./harness.ts";
@@ -59,7 +60,11 @@ export function createRig(
     context: h.context.service,
     models: h.models.service,
     ext: h.host.host,
-    settings: { maxSteps: () => 0, gateMaxContinues: () => 8 },
+    settings: {
+      maxSteps: () => 0,
+      gateMaxContinues: () => 8,
+      repeat: (id) => DEFAULT_LOOP_SETTINGS.repeat(id),
+    },
     basePrompt: "You are a test assistant.",
     hostMode: "in-process",
     kindLookup: () => undefined,
