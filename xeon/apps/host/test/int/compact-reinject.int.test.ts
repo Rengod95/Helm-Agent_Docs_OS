@@ -29,7 +29,10 @@ function countOf(text: string, needle: string): number {
   return text.split(needle).length - 1;
 }
 
-/** 한 turn의 입력. 창이 12000토큰이고 시스템 프롬프트가 3500토큰쯤이라, 두 turn이 쌓이면 셋째 turn 요청 전에 임계(창 - 1024)를 넘긴다 */
+/**
+ * 한 turn의 입력. 창이 13000토큰이라, 두 turn이 쌓이면 셋째 turn 요청 전에 임계(창 - 1024)를 넘긴다.
+ * grep과 find의 도구 정의가 시스템 프롬프트에 더해져 창을 12000에서 올렸다(시험으로 12300에서 통과, 12100에서 실패를 확인했다).
+ */
 function bigInput(topic: string): string {
   return `${topic} ${"build cache notes and the reasons behind each decision. ".repeat(200)}`;
 }
@@ -57,7 +60,7 @@ realTest(
     });
     const summary = "## 목표\n저장소 빌드 속도 조사\n\n## 진행\n캐시 설정을 확인했다";
     const models = recordingModels("reinject", ["답 하나", "답 둘", summary, "답 셋", "답 넷"], {
-      contextWindow: 12_000,
+      contextWindow: 13_000,
     });
     const host = await startInProcessHost({
       devChecks: true,
