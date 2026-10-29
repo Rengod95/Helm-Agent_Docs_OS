@@ -5,7 +5,7 @@
   "workspaces": {
     ".": {
       "entry": ["scripts/*.ts"],
-      "ignoreDependencies": ["@swc/core"]
+      "ignoreDependencies": ["@swc/core", "tailwindcss"]
     },
     "packages/*": {
       "entry": ["test/**/*.test.ts"]
@@ -43,8 +43,8 @@
       "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]
     },
     "apps/desktop": {
-      "entry": ["test/**/*.test.{ts,tsx}", "src/main.tsx"],
-      "ignoreDependencies": ["@caustic/react", "@caustic/tokens"]
+      "entry": ["test/**/*.test.{ts,tsx}", "mockups/*/main.tsx", "src/styles.css"],
+      "ignoreDependencies": ["@caustic/tokens"]
     },
     "apps/host": {
       "entry": [

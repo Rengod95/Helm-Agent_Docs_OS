@@ -17,7 +17,9 @@
     "spike:stub": "bun spike/tests/parent-stub.ts",
     "spike:engine-dev": "bun spike/tests/engine.ts",
     "build:ui": "bun build index.html --outdir src-tauri/ui --minify --define __XEON_CHECKS__=false",
-    "build:ui:dev": "bun build index.html --outdir src-tauri/ui --define __XEON_CHECKS__=true"
+    "build:ui:dev": "bun build index.html --outdir src-tauri/ui --define __XEON_CHECKS__=true",
+    "mockup": "vite --config mockups/vite.config.ts",
+    "mockup:build": "vite build --config mockups/vite.config.ts"
   },
   "dependencies": {
     "@caustic/react": "workspace:*",
@@ -31,9 +33,12 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
     "@types/bun": "catalog:",
     "@types/react": "catalog:",
-    "@types/react-dom": "catalog:"
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "vite": "catalog:"
   },
   "xeon": {
     "layer": "L4",

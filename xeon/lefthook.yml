@@ -14,5 +14,9 @@ pre-commit:
     oxlint:
       root: xeon/
       glob: "**/*.{ts,tsx,js,mjs,cjs}"
-      exclude: "vendor/**"
+      # 셸 목업(apps/desktop/mockups)은 oxlint 대상이 아니다(.oxlintrc.json ignorePatterns)
+      exclude:
+        - "vendor/**"
+        - "apps/desktop/mockups/**"
+        - "xeon/apps/desktop/mockups/**"
       run: ../scripts/guard.sh run -- mise exec -- bunx oxlint --type-aware --deny-warnings -c .oxlintrc.json {staged_files}

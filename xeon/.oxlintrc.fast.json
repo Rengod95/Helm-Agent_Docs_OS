@@ -11,6 +11,7 @@
     "**/.turbo/**",
     "**/coverage/**",
     "vendor/**",
-    "packages/group-kit/templates/**"
+    "packages/group-kit/templates/**",
+    "apps/desktop/mockups/**"
   ]
 }

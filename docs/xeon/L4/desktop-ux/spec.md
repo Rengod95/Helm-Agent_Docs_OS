@@ -1790,8 +1790,9 @@ Xeon 데스크톱 앱의 "대화" 화면을 비즈니스 로직 없는 셸 목�
 **만들 곳과 실행**
 
 - 위치: `xeon/apps/desktop/mockups/p02-<모델이름>/` [결정: 오케스트레이터 기본값]. 파일은 `index.html`, `main.tsx`, `fixtures.ts`, 필요한 `*.tsx`, `mockup.css`(레이아웃만)입니다.
-- 실행: `bun xeon/apps/desktop/mockups/p02-<모델이름>/index.html`(Bun 개발 서버). React 19를 씁니다.
+- 실행: `xeon/apps/desktop`에서 `MOCKUP=p02-<모델이름> bun run mockup`(Vite 개발 서버, `mockups/vite.config.ts`), 정적 빌드는 `MOCKUP=p02-<모델이름> bun run mockup:build`(출력은 저장소 밖 `<tmpdir>/xeon-mockups/<이름>` 또는 `MOCKUP_OUT`). caustic 스타일이 Tailwind 4 빌드를 거쳐야 해서 caustic 문서 앱과 같은 Vite 구성을 씁니다. React 19를 씁니다. 실행 기반 점검 예시는 `mockups/_base/`입니다.
 - 디자인 시스템: `@caustic/react`의 부품과 `@caustic/tokens`의 CSS 변수만 씁니다. 다른 UI 라이브러리, 아이콘 세트 외 이미지, 직접 정한 색 값(hex, rgb)을 쓰지 않습니다. 아이콘은 `lucide-react`입니다. caustic 스타일은 `@caustic/react/styles.css`를 import합니다. caustic 소스는 `xeon/external/caustic`(submodule)에 있고, 부품 사용 예는 `packages/react/src/components/<id>/<id>.fixture.tsx`와 `apps/docs/src/showcase/samples/agent.tsx`에 있습니다 [가정: 작업 전 `git submodule update --init xeon/external/caustic`과 `just setup`이 끝나 있음].
+- caustic 부품으로 표현하기 애매한 디자인은 caustic 토큰(`@caustic/tokens`의 CSS 변수)과 Tailwind 유틸리티로 목업 안에서 직접 만들어도 됩니다 [결정: 2026-10-29 사용자 지시]. 직접 만든 부품은 `mockups/p02-<모델이름>/parts/`에 두고, 어떤 caustic 빈틈을 메운 것인지 파일 머리 주석에 적습니다.
 - 문구는 한국어 해요체입니다. 아래 고정 데이터의 문구를 그대로 씁니다.
 
 **레이아웃**
