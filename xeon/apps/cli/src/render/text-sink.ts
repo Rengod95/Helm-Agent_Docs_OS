@@ -1,3 +1,4 @@
+import { t, type MessageId } from "@xeon/client/i18n";
 import { assertNever } from "@xeon/contracts";
 import { sequentially } from "../util.ts";
 import type { RenderOp } from "./model.ts";
@@ -36,10 +37,10 @@ function indent(lines: readonly string[]): string {
   return lines.map((line) => `  ${line}`).join("\n");
 }
 
-const REMEMBER_TEXT: Readonly<Record<"once" | "thread" | "always", string>> = {
-  once: "이번만 허용",
-  thread: "이 세션 동안 허용",
-  always: "항상 허용",
+const REMEMBER_ID: Readonly<Record<"once" | "thread" | "always", MessageId>> = {
+  once: "cli.render.textSink.remember.once",
+  thread: "cli.render.textSink.remember.thread",
+  always: "cli.render.textSink.remember.always",
 };
 
 /**
@@ -53,23 +54,26 @@ function resolutionNotice(op: Extract<RenderOp, { kind: "approvalResolved" }>): 
     case "user":
       break;
     case "expired":
-      lines.push("승인 요청이 만료되어 정해 둔 대로 처리했다");
+      lines.push(t("cli.render.textSink.resolved.expired"));
       break;
     case "noninteractive":
-      lines.push("대화형 입력이 없어 승인 요청을 자동으로 처리했다");
+      lines.push(t("cli.render.textSink.resolved.noninteractive"));
       break;
     case "cancelled":
-      lines.push("turn이 취소되어 승인 요청을 닫았다");
+      lines.push(t("cli.render.textSink.resolved.cancelled"));
       break;
     case "superseded":
-      lines.push("다른 요청으로 대체되어 승인 요청을 닫았다");
+      lines.push(t("cli.render.textSink.resolved.superseded"));
       break;
     default:
       return assertNever(op.resolvedBy, "ApprovalResolvedBy");
   }
   if (op.requestedRemember !== null && op.requestedRemember !== op.remember) {
     lines.push(
-      `${REMEMBER_TEXT[op.requestedRemember]}을 골랐지만 ${REMEMBER_TEXT[op.remember]}으로 낮춰 적용했다`,
+      t("cli.render.textSink.downgraded", {
+        requested: t(REMEMBER_ID[op.requestedRemember]),
+        applied: t(REMEMBER_ID[op.remember]),
+      }),
     );
   }
   return lines.length === 0 ? undefined : lines.join("\n");
@@ -86,7 +90,13 @@ export function pieceOf(op: RenderOp, layout: TextSinkLayout, color: boolean): P
     case "assistant": {
       const lines: string[] = [];
       if (op.thinking !== null && layout === "full") {
-        lines.push(paint(color, "2", `(생각) ${op.thinking.split("\n")[0] ?? ""}`));
+        lines.push(
+          paint(
+            color,
+            "2",
+            t("cli.render.textSink.thinking", { first: op.thinking.split("\n")[0] ?? "" }),
+          ),
+        );
       }
       if (op.markdown.length > 0) lines.push(op.markdown);
       return { target: "stdout", text: `${lines.join("\n")}\n` };
@@ -99,7 +109,7 @@ export function pieceOf(op: RenderOp, layout: TextSinkLayout, color: boolean): P
     case "toolResult": {
       const marks: string[] = [];
       if (op.view.isError) marks.push(paint(color, "31", "error"));
-      if (op.view.synthesized) marks.push(paint(color, "33", "재개 때 중단됨으로 기록됨"));
+      if (op.view.synthesized) marks.push(paint(color, "33", t("cli.render.textSink.synthesized")));
       const head = marks.length === 0 ? "" : `[${marks.join(", ")}] `;
       const body = op.view.lines.length === 0 ? [""] : op.view.lines;
       const [first = "", ...more] = body;
@@ -117,7 +127,7 @@ export function pieceOf(op: RenderOp, layout: TextSinkLayout, color: boolean): P
     case "approval":
       return {
         target: "stderr",
-        text: `${paint(color, "33", `승인 요청: ${op.view.title}`)}\n${indent(op.view.body)}\n`,
+        text: `${paint(color, "33", t("cli.render.textSink.approvalTitle", { title: op.view.title }))}\n${indent(op.view.body)}\n`,
       };
     case "approvalResolved": {
       const notice = resolutionNotice(op);
@@ -129,7 +139,7 @@ export function pieceOf(op: RenderOp, layout: TextSinkLayout, color: boolean): P
       if (op.status === "completed") return undefined;
       return {
         target: "stderr",
-        text: `${paint(color, "31", op.status === "interrupted" ? "turn이 중단되었다" : "turn이 실패했다")}${op.error === null ? "" : `: ${op.error}`}\n`,
+        text: `${paint(color, "31", op.status === "interrupted" ? t("cli.errors.chat.turnInterrupted.message") : t("cli.errors.chat.turnFailed.message"))}${op.error === null ? "" : `: ${op.error}`}\n`,
       };
     case "notice":
       return { target: "stderr", text: `${op.text}\n` };

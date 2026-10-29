@@ -623,7 +623,7 @@ export interface GroupTemplatesPort {
   - 문구: 첫 줄은 `[<종류>] <제목>`이다. 종류 이름은 `completed`는 완료, `approval_waiting`은 승인 대기, `question_waiting`은 질문 대기, `error`는 오류, `background_completed`는 백그라운드 완료다. `body`가 있으면 둘째 줄이다. 제어 문자는 칸으로 바꾼다.
   - thread: `threadId`가 null이거나 이 세션의 thread면 그대로 쓴다. 다른 thread의 알림이면 첫 줄 끝에 ` (다른 대화)`를 붙인다.
   - 등록은 `host.hello`의 `features`에 `notify.delivered`가 없어도 한다. 오지 않으면 그릴 것이 없다.
-  - 문구는 지금 소스에 한국어로 하드코딩한다. 카탈로그 이전은 §10 17번이다.
+  - 문구는 카탈로그 id(`cli.render.notices.*`)에서 현재 로케일로 만듭니다. 종류 이름과 ` (다른 대화)`도 카탈로그에서 읽습니다(ADR-0016).
 - 알림은 turn이 끝난 뒤 비동기로 온다. 세션이 먼저 끝나면 그 알림은 보이지 않을 수 있다(§10 24번).
 
 ### 4.6 입력, 중단, 신호

@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever, parse } from "@xeon/contracts";
 import {
   TurnCompletedPayloadSchema,
@@ -102,9 +103,16 @@ function toolDetailLines(args: object): string[] {
   const command = fieldOf(args, "command");
   if (typeof command === "string") {
     const rows = command.split("\n");
-    lines.push("명령:", ...rows.slice(0, COMMAND_LINES_MAX).map((row) => `  ${row}`));
+    lines.push(
+      t("cli.render.transcript.command"),
+      ...rows.slice(0, COMMAND_LINES_MAX).map((row) => `  ${row}`),
+    );
     if (rows.length > COMMAND_LINES_MAX) {
-      lines.push(`  …(${String(rows.length - COMMAND_LINES_MAX)}줄 생략)`);
+      lines.push(
+        t("cli.render.transcript.commandOmitted", {
+          count: String(rows.length - COMMAND_LINES_MAX),
+        }),
+      );
     }
   }
   const env = fieldOf(args, "secretEnv");
@@ -112,9 +120,10 @@ function toolDetailLines(args: object): string[] {
     const handles = Object.entries(env).map(([name, ref]: [string, unknown]) =>
       typeof ref === "string" && SECRET_REF.test(ref)
         ? `${name}=${ref}`
-        : `${name}=(참조 형식이 올바르지 않음)`,
+        : `${name}=${t("cli.render.transcript.badSecretRef")}`,
     );
-    if (handles.length > 0) lines.push(`비밀: ${handles.join(", ")}`);
+    if (handles.length > 0)
+      lines.push(t("cli.render.transcript.secrets", { handles: handles.join(", ") }));
   }
   return lines;
 }
@@ -125,11 +134,13 @@ function toolDetailLines(args: object): string[] {
  */
 function callerLine(caller: string): string[] {
   if (caller === "main") return [];
-  if (caller === "background") return ["요청 주체: 백그라운드 작업"];
-  if (caller === "host") return ["요청 주체: 호스트"];
-  if (caller.startsWith("subagent:")) return [`요청 주체: 서브에이전트 ${caller.slice(9)}`];
-  if (caller.startsWith("ext:")) return [`요청 주체: 확장 ${caller.slice(4)}`];
-  return [`요청 주체: ${caller}`];
+  if (caller === "background") return [t("cli.render.transcript.caller.background")];
+  if (caller === "host") return [t("cli.render.transcript.caller.host")];
+  if (caller.startsWith("subagent:"))
+    return [t("cli.render.transcript.caller.subagent", { name: caller.slice(9) })];
+  if (caller.startsWith("ext:"))
+    return [t("cli.render.transcript.caller.extension", { name: caller.slice(4) })];
+  return [t("cli.render.transcript.caller.other", { caller })];
 }
 
 /** 만료 시각(`expiresAt`, epoch ms)과 만료 때의 처리(`onExpire`)를 한 줄로 */
@@ -137,8 +148,10 @@ function expiryLine(payload: ApprovalRequestedPayload): string[] {
   if (payload.expiresAt === undefined) return [];
   const when = new Date(payload.expiresAt).toISOString();
   const action =
-    payload.onExpire?.decision === "answer" ? "정해 둔 답으로 처리한다" : "거부로 처리한다";
-  return [`만료: ${when} (그때까지 답하지 않으면 ${action})`];
+    payload.onExpire?.decision === "answer"
+      ? t("cli.render.transcript.expiry.answer")
+      : t("cli.render.transcript.expiry.deny");
+  return [t("cli.render.transcript.expiresAt", { when, action })];
 }
 
 function itemOps(item: ItemRecord, ctx: EventContext, synthesizedResult: boolean): RenderOp[] {
@@ -202,15 +215,15 @@ export function approvalViewOf(
   switch (body.kind) {
     case "tool": {
       const args = isBlobRef(body.tool.args)
-        ? "[큰 인자]"
+        ? t("cli.render.transcript.bigArgs")
         : summarize(JSON.stringify(body.tool.args));
       return {
         approvalId,
         title,
         body: [
           ...callerLine(payload.origin.caller),
-          `도구: ${body.tool.toolName} (위험: ${body.tool.risk})`,
-          `인자: ${args}`,
+          t("cli.render.transcript.tool", { name: body.tool.toolName, risk: body.tool.risk }),
+          t("cli.render.transcript.args", { args }),
           ...toolDetailLines(body.tool.args),
           ...expiryLine(payload),
         ],
@@ -220,7 +233,10 @@ export function approvalViewOf(
       };
     }
     case "plan": {
-      const plan = typeof body.plan.plan === "string" ? body.plan.plan : "[첨부된 계획]";
+      const plan =
+        typeof body.plan.plan === "string"
+          ? body.plan.plan
+          : t("cli.render.transcript.attachedPlan");
       return {
         approvalId,
         title,
@@ -265,7 +281,10 @@ export function approvalViewOf(
         title,
         body: [
           ...callerLine(payload.origin.caller),
-          `검토: ${body.review.title} (라운드 ${String(body.review.round)})`,
+          t("cli.render.transcript.review", {
+            title: body.review.title,
+            round: String(body.review.round),
+          }),
           ...body.review.files.map(
             (file) => `${file.change} ${file.path} (hunk ${String(file.hunks)})`,
           ),
@@ -289,7 +308,7 @@ function approvalView(event: EventWire, payload: unknown): ApprovalView | undefi
 }
 
 function unreadable(kind: string): RenderOp[] {
-  return [{ kind: "notice", text: `이벤트 ${kind}의 모양을 읽지 못했다` }];
+  return [{ kind: "notice", text: t("cli.render.transcript.unreadable", { kind }) }];
 }
 
 /** 내구 이벤트 하나를 그리기 명령으로 바꾼다. 그리지 않는 kind는 빈 배열이다 */
@@ -311,7 +330,9 @@ export function opsOfEvent(event: EventWire, ctx: EventContext): readonly Render
       itemId: intent.itemId,
       toolCallId: intent.toolCallId,
       toolName: intent.toolName,
-      argsSummary: isBlobRef(intent.args) ? "[큰 인자]" : summarize(JSON.stringify(intent.args)),
+      argsSummary: isBlobRef(intent.args)
+        ? t("cli.render.transcript.bigArgs")
+        : summarize(JSON.stringify(intent.args)),
     };
     return [{ kind: "toolCall", view }];
   }
@@ -337,7 +358,13 @@ export function opsOfEvent(event: EventWire, ctx: EventContext): readonly Render
     if (!parsed.ok) return unreadable(kind);
     // 값은 보이지 않는다: 비밀 참조일 수 있고, 키와 범위만으로 충분하다
     return [
-      { kind: "notice", text: `설정이 바뀌었다: ${parsed.value.key} (${parsed.value.scope})` },
+      {
+        kind: "notice",
+        text: t("cli.render.transcript.settingChanged", {
+          key: parsed.value.key,
+          scope: parsed.value.scope,
+        }),
+      },
     ];
   }
   // thread.*, turn.started, step.*, part.recorded, effect.exec/result, checkpoint.step, lease.*, scope.changed,
