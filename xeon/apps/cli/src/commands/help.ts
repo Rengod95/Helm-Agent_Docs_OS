@@ -11,6 +11,8 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
   chat -p <입력>            print 모드: 입력 하나로 turn 하나를 돌리고 응답을 stdout에 쓴다
                             -p - 또는 -p만 쓰면 stdin 전체가 입력이다
   chat -p <입력> --json     JSON 모드: 연결에서 오간 JSON-RPC 메시지를 한 줄에 하나씩 쓴다
+  chat -p <입력> --auto-approve
+                            print 모드에서 도구 승인을 한 번 허용한다. 질문·계획·검토는 거부한다
   chat --continue           현재 작업 폴더의 마지막 세션을 이어 연다
   chat --resume <id>        지정한 세션을 이어 연다
   chat --set <키>=<값>      이 세션에만 설정을 덮어쓴다 (여러 번 쓸 수 있다)
@@ -48,10 +50,12 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
 `;
 
 const TOPICS: Readonly<Record<string, string>> = {
-  chat: `사용법: xeon chat [-p [<입력>]] [--json] [--continue | --resume <id>] [--set <키>=<값>]…
+  chat: `사용법: xeon chat [-p [<입력>]] [--json] [--auto-approve] [--continue | --resume <id>] [--set <키>=<값>]…
 
   -p, --print [<입력>]   print 모드. 입력이 없거나 -이면 stdin 전체를 입력으로 쓴다
   --json                 print 모드에서 JSON-RPC 메시지를 한 줄에 하나씩 쓴다
+  --auto-approve         print 모드에서 도구 승인을 한 번 허용한다. 승인마다 stderr에 알린다
+                         질문·계획·검토 승인은 거부한다. 대화형과 함께 쓰면 사용법 오류다
   --continue             현재 작업 폴더의 마지막 세션을 이어 연다
   --resume <id>          지정한 세션을 이어 연다
   --set <키>=<값>        이 세션에만 설정을 덮어쓴다 (여러 번 쓸 수 있다)

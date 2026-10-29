@@ -383,35 +383,59 @@ export function createApprovalPrompter(options: PrompterOptions): ApprovalSink {
   };
 }
 
-/** print 모드: 프롬프트를 열 수 없으므로 거부로 답한다(§4.11 4번) */
-export function createAutoDeny(options: {
+/** print 모드가 승인 하나에 보낸 자동 응답의 결과. 알림 문구를 고르는 데 쓴다 */
+export type AutoResult =
+  /** host가 적용했다 */
+  | { readonly kind: "applied"; readonly decision: AutoDecision }
+  /** host가 적용하지 않았다. `reason`은 wire 이유다(다시 보내도 같다) */
+  | { readonly kind: "notApplied"; readonly decision: AutoDecision; readonly reason: string }
+  /** 응답 수단이 없는 host면 응답이 가지 않았다 */
+  | { readonly kind: "failed"; readonly decision: AutoDecision };
+
+type AutoDecision = "allow" | "deny";
+
+export interface AutoOptions {
   readonly respond: PrompterOptions["respond"];
-  readonly onResult: (
-    view: ApprovalView,
-    outcome: "denied" | "failed" | { readonly notApplied: string },
-  ) => Promise<void>;
-}): ApprovalSink {
+  readonly onResult: (view: ApprovalView, result: AutoResult) => Promise<void>;
+}
+
+const AUTO_RESPONSE: Readonly<Record<AutoDecision, ApprovalResponse>> = {
+  // `remember`를 싣지 않는다. 호스트는 빠진 범위를 once로 본다(protocol.ts rememberOf)
+  allow: { decision: "allow" },
+  deny: DENY_ONLY,
+};
+
+/** 승인 하나마다 답을 고르고 보낸 뒤 결과를 알린다. 기다리지 않고 한 번에 하나씩 보낸다 */
+function autoSink(
+  decide: (view: ApprovalView) => AutoDecision,
+  options: AutoOptions,
+): ApprovalSink {
   const seen = new Set<string>();
   const state: { chain: Promise<void> } = { chain: Promise.resolve() };
   return {
     offer(view) {
       if (seen.has(view.approvalId)) return;
       seen.add(view.approvalId);
-      const work = options.respond(view.approvalId, DENY_ONLY).then(
+      const decision = decide(view);
+      const work = options.respond(view.approvalId, AUTO_RESPONSE[decision]).then(
         (sent) =>
           sent.applied
-            ? options.onResult(view, "denied")
-            : options.onResult(view, { notApplied: sent.reason ?? "unspecified" }),
-        // 응답 수단이 없는 host면 거부 응답이 가지 않았음을 알림에 밝힌다
-        () => options.onResult(view, "failed"),
+            ? options.onResult(view, { kind: "applied", decision })
+            : options.onResult(view, {
+                kind: "notApplied",
+                decision,
+                reason: sent.reason ?? "unspecified",
+              }),
+        // 응답 수단이 없는 host면 응답이 가지 않았음을 알림에 밝힌다
+        () => options.onResult(view, { kind: "failed", decision }),
       );
       state.chain = state.chain.then(() => work);
     },
     resolved() {
-      // 자동 거부는 열린 프롬프트가 없다
+      // 자동 응답은 열린 프롬프트가 없다
     },
     onOffer() {
-      // 자동 거부는 입력을 쓰지 않는다
+      // 자동 응답은 입력을 쓰지 않는다
       return () => undefined;
     },
     idle: () => state.chain,
@@ -419,4 +443,17 @@ export function createAutoDeny(options: {
       // 정리할 것이 없다
     },
   };
+}
+
+/** print 모드 기본: 모든 승인을 거부로 답한다(§4.11 4번) */
+export function createAutoDeny(options: AutoOptions): ApprovalSink {
+  return autoSink(() => "deny", options);
+}
+
+/**
+ * print 모드 `--auto-approve`: 도구 승인만 이번만 허용으로 답한다. 질문, 계획, 검토는 사람이 답해야 하므로 거부한다
+ * (§4.11 4번). 자동 응답이 사람의 답을 대신하지 않도록 허용 범위를 도구 승인으로 좁혔다
+ */
+export function createAutoAllow(options: AutoOptions): ApprovalSink {
+  return autoSink((view) => (view.form.kind === "tool" ? "allow" : "deny"), options);
 }

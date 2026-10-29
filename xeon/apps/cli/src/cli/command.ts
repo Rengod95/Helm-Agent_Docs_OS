@@ -35,6 +35,8 @@ export interface ChatCommand {
   readonly overrides: readonly SessionOverride[];
   /** `--safe-mode`: 이번 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다(X.operations.spec §4.6.1) */
   readonly safeMode: boolean;
+  /** `--auto-approve`: print 모드에서 도구 승인을 한 번 허용한다. 대화형에서는 쓰지 못한다(L4.cli.spec §4.11 4번) */
+  readonly autoApprove: boolean;
 }
 
 export type SessionsCommand =
@@ -173,6 +175,7 @@ type UsageErrorCode =
   | "secretValueInArgv"
   | "conflictingFlags"
   | "jsonRequiresPrint"
+  | "autoApproveRequiresPrint"
   | "inputRequired"
   | "revealRequiresTty";
 
@@ -431,6 +434,7 @@ const CHAT_FLAGS: FlagTable = {
   "--resume": { value: "required" },
   "--set": { value: "required", repeat: true },
   "--safe-mode": { value: "none" },
+  "--auto-approve": { value: "none" },
 };
 
 function parseChat(
@@ -497,6 +501,15 @@ function parseChat(
       usage("jsonRequiresPrint", "--json은 print 모드에서만 쓴다", "-p <입력>과 함께 쓴다"),
     );
   }
+  if (has(flags, "--auto-approve") && mode === "interactive") {
+    return err(
+      usage(
+        "autoApproveRequiresPrint",
+        "--auto-approve는 print 모드에서만 쓴다",
+        "-p <입력>과 함께 쓴다",
+      ),
+    );
+  }
   return ok({
     kind: "chat",
     mode,
@@ -505,6 +518,7 @@ function parseChat(
     target,
     overrides,
     safeMode: has(flags, "--safe-mode"),
+    autoApprove: has(flags, "--auto-approve"),
   });
 }
 

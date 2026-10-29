@@ -6,9 +6,12 @@ import { failureOfCaught, renderFailure, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import {
   createApprovalPrompter,
+  createAutoAllow,
   createAutoDeny,
   type ApprovalResponse,
   type ApprovalSink,
+  type AutoOptions,
+  type AutoResult,
   type PromptIo,
 } from "../render/approval.ts";
 import { createJsonTap, type JsonTap, type JsonTapMode } from "../render/json-tap.ts";
@@ -97,16 +100,34 @@ async function runPrint(
   return exitCodeOfTurn(end);
 }
 
-/** 승인 응답 한 건의 결과를 사람에게 알린다(print 모드의 자동 거부) */
-function denyNotice(
-  view: { readonly title: string },
-  outcome: "denied" | "failed" | { readonly notApplied: string },
-): string {
-  let text: string;
-  if (outcome === "denied") text = "거부로 답했다";
-  else if (outcome === "failed") text = "거부로 답하려 했으나 host가 응답을 받지 못했다";
-  else text = `거부로 답했으나 적용되지 않았다 (${outcome.notApplied})`;
-  return `승인 요청 "${view.title}"에 비대화 모드라 ${text}\n`;
+/**
+ * 자동 응답 한 건을 사람에게 알리는 한 줄(print 모드, §4.11 4번). 제목만 쓴다: 명령과 비밀 핸들은 싣지 않는다.
+ * `--auto-approve`의 허용과 기본·질문·계획·검토의 거부를 다른 문구로 가른다
+ */
+function autoNotice(view: { readonly title: string }, result: AutoResult): string {
+  const head = `승인 요청 "${view.title}"`;
+  if (result.decision === "allow") {
+    switch (result.kind) {
+      case "applied":
+        return `${head}을 --auto-approve로 허용했다\n`;
+      case "notApplied":
+        return `${head}을 --auto-approve로 허용하려 했으나 적용되지 않았다 (${result.reason})\n`;
+      case "failed":
+        return `${head}을 --auto-approve로 허용하려 했으나 host가 응답을 받지 못했다\n`;
+      default:
+        return assertNever(result, "AutoResult");
+    }
+  }
+  switch (result.kind) {
+    case "applied":
+      return `${head}에 비대화 모드라 거부로 답했다\n`;
+    case "notApplied":
+      return `${head}에 비대화 모드라 거부로 답했으나 적용되지 않았다 (${result.reason})\n`;
+    case "failed":
+      return `${head}에 비대화 모드라 거부로 답하려 했으나 host가 응답을 받지 못했다\n`;
+    default:
+      return assertNever(result, "AutoResult");
+  }
 }
 
 /** 승인 응답이 적용되지 않은 이유(다시 보내도 같은 것)를 알리는 글 */
@@ -188,6 +209,11 @@ async function chatWork(
       readLine: (prompt, signal) => io.readLine(prompt, signal),
       stdout: (text) => io.stdout(text),
     };
+    // print 모드의 자동 응답. 응답 수단이 없는 host면 응답이 가지 않았음을 알림에 밝힌다
+    const autoOptions: AutoOptions = {
+      respond,
+      onResult: (view, result) => io.stderr(autoNotice(view, result)),
+    };
     const makeApprovals = (): ApprovalSink =>
       interactive
         ? createApprovalPrompter({
@@ -206,11 +232,9 @@ async function chatWork(
               });
             },
           })
-        : createAutoDeny({
-            respond,
-            // 응답 수단이 없는 host면 거부 응답이 가지 않았음을 알림에 밝힌다
-            onResult: (view, outcome) => io.stderr(denyNotice(view, outcome)),
-          });
+        : command.autoApprove
+          ? createAutoAllow(autoOptions)
+          : createAutoDeny(autoOptions);
 
     /** 세션을 연다. /resume은 같은 연결에서 새 세션을 열어 바꾼다 */
     const openWith = async (target: ChatTarget): Promise<Result<ChatSession, Failure>> => {

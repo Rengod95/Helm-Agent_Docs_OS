@@ -346,3 +346,84 @@ test("pending approvals are asked again when a session is resumed (approval.list
     remember: "once",
   });
 });
+
+const PLAN_BODY = {
+  kind: "plan",
+  plan: { plan: "파일을 고친다", planRef: null, nextModes: [] },
+};
+
+/** 승인 알림 줄만 모은다. 요청 카드(`승인 요청: …`)는 텍스트 싱크가 따로 쓴다 */
+function noticeLines(stderr: string): readonly string[] {
+  return stderr.split("\n").filter((line) => line.startsWith('승인 요청 "'));
+}
+
+/** print 모드 한 턴: 승인 요청 하나를 내고 턴을 끝낸다. approval.respond 호출을 모은다 */
+function printWithApproval(options: {
+  readonly body?: unknown;
+  readonly remember?: readonly ("once" | "thread" | "always")[];
+  /** approval.respond가 적용하지 않은 것으로 답한다 */
+  readonly notApplied?: boolean;
+}): { readonly h: Harness; readonly responds: Record<string, unknown>[] } {
+  const responds: Record<string, unknown>[] = [];
+  const h = createHarness({
+    env: { NO_COLOR: "1" },
+    server: {
+      handlers: {
+        "approval.respond": (params) => {
+          responds.push({ ...params });
+          return options.notApplied === true
+            ? { applied: false, reason: "already_resolved" }
+            : { applied: true };
+        },
+      },
+      onTurn: (context) => {
+        context.server.commit(context.threadId, [
+          approvalRequested(context.threadId, context.turnId, {
+            ...(options.body === undefined ? {} : { body: options.body }),
+            ...(options.remember === undefined ? {} : { remember: options.remember }),
+          }),
+          turnCompleted(context.turnId),
+        ]);
+      },
+    },
+  });
+  harnesses.push(h);
+  return { h, responds };
+}
+
+test("--auto-approve answers a tool approval with allow once, without remember, and says so on stderr", async () => {
+  const { h, responds } = printWithApproval({});
+  expect(await h.run(["chat", "-p", "run it", "--auto-approve"])).toBe(EXIT.ok);
+  expect(responds).toEqual([{ approvalId: expect.any(String), decision: "allow" }]);
+  expect(responds[0]).not.toHaveProperty("remember");
+  expect(noticeLines(h.stderrText())).toEqual([
+    '승인 요청 "bash 실행"을 --auto-approve로 허용했다',
+  ]);
+});
+
+test("--auto-approve says why an allow was not applied", async () => {
+  const { h, responds } = printWithApproval({ notApplied: true });
+  expect(await h.run(["chat", "-p", "run it", "--auto-approve"])).toBe(EXIT.ok);
+  expect(responds).toHaveLength(1);
+  expect(noticeLines(h.stderrText())).toEqual([
+    '승인 요청 "bash 실행"을 --auto-approve로 허용하려 했으나 적용되지 않았다 (already_resolved)',
+  ]);
+});
+
+test("--auto-approve still denies a question approval, with the same notice as the default", async () => {
+  const { h, responds } = printWithApproval({ body: QUESTION_BODY, remember: ["once"] });
+  expect(await h.run(["chat", "-p", "run it", "--auto-approve"])).toBe(EXIT.ok);
+  expect(responds).toEqual([{ approvalId: expect.any(String), decision: "deny" }]);
+  expect(noticeLines(h.stderrText())).toEqual([
+    '승인 요청 "bash 실행"에 비대화 모드라 거부로 답했다',
+  ]);
+});
+
+test("--auto-approve still denies a plan approval", async () => {
+  const { h, responds } = printWithApproval({ body: PLAN_BODY, remember: ["once"] });
+  expect(await h.run(["chat", "-p", "run it", "--auto-approve"])).toBe(EXIT.ok);
+  expect(responds).toEqual([{ approvalId: expect.any(String), decision: "deny" }]);
+  expect(noticeLines(h.stderrText())).toEqual([
+    '승인 요청 "bash 실행"에 비대화 모드라 거부로 답했다',
+  ]);
+});

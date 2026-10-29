@@ -32,6 +32,7 @@ test("no arguments on a tty is the interactive chat", () => {
     target: { kind: "new" },
     overrides: [],
     safeMode: false,
+    autoApprove: false,
   });
   expect(chat(["chat"])).toEqual(chat([]));
 });
@@ -69,6 +70,21 @@ test("--continue and --resume <id> choose the target", () => {
 
 test("--json with the interactive mode is jsonRequiresPrint", () => {
   expect(code(["chat", "--json"])).toBe("jsonRequiresPrint");
+});
+
+test("--auto-approve is accepted in print mode, sets autoApprove, and is off by default", () => {
+  expect(chat(["chat", "-p", "x", "--auto-approve"])).toMatchObject({
+    mode: "print",
+    input: "x",
+    autoApprove: true,
+  });
+  expect(chat(["--auto-approve"], PIPE_IN)).toMatchObject({ mode: "print", autoApprove: true });
+  expect(chat(["chat", "-p", "x"]).autoApprove).toBe(false);
+});
+
+test("--auto-approve with the interactive mode is autoApproveRequiresPrint", () => {
+  expect(code(["chat", "--auto-approve"])).toBe("autoApproveRequiresPrint");
+  expect(code(["chat", "--auto-approve", "--json"])).toBe("jsonRequiresPrint");
 });
 
 test("--continue together with --resume is conflictingFlags", () => {

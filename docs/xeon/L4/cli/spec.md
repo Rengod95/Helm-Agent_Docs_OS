@@ -71,6 +71,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon`, `xeon chat` | 대화형 모드. TTY가 아니면 print 모드로 바뀐다(§4.2). 대화형의 슬래시 명령 중 엔진에 등록한 것은 `command.list`로 목록을, `command.run`으로 실행을 부른다(§4.12) | `host.hello`, `thread.create`, `events.subscribe`, `turn.start`, `settings.get`. 슬래시 명령: `command.list { threadId }`, `command.run`, `thread.compact` | M1 |
 | `xeon chat -p <입력>`, `--print <입력>` | print 모드. 입력 하나로 turn 하나를 돌리고 응답 텍스트를 stdout에 쓴다. `-p -` 또는 `-p`만 쓰면 stdin 전체가 입력이다 | 위와 같음 | M1 |
 | `xeon chat -p … --json` | JSON 모드. 연결에서 오간 JSON-RPC 메시지를 순서대로 한 줄에 하나씩 쓴다(§4.4) | 위와 같음 | M1 |
+| `xeon chat -p … --auto-approve` | print 모드에서 도구 승인 요청을 `{ decision: "allow" }`로 한 번 허용한다(`remember`를 보내지 않는다). 질문·계획·검토 승인은 거부한다. 승인마다 stderr에 한 줄을 쓴다(§4.11 4번). 대화형과 함께 쓰면 사용법 오류 2(`autoApproveRequiresPrint`) | `approval.respond`(`decision: "allow"`) | M3(구현됨, M3b B1-SCH) |
 | `xeon chat --continue` | 현재 작업 폴더의 마지막 세션을 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list`. 대화형이고 그 세션에 끊긴 turn이 있으면 묻고 `turn.resume`을 부른다(§4.4) | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
 | `xeon chat --resume <id>` | 지정 세션을 이어 연다 | M1: `events.subscribe`, `turn.start`. M2: `thread.open` 추가 | M1 |
 | `xeon chat --set <key>=<value>` | 이 세션에만 설정을 덮어쓴다(session 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `session`, `threadId`) | M2 |
@@ -141,6 +142,7 @@ export interface ChatCommand {
   readonly output: OutputMode;
   readonly target: ChatTarget;
   readonly overrides: readonly SessionOverride[];
+  readonly autoApprove: boolean;        // --auto-approve. print 모드에서만 참이다(§4.11 4번)
 }
 
 export type SessionsCommand =
@@ -202,7 +204,7 @@ export interface GlobalOptions {
 export type UsageErrorCode =
   | "unknownCommand" | "unknownFlag" | "missingArgument" | "unexpectedArgument"
   | "invalidSettingKey" | "invalidOverride" | "invalidThreadId" | "invalidSecretName"
-  | "secretValueInArgv" | "conflictingFlags" | "jsonRequiresPrint" | "inputRequired" | "revealRequiresTty";
+  | "secretValueInArgv" | "conflictingFlags" | "jsonRequiresPrint" | "autoApproveRequiresPrint" | "inputRequired" | "revealRequiresTty";
 
 export interface UsageError {
   readonly code: UsageErrorCode;
@@ -472,6 +474,7 @@ export type CliState = Static<typeof CliStateSchema>;
 - `-p <입력>`과 TTY가 아닌 stdin이 함께 있으면 `-p` 입력 뒤에 빈 줄과 stdin 내용을 붙인다 [제안].
 - 입력은 UTF-8로 읽고 `TurnStartInput` 문자열로 보낸다. 1 MiB 프레임 한도(`WIRE_LIMITS.maxFrameBytes`)를 넘으면 사용법 오류 2다.
 - `--json`은 print 모드에서만 쓴다. 대화형과 함께 쓰면 2(`jsonRequiresPrint`).
+- `--auto-approve`도 print 모드에서만 쓴다. 대화형과 함께 쓰면 2(`autoApproveRequiresPrint`).
 - print 모드와 비TTY 출력에는 ANSI 제어 문자(색, 커서 이동, CSI 2026 동기화, OSC)를 쓰지 않는다. `--no-color`, `NO_COLOR`, `TERM=dumb`이면 대화형에서도 색을 쓰지 않는다.
 
 ### 4.3 엔진 연결
@@ -712,7 +715,10 @@ export type CliState = Static<typeof CliStateSchema>;
   1. `approval.requested` 내구 이벤트가 오면 `ApprovalView`를 만들고 프롬프트를 연다. 선택지는 허용, 거부, 답(질문형일 때)이고 기억 범위는 이번만(`once`), 이 세션(`thread`), 항상(`always`)이다.
   2. 사용자의 선택을 `approval.respond { approvalId, decision, answer?, remember? }`로 보낸다.
   3. `approval.resolved` 이벤트가 오면 프롬프트를 닫는다. 다른 클라이언트가 먼저 답한 경우도 같다.
-  4. print 모드는 프롬프트를 열 수 없으므로 `decision: "deny"`로 답하고 stderr에 한 줄 알린다 [제안]. M3에서는 사전 허용 규칙을 먼저 적용하고, 전체 자동 승인 플래그를 옵션으로 둔다 [결정: review.m3-design-inputs D-M3-14](§10 8번).
+  4. print 모드는 프롬프트를 열 수 없으므로 답을 자동으로 보내고 승인마다 stderr에 한 줄 알린다. 기본(플래그 없음)은 모든 승인에 `decision: "deny"`로 답한다(`createAutoDeny`). 엔진은 사전 허용 규칙(`l1.tools.rules`, L1.tools 정책)을 승인 요청 전에 적용하므로, CLI가 받는 `approval.requested`는 사전 허용되지 않은 요청이다. 그래서 기본 모드는 사전 허용 규칙만 적용하고 나머지는 거부한다 [결정: review.m3-design-inputs D-M3-14 c](§10 8번).
+     - `--auto-approve`는 옵션이다 [결정: 오케스트레이터 기본값, M3b B1-SCH]. 도구 승인(`form.kind === "tool"`)만 `{ decision: "allow" }`로 한 번 허용한다. `remember`는 보내지 않는다(호스트가 `once`로 본다). 승인마다 stderr에 `승인 요청 "<제목>"을 --auto-approve로 허용했다`를 쓴다. 응답이 적용되지 않았으면 이유를 붙이고, 응답 수단이 없으면 그 사실을 붙인다(`createAutoAllow`).
+     - 질문, 계획, 검토 승인은 사람이 답해야 하므로 이 플래그로도 거부한다. 거부 알림은 기본과 같다. 자동 응답은 사람의 답(질문 번호, 수정 요청 내용)을 대신하지 않는다.
+     - 알림에는 승인 제목만 쓴다. 본문(명령, 인자, `secret://` 핸들)은 쓰지 않는다.
   5. payload 모양은 `L1.tools.spec` 소관이다. CLI는 제목·본문·질문 여부만 읽는다.
   6. 구현 (대화형 줄 입력): 요청 payload의 `remember`가 허용하는 범위만 보인다.
      - 도구: `[y]` 이번만 허용, `[t]` 이 세션 동안 허용(`thread`가 있을 때), `[a]` 항상 허용(`always`가 있을 때), `[n]` 거부. `n` 뒤에 이유를 받아 있으면 `answer: { feedback }`으로 보낸다.
@@ -867,7 +873,7 @@ export type CliState = Static<typeof CliStateSchema>;
 5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 비밀 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정].
 6. [결정: review.m2-plan §8 D10] pi-tui 채택은 M2 스파이크의 한글 IME·CJK 폭 확인 통과를 조건으로 한다(§4.9.2). 실패하면 최소 renderer로 유지한다. M2 종료 조건이 아니다. 스파이크 결과(2026-10-24, `L4.cli.plan` §4.4): CJK 폭, IME 확정 입력, 하드웨어 커서 위치, 줄바꿈의 자동 확인은 모두 통과했다. 실제 터미널(macOS·Linux·WSL)의 한국어 IME 확인과 Bun 1.4.3 `--compile` 실행 확인이 남아 채택을 보류하고 최소 renderer를 유지한다. 최소 renderer의 진행 줄이 문자 수로 잘리던 문제는 칸 수 기준으로 고쳤다.
 7. [결정: review.m3-design-inputs D-M3-25 행 4] 릴리즈 형태는 단일 파일이다. native 모듈이 꼭 필요하면 옆 디렉터리를 쓴다. 이전 질문: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
-8. [결정: M2] print 모드에서 승인 요청이 오면 거부로 답하고 stderr에 한 줄 알린다(§4.11 4번). [결정: review.m3-design-inputs D-M3-14] M3 기본은 L1.tools 사전 허용 규칙만 적용하고 나머지는 거부한다. 전체 자동 승인 플래그(모두 허용, 이름 [제안] `--yes-all`)를 옵션으로 둔다.
+8. [결정: M2] print 모드에서 승인 요청이 오면 거부로 답하고 stderr에 한 줄 알린다(§4.11 4번). [결정: review.m3-design-inputs D-M3-14] M3 기본은 L1.tools 사전 허용 규칙만 적용하고 나머지는 거부한다. [결정: 오케스트레이터 기본값, M3b B1-SCH] 옵션 플래그는 `--auto-approve`다(이전 [제안] `--yes-all`은 쓰지 않는다). print 모드에서만 쓰고, 도구 승인만 한 번 허용한다. D-M3-14 b의 "모두 허용 포함" 범위는 도구 승인으로 좁힌다. 질문·계획·검토 승인은 이 플래그로도 거부한다(§4.11 4번).
 9. [결정: review.decisions-2 U-02] 승인 요청은 A안(내구 이벤트 `approval.requested`/`approval.resolved` + `approval.respond`)이다. kind는 F.records 카탈로그에 있다(`F.records.spec` §3.2).
 10. [결정: review.m3-design-inputs D-M3-30 행 3, adr.0020] TUI 설정 화면은 M3에 만들지 않는다. view-model 공유 위치는 `packages/client`다(§4.9.4).
 11. [미결] stdout EPIPE의 종료 코드(0 제안)와 129·143 추가.
