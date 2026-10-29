@@ -38,6 +38,7 @@ import {
 //   1. xeon chat 한 턴이 read 도구를 쓰고 끝난다(실제 자식 프로세스).
 //   2. 실행 중 SIGKILL 뒤 --continue로 다시 열면 같은 thread에서 이벤트가 이어진다(실제 자식 프로세스).
 //   3. 테스트 그룹의 scope 토글은 단계 경계에서 적용되고, drive가 turn을 만든다(같은 프로세스 안 엔진).
+//   4. --set l4.ui.locale=en이면 글 모드 턴의 문장이 영어가 되고, 없으면 같은 테이프가 한국어로 나온다(실제 자식 프로세스).
 // 결정성은 D1이다: 이벤트열을 바이트로 비교하지 않고 순서와 관계만 본다(TS-08 3번).
 
 const homes: ScenarioHome[] = [];
@@ -119,6 +120,35 @@ function spawnChat(home: ScenarioHome, tapeName: string, args: readonly string[]
   };
   children.push(child);
   return child;
+}
+
+/** chat을 글 모드(--json 없이)로 띄우고 끝까지 기다린다. 로케일 단서는 LANG과 LC_ALL로 ko에 고정한다 */
+async function runTextChat(
+  home: ScenarioHome,
+  tapeName: string,
+  args: readonly string[],
+): Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }> {
+  const proc = Bun.spawn([process.execPath, SCENARIO_MAIN, "chat", ...args], {
+    cwd: home.work,
+    env: {
+      ...process.env,
+      XEON_HOME: home.root,
+      XEON_CLI_STATE_FILE: home.stateFile,
+      XEON_SCENARIO_TAPE: `${TAPES_DIR}/${tapeName}.tape.jsonl`,
+      // 호스트 로케일이 결과를 바꾸지 못하게 OS 단서를 ko로 고정한다. 영어가 되는 것은 --set 뿐이어야 한다
+      LANG: "ko_KR.UTF-8",
+      LC_ALL: "ko_KR.UTF-8",
+    },
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [code, stdout, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+  return { code, stdout, stderr };
 }
 
 // ── 1. 한 턴과 read 도구 ─────────────────────────────────────────────────
@@ -347,4 +377,30 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
     if (previousHome === undefined) delete process.env["XEON_HOME"];
     else process.env["XEON_HOME"] = previousHome;
   }
+}, 60_000);
+
+// ── 4. 표시 언어 ─────────────────────────────────────────────────────────
+
+const HANGUL = /[ᄀ-ᇿ㄰-㆏가-힯]/u;
+
+test("scenario-4: --set l4.ui.locale=en makes the print turn's messages English, and without it they stay Korean", async () => {
+  // 인자 없는 명령은 승인이 필요하고, 글 모드(비대화)라 자동으로 거부된다. 거부 문장이 로케일을 보여 준다
+  const english = await runTextChat(newHome(), "chat-locale", [
+    "-p",
+    "run it",
+    "--set",
+    "l4.ui.locale=en",
+  ]);
+  expect(english.code, english.stderr).toBe(0);
+  const englishText = `${english.stdout}${english.stderr}`;
+  expect(englishText).toContain(
+    'Denied approval request "Allow tool "bash"?" because print mode is non-interactive',
+  );
+  expect(englishText).not.toMatch(HANGUL);
+
+  const korean = await runTextChat(newHome(), "chat-locale", ["-p", "run it"]);
+  expect(korean.code, korean.stderr).toBe(0);
+  const koreanText = `${korean.stdout}${korean.stderr}`;
+  expect(koreanText).toContain('승인 요청 "Allow tool "bash"?"에 비대화 모드라 거부로 답했다');
+  expect(koreanText).not.toContain("print mode");
 }, 60_000);
