@@ -37,7 +37,7 @@
       "entry": ["test/**/*.test.ts", "test/support/atomic-victim.ts"]
     },
     "packages/core-persistence": {
-      "entry": ["test/**/*.test.ts", "test/support/crash-child.ts"]
+      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts", "test/support/crash-child.ts"]
     },
     "packages/platform-process": {
       "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]
