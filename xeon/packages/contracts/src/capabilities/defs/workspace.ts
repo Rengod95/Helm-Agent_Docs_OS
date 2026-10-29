@@ -665,6 +665,9 @@ export const RunOutput: TObject<{
   fullOutputPath: TOptional<TString>;
   durationMs: TInteger;
   sandboxed: TBoolean;
+  unsandboxedBy: TOptional<
+    TUnion<[TLiteral<"escape">, TLiteral<"run_unsandboxed">, TLiteral<"disabled">]>
+  >;
 }> = Type.Object(
   {
     exitCode: Type.Integer(),
@@ -676,6 +679,14 @@ export const RunOutput: TObject<{
     durationMs: Type.Integer({ minimum: 0 }),
     /** 샌드박스 안에서 실행했는가 */
     sandboxed: Type.Boolean(),
+    /** 샌드박스 밖에서 실행한 이유. sandboxed가 거짓일 때만 있다(L0.sandbox.spec §3, L1.tools.spec §4.12 감사 이벤트 tool.sandbox_bypassed의 입력) */
+    unsandboxedBy: Type.Optional(
+      Type.Union([
+        Type.Literal("escape"),
+        Type.Literal("run_unsandboxed"),
+        Type.Literal("disabled"),
+      ]),
+    ),
   },
   { additionalProperties: false },
 );

@@ -61,7 +61,7 @@ Xeon 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유 �
 | `session-core` | L1 | persistence | `core-persistence` | `events`, `event_seq`, `thread_delete_guard`, `requests`, `step_checkpoints`, `consumer_cursors`, `projector_state`, `p_*` | `thread.`, `checkpoint.`, `settings.` | `xeon.session` | `xeon.store`(전체 핸들은 조립 루트가 넘김) |
 | `run-engine` | L1 | tasks, loop, context, agents | `core-tasks`, `core-loop`, `core-context`, `core-agents` | 없음(상태는 이벤트와 `p_*`) | `input.`, `turn.`, `step.`, `item.`, `part.`, `post.`, `agent.`, kind 단위 `thread.compacted` | `xeon.tasks`, `xeon.loop`, `xeon.context`, `xeon.agents` | `xeon.session`, `xeon.models`, `xeon.tools`, `xeon.ext` |
 | `model-gateway` | L1 | models | `core-models`, `plugins/provider-anthropic-oauth` | `core_models_*`(사용량, 계정 회전 상태. 설정 화면은 M3, [결정: review.decisions-2 U-21]) | `model.`(휘발만, 예약) | `xeon.models` | `xeon.secrets` |
-| `tool-runtime` | L1 | tools | `core-tools` | `core_tools_*`(항상 허용 캐시) | `effect.`, `approval.`, `secret.` | `xeon.tools`, `xeon.approvals` | `xeon.session`, `xeon.exec`, `xeon.sandbox`, `xeon.secrets`, `xeon.ext` |
+| `tool-runtime` | L1 | tools | `core-tools` | `core_tools_*`(항상 허용 캐시) | `effect.`, `approval.`, `secret.`, `tool.` | `xeon.tools`, `xeon.approvals` | `xeon.session`, `xeon.exec`, `xeon.sandbox`, `xeon.secrets`, `xeon.ext` |
 | `workspace` | L2 | workspace | `cap-workspace` | 없음(예약 `cap_workspace_*`) | `workspace.`(예약) | `xeon.workspace` | `xeon.exec`, `xeon.os`, `xeon.tools` |
 | `mcp` | L2 | mcp | `cap-mcp` | `cap_mcp_*`(서버 상태) | `mcp.`(휘발, 예약) | `xeon.mcp` | `xeon.process`, `xeon.secrets`, `xeon.tools`, `xeon.store` |
 | `web` | L2 | web | `cap-web` | `cap_web_*`(fetch 캐시) | `web.`(휘발, 예약) | `xeon.web` | `xeon.models`(내장 검색 래퍼), `xeon.secrets`, `xeon.tools`, `xeon.store` |
@@ -268,6 +268,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `effect.` | tool-runtime | `core.tools` | `intent`, `exec`, `result` | 없음 |
 | `approval.` | tool-runtime | `core.tools` | `requested`, `resolved` | 없음 |
 | `secret.` | tool-runtime | `core.tools` | `used`, `denied`, `approved`, `masked`(`F.records.spec` §3.3) | 없음 |
+| `tool.` | tool-runtime | `core.tools` | `sandbox_bypassed`(`F.records.spec` §3.3, `L0.sandbox.spec` §10 2번) | 없음 |
 | `scope.` | extension-host | `xh` | `changed` | `handler_failed` |
 | `lease.` | extension-host | `xh` | `acquired`, `released` | 없음 |
 | `model.` | model-gateway | `core.models` | 없음(예약) | 예약 |

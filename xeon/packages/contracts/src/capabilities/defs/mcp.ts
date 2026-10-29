@@ -28,8 +28,8 @@ import { ImageBlobRefSchema } from "./workspace.ts";
 export const MCP_SERVER_ID_PATTERN: string = "^[a-z][a-z0-9-]{0,31}$";
 export const McpServerIdSchema: TString = Type.String({ pattern: MCP_SERVER_ID_PATTERN });
 
-/** F.wire-settings.spec §3.8.1 SecretRef 형식 */
-const SecretRefParam = Type.String({ pattern: "^secret://[a-z][a-z0-9-]{1,63}$" });
+/** secret:// 참조 또는 평문. 참조 형식과 비밀 이름 패턴 검사는 cap-mcp가 정의를 읽을 때 한다(L2.mcp.spec §3.1) */
+const McpValue = Type.String({ maxLength: 8192 });
 const EnvName = Type.String({ pattern: "^[A-Za-z_][A-Za-z0-9_]{0,127}$" });
 const HeaderName = Type.String({ pattern: "^[A-Za-z0-9-]{1,128}$" });
 
@@ -39,13 +39,14 @@ export type McpTransport =
       command: string;
       args?: string[];
       cwd?: string;
-      /** 값은 secret:// 참조만. 실행 직전에 L0.secrets가 주입한다 */
+      /** 값은 secret:// 참조 또는 평문 문자열이다. secret:// 참조는 실행 직전에 L0.secrets가 주입한다 */
       env?: Record<string, string>;
     }
   | {
       /** Streamable HTTP */
       type: "http";
       url: string;
+      /** 값은 secret:// 참조 또는 평문 문자열이다 */
       headers?: Record<string, string>;
       /** OAuth 사용(2차) */
       oauth?: boolean;
@@ -54,6 +55,7 @@ export type McpTransport =
       /** 2025 이전 서버 호환 */
       type: "sse";
       url: string;
+      /** 값은 secret:// 참조 또는 평문 문자열이다 */
       headers?: Record<string, string>;
     };
 const mcpTransportShape = Type.Union([
@@ -62,18 +64,18 @@ const mcpTransportShape = Type.Union([
     command: Type.String({ minLength: 1 }),
     args: Type.Optional(Type.Array(Type.String())),
     cwd: Type.Optional(Type.String()),
-    env: Type.Optional(Type.Record(EnvName, SecretRefParam)),
+    env: Type.Optional(Type.Record(EnvName, McpValue)),
   }),
   Type.Object({
     type: Type.Literal("http"),
     url: Type.String({ pattern: "^https?://" }),
-    headers: Type.Optional(Type.Record(HeaderName, SecretRefParam)),
+    headers: Type.Optional(Type.Record(HeaderName, McpValue)),
     oauth: Type.Optional(Type.Boolean()),
   }),
   Type.Object({
     type: Type.Literal("sse"),
     url: Type.String({ pattern: "^https?://" }),
-    headers: Type.Optional(Type.Record(HeaderName, SecretRefParam)),
+    headers: Type.Optional(Type.Record(HeaderName, McpValue)),
   }),
 ]);
 export const McpTransportSchema: TUnsafe<McpTransport> = Type.Unsafe<McpTransport>(
@@ -101,6 +103,8 @@ export type McpServerDef = {
   timeouts?: { connectMs?: number; callMs?: number };
   /** 참이면 annotations를 승인 정책 입력으로 쓴다(§3.4). 기본 false */
   trustAnnotations?: boolean;
+  /** 서버별 샌드박스 설정. 있으면 출처별 기본값보다 우선한다(L2.mcp.spec §4.3, M3-REQ-97) */
+  sandbox?: boolean;
 };
 const mcpServerDefShape = Type.Object({
   title: Type.Optional(Type.String({ maxLength: 80 })),
@@ -120,6 +124,7 @@ const mcpServerDefShape = Type.Object({
     }),
   ),
   trustAnnotations: Type.Optional(Type.Boolean()),
+  sandbox: Type.Optional(Type.Boolean()),
 });
 export const McpServerDefSchema: TUnsafe<McpServerDef> = Type.Unsafe<McpServerDef>(
   mcpServerDefShape satisfies SchemaProof<McpServerDef, typeof mcpServerDefShape>,

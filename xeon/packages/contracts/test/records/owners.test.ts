@@ -62,6 +62,7 @@ describe("TYPE_PREFIX_OWNERS", () => {
     expect(ownerOfKind("turn.updated")).toBe("core.loop");
     expect(ownerOfKind("effect.intent")).toBe("core.tools");
     expect(ownerOfKind("secret.used")).toBe("core.tools");
+    expect(ownerOfKind("tool.sandbox_bypassed")).toBe("core.tools");
     expect(ownerOfKind("input.queued")).toBe("core.tasks");
     expect(ownerOfKind("post.accepted")).toBe("core.tasks");
     expect(ownerOfKind("scope.handler_failed")).toBe("xh");

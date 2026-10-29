@@ -63,7 +63,7 @@ export const effectResult: Readonly<Record<string, unknown>> = {
   synthesized: false,
 };
 
-/** 코어 카탈로그 40종 각각의 대표 payload. 카탈로그에 kind가 늘면 이 표가 컴파일 오류로 알린다. */
+/** 코어 카탈로그 42종 각각의 대표 payload. 카탈로그에 kind가 늘면 이 표가 컴파일 오류로 알린다. */
 export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<string, unknown>>>> =
   {
     "thread.started": { title: "t", forkedFrom: null },
@@ -246,6 +246,12 @@ export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<st
     "secret.masked": {
       hits: [{ kind: "known:github-token", count: 2 }],
       layer: "tool-result",
+      at: 1_700_000_000_000,
+    },
+    "tool.sandbox_bypassed": {
+      toolCallId: "call_1",
+      toolName: "bash",
+      reason: "run_unsandboxed",
       at: 1_700_000_000_000,
     },
   };

@@ -75,7 +75,7 @@ import { defineCapability, serviceKey, type CapabilityApi, type ToolContent } fr
 export const MCP_SERVER_ID_PATTERN = "^[a-z][a-z0-9-]{0,31}$";
 export const McpServerIdSchema = Type.String({ pattern: MCP_SERVER_ID_PATTERN });
 
-const SecretRefParam = Type.String({ pattern: "^secret://[a-z][a-z0-9-]{1,63}$" });   // F.wire-settings.spec §3.8.1 SecretRef 형식
+const McpValue = Type.String({ maxLength: 8192 });   // secret:// 참조 또는 평문. 형식 검사는 cap-mcp가 정의를 읽을 때 한다
 const EnvName = Type.String({ pattern: "^[A-Za-z_][A-Za-z0-9_]{0,127}$" });
 const HeaderName = Type.String({ pattern: "^[A-Za-z0-9-]{1,128}$" });
 
@@ -85,20 +85,20 @@ export const McpTransportSchema = Type.Union([
     command: Type.String({ minLength: 1 }),
     args: Type.Optional(Type.Array(Type.String())),
     cwd: Type.Optional(Type.String()),
-    /** 값은 secret:// 참조만. 실행 직전에 L0.secrets가 주입한다 */
-    env: Type.Optional(Type.Record(EnvName, SecretRefParam)),
+    /** 값은 secret:// 참조 또는 평문 문자열이다. secret:// 참조는 실행 직전에 L0.secrets가 주입한다 */
+    env: Type.Optional(Type.Record(EnvName, McpValue)),
   }),
   Type.Object({
     type: Type.Literal("http"),            // Streamable HTTP
     url: Type.String({ pattern: "^https?://" }),
-    headers: Type.Optional(Type.Record(HeaderName, SecretRefParam)),
+    headers: Type.Optional(Type.Record(HeaderName, McpValue)),
     /** OAuth 사용(2차) */
     oauth: Type.Optional(Type.Boolean()),
   }),
   Type.Object({
     type: Type.Literal("sse"),             // 2025 이전 서버 호환
     url: Type.String({ pattern: "^https?://" }),
-    headers: Type.Optional(Type.Record(HeaderName, SecretRefParam)),
+    headers: Type.Optional(Type.Record(HeaderName, McpValue)),
   }),
 ]);
 
@@ -122,11 +122,15 @@ export const McpServerDefSchema = Type.Object({
   })),
   /** 참이면 annotations를 승인 정책 입력으로 쓴다(§3.4). 기본 false */
   trustAnnotations: Type.Optional(Type.Boolean()),
+  /** 서버별 샌드박스 설정. 있으면 출처별 기본값보다 우선한다(L2.mcp.spec §4.3, M3-REQ-97) */
+  sandbox: Type.Optional(Type.Boolean()),
 });
 export type McpServerDef = Static<typeof McpServerDefSchema>;
 ```
 
 - 서버 정의는 설정 키 `l2.mcp.servers`(서버 id → `McpServerDef`)에 둔다. F5 설정 스키마 하나에서 화면·파일·명령이 나오도록 하기 위해서다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 6).
+- `env`와 `headers`의 값은 `secret://` 참조이거나 평문 문자열이다(최대 8192자). 스키마는 값을 문자열로만 본다. 참조 형식 검사와 비밀 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 거부는 `cap-mcp`가 정의를 읽을 때 한다 [결정: review.m3-design-inputs D-M3-19].
+- `sandbox`는 서버별 샌드박스 설정이다. 없으면 출처별 기본값(프로젝트 출처 켬, 사용자 출처 끔)을 쓰고, 있으면 기본값보다 우선한다. 적용 대상은 stdio 서버이며 http·sse 정의의 값은 쓰지 않는다 [결정: review.m3-design-inputs D-M3-19].
 - `.mcp.json` 호환 [제안]: 프로젝트 루트의 `.mcp.json`과 `.xeon/mcp.json`(`{ "mcpServers": { "<이름>": { "command", "args", "env", "url", "type", "headers" } } }`, Claude Code 형식, `_research/settings.md` §2.10 MCP 서버 정의 행)을 읽기 전용으로 가져온다. 변환 규칙은 §4.2다. 사용자 범위 파일 위치는 L4가 정하는 설정 디렉터리 규칙을 따른다 [가정].
 
 ### 3.2 능력 정의 `mcp.client`

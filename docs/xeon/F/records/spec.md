@@ -161,7 +161,7 @@ export function checkEnvelopeSize(envelope: EventEnvelope): Result<number, Envel
 export type CoreArea =
   | "thread" | "turn" | "step" | "item" | "part" | "effect"
   | "checkpoint" | "scope" | "lease" | "post" | "settings"
-  | "approval" | "input" | "agent" | "secret";
+  | "approval" | "input" | "agent" | "secret" | "tool";
 
 export type CoreEventKind =
   | "thread.started" | "thread.updated" | "thread.closed" | "thread.leaf_moved"
@@ -177,7 +177,8 @@ export type CoreEventKind =
   | "approval.requested" | "approval.resolved"
   | "input.queued" | "input.placed" | "input.withdrawn"
   | "agent.spawned" | "agent.settled" | "agent.judged"
-  | "secret.used" | "secret.denied" | "secret.approved" | "secret.masked";
+  | "secret.used" | "secret.denied" | "secret.approved" | "secret.masked"
+  | "tool.sandbox_bypassed";
 
 /** 내장 L2 도메인이 소유하는 영역(§3.3.2). 카탈로그 파일이 있는 영역만 */
 export type DomainArea = "work" | "dialog" | "artifact" | "schedule";
@@ -244,7 +245,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[];
 export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 ```
 
-코어 카탈로그(41종, 모두 version 1). 아래 표는 `xeon/scripts/check-event-catalog.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 표 행을 고치면 코드도 고친다.
+코어 카탈로그(42종, 모두 version 1). 아래 표는 `xeon/scripts/check-event-catalog.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 표 행을 고치면 코드도 고친다.
 
 <!-- catalog:start -->
 | kind | durable | payload 스키마 | 요약 |
@@ -290,6 +291,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `secret.denied` | 예 | `SecretDeniedPayloadSchema` | 비밀 사용 거부와 사유 |
 | `secret.approved` | 예 | `SecretApprovedPayloadSchema` | 비밀 사용 승인 증거 |
 | `secret.masked` | 예 | `SecretMaskedPayloadSchema` | 마스킹 계층과 적중 수 |
+| `tool.sandbox_bypassed` | 예 | `ToolSandboxBypassedPayloadSchema` | 샌드박스 밖에서 실행한 도구 호출(`reason`: `escape`·`run_unsandboxed`·`disabled`). 명령과 출력 값은 싣지 않는다 |
 <!-- catalog:end -->
 
 - [제안] 토큰 델타(`item.updated`의 `update.kind: "part_delta"`, payload `PartDelta`)와 진행 표시(`*.updated`, `item.started`)는 휘발이다. 델타 전용 kind는 두지 않는다. 알림 `type`과 카탈로그 kind를 같게 두는 `F.conversation.spec` §3.5.3 규칙 때문이다. 완성 파트(`part.recorded`)와 완성 item(`item.recorded`)만 내구다(`_research/session-storage.md` 권장안, `docs/design/19-client-protocol.md` §3.5.2).
@@ -538,6 +540,12 @@ export interface SecretMaskedPayload {
   layer: "human-input" | "tool-result" | "outbound" | "model-projection" | "ops-log";
   at: number;
 }
+
+// src/records/catalog/tool.ts   (L1.tools.spec §4.12, L0.sandbox.spec §3. 명령과 출력 값을 싣지 않는다)
+type SandboxBypassReason = "escape" | "run_unsandboxed" | "disabled";
+export interface ToolSandboxBypassedPayload {
+  toolCallId: string; toolName: string; reason: SandboxBypassReason; at: number;
+}
 ```
 
 - [결정: m2c G1-09] `origin`의 필드마다 값을 채우는 주체가 하나다. 승인 요청을 올리는 쪽(L1.tools의 도구 승인, L2 어댑터의 질문·계획 승인)이 아니라 승인 서비스(`ApprovalService.open`)가 요청을 받을 때 채우거나 검사한다.
@@ -554,6 +562,7 @@ export interface SecretMaskedPayload {
   - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·그룹 코드가 능력을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
 
 - [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 세션 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 세션 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
+- [결정: 오케스트레이터 기본값] `tool.sandbox_bypassed`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다(`L0.sandbox.spec` §10 2번). 명령과 출력을 싣지 않으며 같은 호출은 `toolCallId`로 잇는다.
 - [결정: review.decisions-2 U-05] `post.accepted`는 retire한다. 카탈로그 항목은 `retired: true`로 남기고(§3.2 규칙 5) 새로 쓰지 않는다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나이고, 대화에 배치된 item은 `input.placed`가 적는다. 멱등 판정은 커밋 키 `in:<sourceKey>:<requestId>`(`eng.transactions.design` §4.8)와 `TxView.inputByRequestId`가 한다.
 - [제안] M1 표지: 위 15종은 이 절로 카탈로그에 들어왔다. 그래도 코드(`CORE_EVENT_CATALOG`)와 `check-event-catalog.ts` 대조가 `F.records.plan`의 해당 작업으로 반영되기 전에는 소비 plan(`L1.tools`, `L1.tasks`, `L1.agents`)이 이 kind를 쓰는 테스트를 M1 완료 조건에 넣지 않는다.
 
@@ -572,7 +581,7 @@ export interface SecretMaskedPayload {
 규칙:
 
 1. 각 파일은 `CatalogEntry[]`를 export한다. 휘발 kind는 `durable: false`다. 이름은 §3.2 규칙 1(점 하나, snake_case)을 따른다.
-2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 41종만 담고 `check-event-catalog.ts`는 코어 표(§3.3)와 각 도메인 문서의 카탈로그 표를 따로 대조한다.
+2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 42종만 담고 `check-event-catalog.ts`는 코어 표(§3.3)와 각 도메인 문서의 카탈로그 표를 따로 대조한다.
 3. 접두 표기: 이벤트 영역은 단수 `artifact`다. 능력 id·서비스·테이블의 복수 `artifacts`(`cap.artifacts`, `L2.artifacts.spec`)는 그대로 두고 둘의 대응은 위 표가 정한다(`L2.readme` §2 표 주석).
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
@@ -1217,8 +1226,8 @@ export interface RecordCommitPort {
 4. `decideEffectRecovery`는 순수 함수이며 결정표 다섯 행을 그대로 낸다. intent만 있는 `unsafe` 효과는 `synthesize`/`not_started`, intent+exec만 있는 `unsafe` 효과는 `synthesize`/`outcome_unknown`으로 닫힌다.
 5. `@xeon/contracts/records`가 export하는 `ReplayPolicy`, `ReplayPolicySchema`, `toReplayPolicy`는 `@xeon/contracts/conversation`의 것과 같은 심볼이다(동일 참조). 매핑 값은 `F.conversation.spec` §9 수용 기준 9가 확인한다.
 6. 직렬화 크기가 262,145바이트인 envelope는 `checkEnvelopeSize`에서 `ok: false`(`event_too_large`)다. 262,144바이트는 `ok: true`다.
-7. `parseEventKind`는 코어 kind 41개와 병합된 도메인 카탈로그 kind를 통과시키고, 접두 없는 비코어·비도메인 kind, `ReservedDomainArea` kind, 형식 위반을 거부한다.
-8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(41종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
+7. `parseEventKind`는 코어 kind 42개와 병합된 도메인 카탈로그 kind를 통과시키고, 접두 없는 비코어·비도메인 kind, `ReservedDomainArea` kind, 형식 위반을 거부한다.
+8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(42종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
 9. 카탈로그의 모든 payload 스키마가 대표 픽스처의 JSON 왕복 뒤 검증을 통과한다.
 10. `StepCheckpointSchema`는 `schemaVersion` 누락과 `stepIndex` 음수를 거부한다.
 11. `ChunkMigration.runChunk`는 동기이고 실행기가 같은 `tx`에 커서를 저장한다. 청크 중간에 던지면 그 청크의 행과 커서가 함께 롤백된다.
