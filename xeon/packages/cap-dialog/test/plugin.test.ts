@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { eachAsync, ok, type Result } from "@xeon/contracts";
 import {
+  DIALOG_CAPABILITIES,
+  WorkspaceImages,
   DialogAskKey,
   DialogAttachmentsKey,
   DialogCommandsKey,
+  DialogNotify,
   DialogStatusKey,
   WorkspaceImagesKey,
   type CapabilityApi,
@@ -11,6 +14,9 @@ import {
   type DialogAttachments,
   type DialogCommands,
   type DialogStatus,
+  type Notice,
+  type NoticeFeed,
+  type ServiceKey,
 } from "@xeon/contracts/capabilities";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { ApprovalServicePortKey, type OsTime } from "@xeon/contracts/services";
@@ -18,10 +24,12 @@ import { defineManifest, validateManifest, type PortKey } from "@xeon/contracts/
 import type {
   CommitBatch,
   DurableEventEnvelope,
+  ProducerHandle,
+  ProducerId,
   ReadFailure,
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
-import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
+import { capabilityDefTable, hostOf, type ExtensionUnit } from "@xeon/ext-host";
 import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
 import { DIALOG_EXTENSION_NAME, dialogManifest } from "../src/manifest.ts";
 import { dialogPlugin } from "../src/plugin.ts";
@@ -38,6 +46,7 @@ import {
 import { fakeImages, memoryBlobs, pngBytes, type MemoryBlobs } from "./support/images.ts";
 import { memoryCommandFiles, type MemoryCommandFiles } from "./support/memory-command-files.ts";
 import { manualTimers } from "./support/timers.ts";
+import { turnCompleted } from "./support/notices.ts";
 
 // 플러그인 조립: L0·L1 포트를 가짜로 제공하고 실제 ExtHost에 올려 능력, 지점 핸들러, 피드 구독을 확인한다.
 
@@ -75,6 +84,10 @@ const EmitKey: PortKey<(event: VolatileEventEnvelope) => void> = {
   name: "xeon.session",
   member: "emitVolatile",
 };
+const ProducerKey: PortKey<(id: ProducerId) => ProducerHandle> = {
+  name: "xeon.session",
+  member: "producer",
+};
 
 interface Collected {
   readonly volatile: VolatileEventEnvelope[];
@@ -93,7 +106,11 @@ async function boot(
     extraCommands?: Record<string, string>;
   } = {},
 ) {
-  const t = await createTestHost({ without: ["records"] });
+  // 능력 정의 표가 있어야 호스트가 정의의 메서드만 감싼다. 구독 같은 정의 밖 멤버는 그대로 넘긴다(조립 루트와 같다)
+  const t = await createTestHost({
+    without: ["records"],
+    capabilityDefs: capabilityDefTable([...DIALOG_CAPABILITIES, WorkspaceImages]),
+  });
   const timers = manualTimers();
   const lines: LogLine[] = [];
   const commandFiles = memoryCommandFiles({
@@ -144,6 +161,13 @@ async function boot(
         ctx.providePort(EmitKey, (event) => {
           collected.volatile.push(event);
         });
+        // emit의 커밋 경로는 이 시험의 대상이 아니다(notify-service·session-adapter 시험). 생산자는 받을 수만 있으면 된다
+        ctx.providePort(ProducerKey, (id) => ({
+          producer: id,
+          draft: () => {
+            throw new Error("not used");
+          },
+        }));
       }
     },
   });
@@ -210,7 +234,14 @@ interface Apis {
   commands?: CapabilityApi<typeof DialogCommands>;
   status?: CapabilityApi<typeof DialogStatus>;
   attachments?: CapabilityApi<typeof DialogAttachments>;
+  notify?: CapabilityApi<typeof DialogNotify> & NoticeFeed;
 }
+
+/** 구독까지 보이는 알림 능력 키(런타임 키는 DialogNotifyKey와 같다) */
+const NotifyFeedKey: ServiceKey<CapabilityApi<typeof DialogNotify> & NoticeFeed> = {
+  capability: DialogNotify.id,
+  version: DialogNotify.version,
+};
 
 function consumer(): { apis: Apis; unit: ExtensionUnit } {
   const apis: Apis = {};
@@ -227,6 +258,7 @@ function consumer(): { apis: Apis; unit: ExtensionUnit } {
         { id: "dialog.commands", range: "^1.0.0" },
         { id: "dialog.status", range: "^1.0.0" },
         { id: "dialog.attachments", range: "^1.0.0" },
+        { id: "dialog.notify", range: "^1.0.0" },
       ],
       points: [],
       usesDrive: false,
@@ -237,6 +269,7 @@ function consumer(): { apis: Apis; unit: ExtensionUnit } {
         apis.commands = g.capability(DialogCommandsKey);
         apis.status = g.capability(DialogStatusKey);
         apis.attachments = g.capability(DialogAttachmentsKey);
+        apis.notify = g.capability(NotifyFeedKey);
       });
     },
     loadIndex: 2,
@@ -257,6 +290,7 @@ describe("manifest", () => {
       "dialog.commands",
       "dialog.status",
       "dialog.attachments",
+      "dialog.notify",
     ]);
     expect(manifest?.requires).toEqual([{ id: "workspace.images", range: "^1.0.0" }]);
     expect(manifest?.points).toEqual([
@@ -416,7 +450,12 @@ describe("plugin", () => {
     const { apis, unit } = consumer();
     await t.host.install(unit);
     await t.settled();
-    expect(collected.subscribed).toEqual([{ afterSeq: 10, kindPrefixes: ["turn.", "approval."] }]);
+    expect(collected.subscribed).toEqual([
+      {
+        afterSeq: 10,
+        kindPrefixes: ["turn.", "approval.", "work.", "agent.", "schedule.", "dialog."],
+      },
+    ]);
     const thread = t.newThread();
     const event: DurableEventEnvelope = {
       id: ids.next("evt"),
@@ -439,6 +478,54 @@ describe("plugin", () => {
       { id: "core.turn", text: "실행 중" },
     ]);
     expect(collected.volatile).toHaveLength(1);
+  });
+
+  test("dialog.notify를 제공하고 피드의 완료 턴을 구독자에게 알린다", async () => {
+    const { t, collected } = await boot();
+    const { apis, unit } = consumer();
+    const result = await t.host.install(unit);
+    expect(result.setups[0]?.status).toBe("applied");
+    await t.settled();
+    const thread = t.newThread();
+    const got: Notice[] = [];
+    apis.notify?.subscribe({ kinds: ["completed"] }, (_threadId, notice) => {
+      got.push(notice);
+    });
+    collected.listener?.({
+      firstSeq: 11,
+      lastSeq: 11,
+      events: [
+        {
+          id: ids.next("evt"),
+          kind: "turn.completed",
+          version: 1,
+          threadId: thread,
+          turnId: null,
+          stepId: null,
+          recordedAt: 1,
+          causationId: null,
+          correlationId: null,
+          payload: turnCompleted("completed"),
+          durable: true,
+          seq: 11,
+          parentId: null,
+        },
+      ],
+    });
+    expect(got).toEqual([
+      {
+        kind: "completed",
+        title: "작업이 끝났다",
+        body: null,
+        seq: 11,
+        sourceType: "turn.completed",
+      },
+    ]);
+    // 저장소 읽기는 피드 대역(빈 로그)을 거친다. list는 알림을 만들지 않고 nextSeq를 0으로 돌려준다
+    expect(await apis.notify?.list({ afterSeq: 0 }, callOptions(thread))).toEqual({
+      notices: [],
+      nextSeq: 0,
+    });
   });
 
   test("제거하면 구독과 타이머가 정리된다", async () => {

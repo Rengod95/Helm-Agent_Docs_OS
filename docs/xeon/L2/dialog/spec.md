@@ -691,7 +691,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | `dialog.commands.list` | readOnly | safe | 등록부 조회 |
 | `dialog.commands.expand` | readOnly | safe | 치환만 하고 실행하지 않는다 |
 | `dialog.commands.run` | 선언 없음 | unsafe | 동작 명령 처리기를 실행한다. 처리기 안의 효과는 처리기가 `requestId`로 지킨다 |
-| `dialog.notify.emit` | 선언 없음 | unsafe | 공급자가 아직 없다. `dialog.notified`를 `dialog:notify:<requestId>` 키로 남기는 구현(M3b, D11)이 적합성 시험과 함께 들어오면 `idempotent`로 올린다 [결정: 2026-10-28 오케스트레이터] |
+| `dialog.notify.emit` | 선언 없음 | unsafe | 구현은 `dialog.notified`를 `dialog:notify:<requestId>` 키로 남겨 같은 requestId 재호출에 처음 알림을 돌려준다(M3b, D11). 선언은 올리지 않는다. `idempotent`로 올리려면 F 정의와 `contracts/test/capabilities/l2-effect-classes.test.ts`의 기대값을 함께 고쳐야 하므로 [미결]. 올리는 조건은 [결정: 2026-10-28 오케스트레이터]와 같다 |
 | `dialog.notify.list` | readOnly | safe | 내구 이벤트 조회 |
 | `dialog.status.setItem` | 선언 없음 | unsafe | 휘발 스냅숏을 바꾼다. 내구 기록이 없어 `requestId`로 기억할 곳이 없다 |
 | `dialog.status.clearItem` | 선언 없음 | unsafe | 같음 |
@@ -963,7 +963,8 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | OS 알림(데스크톱 알림 센터) | cap-dialog가 `xeon.os`의 `notify(n, signal)`을 부른다(`L0.os.spec` §3.7, §3.10. 확인함). M3 이전 빌드와 provider `none`이면 `disabled`를 돌려준다 | 1 |
 | 모바일 푸시 | cap-dialog(`dialog.notify`)의 푸시 채널 [제안]. 외부 중계와 인증 계층은 서비스 모드(`L4.host-service.spec`)가 준다 | 2(서비스 모드) |
 
-- OS 알림은 kind별 설정(`l2.dialog.notify.<kind>`)과 `l2.dialog.notify.os`가 모두 켜졌을 때만 보낸다. 클라이언트 창이 앞에 있을 때 보내지 않는 조건은 클라이언트만 알 수 있으므로 [미결](§10 D-6).
+- 같은 프로세스 구독(`NoticeFeed.subscribe`)은 같은 스레드·같은 종류의 알림을 1초(`NOTICE_COALESCE_MS`) 안에 한 번만 보낸다 [구현: M3b D11]. 창 안에서 묶인 알림은 시각을 갱신하지 않는다. 묶는 것은 전달뿐이고 `list`는 모든 알림을 돌려준다. 같은 단계의 `turn.completed`와 `work.goal_settled`(목표 달성)이 한 번만 전달되게 하려는 기본값이다 [결정: 오케스트레이터 기본값]. 구독은 피드 이벤트마다 알림을 한 번 계산하고, 이미 본 seq는 무시한다.
+- OS 알림은 kind별 설정(`l2.dialog.notify.<kind>`)과 `l2.dialog.notify.os`가 모두 켜졌을 때만 보낸다. 클라이언트 창이 앞에 있을 때 보내지 않는 조건은 클라이언트만 알 수 있으므로 [미결](§10 D-6). 기본은 창 상태와 관계없이 보내고 화면 표시는 클라이언트가 정한다 [결정: review.m3-design-inputs D-M3-17].
 - 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 알림 채널이 한 곳에 있어야 무엇을 어디로 받을지 정하는 사용자 설정이 하나로 모인다. 모바일 푸시는 상주 서비스와 인증 계층이 필요하므로(`_research/l2e.md` §6 B4) 서비스 모드에서만 켜지고, 꺼져 있으면 `unavailable`(`detail.reason: "service_mode_off"`)이다(`L2.readme` §8). 이 경계에서는 `schedule.remote`가 dialog를 읽지 않으므로 L2 사이 간선이 생기지 않는다(`L2.readme` §6).
 - OS 알림 kind 대응 [제안]: `xeon.os`의 `notify`는 `NotifyKind` 4종(`done`, `approval`, `question`, `error`)을 받는다(`L0.os.spec` §3.7). 알림 5종을 다음과 같이 옮긴다.
 
@@ -994,7 +995,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 7. 셸 주입 실행 중 사용자가 거부(도구 승인 거부): 그 자리를 `[셸 거부]`로 치환하고 계속하지 않는다. `run`은 `CapabilityError(denied)`를 낸다.
 8. 상태줄 세그먼트 32개 초과: 뒤 항목은 휘발 이벤트에서 빠지고 `list`에는 남는다.
 9. 첨부 경로가 없음: `not_found`. 읽기 권한 없음: `denied`.
-10. 알림 원인 이벤트가 같은 단계에서 여러 개: 같은 kind는 한 번만 OS 알림을 보낸다(1초 안 같은 스레드·같은 kind 묶음) [제안].
+10. 알림 원인 이벤트가 같은 단계에서 여러 개: 같은 스레드·같은 kind는 1초 안에 한 번만 보낸다. 구독 전달은 §4.7.2에서 구현됐다(M3b D11). OS 알림도 같은 묶음을 쓴다 [제안: OS 전달 단위에서 붙인다].
 
 ## 6. 설정 노출
 
@@ -1053,7 +1054,7 @@ export const manifest = defineManifest({
 | `input.agent.before` | collect | 명령 목록 광고와 출력 스타일 조각(시스템 프롬프트 조각 API가 이 지점이 아니면 L1.context 경로로 옮긴다 [가정]). cap-dialog는 `payload.systemPrompt` 뒤에 조각을 붙여 돌려준다. [결정: 2026-10-28 오케스트레이터] collect에서 핸들러는 원본 payload만 보고 `systemPrompt`는 마지막으로 정의한 값이 이기므로, `systemPrompt`를 기여하는 핸들러는 하나만 둔다. 두 번째 기여자가 생기면 그때 다시 본다. |
 
 - post와 drive를 쓰지 않는다.
-- 내구 피드 구독(`xeon.session`)으로 `turn.*`, `approval.*`, `agent.settled`, `work.goal_settled`를 받아 상태줄 `core.turn`과 알림 분류를 계산한다. 구독자는 `seq`로 중복을 거른다(EV-05).
+- 내구 피드 구독(`xeon.session`)은 `turn.*`, `approval.*`, `work.*`, `agent.*`, `schedule.*`, `dialog.*` 접두를 받는다(M3b D11, `sessionFeed`의 접두 목록). 상태줄은 `turn.*`, `approval.*`로 `core.turn`을 계산하고, 알림 분류는 §4.7.1의 원인 종류로 계산한다. 구독자는 `seq`로 중복을 거른다(EV-05).
 - `ask_user`는 `tool.call.before`(first), `tool.result`(chain) 지점을 지난다(F.capabilities.spec §7).
 
 ## 8. 다른 문서와의 인터페이스
@@ -1095,6 +1096,7 @@ export const manifest = defineManifest({
 6. 알림 분류 5종이 §4.7.1 표로 정의되고, `classifyNotice`가 표의 원인 이벤트마다 해당 kind를 내며 `interrupted` 턴에는 null을 낸다.
 7. 셸 주입이 있는 템플릿은 `confirmShell` 없이 `run`하면 아무 명령도 실행하지 않고 `needs_confirmation`을 낸다.
 8. 프로젝트와 사용자에 같은 이름의 명령 파일이 있으면 프로젝트 것이 쓰이고, 사용자 것은 `includeHidden`에서만 보인다.
+9. `dialog.notify`: `emit` 뒤 `list`가 같은 알림을 같은 값으로 돌려준다. 같은 `requestId` 재호출은 처음 알림과 같은 seq를 돌려주고 기록을 늘리지 않는다. 같은 스레드·같은 종류의 알림 둘은 1초 안에 구독자에게 한 번만 가고, `list`는 둘 다 돌려준다. 시험은 `test/notify-service.test.ts`다.
 
 ## 10. 미결 사항
 
@@ -1103,7 +1105,7 @@ export const manifest = defineManifest({
 - D-3 닫힘(구현 일부는 M3, review.m2-plan DG.1) L1.tools.spec과의 약속. 닫힌 것: 승인 요청 멱등(같은 `requestKey`, core-tools `open`), `input_required` 재시도(`status: "input_required"`에 `approvalId`, L1A.4), 질문에 `allow` 응답 거부(`applied: false`), 응답 모양(`QuestionAnswer`, §4.1.1). 닫힌 것(m2 F.8): (2) 비대화형 판정(`CallContext.interactive`), (3) `QuestionItem.header`, `QuestionOption.recommended`, (4) F `ApprovalService`의 비차단 `open`·`wait`·`get`(L1.tools.spec §8.3 F 요청 11). (4)로 정식 `ApprovalsPortFactory`(`questionApprovalsOver`)를 만들었고 실제 `ApprovalService` 위에서 시험한다. 같은 키의 서비스 쪽 내용 비교와 재시작 뒤 재요청이 처음 요청의 body를 돌려주는 것은 L1A 쪽 한계로 남았다(어댑터가 메모리 안에서 비교한다). 닫힘(m2c G1-11): (1) 만료 시각과 만료 결과의 계약 필드(`ApprovalRequestInput.expiresAt`·`onExpire`, `L2ApprovalRequest`의 같은 이름 필드, `resolvedBy: "expired"`)는 F에 들어갔다. 만료 타이머와 이 어댑터가 `expiresAt`을 채우는 구현은 M3다(`review.m3-plan` M3-06). 닫힘(m2c G1-09): 승인 origin의 `caller`는 `approvalCallerOf(CallContext.caller)`로 만든다. 이 어댑터는 자기 변환을 두지 않고, 호출 문맥이 없는 요청은 `host`로 본다(`F.records.spec` §3.3.1).
 - D-4 [미결] 상태줄 id와 `dialog.notify.emit`의 `origin` 확인. `CallOptions.context.caller.extension`(`L2.readme` §5.8)과 대조한다. X의 capability 래퍼가 채우는 값이 확장 이름인지 scope id인지 `X.primitives.spec`과 맞춘다(`L2.work.spec` W-6과 같은 문제).
 - D-5 [미결] 곁가지 질문의 기록 위치와 사용량 집계(2차).
-- D-6 [미결] 알림 소유 경계. 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 창이 앞에 있을 때 알림을 생략하는 조건의 위치(클라이언트 대 엔진)도 함께 정한다.
+- D-6 [미결] 알림 소유 경계. 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 창이 앞에 있을 때 알림을 생략하는 조건의 위치(클라이언트 대 엔진)도 함께 정한다. [결정 2026-10-26, review.m3-design-inputs D-M3-17] 기본은 호스트가 창 상태와 관계없이 알림을 보내고 화면에 띄울지는 클라이언트가 정한다. 생략 조건을 호스트에 둘지와 설정 키 위치는 남아 있다 [미결].
 - D-7 [미결] 명령 우선순위(`builtin` > `capability` > `project` > `user` > `extension`)와 pi 순서(사용자 우선)의 차이.
 - D-8 [미결] 명령 파일 기본 디렉터리 이름(`.xeon/commands`)과 사용자 설정 디렉터리 위치. L4.host-service.spec과 정한다. M2는 사용자 `<홈>/.xeon/commands`, 프로젝트 `<작업 폴더>/.xeon/commands`로 구현했고 `CommandRoots` 포트 한 곳에서 바꾼다.
 - D-9 [미결] `dialog.attachments`의 `workspace.images` 의존 종류. `L2.readme` §6은 `requires`, 브리프는 "없으면 원본"이다. 이 문서는 정의 `requires`를 두고 호출 시 `unavailable`이면 원본으로 계속한다.
