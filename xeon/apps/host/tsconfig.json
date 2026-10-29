@@ -68,6 +68,9 @@
       "path": "../../packages/cap-knowledge"
     },
     {
+      "path": "../../packages/cap-artifacts"
+    },
+    {
       "path": "../../packages/cap-mcp"
     },
     {

@@ -14,6 +14,7 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
+    "@xeon/cap-artifacts": "workspace:*",
     "@xeon/cap-dialog": "workspace:*",
     "@xeon/cap-knowledge": "workspace:*",
     "@xeon/cap-mcp": "workspace:*",

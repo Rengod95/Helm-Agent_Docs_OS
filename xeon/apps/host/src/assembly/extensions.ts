@@ -18,6 +18,7 @@ import {
   type StoreDb,
 } from "@xeon/contracts/records";
 import {
+  ArtifactsReviews,
   DialogAsk,
   KnowledgeSkills,
   McpClient,
@@ -28,6 +29,7 @@ import {
   WorkTasks,
   type AnyCapabilityDef,
 } from "@xeon/contracts/capabilities";
+import { artifactsPlugin } from "@xeon/cap-artifacts";
 import { dialogPlugin } from "@xeon/cap-dialog";
 import { knowledgePlugin } from "@xeon/cap-knowledge";
 import { APPROVAL_SOURCE } from "@xeon/group-learning";
@@ -55,6 +57,7 @@ import {
 } from "./learning.ts";
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
+import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
@@ -164,6 +167,7 @@ const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   WorkPlans,
   DialogAsk,
   McpClient,
+  ArtifactsReviews,
 ];
 
 /**
@@ -317,6 +321,16 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           // 프로젝트 명령(.xeon/commands)은 신뢰한 프로젝트에서만 읽는다(G1-03, 결정 D6). 폴더는 대화의 작업 폴더다(HS-76)
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           workspaceOf: workspaceOfId,
+          loadIndex,
+        }),
+    ],
+    [
+      "cap-artifacts",
+      (loadIndex) =>
+        artifactsPlugin({
+          ids: deps.ids,
+          localIds: deps.localIds,
+          approvals: (service) => createBareL2ApprovalsPort(service),
           loadIndex,
         }),
     ],

@@ -1,4 +1,5 @@
 import {
+  ArtifactsReviews,
   DialogAsk,
   DialogAside,
   DialogAttachments,
@@ -32,6 +33,7 @@ import { capabilityDefTable, type CapabilityDefLookup } from "@xeon/ext-host";
 
 /** F가 내보내는 내장 L2 능력 정의 전체 */
 export const BUILTIN_CAPABILITY_DEFS: readonly AnyCapabilityDef[] = [
+  ArtifactsReviews,
   DialogAsk,
   DialogAside,
   DialogAttachments,
