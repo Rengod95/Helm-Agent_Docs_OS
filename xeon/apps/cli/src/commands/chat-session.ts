@@ -643,7 +643,7 @@ export async function openChatSession(
     connection.onNotification("stream.chunk", (params) => {
       if (live.closed) return;
       enqueue(async () => {
-        // 확장 핸들러 실패는 진행 줄이 아니라 알림이다(HS-80). 진행 줄의 접기·순서 규칙과 섞지 않고 도착 순서대로 그린다
+        // 확장 핸들러 실패는 진행 줄이 아니라 알림이다(HS-92). 진행 줄의 접기·순서 규칙과 섞지 않고 도착 순서대로 그린다
         if (params.event.kind === "scope.handler_failed") {
           await emit(handlerFailedOpsOf(params, threadId));
           return;
@@ -653,7 +653,7 @@ export async function openChatSession(
         await emit(applied.ops);
       });
     }),
-    // 알림 전달(HS-82). host.hello의 features에 없는 호스트에서도 등록해 둔다: 오지 않으면 그릴 것이 없다
+    // 알림 전달(HS-94). host.hello의 features에 없는 호스트에서도 등록해 둔다: 오지 않으면 그릴 것이 없다
     connection.onNotification("notify.delivered", (params) => {
       if (live.closed || !options.deliveredNotices) return;
       enqueue(() => emit(deliveredOpsOf(params, threadId)));

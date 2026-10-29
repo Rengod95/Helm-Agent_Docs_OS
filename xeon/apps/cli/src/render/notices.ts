@@ -8,7 +8,7 @@ import {
 import type { NotifyDeliveredParams, StreamChunkParams } from "@xeon/contracts/wire";
 import type { RenderOp } from "./ops.ts";
 
-// L4.cli.spec §4.5, X.operations.spec §4.3.4, L4.host-service.spec HS-80·HS-82. 확장 핸들러 실패(`scope.handler_failed`)와
+// L4.cli.spec §4.5, X.operations.spec §4.3.4, L4.host-service.spec HS-92·HS-94. 확장 핸들러 실패(`scope.handler_failed`)와
 // 알림 전달(`notify.delivered`)을 `notice` 그리기 명령으로 바꾼다. 순수 함수다: 세션 상태를 쓰지 않는다.
 
 const MESSAGE_LIMIT = 120;

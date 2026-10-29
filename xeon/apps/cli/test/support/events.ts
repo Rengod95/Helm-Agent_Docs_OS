@@ -202,7 +202,7 @@ export function textChunk(options: {
   };
 }
 
-/** 휘발 조각: 확장 핸들러 실패(scope.handler_failed). thread를 연 연결에만 간다(HS-80). payload는 시험이 정한다 */
+/** 휘발 조각: 확장 핸들러 실패(scope.handler_failed). thread를 연 연결에만 간다(HS-92). payload는 시험이 정한다 */
 export function handlerFailedChunk(options: {
   readonly thread: ThreadId;
   readonly n: number;

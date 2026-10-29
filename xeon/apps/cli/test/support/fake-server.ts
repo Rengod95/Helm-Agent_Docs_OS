@@ -82,7 +82,7 @@ export interface FakeServer {
     readonly events: readonly EventWire[];
   }): void;
   chunk(event: VolatileEventWire): void;
-  /** 서버 알림 `notify.delivered`를 보낸다(HS-82) */
+  /** 서버 알림 `notify.delivered`를 보낸다(HS-94) */
   notifyDelivered(params: NotifyDeliveredParams): void;
   /** 서버 쪽에서 연결을 닫는다 */
   closeFromServer(): Promise<void>;

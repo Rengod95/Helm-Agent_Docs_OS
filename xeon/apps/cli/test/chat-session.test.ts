@@ -66,7 +66,7 @@ test("the ctrl+c window is two seconds", () => {
   expect(CTRL_C_WINDOW_MS).toBe(2000);
 });
 
-// ── 알림 그리기(M3-22, HS-80·HS-82): 가짜 서버가 보낸 알림이 대화 화면의 notice 줄이 된다 ──────
+// ── 알림 그리기(M3-22, HS-92·HS-94): 가짜 서버가 보낸 알림이 대화 화면의 notice 줄이 된다 ──────
 
 const harnesses: Harness[] = [];
 afterEach(() => {
