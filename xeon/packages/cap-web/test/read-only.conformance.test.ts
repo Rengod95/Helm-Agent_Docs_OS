@@ -11,13 +11,14 @@ afterEach(releaseStores);
 
 /**
  * search와 fetch가 쓰는 파생 표(ADR-0015 3.3). `cap_web_fetch_cache`·`cap_web_raw`는 응답 캐시, `sys_blobs`는 원문 사본(내용 주소 blob),
- * `cap_web_usage`는 비용 계량이다. 세션당 fetch 상한 카운터(`session_limit`)는 메모리 계량이라 표에 없다.
+ * `sys_blob_refs`는 그 사본을 `cap.web`이 고정한 참조(pinBlob), `cap_web_usage`는 비용 계량이다. 세션당 fetch 상한 카운터(`session_limit`)는 메모리 계량이라 표에 없다.
  * 사용자 데이터나 대화 기록 표는 없다. 새 표에 쓰면 이 목록에 없어 시험이 실패한다
  */
 const DERIVED_TABLES_WRITTEN: string[] = [
   "cap_web_fetch_cache",
   "cap_web_raw",
   "cap_web_usage",
+  "sys_blob_refs",
   "sys_blobs",
 ];
 

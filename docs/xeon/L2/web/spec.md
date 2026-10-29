@@ -1025,6 +1025,7 @@ CREATE TABLE cap_web_notices (
 
 - `cap_web_raw`의 `url`부터 `published_at`까지 열은 재조회 결과의 `Source`(sN 재사용, 제목, 게시일)를 만들려고 더했다. 같은 바이트의 원문은 `raw_ref`가 같아 처음 저장한 URL의 출처가 남는다.
 - `cap_web_raw`의 `retention='session'` 행은 세션 종료 후 첫 시작 정리 때 지운다. 세션 존재 여부는 `xeon.session`의 목록 API로 확인하고 세션 테이블을 직접 읽지 않는다(CM-02).
+- 블롭 고정: `cap_web_raw` 행 하나가 가리키는 `raw_blob`과 `text_blob`은 `cap.web` 소유로 `pinBlob`에 고정한다. refKey는 `raw_ref`(`webraw:<sha256>`)이고 행 하나가 두 블롭을 함께 고정한다. 저장할 때는 행을 커밋한 뒤 `unpinBlob(cap.web, raw_ref)`로 이 행의 고정을 모두 풀고 두 블롭을 다시 적는다. 두 호출 사이에 GC가 끼지 않도록 저장은 동기로 끝낸다. 원문 행을 지우는 `sweep`(마지막 캐시 행이 사라질 때)과 `purgeSessionRaw`는 지운 행마다 같은 키로 푼다. 만료(`expires_at`)만으로는 행을 지우지 않으므로 고정도 풀지 않는다. 고정이나 해제가 실패하면 `{ kind: "blob" }` 오류를 돌려준다. 실패 뒤에는 행이 고정 없이 남고, 다음 저장이 다시 적는다 [제안]. 시험은 `test/fetch-cache-pin.int.test.ts`다.
 - `cap_web_notices`는 키 플러그인 첫 사용 고지의 기록이다(§4.8.2). provider마다 한 행이고 지우지 않는다. 마이그레이션 버전 2에서 더했고 버전 1의 표와 행은 그대로 남는다(`cache/migrations.ts`).
 - 이벤트: 내구 이벤트 type을 1차에 두지 않는다. 웹 호출의 기록은 도구 3단 기록(`tool.intended`, `tool.settled`)이 맡는다. 휘발 접두사 `web.`은 예약이고 2차에 `web.research_progress`를 더한다.
 
@@ -1058,7 +1059,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | `web.browse.act` | 선언 없음 | unsafe | 페이지에 동작을 일으킨다 |
 | `web.browse.read` | readOnly | safe | 스냅숏·텍스트 조회 |
 | `web.browse.close` | 선언 없음 | unsafe | 외부 세션 상태를 바꾼다. `requestId` 멱등이 없다 |
-| `web.fetch.fetch` | readOnly | safe | 외부 페이지 읽기. 쓰는 것은 파생 데이터뿐이다: 응답 캐시(`cap_web_fetch_cache`, `cap_web_raw`), 원문 사본(내용 주소 blob), 비용 계량(`cap_web_usage`), 세션당 fetch 상한 카운터(메모리 계량, `session_limit`). 계량이라 drive 재생이 상한을 다시 소모할 수 있다 |
+| `web.fetch.fetch` | readOnly | safe | 외부 페이지 읽기. 쓰는 것은 파생 데이터뿐이다: 응답 캐시(`cap_web_fetch_cache`, `cap_web_raw`), 원문 사본(내용 주소 blob)과 그 고정(`sys_blob_refs`), 비용 계량(`cap_web_usage`), 세션당 fetch 상한 카운터(메모리 계량, `session_limit`). 계량이라 drive 재생이 상한을 다시 소모할 수 있다 |
 | `web.research.start` | 선언 없음 | unsafe | 백그라운드 조사를 시작한다 |
 | `web.research.get` | readOnly | safe | 상태 조회 |
 | `web.research.cancel` | 선언 없음 | unsafe | 조사 상태를 바꾼다. `requestId` 멱등이 없다 |
@@ -1135,7 +1136,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - 메모에서 꺼낸 결과는 provider를 부르지 않았으므로 `meta.cost`는 `free`이고 `meta.fallbacks`는 비어 있다. 메모에는 세션 번호(sN)가 없는 provider 단계 결과를 두고, 호출마다 그 세션의 `SourceIdTable`로 번호를 붙인다. 그래서 다른 세션이 같은 질의를 해도 번호가 섞이지 않는다.
 - limit 버킷: 요청 `limit`이 10 이하면 10, 11~20이면 20으로 올려 provider에 요청하고 결과를 잘라 돌려준다. 같은 질의의 다른 limit이 같은 캐시 항목을 쓴다(hermes).
 - `freshness: "live"`는 (2)(3)을 건너뛰고 `meta.cache: "bypass"`다. `prefer-fresh`는 만료 절반이 지난 항목을 다시 가져온다(`stale-revalidated`).
-- 디스크 캐시 크기 상한은 `l2.web.cache.maxMegabytes`(기본 256)다. 넘으면 `expires_at` 오름차순으로 지운다. 지운 행이 가리키던 blob은 L0 blob GC가 처리한다 [가정: L0.store.spec].
+- 디스크 캐시 크기 상한은 `l2.web.cache.maxMegabytes`(기본 256)다. 넘으면 `expires_at` 오름차순으로 지운다. 지운 캐시 행이 원문 행의 마지막 참조였으면 원문 행도 지우고 그 블롭의 고정을 푼다. 그 뒤 L0 blob GC가 블롭을 처리한다(§3.8, `L0.store.spec` §3.4).
 - 브라우저 세션의 쓰기성 동작 결과는 캐시하지 않는다.
 
 #### 4.3.2 provider별 cachePolicy
@@ -1807,7 +1808,7 @@ export const webSettings = defineSettings("l2.web", {
 | `redactForPersistence` 적용 경로(영속 사본) | `L1.tools.spec`, `L1.persistence.spec` | 요청 [가정] |
 | 서브에이전트 실행과 위임 옵션의 웹 규칙 필드 | `L1.agents.spec` | 2차 [가정] |
 | 플러그인 provider 헤더 비밀 치환(M3), 마스킹 등록부 조회 | `L0.secrets.spec` §3.5, §3.6(`createPluginHttp`, `withHttp`) | 통로는 있음. 조립 쪽 어댑터(`HeaderSecretSender` 구현)는 L4 후속 유닛에서 잇는다 [결정: 오케스트레이터 기본값] |
-| `putBlob`, `readBlob`, `scoped("cap_web_")`, blob GC | `L0.store.spec`(`xeon.store`) | 있음(`eng.transactions.design` §4.2) |
+| `putBlob`, `readBlob`, `pinBlob`, `unpinBlob`, `scoped("cap_web_")`, blob GC | `L0.store.spec`(`xeon.store`) | 있음(`eng.transactions.design` §4.2) |
 | 자식 프로세스 실행(Node 우회, agent-browser) | `L0.process.spec`(`xeon.process`) | [가정] |
 | 브라우저 네트워크 필터 대안 | `L0.sandbox.spec` | 선택 [미결] |
 | 세션 이벤트 type 필터 읽기, 세션 목록 | `L1.persistence.spec`(`xeon.session`) | [가정] |
