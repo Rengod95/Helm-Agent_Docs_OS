@@ -18,6 +18,7 @@ import type {
   CommitRequest,
   DurableEventEnvelope,
   SessionService,
+  ThreadLifecycle,
 } from "@xeon/contracts/records";
 import { createSessionService } from "@xeon/core-persistence";
 import { openTestStore, TEST_HOLDER_A, type TestStore } from "@xeon/platform-store/testing";
@@ -28,6 +29,7 @@ import {
   type RegistrySettings,
 } from "../../src/registry/service.ts";
 import { createReviews, type ReviewsRuntime } from "../../src/reviews/service.ts";
+import { createSessions, type SessionsRuntime } from "../../src/sessions/service.ts";
 import {
   fakeApprovals,
   fakeFiles,
@@ -190,14 +192,23 @@ async function bootSession(): Promise<Boot> {
   };
 }
 
+/** 새 대화의 처음 값. 생략하면 제목도 작업 공간도 없다 */
+interface ThreadMeta {
+  readonly title?: string;
+  readonly workspace?: string;
+}
+
 /** 새 대화를 만들고 이 시험이 쓰기 자격을 쥔다 */
-function createWriteThread({
-  ids,
-  store,
-  session,
-}: Pick<Boot, "ids" | "store" | "session">): ThreadId {
+function createWriteThread(
+  { ids, store, session }: Pick<Boot, "ids" | "store" | "session">,
+  meta: ThreadMeta = {},
+): ThreadId {
   const threadId = ids.next("thr");
-  const made = session.threads.create({ threadId });
+  const made = session.threads.create({
+    threadId,
+    ...(meta.title === undefined ? {} : { title: meta.title }),
+    ...(meta.workspace === undefined ? {} : { workspace: meta.workspace }),
+  });
   if (!made.ok) throw new Bug("harness: thread create failed", { cause: made.error });
   const token = store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
   if (!token.ok) throw new Bug("harness: lease failed", { cause: token.error });
@@ -435,6 +446,116 @@ export async function openRegistry(
           ...(extra?.turnId === undefined ? {} : { turnId: extra.turnId }),
           ...(extra?.toolCallId === undefined ? {} : { toolCallId: extra.toolCallId }),
           caller: extra?.caller ?? { kind: "model", agent: "main" },
+        },
+      };
+    },
+    async events(target, prefix) {
+      const out: DurableEventEnvelope[] = [];
+      for await (const item of session.readFrom(0, { threadId: target })) {
+        if (!item.ok) throw new Bug("harness: event read failed", { cause: item.error });
+        if (prefix === undefined || item.value.kind.startsWith(prefix)) out.push(item.value);
+      }
+      return out;
+    },
+    async [Symbol.asyncDispose]() {
+      await store[Symbol.asyncDispose]();
+    },
+  };
+}
+
+/** `threads.setTitle` 호출 하나. 서비스가 제목을 이 경로로만 쓰는지 본다 */
+interface TitleCall {
+  readonly threadId: ThreadId;
+  readonly title: string | null;
+  readonly requestKey: string;
+}
+
+export interface SessionsHarness extends AsyncDisposable {
+  readonly ids: IdFactory;
+  readonly store: TestStore;
+  readonly session: SessionService;
+  /** 처음 만든 대화. 쓰기 호출의 기본 문맥이다 */
+  readonly threadId: ThreadId;
+  readonly api: SessionsRuntime["api"];
+  /** 산출물을 등록하는 레지스트리(산출물 수 시험용). 세션 서비스와 같은 생산자 핸들을 쓴다 */
+  readonly registry: RegistryRuntime["api"];
+  /** 세션 서비스가 `threads.setTitle`에 넘긴 호출, 순서대로 */
+  readonly titleCalls: TitleCall[];
+  readonly logs: LogLine[];
+  /** 시계를 앞으로 민다(밀리초). 이후 이벤트의 recordedAt이 커진다 */
+  advance(ms: number): void;
+  /** 같은 저장소에 제목과 작업 공간을 가진 새 대화를 만들고 쓰기 자격을 쥔다 */
+  newThread(meta?: ThreadMeta): ThreadId;
+  /**
+   * 호출 옵션. requestId를 생략하면 호출마다 새 값을 만든다. `contextThread`는 호출 문맥의 대화이고,
+   * `toolCallId`를 주면 도구 경로다
+   */
+  opts(
+    requestId?: string,
+    extra?: { readonly contextThread?: ThreadId; readonly toolCallId?: string },
+  ): CallOptions;
+  /** 한 대화의 내구 이벤트를 커밋 순서로 읽는다. prefix를 주면 그 접두의 종류만 */
+  events(threadId: ThreadId, prefix?: string): Promise<DurableEventEnvelope[]>;
+}
+
+/** 세션 메타 시험용 조립. 레지스트리와 세션 서비스가 같은 저장소와 같은 생산자 핸들을 쓴다 */
+export async function openSessions(): Promise<SessionsHarness> {
+  const { advance, ids, localIds, store, session, logs } = await bootSession();
+  const threadId = createWriteThread({ ids, store, session });
+  const logger = recordingLogger(logs);
+  // 생산자 핸들은 한 번만 받는다. 산출물과 세션 서비스가 같이 쓴다
+  const producer = session.producer(REVIEWS_PRODUCER);
+  const titleCalls: TitleCall[] = [];
+  const threads: Pick<ThreadLifecycle, "list" | "setTitle"> = {
+    list: (query) => session.threads.list(query),
+    setTitle(target, title, requestKey) {
+      titleCalls.push({ threadId: target, title, requestKey });
+      return session.threads.setTitle(target, title, requestKey);
+    },
+  };
+  const sessions = createSessions({
+    session: {
+      feed: session.feed,
+      commit: (request: CommitRequest) => session.commit(request),
+      query: session.query,
+      threads,
+    },
+    producer,
+    ids,
+    logger,
+  });
+  const registry = createRegistry({
+    session,
+    producer,
+    ids,
+    localIds,
+    blobs: store.service,
+    logger,
+    settings: () => ({ maxPerSession: 500, maxContentBytes: 26214400 }),
+  });
+
+  let counter = 0;
+  return {
+    ids,
+    store,
+    session,
+    threadId,
+    api: sessions.api,
+    registry: registry.api,
+    titleCalls,
+    logs,
+    advance,
+    newThread(meta) {
+      return createWriteThread({ ids, store, session }, meta);
+    },
+    opts(requestId, extra) {
+      counter += 1;
+      return {
+        requestId: requestId ?? `req-${counter}`,
+        context: {
+          threadId: extra?.contextThread ?? threadId,
+          ...(extra?.toolCallId === undefined ? {} : { toolCallId: extra.toolCallId }),
+          caller: { kind: "model", agent: "main" },
         },
       };
     },

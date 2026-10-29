@@ -4,6 +4,8 @@ import {
   ArtifactsRegistryKey,
   ArtifactsReviews,
   ArtifactsReviewsKey,
+  ArtifactsSessions,
+  ArtifactsSessionsKey,
   CapabilityError,
   WorkspaceFilesKey,
 } from "@xeon/contracts/capabilities";
@@ -19,6 +21,7 @@ import {
   ToolServicePortKey,
   type ApprovalService,
   type L2ApprovalsPort,
+  type ToolPolicyMeta,
 } from "@xeon/contracts/services";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
 import { ARTIFACTS_EXTENSION_NAME, artifactsManifest } from "./manifest.ts";
@@ -27,6 +30,7 @@ import { createAnswerHandler } from "./reviews/answer.ts";
 import { REVIEWS_PRODUCER } from "./reviews/kernel.ts";
 import { createReviews } from "./reviews/service.ts";
 import { createRegistry } from "./registry/service.ts";
+import { createSessions } from "./sessions/service.ts";
 import {
   readArtifactsSettings,
   type ArtifactsSettings,
@@ -58,6 +62,16 @@ function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefin
 async function deferred(work: () => Promise<void>): Promise<void> {
   await Promise.resolve();
   await work();
+}
+
+/**
+ * `session_rename`의 도구 정책. 설정이 꺼져 있으면 없고, 그때는 `artifacts.sessions` 능력을 도구로 올리지 않는다
+ * (`l2.artifacts.tools.sessionRename`, 기본 꺼짐).
+ */
+export function sessionRenamePolicy(
+  settings: ArtifactsSettings,
+): Readonly<Record<string, ToolPolicyMeta>> | undefined {
+  return settings.tools.sessionRename ? { session_rename: { risk: "read" } } : undefined;
 }
 
 export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit {
@@ -127,6 +141,10 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
         },
       });
       host.provide(ArtifactsRegistryKey, registry.api);
+
+      // 세션 메타(라벨·제목 메타·검색)는 산출물과 같은 생산자 핸들로 라벨 이벤트를 쓴다
+      const sessions = createSessions({ session, producer, ids: options.ids, logger });
+      host.provide(ArtifactsSessionsKey, sessions.api);
 
       const reviews = createReviews({
         session,
@@ -207,6 +225,21 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
       } else {
         logger.info("artifacts.review_request_hidden", {
           effect: "review_request is not advertised",
+        });
+      }
+      const sessionPolicy = sessionRenamePolicy(settingsAt(undefined));
+      if (sessionPolicy !== undefined) {
+        registrations.push(
+          tools.register({
+            kind: "capability",
+            def: ArtifactsSessions,
+            key: ArtifactsSessionsKey,
+            policy: sessionPolicy,
+          }),
+        );
+      } else {
+        logger.info("artifacts.session_rename_hidden", {
+          effect: "session_rename is not advertised",
         });
       }
       for (const registered of registrations) {
