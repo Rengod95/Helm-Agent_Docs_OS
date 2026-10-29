@@ -758,9 +758,9 @@ L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스�
 `spawn(spec: McpSpawnSpec, signal): Promise<Result<McpChild, McpSpawnError>>`:
 
 1. `command`와 `args`를 셸 없이 직접 실행한다. 샌드박스를 거치지 않는다(사용자 권한, 위협 모델은 `architecture.security.spec`). Windows의 `.cmd` 셔임은 셸 없이 실행되지 않으므로 이 구현의 범위 밖이다 [미결 P-11].
-2. 자식 env는 부모 env의 허용 목록(`L0.exec.spec` §3.5 `BASE_ENV_POLICY.pass`와 같은 이름, 거부 패턴 제외)에 `secretEnv`로 푼 값을 더해 만든다. 부모의 나머지 env는 넘기지 않는다.
-3. `secretEnv`의 `secret://` 참조는 spawn 직전에 `SecretService.withEnv`로 푼다. `purpose`는 `mcp:<서버 id>`, `target`은 `{ kind: "command", argv0: command, commandLine: "<command> <args…>" }`, `actor`는 `runtime`, `approval`은 `null`이다. lease는 spawn 호출이 끝나면 닫고 값 사본을 지운다. 같은 핸들을 가리키는 env 이름이 여럿이어도 각각 푼다(승인은 `L0.secrets.spec` §4.2가 한 호출로 센다). 오류와 로그에는 참조 이름만 쓴다. 결과 매핑: 항목 없음은 `secret_missing`, 정책 거부는 `secret_denied`, 그 밖의 비밀 오류와 secrets 서비스가 없는 경우는 `spawn_failed`(`code: "secret_unavailable"`)다. 참조 형식이 아닌 값은 `secret_missing`이다.
-4. env 모드는 실행마다 승인 증거를 요구하는데(`L0.secrets.spec` §4.2 6단계) 서버 시작에는 사람이 승인하는 지점이 없다. 그래서 M2에서는 `secretEnv`가 있는 서버가 `secret_denied`로 끝난다 [미결 P-12, M3로 이월]. 비밀 없는 서버는 영향이 없다.
+2. 자식 env는 부모 env의 허용 목록(`L0.exec.spec` §3.5 `BASE_ENV_POLICY.pass`와 같은 이름, 거부 패턴 제외)에 정의의 평문 `env`(생략하면 없다)와 `secretEnv`로 푼 값을 차례로 더해 만든다. 이름이 겹치면 `secretEnv`가 이기고, 평문 `env`의 이름이 변수 이름 형식이 아니면 `spawn_failed`(`code: "env_denied"`)다. 부모의 나머지 env는 넘기지 않는다. 평문 env의 비밀 이름 패턴 거부는 정의를 읽는 `L2.mcp`가 한다 [결정: M3-REQ-97].
+3. `secretEnv`의 `secret://` 참조는 spawn 직전에 `SecretService.withEnv`로 푼다. `purpose`는 `mcp.start:<서버 id>`, `target`은 `{ kind: "command", argv0: command, commandLine: "mcp:<서버 id>" }`, `actor`는 `runtime`, `approval`은 `McpSpawnSpec.approval`(정의 해시마다 한 번 받은 기동 승인 증거, 없으면 `null`)이다. 값은 `platform-secrets`의 `mcpStartContext`가 만드는 맥락과 같다. lease는 spawn 호출이 끝나면 닫고 값 사본을 지운다. 같은 핸들을 가리키는 env 이름이 여럿이어도 각각 푼다(승인은 `L0.secrets.spec` §4.2가 한 호출로 센다). 오류와 로그에는 참조 이름만 쓴다. 결과 매핑: 항목 없음은 `secret_missing`, 정책 거부는 `secret_denied`, 그 밖의 비밀 오류와 secrets 서비스가 없는 경우는 `spawn_failed`(`code: "secret_unavailable"`)다. 참조 형식이 아닌 값은 `secret_missing`이다.
+4. `purpose`가 `mcp.start:`로 시작하는 env 호출은 `per-session` 증거로 충분하다(`L0.secrets.spec` §4.3.1). 호출자(`L2.mcp`)가 spawn 전에 승인을 받아 증거를 싣는다. 증거가 없거나 만료되면 `secret_denied`다. 비밀 없는 서버는 영향이 없다 [해소 P-12, M3-05].
 5. 기동하지 못하면(`ENOENT`, `EACCES`) 거부(reject)하지 않고 `spawn_failed`와 errno 코드를 돌려준다. 트리 종료 수단이 없는 OS는 `unsupported_platform`, 호출 시점에 `signal`이 중단되어 있으면 `aborted`다.
 6. 기동한 서버는 레지스트리에 `owner.kind: "mcp"`, `owner.ref: <서버 id>`, `label`로 등록한다. `McpChild.kill("SIGTERM" | "SIGKILL")`은 트리 전체에 보낸다.
 7. 정지 순서는 stdin 닫기, 유예(`stdinCloseMs`, 기본 500ms), SIGTERM, 유예(레지스트리의 `graceMs`), SIGKILL이다. 레지스트리의 `graceful` 단계가 stdin을 닫고 서버가 그 사이에 끝나면 신호를 보내지 않는다. 끝나지 않으면 트리에 SIGTERM을 보내고, 레지스트리가 시한 뒤 `force`(SIGKILL)를 부른다. 그래서 종료 협조(§4.3)가 모든 MCP 서버의 트리를 이 순서로 정지한다.
@@ -913,6 +913,6 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 - [결정: review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
 - [결정: review.m3-design-inputs D-M3-16] P-10. Unix 소켓은 파일 권한으로 막고 TCP로 열 때만 토큰을 요구한다(§4.4.5). `host.hello`의 `auth` 필드와 `host.authFailed` 오류는 F에 반영되었다.
 - [미결 P-11] Windows에서 `.cmd` 셔임(`npx.cmd` 등)으로 stdio MCP 서버를 띄우는 방법. 셸 없이 실행할 수 없어 `cross-spawn` 같은 해석이 필요하다. 1차 지원 OS(macOS, Linux, WSL)에는 해당이 없다.
-- [미결 P-12] 비밀 env가 있는 MCP stdio 서버(M3). env 모드는 실행마다 승인 증거를 요구하고(`L0.secrets.spec` §4.2), 서버 시작에는 승인 지점이 없어 `secret_denied`가 된다. 서버 정의를 추가하거나 처음 연결할 때 사람이 승인하고 그 증거를 `McpSpawnSpec`에 싣는 흐름이 필요하다. 승인 서비스와 `L2.mcp.spec`의 합의 사항이다.
+- [해소 P-12, M3-05] 비밀 env가 있는 MCP stdio 서버의 기동 승인은 정의 해시마다 한 번이다(`L0.secrets.spec` §4.3.1). `L2.mcp`가 승인을 받아 증거를 `McpSpawnSpec.approval`에 싣는다(`L2.mcp.spec` §4.3).
 - [미결 P-13] 사설망 TCP와 비루프백 리스너. `review.m3-design-inputs` D-M3-16 c는 소켓을 사설망에 TCP로 여는 경우에 토큰을 요구하고, 이 문서 §4.4.5는 `allowNonLoopback`으로 그것을 허용한다. 그러나 `product.scope.spec` X5와 `architecture.security.spec` T-10은 M3 원격에서 서비스가 비루프백 리스너를 열지 않는다고 적는다. 이 문서는 X5·T-10을 따라 원격에 TCP 리스너를 새로 열지 않는다. 그래서 `tcp://` 원격 값은 루프백 주소에서만 뜻이 있다. 사설망 주소(Tailscale 등)를 허용할지는 사용자가 정해야 하고, 허용하면 §4.4.5, X5, T-10을 함께 고친다.
 - [가정] Bun 1.4.3의 `node:child_process` `detached`·`unref`와 `Bun.listen({ unix })`의 macOS 동작은 실측하지 않았다.

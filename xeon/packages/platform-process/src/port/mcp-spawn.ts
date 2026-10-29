@@ -2,6 +2,7 @@ import { err, ok, type Logger, type Result, type Scheduler } from "@xeon/contrac
 import { parseSecretRef } from "@xeon/contracts/capabilities";
 import {
   SENSITIVE_ENV_PATTERNS,
+  type ApprovalEvidence,
   type BackgroundRegistry,
   type SecretService,
 } from "@xeon/contracts/services";
@@ -12,9 +13,11 @@ import { spawnPiped, type PipedChild, type PipedExit } from "./spawn-piped.ts";
 // L2.mcp는 L0를 import하지 않으므로 같은 모양을 `cap-mcp/src/ports/process.ts`의 `McpProcessPort`로 선언해 두었고,
 // 이 파일은 그 모양에 구조로 맞는 구현이다(조립 루트가 잇는다).
 //
-// 1. 자식 env는 부모 env의 허용 목록 이름(거부 패턴 제외)에 `secretEnv`를 더해 만든다.
+// 1. 자식 env는 부모 env의 허용 목록 이름(거부 패턴 제외)에 정의의 평문 `env`와 `secretEnv`를 더해 만든다(M3-REQ-97).
+//    평문 env는 정의 파일에 이미 평문으로 있는 값이다. 비밀 이름 패턴 거부는 정의를 읽는 L2가 했다.
 // 2. `secretEnv`의 `secret://` 참조는 spawn 직전에 `SecretService.withEnv`로 푼다. 값은 이 함수의 지역 변수와 spawn 인자에만 있고
-//    spawn이 끝나면 lease를 닫는다. 오류와 로그에는 참조 이름만 쓴다.
+//    spawn이 끝나면 lease를 닫는다. 오류와 로그에는 참조 이름만 쓴다. 사용 목적은 `mcp.start:<서버 id>`이고 대상은
+//    `mcp:<서버 id>` 명령줄이다. 정의 해시마다 한 번 받은 기동 승인 증거(`approval`)를 그대로 넘긴다(L0.secrets.spec §4.3.1, M3-REQ-58).
 // 3. `BackgroundRegistry`에 owner kind `mcp`, ref 서버 id로 등록한다. 정지 순서는 stdin 닫기, 유예, SIGTERM, 유예, SIGKILL이다.
 
 /** 한 서버를 띄우는 요청. cap-mcp의 `McpSpawnSpec`과 같은 모양이다 */
@@ -24,11 +27,18 @@ export interface McpSpawnSpec {
   readonly cwd: string | undefined;
   /** 환경 변수 이름 → `secret://` 참조 */
   readonly secretEnv: Readonly<Record<string, string>>;
+  /** 평문 환경 변수. 생략하면 없다. `secretEnv`와 이름이 겹치면 `secretEnv`가 이긴다 */
+  readonly env?: Readonly<Record<string, string>>;
+  /** 비밀 env의 기동 승인 증거(정의 해시마다 한 번 받은 것). 비밀 env가 없으면 쓰지 않는다 */
+  readonly approval?: ApprovalEvidence | null;
   /** 화면 표시. 비밀 값을 넣지 않는다 */
   readonly label: string;
   /** BackgroundOwner.ref에 들어가는 서버 id */
   readonly server: string;
 }
+
+/** 기동 승인에 쓰는 `UseCtx.purpose` 접두. `platform-secrets`의 `MCP_START_PURPOSE_PREFIX`와 같은 값이다(L0끼리 import하지 않는다) */
+const MCP_START_PURPOSE_PREFIX = "mcp.start:";
 
 export interface McpChild {
   readonly pid: number;
@@ -127,10 +137,11 @@ async function acquireSecretEnv(
   if (secrets === undefined) {
     return spawnFailed("secret_unavailable", "Secrets service is not available");
   }
+  // 비밀 메타의 use.commands에는 `mcp:<서버 id>` 패턴을 적는다(L0.secrets.spec §4.3.1 2번)
   const target = {
     kind: "command",
     argv0: spec.command,
-    commandLine: [spec.command, ...spec.args].join(" "),
+    commandLine: `mcp:${spec.server}`,
   } as const;
   // 앞 lease가 열린 뒤에 다음 lease를 연다. 하나가 실패하면 이미 연 것을 모두 닫아야 하므로 순서대로 한다
   const leaseFrom = async (index: number): Promise<McpSpawnError | undefined> => {
@@ -147,16 +158,16 @@ async function acquireSecretEnv(
     const parsed = parseSecretRef(ref);
     if (!parsed.ok) return { kind: "secret_missing", ref };
     if (signal.aborted) return { kind: "spawn_failed", code: "aborted", message: "aborted" };
-    // 서버 시작은 사람이 승인하는 지점이 없어 승인 증거가 없다. env 모드는 실행마다 승인을 요구하므로(L0.secrets.spec §4.2 6단계)
-    // 증거가 없으면 `denied`(approval_missing)이고 `secret_denied`로 돌려준다 [미결 P-12, M3]
+    // 기동 승인 증거가 없거나 만료되었으면 정책이 `denied`(approval_missing)를 돌려주고 `secret_denied`가 된다.
+    // 증거를 받는 일은 이 포트의 호출자가 spawn 전에 한다(L2.mcp.spec §4.3, M3-05)
     const leased = await secrets.withEnv(parsed.value.handle, {
-      purpose: `mcp:${spec.server}`,
+      purpose: `${MCP_START_PURPOSE_PREFIX}${spec.server}`,
       target,
       actor: "runtime",
       threadId: null,
       toolCallId: null,
       projectId: null,
-      approval: null,
+      approval: spec.approval ?? null,
     });
     if (!leased.ok) {
       const failure = leased.error;
@@ -190,6 +201,7 @@ async function acquireSecretEnv(
 
 function childEnv(
   parent: Readonly<Record<string, string | undefined>>,
+  plain: Readonly<Record<string, string>>,
   secretValues: Readonly<Record<string, string>>,
 ): Record<string, string> {
   const env: Record<string, string> = {};
@@ -199,6 +211,8 @@ function childEnv(
     if (value !== undefined) env[name] = value;
   }
   if (!("LANG" in env)) env["LANG"] = DEFAULT_LANG;
+  // 평문 env는 정의가 이름과 값을 정한 것이라 거부 패턴을 거치지 않는다(비밀 이름 패턴은 L2가 정의를 읽을 때 거부했다)
+  Object.assign(env, plain);
   // 비밀 값은 거부 패턴(`*_TOKEN` 등)을 거치지 않는다: 사용자가 이름을 골라 정책을 통과한 값이다(exec와 같다)
   return Object.assign(env, secretValues);
 }
@@ -242,6 +256,11 @@ export function createMcpProcessPort(deps: McpProcessDeps): McpProcessPort {
         return spawnFailed("unsupported_platform", "process trees cannot be stopped on this OS");
       }
       if (signal.aborted) return spawnFailed("aborted", "aborted");
+      for (const name of Object.keys(spec.env ?? {})) {
+        if (!VALID_ENV_NAME.test(name)) {
+          return spawnFailed("env_denied", `Invalid environment variable name: ${name}`);
+        }
+      }
       const secretEnv = await acquireSecretEnv(spec, deps.secrets, signal);
       if (!secretEnv.ok) return secretEnv;
       let spawned: Awaited<ReturnType<typeof spawnPiped>>;
@@ -251,7 +270,7 @@ export function createMcpProcessPort(deps: McpProcessDeps): McpProcessPort {
             command: spec.command,
             args: spec.args,
             cwd: spec.cwd,
-            env: childEnv(deps.parentEnv, secretEnv.value.values),
+            env: childEnv(deps.parentEnv, spec.env ?? {}, secretEnv.value.values),
             label: spec.server,
           },
           { platform, scheduler: deps.scheduler, logger: deps.logger, drainMs: deps.drainMs },

@@ -226,12 +226,61 @@ describe("McpProcessPort.spawn", () => {
     expect(secrets.disposed()).toBe(1);
     expect(secrets.calls[0]?.handle).toBe("secret://gh-token");
     expect(secrets.calls[0]?.ctx).toMatchObject({
-      purpose: "mcp:fixture",
+      purpose: "mcp.start:fixture",
       actor: "runtime",
       threadId: null,
       approval: null,
-      target: { kind: "command", argv0: process.execPath },
+      target: { kind: "command", argv0: process.execPath, commandLine: "mcp:fixture" },
     });
+  });
+
+  test("the start approval evidence reaches the secret use context unchanged", async () => {
+    const secrets = fakeSecrets({ "secret://gh-token": SECRET_VALUE });
+    const { port } = open(secrets.source, { PATH: process.env["PATH"] });
+    const approval = {
+      approvalId: "apr_1",
+      scope: "per-session",
+      grantedAt: 1_000,
+      expiresAt: null,
+    } as const;
+    await started(
+      port,
+      specOf("env", { secretEnv: { GITHUB_TOKEN: "secret://gh-token" }, approval }),
+    );
+    expect(secrets.calls[0]?.ctx.approval).toEqual(approval);
+  });
+
+  test("plaintext env reaches the child next to injected secrets and a secret wins a name clash", async () => {
+    const secrets = fakeSecrets({ "secret://gh-token": SECRET_VALUE });
+    const { port } = open(secrets.source, { PATH: process.env["PATH"], HOME: "/home/test" });
+    const child = await started(
+      port,
+      specOf("env", {
+        env: { LOG_LEVEL: "debug", GITHUB_TOKEN: "plain-should-lose" },
+        secretEnv: { GITHUB_TOKEN: "secret://gh-token" },
+      }),
+    );
+    const parsed = parseJson(await firstLine(child));
+    const env = stringRecord(parsed.ok ? parsed.value : undefined);
+    expect(env["LOG_LEVEL"]).toBe("debug");
+    expect(env["GITHUB_TOKEN"]).toBe(SECRET_VALUE);
+  });
+
+  test("a plaintext env name that is not a valid variable name fails before anything starts", async () => {
+    const { port, background } = open();
+    const result = await port.spawn(
+      specOf("echo", { env: { "BAD-NAME": "x" } }),
+      new AbortController().signal,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        kind: "spawn_failed",
+        code: "env_denied",
+        message: "Invalid environment variable name: BAD-NAME",
+      },
+    });
+    expect(background.list()).toEqual([]);
   });
 
   test("two env names for one handle both resolve", async () => {

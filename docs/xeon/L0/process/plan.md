@@ -120,7 +120,7 @@ xeon/packages/platform-process/
 | PR-18 | 내장 원격 전송(TLS + 토큰 WebSocket), 비루프백 무인증 기동 금지 | PR-13 | L | 2차 |
 | PR-19 | Windows 전송 대안 실측과 구현(미결 P-6). 결과에 따라 F `TransportKind` 추가 요청 | PR-13 | L | 2차 |
 | PR-21 | `port/hook-run.ts`: `ProcessPort.run`(spec §4.8 규칙 1~5). 부모 env 미상속, stdin 쓰기 뒤 닫기, stdout·stderr 상한과 `stdoutTruncated`, `signal` 중단 시 graceful → force 트리 종료와 `timedOut`, 기동 실패는 `spawnError`. `service.ts`의 `ProcessService`에 연결 | PR-08, F.extensions.plan E10 | M | M2 |
-| PR-23 | `port/spawn-piped.ts`, `port/mcp-spawn.ts`: `createMcpProcessPort`(spec §4.9). 파이프 자식 기동, `secretEnv` 주입(M2는 승인 증거가 없어 `secret_denied`), `owner.kind: "mcp"` 등록, 정지 순서 stdin 닫기 → SIGTERM → SIGKILL, 기동 실패 값 | PR-06, PR-08, PR-21 | M | M2 |
+| PR-23 | `port/spawn-piped.ts`, `port/mcp-spawn.ts`: `createMcpProcessPort`(spec §4.9). 파이프 자식 기동, 평문 `env`와 `secretEnv` 주입(기동 승인 증거 `approval`을 `mcp.start:` 맥락으로 넘김, M3-05), `owner.kind: "mcp"` 등록, 정지 순서 stdin 닫기 → SIGTERM → SIGKILL, 기동 실패 값 | PR-06, PR-08, PR-21 | M | M2 |
 | PR-22 | `port/isolation.ts`: `ProcessPort.spawn`(spec §4.8). Bun 자식 기동, `owner.ref = label`로 레지스트리 등록, 트리 kill. M1~M2는 거부 구현만 둔다 | PR-06, PR-08 | M | 2차 |
 | PR-20 | 원격 사용 확인: 소켓 중계(SSH Unix 소켓 전달을 흉내 내는 테스트 중계)를 거친 클라이언트가 `connectSocket`, `host.hello` 토큰 검사, 서비스 소실 처리를 로컬과 같은 결과로 통과하는 int 테스트. 원격 연결 안내 문구(`ssh -L`, 사설망 주소)는 `L4.host-service.spec`이 쓴다 | PR-13, PR-14 | S | M3 |
 
