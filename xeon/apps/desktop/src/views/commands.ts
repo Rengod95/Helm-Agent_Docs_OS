@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 import { Bug, type Result } from "@xeon/contracts";
 import type { SecretName } from "@xeon/contracts/capabilities";
 import type { TrustChoice, TrustStatus } from "@xeon/contracts/wire";
-import type { KeyRegisterError, SetupSnapshot } from "@xeon/client/settings";
+import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@xeon/client/settings";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
@@ -91,6 +91,17 @@ export interface Commands {
     requestId: string,
   ): Promise<Result<null, CommandError>>;
   interrupt(threadId: ThreadId): Promise<Result<null, CommandError>>;
+  /**
+   * 입력창이 `/`로 시작하는 줄을 슬래시 명령으로 보냈을 때(`sendTurn`) 호스트가 셸 주입 실행에 사람 확인을 요구했다. 이 호출이 같은 줄을
+   * `confirmShell: true`로 다시 보낸다. 확인 대기가 없으면 아무 일도 하지 않는다.
+   */
+  confirmShell(): Promise<Result<null, CommandError>>;
+  /** 셸 주입 확인을 거절한다. 아무것도 실행하지 않는다 */
+  cancelShell(): void;
+  /** 동작 명령이 낸 출력(`UiState.commandOutput`)을 닫는다 */
+  dismissCommandOutput(): void;
+  /** 엔진에 등록한 슬래시 명령 목록(`command.list`)을 목록·자동완성 view-model로 돌려준다. `threadId`를 주면 그 대화의 프로젝트 명령도 싣는다 */
+  commandList(threadId: ThreadId | null): Promise<Result<readonly CommandRowVM[], CommandError>>;
   respondApproval(approvalId: EventId, response: ApprovalDecision): Promise<void>;
   readonly trust: TrustCommands;
   readonly setup: SetupCommands;
