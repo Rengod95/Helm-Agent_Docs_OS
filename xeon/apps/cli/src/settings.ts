@@ -1,5 +1,11 @@
 import { Type, type TArray, type TLiteral, type TNull, type TString, type TUnion } from "typebox";
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+import { uiSettings } from "@xeon/client/i18n";
+import {
+  defineSettings,
+  type SettingDefInput,
+  type SettingGroup,
+  type SettingNamespace,
+} from "@xeon/contracts/settings";
 
 // L4.cli.spec §6. l4.cli.* 키 네 개. 조립 루트가 import할 수 없는 앱의 설정이라 AssembleOptions.settingGroups로 넘긴다(§3.3).
 // 네 키 모두 탭은 appearance다: 표시 설정의 소유자가 L4이기 때문이다.
@@ -83,3 +89,9 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     since: "0.1.0",
   },
 });
+
+/** CLI가 엔진 조립에 넘기는 설정 그룹: `l4.cli.*`와 클라이언트 공용 `l4.ui.*`(표시 언어) */
+export const cliSettingGroups: readonly SettingGroup<
+  SettingNamespace,
+  Readonly<Record<string, SettingDefInput>>
+>[] = [cliSettings, uiSettings];

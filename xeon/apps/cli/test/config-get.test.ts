@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import type { EffectiveSetting } from "@xeon/contracts/settings";
 import type { HostCommand } from "@xeon/host";
-import { cliSettings } from "../src/settings.ts";
+import { cliSettingGroups } from "../src/settings.ts";
 import { formatSettings } from "../src/commands/config.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 
@@ -123,7 +123,7 @@ test("config schema runs the host command without connecting and returns its cod
   });
   expect(await h.run(["config", "schema", "--scope", "user", "--core-only"])).toBe(0);
   expect(seen).toEqual([
-    { kind: "config-schema", scope: "user", coreOnly: true, settingGroups: [cliSettings] },
+    { kind: "config-schema", scope: "user", coreOnly: true, settingGroups: cliSettingGroups },
   ]);
   expect(h.stdoutText()).toBe("{}\n");
   expect(h.stderrText()).toBe("note\n");
@@ -149,9 +149,9 @@ test("config schema passes --out through and keeps the host's 1 and 2 as they ar
       kind: "config-schema",
       scope: "managed",
       coreOnly: false,
-      settingGroups: [cliSettings],
+      settingGroups: cliSettingGroups,
       out: "s.json",
     },
-    { kind: "config-schema", scope: "local", coreOnly: false, settingGroups: [cliSettings] },
+    { kind: "config-schema", scope: "local", coreOnly: false, settingGroups: cliSettingGroups },
   ]);
 });

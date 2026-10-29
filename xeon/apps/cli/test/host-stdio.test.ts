@@ -34,7 +34,10 @@ test("host --stdio starts the stdio host with the CLI settings group and never c
   const [options] = seen;
   expect(options?.readable).toBeInstanceOf(ReadableStream);
   expect(options?.writable).toBeInstanceOf(WritableStream);
-  expect(options?.assemble?.settingGroups?.map((group) => group.namespace)).toEqual(["l4.cli"]);
+  expect(options?.assemble?.settingGroups?.map((group) => group.namespace)).toEqual([
+    "l4.cli",
+    "l4.ui",
+  ]);
   expect(options?.assemble?.devChecks).toBe(false);
   expect(h.closed()).toBe(false);
   expect(h.methods()).toEqual([]);

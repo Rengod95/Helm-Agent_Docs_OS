@@ -4,7 +4,7 @@ import { failureOfStart, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import type { CliIo } from "../io.ts";
 import { invalidRemoteError, serviceConnectErrorOf } from "../engine.ts";
-import { cliSettings } from "../settings.ts";
+import { cliSettingGroups } from "../settings.ts";
 import { printFailure, type CommandContext } from "./context.ts";
 
 // L4.cli.spec §3.1 `xeon host --stdio`, plan C16. 컴파일 바이너리의 내부 진입이다. 데스크톱 사이드카가 쓴다.
@@ -28,7 +28,7 @@ export async function runHostStdio(ctx: CommandContext): Promise<ExitCode> {
   const exit = await deps.startStdioHost({
     readable: io.stdin,
     writable: io.stdoutStream,
-    assemble: { settingGroups: [cliSettings], devChecks: deps.devWireRoundTrip },
+    assemble: { settingGroups: cliSettingGroups, devChecks: deps.devWireRoundTrip },
   });
   if (exit.message !== undefined) await io.stderr(`xeon: ${exit.message}\n`);
   return exit.code === 0 ? EXIT.ok : EXIT.error;

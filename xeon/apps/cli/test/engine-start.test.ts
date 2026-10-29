@@ -26,7 +26,7 @@ import {
   type HostApi,
   type StartedHost,
 } from "../src/engine.ts";
-import { cliSettings } from "../src/settings.ts";
+import { cliSettingGroups } from "../src/settings.ts";
 import { startFakeServer } from "./support/fake-server.ts";
 import { storeId } from "./support/ids.ts";
 import { createTransportPair } from "./support/memory-transport.ts";
@@ -35,7 +35,7 @@ const OPTIONS: EngineConnectOptions = {
   workspace: "/work",
   preference: "auto",
   client: { name: "xeon-cli", version: "0.0.0" },
-  settingGroups: [cliSettings],
+  settingGroups: cliSettingGroups,
   devWireRoundTrip: false,
   env: {},
 };

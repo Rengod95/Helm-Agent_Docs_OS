@@ -1073,7 +1073,7 @@ $ echo $?
 14. [결정: m2c G1-07] 비밀 삭제 전 참조 표시. `secret.references`로 설정 키, 활성 lease 수, 최근 사용한 세션을 보인다(§4.7 `rm`).
 15. [미결] 끊긴 turn을 연 세션의 질문 순서. 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(`L4.host-service.spec` HS-52) 승인 카드가 `이어서 실행할까요? [y/N]`보다 먼저 선다. 이어 실행을 먼저 묻고 승인 카드를 그 뒤로 미루려면 승인 프롬프트를 이어 실행 질문이 끝날 때까지 붙잡는 장치가 CLI에 필요하다. 지금은 두 질문이 같은 입력 줄을 순서대로 쓰고 어느 쪽으로도 잘못 응답되지 않는다(`turn-resume-host.int.test.ts`). 작성자 결정.
 16. [미결] `settings.invalidated` 구독(M2 마감 재검토 T6 메모). 이 문서가 M2에 요구하는 동작은 "시작할 때 `settings.list`와 `command.list`를 한 번 읽는다"(§4.12)이고 CLI는 알림을 구독하지 않는다. 대화 중에 다른 연결이 설정이나 신뢰를 바꾸면 Tab 완성의 키 목록과 엔진 명령 목록이 낡는다. 알림을 받아 두 목록을 다시 읽는 일은 M3에 한다(`L4.cli.plan` §4.6 끝 항목).
-17. [결정: adr.0016] CLI 출력 문장은 `@formatjs/intl`과 `packages/client`의 ko·en 카탈로그로 만든다. 로케일은 `ui.locale`(기본 auto, OS 로케일, 영어 폴백)을 따른다. 지금 소스에 하드코딩된 한국어 문자열의 이전은 M3 작업이다(`review.m3-plan` M3-39).
+17. [결정: adr.0016] CLI 출력 문장은 `@formatjs/intl`과 `packages/client`의 ko·en 카탈로그로 만든다. 로케일은 `ui.locale`(기본 auto, OS 로케일, 영어 폴백)을 따른다. 지금 소스에 하드코딩된 한국어 문자열의 이전은 M3 작업이다(`review.m3-plan` M3-39). 표시 언어 설정 키는 `l4.ui.locale`이고(`packages/client`의 `uiSettings`, `cliSettingGroups`로 엔진 조립에 넘긴다), `runCli`는 시작할 때 OS 단서(`LC_ALL`, `LC_MESSAGES`, `LANG`)로, `chat`의 `--set l4.ui.locale=<값>`이 있으면 그 값으로 현재 로케일을 정한다. 단서가 없으면 처음 값 `en`을 쓴다 [결정: 오케스트레이터 기본값].
 18. [결정: 오케스트레이터 기본값] `invalidRemote`의 종료 코드는 2다. HS-87이 주소 문법 오류를 "사용 오류"라고 하고 §3.6의 2는 인자 값의 오류를 포함한다. 설정 파일의 같은 값 오류(`settings.invalidValue`)도 2라서 맞췄다.
 19. [제안] `host --stdio`의 원격 중계(HS-89)는 M3b B2-RMT에 넣었다. 접속 실패의 종료 코드는 §4.10의 연결 오류 코드(3)를 따르고, HS-89의 1은 원격이 끊기거나 중계가 실패한 경우에만 쓴다. HS-89 문장과 맞는지 host-service 문서에서 확인한다.
 20. [미결] 주소 문구에서 `@`가 든 값을 가리는 규칙(자격 증명 방어)은 HS-87에 없다. 이 문서의 구현이 먼저 두었다. host-service 문서로 옮길지 정한다.

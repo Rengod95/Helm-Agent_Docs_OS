@@ -1,6 +1,6 @@
 import { assertNever, attemptAsync, err, ok, type Clock, type Result } from "@xeon/contracts";
 import type { SecretOutOfBandPort } from "@xeon/contracts/services";
-import type { SettingDefInput, SettingGroup } from "@xeon/contracts/settings";
+import type { SettingDefInput, SettingGroup, SettingNamespace } from "@xeon/contracts/settings";
 import {
   checkEnvelope,
   WIRE_PROTOCOL_VERSION,
@@ -66,7 +66,7 @@ export interface EngineConnectOptions {
   readonly client: { readonly name: "xeon-cli"; readonly version: string };
   /** AssembleOptions.settingGroups로 넘긴다(§6) */
   readonly settingGroups: readonly SettingGroup<
-    "l4.cli",
+    SettingNamespace,
     Readonly<Record<string, SettingDefInput>>
   >[];
   /** AssembleOptions.devChecks로 넘긴다(F wire §3.1) */

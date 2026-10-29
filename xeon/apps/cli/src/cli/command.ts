@@ -198,7 +198,7 @@ export type DbCommand = {
   readonly output: OutputMode;
 };
 
-type CliCommand =
+export type CliCommand =
   | ChatCommand
   | SessionsCommand
   | GroupNewCommand
