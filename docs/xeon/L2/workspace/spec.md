@@ -579,7 +579,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 6. 보호 경로: 정규 경로가 L0.sandbox의 보호 경로 목록에 걸리면 root 안이어도 거부한다.
 
 - 4·5·6번 위반은 `denied`다. `detail`은 `{ reason: "outside_root" | "protected_path" | "parent_traversal", requested: <입력 경로>, resolved: <정규 경로> }`다.
-- `grep`, `find`는 검색 기준 디렉터리만 검사한다. 검색 중 만나는 심볼릭 링크는 따라가지 않는다(ripgrep 기본 동작, `--follow` 미사용).
+- `grep`, `find`는 검색 기준 디렉터리를 검사하고, 결과에서는 읽기 보호 경로에 걸린 파일을 뺀다(`read`가 거부하는 경로가 검색으로 드러나지 않게 한다) [결정: 오케스트레이터 기본값]. 검색 중 만나는 심볼릭 링크는 따라가지 않는다(ripgrep 기본 동작, `--follow` 미사용).
 
 역할 나눔 [제안]:
 

@@ -10,6 +10,7 @@ import {
   rgBinary,
   rgFailure,
   runRg,
+  unprotected,
   visibleFiles,
   type RgLine,
 } from "./rg.ts";
@@ -94,8 +95,10 @@ export function createGrep(deps: WorkspaceDeps): GrepMethod {
       input.glob === undefined
         ? undefined
         : await visibleFiles(deps.env, binary, resolved.canonical, context);
+    const allowed = unprotected(deps, resolved.canonical);
     const lines = parseRgJson(run.stdout)
       .filter((line) => visible === undefined || visible.has(line.path))
+      .filter((line) => allowed(line.path))
       .map((line): RgLine => ({
         kind: line.kind,
         path: line.path,

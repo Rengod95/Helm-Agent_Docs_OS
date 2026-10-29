@@ -369,6 +369,27 @@ describe("grep paths", () => {
     expect(env.calls).toHaveLength(0);
   });
 
+  test("matches under a read-protected path inside the root are dropped", async () => {
+    const protectedPaths: readonly ProtectedPathEntry[] = [
+      { path: "/work/private", match: "prefix", access: "read_write", reason: "secret_key" },
+    ];
+    const { env, files } = setup({ protectedPaths });
+    env.reply({
+      chunks: [
+        {
+          text:
+            rgLine("match", "private/key", 1, "secret") + rgLine("match", "src/a.ts", 4, "secret"),
+        },
+      ],
+      exitCode: 0,
+    });
+    const out = await files.grep({ pattern: "secret" });
+    expect(out).toEqual({
+      root: "/work",
+      matches: [{ path: "src/a.ts", line: 4, text: "secret", kind: "match" }],
+    });
+  });
+
   test("a thread's workspace is the cwd and the root of the search", async () => {
     const ids = fixedIdFactory();
     const alpha = ids.next("thr");

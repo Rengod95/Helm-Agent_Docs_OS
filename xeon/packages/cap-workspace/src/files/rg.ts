@@ -1,5 +1,5 @@
 import { parse, parseJson } from "@xeon/contracts";
-import type { CancelScope } from "@xeon/contracts/services";
+import { matchProtectedPath, type CancelScope } from "@xeon/contracts/services";
 import { Type, type Static } from "typebox";
 import type { WorkspaceDeps } from "../deps.ts";
 import type { WorkspaceEnv } from "../env.ts";
@@ -188,4 +188,16 @@ export function parseRgJson(stdout: string): readonly RgLine[] {
     });
   }
   return lines;
+}
+
+/**
+ * 검색 기준 디렉터리 안에서 읽기 보호 경로에 걸린 파일을 결과에서 뺀다. 기준 디렉터리 자체의 검사(`resolveWorkspacePath`)만으로는
+ * 허용 root 안의 보호 하위 경로(비밀 키 등)가 `grep`·`find`로 드러난다. `read`가 거부하는 경로는 여기서도 보이지 않는다.
+ */
+export function unprotected(deps: WorkspaceDeps, root: string): (relativePath: string) => boolean {
+  const entries = deps.roots.protectedPaths();
+  if (entries.length === 0) return () => true;
+  const base = root.endsWith("/") ? root : `${root}/`;
+  return (relativePath) =>
+    matchProtectedPath(entries, `${base}${relativePath}`, "read") === undefined;
 }

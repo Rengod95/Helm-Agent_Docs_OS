@@ -177,4 +177,14 @@ describe("find", () => {
     expect(error.data.detail).toMatchObject({ reason: "protected_path" });
     expect(env.calls).toHaveLength(0);
   });
+
+  test("files under a read-protected path inside the root are dropped", async () => {
+    const protectedPaths: readonly ProtectedPathEntry[] = [
+      { path: "/work/private", match: "prefix", access: "read_write", reason: "secret_key" },
+    ];
+    const { env, files } = setup({ protectedPaths });
+    env.reply(listing("private/key.pem", "src/a.pem"), listing("private/key.pem", "src/a.pem"));
+    const out = await files.find({ pattern: "*.pem" });
+    expect(out).toEqual({ root: "/work", paths: ["src/a.pem"] });
+  });
 });

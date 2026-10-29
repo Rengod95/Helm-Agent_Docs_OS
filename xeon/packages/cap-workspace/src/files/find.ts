@@ -4,7 +4,7 @@ import { WorkspaceFailure } from "../errors.ts";
 import { resolveWorkspacePath } from "../roots.ts";
 import { capEntries, pageEntries } from "../truncate/paging.ts";
 import type { FilesApi } from "./api.ts";
-import { pathsOf, rgBinary, rgFailure, runRg, visibleFiles } from "./rg.ts";
+import { pathsOf, rgBinary, rgFailure, runRg, unprotected, visibleFiles } from "./rg.ts";
 
 // L2.workspace.spec §3.2 find, §4.3, §4.5, §10 미결 6. 엔진은 rg --files --glob이다(fd를 내려받지 않는다).
 // 실행: rg --files --no-config --no-require-git --sort path --glob <패턴> --no-messages -- .
@@ -59,7 +59,8 @@ export function createFind(deps: WorkspaceDeps): FindMethod {
       candidates.length === 0
         ? new Set<string>()
         : await visibleFiles(deps.env, binary, resolved.canonical, context);
-    const paths = candidates.filter((path) => visible.has(path));
+    const allowed = unprotected(deps, resolved.canonical);
+    const paths = candidates.filter((path) => visible.has(path) && allowed(path));
     const capped = capEntries(paths, {
       limit: input.limit ?? settings.find.maxResults,
       maxBytes: settings.read.maxBytes,
