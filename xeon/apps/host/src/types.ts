@@ -42,6 +42,7 @@ import type {
   StreamPosition,
   TurnStartInput,
   Unsubscribe,
+  UsageGauge,
   WireParams,
   WireResult,
 } from "@xeon/contracts/wire";
@@ -246,6 +247,8 @@ export interface EnginePorts {
   readonly web: WebPort;
   /** L2.dialog 상태줄 스냅숏과 첨부 추가(`status.list`, `attachments.add`, M3-REQ-16) */
   readonly dialog: DialogWirePort;
+  /** 사용량 게이지 원천(`usage.get`, M3-REQ-15). 조립 기본은 빈 목록이다 */
+  readonly usage: UsagePort;
   /** 지식 제안 대기열 둘(학습 그룹, L2.knowledge)을 한 목록으로 보이고 결정한다(M3-REQ-18, D-M3-32 a) */
   readonly proposals: ProposalPort;
   /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */
@@ -422,6 +425,17 @@ export interface DialogWirePort {
  */
 export interface WebPort {
   providers(signal: AbortSignal): Promise<WireResult<"web.providers">>;
+}
+
+/**
+ * 사용량 게이지 원천(`usage.get`, M3-REQ-15). 레이트 리밋과 계정 풀 게이지는 B2-MDL 트랙이 채운다. 조립 기본은 빈 목록이다
+ * (`assembly/usage.ts`). `providerId`와 `threadId`는 원천이 쓸 수 있도록 그대로 넘기고, 처리기도 `providerId`로 한 번 더 거른다
+ */
+export interface UsagePort {
+  gauges(
+    input: { readonly providerId?: string; readonly threadId?: ThreadId },
+    signal: AbortSignal,
+  ): Promise<readonly UsageGauge[]>;
 }
 
 /**

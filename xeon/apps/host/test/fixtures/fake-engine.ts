@@ -37,6 +37,7 @@ import type {
   ProposalPort,
   TrustPort,
   TurnPort,
+  UsagePort,
 } from "../../src/types.ts";
 
 // 아래 층 패키지 없이 호스트의 연결·처리기·전송을 시험하려는 가짜 엔진. 이벤트 로그는 메모리이고 커밋 알림은 커밋 직후 같은 턴에서
@@ -87,6 +88,7 @@ export interface FakeEngineOptions {
     readonly web?: Partial<WebPort>;
     readonly dialog?: Partial<DialogWirePort>;
     readonly proposals?: Partial<ProposalPort>;
+    readonly usage?: Partial<UsagePort>;
   };
 }
 
@@ -346,6 +348,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       list: () => Promise.reject(new Error("proposal.list is not part of the fake")),
       decide: () => Promise.reject(new Error("proposal.decide is not part of the fake")),
       ...options.overrides?.proposals,
+    },
+    usage: {
+      gauges: () => Promise.resolve([]),
+      ...options.overrides?.usage,
     },
     trust: {
       get: () => Promise.reject(new Error("trust.get is not part of the fake")),

@@ -14,6 +14,7 @@ import {
 } from "./host.ts";
 import { notImplemented } from "./not-implemented.ts";
 import { createProposalHandlers } from "./proposal.ts";
+import { createUsageGetHandler } from "./usage.ts";
 import { createSecretHandlers } from "./secret.ts";
 import {
   createSettingsGetHandler,
@@ -84,7 +85,7 @@ export function createWireHandlers(
     "settings.list": createSettingsListHandler(engine),
     "settings.readFile": notImplemented("settings.readFile"),
     "settings.writeFile": notImplemented("settings.writeFile"),
-    "usage.get": notImplemented("usage.get"),
+    "usage.get": createUsageGetHandler(engine),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine),
     ...createTrustHandlers(engine),
