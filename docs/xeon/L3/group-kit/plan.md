@@ -234,9 +234,18 @@ xeon/packages/group-kit/
 | `settings.no-drive-holder-key` | `l3.group-kit` 묶음에 키가 `instrumentation`, `statusLine` 둘뿐이고 `checkSettingDef`를 통과한다. 구동 그룹 선택 키는 X 키를 읽는다 | M2 |
 | `replay.cut-at-every-commit-yields-same-events` | EV-09 좋은 예 그룹에서 모든 절단 지점의 digest가 기준과 같다 | M2 |
 | `replay.detects-closure-state` | EV-09 나쁜 예 그룹에서 `ok: false`이고 `firstDiff`가 채워진다 | M2 |
-| `replay.effects-counted-once-per-cut` | 모든 절단 지점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, capabilityWrite, post)가 기준 실행과 같다 | M3 |
+| `replay.effects-counted-once-per-cut` | 모든 절단 지점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, post)가 기준 실행과 같다. [결정: 오케스트레이터 기본값] `capabilityWrite`는 뺐다. 능력 쓰기 계수는 X 테스트(`replay-effects.test.ts`)가 다룬다 | M3 |
 | `replay.detects-doubled-effect` | 같은 `requestId`를 쓰지 않고 효과를 두 번 내는 나쁜 그룹에서 `ok: false`, `failure: "effects-doubled"`이다 | M3 |
+| `replay.every-run-uses-the-baseline-thread-id` | 기준 실행과 모든 절단 실행이 같은 thread id를 쓴다(`threadMismatches`). 이벤트열 비교는 ID를 지우므로 따로 본다 | M3 |
+| `replay.thread-check-reports-a-run-on-another-thread` | 세 번째 실행의 thread만 바꾸면 검사가 번호 2를 돌려준다(검사가 물린다) | M3 |
+| `replay.thread-check-lists-every-run-that-differs-from-the-first` | `threadMismatches`가 첫 실행과 다른 실행의 번호를 모두 돌려준다 | M3 |
 | `delegate.status-readable-in-drive-not-in-on` | `delegateStatus`는 drive 문맥에서는 값을 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행 문맥에서 거부된다 | M3 |
+| `call-context.absent-makes-delegate-and-status-unavailable-while-cancel-runs` | 문맥도 thread도 없으면 `delegate`·`delegateStatus`가 `group.delegateUnavailable`이고 호출하지 않는다. `cancelDelegates`는 재실행 문맥 밖이라 실행된다 | M3 |
+| `call-context.aborted-on-context-still-rejects-cancel-and-forwards-its-signal` | abort된 on 문맥도 문맥이라 `delegateStatus`·`cancelDelegates`가 거부된다. `delegate`는 abort된 신호를 L1에 넘긴다 | M3 |
+| `cross-scope.cancel-delegates-touches-only-the-callers-children` | 두 그룹이 위임 서비스 하나를 쓸 때 A의 `cancelDelegates`는 A의 위임만 취소하고 B의 위임은 running으로 남는다 | M3 |
+| `cross-scope.status-is-keyed-by-conversation-and-request-id-not-by-owner` | [미결] `delegateStatus`는 (대화, requestId)로 찾는다. L1 `status`에 소유가 없어 같은 대화의 같은 requestId는 B에게도 보이고, 다른 대화에서는 `undefined`다 | M3 |
+| `scan.reports-findings-in-source-order-not-in-scan-order` | 직접 호출과 도우미의 위반을 원문 순서(줄, 열)로 보고한다 | M3 |
+| `scan.reports-a-violation-on-a-later-line-of-a-multi-line-drive` | 여러 줄 drive 본문에서 줄 2와 4의 위반을 정확한 줄·열로 보고한다 | M3 |
 | `status.drive-rejected-shown` | 대기 상한을 넘겨 거부된 그룹의 `GroupStatus.drive`가 `"rejected"`이다 | M3 |
 | `delegate.rejects-long-request-id` | 48자 초과 `requestId`와 남의 접두 `customType`을 호출 전에 거부한다 | M2 |
 | `delegate.idempotent-by-request-id` | 같은 `requestId` 두 번째 호출이 `duplicate`이고 자식이 하나다(가짜 위임 서비스) | M3 |

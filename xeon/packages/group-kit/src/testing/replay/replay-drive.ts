@@ -9,8 +9,6 @@ export interface EffectCounts {
   readonly turn: number;
   readonly spawn: number;
   readonly delegate: number;
-  /** `idempotent: true` 능력 메서드의 새 효과 수 */
-  readonly capabilityWrite: number;
   readonly post: number;
 }
 
@@ -18,17 +16,10 @@ export const NO_EFFECTS: EffectCounts = {
   turn: 0,
   spawn: 0,
   delegate: 0,
-  capabilityWrite: 0,
   post: 0,
 };
 
-const EFFECT_KINDS: readonly (keyof EffectCounts)[] = [
-  "turn",
-  "spawn",
-  "delegate",
-  "capabilityWrite",
-  "post",
-];
+const EFFECT_KINDS: readonly (keyof EffectCounts)[] = ["turn", "spawn", "delegate", "post"];
 
 /** 효과 수 두 값을 항목마다 더하거나 뺀다. 계수기 둘을 합칠 때와 실행 사이의 증가분을 낼 때 쓴다 */
 export function diffEffects(after: EffectCounts, before: EffectCounts): EffectCounts {
@@ -36,7 +27,6 @@ export function diffEffects(after: EffectCounts, before: EffectCounts): EffectCo
     turn: after.turn - before.turn,
     spawn: after.spawn - before.spawn,
     delegate: after.delegate - before.delegate,
-    capabilityWrite: after.capabilityWrite - before.capabilityWrite,
     post: after.post - before.post,
   };
 }

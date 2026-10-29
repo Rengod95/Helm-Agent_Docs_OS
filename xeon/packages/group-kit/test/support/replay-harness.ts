@@ -32,6 +32,15 @@ interface SharedPorts {
 const ID_PATTERN = /^[a-z]{3}_[0-9A-Z]{26}$/;
 const DRAIN_ROUNDS = 6;
 
+/**
+ * 실행마다 쓴 thread id가 첫 실행(기준 실행)과 같은지 본다. 다른 실행의 번호(0부터)를 돌려준다. 모두 같으면 빈 배열.
+ * `normalizeIds`는 ID를 자리표시자로 바꾸므로 thread id가 달라도 이벤트열 비교로는 보이지 않는다. 그래서 따로 본다.
+ */
+export function threadMismatches(threads: readonly string[]): readonly number[] {
+  const [baseline] = threads;
+  return threads.flatMap((thread, index) => (thread === baseline ? [] : [index]));
+}
+
 /** 이벤트의 ID를 처음 나온 순서의 자리표시자로 바꿔 호스트마다 다른 ID 범위를 지운다 */
 function normalizeIds(events: readonly JsonValue[]): JsonValue[] {
   const seen = new Map<string, string>();
@@ -152,7 +161,6 @@ export function createReplayHarness(): CountingReplayHarness {
           turn: ports.loop.turns.length - before.turn,
           spawn: ports.loop.spawns.length - before.spawn,
           delegate: ports.agents.delegated.length - before.delegate,
-          capabilityWrite: 0,
           post: ports.queue.items.length - before.post,
         },
       };

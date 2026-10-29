@@ -867,11 +867,11 @@ export interface EffectCounts {
   readonly turn: number;
   readonly spawn: number;
   readonly delegate: number;
-  /** `idempotent: true` 능력 메서드의 새 효과 수 */
-  readonly capabilityWrite: number;
   readonly post: number;
 }
 ```
+
+[결정: 오케스트레이터 기본값] `capabilityWrite`는 뺐습니다. 능력 쓰기 계수는 X 테스트(`xeon/packages/ext-host/test/primitives/replay-effects.test.ts`)가 다룹니다.
 
 - 근거: `eng.events.design` EV-09 강제 수단("커밋 지점마다 프로세스를 끊고 재호출해 같은 이벤트 열이 나오는지"), 7.1절 4번. 결정성 등급은 D0다(`eng.testing.guide` TS-02).
 
