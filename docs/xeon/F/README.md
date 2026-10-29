@@ -204,7 +204,7 @@ F가 정하지 않는 것:
 
 - F 변경은 모든 층에 영향이 있다. 변경은 `F.wire-settings.spec` §3.7의 버전 정책(semver, 상태 Active·Deprecated·Removed, 폐기 기간)을 따른다.
 - 이름을 바꾸거나 지울 때는 F 문서를 먼저 고치고, 소비 층 문서와 코드를 같은 변경에서 고친다. 이벤트 kind는 이름을 바꾸지 않고 `version`과 업캐스터로 진화한다(`F.records.spec` §3.2 규칙 5).
-- 문서 표와 코드 표의 일치 검사가 있다. 이벤트 카탈로그(`check-event-catalog.ts`, `F.records.plan`), 지점 선언 표(`check-points-doc.ts`, `F.extensions.plan` E9), wire 메서드 표(`F.wire-settings.plan` W15).
+- 문서 표와 코드 표의 일치 검사가 있다. 이벤트 카탈로그(`catalog-doc.test.ts`, `F.records.plan`), 지점 선언 표(`check-points-doc.ts`, `F.extensions.plan` E9), wire 메서드 표(`F.wire-settings.plan` W15).
 
 ## 7. 결정 근거
 

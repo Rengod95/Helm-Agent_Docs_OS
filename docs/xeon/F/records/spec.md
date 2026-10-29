@@ -245,7 +245,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[];
 export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 ```
 
-코어 카탈로그(43종, 모두 version 1). 아래 표는 `xeon/scripts/check-event-catalog.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 표 행을 고치면 코드도 고친다.
+코어 카탈로그(43종, 모두 version 1). 아래 표는 `xeon/packages/contracts/test/records/catalog-doc.test.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 이 시험은 `just test packages/contracts`에서 돈다. 표 행을 고치면 코드도 고친다.
 
 <!-- catalog:start -->
 | kind | durable | payload 스키마 | 요약 |
@@ -571,7 +571,7 @@ export interface ToolUntrustedReadPayload {
 - [결정: 오케스트레이터 기본값] `tool.sandbox_bypassed`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다(`L0.sandbox.spec` §10 2번). 명령과 출력을 싣지 않으며 같은 호출은 `toolCallId`로 잇는다.
 - [제안] `tool.untrusted_read`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다. 턴 안에서 웹·MCP 도구 결과를 읽었음을 적어, 재시작 뒤에도 같은 턴의 `afterUntrusted`가 이어지게 한다(`L1.tools.spec` §4.3). 결과 본문은 싣지 않는다.
 - [결정: review.decisions-2 U-05] `post.accepted`는 retire한다. 카탈로그 항목은 `retired: true`로 남기고(§3.2 규칙 5) 새로 쓰지 않는다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나이고, 대화에 배치된 item은 `input.placed`가 적는다. 멱등 판정은 커밋 키 `in:<sourceKey>:<requestId>`(`eng.transactions.design` §4.8)와 `TxView.inputByRequestId`가 한다.
-- [제안] M1 표지: 위 15종은 이 절로 카탈로그에 들어왔다. 그래도 코드(`CORE_EVENT_CATALOG`)와 `check-event-catalog.ts` 대조가 `F.records.plan`의 해당 작업으로 반영되기 전에는 소비 plan(`L1.tools`, `L1.tasks`, `L1.agents`)이 이 kind를 쓰는 테스트를 M1 완료 조건에 넣지 않는다.
+- [제안] M1 표지: 위 15종은 이 절로 카탈로그에 들어왔다. 그래도 코드(`CORE_EVENT_CATALOG`)와 표를 대조하는 `catalog-doc.test.ts`가 이 15종을 확인하기 전에는 소비 plan(`L1.tools`, `L1.tasks`, `L1.agents`)이 이 kind를 쓰는 테스트를 M1 완료 조건에 넣지 않는다.
 
 #### 3.3.2 내장 L2 도메인 소유 카탈로그
 
@@ -588,7 +588,7 @@ export interface ToolUntrustedReadPayload {
 규칙:
 
 1. 각 파일은 `CatalogEntry[]`를 export한다. 휘발 kind는 `durable: false`다. 이름은 §3.2 규칙 1(점 하나, snake_case)을 따른다.
-2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 43종만 담고 `check-event-catalog.ts`는 코어 표(§3.3)와 각 도메인 문서의 카탈로그 표를 따로 대조한다.
+2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 43종만 담는다. `catalog-doc.test.ts`는 코어 표(§3.3)만 대조하고, 도메인 문서의 카탈로그 표는 대조하지 않는다.
 3. 접두 표기: 이벤트 영역은 단수 `artifact`다. 능력 id·서비스·테이블의 복수 `artifacts`(`cap.artifacts`, `L2.artifacts.spec`)는 그대로 두고 둘의 대응은 위 표가 정한다(`L2.readme` §2 표 주석).
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
