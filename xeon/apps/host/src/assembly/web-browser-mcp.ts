@@ -1,5 +1,5 @@
 import { attemptAsync, err, ok } from "@xeon/contracts";
-import type { CapabilityApi, McpClient } from "@xeon/contracts/capabilities";
+import type { CapabilityApi, McpApprovalMode, McpClient } from "@xeon/contracts/capabilities";
 import type { JsonObject } from "@xeon/contracts/conversation";
 import type { StoreService } from "@xeon/contracts/records";
 import type { BrowserMcpImage, BrowserMcpPort } from "@xeon/cap-web";
@@ -7,8 +7,9 @@ import { messageOf } from "../util.ts";
 
 // L2.web.spec §4.10.4a. `BrowserMcpPort`(cap-web이 아는 최소 모양)를 cap-mcp의 `mcp.client` 능력으로 맞춘다. cap-web은 cap-mcp를 import하지 않는다.
 // 서버 이름 `playwright`는 사용자가 설정에 둔 MCP 서버(`@playwright/mcp`)의 이름이다. 다른 이름을 고르는 설정은 나중 옵션이다 [결정: 오케스트레이터 기본값].
-// 이 경로는 cap-mcp의 `callTool`을 직접 부른다. 서버 도구의 승인 모드(`l2.mcp` approval)는 L1.tools 도구 경로에서만 검사하므로 여기에는 없다.
-// 브라우저 동작의 사람 확인(`browseConfirm`)은 아직 조립하지 않아 확인이 필요한 동작은 거부된다(cap-web 기본 동작) [미결].
+// 이 경로는 cap-mcp의 `callTool`을 직접 부른다. 서버 도구의 승인 모드(`l2.mcp` approval)는 L1.tools 도구 경로에서만 검사하므로
+// `approvalModeOf`로 deny를 이 경로에서도 지키고, prompt는 감싼 `web_browse_*` 도구의 승인이 대신한다(아래 deps 주석).
+// 브라우저 동작의 사람 확인(`browseConfirm`)은 `web-browse-confirm.ts`가 `xeon.approvals`에 잇는다.
 
 /** 브라우저 MCP 서버의 설정 이름 */
 export const BROWSER_MCP_SERVER = "playwright";
@@ -22,6 +23,12 @@ export interface BrowserMcpDeps {
   readonly mcp: Pick<CapabilityApi<typeof McpClient>, "listServers" | "callTool">;
   /** 스크린샷 blob을 바이트로 읽는다. MCP 결과의 이미지는 blob 참조다 */
   readonly store: Pick<StoreService, "readBlob">;
+  /**
+   * 서버 도구의 유효 승인 모드(`tools.approval[도구]`가 `l2.mcp.approvalMode`보다 앞선다). 없으면 모두 `auto`로 본다.
+   * `deny`는 이 직접 호출 경로에서도 거부한다. `prompt`는 호출을 감싼 `web_browse_*` 도구가 L1.tools 승인(쓰기 등급)을 이미 받았으므로
+   * 같은 호출에 승인을 한 번 더 묻지 않는다. `auto`는 묻지 않는다 [결정: 오케스트레이터 기본값, host-service spec §10 42번]
+   */
+  readonly approvalModeOf?: (tool: string) => McpApprovalMode;
 }
 
 /** cap-web의 인자 모양(문자열, 수, 불리언, 문자열 목록)을 MCP 호출의 JSON 객체로 옮긴다 */
@@ -45,6 +52,12 @@ export function createBrowserMcpPort(deps: BrowserMcpDeps): BrowserMcpPort {
       return server?.state === "connected" ? { ok: true } : { ok: false, detail: NOT_CONNECTED };
     },
     async callTool(tool, args, signal) {
+      if (deps.approvalModeOf?.(tool) === "deny") {
+        return err({
+          kind: "unavailable",
+          message: `MCP server '${BROWSER_MCP_SERVER}' tool '${tool}' is denied by the MCP approval mode`,
+        });
+      }
       const called = await attemptAsync(() =>
         deps.mcp.callTool(
           { server: BROWSER_MCP_SERVER, tool, arguments: jsonArgsOf(args) },

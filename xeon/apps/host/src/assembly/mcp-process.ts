@@ -15,7 +15,7 @@ import {
 // G1-04, 결정 D6(ADR-0011). stdio MCP 서버를 사용자 권한 자식 프로세스로 띄우는 포트. cap-mcp는 L0를 import하지 않아 같은 모양의
 // `McpProcessPort`를 자기 포트로 선언해 두었고, 이 파일이 L0 platform-process의 구현(`createMcpProcessPort`)을 그 모양으로 건넨다.
 // 종료 순서(stdin 닫기 → 유예 → SIGTERM → 유예 → SIGKILL)와 `BackgroundRegistry` 등록은 platform-process가 한다.
-// 비밀 env(`secret://`)를 쓰는 서버는 기동 승인 지점이 없어 `secret_denied`로 끝난다(M3, ADR-0011). 조립 루트 코드(DR-14 예외 2).
+// 비밀 env(`secret://`)를 쓰는 서버의 기동 승인 증거는 cap-mcp가 spawn 요청에 싣는다(`mcp-start.ts`, M3-05). 조립 루트 코드(DR-14 예외 2).
 
 /** stdio 서버가 끝난 뒤 표준 출력이 닫히기를 기다리는 시간(ms) */
 const MCP_DRAIN_MS = 1000;

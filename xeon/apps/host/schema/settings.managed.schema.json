@@ -3744,13 +3744,9 @@
         }
       }
     },
-    "l2.mcp.sampling": {
-      "default": "deny",
-      "enum": [
-        "deny",
-        "ask"
-      ],
-      "type": "string",
+    "l2.mcp.sandbox.projectSource": {
+      "default": true,
+      "type": "boolean",
       "x-xeon": {
         "allowedScopes": [
           "managed",
@@ -3761,10 +3757,30 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "MCP 샘플링 요청",
+          "label": "프로젝트·확장 출처 stdio 서버 샌드박스",
+          "order": 314,
+          "tab": "tools",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l2.mcp.sandbox.userSource": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "사용자 설정 stdio 서버 샌드박스",
           "order": 308,
           "tab": "tools",
-          "widget": "select"
+          "widget": "toggle"
         }
       }
     },
@@ -3774,6 +3790,9 @@
         "^[a-z][a-z0-9-]{0,31}$": {
           "properties": {
             "enabled": {
+              "type": "boolean"
+            },
+            "sandbox": {
               "type": "boolean"
             },
             "timeouts": {
@@ -3853,7 +3872,7 @@
                     "env": {
                       "patternProperties": {
                         "^[A-Za-z_][A-Za-z0-9_]{0,127}$": {
-                          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                          "maxLength": 8192,
                           "type": "string"
                         }
                       },
@@ -3875,7 +3894,7 @@
                     "headers": {
                       "patternProperties": {
                         "^[A-Za-z0-9-]{1,128}$": {
-                          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                          "maxLength": 8192,
                           "type": "string"
                         }
                       },
@@ -3904,7 +3923,7 @@
                     "headers": {
                       "patternProperties": {
                         "^[A-Za-z0-9-]{1,128}$": {
-                          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                          "maxLength": 8192,
                           "type": "string"
                         }
                       },

@@ -7,6 +7,7 @@ import {
   type PortKey,
 } from "@xeon/contracts/extensions";
 import {
+  ApprovalServicePortKey,
   OsPortKey,
   SecretServicePortKey,
   StoreServicePortKey,
@@ -26,6 +27,7 @@ import {
 } from "@xeon/cap-mcp";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
 import { messageOf } from "../util.ts";
+import { createHostMcpStart } from "./mcp-start.ts";
 import { createLoaderFs, type ProjectTrust } from "./trust.ts";
 
 // m2-plan HOST.6, L2.mcp.plan §8.5. cap-mcp는 확장 엔트리와 매니페스트를 내놓지 않는다(`createMcp(deps)`만). 이 파일이 그 몫이다:
@@ -34,7 +36,7 @@ import { createLoaderFs, type ProjectTrust } from "./trust.ts";
 // 프로젝트 출처 정의의 기준 폴더는 그 대화의 작업 폴더다(`workspaceOf`, HS-76). 능력 `mcp.client`와 `xeon.mcp`는 `runtime.service`로 낸다.
 //
 // - stdio 서버(결정 D6, ADR-0011): L0 platform-process의 `createMcpProcessPort`를 조립 루트가 `options.process`로 넘긴다(`mcp-process.ts`).
-//   cap-mcp는 L0를 import하지 않는다. 비밀 env를 쓰는 stdio 서버는 기동 승인 지점이 없어 `secret_denied`다(M3).
+//   cap-mcp는 L0를 import하지 않는다. 비밀 env를 쓰는 stdio 서버는 정의 해시마다 한 번 기동 승인을 받는다(`mcp-start.ts`, M3-05).
 //
 // 아직 없는 것:
 // - `session.mcp.after` 발화: 지점 발화에는 thread가 필요한데 서버 변화는 thread에 속하지 않는다.
@@ -117,7 +119,19 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
           }
         },
       };
+      // 비밀 env stdio 서버의 기동 승인(M3-05). 승인 서비스가 없으면 게이트도 없어 비밀 env 서버는 승인 증거 없이 `secret_denied`가 된다
+      const approvals = optionalPort(host, ApprovalServicePortKey);
+      const start =
+        approvals === undefined
+          ? undefined
+          : createHostMcpStart({
+              approvals,
+              secrets,
+              clock: os.time.clock,
+              logger,
+            });
       const runtime = createMcp({
+        startGate: start?.gate,
         clock: os.time.clock,
         scheduler: os.time.scheduler,
         logger,
@@ -135,6 +149,7 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
           scheduler: os.time.scheduler,
           fetch: undefined,
           stdioGraceMs: STDIO_GRACE_MS,
+          startGate: start?.gate,
         }),
         tools: createToolServiceRegistrar({
           register: (registration) => tools.register(registration),
@@ -180,6 +195,7 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
         registered.value();
         ruleState.registration?.dispose();
         await runtime.shutdown();
+        start?.dispose();
       });
       return ok(undefined);
     });

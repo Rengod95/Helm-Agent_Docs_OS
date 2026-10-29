@@ -1970,6 +1970,9 @@
             "enabled": {
               "type": "boolean"
             },
+            "sandbox": {
+              "type": "boolean"
+            },
             "timeouts": {
               "properties": {
                 "callMs": {
@@ -2047,7 +2050,7 @@
                     "env": {
                       "patternProperties": {
                         "^[A-Za-z_][A-Za-z0-9_]{0,127}$": {
-                          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                          "maxLength": 8192,
                           "type": "string"
                         }
                       },
@@ -2069,7 +2072,7 @@
                     "headers": {
                       "patternProperties": {
                         "^[A-Za-z0-9-]{1,128}$": {
-                          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                          "maxLength": 8192,
                           "type": "string"
                         }
                       },
@@ -2098,7 +2101,7 @@
                     "headers": {
                       "patternProperties": {
                         "^[A-Za-z0-9-]{1,128}$": {
-                          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                          "maxLength": 8192,
                           "type": "string"
                         }
                       },

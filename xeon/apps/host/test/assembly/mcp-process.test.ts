@@ -120,7 +120,7 @@ test("a server whose environment needs a secret is secret_denied and nothing is 
     ok: false,
     error: { kind: "secret_denied", ref: "secret://github-token" },
   });
-  // 승인 증거가 없는 채로 물었다(기동 시점에 승인 지점이 없다)
-  expect(asked).toEqual([`${reference.value.handle} mcp:gh no-approval`]);
+  // 승인 증거가 없는 채로 물었고, 기동 목적(mcp.start:)과 대상(mcp:<서버 id>)이 L0.secrets의 기동 맥락과 같다
+  expect(asked).toEqual([`${reference.value.handle} mcp.start:gh no-approval`]);
   expect(seen).toEqual([]);
 });

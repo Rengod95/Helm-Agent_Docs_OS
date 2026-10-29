@@ -249,3 +249,30 @@ test("an image the blob store cannot read makes the call unavailable, without dr
     error: { kind: "unavailable", message: "the image from the browser server could not be read" },
   });
 });
+
+test("a tool whose MCP approval mode is deny is refused on the direct path without reaching the server; prompt and auto pass", async () => {
+  const { mcp, calls } = fakeMcp({
+    call: () => Promise.resolve({ status: "complete", content: [], isError: false }),
+  });
+  const modes: Record<string, "deny" | "prompt" | "auto"> = {
+    browser_close: "deny",
+    browser_click: "prompt",
+    browser_snapshot: "auto",
+  };
+  const port = createBrowserMcpPort({
+    mcp,
+    store: store(),
+    approvalModeOf: (tool) => modes[tool] ?? "prompt",
+  });
+  const signal = new AbortController().signal;
+  expect(await port.callTool("browser_close", {}, signal)).toEqual({
+    ok: false,
+    error: {
+      kind: "unavailable",
+      message: "MCP server 'playwright' tool 'browser_close' is denied by the MCP approval mode",
+    },
+  });
+  expect((await port.callTool("browser_click", {}, signal)).ok).toBe(true);
+  expect((await port.callTool("browser_snapshot", {}, signal)).ok).toBe(true);
+  expect(calls.called.map((call) => call.tool)).toEqual(["browser_click", "browser_snapshot"]);
+});

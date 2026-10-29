@@ -53,6 +53,8 @@ import {
 } from "@xeon/ext-host";
 import { Type } from "typebox";
 import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
+import { readMcpSettings, readSettingsServers } from "@xeon/cap-mcp";
+import { createBrowseConfirm } from "./web-browse-confirm.ts";
 import { BROWSER_MCP_SERVER, createBrowserMcpPort } from "./web-browser-mcp.ts";
 import { createWebHeaderSecrets } from "./web-header-secrets.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
@@ -220,7 +222,23 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
         secrets === undefined
           ? undefined
           : createWebHeaderSecrets({ secrets, settingValue: options.settingValue });
-      const browserMcp = mcp === undefined ? undefined : createBrowserMcpPort({ mcp, store });
+      const browserMcp =
+        mcp === undefined
+          ? undefined
+          : createBrowserMcpPort({
+              mcp,
+              store,
+              // 직접 호출 경로도 `l2.mcp` 승인 모드의 deny를 지킨다(host-service spec §10 42번)
+              approvalModeOf: (tool) => {
+                const layers = options.layers(undefined);
+                const configured = readSettingsServers(layers).servers.find(
+                  (server) => server.id === BROWSER_MCP_SERVER,
+                );
+                return (
+                  configured?.def.tools?.approval?.[tool] ?? readMcpSettings(layers).approvalMode
+                );
+              },
+            });
 
       const runtime = createWebRuntime({
         clock: os.time.clock,
@@ -235,6 +253,7 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
         ...(secrets === undefined ? {} : { guard: secrets.redactor }),
         ...(headerSecrets === undefined ? {} : { headerSecrets }),
         ...(browserMcp === undefined ? {} : { browserMcp }),
+        ...(approvals === undefined ? {} : { browseConfirm: createBrowseConfirm(approvals) }),
         ...(hostedSearch === undefined ? {} : { hostedSearch }),
         registrations: webRegistrationSource(options.resources),
         // 플러그인 설정 `ext.<확장 이름>.<키>`를 설정 엔진의 유효 값으로 읽는다(정의가 카탈로그에 없으면 undefined)
@@ -256,10 +275,11 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
           effect: `the ${BROWSER_MCP_SERVER} browser candidate is not offered`,
         });
       }
-      // 사람 확인 포트가 아직 없다(`browseConfirm`). 확인이 필요한 브라우저 동작은 거부된다
-      logger.warn("web.browse_confirm_missing", {
-        effect: "browser actions that need a confirmation are denied",
-      });
+      if (approvals === undefined) {
+        logger.warn("web.browse_confirm_missing", {
+          effect: "browser actions that need a confirmation are denied",
+        });
+      }
       if (!runtime.cacheEnabled) {
         logger.warn("web.cache_disabled", { effect: "fetch results are not cached on disk" });
       }
