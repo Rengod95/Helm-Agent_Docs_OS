@@ -10,22 +10,33 @@ import {
   type StoreId,
   type Transport,
   type TransportKind,
+  type WireResult,
 } from "@xeon/contracts/wire";
 import type { IdFactory } from "@xeon/contracts/conversation";
 import {
   AssembleError,
+  attachToService,
   startInProcessHost,
   type AssembleIssue,
   resolveHostStatePaths,
+  resolveLaunchMode,
+  resolveRemoteEndpoint,
   type AssembleOptions,
+  type AttachError,
+  type AttachOptions,
+  type AttachTarget,
   type HostPluginModule,
   type HostStatePathError,
   type HostStatePaths,
+  type RemoteResolution,
   type ResolveHostStatePathsOptions,
+  type ServiceAttachment,
 } from "@xeon/host";
+import { createIdFactory, systemClock, systemRandom } from "@xeon/platform-os";
 import { createHostConnection, type HostConnectionOptions } from "./host-client.ts";
 
 // L4.cli.spec §3.3. 엔진 연결: @xeon/host의 공개 API를 조합한다. CLI는 엔진 객체를 다루지 않고 HostConnection만 쓴다.
+// 서비스 접속(로컬·원격)은 엔진을 열지 않고 `attachToService`로 host.hello까지 마친 연결을 받는다(L4.host-service.spec HS-88).
 // EngineConnector 같은 이름은 @xeon/host에 없다. 연결 타입과 오류 문구는 CLI 안의 이름이다(L4.host-service.spec §3.3.5).
 
 type ConnectPreference = "auto" | "in-process" | "service";
@@ -62,6 +73,10 @@ export interface EngineConnectOptions {
   readonly devWireRoundTrip: boolean;
   /** CLI가 Transport를 감싸 send·onMessage를 탭한다(JSON 모드). 호스트는 관여하지 않는다 */
   readonly observe?: (message: JsonRpcMessage) => void;
+  /** `--remote`로 받은 주소 원문(전역 플래그). 없으면 생략한다. "auto"일 때만 본다(HS-87) */
+  readonly remote?: string;
+  /** 프로세스 환경 변수(CliIo.env). 원격 접속 토큰 XEON_REMOTE_TOKEN을 읽는 데 쓴다 */
+  readonly env: Readonly<Record<string, string | undefined>>;
   readonly assemble?: EngineAssembleOverrides;
   /**
    * 테스트 격리용 CLI 상태 파일 덮어쓰기(환경 변수 XEON_CLI_STATE_FILE). 경로 계산(OS 분기)은 CLI가 하지 않는다(DR-13).
@@ -80,7 +95,9 @@ export type EngineStartErrorKind =
   /** 플러그인 설치 실패(AssembleIssue "plugin"). spec의 kind 목록에 더한 값이다 */
   | "pluginFailed"
   | "serviceUnreachable"
-  | "protocolUnsupported";
+  | "protocolUnsupported"
+  /** `--remote`나 설정 `l0.process.service.remote`의 주소 문법이 틀리다. 사용 오류라서 종료 코드 2다(HS-87) */
+  | "invalidRemote";
 
 export interface EngineStartError {
   readonly kind: EngineStartErrorKind;
@@ -105,7 +122,7 @@ export interface EngineHandle {
   readonly secretOutOfBand: SecretOutOfBandPort | null;
   /** host.hello가 알린 active·experimental 기능 이름(메서드 이름 포함). 호스트가 아직 구현하지 않은 메서드를 가려낸다 [spec에 더한 필드] */
   supports(feature: string): boolean;
-  /** 엔진의 시계. CLI는 전역 시각을 읽지 않는다(TY-21) [spec에 더한 필드] */
+  /** 엔진의 시계(서비스 접속은 CLI의 운영 시계). CLI는 전역 시각을 읽지 않는다(TY-21) [spec에 더한 필드] */
   readonly clock: Clock;
   /** turn.start의 requestId로 쓸 새 id. 엔진의 IdFactory가 낸다 [spec에 더한 필드] */
   newRequestId(): string;
@@ -145,12 +162,36 @@ export interface HostApi {
     options?: ResolveHostStatePathsOptions,
   ): Promise<Result<HostStatePaths, HostStatePathError>>;
   createHostConnection(transport: Transport, options?: HostConnectionOptions): HostConnection;
+  /** 사용자 설정 `l0.process.service.enabled`를 엔진 없이 읽는다(HS-37) */
+  resolveLaunchMode(): Promise<"in-process" | "service">;
+  /** `--remote` 플래그, 없으면 설정 `l0.process.service.remote`로 원격 주소를 정한다(HS-87) */
+  resolveRemoteEndpoint(options: {
+    readonly flag?: string;
+    readonly env: Readonly<Record<string, string | undefined>>;
+  }): Promise<RemoteResolution>;
+  /** 로컬 또는 원격 서비스에 붙어 host.hello까지 마친 연결을 받는다(HS-88) */
+  attachToService(
+    target: AttachTarget,
+    options: AttachOptions,
+  ): Promise<Result<ServiceAttachment, AttachError>>;
+  /**
+   * 서비스 접속의 시계와 turn.start용 id. 엔진이 CLI 밖에 있으므로 CLI가 낸다. 운영 값은 @xeon/platform-os다
+   * (in-process는 엔진의 ports를 쓴다)
+   */
+  serviceClock(): { readonly clock: Clock; readonly ids: { next(prefix: "evt"): string } };
 }
 
 const REAL_HOST_API: HostApi = {
   startInProcessHost,
   resolveHostStatePaths,
   createHostConnection,
+  resolveLaunchMode,
+  resolveRemoteEndpoint,
+  attachToService,
+  serviceClock() {
+    const clock = systemClock();
+    return { clock, ids: createIdFactory(clock, systemRandom()) };
+  },
 };
 
 /** 전송을 감싸 보내는 메시지와 받는 메시지를 모두 observe에 알린다 */
@@ -322,73 +363,283 @@ function statePathError(error: HostStatePathError): EngineStartError {
   }
 }
 
+/** 주소 문법 오류를 시작 오류로 바꾼다. 플래그 값은 명령줄에 있던 값이라 보이고, 설정 값은 파일 내용이라 보이지 않는다 */
+export function invalidRemoteError(
+  resolution: Extract<RemoteResolution, { readonly kind: "invalid" }>,
+): EngineStartError {
+  const forms = "unix:/abs, tcp://host:port, ssh://[user@]host[:port]/abs/socket";
+  // 사용자 정보(@)가 든 값은 자격 증명일 수 있어 보이지 않는다
+  if (resolution.from === "flag" && !resolution.text.includes("@")) {
+    return {
+      kind: "invalidRemote",
+      message: `--remote 주소 형식이 맞지 않다: ${oneLine(resolution.text, 80)}`,
+      fix: `--remote 값을 ${forms} 중 하나로 고친다`,
+    };
+  }
+  return {
+    kind: "invalidRemote",
+    message:
+      resolution.from === "flag"
+        ? "--remote 주소 형식이 맞지 않다"
+        : "설정 l0.process.service.remote의 주소 형식이 맞지 않다",
+    fix: `xeon config get l0.process.service.remote로 값을 확인하고 ${forms} 중 하나로 고친다`,
+  };
+}
+
+const REACHABLE_FIX = "원격 서비스가 켜져 있고 주소가 맞는지 확인한다";
+const STATUS_FIX = "xeon service status로 서비스 상태를 확인한다";
+
+function unreachable(message: string, fix: string): EngineStartError {
+  return { kind: "serviceUnreachable", message, fix };
+}
+
+function protocolUnsupported(): EngineStartError {
+  return {
+    kind: "protocolUnsupported",
+    message: "CLI와 엔진의 계약 버전이 다르다",
+    fix: "같은 버전의 바이너리를 쓰거나 서비스를 다시 띄운다",
+  };
+}
+
+/** 제어 문자를 공백으로 바꾸고 `limit`자에서 자른다. 한 줄 문구에 넣기 위한 도우미 */
+function oneLine(text: string, limit: number): string {
+  const flat = Array.from(text, (char) =>
+    char.charCodeAt(0) < 0x20 || char.charCodeAt(0) === 0x7f ? " " : char,
+  )
+    .join("")
+    .trim();
+  return flat.length > limit ? `${flat.slice(0, limit)}…` : flat;
+}
+
+function firstLineOf(text: string): string {
+  return (
+    text
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line !== "") ?? ""
+  );
+}
+
+type ServiceConnectError = Extract<AttachError, { readonly kind: "connect_failed" }>["error"];
+type ServiceHelloError = Extract<AttachError, { readonly kind: "hello_failed" }>["error"];
+
+/**
+ * 서비스 소켓 접속 오류(로컬 소켓, ssh 터널, 원격 소켓)를 시작 오류로 바꾼다. 모두 serviceUnreachable(종료 코드 3)이다.
+ * 같은 변환을 `bridgeStdioToService`의 연결 실패에도 쓴다(HS-89)
+ */
+export function serviceConnectErrorOf(error: ServiceConnectError): EngineStartError {
+  switch (error.kind) {
+    case "not_found":
+      return unreachable("서비스 소켓이 없다", REACHABLE_FIX);
+    case "refused":
+      return unreachable("서비스가 연결을 거부했다", REACHABLE_FIX);
+    case "permission":
+      return unreachable(
+        "서비스 소켓에 접근할 수 없다",
+        "소켓 파일과 그 폴더의 소유자와 권한을 확인한다",
+      );
+    case "io":
+      return unreachable(`서비스에 접속하지 못했다 (${oneLine(error.code, 40)})`, STATUS_FIX);
+    case "tunnel_unavailable":
+      return unreachable(
+        "원격 접속 기능(ssh 터널)이 이 빌드에 없다",
+        "xeon을 다시 설치하거나 같은 버전의 바이너리를 쓴다",
+      );
+    case "tunnel_failed": {
+      const detail = firstLineOf(error.failure.detail);
+      const reason = detail === "" ? `(${error.failure.kind})` : oneLine(detail, 160);
+      return unreachable(
+        `ssh 터널을 열지 못했다: ${reason}`,
+        "ssh 키나 ssh-agent로 암호 없이 접속되는지 확인한다",
+      );
+    }
+    default:
+      return assertNever(error, "ServiceConnectError");
+  }
+}
+
+function helloErrorStart(error: ServiceHelloError): EngineStartError {
+  switch (error.kind) {
+    case "auth_failed":
+      // 토큰 값은 메시지에 싣지 않는다. 없는 것과 틀린 것을 나눈다
+      return unreachable(
+        error.reason === "missing" ? "원격 접속 토큰이 없다" : "원격 접속 토큰이 맞지 않다",
+        "XEON_REMOTE_TOKEN을 서버의 토큰과 맞추고, 서버에서 xeon service status로 상태를 본다",
+      );
+    case "protocol_unsupported":
+      return protocolUnsupported();
+    case "timeout":
+      return unreachable("서비스가 시간 안에 응답하지 않았다", STATUS_FIX);
+    case "closed":
+      return unreachable("서비스 연결이 응답 전에 닫혔다", STATUS_FIX);
+    default:
+      return assertNever(error, "ServiceHelloError");
+  }
+}
+
+function attachErrorStart(error: AttachError): EngineStartError {
+  switch (error.kind) {
+    case "ensure_failed":
+      return unreachable(`이 기기의 서비스를 띄우지 못했다 (${error.reason})`, STATUS_FIX);
+    case "connect_failed":
+      return serviceConnectErrorOf(error.error);
+    case "hello_failed":
+      return helloErrorStart(error.error);
+    default:
+      return assertNever(error, "AttachError");
+  }
+}
+
+/** 연결 대상을 고른 결과. in-process는 엔진을 연다. service는 서비스에 붙는다 */
+type Route =
+  | { readonly kind: "in-process" }
+  | { readonly kind: "service"; readonly target: AttachTarget };
+
+/**
+ * 연결 대상을 정한다. "auto"는 원격 주소(플래그, 설정 순), 그다음 서비스 사용 설정, 마지막으로 in-process 순이다.
+ * 주소 문법이 틀리면 로컬로 가지 않고 오류로 알린다(HS-87)
+ */
+async function routeOf(
+  api: HostApi,
+  options: EngineConnectOptions,
+): Promise<Result<Route, EngineStartError>> {
+  if (options.preference === "in-process") return ok({ kind: "in-process" });
+  if (options.preference === "service") return ok({ kind: "service", target: { kind: "local" } });
+  const remote = await api.resolveRemoteEndpoint({
+    ...(options.remote === undefined ? {} : { flag: options.remote }),
+    env: options.env,
+  });
+  if (remote.kind === "invalid") return err(invalidRemoteError(remote));
+  if (remote.kind === "remote") {
+    return ok({ kind: "service", target: { kind: "endpoint", endpoint: remote.endpoint } });
+  }
+  if ((await api.resolveLaunchMode()) === "service") {
+    return ok({ kind: "service", target: { kind: "local" } });
+  }
+  return ok({ kind: "in-process" });
+}
+
+/** host.hello가 알린 active·experimental 기능 이름 */
+function supportedFeatures(hello: WireResult<"host.hello">): ReadonlySet<string> {
+  return new Set(
+    hello.features
+      .filter((feature) => feature.status === "active" || feature.status === "experimental")
+      .map((feature) => feature.name),
+  );
+}
+
+/**
+ * 서비스 접속은 연결만 닫는다. 서비스와 진행 중 turn은 계속된다(HS-88). 닫기 실패는 원인을 실어 던진다
+ */
+async function closeConnectionOnly(connection: HostConnection): Promise<"clean"> {
+  const closed = await attemptAsync(() => connection.close());
+  if (closed.ok) return "clean";
+  throw new Error("engine shutdown failed", { cause: closed.error.cause });
+}
+
+/** 서비스(로컬 또는 원격)에 붙는다. 엔진을 열지 않는다(HS-88) */
+async function attachService(
+  api: HostApi,
+  options: EngineConnectOptions,
+  target: AttachTarget,
+  cliStateFile: string,
+): Promise<Result<EngineHandle, EngineStartError>> {
+  const observe = options.observe;
+  const attached = await api.attachToService(target, {
+    clientName: options.client.name,
+    clientKind: "cli",
+    ...(observe === undefined
+      ? {}
+      : { wrapTransport: (transport: Transport) => tapTransport(transport, observe) }),
+  });
+  if (!attached.ok) return err(attachErrorStart(attached.error));
+  const { connection, hello } = attached.value;
+  const { clock, ids } = api.serviceClock();
+  const features = supportedFeatures(hello);
+  const closing: { current: Promise<"clean" | "deadline"> | undefined } = { current: undefined };
+  return ok({
+    connection,
+    transport: hello.transport,
+    storeId: hello.storeId,
+    paths: { cliStateFile },
+    secretOutOfBand: null,
+    supports: (feature) => features.has(feature),
+    clock,
+    newRequestId: () => ids.next("evt"),
+    shutdown() {
+      closing.current ??= closeConnectionOnly(connection);
+      return closing.current;
+    },
+  });
+}
+
+/** CLI가 시작한 in-process 호스트에 붙는다(기존 경로) */
+async function startInProcess(
+  api: HostApi,
+  options: EngineConnectOptions,
+  cliStateFile: string,
+): Promise<Result<EngineHandle, EngineStartError>> {
+  let host: StartedHost;
+  try {
+    host = await api.startInProcessHost(assembleOptionsOf(options));
+  } catch (caught) {
+    if (caught instanceof AssembleError) return err(startErrorOf(caught));
+    throw caught;
+  }
+  try {
+    const transport =
+      options.observe === undefined ? host.client : tapTransport(host.client, options.observe);
+    const connection = api.createHostConnection(transport);
+    const hello = await connection.request("host.hello", {
+      protocolVersion: WIRE_PROTOCOL_VERSION,
+      client: { name: options.client.name, version: options.client.version, kind: "cli" },
+    });
+    const { ids, clock } = host.engine.ports;
+    const features = supportedFeatures(hello);
+    const closing: { current: Promise<"clean" | "deadline"> | undefined } = {
+      current: undefined,
+    };
+    const handle: EngineHandle = {
+      connection,
+      transport: hello.transport,
+      storeId: hello.storeId,
+      paths: { cliStateFile },
+      secretOutOfBand: host.secretOutOfBand,
+      supports: (feature) => features.has(feature),
+      clock,
+      newRequestId: () => ids.next("evt"),
+      shutdown(_reason) {
+        closing.current ??= closeEngine(host, connection);
+        return closing.current;
+      },
+    };
+    return ok(handle);
+  } catch (caught) {
+    // 시작 실패가 본 오류다. 정리 중 실패는 값으로 받고 본 오류를 가리지 않는다
+    await attemptAsync(() => host.close());
+    if (caught instanceof WireError && caught.data.kind === "protocol.unsupported") {
+      return err(protocolUnsupported());
+    }
+    throw caught;
+  }
+}
+
 /** `connectEngine`을 만든다. api는 테스트가 바꿔 끼운다 */
 export function createConnectEngine(api: HostApi): ConnectEngine {
   return async (options) => {
-    if (options.preference === "service") {
-      return err({
-        kind: "serviceUnreachable",
-        message: "서비스에 접속하는 chat은 아직 쓸 수 없다",
-        fix: "서비스 접속은 원격 트랙(M3b B2-RMT)에서 제공한다. xeon service status로 서비스를 확인하고 chat은 in-process로 실행한다",
-      });
-    }
+    const route = await routeOf(api, options);
+    if (!route.ok) return err(route.error);
     const statePaths = await api.resolveHostStatePaths(
       options.stateFile === undefined || options.stateFile === null
         ? {}
         : { cliStateFileOverride: options.stateFile },
     );
     if (!statePaths.ok) return err(statePathError(statePaths.error));
-    let host: StartedHost;
-    try {
-      host = await api.startInProcessHost(assembleOptionsOf(options));
-    } catch (caught) {
-      if (caught instanceof AssembleError) return err(startErrorOf(caught));
-      throw caught;
+    const cliStateFile = statePaths.value.cliStateFile;
+    if (route.value.kind === "service") {
+      return attachService(api, options, route.value.target, cliStateFile);
     }
-    try {
-      const transport =
-        options.observe === undefined ? host.client : tapTransport(host.client, options.observe);
-      const connection = api.createHostConnection(transport);
-      const hello = await connection.request("host.hello", {
-        protocolVersion: WIRE_PROTOCOL_VERSION,
-        client: { name: options.client.name, version: options.client.version, kind: "cli" },
-      });
-      const { ids, clock } = host.engine.ports;
-      const features = new Set(
-        hello.features
-          .filter((feature) => feature.status === "active" || feature.status === "experimental")
-          .map((feature) => feature.name),
-      );
-      const closing: { current: Promise<"clean" | "deadline"> | undefined } = {
-        current: undefined,
-      };
-      const handle: EngineHandle = {
-        connection,
-        transport: hello.transport,
-        storeId: hello.storeId,
-        paths: { cliStateFile: statePaths.value.cliStateFile },
-        secretOutOfBand: host.secretOutOfBand,
-        supports: (feature) => features.has(feature),
-        clock,
-        newRequestId: () => ids.next("evt"),
-        shutdown(_reason) {
-          closing.current ??= closeEngine(host, connection);
-          return closing.current;
-        },
-      };
-      return ok(handle);
-    } catch (caught) {
-      // 시작 실패가 본 오류다. 정리 중 실패는 값으로 받고 본 오류를 가리지 않는다
-      await attemptAsync(() => host.close());
-      if (caught instanceof WireError && caught.data.kind === "protocol.unsupported") {
-        return err({
-          kind: "protocolUnsupported",
-          message: "CLI와 엔진의 계약 버전이 다르다",
-          fix: "같은 버전의 바이너리를 쓰거나 서비스를 다시 띄운다",
-        });
-      }
-      throw caught;
-    }
+    return startInProcess(api, options, cliStateFile);
   };
 }
 

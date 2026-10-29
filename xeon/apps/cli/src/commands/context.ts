@@ -56,6 +56,8 @@ export async function connectOrReportQuiet(
     workspace: ctx.workspace,
     ...(options.safeMode === true ? { safeMode: true } : {}),
     preference: "auto",
+    ...(ctx.global.remote === null ? {} : { remote: ctx.global.remote }),
+    env: ctx.io.env,
     client: { name: "xeon-cli", version: CLI_VERSION },
     settingGroups: [cliSettings],
     devWireRoundTrip: ctx.deps.devWireRoundTrip,

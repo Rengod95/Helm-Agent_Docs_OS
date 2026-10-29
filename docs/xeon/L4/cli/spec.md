@@ -100,7 +100,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon service ensure --json` | `ensure`만 하고 소켓 경로를 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.host-service.spec` HS-38) | 없음. `runHostCommand({ kind: "service-ensure" })`. `--safe-mode`는 새로 띄울 때만 적용된다 | M3(구현됨) |
 | `xeon service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
 | `xeon service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 자기 바이너리를 detached로 띄울 때 붙이는 인자다(`L4.host-service.spec` §3.2, SV-06). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-run", safeMode, tcp? })`. `--safe-mode`·`--listen-tcp`를 받는다 | M3(구현됨) |
-| `xeon host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표) | M2(컴파일 바이너리 서브커맨드, 구현됨) |
+| `xeon host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 원격 서비스에 중계한다(HS-89). 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표). 원격이면 `resolveRemoteEndpoint`, `bridgeStdioToService` | M2(컴파일 바이너리 서브커맨드, 구현됨) |
 | `xeon doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
 | `xeon version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
 
@@ -118,6 +118,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `-h`, `--help` | 도움말 |
 | `--no-color` | 색 끄기. `NO_COLOR` 환경 변수가 있어도 같다 |
 | `-C <dir>` | 작업 폴더 지정. 없으면 현재 폴더 [제안] |
+| `--remote <주소>` | 원격 서비스 주소(HS-87). 문법은 `unix:/abs`, `tcp://host:port`, `ssh://[user@]host[:port]/abs/socket`이다. 있으면 설정 `l0.process.service.remote`보다 우선한다. 문법이 틀리면 로컬로 가지 않고 사용 오류(2, `invalidRemote`)다. 빈 값은 사용 오류다. tcp 토큰은 환경 변수 `XEON_REMOTE_TOKEN`에서 읽고 argv와 설정 파일에 두지 않는다. 엔진을 쓰는 명령과 `host --stdio`가 본다 [제안] |
 
 ### 3.2 인자 파서와 명령 모델
 
@@ -234,7 +235,7 @@ export declare function parseArgv(
 
 | CLI 경로 | 쓰는 `@xeon/host` API | `L4.host-service.plan` 작업 |
 |---|---|---|
-| `chat`, `sessions`, `config get/set/reset/list`, `secret` | `connectEngine`(아래)이 `resolveLaunchMode` → `"in-process"`면 `startInProcessHost` + `createHostConnection(host.client)`, `"service"`면 `ensureService` + `connectServiceTransport` + `createHostConnection` | H2(`assemble`), H3(`createHostConnection`), H4(처리기), H10(`ensureService`, `connectServiceTransport`), H20(`resolveLaunchMode`) |
+| `chat`, `sessions`, `config get/set/reset/list`, `secret` | `connectEngine`(아래)이 원격 주소(`resolveRemoteEndpoint`, HS-87)를 먼저 보고, 있으면 `attachToService({ kind: "endpoint" })`. 없으면 `resolveLaunchMode` → `"service"`면 `attachToService({ kind: "local" })`(이 기기의 서비스를 띄우고 붙는다), `"in-process"`면 `startInProcessHost` + `createHostConnection(host.client)` | H2(`assemble`), H3(`createHostConnection`), H4(처리기), H10(`ensureService`, `connectServiceTransport`), H20(`resolveLaunchMode`), B2-RMT(`attachToService`, `resolveRemoteEndpoint`) |
 | `host --stdio` | `runHostCommand({ kind: "host-stdio" }, io)`. `l4.cli.*` 설정 그룹을 함께 넘길 때는 같은 일을 하는 `startStdioHost({ readable, writable, assemble: { settingGroups } })`를 부른다 | H5 |
 | `service start/status/stop/ensure/launch-mode/run` | `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" \| "service-ensure" \| "service-launch-mode" \| "service-run" }, io)` | H10, H11, H20 |
 | `config schema` | `runHostCommand({ kind: "config-schema", scope, out, coreOnly }, io)` | H8 |
@@ -249,19 +250,22 @@ export type ConnectPreference = "auto" | "in-process" | "service";
 
 export interface EngineConnectOptions {
   readonly workspace: string;                                   // 작업 폴더 절대 경로
-  readonly preference: ConnectPreference;                       // "auto"면 resolveLaunchMode()(§4.3)
+  readonly preference: ConnectPreference;                       // "auto"면 원격 주소, 다음 resolveLaunchMode()(§4.3)
   readonly client: { readonly name: "xeon-cli"; readonly version: string };
   readonly settingGroups: readonly SettingGroup<"l4.cli", Readonly<Record<string, SettingDefInput>>>[];   // AssembleOptions.settingGroups로 넘긴다(§6)
   readonly devWireRoundTrip: boolean;                           // AssembleOptions.devChecks로 넘긴다(F wire §3.1)
   readonly observe?: (message: JsonRpcMessage) => void;         // CLI가 Transport를 감싸 send·onMessage를 탭한다(JSON 모드)
+  readonly remote?: string;                                     // --remote 원문. "auto"일 때만 본다(HS-87)
+  readonly env: Readonly<Record<string, string | undefined>>;   // 원격 토큰 XEON_REMOTE_TOKEN을 읽는다
 }
 
 export type EngineStartErrorKind =
   | "fts5Missing" | "sopsMissing" | "dataDirPermission" | "storeUnavailable"   // AssembleIssue "store"(메시지로 구별 [가정])
   | "catalogConflict"                                                          // AssembleIssue "catalog"
   | "missingService"                                                           // AssembleIssue "missingService"
-  | "serviceUnreachable"                                                       // EnsureResult "spawnTimeout" | "registrationInvalid"
-  | "protocolUnsupported";                                                     // EnsureResult "protocolUnsupported", hello 1003
+  | "serviceUnreachable"                                                       // AttachError(ensure_failed, connect_failed, hello_failed의 auth_failed·timeout·closed)
+  | "protocolUnsupported"                                                      // hello 1003, AttachError hello_failed protocol_unsupported
+  | "invalidRemote";                                                           // --remote 또는 설정 주소의 문법 오류(HS-87). 사용 오류라 종료 코드 2
 
 export interface EngineStartError {
   readonly kind: EngineStartErrorKind;
@@ -285,6 +289,9 @@ export declare const connectEngine: ConnectEngine;
 ```
 
 - `observe`는 `HostConnection` 안쪽의 클라이언트 전송에 붙는 탭이다. 호스트는 관여하지 않는다. CLI는 이 탭으로 JSON 모드 출력을 만들고, 엔진 객체를 만지지 않는다.
+- 연결 대상(`preference` "auto", HS-87·HS-88): ① `resolveRemoteEndpoint({ flag: --remote, env })`가 `remote`면 `attachToService({ kind: "endpoint", endpoint })`로 붙는다. ② `invalid`면 엔진을 열지 않고 `invalidRemote`로 끝난다. 플래그 값은 문구에 보이고, 설정 값과 `@`가 든 값은 보이지 않는다. ③ 주소가 없으면 `resolveLaunchMode()`가 `"service"`일 때 `attachToService({ kind: "local" })`로 붙고, 아니면 in-process다. `"service"`는 주소를 보지 않고 로컬 서비스에 붙고, `"in-process"`는 어떤 설정도 보지 않는다.
+- 서비스 접속의 `EngineHandle`: `secretOutOfBand`는 `null`이다. 값 입력은 §4.7이 정한 대로 서비스 쪽 입력 창으로 받는 설계지만 이 구현은 그 창을 만들지 않는다. 그래서 서비스 접속의 `xeon secret add`는 두 줄 오류로 끝난다(§10 22번). `shutdown`은 연결만 닫고 `"clean"`을 돌려준다. 서비스와 진행 중 turn은 계속된다(HS-88). 시계와 `newRequestId`는 CLI의 운영 값(`@xeon/platform-os`)이다. 엔진이 CLI 밖에 있기 때문이다 [제안].
+- `AttachError`의 문구(§4.10 표 `serviceUnreachable`·`protocolUnsupported`): `ensure_failed`는 해결 `xeon service status`다. `connect_failed`는 `not_found`·`refused`에 "원격 서비스가 켜져 있고 주소가 맞는지 확인한다", `permission`에 소켓 파일과 폴더의 소유자·권한, `tunnel_unavailable`에 재설치, `tunnel_failed`에 ssh 출력의 첫 줄과 "ssh 키나 ssh-agent로 암호 없이 접속되는지 확인한다", `io`에 `xeon service status`다. `hello_failed`는 `auth_failed`에 `XEON_REMOTE_TOKEN`을 서버 토큰과 맞추라는 해결(토큰 값은 싣지 않는다), `protocol_unsupported`에 `protocolUnsupported`, `timeout`·`closed`에 `xeon service status`다.
 - `settingGroups`: [제안] CLI 설정(§6)은 엔진 바이너리의 진입(`apps/cli/src/main.ts`)이 in-process 연결, `host --stdio`, 서비스 기동 세 경우 모두 조립에 넘긴다. 엔진 바이너리가 하나이므로(§2) 서비스 프로세스의 카탈로그에도 `l4.cli.*`가 들어간다.
 - 오류 대응: `AssembleError.issues[].code`가 `store`면 `message`로 `fts5Missing`·`dataDirPermission`·`storeUnavailable`을 고른다 [가정: `L0.store.spec` 오류 모양을 따른다]. `catalog`는 `catalogConflict`, `missingService`는 `missingService`다. 종료 코드는 §4.10 표다.
 
@@ -416,7 +423,7 @@ export const EXIT: {
 |---|---|---|
 | 0 | 정상 | turn이 `completed`로 끝났다. 명령이 성공했다 |
 | 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 세션, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1 |
-| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 비밀 값, `--json`을 대화형에 씀 |
+| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 비밀 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`) |
 | 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치) |
 | 4 | 세션 잠금 실패 후 사용자 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않았다. M1은 프롬프트 없이 바로 4다 |
 | 129 | SIGHUP | 터미널이 닫혔다(pi print 모드와 같은 값, `~/projects/_ref/pi-src/packages/coding-agent/src/modes/print-mode.ts:60`) |
@@ -459,7 +466,7 @@ export type CliState = Static<typeof CliStateSchema>;
 1. `parseArgv`. 실패하면 사용법 오류를 출력하고 2로 끝낸다.
 2. `version`, `help`는 엔진 없이 끝낸다.
 3. `host --stdio`, `service *`, `config schema`는 `deps.runHostCommand`를 부르고 그 반환값으로 끝낸다(§3.3 표). `host --stdio` 경로는 사람용 출력을 stdout에 쓰지 않는다(stdout은 JSON Lines 전용).
-4. 그 밖의 명령은 `deps.connect`를 부른다. 실패하면 `EngineStartError`의 `message`와 `fix`를 stderr에 쓰고 §4.10 표의 종료 코드(`catalogConflict`·`missingService`는 1, 나머지는 3)로 끝낸다.
+4. 그 밖의 명령은 `deps.connect`를 부른다. 실패하면 `EngineStartError`의 `message`와 `fix`를 stderr에 쓰고 §4.10 표의 종료 코드(`catalogConflict`·`missingService`는 1, `invalidRemote`는 2, 나머지는 3)로 끝낸다.
 5. 명령을 실행한다. 끝나면 `EngineHandle.shutdown("user")`를 부르고 종료 코드를 돌려준다. 체크포인트 시한은 `l0.process.shutdown.timeoutMs`다(`L0.process.spec` §6, `L4.host-service.spec` HS-31).
 
 ### 4.2 실행 모드 결정
@@ -481,6 +488,7 @@ export type CliState = Static<typeof CliStateSchema>;
 
 - [결정] CLI 기본 전송은 in-process다(adr.0006 §3.3, `F.wire-settings.spec` §3.1 표).
 - [결정] 서비스 사용 설정이 켜져 있으면 시작할 때 `ensure`를 부르고 socket 전송으로 접속한다. 꺼져 있으면 in-process다(adr.0006 §3.4). [제안] `preference: "auto"`이면 `connectEngine`이 `resolveLaunchMode()`로 `l0.process.service.enabled`를 엔진 없이 읽어 정한다(`L4.host-service.spec` HS-37). 키는 `L0.process.spec` §6이 소유한다.
+- [제안] 원격 주소(`--remote` 또는 설정 `l0.process.service.remote`)가 있으면 서비스 사용 설정보다 먼저 그 주소로 붙는다(HS-87, HS-88). 원격 접속 토큰은 환경 변수 `XEON_REMOTE_TOKEN`에서 읽는다. 주소 문법이 틀리면 엔진을 열지 않고 `invalidRemote`(2)로 끝난다.
 - [제안] 개발 빌드(`process.env.XEON_DEV === "1"` 또는 `bun run`으로 소스 실행)는 `devWireRoundTrip: true`를 넘긴다. in-process에서 비직렬화 값이 섞이지 않게 하는 검사다(F wire §3.1 마지막 항목). 컴파일 바이너리는 끈다.
 - 연결 뒤 순서:
   1. `host.hello`(`connectEngine`이 보낸다, `L4.host-service.spec` §3.3.5). `storeId`를 기억한다.
@@ -707,6 +715,8 @@ export type CliState = Static<typeof CliStateSchema>;
 | `host.shuttingDown` | 엔진이 종료 중이다 | 잠시 뒤 다시 실행한다 | 1 |
 | `internal` | 내부 오류(`traceId`) | `xeon doctor`를 실행하고 `traceId`를 보고한다 | 1 |
 | `EngineStartError`(`catalogConflict`, `missingService`) | `message` | `fix` | 1 |
+| `EngineStartError`(`invalidRemote`) | `--remote` 또는 설정 `l0.process.service.remote`의 주소 문법이 틀리다. 플래그 값은 보이고, 설정 값과 `@`가 든 값은 보이지 않는다 | `unix:/abs`, `tcp://host:port`, `ssh://[user@]host[:port]/abs/socket` 중 하나로 고친다 | 2 |
+| `EngineStartError`(`serviceUnreachable`) | 서비스에 접속하지 못했다(소켓 없음, 거부, 권한, ssh 터널 실패, 토큰 불일치, 응답 없음). 원인별 문구는 §3.3 | 원인별 한 줄(§3.3) | 3 |
 | `EngineStartError`(그 밖의 kind) | `message` | `fix` | 3 |
 
 ### 4.11 승인 요청과 잠금 프롬프트
@@ -791,6 +801,9 @@ export type CliState = Static<typeof CliStateSchema>;
 | 서비스 소켓이 사라졌다 | `HostConnection.closed`가 끝난다. CLI는 진행을 멈추고 "엔진 연결이 끊겼다", 해결 `xeon service status`, 1 |
 | 계약 버전 불일치(서비스가 옛 버전) | adr.0006 §3.7 3번 규칙(한가하면 재기동, 작업 중이면 경고)은 `ensureService`가 한다(`L4.host-service.spec` SV-03). 끝까지 맞지 않으면 `protocolUnsupported`, 3 |
 | 출력 파이프가 닫혔다(`| head`) | 출력을 멈추고 종료 요청, 0 [제안] |
+| `--remote` 주소 문법이 틀리다 | 엔진을 열지 않고 `invalidRemote`, 2. 로컬로 가지 않는다(HS-87) |
+| 원격 서비스의 ssh 터널이 열리지 않는다 | `serviceUnreachable`, 3. ssh 출력의 첫 줄을 문구에 싣는다 [제안] |
+| `host --stdio`의 원격 연결이 끊겼다 | 종료 코드 1(HS-89). stdin이 닫히면 0이다 |
 
 ## 6. 설정 노출
 
@@ -863,6 +876,7 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC21. 도구 승인 카드에 `command` 전체와 `secretEnv` 핸들이 보이고, 값이 아닌 `secret://` 참조만 있다. `approval.resolved`가 `always`를 `thread`로 낮췄다고 알리면 그 사실이 카드 다음에 보인다. `approval.respond`가 `answer_invalid`를 돌려주면 `detail`을 보이고 다시 묻는다.
 - AC22. `xeon sessions rename <id> <제목>`과 `/rename <제목>`은 `thread.rename { threadId, title }`를 한 번 보내고, 바뀐 제목이 `sessions ls`와 `/resume` 목록에 보인다. 제목이 비었거나 200자를 넘으면 호스트에 보내지 않는다. 첫 입력에서 제목을 정하는 일(80자)은 호스트가 하며 CLI는 하지 않는다.
 - AC23. `/compact`는 `thread.compact { threadId }`를 한 번 보내고(`/compact <지침>`이면 `instructions`를 함께), `compacted`이면 요약 전 토큰 수를, `skipped`이면 이유를 stdout에 쓰며 `turn.start`를 보내지 않는다. 확장이 막거나 요약이 실패하거나 turn이 진행 중이면 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다. 같은 이름의 엔진 명령이 있어도 `command.run`을 부르지 않는다.
+- AC25. `--remote`(또는 설정 주소)가 있으면 엔진 명령은 엔진을 열지 않고 그 주소로 `attachToService`를 부른다. 주소 문법이 틀리면 엔진을 열지 않고 `invalidRemote`(2)로 끝난다. `host --stdio`는 같은 주소에 중계하고 stdin이 닫히면 0으로 끝난다. 원격 토큰 값은 오류 출력에 없다(HS-87~HS-89). 시험: `test/engine-start.test.ts`, `test/host-stdio.test.ts`, `test/parse-chat-flags.test.ts`.
 
 ## 10. 미결 사항
 
@@ -883,3 +897,8 @@ export type CliState = Static<typeof CliStateSchema>;
 15. [미결] 끊긴 turn을 연 세션의 질문 순서. 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(`L4.host-service.spec` HS-52) 승인 카드가 `이어서 실행할까요? [y/N]`보다 먼저 선다. 이어 실행을 먼저 묻고 승인 카드를 그 뒤로 미루려면 승인 프롬프트를 이어 실행 질문이 끝날 때까지 붙잡는 장치가 CLI에 필요하다. 지금은 두 질문이 같은 입력 줄을 순서대로 쓰고 어느 쪽으로도 잘못 응답되지 않는다(`turn-resume-host.int.test.ts`). 작성자 결정.
 16. [미결] `settings.invalidated` 구독(M2 마감 재검토 T6 메모). 이 문서가 M2에 요구하는 동작은 "시작할 때 `settings.list`와 `command.list`를 한 번 읽는다"(§4.12)이고 CLI는 알림을 구독하지 않는다. 대화 중에 다른 연결이 설정이나 신뢰를 바꾸면 Tab 완성의 키 목록과 엔진 명령 목록이 낡는다. 알림을 받아 두 목록을 다시 읽는 일은 M3에 한다(`L4.cli.plan` §4.6 끝 항목).
 17. [결정: adr.0016] CLI 출력 문장은 `@formatjs/intl`과 `packages/client`의 ko·en 카탈로그로 만든다. 로케일은 `ui.locale`(기본 auto, OS 로케일, 영어 폴백)을 따른다. 지금 소스에 하드코딩된 한국어 문자열의 이전은 M3 작업이다(`review.m3-plan` M3-39).
+18. [결정: 오케스트레이터 기본값] `invalidRemote`의 종료 코드는 2다. HS-87이 주소 문법 오류를 "사용 오류"라고 하고 §3.6의 2는 인자 값의 오류를 포함한다. 설정 파일의 같은 값 오류(`settings.invalidValue`)도 2라서 맞췄다.
+19. [제안] `host --stdio`의 원격 중계(HS-89)는 M3b B2-RMT에 넣었다. 접속 실패의 종료 코드는 §4.10의 연결 오류 코드(3)를 따르고, HS-89의 1은 원격이 끊기거나 중계가 실패한 경우에만 쓴다. HS-89 문장과 맞는지 host-service 문서에서 확인한다.
+20. [미결] 주소 문구에서 `@`가 든 값을 가리는 규칙(자격 증명 방어)은 HS-87에 없다. 이 문서의 구현이 먼저 두었다. host-service 문서로 옮길지 정한다.
+21. [미결] 서비스 접속의 `clock`과 `newRequestId`를 CLI의 운영 값으로 낸다([제안]). `L4.host-service.spec` §3.3.5의 `EngineHandle` 정의와 맞출지 확인한다.
+22. [미결] 서비스 쪽 값 입력 창(§4.7, `L4.settings-ui.spec` §4.6.4 C안)은 아직 없다. `secret.ts`의 두 줄 오류 문구는 "서비스 모드는 M3에서 제공한다"라고 쓰는데, M3b에서도 그 창이 없으면 이 문구가 틀린다. 창을 만드는 단위와 문구를 정한다.

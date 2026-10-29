@@ -1,5 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
+import { err } from "@xeon/contracts";
+import type { EngineConnectOptions } from "../src/engine.ts";
 import { devWireRoundTripOf } from "../src/dev-mode.ts";
+import { EXIT } from "../src/exit-codes.ts";
 import { cliSettings } from "../src/settings.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 
@@ -30,6 +33,22 @@ test("connectEngine hands devChecks and the l4.cli settings group to startInProc
   const release = harness({ devWireRoundTrip: false });
   await release.run(["config", "get", "l4.cli.outputMode"]);
   expect(release.startOptions[0]?.devChecks).toBe(false);
+});
+
+test("--remote reaches connectEngine as the raw flag, with the environment and the auto preference", async () => {
+  const seen: EngineConnectOptions[] = [];
+  const h = harness({
+    env: { XEON_REMOTE_TOKEN: "tok-from-env" },
+    connect: (options) => {
+      seen.push(options);
+      return Promise.resolve(err({ kind: "serviceUnreachable", message: "m", fix: "f" }));
+    },
+  });
+  expect(await h.run(["--remote", "tcp://box:7000", "chat", "-p", "x"])).toBe(EXIT.environment);
+  expect(seen[0]).toMatchObject({ remote: "tcp://box:7000", preference: "auto" });
+  expect(seen[0]?.env).toEqual({ XEON_REMOTE_TOKEN: "tok-from-env" });
+  expect(await h.run(["chat", "-p", "x"])).toBe(EXIT.environment);
+  expect(seen[1]).not.toHaveProperty("remote");
 });
 
 test("the in-process engine is the default and the host sees no extra plugins", async () => {

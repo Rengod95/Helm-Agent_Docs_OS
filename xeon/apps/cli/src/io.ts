@@ -1,5 +1,13 @@
 import type { Clock } from "@xeon/contracts";
-import type { CommandIo, HostCommand, HostExit, StdioHostOptions } from "@xeon/host";
+import type {
+  BridgeExit,
+  BridgeOptions,
+  CommandIo,
+  HostCommand,
+  HostExit,
+  RemoteResolution,
+  StdioHostOptions,
+} from "@xeon/host";
 import type { TerminalFacts } from "./cli/command.ts";
 import type { ConnectEngine, EngineAssembleOverrides } from "./engine.ts";
 
@@ -56,6 +64,16 @@ export interface CliDeps {
    * 실제 값은 @xeon/host의 startStdioHost
    */
   readonly startStdioHost: (options: StdioHostOptions) => Promise<HostExit>;
+  /**
+   * `host --stdio`가 원격 주소를 받았을 때 주소를 정한다(HS-89). 실제 값은 @xeon/host의 resolveRemoteEndpoint.
+   * `--remote` 플래그가 없으면 `flag`를 넘기지 않는다
+   */
+  readonly resolveRemote: (options: {
+    readonly flag?: string;
+    readonly env: Readonly<Record<string, string | undefined>>;
+  }) => Promise<RemoteResolution>;
+  /** stdin/stdout을 원격 서비스에 중계한다(HS-89). 실제 값은 @xeon/host의 bridgeStdioToService */
+  readonly bridgeStdio: (options: BridgeOptions) => Promise<BridgeExit>;
   readonly probes: DoctorProbes;
   /** Ctrl+C 2회 판정(§4.6) */
   readonly clock: Clock;

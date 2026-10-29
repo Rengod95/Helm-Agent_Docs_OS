@@ -403,6 +403,7 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 
 - `ensure`는 셸이 엔진 바이너리를 `xeon service ensure --json`으로 짧게 실행해 얻는다(`L4.host-service.spec` HS-38). stdout은 JSON 한 줄이다. 성공이면 `{ "ok": true, "socket": <경로>, "version": <버전>, "action": <EnsureResult.action> }`이고 종료코드 0, 실패면 `{ "ok": false, "reason": <EnsureResult.reason> }`이고 종료코드 1이다. 셸은 `socket`만 쓰고, 실패면 `restarting` 상태와 §4.4 재기동 정책을 따른다.
 - 서비스 공급원에서 앱을 닫아도 서비스와 진행 중 turn은 계속된다. §4.3의 `host.shutdown`과 그룹 SIGKILL은 서비스에 보내지 않는다. 셸은 소켓만 닫는다.
+- 원격 서비스(M3-REQ-44, `L4.host-service.spec` HS-87·HS-89)는 셸을 바꾸지 않는다. 사용자 설정 `l0.process.service.remote`(또는 사이드카 인자)에 주소가 있으면 사이드카 `xeon host --stdio`가 엔진을 열지 않고 원격 서비스 소켓(SSH 터널, 사설망)에 stdin/stdout을 중계한다. 셸은 평소처럼 사이드카의 바이트만 중계하고 `EngineState.source`는 `"sidecar"`다. 원격이 끊기면 사이드카가 종료코드 1로 끝나므로 §4.4 재기동 정책이 그대로 적용된다. 주소 문법이 틀리면 종료코드 2, 접속 실패는 3이다. 화면 쪽 설정 항목은 M4다 [결정: 오케스트레이터 기본값].
 - 서비스가 사라지면(소켓 EOF) 셸은 `restarting`으로 두고 `ensure`를 다시 부른다. 재기동 정책은 §4.4와 같다.
 - 알림 [결정: review.decisions-2 S-04]: 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 탭은 `L2.dialog.spec`의 `l2.dialog.notify.*` 정의(`notify.os`, `notify.completed`, `notify.approvalWaiting`, `notify.questionWaiting`, `notify.error`, `notify.backgroundCompleted`, 탭 `execution`)를 따른다. 데스크톱은 전달 수단으로 Tauri 알림 플러그인(`tauri-plugin-notification`)을 쓴다. 사건 원천은 `events.batch`의 내구 이벤트(승인 요청 등)다. 창이 앞에 있어도 기본으로 OS 알림을 보내고, 설정으로 끌 수 있다 [결정: review.m3-design-inputs D-M3-17]. 웹·모바일 푸시 알림은 후순위다. 사용자 알림 전용 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다(review.decisions-2 U-04, §10 미결 5).
 

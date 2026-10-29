@@ -43,6 +43,8 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
   -h, --help                도움말
   --no-color                색 끄기 (NO_COLOR 환경 변수도 같다)
   -C <폴더>                 작업 폴더
+  --remote <주소>           원격 서비스 주소. 설정 l0.process.service.remote보다 우선한다
+                          unix:/abs, tcp://host:port, ssh://[user@]host[:port]/abs/socket
 
 종료 코드
   0 정상   1 일반 오류   2 사용법 오류   3 환경 문제   4 세션 잠금

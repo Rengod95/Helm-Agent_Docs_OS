@@ -161,6 +161,8 @@ export interface GlobalOptions {
   /** `-C <dir>`로 받은 값 또는 "."(현재 폴더). 절대 경로로 바꾸는 일은 runCli가 한다(파서는 순수 함수다) */
   readonly cwd: string;
   readonly color: boolean;
+  /** `--remote <주소>`로 받은 원문. 없으면 null. 문법 검사는 엔진 연결이 한다(HS-87) */
+  readonly remote: string | null;
 }
 
 type UsageErrorCode =
@@ -213,6 +215,7 @@ const GLOBAL_FLAGS: FlagTable = {
   "--help": { value: "none" },
   "--no-color": { value: "none" },
   "-C": { value: "required" },
+  "--remote": { value: "required" },
 };
 
 interface Scanned {
@@ -232,11 +235,17 @@ function flagNameOf(token: string): string {
   return token.startsWith("--") && eq > 0 ? token.slice(0, eq) : token;
 }
 
-/** 명령 앞뒤 어디에 놓였든 공통 플래그(-h, --no-color, -C)를 모아 둔다 */
+/** 명령 앞뒤 어디에 놓였든 공통 플래그(-h, --no-color, -C, --remote)를 모아 둔다 */
 interface GlobalAcc {
   help: boolean;
   noColor: boolean;
   cwd: string | null;
+  remote: string | null;
+}
+
+/** `--remote`에 주소가 없거나 빈 문자열이다. 빈 주소는 원격을 끄는 것과 헷갈리므로 사용법 오류로 본다 */
+function missingRemote(): UsageError {
+  return usage("missingArgument", "--remote에 주소가 없다", "--remote <주소> 형식으로 쓴다");
 }
 
 function scanArgs(
@@ -322,6 +331,9 @@ function scanArgs(
   if (values.has("--no-color")) acc.noColor = true;
   const dir = values.get("-C")?.[0];
   if (dir !== undefined) acc.cwd = dir;
+  const remote = values.get("--remote")?.[0];
+  if (remote === "") fail(missingRemote());
+  else if (remote !== undefined) acc.remote = remote;
   if (problem.current !== undefined) return err(problem.current);
   return ok({ values, bare, positionals });
 }
@@ -1323,7 +1335,7 @@ export function parseArgv(
   terminal: TerminalFacts,
   env: Readonly<Record<string, string | undefined>>,
 ): Result<ParsedArgv, UsageError> {
-  const acc: GlobalAcc = { help: false, noColor: false, cwd: null };
+  const acc: GlobalAcc = { help: false, noColor: false, cwd: null, remote: null };
   // 명령 단어 앞에 놓인 공통 플래그를 먼저 읽는다. 명령 단어가 없으면 chat이다
   let index = 0;
   while (index < argv.length) {
@@ -1338,6 +1350,11 @@ export function parseArgv(
         return err(usage("missingArgument", "-C에 폴더가 없다", "-C <폴더> 형식으로 쓴다"));
       }
       acc.cwd = dir;
+      index += 1;
+    } else if (token === "--remote") {
+      const remote = argv[index + 1];
+      if (remote === undefined || remote === "") return err(missingRemote());
+      acc.remote = remote;
       index += 1;
     } else {
       break;
@@ -1354,7 +1371,11 @@ export function parseArgv(
   const word = isWord ? first : "chat";
   const rest = isWord ? argv.slice(index + 1) : argv.slice(index);
   const parsed = commandOf(acc, word, rest, terminal);
-  const global: GlobalOptions = { cwd: acc.cwd ?? ".", color: colorOf(acc.noColor, env) };
+  const global: GlobalOptions = {
+    cwd: acc.cwd ?? ".",
+    color: colorOf(acc.noColor, env),
+    remote: acc.remote,
+  };
   if (acc.help) return ok({ global, command: { kind: "help", topic: isWord ? word : null } });
   if (!parsed.ok) return parsed;
   return ok({ global, command: parsed.value });

@@ -107,11 +107,11 @@ xeon/apps/cli/
 | C9 | `secret` 명령: 프롬프트(에코 없음, 2회 비교), stdin 읽기, 바이트 배열 0 덮기, `secret test` 출력, `secret reveal`(TTY 전용, review.decisions-2 U-20), JSON 탭 해제. wire는 값 없는 `secret.*`만 쓴다(spec §4.7) | C1, F `secret.*`(M2), `secret.beginReveal` F 추가(spec §10 3번), in-process 값 전달 API(spec §10 3번), `L0.secrets.plan` | M | M2 |
 | C10 | `sessions ls/show/fork/rm` | C1, C3, host M2 처리기(`thread.list`, `thread.fork`, `thread.delete`, `events.unsubscribe`) | M | M2 |
 | C11 | 승인 프롬프트와 `thread.locked` 프롬프트, Ctrl+C 1회 `turn.interrupt` | C6(또는 C8), host M2 처리기(`approval.respond`, `thread.open`, `turn.interrupt`), F 승인 kind | M | M2 |
-| C12 | `service start/status/stop/ensure/launch-mode/run`(`runHostCommand` 호출, 종료 코드 그대로, M3b B1-SVC 구현됨: `src/commands/service.ts`, 인자 `--safe-mode`·`--listen-tcp`), `chat`의 서비스 접속(`resolveLaunchMode` → `ensureService` + `connectServiceTransport`) | C1, C2, `L4.host-service.plan` H10(`ensureService`, `startService`, `connectServiceTransport`)·H11(`service stop`)·H20(`resolveLaunchMode`, `service ensure --json`, `service launch-mode --json`) | S | M3 |
+| C12 | `service start/status/stop/ensure/launch-mode/run`(`runHostCommand` 호출, 종료 코드 그대로, M3b B1-SVC 구현됨: `src/commands/service.ts`, 인자 `--safe-mode`·`--listen-tcp`), `chat`의 서비스 접속(`resolveLaunchMode` → `ensureService` + `connectServiceTransport`; M3b B2-RMT 구현됨: `--remote`와 `attachToService`로 로컬·원격 접속, 연결 오류 문구는 spec §3.3·§4.10) | C1, C2, `L4.host-service.plan` H10(`ensureService`, `startService`, `connectServiceTransport`)·H11(`service stop`)·H20(`resolveLaunchMode`, `service ensure --json`, `service launch-mode --json`) | S | M3 |
 | C13 | `config set/reset/list`, `--set`, 슬래시 명령(`/set`, `/model`, `/resume`), `settings.list` 기반 미리 검사 | C5, C6, `L4.host-service.plan` H17(`settings.set/reset/list`) | M | M2 |
 | C14 | 바이너리 빌드와 측정: 타깃 4개 빌드 레시피, 크기·기동 시간·시작 메모리 측정(§4.3) | C2 | S | M1 |
 | C15 | `doctor`. 검색 provider 상태 묶음(spec §4.7.1) 포함 | C1, 진단 경로 결정(spec §10 5번), `L2.web.spec` provider 상태 조회 | S | M2 |
-| C16 | 컴파일 바이너리의 `host --stdio` 진입: `runHostCommand({ kind: "host-stdio" })` 또는 `l4.cli.*` 그룹을 넘기는 `startStdioHost` 호출 | C1, `L4.host-service.plan` H5(stdio 진입, M1 개발 진입은 이미 있음) | S | M2 |
+| C16 | 컴파일 바이너리의 `host --stdio` 진입: `runHostCommand({ kind: "host-stdio" })` 또는 `l4.cli.*` 그룹을 넘기는 `startStdioHost` 호출. M3b B2-RMT: 원격 주소가 있으면 `bridgeStdioToService`로 중계한다(HS-89) | C1, `L4.host-service.plan` H5(stdio 진입, M1 개발 진입은 이미 있음) | S | M2 |
 
 순서(M1): C0 → C1 → C3 → C2 → C5 → C4 → C6 → C7 → C14.
 
@@ -245,7 +245,7 @@ xeon/apps/cli/
 | C11 승인·잠금·중단 | 구현: 도구·계획·질문 프롬프트(kind별 `answer` 모양), `approval.list` 복원, `approval.resolved`로 프롬프트 닫기, `thread.locked` 프롬프트(관찰·분기), Ctrl+C `turn.interrupt` | `src/render/approval.ts`, `src/render/lock.ts`, `src/commands/chat-session.ts`, `src/commands/chat.ts`, `src/signals.ts` |
 | C13 `config set/reset/list`, `--set`, 슬래시 | 구현. 사전 검사는 하지 않는다(spec §10 13번). 슬래시는 `/set`, `/model`, `/resume`, `/help`, `/quit`와 Tab 완성 | `src/commands/config.ts`, `src/commands/overrides.ts`, `src/slash.ts`, `src/tui/minimal.ts` |
 | C15 `doctor` | 구현: 엔진·저장소·비밀 저장소·외부 바이너리·서비스·터미널과 검색 provider 세 줄. 바이너리는 `host.status { includeBinaries: true }`로 받는다(M2 마감 G2-07). SearXNG는 설정한 주소 하나만 탐침한다(자동 감지 삭제, M2 마감 H1). 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
-| C16 `host --stdio` | 구현: `startStdioHost`에 `l4.cli.*` 그룹을 넘긴다. stdout은 `CliIo.stdoutStream` 전용 | `src/commands/host.ts` |
+| C16 `host --stdio` | 구현: `startStdioHost`에 `l4.cli.*` 그룹을 넘긴다. stdout은 `CliIo.stdoutStream` 전용. M3b B2-RMT: 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 중계한다 | `src/commands/host.ts` |
 | 비밀 오류 해결 줄 (m2r sec) | 구현: `provider_unavailable`, `key_unavailable`, `write_failed`의 해결 줄을 원인별로 나눴다(spec §4.7). 깨끗한 기기의 첫 `secret add`가 `not_registered`에 "sops와 age를 설치"를 보이던 문제를 고쳤다. `test/errors-wire.test.ts`, `test/secret-first-write.int.test.ts`(실제 호스트, 설정 없이 첫 `add`, 같은 홈의 두 클라이언트가 한 비밀을 봄) |
 
 - 호스트가 아직 구현하지 않은 메서드와의 호환: `thread.list`는 -32601이면 상태 파일로, `thread.open`·`turn.interrupt`·`approval.list`·`events.unsubscribe`는 `host.hello`의 `features`에 없으면 쓰지 않는다. HOST.2·HOST.4가 병합되기 전의 `xeon/foundation`에서도 `just verify`가 통과한다.
@@ -321,6 +321,9 @@ M2 CLI.1~CLI.4에서 더한 시험(가짜 호스트 서버 위, `test/support/fa
 | slash | `test/slash.test.ts` | unit | `/set`, `/model`, `/resume`(전환과 구독 해제), 파싱, Tab 완성 |
 | secret | `test/secret.test.ts` | unit | stdin·TTY 입력, 불일치·취소·빈 값·크기 상한, 맡긴 수단 거두기, 값 배열 0 덮기, 값이 출력·요청에 없음(AC5·AC6), `rm` 확인, 오류 문구, `reveal`의 TTY 전용(AC13)·확인 문구·재확인 도장 |
 | host-stdio | `test/host-stdio.test.ts` | unit | `startStdioHost`에 `l4.cli` 그룹과 바이트 stdout을 넘기고 엔진에 연결하지 않으며, 종료 코드와 stderr 안내가 맞다 |
+| host-stdio-remote | `test/host-stdio.test.ts` | unit | (B2-RMT) 원격 주소가 있으면 엔진을 열지 않고 중계한다. stdin이 닫히면 0, 원격이 끊기면 1, 접속 실패는 연결 오류의 코드와 두 줄 문구, 주소 문법 오류는 2이고 아무것도 시작하지 않는다 |
+| remote-attach | `test/engine-start.test.ts` | unit | (B2-RMT) 대상 고르기(`in-process`·`service`·원격·설정 순), `--remote`가 플래그로 가고 토큰 환경 변수가 함께 간다, 주소 문법 오류(플래그 값만 보임), 서비스 핸들의 저장소·전송·기능과 연결만 닫기, 접속 오류 종류별 문구(한 줄, 토큰 값 없음), observe 탭 |
+| remote-flag | `test/parse-chat-flags.test.ts`, `test/engine-options.test.ts`, `test/exit-codes.test.ts` | unit | (B2-RMT) `--remote`가 명령 앞뒤의 전역 플래그이고 값이 없거나 빈 값이면 2, 기본값은 null이며 `EngineConnectOptions.remote`로 가고, `invalidRemote`는 종료 코드 2다 |
 | host-stdio-process | `test/host-stdio.int.test.ts` | int | 실제 프로세스로 `host --stdio`: stdout은 JSON-RPC 줄뿐, `l4.cli.theme`이 카탈로그에 있고, 응답 뒤 stdin EOF에서 0(AC16) |
 | entry-bundle | `test/entry-bundle.test.ts` | int | CLI 진입이 `--minify --bytecode`로 묶인다(최상위 await 없음) |
 | doctor | `test/doctor.test.ts` | unit | 검색 세 줄(AC14), 주소가 없으면 탐침 없음, 설정한 주소의 응답·응답 없음·JSON 꺼짐, 키 플러그인 등록 표시, 엔진 실패 항목과 종료 코드, 터미널 항목, 바이너리 점검 줄과 종료 코드와 `--json`(AC24) |

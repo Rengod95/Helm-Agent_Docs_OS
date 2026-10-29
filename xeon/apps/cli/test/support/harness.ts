@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ok } from "@xeon/contracts";
+import { err, ok } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { JsonRpcMessage, StoreId } from "@xeon/contracts/wire";
 import type {
@@ -11,6 +11,8 @@ import type {
 } from "@xeon/contracts/services";
 import type {
   AssembleOptions,
+  BridgeExit,
+  BridgeOptions,
   CommandIo,
   HostCommand,
   HostExit,
@@ -74,6 +76,10 @@ export interface HarnessOptions {
   /** 가려진 입력 대본. 한 번 부를 때마다 하나를 꺼낸다. 끝나면 null이다 */
   readonly secretInputs?: readonly (string | null)[];
   readonly startStdioHost?: (options: StdioHostOptions) => Promise<HostExit>;
+  /** host --stdio의 원격 주소 해석 가짜(기본은 주소 없음) */
+  readonly resolveRemote?: CliDeps["resolveRemote"];
+  /** host --stdio의 원격 중계 가짜(기본은 stdin이 닫힌 것) */
+  readonly bridgeStdio?: (options: BridgeOptions) => Promise<BridgeExit>;
   readonly probes?: DoctorProbes;
 }
 
@@ -192,6 +198,11 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   };
 
   const hostApi: HostApi = {
+    resolveLaunchMode: () => Promise.resolve("in-process"),
+    resolveRemoteEndpoint: () => Promise.resolve({ kind: "none" }),
+    attachToService: () =>
+      Promise.resolve(err({ kind: "ensure_failed", reason: "not_used_by_harness" })),
+    serviceClock: () => ({ clock, ids: { next: () => "evt_service" } }),
     startInProcessHost(assembleOptions) {
       startOptions.push(assembleOptions ?? {});
       const pair = createTransportPair();
@@ -306,6 +317,9 @@ export function createHarness(options: HarnessOptions = {}): Harness {
         })),
     runHostCommand: options.runHostCommand ?? (() => Promise.resolve(0)),
     startStdioHost: options.startStdioHost ?? (() => Promise.resolve({ code: 0, reason: "eof" })),
+    resolveRemote: options.resolveRemote ?? (() => Promise.resolve({ kind: "none" })),
+    bridgeStdio:
+      options.bridgeStdio ?? (() => Promise.resolve({ code: 0, reason: "stdin_closed" })),
     probes: options.probes ?? { probeSearxng: () => Promise.resolve("unreachable") },
     clock,
     devWireRoundTrip: options.devWireRoundTrip ?? false,

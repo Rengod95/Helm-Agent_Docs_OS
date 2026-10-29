@@ -29,6 +29,9 @@ export function exitCodeOfStartError(kind: EngineStartErrorKind): ExitCode {
     case "missingService":
     case "pluginFailed":
       return EXIT.error;
+    // 원격 주소 문법 오류는 사용 오류다. 명령줄 값을 고치면 풀린다(HS-87)
+    case "invalidRemote":
+      return EXIT.usage;
     case "fts5Missing":
     case "sopsMissing":
     case "dataDirPermission":

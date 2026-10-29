@@ -282,6 +282,14 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
       const { startStdioHost } = await import("@xeon/host");
       return startStdioHost(options);
     },
+    resolveRemote: async (options) => {
+      const { resolveRemoteEndpoint } = await import("@xeon/host");
+      return resolveRemoteEndpoint(options);
+    },
+    bridgeStdio: async (options) => {
+      const { bridgeStdioToService } = await import("@xeon/host");
+      return bridgeStdioToService(options);
+    },
     probes: REAL_PROBES,
     // 합성 루트의 시계는 L0.os의 운영 시계다(eng.typescript.guide TY-21). 엔진 안의 시각도 같은 구현이 낸다
     clock: systemClock(),
