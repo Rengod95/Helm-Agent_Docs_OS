@@ -328,6 +328,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | status | `status.list` | `{ threadId: ThreadId }` | `{ items: StatusItem[] }` | M3 |
 | attachments | `attachments.add` | `{ threadId?: ThreadId, source: AttachmentSource }` | `{ attachment: Attachment, parts: (TextContent\|ImageContent)[] }` | M3 |
 | notify | `notify.list` | `{ threadId?: ThreadId, afterSeq: integer, kinds?: NoticeKind[], limit?: integer(1..500) }` | `{ notices: Notice[], nextSeq: integer }` | M3 |
+| web | `web.providers` | `{}` | `{ providers: WebProviderStatus[](최대 64), settings: WebSettings }`. 모양은 아래 글머리 | M3 |
 | usage | `usage.get` | `{ providerId?: string, threadId?: ThreadId }` | `{ gauges: UsageGauge[], asOf: IsoTime }` | M3 |
 | secret | `secret.list` | `{ meta?: boolean, usage?: boolean }` | `{ secrets: SecretListEntry[] }` | M2 |
 | secret | `secret.meta` | `{ name: SecretName, …메타·정책 필드 }` | `{ secret: SecretListEntry }` | M2 |
@@ -382,6 +383,20 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - [결정: M3-REQ-16, review.m3-design-inputs D-M3-17] 알림 전달: 호스트는 `notify.delivered`를 연결된 클라이언트 모두에 보낸다. 클라이언트 창이 앞에 있어도 기본으로 보내고, 보낼지는 호스트의 설정 키로 조정한다. OS 토스트와 앱 안 표시는 클라이언트가 한다. 웹·모바일 푸시는 후순위다. 알림은 내구 이벤트 `dialog.notified`에서 나오므로 놓친 클라이언트는 `notify.list`로 따라잡는다.
   - [결정: M3-REQ-19] 재접속용 목록: `thread.open`에 `includeItems: true`를 주면 결과에 현재 가지의 item 목록(`items`, `hasMore`)과 그것이 반영한 `asOfSeq`를 싣는다. `asOfSeq` 뒤의 이벤트는 `events.subscribe`로 이어 받는다(§3.4.6). 대기 승인은 `approval.list`(`position`)가 같은 규칙으로 준다. 안전 모드로 떠 있으면 `host.status`의 `safeMode`가 참이라 화면이 표시한다.
 - [결정: m2c G1-01 후속] `command.list`의 `threadId`는 선택이다. 주면 프로젝트 명령(`.xeon/commands`)을 그 thread의 작업 폴더 기준으로 읽고(신뢰 게이트 포함), 생략하면 thread 문맥 없이 읽는다. 작업 폴더가 없는 thread는 프로젝트 명령 없이 나온다. 없는 thread는 `thread.notFound`(3001)다. 목록만 읽으므로 `command.run`과 달리 쓰기 소유를 얻지 않는다. `dialog.commands.list`의 입력 스키마는 바뀌지 않고, 호스트가 `threadId`를 입력에서 떼어 호출 문맥에 싣는다. 근거: `L4.host-service.spec` §10 29.
+- [결정: M3-REQ-96] `web.providers`는 웹 provider 상태와 웹 설정의 유효 값을 읽는 메서드다(`wire/web-providers.ts`). 읽기 전용이고 비밀 값을 싣지 않는다. 키 값, 주입 위치, 헤더 이름은 결과 어디에도 없다. 호스트는 `cap-web`의 provider 카탈로그와 탐침 캐시에서 값을 채운다(`L4.host-service.spec`).
+  - `providers`는 provider마다 한 항목이고 최대 64개다. 항목은 `id`(`ProviderId`, 최대 96자), `capability`(`web.search`, `web.fetch`, `web.browse`), `origin`(`plugin`, `detected`, `builtin`), `displayName`(1~64자), `auth`(`none`, `header`, `bearer`, `query`), `status`, `pricingAsOf`, `pricingStale`, `firstUseNoticed`를 싣는다.
+  - `status.kind`는 `ok` 또는 `unavailable`이다. `unavailable`은 `reason`에 웹 provider의 `ProviderUnavailableReason` 문자열을 싣고(최대 64자), `detail`(최대 512자)을 더할 수 있다.
+  - `pricingAsOf`는 가격표 기준일(ISO 날짜)이다. 가격표가 없거나 무료면 `null`이다. `pricingStale`은 기준일이 오래되었을 때 참이다. `firstUseNoticed`는 고지가 필요 없는 provider(`auth: "none"`)거나 첫 사용 고지를 이미 보였을 때 참이다.
+  - `settings`는 웹 설정의 유효 값이다. `searchProvider`, `searchOrder`, `searchParallel`(1~4), `browseProvider`, `browseOrder`, `robots`(`auto`, `always`, `never`)를 싣는다. 값을 바꿀 때는 `settings.set`을 쓴다.
+
+  ```ts
+  // wire/web-providers.ts
+  export const WebProvidersResultSchema = Type.Object({
+    providers: Type.Array(WebProviderStatusSchema, { maxItems: 64 }),
+    settings: WebSettingsWireSchema,
+  }, { additionalProperties: false });
+  ```
+
 - [제안] M1 범위는 브리프의 최소 셋(`turn.start`, `events.subscribe`, `settings.get`)에 선행 조건 둘(`host.hello`, `thread.create`)을 더한다. 대화를 시작하려면 thread가 있어야 하고, 모든 연결은 hello로 시작하기 때문이다.
 - [제안] `thread.open`을 추가했다. `_research/process.md` §6.3의 세션 단위 쓰기 소유 규칙을 계약에 드러내기 위해서다. 소유 잠금을 얻지 못하면 `thread.locked`(§3.5.2) 오류에 대안(관찰, 분기, 위임)을 싣는다. in-process 단일 클라이언트인 M1에서는 `thread.create`가 소유를 함께 얻는다.
 - [결정: m2 F.2] `thread.read`는 열린 thread의 스냅샷을 돌려주는 읽기 전용 메서드다(L4.desktop 상태 설계 §14 1번). `thread.open` 결과에 items를 싣지 않고 새 메서드를 둔 이유는 셋이다. 첫째, `thread.open`은 쓰기 소유 획득이라는 부작용이 있어서 소유 없이 관찰하는 thread나 재동기화 때마다 부르기에 맞지 않다. 둘째, 스냅샷은 재설정과 재구독마다 다시 읽는데 `thread.open`은 열 때 한 번 부르는 메서드다. 셋째, 긴 thread는 앞부분을 나눠 받아야 해서 `limit`과 `before`가 필요하다. `thread.read`는 소유를 얻지 않고 닫힌 thread도 읽는다. `items`는 현재 가지의 내구 `ItemRecord`를 오래된 것부터 담고, `position`은 그 items가 반영한 저장소 위치다. 이어 붙이는 규칙은 §3.4.6이다.
@@ -1389,6 +1404,7 @@ wire:
 - A15. `approval.list`의 `approvals`는 `position.seq` 시점에 `approval.resolved`가 없는 `approval.requested` 전부이고 각 항목의 `request`가 이벤트 payload와 같다. 응답한 뒤에는 목록에서 빠진다.
 - A16. `createHostConnection`과 `createStdioTransport`는 `@xeon/contracts/wire`의 같은 구현을 CLI, 호스트, 데스크톱이 쓴다. 이 구현의 소스는 Bun·Node 모듈을 import하지 않는다. `HostConnection.notify`는 `$/connectionReset`을 id 없는 알림으로 보낸다.
 - A17. `approval.respond`의 `answer`는 `QuestionAnswer`, `{ mode?, note? }`, `{ feedback }`, `ReviewAnswer` 가운데 하나여야 한다. 질문 id 아래 문자열 하나만 둔 값이나 `AskAnswer` 배열 모양은 `-32602`다.
+- A18. `web.providers`의 결과는 값으로 왕복한다. `capability`가 `web.search`, `web.fetch`, `web.browse`가 아니거나 `status.kind`가 `ok`, `unavailable`이 아니거나 필드가 빠지면 거부된다. 결과와 항목의 속성 이름에는 키나 토큰을 담을 이름이 없고, 알 수 없는 필드는 거부된다(M3-REQ-96).
 
 settings:
 

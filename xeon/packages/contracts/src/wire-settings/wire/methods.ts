@@ -75,6 +75,7 @@ import {
   StatusListParamsSchema,
   StatusListResultSchema,
 } from "./status-notify.ts";
+import { WebProvidersParamsSchema, WebProvidersResultSchema } from "./web-providers.ts";
 import {
   SettingsReadFileParamsSchema,
   SettingsReadFileResultSchema,
@@ -1430,6 +1431,10 @@ interface WireSchemas {
     params: WithMeta<typeof NotifyListParamsSchema>;
     result: typeof NotifyListResultSchema;
   };
+  "web.providers": {
+    params: WithMeta<typeof WebProvidersParamsSchema>;
+    result: typeof WebProvidersResultSchema;
+  };
   "secret.list": {
     params: WithMeta<typeof SecretListParamsSchema>;
     result: typeof SecretListResultSchema;
@@ -1587,6 +1592,7 @@ export const WIRE_METHODS: {
   "status.list": spec(withMeta(StatusListParamsSchema), StatusListResultSchema, "M3"),
   "attachments.add": spec(withMeta(AttachmentsAddParamsSchema), AttachmentsAddResultSchema, "M3"),
   "notify.list": spec(withMeta(NotifyListParamsSchema), NotifyListResultSchema, "M3"),
+  "web.providers": spec(withMeta(WebProvidersParamsSchema), WebProvidersResultSchema, "M3"),
   "host.shutdown": spec(withMeta(HostShutdownParamsSchema), HostShutdownResultSchema, "M2"),
   "secret.list": spec(withMeta(SecretListParamsSchema), SecretListResultSchema, "M2"),
   "secret.meta": spec(withMeta(SecretMetaParamsSchema), SecretMetaResultSchema, "M2"),
