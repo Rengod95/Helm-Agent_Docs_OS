@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { Logger } from "@xeon/contracts";
 import {
+  DEFAULT_PLUGIN_NAMES,
   DEFAULT_PLUGINS_MARKER_FILE,
   installDefaultPlugins,
   installedAgentDefinitions,
@@ -35,10 +36,10 @@ const logger: Logger = {
   child: () => logger,
 };
 
-function manifest(version: string): string {
+function manifest(version: string, name: string): string {
   return JSON.stringify({
     schemaVersion: 1,
-    name: "helm",
+    name,
     version,
     layer: "L3",
     kind: "group",
@@ -48,12 +49,12 @@ function manifest(version: string): string {
   });
 }
 
-function writeBundle(version: string): void {
-  const dir = join(bundleDir, "helm");
+function writeBundle(version: string, name = "helm"): void {
+  const dir = join(bundleDir, name);
   mkdirSync(join(dir, ".xeon-plugin"), { recursive: true });
   mkdirSync(join(dir, "dist"), { recursive: true });
   mkdirSync(join(dir, "agents"), { recursive: true });
-  writeFileSync(join(dir, ".xeon-plugin", "plugin.json"), manifest(version));
+  writeFileSync(join(dir, ".xeon-plugin", "plugin.json"), manifest(version, name));
   writeFileSync(join(dir, "dist", "index.js"), `export const version = "${version}";\n`);
   writeFileSync(
     join(dir, "agents", "explorer.md"),
@@ -61,8 +62,8 @@ function writeBundle(version: string): void {
   );
 }
 
-function install(): ReturnType<typeof installDefaultPlugins> {
-  return installDefaultPlugins({ bundleDir, extensionsDir, stateDir, logger });
+function install(names: readonly string[] = ["helm"]): ReturnType<typeof installDefaultPlugins> {
+  return installDefaultPlugins({ bundleDir, extensionsDir, stateDir, logger }, names);
 }
 
 function markerOf(): unknown {
@@ -136,7 +137,10 @@ test("deleting the marker too asks for a fresh install", async () => {
 test("a user edited copy with a higher version is kept", async () => {
   writeBundle("0.1.0");
   await install();
-  writeFileSync(join(extensionsDir, "helm", ".xeon-plugin", "plugin.json"), manifest("0.3.0"));
+  writeFileSync(
+    join(extensionsDir, "helm", ".xeon-plugin", "plugin.json"),
+    manifest("0.3.0", "helm"),
+  );
   expect(await install()).toEqual([{ name: "helm", action: "kept", version: "0.1.0" }]);
   expect(markerOf()).toEqual({ schemaVersion: 1, installed: { helm: "0.3.0" } });
 });
@@ -163,6 +167,20 @@ test("a bundle without a valid manifest is a failed install that leaves nothing 
   expect(outcomes[0]).toMatchObject({ name: "helm", action: "failed" });
   expect(existsSync(join(extensionsDir, "helm"))).toBe(false);
   expect(existsSync(join(stateDir, DEFAULT_PLUGINS_MARKER_FILE))).toBe(false);
+});
+
+// 기본 목록은 helm과 account-rotation이다. 위장 provider는 목록에 들지 않는다(L1.models.spec §4.11.4)
+test("the default list is helm and account-rotation, and account-rotation installs from its own bundle", async () => {
+  expect(DEFAULT_PLUGIN_NAMES).toEqual(["helm", "account-rotation"]);
+  writeBundle("0.1.0", "account-rotation");
+  expect(await install(DEFAULT_PLUGIN_NAMES)).toEqual([
+    { name: "helm", action: "no_bundle" },
+    { name: "account-rotation", action: "installed", version: "0.1.0" },
+  ]);
+  expect(existsSync(join(extensionsDir, "account-rotation", ".xeon-plugin", "plugin.json"))).toBe(
+    true,
+  );
+  expect(markerOf()).toEqual({ schemaVersion: 1, installed: { "account-rotation": "0.1.0" } });
 });
 
 test("installed agent definitions come from <extension>/agents/*.md with the extension as their source", async () => {

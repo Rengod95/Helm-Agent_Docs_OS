@@ -2,6 +2,29 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "ext.account-rotation.enabled": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Account rotation 켜기",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "ext.helm.autoStart": {
       "default": "suggest",
       "enum": [
@@ -816,6 +839,69 @@
           "label": "provider",
           "order": 10,
           "tab": "providers",
+          "widget": "table"
+        }
+      }
+    },
+    "l1.models.rateLimit": {
+      "additionalProperties": false,
+      "default": {},
+      "maxProperties": 64,
+      "patternProperties": {
+        "^[a-z0-9][a-z0-9._-]{0,63}$": {
+          "additionalProperties": false,
+          "properties": {
+            "maxWaitMs": {
+              "maximum": 3600000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "minIntervalMs": {
+              "maximum": 3600000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "onLimit": {
+              "anyOf": [
+                {
+                  "const": "wait",
+                  "type": "string"
+                },
+                {
+                  "const": "switch",
+                  "type": "string"
+                },
+                {
+                  "const": "fail",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "minIntervalMs",
+            "onLimit",
+            "maxWaitMs"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "provider → { minIntervalMs, onLimit(wait|switch|fail), maxWaitMs }",
+          "label": "레이트 리밋",
+          "order": 10,
+          "tab": "budgets",
           "widget": "table"
         }
       }

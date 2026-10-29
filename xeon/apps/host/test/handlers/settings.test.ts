@@ -105,6 +105,33 @@ test("settings.get with a thread that does not exist is thread.notFound", async 
   await connection.close();
 });
 
+// HS-80: 저장된 기본 모델이 카탈로그에 없으면 settings.get이 unknownModel 문제를 싣고, 있으면 `problem` 필드를 아예 싣지 않는다.
+test("settings.get marks a saved default model the catalog lacks, and a catalog model has no problem field", async () => {
+  const key = "l1.models.default";
+  const host = createFakeHost({
+    layers: [{ scope: "user", values: new Map([[key, "tape/tape-9"]]) }],
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const missing = await connection.request("settings.get", { keys: [key] });
+  expect(missing.settings[0]).toMatchObject({
+    key,
+    value: "tape/tape-9",
+    problem: { kind: "unknownModel", args: { id: "tape/tape-9" } },
+  });
+  await connection.close();
+
+  const known = createFakeHost({
+    layers: [{ scope: "user", values: new Map([[key, "tape/tape-1"]]) }],
+  });
+  const second = known.connect();
+  await second.connection.request("host.hello", HELLO_PARAMS);
+  const present = await second.connection.request("settings.get", { keys: [key] });
+  expect(present.settings[0]).toMatchObject({ key, value: "tape/tape-1" });
+  expect(present.settings[0]).not.toHaveProperty("problem");
+  await second.connection.close();
+});
+
 // ── HOST.2: settings.set, settings.reset, settings.list ────────────────────────────────────────
 
 const REPLAY = "l4.host-service.maxReplayEvents";

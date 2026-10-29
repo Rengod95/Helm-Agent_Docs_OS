@@ -11,6 +11,7 @@ import {
 } from "@xeon/contracts/settings";
 import { wireError, type WireError, type WireHandler } from "@xeon/contracts/wire";
 import { keyReusedBug, wireErrorOfStore } from "../store-error.ts";
+import { settingProblemOf } from "../settings-problems.ts";
 import type { Engine, SettingsWriteFailure } from "../types.ts";
 import { threadLocked } from "./owner.ts";
 
@@ -48,7 +49,7 @@ export function createSettingsGetHandler(engine: Engine): WireHandler<"settings.
           message: issue.message,
         });
       }
-      settings.push(resolved.setting);
+      settings.push(withProblem(engine, resolved.setting));
     }
     return { settings };
   };
@@ -108,12 +109,23 @@ function writeFailure(
   }
 }
 
+/**
+ * 유효 값에 호스트만 아는 문제 표시를 붙인다(HS-80). 문제가 없으면 `problem` 필드를 아예 싣지 않는다.
+ * 모델 id 검사는 settings.set의 HS-78과 같은 카탈로그 조회를 쓴다.
+ */
+function withProblem(engine: Engine, setting: EffectiveSetting): EffectiveSetting {
+  const problem = settingProblemOf(setting.key, setting.value, (provider) =>
+    engine.ports.models.modelIds(provider),
+  );
+  return problem === undefined ? setting : { ...setting, problem };
+}
+
 function effectiveOf(
   engine: Engine,
   def: SettingDef,
   threadId: ThreadId | undefined,
 ): EffectiveSetting {
-  return resolveSetting(def, engine.ports.settings.layers(threadId)).setting;
+  return withProblem(engine, resolveSetting(def, engine.ports.settings.layers(threadId)).setting);
 }
 
 /** 모델 id를 값으로 갖는 설정 키: 기본 모델과 역할별 모델 */

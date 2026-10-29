@@ -162,6 +162,17 @@ test("l1.models.* reach the models source and a malformed provider list falls ba
   expect(defaults.retry).toEqual({ maxRetries: 3, baseDelayMs: 2000, maxDelayMs: 60_000 });
 });
 
+// HS-80: 사용자 파일의 고지 동의가 core-models의 rotationAcknowledged까지 간다. 키가 카탈로그에 없으면 settings.value가 undefined라 false다
+test("ext.account-rotation.acknowledgeRisk in the user file reaches the models source as rotationAcknowledged", async () => {
+  const on = await engineWith({ "ext.account-rotation.acknowledgeRisk": true });
+  expect(modelsSource(on)().rotationAcknowledged).toBe(true);
+  expect(modelsSource(await engineWith({}))().rotationAcknowledged).toBe(false);
+  const off = await engineWith({ "ext.account-rotation.acknowledgeRisk": false });
+  expect(modelsSource(off)().rotationAcknowledged).toBe(false);
+  // 계정 회전 플러그인은 기본 꺼짐이다: 예약 키 enabled의 기본값은 false다
+  expect(off.value("ext.account-rotation.enabled")).toBe(false);
+});
+
 test("l1.loop.maxSteps, tools and workspace sources read the same layers", async () => {
   const settings = await engineWith({ "l1.loop.maxSteps": 7, "l2.workspace.read.maxLines": 99 });
   expect(loopSource(settings).maxSteps(THREAD)).toBe(7);

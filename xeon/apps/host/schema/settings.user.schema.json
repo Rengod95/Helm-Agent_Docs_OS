@@ -2,6 +2,73 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "ext.account-rotation.acknowledgeRisk": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "약관 위험 고지에 동의",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.account-rotation.enabled": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Account rotation 켜기",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.account-rotation.isolation": {
+      "default": "none",
+      "enum": [
+        "none",
+        "process"
+      ],
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L3",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Account rotation 격리",
+          "order": 20,
+          "tab": "plugins",
+          "widget": "select"
+        }
+      }
+    },
     "ext.helm.autoStart": {
       "default": "suggest",
       "enum": [
@@ -170,6 +237,55 @@
           "order": 230,
           "tab": "plugins",
           "widget": "toggle"
+        }
+      }
+    },
+    "ext.provider-anthropic-oauth.acknowledgeRisk": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "약관 위험 고지에 동의",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.provider-anthropic-oauth.credential": {
+      "anyOf": [
+        {
+          "maxLength": 75,
+          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "OAuth 토큰 비밀 참조",
+          "order": 20,
+          "tab": "plugins",
+          "widget": "text"
         }
       }
     },
@@ -1526,6 +1642,66 @@
         }
       }
     },
+    "l1.models.accounts": {
+      "default": [],
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "accountId": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+            "type": "string"
+          },
+          "credential": {
+            "maxLength": 75,
+            "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+            "type": "string"
+          },
+          "priority": {
+            "maximum": 1000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+            "type": "string"
+          },
+          "reservePct": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "accountId",
+          "credential",
+          "priority",
+          "reservePct"
+        ],
+        "type": "object"
+      },
+      "maxItems": 64,
+      "type": "array",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "같은 provider의 계정 목록. 키는 secret:// 참조만 저장한다. 계정 회전 플러그인을 켜야 쓴다",
+          "label": "모델 계정",
+          "order": 20,
+          "tab": "providers",
+          "widget": "table"
+        }
+      }
+    },
     "l1.models.allowedModels": {
       "default": [],
       "items": {
@@ -1744,6 +1920,69 @@
           "label": "provider",
           "order": 10,
           "tab": "providers",
+          "widget": "table"
+        }
+      }
+    },
+    "l1.models.rateLimit": {
+      "additionalProperties": false,
+      "default": {},
+      "maxProperties": 64,
+      "patternProperties": {
+        "^[a-z0-9][a-z0-9._-]{0,63}$": {
+          "additionalProperties": false,
+          "properties": {
+            "maxWaitMs": {
+              "maximum": 3600000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "minIntervalMs": {
+              "maximum": 3600000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "onLimit": {
+              "anyOf": [
+                {
+                  "const": "wait",
+                  "type": "string"
+                },
+                {
+                  "const": "switch",
+                  "type": "string"
+                },
+                {
+                  "const": "fail",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "minIntervalMs",
+            "onLimit",
+            "maxWaitMs"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "provider → { minIntervalMs, onLimit(wait|switch|fail), maxWaitMs }",
+          "label": "레이트 리밋",
+          "order": 10,
+          "tab": "budgets",
           "widget": "table"
         }
       }
