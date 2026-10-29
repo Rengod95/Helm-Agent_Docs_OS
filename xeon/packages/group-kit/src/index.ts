@@ -45,7 +45,19 @@ export {
   type DelegateStatusResult,
   type DelegateToolPolicy,
 } from "./delegate.ts";
-export type { GroupMetrics, GroupMetricsHandle, GroupMetricsSummary } from "./metrics/types.ts";
+export type {
+  GroupMetrics,
+  GroupMetricsHandle,
+  GroupMetricsSummary,
+  GroupUsageDelta,
+  MetricsRecordedPayload,
+} from "./metrics/types.ts";
+export {
+  createMetricsRegistry,
+  defaultMetricsRegistry,
+  type MetricsRegistry,
+} from "./metrics/registry.ts";
+export { summarizeUsage, type ScopeUsage } from "./metrics/usage.ts";
 export { GroupSettingsSourceKey, type GroupSettingsSource } from "./ports/settings.ts";
 export {
   STATE_DOC_MAX_BYTES,
@@ -68,6 +80,7 @@ export {
   type GroupCommandParse,
   type GroupCommandRegistration,
   type GroupServiceWithSetting,
+  type GroupServiceWithUsage,
 } from "./commands.ts";
 export { displayWidth, formatGroupStatusLine, type StatusLineOptions } from "./status-line.ts";
 export {

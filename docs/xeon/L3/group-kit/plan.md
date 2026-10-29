@@ -38,7 +38,7 @@ binds: [xeon/packages/group-kit/**]
 | 재생 하니스 | `replayDrive` | | 최소형(every-commit, 그룹 하나) | 지점 목록, 입력 시작 |
 | 재생 규율 정적 검사 | `scanDriveSource` | | | ● |
 | 승격 보고 | `PromotionReport`, `buildPromotionReport` | | | ● |
-| 계측 | `GroupMetrics`, `grp.<그룹>.metrics.recorded`(`recordPrivate`) | | 메모리 집계 | ● |
+| 계측 | `GroupMetrics`, `grp.<그룹>.metrics.recorded`(`recordPrivate`) | | 메모리 집계 | 이벤트 집계, 단계 경계 기록(M3b, G-17 완료) |
 | 템플릿(L3.slots) | `templates/`, `index.json` | | | ● |
 | 정책 정식 예(L3.slots) | `reviewgate`, `commitguard`, `guardrail`(`testing` 진입점) | | | ● |
 
@@ -68,8 +68,11 @@ xeon/packages/group-kit/
       report.ts                 # buildPromotionReport (2차)
     metrics/
       types.ts                  # GroupMetrics, GroupMetricsSummary, GroupMetricsHandle, MetricsRecordedPayload
-      counter.ts                # 메모리 집계(M2)
-      record.ts                 # 단계 경계 증가분 이벤트(2차)
+      counter.ts                # 메모리 집계(M2), addUsage와 기록 기준(M3b)
+      handler.ts                # on 래퍼의 지점별 계수(M3b)
+      registry.ts               # 그룹별 계측 등록부와 기본 등록부(M3b)
+      usage.ts                  # summarizeUsage: lease.*·turn.* 이벤트 집계(M3b)
+      record.ts                 # 단계 경계 증가분 이벤트(M3b)
     testing/
       index.ts                  # @xeon/group-kit/testing: checkGroup, replayDrive, scanDriveSource, smokeGroup, 정식 예 3종
       smoke-group.ts            # M1 테스트 그룹
@@ -159,7 +162,7 @@ xeon/packages/group-kit/
 | G-14 | `delegate.ts` 입력 검사(M2) + L1-g 서비스 호출, 보고 post 키 파생, 멱등 처리(M3) | G-05, L1.agents.spec 위임 서비스 키 [가정] | M | M2(검사)/M3(호출) |
 | G-15 | `testing/replay/replay-drive.ts` 최소형: every-commit 절단, `ReplayHarness`(L3.group-kit.spec §3.10)로 받은 digest 비교. 하니스는 그룹 테스트 파일이 테스트 호스트·테이프·정규화 함수로 만든다(review.decisions-2 U-03, U-17) | G-05, G-09, `@xeon/ext-host/testing` 재시작 지원 [가정], `@xeon/core-models/testing` 테이프(테스트 파일에서만 import) | L | M2 |
 | G-16 | `smokeGroup`을 `defineGroup`으로 옮기고 M1 스모크가 그대로 통과하는지 확인 | G-04, G-05, G-01 | S | M2 |
-| G-17 | `metrics/record.ts`: 단계 경계 증가분 기록 `grp.<그룹>.metrics.recorded`(`recordPrivate`), 토큰·비용·임대 시간 계산 | G-05, X `ScopeApi.recordPrivate`(review.decisions-2 T-21) | M | M3 |
+| G-17 | `metrics/record.ts`: 단계 경계 증가분 기록 `grp.<그룹>.metrics.recorded`(`recordPrivate`), 토큰·비용·임대 시간 계산 (완료, §10) | G-05, X `ScopeApi.recordPrivate`(review.decisions-2 T-21) | M | M3 |
 | G-18 | `promotion/report.ts`: `buildPromotionReport`, `/group status` 부가 줄 | G-17, X `events()`·`toolOwner()` [가정] | M | M3 |
 | G-19 | `scan/`: `scanDriveSource`(`@swc/core` `parseSync`), SD-01~SD-10(SD-07~09 메시지는 ADR-0015 §3.2를 가리킨다), DR-07 `MODULE_OWNERS` 행 추가 | G-04, `eng.dependency-rules.guide` 표 변경 승인 | M | M3 |
 | G-20 | `replayDrive` 확장: 지점 목록 지정, 사용자 입력 시작, 실패 보고에 첫 차이 이벤트 표시, 효과 계수(ADR-0015 §3.6: 끊기 직전의 drive·on 핸들러를 두 번 실행하고 가짜 포트의 `EffectCounts`가 기준과 같은지 확인, 실패는 `effects-doubled`) | G-15, ADR-0015 | M | M3 |
@@ -302,7 +305,7 @@ xeon/packages/group-kit/
 | X 요청 사항 반영 지연. X.primitives.spec은 `LeaseArbiterPort`, `ExtHost.scopes()`, 유휴 토글 적용을 정했지만 `LeaseCandidate.enabledAtSeq`, `leaseId` 조회, 변경 구독, 테스트 호스트 재시작 지원은 아직 없다(스펙 §3.13) | G-08의 요청 순번, G-12의 구독, G-15가 늦어진다 | `DriveArbiter`(G-07), 명령·상태줄(G-13 문자열 부분), 상태 검사(G-09 순수 함수)를 먼저 순수 함수로 끝낸다. `enabledAtSeq`가 없으면 `loadOrder`만으로 정하고, 구독이 없으면 경계 훅 뒤 `scopes()`를 다시 읽는다. 요청 4개는 스펙 §3.13 목록으로 X 작성자에게 넘긴다 |
 | DR-02 예외는 방법 (b)로 정했다(review.decisions-2 U-15, 2026-10-22 확인). 뒤에 (a)(F·X로 이동)로 번복하면 group-kit의 정의 API 위치가 바뀐다 | G-03, G-04의 배치 변경 | 공개 이름과 시그니처는 그대로 두고 파일만 옮길 수 있게 `define-group.ts`가 F 타입만 의존하도록 쓴다 |
 | drive 재생 규율을 타입으로 막을 수 없다(F.extensions.spec §4.6) | 클로저 상태를 쓰는 그룹이 재개 뒤 다르게 동작한다 | M2에 `replayDrive`를 그룹 테스트 필수 항목으로 두고(G-15), 2차에 `scanDriveSource`(G-19)로 정적 검사를 더한다. 두 수단 모두 협조적 코드만 잡는다는 한계를 그룹 문서에 적는다 |
-| 계측 kind `grp.<그룹>.metrics.recorded`는 그룹 접두이고 group-kit이 만든다 | X `recordPrivate`가 늦으면 G-17이 늦어진다 | G-17을 M3에 두고 그때까지 메모리 집계만 쓴다 |
+| 계측 kind `grp.<그룹>.metrics.recorded`는 그룹 접두이고 group-kit이 만든다 | X `recordPrivate`가 늦으면 G-17이 늦어진다 | G-17은 M3b에 끝냈다(§10). X `recordPrivate`와 `queryEvents`(M3-REQ-39)를 그대로 쓴다 |
 | L1.agents 위임 서비스 미정 | `delegate` 구현(G-14 M3)이 늦어진다 | M2는 입력 검사와 `group.delegateUnavailable`만 둔다. 학습 그룹 계획(L3.learning.plan)과 같은 시점에 맞춘다 |
 | `@swc/core` 파서 결과가 TS 7 문법 일부를 해석하지 못함 | `scanDriveSource` 오탐·누락 | 파싱 실패는 `warning` 하나로 보고하고 실패시키지 않는다. 대상 문법은 drive 함수 본문으로 좁다 |
 
@@ -331,3 +334,12 @@ M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`
 | G-28 | 완료 | `GroupApi.delegateStatus`, `cancelDelegates`(`CancelTarget { ownerScopeId }`). 반환은 값이다(spec §10). 재실행 문맥 거부는 X `callContext`로 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`) |
 | G-29 | 완료 | `DelegateSpec.report`는 선택이고 없으면 L1 요청에도 싣지 않는다 |
 | G-30 | 완료(거부 사유 노출은 [미결]) | `createGroupService`가 커밋 피드(`lease.rejected`, `lease.released`, `lease.acquired`, `scope.changed`)로 `GroupStatus.drive "rejected"`를 채우고 `onChange`로 알린다 |
+
+## 10. M3b 구현 상태 (2026-10-29, 브랜치 m3b/b4-grp)
+
+| plan ID | 상태 | 비고 |
+|---|---|---|
+| G-17 | 완료 | `GroupMetricsHandle.addUsage`(LR-17), `on` 래퍼의 `denies`·`chainPatches`·`handlerErrors`, `summarizeUsage`(`metrics/usage.ts`, lease.*·turn.* 이벤트 집계), 기본 등록부(`metrics/registry.ts`), `refreshUsage`와 `/group status` 갱신, 단계 경계 기록(`metrics/record.ts`, `grp.<그룹>.metrics.recorded`). 시험은 `test/metrics.test.ts`, `test/metrics-record.test.ts`, `test/metrics-status.test.ts` |
+| LR-17 | 연결 가능 | 학습 그룹은 `addUsage`로 토큰과 비용을 더할 수 있다. 학습 그룹 코드 연결은 이 단계에 없다(학습 spec §10 17) |
+
+M3b에서 정한 것은 L3.group-kit.spec §4.9와 §10에 적었다. 기록은 경계마다 증가분만 쓰고, 기록 핸들러가 setup 전에 등록되어 같은 경계의 그룹 핸들러 값은 다음 기록으로 밀린다.

@@ -1023,7 +1023,7 @@ M3a 구현에서 남은 항목:
 14. (닫힘) [결정: M3-REQ-100] 도구 실행 문맥의 `caller.afterUntrusted`. `Proposal.afterUntrusted`가 이 값을 적는다(§3.5).
 15. [미결] `l3.learning.review.tokenBudget`(정수 또는 null)와 `review.model`(문자열 또는 null)은 설정 정의 규칙 D8(number·select 위젯은 숫자·enum 타입만)에 맞는 위젯이 없다. `tokenBudget`은 화면 없이(파일·명령만), `model`은 `text` 위젯으로 선언했다. 이 문서의 `number`·`select` 위젯 표기는 맞지 않는다.
 16. (닫힘) 설정 키 수: §6.1 표와 구현은 12개이고 plan LR-02의 13개는 12개로 고쳤다. 큐레이터 4개(`curator.*`)는 읽는 코드가 없어 `stage: "reserved"`다.
-17. [미결] 사용량 계측: 검토별 입력·출력 토큰은 `fork.finished`와 투영의 검토 행, `review.finished`에 남긴다. group-kit `GroupMetricsHandle`은 조회(`snapshot`)뿐이고 토큰을 더하는 연산이 없다. 토큰 집계는 `lease.*`·`turn.completed`가 필요한 group-kit G-17의 몫이라 학습 그룹은 연결하지 않았다(LR-17).
+17. (닫힘, M3b) 사용량 계측: 검토별 입력·출력 토큰은 `fork.finished`와 투영의 검토 행, `review.finished`에 남긴다. group-kit G-17이 `GroupMetricsHandle.addUsage(delta)`를 더해 `GroupMetrics` 쓰기 API 연결 가능이다. 학습 그룹은 검토 종료 때 토큰과 비용을 이 연산으로 더할 수 있다. 학습 그룹 코드의 연결은 이 변경에 없고 LR-17 후속이다.
 
 닫힌 항목:
 

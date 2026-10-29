@@ -162,7 +162,7 @@ export interface GroupApi<S, D extends GroupSettingDefs = Record<never, never>> 
   delegateStatus(requestId: string, options?: { readonly threadId?: ThreadId }): DelegateStatusResult;
   /** [제안] 이 scope가 주체인 진행 중 백그라운드 위임을 모두 취소한다. onDispose와 명령 처리기에서 쓴다(§4.10, [결정: D-M3-04]). 재실행되는 코드에서는 `group.effectNotAllowed`다 */
   cancelDelegates(reason?: string): Promise<CancelDelegatesResult>;
-  /** 이 그룹의 계측 조회(§3.12). 2차 전까지 snapshot()은 메모리 집계만 돌려준다 */
+  /** 이 그룹의 계측 조회(§3.12). snapshot()은 카운터 값이다. thread별 사용량은 GroupStatus.metrics에서 합친다(§4.9) */
   readonly metrics: GroupMetricsHandle;
   /** 그룹 전용 모델 도구 등록. X hostOf(g).registerTool을 그대로 부른다. setup 안에서만. scope가 꺼지면 해제된다 */
   registerTool(def: ToolResourceDef): void;
@@ -685,7 +685,7 @@ export interface GroupService extends LeaseArbiterPort {
 }
 ```
 
-- 구현 [M2]: `createGroupService(deps)`가 `GroupServiceWithSetting`(`GroupService` + `driveHolderSetting()`)을 만든다. 의존은 `host`(`ExtHost`의 `scopes`·`scope`·`leaseOf`·`onChange`·`ports`), `catalog`(`GroupCatalogPort`: 설치된 그룹의 매니페스트와 로드 순서), `holder`(`DriveHolderSettingsPort`: 설정 `x.primitives.activeDriveGroup` 읽기·쓰기), `currentThread`, `report`다. `DriveHolderSettingsPort.write(holder, scope, threadId)`의 `threadId`는 `setDriveHolder`의 `options.threadId`(없으면 null)이고, 쓰기 실패는 `HolderWriteError`(`locked`, 또는 `unwritable`과 `reason`)로 돌려준다. 서비스는 `locked`를 `group.settingLocked`로, `unwritable`을 `group.settingUnwritable`(같은 `reason`)로 옮기고 `appliesAt`는 `options.threadId`가 있으면 그 thread의 임대로 잰다 [결정: 통합 검토 L8]. 쓸 thread를 정하는 일(`no_thread`·`ambiguous_thread`)은 포트 구현(HOST)이 한다. `catalog`와 `holder`는 조립 루트가 로더 보고와 설정 서비스에 연결한다. 상태는 호출 때마다 `ExtHost`에서 새로 읽고 사본을 쌓지 않는다. `onChange`는 같은 동기 구간의 변경을 구독자에게 한 번만 알린다. `GroupStatus.metrics`는 `metrics` 의존이 없으면 null이다(계측 이벤트는 M3).
+- 구현 [M2]: `createGroupService(deps)`가 `GroupServiceWithSetting`(`GroupService` + `driveHolderSetting()`)을 만든다. 의존은 `host`(`ExtHost`의 `scopes`·`scope`·`leaseOf`·`onChange`·`ports`·`queryEvents`, M3b에 `queryEvents`를 더했다), `catalog`(`GroupCatalogPort`: 설치된 그룹의 매니페스트와 로드 순서), `holder`(`DriveHolderSettingsPort`: 설정 `x.primitives.activeDriveGroup` 읽기·쓰기), `currentThread`, `report`다. `DriveHolderSettingsPort.write(holder, scope, threadId)`의 `threadId`는 `setDriveHolder`의 `options.threadId`(없으면 null)이고, 쓰기 실패는 `HolderWriteError`(`locked`, 또는 `unwritable`과 `reason`)로 돌려준다. 서비스는 `locked`를 `group.settingLocked`로, `unwritable`을 `group.settingUnwritable`(같은 `reason`)로 옮기고 `appliesAt`는 `options.threadId`가 있으면 그 thread의 임대로 잰다 [결정: 통합 검토 L8]. 쓸 thread를 정하는 일(`no_thread`·`ambiguous_thread`)은 포트 구현(HOST)이 한다. `catalog`와 `holder`는 조립 루트가 로더 보고와 설정 서비스에 연결한다. 상태는 호출 때마다 `ExtHost`에서 새로 읽고 사본을 쌓지 않는다. `onChange`는 같은 동기 구간의 변경을 구독자에게 한 번만 알린다. `GroupStatus.metrics`는 계측이 꺼졌거나 그룹이 아직 설정되지 않았으면 null이다. 나머지는 등록부의 카운터에 `refreshUsage`로 캐시한 이벤트 집계를 합친다(M3b, §4.9). `deps.metrics`를 주면 그 값을 그대로 쓴다.
 - `setDriveHolder`의 `appliesAt` [M2]: `auto`는 `"now"`(현재 holder 유지). 지정한 그룹이 이미 holder면 `"now"`. 임대가 없으면 `"nextStepBoundary"`. 다른 그룹이 임대를 갖고 지정한 그룹이 후보(켜짐, drive 등록, 오류 아님)이면 X가 다음 경계에서 회수하므로 `"nextStepBoundary"`, 후보가 아니면 현재 임대를 유지하므로 `"afterLeaseRelease"`다. `contracts/services/groups.ts`의 `setDriveHolder` 주석 "현재 임대는 회수하지 않는다"는 이 규칙과 맞지 않아 F 레인에 고침을 요청한다.
 - 서비스 이름 `xeon.groups`와 인터페이스 이름 `GroupService`는 `eng.context-map.design` 5.3절 표와 같다. 소비자는 `helm`, `learning`, `host`, 그리고 `LeaseArbiterPort`로 주입받는 X다. `choose`는 `leaseArbiterPort(defaultDriveArbiter, …)`가 만든 함수다(§3.5).
 - [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupSettingUnwritableReason`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-kit은 `@xeon/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `ScopeStatus`, `LeaseId`, `RecordKind`, `Unsubscribe`, `LeaseArbiterPort`, `ScopeId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
@@ -926,7 +926,7 @@ import type { GroupMetricsSummary } from "@xeon/contracts/services";
 
 export interface GroupMetrics extends GroupMetricsSummary {
   readonly groupId: GroupId;
-  /** M2는 프로세스 안 메모리 집계라 모든 thread의 합을 뜻하는 null이다. M3(G-17)부터 thread별 값이다 */
+  /** 모든 thread의 합을 뜻하는 null이다. thread별 임대 시간과 비용은 GroupStatus.metrics가 이벤트에서 따로 낸다(§4.9) */
   readonly threadId: ThreadId | null;
   /** first 지점에서 이 그룹 핸들러가 결정(거부)을 돌려준 횟수 */
   readonly denies: number;
@@ -949,17 +949,32 @@ export interface GroupMetrics extends GroupMetricsSummary {
   readonly leases: number;
 }
 
-// M2에서 채우는 필드: posts(duplicate 제외), spawns(drive 안 loop.spawn), delegates, commits, records.
-// denies·chainPatches·handlerErrors는 on 래퍼가 필요해 M3까지, tokens·costUsd·leaseMs·leases는 lease.*·turn.completed 이벤트가 필요해 M3까지 0이다.
+// 카운터 필드: posts(duplicate 제외), spawns(drive 안 loop.spawn), delegates, commits, records는 wrap이 올린다.
+// denies·chainPatches·handlerErrors는 on 래퍼가 올리고(§4.9), tokens·costUsd는 addUsage가 더한다 (M3b, G-17).
+// leases·leaseMs와 turn.completed 사용량은 snapshot에서 0이다. 서비스가 lease.*·turn.* 이벤트로 따로 셈해 GroupStatus.metrics에 합친다.
 /** GroupMetricsSummary는 F services/groups.ts(§3.8)의 정의를 다시 내보낸다. GroupMetrics는 그 필드를 모두 가진다 */
 export type { GroupMetricsSummary } from "@xeon/contracts/services";
 
 export interface GroupMetricsHandle {
-  /** 이 thread의 누적값. 순수 조회 */
+  /** 누적값. 순수 조회 */
   snapshot(): GroupMetrics;
+  /**
+   * 그룹이 쓴 토큰과 비용을 더한다(LR-17). 인자가 음수이거나 유한하지 않으면 호출 계약 위반이라 `Bug`를 던진다.
+   * 그룹 코드가 만든 값이라 오류 값 대신 버그로 다룬다(TY-24). 검사가 끝나기 전에는 아무 값도 더하지 않는다.
+   */
+  addUsage(delta: {
+    readonly input: number;
+    readonly output: number;
+    readonly cacheRead: number;
+    readonly cacheWrite: number;
+    readonly costUsd: number;
+  }): void;
 }
 
-/** grp.<그룹>.metrics.recorded payload(recordPrivate). 단계 경계마다 0이 아닌 증가분만 */
+/**
+ * grp.<그룹>.metrics.recorded payload(recordPrivate). 단계 경계마다 마지막 기록 뒤의 0이 아닌 증가분만 쓴다.
+ * stepId는 경계 signal의 turnId다 [결정: 오케스트레이터 기본값, M3b].
+ */
 export interface MetricsRecordedPayload {
   readonly stepId: string;
   readonly delta: Omit<GroupMetrics, "groupId" | "threadId">;
@@ -1141,10 +1156,15 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 ### 4.9 계측 기록 (2차)
 
-- `wrap`이 감싼 연산에서 메모리 카운터를 올린다. `on` 래퍼는 first 지점 반환이 `undefined`가 아니면 `denies`, chain 지점 반환이 `undefined`가 아니면 `chainPatches`, 예외면 `handlerErrors`를 올린다.
-- `l3.group-kit.instrumentation`이 참이면 단계 경계마다 증가분이 0이 아닌 그룹에 대해 `grp.<그룹>.metrics.recorded` 비공개 기록을 그 그룹의 `recordPrivate`로 쓴다 [결정: review.decisions-2 T-21]. 커밋 단위는 X.primitives.spec §4.6.5를 따른다. 핸들러 안의 호출은 따로 커밋하고, 단계 커밋에 함께 실으려면 boundary chain 결과의 `entries`를 쓴다. 멱등 키는 `record`와 같아 재실행된 같은 호출은 `replayed`다. kind는 매니페스트 `recordKinds`에 선언하지 않는다(공개 kind와 같은 이름이면 `record_private_invalid`).
-- 토큰·비용은 그룹이 시작한 turn의 `turn.completed` 사용량과 자식 thread 사용량에서 계산한다. 임대 시간은 `lease.*` 이벤트의 `recordedAt` 차이로 잰다. 계측 코드는 시계를 직접 읽지 않는다(TY-21).
-- kind 소유 [결정: review.decisions-2 T-21]: `grp.<그룹>.metrics.recorded`의 접두 소유자는 각 그룹이고 생산 코드는 group-kit `wrap`이다. `grp.<그룹>.state.committed`는 X가 쓴다(X.primitives.spec §4.6.1).
+- **지점 카운터(M3b).** `on` 래퍼는 핸들러를 감싸 반환과 예외를 센다. first 지점에서 정의된(`undefined`가 아닌) 반환은 `denies`, chain 지점의 정의된 반환은 `chainPatches`, 던진 오류(동기 던지기와 거부된 Promise 모두)는 `handlerErrors`를 올리고 같은 값으로 다시 던진다. tap과 collect 지점은 `handlerErrors`만 센다. 반환값은 바꾸지 않는다.
+- **사용량 쓰기(M3b, LR-17).** `metrics.addUsage(delta)`가 `tokens`와 `costUsd`를 더한다. 인자 검사는 §3.12 대로다.
+- **이벤트 집계(M3b, G-17).** `summarizeUsage(events)`는 순수 함수다. 한 thread의 이벤트열을 scope별로 접는다. `lease.acquired`는 임대 수를 올리고, 같은 `leaseId`의 `lease.released`는 `recordedAt` 차이를 임대 시간에 더한다. 풀리지 않은 임대는 수에만 든다. `turn.started`의 scopeId가 null이 아니면 그 turnId의 `turn.completed` 사용량을 그 scope에 더한다. 검사에 실패한 payload는 건너뛴다. 시계는 읽지 않는다(TY-21).
+- **서비스 캐시와 상태(M3b).** `refreshUsage(threadId)`는 `queryEvents(threadId, { kindPrefix: "lease." })`와 `{ kindPrefix: "turn." }`을 읽어 `seq` 순으로 합치고 `summarizeUsage`로 접는다. 결과는 그 thread의 캐시가 된다. 조회가 하나라도 실패하면 캐시를 그대로 두고 던지지 않는다. `/group status`는 상태를 보이기 전에 현재 thread를 한 번 갱신한다. `GroupStatus.metrics`는 등록부의 카운터(denies, posts, spawns, delegates)와 캐시를 합친다. `costUsd`는 카운터 `addUsage` 비용과 `turn.completed` 비용의 합이고, `leaseMs`는 `lease.*` 구간의 합이다. 캐시는 마지막으로 갱신한 thread의 값만 보인다. 다른 thread를 보면 이벤트 값은 0이다.
+- **등록부(M3b).** `wrap`은 그룹 이름으로 계측 핸들을 프로세스 전역 등록부(`defaultMetricsRegistry`)에 등록한다. 같은 이름으로 다시 등록하면 새 핸들이 옛 핸들을 대신한다. 조립 루트의 배선은 없다 [결정: 오케스트레이터 기본값, M3b].
+- **단계 경계 기록(M3b).** 매니페스트 `points`에 `boundary.settle.after`가 있으면 `wrap`이 그룹 핸들러보다 먼저 `boundary.settle.after` 핸들러를 등록한다. 핸들러는 경계마다 설정 읽기 포트(`settingsSource`)로 `l3.group-kit.instrumentation`을 읽는다. 값이 `false`가 아니면(읽지 못하거나 값이 없으면 참) 마지막 기록 뒤의 증가분을 구한다. 0이 아닌 값이 하나라도 있을 때만 `grp.<그룹>.metrics.recorded`를 그 그룹의 `recordPrivate`로 쓴다. payload는 `{ stepId: 경계 turnId, delta }`다 [결정: 오케스트레이터 기본값, M3b]. 쓰기가 성공했을 때만 기준을 옮긴다. 끄는 동안에는 기준을 옮기지 않으므로, 다시 켠 첫 경계의 기록에는 끈 동안의 증가분도 든다.
+- **기록의 한계(M3b).** 기록 핸들러가 setup 전에 등록되어 먼저 돈다. 그래서 같은 경계에서 그룹 핸들러가 올린 값은 다음 경계의 기록에 든다. 마지막 경계에서 올린 값은 다음 경계가 없어 기록되지 않는다. 기준은 프로세스가 뜬 뒤 0에서 시작한다. 재시작 뒤 첫 기록은 재시작 뒤의 증가분만 담고, 옛 프로세스의 값은 기록에 없다. 매니페스트에 `boundary.settle.after`를 선언하지 않은 그룹에는 기록 핸들러가 없어 `grp.<그룹>.metrics.recorded`를 쓰지 않는다. 그 그룹의 값은 `snapshot`과 `/group status`에서만 본다.
+- 계측 코드는 시계를 직접 읽지 않는다(TY-21).
+- kind 소유 [결정: review.decisions-2 T-21]: `grp.<그룹>.metrics.recorded`의 접두 소유자는 각 그룹이고 생산 코드는 group-kit `wrap`이다. `grp.<그룹>.state.committed`는 X가 쓴다(X.primitives.spec §4.6.1). 커밋 단위는 X.primitives.spec §4.6.5를 따른다. 멱등 키는 `record`와 같아 재실행된 같은 호출은 `replayed`다. kind는 매니페스트 `recordKinds`에 선언하지 않는다(공개 kind와 같은 이름이면 `record_private_invalid`).
 
 ### 4.10 위임 규칙
 
@@ -1254,6 +1274,9 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 22. (M3, ADR-0015) `replayDrive`는 효과 계수기를 가진 하니스에서 모든 절단 지점의 drive·on 핸들러 이중 실행 뒤에도 `EffectCounts`가 기준 실행과 같으면 `ok: true`다. 같은 `requestId` 없이 효과를 두 번 내는 그룹에는 `failure: "effects-doubled"`를 돌려준다.
 23. (M3, ADR-0015) `delegateStatus`는 drive 문맥에서 상태를 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행되는 코드에서 거부되고 `onDispose`와 명령 처리기에서는 동작한다.
 24. (M3) 임대 대기 상한을 넘어 거부된 그룹의 `GroupStatus.drive`는 `"rejected"`다.
+25. (M3b, G-17) `on` 래퍼는 first 지점의 정의된 반환을 `denies`, chain 지점의 정의된 반환을 `chainPatches`, 던진 오류를 `handlerErrors`로 올리고 오류를 같은 값으로 다시 던진다. `undefined` 반환은 세지 않는다.
+26. (M3b, LR-17) `metrics.addUsage`는 `tokens`와 `costUsd`를 더한다. 음수나 유한하지 않은 값이면 `Bug`를 던지고 그 호출은 아무 값도 바꾸지 않는다.
+27. (M3b, G-17) `/group status`는 현재 thread의 `lease.*`·`turn.*` 이벤트로 임대 시간과 비용을 채운다. 조회가 실패하면 이전 캐시를 두고 명령은 성공한다. 계측 기록은 경계마다 증가분만 쓴다. 두 번째 기록에 첫 기록의 값이 다시 들지 않는다.
 
 ## 10. 미결 사항
 
@@ -1282,4 +1305,10 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [미결] [M3a] G-30의 "실패 값": `GroupStatus.drive`의 `"rejected"`만 채웠다. 거부 사유(`reason`, `requestSeq`)를 `GroupStatus`나 `GroupError`에 싣는 안은 F `services/groups.ts` 변경이 필요해 하지 않았다.
 - [미결] [M3a] `replayDrive`의 지점 목록 지정(`cutAt`)과 사용자 입력 시작(`input`), 실패 보고의 첫 차이 이벤트 표시는 G-20 남은 몫이다.
 - (닫힘) `RuntimeChange`의 단계 경계 값: 이 값을 쓰던 group-kit의 구동 그룹 키를 지웠다(§6, review.decisions-2 S-15).
+- [결정: 오케스트레이터 기본값, M3b] 계측 등록부는 프로세스 전역 `defaultMetricsRegistry`다(§4.9). 조립 루트의 배선은 두지 않는다.
+- [결정: 오케스트레이터 기본값, M3b] `addUsage`의 잘못된 인자는 `Bug`다. 그룹 코드가 만든 값의 불변 조건 위반이라 TY-24에 따른다. 호출자가 외부 확장이 되면 오류 값으로 바꾸고 시그니처를 `Result`로 고친다.
+- [결정: 오케스트레이터 기본값, M3b] `grp.<그룹>.metrics.recorded`의 stepId는 경계 turnId다.
+- [미결] M3b 기록은 같은 경계에서 그룹 핸들러가 올린 증가분을 다음 기록으로 미룬다(§4.9 기록의 한계). 마지막 경계의 값은 기록되지 않는다. 경계 뒤에 쓰려면 기록 핸들러를 그룹 setup 뒤에 등록해야 하는데, 그 순서는 `defineGroup`의 진입 순서를 바꾼다.
+- [미결] M3b의 이벤트 집계는 마지막으로 갱신한 thread만 보인다. 여러 thread의 임대 시간과 비용을 한 줄로 보일지는 정하지 않았다.
+- [미결] 학습 그룹의 `addUsage` 연결(LR-17)은 이 변경에 없다. 학습 스펙 §10 17이 연결 가능 상태를 적는다.
 - [결정: review.decisions-2 U-17] `group-kit`의 `@xeon/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 그룹 패키지는 `@xeon/ext-host`를 import하지 않는다(L3.readme §3).
