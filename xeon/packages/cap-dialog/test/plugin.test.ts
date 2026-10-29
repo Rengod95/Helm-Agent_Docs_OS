@@ -19,8 +19,16 @@ import {
   type ServiceKey,
 } from "@xeon/contracts/capabilities";
 import type { ThreadId } from "@xeon/contracts/conversation";
-import { ApprovalServicePortKey, type OsTime } from "@xeon/contracts/services";
+import {
+  ApprovalServicePortKey,
+  type NotifyError,
+  type OsNotification,
+  type OsTime,
+  type Redactor,
+} from "@xeon/contracts/services";
+import type { ScopeStack } from "@xeon/contracts/settings";
 import { defineManifest, validateManifest, type PortKey } from "@xeon/contracts/extensions";
+import { fakeRedactor } from "@xeon/core-tools/testing";
 import type {
   CommitBatch,
   DurableEventEnvelope,
@@ -71,11 +79,13 @@ interface FakeOs {
   readonly dirs: { readonly home: string };
   readonly time: Pick<OsTime, "clock" | "scheduler" | "random">;
   logger(component: string): ReturnType<typeof recordingLogger>;
+  notify(notification: OsNotification, signal: AbortSignal): Promise<Result<void, NotifyError>>;
 }
 type FakeExec = MemoryCommandFiles & MemoryFiles & { readonly cwd: string };
 
 const ExecKey: PortKey<FakeExec> = { name: "xeon.exec" };
 const OsKey: PortKey<FakeOs> = { name: "xeon.os" };
+const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "xeon.secrets" };
 const StoreKey: PortKey<MemoryBlobs> = { name: "xeon.store" };
 const FeedKey: PortKey<FakeFeed> = { name: "xeon.session", member: "feed" };
 const QueryKey: PortKey<FakeQuery> = { name: "xeon.session", member: "query" };
@@ -93,6 +103,8 @@ interface Collected {
   readonly volatile: VolatileEventEnvelope[];
   readonly subscribed: { afterSeq: number; kindPrefixes: readonly string[] | undefined }[];
   listener: ((batch: CommitBatch) => void) | undefined;
+  /** `xeon.os`의 notify 호출 기록 */
+  readonly notified: { readonly notification: OsNotification; readonly signal: AbortSignal }[];
 }
 
 async function boot(
@@ -104,6 +116,10 @@ async function boot(
     trust?: ((projectDir: string) => Promise<boolean>) | null;
     /** 기본 명령 파일에 더하는 파일 */
     extraCommands?: Record<string, string>;
+    /** 설정 층. 생략하면 비어 있다(기본값) */
+    layers?: ScopeStack;
+    /** `xeon.secrets`의 redactor 제공 여부. 생략하면 제공한다 */
+    secrets?: boolean;
   } = {},
 ) {
   // 능력 정의 표가 있어야 호스트가 정의의 메서드만 감싼다. 구독 같은 정의 밖 멤버는 그대로 넘긴다(조립 루트와 같다)
@@ -121,7 +137,7 @@ async function boot(
   const files = memoryFiles();
   const blobs = memoryBlobs();
   const approvals = await realApprovals();
-  const collected: Collected = { volatile: [], subscribed: [], listener: undefined };
+  const collected: Collected = { volatile: [], subscribed: [], listener: undefined, notified: [] };
   const exec: FakeExec = { ...commandFiles, ...files, cwd: "/work" };
   // 항목이 없는 대화는 엔진 cwd와 같은 `/work`를 작업 폴더로 가진다. undefined를 넣으면 작업 폴더가 없는 대화다
   const workspace: Record<string, string | undefined> = {};
@@ -134,7 +150,12 @@ async function boot(
         dirs: { home: "/home/user" },
         time: { clock: timers.clock, scheduler: timers.scheduler, random: () => 0.5 },
         logger: () => recordingLogger(lines),
+        notify: (notification, signal) => {
+          collected.notified.push({ notification, signal });
+          return Promise.resolve<Result<void, NotifyError>>(ok(undefined));
+        },
       });
+      if (options.secrets !== false) ctx.providePort(SecretsKey, { redactor: fakeRedactor() });
       if (options.store !== false) ctx.providePort(StoreKey, blobs);
       // 승인은 실제 core-tools 서비스다. 플러그인이 이 포트를 `questionApprovalsOver`로 감싸 쓴다
       if (options.approvals !== false)
@@ -204,7 +225,7 @@ async function boot(
   const shell = fakeShell();
   const installed = await t.host.install(
     dialogPlugin({
-      settings: { layers: () => [] },
+      settings: { layers: () => options.layers ?? [] },
       ids,
       shell,
       ...(options.trust === null
@@ -583,6 +604,84 @@ describe("plugin", () => {
     const thread = t.newThread();
     await apis.status?.setItem({ id: "g.x", text: "x" }, callOptions(thread));
     expect((await apis.status?.list({}, callOptions(thread)))?.items).toHaveLength(1);
+  });
+});
+
+/** 피드가 완료한 턴 이벤트 하나를 커밋했다고 알린다 */
+function feedTurnCompleted(
+  collected: Collected,
+  threadId: ThreadId,
+  seq: number,
+  status: "completed" | "failed",
+  error?: string,
+): void {
+  collected.listener?.({
+    firstSeq: seq,
+    lastSeq: seq,
+    events: [
+      {
+        id: ids.next("evt"),
+        kind: "turn.completed",
+        version: 1,
+        threadId,
+        turnId: null,
+        stepId: null,
+        recordedAt: 1,
+        causationId: null,
+        correlationId: null,
+        payload: turnCompleted(status, error),
+        durable: true,
+        seq,
+        parentId: null,
+      },
+    ],
+  });
+}
+
+describe("OS 알림", () => {
+  test("피드의 완료 턴을 xeon.os의 notify로 보낸다", async () => {
+    const { t, collected } = await boot();
+    const thread = t.newThread();
+    feedTurnCompleted(collected, thread, 11, "completed");
+    expect(collected.notified.map((sent) => sent.notification)).toEqual([
+      { kind: "done", title: "작업이 끝났다", body: "", threadId: thread },
+    ]);
+  });
+
+  test("턴 실패는 오류 종류로 보내고 본문을 그대로 넘긴다", async () => {
+    const { t, collected } = await boot();
+    const thread = t.newThread();
+    feedTurnCompleted(collected, thread, 11, "failed", "boom");
+    expect(collected.notified.map((sent) => sent.notification)).toEqual([
+      { kind: "error", title: "턴이 실패했다", body: "boom", threadId: thread },
+    ]);
+  });
+
+  test("notify.os가 꺼져 있으면 보내지 않는다", async () => {
+    const { t, collected } = await boot({
+      layers: [
+        { scope: "user", values: new Map<string, unknown>([["l2.dialog.notify.os", false]]) },
+      ],
+    });
+    feedTurnCompleted(collected, t.newThread(), 11, "completed");
+    expect(collected.notified).toEqual([]);
+  });
+
+  test("redactor가 없으면 본문을 가릴 수 없어 보내지 않고 한 번 경고한다", async () => {
+    const { t, lines, collected } = await boot({ secrets: false });
+    feedTurnCompleted(collected, t.newThread(), 11, "completed");
+    expect(collected.notified).toEqual([]);
+    expect(lines.filter((line) => line.event === "dialog.redactor_missing")).toHaveLength(1);
+  });
+
+  test("제거하면 보내는 중인 호출의 신호가 중단된다", async () => {
+    const { t, collected } = await boot();
+    feedTurnCompleted(collected, t.newThread(), 11, "completed");
+    const [only] = collected.notified;
+    expect(only?.signal.aborted).toBe(false);
+    await t.host.uninstall(DIALOG_EXTENSION_NAME);
+    await t.settled();
+    expect(only?.signal.aborted).toBe(true);
   });
 });
 

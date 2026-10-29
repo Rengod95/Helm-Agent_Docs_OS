@@ -9,20 +9,13 @@ import {
   RunFinishedPayloadSchema,
   WorkGoalSettledSchema,
 } from "@xeon/contracts/records";
+import { clip } from "../util.ts";
 
 // L2.dialog.spec §4.7.1 분류 표. 내구 이벤트 하나에서 알림을 계산하는 순수 함수다.
 // 파생 알림은 새 이벤트를 쓰지 않는다. 모르는 종류와 해석할 수 없는 payload는 null이다.
 
 const TITLE_MAX = 120;
 const BODY_MAX = 1000;
-
-/** 길이를 넘는 문자열을 자른다. 서로게이트 쌍의 앞 절반만 남기지 않는다 */
-function clip(text: string, max: number): string {
-  if (text.length <= max) return text;
-  const last = text.charCodeAt(max - 1);
-  const end = last >= 0xd800 && last <= 0xdbff ? max - 1 : max;
-  return text.slice(0, end);
-}
 
 function notice(
   event: DurableEventEnvelope,

@@ -116,6 +116,30 @@ describe("설정 키 13개", () => {
     expect(settings.attachments.maxBytes).toBe(DEFAULT_DIALOG_SETTINGS.attachments.maxBytes);
   });
 
+  test("알림 여섯 키를 읽고, notify.os는 user 범위에서만 읽힌다", () => {
+    const settings = readDialogSettings([
+      layer("user", { "l2.dialog.notify.os": false, "l2.dialog.notify.error": false }),
+      layer("project", {
+        "l2.dialog.notify.completed": false,
+        // 종류별 키는 project 범위에서도 읽힌다. 형식이 틀린 값은 건너뛴다
+        "l2.dialog.notify.approvalWaiting": "no",
+      }),
+    ]);
+    expect(settings.notify).toEqual({
+      os: false,
+      kinds: {
+        completed: false,
+        approval_waiting: true,
+        question_waiting: true,
+        error: false,
+        background_completed: true,
+      },
+    });
+    expect(readDialogSettings([layer("project", { "l2.dialog.notify.os": false })]).notify.os).toBe(
+      true,
+    );
+  });
+
   test("변경은 다음 호출부터 적용된다", async () => {
     let layers: ScopeStack = [layer("user", { "l2.dialog.ask.timeoutSec": 10 })];
     const h = harness({ approvals: await realApprovals() });

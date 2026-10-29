@@ -18,7 +18,7 @@ import { classifyNotice } from "./classify.ts";
 // L2.dialog.spec §3.6, §4.7. `dialog.notify`의 emit(내구 기록), list(당겨 읽기), 구독(같은 프로세스 밀어주기)을 구현한다.
 // 알림은 원인 내구 이벤트에서 `classifyNotice`로 계산한다. emit만 `dialog.notified`를 새로 남긴다.
 // 구독자에게는 피드의 이벤트마다 한 번 계산한 알림을 보내며, 같은 스레드·같은 종류는 1초 안에 한 번만 보낸다.
-// list는 묶음과 무관하게 모든 알림을 돌려준다. OS 전달은 다음 단위다(D11).
+// list는 묶음과 무관하게 모든 알림을 돌려준다. OS 전달(`os-delivery.ts`)도 이 구독을 거쳐 같은 묶음을 받는다(D11).
 
 type NotifyApi = CapabilityApi<typeof DialogNotify> & NoticeFeed;
 

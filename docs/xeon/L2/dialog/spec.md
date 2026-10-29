@@ -960,13 +960,13 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 |---|---|---|
 | 같은 프로세스 소비자(L4 in-process 클라이언트, 그룹) | `NoticeFeed.subscribe` | 1 |
 | 클라이언트 당겨 읽기 | `dialog.notify.list`(wire는 §4.2.6 [미결]) | 1 |
-| OS 알림(데스크톱 알림 센터) | cap-dialog가 `xeon.os`의 `notify(n, signal)`을 부른다(`L0.os.spec` §3.7, §3.10. 확인함). M3 이전 빌드와 provider `none`이면 `disabled`를 돌려준다 | 1 |
+| OS 알림(데스크톱 알림 센터) | cap-dialog가 `xeon.os`의 `notify(n, signal)`을 부른다(`L0.os.spec` §3.7, §3.10. 확인함). M3 이전 빌드와 provider `none`이면 `disabled`를 돌려준다. 구현은 `notify/os-delivery.ts`다 [구현: M3b D11] | 1 |
 | 모바일 푸시 | cap-dialog(`dialog.notify`)의 푸시 채널 [제안]. 외부 중계와 인증 계층은 서비스 모드(`L4.host-service.spec`)가 준다 | 2(서비스 모드) |
 
 - 같은 프로세스 구독(`NoticeFeed.subscribe`)은 같은 스레드·같은 종류의 알림을 1초(`NOTICE_COALESCE_MS`) 안에 한 번만 보낸다 [구현: M3b D11]. 창 안에서 묶인 알림은 시각을 갱신하지 않는다. 묶는 것은 전달뿐이고 `list`는 모든 알림을 돌려준다. 같은 단계의 `turn.completed`와 `work.goal_settled`(목표 달성)이 한 번만 전달되게 하려는 기본값이다 [결정: 오케스트레이터 기본값]. 구독은 피드 이벤트마다 알림을 한 번 계산하고, 이미 본 seq는 무시한다.
-- OS 알림은 kind별 설정(`l2.dialog.notify.<kind>`)과 `l2.dialog.notify.os`가 모두 켜졌을 때만 보낸다. 클라이언트 창이 앞에 있을 때 보내지 않는 조건은 클라이언트만 알 수 있으므로 [미결](§10 D-6). 기본은 창 상태와 관계없이 보내고 화면 표시는 클라이언트가 정한다 [결정: review.m3-design-inputs D-M3-17].
+- OS 알림은 kind별 설정(`l2.dialog.notify.<kind>`)과 `l2.dialog.notify.os`가 모두 켜졌을 때만 보낸다. 설정은 알림마다 그 대화의 범위로 읽는다 [구현: M3b D11]. 클라이언트 창이 앞에 있을 때 보내지 않는 조건은 클라이언트만 알 수 있으므로 [미결](§10 D-6). 기본은 창 상태와 관계없이 보내고 화면 표시는 클라이언트가 정한다 [결정: review.m3-design-inputs D-M3-17].
 - 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 알림 채널이 한 곳에 있어야 무엇을 어디로 받을지 정하는 사용자 설정이 하나로 모인다. 모바일 푸시는 상주 서비스와 인증 계층이 필요하므로(`_research/l2e.md` §6 B4) 서비스 모드에서만 켜지고, 꺼져 있으면 `unavailable`(`detail.reason: "service_mode_off"`)이다(`L2.readme` §8). 이 경계에서는 `schedule.remote`가 dialog를 읽지 않으므로 L2 사이 간선이 생기지 않는다(`L2.readme` §6).
-- OS 알림 kind 대응 [제안]: `xeon.os`의 `notify`는 `NotifyKind` 4종(`done`, `approval`, `question`, `error`)을 받는다(`L0.os.spec` §3.7). 알림 5종을 다음과 같이 옮긴다.
+- OS 알림 kind 대응 [구현: M3b D11]: `xeon.os`의 `notify`는 `NotifyKind` 4종(`done`, `approval`, `question`, `error`)을 받는다(`L0.os.spec` §3.7). 알림 5종을 다음과 같이 옮긴다.
 
 | `NoticeKind` | `L0.os` `NotifyKind` |
 |---|---|
@@ -977,6 +977,8 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `background_completed` | `done` |
 
 - 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 설정 탭은 이 문서의 `l2.dialog.notify.*`(§6)가 정본이다. L0.os는 전달 수단(`xeon.os`의 `notify`)만 소유하고 켜기·종류 키를 두지 않는다 [결정: review.decisions-2 S-04]. OS가 알림을 막아 `notify`가 전달하지 못하면 cap-dialog는 이를 실패로 보지 않고 운영 로그에 남긴다.
+- OS 알림의 내용: 제목과 본문을 `xeon.secrets`의 `redactor.mask`로 가린 뒤 제목 80자, 본문 400자로 자른다(`L0.os.spec` §3.7은 자르기 전에 가리라고 한다). 본문이 없는 알림은 빈 본문으로 보낸다. `xeon.secrets`가 없으면 본문을 가릴 수 없으므로 보내지 않고 `dialog.redactor_missing` 경고를 한 번 남긴다 [결정: 오케스트레이터 기본값] [구현: M3b D11].
+- 보내기 결과는 대화를 실패시키지 않는다. `disabled`는 디버그 로그(`dialog.notify_os_disabled`)만 남기고, `unavailable`·`failed`·`cancelled`는 경고 로그(`dialog.notify_os_failed`, 제공자와 코드를 담는다)를 남긴다. 보내기 Promise가 거부되면 잡아서 오류 로그(`dialog.notify_os_rejected`)를 남긴다. 플러그인이 해제되면 쥔 신호를 중단해 보내는 중인 호출을 끝낸다 [구현: M3b D11].
 
 ### 4.8 노출 계약: 입력 큐와 되감기
 
@@ -995,7 +997,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 7. 셸 주입 실행 중 사용자가 거부(도구 승인 거부): 그 자리를 `[셸 거부]`로 치환하고 계속하지 않는다. `run`은 `CapabilityError(denied)`를 낸다.
 8. 상태줄 세그먼트 32개 초과: 뒤 항목은 휘발 이벤트에서 빠지고 `list`에는 남는다.
 9. 첨부 경로가 없음: `not_found`. 읽기 권한 없음: `denied`.
-10. 알림 원인 이벤트가 같은 단계에서 여러 개: 같은 스레드·같은 kind는 1초 안에 한 번만 보낸다. 구독 전달은 §4.7.2에서 구현됐다(M3b D11). OS 알림도 같은 묶음을 쓴다 [제안: OS 전달 단위에서 붙인다].
+10. 알림 원인 이벤트가 같은 단계에서 여러 개: 같은 스레드·같은 kind는 1초 안에 한 번만 보낸다. 구독 전달은 §4.7.2에서 구현됐다(M3b D11). OS 알림도 같은 묶음을 쓴다. OS 전달은 구독 전달을 거치므로 묶음이 그대로 적용된다 [구현: M3b D11].
 
 ## 6. 설정 노출
 
@@ -1022,6 +1024,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - `shellInjection`을 `managed`에서 `off`로 잠그면 조직이 명령 파일의 셸 실행을 막을 수 있다.
 - `styles.active`의 값 검사는 등록된 스타일 목록과 대조하는 의미 검사라 `range.enum`으로 두지 않는다. 모르는 값이면 `default`로 적용하고 진단을 남긴다.
 - 알림 분류별 켜기·끄기를 키 다섯 개로 나눈 이유: 설정 화면이 토글 목록으로 그리기 쉽고, `range`가 문자열 배열을 다루지 않기 때문이다(F.wire-settings.spec D5).
+- `l2.dialog.notify.*` 여섯 키는 M3b D11부터 읽힌다. OS 전달(§4.7.2)이 `notify.os`와 종류별 키를 보고, 값은 알림마다 대화 범위로 읽는다. `styles.active`만 2차 기능이 읽을 때까지 선언만 있다 [구현: M3b D11].
 
 ## 7. 확장 지점
 
@@ -1097,6 +1100,7 @@ export const manifest = defineManifest({
 7. 셸 주입이 있는 템플릿은 `confirmShell` 없이 `run`하면 아무 명령도 실행하지 않고 `needs_confirmation`을 낸다.
 8. 프로젝트와 사용자에 같은 이름의 명령 파일이 있으면 프로젝트 것이 쓰이고, 사용자 것은 `includeHidden`에서만 보인다.
 9. `dialog.notify`: `emit` 뒤 `list`가 같은 알림을 같은 값으로 돌려준다. 같은 `requestId` 재호출은 처음 알림과 같은 seq를 돌려주고 기록을 늘리지 않는다. 같은 스레드·같은 종류의 알림 둘은 1초 안에 구독자에게 한 번만 가고, `list`는 둘 다 돌려준다. 시험은 `test/notify-service.test.ts`다.
+10. OS 알림: `notify.os`와 종류별 키가 모두 켜진 알림만 `xeon.os`의 `notify`로 가고, 제목은 80자, 본문은 400자 안에서 가려진 문자열만 쓴다. 보내기 실패는 대화를 실패시키지 않는다. 시험은 `test/notify-os.test.ts`와 `test/plugin.test.ts`의 OS 알림 묶음이다.
 
 ## 10. 미결 사항
 
