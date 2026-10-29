@@ -1,0 +1,21 @@
+# caustic(데스크톱 디자인 시스템)은 git submodule xeon/external/caustic이다. main에 새 커밋이 생기면 갱신 PR을 올린다.
+# 같은 계정의 private 저장소라 Dependabot 비밀 CAUSTIC_READ_TOKEN(caustic 읽기 전용)이 필요하다.
+version: 2
+registries:
+  caustic:
+    type: git
+    url: https://github.com
+    username: x-access-token
+    password: ${{ secrets.CAUSTIC_READ_TOKEN }}
+updates:
+  - package-ecosystem: gitsubmodule
+    directory: /
+    registries:
+      - caustic
+    target-branch: xeon/foundation
+    schedule:
+      interval: daily
+    commit-message:
+      prefix: "deps(caustic)"
+    labels:
+      - caustic

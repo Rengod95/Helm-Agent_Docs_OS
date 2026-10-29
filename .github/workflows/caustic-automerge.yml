@@ -1,0 +1,19 @@
+# Dependabot의 caustic submodule 갱신 PR에 자동 병합을 건다. 필수 검사(xeon CI)가 통과해야 실제로 병합된다.
+# 저장소 설정에서 "Allow auto-merge"를 켜고 대상 브랜치에 필수 검사를 걸어야 동작한다.
+name: caustic auto-merge
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  automerge:
+    if: github.actor == 'dependabot[bot]' && startsWith(github.head_ref, 'dependabot/submodules/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
