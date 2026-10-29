@@ -946,6 +946,13 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - `turn.completed`의 종결 `interrupted`는 사용자가 직접 끊은 것이라 알리지 않는다.
 - 파생 알림은 새 이벤트를 쓰지 않는다. 원인 내구 이벤트에서 순수 함수 `classifyNotice(event): Notice | null`로 계산한다. 그래서 `list`는 `afterSeq` 뒤의 내구 이벤트를 읽어 같은 결과를 낸다.
 - `emit`은 그룹·플러그인이 직접 알릴 때 쓰고 `dialog.notified` 내구 이벤트를 남긴다.
+- 구현 대응은 `xeon/packages/cap-dialog/src/notify/classify.ts`다. 제목은 120자, 본문은 1000자를 넘지 않게 자르고, `sourceType`은 원인 이벤트 종류다. 아래에 없는 종류와 해석할 수 없는 payload는 `null`이다.
+  - `turn.completed`: `completed`는 `completed`("작업이 끝났다"), `failed`는 `error`("턴이 실패했다", 본문은 `error` 문구), `interrupted`는 `null`.
+  - `work.goal_settled`: `met`는 `completed`("목표를 달성했다"), `limit_reached`는 `completed`("목표 판정 한도에 도달했다"). 두 경우 본문은 `판정 N회`다. `judge_failed`는 `error`("목표 판정에 실패했다"). `active`와 `cleared`는 `null`.
+  - `approval.requested`: `tool`은 `approval_waiting`("승인이 필요하다: <도구 이름>"), `plan`은 `approval_waiting`("승인이 필요하다: plan"), `question`은 `question_waiting`("질문에 답이 필요하다"). `review`는 표에 없어 `null`이다 [미결].
+  - `agent.settled`: `completed`는 `background_completed`("백그라운드 작업이 끝났다"), `error`는 `error`("백그라운드 작업이 실패했다", 본문은 `error` 문구), `aborted`는 `null`. 이벤트에 전경·백그라운드 구분이 없어 모든 종료를 분류한다. 전경 위임의 종료도 알림이 된다 [결정: 오케스트레이터 기본값].
+  - `schedule.run_finished`: `completed`는 `background_completed`("예약 작업이 끝났다"), `failed`는 `error`("예약 작업이 실패했다"), `aborted`와 `awaiting_approval`은 `null`이다. 표의 `schedule.*` [가정]은 이 종류로 정한다 [결정: 오케스트레이터 기본값].
+  - `dialog.notified`: 기록된 `notice`의 종류, 제목, 본문을 그대로 옮긴다. 제목이 빈 기록은 `null`이다.
 
 #### 4.7.2 전달 경로와 경계
 
