@@ -18,9 +18,10 @@ import {
 } from "@xeon/contracts/extensions";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { ToolRegistration, Unregister } from "@xeon/contracts/services";
+import type { ScopeLayer } from "@xeon/contracts/settings";
 import type { ExtensionUnit } from "@xeon/ext-host";
 import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
-import { IMPLEMENTED_FILES_TOOLS, workspacePlugin } from "../src/plugin.ts";
+import { workspacePlugin } from "../src/plugin.ts";
 import { WORKSPACE_EXTENSION_NAME, workspaceManifest } from "../src/manifest.ts";
 import { rejection } from "./support/assertions.ts";
 import { fakeSandbox } from "./support/fakes.ts";
@@ -34,6 +35,11 @@ interface FakeOs {
   readonly dirs: { readonly tmp: string };
   readonly time: { readonly clock: { now(): number } };
   logger(component: string): Logger;
+  resolveBinary(
+    name: string,
+    options: unknown,
+    signal: AbortSignal,
+  ): Promise<Result<{ readonly path: string }, { readonly kind: string }>>;
 }
 
 const ExecKey: PortKey<MemoryEnv> = { name: "xeon.exec" };
@@ -72,6 +78,10 @@ async function boot(
     refuse?: string;
     workspaces?: Readonly<Record<string, string>>;
     store?: boolean;
+    /** 번들 rg를 찾지 못하는 대역 */
+    rgMissing?: boolean;
+    /** 설정 층. 기본은 비어 있다 */
+    layers?: readonly ScopeLayer[];
   } = {},
 ) {
   // 시험 호스트가 기본으로 내는 xeon.session(ext 멤버만)이 이 시험의 session 포트와 겹치지 않게 뺀다
@@ -81,6 +91,7 @@ async function boot(
   const registered: ToolRegistration[] = [];
   const unregistered: string[] = [];
   const lines: LogLine[] = [];
+  const resolved: string[] = [];
   await t.host.registerPlatform({
     name: "fake-l0",
     setup(ctx) {
@@ -89,6 +100,13 @@ async function boot(
         dirs: { tmp: "/tmp/xeon" },
         time: { clock: { now: () => 0 } },
         logger: () => recordingLogger(lines),
+        resolveBinary: (name) => {
+          resolved.push(name);
+          if (options.rgMissing === true) {
+            return Promise.resolve(err({ kind: "not_found" }));
+          }
+          return Promise.resolve(ok({ path: `/bundle/${name}` }));
+        },
       });
       if (options.sandbox !== false) ctx.providePort(SandboxKey, fakeSandbox());
       const { workspaces } = options;
@@ -114,8 +132,10 @@ async function boot(
       }
     },
   });
-  const installed = await t.host.install(workspacePlugin({ settings: { layers: () => [] } }));
-  return { t, env, installed, registered, unregistered, lines };
+  const installed = await t.host.install(
+    workspacePlugin({ settings: { layers: () => options.layers ?? [] } }),
+  );
+  return { t, env, installed, registered, unregistered, lines, resolved };
 }
 
 /** workspace 능력을 requires로 쓰는 소비자 확장. 사용 예(L3 그룹 경로: 서비스를 직접 부른다) */
@@ -190,18 +210,69 @@ describe("plugin", () => {
     env.reply({ chunks: [{ text: "ok\n" }], exitCode: 0 });
     const run = await apis.shell?.run({ command: "echo ok" });
     expect(run).toMatchObject({ exitCode: 0, output: "ok\n", sandboxed: true });
-    // 구현하지 않은 메서드는 unsupported로 거부한다
-    const grep = await rejection(apis.files?.grep({ pattern: "x" }) ?? Promise.resolve());
-    expect(grep.data.code).toBe("unsupported");
+    // grep은 구현되었다. 번들 rg가 있으면 검색 결과를 돌려준다
+    env.reply({ exitCode: 1 });
+    expect(await apis.files?.grep({ pattern: "x" })).toEqual({ root: "/work", matches: [] });
   });
 
-  test("only implemented tools reach L1.tools, with their risk", async () => {
+  test("without ripgrep grep is unavailable with rg_missing", async () => {
+    const { t, env } = await boot({ rgMissing: true });
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    env.put("/work/a.txt", "foo\n");
+    const error = await rejection(apis.files?.grep({ pattern: "foo" }) ?? Promise.resolve());
+    expect(error.data.code).toBe("unavailable");
+    expect(error.data.detail).toEqual({ reason: "rg_missing" });
+    expect(env.calls).toHaveLength(0);
+  });
+
+  test("grep finds the bundled rg through xeon.os, and grep.rgPath replaces it", async () => {
+    const bundled = await boot();
+    const { apis, unit } = consumer();
+    await bundled.t.host.install(unit);
+    await bundled.t.settled();
+    bundled.env.reply({ exitCode: 1 });
+    await apis.files?.find({ pattern: "*" });
+    expect(bundled.resolved).toEqual(["rg"]);
+    expect(bundled.env.calls[0]?.command).toEqual([
+      "/bundle/rg",
+      "--files",
+      "--no-config",
+      "--no-require-git",
+      "--sort",
+      "path",
+      "--glob",
+      "*",
+      "--no-messages",
+      "--",
+      ".",
+    ]);
+
+    const configured = await boot({
+      layers: [{ scope: "user", values: new Map([["l2.workspace.grep.rgPath", "/opt/rg/rg"]]) }],
+    });
+    const second = consumer();
+    await configured.t.host.install(second.unit);
+    await configured.t.settled();
+    configured.env.reply({ exitCode: 1 });
+    await second.apis.files?.find({ pattern: "*" });
+    expect(configured.resolved).toEqual([]);
+    expect(configured.env.calls[0]?.command[0]).toBe("/opt/rg/rg");
+  });
+
+  test("all six files tools reach L1.tools, with their risk", async () => {
     const { registered } = await boot();
     expect(registered).toHaveLength(2);
     const [files, shell] = registered;
     expect(files?.kind === "capability" ? files.def.id : undefined).toBe("workspace.files");
     expect(files?.kind === "capability" ? files.def.tools.map((tool) => tool.name) : []).toEqual([
-      ...IMPLEMENTED_FILES_TOOLS,
+      "read",
+      "write",
+      "edit",
+      "ls",
+      "grep",
+      "find",
     ]);
     expect(files?.kind === "capability" ? files.key : undefined).toEqual(WorkspaceFilesKey);
     expect(files?.kind === "capability" ? files.policy : undefined).toEqual({
@@ -209,6 +280,8 @@ describe("plugin", () => {
       write: { risk: "write" },
       edit: { risk: "write" },
       ls: { risk: "read" },
+      grep: { risk: "read" },
+      find: { risk: "read" },
     });
     expect(shell?.kind === "capability" ? shell.def.tools.map((tool) => tool.name) : []).toEqual([
       "bash",

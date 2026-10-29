@@ -5,7 +5,6 @@ import {
   WorkspaceShell,
   WorkspaceImagesKey,
   WorkspaceShellKey,
-  type AnyCapabilityDef,
 } from "@xeon/contracts/capabilities";
 import type { ExtensionEntry, PortKey } from "@xeon/contracts/extensions";
 import type { SessionService } from "@xeon/contracts/records";
@@ -17,12 +16,13 @@ import {
   StoreServicePortKey,
   ToolServiceName,
   type ExecService,
+  type OsService,
   type SandboxService,
   type ToolRegistration,
   type ToolService,
 } from "@xeon/contracts/services";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
-import type { WorkspaceDeps } from "./deps.ts";
+import type { RgResolver, WorkspaceDeps } from "./deps.ts";
 import { envAtCwd } from "./env.ts";
 import { workspaceManifest } from "./manifest.ts";
 import type { ThreadWorkspaces } from "./ports/threads.ts";
@@ -35,12 +35,6 @@ import { readWorkspaceSettings, type WorkspaceSettingsSource } from "./settings.
 
 const SandboxPortKey: PortKey<SandboxService> = { name: SandboxServiceName };
 const ToolsPortKey: PortKey<ToolService> = { name: ToolServiceName };
-
-/**
- * M1에서 L1.tools에 올리는 `workspace.files` 도구 이름. 아직 구현하지 않은 도구(write, edit, grep, find)는
- * 광고하지 않는다(plan W4 "미구현 도구는 노출하지 않는지 확인"). M3(W5, W6)에서 이 목록을 늘린다.
- */
-export const IMPLEMENTED_FILES_TOOLS: readonly string[] = ["read", "write", "edit", "ls"];
 
 export interface WorkspacePluginOptions {
   /** 설정 층. 파일 범위와 세션 범위를 합친 스택을 호출마다 돌려준다 */
@@ -75,11 +69,17 @@ function threadWorkspaces(
   };
 }
 
-/** 구현된 도구만 남긴 `workspace.files` 정의. 서비스 메서드와 키는 그대로다 */
-export function advertisedFilesDef(): AnyCapabilityDef {
-  return {
-    ...WorkspaceFiles,
-    tools: WorkspaceFiles.tools.filter((tool) => IMPLEMENTED_FILES_TOOLS.includes(tool.name)),
+/**
+ * ripgrep 경로를 고른다(spec §6 grep.rgPath). 설정에 경로가 있으면 그대로 쓰고, 없으면 `xeon.os`가 번들 바이너리를 찾는다.
+ * 설정 경로는 managed·user 범위에서만 온다(settings.ts), 그래서 저장소를 여는 것만으로 바이너리가 바뀌지 않는다.
+ */
+function rgResolver(os: OsService): RgResolver {
+  return async (rgPath, signal) => {
+    if (rgPath !== "") return ok(rgPath);
+    const resolved = await os.resolveBinary("rg", {}, signal ?? new AbortController().signal);
+    if (resolved.ok) return ok(resolved.value.path);
+    const kind = resolved.error.kind === "cancelled" ? "cancelled" : "missing";
+    return err({ kind, message: `rg binary: ${resolved.error.kind}` });
   };
 }
 
@@ -111,6 +111,7 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
         settings: (threadId) => readWorkspaceSettings(options.settings.layers(threadId)),
         ...(store === undefined ? {} : { blobs: store }),
         ...(session === undefined ? {} : { threads: threadWorkspaces(session, exec) }),
+        rg: rgResolver(os),
       };
       const service = createWorkspaceService(deps);
       host.provide(WorkspaceFilesKey, service.files);
@@ -138,13 +139,15 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
       const registrations: readonly ToolRegistration[] = [
         {
           kind: "capability",
-          def: advertisedFilesDef(),
+          def: WorkspaceFiles,
           key: WorkspaceFilesKey,
           policy: {
             read: { risk: "read" },
             write: { risk: "write" },
             edit: { risk: "write" },
             ls: { risk: "read" },
+            grep: { risk: "read" },
+            find: { risk: "read" },
           },
         },
         {

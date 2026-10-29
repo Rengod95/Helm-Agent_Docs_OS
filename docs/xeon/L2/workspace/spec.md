@@ -641,6 +641,13 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 - `read`: 앞에서부터 남긴다. `offset`부터 `min(limit, maxLines)`줄을 읽고 바이트 한도를 넘으면 그 전 줄까지 남긴다. 남긴 줄이 끝까지가 아니면 `truncated = { by, shown, total, nextOffset: endLine + 1 }`이다. 첫 줄 하나가 바이트 한도를 넘으면 그 줄의 앞부분만 남기고 `by: "bytes"`, `nextOffset: startLine + 1`로 둔다(`TruncationResult.firstLineExceedsLimit`).
 - `bash`: 꼬리를 남기고 넘친 출력은 spill 파일로 둔다(`fullOutputPath`). spill은 `ExecutionEnv.exec`가 한다.
 - `grep`, `find`, `ls`: 항목 수 한도(`limit` 또는 설정 기본값)와 바이트 한도 중 먼저 걸리는 쪽에서 자른다. `by: "entries"` 또는 `"bytes"`. `grep`의 긴 줄은 설정 `l2.workspace.grep.maxLineLength`자에서 자른다.
+- `grep`와 `find`는 ripgrep(`rg`)을 `ExecutionEnv.exec`에 argv 배열로 실행한다. 셸 문자열을 만들지 않고, 샌드박스(§4.2)도 거치지 않는다. 실행 파일은 설정 `l2.workspace.grep.rgPath`가 비어 있지 않으면 그 경로이고, 비어 있으면 `xeon.os`의 `resolveBinary("rg")`다. 찾지 못하거나 띄우지 못하면 `unavailable`(`detail.reason: "rg_missing"`)이다.
+  - `grep`: `rg --json --no-config --no-require-git --sort path -e <패턴> [-i] [-F] [-C n] [--glob <glob>] --no-messages -- .`. `-i`는 `ignoreCase`, `-F`는 `literal`, `-C`는 `context`가 0보다 클 때다.
+  - `find`: `rg --files --no-config --no-require-git --sort path --glob <패턴> --no-messages -- .`.
+  - 검색 기준 디렉터리가 cwd이고, 출력 경로는 그 기준 상대 경로다. 결과는 경로의 바이트 순이다. `--no-require-git`은 git 저장소 밖에서도 `.gitignore`를 읽게 한다. 숨김 파일은 rg 기본대로 건너뛴다.
+  - rg의 `--glob`은 예외 규칙이라 `.gitignore`와 숨김 규칙을 넘어 파일을 되살린다. 그래서 글로브 결과는 글로브 없이 같은 검색을 한 번 더 걸어 얻은 파일 집합과 교차한다. `find`는 항상, `grep`은 `glob`이 있을 때 교차한다.
+  - 종료 코드 1은 일치 없음으로 정상 결과다. 종료 코드 2의 `regex parse error`와 `error parsing glob`은 `pattern_invalid`이고, 그 밖의 실패는 `internal`이다.
+  - `grep`의 한도(`maxMatches`, `limit`)는 일치 줄만 센다. 남긴 일치의 문맥 줄은 함께 남기고, 잘린 일치의 앞 문맥 줄은 버린다. 바이트 한도는 `read.maxBytes`를 쓴다. `find`의 한도는 `find.maxResults`(또는 `limit`)다.
 - 한도는 모두 설정(§6)으로 바꿀 수 있다. 도구 설명 문자열에는 수치를 넣지 않는다. 설정 변경이 도구 fingerprint와 프롬프트 캐시를 바꾸지 않게 하기 위해서다(`F.capabilities.spec` §4.5).
 - L1.tools의 결과 경계화는 도구 결과 전체에 한 번 더 적용된다. 이 문서의 한도가 그보다 작으면 L1 경계화는 아무 일도 하지 않는다.
 
@@ -776,7 +783,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 3. [미결] `ImageBlobRefSchema`의 중복. F capabilities는 records를 import하지 않으므로 같은 모양을 적었다. `BlobRef`를 conversation이나 base로 내려 공유할지 F 문서가 정한다. 그 전까지는 두 스키마의 JSON이 같은지 테스트로 확인한다.
 4. [결정: 오케스트레이터 기본값] 원자적 쓰기와 동시 변경 감지. 포크 원본은 직접 덮어쓰므로 임시 파일 + 이름 바꾸기로 바꾸고, `edit`는 읽은 내용 비교로 동시 변경을 감지한다(§4.4).
 5. [미결] 도구 없는 능력(`workspace.images`) 허용(`F.capabilities.spec` §4.4).
-6. [미결] `find`의 엔진. pi coding-agent `find`는 `fd`를 내려받아 쓴다(`core/tools/find.ts` `ensureTool("fd")`). 내려받기를 피하려고 `rg --files --glob`로 바꾸는 것을 제안한다. glob 의미(기본 이름 일치 대 전체 경로 일치)가 `fd`와 달라질 수 있어 테스트로 고정한다.
+6. [결정: 오케스트레이터 기본값] `find`의 엔진은 `rg --files --glob`이다. pi coding-agent `find`는 `fd`를 내려받아 쓰므로(`core/tools/find.ts` `ensureTool("fd")`) 내려받기를 피한다. glob 의미는 rg의 `--glob`을 따른다. 슬래시가 없는 패턴은 어느 깊이의 같은 이름과도 맞고(`*.ts`), 슬래시가 있으면 검색 기준 디렉터리에 상대적이며(`src/*.ts`), `**`는 디렉터리를 가로지른다(`**/*.spec.ts`). `test/find.test.ts`와 `test/rg.int.test.ts`가 이 의미를 고정한다. §4.5의 교차 규칙을 따른다.
 7. [미결] 허용 root 조회 API의 이름과 모양(`L1.tools.spec`). M1은 cwd 하나, M2는 대화의 작업 폴더 하나로 둔다(§4.3, open-issues M-06). 추가 디렉터리와 사용자가 승인해 넓힌 경로는 L1.tools의 API가 정해진 뒤에 더한다.
 8. [미결] `bash` `executionMode: "sequential"`의 비용. 같은 라운드의 읽기 도구까지 순차가 된다. 실측 뒤 `parallel`로 바꿀지 정한다.
 9. [미결] 0 아닌 종료 코드를 `exit_nonzero` 오류로 내는 방식(§3.3). F `ToolContent`에 `isError` 필드를 더해 정상 출력으로 `isError`를 표시하는 대안이 있다. F 문서의 판단이 필요하다.

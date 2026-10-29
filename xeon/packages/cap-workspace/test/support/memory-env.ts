@@ -27,6 +27,8 @@ interface ExecReply {
   /** onOutput으로 흘려 보낼 조각. skipped는 window가 생략했다고 알리는 값 */
   readonly chunks?: readonly {
     readonly text: string;
+    /** 기본 stdout. rg의 stderr 메시지를 흘려 보낼 때 stderr */
+    readonly stream?: "stdout" | "stderr";
     readonly skipped?: { bytes: number; newlines: number; endsWithNewline: boolean };
   }[];
   readonly exitCode?: number;
@@ -309,7 +311,7 @@ export function memoryEnv(options: { readonly cwd?: string } = {}): MemoryEnv {
         const next = replies.shift() ?? { exitCode: 0 };
         for (const chunk of next.chunks ?? []) {
           execOptions?.onOutput?.(chunk.text, context, {
-            stream: "stdout",
+            stream: chunk.stream ?? "stdout",
             ...(chunk.skipped === undefined ? {} : { skipped: chunk.skipped }),
           });
         }
