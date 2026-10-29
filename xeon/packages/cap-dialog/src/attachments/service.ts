@@ -7,7 +7,7 @@ import {
   type CapabilityApi,
   type WorkspaceImage,
 } from "@xeon/contracts/capabilities";
-import type { ImageContent, TextContent } from "@xeon/contracts/conversation";
+import type { ImageContent, TextContent, ThreadId } from "@xeon/contracts/conversation";
 import { BLOB_PLACEHOLDER_PREFIX, type BlobRef } from "@xeon/contracts/records";
 import type { CancelScope } from "@xeon/contracts/services";
 import type { DialogDeps } from "../deps.ts";
@@ -226,6 +226,16 @@ export function createAttachmentsApi(deps: DialogDeps): AttachmentsApi {
     };
   }
 
+  /**
+   * 상대 경로는 호출 문맥의 thread 작업 폴더에 잇는다(F wire §3.3.1, L2.dialog §4.5). 명령 파일과 같은 `projectRoot`를 쓴다.
+   * thread가 없거나 작업 폴더가 없으면 경로를 그대로 둔다. 그러면 `files`가 엔진 기본 작업 폴더 기준으로 푼다.
+   */
+  function resolveSourcePath(path: string, threadId: ThreadId | undefined): string {
+    if (threadId === undefined || path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)) return path;
+    const root = deps.commandRoots.projectRoot(threadId);
+    return root === null ? path : `${root}/${path}`;
+  }
+
   return {
     add: (input: AddInput, options) =>
       guarded(CAPABILITY, "add", async () => {
@@ -252,20 +262,21 @@ export function createAttachmentsApi(deps: DialogDeps): AttachmentsApi {
             };
           }
           case "path": {
-            const info = await deps.files.fileInfo(source.path, context);
+            const resolved = resolveSourcePath(source.path, options?.context?.threadId);
+            const info = await deps.files.fileInfo(resolved, context);
             if (!info.ok) throw info.error;
             if (info.value.kind === "directory") {
-              throw new DialogFailure("invalid_input", `${source.path} is a directory.`);
+              throw new DialogFailure("invalid_input", `${resolved} is a directory.`);
             }
             if (info.value.size > maxBytes) throw tooLarge(info.value.size, maxBytes);
-            const bytes = await deps.files.readBinaryFile(source.path, context);
+            const bytes = await deps.files.readBinaryFile(resolved, context);
             if (!bytes.ok) throw bytes.error;
             return fromBytes(
               {
                 bytes: bytes.value,
-                name: baseName(source.path),
+                name: baseName(resolved),
                 declaredMime: null,
-                path: source.path,
+                path: resolved,
               },
               maxBytes,
               options,

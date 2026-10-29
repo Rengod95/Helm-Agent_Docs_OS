@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { CapabilityError } from "@xeon/contracts/capabilities";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import type { ScopeStack } from "@xeon/contracts/settings";
 import { createAttachmentsApi } from "../src/attachments/service.ts";
+import type { AttachmentFiles } from "../src/ports/files.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";
 import { fakeImages, memoryBlobs, pngBytes, toBase64 } from "./support/images.ts";
 
@@ -312,5 +314,90 @@ describe("URL과 경로 오류", () => {
     blobs.fail = { kind: "disk_full" };
     const error = await rejection(api.add({ source: { kind: "path", path: "/home/n.txt" } }));
     expect(error.data).toMatchObject({ code: "unavailable", retryable: true });
+  });
+});
+
+/** 작업 폴더를 정해 준 조립. 원천 파일 포트가 실제로 읽은 경로를 `read`에 남긴다 */
+function withRoot(root: string | null) {
+  const asked: (ThreadId | undefined)[] = [];
+  const h = harness({
+    blobs: memoryBlobs(),
+    projectRoot: (threadId) => {
+      asked.push(threadId);
+      return root;
+    },
+  });
+  const read: string[] = [];
+  const files: AttachmentFiles = {
+    fileInfo: (path, context) => {
+      read.push(path);
+      return h.files.fileInfo(path, context);
+    },
+    readBinaryFile: (path, context) => {
+      read.push(path);
+      return h.files.readBinaryFile(path, context);
+    },
+  };
+  return { asked, read, h, api: createAttachmentsApi({ ...h.deps, files }) };
+}
+
+describe("상대 경로는 thread의 작업 폴더 기준이다", () => {
+  const ROOT = "/home/user/proj";
+
+  test("상대 경로는 thread의 작업 폴더에 이어 붙여 읽고, 이름과 경로도 해석한 값이다", async () => {
+    const { asked, read, api, h } = withRoot(ROOT);
+    const thread = newThread();
+    h.files.put(`${ROOT}/notes/a.md`, "안녕");
+    const { attachment, parts } = await api.add(
+      { source: { kind: "path", path: "notes/a.md" } },
+      callOptions(thread),
+    );
+    expect(asked).toEqual([thread]);
+    expect(read).toEqual([`${ROOT}/notes/a.md`, `${ROOT}/notes/a.md`]);
+    expect(attachment).toMatchObject({ kind: "text", name: "a.md", path: `${ROOT}/notes/a.md` });
+    expect(parts).toEqual([
+      {
+        type: "text",
+        text: `<attachment name="a.md" path="${ROOT}/notes/a.md">\n안녕\n</attachment>`,
+      },
+    ]);
+  });
+
+  test("절대 경로는 작업 폴더와 무관하게 그대로 읽는다", async () => {
+    const { read, api, h } = withRoot(ROOT);
+    h.files.put("/srv/data/b.md", "b");
+    const { attachment } = await api.add(
+      { source: { kind: "path", path: "/srv/data/b.md" } },
+      callOptions(newThread()),
+    );
+    expect(read).toEqual(["/srv/data/b.md", "/srv/data/b.md"]);
+    expect(attachment.path).toBe("/srv/data/b.md");
+  });
+
+  test("threadId가 없으면 상대 경로를 그대로 넘긴다", async () => {
+    const { read, api, h } = withRoot(ROOT);
+    h.files.put("notes/c.md", "c");
+    await api.add({ source: { kind: "path", path: "notes/c.md" } });
+    expect(read).toEqual(["notes/c.md", "notes/c.md"]);
+  });
+
+  test("작업 폴더가 없으면(null) 상대 경로를 그대로 넘긴다", async () => {
+    const { read, api, h } = withRoot(null);
+    h.files.put("notes/d.md", "d");
+    await api.add({ source: { kind: "path", path: "notes/d.md" } }, callOptions(newThread()));
+    expect(read).toEqual(["notes/d.md", "notes/d.md"]);
+  });
+
+  test("권한과 없음 검사는 해석한 경로에 한다", async () => {
+    const { api, h } = withRoot(ROOT);
+    h.files.put(`${ROOT}/denied/x.txt`, "x");
+    const denied = await rejection(
+      api.add({ source: { kind: "path", path: "denied/x.txt" } }, callOptions(newThread())),
+    );
+    expect(denied.data.code).toBe("denied");
+    const missing = await rejection(
+      api.add({ source: { kind: "path", path: "none.txt" } }, callOptions(newThread())),
+    );
+    expect(missing.data.code).toBe("not_found");
   });
 });
