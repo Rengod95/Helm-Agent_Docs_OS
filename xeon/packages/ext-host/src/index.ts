@@ -64,6 +64,7 @@ export {
   McpPortKey,
   ModelsPortKey,
   ToolsPortKey,
+  type CommandOutput,
   type CommandResourceDef,
   type FlagResourceDef,
   type FlagValueError,

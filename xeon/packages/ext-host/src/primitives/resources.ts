@@ -1,6 +1,6 @@
 import { assertNever, err, ok, type Result } from "@xeon/contracts";
 import { TOOL_NAME_WIRE_PATTERN, type WebProviderRegistration } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
 import {
   McpPortKey,
   ModelsPortKey,
@@ -80,6 +80,14 @@ export interface ResourcePolicy {
   exposeAll?(records: readonly ResourceRecord[]): readonly ResourceExposure[];
 }
 
+/**
+ * 명령 처리기의 출력. 문자열은 메시지만 준 것이다. `message`가 `null`이면 메시지를 내지 않는다.
+ * `result`는 호출한 쪽이 기계적으로 읽는 값이다. 처리기가 아무것도 돌려주지 않으면 `void`다.
+ */
+export type CommandOutput =
+  | string
+  | { readonly message: string | null; readonly result?: JsonValue };
+
 export interface CommandResourceDef {
   readonly description?: string;
   handler(
@@ -88,8 +96,10 @@ export interface CommandResourceDef {
       readonly threadId: ThreadId | null;
       /** 명령 호출 하나의 id. threadId가 있으면 X가 멱등 키의 디스패치 키로 쓴다(M3-REQ-102). 같은 호출을 다시 실행하면 같은 값을 넘긴다 */
       readonly invocationId: string;
+      /** 호출한 쪽이 이 호출을 취소하면 abort된다. 처리기는 긴 작업을 이 신호에 맞춰 멈춘다 */
+      readonly signal: AbortSignal;
     },
-  ): Promise<void>;
+  ): Promise<void | CommandOutput>;
 }
 export interface ShortcutResourceDef {
   readonly description?: string;

@@ -17,7 +17,9 @@ function runCommand(t: Host, threadId: ThreadId, invocationId: string): Promise<
   }
   const handler = def.handler;
   if (typeof handler !== "function") throw new Error("command handler is not a function");
-  return Promise.resolve(handler.call(def, "", { threadId, invocationId }));
+  return Promise.resolve(
+    handler.call(def, "", { threadId, invocationId, signal: new AbortController().signal }),
+  );
 }
 
 async function boot(

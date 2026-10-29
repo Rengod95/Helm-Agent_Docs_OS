@@ -375,7 +375,7 @@ export async function rigOn(
       if (!isCommandDef(def)) throw new Error("registered command is not a CommandResourceDef");
       commandCounter += 1;
       const invocationId = `cmd_${String(commandCounter)}`;
-      await def.handler(args, { threadId, invocationId });
+      await def.handler(args, { threadId, invocationId, signal: new AbortController().signal });
       const report = reportOf.get(invocationId);
       if (report === undefined) throw new Error("the command reported nothing");
       return report;
@@ -388,7 +388,11 @@ let commandCounter = 0;
 interface CommandDef {
   handler(
     args: string,
-    ctx: { readonly threadId: ThreadId | null; readonly invocationId: string },
+    ctx: {
+      readonly threadId: ThreadId | null;
+      readonly invocationId: string;
+      readonly signal: AbortSignal;
+    },
   ): Promise<void>;
 }
 
