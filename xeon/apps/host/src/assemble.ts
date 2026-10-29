@@ -35,7 +35,6 @@ import {
   createScopeControl,
   createVolatileNotifier,
   scopeToggleSourceOf,
-  type ExtDiagnostic,
   type ExtHost,
   type ExtensionLoader,
   type ExtensionUnit,
@@ -72,6 +71,9 @@ import { createHandlerFailedEmitter } from "./assembly/handler-failed.ts";
 import { createProposalPort } from "./assembly/proposals.ts";
 import type { WebStatusHolder } from "./assembly/web-providers.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
+import { startAutoTitle, titleModelFor, type AutoTitle } from "./assembly/auto-title.ts";
+import { startDataOps, type DataOps } from "./assembly/data-ops.ts";
+import { createExtDiagnosticSink } from "./assembly/diagnostics.ts";
 import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
@@ -103,6 +105,7 @@ import {
   sandboxSource,
   secretsSource,
   shutdownTimeoutMs,
+  spillRetentionDaysOf,
   storeSettingsOf,
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
@@ -290,6 +293,16 @@ export function logStoreWarning(logger: Logger, warning: StoreWarning): void {
     case "lock_provider_none":
       logger.warn("store.warning", { kind: warning.kind });
       return;
+    case "read_only":
+      // 미래 버전 DB를 읽기 전용으로 열었다(L0.store.spec §4.11). 쓰기 기능이 꺼진 이유를 남긴다
+      logger.warn("store.warning", {
+        kind: warning.kind,
+        reason: warning.reason,
+        owner: warning.owner,
+        dbVersion: warning.dbVersion,
+        codeVersion: warning.codeVersion,
+      });
+      return;
     default:
       assertNever(warning, "StoreWarning");
   }
@@ -365,7 +378,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     notifier: createVolatileNotifier({ emit: handlerFailed, log: logOperations }),
     log: logOperations,
   });
-  const diagnostics: ExtDiagnostic[] = [];
+  /** 확장 진단. 상한(256)을 넘으면 오래된 것부터 버린다(L0.os.spec §3.14, M3-REQ-52) */
+  const diagnostics = createExtDiagnosticSink();
   const ext = createExtHost({
     ids,
     now: () => clock.now(),
@@ -391,6 +405,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const osSlot: { handle: OsServiceHandle | undefined } = { handle: undefined };
   /** 예약 서비스. 서비스 등록 뒤(4단계)에 채운다. 닫을 때 아직 없으면 건너뛴다 */
   const scheduleSlot: { service: ScheduleService | undefined } = { service: undefined };
+  /** 보관 정리와 블롭 GC 타이머. 닫을 때 먼저 끊는다(저장소를 닫기 전) */
+  const dataOpsSlot: { ops: DataOps | undefined } = { ops: undefined };
+  /** 자동 제목 연결. 엔진 포트가 올라온 뒤에 연다. 닫을 때 구독을 거둔다 */
+  const autoTitleSlot: { title: AutoTitle | undefined } = { title: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
   /** 외부 확장 로더(기본 플러그인 포함). 닫을 때 먼저 내린다 */
   const external: { loader: ExtensionLoader | undefined; unbridge: (() => void) | undefined } = {
@@ -404,6 +422,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     try {
       // 설정 파일 감시를 먼저 닫는다: 닫은 뒤에는 다시 읽기가 시작되지 않는다
       await settingsWatchSlot.watch?.close();
+      // 자동 제목과 보관 정리를 먼저 끊는다. 예약을 멈추고 저장소를 닫기 전이어야 한다
+      autoTitleSlot.title?.close();
+      dataOpsSlot.ops?.close();
       // 예약을 먼저 멈춘다: 틱과 감시를 끊고 진행 중인 저장을 기다린다. 저장소를 닫기 전이어야 한다
       await scheduleSlot.service?.close();
       await portsHandle?.releaseAll();
@@ -775,6 +796,18 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
     // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
     pruneOnOpen(session, logger);
+    // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
+    dataOpsSlot.ops = startDataOps({
+      stateDir: os.dirs.state,
+      clock,
+      logger,
+      setTimer,
+      spillRetentionDays: () => spillRetentionDaysOf(settings),
+      blobGcEnabled: () => settings.value("l0.store.blobGcEnabled") === true,
+      runsBlobGc: options.mode === "service",
+      store: store.value,
+      query: session.query,
+    });
 
     const storeId = parse(StoreIdSchema, storeService.storeId);
     // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
@@ -846,6 +879,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         logger: os.logger("settings-watch"),
       });
     }
+    // 자동 제목(M3-REQ-83, HS-73): 턴이 끝나면 임시 제목을 모델로 바꾼다. 실패해도 턴은 그대로 둔다
+    autoTitleSlot.title = startAutoTitle({
+      feed: portsHandle.ports.feed,
+      locks: portsHandle.ports.locks,
+      session,
+      modelFor: (threadId) => titleModelFor(models, clock, threadId),
+      logger,
+      signal: lifetime.signal,
+    });
     // 틱은 서비스 모드에서만 돈다. in-process·stdio는 프로세스 사이 임대가 없어 틱의 실행권을 정할 수 없다(HS-40)
     if (options.mode === "service") {
       const started = await schedule.start();

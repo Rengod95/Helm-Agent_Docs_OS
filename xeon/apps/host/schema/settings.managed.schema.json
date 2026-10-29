@@ -330,6 +330,54 @@
         }
       }
     },
+    "l0.exec.spillMaxBytes": {
+      "default": 1073741824,
+      "maximum": 1099511627776,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "0이면 상한이 없다. 넘으면 새 명령의 출력 파일을 만들지 않는다",
+          "label": "출력 파일 디스크 상한",
+          "order": 130,
+          "tab": "execution",
+          "unit": "B",
+          "widget": "number"
+        }
+      }
+    },
+    "l0.exec.spillRetentionDays": {
+      "default": 0,
+      "maximum": 3650,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "0이면 지우지 않는다. 이 기간보다 오래된 명령 출력 파일을 정리 때 지운다",
+          "label": "출력 파일 보관 기간",
+          "order": 125,
+          "tab": "execution",
+          "unit": "일",
+          "widget": "number"
+        }
+      }
+    },
     "l0.exec.unattendedTimeoutMs": {
       "default": 1800000,
       "maximum": 2147483647,
@@ -1144,6 +1192,27 @@
           "order": 30,
           "tab": "secrets",
           "widget": "table"
+        }
+      }
+    },
+    "l0.store.blobGcEnabled": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "모든 블롭 소비자가 블롭을 고정한 뒤에만 켠다",
+          "label": "미참조 블롭 정리 켜기",
+          "order": 305,
+          "tab": "sessions",
+          "widget": "toggle"
         }
       }
     },

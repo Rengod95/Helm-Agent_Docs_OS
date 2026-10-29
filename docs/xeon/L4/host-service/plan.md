@@ -414,3 +414,17 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | 시험 조정 | 구현 | `test/int/compact-reinject.int.test.ts`의 창을 12000에서 13000토큰으로 올렸다. 브라우즈 도구 정의 네 개가 요청에 더해져 두 turn 만에 임계를 넘었다. 두 turn은 임계 아래, 셋째 turn 요청 전에 넘는 예산은 그대로다 |
 
 남은 것: 브라우저 사람 확인 포트 `browseConfirm`(spec §10 35), 브라우저 MCP 직접 호출의 승인(spec §10 34). 설정 스키마 커밋본(`apps/host/schema/`)은 `l2.web.browse.*` 키(53c9d53)가 들어온 뒤로 다시 쓰이지 않아 `settings-schema-committed` 시험이 실패한다. 이 단위가 바꾼 설정은 없고, 병합 때 오케스트레이터가 다시 쓴다(m3b-plan §3.4).
+
+## 12. M3b 구현 기록 (B3-DATA)
+
+| 작업 | 상태 | 내용과 시험 |
+|---|---|---|
+| M3-REQ-47 설정 해제 | 구현 | `l0.exec.spillRetentionDays`·`spillMaxBytes`의 `stage`를 `active`로 바꿨다(platform-exec 커밋 1ea15224). `platform-exec/test/settings-defs.test.ts` |
+| M3-REQ-84 블롭 GC 설정 | 구현 | `l0.store.blobGcEnabled`(기본 끔, live, managed·user)을 더했다(platform-store 커밋 2585aee2). `platform-store/test/settings*.test.ts` |
+| 보관 정리와 spill 상한 (HS-100, HS-101) | 구현 | `assembly/data-ops.ts`의 `startDataOps`(spill은 열 때와 하루마다), `settings-sources.ts`의 `spillRetentionDaysOf`와 `spillMaxBytes`. `test/assembly/data-ops.test.ts`(보관 0은 아무것도 지우지 않음, 7일은 오래된 파일만, 하루 뒤 다시) |
+| 블롭 GC (HS-102, HS-103) | 구현 | `data-ops.ts`의 `runBlobGc`(서비스 모드, 설정이 켜진 때만, 첫 실행 1분). 실제 임시 저장소 시험: 끔이면 아무것도 지우지 않고, 켜면 고아만 지운다(이벤트 참조와 고정 블롭은 남는다). 실패는 `store.blob_gc_failed` |
+| 자동 제목 (HS-104, HS-105) | 구현 | `assembly/auto-title.ts`(`startAutoTitle`, `titleModelFor`). `assemble.ts`가 엔진 포트 뒤에 연다. `test/assembly/auto-title.test.ts`(가짜 모델: 정리된 제목, 사람 제목 유지, 모델 실패 기록과 재시도 없음, 소유 없음, 자격 증명 없음은 한 번만 기록). `test/int/auto-title.int.test.ts`(실제 조립: 자격 증명이 없으면 건너뛰고 턴은 요청 하나) |
+| M3-REQ-52 진단 상한 | 구현 | `assembly/diagnostics.ts`(`createExtDiagnosticSink`, 상한 256). `test/assembly/diagnostics.test.ts`(300개를 넣으면 최신 256개, 버린 수 44) |
+| 저장소 경고 `read_only` | 구현 | `logStoreWarning`이 `store.warning`으로 남긴다(typecheck를 막던 누락 분기) |
+
+남은 것: 블롭 GC는 서비스 모드에서만 돈다. `scheduler` 임대가 생기기 전까지 그렇다 [미결 §10 36]. 자동 제목의 임시 판정은 이 프로세스가 본 첫 입력에 기댄다 [미결 §10 47]. 테이프 시험에는 자격 증명 참조가 없어 긍정 경로의 실제 엔진 시험은 없다 [미결 §10 48]. 블롭 GC를 켜기 전에 소비자 고정 목록을 닫는다 [미결 §10 49].

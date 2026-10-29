@@ -739,7 +739,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 3. [미결] 포크 업그레이드 정책(정기 diff 또는 보안·버그 수정 때만). adr.0003 §6을 이어받는다.
 4. [결정: m2 마감 G2-05] spill 파일 위치는 `ExecServiceOptions.tempDir`(조립 루트가 `<dirs.state>/spill`)이고 소유자 전용이다(디렉터리 0700, 파일 0600). 원본은 OS 임시 디렉터리에 남겼다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다.
    [결정: review.m3-design-inputs D-M3-21 a, 오케스트레이터 기본값, M3-REQ-47] 삭제 시점은 기본으로 세션 종료 때도 지우지 않는다. 보관 기간은 `l0.exec.spillRetentionDays`(기본 0, 지우지 않음)로 정하고 `pruneSpill`이 지운다. 디스크 상한은 `l0.exec.spillMaxBytes`(기본 1 GiB, 0이면 없음)로 정하고, 사용량이 상한 이상이면 새 spill을 시작하지 않는다. 세부는 3.8.2절이다.
-   [미결] 조립 루트(apps/host)가 `tempDir`, `spillMaxBytes`를 넘기고 `pruneSpill`을 부르도록 고치는 일은 L4.host 작업이다. 두 키의 `stage: reserved`는 해제했다(M3-REQ-47, 1b 커밋). 조립 루트 연결 전까지 두 키는 읽히지 않는다. 정리 호출 시점은 L4.host-service §4.17이 정한다.
+   [해소 M3-REQ-47] 조립 루트(apps/host)가 `tempDir`, `spillMaxBytes`를 넘기고 `pruneSpill`을 부른다(L4.host-service §4.18, HS-101). 두 키의 `stage: reserved`는 1b 커밋에서 해제했다. 정리 호출 시점은 열 때 한 번과 하루마다다.
 5. [미결] 적합성 스위트의 watch 사례(사례당 최대 30초)를 `int` 파일 10초 상한(`eng.testing.guide` TS-01)에 맞추는 방법: 파일 분할, 별도 태그, 상한 예외 중 하나.
 6. [결정: review.m3-lower-requirements M3-REQ-46] `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지하고 무인 경로 상한은 3.8.1절의 `withUnattendedTimeout`이 건다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.
 7. [미결] Windows 네이티브 적합성 기대 표(5.2절)는 실행하지 않은 [가정]이다. M2 이후 Windows CI에서 확인한다.

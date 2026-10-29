@@ -869,7 +869,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - `project`, `local`, `session` 범위는 허용하지 않는다. DB는 사용자 단위 자원이다.
 - 주기 값(5초, 30초)을 설정 키로 노출하는 것은 `eng.transactions.design` 미결 T-6에 대한 이 문서의 답이다 [제안].
 - `blobGraceMs` 기본값 근거: 블롭 선쓰기와 커밋 사이 시간은 보통 1초 안이지만 승인 대기처럼 커밋이 늦는 경로를 넉넉히 덮는다 [가정].
-- `blobGcEnabled`는 기본으로 끕니다 [결정: 오케스트레이터 기본값, M3-REQ-84]. 보존 기간이 있어도 보존 밖의 참조 없는 블롭은 지워집니다. 블롭 소비자 가운데 일부는 `pinBlob`으로 블롭을 고정하지 않으므로, 그 블롭이 이벤트 참조(`p_blob_refs`)에도 없으면 GC가 지울 수 있습니다. 조립 루트(apps/host, `L4.host-service` §4.17)는 이 값이 참일 때만 `gcBlobs`를 부릅니다.
+- `blobGcEnabled`는 기본으로 끕니다 [결정: 오케스트레이터 기본값, M3-REQ-84]. 보존 기간이 있어도 보존 밖의 참조 없는 블롭은 지워집니다. 블롭 소비자 가운데 일부는 `pinBlob`으로 블롭을 고정하지 않으므로, 그 블롭이 이벤트 참조(`p_blob_refs`)에도 없으면 GC가 지울 수 있습니다. 조립 루트(apps/host, `L4.host-service` §4.18)는 이 값이 참일 때만 `gcBlobs`를 부릅니다.
 - 켜는 것은 아래 소비자가 모두 `pinBlob`을 쓰게 된 뒤에만 안전합니다. 지금은 아래가 고정하지 않습니다(`pinBlob` 호출처 0건, 실측 2026-10-29).
   - [미결] cap-web 가져오기 캐시(`packages/cap-web/src/cache/fetch-cache.ts`의 `putBlob`).
   - [미결] cap-knowledge 매니페스트(`packages/cap-knowledge/src/ledger/manifest.ts`)와 쓰기 파이프라인(`packages/cap-knowledge/src/write/pipeline.ts`).

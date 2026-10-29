@@ -19,6 +19,7 @@ import {
   sandboxSource,
   secretsSource,
   shutdownTimeoutMs,
+  spillRetentionDaysOf,
   storeSettingsOf,
   tasksSource,
   toolsSource,
@@ -196,6 +197,9 @@ test("undeclared package keys are read raw: persistence, store, exec, shutdown",
     "l0.exec.shell": "/bin/sh",
     "l0.exec.defaultTimeoutMs": 1500,
     "l0.exec.envAllowlist.extra": ["FOO_BAR"],
+    "l0.exec.spillRetentionDays": 7,
+    "l0.exec.spillMaxBytes": 4096,
+    "l0.store.blobGcEnabled": true,
     "l0.process.shutdown.timeoutMs": 4500,
   });
   expect(persistenceSource(settings, (m) => reports.push(m))()).toMatchObject({
@@ -212,8 +216,11 @@ test("undeclared package keys are read raw: persistence, store, exec, shutdown",
     shellPath: "/bin/sh",
     defaultTimeoutMs: 1500,
     outputSpillBytes: 10_485_760,
+    spillMaxBytes: 4096,
     envExtra: ["FOO_BAR"],
   });
+  expect(spillRetentionDaysOf(settings)).toBe(7);
+  expect(storeSettingsOf(settings, (m) => reports.push(m)).blobGcEnabled).toBe(true);
   expect(shutdownTimeoutMs(settings)).toBe(4500);
   expect(reports).toEqual([]);
 });
@@ -292,6 +299,13 @@ test("l0.os.log.level is read on every call, so a change applies from the next l
   expect(level()).toBe("warn");
   settings.setUserValue("l0.os.log.level", undefined);
   expect(level()).toBe("info");
+});
+
+test("spill retention defaults to 0 (keep everything) and the spill cap defaults to 1 GiB", async () => {
+  const settings = await engineWith({});
+  expect(spillRetentionDaysOf(settings)).toBe(0);
+  expect(execOptionsOf(settings, "/work", "/state").spillMaxBytes).toBe(1_073_741_824);
+  expect(storeSettingsOf(settings, () => undefined).blobGcEnabled).toBe(false);
 });
 
 test("the exec spill folder is under the state directory, never the OS temp folder", async () => {
