@@ -78,9 +78,14 @@ export function createSetupCommands(
         const status = await run((c) => c.request("host.status", { includeBinaries: true }));
         binaries = status.ok ? binaryViewOf(status.value.binaries) : null;
       }
+      // 호스트가 문제를 실은 기본 모델(카탈로그에 없는 id)은 고른 것으로 치지 않는다(HS-80). 그러면 "기본 모델 선택" 단계가 끝나지 않는다
+      const modelProblem = settings.value.settings.find(
+        (s) => s.key === DEFAULT_MODEL_KEY,
+      )?.problem;
       const snapshot: SetupSnapshot = {
         providers: providersOf(valueOf(PROVIDERS_KEY)),
-        defaultModel: defaultModelOf(valueOf(DEFAULT_MODEL_KEY)),
+        defaultModel:
+          modelProblem === undefined ? defaultModelOf(valueOf(DEFAULT_MODEL_KEY)) : null,
         secrets: rows,
         toolsReady: binaries === null ? null : binaries.ready,
         binaries,

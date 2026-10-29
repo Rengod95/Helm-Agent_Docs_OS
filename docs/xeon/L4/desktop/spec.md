@@ -530,7 +530,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 
 | 영역 | 내용 | 쓰는 wire |
 |---|---|---|
-| 시작 안내 | 세 단계(외부 도구 점검, 모델 키 등록, 기본 모델 선택)의 완료 여부. 키 단계는 "활성 provider의 `apiKeyRef`가 가리키는 비밀이 등록되어 있다"일 때, 모델 단계는 "기본 모델의 provider가 키를 가진 provider와 같다"일 때 끝난다 | `settings.get`, `secret.list` |
+| 시작 안내 | 세 단계(외부 도구 점검, 모델 키 등록, 기본 모델 선택)의 완료 여부. 키 단계는 "활성 provider의 `apiKeyRef`가 가리키는 비밀이 등록되어 있다"일 때, 모델 단계는 "기본 모델의 provider가 키를 가진 provider와 같다"일 때 끝난다. 기본 모델 설정에 `problem`이 있으면(카탈로그에 없는 id, `L4.host-service.spec` HS-80) 기본 모델이 없는 것으로 보고 모델 단계를 끝내지 않는다 | `settings.get`, `secret.list` |
 | 외부 도구 | 필수/선택 바이너리의 사용 가능 여부, 버전 또는 해야 할 일, 못 쓸 때의 영향(L0.os.spec §3.6.1 `BinaryCheckReport`에서 경로만 뺀 `HostBinaryReport`) | `host.status { includeBinaries: true }` |
 | 모델 키 | provider 입력(후보 목록은 편의), 기본 비밀 이름 `<provider>-api-key`, 등록 여부, 키 등록/바꾸기(사이드카에서는 화면 안 등록 창, §4.14.1), provider에 연결 | `secret.list`, `secret.beginEntry`, `settings.get`·`settings.set` (`l1.models.providers`), 셸 명령 `secret_register` |
 | 기본 모델 | `provider/모델[:추론 레벨]` 입력(형식만 검사), 저장 | `settings.set` (`l1.models.default`) |
