@@ -202,6 +202,7 @@
       },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/core-models": "workspace:*",
       },
     },
     "packages/contracts": {

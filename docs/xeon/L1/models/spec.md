@@ -658,6 +658,12 @@ export function resolveRole(input: {
   - 호출자가 `apiKey`를 넘긴 호출과 hosted 검색 같은 내부 호출은 회전하지 않는다.
   - [미결] 상태 저장(`core_models_*` 테이블)은 아직 없다. 쉬는 시각과 마지막 요청 시각은 프로세스 메모리에만 있어 재시작하면 사라진다.
   - [미결] 창 사용률(`reservePct` 비교)을 채우는 출처가 없다. 풀의 `reportUtilization`만 있고 호출하는 곳이 없다.
+- client/accounts view-model(M3b B2-MDL): 모델 계정과 레이트 리밋 설정 화면의 순수 로직은 `packages/client/src/accounts/`(`@xeon/client/accounts`)에 둡니다. 화면 컴포넌트는 M4에서 씁니다.
+  - 읽기: `modelAccountsView({ accounts, rateLimit, acknowledged, pluginEnabled })`는 `providers`와 `rotation`을 돌려줍니다. `providers`는 계정이나 정책이 있는 provider를 id 순으로 담고, 계정은 우선순위 오름차순(같으면 설정 순서), 정책이 없으면 `policy: null`입니다. `rotation`은 `{ state, notice }`입니다. `state`는 `off`(플러그인 꺼짐, 꺼짐이 먼저 판정됩니다), `needsNotice`(켜졌지만 `ext.account-rotation.acknowledgeRisk`가 `true`가 아님), `on`입니다. 입력은 `unknown`으로 받고 모양이 맞지 않으면 빈 값으로 읽습니다(`accountsOf`, `rateLimitOf`).
+  - 검사와 편집: `checkAccount`와 `checkRateLimit`은 `Result`를 돌려주고, 실패는 `{ kind: "invalid", field }`입니다. 범위는 `accountsSchema`·`rateLimitSchema`와 같습니다. client는 core-models를 import하지 않고 typebox로 같은 모양을 적습니다. `withAccount`, `withoutAccount`, `withRateLimit`, `withoutRateLimit`은 입력을 바꾸지 않고 새 값을 돌려줍니다.
+  - 저장: `saveModelAccounts(connection, edits)`는 `settings.readFile`(범위 `user`)로 원문을 읽고, 편집한 키 세 개만 바꾼 원문을 같은 `baseSha256`으로 `settings.writeFile`에 보냅니다. 다른 키와 키 순서는 그대로 남습니다. 실패는 `not_object`(파일이 JSON 객체가 아님), `conflict`(`settings.fileConflict`, 읽은 뒤 파일이 바뀜), `host`(그 밖의 와이어 오류), `transport`(응답을 받지 못함)입니다 [결정: 오케스트레이터 기본값, `conflict`를 따로 뺌].
+  - 시험 X7(`packages/client/test/accounts/x7.test.ts`, `scripts/exit-tests.txt`): 메모리 호스트가 설정 파일 하나를 들고 두 번 저장합니다. 키 세 개가 같은 이름으로 쓰이고 다른 키와 키 순서가 남는지, 두 번째 편집이 계정을 지우지 않는지 확인합니다. 키와 값은 core-models의 `MODELS_SETTING_DEFS`와 `validateSettingValue`를 통과해야 합니다. 읽기와 쓰기 사이에 파일이 바뀌면 `conflict`로 실패하고 아무것도 쓰지 않습니다. 같은 종료 조건의 `packages/core-models test/rotation.test.ts`는 429 계정 회전 시험입니다.
+  - [미결] 저장 뒤 `settings.invalidated` 알림으로 다시 읽는 일은 M4 화면 작업에서 정합니다. `routes.yaml`의 `settings-ui` 경로(`packages/client/src/settings/**`)에는 `accounts/`가 없어 라우팅으로는 이 절이 찾아지지 않습니다. 경로를 넣을지는 문서 라우팅 담당이 정합니다.
 - [미결] 구독 계정 회전은 provider 약관 검토가 필요하다(`_research/settings.md` §2.5 계정 행). M3 착수 전에 별도 설계 문서에서 정한다. 검토 결과가 부정이면 구독 계정 회전만 빼고 API 키 계정 회전과 레이트 리밋은 M3에 둔다.
 - 플러그인 패키지 [결정: 오케스트레이터 기본값]: 계정 회전 플러그인은 `packages/group-account-rotation`(kind `group`, layer L3, `defaultEnabled: false`)에 둡니다. 이 그룹은 고지 설정 `ext.account-rotation.acknowledgeRisk`(기본 false)를 읽기만 하고 아무것도 등록하지 않습니다. 회전 게이트는 위 두 조건을 core-models가 봅니다. 패키지의 `build:plugin` 스크립트가 `.xeon-plugin/plugin.json`과 `dist/index.js`를 만듭니다.
 

@@ -30,7 +30,8 @@ X4 apps/host test/int/service-idle.int.test.ts test/int/service-lifecycle.int.te
 # Track B1-NTF
 # X6 apps/host test/int/goal-judge.int.test.ts
 # Track B2-MDL (view-model)
-# X7 packages/client test/<파일>.test.ts
+X7 packages/client test/accounts/x7.test.ts
+X7 packages/core-models test/rotation.test.ts
 # Track B3-SET (view-model)
 # X8 packages/client test/<파일>.test.ts
 # Track B2-WEB (doctor output and tab view-model)

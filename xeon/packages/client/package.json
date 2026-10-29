@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./stdio": "./src/stdio.ts",
-    "./settings": "./src/settings/index.ts"
+    "./settings": "./src/settings/index.ts",
+    "./accounts": "./src/accounts/index.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
@@ -19,7 +20,8 @@
     "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "@xeon/core-models": "workspace:*"
   },
   "xeon": {
     "layer": "L4",
