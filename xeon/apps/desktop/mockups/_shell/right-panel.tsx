@@ -1,7 +1,10 @@
 // 오른쪽 맥락 패널(DP-10). 접으면 아이콘만 있는 세로 떠 있는 막대(caustic FloatingBar vertical).
 // 펼치면 누른 아이콘 옆에서 두 단계로 펼친다: 바깥 well(Card variant="well") 안에 내용 카드(CardPanel).
 // 넓은 폭에서는 대화 영역을 밀고(헤어라인), 1100px 이하에서는 대화 위에 떠서 그림자 하나만 가진다.
-// 탭(아이콘, 이름, 배지, 내용)은 페이지가 준다. 기본 세 탭은 standardRightTabs로 만든다.
+// 탭(아이콘, 이름, 배지, 내용)은 페이지가 준다. 탭 묶음은 영역마다(§4.9.4):
+//   대화: chatRightTabs(받은 요청, 런타임, 작업, 플러그인 well 탭들). 옛 standardRightTabs(받은 요청, 탐구, 작업)도 남긴다.
+//   작업대: workbenchRightTabs(받은 요청, 기록, 대화).
+// well 머리는 짧은 이름 + 아이콘 둘까지("크게", 접기, DP-21). 플러그인 well이면 이름 옆에 확장 이름을 연하게(ADR-0021 슬롯 규칙).
 import {
   Card,
   CardPanel,
@@ -12,7 +15,9 @@ import {
   ScrollArea,
 } from "@caustic/react";
 import type { ReactNode } from "react";
-import { Compass, Inbox, ListChecks, X } from "./icons";
+import { Compass, History, Inbox, Layers, ListChecks, Maximize2, MessageSquare, X } from "./icons";
+import { RuntimeLog } from "./parts/runtime-log";
+import { ThreadTail } from "./parts/thread-tail";
 import { useShell } from "./state";
 
 export interface RightTab {
@@ -23,6 +28,72 @@ export interface RightTab {
   badge?: number | undefined;
   /** well 안 내용. 없으면 "셸 목업에서는 비어 있어요". */
   content?: ReactNode;
+  /** 플러그인 well이면 기여한 확장 이름(머리에 연한 mono 글자). */
+  ext?: string | undefined;
+  /** 머리 "크게" 아이콘: 같은 확장의 page 기여를 작업대에서 연다(DP-24). */
+  expand?: { label: string; onSelect: () => void } | undefined;
+}
+
+/** 대화 영역 탭(§4.9.4): 받은 요청, 런타임, 작업, 그리고 열린 대화에서 켜진 확장의 well 기여(plugins). */
+export function chatRightTabs(opts: {
+  inbox?: ReactNode;
+  inboxBadge?: number;
+  runtime?: ReactNode;
+  /** 런타임 탭 배지: 이 대화의 확장 실패 수(0이면 숨김, DP-27). */
+  runtimeBadge?: number;
+  work?: ReactNode;
+  /** 플러그인 well 탭. 없으면 Helm 탐구(helm/panel) 하나. 막대 칸은 6개까지 [제안] — 시안은 넘치는 경우를 그리지 않는다. */
+  plugins?: RightTab[];
+  only?: string[];
+}): RightTab[] {
+  const tabs: RightTab[] = [
+    {
+      id: "inbox",
+      label: "받은 요청",
+      icon: <Inbox />,
+      badge: opts.inboxBadge,
+      content: opts.inbox,
+    },
+    {
+      id: "runtime",
+      label: "런타임",
+      icon: <Layers />,
+      badge:
+        opts.runtimeBadge !== undefined && opts.runtimeBadge > 0 ? opts.runtimeBadge : undefined,
+      content: opts.runtime,
+    },
+    { id: "work", label: "작업", icon: <ListChecks />, content: opts.work },
+    ...(opts.plugins ?? [{ id: "helm/panel", label: "탐구", icon: <Compass />, ext: "helm" }]),
+  ];
+  return opts.only === undefined ? tabs : tabs.filter((t) => opts.only?.includes(t.id));
+}
+
+/** 작업대 영역 탭(§4.9.4): 받은 요청, 기록(맥락 대화의 런타임 이벤트), 대화(맥락 대화의 끝 부분, 읽기 전용). */
+export function workbenchRightTabs(opts: {
+  inbox?: ReactNode;
+  inboxBadge?: number;
+  /** 기록 탭 내용. 없으면 공용 RuntimeLog. */
+  log?: ReactNode;
+  /** 대화 탭 내용. 없으면 공용 ThreadTail(onGoToThread로 "대화로 가기"). */
+  thread?: ReactNode;
+  onGoToThread?: () => void;
+}): RightTab[] {
+  return [
+    {
+      id: "inbox",
+      label: "받은 요청",
+      icon: <Inbox />,
+      badge: opts.inboxBadge,
+      content: opts.inbox,
+    },
+    { id: "log", label: "기록", icon: <History />, content: opts.log ?? <RuntimeLog /> },
+    {
+      id: "thread",
+      label: "대화",
+      icon: <MessageSquare />,
+      content: opts.thread ?? <ThreadTail onGoToThread={opts.onGoToThread} />,
+    },
+  ];
 }
 
 /** 모든 화면에 공통인 세 탭: 받은 요청, 탐구, 작업. only로 일부만 보인다(예: 대화를 고르지 않았을 때 받은 요청만). */
@@ -69,9 +140,24 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
           ].join(" ")}
         >
           <div className="flex h-8 flex-none items-center gap-1.5 ps-2.5 pe-0.5">
-            <h2 className="m-0 flex-1 truncate text-ui-sm font-semibold text-text-primary">
-              {current.label}
+            <h2 className="m-0 flex min-w-0 flex-1 items-baseline gap-1.5 text-ui-sm font-semibold text-text-primary">
+              <span className="truncate">{current.label}</span>
+              {current.ext !== undefined && (
+                <span className="truncate font-mono text-mono-sm font-normal text-text-tertiary">
+                  {current.ext}
+                </span>
+              )}
             </h2>
+            {current.expand !== undefined && (
+              <IconButton
+                size="xs"
+                variant="ghost"
+                label={current.expand.label}
+                onClick={current.expand.onSelect}
+              >
+                <Maximize2 />
+              </IconButton>
+            )}
             <IconButton
               size="xs"
               variant="ghost"

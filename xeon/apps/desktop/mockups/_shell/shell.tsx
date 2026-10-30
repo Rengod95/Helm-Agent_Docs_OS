@@ -1,21 +1,25 @@
 // 공용 창 셸(DP-01~10, DP-13). 제목 띠 없음.
 //   왼쪽 패널(표면, 창 위아래 끝까지) | 가운데(투명, 페이지 내용) | 오른쪽 떠 있는 세로 막대 + 펼친 well
 // 가운데 아래에 상태 표시줄. 건너뛰기 링크, 팔레트, 전역 바로 가기 키(⌘K 팔레트, ⌘\ 왼쪽 패널, ⌘J 오른쪽 well,
-// ⌘N 새 대화, Esc 뜬 패널 닫기)를 셸이 맡는다. ShellStateProvider 안에서 쓴다.
+// ⌘N 새 대화, Esc 뜬 패널 닫기, ⌘E 영역 바꾸기, ⌥⌘1 대화, ⌥⌘2 작업대)를 셸이 맡는다. ShellStateProvider 안에서 쓴다.
+// 두 영역(대화·작업대, §4.9)은 이 셸 하나를 같이 쓰고 왼쪽 패널 내용과 오른쪽 탭만 바뀐다(DP-18). 영역은 useShell().area.
 import { useEffect, type ReactNode } from "react";
 import { Palette } from "./palette";
 import { StatusBar, type StatusCell } from "./parts/status-bar";
 import { RightPanel, type RightTab } from "./right-panel";
-import { StartPanel, type ThreadListProps } from "./start-panel";
+import { StartPanel, type ThreadListProps, type WorkbenchPanelProps } from "./start-panel";
 import { useShell } from "./state";
 
 export const STAGE_ID = "stage";
 
 export interface ShellProps {
-  /** 지금 화면인 주 내비 항목 id: chat, inbox, proposals, schedules, connection. */
+  /** 지금 화면인 내비 항목 id. 대화: chat, inbox, proposals, schedules.
+   *  작업대: overview, extensions, tests, metrics, compose, create, engine, 또는 플러그인 화면 id("helm/inquiry"). */
   activeNav: string;
-  /** 주 내비 항목을 눌렀을 때(받은 요청은 셸이 오른쪽 well을 연다). */
+  /** 내비 항목을 눌렀을 때(받은 요청은 셸이 오른쪽 well을 연다). 두 영역의 id가 겹치지 않는다. */
   onNavSelect?: (id: string) => void;
+  /** 작업대 왼쪽 패널(배지, 플러그인 화면 목록, 맥락 대화로 가기). */
+  workbench?: WorkbenchPanelProps;
   /** 왼쪽 대화 목록의 고른 대화와 동작. */
   threads: ThreadListProps;
   /** 오른쪽 막대의 탭. 보통 standardRightTabs(...). */
@@ -40,13 +44,22 @@ function useShellShortcuts(onNew: () => void, modalOpen: boolean) {
         if (m.layout !== "wide" && m.endOpen) return m.setEndOpen(false);
         if (m.layout === "compact" && m.startOpen) return m.setStartOpen(false);
       }
-      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      if (!(e.metaKey || e.ctrlKey)) return;
+      // ⌥⌘1 대화, ⌥⌘2 작업대(§4.9.2). e.code로 본다(⌥가 글자를 바꾸는 배열).
+      if (e.altKey) {
+        if (e.code === "Digit1" || e.code === "Digit2") {
+          e.preventDefault();
+          m.setArea(e.code === "Digit1" ? "chat" : "workbench");
+        }
+        return;
+      }
       const k = e.key.toLowerCase();
       const act: Record<string, () => void> = {
         k: () => m.setPaletteOpen(!m.paletteOpen),
         "\\": () => m.setStartOpen(!m.startOpen),
         j: () => m.setEndOpen(!m.endOpen),
         n: onNew,
+        e: () => m.setArea(m.area === "chat" ? "workbench" : "chat"),
       };
       const f = act[k];
       if (f !== undefined) {
@@ -62,6 +75,7 @@ function useShellShortcuts(onNew: () => void, modalOpen: boolean) {
 export function Shell({
   activeNav,
   onNavSelect,
+  workbench,
   threads,
   rightTabs,
   status,
@@ -102,6 +116,7 @@ export function Shell({
             activeNav={activeNav}
             onNavSelect={onNavSelect}
             threads={threads}
+            workbench={workbench}
           />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
