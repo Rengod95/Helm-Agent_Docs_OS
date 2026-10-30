@@ -3,7 +3,8 @@
 // 가운데 아래에 상태 표시줄. 건너뛰기 링크, 팔레트, 전역 바로 가기 키(⌘K 팔레트, ⌘\ 왼쪽 패널, ⌘J 오른쪽 well,
 // ⌘N 새 대화, Esc 뜬 패널 닫기)를 셸이 맡는다. ShellStateProvider 안에서 쓴다.
 import { useEffect, type ReactNode } from "react";
-import { Palette } from "./palette";
+import type { NavEntry } from "./fixtures";
+import { Palette, type PaletteGroup } from "./palette";
 import { StatusBar, type StatusCell } from "./parts/status-bar";
 import { RightPanel, type RightTab } from "./right-panel";
 import { StartPanel, type ThreadListProps } from "./start-panel";
@@ -26,6 +27,10 @@ export interface ShellProps {
   onPaletteRun?: (group: string, label: string) => void;
   /** 가운데 main 랜드마크 이름. */
   stageLabel?: string;
+  /** 주 내비 항목(배지)을 바꿀 때(예: 첫 실행은 배지 없음). */
+  nav?: NavEntry[];
+  /** 팔레트 묶음을 바꿀 때. 없으면 공용 고정 데이터. */
+  palette?: PaletteGroup[];
   /** 페이지의 대화 상자가 열려 있으면 Esc를 셸이 쓰지 않는다. */
   modalOpen?: boolean;
   /** 가운데 내용. 투명 면 위에 그린다(카드로 감싸지 않는다, DP-01). */
@@ -68,6 +73,8 @@ export function Shell({
   onPaletteRun,
   stageLabel = "본문",
   modalOpen = false,
+  nav,
+  palette,
   children,
 }: ShellProps) {
   const m = useShell();
@@ -102,6 +109,7 @@ export function Shell({
             activeNav={activeNav}
             onNavSelect={onNavSelect}
             threads={threads}
+            nav={nav}
           />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -119,7 +127,7 @@ export function Shell({
           <StatusBar start={status.start} end={status.end} />
         </div>
       </div>
-      <Palette onRun={onPaletteRun} />
+      <Palette onRun={onPaletteRun} groups={palette} />
     </>
   );
 }

@@ -4,6 +4,7 @@ export { loadCausticFonts } from "./fonts";
 export { MockRoot, type MockStateDef, type Theme } from "./dev";
 export { ShellStateProvider, useShell, type Layout, type ShellState } from "./state";
 export { Shell, STAGE_ID, type ShellProps } from "./shell";
+export type { PaletteGroup } from "./palette";
 export { standardRightTabs, type RightTab } from "./right-panel";
 export type { ThreadListProps } from "./start-panel";
 export { defaultStatusCells, type StatusOptions } from "./status";

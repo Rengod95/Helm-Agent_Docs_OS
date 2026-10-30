@@ -1,6 +1,8 @@
 // 왼쪽 패널(표면): 찾기 + 주 내비(다섯 항목) + 작업 폴더별 대화 목록 + 맨 아래 설정. 제목 띠가 없어서 찾기와 접기가 여기 머리에 온다.
 // 지금 화면(activeNav)과 대화 고르기는 페이지가 props로 준다.
 import {
+  Button,
+  EmptyState,
   IconButton,
   Input,
   ListNavigation,
@@ -8,7 +10,12 @@ import {
   ListNavigationItem,
   SidePanel,
 } from "@caustic/react";
-import { nav, threads, type Thread } from "./fixtures";
+import {
+  nav as defaultNav,
+  threads as defaultThreads,
+  type NavEntry,
+  type Thread,
+} from "./fixtures";
 import {
   CalendarClock,
   Inbox,
@@ -63,6 +70,8 @@ export interface ThreadListProps {
   draft?: boolean;
   onSelect: (id: string) => void;
   onNew: () => void;
+  /** 대화 목록을 바꿀 때(예: 첫 실행은 빈 배열). 없으면 공용 고정 데이터. 비면 "아직 대화가 없어요". */
+  items?: Thread[];
 }
 
 export interface StartPanelProps {
@@ -71,10 +80,19 @@ export interface StartPanelProps {
   activeNav: string;
   onNavSelect?: ((id: string) => void) | undefined;
   threads: ThreadListProps;
+  /** 주 내비 항목(배지)을 바꿀 때. 없으면 공용 고정 데이터. */
+  nav?: NavEntry[] | undefined;
 }
 
-export function StartPanel({ floating, activeNav, onNavSelect, threads: list }: StartPanelProps) {
+export function StartPanel({
+  floating,
+  activeNav,
+  onNavSelect,
+  threads: list,
+  nav = defaultNav,
+}: StartPanelProps) {
   const m = useShell();
+  const threads = list.items ?? defaultThreads;
   const folders = [...new Set(threads.map((t) => t.folder))];
 
   return (
@@ -128,7 +146,24 @@ export function StartPanel({ floating, activeNav, onNavSelect, threads: list }: 
       footer={
         <ListNavigation aria-label="설정" kind="navigation" size="sm" as="div" className="w-full">
           <ListNavigationGroup>
-            <ListNavigationItem icon={<Settings />}>설정</ListNavigationItem>
+            {/* 설정 화면(activeNav="settings")이면 주 내비와 같은 방식(굵기 + selected 아이콘)으로 지금 화면을 보인다. */}
+            <ListNavigationItem
+              icon={
+                <Settings
+                  {...(activeNav === "settings" ? { emphasis: "selected" as const } : {})}
+                />
+              }
+              onSelect={() => onNavSelect?.("settings")}
+              {...(activeNav === "settings"
+                ? {
+                    "aria-label": "설정, 지금 화면",
+                    className:
+                      "[&_[data-slot=list-navigation-label]]:font-semibold [&_[data-slot=list-navigation-label]]:text-text-primary",
+                  }
+                : {})}
+            >
+              설정
+            </ListNavigationItem>
           </ListNavigationGroup>
         </ListNavigation>
       }
@@ -151,7 +186,7 @@ export function StartPanel({ floating, activeNav, onNavSelect, threads: list }: 
                   n.badge !== undefined ? `, ${n.tone === "danger" ? "실패 " : ""}${n.badge}개` : ""
                 }${n.id === activeNav ? ", 지금 화면" : ""}`}
                 count={
-                  n.tone === "danger" ? (
+                  n.badge === undefined ? undefined : n.tone === "danger" ? (
                     <span className="text-danger-text">{n.badge}</span>
                   ) : (
                     n.badge
@@ -165,6 +200,18 @@ export function StartPanel({ floating, activeNav, onNavSelect, threads: list }: 
           </ListNavigationGroup>
         </ListNavigation>
 
+        {threads.length === 0 && list.draft !== true && (
+          <EmptyState
+            size="sm"
+            surface="none"
+            title="아직 대화가 없어요"
+            actions={
+              <Button size="xs" tone="neutral" variant="outline" onClick={list.onNew}>
+                새 대화
+              </Button>
+            }
+          />
+        )}
         <ListNavigation aria-label="대화 목록" kind="sessions" size="sm" as="div">
           {list.draft === true && (
             <ListNavigationGroup heading="새로 시작">

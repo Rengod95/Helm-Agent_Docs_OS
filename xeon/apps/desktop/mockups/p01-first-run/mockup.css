@@ -1,0 +1,5 @@
+/* 페이지 목업: caustic 스타일 + 공용 셸 CSS. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../o07-new-thread";
