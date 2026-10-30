@@ -1,0 +1,4 @@
+/* 변경 검토 (P-04) 목업: caustic 스타일 + 공용 셸 CSS. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
