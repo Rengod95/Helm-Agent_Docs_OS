@@ -178,4 +178,5 @@ manifest:
     - adr.0018   # 승인 프로토콜 하나(도구·계획·질문·검토)
     - adr.0019   # 비밀 기본 저장소 SOPS(age)
     - adr.0020   # L4 공유 클라이언트 패키지 packages/client
+    - adr.0021   # 플러그인 화면 기여: 선언형 화면 스키마 기본(혼합)
   layers: "각 층마다 <층>.readme 1개 + 도메인마다 spec, plan (layout.domains 참조)"
