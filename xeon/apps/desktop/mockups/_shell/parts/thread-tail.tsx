@@ -33,7 +33,7 @@ export function ThreadTail({ onGoToThread }: { onGoToThread?: (() => void) | und
               <span className="text-ui-xs text-text-tertiary">
                 {r.who === "user" ? "나" : "어시스턴트"}
               </span>
-              <span className="text-ui-sm text-text-primary">{r.text}</span>
+              <span className="text-ui-dense text-text-primary">{r.text}</span>
             </li>
           ),
         )}

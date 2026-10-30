@@ -55,7 +55,7 @@ export function WorkbenchHead({
           <button
             type="button"
             onClick={() => m.setStartOpen(true)}
-            className="hidden shrink-0 truncate rounded-sm text-ui-sm text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring sm:inline"
+            className="hidden shrink-0 truncate rounded-sm text-ui-sm text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring compact:inline"
           >
             맥락 {ctx}
           </button>
@@ -65,7 +65,7 @@ export function WorkbenchHead({
         )}
       </div>
       {sub !== undefined && (
-        <div className="-mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 pb-2 text-ui-sm text-text-tertiary">
+        <div className="-mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 pb-2 text-ui-dense text-text-tertiary">
           {sub}
         </div>
       )}
