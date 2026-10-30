@@ -1,0 +1,6 @@
+/* P-14 목표와 작업 목업. 가운데 대화 맥락은 p05-helm/parts/chat-context.tsx를 같이 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../p05-helm/parts/";
+@source "../p07-schedules/parts/";

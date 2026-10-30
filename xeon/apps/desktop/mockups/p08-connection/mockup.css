@@ -1,0 +1,5 @@
+/* P-08 연결 목업. 받은 요청 탭 내용은 p07-schedules/parts/inbox-lite.tsx를 같이 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../p07-schedules/parts/";
