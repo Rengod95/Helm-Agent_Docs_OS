@@ -1,4 +1,5 @@
-// 시작 영역(표면): 찾기 + 주 내비(다섯 항목) + 작업 폴더별 대화 목록 + 맨 아래 설정. 제목 띠가 없어서 찾기와 접기가 여기 머리에 온다.
+// 왼쪽 패널(표면): 찾기 + 주 내비(다섯 항목) + 작업 폴더별 대화 목록 + 맨 아래 설정. 제목 띠가 없어서 찾기와 접기가 여기 머리에 온다.
+// 지금 화면(activeNav)과 대화 고르기는 페이지가 props로 준다.
 import {
   IconButton,
   Input,
@@ -20,16 +21,20 @@ import {
   Search,
   Settings,
 } from "./icons";
-import { useMock } from "./store";
+import { useShell } from "./state";
 
-// 지금 화면(chat)은 라벨 굵기와 함께 아이콘도 selected(Phosphor fill, Solar bold)로 그린다(DP-17).
+// 지금 화면(activeNav)은 라벨 굵기와 함께 아이콘도 selected(Solar bold)로 그린다(DP-17).
 const NAV_ICONS = {
-  chat: <MessageSquare emphasis="selected" />,
-  inbox: <Inbox />,
-  proposals: <Lightbulb />,
-  schedules: <CalendarClock />,
-  connection: <Plug />,
+  chat: MessageSquare,
+  inbox: Inbox,
+  proposals: Lightbulb,
+  schedules: CalendarClock,
+  connection: Plug,
 } as const;
+function navIcon(id: string, active: boolean) {
+  const I = NAV_ICONS[id as keyof typeof NAV_ICONS];
+  return I === undefined ? undefined : <I {...(active ? { emphasis: "selected" as const } : {})} />;
+}
 
 function threadMeta(t: Thread) {
   if (t.status === "locked")
@@ -51,8 +56,25 @@ function threadMeta(t: Thread) {
   return undefined;
 }
 
-export function StartPanel({ floating }: { floating: boolean }) {
-  const m = useMock();
+export interface ThreadListProps {
+  /** 고른 대화 id. 없으면 아무 행도 올리지 않는다. */
+  currentId: string | null;
+  /** 저장 전 새 대화를 목록 맨 위 "새로 시작"에 올린다. */
+  draft?: boolean;
+  onSelect: (id: string) => void;
+  onNew: () => void;
+}
+
+export interface StartPanelProps {
+  floating: boolean;
+  /** 지금 화면인 주 내비 항목 id(nav[].id). */
+  activeNav: string;
+  onNavSelect?: ((id: string) => void) | undefined;
+  threads: ThreadListProps;
+}
+
+export function StartPanel({ floating, activeNav, onNavSelect, threads: list }: StartPanelProps) {
+  const m = useShell();
   const folders = [...new Set(threads.map((t) => t.folder))];
 
   return (
@@ -117,17 +139,17 @@ export function StartPanel({ floating }: { floating: boolean }) {
             {nav.map((n) => (
               <ListNavigationItem
                 key={n.id}
-                icon={NAV_ICONS[n.id as keyof typeof NAV_ICONS]}
+                icon={navIcon(n.id, n.id === activeNav)}
                 // 지금 화면 표시는 굵기 하나로만 한다(aria-current는 caustic이 올린 바탕을 그려서 쓰지 않고 라벨에 적는다).
                 // 올린 바탕(current)은 아래 대화 목록의 고른 행 하나에만 쓴다.
                 className={
-                  n.id === "chat"
+                  n.id === activeNav
                     ? "[&_[data-slot=list-navigation-label]]:font-semibold [&_[data-slot=list-navigation-label]]:text-text-primary"
                     : undefined
                 }
                 aria-label={`${n.label}${
                   n.badge !== undefined ? `, ${n.tone === "danger" ? "실패 " : ""}${n.badge}개` : ""
-                }${n.id === "chat" ? ", 지금 화면" : ""}`}
+                }${n.id === activeNav ? ", 지금 화면" : ""}`}
                 count={
                   n.tone === "danger" ? (
                     <span className="text-danger-text">{n.badge}</span>
@@ -135,7 +157,7 @@ export function StartPanel({ floating }: { floating: boolean }) {
                     n.badge
                   )
                 }
-                {...(n.id === "inbox" ? { onSelect: () => m.openEnd("inbox") } : {})}
+                onSelect={() => (n.id === "inbox" ? m.openEnd("inbox") : onNavSelect?.(n.id))}
               >
                 {n.label}
               </ListNavigationItem>
@@ -144,7 +166,7 @@ export function StartPanel({ floating }: { floating: boolean }) {
         </ListNavigation>
 
         <ListNavigation aria-label="대화 목록" kind="sessions" size="sm" as="div">
-          {m.view === "empty" && (
+          {list.draft === true && (
             <ListNavigationGroup heading="새로 시작">
               <ListNavigationItem current meta="작성 전">
                 새 대화
@@ -158,19 +180,19 @@ export function StartPanel({ floating }: { floating: boolean }) {
                 <span className="font-mono text-mono-sm normal-case tracking-normal">{folder}</span>
               }
               addLabel={`${folder}에서 새 대화`}
-              onAdd={m.newThread}
+              onAdd={list.onNew}
             >
               {threads
                 .filter((t) => t.folder === folder)
                 .map((t) => (
                   <ListNavigationItem
                     key={t.id}
-                    current={m.view === "thread" && m.currentId === t.id}
+                    current={list.draft !== true && list.currentId === t.id}
                     {...(t.status === "running" || t.status === "failed"
                       ? { status: t.status }
                       : {})}
                     meta={threadMeta(t)}
-                    onSelect={() => m.selectThread(t.id)}
+                    onSelect={() => list.onSelect(t.id)}
                     className={
                       t.title === ""
                         ? "[&_[data-slot=list-navigation-label]]:italic [&_[data-slot=list-navigation-label]]:text-text-tertiary"

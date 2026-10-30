@@ -1,0 +1,4 @@
+/* 시안 목록: caustic 스타일 + 공용 셸 CSS. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";

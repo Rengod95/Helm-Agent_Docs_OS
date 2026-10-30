@@ -7,9 +7,9 @@ import {
   DialogTitle,
   type ComboboxGroupData,
 } from "@caustic/react";
-import { palette, threads } from "./fixtures";
+import { palette } from "./fixtures";
 import { Command, MessageSquare, Settings, SlashSquare } from "./icons";
-import { useMock } from "./store";
+import { useShell } from "./state";
 
 const GROUP_ICON: Record<string, React.ReactNode> = {
   대화: <MessageSquare />,
@@ -40,16 +40,17 @@ const groups: ComboboxGroupData[] = palette.map((g) => ({
   }),
 }));
 
-export function Palette() {
-  const m = useMock();
+/** onRun은 고른 항목의 묶음 이름과 라벨을 받는다(예: "대화", "테스트 정리"). 팔레트는 먼저 닫힌다. */
+export function Palette({
+  onRun,
+}: {
+  onRun?: ((group: string, label: string) => void) | undefined;
+}) {
+  const m = useShell();
   const run = (value: string) => {
     const [group, label] = value.split(":") as [string, string];
     m.setPaletteOpen(false);
-    if (group === "대화") {
-      const t = threads.find((x) => x.title === label);
-      if (t) m.selectThread(t.id);
-    } else if (label === "새 대화") m.newThread();
-    else if (label === "중단") m.stop();
+    onRun?.(group, label);
   };
   return (
     <Dialog open={m.paletteOpen} onOpenChange={m.setPaletteOpen} size="md">

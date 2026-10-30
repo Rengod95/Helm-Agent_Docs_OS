@@ -8,18 +8,18 @@
 
 ## 파일
 
+창 셸(왼쪽 패널, 오른쪽 막대·well, 상태 표시줄, 팔레트, 개발용 띠, 글꼴, 아이콘, 공용 고정 데이터, 승인·질문 카드, 알림 목록)은 `../_shell`에 있습니다(`_shell/README.md`). 이 폴더는 P-02 고유 부분만 둡니다.
+
 | 파일 | 하는 일 |
 |---|---|
-| `main.tsx` | 진입점, URL 상태·테마, 개발용 띠 |
-| `store.tsx` | 목업 로컬 상태(S1~S7 초기값, 패널, 승인 결정, 입력, 폭 단계) |
-| `app.tsx` | 자체 레이아웃(제목 띠 없음: 왼쪽 패널 · 투명 대화 영역 · 오른쪽 막대), 건너뛰기 링크, 전역 바로 가기 키, 상태 표시줄 칸 |
-| `start-panel.tsx`, `stage.tsx`, `right-panel.tsx` | 왼쪽 패널(찾기·내비·대화 목록·설정), 대화 영역, 오른쪽 세로 떠 있는 막대 + well |
-| `tool-approval.tsx` | 도구 승인 카드(`AgentRequest` 조합) |
-| `palette.tsx`, `locked-dialog.tsx` | S7 팔레트, S5 O-01 잠긴 대화 |
-| `fixtures.ts` | 스펙 §8.2 고정 데이터 그대로(타입만 덧붙임) |
-| `icons.ts` | caustic 아이콘 어댑터 진입점(아래 "환경" 참고) |
-| `fonts.ts` | caustic `fonts.css`를 렌더를 막지 않게 싣기(원격 `@import`를 비동기 `<link>`로, DP-15) |
-| `parts/` | caustic에 없어 직접 만든 부품(아래 표) |
+| `main.tsx` | 진입점: 글꼴, `MockRoot`(S1~S7), `ShellStateProvider`, 페이지 상태 |
+| `store.tsx` | P-02 상태(대화 고르기, 승인 결정, 입력, 연결·잠김). 셸 상태를 함께 실어 `useMock()` 하나로 읽음 |
+| `app.tsx` | `Shell`에 대화 내용·받은 요청 탭·상태 칸·팔레트 동작을 꽂음, ⌘.·⌘L |
+| `stage.tsx` | 대화 머리, 트랜스크립트, 입력창, 빈 상태 |
+| `inbox.tsx` | 오른쪽 well 받은 요청 탭 내용 |
+| `locked-dialog.tsx` | S5 O-01 잠긴 대화 |
+| `fixtures.ts` | 트랜스크립트(공용 데이터는 `_shell/fixtures.ts`) |
+| `parts/` | 도구 호출 행, 인라인 코드, 작성 중 커서, 관찰 띠 |
 | `shots/S1.png`~`S7.png` | 1280px 라이트 스크린숏 |
 
 ## 쓴 caustic 부품
@@ -36,10 +36,10 @@
 
 | 파일 | 메운 빈틈 |
 |---|---|
-| `status-bar.tsx` | C-03 상태 표시줄(창 아래 28px 띠, `Button xs ghost` + `Popover` 칸), C-05 게이지(`Progress`로 대신) |
-| `notice-list.tsx` | C-02 알림함(종류, 안 읽음, 시각) |
+| `_shell/parts/status-bar.tsx` | C-03 상태 표시줄(창 아래 28px 띠, `Button xs ghost` + `Popover` 칸), C-05 게이지(`Progress`로 대신) |
+| `_shell/parts/notice-list.tsx` | C-02 알림함(종류, 안 읽음, 시각) |
 | `tool-row.tsx` | `ToolCall`에 접기·펼치기가 없음(실패한 bash는 처음부터 펼침), C-15 도구 출력 |
-| `question-card.tsx` | `AgentRequest`에 질문 kind가 없음(permission은 방패 고정, proposal은 영어 "Proposal ·" 머리). permission 카드 치수를 따름 |
+| `_shell/parts/question-card.tsx` | `AgentRequest`에 질문 kind가 없음(permission은 방패 고정, proposal은 영어 "Proposal ·" 머리). permission 카드 치수를 따름 |
 | `rich-text.tsx` | C-06 Markdown: 백틱 인라인 코드만 `<code>` |
 | `streaming-text.tsx` | `Message streaming`에 작성 중 커서가 없음. 깜빡이는 커서 하나 |
 | `observe-band.tsx` | `Composer`에 "관찰 중" 잠금 상태가 없음 |
@@ -93,5 +93,5 @@
 
 ## 환경
 
-`icons.ts`는 caustic 아이콘 어댑터(`@caustic/react/icons`)를 다시 내보냅니다(DP-17). 이름은 lucide 이름 그대로입니다.
-세트는 빌드 때 고릅니다: `CAUSTIC_ICON_SET=phosphor`(기본) 또는 `CAUSTIC_ICON_SET=solar`를 `bun run mockup`/`mockup:build` 앞에 붙입니다.
+`_shell/icons.ts`는 caustic 아이콘 어댑터(`@caustic/react/icons`)를 다시 내보냅니다(DP-17). 이름은 lucide 이름 그대로입니다.
+세트는 Solar 하나입니다(DP-17).

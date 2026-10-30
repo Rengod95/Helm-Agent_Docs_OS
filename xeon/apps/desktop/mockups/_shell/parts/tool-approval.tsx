@@ -2,8 +2,10 @@
 // 트랜스크립트 끝과 끝 영역에 같은 부품으로 보인다. 카드에 초점이 있으면 Y(허용), ⇧Y(이 대화에서 항상), N(거부).
 import { AgentRequest, Badge, ListDescription, ListDescriptionRow } from "@caustic/react";
 import type { KeyboardEvent } from "react";
-import type { ToolApproval } from "./fixtures";
-import type { Decision } from "./store";
+import type { ToolApproval } from "../fixtures";
+
+/** 승인 카드 상태. once는 allowed가 되었다가 1초 뒤 gone. */
+export type Decision = "pending" | "allowed" | "always" | "denied" | "answered" | "gone";
 
 export interface ToolApprovalCardProps {
   approval: ToolApproval;

@@ -3,13 +3,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
-import { threads } from "./fixtures";
+import { threads, useShell, type Decision, type Layout } from "../_shell";
 
 export const STATES = [
   { id: "S1", label: "S1 기본" },
@@ -21,25 +20,7 @@ export const STATES = [
   { id: "S7", label: "S7 팔레트" },
 ] as const;
 export type StateId = (typeof STATES)[number]["id"];
-export const isStateId = (v: string | null): v is StateId => STATES.some((s) => s.id === v);
 
-/** 창 폭 단계. caustic AppShell과 같은 경계(1100, 720)를 쓴다. */
-export type Layout = "wide" | "medium" | "compact";
-const layoutOf = (w: number): Layout => (w <= 720 ? "compact" : w <= 1100 ? "medium" : "wide");
-
-function useWindowLayout(): Layout {
-  const [layout, setLayout] = useState<Layout>(() => layoutOf(window.innerWidth));
-  useEffect(() => {
-    const update = () => setLayout(layoutOf(window.innerWidth));
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return layout;
-}
-
-export type EndTab = "inbox" | "helm" | "work";
-/** 승인 카드 상태. once는 allowed가 되었다가 1초 뒤 gone. */
-export type Decision = "pending" | "allowed" | "always" | "denied" | "answered" | "gone";
 export type ApprovalId = "a1" | "a2";
 
 interface Mock {
@@ -51,8 +32,8 @@ interface Mock {
   setStartOpen: (open: boolean) => void;
   endOpen: boolean;
   setEndOpen: (open: boolean) => void;
-  endTab: EndTab;
-  openEnd: (tab: EndTab) => void;
+  endTab: string;
+  openEnd: (tab: string) => void;
   currentId: string | null;
   currentTitle: string;
   selectThread: (id: string) => void;
@@ -86,13 +67,22 @@ export function useMock(): Mock {
 }
 
 export function MockProvider({ state, children }: { state: StateId; children: ReactNode }) {
-  const layout = useWindowLayout();
+  // 패널·well·팔레트·폭 단계는 공용 셸 상태(ShellStateProvider). 이 목업 코드가 한 곳(useMock)에서 읽도록 함께 싣는다.
+  const shell = useShell();
+  const {
+    layout,
+    startOpen,
+    setStartOpen,
+    endOpen,
+    setEndOpen,
+    endTab,
+    openEnd,
+    paletteOpen,
+    setPaletteOpen,
+  } = shell;
   const [view, setView] = useState<Mock["view"]>(
     state === "S2" ? "none" : state === "S3" ? "empty" : "thread",
   );
-  const [startOpen, setStartOpen] = useState(layout !== "compact");
-  const [endOpen, setEndOpen] = useState(layout === "wide");
-  const [endTab, setEndTab] = useState<EndTab>("inbox");
   const [currentId, setCurrentId] = useState<string | null>(
     state === "S2" || state === "S3" ? null : state === "S5" ? "t6" : "t1",
   );
@@ -104,26 +94,9 @@ export function MockProvider({ state, children }: { state: StateId; children: Re
   const [reconnecting, setReconnecting] = useState(state === "S4");
   const [lockedOpen, setLockedOpen] = useState(state === "S5");
   const [observing, setObserving] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(state === "S7");
   const [running, setRunning] = useState(state !== "S3");
   const [sent, setSent] = useState<string[]>([]);
   const composerFocusRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // 폭 단계가 바뀌면 그 단계의 기본값으로: 넓으면 둘 다 붙박이, 중간이면 끝 영역은 시트(닫힘), 좁으면 둘 다 시트.
-  const firstLayout = useRef(true);
-  useEffect(() => {
-    if (firstLayout.current) {
-      firstLayout.current = false;
-      return;
-    }
-    setStartOpen(layout !== "compact");
-    setEndOpen(layout === "wide");
-  }, [layout]);
-
-  const openEnd = useCallback((tab: EndTab) => {
-    setEndTab(tab);
-    setEndOpen(true);
-  }, []);
 
   const selectThread = useCallback(
     (id: string) => {
@@ -133,7 +106,7 @@ export function MockProvider({ state, children }: { state: StateId; children: Re
       if (t?.status === "locked") setLockedOpen(true);
       if (layout === "compact") setStartOpen(false);
     },
-    [layout],
+    [layout, setStartOpen],
   );
 
   const newThread = useCallback(() => {
@@ -142,7 +115,7 @@ export function MockProvider({ state, children }: { state: StateId; children: Re
     setRunning(false);
     setSent([]);
     if (layout === "compact") setStartOpen(false);
-  }, [layout]);
+  }, [layout, setStartOpen]);
 
   const decide = useCallback((id: ApprovalId, d: Exclude<Decision, "gone">) => {
     setDecisions((prev) => ({ ...prev, [id]: d }));

@@ -4,7 +4,7 @@
 // 머리 앞 아이콘 자리에 회전하는 chevron을 둔다. 색과 모서리는 caustic 토큰과 ToolCall의 것을 그대로 따른다.
 import { ToolCall } from "@caustic/react";
 import { useId, useState } from "react";
-import { ChevronRight } from "../icons";
+import { ChevronRight } from "../../_shell";
 
 export interface ToolRowProps {
   name: string;

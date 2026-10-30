@@ -2,7 +2,7 @@
 // 입력창 자리에 같은 모서리(2xl)·높이 감의 띠를 두고, 이유 한 줄과 "쓰기 다시 시도" 버튼을 둔다.
 // 바탕은 neutral-well(잠긴 입력의 흐린 바탕), 헤어라인은 border-subtle, 버튼은 caustic Button이다.
 import { Button } from "@caustic/react";
-import { Eye } from "../icons";
+import { Eye } from "../../_shell";
 
 export function ObserveBand({ onRetry }: { onRetry: () => void }) {
   return (

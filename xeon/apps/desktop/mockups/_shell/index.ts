@@ -1,0 +1,14 @@
+// 공용 셸 진입점. 페이지 목업은 여기서만 가져온다: import { Shell, ShellStateProvider, ... } from "../_shell";
+export * from "./icons";
+export { loadCausticFonts } from "./fonts";
+export { MockRoot, type MockStateDef, type Theme } from "./dev";
+export { ShellStateProvider, useShell, type Layout, type ShellState } from "./state";
+export { Shell, STAGE_ID, type ShellProps } from "./shell";
+export { standardRightTabs, type RightTab } from "./right-panel";
+export type { ThreadListProps } from "./start-panel";
+export { defaultStatusCells, type StatusOptions } from "./status";
+export { StatusBar, TokenBar, type StatusCell } from "./parts/status-bar";
+export { NoticeList } from "./parts/notice-list";
+export { QuestionCard, type QuestionCardProps } from "./parts/question-card";
+export { ToolApprovalCard, type Decision, type ToolApprovalCardProps } from "./parts/tool-approval";
+export * from "./fixtures";

@@ -28,14 +28,13 @@ import {
   PanelLeft,
   SquarePen,
   Trash2,
-} from "./icons";
+} from "../_shell";
 import { ObserveBand } from "./parts/observe-band";
-import { QuestionCard } from "./parts/question-card";
 import { RichText } from "./parts/rich-text";
 import { StreamingText } from "./parts/streaming-text";
 import { ToolRow } from "./parts/tool-row";
+import { QuestionCard, ToolApprovalCard } from "../_shell";
 import { useMock } from "./store";
-import { ToolApprovalCard } from "./tool-approval";
 
 // 읽기 열: 가운데 46rem. 좌우 여백은 좁은 폭에서 가장자리에 닿지 않을 만큼만(3) 한 번 준다.
 const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
