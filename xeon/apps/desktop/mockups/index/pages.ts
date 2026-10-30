@@ -8,4 +8,12 @@ export interface MockPage {
   states: number;
 }
 
-export const pages: MockPage[] = [{ id: "P-02", title: "대화", folder: "p02-opus", states: 7 }];
+export const pages: MockPage[] = [
+  { id: "P-02", title: "대화", folder: "p02-opus", states: 7 },
+  {
+    id: "W1–W5",
+    title: "작업대 1차(개요, 확장, 확장 상세, Helm 탐구, 런타임 탭)",
+    folder: "wb-opus",
+    states: 11,
+  },
+];
