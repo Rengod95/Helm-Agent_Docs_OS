@@ -10,13 +10,17 @@
     "typeAware": true,
     "reportUnusedDisableDirectives": "error"
   },
-  "env": { "es2024": true },
+  "env": {
+    "es2024": true
+  },
   "ignorePatterns": [
     "**/dist/**",
     "**/node_modules/**",
     "**/.turbo/**",
     "**/coverage/**",
-    "vendor/**"
+    "vendor/**",
+    "packages/group-kit/templates/**",
+    "apps/desktop/mockups/**"
   ],
   "rules": {
     "eqeqeq": "error",
@@ -34,9 +38,19 @@
     "typescript/no-extraneous-class": "error",
     "typescript/ban-ts-comment": [
       "error",
-      { "ts-expect-error": true, "ts-ignore": true, "ts-nocheck": true, "ts-check": false }
+      {
+        "ts-expect-error": true,
+        "ts-ignore": true,
+        "ts-nocheck": true,
+        "ts-check": false
+      }
     ],
-    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+    "typescript/consistent-type-assertions": [
+      "error",
+      {
+        "assertionStyle": "never"
+      }
+    ],
     "typescript/no-unsafe-type-assertion": "error",
     "typescript/no-non-null-asserted-nullish-coalescing": "error",
     "typescript/no-unnecessary-type-parameters": "error",
@@ -45,9 +59,24 @@
     "typescript/no-namespace": "error",
     "oxc/no-const-enum": "error",
     "default-case": "error",
-    "no-empty": ["error", { "allowEmptyCatch": false }],
-    "preserve-caught-error": ["error", { "requireCatchParameter": true }],
-    "typescript/consistent-type-imports": ["error", { "fixStyle": "inline-type-imports" }],
+    "no-empty": [
+      "error",
+      {
+        "allowEmptyCatch": false
+      }
+    ],
+    "preserve-caught-error": [
+      "error",
+      {
+        "requireCatchParameter": true
+      }
+    ],
+    "typescript/consistent-type-imports": [
+      "error",
+      {
+        "fixStyle": "inline-type-imports"
+      }
+    ],
     "typescript/no-import-type-side-effects": "error",
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
@@ -94,7 +123,10 @@
             "group": ["**/../packages/*", "../../../*", "../../*/src", "../../*/src/*"],
             "message": "Do not reach into another package by relative path; declare a workspace dependency and import @xeon/<name>."
           },
-          { "group": ["vitest", "vitest/*", "jest", "@jest/*"], "message": "Tests use bun:test." },
+          {
+            "group": ["vitest", "vitest/*", "jest", "@jest/*"],
+            "message": "Tests use bun:test."
+          },
           {
             "group": ["better-sqlite3", "node:sqlite", "sqlite3"],
             "message": "SQLite access goes through bun:sqlite inside platform-store."
@@ -107,7 +139,10 @@
             "group": ["@sinclair/typebox", "@sinclair/typebox/*"],
             "message": "Use typebox 1.x (package 'typebox')."
           },
-          { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." },
+          {
+            "group": ["lodash", "lodash/*", "moment"],
+            "message": "Banned dependency."
+          },
           {
             "group": ["@tanstack/react-query", "immer", "use-immer"],
             "message": "FS-03, FS-11: no request cache and no immer in the desktop state layer."
@@ -155,7 +190,10 @@
                 "group": ["@sinclair/typebox", "@sinclair/typebox/*"],
                 "message": "Use typebox 1.x (package 'typebox')."
               },
-              { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." },
+              {
+                "group": ["lodash", "lodash/*", "moment"],
+                "message": "Banned dependency."
+              },
               {
                 "group": ["@tanstack/react-query", "immer", "use-immer"],
                 "message": "FS-03, FS-11: no request cache and no immer in the desktop state layer."
@@ -207,7 +245,10 @@
                 "group": ["@sinclair/typebox", "@sinclair/typebox/*"],
                 "message": "Use typebox 1.x (package 'typebox')."
               },
-              { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." },
+              {
+                "group": ["lodash", "lodash/*", "moment"],
+                "message": "Banned dependency."
+              },
               {
                 "group": ["@tanstack/react-query", "immer", "use-immer"],
                 "message": "FS-03, FS-11: no request cache and no immer in the desktop state layer."
@@ -229,11 +270,16 @@
     {
       "files": ["apps/desktop/src/**/*.tsx", "apps/desktop/src/**/hooks.ts"],
       "plugins": ["react"],
-      "rules": { "react/rules-of-hooks": "error", "react/react-in-jsx-scope": "off" }
+      "rules": {
+        "react/rules-of-hooks": "error",
+        "react/react-in-jsx-scope": "off"
+      }
     },
     {
       "files": ["packages/ext-host/**"],
-      "rules": { "no-restricted-imports": "off" }
+      "rules": {
+        "no-restricted-imports": "off"
+      }
     },
     {
       "files": ["packages/cap-web/src/fetch/convert/**"],
@@ -278,13 +324,34 @@
                 "name": "node:worker_threads",
                 "message": "WEB-R16: conversion modules never start workers."
               },
-              { "name": "http", "message": "WEB-R16: conversion modules never use the network." },
-              { "name": "https", "message": "WEB-R16: conversion modules never use the network." },
-              { "name": "http2", "message": "WEB-R16: conversion modules never use the network." },
-              { "name": "net", "message": "WEB-R16: conversion modules never use the network." },
-              { "name": "tls", "message": "WEB-R16: conversion modules never use the network." },
-              { "name": "dgram", "message": "WEB-R16: conversion modules never use the network." },
-              { "name": "dns", "message": "WEB-R16: conversion modules never use the network." },
+              {
+                "name": "http",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "https",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "http2",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "net",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "tls",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "dgram",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "dns",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
               {
                 "name": "child_process",
                 "message": "WEB-R16: conversion modules never start processes."
@@ -293,8 +360,14 @@
                 "name": "worker_threads",
                 "message": "WEB-R16: conversion modules never start workers."
               },
-              { "name": "undici", "message": "WEB-R16: conversion modules never use the network." },
-              { "name": "ws", "message": "WEB-R16: conversion modules never use the network." },
+              {
+                "name": "undici",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "ws",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
               {
                 "name": "guarded-fetch",
                 "message": "WEB-R16: fetching belongs to the pipeline, not to conversion."
@@ -337,14 +410,23 @@
                 "group": ["@sinclair/typebox", "@sinclair/typebox/*"],
                 "message": "Use typebox 1.x (package 'typebox')."
               },
-              { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." }
+              {
+                "group": ["lodash", "lodash/*", "moment"],
+                "message": "Banned dependency."
+              }
             ]
           }
         ],
         "no-restricted-globals": [
           "error",
-          { "name": "fetch", "message": "WEB-R16: conversion modules never use the network." },
-          { "name": "WebSocket", "message": "WEB-R16: conversion modules never use the network." },
+          {
+            "name": "fetch",
+            "message": "WEB-R16: conversion modules never use the network."
+          },
+          {
+            "name": "WebSocket",
+            "message": "WEB-R16: conversion modules never use the network."
+          },
           {
             "name": "EventSource",
             "message": "WEB-R16: conversion modules never use the network."
@@ -366,7 +448,9 @@
     },
     {
       "files": ["scripts/**", "apps/cli/**", "apps/host/**"],
-      "rules": { "no-console": "off" }
+      "rules": {
+        "no-console": "off"
+      }
     },
     {
       "files": ["**/test/**", "**/*.test.ts", "scripts/**/*.test.ts"],

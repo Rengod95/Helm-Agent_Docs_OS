@@ -5,7 +5,7 @@ import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, failureOfStart, renderFailure, type Failure } from "../errors.ts";
 import type { ExitCode } from "../exit-codes.ts";
 import type { CliDeps, CliIo } from "../io.ts";
-import { cliSettings } from "../settings.ts";
+import { cliSettingGroups } from "../settings.ts";
 import { CLI_VERSION } from "./version.ts";
 
 // 명령들이 함께 쓰는 실행 문맥과 엔진 연결 도우미.
@@ -56,8 +56,10 @@ export async function connectOrReportQuiet(
     workspace: ctx.workspace,
     ...(options.safeMode === true ? { safeMode: true } : {}),
     preference: "auto",
+    ...(ctx.global.remote === null ? {} : { remote: ctx.global.remote }),
+    env: ctx.io.env,
     client: { name: "xeon-cli", version: CLI_VERSION },
-    settingGroups: [cliSettings],
+    settingGroups: cliSettingGroups,
     devWireRoundTrip: ctx.deps.devWireRoundTrip,
     ...(observe === undefined ? {} : { observe }),
     ...(ctx.deps.assemble === undefined ? {} : { assemble: ctx.deps.assemble }),

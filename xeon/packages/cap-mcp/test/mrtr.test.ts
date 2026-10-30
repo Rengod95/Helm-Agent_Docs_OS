@@ -283,7 +283,7 @@ describe("input_required", () => {
     await after.runtime.shutdown();
   });
 
-  test("undeclared input kind rejected", async () => {
+  test("undeclared input kind rejected, sampling included (M3-REQ-97: sampling is unsupported)", async () => {
     const sampling = {
       name: "ask",
       handle: (): StubOutcome => ({
@@ -299,17 +299,6 @@ describe("input_required", () => {
     );
     expect(failure).toMatchObject({ data: { code: "input_unsupported" } });
     await w.runtime.shutdown();
-
-    // sampling을 "ask"로 두면 질문으로 보이지만 응답은 보내지 않는다(미결 6)
-    const asking = world(sampling, { sampling: "ask" });
-    await startWorld(asking);
-    const output = inputRequired(
-      await asking.runtime.service.client.callTool({ server: "stub", tool: "ask", arguments: {} }),
-    );
-    expect(output.questions[0]?.kind).toBe("sampling");
-    const responses = buildInputResponses(output.questions, []);
-    expect(responses).toEqual({ ok: true, value: {} });
-    await asking.runtime.shutdown();
   });
 
   test("secret-like form field warns", async () => {

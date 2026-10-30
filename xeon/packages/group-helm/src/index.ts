@@ -71,6 +71,6 @@ export {
   helmSettingsOf,
   type HelmSettings,
 } from "./settings.ts";
-export { HELM_RECORD_KINDS } from "./records.ts";
+export { dedupeInquiryFinished, HELM_RECORD_KINDS } from "./records.ts";
 export { HelmStateSchema, INITIAL_HELM_STATE, type HelmState } from "./state.ts";
 export { TRANSITIONS, transition } from "./phase.ts";

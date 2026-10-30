@@ -15,10 +15,11 @@ import {
   type SettingScope,
 } from "@xeon/contracts/settings";
 import { asJsonObject } from "./json.ts";
+import { checkDefinitionValues } from "./servers/values.ts";
 import type { LoaderDiagnostic, ServerDefinition } from "./types.ts";
 
-// L2.mcp.spec §6. 키 문법은 `l2.mcp.<이름>`이고 열네 개다. 서버 정의 안의 비밀은 secret:// 참조만 저장하므로
-// secret 열은 모두 거짓이다.
+// L2.mcp.spec §6. 키 문법은 `l2.mcp.<이름>`이고 열다섯 개다(sampling은 지원하지 않아 없다, M3-REQ-97).
+// 서버 정의 안의 비밀은 secret:// 참조만 저장하므로 secret 열은 모두 거짓이다.
 
 const ALL = ["managed", "user", "project", "local", "session"] as const;
 const NO_SESSION = ["managed", "user", "project", "local"] as const;
@@ -93,13 +94,25 @@ const mcpSettings = defineSettings("l2.mcp", {
     ui: { tab: "tools", widget: "toggle", order: 307, label: "관리 서버만 허용" },
     since: "0.1.0",
   },
-  sampling: {
-    type: Type.String(),
-    default: "deny",
-    range: { enum: ["deny", "ask"] },
+  "sandbox.userSource": {
+    type: Type.Boolean(),
+    default: false,
     runtimeChange: "nextTurn",
     allowedScopes: MANAGED_USER,
-    ui: { tab: "tools", widget: "select", order: 308, label: "MCP 샘플링 요청" },
+    ui: { tab: "tools", widget: "toggle", order: 308, label: "사용자 설정 stdio 서버 샌드박스" },
+    since: "0.1.0",
+  },
+  "sandbox.projectSource": {
+    type: Type.Boolean(),
+    default: true,
+    runtimeChange: "nextTurn",
+    allowedScopes: MANAGED_USER,
+    ui: {
+      tab: "tools",
+      widget: "toggle",
+      order: 314,
+      label: "프로젝트·확장 출처 stdio 서버 샌드박스",
+    },
     since: "0.1.0",
   },
   "inputRequired.maxRounds": {
@@ -162,7 +175,10 @@ export interface McpSettings {
   /** 모든 범위의 합집합. 차단이 허용보다 우선이다 */
   readonly deniedServers: readonly string[];
   readonly managedOnly: boolean;
-  readonly sampling: "deny" | "ask";
+  /** 사용자 설정(`settings:user`) 출처 stdio 서버를 샌드박스에 넣는가. 기본 끔 */
+  readonly sandboxUserSource: boolean;
+  /** 그 밖의 출처(프로젝트 설정, `.mcp.json`, 확장 등록) stdio 서버를 샌드박스에 넣는가. 기본 켬 */
+  readonly sandboxProjectSource: boolean;
   readonly maxInputRounds: number;
   readonly resultMaxBytes: number;
   readonly reconnect: { readonly maxDelayMs: number; readonly maxAttempts: number };
@@ -177,7 +193,8 @@ export const DEFAULT_MCP_SETTINGS: McpSettings = {
   allowedServers: [],
   deniedServers: [],
   managedOnly: false,
-  sampling: "deny",
+  sandboxUserSource: false,
+  sandboxProjectSource: true,
   maxInputRounds: 10,
   resultMaxBytes: 51200,
   reconnect: { maxDelayMs: 60000, maxAttempts: 5 },
@@ -252,7 +269,14 @@ export function readMcpSettings(layers: ScopeStack): McpSettings {
       managedAllowed.length > 0 ? managedAllowed : layerList("allowedServers", layers, "user"),
     deniedServers: unionOfScopes("deniedServers", layers),
     managedOnly: booleanOr(effective("managedOnly", layers), fallback.managedOnly),
-    sampling: choice(effective("sampling", layers), ["deny", "ask"], fallback.sampling),
+    sandboxUserSource: booleanOr(
+      effective("sandbox.userSource", layers),
+      fallback.sandboxUserSource,
+    ),
+    sandboxProjectSource: booleanOr(
+      effective("sandbox.projectSource", layers),
+      fallback.sandboxProjectSource,
+    ),
     maxInputRounds: integerOr(
       effective("inputRequired.maxRounds", layers),
       fallback.maxInputRounds,
@@ -321,6 +345,11 @@ export function readSettingsServers(layers: ScopeStack): SettingsServers {
         });
         continue;
       }
+      const issue = checkDefinitionValues(parsed.value);
+      if (issue !== undefined) {
+        diagnostics.push({ code: issue.code, source, server: id, message: issue.message });
+        continue;
+      }
       // SCOPE_PRECEDENCE는 높은 우선순위가 앞이므로 먼저 들어온 정의가 이긴다
       if (byId.has(id)) continue;
       byId.set(id, {
@@ -333,4 +362,15 @@ export function readSettingsServers(layers: ScopeStack): SettingsServers {
     }
   }
   return { servers: [...byId.values()], diagnostics };
+}
+
+/**
+ * stdio 서버를 샌드박스에 넣을지 정한다(L2.mcp.spec §4.3 [결정: M3-REQ-97, D-M3-19 행 1]). 서버별 `sandbox`가 있으면 그 값이고,
+ * 없으면 출처별 키다: 사용자 설정(`settings:user`)은 `sandbox.userSource`(기본 끔), 그 밖의 출처는 `sandbox.projectSource`(기본 켬).
+ */
+export function sandboxOf(server: ServerDefinition, settings: McpSettings): boolean {
+  if (server.def.sandbox !== undefined) return server.def.sandbox;
+  return server.source === "settings:user"
+    ? settings.sandboxUserSource
+    : settings.sandboxProjectSource;
 }

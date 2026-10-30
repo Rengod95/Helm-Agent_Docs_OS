@@ -149,6 +149,8 @@ xeon/packages/group-kit/
 |---|---|---|
 | `template.observe-group-records-turn-count` | observe 템플릿 그룹이 `boundary.settle.after`마다 `grp.<id>.turn.counted` 레코드를 쓰고, 다른 그룹의 `readRecords`로 읽힌다 | S-01 |
 | `template.index-matches-files` | `templates/index.json`의 파일 목록과 실제 파일 집합이 같고, `TemplateIndexSchema`를 통과한다 | S-01 |
+| `template.name-check-rejects-bad-names` | `focus_lens`(밑줄)와 `core`(예약 이름)를 `checkGroupName`과 생성기가 거부하고, 거부된 생성은 파일을 쓰지 않는다. 비어 있지 않은 대상도 거부한다(R2, R3) | S-04 |
+| `template.generated-tests-pass` | 세 종류를 생성해 그 디렉터리에서 `bun test`를 돌리면 종료코드가 0이다(L3.slots.spec §4.3 2번). 한 번에 하나씩 돈다 | S-03 |
 | `policy.guardrail-unknown-follows-setting` | `guardrail`: 검사 함수 예외 시 `onUnknown: "deny"`면 거부, `"allow"`면 통과 | S-02 |
 | `policy.plugin-kind-rejects-drive` | `kind: "plugin"` 정책 매니페스트에 `usesDrive: true`면 `drive_requires_group` 오류 | S-04 |
 
@@ -178,3 +180,37 @@ xeon/packages/group-kit/
 | `defineGroup`·`replayDrive` 시그니처가 2차 전에 바뀐다 | 템플릿 테스트가 `group-kit` 테스트에 들어 있으므로 시그니처 변경이 같은 변경에서 템플릿 실패로 드러난다 |
 | 생성 명령 소유가 정해지지 않아 S-05가 막힌다 | 템플릿은 생성 명령 없이도 쓸 수 있다(디렉터리 복사와 치환). S-05는 다른 작업을 막지 않는다 |
 | 외부 그룹이 신뢰 등급 없이 다른 그룹을 import한다 | 저장소 안은 check-layers가 막는다. 외부 그룹은 `X.loading-trust.spec`의 결정을 따른다([미결]) |
+
+## 8. 구현 상태 (B4-GRP, 2026-10-29, 브랜치 m3b/b4-grp)
+
+| plan ID | 상태 | 파일 |
+|---|---|---|
+| S-01 | 완료 | 템플릿 `xeon/packages/group-kit/templates/`(`index.json`, `common/`, `drive/`, `policy/`, `observe/`). 색인 스키마는 `xeon/packages/group-kit/src/templates.ts`, 이름 검사는 `src/define-group.ts`의 `checkGroupName` |
+| S-03 | 완료 | drive 골격의 `test/replay.test.ts`(생성 뒤 `bun test`로 통과). 시험 `template.replay-test-cuts-at-every-commit`, `template.generated-tests-pass` |
+| S-04 | 완료 | `common/test/manifest.test.ts`와 시험 `template.manifest-passes-validateManifest`, `template.name-check-rejects-bad-names` |
+| S-05 | 완료 | 생성 명령은 L4가 구현한다(`L4.cli.spec` §3.8). `apps/cli/src/commands/group.ts`(명령), `src/group/rules.ts`(이름과 색인 규칙의 복사본), `src/group/fs-port.ts`(파일 작업). R1~R6은 명령 파서·검사·되돌리기로 구현했다. 시험은 `apps/cli/test/group-new.test.ts`, `group-rules.test.ts`, `group-new-core-diff.test.ts`(`group-new.output-passes-core-diff-check-with-zero-lines`) |
+
+S-01 구현에서 바뀐 점은 다음과 같다. 골격의 계약은 `L3.slots.spec` §3.3.5에 같이 적었다.
+
+- 식별자에 이름을 넣지 않는다(`stateSchema`, `settings`). 하이픈이 식별자가 되지 못한다.
+- drive는 임대 예산 대신 커밋된 단계 수(`ROUNDS = 3`)로 멈춘다. 예산으로 멈추면 재생 복원 뒤 임대 경계가 달라져 `replayDrive` 비교가 깨진다. 시험으로 확인했다(절단 실행마다 첫 차이가 여섯 번째 이벤트에 났다).
+- `loop.turn`에 `requestId: "__ID__:round:<round>"`를 준다. 빼면 X가 임대 id로 만들어 재생마다 턴이 새로 난다(ADR-0015 §3.4).
+- 템플릿 `defaultEnabled`는 `false`다(§3.3.5). 시험은 켜는 요청을 낸 뒤 다음 경계까지 돌린다. 재생 시험은 켜진 그룹을 본다(범위 정의에 `defaultEnabled: true`만 더한 같은 그룹).
+- 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 하니스는 테스트 파일 안에 있다. 생성 그룹은 `@xeon/group-kit/testing`의 `replayDrive`만 import한다.
+- drive·observe의 `settings.ts`는 키가 없는 묶음이다. 키를 더하는 자리만 둔다.
+- 생성 `package.json`은 `name`, `version`, `private`, `type`, `exports`, `xeon`만 둔다. 의존 선언은 없다. 시험은 워크스페이스 해석에 기댄다. 생성 명령이 의존을 어떻게 적을지는 [미결](`L4.cli.spec`)이다.
+
+시험 지원 파일은 `xeon/packages/group-kit/test/support/`에 있다.
+
+- `generate-template.ts`: 색인을 읽어 파일을 복사하고 `__ID__`, `__TITLE__`, `__VERSION__`을 치환한다. 대상은 `test/.generated/<무작위>/` 아래이고 시험이 끝나면 지운다. 생성 루트에는 `node_modules/@xeon/group-kit` 링크를 둔다(생성 그룹이 자기 패키지를 이름으로 import하므로).
+- `load-generated.ts`: 생성 그룹의 default export를 `GroupModule`로 읽는다. 동적 import는 모양을 모르는 값을 돌려주므로 단언이 한 곳 필요하다. TY-06 A6 행을 쓴다. [미결] A6은 시험의 부분 대역을 위한 행이라 생성 모듈을 읽는 쓰임을 포함하는지 확인이 필요하다.
+
+설정 파일 변경(B4-GRP 커밋 1):
+
+- `packages/group-kit/bunfig.toml`: `[test] root = "test"`. `bun test`가 `templates/`의 자리표시자 시험을 찾지 않게 한다.
+- `packages/group-kit/tsconfig.json`: `exclude`에 `templates`, `test/.generated`.
+- `xeon/.oxlintrc.json`, `xeon/.oxfmtrc.json`: `ignorePatterns`에 `packages/group-kit/templates/**`.
+- `xeon/knip.json`: `packages/group-kit`의 `ignore`에 `templates/**`.
+- `dependency-cruiser`와 `check-layers`, `check-ts-rules`는 템플릿을 제외하지 않고 통과한다.
+
+시험 결과: `just check packages/group-kit` 종료코드 0(lint, typecheck, test 160개 통과). `just knip`, `just depcruise`, `just check-layers`, `just check-ts-rules`, `just docs-route --check` 모두 0.

@@ -370,7 +370,11 @@ export async function callCommand(t: TestHost, thread: ThreadId, args: string): 
   if (typeof handler !== "function") throw new Error("the helm command has no handler");
   const done: unknown = Reflect.apply(handler, def, [
     args,
-    { threadId: thread, invocationId: `inv-${String((invocations.count += 1))}` },
+    {
+      threadId: thread,
+      invocationId: `inv-${String((invocations.count += 1))}`,
+      signal: new AbortController().signal,
+    },
   ]);
   await done;
 }

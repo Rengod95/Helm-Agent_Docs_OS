@@ -137,6 +137,11 @@ export function loopSource(settings: SettingsEngine): LoopSettingsSource {
   return {
     maxSteps: (threadId) => intOr(settings.value("l1.loop.maxSteps", threadId), 0),
     gateMaxContinues: (threadId) => intOr(settings.value("l1.loop.gate.maxContinues", threadId), 8),
+    repeat: (threadId) => ({
+      enabled: settings.value("l1.loop.repeat.enabled", threadId) !== false,
+      actionObservation: intOr(settings.value("l1.loop.repeat.actionObservation", threadId), 4),
+      actionError: intOr(settings.value("l1.loop.repeat.actionError", threadId), 3),
+    }),
   };
 }
 
@@ -146,7 +151,7 @@ export function agentsSource(settings: SettingsEngine): AgentsSettingsSource {
     maxDepth: () => intOr(settings.value("l1.agents.maxDepth"), 1),
     maxConcurrent: () => intOr(settings.value("l1.agents.maxConcurrent"), 8),
     resultMaxChars: () => intOr(settings.value("l1.agents.resultMaxChars"), 24_000),
-    judgeMaxRuns: () => intOr(settings.value("l1.agents.judge.maxRuns"), 3),
+    judgeMaxRuns: (threadId) => intOr(settings.value("l1.agents.judge.maxRuns", threadId), 3),
   };
 }
 
@@ -247,6 +252,9 @@ export function secretsSource(settings: SettingsEngine): () => SecretsConfig {
 /** 상태 디렉터리 아래 spill 폴더 이름 */
 const SPILL_DIR_NAME = "spill";
 
+/** l0.exec.spillMaxBytes 기본값(1 GiB). platform-exec의 기본값과 같다(L0.exec.spec §3.8.2) */
+const SPILL_MAX_DEFAULT_BYTES = 1_073_741_824;
+
 export interface ExecOptionsValues {
   readonly cwd: string;
   /** 출력 spill 파일과 임시 파일을 두는 폴더. `<상태 디렉터리>/spill`이다(L0.exec.spec §3.8) */
@@ -254,6 +262,8 @@ export interface ExecOptionsValues {
   readonly shellPath: string | undefined;
   readonly defaultTimeoutMs: number;
   readonly outputSpillBytes: number;
+  /** l0.exec.spillMaxBytes. 0이면 상한이 없다(L0.exec.spec §3.8.2) */
+  readonly spillMaxBytes: number;
   readonly envExtra: readonly string[];
 }
 
@@ -275,8 +285,14 @@ export function execOptionsOf(
     shellPath: typeof shell === "string" ? shell : undefined,
     defaultTimeoutMs: intOr(raw["defaultTimeoutMs"], 0),
     outputSpillBytes: intOr(raw["outputSpillBytes"], 10_485_760),
+    spillMaxBytes: intOr(raw["spillMaxBytes"], SPILL_MAX_DEFAULT_BYTES),
     envExtra: isStringArray(extra) ? extra : [],
   };
+}
+
+/** l0.exec.spillRetentionDays 유효 값(일). 0이면 지우지 않는다. 보관 정리가 매번 읽는다(L0.exec.spec §3.8.2) */
+export function spillRetentionDaysOf(settings: SettingsEngine): number {
+  return intOr(settings.raw("l0.exec.")["spillRetentionDays"], 0);
 }
 
 /** 키 하나의 유효 값을 돌려주는 함수. 엔진 안(설정 엔진)과 밖(Engine의 카탈로그와 SettingsStorePort) 어느 쪽에서도 만든다 */

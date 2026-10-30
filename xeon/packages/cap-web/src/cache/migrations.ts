@@ -7,7 +7,7 @@ export const WEB_STORE_OWNER = "cap.web";
 
 export const CAP_WEB_MIGRATIONS: MigrationSet = {
   owner: WEB_STORE_OWNER,
-  version: 1,
+  version: 2,
   steps: [
     {
       version: 1,
@@ -52,6 +52,16 @@ export const CAP_WEB_MIGRATIONS: MigrationSet = {
   count         REAL NOT NULL,
   usd           REAL NOT NULL,
   PRIMARY KEY (provider, month, unit)
+) STRICT`,
+      ],
+    },
+    {
+      // 키 플러그인 첫 사용 고지(L2.web.spec §4.8.2). provider ID마다 한 행이다
+      version: 2,
+      sql: [
+        `CREATE TABLE cap_web_notices (
+  provider      TEXT PRIMARY KEY,
+  noticed_at    INTEGER NOT NULL
 ) STRICT`,
       ],
     },

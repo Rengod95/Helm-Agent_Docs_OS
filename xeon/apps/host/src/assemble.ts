@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { assertNever, attemptAsync, Bug, parse, type Logger } from "@xeon/contracts";
+import { assertNever, attemptAsync, Bug, err, parse, type Logger } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { ExtensionManifest, PortKey } from "@xeon/contracts/extensions";
 import {
@@ -33,13 +33,14 @@ import {
   createExtHost,
   createOperationsPolicy,
   createScopeControl,
+  createVolatileNotifier,
   scopeToggleSourceOf,
-  type ExtDiagnostic,
   type ExtHost,
   type ExtensionLoader,
   type ExtensionUnit,
   type ScopeControl,
 } from "@xeon/ext-host";
+import type { ScheduleService } from "@xeon/cap-schedule";
 import { createExecPlatformModule, detectExecPlatform } from "@xeon/platform-exec";
 import {
   createIdFactory,
@@ -59,19 +60,31 @@ import {
 } from "@xeon/platform-store";
 import { capabilityDefsOf } from "./assembly/capability-defs.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
-import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
+import {
+  builtinUnits,
+  installFailureOf,
+  scheduleUnit,
+  unitOfModule,
+} from "./assembly/extensions.ts";
 import {
   createLearningWiring,
   learningLoaded,
   registerLearningProjection,
 } from "./assembly/learning.ts";
+import { createHostSchedule, type ScheduleRunnerPorts } from "./assembly/schedule.ts";
+import { createHandlerFailedEmitter } from "./assembly/handler-failed.ts";
 import { createProposalPort } from "./assembly/proposals.ts";
+import type { WebStatusHolder } from "./assembly/web-providers.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
+import { startAutoTitle, titleModelFor, type AutoTitle } from "./assembly/auto-title.ts";
+import { startDataOps, type DataOps } from "./assembly/data-ops.ts";
+import { createExtDiagnosticSink } from "./assembly/diagnostics.ts";
 import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
+import { watchUserSettings, type SettingsWatch } from "./assembly/settings-watch.ts";
 import {
   createSecretsPort,
   effectiveSecretsConfig,
@@ -97,6 +110,7 @@ import {
   sandboxSource,
   secretsSource,
   shutdownTimeoutMs,
+  spillRetentionDaysOf,
   storeSettingsOf,
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
@@ -129,8 +143,12 @@ export type {
 } from "./types.ts";
 export { buildEngineCatalog, coreSettingGroups } from "./assembly/catalog.ts";
 
-/** 엔진 빌드 버전. 등록 파일 version과 host.hello server.version이 같은 값을 쓴다. 릴리즈 빌드가 주입하는 수단은 아직 없다 [미결] */
-export const ENGINE_VERSION = "0.0.0";
+/** 릴리즈 빌드가 `bun build --define XEON_BUILD_VERSION="x.y.z"`로 넣는 값(scripts/build-sidecar.ts). 소스 실행에는 없다 */
+declare const XEON_BUILD_VERSION: string | undefined;
+
+/** 엔진 빌드 버전. 등록 파일 version과 host.hello server.version이 같은 값을 쓴다. 주입이 없으면 "0.0.0"이다(L4.release.spec §8.1) */
+export const ENGINE_VERSION: string =
+  typeof XEON_BUILD_VERSION === "string" ? XEON_BUILD_VERSION : "0.0.0";
 
 /** 세션 DB 파일 이름. 문서가 이름을 정하지 않아 호스트가 정했다 [미결] */
 const DB_FILE_NAME = "xeon.db";
@@ -284,6 +302,16 @@ export function logStoreWarning(logger: Logger, warning: StoreWarning): void {
     case "lock_provider_none":
       logger.warn("store.warning", { kind: warning.kind });
       return;
+    case "read_only":
+      // 미래 버전 DB를 읽기 전용으로 열었다(L0.store.spec §4.11). 쓰기 기능이 꺼진 이유를 남긴다
+      logger.warn("store.warning", {
+        kind: warning.kind,
+        reason: warning.reason,
+        owner: warning.owner,
+        dbVersion: warning.dbVersion,
+        codeVersion: warning.codeVersion,
+      });
+      return;
     default:
       assertNever(warning, "StoreWarning");
   }
@@ -311,7 +339,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     host: ExtHost | undefined;
     scopes: ScopeControl | undefined;
     logger: Logger | undefined;
-  } = { host: undefined, scopes: undefined, logger: undefined };
+    /** 4단계에서 채운다. 그 전의 확장 실패 알림은 발신하지 못하고 운영 로그에 남는다 */
+    session: SessionService | undefined;
+  } = { host: undefined, scopes: undefined, logger: undefined, session: undefined };
   const opened: { store: OpenedStore | undefined; registered: boolean } = {
     store: undefined,
     registered: false,
@@ -332,6 +362,20 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       runtime.scheduler.clearTimeout(handle);
     };
   };
+  const logOperations = (line: string): void => {
+    late.logger?.warn("ext.operations", { line });
+  };
+  // 확장 핸들러 실패를 `scope.handler_failed` 휘발 이벤트로 보낸다(M3-REQ-35, L4.host-service HS-92). 열린 thread는 허브가 있어야 읽을 수 있어 옵션으로 받는다
+  const handlerFailed = createHandlerFailedEmitter({
+    emitVolatile: (event) => {
+      late.session?.emitVolatile(event);
+    },
+    headSeq: () => late.session?.feed.headSeq() ?? err({ kind: "unavailable" }),
+    openThreads: () => options.openThreads?.() ?? [],
+    ids,
+    clock,
+    log: logOperations,
+  });
   const operations = createOperationsPolicy({
     now: () => clock.now(),
     setTimer,
@@ -340,11 +384,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     ports: {
       get: (key) => late.host?.ports.get(key),
     },
-    log: (line) => {
-      late.logger?.warn("ext.operations", { line });
-    },
+    notifier: createVolatileNotifier({ emit: handlerFailed, log: logOperations }),
+    log: logOperations,
   });
-  const diagnostics: ExtDiagnostic[] = [];
+  /** 확장 진단. 상한(256)을 넘으면 오래된 것부터 버린다(L0.os.spec §3.14, M3-REQ-52) */
+  const diagnostics = createExtDiagnosticSink();
   const ext = createExtHost({
     ids,
     now: () => clock.now(),
@@ -368,6 +412,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   let portsHandle: PortsHandle | undefined;
   let shutdownCoordinator: ProcessShutdown | undefined;
   const osSlot: { handle: OsServiceHandle | undefined } = { handle: undefined };
+  /** 예약 서비스. 서비스 등록 뒤(4단계)에 채운다. 닫을 때 아직 없으면 건너뛴다 */
+  const scheduleSlot: { service: ScheduleService | undefined } = { service: undefined };
+  /** 보관 정리와 블롭 GC 타이머. 닫을 때 먼저 끊는다(저장소를 닫기 전) */
+  const dataOpsSlot: { ops: DataOps | undefined } = { ops: undefined };
+  /** 자동 제목 연결. 엔진 포트가 올라온 뒤에 연다. 닫을 때 구독을 거둔다 */
+  const autoTitleSlot: { title: AutoTitle | undefined } = { title: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
   /** 외부 확장 로더(기본 플러그인 포함). 닫을 때 먼저 내린다 */
   const external: { loader: ExtensionLoader | undefined; unbridge: (() => void) | undefined } = {
@@ -375,8 +425,17 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     unbridge: undefined,
   };
 
+  const settingsWatchSlot: { watch: SettingsWatch | undefined } = { watch: undefined };
+
   async function closeAll(): Promise<void> {
     try {
+      // 설정 파일 감시를 먼저 닫는다: 닫은 뒤에는 다시 읽기가 시작되지 않는다
+      await settingsWatchSlot.watch?.close();
+      // 자동 제목과 보관 정리를 먼저 끊는다. 예약을 멈추고 저장소를 닫기 전이어야 한다
+      autoTitleSlot.title?.close();
+      dataOpsSlot.ops?.close();
+      // 예약을 먼저 멈춘다: 틱과 감시를 끊고 진행 중인 저장을 기다린다. 저장소를 닫기 전이어야 한다
+      await scheduleSlot.service?.close();
       await portsHandle?.releaseAll();
       external.unbridge?.();
       await external.loader?.dispose();
@@ -424,6 +483,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           logRedact: (line) => redact.current(line),
           // 설정 l0.os.log.level은 live다: 로그를 낼 때마다 읽어 변경이 다음 줄부터 반영된다(G1-12)
           logLevel: logLevelOf(settings),
+          // 시험이 OS 알림 도구를 띄우지 않도록 provider를 바꿔 끼운다(AssembleOptions.osNotifier). 운영은 생략해 OS 기본을 쓴다
+          ...(options.osNotifier === undefined ? {} : { notifier: options.osNotifier }),
         },
         runtime,
         (handle) => {
@@ -532,6 +593,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const mcpProcess = createHostMcpProcessPort({
       ext,
       secrets: secrets.service,
+      tempDir: os.dirs.tmp,
       scheduler: os.time.scheduler,
       parentEnv: process.env,
       logger: os.logger("mcp-process"),
@@ -568,7 +630,16 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
     const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
-    const commands: CommandRegistryHolder = { current: undefined, api: undefined };
+    const commands: CommandRegistryHolder = {
+      current: undefined,
+      api: undefined,
+      status: undefined,
+      attachments: undefined,
+      notify: undefined,
+      notifyListeners: new Set(),
+    };
+    // 웹 런타임 자리(`web.providers`). cap-web 확장이 올라올 때 채운다
+    const web: WebStatusHolder = { current: undefined };
     // 학습 그룹의 읽기 면(세션 DB의 x_learning_* 투영)과 명령 실행기, 그룹·L2 대기열을 잇는 자리. 읽기 면은 세션 서비스가 올라온 뒤(아래 4단계)에 채운다
     const learning = createLearningWiring({
       resources: () => ext.resources,
@@ -602,6 +673,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         commands,
+        web,
         mode: options.mode,
         clock,
         ids,
@@ -688,6 +760,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
     // 4. 서비스 확인: 포트가 요구하는 서비스가 모두 올라왔는지 본다
     const session = requirePort(ext, SESSION_KEY, "xeon.session");
+    late.session = session;
     const storeService = requirePort(ext, STORE_KEY, "xeon.store");
     if (learningLoaded({ defaultGroups: options.defaultGroups, safeMode })) {
       const failed = registerLearningProjection({
@@ -706,6 +779,33 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const tools = requirePort(ext, TOOLS_KEY, "xeon.tools");
     const models = requirePort(ext, MODELS_KEY, "xeon.models");
     const context = requirePort(ext, CONTEXT_KEY, "xeon.context");
+    // 예약 서비스(M3b, L4.host-service.spec §4.17). 실행이 쓰는 엔진 포트는 엔진 포트를 만든 뒤에 채운다(아래)
+    const scheduleRunner: { ports: ScheduleRunnerPorts | undefined } = { ports: undefined };
+    const schedule = createHostSchedule({
+      os,
+      clock,
+      ids,
+      tasks,
+      loop,
+      ownerKind: ownerKindOf(options.mode),
+      runnerPorts: () => {
+        if (scheduleRunner.ports === undefined) {
+          // xeon-disable-next-line xeon/bug-for-expected -- 틱은 엔진 포트가 채워진 뒤에만 시작한다. 여기서 비면 조립 순서가 깨진 것이다 (eng.typescript.guide TY-24)
+          throw new Bug("schedule runner used before the engine ports exist");
+        }
+        return scheduleRunner.ports;
+      },
+      logger: os.logger("schedule"),
+      ...(options.schedule === undefined ? {} : { overrides: options.schedule }),
+    });
+    scheduleSlot.service = schedule;
+    // 예약 플러그인은 서비스가 생긴 뒤에 올린다(`scheduleUnit`). 도구 등록은 core-tools가 이미 올라와 있어야 한다
+    const scheduled = installFailureOf(await ext.install(scheduleUnit(schedule, units.length)));
+    if (scheduled !== undefined) {
+      throw new AssembleError([
+        { code: "plugin", plugin: scheduled.plugin, message: scheduled.message },
+      ]);
+    }
 
     // 5~6. 카탈로그는 위에서 만들었다. 세션 범위 설정을 연결한다
     settings.bindSession(session.sessionSettings);
@@ -713,6 +813,18 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
     // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
     pruneOnOpen(session, logger);
+    // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
+    dataOpsSlot.ops = startDataOps({
+      stateDir: os.dirs.state,
+      clock,
+      logger,
+      setTimer,
+      spillRetentionDays: () => spillRetentionDaysOf(settings),
+      blobGcEnabled: () => settings.value("l0.store.blobGcEnabled") === true,
+      runsBlobGc: options.mode === "service",
+      store: store.value,
+      query: session.query,
+    });
 
     const storeId = parse(StoreIdSchema, storeService.storeId);
     // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
@@ -747,6 +859,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         }),
       ),
       commands,
+      web,
       proposals: createProposalPort({
         learning: () => learning.bridge.api(),
         runner: learning.runner,
@@ -756,6 +869,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
       }),
       configDir: os.dirs.config,
+      fileLock: osHandle.fileLock,
       trust: projectTrust,
       projectExtensions: createProjectExtensions({
         mode: options.mode,
@@ -764,11 +878,43 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         logger: os.logger("project-ext"),
       }),
       workspaceOf,
+      schedule,
       ...(options.pendingSchedules === undefined
         ? {}
         : { pendingSchedules: options.pendingSchedules }),
       signal: lifetime.signal,
     });
+    scheduleRunner.ports = portsHandle.ports;
+    // 다른 프로세스가 사용자 설정 파일을 바꾸면 메모리 층을 다시 읽고 알린다(M3-REQ-49)
+    const userSettingsPath = settings.userPath();
+    const settingsPort = portsHandle.ports.settings;
+    if (userSettingsPath !== undefined) {
+      settingsWatchSlot.watch = await watchUserSettings({
+        os,
+        userPath: userSettingsPath,
+        refresh: () => settingsPort.refreshUserFile(),
+        logger: os.logger("settings-watch"),
+      });
+    }
+    // 자동 제목(M3-REQ-83, HS-73): 턴이 끝나면 임시 제목을 모델로 바꾼다. 실패해도 턴은 그대로 둔다
+    autoTitleSlot.title = startAutoTitle({
+      feed: portsHandle.ports.feed,
+      locks: portsHandle.ports.locks,
+      session,
+      modelFor: (threadId) => titleModelFor(models, clock, threadId),
+      logger,
+      signal: lifetime.signal,
+    });
+    // 틱은 서비스 모드에서만 돈다. in-process·stdio는 프로세스 사이 임대가 없어 틱의 실행권을 정할 수 없다(HS-40)
+    if (options.mode === "service") {
+      const started = await schedule.start();
+      if (!started.ok) {
+        logger.error("schedule.start_failed", {
+          kind: started.error.kind,
+          message: started.error.message,
+        });
+      }
+    }
     const engine: Engine = {
       mode: options.mode,
       storeId: storeId.value,

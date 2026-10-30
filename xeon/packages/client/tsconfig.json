@@ -5,10 +5,13 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
-  "include": ["src", "test"],
+  "include": ["src", "src/i18n/locales/*.json", "test"],
   "references": [
     {
       "path": "../contracts"
+    },
+    {
+      "path": "../core-models"
     }
   ]
 }

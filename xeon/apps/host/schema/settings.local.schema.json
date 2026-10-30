@@ -2,6 +2,29 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "ext.account-rotation.enabled": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Account rotation 켜기",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "ext.helm.autoStart": {
       "default": "suggest",
       "enum": [
@@ -455,6 +478,81 @@
         }
       }
     },
+    "l1.loop.repeat.actionError": {
+      "default": 3,
+      "maximum": 50,
+      "minimum": 2,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.3.0",
+        "ui": {
+          "label": "같은 행동-오류 반복 임계",
+          "order": 32,
+          "tab": "budgets",
+          "unit": "회",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.loop.repeat.actionObservation": {
+      "default": 4,
+      "maximum": 50,
+      "minimum": 2,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.3.0",
+        "ui": {
+          "label": "같은 행동-관찰 반복 임계",
+          "order": 31,
+          "tab": "budgets",
+          "unit": "회",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.loop.repeat.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.3.0",
+        "ui": {
+          "label": "반복 감지 알림",
+          "order": 30,
+          "tab": "budgets",
+          "widget": "toggle"
+        }
+      }
+    },
     "l1.models.default": {
       "anyOf": [
         {
@@ -622,7 +720,7 @@
           "label": "판정 모델",
           "order": 23,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },
@@ -654,7 +752,7 @@
           "label": "검토 모델",
           "order": 20,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },
@@ -686,7 +784,7 @@
           "label": "검색 모델",
           "order": 24,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },
@@ -718,7 +816,7 @@
           "label": "서브에이전트 모델",
           "order": 22,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },
@@ -750,7 +848,7 @@
           "label": "요약 모델",
           "order": 21,
           "tab": "models",
-          "widget": "table"
+          "widget": "text"
         }
       }
     },
@@ -1270,6 +1368,131 @@
           "tab": "permissions",
           "unit": "초",
           "widget": "number"
+        }
+      }
+    },
+    "l2.artifacts.maxContentBytes": {
+      "default": 26214400,
+      "maximum": 268435456,
+      "minimum": 1024,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "산출물 본문 최대 크기",
+          "order": 410,
+          "tab": "sessions",
+          "unit": "B",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.artifacts.maxPerSession": {
+      "default": 500,
+      "maximum": 10000,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "세션당 산출물 최대 개수",
+          "order": 400,
+          "tab": "sessions",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.artifacts.reviews.deliverAs": {
+      "default": "followUp",
+      "enum": [
+        "steer",
+        "followUp",
+        "next"
+      ],
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "리뷰 결과 전달 방식",
+          "order": 320,
+          "tab": "tools",
+          "widget": "select"
+        }
+      }
+    },
+    "l2.artifacts.tools.reviewRequest": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "끄면 모델이 리뷰를 요청하는 도구를 쓸 수 없습니다",
+          "label": "리뷰 요청 도구 노출",
+          "order": 330,
+          "tab": "tools",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l2.artifacts.tools.sessionRename": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "세션 이름 바꾸기 도구 노출",
+          "order": 340,
+          "tab": "tools",
+          "widget": "toggle"
         }
       }
     },
@@ -1822,6 +2045,9 @@
             "enabled": {
               "type": "boolean"
             },
+            "sandbox": {
+              "type": "boolean"
+            },
             "timeouts": {
               "properties": {
                 "callMs": {
@@ -1899,7 +2125,7 @@
                     "env": {
                       "patternProperties": {
                         "^[A-Za-z_][A-Za-z0-9_]{0,127}$": {
-                          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                          "maxLength": 8192,
                           "type": "string"
                         }
                       },
@@ -1921,7 +2147,7 @@
                     "headers": {
                       "patternProperties": {
                         "^[A-Za-z0-9-]{1,128}$": {
-                          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                          "maxLength": 8192,
                           "type": "string"
                         }
                       },
@@ -1950,7 +2176,7 @@
                     "headers": {
                       "patternProperties": {
                         "^[A-Za-z0-9-]{1,128}$": {
-                          "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                          "maxLength": 8192,
                           "type": "string"
                         }
                       },
@@ -2189,6 +2415,35 @@
           "tab": "tools",
           "unit": "USD",
           "widget": "number"
+        }
+      }
+    },
+    "l2.web.browse.order": {
+      "default": [],
+      "items": {
+        "maxLength": 96,
+        "pattern": "^(plugin:[a-z][a-z0-9-]{1,31}|[a-z][a-z0-9-]{0,63})$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "type": "array",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "등록된 브라우저 도구를 끌어 옮겨 정한다. 목록에 없는 도구는 뒤에 붙고 플러그인이 마지막이다",
+          "label": "브라우저 도구 순서",
+          "order": 161,
+          "tab": "tools",
+          "widget": "list"
         }
       }
     },
@@ -2564,7 +2819,7 @@
       }
     },
     "l2.web.policy.robots": {
-      "default": "auto",
+      "default": "never",
       "enum": [
         "auto",
         "always",
@@ -2583,6 +2838,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
+          "help": "never(기본)는 따르지 않는다. auto는 자동 수집 경로만, always는 모든 fetch에 적용한다",
           "label": "robots.txt 적용",
           "order": 125,
           "tab": "tools",
@@ -2721,7 +2977,7 @@
         }
       }
     },
-    "l2.web.search.pluginOrder": {
+    "l2.web.search.order": {
       "default": [],
       "items": {
         "maxLength": 96,
@@ -2742,10 +2998,37 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "검색 플러그인 순서",
+          "help": "등록된 검색 도구를 끌어 옮겨 정한다. 목록에 없는 도구는 뒤에 붙고 플러그인이 마지막이다",
+          "label": "검색 도구 순서",
           "order": 101,
           "tab": "tools",
           "widget": "list"
+        }
+      }
+    },
+    "l2.web.search.parallel": {
+      "default": 1,
+      "maximum": 4,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "1이면 순서대로 하나씩 쓴다. 2 이상이면 순서의 앞에서부터 그 수만큼 동시에 질의해 결과를 합친다. 검색어가 여러 수신자에게 나간다",
+          "label": "동시 질의 검색 도구 수",
+          "order": 103,
+          "tab": "tools",
+          "unit": "개",
+          "widget": "number"
         }
       }
     },
@@ -2874,33 +3157,6 @@
         }
       }
     },
-    "l2.work.goal.onJudgeError": {
-      "default": "stop",
-      "enum": [
-        "stop",
-        "continue"
-      ],
-      "type": "string",
-      "x-xeon": {
-        "allowedScopes": [
-          "user",
-          "project",
-          "local",
-          "session"
-        ],
-        "layer": "L2",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "stop이면 목표를 멈추고, continue면 판정 없이 다음 턴을 시작합니다",
-          "label": "목표 판정 실패 때 동작",
-          "order": 300,
-          "tab": "budgets",
-          "widget": "select"
-        }
-      }
-    },
     "l2.work.plans.exitOnApprove": {
       "default": true,
       "type": "boolean",
@@ -2992,6 +3248,108 @@
           "order": 310,
           "tab": "tools",
           "unit": "턴",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.edit.fuzzy": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "정확 일치가 없을 때 따옴표, 대시, 공백 차이를 무시하고 찾는다",
+          "label": "퍼지 일치 편집",
+          "order": 210,
+          "tab": "tools",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l2.workspace.find.maxResults": {
+      "default": 1000,
+      "maximum": 100000,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "파일 찾기 최대 결과 수",
+          "order": 213,
+          "tab": "tools",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.grep.maxLineLength": {
+      "default": 500,
+      "maximum": 10000,
+      "minimum": 80,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "검색 결과 최대 줄 길이",
+          "order": 212,
+          "tab": "tools",
+          "unit": "자",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.grep.maxMatches": {
+      "default": 100,
+      "maximum": 10000,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "검색 최대 일치 수",
+          "order": 211,
+          "tab": "tools",
+          "unit": "개",
           "widget": "number"
         }
       }

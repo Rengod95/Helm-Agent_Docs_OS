@@ -1,11 +1,13 @@
 export {
   GROUP_NAME_PATTERN,
   RESERVED_GROUP_NAMES,
+  checkGroupName,
   defineGroup,
   groupManifest,
   validateGroupDef,
   type GroupApi,
   type GroupDef,
+  type GroupNameError,
   type GroupDefIssue,
   type GroupDefIssueCode,
   type GroupDefShape,
@@ -45,7 +47,27 @@ export {
   type DelegateStatusResult,
   type DelegateToolPolicy,
 } from "./delegate.ts";
-export type { GroupMetrics, GroupMetricsHandle, GroupMetricsSummary } from "./metrics/types.ts";
+export type {
+  GroupMetrics,
+  GroupMetricsHandle,
+  GroupMetricsSummary,
+  GroupUsageDelta,
+  MetricsRecordedPayload,
+} from "./metrics/types.ts";
+export {
+  createMetricsRegistry,
+  defaultMetricsRegistry,
+  type MetricsRegistry,
+} from "./metrics/registry.ts";
+export { summarizeUsage, type ScopeUsage } from "./metrics/usage.ts";
+export { gatherPromotionInput, type PromotionHostView } from "./promotion/gather.ts";
+export {
+  buildPromotionReport,
+  type PromotionCandidate,
+  type PromotionInput,
+  type PromotionReport,
+  type ToolConsumer,
+} from "./promotion/report.ts";
 export { GroupSettingsSourceKey, type GroupSettingsSource } from "./ports/settings.ts";
 export {
   STATE_DOC_MAX_BYTES,
@@ -59,6 +81,15 @@ export {
 export { checkRecordKind, checkPostItem, kindVisibleTo, type RecordCheck } from "./records.ts";
 export { groupKitSettings } from "./settings.ts";
 export {
+  TEMPLATE_PLACEHOLDERS,
+  TemplateIndexSchema,
+  TemplateKindSchema,
+  type TemplateEntry,
+  type TemplateIndex,
+  type TemplateKind,
+  type TemplatePlaceholder,
+} from "./templates.ts";
+export {
   GROUP_USAGE,
   groupCommand,
   parseGroupCommand,
@@ -67,7 +98,9 @@ export {
   type GroupCommand,
   type GroupCommandParse,
   type GroupCommandRegistration,
+  type GroupResetError,
   type GroupServiceWithSetting,
+  type GroupServiceWithUsage,
 } from "./commands.ts";
 export { displayWidth, formatGroupStatusLine, type StatusLineOptions } from "./status-line.ts";
 export {

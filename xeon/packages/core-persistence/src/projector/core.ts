@@ -21,6 +21,7 @@ import {
   AgentSpawnedPayloadSchema,
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
+  BLOB_PLACEHOLDER_PREFIX,
   BlobRefSchema,
   EffectExecSchema,
   EffectIntentSchema,
@@ -40,7 +41,7 @@ import {
 } from "@xeon/contracts/records";
 
 /** 투영 규칙 버전. 테이블 모양이나 규칙이 바뀌면 올린다(다음 열기 때 core만 다시 만든다) */
-export const CORE_PROJECTOR_VERSION = 4;
+export const CORE_PROJECTOR_VERSION = 5;
 
 export const CORE_PROJECTOR_TABLES: readonly string[] = [
   "p_threads",
@@ -544,9 +545,29 @@ const REDUCERS: ReadonlyMap<EventKind, Reducer> = new Map<EventKind, Reducer>([
   ],
 ]);
 
-/** 이 이벤트가 참조하는 blob 해시: `detached`의 BlobRef와 effect.intent.args, effect.result.blobRef */
+const PLACEHOLDER_PATTERN = new RegExp(`${BLOB_PLACEHOLDER_PREFIX}([0-9a-f]{64})(?![0-9a-f])`, "g");
+
+/** payload 안 모든 문자열에서 `blob:sha256:<hex>` 자리표시의 해시를 모은다(L0.store.spec §10 S-15). 키 이름은 보지 않는다 */
+function placeholderHashesIn(value: unknown, into: string[]): void {
+  if (typeof value === "string") {
+    for (const match of value.matchAll(PLACEHOLDER_PATTERN)) {
+      const hash = match[1];
+      if (hash !== undefined) into.push(hash);
+    }
+  } else if (Array.isArray(value)) {
+    for (const entry of value) placeholderHashesIn(entry, into);
+  } else if (typeof value === "object" && value !== null) {
+    for (const entry of Object.values(value)) placeholderHashesIn(entry, into);
+  }
+}
+
+/**
+ * 이 이벤트가 참조하는 blob 해시: `detached`의 BlobRef, effect.intent.args, effect.result.blobRef,
+ * 그리고 payload 문자열의 `blob:sha256:<hex>` 자리표시(cap-mcp 내용, cap-dialog 이미지 첨부, cap-workspace 이미지)
+ */
 function blobHashesOf(event: DurableEventEnvelope): readonly string[] {
   const hashes = (event.detached ?? []).map((field) => field.ref.sha256);
+  placeholderHashesIn(event.payload, hashes);
   if (event.kind === "effect.intent") {
     const intent = parse(EffectIntentSchema, event.payload);
     const ref = intent.ok ? parse(BlobRefSchema, intent.value.args) : undefined;

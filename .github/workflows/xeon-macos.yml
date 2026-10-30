@@ -27,6 +27,10 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # caustic(xeon/external/caustic)은 private submodule이다. 읽기 전용 토큰이 없으면 checkout이 실패한다
+          submodules: true
+          token: ${{ secrets.CAUSTIC_READ_TOKEN || github.token }}
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
         with:
           working_directory: xeon
@@ -61,3 +65,7 @@ jobs:
       - name: desktop Rust shell tests
         if: always()
         run: just desktop-test
+      # X11: the release archive of this machine (bundled sops, age, rg from mise above), unpacked and run; the signing step skips without secrets.
+      - name: release smoke (X11)
+        if: always()
+        run: just release-smoke

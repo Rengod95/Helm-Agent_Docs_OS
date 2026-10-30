@@ -13,6 +13,7 @@ import type {
 import { actorOf } from "../actor.ts";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { LedgerDeps } from "../ledger/change.ts";
+import { unpinBlobs } from "../ledger/manifest.ts";
 import type { KnowledgeSettings } from "../settings.ts";
 import {
   closeProposal,
@@ -97,13 +98,16 @@ function makesStale(error: KnowledgeFailure): boolean {
 }
 
 export function createProposalQueue(deps: QueueDeps): ProposalQueue {
-  const { db, blobs, clock } = deps;
+  const { db, blobs, clock, logger } = deps;
 
   const expire: ProposalQueue["expire"] = () => {
     const days = deps.settings(undefined).write.proposalExpiryDays;
     const now = clock.now();
     const expired = db.write((tx) => expirePending(tx, now - days * DAY_MS, now));
-    return expired.ok ? ok(expired.value) : err(fromStoreError(expired.error, "proposal expiry"));
+    if (!expired.ok) return err(fromStoreError(expired.error, "proposal expiry"));
+    // 만료된 제안은 다시 실행하지 않으므로 입력 블롭의 고정을 푼다
+    for (const proposalId of expired.value) unpinBlobs(blobs, logger, proposalId);
+    return ok(expired.value.length);
   };
 
   const load = (proposalId: string): Result<ProposalRecord, KnowledgeFailure> => {
@@ -128,6 +132,8 @@ export function createProposalQueue(deps: QueueDeps): ProposalQueue {
     if (!closed.value) {
       return err(failure("proposal_closed", "the proposal was decided by someone else"));
     }
+    // 닫힌 제안은 입력을 다시 읽지 않는다. 입력 블롭의 고정을 푼다(닫힌 뒤라 결정은 이미 남았으므로 실패는 기록만 한다)
+    unpinBlobs(blobs, logger, record.proposal.proposalId);
     return ok({
       ...record.proposal,
       status,

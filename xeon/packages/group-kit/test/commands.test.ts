@@ -15,6 +15,10 @@ import { groupManifestOf } from "./support/manifests.ts";
 
 test("command.parse-grammar", () => {
   expect(parseGroupCommand("")).toEqual({ ok: true, command: { op: "status" } });
+  expect(parseGroupCommand("reset helm")).toEqual({
+    ok: true,
+    command: { op: "reset", id: "helm" },
+  });
   expect(parseGroupCommand("  status ")).toEqual({ ok: true, command: { op: "status" } });
   expect(parseGroupCommand("status helm")).toEqual({
     ok: true,
@@ -41,12 +45,14 @@ test("command.parse-grammar", () => {
     "drive foo_bar",
     "status BAD",
     "restart helm",
+    "reset",
+    "reset BAD",
     "status helm extra",
   ]) {
     expect(parseGroupCommand(bad)).toEqual({ ok: false, usage: GROUP_USAGE });
   }
   expect(GROUP_USAGE).toBe(
-    "사용법: /group status [이름] | on <이름> | off <이름> | drive <이름|auto>",
+    "사용법: /group status [이름] | on <이름> | off <이름> | drive <이름|auto> | reset <이름>",
   );
 });
 

@@ -194,6 +194,8 @@ export const ArtifactRefSchema = Type.Object({
 - [제안] kind는 닫힌 내장 목록과 확장 접두 문자열의 합이다. 내장 kind는 L4가 반드시 미리보기를 제공한다. 확장 kind(예: `x.mermaid.diagram.flow`)는 L4가 렌더러를 찾지 못하면 `mediaType` 기준 기본 미리보기(텍스트, 이미지, 내려받기)로 대신한다. 이 규칙 덕분에 kind를 늘려도 L4 변경이 강제되지 않는다(§7 위험은 `L2.artifacts.plan` §7).
 - [제안] `ArtifactMetaSchema.sources`는 내보내기 필터(§4.5.3)의 입력이다. 웹 결과를 바탕으로 만든 산출물은 생산자가 출처와 `cache` 값을 그대로 옮겨 적어야 한다. 옮겨 적지 않으면 내보내기가 그 본문을 걸러 낼 근거가 없다(§5 사례 12).
 
+- [결정: M3b B2-ART] 등록·갱신 본문의 blob 참조는 `ArtifactBlobRefSchema`로 적는다. defs는 records를 import하지 않으므로 F.records.spec §3.4 BlobRef와 같은 모양을 여기 둔다. 같은 모양인지는 artifacts-defs.test가 확인한다. `ArtifactRefSchema`는 `ArtifactVersionRefSchema`로 이름을 바꾼다. `work.ts`의 `ArtifactRefSchema`(작업 항목용 `{artifactId, kind, title}`)와 `export *`에서 이름이 겹치기 때문이다. `ArtifactMetaSchema.custom`의 값은 `Type.Unknown()` 대신 `JsonValueSchema`(`TUnsafe<JsonValue>`)로 적는다. `Unknown`이면 `structuredContent`(`JsonValue`)에 메타를 실을 때 타입이 맞지 않는다. `HandoffIdSchema`는 2차 handoff에서만 쓰여 이번에 정의하지 않는다. [미결] `work.ts`의 참조 모양과 이 정의를 하나로 맞추는 일은 남았다.
+
 ### 3.2 `artifacts.registry`
 
 ```ts
@@ -377,6 +379,8 @@ export const ArtifactsRegistryKey = serviceKey(ArtifactsRegistry);
 - `artifact_update` 도구의 `meta`는 `summary`만 바꾼다. 도구 경로에서 `toInput`은 `meta`를 `{ summary }`로 통째로 바꾸므로 기존 `tags`·`sources`가 사라진다. [제안] provider는 도구 경로(`producer: "model"` 또는 `CallContext.toolCallId`가 있는 호출)의 `meta`를 기존 메타와 `summary` 필드만 병합한다. 서비스 경로는 §3.2 주석대로 전체 교체다.
 - `artifact_create`의 `kind`는 텍스트로 만들 수 있는 4종으로 줄였다. `changeset`은 리뷰가, `file`·`image`는 서비스 경로가 등록한다.
 
+- [결정: M3b B2-ART] `register`·`update`·`archive`는 `idempotent: true`, `list`·`get`은 `readOnly: true`로 선언한다. 위 코드 블록에는 두 플래그가 없다. `validateCapability`는 플래그 없이 `replay: "safe"`인 메서드에 `effect_class_missing` 경고를 내므로 이 플래그를 더한다.
+
 ### 3.3 `artifacts.reviews`
 
 ```ts
@@ -387,7 +391,7 @@ export const ChangeSourceSchema = Type.Union([
   Type.Object({ type: Type.Literal("turn"), turnId: Type.Optional(TurnIdSchema) }),
   /** 지정한 도구 호출들의 결과 details.diff */
   Type.Object({ type: Type.Literal("toolCalls"), toolCallIds: Type.Array(ToolCallIdSchema, { minItems: 1, maxItems: 64 }) }),
-  /** L1 체크포인트의 파일 상태와 현재 파일의 차이 */
+  /** L1 체크포인트의 파일 상태와 현재 파일의 차이. [미결] M3b에서는 지원하지 않는다. open은 source_unsupported를 돌려준다(§10 11) */
   Type.Object({
     type: Type.Literal("checkpoint"),
     checkpointId: CheckpointIdSchema,
@@ -504,6 +508,10 @@ export const ArtifactsReviews = defineCapability({
             retryable: false,
             detail: Type.Object({ source: Type.String(), line: Type.Integer({ minimum: 0 }) }),
           },
+          source_unsupported: {
+            description: "이 버전이 지원하지 않는 변경 원본(checkpoint, M3b)",
+            retryable: false,
+          },
           review_too_large: { description: "파일 수나 hunk 수가 상한을 넘음", retryable: false },
         },
       },
@@ -616,6 +624,10 @@ export const ArtifactsReviews = defineCapability({
 });
 export const ArtifactsReviewsKey = serviceKey(ArtifactsReviews);
 ```
+
+- [결정: 오케스트레이터 기본값] `checkpoint` 원본은 M3b에서 지원하지 않는다(§10 11). `open`에 이 원본을 넘기면 `source_unsupported`(재시도 불가)를 돌려준다. 스키마의 네 변형은 그대로 둔다.
+- [제안] 변경 메서드(`open`, `approve`, `reject`, `comment`, `submit`, `close`)는 `idempotent: true`로 선언한다. 같은 `requestId`로 다시 부르면 처음 결과를 돌려준다. 입력에 `requestId` 필드는 두지 않는다. `get`은 `readOnly: true`다. 선언이 없으면 `validateCapability`가 `effect_class_missing` 경고를 낸다(§9 6).
+- [제안] `HunkDecisionSchema`와 `CommentTargetSchema`는 `records/catalog/approval.ts`의 `HunkDecision`, `ReviewCommentTarget`과 같은 모양을 정의 파일에 다시 적는다. `defs/`는 `records/`를 import하지 않는다(`F.readme` §3). 두 모양이 같은지는 `test/capabilities/artifacts-defs.test.ts`가 JSON Schema로 비교해 확인한다.
 
 ### 3.4 `artifacts.sessions`
 
@@ -803,6 +815,10 @@ export const ArtifactsSessionsKey = serviceKey(ArtifactsSessions);
 
 - `session_rename`과 `handoff` 도구는 `toContent`가 `structuredContent`를 채우지 않으므로 `outputSchema`를 두지 않는다(`F.capabilities.spec` §4.2 부속 규칙 3).
 - `LabelSchema`의 `\p{L}` 정규식은 `u` 플래그가 필요하다. [가정] TypeBox `Value.Check`와 L1.tools의 JSON Schema 검사기가 `pattern`을 `u` 플래그로 해석한다. 아니면 F `toJsonSchema` 규칙에 맞춰 ASCII와 한글 범위(`[0-9A-Za-z가-힣]`)로 좁힌다. 확인은 plan A1의 테스트로 한다.
+
+- [결정: M3b B2-ART] handoff·export와 handoff 도구는 2차라 정의에 넣지 않는다. 능력 설명에서도 두 항목을 뺀다.
+- [결정: M3b B2-ART] `setMeta`는 `idempotent: true`, `list`·`search`는 `readOnly: true`로 선언한다(§3.2와 같은 규칙).
+- [결정: M3b B2-ART] `LabelSchema`의 `\p{L}`은 그대로 둔다. TypeBox `Compile`과 `Value.Check`가 `u` 플래그로 해석함을 artifacts-defs.test가 확인한다. 한글과 확장 라틴 문자는 통과하고 첫 글자 `_`는 거부된다. 라벨은 `session_rename` 파라미터에 없어 모델 도구 스키마에 나오지 않는다. 그래서 ASCII·한글 대체 패턴은 쓰지 않는다. 위 [가정]의 TypeBox 부분은 이 테스트가 확인한다. L1.tools 쪽 확인은 남는다.
 
 ### 3.5 `CallContext`
 
@@ -1148,6 +1164,17 @@ await registry.register(
 - 계획 상태(제출, 승인, 반려)는 `work.` 이벤트가 정본이다. 산출물은 사본이고 목록·미리보기·핸드오프에 쓰인다.
 - 제출 시점에 등록하므로 반려·수정 요청·철회된 판도 산출물 버전으로 남는다. artifacts는 판의 승인 여부를 싣지 않는다. 화면은 `meta.custom`의 `planId`·`planVersion`으로 `work.plans`를 조회해 판의 상태를 함께 보인다 [제안].
 
+#### 4.1.6 M3b 구현 결정 [결정: 오케스트레이터 기본값]
+
+- 상한, 버전 충돌, 보관 검사는 커밋 `build` 안에서 거부 계획으로 한다. 같은 `requestId`의 재시도는 저장된 결과를 받으므로 거부된 재시도도 새 이벤트를 만들지 않는다.
+- 상한은 세션의 `artifact.registered` 수로 센다. 보관된 산출물도 센다. 보관은 이벤트와 blob을 지우지 않기 때문이다.
+- 목록은 `threadId`를 생략하면 모든 세션을 본다. 기본 상태는 `active`이고 정렬은 최근 갱신(`updatedAt`) 순, 같은 시각이면 `artifactId` 순이다. 커서는 오프셋 문자열이다.
+- `updatedAt`은 마지막 `artifact.updated`의 `recordedAt`이다. 보관은 갱신이 아니므로 바꾸지 않는다.
+- 도구 경로의 갱신은 호출한 세션의 산출물에만 한다. 다른 세션이면 `denied`다(§5 6번을 갱신에도 적용한다).
+- 줄 수는 끝의 줄바꿈을 세지 않는다. 빈 본문은 0줄이다. CSV의 `rows`는 머리 줄을 포함한다. 이 계산은 근사다.
+- `file` 본문은 `file_unreadable`로 거부한다. 파일 읽기 경로(`xeon.exec`)는 아직 없다 [미결].
+- 저장소 실패는 `unavailable`이다. 잠깐 막힌 경우(`busy`)만 `retryable`이다.
+
 ### 4.2 리뷰와 diff 승인
 
 #### 4.2.1 변경 수집
@@ -1208,7 +1235,7 @@ export const ReviewAnswerSchema = Type.Object({
 - 리뷰 승인 요청은 도구 호출을 막지 않는다. `review_request` 도구는 리뷰를 연 뒤 바로 돌아가고, 승인 대기는 대화 진행과 별개다. 그래서 승인 요청은 L1.tools의 "도구 승인 대기"와 달리 턴을 멈추지 않는 비차단 요청이어야 한다 [가정: L1.tools.spec이 비차단 승인 요청을 허용]. 허용하지 않으면 리뷰 결정은 L4의 리뷰 화면이 `approve`/`reject`/`comment`/`submit`을 부르는 경로로만 들어오고, 그 경로는 F wire 메서드 추가가 필요하다(§10 미결 4).
 - 그룹 코드는 서비스 메서드(`approve`, `reject`, `comment`, `submit`)를 직접 부른다. 이때 `by`는 `group`이다.
 
-#### 4.2.5 거절 적용 [미결]
+#### 4.2.5 거절 적용 [결정: M3b B2-ART는 후보 A]
 
 거절한 hunk를 파일에서 되돌리는 방법은 정하지 않았다. 후보를 비교한다.
 
@@ -1259,6 +1286,21 @@ export const ReviewAnswerSchema = Type.Object({
 - 설정 `l2.artifacts.reviews.autoRequest`가 `"turnEnd"`이면 provider는 `boundary.settle.after` 지점(F.extensions.spec #26, tap)에서 그 턴에 workspace 쓰기 도구 결과가 있었는지 보고 `open({ changes: { type: "turn", turnId }, requestApproval: true })`를 부른다. `requestId`는 `review:auto:<turnId>`다.
 - 기본값은 `"off"`다. 매 턴 리뷰 요청은 사용 흐름을 끊기 때문이다.
 
+#### 4.2.8 M3b 구현 결정 [결정: 오케스트레이터 기본값]
+
+- 리뷰 상태는 투영 테이블 없이 `artifact.review_*` 이벤트를 커밋 순서로 접어 얻는다(`reviews/state.ts`). 같은 리뷰의 연산은 리뷰 id별로 줄을 세운다.
+- 승인 요청은 비차단이다(`blocking: false`, 출처에 도구 호출 id를 싣지 않는다). 답은 `approval.resolved`를 내구 피드로 받아 반영한다. 사람이 아닌 해결(`noninteractive`, `cancelled`, `superseded`, `expired`)은 리뷰를 바꾸지 않는다.
+- `ReviewAnswer`의 `submit: false`는 결정과 코멘트만 남기고 리뷰를 열린 채로 둔다. 해결된 승인을 대신해 같은 라운드의 새 승인 요청을 낸다. 되돌림과 전달은 일어나지 않는다.
+- `submit: true`인데 pending hunk가 남고 `approveRemaining`이 거짓이면 제출하지 않고 새 승인 요청을 낸다.
+- 리뷰 단위 코멘트(`target.type: "review"`)는 어느 hunk에도 붙지 않는 코멘트다. 결정에 영향이 없고, 제출 때 "리뷰 전체" 줄로 에이전트에 전달된다.
+- 승인 거부(`deny`)는 되돌릴 수 있는 모든 hunk를 거절하고 제출한다. 거부 사유는 리뷰 단위 코멘트가 된다.
+- 같은 파일의 diff가 여러 개면 하나의 파일로 합치되 hunk는 시간 순서로 이어 붙인다(기준 복원과 재계산을 하지 않는다). 되돌림은 hunk마다 `workspace.files.edit` 하나를 내고 뒤 hunk부터 푼다. 파일 단위 원자성은 두지 않는다.
+- 되돌림 직전에 `guard.output.before`(target `execution`)를 `xeon.loop`의 `guardExecution`으로 부른다. 막히면 그 hunk는 `conflict`이고 파일에 쓰지 않는다. 리뷰를 연 turn이 없으면 가드를 부를 수 없어 `conflict`다.
+- 새 파일을 만든 hunk, 이름 바꿈, 삭제, 이진 파일은 되돌리지 않고 `skipped`로 기록한다.
+- 설정은 `l2.artifacts.maxPerSession`, `maxContentBytes`, `reviews.deliverAs`, `tools.reviewRequest`, `tools.sessionRename` 다섯 키만 읽는다(`xeon/packages/cap-artifacts/src/settings.ts`). 전달 모드는 `reviews.deliverAs`를 따르고 기본은 `followUp`이다. `tools.reviewRequest`가 거짓이면 `review_request` 도구를 등록하지 않는다. 도구 등록은 설치 때 한 번 하므로 바꾼 값은 다음 설치부터 적용된다 [미결].
+- 재시작 때 해결됐으나 반영하지 못한 승인은 다시 처리하지 않는다 [미결].
+- 검토 승인에 `allow`로 답하면 L1.tools의 응답 검사(`validateResponse`, 허용 결정은 `answer`·`deny`뿐)가 `decision_not_allowed`로 거부한다. 응답이 해결로 기록되지 않으므로 이 능력은 `allow`를 받지 않는다 [결정: L1.tools.spec §3.6].
+
 ### 4.3 세션 제목과 메타
 
 #### 4.3.1 제목
@@ -1288,6 +1330,16 @@ export const ReviewAnswerSchema = Type.Object({
 - [제안] 이 지점의 디스패치는 제목 이벤트를 쓴 L1(session-core가 커밋한 뒤 X가 디스패치)이 한다. artifacts는 이 지점을 발사하지 않는다. 자동 제목이든 `session_rename`이든 같은 L1 경로를 타므로 지점이 한 번만 발사된다.
 - artifacts는 이 지점에 핸들러를 달지 않는다. 투영이 제목 이벤트를 직접 읽기 때문이다. 지점 핸들러로 상태를 만들면 재생 때 다시 실행되지 않는다(`eng.events.design` EV-08).
 - 라벨 변경은 이 지점을 발사하지 않는다 [제안]. `SessionInfoChangedPayload`에 라벨을 넣을지는 §10 미결 7이다.
+
+#### 4.3.5 M3b 구현 결정 [결정: 오케스트레이터 기본값]
+
+- 라벨은 `artifact.session_labeled` 이벤트를 접어 얻는다. 같은 세션의 마지막 유효 이벤트가 이긴다. 투영 테이블은 두지 않는다. 목록과 찾기는 `artifact.registered`와 `artifact.session_labeled`를 한 번 읽어 모든 세션의 라벨과 산출물 수를 함께 접는다.
+- `setMeta`에서 `labels.set`은 `add`·`remove`와 함께 받지 않는다(`invalid_input`). 라벨이 바뀌지 않으면 이벤트를 쓰지 않는다. 같은 `requestId`의 재시도는 처음 요청의 변경을 지문으로 맞춰 새 이벤트를 만들지 않는다.
+- 제목은 `threads.setTitle(threadId, title, "retitle:<requestId>")`로만 쓴다. 이 능력은 `thread.updated`를 직접 커밋하지 않는다.
+- 제목 출처 [미결]: 제목 이벤트에 출처가 없어(§10 미결 2) 목록과 찾기는 제목이 있으면 `titleSource`를 `"user"`로 보인다. `setMeta` 응답만 호출 경로로 `"model"`(도구 경로)을 준다. 출처를 저장할 자리는 §10 미결 2에서 정한다.
+- 자동 제목(§4.3.2)과 보관 정리(`retentionDays`)는 구현하지 않는다 [미결]. 핸드오프와 내보내기는 2차다(§4.4, §4.5).
+- 목록은 닫히지 않은 세션만 본다(`threads.list`의 기본값). 정렬 시각이 같으면 `threadId` 오름차순이다. `threads.list`는 읽기가 실패하면 빈 쪽을 돌려주므로 목록도 비어 보일 수 있다 [미결].
+- 찾기는 NFC 정규화 뒤 ASCII 대문자만 소문자로 바꾸고 부분 문자열로 비교한다(§4.3.3).
 
 ### 4.4 세션 핸드오프 (2차)
 
@@ -1386,6 +1438,7 @@ export const ReviewAnswerSchema = Type.Object({
 - L4 노출 구분: "화면"은 설정 화면 항목(`ui`가 있음), "명령"은 CLI 명령(`/rename`, `/export`, `/handoff`, `xeon session label`)이 같은 키나 메서드를 쓰는 경우, "파일만"은 `ui`를 두지 않는 키다(`F.wire-settings.spec` §3.8.2 `ui` 주석). 명령 이름은 `L4.cli.spec`이 정한다.
 - `autoTitle.purpose`가 존재하지 않는 용도 이름이면 L1.models가 기본 모델로 대신하는지 거부하는지는 `L1.models.spec`을 따른다. 거부하면 자동 제목을 건너뛴다.
 - 도구 노출 키(`l2.artifacts.tools.*`)는 L1.tools의 도구 켜기·끄기 규칙과 겹친다. [제안] 이 키는 능력의 기본 노출값이고, L1.tools의 사용자 규칙이 있으면 그것이 우선한다.
+- M3b가 읽는 키는 `maxPerSession`, `maxContentBytes`, `reviews.deliverAs`, `tools.reviewRequest`, `tools.sessionRename` 다섯 개다. `autoTitle.*`, `retentionDays`, `reviews.autoRequest`, `reviews.fuzzLines`, `export.*`, `handoff.*`는 M3b에서 읽는 코드가 없어 선언하지 않는다 [미결].
 
 ## 7. 확장 지점
 
@@ -1448,10 +1501,11 @@ export const ReviewAnswerSchema = Type.Object({
 1. 닫힘. `CallOptions.context`(`CallContext`)는 `F.capabilities.spec` §3.2에 있다(§3.5).
 2. [미결] 제목 이벤트 이름: `session.retitled`(eng.events.design §4.4) 대 `thread.updated`의 `title`(F.records.spec §3.3). 제목 출처(`source: user | auto | model`)를 payload에 둘지도 함께 정한다. 이 문서의 `titleSource` 투영은 그 필드를 전제한다.
 3. [결정: review.decisions-2 K-09] 새 ID 접두 `art`, `rvw`, `cmt`, `hof`는 F `IdPrefix`에 더하지 않고 F.conversation.spec §3.2.1 `LocalIdPrefix` 표의 지역 ID로 둔다.
-4. [미결] 리뷰 결정의 도착 경로(§4.2.4). (a) 승인 프로토콜에 비차단 `review` kind 추가(제안), (b) `question` kind + `answerSchema`, (c) F wire에 `artifacts.review.*` 메서드 추가. L1.tools.spec·F.wire-settings.spec 소유자와 정한다.
+4. 닫힘 [결정: M3b B2-ART]. 리뷰 결정은 승인 kind `review`의 답(`ReviewAnswer`)으로 들어온다(§4.2.4 M3b 구현). (a) 승인 프로토콜에 비차단 `review` kind 추가(제안), (b) `question` kind + `answerSchema`, (c) F wire에 `artifacts.review.*` 메서드 추가. L1.tools.spec·F.wire-settings.spec 소유자와 정한다.
 5. [미결] `eng.context-map.design` §4.1 artifacts 행 (d)열에 `xeon.tasks`, `xeon.approvals`, `xeon.models`, `xeon.exec`를 더하는 개정(§3.8). CM-04에 따라 그 문서를 먼저 고친다.
-6. [미결] 거절 적용 경로(§4.2.5): A `workspace.files`(제안), B L1 복원, C 직접 쓰기. A로 정하면 `L2.workspace.spec`에 패치 적용 서비스 메서드와 F `WorkspaceDiffDetailsSchema`를 요청한다. 정해지면 `L2.readme` §10 미결 5도 닫는다.
+6. 닫힘 [결정: M3b B2-ART]. 거절 적용은 A(`workspace.files.edit`)로 한다(§4.2.5 M3b 구현). 후보: A `workspace.files`(제안), B L1 복원, C 직접 쓰기. A로 정하면 `L2.workspace.spec`에 패치 적용 서비스 메서드와 F `WorkspaceDiffDetailsSchema`를 요청한다. 정해지면 `L2.readme` §10 미결 5도 닫는다.
 7. [미결] `SessionInfoChangedPayload`에 라벨을 넣고 라벨 변경 때도 #31을 발사할지(§4.3.4). F.extensions.spec 소유.
 8. [미결] `cache: "session"` 출처 본문을 내보내기에서 뺄지(§4.5.3). 제안은 뺀다. `L2.web.spec`의 정의와 맞춘다.
 9. [미결] 핸드오프 입력의 형식. 지금은 `PostItem kind: "user"` 텍스트다. `context` kind로 바꾸면 `customType`은 `x.cap-artifacts.handoff`다(`F.records.spec` §3.2 규칙 3). 어느 쪽을 쓸지만 남았다.
 10. [미결] `ArtifactKind` 확장 형식(`x.<ext>.<영역>.<이름>`의 앞 세 마디)을 F에 공용 패턴으로 둘지. 지금은 이 정의 파일 안의 정규식이다.
+11. [미결] checkpoint 변경 수집은 M3b에서 지원하지 않는다(source_unsupported).

@@ -14,4 +14,12 @@ export { detectExecPlatform, selectExecPlatform, type ExecSelectError } from "./
 export { LineScanner, rangeDecoder, StreamDecoder, startsWithBom } from "./upstream/env/index.ts";
 export { EXEC_SETTING_DEFS, readUnattendedTimeoutMs } from "./settings.ts";
 export { withUnattendedTimeout } from "./unattended.ts";
+// spill 보관 정리와 사용량(L0.exec.spec §3.8.2). 정리는 조립 루트가 부른다
+export {
+  pruneSpill,
+  spillUsageBytes,
+  type PruneSpillOptions,
+  type PruneSpillReport,
+  type SpillError,
+} from "./spill-store.ts";
 export { createExecPlatformModule, type ExecPlatformModuleConfig } from "./platform-module.ts";

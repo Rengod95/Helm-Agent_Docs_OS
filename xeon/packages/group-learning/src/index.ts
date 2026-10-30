@@ -90,7 +90,7 @@ export function createLearningGroup(deps: LearningDeps): GroupModule {
         settings,
         knowledge,
       });
-      const env: HandlerEnv = { g, deps, settings, writer };
+      const env: HandlerEnv = { g, deps, settings, writer, countedReviews: new Set<string>() };
       registerTriggers(env);
       registerSettledWatch(env);
       g.registerTool(
@@ -105,7 +105,8 @@ export function createLearningGroup(deps: LearningDeps): GroupModule {
             deps.report?.({ kind: "usage", text: parsed.usage }, ctx.invocationId);
             return;
           }
-          const signal = new AbortController().signal;
+          // 호출한 쪽의 취소 신호(ctx.signal)를 그대로 쓴다. 명령 처리가 만든 신호는 이 호출을 취소하지 못한다
+          const { signal } = ctx;
           const report = await runLearningCommand(parsed.command, {
             ops,
             signal,

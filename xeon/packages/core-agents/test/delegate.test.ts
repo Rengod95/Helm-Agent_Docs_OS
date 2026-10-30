@@ -120,6 +120,29 @@ describe("delegate", () => {
     recorder.dispose();
   });
 
+  test("the report input of a settled background delegation is queued with origin delegation", async () => {
+    const h = openHarness({
+      run: async (req, session) => ({
+        status: "completed",
+        finalItemId: session.seedAssistantItem(req.threadId, "done"),
+      }),
+    });
+    const recorder = spawnRecorder(h.session);
+    const accepted = await h.service.delegate(
+      request("rev-origin"),
+      scopeOrigin(h, "learning", "scope:learning:origin"),
+    );
+    expect(accepted.ok).toBe(true);
+    await recorder.settleAll(h.parentThreadId, ["rev-origin"]);
+    const queued = eventsOf(h, "input.queued");
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.payload).toMatchObject({
+      requestId: "rev-origin:report",
+      origin: "delegation",
+    });
+    recorder.dispose();
+  });
+
   test("without a report delivery only agent.settled is written", async () => {
     const h = openHarness();
     const recorder = spawnRecorder(h.session);
@@ -343,6 +366,38 @@ describe("cancel", () => {
     });
     await h.service.cancel({ ownerScopeId: "helm" }, "cleanup");
     recorder.dispose();
+  });
+
+  test("after a restart cancel by ownerScopeId settles the stored children of that scope as aborted", async () => {
+    const first = openHarness({ maxConcurrent: 8, run: () => new Promise(() => {}) });
+    const sent = await Promise.all(
+      (
+        [
+          ["s-1", "learning"],
+          ["s-2", "helm"],
+        ] as const
+      ).map(([id, scope]) =>
+        first.service.delegate(request(id), scopeOrigin(first, scope, `scope:${scope}:${id}`)),
+      ),
+    );
+    expect(sent.every((result) => result.ok)).toBe(true);
+    // 같은 세션을 이어 쓰는 새 프로세스: 자식은 이 프로세스에서 돌지 않는다
+    const second = openHarness({ session: first.session });
+    expect(second.service.liveCount()).toBe(0);
+    expect(await second.service.cancel({ ownerScopeId: "learning" }, "group off")).toEqual({
+      cancelled: true,
+    });
+    const settled = settledPayloads(first);
+    expect(settled.map((payload) => [payload.requestId, payload.status])).toEqual([
+      ["s-1", "aborted"],
+    ]);
+    expect(settled[0]?.owner).toEqual({ kind: "scope", scopeId: "learning" });
+    // 같은 scope를 다시 취소해도 새로 닫을 자식이 없다
+    expect(await second.service.cancel({ ownerScopeId: "learning" }, "again")).toEqual({
+      cancelled: false,
+    });
+    // 다른 scope의 저장된 자식은 그대로다
+    expect(second.service.status(first.parentThreadId, "s-2")).toMatchObject({ state: "running" });
   });
 
   test("cancel by child id and by (parent, requestId) stops a background child", async () => {

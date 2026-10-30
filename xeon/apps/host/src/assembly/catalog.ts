@@ -17,10 +17,12 @@ import {
 } from "@xeon/contracts/settings";
 import { DIALOG_SETTING_DEFS } from "@xeon/cap-dialog";
 import { KNOWLEDGE_SETTING_DEFS } from "@xeon/cap-knowledge";
+import { ARTIFACTS_SETTING_DEFS } from "@xeon/cap-artifacts";
 import { MCP_SETTING_DEFS } from "@xeon/cap-mcp";
 import { WEB_SETTING_DEFS } from "@xeon/cap-web";
 import { WORK_SETTING_DEFS } from "@xeon/cap-work";
 import { WORKSPACE_SETTING_DEFS } from "@xeon/cap-workspace";
+import { accountRotationManifest, accountRotationSettings } from "@xeon/group-account-rotation";
 import { helmManifest, helmSettings } from "@xeon/group-helm";
 import { learningSettings } from "@xeon/group-learning";
 import { groupKitSettings } from "@xeon/group-kit";
@@ -82,11 +84,19 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("cap-knowledge", "l2.knowledge", KNOWLEDGE_SETTING_DEFS),
     ofDefs("cap-mcp", "l2.mcp", MCP_SETTING_DEFS),
     ofDefs("cap-work", "l2.work", WORK_SETTING_DEFS),
+    ofDefs("cap-artifacts", "l2.artifacts", ARTIFACTS_SETTING_DEFS),
     ofDefs("cap-dialog", "l2.dialog", DIALOG_SETTING_DEFS),
     ofGroup("group-kit", groupKitSettings),
     ofGroup("group-helm", helmSettings),
     ofGroup("group-learning", learningSettings),
     ofDefs("group-helm", "ext.helm", reservedExtensionSettings(helmManifest, "user").defs),
+    // 기본 꺼짐 계정 회전 플러그인(기본 플러그인 목록에 든다). 예약 키 enabled·isolation은 X.loading-trust §4.5.2가 정한 모양이다
+    ofGroup("group-account-rotation", accountRotationSettings),
+    ofDefs(
+      "group-account-rotation",
+      "ext.account-rotation",
+      reservedExtensionSettings(accountRotationManifest, "user").defs,
+    ),
     ofGroup("host", hostSettings),
   ];
 }

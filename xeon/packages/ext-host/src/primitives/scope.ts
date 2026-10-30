@@ -1,3 +1,4 @@
+import { err, type Result } from "@xeon/contracts";
 import {
   LoopPortKey,
   validateUsage,
@@ -29,7 +30,7 @@ import { PrimitiveError, type PrimitiveErrorCode } from "./errors.ts";
 import type { LeaseBroker } from "./lease.ts";
 import { eachInOrder } from "./sequence.ts";
 import { capabilityServiceName, toCapabilityIds } from "./services.ts";
-import type { StateService } from "./state.ts";
+import type { StateResetError, StateService } from "./state.ts";
 
 // ── 공개 모양 ──────────────────────────────────────────────────────────────
 
@@ -106,10 +107,29 @@ export interface ScopeRuntime {
   markStale(record: ScopeRecord, generation: Generation): void;
   /** 한 scope의 status를 요청·세대·thread 켜짐에서 다시 계산한다 */
   refreshStatus(record: ScopeRecord): void;
+  /**
+   * 저장된 상태가 스키마·버전 검사를 못 넘겨 이 thread에서 켜지지 못한 scope의 상태 문서를 `initial`로 다시 쓴다(재설정 경로).
+   * 마지막 오류가 저장 상태 오류가 아니면 `not_refused`다. 성공하면 thread의 거부와 마지막 오류를 지우고 적용을 예약한다.
+   * scope를 다시 켜는 일은 하지 않는다(setup 실패로 꺼진 scope는 호출자가 `enable()`한다)
+   */
+  resetState(
+    record: ScopeRecord,
+    thread: ThreadRuntime,
+  ): Promise<Result<{ readonly rev: number }, ResetScopeStateError>>;
   info(record: ScopeRecord): ScopeInfo;
   /** 실행 중인 thread가 있는가 */
   anyRunning(): boolean;
 }
+
+export type ResetScopeStateError = StateResetError | { readonly kind: "not_refused" };
+
+/** 재설정이 고치는 오류: 저장된 상태 문서가 이 판의 선언과 맞지 않는 경우 */
+const STORED_STATE_ERRORS: ReadonlySet<PrimitiveErrorCode> = new Set([
+  "state_schema",
+  "state_future_version",
+  "state_migration_missing",
+  "state_migration_failed",
+]);
 
 export interface ScopeRuntimeDeps {
   readonly makeApi: (record: ScopeRecord, generation: Generation) => ScopeApi<AnyState>;
@@ -521,6 +541,18 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       toggle(record, enabled, reason, threadId);
     },
     markStale,
+    async resetState(record, thread) {
+      const code = record.lastError?.code;
+      if (code === undefined || !STORED_STATE_ERRORS.has(code)) return err({ kind: "not_refused" });
+      const reset = await deps.state.resetStored(record, thread);
+      if (!reset.ok) return reset;
+      thread.refused.delete(record.id);
+      record.lastError = undefined;
+      refreshStatus(record);
+      core.notify({ kind: "scope", scopeId: record.id, threadId: thread.threadId });
+      deps.requestApply(thread.threadId);
+      return reset;
+    },
     async startupApply(record) {
       if (!record.desired) return { scopeId: record.id, status: "skipped", issues: [] };
       if (anyRunning() || record.busy)

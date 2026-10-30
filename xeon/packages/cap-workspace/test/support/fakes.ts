@@ -1,4 +1,4 @@
-import { err, type Clock } from "@xeon/contracts";
+import { err, ok, type Clock } from "@xeon/contracts";
 import {
   ExecutionError,
   type ProtectedPathEntry,
@@ -7,7 +7,7 @@ import {
   type Shell,
 } from "@xeon/contracts/services";
 import type { ScopeStack } from "@xeon/contracts/settings";
-import type { WorkspaceDeps } from "../../src/deps.ts";
+import type { RgResolver, WorkspaceDeps } from "../../src/deps.ts";
 import type { BlobSink } from "../../src/ports/blobs.ts";
 import type { ThreadWorkspaces } from "../../src/ports/threads.ts";
 import { defaultRoots } from "../../src/roots.ts";
@@ -80,19 +80,33 @@ function steppingClock(step = 5): Clock {
   };
 }
 
+/** ripgrep 경로 해석 대역. 설정 경로가 있으면 그대로 돌려주고, 없으면 `binary`를 돌려준다 */
+function fakeRg(binary = "/bundle/rg"): RgResolver {
+  return (rgPath) => Promise.resolve(ok(rgPath === "" ? binary : rgPath));
+}
+
+/** 찾지 못하는 ripgrep 대역 */
+export function missingRg(): RgResolver {
+  return () => Promise.resolve(err({ kind: "missing", message: "rg binary: not_found" }));
+}
+
 export interface DepsOptions {
+  /** 없는 값(null)이면 rg 해석기가 없는 상태다. 생략하면 `fakeRg()` */
+  readonly rg?: RgResolver | null;
   readonly sandbox?: FakeSandbox | null;
   readonly protectedPaths?: readonly ProtectedPathEntry[];
   readonly settings?: (threadId: string | undefined) => WorkspaceSettings;
   readonly layers?: ScopeStack;
   readonly blobs?: BlobSink;
   readonly threads?: ThreadWorkspaces;
+  readonly unattendedTimeoutMs?: () => number;
 }
 
 /** 대역 환경으로 서비스 의존을 만든다. sandbox가 null이면 서비스가 없는 상태다 */
 export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDeps {
   const sandbox = options.sandbox === undefined ? fakeSandbox() : (options.sandbox ?? undefined);
   const protectedPaths = options.protectedPaths ?? [];
+  const rg = options.rg === undefined ? fakeRg() : (options.rg ?? undefined);
   return {
     env,
     roots: {
@@ -110,5 +124,9 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
         : () => readWorkspaceSettings(options.layers ?? [])),
     ...(options.blobs === undefined ? {} : { blobs: options.blobs }),
     ...(options.threads === undefined ? {} : { threads: options.threads }),
+    ...(rg === undefined ? {} : { rg }),
+    ...(options.unattendedTimeoutMs === undefined
+      ? {}
+      : { unattendedTimeoutMs: options.unattendedTimeoutMs }),
   };
 }

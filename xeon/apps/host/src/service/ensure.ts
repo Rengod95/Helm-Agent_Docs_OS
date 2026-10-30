@@ -23,7 +23,12 @@ import {
 } from "@xeon/platform-process";
 import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
 import { ENGINE_VERSION } from "../assemble.ts";
-import { createHostConnection, connectServiceTransport, helloService } from "./connect.ts";
+import {
+  createHostConnection,
+  connectServiceTransport,
+  helloService,
+  socketErrorOf,
+} from "./connect.ts";
 import { resolveServicePaths, type ServicePathError, type ServicePaths } from "./paths.ts";
 import { systemTime } from "./time.ts";
 
@@ -70,7 +75,7 @@ async function probeService(
   >
 > {
   const transport = await connectServiceTransport({ kind: "unix", path: registration.socket });
-  if (!transport.ok) return transport;
+  if (!transport.ok) return err(socketErrorOf(transport.error));
   const connection = createHostConnection(transport.value);
   try {
     const hello = await helloService(connection, { clientName: CLIENT_NAME });
@@ -101,16 +106,24 @@ function sleep(scheduler: Scheduler, ms: number): Promise<void> {
   });
 }
 
-/** 등록 파일이 사라지거나 소켓에 접속할 수 없을 때까지 기다린다. 시한 안에 내려갔으면 true */
+/**
+ * 기다리던 서비스(`expected`: pid와 시작 시각)가 내려갔는지 본다. 내려간 것으로 보는 경우는 셋이다: 등록 파일이 없다, 등록이 다른 서비스의 것이다
+ * (새 서비스가 이미 이어받았다), 소켓에 접속할 수 없다. 두 번째가 없으면 교체 중에 새 서비스가 같은 경로에 붙어 시한까지 거짓을 돌려준다
+ * (B1-SVC 이월, 승계 경쟁). 시한 안에 내려갔으면 true
+ */
 export async function waitServiceGone(
   store: RegistrationStore,
   time: { readonly clock: Clock; readonly scheduler: Scheduler },
   waitMs: number,
+  expected: Pick<ServiceRegistration, "pid" | "startedAt">,
 ): Promise<boolean> {
   const deadline = time.clock.now() + waitMs;
   return repeatAsync<boolean>(async () => {
     const read = store.read();
     if (!read.ok) return { value: true };
+    if (read.value.pid !== expected.pid || read.value.startedAt !== expected.startedAt) {
+      return { value: true };
+    }
     const transport = await connectServiceTransport({ kind: "unix", path: read.value.socket });
     if (!transport.ok) return { value: true };
     await transport.value.close("probe");
@@ -160,6 +173,7 @@ export async function ensureHostService(
           store,
           time,
           options.replaceWaitMs ?? DEFAULT_REPLACE_WAIT_MS,
+          registration,
         );
         // 응답은 왔는데 시한 안에 내려가지 않았으면 프로세스가 남아 있는지 본다
         return gone || !isProcessAlive(registration.pid)

@@ -21,7 +21,11 @@ import {
   type ToggleReceipt,
 } from "@xeon/contracts/services";
 import { defaultDriveArbiter, leaseArbiterPort, type DriveArbiter } from "./arbiter.ts";
-import type { GroupServiceWithSetting } from "./commands.ts";
+import type { GroupResetError, GroupServiceWithUsage } from "./commands.ts";
+import { gatherPromotionInput } from "./promotion/gather.ts";
+import { buildPromotionReport, type PromotionReport } from "./promotion/report.ts";
+import { defaultMetricsRegistry } from "./metrics/registry.ts";
+import { summarizeUsage, type ScopeUsage } from "./metrics/usage.ts";
 import { createLeaseRejections } from "./lease-rejections.ts";
 import type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
 import type {
@@ -33,7 +37,17 @@ import type {
 export { GroupServiceName };
 
 /** 서비스가 ExtHost에서 읽는 부분. 시험에서는 테스트 호스트의 `host`를 그대로 넘긴다 */
-export type GroupHostView = Pick<ExtHost, "scopes" | "scope" | "leaseOf" | "onChange" | "ports">;
+export type GroupHostView = Pick<
+  ExtHost,
+  | "scopes"
+  | "scope"
+  | "leaseOf"
+  | "onChange"
+  | "ports"
+  | "queryEvents"
+  | "toolOwner"
+  | "resetScopeState"
+>;
 
 export interface GroupServiceDeps {
   readonly host: GroupHostView;
@@ -49,8 +63,22 @@ export interface GroupServiceDeps {
   readonly arbiter?: DriveArbiter;
   /** l3.group-kit.instrumentation 값. 기본 true */
   readonly instrumentation?: () => boolean;
-  /** 그룹 계측 요약. 없으면 GroupStatus.metrics는 null이다(계측 이벤트는 M3, G-17) */
+  /**
+   * 그룹 계측 요약을 바꿔 넣는다. 없으면 기본 등록부(`defaultMetricsRegistry`)의 카운터와 `refreshUsage`로 캐시한 이벤트 집계를 합친다.
+   * 등록되지 않은 그룹은 null이다.
+   */
   readonly metrics?: (id: GroupId) => GroupMetricsSummary | null;
+  /**
+   * 승격 집계(L3.group-kit.spec §3.12). `/group status`가 후보 줄을 낼 때 부른다. 없으면 현재 thread의 이벤트로 `gatherPromotionInput`과
+   * `buildPromotionReport`를 돌린다. 현재 thread가 없으면 빈 보고다.
+   */
+  readonly promotion?: () => Promise<PromotionReport>;
+}
+
+/** 활성 thread 하나의 이벤트 집계. `refreshUsage`가 채운다 */
+interface UsageCache {
+  readonly threadId: ThreadId;
+  readonly byScope: ReadonlyMap<ScopeId, ScopeUsage>;
 }
 
 const STATE_INVALID_CODES: ReadonlySet<string> = new Set(["state_schema", "state_too_large"]);
@@ -106,7 +134,7 @@ function groupErrorOf(error: HolderWriteError): GroupCommandError {
   }
 }
 
-export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSetting {
+export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsage {
   const arbiter = deps.arbiter ?? defaultDriveArbiter;
   const port: LeaseArbiterPort = leaseArbiterPort(arbiter, {
     holderSetting: (threadId) => deps.holder.read(threadId),
@@ -115,6 +143,28 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSett
   let hostSubscription: Unsubscribe | undefined;
   let scheduled = false;
   const rejections = createLeaseRejections();
+  let usage: UsageCache | undefined;
+
+  /**
+   * 기본 계측 요약: 카운터(등록부)에 캐시한 이벤트 집계를 더한다. 비용은 카운터 `addUsage`와 `turn.completed`의 합이고
+   * 임대 시간은 `lease.*`에서 온다. 캐시는 그 thread를 `refreshUsage`로 갱신했을 때만 있다.
+   */
+  function summaryOf(id: GroupId, thread: ThreadId | null): GroupMetricsSummary | null {
+    if (deps.metrics !== undefined) return deps.metrics(id);
+    const handle = defaultMetricsRegistry.get(id);
+    if (handle === undefined) return null;
+    const counted = handle.snapshot();
+    const cached =
+      thread !== null && usage?.threadId === thread ? usage.byScope.get(id) : undefined;
+    return {
+      denies: counted.denies,
+      posts: counted.posts,
+      spawns: counted.spawns,
+      delegates: counted.delegates,
+      costUsd: counted.costUsd + (cached?.costUsd ?? 0),
+      leaseMs: cached?.leaseMs ?? 0,
+    };
+  }
 
   /** 커밋 피드 포트가 올라와 있으면 구독한다. 포트가 늦게 올라올 수 있어 읽을 때마다 확인한다 */
   function attachFeed(): void {
@@ -140,7 +190,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSett
       leaseId: lease !== null && lease.scopeId === id ? lease.leaseId : null,
       lastError: info === undefined ? null : errorOf(info),
       recordKinds: (entry.manifest.recordKinds ?? []).map((decl) => decl.kind),
-      metrics: instrumented ? (deps.metrics?.(id) ?? null) : null,
+      metrics: instrumented ? summaryOf(id, thread) : null,
     };
   }
 
@@ -233,9 +283,43 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSett
     return isCandidate(next) ? "nextStepBoundary" : "afterLeaseRelease";
   }
 
+  /** 현재 thread의 이벤트로 승격 보고를 만든다. thread가 없으면 빈 입력이다 */
+  async function defaultPromotion(): Promise<PromotionReport> {
+    const thread = deps.currentThread();
+    const input = await gatherPromotionInput(deps.host, thread === null ? [] : [thread]);
+    return buildPromotionReport(input);
+  }
+
   return {
     choose: (threadId, candidates) => port.choose(threadId, candidates),
     list,
+    currentThread: () => deps.currentThread(),
+    promotionReport: () => (deps.promotion ?? defaultPromotion)(),
+    async resetState(id) {
+      if (find(id) === undefined) {
+        return { ok: false, error: { kind: "group.unknown", id, known: knownIds() } };
+      }
+      const thread = deps.currentThread();
+      if (thread === null) return { ok: false, error: { kind: "group.noThread" } };
+      const reset = await deps.host.resetScopeState(thread, id);
+      if (reset.ok) {
+        schedule();
+        return { ok: true, value: reset.value };
+      }
+      const error: GroupResetError =
+        reset.error.kind === "not_refused"
+          ? { kind: "group.notResettable", id }
+          : { kind: "group.resetFailed", id, message: reset.error.kind };
+      return { ok: false, error };
+    },
+    async refreshUsage(threadId) {
+      const leases = await deps.host.queryEvents(threadId, { kindPrefix: "lease." });
+      const turns = await deps.host.queryEvents(threadId, { kindPrefix: "turn." });
+      // 조회가 실패하면 캐시를 그대로 둔다. 이전 값이 남고 상태 조회는 실패하지 않는다
+      if (!leases.ok || !turns.ok) return;
+      const ordered = [...leases.value, ...turns.value].toSorted((a, b) => a.seq - b.seq);
+      usage = { threadId, byScope: summarizeUsage(ordered) };
+    },
     status(id) {
       const entry = find(id);
       if (entry === undefined) {

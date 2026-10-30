@@ -4,6 +4,7 @@ import type { AssistantMessage, StreamFn } from "@xeon/contracts/conversation";
 import { abortedStream } from "../streams.ts";
 import type { RequestInput } from "./prepare-request.ts";
 import { emitMessageStart, emitMessageUpdate } from "./sink.ts";
+import { saltAssistantMessage, saltStreamEvent, toolCallSalt } from "./tool-call-ids.ts";
 import { currentStep, failureText, overrides, type TurnRun } from "./turn-run.ts";
 
 // L1.loop.spec §3.2 단계 3 `streamResponse`. `modelCalls` 슬롯을 잡고 streamFn을 불러 부분 메시지를 이벤트로 낸다.
@@ -71,7 +72,7 @@ export async function streamResponse(
   request: RequestInput,
 ): Promise<AssistantMessage> {
   const { ctx, scope } = run;
-  currentStep(run);
+  const salt = toolCallSalt(currentStep(run).stepId);
   const llmMessages = ctx.context.convertToLlm(request.messages);
   const streamFn = modelStreamFn(run);
   const response = await streamFn(
@@ -86,14 +87,16 @@ export async function streamResponse(
     },
   );
   // 요청한 추론 수준을 어느 streamFn이 답했든 최종 메시지에 남긴다
+  // 도구 호출 id는 단계 salt를 붙여 대화 안에서 유일하게 만든다(제공자가 id를 재사용해도 겹치지 않는다)
   const result = async (): Promise<AssistantMessage> => ({
-    ...(await response.result()),
+    ...saltAssistantMessage(await response.result(), salt),
     thinkingLevel: request.thinkingLevel,
   });
 
   let partial: AssistantMessage | null = null;
   let started = false;
-  for await (const event of response) {
+  for await (const raw of response) {
+    const event = saltStreamEvent(raw, salt);
     switch (event.type) {
       case "start":
         partial = event.partial;

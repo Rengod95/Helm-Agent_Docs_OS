@@ -5,6 +5,7 @@ import type { AttachmentFiles } from "./ports/files.ts";
 import type { ImagesPort } from "./ports/images.ts";
 import type { BlobSink } from "./ports/blobs.ts";
 import type { CommandFiles, CommandRoots } from "./ports/command-files.ts";
+import type { NoticePort } from "./ports/notices.ts";
 import type { ShellPort } from "./ports/shell.ts";
 import type { DialogFeed, StatusPublisher } from "./ports/session.ts";
 import type { Timers } from "./ports/timers.ts";
@@ -33,6 +34,8 @@ export interface DialogDeps {
   readonly blobs: BlobSink | undefined;
   /** 휘발 상태 이벤트를 내보낸다. 없으면 `list`로만 읽힌다 */
   readonly status: StatusPublisher | undefined;
-  /** 내구 이벤트 피드. 없으면 내장 세그먼트 `core.turn`·`core.usage`가 비어 있다 */
+  /** 내구 이벤트 피드. 없으면 내장 세그먼트 `core.turn`·`core.usage`가 비어 있고 알림 구독도 비어 있다 */
   readonly feed: DialogFeed | undefined;
+  /** 내구 알림 저장소(`dialog.notified` 기록과 당겨 읽기). 없으면 `emit`과 `list`는 unavailable이다 */
+  readonly notices: NoticePort | undefined;
 }

@@ -1,12 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@6.42.1/schema.json",
+  "ignoreWorkspaces": ["external/caustic/packages/tokens", "external/caustic/packages/react"],
+  "ignore": ["external/**"],
   "workspaces": {
     ".": {
       "entry": ["scripts/*.ts"],
-      "ignoreDependencies": ["@swc/core"]
+      "ignoreDependencies": ["@swc/core", "tailwindcss"]
     },
     "packages/*": {
       "entry": ["test/**/*.test.ts"]
+    },
+    "packages/group-kit": {
+      "entry": ["test/**/*.test.ts"],
+      "ignore": ["templates/**"]
     },
     "plugins/*": {
       "entry": ["test/**/*.test.ts"]
@@ -18,20 +24,36 @@
       "entry": ["test/**/*.test.ts"],
       "ignoreBinaries": ["mkfifo"]
     },
+    "packages/cap-knowledge": {
+      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
+    },
+    "packages/core-context": {
+      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
+    },
+    "packages/ext-host": {
+      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
+    },
+    "packages/cap-workspace": {
+      "entry": ["test/**/*.test.ts", "test/support/atomic-victim.ts"]
+    },
     "packages/core-persistence": {
-      "entry": ["test/**/*.test.ts", "test/support/crash-child.ts"]
+      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts", "test/support/crash-child.ts"]
     },
     "packages/platform-process": {
       "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]
     },
     "apps/desktop": {
-      "entry": ["test/**/*.test.{ts,tsx}", "src/main.tsx"]
+      "entry": ["test/**/*.test.{ts,tsx}", "mockups/*/main.tsx", "src/styles.css"],
+      "ignoreDependencies": ["@caustic/tokens"]
     },
     "apps/host": {
       "entry": [
         "test/**/*.test.ts",
         "test/fixtures/crash-host.ts",
+        "test/fixtures/helm-crash-host.ts",
         "test/fixtures/mcp-stdio-server.ts",
+        "test/fixtures/mcp-sandbox-probe.ts",
+        "test/fixtures/marker-child.ts",
         "test/fixtures/secret-add-child.ts"
       ]
     },

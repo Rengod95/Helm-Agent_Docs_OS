@@ -19,7 +19,7 @@ binds: [xeon/apps/cli/**]
 | M0 | 없음. 현재 스캐폴드(`xeon/apps/cli`)를 유지한다 | M0 범위는 `contracts`, `ext-host`, `platform-store`, `platform-exec`다(`_research/foundation-plan.md` §5 P4). CLI 작업은 M1에 시작한다 |
 | M1 | 걸어 다니는 골격의 입구. 모델 테이프로 `xeon chat` 한 턴, 강제 종료 뒤 재개 | `main.ts` 명령 분기, `chat -p`(in-process), `--json`, `--continue`/`--resume`, 최소 대화형, `config get`, `config schema`(로컬 명령), `version`, 저장소 유일의 scenario 테스트, 바이너리 빌드와 측정 |
 | M2 | 세션·설정·비밀 관리와 승인 | `sessions`, `config set/reset/list`, `secret` 명령, `--set`, 슬래시 명령, 승인 프롬프트, `thread.locked` 프롬프트, `turn.interrupt` 연결, `host --stdio`(컴파일 바이너리 서브커맨드), `doctor`, TUI 채택 스파이크와 pi-tui 화면 |
-| M3 | 서비스 | `service start/status/stop/ensure/launch-mode/run`, (선택) TUI 설정 목록 |
+| M3 | 서비스 | `service start/status/stop/ensure/launch-mode/run`, (선택) TUI 설정 목록, `db export`(M3-REQ-63, M3b B3-DATA) |
 
 - [제안] M1 host 처리기는 다섯(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`)이다(`F.wire-settings.spec` §3.3.1의 [제안]. M1 범위는 `_research/foundation-plan.md` §5 P4). 그래서 M1 CLI는 이 다섯 메서드와 wire 없는 로컬 명령 `config schema`만 쓴다.
 - M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다.
@@ -107,11 +107,12 @@ xeon/apps/cli/
 | C9 | `secret` 명령: 프롬프트(에코 없음, 2회 비교), stdin 읽기, 바이트 배열 0 덮기, `secret test` 출력, `secret reveal`(TTY 전용, review.decisions-2 U-20), JSON 탭 해제. wire는 값 없는 `secret.*`만 쓴다(spec §4.7) | C1, F `secret.*`(M2), `secret.beginReveal` F 추가(spec §10 3번), in-process 값 전달 API(spec §10 3번), `L0.secrets.plan` | M | M2 |
 | C10 | `sessions ls/show/fork/rm` | C1, C3, host M2 처리기(`thread.list`, `thread.fork`, `thread.delete`, `events.unsubscribe`) | M | M2 |
 | C11 | 승인 프롬프트와 `thread.locked` 프롬프트, Ctrl+C 1회 `turn.interrupt` | C6(또는 C8), host M2 처리기(`approval.respond`, `thread.open`, `turn.interrupt`), F 승인 kind | M | M2 |
-| C12 | `service start/status/stop/ensure/launch-mode/run`(`runHostCommand` 호출, 종료 코드 그대로, M3b B1-SVC 구현됨: `src/commands/service.ts`, 인자 `--safe-mode`·`--listen-tcp`), `chat`의 서비스 접속(`resolveLaunchMode` → `ensureService` + `connectServiceTransport`) | C1, C2, `L4.host-service.plan` H10(`ensureService`, `startService`, `connectServiceTransport`)·H11(`service stop`)·H20(`resolveLaunchMode`, `service ensure --json`, `service launch-mode --json`) | S | M3 |
+| C12 | `service start/status/stop/ensure/launch-mode/run`(`runHostCommand` 호출, 종료 코드 그대로, M3b B1-SVC 구현됨: `src/commands/service.ts`, 인자 `--safe-mode`·`--listen-tcp`), `chat`의 서비스 접속(`resolveLaunchMode` → `ensureService` + `connectServiceTransport`; M3b B2-RMT 구현됨: `--remote`와 `attachToService`로 로컬·원격 접속, 연결 오류 문구는 spec §3.3·§4.10) | C1, C2, `L4.host-service.plan` H10(`ensureService`, `startService`, `connectServiceTransport`)·H11(`service stop`)·H20(`resolveLaunchMode`, `service ensure --json`, `service launch-mode --json`) | S | M3 |
 | C13 | `config set/reset/list`, `--set`, 슬래시 명령(`/set`, `/model`, `/resume`), `settings.list` 기반 미리 검사 | C5, C6, `L4.host-service.plan` H17(`settings.set/reset/list`) | M | M2 |
 | C14 | 바이너리 빌드와 측정: 타깃 4개 빌드 레시피, 크기·기동 시간·시작 메모리 측정(§4.3) | C2 | S | M1 |
 | C15 | `doctor`. 검색 provider 상태 묶음(spec §4.7.1) 포함 | C1, 진단 경로 결정(spec §10 5번), `L2.web.spec` provider 상태 조회 | S | M2 |
-| C16 | 컴파일 바이너리의 `host --stdio` 진입: `runHostCommand({ kind: "host-stdio" })` 또는 `l4.cli.*` 그룹을 넘기는 `startStdioHost` 호출 | C1, `L4.host-service.plan` H5(stdio 진입, M1 개발 진입은 이미 있음) | S | M2 |
+| C16 | 컴파일 바이너리의 `host --stdio` 진입: `runHostCommand({ kind: "host-stdio" })` 또는 `l4.cli.*` 그룹을 넘기는 `startStdioHost` 호출. M3b B2-RMT: 원격 주소가 있으면 `bridgeStdioToService`로 중계한다(HS-89) | C1, `L4.host-service.plan` H5(stdio 진입, M1 개발 진입은 이미 있음) | S | M2 |
+| C17 | `group new`(spec §3.8): 인자 파서(`--drive`·`--policy` 충돌, `--dir`, `--json`), 이름 검사(group-kit 값의 복사본), 색인 읽기와 치환, 대상 폴더 검사, 쓰기와 R4 되돌리기, 생성 결과 시험(실제 파일 시스템과 `scripts/core-diff-check.ts`) | C1, `L3.slots` S-01·S-04 | S | M3b |
 
 순서(M1): C0 → C1 → C3 → C2 → C5 → C4 → C6 → C7 → C14.
 
@@ -245,7 +246,7 @@ xeon/apps/cli/
 | C11 승인·잠금·중단 | 구현: 도구·계획·질문 프롬프트(kind별 `answer` 모양), `approval.list` 복원, `approval.resolved`로 프롬프트 닫기, `thread.locked` 프롬프트(관찰·분기), Ctrl+C `turn.interrupt` | `src/render/approval.ts`, `src/render/lock.ts`, `src/commands/chat-session.ts`, `src/commands/chat.ts`, `src/signals.ts` |
 | C13 `config set/reset/list`, `--set`, 슬래시 | 구현. 사전 검사는 하지 않는다(spec §10 13번). 슬래시는 `/set`, `/model`, `/resume`, `/help`, `/quit`와 Tab 완성 | `src/commands/config.ts`, `src/commands/overrides.ts`, `src/slash.ts`, `src/tui/minimal.ts` |
 | C15 `doctor` | 구현: 엔진·저장소·비밀 저장소·외부 바이너리·서비스·터미널과 검색 provider 세 줄. 바이너리는 `host.status { includeBinaries: true }`로 받는다(M2 마감 G2-07). SearXNG는 설정한 주소 하나만 탐침한다(자동 감지 삭제, M2 마감 H1). 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
-| C16 `host --stdio` | 구현: `startStdioHost`에 `l4.cli.*` 그룹을 넘긴다. stdout은 `CliIo.stdoutStream` 전용 | `src/commands/host.ts` |
+| C16 `host --stdio` | 구현: `startStdioHost`에 `l4.cli.*` 그룹을 넘긴다. stdout은 `CliIo.stdoutStream` 전용. M3b B2-RMT: 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 중계한다 | `src/commands/host.ts` |
 | 비밀 오류 해결 줄 (m2r sec) | 구현: `provider_unavailable`, `key_unavailable`, `write_failed`의 해결 줄을 원인별로 나눴다(spec §4.7). 깨끗한 기기의 첫 `secret add`가 `not_registered`에 "sops와 age를 설치"를 보이던 문제를 고쳤다. `test/errors-wire.test.ts`, `test/secret-first-write.int.test.ts`(실제 호스트, 설정 없이 첫 `add`, 같은 홈의 두 클라이언트가 한 비밀을 봄) |
 
 - 호스트가 아직 구현하지 않은 메서드와의 호환: `thread.list`는 -32601이면 상태 파일로, `thread.open`·`turn.interrupt`·`approval.list`·`events.unsubscribe`는 `host.hello`의 `features`에 없으면 쓰지 않는다. HOST.2·HOST.4가 병합되기 전의 `xeon/foundation`에서도 `just verify`가 통과한다.
@@ -288,6 +289,16 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 
 - 아직 CLI가 쓰지 않는 wave 1 계약: `settings.invalidated` 알림(대화형 Tab 완성의 키 목록과 엔진 명령 목록을 다시 읽는 데 쓸 수 있다). 대화형 시작 때 한 번만 읽는 현재 동작으로도 어긋나지 않아서 M3로 둔다(spec §10 16번).
 
+### 4.7 M3b 구현 기록 (C17 `group new`, B4-GRP, 2026-10-29)
+
+| 작업 | 상태 | 구현 위치 |
+|---|---|---|
+| C17 `group new` | 구현: 플래그 충돌(R1), 이름 검사와 예약 이름(R2), 설치 이름 겹침(R2), 대상 폴더 검사(R3), 메모리 치환과 쓰기, F `validateManifest`와 되돌리기(R4), 안내와 `--json`(R5) | `src/cli/command.ts`(`parseGroup`), `src/commands/group.ts`, `src/group/rules.ts`, `src/group/fs-port.ts`, `src/io.ts`(`GroupTemplatesPort`), `src/runtime.ts`(조립), `src/main.ts`(분기), `src/commands/help.ts` |
+
+- 바뀐 점: 이름 상수와 색인 스키마는 `group-kit`을 import하지 않고 옮겨 적었다(DR-14). 시험이 원본 텍스트와 비교한다.
+- 바뀐 점: `apps/cli/package.json`의 `@xeon/group-kit` 의존은 그대로 두었다. 소스가 쓰지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 트랙 범위 밖이다([미결] spec §10 31번).
+- 시험 결과: `just test apps/cli`가 554개 중 553개 통과, 1개 건너뜀(기존 건너뜀)이다. 이전에는 526개였다. `just check apps/cli`의 타입 검사 단계는 의존 패키지 `@xeon/core-persistence`의 시험 파일 오류(`MemoryRecordStore`에 `readBranch`가 없다)에서 멈춘다. 이 파일은 이 변경의 범위 밖이다. 대신 `tsc -p apps/cli`로 직접 확인하니 이 변경의 파일에는 타입 오류가 없었다. 나머지 오류는 빌드하지 않은 참조의 TS6305와 그에 딸린 `any` 오류이고, 손대지 않은 `doctor.ts`, `host.ts`, `engine.ts`, `errors.ts`에 있다.
+
 ## 5. 단위 테스트 목록
 
 ### 5.1 unit·int
@@ -321,13 +332,53 @@ M2 CLI.1~CLI.4에서 더한 시험(가짜 호스트 서버 위, `test/support/fa
 | slash | `test/slash.test.ts` | unit | `/set`, `/model`, `/resume`(전환과 구독 해제), 파싱, Tab 완성 |
 | secret | `test/secret.test.ts` | unit | stdin·TTY 입력, 불일치·취소·빈 값·크기 상한, 맡긴 수단 거두기, 값 배열 0 덮기, 값이 출력·요청에 없음(AC5·AC6), `rm` 확인, 오류 문구, `reveal`의 TTY 전용(AC13)·확인 문구·재확인 도장 |
 | host-stdio | `test/host-stdio.test.ts` | unit | `startStdioHost`에 `l4.cli` 그룹과 바이트 stdout을 넘기고 엔진에 연결하지 않으며, 종료 코드와 stderr 안내가 맞다 |
+| host-stdio-remote | `test/host-stdio.test.ts` | unit | (B2-RMT) 원격 주소가 있으면 엔진을 열지 않고 중계한다. stdin이 닫히면 0, 원격이 끊기면 1, 접속 실패는 연결 오류의 코드와 두 줄 문구, 주소 문법 오류는 2이고 아무것도 시작하지 않는다 |
+| remote-attach | `test/engine-start.test.ts` | unit | (B2-RMT) 대상 고르기(`in-process`·`service`·원격·설정 순), `--remote`가 플래그로 가고 토큰 환경 변수가 함께 간다, 주소 문법 오류(플래그 값만 보임), 서비스 핸들의 저장소·전송·기능과 연결만 닫기, 접속 오류 종류별 문구(한 줄, 토큰 값 없음), observe 탭 |
+| remote-flag | `test/parse-chat-flags.test.ts`, `test/engine-options.test.ts`, `test/exit-codes.test.ts` | unit | (B2-RMT) `--remote`가 명령 앞뒤의 전역 플래그이고 값이 없거나 빈 값이면 2, 기본값은 null이며 `EngineConnectOptions.remote`로 가고, `invalidRemote`는 종료 코드 2다 |
 | host-stdio-process | `test/host-stdio.int.test.ts` | int | 실제 프로세스로 `host --stdio`: stdout은 JSON-RPC 줄뿐, `l4.cli.theme`이 카탈로그에 있고, 응답 뒤 stdin EOF에서 0(AC16) |
 | entry-bundle | `test/entry-bundle.test.ts` | int | CLI 진입이 `--minify --bytecode`로 묶인다(최상위 await 없음) |
-| doctor | `test/doctor.test.ts` | unit | 검색 세 줄(AC14), 주소가 없으면 탐침 없음, 설정한 주소의 응답·응답 없음·JSON 꺼짐, 키 플러그인 등록 표시, 엔진 실패 항목과 종료 코드, 터미널 항목, 바이너리 점검 줄과 종료 코드와 `--json`(AC24) |
+| doctor | `test/doctor.test.ts` | unit | 검색 세 줄(AC14), 주소가 없으면 탐침 없음, 설정한 주소의 응답·응답 없음·JSON 꺼짐, 줄 1·줄 3이 `web.providers` 값을 따름(고정 provider 표시 포함), 엔진 실패 항목과 종료 코드, 터미널 항목, 바이너리 점검 줄과 종료 코드와 `--json`(AC24) |
+| doctor-web | `test/doctor-web.test.ts` | unit | X9: `검색 provider`와 `웹 provider` 블록 전체를 줄 값으로 비교한다. 기본(내장 현재, Exa 키 필요, Brave 설치 필요), Exa와 Brave 모두 쓸 수 있음(순서가 Exa 우선, 가격표 오래됨, 고지 대기), `web.providers` 없음과 실패(알 수 없다와 기본 설정 주석, 블록 없음), `--json`의 `web`(행 id와 권장 상태 값, 없으면 `null`), 상세 문구가 출력에 없음, 고정·목록에 없는 provider·쓸 수 있는 provider 없음·사용 불가 권장 문구, 빈 목록 |
 
 추가 unit [제안]: `tool-renderers`(read·ls·bash의 `details` 표시, 렌더러가 없을 때 `content` 20줄), `state-file`(깨진 파일 버림, 원자 쓰기), `keybindings-conflict`(충돌 목록 출력). 이 셋은 위 목록의 이름 규칙을 따른다.
 
 추가 unit(M2 CLI.5): `width`(한글·한자·이모지의 칸 수와 폭 자르기, §4.4.4), `no-top-level-await`(`src` 안 최상위 await 금지, §4.3).
+
+M3b B3-DATA에서 더한 시험(`db export`, spec §4.13). 파서와 실행은 가짜 `exportDatabase`로, 왕복은 실제 저장소로 확인합니다.
+
+| 테스트 이름 | 파일 | 태그 | 확인할 동작 |
+|---|---|---|---|
+| db-export | `test/db-export.test.ts` | unit | 파서(폴더 인자, `--json`, 누락·초과·모르는 하위 명령은 사용법 오류), 성공 문구와 `--json` 값, 누락 블롭 경고(열 줄 상한과 개수 줄), `-C` 기준 대상 경로, ExportError 여섯 kind의 종료 코드와 두 줄 문구, 데이터 디렉터리 실패, 엔진 연결 없음 |
+| db-export-round-trip | `test/db-export.int.test.ts` | int | 실제 저장소에 행과 블롭을 쓰고 원본을 연 채로 `db export`를 돌린 뒤, 사본을 읽기 전용 `openStore`로 열어 행과 블롭 바이트가 원본과 같은지 값으로 비교한다 |
+
+M3b C17 시험(`group new`). 이름은 시험 제목을 줄여 적었다. 정확한 제목은 각 파일에서 본다.
+
+| 테스트 이름 | 파일 | 태그 | 확인할 동작 | 마일스톤 |
+|---|---|---|---|---|
+| group-new.observe-default-files | `test/group-new.test.ts` | unit | 플래그가 없으면 observe 템플릿의 다섯 파일이 `<작업 폴더>/<이름>` 아래에 생긴다 | M3b |
+| group-new.drive-policy-files | `test/group-new.test.ts` | unit | `--drive`와 `--policy`는 색인이 그 종류에 적은 파일만 쓴다 | M3b |
+| group-new.placeholders-in-content-and-path | `test/group-new.test.ts` | unit | `__ID__`, `__TITLE__`, `__VERSION__`이 내용과 경로에서 바뀐다 | M3b |
+| group-new.plugin-json-exact-text | `test/group-new.test.ts` | unit | 고정 이름 `focus-lens`의 `plugin.json` 텍스트가 한 글자도 다르지 않다 | M3b |
+| group-new.conflicting-flags-write-nothing | `test/group-new.test.ts` | unit | `--drive --policy`는 사용법 오류 2이고 두 줄 오류 문구가 맞으며 아무것도 쓰지 않는다 | M3b |
+| group-new.invalid-names-usage | `test/group-new.test.ts` | unit | `Focus`, `focus_lens`, `core`, 1자, 33자는 사용법 오류이고 쓰지 않는다. 32자는 통과한다 | M3b |
+| group-new.installed-name-clash | `test/group-new.test.ts` | unit | 설치된 `helm`과 겹치는 이름은 사용법 오류이고 쓰지 않는다 | M3b |
+| group-new.non-empty-target-untouched | `test/group-new.test.ts` | unit | 비어 있지 않은 대상은 거부되고 기존 파일 내용이 그대로다. 빈 대상은 허용된다 | M3b |
+| group-new.dir-option | `test/group-new.test.ts` | unit | `--dir`는 작업 폴더 기준으로 풀린다 | M3b |
+| group-new.manifest-failure-rollback | `test/group-new.test.ts` | unit | `validateManifest`가 실패하면 쓴 파일과 폴더가 모두 지워지고 종료 코드는 2다(R4) | M3b |
+| group-new.write-failure-rollback | `test/group-new.test.ts` | unit | 쓰기 하나가 실패하면 이미 쓴 것을 지우고 종료 코드는 3이다 | M3b |
+| group-new.missing-index-environment | `test/group-new.test.ts` | unit | 색인이 없으면 종료 코드 3이고 아무것도 쓰지 않는다 | M3b |
+| group-new.template-code-never-runs | `test/group-new.test.ts` | unit | 템플릿 소스의 코드가 실행되지 않는다(R5) | M3b |
+| group-new.json-output | `test/group-new.test.ts` | unit | `--json`은 `name`, `template`, `dir`, `files`를 쓴다 | M3b |
+| group-new.text-output-next-steps | `test/group-new.test.ts` | unit | 텍스트 출력은 파일 목록과 `bun install`, `bun test` 안내를 보인다 | M3b |
+| group-new.malformed-commands | `test/group-new.test.ts` | unit | `group`, `group new`, 인자 초과, `--dir ""`, 모르는 하위 명령은 사용법 오류다 | M3b |
+| group-new.help-lists-command | `test/group-new.test.ts` | unit | 도움말 개요에 `group new` 줄이 있다 | M3b |
+| group-rules.reserved-names-match-group-kit | `test/group-rules.test.ts` | unit | 예약 이름 목록이 group-kit `RESERVED_GROUP_NAMES`와 값과 순서가 같다 | M3b |
+| group-rules.pattern-matches-group-kit | `test/group-rules.test.ts` | unit | 이름 패턴이 group-kit `GROUP_NAME_PATTERN`과 같다 | M3b |
+| group-rules.check-group-name | `test/group-rules.test.ts` | unit | 형식 위반과 예약 이름을 구분해 거부한다 | M3b |
+| group-rules.real-index | `test/group-rules.test.ts` | unit | 실제 `templates/index.json`이 파싱되고 종류별 파일 수가 10, 8, 9다 | M3b |
+| group-rules.index-refuses-other-version | `test/group-rules.test.ts` | unit | `schemaVersion`이 다르면 거부한다 | M3b |
+| group-rules.paths-and-placeholders | `test/group-rules.test.ts` | unit | 안전하지 않은 상대 경로를 거르고, 묶음 이름을 뗀 대상 경로를 낸다 | M3b |
+| group-new.output-passes-core-diff-check-with-zero-lines | `test/group-new-core-diff.test.ts` | int | 실제 파일 시스템과 실제 `templates/`로 만든 세 그룹(drive 10, observe 9, policy 8 파일)을 임시 저장소에 커밋하면 `scripts/core-diff-check.ts`가 보호 경로 0줄로 통과한다. `ext-host` README를 바꾸면 그 경로 한 줄을 보고한다 | M3b |
 
 ### 5.2 scenario
 

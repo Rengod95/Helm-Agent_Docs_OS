@@ -9,14 +9,13 @@ import {
   type SettingGroup,
 } from "@xeon/contracts/settings";
 
-// L2.work.spec §6.1. 키 여섯 개를 한 번에 선언한다. 이 마일스톤(WK.1)이 읽는 것은 tasks.* 둘이고,
+// L2.work.spec §6.1. 키 다섯 개를 한 번에 선언한다. 이 마일스톤(WK.1)이 읽는 것은 tasks.* 둘이고,
 // plans.*는 WK.2·WK.3, goal.*는 M3(T9~T11)가 읽는다. 상한과 판정 역할은 l1.agents.judge.maxRuns,
 // l1.models.routing.judge의 몫이라 여기에 두지 않는다(spec §6.1, W-12).
 
 const workSettings: SettingGroup<
   "l2.work",
   {
-    readonly "goal.onJudgeError": SettingDefInput;
     readonly "goal.delegatedTimeoutSec": SettingDefInput;
     readonly "plans.requireApproval": SettingDefInput;
     readonly "plans.exitOnApprove": SettingDefInput;
@@ -24,21 +23,6 @@ const workSettings: SettingGroup<
     readonly "tasks.reminderTurns": SettingDefInput;
   }
 > = defineSettings("l2.work", {
-  "goal.onJudgeError": {
-    type: Type.String(),
-    default: "stop",
-    range: { enum: ["stop", "continue"] },
-    runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "local", "session"],
-    ui: {
-      tab: "budgets",
-      widget: "select",
-      order: 300,
-      label: "목표 판정 실패 때 동작",
-      help: "stop이면 목표를 멈추고, continue면 판정 없이 다음 턴을 시작합니다",
-    },
-    since: "0.1.0",
-  },
   "goal.delegatedTimeoutSec": {
     type: Type.Integer(),
     default: 300,
@@ -116,19 +100,17 @@ const workSettings: SettingGroup<
 /** 이 패키지가 선언하는 설정 정의. 조립 루트가 카탈로그에 넣는다 */
 export const WORK_SETTING_DEFS: readonly SettingDef[] = Object.values(workSettings.defs);
 
-export type JudgeErrorPolicy = "stop" | "continue";
-
 /** 호출 한 번이 읽는 유효 설정 */
 export interface WorkSettings {
   readonly tasks: { readonly autoStart: boolean; readonly reminderTurns: number };
   readonly plans: { readonly requireApproval: boolean; readonly exitOnApprove: boolean };
-  readonly goal: { readonly onJudgeError: JudgeErrorPolicy; readonly delegatedTimeoutSec: number };
+  readonly goal: { readonly delegatedTimeoutSec: number };
 }
 
 export const DEFAULT_WORK_SETTINGS: WorkSettings = {
   tasks: { autoStart: false, reminderTurns: 0 },
   plans: { requireApproval: true, exitOnApprove: true },
-  goal: { onJudgeError: "stop", delegatedTimeoutSec: 300 },
+  goal: { delegatedTimeoutSec: 300 },
 };
 
 /** 설정 층을 돌려준다. 파일 범위와 세션 범위를 합친 스택이다. 호출마다 읽으므로 변경이 다음 호출부터 적용된다 */
@@ -144,11 +126,6 @@ function booleanValue(def: SettingDef, layers: ScopeStack, fallback: boolean): b
 function integerValue(def: SettingDef, layers: ScopeStack, fallback: number): number {
   const { value } = resolveSetting(def, layers).setting;
   return typeof value === "number" && Number.isInteger(value) ? value : fallback;
-}
-
-function judgePolicy(def: SettingDef, layers: ScopeStack): JudgeErrorPolicy {
-  const { value } = resolveSetting(def, layers).setting;
-  return value === "continue" ? "continue" : "stop";
 }
 
 /** 유효 값을 읽는다. 형식이나 범위가 틀린 층은 `resolveSetting`이 건너뛰고, 값이 없으면 기본값이다 */
@@ -177,7 +154,6 @@ export function readWorkSettings(layers: ScopeStack): WorkSettings {
       ),
     },
     goal: {
-      onJudgeError: judgePolicy(defs["goal.onJudgeError"], layers),
       delegatedTimeoutSec: integerValue(
         defs["goal.delegatedTimeoutSec"],
         layers,

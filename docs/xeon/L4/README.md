@@ -22,7 +22,7 @@ L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용
 
 ## 2. 도메인
 
-`_routing/routes.yaml` layout L4의 도메인 4개다.
+`_routing/routes.yaml` layout L4의 도메인 5개다.
 
 | 도메인 | 한 줄 요약 | 코드 경로 | 문서 | 첫 마일스톤 |
 |---|---|---|---|---|
@@ -30,6 +30,7 @@ L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용
 | desktop | Tauri 2 셸, Rust 바이트 릴레이, WebView TS UI, 엔진 사이드카 수명 | `xeon/apps/desktop/**` | `L4.desktop.spec`, `L4.desktop.plan` | M1(스캐폴드와 TS 쪽 stdio 적합성), 본체 M2 |
 | host-service | 엔진 조립 루트(`assemble`), 호스트 계약의 서버 쪽 처리기, 전송 3종, 서비스 모드 수명 | `xeon/apps/host/**` | `L4.host-service.spec`, `L4.host-service.plan` | M1 |
 | settings-ui | `SettingDefWire`·`EffectiveSetting`에서 12탭 화면을 만드는 view-model과 렌더러 | `xeon/apps/desktop/src/settings/**` | `L4.settings-ui.spec`, `L4.settings-ui.plan` | M2(얇은 화면), 전체 M3 |
+| release | 릴리즈 아카이브 구성, 자원 디렉터리, 번들 바이너리, 서명과 공증 단계, 스모크(X11) | `xeon/scripts/release*`, `.github/workflows/xeon-release.yml` | `L4.release.spec`, `L4.release.plan` | M3b(B5-REL) |
 
 - settings-ui의 코드 경로는 desktop의 binds(`xeon/apps/desktop/**`)에 포함된다. 그래서 `xeon/apps/desktop/src/settings/**`를 고치는 작업은 두 문서를 함께 받는다. 경계는 "화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop"이다(`L4.settings-ui.spec` §1.2).
 - 패키지 디렉터리 `apps/host`와 routes.yaml 도메인 `host-service`는 이름이 다르다(`architecture.layers.spec` §10 첫 항목, `L4.host-service.spec` §10 미결 18).

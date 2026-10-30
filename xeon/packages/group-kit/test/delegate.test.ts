@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import type { AgentService } from "@xeon/contracts/services";
 import { createTestHost } from "@xeon/ext-host/testing";
-import type { DelegateSpec } from "../src/index.ts";
+import type { DelegateResult, DelegateSpec } from "../src/index.ts";
 import { fakeAgents } from "../src/testing/index.ts";
 import type { GroupCallContext } from "../src/wrap.ts";
 import { groupManifestOf } from "./support/manifests.ts";
@@ -18,6 +18,12 @@ function specOf(ids: IdFactory): DelegateSpec {
     model: "fast",
     fork: { at: "item", itemId: ids.next("itm") },
   };
+}
+
+/** 접수된 위임의 자식 thread. 접수되지 않았으면 시험 잘못이므로 던진다 */
+function acceptedChild(result: DelegateResult): ThreadId {
+  if (!result.ok) throw new TypeError(`delegate was not accepted: ${result.error.kind}`);
+  return result.receipt.childThreadId;
 }
 
 function context(kind: "on" | "drive", thread: ThreadId): GroupCallContext {
@@ -335,4 +341,120 @@ test("agent-settled.reaches-only-the-owner-scope-with-the-delegation-result", as
   if (payload === undefined) return;
   await t.host.afterCommit(thread, [{ id: t.ids.next("evt"), kind: "agent.settled", payload }]);
   expect(heard).toEqual(["owner-a:owner-a:1:completed"]);
+});
+
+test("call-context.absent-makes-delegate-and-status-unavailable-while-cancel-runs", async () => {
+  const { thread, agents, g, spec } = await rig();
+  // 명시한 thread로 부른 위임은 문맥 없이도 접수된다(명령 처리기가 쓰는 길)
+  const started = await g.delegate(spec, { threadId: thread });
+  expect(started).toMatchObject({ ok: true, receipt: { status: "accepted" } });
+  const child = acceptedChild(started);
+  // 문맥도 thread도 없으면 delegate와 delegateStatus는 호출 없이 unavailable이다
+  expect(await g.delegate({ ...spec, requestId: "no-thread" })).toEqual({
+    ok: false,
+    error: { kind: "group.delegateUnavailable" },
+  });
+  expect(agents.delegated).toHaveLength(1);
+  expect(g.delegateStatus(spec.requestId)).toEqual({
+    ok: false,
+    error: { kind: "group.delegateUnavailable" },
+  });
+  // cancelDelegates는 재실행 문맥 밖이라 막히지 않고 실행된다
+  expect(await g.cancelDelegates("group disabled")).toEqual({ ok: true, cancelled: true });
+  expect(agents.cancels).toEqual([
+    { target: { ownerScopeId: "delegator" }, reason: "group disabled" },
+  ]);
+  expect(g.delegateStatus(spec.requestId, { threadId: thread })).toEqual({
+    ok: true,
+    status: { state: "settled", childThreadId: child, status: "aborted" },
+  });
+});
+
+test("call-context.aborted-on-context-still-rejects-cancel-and-forwards-its-signal", async () => {
+  // 문맥이 abort되어도 문맥은 남는다(X `callContext`는 abort된 신호를 실은 문맥을 돌려준다). 그래서 on 거부는 그대로다
+  const dead = new AbortController();
+  dead.abort();
+  const { agents, g, spec, thread } = await rig((th) => ({
+    kind: "on",
+    threadId: th,
+    signal: dead.signal,
+  }));
+  const started = await g.delegate(spec);
+  expect(started).toMatchObject({ ok: true, receipt: { status: "accepted" } });
+  expect(agents.delegated[0]?.origin.parentThreadId).toBe(thread);
+  expect(agents.delegated[0]?.origin.signal).toBe(dead.signal);
+  expect(agents.delegated[0]?.origin.signal.aborted).toBe(true);
+  expect(g.delegateStatus(spec.requestId)).toEqual({
+    ok: false,
+    error: { kind: "group.effectNotAllowed", effect: "g.delegateStatus", context: "on" },
+  });
+  expect(await g.cancelDelegates()).toEqual({
+    ok: false,
+    error: { kind: "group.effectNotAllowed", effect: "g.cancelDelegates", context: "on" },
+  });
+  expect(agents.cancels).toEqual([]);
+});
+
+/** 두 그룹이 위임 서비스 하나를 함께 쓴다. 호출은 명시한 thread로 하고 문맥은 없다 */
+async function twoGroupsOneService() {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const agents = fakeAgents({ ids: t.ids });
+  const access = () => ({ agents: () => agents, callContext: () => undefined });
+  const a = await installInjected(t, groupManifestOf({ name: "group-a" }), access);
+  const b = await installInjected(t, groupManifestOf({ name: "group-b" }), access, undefined, 1);
+  await t.host.openThread(thread);
+  return { t, thread, agents, a, b };
+}
+
+test("cross-scope.cancel-delegates-touches-only-the-callers-children", async () => {
+  const { thread, agents, a, b } = await twoGroupsOneService();
+  const aSpec = { agent: "x", task: "t", requestId: "a:1" } as const;
+  const bSpec = { agent: "x", task: "t", requestId: "b:1" } as const;
+  const aStarted = await a.delegate(aSpec, { threadId: thread });
+  const bStarted = await b.delegate(bSpec, { threadId: thread });
+  expect(aStarted).toMatchObject({ ok: true, receipt: { status: "accepted" } });
+  expect(bStarted).toMatchObject({ ok: true, receipt: { status: "accepted" } });
+  const aChild = acceptedChild(aStarted);
+  const bChild = acceptedChild(bStarted);
+  expect(await a.cancelDelegates("group disabled")).toEqual({ ok: true, cancelled: true });
+  expect(agents.cancels).toEqual([
+    { target: { ownerScopeId: "group-a" }, reason: "group disabled" },
+  ]);
+  expect(a.delegateStatus(aSpec.requestId, { threadId: thread })).toEqual({
+    ok: true,
+    status: { state: "settled", childThreadId: aChild, status: "aborted" },
+  });
+  // B의 위임은 A가 끈 뒤에도 그대로 돈다
+  expect(b.delegateStatus(bSpec.requestId, { threadId: thread })).toEqual({
+    ok: true,
+    status: { state: "running", childThreadId: bChild },
+  });
+  expect(await b.cancelDelegates()).toEqual({ ok: true, cancelled: true });
+});
+
+test("cross-scope.status-is-keyed-by-conversation-and-request-id-not-by-owner", async () => {
+  // [미결] L1 AgentService.status(parentThreadId, requestId)는 소유를 받지 않는다(L1.agents.spec §3.3).
+  // 그래서 같은 대화에서 같은 requestId를 쓰면 B도 A의 위임을 보고, 같은 requestId의 B 위임은 A의 자식을 돌려받는다.
+  const { t, thread, agents, a, b } = await twoGroupsOneService();
+  const aChild = acceptedChild(
+    await a.delegate({ agent: "x", task: "t", requestId: "shared:1" }, { threadId: thread }),
+  );
+  expect(b.delegateStatus("shared:1", { threadId: thread })).toEqual({
+    ok: true,
+    status: { state: "running", childThreadId: aChild },
+  });
+  expect(
+    await b.delegate({ agent: "x", task: "t", requestId: "shared:1" }, { threadId: thread }),
+  ).toEqual({
+    ok: true,
+    receipt: { requestId: "shared:1", childThreadId: aChild, status: "duplicate" },
+  });
+  expect(agents.delegated).toHaveLength(1);
+  // 다른 대화에서는 같은 requestId도 B에게 보이지 않는다
+  const elsewhere = t.newThread();
+  expect(b.delegateStatus("shared:1", { threadId: elsewhere })).toEqual({
+    ok: true,
+    status: undefined,
+  });
 });

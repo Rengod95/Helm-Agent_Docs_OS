@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { attemptAsync } from "@xeon/contracts";
 import type { HostConnection } from "@xeon/contracts/wire";
 import { HostClientError } from "../host-client.ts";
@@ -130,11 +131,11 @@ export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
       abort.abort();
     },
   );
-  await io.stdout(`xeon chat — 세션 ${current().threadId} (종료: /quit 또는 Ctrl+D)\n`);
+  await io.stdout(t("cli.tui.minimal.banner", { threadId: current().threadId }));
   // 이전 기록을 다 그린 뒤에 입력을 받는다: 재전송과 새 turn의 그리기가 섞이지 않게 한다
   await Promise.race([current().caughtUp(), exit.requested]);
   if (current().readOnly) {
-    await io.stdout("관찰 전용이다: 입력은 보내지 않고 이 세션의 진행만 보인다 (/quit로 끝낸다)\n");
+    await io.stdout(t("cli.tui.minimal.readOnly"));
   }
   if (args.onOpened !== undefined && (await args.onOpened(current(), abort.signal))) {
     return (await exit.requested).code;
@@ -168,7 +169,7 @@ export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
   const sendInput = async (text: string): Promise<ExitCode | undefined> => {
     const session = current();
     if (session.readOnly) {
-      await io.stderr("관찰 전용이라 입력을 보낼 수 없다\n");
+      await io.stderr(t("cli.tui.minimal.readOnlyInput"));
       return undefined;
     }
     try {

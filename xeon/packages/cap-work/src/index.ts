@@ -6,7 +6,6 @@ export {
   DEFAULT_WORK_SETTINGS,
   WORK_SETTING_DEFS,
   readWorkSettings,
-  type JudgeErrorPolicy,
   type WorkSettings,
   type WorkSettingsSource,
 } from "./settings.ts";

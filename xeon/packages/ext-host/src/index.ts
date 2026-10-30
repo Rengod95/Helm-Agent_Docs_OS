@@ -14,6 +14,7 @@ export {
   type ExtDiagnostic,
   type ExtChange,
   type LeaseInfo,
+  type ResetScopeStateHostError,
   // primitives §3.3~§3.5
   type PayloadOf,
   type DispatchOptions,
@@ -50,6 +51,9 @@ export {
   LeaseArbiterPortKey,
   ExtHostPortKey,
   SessionFeedPortKey,
+  SessionBranchPortKey,
+  type EventPrefixQuery,
+  type EventQueryError,
   // primitives §3.7, §3.8
   capabilityDefTable,
   type CapabilityDefLookup,
@@ -64,6 +68,7 @@ export {
   McpPortKey,
   ModelsPortKey,
   ToolsPortKey,
+  type CommandOutput,
   type CommandResourceDef,
   type FlagResourceDef,
   type FlagValueError,
@@ -80,6 +85,7 @@ export {
   type ShortcutResourceDef,
   type ToolResourceDef,
   type ToolsPort,
+  webProviderRegistrationOf,
   // primitives §3.9, §3.10, §6
   type ScopeInfo,
   PrimitiveError,
@@ -151,6 +157,7 @@ export type {
 export {
   createOperationsPolicy,
   createResourcePolicy,
+  createVolatileNotifier,
   NO_STARTUP_OPTIONS,
   type SafeModeSource,
   type StartupOptions,

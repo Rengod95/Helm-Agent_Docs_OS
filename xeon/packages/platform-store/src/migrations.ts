@@ -199,6 +199,18 @@ export function createMigrationRunner(deps: MigrationDeps): MigrationRunner {
           codeVersion: set.version,
         });
       }
+      // 읽기 전용 열기는 스키마를 바꾸지 않는다. 올릴 단계가 없으면 성공이고, 있으면 쓰기 거절이다(L0.store.spec §4.4)
+      if (conn.state.readOnly) {
+        const pending = set.steps.find((step) => step.version > dbVersion);
+        if (pending === undefined)
+          return ok({ owner: set.owner, from: dbVersion, to: set.version });
+        return err({
+          kind: "migration_failed",
+          owner: set.owner,
+          version: pending.version,
+          code: "SQLITE_READONLY",
+        });
+      }
       // 스냅샷은 이 프로세스가 실제로 기존 스키마에 단계를 적용하려 할 때만 만든다. 결정과 스냅샷 사이에 다른 프로세스가
       // 같은 DB를 올릴 수 있으므로(동시에 처음 여는 프로세스들) 매번 적용 버전을 다시 읽어 결정한다. 스냅샷이 실패했을 때도
       // 다시 읽어, 동료가 그 사이 버전을 올렸으면(동료의 마이그레이션이 VACUUM INTO와 겹쳐 실패할 수 있다) 새 상태로 다시 정한다.

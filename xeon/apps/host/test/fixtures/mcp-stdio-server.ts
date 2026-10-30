@@ -46,7 +46,15 @@ function handle(message: unknown): void {
       if (listedFile !== "") writeFileSync(listedFile, "1");
       return;
     case "tools/call":
-      reply(id, { content: [{ type: "text", text: "marker-from-stdio" }] });
+      // 값은 말하지 않고 env가 들어왔는지(GH_TOKEN)와 평문 env(LOG_LEVEL)만 알린다
+      reply(id, {
+        content: [
+          {
+            type: "text",
+            text: `marker-from-stdio token=${process.env["GH_TOKEN"] === undefined ? "absent" : "present"} log=${process.env["LOG_LEVEL"] ?? "unset"}`,
+          },
+        ],
+      });
       return;
     case "ping":
       reply(id, {});

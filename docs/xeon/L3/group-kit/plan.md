@@ -38,7 +38,7 @@ binds: [xeon/packages/group-kit/**]
 | 재생 하니스 | `replayDrive` | | 최소형(every-commit, 그룹 하나) | 지점 목록, 입력 시작 |
 | 재생 규율 정적 검사 | `scanDriveSource` | | | ● |
 | 승격 보고 | `PromotionReport`, `buildPromotionReport` | | | ● |
-| 계측 | `GroupMetrics`, `grp.<그룹>.metrics.recorded`(`recordPrivate`) | | 메모리 집계 | ● |
+| 계측 | `GroupMetrics`, `grp.<그룹>.metrics.recorded`(`recordPrivate`) | | 메모리 집계 | 이벤트 집계, 단계 경계 기록(M3b, G-17 완료) |
 | 템플릿(L3.slots) | `templates/`, `index.json` | | | ● |
 | 정책 정식 예(L3.slots) | `reviewgate`, `commitguard`, `guardrail`(`testing` 진입점) | | | ● |
 
@@ -68,8 +68,11 @@ xeon/packages/group-kit/
       report.ts                 # buildPromotionReport (2차)
     metrics/
       types.ts                  # GroupMetrics, GroupMetricsSummary, GroupMetricsHandle, MetricsRecordedPayload
-      counter.ts                # 메모리 집계(M2)
-      record.ts                 # 단계 경계 증가분 이벤트(2차)
+      counter.ts                # 메모리 집계(M2), addUsage와 기록 기준(M3b)
+      handler.ts                # on 래퍼의 지점별 계수(M3b)
+      registry.ts               # 그룹별 계측 등록부와 기본 등록부(M3b)
+      usage.ts                  # summarizeUsage: lease.*·turn.* 이벤트 집계(M3b)
+      record.ts                 # 단계 경계 증가분 이벤트(M3b)
     testing/
       index.ts                  # @xeon/group-kit/testing: checkGroup, replayDrive, scanDriveSource, smokeGroup, 정식 예 3종
       smoke-group.ts            # M1 테스트 그룹
@@ -130,14 +133,14 @@ xeon/packages/group-kit/
 }
 ```
 
-- `xeon.domain`: 현재 스캐폴드 값 `kit`을 routes layout 도메인 `group-kit`으로 맞춘다(`architecture.layers.spec` 3.2절, `eng.dependency-rules.guide` DR-03). DR-03의 "디렉터리 이름의 접두사를 뺀 값" 규칙으로는 `kit`이 나오므로, `check-layers.ts`에 DR-03 검사를 넣을 때 `group-kit`을 예외로 적는다. 이 예외의 확정은 L3.group-kit.spec §10 공통 모순 3이다.
+- `xeon.domain`: 스캐폴드 값 `kit`을 routes layout 도메인 `group-kit`으로 맞췄다(M3-35, `architecture.layers.spec` 3.2절, `eng.dependency-rules.guide` DR-03). DR-03의 "디렉터리 이름의 접두사를 뺀 값" 규칙으로는 `kit`이 나오므로, `check-layers.ts`의 `expectedDomain`에 `group-kit`을 예외로 적었다. 이 예외의 확정은 L3.group-kit.spec §10 공통 모순 3이다.
 - `@xeon/ext-host`는 `dependencies`다. 운영 코드가 `hostOf`(`registerTool`, `registerCommand` 래퍼)와 리소스 정의 타입을 쓰기 때문이다(L3.group-kit.spec §3.2). `LeaseArbiterPort`·`LeaseCandidate`는 `@xeon/contracts/extensions`(F.extensions.spec §3.2.1)에서, `GroupService`와 부속 타입은 `@xeon/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 테스트 호스트(`@xeon/ext-host/testing`)는 테스트 파일만 import한다. 운영 코드의 `@xeon/ext-host` import는 DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17].
 - [M2 구현] `replayDrive`는 하니스를 인자로 받으므로 `@xeon/core-models`를 import하지 않는다. `package.json`에 `@xeon/core-models`·`@swc/core`를 더하지 않았고(`typebox`만 더했다), `@swc/core`는 `scanDriveSource`(M3) 때 더한다. 시험의 하니스는 `@xeon/ext-host/testing`의 `createTestHost`와 `restart()`로 만든다.
 - `@xeon/core-models`는 `testing` 서브패스만 쓰므로 `devDependencies`다(DR-08). 다른 패키지의 `testing` 서브패스를 import하는 파일(`replay/`)과 테스트 전용 검사(`scan/`)는 모두 `src/testing/` 아래에 둔다. DR-08은 그 import를 테스트 파일과 `testing` 서브패스 자신에서만 허용한다. 운영 진입점 `.`은 `src/testing/**`를 import하지 않는다.
 - `templates/`(2차): `exports`에 넣지 않는다. 생성 명령은 import 없이 파일로 읽는다(L3.slots.spec §3.3.6 R3). 템플릿 `.ts`에는 치환 자리(`__ID__`)가 있어 그대로 컴파일하지 않는다. 그래서 `tsconfig.json`의 `include`, oxlint·oxfmt 대상(`src test`만 넘긴다), knip 진입점에서 뺀다. 생성 결과는 `test/slots/`의 테스트가 임시 디렉터리에 만든 뒤 컴파일·로드한다(L3.slots.plan §2.2).
 - `src/testing/policies/`(2차): 정식 예 3종은 `testing` 진입점에서만 내보내므로 기본 배포 카탈로그에 들어가지 않는다(L3.slots.plan §2.3).
 - `@swc/core`는 `scanDriveSource`(2차)가 쓴다. DR-07 `MODULE_OWNERS` 표에 `@swc/core` 행(소유: `group-kit`, dependency-cruiser 설정)을 더하는 작업이 G-19에 있다.
-- 허용 목록 `xeon/scripts/dependency-allowlist.json`에 `DR-02/group-kit-helm`, `DR-02/group-kit-learning`을 등록한다(`eng.dependency-rules.guide` 4절. `DR-02/group-kit-*` 예외는 [결정: review.decisions-2 U-15]). `reason`의 "pending L3.group-kit.spec"은 "L3.group-kit.spec §3.1"로 바꾸고 `approvedBy`는 `eng.dependency-rules.guide`로 둔다.
+- 허용 목록 `xeon/scripts/dependency-allowlist.json`에 `DR-02/group-kit` 한 항목(`from`은 `packages/group-*`)을 둔다(`eng.dependency-rules.guide` 4절, [결정: review.decisions-2 U-15]). 처음에는 그룹마다 항목을 두었고 B4-GRP 커밋 2에서 한 항목으로 합쳤다. `reason`의 "pending L3.group-kit.spec"은 "L3.group-kit.spec §3.1"로 바꾸고 `approvedBy`는 `eng.dependency-rules.guide`로 둔다.
 
 ## 3. 작업 분해
 
@@ -159,8 +162,8 @@ xeon/packages/group-kit/
 | G-14 | `delegate.ts` 입력 검사(M2) + L1-g 서비스 호출, 보고 post 키 파생, 멱등 처리(M3) | G-05, L1.agents.spec 위임 서비스 키 [가정] | M | M2(검사)/M3(호출) |
 | G-15 | `testing/replay/replay-drive.ts` 최소형: every-commit 절단, `ReplayHarness`(L3.group-kit.spec §3.10)로 받은 digest 비교. 하니스는 그룹 테스트 파일이 테스트 호스트·테이프·정규화 함수로 만든다(review.decisions-2 U-03, U-17) | G-05, G-09, `@xeon/ext-host/testing` 재시작 지원 [가정], `@xeon/core-models/testing` 테이프(테스트 파일에서만 import) | L | M2 |
 | G-16 | `smokeGroup`을 `defineGroup`으로 옮기고 M1 스모크가 그대로 통과하는지 확인 | G-04, G-05, G-01 | S | M2 |
-| G-17 | `metrics/record.ts`: 단계 경계 증가분 기록 `grp.<그룹>.metrics.recorded`(`recordPrivate`), 토큰·비용·임대 시간 계산 | G-05, X `ScopeApi.recordPrivate`(review.decisions-2 T-21) | M | M3 |
-| G-18 | `promotion/report.ts`: `buildPromotionReport`, `/group status` 부가 줄 | G-17, X `events()`·`toolOwner()` [가정] | M | M3 |
+| G-17 | `metrics/record.ts`: 단계 경계 증가분 기록 `grp.<그룹>.metrics.recorded`(`recordPrivate`), 토큰·비용·임대 시간 계산 (완료, §10) | G-05, X `ScopeApi.recordPrivate`(review.decisions-2 T-21) | M | M3 |
+| G-18 | `promotion/report.ts`: `buildPromotionReport`, `/group status` 부가 줄 (완료, §11) | G-17, X `events()`·`toolOwner()` [가정] | M | M3 |
 | G-19 | `scan/`: `scanDriveSource`(`@swc/core` `parseSync`), SD-01~SD-10(SD-07~09 메시지는 ADR-0015 §3.2를 가리킨다), DR-07 `MODULE_OWNERS` 행 추가 | G-04, `eng.dependency-rules.guide` 표 변경 승인 | M | M3 |
 | G-20 | `replayDrive` 확장: 지점 목록 지정, 사용자 입력 시작, 실패 보고에 첫 차이 이벤트 표시, 효과 계수(ADR-0015 §3.6: 끊기 직전의 drive·on 핸들러를 두 번 실행하고 가짜 포트의 `EffectCounts`가 기준과 같은지 확인, 실패는 `effects-doubled`) | G-15, ADR-0015 | M | M3 |
 | G-21 | 통신 검사 샘플: `test/fixtures/cross-group-import`로 check-layers DR-02 실패를 확인하는 테스트 | G-03, `check-layers.ts` fixture 입력 지원(eng.toolchain) | S | M2 |
@@ -234,9 +237,18 @@ xeon/packages/group-kit/
 | `settings.no-drive-holder-key` | `l3.group-kit` 묶음에 키가 `instrumentation`, `statusLine` 둘뿐이고 `checkSettingDef`를 통과한다. 구동 그룹 선택 키는 X 키를 읽는다 | M2 |
 | `replay.cut-at-every-commit-yields-same-events` | EV-09 좋은 예 그룹에서 모든 절단 지점의 digest가 기준과 같다 | M2 |
 | `replay.detects-closure-state` | EV-09 나쁜 예 그룹에서 `ok: false`이고 `firstDiff`가 채워진다 | M2 |
-| `replay.effects-counted-once-per-cut` | 모든 절단 지점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, capabilityWrite, post)가 기준 실행과 같다 | M3 |
+| `replay.effects-counted-once-per-cut` | 모든 절단 지점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, post)가 기준 실행과 같다. [결정: 오케스트레이터 기본값] `capabilityWrite`는 뺐다. 능력 쓰기 계수는 X 테스트(`replay-effects.test.ts`)가 다룬다 | M3 |
 | `replay.detects-doubled-effect` | 같은 `requestId`를 쓰지 않고 효과를 두 번 내는 나쁜 그룹에서 `ok: false`, `failure: "effects-doubled"`이다 | M3 |
+| `replay.every-run-uses-the-baseline-thread-id` | 기준 실행과 모든 절단 실행이 같은 thread id를 쓴다(`threadMismatches`). 이벤트열 비교는 ID를 지우므로 따로 본다 | M3 |
+| `replay.thread-check-reports-a-run-on-another-thread` | 세 번째 실행의 thread만 바꾸면 검사가 번호 2를 돌려준다(검사가 물린다) | M3 |
+| `replay.thread-check-lists-every-run-that-differs-from-the-first` | `threadMismatches`가 첫 실행과 다른 실행의 번호를 모두 돌려준다 | M3 |
 | `delegate.status-readable-in-drive-not-in-on` | `delegateStatus`는 drive 문맥에서는 값을 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행 문맥에서 거부된다 | M3 |
+| `call-context.absent-makes-delegate-and-status-unavailable-while-cancel-runs` | 문맥도 thread도 없으면 `delegate`·`delegateStatus`가 `group.delegateUnavailable`이고 호출하지 않는다. `cancelDelegates`는 재실행 문맥 밖이라 실행된다 | M3 |
+| `call-context.aborted-on-context-still-rejects-cancel-and-forwards-its-signal` | abort된 on 문맥도 문맥이라 `delegateStatus`·`cancelDelegates`가 거부된다. `delegate`는 abort된 신호를 L1에 넘긴다 | M3 |
+| `cross-scope.cancel-delegates-touches-only-the-callers-children` | 두 그룹이 위임 서비스 하나를 쓸 때 A의 `cancelDelegates`는 A의 위임만 취소하고 B의 위임은 running으로 남는다 | M3 |
+| `cross-scope.status-is-keyed-by-conversation-and-request-id-not-by-owner` | [미결] `delegateStatus`는 (대화, requestId)로 찾는다. L1 `status`에 소유가 없어 같은 대화의 같은 requestId는 B에게도 보이고, 다른 대화에서는 `undefined`다 | M3 |
+| `scan.reports-findings-in-source-order-not-in-scan-order` | 직접 호출과 도우미의 위반을 원문 순서(줄, 열)로 보고한다 | M3 |
+| `scan.reports-a-violation-on-a-later-line-of-a-multi-line-drive` | 여러 줄 drive 본문에서 줄 2와 4의 위반을 정확한 줄·열로 보고한다 | M3 |
 | `status.drive-rejected-shown` | 대기 상한을 넘겨 거부된 그룹의 `GroupStatus.drive`가 `"rejected"`이다 | M3 |
 | `delegate.rejects-long-request-id` | 48자 초과 `requestId`와 남의 접두 `customType`을 호출 전에 거부한다 | M2 |
 | `delegate.idempotent-by-request-id` | 같은 `requestId` 두 번째 호출이 `duplicate`이고 자식이 하나다(가짜 위임 서비스) | M3 |
@@ -293,7 +305,7 @@ xeon/packages/group-kit/
 | X 요청 사항 반영 지연. X.primitives.spec은 `LeaseArbiterPort`, `ExtHost.scopes()`, 유휴 토글 적용을 정했지만 `LeaseCandidate.enabledAtSeq`, `leaseId` 조회, 변경 구독, 테스트 호스트 재시작 지원은 아직 없다(스펙 §3.13) | G-08의 요청 순번, G-12의 구독, G-15가 늦어진다 | `DriveArbiter`(G-07), 명령·상태줄(G-13 문자열 부분), 상태 검사(G-09 순수 함수)를 먼저 순수 함수로 끝낸다. `enabledAtSeq`가 없으면 `loadOrder`만으로 정하고, 구독이 없으면 경계 훅 뒤 `scopes()`를 다시 읽는다. 요청 4개는 스펙 §3.13 목록으로 X 작성자에게 넘긴다 |
 | DR-02 예외는 방법 (b)로 정했다(review.decisions-2 U-15, 2026-10-22 확인). 뒤에 (a)(F·X로 이동)로 번복하면 group-kit의 정의 API 위치가 바뀐다 | G-03, G-04의 배치 변경 | 공개 이름과 시그니처는 그대로 두고 파일만 옮길 수 있게 `define-group.ts`가 F 타입만 의존하도록 쓴다 |
 | drive 재생 규율을 타입으로 막을 수 없다(F.extensions.spec §4.6) | 클로저 상태를 쓰는 그룹이 재개 뒤 다르게 동작한다 | M2에 `replayDrive`를 그룹 테스트 필수 항목으로 두고(G-15), 2차에 `scanDriveSource`(G-19)로 정적 검사를 더한다. 두 수단 모두 협조적 코드만 잡는다는 한계를 그룹 문서에 적는다 |
-| 계측 kind `grp.<그룹>.metrics.recorded`는 그룹 접두이고 group-kit이 만든다 | X `recordPrivate`가 늦으면 G-17이 늦어진다 | G-17을 M3에 두고 그때까지 메모리 집계만 쓴다 |
+| 계측 kind `grp.<그룹>.metrics.recorded`는 그룹 접두이고 group-kit이 만든다 | X `recordPrivate`가 늦으면 G-17이 늦어진다 | G-17은 M3b에 끝냈다(§10). X `recordPrivate`와 `queryEvents`(M3-REQ-39)를 그대로 쓴다 |
 | L1.agents 위임 서비스 미정 | `delegate` 구현(G-14 M3)이 늦어진다 | M2는 입력 검사와 `group.delegateUnavailable`만 둔다. 학습 그룹 계획(L3.learning.plan)과 같은 시점에 맞춘다 |
 | `@swc/core` 파서 결과가 TS 7 문법 일부를 해석하지 못함 | `scanDriveSource` 오탐·누락 | 파싱 실패는 `warning` 하나로 보고하고 실패시키지 않는다. 대상 문법은 drive 함수 본문으로 좁다 |
 
@@ -306,7 +318,7 @@ xeon/packages/group-kit/
 | GK.3 | G-09, G-10, G-11 | 완료 | `checkStateCommit`, `stateUpcasters`, 레코드·post 검사, `kindVisibleTo`, 설정 2키. 시험은 인메모리 기록 저장소(`memoryRecordStore`)로 한다. 실제 `ext.commit`·`queryRecords`(L1B.1) 연결은 HOST 조립 |
 | GK.4 | G-12, G-13, G-22, G-14(M2분) | 완료 | `createGroupService`, `/group` 해석·실행, 상태줄, `registerTool`·`registerCommand` 해제 시험, `delegate` 입력 검사 |
 | GK.5 | G-15, G-16, G-21 | 완료 | `replayDrive` 최소형, `smokeGroup`의 `defineGroup` 이전, 그룹 간 import 실패 시험 |
-| (G-02 일부) | `xeon.domain` | 미완료 | `package.json`의 `xeon.domain`은 `kit`이다. `group-kit`으로 바꾸려면 `scripts/check-layers.ts`의 DR-03 `expectedDomain`에 예외를 더해야 하는데 이 파일은 공유 파일이다(m2-plan §3 규칙 2) |
+| (G-02 일부) | `xeon.domain` | 완료(M3-35, 2026-10-29) | `package.json`의 `xeon.domain`은 `group-kit`이다. `scripts/check-layers.ts`의 `expectedDomain`에 `group-kit` 예외를 더했다(공유 파일 `scripts/`는 B5-CLN 트랙이 고쳤다) |
 | (G-03) | 허용 목록 | 완료(F.1) | `DR-02/group-kit-helm`, `DR-02/group-kit-learning`이 이미 있다. G-21 시험용으로 `DR-07/group-kit-test-spawn`(scope test)을 더했다 |
 
 M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`는 `arbiter.named-swap-revokes-at-the-next-boundary`로 바꿨다(X.1 P-22). `define-group.migration-required-on-version-bump`는 `define-group.*`와 `state.migration-upgrades-a-lower-stored-version` 둘로 나눴다.
@@ -322,3 +334,23 @@ M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`
 | G-28 | 완료 | `GroupApi.delegateStatus`, `cancelDelegates`(`CancelTarget { ownerScopeId }`). 반환은 값이다(spec §10). 재실행 문맥 거부는 X `callContext`로 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`) |
 | G-29 | 완료 | `DelegateSpec.report`는 선택이고 없으면 L1 요청에도 싣지 않는다 |
 | G-30 | 완료(거부 사유 노출은 [미결]) | `createGroupService`가 커밋 피드(`lease.rejected`, `lease.released`, `lease.acquired`, `scope.changed`)로 `GroupStatus.drive "rejected"`를 채우고 `onChange`로 알린다 |
+
+## 10. M3b 구현 상태 (2026-10-29, 브랜치 m3b/b4-grp)
+
+| plan ID | 상태 | 비고 |
+|---|---|---|
+| G-17 | 완료 | `GroupMetricsHandle.addUsage`(LR-17), `on` 래퍼의 `denies`·`chainPatches`·`handlerErrors`, `summarizeUsage`(`metrics/usage.ts`, lease.*·turn.* 이벤트 집계), 기본 등록부(`metrics/registry.ts`), `refreshUsage`와 `/group status` 갱신, 단계 경계 기록(`metrics/record.ts`, `grp.<그룹>.metrics.recorded`). 시험은 `test/metrics.test.ts`, `test/metrics-record.test.ts`, `test/metrics-status.test.ts` |
+| LR-17 | 연결됨 (B4-GRP) | 학습 그룹이 검토 종료 때 `addUsage`로 토큰과 비용을 더한다(학습 spec §10 17) |
+
+M3b에서 정한 것은 L3.group-kit.spec §4.9와 §10에 적었다. 기록은 그룹의 `boundary.settle.after` 핸들러 안에서 경계마다 증가분만 쓴다. 별도 핸들러로 쓰면 같은 scope의 호출 키가 겹쳐 그룹 기록이 거부된다(§10).
+
+## 11. B4-GRP 구현 상태 (2026-10-29, 브랜치 m3b/b4-grp)
+
+| plan ID | 상태 | 비고 |
+|---|---|---|
+| G-18 | 완료 | `promotion/report.ts`(`buildPromotionReport`, 순수 함수)와 `promotion/gather.ts`(`gatherPromotionInput`, `queryEvents`·`toolOwner`로 입력을 모음). `/group status`의 `승격 후보:` 줄. 시험은 `test/promotion.test.ts`(끝 시험 `promotion.report-values-from-a-real-event-log`). 집계 규칙은 spec §3.12 |
+| 계측 쓰기 실패 | 완료 | 경계 기록의 `recordPrivate` 실패가 그룹 핸들러를 실패시키지 않는다(spec §4.9). 시험 `metrics.recorded-failure-keeps-the-handler-and-carries-the-delta` |
+| G-24 | 완료 | (L3.slots S-01) `templates/`(`index.json`, `common/`, `drive/`, `policy/`, `observe/`)와 `src/templates.ts`(`TemplateIndexSchema`, `TemplateKindSchema`, `TEMPLATE_PLACEHOLDERS`), `checkGroupName`(`src/define-group.ts`). `tsconfig.json` `exclude`, oxlint·oxfmt `ignorePatterns`, knip `ignore`, `bunfig.toml`의 시험 루트에서 `templates/`를 뺀다. 세부는 `L3.slots.plan` §8 |
+| G-26 | 완료 | (L3.slots S-03) `test/slots/templates.test.ts`의 `template.replay-test-cuts-at-every-commit`과 `template.generated-tests-pass`. drive 골격의 `test/replay.test.ts`가 생성 직후 통과한다 |
+| G-27 | 완료 | (L3.slots S-04) 같은 파일의 `template.manifest-passes-validateManifest`, `template.drive-group-loads-and-toggles`, `template.policy-*`(거부, 예외, 끄기), `template.observe-group-records-turn-count`. 생성기 시험은 `test/support/generate-template.ts` |
+| 저장 상태 재설정 경로 | 완료 | `/group reset <이름>`과 `GroupServiceWithUsage.resetState`(X `resetScopeState`를 부른다). 오류 종류는 `GroupResetError`(spec §3.9). 시험은 `test/reset.test.ts`. 성공 문구의 `/group on` 안내는 [미결](spec §10) |

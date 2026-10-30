@@ -58,8 +58,11 @@ export type { AskReason, WebAskError, WebAskPort, WebAskRequest } from "./ports/
 export type { DnsResolver, ResolveError } from "./ports/resolver.ts";
 export type {
   HeaderSecretError,
-  HeaderSecretResolver,
+  HeaderSecretSender,
+  HeaderSecretTarget,
+  HeaderSendResponse,
   OutboundSecretGuard,
+  SecretHeader,
 } from "./ports/secrets.ts";
 export type {
   HttpTransport,
@@ -107,11 +110,24 @@ export type { ConvertInput, ConvertResult, Extractor } from "./fetch/convert/con
 export { markdownToPlainText, sliceText } from "./fetch/truncate.ts";
 export { createProbeCache } from "./search/probe-cache.ts";
 export type { ProbeCache } from "./search/probe-cache.ts";
-export type { FetchCandidate, SearchCandidate, WebProviderCatalog } from "./ports/providers.ts";
+export type {
+  BrowseCandidate,
+  FetchCandidate,
+  SearchCandidate,
+  WebProviderCatalog,
+} from "./ports/providers.ts";
+export type { BrowseConfirmPort, BrowseConfirmRequest } from "./ports/confirm.ts";
+export type {
+  BrowserMcpError,
+  BrowserMcpImage,
+  BrowserMcpPort,
+  BrowserMcpResult,
+} from "./ports/browser-mcp.ts";
 export type { WebDeps } from "./deps.ts";
 export { failureOfThrown } from "./provider-errors.ts";
 export { createWebRuntime } from "./runtime.ts";
 export type { WebRuntime, WebRuntimeOptions } from "./runtime.ts";
+export { describeWebSettings } from "./status.ts";
 export { createWebService } from "./service.ts";
 export { WEB_EXTENSION_NAME, webManifest } from "./manifest.ts";
 export { effectiveCachePolicy } from "./cache/policy.ts";

@@ -7,6 +7,7 @@ import { fixedIdFactory } from "@xeon/ext-host/testing";
 import type { DialogDeps } from "../../src/deps.ts";
 import type { BlobSink } from "../../src/ports/blobs.ts";
 import type { AttachmentFiles } from "../../src/ports/files.ts";
+import type { NoticePort } from "../../src/ports/notices.ts";
 import type { ShellFailure, ShellPort } from "../../src/ports/shell.ts";
 import type { StatusPublisher } from "../../src/ports/session.ts";
 import { readDialogSettings } from "../../src/settings.ts";
@@ -146,6 +147,7 @@ export interface HarnessOptions {
   readonly shell?: FakeShell | null;
   readonly commandFiles?: MemoryCommandFiles;
   readonly blobs?: BlobSink | null;
+  readonly notices?: NoticePort | null;
   readonly images?: DialogDeps["images"];
   readonly interactive?: DialogDeps["interactive"];
   readonly projectRoot?: (threadId: ThreadId | undefined) => string | null;
@@ -191,6 +193,7 @@ export function harness(options: HarnessOptions = {}): Harness {
     blobs: options.blobs === null ? undefined : options.blobs,
     status,
     feed: undefined,
+    notices: options.notices ?? undefined,
   };
   return {
     deps,

@@ -18,20 +18,28 @@ import {
   type StoreDb,
 } from "@xeon/contracts/records";
 import {
+  ArtifactsRegistry,
+  ArtifactsReviews,
+  ArtifactsSessions,
   DialogAsk,
   KnowledgeSkills,
   McpClient,
+  ScheduleEntries,
+  WebBrowse,
   WebFetch,
   WebSearch,
   WorkPlans,
   WorkTasks,
   type AnyCapabilityDef,
 } from "@xeon/contracts/capabilities";
+import { artifactsPlugin } from "@xeon/cap-artifacts";
+import { schedulePlugin, type ScheduleService } from "@xeon/cap-schedule";
 import { dialogPlugin } from "@xeon/cap-dialog";
 import { knowledgePlugin } from "@xeon/cap-knowledge";
 import { APPROVAL_SOURCE } from "@xeon/group-learning";
 import { workPlugin } from "@xeon/cap-work";
 import { workspacePlugin } from "@xeon/cap-workspace";
+import { readUnattendedTimeoutMs } from "@xeon/platform-exec";
 import type { AgentDefinition } from "@xeon/contracts/services";
 import { agentsPlugin } from "@xeon/core-agents";
 import { contextSettingsOf, createContextExtension } from "@xeon/core-context";
@@ -53,7 +61,9 @@ import {
 } from "./learning.ts";
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
+import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
+import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { GroupCatalogEntry } from "@xeon/group-kit";
 import type { SettingCatalog } from "@xeon/contracts/settings";
@@ -89,6 +99,8 @@ export interface ExtensionDeps {
   readonly settings: SettingsEngine;
   /** 명령 등록부 자리. 조립 루트가 만들고 엔진 포트(`command.*`)도 같은 자리를 읽는다 */
   readonly commands: CommandRegistryHolder;
+  /** 웹 런타임 자리(`web.providers`). cap-web 확장이 채운다 */
+  readonly web: WebStatusHolder;
   /** thread의 작업 디렉터리(없으면 undefined). `input.bash.before` 지점 페이로드의 cwd가 된다 */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
   readonly db: StoreDb;
@@ -153,11 +165,16 @@ function kindLookup(kind: string): CatalogEntry | undefined {
 const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   WebSearch,
   WebFetch,
+  WebBrowse,
   KnowledgeSkills,
   WorkTasks,
   WorkPlans,
   DialogAsk,
   McpClient,
+  ArtifactsRegistry,
+  ArtifactsReviews,
+  ArtifactsSessions,
+  ScheduleEntries,
 ];
 
 /**
@@ -167,6 +184,14 @@ function reservedToolNames(): ReadonlySet<string> {
   const names = new Set<string>(["read", "ls", "bash", "read_tool_output", "tool_search", "agent"]);
   for (const def of L2_TOOL_CAPABILITIES) for (const tool of def.tools) names.add(tool.name);
   return names;
+}
+
+/**
+ * 예약 플러그인(L2 cap-schedule)의 단위. 예약 서비스는 tasks·loop 포트로 만들어져 이 목록을 만드는 시점에는 없으므로
+ * 조립 루트가 서비스를 만든 뒤 올린다. 도구를 올리는 core-tools는 그 앞에 올라와 있어야 한다(`L2_TOOL_CAPABILITIES`).
+ */
+export function scheduleUnit(service: ScheduleService, loadIndex: number): ExtensionUnit {
+  return schedulePlugin({ service, loadIndex });
 }
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
@@ -292,7 +317,13 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
     ],
     [
       "cap-workspace",
-      (loadIndex) => workspacePlugin({ settings: workspaceSource(settings), loadIndex }),
+      (loadIndex) =>
+        workspacePlugin({
+          settings: workspaceSource(settings),
+          // 무인 호출(예약·루프)의 명령 시간 상한. 설정은 호출마다 읽는다(M3-16, l0.exec.unattendedTimeoutMs)
+          unattendedTimeoutMs: () => readUnattendedTimeoutMs((key) => settings.value(key)),
+          loadIndex,
+        }),
     ],
     [
       "cap-dialog",
@@ -305,6 +336,17 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           // 프로젝트 명령(.xeon/commands)은 신뢰한 프로젝트에서만 읽는다(G1-03, 결정 D6). 폴더는 대화의 작업 폴더다(HS-76)
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           workspaceOf: workspaceOfId,
+          loadIndex,
+        }),
+    ],
+    [
+      "cap-artifacts",
+      (loadIndex) =>
+        artifactsPlugin({
+          ids: deps.ids,
+          localIds: deps.localIds,
+          approvals: (service) => createBareL2ApprovalsPort(service),
+          settings: layersSource(settings),
           loadIndex,
         }),
     ],
@@ -339,6 +381,9 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
         hostWebPlugin({
           ids: deps.localIds,
           layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined),
+          settingValue: (key) => settings.value(key),
+          resources: () => deps.ext.resources,
+          status: deps.web,
           onSettingsChange: (listener) => settings.onChange(() => listener()),
           heldThreads: deps.groups.heldThreads,
           ...(deps.webPorts?.resolver === undefined ? {} : { resolver: deps.webPorts.resolver }),

@@ -24,6 +24,9 @@
     },
     {
       "path": "../../packages/platform-os"
+    },
+    {
+      "path": "../../packages/platform-store"
     }
   ]
 }

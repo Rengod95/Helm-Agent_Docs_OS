@@ -27,6 +27,8 @@ interface ExecReply {
   /** onOutput으로 흘려 보낼 조각. skipped는 window가 생략했다고 알리는 값 */
   readonly chunks?: readonly {
     readonly text: string;
+    /** 기본 stdout. rg의 stderr 메시지를 흘려 보낼 때 stderr */
+    readonly stream?: "stdout" | "stderr";
     readonly skipped?: { bytes: number; newlines: number; endsWithNewline: boolean };
   }[];
   readonly exitCode?: number;
@@ -272,12 +274,44 @@ export function memoryEnv(options: { readonly cwd?: string } = {}): MemoryEnv {
         };
         return Promise.resolve(ok(reader(key, bytesOf)));
       },
+      joinPath: (parts) => Promise.resolve(ok(normalize(parts.join("/")))),
+      readTextFile: (path) => {
+        const real = realpath(path);
+        if (!real.ok) return Promise.resolve(err(real.error));
+        const node = nodes.get(real.value);
+        if (node?.kind !== "file") {
+          return Promise.resolve(
+            err(new FileError("is_directory", `is a directory: ${path}`, path)),
+          );
+        }
+        return Promise.resolve(ok(decoder.decode(node.bytes)));
+      },
+      writeFile: (path, content) => {
+        put(path, typeof content === "string" ? content : content.slice());
+        return Promise.resolve(ok(undefined));
+      },
+      flushFile: () => Promise.resolve(ok(undefined)),
+      renameFile: (source, destination) => {
+        const from = normalize(source);
+        const node = nodes.get(from);
+        if (node === undefined) {
+          return Promise.resolve(err(new FileError("not_found", `not found: ${source}`, source)));
+        }
+        nodes.set(normalize(destination), node);
+        nodes.delete(from);
+        mtimes.set(normalize(destination), (clock += 1));
+        return Promise.resolve(ok(undefined));
+      },
+      remove: (path) => {
+        nodes.delete(normalize(path));
+        return Promise.resolve(ok(undefined));
+      },
       exec: (command, execOptions, context: CancelScope) => {
         calls.push({ command, options: execOptions });
         const next = replies.shift() ?? { exitCode: 0 };
         for (const chunk of next.chunks ?? []) {
           execOptions?.onOutput?.(chunk.text, context, {
-            stream: "stdout",
+            stream: chunk.stream ?? "stdout",
             ...(chunk.skipped === undefined ? {} : { skipped: chunk.skipped }),
           });
         }

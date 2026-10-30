@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { connectMcp } from "../src/adapter.ts";
 import { createStubProcessPort } from "../src/testing/stub-process.ts";
 import { createStubServer } from "../src/testing/stub-server.ts";
+import { DEFAULT_MCP_SETTINGS, sandboxOf } from "../src/settings.ts";
 import { createTransportFactory } from "../src/transport/factory.ts";
 import type { ServerDefinition } from "../src/types.ts";
 import { flush } from "./support/flush.ts";
@@ -107,5 +108,31 @@ describe("process stdio transport", () => {
       fetch: undefined,
     }).open(definition, signal);
     expect(unsupported).toMatchObject({ ok: false, error: { code: "unsupported" } });
+  });
+
+  test("a sandbox the port cannot provide is an open failure, and the sandbox flag follows the source", async () => {
+    const { factory, process } = setup();
+    const project: ServerDefinition = { ...definition, source: "mcpjson:project" };
+    process.failNext({ kind: "sandbox_unavailable", reason: "missing_dependency" });
+    const refused = await factory.open(project, signal, {
+      sandbox: sandboxOf(project, DEFAULT_MCP_SETTINGS),
+      threadId: undefined,
+    });
+    expect(refused).toEqual({
+      ok: false,
+      error: {
+        code: "sandbox_unavailable",
+        message: "the sandbox is unavailable (missing_dependency), so the server was not started",
+      },
+    });
+    expect(process.spawned[0]).toMatchObject({ sandbox: true, label: "mcp:local" });
+    // 사용자 설정 출처는 기본값으로 격리하지 않는다. 띄우는 것은 실패로 막아 자식 프로세스를 남기지 않는다
+    process.failNext({ kind: "spawn_failed", code: "ENOENT", message: "srv not found" });
+    const plain = await factory.open(definition, signal, {
+      sandbox: sandboxOf(definition, DEFAULT_MCP_SETTINGS),
+      threadId: undefined,
+    });
+    expect(plain).toMatchObject({ ok: false, error: { code: "spawn_failed" } });
+    expect(process.spawned[1]).toMatchObject({ sandbox: false });
   });
 });

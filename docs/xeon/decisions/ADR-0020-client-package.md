@@ -64,4 +64,4 @@ binds: [xeon/packages/client/**, xeon/packages/contracts/src/wire-settings/**, x
 
 ## 6. 미결 사항
 
-- [제안] 소켓 전송의 클라이언트 구현은 이 패키지에 둔다. 구현은 M3b 서비스 트랙이다. 기본값이며 사용자 결정은 아니다. 기존 `L0.process`의 `connectServiceTransport`를 CLI가 계속 쓸지는 그 트랙에서 정한다 [미결].
+- [결정: 오케스트레이터 기본값] 소켓 전송의 클라이언트 구현은 이 패키지에 둔다(M3b B2-RMT). Node API를 쓰는 `@xeon/client/socket`(`connectServiceTransport`: unix, 사설망 tcp(토큰이 있으면 host.hello에 싣는다), SSH 터널로 이은 unix)와 순수 함수인 `@xeon/client/endpoint`(주소 문법)로 나눈다. 브라우저 클라이언트(M4)는 `.`과 `./endpoint`만 쓰고 `./socket`은 import하지 않는다. 프로세스를 띄우는 일(`ssh`)은 DR-07 때문에 L0 `platform-process`만 할 수 있어, 이 패키지는 `TunnelPort`만 정의하고 `apps/host`가 L0 `openTunnel`로 채운다. `apps/host`의 `connectServiceTransport`는 이 구현에 터널 포트를 끼워 주는 얇은 함수다. L0 `connectSocket`은 서버 쪽 바인드 경합 확인용으로 남는다(스트림 어댑터 중복은 L0이 L4를 import할 수 없어서다).

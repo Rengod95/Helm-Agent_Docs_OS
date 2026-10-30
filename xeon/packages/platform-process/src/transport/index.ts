@@ -35,3 +35,14 @@ export {
   type SocketListenOptions,
   type SocketListener,
 } from "./socket.ts";
+export {
+  openTunnel,
+  sshTunnelCommand,
+  type SocketTunnel,
+  type SshTunnelError,
+  type SshTunnelInput,
+  type TunnelDeps,
+  type TunnelError,
+  type TunnelExit,
+  type TunnelSpec,
+} from "./tunnel.ts";

@@ -213,7 +213,7 @@ spec SV-01~SV-08에 대응한다. [제안] 항목마다 테스트를 하나 이�
 | SV-01 | `registration-unknown-field-preserved` | unit | 같음 | `{..., futureField: 1}`이 있는 파일에 다시 쓰면 `futureField`가 남고, `readRegistration`이 `ok`를 돌려준다 |
 | SV-02 | `bind-race-loser-connects` | int | `test/int/bind-race.int.test.ts` | `service run` 자식 두 개를 동시에 띄우면 하나만 등록 파일을 쓰고 다른 하나는 종료코드 0이다. 이어서 부른 `ensureService`가 `connected`이고 hello가 성공한다. 낡은 소켓 파일을 미리 둔 경우도 같다 |
 | SV-03 | `version-mismatch-idle-restart` | int | `test/int/version-mismatch.int.test.ts` | 등록 버전이 다른 한가한 서비스에 `ensureService`를 부르면 `restarted`이고 새 등록 파일의 pid가 다르다. live turn이 있는 서비스면 `versionWarning`이고 pid가 그대로다 |
-| SV-04 | `idle-exit-requires-no-conn-no-task-no-schedule` | unit | `test/service/lifetime.test.ts` | 판정은 L0 `createIdleMonitor`가 한다(`platform-process/test/service-idle.test.ts`). 이 파일의 시험은 `int/service-idle.int.test.ts`: 승인 대기 세션이 있으면 종료하지 않고, 연결 0·live 0·대기 예약 0이면 유예 뒤 종료한다 |
+| SV-04 | `idle-exit-requires-no-conn-no-task-no-schedule` | unit | `test/service/lifetime.test.ts` | 판정은 L0 `createIdleMonitor`가 한다(`platform-process/test/service-idle.test.ts`). 이 파일의 시험은 `int/service-idle.int.test.ts`: 승인 대기 세션이 있으면 종료하지 않고, 연결 0·live 0·대기 예약 0이면 유예 뒤 종료한다. 대기 타이머가 있으면 연결이 0이어도 종료하지 않고, 모두 떠난 뒤 타이머 실행이 기록을 남긴 다음에만 유예를 센다(`int/service-schedule.int.test.ts`) |
 | SV-04 | `approval-waiting-counts-live` | unit | 같음 | `waitingApprovals: 1`, 나머지 0이면 `countApprovalAsLive: true`에서 `{ idle: false, reason: "approvals" }`, `false`에서 `idle: true`다 |
 | SV-05 | `socket-perm-owner-only` | int | `test/int/socket-auth.int.test.ts` | 서비스 시작 뒤 소켓 디렉터리 모드 0700, 소켓 파일 0600이다. 디렉터리 권한이 넓으면 시작이 거부된다 |
 | SV-06 | `stdio-eof-checkpoint-exit` | int | `test/int/stdio-eof.int.test.ts` | 모델 테이프로 turn을 진행 중인 `host --stdio` 자식의 stdin을 닫으면 체크포인트 이벤트가 커밋되고 종료코드 0으로 끝난다. 다시 열면 복구 표식이 없다 |
@@ -401,3 +401,38 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 
 남은 것: 안전 모드를 켜는 입구(CLI 인자, 설정)는 이 단계에 없다. `AssembleOptions.safeMode`만 있다 [미결].
 
+## 11. M3b 구현 기록 (B2-WEB의 L4 몫)
+
+| 작업 | 상태 | 내용과 시험 |
+|---|---|---|
+| M3-REQ-37 등록 목록 | 구현 | `webRegistrationSource`(`assembly/cap-web.ts`)가 `web_provider` 기록을 cap-web `registrations`로 넘긴다(spec HS-91 (1)). `test/assembly/cap-web-bridge.test.ts`(유효한 기록만 확장 이름과 함께, 종류가 다른 기록과 모양이 어긋난 기록은 뺀다) |
+| M3-REQ-96 헤더 비밀 | 구현 | `createWebHeaderSecrets`(`assembly/web-header-secrets.ts`)가 `createPluginHttp`로 `withHttp`를 부른다. 목적 `web.search`(HS-91 (2)). HOST.14의 "headerSecrets는 가져오지 않았다"(HS-75)는 이 행으로 대체한다. `test/assembly/web-header-secrets.test.ts`(값은 전송 인자에만, 템플릿과 오류에는 없다, 미설정과 참조 아님은 `unset`, 나머지는 `unavailable`) |
+| M3-REQ-96 브라우저 MCP | 구현 | `createBrowserMcpPort`(`assembly/web-browser-mcp.ts`)가 `mcp.client`를 `BrowserMcpPort`로 맞춘다. 서버 `playwright`(HS-91 (3)). `test/assembly/web-browser-mcp.test.ts`(연결 여부, 텍스트와 이미지 조립, isError, input_required, 호출 실패, 중단) |
+| M3-REQ-96 브라우저 도구 | 구현 | `WebBrowse`를 능력 공급자로 내고 네 도구를 등록한다(열기·조작·닫기 `write`, 읽기 `read`, HS-91 (4)). `L2_TOOL_CAPABILITIES`에 더한다(HS-60). 매니페스트 `provides`에 `web.browse`를 더한다 |
+| 세션 종료 | 구현 | `onWebSessionShutdown`이 `closeThread`를 기다리고 원문을 정리한다(HS-91 (5)). `test/assembly/cap-web-bridge.test.ts` |
+| `web.providers` | 구현 | 처리기 `handlers/web.ts`, 포트 `EnginePorts.web`(`assembly/web-providers.ts`, holder가 런타임을 잇는다). 처리기 표에 행을 더했다(spec §3.4, HS-91 (6)). `test/handlers/web.test.ts`, `test/assembly/web-providers.test.ts`, `test/int/web-providers.int.test.ts`(실제 엔진, 내장 래퍼 행과 기본 설정) |
+| 시험 조정 | 구현 | `test/int/compact-reinject.int.test.ts`의 창을 12000에서 13000토큰으로 올렸다. 브라우즈 도구 정의 네 개가 요청에 더해져 두 turn 만에 임계를 넘었다. 두 turn은 임계 아래, 셋째 turn 요청 전에 넘는 예산은 그대로다 |
+
+남은 것: 브라우저 사람 확인 포트 `browseConfirm`(spec §10 35), 브라우저 MCP 직접 호출의 승인(spec §10 34). 설정 스키마 커밋본(`apps/host/schema/`)은 `l2.web.browse.*` 키(53c9d53)가 들어온 뒤로 다시 쓰이지 않아 `settings-schema-committed` 시험이 실패한다. 이 단위가 바꾼 설정은 없고, 병합 때 오케스트레이터가 다시 쓴다(m3b-plan §3.4).
+
+## 12. M3b 구현 기록 (B3-DATA)
+
+| 작업 | 상태 | 내용과 시험 |
+|---|---|---|
+| M3-REQ-47 설정 해제 | 구현 | `l0.exec.spillRetentionDays`·`spillMaxBytes`의 `stage`를 `active`로 바꿨다(platform-exec 커밋 1ea15224). `platform-exec/test/settings-defs.test.ts` |
+| M3-REQ-84 블롭 GC 설정 | 구현 | `l0.store.blobGcEnabled`(기본 끔, live, managed·user)을 더했다(platform-store 커밋 2585aee2). `platform-store/test/settings*.test.ts` |
+| 보관 정리와 spill 상한 (HS-100, HS-101) | 구현 | `assembly/data-ops.ts`의 `startDataOps`(spill은 열 때와 하루마다), `settings-sources.ts`의 `spillRetentionDaysOf`와 `spillMaxBytes`. `test/assembly/data-ops.test.ts`(보관 0은 아무것도 지우지 않음, 7일은 오래된 파일만, 하루 뒤 다시) |
+| 블롭 GC (HS-102, HS-103) | 구현 | `data-ops.ts`의 `runBlobGc`(서비스 모드, 설정이 켜진 때만, 첫 실행 1분). 실제 임시 저장소 시험: 끔이면 아무것도 지우지 않고, 켜면 고아만 지운다(이벤트 참조와 고정 블롭은 남는다). 실패는 `store.blob_gc_failed` |
+| 자동 제목 (HS-104, HS-105) | 구현 | `assembly/auto-title.ts`(`startAutoTitle`, `titleModelFor`). `assemble.ts`가 엔진 포트 뒤에 연다. `test/assembly/auto-title.test.ts`(가짜 모델: 정리된 제목, 사람 제목 유지, 모델 실패 기록과 재시도 없음, 소유 없음, 자격 증명 없음은 한 번만 기록). `test/int/auto-title.int.test.ts`(실제 조립: 자격 증명이 없으면 건너뛰고 턴은 요청 하나) |
+| M3-REQ-52 진단 상한 | 구현 | `assembly/diagnostics.ts`(`createExtDiagnosticSink`, 상한 256). `test/assembly/diagnostics.test.ts`(300개를 넣으면 최신 256개, 버린 수 44) |
+| 저장소 경고 `read_only` | 구현 | `logStoreWarning`이 `store.warning`으로 남긴다(typecheck를 막던 누락 분기) |
+
+남은 것: 블롭 GC는 서비스 모드에서만 돈다. `scheduler` 임대가 생기기 전까지 그렇다 [미결 §10 36]. 자동 제목의 임시 판정은 이 프로세스가 본 첫 입력에 기댄다 [미결 §10 47]. 테이프 시험에는 자격 증명 참조가 없어 긍정 경로의 실제 엔진 시험은 없다 [미결 §10 48]. 블롭 GC를 켜기 전에 소비자 고정 목록을 닫는다 [미결 §10 49].
+
+## 13. M3b 구현 기록 (B3-SEC의 P-15 몫)
+
+| 작업 | 상태 | 내용과 시험 |
+|---|---|---|
+| P-15 샌드박스 연결 | 구현 | `createHostMcpProcessPort`가 `tempDir`을 받고 `xeon.sandbox`를 spawn마다 찾는다(HS-64). `test/assembly/mcp-process.test.ts`: 샌드박스 요청은 `wrapArgv` 명령줄로 뜨고 `defaultPolicy`에 `tempDir`이 넘어간다. 서비스가 나중에 올라와도 그때부터 쓴다. 서비스가 없으면 `service_missing`이고 자식이 뜨지 않는다(같은 요청을 샌드박스 없이 내면 뜬다). 격리 불가 사유는 그대로 옮긴다 |
+| P-15 실제 격리 | 구현 | `test/int/mcp-sandbox.int.test.ts`: 실제 srt와 bwrap으로 보호 디렉터리 읽기 거부, 작업 폴더 밖 쓰기 거부, 차단 도메인 403과 직접 TCP 거부, 작업 폴더 안 쓰기 허용을 보고, 샌드박스 없이 같은 서버는 셋 다 허용하는 대조를 둔다. 필수 바이너리(bwrap, socat, rg)가 없거나 서비스 상태가 쓸 수 없으면 `SKIPPED mcp-sandbox.int: sandbox not runnable here`를 남기고 건너뛴다. `XEON_REQUIRE_SANDBOX=1` 또는 CI에서는 종료 코드 2로 끝난다 |
+| 시험 환경 | 구현 | 이 파일은 `TMPDIR`을 디스크(`/tmp`)로 돌린다. `apps/host`의 preload는 `TMPDIR`을 `/dev/shm`으로 옮기는데, bwrap 안에서는 `/dev/shm`이 보이지 않아 프록시 소켓과 작업 폴더가 쓰이지 않는다. srt는 프로세스 전역이고 `initialize`는 이미 켜져 있으면 설정을 무시하므로, 시험 서비스를 만들기 전에 서비스를 한 번 만들어 끈다 |

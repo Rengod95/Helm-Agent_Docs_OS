@@ -380,6 +380,13 @@ describe("network blocklist and nested namespaces", () => {
     expect(service.status().rejectedBlockedDomains).toEqual(["*.com"]);
   });
 
+  test("the default policy does not list an entry srt already rejected", async () => {
+    const srt = fakeSrt({ invalidDomains: ["*.com"] });
+    const { service } = await makeWithSettings({ blockedDomains: ["*.com", "ok.example"] }, srt);
+    const policy = service.defaultPolicy({ workspaceRoots: [], tempDir: "/tmp/x" });
+    expect(policy.network).toEqual({ allowedDomains: [], deniedDomains: ["ok.example"] });
+  });
+
   test("nestedNamespaces is off by default and on only when the setting asks", async () => {
     const off = await makeWithSettings({});
     expect(off.srt.initializeCalls[0]?.config.enableWeakerNestedSandbox).toBe(false);

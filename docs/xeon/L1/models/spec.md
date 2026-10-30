@@ -5,7 +5,7 @@ domain: models
 kind: spec
 status: draft
 depends_on: [F.conversation.spec, F.capabilities.spec, F.records.spec, F.extensions.spec, F.wire-settings.spec, eng.context-map.design, adr.0001, adr.0002]
-binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
+binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, xeon/packages/group-account-rotation/**, xeon/packages/group-provider-anthropic-oauth/**]
 ---
 
 # L1 모델 게이트웨이 (models)
@@ -500,7 +500,7 @@ export type StructuredResult<T> =
   | { readonly ok: false; readonly kind: "schema_mismatch" | ModelErrorKind; readonly attempts: number; readonly lastError: string };
 ```
 
-`ModelService`에는 `completeStructured<T>(request: StructuredRequest<T>): Promise<StructuredResult<T>>`를 더한다. 계획 v2는 구조화 출력을 2차로 두었다. 그러나 목표 판정(`L1.agents.spec` §4.8, 제품 범위 I11은 M3)이 구조화 판정 출력을 쓰므로 [제안] `completeStructured`의 최소형(재시도 루프와 횟수 상한만)을 M3에 당긴다. 계정 풀·폴백과 함께 쓰는 형태는 2차에 남긴다.
+[결정: M3b B3-L1M, 오케스트레이터 기본값] 최소형 `completeStructured`는 `ModelService`에 더하지 않고 core-agents의 `structured.ts`(`L1.agents.spec` §4.8)에 둔다. 아래 서명은 계정 풀·폴백과 함께 쓰는 2차 형태가 필요해질 때 `ModelService`로 옮기는 후보다. 그때까지 이 절의 `ModelService` 항목은 쓰지 않는다. 후보 서명: `ModelService`에는 `completeStructured<T>(request: StructuredRequest<T>): Promise<StructuredResult<T>>`를 더한다. 계획 v2는 구조화 출력을 2차로 두었다. 그러나 목표 판정(`L1.agents.spec` §4.8, 제품 범위 I11은 M3)이 구조화 판정 출력을 쓰므로 [제안] `completeStructured`의 최소형(재시도 루프와 횟수 상한만)을 M3에 당긴다. 계정 풀·폴백과 함께 쓰는 형태는 2차에 남긴다.
 
 ### 3.11 위장 provider 플러그인
 
@@ -649,7 +649,23 @@ export function resolveRole(input: {
 - 상태 저장: `core_models_accounts`(계정 메타, 참조만), `core_models_usage_windows`(계정·창별 합계), `core_models_cooldowns`(대기 종료 시각)를 `xeon.store.scoped("core_models_")`로 쓴다(`eng.context-map.design` §5.2). 세션 투영이 아니므로 재생으로 다시 만들지 않는다.
 - 읽기 자료: omp `usage-limit.ts`, `credential-pin.ts`. AgentSession에 결합된 구현이라 코드를 가져오지 않는다(`_research/packages.md` §4.3 L1-c 레이트 리밋 행).
 - 단계: M3다. 설정(`l1.models.accounts`, `l1.models.rateLimit`)은 M3 설정 화면에서 조작한다 [결정: review.decisions-2 U-21].
+- 구현(M3b B2-MDL): `core-models/src/accounts.ts`(풀 상태기계), `rotation.ts`(호출 하나를 계정 위에서 돌림), `pipeline.ts`(회전 분기). 규칙은 아래와 같다.
+  - 기본 꺼짐: 회전은 `account-rotation` 플러그인 scope가 켜져 있고(`xeon.ext` scope 상태) `ext.account-rotation.acknowledgeRisk`가 true일 때만 돈다. 어느 하나라도 아니면 계정 설정은 무시하고 provider 설정의 키를 쓴다. 첫 사용 고지 문구는 플러그인 userConfig와 설정 화면이 보인다(§4.11.3 위장 provider와 같은 방식).
+  - 정책이 없는 provider는 `{ minIntervalMs: 0, onLimit: "switch", maxWaitMs: 0 }`이다 [결정: 오케스트레이터 기본값].
+  - 계정 선택: 우선순위 오름차순(같으면 설정 순서)으로 쉬는 중이 아니고 `minIntervalMs`가 지난 첫 계정을 고른다. 쓸 수 없지만 곧 생기는 계정이 있으면 대기 대상이다. 간격 대기는 `maxWaitMs` 안에서 늘 허용하고, 한도(쿨다운) 대기는 `onLimit: "wait"`일 때만 허용한다. 넘거나 허용하지 않으면 마지막 한도 오류를 그대로 낸다.
+  - `rate_limited`: 오류 문구의 `retry-after`(초 또는 ms)만큼, 없으면 60초 그 계정을 쉬게 한다 [결정: 오케스트레이터 기본값]. `onLimit`이 `fail`이면 바로 오류를 내고, 아니면 다음 계정으로 같은 요청을 다시 보낸다. `quota_exhausted`는 그 계정을 1시간 뺀다 [결정: 오케스트레이터 기본값, 창 종료 시각을 알 수 없다].
+  - 콘텐츠를 한 조각이라도 낸 호출은 다시 보내지 않는다. 실패한 시도의 사건(start, error)은 소비자에게 가지 않는다. 회전 중에는 pi-ai 요청 단계 재시도(`maxRetries`)를 끈다(한도 오류를 같은 키로 되풀이하지 않기 위해).
+  - 호출자가 `apiKey`를 넘긴 호출과 hosted 검색 같은 내부 호출은 회전하지 않는다.
+  - [미결] 상태 저장(`core_models_*` 테이블)은 아직 없다. 쉬는 시각과 마지막 요청 시각은 프로세스 메모리에만 있어 재시작하면 사라진다.
+  - [미결] 창 사용률(`reservePct` 비교)을 채우는 출처가 없다. 풀의 `reportUtilization`만 있고 호출하는 곳이 없다.
+- client/accounts view-model(M3b B2-MDL): 모델 계정과 레이트 리밋 설정 화면의 순수 로직은 `packages/client/src/accounts/`(`@xeon/client/accounts`)에 둡니다. 화면 컴포넌트는 M4에서 씁니다.
+  - 읽기: `modelAccountsView({ accounts, rateLimit, acknowledged, pluginEnabled })`는 `providers`와 `rotation`을 돌려줍니다. `providers`는 계정이나 정책이 있는 provider를 id 순으로 담고, 계정은 우선순위 오름차순(같으면 설정 순서), 정책이 없으면 `policy: null`입니다. `rotation`은 `{ state, notice }`입니다. `state`는 `off`(플러그인 꺼짐, 꺼짐이 먼저 판정됩니다), `needsNotice`(켜졌지만 `ext.account-rotation.acknowledgeRisk`가 `true`가 아님), `on`입니다. 입력은 `unknown`으로 받고 모양이 맞지 않으면 빈 값으로 읽습니다(`accountsOf`, `rateLimitOf`).
+  - 검사와 편집: `checkAccount`와 `checkRateLimit`은 `Result`를 돌려주고, 실패는 `{ kind: "invalid", field }`입니다. 범위는 `accountsSchema`·`rateLimitSchema`와 같습니다. client는 core-models를 import하지 않고 typebox로 같은 모양을 적습니다. `withAccount`, `withoutAccount`, `withRateLimit`, `withoutRateLimit`은 입력을 바꾸지 않고 새 값을 돌려줍니다.
+  - 저장: `saveModelAccounts(connection, edits)`는 `settings.readFile`(범위 `user`)로 원문을 읽고, 편집한 키 세 개만 바꾼 원문을 같은 `baseSha256`으로 `settings.writeFile`에 보냅니다. 다른 키와 키 순서는 그대로 남습니다. 실패는 `not_object`(파일이 JSON 객체가 아님), `conflict`(`settings.fileConflict`, 읽은 뒤 파일이 바뀜), `host`(그 밖의 와이어 오류), `transport`(응답을 받지 못함)입니다 [결정: 오케스트레이터 기본값, `conflict`를 따로 뺌].
+  - 시험 X7(`packages/client/test/accounts/x7.test.ts`, `scripts/exit-tests.txt`): 메모리 호스트가 설정 파일 하나를 들고 두 번 저장합니다. 키 세 개가 같은 이름으로 쓰이고 다른 키와 키 순서가 남는지, 두 번째 편집이 계정을 지우지 않는지 확인합니다. 키와 값은 core-models의 `MODELS_SETTING_DEFS`와 `validateSettingValue`를 통과해야 합니다. 읽기와 쓰기 사이에 파일이 바뀌면 `conflict`로 실패하고 아무것도 쓰지 않습니다. 같은 종료 조건의 `packages/core-models test/rotation.test.ts`는 429 계정 회전 시험입니다.
+  - [미결] 저장 뒤 `settings.invalidated` 알림으로 다시 읽는 일은 M4 화면 작업에서 정합니다. `routes.yaml`의 `settings-ui` 경로(`packages/client/src/settings/**`)에는 `accounts/`가 없어 라우팅으로는 이 절이 찾아지지 않습니다. 경로를 넣을지는 문서 라우팅 담당이 정합니다.
 - [미결] 구독 계정 회전은 provider 약관 검토가 필요하다(`_research/settings.md` §2.5 계정 행). M3 착수 전에 별도 설계 문서에서 정한다. 검토 결과가 부정이면 구독 계정 회전만 빼고 API 키 계정 회전과 레이트 리밋은 M3에 둔다.
+- 플러그인 패키지 [결정: 오케스트레이터 기본값]: 계정 회전 플러그인은 `packages/group-account-rotation`(kind `group`, layer L3, `defaultEnabled: false`)에 둡니다. 이 그룹은 고지 설정 `ext.account-rotation.acknowledgeRisk`(기본 false)를 읽기만 하고 아무것도 등록하지 않습니다. 회전 게이트는 위 두 조건을 core-models가 봅니다. 패키지의 `build:plugin` 스크립트가 `.xeon-plugin/plugin.json`과 `dist/index.js`를 만듭니다.
 
 ### 4.9 폴백 체인 (2차)
 
@@ -717,6 +733,9 @@ export function resolveRole(input: {
 
 - [가정] Anthropic 서버가 래퍼 경로 요청을 받아들이고 구독 OAuth 토큰을 이 방식으로 쓸 수 있다고 보고 설계한다. 둘 다 확인하지 않았다(`_research/notes/L1-2.md` §6). 공개 배포 여부를 정하기 전에 확인한다.
 - [미결] 별도 플러그인 배포 여부(`product.scope.spec` N6).
+- 구현 위치 [결정: 오케스트레이터 기본값]: 위장 provider 플러그인은 `xeon/packages/group-provider-anthropic-oauth`에 둡니다. kind `group`, layer L3, `defaultEnabled: false`, scope id `provider-anthropic-oauth`입니다. 설정 `ext.provider-anthropic-oauth.acknowledgeRisk`(boolean, 기본 false)와 `ext.provider-anthropic-oauth.credential`(비밀 참조 또는 null, 기본 null)이 모두 참일 때만 setup이 provider `anthropic-oauth`(api `anthropic-messages`, 모델 3개)를 등록합니다. 하나라도 어긋나면 아무것도 등록하지 않으므로 `anthropic-oauth/…` 참조는 `provider_unavailable`이 됩니다. 등록은 setup에서만 일어나므로 설정을 바꾼 뒤에는 scope를 다시 켜야 반영됩니다. 위장은 pi-ai 내장 OAuth 분기에 맡기고 provider id가 `anthropic`이 아니므로 §3.9 가드 밖에서 동작합니다. 와이어 동등 래퍼는 만들지 않았습니다.
+- [미결] M-8 와이어 동등 래퍼를 쓸지 정하지 않았습니다. 고지 동의가 없을 때 진단 메시지를 내라는 위 사용자 확인 `[제안]`은 구현하지 않았습니다. 그룹 API에는 진단 경로가 없어 setup은 조용히 등록을 건너뜁니다.
+- [미결] `xeon/plugins/provider-anthropic-oauth` 스텁을 남길지 정하지 않았습니다. 이 위치는 §3.11이 가리키는 옛 경로입니다.
 
 #### 4.11.4 배포 제외 검사
 
@@ -772,6 +791,7 @@ export function resolveRole(input: {
 | `l1.models.retry` | `{ maxRetries: 0~10, baseDelayMs, maxDelayMs }` | `{ 3, 2000, 60000 }`(pi 기본, `_research/settings.md` §2.5) | M U | nextTurn | advanced / table | M1 |
 | `l1.models.accounts` | `AccountDef[]` | `[]` | M U | live | providers / table | M3 |
 | `l1.models.rateLimit` | `{ [provider]: RateLimitPolicy }` | `{}` | M U P | live | budgets / table | M3 |
+| `ext.account-rotation.acknowledgeRisk` | `boolean` | `false` | U | live | plugins / switch | M3 |
 | `l1.models.fallbackChains` | `{ [role]: ModelRefString[] }`(역할당 최대 3) | `{}` | M U P | nextTurn | models / table | 2차 |
 | `l1.models.structuredOutputAttempts` | `integer 1~5` | `3` | M U P | nextTurn | advanced / number | 2차 |
 

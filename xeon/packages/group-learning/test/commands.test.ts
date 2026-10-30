@@ -167,3 +167,20 @@ test("commands.review-starts-a-manual-review-once-and-cancels-it", async () => {
     result: { ok: true, requestId: "learning:review:manual:2" },
   });
 });
+
+test("commands.review-start-takes-the-command-signal: the review delegate gets the signal of the command invocation", async () => {
+  const rig = await createRig({ knowledge: fakeKnowledge() });
+  await rig.turn();
+  const invocation = new AbortController();
+  // 명령 호출의 신호(ctx.signal)를 그대로 검토 시작에 넘긴다. 처리기가 따로 만든 신호는 쓰지 않는다
+  expect(await rig.command("review", rig.thread, invocation.signal)).toEqual({
+    kind: "review",
+    result: { ok: true, requestId: "learning:review:manual:1", duplicate: false },
+  });
+  const started = rig.agents.delegated[0];
+  expect(started?.origin.signal).toBe(invocation.signal);
+  expect(started?.origin.signal.aborted).toBe(false);
+  // 호출이 취소되면 검토 시작이 받은 신호도 취소된다
+  invocation.abort();
+  expect(started?.origin.signal.aborted).toBe(true);
+});

@@ -216,3 +216,23 @@ test("candidates carry the seq of the last scope.changed enabled, from the snaps
     stored["sq-b"] ?? null,
   ]);
 });
+
+test("a child conversation gets no drive lease and its drive function never runs", async () => {
+  const t = await createTestHost();
+  const calls: string[] = [];
+  await installDriveGroups(t, ["ls-child"], calls);
+  const child = t.newThread();
+  await t.host.openThread(child, { child: true });
+  await t.settled();
+  await t.boundary(child).turnSettled();
+  await t.settled();
+  expect(calls).toEqual([]);
+  expect(t.host.leaseOf(child)).toBeNull();
+  expect(kinds(t, child, "lease.acquired")).toEqual([]);
+  // 같은 호스트의 주 대화는 임대를 받는다
+  const main = t.newThread();
+  await t.host.openThread(main);
+  await t.settled();
+  expect(calls).toEqual(["ls-child"]);
+  expect(kinds(t, main, "lease.acquired")).toMatchObject([{ scopeId: "ls-child" }]);
+});

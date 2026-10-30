@@ -73,7 +73,16 @@ type CommitOutcome =
 type AttemptOutcome =
   | CommitOutcome
   /** 롤백했다. 초안의 큰 문자열을 blob으로 옮긴 뒤 같은 요청으로 다시 커밋해야 한다 */
-  | { readonly kind: "needs_detach"; readonly plan: AppendPlan };
+  | { readonly kind: "needs_detach"; readonly plan: AppendPlan }
+  /**
+   * 확장·능력 투영기 apply 예외로 롤백했다. 그 투영기를 정지하고 알린 뒤 같은 계획(build를 다시 부르지 않는다)으로 다시 커밋한다.
+   * 코어 투영기 예외는 이 결과가 아니라 Bug로 던진다
+   */
+  | {
+      readonly kind: "projector_failed";
+      readonly plan: AppendPlan;
+      readonly failure: ProjectorFailure;
+    };
 
 export interface SessionWriter {
   commit(request: CommitRequest): Result<CommitResult, StoreError>;
@@ -97,7 +106,10 @@ export interface WriterDeps {
   readonly projectors: () => readonly Projector[];
   /** 참이면 확장·능력 투영기의 문장이 소유 테이블 밖을 건드릴 때 Bug(store.prefix_not_owned)로 거부한다(테스트·디버그 빌드) */
   readonly guardProjectors?: boolean;
-  /** 확장 투영기 apply 예외로 커밋이 롤백된 뒤 알린다(롤백이 끝난 다음 부른다) */
+  /**
+   * 확장 투영기 apply 예외로 커밋이 롤백된 뒤 커밋마다 한 번 부른다. 쓰기 보호 밖이고, 같은 커밋의 재시도 앞에 온다.
+   * 서비스는 이 자리에서 그 투영기를 정지하고(`ProjectorController.suspend`) 등록자에게 알린다(§4.5.2)
+   */
   readonly onProjectorFailure?: (failure: ProjectorFailure) => void;
   /** 커밋이 끝난 뒤 동기 방출 */
   readonly publish: (batch: {
@@ -306,7 +318,10 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
     let appended: readonly DurableEventEnvelope[] = [];
     const abort: { error: StoreError | null } = { error: null };
     const pending: { plan: AppendPlan | null } = { plan: null };
-    const projectorFailed: { failure: ProjectorFailure | null } = { failure: null };
+    const projectorFailed: { failure: ProjectorFailure | null; plan: AppendPlan | null } = {
+      failure: null,
+      plan: null,
+    };
 
     const abortWith = (error: StoreError): never => {
       abort.error = error;
@@ -387,6 +402,8 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
         drafts.push({ stamped, isCheckpoint: true });
       }
       verifyThreads(tx, drafts);
+      // 투영기 예외가 나면 이 계획으로 다시 커밋한다(runCommit)
+      projectorFailed.plan = plan;
 
       let seq = must(headSeqOf(tx)) + 1;
       const firstSeq = seq;
@@ -483,8 +500,15 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       if (caught === DETACH_MARKER && pending.plan !== null) {
         return ok({ kind: "needs_detach", plan: pending.plan });
       }
-      // 확장 투영기 예외: 트랜잭션은 롤백됐다. 알린 뒤 Bug를 그대로 올린다
-      if (projectorFailed.failure !== null) deps.onProjectorFailure?.(projectorFailed.failure);
+      // 확장·능력 투영기 예외: 트랜잭션은 롤백됐다. 정지와 알림, 재시도는 runCommit이 한다.
+      // 코어 투영기 예외(failure가 null)는 Bug를 그대로 올린다
+      if (projectorFailed.failure !== null && projectorFailed.plan !== null) {
+        return ok({
+          kind: "projector_failed",
+          plan: projectorFailed.plan,
+          failure: projectorFailed.failure,
+        });
+      }
       throw caught;
     } finally {
       guard.writing = false;
@@ -502,40 +526,58 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
     return ok(outcome);
   };
 
-  /** 커밋. 큰 문자열이 있으면 blob으로 옮기고(0단계) 같은 요청을 한 번 더 커밋한다 */
+  /**
+   * 커밋. 큰 문자열이 있으면 blob으로 옮기고(0단계) 같은 요청을 한 번 더 커밋한다. 확장 투영기가 던지면 그 투영기를 정지하고
+   * 알린 뒤 같은 계획으로 다시 커밋한다(§4.5.2). `build`는 처음 한 번만 불리고, 재시도는 그 계획을 그대로 쓴다.
+   */
   const runCommit = (
     request: CommitRequest,
     hooks: CommitHooks,
   ): Result<CommitOutcome, StoreError> => {
-    const first = attemptCommit(request, hooks, false);
-    if (!first.ok) return first;
-    const outcome = first.value;
-    if (outcome.kind !== "needs_detach") return ok(outcome);
-    const putBlob = deps.putBlob;
-    if (putBlob === undefined) throw new Bug("store.blob_unavailable: detach needs putBlob");
-    const drafts: StampedDraft[] = [];
-    for (const stamped of outcome.plan.drafts) {
-      if (!needsDetach(stamped.draft)) {
-        drafts.push(stamped);
+    // 실패할 때마다 투영기 하나가 정지되므로 재시도는 시작할 때 활성인 확장·능력 투영기 수를 넘지 못한다(코어는 제외)
+    let retriesLeft = deps.projectors().length - 1;
+    let current: CommitRequest = request;
+    let detached = false;
+    for (;;) {
+      const tried = attemptCommit(current, hooks, detached);
+      if (!tried.ok) return tried;
+      const outcome = tried.value;
+      if (outcome.kind === "done" || outcome.kind === "preempted") return ok(outcome);
+      if (outcome.kind === "needs_detach") {
+        if (detached)
+          throw new Bug("store.event_too_large: draft is still too large after detaching");
+        const putBlob = deps.putBlob;
+        if (putBlob === undefined) throw new Bug("store.blob_unavailable: detach needs putBlob");
+        const drafts: StampedDraft[] = [];
+        for (const stamped of outcome.plan.drafts) {
+          if (!needsDetach(stamped.draft)) {
+            drafts.push(stamped);
+            continue;
+          }
+          const moved = detachLarge(stamped.draft, putBlob);
+          if (!moved.ok) return err(mapBlobError(moved.error));
+          const restamped = producers.restamp(stamped, moved.value);
+          prevalidated.add(restamped.draft);
+          drafts.push(restamped);
+        }
+        // 분리한 초안으로 같은 요청(같은 키, 같은 지문)을 다시 낸다. build는 첫 시도에서 한 번 불렸고 결과를 그대로 쓴다
+        const detachedPlan: AppendPlan = { ...outcome.plan, drafts };
+        current = { ...request, build: () => detachedPlan };
+        detached = true;
         continue;
       }
-      const moved = detachLarge(stamped.draft, putBlob);
-      if (!moved.ok) return err(mapBlobError(moved.error));
-      const restamped = producers.restamp(stamped, moved.value);
-      prevalidated.add(restamped.draft);
-      drafts.push(restamped);
+      // 확장·능력 투영기 예외: 롤백은 끝났다. 알림(서비스가 여기서 투영기를 정지한다)을 한 번 하고 같은 계획으로 다시 낸다.
+      // 한도를 넘는 실패는 정지할 투영기가 더 없다는 뜻이라 Bug다(정상 경로에서는 일어나지 않는다)
+      deps.onProjectorFailure?.(outcome.failure);
+      if (retriesLeft <= 0) {
+        throw new Bug(
+          `store.projection_retry_exhausted: ${outcome.failure.projector} failed again after the last retry`,
+        );
+      }
+      retriesLeft -= 1;
+      const retryPlan = outcome.plan;
+      current = { ...request, build: () => retryPlan };
     }
-    // 분리한 초안으로 같은 요청(같은 키, 같은 지문)을 다시 낸다. build는 첫 시도에서 한 번 불렸고 결과를 그대로 쓴다
-    const second = attemptCommit(
-      { ...request, build: () => ({ ...outcome.plan, drafts }) },
-      hooks,
-      true,
-    );
-    if (!second.ok) return second;
-    if (second.value.kind === "needs_detach") {
-      throw new Bug("store.event_too_large: draft is still too large after detaching");
-    }
-    return ok(second.value);
   };
 
   return {

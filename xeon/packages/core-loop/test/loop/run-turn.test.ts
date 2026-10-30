@@ -115,7 +115,12 @@ test("resume_entries_use_main_path_step_functions", async () => {
     // T4 뒤 끊김: 다음 요청부터 이어간다
     { entry: "request", crash: (key) => /^step:.*:0:end$/.test(key), mode: "after" },
     // 도구 결과 커밋 전 끊김: 의도 없는 호출을 이어서 실행한다
-    { entry: "tools", crash: (key) => key === "tool:c1:result", mode: "before" },
+    // 크래시 술어는 응답 전에 걸리므로 호출 id는 접두어(`c1_<염>`)로 맞춘다
+    {
+      entry: "tools",
+      crash: (key) => key.startsWith("tool:c1_") && key.endsWith(":result"),
+      mode: "before",
+    },
     // 마지막 단계 T4 뒤 T6 전 끊김: 요청 없이 turn_end부터 닫는다
     { entry: "turn_end", crash: (key) => /^turn:.*:end$/.test(key), mode: "before" },
   ];

@@ -24,6 +24,10 @@ import {
   SecretNameSchema,
   SecretUsePolicySchema,
   SecretScopeSchema,
+  ScheduleCancelInputSchema,
+  ScheduleCreateInputSchema,
+  ScheduleFireInputSchema,
+  ScheduleListInputSchema,
   SemVerSchema,
   type SemVer,
 } from "../../capabilities/index.ts";
@@ -75,6 +79,13 @@ import {
   StatusListParamsSchema,
   StatusListResultSchema,
 } from "./status-notify.ts";
+import { WebProvidersParamsSchema, WebProvidersResultSchema } from "./web-providers.ts";
+import {
+  ScheduleCancelResultSchema,
+  ScheduleCreateResultSchema,
+  ScheduleFireResultSchema,
+  ScheduleListResultSchema,
+} from "./schedule.ts";
 import {
   SettingsReadFileParamsSchema,
   SettingsReadFileResultSchema,
@@ -1430,6 +1441,10 @@ interface WireSchemas {
     params: WithMeta<typeof NotifyListParamsSchema>;
     result: typeof NotifyListResultSchema;
   };
+  "web.providers": {
+    params: WithMeta<typeof WebProvidersParamsSchema>;
+    result: typeof WebProvidersResultSchema;
+  };
   "secret.list": {
     params: WithMeta<typeof SecretListParamsSchema>;
     result: typeof SecretListResultSchema;
@@ -1473,6 +1488,22 @@ interface WireSchemas {
   "proposal.decide": {
     params: typeof ProposalDecideRequestSchema;
     result: typeof ProposalDecideResultSchema;
+  };
+  "schedule.create": {
+    params: WithMeta<typeof ScheduleCreateInputSchema>;
+    result: typeof ScheduleCreateResultSchema;
+  };
+  "schedule.list": {
+    params: WithMeta<typeof ScheduleListInputSchema>;
+    result: typeof ScheduleListResultSchema;
+  };
+  "schedule.cancel": {
+    params: WithMeta<typeof ScheduleCancelInputSchema>;
+    result: typeof ScheduleCancelResultSchema;
+  };
+  "schedule.fire": {
+    params: WithMeta<typeof ScheduleFireInputSchema>;
+    result: typeof ScheduleFireResultSchema;
   };
 }
 
@@ -1587,6 +1618,7 @@ export const WIRE_METHODS: {
   "status.list": spec(withMeta(StatusListParamsSchema), StatusListResultSchema, "M3"),
   "attachments.add": spec(withMeta(AttachmentsAddParamsSchema), AttachmentsAddResultSchema, "M3"),
   "notify.list": spec(withMeta(NotifyListParamsSchema), NotifyListResultSchema, "M3"),
+  "web.providers": spec(withMeta(WebProvidersParamsSchema), WebProvidersResultSchema, "M3"),
   "host.shutdown": spec(withMeta(HostShutdownParamsSchema), HostShutdownResultSchema, "M2"),
   "secret.list": spec(withMeta(SecretListParamsSchema), SecretListResultSchema, "M2"),
   "secret.meta": spec(withMeta(SecretMetaParamsSchema), SecretMetaResultSchema, "M2"),
@@ -1603,6 +1635,10 @@ export const WIRE_METHODS: {
   "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
   "proposal.list": spec(withMeta(ProposalListParamsSchema), ProposalListResultSchema, "M3"),
   "proposal.decide": spec(ProposalDecideRequestSchema, ProposalDecideResultSchema, "M3"),
+  "schedule.create": spec(withMeta(ScheduleCreateInputSchema), ScheduleCreateResultSchema, "M3"),
+  "schedule.list": spec(withMeta(ScheduleListInputSchema), ScheduleListResultSchema, "M3"),
+  "schedule.cancel": spec(withMeta(ScheduleCancelInputSchema), ScheduleCancelResultSchema, "M3"),
+  "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
 };
 
 export const WIRE_NOTIFICATIONS: {

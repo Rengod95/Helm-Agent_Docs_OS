@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { countKind, deltaTextOf, firstOfKind, kindsOf, payloadField } from "./support/inspect.ts";
-import { createHarness } from "./support/harness.ts";
+import { createHarness, recordedCallId } from "./support/harness.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
 
 const text = (value: string): ScriptedResponse => ({
@@ -259,7 +259,7 @@ test("a_blocked_call_gets_a_toolResult_item_without_effect_events", async () => 
   const events = h.fake.events(h.threadId);
   expect(countKind(events, "effect.intent")).toBe(0);
   const keys = h.fake.commitKeys(h.threadId);
-  const resultIndex = keys.indexOf("tool:c1:result");
+  const resultIndex = keys.indexOf(`tool:${recordedCallId(h, "c1")}:result`);
   expect(resultIndex).toBeGreaterThan(-1);
   expect(events[resultIndex]?.kind).toBe("item.recorded");
   expect(events[resultIndex]?.payload).toMatchObject({

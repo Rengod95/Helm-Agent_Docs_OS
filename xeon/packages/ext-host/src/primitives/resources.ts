@@ -1,6 +1,6 @@
 import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import { TOOL_NAME_WIRE_PATTERN } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { TOOL_NAME_WIRE_PATTERN, type WebProviderRegistration } from "@xeon/contracts/capabilities";
+import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
 import {
   McpPortKey,
   ModelsPortKey,
@@ -36,7 +36,8 @@ export type ResourceKind =
   | "flag"
   | "provider"
   | "mcp_server"
-  | "message_renderer";
+  | "message_renderer"
+  | "web_provider";
 
 export interface ResourceRecord {
   readonly kind: ResourceKind;
@@ -79,6 +80,14 @@ export interface ResourcePolicy {
   exposeAll?(records: readonly ResourceRecord[]): readonly ResourceExposure[];
 }
 
+/**
+ * 명령 처리기의 출력. 문자열은 메시지만 준 것이다. `message`가 `null`이면 메시지를 내지 않는다.
+ * `result`는 호출한 쪽이 기계적으로 읽는 값이다. 처리기가 아무것도 돌려주지 않으면 `void`다.
+ */
+export type CommandOutput =
+  | string
+  | { readonly message: string | null; readonly result?: JsonValue };
+
 export interface CommandResourceDef {
   readonly description?: string;
   handler(
@@ -87,8 +96,10 @@ export interface CommandResourceDef {
       readonly threadId: ThreadId | null;
       /** 명령 호출 하나의 id. threadId가 있으면 X가 멱등 키의 디스패치 키로 쓴다(M3-REQ-102). 같은 호출을 다시 실행하면 같은 값을 넘긴다 */
       readonly invocationId: string;
+      /** 호출한 쪽이 이 호출을 취소하면 abort된다. 처리기는 긴 작업을 이 신호에 맞춰 멈춘다 */
+      readonly signal: AbortSignal;
     },
-  ): Promise<void>;
+  ): Promise<void | CommandOutput>;
 }
 export interface ShortcutResourceDef {
   readonly description?: string;
@@ -113,7 +124,7 @@ export type FlagValueError =
       readonly expected: "boolean" | "string";
     };
 
-/** L4가 읽는다. command, shortcut, flag, message_renderer는 X가 보관하고 나머지는 포트로 넘긴 기록만 보관한다 */
+/** L4가 읽는다. command, shortcut, flag, message_renderer, web_provider는 X가 보관하고 나머지는 포트로 넘긴 기록만 보관한다 */
 export interface ResourceRegistry {
   list(kind?: ResourceKind): readonly ResourceRecord[];
   subscribe(
@@ -131,6 +142,12 @@ export interface ResourceRegistry {
 
 /** 이름 정책이 정식 이름을 만들 수 있는 종류. 나머지는 같은 이름이면 거부한다(X.operations.spec §4.5 규칙 9) */
 const GOVERNED: ReadonlySet<ResourceKind> = new Set(["tool", "command", "shortcut", "flag"]);
+
+/**
+ * 이름이 능력 ID(`web.search` 등)라서 여러 확장이 같은 이름을 낸다. 이 종류는 같은 scope 안의 중복만 거부하고,
+ * 다른 확장의 같은 이름은 모두 남긴다. 고르는 일은 소비자(cap-web)가 한다 [결정: 오케스트레이터 기본값]
+ */
+const MULTI_OWNER_KINDS: ReadonlySet<ResourceKind> = new Set(["web_provider"]);
 
 const TOOL_NAME_REGEX = new RegExp(TOOL_NAME_WIRE_PATTERN);
 const MAX_NAME_LENGTH = 64;
@@ -267,6 +284,7 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
       case "shortcut":
       case "flag":
       case "message_renderer":
+      case "web_provider":
         return ok(NOOP);
       default:
         return assertNever(record.kind, "ResourceKind");
@@ -397,7 +415,9 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
         }
         if (mine !== undefined) record = { ...record, exposed: mine.exposed };
       } else {
-        const clash = sameKind.find((other) => other.exposed === record.exposed);
+        const clash = MULTI_OWNER_KINDS.has(spec.kind)
+          ? undefined
+          : sameKind.find((other) => other.exposed === record.exposed);
         if (clash !== undefined) {
           const decision =
             policy === undefined ? ({ action: "reject" } as const) : policy.resolve(record, clash);
@@ -490,4 +510,23 @@ function flagDefOf(def: unknown): FlagResourceDef | undefined {
 function flagDefault(def: Readonly<Record<string, unknown>>): { default?: boolean | string } {
   const value = def["default"];
   return typeof value === "boolean" || typeof value === "string" ? { default: value } : {};
+}
+
+/** 능력 ID가 셋 중 하나이고 `create`가 함수인지 본다. `create`가 돌려주는 공급자의 모양은 실행 때 검사하지 않는다 */
+function isWebProviderRegistration(def: unknown): def is WebProviderRegistration {
+  return (
+    isObject(def) &&
+    (def["capability"] === "web.search" ||
+      def["capability"] === "web.fetch" ||
+      def["capability"] === "web.browse") &&
+    typeof def["create"] === "function"
+  );
+}
+
+/** `web_provider` 기록을 등록 값으로 돌려준다. 다른 종류이거나 모양이 어긋나면 undefined다 */
+export function webProviderRegistrationOf(
+  record: ResourceRecord,
+): WebProviderRegistration | undefined {
+  if (record.kind !== "web_provider") return undefined;
+  return isWebProviderRegistration(record.def) ? record.def : undefined;
 }

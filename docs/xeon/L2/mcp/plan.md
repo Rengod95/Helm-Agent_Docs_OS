@@ -30,7 +30,6 @@ M2 완료 기준에 `product.scope.spec` §4.4 M2 종료 조건 "테스트 MCP �
 | MCP Tasks | 2차(`_research/layer-plan-v2.json` L2-b) | 자체 Tasks 어댑터(명시 스키마 요청 `tasks/get`, `tasks/update`, `tasks/cancel`), 백그라운드 완료 신호 연결 | Tasks 명세 본문 필드, `notifications/tasks` 존재 여부(`L2.mcp.spec` §10 미결 7), `tasks/update`가 명시 스키마 경로로 나가는지([가정], `L2.mcp.spec` §1.3) |
 | 변경 구독 | 2차 | `Client.listen`, 2025 `listChanged`, 재연결 뒤 재-listen, 단계 경계 반영 | 없음(SDK API 확인됨) |
 | MCP OAuth | 2차 | `XeonOAuthProvider`, 토큰 `xeon.secrets` 저장, `iss` 검증, 콜백 수신 | L4 콜백 방식, CIMD 세부 |
-| sampling 응답 | 2차 이후 | `l2.mcp.sampling = "ask"`의 실제 응답 | `L2.mcp.spec` §10 미결 6 |
 
 ## 2. 패키지와 파일 배치
 
@@ -189,6 +188,8 @@ zod4와 TypeBox 공존: 경계 변환 지점 [제안]:
 | | `stderr masked in lastError` | stderr에 비밀 값 → `lastError.message`에 마스킹 표지 |
 | `test/state.test.ts` | `persists server status` | 상태 변경이 `cap_mcp_servers`에 반영, 재시작 뒤 `lastError` 조회 |
 | `test/boundary.test.ts` | `sdk types stay inside adapter` | `src/` 파일 중 허용 목록 밖에서 `@modelcontextprotocol/*`·`zod` import 0건(spec §9-10, 소스 텍스트 검사) |
+| `test/transport-stdio.test.ts` | `a sandbox the port cannot provide is an open failure, and the sandbox flag follows the source` | 포트의 `sandbox_unavailable`은 열기 실패 `sandbox_unavailable`(고정 문구). 기동 요청의 `sandbox`는 `mcpjson:project`에서 참, `settings:user`에서 거짓(spec §4.3) |
+| `test/start-gate.test.ts` | `sandbox_unavailable keeps the server blocked until a new attempt` | 프로젝트 `.mcp.json` 서버의 기동이 `sandbox_unavailable`로 실패 → `blocked(sandbox_unavailable)`, `lastError.code` 같음. 한 시간 뒤에도 기동 1회, 타이머 없음. 도구 0개, 호출은 `server_blocked`(`reason`). `reconnect` 뒤 `connected`이고 사유가 없다(spec §4.3, §5 16번) |
 
 ## 6. 완료 기준
 
@@ -255,7 +256,7 @@ M2 완료:
 | 항목 | 이유 | 확인 방법 |
 |---|---|---|
 | 실제 stdio 서버 프로세스 | 포트 구현은 닫음(m2c T3, `createMcpProcessPort`, `L0.process.spec` §4.9). 이 패키지는 가짜 `McpProcessPort`와 `serveStubOverStdio`(스텁을 실제 표준 입출력으로 서빙, `src/testing/stdio-serve.ts`)로 시험한다. 실제 자식 프로세스로 연결·도구 호출·엔진 종료 뒤 프로세스 부재를 보는 시험은 `apps/host` int 시험(m2c T2)이 한다. 공식 서버(filesystem 등)는 시험하지 않았다 | host int 시험, 그리고 사람이 공식 서버로 확인한다 |
-| 비밀 env가 있는 stdio 서버 | 서버 시작에는 env 모드가 요구하는 승인 증거가 없어 `secret_denied`로 끝난다(spec §10 미결 14, `L0.process.spec` P-12, ADR-0011). 구현은 M3다 | 서버 정의 승인 흐름을 정한 뒤(`review.m3-plan`) |
+| 비밀 env가 있는 stdio 서버 | 정의 해시마다 한 번 기동 승인을 받는다(spec §4.3, `L1.tools.spec` §4.12.1). 승인 전에는 `blocked`(`approval_required`)로 두고 spawn하지 않는다 | `start-gate.test.ts` |
 | SSE 서버 연결 | SSE 이벤트 스트림을 내는 스텁이 없다. 전송 생성만 시험했다 | 2025 이전 SSE 서버로 사람이 확인한다 |
 | 실제 `SecretService`와 헤더·env 주입 | 부분 가짜 `lease`로만 시험했다. `env`는 참조 그대로 프로세스 포트에 넘기는 것까지 확인했다 | SEC 레인 병합 뒤 통합 시험 |
 | 도구 호출 경로의 `input_required` 흐름 | 닫음. 실제 `ToolService`(`tool-service.test.ts`)와 호스트 엔진(`apps/host/test/int/approval-shapes.int.test.ts`)에서 서버 질문이 kind `question` 승인으로 올라가고 답이 `continuation`으로 서버에 돌아간다 | 해당 없음 |
@@ -272,7 +273,7 @@ M2 완료:
 - 도구 기계 이름은 결정 전까지 서버가 광고한 이름 그대로다(`mcpToolName`). 두 서버가 같은 이름을 내면 서버 id 바이트 순으로 뒤쪽을 `name_conflict`로 숨기고, `reservedToolNames`에 든 내장 이름과 겹쳐도 같다.
 - `McpQuestion`에 경고 필드가 없어 비밀처럼 보이는 폼 필드의 경고는 질문 `message` 앞의 문장으로 붙인다.
 - `QuestionBody`는 질문을 최대 4개 받는다. 폼 필드가 4개 이하면 필드마다 질문 하나로, 넘으면 폼마다 JSON 한 칸으로 옮긴다. 입력 요청이 네 개를 넘으면 `too_many_questions`다.
-- `sampling = "ask"`로 질문을 보여도 응답은 보내지 않는다(spec §10 미결 6). 키를 빼 두어 서버가 같은 요청을 다시 낼 수 있다.
+- sampling은 지원하지 않는다(spec §4.7, M3-REQ-97). 서버가 보내면 `input_unsupported`다.
 - 서버가 라운드 `maxRounds`의 응답에서 또 입력을 요구하면 사람에게 묻지 않고 바로 `input_rounds_exceeded`다.
 - 재연결 간격은 첫 실패 뒤 1초, 이어서 2초, 4초이다(`attempt`가 실패 횟수). 연결 실패로 재시도를 기다리는 동안의 상태도 `reconnecting`이다.
 - `listServers`의 `toolCount`는 모델에게 노출되는 도구 수다.

@@ -18,3 +18,5 @@ export * from "./defs/mcp-questions.ts";
 export * from "./defs/knowledge.ts";
 export * from "./defs/work.ts";
 export * from "./defs/dialog.ts";
+export * from "./defs/artifacts.ts";
+export * from "./defs/schedule.ts";

@@ -68,7 +68,13 @@
       "path": "../../packages/cap-knowledge"
     },
     {
+      "path": "../../packages/cap-artifacts"
+    },
+    {
       "path": "../../packages/cap-mcp"
+    },
+    {
+      "path": "../../packages/cap-schedule"
     },
     {
       "path": "../../packages/cap-work"
@@ -81,6 +87,9 @@
     },
     {
       "path": "../../packages/group-learning"
+    },
+    {
+      "path": "../../packages/group-account-rotation"
     }
   ]
 }

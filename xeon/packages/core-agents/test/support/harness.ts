@@ -12,6 +12,7 @@ import {
   createAgentService,
   createStaticAgentsSettings,
   type AgentServiceImpl,
+  type AgentsSettingsSource,
   type StaticAgentsSettings,
 } from "../../src/index.ts";
 import { fakeChildLoop, type FakeChildLoop, type FakeChildTurn } from "../../src/testing/index.ts";
@@ -70,6 +71,8 @@ export interface HarnessOptions extends StaticAgentsSettings {
   readonly definitions?: readonly AgentDefinition[];
   /** 판정이 부르는 xeon.models 대역 */
   readonly models?: FakeModels;
+  /** 설정 읽기 대역. 주면 정적 설정 대신 쓴다(thread별 값 시험) */
+  readonly agentsSettings?: AgentsSettingsSource;
 }
 
 export function openHarness(options: HarnessOptions = {}): Harness {
@@ -94,7 +97,7 @@ export function openHarness(options: HarnessOptions = {}): Harness {
     tools,
     producer: session.producer("core.agents"),
     ids,
-    settings: createStaticAgentsSettings(options),
+    settings: options.agentsSettings ?? createStaticAgentsSettings(options),
     ownership: {
       parentToken: (threadId) => session.tokenOf(threadId),
       holder: HOLDER,

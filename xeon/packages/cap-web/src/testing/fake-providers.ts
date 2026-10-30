@@ -8,7 +8,12 @@ import type {
   WebProviderManifest,
   WebSearchProvider,
 } from "@xeon/contracts/capabilities";
-import type { FetchCandidate, SearchCandidate, WebProviderCatalog } from "../ports/providers.ts";
+import type {
+  BrowseCandidate,
+  FetchCandidate,
+  SearchCandidate,
+  WebProviderCatalog,
+} from "../ports/providers.ts";
 
 // 매니페스트를 받는 가짜 검색·fetch provider와 후보 목록(L2.web.plan §2 testing/fake-providers.ts).
 
@@ -187,6 +192,11 @@ export function fetchCandidate(
 export function fakeCatalog(
   search: readonly SearchCandidate[] = [],
   fetch: readonly FetchCandidate[] = [],
+  browse: readonly BrowseCandidate[] = [],
 ): WebProviderCatalog {
-  return { searchCandidates: () => search, fetchCandidates: () => fetch };
+  return {
+    searchCandidates: () => search,
+    fetchCandidates: () => fetch,
+    browseCandidates: () => browse,
+  };
 }

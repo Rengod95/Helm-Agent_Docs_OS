@@ -1,0 +1,30 @@
+{
+  "name": "@xeon/group-account-rotation",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./build": "./scripts/build-plugin.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test scripts",
+    "typecheck": "tsc -b",
+    "test": "bash ../../scripts/test-pkg.sh",
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test scripts",
+    "build:plugin": "bun scripts/build-plugin.ts"
+  },
+  "dependencies": {
+    "@xeon/contracts": "workspace:*",
+    "@xeon/group-kit": "workspace:*",
+    "typebox": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@xeon/ext-host": "workspace:*"
+  },
+  "xeon": {
+    "layer": "L3",
+    "domain": "account-rotation"
+  }
+}

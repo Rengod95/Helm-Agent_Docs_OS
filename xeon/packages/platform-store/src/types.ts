@@ -2,7 +2,7 @@ import type { Clock, Result, Scheduler } from "@xeon/contracts";
 import type { IdFactory } from "@xeon/contracts/conversation";
 import type { FaultInjector, MigrationError, StoreDb, StoreService } from "@xeon/contracts/records";
 import type { FsKind } from "@xeon/contracts/services";
-import type { BlobPins } from "./blob.ts";
+import type { BlobPins, BlobStore } from "./blob.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
 import type { snapshotBeforeMigration } from "./snapshot.ts";
 import type { SqliteProbe } from "./sqlite-env.ts";
@@ -30,6 +30,8 @@ export interface StoreSettings {
   readonly leaseTtlMs: number;
   readonly busyTimeoutMs: number;
   readonly blobGraceMs: number;
+  /** 블롭 GC(`OpenedStore.gcBlobs`)를 조립 루트가 돌릴지. 기본 false [결정: 오케스트레이터 기본값, M3-REQ-84] */
+  readonly blobGcEnabled: boolean;
   readonly requireFts5: boolean;
   readonly macFullFsync: boolean;
   readonly customSqlitePath: string | null;
@@ -56,6 +58,12 @@ export interface OpenStoreOptions {
   readonly loadCustomSqlite?: (path: string) => unknown;
   /** 범위 핸들의 EXPLAIN 대조를 강제로 켜거나 끈다. 생략하면 XEON_STORE_STRICT와 NODE_ENV로 정한다 */
   readonly strictPrefix?: boolean;
+  /**
+   * 읽기 전용으로 연다(L0.store.spec §4.4). 파일을 만들지 않고, 마이그레이션·잠금·WAL 설정을 하지 않는다.
+   * 다른 Xeon 버전이 만든 DB(sys 버전이 코드보다 높음)도 연다. 그 사실은 `read_only` 경고로 남긴다.
+   * 쓰기는 모두 `SQLITE_READONLY`로 거절한다. 생략하면 쓰기 열기다
+   */
+  readonly readOnly?: boolean;
   readonly engineVersion: string;
 }
 
@@ -80,6 +88,17 @@ export type StoreWarning =
   | { readonly kind: "fs_unknown"; readonly dir: string }
   | { readonly kind: "fts5_missing" }
   | { readonly kind: "lock_provider_none" }
+  /**
+   * 읽기 전용으로 열었다. `future_version`은 owner의 DB 버전이 이 코드보다 높다는 뜻이다(L0.store.spec §5).
+   * 열기 시점에 코드 버전을 아는 owner는 sys뿐이라 이 경고도 sys에 대해서만 낸다
+   */
+  | {
+      readonly kind: "read_only";
+      readonly reason: "future_version";
+      readonly owner: string;
+      readonly dbVersion: number;
+      readonly codeVersion: number;
+    }
   /** 그룹·기타 권한 비트가 있던 디렉터리나 파일을 0700/0600으로 고쳤다 */
   | {
       readonly kind: "permission_fixed";
@@ -111,6 +130,8 @@ export interface OpenedStore extends AsyncDisposable {
   readonly root: StoreDb;
   /** core-persistence 전용 */
   readonly blobPins: BlobPins;
+  /** 참조 없는 블롭 GC 한 번(L0.store.spec §4.9). 조립 루트가 `scheduler` 임대를 쥔 프로세스에서만 부른다 */
+  readonly gcBlobs: BlobStore["gc"];
   /** 열기 때 모인 경고에 close()에서 생긴 경고가 더해진다 */
   readonly warnings: readonly StoreWarning[];
   /** options.faults 그대로. 없으면 아무것도 하지 않는 주입기 */

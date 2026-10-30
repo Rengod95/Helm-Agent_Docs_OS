@@ -88,6 +88,6 @@ export const PUBLIC_IP = "93.184.216.34";
 export function reasonOfFailure(failure: WebFailure): string | undefined {
   const detail = failure.detail;
   if (typeof detail !== "object" || detail === null) return undefined;
-  const reason: unknown = Reflect.get(detail, "reason");
+  const reason: unknown = "reason" in detail ? detail.reason : undefined;
   return typeof reason === "string" ? reason : undefined;
 }

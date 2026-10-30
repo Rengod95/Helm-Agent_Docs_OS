@@ -17,7 +17,8 @@ const SPEC_KEYS = [
   "allowedServers",
   "deniedServers",
   "managedOnly",
-  "sampling",
+  "sandbox.userSource",
+  "sandbox.projectSource",
   "inputRequired.maxRounds",
   "result.maxBytes",
   "reconnect.maxDelayMs",
@@ -28,7 +29,7 @@ const SPEC_KEYS = [
 const stdio = (command: string) => ({ transport: { type: "stdio", command } });
 
 describe("mcp settings", () => {
-  test("fourteen keys pass checkSettingDef", () => {
+  test("fifteen keys pass checkSettingDef", () => {
     expect(MCP_SETTING_DEFS.map((def) => def.key).toSorted()).toEqual(SPEC_KEYS.toSorted());
     for (const def of MCP_SETTING_DEFS) {
       expect(checkSettingDef(def)).toEqual([]);
@@ -64,7 +65,8 @@ describe("mcp settings", () => {
       callTimeoutMs: 120000,
       approvalMode: "prompt",
       managedOnly: false,
-      sampling: "deny",
+      sandboxUserSource: false,
+      sandboxProjectSource: true,
       maxInputRounds: 10,
       resultMaxBytes: 51200,
       reconnect: { maxDelayMs: 60000, maxAttempts: 5 },
@@ -78,12 +80,12 @@ describe("mcp settings", () => {
       layer("session", { "l2.mcp.callTimeoutMs": 7000 }),
       layer("local", { "l2.mcp.result.maxBytes": 5 }),
       // project가 허용하지 않는 키는 무시한다
-      layer("project", { "l2.mcp.sampling": "ask", "l2.mcp.managedOnly": true }),
+      layer("project", { "l2.mcp.sandbox.userSource": true, "l2.mcp.managedOnly": true }),
     ]);
     expect(settings.callTimeoutMs).toBe(7000);
     expect(settings.approvalMode).toBe("auto");
     expect(settings.resultMaxBytes).toBe(51200);
-    expect(settings.sampling).toBe("deny");
+    expect(settings.sandboxUserSource).toBe(false);
     expect(settings.managedOnly).toBe(false);
   });
 

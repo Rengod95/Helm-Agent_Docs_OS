@@ -15,6 +15,12 @@ export type WorkspaceEnv = Pick<ExecService, "truncateHeadOf"> &
     | "fileInfo"
     | "listDir"
     | "openBinaryReader"
+    | "readTextFile"
+    | "writeFile"
+    | "flushFile"
+    | "renameFile"
+    | "remove"
+    | "joinPath"
     | "exec"
     | "cleanup"
   >;
@@ -37,6 +43,12 @@ export function envAtCwd(
     fileInfo: (...args) => derived.fileInfo(...args),
     listDir: (...args) => derived.listDir(...args),
     openBinaryReader: (...args) => derived.openBinaryReader(...args),
+    readTextFile: (...args) => derived.readTextFile(...args),
+    writeFile: (...args) => derived.writeFile(...args),
+    flushFile: (...args) => derived.flushFile(...args),
+    renameFile: (...args) => derived.renameFile(...args),
+    remove: (...args) => derived.remove(...args),
+    joinPath: (...args) => derived.joinPath(...args),
     exec: (...args) => derived.exec(...args),
     cleanup: (...args) => derived.cleanup(...args),
     truncateHeadOf: (...args) => exec.truncateHeadOf(...args),

@@ -5,6 +5,7 @@ import {
   CallToolOutput,
   GetPromptOutput,
   MCP_SERVER_ID_PATTERN,
+  McpBlockedReasonSchema,
   McpClient,
   McpClientKey,
   McpQuestionSchema,
@@ -20,6 +21,7 @@ import {
   validateCapabilitySet,
   wrapUntrustedMcp,
   type CapabilityApi,
+  type McpServerDef,
   type ToolContent,
 } from "../../src/capabilities/index.ts";
 import { McpServiceName, type McpService } from "../../src/services/index.ts";
@@ -123,9 +125,47 @@ describe("mcp schemas", () => {
     expect(parse(McpServerDefSchema, http).ok).toBe(true);
   });
 
-  test("plain-text secrets and non-http urls are rejected", () => {
-    const plain = { transport: { type: "stdio", command: "x", env: { TOKEN: "hunter2" } } };
-    expect(parse(McpServerDefSchema, plain).ok).toBe(false);
+  test("plaintext env and header values parse and come back unchanged", () => {
+    const stdio = {
+      transport: { type: "stdio", command: "x", env: { LOG_LEVEL: "debug", TOKEN: "hunter2" } },
+    } satisfies McpServerDef;
+    expect(parse(McpServerDefSchema, stdio)).toEqual({ ok: true, value: stdio });
+    const http = {
+      transport: {
+        type: "http",
+        url: "https://mcp.example.com/mcp",
+        headers: { "X-Region": "eu-west-1" },
+      },
+    } satisfies McpServerDef;
+    expect(parse(McpServerDefSchema, http)).toEqual({ ok: true, value: http });
+    const sse = {
+      transport: { type: "sse", url: "https://mcp.example.com/sse", headers: { "X-A": "b" } },
+    } satisfies McpServerDef;
+    expect(parse(McpServerDefSchema, sse)).toEqual({ ok: true, value: sse });
+  });
+
+  test("a value is a string of at most 8192 characters", () => {
+    const max = {
+      transport: { type: "stdio", command: "x", env: { A: "a".repeat(8192) } },
+    } satisfies McpServerDef;
+    expect(parse(McpServerDefSchema, max)).toEqual({ ok: true, value: max });
+    const over = { transport: { type: "stdio", command: "x", env: { A: "a".repeat(8193) } } };
+    expect(parse(McpServerDefSchema, over).ok).toBe(false);
+    const notString = { transport: { type: "stdio", command: "x", env: { A: 1 } } };
+    expect(parse(McpServerDefSchema, notString).ok).toBe(false);
+  });
+
+  test("sandbox is an optional boolean on the def", () => {
+    const base = { transport: { type: "stdio", command: "srv" } } satisfies McpServerDef;
+    expect(parse(McpServerDefSchema, base)).toEqual({ ok: true, value: base });
+    for (const sandbox of [true, false]) {
+      const value = { ...base, sandbox } satisfies McpServerDef;
+      expect(parse(McpServerDefSchema, value)).toEqual({ ok: true, value });
+    }
+    expect(parse(McpServerDefSchema, { ...base, sandbox: "yes" }).ok).toBe(false);
+  });
+
+  test("non-http urls are rejected", () => {
     const ftp = { transport: { type: "http", url: "ftp://example.com" } };
     expect(parse(McpServerDefSchema, ftp).ok).toBe(false);
     const unknown = { transport: { type: "websocket", url: "https://x" } };
@@ -143,6 +183,29 @@ describe("mcp schemas", () => {
     };
     expect(parse(McpServerStatusSchema, status).ok).toBe(true);
     expect(parse(McpServerStatusSchema, { ...status, state: "sleeping" }).ok).toBe(false);
+  });
+
+  test("blockedReason takes exactly the six block reasons", () => {
+    expect(McpBlockedReasonSchema.anyOf.map((member) => member.const)).toEqual([
+      "denied_by_policy",
+      "not_in_allowlist",
+      "managed_only",
+      "untrusted_project",
+      "approval_required",
+      "sandbox_unavailable",
+    ]);
+    const blocked = {
+      server: "github",
+      source: "settings:user",
+      state: "blocked",
+      transport: "stdio",
+      toolCount: 0,
+      promptCount: 0,
+    };
+    for (const blockedReason of ["approval_required", "untrusted_project"] as const) {
+      expect(parse(McpServerStatusSchema, { ...blocked, blockedReason }).ok).toBe(true);
+    }
+    expect(parse(McpServerStatusSchema, { ...blocked, blockedReason: "sleeping" }).ok).toBe(false);
   });
 
   test("callTool accepts a first round and a continuation from round 2", () => {

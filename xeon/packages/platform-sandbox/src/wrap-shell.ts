@@ -20,7 +20,7 @@ import {
 import type { EffectivePolicy, SrtTools } from "./policy.ts";
 import { toSrtFileConfig, validationCandidate } from "./policy.ts";
 import type { SandboxProvider } from "./provider.ts";
-import type { SrtPort } from "./srt.ts";
+import type { SrtPort, SrtWrapOutput } from "./srt.ts";
 import { toViolations } from "./violations.ts";
 
 // L0.sandbox.spec §4.2 wrapShell과 §4.5 격리 불가 시 동작.
@@ -161,6 +161,63 @@ export function decideExecution(
   }
 }
 
+export interface SrtWrapRequest {
+  readonly command: string;
+  /** 정책의 상대 경로 기준 디렉터리 */
+  readonly baseDir: string;
+  readonly cwd: string | undefined;
+  readonly abortSignal: AbortSignal | undefined;
+  readonly commandId: string;
+}
+
+/**
+ * 정책을 srt 파일 설정으로 바꿔 명령 하나를 감싼다(L0.sandbox.spec §4.2 1·6·7번). wrapShell과 wrapArgv가 같은 경로를 쓴다.
+ * 래핑이 실패하면 cleanupAfterCommand를 부르지 않는다. 실행 중인 다른 샌드박스의 마운트 지점을 지우기 때문이다.
+ */
+export async function srtWrap(
+  deps: WrapShellDeps,
+  policy: SandboxPolicy,
+  request: SrtWrapRequest,
+): Promise<Result<SrtWrapOutput, ExecutionError>> {
+  // M1은 네트워크를 전부 차단한다. 허용 도메인 정책은 M2 이후다
+  if (policy.network.allowedDomains.length > 0) {
+    return err(
+      new ExecutionError("sandbox_failed", "network allow-list policy is not supported yet"),
+    );
+  }
+  const effective = deps.resolvePolicy(policy, request.baseDir);
+  const customConfig = toSrtFileConfig(effective);
+  const issues = deps.srt.validateConfig(validationCandidate(deps.tools(), customConfig));
+  if (issues.length > 0) {
+    throw new Bug(`sandbox policy conversion produced an invalid srt config: ${issues.join("; ")}`);
+  }
+  let wrapped;
+  try {
+    wrapped = await deps.srt.wrapWithSandboxArgv({
+      command: request.command,
+      binShell: "bash",
+      customConfig,
+      abortSignal: request.abortSignal,
+      cwd: request.cwd,
+      commandId: request.commandId,
+    });
+  } catch (caught) {
+    if (request.abortSignal?.aborted === true) {
+      return err(new ExecutionError("aborted", "aborted"));
+    }
+    return err(
+      new ExecutionError("sandbox_failed", `sandbox wrap failed: ${describeFailure(caught)}`),
+    );
+  }
+  if (deps.provider.kind === "bwrap") {
+    const warnings = deps.srt.getLinuxGlobPatternWarnings();
+    if (warnings.length > 0) {
+      throw new Bug(`sandbox policy produced glob patterns on Linux (${warnings.length})`);
+    }
+  }
+  return ok(wrapped);
+}
+
 function isAborted(context: CancelScope): boolean {
   return context.abortSignal?.aborted === true;
 }
@@ -187,51 +244,21 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
     options: ShellExecOptions | undefined,
     context: CancelScope,
   ): Promise<Result<ShellExecResult, ExecutionError>> => {
-    // M1은 네트워크를 전부 차단한다. 허용 도메인 정책은 M2 이후다
-    if (policy.network.allowedDomains.length > 0) {
-      return err(
-        new ExecutionError("sandbox_failed", "network allow-list policy is not supported yet"),
-      );
-    }
     const shellCommand = typeof command === "string" ? command : quoteArgv(command);
     if (shellCommand === "") return err(new ExecutionError("spawn_error", "empty command"));
     if (isAborted(context)) return err(new ExecutionError("aborted", "aborted"));
 
-    const effective = deps.resolvePolicy(policy, baseDirOf(options));
-    const customConfig = toSrtFileConfig(effective);
-    const issues = deps.srt.validateConfig(validationCandidate(deps.tools(), customConfig));
-    if (issues.length > 0) {
-      throw new Bug(
-        `sandbox policy conversion produced an invalid srt config: ${issues.join("; ")}`,
-      );
-    }
-
     const commandId = newCommandId(deps.random);
-    let wrapped;
-    try {
-      wrapped = await deps.srt.wrapWithSandboxArgv({
-        command: shellCommand,
-        binShell: "bash",
-        customConfig,
-        abortSignal: context.abortSignal,
-        cwd: options?.cwd,
-        commandId,
-      });
-    } catch (caught) {
-      // 래핑이 실패하면 cleanupAfterCommand를 부르지 않는다. 실행 중인 다른 샌드박스의 마운트 지점을 지운다
-      if (isAborted(context)) return err(new ExecutionError("aborted", "aborted"));
-      return err(
-        new ExecutionError("sandbox_failed", `sandbox wrap failed: ${describeFailure(caught)}`),
-      );
-    }
-    if (deps.provider.kind === "bwrap") {
-      const warnings = deps.srt.getLinuxGlobPatternWarnings();
-      if (warnings.length > 0) {
-        throw new Bug(`sandbox policy produced glob patterns on Linux (${warnings.length})`);
-      }
-    }
+    const wrapped = await srtWrap(deps, policy, {
+      command: shellCommand,
+      baseDir: baseDirOf(options),
+      cwd: options?.cwd,
+      abortSignal: context.abortSignal,
+      commandId,
+    });
+    if (!wrapped.ok) return err(wrapped.error);
 
-    const additions = envAdditions(deps.parentEnv(), wrapped.env);
+    const additions = envAdditions(deps.parentEnv(), wrapped.value.env);
     const execOptions: ShellExecOptions = {
       ...options,
       ...(Object.keys(additions).length > 0 ? { env: { ...options?.env, ...additions } } : {}),
@@ -240,7 +267,7 @@ export function wrapShellWith(deps: WrapShellDeps, shell: Shell, policy: Sandbox
     let result: Result<ShellExecResult, ExecutionError>;
     let lines: readonly string[] = [];
     try {
-      result = await shell.exec(wrapped.argv, execOptions, context);
+      result = await shell.exec(wrapped.value.argv, execOptions, context);
     } finally {
       lines = deps.srt.getViolationLines(commandId);
       try {

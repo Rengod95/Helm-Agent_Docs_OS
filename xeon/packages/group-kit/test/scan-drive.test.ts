@@ -1,7 +1,29 @@
 import { expect, test } from "bun:test";
-import { scanDriveSource } from "../src/testing/index.ts";
+import { scanDriveSource, type DriveScanFinding } from "../src/testing/index.ts";
 
 const IO = "Direct I/O is not allowed in drive; use the effects of ADR-0015 §3.2.";
+
+/**
+ * 원문에서 needle이 처음 나오는 위치(1부터, UTF-16 코드 단위). 기대 위치를 구현과 따로 원문에서 계산한다.
+ */
+function locate(
+  source: string,
+  needle: string,
+): { readonly line: number; readonly column: number } {
+  const offset = source.indexOf(needle);
+  expect(offset).toBeGreaterThanOrEqual(0);
+  const before = source.slice(0, offset);
+  return { line: before.split("\n").length, column: offset - before.lastIndexOf("\n") };
+}
+
+/** 기대 항목 하나. 위치는 needle이 원문에서 나오는 자리에서 계산한다 */
+function expectAt(
+  source: string,
+  needle: string,
+  finding: Omit<DriveScanFinding, "line" | "column">,
+): DriveScanFinding {
+  return { ...locate(source, needle), ...finding };
+}
 
 test("scan.clean-drive-has-no-findings", () => {
   const source = `export function setup(g) {
@@ -27,58 +49,61 @@ test("scan.finds-each-forbidden-call-with-position-and-message", () => {
   Bun.spawn(["ls"]);
 });`;
   expect(scanDriveSource(source)).toEqual([
-    {
+    expectAt(source, "Date.now", {
       code: "SD-01",
       severity: "error",
-      line: 2,
-      column: 13,
       target: "Date.now",
       message: "Inject Clock (eng.typescript.guide TY-21).",
-    },
-    {
+    }),
+    expectAt(source, "new Date()", {
       code: "SD-02",
       severity: "error",
-      line: 3,
-      column: 13,
       target: "new Date()",
       message: "Inject Clock (TY-21).",
-    },
-    {
+    }),
+    expectAt(source, "Math.random", {
       code: "SD-03",
       severity: "error",
-      line: 4,
-      column: 13,
       target: "Math.random",
       message: "Inject RandomSource (TY-21).",
-    },
-    {
+    }),
+    expectAt(source, "crypto.randomUUID", {
       code: "SD-04",
       severity: "error",
-      line: 5,
-      column: 13,
       target: "crypto.randomUUID",
       message: "Use IdFactory (TY-21).",
-    },
-    {
+    }),
+    expectAt(source, "crypto.getRandomValues", {
       code: "SD-05",
       severity: "error",
-      line: 6,
-      column: 3,
       target: "crypto.getRandomValues",
       message: "Inject RandomSource (TY-21).",
-    },
-    {
+    }),
+    expectAt(source, "performance.now", {
       code: "SD-06",
       severity: "error",
-      line: 7,
-      column: 13,
       target: "performance.now",
       message: "Inject Clock (TY-21).",
-    },
-    { code: "SD-07", severity: "error", line: 8, column: 9, target: "fetch", message: IO },
-    { code: "SD-08", severity: "error", line: 9, column: 3, target: "Bun.file", message: IO },
-    { code: "SD-08", severity: "error", line: 10, column: 3, target: "Bun.write", message: IO },
-    { code: "SD-09", severity: "error", line: 11, column: 3, target: "Bun.spawn", message: IO },
+    }),
+    expectAt(source, "fetch", { code: "SD-07", severity: "error", target: "fetch", message: IO }),
+    expectAt(source, "Bun.file", {
+      code: "SD-08",
+      severity: "error",
+      target: "Bun.file",
+      message: IO,
+    }),
+    expectAt(source, "Bun.write", {
+      code: "SD-08",
+      severity: "error",
+      target: "Bun.write",
+      message: IO,
+    }),
+    expectAt(source, "Bun.spawn", {
+      code: "SD-09",
+      severity: "error",
+      target: "Bun.spawn",
+      message: IO,
+    }),
   ]);
 });
 
@@ -94,12 +119,20 @@ async function run(loop) {
   await promises.readFile("b");
 }
 g.drive(run);`;
-  expect(scanDriveSource(source).map(({ code, line, target }) => ({ code, line, target }))).toEqual(
-    [
-      { code: "SD-08", line: 4, target: "readFileSync" },
-      { code: "SD-08", line: 5, target: "promises.readFile" },
-    ],
-  );
+  expect(scanDriveSource(source)).toEqual([
+    expectAt(source, "readFileSync(", {
+      code: "SD-08",
+      severity: "error",
+      target: "readFileSync",
+      message: IO,
+    }),
+    expectAt(source, "promises.readFile", {
+      code: "SD-08",
+      severity: "error",
+      target: "promises.readFile",
+      message: IO,
+    }),
+  ]);
 });
 
 test("scan.ignores-code-outside-drive-and-property-names", () => {
@@ -114,8 +147,58 @@ test("scan.follows-same-file-helpers-one-level", () => {
 function deeper() { return Math.random(); }
 function outer() { return deeper(); }
 g.drive(async () => { stamp(); outer(); });`;
-  expect(scanDriveSource(source).map(({ code, line }) => ({ code, line }))).toEqual([
-    { code: "SD-01", line: 1 },
+  // stamp의 Date.now는 한 단계 안이라 잡고, outer가 부르는 deeper의 Math.random은 두 단계라 잡지 않는다
+  expect(scanDriveSource(source)).toEqual([
+    expectAt(source, "Date.now", {
+      code: "SD-01",
+      severity: "error",
+      target: "Date.now",
+      message: "Inject Clock (eng.typescript.guide TY-21).",
+    }),
+  ]);
+});
+
+test("scan.reports-a-violation-on-a-later-line-of-a-multi-line-drive", () => {
+  const source = `g.drive(async (loop, state) => {
+  const started = performance.now();
+  await loop.turn({ input: { kind: "user", content: "x" } });
+  const at = new Date();
+  await g.commit({ n: state.n + 1 });
+});`;
+  expect(scanDriveSource(source)).toEqual([
+    expectAt(source, "performance.now", {
+      code: "SD-06",
+      severity: "error",
+      target: "performance.now",
+      message: "Inject Clock (TY-21).",
+    }),
+    expectAt(source, "new Date()", {
+      code: "SD-02",
+      severity: "error",
+      target: "new Date()",
+      message: "Inject Clock (TY-21).",
+    }),
+  ]);
+});
+
+test("scan.reports-findings-in-source-order-not-in-scan-order", () => {
+  // 직접 호출(fetch, Math.random)을 먼저 훑고 도우미(Date.now)는 나중에 훑는다. 보고는 원문 순서여야 한다
+  const source = `function stamp() { return Date.now(); }
+g.drive(async () => { stamp(); await fetch("x"); Math.random(); });`;
+  expect(scanDriveSource(source)).toEqual([
+    expectAt(source, "Date.now", {
+      code: "SD-01",
+      severity: "error",
+      target: "Date.now",
+      message: "Inject Clock (eng.typescript.guide TY-21).",
+    }),
+    expectAt(source, "fetch", { code: "SD-07", severity: "error", target: "fetch", message: IO }),
+    expectAt(source, "Math.random", {
+      code: "SD-03",
+      severity: "error",
+      target: "Math.random",
+      message: "Inject RandomSource (TY-21).",
+    }),
   ]);
 });
 
@@ -127,22 +210,21 @@ g.drive(async (loop) => {
   calls += 1;
 });`;
   expect(scanDriveSource(source)).toEqual([
-    {
+    expectAt(source, "calls += 1", {
       code: "SD-10",
       severity: "warning",
-      line: 5,
-      column: 3,
       target: "calls",
       message: "drive state lives only in scope state (eng.events EV-09).",
-    },
+    }),
   ]);
 });
 
 test("scan.reports-columns-in-utf16-after-multibyte-text", () => {
   const source = `g.drive(async () => { const label = "한글"; Date.now(); });`;
   expect(scanDriveSource(source).map(({ line, column }) => ({ line, column }))).toEqual([
-    { line: 1, column: 43 },
+    locate(source, "Date.now"),
   ]);
+  expect(locate(source, "Date.now")).toEqual({ line: 1, column: 43 });
 });
 
 test("scan.reports-a-syntax-error-as-one-finding", () => {

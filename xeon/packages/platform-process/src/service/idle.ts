@@ -26,6 +26,11 @@ export interface IdleMonitorOptions {
   readonly scheduler: Scheduler;
   readonly startupGraceMs: number;
   readonly idleGraceMs: number;
+  /**
+   * 타이머가 울릴 때 현재 입력을 다시 읽는다. 마지막 `update` 뒤에 입력이 바뀌었는데 알림이 늦으면(연결이 막 붙은 틈) 한가하지 않은 서비스를
+   * 끝내지 않으려는 안전망이다. 한가하지 않으면 종료하지 않고 타이머를 비운다. 다음 `update`가 다시 건다
+   */
+  readonly sample?: () => IdleInputs;
 }
 
 /** 입력이 모두 0이면 한가하다 */
@@ -56,6 +61,10 @@ export function createIdleMonitor(options: IdleMonitorOptions): IdleMonitor {
     state.at = at;
     state.timer = scheduler.setTimeout(() => {
       state.timer = undefined;
+      if (options.sample !== undefined && !isIdle(options.sample())) {
+        state.at = null;
+        return;
+      }
       state.fired = true;
       for (const handler of Array.from(handlers)) handler();
     }, at - now);

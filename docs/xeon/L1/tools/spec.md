@@ -773,7 +773,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | 4. `toContent` 또는 기본 렌더링 | 결과를 `AgentToolResult`로 만든다. `structuredContent`는 `outputSchema`로 검증하고 위반은 `internal` 오류 결과로 바꾼다(F.capabilities.spec §5 사례 3) |
 | 5. `CapabilityError` → `isError: true` | `content`는 `"[<code>] <message>"`, `details`는 `CapabilityErrorData`. `code: "aborted"`는 중단 결과로 처리하고 `effect.result.status`를 `interrupted`로 둔다 |
 
-- `afterUntrusted` [결정: M3-REQ-100]: 파이프라인이 turn 안에서 웹·MCP 도구의 결과를 낸 호출을 기억한다. 웹 도구는 능력 id가 `web.`으로 시작하는 능력 도구이고 MCP 도구는 정책 메타에 `mcpServer`가 있는 도구다. 같은 turn의 뒤 호출은 시작 때 `RawCall.afterUntrusted = true`를 받고, 어댑터가 이것을 `CallContext.caller.afterUntrusted`로, 확장 도구(`ToolResourceDef.execute`)의 `ctx.caller.afterUntrusted`로 넘긴다. 확장 도구의 `ctx.toolCallId`는 호출 id다(M3-REQ-102, X.primitives.spec §4.6.6). 기억은 프로세스 안이고 turn 수가 512를 넘으면 오래된 것부터 잊으므로, 재시작 뒤 이어진 turn은 거짓으로 시작한다 [제안]. 같은 배치의 병렬 호출은 먼저 끝난 호출의 표지를 볼 수 있다(안전한 쪽의 오차). 표지는 한 번 켜지면 turn이 끝날 때까지 꺼지지 않는다.
+- `afterUntrusted` [결정: M3-REQ-100]: 파이프라인이 turn 안에서 웹·MCP 도구의 결과를 낸 호출을 기억한다. 웹 도구는 능력 id가 `web.`으로 시작하는 능력 도구이고 MCP 도구는 정책 메타에 `mcpServer`가 있는 도구다. 같은 turn의 뒤 호출은 시작 때 `RawCall.afterUntrusted = true`를 받고, 어댑터가 이것을 `CallContext.caller.afterUntrusted`로, 확장 도구(`ToolResourceDef.execute`)의 `ctx.caller.afterUntrusted`로 넘긴다. 확장 도구의 `ctx.toolCallId`는 호출 id다(M3-REQ-102, X.primitives.spec §4.6.6). 기억은 프로세스 안이고 turn 수가 512를 넘으면 오래된 것부터 잊는다. 웹·MCP 도구의 결과를 커밋할 때 내구 이벤트 `tool.untrusted_read`(`{ turnId, toolCallId, toolName, at }`)를 같은 커밋에 쓰고, 메모리에 없는 turn은 첫 조회에서 이 이벤트를 찾아 복원하므로 재시작 뒤 이어진 turn도 참으로 시작한다 [결정: M3-REQ-100]. 읽기에 실패하면 안전한 쪽으로 참으로 본다. 같은 배치의 병렬 호출은 먼저 끝난 호출의 표지를 볼 수 있다(안전한 쪽의 오차). 표지는 한 번 켜지면 turn이 끝날 때까지 꺼지지 않는다.
 - `replay`: 능력 도구는 `ToolSpec.replay`(F `ReplayPolicy`, 미선언은 `"unsafe"`)를 그대로 쓴다. `DirectToolRegistration`은 F `AgentTool.replay`(`"never" | "safe"`)를 `toReplayPolicy`로 바꾼다(`"never"`·미선언 → `"unsafe"`). `effect.intent.replay`에는 이 F `ReplayPolicy` 값을 쓴다.
 - `label`, `executionMode`, `outputSchema`는 그대로 옮긴다. `hints`는 `ToolMeta.hints`로 보관하고 위험 등급 유도(§4.6)에 쓴다.
 - `input_required` 출력 변형 [결정: L1A.4]: 판별 필드는 `status: "input_required"`다(L2.dialog `ask`, L2.work `submit`, L2.mcp `callTool`의 출력 변형이 모두 이 필드를 쓴다). 어댑터는 메서드 출력을 렌더링하기 전에 이 변형을 본다.
@@ -962,6 +962,19 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 - [미결] lease를 부르는 쪽이 문서마다 다르다. L0.exec.spec §3.6은 `xeon.exec`가 `secretEnv`마다 lease를 얻는다고 적었고, L0.secrets.spec §8.1 제공 표는 L1.tools가 `lease`를 쓴다고 적었다. 이 문서는 L0.exec 쪽을 따른다.
 - M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다 [결정: review.decisions-2 U-19]. L1.tools 몫은 실행마다의 승인(§4.7)과 2계층 마스킹이다.
 - [미결] M1에서 모델 도구 호출이 `secretEnv`를 받는 경로. L2.workspace.spec §3.3은 `secretEnv`를 모델 도구 파라미터에 두지 않는다. 참조를 bash 실행 옵션으로 넘기는 위치는 L2.workspace.spec과 정한다.
+
+#### 4.12.1 MCP 서버 기동 승인 [결정: M3-05, M3-REQ-75]
+
+비밀 env(`secret://` 참조)를 쓰는 stdio MCP 서버는 도구 호출이 아니라 연결 때 뜬다. 기동 승인은 서버 정의 해시마다 한 번이고 정의가 바뀌면 다시 받는다(`L2.mcp.spec` §4.3, `L0.secrets.spec` §4.3.1).
+
+- 승인 레코드: kind `tool`의 비차단 요청이다. 본문은 `toolName: "mcp_start"`, `risk: "exec"`, `ruleId: "mcp.start"`, `argsHash`는 정의 해시, `args`는 `{ server, source, command, args, cwd, envNames, secretEnv, definitionHash }`다. 평문 env 값은 싣지 않고 이름만 싣는다(해시가 값을 덮는다). 제목은 `Start MCP server "<id>" with <비밀 참조>?`다. 요청 키는 `mcpstart:<서버 id>:<해시 앞 24자>`라 같은 정의는 같은 요청이다.
+- `createMcpStartGate`가 흐름을 맡는다: ① 해시와 같은 정의에 받은 증거가 있으면 `approved`. ② `xeon.secrets.check`를 `mcp.start:<서버 id>` 맥락(대상 `mcp:<서버 id>`)으로 비밀마다 부르고 거부가 있으면 `denied`(요청을 올리지 않는다). ③ 대화가 없으면 `pending`이다(올릴 곳이 없다). ④ `open`으로 요청을 올리고 응답이 없으면 `pending`, 허용이면 `approved`, 거부면 `denied`다.
+- 증거: 허용된 요청의 `approvalId`와 `scope: "per-session"`, `expiresAt: null`이다. 정의를 되돌리면 같은 요청 키가 이미 해결되어 있어 다시 묻지 않는다.
+- 응답이 오면 `onResolved(server)`가 서버 id를 알려 L2가 다시 연결을 시도한다. 증거는 프로세스 안에만 두고, 재시작 뒤에는 같은 대화에서 `open`이 해결된 요청을 돌려준다(요청 키가 같으므로). 다른 대화에서는 한 번 더 묻는다 [제안].
+
+#### 4.12.2 샌드박스 밖 실행 감사 [결정: M3-33, 오케스트레이터 기본값]
+
+도구 결과의 `structuredContent`가 `sandboxed: false`와 `unsandboxedBy`(`escape`, `run_unsandboxed`, `disabled`)를 싣고 있으면 결과 커밋(`effect.result`)에 감사 이벤트 `tool.sandbox_bypassed`를 함께 쓴다. 페이로드는 `{ toolCallId, toolName, reason, at }`이고 명령과 출력은 싣지 않는다. 소유자는 core-tools다(`L0.sandbox.spec` §4.8). 알 수 없는 이유 값은 기록하지 않는다.
 
 ## 5. 실패와 경계 사례
 

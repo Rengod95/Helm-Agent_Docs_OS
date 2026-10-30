@@ -3,6 +3,7 @@ import {
   DialogAskKey,
   DialogAttachmentsKey,
   DialogCommandsKey,
+  DialogNotifyKey,
   DialogStatusKey,
   WorkspaceImagesKey,
   type CallContext,
@@ -14,20 +15,25 @@ import {
   ExecPortKey,
   LoopServicePortKey,
   OsPortKey,
+  SecretServicePortKey,
   SessionPortKey,
   StoreServicePortKey,
 } from "@xeon/contracts/services";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
 import type { DialogDeps } from "./deps.ts";
 import { dialogManifest } from "./manifest.ts";
+import { createOsDelivery } from "./notify/os-delivery.ts";
 import { questionApprovalsOver, type ApprovalsPortFactory } from "./ports/approvals.ts";
 import type { ImagesPort } from "./ports/images.ts";
 import { shellPortOver, type ShellPort } from "./ports/shell.ts";
 import { createDialogRuntime } from "./service.ts";
-import { sessionFeed, sessionStatusPublisher } from "./session-adapter.ts";
+import { sessionFeed, sessionNoticePort, sessionStatusPublisher } from "./session-adapter.ts";
 import { readDialogSettings, type DialogSettingsSource } from "./settings.ts";
 
-// L2.dialog.plan §2. 구현 패키지를 import하지 않고 F 서비스 인터페이스를 포트(xeon.exec, xeon.os, xeon.store, xeon.session)로만 받는다.
+/** 내구 알림(`dialog.notified`)을 남기는 생산자 id(L2.dialog.spec §3.7, owners.ts의 `dialog.` 접두 소유) */
+const DIALOG_PRODUCER = "cap.dialog";
+
+// L2.dialog.plan §2. 구현 패키지를 import하지 않고 F 서비스 인터페이스를 포트(xeon.exec, xeon.os, xeon.store, xeon.session, xeon.secrets)로만 받는다.
 // Cordis는 import하지 않는다(DR-11). 승인 팩토리와 사용자 셸 포트는 `xeon.approvals`·`xeon.loop` 포트가 있으면 이 패키지가
 // 기본 어댑터로 감싸고, 조립 루트(HOST)가 옵션으로 바꿔 넣을 수도 있다.
 
@@ -88,6 +94,7 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
       const session = optionalPort(host, SessionPortKey);
       const approvalService = optionalPort(host, ApprovalServicePortKey);
       const loop = optionalPort(host, LoopServicePortKey);
+      const secrets = optionalPort(host, SecretServicePortKey);
       const approvals =
         options.approvals ??
         (approvalService === undefined ? undefined : questionApprovalsOver(approvalService));
@@ -130,12 +137,18 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
             ? undefined
             : sessionStatusPublisher(session, options.ids, os.time, logger),
         feed: session === undefined ? undefined : sessionFeed(session, logger),
+        // 생산자 핸들은 setup에서 한 번만 받는다(같은 생산자를 두 번 받으면 저장소가 버그로 거부한다)
+        notices:
+          session === undefined
+            ? undefined
+            : sessionNoticePort(session, session.producer(DIALOG_PRODUCER), options.ids, logger),
       };
       const runtime = createDialogRuntime(deps);
       host.provide(DialogAskKey, runtime.apis.ask);
       host.provide(DialogCommandsKey, runtime.apis.commands);
       host.provide(DialogStatusKey, runtime.apis.status);
       host.provide(DialogAttachmentsKey, runtime.apis.attachments);
+      host.provide(DialogNotifyKey, runtime.apis.notify);
 
       if (approvals === undefined) {
         logger.warn("dialog.approvals_missing", { effect: "ask is rejected as unavailable" });
@@ -149,7 +162,12 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
         logger.warn("dialog.store_missing", { effect: "attachments are rejected as unavailable" });
       }
       if (session === undefined) {
-        logger.warn("dialog.session_missing", { effect: "the status line has no events" });
+        logger.warn("dialog.session_missing", {
+          effect: "the status line has no events and notify has no store or feed",
+        });
+      }
+      if (secrets === undefined) {
+        logger.warn("dialog.redactor_missing", { effect: "OS notifications are not sent" });
       }
 
       // 입력 지점: 셸 주입이 없는 템플릿 명령만 치환한다(질의와 치환만 하고 효과를 내지 않는다)
@@ -171,10 +189,29 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
         return { systemPrompt: base === "" ? fragment : `${base}\n\n${fragment}` };
       });
 
+      // 피드 구독은 하나다. 상태줄과 알림이 같은 이벤트를 받는다(둘 다 seq로 중복을 거른다)
       const unsubscribe = deps.feed?.subscribe((event) => {
         runtime.status.onEvent(event);
+        runtime.notify.onEvent(event);
       });
+      // OS 알림은 알림 구독자 하나다. 마스킹은 `xeon.secrets`의 redactor가 맡고, 없으면 본문을 가릴 수 없어 보내지 않는다
+      const notifyAbort = new AbortController();
+      const unsubscribeOs =
+        secrets === undefined
+          ? undefined
+          : runtime.notify.api.subscribe(
+              {},
+              createOsDelivery({
+                os,
+                settings: deps.settings,
+                redactor: secrets.redactor,
+                logger,
+                signal: notifyAbort.signal,
+              }),
+            );
       g.onDispose(() => {
+        unsubscribeOs?.();
+        notifyAbort.abort();
         unsubscribe?.();
         runtime.dispose();
       });

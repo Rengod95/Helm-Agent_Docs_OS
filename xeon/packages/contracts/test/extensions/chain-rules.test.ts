@@ -169,6 +169,22 @@ describe("COLLECT_RULES", () => {
     expect(merged.systemPrompt).toBe("last");
   });
 
+  test("input.agent.before keeps both appended system prompt fragments instead of overwriting", () => {
+    const merged = COLLECT_RULES["input.agent.before"].merge(
+      { messages: [], systemPrompt: "base" },
+      [{ systemPrompt: "base\n\nfragment A" }, { systemPrompt: "base\n\nfragment B" }],
+    );
+    expect(merged.systemPrompt).toBe("base\n\nfragment A\n\nfragment B");
+  });
+
+  test("input.agent.before appends fragments after a full replacement and ignores empty ones", () => {
+    const merged = COLLECT_RULES["input.agent.before"].merge(
+      { messages: [], systemPrompt: "base" },
+      [{ systemPrompt: "replaced" }, { systemPrompt: "base\n\nextra" }, { systemPrompt: "base" }],
+    );
+    expect(merged.systemPrompt).toBe("replaced\n\nextra");
+  });
+
   test("input.agent.before without contributions returns the initial value", () => {
     const initial = { messages: [], systemPrompt: "base" };
     expect(COLLECT_RULES["input.agent.before"].merge(initial, [])).toEqual(initial);

@@ -20,6 +20,35 @@ function setup() {
   return { clock, monitor, fired };
 }
 
+describe("idle monitor re-check when the timer fires (B1-SVC carry-over)", () => {
+  test("an input that became busy without an update keeps the service up; the next idle update re-arms and fires", async () => {
+    const clock = manualClock();
+    const live = { connections: 0 };
+    const monitor = createIdleMonitor({
+      clock,
+      scheduler: clock,
+      startupGraceMs: STARTUP,
+      idleGraceMs: GRACE,
+      sample: () => ({ connections: live.connections, liveTasks: 0, pendingSchedules: 0 }),
+    });
+    const fired: number[] = [];
+    monitor.onIdle(() => {
+      fired.push(clock.now());
+    });
+    monitor.update({ connections: 0, liveTasks: 0, pendingSchedules: 0 });
+    // 연결이 붙었지만 update가 아직 오지 않았다
+    live.connections = 1;
+    await clock.advance(GRACE + STARTUP);
+    expect(fired).toEqual([]);
+    expect(monitor.idleShutdownAt).toBeNull();
+
+    live.connections = 0;
+    monitor.update({ connections: 0, liveTasks: 0, pendingSchedules: 0 });
+    await clock.advance(GRACE);
+    expect(fired).toHaveLength(1);
+  });
+});
+
 describe("idle monitor (L0.process.spec 4.4.4 table)", () => {
   test("connections 0, live 0, schedules 0 and the grace elapsed: idle fires", async () => {
     const { clock, monitor, fired } = setup();

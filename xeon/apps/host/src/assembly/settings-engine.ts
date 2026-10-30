@@ -39,6 +39,10 @@ export interface SettingsEngine {
   userPath(): string | undefined;
   /** 사용자 범위 값을 메모리에 반영한다(파일에 쓴 뒤 부른다). value가 undefined면 키를 지운다 */
   setUserValue(key: string, value: unknown): void;
+  /** 지금 메모리에 있는 사용자 범위 값 */
+  userValues(): ReadonlyMap<string, unknown>;
+  /** 사용자 범위 값 전체를 바꾼다(파일 통째 쓰기, 외부 변경 반영). 경로는 그대로 둔다 */
+  replaceUserValues(values: ReadonlyMap<string, unknown>): void;
   /** 작업 폴더의 project·local 층을 정한다. `undefined`는 층을 거둔다(신뢰하지 않는 폴더) */
   setWorkspaceFiles(workspace: string, files: WorkspaceSettingFiles | undefined): void;
   hasWorkspaceFiles(workspace: string): boolean;
@@ -150,6 +154,10 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
       if (value === undefined) next.delete(key);
       else next.set(key, value);
       state.user = next;
+    },
+    userValues: () => state.user,
+    replaceUserValues(values) {
+      state.user = new Map(values);
     },
     setWorkspaceFiles(workspace, files) {
       if (files === undefined) workspaceFiles.delete(workspace);

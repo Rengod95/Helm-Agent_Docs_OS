@@ -46,12 +46,18 @@ export {
   type ExtensionUnit,
   type InstallResult,
   type LeaseInfo,
+  type ResetScopeStateHostError,
   type PlatformContext,
   type PlatformModule,
   type PlatformSetupError,
   type ScopeToggleSourceOf,
 } from "./host.ts";
 export { SessionFeedPortKey } from "./lifecycle.ts";
+export {
+  SessionBranchPortKey,
+  type EventPrefixQuery,
+  type EventQueryError,
+} from "./event-query.ts";
 export {
   hostOf,
   type ScopeCallContext,
@@ -62,6 +68,7 @@ export {
   McpPortKey,
   ModelsPortKey,
   ToolsPortKey,
+  type CommandOutput,
   type CommandResourceDef,
   type FlagResourceDef,
   type FlagValueError,
@@ -78,6 +85,7 @@ export {
   type ShortcutResourceDef,
   type ToolResourceDef,
   type ToolsPort,
+  webProviderRegistrationOf,
 } from "./resources.ts";
 export type { ExtChange } from "./core.ts";
 export type { ScopeInfo, ScopeSetupOutcome } from "./scope.ts";

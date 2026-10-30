@@ -5,7 +5,9 @@
 //! 엔진 수명은 engine.rs, 바이트 릴레이와 `engine_*` 명령은 relay.rs가 맡는다.
 
 mod applog;
+mod desktop_settings;
 mod engine;
+mod env_path;
 #[cfg(debug_assertions)]
 mod inspect;
 mod relay;
@@ -18,6 +20,7 @@ use std::sync::Arc;
 use tauri::{Manager, RunEvent, WindowEvent};
 
 use crate::applog::AppLog;
+use crate::desktop_settings::{should_prevent_exit, CloseBehavior};
 use crate::engine::{
     AppSupervisor, EngineConfig, EngineState, ExitAction, Supervisor, TauriLauncher,
 };
@@ -29,7 +32,7 @@ fn main() {
         // 단일 실행(G2-09): 두 번째 실행은 이 콜백을 첫 인스턴스에 알리고 스스로 끝난다. 엔진도 DB도 하나만 쓴다.
         // 다른 플러그인보다 먼저 등록해야 두 번째 인스턴스가 나머지 초기화를 하기 전에 끝난다.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            window::focus_main(app);
+            reopen_main(app);
         }))
         .plugin(tauri_plugin_shell::init());
     // 디버그 빌드의 로그 파일(Phase 1 원격 점검). 릴리스는 applog.rs의 로그만 쓴다.
@@ -46,6 +49,18 @@ fn main() {
         ])
         .setup(|app| {
             let log = Arc::new(AppLog::open(app.path().app_log_dir().ok().as_deref()));
+            // 시작 줄. 이름과 버전만 쓴다(경로, 프레임 내용 없음, E11). 디버그 로그 파일이 비지 않게 한다.
+            log.line(&format!(
+                "{} {} started",
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION")
+            ));
+            // 데스크톱 설정 파일(§3.6, §4.2 1단계). 파일이 없으면 기본값이다. 틀린 값은 그 키만 기본값을 쓰고 진단을 남긴다.
+            let config_dir = app.path().app_config_dir().ok();
+            let (settings, diagnostics) = desktop_settings::load(config_dir.as_deref());
+            for diagnostic in &diagnostics {
+                log.line(diagnostic);
+            }
             let relay = Arc::new(Relay::new(EngineState::Stopped));
             let runtime = tauri::async_runtime::handle().inner().clone();
             let launcher = TauriLauncher::new(app.handle().clone(), runtime.clone());
@@ -53,7 +68,7 @@ fn main() {
             let supervisor: Arc<AppSupervisor> = Arc::new(Supervisor::new(
                 launcher,
                 relay.clone(),
-                EngineConfig::default(),
+                EngineConfig::from_values(settings.shutdown_grace_ms, settings.restart_limit),
                 log.clone(),
                 runtime,
             ));
@@ -62,6 +77,8 @@ fn main() {
             app.manage(entry);
             app.manage(relay.clone());
             app.manage(supervisor.clone());
+            app.manage(settings.close_behavior);
+            app.manage(log.clone());
             #[cfg(all(debug_assertions, unix))]
             start_inspect(app.handle(), &relay, &log);
             #[cfg(unix)]
@@ -79,7 +96,13 @@ fn main() {
     };
 
     app.run(|handle, event| match event {
-        RunEvent::ExitRequested { api, .. } => {
+        RunEvent::ExitRequested { code, api, .. } => {
+            let behavior = *handle.state::<CloseBehavior>();
+            if should_prevent_exit(behavior, code) {
+                // 트레이 유지: 창이 모두 닫혀 생긴 종료다. WebView는 이미 없고, 셸과 엔진과 진행 중 turn은 남는다 (§4.3, §6).
+                api.prevent_exit();
+                return;
+            }
             let supervisor = handle.state::<Arc<AppSupervisor>>().inner().clone();
             match supervisor.on_exit_requested() {
                 ExitAction::Allow => {}
@@ -106,8 +129,20 @@ fn main() {
             // 정상 종료 순서를 거치지 못한 경우의 마지막 방어. 이미 정리됐으면 아무 일도 없다.
             handle.state::<Arc<AppSupervisor>>().kill_remaining();
         }
+        // macOS Dock 클릭: 트레이 유지 뒤 창이 없으면 메인 창을 다시 만든다.
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen { .. } => reopen_main(handle),
         _ => {}
     });
+}
+
+/// 메인 창을 다시 연다(없으면 만든다). 두 번째 실행과 macOS Dock 클릭이 쓴다. 만들지 못하면 앱 로그에 남긴다.
+fn reopen_main(app: &tauri::AppHandle) {
+    if !window::ensure_main(app) {
+        if let Some(log) = app.try_state::<Arc<AppLog>>() {
+            log.line("main window is missing and could not be created");
+        }
+    }
 }
 
 /// SIGTERM, SIGINT를 받으면 `app.exit(0)`으로 정상 종료 순서를 탄다(S1: 처리기가 없으면 `RunEvent`가 오지 않는다).
@@ -150,6 +185,7 @@ fn install_signal_handlers(
 }
 
 /// 디버그 전용 로그 플러그인: 로그 폴더(`LogDir`)의 파일과 표준 출력. 파일은 하나만 두고 2 MB에서 새로 시작한다.
+/// 받는 줄은 `AppLog::line`이 `log` 크레이트로 내는 줄과 시작 줄이다(spec §4.15 로그 파일 행).
 #[cfg(debug_assertions)]
 fn debug_log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     use tauri_plugin_log::{RotationStrategy, Target, TargetKind};

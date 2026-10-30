@@ -2,11 +2,13 @@ import type { Clock, Logger } from "@xeon/contracts";
 import type { WebService } from "@xeon/contracts/capabilities";
 import type { HostedSearchPort } from "@xeon/contracts/services";
 import type { LocalIdFactory, ThreadId } from "@xeon/contracts/conversation";
+import type { WebProviderStatus } from "@xeon/contracts/wire";
 import { createFetchCache, type FetchCache } from "./cache/fetch-cache.ts";
 import { createSourceIdRegistry } from "./contract/source-ids.ts";
 import { createSessionLimits } from "./cost/limits.ts";
 import { createUsageMeter } from "./cost/meter.ts";
 import type { WebDeps } from "./deps.ts";
+import { createFirstUseNotices, createMemoryFirstUseNotices } from "./cache/notices.ts";
 import { createWorkerConvertRunner, type ConvertRunner } from "./fetch/convert-runner.ts";
 import { createRobotsGate } from "./fetch/robots-gate.ts";
 import { createAccess } from "./policy/access.ts";
@@ -14,19 +16,29 @@ import { createContentHttp } from "./policy/content-http.ts";
 import type { ProviderHttpDeps } from "./policy/guarded-http.ts";
 import { createSeenUrls } from "./policy/seen-urls.ts";
 import type { WebAskPort } from "./ports/ask.ts";
-import type { WebProviderCatalog, FetchCandidate, SearchCandidate } from "./ports/providers.ts";
+import type {
+  BrowseCandidate,
+  FetchCandidate,
+  SearchCandidate,
+  WebProviderCatalog,
+} from "./ports/providers.ts";
 import type { DnsResolver } from "./ports/resolver.ts";
-import type { HeaderSecretResolver, OutboundSecretGuard } from "./ports/secrets.ts";
+import type { HeaderSecretSender, OutboundSecretGuard } from "./ports/secrets.ts";
 import type { WebSessionSourcesPort } from "./ports/session-sources.ts";
 import type { WebStorePort } from "./ports/store.ts";
 import type { HttpTransport } from "./ports/transport.ts";
 import { createProbeCache, type ProbeCache } from "./search/probe-cache.ts";
 import { createBuiltinSearchCandidates } from "./search/providers/builtin.ts";
 import { createProviderRegistry, type RegistrationSource } from "./search/registry.ts";
+import { createBrowseApi, type BrowseController } from "./browse/service.ts";
+import { createMcpBrowseProvider } from "./browse/mcp-provider.ts";
+import type { BrowserMcpPort } from "./ports/browser-mcp.ts";
+import type { BrowseConfirmPort } from "./ports/confirm.ts";
 import { createWebService } from "./service.ts";
 import type { WebSettings } from "./settings.ts";
 import { createHttpTransport } from "./transport/http-transport.ts";
 import { createSystemResolver } from "./transport/system-resolver.ts";
+import { describeWebProviders } from "./status.ts";
 
 // 조립. 포트(저장소, 승인, 세션 이벤트, 비밀 판정, provider 후보 목록)를 받아 `WebService`와 `WebDeps`를 만든다.
 // 실제 포트 연결은 HOST 트랙의 조립이 한다(m2-plan HOST.6). 포트를 주지 않은 항목은 안전한 쪽으로 동작한다:
@@ -47,7 +59,10 @@ export interface WebRuntimeOptions {
   readonly store?: WebStorePort;
   readonly asker?: WebAskPort;
   readonly guard?: OutboundSecretGuard;
-  readonly headerSecrets?: HeaderSecretResolver;
+  /** 플러그인 provider의 헤더 비밀 통로(L2.web.spec §3.6.1). 조립 쪽이 L0 `withHttp` 경로로 채운다. 없으면 비밀 헤더 provider는 no-key다 */
+  readonly headerSecrets?: HeaderSecretSender;
+  /** 브라우저 동작의 사람 확인(L2.web.spec §4.10.3). 없으면 확인이 필요한 동작은 거부한다 */
+  readonly browseConfirm?: BrowseConfirmPort;
   /** 플러그인 provider 등록 목록(X가 넘긴다). 기본은 비어 있다 */
   readonly registrations?: RegistrationSource;
   /**
@@ -57,10 +72,16 @@ export interface WebRuntimeOptions {
   readonly hostedSearch?: HostedSearchPort;
   /** false면 내장 검색 provider(searxng, builtin-wrapper)를 후보에 넣지 않는다. 기본 true. 체인을 직접 짜는 시험이 쓴다 */
   readonly builtinSearch?: boolean;
+  /**
+   * 브라우저 MCP 포트(L2.web.spec §4.10.4a). 있으면 `playwright-mcp` 후보가 내장 `web.browse` 후보 뒤에 붙는다.
+   * 서버 연결은 조립 쪽이 맡는다
+   */
+  readonly browserMcp?: BrowserMcpPort;
   /** 이 밖에 더하는 내장 provider 후보. 기본은 비어 있다 */
   readonly builtin?: {
     readonly search: readonly SearchCandidate[];
     readonly fetch: readonly FetchCandidate[];
+    readonly browse?: readonly BrowseCandidate[];
   };
   /** `ext.<이름>.<키>` 설정 읽기 */
   readonly extensionSetting?: (extension: string, key: string) => unknown;
@@ -71,10 +92,14 @@ export interface WebRuntime {
   readonly deps: WebDeps;
   readonly catalog: WebProviderCatalog;
   readonly probes: ProbeCache;
+  /** 브라우저 세션 제어(대화 종료 때 닫기). 서비스의 `browse` 메서드는 `service.browse`다 */
+  readonly browse: BrowseController;
   /** 디스크 캐시가 켜져 있는가(저장소가 없거나 마이그레이션이 실패하면 거짓) */
   readonly cacheEnabled: boolean;
   /** 살아 있지 않은 세션의 session 원문 행을 지운다. 세션 목록은 호출자가 `xeon.session`에서 읽는다 */
   purgeSessionRaw(liveSessions: ReadonlySet<string>): number;
+  /** `web.providers`의 provider 목록(L2.web.spec §6.1). 탐침은 캐시를 쓰고 provider마다 동시에 돈다 */
+  providerStatus(signal: AbortSignal): Promise<readonly WebProviderStatus[]>;
   close(): Promise<void>;
 }
 
@@ -123,18 +148,38 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
           logger: options.logger,
           hosted: options.hostedSearch,
         });
+  const browseBuiltin: readonly BrowseCandidate[] =
+    options.browserMcp === undefined
+      ? (options.builtin?.browse ?? [])
+      : [
+          ...(options.builtin?.browse ?? []),
+          {
+            provider: createMcpBrowseProvider(options.browserMcp),
+            origin: "builtin",
+            cachePolicy: "none",
+          },
+        ];
   const catalog = createProviderRegistry({
     source: options.registrations ?? EMPTY_SOURCE,
     builtin: {
       search: [...builtinSearch, ...(options.builtin?.search ?? [])],
       fetch: options.builtin?.fetch ?? [],
+      browse: browseBuiltin,
     },
     http: providerHttp,
     clock: options.clock,
     logger: options.logger,
     extensionSetting: options.extensionSetting ?? (() => undefined),
   });
-  const probes = createProbeCache(options.clock);
+  const probes = createProbeCache(options.clock, options.logger);
+  const notices =
+    options.store === undefined
+      ? createMemoryFirstUseNotices()
+      : createFirstUseNotices({
+          store: options.store,
+          clock: options.clock,
+          logger: options.logger,
+        });
   const deps: WebDeps = {
     clock: options.clock,
     ids: options.ids,
@@ -152,9 +197,15 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     sourceIds: createSourceIdRegistry(options.sessionSources),
     catalog,
     probes,
+    notices,
   };
+  const browse = createBrowseApi(
+    deps,
+    options.browseConfirm === undefined ? {} : { confirm: options.browseConfirm },
+  );
   return {
-    service: createWebService(deps),
+    service: createWebService(deps, browse),
+    browse,
     deps,
     catalog,
     probes,
@@ -168,6 +219,10 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
       }
       return purged.value.removed;
     },
-    close: () => convert.close(),
+    providerStatus: (signal) => describeWebProviders(deps, signal),
+    async close() {
+      await browse.closeAll();
+      await convert.close();
+    },
   };
 }

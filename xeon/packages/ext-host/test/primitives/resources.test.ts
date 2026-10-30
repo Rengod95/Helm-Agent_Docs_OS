@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@xeon/contracts";
+import type { WebProviderRegistration } from "@xeon/contracts/capabilities";
 import {
   McpPortKey,
   ModelsPortKey,
@@ -13,6 +14,7 @@ import { Type } from "typebox";
 import {
   hostOf,
   PrimitiveError,
+  webProviderRegistrationOf,
   type ResourcePolicy,
   type ResourceRecord,
 } from "../../src/primitives/index.ts";
@@ -348,4 +350,140 @@ test("a builtin extension's risk and hints reach the tools port, and a user exte
     exec: undefined,
   });
   expect([...fakes.tools.keys()]).toEqual(["low", "u-exec"]);
+});
+
+/** 웹 provider 등록 시험의 create. 이 시험들은 공급자를 만들지 않으므로 부르지 않는다 */
+function createNotCalled(): never {
+  throw new Error("create is not called by the resource tests");
+}
+
+function searchRegistration(): WebProviderRegistration {
+  return { capability: "web.search", create: createNotCalled };
+}
+
+test("registerWebProvider records the registration under its capability id and webProviderRegistrationOf reads it back", async () => {
+  const t = await createTestHost();
+  const registration = searchRegistration();
+  await t.host.install(
+    makeUnit({ name: "web-exa" }, (g) => {
+      hostOf(g).registerWebProvider(registration);
+    }),
+  );
+  const records = t.host.resources.list("web_provider");
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({
+    kind: "web_provider",
+    name: "web.search",
+    exposed: "web.search",
+    scopeId: "web-exa",
+    extension: "web-exa",
+  });
+  const found = records.map((record) => webProviderRegistrationOf(record));
+  expect(found).toHaveLength(1);
+  expect(found[0]).toBe(registration);
+  expect(found[0]?.capability).toBe("web.search");
+  expect(found[0]?.create).toBe(createNotCalled);
+});
+
+test("the same web capability twice in one scope is a resource_conflict", async () => {
+  const t = await createTestHost();
+  const codes: (string | undefined)[] = [];
+  await t.host.install(
+    makeUnit({ name: "web-dup" }, (g) => {
+      const host = hostOf(g);
+      host.registerWebProvider(searchRegistration());
+      codes.push(
+        codeOf(() => {
+          host.registerWebProvider(searchRegistration());
+        }),
+      );
+    }),
+  );
+  expect(codes).toEqual(["resource_conflict"]);
+  expect(t.host.resources.list("web_provider")).toHaveLength(1);
+});
+
+test("one scope can register web.search and web.fetch", async () => {
+  const t = await createTestHost();
+  await t.host.install(
+    makeUnit({ name: "web-both" }, (g) => {
+      const host = hostOf(g);
+      host.registerWebProvider(searchRegistration());
+      host.registerWebProvider({ capability: "web.fetch", create: createNotCalled });
+    }),
+  );
+  expect(t.host.resources.list("web_provider").map((record) => record.name)).toEqual([
+    "web.search",
+    "web.fetch",
+  ]);
+});
+
+test("disabling the scope removes the web provider record and tells subscribers removed", async () => {
+  const t = await createTestHost();
+  await t.host.openThread(t.newThread());
+  const events: string[] = [];
+  t.host.resources.subscribe((change) => {
+    events.push(`${change.type}:${change.record.kind}:${change.record.name}`);
+  });
+  await t.host.install(
+    makeUnit({ name: "web-off" }, (g) => {
+      hostOf(g).registerWebProvider(searchRegistration());
+    }),
+  );
+  expect(events).toEqual(["added:web_provider:web.search"]);
+  t.host.scope("web-off")?.disable();
+  await t.settled();
+  expect(t.host.resources.list("web_provider")).toEqual([]);
+  expect(events).toEqual(["added:web_provider:web.search", "removed:web_provider:web.search"]);
+});
+
+test("two extensions can each register the same web capability, because the name is shared by design", async () => {
+  const t = await createTestHost();
+  await t.host.install(
+    makeUnit({ name: "web-exa" }, (g) => {
+      hostOf(g).registerWebProvider(searchRegistration());
+    }),
+  );
+  await t.host.install(
+    makeUnit({ name: "web-brave", loadIndex: 1 }, (g) => {
+      hostOf(g).registerWebProvider(searchRegistration());
+    }),
+  );
+  expect(t.host.resources.list("web_provider").map((record) => record.extension)).toEqual([
+    "web-exa",
+    "web-brave",
+  ]);
+});
+
+test("webProviderRegistrationOf returns undefined for another kind or a malformed def", async () => {
+  const t = await createTestHost();
+  await t.host.install(
+    makeUnit({ name: "web-read" }, (g) => {
+      hostOf(g).registerWebProvider(searchRegistration());
+    }),
+  );
+  const results = t.host.resources.list("web_provider").map((record) => ({
+    valid: webProviderRegistrationOf(record) !== undefined,
+    otherKind: webProviderRegistrationOf({ ...record, kind: "command" }),
+    noCreate: webProviderRegistrationOf({ ...record, def: { capability: "web.search" } }),
+    unknownCapability: webProviderRegistrationOf({
+      ...record,
+      def: { capability: "web.other", create: createNotCalled },
+    }),
+    nullDef: webProviderRegistrationOf({ ...record, def: null }),
+    createNotFunction: webProviderRegistrationOf({
+      ...record,
+      def: { capability: "web.search", create: "x" },
+    }),
+  }));
+  expect(results).toEqual([
+    {
+      valid: true,
+      otherKind: undefined,
+      noCreate: undefined,
+      unknownCapability: undefined,
+      nullDef: undefined,
+      createNotFunction: undefined,
+    },
+  ]);
 });

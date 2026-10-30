@@ -13,12 +13,14 @@ import {
   type BackgroundRegistryController,
   type McpChild,
   type McpProcessPort,
+  type McpSandboxSource,
   type McpSecretSource,
   type McpSpawnSpec,
 } from "../src/index.ts";
 import { manualClock } from "./support/clock.ts";
 import { memoryLogger, sequentialLocalIds } from "./support/fakes.ts";
 import { realScheduler, waitFor } from "./support/real-time.ts";
+import { fakeSandbox } from "./support/sandbox-fake.ts";
 
 // L0.process.plan PR-23, spec §4.9: 실제 자식 프로세스로 McpProcessPort.spawn과 spawnPiped를 확인한다(사용자 권한 실행, 비밀 주입, 그룹 종료).
 
@@ -53,6 +55,7 @@ function stringRecord(value: unknown): Record<string, string> {
 interface Opened {
   readonly background: BackgroundRegistryController;
   readonly port: McpProcessPort;
+  readonly log: ReturnType<typeof memoryLogger>;
 }
 
 const children: McpChild[] = [];
@@ -67,6 +70,7 @@ function open(
   secrets?: McpSecretSource,
   parentEnv: Record<string, string | undefined> = {},
   stdinCloseMs?: number,
+  sandbox?: McpSandboxSource,
 ): Opened {
   const background = createBackgroundRegistry({
     clock: manualClock(),
@@ -75,17 +79,19 @@ function open(
     logger: memoryLogger(),
   });
   registries.push(background);
+  const log = memoryLogger();
   const port = createMcpProcessPort({
     platform: processPlatform,
     background,
     secrets,
     scheduler: realScheduler(),
     parentEnv,
-    logger: memoryLogger(),
+    logger: log,
     drainMs: 300,
     ...(stdinCloseMs === undefined ? {} : { stdinCloseMs }),
+    ...(sandbox === undefined ? {} : { sandbox: () => sandbox, tempDir: tmpdir() }),
   });
-  return { background, port };
+  return { background, port, log };
 }
 
 function specOf(mode: string, overrides: Partial<McpSpawnSpec> = {}): McpSpawnSpec {
@@ -226,12 +232,110 @@ describe("McpProcessPort.spawn", () => {
     expect(secrets.disposed()).toBe(1);
     expect(secrets.calls[0]?.handle).toBe("secret://gh-token");
     expect(secrets.calls[0]?.ctx).toMatchObject({
-      purpose: "mcp:fixture",
+      purpose: "mcp.start:fixture",
       actor: "runtime",
       threadId: null,
       approval: null,
-      target: { kind: "command", argv0: process.execPath },
+      target: { kind: "command", argv0: process.execPath, commandLine: "mcp:fixture" },
     });
+  });
+
+  test("the start approval evidence reaches the secret use context unchanged", async () => {
+    const secrets = fakeSecrets({ "secret://gh-token": SECRET_VALUE });
+    const { port } = open(secrets.source, { PATH: process.env["PATH"] });
+    const approval = {
+      approvalId: "apr_1",
+      scope: "per-session",
+      grantedAt: 1_000,
+      expiresAt: null,
+    } as const;
+    await started(
+      port,
+      specOf("env", { secretEnv: { GITHUB_TOKEN: "secret://gh-token" }, approval }),
+    );
+    expect(secrets.calls[0]?.ctx.approval).toEqual(approval);
+  });
+
+  test("plaintext env reaches the child next to injected secrets and a secret wins a name clash", async () => {
+    const secrets = fakeSecrets({ "secret://gh-token": SECRET_VALUE });
+    const { port } = open(secrets.source, { PATH: process.env["PATH"], HOME: "/home/test" });
+    const child = await started(
+      port,
+      specOf("env", {
+        env: { LOG_LEVEL: "debug", GITHUB_TOKEN: "plain-should-lose" },
+        secretEnv: { GITHUB_TOKEN: "secret://gh-token" },
+      }),
+    );
+    const parsed = parseJson(await firstLine(child));
+    const env = stringRecord(parsed.ok ? parsed.value : undefined);
+    expect(env["LOG_LEVEL"]).toBe("debug");
+    expect(env["GITHUB_TOKEN"]).toBe(SECRET_VALUE);
+  });
+
+  test("a sandbox request the user turned off or allowed to run unsandboxed starts the server and logs the gap", async () => {
+    const allowed = fakeSandbox(
+      ok({
+        argv: [process.execPath, MCP_CHILD, "echo"],
+        sandboxed: false,
+        unsandboxedBy: "run_unsandboxed",
+      }),
+    );
+    const { port, log } = open(undefined, { PATH: process.env["PATH"] }, undefined, allowed.source);
+    const child = await started(port, specOf("echo", { sandbox: true }));
+    const reply = firstLine(child);
+    child.stdin.write('{"jsonrpc":"2.0"}\n');
+    expect(await reply).toBe('echo:{"jsonrpc":"2.0"}');
+    expect(log.records.filter((record) => record.event === "mcp.sandbox_not_enforced")).toEqual([
+      {
+        level: "warn",
+        event: "mcp.sandbox_not_enforced",
+        fields: { server: "fixture", by: "run_unsandboxed" },
+      },
+    ]);
+
+    const disabled = fakeSandbox(
+      ok({
+        argv: [process.execPath, MCP_CHILD, "echo"],
+        sandboxed: false,
+        unsandboxedBy: "disabled",
+      }),
+    );
+    const off = open(undefined, { PATH: process.env["PATH"] }, undefined, disabled.source);
+    await started(off.port, specOf("echo", { sandbox: true }));
+    expect(off.log.records.filter((record) => record.event === "mcp.sandbox_not_enforced")).toEqual(
+      [
+        {
+          level: "warn",
+          event: "mcp.sandbox_not_enforced",
+          fields: { server: "fixture", by: "disabled" },
+        },
+      ],
+    );
+
+    // sandbox:false는 격리를 요청하지 않으므로 서비스를 부르지 않고 경고도 없다
+    const quiet = open(undefined, { PATH: process.env["PATH"] }, undefined, allowed.source);
+    await started(quiet.port, specOf("echo", { sandbox: false }));
+    expect(allowed.wrapCalls).toHaveLength(1);
+    expect(quiet.log.records.some((record) => record.event === "mcp.sandbox_not_enforced")).toBe(
+      false,
+    );
+  });
+
+  test("a plaintext env name that is not a valid variable name fails before anything starts", async () => {
+    const { port, background } = open();
+    const result = await port.spawn(
+      specOf("echo", { env: { "BAD-NAME": "x" } }),
+      new AbortController().signal,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        kind: "spawn_failed",
+        code: "env_denied",
+        message: "Invalid environment variable name: BAD-NAME",
+      },
+    });
+    expect(background.list()).toEqual([]);
   });
 
   test("two env names for one handle both resolve", async () => {

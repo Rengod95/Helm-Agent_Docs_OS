@@ -301,8 +301,11 @@ export interface WebFetchProvider {
 export interface BrowserOpenOptions {
   readonly profile: "ephemeral" | `named:${string}`;
   readonly headless: boolean;
-  /** 모든 브라우저 트래픽이 지나는 앞단 필터 프록시(§4.10.2) */
-  readonly proxy: { readonly server: string };
+  /**
+   * 모든 브라우저 트래픽이 지나는 앞단 필터 프록시(§4.10.2). 프록시를 띄우지 않는 조립(MCP stdio 경로)에서는 없다.
+   * 그때 트래픽 필터는 샌드박스 네트워크 필터가 맡고(§10 미결 8) 앞단은 이동 URL만 검사한다
+   */
+  readonly proxy?: { readonly server: string };
   readonly allowedOrigins: readonly string[];
 }
 export interface BrowserStep {

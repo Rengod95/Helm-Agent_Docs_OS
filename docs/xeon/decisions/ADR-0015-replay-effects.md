@@ -154,7 +154,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 - 닫음 [제안: M3-REQ-01, 2026-10-28 F 구현]: 표지는 `MethodDef.readOnly?: true`와 `idempotent?: true` 두 필드다. 열거 `effect`는 두지 않는다. 기존 `replay` 필드와 겹치지 않고 `ToolHints.readOnly`와 이름이 같다. 코드 `xeon/packages/contracts/src/capabilities/method.ts`.
 - 닫음 [결정: review.m3-design-inputs D-M3-31 행 8]: on 핸들러의 읽기 메서드 호출은 허용하지 않는다(§3.2).
 - [미결] 요청 레코드 워커의 소유(X 효과 워커 또는 L1 백그라운드 작업)와 결과 통지 방법(§3.5).
-- [미결] 외부 확장이 공급하는 능력의 `idempotent` 선언을 믿을 조건(신뢰 등급, 적합성 시험 강제 방법). `X.loading-trust.spec`과 함께 정한다.
+- 닫음 [결정: M3-REQ-31, B3-SEC]: 능력의 현재 공급자가 내장 확장일 때만 `idempotent` 선언을 믿는다. 외부 확장 공급자의 `idempotent` 메서드는 재실행되는 문맥에서 선언 없음으로 본다. 규칙은 `X.loading-trust.spec` §4.6.4, 구현은 `ext-host` `capability-guard.ts`다.
 - 닫음 [결정: review.m3-design-inputs D-M3-31 행 1]: `safe|unsafe`를 유지한다. 옛 질문: `ReplayPolicy` 값 이름(`safe|unsafe` 대 `never|safe`). 이 ADR은 현행 F 표기 `safe|unsafe`(`F.conversation.spec` §3.6)를 쓴다(§3.3, §3.5). `F.records.spec` §10 미결 4가 사용자 확인 대상이라고 적었으므로 사용자 답(`review.m3-design-inputs` D-M3-31 행 1)이 바뀌면 §3.3의 검증 규칙 이름과 §3.5의 값도 함께 바꾼다.
 - [미결] drive의 `idempotent` 쓰기에 기본 키를 줄지. `leaseId` 유지 규칙(REQ-X-04)이 닫힐 때까지는 명시 키만 받는다(§3.4 3번).
 - [가정] `L2.knowledge`의 쓰기 메서드가 `CallOptions.requestId = idempotencyKey`로 내구 멱등을 이미 보장한다고 본다(`L3.learning.spec` §3.6). 적합성 시험으로 확인한다.

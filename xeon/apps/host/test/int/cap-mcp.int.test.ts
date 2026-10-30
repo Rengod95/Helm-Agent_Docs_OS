@@ -53,6 +53,7 @@ realTest(
       defaultGroups: false,
       buildModels: callingModels("mcp", [{ name: "echo_marker", args: {} }], "done.", [
         "warmed up.",
+        "settled.",
       ]),
     });
     const connection = createHostConnection(host.client);
@@ -64,8 +65,22 @@ realTest(
     expect(
       await until(() => stub.requests.some((request) => request.method === "tools/list"), 10_000),
     ).toBe(true);
-    await connection.request("turn.start", { threadId: created.threadId, input: "warm up" });
-    await collector.waitFor((event) => event.kind === "turn.completed");
+    // tools/list 요청을 받은 것과 클라이언트가 서버를 connected로 올린 것 사이에 틈이 있어, 부하가 크면 첫 turn의 단계 경계가 먼저 온다
+    // (tool_unavailable). 그래서 도구를 부르기 전에 turn을 한 번 더 돌려 반영을 확정한다
+    const warm = await startTurnWhenIdle(connection, {
+      threadId: created.threadId,
+      input: "warm up",
+    });
+    await collector.waitFor(
+      (event) => event.kind === "turn.completed" && event.turnId === warm.turnId,
+    );
+    const settle = await startTurnWhenIdle(connection, {
+      threadId: created.threadId,
+      input: "settle",
+    });
+    await collector.waitFor(
+      (event) => event.kind === "turn.completed" && event.turnId === settle.turnId,
+    );
     const second = await startTurnWhenIdle(connection, {
       threadId: created.threadId,
       input: "call it",

@@ -77,6 +77,48 @@ describe("judge", () => {
     expect(gate.notice).toContain("2 runs");
   });
 
+  test("judge_cap_reads_the_judged_thread: a session scope value for that thread sets the cap", async () => {
+    const models = fakeModels([NOT_MET, NOT_MET, NOT_MET, NOT_MET]);
+    const sessionThreads = new Set<string>();
+    const h = openHarness({
+      models,
+      agentsSettings: {
+        maxDepth: () => 1,
+        maxConcurrent: () => 8,
+        resultMaxChars: () => 24_000,
+        // 세션 범위 값은 그 thread에서만 3이고, 그 밖은 기본 2다
+        judgeMaxRuns: (threadId) => (sessionThreads.has(threadId) ? 3 : 2),
+      },
+    });
+    sessionThreads.add(h.parentThreadId);
+    const runOf = (outcome: Awaited<ReturnType<typeof h.service.judge>>) =>
+      outcome.kind === "judged" ? outcome.record.run : outcome.kind;
+    expect(runOf(await h.service.judge(inputOf(h)))).toBe(1);
+    expect(runOf(await h.service.judge(inputOf(h)))).toBe(2);
+    expect(runOf(await h.service.judge(inputOf(h)))).toBe(3);
+    expect(await h.service.judge(inputOf(h))).toEqual({ kind: "capped", runs: 3, maxRuns: 3 });
+    expect(models.calls).toHaveLength(3);
+  });
+
+  test("a repeated judge call for the same step returns the recorded judgement without asking the model again", async () => {
+    const models = fakeModels([NOT_MET, MET]);
+    const h = openHarness({ models });
+    const stepId = h.ids.next("stp");
+    const input: JudgeInput = { ...inputOf(h), stepId };
+    const first = await h.service.judge(input);
+    expect(first.kind).toBe("judged");
+    const again = await h.service.judge(input);
+    expect(again.kind).toBe("recorded");
+    if (first.kind !== "judged" || again.kind !== "recorded") return;
+    expect(again.record).toEqual(first.record);
+    expect(models.calls).toHaveLength(1);
+    expect(judgedEvents(h).map((record) => record.run)).toEqual([1]);
+    // 다른 단계의 판정은 같은 목표라도 다시 센다
+    const other = await h.service.judge({ ...inputOf(h), stepId: h.ids.next("stp") });
+    expect(other).toMatchObject({ kind: "judged", record: { run: 2 } });
+    expect(models.calls).toHaveLength(2);
+  });
+
   test("a judge failure stops: failed outcome, no record, not counted, gate does not continue", async () => {
     const models = fakeModels([{ kind: "error", message: "provider down" }, MET]);
     const h = openHarness({ models, judgeMaxRuns: 1 });

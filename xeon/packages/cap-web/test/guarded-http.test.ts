@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import { err } from "@xeon/contracts";
 import type { WebProviderManifest } from "@xeon/contracts/capabilities";
 import { WebHttpError, createBoundProviderHttp } from "../src/policy/guarded-http.ts";
+import type { HeaderSecretSender } from "../src/ports/secrets.ts";
 import { fakeHeaderSecrets, fakeSecretGuard } from "../src/testing/fake-ports.ts";
 import { fakeResolver } from "../src/testing/fake-resolver.ts";
 import { fixtureTransport } from "../src/testing/http-fixtures.ts";
@@ -29,7 +31,12 @@ function manifestOf(overrides: Partial<WebProviderManifest> = {}): WebProviderMa
 const SIGNAL = new AbortController().signal;
 
 function setup(
-  options: { manifest?: WebProviderManifest; local?: readonly string[]; key?: string } = {},
+  options: {
+    manifest?: WebProviderManifest;
+    local?: readonly string[];
+    key?: string;
+    secrets?: HeaderSecretSender;
+  } = {},
 ) {
   const resolver = fakeResolver({
     "api.vendor.example": [PUBLIC_IP],
@@ -50,9 +57,10 @@ function setup(
       resolver,
       transport,
       secrets:
-        options.key === undefined
+        options.secrets ??
+        (options.key === undefined
           ? undefined
-          : fakeHeaderSecrets({ "ext.fake-search.apiKey": options.key }),
+          : fakeHeaderSecrets({ "ext.fake-search.apiKey": options.key })),
       guard: fakeSecretGuard(["registered-secret-value"]),
     },
     options.local === undefined ? {} : { localEndpoints: options.local },
@@ -99,7 +107,114 @@ describe("provider http", () => {
     if (!bad.ok) expect(JSON.stringify(bad.error)).not.toContain("key-value-123");
   });
 
-  test("bearer and query auth", async () => {
+  test("the header key reaches the transport only in x-api-key and never in the response or an error", async () => {
+    const { bound, transport } = setup({ key: "key-value-123" });
+    const outcome = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/search" },
+      SIGNAL,
+    );
+    const sent = transport.requests.at(-1);
+    expect(sent?.headers["x-api-key"]).toBe("key-value-123");
+    expect(sent?.url).toBe("https://api.vendor.example/v1/search");
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) expect(JSON.stringify(outcome.value)).not.toContain("key-value-123");
+    const missing = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/missing" },
+      SIGNAL,
+    );
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(JSON.stringify(missing.error)).not.toContain("key-value-123");
+  });
+
+  test("a bearer key is sent as the authorization header with the Bearer scheme", async () => {
+    const { bound, transport } = setup({
+      key: "tok",
+      manifest: manifestOf({
+        auth: { kind: "bearer", secrets: [{ setting: "ext.fake-search.apiKey" }] },
+      }),
+    });
+    const outcome = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/search" },
+      SIGNAL,
+    );
+    expect(outcome.ok).toBe(true);
+    expect(transport.requests.at(-1)?.headers["authorization"]).toBe("Bearer tok");
+    expect(transport.requests.at(-1)?.headers["x-api-key"]).toBeUndefined();
+  });
+
+  test("an unset key setting is unavailable with no-key and sends nothing", async () => {
+    const { bound, transport } = setup({ secrets: fakeHeaderSecrets({}) });
+    const outcome = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/search" },
+      SIGNAL,
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) {
+      expect(outcome.error.code).toBe("unavailable");
+      expect(outcome.error.detail).toEqual({ reason: "no-key", setting: "ext.fake-search.apiKey" });
+    }
+    expect(transport.requests.length).toBe(0);
+  });
+
+  test("an unavailable key setting is also no-key and sends nothing", async () => {
+    const unavailable: HeaderSecretSender = {
+      send: () => Promise.resolve(err({ kind: "unavailable", setting: "ext.fake-search.apiKey" })),
+    };
+    const { bound, transport } = setup({ secrets: unavailable });
+    const outcome = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/search" },
+      SIGNAL,
+    );
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(reasonOfFailure(outcome.error)).toBe("no-key");
+    expect(transport.requests.length).toBe(0);
+  });
+
+  test("a response that echoes the key is dropped with secret_echoed and its body is not returned", async () => {
+    const { bound, transport } = setup({ key: "key-value-123" });
+    transport.route("https://api.vendor.example/v1/echo", {
+      body: '{"you_sent":"key-value-123"}',
+      headers: { "Content-Type": "application/json" },
+    });
+    transport.route("https://api.vendor.example/v1/echo-header", {
+      body: "{}",
+      headers: { "Content-Type": "application/json", "X-Echo": "key-value-123" },
+    });
+    const body = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/echo" },
+      SIGNAL,
+    );
+    expect(body.ok).toBe(false);
+    if (!body.ok) {
+      expect(body.error.code).toBe("upstream_error");
+      expect(reasonOfFailure(body.error)).toBe("secret_echoed");
+    }
+    expect(JSON.stringify(body)).not.toContain("you_sent");
+    expect(JSON.stringify(body)).not.toContain("key-value-123");
+    // 헤더로 되돌아온 에코도 같은 오류가 된다
+    const header = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/echo-header" },
+      SIGNAL,
+    );
+    expect(header.ok).toBe(false);
+    if (!header.ok) expect(reasonOfFailure(header.error)).toBe("secret_echoed");
+    expect(transport.requests.length).toBe(2);
+  });
+
+  test("a provider header with the secret's name cannot replace the key", async () => {
+    const header = setup({ key: "key-value-123" });
+    await header.bound.request(
+      {
+        method: "GET",
+        url: "https://api.vendor.example/v1/search",
+        headers: { "X-Api-Key": "provider-supplied", Authorization: "Bearer provider" },
+      },
+      SIGNAL,
+    );
+    expect(header.transport.requests.at(-1)?.headers["x-api-key"]).toBe("key-value-123");
+    // 비밀 이름이 아닌 provider 헤더는 그대로 간다
+    expect(header.transport.requests.at(-1)?.headers["authorization"]).toBe("Bearer provider");
+
     const bearer = setup({
       key: "tok",
       manifest: manifestOf({
@@ -107,26 +222,30 @@ describe("provider http", () => {
       }),
     });
     await bearer.bound.request(
-      { method: "GET", url: "https://api.vendor.example/v1/search" },
+      {
+        method: "GET",
+        url: "https://api.vendor.example/v1/search",
+        headers: { Authorization: "Bearer provider" },
+      },
       SIGNAL,
     );
     expect(bearer.transport.requests.at(-1)?.headers["authorization"]).toBe("Bearer tok");
+  });
 
-    const query = setup({
+  test("a query-kind auth that reaches guarded http is no-key and sends nothing", async () => {
+    const { bound, transport } = setup({
       key: "tok",
       manifest: manifestOf({
         auth: { kind: "query", secrets: [{ setting: "ext.fake-search.apiKey", query: "key" }] },
       }),
     });
-    const out = await query.bound.request(
+    const outcome = await bound.request(
       { method: "GET", url: "https://api.vendor.example/v1/search" },
       SIGNAL,
     );
-    expect(query.transport.requests.at(-1)?.url).toBe(
-      "https://api.vendor.example/v1/search?key=tok",
-    );
-    // 응답 URL에는 질의 비밀을 싣지 않는다
-    if (out.ok) expect(out.value.url).toBe("https://api.vendor.example/v1/search");
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(reasonOfFailure(outcome.error)).toBe("no-key");
+    expect(transport.requests.length).toBe(0);
   });
 
   test("a missing key is unavailable with no-key and sends nothing", async () => {
@@ -237,7 +356,8 @@ describe("provider http", () => {
   });
 
   test("the GuardedHttp face rejects with a WebHttpError", async () => {
-    const { bound } = setup({ key: "k" });
+    // 비밀 값은 8바이트 이상이다(L0 register 규칙). 짧은 값은 본문 글자와 겹쳐 에코로 잘못 잡힌다
+    const { bound } = setup({ key: "key-value-123" });
     const rejected = await bound.http
       .request({ method: "GET", url: "https://other.example/x" }, SIGNAL)
       .then(

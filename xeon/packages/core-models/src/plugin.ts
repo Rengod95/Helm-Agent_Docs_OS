@@ -1,5 +1,5 @@
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import type { Clock } from "@xeon/contracts";
+import type { Clock, Scheduler } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   defineManifest,
@@ -24,6 +24,9 @@ import {
 import type { PointInput, ProviderDispatcher } from "./request-points.ts";
 import { createModelService, type ModelServiceDeps, type ModelsSettingsSource } from "./service.ts";
 import { DEFAULT_MODELS_SETTINGS } from "./settings.ts";
+
+/** 계정 회전 플러그인의 scope id(= 매니페스트 name) */
+const ROTATION_PLUGIN = "account-rotation";
 
 // L1.models.plan §2 plugin.ts. 내장 확장(builtin)으로 xeon.models를 제공한다. 쓰는 서비스는 xeon.secrets, xeon.ext,
 // xeon.os(시계)다. Cordis는 import하지 않고 ext-host의 hostOf 포트 API만 쓴다(DR-11, DR-14 예외 4).
@@ -52,6 +55,8 @@ export interface ModelsExtensionOptions {
   readonly settings?: ModelsSettingsSource;
   /** 없으면 xeon.os의 시계를 쓴다 */
   readonly clock?: Clock;
+  /** 계정 회전의 기다림에 쓴다. 시계를 넘기지 않았으면 xeon.os의 타이머를 쓴다 */
+  readonly scheduler?: Scheduler;
   /** 없으면 pi-ai 내장 provider 전체를 등록한 모음을 쓴다 */
   readonly buildModels?: ModelServiceDeps["buildModels"];
 }
@@ -175,6 +180,12 @@ export function createModelsExtension(
       const secrets = host.port(SecretServicePortKey);
       const ext = host.port(ExtHostPortKey);
       const clock = options.clock ?? host.port(OsServicePortKey).time.clock;
+      const schedulerOf = (): { readonly scheduler?: Scheduler } => {
+        const scheduler =
+          options.scheduler ??
+          (options.clock === undefined ? host.port(OsServicePortKey).time.scheduler : undefined);
+        return scheduler === undefined ? {} : { scheduler };
+      };
       host.providePort(
         ModelServicePortKey,
         createModelService({
@@ -182,6 +193,11 @@ export function createModelsExtension(
           secrets,
           clock,
           settings: options.settings ?? (() => DEFAULT_MODELS_SETTINGS),
+          // 시계를 따로 넘긴 조립(시험)은 타이머도 따로 넘겨야 하고, 없으면 회전은 기다리지 않는다
+          ...schedulerOf(),
+          // 계정 회전은 account-rotation 플러그인이 켜져 있을 때만 쓴다(기본 꺼짐, L1.models.spec §4.8)
+          rotationEnabled: () =>
+            ext.scopes().some((info) => info.id === ROTATION_PLUGIN && info.status === "enabled"),
           dispatcher: dispatcherOf(ext),
           // 꺼진 그룹의 groupRouting 값은 쓰지 않는다(L1.models.spec §5)
           scopeEnabled: (scopeId) =>

@@ -33,8 +33,10 @@ import type {
   ThreadLoopStatus,
   ToolMeta,
   ToolService,
+  UsageMeter,
 } from "@xeon/contracts/services";
 import { WireError } from "@xeon/contracts/wire";
+import type { ScheduleService } from "@xeon/cap-schedule";
 import type { ExtHost } from "@xeon/ext-host";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
@@ -84,6 +86,8 @@ interface Harness {
     remove: ReturnType<SessionService["threads"]["remove"]>;
   };
   lostCallback: (() => void) | undefined;
+  /** 예약 서비스 가짜의 값과 구독 목록. 시험이 바꾸고 알림을 낸다 */
+  readonly schedule: { pending: number; loops: number; readonly listeners: Set<() => void> };
 }
 
 const TOKEN: LeaseToken = { resource: `session:${THREAD}`, holderId: "h", epoch: 4 };
@@ -154,6 +158,7 @@ function harness(): Harness {
     resolvedRoles: [],
     state,
     lostCallback: undefined,
+    schedule: { pending: 0, loops: 0, listeners: new Set() },
   };
   const logger: Logger = {
     debug: () => undefined,
@@ -288,6 +293,16 @@ function harness(): Harness {
       session,
       store,
       loop,
+      schedule: partial<ScheduleService>({
+        pendingSchedules: () => result.schedule.pending,
+        liveSchedulerTasks: () => result.schedule.loops,
+        onChange: (listener) => {
+          result.schedule.listeners.add(listener);
+          return () => {
+            result.schedule.listeners.delete(listener);
+          };
+        },
+      }),
       context: partial<ContextService>({
         compact: async (threadId, request) => {
           result.compactRequests.push({ threadId, request });
@@ -302,6 +317,8 @@ function harness(): Harness {
           result.resolvedRoles.push(role);
           return state.modelResolve;
         },
+        // 사용량 원천이 조립 때 구독한다. 이 시험은 기록을 보내지 않는다
+        usage: partial<UsageMeter>({ subscribe: () => () => undefined }),
       }),
       tasks,
       approvals: partial<ApprovalService>({
@@ -341,6 +358,50 @@ describe("threads", () => {
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }
+  });
+
+  test("a create with the same creationKey gives back the first thread, and the list keeps one thread", async () => {
+    const h = harness();
+    // 세션 가짜: 같은 creationKey의 두 번째 생성은 처음 thread를 replayed로 돌려주고 목록에 행을 더하지 않는다(L1.persistence §4.10.1)
+    const firstByKey = new Map<string, ThreadId>();
+    const rows: ThreadSummaryRow[] = [];
+    const session = partial<SessionService>({
+      threads: partial<SessionService["threads"]>({
+        create: (input) => {
+          const key = input.creationKey;
+          const known = key === undefined ? undefined : firstByKey.get(key);
+          if (known !== undefined) {
+            return ok({ threadId: known, headSeq: 5, replayed: true, token: null });
+          }
+          if (key !== undefined) firstByKey.set(key, input.threadId);
+          rows.push(
+            partial<ThreadSummaryRow>({
+              threadId: input.threadId,
+              title: input.title ?? null,
+              status: "idle",
+              workspace: null,
+              createdAt: 1,
+              updatedAt: 1,
+              headSeq: 1,
+              forkedFrom: null,
+              marker: null,
+              queuedInputs: 0,
+              pendingApprovals: 0,
+            }),
+          );
+          return ok({ threadId: input.threadId, headSeq: 1, replayed: false, token: null });
+        },
+        list: () => ({ threads: rows, nextCursor: "next" }),
+      }),
+      feed: h.deps.session.feed,
+    });
+    const { ports } = createEnginePorts({ ...h.deps, session });
+    const key = "timer:sch_01ARZ3NDEKTSV4RRFFQ69G5FAV:601000:create";
+    const first = await ports.threads.create({ title: "예약", creationKey: key });
+    const second = await ports.threads.create({ title: "예약", creationKey: key });
+    expect(second.threadId).toBe(first.threadId);
+    const listed = await ports.threads.list({});
+    expect(listed.threads.map((thread) => thread.threadId)).toEqual([first.threadId]);
   });
 
   test("a refused create is a store.* wire error, not a Bug", async () => {
@@ -716,8 +777,46 @@ describe("locks", () => {
   });
 });
 
+describe("the activity counters with schedules (M3-10)", () => {
+  test("live loops count as live tasks and waiting schedules as pending", () => {
+    const h = harness();
+    h.schedule.pending = 2;
+    h.schedule.loops = 1;
+    const { ports } = createEnginePorts(h.deps);
+    expect(ports.activity.snapshot()).toEqual({
+      liveTurns: 1,
+      liveTasks: 4,
+      waitingApprovals: 0,
+      pendingSchedules: 2,
+    });
+  });
+
+  test("an injected pending count wins over the schedule service", () => {
+    const h = harness();
+    h.schedule.pending = 2;
+    const { ports } = createEnginePorts({
+      ...h.deps,
+      pendingSchedules: { count: () => 7, onChange: () => () => undefined },
+    });
+    expect(ports.activity.snapshot().pendingSchedules).toBe(7);
+  });
+
+  test("a schedule change reaches the activity listeners until they unsubscribe", () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    const seen: number[] = [];
+    const off = ports.activity.onChange(() => {
+      seen.push(1);
+    });
+    for (const listener of h.schedule.listeners) listener();
+    off();
+    for (const listener of h.schedule.listeners) listener();
+    expect(seen).toEqual([1]);
+  });
+});
+
 describe("the small ports", () => {
-  test("activity maps the task counters and leaves approvals and schedules at zero until M2·M3", () => {
+  test("activity maps the task counters and keeps approvals and idle schedules at zero", () => {
     const { ports } = createEnginePorts(harness().deps);
     expect(ports.activity.snapshot()).toEqual({
       liveTurns: 1,

@@ -43,7 +43,8 @@ const sameLayerGroups = [
     own: "^plugins/$1/",
   },
   { name: "L2", from: "^packages/(cap-[^/]+)/", to: "^packages/cap-", own: "^packages/$1/" },
-  // DR-02/group-kit-helm, DR-02/group-kit-learning (scripts/dependency-allowlist.json): a group may import the group-kit entries "." and "./testing".
+  // DR-02/group-kit (scripts/dependency-allowlist.json): every packages/group-<name> may import the group-kit entries "." and "./testing"
+  // and nothing else of group-kit or of another group. The same family pattern "packages/group-*" is in the allowlist entry.
   {
     name: "L3",
     from: "^packages/(group-[^/]+)/",

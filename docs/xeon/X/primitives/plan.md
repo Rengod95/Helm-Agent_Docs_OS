@@ -195,6 +195,12 @@ xeon/packages/ext-host/
 | | `provide disposer returns promise` | `provide` 해제기가 Promise를 돌려준다(타입 교정 근거) | M0 |
 | | `effects dispose concurrently` | 같은 fiber의 effect 두 개 해제가 순차 실행되지 않고 동시에 시작된다(`onDispose` 묶음 근거) | M0 |
 | `ambient.contract.test.ts` | `context survives await` | `AsyncLocalStorage` 값이 `await`·`setTimeout`(가짜 아님, 0ms 한 번)·`queueMicrotask`를 넘어 유지된다 | M0 |
+| `resources.test.ts` | `registerWebProvider records under the capability id` | `registerWebProvider({capability: "web.search"})`가 `web_provider` 기록(이름 `web.search`, 확장 이름)을 남기고, `webProviderRegistrationOf`가 같은 등록 객체를 돌려준다(수용 54) | M3b |
+| | `web capability twice in one scope` | 같은 scope의 같은 능력 두 번째 등록은 `resource_conflict`이다(수용 54) | M3b |
+| | `one scope registers web.search and web.fetch` | 한 scope가 두 능력을 함께 등록한다 | M3b |
+| | `disabling removes the web provider record` | scope를 끄면 기록이 사라지고 구독자가 `removed`를 받는다(수용 54) | M3b |
+| | `two extensions share a web capability name` | 다른 확장의 같은 능력 등록은 거부되지 않고 둘 다 남는다(§3.9.1 [결정: 오케스트레이터 기본값]) | M3b |
+| | `webProviderRegistrationOf rejects other kinds and malformed defs` | 다른 종류 기록, `create` 없는 def, 알 수 없는 능력, `null` def는 `undefined`다(수용 54) | M3b |
 
 - `cordis.contract.test.ts`는 Cordis 판본을 바꿀 때 가장 먼저 실패해야 하는 파일이다. 결과가 바뀌면 spec §4.3 표를 다시 확인한다(adr.0002 §6 제안 절차).
 - `ambient.contract.test.ts`의 0ms 타이머 한 번은 TS-03 예외 조건(런타임 동작 확인)으로 둔다 [제안]. 허용되지 않으면 `queueMicrotask`와 `await`만 확인한다.

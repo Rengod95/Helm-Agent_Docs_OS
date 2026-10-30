@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { CORE_EVENT_CATALOG } from "../../src/records/index.ts";
 
 // F.records.spec §3.3 표(<!-- catalog:start --> ~ <!-- catalog:end -->)와 CORE_EVENT_CATALOG를 대조한다.
-// xeon/scripts/check-event-catalog.ts가 같은 일을 just verify에서 한다. 문서가 보이지 않는 곳(패키지만 복사된 경우)에서는 건너뛴다.
+// 이 시험이 표와 CORE_EVENT_CATALOG를 대조한다(just test packages/contracts). 문서가 보이지 않는 곳(패키지만 복사된 경우)에서는 건너뛴다.
 const SPEC = join(import.meta.dir, "../../../../../docs/xeon/F/records/spec.md");
 
 describe("catalog doc table", () => {

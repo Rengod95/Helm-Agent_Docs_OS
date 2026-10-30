@@ -15,6 +15,8 @@ import { nullableStringCell, numberCell, stringCell, type RowInvalid } from "./r
 
 // L2.web.spec §3.8, §4.3.1 (3), §4.9.2. 디스크 fetch 캐시(`cap_web_fetch_cache`)와 원문 저장(`cap_web_raw`).
 // 블롭은 트랜잭션 밖에서 저장하고(TX-04), 행 쓰기는 응답을 받은 뒤 짧은 `StoreDb.write` 하나로 한다(TX-01).
+// `cap_web_raw` 행이 가리키는 원문·본문 블롭은 `cap.web` 소유로 `rawRef`에 고정한다(pinBlob, L0.store §3.4).
+// 행이 지워질 때(sweep, purgeSessionRaw) 고정을 푼다. 캐시 행만 지운 경우에는 원문 행이 남으므로 고정도 남는다.
 
 export type CacheError =
   | { readonly kind: "migrate"; readonly error: MigrationError }
@@ -134,6 +136,32 @@ export function createFetchCache(deps: {
     const bytes = store.readBlob(ref.value);
     if (!bytes.ok) return err({ kind: "blob", error: bytes.error });
     return ok(new TextDecoder().decode(bytes.value));
+  }
+
+  /**
+   * `cap_web_raw` 한 행의 원문·본문 블롭을 `rawRef`로 고정한다. 같은 원문을 다시 저장해 본문이 바뀌었을 수 있으므로
+   * 먼저 이 행의 고정을 모두 풀고 새 두 블롭을 적는다. 호출은 동기이므로 그 사이에 GC가 끼어들지 않는다.
+   */
+  function pinRow(rawRef: string, raw: BlobRef, text: BlobRef): Result<void, CacheError> {
+    const released = store.unpinBlob(WEB_STORE_OWNER, rawRef);
+    if (!released.ok) return err({ kind: "blob", error: released.error });
+    const rawPin = store.pinBlob(WEB_STORE_OWNER, raw.sha256, rawRef);
+    if (!rawPin.ok) return err({ kind: "blob", error: rawPin.error });
+    const textPin = store.pinBlob(WEB_STORE_OWNER, text.sha256, rawRef);
+    if (!textPin.ok) return err({ kind: "blob", error: textPin.error });
+    return ok(undefined);
+  }
+
+  /** 지운 원문 행의 고정을 푼다. 한 개가 실패해도 나머지는 계속 풀고 처음 실패를 돌려준다(남은 고정은 블롭을 지키는 쪽이다) */
+  function releaseRows(rawRefs: readonly string[]): Result<void, CacheError> {
+    let failure: CacheError | undefined;
+    for (const rawRef of rawRefs) {
+      const released = store.unpinBlob(WEB_STORE_OWNER, rawRef);
+      if (!released.ok && failure === undefined) {
+        failure = { kind: "blob", error: released.error };
+      }
+    }
+    return failure === undefined ? ok(undefined) : err(failure);
   }
 
   return {
@@ -268,6 +296,9 @@ export function createFetchCache(deps: {
         }
       });
       if (!written.ok) return err({ kind: "write", error: written.error });
+      // 행이 커밋된 뒤에 고정한다(트랜잭션 밖, TX-04). 실패하면 행은 남고 고정이 없다. 다음 저장이 다시 적는다
+      const pinned = pinRow(rawRef, rawBlob.value, textBlob.value);
+      if (!pinned.ok) return pinned;
       return ok({ rawRef });
     },
 
@@ -333,13 +364,15 @@ export function createFetchCache(deps: {
     sweep(maxBytes) {
       const swept = db().write((tx) => {
         let removed = 0;
+        // 이 트랜잭션이 지운 원문 행. 커밋된 뒤에 고정을 푼다
+        const dropped: string[] = [];
         for (;;) {
           const total = tx.get(
             `SELECT COALESCE(SUM(json_extract(raw_blob, '$.size') + json_extract(text_blob, '$.size')), 0) AS bytes
                FROM cap_web_raw WHERE retention = 'persist'`,
           );
           const bytes = total === undefined ? 0 : Number(total["bytes"] ?? 0);
-          if (bytes <= maxBytes) return removed;
+          if (bytes <= maxBytes) return { removed, dropped };
           const oldest = tx.get(
             "SELECT cache_key, raw_ref FROM cap_web_fetch_cache ORDER BY expires_at ASC LIMIT 1",
           );
@@ -348,8 +381,10 @@ export function createFetchCache(deps: {
             const orphan = tx.get(
               "SELECT raw_ref FROM cap_web_raw WHERE retention = 'persist' ORDER BY created_at ASC LIMIT 1",
             );
-            if (orphan === undefined) return removed;
-            tx.run("DELETE FROM cap_web_raw WHERE raw_ref = ?", [String(orphan["raw_ref"])]);
+            if (orphan === undefined) return { removed, dropped };
+            const orphanRef = String(orphan["raw_ref"]);
+            tx.run("DELETE FROM cap_web_raw WHERE raw_ref = ?", [orphanRef]);
+            dropped.push(orphanRef);
             removed += 1;
             continue;
           }
@@ -360,12 +395,17 @@ export function createFetchCache(deps: {
             "SELECT 1 AS present FROM cap_web_fetch_cache WHERE raw_ref = ? LIMIT 1",
             [ref],
           );
-          if (others === undefined) tx.run("DELETE FROM cap_web_raw WHERE raw_ref = ?", [ref]);
+          if (others === undefined) {
+            tx.run("DELETE FROM cap_web_raw WHERE raw_ref = ?", [ref]);
+            dropped.push(ref);
+          }
           removed += 1;
         }
       });
       if (!swept.ok) return err({ kind: "write", error: swept.error });
-      return ok({ removed: swept.value });
+      const released = releaseRows(swept.value.dropped);
+      if (!released.ok) return released;
+      return ok({ removed: swept.value.removed });
     },
 
     purgeSessionRaw(liveSessions) {
@@ -374,16 +414,21 @@ export function createFetchCache(deps: {
           "SELECT raw_ref, session_id FROM cap_web_raw WHERE retention = 'session'",
         );
         let removed = 0;
+        const dropped: string[] = [];
         for (const row of rows) {
           const owner = row["session_id"];
           if (typeof owner === "string" && liveSessions.has(owner)) continue;
-          tx.run("DELETE FROM cap_web_raw WHERE raw_ref = ?", [String(row["raw_ref"])]);
+          const rawRef = String(row["raw_ref"]);
+          tx.run("DELETE FROM cap_web_raw WHERE raw_ref = ?", [rawRef]);
+          dropped.push(rawRef);
           removed += 1;
         }
-        return removed;
+        return { removed, dropped };
       });
       if (!purged.ok) return err({ kind: "write", error: purged.error });
-      return ok({ removed: purged.value });
+      const released = releaseRows(purged.value.dropped);
+      if (!released.ok) return released;
+      return ok({ removed: purged.value.removed });
     },
   };
 }

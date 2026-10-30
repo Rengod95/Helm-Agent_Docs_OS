@@ -192,12 +192,14 @@ impl EntryLauncher for TauriEntryLauncher {
                 .map_err(|e| LaunchError(format!("sidecar `{SIDECAR_NAME}` is not available: {e}")))?
                 .args(args),
         };
+        // 엔진과 같은 PATH 보강을 쓴다(E7). sops, age를 Finder로 띄운 앱에서도 찾게 한다.
+        let env = engine_env(std::env::vars_os(), Some(cwd.as_path()));
         let (rx, child) = command
             .set_raw_out(true)
             .set_process_group(true)
             .current_dir(cwd)
             .env_clear()
-            .envs(engine_env(std::env::vars_os()))
+            .envs(env)
             .spawn()
             .map_err(|e| LaunchError(format!("spawn failed: {e}")))?;
         let pid = child.pid();

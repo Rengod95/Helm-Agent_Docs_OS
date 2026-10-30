@@ -38,8 +38,10 @@ import {
   type WireResult,
 } from "@xeon/contracts/wire";
 import { isAbsolute } from "node:path";
+import type { ScheduleService } from "@xeon/cap-schedule";
 import { itemPagesOf } from "@xeon/core-persistence";
 import { PrimitiveError, type ExtHost } from "@xeon/ext-host";
+import type { FileLock } from "@xeon/platform-os";
 import type {
   ActivityPort,
   ApprovalPort,
@@ -64,8 +66,11 @@ import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-
 import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
+import { createDialogWirePort } from "./dialog-wire.ts";
+import { createUsageSource } from "./usage.ts";
 import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
+import { createWebPort, type WebStatusHolder } from "./web-providers.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import { createSettingsStore } from "./settings-store.ts";
 import { createThreadGate } from "./thread-gate.ts";
@@ -91,8 +96,8 @@ export interface PortsDeps {
   readonly loop: LoopService;
   /** 수동 컴팩션(`thread.compact`)이 부른다 */
   readonly context: Pick<ContextService, "compact">;
-  /** 수동 컴팩션이 현재 모델(역할 `main`)의 바인딩과 창 크기를 정할 때 쓴다 */
-  readonly models: Pick<ModelService, "resolve" | "list">;
+  /** 수동 컴팩션이 현재 모델(역할 `main`)의 바인딩과 창 크기를 정할 때 쓴다. `usage`는 사용량 원천(`usage.get`)이 구독한다 */
+  readonly models: Pick<ModelService, "resolve" | "list" | "usage">;
   readonly tasks: TaskService;
   readonly approvals: ApprovalService;
   /** 열 때 복구가 도구의 현재 재실행 정책을 본다(ToolService.meta) */
@@ -103,16 +108,22 @@ export interface PortsDeps {
   readonly secrets: SecretsPort;
   /** 명령 등록부 자리. 브리지 확장이 명령 서비스 API를 채운다 */
   readonly commands: CommandRegistryHolder;
+  /** 웹 런타임 자리. cap-web 확장이 채운다(`web.providers`) */
+  readonly web: WebStatusHolder;
   /** 지식 제안 대기열 둘의 합친 조회·결정(`proposal.*`) */
   readonly proposals: ProposalPort;
   /** 사용자 설정 파일이 없을 때 새로 만들 디렉터리(L0.os의 `dirs.config`) */
   readonly configDir: string;
+  /** 프로세스 사이 파일 잠금(`OsServiceHandle.fileLock`). 설정 파일 쓰기가 이 안에서 일어난다(M3-REQ-82) */
+  readonly fileLock: FileLock;
   readonly trust: ProjectTrust;
   /** 서비스 모드의 프로젝트 확장 적재(M3-REQ-38). 쓰기 소유를 얻은 thread의 작업 폴더와 신뢰 결정 뒤에 부른다 */
   readonly projectExtensions: ProjectExtensions;
   /** thread의 작업 디렉터리(없으면 undefined) */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
-  /** 대기 예약 수의 출처. 없으면 0이다(유휴 판정, M3b B1-SVC) */
+  /** 예약 서비스(L4.host-service.spec §4.17). 대기 예약·루프 수를 활동 집계에 낸다 */
+  readonly schedule: ScheduleService;
+  /** 대기 예약 수의 시험 주입. 있으면 예약 서비스의 대기 수 대신 이 값을 쓴다 */
   readonly pendingSchedules?: PendingSchedulesPort;
 }
 
@@ -139,7 +150,7 @@ function toLogValue(value: unknown): LogValue {
   return `[${typeof value}]`;
 }
 
-function toLogFields(fields: Readonly<Record<string, unknown>>): LogFields {
+export function toLogFields(fields: Readonly<Record<string, unknown>>): LogFields {
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, toLogValue(value)]));
 }
 
@@ -205,11 +216,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         if (!canonical.ok) throw wireErrorOfWorkspace(canonical.error);
         workspace = canonical.value;
       }
+      // 같은 creationKey의 재생이면 세션이 처음 thread의 id를 돌려준다. 여기서 발급한 id는 쓰이지 않고 버려진다
       const threadId = deps.ids.next("thr");
       const created = session.threads.create({
         threadId,
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(workspace === undefined ? {} : { workspace }),
+        ...(input.creationKey === undefined ? {} : { creationKey: input.creationKey }),
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
       const head = session.feed.headSeq();
@@ -538,6 +551,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     engine: deps.settings,
     session,
     configDir: deps.configDir,
+    fileLock: deps.fileLock,
     trust: deps.trust,
     ids: deps.ids,
     logger: logger.child({ component: "settings" }),
@@ -577,21 +591,24 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const snapshot = tasks.activity();
       return {
         liveTurns: snapshot.liveTurns,
-        liveTasks: snapshot.liveTasks,
+        // 켜진 루프는 백그라운드 작업으로 센다(M3-10)
+        liveTasks: snapshot.liveTasks + deps.schedule.liveSchedulerTasks(),
         // 대기 예약은 유휴 종료 판정이 쓴다. 승인 대기는 이 프로세스가 쥔 thread의 미해결 요청이다
         waitingApprovals: Array.from(held.keys()).reduce(
           (sum, threadId) => sum + deps.approvals.pending(threadId).length,
           0,
         ),
-        pendingSchedules: deps.pendingSchedules?.count() ?? 0,
+        pendingSchedules: deps.pendingSchedules?.count() ?? deps.schedule.pendingSchedules(),
       };
     },
     onChange: (listener) => {
       const offTasks = tasks.onActivity(listener);
       const offSchedules = deps.pendingSchedules?.onChange(listener);
+      const offSchedule = deps.schedule.onChange(listener);
       return () => {
         offTasks();
         offSchedules?.();
+        offSchedule();
       };
     },
   };
@@ -626,8 +643,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     secrets: deps.secrets,
     models: { modelIds: (provider) => modelIdsOf(deps.models, provider) },
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
+    web: createWebPort({ holder: deps.web, settings: deps.settings }),
+    dialog: createDialogWirePort({ holder: deps.commands }),
+    usage: createUsageSource(deps.models.usage),
     proposals: deps.proposals,
     trust,
+    schedule: deps.schedule,
     ids: deps.ids,
     clock: deps.clock,
     scheduler: deps.scheduler,

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "name": "__ID__",
+  "version": "__VERSION__",
+  "displayName": "__TITLE__",
+  "layer": "L3",
+  "kind": "group",
+  "entry": "./src/index.ts",
+  "points": ["boundary.settle.after"],
+  "usesDrive": false,
+  "defaultEnabled": false,
+  "recordKinds": [
+    {
+      "kind": "grp.__ID__.turn.counted",
+      "version": 1,
+      "description": "턴이 정착할 때마다 세는 계수 기록",
+      "payload": {}
+    }
+  ],
+  "trust": { "level": "user" }
+}

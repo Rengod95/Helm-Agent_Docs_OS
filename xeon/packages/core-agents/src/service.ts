@@ -34,7 +34,7 @@ import {
   type SpawnResult,
   type TaskScope,
 } from "@xeon/contracts/services";
-import type { RecordKind } from "@xeon/contracts/extensions";
+import type { RecordKind, ScopeId } from "@xeon/contracts/extensions";
 import { ceilingOf, childMode } from "./permission-ceiling.ts";
 import { AGENTS_RULE_SOURCE, definitionRules, subagentRules } from "./denylist.ts";
 import { createDefinitionRegistry } from "./definitions/registry.ts";
@@ -703,6 +703,101 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       answerItemId: null,
     });
 
+  /**
+   * 재시작으로 끊겨 이 프로세스의 live 표에 없지만 정착 기록이 없는 위임 가운데 그 scope가 소유한 것을 aborted로 정착한다
+   * (`cancel({ ownerScopeId })`가 재시작 뒤에도 저장된 자식에 닿게 한다, L1.agents.spec §4.7). 정착 수를 돌려준다
+   */
+  const settleStoredOwnedBy = (ownerScopeId: ScopeId, reason: string): number => {
+    let settledCount = 0;
+    let cursor: string | undefined;
+    do {
+      const page = session.threads.list({
+        includeClosed: true,
+        limit: 200,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      for (const row of page.threads) {
+        const children = session.query.childAgents(row.threadId, { unsettledOnly: true });
+        if (!children.ok) {
+          log.warn("agents.cancel_stored_unreadable", { parentThreadId: row.threadId });
+          continue;
+        }
+        for (const link of children.value) {
+          if (link.settled !== null || live.has(link.childThreadId)) continue;
+          if (starting.has(link.childThreadId)) continue;
+          const spawned = session.query.latestEvent(row.threadId, "agent.spawned", {
+            pointer: "/requestId",
+            equals: link.requestId,
+          });
+          if (!spawned.ok || spawned.value === undefined) continue;
+          const payload = parse(AgentSpawnedPayloadSchema, spawned.value.payload);
+          if (!payload.ok) continue;
+          const owner = payload.value.owner;
+          if (owner.kind === "tool" || owner.scopeId !== ownerScopeId) continue;
+          const report = guardReport({
+            agent: payload.value.agent,
+            childThreadId: link.childThreadId,
+            status: "aborted",
+            text: null,
+            reason,
+            maxChars: Math.min(settings.resultMaxChars(), STORED_REPORT_MAX),
+          });
+          const committed = session.commit({
+            threadId: row.threadId,
+            requestId: `agent:${link.childThreadId}:settled`,
+            fingerprintSource: { childThreadId: link.childThreadId, requestId: link.requestId },
+            build(view): CommitPlan {
+              const current = view.agentByRequestId(row.threadId, link.requestId);
+              if (current === undefined)
+                return { kind: "reject", code: "not_spawned", detail: null };
+              if (current.settled !== null) {
+                return { kind: "reject", code: "already_settled", detail: null };
+              }
+              return {
+                kind: "append",
+                drafts: [
+                  producer.draft({
+                    id: ids.next("evt"),
+                    kind: "agent.settled",
+                    threadId: row.threadId,
+                    turnId: null,
+                    stepId: null,
+                    causationId: null,
+                    correlationId: null,
+                    payload: {
+                      childThreadId: link.childThreadId,
+                      requestId: link.requestId,
+                      status: "aborted",
+                      report: {
+                        text: report.text,
+                        truncated: report.truncated,
+                        flags: [...report.flags],
+                        originalChars: report.originalChars,
+                      },
+                      answerItemId: null,
+                      usage: null,
+                      error: null,
+                      owner,
+                      limitHit: null,
+                    },
+                  }),
+                ],
+                checkpoint: null,
+              };
+            },
+          });
+          if (committed.ok && committed.value.status === "committed" && !committed.value.replayed) {
+            settledCount += 1;
+          } else if (!committed.ok) {
+            log.warn("agents.cancel_stored_commit_failed", { childThreadId: link.childThreadId });
+          }
+        }
+      }
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor !== undefined);
+    return settledCount;
+  };
+
   /** 결과 검사(§4.6)를 거쳐 부모 대화에 agent.settled를 커밋하고 자식 임대를 놓는다 */
   const recordSettled = async (
     origin: SpawnOrigin,
@@ -775,6 +870,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
           },
           requestId: `${prepared.requestId}:report`,
           source: { type: "delegation", childThreadId },
+          origin: "delegation",
         });
         return { kind: "append", drafts: [settledDraft, ...queued.drafts], checkpoint: null };
       },
@@ -964,7 +1060,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     producer,
     ids,
     models: deps.models ?? (() => undefined),
-    maxRuns: () => settings.judgeMaxRuns?.() ?? JUDGE_MAX_RUNS_DEFAULT,
+    maxRuns: (input) => settings.judgeMaxRuns?.(input.threadId) ?? JUDGE_MAX_RUNS_DEFAULT,
     now: deps.now ?? Date.now,
     log,
   });
@@ -1089,7 +1185,12 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         const tickets = await Promise.all(
           owned.map((child) => tasks.abort(child.scope, abortReasonOf(reason))),
         );
-        return { cancelled: tickets.some((t) => t.ok && t.value.status === "signalled") };
+        // 재시작으로 끊긴 저장된 자식은 정착 기록으로 닫는다(다음 위임이 재개하지 않는다)
+        const storedSettled = settleStoredOwnedBy(target.ownerScopeId, reason);
+        return {
+          cancelled:
+            storedSettled > 0 || tickets.some((t) => t.ok && t.value.status === "signalled"),
+        };
       }
       let childThreadId: ThreadId | undefined;
       if ("childThreadId" in target) {

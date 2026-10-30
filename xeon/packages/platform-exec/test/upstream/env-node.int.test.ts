@@ -518,7 +518,9 @@ describe("NodeExecutionEnv filesystem", () => {
     getOrThrow(await env.writeFile("file.txt", "durable", BACKGROUND_CONTEXT));
     const prototype = await fileHandlePrototype(join(root, "file.txt"));
     // XEON-PATCH: P15
-    const originalSync: unknown = Reflect.get(prototype, "sync");
+    const handle: unknown = prototype;
+    const originalSync: unknown =
+      typeof handle === "object" && handle !== null && "sync" in handle ? handle.sync : undefined;
     if (typeof originalSync !== "function") throw new Error("FileHandle prototype has no sync");
     const synced: FileHandle[] = [];
     const sync = spyOn(prototype, "sync").mockImplementation(async function (this: FileHandle) {
@@ -624,7 +626,9 @@ describe("NodeExecutionEnv text line reader", () => {
     getOrThrow(await env.writeFile("lines.txt", "one\ntwo\n", BACKGROUND_CONTEXT));
     const prototype = await fileHandlePrototype(join(root, "lines.txt"));
     // XEON-PATCH: P15
-    const read: unknown = Reflect.get(prototype, "read");
+    const handle: unknown = prototype;
+    const read: unknown =
+      typeof handle === "object" && handle !== null && "read" in handle ? handle.read : undefined;
     if (typeof read !== "function") throw new Error("FileHandle prototype has no read");
     const started = Promise.withResolvers<void>();
     const gate = Promise.withResolvers<void>();

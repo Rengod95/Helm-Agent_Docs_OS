@@ -13,11 +13,13 @@ import {
 const ids = fixedIdFactory(3);
 const FIRST: ThreadId = ids.next("thr");
 const LAST: ThreadId = ids.next("thr");
+const SIGNAL = new AbortController().signal;
 
 interface Seen {
   args: string;
   threadId: ThreadId | null;
   invocationId: string;
+  signal: AbortSignal;
 }
 
 function registry(handler: (seen: Seen) => void, name = "learning"): ResourceRegistry {
@@ -29,8 +31,16 @@ function registry(handler: (seen: Seen) => void, name = "learning"): ResourceReg
     extension: "learning",
     builtin: true,
     def: {
-      handler: (args: string, ctx: { threadId: ThreadId | null; invocationId: string }) => {
-        handler({ args, threadId: ctx.threadId, invocationId: ctx.invocationId });
+      handler: (
+        args: string,
+        ctx: { threadId: ThreadId | null; invocationId: string; signal: AbortSignal },
+      ) => {
+        handler({
+          args,
+          threadId: ctx.threadId,
+          invocationId: ctx.invocationId,
+          signal: ctx.signal,
+        });
         return Promise.resolve();
       },
     },
@@ -63,22 +73,29 @@ function runnerOf(
 test("learning.runner runs the command in the preferred thread when this host holds it and returns the result of that invocation", async () => {
   const seen: Seen[] = [];
   const runner = runnerOf(seen, [FIRST, LAST], LAST);
-  const ran = await runner.run("queue reject prop_1", FIRST);
+  const ran = await runner.run("queue reject prop_1", FIRST, SIGNAL);
   expect(ran).toEqual({ kind: "report", report: { kind: "cancel", cancelled: true } });
   expect(seen).toHaveLength(1);
   expect(seen[0]?.args).toBe("queue reject prop_1");
   expect(seen[0]?.threadId).toBe(FIRST);
   // 호출마다 새 invocationId를 만든다
-  await runner.run("queue", FIRST);
+  await runner.run("queue", FIRST, SIGNAL);
   expect(new Set(seen.map((call) => call.invocationId)).size).toBe(2);
+});
+
+test("learning.runner hands the caller's cancel signal to the command handler as the same object", async () => {
+  const seen: Seen[] = [];
+  const controller = new AbortController();
+  await runnerOf(seen, [FIRST], FIRST).run("queue", FIRST, controller.signal);
+  expect(seen[0]?.signal).toBe(controller.signal);
 });
 
 test("learning.runner falls back to the most recently opened thread and says unavailable when none is open", async () => {
   const seen: Seen[] = [];
-  const fallback = await runnerOf(seen, [LAST], LAST).run("queue", FIRST);
+  const fallback = await runnerOf(seen, [LAST], LAST).run("queue", FIRST, SIGNAL);
   expect(fallback.kind).toBe("report");
   expect(seen[0]?.threadId).toBe(LAST);
-  const none = await runnerOf([], [], null).run("queue", undefined);
+  const none = await runnerOf([], [], null).run("queue", undefined, SIGNAL);
   expect(none).toEqual({
     kind: "unavailable",
     detail: "no conversation is open to record the decision",
@@ -92,7 +109,7 @@ test("learning.runner says unavailable when the command is not registered or ret
     heldThreads: () => [FIRST],
     activeThread: () => FIRST,
   });
-  expect(await missing.run("queue", undefined)).toEqual({
+  expect(await missing.run("queue", undefined, SIGNAL)).toEqual({
     kind: "unavailable",
     detail: "the learning command is not registered",
   });
@@ -102,7 +119,7 @@ test("learning.runner says unavailable when the command is not registered or ret
     heldThreads: () => [FIRST],
     activeThread: () => FIRST,
   });
-  expect(await silent.run("queue", undefined)).toEqual({
+  expect(await silent.run("queue", undefined, SIGNAL)).toEqual({
     kind: "unavailable",
     detail: "the learning command returned no result",
   });
@@ -141,13 +158,13 @@ test("learning.runner leaves no result behind when the command handler throws", 
   });
   let thrown = false;
   try {
-    await runner.run("queue", FIRST);
+    await runner.run("queue", FIRST, SIGNAL);
   } catch (error) {
     thrown = error instanceof Error;
   }
   expect(thrown).toBe(true);
   // 같은 id로 다시 보고하는 일이 없으니 남은 항목은 다음 실행에 섞이지 않는다
-  const later = await runnerOf([], [FIRST], FIRST).run("queue", FIRST);
+  const later = await runnerOf([], [FIRST], FIRST).run("queue", FIRST, SIGNAL);
   expect(later.kind).toBe("report");
   expect(stored).toHaveLength(1);
 });

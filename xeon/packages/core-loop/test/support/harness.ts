@@ -1,7 +1,11 @@
-import { Bug, ok, type Logger, type LogFields } from "@xeon/contracts";
+import { Bug, ok, parse, type Logger, type LogFields } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { InputQueuePortKey, LoopPortKey, RecordCommitPortKey } from "@xeon/contracts/extensions";
-import { EVENT_CATALOG, type CatalogEntry } from "@xeon/contracts/records";
+import {
+  EVENT_CATALOG,
+  ItemRecordedPayloadSchema,
+  type CatalogEntry,
+} from "@xeon/contracts/records";
 import {
   createTestHost,
   fixedIdFactory,
@@ -10,6 +14,8 @@ import {
 } from "@xeon/ext-host/testing";
 import { Type } from "typebox";
 import { createLoopService, type LoopServiceHandle } from "../../src/index.ts";
+import type { RepeatSettings } from "../../src/repeat.ts";
+import { DEFAULT_LOOP_SETTINGS } from "../../src/settings.ts";
 import type { LoopDeps } from "../../src/types.ts";
 import { createFakeContext, type FakeContext } from "./fake-context.ts";
 import { createFakeModels, type FakeModels, type ScriptedResponse } from "./fake-models.ts";
@@ -52,6 +58,8 @@ export interface HarnessOptions {
   readonly maxSteps?: number;
   /** l1.loop.gate.maxContinues. 생략하면 기본 8 */
   readonly gateMaxContinues?: number;
+  /** l1.loop.repeat.*. 생략하면 기본값(켜짐, 4, 3) */
+  readonly repeat?: Partial<RepeatSettings>;
   readonly kindLookup?: (kind: string) => CatalogEntry | undefined;
   readonly modelCallsCapacity?: number;
   readonly maxResumeAttempts?: number;
@@ -119,6 +127,7 @@ function disabledLoop(): LoopServiceHandle {
     whenIdle: (_threadId, fn) => fn(),
     admit: () => unavailable("admit"),
     runUserBash: () => unavailable("runUserBash"),
+    guardExecution: () => unavailable("guardExecution"),
     runChildTurn: () => unavailable("runChildTurn"),
     interrupt: () => unavailable("interrupt"),
     resume: () => unavailable("resume"),
@@ -188,6 +197,7 @@ async function build(
           settings: {
             maxSteps: () => options.maxSteps ?? 0,
             gateMaxContinues: () => options.gateMaxContinues ?? 8,
+            repeat: () => ({ ...DEFAULT_LOOP_SETTINGS.repeat(threadId), ...options.repeat }),
           },
           basePrompt: "You are a test assistant.",
           hostMode: "in-process",
@@ -253,4 +263,28 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   });
   const threadId = fake.startThread();
   return build(fake, clock, options, threadId, 1_000_000);
+}
+
+/** 루프가 붙이는 단계 염의 길이(L1.loop.spec §3.3 규칙 7) */
+const SALT_LENGTH = 8;
+
+/**
+ * 제공자가 준 도구 호출 id(`raw`, 예: `c1`)가 루프 기록에서 얻은 id를 돌려준다.
+ * 루프는 응답마다 단계 id 끝 8자를 붙인다(L1.loop.spec §3.3 규칙 7: `c1` → `c1_0006NKY3`).
+ * 응답이 기록된 뒤에 쓴다. 응답 전에 거는 크래시 술어는 접두어(`tool:c1_`)로 맞춘다.
+ * 기록에 호출이 없으면 시험 설정이 잘못된 것이므로 Bug를 던진다.
+ */
+export function recordedCallId(h: Harness, raw: string): string {
+  const prefix = `${raw}_`;
+  for (const event of h.fake.events(h.threadId)) {
+    if (event.kind !== "item.recorded") continue;
+    const recorded = parse(ItemRecordedPayloadSchema, event.payload);
+    if (!recorded.ok || recorded.value.item.kind !== "assistant") continue;
+    for (const block of recorded.value.item.message.content) {
+      if (block.type === "toolCall" && block.id.startsWith(prefix)) {
+        if (block.id.length === prefix.length + SALT_LENGTH) return block.id;
+      }
+    }
+  }
+  throw new Bug(`harness: no recorded assistant tool call for ${raw} (salted id expected)`);
 }

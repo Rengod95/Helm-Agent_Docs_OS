@@ -1,3 +1,4 @@
+import type { NoticeKind } from "@xeon/contracts/capabilities";
 import { Type } from "typebox";
 import {
   defineSettings,
@@ -6,7 +7,7 @@ import {
   type SettingDef,
 } from "@xeon/contracts/settings";
 
-// L2.dialog.spec §6. 13개 키를 모두 선언한다(plan D8). notify.*와 styles.active는 읽는 기능이 M3 이후라 선언만 있다.
+// L2.dialog.spec §6. 13개 키를 모두 선언한다(plan D8). notify.*는 OS 전달(§4.7.2)이 읽고, styles.active는 2차 기능이 읽을 때까지 선언만 있다.
 
 const FILE_SCOPES = ["managed", "user", "project", "local"] as const;
 const USER_PROJECT = ["user", "project", "local"] as const;
@@ -156,7 +157,7 @@ export const DIALOG_SETTING_DEFS: readonly SettingDef[] = Object.values(dialogSe
 
 type ShellInjectionMode = (typeof SHELL_INJECTION_MODES)[number];
 
-/** 호출 한 번이 읽는 유효 설정. M2가 읽는 키만 담는다(notify.*, styles.active는 M3·2차 기능이 읽는다) */
+/** 호출 한 번이 읽는 유효 설정. 이 패키지가 읽는 키만 담는다(styles.active는 2차 기능이 읽는다) */
 export interface DialogSettings {
   readonly ask: { readonly timeoutSec: number };
   readonly commands: {
@@ -166,6 +167,11 @@ export interface DialogSettings {
   };
   readonly status: { readonly segments: readonly string[] };
   readonly attachments: { readonly maxBytes: number };
+  /** 알림 전달 켜기. `os`는 OS 알림, `kinds`는 알림 종류별 켜기다(L2.dialog.spec §6) */
+  readonly notify: {
+    readonly os: boolean;
+    readonly kinds: Readonly<Record<NoticeKind, boolean>>;
+  };
 }
 
 export const DEFAULT_DIALOG_SETTINGS: DialogSettings = {
@@ -173,6 +179,16 @@ export const DEFAULT_DIALOG_SETTINGS: DialogSettings = {
   commands: { dirs: [], advertise: true, shellInjection: "confirm" },
   status: { segments: DEFAULT_SEGMENTS },
   attachments: { maxBytes: 20971520 },
+  notify: {
+    os: true,
+    kinds: {
+      completed: true,
+      approval_waiting: true,
+      question_waiting: true,
+      error: true,
+      background_completed: true,
+    },
+  },
 };
 
 /** 설정 층을 돌려준다. 파일 범위와 세션 범위를 합친 스택이다. 호출마다 읽으므로 변경이 다음 호출부터 적용된다 */
@@ -222,6 +238,23 @@ function shellInjectionOf(layers: ScopeStack): ShellInjectionMode {
   return value === "off" ? "off" : "confirm";
 }
 
+function notifyKindsOf(
+  layers: ScopeStack,
+  fallback: DialogSettings["notify"]["kinds"],
+): DialogSettings["notify"]["kinds"] {
+  return {
+    completed: booleanOf("notify.completed", layers, fallback.completed),
+    approval_waiting: booleanOf("notify.approvalWaiting", layers, fallback.approval_waiting),
+    question_waiting: booleanOf("notify.questionWaiting", layers, fallback.question_waiting),
+    error: booleanOf("notify.error", layers, fallback.error),
+    background_completed: booleanOf(
+      "notify.backgroundCompleted",
+      layers,
+      fallback.background_completed,
+    ),
+  };
+}
+
 /** 유효 값을 읽는다. 형식이나 범위가 틀린 층은 `resolveSetting`이 건너뛰고, 값이 없으면 기본값이다 */
 export function readDialogSettings(layers: ScopeStack): DialogSettings {
   const fallback = DEFAULT_DIALOG_SETTINGS;
@@ -235,6 +268,10 @@ export function readDialogSettings(layers: ScopeStack): DialogSettings {
     status: { segments: stringsOf("status.segments", layers, fallback.status.segments) },
     attachments: {
       maxBytes: integerOf("attachments.maxBytes", layers, fallback.attachments.maxBytes),
+    },
+    notify: {
+      os: booleanOf("notify.os", layers, fallback.notify.os),
+      kinds: notifyKindsOf(layers, fallback.notify.kinds),
     },
   };
 }

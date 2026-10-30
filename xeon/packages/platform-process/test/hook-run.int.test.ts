@@ -129,8 +129,9 @@ describe("hook run", () => {
     expect(await waitFor(() => existsSync(marker), 5000)).toBe(true);
     const pids = jsonOf(readFileSync(marker, "utf8"));
     const parent =
-      typeof pids === "object" && pids !== null ? Reflect.get(pids, "parent") : undefined;
-    const leaf = typeof pids === "object" && pids !== null ? Reflect.get(pids, "leaf") : undefined;
+      typeof pids === "object" && pids !== null && "parent" in pids ? pids.parent : undefined;
+    const leaf =
+      typeof pids === "object" && pids !== null && "leaf" in pids ? pids.leaf : undefined;
     if (typeof parent !== "number" || typeof leaf !== "number") throw new Error("pids missing");
     expect(isAlive(leaf)).toBe(true);
     controller.abort();

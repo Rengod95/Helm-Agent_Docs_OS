@@ -394,6 +394,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
           item: request.item,
           requestId: request.requestId,
           source: { type: "extension", scopeId: request.scopeId },
+          origin: "other",
         });
         resolve(result.ok ? ok({ duplicate: result.value.duplicate }) : err(result.error));
       });

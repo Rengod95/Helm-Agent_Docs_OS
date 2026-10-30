@@ -28,6 +28,7 @@ import {
 } from "@xeon/contracts/extensions";
 import type {
   DurableEventDraft,
+  DurableEventEnvelope,
   ExtensionEventKind,
   Projector,
   ProjectorFailure,
@@ -239,6 +240,8 @@ export interface MemoryRecordStore extends RecordCommitPort {
   events(threadId: ThreadId): readonly DurableEventDraft[];
   /** 활성 가지 위 이벤트(루트 → leaf) */
   branch(threadId: ThreadId): readonly DurableEventDraft[];
+  /** 활성 가지를 루트에서 leaf 순으로 봉투로 돌려준다(`xeon.session`의 `readBranch` 모양). recordedAt은 0이다 */
+  readBranch(threadId: ThreadId): AsyncIterable<Result<DurableEventEnvelope, ReadFailure>>;
   /** 활성 leaf를 옮긴다(되감기). 이후 새 이벤트는 그 이벤트에 붙는다 */
   rewindTo(threadId: ThreadId, eventId: EventId | null): void;
   /** 다음 commit 하나를 거부하게 한다 */
@@ -401,6 +404,21 @@ export function memoryRecordStore(): MemoryRecordStore {
     branch: (threadId) => {
       const thread = threads.get(threadId);
       return thread === undefined ? [] : branchOf(thread).map((event) => event.draft);
+    },
+    readBranch: (threadId) => {
+      const thread = threads.get(threadId);
+      const stored = thread === undefined ? [] : branchOf(thread);
+      return (async function* () {
+        await Promise.resolve();
+        for (const event of stored) {
+          yield ok({
+            ...event.draft,
+            recordedAt: 0,
+            seq: event.seq,
+            parentId: event.parentId,
+          });
+        }
+      })();
     },
     rewindTo(threadId, eventId) {
       threadOf(threadId).leaf = eventId;

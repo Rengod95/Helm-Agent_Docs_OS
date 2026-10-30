@@ -94,11 +94,13 @@ import type {
 | `DispatchPolicy`, `HandlerEntryInfo`, `HandlerGate`, `HandlerRunOutcome`, `DEFAULT_DISPATCH_POLICY` | 인터페이스, 타입, 상수 | 이 문서 §3.4 |
 | `BoundaryHooks`, `BoundarySignal`, `BoundaryContribution` | 인터페이스 | 이 문서 §3.5 |
 | `PortKey`, `PortLookup`, `LoopPort`, `LoopPortKey`, `InputQueuePort`, `InputQueuePortKey`, `RecordCommitPort`, `RecordCommitPortKey`, `ProjectorRegistryPort`, `ProjectorRegistryPortKey`, `ScopedStorePort`, `ScopedStorePortKey`, `ProcessPort`, `ProcessPortKey`, `LeaseArbiterPort`, `LeaseArbiterPortKey` 및 부속 타입 | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.6) |
-| `ExtHostPortKey`, `SessionFeedPortKey` | 상수 | 이 문서 §3.6, §4.11 |
+| `ExtHostPortKey`, `SessionFeedPortKey`, `SessionBranchPortKey` | 상수 | 이 문서 §3.6, §4.11, §4.6.4 |
+| `EventPrefixQuery`, `EventQueryError`, `ResetScopeStateHostError` | 타입 | 이 문서 §3.2, §4.6.4 |
 | `capabilityServiceName`, `providerServiceName`, `isReservedServiceName` | 함수 | 이 문서 §3.7 |
 | `capabilityDefTable`, `CapabilityDefLookup` | 함수, 타입 | 이 문서 §4.4.7 |
 | `hostOf`, `ScopeHostApi`, `ScopeCallContext`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
-| `ScopeInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스 | 이 문서 §3.9 |
+| `ScopeInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `CommandOutput`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스, 타입 | 이 문서 §3.9 |
+| `webProviderRegistrationOf` | 함수 | 이 문서 §3.9, §3.9.1 |
 | `ToolsPort`, `ModelsPort`, `McpPort`, `ToolsPortKey`, `ModelsPortKey`, `McpPortKey`, `ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef` | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.9) |
 | `PrimitiveError`, `PrimitiveErrorCode` | 클래스, 타입 | 이 문서 §3.10 |
 | `primitivesSettings`, `withDriveDefaults` | `defineSettings` 결과, 함수 | 이 문서 §6, §4.4.2 |
@@ -116,6 +118,7 @@ import type {
 | `VirtualModuleRegistry` | 인터페이스 | X.loading-trust.spec §3.9 |
 | `Tier`, `TIERS` | 타입, 상수 | X.operations.spec §3.1 |
 | `ScopeChangeReason`, `ScopeControl`, `OperationsNotifier`, `HandlerOutcomeRecord`, `FailureStats` | 타입, 인터페이스 | X.operations.spec §3.3 |
+| `createVolatileNotifier` | 함수 | X.operations.spec §3.3 |
 | `storageOf`, `ExtStorage`, `ExtTables`, `ExtProjection`, `ExtTableDef`, `ExtTableDefs`, `ExtQuery`, `ExtTableReader`, `ExtTableWriter`, `ExtRowError`, `ExtStorageError`, `ExtStorageAdmin`, `ExtTableRecord`, `extTablePrefix`, `parseExtTableName` | 함수, 인터페이스 | X.operations.spec §3.4 |
 | `createResourcePolicy`, `ReservedNames` | 함수, 인터페이스 | X.operations.spec §3.5 |
 | `StartupOptions`, `StartupHealthStore`, `startupFilter`, `shouldSuggestSafeMode` | 인터페이스, 함수 | X.operations.spec §3.6 |
@@ -255,7 +258,8 @@ export interface ExtHost {
   /** 이벤트가 커밋된 뒤 부른다. kind가 `LIFECYCLE_POINTS`에 있으면 수명주기 지점을 디스패치한다(§4.11). 끝나기를 기다린다 */
   afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
   /** thread를 열 때(새로 만들거나 재개할 때) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
-  openThread(threadId: ThreadId): Promise<void>;
+  /** `options.child`가 참이면 서브에이전트 자식 대화다. 확장은 켜지만 drive 임대는 받지 않는다(§4.4.1 3a) */
+  openThread(threadId: ThreadId, options?: { readonly child?: boolean }): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
   /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null. L3.group-kit.spec §3.13 요청 2의 답이다 */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
@@ -266,6 +270,19 @@ export interface ExtHost {
   onChange(listener: (change: ExtChange) => void): Unsubscribe;
   /** L4가 읽는 명령·키 조합·플래그·렌더러 표 */
   readonly resources: ResourceRegistry;
+  /**
+   * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-kit.spec §3.13 요청 5). 호스트용이고 확장 scope에는 열지 않는다.
+   * 서비스 `xeon.session`의 `readBranch`(`SessionBranchPortKey`)가 없으면 `port_unavailable`, 접두가 비면 `invalid_prefix`다
+   */
+  queryEvents(threadId: ThreadId, query: EventPrefixQuery): Promise<Result<readonly DurableEventEnvelope[], EventQueryError>>;
+  /**
+   * 저장된 상태가 스키마·버전 검사를 못 넘겨 켜지지 못한 scope의 상태를 선언의 `initial`로 다시 쓴다(재설정 경로, M3b B4-GRP).
+   * 대상 thread가 열려 있고 그 scope의 마지막 오류가 `state_schema`, `state_future_version`, `state_migration_missing`, `state_migration_failed` 중 하나여야 한다.
+   * 이전 판은 기록에 남고 새 판(rev+1)이 최신이 된다. 성공해도 scope를 켜지 않는다. setup 실패로 꺼진 scope는 호출자가 `scope(id).enable()`로 다시 켠다
+   */
+  resetScopeState(threadId: ThreadId, scopeId: ScopeId): Promise<Result<{ readonly rev: number }, ResetScopeStateHostError>>;
+  /** 도구 이름(노출 이름, 없으면 등록 이름)을 등록한 scope의 `ResourceRecord`. 없으면 undefined(M3-REQ-39 도구 소유 scope 조회) */
+  toolOwner(name: string): ResourceRecord | undefined;
   /** 모든 scope를 즉시 끄고 Cordis 루트를 해제한다. 프로세스 종료용. 경계 적용 없이 바로 해제한다 */
   dispose(): Promise<void>;
 }
@@ -630,6 +647,8 @@ export interface ScopeHostApi<S = unknown> {
   registerProvider(name: string, config: ProviderResourceDef): void;
   registerMcpServer(name: string, config: McpServerResourceDef): void;
   registerMessageRenderer(customType: RecordKind, renderer: RendererResourceDef): void;
+  // 웹 provider 등록(M3-REQ-37). WebProviderRegistration은 @xeon/contracts/capabilities가 정한다. 이름은 능력 ID다(§3.9.1)
+  registerWebProvider(registration: WebProviderRegistration): void;
 }
 
 /** setup이 받은 g로 부가 API를 얻는다. ext-host가 만든 g가 아니면 PrimitiveError("no_context") */
@@ -657,7 +676,7 @@ export interface ScopeInfo {
 }
 
 // primitives/resources.ts
-export type ResourceKind = "tool" | "command" | "shortcut" | "flag" | "provider" | "mcp_server" | "message_renderer";
+export type ResourceKind = "tool" | "command" | "shortcut" | "flag" | "provider" | "mcp_server" | "message_renderer" | "web_provider";
 
 export interface ResourceRecord {
   readonly kind: ResourceKind;
@@ -672,7 +691,7 @@ export interface ResourceRecord {
   readonly def: unknown;              // kind별 *ResourceDef
 }
 
-/** L4가 읽는다. command, shortcut, flag, message_renderer는 X가 보관하고, 나머지는 포트로 넘긴 기록만 보관한다 */
+/** L4가 읽는다. command, shortcut, flag, message_renderer, web_provider는 X가 보관하고, 나머지는 포트로 넘긴 기록만 보관한다 */
 export interface ResourceRegistry {
   list(kind?: ResourceKind): readonly ResourceRecord[];
   subscribe(listener: (change: { readonly type: "added" | "removed"; readonly record: ResourceRecord }) => void): Unsubscribe;
@@ -707,12 +726,16 @@ export interface ResourceExposure {
   readonly reason?: "reserved" | "conflict" | "too_long";
 }
 
+/** 명령 처리기의 출력. 문자열은 메시지만 준 것이다. `message`가 `null`이면 메시지를 내지 않는다. 아무것도 돌려주지 않으면 `void`다 */
+export type CommandOutput = string | { readonly message: string | null; readonly result?: JsonValue };
+
 export interface CommandResourceDef {
   readonly description?: string;
   handler(args: string, ctx: {
     readonly threadId: ThreadId | null;
     readonly invocationId: string;   // 명령 호출 하나의 id. threadId가 있으면 §4.6.6의 디스패치 키가 된다. 같은 호출의 재실행은 같은 값
-  }): Promise<void>;
+    readonly signal: AbortSignal;    // 호출한 쪽이 이 호출을 취소하면 abort된다. X는 신호 객체를 바꾸지 않고 처리기에 넘긴다
+  }): Promise<void | CommandOutput>; // 출력은 바꾸지 않고 호출한 쪽에 넘긴다(§4.6.6)
 }
 export interface ShortcutResourceDef { readonly description?: string; handler(ctx: { readonly threadId: ThreadId | null }): Promise<void> }
 export interface FlagResourceDef { readonly description?: string; readonly type: "boolean" | "string"; readonly default?: boolean | string }
@@ -732,6 +755,21 @@ export {
 - [결정: review.decisions-2 D-04] 세 포트는 같은 서비스 이름에 등록되는 서비스 인터페이스의 부분형이다. `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `McpService extends McpPort`이고 세 인터페이스는 F `@xeon/contracts/services`에 있다(F.capabilities.spec §3.12). X가 같은 서비스 이름에 별도 인터페이스를 등록하지 않는다(§3.6 규칙 6 표).
 - 등록 메서드의 이름과 인자, 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`)의 모양은 F.extensions.spec §3.2.1이 정한다. `ProviderResourceDef`와 `McpServerResourceDef`의 내용 모양은 각각 L1.models.spec과 L2.mcp.spec(`McpServerDefSchema`)이 정한다. X가 보관만 하는 리소스(`CommandResourceDef`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef`)는 위 블록이 정본이다.
 - 위장 provider 플러그인(`plugins/*`, L1 순위)은 이 포트를 쓰지 않는다. F provider 인터페이스로 `core-models` 서비스에 등록한다([결정: review.decisions-2 U-16]). `ModelsPort`는 확장의 `hostOf(g).registerProvider` 경로다.
+
+#### 3.9.1 웹 provider 등록 (M3-REQ-37)
+
+```ts
+// primitives/resources.ts
+export function webProviderRegistrationOf(record: ResourceRecord): WebProviderRegistration | undefined;
+```
+
+- 웹 검색, 가져오기, 브라우즈 공급자 플러그인은 엔트리에서 `hostOf(g).registerWebProvider(registration)`을 부릅니다. `registration.capability`(`web.search`, `web.fetch`, `web.browse` 중 하나)가 리소스 이름이 됩니다. 포트를 거치지 않고 `web_provider` 기록으로 `ExtHost.resources`에 남으며, 해제는 scope 세대에 묶입니다(§4.8 규칙 1, 8).
+- 같은 scope가 같은 능력을 두 번 등록하면 `resource_conflict`입니다. 한 scope가 `web.search`와 `web.fetch`를 함께 등록하는 것은 허용합니다.
+- 이 종류는 다른 확장이 같은 이름을 내도 거부하지 않습니다. 이름이 능력 ID라서 여러 확장이 같은 능력을 공급하는 것이 정상입니다. 그래서 충돌 판정은 같은 scope 안에서만 하고 `ResourcePolicy`를 부르지 않습니다. 여러 공급자 가운데 고르는 일은 소비자가 합니다 [결정: 오케스트레이터 기본값]. §4.8 규칙 3의 예외입니다.
+- 소비자는 cap-web입니다. 조립 루트를 거쳐 `ExtHost.resources.list("web_provider")`로 기록을 읽고, `webProviderRegistrationOf(record)`로 등록 값을 받습니다. 다른 종류의 기록이거나, 능력 ID가 셋 중 하나가 아니거나, `create`가 함수가 아니면 `undefined`입니다.
+- 공급자 식별자는 `plugin:<확장 이름>`입니다. X는 이 값을 만들거나 검사하지 않고 `ResourceRecord.extension`만 보관합니다. 식별자 형식과 능력별 후보 목록의 검사는 cap-web이 합니다(L2.web.spec §3.6.1).
+- 헤더 비밀(`manifest.auth.secrets`)은 X가 다루지 않습니다. 값을 헤더에 넣는 치환은 `GuardedHttp`가 전송 직전에 하며, 이 일은 cap-web과 L0 `xeon.secrets`가 맡습니다. 등록 값은 능력 ID와 `create`뿐이고 비밀 값을 담지 않습니다.
+- `create`가 돌려주는 객체(`WebSearchProvider`, `WebFetchProvider`, `WebBrowseProvider`)의 모양은 X가 실행 때 검사하지 않습니다. 이 타입은 `@xeon/contracts/capabilities`가 정하고, 소비자가 그 타입으로 씁니다.
 
 ### 3.10 오류
 
@@ -948,6 +986,7 @@ lifecycle [결정: adr.0017]:
 1. `g.drive(fn, options)`는 setup 안에서만 부를 수 있다. 밖에서 부르면 `drive_outside_setup`이다. 매니페스트 `kind`가 `group`이 아니면 `drive_requires_group`, `usesDrive`가 참이 아니면 `drive_undeclared`, 같은 scope에서 두 번 부르면 `drive_duplicate`다. 그룹당 슬롯은 하나다([결정] ADR-0007 §3.1).
 2. 등록은 임대를 만들지 않는다. 등록은 fiber effect이고, scope가 꺼지면 함께 사라진다.
 3. 임대는 thread마다 하나다. 한 thread에서 동시에 임대를 가진 scope는 최대 하나다([결정] ADR-0007 §3.6). 임대 부여는 경계 훅(`step_end`, `turn_settled`, `idle`)과 `openThread`에서만 판단한다.
+3a. [결정: M3b B3-L1M, 오케스트레이터 기본값] `openThread(threadId, { child: true })`로 연 서브에이전트 자식 대화에는 임대를 부여하지 않는다. 자식 대화의 구동은 위임한 쪽(`loop.spawn`, 그룹 `delegate`)이 맡으므로 그 대화에서 drive 함수가 돌면 안 된다. 호스트는 자식 turn을 여는 감싸개에서 이 인자를 준다.
 4. 후보는 그 thread에서 켜져 있고 drive 등록이 있고 오류 상태가 아닌 scope다. 고르는 순서 [제안]:
    - `LeaseArbiterPort`가 있으면 그 결과를 쓴다(L3.group-kit.spec의 `DriveArbiter`).
    - 없으면 후보가 하나일 때 그 scope를 고른다.
@@ -1068,6 +1107,7 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 [결정: ADR-0015 §3.1, §3.2] `g.capability(key)`가 돌려주는 서비스는 X가 감싼 객체다(`primitives/capability-guard.ts`). 재실행되는 코드는 ambient 문맥(§4.2 `withAmbient`)으로 판별한다: `drive`가 있으면 drive 함수, 없고 맥락이 있으면 on 핸들러다. 맥락이 없는 호출(setup)과 도구 `execute`·명령 처리기의 호출(ambient의 `invocation`이 있다, §4.6.6)은 재실행되지 않으므로 검사하지 않는다.
 
 - 효과 분류는 정의의 메서드 선언에서 온다: `capabilityEffectOf(method)`가 `capability.idempotent`, `capability.readOnly`, `capability.undeclared` 가운데 하나를 고르고, `isEffectAllowed(effect, 문맥)`이 F `REPLAY_EFFECT_TABLE`로 허용을 판정한다. 정의는 `ExtHostDeps.capabilityDefs`(`CapabilityDefLookup`, 정의 목록은 `capabilityDefTable`)로 받는다. `ServiceKey`는 id와 버전만 싣기 때문이다. 정의나 메서드를 찾지 못하면 선언 없음이다(닫힌 쪽으로 실패).
+- [결정: M3-REQ-31] 현재 공급자가 내장 확장이 아니면 그 능력의 `idempotent` 메서드는 선언 없음으로 본다(`effect_not_allowed`). 바인딩 목록의 `providerIsBuiltin(id)`를 호출마다 읽는다. 근거와 범위는 `X.loading-trust.spec` §4.6.4다.
 - 허용되지 않는 호출(on의 읽기, 두 문맥의 선언 없는 쓰기)은 공급자를 부르지 않고 서비스 메서드의 실패 규약대로 `CapabilityError`(코드 `effect_not_allowed`, `retryable: false`)로 거부한다. 선언 없는 쓰기는 `hostOf(g).requestEffect`로 요청 레코드를 남긴다(§4.10).
 - `idempotent` 호출에 `requestId`가 없으면 on 핸들러와 drive 함수 모두 `invalid_input`으로 거부한다(공급자를 부르지 않는다). 길이가 1~64자가 아니어도 `invalid_input`이다.
 - [결정: adr.0015] drive 함수의 `idempotent` 호출도 명시 `requestId`만 받는다(ADR-0015 §3.4 3번). 기본 키를 주지 않고, 키가 없으면 공급자를 부르지 않고 `invalid_input`으로 거부한다. 기본 키(`${leaseId}:${순번}`)는 `loop.turn`·`loop.spawn`만 받는다(§4.4.4).
@@ -1247,7 +1287,8 @@ readRecords(query):
   각 row: 선언 버전보다 큰 version이면 record_version_unknown 경고(진단)와 함께 원형 그대로 돌려준다
 ```
 
-- [제안, M3-REQ-39] 계측·승격 집계용 내구 이벤트 조회는 `readRecords`의 kind 접두 질의(`grp.<이름>.*`, 자기 접두이거나 `readsRecordKinds`가 덮을 때)다. 새 API를 두지 않는다. 도구 소유 scope 조회는 `ExtHost.resources.list("tool")`의 `ResourceRecord.scopeId`다. 확장 kind가 아닌 코어 이벤트(`turn.*`, `tool.*`)의 조회는 `ExtRecordQuery.kind`가 확장 kind만 받으므로 X 범위 밖이고 `xeon.session`의 질의를 쓴다 [미결].
+- [결정: M3-REQ-39, M3b B4-GRP] 계측·승격 집계용 내구 이벤트 조회는 둘이다. 확장 scope 안에서는 `readRecords`의 kind 접두 질의(`grp.<이름>.*`, 자기 접두이거나 `readsRecordKinds`가 덮을 때)를 쓴다. 코어 이벤트(`turn.*`, `lease.*`, `tool.*`)는 `ExtRecordQuery.kind`가 확장 kind만 받으므로 호스트용 `ExtHost.queryEvents(threadId, { kindPrefix, limit? })`로 읽는다. 이 조회는 서비스 `xeon.session`의 `readBranch`(`SessionBranchPortKey`) 위에서 활성 가지를 커밋 순서로 거르고, 확장 scope에는 열지 않는다. 도구 소유 scope 조회는 `ExtHost.toolOwner(name)`이고 `resources.list("tool")`의 `ResourceRecord`(`scopeId`, `extension`)를 돌려준다.
+- [결정: M3b B4-GRP] 저장된 상태가 스키마·버전 검사를 못 넘기면(`state_schema`, `state_future_version`, `state_migration_*`) scope는 그 thread에서 켜지지 않고 `lastError`가 남는다. 되돌릴 길은 `ExtHost.resetScopeState(threadId, scopeId)`다. 활성 가지의 마지막 판 위에 선언 `initial`을 새 판(rev+1)으로 커밋하고(키 `reset:<scope 해시>:<기존 rev>`, 같은 판의 재호출은 한 번만 쓴다) 거부와 `lastError`를 지운 뒤 적용을 예약한다. 이전 판은 기록에 남는다. 오류가 저장 상태 오류가 아니면 `not_refused`, scope나 열린 thread가 없으면 `unknown_scope`·`thread_not_open`이다. 사람 확인은 호출하는 L3·L4의 몫이다.
 - 플러그인(`kind: "plugin"`)도 `x.<name>.` 레코드를 쓸 수 있다. `GroupRecord.groupId`에는 확장 이름이 들어간다 [제안, F `GroupId = ExtensionName`].
 - 읽기 범위는 현재 thread다 [제안]. 다른 thread의 레코드 조회는 M2 이후 별도 질의로 둔다.
 - 대상 그룹이 설치되어 있지 않아도 빈 목록이나 기존 기록을 돌려준다(F.extensions.spec §5 8번).
@@ -1285,7 +1326,8 @@ recordPrivate(kind, payload):
 - 디스패치 키: 도구는 `tool:<toolCallId>`, 명령은 `command:<invocationId>`다. `toolCallId`는 `ToolResourceDef.execute`의 `ctx.toolCallId`(F.extensions.spec §3.2.1), `invocationId`는 `CommandResourceDef.handler`의 `ctx.invocationId`이고 L4가 명령 호출마다 정한다. 카운터는 호출마다 0에서 시작하므로 멱등 키는 §4.6.1, §4.6.4, §4.6.5와 같은 모양(`rec:<scope 해시>:<디스패치 키>:<n>`, 상태는 `st:`)이다. 같은 호출 id로 다시 실행하면 같은 키를 받아 저장소 결과가 `replayed`이고 효과는 한 번만 남는다. 호출 id가 다르면 새 효과다. 도구와 명령의 키 접두가 달라 같은 문자열의 id끼리 겹치지 않는다.
 - drive 재호출: 두 호출이 상태 판을 올리면(`commit`, `updateState`) X는 호출이 반환한 뒤 그 scope의 drive를 한 번 예약한다. 임대가 있고 thread가 유휴일 때다. turn이 도는 중이면 다음 `turn_settled` 경계가 부른다(§4.4.3). 그래서 사용자가 입력을 더 보내지 않아도 명령이 바꾼 상태로 drive가 이어진다.
 - 재실행 검사 제외: 두 호출은 재실행되는 코드가 아니다(ADR-0015 §3.1 1번). ambient에 `invocation`(`"tool"` 또는 `"command"`)을 두어 능력 래퍼(§4.4.7)가 on 핸들러로 보지 않게 한다. `callContext()`는 계속 `undefined`다.
-- 시간 예산과 취소: 두 호출은 핸들러 시간 예산(`handler`)이 없다. 도구의 취소는 `ctx.signal`이 알리고 `g.awaitUser`는 scope 세대 신호를 쓴다.
+- 시간 예산과 취소: 두 호출은 핸들러 시간 예산(`handler`)이 없다. 도구와 명령 처리기의 취소는 `ctx.signal`이 알린다. 명령의 `ctx.signal`은 호출한 쪽이 넘긴 신호 객체 그대로이고, 호출한 쪽이 취소하면 abort된다. `g.awaitUser`는 scope 세대 신호를 쓴다.
+- 출력: 명령 처리기가 돌려준 값(`CommandOutput`, 또는 `void`)은 `registerCommand`가 감싼 정의를 거쳐 호출한 쪽에 그대로 간다. X는 메시지를 만들거나 바꾸지 않는다. 화면에 낼지는 호출한 쪽(L4)이 정한다.
 - 도구 `execute`의 `ctx.caller`(`CallerInfo`)는 L1.tools가 채운다. `caller.afterUntrusted`는 이번 turn이 웹·MCP 도구 결과를 읽었는지다(M3-REQ-100, L1.tools.spec §4.3). X는 값을 건드리지 않고 정의에 그대로 넘긴다.
 - `onDispose`와 다른 곳에서 부르는 `shortcut` 처리기는 ambient를 받지 않는다 [결정: L3.learning.spec이 `onDispose`에서 하는 일은 `g.cancelDelegates`뿐이라 기록·상태 쓰기가 필요 없다]. 필요가 생기면 요구를 먼저 정한다.
 
@@ -1341,8 +1383,8 @@ recordPrivate(kind, payload):
 등록 규칙:
 
 1. 모든 등록은 호출한 scope 세대의 fiber effect다. `fiber.effect(() => { const off = port.register(...); return off })` 형태다. scope가 꺼지면(§4.5.3 4단계) 해제기가 자동으로 실행된다. pi는 확장을 내릴 때 자동 해제가 없고, 도구와 명령은 해제 API 자체가 없다(`docs/extensions.md:160` "hidden으로 재등록").
-2. 대상 포트가 없으면 `port_unavailable`이다. X가 보관하는 종류(command, shortcut, flag, message_renderer)는 포트 없이 등록된다.
-3. 이름 충돌은 노출 이름(`ResourceRecord.exposed`) 기준이다. 정책이 `exposeAll`을 가지면(도구, 명령, 단축키, 플래그) 등록과 해제마다 그 kind 전체 레코드로 부르고, 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`의 등록을 해제하고 새 이름으로 다시 등록한다). 그래서 먼저 등록된 쪽도 나중에 정식 이름이 되고, 한쪽이 해제되면 남은 쪽이 짧은 이름을 되찾는다. `exposeAll`이 없으면 같은 노출 이름이 이미 있을 때 `ResourcePolicy.resolve`가 판정하고(reject, replace, rename), 정책이 없으면 `resource_conflict`로 거부한다. provider, MCP 서버, 메시지 렌더러는 같은 이름이면 정책이 reject로 답한다. 같은 scope가 같은 kind·이름을 두 번 등록하는 것은 정책 없이 `resource_conflict`다. 이름 충돌 규칙 자체는 X.operations.spec 소유다.
+2. 대상 포트가 없으면 `port_unavailable`이다. X가 보관하는 종류(command, shortcut, flag, message_renderer, web_provider)는 포트 없이 등록된다.
+3. 이름 충돌은 노출 이름(`ResourceRecord.exposed`) 기준이다. 정책이 `exposeAll`을 가지면(도구, 명령, 단축키, 플래그) 등록과 해제마다 그 kind 전체 레코드로 부르고, 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`의 등록을 해제하고 새 이름으로 다시 등록한다). 그래서 먼저 등록된 쪽도 나중에 정식 이름이 되고, 한쪽이 해제되면 남은 쪽이 짧은 이름을 되찾는다. `exposeAll`이 없으면 같은 노출 이름이 이미 있을 때 `ResourcePolicy.resolve`가 판정하고(reject, replace, rename), 정책이 없으면 `resource_conflict`로 거부한다. provider, MCP 서버, 메시지 렌더러는 같은 이름이면 정책이 reject로 답한다. 같은 scope가 같은 kind·이름을 두 번 등록하는 것은 정책 없이 `resource_conflict`다. `web_provider`는 이 규칙의 예외다. 같은 scope의 중복만 거부하고 다른 확장의 같은 이름은 모두 남긴다(§3.9.1). 이름 충돌 규칙 자체는 X.operations.spec 소유다.
 4. 등록과 해제는 `ResourceRegistry.subscribe` 구독자에게 알린다. 노출 이름이 바뀌면 `removed`(옛 이름) 뒤에 `added`(새 이름)를 알린다. 구독자의 예외는 `report`로 남기고 다음 구독자에게 이어 간다. L4는 이 표를 읽어 명령 목록과 키 조합를 갱신한다.
 5. 도구 등록은 setup 안이나 세대가 열린 동안 할 수 있다. 등록한 도구가 모델에 보이는 시점(다음 요청)은 L1.tools.spec이 정한다. 도구 포트에는 노출 이름을 정의의 `name`으로 넘긴다(`execute`는 원본 정의를 그대로 부른다). 포트가 이름을 거부하면(`ToolRegisterError.name_conflict`) `resource_conflict`다.
 6. 이름 형식: 1~64자, 공백·제어 문자 없음. 도구는 `TOOL_NAME_WIRE_PATTERN`(`^[a-zA-Z0-9_-]{1,64}$`)을 따른다. 어기면 `resource_name_invalid`다. 정식 이름이 64자를 넘는 외부 도구는 `exposeAll`의 `too_long`으로 `resource_name_invalid`이다.
@@ -1535,6 +1577,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 43. (M2, X.2) 핸들러가 `hostOf(g).awaitUser`로 감싼 대기는 핸들러 시간 예산에 들어가지 않고, 감싸지 않은 같은 대기는 시간 초과다. `wait`가 받는 신호는 핸들러 신호와 호출자 신호를 합친 것이다.
 44. (M2, X.3) detached 지점(`session.info.after` 등)에 디스패치하면 핸들러를 기다리지 않고 `detached: true`를 돌려주고, 핸들러는 그 뒤 등록 순서로 실행된다. 늦은 예외는 `policy.onHandlerFailure`로만 보고되고 결과의 `failures`는 비어 있다. 예산을 넘기면 `timeout`이다. thread를 닫으면 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행되지 않으며 실패로 세지 않는다.
 45. (M2, X.3, M3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 그룹 사이 격리는 kind 접두 필터(자기 접두, `readsRecordKinds`)다. 이벤트 버스는 없다(§4.9).
+54. (M3b, B2-WEB, M3-REQ-37) `hostOf(g).registerWebProvider({ capability: "web.search", create })`는 `ExtHost.resources`에 kind `web_provider`, 이름 `web.search`로 기록되고, `webProviderRegistrationOf`가 같은 등록 객체를 돌려준다. 한 scope가 같은 능력을 두 번 등록하면 `resource_conflict`이고, `web.search`와 `web.fetch`는 한 scope에 함께 등록된다. 다른 확장이 같은 능력을 등록하면 둘 다 남는다(§3.9.1). scope를 끄면 기록이 사라지고 구독자가 `removed`를 받는다. 다른 종류의 기록이나 `create`가 없는 등록 값은 `webProviderRegistrationOf`가 `undefined`를 돌려준다.
 
 ## 10. 미결 사항
 
@@ -1569,10 +1612,13 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 51. (M3) 피드로 온 `agent.settled`는 `owner` scope의 구독자만 받고 같은 이벤트는 한 번만 발화한다(§4.11).
 52. (M3) 선언 없는 쓰기 요청은 requested → started → settled 순으로 한 번 실행되고, 재시작 뒤 결과 없는 `started`는 `unsafe` 메서드에서 `unknown`으로 닫힌다(§4.10).
 53. (M3) `hostOf(g).callContext()`는 on 핸들러 안에서 `kind: "on"`, thread, 지점, 살아 있는 신호를, drive 함수 안에서 `kind: "drive"`와 `LoopHandle.signal`과 같은 신호를 돌려준다. setup, 호출 뒤의 바깥, 다른 scope의 핸들러 안, drive의 `turn`·`spawn` 안에서는 undefined이고, 시간 초과한 핸들러의 문맥은 abort된 신호를 보인다(§3.8).
+55. (M3b) `ExtHost.queryEvents`는 활성 가지의 내구 이벤트를 kind 접두로 커밋 순서대로 돌려주고 `limit`을 지키며, 되감아 버린 가지의 이벤트와 접두 밖 이벤트는 돌려주지 않는다. 접두가 비면 `invalid_prefix`, 읽기 포트가 없으면 `port_unavailable`이다(§4.6.4).
+56. (M3b) `ExtHost.toolOwner(name)`이 도구를 등록한 scope의 `ResourceRecord`를 돌려주고 없는 이름은 undefined다(§4.6.4).
+57. (M3b) 저장 상태가 스키마를 어겨 켜지지 못한 scope에 `resetScopeState`를 부르면 상태가 `initial`의 새 판(rev+1)이 되고 `lastError`가 지워져 핸들러가 다시 돈다. 오류가 없으면 `not_refused`, 없는 scope·닫힌 thread는 `unknown_scope`·`thread_not_open`이다(§4.6.1).
 - [미결] 능력 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 능력 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
 - [미결] 임대 대기 상한의 단위와 기본값 8(§4.4.1 8번, §6). 경계 수 대신 시간으로 둘지.
 - [미결] 요청 레코드 워커의 소유(X 또는 L1 백그라운드)와 결과 통지(§4.10). X 구현은 [제안]이다.
 - [미결] `lifecycle.agent.settled`의 `owner`가 `tool`이거나 없을 때의 구독자 범위(§4.11).
-- [미결] 코어 이벤트(`turn.*`, `tool.*`)의 계측 조회(§4.6.4, M3-REQ-39).
+- (닫힘, M3b B4-GRP) 코어 이벤트(`turn.*`, `tool.*`)의 계측 조회는 `ExtHost.queryEvents`가 맡는다(§4.6.4, M3-REQ-39).
 - [미결] F `ScopeApi.commit`에 `records` 옵션을 둘지. 지금은 `hostOf(g).commitWith`다(§4.6.1).

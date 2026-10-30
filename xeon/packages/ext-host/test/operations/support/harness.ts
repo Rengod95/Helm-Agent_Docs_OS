@@ -77,6 +77,9 @@ export async function createOperationsHarness(
     autoDisabled: (key, verdict) => {
       notices.push(`auto-disabled:${key}:${verdict.rule}`);
     },
+    projectionFailed: (key, cause, disabled) => {
+      notices.push(`projection-failed:${key}:${cause}:${disabled}`);
+    },
   };
   const policy = createOperationsPolicy({
     now: timers.now,

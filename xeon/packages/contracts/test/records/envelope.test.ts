@@ -130,7 +130,11 @@ describe("checkEnvelopeSize (acceptance 6)", () => {
   test("multi-byte characters are measured in UTF-8 bytes", () => {
     // 한글 한 글자는 3바이트. 글자 수로는 한도 안이지만 바이트로는 넘는 경우를 잡는다.
     const envelope = envelopeWithPayloadSize(ENVELOPE_MAX_BYTES + 1, "한");
-    const text: unknown = Reflect.get(Object(envelope.payload), "text");
+    const payload: unknown = envelope.payload;
+    const text: unknown =
+      typeof payload === "object" && payload !== null && "text" in payload
+        ? payload.text
+        : undefined;
     expect(typeof text === "string" && text.length < ENVELOPE_MAX_BYTES).toBe(true);
     const result = checkEnvelopeSize(envelope);
     expect(result.ok).toBe(false);

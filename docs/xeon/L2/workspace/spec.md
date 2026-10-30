@@ -319,6 +319,7 @@ export const WorkspaceFiles = defineCapability({
           edit_overlap: { description: "두 편집의 구간이 겹침", retryable: false },
           edit_empty_old_text: { description: "oldText가 빈 문자열", retryable: false },
           edit_no_change: { description: "편집 결과가 원본과 같음", retryable: false },
+          edit_conflict: { description: "읽은 뒤 다른 쓰기가 파일을 바꿈. 아무것도 쓰지 않음", retryable: false },
         },
       },
       list: {
@@ -407,6 +408,8 @@ export const RunOutput = Type.Object({
   durationMs: Type.Integer({ minimum: 0 }),
   /** 샌드박스 안에서 실행했는가 */
   sandboxed: Type.Boolean(),
+  /** 샌드박스 밖에서 실행한 이유. sandboxed가 거짓일 때만 있다(L0.sandbox.spec §3, L1.tools.spec §4.12 감사 이벤트 tool.sandbox_bypassed의 입력) */
+  unsandboxedBy: Type.Optional(Type.Union([Type.Literal("escape"), Type.Literal("run_unsandboxed"), Type.Literal("disabled")])),
 });
 
 export const BashToolParams = Type.Object({
@@ -560,11 +563,13 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 ### 4.2 셸 실행과 샌드박스
 
 1. `cwd`를 §4.3 규칙으로 해석한다(쓰기 root 검사는 하지 않고 읽기 root 안인지만 본다).
-2. `xeon.sandbox`에 명령과 cwd를 넘겨 샌드박스 래핑을 받는다. 샌드박스 설정이 꺼져 있으면 래핑 없이 실행하고 `sandboxed: false`를 돌려준다. 켜고 끄는 설정은 L0.sandbox·L1.tools 소관이다(`_research/layer-plan-v2-notes.md` "OS 샌드박스가 왜 필요한가").
+2. `xeon.sandbox`에 명령과 cwd를 넘겨 샌드박스 래핑을 받는다. 샌드박스 설정이 꺼져 있으면 래핑 없이 실행하고 `sandboxed: false`와 이유 `unsandboxedBy: "disabled"`를 돌려준다. 켜고 끄는 설정은 L0.sandbox·L1.tools 소관이다(`_research/layer-plan-v2-notes.md` "OS 샌드박스가 왜 필요한가").
 3. `xeon.sandbox`가 실행 전에 거부하면(정책상 금지, 샌드박스 필수인데 사용 불가) `denied` `CapabilityError`를 낸다. `detail`은 `{ by: "sandbox", reason: <L0.sandbox가 준 사유 코드> }`다. 도구 경로에서는 `isError: true` 결과가 된다.
 4. 래핑한 명령을 `ExecutionEnv.exec`로 실행한다. 출력 spill 기준은 `l2.workspace.shell.maxLines`, `l2.workspace.shell.maxBytes`이고 남기는 쪽은 꼬리다(durable `bash.ts` `outputLimits: { retain: "tail" }`).
 5. 실행 중 샌드박스 위반(커널이 막은 쓰기·네트워크)은 명령 자체의 실패로 나타난다. 종료 코드가 0이 아니면 3.3절 `exit_nonzero` 규칙을 따른다. 위반 보고를 L0.sandbox가 주면 `detail.sandboxViolations`에 싣는다 [가정].
 6. 제한 시간: 입력 `timeoutSec` → 설정 기본값 순. 넘기면 `timeout` 오류이고 프로세스 그룹 전체를 종료한다(`L0.exec.spec`).
+   무인 호출(`CallContext.interactive === false`, 예약과 루프)은 상한을 더 받는다. 유효 제한 시간은 요청 값과 상한 가운데 짧은 쪽이고, 요청이 없으면 상한이다.
+   상한은 `unattendedTimeoutMs` 의존에서 읽으며, 의존이 없으면 상한을 걸지 않는다. 규칙은 `L0.exec.spec` §3.8.1과 같고, 대화형 호출은 바뀌지 않는다.
 
 ### 4.3 경로 해석과 탈출 검사
 
@@ -578,7 +583,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 6. 보호 경로: 정규 경로가 L0.sandbox의 보호 경로 목록에 걸리면 root 안이어도 거부한다.
 
 - 4·5·6번 위반은 `denied`다. `detail`은 `{ reason: "outside_root" | "protected_path" | "parent_traversal", requested: <입력 경로>, resolved: <정규 경로> }`다.
-- `grep`, `find`는 검색 기준 디렉터리만 검사한다. 검색 중 만나는 심볼릭 링크는 따라가지 않는다(ripgrep 기본 동작, `--follow` 미사용).
+- `grep`, `find`는 검색 기준 디렉터리를 검사하고, 결과에서는 읽기 보호 경로에 걸린 파일을 뺀다(`read`가 거부하는 경로가 검색으로 드러나지 않게 한다) [결정: 오케스트레이터 기본값]. 검색 중 만나는 심볼릭 링크는 따라가지 않는다(ripgrep 기본 동작, `--follow` 미사용).
 
 역할 나눔 [제안]:
 
@@ -620,7 +625,11 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 - 오류 `detail`은 `{ editIndex, totalEdits }`를 공통으로 싣는다. 원본 메시지 문구(`edits[i].oldText ...`)는 `message`에 그대로 둔다.
 - 같은 경로의 동시 변경은 durable `tools/file-mutation-queue.ts`로 경로별로 줄 세운다. 다른 경로는 병렬로 돈다.
-- 쓰기는 같은 디렉터리의 임시 파일에 쓰고 이름을 바꾸는 방식이 원자적이다. 포크 원본이 직접 덮어쓰는지 확인한 뒤 바꿀지 정한다 [미결 4].
+- 쓰기(`write`, `edit`)는 원자적이다. 포크 원본의 `writeFile`은 직접 덮어쓰므로 쓰지 않고, `files/atomic.ts`가 같은 디렉터리의 임시 파일(`.<이름>.xeon-tmp-<uuid>`)에 쓰고 `flushFile`로 디스크에 내린 뒤 `renameFile`로 대상을 바꾼다. 쓰는 도중 프로세스가 SIGKILL로 죽어도 대상은 원본이거나 새 내용 전체다. 실패하면 임시 파일을 지운다. 죽은 쓰기가 남긴 임시 파일은 지우지 않으며 다음 쓰기를 막지 않는다 [결정: 오케스트레이터 기본값].
+- 동시 변경 감지: `edit`는 읽은 내용을 보관하고, 이름을 바꾸기 직전에 대상을 다시 읽어 같은지 비교한다. 다르거나 파일이 없어졌으면 `edit_conflict`(`detail.reason: "changed" | "removed"`)로 거부하고 아무것도 쓰지 않는다. 다른 프로세스나 `bash`의 쓰기가 대상이다. 확인과 이름 바꾸기 사이의 짧은 틈은 남으므로 이 검사는 잠금이 아니라 감지다. `write`는 파일 전체를 바꾸는 도구라 감지하지 않는다 [결정: 오케스트레이터 기본값].
+- 같은 프로세스 안의 같은 경로 변경은 `files/queue.ts`가 차례로 세운다(포크 원본 `file-mutation-queue.ts`의 동작, 키는 파일 시스템 id와 정규 경로). 경로 해석이 비동기라 해석을 마친 순서로 줄에 서면 호출 순서가 바뀔 수 있으므로, 같은 파일 시스템의 `write`·`edit`은 해석을 호출 순서로 한 번에 하나씩 하고 줄에 자리를 잡은 뒤에 다음 호출의 해석을 시작한다(`queueInCallOrder`).
+- 알려진 제약: 이름 바꾸기로 파일을 바꾸므로 기존 파일의 실행 권한 등 모드 비트와 하드 링크는 유지되지 않는다. `ExecutionEnv`에 모드를 다루는 메서드가 없다 [미결 14].
+- `FileChange.diff`는 외부 라이브러리 없이 `files/diff.ts`가 만든다(통합 diff, 문맥 3줄); pi의 `diff` 패키지는 쓰지 않는다 [결정: 오케스트레이터 기본값].
 
 줄 해시 편집(2차, 설계 메모) [제안]:
 
@@ -636,6 +645,13 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 - `read`: 앞에서부터 남긴다. `offset`부터 `min(limit, maxLines)`줄을 읽고 바이트 한도를 넘으면 그 전 줄까지 남긴다. 남긴 줄이 끝까지가 아니면 `truncated = { by, shown, total, nextOffset: endLine + 1 }`이다. 첫 줄 하나가 바이트 한도를 넘으면 그 줄의 앞부분만 남기고 `by: "bytes"`, `nextOffset: startLine + 1`로 둔다(`TruncationResult.firstLineExceedsLimit`).
 - `bash`: 꼬리를 남기고 넘친 출력은 spill 파일로 둔다(`fullOutputPath`). spill은 `ExecutionEnv.exec`가 한다.
 - `grep`, `find`, `ls`: 항목 수 한도(`limit` 또는 설정 기본값)와 바이트 한도 중 먼저 걸리는 쪽에서 자른다. `by: "entries"` 또는 `"bytes"`. `grep`의 긴 줄은 설정 `l2.workspace.grep.maxLineLength`자에서 자른다.
+- `grep`와 `find`는 ripgrep(`rg`)을 `ExecutionEnv.exec`에 argv 배열로 실행한다. 셸 문자열을 만들지 않고, 샌드박스(§4.2)도 거치지 않는다. 실행 파일은 설정 `l2.workspace.grep.rgPath`가 비어 있지 않으면 그 경로이고, 비어 있으면 `xeon.os`의 `resolveBinary("rg")`다. 찾지 못하거나 띄우지 못하면 `unavailable`(`detail.reason: "rg_missing"`)이다.
+  - `grep`: `rg --json --no-config --no-require-git --sort path -e <패턴> [-i] [-F] [-C n] [--glob <glob>] --no-messages -- .`. `-i`는 `ignoreCase`, `-F`는 `literal`, `-C`는 `context`가 0보다 클 때다.
+  - `find`: `rg --files --no-config --no-require-git --sort path --glob <패턴> --no-messages -- .`.
+  - 검색 기준 디렉터리가 cwd이고, 출력 경로는 그 기준 상대 경로다. 결과는 경로의 바이트 순이다. `--no-require-git`은 git 저장소 밖에서도 `.gitignore`를 읽게 한다. 숨김 파일은 rg 기본대로 건너뛴다.
+  - rg의 `--glob`은 예외 규칙이라 `.gitignore`와 숨김 규칙을 넘어 파일을 되살린다. 그래서 글로브 결과는 글로브 없이 같은 검색을 한 번 더 걸어 얻은 파일 집합과 교차한다. `find`는 항상, `grep`은 `glob`이 있을 때 교차한다.
+  - 종료 코드 1은 일치 없음으로 정상 결과다. 종료 코드 2의 `regex parse error`와 `error parsing glob`은 `pattern_invalid`이고, 그 밖의 실패는 `internal`이다.
+  - `grep`의 한도(`maxMatches`, `limit`)는 일치 줄만 센다. 남긴 일치의 문맥 줄은 함께 남기고, 잘린 일치의 앞 문맥 줄은 버린다. 바이트 한도는 `read.maxBytes`를 쓴다. `find`의 한도는 `find.maxResults`(또는 `limit`)다.
 - 한도는 모두 설정(§6)으로 바꿀 수 있다. 도구 설명 문자열에는 수치를 넣지 않는다. 설정 변경이 도구 fingerprint와 프롬프트 캐시를 바꾸지 않게 하기 위해서다(`F.capabilities.spec` §4.5).
 - L1.tools의 결과 경계화는 도구 결과 전체에 한 번 더 적용된다. 이 문서의 한도가 그보다 작으면 L1 경계화는 아무 일도 하지 않는다.
 
@@ -648,6 +664,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
   - 이미지 바이트는 L0 blob API로 `sys_blobs`에 sha256 키로 둔다. 같은 내용은 한 번만 저장된다.
   - 모델용 결과의 `ImageContent.data`에는 base64 대신 자리표시 문자열 `blob:sha256:<hex>`를 넣는다(`F.records.spec` §3.4 `BLOB_PLACEHOLDER_PREFIX`와 같은 형식). 이벤트와 아이템에는 이 참조만 남는다.
   - 모델 요청을 조립할 때 L1.context가 자리표시를 blob 내용(base64)으로 바꾼다. 이 치환 규칙은 `L1.context.spec`에 요청한다 [가정]. 치환 전 blob이 없으면 그 이미지를 `[이미지 없음: <hex>]` 텍스트로 바꾼다.
+  - 블롭 고정은 하지 않는다 [해소 S-15: core-persistence의 `p_blob_refs`가 `blob:sha256:<hex>` 자리표시를 모은다]. `prepareImage`(`src/images/prepare.ts`)는 `BlobSink.putBlob`만 부르고 `pinBlob`과 `unpinBlob`을 부르지 않는다. 이 패키지는 블롭 참조를 자기 표나 상태에 적지 않는다. 참조는 `register`, `load`, `read`의 결과로 호출자에게만 가고, 커밋되는 쪽에는 `blob:sha256:<hex>` 자리표시로만 남는다. 자리표시는 `p_blob_refs`가 보지 않으므로 이 참조를 GC로부터 지키는 방법은 `core-persistence` 쪽에서 정한다(L0.store §10 S-15). 고정을 풀 시점을 이 패키지가 알 수 없어 고정하면 풀리지 않는다. 시험은 `test/images.test.ts`의 "블롭 고정은 하지 않는다" 묶음이다.
 - [가정] photon wasm은 `bun build --compile` 산출물 안에서 로드된다. 확인하지 않았다(ADR-0003 §4.2). 대체 경로:
   1. wasm 파일을 Bun의 파일 임베드(`import ... with { type: "file" }`)로 바이너리에 넣고 실행 중에 읽는다.
   2. 그래도 로드에 실패하면 처리기 없이 동작한다(위 최소형). 시작 때 한 번 탐침하고 결과를 상태(`imageProcessor: "photon" | "none"`)로 둔다.
@@ -687,7 +704,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | 9 | 도구 실행 중 사용자 중단 | `aborted`. L1.tools가 중단 결과로 처리 |
 | 10 | ripgrep 바이너리를 찾지 못함 | `grep`, `find`가 `unavailable`, `detail.reason: "rg_missing"` |
 | 11 | 같은 파일에 `edit` 두 개가 한 라운드에서 병렬로 옴 | 경로별 줄 세우기로 차례로 적용. 두 번째 편집은 첫 번째 결과를 원본으로 본다 |
-| 12 | 편집 중 다른 프로세스가 파일을 바꿈 | 읽은 시점 내용을 기준으로 쓰므로 그 변경을 덮어쓴다. 감지는 하지 않는다 [미결 4] |
+| 12 | 편집 중 다른 프로세스가 파일을 바꿈 | 이름을 바꾸기 직전 비교에서 감지해 `edit_conflict`로 거부한다. 대상은 그 프로세스가 쓴 그대로다(§4.4) |
 | 13 | photon 로드 실패 | 처리기 없음 상태로 동작. 큰 이미지는 `image_too_large` |
 | 14 | 이미지 blob이 요청 조립 시점에 없음 | L1.context가 텍스트 자리표시로 바꾼다(§4.6) |
 | 15 | `ExecutionEnv`가 원격(SSH) 백엔드 | 같은 규칙으로 동작한다. 정규 경로와 root는 원격 파일 시스템 기준이다. ripgrep은 원격에 있어야 한다 [가정] |
@@ -769,9 +786,9 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 1. [결정: review.decisions-2 D-08] 절단 함수 위치. 포크 원본은 `platform-exec`에 두고 `cap-workspace`는 F 서비스(`ExecutionEnv`)로 호출한다(§4.5).
 2. [결정: review.m2-plan DG.3] `workspace.images` 최소형(처리기 없음)을 M2에 둔다. JSON은 "이미지와 첨부 처리" 2차이고 `dialog.attachments`(M2)는 이 능력을 필수로 쓴다(`L2.readme` §2 각주). 구현은 §4.6.
 3. [미결] `ImageBlobRefSchema`의 중복. F capabilities는 records를 import하지 않으므로 같은 모양을 적었다. `BlobRef`를 conversation이나 base로 내려 공유할지 F 문서가 정한다. 그 전까지는 두 스키마의 JSON이 같은지 테스트로 확인한다.
-4. [미결] 원자적 쓰기와 동시 변경 감지. 포크 원본의 `writeFile`이 직접 덮어쓰는지 확인하고, 임시 파일 + 이름 바꾸기와 읽은 시점 해시 비교(낙관적 동시성)를 넣을지 정한다.
+4. [결정: 오케스트레이터 기본값] 원자적 쓰기와 동시 변경 감지. 포크 원본은 직접 덮어쓰므로 임시 파일 + 이름 바꾸기로 바꾸고, `edit`는 읽은 내용 비교로 동시 변경을 감지한다(§4.4).
 5. [미결] 도구 없는 능력(`workspace.images`) 허용(`F.capabilities.spec` §4.4).
-6. [미결] `find`의 엔진. pi coding-agent `find`는 `fd`를 내려받아 쓴다(`core/tools/find.ts` `ensureTool("fd")`). 내려받기를 피하려고 `rg --files --glob`로 바꾸는 것을 제안한다. glob 의미(기본 이름 일치 대 전체 경로 일치)가 `fd`와 달라질 수 있어 테스트로 고정한다.
+6. [결정: 오케스트레이터 기본값] `find`의 엔진은 `rg --files --glob`이다. pi coding-agent `find`는 `fd`를 내려받아 쓰므로(`core/tools/find.ts` `ensureTool("fd")`) 내려받기를 피한다. glob 의미는 rg의 `--glob`을 따른다. 슬래시가 없는 패턴은 어느 깊이의 같은 이름과도 맞고(`*.ts`), 슬래시가 있으면 검색 기준 디렉터리에 상대적이며(`src/*.ts`), `**`는 디렉터리를 가로지른다(`**/*.spec.ts`). `test/find.test.ts`와 `test/rg.int.test.ts`가 이 의미를 고정한다. §4.5의 교차 규칙을 따른다.
 7. [미결] 허용 root 조회 API의 이름과 모양(`L1.tools.spec`). M1은 cwd 하나, M2는 대화의 작업 폴더 하나로 둔다(§4.3, open-issues M-06). 추가 디렉터리와 사용자가 승인해 넓힌 경로는 L1.tools의 API가 정해진 뒤에 더한다.
 8. [미결] `bash` `executionMode: "sequential"`의 비용. 같은 라운드의 읽기 도구까지 순차가 된다. 실측 뒤 `parallel`로 바꿀지 정한다.
 9. [미결] 0 아닌 종료 코드를 `exit_nonzero` 오류로 내는 방식(§3.3). F `ToolContent`에 `isError` 필드를 더해 정상 출력으로 `isError`를 표시하는 대안이 있다. F 문서의 판단이 필요하다.
@@ -779,3 +796,4 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 11. [미결] `l2.workspace.images.*`를 세션 범위에서 바꿀 수 있게 할지. 지금은 세션 범위를 뺐다.
 12. [미결] 패치 적용 메서드. `L2.artifacts.spec`의 거절 hunk 되돌림 안 A는 `workspace.files`에 패치 적용 서비스 메서드(`applyPatch` 후보, 도구 없음, `unsafe`)를 요구한다. 그 안이 채택되면 `workspace.files` minor 버전으로 더하고 §4.3 경로 검사와 §4.4 줄 세우기를 그대로 적용한다. 채택 전에는 `edit`로 같은 일을 할 수 있다.
 13. [미결] 내용 주소(sha256) blob 쓰기(`images.register`)의 분류. 같은 바이트는 같은 blob이라 재실행해도 결과와 효과가 같지만, ADR-0015 §3.3은 `requestId` 기억이 있는 쓰기만 `idempotent`로 둔다. 지금은 선언 없음이다. 내용 주소 쓰기를 `idempotent`로 인정하려면 ADR의 정의를 넓혀야 한다.
+14. [미결] 원자적 쓰기가 기존 파일의 모드 비트(실행 권한)를 잃는다. `FileInfo`에 모드가 없고 `ExecutionEnv`에 chmod가 없어 L0.exec 확장이 필요하다. 그 전까지 실행 파일을 `edit`하면 권한을 다시 줘야 한다.

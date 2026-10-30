@@ -20,22 +20,26 @@ X1 apps/host test/int/helm.int.test.ts
 X2 packages/group-learning test/uc3.int.test.ts
 X2 apps/host test/int/proposals.int.test.ts
 X3 scripts core-diff-check.test.ts
-# M3b placeholders (review.m3b-plan 1.1, product.scope.spec 4.4 M3b). None is active yet: the test files do not exist.
-# The owning track removes the leading "# " when its test file exists and replaces <파일> with the real path.
+# M3b conditions (review.m3b-plan 1.1, product.scope.spec 4.4 M3b). A commented line is a placeholder for a test file that is not
+# written yet: the owning track removes the leading "# " when its test file exists and replaces <파일> with the real path.
 # An uncommented line with an unfilled <파일> fails as missing, so an unfinished condition cannot pass by accident.
-# Track B1-SVC
-X4 apps/host test/int/service-idle.int.test.ts test/int/service-lifecycle.int.test.ts
+# Track B1-SVC (X4 first half: idle shutdown), B1-SCH (X4 second half: a timer runs after every client has left) and
+# B1-SCH2 (X4 end test: the schedule wire methods over the socket, a due timer's run, a corrupt state file)
+X4 apps/host test/int/service-idle.int.test.ts test/int/service-lifecycle.int.test.ts test/int/service-schedule.int.test.ts test/int/service-schedule-wire.int.test.ts
 # Track B2-RMT
-# X5 apps/host test/int/service-transport.int.test.ts
+X5 apps/host test/int/service-transport.int.test.ts
 # Track B1-NTF
-# X6 apps/host test/int/goal-judge.int.test.ts
+X6 apps/host test/int/goal-judge.int.test.ts
 # Track B2-MDL (view-model)
-# X7 packages/client test/<파일>.test.ts
+X7 packages/client test/accounts/x7.test.ts
+X7 packages/core-models test/rotation.test.ts
+X7 apps/host test/int/x7-settings-file.int.test.ts
 # Track B3-SET (view-model)
-# X8 packages/client test/<파일>.test.ts
+X8 packages/client test/settings/x8.test.ts
 # Track B2-WEB (doctor output and tab view-model)
-# X9 apps/cli test/<파일>.test.ts
+X9 apps/cli test/doctor-web.test.ts
+X9 packages/client test/web/tools-web.test.ts
 # Track B3-SET (schema key set = view-model item set = CLI config key set)
-# X10 packages/client test/<파일>.test.ts
+X10 apps/cli test/x10-settings-keys.int.test.ts
 # Track B5-REL (release smoke, Linux CI and macOS job)
-# X11 scripts <파일>.test.ts
+X11 scripts release-smoke.test.ts

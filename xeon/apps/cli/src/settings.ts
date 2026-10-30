@@ -1,5 +1,11 @@
 import { Type, type TArray, type TLiteral, type TNull, type TString, type TUnion } from "typebox";
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+import { uiSettings } from "@xeon/client/i18n";
+import {
+  defineSettings,
+  type SettingDefInput,
+  type SettingGroup,
+  type SettingNamespace,
+} from "@xeon/contracts/settings";
 
 // L4.cli.spec §6. l4.cli.* 키 네 개. 조립 루트가 import할 수 없는 앱의 설정이라 AssembleOptions.settingGroups로 넘긴다(§3.3).
 // 네 키 모두 탭은 appearance다: 표시 설정의 소유자가 L4이기 때문이다.
@@ -43,7 +49,13 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     range: { enum: ["system", "dark", "light"] },
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "local", "session"],
-    ui: { tab: "appearance", widget: "select", order: 100, label: "CLI 색 테마" },
+    ui: {
+      tab: "appearance",
+      widget: "select",
+      order: 100,
+      label: "CLI color theme",
+      labelKey: "settings.l4.cli.theme.label",
+    },
     since: "0.1.0",
   },
   statusLine: {
@@ -62,7 +74,13 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     default: ["model", "cwd", "session"],
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "local"],
-    ui: { tab: "appearance", widget: "list", order: 110, label: "CLI 상태 줄 항목" },
+    ui: {
+      tab: "appearance",
+      widget: "list",
+      order: 110,
+      label: "CLI status line items",
+      labelKey: "settings.l4.cli.statusLine.label",
+    },
     since: "0.1.0",
   },
   keybindingsFile: {
@@ -70,7 +88,13 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     default: null,
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "appearance", widget: "text", order: 120, label: "CLI 키 바인딩 파일" },
+    ui: {
+      tab: "appearance",
+      widget: "text",
+      order: 120,
+      label: "CLI key bindings file",
+      labelKey: "settings.l4.cli.keybindingsFile.label",
+    },
     since: "0.1.0",
   },
   outputMode: {
@@ -79,7 +103,19 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     range: { enum: ["text", "json"] },
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "project", "local", "session"],
-    ui: { tab: "appearance", widget: "select", order: 130, label: "print 모드 기본 출력" },
+    ui: {
+      tab: "appearance",
+      widget: "select",
+      order: 130,
+      label: "Default output for print mode",
+      labelKey: "settings.l4.cli.outputMode.label",
+    },
     since: "0.1.0",
   },
 });
+
+/** CLI가 엔진 조립에 넘기는 설정 그룹: `l4.cli.*`와 클라이언트 공용 `l4.ui.*`(표시 언어) */
+export const cliSettingGroups: readonly SettingGroup<
+  SettingNamespace,
+  Readonly<Record<string, SettingDefInput>>
+>[] = [cliSettings, uiSettings];

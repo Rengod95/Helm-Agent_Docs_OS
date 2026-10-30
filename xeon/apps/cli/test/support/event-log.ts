@@ -84,9 +84,13 @@ export function createEventLog(): EventLog {
   };
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 export function payloadField(event: EventWire, key: string): unknown {
   const payload: unknown = event.payload;
-  return typeof payload === "object" && payload !== null ? Reflect.get(payload, key) : undefined;
+  return isRecord(payload) ? payload[key] : undefined;
 }
 
 export function isKind(kind: string): (event: EventWire) => boolean {

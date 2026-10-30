@@ -8,6 +8,10 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     createThread: () => Promise.resolve(ok(null)),
     sendTurn: () => Promise.resolve(ok(null)),
     interrupt: () => Promise.resolve(ok(null)),
+    confirmShell: () => Promise.resolve(ok(null)),
+    cancelShell: () => {},
+    dismissCommandOutput: () => {},
+    commandList: () => Promise.resolve(ok([])),
     respondApproval: () => Promise.resolve(),
     trust: {
       status: () => Promise.resolve(err({ kind: "unsupported" })),

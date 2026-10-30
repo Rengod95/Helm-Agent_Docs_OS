@@ -13,7 +13,11 @@ export interface CapabilityBindings {
     provider: ExtensionName,
     version: string,
     keyVersion: string,
+    /** 공급자가 내장 확장인가. 외부 확장의 `idempotent` 선언은 믿지 않는다(M3-REQ-31, X.loading-trust.spec §4.6.4) */
+    builtin: boolean,
   ): () => void;
+  /** 지금 바인딩된 공급자가 내장 확장이면 true. 바인딩이 없거나 외부 확장이면 false다(닫힌 쪽) */
+  providerIsBuiltin(id: CapabilityId): boolean;
   /** 진행 중인 바인딩 변경이 끝나기를 기다린다 */
   settled(): Promise<void>;
   /** 모든 바인딩 fiber를 해제한다 */
@@ -24,6 +28,7 @@ interface ProviderInfo {
   readonly provider: ExtensionName;
   readonly version: string;
   readonly keyVersion: string;
+  readonly builtin: boolean;
 }
 
 function majorOf(version: string): string {
@@ -109,9 +114,16 @@ export function createCapabilityBindings(
   }
 
   return {
-    addProvider(id, provider, version, keyVersion) {
+    providerIsBuiltin(id) {
+      const current = bound.get(id);
+      if (current === undefined) return false;
+      return (providers.get(id) ?? []).some(
+        (info) => info.provider === current.provider && info.builtin,
+      );
+    },
+    addProvider(id, provider, version, keyVersion, builtin) {
       const list = providers.get(id) ?? [];
-      const info: ProviderInfo = { provider, version, keyVersion };
+      const info: ProviderInfo = { provider, version, keyVersion, builtin };
       list.push(info);
       providers.set(id, list);
       chain(() => reconcile(id));

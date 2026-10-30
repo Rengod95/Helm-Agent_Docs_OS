@@ -13,3 +13,12 @@ export {
 } from "./settings.ts";
 export type { CapabilityResolver } from "./entries.ts";
 export type { OutputTruncator } from "./types.ts";
+export {
+  createMcpStartGate,
+  MCP_START_RULE_ID,
+  MCP_START_TOOL_NAME,
+  type McpStartDefinition,
+  type McpStartGate,
+  type McpStartGateDeps,
+  type McpStartVerdict,
+} from "./mcp-start.ts";

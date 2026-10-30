@@ -7,9 +7,10 @@ import {
 } from "../src/index.ts";
 
 describe("l0.process settings", () => {
-  test("declares exactly the five keys of the spec table", () => {
+  test("declares exactly the six keys of the spec table", () => {
     expect(PROCESS_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l0.process.service.enabled",
+      "l0.process.service.remote",
       "l0.process.service.idleGraceMs",
       "l0.process.service.startTimeoutMs",
       "l0.process.shutdown.timeoutMs",
@@ -40,11 +41,31 @@ describe("l0.process settings", () => {
     const defaults = Object.fromEntries(PROCESS_SETTING_DEFS.map((def) => [def.key, def.default]));
     expect(defaults).toEqual({
       "l0.process.service.enabled": false,
+      "l0.process.service.remote": "",
       "l0.process.service.idleGraceMs": 60_000,
       "l0.process.service.startTimeoutMs": 10_000,
       "l0.process.shutdown.timeoutMs": 3000,
       "l0.process.lockFallback.default": "ask",
     });
+  });
+
+  test("service.remote is an empty-by-default endpoint string, restart-only, for the managed and user files", () => {
+    const remote = PROCESS_SETTING_DEFS.find((def) => def.key === "l0.process.service.remote");
+    expect(remote).toBeDefined();
+    if (remote === undefined) return;
+    expect(remote.default).toBe("");
+    expect(remote.runtimeChange).toBe("restart");
+    expect(remote.allowedScopes).toEqual(["managed", "user"]);
+    expect(remote.ui).toEqual({
+      tab: "execution",
+      widget: "text",
+      order: 15,
+      label: "원격 서비스 주소",
+    });
+    expect(
+      validateSettingValue(remote, "ssh://me@box.example/run/user/1000/xeon/xeon.sock").ok,
+    ).toBe(true);
+    expect(validateSettingValue(remote, 1).ok).toBe(false);
   });
 
   test("the service settings default comes from the declared shutdown timeout", () => {

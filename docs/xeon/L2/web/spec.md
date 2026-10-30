@@ -726,8 +726,9 @@ export const WebProviderManifestSchema = Type.Object({
   /** 이 provider가 요청을 보낼 수 있는 호스트. 사용자 도메인 정책과 별도로 이 목록만 허용한다 */
   endpoints: Type.Array(Type.String({ pattern: "^[a-z0-9.-]{1,253}(:[0-9]{1,5})?$" }), { maxItems: 16 }),
   auth: Type.Object({
+    /** "query"는 계약에 남지만 cap-web이 등록 때 거부한다(§3.6.1) */
     kind: Type.Union([Type.Literal("none"), Type.Literal("header"), Type.Literal("bearer"), Type.Literal("query")]),
-    /** 비밀 설정 키와 주입 위치. 값은 GuardedHttp가 전송 직전에 치환한다 */
+    /** 비밀 설정 키와 주입 위치. 값은 전송 직전에 `HeaderSecretSender`가 헤더에 넣는다(§3.6.1). 헤더 이름은 `header` kind에서 필수다 */
     secrets: Type.Array(Type.Object({
       setting: Type.String({ pattern: "^ext\\.[a-z][a-z0-9-]*\\.[a-z][A-Za-z0-9]*$" }),
       header: Type.Optional(Type.String({ maxLength: 64 })),
@@ -863,7 +864,7 @@ export interface BrowserOpenOptions {
   readonly profile: "ephemeral" | `named:${string}`;
   readonly headless: boolean;
   /** 모든 브라우저 트래픽이 지나는 앞단 필터 프록시(§4.10.2) */
-  readonly proxy: { readonly server: string };
+  readonly proxy?: { readonly server: string };
   readonly allowedOrigins: readonly string[];
 }
 export interface BrowserSessionHandle {
@@ -935,7 +936,14 @@ export const registrations: readonly WebProviderRegistration[] = [
 ```
 
 - ProviderId는 `plugin:<확장 이름>`이다(`L2.readme` §5.2). 한 확장이 여러 능력을 제공해도 ID는 같고, 능력별 후보 목록에서 구분된다.
-- 키는 `ext.web-exa.apiKey`에 `secret://<name>` 참조로만 저장한다(`F.wire-settings.spec` §3.8.1 D2·D3). provider는 키 값을 읽지 않는다. `manifest.auth.secrets`에 `{ setting: "ext.web-exa.apiKey", header: "x-api-key" }`를 적으면 `GuardedHttp`가 전송 직전에 `xeon.secrets`로 값을 받아 헤더에 넣는다(`_research/secrets.md` §6.2 M3 런타임 HTTP 모드). 값은 provider 코드, 로그, 오류, 이벤트에 나타나지 않는다.
+- 키는 `ext.web-exa.apiKey`에 `secret://<name>` 참조로만 저장한다(`F.wire-settings.spec` §3.8.1 D2·D3). provider는 키 값을 읽지 않는다. `manifest.auth.secrets`에 `{ setting: "ext.web-exa.apiKey", header: "x-api-key" }`를 적으면 `GuardedHttp`가 전송 직전에 값을 헤더에 넣는다. 값은 provider 코드, 로그, 오류, 이벤트에 나타나지 않는다.
+- 헤더 비밀의 전송 규칙 [결정: M3-REQ-60, WB-18]. 치환은 L0 플러그인 HTTP 통로를 거친다(`L0.secrets.spec` §3.6, `createPluginHttp(service, { purpose: "web.search" })`의 `send`, 안에서 `SecretService.withHttp`를 쓴다). cap-web은 값을 얻지 않고 포트 `HeaderSecretSender`(`src/ports/secrets.ts`)만 부른다. 포트는 `ext.<이름>.<키>` 설정을 확인하고, 값은 `send` 콜백 안에서만 헤더에 붙는다.
+  - 주입 위치는 두 가지다. `header`는 지정한 헤더 이름에, `bearer`는 `authorization: Bearer <값>`에 넣는다. `none`은 비밀이 없다.
+  - `query`(질의 문자열 인증)는 지원하지 않는다[결정: 오케스트레이터 기본값]. 비밀 값이 URL에 들어가 로그와 리퍼러로 새기 쉽기 때문이다. 등록 때 `web.provider_rejected`(reason `auth_kind_unsupported`)로 거부한다. `header` kind에 헤더 이름이 없으면 `secret_header_missing`으로 거부한다. 계약 스키마 `WebProviderManifestSchema`(F)는 바꾸지 않는다.
+  - provider가 준 같은 이름의 헤더는 버린다. 비밀 헤더가 이긴다.
+  - 설정이 비었거나 참조를 풀 수 없으면(`unset`, `unavailable`) 전송하지 않고 `unavailable`, `detail.reason`은 `no-key`, `detail.setting`은 그 설정 키다.
+  - 응답 본문 텍스트(`text/*`, JSON, XML)나 헤더 값이 비밀 값을 되돌리면(에코) 본문과 헤더를 버리고 `upstream_error`, `detail.reason`은 `secret_echoed`다(§5 32행). 텍스트가 아닌 본문은 에코 검사 대상이 아니다(L0 계약, `bodyText`가 null).
+  - 조립 쪽 어댑터: `HeaderSecretSender`를 구현해 `SecretService.withHttp`를 부르는 어댑터는 조립 쪽이 맡는다. 이 문서 시점에는 아직 연결되지 않았고 L4 후속 유닛에서 잇는다. 그 전에는 `headerSecrets`가 없는 provider의 비밀 헤더 요청이 `no-key`다.
 - 키 설정이 비어 있으면 `isAvailable`은 `{ ok: false, reason: "no-key" }`다. 앞단이 provider를 부르기 전에 같은 판정을 한 번 더 한다.
 - 유료 provider(Exa, Parallel, Brave, Firecrawl)는 모두 이 구조의 플러그인이다(`_research/decisions-log.md` 2026-10-21 결정(2차)). 내장 패키지 `cap-web`에는 유료 provider 코드가 없다.
 
@@ -947,6 +955,7 @@ export const registrations: readonly WebProviderRegistration[] = [
 | `builtin-wrapper` | search | builtin | `session` | 검색 수수료 + 토큰. `_research/durable-and-search-facts.md` §B-1 값으로 asOf 2026-10-21 | Anthropic 약관 미확인이라 `session`(`_research/web-tools.md` §4.7) |
 | `local` | fetch | builtin | `persist` | `free` | 로컬 파이프라인(§4.9) |
 | `playwright-local` | browse | builtin | `persist` | `browser_minutes` 0달러(로컬) | §4.10 |
+| `playwright-mcp` | browse | builtin | `none` | 가격표 단위 없음(0달러) | §4.10.4a. 기본 경로. `browserMcp` 포트가 있을 때만 후보다 |
 | `agent-browser` | browse | builtin(2차) | `persist` | 0달러(로컬) | 2차, §4.10.5 |
 | `native` | research | builtin(2차) | 하위 호출을 따른다 | 하위 호출 합산 | §4.11 |
 
@@ -1008,10 +1017,16 @@ CREATE TABLE cap_web_usage (
   usd           REAL NOT NULL,
   PRIMARY KEY (provider, month, unit)
 ) STRICT;
+CREATE TABLE cap_web_notices (
+  provider      TEXT PRIMARY KEY,          -- 고지한 provider ID
+  noticed_at    INTEGER NOT NULL           -- epoch ms
+) STRICT;
 ```
 
 - `cap_web_raw`의 `url`부터 `published_at`까지 열은 재조회 결과의 `Source`(sN 재사용, 제목, 게시일)를 만들려고 더했다. 같은 바이트의 원문은 `raw_ref`가 같아 처음 저장한 URL의 출처가 남는다.
 - `cap_web_raw`의 `retention='session'` 행은 세션 종료 후 첫 시작 정리 때 지운다. 세션 존재 여부는 `xeon.session`의 목록 API로 확인하고 세션 테이블을 직접 읽지 않는다(CM-02).
+- 블롭 고정: `cap_web_raw` 행 하나가 가리키는 `raw_blob`과 `text_blob`은 `cap.web` 소유로 `pinBlob`에 고정한다. refKey는 `raw_ref`(`webraw:<sha256>`)이고 행 하나가 두 블롭을 함께 고정한다. 저장할 때는 행을 커밋한 뒤 `unpinBlob(cap.web, raw_ref)`로 이 행의 고정을 모두 풀고 두 블롭을 다시 적는다. 두 호출 사이에 GC가 끼지 않도록 저장은 동기로 끝낸다. 원문 행을 지우는 `sweep`(마지막 캐시 행이 사라질 때)과 `purgeSessionRaw`는 지운 행마다 같은 키로 푼다. 만료(`expires_at`)만으로는 행을 지우지 않으므로 고정도 풀지 않는다. 고정이나 해제가 실패하면 `{ kind: "blob" }` 오류를 돌려준다. 실패 뒤에는 행이 고정 없이 남고, 다음 저장이 다시 적는다 [제안]. 시험은 `test/fetch-cache-pin.int.test.ts`다.
+- `cap_web_notices`는 키 플러그인 첫 사용 고지의 기록이다(§4.8.2). provider마다 한 행이고 지우지 않는다. 마이그레이션 버전 2에서 더했고 버전 1의 표와 행은 그대로 남는다(`cache/migrations.ts`).
 - 이벤트: 내구 이벤트 type을 1차에 두지 않는다. 웹 호출의 기록은 도구 3단 기록(`tool.intended`, `tool.settled`)이 맡는다. 휘발 접두사 `web.`은 예약이고 2차에 `web.research_progress`를 더한다.
 
 ### 3.9 서비스 묶음
@@ -1044,7 +1059,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | `web.browse.act` | 선언 없음 | unsafe | 페이지에 동작을 일으킨다 |
 | `web.browse.read` | readOnly | safe | 스냅숏·텍스트 조회 |
 | `web.browse.close` | 선언 없음 | unsafe | 외부 세션 상태를 바꾼다. `requestId` 멱등이 없다 |
-| `web.fetch.fetch` | readOnly | safe | 외부 페이지 읽기. 쓰는 것은 파생 데이터뿐이다: 응답 캐시(`cap_web_fetch_cache`, `cap_web_raw`), 원문 사본(내용 주소 blob), 비용 계량(`cap_web_usage`), 세션당 fetch 상한 카운터(메모리 계량, `session_limit`). 계량이라 drive 재생이 상한을 다시 소모할 수 있다 |
+| `web.fetch.fetch` | readOnly | safe | 외부 페이지 읽기. 쓰는 것은 파생 데이터뿐이다: 응답 캐시(`cap_web_fetch_cache`, `cap_web_raw`), 원문 사본(내용 주소 blob)과 그 고정(`sys_blob_refs`), 비용 계량(`cap_web_usage`), 세션당 fetch 상한 카운터(메모리 계량, `session_limit`). 계량이라 drive 재생이 상한을 다시 소모할 수 있다 |
 | `web.research.start` | 선언 없음 | unsafe | 백그라운드 조사를 시작한다 |
 | `web.research.get` | readOnly | safe | 상태 조회 |
 | `web.research.cancel` | 선언 없음 | unsafe | 조사 상태를 바꾼다. `requestId` 멱등이 없다 |
@@ -1114,14 +1129,14 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | 계층 | 범위 | 키 | TTL | 대상 |
 |---|---|---|---|---|
 | (1) single-flight | 프로세스, 요청 수명 | 해당 계층 키와 같음 | 진행 중인 동안 | 동시에 들어온 같은 요청은 provider 호출 1회를 공유한다. `cachePolicy: "none"`도 적용한다 |
-| (2) 메모리 검색 메모 | 프로세스 메모리, LRU 500항목 | provider 체인 식별 + 정규화 쿼리 + 필터 + limit 버킷(10/20) + content + freshness | `l2.web.cache.searchTtlMinutes`(기본 20분) | `search` 결과 |
+| (2) 메모리 검색 메모 | 프로세스 메모리, LRU 500항목 | provider 체인 식별 + 동시 질의 수(`parallel`) + 정규화 쿼리 + 필터 + limit 버킷(10/20) + content + freshness | `l2.web.cache.searchTtlMinutes`(기본 20분) | `search` 결과 |
 | (3) 디스크 fetch 캐시 | `cap_web_fetch_cache` + blob | sha256(정규화 URL, format, render, provider) | `l2.web.cache.fetchTtlMinutes`(기본 15분) | `fetch` 결과 중 `persist`인 것 |
 
 - 근거: `_research/web-tools.md` §4.7(hermes single-flight·20분, Claude Code 15분).
 - 메모에서 꺼낸 결과는 provider를 부르지 않았으므로 `meta.cost`는 `free`이고 `meta.fallbacks`는 비어 있다. 메모에는 세션 번호(sN)가 없는 provider 단계 결과를 두고, 호출마다 그 세션의 `SourceIdTable`로 번호를 붙인다. 그래서 다른 세션이 같은 질의를 해도 번호가 섞이지 않는다.
 - limit 버킷: 요청 `limit`이 10 이하면 10, 11~20이면 20으로 올려 provider에 요청하고 결과를 잘라 돌려준다. 같은 질의의 다른 limit이 같은 캐시 항목을 쓴다(hermes).
 - `freshness: "live"`는 (2)(3)을 건너뛰고 `meta.cache: "bypass"`다. `prefer-fresh`는 만료 절반이 지난 항목을 다시 가져온다(`stale-revalidated`).
-- 디스크 캐시 크기 상한은 `l2.web.cache.maxMegabytes`(기본 256)다. 넘으면 `expires_at` 오름차순으로 지운다. 지운 행이 가리키던 blob은 L0 blob GC가 처리한다 [가정: L0.store.spec].
+- 디스크 캐시 크기 상한은 `l2.web.cache.maxMegabytes`(기본 256)다. 넘으면 `expires_at` 오름차순으로 지운다. 지운 캐시 행이 원문 행의 마지막 참조였으면 원문 행도 지우고 그 블롭의 고정을 푼다. 그 뒤 L0 blob GC가 블롭을 처리한다(§3.8, `L0.store.spec` §3.4).
 - 브라우저 세션의 쓰기성 동작 결과는 캐시하지 않는다.
 
 #### 4.3.2 provider별 cachePolicy
@@ -1160,6 +1175,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - provider가 `basis: "estimated"`인 `cost`를 주면 그 금액은 믿지 않고 `units`(잰 사용량)만 받아 위와 같이 가격표로 다시 계산한다 [제안: WEB.6]. 모델 provider가 금액 없이 토큰·검색 수만 주는 내장 래퍼가 이 경로를 쓴다.
 - 단위에는 컨텍스트에 들어간 텍스트 길이 `context_chars`를 항상 넣는다. 본문 토큰이 검색 요금보다 클 수 있기 때문이다(`_research/web-tools.md` §5.3).
 - 래퍼는 L1.models가 돌려준 토큰 사용량(`tokens_in`, `tokens_out`)과 검색 요청 수(`search`)로 계산한다. 이어 요청(`pause_turn`)을 보냈으면 응답마다 사용량을 더한다. 1회 약 $0.011은 ADR-0005 §3.2 산식이고 토큰 수는 측정하지 않은 [가정]이다. 실제 키 측정은 사용자 승인 뒤에 한다(m2-plan 결정 D11).
+- 동시 질의(§4.8.2)에서는 답한 provider마다 위 계산을 따로 한다. 각 사용량은 그 provider의 행으로 `cap_web_usage`에 기록하고, `meta.cost`는 그 합이다. 기준(`basis`)은 하나라도 추정이면 `estimated`, 아니면 하나라도 `reported`면 `reported`, 아니면 `free`다. 단위는 이름별로 합쳐 16개까지 두고, `pricingAsOf`는 추정에 쓴 가격표 중 가장 오래된 기준일이다.
 
 #### 4.4.2 가격표 기준일
 
@@ -1280,10 +1296,10 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 ### 4.7 robots.txt
 
-- [제안] 자동 수집 경로는 robots.txt를 지킨다. 해당 경로: `web.research`의 하위 fetch, `urls` 일괄 fetch 중 사용자가 직접 적지 않은 URL, 앞으로 생길 crawl.
+- [결정: review.m3-design-inputs D-M3-23 행 4] 기본(`never`)은 robots.txt를 따르지 않는다. 따르려면 `auto`나 `always`로 바꾼다. `auto`는 아래 자동 수집 경로에 적용한다. 해당 경로: `web.research`의 하위 fetch, `urls` 일괄 fetch 중 사용자가 직접 적지 않은 URL, 앞으로 생길 crawl.
 - 사용자 대행 단건 fetch는 robots.txt 검사 대상이 아니다. 해당 경로: 사용자가 대화에 적은 URL의 fetch, 모델이 검색 결과 하나를 읽는 fetch, 그룹 코드의 단건 fetch. Anthropic web_fetch는 robots.txt를 차단 기준으로 쓰므로 이 선택은 공개 릴리즈 전에 다시 정한다(`_research/web-tools.md` §4.9, §10 미결 6).
 - 구현은 `auto`를 이렇게 읽는다: 자동 수집 경로(조사의 하위 fetch)이거나, 호출자가 호스트가 아닌 `urls` 일괄 fetch이면 적용한다. 일괄 호출의 URL이 사용자 입력에서 왔는지는 구분하지 않는다 [제안].
-- 설정 `l2.web.policy.robots`: `auto`(위 규칙), `always`(모든 fetch에 적용), `never`(적용 안 함, 관리 범위에서 잠글 수 있음).
+- 설정 `l2.web.policy.robots`: `never`(기본, 적용 안 함), `auto`(위 규칙), `always`(모든 fetch에 적용). 관리 범위에서 잠글 수 있다.
 - 처리: 호스트별 `/robots.txt`를 24시간 메모리 캐시한다. 사용자 에이전트 토큰은 `Xeon`이다. 4xx는 전부 허용, 5xx·연결 실패는 전부 금지로 본다(RFC 9309 §2.3.1) [제안].
 - UA 문자열은 `Xeon/<버전> (+<프로젝트 URL>)`로 정직하게 밝힌다. Cloudflare 챌린지 같은 봇 차단을 우회하지 않는다(`_research/web-tools.md` §4.9, §5.1 크롤링 윤리 행).
 
@@ -1316,16 +1332,22 @@ ADR-0005 §3.3(2026-10-25 개정)과 `L2.readme` §5.2를 따른다.
 
 1. 호출 인자 `provider`가 있으면 그 provider만 쓴다.
 2. `l2.web.search.provider`가 `"auto"`가 아니면 그 provider만 쓴다. ADR-0005의 키 `web.search.provider`는 키 문법에 맞춘 `l2.web.search.provider`로 읽는다.
-3. `"auto"`이면 사용자가 키를 등록한 플러그인을 `l2.web.search.pluginOrder` 순으로 쓴다.
-4. 플러그인이 없거나 모두 실패하면, 사용자가 `l2.web.search.searxng.url`을 설정한 경우에만 그 SearXNG를 쓴다.
-5. 위가 모두 없거나 실패하면 내장 검색 래퍼를 쓴다. 아무것도 설정하지 않은 상태의 기본 경로가 이것이다.
+3. `"auto"`이면 `l2.web.search.order` 목록의 순서로 쓴다. 목록은 설정 화면에서 끌어 옮겨 정하며, 등록된 검색 도구 전부(내장 기본 검색 도구 포함)가 대상이다. 등록되지 않은 id는 건너뛴다.
+4. 목록에 없는 후보는 목록 뒤에 붙는다: 사용자가 `l2.web.search.searxng.url`을 설정한 SearXNG, 내장 검색 래퍼, 플러그인 순이다. 각 묶음 안은 id 바이트 순이다. 플러그인은 사용자가 순서에 올리기 전까지 기본 후순위다.
+5. 후보가 하나도 없거나 모두 실패하면 `unavailable`이다. 아무것도 설정하지 않은 상태의 기본 경로는 내장 검색 래퍼다.
 
 - [결정] 후보에는 사용자가 설정한 provider만 들어간다(사용자 결정 H1, ADR-0005 §3.3). 주소를 설정하지 않은 SearXNG는 후보에서 빠지므로 탐침 요청도, `meta.fallbacks` 항목도 없다. 구현은 `SearchCandidate.enabled`(호출마다 읽는다)가 후보 목록에서 걸러낸다. `l2.web.search.provider`를 `searxng`로 고정했는데 주소가 비어 있으면 후보에 없으므로 `unavailable`이고 `detail.reason`은 `unknown_provider`다.
-- [제안] 3번(플러그인)을 4번(SearXNG)보다 앞에 둔다. 둘 다 사용자 설정이지만 키 등록은 검색어가 새 수신자에게 나가는 명시 행위이고, 이 순서는 `foundation-plan.md` §1 6번에 명시되어 있지 않다. ADR-0005 §6 [미결]을 그대로 승계한다(§10 미결 4).
+- [결정: review.m3-design-inputs D-M3-23 행 1] 옛 규칙(키 플러그인 → SearXNG → 래퍼)과 `pluginOrder` 키를 위 규칙과 `order` 키로 바꾼다. 순서 규칙은 `cap-web/src/select/order.ts`의 `planSelection` 하나이고 검색과 브라우저가 같이 쓴다. F `orderProviderCandidates`는 fetch 승격이 계속 쓴다.
+- 여러 provider 동시 질의: `l2.web.search.parallel`이 2 이상이고 선택이 auto이면, 순서대로 탐침하며 가용한 provider를 `parallel`개 모은 뒤 그 묶음을 동시에 호출한다. 성공한 결과는 provider 차례로 한 건씩 번갈아 합치고 URL이 같은 항목은 먼저 나온 것만 둔다. 항목마다 `sources[].provider`는 그 항목을 준 provider다. `meta.provider`는 순서가 가장 앞선 성공 provider이고, 답한 provider 목록은 `meta.warnings`의 `fanout:<id>,<id>`에 남긴다. 한 provider만 답했으면 이 경고는 없다. 답변(`answer`)은 첫 provider의 것만 쓴다. 비용은 답한 provider마다 §4.4.1대로 계산해 사용량 표에 기록하고 `meta.cost`는 그 합이다. 일부가 실패하면 성공한 것만 합치고 실패는 `meta.fallbacks`(`stage: "call"`)에 남긴다. `invalid_input` 같은 그 밖의 실패는 다른 provider가 답했어도 검색 전체를 실패로 만든다. 묶음이 하나도 답하지 못하면 묶음 밖에 남은 후보를 순차 체인으로 이어 간다(실패 기록은 그대로 남는다). 그래도 모두 실패하면 순차 체인과 같은 `unavailable`이다. 합친 결과의 `cachePolicy`는 답한 provider 중 가장 엄격한 값이다. 여러 provider가 답한 결과는 검색 메모에 넣지 않는다(§4.3.1). 메모 키에는 `parallel`을 넣는다. 도메인 조건(`domains`)은 첫 provider가 아닌 provider가 답했거나 조건을 다 넘기지 못한 provider가 있으면 앞단이 다시 건다. 다른 차원은 답한 provider 모두가 직접 건 것만 앞단이 생략한다. 명시 선택(1, 2)에는 적용하지 않는다. [결정: 오케스트레이터 기본값] 기본값은 1이다. 동시 질의는 검색어를 여러 수신자에게 보내고 비용도 늘기 때문에 사용자가 올린다. D-M3-23의 "기본 기능"은 기능이 기본으로 들어 있다는 뜻으로 읽는다.
+- 키 플러그인 첫 사용 고지: 플러그인 provider(`auth.kind`가 `none`이 아닌 것)가 처음 호출에 쓰이면 `meta.warnings`에 `first_use_notice:<provider>`를 한 번 싣고 그 provider를 고지한 것으로 저장소에 남긴다(표 `cap_web_notices`). 고지 문구는 L4가 만든다: 검색어가 이 provider의 수신자에게 나간다는 것과 가격표 기준일이다. 승인을 요구하지 않는다.
+  - 판정은 출처가 `plugin`이고 `auth.kind`가 `none`이 아닌 provider에만 한다. 내장 provider는 인증 방식과 무관하게 제외한다. 동시 질의에서는 답한 키 플러그인마다 따로 본다.
+  - 경고는 호출 시점에만 붙는다. 메모에서 꺼낸 결과에는 붙지 않는다. 같은 규칙을 승격 fetch(§4.9.1)와 `web.browse` 열기(§4.10)에도 적용한다.
+  - 기록을 쓰지 못하면 `web.notice_write_failed`를 한 번 남기고 이 프로세스 동안은 메모리에만 기록한다. 읽기 실패는 `web.notice_read_failed`로 같게 처리한다(구현: `cache/notices.ts`).
 - 명시 선택(1, 2)은 다른 후보로 내려가지 않는다. 탐침이 실패하면 `unavailable` 오류이고 `detail.reason`에 사유를 싣는다(`L2.readme` §5.2).
 - auto 체인에서 탐침 실패는 다음 후보로 내려가고 `meta.fallbacks`에 `{ provider, stage: "probe", reason }`을 남긴다. `search`는 `replay: "safe"`이므로 호출 중 오류 `unavailable`, `rate_limited`, `upstream_error`도 다음 후보로 내려가며 `stage: "call"`로 남긴다.
 - 구현은 `timeout`도 다음 후보로 내려가는 호출 오류에 넣는다 [제안]. 응답하지 않는 provider 하나가 검색 전체를 막지 않게 하려는 것이다. 이 밖의 코드(`invalid_input`, `denied`, `query_rejected` 등)는 바로 실패한다.
 - 모든 후보가 실패하면 `unavailable` 오류이고 `detail.fallbacks`에 전체 기록을 싣는다.
+- provider의 `isAvailable`이 던지면 탐침 캐시가 `unreachable`(`detail: "probe threw"`) 실패로 바꾸고 `web.probe_threw`를 기록한다. 호출 전체가 거부되지 않고 auto 체인은 다음 후보로 내려간다.
 - 탐침 결과는 provider별로 5분 메모리 캐시한다. 실패 결과는 30초만 둔다 [제안]. 매 호출마다 탐침 요청을 보내지 않기 위해서다.
 - 모델용 도구의 판정(§4.8.1)에 쓰는 "체인이 래퍼뿐인가"는 이 후보 목록으로 정한다. `isWrapperOnlyChain(catalog.searchCandidates())`가 그 값이며, 키 플러그인이나 주소를 설정한 SearXNG가 하나라도 있으면 거짓이다. 기본 설정(둘 다 없음)에서는 참이고, `modelTool = auto`이면 활성 모델의 호스티드 검색이 모델용 도구가 된다.
 - 키 없는 무료 MCP 층(Exa·Parallel 익명 MCP)은 체인에 넣지 않는다. 품질·한도·약관이 불명확하고 공개 릴리즈 기본값에서 뺀다(`_research/web-tools.md` §5.4).
@@ -1459,7 +1481,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 - [제안] 하위 리소스와 스크립트가 여는 연결(XHR, WebSocket, 이미지, 워커)까지 막기 위해 브라우저의 모든 트래픽을 `cap-web`이 띄운 로컬 필터 프록시로 보낸다. 브라우저는 `--proxy-server=http://127.0.0.1:<port>`로 실행하고, 프록시는 CONNECT·HTTP 요청마다 도메인 정책과 연결 시점 IP 검사(§4.6.3)를 한다. Playwright의 `--allowed-origins` 경로 가로채기는 옵션 설명 스스로 보안 경계로 쓸 수 없다고 밝히므로 경계로 쓰지 않는다(`_research/browser-tools.md` 주류 도구 절, `_research/web-tools.md` §5.2 4번).
   - 프록시는 `browse/proxy.ts`에 있고 루프백에만 바인딩한다. 프록시를 우회하는 Chromium 플래그(`--proxy-bypass-list`)는 쓰지 않는다.
   - WebRTC는 프록시를 거치지 않으므로 끈다(`--force-webrtc-ip-handling-policy=disable_non_proxied_udp`) [가정: playwright-core 1.64.1의 Chromium에서 플래그가 동작한다. B10에서 확인].
-- 대안은 `L0.sandbox`의 네트워크 필터를 쓰는 것이다. 어느 쪽을 1차로 둘지는 §10 미결 8이다.
+- 대안은 `L0.sandbox`의 네트워크 필터를 쓰는 것이다. 어느 쪽을 1차로 둘지는 §10 미결 8이다. 프록시를 띄우지 않는 기본 경로(§4.10.4a)는 샌드박스 필터를 쓴다.
 
 #### 4.10.3 기본 비활성 기능과 사람 확인
 
@@ -1471,7 +1493,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
   - `caller.afterUntrusted = true`인 `fill`, `type`, 폼 제출(§4.6.6).
 - 어휘 판정은 완전하지 않다. 그래서 브라우저 세션은 격리된 새 프로필(자격 증명 없음)을 기본으로 두는 것이 1차 방어다.
 
-#### 4.10.4 `playwright-local` provider
+#### 4.10.4 `playwright-local` provider (미구현, 기본 경로 아님: §4.10.4a)
 
 - playwright-core 1.64.1을 쓴다. auto-wait와 actionability 검사, 실행한 동작의 코드 출력(`BrowseActOutput.code`)을 제공한다(`_research/layer-plan-v2.json` L2-c, `_research/browser-tools.md` 주류 도구 절).
 - 스냅샷은 `ariaSnapshot` 계열 API로 만들고 `e<N>` ref를 붙인다. ref는 마지막 스냅샷 기준으로 해석한다. 문서가 바뀐 뒤의 ref는 `ref_invalid`다 [가정: ref 부여 방식의 세부 API는 `L2.web.plan` B10에서 정한다].
@@ -1484,7 +1506,44 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 - Bun 경로에서 쓰지 않는 기능: `recordHar`(Bun 이벤트 루프 교착 보고, oven-sh/bun#30652), 클라이언트 인증서(oven-sh/bun#44523)(`_research/notes/L2-2.md` §1).
 - `headless`는 `l2.web.browse.headless`(기본 참)다.
 
-#### 4.10.5 `agent-browser` provider (2차)
+#### 4.10.4a MCP stdio provider와 기본 경로
+
+- [결정: 오케스트레이터 기본값] Stagehand는 아직 승인되지 않았다(새 외부 의존). 기본 경로는 MCP stdio provider다. 도구는 Playwright MCP(`playwright-mcp`)이고 origin은 `builtin`, cachePolicy는 `none`이다. 구현은 `browse/mcp-provider.ts`의 `createMcpBrowseProvider`다. 시험은 가짜 포트(`testing/fake-browser-mcp.ts`)로 한다.
+- 포트 `BrowserMcpPort`(`ports/browser-mcp.ts`)가 서버와의 경계다. `available(signal)`은 서버가 설정되어 연결되었는지를 `{ ok: true }` 또는 `{ ok: false, detail }`로 답한다. 연결이 없으면 탐침 사유는 `unreachable`이다. `callTool(tool, args, signal)`은 도구 하나를 부르고 `text`, `images`, `isError`를 담은 `Result`를 돌려준다. 포트 실패는 `unavailable`(재시도 가능)이나 `aborted`다. cap-web은 cap-mcp를 import하지 않는다. 조립(`createWebRuntime`의 `browserMcp` 옵션)이 `McpService`를 이 포트에 맞춘다.
+- 도구 매핑. Playwright MCP의 도구 이름과 인자는 이 저장소에서 검증하지 않았다 [가정]. 아래 표가 이 구현의 매핑이다.
+
+| 동작 | 호출하는 도구와 인자 |
+|---|---|
+| `open`의 `url`, `navigate` | `browser_navigate {url}`, 이어서 `browser_snapshot {}` |
+| `click` | `browser_click {element, ref}` |
+| `type`, `fill` | `browser_type {element, ref, text, submit: false}`. `fill`도 같은 도구를 쓴다 [가정] |
+| `key` | `browser_press_key {key}` |
+| `hover` | `browser_hover {element, ref}` |
+| `select` | `browser_select_option {element, ref, values}` |
+| `scroll` | `browser_press_key`를 `amount`번(상한 20) 부른다. 키는 `up` `PageUp`, `down` `PageDown`, `left` `ArrowLeft`, `right` `ArrowRight`다. 방향과 양을 생략하면 `down`과 1이다 [가정] |
+| `wait` | `browser_wait_for {time}`. `time`은 `timeoutMs`를 초로 올림한 값이고 최소 1이다. `waitFor`는 무시한다 [가정] |
+| `back` | `browser_navigate_back {}` |
+| `evaluate` | `browser_evaluate {function: text}` |
+| `forward`, `upload` | 도구를 부르지 않고 `unsupported`다 |
+| 좌표 `target` | 도구를 부르지 않고 `invalid_input`이다. ref만 받는다 |
+| `describe`(확인 판정) | 도구를 부르지 않는다. 마지막 스냅샷의 ref 표에서 역할과 이름을 낸다 |
+| `read`의 `snapshot`, `text`, `find` | `browser_snapshot {}` |
+| `read`의 `screenshot` | `browser_snapshot {}`, 이어서 `browser_take_screenshot {}` |
+| `close` | `browser_close {}`. 결과는 쓰지 않고 세션 슬롯은 비운다 |
+
+- `element` 인자는 마지막 스냅샷의 ref에서 역할과 이름을 알면 `button "Pay now"` 꼴이고, 이름이 없으면 ref 자체(예: `e7`)다 [가정].
+- 모든 동작 뒤에 `browser_snapshot`을 부르고 그 결과로 ref 표를 새로 만든다. 동작 입력의 `snapshot: false`는 응답에서 스냅샷을 빼는 데만 쓰고 도구 호출은 줄이지 않는다. `read`는 모든 모드에서 먼저 `browser_snapshot`을 부른다.
+- 스냅샷 해석: 응답 Markdown의 `- Page URL:`, `- Page Title:`과 yaml 블록을 정규식으로 읽는다. 주소와 제목은 `BrowsePageSchema`, 스냅샷은 `BrowseSnapshotSchema`로 검사한다. ref는 `- <역할> "<이름>" [ref=eN]` 꼴의 줄에서 읽고 4000개까지 둔다. `revision`은 스냅샷마다 1씩 올라 첫 값이 1이다. `kind`는 항상 `full`이다(`delta`는 무시한다 [가정]). 값이 하나라도 없거나 검사에 실패하면 `upstream_error`다. `navigations`는 동작 뒤의 페이지 주소 하나다.
+- 읽기 모드: `text`는 스냅샷의 yaml 본문만 담고 `snapshot` 필드는 없다. `find`는 질의가 역할이나 이름에 들어 있는(대소문자 무시) ref의 줄만 이어 붙인다. 질의가 없으면 `invalid_input`이다. `screenshot`은 응답의 첫 이미지를 쓰고 형식은 `image/png`나 `image/jpeg`만 받는다. 다른 형식이면 `upstream_error`다. 응답에 픽셀 크기가 없어 `width`와 `height`는 1이다 [가정]. `maxChars`는 이 경로에서 자르지 않는다 [미결].
+- 한 세션: 한 MCP 서버는 브라우저 컨텍스트 하나를 가진다. 열린 세션이 있으면 두 번째 `open`은 `unavailable`(메시지 `playwright-mcp supports one session`, `retryable` 거짓)이다. 자동 선택은 이 오류에서 다음 후보로 내려간다. `close`가 슬롯을 비운다. 닫힌 핸들의 동작은 `not_found`이고 도구를 부르지 않는다. 명명 프로필(`named:`)은 `unsupported`다. 이 경로는 서버가 정한 컨텍스트 하나만 쓰므로 프로필을 고를 수 없다. `headless`와 `allowedOrigins`는 이 경로에서 쓰지 않는다 [미결].
+- 도구 실패: 도구 응답의 `isError`는 `upstream_error`이고 본문 앞 500자를 메시지에 싣는다. 포트 실패는 위와 같이 `unavailable`이나 `aborted`다.
+- 트래픽 필터: 필터 프록시를 띄우지 않는 조립(MCP stdio 경로)에서는 `BrowserOpenOptions.proxy`가 없다. 브라우저의 하위 요청 트래픽은 샌드박스 네트워크 필터가 맡는다(§10 미결 8). 앞단은 이동 URL만 검사한다. 검사하는 곳은 `open`의 `url`, `navigate` 동작, 동작 뒤의 모든 최상위 문서 이동이다(§4.10.2).
+- 세션 상한은 구현되어 있다(§4.10.1). 기본값은 대화마다 동시 세션 3개(`maxSessions`), 30분(`maxMinutes`), 200회(`maxActions`), 0.5달러(`maxUsd`)다. 동시 세션 수를 넘으면 새 세션을 거부한다. 시간, 동작 수, 비용을 넘으면 `session_budget`을 내고 세션을 닫는다.
+- 비활성 동작과 사람 확인도 구현되어 있다(§4.10.3). `evaluate`와 `upload`는 설정이 꺼져 있으면 `action_disabled`다. 명명 프로필은 설정이 켜져 있고 호출마다 확인을 받아야 열린다. 확인 포트 `BrowseConfirmPort`(`src/ports/confirm.ts`)가 없거나 `unavailable`이면 확인이 필요한 동작은 `confirmation_denied`다. 어휘는 `browse/confirm.ts`의 상수이고 보수적이다. "Order history"처럼 탐색용 이름도 `order` 어휘에 걸려 확인을 받는다.
+- 후보: `catalog.browseCandidates()`는 `createWebRuntime({ builtin: { browse } })`로 받은 내장 후보와 플러그인 등록을 낸다. 플러그인 등록은 능력 `web.browse`이고 provider ID는 `plugin:<확장 이름>`, origin은 `plugin`이다. 매니페스트의 `services`에 `browse`가 없으면 `service_not_declared`로 거부한다. `browserMcp` 포트로 만든 `playwright-mcp` 후보는 `builtin.browse` 뒤에 붙는다.
+- 순서는 검색과 같은 `planSelection`(`src/select/order.ts`)이 정한다(§4.8.2). 사용자가 `l2.web.browse.order`에 올린 순서가 먼저이고, 목록에 없는 후보는 내장 다음 플러그인 순이다.
+
+#### 4.10.5 `agent-browser` provider (2차, 미구현)
 
 - agent-browser 0.39.1의 네이티브 바이너리를 직접 호출한다. npm 래퍼는 Node 24를 요구하지만 소스 빌드에만 필요하므로 쓰지 않는다(`_research/notes/L2-2.md` §2.4, §5).
 - 호출 형식: `<바이너리> --json --session <id> [--allowed-domains <목록>] <명령…>`. 실행은 `xeon.process`로 한다.
@@ -1602,6 +1661,9 @@ stateDiagram-v2
 | 28 | 플러그인 매니페스트 `cachePolicy: persist`인데 `reviewedAt` 없음 | `session`으로 낮추고 로드 경고 | — |
 | 29 | 페이지 본문에 `</untrusted_web_content>` 문자열 | `&lt;/untrusted_web_content>`로 바꿔 감싼다 | — |
 | 30 | 모델 도구가 대화에 없던 URL을 fetch | `unseenUrl` 설정(기본 승인 요청) | — |
+| 31 | 플러그인 provider의 비밀 설정이 비었거나 참조를 풀 수 없음 | 전송 없이 거부(§3.6.1) | `unavailable`(`detail.reason: "no-key"`) |
+| 32 | 응답 본문이나 헤더가 비밀 값을 되돌림 | 본문과 헤더를 버리고 거부(§3.6.1) | `upstream_error`(`detail.reason: "secret_echoed"`) |
+| 33 | 매니페스트 인증이 `query`이거나 `header` kind에 헤더 이름이 없음 | 등록 때 거부하고 후보가 되지 않음(§3.6.1) | — (`web.provider_rejected`) |
 
 ## 6. 설정 노출
 
@@ -1610,7 +1672,8 @@ stateDiagram-v2
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret |
 |---|---|---|---|---|---|---|---|
 | `l2.web.search.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.search.pluginOrder` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
+| `l2.web.search.order` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
+| `l2.web.search.parallel` | integer | `1` | min 1, max 4 | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.search.searxng.url` | string(URL 또는 빈 문자열) | `""` | — | nextTurn | managed, user, local | tools | false |
 | `l2.web.search.wrapper.model` | string(`"auto"` 또는 모델 ID) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.search.wrapper.maxContinuations` | integer | `3` | min 0, max 10 | nextTurn | managed, user, project, local, session | tools | false |
@@ -1625,13 +1688,14 @@ stateDiagram-v2
 | `l2.web.policy.deny` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.policy.allowPrivateNetwork` | boolean | `false` | — | nextTurn | managed, user, local | tools | false |
 | `l2.web.policy.unseenUrl` | string | `"ask"` | enum ask, allow, deny | nextTurn | managed, user, local, session | tools | false |
-| `l2.web.policy.robots` | string | `"auto"` | enum auto, always, never | nextTurn | managed, user, project, local | tools | false |
+| `l2.web.policy.robots` | string | `"never"` | enum auto, always, never | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.cache.searchTtlMinutes` | integer | `20` | min 0, max 1440 | live | managed, user, project, local | tools | false |
 | `l2.web.cache.fetchTtlMinutes` | integer | `15` | min 0, max 1440 | live | managed, user, project, local | tools | false |
 | `l2.web.cache.maxMegabytes` | integer | `256` | min 16, max 8192 | live | managed, user | tools | false |
 | `l2.web.limits.searchPerSession` | integer | `100` | min 0, max 100000 | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.limits.fetchPerSession` | integer | `300` | min 0, max 100000 | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.browse.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.browse.order` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.browse.headless` | boolean | `true` | — | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.browse.runtime` | string | `"auto"` | enum auto, bun, node | restart | managed, user | tools | false |
 | `l2.web.browse.executablePath` | string | `""` | — | restart | managed, user, local | tools | false |
@@ -1647,7 +1711,7 @@ stateDiagram-v2
 | `l2.web.research.keepUnverified` | boolean | `false` | — | nextTurn | managed, user, project, local, session | tools | false |
 
 - 플러그인 키는 `ext.<확장 이름>.*`이다. 예: `ext.web-exa.apiKey`(string, `secret://` 참조, `secret: true`, 기본값 없음, ui.tab `plugins`)(`F.wire-settings.spec` §3.8.3). L2 키에는 비밀이 없다.
-- `l2.web.search.provider`, `l2.web.browse.provider`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `xeon.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
+- `l2.web.search.provider`, `l2.web.browse.provider`, `order`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `xeon.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
 - 도메인 목록 세 키는 범위별 값을 합친다(§4.5.2). 다른 키는 `F.wire-settings.spec` §3.9 일반 규칙(높은 범위 하나)을 따른다.
 - `l2.web.browse.allowNamedProfiles`는 관리·사용자 범위만 허용한다. 프로젝트 파일로 로그인 프로필을 켜는 경로를 막기 위해서다.
 - `l2.web.policy.allow`(허용 목록)와 `l2.web.policy.unseenUrl`(대화에 없던 URL 확인)은 project 범위를 허용하지 않는다 [제안]. 저장소 설정 파일이 `allow: ["*"]`와 `unseenUrl: "allow"`를 넣으면 기본 `ask`가 모든 도메인에서 꺼지고 대화 내용을 쿼리에 실어 내보내는 경로를 막는 검사도 꺼진다. project 범위는 `ask`와 `deny`처럼 막는 쪽 목록에만 더할 수 있다.
@@ -1694,6 +1758,17 @@ export const webSettings = defineSettings("l2.web", {
 
 - `defineSettings`의 키 인자는 이름 부분이고 점을 포함할 수 있다 [가정: `F.wire-settings.spec` §3.8.3의 `SettingDefInput` 레코드 키가 `search.provider` 같은 점 표기를 허용한다]. 허용하지 않으면 중첩 그룹(`defineSettings("l2.web.search", …)`)으로 나눈다.
 
+### 6.1 provider 상태 조회(`web.providers`)
+
+호스트의 `web.providers`(M3-REQ-96)는 `runtime.providerStatus(signal)`와 `describeWebSettings(settings)`로 값을 채운다(`status.ts`). 읽기 전용이고 비밀 값을 싣지 않는다. 키 값, 주입 위치, 헤더 이름은 행의 필드에 없다.
+
+- 행은 검색, fetch, 브라우저 후보마다 하나다. 후보가 등록되어 있으면 내장과 플러그인 모두 나온다. `capability`는 `web.search`, `web.fetch`, `web.browse` 가운데 하나이고, `origin`, `displayName`, `auth`는 후보와 매니페스트에서 온다.
+- `status`는 탐침 캐시(§4.8.2)의 결과다. 탐침은 provider마다 동시에 돌고 모두 끝나면 값을 돌려준다. 한 provider가 느려도 나머지를 막지 않는다. 사유는 provider가 돌려준 `ProviderUnavailableReason`을 그대로 싣고 `detail`은 200자에서 자른다. 탐침(`isAvailable`)이 예외로 끝나면 그 행만 `{ kind: "unavailable", reason: "unreachable", detail: "probe threw" }`이고, 나머지 행은 그대로 돌려준다. 예외의 원인은 주입된 Logger에 `web.probe_threw`(provider id만)로 남고 행에는 싣지 않는다(TY-25).
+- `autoRank`는 자동 선택(`auto`)이 provider를 시도하는 순서에서의 0부터 센 자리다. `web.search`와 `web.browse` 행에만 값이 있고, `web.fetch` 행은 사용자 순서가 없어서 `null`이다. 순서는 §4.8.2의 `planSelection`이 정한다. 호출 인자 `provider`와 설정 `provider`, `l2.web.search.parallel`은 이 값을 바꾸지 않는다. 검색은 `l2.web.search.order`, 브라우저는 `l2.web.browse.order`를 쓴다. `status.ts`는 검색과 브라우저 후보마다 `planSelection`을 설정 `order`와 함께 `settingProvider: "auto"`로 부르고, 각 후보의 자리를 행에 싣는다. 이 값은 탐침 결과에 따라 달라지지 않는다. 실패한 provider도 자리를 가진다.
+- `pricingAsOf`는 가격표 기준일이다. 가격표가 없거나 단위 단가가 모두 0이면 `null`이다. `pricingStale`은 기준일이 §4.4.2의 90일을 넘었을 때 참이다.
+- `firstUseNoticed`는 고지가 필요 없는 provider(출처가 `plugin`이 아니거나 `auth`가 `none`)면 참이다. 고지가 필요하면 `cap_web_notices`에 기록이 있을 때 참이다(§3.8, §4.8.2).
+- `settings`는 `l2.web.search.*`(provider, order, parallel), `l2.web.browse.provider`, `l2.web.browse.order`, `l2.web.policy.robots`의 유효 값이다. 목록은 64개, 문자열은 96자에서 자른다.
+
 ## 7. 확장 지점
 
 - 이 문서는 새 지점을 정의하지 않는다.
@@ -1732,8 +1807,8 @@ export const webSettings = defineSettings("l2.web", {
 | `ApprovalService`(`xeon.approvals`) 요청 kind `tool`·`plan`, 기억 범위 | `L1.tools.spec` | [가정] |
 | `redactForPersistence` 적용 경로(영속 사본) | `L1.tools.spec`, `L1.persistence.spec` | 요청 [가정] |
 | 서브에이전트 실행과 위임 옵션의 웹 규칙 필드 | `L1.agents.spec` | 2차 [가정] |
-| 비밀 값 헤더 치환(M3), 마스킹 등록부 조회 | `L0.secrets.spec`(`xeon.secrets`) | [가정] |
-| `putBlob`, `readBlob`, `scoped("cap_web_")`, blob GC | `L0.store.spec`(`xeon.store`) | 있음(`eng.transactions.design` §4.2) |
+| 플러그인 provider 헤더 비밀 치환(M3), 마스킹 등록부 조회 | `L0.secrets.spec` §3.5, §3.6(`createPluginHttp`, `withHttp`) | 통로는 있음. 조립 쪽 어댑터(`HeaderSecretSender` 구현)는 L4 후속 유닛에서 잇는다 [결정: 오케스트레이터 기본값] |
+| `putBlob`, `readBlob`, `pinBlob`, `unpinBlob`, `scoped("cap_web_")`, blob GC | `L0.store.spec`(`xeon.store`) | 있음(`eng.transactions.design` §4.2) |
 | 자식 프로세스 실행(Node 우회, agent-browser) | `L0.process.spec`(`xeon.process`) | [가정] |
 | 브라우저 네트워크 필터 대안 | `L0.sandbox.spec` | 선택 [미결] |
 | 세션 이벤트 type 필터 읽기, 세션 목록 | `L1.persistence.spec`(`xeon.session`) | [가정] |
@@ -1758,6 +1833,26 @@ export const webSettings = defineSettings("l2.web", {
 14. `web.browse`: 정책이 막는 호스트로의 `navigate`는 `denied`다. 허용 호스트에서 스크립트 이동으로 금지 호스트에 가면 페이지가 비워지고 `denied`다. 설정이 꺼진 `evaluate`와 `upload`는 `action_disabled`다.
 15. `web.research`(2차): 인용문이 rawRef 본문에 없는 주장은 보고서에서 빠지고 `removedClaims`가 늘어난다. 예산을 넘으면 상태가 `budget_exceeded`이고 부분 결과가 있다. 상태는 종료 상태에서 바뀌지 않는다.
 16. `web_search` 모델 도구 경로: 도구 정의의 파라미터 파싱, 서비스 입력 변환, 서비스 호출, 모델용 결과 렌더링을 실제 조립(`createWebRuntime`)에서 걸면 출력이 `WebSearchOutputSchema`를 만족하고 본문이 `<untrusted_web_content`로 시작하며 `[s1]` 인용을 담는다. 기본 설정에서는 후보가 내장 래퍼뿐이고(`isWrapperOnlyChain` 참) 요청이 나가지 않으며, 주소를 설정하면 루프백 SearXNG가 운영 전송으로 답하고 모델용 도구는 `function`이다(G4-05).
+17. `web.browse` 선택 순서: 값 표 `test/select-order.test.ts`가 호출 인자, 설정, auto의 순서를 본다. auto에서 목록에 없는 후보는 내장 다음 플러그인 순이고, 사용자 `l2.web.browse.order`가 플러그인을 앞세울 수 있다(`test/browse.test.ts` 선택 묶음).
+18. 자동 선택의 대체: auto에서 탐침 실패, `unavailable`·`rate_limited`·`upstream_error`·`timeout` 호출 오류는 다음 후보로 내려가고 `meta.fallbacks`에 남는다. 명시 선택과 `invalid_input`은 내려가지 않는다. 후보가 없으면 `detail.reason`은 `no_provider`, 등록되지 않은 id면 `unknown_provider`다.
+19. 세션 상한: 동시 세션 수를 넘으면 새 세션을 `session_budget`으로 거부한다. 시간, 동작 수, 비용을 넘으면 `session_budget`이고 세션이 닫힌다. 다른 대화의 세션 ID는 `not_found`이고, 그 대화는 이 세션을 닫지 못한다. 대화가 끝나면 `closeThread`가 그 대화의 세션을 닫는다(`test/browse.test.ts` 세션 묶음).
+20. 동작 비용: 가격표 `browse_action` 단가로 동작마다 `meta.cost`가 `estimated`로 붙고, `close`의 `stats.usd`는 열기와 동작 비용의 합이다.
+21. 사람 확인: 결제·송금·삭제 어휘의 `click`, 다른 origin으로 가는 폼 제출, 외부 내용을 읽은 뒤의 `fill`은 `BrowseConfirmPort`로 묻는다. 거부되거나 포트가 없으면 `confirmation_denied`다. 명명 프로필은 설정과 확인이 모두 있어야 열린다(기본은 `action_disabled`). 어휘 시험은 `test/browse-confirm.test.ts`다.
+22. 이동 뒤 검사: 열기나 동작 뒤 최상위 이동이 금지 주소이면 페이지를 `about:blank`로 바꾸고 `denied`(`detail.reason`은 `navigation_denied`, 원인은 `cause`)다. 열기 중에 그랬다면 세션을 닫는다.
+23. 플러그인 등록: `web.browse` 등록은 `plugin:<확장>` 후보(origin `plugin`)가 된다. 매니페스트에 `browse`가 없으면 `service_not_declared`로 거부된다(`test/registry.test.ts`).
+24. 헤더 비밀 치환: `header`와 `bearer` 매니페스트의 요청에서 전송 대역은 `x-api-key`(또는 `authorization: Bearer <값>`)에 값을 받는다. provider에 돌아가는 요청 객체, 응답, 오류 어디에도 값이 없다. provider가 같은 이름의 헤더를 주면 비밀 헤더가 이긴다. 설정이 비었으면 전송 0회이고 `unavailable`(`no-key`, `detail.setting`은 그 설정 키)이다(`test/guarded-http.test.ts`).
+25. 응답 에코: 본문 텍스트나 헤더에 비밀 값이 있으면 `upstream_error`(`secret_echoed`)이고 본문과 헤더를 돌려주지 않는다(`test/guarded-http.test.ts`).
+26. 질의 인증과 헤더 이름 없는 `header`: `query` kind나 헤더 이름 없는 비밀은 등록 때 `web.provider_rejected`(reason `auth_kind_unsupported`, `secret_header_missing`)로 거부되고 후보가 되지 않는다(`test/registry.test.ts`).
+27. 동시 질의: `l2.web.search.parallel`이 2이고 선택이 auto이면 앞의 두 provider를 탐침한 뒤 함께 호출한다(둘 다 응답 전에 호출되는 것을 보류 호출로 확인한다). 결과는 번갈아 합치고 URL 중복은 먼저 나온 것만 둔다. `meta.provider`는 앞선 provider이고 `meta.warnings`에 `fanout:<id>,<id>`가 있다. 비용은 provider마다 기록하고 `meta.cost`는 그 합이다. 한 provider의 `rate_limited`는 `meta.fallbacks`(`stage: "call"`)에 남고 다른 provider의 결과가 나간다. `invalid_input`은 검색 전체를 실패시킨다. 명시 선택과 `parallel` 1은 첫 provider만 부른다. 여러 provider가 답한 결과는 메모에 들지 않으며 메모 키는 `parallel`을 포함한다(`test/search-fanout.test.ts`).
+28. 키 플러그인 첫 사용 고지: 키 플러그인의 첫 `search`는 `meta.warnings`에 `first_use_notice:<id>`를 한 번 싣고, 두 번째 호출과 메모에서 나온 호출은 싣지 않는다. 키 없는 플러그인과 내장 provider는 싣지 않는다. 동시 질의에서 답한 키 플러그인은 각각 한 번씩 싣는다. 같은 저장소로 다시 조립한 런타임은 기록을 읽어 다시 싣지 않는다. 승격 fetch와 `web.browse` 열기도 같다(`test/first-use-notice.test.ts`).
+29. `web.providers` 행: 행은 `WebProviderStatusSchema`를 통과하고 그 밖의 필드가 없다. 무료 가격표면 `pricingAsOf`가 `null`이고, 기준일이 90일을 넘으면 `pricingStale`이 참이다. 탐침이 실패하면 `status.kind`가 `unavailable`이고 `reason`이 provider의 사유다. 브라우저 후보도 행을 가진다. 고지 전에는 `firstUseNoticed`가 거짓이고 첫 사용 뒤 참이다(`test/status.test.ts`).
+30. 마이그레이션 버전 2: `cap_web_notices` 표를 만들고 버전 1의 `cap_web_usage` 행은 그대로 남는다. 두 번째 적용은 아무것도 바꾸지 않는다. 기록 쓰기가 실패하면 `web.notice_write_failed`를 한 번 남기고 이 프로세스에서 고지 기록은 메모리로 이어진다(`test/first-use-notice.test.ts`).
+31. MCP 후보: `createWebRuntime`에 `browserMcp` 포트를 주면 `web.browse` 내장 후보에 `playwright-mcp`(origin `builtin`, cachePolicy `none`)가 붙고 자동 선택이 이를 고른다(`selectedBy` `auto`, `meta.provider` `playwright-mcp`). 포트가 없으면 후보가 없다(`test/mcp-browse-provider.test.ts`의 `web.browse에서` 묶음).
+32. MCP 도구 매핑: 열기와 이동은 `browser_navigate`, `browser_snapshot` 순서다. 클릭, 입력, 키, 스크롤, 대기, 뒤로, 평가는 §4.10.4a 표의 도구와 인자 값을 그대로 보낸다. `forward`, `upload`는 도구를 부르지 않고 `unsupported`이며, 좌표 `target`은 `invalid_input`이다(`test/mcp-browse-provider.test.ts`의 `동작 매핑` 묶음).
+33. MCP 한 세션: 열린 세션이 있으면 두 번째 `open`은 `unavailable`이고 `close` 뒤에는 열린다. 닫은 핸들의 동작은 `not_found`이고 도구를 부르지 않는다. 명명 프로필은 `unsupported`이고 도구를 한 번도 부르지 않는다(`test/mcp-browse-provider.test.ts`의 `한 세션과 닫기` 묶음).
+34. MCP 페이지 상태: 응답의 주소, 제목, yaml 블록에서 페이지와 스냅샷을 만들고 ref는 4000개까지 둔다. 값이 `BrowsePageSchema`나 `BrowseSnapshotSchema` 검사를 통과하지 못하면 `upstream_error`다. `isError` 응답은 본문 앞 500자를 메시지에 싣는다. 포트의 `unavailable`과 `aborted`는 그대로 옮긴다(`test/mcp-browse-provider.test.ts`의 `열기와 이동`과 `동작 매핑` 묶음).
+35. MCP 사람 확인: 결제 어휘의 `click`은 확인 포트가 없으면 `confirmation_denied`이고 `browser_click`을 부르지 않는다. 같은 페이지의 "Docs" 링크 `click`은 도구를 부른다(`test/mcp-browse-provider.test.ts`의 `web.browse에서` 묶음).
+36. MCP 읽기: `text`는 `snapshot` 필드 없이 본문만, `find`는 질의에 맞는 ref의 줄만 준다. `screenshot`은 첫 이미지를 PNG나 JPEG일 때만 주고 크기는 1×1이다. 다른 형식은 `upstream_error`다(`test/mcp-browse-provider.test.ts`의 `읽기` 묶음).
 
 ## 10. 미결 사항
 
@@ -1770,12 +1865,12 @@ export const webSettings = defineSettings("l2.web", {
    - (c) 메인 턴의 hosted 결과(`HostedSearchResponse` 모양)를 `normalizeHostedSearch`로 넘기는 경로가 없다. L4 인용 렌더링에 쓰려면 F에 이벤트나 레코드가 필요하다.
    - 풀려면 다음 중 하나가 필요하다. 어느 쪽이든 M2 범위 밖이라 `m3-plan`으로 넘긴다. 1) pi-ai 어댑터 패치(서버 도구 블록을 content에 싣고 이력 변환에서 되돌린다), 2) F `AssistantMessage` 확장 또는 provider 불투명 블록 레코드와 루프의 `pause_turn` 이어 요청. 둘 다 F 계약이나 vendor 변경이다.
    - 영향: 기능 손실은 없다. 기본 설정(체인이 래퍼뿐)에서 모델의 검색이 `web_search` 함수 도구 → 내장 래퍼 경로로 처리되어 검색마다 모델 호출이 하나 더 든다(§4.8.1 B안의 단점). `l2.web.search.modelTool`의 `hosted`와 `auto`는 지금 `function`과 같게 동작한다.
-4. [결정: review.m3-design-inputs D-M3-23 행 1] 자동 선택 순서는 사용자가 설정 화면에서 끌어 옮겨 정한다. 목록은 등록된 검색 도구 전부이고 기본 웹 검색 도구를 포함한다. 플러그인은 기본 후순위다. 여러 provider 동시 질의를 기본 기능으로 둔다. 선택 체인(§4.8.2) 본문은 M3 작업에서 이 규칙으로 고친다.
+4. 닫힘. [결정: review.m3-design-inputs D-M3-23 행 1] 자동 선택 순서는 사용자가 설정 화면에서 끌어 옮겨 정한다(`l2.web.search.order`). 선택 체인(§4.8.2)이 이 규칙으로 바뀌었다. 끌어 옮기는 화면은 M4다.
 5. 닫힘. 자동 감지는 없앴고 사용자가 주소를 설정한 SearXNG만 후보다(사용자 결정 H1, 2026-10-25, ADR-0005 §3.3 개정, §4.8.3). 설정한 주소의 탐침 형식은 §4.8.3이다.
-6. [결정: review.m3-design-inputs D-M3-23 행 4] robots.txt는 기본으로 따르지 않고, 설정으로 따르게 할 수 있다(§4.7). 크롤링 자동화는 사용자 프로그램과 플러그인의 영역이다.
+6. 닫힘. [결정: review.m3-design-inputs D-M3-23 행 4] robots.txt는 기본으로 따르지 않고, 설정으로 따르게 할 수 있다(§4.7, 기본값 `never`). 크롤링 자동화는 사용자 프로그램과 플러그인의 영역이다.
 7. [미결] 세션당 호출 상한 카운터의 영속화. 제안은 프로세스 메모리다(§4.4.4).
 8. [미결] 브라우저 트래픽 필터를 `cap-web` 로컬 프록시로 할지 `L0.sandbox`의 네트워크 필터로 할지(§4.10.2). playwright-local에서 `allowedDomains`를 강제하는 방법은 선행 조사에서도 확인되지 않았다(`_research/notes/L2-2.md` §6).
-9. [미결] 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다.
+9. [미결] 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다. [결정: 오케스트레이터 기본값] Stagehand는 승인 전이라 기본 경로가 아니다. 기본 경로는 §4.10.4a의 MCP stdio provider다.
 10. [미결] `web.research` 실행 기록의 영속화와 재개(2차, §4.11.4).
 11. [미결] provider 선택 키의 값 목록 표시. 플러그인 설치 상태에 따라 바뀌는 선택지를 `SettingDef`로 표현하는 방법(`L4.settings-ui.spec`과 함께, §6).
 12. [미결] 기본 추출기. 제안은 readability 0.6.0 + linkedom 0.18.13이고 defuddle 0.19.5는 설정으로 고른다. 우리 샘플 페이지로 비교 측정한 뒤 정한다(`_research/web-tools.md` §2.3 "측정마다 순위가 뒤집힌다").

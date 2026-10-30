@@ -6,11 +6,14 @@ import { parseDefinitionFile } from "@xeon/core-agents";
 import { installDefaultPlugin, type PluginInstallFs } from "@xeon/ext-host";
 import { Type } from "typebox";
 
-// X.loading-trust.spec §4.4.7. 릴리즈에 든 기본 플러그인(Helm)을 첫 실행에 사용자 확장 위치로 복사한다. 조립 루트 코드(DR-14 예외 2).
+// X.loading-trust.spec §4.4.7. 릴리즈에 든 기본 플러그인(Helm, 계정 회전)을 첫 실행에 사용자 확장 위치로 복사한다. 조립 루트 코드(DR-14 예외 2).
 // 사용자가 설치본을 지웠으면 다시 설치하지 않는다: 호스트 상태 파일(`<state>/default-plugins.json`)에 설치한 적이 있다는 표지를 남긴다.
 
-/** 기본 플러그인 이름. 번들 디렉터리 `<defaultPluginsDir>/<name>/`이 설치 원본이다 */
-export const DEFAULT_PLUGIN_NAMES: readonly string[] = ["helm"];
+/**
+ * 기본 플러그인 이름. 번들 디렉터리 `<defaultPluginsDir>/<name>/`이 설치 원본이다. 계정 회전은 기본 꺼짐이라 설치만 되고 켜지지 않는다.
+ * 위장 provider(`provider-anthropic-oauth`)는 배포에서 뺀다(L1.models.spec §4.11.4)이므로 여기에 들지 않는다.
+ */
+export const DEFAULT_PLUGIN_NAMES: readonly string[] = ["helm", "account-rotation"];
 
 /** 표지 파일 이름. 호스트 상태 디렉터리(`OsDirs.state`) 아래에 둔다 */
 export const DEFAULT_PLUGINS_MARKER_FILE = "default-plugins.json";

@@ -41,6 +41,7 @@ function realRecords(h: Harness): MemoryRecordStore {
       return read.events;
     },
     branch: () => unsupported("branch"),
+    readBranch: (threadId) => h.service.readBranch(threadId),
     rewindTo: () => unsupported("rewindTo"),
     failNext: () => unsupported("failNext"),
     setLeaseUsage: () => unsupported("setLeaseUsage"),

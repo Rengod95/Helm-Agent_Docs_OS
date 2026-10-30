@@ -43,6 +43,8 @@ export interface HarnessOptions {
   readonly logger?: Logger;
   readonly provider?: TapeProviderOptions;
   readonly scopeEnabled?: (scopeId: string) => boolean;
+  /** 계정 회전 플러그인이 켜졌는가. 없으면 꺼짐 */
+  readonly rotationEnabled?: boolean;
   /** 비밀 저장소에 넣을 값. 기본은 tape-key 하나 */
   readonly secretValues?: Readonly<Record<string, string>>;
 }
@@ -86,6 +88,8 @@ export function createHarness(options: HarnessOptions): Harness {
     secrets: secrets.service,
     clock,
     settings: () => settings,
+    scheduler: clock,
+    ...(options.rotationEnabled === true ? { rotationEnabled: () => true } : {}),
     ...(options.dispatcher === undefined ? {} : { dispatcher: options.dispatcher }),
     ...(options.scopeEnabled === undefined ? {} : { scopeEnabled: options.scopeEnabled }),
     ...(options.logger === undefined ? {} : { logger: options.logger }),

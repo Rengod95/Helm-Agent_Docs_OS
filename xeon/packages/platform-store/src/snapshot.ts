@@ -1,8 +1,8 @@
 import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import { classifySqliteCode } from "./db.ts";
-import { asSqliteFailure, type SqliteConnection } from "./sqlite-env.ts";
+import { err, ok, type Result } from "@xeon/contracts";
+import { sqliteIoFailureOf } from "./db.ts";
+import type { SqliteConnection } from "./sqlite-env.ts";
 
 // L0.store.spec §4.6.1. 스키마를 올리기 전에 DB 전체를 `VACUUM INTO`로 복사해 둔다. 마이그레이션이 사용자 데이터를 망쳐도
 // 직전 상태로 돌아갈 수 있게 하는 최소 안전장치다(내보내기와 복구 런북은 M3).
@@ -86,24 +86,10 @@ export function snapshotBeforeMigration(
   } catch (caught) {
     // 만들다 만 파일이 남으면 다음 시도를 EEXIST로 막는다
     if (existsSync(path)) rmSync(path, { force: true });
-    const failure = asSqliteFailure(caught);
-    if (failure === undefined) {
-      const code = fsCode(caught);
-      return err(code === "ENOSPC" ? { kind: "disk_full" } : { kind: "io", code });
-    }
-    const classified = classifySqliteCode(failure.code);
-    switch (classified) {
-      case "busy":
-        return err({ kind: "busy" });
-      case "disk_full":
-        return err({ kind: "disk_full" });
-      case "io":
-      case "corrupt":
-      case "other":
-        return err({ kind: "io", code: failure.code ?? "SQLITE_ERROR" });
-      default:
-        return assertNever(classified, "SqliteCodeClass");
-    }
+    const failure = sqliteIoFailureOf(caught);
+    if (failure !== undefined) return err(failure);
+    const code = fsCode(caught);
+    return err(code === "ENOSPC" ? { kind: "disk_full" } : { kind: "io", code });
   }
   return ok({ path, ...prune(config, prefix) });
 }

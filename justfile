@@ -21,6 +21,11 @@ envs := "dev"
 setup:
     cd xeon && just setup
 
+# caustic(데스크톱 디자인 시스템 submodule)을 main 최신으로 올린다
+[group('setup')]
+caustic-update:
+    cd xeon && just caustic-update
+
 # Xeon 포매팅 적용 (oxfmt)
 [group('quality')]
 fmt:
@@ -118,6 +123,16 @@ web-pricing:
 desktop-sidecar triple *flags:
     cd xeon && just desktop-sidecar {{triple}} {{flags}}
 
+# 릴리즈 아카이브 빌드 <triple|host> [--version x.y.z] [--binaries-dir 폴더]: 사이드카, 그룹 템플릿, 기본 플러그인, 고지, 체크섬 (scripts/release.ts). macOS 서명은 비밀이 없으면 건너뜀
+[group('local')]
+release-archive triple *flags:
+    cd xeon && just release-archive {{triple}} {{flags}}
+
+# 릴리즈 스모크(X11): 이 기기의 릴리즈를 빌드해 풀고 구성·실행·번들 점검 (scripts/release-smoke.sh). Linux CI와 macOS job이 같은 스크립트를 돈다
+[group('local')]
+release-smoke:
+    cd xeon && just release-smoke
+
 # 데스크톱 화면 번들 (bun build → apps/desktop/src-tauri/ui). 인자 dev는 불변식 검사를 켠 개발 빌드. just verify 밖
 [group('local')]
 desktop-ui mode="release":
@@ -147,3 +162,8 @@ tape-record scenario *flags:
 [group('local')]
 bench *flags:
     cd xeon && just bench {{flags}}
+
+# 서버 측정 결과의 예산 판정(예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패) (xeon/scripts/bench-gate.ts)
+[group('local')]
+bench-gate *flags:
+    cd xeon && just bench-gate {{flags}}

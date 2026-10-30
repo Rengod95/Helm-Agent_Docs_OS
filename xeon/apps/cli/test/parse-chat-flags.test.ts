@@ -32,6 +32,7 @@ test("no arguments on a tty is the interactive chat", () => {
     target: { kind: "new" },
     overrides: [],
     safeMode: false,
+    autoApprove: false,
   });
   expect(chat(["chat"])).toEqual(chat([]));
 });
@@ -71,6 +72,21 @@ test("--json with the interactive mode is jsonRequiresPrint", () => {
   expect(code(["chat", "--json"])).toBe("jsonRequiresPrint");
 });
 
+test("--auto-approve is accepted in print mode, sets autoApprove, and is off by default", () => {
+  expect(chat(["chat", "-p", "x", "--auto-approve"])).toMatchObject({
+    mode: "print",
+    input: "x",
+    autoApprove: true,
+  });
+  expect(chat(["--auto-approve"], PIPE_IN)).toMatchObject({ mode: "print", autoApprove: true });
+  expect(chat(["chat", "-p", "x"]).autoApprove).toBe(false);
+});
+
+test("--auto-approve with the interactive mode is autoApproveRequiresPrint", () => {
+  expect(code(["chat", "--auto-approve"])).toBe("autoApproveRequiresPrint");
+  expect(code(["chat", "--auto-approve", "--json"])).toBe("jsonRequiresPrint");
+});
+
 test("--continue together with --resume is conflictingFlags", () => {
   expect(code(["chat", "--continue", "--resume", threadId(7)])).toBe("conflictingFlags");
 });
@@ -101,9 +117,28 @@ test("a non-tty stdout without input is inputRequired", () => {
 
 test("global flags before and after the command are read", () => {
   const before = parseArgv(["--no-color", "-C", "/tmp/w", "chat", "-p", "x"], TTY, {});
-  expect(before.ok && before.value.global).toEqual({ cwd: "/tmp/w", color: false });
+  expect(before.ok && before.value.global).toEqual({ cwd: "/tmp/w", color: false, remote: null });
   const after = parseArgv(["chat", "-p", "x", "--no-color", "-C", "/tmp/v"], TTY, {});
-  expect(after.ok && after.value.global).toEqual({ cwd: "/tmp/v", color: false });
+  expect(after.ok && after.value.global).toEqual({ cwd: "/tmp/v", color: false, remote: null });
+});
+
+test("--remote is a global flag: before or after the command, with its value, default null", () => {
+  const before = parseArgv(["--remote", "unix:/run/x.sock", "chat", "-p", "x"], TTY, {});
+  expect(before.ok && before.value.global.remote).toBe("unix:/run/x.sock");
+  expect(before.ok && before.value.command.kind).toBe("chat");
+  const after = parseArgv(["chat", "-p", "x", "--remote", "tcp://box:7000"], TTY, {});
+  expect(after.ok && after.value.global.remote).toBe("tcp://box:7000");
+  const both = parseArgv(["sessions", "ls", "--remote", "ssh://me@box/run/x.sock"], TTY, {});
+  expect(both.ok && both.value.global.remote).toBe("ssh://me@box/run/x.sock");
+  const none = parseArgv(["chat", "-p", "x"], TTY, {});
+  expect(none.ok && none.value.global.remote).toBeNull();
+});
+
+test("--remote without a value is a usage error, before or after the command", () => {
+  expect(code(["--remote"])).toBe("missingArgument");
+  expect(code(["chat", "-p", "x", "--remote"])).toBe("missingArgument");
+  expect(code(["--remote", "", "chat", "-p", "x"])).toBe("missingArgument");
+  expect(code(["chat", "-p", "x", "--remote", ""])).toBe("missingArgument");
 });
 
 test("color is off for NO_COLOR and TERM=dumb and on otherwise", () => {

@@ -40,6 +40,7 @@ const IMPLEMENTED_NOTIFICATIONS: readonly (
   "events.batch",
   "stream.chunk",
   "settings.invalidated",
+  "notify.delivered",
   "$/cancelRequest",
   "$/connectionReset",
 ];

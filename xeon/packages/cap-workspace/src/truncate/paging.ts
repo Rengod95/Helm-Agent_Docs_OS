@@ -39,11 +39,62 @@ export function pageRead(slice: ReadSlice): ReadPage {
   };
 }
 
-/** 항목 수 한도(ls, 2차 grep·find)의 절단 정보. 끝까지 센 항목 수를 `total`로 싣는다 */
+/** 항목 수 한도(ls, grep, find)의 절단 정보. 끝까지 센 항목 수를 `total`로 싣는다 */
 export function pageEntries(
   by: "entries" | "bytes",
   shown: number,
   total: number | undefined,
 ): TruncationInfo {
   return { by, shown, ...(total === undefined ? {} : { total }) };
+}
+
+export interface CappedEntries<T> {
+  /** 앞에서부터 남긴 항목 */
+  readonly kept: readonly T[];
+  /** 먼저 걸린 한도. 자르지 않았으면 undefined */
+  readonly cutBy: "entries" | "bytes" | undefined;
+  /** 세는 항목 전체 수(`counts`가 참인 항목) */
+  readonly total: number;
+  /** 남긴 항목 가운데 세는 항목 수 */
+  readonly shown: number;
+}
+
+/**
+ * 항목을 앞에서부터 남긴다. 세는 항목(`counts`)이 `limit`개를 넘으면 `entries`, 남긴 바이트 합이 `maxBytes`를 넘으면
+ * `bytes`로 자른다. 세지 않는 항목(문맥 줄 등)은 한도를 세지 않지만 바이트는 센다.
+ */
+export function capEntries<T>(
+  items: readonly T[],
+  options: {
+    readonly limit: number;
+    readonly maxBytes: number;
+    readonly counts: (item: T) => boolean;
+    readonly bytesOf: (item: T) => number;
+  },
+): CappedEntries<T> {
+  const kept: T[] = [];
+  let counted = 0;
+  let bytes = 0;
+  let cutBy: "entries" | "bytes" | undefined;
+  for (const item of items) {
+    const isCounted = options.counts(item);
+    if (isCounted && counted === options.limit) {
+      cutBy = "entries";
+      break;
+    }
+    const size = options.bytesOf(item);
+    if (bytes + size > options.maxBytes) {
+      cutBy = "bytes";
+      break;
+    }
+    bytes += size;
+    if (isCounted) counted++;
+    kept.push(item);
+  }
+  return {
+    kept,
+    cutBy,
+    total: items.filter(options.counts).length,
+    shown: counted,
+  };
 }

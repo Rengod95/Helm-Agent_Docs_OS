@@ -18,6 +18,7 @@ import type {
   StepCheckpoint,
   StoreService,
 } from "../../src/records/index.ts";
+import type { Result } from "../../src/base/index.ts";
 import type { ModelThinkingLevel, ThreadId } from "../../src/conversation/index.ts";
 import type {
   ApprovalRequest,
@@ -31,6 +32,8 @@ import type {
   ModelService,
   ProcessService,
   SandboxService,
+  SandboxedArgv,
+  SandboxWrapError,
   TaskService,
   ToolService,
 } from "../../src/services/index.ts";
@@ -118,6 +121,11 @@ export type UnwritableErrorCarriesReason = Expect<
 /** SandboxService.wrapShell은 Shell을 받아 Shell을 돌려준다 */
 export type WrapShellKeepsShell = Expect<
   Equal<ReturnType<SandboxService["wrapShell"]>, Parameters<SandboxService["wrapShell"]>[0]>
+>;
+
+/** SandboxService.wrapArgv는 실패를 던지지 않고 Result 값으로 돌려준다 */
+export type WrapArgvReturnsResult = Expect<
+  Equal<ReturnType<SandboxService["wrapArgv"]>, Promise<Result<SandboxedArgv, SandboxWrapError>>>
 >;
 
 test("type assertions compile", () => {});

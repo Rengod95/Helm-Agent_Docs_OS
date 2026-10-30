@@ -691,7 +691,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | `dialog.commands.list` | readOnly | safe | 등록부 조회 |
 | `dialog.commands.expand` | readOnly | safe | 치환만 하고 실행하지 않는다 |
 | `dialog.commands.run` | 선언 없음 | unsafe | 동작 명령 처리기를 실행한다. 처리기 안의 효과는 처리기가 `requestId`로 지킨다 |
-| `dialog.notify.emit` | 선언 없음 | unsafe | 공급자가 아직 없다. `dialog.notified`를 `dialog:notify:<requestId>` 키로 남기는 구현(M3b, D11)이 적합성 시험과 함께 들어오면 `idempotent`로 올린다 [결정: 2026-10-28 오케스트레이터] |
+| `dialog.notify.emit` | 선언 없음 | unsafe | 구현은 `dialog.notified`를 `dialog:notify:<requestId>` 키로 남겨 같은 requestId 재호출에 처음 알림을 돌려준다(M3b, D11). 선언은 올리지 않는다. `idempotent`로 올리려면 F 정의와 `contracts/test/capabilities/l2-effect-classes.test.ts`의 기대값을 함께 고쳐야 하므로 [미결]. 올리는 조건은 [결정: 2026-10-28 오케스트레이터]와 같다 |
 | `dialog.notify.list` | readOnly | safe | 내구 이벤트 조회 |
 | `dialog.status.setItem` | 선언 없음 | unsafe | 휘발 스냅숏을 바꾼다. 내구 기록이 없어 `requestId`로 기억할 곳이 없다 |
 | `dialog.status.clearItem` | 선언 없음 | unsafe | 같음 |
@@ -861,7 +861,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 #### 4.2.6 클라이언트 선언
 
 - 클라이언트는 `list`로 `CommandInfo[]`를 받아 자동완성을 만든다. 명령 목록이 바뀌면 다음 `list`에서 반영된다.
-- wire 노출 [결정: m2c G1-01]. 명령은 코어 wire 메서드 `command.list`, `command.run`이다(`F.wire-settings.spec` §3.3.1). `CommandInfo`와 `CommandRunOutput`은 이 능력 정의의 스키마를 그대로 쓴다. 첨부(`attachments.add`), 상태줄(`status.list`), 알림(`notify.list`, M3), 곁가지 질문(`aside.ask`, 2차)의 wire 메서드는 아직 없고 [미결]이다(§10 D-2).
+- wire 노출 [결정: m2c G1-01]. 명령은 코어 wire 메서드 `command.list`, `command.run`이다(`F.wire-settings.spec` §3.3.1). `CommandInfo`와 `CommandRunOutput`은 이 능력 정의의 스키마를 그대로 쓴다. 상태줄(`status.list`)과 첨부(`attachments.add`)의 wire 메서드는 M3에서 코어 표에 들었다(`L4.host-service.spec` HS-93, `F.wire-settings.spec` §3.3.1). 알림(`notify.list`, M3)과 곁가지 질문(`aside.ask`, 2차)의 wire 메서드는 아직 없고 [미결]이다(§10 D-2).
 
 ### 4.3 동작 명령과 다른 L2 능력
 
@@ -903,6 +903,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - 큰 바이너리는 `sys_blobs` 참조(`BlobRef`)로 저장한다(F.records.spec §3.4, `L2.readme` §5.4). 입력 파트의 이미지 base64는 사용자 입력 기록 때 records의 문자열 분리 규칙으로 같은 해시의 blob 자리표시로 바뀐다. 같은 바이트는 같은 해시라 blob이 두 번 저장되지 않는다.
 - `workspace.images`는 정의 `requires`다(`L2.readme` §6). 호출 시 `unavailable`이면 원본 바이트를 크기 한도만 검사해 직접 blob 등록하고 `image.resized: false`로 둔다 [제안]. 리사이즈는 `workspace.images`의 2차 기능이다(`L2.readme` 각주 ws).
 - 한도: 첨부 하나 `l2.dialog.attachments.maxBytes`(기본 20 MiB). 넘으면 `attachment_too_large`. 이미지는 모델 provider 한도(긴 변 픽셀 등)를 `workspace.images`가 맞춘다.
+- 블롭 고정은 하지 않는다 [해소 S-15: core-persistence의 `p_blob_refs`가 `blob:sha256:<hex>` 자리표시를 모은다]. `add`는 `StoreService.pinBlob`과 `unpinBlob`을 부르지 않는다. 이 패키지는 블롭 참조를 자기 표나 상태에 적지 않는다. `BlobRef`는 `attachment.blob`으로 호출자에게만 돌아가고, 이미지 참조는 입력 파트의 `blob:sha256:<hex>` 자리표시뿐이다. 자리표시는 `p_blob_refs`(core-persistence `blobHashesOf`)가 보지 않으므로, 이 참조를 GC로부터 지키는 방법은 `core-persistence` 쪽에서 정한다(L0.store §10 S-15). 첨부를 버리거나 턴이 소비하는 시점을 이 패키지가 알 수 없어 고정하면 풀리지 않는다. 시험은 `test/attachments.test.ts`의 "블롭 고정은 하지 않는다" 묶음이다.
 - [결정: review.m2-plan DG.3] 구현 규칙:
   - 이미지 판정: 머리 바이트(png, jpeg, gif, webp), 없으면 붙여넣기 때 알려 준 형식, 없으면 확장자(bmp 포함)로 본다. 이미지로 본 첨부는 항상 `workspace.images.register`로 보낸다. 파일은 이 패키지가 읽어 base64로 넘긴다(`load`는 작업 폴더 밖 경로를 막기 때문이다). `register`의 `image_unsupported`, `image_decode_failed`는 `attachment_type_unsupported`로, `image_too_large`는 `attachment_too_large`(`detail.limit`은 `register`가 알려 준 한도)로 옮긴다. `unavailable`이거나 `workspace.images`가 없으면 원본을 `maxBytes`만 검사해 직접 blob으로 등록하고 `image`는 크기를 모르므로 null이다.
   - 입력 파트: 이미지 파트의 `data`는 `blob:sha256:<hex>` 자리표시다(`workspace.images`의 `read` 결과와 같은 형식). 이미지 파트 뒤에 파일 이름 텍스트 파트가 온다.
@@ -912,6 +913,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
   - URL: 이름은 경로 끝 마디(없으면 호스트)다. 네트워크 호출이 없다.
 - URL을 가져오지 않는 이유 [제안]: 가져오기는 `web.fetch`의 신뢰·정책(도메인 허용, 신뢰하지 않는 내용 표지)을 거쳐야 한다. 첨부 단계에서 가져오면 그 정책을 우회한다.
 - `path` 원천은 작업 폴더 밖 경로도 받는다. 사용자가 직접 붙인 파일이기 때문이다. 읽기는 `xeon.exec`의 `FileSystem.readBinaryFile`(`L0.exec.spec` §3.1)로 한다. `xeon.os`(`OsService`, `L0.os.spec` §3.10)에는 파일 읽기 API가 없다(확인함).
+- 상대 경로(`source.path`)는 호출 문맥의 `threadId`가 있으면 그 thread의 작업 폴더에 이어 붙여 읽는다(F wire §3.3.1). 작업 폴더는 명령 파일과 같은 `CommandRoots.projectRoot(threadId)`다. 작업 폴더가 없거나(null) `threadId`가 없으면 경로를 그대로 `files`에 넘긴다. 절대 경로는 작업 폴더와 무관하게 그대로 읽는다. 없음, 권한, 디렉터리, 한도 검사는 해석한 경로에 한다. 첨부의 `path`와 입력 파트의 `path` 속성은 해석한 경로다 [결정: 오케스트레이터 기본값]. 모델이 같은 파일을 read 도구로 다시 찾을 수 있게 하려는 것이다.
 
 ### 4.6 곁가지 질문과 출력 스타일(2차)
 
@@ -946,19 +948,27 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - `turn.completed`의 종결 `interrupted`는 사용자가 직접 끊은 것이라 알리지 않는다.
 - 파생 알림은 새 이벤트를 쓰지 않는다. 원인 내구 이벤트에서 순수 함수 `classifyNotice(event): Notice | null`로 계산한다. 그래서 `list`는 `afterSeq` 뒤의 내구 이벤트를 읽어 같은 결과를 낸다.
 - `emit`은 그룹·플러그인이 직접 알릴 때 쓰고 `dialog.notified` 내구 이벤트를 남긴다.
+- 구현 대응은 `xeon/packages/cap-dialog/src/notify/classify.ts`다. 제목은 120자, 본문은 1000자를 넘지 않게 자르고, `sourceType`은 원인 이벤트 종류다. 아래에 없는 종류와 해석할 수 없는 payload는 `null`이다.
+  - `turn.completed`: `completed`는 `completed`("작업이 끝났다"), `failed`는 `error`("턴이 실패했다", 본문은 `error` 문구), `interrupted`는 `null`.
+  - `work.goal_settled`: `met`는 `completed`("목표를 달성했다"), `limit_reached`는 `completed`("목표 판정 한도에 도달했다"). 두 경우 본문은 `판정 N회`다. `judge_failed`는 `error`("목표 판정에 실패했다"). `active`와 `cleared`는 `null`.
+  - `approval.requested`: `tool`은 `approval_waiting`("승인이 필요하다: <도구 이름>"), `plan`은 `approval_waiting`("승인이 필요하다: plan"), `question`은 `question_waiting`("질문에 답이 필요하다"). `review`는 표에 없어 `null`이다 [미결].
+  - `agent.settled`: `completed`는 `background_completed`("백그라운드 작업이 끝났다"), `error`는 `error`("백그라운드 작업이 실패했다", 본문은 `error` 문구), `aborted`는 `null`. 이벤트에 전경·백그라운드 구분이 없어 모든 종료를 분류한다. 전경 위임의 종료도 알림이 된다 [결정: 오케스트레이터 기본값].
+  - `schedule.run_finished`: `completed`는 `background_completed`("예약 작업이 끝났다"), `failed`는 `error`("예약 작업이 실패했다"), `aborted`와 `awaiting_approval`은 `null`이다. 표의 `schedule.*` [가정]은 이 종류로 정한다 [결정: 오케스트레이터 기본값].
+  - `dialog.notified`: 기록된 `notice`의 종류, 제목, 본문을 그대로 옮긴다. 제목이 빈 기록은 `null`이다.
 
 #### 4.7.2 전달 경로와 경계
 
 | 경로 | 소유 | 상주 수준(`L2.readme` §8) |
 |---|---|---|
 | 같은 프로세스 소비자(L4 in-process 클라이언트, 그룹) | `NoticeFeed.subscribe` | 1 |
-| 클라이언트 당겨 읽기 | `dialog.notify.list`(wire는 §4.2.6 [미결]) | 1 |
-| OS 알림(데스크톱 알림 센터) | cap-dialog가 `xeon.os`의 `notify(n, signal)`을 부른다(`L0.os.spec` §3.7, §3.10. 확인함). M3 이전 빌드와 provider `none`이면 `disabled`를 돌려준다 | 1 |
+| 클라이언트 당겨 읽기 | `dialog.notify.list`(wire는 `notify.list`, `L4.host-service.spec` HS-94) | 1 |
+| OS 알림(데스크톱 알림 센터) | cap-dialog가 `xeon.os`의 `notify(n, signal)`을 부른다(`L0.os.spec` §3.7, §3.10. 확인함). M3 이전 빌드와 provider `none`이면 `disabled`를 돌려준다. 구현은 `notify/os-delivery.ts`다 [구현: M3b D11] | 1 |
 | 모바일 푸시 | cap-dialog(`dialog.notify`)의 푸시 채널 [제안]. 외부 중계와 인증 계층은 서비스 모드(`L4.host-service.spec`)가 준다 | 2(서비스 모드) |
 
-- OS 알림은 kind별 설정(`l2.dialog.notify.<kind>`)과 `l2.dialog.notify.os`가 모두 켜졌을 때만 보낸다. 클라이언트 창이 앞에 있을 때 보내지 않는 조건은 클라이언트만 알 수 있으므로 [미결](§10 D-6).
+- 같은 프로세스 구독(`NoticeFeed.subscribe`)은 같은 스레드·같은 종류의 알림을 1초(`NOTICE_COALESCE_MS`) 안에 한 번만 보낸다 [구현: M3b D11]. 창 안에서 묶인 알림은 시각을 갱신하지 않는다. 묶는 것은 전달뿐이고 `list`는 모든 알림을 돌려준다. 같은 단계의 `turn.completed`와 `work.goal_settled`(목표 달성)이 한 번만 전달되게 하려는 기본값이다 [결정: 오케스트레이터 기본값]. 구독은 피드 이벤트마다 알림을 한 번 계산하고, 이미 본 seq는 무시한다.
+- OS 알림은 kind별 설정(`l2.dialog.notify.<kind>`)과 `l2.dialog.notify.os`가 모두 켜졌을 때만 보낸다. 설정은 알림마다 그 대화의 범위로 읽는다 [구현: M3b D11]. 클라이언트 창이 앞에 있을 때 보내지 않는 조건은 클라이언트만 알 수 있으므로 [미결](§10 D-6). 기본은 창 상태와 관계없이 보내고 화면 표시는 클라이언트가 정한다 [결정: review.m3-design-inputs D-M3-17].
 - 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 알림 채널이 한 곳에 있어야 무엇을 어디로 받을지 정하는 사용자 설정이 하나로 모인다. 모바일 푸시는 상주 서비스와 인증 계층이 필요하므로(`_research/l2e.md` §6 B4) 서비스 모드에서만 켜지고, 꺼져 있으면 `unavailable`(`detail.reason: "service_mode_off"`)이다(`L2.readme` §8). 이 경계에서는 `schedule.remote`가 dialog를 읽지 않으므로 L2 사이 간선이 생기지 않는다(`L2.readme` §6).
-- OS 알림 kind 대응 [제안]: `xeon.os`의 `notify`는 `NotifyKind` 4종(`done`, `approval`, `question`, `error`)을 받는다(`L0.os.spec` §3.7). 알림 5종을 다음과 같이 옮긴다.
+- OS 알림 kind 대응 [구현: M3b D11]: `xeon.os`의 `notify`는 `NotifyKind` 4종(`done`, `approval`, `question`, `error`)을 받는다(`L0.os.spec` §3.7). 알림 5종을 다음과 같이 옮긴다.
 
 | `NoticeKind` | `L0.os` `NotifyKind` |
 |---|---|
@@ -969,6 +979,8 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `background_completed` | `done` |
 
 - 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 설정 탭은 이 문서의 `l2.dialog.notify.*`(§6)가 정본이다. L0.os는 전달 수단(`xeon.os`의 `notify`)만 소유하고 켜기·종류 키를 두지 않는다 [결정: review.decisions-2 S-04]. OS가 알림을 막아 `notify`가 전달하지 못하면 cap-dialog는 이를 실패로 보지 않고 운영 로그에 남긴다.
+- OS 알림의 내용: 제목과 본문을 `xeon.secrets`의 `redactor.mask`로 가린 뒤 제목 80자, 본문 400자로 자른다(`L0.os.spec` §3.7은 자르기 전에 가리라고 한다). 본문이 없는 알림은 빈 본문으로 보낸다. `xeon.secrets`가 없으면 본문을 가릴 수 없으므로 보내지 않고 `dialog.redactor_missing` 경고를 한 번 남긴다 [결정: 오케스트레이터 기본값] [구현: M3b D11].
+- 보내기 결과는 대화를 실패시키지 않는다. `disabled`는 디버그 로그(`dialog.notify_os_disabled`)만 남기고, `unavailable`·`failed`·`cancelled`는 경고 로그(`dialog.notify_os_failed`, 제공자와 코드를 담는다)를 남긴다. 보내기 Promise가 거부되면 잡아서 오류 로그(`dialog.notify_os_rejected`)를 남긴다. 플러그인이 해제되면 쥔 신호를 중단해 보내는 중인 호출을 끝낸다 [구현: M3b D11].
 
 ### 4.8 노출 계약: 입력 큐와 되감기
 
@@ -987,7 +999,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 7. 셸 주입 실행 중 사용자가 거부(도구 승인 거부): 그 자리를 `[셸 거부]`로 치환하고 계속하지 않는다. `run`은 `CapabilityError(denied)`를 낸다.
 8. 상태줄 세그먼트 32개 초과: 뒤 항목은 휘발 이벤트에서 빠지고 `list`에는 남는다.
 9. 첨부 경로가 없음: `not_found`. 읽기 권한 없음: `denied`.
-10. 알림 원인 이벤트가 같은 단계에서 여러 개: 같은 kind는 한 번만 OS 알림을 보낸다(1초 안 같은 스레드·같은 kind 묶음) [제안].
+10. 알림 원인 이벤트가 같은 단계에서 여러 개: 같은 스레드·같은 kind는 1초 안에 한 번만 보낸다. 구독 전달은 §4.7.2에서 구현됐다(M3b D11). OS 알림도 같은 묶음을 쓴다. OS 전달은 구독 전달을 거치므로 묶음이 그대로 적용된다 [구현: M3b D11].
 
 ## 6. 설정 노출
 
@@ -1014,6 +1026,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - `shellInjection`을 `managed`에서 `off`로 잠그면 조직이 명령 파일의 셸 실행을 막을 수 있다.
 - `styles.active`의 값 검사는 등록된 스타일 목록과 대조하는 의미 검사라 `range.enum`으로 두지 않는다. 모르는 값이면 `default`로 적용하고 진단을 남긴다.
 - 알림 분류별 켜기·끄기를 키 다섯 개로 나눈 이유: 설정 화면이 토글 목록으로 그리기 쉽고, `range`가 문자열 배열을 다루지 않기 때문이다(F.wire-settings.spec D5).
+- `l2.dialog.notify.*` 여섯 키는 M3b D11부터 읽힌다. OS 전달(§4.7.2)이 `notify.os`와 종류별 키를 보고, 값은 알림마다 대화 범위로 읽는다. `styles.active`만 2차 기능이 읽을 때까지 선언만 있다 [구현: M3b D11].
 
 ## 7. 확장 지점
 
@@ -1046,7 +1059,7 @@ export const manifest = defineManifest({
 | `input.agent.before` | collect | 명령 목록 광고와 출력 스타일 조각(시스템 프롬프트 조각 API가 이 지점이 아니면 L1.context 경로로 옮긴다 [가정]). cap-dialog는 `payload.systemPrompt` 뒤에 조각을 붙여 돌려준다. [결정: 2026-10-28 오케스트레이터] collect에서 핸들러는 원본 payload만 보고 `systemPrompt`는 마지막으로 정의한 값이 이기므로, `systemPrompt`를 기여하는 핸들러는 하나만 둔다. 두 번째 기여자가 생기면 그때 다시 본다. |
 
 - post와 drive를 쓰지 않는다.
-- 내구 피드 구독(`xeon.session`)으로 `turn.*`, `approval.*`, `agent.settled`, `work.goal_settled`를 받아 상태줄 `core.turn`과 알림 분류를 계산한다. 구독자는 `seq`로 중복을 거른다(EV-05).
+- 내구 피드 구독(`xeon.session`)은 `turn.*`, `approval.*`, `work.*`, `agent.*`, `schedule.*`, `dialog.*` 접두를 받는다(M3b D11, `sessionFeed`의 접두 목록). 상태줄은 `turn.*`, `approval.*`로 `core.turn`을 계산하고, 알림 분류는 §4.7.1의 원인 종류로 계산한다. 구독자는 `seq`로 중복을 거른다(EV-05).
 - `ask_user`는 `tool.call.before`(first), `tool.result`(chain) 지점을 지난다(F.capabilities.spec §7).
 
 ## 8. 다른 문서와의 인터페이스
@@ -1088,15 +1101,17 @@ export const manifest = defineManifest({
 6. 알림 분류 5종이 §4.7.1 표로 정의되고, `classifyNotice`가 표의 원인 이벤트마다 해당 kind를 내며 `interrupted` 턴에는 null을 낸다.
 7. 셸 주입이 있는 템플릿은 `confirmShell` 없이 `run`하면 아무 명령도 실행하지 않고 `needs_confirmation`을 낸다.
 8. 프로젝트와 사용자에 같은 이름의 명령 파일이 있으면 프로젝트 것이 쓰이고, 사용자 것은 `includeHidden`에서만 보인다.
+9. `dialog.notify`: `emit` 뒤 `list`가 같은 알림을 같은 값으로 돌려준다. 같은 `requestId` 재호출은 처음 알림과 같은 seq를 돌려주고 기록을 늘리지 않는다. 같은 스레드·같은 종류의 알림 둘은 1초 안에 구독자에게 한 번만 가고, `list`는 둘 다 돌려준다. 시험은 `test/notify-service.test.ts`다.
+10. OS 알림: `notify.os`와 종류별 키가 모두 켜진 알림만 `xeon.os`의 `notify`로 가고, 제목은 80자, 본문은 400자 안에서 가려진 문자열만 쓴다. 보내기 실패는 대화를 실패시키지 않는다. 시험은 `test/notify-os.test.ts`와 `test/plugin.test.ts`의 OS 알림 묶음이다.
 
 ## 10. 미결 사항
 
 - D-1 닫힘. 호출 문맥은 `F.capabilities.spec` §3.2 `CallOptions.context`다(`L2.readme` §5.8).
-- D-2 [일부 닫힘, m2c G1-01] wire 메서드 추가. 닫힌 것: 명령 목록과 실행은 코어 표의 `command.list`, `command.run`이고 `CommandInfo`는 어긋나지 않는다. 남은 것 [미결]: `attachments.add`, `status.list`, `notify.list`, `aside.ask`를 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지.
+- D-2 [일부 닫힘, m2c G1-01] wire 메서드 추가. 닫힌 것: 명령 목록과 실행은 코어 표의 `command.list`, `command.run`이고 `CommandInfo`는 어긋나지 않는다. [결정: M3-REQ-16, M3-20] `status.list`와 `attachments.add`는 코어 표에 두었고 호스트 처리기가 능력을 부른다(HS-93). 상대 경로는 `threadId`의 작업 폴더로 푼다(§4.5, F wire §3.3.1, M3-REQ-92). `L4.host-service.spec` §10 45번은 이 변경으로 닫혔다. [구현: M3b B1-NTF H4] `notify.list`도 코어 표에 두었다(HS-94). 남은 것 [미결]: `aside.ask`를 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지.
 - D-3 닫힘(구현 일부는 M3, review.m2-plan DG.1) L1.tools.spec과의 약속. 닫힌 것: 승인 요청 멱등(같은 `requestKey`, core-tools `open`), `input_required` 재시도(`status: "input_required"`에 `approvalId`, L1A.4), 질문에 `allow` 응답 거부(`applied: false`), 응답 모양(`QuestionAnswer`, §4.1.1). 닫힌 것(m2 F.8): (2) 비대화형 판정(`CallContext.interactive`), (3) `QuestionItem.header`, `QuestionOption.recommended`, (4) F `ApprovalService`의 비차단 `open`·`wait`·`get`(L1.tools.spec §8.3 F 요청 11). (4)로 정식 `ApprovalsPortFactory`(`questionApprovalsOver`)를 만들었고 실제 `ApprovalService` 위에서 시험한다. 같은 키의 서비스 쪽 내용 비교와 재시작 뒤 재요청이 처음 요청의 body를 돌려주는 것은 L1A 쪽 한계로 남았다(어댑터가 메모리 안에서 비교한다). 닫힘(m2c G1-11): (1) 만료 시각과 만료 결과의 계약 필드(`ApprovalRequestInput.expiresAt`·`onExpire`, `L2ApprovalRequest`의 같은 이름 필드, `resolvedBy: "expired"`)는 F에 들어갔다. 만료 타이머와 이 어댑터가 `expiresAt`을 채우는 구현은 M3다(`review.m3-plan` M3-06). 닫힘(m2c G1-09): 승인 origin의 `caller`는 `approvalCallerOf(CallContext.caller)`로 만든다. 이 어댑터는 자기 변환을 두지 않고, 호출 문맥이 없는 요청은 `host`로 본다(`F.records.spec` §3.3.1).
 - D-4 [미결] 상태줄 id와 `dialog.notify.emit`의 `origin` 확인. `CallOptions.context.caller.extension`(`L2.readme` §5.8)과 대조한다. X의 capability 래퍼가 채우는 값이 확장 이름인지 scope id인지 `X.primitives.spec`과 맞춘다(`L2.work.spec` W-6과 같은 문제).
 - D-5 [미결] 곁가지 질문의 기록 위치와 사용량 집계(2차).
-- D-6 [미결] 알림 소유 경계. 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 창이 앞에 있을 때 알림을 생략하는 조건의 위치(클라이언트 대 엔진)도 함께 정한다.
+- D-6 [일부 닫힘, M3b B1-NTF H4] 알림 소유 경계. 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 창이 앞에 있을 때 알림을 생략하는 조건의 위치(클라이언트 대 엔진)도 함께 정한다. [결정 2026-10-26, review.m3-design-inputs D-M3-17] 기본은 호스트가 창 상태와 관계없이 알림을 보내고 화면에 띄울지는 클라이언트가 정한다. [구현: M3b B1-NTF H4] 호스트는 창 상태를 보지 않는다. 알림마다 종류별 설정 `l2.dialog.notify.<kind>`가 켜져 있으면 연결된 클라이언트 모두에 `notify.delivered`로 보내고(`L4.host-service.spec` HS-82), 창이 앞에 있을 때 화면에 띄울지 생략할지는 클라이언트가 정한다. OS 토스트 설정 `l2.dialog.notify.os`는 이 호스트 경로가 보지 않는다. 남은 것 [미결]: 모바일 푸시 채널을 `dialog.notify`가 맡는 확정(`L2.readme` §10 미결 15).
 - D-7 [미결] 명령 우선순위(`builtin` > `capability` > `project` > `user` > `extension`)와 pi 순서(사용자 우선)의 차이.
 - D-8 [미결] 명령 파일 기본 디렉터리 이름(`.xeon/commands`)과 사용자 설정 디렉터리 위치. L4.host-service.spec과 정한다. M2는 사용자 `<홈>/.xeon/commands`, 프로젝트 `<작업 폴더>/.xeon/commands`로 구현했고 `CommandRoots` 포트 한 곳에서 바꾼다.
 - D-9 [미결] `dialog.attachments`의 `workspace.images` 의존 종류. `L2.readme` §6은 `requires`, 브리프는 "없으면 원본"이다. 이 문서는 정의 `requires`를 두고 호출 시 `unavailable`이면 원본으로 계속한다.

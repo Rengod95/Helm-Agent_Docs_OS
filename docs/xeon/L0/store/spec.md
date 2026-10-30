@@ -138,6 +138,10 @@ export interface StoreService {
   /** 트랜잭션 밖에서만 부른다(TX-04). 같은 해시면 파일을 다시 쓰지 않는다 */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
+  /** 범위 핸들 소유자(`cap.*`, `ext.*`)의 블롭 참조 기록(M3-REQ-62). 트랜잭션 밖에서 부른다. 블롭 행이 없으면 `blob_missing`. 등록 안 된 소유자는 Bug(store.prefix_not_owned) */
+  pinBlob(owner: string, sha256: string, refKey: string): Result<void, BlobError>;
+  /** `(owner, refKey)` 참조를 모두 해제한다. 해제한 행 수를 돌려준다 */
+  unpinBlob(owner: string, refKey: string): Result<number, BlobError>;
 }
 ```
 
@@ -317,6 +321,7 @@ export interface OpenStoreOptions {
   readonly ids: IdFactory;
   readonly settings: StoreSettings;                                // §6 l0.store.* 유효 값
   readonly faults?: FaultInjector;                                 // 테스트 전용. 운영은 생략
+  readonly readOnly?: boolean;                                     // §4.11. true면 파일을 만들거나 쓰지 않고 연다. 미래 버전 DB도 연다(read_only 경고)
   readonly engineVersion: string;
 }
 
@@ -325,6 +330,7 @@ export interface StoreSettings {
   readonly leaseTtlMs: number;
   readonly busyTimeoutMs: number;
   readonly blobGraceMs: number;
+  readonly blobGcEnabled: boolean;                                 // §6 l0.store.blobGcEnabled. 조립 루트가 gcBlobs를 부를지 정한다
   readonly requireFts5: boolean;
   readonly macFullFsync: boolean;
   readonly customSqlitePath: string | null;
@@ -347,6 +353,7 @@ export interface OpenedStore extends AsyncDisposable {
   readonly service: StoreService;                                  // Cordis xeon.store로 등록
   readonly root: StoreDb;                                          // core-persistence 전용 (eng.transactions.design §4.2)
   readonly blobPins: BlobPins;                                     // core-persistence 전용 (§3.4)
+  readonly gcBlobs: (options: { readonly liveRefs: ReadonlySet<string> }) => Result<BlobGcReport, BlobError>; // §4.9 GC 한 번. 조립 루트 전용
   readonly warnings: readonly StoreWarning[];
   close(): Promise<void>;                                          // §4.4 종료 절차
 }
@@ -355,9 +362,12 @@ export type StoreWarning =
   | { readonly kind: "fs_unknown"; readonly dir: string }
   | { readonly kind: "fts5_missing" }
   | { readonly kind: "lock_provider_none" }
+  | { readonly kind: "read_only"; readonly reason: "future_version"; readonly owner: string; readonly dbVersion: number; readonly codeVersion: number }   // §4.11
   | { readonly kind: "checkpoint_incomplete"; readonly busy: number; readonly log: number; readonly checkpointed: number };
 
 export declare function openStore(options: OpenStoreOptions): Promise<Result<OpenedStore, StoreOpenError>>;
+/** §4.10. 원본을 읽기 전용으로만 열어 `destDir`로 내보낸다. 동기 함수다 */
+export declare function exportDatabase(options: { readonly dbPath: string; readonly destDir: string; readonly clock: Clock }): Result<ExportReport, ExportError>;
 
 /** L0 등록 단위. setup(ctx)가 ctx.providePort로 opened.service를 xeon.store에 등록한다. 조립 루트가 ExtHost.registerPlatform으로 등록한다(X.primitives.spec §3.2) */
 export declare function storePlugin(opened: OpenedStore): PlatformModule;   // name: "platform-store"
@@ -459,7 +469,7 @@ export interface BlobPins {
 }
 ```
 
-- [제안] `OpenedStore.blobPins`로 `core-persistence`에만 넘긴다. 범위 핸들 소유자(`cap.*`, `ext.*`)가 블롭을 참조할 때는 `StoreService`에 `pinBlob(owner, …)`을 열지 [미결 S-7]이다. M1 범위의 블롭 소비자는 `core-persistence`뿐이다.
+- [제안] `OpenedStore.blobPins`로 `core-persistence`에만 넘긴다. 범위 핸들 소유자(`cap.*`, `ext.*`)는 `StoreService.pinBlob(owner, sha256, refKey)`와 `unpinBlob(owner, refKey)`로 같은 `sys_blob_refs`에 참조를 적고 푼다 [결정: M3-REQ-62, 미결 S-7 해소]. 소유자 검사는 `scoped`와 같다(루트 전용·미등록은 Bug `store.prefix_not_owned`). 블롭 행이 없으면 `blob_missing`이다.
 
 ```ts
 // xeon/packages/platform-store/src/lock/provider.ts
@@ -572,11 +582,13 @@ macOS `fullfsync` [제안]:
 9. 블롭 디렉터리(`<db 디렉터리>/blobs`, `blobs/tmp`) 0700 확인
 10. `StoreService` 객체 조립
 
+`readOnly: true`로 열면 3번의 쓰기 연결 PRAGMA 대신 두 연결 모두 `readonly`로 열고 질의 전용 설정만 걸며, 파일 생성(없는 파일은 `io`/`SQLITE_CANTOPEN`), 4·5·6·8번의 쓰기와 9번의 디렉터리 생성을 하지 않는다. 자세한 규칙은 §4.11이다 [결정: 오케스트레이터 기본값].
+
 종료(`close`):
 
 1. 새 `write` 호출을 `Bug(store.closed)`로 막는다
 2. 이 프로세스가 쥔 임대를 모두 `release`한다(keepAlive 정지 포함)
-3. 쓰기 연결에서 `PRAGMA wal_checkpoint(TRUNCATE)`. 결과 `busy`가 0이 아니면 `checkpoint_incomplete` 경고만 남긴다(다른 프로세스가 읽는 중일 수 있다)
+3. 쓰기 연결에서 `PRAGMA wal_checkpoint(TRUNCATE)`. 결과 `busy`가 0이 아니면 `checkpoint_incomplete` 경고만 남긴다(다른 프로세스가 읽는 중일 수 있다). 읽기 전용 열기는 이 단계를 건너뛴다
 4. 읽기 연결, 쓰기 연결 순서로 닫는다
 5. OS 잠금 핸들을 모두 푼다
 
@@ -638,7 +650,7 @@ macOS `fullfsync` [제안]:
 
 #### 4.6.1 마이그레이션 전 스냅샷 [결정: m2 마감 G2-06]
 
-프리뷰 사용자의 DB를 지키기 위한 최소 안전장치다. 내보내기와 복구 런북은 M3다.
+프리뷰 사용자의 DB를 지키기 위한 최소 안전장치다. 사용자가 꺼내 쓰는 내보내기는 §4.10의 `exportDatabase`가 맡는다.
 
 - 시점: `apply`가 남은 단계를 실행하기 직전, 그 owner에 적용된 버전이 1 이상일 때만 만든다. 처음 만드는 DB, owner의 첫 등록, 이미 최신인 호출은 만들지 않는다. 열 때의 `sys` 마이그레이션과 소비자가 부르는 `cap.*`·`core.persistence` 마이그레이션이 같은 규칙이다.
 - 수단: 쓰기 연결의 `VACUUM INTO '<경로>'`다(WAL 내용을 포함한 일관된 복사). 쓰기 트랜잭션 밖에서만 돈다.
@@ -732,18 +744,86 @@ macOS `fullfsync` [제안]:
 
 GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙만 차용, `_research/packages.md §2.3`):
 
-1. 고아 행: `sys_blobs` 중 `sys_blob_refs`에 행이 없고 `last_put_at < now - blobGraceMs`인 것. 파일을 지운 뒤 행을 지운다.
+1. 고아 행: `sys_blobs` 중 `sys_blob_refs`에 행이 없고 `last_put_at < now - blobGraceMs`이며 `liveRefs`(아래)에 없는 것. 행을 한 트랜잭션에서 먼저 지우고 그 뒤 파일을 지운다(행만 남고 파일이 없는 상태를 만들지 않는다). 사이에 죽으면 2번 규칙이 파일을 거둔다.
 2. 행 없는 파일: `blobs/<ab>/*` 중 `sys_blobs`에 없고 mtime이 `now - blobGraceMs`보다 오래된 것. 블롭을 쓰고 8단계 전에 죽은 경우다.
 3. 임시 파일: `blobs/tmp/*.tmp` 중 mtime이 `blobGraceMs`보다 오래된 것.
+- 호출 여부는 조립 루트가 `l0.store.blobGcEnabled`(§6)로 정한다. 꺼져 있으면 `gcBlobs`를 부르지 않는다 [결정: 오케스트레이터 기본값, M3-REQ-84].
 - 유예 시간 동안은 참조 없는 블롭도 지우지 않는다. 블롭 선쓰기 뒤 이벤트 커밋 전인 블롭을 지우지 않기 위해서다. 같은 해시를 다시 `putBlob`하면 `last_put_at`이 갱신되어 유예가 다시 시작된다(omp의 mtime 갱신 규칙에 해당).
 - 실행 시점: 열기 뒤 한 번(지연 실행)과 하루 한 번. `scheduler` 임대를 쥔 프로세스만 한다 [제안]. 한 번에 지우는 수 상한 1000개.
-- 파일 삭제와 행 삭제 사이에 크래시가 나면 다음 GC가 1번 규칙에서 `blob_missing` 없이 행만 지운다(파일 없음은 무시한다).
+- 행 삭제와 파일 삭제 사이에 크래시가 나면 다음 GC가 2번 규칙에서 그 파일을 지운다. 파일이 이미 없으면 무시한다. 파일 삭제가 실패하면(사용 중 등) 그 항목은 `deferred`로 세고 다음 주기로 미룬다.
+- 뿌리 집합 [결정: M3-REQ-84, L1.persistence.spec 미결 12 해소]: 지우지 않을 해시는 `sys_blob_refs`에 있는 것과 호출자가 넘기는 `liveRefs`의 합이다. L0은 L1을 부를 수 없으므로 조립 루트(L4 host)가 `query.liveBlobRefs()`(`p_blob_refs`)를 모아 `OpenedStore.gcBlobs({ liveRefs })`에 넘긴다. 한 번의 GC는 동기로 끝나므로 같은 프로세스의 `putBlob`과 끼어들지 않는다.
+- 결과 `BlobGcReport`는 `{ rows, orphanFiles, tmpFiles, deferred, truncated }`이다. `truncated`가 true면 상한(1000) 때문에 후보가 남았다.
+
+### 4.10 DB 내보내기 [결정: M3-REQ-63]
+
+`exportDatabase({ dbPath, destDir, clock })`는 DB 한 벌을 다른 디렉터리로 내보냅니다. 동기 함수이고, 예상 가능한 실패는 `ExportError` 값으로 돌려줍니다. 다른 프로세스가 쓰고 있는 DB와 더 높은 버전이 만든 DB도 내보냅니다.
+
+- 연결: 원본은 `readonly`로만 엽니다. 마이그레이션, 임대, WAL 설정, `PRAGMA user_version` 쓰기를 하지 않습니다. `query_only`는 걸지 않습니다. `VACUUM INTO`가 그 설정에서 `SQLITE_READONLY`로 거절되기 때문입니다(bun 1.4.3 실측).
+- 표지: `application_id`가 `1480937294`여야 합니다. 표지가 0이고 스키마도 없는 파일은 `not_a_database`, 그 밖의 다른 표지는 `foreign_database`입니다.
+- 대상: `destDir`이 없으면 0700으로 만듭니다. 부모 디렉터리는 만들지 않습니다. 있으면 비어 있어야 합니다. 비어 있지 않으면 `dest_not_empty`이고 아무것도 쓰지 않습니다 [결정: 오케스트레이터 기본값].
+- 배치:
+
+| 경로 | 내용 | 모드 |
+|---|---|---|
+| `<destDir>/xeon.sqlite` | `VACUUM INTO`로 만든 복사본. WAL 내용을 포함하고 저널 모드는 delete다 | 0600 |
+| `<destDir>/blobs/<ab>/<rest>` | `sys_blobs`의 행마다 원본 `<db 디렉터리>/blobs/<ab>/<rest>`를 복사한 것 | 디렉터리 0700, 파일 0600 |
+| `<destDir>/manifest.json` | 아래 manifest | 0600 |
+
+- 블롭 목록은 복사본의 `sys_blobs`에서 읽습니다. 그래서 복사된 행과 목록이 같은 내용을 가리킵니다.
+- 블롭 복사: 원본 경로는 `lstat`으로 보고 일반 파일만 복사합니다. 심볼릭 링크는 따라가지 않습니다. 없거나 일반 파일이 아니면 `missingBlobs`에 넣고 건너뜁니다. sha256이 `/^[0-9a-f]{64}$/`와 맞지 않으면 경로를 만들지 않고 `missingBlobs`에 넣습니다. 확인 뒤 복사 사이에 파일이 사라지면 `io`(`ENOENT`)로 실패합니다.
+- manifest:
+
+```json
+{ "format": 1, "exportedAt": 1767571200000, "sqliteFile": "xeon.sqlite", "blobCount": 1, "missingBlobs": [] }
+```
+
+  `format`은 디렉터리 구조의 버전이다. `exportedAt`은 `clock.now()`(epoch ms)다. `missingBlobs`에 든 값은 sha256 문자열이다.
+- 결과: `ExportReport`는 `{ destDir, exportedAt, blobCount, missingBlobs }`이고 manifest와 같은 내용입니다.
+- 오류: `ExportError`는 다음 kind를 가집니다.
+
+| kind | 뜻 |
+|---|---|
+| `foreign_database`(`applicationId`) | Xeon 표지가 아닌 SQLite 파일 |
+| `not_a_database` | 파일이 없거나 SQLite 파일이 아니다. 빈 파일도 여기 든다 |
+| `dest_not_empty` | 대상이 있고 비어 있지 않다. 아무것도 바꾸지 않는다 |
+| `busy` | `SQLITE_BUSY`, `SQLITE_LOCKED` |
+| `disk_full` | `SQLITE_FULL` 또는 `ENOSPC` |
+| `io`(`code`) | 그 밖의 SQLite와 파일 시스템 오류 |
+
+- 실패 정리: 이 호출이 만든 파일과 디렉터리만 만든 순서의 역순으로 지웁니다. 원래 있던 빈 대상 디렉터리는 지우지 않습니다. 정리가 실패하면 원래 오류 대신 정리 오류를 돌려줍니다. `ExportError`에 원인을 실을 필드가 없기 때문입니다 [미결 S-14].
+- 잠금 대기: 원본 연결은 `busy_timeout` 5000ms를 씁니다. WAL 모드에서는 다른 프로세스의 쓰기가 읽기를 막지 않습니다.
+- SQLite 로드: 이 함수도 `newDatabase`를 거치므로 첫 연결이 SQLite 로드 상태를 정합니다. `openStore` 전에 부르면 macOS 커스텀 dylib 지정이 나중에 `Bug(store.sqlite_already_loaded)`가 됩니다 [미결 S-13].
+
+### 4.11 읽기 전용 열기 [결정: M3-REQ-63]
+
+`openStore({ readOnly: true })`는 DB를 읽기 전용으로 엽니다. 다른 Xeon 버전이 만든 DB를 확인하는 경로이고, 쓰기는 모두 거절합니다.
+
+- 파일과 디렉터리를 만들지 않습니다. 없는 파일은 `io`(`SQLITE_CANTOPEN`)입니다.
+- 쓰기 연결과 읽기 연결을 모두 `readonly`로 엽니다. 두 연결에 `query_only`를 겁니다. WAL 설정, 표지 기록, sys 스키마 생성, 마이그레이션, 체크포인트, 잠금 디렉터리 생성을 하지 않습니다. 잠금 제공자는 `none`이며 `lock_provider_none` 경고를 남기지 않습니다.
+- 표지: `application_id`가 Xeon이 아니면 `foreign_database`입니다(0도 포함합니다). sys 표(`sys_migrations`, `sys_meta`)가 없으면 `corrupt`(`code: "SYS_SCHEMA_MISSING"`), `store_id`가 없으면 `corrupt`(`code: "STORE_ID_MISSING"`)입니다 [결정: 오케스트레이터 기본값].
+- 버전: sys 행의 최대 버전이 `SYS_MIGRATION_SET`의 버전보다 높으면 열기는 성공하고 `warnings`에 `{ kind: "read_only", reason: "future_version", owner: "sys", dbVersion, codeVersion }`을 남깁니다. 같거나 낮으면 경고가 없습니다. 열기 시점에 코드 버전을 아는 owner는 sys뿐이므로 경고도 sys에 대해서만 냅니다. 다른 owner의 미래 버전은 소비자의 `migrations.apply`가 `migration_future_version`으로 알립니다.
+- 쓰기 거절: 아래 경로는 파일을 건드리기 전에 거절합니다. DB 파일과 블롭 파일은 바뀌지 않습니다.
+
+| 경로 | 결과 |
+|---|---|
+| `root.write`, `scoped(owner).write` | `err({ kind: "io", code: "SQLITE_READONLY" })` |
+| `putBlob` | 같은 값. 블롭 파일도 쓰지 않는다 |
+| `pinBlob`, `unpinBlob` | 같은 값 |
+| `gcBlobs` | 같은 값. 행과 파일을 모두 지우지 않는다 |
+| `leases.acquire` | `err({ kind: "lock_io", code: "SQLITE_READONLY" })`. 쓰기 오류를 임대 오류로 옮기는 기존 매핑과 같다 [결정: 오케스트레이터 기본값] |
+| `migrations.apply` | 올릴 단계가 없으면 `ok`, 있으면 `migration_failed`(`code: "SQLITE_READONLY"`). 미래 버전이면 기존처럼 `migration_future_version`이다 [결정: 오케스트레이터 기본값] |
+
+- 읽기(`read`, `readBlob`, `leases.inspect`)는 그대로 동작합니다.
+- 닫기에서는 WAL 체크포인트를 하지 않습니다.
 
 ## 5. 실패와 경계 사례
 
 | 경우 | 동작 |
 |---|---|
-| 다른 Xeon 버전이 만든 DB, sys 버전이 코드보다 높음 | `migration_future_version`. 호출자는 읽기 전용 열기를 고를 수 있다 |
+| 다른 Xeon 버전이 만든 DB, sys 버전이 코드보다 높음 | 기본 열기는 `migration_future_version`이다. `readOnly: true`로 열면 성공하고 `warnings`에 `read_only`(`future_version`)를 남긴다(§4.11). 내보내기는 버전과 상관없이 된다(§4.10) |
+| 읽기 전용 열기에서 쓰기 호출 | `SQLITE_READONLY` 오류 값. DB 파일과 블롭 파일은 바뀌지 않는다(§4.11) |
+| 내보내기 대상이 비어 있지 않음 | `dest_not_empty`. 대상의 내용은 바뀌지 않는다(§4.10) |
+| 내보내기 중 블롭 파일이 없음 | `missingBlobs`에 적고 나머지는 복사한다(§4.10) |
 | `application_id`가 다른 파일 | `foreign_database`. 파일을 바꾸지 않는다 |
 | 다른 앱이 SQLite DB를 같은 경로에 둠(`application_id` 0, 테이블 있음) | `foreign_database`(`applicationId: 0`) |
 | 쓰기 중 디스크 가득 | `disk_full`. 롤백되어 행 변화 없음. 같은 `requestId`로 재시도(TX-05) |
@@ -781,6 +861,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | `l0.store.leaseTtlMs` | integer | 30000 | 3000~600000, `heartbeatMs`의 3배 이상(카탈로그 검사) | restart | managed, user | `advanced` 탭 |
 | `l0.store.busyTimeoutMs` | integer | 5000 | 0~60000 | restart | managed, user | 파일만 |
 | `l0.store.blobGraceMs` | integer | 86400000(24시간) [제안] | 600000~2592000000 | live | managed, user | `sessions` 탭 |
+| `l0.store.blobGcEnabled` | boolean | false [결정: 오케스트레이터 기본값, M3-REQ-84] | - | live | managed, user | `sessions` 탭, `toggle` |
 | `l0.store.requireFts5` | boolean | false | - | restart | managed, user | `advanced` 탭 |
 | `l0.store.macFullFsync` | boolean | true [제안] | - | restart | managed, user | `advanced` 탭(macOS만 표시) |
 | `l0.store.customSqlitePath` | string \| null | null | 절대 경로 | restart | managed, user | 파일만 |
@@ -788,6 +869,14 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - `project`, `local`, `session` 범위는 허용하지 않는다. DB는 사용자 단위 자원이다.
 - 주기 값(5초, 30초)을 설정 키로 노출하는 것은 `eng.transactions.design` 미결 T-6에 대한 이 문서의 답이다 [제안].
 - `blobGraceMs` 기본값 근거: 블롭 선쓰기와 커밋 사이 시간은 보통 1초 안이지만 승인 대기처럼 커밋이 늦는 경로를 넉넉히 덮는다 [가정].
+- `blobGcEnabled`는 기본으로 끕니다 [결정: 오케스트레이터 기본값, M3-REQ-84]. 보존 기간이 있어도 보존 밖의 참조 없는 블롭은 지워집니다. 블롭 소비자 가운데 일부는 `pinBlob`으로 블롭을 고정하지 않으므로, 그 블롭이 이벤트 참조(`p_blob_refs`)에도 없으면 GC가 지울 수 있습니다. 조립 루트(apps/host, `L4.host-service` §4.18)는 이 값이 참일 때만 `gcBlobs`를 부릅니다.
+- 켜는 것은 아래 소비자가 모두 `pinBlob`을 쓰게 된 뒤에만 안전합니다. `pinBlob` 호출처는 cap-web 가져오기 캐시와 cap-knowledge다. 아래 cap-mcp와 cap-dialog는 아직 고정하지 않습니다.
+  - cap-web 가져오기 캐시(`packages/cap-web/src/cache/fetch-cache.ts`)는 고정한다. 소유자는 `cap.web`이고 refKey는 원문 행의 `raw_ref`(`webraw:<sha256>`)다. 저장할 때 원문과 본문 블롭을 `pinBlob`으로 적고, 행을 지우는 `sweep`과 `purgeSessionRaw`가 `unpinBlob`으로 푼다. 시험은 `packages/cap-web/test/fetch-cache-pin.int.test.ts`다.
+  - cap-knowledge 매니페스트(`packages/cap-knowledge/src/ledger/manifest.ts`)와 쓰기 파이프라인(`packages/cap-knowledge/src/write/pipeline.ts`)은 고정한다. 소유자는 `cap.knowledge`다. 원장 행의 전후 목록과 파일 블롭은 행 id(`knl…`)로, 제안 입력 블롭은 제안 id(`knp…`)로 고정한다. 행을 쓰기 전에 고정하고, 행이 쓰이지 않으면 푼다. 원장 행은 지우지 않으므로 그 고정은 풀지 않는다. 제안은 승인, 거절, `stale`, 만료로 닫힐 때 푼다. 재색인이 쓰는 `external` 행은 커밋 뒤에 고정하므로, 고정이 실패하면 그 행은 고정 없이 남는다 [미결]. 시험은 `packages/cap-knowledge/test/blob-pins.test.ts`다.
+  - cap-mcp 내용 블롭(`packages/cap-mcp/src/client/content.ts`, `service.ts`)은 고정하지 않는다 [해소 S-15: `p_blob_refs`가 자리표시를 모은다]. 근거는 셋이다. (1) cap-mcp의 표 `cap_mcp_servers`와 상태 어디에도 블롭 참조가 없다. (2) 참조는 커밋되는 도구 결과 항목에 `blob:sha256:<hex>` 자리표시 문자열로만 남는다(`packages/cap-mcp/src/client/dynamic-tools.ts`의 `renderContent`, `packages/core-tools/src/pipeline.ts`의 `finishCall`). (3) `p_blob_refs`는 `detached` 필드와 `effect.*`의 BlobRef에 더해 payload 문자열의 `blob:sha256:<hex>` 자리표시도 모은다(`packages/core-persistence/src/projector/core.ts`의 `blobHashesOf`, M3b B5-FIX2). 그래서 이벤트가 참조하는 블롭은 `blobGraceMs`가 지나도 GC가 지우지 않는다. cap-mcp가 고정을 걸면 풀 시점(스레드 삭제, 항목 폐기)을 알 수 없어 고정이 새므로, 고정 대신 이 투영이 참조를 맡는다.
+  - cap-dialog 첨부(`packages/cap-dialog/src/attachments/service.ts`)는 고정하지 않는다 [해소 S-15]. 근거는 둘이다. (1) cap-dialog는 블롭 참조를 자기 표나 상태에 적지 않는다. `add`가 돌려주는 `BlobRef`는 호출자에게만 가고, 이미지 참조는 입력 파트의 `blob:sha256:<hex>` 자리표시로만 남는다. (2) 고정을 풀 시점(첨부 폐기, 턴 소비)을 이 패키지가 알 수 없어 고정하면 풀리지 않는 고정이 된다. 텍스트 첨부의 본문은 파트에 그대로 들어가므로 그 blob은 어떤 이벤트도 가리키지 않는다. 시험은 `packages/cap-dialog/test/attachments.test.ts`의 "블롭 고정은 하지 않는다" 묶음이다. 이미지를 workspace.images로 등록할 때의 블롭은 `packages/cap-workspace/src/images/prepare.ts`가 쓰므로 그 미결은 cap-workspace 항목이다.
+  - cap-workspace 이미지(`packages/cap-workspace/src/images/prepare.ts`)는 고정하지 않는다 [해소 S-15]. 근거는 둘이다. (1) cap-workspace는 블롭 참조를 자기 표나 상태에 적지 않는다. `prepareImage`가 돌려주는 `BlobRef`는 `register`, `load`, `read`의 결과로 호출자에게만 가고, 커밋되는 쪽에는 `blob:sha256:<hex>` 자리표시로만 남는다(`packages/contracts/src/capabilities/defs/workspace.ts`의 `renderRead`, cap-dialog 입력 파트). (2) 고정을 풀 시점(이미지 폐기, 턴 소비)을 이 패키지가 알 수 없어 고정하면 풀리지 않는 고정이 된다. 시험은 `packages/cap-workspace/test/images.test.ts`의 "블롭 고정은 하지 않는다" 묶음이다.
+  - [미결] core-tools 도구 출력과 `pipeline.ts`의 블롭이 이벤트 참조로만 살아 있는지 확인한다. 고정이 없어도 이벤트가 참조하면 `p_blob_refs`로 보존된다. 이 보존은 `effect.result.blobRef`로 적힌 블롭과 payload의 자리표시(`blob:sha256:<hex>`)로 남은 블롭에 성립한다(S-15 해소).
 
 ## 7. 확장 지점
 
@@ -859,6 +948,8 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 16. `extensions.register("Helm")`, `register("ext")`, `register("a_b")`는 `ext_id_invalid`다. `register("acme-notes")`의 `tablePrefix`는 `x_acme_notes_`다. 확장 `ab`(`x_ab_cd`)와 `ab-cd`(`x_ab_cd_ef`)를 둘 다 등록한 뒤 `drop("ab", ["x_ab_cd"])`는 `x_ab_cd`만 지우고 `x_ab_cd_ef`와 `events` 행 수는 그대로다. `drop("ab", ["x_ab_cd_ef"])`는 `table_not_owned`이고 아무것도 지우지 않는다.
 17. `bun:sqlite` import가 `platform-store` 밖에 없다(DR-07 검사).
 18. X의 확장 저장 영역 계약 시나리오(`ext-storage.contract.ts`)가 이 패키지의 실제 bun:sqlite 팩토리로 통과한다. 장애 주입 롤백 시나리오(`after_ext_projection:<n>`)에서 확장 테이블 행 해시가 바뀌지 않는다 [결정: review.decisions-2 D-05]. X 테스트는 L0를 import하지 않으므로 bun:sqlite 실행은 이 스위트만 맡는다.
+19. `exportDatabase`로 낸 `xeon.sqlite`를 `openStore`로 열면 행과 블롭 바이트가 원본과 같다. 미래 버전 DB도 내보내진다. 비어 있지 않은 대상은 `dest_not_empty`이고 내용이 그대로다. 파일이 없는 블롭은 `missingBlobs`에 든다(`test/export.int.test.ts`).
+20. `readOnly: true`로 미래 버전 DB를 열면 성공하고 `warnings`는 `read_only`(`future_version`) 하나다. 쓰기 경로(`root`, `scoped`, `putBlob`, `pinBlob`, `unpinBlob`, `gcBlobs`, `leases.acquire`, `migrations.apply`)는 모두 거절 값을 돌려주고 DB 파일의 SHA-256이 그대로다(`test/open-readonly.int.test.ts`).
 
 ## 10. 미결 사항
 
@@ -866,10 +957,13 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - [결정: review.decisions-2 U-09] S-2. adr.0006 §3.6 규칙 4의 `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. `L0.process.spec` P-2와 같은 항목이다.
 - [미결 S-4] FTS5 프로브 실패 시 운영 시작 동작. 권고는 저장소를 열고 `capabilities.fts5 = false`로 검색만 끄는 것이다(TC-11, adr.0004 §6).
 - [미결 S-5] Windows `LockProvider` 수단: named mutex(`CreateMutexW`) 또는 `LockFileEx`. bun:ffi 실측 뒤 정한다(`_research/notes/L0-2.md §6`).
-- [미결 S-7] 범위 핸들 소유자(`cap.*`, `ext.*`)에게 블롭 참조 기록(`pinBlob`)을 열지.
+- [해소 S-7] 범위 핸들 소유자에게 `pinBlob`·`unpinBlob`을 연다(§3.4).
 - [미결 S-8] 접두사 밖 문장 거부를 운영 빌드에도 켤지. `EXPLAIN` 대조 비용 측정(ST-07) 뒤 정한다.
 - [미결 S-9] macOS `fullfsync` 기본값. 제안은 켬이고 성능 측정(ST-17) 뒤 확정한다.
 - [미결 S-10] bun:ffi 안정성. Bun 문서의 실험 기능 경고 원문을 확인하고, 문제가 있으면 `none` provider(DB 임대만)를 기본으로 둘지 정한다.
 - [미결 S-11] 블롭 해시 재검증을 운영 빌드에서도 할지(읽기 비용).
 - [미결 S-12] F 요청, 스냅샷 실패 전용 오류 kind. 지금은 `migration_failed`의 `code: "snapshot_failed:<코드>"`로 돌려준다(§4.6.1). `MigrationError`에 `migration_snapshot_failed`를 더하고, 손상(`corrupt`)과 미래 버전(`migration_future_version`) 오류를 사용자 안내 문구로 나누는 일은 F·host가 맡는다 [마감 G2-06].
+- [미결 S-13] 내보내기와 열기는 같은 SQLite 로드 규칙(§4.1)을 쓴다. 열기 전에 내보내면 첫 연결이 SQLite 로드 상태를 번들로 정하므로, macOS에서 나중의 `openStore`가 커스텀 dylib을 지정하면 `Bug(store.sqlite_already_loaded)`가 난다. 호스트가 내보내기를 `openStore` 뒤에 부르는지 M3 호스트 연결 때 정한다.
+- [미결 S-14] 내보내기 실패 뒤 정리가 실패하면 원래 오류 대신 정리 오류를 돌려준다. `ExportError`에 원인 필드가 없어서다. 원인을 실을 필드를 더할지는 F 요청 후보로 둔다(§4.10).
+- [해소 S-15] 자리표시(`blob:sha256:<hex>`)로만 커밋 이벤트에 남는 블롭은 후보 (a)로 모은다. `blobHashesOf`가 `detached`와 `effect.*`의 BlobRef에 더해 이벤트 payload의 모든 문자열에서 `blob:sha256:<64자 hex>`를 찾아 `p_blob_refs`에 넣는다(키 이름과 깊이를 가리지 않는다). 해당하는 것은 cap-mcp 내용 블롭, cap-dialog 이미지 첨부, cap-workspace 이미지다. 투영 규칙이 바뀌어 `CORE_PROJECTOR_VERSION`을 5로 올렸고, 다음 열기에서 core 투영기가 기존 이벤트로 다시 만들어지므로 이미 쌓인 DB도 자리표시 참조를 얻는다. 한계: 사용자가 쓴 텍스트에 같은 문자열이 있으면 그 블롭도 남는다(과보존, 안전한 쪽이다). `l0.store.blobGcEnabled`는 이 항목이 해소됐으므로 켤 수 있다. 켜는 결정은 따로 한다 [결정: 오케스트레이터 기본값, 기본 false 유지]. 소유는 `core-persistence`다.
 - [가정] macOS에서 bun:ffi `flock`, `libSystem.B.dylib` 이름, O_CLOEXEC 동작은 실측하지 않았다. Windows 전 구간, WSL `/mnt/c`의 flock도 실측하지 않았다(`_research/notes/L0-2.md §5`).

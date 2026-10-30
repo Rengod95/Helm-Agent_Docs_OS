@@ -354,7 +354,7 @@ export type AgentJudgedPayload = JudgeRecord;
   - `delegate`는 `prepare`, `provision`(thread 생성과 `agent.spawned` 커밋), `runChild`를 포그라운드와 나눠 쓴다. 백그라운드는 부모 thread 노드 아래 `background: true` 노드로 열고 부모 turn의 취소 신호를 잇지 않는다. `requestId`는 1~48자이고 보고 입력 키 `<requestId>:report`가 입력 큐의 64자 안에 들어야 한다. 같은 (부모, requestId)의 `agent.spawned`가 DB에 있으면 새 자식을 만들지 않고 `duplicate`를 돌려준다. 끊긴 자식이면 같은 자식을 다시 돌린다.
   - `agent.settled`에는 `owner`(`agent.spawned.owner`와 같은 값)와 `limitHit`를 싣는다. `limitHit`는 자식의 마지막 `turn.completed.error`(`step_limit`, `child_limit`)에서 읽는다. `child_limit`는 단계 상한과 토큰 상한이 같은 값이라 `stepCount`가 `limits.maxSteps` 이상이면 `steps`, 아니면 `tokens`로 본다 [제안].
   - `DelegateRequest.report`가 있으면 `agent.settled` 커밋 안에서 `tasks.inputs.draftQueued`로 보고 입력을 같이 쓴다. 없으면 `agent.settled`만 남는다. 코어 `customType` `agent.report`는 F `RecordKind` 형식에 없어 `x.core-agents.agent.report`로 싣는다 [제안: F 요청 6 전까지].
-  - `cancel({ ownerScopeId })`는 이 프로세스에서 도는 그 scope(`owner.kind`가 `scope` 또는 `drive`)의 자식을 모두 취소한다. 취소된 자식도 `agent.settled { aborted }`와 보고 입력을 남긴다.
+  - `cancel({ ownerScopeId })`는 이 프로세스에서 도는 그 scope(`owner.kind`가 `scope` 또는 `drive`)의 자식을 모두 취소한다. 취소된 자식도 `agent.settled { aborted }`와 보고 입력을 남긴다. 재시작으로 끊겨 이 프로세스에서 돌지 않는 자식은 저장된 `agent.spawned`의 `owner`로 소유 scope를 찾아 `agent.settled { aborted }`만 남기고 닫는다(보고 입력은 위임 때의 `report` 설정이 저장되지 않아 남기지 않는다). 그래서 이어지는 같은 requestId의 위임은 닫힌 기록을 돌려받고 끊긴 대화를 재개하지 않는다.
   - `judge`는 §4.8을 따른다. `completeStructured`는 F `ModelService`에 아직 없어 core-agents가 `ModelService.resolve`·`complete` 위에 둔다(`structured.ts`) [제안]. 완료 게이트가 판정 결과를 소비하는 규칙은 순수 함수 `goalGateDecision`(`goal-gate.ts`)이 정한다: `met`은 종료, `not_met`·`undecidable`은 계속, `capped`는 turn 종료와 알림, `failed`는 `stop`이다.
 
 ### 4.2 결과 경로
@@ -380,6 +380,12 @@ export type AgentJudgedPayload = JudgeRecord;
 4. 이 계산은 core-agents의 `permission-ceiling.ts`가 순수 함수로 하고, core-tools 파이프라인은 자식 `ToolRunContext.ceiling`이 있으면 이 함수의 결과와 일반 평가 중 엄격한 쪽을 정책 결정으로 쓴다(L1.tools.spec §4.5 ceiling 단계) [제안]. [가정] core-tools가 ceiling 평가를 호출할 수 있게 함수가 F `policy.ts`에 있어야 한다. 그래서 `childDecision(call, parent, child, rules)`을 F로 옮기도록 요청한다(§8.3 F 요청 5).
 5. 승인: 자식의 ask는 부모 대화의 사용자에게 올라간다. 승인 요청 이벤트는 `surfaceThreadId`(소유 트리 루트) 대화에 기록되고 `origin.threadId`는 자식 대화다(L1.tools.spec §3.9). `remember: "thread"`는 루트 대화 기준으로 적용된다.
 
+검토 포크 [결정: M3-REQ-70, 오케스트레이터 기본값]: 학습 검토 포크(`fork`가 있고 `tools.keepParentList`가 참인 위임)는 아래 규칙을 따른다.
+
+- 사용량 귀속: 포크의 사용량은 `SpawnResult.usage`와 `agent.settled.usage`로 부모 대화에 귀속한다. 부모 합계에 더하는 화면 규칙은 L4가 정한다. 호출자(L3.learning)는 검토 한 번의 사용량을 자기 원장에 따로 적는다.
+- 캐시 접두 공유 조건 네 가지: (1) 모델이 부모와 같다, (2) 도구 배열이 부모와 같다(`keepParentList`), (3) 시스템 프롬프트가 부모와 같다, (4) 메시지 접두가 부모 가지의 `fork` 지점까지 그대로다. 하나라도 다르면 접두 캐시는 공유되지 않고 일반 요청 비용이 든다. 현재 구현은 (2)와 (4)를 지킨다. (1)은 호출자가 요청 `model`을 부모 모델로 주어야 하고, (3)은 자식이 정의의 `prompt`를 쓰므로 공유되지 않는다. (3)을 지키려면 `SpawnRequest`에 부모 프롬프트를 쓰는 선택을 더해야 하며 이는 [미결]이다.
+- `keepParentList`는 광고 목록만 부모와 같게 두고, 허용 목록(`tools.allow`)과 정책은 실행 시점에 거른다(§4.3 3번, `L1.tools.spec` §4.1 7번). 허용 목록 밖 도구 호출은 `denyHint`와 함께 거부된다.
+
 자식 도구 차단 목록 [제안: `_research/item-catalog.md` L1-g "자식 도구 차단 목록"]: 재귀 생성, 사용자 상호작용, 공유 상태 쓰기, 외부 발신 도구를 주지 않는다. 규칙은 L1.tools.spec 어휘의 default 티어 deny로 core-agents가 `ToolService.registerRules("core:agents", rules)`(L1.tools.spec §3.3)로 등록한다. `l1.agents.maxDepth`가 바뀌면 같은 출처로 다시 등록한다.
 
 | 규칙 id | resource | 비고 |
@@ -398,7 +404,8 @@ export type AgentJudgedPayload = JudgeRecord;
 - [제안] 기본 깊이는 1이다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g). 참고값: Claude Code 깊이 3·동시 20, Hermes 깊이 1·동시 10(`_research/item-catalog.md` L1-g "깊이와 동시 상한").
 - 깊이 규칙: 자식 깊이 = 부모 깊이 + 1. 자식 깊이가 `l1.agents.maxDepth`를 넘으면 생성하지 않는다(`agents.depth_exceeded`). 기본 1이면 주 대화만 자식을 만든다. 이중 방어: 한도에 이른 자식은 `subagent.no-spawn` 규칙으로 `agent` 도구가 광고 목록에서 빠지고, 서비스도 생성 때 다시 검사한다.
 - 동시 수: 전체 상한은 L1.tasks.spec의 풀 `subagents`(크기 `l1.tasks.limits.subagents`, 기본 16)다. 자식 turn은 모델 요청·도구를 실행하는 동안 이 풀의 슬롯을 쥔다(L1.tasks.spec §4.5 표). [제안] core-agents는 여기에 소유 트리 루트 하나가 동시에 돌리는 자식 수 상한 `l1.agents.maxConcurrent`(기본 8)를 더한다. 한 대화의 병렬 spawn이 전체 풀을 차지하지 않게 하기 위해서다. 두 상한 중 하나라도 차면 FIFO로 기다리고 상태는 `queued`다. 대기 중인 자식도 취소할 수 있다.
-- 포그라운드와 백그라운드는 같은 풀을 쓴다 [제안]. 백그라운드 자식이 풀을 모두 차지해 포그라운드가 오래 기다리는 문제는 [미결](§10)이다.
+- 포그라운드와 백그라운드는 같은 풀을 쓴다 [결정: M3-REQ-67, 오케스트레이터 기본값]. 백그라운드 전용 몫은 두지 않는다. 한 소유 트리 루트가 풀을 독점하지 못하게 하는 장치는 `l1.agents.maxConcurrent`(루트별 상한) 하나다. 백그라운드 자식이 전체 풀을 채워 포그라운드가 오래 기다리는 문제는 실사용 시험에서 확인한 뒤 몫을 나눈다.
+- 상한 귀속 [결정: M3-REQ-67, 오케스트레이터 기본값]: 임대 안의 위임(`owner.kind: "drive"`)은 `loop.spawn` 호출이 임대의 `maxSpawns`에 센다. 임대 밖의 위임(`owner.kind: "scope"`, 그룹 `delegate`)은 임대 상한에 세지 않고, `maxDepth`, `maxConcurrent`, 전체 풀 상한만 받는다. 임대가 없는 호출이므로 임대 예산의 대상이 아니다. 그룹이 자기 호출 수를 제한하려면 자기 설정으로 한다.
 
 ### 4.5 requestId 파생과 재개
 
@@ -424,7 +431,7 @@ export type AgentJudgedPayload = JudgeRecord;
 |---|---|
 | `role_marker` | 줄 머리의 `System:`, `Assistant:`, `Human:`, `User:` |
 | `system_tag` | `<system>`, `<system-reminder>`, `[SYSTEM]` 같은 태그 |
-| `tool_call_markup` | 도구 호출을 흉내 내는 마크업(`<function_calls>`, `<tool_use>`, `"type":"tool_use"`) |
+| `tool_call_markup` | 도구 호출을 흉내 내는 마크업(`<function_calls>`, `<function_results>`, `<tool_use>`, `"type":"tool_use"`, `antml:` 접두 태그) |
 | `override_phrase` | "ignore (all) previous instructions" 계열 문구(영어·한국어 목록) |
 | `wrapper_escape` | 격리 블록 닫는 표지 `</subagent_report` |
 
@@ -467,7 +474,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - B안은 2차 선택지로 둔다. 증거가 파일 내용이어야 하는 목표가 많으면 다시 본다.
 - 모델 역할: L1.models.spec 역할 표의 `judge`(설정 `l1.models.routing.judge`, 대체 순서 `review` → `main`)를 쓴다. 대체 순서 끝에서 루프 모델과 같은 모델이 될 수 있다. 같은 모델로 해석되면 판정은 하되 설정 화면과 `agent.judged`에 표시한다 [제안]. 결정 4의 "별도 판정 모델"을 지키려면 사용자가 `judge` 라우팅을 정해야 하므로, 첫 실행 설정에서 권장한다 [제안].
 - 출력 스키마: `{ verdict: "met" | "not_met" | "undecidable", rationale: string, missing: string[] }`. 스키마를 어기면 한 번 다시 묻지 않고 `undecidable`로 본다 [제안]. 다시 묻기는 상한을 흐리게 하기 때문이다.
-- 상한: `l1.agents.judge.maxRuns`(기본 3)은 `(threadId, goalRef)`마다의 판정 실행 수다. 판정 상한 키는 이 하나이고 L2.work는 자기 상한 키를 두지 않고 이 키를 참조한다 [결정: review.decisions-2 S-06]. 판정 오류(`failed`)는 실행 수에 넣지 않는다(§5 사례 8). 판정 역할 이름은 L1.models.spec 역할 표의 `judge`다. `judge`는 그 대화의 `agent.judged` 수를 세어 상한이면 모델을 부르지 않고 `{ kind: "capped" }`를 돌려준다. 완료 게이트가 이 결과를 어떻게 처리할지(turn 종료와 사용자 알림)는 L1.loop.spec이 정한다 [가정].
+- 상한: `l1.agents.judge.maxRuns`(기본 3)은 `(threadId, goalRef)`마다의 판정 실행 수다. 판정 상한 키는 이 하나이고 L2.work는 자기 상한 키를 두지 않고 이 키를 참조한다 [결정: review.decisions-2 S-06]. 판정 오류(`failed`)는 실행 수에 넣지 않는다(§5 사례 8). 이 키는 session 범위도 받으므로 상한은 판정 대상 thread로 읽는다(`AgentsSettingsSource.judgeMaxRuns(threadId)`). 판정 역할 이름은 L1.models.spec 역할 표의 `judge`다. `judge`는 그 대화의 `agent.judged` 수를 세어 상한이면 모델을 부르지 않고 `{ kind: "capped" }`를 돌려준다. 완료 게이트가 이 결과를 어떻게 처리할지(turn 종료와 사용자 알림)는 L1.loop.spec이 정한다 [가정].
 - 기록 [제안]: `judge`는 모델 응답을 받은 직후 `agent.judged`를 자기 커밋(requestId `judge:<threadId 해시>:<goalRef>:<run>`)으로 남기고 결과를 돌려준다. 재개 때 같은 `(goalRef, run)`의 기록이 있으면 `{ kind: "recorded" }`를 돌려주고 다시 판정하지 않는다. 모델 호출 뒤 커밋 전에 끝나면 재개 때 다시 판정한다(비용만 든다).
 - 단계 경계 커밋과의 관계: architecture.runtime-flow.design §4.5는 "판정 결과는 단계 경계 커밋에 내구 이벤트로 남아"라고 적었고, L1.loop.spec §4.9는 L2.work의 `boundary.settle.before` 핸들러가 판정 결과를 확장 kind 엔트리로 T4에 넣는다고 적었다. 그런데 `finalizeBoundary`는 접두 없는 코어 kind 엔트리를 거부한다(L1.loop.spec §9 수용 기준 5). 그래서 `agent.judged`는 판정 호출의 자기 커밋으로 쓰고, L2.work 핸들러는 T4 엔트리에 판정 참조(`agent.judged`의 EventId)만 남긴다 [제안]. 이렇게 하면 단계 경계 커밋보다 먼저 판정이 내구화된다. 이 정리는 L1.loop.spec·L2.work.spec과 맞춰야 한다 [미결](§10).
 - 판정 모델 요청의 requestId(모델 호출 멱등 키가 생기면)는 `judge:<goalRef>:<run>`이다.
@@ -518,7 +525,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - core-agents는 지점을 소유하지 않는다(`L1.readme` §6 소유표).
 - 자식 대화 안의 지점(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 그룹 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
 - drive와의 관계: `LoopHandle.spawn`이 이 서비스의 `spawn`이다. `LeaseBudget.spawns`(F.extensions.spec §3.2) 집계는 X가 한다. 백그라운드 위임은 drive 임대 상한에 들어가지 않는다(L3.group-kit.spec §3.4).
-- post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `xeon.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 확장 post 경로를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
+- post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `xeon.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`, `origin: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 확장 post 경로를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
 - scope와의 관계: 확장이 비활성화되면 그 확장이 등록한 정의는 빠진다. 이미 실행 중인 자식은 끝까지 실행된다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -581,20 +588,19 @@ export type AgentJudgedPayload = JudgeRecord;
 
 ## 10. 미결 사항
 
-- [미결] 포그라운드와 백그라운드가 같은 `subagents` 풀을 쓸지, 백그라운드 전용 몫을 둘지(§4.4).
 - [미결] 판정 호출 형태(무도구 단발 대 제한된 자식 세션)의 확정(§4.8). 이 문서는 A안을 [제안]한다.
 - [미결] 판정 상한에 이른 뒤의 처리(turn 종료, 사용자 알림, 사용자 연장). L1.loop.spec과 함께 정한다.
 - [미결] 정의 위치 우선순위에 확장 정의를 넣는 자리(§4.9)와 M2 조기 도입 범위.
 - [미결] 지시문 모방 검사의 표지 목록과 한국어 문구 목록(§4.6). Claude Code 원문 표지를 확인한 뒤 고친다.
 - [미결] 백그라운드 자식 정착 때 부모 대화가 삭제된 경우 보고 처리(§5 사례 7).
 - [미결] 자식 사용량의 부모 귀속 표시 방식(§3.5). 부모 합계에 더하는 화면 규칙은 L4와 함께 정한다.
-- [미결] `maxConcurrent` 기본값 8과 전체 풀(`l1.tasks.limits.subagents`)과의 관계.
+- [결정: M3-REQ-67, 오케스트레이터 기본값] `maxConcurrent`(기본 8)는 루트별 상한이고 전체 풀 `l1.tasks.limits.subagents`(기본 16) 안에서 FIFO로 함께 적용한다. 루트 둘이 각각 8을 쓰면 전체 풀이 찬다.
 - [미결] 패키지 판정 문구 "`Agent` 클래스를 자식마다 생성"과 L1.loop.spec §3.2(`Agent` 클래스 미사용, 자체 루프 `runTurn`, adr.0009)의 정리(§4.1 5번). 이 문서는 L1.loop.spec을 따른다.
 - [미결] `agent.judged`를 판정 호출의 자기 커밋으로 쓰는 정리(§4.8)와 L1.loop.spec §4.9 "확장 kind 엔트리로 T4에 기록"의 맞춤.
-- [미결] 그룹 위임(`scope` 소유자)의 caller를 `main`으로 볼지 그룹 이름을 싣는 별도 caller(`group:<이름>`)를 둘지. 지금은 `main`이다.
-- [미결] `JudgeInput`에 `run`이나 `stepId`가 없어 재개 때 같은 호출의 `recorded`를 알아볼 수 없다. 지금은 같은 `(goalRef, run)` 커밋이 겹칠 때만 `recorded`다. 한 turn 안에서 게이트가 여러 번 판정할 수 있어 `turnId`로는 구분하지 못한다.
-- [미결] `completeStructured`를 F `ModelService`와 core-models에 둘지(`L1.models.spec` §4.10). 지금은 core-agents 안에 있다.
-- [미결] `ChildTurnRequest`에 turn 출처(`TurnOrigin` `delegation`)를 실을 자리가 없다. 자식 turn의 `turn.started.origin`은 core-loop `runChildTurn`이 `delegation`으로 정하거나 F가 필드를 더해야 한다.
+- [결정: M3-REQ-67, 오케스트레이터 기본값] 그룹 위임(`scope` 소유자)의 caller는 `main`으로 둔다. 어느 그룹이 맡겼는지는 `agent.spawned.owner.scopeId`에 남으므로 별도 caller 이름 `group:<이름>`을 만들지 않는다. 정책 규칙의 `caller: "main"` 조건이 그룹 위임에도 같게 적용된다.
+- [결정: M3b B3-L1M] `JudgeInput.stepId`(선택)를 더했다. 있으면 같은 `goalRef`의 마지막 `agent.judged`가 그 단계에서 남긴 것일 때 `{ kind: "recorded" }`를 돌려주고 다시 판정하지 않는다. `agent.judged`의 `stepId` 칸에 그 단계를 적는다. `run`은 호출자가 넘기지 않고 `agent.judged` 수에서 구한다. `boundary.settle.before` 페이로드에 `stepId`(선택)를 실어 완료 게이트가 넘긴다.
+- [결정: M3b B3-L1M, 오케스트레이터 기본값] `completeStructured`는 core-agents의 `structured.ts`에 둔다. F `ModelService`와 core-models에는 더하지 않는다. 쓰는 곳이 판정 하나이고, 계정 풀·폴백과 함께 쓰는 형태가 필요해지면 그때 F 요청으로 올린다(`L1.models.spec` §3.10, §4.10과 맞춤).
+- [결정: M3b B3-L1M] 자식 turn의 `turn.started.origin`은 core-loop `runChildTurn`이 `delegation`으로 정한다(`L1.loop.spec` §4.4b). `ChildTurnRequest`에 필드를 더하지 않는다.
 - [미결] `lifecycle.agent.settled` 지점을 `agent.settled` 커밋에서 발화하는 쪽(ext-host 또는 core-persistence)이 아직 없다.
 - [미결] `undecidable` 판정을 게이트가 계속으로 다룰지(지금 [제안])와 `agent_before_settle` 핸들러를 L2.work가 거는 시점.
-- [미결] 재시작 뒤에는 어느 scope가 맡긴 위임인지 `AgentView`에 없어 `cancel({ ownerScopeId })`가 이 프로세스의 자식만 취소한다.
+- [결정: 오케스트레이터 기본값] 재시작 뒤 `cancel({ ownerScopeId })`는 `session.threads.list`로 대화를 훑어 정착하지 않은 자식의 `agent.spawned.owner`를 대조한다. `AgentView`에 소유자를 더하지 않는다(F 변경 없음). 대화가 많으면 느리므로 그룹 비활성화처럼 드문 경로에서만 부른다.

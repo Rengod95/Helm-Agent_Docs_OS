@@ -10,7 +10,7 @@
 use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -23,6 +23,8 @@ use tokio::sync::{mpsc, watch, Notify};
 use tokio::time::{timeout, timeout_at, Instant};
 
 use crate::applog::AppLog;
+use crate::desktop_settings::{RESTART_LIMIT_RANGE, SHUTDOWN_GRACE_MS_RANGE};
+use crate::env_path::augment_path;
 use crate::relay::{
     spawn_pipe_writer, CommandError, PipeHandle, Relay, StdinSink, WRITE_QUEUE_FRAMES,
 };
@@ -94,7 +96,7 @@ pub enum EngineState {
 // ---------------------------------------------------------------------------------------------
 // 설정
 
-/// 셸이 읽는 `l4.desktop.engine.*` 값. 설정 저장소(DESK.4 이후)가 정해질 때까지 기본값을 쓴다.
+/// 셸이 읽는 `l4.desktop.engine.*` 값. `main.rs`가 `desktop-settings.json`의 값을 `from_values`로 넣는다(§3.6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EngineConfig {
     /// 종료 요청 뒤 엔진이 끝나기를 기다리는 시간(`shutdownGraceMs`).
@@ -114,17 +116,15 @@ impl Default for EngineConfig {
 
 impl EngineConfig {
     /// 설정 파일에서 읽은 값을 검사해 쓴다. 없거나 범위 밖이면 그 값만 기본값으로 둔다
-    /// (`F.wire-settings.spec` 4.8의 파일 값 규칙과 같다).
-    // 설정 저장소(DESK.4 이후)가 연결되면 main.rs가 부른다.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// (`F.wire-settings.spec` 4.8의 파일 값 규칙과 같다). 범위는 `desktop_settings`의 상수와 같다.
     pub fn from_values(shutdown_grace_ms: Option<i64>, restart_limit: Option<i64>) -> Self {
         let default = Self::default();
         let grace = shutdown_grace_ms
-            .filter(|ms| (1000..=180_000).contains(ms))
+            .filter(|ms| SHUTDOWN_GRACE_MS_RANGE.contains(ms))
             .and_then(|ms| u64::try_from(ms).ok())
             .map_or(default.shutdown_grace, Duration::from_millis);
         let limit = restart_limit
-            .filter(|n| (0..=10).contains(n))
+            .filter(|n| RESTART_LIMIT_RANGE.contains(n))
             .and_then(|n| u32::try_from(n).ok())
             .unwrap_or(default.restart_limit);
         Self {
@@ -200,14 +200,25 @@ fn backoff(attempt: u32) -> Duration {
 // ---------------------------------------------------------------------------------------------
 // 환경과 프로세스 그룹
 
-/// E7: 엔진 환경에서 `BUN_OPTIONS`만 지우고 나머지는 상속한다.
-pub fn engine_env<I>(vars: I) -> Vec<(OsString, OsString)>
+/// E7: 엔진 환경에서 `BUN_OPTIONS`만 지우고 나머지는 상속한다. PATH는 `augment_path`로 도구 디렉터리를 덧붙이며,
+/// 없으면 맨 뒤에 넣는다. `home`은 사용자 홈 디렉터리다(E6의 cwd와 같다).
+pub fn engine_env<I>(vars: I, home: Option<&Path>) -> Vec<(OsString, OsString)>
 where
     I: IntoIterator<Item = (OsString, OsString)>,
 {
-    vars.into_iter()
+    let mut env: Vec<(OsString, OsString)> = vars
+        .into_iter()
         .filter(|(key, _)| key != "BUN_OPTIONS")
-        .collect()
+        .collect();
+    match env.iter().position(|(key, _)| key == "PATH") {
+        Some(index) => {
+            let (_, value) = &mut env[index];
+            let current = std::mem::take(value);
+            *value = augment_path(Some(current), home);
+        }
+        None => env.push((OsString::from("PATH"), augment_path(None, home))),
+    }
+    env
 }
 
 /// 프로세스 그룹 전체에 SIGKILL(Unix) 또는 프로세스 트리 종료(Windows)를 보낸다.
@@ -785,12 +796,14 @@ impl Launcher for TauriLauncher {
                 .map_err(|e| LaunchError(format!("sidecar `{SIDECAR_NAME}` is not available: {e}")))?
                 .args(SIDECAR_ARGS),
         };
+        // cwd는 홈 디렉터리다(E6). PATH 보강에도 이 값을 쓴다.
+        let env = engine_env(std::env::vars_os(), Some(cwd.as_path()));
         let (rx, child) = command
             .set_raw_out(true)
             .set_process_group(true)
             .current_dir(cwd)
             .env_clear()
-            .envs(engine_env(std::env::vars_os()))
+            .envs(env)
             .spawn()
             .map_err(|e| LaunchError(format!("spawn failed: {e}")))?;
         let pid = child.pid();
@@ -926,11 +939,44 @@ mod tests {
             (OsString::from("BUN_OPTIONS_X"), OsString::from("keep")),
             (OsString::from("HOME"), OsString::from("/home/u")),
         ];
-        let kept: Vec<String> = engine_env(vars)
+        let kept: Vec<String> = engine_env(vars, None)
             .into_iter()
             .map(|(k, _)| k.to_string_lossy().into_owned())
             .collect();
         assert_eq!(kept, ["PATH", "BUN_OPTIONS_X", "HOME"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn engine_env_adds_the_tool_dirs_to_the_path_in_place_or_last() {
+        let pair = |k: &str, v: &str| (OsString::from(k), OsString::from(v));
+        // Finder로 띄운 앱: PATH가 있으면 제자리에서 보강되고, BUN_OPTIONS는 빠진다.
+        let finder = vec![
+            pair("HOME", "/Users/u"),
+            pair("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"),
+            pair("BUN_OPTIONS", "--inspect"),
+        ];
+        assert_eq!(
+            engine_env(finder, Some(Path::new("/Users/u"))),
+            vec![
+                pair("HOME", "/Users/u"),
+                pair(
+                    "PATH",
+                    "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/Users/u/.local/bin:/Users/u/.nix-profile/bin"
+                ),
+            ]
+        );
+        // PATH가 없으면 맨 뒤에 넣는다.
+        assert_eq!(
+            engine_env(vec![pair("HOME", "/Users/u")], Some(Path::new("/Users/u"))),
+            vec![
+                pair("HOME", "/Users/u"),
+                pair(
+                    "PATH",
+                    "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/Users/u/.local/bin:/Users/u/.nix-profile/bin"
+                ),
+            ]
+        );
     }
 
     #[test]

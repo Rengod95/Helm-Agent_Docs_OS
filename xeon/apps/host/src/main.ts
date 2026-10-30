@@ -166,8 +166,8 @@ export async function runHostCommand(command: HostCommand, io: CommandIo): Promi
       return exit.code;
     }
     case "config-schema": {
-      // M1에는 외부 확장이 없어 --core-only와 같은 카탈로그다. 외부 확장은 M2 로더가 더한다
-      const built = buildEngineCatalog();
+      // 외부 확장은 로더가 더하므로 파일 스키마는 코어 카탈로그에 앱이 넘긴 그룹(CLI의 l4.cli.*)을 더한 것이다. --core-only는 코어만이다
+      const built = buildEngineCatalog(command.coreOnly ? undefined : command.settingGroups);
       if (!built.ok) {
         await writeText(
           io.stderr,

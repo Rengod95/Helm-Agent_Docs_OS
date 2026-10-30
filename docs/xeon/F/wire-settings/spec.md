@@ -328,6 +328,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | status | `status.list` | `{ threadId: ThreadId }` | `{ items: StatusItem[] }` | M3 |
 | attachments | `attachments.add` | `{ threadId?: ThreadId, source: AttachmentSource }` | `{ attachment: Attachment, parts: (TextContent\|ImageContent)[] }` | M3 |
 | notify | `notify.list` | `{ threadId?: ThreadId, afterSeq: integer, kinds?: NoticeKind[], limit?: integer(1..500) }` | `{ notices: Notice[], nextSeq: integer }` | M3 |
+| web | `web.providers` | `{}` | `{ providers: WebProviderStatus[](최대 64), settings: WebSettings }`. 모양은 아래 글머리 | M3 |
 | usage | `usage.get` | `{ providerId?: string, threadId?: ThreadId }` | `{ gauges: UsageGauge[], asOf: IsoTime }` | M3 |
 | secret | `secret.list` | `{ meta?: boolean, usage?: boolean }` | `{ secrets: SecretListEntry[] }` | M2 |
 | secret | `secret.meta` | `{ name: SecretName, …메타·정책 필드 }` | `{ secret: SecretListEntry }` | M2 |
@@ -338,6 +339,10 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 | proposal | `proposal.list` | `{ source?: "learning"\|"knowledge", status?: ProposalStatusWire[], limit?: integer(1..200), cursor?: string }` | `{ proposals: ProposalRow[], nextCursor: string \| null, unavailable: ProposalSource[] }` | M3 |
 | proposal | `proposal.decide` | `{ source, id: string, decision: "approve", revision: integer, scope?: "user"\|"project" }`, `{ source, id, decision: "reject", note?: string }`, `{ source, id, decision: "edit", revision: integer, body: string }`, `{ source, id, decision: "revert" }` | `{ ok: true, proposal: ProposalRow, applied: boolean }`, `{ ok: false, reason: ProposalDecideFailure, detail?: string }` | M3 |
+| schedule | `schedule.create` | `{ trigger: ScheduleTrigger, prompt: string(1..20000), workspace?: string(최대 4096), title?: string(1..200), enabled?: boolean }` | `{ ok: true, entry: ScheduleEntryView, warnings: "service_mode_off"[] }`, `{ ok: false, error: ScheduleError }` | M3 |
+| schedule | `schedule.list` | `{ enabled?: boolean }` | `{ ok: true, items: ScheduleListItem[](최대 200) }`, `{ ok: false, error: ScheduleError }` | M3 |
+| schedule | `schedule.cancel` | `{ scheduleId: ScheduleId }` | `{ ok: true, entry: ScheduleEntryView }`, `{ ok: false, error: ScheduleError }` | M3 |
+| schedule | `schedule.fire` | `{ scheduleId: ScheduleId }` | `{ ok: true, run: RunView }`, `{ ok: false, error: ScheduleError }` | M3 |
 
 - [결정: review.m3-design-inputs D-M3-32 a, M3-REQ-18] 지식 제안 대기열 wire(`proposal.*`, `wire/proposals.ts`). 대기열은 둘이다: 학습 그룹의 `x_learning_proposals`(`source: "learning"`)와 L2.knowledge의 쓰기 승인 대기열 `cap_knowledge_proposals`(`source: "knowledge"`). 이 wire는 두 출처를 한 목록으로 보이는 조회와 결정이고, 대기열을 하나로 합치지 않는다.
   - `proposal.list`는 두 출처를 `createdAt` 내림차순(같으면 `(source, id)` 오름차순)으로 합친다. `ProposalRow`는 두 출처가 같은 모양이다: `source`, `id`, `kind`(`skill`, `memory`, `feedback`, `script`), `op`, `target`, `status`(두 대기열 상태의 합집합: `pending`, `approved`, `applied`, `rejected`, `stale`, `expired`, `reverted`), `destructive`, `diff`, `rationale`, `evidence`, `conflictsWith`, `reason`, `revision`, `scope`, `afterUntrusted`, `createdAt`. 출처에 없는 필드는 빈 값(null, false, 빈 배열, `revision` 1)이다. 한 출처를 읽지 못하면(지식 저장소 없음 등) 그 출처만 `unavailable`에 올리고 나머지 행은 돌려준다. `source`와 `status` 필터는 서버가 건다.
@@ -382,6 +387,27 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - [결정: M3-REQ-16, review.m3-design-inputs D-M3-17] 알림 전달: 호스트는 `notify.delivered`를 연결된 클라이언트 모두에 보낸다. 클라이언트 창이 앞에 있어도 기본으로 보내고, 보낼지는 호스트의 설정 키로 조정한다. OS 토스트와 앱 안 표시는 클라이언트가 한다. 웹·모바일 푸시는 후순위다. 알림은 내구 이벤트 `dialog.notified`에서 나오므로 놓친 클라이언트는 `notify.list`로 따라잡는다.
   - [결정: M3-REQ-19] 재접속용 목록: `thread.open`에 `includeItems: true`를 주면 결과에 현재 가지의 item 목록(`items`, `hasMore`)과 그것이 반영한 `asOfSeq`를 싣는다. `asOfSeq` 뒤의 이벤트는 `events.subscribe`로 이어 받는다(§3.4.6). 대기 승인은 `approval.list`(`position`)가 같은 규칙으로 준다. 안전 모드로 떠 있으면 `host.status`의 `safeMode`가 참이라 화면이 표시한다.
 - [결정: m2c G1-01 후속] `command.list`의 `threadId`는 선택이다. 주면 프로젝트 명령(`.xeon/commands`)을 그 thread의 작업 폴더 기준으로 읽고(신뢰 게이트 포함), 생략하면 thread 문맥 없이 읽는다. 작업 폴더가 없는 thread는 프로젝트 명령 없이 나온다. 없는 thread는 `thread.notFound`(3001)다. 목록만 읽으므로 `command.run`과 달리 쓰기 소유를 얻지 않는다. `dialog.commands.list`의 입력 스키마는 바뀌지 않고, 호스트가 `threadId`를 입력에서 떼어 호출 문맥에 싣는다. 근거: `L4.host-service.spec` §10 29.
+- [결정: M3-REQ-96] `web.providers`는 웹 provider 상태와 웹 설정의 유효 값을 읽는 메서드다(`wire/web-providers.ts`). 읽기 전용이고 비밀 값을 싣지 않는다. 키 값, 주입 위치, 헤더 이름은 결과 어디에도 없다. 호스트는 `cap-web`의 provider 카탈로그와 탐침 캐시에서 값을 채운다(`L4.host-service.spec`).
+  - `providers`는 provider마다 한 항목이고 최대 64개다. 항목은 `id`(`ProviderId`, 최대 96자), `capability`(`web.search`, `web.fetch`, `web.browse`), `origin`(`plugin`, `detected`, `builtin`), `displayName`(1~64자), `auth`(`none`, `header`, `bearer`, `query`), `status`, `pricingAsOf`, `pricingStale`, `firstUseNoticed`, `autoRank`를 싣는다.
+  - `autoRank`는 자동 선택(`auto`)이 provider를 시도하는 순서에서의 0부터 센 자리다. 설정 provider가 `auto`가 아니어도 이 값은 자동 순서 기준이고, `search.parallel`과 설정 provider 값에 따라 바뀌지 않는다. `web.search`와 `web.browse` 행에만 값이 있고, `web.fetch` 행은 사용자 순서가 없어서 `null`이다. 자동 순서의 규칙은 `L2.web.spec` §4.8.2다. 클라이언트는 이 값으로 순서를 다시 계산하지 않는다.
+  - `status.kind`는 `ok` 또는 `unavailable`이다. `unavailable`은 `reason`에 웹 provider의 `ProviderUnavailableReason` 문자열을 싣고(최대 64자), `detail`(최대 512자)을 더할 수 있다.
+  - `pricingAsOf`는 가격표 기준일(ISO 날짜)이다. 가격표가 없거나 무료면 `null`이다. `pricingStale`은 기준일이 오래되었을 때 참이다. `firstUseNoticed`는 고지가 필요 없는 provider(`auth: "none"`)거나 첫 사용 고지를 이미 보였을 때 참이다.
+  - `settings`는 웹 설정의 유효 값이다. `searchProvider`, `searchOrder`, `searchParallel`(1~4), `browseProvider`, `browseOrder`, `robots`(`auto`, `always`, `never`)를 싣는다. 값을 바꿀 때는 `settings.set`을 쓴다.
+
+  ```ts
+  // wire/web-providers.ts
+  export const WebProvidersResultSchema = Type.Object({
+    providers: Type.Array(WebProviderStatusSchema, { maxItems: 64 }),
+    settings: WebSettingsWireSchema,
+  }, { additionalProperties: false });
+  ```
+
+- [결정: M3b B1-SCH2] `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`는 예약 항목을 만들고, 읽고, 끄고, 원격으로 한 번 실행하는 메서드다(`wire/schedule.ts`, `L2.schedule.spec` §4.4.9). 능력 `schedule.entries`(`capabilities/defs/schedule.ts`)가 입력과 모델 도구를 정하고, params는 그 능력 입력에 `_meta`를 더한 것이다. 능력 ID는 §3.5의 `schedule.timers`(cron 식)와 다른 능력이다.
+  - 기대한 실패는 JSON-RPC 오류가 아니라 `ok: false`의 `error`(`kind`)다. `proposal.decide`와 같은 규칙이다. `kind`는 `interval_too_short`, `at_in_past`, `invalid_trigger`, `limit_reached`, `not_found`, `not_remote`, `disabled`, `store_failed` 여덟이고, `ScheduleError`는 엔진의 `CreateError`, `CancelError`, `FireError`의 합집합이다.
+  - 트리거는 `interval`, `at`, `file_watch`, `remote`, `loop` 다섯 모양이고 각 모양은 정해진 필드만 받는다. 간격 최소값 300초와 켜진 예약 수 상한은 스키마가 아니라 엔진이 검사한다.
+  - `schedule.list`만 읽기 전용이다(`readOnly`, `replay: "safe"`). `create`, `cancel`, `fire`는 효과가 있는 쓰기이고 `requestId` 기억이 없어 멱등으로 분류하지 않는다(ADR-0015 §3.3). 같은 생성 요청을 두 번 받으면 항목이 두 개 생긴다.
+  - `schedule.create`의 `warnings`는 지금 `service_mode_off` 하나를 받는다. `L2.schedule.spec` §4.4.6은 `keepWithWarning`의 경고를 `runs_only_while_app_open`이라 적는다. 두 이름을 맞추는 일은 [미결]이다(§10).
+  - 모델 도구 `schedule_create`는 `everySeconds`(정수)나 `at`(RFC 3339 날짜시각) 가운데 하나만 받는다. 둘 다 없거나 둘 다 있거나 `at`을 읽지 못하면 메서드 입력 검사가 `invalid_input`으로 거부한다.
 - [제안] M1 범위는 브리프의 최소 셋(`turn.start`, `events.subscribe`, `settings.get`)에 선행 조건 둘(`host.hello`, `thread.create`)을 더한다. 대화를 시작하려면 thread가 있어야 하고, 모든 연결은 hello로 시작하기 때문이다.
 - [제안] `thread.open`을 추가했다. `_research/process.md` §6.3의 세션 단위 쓰기 소유 규칙을 계약에 드러내기 위해서다. 소유 잠금을 얻지 못하면 `thread.locked`(§3.5.2) 오류에 대안(관찰, 분기, 위임)을 싣는다. in-process 단일 클라이언트인 M1에서는 `thread.create`가 소유를 함께 얻는다.
 - [결정: m2 F.2] `thread.read`는 열린 thread의 스냅샷을 돌려주는 읽기 전용 메서드다(L4.desktop 상태 설계 §14 1번). `thread.open` 결과에 items를 싣지 않고 새 메서드를 둔 이유는 셋이다. 첫째, `thread.open`은 쓰기 소유 획득이라는 부작용이 있어서 소유 없이 관찰하는 thread나 재동기화 때마다 부르기에 맞지 않다. 둘째, 스냅샷은 재설정과 재구독마다 다시 읽는데 `thread.open`은 열 때 한 번 부르는 메서드다. 셋째, 긴 thread는 앞부분을 나눠 받아야 해서 `limit`과 `before`가 필요하다. `thread.read`는 소유를 얻지 않고 닫힌 thread도 읽는다. `items`는 현재 가지의 내구 `ItemRecord`를 오래된 것부터 담고, `position`은 그 items가 반영한 저장소 위치다. 이어 붙이는 규칙은 §3.4.6이다.
@@ -557,14 +583,14 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 | `settings.readFile`·`settings.writeFile`(36번) | 받음 | M3 메서드 표 | M3 | [결정: M3-REQ-15] 파일 단위 편집기가 쓴다. 파일 쓰기는 호스트 한 곳이다. 아래 "설정 파일 메서드" 설명을 본다 |
 | `SettingsTab`·`SettingUi` 필드(37번) | 받음 | §3.8.2 | M3 | [결정: M3-REQ-15] `SettingsTab`에 `sandbox`를 더하고 `SettingUi`에 선택 필드 `editor`(전용 편집기 힌트)를 더한다 |
 | `EffectiveSetting`의 잠금 사유 문구(39번) | 받음 | §3.8.2 | M3 | [결정: M3-REQ-15] 문구가 아니라 종류다. 선택 필드 `lockReason`(`managed_file`·`managed_policy`)을 호스트가 싣고 문장은 클라이언트가 만든다 |
-| 사용량 wire 메서드(35번) | 받음 | `usage.get` | M3 | [결정: M3-REQ-15] 레이트 리밋·계정 회전 게이지(review.decisions-2 U-21)가 읽는다. 데이터 원천은 L1.models의 사용량 투영이다 |
+| 사용량 wire 메서드(35번) | 받음 | `usage.get` | M3 | [결정: M3-REQ-15] 레이트 리밋·계정 회전 게이지(review.decisions-2 U-21)가 읽는다. 데이터 원천은 L1.models의 사용량 투영이다. 호스트 처리기는 원천 포트(조립 기본은 빈 목록)로 구현했고, 원천은 B2-MDL 트랙이 채운다 [구현: M3b B1-NTF H4] |
 | 사용자 알림 wire 알림(13번) | 보류 | 없음 | M3 | 알림은 M3다(review.decisions-2 S-04). M2는 내구 이벤트 kind로 대상을 고른다 |
 | `host.diagnose`(26번) | 반려 | 없음 | - | `doctor`는 `@xeon/host`의 진단 함수를 직접 부른다. 서비스 모드에서 원격으로 진단할 필요가 생기면 그때 다시 올린다. 데스크톱 첫 실행 화면이 받는 외부 바이너리 점검은 `host.status`의 `includeBinaries`와 `binaries`다(§3.3.1) |
 | `turn.interrupt`를 M1으로 당기기(25번) | 반려 | 없음 | - | M1 `chat`은 한 턴이고 프로세스 종료로 멈춘다. `turn.interrupt`는 M2 표에 있다 |
 | 적합성 실행기 `testing` 서브패스(19번) | 반려 | 없음 | - | review.decisions-2 U-03. 실행기는 각 패키지 `test/`에 둔다 |
 
 - [결정: M3-REQ-15] 설정 파일 메서드: `settings.readFile`은 범위 하나의 파일 원문을 돌려준다. 파일이 없으면 `exists: false`, `text: ""`, `sha256: null`이다. `managed`는 읽기만 되고 `readOnly: true`다. `project`·`local`은 작업 폴더가 있어야 하므로 `threadId`로 그 thread의 작업 폴더를 쓴다. `unknownKeys`는 카탈로그에 없는 키이고 파일에는 그대로 보존한다(§4.8). `settings.writeFile`은 파일 전체를 바꾼다. 호스트는 `text`를 JSON 객체로 읽고 그 범위의 `settingsJsonSchema`로 검사한 뒤 쓴다. `baseSha256`은 `readFile`이 준 해시이고 파일이 없었으면 null이다. 지금 파일과 다르면 `settings.fileConflict`(3107)이고, JSON 객체가 아니거나 스키마에 맞지 않으면 `settings.fileInvalid`(3108)다. `managed`에 쓰려는 요청은 `jsonrpc.invalidParams`다(params 스키마가 거른다). 쓰기에 성공하면 `settings.invalidated`를 보낸다.
-- [결정: M3-REQ-15] `usage.get`은 사용량 게이지를 읽는다. `UsageGauge`는 `{ id, providerId, account, window, unit, used, limit, resetsAt }`이고 `window`는 `minute`·`hour`·`day`·`week`·`month`·`session`, `unit`은 `tokens`·`usd`·`requests`다. `limit`이 null이면 한도를 모르는 것이라 화면은 사용량만 보인다. `threadId`를 주면 그 thread의 `session` 창을 더한다.
+- [결정: M3-REQ-15] `usage.get`은 사용량 게이지를 읽는다. `UsageGauge`는 `{ id, providerId, account, window, unit, used, limit, resetsAt }`이고 `window`는 `minute`·`hour`·`day`·`week`·`month`·`session`, `unit`은 `tokens`·`usd`·`requests`다. `limit`이 null이면 한도를 모르는 것이라 화면은 사용량만 보인다. `threadId`를 주면 그 thread의 `session` 창을 더한다. 데이터 원천(레이트 리밋, 계정 풀)은 B2-MDL 트랙이 채우며, 그 전까지 `gauges`는 빈 목록이다 [구현: M3b B1-NTF H4].
 - [결정: m2c G1-08] `settings.invalidated`의 `keys`는 바뀐 키 목록이고 비어 있으면 어느 키인지 모르는 변경(파일 통째 교체, 손상 복구)이다. `scopes`는 바뀐 범위이고 1개 이상이다. `threadId`는 `session` 범위 변경이 속한 thread이고 다른 범위면 `null`이다. 호스트는 모든 범위의 `settings.set`·`settings.reset`과 project·local·user 파일 변경 결과에 이 알림을 연결 전체에 보낸다. 같은 연결의 `settings.set` 호출자도 받는다.
 - [결정: m2c G1-08] 설정 변경 반영 규칙의 소유자는 호스트다. 알림을 받은 클라이언트는 `settings.get`으로 다시 읽을 뿐이고 값을 추측해 바꾸지 않는다. MCP 정의 재적재는 호스트 안에서 같은 신호를 받아 다음 단계 시작에 처리한다(`L2.mcp.spec`).
 - 판정이 "보류"인 요청은 M3 계획(`review.m3-plan`)이 받는다. 정하기 전에는 소비 문서가 이 요청에 의존하지 않는다.
@@ -1389,6 +1415,8 @@ wire:
 - A15. `approval.list`의 `approvals`는 `position.seq` 시점에 `approval.resolved`가 없는 `approval.requested` 전부이고 각 항목의 `request`가 이벤트 payload와 같다. 응답한 뒤에는 목록에서 빠진다.
 - A16. `createHostConnection`과 `createStdioTransport`는 `@xeon/contracts/wire`의 같은 구현을 CLI, 호스트, 데스크톱이 쓴다. 이 구현의 소스는 Bun·Node 모듈을 import하지 않는다. `HostConnection.notify`는 `$/connectionReset`을 id 없는 알림으로 보낸다.
 - A17. `approval.respond`의 `answer`는 `QuestionAnswer`, `{ mode?, note? }`, `{ feedback }`, `ReviewAnswer` 가운데 하나여야 한다. 질문 id 아래 문자열 하나만 둔 값이나 `AskAnswer` 배열 모양은 `-32602`다.
+- A18. `web.providers`의 결과는 값으로 왕복한다. `capability`가 `web.search`, `web.fetch`, `web.browse`가 아니거나 `status.kind`가 `ok`, `unavailable`이 아니거나 필드가 빠지면 거부된다. 결과와 항목의 속성 이름에는 키나 토큰을 담을 이름이 없고, 알 수 없는 필드는 거부된다(M3-REQ-96).
+- A19. `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`의 params는 능력 입력에 `_meta`를 더한 모양이고 알 수 없는 필드를 거부한다. 트리거 다섯 모양은 정해진 필드만 받고 `atMs: 0`은 거부된다. 결과의 `ok: false`는 `ScheduleError`의 여덟 `kind`를 모두 왕복한다. 네 메서드는 단계 M3다(M3b B1-SCH2).
 
 settings:
 
@@ -1416,3 +1444,4 @@ settings:
 9. [결정: m2-plan F.6] `ThreadSummary`의 필드는 §3.3.1 아래 코드로 정했다. 이어서 실행 후보는 전용 메서드 없이 `resumable` 필드로 알린다.
 10. [결정: m2c G1-08] U-04가 미룬 호스트 계약 요청은 §3.3.4 판정표로 하나씩 받거나 보류하거나 반려했다. 보류 항목은 M3 계획이 받는다. 이전에 받은 항목은 그대로다: 이어서 실행 후보는 `ThreadSummary.resumable`(미결 9), thread 오류 kind 3004~3006(§3.5.2), `secret.beginReveal`(§3.3.1 표).
 11. [결정: m2 F.2] L4.desktop 상태 설계 §14의 1번(스냅샷), 2번과 13번(대기 승인 목록)을 `thread.read`, `approval.list`로 받았다(§3.3.1, §3.4.6). 12번(로딩 신호)은 새 신호 없이 클라이언트가 요청 수명주기로 얻는다(§3.4.6 6항).
+12. [미결: M3b B1-SCH2] `schedule.create`의 `warnings` 값이다. 능력 입력과 wire는 `service_mode_off`만 받도록 정했다. `L2.schedule.spec` §4.4.6은 `keepWithWarning`의 경고를 `runs_only_while_app_open`이라 적는다. 두 이름을 하나로 맞출지(경고 값을 늘릴지, L2 문서를 고칠지) 사용자가 정한다.

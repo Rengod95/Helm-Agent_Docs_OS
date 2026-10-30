@@ -5,9 +5,13 @@ import type { HostedSearchPort } from "@xeon/contracts/services";
 import type { WebDeps } from "../../src/deps.ts";
 import { directConvertRunner, type ConvertRunner } from "../../src/fetch/convert-runner.ts";
 import { createWebRuntime, type WebRuntime } from "../../src/runtime.ts";
+import { createBrowseApi, type BrowseController } from "../../src/browse/service.ts";
+import type { BrowseConfirmPort } from "../../src/ports/confirm.ts";
+import type { BrowserMcpPort } from "../../src/ports/browser-mcp.ts";
 import { createWebService } from "../../src/service.ts";
-import type { HeaderSecretResolver } from "../../src/ports/secrets.ts";
+import type { HeaderSecretSender } from "../../src/ports/secrets.ts";
 import type {
+  BrowseCandidate,
   WebProviderCatalog,
   FetchCandidate,
   SearchCandidate,
@@ -49,17 +53,24 @@ export interface WebWorldOptions {
   readonly builtin?: {
     readonly search: readonly SearchCandidate[];
     readonly fetch: readonly FetchCandidate[];
+    readonly browse?: readonly BrowseCandidate[];
   };
+  /** 브라우저 동작의 사람 확인 대역. 없으면 확인이 필요한 동작은 거부된다 */
+  readonly browseConfirm?: BrowseConfirmPort;
+  /** 브라우저 MCP 포트 대역. 있으면 `playwright-mcp` 후보가 등록된다 */
+  readonly browserMcp?: BrowserMcpPort;
   /** true면 내장 검색 provider(searxng, builtin-wrapper)를 후보에 넣는다. 기본은 넣지 않는다 */
   readonly builtinSearch?: boolean;
   readonly hostedSearch?: HostedSearchPort;
   readonly asker?: FakeAsker;
-  readonly headerSecrets?: HeaderSecretResolver;
+  readonly headerSecrets?: HeaderSecretSender;
   readonly extensionSetting?: (extension: string, key: string) => unknown;
   /** 변환 실행기. 기본은 같은 프로세스에서 직접 변환한다 */
   readonly convert?: ConvertRunner;
   /** false면 저장소 없이 조립한다(디스크 캐시와 rawRef가 없는 모드) */
   readonly withStore?: boolean;
+  /** 다른 세계와 같은 저장소를 쓴다(재시작 시험: 두 번째 세계가 첫 세계의 기록을 읽는다) */
+  readonly store?: TestStore | undefined;
   readonly secretValues?: readonly string[];
 }
 
@@ -79,6 +90,12 @@ export interface WebWorld {
   readonly service: WebService;
   fetch: WebService["fetch"]["fetch"];
   search: WebService["search"]["search"];
+  browse: WebService["browse"];
+  /**
+   * `browse`를 받치는 세션 제어. 후보 목록을 바꾼 세계에서는 `runtime.browse`와 다른 객체다(세션 목록이 따로 있다),
+   * 그래서 세션을 닫는 시험은 이 값을 쓴다
+   */
+  readonly browseControl: BrowseController;
   /** 도구 경로 호출 옵션 */
   asModel(threadId: ThreadId, requestId?: string): CallOptions;
 }
@@ -107,6 +124,7 @@ function mergeSettings(overrides: WebWorldOptions["settings"]): WebSettings {
   return {
     search: { ...base.search, ...overrides?.search },
     fetch: { ...base.fetch, ...overrides?.fetch },
+    browse: { ...base.browse, ...overrides?.browse },
     // 기본은 모든 도메인 allow(정책이 아니라 파이프라인을 보려는 시험)
     policy: { ...base.policy, allow: ["*"], ...overrides?.policy },
     cache: { ...base.cache, ...overrides?.cache },
@@ -120,7 +138,8 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
   let settings = mergeSettings(options.settings);
   const resolver = fakeResolver({ "example.com": [PUBLIC_IP], ...options.hosts });
   const transport = fixtureTransport(options.routes ?? {}, resolver);
-  const store = options.withStore === false ? undefined : await openWebStore(clock);
+  const store =
+    options.store ?? (options.withStore === false ? undefined : await openWebStore(clock));
   const asker = options.asker ?? fakeAsker("allow");
   const runtime = createWebRuntime({
     clock,
@@ -137,6 +156,8 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
     guard: fakeSecretGuard(options.secretValues ?? []),
     ...(options.registrations === undefined ? {} : { registrations: options.registrations }),
     builtin: options.builtin ?? { search: [], fetch: [] },
+    ...(options.browseConfirm === undefined ? {} : { browseConfirm: options.browseConfirm }),
+    ...(options.browserMcp === undefined ? {} : { browserMcp: options.browserMcp }),
     builtinSearch: options.builtinSearch === true,
     ...(options.hostedSearch === undefined ? {} : { hostedSearch: options.hostedSearch }),
     ...(options.headerSecrets === undefined ? {} : { headerSecrets: options.headerSecrets }),
@@ -147,7 +168,15 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
   // 후보 목록을 시험이 직접 정한 경우(레지스트리를 거치지 않는다) 그 목록으로 바꾼다
   const deps: WebDeps =
     options.catalog === undefined ? runtime.deps : { ...runtime.deps, catalog: options.catalog };
-  const service = options.catalog === undefined ? runtime.service : createWebService(deps);
+  const browseControl =
+    options.catalog === undefined
+      ? runtime.browse
+      : createBrowseApi(
+          deps,
+          options.browseConfirm === undefined ? {} : { confirm: options.browseConfirm },
+        );
+  const service =
+    options.catalog === undefined ? runtime.service : createWebService(deps, browseControl);
   return {
     deps,
     runtime,
@@ -164,6 +193,8 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
     service,
     fetch: service.fetch.fetch,
     search: service.search.search,
+    browse: service.browse,
+    browseControl,
     asModel: (threadId, requestId = "tool-1") => ({
       requestId,
       context: { threadId, caller: { kind: "model", agent: "main" } },

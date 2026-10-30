@@ -152,7 +152,8 @@ function expectOriginValues(
   const origin = recordOf(recordOf(asked.payload)["origin"]);
   expect(origin["threadId"]).toBe(expected.threadId);
   expect(origin["turnId"]).toBe(expected.turnId);
-  expect(origin["toolCallId"]).toBe(expected.toolCallId);
+  // 루프가 제공자 id에 단계 salt(`_` + 8자)를 붙여 기록한다(L1.loop.spec §3.3 7번)
+  expect(origin["toolCallId"]).toMatch(new RegExp(`^${expected.toolCallId}_[0-9A-Z]{8}$`));
   expect(origin["caller"]).toBe("main");
   expect(typeof origin["stepId"]).toBe("string");
   expect(origin["stepId"]).toBe(asked.stepId);

@@ -1,5 +1,5 @@
 // src/state/ui/store.ts
-import type { EventId, ThreadId } from "@xeon/contracts/conversation";
+import type { EventId, JsonValue, ThreadId } from "@xeon/contracts/conversation";
 import { createStore } from "zustand/vanilla";
 import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
 
@@ -25,6 +25,26 @@ export type LockedThread = {
   readonly options: readonly LockedOption[];
 };
 
+/** 동작 슬래시 명령(`command.run`의 `done`)이 낸 출력. 화면이 대화 옆에 보이고 사용자가 닫는다 */
+type CommandOutput = {
+  readonly threadId: ThreadId;
+  readonly name: string;
+  readonly message: string | null;
+  readonly result: JsonValue;
+};
+
+/** 셸 주입이 있는 명령이 사람의 확인을 기다린다. 확인하면 `text`를 `confirmShell: true`로 다시 보낸다 */
+type ShellConfirm = {
+  readonly threadId: ThreadId;
+  readonly name: string;
+  /** 실행될 셸 명령(줄 순서) */
+  readonly commands: readonly string[];
+  /** 사용자가 친 줄 그대로 */
+  readonly text: string;
+  /** 확인 뒤 템플릿이 펼쳐져 `turn.start`로 갈 때 쓰는 요청 id */
+  readonly requestId: string;
+};
+
 export type UiState = {
   readonly selectedThreadId: ThreadId | null;
   /** 응답을 보냈지만 approval.resolved를 아직 받지 못한 승인. 낙관적 표시는 이 스토어에 두고 엔진 거울에는 두지 않는다 */
@@ -39,6 +59,10 @@ export type UiState = {
   readonly locked: LockedThread | null;
   /** 관찰 모드로 연 thread. 입력창이 잠긴다 */
   readonly observing: Readonly<Record<string, true>>;
+  /** 슬래시 명령이 낸 출력. 닫기 전까지 있다 */
+  readonly commandOutput: CommandOutput | null;
+  /** 셸 주입 확인 대기. 열려 있는 동안만 있다 */
+  readonly shellConfirm: ShellConfirm | null;
 };
 
 interface UiActions {
@@ -54,6 +78,10 @@ interface UiActions {
   showLocked(locked: LockedThread): void;
   dismissLocked(): void;
   setObserving(id: ThreadId, observing: boolean): void;
+  showCommandOutput(output: CommandOutput): void;
+  dismissCommandOutput(): void;
+  askShellConfirm(confirm: ShellConfirm): void;
+  clearShellConfirm(): void;
 }
 
 const INITIAL_UI: UiState = {
@@ -65,6 +93,8 @@ const INITIAL_UI: UiState = {
   screen: "chat",
   locked: null,
   observing: {},
+  commandOutput: null,
+  shellConfirm: null,
 };
 
 export type UiStore = { readonly read: ReadonlyStore<UiState>; readonly actions: UiActions };
@@ -102,6 +132,10 @@ export function createUiStore(): UiStore {
     showScreen: (screen) => api.setState({ screen }),
     showLocked: (locked) => api.setState({ locked }),
     dismissLocked: () => api.setState({ locked: null }),
+    showCommandOutput: (commandOutput) => api.setState({ commandOutput }),
+    dismissCommandOutput: () => api.setState({ commandOutput: null }),
+    askShellConfirm: (shellConfirm) => api.setState({ shellConfirm }),
+    clearShellConfirm: () => api.setState({ shellConfirm: null }),
     setObserving: (id, observing) =>
       api.setState((s) => {
         if ((s.observing[id] === true) === observing) return s;

@@ -1,4 +1,4 @@
-import type { ServiceKey } from "@xeon/contracts/capabilities";
+import type { ServiceKey, WebProviderRegistration } from "@xeon/contracts/capabilities";
 import { Bug, ok, type Result } from "@xeon/contracts";
 import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
 import type {
@@ -126,6 +126,11 @@ export interface ScopeHostApi<S = unknown> {
   registerProvider(name: string, config: ProviderResourceDef): void;
   registerMcpServer(name: string, config: McpServerResourceDef): void;
   registerMessageRenderer(customType: RecordKind, renderer: RendererResourceDef): void;
+  /**
+   * 웹 provider 등록(M3-REQ-37). 이름은 능력 ID다("web.search" | "web.fetch" | "web.browse"). 같은 scope가 같은 능력을
+   * 두 번 등록하면 resource_conflict다. 다른 확장의 같은 능력 등록은 함께 남는다. 소비자(cap-web)가 `resources.list("web_provider")`로 읽는다
+   */
+  registerWebProvider(registration: WebProviderRegistration): void;
   /**
    * 사용자 응답(대화상자, 승인) 대기를 감싼다. 핸들러 안에서 부르면 wait 동안 핸들러 시간 예산 시계를 멈추고,
    * wait에는 핸들러의 취소 신호(예산 초과, 세션 종료로 abort)를 `options.signal`과 합쳐 넘긴다.
@@ -339,6 +344,7 @@ export function createScopeApi(
           id,
           service,
           defs: deps.capabilityDefs,
+          providerTrusted: () => deps.bindings.providerIsBuiltin(id),
           extension: record.extension,
           scopeId: record.id,
         }),
@@ -368,7 +374,14 @@ export function createScopeApi(
       const fiber = fiberOf(generation);
       fiber.provide(name, impl);
       fiber.effect(
-        () => deps.bindings.addProvider(id, record.extension, provision.version, key.version),
+        () =>
+          deps.bindings.addProvider(
+            id,
+            record.extension,
+            provision.version,
+            key.version,
+            record.builtin,
+          ),
         `provider(${id})`,
       );
     },
@@ -515,6 +528,9 @@ export function createScopeApi(
     },
     registerMessageRenderer(customType: RecordKind, renderer: RendererResourceDef): void {
       register("message_renderer", customType, renderer);
+    },
+    registerWebProvider(registration: WebProviderRegistration): void {
+      register("web_provider", registration.capability, registration);
     },
     awaitUser<T>(
       wait: (signal: AbortSignal) => Promise<T>,

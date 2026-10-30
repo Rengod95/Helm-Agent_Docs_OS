@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import {
   assertNever,
   attempt,
@@ -34,6 +35,7 @@ import {
   type RenderOp,
   type TranscriptState,
 } from "../render/model.ts";
+import { deliveredOpsOf, handlerFailedOpsOf } from "../render/notices.ts";
 import { approvalViewOf } from "../render/transcript.ts";
 import type { ApprovalSink } from "../render/approval.ts";
 import type { LockOption, LockPrompt } from "../render/lock.ts";
@@ -151,6 +153,11 @@ export interface ChatSessionOptions {
   readonly width: number;
   /** 대화형: 저장 위치까지의 이전 기록을 user·assistant 텍스트로 접어 그린다(§4.4) */
   readonly collapseHistory: boolean;
+  /**
+   * 알림 전달(notify.delivered)을 그린다. 대화형만 켠다. print 모드는 turn 하나를 끝내고 끝나므로 완료 알림을 stderr에 또 쓰지 않는다
+   * (성공한 실행의 stderr를 비운다) [결정: 오케스트레이터 기본값]. JSON 모드는 sink가 없어 어느 쪽이든 그리지 않는다
+   */
+  readonly deliveredNotices: boolean;
   readonly keeper: PositionKeeper;
   /** 승인 요청을 받는 곳. 대화형은 프롬프트, print 모드는 자동 거부다(§4.11 4번). null이면 보이기만 한다 */
   readonly approvals: ApprovalSink | null;
@@ -421,7 +428,7 @@ async function lastThreadOf(
   if (listed.ok) {
     const first = listed.value.threads[0];
     if (first === undefined) {
-      return err(fail("이어 열 세션이 없다", "xeon chat으로 새 세션을 시작한다"));
+      return err(fail(t("cli.errors.chat.noSession.message"), t("cli.errors.chat.noSession.fix")));
     }
     return ok(first.threadId);
   }
@@ -432,9 +439,9 @@ async function lastThreadOf(
     return err(
       fail(
         loaded.kind === "discarded"
-          ? `CLI 상태 파일을 읽지 못해 버렸다 (${loaded.reason}). 이어 열 세션이 없다`
-          : "이어 열 세션이 없다",
-        "xeon chat으로 새 세션을 시작한다",
+          ? t("cli.errors.chat.noSessionDiscarded.message", { reason: loaded.reason })
+          : t("cli.errors.chat.noSession.message"),
+        t("cli.errors.chat.noSession.fix"),
       ),
     );
   }
@@ -544,8 +551,8 @@ export async function openChatSession(
             kind: "notice",
             text:
               reason === "storeMismatch"
-                ? "저장소가 바뀌어 이전 기록을 이어 받지 못했다"
-                : "저장된 위치부터 이어 받을 수 없어 지금부터 보인다",
+                ? t("cli.chat.notice.storeChanged")
+                : t("cli.chat.notice.replayUnavailable"),
           },
         ]);
         const result = await connection.request("events.subscribe", {
@@ -637,10 +644,20 @@ export async function openChatSession(
     connection.onNotification("stream.chunk", (params) => {
       if (live.closed) return;
       enqueue(async () => {
+        // 확장 핸들러 실패는 진행 줄이 아니라 알림이다(HS-92). 진행 줄의 접기·순서 규칙과 섞지 않고 도착 순서대로 그린다
+        if (params.event.kind === "scope.handler_failed") {
+          await emit(handlerFailedOpsOf(params, threadId));
+          return;
+        }
         const applied = applyChunk(live.state, params);
         live.state = applied.state;
         await emit(applied.ops);
       });
+    }),
+    // 알림 전달(HS-94). host.hello의 features에 없는 호스트에서도 등록해 둔다: 오지 않으면 그릴 것이 없다
+    connection.onNotification("notify.delivered", (params) => {
+      if (live.closed || !options.deliveredNotices) return;
+      enqueue(() => emit(deliveredOpsOf(params, threadId)));
     }),
   ];
 
@@ -660,7 +677,7 @@ export async function openChatSession(
         return;
       }
       if (isMethodNotFound(listed.error.cause)) return;
-      await emit([{ kind: "notice", text: "대기 중인 승인을 읽지 못했다" }]);
+      await emit([{ kind: "notice", text: t("cli.chat.notice.approvalsUnreadable") }]);
     };
     detach(
       replayDone.promise.then(restore).finally(() => {

@@ -6,6 +6,9 @@ import type { AssembleOptions } from "../../src/types.ts";
 // 정해진 답을 차례로 내면서, 모델이 받은 요청 본문을 모으는 테이프 모델. 작은 컨텍스트 창을 줄 수 있고, 요청 하나의 응답을 풀어 줄 때까지
 // 붙잡아 둘 수 있다(요약 호출이 도는 중에 다른 요청을 보내는 시험). 대화 turn과 요약 호출이 같은 큐(`main`)에서 차례로 답을 꺼낸다.
 
+/** 한 답. 문자열이면 본문만 준다. 객체면 응답이 보고하는 입력 토큰 수(`usage`)를 함께 준다. 엔진은 마지막 응답의 usage를 컨텍스트 추정에 쓴다 */
+type RecordedAnswer = string | { readonly text: string; readonly inputTokens: number };
+
 interface RecordingModels {
   readonly buildModels: NonNullable<AssembleOptions["buildModels"]>;
   /** 요청마다 모델이 받은 메시지 열을 JSON 텍스트로 한 줄씩. 요약 호출도 한 요청이다 */
@@ -24,21 +27,26 @@ interface RecordingOptions {
 
 export function recordingModels(
   id: string,
-  answers: readonly string[],
+  answers: readonly RecordedAnswer[],
   options: RecordingOptions,
 ): RecordingModels {
   const inner = tapePlayer(
     tape(
       id,
-      answers.map((answer, index) => ({
-        role: "main" as const,
-        label: `answer ${String(index + 1)}`,
-        response: {
-          type: "message" as const,
-          content: [t.text(answer)],
-          stopReason: "stop" as const,
-        },
-      })),
+      answers.map((answer, index) => {
+        const text = typeof answer === "string" ? answer : answer.text;
+        const usage = typeof answer === "string" ? undefined : { input: answer.inputTokens };
+        return {
+          role: "main" as const,
+          label: `answer ${String(index + 1)}`,
+          response: {
+            type: "message" as const,
+            content: [t.text(text)],
+            stopReason: "stop" as const,
+            ...(usage === undefined ? {} : { usage }),
+          },
+        };
+      }),
     ),
     { clock: realTapeClock() },
   );

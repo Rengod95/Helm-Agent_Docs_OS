@@ -25,6 +25,8 @@ export type SessionDeps = {
   readonly ui: UiStore;
   readonly logger: Logger;
   readonly transport: EngineConnectionDeps;
+  /** 연결이 열릴 때마다 부른다. 반환값은 연결이 끝날 때 부르는 해제 함수 */
+  readonly onConnection?: (connection: HostConnection) => () => void;
 };
 
 export interface Session {
@@ -119,6 +121,7 @@ export function startSession(deps: SessionDeps): Session {
     });
     current.connection = connection;
     current.link = link;
+    const release = deps.onConnection?.(connection);
     const left = wait();
     const unlisten = relay.onState((state) => {
       if (state.kind !== "running") left.open();
@@ -134,6 +137,7 @@ export function startSession(deps: SessionDeps): Session {
     );
     await left.promise;
     unlisten();
+    release?.();
     link.stop();
     current.link = null;
     current.connection = null;

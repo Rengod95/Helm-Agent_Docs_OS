@@ -493,3 +493,52 @@ test("a provider's own tools are not judged as replayed code", async () => {
 function isRecordLike(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null;
 }
+
+// M3-REQ-31, X.loading-trust.spec §4.6.4: 외부 확장이 공급하는 능력의 `idempotent` 선언은 재실행되는 코드에서 믿지 않는다
+
+async function replayCodes(providerBuiltin: boolean): Promise<Record<string, string>> {
+  const t = await createTestHost({ capabilityDefs: echoDefs });
+  const provider = makeProvider();
+  await t.host.install(
+    makeUnit(
+      {
+        name: "re-provider",
+        builtin: providerBuiltin,
+        provides: [{ id: "demo.echo", version: "1.0.0" }],
+      },
+      (g) => {
+        hostOf(g).provide(svcKey, provider.service);
+      },
+    ),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  const codes: Record<string, string> = {};
+  await t.host.install(
+    makeUnit(
+      {
+        name: "re-on",
+        loadIndex: 1,
+        points: ["boundary.settle.after"],
+        requires: [{ id: "demo.echo", range: "^1.0.0" }],
+      },
+      (g) => {
+        g.on("boundary.settle.after", async () => {
+          const svc = g.capability(svcKey);
+          codes.keyed = await codeOf(() => svc.echo({}, { requestId: "re-on:1" }));
+        });
+      },
+    ),
+  );
+  await fire(t, thread, "k");
+  codes.calls = String(provider.state.calls);
+  return codes;
+}
+
+test("an idempotent method of a built-in provider reaches the provider from a handler", async () => {
+  expect(await replayCodes(true)).toEqual({ keyed: "ok", calls: "1" });
+});
+
+test("an idempotent method of an external provider is treated as undeclared in a handler and never reaches the provider", async () => {
+  expect(await replayCodes(false)).toEqual({ keyed: "effect_not_allowed", calls: "0" });
+});

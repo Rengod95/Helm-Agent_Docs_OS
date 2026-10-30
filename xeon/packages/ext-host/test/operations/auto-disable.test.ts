@@ -1,9 +1,11 @@
 import { expect, test } from "bun:test";
+import type { ScopeHandlerFailedPayload } from "@xeon/contracts/records";
 import {
   createAutoDisabler,
   createFailureLedger,
   createLogNotifier,
   createScopeControl,
+  createVolatileNotifier,
   DEFAULT_AUTO_DISABLE,
   judgeAutoDisable,
   type AutoDisablePolicy,
@@ -36,6 +38,7 @@ function failed(
 interface Recorder {
   readonly requests: string[];
   readonly notices: string[];
+  readonly projections: string[];
   readonly scopes: ScopeControl;
   readonly notifier: OperationsNotifier;
 }
@@ -43,9 +46,11 @@ interface Recorder {
 function recorder(): Recorder {
   const requests: string[] = [];
   const notices: string[] = [];
+  const projections: string[] = [];
   return {
     requests,
     notices,
+    projections,
     scopes: {
       requestDisable: (scopeId: string, reason: ScopeChangeReason) => {
         requests.push(`disable:${scopeId}:${reason}`);
@@ -62,11 +67,21 @@ function recorder(): Recorder {
       autoDisabled: (key, verdict) => {
         notices.push(`disabled:${key}:${verdict.rule}`);
       },
+      projectionFailed: (key, cause, disabled) => {
+        projections.push(`projection:${key}:${cause}:${disabled}`);
+      },
     },
   };
 }
 
-function disablerOf(rec: Recorder, policy: AutoDisablePolicy = DEFAULT_AUTO_DISABLE) {
+interface DisablerOptions {
+  readonly policy?: AutoDisablePolicy;
+  readonly isExempt?: (key: string) => boolean;
+  readonly tierOf?: (key: string) => Tier | undefined;
+}
+
+function disablerOf(rec: Recorder, options: DisablerOptions = {}) {
+  const policy = options.policy ?? DEFAULT_AUTO_DISABLE;
   const ledger = createFailureLedger({ windowSize: policy.windowSize });
   const hooks: string[] = [];
   const disabler = createAutoDisabler({
@@ -78,6 +93,8 @@ function disablerOf(rec: Recorder, policy: AutoDisablePolicy = DEFAULT_AUTO_DISA
       enable: (id) => hooks.push(`enable:${id}`),
     },
     notifier: rec.notifier,
+    ...(options.isExempt === undefined ? {} : { isExempt: options.isExempt }),
+    ...(options.tierOf === undefined ? {} : { tierOf: options.tierOf }),
   });
   return { disabler, ledger, hooks };
 }
@@ -177,6 +194,51 @@ test("autoDisable: hooks and forced disable", () => {
   expect(hooks).toEqual(["disable:audit", "enable:audit"]);
 });
 
+test("autoDisable: projection failure disables a non-essential extension once and reports it", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec);
+  disabler.disableNow("ext:proj-ext", "projection_failed");
+  expect(rec.requests).toEqual([
+    "disable:proj-ext:auto_disable",
+    "disable:proj-ext/sub:auto_disable",
+  ]);
+  expect(rec.projections).toEqual(["projection:ext:proj-ext:projection_failed:true"]);
+  expect(disabler.disabled()).toEqual(["ext:proj-ext"]);
+  // 이미 끈 주체는 두 번 끄지도, 두 번 알리지도 않는다
+  disabler.disableNow("ext:proj-ext", "projection_failed");
+  expect(rec.requests).toHaveLength(2);
+  expect(rec.projections).toHaveLength(1);
+});
+
+test("autoDisable: projection failure of an essential extension is never disabled and is reported on every failure", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec, { isExempt: (key) => key === "ext:ess-ext" });
+  disabler.disableNow("ext:ess-ext", "projection_failed");
+  disabler.disableNow("ext:ess-ext", "projection_failed");
+  expect(rec.requests).toEqual([]);
+  expect(disabler.disabled()).toEqual([]);
+  expect(rec.projections).toEqual([
+    "projection:ext:ess-ext:projection_failed:false",
+    "projection:ext:ess-ext:projection_failed:false",
+  ]);
+});
+
+test("autoDisable: exempt tier is reported, not disabled; a key without a tier is judged by isExempt only", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec, {
+    tierOf: (key) => (key === "ext:core-ext" ? "core" : undefined),
+  });
+  disabler.disableNow("ext:core-ext", "projection_failed");
+  expect(rec.requests).toEqual([]);
+  expect(rec.projections).toEqual(["projection:ext:core-ext:projection_failed:false"]);
+  disabler.disableNow("ext:plain-ext", "projection_failed");
+  expect(rec.requests).toEqual([
+    "disable:plain-ext:auto_disable",
+    "disable:plain-ext/sub:auto_disable",
+  ]);
+  expect(rec.projections.at(-1)).toBe("projection:ext:plain-ext:projection_failed:true");
+});
+
 test("autoDisable: log notifier and scope control adapter", () => {
   const lines: string[] = [];
   const notifier = createLogNotifier((line) => lines.push(line));
@@ -188,6 +250,8 @@ test("autoDisable: log notifier and scope control adapter", () => {
     totalFailures: 2,
   });
   expect(lines[0]).toContain("ext:flaky-ext");
+  notifier.projectionFailed("ext:flaky-ext", "projection_failed", false);
+  expect(lines[1]).toBe("forced disable: ext:flaky-ext (projection_failed) kept enabled (exempt)");
   const calls: string[] = [];
   const control = createScopeControl({
     scopes: () => [
@@ -241,4 +305,115 @@ test("autoDisable: applied at step boundary", async () => {
   ]);
   await fire("4");
   expect(calls).toHaveLength(3);
+});
+
+function volatileOf(emitFails = false) {
+  const lines: string[] = [];
+  const emitted: ScopeHandlerFailedPayload[] = [];
+  const notifier = createVolatileNotifier({
+    emit: (payload) => {
+      if (emitFails) throw new Error("bus down");
+      emitted.push(payload);
+    },
+    log: (line) => {
+      lines.push(line);
+    },
+  });
+  return { lines, emitted, notifier };
+}
+
+const TWO_FAILURES = {
+  consecutive: 2,
+  windowCalls: 2,
+  windowFailures: 2,
+  totalCalls: 2,
+  totalFailures: 2,
+};
+
+test("volatile notifier: failed handler emits the exact payload and the log line", () => {
+  const { lines, emitted, notifier } = volatileOf();
+  notifier.handlerFailed({ ...failed("flaky-ext", "user"), message: "boom" }, TWO_FAILURES);
+  expect(emitted).toEqual([
+    {
+      owner: "ext:flaky-ext",
+      point: "tool.result",
+      result: "threw",
+      message: "boom",
+      consecutive: 2,
+    },
+  ]);
+  expect(lines).toEqual(["handler failed: ext:flaky-ext tool.result threw (consecutive 2)"]);
+  const sameLines: string[] = [];
+  createLogNotifier((line) => sameLines.push(line)).handlerFailed(
+    failed("flaky-ext", "user"),
+    TWO_FAILURES,
+  );
+  expect(lines).toEqual(sameLines);
+});
+
+test("volatile notifier: missing message is empty, consecutive is at least 1, message is capped", () => {
+  const { emitted, notifier } = volatileOf();
+  notifier.handlerFailed(failed("flaky-ext", "user"), { ...TWO_FAILURES, consecutive: 0 });
+  notifier.handlerFailed(
+    { ...failed("flaky-ext", "user"), message: "x".repeat(4500) },
+    TWO_FAILURES,
+  );
+  expect(emitted).toEqual([
+    { owner: "ext:flaky-ext", point: "tool.result", result: "threw", message: "", consecutive: 1 },
+    {
+      owner: "ext:flaky-ext",
+      point: "tool.result",
+      result: "threw",
+      message: "x".repeat(4000),
+      consecutive: 2,
+    },
+  ]);
+});
+
+test("volatile notifier: autoDisabled logs only and emits nothing", () => {
+  const { lines, emitted, notifier } = volatileOf();
+  notifier.autoDisabled("ext:flaky-ext", {
+    disable: true,
+    rule: "consecutive",
+    stats: TWO_FAILURES,
+  });
+  expect(emitted).toEqual([]);
+  expect(lines).toEqual(["auto-disabled: ext:flaky-ext by consecutive"]);
+});
+
+test("volatile notifier: a throwing emit is logged and does not reach the caller", () => {
+  const { lines, notifier } = volatileOf(true);
+  expect(() => notifier.handlerFailed(failed("flaky-ext", "user"), TWO_FAILURES)).not.toThrow();
+  expect(lines).toEqual([
+    "handler failed: ext:flaky-ext tool.result threw (consecutive 2)",
+    "scope.handler_failed not emitted: ext:flaky-ext tool.result (bus down)",
+  ]);
+});
+
+test("volatile notifier: the disabler emits one payload per failure and one auto-disable line", () => {
+  const rec = recorder();
+  const { lines, emitted, notifier } = volatileOf();
+  const disabler = createAutoDisabler({
+    ledger: createFailureLedger({ windowSize: DEFAULT_AUTO_DISABLE.windowSize }),
+    policy: () => DEFAULT_AUTO_DISABLE,
+    scopes: rec.scopes,
+    hooks: { disable: () => {}, enable: () => {} },
+    notifier,
+  });
+  for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  expect(emitted.map((payload) => payload.consecutive)).toEqual([1, 2, 3, 4, 5]);
+  expect(emitted[0]).toEqual({
+    owner: "ext:flaky-ext",
+    point: "tool.result",
+    result: "threw",
+    message: "",
+    consecutive: 1,
+  });
+  expect(rec.requests).toEqual([
+    "disable:flaky-ext:auto_disable",
+    "disable:flaky-ext/sub:auto_disable",
+  ]);
+  expect(lines.filter((line) => line.startsWith("auto-disabled:"))).toEqual([
+    "auto-disabled: ext:flaky-ext by consecutive",
+  ]);
 });

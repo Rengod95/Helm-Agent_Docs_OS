@@ -123,6 +123,7 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
     const input: JudgeInput = {
       threadId,
       turnId,
+      ...(payload.stepId === undefined ? {} : { stepId: payload.stepId }),
       goalRef: row.goal.goalId,
       goal: { text: row.goal.condition, criteria: criteriaOf(row.goal) },
       evidence: evidenceOf({

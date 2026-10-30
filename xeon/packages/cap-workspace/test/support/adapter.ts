@@ -16,6 +16,10 @@ export interface AdaptedResult {
   readonly content: ToolContent | undefined;
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 export async function callTool(
   def: AnyCapabilityDef,
   api: unknown,
@@ -25,7 +29,7 @@ export async function callTool(
 ): Promise<AdaptedResult> {
   const spec = def.tools.find((tool) => tool.name === name);
   if (spec === undefined) throw new Error(`no tool ${name} in ${def.id}`);
-  const method: unknown = Reflect.get(Object(api), spec.method);
+  const method: unknown = isRecord(api) ? api[spec.method] : undefined;
   if (typeof method !== "function") throw new Error(`no method ${spec.method}`);
   const input: unknown = spec.toInput === undefined ? params : spec.toInput(params);
   try {

@@ -77,7 +77,8 @@ xeon/apps/desktop/
       engine.rs                   # Supervisor: spawn·종료·재기동 (spec §4.1 E1~E11, §4.4), Launcher 추상화
       relay.rs                    # 줄 버퍼, 신용, stdin 쓰기 스레드, 셸 명령 engine_* (spec §3.3)
       secret_entry.rs             # 키 등록: 번들 사이드카를 `xeon secret add|set`으로 한 번 실행, 값은 stdin에만 (spec §4.14.1)
-      applog.rs                   # 앱 로그 파일(바이트 수만 기록, E11)
+      applog.rs                   # 앱 로그 파일(바이트 수만 기록, E11), 같은 줄을 log 크레이트 info로도 낸다(디버그 로그 파일)
+      env_path.rs                 # 엔진과 키 등록 자식의 PATH 보강(Finder 기본 경로에 도구 디렉터리 덧붙임, spec E7)
       time.rs                     # RFC 3339 UTC 문자열
   test/
     transport-conformance-stdio.int.test.ts
@@ -384,13 +385,13 @@ M2 마감 반영(T7 DESK, Rust 셸과 사이드카 e2e, G2-09·G4-03·원격 점
 
 | 부분 | 파일 | 내용 |
 |---|---|---|
-| 단일 실행 | `src-tauri/src/main.rs`, `window.rs` | `tauri-plugin-single-instance`를 첫 플러그인으로 등록하고 콜백이 `focus_main`(show, unminimize, set_focus)을 부른다. 시험은 `tauri::test` mock 앱으로 창 조회와 레이블 일치를 본다. 실제로 프로세스 둘을 띄운 확인은 하지 않았다 |
-| 로그 파일 | `main.rs` `debug_log_plugin` | 디버그 빌드만. `LogDir` 파일과 표준 출력, 2 MB `KeepOne` |
+| 단일 실행 | `src-tauri/src/main.rs`, `window.rs` | `tauri-plugin-single-instance`를 첫 플러그인으로 등록하고 콜백이 `ensure_main`을 부른다. 메인 창이 없으면 `main` 항목으로 만들고, `focus_main`(show, unminimize, set_focus)으로 앞에 세운다(M3b, M3-38). 시험은 `tauri::test` mock 앱으로 창 조회, 레이블 일치, 중복 없는 만들기를 본다. 실제로 프로세스 둘을 띄운 확인은 하지 않았다 |
+| 로그 파일 | `main.rs` `debug_log_plugin`, `applog.rs` | 디버그 빌드만. `LogDir` 파일과 표준 출력, 2 MB `KeepOne`. 받는 줄은 `AppLog::line`의 줄과 시작 줄이다(M3b, M3-m2c-04 e, spec §4.15) |
 | 상태 덤프, 스냅샷 | `src-tauri/src/inspect/` | spec §4.15. JSON-RPC 처리(`mod.rs`), 소켓 서버(`server.rs`: 소켓 0600/폴더 0700, 접속 4개, 줄 16 KiB, 낡은 소켓 교체와 일반 파일 보존), 실제 앱 정보(`probe.rs`), macOS 스냅샷(`snapshot_macos.rs`). Rust 시험 65개가 `just desktop-test`로 통과했다 |
 | 릴리스 점검 | `test/inspect-guard.test.ts` | 소스 수준 cfg 보장. 산출물 확인 목록은 spec §4.15. `cargo check --release`는 경고 없이 통과했다 |
 | e2e 틀 | `test/e2e/harness.ts`, `scenario.ts`, `sidecar.e2e.test.ts` | stdio JSON-RPC로 엔진 프로세스를 모는 도구. 소스 진입(`bun apps/cli/src/main.ts host --stdio`)과 컴파일 사이드카(`xeon-<triple> host --stdio`)에 같은 요청열(hello, 구독, thread.create/list/read, settings.get, approval.list, secret.list, trust.get, command.list, host.status. 재실행에서 작업 폴더가 있는 thread.create, trust.decide, command.list { threadId }, settings.set, secret.beginEntry를 더했다)을 보내 정규화한 응답과 이벤트열이 같은지, `host.shutdown` 또는 stdin EOF만으로 종료코드 0과 홈을 쥔 프로세스 0개인지 본다 |
 
-순서 경합(G4-03): thread를 연 직후 기본 켜짐 scope의 `scope.changed` 묶음이 다음 유휴 경계의 한 커밋으로 남고, 뒤따르는 입력과의 앞뒤는 시간에 달려 있다. 이전 도구는 60 ms를 기다려 이 경합을 가렸다. `untilScopesCommitted`가 시간 대신 조건을 기다린다: 구독으로 첫 `scope.changed`가 도착할 때까지 기다리고(커밋은 원자적이라 첫 이벤트가 오면 묶음 전체가 와 있다) seq가 이어지는지 확인한다. 시간 대기는 없고, 상한(20초)은 실패 메시지에 stderr를 싣는 용도다. 이 방식으로 소스 진입 두 번 실행의 응답·이벤트열이 같음을 시험한다.
+순서 경합(G4-03): thread를 연 직후 기본 켜짐 scope의 `scope.changed` 묶음이 다음 유휴 경계의 한 커밋으로 남고, 뒤따르는 입력과의 앞뒤는 시간에 달려 있다. 이전 도구는 60 ms를 기다려 이 경합을 가렸다. `untilScopesCommitted`가 시간 대신 조건을 기다린다: 구독으로 첫 `scope.changed`가 도착할 때까지 기다리고(커밋은 원자적이라 첫 이벤트가 오면 묶음 전체가 와 있다) seq가 이어지는지 확인한다. 시간 대기는 없고, 상한은 실패 메시지에 경과 시간과 stderr를 싣는 용도다. 상한의 기본값은 60초이고 환경 변수 `XEON_E2E_TIMEOUT_MS`(양의 정수)로 바꾼다. 부하가 걸린 기기에서 한 시험이 20초 상한에 걸려 실패해서 올렸다(`resolveTimeoutMs`, `test/e2e/harness.test.ts`). 이 방식으로 소스 진입 두 번 실행의 응답·이벤트열이 같음을 시험한다.
 
 시험 결과(`just test apps/desktop`): 사이드카를 빌드하지 않았을 때 171 통과, 건너뜀 3(바이너리 시험). `just desktop-sidecar host`를 한 번 돌려 `xeon-x86_64-unknown-linux-gnu`(109.8 MiB)를 만든 뒤 174 통과, 건너뜀 0이다. 즉 Linux 컴파일 바이너리가 소스 진입과 같은 응답·이벤트열을 내고 EOF와 `host.shutdown`으로 종료코드 0, 잔존 프로세스 0이다. 그때 foundation에는 `trust.get`, `command.list` 처리기가 없어 두 쪽이 같은 `jsonrpc.methodNotFound`(-32601)를 내는 것만 견줬다. turn은 모델 테이프를 컴파일 바이너리에 넣을 길이 없어 e2e에 없다(메시지 열 동등은 `apps/host`의 transport-parity 시험이 맡는다). macOS와 Windows 바이너리는 확인하지 못했다.
 
@@ -504,14 +505,19 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 | stdin-eof-checkpoint | `test/stdin-eof-checkpoint.int.test.ts` | int | 테이프로 turn을 진행하는 중에 stdin을 닫으면 엔진이 `l0.process.shutdown.timeoutMs`(테스트에서는 1초로 줄임) 안에 끝나고, DB에 비정상 종료 표식 또는 체크포인트가 남는다 | E5, D-02 | M2 |
 | no-grandchild-left | `test/no-grandchild-left.int.test.ts` | int | 엔진이 손자 프로세스(긴 `sleep` 명령 도구 호출)를 띄운 상태에서 정상 종료 순서를 돌리면 그룹 안 프로세스가 0개가 된다. Linux·macOS 한정 | E3, E9, D-01 | M2 |
 | engine-state-schema | `src/transport/ipc.test.ts` | unit | `EngineStateSchema`가 여섯 상태를 받아들이고 모르는 `kind`와 여분 필드를 거부한다 | §3.3 | M1 |
-| desktop-settings-defs | `src/settings-store/defs.test.ts` | unit | `l4.desktop.*` 정의가 F `checkSettingDef` 규칙 1~8을 통과하고, 키 접두가 `l4.desktop.`, `layer`가 `"L4"`다 | §6 | M1 |
+| desktop-settings-defs | `test/settings-defs.test.ts` | unit | 셸이 읽는 세 키(`window.closeBehavior`, `engine.restartLimit`, `engine.shutdownGraceMs`)가 spec §6 표와 같은 키, layer `"L4"`, 범위, 기본값을 갖고 F `checkSettingDef` 규칙을 통과한다. Rust 기본값과 범위 상수를 소스 글자로 맞춘다 | §6 | M1, M3b(M3-38). 상태: 통과(Linux) |
 | epoch-guard | `test/epoch-guard.test.ts` | unit | 가짜 `DesktopIpc`에서 이전 세대의 `write`가 거부되고, 새 세대 첫 메시지가 `$/connectionReset`(F 수용 뒤) 또는 엔진 재기동 요청(수용 전)이다 | D-09, §4.5 | M2 |
 | restart-policy | `src-tauri/src/engine.rs` 안 Rust 테스트 | unit(cargo) | 백오프 단계, 10분 창 상한, `restartLimit` 0이면 재기동 없음, 10분 안정 뒤 횟수 초기화 | §4.4, D-05 | M2 |
 | relay-no-payload-log | `src-tauri/src/relay.rs` 안 Rust 테스트 | unit(cargo) | 릴레이 로그 기록기가 바이트 수·프레임 수·세대만 남기고 프레임 내용을 남기지 않는다 | E11, D-08 | M2 |
 | desktop-cli-message-parity | `test/e2e/parity.e2e.test.ts` | e2e | 같은 테이프로 CLI와 데스크톱의 호스트 메시지 열이 정규화 뒤 같다 | D-03 | M2 |
 | app-exit-no-sidecar | `test/e2e/exit.e2e.test.ts` | e2e | 앱 창 닫기 뒤 사이드카와 손자가 없다 | D-01 | M2 |
-| tray-close-no-webview | `test/e2e/tray-close.e2e.test.ts` | e2e | `closeBehavior: "tray"`에서 창을 닫으면 WebView 엔진 프로세스가 0개이고 진행 중 turn이 계속되며, 창을 다시 열면 저장 위치부터 이어 받는다 | D-10 | M2 |
+| tray-close-no-webview | `test/e2e/tray-close.e2e.test.ts` | e2e | `closeBehavior: "tray"`에서 창을 닫으면 WebView 엔진 프로세스가 0개이고 진행 중 turn이 계속되며, 창을 다시 열면 저장 위치부터 이어 받는다 | D-10 | M2. [미결] Mac에서만 돈다. 상태: 미실행 |
+| desktop-settings-parse | `src-tauri/src/desktop_settings.rs` 안 Rust 테스트 | unit(cargo) | 설정 파일 해석: 문서화된 값을 읽고, 값마다 그 키만 건너뛰며 키 이름 진단을 하나 남기고, JSON 오류와 객체가 아닌 파일은 모두 기본값과 진단 하나이고, 알 수 없는 키는 무시하고, 범위 밖 숫자는 `from_values`가 기본값으로 바꾸고, 64 KiB를 넘는 파일은 모두 기본값이며, 없는 디렉터리와 파일은 진단이 없다. 진단은 값을 담지 않는다 | §3.6, §4.2 1단계, §5 | M3b(M3-38). 상태: 통과(Linux) |
+| tray-exit-decision | `src-tauri/src/desktop_settings.rs` 안 Rust 테스트 | unit(cargo) | `closeBehavior` × 종료 코드 모든 조합에서 종료를 막는 것은 `tray`이고 코드 없는 종료(창이 모두 닫힘)뿐이다. 변이 점검에서 조건 하나를 빼면 실패한다 | §4.3, §6 | M3b(M3-38). 상태: 통과(Linux) |
+| window-ensure-main | `src-tauri/src/window.rs` 안 Rust 테스트 | unit(cargo) | `main` 항목으로 메인 창을 한 번만 만들고, 이미 있으면 중복 없이 앞으로 가져오며, 설정에 `main` 항목이 없으면 아무것도 만들지 않는다 | §5, §6 | M3b(M3-38). 상태: 통과(Linux) |
 | engine-env-sanitized | `src-tauri/src/engine.rs` 안 Rust 테스트 | unit(cargo) | spawn 명령 구성 함수가 만든 환경에 `BUN_OPTIONS`가 없고, cwd와 넘기는 모든 경로가 절대 경로다 | D-11, E6, E7 | M2 |
+| env-path-augment | `src-tauri/src/env_path.rs`와 `engine.rs` 안 Rust 테스트 | unit(cargo) | Finder 기본 PATH 뒤에 도구 디렉터리가 정해진 순서로 붙고, 이미 있는 항목은 중복 없이 제자리에 남고, 사용자 항목이 앞에 남고, 홈이 없으면 고정 디렉터리만 붙고, 빈 PATH는 붙인 디렉터리만 되고, 이어 붙일 수 없으면 원래 값이다. `engine_env`는 PATH 값을 바꾸고 없으면 맨 뒤에 넣는다 | E7, §4.14.1 | M3b(m2c-04 a) |
+| applog-log-crate-record | `src-tauri/src/applog.rs` 안 Rust 테스트 | unit(cargo) | `AppLog::line`이 같은 줄을 대상 `xeon_desktop`, 수준 info의 `log` 기록 하나로 낸다. 제어 문자는 공백으로 바뀌고 탭은 남는다 | §4.15 로그 파일 | M3b(m2c-04 e) |
 | check-layers-app-rules | `xeon/scripts/check-layers.test.ts`(툴체인 담당에 요청, 위치는 §2 스크립트 위치 미결과 같음) | unit | W1·W2·W6 위반 샘플 import(전송 → 화면, `@tauri-apps/*`를 허용 파일 밖에서 import, `@xeon/host` import)를 앱 내부 규칙이 거부한다 | D-12 | M2 |
 
 - `e2e` 태그는 `just verify`에서 제외한다(`eng.testing.guide` TS-01 표). CI에서 수동 실행과 야간 실행으로 둔다.

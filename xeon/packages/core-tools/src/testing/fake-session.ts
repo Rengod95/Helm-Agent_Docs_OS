@@ -27,6 +27,7 @@ import {
   type TxView,
 } from "@xeon/contracts/records";
 import { isStampedDraft } from "../effects.ts";
+import { isJsonObject } from "../util.ts";
 import type { ToolsSession } from "../deps.ts";
 
 // 커밋 기록용 세션 대역(L1.tools.plan §2 testing/fakeSession). 저장소를 흉내 내지 않고 커밋 요청과 이벤트 열을 기록한다.
@@ -192,7 +193,20 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
     childAgents: () => ok([]),
     branchItems: () => ok([]),
     itemEvent: () => ok(undefined),
-    latestEvent: () => ok(undefined),
+    // 활성 가지는 흉내 내지 않는다. 최상위 payload 필드(`/필드`) 일치만 본다
+    latestEvent(threadId, kind, match) {
+      const field = match?.pointer.slice(1);
+      const found = events.findLast(
+        (event) =>
+          event.threadId === threadId &&
+          event.kind === kind &&
+          (match === undefined ||
+            (isJsonObject(event.payload) &&
+              field !== undefined &&
+              event.payload[field] === match.equals)),
+      );
+      return ok(found);
+    },
     liveBlobRefs: () => ok([]),
   };
 

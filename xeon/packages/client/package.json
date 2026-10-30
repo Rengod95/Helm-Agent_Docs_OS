@@ -6,7 +6,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./stdio": "./src/stdio.ts",
-    "./settings": "./src/settings/index.ts"
+    "./endpoint": "./src/endpoint.ts",
+    "./socket": "./src/socket.ts",
+    "./settings": "./src/settings/index.ts",
+    "./accounts": "./src/accounts/index.ts",
+    "./web": "./src/web/index.ts",
+    "./i18n": "./src/i18n/index.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
@@ -19,7 +24,8 @@
     "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "@xeon/core-models": "workspace:*"
   },
   "xeon": {
     "layer": "L4",

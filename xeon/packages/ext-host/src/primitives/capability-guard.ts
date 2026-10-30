@@ -37,6 +37,11 @@ export interface GuardTarget {
   /** 공급자 서비스 객체. 메서드가 함수 값인 객체다 */
   readonly service: unknown;
   readonly defs: CapabilityDefLookup;
+  /**
+   * 지금 바인딩된 공급자의 `idempotent` 선언을 믿는가(M3-REQ-31, X.loading-trust.spec §4.6.4). 호출마다 읽는다.
+   * 외부 확장은 적합성 시험을 강제할 수 없으므로 거짓이고, 그 공급자의 `idempotent` 메서드는 재실행되는 문맥에서 선언 없음으로 본다
+   */
+  readonly providerTrusted: () => boolean;
   readonly extension: ExtensionName;
   readonly scopeId: ScopeId;
 }
@@ -91,11 +96,15 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
     const method = service[name];
     if (!isMethod(method)) continue;
     const decl: MethodDef | undefined = def?.service.methods[name];
-    const effect: ReplayEffect =
+    const declared: ReplayEffect =
       decl === undefined ? "capability.undeclared" : capabilityEffectOf(decl);
     wrapped.push([
       name,
       (input: unknown, options?: unknown) => {
+        const effect: ReplayEffect =
+          declared === "capability.idempotent" && !target.providerTrusted()
+            ? "capability.undeclared"
+            : declared;
         const given: CallOptions | undefined = isIndexable(options) ? options : undefined;
         const amb = ambient();
         const context = replayContextOf(amb);
@@ -106,7 +115,7 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
               id,
               name,
               "effect_not_allowed",
-              `${id}.${name} is ${effectLabel(effect)}; it cannot run in a ${context === "on" ? "handler" : "drive function"} that may be replayed`,
+              `${id}.${name} is ${effectLabel(effect)}${declared === effect ? "" : " because its provider is not built in, so the idempotent declaration is not trusted"}; it cannot run in a ${context === "on" ? "handler" : "drive function"} that may be replayed`,
             );
           }
           if (effect === "capability.idempotent" && requestId === undefined) {

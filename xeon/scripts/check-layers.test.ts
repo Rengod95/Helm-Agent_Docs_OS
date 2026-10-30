@@ -12,6 +12,7 @@ import {
   extractSpecifiers,
   formatViolation,
   loadRouteDomains,
+  matchesFrom,
   patternLines,
 } from "./check-layers.ts";
 
@@ -43,7 +44,10 @@ interface PkgOptions {
 function pkg(dir: string, layer: string, deps: string[] = [], options: PkgOptions = {}): void {
   const base = dir.split("/")[1] ?? "";
   const name = `@xeon/${base}`;
-  const domain = options.domain ?? base.replace(/^(?:platform|core|cap|group)-/, "");
+  // group-kit의 도메인은 접두를 뺀 kit이 아니라 group-kit이다(M3-35)
+  const domain =
+    options.domain ??
+    (base === "group-kit" ? base : base.replace(/^(?:platform|core|cap|group)-/, ""));
   const dependencies = Object.fromEntries(deps.map((d) => [d, "workspace:*"]));
   mkdirSync(join(root, dir, "src"), { recursive: true });
   writeFileSync(
@@ -93,7 +97,8 @@ test("expectedLayer maps directories to layers", () => {
 test("expectedDomain strips the layer prefix", () => {
   expect(expectedDomain("packages/core-loop")).toBe("loop");
   expect(expectedDomain("packages/platform-store")).toBe("store");
-  expect(expectedDomain("packages/group-kit")).toBe("kit");
+  expect(expectedDomain("packages/group-kit")).toBe("group-kit");
+  expect(expectedDomain("packages/group-helm")).toBe("helm");
   expect(expectedDomain("packages/contracts")).toBe("contracts");
   expect(expectedDomain("packages/ext-host")).toBe("ext-host");
   expect(expectedDomain("plugins/provider-anthropic-oauth")).toBe("provider-anthropic-oauth");
@@ -265,6 +270,61 @@ test("allowlist: the entry must match the rule and the importing package", () =>
   const found = checkLayers(root).violations;
   expect(found.map((v) => `${v.file}:${v.line} ${v.rule}`)).toEqual([
     "packages/group-learning/src/a.ts:1 DR-02",
+  ]);
+});
+
+test("allowlist: a family pattern matches each package of the family and no deeper path", () => {
+  expect(matchesFrom("packages/group-*", "packages/group-helm")).toBe(true);
+  expect(matchesFrom("packages/group-*", "packages/group-kit")).toBe(true);
+  expect(matchesFrom("packages/group-*", "packages/group-x/sub")).toBe(false);
+  expect(matchesFrom("packages/group-*", "packages/core-loop")).toBe(false);
+  expect(matchesFrom("packages/group-*", "packages/group-")).toBe(false);
+  expect(matchesFrom("packages/group-helm", "packages/group-helm")).toBe(true);
+  expect(matchesFrom("packages/group-helm", "packages/group-learning")).toBe(false);
+});
+
+test("allowlist: the group-kit family entry covers each group, its two entries and nothing else", () => {
+  pkg("packages/group-helm", "L3", ["@xeon/group-kit", "@xeon/group-learning"], {
+    files: {
+      "src/a.ts": [
+        'import "@xeon/group-kit";',
+        'import "@xeon/group-kit/testing";',
+        'import "@xeon/group-kit/internal";',
+        'import "@xeon/group-learning";',
+      ].join("\n"),
+    },
+  });
+  pkg("packages/group-learning", "L3", ["@xeon/group-kit"], {
+    files: { "src/a.ts": 'import "@xeon/group-kit";' },
+  });
+  pkg("packages/group-kit", "L3");
+  allowlist([
+    {
+      id: "DR-02/group-kit",
+      rule: "DR-02",
+      from: "packages/group-*",
+      to: "@xeon/group-kit",
+      entries: [".", "./testing"],
+    },
+  ]);
+  // group-helm의 두 허용 진입점은 통과한다. 내부 진입점과 다른 그룹 import는 소스 파일에서 위반이다
+  const sources = checkLayers(root)
+    .violations.filter((v) => v.file === "packages/group-helm/src/a.ts")
+    .map(formatViolation);
+  expect(sources).toEqual([
+    "packages/group-helm/src/a.ts:3 DR-02 L3 package @xeon/group-helm imports same-layer package @xeon/group-kit; share through F contracts or Cordis services",
+    "packages/group-helm/src/a.ts:4 DR-02 L3 package @xeon/group-helm imports same-layer package @xeon/group-learning; share through F contracts or Cordis services",
+  ]);
+});
+
+test("allowlist: a family pattern must match at least one workspace package", () => {
+  pkg("packages/core-loop", "L1");
+  allowlist([
+    { id: "DR-02/ghost", rule: "DR-02", from: "packages/ghost-*", to: "@xeon/core-loop" },
+  ]);
+  const found = checkLayers(root).violations;
+  expect(found.map((v) => v.message)).toEqual([
+    "from packages/ghost-* is not a workspace package directory",
   ]);
 });
 

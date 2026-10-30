@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@xeon/contracts";
 import { WireError } from "@xeon/contracts/wire";
-import type { SettingsWriteFailure } from "../../src/types.ts";
+import type {
+  SettingsFileFailure,
+  SettingsFileRead,
+  SettingsWriteFailure,
+} from "../../src/types.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
@@ -103,6 +107,33 @@ test("settings.get with a thread that does not exist is thread.notFound", async 
   const ok = await connection.request("settings.get", { threadId: known, keys: [] });
   expect(ok.settings).toEqual([]);
   await connection.close();
+});
+
+// HS-80: 저장된 기본 모델이 카탈로그에 없으면 settings.get이 unknownModel 문제를 싣고, 있으면 `problem` 필드를 아예 싣지 않는다.
+test("settings.get marks a saved default model the catalog lacks, and a catalog model has no problem field", async () => {
+  const key = "l1.models.default";
+  const host = createFakeHost({
+    layers: [{ scope: "user", values: new Map([[key, "tape/tape-9"]]) }],
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const missing = await connection.request("settings.get", { keys: [key] });
+  expect(missing.settings[0]).toMatchObject({
+    key,
+    value: "tape/tape-9",
+    problem: { kind: "unknownModel", args: { id: "tape/tape-9" } },
+  });
+  await connection.close();
+
+  const known = createFakeHost({
+    layers: [{ scope: "user", values: new Map([[key, "tape/tape-1"]]) }],
+  });
+  const second = known.connect();
+  await second.connection.request("host.hello", HELLO_PARAMS);
+  const present = await second.connection.request("settings.get", { keys: [key] });
+  expect(present.settings[0]).toMatchObject({ key, value: "tape/tape-1" });
+  expect(present.settings[0]).not.toHaveProperty("problem");
+  await second.connection.close();
 });
 
 // ── HOST.2: settings.set, settings.reset, settings.list ────────────────────────────────────────
@@ -450,7 +481,7 @@ test("settings.set refuses a model id the registry does not have, names it and t
   expect(wrong.code).toBe(3102);
   expect(wrong.data.details).toEqual({
     key: "l1.models.default",
-    issues: [{ path: "value", message: "알 수 없는 모델 tape/tape-1.5 (tape의 모델: tape-1)" }],
+    issues: [{ path: "value", message: "unknown model tape/tape-1.5 (tape models: tape-1)" }],
   });
   const noProvider = await wireErrorOf(
     connection.request("settings.set", {
@@ -464,7 +495,7 @@ test("settings.set refuses a model id the registry does not have, names it and t
     issues: [
       {
         path: "value",
-        message: "알 수 없는 모델 nowhere/m (provider nowhere에 등록된 모델이 없다)",
+        message: "unknown model nowhere/m (provider nowhere has no registered models)",
       },
     ],
   });
@@ -512,5 +543,157 @@ test("settings.set tells the secret service about provider links only for the us
     scope: "project",
   });
   expect(host.fake.secrets.linkCalls()).toBe(1);
+  await connection.close();
+});
+
+// ── settings.readFile, settings.writeFile (HS-98) ────────────────────────────
+
+const FILE_TEXT = '{"l4.host-service.maxReplayEvents":5000,"ext.future.key":{"keep":true}}\n';
+const SHA = "a".repeat(64);
+
+function fileRead(text: string): SettingsFileRead {
+  return { path: "/home/u/settings.json", exists: true, readOnly: false, text, sha256: SHA };
+}
+
+test("settings.readFile returns the port's file with the keys the catalog does not know", async () => {
+  const calls: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      settings: {
+        readFile: (scope, threadId) => {
+          calls.push([scope, threadId]);
+          return Promise.resolve(ok(fileRead(FILE_TEXT)));
+        },
+      },
+    },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const read = await connection.request("settings.readFile", { scope: "user" });
+  expect(read).toEqual({
+    scope: "user",
+    path: "/home/u/settings.json",
+    exists: true,
+    readOnly: false,
+    text: FILE_TEXT,
+    sha256: SHA,
+    unknownKeys: ["ext.future.key"],
+  });
+  expect(calls).toEqual([["user", undefined]]);
+  await connection.close();
+});
+
+test("settings.readFile of a file that is not an object reports no unknown keys, and an unknown thread is thread.notFound", async () => {
+  const host = createFakeHost({
+    overrides: {
+      settings: { readFile: () => Promise.resolve(ok(fileRead("[1, 2]"))) },
+    },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  expect((await connection.request("settings.readFile", { scope: "user" })).unknownKeys).toEqual(
+    [],
+  );
+  const missing = await wireErrorOf(
+    connection.request("settings.readFile", {
+      scope: "project",
+      threadId: fixedIdFactory(77).next("thr"),
+    }),
+  );
+  expect(missing.code).toBe(3001);
+  await connection.close();
+});
+
+test("settings.writeFile checks the text first, then writes through the port with the base hash", async () => {
+  const writes: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      settings: {
+        writeFile: (scope, text, base, threadId) => {
+          writes.push([scope, text, base, threadId]);
+          return Promise.resolve(ok({ path: "/home/u/settings.json", sha256: SHA }));
+        },
+      },
+    },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const written = await connection.request("settings.writeFile", {
+    scope: "user",
+    text: FILE_TEXT,
+    baseSha256: null,
+  });
+  expect(written).toEqual({
+    path: "/home/u/settings.json",
+    sha256: SHA,
+    unknownKeys: ["ext.future.key"],
+  });
+  expect(writes).toEqual([["user", FILE_TEXT, null, undefined]]);
+
+  const issuesOf = async (text: string): Promise<unknown> => {
+    const error = await wireErrorOf(
+      connection.request("settings.writeFile", { scope: "user", text, baseSha256: SHA }),
+    );
+    expect(error.code).toBe(3108);
+    return error.data.details;
+  };
+  expect(await issuesOf("[1]")).toEqual({
+    scope: "user",
+    issues: [{ path: "", message: "the settings file must be a JSON object" }],
+  });
+  expect(await issuesOf("not json")).toMatchObject({ scope: "user" });
+  const outOfRange = await issuesOf('{"l4.host-service.maxReplayEvents":5}');
+  expect(outOfRange).toMatchObject({
+    scope: "user",
+    issues: [{ path: expect.stringContaining("l4.host-service.maxReplayEvents") }],
+  });
+  // 검사에서 막힌 요청은 포트에 닿지 않는다
+  expect(writes).toHaveLength(1);
+  await connection.close();
+});
+
+test("settings.writeFile never repeats a secret key's wrong value, and maps the port's failures", async () => {
+  const secretKey = "l1.models.providers";
+  const cases: readonly [SettingsFileFailure, number][] = [
+    [{ kind: "conflict", scope: "user" }, 3107],
+    [{ kind: "untrusted_project", workspace: "/w" }, 3108],
+    [{ kind: "workspace_required", scope: "project" }, 3108],
+    [{ kind: "file_unwritable", path: "/p", code: "EACCES" }, 5006],
+    [{ kind: "disk_full" }, 5004],
+  ];
+  await Promise.all(
+    cases.map(async ([failure, code]) => {
+      const host = createFakeHost({
+        overrides: { settings: { writeFile: () => Promise.resolve(err(failure)) } },
+      });
+      const { connection } = host.connect();
+      await connection.request("host.hello", HELLO_PARAMS);
+      const error = await wireErrorOf(
+        connection.request("settings.writeFile", {
+          scope: "user",
+          text: FILE_TEXT,
+          baseSha256: SHA,
+        }),
+      );
+      expect(error.code).toBe(code);
+      expect(JSON.stringify(error.data)).not.toContain("/p");
+      await connection.close();
+    }),
+  );
+  const host = createFakeHost();
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const secret = "plain-text-not-a-reference-0001";
+  const error = await wireErrorOf(
+    connection.request("settings.writeFile", {
+      scope: "user",
+      text: JSON.stringify({
+        [secretKey]: [{ id: "x", enabled: true, apiKeyRef: secret, baseUrl: null }],
+      }),
+      baseSha256: null,
+    }),
+  );
+  expect(error.code).toBe(3108);
+  expect(JSON.stringify(error.data)).not.toContain(secret);
   await connection.close();
 });

@@ -110,6 +110,23 @@ export const InquiryFinishedPayloadSchema: TUnsafe<InquiryFinishedPayload> =
     finishedShape satisfies SchemaProof<InquiryFinishedPayload, typeof finishedShape>,
   );
 
+/**
+ * `grp.helm.inquiry.finished` 기록을 읽는 쪽의 중복 제거 규칙(L3.helm.spec §4.8). 재시작으로 임대가 바뀌면
+ * 같은 탐구의 종료가 두 번 기록될 수 있다. inquiryId가 같은 기록은 처음 것만 남기고, inquiryId가 null인
+ * 기록은 묶을 키가 없어 모두 남긴다. 순서는 그대로 둔다. 순수 함수이고 L4 알림 읽기도 이 함수를 쓴다.
+ */
+export function dedupeInquiryFinished<T extends { readonly inquiryId: string | null }>(
+  records: readonly T[],
+): readonly T[] {
+  const seen = new Set<string>();
+  return records.filter((record) => {
+    if (record.inquiryId === null) return true;
+    if (seen.has(record.inquiryId)) return false;
+    seen.add(record.inquiryId);
+    return true;
+  });
+}
+
 export const HELM_RECORD_KINDS: readonly RecordKindDecl[] = [
   {
     kind: "grp.helm.signal.detected",

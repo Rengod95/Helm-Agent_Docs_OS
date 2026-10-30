@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { Static } from "typebox";
+import { parse } from "../../src/base/index.ts";
 import {
   type EditToolParams,
+  RunOutput,
   WorkspaceFiles,
   WorkspaceFilesKey,
   WorkspaceImages,
@@ -62,6 +64,19 @@ function editsOf(params: Static<typeof EditToolParams>): unknown {
   if (result === undefined) throw new Error("edit has no toInput");
   return result.edits;
 }
+
+describe("RunOutput unsandboxedBy", () => {
+  const base = { exitCode: 0, output: "ok\n", truncated: false, durationMs: 4, sandboxed: false };
+
+  test("is optional and takes only the three bypass reasons", () => {
+    expect(parse(RunOutput, base)).toEqual({ ok: true, value: base });
+    for (const reason of ["escape", "run_unsandboxed", "disabled"] as const) {
+      const value = { ...base, unsandboxedBy: reason };
+      expect(parse(RunOutput, value)).toEqual({ ok: true, value });
+    }
+    expect(parse(RunOutput, { ...base, unsandboxedBy: "none" }).ok).toBe(false);
+  });
+});
 
 describe("tool adapters", () => {
   const read = WorkspaceFiles.tools[0];

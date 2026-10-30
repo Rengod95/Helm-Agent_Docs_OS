@@ -196,8 +196,8 @@ export function createFakeHost(): ConformanceLink {
     const checked = checkEnvelope(frame);
     if (!checked.ok) {
       const candidateId =
-        typeof frame === "object" && frame !== null && !Array.isArray(frame)
-          ? Reflect.get(frame, "id")
+        typeof frame === "object" && frame !== null && !Array.isArray(frame) && "id" in frame
+          ? frame.id
           : undefined;
       const id =
         parse(RpcIdSchema, candidateId).ok && typeof candidateId === "string" ? candidateId : null;

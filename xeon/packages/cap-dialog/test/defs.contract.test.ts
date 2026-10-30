@@ -4,6 +4,7 @@ import {
   DialogAsk,
   DialogAttachments,
   DialogCommands,
+  DialogNotify,
   DialogStatus,
   orderTools,
   WorkspaceImages,
@@ -43,7 +44,7 @@ describe("정의 검증", () => {
     const provided = (dialogManifest().provides ?? []).map(
       (entry) => `${entry.id}@${entry.version}`,
     );
-    expect(provided).toEqual(M2.map((def) => `${def.id}@${def.version}`));
+    expect(provided).toEqual([...M2, DialogNotify].map((def) => `${def.id}@${def.version}`));
   });
 
   test("모델 도구는 ask_user 하나이고 나머지 능력에는 도구가 없다", () => {

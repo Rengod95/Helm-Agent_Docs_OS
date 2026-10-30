@@ -173,8 +173,16 @@ function listenOn(
       server.off("error", onError);
       resolve(ok(undefined));
     };
-    if (options.kind === "unix") server.listen(options.path, done);
-    else server.listen(options.port, options.host, done);
+    if (options.kind === "unix") {
+      // bind는 listen 호출 안에서 동기로 일어난다. 그 순간만 umask를 0177로 좁혀 소켓 파일이 만들어지는 때부터 0600이 되게 한다
+      // (만든 뒤 chmod까지의 틈에 다른 사용자가 접속하는 길을 없앤다). 바로 원래 값으로 되돌려 다른 파일 생성에 영향을 주지 않는다
+      const previous = process.umask(0o177);
+      try {
+        server.listen(options.path, done);
+      } finally {
+        process.umask(previous);
+      }
+    } else server.listen(options.port, options.host, done);
   });
 }
 

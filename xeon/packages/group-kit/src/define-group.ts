@@ -1,4 +1,4 @@
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, err, ok, parse, type Result } from "@xeon/contracts";
 import {
   validateManifest,
   type ExtensionEntry,
@@ -73,6 +73,26 @@ export const RESERVED_GROUP_NAMES: readonly string[] = [
   "kit",
 ];
 
+/** checkGroupName이 돌려주는 실패. reason은 이름 형식 위반(pattern)인지 예약 이름인지(reserved)를 가른다 */
+export interface GroupNameError {
+  readonly kind: "group_name";
+  readonly reason: "pattern" | "reserved";
+  readonly name: string;
+}
+
+const GROUP_NAME_REGEX = new RegExp(GROUP_NAME_PATTERN);
+
+/**
+ * 그룹 이름을 검사한다(L3.slots.spec §3.3.4, 규칙 R2). GROUP_NAME_PATTERN과 RESERVED_GROUP_NAMES만 쓴다.
+ * 설치된 확장 이름과의 충돌은 여기서 보지 않는다(validateManifestSet의 name_conflict). 순수 함수다
+ */
+export function checkGroupName(name: string): Result<string, GroupNameError> {
+  if (!GROUP_NAME_REGEX.test(name)) return err({ kind: "group_name", reason: "pattern", name });
+  if (RESERVED_GROUP_NAMES.includes(name))
+    return err({ kind: "group_name", reason: "reserved", name });
+  return ok(name);
+}
+
 function isGroupManifest(manifest: ExtensionManifest): manifest is GroupManifest {
   return manifest.kind === "group" && manifest.layer === "L3";
 }
@@ -103,8 +123,6 @@ function issue(code: GroupDefIssueCode, path: string, message: string): GroupDef
   return { severity: "error", code, path, message };
 }
 
-const GROUP_NAME_REGEX = new RegExp(GROUP_NAME_PATTERN);
-
 /** 순수 함수. validateManifest(F) 결과와 그룹 규칙을 함께 돌려준다 */
 export function validateGroupDef(def: GroupDefShape): readonly (GroupDefIssue | ManifestIssue)[] {
   const found: (GroupDefIssue | ManifestIssue)[] = [...validateManifest(def.manifest).issues];
@@ -115,7 +133,7 @@ export function validateGroupDef(def: GroupDefShape): readonly (GroupDefIssue | 
       issue("group_kind", "/manifest/kind", 'a group manifest needs kind "group" and layer "L3"'),
     );
   }
-  if (!GROUP_NAME_REGEX.test(manifest.name) || RESERVED_GROUP_NAMES.includes(manifest.name)) {
+  if (!checkGroupName(manifest.name).ok) {
     found.push(
       issue(
         "group_name",

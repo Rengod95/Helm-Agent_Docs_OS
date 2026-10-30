@@ -709,7 +709,7 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
 | 재귀 방지 | 포크 대화에서는 학습 트리거가 돌지 않는다(카운터 0과 같은 효과). `learning-review` 정의와 `toolPolicy.allow`에는 위임 도구가 없다 | `hermes.md` §3.10.1 (나) 11 |
 | 사용량 귀속 | 포크의 토큰 사용량은 부모 세션 사용량에 합산한다. `grp.learning.fork.finished.usage`에도 남긴다 [가정: L1.agents.spec이 부모 귀속 집계를 제공] | `hermes.md` §3.10.1 (나) 11 |
 | 캐시 접두 공유 | [가정] L1.agents.spec이 부모 이력 fork와 같은 모델·시스템 프롬프트·도구 배열 유지를 지원한다. 네 조건(모델, 도구 배열 순서 포함, 시스템 프롬프트, 메시지 접두)이 모두 같을 때만 공유된다. 그래서 검토 지시는 마지막 user 메시지로 넣고 시스템 프롬프트를 바꾸지 않는다. `review.model`이 부모와 다르면 공유를 기대하지 않는다 | `_research/notes/L3-1.md` §3.6, `hermes.md` §3.10.1 (나) 8 |
-| 부모 중단 | 백그라운드 위임은 부모 abort가 전파되지 않는다. 학습 그룹은 부모 turn 중단과 무관하게 포크를 둔다. 명시 취소는 그룹 비활성화(§5 사례 5)와 `/learning review --cancel`뿐이다 | `_research/notes/L3-1.md` §3.7 |
+| 부모 중단 | 백그라운드 위임은 부모 abort가 전파되지 않는다. 학습 그룹은 부모 turn 중단과 무관하게 포크를 둔다. 명시 취소는 그룹 비활성화(§5 사례 5), `/learning review --cancel`, 그리고 `/learning review` 호출을 취소한 신호(`ctx.signal`, B4-GRP)뿐이다 | `_research/notes/L3-1.md` §3.7 |
 | 동시 실행 | 대화당 하나(`inFlightReviewId`, §4.2 규칙 0). 프로세스 전체 상한은 L1-g 백그라운드 풀이 정한다(REQ-L1-03) | [제안] |
 
 완료 통지:
@@ -896,7 +896,7 @@ F.wire-settings.spec §3.8의 `SettingDef`로 선언한다(`settings.ts`, `defin
 | `/learning history [--since <date>]` | 학습 이력 시간순 보기 | 2차 |
 
 - 명령은 `g.registerCommand("learning", …)`로 등록한다(L3.group-kit.spec §3.2, X `hostOf(g).registerCommand`). CLI는 `xeon` 대화 입력에서, 데스크톱은 승인 화면 버튼에서 같은 명령을 부른다.
-- F `CommandResourceDef.handler`는 값을 돌려주지 않는다. 구현은 결과(`CommandReport`)를 조립 루트가 넘기는 `report(report, invocationId)` 콜백으로 낸다. 호출 id(`invocationId`)는 L4가 명령 호출마다 정하고 같은 호출을 다시 실행하면 같은 값을 넘긴다(X.primitives.spec §4.6.6). 호스트 처리기는 `proposal.decide`를 `decisionCommandLine`으로 만든 명령 줄로 실행하고 `invocationId`로 자기 결과를 찾는다. 명령은 후보의 부모 대화에서, 그 대화가 이 호스트에서 열려 있지 않으면 가장 최근에 연 대화에서 실행한다. 열린 대화가 없으면 쓰기 명령은 `learning.noConversation`이고 목록은 투영을 읽는다. 승인 화면은 목록을 wire `proposal.list`로 읽고 결정을 `proposal.decide`로 보낸다(L4 호스트 처리기, REQ-LN-10).
+- F `CommandResourceDef.handler`는 `void`나 `CommandOutput`을 돌려줄 수 있다(X.primitives.spec §3.9). 이 명령의 처리기는 값을 돌려주지 않는다. 구현은 결과(`CommandReport`)를 조립 루트가 넘기는 `report(report, invocationId)` 콜백으로 낸다. 호출 id(`invocationId`)는 L4가 명령 호출마다 정하고 같은 호출을 다시 실행하면 같은 값을 넘긴다(X.primitives.spec §4.6.6). 호스트 처리기는 `proposal.decide`를 `decisionCommandLine`으로 만든 명령 줄로 실행하고 `invocationId`로 자기 결과를 찾는다. 명령은 후보의 부모 대화에서, 그 대화가 이 호스트에서 열려 있지 않으면 가장 최근에 연 대화에서 실행한다. 열린 대화가 없으면 쓰기 명령은 `learning.noConversation`이고 목록은 투영을 읽는다. 승인 화면은 목록을 wire `proposal.list`로 읽고 결정을 `proposal.decide`로 보낸다(L4 호스트 처리기, REQ-LN-10).
 - 모든 하위 명령은 진입 때 지연 정리(§4.5 규칙 7)를 먼저 하고, 결과를 `DecisionResult`·`QueueSweep`(§3.9) 값으로 돌려준다. `--json` 출력은 이 값을 그대로 직렬화한다.
 
 ## 7. 확장 지점
@@ -1012,7 +1012,7 @@ M3 설계 개정(2026-10-26)에서 옛 번호를 정리했다. 닫은 항목은 
 
 설계 질문:
 
-9. [미결] 패키지 `xeon.domain` 값(옛 미결 3). group-kit 쪽 `kit` 대 `group-kit`. `review.m3-design-inputs` G-IN-13이 `group-kit`으로 맞추는 안을 따른다(M3-35). 학습 그룹(`learning`)은 영향이 없다.
+9. 맞춤: 패키지 `xeon.domain` 값(옛 미결 3). group-kit 쪽 `kit`은 `group-kit`으로 맞췄다(`review.m3-design-inputs` G-IN-13, M3-35). 학습 그룹(`learning`)은 영향이 없다.
 10. [미결] `agent.settled` 구독 수단(REQ-LN-02)의 F 형태. 매니페스트 선언 필드와 `GroupApi` 연산 이름은 F·X 계약 트랙이 정한다. 정해지기 전에는 §4.3 대체 경로(명령 진입 조회)만 동작한다.
 11. [미결] 대화당 검토 1개(`inFlightReviewId`) 외의 프로세스 전체 상한. L1-g 백그라운드 풀 상한(REQ-L1-03)이 정해지면 그 값을 따른다.
 12. [가정] `ApprovalEvidence{ source: "learning.queue" }`를 L2-d가 믿도록 하는 기본 설정 경로(REQ-LN-09). L2 문서가 D-11에 맞춰 정한다.
@@ -1023,7 +1023,7 @@ M3a 구현에서 남은 항목:
 14. (닫힘) [결정: M3-REQ-100] 도구 실행 문맥의 `caller.afterUntrusted`. `Proposal.afterUntrusted`가 이 값을 적는다(§3.5).
 15. [미결] `l3.learning.review.tokenBudget`(정수 또는 null)와 `review.model`(문자열 또는 null)은 설정 정의 규칙 D8(number·select 위젯은 숫자·enum 타입만)에 맞는 위젯이 없다. `tokenBudget`은 화면 없이(파일·명령만), `model`은 `text` 위젯으로 선언했다. 이 문서의 `number`·`select` 위젯 표기는 맞지 않는다.
 16. (닫힘) 설정 키 수: §6.1 표와 구현은 12개이고 plan LR-02의 13개는 12개로 고쳤다. 큐레이터 4개(`curator.*`)는 읽는 코드가 없어 `stage: "reserved"`다.
-17. [미결] 사용량 계측: 검토별 입력·출력 토큰은 `fork.finished`와 투영의 검토 행, `review.finished`에 남긴다. group-kit `GroupMetricsHandle`은 조회(`snapshot`)뿐이고 토큰을 더하는 연산이 없다. 토큰 집계는 `lease.*`·`turn.completed`가 필요한 group-kit G-17의 몫이라 학습 그룹은 연결하지 않았다(LR-17).
+17. (닫힘, M3b, B4-GRP) 사용량 계측: 검토별 입력·출력 토큰은 `fork.finished`와 투영의 검토 행, `review.finished`에 남긴다. 검토 종료(`finishReview`)는 `review.finished`를 기록한 뒤 커밋 전에 `g.metrics.addUsage`로 입력·출력 토큰, 캐시 읽기·쓰기 토큰, 비용(`usage.cost.total`)을 더한다. 사용량이 없으면(`settleInFlight` 경로) 모두 0을 더한다. 같은 검토의 종료가 같은 프로세스에서 다시 불리면 그룹 인스턴스 메모리의 검토 id 집합(`countedReviews`)으로 한 번만 더한다. 재시작 뒤에는 새 인스턴스가 다시 세는데, 계측 카운터도 프로세스 메모리라 이 범위에서 맞다. [가정: `cost.total`은 달러 단위다. 음수면 `addUsage`가 Bug를 던진다.] 시험: `settled.usage-counts-into-group-metrics-once`(`g.metrics`는 `defaultMetricsRegistry`로 읽는다).
 
 닫힌 항목:
 

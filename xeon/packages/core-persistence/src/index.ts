@@ -30,6 +30,13 @@ export {
   resolvePersistenceSettings,
   type PersistenceSettingIssue,
 } from "./settings.ts";
+export {
+  autoTitleThread,
+  type AutoTitleDeps,
+  type AutoTitleError,
+  type AutoTitleResult,
+  type TitleModelPort,
+} from "./auto-title.ts";
 export { decideOpenEffect, type OpenEffectInput } from "./recovery.ts";
 export { SESSION_MIGRATION_OWNER, SESSION_MIGRATION_SET } from "./schema/migrations.ts";
 export { SESSION_TABLE_COLUMNS } from "./schema/ddl.ts";

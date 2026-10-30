@@ -2,9 +2,12 @@ import { WorkspaceFiles, type WorkspaceService } from "@xeon/contracts/capabilit
 import type { WorkspaceDeps } from "./deps.ts";
 import { guarded } from "./errors.ts";
 import type { FilesApi } from "./files/api.ts";
+import { createEdit } from "./files/edit.ts";
+import { createFind } from "./files/find.ts";
+import { createGrep } from "./files/grep.ts";
 import { createList } from "./files/list.ts";
 import { createRead } from "./files/read.ts";
-import { unsupportedFilesMethods } from "./files/unsupported.ts";
+import { createWrite } from "./files/write.ts";
 import { createImagesApi } from "./images/service.ts";
 import { scopedDeps } from "./scope.ts";
 import { createShellApi } from "./shell/run.ts";
@@ -23,7 +26,22 @@ export function createFilesApi(deps: WorkspaceDeps): FilesApi {
       guarded(WorkspaceFiles.id, "list", () =>
         createList(scopedDeps(deps, options?.context?.threadId))(input, options),
       ),
-    ...unsupportedFilesMethods(),
+    write: (input, options) =>
+      guarded(WorkspaceFiles.id, "write", () =>
+        createWrite(scopedDeps(deps, options?.context?.threadId))(input, options),
+      ),
+    edit: (input, options) =>
+      guarded(WorkspaceFiles.id, "edit", () =>
+        createEdit(scopedDeps(deps, options?.context?.threadId))(input, options),
+      ),
+    grep: (input, options) =>
+      guarded(WorkspaceFiles.id, "grep", () =>
+        createGrep(scopedDeps(deps, options?.context?.threadId))(input, options),
+      ),
+    find: (input, options) =>
+      guarded(WorkspaceFiles.id, "find", () =>
+        createFind(scopedDeps(deps, options?.context?.threadId))(input, options),
+      ),
   };
 }
 

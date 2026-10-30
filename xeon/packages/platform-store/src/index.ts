@@ -1,4 +1,10 @@
 export { openStore } from "./open.ts";
+export {
+  exportDatabase,
+  type ExportError,
+  type ExportOptions,
+  type ExportReport,
+} from "./export.ts";
 export { storePlugin } from "./service.ts";
 export {
   DEFAULT_STORE_SETTINGS,
@@ -15,7 +21,7 @@ export type {
   StoreSettings,
   StoreWarning,
 } from "./types.ts";
-export type { BlobPins } from "./blob.ts";
+export type { BlobGcOptions, BlobGcReport, BlobPins } from "./blob.ts";
 export type { LockAcquireError, LockHandle, LockProvider } from "./lock/provider.ts";
 export type { SqliteProbe, ProbeDriver } from "./sqlite-env.ts";
 export type { StoreFaultInjector, StoreFaultPoint } from "./fault-points.ts";

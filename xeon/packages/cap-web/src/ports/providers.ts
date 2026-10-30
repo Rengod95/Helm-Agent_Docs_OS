@@ -1,6 +1,7 @@
 import type {
   ProviderAvailabilityWeb,
   ProviderOrigin,
+  WebBrowseProvider,
   WebFetchProvider,
   WebProviderManifest,
   WebSearchProvider,
@@ -27,9 +28,16 @@ export interface FetchCandidate {
   readonly cachePolicy: "none" | "session" | "persist";
 }
 
+export interface BrowseCandidate {
+  readonly provider: WebBrowseProvider;
+  readonly origin: ProviderOrigin;
+  readonly cachePolicy: "none" | "session" | "persist";
+}
+
 export interface WebProviderCatalog {
   searchCandidates(): readonly SearchCandidate[];
   fetchCandidates(): readonly FetchCandidate[];
+  browseCandidates(): readonly BrowseCandidate[];
 }
 
 /** 탐침을 짧게 기억하는 도우미가 쓰는 모양 */

@@ -386,6 +386,7 @@ describe("search cache", () => {
     });
     const second = fakeSearchProvider("builtin-wrapper");
     const world = await makeWebWorld({
+      settings: { search: { order: ["plugin:web-first"] } },
       catalog: fakeCatalog([searchCandidate(first, "plugin"), searchCandidate(second, "builtin")]),
     });
     await world.search({ query: "alpha" });

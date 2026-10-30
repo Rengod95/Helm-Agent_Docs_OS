@@ -15,8 +15,23 @@ describe("l0.exec settings", () => {
       "l0.exec.defaultTimeoutMs",
       "l0.exec.unattendedTimeoutMs",
       "l0.exec.outputSpillBytes",
+      "l0.exec.spillRetentionDays",
+      "l0.exec.spillMaxBytes",
       "l0.exec.envAllowlist.extra",
     ]);
+  });
+
+  test("spill retention and cap keys are managed or user scope and active", () => {
+    for (const key of ["l0.exec.spillRetentionDays", "l0.exec.spillMaxBytes"]) {
+      expect(defOf(key).allowedScopes).toEqual(["managed", "user"]);
+      expect(defOf(key).runtimeChange).toBe("nextTurn");
+      expect(defOf(key).stage ?? "active").toBe("active");
+    }
+    expect(defOf("l0.exec.spillRetentionDays").range).toEqual({ min: 0, max: 3650 });
+    expect(defOf("l0.exec.spillMaxBytes").range).toEqual({ min: 0, max: 1_099_511_627_776 });
+    expect(validateSettingValue(defOf("l0.exec.spillMaxBytes"), 0).ok).toBe(true);
+    expect(validateSettingValue(defOf("l0.exec.spillMaxBytes"), -1).ok).toBe(false);
+    expect(validateSettingValue(defOf("l0.exec.spillRetentionDays"), 3651).ok).toBe(false);
   });
 
   test("every definition passes checkSettingDef, is an L0 setting and builds a catalog", () => {
@@ -38,6 +53,8 @@ describe("l0.exec settings", () => {
       "l0.exec.defaultTimeoutMs": 0,
       "l0.exec.unattendedTimeoutMs": 1_800_000,
       "l0.exec.outputSpillBytes": 10485760,
+      "l0.exec.spillRetentionDays": 0,
+      "l0.exec.spillMaxBytes": 1073741824,
       "l0.exec.envAllowlist.extra": [],
     });
   });

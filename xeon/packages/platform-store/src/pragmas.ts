@@ -1,6 +1,7 @@
 import { SQLiteError, type Database } from "bun:sqlite";
 import { err, ok, type Result } from "@xeon/contracts";
 import { classifySqliteCode } from "./db.ts";
+import { columnInt, toSqlRow } from "./rows.ts";
 
 /** 'XEON'(0x58454F4E). 새 파일에서만 쓰고 이후 대조한다 */
 export const APPLICATION_ID = 1480937294;
@@ -10,10 +11,30 @@ const WAL_AUTOCHECKPOINT = 1000;
 export type PragmaError = { readonly kind: "io"; readonly code: string };
 
 /** `PRAGMA name` 조회값. 한 행 한 열의 값을 돌려준다 */
-export function readPragma(db: Database, name: string): unknown {
+function readPragma(db: Database, name: string): unknown {
   const row = db.query<unknown, []>(`PRAGMA ${name}`).get();
   if (typeof row !== "object" || row === null) return undefined;
   return Object.values(row)[0];
+}
+
+/**
+ * application_id와 스키마 유무를 한 스냅숏에서 읽는다. 다른 프로세스가 같은 순간 새 파일을 초기화해도
+ * "표지는 0인데 테이블이 있음"으로 잘못 보지 않는다(표지는 테이블보다 먼저 커밋된다). 열기와 내보내기가 같이 쓴다.
+ */
+export function readIdentity(db: Database): {
+  readonly applicationId: number;
+  readonly hasSchema: boolean;
+} {
+  return db
+    .transaction(() => {
+      const id = readPragma(db, "application_id");
+      const row = db.query<unknown, []>("SELECT count(*) AS n FROM sqlite_schema").get();
+      return {
+        applicationId: typeof id === "number" ? id : 0,
+        hasSchema: columnInt(toSqlRow(row), "n") > 0,
+      };
+    })
+    .deferred();
 }
 
 function verify(db: Database, name: string, expected: string | number): Result<void, PragmaError> {

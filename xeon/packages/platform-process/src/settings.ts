@@ -17,6 +17,15 @@ const group = defineSettings("l0.process", {
     ui: { tab: "execution", widget: "toggle", order: 10, label: "공유 서비스 모드" },
     since: "0.1.0",
   },
+  // 빈 값이면 로컬 서비스(또는 프로세스 안 엔진)를 쓴다. 값 형식(`unix:`, `tcp://`, `ssh://`)은 @xeon/client가 해석한다. 토큰은 설정에 두지 않는다
+  "service.remote": {
+    type: Type.String(),
+    default: "",
+    runtimeChange: "restart",
+    allowedScopes: ["managed", "user"],
+    ui: { tab: "execution", widget: "text", order: 15, label: "원격 서비스 주소" },
+    since: "0.1.0",
+  },
   "service.idleGraceMs": {
     type: Type.Integer(),
     default: 60_000,

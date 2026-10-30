@@ -14,7 +14,8 @@ function layer(scope: ScopeLayer["scope"], values: Record<string, unknown>): Sco
 // L2.web.spec §6 표의 키 집합
 const SPEC_KEYS = [
   "search.provider",
-  "search.pluginOrder",
+  "search.order",
+  "search.parallel",
   "search.searxng.url",
   "search.wrapper.model",
   "search.wrapper.maxContinuations",
@@ -36,6 +37,7 @@ const SPEC_KEYS = [
   "limits.searchPerSession",
   "limits.fetchPerSession",
   "browse.provider",
+  "browse.order",
   "browse.headless",
   "browse.runtime",
   "browse.executablePath",

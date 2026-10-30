@@ -8,6 +8,7 @@ import {
 } from "@xeon/contracts/extensions";
 import type { CapabilityDefLookup } from "../capability-guard.ts";
 import type { DispatchPolicy } from "../dispatch-types.ts";
+import { SessionBranchPortKey } from "../event-query.ts";
 import type { ResourcePolicy } from "../resources.ts";
 import type { ExtDiagnostic } from "../errors.ts";
 import { createExtHost, hostInternalsOf, type ExtHost } from "../host.ts";
@@ -124,7 +125,10 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
     setup(ctx) {
       if (!without.has("loop")) ctx.providePort(LoopPortKey, loop);
       if (!without.has("queue")) ctx.providePort(InputQueuePortKey, queue);
-      if (!without.has("records")) ctx.providePort(RecordCommitPortKey, records);
+      if (!without.has("records")) {
+        ctx.providePort(RecordCommitPortKey, records);
+        ctx.providePort(SessionBranchPortKey, (threadId) => records.readBranch(threadId));
+      }
     },
   });
   let boundaryCounter = 0;

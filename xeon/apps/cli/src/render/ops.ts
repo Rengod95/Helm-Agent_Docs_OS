@@ -38,11 +38,17 @@ export interface QuestionView {
   readonly allowFreeText: boolean;
 }
 
+/** 검토 카드의 파일 한 줄. hunk id는 파일 순번과 이 파일 안 hunk 순번으로 정해진다(§4.11) */
+export interface ReviewFileView {
+  readonly path: string;
+  readonly hunks: number;
+}
+
 /** 승인 프롬프트가 kind별로 필요로 하는 구조. 제목·본문(body)은 모든 kind가 같다 */
 type ApprovalForm =
   | { readonly kind: "tool" }
   | { readonly kind: "plan"; readonly nextModes: readonly string[] }
-  | { readonly kind: "review" }
+  | { readonly kind: "review"; readonly files: readonly ReviewFileView[] }
   | { readonly kind: "question"; readonly questions: readonly QuestionView[] };
 
 export interface ApprovalView {

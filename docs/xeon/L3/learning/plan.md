@@ -75,7 +75,7 @@ xeon/packages/group-learning/
     fixtures/
 ```
 
-- import 허용: `@xeon/contracts`(F), `@xeon/group-kit`(DR-02 허용 목록 `DR-02/group-kit-learning`, `eng.dependency-rules.guide` DR-02, [결정: review.decisions-2 U-15]), 테스트 파일에서만 `@xeon/core-models/testing`(테이프, `eng.testing.guide` TS-04)과 각 패키지의 `testing` 서브패스(DR-14 예외, review.decisions-2 U-17). F에는 `./testing` 서브패스가 없으므로 시계·ID 대역은 이 패키지 `test/` 안에 둔다(review.decisions-2 U-03).
+- import 허용: `@xeon/contracts`(F), `@xeon/group-kit`(DR-02 허용 목록 `DR-02/group-kit`, `eng.dependency-rules.guide` DR-02, [결정: review.decisions-2 U-15]), 테스트 파일에서만 `@xeon/core-models/testing`(테이프, `eng.testing.guide` TS-04)과 각 패키지의 `testing` 서브패스(DR-14 예외, review.decisions-2 U-17). F에는 `./testing` 서브패스가 없으므로 시계·ID 대역은 이 패키지 `test/` 안에 둔다(review.decisions-2 U-03).
 - import 금지: `cap-*`(L2-d는 `g.capability(<ServiceKey>)`로만 쓴다), `core-*`(위임은 `g.delegate`로만 쓴다), `ext-host`, `platform-*`, `group-helm`(CM-06).
 - 의존 추가: 외부 npm 의존을 더하지 않는다. `typebox`는 workspace catalog의 1.3.27를 쓴다(`catalog:`, L3.group-kit.plan §4 표, eng.toolchain.guide).
 
@@ -281,7 +281,7 @@ xeon/packages/group-learning/
 | LR-14 | 완료 | 공개 레코드 8종 선언과 `proposed`·`review.finished`·`approved`·`rejected`·`applied` 기록. `records.test.ts` |
 | LR-15 | 완료 | `commands.ts`. 승인·수정은 `--revision` 필수. 결과는 `report(report, invocationId)` 콜백으로 낸다(spec §6.2). `commands.test.ts`, `ambient.test.ts` |
 | LR-16 | 완료 | `coexist.test.ts`: drive 임대를 쥔 대역 아래에서 포크가 돈다. 루프 turn이 늘지 않는다 |
-| LR-17 | 부분 | 검토 행과 `fork.finished`, `review.finished`에 토큰을 남긴다. group-kit `GroupMetricsHandle`에 더하는 연산이 없어 연결하지 못했다(spec §10 17) |
+| LR-17 | 연결됨 (B4-GRP) | 검토 행과 `fork.finished`, `review.finished`에 토큰을 남기고, 검토 종료 때 `g.metrics.addUsage`로 계측에 더한다. 프로세스 안에서 같은 검토는 한 번만 더한다(`countedReviews`). 규칙과 시험은 spec §10 17 |
 | LR-18 | 완료 | `uc3.int.test.ts`(X2, 이벤트를 접은 읽기 면). 실제 SQLite 경로는 `apps/host/test/int/proposals.int.test.ts`다: 모델 테이프가 `learning_propose`를 부르고 승인 전 파일 불변, 승인 뒤 스킬 파일 생성을 확인한다. 코어 diff 0은 `core-diff-check.ts` |
 | LR-23 | 완료 | 구독 핸들러, `reviewFinishOutcome`. `settled.test.ts` |
 | LR-24 | 완료 | `onDispose`가 `g.cancelDelegates`를 부른다. `onDispose`에는 ambient가 없어 끝난 검토의 표지는 `boundary.settle.after`의 2시간 규칙이나 `/learning` 진입의 `delegateStatus`가 비운다. group-kit이 `onDispose`에서 `cancelDelegates`가 동작하게 고쳤다. `dispose.test.ts` |

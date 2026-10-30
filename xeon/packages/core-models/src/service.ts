@@ -5,7 +5,15 @@ import {
   type MutableModels,
   type RetryPolicy,
 } from "@earendil-works/pi-ai";
-import { attempt, err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
+import {
+  attempt,
+  err,
+  ok,
+  type Clock,
+  type Logger,
+  type Result,
+  type Scheduler,
+} from "@xeon/contracts";
 import type { AssistantMessage } from "@xeon/contracts/conversation";
 import {
   formatModelRef,
@@ -23,6 +31,7 @@ import {
   type SecretService,
   type StreamFn,
 } from "@xeon/contracts/services";
+import { createAccountPool, DEFAULT_RATE_LIMIT_POLICY, type RateLimitPolicy } from "./accounts.ts";
 import { buildCachePolicy, withRetention } from "./cache-policy.ts";
 import { classifyMessage } from "./classify.ts";
 import { createHostedSearch } from "./hosted-search.ts";
@@ -66,6 +75,10 @@ export interface ModelServiceDeps {
   /** 없으면 before_provider_request를 발화하지 않는다 */
   readonly dispatcher?: ProviderDispatcher;
   readonly logger?: Logger;
+  /** 계정 회전 플러그인이 켜져 있는가. 없으면 꺼짐이다(L1.models.spec §4.8, 기본 꺼짐) */
+  readonly rotationEnabled?: () => boolean;
+  /** 회전의 기다림에 쓴다. 없으면 기다림이 필요한 자리에서 실패한다 */
+  readonly scheduler?: Scheduler;
 }
 
 function modelError(kind: ModelError["kind"], message: string, ref?: string): ModelError {
@@ -114,6 +127,9 @@ function tableOf(settings: ModelsSettings): RoutingTable {
 
 export function createModelService(deps: ModelServiceDeps): ModelService {
   const failures = createFailureLog();
+  const policyOf = (providerId: string): RateLimitPolicy =>
+    deps.settings().rateLimit[providerId] ?? DEFAULT_RATE_LIMIT_POLICY;
+  const pool = createAccountPool(policyOf);
   const usage = createUsageMeter(deps.logger);
   const tokens = createTokenEstimator();
 
@@ -179,6 +195,15 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     failures,
     overlay: (providerId) => registry.overlay(providerId),
     resolver: createSecretResolver(deps.secrets, { targetOf }),
+    rotation: {
+      pool,
+      scheduler: deps.scheduler ?? null,
+      // 첫 사용 고지에 동의하기 전에는 계정이 있어도 회전하지 않는다
+      enabled: () => deps.rotationEnabled?.() === true && deps.settings().rotationAcknowledged,
+      accounts: (providerId) =>
+        deps.settings().accounts.filter((account) => account.provider === providerId),
+      policy: policyOf,
+    },
     ...(deps.logger === undefined ? {} : { logger: deps.logger }),
   });
 

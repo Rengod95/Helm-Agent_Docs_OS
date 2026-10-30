@@ -7,7 +7,7 @@ import {
 } from "@xeon/contracts/settings";
 
 // L2.workspace.spec §6. 읽는 키만 선언한다(M1: read.*, shell.*, list.maxEntries, M2: images.*; plan W8).
-// 나머지 키(grep.*, find.*, edit.fuzzy)는 그 키를 읽는 도구가 들어오는 마일스톤(M3)에 더한다.
+// M3b: edit.fuzzy, grep.*, find.*를 더했다. grep·find는 ripgrep으로 돈다(spec §4.5).
 // 키를 더하거나 바꾸면 apps/host/schema/settings.<범위>.schema.json을 다시 만든다(settings-schema-committed 시험이 막는다):
 // `cd xeon/apps/host && mise exec -- bun src/main.ts config schema --scope <managed|user|project|local> --core-only --out schema/settings.<범위>.schema.json`
 
@@ -68,6 +68,33 @@ const workspaceSettings = defineSettings("l2.workspace", {
     },
     since: "0.1.0",
   },
+  "grep.maxMatches": {
+    type: Type.Integer(),
+    default: 100,
+    range: { min: 1, max: 10000 },
+    runtimeChange: "nextTurn",
+    allowedScopes: ALL_SCOPES,
+    ui: { tab: "tools", widget: "number", order: 211, label: "검색 최대 일치 수", unit: "개" },
+    since: "0.1.0",
+  },
+  "grep.maxLineLength": {
+    type: Type.Integer(),
+    default: 500,
+    range: { min: 80, max: 10000 },
+    runtimeChange: "nextTurn",
+    allowedScopes: ALL_SCOPES,
+    ui: { tab: "tools", widget: "number", order: 212, label: "검색 결과 최대 줄 길이", unit: "자" },
+    since: "0.1.0",
+  },
+  "find.maxResults": {
+    type: Type.Integer(),
+    default: 1000,
+    range: { min: 1, max: 100000 },
+    runtimeChange: "nextTurn",
+    allowedScopes: ALL_SCOPES,
+    ui: { tab: "tools", widget: "number", order: 213, label: "파일 찾기 최대 결과 수", unit: "개" },
+    since: "0.1.0",
+  },
   "list.maxEntries": {
     type: Type.Integer(),
     default: 500,
@@ -75,6 +102,20 @@ const workspaceSettings = defineSettings("l2.workspace", {
     runtimeChange: "nextTurn",
     allowedScopes: ALL_SCOPES,
     ui: { tab: "tools", widget: "number", order: 205, label: "목록 최대 항목 수", unit: "개" },
+    since: "0.1.0",
+  },
+  "edit.fuzzy": {
+    type: Type.Boolean(),
+    default: true,
+    runtimeChange: "nextTurn",
+    allowedScopes: ALL_SCOPES,
+    ui: {
+      tab: "tools",
+      widget: "toggle",
+      order: 210,
+      label: "퍼지 일치 편집",
+      help: "정확 일치가 없을 때 따옴표, 대시, 공백 차이를 무시하고 찾는다",
+    },
     since: "0.1.0",
   },
   "images.maxWidth": {
@@ -126,6 +167,20 @@ const workspaceSettings = defineSettings("l2.workspace", {
     },
     since: "0.1.0",
   },
+  "grep.rgPath": {
+    type: Type.String(),
+    default: "",
+    runtimeChange: "restart",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "tools",
+      widget: "text",
+      order: 214,
+      label: "ripgrep 실행 파일 경로",
+      help: "비워 두면 번들된 rg를 쓴다. 프로젝트 설정으로는 바꿀 수 없다",
+    },
+    since: "0.1.0",
+  },
 });
 
 /** 이 패키지가 선언하는 설정 정의. 조립 루트가 카탈로그에 넣는다 */
@@ -140,7 +195,15 @@ export interface WorkspaceSettings {
     /** 0이면 제한 없음 */
     readonly defaultTimeoutSec: number;
   };
+  readonly grep: {
+    readonly maxMatches: number;
+    readonly maxLineLength: number;
+    /** 빈 문자열이면 `xeon.os`가 번들 rg를 찾는다 */
+    readonly rgPath: string;
+  };
+  readonly find: { readonly maxResults: number };
   readonly list: { readonly maxEntries: number };
+  readonly edit: { readonly fuzzy: boolean };
   readonly images: {
     readonly maxWidth: number;
     readonly maxHeight: number;
@@ -154,7 +217,10 @@ export interface WorkspaceSettings {
 export const DEFAULT_WORKSPACE_SETTINGS: WorkspaceSettings = {
   read: { maxLines: 2000, maxBytes: 51200 },
   shell: { maxLines: 2000, maxBytes: 51200, defaultTimeoutSec: 0 },
+  grep: { maxMatches: 100, maxLineLength: 500, rgPath: "" },
+  find: { maxResults: 1000 },
   list: { maxEntries: 500 },
+  edit: { fuzzy: true },
   images: { maxWidth: 2000, maxHeight: 2000, maxBytes: 4718592, maxInputBytes: 41943040 },
 };
 
@@ -166,6 +232,16 @@ export interface WorkspaceSettingsSource {
 function integerValue(def: SettingDef, layers: ScopeStack, fallback: number): number {
   const { value } = resolveSetting(def, layers).setting;
   return typeof value === "number" && Number.isInteger(value) ? value : fallback;
+}
+
+function stringValue(def: SettingDef, layers: ScopeStack, fallback: string): string {
+  const { value } = resolveSetting(def, layers).setting;
+  return typeof value === "string" ? value : fallback;
+}
+
+function booleanValue(def: SettingDef, layers: ScopeStack, fallback: boolean): boolean {
+  const { value } = resolveSetting(def, layers).setting;
+  return typeof value === "boolean" ? value : fallback;
 }
 
 /** 유효 값을 읽는다. 형식이나 범위가 틀린 층은 `resolveSetting`이 건너뛰고, 값이 없으면 기본값이다 */
@@ -186,7 +262,14 @@ export function readWorkspaceSettings(layers: ScopeStack): WorkspaceSettings {
         fallback.shell.defaultTimeoutSec,
       ),
     },
+    grep: {
+      maxMatches: integerValue(defs["grep.maxMatches"], layers, fallback.grep.maxMatches),
+      maxLineLength: integerValue(defs["grep.maxLineLength"], layers, fallback.grep.maxLineLength),
+      rgPath: stringValue(defs["grep.rgPath"], layers, fallback.grep.rgPath),
+    },
+    find: { maxResults: integerValue(defs["find.maxResults"], layers, fallback.find.maxResults) },
     list: { maxEntries: integerValue(defs["list.maxEntries"], layers, fallback.list.maxEntries) },
+    edit: { fuzzy: booleanValue(defs["edit.fuzzy"], layers, fallback.edit.fuzzy) },
     images: {
       maxWidth: integerValue(defs["images.maxWidth"], layers, fallback.images.maxWidth),
       maxHeight: integerValue(defs["images.maxHeight"], layers, fallback.images.maxHeight),

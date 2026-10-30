@@ -1,0 +1,4 @@
+[submodule "xeon/external/caustic"]
+	path = xeon/external/caustic
+	url = https://github.com/Rengod95/caustic.git
+	branch = main

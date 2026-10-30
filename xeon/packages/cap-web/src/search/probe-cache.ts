@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import { Bug, attemptAsync, type Clock, type Logger } from "@xeon/contracts";
 import type { ProviderAvailabilityWeb } from "@xeon/contracts/capabilities";
 import type { ProbeTarget } from "../ports/providers.ts";
 
@@ -13,7 +13,20 @@ export interface ProbeCache {
   forget(providerId?: string): void;
 }
 
-export function createProbeCache(clock: Clock): ProbeCache {
+/** provider 코드가 탐침에서 던져도 호출 전체가 거부되지 않게 `unreachable` 실패로 바꾼다. Bug는 그대로 올린다 */
+async function probeSafely(
+  target: ProbeTarget,
+  signal: AbortSignal,
+  logger: Logger | undefined,
+): Promise<ProviderAvailabilityWeb> {
+  const probed = await attemptAsync(() => target.isAvailable(signal));
+  if (probed.ok) return probed.value;
+  if (probed.error.cause instanceof Bug) throw probed.error.cause;
+  logger?.warn("web.probe_threw", { provider: target.id });
+  return { ok: false, reason: "unreachable", detail: "probe threw" };
+}
+
+export function createProbeCache(clock: Clock, logger?: Logger): ProbeCache {
   const entries = new Map<
     string,
     { readonly result: ProviderAvailabilityWeb; readonly expiresAt: number }
@@ -23,7 +36,7 @@ export function createProbeCache(clock: Clock): ProbeCache {
     async probe(target, signal) {
       const hit = entries.get(target.id);
       if (hit !== undefined && hit.expiresAt > clock.now()) return hit.result;
-      const pending = inflight.get(target.id) ?? target.isAvailable(signal);
+      const pending = inflight.get(target.id) ?? probeSafely(target, signal, logger);
       inflight.set(target.id, pending);
       try {
         const result = await pending;

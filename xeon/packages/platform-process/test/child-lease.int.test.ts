@@ -16,7 +16,7 @@ function isAlive(pid: number): boolean {
 function nextMessage(transport: Transport, id: string): Promise<unknown> {
   return new Promise((resolve) => {
     const off = transport.onMessage((message) => {
-      if (typeof message === "object" && message !== null && Reflect.get(message, "id") === id) {
+      if (typeof message === "object" && message !== null && "id" in message && message.id === id) {
         off();
         resolve(message);
       }
@@ -140,8 +140,8 @@ describe("child engine lease", () => {
     if (!parsed.ok || typeof parsed.value !== "object" || parsed.value === null) {
       throw new Error("parent did not report pids");
     }
-    const parentPid = Reflect.get(parsed.value, "parent");
-    const enginePid = Reflect.get(parsed.value, "engine");
+    const parentPid: unknown = "parent" in parsed.value ? parsed.value.parent : undefined;
+    const enginePid: unknown = "engine" in parsed.value ? parsed.value.engine : undefined;
     if (typeof parentPid !== "number" || typeof enginePid !== "number") {
       throw new Error("pids missing");
     }

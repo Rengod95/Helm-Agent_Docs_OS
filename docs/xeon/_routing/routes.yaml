@@ -63,15 +63,27 @@ layout:
       learning: "xeon/packages/group-learning/**"
       # slots는 코드 없음 (템플릿 문서만)
   L4:
-    domains: [cli, desktop, host-service, settings-ui]
+    domains: [cli, desktop, host-service, settings-ui, release, desktop-ux]
     paths:
       cli: "xeon/apps/cli/**"
       desktop: "xeon/apps/desktop/**"
       host-service: "xeon/apps/host/**"
       settings-ui: "xeon/packages/client/src/settings/**"   # view-model(adr.0020). 렌더러는 xeon/apps/desktop/src/views
+      release: "xeon/scripts/release*"
+      # 도메인 밖의 릴리즈 경로 두 개(층 수준 하위 경로, L4.release.spec binds)
+      release-bundle: "xeon/scripts/release-bundle.json"
+      release-workflow: ".github/workflows/xeon-release.yml"
+      # 데스크톱 화면 구성과 UX(M4). 화면 렌더러 경로이고 desktop binds 안에 들어간다
+      desktop-ux: "xeon/apps/desktop/src/views/**"
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.readme, L1.models.spec, L1.models.plan]
+    # 계정 회전 플러그인(L3 그룹 패키지)은 L1 모델 스펙 §4.8이 설명한다. L3 spec·plan 문서를 따로 두지 않는다
+    - path: "xeon/packages/group-account-rotation/**"
+      docs: [L1.models.spec]
+    # 위장 provider 플러그인(L3 그룹 패키지)은 L1 모델 스펙 §4.11.3이 설명한다. L3 spec·plan 문서를 따로 두지 않는다
+    - path: "xeon/packages/group-provider-anthropic-oauth/**"
+      docs: [L1.models.spec]
   # 층 밖 코드 경로. layout에 자기 층 항목이 없는 문서(architecture, adr, eng)의 binds 허용 목록이다.
   # 검사기는 이런 문서에 layout 전체의 경로를 허용하므로 여기 적은 경로가 그 집합에 더해진다.
   # domains는 경로 이름표이고 문서 도메인이 아니다. layer가 shared인 문서는 두지 않는다.
@@ -145,6 +157,12 @@ manifest:
     - eng.testing.guide
     - eng.toolchain.guide
     - eng.frontend-state.guide
+    - eng.operations.runbook
+    - eng.operations.recovery
+    - eng.operations.glossary
+    - eng.operations.status-map
+    - eng.operations.data-privacy
+    - eng.operations.nfr
   decisions:
     - adr.0001   # 스택(Bun, TS7, oxlint/oxfmt, bun test, turbo)
     - adr.0002   # DI는 Cordis 하나

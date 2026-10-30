@@ -216,6 +216,46 @@ export declare function listenSocket(options: SocketListenOptions): Promise<Resu
 ```
 
 ```ts
+// xeon/packages/platform-process/src/transport/tunnel.ts (§4.4.8, M3-REQ-44). 전송을 만들지 않고 터널 프로세스만 관리한다
+import type { Clock, Scheduler } from "@xeon/contracts";
+export interface TunnelSpec {
+  readonly command: string;                                         // 셸 없이 실행. 실제는 sshTunnelCommand가 만든 ssh
+  readonly args: readonly string[];
+  readonly localSocket: string;                                     // 이 파일이 생기면 준비된 것이다
+  readonly readyTimeoutMs?: number;                                 // 기본 15000
+  readonly pollMs?: number;                                         // 기본 25
+  readonly env?: Readonly<Record<string, string | undefined>>;
+}
+export type TunnelError =
+  | { readonly kind: "spawn_failed"; readonly code: string }
+  | { readonly kind: "path_too_long"; readonly path: string; readonly limit: number }
+  | { readonly kind: "exited"; readonly code: number | null; readonly signal: string | null; readonly stderr: string }
+  | { readonly kind: "timeout"; readonly stderr: string };
+export interface TunnelExit { readonly code: number | null; readonly signal: string | null }
+export interface SocketTunnel {
+  readonly localSocket: string;
+  readonly exited: Promise<TunnelExit>;                             // close()로 끝난 경우도 이행한다
+  close(): Promise<void>;                                           // SIGTERM → 2000ms → SIGKILL, 로컬 소켓 파일 삭제
+}
+export interface TunnelDeps { readonly clock: Clock; readonly scheduler: Scheduler }
+export declare function openTunnel(spec: TunnelSpec, deps: TunnelDeps): Promise<Result<SocketTunnel, TunnelError>>;
+
+export interface SshTunnelInput {
+  readonly target: string;                                          // [user@]host. `-`로 시작할 수 없다
+  readonly remoteSocket: string;                                    // 서버 쪽 서비스 소켓의 절대 경로
+  readonly localSocket: string;                                     // 호출자가 만든 비공개 디렉터리 안의 새 경로
+  readonly port?: number;
+  readonly identityFile?: string;
+  readonly sshPath?: string;                                        // 기본 "ssh"
+}
+export type SshTunnelError =
+  | { readonly kind: "invalid_target"; readonly target: string }
+  | { readonly kind: "invalid_path"; readonly field: "remoteSocket" | "localSocket" | "identityFile" }
+  | { readonly kind: "invalid_port"; readonly port: number };
+export declare function sshTunnelCommand(input: SshTunnelInput): Result<{ readonly command: string; readonly args: readonly string[] }, SshTunnelError>;
+```
+
+```ts
 // xeon/packages/platform-process/src/lease/child-lease.ts
 import type { Clock, Scheduler } from "@xeon/contracts";              // F 루트 base(review.decisions-2 U-03), L0.os.spec §3.4
 import type { ShutdownCoordinator, ShutdownReason } from "@xeon/contracts/services";
@@ -346,7 +386,8 @@ export interface IdleMonitor extends Disposable {
   readonly idleShutdownAt: number | null;
   onIdle(handler: () => void): () => void;
 }
-export declare function createIdleMonitor(options: { readonly clock: Clock; readonly scheduler: Scheduler; readonly startupGraceMs: number; readonly idleGraceMs: number }): IdleMonitor;
+// sample: 타이머가 울릴 때 입력을 다시 읽는 선택 함수. 한가하지 않으면 종료하지 않는다(§4.4.4)
+export declare function createIdleMonitor(options: { readonly clock: Clock; readonly scheduler: Scheduler; readonly startupGraceMs: number; readonly idleGraceMs: number; readonly sample?: () => IdleInputs }): IdleMonitor;
 ```
 
 ```ts
@@ -478,9 +519,9 @@ socket(`listenSocket`, `connectSocket`):
 
 - Unix 도메인 소켓 위 JSON Lines. 프레이밍은 stdio와 같은 `framing.ts`를 쓴다.
 - 구현 수단은 `Bun.listen({ unix })`/`Bun.connect({ unix })` [가정: Bun 1.4.3 선언 `bun.d.ts:7401-7406`]. 실패하면 `node:net`으로 바꾼다.
-- 소켓 경로 길이를 열기 전에 검사한다(macOS 104바이트, Linux 108바이트, §5.1). 넘으면 `path_too_long`.
-- 리스너는 바인드 뒤 소켓 파일을 0600으로 바꾸고, 부모 디렉터리는 0700이어야 한다.
-- 원격 사용(1차, M3)은 이 소켓을 SSH 터널(Unix 소켓 전달)이나 사설망으로 연결한다. 원격 클라이언트도 같은 socket 전송과 인증 규칙(§4.4.5)을 쓴다. 내장 TCP·WebSocket 원격 전송은 2차다 [결정: review.decisions-2 U-11].
+- 소켓 경로 길이를 열기 전에 검사한다. 상한은 `UNIX_SOCKET_PATH_LIMIT`(103바이트, macOS `sun_path` 104바이트 기준의 보수적 값, §5.1)다. 넘으면 `path_too_long`.
+- 리스너는 소켓 파일을 0600으로 만든다. `listen` 호출 안에서 바인드가 동기로 일어나는 동안만 프로세스 umask를 0177로 좁히고 바로 원래 값으로 되돌린다. 그래서 파일은 만들어지는 순간부터 0600이고 chmod 전의 틈이 없다. 바인드 뒤 0600 chmod는 그대로 둔다. 동기 구간에는 JS 실행이 멈춰 있으므로 같은 프로세스의 다른 파일 생성에 영향이 없다 [가정: Bun의 `node:net` 호환 계층이 바인드를 `listen` 안에서 동기로 한다. 실측 전]. 부모 디렉터리는 0700이어야 한다.
+- 원격 사용(1차, M3)은 이 소켓을 SSH 터널(Unix 소켓 전달)이나 사설망으로 연결한다(§4.4.8). 원격 클라이언트도 같은 socket 전송과 인증 규칙(§4.4.5)을 쓴다. 내장 TCP·WebSocket 원격 전송은 2차다 [결정: review.decisions-2 U-11].
 
 ### 4.2 자식 엔진 수명 임대
 
@@ -558,6 +599,7 @@ ensureService():
 - 승인 대기 세션은 live로 센다 [제안](adr.0006 §6 미결, Claude Code 선례 `CC/agent-view.md:819`). 사용자가 나중에 승인하러 돌아왔을 때 서비스가 떠 있어야 바로 이어지기 때문이다.
 - 대기 예약이 하나라도 있으면 종료하지 않는다. 예약 틱은 서비스 프로세스 안에서 돈다(adr.0006 §3.5). 대기 예약 수는 L2 schedule이 채운다. 그 트랙이 오기 전에는 조립 루트가 0을 넘긴다 [결정: 오케스트레이터 기본값, M3b B1-SVC].
 - 판정기는 상태 없이 입력 표본만 받는다. 입력이 바뀔 때마다 타이머를 다시 건다. 시계는 주입한다(수동 시계로 시험, TS-03).
+- 타이머가 울릴 때 판정기에 `sample`(선택 옵션)이 주어졌으면 입력을 다시 읽는다. 한가하지 않으면 종료하지 않고 타이머를 비운 채 `idleShutdownAt`을 `null`로 되돌린다. 다음 `update`가 한가함을 알리면 다시 건다. 마지막 `update` 뒤에 연결이 붙었는데 알림이 늦은 틈에 서비스를 끝내지 않으려는 안전망이다.
 - 유휴 종료도 `ProcessShutdown.request("idle")`을 거친다.
 
 | 연결 | live task | 대기 예약 | 유예 경과 | 종료 |
@@ -595,6 +637,55 @@ ensureService():
 | 6 | 부모-자식 수명 | stdio 자식 엔진의 부모를 SIGKILL하면 자식이 `shutdown.timeoutMs` + 1초 안에 끝난다. `ensure`로 띄운 서비스는 띄운 CLI가 끝나도 살아 있다 |
 | 7 | 종료 협조 | `host.shutdown` 요청에 서비스가 참여자를 모두 부른 뒤 응답하고 종료한다. 참여자가 시한을 넘기면 종료코드 1로 끝난다 |
 | 8 | 단일 장애점 | 서비스를 SIGKILL하면 접속 중 클라이언트는 정지 상태가 되고 쓰기를 보내지 않는다. 다음 `ensure`가 새 서비스를 띄우고 복구 표식(`RecoveryMarker`)이 남은 세션을 재개 후보로 돌려준다 |
+
+#### 4.4.8 소켓 터널
+
+목적은 M3-REQ-44다. 원격 사용(1차)은 서비스의 Unix 소켓을 SSH 터널이나 사설망으로 이어 쓴다 [결정: review.decisions-2 U-11]. 이 절은 터널 프로세스를 띄우고, 로컬 소켓이 준비되었음을 알리고, 닫을 때 정리하는 L0 부분을 정한다. 전송(`Transport`)은 만들지 않는다. 호출자(`@xeon/client`, L4)가 준비된 로컬 소켓에 `connectSocket`으로 접속한다. 설정 값의 해석과 연결 순서는 `@xeon/client`의 몫이다(§6).
+
+- 자식 프로세스는 셸 없이 `command`와 `args`로 실행한다. 표준 입력과 출력은 무시하고 표준 오류의 꼬리(2048바이트)만 모은다. `env`를 주면 그 값만 쓴다.
+- 실제 명령은 `sshTunnelCommand`가 만든 `ssh`다. 시험은 `test/fixtures/fake-tunnel.ts` 대역으로 로컬 소켓을 만들거나 준비 전에 끝내 본다. 실제 `ssh` 중계는 이 패키지 시험에서 돌리지 않는다.
+
+**준비 판정 (`openTunnel`)**
+
+1. `localSocket`의 UTF-8 바이트 수가 `UNIX_SOCKET_PATH_LIMIT`(103)을 넘으면 프로세스를 띄우지 않고 `path_too_long`을 돌려준다.
+2. 실행하지 못하면 `spawn_failed`(errno 코드)다.
+3. 준비는 `localSocket` 파일이 존재하는 것으로 본다. `pollMs`(기본 25ms) 간격으로 되풀이해 보고, 파일이 생기면 `SocketTunnel`을 돌려준다.
+4. 파일이 생기기 전에 프로세스가 끝나면 `exited`(종료 코드, 신호, stderr 꼬리)다. `readyTimeoutMs`(기본 15000ms)를 넘으면 `timeout`이다. 두 경우 모두 프로세스를 정리하고 오류 값으로 돌려준다.
+- 파일이 생겼다고 원격 소켓에 연결된다는 뜻은 아니다. 원격 경로가 틀리면 호출자의 첫 접속(`host.hello`)이 실패한다 [가정: OpenSSH가 `-L` 로컬 수신 지점을 원격 연결 전에 만들 수 있다. 실측 전].
+
+**정리 (`close`)**
+
+1. 프로세스가 아직 끝나지 않았으면 SIGTERM을 보낸다. 2000ms(`KILL_AFTER_MS`) 안에 끝나지 않으면 SIGKILL을 보낸다.
+2. 로컬 소켓 파일을 지운다. 파일이 없어도 오류가 아니다(소켓이 생기기 전에 닫힌 경우).
+3. 여러 번 불러도 같은 Promise를 돌려준다. `exited`는 `close()`로 끝난 경우에도 이행한다.
+
+**SSH 명령 (`sshTunnelCommand`)**
+
+`sshTunnelCommand`는 다음 argv를 만든다. 대괄호 항목은 값이 있을 때만 넣는다.
+
+```text
+ssh -N -T -o ExitOnForwardFailure=yes -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 [-p <port>] [-i <identityFile>] -L <localSocket>:<remoteSocket> -- <target>
+```
+
+- `-N`, `-T`: 원격 명령과 터미널을 쓰지 않는다. `ExitOnForwardFailure=yes`: 전달을 세우지 못하면 ssh가 끝나고, 준비 판정 4번의 `exited`로 잡힌다.
+- `BatchMode=yes`: 암호와 암호 구절을 묻지 않는다. 키 파일이나 ssh-agent만 쓴다. 호스트 키 확인도 묻지 않으므로 알 수 없는 호스트는 실패한다 [가정: OpenSSH 동작].
+- `ServerAliveInterval=15`, `ServerAliveCountMax=3`: 응답이 45초 동안 없으면 연결을 끊는다.
+- `--`: 대상이 옵션으로 읽히지 않게 한다.
+
+입력 검사(옵션 주입 방지, `SshTunnelError`):
+
+- `target`은 `[A-Za-z0-9_][A-Za-z0-9._@%-]*` 모양만 허용한다. `-`로 시작하거나 공백, `:`, 따옴표가 있으면 `invalid_target`이다. IPv6 리터럴은 `:` 때문에 거부된다. 호스트 별칭은 `~/.ssh/config`에서 정한다 [제안].
+- `remoteSocket`, `localSocket`, `identityFile`은 `/`로 시작하는 절대 경로여야 한다. `:`, 공백 문자, 제어 문자(0x00~0x1F, 0x7F)를 담을 수 없다. `-L` 값이 `:`로 나뉘므로 이 검사가 필드를 지킨다. 어기면 `invalid_path`이고 필드 이름을 담는다.
+- `port`는 1부터 65535까지의 정수다. 아니면 `invalid_port`다.
+- `sshPath`는 실행 파일 경로라 검사하지 않는다. 조립 루트가 정한다 [가정].
+
+**루프백 원칙**
+
+원격 사용을 위해 서비스가 TCP 리스너를 새로 열지 않는다. 호스트는 Unix 소켓과 루프백 TCP만 연다. 원격 클라이언트는 SSH 터널의 끝(서버 쪽 사용자 권한)으로 소켓에 접속하므로 서버 쪽에 비루프백 리스너가 생기지 않는다 [결정: review.decisions-2 U-11, product.scope.spec X5]. 사설망 TCP 연결은 이 절의 터널이 아니며, 허용 여부는 [미결 P-13]이다.
+
+**인증**
+
+터널 끝이 서버 쪽 사용자 권한으로 소켓에 접속하므로 소켓 파일 0600과 디렉터리 0700 규칙이 그대로 적용된다(§4.4.5). 토큰 검사는 이 경로의 추가 방어이고 [미결 P-10]에 남는다.
 
 ### 4.5 잠금 실패 동작 정책
 
@@ -664,17 +755,20 @@ L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스�
 
 파이프 기동은 `spawnPiped(input, deps)`(`src/port/spawn-piped.ts`)가 맡는다. 셸 없이 직접 실행하고, 부모 env를 상속하지 않고 받은 env만 쓰고, POSIX에서는 새 프로세스 그룹에 둔다. 레지스트리 등록과 비밀 주입은 하지 않는다. `createMcpProcessPort`가 그 위에 비밀 주입, 레지스트리 등록, 정지 순서를 더한다.
 
+`deps`에는 샌드박스 서비스를 spawn 때마다 찾는 `sandbox`(함수, 반환은 `McpSandboxSource`인 `defaultPolicy`·`wrapArgv`)와 정책 쓰기 루트에 더할 임시 디렉터리 `tempDir`이 있다. 조립 순서상 이 포트가 서비스보다 먼저 만들어지므로 서비스는 값이 아니라 함수로 받는다.
+
 `spawn(spec: McpSpawnSpec, signal): Promise<Result<McpChild, McpSpawnError>>`:
 
-1. `command`와 `args`를 셸 없이 직접 실행한다. 샌드박스를 거치지 않는다(사용자 권한, 위협 모델은 `architecture.security.spec`). Windows의 `.cmd` 셔임은 셸 없이 실행되지 않으므로 이 구현의 범위 밖이다 [미결 P-11].
-2. 자식 env는 부모 env의 허용 목록(`L0.exec.spec` §3.5 `BASE_ENV_POLICY.pass`와 같은 이름, 거부 패턴 제외)에 `secretEnv`로 푼 값을 더해 만든다. 부모의 나머지 env는 넘기지 않는다.
-3. `secretEnv`의 `secret://` 참조는 spawn 직전에 `SecretService.withEnv`로 푼다. `purpose`는 `mcp:<서버 id>`, `target`은 `{ kind: "command", argv0: command, commandLine: "<command> <args…>" }`, `actor`는 `runtime`, `approval`은 `null`이다. lease는 spawn 호출이 끝나면 닫고 값 사본을 지운다. 같은 핸들을 가리키는 env 이름이 여럿이어도 각각 푼다(승인은 `L0.secrets.spec` §4.2가 한 호출로 센다). 오류와 로그에는 참조 이름만 쓴다. 결과 매핑: 항목 없음은 `secret_missing`, 정책 거부는 `secret_denied`, 그 밖의 비밀 오류와 secrets 서비스가 없는 경우는 `spawn_failed`(`code: "secret_unavailable"`)다. 참조 형식이 아닌 값은 `secret_missing`이다.
-4. env 모드는 실행마다 승인 증거를 요구하는데(`L0.secrets.spec` §4.2 6단계) 서버 시작에는 사람이 승인하는 지점이 없다. 그래서 M2에서는 `secretEnv`가 있는 서버가 `secret_denied`로 끝난다 [미결 P-12, M3로 이월]. 비밀 없는 서버는 영향이 없다.
-5. 기동하지 못하면(`ENOENT`, `EACCES`) 거부(reject)하지 않고 `spawn_failed`와 errno 코드를 돌려준다. 트리 종료 수단이 없는 OS는 `unsupported_platform`, 호출 시점에 `signal`이 중단되어 있으면 `aborted`다.
-6. 기동한 서버는 레지스트리에 `owner.kind: "mcp"`, `owner.ref: <서버 id>`, `label`로 등록한다. `McpChild.kill("SIGTERM" | "SIGKILL")`은 트리 전체에 보낸다.
-7. 정지 순서는 stdin 닫기, 유예(`stdinCloseMs`, 기본 500ms), SIGTERM, 유예(레지스트리의 `graceMs`), SIGKILL이다. 레지스트리의 `graceful` 단계가 stdin을 닫고 서버가 그 사이에 끝나면 신호를 보내지 않는다. 끝나지 않으면 트리에 SIGTERM을 보내고, 레지스트리가 시한 뒤 `force`(SIGKILL)를 부른다. 그래서 종료 협조(§4.3)가 모든 MCP 서버의 트리를 이 순서로 정지한다.
-8. `exited`는 프로세스 종료와 stdout 닫힘이 모두 끝난 뒤 이행한다. 서버가 마지막 응답을 쓰고 바로 끝나도 그 출력을 읽을 수 있다. 프로세스가 끝나면 남은 손자를 force로 정리하고, 그래도 파이프가 `drainMs` 안에 닫히지 않으면 스트림을 닫고 이행한다.
-9. stdin 오류(`EPIPE`)는 처리기를 달아 둔다. 전송이 시작하기 전에 서버가 죽어도 엔진이 처리되지 않은 오류로 끝나지 않는다.
+1. `command`와 `args`를 셸 없이 직접 실행한다. Windows의 `.cmd` 셔임은 셸 없이 실행되지 않으므로 이 구현의 범위 밖이다 [미결 P-11]. 샌드박스 요청(`sandbox`)이 없거나 거짓이면 사용자 권한으로 그대로 띄우고 샌드박스 서비스를 부르지 않는다(위협 모델은 `architecture.security.spec`). 참이면 2번의 명령줄을 띄운다.
+2. `sandbox`가 참이면 비밀을 풀기 전에 샌드박스를 정한다. `deps.sandbox()`가 서비스를 돌려주지 않거나 `tempDir`이 없으면 `sandbox_unavailable`(`reason: "service_missing"`)이다. 그 밖에는 작업 디렉터리를 절대 경로로 바꾼 값(없으면 빈 목록)을 작업 루트로, `tempDir`을 임시 루트로 `defaultPolicy`에 넘겨 정책을 만들고, `wrapArgv(policy, { command, args, cwd }, { abortSignal })`를 부른다(`L0.sandbox.spec` §3.1, §4.9). 돌려받은 `argv`를 1번의 `command`·`args` 대신 띄운다. 프로세스가 끝나거나, spawn이 실패하거나, 비밀 lease가 실패하면 `cleanup()`을 한 번 부른다. 결과 매핑: `unavailable`은 띄우지 않고 `sandbox_unavailable`(`reason`은 `SandboxUnavailableReason`, 사유가 없으면 `unknown`)이다. `failed`는 `spawn_failed`(`code: "sandbox_failed"`), `aborted`는 `spawn_failed`(`code: "aborted"`)다. `sandboxed`가 거짓으로 돌아오는 것은 사용자가 `l0.sandbox.enabled`를 껐거나 `l0.sandbox.onUnavailable`을 `run_unsandboxed`로 둔 때뿐이다. 그때만 격리 없이 띄우고 경고 `mcp.sandbox_not_enforced`(`server`, `by`는 `unsandboxedBy`)를 남긴다. 격리 불가 판정과 사용자 선택지는 `L0.sandbox.spec` §4.5가 정한다.
+3. 자식 env는 부모 env의 허용 목록(`L0.exec.spec` §3.5 `BASE_ENV_POLICY.pass`와 같은 이름, 거부 패턴 제외)에 정의의 평문 `env`(생략하면 없다)와 `secretEnv`로 푼 값을 차례로 더해 만든다. 이름이 겹치면 `secretEnv`가 이기고, 평문 `env`의 이름이 변수 이름 형식이 아니면 `spawn_failed`(`code: "env_denied"`)다. 부모의 나머지 env는 넘기지 않는다. 샌드박스가 준 env는 이 값 위에 마지막으로 덮는다(2번). 평문 env의 비밀 이름 패턴 거부는 정의를 읽는 `L2.mcp`가 한다 [결정: M3-REQ-97].
+4. `secretEnv`의 `secret://` 참조는 샌드박스 결정(2번) 뒤, spawn 직전에 `SecretService.withEnv`로 푼다. `purpose`는 `mcp.start:<서버 id>`, `target`은 `{ kind: "command", argv0: command, commandLine: "mcp:<서버 id>" }`, `actor`는 `runtime`, `approval`은 `McpSpawnSpec.approval`(정의 해시마다 한 번 받은 기동 승인 증거, 없으면 `null`)이다. 값은 `platform-secrets`의 `mcpStartContext`가 만드는 맥락과 같다. lease는 spawn 호출이 끝나면 닫고 값 사본을 지운다. 같은 핸들을 가리키는 env 이름이 여럿이어도 각각 푼다(승인은 `L0.secrets.spec` §4.2가 한 호출로 센다). 오류와 로그에는 참조 이름만 쓴다. 결과 매핑: 항목 없음은 `secret_missing`, 정책 거부는 `secret_denied`, 그 밖의 비밀 오류와 secrets 서비스가 없는 경우는 `spawn_failed`(`code: "secret_unavailable"`)다. 참조 형식이 아닌 값은 `secret_missing`이다.
+5. `purpose`가 `mcp.start:`로 시작하는 env 호출은 `per-session` 증거로 충분하다(`L0.secrets.spec` §4.3.1). 호출자(`L2.mcp`)가 spawn 전에 승인을 받아 증거를 싣는다. 증거가 없거나 만료되면 `secret_denied`다. 비밀 없는 서버는 영향이 없다 [해소 P-12, M3-05].
+6. 기동하지 못하면(`ENOENT`, `EACCES`) 거부(reject)하지 않고 `spawn_failed`와 errno 코드를 돌려준다. 트리 종료 수단이 없는 OS는 `unsupported_platform`, 호출 시점에 `signal`이 중단되어 있으면 `aborted`다.
+7. 기동한 서버는 레지스트리에 `owner.kind: "mcp"`, `owner.ref: <서버 id>`, `label`로 등록한다. `McpChild.kill("SIGTERM" | "SIGKILL")`은 트리 전체에 보낸다.
+8. 정지 순서는 stdin 닫기, 유예(`stdinCloseMs`, 기본 500ms), SIGTERM, 유예(레지스트리의 `graceMs`), SIGKILL이다. 레지스트리의 `graceful` 단계가 stdin을 닫고 서버가 그 사이에 끝나면 신호를 보내지 않는다. 끝나지 않으면 트리에 SIGTERM을 보내고, 레지스트리가 시한 뒤 `force`(SIGKILL)를 부른다. 그래서 종료 협조(§4.3)가 모든 MCP 서버의 트리를 이 순서로 정지한다.
+9. `exited`는 프로세스 종료와 stdout 닫힘이 모두 끝난 뒤 이행한다. 서버가 마지막 응답을 쓰고 바로 끝나도 그 출력을 읽을 수 있다. 프로세스가 끝나면 남은 손자를 force로 정리하고, 그래도 파이프가 `drainMs` 안에 닫히지 않으면 스트림을 닫고 이행한다.
+10. stdin 오류(`EPIPE`)는 처리기를 달아 둔다. 전송이 시작하기 전에 서버가 죽어도 엔진이 처리되지 않은 오류로 끝나지 않는다.
 
 ## 5. 실패와 경계 사례
 
@@ -692,6 +786,7 @@ L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스�
 | 유휴 종료 직전에 새 연결 | `update`가 타이머를 취소한다. 종료 요청이 이미 시작됐으면 새 연결은 `host.shuttingDown`(5002) |
 | 버전 교체 재기동 중 다른 클라이언트가 접속 | 구서비스는 `host.shuttingDown`, 클라이언트는 `retryAfterMs` 뒤 `ensure`를 다시 한다 |
 | 백그라운드 프로세스가 정지 요청을 무시 | `graceMs` 뒤 `force`. 그래도 남으면 `lost`로 표시하고 진단에 남긴다 |
+| 샌드박스를 요청한 MCP 서버를 격리할 수 없음 | 띄우지 않고 `sandbox_unavailable`을 돌려준다. 비밀 lease를 열지 않는다(§4.9 2번). 사용자가 끈 경우만 격리 없이 띄운다 |
 | launchd·systemd 명령 실패 | `command_failed`. 파일을 되돌린다 |
 
 ### 5.1 플랫폼별 제약
@@ -723,6 +818,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | L4 노출 |
 |---|---|---|---|---|---|---|
 | `l0.process.service.enabled` | boolean | false | - | restart | managed, user | `execution` 탭 토글 "공유 서비스 모드" |
+| `l0.process.service.remote` | string | `""` | - | restart | managed, user | `execution` 탭 텍스트 "원격 서비스 주소"(순서 15) |
 | `l0.process.service.idleGraceMs` | integer | 60000 [제안] | 1000~86400000 | live | managed, user | `execution` 탭 |
 | `l0.process.service.startTimeoutMs` | integer | 10000 [제안] | 1000~120000 | live | managed, user | 파일만 |
 | `l0.process.shutdown.timeoutMs` | integer | 3000 | 500~60000 | live | managed, user | `execution` 탭 |
@@ -730,6 +826,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 - 자동 재개 키는 이 표에 두지 않는다. `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`(`L1.persistence.spec` §6)가 정본이다 [결정: review.decisions-2 S-03].
 - `startupGraceMs`(10000)는 설정으로 열지 않는다 [제안].
+- `l0.process.service.remote`는 원격 서비스 주소다. 빈 값이면 지금처럼 로컬 서비스나 프로세스 안 엔진에 붙는다. 값이 있으면 CLI 대화와 데스크톱 사이드카가 그 주소에 붙는다. 값은 `unix:/절대/경로`, `tcp://host:port`, `ssh://[user@]host[:port]/절대/원격/소켓/경로` 가운데 하나다. 해석은 `@xeon/client`가 한다. `ssh://` 값은 §4.4.8의 `sshTunnelCommand` 입력이 된다. `tcp://` 값의 토큰은 환경 변수 `XEON_REMOTE_TOKEN`에서만 읽고 설정 파일에는 두지 않는다 [제안]. 비루프백 `tcp://`의 허용 여부는 [미결 P-13]이다.
 
 ## 7. 확장 지점
 
@@ -746,6 +843,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 |---|---|
 | `ProcessService`(`ProcessPort` 확장), `ProcessServiceName`(`xeon.process`), `BackgroundRegistry`, `ShutdownCoordinator` | X.operations.spec §3.7(`run`), X.loading-trust.spec §3.8(`spawn`, 2차), L1.tools.spec, L1.loop.spec, L1.persistence.spec, L2.mcp.spec, L2.schedule.spec, L4.host-service.spec. `eng.context-map.design` §5.3의 소비 열(mcp, schedule, host)에 tool-runtime, run-engine(loop), session-core(persistence)를 더하도록 요청한다(`L0.readme` §9 미결 9) |
 | `createInProcessPair`, `createStdioTransport`, `listenSocket`, `connectSocket` | L4.host-service.spec, L4.cli.spec, F.wire-settings.plan(전송 적합성 스위트 A10) |
+| `openTunnel`, `sshTunnelCommand`, `SocketTunnel` | L4.host-service.spec(조립 루트 `apps/host`가 클라이언트의 터널 포트에 채운다, §4.4.8) |
 | `watchChildLease`, `createProcessShutdown` | L4.host-service.spec |
 | `ServiceRegistration`, `RegistrationStore`(`createRegistrationStore`), `ensureService`, `bindServiceSocket`, `createIdleMonitor`, `verifyToken`, `createTokenGate`, `spawnDetachedService`, `stopProcess` | L4.host-service.spec. L4.cli.spec·L4.desktop.spec은 `apps/host` 경유(§3.2) |
 | `LockFallbackPolicy`, `LockFallbackChoice` | L4.host-service.spec(`thread.locked` 조립). L4.cli.spec·L4.desktop.spec은 `apps/host` 경유 또는 wire 오류 `thread.locked`로 받는다 |
@@ -764,6 +862,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | `ThreadId` | F.conversation.spec §3.2 |
 | `dirs.runtime`(폴백 포함), `dirs.home`, `processStartFingerprint(pid)`, `userId`, `time.clock`·`time.scheduler` | L0.os.spec §3.2·§3.4·§3.10 |
 | `ExecService.startBackground`와 `BackgroundExecHandle`(pid, graceful·force 정지, `exited`) | L0.exec.spec §3.9(등록자가 핸들을 `BackgroundStopper`로 넘긴다) |
+| `SandboxService`의 `defaultPolicy`·`wrapArgv`, `SandboxedArgv`, `SandboxWrapError`, `SandboxUnavailableReason` | `L0.sandbox.spec` §3.1, §4.9(`McpSandboxSource`로 받는다) |
 | 대기 예약 수 | L2.schedule.spec(`ScheduleService`) |
 | live task 수(진행 턴, 승인 대기) | L1.tasks.spec `ActivitySnapshot`, L4.host-service.spec |
 
@@ -799,6 +898,13 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 15. `run`에 넘긴 `env`에 없는 부모 env 변수(예: 시험 부모의 `PATH`, `HOME`)가 훅 프로세스 env에 없다.
 16. `McpProcessPort.spawn`(실제 자식 프로세스, `mcp-spawn.int.test.ts`): 줄 단위 JSON이 양방향으로 오가고, 레지스트리에 `owner.kind: "mcp"`로 등록되며, 자식 env에 부모의 제공자 키(`ANTHROPIC_*`, `XEON_*`)가 없고 `secretEnv` 값만 더해진다. 기동 실패는 `spawn_failed`(`ENOENT`), 비밀 실패는 `secret_missing`·`secret_denied`로 돌아오며 이미 연 lease는 모두 닫힌다. 종료 직전에 쓴 출력을 읽는다.
 17. MCP 서버 정지 순서: stdin 닫힘과 SIGTERM을 모두 무시하는 서버에 `background.stop`을 하면 서버가 받은 사건 순서가 `stdin-closed`, `sigterm`이고 마지막에 `SIGKILL`로 끝난다. stdin을 닫으면 끝나는 서버는 신호 없이 `exited`가 된다. 레지스트리를 닫으면 자식과 SIGTERM을 무시하는 손자가 모두 사라진다.
+18. `l0.process.service.remote`는 기본값이 빈 문자열이고, 범위가 `managed`·`user`이며, 재시작 때 반영되고, `execution` 탭 텍스트 항목(순서 15)이다(`settings.test.ts`).
+19. 유휴 타이머가 울릴 때 입력이 바뀌었으면 종료하지 않고 `idleShutdownAt`이 `null`이 된다. 다음 `update`가 한가함을 알리면 다시 걸리고, 유예가 지나면 종료한다(`service-idle.test.ts`).
+20. Unix 소켓 리스너는 바인드하는 동안만 umask를 0177로 좁히고, 호출 전후의 umask가 같다. umask가 0000이어도 소켓 파일 모드는 0600이고, `address_in_use` 뒤에도 umask가 그대로다(`service-socket.int.test.ts`).
+21. `openTunnel`은 로컬 소켓 파일이 생기면 준비되었다고 알린다. 준비 전에 끝나면 `exited`(코드와 stderr 꼬리), 시한을 넘으면 `timeout`이다. 실행 파일이 없으면 `spawn_failed`(`ENOENT`)이고, 경로가 103바이트를 넘으면 프로세스를 띄우지 않고 `path_too_long`이다(`tunnel.int.test.ts`).
+22. `SocketTunnel.close()`는 프로세스를 SIGTERM으로 끝내고(`exited`의 신호가 `SIGTERM`), 로컬 소켓 파일을 지운다. 두 번 불러도 된다(`tunnel.int.test.ts`).
+23. `sshTunnelCommand`는 §4.4.8의 argv를 값으로 돌려준다. 대상이 `-`로 시작하거나 공백을 담으면, 원격 경로가 상대 경로이거나 `:`를 담으면, 로컬 경로가 공백을 담으면, 포트가 범위 밖이면 각각 `Result` 오류로 거부한다(`tunnel.int.test.ts`).
+24. `McpProcessPort.spawn`의 샌드박스 요청(`mcp-spawn-sandbox.test.ts`, 대역 `support/sandbox-fake.ts`): 격리 불가(`missing_dependency`)는 `sandbox_unavailable`이고 띄우지 않으며 비밀 lease를 열지 않고 경고 `mcp.sandbox_unavailable`을 남긴다. 서비스나 임시 디렉터리가 없으면 `service_missing`이다. 돌려받은 명령줄이 실제로 돌고 그 env가 정의 env를 이기며, 정책 쓰기 루트에 작업 디렉터리와 임시 디렉터리가 들어가고, cleanup이 종료·기동 실패·비밀 실패에서 한 번씩 불린다. `failed`는 `sandbox_failed`, `aborted`는 `aborted`다. 격리 없는 기동은 사용자가 끈 때뿐이고 `mcp.sandbox_not_enforced`를 남긴다(`mcp-spawn.int.test.ts`).
 
 ## 10. 미결 사항
 
@@ -813,5 +919,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 - [결정: review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
 - [결정: review.m3-design-inputs D-M3-16] P-10. Unix 소켓은 파일 권한으로 막고 TCP로 열 때만 토큰을 요구한다(§4.4.5). `host.hello`의 `auth` 필드와 `host.authFailed` 오류는 F에 반영되었다.
 - [미결 P-11] Windows에서 `.cmd` 셔임(`npx.cmd` 등)으로 stdio MCP 서버를 띄우는 방법. 셸 없이 실행할 수 없어 `cross-spawn` 같은 해석이 필요하다. 1차 지원 OS(macOS, Linux, WSL)에는 해당이 없다.
-- [미결 P-12] 비밀 env가 있는 MCP stdio 서버(M3). env 모드는 실행마다 승인 증거를 요구하고(`L0.secrets.spec` §4.2), 서버 시작에는 승인 지점이 없어 `secret_denied`가 된다. 서버 정의를 추가하거나 처음 연결할 때 사람이 승인하고 그 증거를 `McpSpawnSpec`에 싣는 흐름이 필요하다. 승인 서비스와 `L2.mcp.spec`의 합의 사항이다.
+- [해소 P-15] `McpSpawnSpec.sandbox`는 이 포트가 강제한다(§4.9 2번). 격리가 되면 샌드박스 서비스 `wrapArgv`의 명령줄로 띄우고, 격리를 쓸 수 없으면 `sandbox_unavailable`로 막는다. 격리 없이 띄우는 것은 사용자가 끈 때뿐이고 그때 경고 `mcp.sandbox_not_enforced`를 남긴다. 스트림은 호출자가 `argv`를 파이프로 띄워 연다(`L0.sandbox.spec` §4.9).
+- [해소 P-12, M3-05] 비밀 env가 있는 MCP stdio 서버의 기동 승인은 정의 해시마다 한 번이다(`L0.secrets.spec` §4.3.1). `L2.mcp`가 승인을 받아 증거를 `McpSpawnSpec.approval`에 싣는다(`L2.mcp.spec` §4.3).
+- [미결 P-13] 사설망 TCP와 비루프백 리스너. `review.m3-design-inputs` D-M3-16 c는 소켓을 사설망에 TCP로 여는 경우에 토큰을 요구하고, 이 문서 §4.4.5는 `allowNonLoopback`으로 그것을 허용한다. 그러나 `product.scope.spec` X5와 `architecture.security.spec` T-10은 M3 원격에서 서비스가 비루프백 리스너를 열지 않는다고 적는다. 이 문서는 X5·T-10을 따라 원격에 TCP 리스너를 새로 열지 않는다. 그래서 `tcp://` 원격 값은 루프백 주소에서만 뜻이 있다. 사설망 주소(Tailscale 등)를 허용할지는 사용자가 정해야 하고, 허용하면 §4.4.5, X5, T-10을 함께 고친다.
 - [가정] Bun 1.4.3의 `node:child_process` `detached`·`unref`와 `Bun.listen({ unix })`의 macOS 동작은 실측하지 않았다.

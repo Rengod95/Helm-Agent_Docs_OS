@@ -11,6 +11,7 @@ import type { ConnectionHub, ConnectionState, Subscription } from "../connection
 import { wireErrorOfStore } from "../store-error.ts";
 import type { CommitBatch, Engine } from "../types.ts";
 import { createObservePoller } from "./observe.ts";
+import { startNoticeDelivery } from "./notice-delivery.ts";
 import { messageOf, toRecord } from "../util.ts";
 
 // L4.host-service.spec §4.4~§4.5, F.wire-settings.spec §3.4.3. 구독과 재전송, 실시간 전달, 휘발 스트림.
@@ -370,6 +371,8 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       });
     }
   });
+  // 알림이 생기면 연결 전체에 `notify.delivered`를 보낸다(HS-94). 값과 설정 판정은 notice-delivery.ts가 한다
+  const offNotices = startNoticeDelivery(engine, hub);
   return {
     watchObserved: () => {
       poller.refresh();
@@ -378,6 +381,7 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       offCommit();
       offVolatile();
       offSettings();
+      offNotices();
       poller.dispose();
     },
   };

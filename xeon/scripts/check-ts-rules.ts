@@ -17,8 +17,12 @@
 //   xeon/catch-swallow    `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` or `void <caught>` (TY-25)
 //   xeon/no-void-promise  `void <call>` (and `void (async ...)()`) in non-test code: a Promise and its Result are dropped (TY-22).
 //                         Use `detach(promise, onFailure)` or await it. Tests may start a call and await it later
+//   xeon/reflect-get      `Reflect.get(` in a test file: narrow the value with `in` or a guard (TY-23). Source files are not scanned
 //   xeon/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
 //                         ts-expect-error comments outside tests (TY-08, guide 4.1)
+//   xeon/hardcoded-korean a string literal with Hangul in L4 `src` (apps/host, apps/cli, apps/desktop, packages/client), excluding
+//                         tests, `testing/`, `.tsx` view components (M4 rewrites them) and the catalogs (JSON, not scanned).
+//                         User sentences come from the message catalog (ADR-0016); code holds ids and arguments
 // A line is exempt from a scan rule by `// xeon-disable-next-line xeon/<rule> -- <reason> (<issue url or doc id>)` above it.
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
@@ -94,6 +98,114 @@ function isTestPath(path: string): boolean {
 
 function isTestFile(path: string): boolean {
   return /(^|\/)test\//.test(path) || path.endsWith(".test.ts");
+}
+
+const HANGUL = /[\u3131-\u318E\uAC00-\uD7A3]/;
+
+/** ADR-0016: L4 `src`의 문자열 리터럴은 한국어 문장을 담지 않는다. 화면 컴포넌트(`.tsx`)는 M4가 다시 쓰므로 뺀다 */
+function isCatalogScoped(path: string): boolean {
+  return (
+    /^(apps\/(host|cli|desktop)|packages\/client)\/src\//.test(path) &&
+    !path.endsWith(".tsx") &&
+    !isTestSupport(path)
+  );
+}
+
+/** 읽는 위치. `line`은 지금 위치의 줄 번호(1부터)다 */
+interface LiteralCursor {
+  readonly text: string;
+  at: number;
+  line: number;
+}
+
+/**
+ * Hangul이 든 문자열·템플릿 리터럴의 시작 줄. 주석은 건너뛴다. 템플릿의 `${…}`는 코드로 다시 읽으므로, 그 안의 리터럴은
+ * 템플릿이 몇 겹이든 자기 시작 줄에서 잡힌다
+ */
+function hangulLiteralLines(text: string): number[] {
+  const lines: number[] = [];
+  scanCode({ text, at: 0, line: 1 }, lines, false);
+  // 바깥 템플릿은 안의 것을 다 읽은 뒤에 적히므로, 위치 순서로 맞춘다
+  return lines.toSorted((a, b) => a - b);
+}
+
+/** 코드를 읽는다. `interpolation`이면 짝이 맞는 `}`에서 멈춘다(템플릿 `${…}`의 끝) */
+function scanCode(cursor: LiteralCursor, lines: number[], interpolation: boolean): void {
+  const { text } = cursor;
+  let depth = 0;
+  while (cursor.at < text.length) {
+    const ch = text.charAt(cursor.at);
+    const next = text.charAt(cursor.at + 1);
+    if (ch === "\n") {
+      cursor.line += 1;
+      cursor.at += 1;
+    } else if (ch === "/" && next === "/") {
+      while (cursor.at < text.length && text.charAt(cursor.at) !== "\n") cursor.at += 1;
+    } else if (ch === "/" && next === "*") {
+      cursor.at += 2;
+      while (
+        cursor.at < text.length &&
+        !(text.charAt(cursor.at) === "*" && text.charAt(cursor.at + 1) === "/")
+      ) {
+        if (text.charAt(cursor.at) === "\n") cursor.line += 1;
+        cursor.at += 1;
+      }
+      cursor.at += 2;
+    } else if (ch === '"' || ch === "'") {
+      scanQuoted(cursor, lines);
+    } else if (ch === "`") {
+      scanTemplate(cursor, lines);
+    } else if (ch === "{") {
+      depth += 1;
+      cursor.at += 1;
+    } else if (ch === "}") {
+      cursor.at += 1;
+      if (interpolation && depth === 0) return;
+      depth -= 1;
+    } else {
+      cursor.at += 1;
+    }
+  }
+}
+
+/** 작은따옴표나 큰따옴표 문자열 하나. 한국어가 있으면 시작 줄을 적는다 */
+function scanQuoted(cursor: LiteralCursor, lines: number[]): void {
+  const { text } = cursor;
+  const quote = text.charAt(cursor.at);
+  const startLine = cursor.line;
+  let found = false;
+  cursor.at += 1;
+  while (cursor.at < text.length && text.charAt(cursor.at) !== quote) {
+    if (text.charAt(cursor.at) === "\\") cursor.at += 1;
+    if (text.charAt(cursor.at) === "\n") cursor.line += 1;
+    if (HANGUL.test(text.charAt(cursor.at))) found = true;
+    cursor.at += 1;
+  }
+  cursor.at += 1;
+  if (found) lines.push(startLine);
+}
+
+/**
+ * 템플릿 리터럴 하나. 글자 부분에 한국어가 있으면 시작 줄을 적고, `${…}` 안은 코드로 읽는다(그 안의 템플릿도 같은 식이다)
+ */
+function scanTemplate(cursor: LiteralCursor, lines: number[]): void {
+  const { text } = cursor;
+  const startLine = cursor.line;
+  let found = false;
+  cursor.at += 1;
+  while (cursor.at < text.length && text.charAt(cursor.at) !== "`") {
+    if (text.charAt(cursor.at) === "$" && text.charAt(cursor.at + 1) === "{") {
+      cursor.at += 2;
+      scanCode(cursor, lines, true);
+      continue;
+    }
+    if (text.charAt(cursor.at) === "\\") cursor.at += 1;
+    if (text.charAt(cursor.at) === "\n") cursor.line += 1;
+    if (HANGUL.test(text.charAt(cursor.at))) found = true;
+    cursor.at += 1;
+  }
+  cursor.at += 1;
+  if (found) lines.push(startLine);
 }
 
 /** 시험 지원 코드(`testing/`)와 시험 파일. Result→Bug 변환 검사는 운영 코드만 본다 */
@@ -456,6 +568,18 @@ export function scanSource(file: SourceFile): {
     }
   });
 
+  if (test) {
+    // 시험 파일의 Reflect.get은 값의 타입을 지운다. 운영 코드의 Reflect.get은 아직 검사하지 않는다(열린 과제)
+    const code = maskCode(file.text);
+    for (const match of code.matchAll(/\bReflect\.get\s*\(/g)) {
+      add(
+        "xeon/reflect-get",
+        lineOf(file.text, match.index),
+        "Reflect.get hides a type hole; narrow with `in` or a guard (TY-23)",
+      );
+    }
+  }
+
   if (!test) {
     for (const match of file.text.matchAll(/new Bug\(/g)) {
       const at = lines[lineOf(file.text, match.index) - 1]?.trim() ?? "";
@@ -496,6 +620,15 @@ export function scanSource(file: SourceFile): {
         "xeon/no-void-promise",
         lineOf(file.text, match.index),
         "`void <call>` drops a Promise and its Result; use detach(promise, onFailure) or await it (TY-22)",
+      );
+    }
+  }
+  if (isCatalogScoped(file.path)) {
+    for (const line of hangulLiteralLines(file.text)) {
+      add(
+        "xeon/hardcoded-korean",
+        line,
+        "hard-coded Korean string; add a message id to the ko and en catalogs and use t() (ADR-0016)",
       );
     }
   }

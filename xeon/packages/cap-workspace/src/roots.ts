@@ -165,3 +165,10 @@ export async function resolveWorkspacePath(
   }
   return { requested, canonical, exists };
 }
+
+/** `path`가 들어 있는 root 기준 상대 경로(`/` 구분). 어느 root에도 없으면 앞의 구분자만 뗀 경로 */
+export function relativeToRoots(roots: readonly string[], path: string): string {
+  const root = roots.find((candidate) => isWithin(candidate, path));
+  const rootLength = root === undefined ? 0 : segmentsOf(root).length;
+  return segmentsOf(path).slice(rootLength).join("/");
+}

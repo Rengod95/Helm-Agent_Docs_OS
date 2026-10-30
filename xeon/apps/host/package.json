@@ -14,9 +14,11 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
+    "@xeon/cap-artifacts": "workspace:*",
     "@xeon/cap-dialog": "workspace:*",
     "@xeon/cap-knowledge": "workspace:*",
     "@xeon/cap-mcp": "workspace:*",
+    "@xeon/cap-schedule": "workspace:*",
     "@xeon/cap-web": "workspace:*",
     "@xeon/cap-work": "workspace:*",
     "@xeon/cap-workspace": "workspace:*",
@@ -30,6 +32,7 @@
     "@xeon/core-tasks": "workspace:*",
     "@xeon/core-tools": "workspace:*",
     "@xeon/ext-host": "workspace:*",
+    "@xeon/group-account-rotation": "workspace:*",
     "@xeon/group-helm": "workspace:*",
     "@xeon/group-kit": "workspace:*",
     "@xeon/group-learning": "workspace:*",

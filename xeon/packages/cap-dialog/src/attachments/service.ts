@@ -7,7 +7,7 @@ import {
   type CapabilityApi,
   type WorkspaceImage,
 } from "@xeon/contracts/capabilities";
-import type { ImageContent, TextContent } from "@xeon/contracts/conversation";
+import type { ImageContent, TextContent, ThreadId } from "@xeon/contracts/conversation";
 import { BLOB_PLACEHOLDER_PREFIX, type BlobRef } from "@xeon/contracts/records";
 import type { CancelScope } from "@xeon/contracts/services";
 import type { DialogDeps } from "../deps.ts";
@@ -124,11 +124,14 @@ export function createAttachmentsApi(deps: DialogDeps): AttachmentsApi {
       }
     }
     if (deps.blobs === undefined) throw blobsMissing();
+    // 직접 등록한 블롭도 고정하지 않는다(아래 putBlob 주석, L0.store §10 미결 S-15)
     const stored = deps.blobs.putBlob(source.bytes, mimeType);
     if (!stored.ok) throw storeFailure(stored.error.kind);
     return { image: { blob: stored.value, mimeType }, processed: false };
   }
 
+  // 블롭은 고정하지 않는다(L0.store §10 미결 S-15). 이 패키지는 참조를 자기 표나 상태에 적지 않고, 고정을 풀 시점(첨부 폐기, 턴 소비)도 알 수 없다.
+  // 텍스트 본문은 파트에 그대로 들어가므로 이 blob을 가리키는 이벤트가 없다. 이미지 참조는 입력 파트의 자리표시뿐이다(L2.dialog §4.5).
   function putBlob(bytes: Uint8Array, mediaType: string): BlobRef {
     if (deps.blobs === undefined) throw blobsMissing();
     const stored = deps.blobs.putBlob(bytes, mediaType);
@@ -226,6 +229,16 @@ export function createAttachmentsApi(deps: DialogDeps): AttachmentsApi {
     };
   }
 
+  /**
+   * 상대 경로는 호출 문맥의 thread 작업 폴더에 잇는다(F wire §3.3.1, L2.dialog §4.5). 명령 파일과 같은 `projectRoot`를 쓴다.
+   * thread가 없거나 작업 폴더가 없으면 경로를 그대로 둔다. 그러면 `files`가 엔진 기본 작업 폴더 기준으로 푼다.
+   */
+  function resolveSourcePath(path: string, threadId: ThreadId | undefined): string {
+    if (threadId === undefined || path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)) return path;
+    const root = deps.commandRoots.projectRoot(threadId);
+    return root === null ? path : `${root}/${path}`;
+  }
+
   return {
     add: (input: AddInput, options) =>
       guarded(CAPABILITY, "add", async () => {
@@ -252,20 +265,21 @@ export function createAttachmentsApi(deps: DialogDeps): AttachmentsApi {
             };
           }
           case "path": {
-            const info = await deps.files.fileInfo(source.path, context);
+            const resolved = resolveSourcePath(source.path, options?.context?.threadId);
+            const info = await deps.files.fileInfo(resolved, context);
             if (!info.ok) throw info.error;
             if (info.value.kind === "directory") {
-              throw new DialogFailure("invalid_input", `${source.path} is a directory.`);
+              throw new DialogFailure("invalid_input", `${resolved} is a directory.`);
             }
             if (info.value.size > maxBytes) throw tooLarge(info.value.size, maxBytes);
-            const bytes = await deps.files.readBinaryFile(source.path, context);
+            const bytes = await deps.files.readBinaryFile(resolved, context);
             if (!bytes.ok) throw bytes.error;
             return fromBytes(
               {
                 bytes: bytes.value,
-                name: baseName(source.path),
+                name: baseName(resolved),
                 declaredMime: null,
-                path: source.path,
+                path: resolved,
               },
               maxBytes,
               options,

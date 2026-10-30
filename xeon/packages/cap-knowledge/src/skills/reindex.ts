@@ -10,7 +10,7 @@ import {
 import type { BlobRef, SqlTx } from "@xeon/contracts/records";
 import { fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { LedgerDeps } from "../ledger/change.ts";
-import { putTree } from "../ledger/manifest.ts";
+import { pinBlobs, putTree, type StoredTree } from "../ledger/manifest.ts";
 import {
   createdByFromLedger,
   indexVersion,
@@ -57,8 +57,8 @@ interface Discovered {
   readonly dir: string;
   readonly tree: Tree;
   readonly hash: string;
-  /** 사용자·프로젝트 범위의 내용 목록 blob. 그 밖의 범위는 null */
-  readonly manifest: BlobRef | null;
+  /** 사용자·프로젝트 범위의 내용 목록 blob과 그 파일 blob. 그 밖의 범위는 null */
+  readonly manifest: StoredTree | null;
 }
 
 function isWritableScope(scope: SkillScope): scope is WritableSkillScope {
@@ -96,7 +96,7 @@ async function discover(
   const document = describeSkill(mainFileOf(tree.value, skill.layout));
   if (document === undefined) return undefined;
   const scope = skill.source.scope;
-  let manifest: BlobRef | null = null;
+  let manifest: StoredTree | null = null;
   if (isWritableScope(scope)) {
     const stored = putTree(deps.blobs, tree.value);
     if (stored.ok) manifest = stored.value;
@@ -127,7 +127,7 @@ interface ExternalEntry {
   readonly beforeHash: string | null;
   readonly afterHash: string | null;
   readonly beforeManifest: BlobRef | null;
-  readonly afterManifest: BlobRef | null;
+  readonly afterManifest: StoredTree | null;
   readonly indexChanged: boolean;
 }
 
@@ -167,8 +167,14 @@ export async function reindexSkills(
   );
   const found = discovered.filter((entry): entry is Discovered => entry !== undefined);
 
+  // 커밋된 뒤에 고정할 행: 행 id와 그 새 내용의 블롭(트랜잭션 안에서 행 id가 정해지므로 고정은 커밋 뒤에 한다)
+  const pendingPins: { readonly ledgerId: string; readonly refs: readonly BlobRef[] }[] = [];
+
   const appendExternal = (tx: SqlTx, entry: ExternalEntry, now: number): void => {
     const ledgerId = deps.ids.next("knl");
+    if (entry.afterManifest !== null) {
+      pendingPins.push({ ledgerId, refs: entry.afterManifest.refs });
+    }
     const scan = { rulesetVersion: SCAN_RULESET_VERSION, findings: [] };
     const outcome: WriteOutcome = {
       status: "applied",
@@ -186,7 +192,7 @@ export async function reindexSkills(
       beforeHash: entry.beforeHash,
       afterHash: entry.afterHash,
       beforeManifest: entry.beforeManifest,
-      afterManifest: entry.afterManifest,
+      afterManifest: entry.afterManifest?.manifest ?? null,
       requestId: undefined,
       approvedBy: undefined,
       evidence: undefined,
@@ -325,5 +331,18 @@ export async function reindexSkills(
     return { added, changed, removed, indexVersion: indexVersion(tx) };
   });
   if (!applied.ok) return err(fromStoreError(applied.error, "reindex"));
+  // 행은 이미 커밋됐다. 고정이 실패한 행은 고정 없이 남는다(재색인은 같은 내용을 다시 적지 않으므로 다음 재색인도 채우지 못한다 [미결])
+  let pinFailure: KnowledgeFailure | undefined;
+  for (const pending of pendingPins) {
+    const pinned = pinBlobs(deps.blobs, pending.ledgerId, pending.refs);
+    if (!pinned.ok) {
+      deps.logger.error("knowledge.reindex.pin_failed", {
+        ledgerId: pending.ledgerId,
+        cause: pinned.error.message,
+      });
+      if (pinFailure === undefined) pinFailure = pinned.error;
+    }
+  }
+  if (pinFailure !== undefined) return err(pinFailure);
   return ok({ ...applied.value, diagnostics });
 }

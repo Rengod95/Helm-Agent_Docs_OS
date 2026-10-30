@@ -125,17 +125,17 @@ cap-<domain>/
 
 1. 호출 인자 `provider`: 메서드 입력에 `provider` 필드가 있고 값이 주어지면 그 provider만 쓴다.
 2. 설정 `l2.<domain>.<능력>.provider`: 값이 `"auto"`가 아니면 그 provider만 쓴다.
-3. `"auto"` 체인: 사용자 등록 플러그인(설정 `l2.<domain>.<능력>.pluginOrder` 순) → 사용자가 주소를 설정한 로컬 provider(origin `detected`) → 내장 기본 provider 순으로 후보를 늘어놓는다. 후보에는 사용자가 설정한 provider만 들어간다. 로컬 주소를 찾아 나서는 자동 감지는 없다(ADR-0005 §3.3 개정, 사용자 결정 H1).
+3. `"auto"` 체인: 설정 `l2.<domain>.<능력>.order`(사용자가 끌어 옮긴 목록, 내장 포함 전부 대상)의 순서 → 목록에 없는 후보를 사용자가 주소를 설정한 로컬 provider(origin `detected`) → 내장 기본 provider → 플러그인 순으로 늘어놓는다(`web.search`, `web.browse`. D-M3-23 행 1). `web.fetch`는 `pluginOrder`를 그대로 쓴다. 후보에는 사용자가 설정한 provider만 들어간다. 로컬 주소를 찾아 나서는 자동 감지는 없다(ADR-0005 §3.3 개정, 사용자 결정 H1).
 
 - 각 provider는 `isAvailable(signal)` 탐침을 갖는다. 탐침이 실패하면 다음 후보로 내려가고 사유를 결과의 `meta.fallbacks`에 남긴다.
 - 1·2번처럼 명시로 고른 provider는 다른 후보로 내려가지 않는다. 탐침이 실패하면 `unavailable` 오류를 내고 `detail`에 사유를 싣는다. 사용자가 고른 것을 조용히 바꾸지 않기 위해서다.
 - auto 체인에서 호출 중 오류가 `unavailable`, `rate_limited`, `upstream_error`이면 다음 후보로 내려갈 수 있다. 단, 메서드의 `replay`가 `"safe"`일 때만이다. `"unsafe"` 메서드는 효과가 이미 났을 수 있으므로 호출 중 오류로는 내려가지 않는다.
 - 후보가 모두 실패하면 `unavailable` 오류를 내고 `detail.fallbacks`에 전체 사유를 싣는다.
-- `web.search`의 ADR-0005 §3.3(호출 인자 > 설정 > 키 플러그인 > SearXNG > 내장 검색 래퍼)은 이 규약의 사례다. ADR-0005의 짧은 키 `web.search.provider`는 키 문법(§7.1)에 맞춰 `l2.web.search.provider`로 읽는다. ADR-0005 §6의 [미결](플러그인과 SearXNG 순서)은 이 규약의 3번 순서(플러그인 > 설정한 로컬)로 제안하고 확정은 ADR-0005를 따른다.
+- `web.search`의 ADR-0005 §3.3(호출 인자 > 설정 > 키 플러그인 > SearXNG > 내장 검색 래퍼)은 이 규약의 옛 사례다. D-M3-23 행 1이 사용자 순서 목록(`order`)과 플러그인 후순위로 바꿨고 규칙은 `L2.web.spec` §4.8.2다. ADR-0005의 짧은 키 `web.search.provider`는 키 문법(§7.1)에 맞춰 `l2.web.search.provider`로 읽는다. ADR-0005 §6의 [미결](플러그인과 SearXNG 순서)은 이 규약의 3번 순서(플러그인 > 설정한 로컬)로 제안하고 확정은 ADR-0005를 따른다.
 
 공통 타입은 F `capabilities/provider.ts`가 정본이다(`F.capabilities.spec` §3.11). 이름은 `PROVIDER_ID_PATTERN`, `ProviderIdSchema`, `ProviderId`, `ProviderOrigin`, `ProviderAvailability`, `ProviderFallback`, `ProviderSelectionMeta`, `ProviderCandidate`, `ProviderOrderInput`, `orderProviderCandidates`다. 내장 provider id는 소문자 이름이고 플러그인 provider id는 `plugin:<확장 이름>`이다.
 
-- `orderProviderCandidates`는 같은 origin 안에서 plugin은 `pluginOrder` 순(목록에 없는 플러그인은 그 뒤에 id 바이트 순), detected와 builtin은 id 바이트 순으로 늘어놓는다. 탐침과 호출은 각 `cap-*`가 한다.
+- `orderProviderCandidates`(fetch 승격이 쓴다. 검색과 브라우저는 `cap-web`의 `planSelection`)는 같은 origin 안에서 plugin은 `pluginOrder` 순(목록에 없는 플러그인은 그 뒤에 id 바이트 순), detected와 builtin은 id 바이트 순으로 늘어놓는다. 탐침과 호출은 각 `cap-*`가 한다.
 - 출력 필드 이름: provider 체인을 거치는 메서드의 출력은 `meta: ProviderSelectionMeta`(또는 이를 포함하는 도메인 메타. 예: `L2.web.spec` `WebCallMeta`)를 갖고 최상위 `provider` 필드를 두지 않는다(`F.capabilities.spec` §3.11). `F.capabilities.spec` §3.9 `web.search` 예시는 정의 형식을 설명하는 간추린 표기이고, `web.search`의 정본은 `defs/web.ts`와 `L2.web.spec` §3.2다.
 
 ### 5.3 도구 노출 (c)
@@ -302,7 +302,7 @@ flowchart LR
 
 - 키는 `l2.<도메인>.<이름>`이다. 도메인은 layout 이름이고, 이름 부분은 소문자 낙타 표기이며 점으로 더 나눌 수 있다(`F.wire-settings.spec` §3.8.1 `SETTING_KEY_PATTERN`). 예: `l2.web.search.provider`, `l2.workspace.read.maxLines`.
 - 이름 부분의 각 마디는 `[a-z][A-Za-z0-9]*`라서 하이픈을 쓰지 않는다.
-- provider 체인 키 [제안]: `l2.<domain>.<능력>.provider`(`"auto"` 또는 `ProviderId`, 기본 `"auto"`)와 `l2.<domain>.<능력>.pluginOrder`(`ProviderId` 목록). `<능력>`은 능력 id의 두 번째 마디다. 예외는 `web.fetch` 하나다. fetch는 내장 로컬 파이프라인이 항상 먼저 돌고 플러그인 후보는 빈 결과의 승격 경로에서만 쓰므로(`L2.web.spec` §4.9.1) `l2.web.fetch.provider`를 두지 않고 `pluginOrder`만 둔다.
+- provider 체인 키 [제안]: `l2.<domain>.<능력>.provider`(`"auto"` 또는 `ProviderId`, 기본 `"auto"`)와 `l2.<domain>.<능력>.order`(`ProviderId` 목록, `web.search`·`web.browse`) 또는 `pluginOrder`(`web.fetch`). `<능력>`은 능력 id의 두 번째 마디다. 예외는 `web.fetch` 하나다. fetch는 내장 로컬 파이프라인이 항상 먼저 돌고 플러그인 후보는 빈 결과의 승격 경로에서만 쓰므로(`L2.web.spec` §4.9.1) `l2.web.fetch.provider`를 두지 않고 `pluginOrder`만 둔다.
 - 비밀은 값을 저장하지 않고 `secret://<name>` 참조로만 저장한다(`F.wire-settings.spec` §3.8.1 `SecretRef`, D2·D3 규칙).
 - 외부 플러그인 provider의 설정(API 키 등)은 `ext.<확장 이름>.*`이고 L2 키가 아니다(`F.wire-settings.spec` §3.8.3 확장 규칙).
 - 각 spec의 "설정 노출" 절은 다음 열로 표를 쓴다: 키, 타입, 기본값, range, runtimeChange, allowedScopes, ui.tab, secret. L4 노출(화면, 파일, 명령)이나 단위 같은 설명이 필요하면 마지막에 "비고" 열 하나를 더할 수 있다.
@@ -318,7 +318,7 @@ flowchart LR
 |---|---|
 | `tools` | workspace 한도, MCP 서버·승인 모드·허용·차단, 웹 provider 선택·도메인 정책, 스킬·메모리 켜기와 쓰기 승인, 명령·첨부·질문 시간 제한(dialog), 작업 목록(work), 리뷰·산출물 도구 켜기(artifacts), schedule 도구 켜기 |
 | `models` | L2가 고르는 모델 용도 이름(artifacts 자동 제목·핸드오프 용도). work 목표 판정은 `L1.models.spec` 역할 `judge`(`l1.models.routing.judge`)와 상한 `l1.agents.judge.maxRuns`를 쓰고 L2 키를 두지 않는다 |
-| `budgets` | 비용과 반복 횟수 정책(work 판정 실패 정책 `l2.work.goal.onJudgeError`). 판정 상한 키는 `l1.agents.judge.maxRuns` 하나이고 L1.agents 소유다 [결정: review.decisions-2 S-06] |
+| `budgets` | 비용과 반복 횟수 정책. work는 이 탭에 키를 두지 않는다. 판정 상한 키는 `l1.agents.judge.maxRuns` 하나이고 L1.agents 소유다 [결정: review.decisions-2 S-06] |
 | `providers` | provider 플러그인 우선순위(`pluginOrder`)의 표시. 플러그인 자체 설정은 `plugins` 탭 |
 | `secrets` | L2 키가 참조하는 `secret://` 이름의 표시(예: `l2.schedule.remote.tokenRef`). 값 관리는 L0.secrets 소관 |
 | `sessions` | 세션 제목·메타, 핸드오프, 내보내기, 산출물 한도(artifacts), 메모리·세션 검색(knowledge) |

@@ -189,6 +189,34 @@ test("storage: a failing projection rolls the commit back and turns the extensio
   expect(result.committed).toBe(false);
   expect(harness.requests).toEqual(["disable:stor-bad:auto_disable"]);
   expect(harness.policy.autoDisabler.disabled()).toEqual(["ext:stor-bad"]);
+  expect(harness.notices).toEqual(["projection-failed:ext:stor-bad:projection_failed:true"]);
+});
+
+test("storage: a failing projection of an essential extension rolls back, keeps it enabled, and reports it", async () => {
+  const harness = await createStorageHarness();
+  const { t, session, policy } = harness;
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  policy.admit({ name: "stor-ess", source: "user", trust: "user", essential: true }, "plugin");
+  await t.host.install(
+    makeUnit({ name: "stor-ess" }, (g) => {
+      storageOf(g).defineTables(NOTE_DEFS, {
+        version: 1,
+        kinds: ["x.stor-ess.note.added"],
+        apply() {
+          throw new Error("projection broke");
+        },
+      });
+    }),
+  );
+  const result = session.commit([
+    envelope(thread, "x.stor-ess.note.added", { id: "n", text: "t" }),
+  ]);
+  expect(result.committed).toBe(false);
+  expect(harness.requests).toEqual([]);
+  expect(policy.autoDisabler.disabled()).toEqual([]);
+  expect(t.host.scope("stor-ess")?.status).toBe("enabled");
+  expect(harness.notices).toEqual(["projection-failed:ext:stor-ess:projection_failed:false"]);
 });
 
 const NOTE_TABLE = {

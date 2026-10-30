@@ -447,8 +447,12 @@ export interface ProjectorFailure {
 export interface ProjectorRegistry {
   /** 버전이 projector_state와 다르면 등록 전에 그 투영기만 재생성한다(§4.5.3). 해제하면 테이블은 남는다 */
   register(projector: Projector): Result<{ dispose(): void }, ProjectorRegisterError>;
+  /** 정지한 투영기도 포함합니다. 정지한 투영기는 다음 쓰기 열기 전까지 커밋에 들어가지 않습니다(§4.5.2) */
   list(): readonly { readonly name: string; readonly version: number; readonly tables: readonly string[] }[];
-  /** 확장 투영기 apply 예외로 커밋이 롤백되었을 때 알린다. X가 확장을 끄는 데 쓴다 */
+  /**
+   * 확장 투영기 apply 예외로 커밋이 롤백되고 그 투영기가 정지된 뒤 알린다. 커밋마다 실패 하나당 한 번이고, 같은 커밋의 재시도 앞에 옵니다.
+   * X가 확장을 끄는 데 씁니다(§4.5.2)
+   */
   onFailure(listener: (failure: ProjectorFailure) => void): Unsubscribe;
 }
 ```
@@ -914,7 +918,7 @@ export interface RewindPlan {
 | 4 | `expectedLeaf` 비교, `TxView` 열기, `build(view)` 동기 호출 | `reject`면 `requests`에 rejected 저장 | |
 | 5 | 초안마다: envelope 완성(`seq = next_seq`, `recordedAt`, `parentId`), 스키마·kind 소유·크기 검사, `events` INSERT, `p_blob_refs` | Bug, 롤백 | `after_event_insert:<i>` |
 | 6 | 같은 초안에 `core` 투영기 apply | Bug(`store.projection_failed`), 롤백 | `after_projection:<i>` |
-| 7 | 관심 kind가 맞는 `cap.*`·`ext.*` 투영기 apply(등록 순서) | Bug, 롤백, `onFailure` 알림 | `after_ext_projection:<i>` |
+| 7 | 관심 kind가 맞는 `cap.*`·`ext.*` 투영기 apply(등록 순서) | 롤백, 투영기 정지, `onFailure` 알림, 같은 계획으로 재시도(§4.5.2) | `after_ext_projection:<i>` |
 | 8 | `checkpoint`가 있으면 `checkpoint.step` 초안을 끝에 붙여 5~7을 한 번 더 | Bug | `before_checkpoint` |
 | 9 | `requests` INSERT(결과, first_seq, last_seq), `event_seq` 갱신 | Bug | `before_request_insert` |
 | 10 | 모든 투영기의 `projector_state.last_seq` 갱신 | | `before_commit` |
@@ -1007,9 +1011,17 @@ export interface RewindPlan {
   3. 다른 투영기가 이미 가진 테이블이면 `table_taken`.
 - 등록 때 버전·`last_seq` 검사로 그 투영기만 다시 만든다. 저장소가 막혔거나 투영기의 `apply`가 재생 중 던져 다시 만들지 못하면 등록은 성공하되 그 투영기를 "뒤처짐"으로 표시하고 Logger에 남긴다 [제안: `ProjectorRegisterError`에 입출력 변형이 없다]. 뒤처진 투영기는 커밋이 건너뛰고(`projector_state.last_seq`도 올리지 않는다) 다음 쓰기 열기(`openForWrite`)가 다시 시도한다. 투영은 이벤트에서 다시 만들 수 있어서 건너뛴 이벤트는 재생성으로 메워진다.
 - `ProjectionTx` 소유 검사(테스트·디버그 빌드): 문장에서 `INSERT INTO`, `REPLACE INTO`, `UPDATE`, `DELETE FROM`, `FROM`, `JOIN`, `CREATE`, `DROP` 뒤 식별자를 뽑아 그 투영기의 `tables`와 대조한다. 밖이면 `Bug("store.prefix_not_owned")`를 던지고 커밋 전체가 롤백된다. `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, `sqlite_` 이름과 여러 문장은 항상 거부한다. 운영 빌드에서는 검사를 끈다. X의 `checkStatement`(`X.operations.spec` §4.4.6)와 겹치는 방어 검사다. `eng.events.design` §5.1 끝 항목이 이 검사의 정의를 이 문서와 `L0.store.spec`에 맡겼다.
-- 투영기 예외 처리 [제안]:
-  - `core` 투영기 예외는 코드 결함이다. 커밋을 롤백하고 Bug를 다시 던진다.
-  - `ext.*`·`cap.*` 투영기 예외는 롤백 뒤 `projectors.onFailure`로 알리고 Bug를 다시 던진다. 저장소가 투영기를 스스로 해제하지 않는다. X는 알림을 받아 그 확장을 끄고 투영기를 해제한 뒤 같은 커밋 키로 다시 시도하게 한다(`X.operations.spec` §5 6번, §10 미결 6). 해제된 투영기의 테이블은 남고 갱신되지 않는다. 다시 등록하면 버전과 관계없이 재생성한다.
+- 투영기 예외 처리 [결정: 오케스트레이터 기본값, M3-REQ-36]:
+  - `core` 투영기 예외는 코드 결함입니다. 커밋을 롤백하고 Bug(`store.projection_failed`)를 다시 던집니다. 정지와 재시도는 하지 않습니다.
+  - `ext.*`·`cap.*` 투영기 예외는 세션을 멈추지 않습니다. 커밋 경로는 다음 순서로 처리합니다.
+    1. 트랜잭션 전체를 롤백합니다. 어느 투영기의 행도 남지 않습니다.
+    2. 그 투영기를 정지합니다(`ProjectorController.suspend`). 정지 목록에 넣고 `session.projector_suspended`를 Logger에 남깁니다. 투영기 이름과 실패 메시지를 싣습니다.
+    3. `projectors.onFailure` 등록자에게 실패마다 한 번 알립니다. 롤백이 끝난 뒤, 재시도 앞입니다. X는 이 알림으로 자동 끄기 판정만 합니다(`X.operations.spec` §5 6번).
+    4. 정지한 투영기를 뺀 채 같은 커밋 키, 같은 지문, 같은 계획으로 다시 커밋합니다. `build`는 다시 부르지 않습니다. 재시도 결과는 보통의 `committed`입니다. 롤백된 시도는 `requests`에 남지 않으므로 `key_reused`나 `replayed`로 판정되지 않습니다.
+  - 재시도 횟수는 시작할 때 활성인 `ext.*`·`cap.*` 투영기 수를 넘지 않습니다. 실패할 때마다 투영기가 하나씩 정지하므로 정상 경로에서는 한도를 넘지 않습니다. 한도를 넘는 실패는 Bug(`store.projection_retry_exhausted`)입니다.
+  - 정지한 투영기는 `projectors.list()`에 남지만 테이블은 낡은 채로 있습니다. 정지 뒤의 커밋은 그 투영기의 `projector_state.last_seq`를 올리지 않습니다. 다음 쓰기 열기(`openForWrite`의 `ensure`)가 그 투영기만 이벤트에서 다시 만들고, 성공하면 정지를 풉니다. 다시 만들기가 또 실패하면 정지를 유지하고 `session.projector_rebuild_failed`를 남깁니다.
+  - 정지 표시는 프로세스 안에만 있습니다. 재시작하면 등록부가 비어 있고, 투영기를 다시 등록할 때(`register`) 이벤트에서 다시 만듭니다(§4.5.3).
+  - [미결] `cap.*` 능력 투영기에도 같은 격리를 적용할지는 §10 19번에서 확인합니다. 코드는 코어가 아닌 투영기를 같은 경로로 다룹니다.
 
 #### 4.5.3 재생성과 불일치 검출
 
@@ -1018,7 +1030,7 @@ export interface RewindPlan {
 - 열 때(`openForWrite`, `openForRead`) `projector_state.version ≠ P.version`이거나 `last_seq ≠ head`인 투영기만 재생성한다. 등록(`register`) 때도 같은 검사를 한다.
 - 재생성: `DROP TABLE` → `ddl` 실행 → `events`를 seq 순으로 5,000행씩 읽어 업캐스트 후 `kinds`가 맞는 이벤트만 apply → `projector_state` 갱신. 한 트랜잭션이다.
 - [제안] 이벤트가 많으면 청크 재생성으로 바꾼다. 청크마다 별도 트랜잭션이고 커서를 `projector_state.rebuild_cursor`에 같은 트랜잭션으로 저장한다(`F.records.spec` §3.7 규칙 6 `ChunkMigration`). 청크 재생성 중인 투영기가 있는 thread는 쓰기 모드로 열지 않는다(`read_only`, `core_projection_stale`). 기준은 이벤트 10만 건 [가정].
-- 재생성은 투영 버전이 오를 때와 투영기를 새로 등록할 때만 한다. 열 때마다 하지 않는다.
+- 재생성은 투영 버전이 오를 때와 투영기를 새로 등록할 때만 한다. 열 때마다 하지 않는다. 정지한 확장 투영기는 예외입니다. 다음 쓰기 열기가 다시 만듭니다(§4.5.2).
 - 불일치 검출: 테스트 도우미 `expectProjectionsRebuildable(session)`(`@xeon/core-persistence/testing`)가 메모리 DB에 같은 DDL로 테이블을 만들고 이벤트를 재생한 뒤, 운영 테이블과 기본 키 정렬 행 해시를 비교한다. 모든 투영 테스트 끝에 부른다. 운영 명령 `xeon debug verify-projections`는 2차다.
 - 재전송 검사(`replay_diverged`): seq를 저장소가 매기므로 일반 커밋에서는 같은 seq를 두 번 쓰지 않는다. 2차 `SessionStore` 어댑터의 가져오기 경로처럼 seq가 정해진 이벤트를 넣을 때만, 같은 seq의 기존 행과 정규화 envelope 바이트를 비교해 다르면 `Bug("store.replay_diverged")`다(opencode v2 "Replay diverged", adr.0004 §3.2 8번).
 
@@ -1169,7 +1181,19 @@ export interface RewindPlan {
 - `remove`: 쓰기 소유자만 한다. 한 트랜잭션에서 `thread_delete_guard`에 행을 넣고, `events`, `requests`, 모든 투영기 테이블의 그 thread 행, 그 thread를 가리키는 `thread_creation_keys` 행을 지우고, 표지 행을 지운다. 세션 임대 행은 L0.store 소유라 지우지 않고 `release`로 반납한다. `consumer_cursors`는 건드리지 않는다. 다른 thread의 `forked_from_thread`가 이 thread면 `has_forks`로 거부한다 [제안]. 지운 seq는 다시 쓰지 않는다(`event_seq`). 지운 뒤 커밋 뒤 방출은 없다. 화면 갱신은 wire `thread.delete` 응답으로 한다.
 - `setTitle`: 커밋 키는 `title:<commitKeyPart(requestKey)>`다. 같은 키로 다른 제목을 내면 `key_reused{requestKey}` 값이다. L2 artifacts가 `xeon.session`의 이 API를 부르고, 이벤트 `thread.updated { title }`은 core-persistence가 쓴다(`eng.context-map.design` §4.4 4번). 커밋 뒤 `session.info.after`(tap, detached)를 발화한다.
 
-#### 4.10.6 wire 메서드와 L1 구현 책임
+#### 4.10.6 자동 제목 [결정: 오케스트레이터 기본값, M3-REQ-83]
+
+- 함수: `autoTitleThread(deps, threadId, signal?)`(`src/auto-title.ts`, 공개 진입점은 `index.ts`)는 저장된 제목이 임시일 때만 모델이 만든 제목을 `threads.setTitle`로 쓴다. core-persistence는 모델을 부르지 않는다. 모델 호출은 `TitleModelPort.complete(input, signal)` 포트가 맡고, 조립 루트가 제목 역할의 구현을 넣는다.
+- 호출 시점은 호스트가 정한다. 이 함수는 첫 turn이 끝났는지 확인하지 않는다. 언제 부를지, 실패를 어떻게 기록할지는 `L4.host-service.spec` HS-73이 정한다. 같은 thread를 여러 번 불러도 된다(아래 멱등).
+- 임시 판정: 호출자가 준 `isProvisional(title)`이 저장된 제목을 본다. 제목이 null이거나 호스트가 첫 입력에서 만든 제목이면 참이다. 거짓이면 `skipped(has_human_title)`이고 모델을 부르지 않는다. 사람이 정한 제목과 앞선 자동 제목은 덮지 않는다.
+- 입력: 활성 가지(`readBranch`, 현재 leaf)에서 첫 사용자 `item.recorded`의 텍스트와 첫 어시스턴트 `item.recorded`의 텍스트를 쓴다. 텍스트가 없는 item(이미지만 있는 입력, 도구 호출만 있는 응답)은 건너뛰고 다음 item에서 찾는다. 텍스트 블록만 이어 붙이고 이미지와 도구 호출은 뺀다. 각 텍스트는 2000 코드 포인트로 자른다. 보관된 큰 값(`detached`)은 `hydrate`로 되돌린다. fork한 thread는 가지가 출처 history를 잇으므로(§4.10.3) 출처의 첫 입력과 첫 응답을 쓴다. 찾지 못하면 `skipped(no_user_text | no_assistant_text)`이고 모델을 부르지 않는다.
+- 모델 요청: 시스템 지시는 고정 문안이다. 제목은 8단어 이하, 60자 이하, 사용자 메시지와 같은 언어, 한 줄로 쓰고 따옴표와 끝 마침표를 붙이지 않게 한다. 사용자 메시지에는 두 텍스트를 "첫 사용자 메시지", "첫 어시스턴트 응답" 표지와 함께 넣고, 그 안의 지시는 따르지 않도록 시스템 지시에 적는다.
+- 출력 정리(`sanitiseTitle`): (1) 첫 비어 있지 않은 줄을 고른다. (2) 공백을 한 칸으로 줄이고 앞뒤를 다듬는다. (3) 모서리의 마크다운 `#`, 따옴표(ASCII, 곡선, 꺾쇠)와 백틱, 끝의 문장부호를 더 줄어들지 않을 때까지 뗀다. (4) 80 코드 포인트로 자른 뒤 (3)을 다시 한다. 결과가 빈 문자열이면 `skipped(empty_title)`이고 아무것도 쓰지 않는다.
+- 쓰기: `threads.setTitle(threadId, title, "autotitle:<threadId>")`. 요청 키가 thread마다 같으므로 같은 제목의 재시도는 `replayed`로 돌아오고 이벤트를 더하지 않는다. 저장된 제목이 그사이 바뀌어 같은 키에 다른 제목이 오면 `key_reused`다. 이때는 제목이 이미 정해진 것으로 보고 `skipped(has_human_title)`을 돌려주며 로그 `auto_title.key_reused`를 남긴다. `titled`는 이번 호출이 제목을 쓴 경우만이다.
+- 결과: `AutoTitleResult`는 `titled{title}` 또는 `skipped{reason}`이다. `AutoTitleError`는 `thread_not_found`, `read_failed{readKind}`(`busy`, `io`, `row_invalid`), `model_failed{modelKind}`, `store_failed{lifecycleKind}`다. 모델 포트가 던진 값은 `modelKind: "threw"`로, 취소는 `"cancelled"`로 돌려준다. 예상 가능한 실패는 모두 `Result` 값이고 던지지 않는다.
+- `thread.updated{title}` 기록과 `session.info.after` 발화는 `setTitle`이 한다(§4.10.5). 자동 제목은 이 경로만 쓰고 별도 kind를 두지 않는다.
+
+#### 4.10.7 wire 메서드와 L1 구현 책임
 
 `F.wire-settings.spec` §3.3.1의 thread 메서드다. 처리기는 호스트에 있다(`L4.host-service.spec` §3.4).
 
@@ -1288,7 +1312,8 @@ export interface RewindPlan {
 | 등록 안 된 kind, payload 스키마 위반 | `store.kind_unregistered`, `store.schema_invalid`, 롤백 |
 | envelope 256 KiB 초과 | `store.event_too_large`, 롤백. `detachLarge`를 빠뜨린 생산자 결함 |
 | checkpoint가 있는데 `step.completed`도 승인 대기도 아님 | `store.checkpoint_without_step` |
-| 확장 투영기 예외 | 롤백, `onFailure` 알림, Bug 다시 던짐(§4.5.2) |
+| 확장 투영기 예외 | 롤백, 투영기 정지, `onFailure` 알림, 같은 계획으로 재시도해 `committed`(§4.5.2) |
+| 코어 투영기 예외 | 롤백, Bug(`store.projection_failed`) 다시 던짐. 정지와 재시도는 없다(§4.5.2) |
 | 다른 확장 접두 테이블을 쓰는 문장(디버그 빌드) | `store.prefix_not_owned`, 롤백 |
 | 리스너 안에서 `commit` | `store.nested_write` |
 | 코어 kind 모름, 버전이 더 높음 | 쓰기 열기 거부, `read_only` |
@@ -1344,6 +1369,7 @@ export type SessionSettingsError =
 - session 범위 값은 `settings.changed{scope:"session"}` 이벤트로 남고, `layer(threadId)`가 활성 가지 위 이벤트를 seq 순으로 접어 돌려준다. 분기·되감기·재개를 따라간다. 이벤트 순서로 쌓는 투영 테이블(`p_settings`)은 버려진 가지의 값을 담을 수 있어 두지 않는다 [결정: L1B.2]. 도구 호출마다 읽으므로 thread별 캐시를 두고(leaf가 앞으로만 나아갔으면 새 이벤트만 접고, 되감기·가지 이동이면 처음부터 다시 접는다) thread를 지우면 버린다.
 - `set`·`reset`의 커밋 키는 `settings:<commitKeyPart(requestKey)>`다. 공백이나 비ASCII 문자, 긴 키도 해시로 줄여 커밋 키 형식에 맞춘다. 같은 키에 다른 값을 내면 `{ kind: "key_reused", requestKey }` 오류 값이다 [결정: L1F]. 아무 행도 쓰지 않고 운영 로그에 남긴다. 호출마다 새 키를 만드는 호출자(core-tools `setMode`)에게는 일어나지 않으므로 그 자리에서는 불변 조건 위반(`Bug`)으로 다루고, wire에서 받은 키를 넘기는 호출자는 값으로 처리한다. 같은 키·같은 값은 기록된 결과를 그대로 돌려준다. 쓰기 소유자가 아니면 `ownership_lost`다. `layer`는 오류 통로가 없다(F 계약): 읽을 수 없으면 비어 있는 층을 돌려주고 Logger에 남긴다 [제안: F에 `Result` 요청].
 - [제안] 설정 파일 범위(`managed`, `user`, `project`, `local`)의 파일 위치, 읽기, 감시, 쓰기, 병합 실행은 `L4.host-service.spec`이 소유한다. `F.wire-settings.spec` §1.2는 이 일을 `L1.persistence.spec`과 `L4.host-service.spec`에 [가정]으로 넘겼다. session-core 컨텍스트는 `xeon.store`만 부르므로(§4.8.2) 파일 시스템과 OS 디렉터리(L0.os)를 쓸 수 없다. 그래서 이 문서는 session 범위만 맡는다. 프로젝트 설정의 신뢰 전 적용 제외 규칙(`X.loading-trust.spec` §4.7.4)과 파일 이름(`.xeon/settings.json`, `.xeon/settings.local.json`)도 파일 범위 소유자의 일이다. `L4.host-service.spec`의 `SettingsStorePort` 대응([가정])과 `X.loading-trust.spec`의 기대를 바꾸는 요청이므로 [미결]로 둔다(§10).
+- [결정: review.m3-lower-requirements M3-REQ-82, 오케스트레이터 기본값] `settings.json` 쓰기는 프로세스 사이 잠금 안에서 한다. 파일 범위의 쓰기는 위 [제안]대로 호스트(`SettingsStorePort`)가 하므로 잠금도 호스트가 `OsService.fileLock`(`L0.os.spec` §3.11)으로 건다. 잠금 파일은 `<설정 파일 경로>.lock`이고 읽고-고치고-쓰기 전체가 잠금 안에서 일어난다. 이 패키지의 session 범위는 내구 이벤트라 파일 잠금이 필요 없다. 파일 외부 변경 통지(M3-REQ-49, `OsService.watch`)도 같은 이유로 호스트가 받는다. 이 패키지는 파일 이름을 해석하지 않는다(§6.2 위 제안과 같다). 요구 상태는 호스트 구현과 시험(`L4.host-service.spec` HS-98)으로 확인한다.
 
 ## 7. 확장 지점
 
@@ -1452,7 +1478,7 @@ export type SessionSettingsError =
 8. 저장된 정책과 현재 선언이 모두 `safe`인 효과는 `reruns`에 나온다. 재실행 중 다시 SIGKILL을 두 번 반복하면 세 번째 `recover`는 재실행 없이 `outcome_unknown`으로 닫는다(`MAX_REPLAY_ATTEMPTS` 2). 저장 정책이 `unsafe`이고 현재 선언이 `safe`면 재실행하지 않는다.
 9. 재개 경로 전체에서 `tool.call.before` 지점 핸들러 호출 횟수는 의도가 커밋된 호출에 대해 0이다.
 10. 투영 테이블(`p_*`, `step_checkpoints`, 등록된 `x_*`)을 모두 지우고 재생성하면 지우기 전과 기본 키 정렬 행 해시가 같다(`expectProjectionsRebuildable`).
-11. `ext.a` 투영기가 `x_b_t`를 `tables`에 넣어 등록하면 `table_not_owned`다. `ext.a` 투영기의 `apply`가 `x_b_t`에 쓰는 문장을 내면(디버그 빌드) 커밋이 `store.prefix_not_owned`로 롤백되고 `events` 행이 늘지 않는다. 확장 `a`의 테이블 쓰기는 같은 커밋의 코어 이벤트와 함께 커밋되거나 함께 사라진다.
+11. `ext.a` 투영기가 `x_b_t`를 `tables`에 넣어 등록하면 `table_not_owned`다. `ext.a` 투영기의 `apply`가 `x_b_t`에 쓰는 문장을 내면(디버그 빌드) 그 문장은 실행되지 않고, `ext.a`는 정지되고, 커밋은 `ext.a`를 뺀 채 `committed`로 끝납니다(`store.prefix_not_owned`는 `onFailure` 알림에 실립니다). 확장 `a`의 테이블 쓰기는 같은 커밋의 코어 이벤트와 함께 커밋되거나 함께 사라진다.
 12. 한 thread의 세션 임대를 쥔 프로세스가 있을 때 두 번째 프로세스는 잠금을 얻지 못하고, `openForRead`로 관찰 열기(커밋은 `read_only{observer}`)나 `threads.fork`로 새 thread 생성 중 하나로 동작한다. 서비스 등록 파일이 있으면 위임 선택지가 함께 나온다(호스트 테스트).
 13. 승인 대기(A1 커밋) 중 SIGKILL 뒤 재개하면 `ResumePlan.pendingApprovals`에 같은 `approvalId` 하나가 있고 새 `approval.requested`가 생기지 않는다.
 14. `input.queued` 두 건을 커밋하고 SIGKILL한 뒤 다시 열면 `ResumePlan.queuedInputs`가 같은 두 건을 같은 seq 순서로 돌려준다.
@@ -1472,6 +1498,7 @@ export type SessionSettingsError =
 26. `turn.started{scopeId: s, requestId: r}`가 커밋된 뒤 `TxView.turnByRequestId(thread, s, r)`가 그 turn을 돌려주고, `scopeId` null인 turn과 섞이지 않는다.
 27. 오버플로우 복구 컴팩션(C7) 직후 SIGKILL하고 재개하면 `next: "request"`로 같은 단계 요청이 컴팩션 뒤 가지로 나가고 `thread.compacted`는 하나다.
 28. 확장 `alpha`가 `visibility: "private"`로 `grp.alpha.note` 레코드를 커밋하면 `events.private_owner`가 `alpha`다. `ext.queryRecords(thread, { kind: "grp.alpha.*" }, "beta")`는 그 행을 돌려주지 않고, 같은 질의를 `reader` `alpha`로 부르면 돌려준다. `visibility`를 생략한 행은 두 조회 모두 돌려준다. `alpha`가 `grp.beta.note`를 `visibility: "private"`로 커밋하면 `rejected(invalid)`다(`F.records.spec` §9 13과 같은 시나리오).
+29. [M3-REQ-83] `autoTitleThread`는 저장된 제목이 임시일 때만 쓴다. 모델에는 활성 가지의 첫 사용자·어시스턴트 텍스트만 보내고, 같은 thread를 두 번 불러도 `thread.updated`는 한 번만 늘어난다. fork thread의 첫 텍스트는 출처 history에서 온다(`test/auto-title.test.ts`).
 
 ## 10. 미결 사항
 
@@ -1490,6 +1517,7 @@ export type SessionSettingsError =
 13. [미결] JSONL 가져오기(pi JSONL → Xeon thread) 지원 여부(§4.13.3).
 14. (닫음) `ext` 하위 객체 방식(§3.3). `F.extensions.spec` §3.2.1 `PortKey.member`로 `xeon.session`의 `ext`를 꺼낸다. `RecordCommitPort` 타입 위치는 F(`F.records.spec` §3.9 `session-service.ts`, `F.extensions.spec` §3.2.1이 다시 export)다.
 15. [미결] 청크 재생성으로 바꾸는 기준 이벤트 수(10만 건 [가정])와 재생성 중 쓰기 거부가 사용자에게 주는 지연.
-16. [미결] 확장 투영기 예외 뒤 복구 경로(X가 확장을 끄고 재시도)를 이 문서의 알림 방식으로 확정할지(`X.operations.spec` §10 미결 6).
+16. (닫음, M3-REQ-36) [결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영기 예외 뒤 복구는 저장소가 투영기를 정지하고 같은 계획으로 커밋을 다시 내는 방식입니다(§4.5.2). X는 알림으로 자동 끄기 판정만 합니다(`X.operations.spec` §10 미결 6 해소). 세션을 읽기 전용으로 여는 방식은 채택하지 않습니다.
 17. [미결] 승인 대기 커밋(A1)의 체크포인트 예외(FR-P4)를 F가 받지 않으면, 승인 대기를 단계 경계로 볼지(`step.completed{status}` 확장) 다시 정해야 한다.
 18. [부분 해소: m2c G2-11] `thread.read`용 쪽 질의는 `branchItemRecords`(§3.4)로 구현했다. `approval.list`용 질의(미해결 `approval.requested`를 seq와 함께 돌려주는 질의)는 아직 없다. 조립 루트는 `readBranch`·`readFrom`·`query.pendingApprovals`와 `feed.headSeq()`를 같은 동기 구간에서 불러 쓰고, `approval.list`는 대화의 이벤트를 처음부터 훑는다. 긴 대화에서 문제가 되면 (b)를 같은 방식으로 더한다.
+19. [미결] `cap.*` 능력 투영기 예외에도 확장과 같은 격리(정지와 재시도)를 적용할지 여부입니다. 코드는 코어가 아닌 투영기를 같은 경로로 다룹니다. 결정 문구(M3-REQ-36)는 확장 투영기만 말하므로 능력 투영기를 다루는 L2 투영 도메인 문서와 맞춥니다.

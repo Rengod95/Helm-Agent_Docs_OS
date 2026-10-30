@@ -8,7 +8,6 @@ import {
   WorkspaceShell,
   type AnyCapabilityDef,
 } from "@xeon/contracts/capabilities";
-import { advertisedFilesDef, IMPLEMENTED_FILES_TOOLS } from "../src/plugin.ts";
 
 const ALL: readonly AnyCapabilityDef[] = [WorkspaceFiles, WorkspaceShell, WorkspaceImages];
 
@@ -18,20 +17,16 @@ describe("workspace definitions", () => {
     expect(validateCapabilitySet(ALL)).toEqual([]);
   });
 
-  test("the advertised subset (M1 tools) has no issues either", () => {
-    const advertised = advertisedFilesDef();
-    expect(validateCapability(advertised)).toEqual([]);
-    expect(validateCapabilitySet([advertised, WorkspaceShell])).toEqual([]);
-    expect(advertised.tools.map((tool) => tool.name)).toEqual(["read", "ls"]);
-    expect(advertised.service).toBe(WorkspaceFiles.service);
-    expect(advertised.id).toBe(WorkspaceFiles.id);
-  });
-
-  test("only implemented tools are advertised", () => {
-    const declared = WorkspaceFiles.tools.map((tool) => tool.name);
-    for (const name of IMPLEMENTED_FILES_TOOLS) expect(declared).toContain(name);
-    const hidden = declared.filter((name) => !IMPLEMENTED_FILES_TOOLS.includes(name));
-    expect(hidden.toSorted()).toEqual(["edit", "find", "grep", "write"]);
+  test("every declared files tool is implemented and advertised", () => {
+    // 여섯 도구가 모두 구현되어 광고된다(plugin.ts의 등록이 WorkspaceFiles 정의 그대로를 쓴다)
+    expect(WorkspaceFiles.tools.map((tool) => tool.name)).toEqual([
+      "read",
+      "write",
+      "edit",
+      "ls",
+      "grep",
+      "find",
+    ]);
   });
 
   test("replay and execution policy declared", () => {
@@ -69,9 +64,13 @@ describe("workspace definitions", () => {
     expect(
       orderTools([WorkspaceShell, WorkspaceImages, WorkspaceFiles]).map((tool) => tool.name),
     ).toEqual(["edit", "find", "grep", "ls", "read", "write", "bash"]);
-    expect(orderTools([WorkspaceShell, advertisedFilesDef()]).map((tool) => tool.name)).toEqual([
+    expect(orderTools([WorkspaceShell, WorkspaceFiles]).map((tool) => tool.name)).toEqual([
+      "edit",
+      "find",
+      "grep",
       "ls",
       "read",
+      "write",
       "bash",
     ]);
   });

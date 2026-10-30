@@ -104,7 +104,7 @@ xeon/packages/ext-host/
 | O-16 | M1 스모크 연결: 테스트 그룹이 `storageOf(g).defineTables`로 테이블 하나를 정의하고 `boundary.step.after` entries의 자기 kind 이벤트를 투영한다. 재개 뒤 행이 이어지는지 확인 | F.extensions.plan M1 스모크 매니페스트, L4.host-service.plan 조립, O-14 | M | M1 |
 | O-17 | `doc-constants.test.ts`: 스펙 §4.2.2 표·§6 표의 기본값과 §3.1 tier 이름을 코드 상수와 대조 | O-05, O-10, O-02 | S | M1 |
 | O-18 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(`ResourcePolicy.resolve` 쌍 판정) | P-24(리소스 레지스트리, `ResourcePolicy`) | M | M2 |
-| O-19 | `ExtHostDeps.resourcePolicy` 연결, 집합 판정 메서드 추가를 primitives와 합의(스펙 §10 미결 17). pi 어댑터는 두지 않으므로 어댑터의 등록 매핑 확인은 없다(ADR-0017 §3.7) | O-18 | M | M2 |
+| O-19 | `ExtHostDeps.resourcePolicy` 연결, 집합 판정 메서드 추가를 primitives와 합의(스펙 §10 미결 17). 어댑터 등록 매핑 확인은 삭제합니다(adr.0017 §3.7, D-M3-11 c) | O-18 | M | M2 |
 | O-20 | `safe-mode.ts`: `startupFilter`, `allowedInSafeMode`, `shouldSuggestSafeMode`. `OperationsPolicy.startupFilter`(후보별 `assignTier` 뒤 `startupFilter`), `StartupHealthStore` 포트(호스트가 시작 상태 파일을 연결할 때 정의합니다. 2026-10-28 미사용 export 정리), 2차 안전 모드 키 2개. 로더 5a단계 연결은 L-29 | L-08(로더), L4.host-service.plan(시작 상태 파일, `--safe-mode`·`--disable-ext` 파싱), O-02 | M | M2 |
 | O-21 | `hooks/config.ts`: `HookDefSchema`, 범위별 목록 병합, tier 부여, 프로젝트 신뢰 조건, 2차 훅 키 3개 | L-17(프로젝트 신뢰), F.wire-settings.plan(배열 키 병합, 스펙 §10 미결 13), O-02 | M | M4 |
 | O-22 | `hooks/protocol.ts`: `HookInput` 직렬화, `HookOutputSchema`, `interpretHookRun`(스펙 §4.7.3 표 전체) | F.extensions.plan(`POINTS[point].result` 스키마), O-21 | M | M4 |
@@ -201,5 +201,11 @@ xeon/packages/ext-host/
 |---|---|---|
 | O-07 | 완료 | 핸들러용 UI 포트는 F 타입에 넣지 않고 `hostOf(g).awaitUser(wait, { signal? })`로 연결했다. 핸들러의 `gate`·신호를 `withAmbient`로 싣고 `awaitUser`가 예산 시계를 멈춘다. `user-wait.test.ts` |
 | O-18 | 완료 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(집합 판정 `exposeAll`과 쌍 판정 `resolve`), `NO_RESERVED_NAMES`. `naming.test.ts` |
-| O-19 | 부분 | `ExtHostDeps.resourcePolicy` 연결(`OperationsPolicy.resources`)과 집합 판정 메서드(`ResourcePolicy.exposeAll`) 합의는 끝났다. pi 어댑터는 두지 않으므로(ADR-0017 §3.7) 어댑터의 등록 매핑 확인은 없다. 조립 루트(apps/host)가 `resourcePolicy: policy.resources`를 넘기는 일은 HOST 트랙 몫이다 |
+| O-19 | 부분 | `ExtHostDeps.resourcePolicy` 연결(`OperationsPolicy.resources`)과 집합 판정 메서드(`ResourcePolicy.exposeAll`) 합의는 끝났습니다. 어댑터 등록 매핑 확인은 삭제했습니다(adr.0017 §3.7, D-M3-11 c). 조립 루트(apps/host)가 `resourcePolicy: policy.resources`를 넘기는 일은 HOST 트랙 몫입니다 |
 | 저장 영역 N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`가 `Result<_, ExtRowError>`를 돌려준다(spec §3.4, §4.4.4) |
+
+## 9. M3b 구현 현황 (X 레인)
+
+| 작업 | 상태 | 비고 |
+|---|---|---|
+| O-09 | 완료(ext-host) | `createVolatileNotifier`(`auto-disable.ts`)를 만들고 루트에서 재export한다. 실패마다 `scope.handler_failed`를 발신하고 같은 운영 로그를 남긴다. 발신이 던지면 운영 로그에 남기고 호출자에게 던지지 않는다(M3-REQ-35). 시험은 `auto-disable.test.ts`다. 조립 기본 알림기 교체와 host 연결은 B1-NTF H1에서 끝났다(`apps/host/src/assembly/handler-failed.ts`, `L4.host-service` HS-92, 시험 `apps/host/test/assembly/handler-failed.test.ts`와 `test/int/handler-failed.int.test.ts`) |

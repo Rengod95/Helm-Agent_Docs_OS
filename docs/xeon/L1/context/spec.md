@@ -385,14 +385,15 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 - 이 재주입이 블록을 다시 모델 입력에 올리는 유일한 경로다. L2.knowledge는 컴팩션에서 세션 상태를 비워 전체 블록을 새로 넣지 않는다(`L2.knowledge.spec` §4.2.8). 그렇게 하면 다시 놓은 옛 블록과 새 블록이 한 요청에 둘 다 들어간다(M2 마감 재검토 결함 2, 실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`). 그래서 컴팩션 뒤에 보이는 블록은 첫 turn 스냅샷 그대로이고, 그 뒤 변경은 `knowledge.index-delta`로 온다.
 - 컴팩션을 하지 않은 가지는 영향이 없다. 임계 검사(`shouldCompact`)의 토큰 추정에도 재주입 메시지가 들어간다.
 - 컴팩션 요약 입력에서 이 메시지들을 빼지는 않는다. 요약이 색인 내용을 한 번 더 담을 수 있으나 짧다 [제안].
-- 최근 읽은 파일 재주입(`l1.context.reinjectRecentFiles`)은 §4.10에 남아 있다(M3).
+- 최근 읽은 파일 재주입 [구현: M3b B3-L1M, M3-REQ-86]: `l1.context.reinjectRecentFiles`(기본 5, 0이면 끔)개까지, 요약에 접힌 범위의 성공한 `read` 도구 결과 가운데 마지막에 읽은 파일을 읽은 순서대로 요약과 위 custom 재주입 뒤에 사용자 메시지로 다시 놓는다(`recent-files.ts`). 본문은 기록된 도구 결과 원문이고 도구를 다시 실행하지 않는다. 본문은 파일마다 16000자로 자르고 표지를 붙인다 [제안]. 접힌 범위에서 읽은 뒤 `write`·`edit`로 고친 파일, 그리고 남은 범위에서 다시 읽거나 고친 파일은 뺀다(낡았거나 모델이 이미 본다). 가지에서 매번 같은 값으로 만들고 커밋하지 않는다.
+- 위치 [결정: M3-REQ-86]: 스킬 색인과 메모리 스냅샷은 첫 turn의 `knowledge.context` custom item이고 컴팩션 뒤에는 위 재주입이 요약 바로 뒤에 놓는다. 최근 파일은 그 뒤다. 호출된 스킬 본문 재주입은 M3b 범위 밖이다.
 
 ### 4.10 2차
 
 | 항목 | 규칙 [제안] | 근거 |
 |---|---|---|
 | 도구 결과 선제 제거 | 모델 호출 없이 보호 구간(최근 `keepRecentTokens`) 밖의 `toolResult` 중 `pruneThresholdChars`(기본 200자)를 넘는 결과를 짧은 표지 `[tool result pruned: <toolName>, <n> chars]`로 바꾼다. 조립 때만 바꾸고 원본은 둔다. 컴팩션 전 1단계로 실행한다 | her(200자 초과 오래된 결과), oc prune(`_research/item-catalog.md` L1-e) |
-| 컴팩션 후 재주입(파일, 스킬 본문) | 새 접두 다음에 최근 읽은 파일 5개(`details.readFiles` 뒤쪽)와 호출된 스킬 본문을 `custom` 메시지로 다시 넣는다. 스킬 색인과 메모리 스냅샷 블록은 §4.9a로 M2에 구현했다. 본문은 도구 재실행 없이 블롭 원문에서 읽는다 | cc 최근 파일 5개, 스킬 본문 상한 |
+| 컴팩션 후 재주입(파일, 스킬 본문) | 최근 읽은 파일은 §4.9a에서 구현했다(M3b). 호출된 스킬 본문은 아직 다시 넣지 않는다 [미결]. 스킬 색인과 메모리 스냅샷 블록은 §4.9a로 M2에 구현했다 | cc 최근 파일 5개, 스킬 본문 상한 |
 | 추가 워크스페이스 루트 | 세션 생성 때 받은 루트 목록을 context 계층 절 `workspaceRoots`로 둔다. 쓰기 범위는 샌드박스 설정(`L0.sandbox.spec`)과 함께 정한다 | ACP 추가 루트 |
 | 캐시 워밍 | 유휴 중 캐시 만료 전에 짧은 요청을 보낼지 정한다. 결정 전에 `request.cache.before`(chain)을 발화한다. 비용 계산은 카탈로그 단가와 `ModelPromptCache` 수명으로 한다 | pi `core/cache-warmer.ts` |
 

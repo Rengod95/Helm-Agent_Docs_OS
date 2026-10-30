@@ -362,7 +362,7 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 | X 레인 | 능력별 provider 후보를 등록·조회하는 API. 플러그인 엔트리가 `WebProviderRegistration` 목록을 넘기고 `cap-web`이 `RegistrationSource.list()`로 읽는 모양이면 된다. X.2 리소스 레지스트리(`tool`, `provider`, `mcp_server`)에는 웹 provider 종류가 없다 | `X.primitives.spec` [가정], 이 plan §8.3 |
 | HOST.6 | `createWebRuntime`에 실제 포트를 연결한다: `xeon.store`(`WebStorePort`), `L2ApprovalsPort`(`createAskAdapter`), `xeon.session` 이벤트 읽기(`WebSessionSourcesPort`: `tool.settled`의 `structuredContent.sources`), `Redactor.containsKnown`(`OutboundSecretGuard`), 설정 층(`readWebSettings`), `input.user.before`·`session.shutdown`·`boundary.step.before` 지점 구독(`SeenUrls.noteText`, 브라우저·원문 정리, `decideModelSearchTool`) | m2-plan HOST.6, 스펙 §7 |
 | L1.tools | `redactForPersistence`를 `tool.settled` 영속 사본에 적용하는 경로. 이 패키지는 순수 함수만 낸다 | 스펙 §4.3.4, §8 요구 표 |
-| L0.secrets | `HeaderSecretResolver`(플러그인 provider 인증 값을 전송 직전에만 읽는 경로). M3 플러그인이 들어올 때 필요하다 | 스펙 §3.6.1 |
+| L0.secrets | `HeaderSecretSender`(플러그인 provider 헤더 비밀을 전송 직전에만 치환하는 통로). 값을 돌려주는 `valueOf` 포트는 없앴다. 구현은 L0 `createPluginHttp`·`withHttp`를 감싸는 조립 쪽 어댑터이며 L4 후속 유닛에서 잇는다 | 스펙 §3.6.1, `L0.secrets.spec` §3.6 |
 | F 레인 | 없음. `defs/web.ts`, `web-provider.ts`는 그대로 썼다. 다만 `WebFetchPage.status`가 100~599만 받아, 일괄 호출에서 실패한 URL의 페이지는 합성 상태 값을 쓴다(스펙 §4.9.1) | 스펙 §4.9.1 |
 
 ### 8.6 WEB.6 구현 메모

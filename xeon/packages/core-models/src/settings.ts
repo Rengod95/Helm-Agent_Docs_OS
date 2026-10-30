@@ -10,10 +10,11 @@ import {
 import type { ModelThinkingLevel } from "@xeon/contracts/conversation";
 import { SecretRef, defineSettings, type SettingDef } from "@xeon/contracts/settings";
 import { Type } from "typebox";
+import type { AccountDef, RateLimitPolicy } from "./accounts.ts";
 
 // L1.models.spec §6, L1.models.plan M-7. M1 키(default, providers, retry)와 M2 키(routing.*, groupRouting,
 // thinkingLevel, thinkingBudgets, allowedModels, deniedModels, cacheRetention)를 선언한다.
-// accounts·rateLimit은 M3, fallbackChains·structuredOutputAttempts는 2차라 아직 선언하지 않는다.
+// accounts·rateLimit은 M3(B2-MDL)에서 더했다. fallbackChains·structuredOutputAttempts는 2차라 아직 선언하지 않는다.
 
 /** 기본값은 이 상수 한 곳에만 둔다(BP-06). 선언의 default와 서비스 설정 기본값이 같은 값을 쓴다 */
 export const DEFAULT_RETRY_SETTINGS: RetrySettings = {
@@ -81,7 +82,16 @@ export interface ModelsSettings {
   readonly deniedModels: readonly string[];
   /** l1.models.cacheRetention */
   readonly cacheRetention: CacheRetention;
+  /** l1.models.accounts */
+  readonly accounts: readonly AccountDef[];
+  /** l1.models.rateLimit: provider → 정책 */
+  readonly rateLimit: Readonly<Record<string, RateLimitPolicy>>;
+  /** `ext.account-rotation.acknowledgeRisk`. 첫 사용 고지에 동의했는가(M3-REQ-85) */
+  readonly rotationAcknowledged: boolean;
 }
+
+/** 계정 회전 플러그인의 첫 사용 고지 동의 키(플러그인 userConfig) */
+export const ROTATION_ACK_KEY = "ext.account-rotation.acknowledgeRisk";
 
 export const DEFAULT_MODELS_SETTINGS: ModelsSettings = {
   default: null,
@@ -94,6 +104,9 @@ export const DEFAULT_MODELS_SETTINGS: ModelsSettings = {
   allowedModels: [],
   deniedModels: [],
   cacheRetention: "short",
+  accounts: [],
+  rateLimit: {},
+  rotationAcknowledged: false,
 };
 
 const MUPLoS = ["managed", "user", "project", "local", "session"] as const;
@@ -112,7 +125,7 @@ function routingDef(
   readonly allowedScopes: typeof MUPLoS;
   readonly ui: {
     readonly tab: "models";
-    readonly widget: "table";
+    readonly widget: "text";
     readonly order: number;
     readonly label: string;
   };
@@ -123,7 +136,7 @@ function routingDef(
     default: null,
     runtimeChange: "nextTurn",
     allowedScopes: MUPLoS,
-    ui: { tab: "models", widget: "table", order, label },
+    ui: { tab: "models", widget: "text", order, label },
     since: "0.1.0",
   };
 }
@@ -173,6 +186,32 @@ const retrySchema = Type.Object(
     maxDelayMs: Type.Integer({ minimum: 0, maximum: 3_600_000 }),
   },
   { additionalProperties: false },
+);
+
+const accountsSchema = Type.Array(
+  Type.Object(
+    {
+      provider: Type.String({ pattern: "^[a-z0-9][a-z0-9._-]{0,63}$", maxLength: 64 }),
+      accountId: Type.String({ pattern: "^[a-z0-9][a-z0-9-]{0,63}$", maxLength: 64 }),
+      credential: SecretRef,
+      priority: Type.Integer({ minimum: 0, maximum: 1000 }),
+      reservePct: Type.Integer({ minimum: 0, maximum: 100 }),
+    },
+    { additionalProperties: false },
+  ),
+  { maxItems: 64 },
+);
+const rateLimitSchema = Type.Record(
+  Type.String({ pattern: "^[a-z0-9][a-z0-9._-]{0,63}$" }),
+  Type.Object(
+    {
+      minIntervalMs: Type.Integer({ minimum: 0, maximum: 3_600_000 }),
+      onLimit: Type.Union([Type.Literal("wait"), Type.Literal("switch"), Type.Literal("fail")]),
+      maxWaitMs: Type.Integer({ minimum: 0, maximum: 3_600_000 }),
+    },
+    { additionalProperties: false },
+  ),
+  { maxProperties: 64, additionalProperties: false },
 );
 
 const group = defineSettings("l1.models", {
@@ -274,6 +313,34 @@ const group = defineSettings("l1.models", {
     },
     since: "0.1.0",
   },
+  accounts: {
+    type: accountsSchema,
+    default: [],
+    runtimeChange: "live",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "providers",
+      widget: "table",
+      order: 20,
+      label: "모델 계정",
+      help: "같은 provider의 계정 목록. 키는 secret:// 참조만 저장한다. 계정 회전 플러그인을 켜야 쓴다",
+    },
+    since: "0.1.0",
+  },
+  rateLimit: {
+    type: rateLimitSchema,
+    default: {},
+    runtimeChange: "live",
+    allowedScopes: MUP,
+    ui: {
+      tab: "budgets",
+      widget: "table",
+      order: 10,
+      label: "레이트 리밋",
+      help: "provider → { minIntervalMs, onLimit(wait|switch|fail), maxWaitMs }",
+    },
+    since: "0.1.0",
+  },
   cacheRetention: {
     type: Type.String({ maxLength: 8 }),
     default: DEFAULT_MODELS_SETTINGS.cacheRetention,
@@ -321,6 +388,8 @@ export function modelsSettingsOf(read: ModelsSettingReader): ModelsSettings {
   const budgets = parse(budgetsSchema, read("l1.models.thinkingBudgets"));
   const allowed = parse(modelListSchema, read("l1.models.allowedModels"));
   const denied = parse(modelListSchema, read("l1.models.deniedModels"));
+  const accounts = parse(accountsSchema, read("l1.models.accounts"));
+  const rateLimit = parse(rateLimitSchema, read("l1.models.rateLimit"));
   const level = read("l1.models.thinkingLevel");
   const retention = read("l1.models.cacheRetention");
 
@@ -342,5 +411,8 @@ export function modelsSettingsOf(read: ModelsSettingReader): ModelsSettings {
     allowedModels: allowed.ok ? allowed.value : d.allowedModels,
     deniedModels: denied.ok ? denied.value : d.deniedModels,
     cacheRetention: isRetention(retention) ? retention : d.cacheRetention,
+    accounts: accounts.ok ? accounts.value : d.accounts,
+    rateLimit: rateLimit.ok ? rateLimit.value : d.rateLimit,
+    rotationAcknowledged: read(ROTATION_ACK_KEY) === true,
   };
 }

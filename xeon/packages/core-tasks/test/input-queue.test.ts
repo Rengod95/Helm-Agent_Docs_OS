@@ -406,6 +406,24 @@ describe("extension post", () => {
     expect(unwrapped(world.tasks.inputs.peek(world.threadId))[0]?.inputId).toBe(queued?.id);
   });
 
+  test("a post's input.queued carries origin other, not a user origin", async () => {
+    const world = createWorld();
+    const result = await world.tasks.enqueue({
+      threadId: world.threadId,
+      scopeId: "helm",
+      requestId: "post-origin",
+      when: "next",
+      item: { kind: "context", customType: "x.note.log.line", content: "hi", display: false },
+    });
+    expect(result).toEqual(ok({ duplicate: false }));
+    const queued = world.session.events.find((event) => event.kind === "input.queued");
+    expect(queued?.payload).toMatchObject({
+      requestId: "post-origin",
+      source: { type: "extension", scopeId: "helm" },
+      origin: "other",
+    });
+  });
+
   test("a second post with the same requestId is a duplicate and writes nothing", async () => {
     const world = createWorld();
     const request = {

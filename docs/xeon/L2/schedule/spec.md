@@ -1376,6 +1376,28 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 이 능력이 하는 일은 표식뿐이다. 실행 세션의 첫 이벤트로 `schedule.run_started { origin: "timer" }`를 남긴다. L3 그룹은 자기 투영기에서 이 kind를 읽어 그 세션을 예약 세션으로 알아본다. `xeon.session.create`의 `origin: "timer"`도 같은 정보를 세션 메타에 남긴다 [가정].
 - 이 능력은 L3 그룹을 부르지 않고 L3 그룹의 설정도 읽지 않는다. 이 문서는 L3 그룹 이름을 쓰지 않는다 [결정: review.decisions-2 D-11].
 
+#### 4.4.9 M3b 구현 범위: 트리거 상태 기계 [결정: 오케스트레이터 기본값, M3b B1-SCH]
+
+`xeon/packages/cap-schedule`은 M3b에서 능력 정의(F)와 cron 식 없이 포트 뒤의 상태 기계로 먼저 들어간다. 트리거는 다섯 종류다.
+
+| 종류 | 기한 | 비고 |
+|---|---|---|
+| `interval` | 생성 시각 + 간격, 이후 간격마다 | 간격은 300초 이상. 미만이면 생성이 `interval_too_short`로 거부된다 |
+| `at` | 지정한 시각 한 번 | 지난 시각은 `at_in_past`. 실행하거나 건너뛴 뒤 꺼진다 |
+| `file_watch` | 기한 없음. 경로가 바뀐 뒤 디바운스가 지나면 다음 틱에서 실행 | 틱 주기보다 짧은 디바운스는 틱 주기로 처리된다. 감시자가 이 프로세스에 있으므로 대기 예약 수에 센다 |
+| `remote` | 기한 없음. `fire` 호출 때만 | 대기 예약 수에 세지 않는다 |
+| `loop` | 실행이 정착한 뒤 간격 뒤에 다시 실행 | `maxIterations`와 `expiresAtMs`가 필수다. 대기 예약이 아니라 live task로 센다(`liveSchedulerTasks`, M3-10) |
+
+- 모든 실행은 세션 종류 `cron`의 새 세션이고, 입력 출처는 `{ type: "schedule" }`이라 비대화(`interactive: false`)다. 승인은 `l1.tools.unattended.*`를 따르고 명령은 `l0.exec.unattendedTimeoutMs` 상한을 받는다(M3-16).
+- 놓친 기한은 `once`로 1회만 따라잡는다. 가장 늦은 기한이 제때(120초 안)면 그것만 실행하고, 놓쳤으면 24시간 안일 때만 `missed`로 하나를 실행한다. 나머지는 요약 한 건(`skippedCount`)으로 `skipped` 기록한다. 최소 간격 300초와 시간당 실행 상한(20)은 `file_watch`·`remote` 포함 모든 트리거에 적용하고 루프의 반복 사이에는 최소 간격을 따로 두지 않는다.
+- 같은 항목의 이전 실행이 `claimed`·`started`이면 새 기한은 `overlap`으로 건너뛴다.
+- 상태(항목, 실행 기록)는 `ScheduleStore` 포트로 저장한다. claim을 저장하지 못하면 실행을 시작하지 않는다. 재시작하면 `claimed`는 같은 키(`<scheduleId>:<dueAt>`)로 다시 시작하고 `started`는 `host_exit`로 닫으며, 실행 중이던 루프는 `host_exit`로 멈추고 다시 시작하지 않는다. 재시작 뒤 thread가 둘 생기던 문제는 세션 생성 키로 닫혔다 [결정: 오케스트레이터 기본값, M3b B1-SCH2]. 다시 시작한 `claimed` 실행은 `timer:<scheduleId>:<dueAt>:create`(§4.4.4 둘째 장치)로 처음 만든 thread를 되찾으므로 같은 기한의 thread는 하나다.
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 능력 정의와 와이어가 들어왔다. 능력 ID는 `schedule.entries`(F `capabilities/defs/schedule.ts`)이고, §3.5의 cron 기반 `schedule.timers`와 다른 능력이다. 메서드는 `create`, `list`, `cancel`, `fire`이고 모델 도구는 `schedule_create` 하나다. wire는 `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`(F `wire/schedule.ts`)다. 분류는 `list`만 읽기 전용이다. `create`, `cancel`, `fire`는 효과가 있는 쓰기로 분류하지 않는다(`requestId` 기억 전까지 멱등이 아니다, ADR-0015 §3.3).
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 저장소는 처음 쓰일 때 한 번 읽는다(`open()`, 지연 읽기). 읽기가 실패하면(상태 파일이 손상되어 해석하지 못하는 경우를 포함한다) `create`·`cancel`·`fire`·`start`는 `store_failed`를 돌려주고 아무것도 쓰지 않으며, `start`는 틱과 감시를 켜지 않는다. 엔진은 읽지 못한 파일을 빈 상태로 덮어쓰지 않는다. 사용자가 파일을 고치거나 지워야 한다. 실패는 기억하지 않으므로 다음 호출이 다시 읽는다.
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 모델 도구 `schedule_create`는 실행 등급 `exec`로 등록한다(`tools.register`의 정책 `{ schedule_create: { risk: "exec" } }`). 예약은 사용자 없이 나중의 실행을 만들므로 기본 모드에서 승인을 묻는다.
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 플러그인 `cap-schedule`(`schedulePlugin`)은 능력 `schedule.entries`(1.0.0)를 제공하고, 서비스는 호스트가 만들어 `schedulePlugin({ service })`로 넘긴다. 틱과 상태 저장소는 호스트가 맡고 플러그인은 서비스를 시작하지 않는다. 도구 서비스가 없으면 능력만 올리고 도구는 올리지 않으며 예외를 던지지 않는다. 능력 API(`createScheduleApi`)는 엔진의 `Result` 실패를 `CapabilityError`의 `code`로 바꾼다.
+- 이 단계에 없는 것: cron 식과 시간대, `schedule.*` 기록(이벤트)의 생산자, 임대 기반 다중 프로세스 틱, CLI 예약 명령. 호스트가 파일 저장소와 단일 프로세스 틱으로 조립하고 나머지는 [미결]로 둔다.
+
 ### 4.5 원격 제어
 
 #### 4.5.1 경계
@@ -1540,7 +1562,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 7. [미결] `jobs.spawn`의 replay 정책. L1.agents·L0.process가 `requestId` 멱등을 보장하면 `"safe"`로 넓힌다.
 8. [미결] 도구 없는 능력(`schedule.remote`)의 허용(F.capabilities.spec §4.4). 허용되지 않으면 `cap-schedule` 내부 API로 옮긴다.
 9. [미결] 긴 bash 자동 백그라운드 전환의 책임(§4.2.4): L1.tools, L2.workspace.shell(제안), schedule.jobs.
-10. [미결] 놓친 실행 기본 정책 `once`와 최소 간격 300초 같은 기본값의 사용자 확인. ADR-0006 §3.5가 이 문서에 넘긴 [미결: L2.schedule.spec](놓친 예약 따라잡기 여부)은 §4.4.4 표로 제안하고 확정은 사용자에게 받는다.
-11. [미결] 루프를 `ActivitySnapshot.liveTasks`에 넣을지(§3.9, §4.1.5). 넣으면 서비스 모드에서 루프가 도는 동안 유휴 종료하지 않는다. `L4.host-service.spec` `ActivitySnapshot` 정의와 맞춘다.
+10. [결정: 오케스트레이터 기본값, M3b B1-SCH] 기본 `once`와 최소 간격 300초로 구현했다(§4.4.9). 사용자 확인은 남아 있다. 원래 항목: 놓친 실행 기본 정책 `once`와 최소 간격 300초 같은 기본값의 사용자 확인. ADR-0006 §3.5가 이 문서에 넘긴 [미결: L2.schedule.spec](놓친 예약 따라잡기 여부)은 §4.4.4 표로 제안하고 확정은 사용자에게 받는다.
+11. [결정: 오케스트레이터 기본값, M3b B1-SCH] 넣는다(M3-10, `liveSchedulerTasks`). 원래 항목: 루프를 `ActivitySnapshot.liveTasks`에 넣을지(§3.9, §4.1.5). 넣으면 서비스 모드에서 루프가 도는 동안 유휴 종료하지 않는다. `L4.host-service.spec` `ActivitySnapshot` 정의와 맞춘다.
 12. [미결] 기존 세션을 대상으로 하는 예약(§4.4.1). 1차에서 제외를 제안한다.
 13. [미결] 워크트리 연산의 위치(§3.10, §4.3). `L0.os.spec`의 `OsService`에는 워크트리 연산이 없다. L0.os에 `worktree.create/list/remove` 추가를 요청하거나, `xeon.exec`로 `git worktree` 명령을 실행하는 안 중에서 정한다. `watch`의 `root`가 앱 디렉터리 하위로 제한되는 것(`L0.os.spec` §3.8)도 작업 디렉터리의 파일 감시(`source.type: "file"`)와 맞지 않으므로 함께 요청한다.

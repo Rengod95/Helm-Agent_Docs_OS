@@ -1,6 +1,6 @@
 import type { Clock } from "@xeon/contracts";
 import type { IdByPrefix, IdFactory, IdPrefix } from "@xeon/contracts/conversation";
-import { openTestStore, type TestStore } from "@xeon/platform-store/testing";
+import { openTestStore, type TestStore, type TestStoreOptions } from "@xeon/platform-store/testing";
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
@@ -30,8 +30,15 @@ function idsAt(clock: Clock): IdFactory {
 const owned: TestStore[] = [];
 
 /** 실제 SQLite 임시 파일 저장소(TS-07). afterEach(releaseStores)가 닫는다 */
-export async function openWebStore(clock: Clock): Promise<TestStore> {
-  const store = await openTestStore({ clock, ids: idsAt(clock) });
+export async function openWebStore(
+  clock: Clock,
+  settings?: TestStoreOptions["settings"],
+): Promise<TestStore> {
+  const store = await openTestStore({
+    clock,
+    ids: idsAt(clock),
+    ...(settings === undefined ? {} : { settings }),
+  });
   owned.push(store);
   return store;
 }

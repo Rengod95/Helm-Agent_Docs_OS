@@ -39,6 +39,10 @@ test("catalog conflicts, missing services and plugin failures are 1; the rest of
   for (const kind of threes) expect(exitCodeOfStartError(kind)).toBe(EXIT.environment);
 });
 
+test("an invalid remote address is a usage error, exit 2 (HS-87)", () => {
+  expect(exitCodeOfStartError("invalidRemote")).toBe(EXIT.usage);
+});
+
 test("a start error prints its message and fix on two lines and exits with its code", async () => {
   const environment = harness({ connect: failing("fts5Missing") });
   expect(await environment.run(["chat", "-p", "x"])).toBe(EXIT.environment);

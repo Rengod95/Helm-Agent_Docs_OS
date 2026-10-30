@@ -4,5 +4,14 @@
   "options": {
     "typeAware": false,
     "reportUnusedDisableDirectives": "off"
-  }
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/.turbo/**",
+    "**/coverage/**",
+    "vendor/**",
+    "packages/group-kit/templates/**",
+    "apps/desktop/mockups/**"
+  ]
 }

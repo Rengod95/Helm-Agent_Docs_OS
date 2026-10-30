@@ -299,3 +299,48 @@ test("void <call> in production code fails and tests, types and void 0 pass", ()
     "// xeon-disable-next-line xeon/no-void-promise -- 시작 신호만 보낸다 (eng.typescript.guide TY-22)\nvoid ping();";
   expect(scan("packages/a/src/x.ts", exempt)).toEqual([]);
 });
+
+test("Reflect.get in test files fails; sources, comments and strings do not", () => {
+  const call = 'const keyCode = Reflect.get(event, "keyCode");';
+  expect(scan("packages/x/test/a.test.ts", call)).toEqual(["1 xeon/reflect-get"]);
+  expect(scan("packages/x/test/support/a.ts", call)).toEqual(["1 xeon/reflect-get"]);
+  expect(scan("packages/x/src/a.ts", call)).toEqual([]);
+  expect(scan("packages/x/test/a.test.ts", "// Reflect.get(event, 'keyCode') is banned")).toEqual(
+    [],
+  );
+  expect(scan("packages/x/test/a.test.ts", "const s = 'Reflect.get(event, 1)';")).toEqual([]);
+  expect(
+    scan(
+      "packages/x/test/a.test.ts",
+      "// xeon-disable-next-line xeon/reflect-get -- 외부 객체의 키를 시험한다 (eng.typescript.guide TY-23)\n" +
+        call,
+    ),
+  ).toEqual([]);
+});
+
+test("a Hangul string literal in L4 src fails and comments, tests, tsx and lower layers pass", () => {
+  const text = 'const a = "안녕";\n// 주석 한국어\nconst b = `값 ${x}`;\nconst c = "ok";';
+  expect(scan("apps/cli/src/x.ts", text)).toEqual([
+    "1 xeon/hardcoded-korean",
+    "3 xeon/hardcoded-korean",
+  ]);
+  expect(scan("packages/client/src/a/b.ts", 'f("한")')).toEqual(["1 xeon/hardcoded-korean"]);
+  expect(scan("apps/host/src/x.ts", '/* "한" */ const a = 1;')).toEqual([]);
+  expect(scan("apps/cli/test/x.test.ts", text)).toEqual([]);
+  expect(scan("apps/desktop/src/views/a.tsx", text)).toEqual([]);
+  expect(scan("packages/core-loop/src/x.ts", text)).toEqual([]);
+});
+
+test("the Hangul rule honors the exemption comment", () => {
+  const text =
+    '// xeon-disable-next-line xeon/hardcoded-korean -- 진단 로그 (adr.0016)\nconst a = "한";';
+  expect(scan("apps/cli/src/x.ts", text)).toEqual([]);
+});
+
+test("the Hangul rule reads template expressions at any depth, and skips comments in them", () => {
+  const twoLevels = 'const m = `${paint(c, "33", `승인 요청: ${x}`)}`;';
+  expect(scan("apps/cli/src/x.ts", twoLevels)).toEqual(["1 xeon/hardcoded-korean"]);
+  const threeLevels = "const a = `${x}`;\nconst b = `${f(`${g(`승인 ${y}`)}`)}`;";
+  expect(scan("apps/cli/src/x.ts", threeLevels)).toEqual(["2 xeon/hardcoded-korean"]);
+  expect(scan("apps/cli/src/x.ts", "const c = `${x /* 승인 */}`;")).toEqual([]);
+});

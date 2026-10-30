@@ -19,6 +19,7 @@ import {
   sandboxSource,
   secretsSource,
   shutdownTimeoutMs,
+  spillRetentionDaysOf,
   storeSettingsOf,
   tasksSource,
   toolsSource,
@@ -162,6 +163,17 @@ test("l1.models.* reach the models source and a malformed provider list falls ba
   expect(defaults.retry).toEqual({ maxRetries: 3, baseDelayMs: 2000, maxDelayMs: 60_000 });
 });
 
+// HS-80: 사용자 파일의 고지 동의가 core-models의 rotationAcknowledged까지 간다. 키가 카탈로그에 없으면 settings.value가 undefined라 false다
+test("ext.account-rotation.acknowledgeRisk in the user file reaches the models source as rotationAcknowledged", async () => {
+  const on = await engineWith({ "ext.account-rotation.acknowledgeRisk": true });
+  expect(modelsSource(on)().rotationAcknowledged).toBe(true);
+  expect(modelsSource(await engineWith({}))().rotationAcknowledged).toBe(false);
+  const off = await engineWith({ "ext.account-rotation.acknowledgeRisk": false });
+  expect(modelsSource(off)().rotationAcknowledged).toBe(false);
+  // 계정 회전 플러그인은 기본 꺼짐이다: 예약 키 enabled의 기본값은 false다
+  expect(off.value("ext.account-rotation.enabled")).toBe(false);
+});
+
 test("l1.loop.maxSteps, tools and workspace sources read the same layers", async () => {
   const settings = await engineWith({ "l1.loop.maxSteps": 7, "l2.workspace.read.maxLines": 99 });
   expect(loopSource(settings).maxSteps(THREAD)).toBe(7);
@@ -171,9 +183,79 @@ test("l1.loop.maxSteps, tools and workspace sources read the same layers", async
   expect(workspaceSource(settings).layers("not-a-thread")).toHaveLength(1);
 });
 
+// M3-REQ-87: l1.loop.repeat.*의 기본값은 켜짐, 임계 4와 3이다. 사용자 값과 끄기가 루프 설정 원천까지 간다
+test("l1.loop.repeat.* reaches the loop source: defaults true, 4, 3; configured values and enabled=false are read", async () => {
+  expect(loopSource(await engineWith({})).repeat(THREAD)).toEqual({
+    enabled: true,
+    actionObservation: 4,
+    actionError: 3,
+  });
+  const configured = await engineWith({
+    "l1.loop.repeat.actionObservation": 6,
+    "l1.loop.repeat.actionError": 5,
+  });
+  expect(loopSource(configured).repeat(THREAD)).toEqual({
+    enabled: true,
+    actionObservation: 6,
+    actionError: 5,
+  });
+  const off = await engineWith({ "l1.loop.repeat.enabled": false });
+  expect(loopSource(off).repeat(THREAD)).toEqual({
+    enabled: false,
+    actionObservation: 4,
+    actionError: 3,
+  });
+});
+
+test("l1.loop.repeat.actionError from a session scope applies to that thread only", async () => {
+  const settings = await engineWith({ "l1.loop.repeat.actionError": 9 });
+  settings.bindSession({
+    layer: (threadId) => ({
+      scope: "session",
+      values:
+        threadId === THREAD
+          ? new Map<string, unknown>([["l1.loop.repeat.actionError", 2]])
+          : new Map<string, unknown>(),
+    }),
+    set: () => {
+      throw new Bug("not used");
+    },
+    reset: () => {
+      throw new Bug("not used");
+    },
+  });
+  const source = loopSource(settings);
+  expect(source.repeat(THREAD).actionError).toBe(2);
+  expect(source.repeat(fixedIdFactory(5).next("thr")).actionError).toBe(9);
+});
+
 test("l1.agents.judge.maxRuns reaches the agents source and defaults to 3", async () => {
-  expect(agentsSource(await engineWith({ "l1.agents.judge.maxRuns": 5 })).judgeMaxRuns?.()).toBe(5);
-  expect(agentsSource(await engineWith({})).judgeMaxRuns?.()).toBe(3);
+  expect(
+    agentsSource(await engineWith({ "l1.agents.judge.maxRuns": 5 })).judgeMaxRuns?.(THREAD),
+  ).toBe(5);
+  expect(agentsSource(await engineWith({})).judgeMaxRuns?.(THREAD)).toBe(3);
+});
+
+test("the judge cap is read for the judged thread, so a session scope value applies", async () => {
+  const settings = await engineWith({ "l1.agents.judge.maxRuns": 2 });
+  settings.bindSession({
+    layer: (threadId) => ({
+      scope: "session",
+      values:
+        threadId === THREAD
+          ? new Map<string, unknown>([["l1.agents.judge.maxRuns", 4]])
+          : new Map<string, unknown>(),
+    }),
+    set: () => {
+      throw new Bug("not used");
+    },
+    reset: () => {
+      throw new Bug("not used");
+    },
+  });
+  const source = agentsSource(settings);
+  expect(source.judgeMaxRuns?.(THREAD)).toBe(4);
+  expect(source.judgeMaxRuns?.(fixedIdFactory(5).next("thr"))).toBe(2);
 });
 
 test("undeclared package keys are read raw: persistence, store, exec, shutdown", async () => {
@@ -185,6 +267,9 @@ test("undeclared package keys are read raw: persistence, store, exec, shutdown",
     "l0.exec.shell": "/bin/sh",
     "l0.exec.defaultTimeoutMs": 1500,
     "l0.exec.envAllowlist.extra": ["FOO_BAR"],
+    "l0.exec.spillRetentionDays": 7,
+    "l0.exec.spillMaxBytes": 4096,
+    "l0.store.blobGcEnabled": true,
     "l0.process.shutdown.timeoutMs": 4500,
   });
   expect(persistenceSource(settings, (m) => reports.push(m))()).toMatchObject({
@@ -201,8 +286,11 @@ test("undeclared package keys are read raw: persistence, store, exec, shutdown",
     shellPath: "/bin/sh",
     defaultTimeoutMs: 1500,
     outputSpillBytes: 10_485_760,
+    spillMaxBytes: 4096,
     envExtra: ["FOO_BAR"],
   });
+  expect(spillRetentionDaysOf(settings)).toBe(7);
+  expect(storeSettingsOf(settings, (m) => reports.push(m)).blobGcEnabled).toBe(true);
   expect(shutdownTimeoutMs(settings)).toBe(4500);
   expect(reports).toEqual([]);
 });
@@ -281,6 +369,13 @@ test("l0.os.log.level is read on every call, so a change applies from the next l
   expect(level()).toBe("warn");
   settings.setUserValue("l0.os.log.level", undefined);
   expect(level()).toBe("info");
+});
+
+test("spill retention defaults to 0 (keep everything) and the spill cap defaults to 1 GiB", async () => {
+  const settings = await engineWith({});
+  expect(spillRetentionDaysOf(settings)).toBe(0);
+  expect(execOptionsOf(settings, "/work", "/state").spillMaxBytes).toBe(1_073_741_824);
+  expect(storeSettingsOf(settings, () => undefined).blobGcEnabled).toBe(false);
 });
 
 test("the exec spill folder is under the state directory, never the OS temp folder", async () => {

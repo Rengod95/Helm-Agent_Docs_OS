@@ -2,6 +2,7 @@
 // 프로젝트 자원(`.mcp.json`, `.xeon/skills`)과 신뢰 판정이 홈 기준이 된다. 그래서 대화를 만들 때 폴더를 `thread.create`의 `workspace`로 보낸다.
 // 호스트가 절대 경로이고 있는 폴더인지 확인해 정규 경로로 저장한다(L4.host-service.spec HS-76). 여기서는 보내기 전에 알 수 있는 것만 본다.
 
+import { t } from "@xeon/client/i18n";
 import { WIRE_ERRORS } from "@xeon/contracts/wire";
 import type { CommandError } from "./commands.ts";
 
@@ -32,14 +33,14 @@ export function checkWorkspaceInput(text: string): WorkspaceInput {
 export function workspaceHint(input: WorkspaceInput): string | null {
   if (input.kind !== "invalid") return null;
   return input.reason === "relative"
-    ? "작업 폴더는 절대 경로로 적어야 합니다. 예: /Users/me/project"
-    : "작업 폴더 경로가 너무 깁니다.";
+    ? t("desktop.workspace.hint.relative")
+    : t("desktop.workspace.hint.tooLong");
 }
 
 /** 새 대화를 만들지 못했을 때의 문구. 호스트가 폴더를 받아들이지 않으면(-32602) 그 이유를 말한다 */
 export function createFailureText(error: CommandError, sentWorkspace: boolean): string {
   if (sentWorkspace && error.kind === "rejected" && error.code === INVALID_PARAMS) {
-    return "작업 폴더를 열 수 없습니다. 있는 폴더의 절대 경로인지 확인하세요.";
+    return t("desktop.workspace.folderRefused");
   }
-  return "새 대화를 만들지 못했습니다.";
+  return t("desktop.workspace.createFailed");
 }

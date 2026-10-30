@@ -66,7 +66,7 @@ xeon/packages/contracts/
     checkpoint.test.ts
     blob.test.ts
     versioning.test.ts
-xeon/scripts/check-event-catalog.ts  # 스펙 §3.3 표와 CORE_EVENT_CATALOG 대조
+xeon/packages/contracts/test/records/catalog-doc.test.ts  # 스펙 §3.3 표와 CORE_EVENT_CATALOG 대조(시험)
 ```
 
 - 대화 계층 payload 스키마(thread·turn·step·item 알림 11종)는 `src/conversation/lifecycle.ts`에 있다. 토큰 델타는 `item.updated` payload 안의 `PartDelta`(`parts.ts`)이고 별도 kind가 없다. `catalog/index.ts`는 그것을 가져와 카탈로그 항목에 연결만 한다. 같은 패키지 안 import라 층 규칙과 무관하다.
@@ -79,7 +79,7 @@ xeon/scripts/check-event-catalog.ts  # 스펙 §3.3 표와 CORE_EVENT_CATALOG �
 |---|---|---|---|
 | R1 | envelope 스키마: `EnvelopeBase`, `DurableEventEnvelope`, `VolatileEventEnvelope`, 세 스키마(`additionalProperties: false`), `DurableEventDraft`, `ENVELOPE_MAX_BYTES`, `checkEnvelopeSize`(UTF-8 바이트 측정) | C1, R2, R6 | M |
 | R2 | kind 이름 규칙: `CoreArea`, `CoreEventKind`(40개), `DomainArea`, `ReservedDomainArea`, `ExtensionEventKind`, `EventKind`, 두 패턴 상수, `EventKindSchema`, `parseEventKind`(병합 카탈로그 기준), `KindError` | — | S |
-| R3 | 카탈로그 payload 스키마: `catalog/*.ts`의 새 payload 10종과 스키마, `CatalogEntry`, `CORE_EVENT_CATALOG`(conversation payload 스키마 연결 포함), `catalogEntry`, `xeon/scripts/check-event-catalog.ts` | R2, R4, R5, C4, C5 | L |
+| R3 | 카탈로그 payload 스키마: `catalog/*.ts`의 새 payload 10종과 스키마, `CatalogEntry`, `CORE_EVENT_CATALOG`(conversation payload 스키마 연결 포함), `catalogEntry`, `catalog-doc.test.ts` | R2, R4, R5, C4, C5 | L |
 | R4 | 효과 3단과 재생 매핑: `ReplayPolicy`·`ReplayPolicySchema`·`toReplayPolicy` 재수출(정의는 C7), `EffectIntent`·`EffectExec`·`EffectOutput`·`EffectResult`와 스키마, `EffectStatus`, `EffectRecovery`, `decideEffectRecovery`, `OUTCOME_UNKNOWN_TEXT`, `NOT_STARTED_TEXT` | C1, C7, R6 | M |
 | R5 | 체크포인트: `PendingToolCall`, `StepCheckpoint`, `StepCheckpointSchema`, `STEP_CHECKPOINT_SCHEMA_VERSION` | C1, C2 | S |
 | R6 | BlobRef: `BlobRef`, `DetachedField`, 스키마, `BLOB_PLACEHOLDER_PREFIX` | — | S |
@@ -146,14 +146,14 @@ xeon/scripts/check-event-catalog.ts  # 스펙 §3.3 표와 CORE_EVENT_CATALOG �
    | 5 replay 재수출 | `effects.test.ts` › replay 재수출 |
    | 6 256KiB | `envelope.test.ts` › 256KiB |
    | 7 kind 파싱 | `kinds.test.ts` |
-   | 8 카탈로그 일치 | `xeon/scripts/check-event-catalog.ts` |
+   | 8 카탈로그 일치 | `catalog-doc.test.ts` |
    | 9 payload 왕복 | `catalog.test.ts` › 왕복 |
    | 10 체크포인트 | `checkpoint.test.ts` |
    | 13 비공개 기록 | `ports.test.ts` › 비공개 기록 |
    | 14 확장 kind 셋째 마디 | `kinds.test.ts` › 접두 규칙 |
 
 2. `tsc -b`, oxlint(type-aware), oxfmt, check-layers가 통과한다. records 소스는 `../conversation/*` 외의 내부 모듈과 `typebox`만 import한다.
-3. 카탈로그 검사 스크립트 1개(`xeon/scripts/check-event-catalog.ts`)가 있다. 스크립트는 `docs/xeon/F/records/spec.md`의 `<!-- catalog:start -->`~`<!-- catalog:end -->` 사이 표에서 kind·durable 열을 읽어 `CORE_EVENT_CATALOG`와 비교하고, 다르면 종료코드 1로 끝난다. `just verify`에 이 단계를 더하는 일은 툴체인 담당(`eng.toolchain.guide`)과 맞춘다.
+3. 카탈로그 검사는 시험 1개(`xeon/packages/contracts/test/records/catalog-doc.test.ts`)다. 시험은 `docs/xeon/F/records/spec.md`의 `<!-- catalog:start -->`~`<!-- catalog:end -->` 사이 표에서 kind·durable 열을 읽어 `CORE_EVENT_CATALOG`와 비교하고, 다르면 시험이 실패한다. 스크립트나 `just verify` 단계는 따로 두지 않는다. 문서가 없는 패키지 복사본에서는 건너뛴다.
 4. `@xeon/contracts/records`에서 스펙 §3의 이름이 모두 export된다. `SessionStore` 계열은 M2 전에는 export만 하고 구현 요구를 걸지 않는다.
 
 ## 7. 위험과 대응

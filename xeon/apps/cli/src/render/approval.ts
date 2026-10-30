@@ -1,6 +1,7 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever } from "@xeon/contracts";
 import type { ApprovalRespondParams, ApprovalRespondResult } from "@xeon/contracts/wire";
-import type { ApprovalView, QuestionView, RememberChoice } from "./ops.ts";
+import type { ApprovalView, QuestionView, RememberChoice, ReviewFileView } from "./ops.ts";
 
 // L4.cli.spec §4.11. 승인 프롬프트. 줄 입력으로 허용·거부·답을 받아 approval.respond 인자로 바꾼다.
 // 질문(question)은 QuestionAnswer, 계획(plan)의 허용은 PlanAnswer, 검토(review)는 ReviewAnswer, 거부는 DenyAnswer가 정본 모양이다(F wire §3.3.1).
@@ -31,15 +32,15 @@ function isAborted(signal: AbortSignal): boolean {
 }
 
 function rememberHint(remember: readonly RememberChoice[]): string {
-  const parts = ["[y] 이번만 허용"];
-  if (remember.includes("thread")) parts.push("[t] 이 세션 동안 허용");
-  if (remember.includes("always")) parts.push("[a] 항상 허용");
-  parts.push("[n] 거부");
+  const parts = [t("cli.render.approval.hint.once")];
+  if (remember.includes("thread")) parts.push(t("cli.render.approval.hint.thread"));
+  if (remember.includes("always")) parts.push(t("cli.render.approval.hint.always"));
+  parts.push(t("cli.render.approval.hint.deny"));
   return parts.join("  ");
 }
 
 async function askFeedback(io: PromptIo, signal: AbortSignal): Promise<ApprovalResponse> {
-  const line = await io.readLine("거부 이유 (없으면 엔터): ", signal);
+  const line = await io.readLine(t("cli.render.approval.feedbackPrompt"), signal);
   const feedback = line?.trim() ?? "";
   return feedback.length === 0 ? DENY_ONLY : { decision: "deny", answer: { feedback } };
 }
@@ -67,7 +68,7 @@ async function askTool(
     const denied = await askFeedback(io, signal);
     return isAborted(signal) ? { kind: "dismissed" } : { kind: "answered", response: denied };
   }
-  await io.stdout("y, t, a, n 중 하나를 입력한다\n");
+  await io.stdout(t("cli.render.approval.invalidTool"));
   return "retry";
 }
 
@@ -77,7 +78,7 @@ async function askPlan(
   io: PromptIo,
   signal: AbortSignal,
 ): Promise<AskOutcome | "retry"> {
-  const line = await io.readLine("[y] 승인  [n] 거부 > ", signal);
+  const line = await io.readLine(t("cli.render.approval.planPrompt"), signal);
   if (isAborted(signal)) return { kind: "dismissed" };
   if (line === null) return { kind: "answered", response: DENY_ONLY };
   const choice = line.trim().toLowerCase();
@@ -86,25 +87,25 @@ async function askPlan(
     return isAborted(signal) ? { kind: "dismissed" } : { kind: "answered", response: denied };
   }
   if (choice !== "y" && choice !== "yes") {
-    await io.stdout("y 또는 n을 입력한다\n");
+    await io.stdout(t("cli.render.approval.invalidPlan"));
     return "retry";
   }
   let mode: string | undefined;
   if (nextModes.length > 0) {
     const list = nextModes.map((name, index) => `${String(index + 1)}) ${name}`).join("  ");
-    const picked = await io.readLine(`다음 권한 모드 ${list} (엔터는 지금 모드) > `, signal);
+    const picked = await io.readLine(t("cli.render.approval.modePrompt", { list }), signal);
     if (isAborted(signal)) return { kind: "dismissed" };
     const text = picked?.trim() ?? "";
     if (text.length > 0) {
       const index = Number(text);
       mode = Number.isInteger(index) ? nextModes[index - 1] : nextModes.find((m) => m === text);
       if (mode === undefined) {
-        await io.stdout(`모르는 모드: ${text}\n`);
+        await io.stdout(t("cli.render.approval.unknownMode", { text }));
         return "retry";
       }
     }
   }
-  const noteLine = await io.readLine("메모 (없으면 엔터): ", signal);
+  const noteLine = await io.readLine(t("cli.render.approval.notePrompt"), signal);
   if (isAborted(signal)) return { kind: "dismissed" };
   const note = noteLine?.trim() ?? "";
   return {
@@ -119,13 +120,28 @@ async function askPlan(
   };
 }
 
+/** 검토 카드가 보인 hunk id 전부(`f<파일 순번>h<hunk 순번>`, L2.artifacts.spec §4.2.4). 파일 순서는 요청 files 순서다 */
+function reviewHunkIds(files: readonly ReviewFileView[]): string[] {
+  return files.flatMap((file, fileIndex) =>
+    Array.from(
+      { length: file.hunks },
+      (_, hunkIndex) => `f${String(fileIndex)}h${String(hunkIndex)}`,
+    ),
+  );
+}
+
 /**
- * 검토 승인(ADR-0018): 모두 승인, 수정 요청, 거부. 카드가 hunk 본문 없이 요약만 보이므로 hunk별 결정은 받지 않는다.
- * 승인은 남은 hunk를 모두 승인하고 제출한다(`approveRemaining`, `submit`). 수정 요청은 검토 전체에 코멘트 하나를 달고 제출하지 않는다:
- * hunk는 pending으로 남고 되돌림은 일어나지 않는다. 거부는 DenyAnswer다
+ * 검토 승인(ADR-0018): 모두 승인, 일부 거절, 수정 요청, 모두 거절. 카드는 hunk 본문 없이 요약만 보이므로
+ * 일부 거절은 hunk id를 받아 그 hunk만 거절하고 나머지는 승인한다(`approveRemaining`, `submit`).
+ * 모두 승인도 같은 제출이고 거절할 hunk가 없다. 수정 요청은 검토 전체에 코멘트 하나를 달고 제출하지 않는다:
+ * 새 승인 요청이 같은 라운드로 다시 온다. 모두 거절은 DenyAnswer다(검토 전체 거절과 피드백)
  */
-async function askReview(io: PromptIo, signal: AbortSignal): Promise<AskOutcome | "retry"> {
-  const line = await io.readLine("[y] 모두 승인  [c] 수정 요청  [n] 거부 > ", signal);
+async function askReview(
+  files: readonly ReviewFileView[],
+  io: PromptIo,
+  signal: AbortSignal,
+): Promise<AskOutcome | "retry"> {
+  const line = await io.readLine(t("cli.render.approval.reviewPrompt"), signal);
   if (isAborted(signal)) return { kind: "dismissed" };
   if (line === null) return { kind: "answered", response: DENY_ONLY };
   const choice = line.trim().toLowerCase();
@@ -138,12 +154,13 @@ async function askReview(io: PromptIo, signal: AbortSignal): Promise<AskOutcome 
       },
     };
   }
+  if (choice === "r") return askRejectedHunks(files, io, signal);
   if (choice === "c") {
-    const feedbackLine = await io.readLine("수정 요청 내용: ", signal);
+    const feedbackLine = await io.readLine(t("cli.render.approval.reviewBodyPrompt"), signal);
     if (isAborted(signal)) return { kind: "dismissed" };
     const body = feedbackLine?.trim() ?? "";
     if (body.length === 0) {
-      await io.stdout("수정 요청에는 내용이 필요하다\n");
+      await io.stdout(t("cli.render.approval.reviewBodyRequired"));
       return "retry";
     }
     return {
@@ -158,25 +175,82 @@ async function askReview(io: PromptIo, signal: AbortSignal): Promise<AskOutcome 
     const denied = await askFeedback(io, signal);
     return isAborted(signal) ? { kind: "dismissed" } : { kind: "answered", response: denied };
   }
-  await io.stdout("y, c, n 중 하나를 입력한다\n");
+  await io.stdout(t("cli.render.approval.invalidReview"));
   return "retry";
+}
+
+/**
+ * `r`: 거절할 hunk id를 쉼표로 받는다(`all`은 전부). 알 수 없는 id나 빈 입력이면 알리고 검토 프롬프트로 돌아간다(retry).
+ * 고른 hunk는 `rejected`, 나머지는 `approveRemaining`으로 승인하고 제출한다. 거절할 hunk가 하나도 없으면 고를 수 없다
+ */
+async function askRejectedHunks(
+  files: readonly ReviewFileView[],
+  io: PromptIo,
+  signal: AbortSignal,
+): Promise<AskOutcome | "retry"> {
+  const known = reviewHunkIds(files);
+  if (known.length === 0) {
+    await io.stdout(t("cli.render.approval.noHunks"));
+    return "retry";
+  }
+  const line = await io.readLine(t("cli.render.approval.hunkPrompt"), signal);
+  if (isAborted(signal)) return { kind: "dismissed" };
+  if (line === null) return { kind: "answered", response: DENY_ONLY };
+  const text = line.trim().toLowerCase();
+  const tokens =
+    text === "all"
+      ? known
+      : text
+          .split(",")
+          .map((token) => token.trim())
+          .filter((token) => token.length > 0);
+  if (tokens.length === 0) {
+    await io.stdout(t("cli.render.approval.hunkEmpty"));
+    return "retry";
+  }
+  const valid = new Set(known);
+  const unknown = tokens.find((id) => !valid.has(id));
+  if (unknown !== undefined) {
+    await io.stdout(t("cli.render.approval.hunkUnknown", { id: unknown }));
+    return "retry";
+  }
+  const rejected = [...new Set(tokens)].map(
+    (hunkId): { readonly hunkId: string; readonly decision: "rejected" } => ({
+      hunkId,
+      decision: "rejected",
+    }),
+  );
+  return {
+    kind: "answered",
+    response: {
+      decision: "answer",
+      answer: { decisions: rejected, comments: [], submit: true, approveRemaining: true },
+    },
+  };
 }
 
 function describeQuestion(question: QuestionView, index: number, total: number): string {
   const lines: string[] = [];
   const header = question.header === null ? "" : `[${question.header}] `;
-  lines.push(`질문 ${String(index + 1)}/${String(total)}: ${header}${question.text}`);
+  lines.push(
+    t("cli.render.approval.question", {
+      index: String(index + 1),
+      total: String(total),
+      header,
+      text: question.text,
+    }),
+  );
   question.options.forEach((option, optionIndex) => {
-    const mark = option.recommended ? " (추천)" : "";
+    const mark = option.recommended ? t("cli.render.approval.recommended") : "";
     const detail = option.description === null ? "" : ` - ${option.description}`;
     lines.push(`  ${String(optionIndex + 1)}) ${option.label}${mark}${detail}`);
   });
   const how = [
-    question.multiSelect ? "번호(여러 개는 쉼표)" : "번호",
-    ...(question.allowFreeText ? ["직접 입력"] : []),
-    "/deny 거부",
+    question.multiSelect ? t("cli.render.approval.how.multi") : t("cli.render.approval.how.single"),
+    ...(question.allowFreeText ? [t("cli.render.approval.how.freeText")] : []),
+    t("cli.render.approval.how.deny"),
   ].join(", ");
-  lines.push(`  입력: ${how}`);
+  lines.push(t("cli.render.approval.input", { how }));
   return `${lines.join("\n")}\n`;
 }
 
@@ -230,7 +304,7 @@ async function askQuestions(
         break;
       }
       // oxlint-disable-next-line no-await-in-loop -- 잘못된 입력을 알린 뒤 다시 묻는다 (L4.cli.spec §4.11)
-      await io.stdout("읽을 수 없는 입력이다. 다시 입력한다\n");
+      await io.stdout(t("cli.render.approval.unreadable"));
     }
   }
   return { kind: "answered", response: { decision: "answer", answer: answers } };
@@ -248,7 +322,7 @@ function askForm(
     case "plan":
       return askPlan(form.nextModes, io, signal);
     case "review":
-      return askReview(io, signal);
+      return askReview(form.files, io, signal);
     default:
       return assertNever(form, "ApprovalForm");
   }
@@ -303,9 +377,9 @@ const MAX_REASKS = 3;
 
 /** 다시 입력해 보낼 수 있는 이유(answer_invalid, commit_failed)를 사람이 읽는 줄로 */
 function notAppliedText(result: ApprovalRespondResult): string {
-  if (result.reason === "commit_failed") return "승인 응답을 기록하지 못했다. 다시 입력한다\n";
+  if (result.reason === "commit_failed") return t("cli.render.approval.commitFailed");
   const detail = result.detail === undefined ? "" : `: ${result.detail}`;
-  return `응답이 요청과 맞지 않다${detail}. 다시 입력한다\n`;
+  return t("cli.render.approval.mismatch", { detail });
 }
 
 /** 대화형 프롬프트. 한 번에 하나만 묻고(입력이 하나뿐이다) 나머지는 줄을 세운다 */
@@ -345,7 +419,7 @@ export function createApprovalPrompter(options: PrompterOptions): ApprovalSink {
         }
         if (attempt + 1 >= MAX_REASKS) {
           // oxlint-disable-next-line no-await-in-loop -- 포기를 알린 뒤 끝낸다 (L4.cli.spec §4.11)
-          await options.io.stdout("응답이 계속 적용되지 않아 이 승인은 대기로 남긴다\n");
+          await options.io.stdout(t("cli.render.approval.giveUp"));
           return;
         }
         // oxlint-disable-next-line no-await-in-loop -- 이유를 알린 뒤 다시 묻는다 (L4.cli.spec §4.11)
@@ -383,35 +457,59 @@ export function createApprovalPrompter(options: PrompterOptions): ApprovalSink {
   };
 }
 
-/** print 모드: 프롬프트를 열 수 없으므로 거부로 답한다(§4.11 4번) */
-export function createAutoDeny(options: {
+/** print 모드가 승인 하나에 보낸 자동 응답의 결과. 알림 문구를 고르는 데 쓴다 */
+export type AutoResult =
+  /** host가 적용했다 */
+  | { readonly kind: "applied"; readonly decision: AutoDecision }
+  /** host가 적용하지 않았다. `reason`은 wire 이유다(다시 보내도 같다) */
+  | { readonly kind: "notApplied"; readonly decision: AutoDecision; readonly reason: string }
+  /** 응답 수단이 없는 host면 응답이 가지 않았다 */
+  | { readonly kind: "failed"; readonly decision: AutoDecision };
+
+type AutoDecision = "allow" | "deny";
+
+export interface AutoOptions {
   readonly respond: PrompterOptions["respond"];
-  readonly onResult: (
-    view: ApprovalView,
-    outcome: "denied" | "failed" | { readonly notApplied: string },
-  ) => Promise<void>;
-}): ApprovalSink {
+  readonly onResult: (view: ApprovalView, result: AutoResult) => Promise<void>;
+}
+
+const AUTO_RESPONSE: Readonly<Record<AutoDecision, ApprovalResponse>> = {
+  // `remember`를 싣지 않는다. 호스트는 빠진 범위를 once로 본다(protocol.ts rememberOf)
+  allow: { decision: "allow" },
+  deny: DENY_ONLY,
+};
+
+/** 승인 하나마다 답을 고르고 보낸 뒤 결과를 알린다. 기다리지 않고 한 번에 하나씩 보낸다 */
+function autoSink(
+  decide: (view: ApprovalView) => AutoDecision,
+  options: AutoOptions,
+): ApprovalSink {
   const seen = new Set<string>();
   const state: { chain: Promise<void> } = { chain: Promise.resolve() };
   return {
     offer(view) {
       if (seen.has(view.approvalId)) return;
       seen.add(view.approvalId);
-      const work = options.respond(view.approvalId, DENY_ONLY).then(
+      const decision = decide(view);
+      const work = options.respond(view.approvalId, AUTO_RESPONSE[decision]).then(
         (sent) =>
           sent.applied
-            ? options.onResult(view, "denied")
-            : options.onResult(view, { notApplied: sent.reason ?? "unspecified" }),
-        // 응답 수단이 없는 host면 거부 응답이 가지 않았음을 알림에 밝힌다
-        () => options.onResult(view, "failed"),
+            ? options.onResult(view, { kind: "applied", decision })
+            : options.onResult(view, {
+                kind: "notApplied",
+                decision,
+                reason: sent.reason ?? "unspecified",
+              }),
+        // 응답 수단이 없는 host면 응답이 가지 않았음을 알림에 밝힌다
+        () => options.onResult(view, { kind: "failed", decision }),
       );
       state.chain = state.chain.then(() => work);
     },
     resolved() {
-      // 자동 거부는 열린 프롬프트가 없다
+      // 자동 응답은 열린 프롬프트가 없다
     },
     onOffer() {
-      // 자동 거부는 입력을 쓰지 않는다
+      // 자동 응답은 입력을 쓰지 않는다
       return () => undefined;
     },
     idle: () => state.chain,
@@ -419,4 +517,17 @@ export function createAutoDeny(options: {
       // 정리할 것이 없다
     },
   };
+}
+
+/** print 모드 기본: 모든 승인을 거부로 답한다(§4.11 4번) */
+export function createAutoDeny(options: AutoOptions): ApprovalSink {
+  return autoSink(() => "deny", options);
+}
+
+/**
+ * print 모드 `--auto-approve`: 도구 승인만 이번만 허용으로 답한다. 질문, 계획, 검토는 사람이 답해야 하므로 거부한다
+ * (§4.11 4번). 자동 응답이 사람의 답을 대신하지 않도록 허용 범위를 도구 승인으로 좁혔다
+ */
+export function createAutoAllow(options: AutoOptions): ApprovalSink {
+  return autoSink((view) => (view.form.kind === "tool" ? "allow" : "deny"), options);
 }

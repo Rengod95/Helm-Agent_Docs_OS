@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { attempt } from "@xeon/contracts";
+import { readSettingsServers } from "../src/settings.ts";
 import { normalizeServerName, parseMcpJson } from "../src/servers/loader.ts";
+import { looksLikeSecretName } from "../src/servers/values.ts";
 import { evaluateServer } from "../src/servers/policy.ts";
 import type { ServerDefinition } from "../src/types.ts";
 import { flush } from "./support/flush.ts";
@@ -385,5 +387,71 @@ describe("extension servers", () => {
       data: { code: "invalid_input" },
     });
     await world.runtime.shutdown();
+  });
+});
+
+describe("plaintext env and headers (M3-REQ-97)", () => {
+  test("a plaintext value under a non-secret name is accepted next to a secret reference", () => {
+    const parsed = parseMcpJson(
+      mcpJson({
+        mixed: {
+          command: "x",
+          env: { LOG_LEVEL: "debug", MAX_TOKENS: "4096", API_TOKEN: "secret://tok" },
+        },
+        web: { type: "http", url: "https://e.com", headers: { "X-Region": "eu" } },
+      }),
+      "root",
+      new Set(),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.diagnostics).toEqual([]);
+    expect(parsed.value.servers.map((server) => server.id).toSorted()).toEqual(["mixed", "web"]);
+  });
+
+  test("secret-like names are rejected in every spelling and a malformed secret:// value is not sent as plaintext", () => {
+    const names = [
+      "API_KEY",
+      "apiKey",
+      "GITHUB_TOKEN",
+      "DB_PASSWORD",
+      "client-secret",
+      "Authorization",
+    ];
+    for (const name of names) {
+      expect(looksLikeSecretName(name)).toBe(true);
+    }
+    for (const name of ["LOG_LEVEL", "MAX_TOKENS", "KEYBOARD", "HOME", "X-Region"]) {
+      expect(looksLikeSecretName(name)).toBe(false);
+    }
+    const parsed = parseMcpJson(
+      mcpJson({
+        typo: { command: "x", env: { REGION: "secret://Bad_Name" } },
+        leaky: { command: "y", env: { DB_PASSWORD: "hunter2hunter2" } },
+      }),
+      "root",
+      new Set(),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.servers).toEqual([]);
+    expect(parsed.value.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "invalid_definition",
+      "plaintext_secret",
+    ]);
+  });
+
+  test("the settings path applies the same rules", () => {
+    const read = readSettingsServers([
+      layer("user", {
+        "l2.mcp.servers": {
+          ok: { transport: { type: "stdio", command: "x", env: { LOG_LEVEL: "1" } } },
+          bad: { transport: { type: "stdio", command: "x", env: { GITHUB_TOKEN: "plain" } } },
+        },
+      }),
+    ]);
+    expect(read.servers.map((server) => server.id)).toEqual(["ok"]);
+    expect(read.diagnostics).toMatchObject([{ code: "plaintext_secret", server: "bad" }]);
+    expect(JSON.stringify(read.diagnostics)).not.toContain('plain"');
   });
 });

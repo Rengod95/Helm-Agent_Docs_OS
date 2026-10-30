@@ -4,7 +4,7 @@ layer: L4
 domain: settings-ui
 kind: plan
 status: draft
-depends_on: [L4.settings-ui.spec, L4.desktop.plan, L4.host-service.plan, F.wire-settings.plan, eng.testing.guide]
+depends_on: [L4.settings-ui.spec, L4.desktop.plan, L4.host-service.plan, F.wire-settings.plan, L2.web.spec, eng.testing.guide]
 binds: [xeon/packages/client/src/settings/**]
 ---
 
@@ -73,6 +73,11 @@ xeon/packages/client/src/settings/          # settings-ui 소유 (binds, view-mo
     fixtures/fake-store.ts # DesktopSettingsStore 가짜
     *.test.ts              # model 단위 테스트 (unit)
     client-check.contract.test.ts   # 클라이언트 검사와 F validateSettingValue 대조 (contract)
+xeon/packages/client/src/web/            # 도구와 웹 view-model (@xeon/client/web, adr.0020, spec §3.6, §4.11)
+  index.ts                 # tools-web.ts를 다시 내보낸다
+  tools-web.ts             # toolsWebViewOf, orderUpdateOf, moveInOrder와 행·구획·추천 타입
+xeon/packages/client/test/web/
+  tools-web.test.ts        # U14 단위 테스트(값 비교)
 ```
 
 - [제안] 테스트는 `xeon/packages/client/test/settings/`에 둔다. `binds`(`xeon/packages/client/src/settings/**`) 안에 있어 라우팅이 같은 문서를 고르고, `eng.testing.guide` TS-06의 "`src/**/*.test.ts` 또는 `test/**`" 위치 규칙에도 맞는다. desktop 패키지의 `knip.json` `entry`에 `src/**/*.test.ts`가 있어야 한다(TS-06 마지막 항목).
@@ -99,6 +104,7 @@ xeon/packages/client/src/settings/          # settings-ui 소유 (binds, view-mo
 | U11 | 게이지 자리: budgets·providers 탭의 `GaugeSlotVM`(`unavailable`)과 문구 | `model/group-by-tab.ts`, `views/TabPage.*` | U7 | S | M3 |
 | U13 | 첫 실행 권장 화면(spec §4.10): provider 상태, SearXNG 주소 입력, 권장 목록과 키 등록 버튼(C안). "다시 보지 않음"은 desktop 로컬 값 | `model/first-run.ts`, `views/FirstRun.*` | U7, U9(키 등록 경로), `L2.web.spec` provider 설정 키 | S | M3 |
 | U12 | 접근성 점검: 탭 키보드 조작, 접근 이름(`ui.label`), 오류 설명 연결, 상태 영역, 대비 4.5:1·3:1, 잠긴 항목 읽기. 점검표를 완료 기준에 남긴다 | `views/**` | U7~U11 | M | M3 |
+| U14 | 도구와 웹 view-model(`@xeon/client/web`): 행과 구획 만들기, 순위·현재·고정 표시, 추천 키 플러그인 상태, 첫 사용 고지 목록, `orderUpdateOf`, `moveInOrder`(spec §3.6, §4.11) | `src/web/*`, `test/web/tools-web.test.ts` | F `web.providers`(wire 완료, M3-REQ-96), `L2.web.spec` §4.8.2 | S | M3 |
 
 - 순서: U1 → (U2, U3, U4 병렬) → U5 → U6 → U7 → U8. M3에서 U9, U10, U11은 U7 뒤 병렬, U13은 U9 뒤, U12는 마지막이다.
 - [제안] U10은 일반 렌더러로 같은 키를 먼저 편집할 수 있게 둔 뒤에 착수한다. 전용 편집기가 늦어도 값 편집은 막히지 않는다.
@@ -139,6 +145,17 @@ xeon/packages/client/src/settings/          # settings-ui 소유 (binds, view-mo
 | `stale-response-dropped` | 같은 키에 두 요청을 보낸 뒤 앞 요청 응답이 늦게 와도 상태는 마지막 요청 결과다 | `test/state.test.ts` |
 | `two-origins-routed` | `l4.desktop.*` 정의는 가짜 로컬 저장소로, 나머지는 가짜 호스트로 읽고 쓴다. 같은 키가 양쪽이면 desktop 정의와 `duplicateKey` 진단 | `test/state.test.ts` |
 | `client-check-matches-server` | fixture 정의를 `defineSettings`로 만든 서버 정의와 `JSON.stringify`를 거친 `SettingDefWire`에 대해, 고정 시드 값 목록으로 `checkClientValue`와 F `validateSettingValue` 결과가 같다(`contract` 태그, TS-09 고정 시드) | `test/client-check.contract.test.ts` |
+| `web-default-view` | `web.providers` fixture의 기본값에서 `ToolsWebView` 전체가 같다. 내장 래퍼가 현재(순위 0), Exa는 키 없음(`needs-key`), Brave는 설치 안 됨(`not-installed`) | `test/web/tools-web.test.ts` |
+| `web-user-order-moves-current` | 사용자 순서로 쓸 수 있는 플러그인이 앞에 오면 현재 표시가 그 행으로 옮겨 간다. 추천 상태는 `ready`가 된다 | `test/web/tools-web.test.ts` |
+| `web-pinned-provider` | 설정이 provider를 고정하면 그 행만 현재와 고정 표시를 받는다. 쓸 수 없는 상태여도 그 행이 현재로 남고 탐침 상세를 싣는다 | `test/web/tools-web.test.ts` |
+| `web-stale-pricing` | 가격표 기준일과 오래됨 표시가 행의 `price`로 간다. 무료 행의 `price`는 null이다 | `test/web/tools-web.test.ts` |
+| `web-notices-pending` | 첫 사용 고지가 남은 키 플러그인 id가 정렬된 목록으로 나온다. 고지를 마친 행은 빠진다 | `test/web/tools-web.test.ts` |
+| `web-recommendation-states` | 추천 키 플러그인 상태가 `ready`, `needs-key`, `not-installed`, `unavailable`을 각각 낸다. `unavailable`의 hint는 사유 코드다 | `test/web/tools-web.test.ts` |
+| `web-reason-note` | 사유 코드마다 §4.11 표의 문구가 나온다. 모르는 사유는 코드 그대로다 | `test/web/tools-web.test.ts` |
+| `web-detail-cut` | 탐침 상세는 200자에서 잘리고 문구(`note`)에 들어가지 않는다 | `test/web/tools-web.test.ts` |
+| `web-robots-default` | `robots`의 기본 `never`에서 `follows`는 거짓이고, `auto`와 `always`에서는 참이다 | `test/web/tools-web.test.ts` |
+| `web-order-update` | `orderUpdateOf`는 보이는 id의 끌어 옮기기를 `settings.set` 값으로 바꾸고, 보이지 않는 id와 중복 id는 값으로 거부한다 | `test/web/tools-web.test.ts` |
+| `web-move-in-order` | `moveInOrder`는 앞에서 뒤, 뒤에서 앞, 같은 자리 이동을 표 값으로 맞추고, 범위 밖이나 정수가 아닌 입력은 바꾸지 않은 복사본을 낸다 | `test/web/tools-web.test.ts` |
 
 - [미결] 화면 부품 테스트(`ui` 태그)와 시각 회귀(`visual`)는 `eng.testing.guide` TS-01에서 보류다. 위젯 8종 렌더링과 비밀 키의 DOM 확인(spec AC4, AC6)을 어떤 형식으로 자동화할지는 desktop의 프레임워크 결정 뒤에 정한다. 그 전까지는 M3 완료 기준의 수동 확인 항목으로 둔다.
 - 커버리지 임계는 desktop 패키지의 L4 값(lines 0.5, functions 0.5, TS-10)을 따른다. [제안] `model/`은 위 테스트로 줄 단위 0.9 이상을 목표로 한다. 패키지 단위 임계라 강제하지 않는다.
@@ -159,6 +176,7 @@ M3:
 - 비밀 탭이 값 없이 동작한다. 목록·메타·정책·이력·삭제가 보이고, 값 입력·열람은 `openSecretFlow` 경로로만 일어나며, 그 사이 WebView DOM과 상태 직렬화와 앱 로그에 값이 없다(수동 확인 또는 미결 해소 뒤 `ui` 테스트).
 - 전용 편집기 5종(U10)이 각 키를 일반 렌더러와 같은 결과로 저장한다.
 - budgets·providers 탭에 게이지 자리와 문구가 보인다.
+- 도구와 웹 view-model(U14, `@xeon/client/web`)의 값 비교 시험이 통과한다. 이 값은 `xeon doctor`와 M4 설정 화면이 그대로 쓴다(spec §3.6).
 - U12 접근성 점검표의 항목이 모두 통과한다.
 - `product.scope.spec` §4.4 M3 조건 중 "스키마 키 집합과 화면 항목 집합이 같다"를 `every-def-in-exactly-one-tab`을 실제 카탈로그(`settings.list` 결과)로 돌려 확인한다.
 - `cd xeon && just verify` 종료코드 0.

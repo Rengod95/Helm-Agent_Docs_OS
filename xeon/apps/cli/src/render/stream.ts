@@ -5,7 +5,8 @@ import type { StreamChunkParams } from "@xeon/contracts/wire";
 // L4.cli.spec §4.5. 휘발 조각(stream.chunk)을 진행 줄 텍스트로 바꾼다. 순수 함수.
 //   item.updated{part_delta}: 본문(text) 조각은 그 item의 누적 텍스트에 이어 붙인다. thinking과 toolCall 인자 조각은 그리지 않는다.
 //   item.updated{tool_progress}: 도구 진행을 한 줄로 바꿔 쓴다.
-// 그 밖의 휘발 kind(turn.updated, step.updated, item.started, scope.handler_failed)는 그리지 않는다.
+// 그 밖의 휘발 kind(turn.updated, step.updated, item.started)는 그리지 않는다.
+// scope.handler_failed는 진행 줄이 아니라 알림이다: render/notices.ts가 notice 그리기 명령으로 바꾼다(L4.cli.spec §4.5).
 
 export interface ProgressUpdate {
   readonly itemId: ItemId;

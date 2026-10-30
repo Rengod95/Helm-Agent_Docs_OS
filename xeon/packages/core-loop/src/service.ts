@@ -1,4 +1,4 @@
-import { assertNever, detach, err, ok, type Result, type Scheduler } from "@xeon/contracts";
+import { assertNever, Bug, detach, err, ok, type Result, type Scheduler } from "@xeon/contracts";
 import type {
   AgentToolCall,
   EventId,
@@ -36,6 +36,7 @@ import { planReentry, reduceOpenTurn, type OpenTurnReduction } from "./resume.ts
 import { runTurn as runLoopTurn } from "./loop/run-turn.ts";
 import type { TurnEntry, TurnRunResult } from "./loop/types.ts";
 import { createThreadGate } from "./thread-gate.ts";
+import { createGuardExecution } from "./guard-execution.ts";
 import { createUserBash } from "./user-bash.ts";
 import {
   originOfSource,
@@ -130,6 +131,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     drafter: createDrafter({ session: deps.session, ids: deps.ids }),
   };
   const userBash = createUserBash(ctx);
+  const guardExecution = createGuardExecution(ctx);
   const threads = new Map<ThreadId, ThreadRuntime>();
   const leaves = new Map<ThreadId, EventId>();
 
@@ -723,6 +725,41 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
         message: "loop.spawn runs in the foreground; use the group delegate for background runs",
       });
     }
+    // 펜싱(§4.8): 임대가 더 높은 차수로 넘어간 뒤 늦게 도착한 spawn은 자식을 만들지 않는다. 쓰기 없는 커밋 안에서 차수를 읽는다
+    const fenced = commitWithRetry(deps.session, {
+      threadId: request.threadId,
+      requestId: `loop:spawn_fence:${request.requestId}`,
+      fingerprintSource: { scopeId: request.scopeId, leaseEpoch: request.leaseEpoch },
+      build: (view) => {
+        if (view.threadStatus === "absent") {
+          return { kind: "reject", code: "thread_absent", detail: null };
+        }
+        const epoch = view.scopeLeaseEpoch(request.threadId, request.scopeId);
+        return {
+          kind: "reject",
+          code: epoch > request.leaseEpoch ? "stale_lease" : "fence_passed",
+          detail: String(epoch),
+        };
+      },
+    });
+    if (fenced.ok) throw new Bug("loop.spawn_fence_committed");
+    if (fenced.error.kind === "store") throw new LoopRejection(fenced.error.error);
+    if (fenced.error.kind === "key_reused") {
+      throw new LoopRejection({
+        kind: "input_invalid",
+        message: describeCommitFailure(fenced.error),
+      });
+    }
+    if (fenced.error.code === "stale_lease") {
+      throw new LoopRejection({
+        kind: "stale_lease",
+        scopeId: request.scopeId,
+        leaseEpoch: request.leaseEpoch,
+      });
+    }
+    if (fenced.error.code === "thread_absent") {
+      throw new LoopRejection({ kind: "thread_not_found", threadId: request.threadId });
+    }
     const result = await agents.spawn(
       { agent: request.spec.agent, task: request.spec.task, requestId: request.requestId },
       {
@@ -884,6 +921,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     whenIdle: (threadId, fn) => runtimeOf(threadId).gate.run(1, fn),
     // user_bash 지점 발화, xeon.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
     runUserBash: (request) => userBash.run(request),
+    guardExecution: (request) => guardExecution.run(request),
     admit,
     runChildTurn,
     async interrupt(threadId, turnId) {

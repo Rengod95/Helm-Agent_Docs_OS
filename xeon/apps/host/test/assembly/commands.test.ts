@@ -48,7 +48,14 @@ function holderWith(
       return run(input);
     },
   };
-  return { current: undefined, api };
+  return {
+    current: undefined,
+    api,
+    status: undefined,
+    attachments: undefined,
+    notify: undefined,
+    notifyListeners: new Set(),
+  };
 }
 
 function capabilityError(code: string, message: string): CapabilityError {
@@ -136,7 +143,17 @@ test("a failure that is not a capability error is a defect and is thrown again",
 });
 
 test("without a command service both calls are unavailable", async () => {
-  const port = createCommandPort({ holder: { current: undefined, api: undefined }, ids });
+  const port = createCommandPort({
+    holder: {
+      current: undefined,
+      api: undefined,
+      status: undefined,
+      attachments: undefined,
+      notify: undefined,
+      notifyListeners: new Set(),
+    },
+    ids,
+  });
   expect(await port.list({}, SIGNAL)).toEqual({ ok: false, error: { kind: "unavailable" } });
   expect(await port.run(THREAD, { text: "/plan" }, SIGNAL)).toEqual({
     ok: false,

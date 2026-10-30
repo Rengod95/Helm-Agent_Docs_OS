@@ -8,7 +8,7 @@ import type {
   WriteOutcome,
 } from "@xeon/contracts/capabilities";
 import type { LocalIdFactory } from "@xeon/contracts/conversation";
-import type { BlobRef, StoreDb } from "@xeon/contracts/records";
+import type { StoreDb } from "@xeon/contracts/records";
 import {
   failure,
   fromStoreError,
@@ -19,7 +19,7 @@ import type { KnowledgeFs } from "../fs/port.ts";
 import { updateIndexAfterChange } from "../skills/index-update.ts";
 import type { Tree } from "../skills/tree.ts";
 import { keyReused, type Idem } from "../write/idempotency.ts";
-import { putTree, type BlobPort } from "./manifest.ts";
+import { pinBlobs, putTree, unpinBlobs, type BlobPort, type StoredTree } from "./manifest.ts";
 import {
   findByRequestId,
   insertRecord,
@@ -94,7 +94,7 @@ export function createChangeExecutor(deps: LedgerDeps): ChangeExecutor {
     tree: Tree | null,
     kind: ChangeSpec["captureFailure"],
     what: string,
-  ): Result<BlobRef | null, KnowledgeFailure> => {
+  ): Result<StoredTree | null, KnowledgeFailure> => {
     if (tree === null) return ok(null);
     const stored = putTree(blobs, tree);
     if (stored.ok) return ok(stored.value);
@@ -152,6 +152,14 @@ export function createChangeExecutor(deps: LedgerDeps): ChangeExecutor {
 
     // 8단계 의도 기록
     const ledgerId = ids.next("knl");
+    // 행을 쓰기 전에 두 목록의 블롭을 행 id로 고정한다. 원장 행은 추가만 하고 나중에 다시 적지 않으므로, 커밋된 행은 반드시 고정돼 있어야 한다.
+    // 고정이 실패하거나 행이 쓰이지 않으면 이 행 id의 고정을 푼다. 커밋된 행의 고정은 지우지 않는다(원장 행은 지우지 않는다, spec §4.7.1)
+    const held = [...(beforeManifest.value?.refs ?? []), ...(afterManifest.value?.refs ?? [])];
+    const pinned = pinBlobs(blobs, ledgerId, held);
+    if (!pinned.ok) {
+      unpinBlobs(blobs, logger, ledgerId);
+      return pinned;
+    }
     const record: NewLedgerRecord = {
       ledgerId,
       at: clock.now(),
@@ -160,8 +168,8 @@ export function createChangeExecutor(deps: LedgerDeps): ChangeExecutor {
       op: spec.op,
       beforeHash,
       afterHash,
-      beforeManifest: beforeManifest.value,
-      afterManifest: afterManifest.value,
+      beforeManifest: beforeManifest.value?.manifest ?? null,
+      afterManifest: afterManifest.value?.manifest ?? null,
       requestId: spec.requestId?.key,
       requestFingerprint: spec.requestId?.fingerprint,
       approvedBy: spec.approvedBy,
@@ -189,6 +197,10 @@ export function createChangeExecutor(deps: LedgerDeps): ChangeExecutor {
       insertRecord(tx, record);
       return ok({ kind: "inserted" });
     });
+    // 행이 커밋되지 않았으면(쓰기 실패, 같은 requestId의 기존 행) 이 행 id의 고정을 푼다
+    if (!inserted.ok || !inserted.value.ok || inserted.value.value.kind !== "inserted") {
+      unpinBlobs(blobs, logger, ledgerId);
+    }
     if (!inserted.ok) return err(fromStoreError(inserted.error, "ledger prepare"));
     if (!inserted.value.ok) return inserted.value;
     if (inserted.value.value.kind === "existing")

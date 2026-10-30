@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ok } from "@xeon/contracts";
+import { err, ok } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { JsonRpcMessage, StoreId } from "@xeon/contracts/wire";
 import type {
@@ -11,6 +11,8 @@ import type {
 } from "@xeon/contracts/services";
 import type {
   AssembleOptions,
+  BridgeExit,
+  BridgeOptions,
   CommandIo,
   HostCommand,
   HostExit,
@@ -20,7 +22,7 @@ import { createHostConnection } from "../../src/host-client.ts";
 import type { TerminalFacts } from "../../src/cli/command.ts";
 import { createConnectEngine, type ConnectEngine, type HostApi } from "../../src/engine.ts";
 import type { ExitCode } from "../../src/exit-codes.ts";
-import type { CliDeps, CliIo, CliSignal, DoctorProbes } from "../../src/io.ts";
+import type { CliDeps, CliIo, CliSignal, DoctorProbes, GroupTemplatesPort } from "../../src/io.ts";
 import { runCli } from "../../src/main.ts";
 import {
   createFakeStore,
@@ -30,6 +32,7 @@ import {
 } from "./fake-server.ts";
 import { materialize, type EventDraft } from "./events.ts";
 import { storeId } from "./ids.ts";
+import { createMemoryGroupFs } from "./group-fs.ts";
 import { createTransportPair } from "./memory-transport.ts";
 
 // 시험 도구: 가짜 CliIo(출력 수집, 입력 대본, 신호), 가짜 호스트 서버 위에서 도는 connectEngine, 임시 상태 파일.
@@ -74,7 +77,17 @@ export interface HarnessOptions {
   /** 가려진 입력 대본. 한 번 부를 때마다 하나를 꺼낸다. 끝나면 null이다 */
   readonly secretInputs?: readonly (string | null)[];
   readonly startStdioHost?: (options: StdioHostOptions) => Promise<HostExit>;
+  /** host --stdio의 원격 주소 해석 가짜(기본은 주소 없음) */
+  readonly resolveRemote?: CliDeps["resolveRemote"];
+  /** host --stdio의 원격 중계 가짜(기본은 stdin이 닫힌 것) */
+  readonly bridgeStdio?: (options: BridgeOptions) => Promise<BridgeExit>;
   readonly probes?: DoctorProbes;
+  /** 저장소 내보내기 가짜(db export). 없으면 호출이 실패한다: 쓰는 시험이 넣어야 한다 */
+  readonly exportDatabase?: CliDeps["exportDatabase"];
+  /** 데이터 디렉터리 위치. null이면 정할 수 없는 상황이다. 없으면 `<임시 폴더>/data` */
+  readonly dataDir?: string | null;
+  /** `group new`의 파일 작업 가짜. 없으면 템플릿이 없는 메모리 가짜다 */
+  readonly groupTemplates?: GroupTemplatesPort;
 }
 
 /** 가짜 값 전달 통로. 맡긴 수단을 쌓아 두고 호스트 쪽 가짜 처리기가 꺼내 쓴다 */
@@ -192,6 +205,11 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   };
 
   const hostApi: HostApi = {
+    resolveLaunchMode: () => Promise.resolve("in-process"),
+    resolveRemoteEndpoint: () => Promise.resolve({ kind: "none" }),
+    attachToService: () =>
+      Promise.resolve(err({ kind: "ensure_failed", reason: "not_used_by_harness" })),
+    serviceClock: () => ({ clock, ids: { next: () => "evt_service" } }),
     startInProcessHost(assembleOptions) {
       startOptions.push(assembleOptions ?? {});
       const pair = createTransportPair();
@@ -306,11 +324,19 @@ export function createHarness(options: HarnessOptions = {}): Harness {
         })),
     runHostCommand: options.runHostCommand ?? (() => Promise.resolve(0)),
     startStdioHost: options.startStdioHost ?? (() => Promise.resolve({ code: 0, reason: "eof" })),
+    resolveRemote: options.resolveRemote ?? (() => Promise.resolve({ kind: "none" })),
+    bridgeStdio:
+      options.bridgeStdio ?? (() => Promise.resolve({ code: 0, reason: "stdin_closed" })),
     probes: options.probes ?? { probeSearxng: () => Promise.resolve("unreachable") },
+    groupTemplates: options.groupTemplates ?? createMemoryGroupFs().port,
     clock,
     devWireRoundTrip: options.devWireRoundTrip ?? false,
     bunVersion: "1.4.3",
     stateFile: options.stateFile === false ? null : stateFile,
+    exportDatabase:
+      options.exportDatabase ??
+      (() => Promise.reject(new Error("exportDatabase was not injected"))),
+    resolveDataDir: () => (options.dataDir === undefined ? join(dir, "data") : options.dataDir),
   };
 
   return {

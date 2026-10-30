@@ -523,6 +523,10 @@ export const WorkspaceFiles: CapabilityDef<
           edit_overlap: { description: "두 편집의 구간이 겹침", retryable: false },
           edit_empty_old_text: { description: "oldText가 빈 문자열", retryable: false },
           edit_no_change: { description: "편집 결과가 원본과 같음", retryable: false },
+          edit_conflict: {
+            description: "읽은 뒤 다른 쓰기가 파일을 바꿈. 아무것도 쓰지 않음",
+            retryable: false,
+          },
         },
       },
       list: {
@@ -661,6 +665,9 @@ export const RunOutput: TObject<{
   fullOutputPath: TOptional<TString>;
   durationMs: TInteger;
   sandboxed: TBoolean;
+  unsandboxedBy: TOptional<
+    TUnion<[TLiteral<"escape">, TLiteral<"run_unsandboxed">, TLiteral<"disabled">]>
+  >;
 }> = Type.Object(
   {
     exitCode: Type.Integer(),
@@ -672,6 +679,14 @@ export const RunOutput: TObject<{
     durationMs: Type.Integer({ minimum: 0 }),
     /** 샌드박스 안에서 실행했는가 */
     sandboxed: Type.Boolean(),
+    /** 샌드박스 밖에서 실행한 이유. sandboxed가 거짓일 때만 있다(L0.sandbox.spec §3, L1.tools.spec §4.12 감사 이벤트 tool.sandbox_bypassed의 입력) */
+    unsandboxedBy: Type.Optional(
+      Type.Union([
+        Type.Literal("escape"),
+        Type.Literal("run_unsandboxed"),
+        Type.Literal("disabled"),
+      ]),
+    ),
   },
   { additionalProperties: false },
 );

@@ -10,7 +10,13 @@ import {
   type ScopeId,
 } from "@xeon/contracts/extensions";
 import type { DurableEventDraft } from "@xeon/contracts/records";
-import type { BoundarySignal, BoundaryTxn, HostCore, ThreadRuntime } from "./core.ts";
+import type {
+  BoundarySignal,
+  BoundaryTxn,
+  HostCore,
+  ThreadOpenOptions,
+  ThreadRuntime,
+} from "./core.ts";
 import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
 import { keyPart } from "./keys.ts";
@@ -36,7 +42,7 @@ export interface BoundaryHooks {
 export interface BoundaryService extends BoundaryHooks {
   /** 토글 요청 뒤 유휴 thread에서 적용을 예약한다 */
   requestApply(threadId?: ThreadId): void;
-  openThread(threadId: ThreadId): Promise<void>;
+  openThread(threadId: ThreadId, options?: ThreadOpenOptions): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
 }
 
@@ -362,7 +368,7 @@ export function createBoundary(
     prepare,
     settle,
     requestApply,
-    async openThread(threadId) {
+    async openThread(threadId, options) {
       if (core.threads.has(threadId)) await this.closeThread(threadId);
       const port = core.ports.get(RecordCommitPortKey);
       let snapshot = EMPTY_SNAPSHOT;
@@ -380,6 +386,7 @@ export function createBoundary(
       const thread: ThreadRuntime = {
         threadId,
         abort: new AbortController(),
+        child: options?.child === true,
         states: new Map(
           snapshot.states.map((stored) => [
             stored.scopeId,

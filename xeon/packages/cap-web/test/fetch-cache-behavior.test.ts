@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { CapabilityError, type CacheUsage } from "@xeon/contracts/capabilities";
+import { DEFAULT_WEB_SETTINGS } from "../src/settings.ts";
 import {
   fakeCatalog,
   fakeFetchProvider,
@@ -239,7 +240,7 @@ describe("fetch cache behaviour", () => {
     expect(totals?.ok && totals.value.find((row) => row.name === "page_content")?.count).toBe(8);
   });
 
-  test("robots.txt applies to batches by a model and to every call when always", async () => {
+  test("robots.txt is ignored by default, applies to model batches on auto and to every call when always", async () => {
     const routes = {
       "https://example.com/robots.txt": {
         headers: TEXT,
@@ -248,7 +249,7 @@ describe("fetch cache behaviour", () => {
       "https://example.com/private/a": { headers: TEXT, body: "secret" },
       "https://example.com/public/a": { headers: TEXT, body: "open" },
     };
-    const world = await makeWebWorld({ routes });
+    const world = await makeWebWorld({ routes, settings: { policy: { robots: "auto" } } });
     const options = world.asModel(threadIdOf(1));
     // 사용자 대행 단건 fetch는 robots.txt 검사 대상이 아니다
     const single = await world.fetch({ url: "https://example.com/private/a" }, options);
@@ -259,6 +260,15 @@ describe("fetch cache behaviour", () => {
     );
     expect(batch.pages[0]?.error?.code).toBe("robots_disallowed");
     expect(batch.pages[1]?.content).toBe("open");
+
+    // 기본(D-M3-23 행 4)은 따르지 않는다
+    const byDefault = await makeWebWorld({ routes });
+    const defaultBatch = await byDefault.fetch(
+      { urls: ["https://example.com/private/a"] },
+      byDefault.asModel(threadIdOf(1)),
+    );
+    expect(defaultBatch.pages[0]?.content).toBe("secret");
+    expect(DEFAULT_WEB_SETTINGS.policy.robots).toBe("never");
 
     const always = await makeWebWorld({ routes, settings: { policy: { robots: "always" } } });
     expect(

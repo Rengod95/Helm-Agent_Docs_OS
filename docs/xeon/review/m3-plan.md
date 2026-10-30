@@ -163,3 +163,93 @@ M2 Mac 실기(`review.macos-checklist` M-10~M-13, `xeon/foundation` `c8afa8b`)�
 - M3a 중 추가된 트랙: T-X4(M3-REQ-102 ambient), T-X5(`loop.spawn` 실구현 등 Helm이 찾은 하위 층 틈), T-X6(M3-REQ-78 확장 도구 위험 선언). 하위 요구가 트랙에 배정되지 않아 생긴 일이라 M3b는 차수마다 요구 장부 검사를 둔다(`review.m3b-plan` §3.3).
 - 이월: `review.m3b-plan` §2 각 트랙의 "이월" 항목.
 
+
+## 9. M3b 마감 판정 (2026-10-29)
+
+- 범위: `61f137b..17374466`(M3a 마감 뒤 M3b 전체, 389커밋). 트랙 브랜치는 모두 `xeon/foundation`에 병합됐습니다(B1-SCH2, B3-FIX, B3-SEC2, B5-FIX2 포함).
+- 마감 검증: `just verify-full`은 오케스트레이터가 주 체크아웃에서 돌립니다(결과는 그쪽 보고에 따릅니다). 이 절의 판정은 B6 검토 담당이 종료 조건 줄마다 시험 파일을 읽고 `just test <패키지>`로 돌린 결과입니다. 패키지 시험은 turbo 캐시(소스 해시가 같은 앞선 실행) 재생을 포함합니다.
+- `just exit-tests`: 26줄 가운데 26줄 ok, 건너뜀 0(사이드카 바이너리가 없을 때 스크립트가 먼저 빌드한 상태). 사이드카 바이너리가 이미 있고 X11 스모크가 만든 `0.0.0-smoke` 판이면 E2·E3 줄이 실패합니다(§9.4 알려진 결함).
+
+- 요구 장부: `M3b:<트랙 id>` 60행 중 43행을 `M3b`(완료), 16행을 `M4`로 옮겼습니다(사유는 `review.m3-lower-requirements` §10). 합계는 M3a 53, M3b 43, M4 16이고 `just req-ledger`는 문제 0입니다. `[미결]`로 남긴 행은 없습니다.
+
+### 9.1 종료 조건 X4~X11
+
+| 조건 | 판정 | 근거 |
+|---|---|---|
+| X4 서비스 유휴·예약 실행(UC-4) | 충족 | `exit-tests` X4 줄(16 통과): `apps/host` `test/int/service-schedule.int.test.ts`(연결 0, 대기 예약 1에서 유예를 3번 지나도 유휴 종료 없음, 기한 뒤 틱이 실행을 기록하고 끝나면 유예 뒤 종료), `service-idle.int.test.ts`(연결이 있으면 종료하지 않고 0이 되면 유예 뒤 종료, 재연결이 계획을 취소), `service-schedule-wire.int.test.ts`(소켓 너머 `schedule.create/list/cancel/fire`, 손상된 상태 파일은 `store_failed`와 바이트 보존), `service-lifecycle.int.test.ts`. 단서: 유예와 시계는 가짜 시간입니다. 승인 대기 세션 때문에 종료하지 않는 경우는 `service-idle`이 다루는 범위만 확인했습니다 |
+| X5 SSH 터널 원격 사용(UC-5) | 충족(실기 제외) | `apps/host` `test/int/service-transport.int.test.ts`(3 통과): `socat` 중계 가짜 터널 너머 클라이언트가 `thread.list`, `thread.create`, `turn.start`, `approval.respond`를 하고 두 번째 터널 클라이언트가 같은 세션을 이어받음. 서비스 리스너가 루프백 TCP와 Unix 소켓뿐임을 `/proc` 값으로 확인. 단서: `/proc`을 못 읽는 OS(macOS)에서는 리스너 확인이 건너뛰어집니다. 실제 호스트·ssh 확인은 사용자 묶음 |
+| X6 목표 판정 `maxRuns` | 충족 | `apps/host` `test/int/goal-judge.int.test.ts`(1 통과): 실제 core-loop에서 판정 3회 뒤 `limit_reached`, `turn.completed` 1건, 두 클라이언트가 알림 1건씩 수신, 테이프 불일치 0 |
+| X7 모델 계정 설정 저장(I14) | 충족(재범위) | `packages/client` `test/accounts/x7.test.ts`(6), `packages/core-models` `test/rotation.test.ts`(15), `apps/host` `test/int/x7-settings-file.int.test.ts`(3): view-model 편집이 실제 `settings.writeFile`을 거쳐 사용자 파일에 같은 키로 저장, 사이에 바뀐 파일은 `conflict`와 상대 편집 보존, 스키마를 못 지나는 값은 `settings.fileInvalid`와 파일 무변경. 화면은 M4 |
+| X8 비밀 재인증 뒤 열람(UC-6) | 충족(재범위) | `packages/client` `test/settings/x8.test.ts`(9): 가짜 재인증 성공 뒤 값 상태, 실패는 값 없음, 값은 직렬화에 없고 `clear()`가 바이트를 지움, 표시 시간이 지나면 숨김, wire 어댑터는 값을 view-model에 넘기지 않음. 단서: 실제 재인증(os-auth Touch ID)과 서비스에 붙은 상태의 비밀 열람(§9.3 사용자 결정 3)은 확인하지 못했습니다 |
+| X9 검색 provider 상태·키 플러그인 권장 | 충족(분할) | `apps/cli` `test/doctor-web.test.ts`(13)가 `xeon doctor` 출력(Exa·Brave 권장 상태, provider 순서, 고정 provider), `packages/client` `test/web/tools-web.test.ts`(16)가 "도구와 웹" view-model. SearXNG 항목은 계획에서 뺐습니다. 단서: Playwright MCP 도구 이름은 [가정]이고 실제 서버로 확인하지 않았습니다 |
+| X10 설정 키 집합 일치 | 충족(재범위) | `apps/cli` `test/x10-settings-keys.int.test.ts`(1): 파일 스키마 키 = `config list` 키 = view-model 항목 키. 예약된(`reserved`) 학습 curator 키 4개는 스키마에만 있고 쓰기를 거부하는 것까지 값으로 확인. 화면 렌더는 M4 |
+| X11 macOS·Linux 같은 릴리즈 스모크 | 부분 | `scripts/release-smoke.test.ts`(1): Linux x86_64에서 릴리즈 아카이브 빌드와 스모크 통과(로컬 실행). `.github/workflows/xeon-macos.yml`의 macOS arm64 job(`just release-smoke`)과 `xeon-release.yml`은 아직 돌지 않았습니다. 서명·공증과 Mac 실기는 사용자 묶음 |
+
+- 시험 실행: `apps/host` 788 통과·1 건너뜀, `packages/client` 213, `packages/core-models` 268, `apps/cli` 661 통과·1 건너뜀, `scripts` 187. 실패 0. 건너뛴 2개는 종료 조건 줄 밖의 시험입니다.
+
+### 9.2 트랙 결과
+
+| 트랙 | 결과 | 남은 것 |
+|---|---|---|
+| B0 F·OS·SBX·LED | 완료. 계약, 플랫폼 층, 요구 장부와 `just req-ledger` | `@parcel/watcher`·FormatJS·Stagehand 어댑터는 의존 승인 뒤 |
+| B1 SVC·SCH(+SCH2)·NTF·WS | 완료. 서비스 모드, 예약(`schedule.*` wire, CLI), 알림, 쓰기 도구 | 끊김 뒤 재생, cron·시간대, 예약 도구, 쓰기 때 실행 비트(M4 이월 표) |
+| B2 RMT·ART·MDL·WEB | 완료. 원격 전송, 산출물 리뷰, 계정 회전, 검색·브라우즈 provider | 산출물 wire 메서드 없음, 회전 상태 메모리 전용 |
+| B3 SEC(+SEC2)·SET·DATA·L1M·FIX | 완료. 설정 view-model, `db export`, 블롭 고정·GC(기본 꺼짐), 위임·재주입 | 설정 키 26개 읽는 코드 없음(사용자 결정), 블롭 GC 켜기 |
+| B4 GRP·I18N·DSK | 완료. 그룹 계측, 문자열 이전, 사이드카 정리 | 데스크톱이 로케일을 정하지 않음(§9.5), 하위 층 문장 통과 |
+| B5 REL·PERF·CLN·DOC(+FIX2) | 완료. 릴리즈 스모크, 성능 게이트 골격, 정리, 운영 문서 | 서버 예산 수치(사용자 결정), macOS 릴리즈 경로 미실행 |
+
+- M3b 중 추가된 트랙: B1-SCH2(예약 wire·CLI·X4 끝 시험), B3-FIX(cap-knowledge·cap-web·cap-workspace의 블롭 고정 틈과 사용량 게이지 수정), B3-SEC2(MCP stdio 샌드박스 연결), B5-FIX2(S-15 자리표시 참조, 반복 감지 설정). 계획에 선언이 없었고 B5-DOC이 지적해 `review.m3b-plan` §2에 적었습니다.
+
+### 9.3 M4로 넘기는 것 (영역별, 중복 없음)
+
+출처는 트랙 리드 보고에서 모은 이월 목록입니다. 한 항목은 한 영역에만 둡니다.
+
+| 영역 | 항목 |
+|---|---|
+| 서비스·원격 | 끊긴 터널 뒤 재생(`createReplayResolver`, `modelRequestResendOf`의 host 연결, `thread.open replayFrom` F 필드). `resolveLaunchMode` managed 파일 위치. 프로젝트 확장의 공유 promise·AbortSignal. 서비스에 붙은 상태의 `secret add/set/rotate/reveal`(서비스 쪽 입력 창이 필요: OS 대화상자·pinentry). TCP 토큰은 `XEON_REMOTE_TOKEN`만. IPv6 리터럴 거부. 터널 SIGKILL 2000ms 시험 없음. 서비스 TCP 토큰 회전 명령 없음 |
+| 예약·알림 | cron 식·시간대. `schedule.create`의 `requestId` 멱등. `schedule_list`·`schedule_cancel` 모델 도구. `schedule.*` 이벤트 발신자와 다중 프로세스 틱 임대(HS-39/40). `awaiting_approval` 결과 신호. 발화 claim 저장 실패가 `store_failed`가 아니라 `failed`로 나옴. commit이 저장보다 메모리를 먼저 적용. `handler_failed`와 `dialog.status`의 n 카운터 분리. CLI "[완료]" 소음. 종료 때 늦은 `notify.delivered` 유실. 창이 앞에 있을 때 알림 억제(D-6). 검토 승인 요청 알림 없음. `handler_failed` 데스크톱 표시 |
+| 작업 공간·산출물 | 원자적 이름 바꾸기가 실행 비트·하드링크를 잃음(L0.exec 미결 14). 남은 임시 파일 정리. 산출물 wire 메서드(F), `titleSource`, `retentionDays`, `reviews.autoRequest`, `fuzzLines`, export·handoff, `ArtifactService` §3.9. `artifact_update`가 `mediaType`을 지움. 리뷰 재시작 복구. 병렬 배치 순서. 삭제·바이너리·이름 바꾸기·새 파일 hunk |
+| 모델·웹 | 회전 상태가 메모리 전용(`core_models_*` 표). `reservePct` 미공급. 위장 provider 와이어 동등성 래퍼(M-8). DR-09·`L1.models.spec` §3.11이 옛 결정을 서술. `routing.*` 문제 점검. Playwright MCP 도구 이름 실서버 확인. `orderUpdateOf` 부분 목록. 헤더 비밀 설정의 `ext.<ext>.<key>` 카탈로그. 첫 사용 고지가 호출 뒤 경고. 바이너리 본문 echo 검사. `browse-close` int 시험. 인증 종류 `query` 등록 거부와 F 스키마 불일치. 사용량 게이지가 메모리 전용이고 창·한도·계정 게이지는 비어 있음(HS §10-46) |
+| 보안·샌드박스 | 시작 승인 증거가 메모리 전용(재시작·다른 thread에서 다시 물음). 새 MCP 도구가 한 단계 늦게 보임. 비밀 메타가 `mcp.start:*`를 허용해야 함. 샌드박스 설정만 바꿔서는 막힌 서버가 풀리지 않음(L2 mcp §10-15). `wrapArgv`가 위반을 모으지 않음. srt `cleanupAfterCommand`가 프로세스 전역. macOS Seatbelt 실기. ADR-0011에 M3 재결정 주석. `lastError`가 성공 뒤 지워지지 않음. ext-host `restoreAs` 넓힌 캐스트(TY-06). `load-generated.ts`의 `as GroupModule`(TY-06 승인) |
+| 설정 | 설정 탭 13개와 spec 12개 불일치. managed `readFile`이 빈 읽기 전용을 돌려줌. `writeFile`이 provider 비밀을 다시 잇지 않음(HS-45). project·local 파일 감시 없음. 설정 쓰기 reducer·초안. `settings.invalidated`에 thread 필터 없음. `l4.ui.locale` 저장값을 엔진 연결 전에 읽지 않음. `unitKey`(contracts) |
+| 데이터 | 블롭 GC 기본 꺼짐(`blobGcEnabled=false`, 켜려면 넓은 감사와 긴 GC 시험). GC는 서비스 모드에서만(HS-40). 자동 제목 출처 메모리 전용. `L0.store` S-13·S-14와 export ENOENT 경합. `apps/cli`가 `@xeon/platform-store`를 import(spec은 host만). `cap.*` 투영기 격리(L1 §10-19). 진단 배열의 wire 소비자 없음. "1 blobs" 문구. cap-knowledge 고정 전 행. cap-web 고정 해제→고정 틈. group-kit `delegate`가 signal을 받고 무시 |
+| L1·그룹 | 검토 포크 system-prompt 공유(`SpawnRequest` 옵션)와 REQ-70 fork 사용량 귀속. 컴팩션 뒤 skill 본문 재주입 없음. M3-21 잔여. 저장된 자식 취소가 보고 입력을 큐에 넣지 않음. 재생 하네스 thread id 불일치 오류 종류(§3.10). `delegateStatus` 소유자 범위. 다중 thread 사용량 표시. 생성된 `package.json` 의존. 내장 그룹 이름이 `runtime.ts`에 복사됨. `test/.generated` 잔여. §3.3.5 편차. S-02 참조 정책 플러그인 미구현. 반복 감지 임계는 실제 테이프 필요, 전체 오류 연속 모호, 재개 때 연속 초기화, `storedOutcome`이 feed를 seq 0부터 훑음 |
+| 데스크톱 | `desktop_settings_read/write`. 트레이 아이콘·메뉴 없음. Mac 확인 항목(트레이 닫기 e2e D-10, 두 번째 실행 재열기 D-13, `RunEvent::Reopen` 컴파일, Finder PATH sops·age·rg와 `xeon secret add`, 디버그 로그 내용, §4.15 릴리즈 점검). Cmd+Q가 `ExitRequested`를 건너뛸 수 있음 [미확인]. Tauri 번들 자원 매핑. 인앱 업데이터. 화면 컴포넌트 전부(`M3b` 계획 §1.2) |
+| i18n | 하위 층 문장 통과: cap-dialog classify, cap-work commands, platform-os binaries requirements/resolve, web probe detail, group-account-rotation manifest, 하위 층 라벨 198줄. 데스크톱 `errorOf` 이슈 메시지. `db.ts:58` 영어 리터럴 |
+| 성능·릴리즈 | 서버 예산 수치(§9.4 사용자 결정). macOS 기준선. 재주입 파일 상한 8000과 `keepRecentTokens`. REQ-64 `synchronous=NORMAL` 비교와 `processStartFingerprint` 타이밍. 부하 중 측정한 수치는 참고용. SHA256SUMS 무서명. gitleaks가 xeon 워크플로에 없음(M3-30 절반). `release-sign.sh` 키체인 목록 복원 안 함. macOS 릴리즈 경로 미실행. `L0.os` §3.6·§10-3 번들 정책 문구 |
+| 정리·문서 | host-service의 `xeon.domain` 거부(DR-03, L4 규칙 결정). cli가 `@xeon/group-kit`을 시험에만 씀(devDependencies로). E-01·02·04·05, N-07(`requestKeyFor` 48 대 `requestCommitKey` 64), V-05 잔여. `F/README:207`의 `check-points-doc.ts` 없음. m3-design-inputs G-IN-13·H-IN-17 상태 칸. `Reflect.get` src 약 50곳(22 파일, L4 4곳)은 타입 있는 도우미 설계 필요. B5-DOC 미결: 설치 위치·PATH, `l0.os.dirs.override`, 로그 회전과 `OsDirs log`, `XEON_SAFE_MODE`·`/safe-mode`·`--disable-ext`, `engine.ts`가 `future_version`·`corrupt`·`migration_failed`를 구분하지 않음, 읽기 전용 열기 명령, 복원·`store.corrupt` 절차, `schedule/state.json` 복구 도구, 자동 비활성 확장 재활성 CLI, `secret add --provider` 허용값, `l2.web.cache.maxMegabytes` 미구현, `trust.json` 위치 불일치, 시험 메모리 상한 문서, docs-route 경고 6(operations id 이름) |
+| 인프라 | caustic 비공개 submodule: CI에 `CAUSTIC_READ_TOKEN`(fine-grained PAT)을 Dependabot 비밀로도 등록, auto-merge와 필수 검사. Dependabot이 `bun.lock`을 갱신하지 않음(`just caustic-update`). 루트 lefthook·oxlint가 `apps/desktop/mockups`를 제외 |
+
+### 9.4 사용자 결정 묶음과 알려진 불안정 시험
+
+사용자 결정(`review.m3b-plan` §4와 이월 목록의 사용자 결정 표시):
+
+1. Mac 실기: os-auth Touch ID 열람 재인증(M3-m2c-01, X8 실기), `composer.tsx` IME, 데스크톱 슬래시 명령 라우팅, macOS 알림, X11 Mac 앱 스모크와 macOS job 첫 실행, `fullfsync`·`processStartFingerprint`(64), M3-new-16 Mac 몫, 위 데스크톱 행의 Mac 확인 항목.
+2. 서버 예산 수치 6개(`SERVER_BUDGET`, `bench-gate --strict`, macOS 기준선 뒤).
+3. 서명·공증 비밀(Apple Developer ID, CI 서명)을 `just secret-add`로 등록. 끝나면 서명 단계가 건너뛰지 않고 돕니다.
+4. 새 외부 의존 승인: `@parcel/watcher`(48), FormatJS(ADR-0016), Stagehand(96). 승인되면 각 어댑터 1커밋.
+5. 실제 원격 확인: 서버에서 `xeon service`를 켜고 다른 기기에서 SSH 터널 접속(`ws on`), 키체인 없는 서버의 Secret Service 키(m2c-04 b).
+6. `L4/README.md`의 낡은 설정 경로와 §8 도메인 수(README 수정 금지라 사용자 몫).
+7. `[결정: 오케스트레이터 기본값]` 검토: X4~X11 번호와 재범위, M3-40 M4 이월, 새 의존 승인 전 대체 구현 3건, 위장·회전 플러그인 위치.
+8. P-13: `--listen-tcp`의 비루프백 주소는 `--allow-non-loopback` 없이는 거부합니다. X5·T-10 문구와 맞출지 결정.
+9. ADR-0020 §3.5: `apps/host`가 `@xeon/client/endpoint`·`socket`을 import합니다(DR-10 확대). 유지할지 결정.
+10. M3-34: 읽는 코드가 없는 설정 키 26개와 읽기만 하고 쓰지 않는 5개(전체 242개)를 지울지 결정.
+11. `schedule.entries` 새 능력 id, `schedule_create` 위험 `exec`, `service_mode_off` 경고, CLI 한도, `add --remote`가 전역 `--remote`를 가림, `--auto-approve`는 도구 승인에만 적용(D-M3-14 b보다 좁음)의 사용자 확인.
+12. 배포 고지: age BSD-3 저작권 문구(notices).
+13. 반복 감지 임계(`l1.loop.repeat.*`)는 `just tape-record --yes`로 실제 테이프를 만든 뒤 조정.
+14. 블롭 GC 켜기(`blobGcEnabled`) 시점.
+15. `apps/cli`의 `@xeon/platform-store` import, host-service의 `xeon.domain`(DR-03), `Reflect.get` 도우미 설계 같은 층 규칙 결정.
+
+알려진 불안정 시험:
+
+- `core-models`가 부하 중 두 번 실패했습니다(시험 이름 기록 없음). 이 마감 실행은 268 통과입니다.
+- `cap-mcp`의 HTTP 연결 시험.
+- `ensure-sidecar.test.ts`가 부하 중 5초 제한에 한 번 걸렸습니다.
+- 종료 조건 줄 순서 문제(결정적): `scripts/release-smoke.test.ts`(X11)가 개발용 사이드카 바이너리(`apps/desktop/src-tauri/binaries/xeon-<triple>`)를 `0.0.0-smoke`로 덮어씁니다. 그 뒤 `just exit-tests`는 바이너리가 이미 있다고 보고 다시 빌드하지 않아, `apps/desktop` `test/e2e/sidecar.e2e.test.ts`의 E2가 `version "0.0.0"` 대 `"0.0.0-smoke"`로 실패합니다(`just test scripts` 뒤 첫 실행에서 확인했고, 바이너리를 지우고 다시 돌리면 26/26). `just test apps/desktop`(사이드카 e2e)이 `scripts` 시험 뒤에 돌면(`just verify-full`의 시험 단계) 같은 판 불일치가 날 수 있습니다. 확인하지 못했습니다.
+
+### 9.5 첫 릴리즈 후보를 막는 결함
+
+| 결함 | 위치 | 영향 |
+|---|---|---|
+| 데스크톱이 `setActiveLocale`을 부르지 않습니다 | `apps/desktop/src/main.tsx:43`(렌더 전 로케일 설정 없음, `apps/desktop/src`에서 `setActiveLocale`·`resolveLocale` 호출 0). 기본 번역기는 `packages/client/src/i18n/translator.ts:31`의 `"en"`입니다 | 이전한 문장이 `ui.locale`과 무관하게 영어로 나옵니다. CLI는 `apps/cli/src/main.ts:22`에서 부릅니다 |
+| `exit-tests`가 X11 뒤 남은 사이드카에서 실패 | `xeon/scripts/exit-tests.ts`(바이너리가 있으면 재빌드하지 않음), `xeon/scripts/release.ts:246`(`--version`을 같은 경로 바이너리에 주입) | `scripts` 시험 뒤에 사이드카 e2e나 `exit-tests`가 돌면 E2가 거짓 실패합니다. 릴리즈 스모크가 다른 출력 위치를 쓰거나 exit-tests가 버전을 확인하게 고쳐야 합니다 |

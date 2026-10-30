@@ -28,8 +28,8 @@ import { ImageBlobRefSchema } from "./workspace.ts";
 export const MCP_SERVER_ID_PATTERN: string = "^[a-z][a-z0-9-]{0,31}$";
 export const McpServerIdSchema: TString = Type.String({ pattern: MCP_SERVER_ID_PATTERN });
 
-/** F.wire-settings.spec §3.8.1 SecretRef 형식 */
-const SecretRefParam = Type.String({ pattern: "^secret://[a-z][a-z0-9-]{1,63}$" });
+/** secret:// 참조 또는 평문. 참조 형식과 비밀 이름 패턴 검사는 cap-mcp가 정의를 읽을 때 한다(L2.mcp.spec §3.1) */
+const McpValue = Type.String({ maxLength: 8192 });
 const EnvName = Type.String({ pattern: "^[A-Za-z_][A-Za-z0-9_]{0,127}$" });
 const HeaderName = Type.String({ pattern: "^[A-Za-z0-9-]{1,128}$" });
 
@@ -39,13 +39,14 @@ export type McpTransport =
       command: string;
       args?: string[];
       cwd?: string;
-      /** 값은 secret:// 참조만. 실행 직전에 L0.secrets가 주입한다 */
+      /** 값은 secret:// 참조 또는 평문 문자열이다. secret:// 참조는 실행 직전에 L0.secrets가 주입한다 */
       env?: Record<string, string>;
     }
   | {
       /** Streamable HTTP */
       type: "http";
       url: string;
+      /** 값은 secret:// 참조 또는 평문 문자열이다 */
       headers?: Record<string, string>;
       /** OAuth 사용(2차) */
       oauth?: boolean;
@@ -54,6 +55,7 @@ export type McpTransport =
       /** 2025 이전 서버 호환 */
       type: "sse";
       url: string;
+      /** 값은 secret:// 참조 또는 평문 문자열이다 */
       headers?: Record<string, string>;
     };
 const mcpTransportShape = Type.Union([
@@ -62,18 +64,18 @@ const mcpTransportShape = Type.Union([
     command: Type.String({ minLength: 1 }),
     args: Type.Optional(Type.Array(Type.String())),
     cwd: Type.Optional(Type.String()),
-    env: Type.Optional(Type.Record(EnvName, SecretRefParam)),
+    env: Type.Optional(Type.Record(EnvName, McpValue)),
   }),
   Type.Object({
     type: Type.Literal("http"),
     url: Type.String({ pattern: "^https?://" }),
-    headers: Type.Optional(Type.Record(HeaderName, SecretRefParam)),
+    headers: Type.Optional(Type.Record(HeaderName, McpValue)),
     oauth: Type.Optional(Type.Boolean()),
   }),
   Type.Object({
     type: Type.Literal("sse"),
     url: Type.String({ pattern: "^https?://" }),
-    headers: Type.Optional(Type.Record(HeaderName, SecretRefParam)),
+    headers: Type.Optional(Type.Record(HeaderName, McpValue)),
   }),
 ]);
 export const McpTransportSchema: TUnsafe<McpTransport> = Type.Unsafe<McpTransport>(
@@ -101,6 +103,8 @@ export type McpServerDef = {
   timeouts?: { connectMs?: number; callMs?: number };
   /** 참이면 annotations를 승인 정책 입력으로 쓴다(§3.4). 기본 false */
   trustAnnotations?: boolean;
+  /** 서버별 샌드박스 설정. 있으면 출처별 기본값보다 우선한다(L2.mcp.spec §4.3, M3-REQ-97) */
+  sandbox?: boolean;
 };
 const mcpServerDefShape = Type.Object({
   title: Type.Optional(Type.String({ maxLength: 80 })),
@@ -120,6 +124,7 @@ const mcpServerDefShape = Type.Object({
     }),
   ),
   trustAnnotations: Type.Optional(Type.Boolean()),
+  sandbox: Type.Optional(Type.Boolean()),
 });
 export const McpServerDefSchema: TUnsafe<McpServerDef> = Type.Unsafe<McpServerDef>(
   mcpServerDefShape satisfies SchemaProof<McpServerDef, typeof mcpServerDefShape>,
@@ -146,6 +151,30 @@ export const McpServerStateSchema: TUnion<
 ]);
 export type McpServerState = Static<typeof McpServerStateSchema>;
 
+/**
+ * 서버가 막힌 사유(McpServerStatus.blockedReason). approval_required는 비밀 env가 있는 stdio 서버가
+ * 사용자의 기동 승인을 기다리는 경우다(L2.mcp.spec §4.3). sandbox_unavailable은 샌드박스에 넣어야 하는 stdio 서버를
+ * 이 기기에서 격리할 수 없어 띄우지 않은 경우다(L0.process.spec §4.9).
+ */
+export const McpBlockedReasonSchema: TUnion<
+  [
+    TLiteral<"denied_by_policy">,
+    TLiteral<"not_in_allowlist">,
+    TLiteral<"managed_only">,
+    TLiteral<"untrusted_project">,
+    TLiteral<"approval_required">,
+    TLiteral<"sandbox_unavailable">,
+  ]
+> = Type.Union([
+  Type.Literal("denied_by_policy"),
+  Type.Literal("not_in_allowlist"),
+  Type.Literal("managed_only"),
+  Type.Literal("untrusted_project"),
+  Type.Literal("approval_required"),
+  Type.Literal("sandbox_unavailable"),
+]);
+export type McpBlockedReason = Static<typeof McpBlockedReasonSchema>;
+
 export type McpServerStatus = {
   server: string;
   title?: string;
@@ -160,8 +189,8 @@ export type McpServerStatus = {
   resourceCount?: number;
   /** 비밀 값을 담지 않는다 */
   lastError?: { code: string; message: string; at: number };
-  /** blocked일 때 사유: "denied_by_policy" | "not_in_allowlist" | "managed_only" | "untrusted_project" */
-  blockedReason?: string;
+  /** blocked일 때 사유: "denied_by_policy" | "not_in_allowlist" | "managed_only" | "untrusted_project" | "approval_required" | "sandbox_unavailable" */
+  blockedReason?: McpBlockedReason;
 };
 const mcpServerStatusShape = Type.Object({
   server: McpServerIdSchema,
@@ -176,7 +205,7 @@ const mcpServerStatusShape = Type.Object({
   lastError: Type.Optional(
     Type.Object({ code: Type.String(), message: Type.String(), at: Type.Integer() }),
   ),
-  blockedReason: Type.Optional(Type.String()),
+  blockedReason: Type.Optional(McpBlockedReasonSchema),
 });
 export const McpServerStatusSchema: TUnsafe<McpServerStatus> = Type.Unsafe<McpServerStatus>(
   mcpServerStatusShape satisfies SchemaProof<McpServerStatus, typeof mcpServerStatusShape>,

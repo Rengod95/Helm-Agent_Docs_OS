@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
+import { parse } from "@xeon/contracts";
+import type { DurableEventDraft } from "@xeon/contracts/records";
 import { NO_EFFECTS, replayDrive } from "@xeon/group-kit/testing";
 import { helmGroup } from "../../src/index.ts";
+import {
+  dedupeInquiryFinished,
+  InquiryFinishedPayloadSchema,
+  type InquiryFinishedPayload,
+} from "../../src/records.ts";
 import { crashAndResume } from "../support/crash.ts";
 import { createHelmReplay } from "../support/replay.ts";
 
@@ -19,15 +26,15 @@ test("drive.recall-from-committed-state-spawns-once", async () => {
   expect(report.ok).toBe(true);
 });
 
-test("replay.twice-effects-once: new turns 2, spawns 3, tasks 2, finish notice 1, inquiry.finished 1", async () => {
+test("replay.twice-effects-once: new turns 2, spawns 3, finish notice 1, inquiry.finished 1", async () => {
   const replay = createHelmReplay();
   const report = await replayDrive({
     group: helmGroup,
     harness: replay.harness,
-    expectEffects: { turn: 2, spawn: 3, capabilityWrite: 2, post: 1, delegate: 0 },
+    expectEffects: { turn: 2, spawn: 3, post: 1, delegate: 0 },
   });
   expect(report.failure).toBeUndefined();
-  expect(report.effects).toEqual({ turn: 2, spawn: 3, delegate: 0, capabilityWrite: 2, post: 1 });
+  expect(report.effects).toEqual({ turn: 2, spawn: 3, delegate: 0, post: 1 });
   expect(report.ok).toBe(true);
 });
 
@@ -50,6 +57,21 @@ function distinct(
   return [...new Set(keys)];
 }
 
+/** 종료 기록의 payload를 종료 스키마로 읽는다. 기록 봉투(groupId, kind, version, subject, payload)를 벗긴다 */
+function finishedOf(events: readonly DurableEventDraft[]): readonly InquiryFinishedPayload[] {
+  return events
+    .filter((event) => event.kind === "grp.helm.inquiry.finished")
+    .flatMap((event) => {
+      const wrapped: unknown = event.payload;
+      const inner: unknown =
+        typeof wrapped === "object" && wrapped !== null && "payload" in wrapped
+          ? wrapped.payload
+          : undefined;
+      const checked = parse(InquiryFinishedPayloadSchema, inner);
+      return checked.ok ? [checked.value] : [];
+    });
+}
+
 for (const [name, crash] of [
   ["between recordDiscoveries and linkWork", { taskCall: 1 }],
   ["between linkWork and the applied commit", { post: true }],
@@ -69,11 +91,24 @@ for (const [name, crash] of [
         (p) => `${String(p["inquiryId"])}/${String(p["findingId"])}`,
       ),
     ).toHaveLength(3);
-    expect(
-      distinct(result.records, "grp.helm.inquiry.finished", (p) => String(p["inquiryId"])),
-    ).toHaveLength(1);
+    // 읽는 쪽 규칙을 거친 종료 기록은 탐구마다 1건이다
+    expect(dedupeInquiryFinished(finishedOf(result.records))).toHaveLength(1);
     expect(result.queue.items.filter((item) => item.requestId.endsWith(":finished"))).toHaveLength(
       1,
     );
   });
 }
+
+test("replay.restart-with-new-lease-finishes-twice-but-readers-see-one: the raw log keeps both finishes and the reader rule keeps the first", async () => {
+  // 종료 알림 post 직전에 죽이면 종료 기록은 남고 전이 커밋은 없다. 재시작 뒤 새 임대로 같은 종료를 다시 쓴다
+  const result = await crashAndResume({ post: true });
+  const raw = finishedOf(result.records);
+  expect(raw).toHaveLength(2);
+  const [first, second] = raw;
+  expect(second?.inquiryId).toBe(first?.inquiryId);
+  expect([first?.outcome, second?.outcome]).toEqual(["applied", "applied"]);
+  // 읽는 쪽은 처음 기록 한 건만 본다. 두 번째 기록은 같은 탐구라 빠진다
+  const readerView = dedupeInquiryFinished(raw);
+  expect(readerView).toEqual(raw.slice(0, 1));
+  expect(readerView.map((entry) => entry.outcome)).toEqual(["applied"]);
+});

@@ -4,6 +4,7 @@ import { effectiveCachePolicy } from "../src/cache/policy.ts";
 import { createProviderRegistry, type PluginRegistration } from "../src/search/registry.ts";
 import { fakeResolver } from "../src/testing/fake-resolver.ts";
 import { fixtureTransport } from "../src/testing/http-fixtures.ts";
+import { fakeBrowseProvider } from "../src/testing/fake-browser.ts";
 import {
   fakeFetchProvider,
   fakeManifest,
@@ -49,7 +50,117 @@ function searchRegistration(extension: string, manifest?: WebProviderManifest): 
   };
 }
 
+function browseRegistration(extension: string, manifest?: WebProviderManifest): PluginRegistration {
+  return {
+    extension,
+    registration: {
+      capability: "web.browse",
+      create: () =>
+        fakeBrowseProvider(`plugin:${extension}`, manifest === undefined ? {} : { manifest }),
+    },
+  };
+}
+
+/** 매니페스트 하나를 등록해 거부 로그(`web.provider_rejected`의 이벤트와 필드)를 돌려준다. 후보는 비어 있어야 한다 */
+function rejectionsOf(manifest: WebProviderManifest): unknown[] {
+  const logged: unknown[] = [];
+  const catalog = createProviderRegistry({
+    source: { list: () => [searchRegistration(manifest.name, manifest)] },
+    builtin: { search: [], fetch: [] },
+    http: {
+      resolver: fakeResolver(),
+      transport: fixtureTransport(),
+      secrets: undefined,
+      guard: undefined,
+    },
+    clock: manualClock(),
+    logger: {
+      debug: () => {},
+      info: () => {},
+      warn: (event, fields) => {
+        logged.push([event, fields]);
+      },
+      error: () => {},
+      child() {
+        return this;
+      },
+    },
+    extensionSetting: () => undefined,
+  });
+  expect(catalog.searchCandidates()).toEqual([]);
+  return logged;
+}
+
 describe("provider registry", () => {
+  test("plugin browse registrations become browse candidates with the plugin origin", () => {
+    const catalog = registry(() => [browseRegistration("web-a")]);
+    expect(
+      catalog.browseCandidates().map((candidate) => [candidate.provider.id, candidate.origin]),
+    ).toEqual([["plugin:web-a", "plugin"]]);
+    expect(catalog.searchCandidates()).toEqual([]);
+    expect(catalog.fetchCandidates()).toEqual([]);
+  });
+
+  test("a browse provider whose manifest does not declare browse is rejected with its reason", () => {
+    const logged: unknown[] = [];
+    const catalog = createProviderRegistry({
+      source: {
+        list: () => [browseRegistration("web-b", fakeManifest("web-b", { services: ["search"] }))],
+      },
+      builtin: { search: [], fetch: [] },
+      http: {
+        resolver: fakeResolver(),
+        transport: fixtureTransport(),
+        secrets: undefined,
+        guard: undefined,
+      },
+      clock: manualClock(),
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: (event, fields) => {
+          logged.push([event, fields]);
+        },
+        error: () => {},
+        child() {
+          return this;
+        },
+      },
+      extensionSetting: () => undefined,
+    });
+    expect(catalog.browseCandidates()).toEqual([]);
+    expect(logged).toEqual([
+      [
+        "web.provider_rejected",
+        { extension: "web-b", capability: "web.browse", reason: "service_not_declared" },
+      ],
+    ]);
+  });
+
+  test("a query-kind auth manifest is rejected at registration with auth_kind_unsupported", () => {
+    const manifest = fakeManifest("web-q", {
+      auth: { kind: "query", secrets: [{ setting: "ext.web-q.apiKey", query: "key" }] },
+    });
+    expect(rejectionsOf(manifest)).toEqual([
+      [
+        "web.provider_rejected",
+        { extension: "web-q", capability: "web.search", reason: "auth_kind_unsupported" },
+      ],
+    ]);
+  });
+
+  test("a header secret without a header name is rejected at registration", () => {
+    const manifest = fakeManifest("web-h", {
+      auth: { kind: "header", secrets: [{ setting: "ext.web-h.apiKey" }] },
+    });
+    expect(rejectionsOf(manifest)).toEqual([
+      [
+        "web.provider_rejected",
+        { extension: "web-h", capability: "web.search", reason: "secret_header_missing" },
+      ],
+    ]);
+  });
+
   test("plugin registrations become candidates with the plugin origin", () => {
     const catalog = registry(() => [searchRegistration("web-a")]);
     const candidates = catalog.searchCandidates();

@@ -1,4 +1,5 @@
 import type { HostBinaryReport, HostBinaryStatus } from "@xeon/contracts/wire";
+import { t } from "../i18n/index.ts";
 
 // 외부 바이너리 점검 결과(G2-07, L0.os.spec §3.6.1 `BinaryCheckReport`에서 경로만 뺀 `HostBinaryReport`)를 화면 값으로 읽는다.
 // 값은 `host.status { includeBinaries: true }`의 `binaries`다(F.wire-settings.spec §3.3.1). 연결이 결과를 스키마로 검증하고 건네므로
@@ -26,9 +27,12 @@ function noteOf(status: HostBinaryStatus): { ok: boolean; note: string } {
   if (status.kind === "ok") return { ok: true, note: status.version };
   if (status.kind === "missing") return { ok: false, note: status.hint };
   if (status.kind === "too_old") {
-    return { ok: false, note: `${status.found} (필요 ${status.required} 이상)` };
+    return {
+      ok: false,
+      note: t("client.settings.binary.tooOld", { found: status.found, required: status.required }),
+    };
   }
-  return { ok: false, note: `쓸 수 없음 (${status.reason})` };
+  return { ok: false, note: t("client.settings.binary.unusable", { reason: status.reason }) };
 }
 
 /** 점검 보고서를 화면 값으로 바꾼다. 보고서가 없으면 null */

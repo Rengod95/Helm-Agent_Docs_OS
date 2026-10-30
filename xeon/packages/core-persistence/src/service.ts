@@ -85,6 +85,8 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     projectors: () => controller.active(),
     ...(deps.guardProjectors === undefined ? {} : { guardProjectors: deps.guardProjectors }),
     onProjectorFailure: (failure) => {
+      // 정지한 뒤 알린다. 커밋은 이 호출이 끝난 뒤 정지된 투영기를 뺀 채 다시 낸다(§4.5.2)
+      controller.suspend(failure.projector, failure.message);
       controller.notifyFailure(failure);
     },
     ...(deps.putBlob === undefined ? {} : { putBlob: deps.putBlob }),

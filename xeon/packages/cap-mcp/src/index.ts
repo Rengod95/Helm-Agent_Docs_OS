@@ -22,6 +22,7 @@ export {
   MCP_SETTING_DEFS,
   readMcpSettings,
   readSettingsServers,
+  sandboxOf,
 } from "./settings.ts";
 export type { McpSettings, McpSettingsSource, SettingsServers } from "./settings.ts";
 export { loadDefinitions } from "./servers/definitions.ts";
@@ -50,6 +51,13 @@ export type {
   McpSecretError,
 } from "./ports/secrets.ts";
 export type { McpRulesSink } from "./ports/rules.ts";
+export type {
+  McpStartDefinition,
+  McpStartEvidence,
+  McpStartGate,
+  McpStartVerdict,
+} from "./ports/start-gate.ts";
+export { checkDefinitionValues, looksLikeSecretName } from "./servers/values.ts";
 export type { McpStorePort } from "./ports/store.ts";
 export type { McpContinuationSource, McpRegisterError, McpToolRegistrar } from "./ports/tools.ts";
 export { CAP_MCP_MIGRATIONS, MCP_STORE_OWNER } from "./client/state-store.ts";

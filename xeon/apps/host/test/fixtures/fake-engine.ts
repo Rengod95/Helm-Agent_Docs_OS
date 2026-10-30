@@ -1,4 +1,5 @@
 import { err, ok } from "@xeon/contracts";
+import type { Notice } from "@xeon/contracts/capabilities";
 import type { IdFactory, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   DurableEventEnvelope,
@@ -10,6 +11,8 @@ import type { LoopError } from "@xeon/contracts/services";
 import type { ScopeStack } from "@xeon/contracts/settings";
 import type { StoreId, StreamPosition } from "@xeon/contracts/wire";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { ScheduleService } from "@xeon/cap-schedule";
+import { partial } from "./unsafe.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
@@ -27,11 +30,14 @@ import type {
   SettingsStorePort,
   SubmitOutcome,
   CommandPort,
+  DialogWirePort,
   EngineDiagnostics,
+  WebPort,
   ThreadPort,
   ProposalPort,
   TrustPort,
   TurnPort,
+  UsagePort,
 } from "../../src/types.ts";
 
 // 아래 층 패키지 없이 호스트의 연결·처리기·전송을 시험하려는 가짜 엔진. 이벤트 로그는 메모리이고 커밋 알림은 커밋 직후 같은 턴에서
@@ -79,7 +85,11 @@ export interface FakeEngineOptions {
     readonly approvals?: Partial<ApprovalPort>;
     readonly trust?: Partial<TrustPort>;
     readonly commands?: Partial<CommandPort>;
+    readonly web?: Partial<WebPort>;
+    readonly dialog?: Partial<DialogWirePort>;
     readonly proposals?: Partial<ProposalPort>;
+    readonly usage?: Partial<UsagePort>;
+    readonly schedule?: Partial<ScheduleService>;
   };
 }
 
@@ -111,6 +121,8 @@ export interface FakeEngine {
   emitVolatile(event: Pick<VolatileEventEnvelope, "threadId" | "turnId" | "n" | "afterSeq">): void;
   /** 설정 변경 신호를 낸다(`SettingsStorePort.onChange` 구독자에게). 실제 엔진에서는 설정 저장소와 신뢰 결정이 낸다 */
   emitSettingsChange(change: SettingsChange): void;
+  /** 알림 하나를 알림 포트의 구독자(`subscribeNotices`)에게 낸다. 실제 엔진에서는 cap-dialog의 알림 서비스가 낸다 */
+  emitNotice(threadId: ThreadId, notice: Notice): void;
   /** 진단 함수가 불린 횟수 */
   readonly diagnoseCalls: () => number;
   /** 다음 turn.start가 turn.busy가 되게 한다 */
@@ -139,6 +151,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const commitListeners = new Set<(batch: CommitBatch) => void>();
   const volatileListeners = new Set<(event: VolatileEventEnvelope) => void>();
   const settingsListeners = new Set<(change: SettingsChange) => void>();
+  const noticeListeners = new Set<(threadId: ThreadId, notice: Notice) => void>();
   const threads = new Set<ThreadId>();
   const held = new Set<ThreadId>();
   const titles = new Map<ThreadId, string>();
@@ -297,6 +310,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       prepare: () => Promise.resolve(),
       write: () => Promise.reject(new Error("write is not part of the fake")),
       reset: () => Promise.reject(new Error("reset is not part of the fake")),
+      readFile: () => Promise.reject(new Error("readFile is not part of the fake")),
+      writeFile: () => Promise.reject(new Error("writeFile is not part of the fake")),
+      refreshUserFile: () => Promise.resolve(),
       onChange(listener) {
         settingsListeners.add(listener);
         return () => {
@@ -316,10 +332,30 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       run: () => Promise.reject(new Error("command.run is not part of the fake")),
       ...options.overrides?.commands,
     },
+    web: {
+      providers: () => Promise.reject(new Error("web.providers is not part of the fake")),
+      ...options.overrides?.web,
+    },
+    dialog: {
+      statusList: () => Promise.reject(new Error("status.list is not part of the fake")),
+      attachmentsAdd: () => Promise.reject(new Error("attachments.add is not part of the fake")),
+      notifyList: () => Promise.reject(new Error("notify.list is not part of the fake")),
+      subscribeNotices(listener) {
+        noticeListeners.add(listener);
+        return () => {
+          noticeListeners.delete(listener);
+        };
+      },
+      ...options.overrides?.dialog,
+    },
     proposals: {
       list: () => Promise.reject(new Error("proposal.list is not part of the fake")),
       decide: () => Promise.reject(new Error("proposal.decide is not part of the fake")),
       ...options.overrides?.proposals,
+    },
+    usage: {
+      gauges: () => Promise.resolve([]),
+      ...options.overrides?.usage,
     },
     trust: {
       get: () => Promise.reject(new Error("trust.get is not part of the fake")),
@@ -330,6 +366,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       snapshot: () => ({ liveTurns: 0, liveTasks: 0, waitingApprovals: 0, pendingSchedules: 0 }),
       onChange: () => () => undefined,
     },
+    // 예약 서비스는 `overrides.schedule`로 쓰는 멤버만 채운다. 채우지 않은 멤버를 부르면 undefined라 시험이 바로 실패한다
+    schedule: partial<ScheduleService>({ ...options.overrides?.schedule }),
     notify: { show: () => Promise.resolve() },
     log: {
       error: (message, fields) => {
@@ -400,6 +438,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     },
     emitSettingsChange(change) {
       for (const listener of Array.from(settingsListeners)) listener(change);
+    },
+    emitNotice(threadId, notice) {
+      for (const listener of Array.from(noticeListeners)) listener(threadId, notice);
     },
     setRunningTurn(turnId) {
       state.running = turnId;

@@ -142,7 +142,7 @@ export async function stopHostService(
     if (!(await sameProcess(options, registration))) return ok({ kind: "not_running" });
   } else {
     const accepted = await requestServiceShutdown(registration, "user");
-    if (accepted && (await waitServiceGone(store, time, timeoutMs + 1000))) {
+    if (accepted && (await waitServiceGone(store, time, timeoutMs + 1000, registration))) {
       return ok({ kind: "stopped" });
     }
   }

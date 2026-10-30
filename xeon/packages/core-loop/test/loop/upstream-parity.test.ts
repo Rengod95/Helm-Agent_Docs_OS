@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { requestLoop } from "../../src/loop/run-turn.ts";
-import { createHarness } from "../support/harness.ts";
+import { createHarness, recordedCallId } from "../support/harness.ts";
 import { createRig } from "../support/loop-rig.ts";
 import type { ScriptedResponse } from "../support/fake-models.ts";
 
@@ -51,13 +51,14 @@ test("a_tool_call_turn_runs_the_tool_between_the_response_and_turn_end_then_asks
   });
   const result = await requestLoop(rig.run, []);
   expect(result.ok).toBe(true);
-  expect(h.tools.executed).toEqual(["c1"]);
+  const id = recordedCallId(h, "c1");
+  expect(h.tools.executed).toEqual([id]);
   expect(rig.trace()).toEqual([
     "agent_start",
     "turn_start",
     ...ASSISTANT_STREAM,
-    "tool_execution_start:c1",
-    "tool_execution_end:c1",
+    `tool_execution_start:${id}`,
+    `tool_execution_end:${id}`,
     "message_start:toolResult",
     "message_end:toolResult",
     "turn_end",

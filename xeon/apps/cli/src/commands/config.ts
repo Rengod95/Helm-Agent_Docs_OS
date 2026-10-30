@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever } from "@xeon/contracts";
 import type { EffectiveSetting, SettingDefWire, SettingSource } from "@xeon/contracts/settings";
 import type { HostConnection } from "@xeon/contracts/wire";
@@ -5,6 +6,7 @@ import type { CommandIo, HostCommand } from "@xeon/host";
 import type { ConfigCommand } from "../cli/command.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import { interpretRaw } from "../settings-input.ts";
+import { cliSettingGroups } from "../settings.ts";
 import { withEngine, type CommandContext } from "./context.ts";
 
 // L4.cli.spec §3.1 config, §4.8. get·schema는 M1, set·reset·list는 M2(settings.set/reset/list)다.
@@ -101,12 +103,15 @@ function describeDef(def: SettingDefWire): string {
   const type = def.type["type"];
   if (typeof type === "string") parts.push(type);
   const { range } = def;
-  if (range?.enum !== undefined) parts.push(`선택: ${range.enum.join(" | ")}`);
+  if (range?.enum !== undefined)
+    parts.push(t("cli.config.choices", { values: range.enum.join(" | ") }));
   if (range?.min !== undefined || range?.max !== undefined) {
-    parts.push(`범위: ${String(range.min ?? "")}..${String(range.max ?? "")}`);
+    parts.push(
+      t("cli.config.range", { min: String(range.min ?? ""), max: String(range.max ?? "") }),
+    );
   }
-  parts.push(`적용: ${def.runtimeChange}`);
-  parts.push(`쓸 수 있는 범위: ${def.allowedScopes.join(", ")}`);
+  parts.push(t("cli.config.applies", { change: def.runtimeChange }));
+  parts.push(t("cli.config.writableScopes", { scopes: def.allowedScopes.join(", ") }));
   if (def.deprecated !== undefined) parts.push("deprecated");
   return `  ${parts.join(" · ")}`;
 }
@@ -135,7 +140,7 @@ async function runConfigList(
       const setting = values.get(def.key);
       const head =
         setting === undefined
-          ? [`${def.key} = (읽지 못함)`]
+          ? [t("cli.config.unreadable", { key: def.key })]
           : formatSettings([setting]).trimEnd().split("\n");
       lines.push(...head, describeDef(def));
     }
@@ -174,6 +179,8 @@ async function runConfigSchema(
     kind: "config-schema",
     scope: command.scope,
     coreOnly: command.coreOnly,
+    // 엔진을 세울 때와 같은 그룹을 넘겨 파일 스키마의 키가 `config list`의 키와 같게 한다(X10)
+    settingGroups: cliSettingGroups,
     ...(command.out === null ? {} : { out: command.out }),
   };
   const io: CommandIo = {

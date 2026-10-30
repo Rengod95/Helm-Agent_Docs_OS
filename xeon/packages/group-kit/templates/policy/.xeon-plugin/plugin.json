@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "name": "__ID__",
+  "version": "__VERSION__",
+  "displayName": "__TITLE__",
+  "layer": "L3",
+  "kind": "group",
+  "entry": "./src/index.ts",
+  "points": ["tool.call.before"],
+  "usesDrive": false,
+  "defaultEnabled": false,
+  "trust": { "level": "user" }
+}

@@ -1,5 +1,10 @@
 import type { Clock, Result, Scheduler } from "@xeon/contracts";
-import type { AnyCapabilityDef, SecretMeta, SecretName } from "@xeon/contracts/capabilities";
+import type {
+  AnyCapabilityDef,
+  Notice,
+  SecretMeta,
+  SecretName,
+} from "@xeon/contracts/capabilities";
 import type { IdFactory, ItemId, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   DurableEventEnvelope,
@@ -33,18 +38,28 @@ import type {
 } from "@xeon/contracts/settings";
 import type {
   EventFilter,
+  SettingsFileScope,
+  SettingsWritableFileScope,
   StoreId,
   StreamPosition,
   TurnStartInput,
   Unsubscribe,
+  UsageGauge,
   WireParams,
   WireResult,
 } from "@xeon/contracts/wire";
 import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
+import type {
+  ScheduleClock,
+  ScheduleService,
+  ScheduleStore,
+  ScheduleTicker,
+  SchedulePolicy,
+} from "@xeon/cap-schedule";
 import type { ModelsExtensionOptions } from "@xeon/core-models";
 import type { SecretsRuntime, SecretsRuntimeDeps } from "@xeon/platform-secrets";
 import type { BuiltinExtensionModule } from "@xeon/ext-host";
-import type { BinaryCheckReport } from "@xeon/platform-os";
+import type { BinaryCheckReport, NotifierProvider } from "@xeon/platform-os";
 import type { SecretOfferStore } from "./secrets/offers.ts";
 
 // L4.host-service.spec §3.3.1~§3.3.2. 처리기와 연결 허브는 이 파일의 타입(EnginePorts)만 쓰고 아래 층 패키지를 import하지 않는다
@@ -96,15 +111,25 @@ export interface AssembleOptions {
   /** 기본 true. false면 기본 플러그인(Helm) 설치와 외부 확장 적재를 건너뛴다 */
   readonly defaultGroups?: boolean;
   /**
+   * 테스트 주입: OS 알림 provider(`platform-os` `notifier`). 생략하면 OS 기본 도구(notify-send 등)를 고르고, `null`이면 provider none이라
+   * `notify`가 `disabled`를 돌려준다. 실제 알림 도구를 띄우지 않으려는 시험이 `null`을 넘긴다. 운영은 생략한다
+   */
+  readonly osNotifier?: NotifierProvider | null;
+  /**
    * 안전 모드. 참이면 L3 내장 그룹(학습)을 싣지 않는다 [결정: review.m3-design-inputs D-M3-07 a, X.operations.spec §4.6.2]. 대기열은 남고
    * 다시 켜면 그대로 보인다. L1·L2 내장 패키지는 그대로 싣는다. 기본 false
    */
   readonly safeMode?: boolean;
   /**
-   * 대기 예약 수의 출처(유휴 종료 판정, `ActivitySnapshot.pendingSchedules`). 예약 능력(cap-schedule)이 조립에 들어오면 조립 루트가 채운다.
-   * 생략하면 항상 0이다 [결정: 오케스트레이터 기본값, M3b B1-SVC]. 시험이 값을 넣어 유휴 판정을 확인한다
+   * 대기 예약 수의 출처. 생략하면 예약 서비스(`EnginePorts.schedule`)가 낸다(L4.host-service.spec §4.17). 넣으면 그 값이 이긴다.
+   * 시험이 값을 넣어 유휴 판정을 확인한다
    */
   readonly pendingSchedules?: PendingSchedulesPort;
+  /**
+   * 예약 서비스의 시험 주입(L4.host-service.spec §4.17). 운영은 생략한다. 시계와 틱, 저장소, 정책을 바꾼다.
+   * 서비스 모드에서만 틱이 돈다(in-process·stdio는 임대가 없어 틱을 돌리지 않는다, HS-40)
+   */
+  readonly schedule?: ScheduleOverrides;
   /**
    * 기본 플러그인 번들 뿌리(`<뿌리>/<이름>/.xeon-plugin/plugin.json`). 생략하면 실행 파일 옆 `default-plugins/`다.
    * 개발 실행과 시험이 번들 위치를 바꿀 때 쓴다
@@ -125,6 +150,11 @@ export interface AssembleOptions {
   /** 테스트 주입(eng.testing.guide TS-03) */
   readonly clock?: Clock;
   readonly ids?: IdFactory;
+  /**
+   * 지금 어떤 연결이든 연 thread. 확장 핸들러 실패 알림(`scope.handler_failed`)은 이 thread마다 한 번씩 나간다(L4.host-service HS-92).
+   * 연결 허브는 엔진을 만든 뒤에 생기므로 호스트 실행 루틴(`startHost`)이 늦게 읽는 함수를 넘긴다. 생략하면 열린 thread가 없어 운영 로그만 남는다
+   */
+  readonly openThreads?: () => readonly ThreadId[];
 }
 
 export type AssembleIssue =
@@ -152,6 +182,14 @@ interface EngineShutdown extends ShutdownCoordinator {
 export interface EngineDiagnostics {
   /** 외부 바이너리 필수/선택 점검(L0.os.spec §3.6.1). 점검이 중단되면 `cancelled`다 */
   readonly binaries: Result<BinaryCheckReport, { readonly kind: "cancelled" }>;
+}
+
+/** 예약 서비스 시험 주입. 모든 항목이 선택이다 */
+export interface ScheduleOverrides {
+  readonly clock?: ScheduleClock;
+  readonly ticker?: ScheduleTicker;
+  readonly store?: ScheduleStore;
+  readonly policy?: Partial<SchedulePolicy>;
 }
 
 /** 대기 예약 수. 값이 바뀌면 `onChange`로 알린다(유휴 종료 판정이 다시 계산한다) */
@@ -193,8 +231,10 @@ export interface EnginePorts {
   readonly settings: SettingsStorePort;
   /** L1.tools */
   readonly approvals: ApprovalPort;
-  /** L1.tasks, L1.tools, L2.schedule */
+  /** L1.tasks, L1.tools, L2.schedule. 활동 집계는 예약 서비스의 대기·루프 수를 더한다 */
   readonly activity: ActivityPort;
+  /** L2.schedule 예약 서비스(M3b). 서비스 모드에서만 `start`로 틱을 돌린다. 실행은 이 서비스의 실행 포트가 한다 */
+  readonly schedule: ScheduleService;
   /** L0.os */
   readonly notify: UserNotifyPort;
   /** L0.os */
@@ -205,6 +245,12 @@ export interface EnginePorts {
   readonly models: ModelCatalogPort;
   /** L2.dialog 슬래시 명령 */
   readonly commands: CommandPort;
+  /** L2.web provider 상태와 웹 설정 값(`web.providers`, M3-REQ-96). 읽기 전용 */
+  readonly web: WebPort;
+  /** L2.dialog 상태줄 스냅숏과 첨부 추가(`status.list`, `attachments.add`, M3-REQ-16) */
+  readonly dialog: DialogWirePort;
+  /** 사용량 게이지 원천(`usage.get`, M3-REQ-15). 조립 기본은 빈 목록이다 */
+  readonly usage: UsagePort;
   /** 지식 제안 대기열 둘(학습 그룹, L2.knowledge)을 한 목록으로 보이고 결정한다(M3-REQ-18, D-M3-32 a) */
   readonly proposals: ProposalPort;
   /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */
@@ -240,9 +286,14 @@ export type ThreadCompactFailure =
   | { readonly kind: "context_failed"; readonly error: ContextError };
 
 export interface ThreadPort {
+  /**
+   * `creationKey`가 있으면 같은 키로 이미 만든 thread를 돌려준다. 돌려준 `threadId`는 처음 만든 것이고 새 thread는 없다
+   * (L1.persistence §4.10.1). 예약 실행은 `timer:<scheduleId>:<dueAt>:create`를 쓴다(L2.schedule §4.4.4)
+   */
   create(input: {
     readonly workspace?: string;
     readonly title?: string;
+    readonly creationKey?: string;
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;
@@ -338,6 +389,63 @@ export interface CommandPort {
   ): Promise<Result<WireResult<"command.run">, CommandFailure>>;
 }
 
+/** 상태줄 스냅숏과 첨부 추가가 실패한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.3.1 status.list, attachments.add) */
+export type DialogWireFailure =
+  /** 상태줄 서비스(`dialog.status`)나 첨부 서비스(`dialog.attachments`)를 가진 확장이 올라와 있지 않다 */
+  | { readonly kind: "unavailable" }
+  /** 능력이 입력을 거절했다. `code`는 능력 오류 코드(`attachment_too_large`, `not_found` 등)다 */
+  | { readonly kind: "rejected"; readonly code: string; readonly message: string };
+
+/**
+ * 상태줄 세그먼트 스냅숏과 첨부 추가(M3-REQ-16, M3-20). 명령과 같이 호스트가 사람의 입력으로 부르고(호출자 `host`) thread가 있으면 그
+ * 문맥을 싣는다. 첨부 원천의 상대 경로를 thread의 작업 폴더 기준으로 풀지는 능력이 정한다(L4.host-service.spec §10 미결)
+ */
+export interface DialogWirePort {
+  /** thread의 상태줄 세그먼트 전체. 목록만 읽으므로 쓰기 소유를 얻지 않는다 */
+  statusList(
+    threadId: ThreadId,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"status.list">, DialogWireFailure>>;
+  /** 첨부 하나를 검사하고 저장해 입력 파트를 만든다. `threadId`가 있으면 그 thread 문맥으로 부른다 */
+  attachmentsAdd(
+    params: WireParams<"attachments.add">,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"attachments.add">, DialogWireFailure>>;
+  /**
+   * `afterSeq` 뒤의 알림을 당겨 읽는다(`notify.list`, M3-REQ-16). `threadId`가 있으면 그 thread 문맥으로 부른다. 목록만 읽는다.
+   * 입력 검사는 wire 스키마가 먼저 하고, 서비스의 입력 거절은 `rejected`로 돌아온다
+   */
+  notifyList(
+    params: WireParams<"notify.list">,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"notify.list">, DialogWireFailure>>;
+  /**
+   * 알림 전달 구독(`notify.delivered`의 원천). 서비스(`dialog.notify`의 같은 프로세스 구독)가 아직 없으면 붙지 않고, 서비스가 나타나면
+   * 붙는다. 반환 함수로 구독을 푼다. 서비스가 없어지면 붙은 구독은 떼고 다시 나타나면 다시 붙는다
+   */
+  subscribeNotices(listener: (threadId: ThreadId, notice: Notice) => void): Unsubscribe;
+}
+
+/**
+ * 웹 provider 상태와 웹 설정 값(`web.providers`, F wire-settings, M3-REQ-96). 읽기 전용이고 비밀 값을 싣지 않는다. cap-web이 올라와 있지 않으면
+ * provider 목록은 비고 설정 값은 설정 층에서 읽는다(assembly/web-providers.ts)
+ */
+export interface WebPort {
+  providers(signal: AbortSignal): Promise<WireResult<"web.providers">>;
+}
+
+/**
+ * 사용량 게이지 원천(`usage.get`, M3-REQ-15). 조립 기본은 L1.models 합산기의 기록으로 만든 thread `session` 게이지(tokens, usd, requests)다
+ * (`assembly/usage.ts`). 창(minute~month), 한도, 계정별 게이지는 L1이 기록을 보관하지 않아 아직 없고, B2-MDL 트랙이 채운다.
+ * `providerId`와 `threadId`는 원천이 쓸 수 있도록 그대로 넘기고, 처리기도 `providerId`로 한 번 더 거른다
+ */
+export interface UsagePort {
+  gauges(
+    input: { readonly providerId?: string; readonly threadId?: ThreadId },
+    signal: AbortSignal,
+  ): Promise<readonly UsageGauge[]>;
+}
+
 /**
  * 지식 제안 대기열 `proposal.list`·`proposal.decide`(F wire §3.3.1, M3-REQ-18). 대기열은 둘이다: 학습 그룹(`source: "learning"`)과 L2.knowledge의
  * 쓰기 승인 대기열(`source: "knowledge"`). 한 출처를 읽지 못하면(그룹이 꺼짐, 안전 모드, 지식 저장소 없음) 그 출처만 `unavailable`에 올리고
@@ -416,6 +524,21 @@ export type SettingsWriteFailure =
   | { readonly kind: "key_reused"; readonly requestKey: string }
   | StoreError;
 
+/** 파일 단위 쓰기(`settings.writeFile`)가 실패한 이유. 키 단위 쓰기의 이유에 "읽은 뒤 파일이 바뀌었다"를 더한다 */
+export type SettingsFileFailure =
+  | SettingsWriteFailure
+  | { readonly kind: "conflict"; readonly scope: SettingScope };
+
+/** `settings.readFile`이 읽은 파일. 경로가 없으면(작업 폴더 없음, 관리 정책 파일 위치 미정) `exists`는 거짓이고 읽기 전용이다 */
+export interface SettingsFileRead {
+  readonly path: string | null;
+  readonly exists: boolean;
+  readonly readOnly: boolean;
+  readonly text: string;
+  /** 원문의 SHA-256(hex). 파일이 없으면 null */
+  readonly sha256: string | null;
+}
+
 /**
  * 설정이 바뀌었다는 신호. wire 알림 `settings.invalidated`의 원천이다(F wire §3.3.2). 값이 없다.
  * `keys`가 비면 어느 키인지 모르는 변경(신뢰 결정으로 project·local 층을 통째로 다시 읽음)이고, `threadId`는 `session` 범위일 때만 있다
@@ -445,6 +568,29 @@ export interface SettingsStorePort {
     key: SettingKey,
     threadId: ThreadId | undefined,
   ): Promise<Result<void, SettingsWriteFailure>>;
+  /**
+   * 범위 하나의 설정 파일 원문을 읽는다(`settings.readFile`). `project`·`local`은 thread의 작업 폴더를 쓴다.
+   * 작업 폴더를 정할 수 없으면 경로가 null이고, 신뢰하지 않은 폴더는 읽기 전용이다
+   */
+  readFile(
+    scope: SettingsFileScope,
+    threadId: ThreadId | undefined,
+  ): Promise<Result<SettingsFileRead, SettingsWriteFailure>>;
+  /**
+   * 파일 전체를 바꾼다(`settings.writeFile`). 원문 검사는 호출자가 마쳤다(JSON 객체, 범위의 스키마). 파일 잠금 안에서 지금 파일의 해시가
+   * `baseSha256`과 같을 때만 쓴다(없던 파일은 null). 성공하면 메모리 층을 바꾸고 `settings.invalidated`를 보낸다
+   */
+  writeFile(
+    scope: SettingsWritableFileScope,
+    text: string,
+    baseSha256: string | null,
+    threadId: ThreadId | undefined,
+  ): Promise<Result<{ readonly path: string; readonly sha256: string }, SettingsFileFailure>>;
+  /**
+   * 사용자 설정 파일을 다시 읽어 메모리 층에 반영하고, 값이 달라진 키가 있으면 알린다. 파일 감시(M3-REQ-49)가 외부 변경을 알릴 때 부른다.
+   * 읽을 수 없거나 JSON 객체가 아니면 앞 값을 둔다
+   */
+  refreshUserFile(): Promise<void>;
   onChange(listener: (change: SettingsChange) => void): Unsubscribe;
 }
 

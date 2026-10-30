@@ -1,7 +1,10 @@
+import { dirname } from "node:path";
 import { createInterface, type Interface } from "node:readline";
+import { fileURLToPath } from "node:url";
 import { attemptAsync, parseJson } from "@xeon/contracts";
-import { systemClock } from "@xeon/platform-os";
+import { resolveOsDirs, systemClock } from "@xeon/platform-os";
 import { devWireRoundTripOf } from "./dev-mode.ts";
+import { createGroupTemplatesFs, locateGroupTemplates } from "./group/fs-port.ts";
 import type { CliDeps, CliIo, CliSignal, DoctorProbes } from "./io.ts";
 
 // L4.cli.spec §3.4 "최상위 코드". 실제 프로세스(process, Bun)를 직접 쓰는 코드는 이 파일에만 둔다. 테스트는 이 파일을 쓰지 않고
@@ -267,6 +270,18 @@ async function probeSearxng(
 
 const REAL_PROBES: DoctorProbes = { probeSearxng };
 
+/**
+ * 폴더 없이 설치된 기본 그룹 이름(apps/host의 assembly/catalog.ts가 올린다). CLI는 host 조립 코드를 import하지 않으므로
+ * 여기 옮겨 적는다. 목록이 어긋나면 `xeon group new`가 기본 그룹과 겹치는 이름을 거르지 못한다 [미결: L4.cli.spec §10]
+ */
+const BUILTIN_GROUP_NAMES: readonly string[] = ["helm", "learning", "account-rotation"];
+
+/** 사용자 설정 폴더(`<OsDirs.config>`). 확장은 그 아래 `extensions/`에 있다. 위치 규칙은 L0.os가 정한다(resolveOsDirs) */
+function userConfigDirOf(): string | null {
+  const dirs = resolveOsDirs({ resourceDir: dirname(process.execPath) });
+  return dirs.ok ? dirs.value.config : null;
+}
+
 export function createRealDeps(env: Readonly<Record<string, string | undefined>>): CliDeps {
   return {
     // 엔진을 끌어오는 모듈은 부를 때 읽는다: 엔진이 필요 없는 명령(version, help)이 빨리 끝난다
@@ -282,9 +297,37 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
       const { startStdioHost } = await import("@xeon/host");
       return startStdioHost(options);
     },
+    resolveRemote: async (options) => {
+      const { resolveRemoteEndpoint } = await import("@xeon/host");
+      return resolveRemoteEndpoint(options);
+    },
+    bridgeStdio: async (options) => {
+      const { bridgeStdioToService } = await import("@xeon/host");
+      return bridgeStdioToService(options);
+    },
     probes: REAL_PROBES,
+    groupTemplates: createGroupTemplatesFs({
+      templatesDir: locateGroupTemplates(
+        env,
+        dirname(fileURLToPath(import.meta.url)),
+        dirname(process.execPath),
+      ),
+      userConfigDir: userConfigDirOf,
+      builtinNames: BUILTIN_GROUP_NAMES,
+    }),
     // 합성 루트의 시계는 L0.os의 운영 시계다(eng.typescript.guide TY-21). 엔진 안의 시각도 같은 구현이 낸다
     clock: systemClock(),
+    // 엔진 없이 저장소를 내보낸다. 모듈은 부를 때 읽는다: version·help가 SQLite 모듈을 끌어오지 않게 한다
+    exportDatabase: async (options) => {
+      const { exportDatabase } = await import("@xeon/platform-store");
+      return exportDatabase(options);
+    },
+    // 데이터 디렉터리는 호스트와 같은 resolveOsDirs가 정한다(XEON_HOME 포함). 자원 디렉터리는 데이터 위치와 무관하고
+    // resolveOsDirs가 절대 경로를 요구해 실행 파일 옆을 넘긴다(@xeon/host의 hostResourceDir과 같은 값)
+    resolveDataDir: () => {
+      const dirs = resolveOsDirs({ resourceDir: dirname(process.execPath) });
+      return dirs.ok ? dirs.value.data : null;
+    },
     devWireRoundTrip: devWireRoundTripOf(env, Bun.main),
     bunVersion: Bun.version,
     stateFile: env[STATE_FILE_ENV] ?? null,

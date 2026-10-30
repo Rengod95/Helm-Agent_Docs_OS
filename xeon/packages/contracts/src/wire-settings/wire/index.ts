@@ -7,6 +7,8 @@ export * from "./notifications.ts";
 export * from "./proposals.ts";
 export * from "./settings-files.ts";
 export * from "./status-notify.ts";
+export * from "./web-providers.ts";
+export * from "./schedule.ts";
 export * from "./methods.ts";
 export * from "./transport.ts";
 export * from "./conformance.ts";

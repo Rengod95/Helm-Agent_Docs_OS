@@ -65,9 +65,9 @@ type LearningRun =
 export interface LearningRunner {
   /**
    * 명령 줄을 실행한다. `preferred` 대화가 이 호스트에서 열려 있으면 거기서, 아니면 가장 최근에 연 대화에서 실행한다.
-   * 열린 대화가 없으면 `unavailable`이다(결정 기록을 쓸 대화가 없다)
+   * 열린 대화가 없으면 `unavailable`이다(결정 기록을 쓸 대화가 없다). `signal`은 부른 쪽의 취소 신호로, 처리기의 `ctx.signal`에 그대로 넘긴다
    */
-  run(line: string, preferred: string | undefined): Promise<LearningRun>;
+  run(line: string, preferred: string | undefined, signal: AbortSignal): Promise<LearningRun>;
   /** 그룹이 명령 결과를 내는 자리(`LearningDeps.report`) */
   report(report: CommandReport, invocationId: string): void;
 }
@@ -91,7 +91,7 @@ export function createLearningRunner(deps: LearningRunnerDeps): LearningRunner {
     report(report, invocationId) {
       reports.set(invocationId, report);
     },
-    async run(line, preferred) {
+    async run(line, preferred, signal) {
       const record = deps
         .resources()
         ?.list("command")
@@ -111,7 +111,7 @@ export function createLearningRunner(deps: LearningRunnerDeps): LearningRunner {
       const invocationId = deps.ids.next("evt");
       let report: CommandReport | undefined;
       try {
-        await record.def.handler(line, { threadId, invocationId });
+        await record.def.handler(line, { threadId, invocationId, signal });
       } finally {
         // 처리기가 던져도 결과 자리를 남기지 않는다
         report = reports.get(invocationId);
@@ -189,7 +189,7 @@ export function learningUnit(deps: LearningUnitDeps, loadIndex: number): Extensi
     clock: deps.clock,
     reader: slotReader(deps.wiring.reader),
     bridge: deps.wiring.bridge,
-    // `/learning` 명령의 값은 F 계약에 없다(`handler`는 void). 결정 경로는 호출 id로 자기 결과를 찾고, 그 밖은 기록만 한다
+    // `/learning` 명령의 처리기는 값을 돌려주지 않는다(F 계약은 `void`나 `CommandOutput`을 허용한다). 결정 경로는 호출 id로 자기 결과를 찾고, 그 밖은 기록만 한다
     report: (report, invocationId) => {
       deps.wiring.runner.report(report, invocationId);
       deps.logger.info("learning.command", { kind: report.kind });

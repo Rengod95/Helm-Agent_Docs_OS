@@ -7,7 +7,7 @@ import {
   type ProducerHandle,
 } from "@xeon/contracts/records";
 import { parse, type Logger } from "@xeon/contracts";
-import type { IdFactory } from "@xeon/contracts/conversation";
+import type { IdFactory, StepId } from "@xeon/contracts/conversation";
 import type { JudgeInput, JudgeOutcome, JudgeRecord } from "@xeon/contracts/services";
 import type { AgentsSession } from "./deps.ts";
 import { sha256Hex } from "./hash.ts";
@@ -53,26 +53,35 @@ function promptOf(input: JudgeInput): string {
 export function createJudge(deps: JudgeDeps): (input: JudgeInput) => Promise<JudgeOutcome> {
   const { session, producer, ids } = deps;
 
-  /** (threadId, goalRef)의 마지막 판정 기록. 없으면 undefined */
+  /** (threadId, goalRef)의 마지막 판정 기록과 그 기록을 남긴 단계. 없으면 undefined */
   const latestOf = (
     input: JudgeInput,
   ):
-    | { readonly ok: true; readonly record: JudgeRecord | undefined }
+    | {
+        readonly ok: true;
+        readonly record: JudgeRecord | undefined;
+        readonly stepId: StepId | null;
+      }
     | { readonly ok: false; readonly message: string } => {
     const found = session.query.latestEvent(input.threadId, "agent.judged", {
       pointer: "/goalRef",
       equals: input.goalRef,
     });
     if (!found.ok) return { ok: false, message: `judge history unreadable: ${found.error.kind}` };
-    if (found.value === undefined) return { ok: true, record: undefined };
+    if (found.value === undefined) return { ok: true, record: undefined, stepId: null };
     const payload = parse(AgentJudgedPayloadSchema, found.value.payload);
     if (!payload.ok) return { ok: false, message: "judge history is corrupt" };
-    return { ok: true, record: payload.value };
+    return { ok: true, record: payload.value, stepId: found.value.stepId };
   };
 
   return async (input): Promise<JudgeOutcome> => {
     const history = latestOf(input);
     if (!history.ok) return { kind: "failed", message: history.message };
+    // 같은 단계의 재호출(재개)이면 그 단계에서 남긴 판정을 따른다. 다시 판정하면 상한만 줄어든다
+    const stepId = input.stepId ?? null;
+    if (history.record !== undefined && stepId !== null && history.stepId === stepId) {
+      return { kind: "recorded", record: history.record };
+    }
     const runs = history.record?.run ?? 0;
     const maxRuns = deps.maxRuns(input);
     if (runs >= maxRuns) return { kind: "capped", runs, maxRuns };
@@ -143,7 +152,7 @@ export function createJudge(deps: JudgeDeps): (input: JudgeInput) => Promise<Jud
               kind: "agent.judged",
               threadId: input.threadId,
               turnId: input.turnId,
-              stepId: null,
+              stepId: input.stepId ?? null,
               causationId: null,
               correlationId: null,
               payload: record,

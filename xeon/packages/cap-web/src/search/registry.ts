@@ -2,6 +2,7 @@ import { assertNever, attempt, parse, type Clock, type Logger } from "@xeon/cont
 import {
   WebProviderManifestSchema,
   type CacheUsage,
+  type WebBrowseProvider,
   type WebFetchProvider,
   type WebSearchProvider,
   webRegistrationCapability,
@@ -9,7 +10,12 @@ import {
 } from "@xeon/contracts/capabilities";
 import { effectiveCachePolicy } from "../cache/policy.ts";
 import { createBoundProviderHttp, type ProviderHttpDeps } from "../policy/guarded-http.ts";
-import type { FetchCandidate, SearchCandidate, WebProviderCatalog } from "../ports/providers.ts";
+import type {
+  BrowseCandidate,
+  FetchCandidate,
+  SearchCandidate,
+  WebProviderCatalog,
+} from "../ports/providers.ts";
 
 // L2.web.plan B7. 능력별 provider 후보 레지스트리: 플러그인 등록(X가 넘기는 `WebProviderRegistration`)을 provider로 만들고,
 // 내장 provider와 함께 `WebProviderCatalog`로 낸다. 후보 등록·조회 API의 이름은 X가 정한다 [가정]. 여기서는 목록 포트를 받는다.
@@ -30,6 +36,7 @@ export interface ProviderRegistryDeps {
   readonly builtin: {
     readonly search: readonly SearchCandidate[];
     readonly fetch: readonly FetchCandidate[];
+    readonly browse?: readonly BrowseCandidate[];
   };
   readonly http: ProviderHttpDeps;
   readonly clock: Clock;
@@ -41,6 +48,7 @@ export interface ProviderRegistryDeps {
 type Created =
   | { readonly kind: "search"; readonly candidate: SearchCandidate }
   | { readonly kind: "fetch"; readonly candidate: FetchCandidate }
+  | { readonly kind: "browse"; readonly candidate: BrowseCandidate }
   | { readonly kind: "invalid" };
 
 function describe(cause: unknown): string {
@@ -69,8 +77,8 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): WebProviderC
     };
     /** 공통 검증: ID, 매니페스트 스키마, 선언한 서비스. 통과하면 매니페스트를 묶고 유효 cachePolicy를 돌려준다 */
     const check = (
-      provider: WebSearchProvider | WebFetchProvider,
-      service: "search" | "fetch",
+      provider: WebSearchProvider | WebFetchProvider | WebBrowseProvider,
+      service: "search" | "fetch" | "browse",
     ): CacheUsage | undefined => {
       if (provider.id !== `plugin:${extension}`) {
         reject("provider_id_mismatch");
@@ -83,6 +91,18 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): WebProviderC
       }
       if (!manifest.value.services.includes(service)) {
         reject("service_not_declared");
+        return undefined;
+      }
+      // 질의 인증(`query`)은 지원하지 않는다. 비밀 값이 URL에 들어가 로그와 리퍼러로 샐 수 있어서다(L2.web.spec §3.6.1)
+      if (manifest.value.auth.kind === "query") {
+        reject("auth_kind_unsupported");
+        return undefined;
+      }
+      if (
+        manifest.value.auth.kind === "header" &&
+        manifest.value.auth.secrets.some((secret) => secret.header === undefined)
+      ) {
+        reject("secret_header_missing");
         return undefined;
       }
       bound.bind(manifest.value);
@@ -118,9 +138,16 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): WebProviderC
           candidate: { provider: made.value, origin: "plugin", cachePolicy: policy },
         };
       }
-      case "web.browse":
-        // 브라우저 provider는 web.browse(B10)가 들어올 때 연결한다
-        return reject("browse_not_supported_yet");
+      case "web.browse": {
+        const made = attempt(() => registration.create(context));
+        if (!made.ok) return reject("create_failed", describe(made.error.cause));
+        const policy = check(made.value, "browse");
+        if (policy === undefined) return { kind: "invalid" };
+        return {
+          kind: "browse",
+          candidate: { provider: made.value, origin: "plugin", cachePolicy: policy },
+        };
+      }
       default:
         return assertNever(registration, "WebProviderRegistration");
     }
@@ -155,6 +182,13 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): WebProviderC
       for (const entry of created.values())
         if (entry.kind === "fetch") plugin.push(entry.candidate);
       return [...deps.builtin.fetch, ...plugin];
+    },
+    browseCandidates() {
+      refresh();
+      const plugin: BrowseCandidate[] = [];
+      for (const entry of created.values())
+        if (entry.kind === "browse") plugin.push(entry.candidate);
+      return [...(deps.builtin.browse ?? []), ...plugin];
     },
   };
 }
