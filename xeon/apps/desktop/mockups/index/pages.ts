@@ -16,4 +16,10 @@ export const pages: MockPage[] = [
     folder: "wb-opus",
     states: 11,
   },
+  {
+    id: "P-19~P-22",
+    title: "작업대 2차: 시험 실행, 측정과 평가, 구성, 만들기 (W6–W9)",
+    folder: "wb2-opus",
+    states: 14,
+  },
 ];
