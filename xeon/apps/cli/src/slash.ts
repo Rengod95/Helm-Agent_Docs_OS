@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever, attemptAsync, parse, type Result } from "@xeon/contracts";
 import { ThreadIdSchema, type ThreadId } from "@xeon/contracts/conversation";
 import { SETTING_KEY_PATTERN, type EffectiveSetting } from "@xeon/contracts/settings";
@@ -81,10 +82,10 @@ export function parseSlash(line: string): SlashCommand {
       const key = split < 0 ? rest : rest.slice(0, split);
       const raw = split < 0 ? "" : rest.slice(split).trim();
       if (key.length === 0 || raw.length === 0) {
-        return { kind: "usage", message: "사용법: /set <키> <값>" };
+        return { kind: "usage", message: t("cli.usage.slash.set") };
       }
       if (!KEY_PATTERN.test(key)) {
-        return { kind: "usage", message: `설정 키 형식이 아니다: ${key}` };
+        return { kind: "usage", message: t("cli.usage.slash.setKeyFormat", { key }) };
       }
       return { kind: "set", key, raw };
     }
@@ -94,7 +95,7 @@ export function parseSlash(line: string): SlashCommand {
       const problem = titleProblem(rest);
       return problem === null
         ? { kind: "rename", title: rest }
-        : { kind: "usage", message: `사용법: /rename <제목> (${problem})` };
+        : { kind: "usage", message: t("cli.usage.slash.rename", { problem }) };
     }
     case "compact":
       // 요약 지침은 thread.compact가 1자 이상 2만 자 이하만 받는다. 길이를 넘으면 호스트가 invalidParams로 거부한다
@@ -110,18 +111,18 @@ export function parseSlash(line: string): SlashCommand {
 }
 
 function slashHelp(engine: readonly EngineCommand[] = []): string {
-  const aliases = SLASH_ALIASES.map(
-    (alias) => `  /${alias.name} [<값>]   ${alias.key}를 보거나 이 세션에만 바꾼다`,
+  const aliases = SLASH_ALIASES.map((alias) =>
+    t("cli.slash.help.alias", { name: alias.name, key: alias.key }),
   );
   return [
-    "슬래시 명령",
-    "  /help   이 도움말",
-    "  /quit   끝낸다 (Ctrl+D도 같다)",
-    "  /set <키> <값>   이 세션에만 설정을 바꾼다 (Tab으로 키를 고른다)",
+    t("cli.slash.help.title"),
+    t("cli.slash.help.help"),
+    t("cli.slash.help.quit"),
+    t("cli.slash.help.set"),
     ...aliases,
-    "  /resume [<번호|id>]   세션 목록에서 골라 바꾼다",
-    "  /rename <제목>   이 세션의 제목을 바꾼다",
-    "  /compact [<지침>]   지금 대화를 요약해 줄인다",
+    t("cli.slash.help.resume"),
+    t("cli.slash.help.rename"),
+    t("cli.slash.help.compact"),
     ...engineHelpLines(engine),
     "",
   ].join("\n");
@@ -132,7 +133,7 @@ function engineHelpLines(engine: readonly EngineCommand[]): readonly string[] {
   const shown = engine.filter((command) => !BUILTIN_NAMES.has(command.name));
   if (shown.length === 0) return [];
   return [
-    "엔진 명령",
+    t("cli.slash.help.engine"),
     ...shown.map((command) => {
       const hint = command.argumentHint === null ? "" : ` ${command.argumentHint}`;
       return `  /${command.name}${hint}   ${command.description}`;
@@ -239,7 +240,8 @@ async function showAlias(ctx: SlashContext, alias: SlashAlias): Promise<SlashOut
     const defs = await ctx.connection.request("settings.list", { prefix: alias.key });
     const def = defs.defs.find((candidate) => candidate.key === alias.key);
     const values = def?.range?.enum;
-    if (values !== undefined) await ctx.io.stdout(`선택지: ${values.join(", ")}\n`);
+    if (values !== undefined)
+      await ctx.io.stdout(t("cli.slash.alias.choices", { values: values.join(", ") }));
     return "continue";
   } catch (caught) {
     return failWith(ctx, caught);
@@ -247,7 +249,7 @@ async function showAlias(ctx: SlashContext, alias: SlashAlias): Promise<SlashOut
 }
 
 function summaryLine(index: number, thread: ThreadSummary): string {
-  const title = thread.title ?? "(제목 없음)";
+  const title = thread.title ?? t("cli.sessions.untitled");
   return `  ${String(index + 1)}) ${thread.threadId}  ${thread.updatedAt}  ${title}`;
 }
 
@@ -260,11 +262,13 @@ async function resume(ctx: SlashContext, target: string | null): Promise<SlashOu
     let chosen: string | null = target;
     if (chosen === null) {
       if (listed.threads.length === 0) {
-        await ctx.io.stdout("이어 열 세션이 없다\n");
+        await ctx.io.stdout(`${t("cli.errors.chat.noSession.message")}\n`);
         return "continue";
       }
-      await ctx.io.stdout(`${listed.threads.map((t, i) => summaryLine(i, t)).join("\n")}\n`);
-      chosen = (await ctx.io.readLine("번호나 id (엔터는 취소) > ", ctx.signal))?.trim() ?? "";
+      await ctx.io.stdout(
+        `${listed.threads.map((thread, i) => summaryLine(i, thread)).join("\n")}\n`,
+      );
+      chosen = (await ctx.io.readLine(t("cli.slash.resume.prompt"), ctx.signal))?.trim() ?? "";
       if (chosen.length === 0) return "continue";
     }
     const index = /^\d+$/.test(chosen) ? Number(chosen) - 1 : -1;
@@ -273,8 +277,8 @@ async function resume(ctx: SlashContext, target: string | null): Promise<SlashOu
     if (id === undefined) {
       await ctx.io.stderr(
         renderFailure({
-          message: `세션을 고를 수 없다: ${chosen}`,
-          fix: "/resume으로 목록의 번호나 세션 id를 입력한다",
+          message: t("cli.errors.slash.resumeChoice.message", { choice: chosen }),
+          fix: t("cli.errors.slash.resumeChoice.fix"),
         }),
       );
       return "continue";
@@ -289,25 +293,33 @@ async function resume(ctx: SlashContext, target: string | null): Promise<SlashOu
 
 function unknownSlash(ctx: SlashContext, name: string): Promise<SlashOutcome> {
   return ctx.io
-    .stderr(`모르는 슬래시 명령: /${name}\n${slashHelp(ctx.engineCommands())}`)
+    .stderr(`${t("cli.slash.unknown", { name })}\n${slashHelp(ctx.engineCommands())}`)
     .then(() => "continue");
 }
 
 async function renameSession(ctx: SlashContext, title: string): Promise<SlashOutcome> {
   try {
     await ctx.connection.request("thread.rename", { threadId: ctx.threadId(), title });
-    await ctx.io.stdout(`제목을 바꿨다: ${title}\n`);
+    await ctx.io.stdout(t("cli.slash.renamed", { title }));
     return "continue";
   } catch (caught) {
     return failWith(ctx, caught);
   }
 }
 
-const SKIP_TEXT: Readonly<Record<ThreadCompactSkipReason, string>> = {
-  nothing_to_summarize: "요약할 내용이 아직 없다",
-  last_entry_is_compaction: "방금 요약했다. 새 대화가 쌓인 뒤에 다시 요약한다",
-  disabled: "이 엔진은 컴팩션을 쓸 수 없게 조립되어 있다",
-};
+/** `/compact`가 요약하지 않은 이유를 사람이 읽는 한 줄로. 로케일은 부를 때 정한다 */
+function skipTextOf(why: ThreadCompactSkipReason): string {
+  switch (why) {
+    case "nothing_to_summarize":
+      return t("cli.slash.compact.skipNothing");
+    case "last_entry_is_compaction":
+      return t("cli.slash.compact.skipLastCompaction");
+    case "disabled":
+      return t("cli.slash.compact.skipDisabled");
+    default:
+      return assertNever(why, "ThreadCompactSkipReason");
+  }
+}
 
 /** `/compact`: 지금 대화를 요약한다. 쓰기 소유는 호스트가 얻고, 진행 중인 turn이 있으면 호스트가 거부한다 */
 async function compactSession(
@@ -317,8 +329,8 @@ async function compactSession(
   if (!ctx.supports("thread.compact")) {
     await ctx.io.stderr(
       renderFailure({
-        message: "이 엔진은 수동 컴팩션을 처리하지 않는다",
-        fix: "같은 빌드의 엔진과 CLI를 쓴다 (xeon version으로 확인한다)",
+        message: t("cli.errors.slash.compactUnsupported.message"),
+        fix: t("cli.errors.wire.jsonrpcMethodNotFound.fix"),
       }),
     );
     return "continue";
@@ -331,13 +343,16 @@ async function compactSession(
     switch (result.status) {
       case "compacted":
         await ctx.io.stdout(
-          `대화를 요약했다 (요약 전 약 ${String(result.tokensBefore)} 토큰${
-            result.fromExtension === null ? "" : `, 요약 확장 ${result.fromExtension}`
-          })\n`,
+          result.fromExtension === null
+            ? t("cli.slash.compact.done", { tokens: result.tokensBefore })
+            : t("cli.slash.compact.doneExtension", {
+                tokens: result.tokensBefore,
+                extension: result.fromExtension,
+              }),
         );
         return "continue";
       case "skipped":
-        await ctx.io.stdout(`${SKIP_TEXT[result.why]}\n`);
+        await ctx.io.stdout(`${skipTextOf(result.why)}\n`);
         return "continue";
       default:
         return assertNever(result, "ThreadCompactResult");
@@ -359,8 +374,8 @@ async function confirmShell(
   shell: readonly { readonly index: number; readonly command: string }[],
 ): Promise<boolean> {
   const lines = shell.map((entry) => `  ${entry.command}`);
-  await ctx.io.stdout(`/${name}이(가) 셸 명령을 실행한다:\n${lines.join("\n")}\n`);
-  const answer = await ctx.io.readLine("실행할까요? [y/N] ", ctx.signal);
+  await ctx.io.stdout(t("cli.slash.confirmShell.intro", { name, commands: lines.join("\n") }));
+  const answer = await ctx.io.readLine(t("cli.slash.confirmShell.prompt"), ctx.signal);
   const text = answer?.trim().toLowerCase() ?? "";
   return text === "y" || text === "yes";
 }
@@ -393,7 +408,7 @@ async function runEngineCommand(
       return "continue";
     case "needs_confirmation": {
       if (!(await confirmShell(ctx, result.name, result.shell))) {
-        await ctx.io.stderr("실행하지 않았다\n");
+        await ctx.io.stderr(t("cli.slash.notRun"));
         return "continue";
       }
       // 확인을 받았으니 같은 줄을 confirmShell과 함께 한 번 더 보낸다

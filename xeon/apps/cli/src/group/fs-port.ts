@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { t } from "@xeon/client/i18n";
 import { attemptAsync, err, ok, parseJson, type Result } from "@xeon/contracts";
 import type { GroupIoError, GroupTargetState, GroupTemplatesPort } from "../io.ts";
 
@@ -61,12 +62,20 @@ async function manifestNameOf(manifestPath: string): Promise<Result<string | nul
   if (!text.ok) return text.error.missing ? ok(null) : text;
   const json = parseJson(text.value);
   if (!json.ok)
-    return err({ path: manifestPath, message: "매니페스트가 JSON이 아니다", missing: false });
+    return err({
+      path: manifestPath,
+      message: t("cli.errors.group.manifestNotJson.message"),
+      missing: false,
+    });
   const value = json.value;
   const name =
     typeof value === "object" && value !== null && "name" in value ? value.name : undefined;
   if (typeof name !== "string") {
-    return err({ path: manifestPath, message: "매니페스트에 name이 없다", missing: false });
+    return err({
+      path: manifestPath,
+      message: t("cli.errors.group.manifestNoName.message"),
+      missing: false,
+    });
   }
   return ok(name);
 }
@@ -97,7 +106,7 @@ export function createGroupTemplatesFs(options: GroupFsOptions): GroupTemplatesP
       if (templatesDir === null) {
         return err({
           path: "templates",
-          message: "그룹 템플릿 디렉터리를 찾지 못했다",
+          message: t("cli.errors.group.templatesMissing.message"),
           missing: true,
         });
       }
@@ -107,7 +116,11 @@ export function createGroupTemplatesFs(options: GroupFsOptions): GroupTemplatesP
 
     async readTemplateFile(rel) {
       if (templatesDir === null) {
-        return err({ path: rel, message: "그룹 템플릿 디렉터리를 찾지 못했다", missing: true });
+        return err({
+          path: rel,
+          message: t("cli.errors.group.templatesMissing.message"),
+          missing: true,
+        });
       }
       const path = join(templatesDir, rel);
       return io(path, () => readFile(path));

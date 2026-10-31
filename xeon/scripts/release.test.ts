@@ -9,6 +9,9 @@ import {
   lockBody,
   noticesBody,
   parseBundleConfig,
+  devSidecarDir,
+  releaseSidecarDir,
+  sidecarCommand,
   sumsBody,
   type ReleaseError,
 } from "./release.ts";
@@ -359,4 +362,31 @@ test("the sops, age and rg versions in release-bundle.json match the mise pins o
     macos: ["3.13.3", "1.3.2", "15.0.0"],
     release: ["3.13.3", "1.3.2", "15.0.0"],
   });
+});
+
+test("sidecarCommand hands the release version to build-sidecar, so the binary carries it", () => {
+  expect(sidecarCommand(LINUX, "1.2.3", "/o/.sidecar-build")).toEqual([
+    process.execPath,
+    join("scripts", "build-sidecar.ts"),
+    LINUX,
+    "--version",
+    "1.2.3",
+    "--out-dir",
+    "/o/.sidecar-build",
+  ]);
+});
+
+test("a release build writes its sidecar under the output directory, never the development sidecar path", () => {
+  const out = "/o/release";
+  expect(releaseSidecarDir(out)).toBe("/o/release/.sidecar-build");
+  expect(releaseSidecarDir(out)).not.toBe(devSidecarDir("/x"));
+  expect(devSidecarDir("/x")).toBe(join("/x", "apps", "desktop", "src-tauri", "binaries"));
+});
+
+test("release-smoke.sh passes its version to release.ts, and xeon-release.yml sets XEON_RELEASE_VERSION from a tag", () => {
+  const smoke = readFileSync(join(import.meta.dir, "release-smoke.sh"), "utf8");
+  expect(smoke).toContain('scripts/release.ts host --version "$version"');
+  const workflow = readFileSync(join(REPO, ".github", "workflows", "xeon-release.yml"), "utf8");
+  expect(workflow).toContain("XEON_RELEASE_VERSION:");
+  expect(workflow).toContain("refs/tags/v");
 });

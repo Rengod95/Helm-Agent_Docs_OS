@@ -38,6 +38,7 @@ import {
   isVolatileNotification,
   type VolatileEmitter,
 } from "../volatile.ts";
+import { createRepeatDetector, type RepeatDetector } from "../repeat.ts";
 import type { LoopFailure, TurnRunSpec } from "./types.ts";
 
 // 한 turn 실행이 단계 함수들 사이에서 나눠 쓰는 상태와 도우미. 단계 함수는 이 값을 받아 순서대로 부른다(adr.0009 §3.3).
@@ -60,6 +61,8 @@ interface RunState {
   gateContinues: number;
   /** 이 turn의 `l1.loop.gate.maxContinues`. turn 시작 때 한 번 읽는다 */
   gateMaxContinues: number;
+  /** 반복 감지(L1.loop.spec §4.10). turn 시작 때 설정을 한 번 읽어 만든다 */
+  repeat: RepeatDetector;
   endReason: EndReason | null;
   /** 재개로 같은 단계의 요청을 다시 보낸다: 그 단계의 `step.started`는 이미 기록됨 */
   adoptFirstStep: boolean;
@@ -159,6 +162,7 @@ export function createTurnRun(ctx: LoopContext, spec: TurnRunSpec): TurnRun {
     scopeRef: spec.scopeRef,
     gateContinues: 0,
     gateMaxContinues: ctx.settings.gateMaxContinues(threadId),
+    repeat: createRepeatDetector(ctx.settings.repeat(threadId)),
     endReason: null,
     adoptFirstStep: spec.entry.kind === "request" && spec.entry.adoptStepId !== null,
     newMessages: [],

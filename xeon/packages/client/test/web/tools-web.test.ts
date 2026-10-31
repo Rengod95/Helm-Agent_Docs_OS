@@ -4,6 +4,7 @@ import type {
   WebProviderStatus,
   WebProvidersResult,
 } from "@xeon/contracts/wire";
+import { activeLocale, setActiveLocale } from "../../src/i18n/index.ts";
 import {
   moveInOrder,
   orderUpdateOf,
@@ -549,5 +550,39 @@ describe("moveInOrder", () => {
     const moved = moveInOrder(ids, 2, 0);
     expect(moved).toEqual(["a", "b"]);
     expect(moved).not.toBe(ids);
+  });
+});
+
+describe("notes and hints follow the locale", () => {
+  test("en: reason notes, the ready note, the key notes and the install hint are English", () => {
+    const before = activeLocale();
+    setActiveLocale("en");
+    try {
+      const result: WebProvidersResult = {
+        providers: [
+          provider("plugin:web-exa", "web.search", { status: NO_KEY, autoRank: 0 }),
+          provider("builtin-wrapper", "web.search", { status: OK, autoRank: 1 }),
+          provider("plugin:r1", "web.search", {
+            status: { kind: "unavailable", reason: "unreachable" },
+            autoRank: 2,
+          }),
+          provider("plugin:other", "web.search", { status: NO_KEY, autoRank: 3 }),
+        ],
+        settings: DEFAULT_SETTINGS,
+      };
+      const view = toolsWebViewOf(result);
+      expect(view.search.rows.map((row) => row.note)).toEqual([
+        "No key. Fix: run xeon secret add exa-api-key",
+        "Ready to use",
+        "No response",
+        "No key. Fix: add a key in the key plugin settings",
+      ]);
+      expect(view.recommendations.map((recommendation) => recommendation.hint)).toEqual([
+        "xeon secret add exa-api-key",
+        "Install the plugin",
+      ]);
+    } finally {
+      setActiveLocale(before);
+    }
   });
 });

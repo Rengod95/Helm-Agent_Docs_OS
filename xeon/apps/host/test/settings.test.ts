@@ -6,6 +6,17 @@ import { hostSettings, renderSettingsSchema, type SettingsFileScope } from "../s
 
 const SCOPES: readonly SettingsFileScope[] = ["managed", "user", "project", "local"];
 const SCHEMA_DIR = join(import.meta.dir, "..", "schema");
+const LOCALES_DIR = join(
+  import.meta.dir,
+  "..",
+  "..",
+  "..",
+  "packages",
+  "client",
+  "src",
+  "i18n",
+  "locales",
+);
 
 function keysOf(document: unknown): string[] {
   if (typeof document !== "object" || document === null || !("properties" in document)) return [];
@@ -59,6 +70,10 @@ test("each scope's schema lists only the keys that scope allows, and the host ke
     const keys = keysOf(JSON.parse(renderSettingsSchema(catalog, scope)));
     expect(keys).toContain("l1.tools.unattended.approval");
     expect(keys).toContain("l1.tools.unattended.timeoutSeconds");
+    // 반복 감지 키(M3-REQ-87)도 네 범위 모두에 있다
+    expect(keys).toContain("l1.loop.repeat.enabled");
+    expect(keys).toContain("l1.loop.repeat.actionObservation");
+    expect(keys).toContain("l1.loop.repeat.actionError");
   }
 });
 
@@ -74,4 +89,50 @@ test("hostSettings declares the two l4.host-service keys with the documented def
   expect(maxSubscriptionsPerConnection.default).toBe(16);
   expect(maxSubscriptionsPerConnection.range).toEqual({ min: 1, max: 256 });
   expect(maxSubscriptionsPerConnection.ui?.tab).toBe("execution");
+});
+
+/** 클라이언트 카탈로그 원문. 호스트 테스트는 `@xeon/client`를 import하지 않으므로(DR-10) JSON 파일을 직접 읽는다 */
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function catalogOf(locale: "en" | "ko"): Readonly<Record<string, unknown>> {
+  const parsed: unknown = JSON.parse(readFileSync(join(LOCALES_DIR, `${locale}.json`), "utf8"));
+  return isRecord(parsed) ? parsed : {};
+}
+
+test("hostSettings labels and help are catalog keys, with English text as the fallback", () => {
+  const { maxReplayEvents, maxSubscriptionsPerConnection } = hostSettings.defs;
+  expect(maxReplayEvents.ui?.labelKey).toBe("settings.l4.hostService.maxReplayEvents.label");
+  expect(maxReplayEvents.ui?.helpKey).toBe("settings.l4.hostService.maxReplayEvents.help");
+  expect(maxSubscriptionsPerConnection.ui?.labelKey).toBe(
+    "settings.l4.hostService.maxSubscriptionsPerConnection.label",
+  );
+  // 키가 없을 때 클라이언트가 보이는 대체 문구는 영어다(한글을 싣지 않는다)
+  expect(maxReplayEvents.ui?.label).toBe("Maximum events replayed per subscription");
+  expect(maxReplayEvents.ui?.help).toBe(
+    "Events one subscription can replay. Beyond this, subscribe again from a newer position",
+  );
+  expect(maxSubscriptionsPerConnection.ui?.label).toBe("Subscriptions per connection");
+  for (const text of [maxReplayEvents.ui?.label, maxReplayEvents.ui?.help]) {
+    expect(text).not.toMatch(/[ㄱ-ㆎ가-힣]/);
+  }
+});
+
+test("the host label and help keys exist in both catalogs, and the English fallback equals the en text", () => {
+  const en = catalogOf("en");
+  const ko = catalogOf("ko");
+  const { maxReplayEvents, maxSubscriptionsPerConnection } = hostSettings.defs;
+  const replay = maxReplayEvents.ui;
+  const perConnection = maxSubscriptionsPerConnection.ui;
+  expect(en[replay?.labelKey ?? ""]).toBe(replay?.label);
+  expect(en[replay?.helpKey ?? ""]).toBe(replay?.help);
+  expect(en[perConnection?.labelKey ?? ""]).toBe(perConnection?.label);
+  expect(ko["settings.l4.hostService.maxReplayEvents.label"]).toBe("구독 재전송 최대 이벤트 수");
+  expect(ko["settings.l4.hostService.maxReplayEvents.help"]).toBe(
+    "구독 한 번에 다시 보낼 수 있는 이벤트 수. 넘으면 새 위치에서 다시 구독해야 한다",
+  );
+  expect(ko["settings.l4.hostService.maxSubscriptionsPerConnection.label"]).toBe(
+    "연결당 구독 한도",
+  );
 });

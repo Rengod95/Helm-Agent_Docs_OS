@@ -205,3 +205,22 @@ test("a binary without its stamp is rebuilt", async () => {
   expect(builds(repo)).toBe(2);
   expect(stamp(repo)).toBe(stampBefore);
 });
+
+const reporting = (version: string): string =>
+  `#!/usr/bin/env bash\necho '{"cli":"${version}","contract":"0.1.0","bun":"1.0.0"}'\n`;
+
+test("a binary that reports a release version is stale and is rebuilt, one that reports 0.0.0 is current", async () => {
+  const repo = await makeRepo();
+  await ensure(repo);
+  const binary = join(repo.root, BINARY);
+  writeFileSync(binary, reporting("0.0.0"));
+  chmodSync(binary, 0o755);
+  expect((await ensure(repo)).stdout).toContain("binary is current");
+  expect(builds(repo)).toBe(1);
+
+  writeFileSync(binary, reporting("0.0.0-smoke"));
+  const run = await ensure(repo);
+  expect(run.exitCode).toBe(0);
+  expect(run.stdout).toContain("sources changed or no binary, building");
+  expect(builds(repo)).toBe(2);
+});

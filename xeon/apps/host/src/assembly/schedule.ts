@@ -225,12 +225,49 @@ async function releaseLease(
   }
 }
 
-/** 실행 thread의 `turn.completed`를 한 번 기다린다. 받으면 구독을 거두고 결과를 낸다. `cancel`은 구독을 거둔다 */
+/** 저장된 `turn.completed`를 찾을 때 한 번에 훑는 행 수 상한과 쪽 크기 */
+const STORED_SCAN_LIMIT = 100_000;
+const STORED_PAGE = 50;
+
+/**
+ * 실행 thread에 이미 기록된 `turn.completed`의 결과. 실행 thread는 실행마다 하나라 turn도 하나다.
+ * 재시작 전에 입력이 놓이고 turn이 끝났다면 구독은 그 커밋을 다시 보지 못한다(HS-107). 읽지 못하면 null이고 구독이 맡는다.
+ */
+function storedOutcome(feed: EventFeedPort, threadId: ThreadId, logger: Logger): RunOutcome | null {
+  const head = feed.headSeq();
+  if (!head.ok) {
+    logger.warn("schedule.stored_outcome_unreadable", { threadId, kind: head.error.kind });
+    return null;
+  }
+  const filter = { threadIds: [threadId], kindPrefixes: ["turn.completed"] };
+  let after = 0;
+  while (after < head.value) {
+    const page = feed.read(after, head.value, filter, STORED_PAGE, STORED_SCAN_LIMIT);
+    if (!page.ok) {
+      logger.warn("schedule.stored_outcome_unreadable", { threadId, kind: page.error.kind });
+      return null;
+    }
+    const completed = page.value.events.find((event) => event.kind === "turn.completed");
+    if (completed !== undefined) return outcomeOf(completed.payload, logger);
+    if (page.value.scannedTo <= after) return null;
+    after = page.value.scannedTo;
+  }
+  return null;
+}
+
+/**
+ * 실행 thread의 `turn.completed`를 한 번 기다린다. 받으면 구독을 거두고 결과를 낸다. `cancel`은 구독을 거둔다.
+ * `settleFromStore`는 이미 기록된 `turn.completed`로 바로 정착시킨다(재시작 뒤 입력이 이미 놓인 실행).
+ */
 function awaitCompletion(
   feed: EventFeedPort,
   threadId: ThreadId,
   logger: Logger,
-): { readonly settled: Promise<RunOutcome>; readonly cancel: () => void } {
+): {
+  readonly settled: Promise<RunOutcome>;
+  readonly cancel: () => void;
+  readonly settleFromStore: () => void;
+} {
   const slot: { off: Unsubscribe | undefined } = { off: undefined };
   const finished = Promise.withResolvers<RunOutcome>();
   const cancel = (): void => {
@@ -244,7 +281,13 @@ function awaitCompletion(
     cancel();
     finished.resolve(outcomeOf(completed.payload, logger));
   });
-  return { settled: finished.promise, cancel };
+  const settleFromStore = (): void => {
+    const stored = storedOutcome(feed, threadId, logger);
+    if (stored === null) return;
+    cancel();
+    finished.resolve(stored);
+  };
+  return { settled: finished.promise, cancel, settleFromStore };
 }
 
 /**
@@ -296,6 +339,9 @@ function runnerOf(deps: HostScheduleDeps): ScheduleRunner {
         await releaseLease(ports, threadId, deps.logger);
         return err(startFailed(`input rejected: ${queued.value.error.kind}`));
       }
+
+      // 재시작 전에 turn이 이미 끝났다면 새 커밋이 없어 구독이 영영 받지 못한다. 저장된 결과로 정착시킨다
+      completion.settleFromStore();
 
       const settled = completion.settled.then(async (outcome) => {
         await releaseLease(ports, threadId, deps.logger);

@@ -1,15 +1,22 @@
+import { t, type MessageId } from "@xeon/client/i18n";
 import type { TrustChoice, TrustOption, TrustStatus } from "@xeon/contracts/wire";
 
 // 프로젝트 신뢰 카드의 순수 로직(L4.desktop.spec §4.13). 판정(`trust.get`/`trust.decide`의 TrustStatus)을 카드가 그리는 값으로 바꾼다.
-// 선택지의 `label`은 현지화 식별자다(F.wire-settings.spec). 이 표가 한국어 문구를 정하고, 모르는 식별자는 식별자 그대로 보인다.
+// 선택지의 `label`은 현지화 식별자다(F.wire-settings.spec). 이 표가 식별자를 카탈로그 id로 옮기고, 모르는 식별자는 식별자 그대로 보인다.
 
-const LABEL_TEXT: Readonly<Record<string, string>> = {
-  "trust-folder": "이 폴더 신뢰",
-  "trust-parent": "상위 폴더 전체 신뢰",
-  "trust-session": "이번 실행 동안만 신뢰",
-  "deny-folder": "이 폴더 신뢰하지 않음",
-  "deny-session": "이번 실행 동안만 거부",
-};
+// 문구는 id로 들고 있다가 쓸 때 현재 로케일로 만든다
+const LABEL_ID: ReadonlyMap<string, MessageId> = new Map<string, MessageId>([
+  ["trust-folder", "desktop.trust.option.trustFolder"],
+  ["trust-parent", "desktop.trust.option.trustParent"],
+  ["trust-session", "desktop.trust.option.trustSession"],
+  ["deny-folder", "desktop.trust.option.denyFolder"],
+  ["deny-session", "desktop.trust.option.denySession"],
+]);
+
+function labelTextOf(label: string): string {
+  const id = LABEL_ID.get(label);
+  return id === undefined ? label : t(id);
+}
 
 type TrustButton = {
   readonly choice: TrustChoice;
@@ -30,7 +37,7 @@ export type TrustCardView = {
 function buttonOf(option: TrustOption): TrustButton {
   return {
     choice: option.choice,
-    text: LABEL_TEXT[option.label] ?? option.label,
+    text: labelTextOf(option.label),
     savedPath: option.savedPath,
     primary: option.choice.verdict === "allow",
   };

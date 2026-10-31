@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import {
   assertNever,
   attempt,
@@ -427,7 +428,7 @@ async function lastThreadOf(
   if (listed.ok) {
     const first = listed.value.threads[0];
     if (first === undefined) {
-      return err(fail("이어 열 세션이 없다", "xeon chat으로 새 세션을 시작한다"));
+      return err(fail(t("cli.errors.chat.noSession.message"), t("cli.errors.chat.noSession.fix")));
     }
     return ok(first.threadId);
   }
@@ -438,9 +439,9 @@ async function lastThreadOf(
     return err(
       fail(
         loaded.kind === "discarded"
-          ? `CLI 상태 파일을 읽지 못해 버렸다 (${loaded.reason}). 이어 열 세션이 없다`
-          : "이어 열 세션이 없다",
-        "xeon chat으로 새 세션을 시작한다",
+          ? t("cli.errors.chat.noSessionDiscarded.message", { reason: loaded.reason })
+          : t("cli.errors.chat.noSession.message"),
+        t("cli.errors.chat.noSession.fix"),
       ),
     );
   }
@@ -550,8 +551,8 @@ export async function openChatSession(
             kind: "notice",
             text:
               reason === "storeMismatch"
-                ? "저장소가 바뀌어 이전 기록을 이어 받지 못했다"
-                : "저장된 위치부터 이어 받을 수 없어 지금부터 보인다",
+                ? t("cli.chat.notice.storeChanged")
+                : t("cli.chat.notice.replayUnavailable"),
           },
         ]);
         const result = await connection.request("events.subscribe", {
@@ -676,7 +677,7 @@ export async function openChatSession(
         return;
       }
       if (isMethodNotFound(listed.error.cause)) return;
-      await emit([{ kind: "notice", text: "대기 중인 승인을 읽지 못했다" }]);
+      await emit([{ kind: "notice", text: t("cli.chat.notice.approvalsUnreadable") }]);
     };
     detach(
       replayDone.promise.then(restore).finally(() => {

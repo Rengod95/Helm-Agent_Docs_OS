@@ -4,6 +4,7 @@ import type { ItemId, ItemRecord, PartDelta, ThreadId, TurnId } from "@xeon/cont
 import type { ThreadSummary } from "@xeon/contracts/wire";
 import type { Reduced as SharedReduced } from "../shared/pipeline.ts";
 import type { DurableFact, MirrorInput, VolatileFact } from "./input.ts";
+import { unknownFailureText } from "./failure-text.ts";
 import {
   EMPTY_STREAMING,
   INITIAL_MIRROR,
@@ -425,7 +426,7 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
     case "turn.completed": {
       const done = patchThread(state, fact.threadId, (t) => ({ ...t, status: "idle" }));
       const failure =
-        fact.payload.status === "failed" ? (fact.payload.error ?? "원인을 알 수 없습니다.") : null;
+        fact.payload.status === "failed" ? (fact.payload.error ?? unknownFailureText()) : null;
       return withTurnFailure(
         { ...done, streaming: dropStreamingTurn(done.streaming, fact.threadId, fact.turnId) },
         fact.threadId,

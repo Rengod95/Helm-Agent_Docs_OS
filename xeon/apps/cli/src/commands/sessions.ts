@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever, attemptAsync, err, ok, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type {
@@ -24,16 +25,22 @@ const PAGE_SIZE = 200;
 
 function flagsOf(thread: ThreadSummary): string {
   const flags: string[] = [];
-  if (thread.resumable !== null) flags.push("이어서 실행 가능");
-  if (thread.pendingApprovals > 0) flags.push(`승인 대기 ${String(thread.pendingApprovals)}`);
-  if (thread.queuedInputs > 0) flags.push(`대기 입력 ${String(thread.queuedInputs)}`);
-  if (thread.forkedFrom !== null) flags.push(`분기: ${thread.forkedFrom.threadId}`);
+  if (thread.resumable !== null) flags.push(t("cli.sessions.flag.resumable"));
+  if (thread.pendingApprovals > 0) {
+    flags.push(t("cli.sessions.flag.pendingApprovals", { count: thread.pendingApprovals }));
+  }
+  if (thread.queuedInputs > 0) {
+    flags.push(t("cli.sessions.flag.queuedInputs", { count: thread.queuedInputs }));
+  }
+  if (thread.forkedFrom !== null) {
+    flags.push(t("cli.sessions.flag.forkedFrom", { threadId: thread.forkedFrom.threadId }));
+  }
   return flags.length === 0 ? "" : `  [${flags.join(", ")}]`;
 }
 
 /** 목록 한 줄: id, 마지막 이벤트 시각, 상태, 제목 */
 function formatThreadLine(thread: ThreadSummary): string {
-  const title = thread.title ?? "(제목 없음)";
+  const title = thread.title ?? t("cli.sessions.untitled");
   return `${thread.threadId}  ${thread.updatedAt}  ${thread.status}  ${title}${flagsOf(thread)}`;
 }
 
@@ -73,9 +80,7 @@ async function runLs(
     if (command.output === "json") {
       await ctx.io.stdout(`${JSON.stringify(threads, null, 2)}\n`);
     } else if (threads.length === 0) {
-      await ctx.io.stderr(
-        command.all ? "세션이 없다\n" : "이 작업 폴더의 세션이 없다 (--all로 전체를 본다)\n",
-      );
+      await ctx.io.stderr(command.all ? t("cli.sessions.none") : t("cli.sessions.noneInWorkspace"));
     } else {
       await ctx.io.stdout(`${threads.map(formatThreadLine).join("\n")}\n`);
     }
@@ -118,7 +123,10 @@ async function readThread(
   const apply = (batch: EventsBatchParams): void => {
     const applied = applyBatch(state.transcript, batch, state.storeId, { width });
     if (!applied.ok) {
-      state.gap = `이벤트 구간이 이어지지 않는다 (${String(applied.error.expectedFrom)} 다음에 ${String(applied.error.got)})`;
+      state.gap = t("cli.sessions.gap", {
+        expected: applied.error.expectedFrom,
+        got: applied.error.got,
+      });
       done.resolve();
       return;
     }
@@ -160,12 +168,16 @@ async function readThread(
     if (sub !== null) await attemptAsync(() => connection.request("events.unsubscribe", { sub }));
   }
   if (state.gap !== null) {
-    return err({ message: state.gap, fix: "다시 실행한다. 계속되면 보고한다", code: EXIT.error });
+    return err({
+      message: state.gap,
+      fix: t("cli.errors.sessions.gap.fix"),
+      code: EXIT.error,
+    });
   }
   if (events.length === 0) {
     return err({
-      message: `세션 ${threadId}이(가) 없다`,
-      fix: "xeon sessions ls로 id를 확인한다",
+      message: t("cli.errors.wire.threadNotFound.message", { threadId }),
+      fix: t("cli.errors.wire.threadNotFound.fix"),
       code: EXIT.error,
     });
   }
@@ -225,20 +237,20 @@ async function runRm(
     if (!ctx.io.terminal.stdinIsTty) {
       await ctx.io.stderr(
         renderFailure({
-          message: "터미널이 아니라서 삭제를 확인할 수 없다",
+          message: t("cli.secret.rm.noTerminal.message"),
           fix: "xeon sessions rm <id> --yes",
         }),
       );
       return EXIT.usage;
     }
-    if (!(await confirmed(ctx, `세션 ${command.threadId}을(를) 지울까요?`))) {
-      await ctx.io.stderr("지우지 않았다\n");
+    if (!(await confirmed(ctx, t("cli.sessions.rm.confirm", { threadId: command.threadId })))) {
+      await ctx.io.stderr(t("cli.secret.rm.kept"));
       return EXIT.error;
     }
   }
   return withEngine(ctx, async (handle) => {
     await handle.connection.request("thread.delete", { threadId: command.threadId });
-    await ctx.io.stdout(`지웠다: ${command.threadId}\n`);
+    await ctx.io.stdout(t("cli.sessions.rm.done", { threadId: command.threadId }));
     return EXIT.ok;
   });
 }
@@ -252,7 +264,9 @@ async function runRename(
       threadId: command.threadId,
       title: command.title,
     });
-    await ctx.io.stdout(`이름을 바꿨다: ${command.threadId}  ${command.title}\n`);
+    await ctx.io.stdout(
+      t("cli.sessions.rename.done", { threadId: command.threadId, title: command.title }),
+    );
     return EXIT.ok;
   });
 }

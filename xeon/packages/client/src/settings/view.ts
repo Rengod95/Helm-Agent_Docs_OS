@@ -10,6 +10,7 @@ import {
   type SettingUi,
   type SettingsTab,
 } from "@xeon/contracts/settings";
+import { t, tKey } from "../i18n/index.ts";
 import {
   deprecatedInfo,
   defaultWriteScope,
@@ -52,7 +53,6 @@ export interface SettingsViewInput {
 
 const READONLY: WidgetVM = { kind: "readonly" };
 const DEFAULT_SOURCE: SettingSource = { scope: "default" };
-const GAUGE_TEXT = "사용량 정보는 아직 볼 수 없어요";
 
 /** 정의 하나가 화면에서 뜻하는 사실. 항목과 파일 편집기 항목이 함께 쓴다 */
 interface Facts {
@@ -145,6 +145,17 @@ function factsOf(
   };
 }
 
+/** 정의의 문구. 메시지 키가 있으면 현재 로케일의 카탈로그 문장을 쓰고, 없으면 정의에 적힌 문구를 그대로 쓴다 */
+function textOf(text: string, key: string | undefined): string {
+  return key === undefined ? text : tKey(key, text);
+}
+
+/** 설명. 설명 문구와 키가 모두 없으면 null이다 */
+function helpOf(ui: SettingUi): string | null {
+  if (ui.help === undefined && ui.helpKey === undefined) return null;
+  return textOf(ui.help ?? "", ui.helpKey);
+}
+
 function fieldOf(
   def: SettingDefWire,
   ui: SettingUi,
@@ -159,8 +170,8 @@ function fieldOf(
     key: def.key,
     tab,
     order: ui.order,
-    label: ui.label,
-    help: ui.help ?? null,
+    label: textOf(ui.label, ui.labelKey),
+    help: helpOf(ui),
     widget,
     value: facts.value,
     scope: facts.scope,
@@ -205,7 +216,7 @@ function isGaugeTab(tab: SettingsTab): tab is "budgets" | "providers" {
 
 function gaugeOf(spec: TabSpec): GaugeSlotVM | null {
   if (!spec.gauge || !isGaugeTab(spec.id)) return null;
-  return { tab: spec.id, status: "unavailable", text: GAUGE_TEXT };
+  return { tab: spec.id, status: "unavailable", text: t("client.settings.view.gaugeUnavailable") };
 }
 
 function overviewOf(placed: readonly Placed[]): OverviewVM {
@@ -315,7 +326,10 @@ export function buildSettingsView(input: SettingsViewInput): SettingsView {
     restartBanner:
       restartCount === 0
         ? null
-        : { count: restartCount, text: `재시작해야 적용되는 변경이 ${restartCount}개 있어요` },
+        : {
+            count: restartCount,
+            text: t("client.settings.view.restartBanner", { count: restartCount }),
+          },
   };
 }
 

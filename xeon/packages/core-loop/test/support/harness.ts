@@ -14,6 +14,8 @@ import {
 } from "@xeon/ext-host/testing";
 import { Type } from "typebox";
 import { createLoopService, type LoopServiceHandle } from "../../src/index.ts";
+import type { RepeatSettings } from "../../src/repeat.ts";
+import { DEFAULT_LOOP_SETTINGS } from "../../src/settings.ts";
 import type { LoopDeps } from "../../src/types.ts";
 import { createFakeContext, type FakeContext } from "./fake-context.ts";
 import { createFakeModels, type FakeModels, type ScriptedResponse } from "./fake-models.ts";
@@ -56,6 +58,8 @@ export interface HarnessOptions {
   readonly maxSteps?: number;
   /** l1.loop.gate.maxContinues. 생략하면 기본 8 */
   readonly gateMaxContinues?: number;
+  /** l1.loop.repeat.*. 생략하면 기본값(켜짐, 4, 3) */
+  readonly repeat?: Partial<RepeatSettings>;
   readonly kindLookup?: (kind: string) => CatalogEntry | undefined;
   readonly modelCallsCapacity?: number;
   readonly maxResumeAttempts?: number;
@@ -193,6 +197,7 @@ async function build(
           settings: {
             maxSteps: () => options.maxSteps ?? 0,
             gateMaxContinues: () => options.gateMaxContinues ?? 8,
+            repeat: () => ({ ...DEFAULT_LOOP_SETTINGS.repeat(threadId), ...options.repeat }),
           },
           basePrompt: "You are a test assistant.",
           hostMode: "in-process",

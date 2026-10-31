@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
 import { SecretScopeSchema, type SecretName, type SecretScope } from "@xeon/contracts/capabilities";
 import type { SecretEntryAction, SecretValueSource } from "@xeon/contracts/services";
@@ -24,23 +25,27 @@ type InputFailure = "cancelled" | "empty" | "mismatch" | "tooLarge";
 function inputMessage(kind: InputFailure): Failure {
   switch (kind) {
     case "cancelled":
-      return { message: "입력을 취소했다", fix: "다시 실행한다", code: EXIT.error };
+      return {
+        message: t("cli.secret.input.cancelled.message"),
+        fix: t("cli.secret.input.cancelled.fix"),
+        code: EXIT.error,
+      };
     case "empty":
       return {
-        message: "값이 비어 있다",
-        fix: "값을 입력하거나 stdin으로 넘긴다 (echo -n … | xeon secret add <이름>)",
+        message: t("cli.secret.input.empty.message"),
+        fix: t("cli.secret.input.empty.fix"),
         code: EXIT.usage,
       };
     case "mismatch":
       return {
-        message: "두 번 입력한 값이 다르다",
-        fix: "처음부터 다시 입력한다",
+        message: t("cli.secret.input.mismatch.message"),
+        fix: t("cli.secret.input.mismatch.fix"),
         code: EXIT.error,
       };
     case "tooLarge":
       return {
-        message: "값이 너무 크다 (64 KiB 초과)",
-        fix: "비밀 값은 짧은 키나 토큰이어야 한다",
+        message: t("cli.secret.input.tooLarge.message"),
+        fix: t("cli.secret.input.tooLarge.fix"),
         code: EXIT.usage,
       };
     default:
@@ -111,10 +116,10 @@ async function readValue(
 ): Promise<Result<Uint8Array, InputFailure>> {
   const { io } = ctx;
   if (!io.terminal.stdinIsTty) return readAllStdin(io.stdin);
-  const first = await io.readSecret("값 (화면에 보이지 않는다): ", signal);
+  const first = await io.readSecret(t("cli.secret.prompt.value"), signal);
   if (first === null) return err("cancelled");
   if (first.byteLength === 0) return err("empty");
-  const second = await io.readSecret("한 번 더: ", signal);
+  const second = await io.readSecret(t("cli.secret.prompt.again"), signal);
   if (second === null) {
     first.fill(0);
     return err("cancelled");
@@ -172,14 +177,14 @@ function startFailure(handle: EngineHandle, outcome: EntryOutcome): Failure {
   if (outcome.inputFailure !== null) return inputMessage(outcome.inputFailure);
   if (handle.secretOutOfBand === null) {
     return {
-      message: "이 접속에서는 값을 CLI로 넘길 수 없다",
-      fix: "서비스 쪽 입력 창에서 값을 입력한다 (서비스 모드는 M3에서 제공한다)",
+      message: t("cli.secret.start.noOutOfBand.message"),
+      fix: t("cli.secret.start.noOutOfBand.fix"),
       code: EXIT.error,
     };
   }
   return {
-    message: "값을 저장하지 않았다",
-    fix: "다시 실행한다. 계속되면 xeon doctor로 진단한다",
+    message: t("cli.secret.start.notSaved.message"),
+    fix: t("cli.secret.start.notSaved.fix"),
     code: EXIT.error,
   };
 }
@@ -209,7 +214,10 @@ async function applyMeta(
     const parsed = parse(SecretScopeSchema, flags.scope);
     if (!parsed.ok) {
       return err(
-        usageFailure(`--scope 값이 맞지 않다: ${flags.scope}`, "user 또는 project:<경로>를 쓴다"),
+        usageFailure(
+          t("cli.secret.scope.invalid.message", { scope: flags.scope }),
+          t("cli.secret.scope.invalid.fix"),
+        ),
       );
     }
     scope = parsed.value;
@@ -220,8 +228,8 @@ async function applyMeta(
     const current = listed.secrets.find((entry) => entry.name === name)?.meta?.use;
     if (current === undefined) {
       return err({
-        message: "사용 정책을 읽지 못해 --hosts를 적용할 수 없다",
-        fix: "xeon secret ls --meta로 이름과 메타를 확인한다",
+        message: t("cli.secret.hosts.unreadable.message"),
+        fix: t("cli.secret.hosts.unreadable.fix"),
         code: EXIT.error,
       });
     }
@@ -247,12 +255,18 @@ function metaLines(entry: SecretListEntry): readonly string[] {
   const lines: string[] = [];
   const { meta } = entry;
   if (meta !== undefined) {
-    lines.push(`  설명: ${meta.desc}`);
-    lines.push(`  제공자: ${meta.provider}  범위: ${meta.scope}`);
-    lines.push(`  만료: ${meta.expiresAt ?? "없음"}`);
-    lines.push(`  승인: ${meta.approval}  허용 호스트: ${meta.use.hosts.join(", ") || "없음"}`);
+    lines.push(t("cli.secret.meta.desc", { desc: meta.desc }));
+    lines.push(t("cli.secret.meta.providerScope", { provider: meta.provider, scope: meta.scope }));
+    lines.push(t("cli.secret.meta.expires", { expires: meta.expiresAt ?? t("cli.secret.none") }));
+    lines.push(
+      t("cli.secret.meta.approvalHosts", {
+        approval: meta.approval,
+        hosts: meta.use.hosts.join(", ") || t("cli.secret.none"),
+      }),
+    );
   }
-  if (entry.lastUsedAt !== undefined) lines.push(`  마지막 사용: ${entry.lastUsedAt}`);
+  if (entry.lastUsedAt !== undefined)
+    lines.push(t("cli.secret.meta.lastUsed", { at: entry.lastUsedAt }));
   return lines;
 }
 
@@ -271,7 +285,7 @@ async function runLs(
       return EXIT.ok;
     }
     if (listed.secrets.length === 0) {
-      await ctx.io.stderr("등록된 비밀이 없다 (xeon secret add <이름>)\n");
+      await ctx.io.stderr(t("cli.secret.ls.empty"));
       return EXIT.ok;
     }
     const lines: string[] = [];
@@ -294,8 +308,8 @@ async function runEntry(
     await ctx.io.stderr(
       renderFailure(
         usageFailure(
-          "secret rotate는 터미널에서만 쓸 수 있다",
-          "사람이 직접 입력하는 터미널에서 실행한다",
+          t("cli.secret.rotate.terminalOnly.message"),
+          t("cli.secret.rotate.terminalOnly.fix"),
         ),
       ),
     );
@@ -305,8 +319,8 @@ async function runEntry(
     await ctx.io.stderr(
       renderFailure(
         usageFailure(
-          `제공자 ${flags.provider}은(는) M2에서 쓸 수 없다`,
-          "--provider sops를 쓰거나 플래그를 뺀다",
+          t("cli.secret.provider.unsupported.message", { provider: flags.provider }),
+          t("cli.secret.provider.unsupported.fix"),
         ),
       ),
     );
@@ -325,14 +339,19 @@ async function runEntry(
         await ctx.io.stderr(
           renderFailure({
             ...applied.error,
-            message: `값은 저장했지만 메타를 적용하지 못했다: ${applied.error.message}`,
+            message: t("cli.secret.metaNotApplied.message", { reason: applied.error.message }),
           }),
         );
         return applied.error.code;
       }
     }
-    const verb = action === "add" ? "등록했다" : action === "set" ? "값을 바꿨다" : "값을 교체했다";
-    await ctx.io.stdout(`${name}: ${verb}\n`);
+    const done =
+      action === "add"
+        ? t("cli.secret.done.added", { name })
+        : action === "set"
+          ? t("cli.secret.done.set", { name })
+          : t("cli.secret.done.rotated", { name });
+    await ctx.io.stdout(done);
     return EXIT.ok;
   });
 }
@@ -344,7 +363,10 @@ async function runMeta(
   if (!hasMetaFlags(command.meta)) {
     await ctx.io.stderr(
       renderFailure(
-        usageFailure("바꿀 항목이 없다", "--desc, --scope, --hosts, --expires 중 하나를 쓴다"),
+        usageFailure(
+          t("cli.secret.meta.nothingToChange.message"),
+          t("cli.secret.meta.nothingToChange.fix"),
+        ),
       ),
     );
     return EXIT.usage;
@@ -373,12 +395,21 @@ const REFERENCE_SESSIONS_SHOWN = 5;
 
 /** 삭제 전에 보일 참조 요약 한 줄(L4.cli.spec §4.7 rm). 값은 없고 설정 키, 활성 lease 수, 최근 사용한 세션만 있다 */
 function referencesLine(name: string, found: SecretReferencesResult): string {
-  const keys = found.settingKeys.length === 0 ? "없음" : found.settingKeys.join(", ");
+  const keys = found.settingKeys.length === 0 ? t("cli.secret.none") : found.settingKeys.join(", ");
   const shown = found.sessions.slice(0, REFERENCE_SESSIONS_SHOWN);
   const more = found.sessions.length - shown.length;
   const sessions =
-    shown.length === 0 ? "없음" : `${shown.join(", ")}${more > 0 ? ` 외 ${String(more)}개` : ""}`;
-  return `${name}: 참조하는 설정 키 ${keys} / 활성 lease ${String(found.activeLeases)}개 / 최근 사용한 세션 ${sessions}\n`;
+    shown.length === 0
+      ? t("cli.secret.none")
+      : more > 0
+        ? t("cli.secret.references.sessionsMore", { shown: shown.join(", "), more: String(more) })
+        : shown.join(", ");
+  return t("cli.secret.references.line", {
+    name,
+    keys,
+    leases: String(found.activeLeases),
+    sessions,
+  });
 }
 
 function hasReferences(found: SecretReferencesResult): boolean {
@@ -392,7 +423,7 @@ async function runRm(
   if (!command.yes && !ctx.io.terminal.stdinIsTty) {
     await ctx.io.stderr(
       renderFailure(
-        usageFailure("터미널이 아니라서 삭제를 확인할 수 없다", "xeon secret rm <이름> --yes"),
+        usageFailure(t("cli.secret.rm.noTerminal.message"), t("cli.secret.rm.noTerminal.fix")),
       ),
     );
     return EXIT.usage;
@@ -409,7 +440,11 @@ async function runRm(
       if (entry?.meta !== undefined) {
         const { use } = entry.meta;
         await ctx.io.stdout(
-          `${command.name}: 허용 도구 ${use.tools.join(", ") || "없음"} / 허용 호스트 ${use.hosts.join(", ") || "없음"}\n`,
+          t("cli.secret.rm.policy", {
+            name: command.name,
+            tools: use.tools.join(", ") || t("cli.secret.none"),
+            hosts: use.hosts.join(", ") || t("cli.secret.none"),
+          }),
         );
       }
       if (references !== null) {
@@ -418,15 +453,17 @@ async function runRm(
           // 열려 있는 lease가 있으면 호스트가 어차피 거부한다. 묻지 않고 이유를 알린다
           await ctx.io.stderr(
             renderFailure({
-              message: `사용 중인 비밀이라 지울 수 없다 (활성 lease ${String(references.activeLeases)}개)`,
-              fix: "사용이 끝난 뒤 다시 지운다. 값만 바꾸려면 xeon secret rotate <이름>을 쓴다",
+              message: t("cli.errors.secret.inUse.message", {
+                leases: String(references.activeLeases),
+              }),
+              fix: t("cli.errors.secret.inUse.fix"),
             }),
           );
           return EXIT.error;
         }
       }
-      if (!(await confirmedByUser(ctx, `비밀 ${command.name}을(를) 지울까요?`))) {
-        await ctx.io.stderr("지우지 않았다\n");
+      if (!(await confirmedByUser(ctx, t("cli.secret.rm.confirm", { name: command.name })))) {
+        await ctx.io.stderr(t("cli.secret.rm.kept"));
         return EXIT.error;
       }
     } else if (references !== null && hasReferences(references)) {
@@ -437,13 +474,13 @@ async function runRm(
     if (!removed.removed) {
       await ctx.io.stderr(
         renderFailure({
-          message: "그 이름의 비밀이 없다",
-          fix: "xeon secret ls로 이름을 확인한다",
+          message: t("cli.errors.secret.missing.message"),
+          fix: t("cli.secret.rm.missing.fix"),
         }),
       );
       return EXIT.error;
     }
-    await ctx.io.stdout(`${command.name}: 지웠다\n`);
+    await ctx.io.stdout(t("cli.secret.rm.removed", { name: command.name }));
     return EXIT.ok;
   });
 }
@@ -451,10 +488,14 @@ async function runRm(
 /** secret test의 한 줄. 길이와 SHA-256 앞 8자만 있고 값은 없다(L0.secrets.spec SecretTestResult) */
 function testLine(name: string, tested: SecretTestResult): string {
   if (tested.state === "missing") return `${name}: missing\n`;
-  if (!tested.decryptable) return `${name}: registered (복호화할 수 없다)\n`;
-  const length = tested.length === null ? "" : `, 길이 ${String(tested.length)}바이트`;
-  const prefix = tested.sha256Prefix === null ? "" : `, sha256 앞 8자 ${tested.sha256Prefix}`;
-  return `${name}: registered (복호화 가능${length}${prefix})\n`;
+  if (!tested.decryptable) return t("cli.secret.test.undecryptable", { name });
+  const length =
+    tested.length === null ? "" : t("cli.secret.test.length", { length: String(tested.length) });
+  const prefix =
+    tested.sha256Prefix === null
+      ? ""
+      : t("cli.secret.test.sha256", { prefix: tested.sha256Prefix });
+  return t("cli.secret.test.decryptable", { name, length, prefix });
 }
 
 async function runTest(
@@ -481,24 +522,21 @@ async function runReveal(
   if (!io.terminal.stdinIsTty || !io.terminal.stdoutIsTty) {
     await io.stderr(
       renderFailure(
-        usageFailure(
-          "secret reveal은 터미널에서만 쓸 수 있다",
-          "stdin과 stdout이 모두 터미널인 셸에서 실행한다",
-        ),
+        usageFailure(t("cli.usage.secret.reveal.message"), t("cli.usage.secret.reveal.fix")),
       ),
     );
     return EXIT.usage;
   }
   return withEngine(ctx, async (handle) => {
     // OS 인증 재확인(os-auth)을 쓸 수 없는 터미널이다: 이름을 다시 입력하는 TTY 확인(tty-confirm)만 받는다(§4.7)
-    await io.stdout(`비밀 ${command.name}의 값을 이 화면에 보인다.\n`);
-    const typed = await io.readLine(
-      "확인하려면 이름을 다시 입력한다: ",
-      new AbortController().signal,
-    );
+    await io.stdout(t("cli.secret.reveal.warning", { name: command.name }));
+    const typed = await io.readLine(t("cli.secret.reveal.prompt"), new AbortController().signal);
     if (typed?.trim() !== command.name) {
       await io.stderr(
-        renderFailure({ message: "확인하지 않아 열람을 취소했다", fix: "이름을 정확히 입력한다" }),
+        renderFailure({
+          message: t("cli.secret.reveal.notConfirmed.message"),
+          fix: t("cli.secret.reveal.notConfirmed.fix"),
+        }),
       );
       return EXIT.error;
     }
@@ -523,13 +561,13 @@ async function runReveal(
         const failure: Failure =
           handle.secretOutOfBand === null
             ? {
-                message: "이 접속에서는 값을 CLI에 보일 수 없다",
-                fix: "서비스 쪽 OS 창에서 열람한다 (서비스 모드는 M3에서 제공한다)",
+                message: t("cli.secret.reveal.noOutOfBand.message"),
+                fix: t("cli.secret.reveal.noOutOfBand.fix"),
                 code: EXIT.error,
               }
             : {
-                message: "값을 보이지 않았다 (재확인이 만료되었거나 취소되었다)",
-                fix: "다시 실행해 확인한다",
+                message: t("cli.secret.reveal.notShown.message"),
+                fix: t("cli.secret.reveal.notShown.fix"),
                 code: EXIT.error,
               };
         await io.stderr(renderFailure(failure));

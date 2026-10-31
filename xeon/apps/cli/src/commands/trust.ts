@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever, attemptAsync } from "@xeon/contracts";
 import type { TrustStatus } from "@xeon/contracts/wire";
 import type { TrustCommand } from "../cli/command.ts";
@@ -12,11 +13,14 @@ import { printFailure, withEngine, type CommandContext } from "./context.ts";
 // `xeon trust allow|deny`는 선택지 하나를 host에 보낸다(trust.decide). 저장 파일(trust.json)의 잠금은 host가 맡는다.
 // 신뢰는 `.mcp.json`, 프로젝트 스킬, 프로젝트 슬래시 명령, 프로젝트 설정을 읽을지 정한다. 대화형 chat도 시작할 때 같은 카드를 묻는다.
 
-const UNSUPPORTED: Failure = {
-  message: "연결한 host가 프로젝트 신뢰 결정을 아직 지원하지 않는다",
-  fix: "host를 갱신하거나 신뢰 파일(trust.json)을 직접 고친다",
-  code: EXIT.environment,
-};
+/** 호스트가 신뢰 결정을 모를 때의 실패. 문장은 쓸 때 현재 로케일로 만든다 */
+function unsupportedFailure(): Failure {
+  return {
+    message: t("cli.trust.unsupported.message"),
+    fix: t("cli.trust.unsupported.fix"),
+    code: EXIT.environment,
+  };
+}
 
 function supportsTrust(handle: EngineHandle): boolean {
   return handle.supports("trust.get") && handle.supports("trust.decide");
@@ -28,14 +32,15 @@ async function runStatus(
   output: "text" | "json",
 ): Promise<ExitCode> {
   if (!supportsTrust(handle)) {
-    await printFailure(ctx.io, UNSUPPORTED);
-    return UNSUPPORTED.code;
+    const unsupported = unsupportedFailure();
+    await printFailure(ctx.io, unsupported);
+    return unsupported.code;
   }
   const status = await handle.connection.request("trust.get", { workspace: ctx.workspace });
   if (output === "json") {
     await ctx.io.stdout(`${JSON.stringify(status, null, 2)}\n`);
   } else if (!status.required) {
-    await ctx.io.stderr(`${status.projectRoot}: 신뢰가 필요한 프로젝트 자원이 없다\n`);
+    await ctx.io.stderr(t("cli.trust.noResources", { root: status.projectRoot }));
   } else {
     await ctx.io.stdout(describeTrust(status));
   }
@@ -48,8 +53,9 @@ async function runSet(
   command: Extract<TrustCommand, { kind: "trust.set" }>,
 ): Promise<ExitCode> {
   if (!supportsTrust(handle)) {
-    await printFailure(ctx.io, UNSUPPORTED);
-    return UNSUPPORTED.code;
+    const unsupported = unsupportedFailure();
+    await printFailure(ctx.io, unsupported);
+    return unsupported.code;
   }
   const status = await handle.connection.request("trust.get", { workspace: ctx.workspace });
   const option = status.options.find(
@@ -60,8 +66,11 @@ async function runSet(
     const offered = status.options.map((candidate) => optionText(candidate)).join(" / ");
     await ctx.io.stderr(
       renderFailure({
-        message: `이 폴더에는 ${command.scope} 범위의 ${command.verdict} 선택지가 없다`,
-        fix: `xeon trust로 선택지를 확인한다 (${offered})`,
+        message: t("cli.trust.noOption.message", {
+          scope: command.scope,
+          verdict: command.verdict,
+        }),
+        fix: t("cli.trust.noOption.fix", { options: offered }),
       }),
     );
     return EXIT.usage;
@@ -109,17 +118,13 @@ export async function offerTrust(
     handle.connection.request("trust.get", { workspace: ctx.workspace }),
   );
   if (!loaded.ok) {
-    await ctx.io.stderr(
-      "프로젝트 신뢰 상태를 읽지 못해 확인을 건너뛴다. 프로젝트 자원은 읽지 않는다\n",
-    );
+    await ctx.io.stderr(t("cli.trust.readFailed"));
     return;
   }
   if (!needsDecision(loaded.value)) return;
   const choice = await askTrust(loaded.value, io, signal);
   if (choice === undefined || signal.aborted) {
-    await ctx.io.stderr(
-      "정하지 않았다. 이 프로젝트의 자원은 읽지 않는다 (xeon trust로 나중에 정한다)\n",
-    );
+    await ctx.io.stderr(t("cli.trust.undecided"));
     return;
   }
   const decided = await attemptAsync(() =>
@@ -129,9 +134,7 @@ export async function offerTrust(
   const failure = failureOfCaught(decided.error.cause);
   if (failure === undefined) throw decided.error.cause;
   await ctx.io.stderr(renderFailure(failure));
-  await ctx.io.stderr(
-    "프로젝트 신뢰 결정을 저장하지 못했다. 이 프로젝트는 신뢰하지 않은 채로 연다\n",
-  );
+  await ctx.io.stderr(t("cli.trust.saveFailed"));
 }
 
 /**
@@ -145,6 +148,6 @@ export async function noteUndecidedTrust(ctx: CommandContext, handle: EngineHand
   );
   if (!loaded.ok || !needsDecision(loaded.value)) return;
   await ctx.io.stderr(
-    `프로젝트 신뢰가 정해지지 않아 ${loaded.value.resources.join(", ")}을(를) 읽지 않는다 (xeon trust로 정한다)\n`,
+    t("cli.trust.undecidedRead", { resources: loaded.value.resources.join(", ") }),
   );
 }

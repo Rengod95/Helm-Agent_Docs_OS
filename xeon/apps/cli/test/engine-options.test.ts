@@ -3,7 +3,7 @@ import { err } from "@xeon/contracts";
 import type { EngineConnectOptions } from "../src/engine.ts";
 import { devWireRoundTripOf } from "../src/dev-mode.ts";
 import { EXIT } from "../src/exit-codes.ts";
-import { cliSettings } from "../src/settings.ts";
+import { cliSettingGroups, cliSettings } from "../src/settings.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 
 const harnesses: Harness[] = [];
@@ -28,7 +28,7 @@ test("connectEngine hands devChecks and the l4.cli settings group to startInProc
   const dev = harness({ devWireRoundTrip: true });
   await dev.run(["config", "get", "l4.cli.outputMode"]);
   expect(dev.startOptions[0]?.devChecks).toBe(true);
-  expect(dev.startOptions[0]?.settingGroups).toEqual([cliSettings]);
+  expect(dev.startOptions[0]?.settingGroups).toEqual(cliSettingGroups);
 
   const release = harness({ devWireRoundTrip: false });
   await release.run(["config", "get", "l4.cli.outputMode"]);

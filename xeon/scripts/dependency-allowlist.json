@@ -13,7 +13,7 @@
     "rule": "DR-10",
     "from": "apps/cli",
     "to": "@xeon/client",
-    "entries": [".", "./web", "./settings"],
+    "entries": [".", "./web", "./settings", "./i18n"],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020). The X10 test compares the settings view-model item set with the config command key set.",
     "approvedBy": "adr.0020"
   },
@@ -22,7 +22,7 @@
     "rule": "DR-10",
     "from": "apps/desktop",
     "to": "@xeon/client",
-    "entries": [".", "./stdio", "./settings"],
+    "entries": [".", "./stdio", "./settings", "./i18n"],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
     "approvedBy": "adr.0020"
   },

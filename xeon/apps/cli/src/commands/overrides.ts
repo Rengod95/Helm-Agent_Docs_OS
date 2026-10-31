@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { err, ok, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { WireError, type HostConnection } from "@xeon/contracts/wire";
@@ -27,8 +28,8 @@ export async function applyOverrides(
     } catch (caught) {
       if (caught instanceof WireError && caught.data.kind === "jsonrpc.methodNotFound") {
         return err({
-          message: "이 엔진은 아직 --set을 받을 수 없다 (settings.set이 없다)",
-          fix: "엔진을 갱신하거나 설정 파일을 직접 고친다",
+          message: t("cli.overrides.engineNoSet.message"),
+          fix: t("cli.overrides.engineNoSet.fix"),
           code: EXIT.error,
         });
       }

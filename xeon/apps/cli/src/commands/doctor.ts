@@ -1,4 +1,5 @@
 import { dirname } from "node:path";
+import { t } from "@xeon/client/i18n";
 import { assertNever, attemptAsync, type Result } from "@xeon/contracts";
 import type {
   HostBinaryItem,
@@ -106,12 +107,12 @@ async function probeConfiguredSearxng(
 function searchLineOf(search: WebSection): string {
   const current = search.rows.find((row) => row.current);
   if (search.provider !== "auto") {
-    const head = `검색 provider: ${search.provider} (l2.web.search.provider로 고정)`;
-    if (current === undefined) return `${head} — 목록에 없는 provider다`;
-    return current.ok ? head : `${head} — ${current.note}`;
+    const head = t("cli.doctor.search.fixed", { provider: search.provider });
+    if (current === undefined) return t("cli.doctor.search.fixedNotListed", { head });
+    return current.ok ? head : t("cli.doctor.search.withNote", { head, note: current.note });
   }
-  if (current === undefined) return "검색 provider: auto → 쓸 수 있는 provider가 없다";
-  return `검색 provider: auto → ${current.displayName} (${current.id})`;
+  if (current === undefined) return t("cli.doctor.search.autoNone");
+  return t("cli.doctor.search.auto", { name: current.displayName, id: current.id });
 }
 
 /** 줄 3의 항목 하나. 쓸 수 있는 키 플러그인은 항목이 없다. 상태는 괄호 안에, 해결 문구는 `—` 뒤에 적는다 */
@@ -120,11 +121,11 @@ function recommendedItemOf(entry: WebRecommendation): string | undefined {
     case "ready":
       return undefined;
     case "needs-key":
-      return `${entry.label}(키 필요 — ${entry.hint})`;
+      return t("cli.doctor.recommend.needsKey", { label: entry.label, hint: entry.hint });
     case "not-installed":
-      return `${entry.label}(설치 필요 — ${entry.hint})`;
+      return t("cli.doctor.recommend.notInstalled", { label: entry.label, hint: entry.hint });
     case "unavailable":
-      return `${entry.label}(사용 불가 — ${entry.hint})`;
+      return t("cli.doctor.recommend.unavailable", { label: entry.label, hint: entry.hint });
     default:
       return assertNever(entry.state, "WebRecommendation.state");
   }
@@ -138,9 +139,9 @@ function recommendedLineOf(recommendations: readonly WebRecommendation[]): strin
   });
   if (items.length === 0) {
     const labels = recommendations.map((entry) => entry.label).join(", ");
-    return `키 플러그인: ${labels} 모두 쓸 수 있다`;
+    return t("cli.doctor.recommend.allReady", { labels });
   }
-  return `권장 키 플러그인: ${items.join(", ")}`;
+  return t("cli.doctor.recommend.list", { items: items.join(", ") });
 }
 
 /** 검색 provider 상태 세 줄(§4.7.1). 줄 1과 줄 3은 `web.providers`의 view-model에서, 줄 2는 설정한 주소 하나의 탐침에서 나온다 */
@@ -155,31 +156,27 @@ export async function describeSearch(
   let searxng: string;
   switch (verdict) {
     case "ok":
-      searxng = `SearXNG: 설정한 주소가 응답한다 ${url}`;
+      searxng = t("cli.doctor.searxng.ok", { url });
       break;
     case "json-disabled":
-      searxng = `SearXNG: ${url}이(가) 응답했지만 JSON 형식이 꺼져 있다 — 해결: settings.yml의 search.formats에 json을 더한다`;
+      searxng = t("cli.doctor.searxng.jsonDisabled", { url });
       break;
     case "unreachable":
-      searxng = `SearXNG: ${url}에 응답이 없다 — 해결: 주소와 서버 상태를 확인한다. 그동안 검색은 내장 검색 래퍼로 내려간다`;
+      searxng = t("cli.doctor.searxng.unreachable", { url });
       break;
     case "unset":
-      searxng =
-        "SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: xeon config set l2.web.search.searxng.url <주소>";
+      searxng = t("cli.doctor.searxng.unset");
       break;
     default:
       return assertNever(verdict, "SearxngVerdict");
   }
 
   return {
-    provider:
-      web === undefined
-        ? "검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)"
-        : searchLineOf(web.search),
+    provider: web === undefined ? t("cli.doctor.search.unknown") : searchLineOf(web.search),
     searxng,
     recommended:
       web === undefined
-        ? "키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)"
+        ? t("cli.doctor.recommend.unknown")
         : recommendedLineOf(web.recommendations),
     assumedDefaults,
   };
@@ -189,17 +186,28 @@ function terminalCheck(io: CliIo, color: boolean): DoctorCheck {
   const { terminal, env } = io;
   const locale = `${env["LC_ALL"] ?? ""}${env["LC_CTYPE"] ?? ""}${env["LANG"] ?? ""}`;
   const utf8 = /utf-?8/i.test(locale);
-  const columns = terminal.columns === null ? "폭 알 수 없음" : `${String(terminal.columns)}열`;
-  const facts = `stdin ${terminal.stdinIsTty ? "TTY" : "파이프"}, stdout ${terminal.stdoutIsTty ? "TTY" : "파이프"}, ${columns}, 색 ${color && terminal.stdoutIsTty ? "사용" : "끔"}`;
+  const columns =
+    terminal.columns === null
+      ? t("cli.doctor.terminal.columnsUnknown")
+      : t("cli.doctor.terminal.columns", { count: String(terminal.columns) });
+  const facts = t("cli.doctor.terminal.facts", {
+    stdin: terminal.stdinIsTty ? "TTY" : t("cli.doctor.terminal.pipe"),
+    stdout: terminal.stdoutIsTty ? "TTY" : t("cli.doctor.terminal.pipe"),
+    columns,
+    color:
+      color && terminal.stdoutIsTty
+        ? t("cli.doctor.terminal.colorOn")
+        : t("cli.doctor.terminal.colorOff"),
+  });
   if (locale.length > 0 && !utf8) {
     return {
       id: "terminal",
       status: "warn",
-      message: `터미널: ${facts}. 로케일이 UTF-8이 아니다`,
-      fix: "LANG을 UTF-8 로케일로 맞춘다 (예: ko_KR.UTF-8). 한글이 깨질 수 있다",
+      message: t("cli.doctor.terminal.nonUtf8", { facts }),
+      fix: t("cli.doctor.terminal.nonUtf8Fix"),
     };
   }
-  return { id: "terminal", status: "ok", message: `터미널: ${facts}` };
+  return { id: "terminal", status: "ok", message: t("cli.doctor.terminal.ok", { facts }) };
 }
 
 /** 바이너리 하나의 점검 결과를 진단 항목으로 바꾼다. 필수는 실패, 선택은 경고다(`HostBinaryItem.need`) */
@@ -211,28 +219,52 @@ function binaryCheck(item: HostBinaryItem): DoctorCheck {
       return {
         id,
         status: "ok",
-        message: `외부 바이너리 ${item.name}: ${status.version} (${status.source === "bundled" ? "번들" : "시스템"}) — ${item.usedBy}`,
+        message: t("cli.doctor.binary.ok", {
+          name: item.name,
+          version: status.version,
+          source:
+            status.source === "bundled"
+              ? t("cli.doctor.binary.source.bundled")
+              : t("cli.doctor.binary.source.system"),
+          usedBy: item.usedBy,
+        }),
       };
     case "missing":
       return {
         id,
         status: item.need === "required" ? "fail" : "warn",
-        message: `외부 바이너리 ${item.name}: 없다 (${item.need === "required" ? "필수" : "선택"}) — ${item.impact}`,
+        message: t("cli.doctor.binary.missing", {
+          name: item.name,
+          need:
+            item.need === "required"
+              ? t("cli.doctor.need.required")
+              : t("cli.doctor.need.optional"),
+          impact: item.impact,
+        }),
         fix: status.hint,
       };
     case "too_old":
       return {
         id,
         status: item.need === "required" ? "fail" : "warn",
-        message: `외부 바이너리 ${item.name}: 버전이 낮다 (${status.found}, 필요 ${status.required}) — ${item.impact}`,
-        fix: `${item.name}을(를) ${status.required} 이상으로 올린다`,
+        message: t("cli.doctor.binary.tooOld", {
+          name: item.name,
+          found: status.found,
+          required: status.required,
+          impact: item.impact,
+        }),
+        fix: t("cli.doctor.binary.tooOldFix", { name: item.name, required: status.required }),
       };
     case "unusable":
       return {
         id,
         status: item.need === "required" ? "fail" : "warn",
-        message: `외부 바이너리 ${item.name}: 쓸 수 없다 (${status.reason}) — ${item.impact}`,
-        fix: `${item.name} 설치와 실행 권한을 확인한다`,
+        message: t("cli.doctor.binary.unusable", {
+          name: item.name,
+          reason: status.reason,
+          impact: item.impact,
+        }),
+        fix: t("cli.doctor.binary.unusableFix", { name: item.name }),
       };
     default:
       return assertNever(status, "HostBinaryStatus");
@@ -253,7 +285,7 @@ async function binaryChecks(handle: EngineHandle): Promise<{
         {
           id: "binaries",
           status: "info",
-          message: "외부 바이너리: 이 엔진은 점검 결과를 알리지 않는다",
+          message: t("cli.doctor.binary.unsupported"),
         },
       ],
       report: null,
@@ -270,7 +302,7 @@ async function binaryChecks(handle: EngineHandle): Promise<{
         {
           id: "binaries",
           status: "warn",
-          message: `외부 바이너리: 점검하지 못했다 — ${failure.message}`,
+          message: t("cli.doctor.binary.checkFailed", { reason: failure.message }),
           fix: failure.fix,
         },
       ],
@@ -284,7 +316,7 @@ async function binaryChecks(handle: EngineHandle): Promise<{
         {
           id: "binaries",
           status: "info",
-          message: "외부 바이너리: 이 엔진은 점검 결과를 싣지 않았다",
+          message: t("cli.doctor.binary.notIncluded"),
         },
       ],
       report: null,
@@ -301,12 +333,12 @@ async function engineChecks(handle: EngineHandle): Promise<{
     {
       id: "engine",
       status: "ok",
-      message: `엔진을 열었다 (${handle.transport}). 세션 저장소와 FTS5를 쓸 수 있다`,
+      message: t("cli.doctor.engine.ok", { transport: handle.transport }),
     },
     {
       id: "state-dir",
       status: "ok",
-      message: `상태 디렉터리: ${dirname(handle.paths.cliStateFile)}`,
+      message: t("cli.doctor.stateDir", { path: dirname(handle.paths.cliStateFile) }),
     },
   ];
   const secrets = await attemptAsync(() => handle.connection.request("secret.list", {}));
@@ -314,7 +346,7 @@ async function engineChecks(handle: EngineHandle): Promise<{
     checks.push({
       id: "secrets",
       status: "ok",
-      message: `비밀 저장소: 사용할 수 있다 (등록 ${String(secrets.value.secrets.length)}개)`,
+      message: t("cli.doctor.secrets.ok", { count: String(secrets.value.secrets.length) }),
     });
   } else {
     const failure = failureOfCaught(secrets.error.cause);
@@ -322,7 +354,7 @@ async function engineChecks(handle: EngineHandle): Promise<{
     checks.push({
       id: "secrets",
       status: "warn",
-      message: `비밀 저장소: ${failure.message}`,
+      message: t("cli.doctor.secrets.failed", { reason: failure.message }),
       fix: failure.fix,
     });
   }
@@ -332,10 +364,7 @@ async function engineChecks(handle: EngineHandle): Promise<{
   checks.push({
     id: "service",
     status: "info",
-    message:
-      service === true
-        ? "서비스 모드: 설정은 켜져 있다. chat은 아직 서비스에 접속하지 않고 in-process로 동작한다 (xeon service status로 서비스를 확인한다)"
-        : "서비스 모드: 사용 안 함 (in-process)",
+    message: service === true ? t("cli.doctor.service.enabled") : t("cli.doctor.service.disabled"),
   });
   return { checks, binaries: binaries.report };
 }
@@ -345,50 +374,77 @@ function failureChecks(failure: Failure): readonly DoctorCheck[] {
     {
       id: "engine",
       status: "fail",
-      message: `엔진을 열 수 없다: ${failure.message}`,
+      message: t("cli.doctor.engine.failed", { reason: failure.message }),
       fix: failure.fix,
     },
   ];
 }
 
-const MARK: Readonly<Record<CheckStatus, string>> = {
-  ok: "[ok]  ",
-  warn: "[경고]",
-  fail: "[실패]",
-  info: "[참고]",
-};
+/** 줄 머리표. `ok`는 두 로케일이 같아서 카탈로그에 넣지 않는다. 나머지는 쓸 때 현재 로케일로 만든다 */
+function markOf(status: CheckStatus): string {
+  switch (status) {
+    case "ok":
+      return "[ok]  ";
+    case "warn":
+      return t("cli.doctor.mark.warn");
+    case "fail":
+      return t("cli.doctor.mark.fail");
+    case "info":
+      return t("cli.doctor.mark.info");
+    default:
+      return assertNever(status, "CheckStatus");
+  }
+}
 
-const ORIGIN_LABEL: Readonly<Record<WebProviderOrigin, string>> = {
-  builtin: "내장",
-  plugin: "플러그인",
-  detected: "사용자 설정",
-};
+function originLabelOf(origin: WebProviderOrigin): string {
+  switch (origin) {
+    case "builtin":
+      return t("cli.doctor.origin.builtin");
+    case "plugin":
+      return t("cli.doctor.origin.plugin");
+    case "detected":
+      return t("cli.doctor.origin.detected");
+    default:
+      return assertNever(origin, "WebProviderOrigin");
+  }
+}
 
-const CAPABILITY_LABEL: Readonly<Record<WebProviderCapability, string>> = {
-  "web.search": "검색",
-  "web.browse": "브라우저",
-  "web.fetch": "가져오기",
-};
+function capabilityLabelOf(capability: WebProviderCapability): string {
+  switch (capability) {
+    case "web.search":
+      return t("cli.doctor.capability.search");
+    case "web.browse":
+      return t("cli.doctor.capability.browse");
+    case "web.fetch":
+      return t("cli.doctor.capability.fetch");
+    default:
+      return assertNever(capability, "WebProviderCapability");
+  }
+}
 
 /**
  * `웹 provider` 블록의 한 줄. 쓸 수 있으면 `[ok]`, 못 쓰면 `[경고]`다. 상세 문구(`detail`)는 찍지 않는다.
  * 가격표가 오래되었으면 기준일을 붙인다
  */
 function webRowLineOf(row: WebToolRow): string {
-  const rank = row.rank === null ? "순위 없음" : `순위 ${String(row.rank + 1)}`;
-  const parts: string[] = [ORIGIN_LABEL[row.origin], CAPABILITY_LABEL[row.capability], rank];
-  if (row.current) parts.push("현재");
-  if (row.pinned) parts.push("고정");
+  const rank =
+    row.rank === null
+      ? t("cli.doctor.web.rankNone")
+      : t("cli.doctor.web.rank", { rank: String(row.rank + 1) });
+  const parts: string[] = [originLabelOf(row.origin), capabilityLabelOf(row.capability), rank];
+  if (row.current) parts.push(t("cli.doctor.web.current"));
+  if (row.pinned) parts.push(t("cli.doctor.web.pinned"));
   parts.push(row.note);
-  if (row.noticePending) parts.push("첫 사용 고지 대기");
-  if (row.price !== null && row.price.stale) parts.push(`가격표 오래됨(${row.price.asOf})`);
-  return `  ${MARK[row.ok ? "ok" : "warn"]} ${row.id}  ${parts.join(" · ")}`;
+  if (row.noticePending) parts.push(t("cli.doctor.web.noticePending"));
+  if (row.price !== null && row.price.stale)
+    parts.push(t("cli.doctor.web.priceStale", { asOf: row.price.asOf }));
+  return `  ${markOf(row.ok ? "ok" : "warn")} ${row.id}  ${parts.join(" · ")}`;
 }
 
 /** `웹 provider` 블록의 줄들. 검색, 브라우즈, 가져오기 순서로 모든 행을 한 줄씩 보인다 */
 function webBlockOf(view: ToolsWebView): readonly string[] {
   const rows = [...view.search.rows, ...view.browse.rows, ...view.fetch.rows];
-  if (rows.length === 0) return ["  provider가 없다"];
+  if (rows.length === 0) return [t("cli.doctor.web.none")];
   return rows.map(webRowLineOf);
 }
 
@@ -398,20 +454,20 @@ function formatDoctor(
   search: SearchStatus,
   web: ToolsWebView | undefined,
 ): string {
-  const lines = [`xeon doctor (xeon ${version})`, "진단"];
+  const lines = [`xeon doctor (xeon ${version})`, t("cli.doctor.section.checks")];
   for (const check of checks) {
-    lines.push(`  ${MARK[check.status]} ${check.message}`);
-    if (check.fix !== undefined) lines.push(`         해결: ${check.fix}`);
+    lines.push(`  ${markOf(check.status)} ${check.message}`);
+    if (check.fix !== undefined) lines.push(`         ${t("cli.errors.fixLabel")} ${check.fix}`);
   }
-  lines.push("검색 provider");
+  lines.push(t("cli.doctor.section.search"));
   lines.push(`  ${search.provider}`);
   lines.push(`  ${search.searxng}`);
   lines.push(`  ${search.recommended}`);
   if (search.assumedDefaults) {
-    lines.push("  (엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다)");
+    lines.push(t("cli.doctor.search.assumedDefaults"));
   }
   if (web !== undefined) {
-    lines.push("웹 provider");
+    lines.push(t("cli.doctor.section.web"));
     lines.push(...webBlockOf(web));
   }
   return `${lines.join("\n")}\n`;

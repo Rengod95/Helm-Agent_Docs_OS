@@ -1,5 +1,6 @@
 import { assertNever, type Result } from "@xeon/contracts";
 import type { SecretName } from "@xeon/contracts/capabilities";
+import { t } from "../i18n/index.ts";
 
 // 모델 키 값 입력(L4.desktop.spec §4.14.1). 값은 입력란을 떠나는 순간 `take()`가 입력란을 비우고, 그 뒤로는 바이트 배열
 // 하나로만 존재한다. React 상태, zustand 거울, 로그, 반환 값에는 들어가지 않는다. 바이트 배열은 보낸 뒤 0으로 덮는다.
@@ -43,21 +44,23 @@ const ENCODER = new TextEncoder();
 export function keyErrorText(error: KeyRegisterError): string {
   switch (error.kind) {
     case "unavailable":
-      return "이 연결에서는 키를 받을 수 없습니다.";
+      return t("client.settings.key.unavailable");
     case "empty":
-      return "키가 비어 있습니다.";
+      return t("client.settings.key.empty");
     case "too-large":
-      return "키가 너무 깁니다 (8 KiB 초과).";
+      return t("client.settings.key.tooLarge");
     case "busy":
-      return "다른 키 등록이 진행 중입니다. 끝난 뒤 다시 시도하세요.";
+      return t("client.settings.key.busy");
     case "timeout":
-      return "키 등록이 시간 안에 끝나지 않았습니다. 다시 시도하세요.";
+      return t("client.settings.key.timeout");
     case "rejected":
-      return error.detail === ""
-        ? `키를 저장하지 못했습니다 (종료 코드 ${error.exitCode ?? "없음"}).`
-        : `키를 저장하지 못했습니다. ${error.detail}`;
+      if (error.detail !== "")
+        return t("client.settings.key.rejectedDetail", { detail: error.detail });
+      return error.exitCode === null
+        ? t("client.settings.key.rejectedNoCode")
+        : t("client.settings.key.rejectedCode", { exitCode: error.exitCode });
     case "failed":
-      return "키 등록 요청에 실패했습니다.";
+      return t("client.settings.key.failed");
     default:
       return assertNever(error, "KeyRegisterError");
   }

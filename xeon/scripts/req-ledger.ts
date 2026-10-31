@@ -14,8 +14,8 @@ export type Result<T, E> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: E };
 
-/** Statuses that take no track: done in M3a, or moved to M4. The third form is `M3b:<track id>`. */
-export const PLAIN_STATUSES: readonly string[] = ["M3a", "M4"];
+/** Statuses that take no track: done in M3a, done in M3b (closed at B6), or moved to M4. The open form is `M3b:<track id>`. */
+export const PLAIN_STATUSES: readonly string[] = ["M3a", "M3b", "M4"];
 const M3B_PREFIX = "M3b:";
 const REQ_ID = /^M3-REQ-\d{2,3}$/;
 const STATUS_HEADER = "상태";
@@ -207,7 +207,7 @@ export function describeProblem(problem: LedgerProblem): string {
     case "missing_status":
       return `${problem.id} has no status (line ${String(problem.line)})`;
     case "unknown_status":
-      return `${problem.id} has status "${problem.status}" (line ${String(problem.line)}), expected M3a, M4 or M3b:<track id>`;
+      return `${problem.id} has status "${problem.status}" (line ${String(problem.line)}), expected M3a, M3b, M4 or M3b:<track id>`;
     case "missing_track":
       return `${problem.id} has status "${problem.status}" (line ${String(problem.line)}) without a track id`;
     case "unknown_track":

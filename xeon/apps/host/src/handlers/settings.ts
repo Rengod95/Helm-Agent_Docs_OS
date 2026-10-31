@@ -152,15 +152,15 @@ function requireKnownModel(engine: Engine, key: string, value: unknown): void {
   if (known.includes(modelId)) return;
   const hint =
     known.length === 0
-      ? `provider ${provider}에 등록된 모델이 없다`
-      : `${provider}의 모델: ${known.slice(0, MODEL_HINT_MAX).join(", ")}${known.length > MODEL_HINT_MAX ? " 등" : ""}`;
+      ? `provider ${provider} has no registered models`
+      : `${provider} models: ${known.slice(0, MODEL_HINT_MAX).join(", ")}${known.length > MODEL_HINT_MAX ? " and more" : ""}`;
   throw wireError("settings.invalidValue", {
     details: {
       key,
       issues: [
         {
           path: "value",
-          message: `알 수 없는 모델 ${provider}/${modelId} (${hint})`.slice(0, 512),
+          message: `unknown model ${provider}/${modelId} (${hint})`.slice(0, 512),
         },
       ],
     },

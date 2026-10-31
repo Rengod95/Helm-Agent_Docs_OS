@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import type { ImageContent, TextContent } from "@xeon/contracts/conversation";
 import { displayWidth, truncateToWidth } from "./width.ts";
 
@@ -50,7 +51,7 @@ const readRenderer: ToolResultRenderer = {
     const text = stringField(record, "text");
     if (kind === "image") return [clip(`${path} (image)`, width)];
     const total = text === undefined ? 0 : textLines(text).length;
-    return [clip(`${path} (${total}줄)`, width)];
+    return [clip(t("cli.render.tools.readLines", { path, count: String(total) }), width)];
   },
 };
 
@@ -101,7 +102,10 @@ export function contentLines(content: readonly (TextContent | ImageContent)[]): 
   }
   if (lines.length <= CONTENT_LINE_LIMIT) return lines;
   const hidden = lines.length - CONTENT_LINE_LIMIT;
-  return [...lines.slice(0, CONTENT_LINE_LIMIT), `… (${hidden}줄 더 있음)`];
+  return [
+    ...lines.slice(0, CONTENT_LINE_LIMIT),
+    t("cli.render.tools.moreLines", { count: String(hidden) }),
+  ];
 }
 
 /** details가 있고 렌더러가 줄을 돌려주면 그 줄, 아니면 content의 앞 20줄 */

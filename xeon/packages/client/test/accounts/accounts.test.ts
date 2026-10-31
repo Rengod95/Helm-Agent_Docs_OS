@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
   DEFAULT_RATE_LIMIT_POLICY,
-  ROTATION_RISK_NOTICE,
   accountsOf,
   checkAccount,
   checkRateLimit,
   modelAccountsView,
   rateLimitOf,
+  rotationRiskNotice,
   withAccount,
   withRateLimit,
   withoutAccount,
@@ -187,11 +187,11 @@ describe("rotation state of the view", () => {
 
   test("on when the plugin is on and acknowledged, and the notice text is the risk notice", () => {
     const view = modelAccountsView({ ...base, acknowledged: true, pluginEnabled: true });
-    expect(view.rotation).toEqual({ state: "on", notice: ROTATION_RISK_NOTICE });
+    expect(view.rotation).toEqual({ state: "on", notice: rotationRiskNotice() });
   });
 
   test("the risk notice names the terms risk in Korean", () => {
-    expect(ROTATION_RISK_NOTICE).toBe(
+    expect(rotationRiskNotice()).toBe(
       "이 플러그인은 한 provider의 여러 계정(API 키 계정과 구독 계정)을 돌려 가며 요청을 보냅니다. 구독 계정을 이렇게 쓰면 provider 이용 약관에 어긋날 수 있고 계정이 제한되거나 정지될 수 있습니다. 켜면 그 위험을 사용자가 집니다.",
     );
   });

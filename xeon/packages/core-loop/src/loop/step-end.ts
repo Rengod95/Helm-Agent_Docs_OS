@@ -219,6 +219,18 @@ export async function endStep(
       notice: { code: "gate_limit", detail: { limit: state.gateMaxContinues } },
     });
   }
+  // 반복 감지: 관찰만 한다. 알림은 휘발이고 흐름을 바꾸지 않는다(L1.loop.spec §4.10)
+  const repeatNotice = state.repeat.observe(input.outcomes);
+  if (repeatNotice !== null) {
+    run.emitter.emit({
+      type: "turn.updated",
+      threadId,
+      turnId,
+      stepId: null,
+      status: "running",
+      notice: repeatNotice,
+    });
+  }
   if (deferred) {
     state.endReason = "deferred";
     run.emitter.emit({ type: "turn.updated", threadId, turnId, stepId: null, status: "waiting" });

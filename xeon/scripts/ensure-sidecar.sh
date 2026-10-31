@@ -4,7 +4,7 @@
 # The binary is gitignored, so turbo cannot see it. The e2e test's turbo hash instead follows what the binary is built from:
 # apps/desktop/turbo.json makes the test depend on @xeon/cli's transit task (the sidecar entry is apps/cli/src/main.ts).
 # Staleness here is content based: a stamp next to the binary holds the hash of the non-test sources of @xeon/cli and every
-# workspace package it uses, of sidecar.json, build-sidecar.ts, bun.lock and mise.toml. A different hash rebuilds.
+# workspace package it uses, of sidecar.json, build-sidecar.ts, bun.lock and mise.toml. A different hash rebuilds, and so does a binary whose reported version is not 0.0.0.
 # usage: ensure-sidecar.sh   (from anywhere; build output as `just desktop-sidecar host`)
 # exit: 0 binary is current, 1 the build failed, 2 environment (no turbo, unsupported host).
 set -euo pipefail
@@ -32,7 +32,19 @@ hash_sources() {
 
 current="$(hash_sources)"
 built="$(cat "$stamp" 2>/dev/null || true)"
-if [[ "$current" == "$built" ]] && compgen -G "$dir/xeon-*" >/dev/null; then
+# A development sidecar reports "0.0.0" (L4.release.spec 8.1). A binary that runs and reports another version came from a release
+# build and is stale for the e2e tests. A binary that cannot run here (another triple) or has no JSON answer is not judged by this.
+version_mismatch() {
+  local file reported
+  for file in "$dir"/xeon-*; do
+    [[ -x "$file" ]] || continue
+    reported="$("$file" version --json 2>/dev/null | sed -n 's/.*"cli":"\([^"]*\)".*/\1/p' || true)"
+    [[ -n "$reported" && "$reported" != "0.0.0" ]] && return 0
+  done
+  return 1
+}
+
+if [[ "$current" == "$built" ]] && compgen -G "$dir/xeon-*" >/dev/null && ! version_mismatch; then
   echo "ensure-sidecar: binary is current"
   exit 0
 fi

@@ -64,13 +64,14 @@ test("a track id the plan does not declare is unknown_track, so the typo B9-X fa
   ]);
 });
 
-test("M3a, M4 and M3b with a declared track id are all valid, and counts keep the status names", () => {
+test("M3a, M3b, M4 and M3b with a declared track id are all valid, and counts keep the status names", () => {
   const scanned = scanOk(
-    `${HEADER}\n| M3-REQ-01 | F | x | 0 | M3a |\n| M3-REQ-02 | F | x | 0 | M4 |\n| M3-REQ-03 | F | x | 0 | M3b:B3-L1M |\n| M3-REQ-04 | F | x | 0 | M3b:B3-L1M |\n`,
+    `${HEADER}\n| M3-REQ-01 | F | x | 0 | M3a |\n| M3-REQ-02 | F | x | 0 | M4 |\n| M3-REQ-03 | F | x | 0 | M3b:B3-L1M |\n| M3-REQ-04 | F | x | 0 | M3b:B3-L1M |\n| M3-REQ-05 | F | x | 0 | M3b |\n`,
   );
   expect(scanned.problems).toEqual([]);
   expect(countStatuses(scanned.requirements)).toEqual([
     ["M3a", 1],
+    ["M3b", 1],
     ["M3b:B3-L1M", 2],
     ["M4", 1],
   ]);
@@ -128,9 +129,9 @@ test("a plan section 2 with no track headings is an error, not an empty track se
   });
 });
 
-test("the repository plan declares the 23 tracks of sections B0 to B5", () => {
+test("the repository plan declares the 27 tracks of sections B0 to B5 and the follow-ups", () => {
   const declared = declaredTracks(readRepoFile("docs/xeon/review/m3b-plan.md"));
-  expect(declared.ok && declared.value.size).toBe(23);
+  expect(declared.ok && declared.value.size).toBe(27);
   expect(declared.ok && declared.value.has("B0-F")).toBe(true);
   expect(declared.ok && declared.value.has("B5-DOC")).toBe(true);
   expect(declared.ok && declared.value.has("B9-X")).toBe(false);
@@ -157,6 +158,6 @@ test("the repository ledger has a valid status on all 112 rows and a declared tr
   expect(scanned.problems).toEqual([]);
   expect(scanned.carryover.length).toBeGreaterThan(0);
   const byId = new Map(scanned.requirements.map((row) => [row.id, row.status]));
-  expect(byId.get("M3-REQ-112")).toBe("M3b:B4-I18N");
+  expect(byId.get("M3-REQ-112")).toBe("M4");
   expect(byId.get("M3-REQ-33")).toBe("M3a");
 });

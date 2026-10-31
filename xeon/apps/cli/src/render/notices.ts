@@ -1,3 +1,4 @@
+import { t, type MessageId } from "@xeon/client/i18n";
 import { parse } from "@xeon/contracts";
 import type { NoticeKind } from "@xeon/contracts/capabilities";
 import type { ThreadId } from "@xeon/contracts/conversation";
@@ -16,12 +17,12 @@ const MESSAGE_LIMIT = 120;
 /** 연속 실패가 이 간격마다 한 번씩 그린다(1번째는 항상 그린다) [결정: 오케스트레이터 기본값] */
 const HANDLER_FAILURE_STEP = 5;
 
-const KIND_LABEL: Readonly<Record<NoticeKind, string>> = {
-  completed: "완료",
-  approval_waiting: "승인 대기",
-  question_waiting: "질문 대기",
-  error: "오류",
-  background_completed: "백그라운드 완료",
+const KIND_ID: Readonly<Record<NoticeKind, MessageId>> = {
+  completed: "cli.render.notices.kind.completed",
+  approval_waiting: "cli.render.notices.kind.approvalWaiting",
+  question_waiting: "cli.render.notices.kind.questionWaiting",
+  error: "cli.render.notices.kind.error",
+  background_completed: "cli.render.notices.kind.backgroundCompleted",
 };
 
 /** 제어 문자와 공백 연속을 한 칸으로 바꾼다. 확장과 도구가 준 글자가 터미널 제어열이 되지 않게 한다 */
@@ -45,8 +46,10 @@ function clip(text: string, limit: number): string {
 
 /** `owner`는 `ext:<이름>` 또는 `hook:<이름>`이다(X.operations.spec HandlerOwnerKey). 접두어를 떼고 이름만 보인다 */
 function ownerLabel(owner: string): string {
-  if (owner.startsWith("ext:")) return `확장 ${oneLine(owner.slice(4))}`;
-  if (owner.startsWith("hook:")) return `훅 ${oneLine(owner.slice(5))}`;
+  if (owner.startsWith("ext:"))
+    return t("cli.render.notices.owner.extension", { name: oneLine(owner.slice(4)) });
+  if (owner.startsWith("hook:"))
+    return t("cli.render.notices.owner.hook", { name: oneLine(owner.slice(5)) });
   return oneLine(owner);
 }
 
@@ -61,7 +64,11 @@ export function isShownFailure(consecutive: number): boolean {
  */
 export function handlerFailedText(payload: ScopeHandlerFailedPayload): string | undefined {
   if (!isShownFailure(payload.consecutive)) return undefined;
-  const head = `${ownerLabel(payload.owner)}의 ${oneLine(payload.point)} 핸들러가 실패했다 (연속 ${payload.consecutive}회)`;
+  const head = t("cli.render.notices.handlerFailed", {
+    owner: ownerLabel(payload.owner),
+    point: oneLine(payload.point),
+    count: String(payload.consecutive),
+  });
   const detail = oneLine(payload.message);
   return detail === "" ? head : `${head}: ${clip(detail, MESSAGE_LIMIT)}`;
 }
@@ -90,7 +97,7 @@ export function handlerFailedOpsOf(
 export function deliveredText(params: NotifyDeliveredParams, current: ThreadId): string {
   const { notice, threadId } = params;
   const other = threadId !== null && threadId !== current;
-  const head = `[${KIND_LABEL[notice.kind]}] ${oneLine(notice.title)}${other ? " (다른 대화)" : ""}`;
+  const head = `[${t(KIND_ID[notice.kind])}] ${oneLine(notice.title)}${other ? t("cli.render.notices.otherThread") : ""}`;
   const body = notice.body === null ? "" : bodyLines(notice.body);
   return body === "" ? head : `${head}\n${body}`;
 }

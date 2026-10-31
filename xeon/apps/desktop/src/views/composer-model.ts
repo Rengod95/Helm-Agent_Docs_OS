@@ -1,5 +1,6 @@
+import { t } from "@xeon/client/i18n";
 import type { Link } from "../state/engine/index.ts";
-import { SETUP_REQUIRED_TEXT } from "./setup-needed.ts";
+import { setupRequiredText } from "./setup-needed.ts";
 
 // 입력창의 Enter 판정과 중복 전송 방지. 화면 부품에서 떼어 순수하게 시험한다.
 // WebKit(Safari, WKWebView)은 한글 조합 중 Enter에서 compositionend를 keydown보다 먼저 내고,
@@ -67,9 +68,10 @@ export function composerDisabledReason(input: {
   readonly observing: boolean;
   readonly setupNeeded: boolean;
 }): string | null {
-  if (!input.engineRunning) return "엔진이 꺼져 있어 보낼 수 없습니다.";
-  if (input.phase !== "live" && input.phase !== "syncing") return "연결을 맞추는 중입니다.";
-  if (input.observing) return "다른 곳이 이 대화를 쓰고 있어 관찰만 합니다.";
-  if (input.setupNeeded) return SETUP_REQUIRED_TEXT;
+  if (!input.engineRunning) return t("desktop.composer.disabled.engineOff");
+  if (input.phase !== "live" && input.phase !== "syncing")
+    return t("desktop.composer.disabled.syncing");
+  if (input.observing) return t("desktop.composer.disabled.observing");
+  if (input.setupNeeded) return setupRequiredText();
   return null;
 }

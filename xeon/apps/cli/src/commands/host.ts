@@ -1,10 +1,11 @@
+import { t } from "@xeon/client/i18n";
 import { assertNever } from "@xeon/contracts";
 import type { ServiceEndpoint } from "@xeon/host";
 import { failureOfStart, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import type { CliIo } from "../io.ts";
 import { invalidRemoteError, serviceConnectErrorOf } from "../engine.ts";
-import { cliSettings } from "../settings.ts";
+import { cliSettingGroups } from "../settings.ts";
 import { printFailure, type CommandContext } from "./context.ts";
 
 // L4.cli.spec §3.1 `xeon host --stdio`, plan C16. 컴파일 바이너리의 내부 진입이다. 데스크톱 사이드카가 쓴다.
@@ -28,7 +29,7 @@ export async function runHostStdio(ctx: CommandContext): Promise<ExitCode> {
   const exit = await deps.startStdioHost({
     readable: io.stdin,
     writable: io.stdoutStream,
-    assemble: { settingGroups: [cliSettings], devChecks: deps.devWireRoundTrip },
+    assemble: { settingGroups: cliSettingGroups, devChecks: deps.devWireRoundTrip },
   });
   if (exit.message !== undefined) await io.stderr(`xeon: ${exit.message}\n`);
   return exit.code === 0 ? EXIT.ok : EXIT.error;
@@ -60,14 +61,14 @@ async function bridgeToRemote(
       return reportFailure(io, failureOfStart(serviceConnectErrorOf(exit.error)));
     case "remote_closed":
       return reportFailure(io, {
-        message: "원격 서비스 연결이 끊겼다",
-        fix: "xeon service status로 원격 서비스를 확인하고 다시 실행한다",
+        message: t("cli.host.remoteClosed.message"),
+        fix: t("cli.host.remoteCheck.fix"),
         code: EXIT.error,
       });
     case "relay_failed":
       return reportFailure(io, {
-        message: "원격 서비스와 중계하지 못했다",
-        fix: "xeon service status로 원격 서비스를 확인하고 다시 실행한다",
+        message: t("cli.host.relayFailed.message"),
+        fix: t("cli.host.remoteCheck.fix"),
         code: EXIT.error,
       });
     default:

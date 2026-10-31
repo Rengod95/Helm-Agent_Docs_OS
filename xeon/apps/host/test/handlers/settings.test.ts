@@ -481,7 +481,7 @@ test("settings.set refuses a model id the registry does not have, names it and t
   expect(wrong.code).toBe(3102);
   expect(wrong.data.details).toEqual({
     key: "l1.models.default",
-    issues: [{ path: "value", message: "알 수 없는 모델 tape/tape-1.5 (tape의 모델: tape-1)" }],
+    issues: [{ path: "value", message: "unknown model tape/tape-1.5 (tape models: tape-1)" }],
   });
   const noProvider = await wireErrorOf(
     connection.request("settings.set", {
@@ -495,7 +495,7 @@ test("settings.set refuses a model id the registry does not have, names it and t
     issues: [
       {
         path: "value",
-        message: "알 수 없는 모델 nowhere/m (provider nowhere에 등록된 모델이 없다)",
+        message: "unknown model nowhere/m (provider nowhere has no registered models)",
       },
     ],
   });

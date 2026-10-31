@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import { t } from "@xeon/client/i18n";
 import { err, ok, parse, parseJson, type Result } from "@xeon/contracts";
 
 // L3.slots.spec §3.3.3(템플릿 색인, 치환 자리), §3.3.4(이름 규칙), §3.3.6 R1·R2. `xeon group new`가 쓰는 순수 규칙이다.
@@ -89,11 +90,13 @@ const TemplateIndexSchema = Type.Object({
 /** `templates/index.json` 텍스트를 읽는다. 형식이 맞지 않으면 사람이 읽는 이유 한 줄을 돌려준다 */
 export function parseTemplateIndex(text: string): Result<TemplateIndex, string> {
   const json = parseJson(text);
-  if (!json.ok) return err("색인이 JSON이 아니다");
+  if (!json.ok) return err(t("cli.group.index.notJson"));
   const checked = parse(TemplateIndexSchema, json.value);
   if (!checked.ok) {
     const first = checked.error.issues[0];
-    return err(first === undefined ? "색인 형식이 맞지 않는다" : `${first.path} ${first.message}`);
+    return err(
+      first === undefined ? t("cli.group.index.badShape") : `${first.path} ${first.message}`,
+    );
   }
   return ok(checked.value);
 }

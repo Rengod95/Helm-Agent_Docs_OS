@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildSidecar,
@@ -9,6 +10,7 @@ import {
   diagnoseBuildFailure,
   exitCodeOf,
   hostTriple,
+  isBuildVersion,
   MIB,
   outputFileName,
   parseSidecarConfig,
@@ -176,6 +178,18 @@ test("a build runs bun with the mapped target and reports the size against the c
   ]);
 });
 
+test("an out-dir request writes there and leaves the development sidecar path alone", async () => {
+  const { io, calls } = fakeIo({ config: CONFIG_TEXT, size: MIB });
+  const result = await buildSidecar(
+    { desktopDir: DESKTOP, triple: "x86_64-unknown-linux-gnu", bytecode: true, outDir: "/o/rel" },
+    io,
+  );
+  expect(result.ok && result.value.outFile).toBe("/o/rel/xeon-x86_64-unknown-linux-gnu");
+  expect(calls.dirs).toEqual(["/o/rel"]);
+  expect(calls.args[0]?.at(-1)).toBe("/o/rel/xeon-x86_64-unknown-linux-gnu");
+  expect(calls.args[0]?.join(" ")).not.toContain("src-tauri");
+});
+
 test("the Windows build writes an .exe", async () => {
   const { io } = fakeIo({ config: CONFIG_TEXT, size: 96 * MIB });
   const result = await buildSidecar(
@@ -273,3 +287,105 @@ test("--no-bytecode leaves the flag out of the bun call", async () => {
   expect(calls.args[0]).not.toContain("--bytecode");
   expect(calls.args[0]).toContain("--minify");
 });
+
+test("--version injects XEON_BUILD_VERSION as a --define string before the entry, and only when given", () => {
+  const base = {
+    entry: "/e/main.ts",
+    outFile: "/o/xeon-x",
+    bunTarget: "bun-linux-x64",
+    bytecode: false,
+  };
+  expect(compileArgs({ ...base, version: "1.2.3" })).toEqual([
+    "build",
+    "--compile",
+    "--minify",
+    "--target=bun-linux-x64",
+    "--define",
+    'XEON_BUILD_VERSION="1.2.3"',
+    "/e/main.ts",
+    "--outfile",
+    "/o/xeon-x",
+  ]);
+  expect(compileArgs(base)).not.toContain("--define");
+  expect(compileArgs({ ...base, version: undefined })).not.toContain("--define");
+});
+
+test("isBuildVersion accepts x.y.z with an optional pre-release tail and rejects short, prefixed and shell-like forms", () => {
+  const cases = ["1.2.3", "1.2.3-rc.1", "1.2", "v1.2.3", "1.2.3; rm"];
+  expect(cases.map((version) => isBuildVersion(version))).toEqual([
+    true,
+    true,
+    false,
+    false,
+    false,
+  ]);
+});
+
+test("the release version of a build request reaches the bun arguments, and no version adds no define", async () => {
+  const versioned = fakeIo({ config: CONFIG_TEXT, size: MIB });
+  const built = await buildSidecar(
+    { desktopDir: DESKTOP, triple: "x86_64-unknown-linux-gnu", bytecode: false, version: "1.2.3" },
+    versioned.io,
+  );
+  expect(built.ok).toBe(true);
+  expect(versioned.calls.args[0]).toContain('XEON_BUILD_VERSION="1.2.3"');
+
+  const plain = fakeIo({ config: CONFIG_TEXT, size: MIB });
+  await buildSidecar(
+    { desktopDir: DESKTOP, triple: "x86_64-unknown-linux-gnu", bytecode: false },
+    plain.io,
+  );
+  expect(plain.calls.args[0]).not.toContain("--define");
+});
+
+// 실제 컴파일 시험: 주입한 값이 바이너리 안 상수가 되고, 주입이 없으면 "0.0.0"이 된다. 소스 실행과 같은 `typeof` 모양이다
+const VERSION_FIXTURE = [
+  "declare const XEON_BUILD_VERSION: string | undefined;",
+  'const VERSION: string = typeof XEON_BUILD_VERSION === "string" ? XEON_BUILD_VERSION : "0.0.0";',
+  'process.stdout.write(VERSION + "\\n");',
+].join("\n");
+
+async function compileFixture(
+  dir: string,
+  name: string,
+  version: string | undefined,
+): Promise<string> {
+  const config = parseSidecarConfig(realConfigText());
+  if (!config.ok) throw new Error("the committed sidecar.json must parse");
+  const triple = hostTriple(process.platform, process.arch);
+  if (!triple.ok) throw new Error("this host has no sidecar triple");
+  const target = resolveTarget(config.value, triple.value);
+  if (!target.ok) throw new Error("this host triple has no bun target");
+  const outFile = join(dir, name);
+  const args = compileArgs({
+    entry: join(dir, "main.ts"),
+    outFile,
+    bunTarget: target.value.bunTarget,
+    bytecode: false,
+    version,
+  });
+  const child = Bun.spawn([process.execPath, ...args], { stdout: "pipe", stderr: "pipe" });
+  const [stderr, exitCode] = await Promise.all([new Response(child.stderr).text(), child.exited]);
+  if (exitCode !== 0) throw new Error(`bun build failed: ${stderr}`);
+  return outFile;
+}
+
+async function printedBy(path: string): Promise<string> {
+  const child = Bun.spawn([path], { stdout: "pipe", stderr: "pipe" });
+  const [stdout, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+  expect(exitCode).toBe(0);
+  return stdout.trim();
+}
+
+test("a compiled binary carries the injected version, and reports 0.0.0 without one", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "xeon-version-bin-"));
+  try {
+    writeFileSync(join(dir, "main.ts"), VERSION_FIXTURE);
+    const injected = await compileFixture(dir, "with-version", "9.8.7");
+    const plain = await compileFixture(dir, "no-version", undefined);
+    expect(await printedBy(injected)).toBe("9.8.7");
+    expect(await printedBy(plain)).toBe("0.0.0");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}, 120_000);

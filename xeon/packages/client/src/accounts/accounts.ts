@@ -1,5 +1,6 @@
 import { parse, type Result } from "@xeon/contracts";
 import { Type } from "typebox";
+import { t } from "../i18n/index.ts";
 
 // 모델 계정과 레이트 리밋 설정의 순수 로직(L1.models.spec §3.10, §4.8, L4.settings-ui.spec §4.2.3). 화면은 이 값을 보여 주고 바꾼다.
 // L1(core-models)을 import하지 않는다. 키와 모양은 core-models `accountsSchema`·`rateLimitSchema`를 typebox로 다시 적은 것이고,
@@ -15,10 +16,11 @@ export const ROTATION_ACK_KEY = "ext.account-rotation.acknowledgeRisk";
 
 /**
  * 약관 위험 고지 문구. `packages/group-account-rotation/src/manifest.ts`의 `ROTATION_RISK_NOTICE`와 같은 글이다.
- * 설정 화면은 켜기 전에 이 문구를 보인다(L1.models.spec §4.8).
+ * 설정 화면은 켜기 전에 이 문구를 보인다(L1.models.spec §4.8). 읽을 때의 로케일로 만든다.
  */
-export const ROTATION_RISK_NOTICE: string =
-  "이 플러그인은 한 provider의 여러 계정(API 키 계정과 구독 계정)을 돌려 가며 요청을 보냅니다. 구독 계정을 이렇게 쓰면 provider 이용 약관에 어긋날 수 있고 계정이 제한되거나 정지될 수 있습니다. 켜면 그 위험을 사용자가 집니다.";
+export function rotationRiskNotice(): string {
+  return t("client.accounts.rotationRiskNotice");
+}
 
 /** `l1.models.accounts`의 원소 하나. `credential`은 `secret://<이름>` 참조다 */
 export interface AccountEntry {

@@ -1,3 +1,4 @@
+import { t } from "@xeon/client/i18n";
 import { err, ok, type Result } from "@xeon/contracts";
 import { WIRE_LIMITS } from "@xeon/contracts/wire";
 import type { ChatCommand } from "../cli/command.ts";
@@ -29,8 +30,8 @@ export async function readAllText(
 
 function tooLarge(): Failure {
   return {
-    message: "입력이 1 MiB를 넘는다",
-    fix: "큰 내용은 파일에 두고 도구로 읽게 한다",
+    message: t("cli.errors.chatInput.tooLarge.message"),
+    fix: t("cli.errors.chatInput.tooLarge.fix"),
     code: EXIT.usage,
   };
 }
@@ -52,8 +53,8 @@ export async function resolvePrintInput(
   if (new TextEncoder().encode(text).byteLength > limit) return err(tooLarge());
   if (text.trim().length === 0) {
     return err({
-      message: "입력이 비어 있다",
-      fix: "-p <입력>으로 입력을 주거나 stdin으로 넘긴다",
+      message: t("cli.errors.chatInput.empty.message"),
+      fix: t("cli.usage.chat.inputRequired.fix"),
       code: EXIT.usage,
     });
   }

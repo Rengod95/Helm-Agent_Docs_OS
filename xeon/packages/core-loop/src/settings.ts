@@ -1,14 +1,20 @@
 import { Type } from "typebox";
 import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
 import type { ThreadId } from "@xeon/contracts/conversation";
+import type { RepeatSettings } from "./repeat.ts";
 
-// L1.loop.spec §6. 키는 `l1.loop.maxSteps`(M1)와 `l1.loop.gate.maxContinues`(M2)다. repeat.*(2차)는 두지 않는다.
+// L1.loop.spec §6. 키는 `l1.loop.maxSteps`(M1)와 `l1.loop.gate.maxContinues`(M2)다.
 
 /** 기본값은 이 상수 한 곳에만 둔다(BP-06). 0이면 단계 상한이 없다(pi 방식, L1.loop.spec §4.7) */
 export const LOOP_MAX_STEPS_DEFAULT: number = 0;
 
 /** 완료 게이트 계속 상한 기본값. Claude Code Stop 훅 8회, omp `session_stop` 8회를 따른다(L1.loop.spec §4.9) */
 export const LOOP_GATE_MAX_CONTINUES_DEFAULT: number = 8;
+
+/** 반복 감지 기본값(L1.loop.spec §4.10, OpenHands stuck detector). 기본은 켜짐 */
+export const LOOP_REPEAT_ENABLED_DEFAULT: boolean = true;
+export const LOOP_REPEAT_ACTION_OBSERVATION_DEFAULT: number = 4;
+export const LOOP_REPEAT_ACTION_ERROR_DEFAULT: number = 3;
 
 const SCOPES = ["managed", "user", "project", "local", "session"] as const;
 
@@ -45,6 +51,44 @@ const group = defineSettings("l1.loop", {
     },
     since: "0.2.0",
   },
+  "repeat.enabled": {
+    type: Type.Boolean(),
+    default: LOOP_REPEAT_ENABLED_DEFAULT,
+    runtimeChange: "live",
+    allowedScopes: SCOPES,
+    ui: { tab: "budgets", widget: "toggle", order: 30, label: "반복 감지 알림" },
+    since: "0.3.0",
+  },
+  "repeat.actionObservation": {
+    type: Type.Integer(),
+    default: LOOP_REPEAT_ACTION_OBSERVATION_DEFAULT,
+    range: { min: 2, max: 50 },
+    runtimeChange: "live",
+    allowedScopes: SCOPES,
+    ui: {
+      tab: "budgets",
+      widget: "number",
+      order: 31,
+      label: "같은 행동-관찰 반복 임계",
+      unit: "회",
+    },
+    since: "0.3.0",
+  },
+  "repeat.actionError": {
+    type: Type.Integer(),
+    default: LOOP_REPEAT_ACTION_ERROR_DEFAULT,
+    range: { min: 2, max: 50 },
+    runtimeChange: "live",
+    allowedScopes: SCOPES,
+    ui: {
+      tab: "budgets",
+      widget: "number",
+      order: 32,
+      label: "같은 행동-오류 반복 임계",
+      unit: "회",
+    },
+    since: "0.3.0",
+  },
 });
 
 /** `l1.loop.*` 선언 전체. 카탈로그 조립(buildCatalog)이 쓴다 */
@@ -56,9 +100,16 @@ export interface LoopSettingsSource {
   maxSteps(threadId: ThreadId): number;
   /** l1.loop.gate.maxContinues. turn 안에서 완료 게이트 계속을 따르는 최대 횟수. 0이면 따르지 않는다 */
   gateMaxContinues(threadId: ThreadId): number;
+  /** l1.loop.repeat.*. `live` 키지만 루프는 turn 시작 때 한 번 읽는다 */
+  repeat(threadId: ThreadId): RepeatSettings;
 }
 
 export const DEFAULT_LOOP_SETTINGS: LoopSettingsSource = {
   maxSteps: () => LOOP_MAX_STEPS_DEFAULT,
   gateMaxContinues: () => LOOP_GATE_MAX_CONTINUES_DEFAULT,
+  repeat: () => ({
+    enabled: LOOP_REPEAT_ENABLED_DEFAULT,
+    actionObservation: LOOP_REPEAT_ACTION_OBSERVATION_DEFAULT,
+    actionError: LOOP_REPEAT_ACTION_ERROR_DEFAULT,
+  }),
 };

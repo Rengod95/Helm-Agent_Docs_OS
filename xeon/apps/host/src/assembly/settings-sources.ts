@@ -137,6 +137,11 @@ export function loopSource(settings: SettingsEngine): LoopSettingsSource {
   return {
     maxSteps: (threadId) => intOr(settings.value("l1.loop.maxSteps", threadId), 0),
     gateMaxContinues: (threadId) => intOr(settings.value("l1.loop.gate.maxContinues", threadId), 8),
+    repeat: (threadId) => ({
+      enabled: settings.value("l1.loop.repeat.enabled", threadId) !== false,
+      actionObservation: intOr(settings.value("l1.loop.repeat.actionObservation", threadId), 4),
+      actionError: intOr(settings.value("l1.loop.repeat.actionError", threadId), 3),
+    }),
   };
 }
 
