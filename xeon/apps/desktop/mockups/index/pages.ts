@@ -50,4 +50,10 @@ export const pages: MockPage[] = [
   { id: "O-07", title: "새 대화", folder: "o07-new-thread", states: 5 },
   { id: "O-09", title: "바로 가기 키 도움말", folder: "o09-shortcuts", states: 4 },
   { id: "S-04", title: "토스트", folder: "s04-toast", states: 5 },
+  {
+    id: "P-16 캔버스",
+    title: "런타임 캔버스: 층 띠·블록·연결, 맥락 분리, 턴 재생, 검사기",
+    folder: "wb-canvas",
+    states: 13,
+  },
 ];

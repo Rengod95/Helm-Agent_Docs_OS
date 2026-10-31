@@ -47,6 +47,7 @@ import {
   Target,
 } from "./icons";
 import { useShell, type Area } from "./state";
+import type { ReactNode } from "react";
 
 // 지금 화면(activeNav)은 라벨 굵기와 함께 아이콘도 selected(Solar bold)로 그린다(DP-17).
 const NAV_ICONS = {
@@ -112,6 +113,8 @@ export interface WorkbenchPanelProps {
   pages?: PluginPageEntry[] | undefined;
   /** 대화 맥락 칸의 "대화로 가기"(맥락 대화의 대화 화면으로). */
   onGoToThread?: ((threadId: string) => void) | undefined;
+  /** 맥락 칸을 페이지 것으로 바꿀 때(캔버스 시안: 전체·대화·프로필·시험 네 종류). 없으면 대화 맥락 칸. */
+  contextField?: ReactNode | undefined;
 }
 
 export interface StartPanelProps {
@@ -316,7 +319,8 @@ export function StartPanel({
             </IconButton>
           </div>
           <AreaSwitch />
-          {wb && <ContextPicker onGoToThread={workbench?.onGoToThread} />}
+          {wb &&
+            (workbench?.contextField ?? <ContextPicker onGoToThread={workbench?.onGoToThread} />)}
         </div>
       }
       footer={
