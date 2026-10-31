@@ -4,6 +4,7 @@ export { loadCausticFonts } from "./fonts";
 export { MockRoot, type MockStateDef, type Theme } from "./dev";
 export { ShellStateProvider, useShell, type Area, type Layout, type ShellState } from "./state";
 export { Shell, STAGE_ID, type ShellProps } from "./shell";
+export type { PaletteGroup } from "./palette";
 export { chatRightTabs, standardRightTabs, workbenchRightTabs, type RightTab } from "./right-panel";
 export type { ThreadListProps, WorkbenchPanelProps } from "./start-panel";
 export { WB_WIDTH, WorkbenchHead, type WorkbenchHeadProps } from "./workbench-head";

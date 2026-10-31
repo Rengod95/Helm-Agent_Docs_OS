@@ -45,4 +45,9 @@ export const pages: MockPage[] = [
   { id: "P-07", title: "예약 · O-08 예약 편집", folder: "p07-schedules", states: 11 },
   { id: "P-08", title: "연결", folder: "p08-connection", states: 7 },
   { id: "P-14", title: "목표와 작업", folder: "p14-work", states: 7 },
+  { id: "P-01", title: "첫 실행", folder: "p01-first-run", states: 10 },
+  { id: "P-15", title: "진단과 정보", folder: "p15-diagnostics", states: 6 },
+  { id: "O-07", title: "새 대화", folder: "o07-new-thread", states: 5 },
+  { id: "O-09", title: "바로 가기 키 도움말", folder: "o09-shortcuts", states: 4 },
+  { id: "S-04", title: "토스트", folder: "s04-toast", states: 5 },
 ];

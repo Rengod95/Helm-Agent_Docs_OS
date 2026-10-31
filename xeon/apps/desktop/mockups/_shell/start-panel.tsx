@@ -3,6 +3,8 @@
 //   작업대 영역: 머리에 대화 맥락 칸을 더하고, 작업대 내비(일곱) + "플러그인 화면" 목록(켜진 확장의 page 기여).
 // 맨 아래 설정은 두 영역 공통. 지금 화면(activeNav)과 대화 고르기는 페이지가 props로 준다.
 import {
+  Button,
+  EmptyState,
   IconButton,
   Input,
   ListNavigation,
@@ -15,10 +17,11 @@ import {
   SidePanel,
 } from "@caustic/react";
 import {
-  nav,
+  nav as defaultNav,
   pluginPages as defaultPluginPages,
-  threads,
+  threads as defaultThreads,
   workbenchNav as defaultWorkbenchNav,
+  type NavEntry,
   type PluginPageEntry,
   type Thread,
   type WorkbenchNavEntry,
@@ -98,6 +101,8 @@ export interface ThreadListProps {
   draft?: boolean;
   onSelect: (id: string) => void;
   onNew: () => void;
+  /** 대화 목록을 바꿀 때(예: 첫 실행은 빈 배열). 없으면 공용 고정 데이터. 비면 "아직 대화가 없어요". */
+  items?: Thread[];
 }
 
 export interface WorkbenchPanelProps {
@@ -116,6 +121,8 @@ export interface StartPanelProps {
   onNavSelect?: ((id: string) => void) | undefined;
   threads: ThreadListProps;
   workbench?: WorkbenchPanelProps | undefined;
+  /** 주 내비 항목(배지)을 바꿀 때. 없으면 공용 고정 데이터. */
+  nav?: NavEntry[] | undefined;
 }
 
 /** 영역 바꾸기(§4.9.2, DP-18): 찾기 칸 바로 아래 SegmentedControl 하나. 고른 항목은 selected 굵기. */
@@ -150,7 +157,7 @@ function ContextPicker({ onGoToThread }: { onGoToThread?: ((id: string) => void)
         className="min-w-0 flex-1"
       >
         <SelectOption value="all">맥락 · 전체 대화</SelectOption>
-        {threads
+        {defaultThreads
           .filter((t) => t.title !== "")
           .map((t) => (
             <SelectOption key={t.id} value={t.id}>
@@ -253,8 +260,10 @@ export function StartPanel({
   onNavSelect,
   threads: list,
   workbench,
+  nav = defaultNav,
 }: StartPanelProps) {
   const m = useShell();
+  const threads = list.items ?? defaultThreads;
   const folders = [...new Set(threads.map((t) => t.folder))];
   const wb = m.area === "workbench";
 
@@ -362,6 +371,18 @@ export function StartPanel({
             </ListNavigationGroup>
           </ListNavigation>
 
+          {threads.length === 0 && list.draft !== true && (
+            <EmptyState
+              size="sm"
+              surface="none"
+              title="아직 대화가 없어요"
+              actions={
+                <Button size="xs" tone="neutral" variant="outline" onClick={list.onNew}>
+                  새 대화
+                </Button>
+              }
+            />
+          )}
           <ListNavigation aria-label="대화 목록" kind="sessions" size="sm" as="div">
             {list.draft === true && (
               <ListNavigationGroup heading="새로 시작">

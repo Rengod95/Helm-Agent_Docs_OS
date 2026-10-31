@@ -7,8 +7,8 @@ import {
   DialogTitle,
   type ComboboxGroupData,
 } from "@caustic/react";
-import { palette } from "./fixtures";
-import { LayoutGrid, MessageSquare, Play, Settings, SlashSquare } from "./icons";
+import { palette, type PaletteItem } from "./fixtures";
+import { LayoutGrid, Layers, MessageSquare, Play, Settings, SlashSquare } from "./icons";
 import { useShell } from "./state";
 
 const GROUP_ICON: Record<string, React.ReactNode> = {
@@ -18,37 +18,50 @@ const GROUP_ICON: Record<string, React.ReactNode> = {
   "슬래시 명령": <SlashSquare />,
   작업대: <LayoutGrid />,
   설정: <Settings />,
+  그룹: <Layers />,
+  화면: <LayoutGrid />,
 };
 
-const groups: ComboboxGroupData[] = palette.map((g) => ({
-  label: g.group,
-  options: g.items.map((item) => {
-    const it = typeof item === "string" ? { label: item } : item;
-    return {
-      value: `${g.group}:${it.label}`,
-      label: it.label,
-      leading: GROUP_ICON[g.group],
-      ...(it.hint !== undefined
-        ? {
-            description:
-              g.group === "설정" ? (
-                <span className="font-mono text-mono-sm">{it.hint}</span>
-              ) : (
-                it.hint
-              ),
-          }
-        : {}),
-    };
-  }),
-}));
+export interface PaletteGroup {
+  group: string;
+  items: PaletteItem[];
+}
+
+const toGroups = (src: PaletteGroup[]): ComboboxGroupData[] =>
+  src.map((g) => ({
+    label: g.group,
+    options: g.items.map((item) => {
+      const it = typeof item === "string" ? { label: item } : item;
+      return {
+        value: `${g.group}:${it.label}`,
+        label: it.label,
+        leading: GROUP_ICON[g.group],
+        ...(it.hint !== undefined
+          ? {
+              description:
+                g.group === "설정" ? (
+                  <span className="font-mono text-mono-sm">{it.hint}</span>
+                ) : (
+                  it.hint
+                ),
+            }
+          : {}),
+      };
+    }),
+  }));
+const defaultGroups = toGroups(palette);
 
 /** onRun은 고른 항목의 묶음 이름과 라벨을 받는다(예: "대화", "테스트 정리"). 팔레트는 먼저 닫힌다. */
 export function Palette({
   onRun,
+  groups: custom,
 }: {
   onRun?: ((group: string, label: string) => void) | undefined;
+  /** 페이지가 준 묶음. 없으면 공용 고정 데이터. 아이콘은 묶음 이름(대화·명령·슬래시 명령·설정·그룹·화면)을 따른다. */
+  groups?: PaletteGroup[] | undefined;
 }) {
   const m = useShell();
+  const groups = custom === undefined ? defaultGroups : toGroups(custom);
   const run = (value: string) => {
     const [group, label] = value.split(":") as [string, string];
     m.setPaletteOpen(false);

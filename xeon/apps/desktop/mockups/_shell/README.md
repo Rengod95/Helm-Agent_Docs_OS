@@ -4,22 +4,22 @@
 
 ## 들어 있는 것
 
-| 파일 | 하는 일 |
-|---|---|
-| `shell.tsx` | `Shell`: 왼쪽 패널(창 위아래 끝까지) · 투명한 가운데(`main`) · 오른쪽 떠 있는 세로 막대 + well · 상태 표시줄 · 팔레트 · 건너뛰기 링크 · 전역 단축키(⌘K, ⌘\, ⌘J, ⌘N, Esc, ⌘E 영역 바꾸기, ⌥⌘1 대화, ⌥⌘2 작업대) |
-| `state.tsx` | `ShellStateProvider`, `useShell()`: 폭 단계(wide·medium·compact), 영역(`area`: chat·workbench), 작업대 대화 맥락(`contextThreadId`), 왼쪽 패널, 오른쪽 well(열림·탭, 탭은 영역마다 기억), 팔레트 |
-| `start-panel.tsx` | 찾기 칸, 영역 바꾸기(`SegmentedControl` 대화·작업대), 대화 영역: 주 내비(넷)·작업 폴더별 대화 목록 / 작업대 영역: 대화 맥락 칸·작업대 내비(일곱)·"플러그인 화면" 목록, 설정 |
-| `right-panel.tsx` | `RightTab`(+ `ext`, `expand`), `chatRightTabs()`(받은 요청·런타임·작업·플러그인 well), `workbenchRightTabs()`(받은 요청·기록·대화), 옛 `standardRightTabs()` |
-| `workbench-head.tsx` | `WorkbenchHead`, `WB_WIDTH`: 작업대 화면 머리(h-10 한 줄 + 둘째 줄 요약, 패널이 닫히면 "맥락 <대화>") |
-| `workbench-fixtures.ts` | 스펙 §14.5 작업대 고정 데이터(확장, 층 지도, helm 지점, 임대, 전환, Helm 탐구, 지표, 시험, 프로필, 템플릿) + 기록·대화 탭 데이터 |
-| `status.tsx` | `defaultStatusCells()`(S-03 칸, compact 폭 축약) |
-| `palette.tsx` | 명령 팔레트(S-02) |
-| `dev.tsx` | `MockRoot`: `?state=`·`?theme=`와 개발용 띠(목업 전용) |
-| `fonts.ts` | `loadCausticFonts()`: caustic 글꼴을 렌더를 막지 않게(DP-15) |
-| `icons.ts` | caustic 아이콘 어댑터(Solar, DP-17) 다시 내보내기 |
-| `fixtures.ts` | 공용 고정 데이터(대화 목록, 내비, 승인·제안·알림, 상태, 팔레트) |
-| `parts/` | 상태 표시줄, 알림 목록, 도구 승인 카드, 질문 카드, 작업대 "기록"(`RuntimeLog`)·"대화"(`ThreadTail`) 탭 내용, `ToneIcon`(DP-29 tone 아이콘 면) |
-| `shell.css` | 높이 100%, 창 바탕, 커서 깜빡임. Tailwind가 이 폴더도 읽게 `@source` |
+| 파일                    | 하는 일                                                                                                                                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shell.tsx`             | `Shell`: 왼쪽 패널(창 위아래 끝까지) · 투명한 가운데(`main`) · 오른쪽 떠 있는 세로 막대 + well · 상태 표시줄 · 팔레트 · 건너뛰기 링크 · 전역 단축키(⌘K, ⌘\, ⌘J, ⌘N, Esc, ⌘E 영역 바꾸기, ⌥⌘1 대화, ⌥⌘2 작업대) |
+| `state.tsx`             | `ShellStateProvider`, `useShell()`: 폭 단계(wide·medium·compact), 영역(`area`: chat·workbench), 작업대 대화 맥락(`contextThreadId`), 왼쪽 패널, 오른쪽 well(열림·탭, 탭은 영역마다 기억), 팔레트               |
+| `start-panel.tsx`       | 찾기 칸, 영역 바꾸기(`SegmentedControl` 대화·작업대), 대화 영역: 주 내비(넷)·작업 폴더별 대화 목록 / 작업대 영역: 대화 맥락 칸·작업대 내비(일곱)·"플러그인 화면" 목록, 설정                                    |
+| `right-panel.tsx`       | `RightTab`(+ `ext`, `expand`), `chatRightTabs()`(받은 요청·런타임·작업·플러그인 well), `workbenchRightTabs()`(받은 요청·기록·대화), 옛 `standardRightTabs()`                                                   |
+| `workbench-head.tsx`    | `WorkbenchHead`, `WB_WIDTH`: 작업대 화면 머리(h-10 한 줄 + 둘째 줄 요약, 패널이 닫히면 "맥락 <대화>")                                                                                                          |
+| `workbench-fixtures.ts` | 스펙 §14.5 작업대 고정 데이터(확장, 층 지도, helm 지점, 임대, 전환, Helm 탐구, 지표, 시험, 프로필, 템플릿) + 기록·대화 탭 데이터                                                                               |
+| `status.tsx`            | `defaultStatusCells()`(S-03 칸, compact 폭 축약)                                                                                                                                                               |
+| `palette.tsx`           | 명령 팔레트(S-02)                                                                                                                                                                                              |
+| `dev.tsx`               | `MockRoot`: `?state=`·`?theme=`와 개발용 띠(목업 전용)                                                                                                                                                         |
+| `fonts.ts`              | `loadCausticFonts()`: caustic 글꼴을 렌더를 막지 않게(DP-15)                                                                                                                                                   |
+| `icons.ts`              | caustic 아이콘 어댑터(Solar, DP-17) 다시 내보내기                                                                                                                                                              |
+| `fixtures.ts`           | 공용 고정 데이터(대화 목록, 내비, 승인·제안·알림, 상태, 팔레트)                                                                                                                                                |
+| `parts/`                | 상태 표시줄, 알림 목록, 도구 승인 카드, 질문 카드, 작업대 "기록"(`RuntimeLog`)·"대화"(`ThreadTail`) 탭 내용, `ToneIcon`(DP-29 tone 아이콘 면)                                                                  |
+| `shell.css`             | 높이 100%, 창 바탕, 커서 깜빡임. Tailwind가 이 폴더도 읽게 `@source`                                                                                                                                           |
 
 ## 새 페이지 목업 만들기
 
@@ -35,7 +35,15 @@
 3. `main.tsx`(글꼴이 맨 먼저):
 
    ```tsx
-   import { loadCausticFonts, MockRoot, ShellStateProvider, Shell, defaultStatusCells, standardRightTabs, useShell } from "../_shell";
+   import {
+     loadCausticFonts,
+     MockRoot,
+     ShellStateProvider,
+     Shell,
+     defaultStatusCells,
+     standardRightTabs,
+     useShell,
+   } from "../_shell";
    import "./mockup.css";
    loadCausticFonts();
 
@@ -45,11 +53,16 @@
      const shell = useShell();
      return (
        <Shell
-         activeNav="proposals"                        // 지금 화면인 주 내비 항목
-         stageLabel="제안"                             // main 랜드마크 이름
+         activeNav="proposals" // 지금 화면인 주 내비 항목
+         stageLabel="제안" // main 랜드마크 이름
          threads={{ currentId: null, onSelect: () => {}, onNew: () => {} }}
          rightTabs={standardRightTabs({ inbox: <MyInbox />, inboxBadge: 5 })}
-         status={defaultStatusCells({ layout: shell.layout, thread: false, pendingApprovals: 2, openEnd: shell.openEnd })}
+         status={defaultStatusCells({
+           layout: shell.layout,
+           thread: false,
+           pendingApprovals: 2,
+           openEnd: shell.openEnd,
+         })}
        >
          {/* 가운데 내용: 투명 면 위에 바로(카드로 감싸지 않음, DP-01) */}
        </Shell>
@@ -57,7 +70,13 @@
    }
 
    createRoot(document.getElementById("root")!).render(
-     <MockRoot states={STATES}>{(state) => <ShellStateProvider><Page /></ShellStateProvider>}</MockRoot>,
+     <MockRoot states={STATES}>
+       {(state) => (
+         <ShellStateProvider>
+           <Page />
+         </ShellStateProvider>
+       )}
+     </MockRoot>,
    );
    ```
 

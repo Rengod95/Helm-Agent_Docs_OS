@@ -4,7 +4,8 @@
 // ⌘N 새 대화, Esc 뜬 패널 닫기, ⌘E 영역 바꾸기, ⌥⌘1 대화, ⌥⌘2 작업대)를 셸이 맡는다. ShellStateProvider 안에서 쓴다.
 // 두 영역(대화·작업대, §4.9)은 이 셸 하나를 같이 쓰고 왼쪽 패널 내용과 오른쪽 탭만 바뀐다(DP-18). 영역은 useShell().area.
 import { useEffect, type ReactNode } from "react";
-import { Palette } from "./palette";
+import type { NavEntry } from "./fixtures";
+import { Palette, type PaletteGroup } from "./palette";
 import { StatusBar, type StatusCell } from "./parts/status-bar";
 import { RightPanel, type RightTab } from "./right-panel";
 import { StartPanel, type ThreadListProps, type WorkbenchPanelProps } from "./start-panel";
@@ -30,6 +31,10 @@ export interface ShellProps {
   onPaletteRun?: (group: string, label: string) => void;
   /** 가운데 main 랜드마크 이름. */
   stageLabel?: string;
+  /** 주 내비 항목(배지)을 바꿀 때(예: 첫 실행은 배지 없음). */
+  nav?: NavEntry[];
+  /** 팔레트 묶음을 바꿀 때. 없으면 공용 고정 데이터. */
+  palette?: PaletteGroup[];
   /** 페이지의 대화 상자가 열려 있으면 Esc를 셸이 쓰지 않는다. */
   modalOpen?: boolean;
   /** 가운데 내용. 투명 면 위에 그린다(카드로 감싸지 않는다, DP-01). */
@@ -82,6 +87,8 @@ export function Shell({
   onPaletteRun,
   stageLabel = "본문",
   modalOpen = false,
+  nav,
+  palette,
   children,
 }: ShellProps) {
   const m = useShell();
@@ -117,6 +124,7 @@ export function Shell({
             onNavSelect={onNavSelect}
             threads={threads}
             workbench={workbench}
+            nav={nav}
           />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -134,7 +142,7 @@ export function Shell({
           <StatusBar start={status.start} end={status.end} />
         </div>
       </div>
-      <Palette onRun={onPaletteRun} />
+      <Palette onRun={onPaletteRun} groups={palette} />
     </>
   );
 }
