@@ -55,5 +55,9 @@ export const pages: MockPage[] = [
     title: "런타임 캔버스: 층 띠·블록·연결, 맥락 분리, 턴 재생, 검사기",
     folder: "wb-canvas",
     states: 13,
+    id: "P-21·P-22",
+    title: "블록 구성기: 그룹 쌓기, 흐름, 프로필 쌓기, 시험, 코드",
+    folder: "wb-compose",
+    states: 8,
   },
 ];
