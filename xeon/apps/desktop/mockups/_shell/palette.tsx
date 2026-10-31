@@ -8,13 +8,15 @@ import {
   type ComboboxGroupData,
 } from "@caustic/react";
 import { palette } from "./fixtures";
-import { Command, MessageSquare, Settings, SlashSquare } from "./icons";
+import { LayoutGrid, MessageSquare, Play, Settings, SlashSquare } from "./icons";
 import { useShell } from "./state";
 
 const GROUP_ICON: Record<string, React.ReactNode> = {
   대화: <MessageSquare />,
-  명령: <Command />,
+  // DP-32: 명령 묶음은 키 글리프(⌘) 대신 실행 아이콘.
+  명령: <Play />,
   "슬래시 명령": <SlashSquare />,
+  작업대: <LayoutGrid />,
   설정: <Settings />,
 };
 

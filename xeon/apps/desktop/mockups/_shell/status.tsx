@@ -11,6 +11,9 @@ export interface StatusOptions {
   openEnd: (tab: string) => void;
   /** 연결 칸을 바꿀 때(예: 다시 맞추는 중). */
   link?: StatusCell | undefined;
+  /** 런타임 칸(§14.3): "drive helm", "확장 실패 1". 주면 옛 "Helm" 칸 대신 이 칸들을 보인다.
+   *  누르면 대화 영역이면 런타임 탭, 작업대면 개요(onOpen이 정한다, §4.9.5). */
+  runtime?: { drive: string | null; extFailures: number; onOpen: () => void } | undefined;
 }
 
 /** 상태 표시줄 칸(S-03). compact 폭에서는 연결과 승인만 남는다. */
@@ -31,7 +34,39 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
     description: `답을 기다리는 승인이 ${m.pendingApprovals}개 있어요.`,
     action: openInbox,
   };
-  if (m.layout === "compact") return { start: [link], end: [approvalsCell] };
+  // DP-27: 값이 0인 개수 칸(승인, 알림, 확장 실패)은 숨긴다. 연결·엔진·모델 칸은 늘 보인다.
+  const approvals = m.pendingApprovals > 0 ? [approvalsCell] : [];
+  if (m.layout === "compact") return { start: [link], end: approvals };
+  const rt = m.runtime;
+  const runtimeCells: StatusCell[] =
+    rt === undefined
+      ? []
+      : [
+          {
+            id: "drive",
+            text: rt.drive === null ? "drive 없음" : `drive ${rt.drive}`,
+            label: rt.drive === null ? "drive 임대 보유 그룹 없음" : `drive 임대 보유 ${rt.drive}`,
+            title: "drive 임대",
+            description:
+              rt.drive === null
+                ? "지금 턴을 구동하는 그룹이 없어요. 코어 루프가 그대로 돌아요."
+                : `${rt.drive}가 drive 임대를 쥐고 있어요. 턴 1/4 · spawn 3/8.`,
+            action: { label: "런타임 보기", onSelect: rt.onOpen },
+          },
+          ...(rt.extFailures > 0
+            ? [
+                {
+                  id: "ext-failures",
+                  text: `확장 실패 ${rt.extFailures}`,
+                  label: `확장 실패 ${rt.extFailures}개`,
+                  dot: "warning",
+                  title: "확장 실패",
+                  description: `핸들러가 실패한 확장이 ${rt.extFailures}개 있어요.`,
+                  action: { label: "런타임 보기", onSelect: rt.onOpen },
+                } satisfies StatusCell,
+              ]
+            : []),
+        ];
   const thread = m.thread;
   return {
     start: [
@@ -75,17 +110,22 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
               description: "목표 3개 중 2개를 이뤘어요.",
               action: { label: "작업 탭 열기", onSelect: () => m.openEnd("work") },
             },
-            {
-              id: "helm",
-              text: "Helm",
-              label: `Helm ${status.helm} 중`,
-              title: "Helm",
-              description: `Helm 탐구가 ${status.helm} 단계예요.`,
-              action: { label: "탐구 탭 열기", onSelect: () => m.openEnd("helm") },
-            },
+            ...(rt === undefined
+              ? [
+                  {
+                    id: "helm",
+                    text: "Helm",
+                    label: `Helm ${status.helm} 중`,
+                    title: "Helm",
+                    description: `Helm 탐구가 ${status.helm} 단계예요.`,
+                    action: { label: "탐구 탭 열기", onSelect: () => m.openEnd("helm") },
+                  },
+                ]
+              : []),
           ] satisfies StatusCell[])
         : []),
-      approvalsCell,
+      ...runtimeCells,
+      ...approvals,
       {
         id: "notices",
         text: `알림 ${status.notices}`,
