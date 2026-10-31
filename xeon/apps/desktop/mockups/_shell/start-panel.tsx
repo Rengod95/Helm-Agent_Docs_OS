@@ -111,7 +111,7 @@ export interface WorkbenchPanelProps {
 
 export interface StartPanelProps {
   floating: boolean;
-  /** 지금 화면인 내비 항목 id. 대화: nav[].id, 작업대: workbenchNav[].id 또는 플러그인 화면 id("helm/inquiry"). */
+  /** 지금 화면인 내비 항목 id. 대화: nav[].id, 작업대: workbenchNav[].id 또는 플러그인 화면 id("helm/inquiry"), 설정 화면: "settings". */
   activeNav: string;
   onNavSelect?: ((id: string) => void) | undefined;
   threads: ThreadListProps;
@@ -313,7 +313,19 @@ export function StartPanel({
       footer={
         <ListNavigation aria-label="설정" kind="navigation" size="sm" as="div" className="w-full">
           <ListNavigationGroup>
-            <ListNavigationItem icon={<Settings />}>설정</ListNavigationItem>
+            {/* 설정 화면(P-09~P-13)에서는 주 내비 항목처럼 굵기와 selected 아이콘으로 지금 화면을 보인다. */}
+            <ListNavigationItem
+              icon={activeNav === "settings" ? <Settings emphasis="selected" /> : <Settings />}
+              aria-label={activeNav === "settings" ? "설정, 지금 화면" : "설정"}
+              className={
+                activeNav === "settings"
+                  ? "[&_[data-slot=list-navigation-label]]:font-semibold [&_[data-slot=list-navigation-label]]:text-text-primary"
+                  : undefined
+              }
+              onSelect={() => onNavSelect?.("settings")}
+            >
+              설정
+            </ListNavigationItem>
           </ListNavigationGroup>
         </ListNavigation>
       }
