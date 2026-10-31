@@ -229,7 +229,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 목표: 턴마다 판정 모델이 판정하고 미충족이면 다음 턴이 이어지며, 상한에서 멈춥니다.
 - 단계
   1. 입력창에서 `/goal <조건>`을 보내거나 끝 영역 작업 탭의 "목표 걸기"를 씁니다.
-  2. 상태 표시줄에 목표 칩(판정 n/최대)이 보입니다.
+  2. 상태 표시줄에 목표 칩 "목표 2/3"(판정 횟수/최대)이 보입니다. 칩 `Popover` 첫 줄은 "판정 2/3"입니다(DP-25, D-17).
   3. 판정마다 트랜스크립트에 판정 행(충족 여부, 이유, 빠진 것)이 보입니다.
   4. 충족, 상한 도달, 판정 실패, 해제 중 하나로 끝나면 알림이 옵니다.
 - 거치는 화면: P-02, P-14, S-03
@@ -291,7 +291,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 단계
   1. 작업대 > 만들기(P-22)나 확장 목록의 "만들기"를 누릅니다.
   2. 종류를 고릅니다. 의도 그룹은 drive, 정책, 관찰 세 템플릿입니다(`xeon group new --drive|--policy`, 둘 다 없으면 관찰).
-  3. 이름(`^[a-z][a-z0-9-]{1,31}$`, 예약 이름 24개 제외)과 폴더를 넣습니다. 만들 파일 목록(drive 10개, 관찰 9개, 정책 8개)을 미리 봅니다.
+  3. 이름(`^[a-z][a-z0-9-]{1,31}$`: 소문자로 시작, 2~32자, 예약 이름 23개 제외)과 폴더를 넣습니다. 예약 목록은 `packages/group-kit/src/define-group.ts`의 `RESERVED_GROUP_NAMES`이고 `apps/cli/src/group/rules.ts`가 같은 목록을 복사합니다. 만들 파일 목록(drive 10개, 관찰 9개, 정책 8개)을 미리 봅니다.
   4. "만들기"를 누르면 뼈대가 생기고 `.xeon-plugin/plugin.json`을 `validateManifest`로 검사합니다. 실패하면 만든 파일을 지우고 이유를 보입니다.
   5. 결과 화면에서 "편집기에서 열기", "사용자 확장 위치에 연결", "시험 대화에서 켜기"로 이어집니다.
 - 거치는 화면: P-22, P-13, P-17
@@ -326,7 +326,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 목표: 기록을 남기는 시험을 돌리고 결과를 비교합니다.
 - 단계
   1. 시험 실행(P-19)에서 "새 시험"을 누르고 종류를 고릅니다.
-     - replay: `replayDrive`로 모든 커밋 지점에서 재개해 digest를 비교하고 효과 중복(`effects-doubled`)을 봅니다.
+     - replay: `replayDrive`로 모든 커밋 지점에서 끊어 재개하고 절단마다 digest를 비교합니다. 첫 실패에서 멈추지 않습니다. 효과 중복(`effects-doubled`)은 모든 절단의 이벤트열이 같을 때만 판정합니다. 효과 수는 `EffectCounts`(turn, spawn, delegate, post)입니다.
      - bench: `just bench --server`의 서버 묶음(확장 디스패치, 임대 비용 등)을 돌립니다.
      - 시험 대화: 프로필(P-21)을 적용한 새 대화를 "시험" 표지로 만들고 프롬프트를 보냅니다.
   2. 실행 중인 시험은 왼쪽 패널 "시험 실행"에 `*`로 보입니다. 시험 대화는 대화 목록에 "시험" 표지로 보입니다.
@@ -343,7 +343,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
   2. 확장별 `GroupMetrics`(토큰, 비용, 임대 시간, 거부, 패치, post, spawn, 위임)를 표로 봅니다.
   3. 핸들러 시간을 지점별 예산과 비교합니다. 예산의 50% 넘는 p95는 경고 tone입니다 [제안].
   4. 승격 보고(`PromotionReport`)에서 다른 scope가 쓰는 그룹 전용 도구를 봅니다.
-  5. 코어 변경 검사(`core-diff-check <base>`) 결과로 보호 경로(`contracts`, `ext-host`, `platform-*`, `core-*`) 변경 줄 수를 봅니다.
+  5. 코어 변경 검사(`core-diff-check <base>`)의 마지막 결과 한 줄(보호 경로 `contracts`, `ext-host`, `platform-*`, `core-*` 변경 줄 수)을 봅니다. 실행과 상세는 P-19입니다.
 - 거치는 화면: P-20, P-17
 - 성공 기준: 표의 값이 `grp.<id>.metrics.recorded` 증가분 합과 같습니다. 핸들러 시간은 지금 기록하는 곳이 없습니다 `[gap:W-23]`.
 
@@ -352,7 +352,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 누가: 여러 플러그인을 한 작업 방식으로 묶어 쓰려는 사용자
 - 목표: 확장 묶음과 설정을 이름 붙여 저장하고 대화에 한 번에 적용합니다. 묶음을 새 의도 그룹으로 만들 수도 있습니다.
 - 단계
-  1. 구성(P-21) "프로필" 탭에서 켤 확장, 설정 덮어쓰기, drive 그룹을 고르고 이름을 붙입니다.
+  1. 구성(P-21) "프로필" 탭에서 확장마다 켜기·끄기·그대로를 고르고, 설정 덮어쓰기와 drive 그룹을 정해 이름을 붙입니다.
   2. "이 대화에 적용"은 각 키를 `session` 범위로 씁니다. "새 시험 대화로"는 시험 대화를 만들며 적용합니다.
   3. "그룹 구성" 탭은 슬롯 템플릿(`L3.slots.spec`)에서 고른 조각과 필요한 능력(`requires`, `optional`)으로 새 그룹 뼈대를 만듭니다. 결과는 SC-16 만들기로 이어집니다.
 - 거치는 화면: P-21, P-22, P-02
@@ -376,7 +376,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 목표: 플러그인이 기여한 전체 화면에서 탐구 흐름을 보고 조작합니다.
 - 단계
   1. Helm 카드의 "탐구 화면 열기", 작업대 왼쪽 패널 "플러그인 화면 > Helm 탐구", 팔레트 "탐구 화면"으로 P-18을 엽니다.
-  2. 단계, 렌즈 진행, 발견, 상한 사용량, 지난 탐구를 봅니다. "멈춤"은 `/helm stop` 명령입니다.
+  2. 단계, 렌즈 진행, 발견, 상한 사용량, 지난 탐구를 봅니다. "멈춤"은 플러그인 트리의 주제 줄에 있고 `/helm stop` 명령입니다(DP-42).
   3. 발견의 작업 링크는 대화의 작업 탭으로, 적용 턴 링크는 대화의 그 턴으로 갑니다.
 - 거치는 화면: P-18, P-02
 - 성공 기준: 화면 머리(확장 이름, 등급, 버전)는 셸이 그리고, Helm이 꺼지면 화면이 `extension_disabled` 상태로 바뀝니다(ADR-0021 §3.6).
@@ -494,7 +494,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 원격 대상 | 제목 띠 경로 첫 항목, 상태 표시줄 첫 칸 | 데스크톱 설정 `l0.process.service.remote` [가정], `host.hello` 결과 `transport` | 누르면 대상 팝오버(P-08 요약과 "대상 바꾸기") |
 | 모델 | 상태 표시줄, 입력창 모델 칸 | `settings.get { keys: ["l1.models.default"], threadId }` | 누르면 모델 고르기 `Combobox mode="popup"`. 대화 범위 저장은 `settings.set { scope: "session" }` |
 | 사용량 | 상태 표시줄 게이지 | `usage.get { threadId }` | 누르면 `Popover`에 게이지 목록 |
-| 목표 | 상태 표시줄 칩 | `[gap:W-05]` | 누르면 끝 영역 작업 탭 |
+| 목표 | 상태 표시줄 칩 "목표 2/3"(판정 횟수/최대, DP-25) | `[gap:W-05]` | 누르면 `Popover`(첫 줄 "판정 2/3"), 거기서 끝 영역 작업 탭 |
 | Helm 단계 | 상태 표시줄 칩 | `[gap:W-04]` | 누르면 끝 영역 탐구 탭 |
 | 토스트 | 오른쪽 아래 `Toaster` | 알림 `notify.delivered`, 앱 동작 결과 | 오류 토스트는 자동으로 닫히지 않습니다 |
 
@@ -589,7 +589,7 @@ Xeon 데스크톱
 
 - 대화 영역 주 내비의 "연결"(P-08)은 작업대 "엔진"으로 옮깁니다 [제안]. 엔진 아래에 연결(P-08)과 진단(P-15)이 탭으로 있습니다. `mockups/_shell`의 `nav` 다섯 항목은 넷이 됩니다.
 - 대화 맥락 칸: 작업대 화면이 볼 대화를 고릅니다. 값은 "전체" 또는 대화 하나입니다. 대화에서 넘어오면 그 대화로 정해집니다. 맥락이 대화 하나이면 P-16, P-17, P-20이 그 대화의 상태와 지표만 보입니다.
-- 작업대 내비 배지: 확장은 자동 꺼짐·실패 확장 수(`!n`), 시험 실행은 실행 중 수(`n*`)입니다.
+- 작업대 내비 배지: 확장은 자동 꺼진 확장 수(`!n`), 시험 실행은 실행 중 수(`n*`)입니다. `!n`은 사용자가 "다시 켜기"로 풀어야 하는 것만 셉니다. 켜진 채 실패하는 확장은 배지에 넣지 않고 상태 표시줄 "확장 실패 n"과 지도 칸 warning 점으로 보입니다. 고정 데이터에서는 review 하나라 `!1`입니다.
 
 #### 4.9.4 오른쪽 떠 있는 막대
 
@@ -656,10 +656,10 @@ Xeon 데스크톱
 │ 예약                 !1  │   > bash bun test cache  실패      │                            │
 │                        │   · helm drive 임대 받음 1/4         │ 임대 턴 1/4 · spawn 3/8    │
 │ ~/code/xeon         +  │   · acme-notes 실패 2번             │ 토큰 [###-------] 120k     │
-│>캐시 무효화 조사     *        │   ┌ Helm 탐구 시작됨 ────────┐        │                            │
-│  테스트 정리     승인1        │   │ 캐시 무효화 · 렌즈 3     │          │ 최근 기록                  │
-│  시험: 렌즈 5개    시험       │   │ [탐구 화면 열기]         │         │ 14:02 lease.acquired helm  │
-│ ~/notes             +  │   └──────────────────────────┘   │ 14:03 handler_failed ×2    │
+│>캐시 무효화 조사     *        │   ┌ Helm 제안 ───────────────┐        │                            │
+│  테스트 정리     승인1        │   │ 같은 오류 3번 · 캐시 무효화  │       │ 최근 기록                  │
+│  시험: 렌즈 5개    시험       │   └ 탐구 시작함 ─────────────┘        │ 14:02 lease.acquired helm  │
+│ ~/notes             +  │   · helm 탐구 시작 · 렌즈 3         │ 14:03 handler_failed ×2    │
 │  주간 회고                 │                                  │ [작업대에서 보기]          │
 │                        │ 메시지를 입력하세요                       └────────────────────────────┘
 │                        │ [+] sonnet-5-5 v       [중단]
@@ -671,6 +671,7 @@ Xeon 데스크톱
 
 - 왼쪽 패널은 창 위아래 끝까지 붙고(DP-13), 가운데는 표면 없이 투명합니다(DP-01). 오른쪽은 떠 있는 막대이고 "런타임" 탭이 열려 well이 펼쳐진 상태입니다(DP-10).
 - 대화 머리 둘째 줄이 런타임 줄입니다. 트랜스크립트의 `·` 행이 런타임 행, 상자가 Helm `card` 기여입니다.
+- Helm `card` 기여는 ADR-0021 §3.9의 둘뿐입니다. `helm/suggested`(신호와 근거, "탐구 시작". 답한 뒤에는 "탐구 시작함"으로 닫힘)와 `helm/finished`(결과, 렌즈 수, 발견 수, "탐구 화면 열기")입니다. 탐구 시작은 카드가 아니라 런타임 행 한 줄입니다(DP-19). 진행 중 탐구를 크게 보려면 well "크게"나 팔레트 "탐구 화면"을 씁니다.
 
 #### 4.9.8 "이 대화의 그룹" 자리
 
@@ -821,7 +822,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 진행 중 | `host.status.liveTurns` | 실행 중 대화로 이동 |
 | 모델 | `settings.get { keys: ["l1.models.default"], threadId }` | 모델 `Combobox mode="popup"` |
 | 사용량 | `usage.get { threadId }` → 게이지 `[gap:V-11]` | 사용량 `Popover`(게이지 목록, P-11 링크) |
-| 목표 | `[gap:W-05]`, 임시로 `agent.judged`·`work.goal_*` 이벤트 | 끝 영역 작업 탭 |
+| 목표 | "목표 2/3"(판정 횟수/최대, DP-25). `[gap:W-05]`, 임시로 `agent.judged`·`work.goal_*` 이벤트 | `Popover` 첫 줄 "판정 2/3", 끝 영역 작업 탭 링크 |
 | Helm | `[gap:W-04]`, 임시로 `grp.helm.*` 이벤트 | 끝 영역 탐구 탭 |
 | 승인, 알림 | §4.6 | 끝 영역 받은 요청 탭 |
 
@@ -1853,13 +1854,13 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 항목 | 출처 |
 |---|---|
-| 목표(조건, 상태, 판정 수/최대, 마지막 판정) | `[gap:W-05]`. 임시로 `command.run { text: "/goal status" }`와 `work.goal_set`, `work.goal_judged`, `work.goal_settled`, `agent.judged` 이벤트 `[gap:V-08]` |
+| 목표(조건, 상태, "판정 2/3", 마지막 판정). 상태 표시줄 칩은 "목표 2/3", 칩 `Popover`와 이 탭은 "판정 2/3"으로 같은 숫자를 씁니다(DP-25, D-17) | `[gap:W-05]`. 임시로 `command.run { text: "/goal status" }`와 `work.goal_set`, `work.goal_judged`, `work.goal_settled`, `agent.judged` 이벤트 `[gap:V-08]` |
 | 계획(버전, 상태, 제목) | `work.plan_*` 이벤트, 버전 목록 `[gap:W-18]` |
 | 작업(내용, 상태, 막힘) | `work.task_*` 이벤트로 재구성 [제안], 목록 읽기 `[gap:W-06]` |
 
 - 기능: 목표 걸기(`command.run { text: "/goal <조건>" }`), 해제(`/goal clear`), 계획 보기(트랜스크립트의 계획 카드로 스크롤), 작업 행 누르기(만든 턴으로 스크롤).
 - 상태: 빈(B), 읽는 중 `Skeleton`, 오류 명령 오류 문장, 오프라인 잠금, 권한 필요 해당 없음, 긴 내용(작업 100개 넘으면 완료 접기).
-- caustic: `Card`, `Plan`(작업 체크리스트), `Stepper variant="checklist"`, `Badge`, `Button`, `Input`, `EmptyState`.
+- caustic: `Card`, `Plan`(작업 체크리스트. well 안에서는 테두리 없는 변형이 필요하고 행을 누를 수 없음 `[gap:C-19]`), `Stepper variant="checklist"`, `Badge`, `Button`, `Input`, `EmptyState`.
 
 ### 6.19 P-15 진단과 정보
 
@@ -1936,8 +1937,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 ### 6.21 작업대 공통 규칙
 
 - 작업대 화면은 §6.0 공통 규칙과 §13을 따릅니다. 가운데는 표면 없이 투명하고, 표와 목록은 `List`·`Table`의 ghost 변형으로 둡니다(DP-01, DP-03).
-- 대화 맥락이 대화 하나이면 화면 머리 오른쪽에 "맥락 <대화 제목>"이 보이고, 누르면 맥락 칸이 열립니다.
-- 확장을 가리키는 행은 모두 같은 부품(확장 행: 이름, 층 `Badge`, 종류, 등급, 상태 점, 버전)입니다 [제안] `[gap:V-16]`. 누르면 P-17입니다.
+- 맥락의 정본은 왼쪽 패널의 대화 맥락 칸 하나입니다(§4.9.3). 화면 머리에는 맥락 고르기를 두지 않습니다. 왼쪽 패널이 닫혀 있을 때만 화면 머리 오른쪽에 "맥락 <대화 제목>"(맥락이 전체면 "맥락 전체")이 연한 글자로 보이고, 누르면 패널이 열리며 맥락 칸에 초점이 갑니다. 아래 와이어프레임은 패널이 열린 모습이라 머리에 맥락이 없습니다.
+- 확장을 가리키는 행은 모두 같은 부품(확장 행: 이름, 층 mono 열(DP-31), 종류, 등급, 상태 점 + 글(`[gap:C-23]`), 버전)입니다 [제안] `[gap:V-16]`. 누르면 P-17입니다.
 - 쓰기 동작(켜기, 끄기, 다시 켜기, 되돌리기, 시험 시작)은 오프라인이면 잠급니다. 결과는 `Toast`와 해당 행의 상태 변화로 보입니다.
 - 작업대 화면의 지표는 모두 "언제 기준인가"(`throughSeq` 또는 시각)를 머리 아래 연한 글자로 보입니다.
 
@@ -1945,12 +1946,12 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 ```text
 ┌────────────────────────┐
-│[찾기               ] «   │ 작업대 개요                                       맥락 캐시 무효화 조사       [받]
-│  대화  (작업대)             │ 안전 모드 꺼짐 · 확장 14 · 켜짐 11 · 자동 꺼짐 1 · drive helm                 [기]
+│[찾기               ] «   │ 작업대 개요                                                         [받]
+│  대화  (작업대)             │ 안전 모드 꺼짐 · 확장 20 · 켜짐 18 · 자동 꺼짐 1 · drive helm                 [기]
 │ 맥락 캐시 무효화 조사 v         │                                                                 [대]
 │                        │ 층        확장
 │>개요                     │ L0       (sqlite)(exec)(sandbox)(secrets)
-│ 확장                 !1  │ L1       (loop)(tools)(models)(agents)(context)
+│ 확장                 !1  │ L1       (core-loop)(tools)(models)(agents)(context)
 │ 시험 실행              1*  │ L2       (web)(knowledge)(work)(dialog)(web-exa)
 │ 측정                     │ L3       (helm*)(learning)(review!)
 │ 구성                     │ plugin   (acme-notes!)(provider-oauth-)
@@ -1962,12 +1963,13 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 │  review 대기열            │
 │                        │ 최근 시험                       승격 후보
 │ 설정                     │ helm replay  통과 · 3분 전       lens_search → review
-│                        │ review bench  예산 대기
+│                        │ server bench  예산 대기
 └────────────────────────┘
  사이드카 · 연결됨      sonnet-5-5 · 41k · drive helm · 확장 실패 1 · 승인 2 · 알림 3
 ```
 
 - 목적: 층 × 확장 지도와 건강 상태를 한 화면에서 봅니다(SC-15, SC-22).
+- 머리 요약 줄의 수: "확장"은 지도에 실린 확장 전부(§14.5 `layerMap` 20개), "켜짐"은 그중 `enabled`(18개), "자동 꺼짐"은 `auto_disabled`(review 1개)입니다. 사용자가 끈 `disabled`(provider-oauth)는 따로 세지 않습니다. 작업대 내비 "확장" 배지 `!n`은 자동 꺼짐 수와 같습니다(§4.9.3).
 - 진입: 작업대 기본 화면(⌥⌘2), 런타임 탭 "작업대에서 보기", 상태 표시줄.
 
 | 항목 | 출처 |
@@ -1993,7 +1995,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
   - 오프라인: 마지막 지도를 흐리게, 시각 표시.
   - 권한 필요: 안전 모드면 지도 위 `Alert tone="warning"` "안전 모드라 L3 그룹과 외부 확장이 빠졌어요".
   - 긴 내용: 층 행마다 칸이 넘치면 줄바꿈하고 12개 넘으면 "외 n".
-- 상호작용: 지도 칸은 `Chip`(상태 점 + 이름)이고 화살표 키로 이동합니다. 칸 tone: 켜짐 neutral, 꺼짐 연함, 자동 꺼짐 danger, 실패 있음 warning, drive 보유는 selected 아이콘.
+- 상호작용: 지도 칸은 `Chip`(상태 점 + 이름)이고 화살표 키로 이동합니다. 칸 자체(바탕, 테두리, 이름 글자)는 늘 neutral입니다. tone은 앞 상태 점이나 아이콘 면에만 줍니다(DP-29, DP-46): 켜짐 neutral 점, 자동 꺼짐 danger 점, 실패 있음 warning 점, drive 보유는 selected 아이콘. 사용자가 끈 칸은 점 없이 이름만 tertiary 글자입니다.
 - 접근성: 지도는 층마다 `role="list"` 하나, 칸은 `role="listitem"` 안 버튼입니다. 상태는 글자로도 있습니다("자동 꺼짐").
 - caustic: `Chip`, `Badge`, `List`, `Alert`, `Button`, `EmptyState`, `Skeleton`. 층 지도 배치는 `[gap:C-16]`.
 
@@ -2104,8 +2106,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 ```text
 ┌────────────────────────┐
-│[찾기               ] «   │ Helm 탐구   helm · user · 0.1.0                  [멈춤]             [받]
-│  대화  (작업대)             │ 주제 캐시 무효화 · 신호 stuck(같은 오류 3번)                                  [기]
+│[찾기               ] «   │ Helm 탐구   helm · user · 0.1.0                  [대화로]           [받]
+│  대화  (작업대)             │ 주제 캐시 무효화 · 신호 stuck(같은 오류 3번)          [멈춤]                  [기]
 │ 맥락 캐시 무효화 조사 v         │                                                                 [대]
 │                        │ (확산)──(탐색)──( 수렴 )──( 적용 )
 │ 개요                     │
@@ -2127,7 +2129,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 목적: 확장이 기여한 `page` 화면을 그립니다(ADR-0021). 위 그림은 기준 사례 Helm `helm/inquiry`입니다(SC-23).
 - 진입: 작업대 왼쪽 패널 "플러그인 화면", 카드 "더 보기", 팔레트 `command` 기여, P-17 "화면" 탭.
-- 셸이 그리는 것: 화면 머리 첫 줄(제목, 확장 이름, 등급, 버전), `project` 등급 배지, 상태 자리표시(ADR-0021 §3.6), 오류 경계. 플러그인 트리는 그 아래 가운데에 그려집니다.
+- 셸이 그리는 것: 화면 머리 첫 줄(제목, 확장 이름, 등급, 버전, "대화로"), `project` 등급 배지, 상태 자리표시(ADR-0021 §3.6), 오류 경계. 플러그인 트리는 그 아래 가운데에 그려집니다.
+- 셸 머리와 플러그인 트리의 경계는 간격과 제목 단계(셸 `h1`, 트리 `h2`부터)로만 드러냅니다. 선을 긋지 않습니다. 셸 머리의 동작은 "대화로" 하나이고, "멈춤" 같은 플러그인 동작은 트리 안 그 내용 옆(Helm은 주제 줄)에 둡니다(DP-22, DP-42).
 - 슬롯 규칙
 
 | slot | 그리는 곳 | 셸 틀 |
@@ -2163,14 +2166,14 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 │                        │ 종류      대상     결과        시간      소요
 │ 개요                     │ * 시험 대화 helm   실행 중     지금      1:12
 │ 확장                 !1  │ replay    helm     통과 41/41  3분 전    18s
-│>시험 실행              1*  │ replay    review   실패 c17    어제      9s
+│>시험 실행              1*  │ replay    review   실패 2/41   어제      9s
 │ 측정                     │ bench     server   예산 대기   어제      2m
 │ 구성                     │ diff      main..   보호 경로 0 어제      1s
 │ 만들기                    │
 │ 엔진                     │ replay review · 실패
-│                        │ 커밋 41개 중 17번에서 재개 digest 다름
+│                        │ 절단 41개 중 17·18번 digest 다름  [절단 띠 41칸]
 │ 플러그인 화면                │ 첫 차이 seq 212  grp.review.state.committed
-│  Helm 탐구               │ 효과 effects-doubled: work.task.create 2/1
+│  Helm 탐구               │ 효과(17번 절단) turn 0 spawn 0 delegate 0 post 1
 │  review 대기열            │ [이벤트 비교 열기] [다시 실행]
 │                        │
 │ 설정                     │
@@ -2179,11 +2182,13 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 ```
 
 - 목적: replay, bench, 코어 변경 검사, 시험 대화를 한 목록에서 시작하고 결과를 봅니다(SC-19).
+- replay 결과 읽기: `replayDrive`는 첫 실패에서 멈추지 않고 모든 커밋 지점을 끊어 다시 돌립니다. 그래서 상세는 절단 띠(커밋 수만큼 칸, 다른 칸 강조)로 보입니다. 이벤트열이 하나라도 다르면 `failure` 없이 `ok: false`이고 판정 배지는 "digest 다름"입니다. `effects-doubled`·`effects-mismatch`는 모든 절단이 같을 때만 나오므로 "digest 다름"과 함께 보이지 않습니다. 절단의 효과 수는 판정 없이 참고 값으로만 보입니다.
+- 코어 변경 검사의 실행과 상세(보호 경로 변경 파일 목록)는 이 화면에만 둡니다. P-20은 마지막 결과 한 줄과 링크만 보입니다(DP-23).
 
 | 항목 | 출처 |
 |---|---|
 | 시험 목록(종류, 대상, 결과, 시각, 소요) | `ext.test.list` `[gap:W-29]` |
-| replay 결과(커밋 수, 통과, 처음 다른 위치, 효과 수 비교, 실패 종류 `effects-doubled`·`effects-mismatch`·`max-commits-exceeded`·`no-commits`) | `ReplayDriveReport`(`group-kit/src/testing/replay/replay-drive.ts`) `[gap:W-29]` |
+| replay 결과(커밋 수, 절단마다 같음·다름(`cuts[].equal`), 처음 다른 위치 `firstDiff`, 효과 수 `EffectCounts`(turn, spawn, delegate, post), 실패 종류 `effects-doubled`·`effects-mismatch`·`max-commits-exceeded`·`no-commits`) | `ReplayDriveReport`(`group-kit/src/testing/replay/replay-drive.ts`) `[gap:W-29]` |
 | bench 결과(지표, 값, 예산, 판정) | `scripts/bench-server.ts` 출력과 `bench-gate` 판정. 예산은 모두 미정("사용자 결정 대기") `[gap:W-30]` |
 | 코어 변경 검사(보호 경로 변경 파일) | `scripts/core-diff-check.ts` 종료 코드 0·1·2와 파일 목록 `[gap:W-30]` |
 | 시험 대화 | `thread.list`의 시험 표지 `[gap:W-34]` |
@@ -2203,7 +2208,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 ```text
 ┌────────────────────────┐
-│[찾기               ] «   │ 측정과 평가                     기간 7일 v  맥락 전체 v                     [받]
+│[찾기               ] «   │ 측정과 평가                     기간 7일 v                                [받]
 │  대화  (작업대)             │                                                                 [기]
 │ 맥락 캐시 무효화 조사 v         │ 확장        토큰     비용     임대시간  실패  거부                            [대]
 │                        │ helm        1.2M     $3.10    41m       1     12
@@ -2217,7 +2222,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 │                        │ 승격 보고  throughSeq 9120 · 대화 14
 │ 플러그인 화면                │ lens_search  소유 helm  소비자 review 3번   후보
 │  Helm 탐구               │
-│  review 대기열            │ 코어 변경 검사  main..HEAD  보호 경로 0줄
+│  review 대기열            │ 코어 변경 검사  어제 main..HEAD 보호 경로 0줄  [시험 실행에서 보기]
 │                        │
 │ 설정                     │
 └────────────────────────┘
@@ -2232,10 +2237,10 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 요약 | `GroupStatus.metrics`(`GroupMetricsSummary`: denies, posts, spawns, delegates, costUsd, leaseMs) |
 | 핸들러 시간과 예산 | `[gap:W-23]`. 예산 값은 `x.operations.budget.*` |
 | 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion` `[gap:W-26]`. 임시로 `/group status`의 "승격 후보" 줄 |
-| 코어 변경 검사 | `[gap:W-30]` |
+| 코어 변경 검사 요약(마지막 결과 한 줄, 시각, "시험 실행에서 보기"). 실행과 파일 목록은 P-19만 | `ext.test.list`의 마지막 `diff` 결과 `[gap:W-29]` `[gap:W-30]` |
 | 대화별 사용량 | `usage.get { threadId }` |
 
-- 기능: 기간 고르기(1일, 7일, 30일), 맥락 고르기, 행 누르기(P-17 측정 탭), CSV 복사 [제안].
+- 기능: 기간 고르기(1일, 7일, 30일), 행 누르기(P-17 측정 탭), CSV 복사 [제안]. 맥락은 왼쪽 패널 맥락 칸에서만 바꿉니다(§6.21). 머리에 맥락 `Select`를 두지 않습니다.
 - 상태: 빈(계측 기록 없음), 읽는 중 `Skeleton`, 오류 한 줄, 오프라인 마지막 값, 권한 필요 해당 없음, 긴 내용(확장 50개 넘으면 가상 목록).
 - 상호작용: 시간 막대는 `Meter`로 예산 대비를 보입니다. 추세는 행 끝 `Sparkline` `[gap:C-17]`.
 - caustic: `Table`, `CardStat`, `Meter` `[gap:C-05]`, `SegmentedControl`(기간), `Badge`.
@@ -2252,13 +2257,13 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 │ 확장                 !1  │  review 시험       review web-exa      review
 │ 시험 실행              1*  │
 │ 측정                     │ 탐구 중심
-│>구성                     │ [x] helm       설정 maxLenses 4
-│ 만들기                    │ [x] learning
-│ 엔진                     │ [x] web-exa
-│                        │ [ ] acme-notes
-│ 플러그인 화면                │ drive 그룹 [helm v]
-│  Helm 탐구               │ [이 대화에 적용] [새 시험 대화로] [저장]
-│  review 대기열            │
+│>구성                     │ helm         (켜기) 끄기  그대로    설정 maxLenses 4
+│ 만들기                    │ learning     (켜기) 끄기  그대로
+│ 엔진                     │ web-exa      (켜기) 끄기  그대로
+│                        │ review        켜기 (끄기) 그대로
+│ 플러그인 화면                │ acme-notes    켜기  끄기 (그대로)
+│  Helm 탐구               │ drive 그룹 [helm v]
+│  review 대기열            │ [이 대화에 적용] [새 시험 대화로] [저장]
 │                        │
 │ 설정                     │
 └────────────────────────┘
@@ -2267,6 +2272,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 목적: 확장 묶음과 설정을 프로필로 저장해 대화에 적용하고, 묶음을 새 그룹 뼈대로 만듭니다(SC-21).
 - 프로필 [제안]: `{ id, title, enable: ExtensionName[], disable: ExtensionName[], settings: { key: value }[], driveGroup: string | null }`. 적용은 각 키의 `settings.set { scope: "session", threadId }`입니다. 저장 위치는 `[미결]`(§12.1 19번)이고 M4 기본은 데스크톱 로컬 `l4.desktop.workbench.profiles` [결정: 오케스트레이터 기본값].
+- 확장 고르기: 프로필이 `enable`과 `disable`을 따로 가지므로 확장마다 세 값 "켜기"(enable에 넣음), "끄기"(disable에 넣음), "그대로"(둘 다 빼서 대화 값을 건드리지 않음)를 `SegmentedControl`(xs)로 고릅니다. 체크 상자는 "끄기"와 "그대로"를 구분하지 못해 쓰지 않습니다. 면제 tier(guard, core)는 목록에서 뺍니다.
 
 | 항목 | 출처 |
 |---|---|
@@ -2281,7 +2287,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 그룹 뼈대 만들기 | P-22로 이어짐 |
 
 - 상태: 빈 "프로필이 없어요 [새 프로필]", 읽는 중 해당 없음(로컬), 오류 적용 실패 키 목록, 오프라인 적용 잠금, 권한 필요(잠긴 키는 정책 파일 경로), 긴 내용(확장 목록 거르기).
-- caustic: `List`, `Checkbox`, `Select`, `Button`, `Tabs`, `Alert`.
+- caustic: `List`, `SegmentedControl`(켜기·끄기·그대로), `Select`, `Button`, `Tabs`, `Alert`.
 
 ### 6.29 P-22 만들기(작성 흐름)
 
@@ -2310,6 +2316,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 목적: 템플릿으로 확장 뼈대를 만들고 검사합니다(SC-16).
 - 단계: 1 종류(drive, 정책, 관찰 그룹. provider·플러그인·X 훅 템플릿은 `[미결]`), 2 이름과 폴더(이름 규칙과 예약 이름 검사, 폴더가 없거나 비어야 함), 3 확인(만들 파일 목록), 결과(검사 결과, 다음 동작).
+- 이름 규칙: `GROUP_NAME_PATTERN` `^[a-z][a-z0-9-]{1,31}$`(소문자로 시작, 소문자·숫자·하이픈, 2~32자)과 예약 이름 23개(`RESERVED_GROUP_NAMES`: core, cap, xh, sys, p, ext, x, grp, xeon, workspace, mcp, web, knowledge, work, dialog, artifacts, schedule, auto, all, none, group, groups, kit)입니다. 오류 문장은 형식 위반이면 "소문자로 시작하고 소문자, 숫자, 하이픈만 써서 2~32자로 지어요", 예약 이름이면 "<이름>은 예약된 이름이라 쓸 수 없어요"입니다.
 
 | 항목 | 출처 |
 |---|---|
@@ -2676,10 +2683,10 @@ export const palette = [
 | C-02 | 알림함(읽음 상태, 묶음, 원인 링크) | P-03, S-03 | `List` + `ListGroup` + `Badge` | 앱 조합으로 시작, 쓰임이 굳으면 caustic 제안 |
 | C-03 | 상태 표시줄(창 아래 띠, 칸, 팝오버) | S-03 | `Button` ghost + `Popover` + `Badge` | caustic `AppShell`에 `AppShellStatusbar` 슬롯 추가 제안 |
 | C-04 | 가상 목록(트랜스크립트, 긴 목록) | P-02, P-04, S-01 | 지금 앱의 `virtual-list.tsx` | 앱에 유지. caustic `ScrollArea`와 맞춤 |
-| C-05 | 게이지·미터(`role="meter"`) | S-03, P-11 | `Progress`, `CardStat` | caustic `Meter` 제안 |
+| C-05 | 게이지·미터(`role="meter"`), 예산 대비 시간 막대 | S-03, P-11, P-17, P-20 | `Progress`, `CardStat`, 시안 `wb2-opus/parts/budget-meter.tsx` | caustic `Meter` 제안: `value`, `max`, `low`·`high` 문턱(예산 50%는 warning, 100%는 danger), `label`. tone은 막대에만 |
 | C-06 | Markdown 렌더와 코드 강조, 코드 편집기 | P-02, P-03(계획), P-06, P-09(파일) | `Message` children, `MessageCode`, `Textarea` | 앱 의존성으로 해결(렌더러 선택은 [미결]) |
 | C-07 | 오른쪽 클릭 메뉴 | S-01 대화 행, P-02 메시지 | `Menu`(버튼으로 열기) | M4는 버튼 메뉴만 [결정: 오케스트레이터 기본값] |
-| C-08 | hunk 단위 diff 검토(hunk 머리, hunk별 결정, 줄 의견), 텍스트 나란히 비교 | P-04, P-06 | `CodeDiff`(diff 하나에 수락·거절 하나), `CompareView`(이미지용) | caustic `CodeDiff` 확장 제안(`CodeDiffHunk`, 줄 의견 부품 `CodeDiffComment`) |
+| C-08 | hunk 단위 diff 검토(hunk 머리, hunk별 결정, 줄 의견), 텍스트 나란히 비교 | P-04, P-06 | `CodeDiff`(diff 하나에 수락·거절 하나), `CompareView`(이미지용), 시안 `p04-review/parts/hunk-review.tsx` | caustic `CodeDiff` 확장 제안: `<CodeDiff>` 안 `<CodeDiffHunk header decision onDecide actions>`, 줄 뒤 `<CodeDiffComment>` 슬롯, `CodeDiffLine`의 `onComment`(줄 번호 hover +) |
 | C-09 | 바뀐 파일 목록(상태 글자, 진행 수) | P-04 | `List` + `Badge` | 앱 조합 |
 | C-10 | 검색 입력(`role="searchbox"`) | P-09, P-08, S-02 | `Input` + 검색 prefix | 앱 조합 |
 | C-11 | 바로 가기 키 도움말 오버레이 | O-09 | `Dialog` + `Table` + `Kbd` | 앱 조합 |
@@ -2690,8 +2697,21 @@ export const palette = [
 | C-16 | 층 × 확장 지도(층 행, 칸 줄바꿈, 상태 tone) | P-16 | `List` + `Chip` | 앱 조합 |
 | C-17 | 작은 추세 그래프(`Sparkline`), 시간 막대, 시간선(`Timeline`) | P-18, P-20, P-17 | `Progress` | caustic 제안. 위젯 카탈로그 v1에 필요 |
 | C-18 | 매니페스트·JSON 보기(접기, 복사) | P-17 | `MessageCode` | 앱 조합 |
-| C-19 | 자기 카드 테두리가 있는 부품의 테두리 없는 변형(`Plan`, `ActivityTree`, `ToolCall`)을 well 안에서 | 런타임 탭, 플러그인 well | 겹친 테두리 | caustic `variant="ghost"` 제안(DP-20) |
+| C-19 | 자기 카드 테두리가 있는 부품의 테두리 없는 변형(`Plan`, `ActivityTree`, `ToolCall`)을 well 안에서. `Plan` 행 누르기 | 런타임 탭, 플러그인 well, P-14 | 겹친 테두리(`Plan`은 테두리와 진행 띠를 가진 자기 카드라 well 안에서 상자가 한 단계 더 깊어짐, DP-03·DP-20과 부딪힘). `Plan` 행은 누를 수 없어 "만든 턴으로"를 못 그림 | caustic `variant="ghost"` 제안(DP-20). `Plan`에 상자 없는 checklist 변형과 `onItemActivate` |
 | C-20 | 이벤트열 나란히 비교(처음 다른 위치 강조) | P-19 | `CodeDiff`(JSON 글) | 앱 조합 |
+| C-21 | 표 행 하나 고르기와 선 없는 표 | P-13, P-19, P-20, P-21, P-07 | 시안 `wb2-opus/parts/grid-table.tsx`, `wb-opus/parts/ext-bits.tsx` `PLAIN_TABLE`(`Table`은 행 사이 선을 늘 그리고 행 활성화가 없음) | caustic `Table`에 `selectionMode="single"`, `onRowActivate`, `dividers={false}` 제안. 고른 행은 현재 항목과 같은 raised 면 하나(DP-26, DP-43) |
+| C-22 | 접고 펴는 `ActivityTree` step, step 상태 pending·skipped | P-05, P-18 | 시안 `wb-opus/parts/lens-tree.tsx`(렌즈 행 직접, 펼친 렌즈의 도구 호출만 `ActivityTree`) | caustic `ActivityTree` step에 `collapsible`·`defaultOpen`·`onOpenChange`, 상태 `pending`·`skipped` 제안 |
+| C-23 | 상태 점 + 글(확장 행 상태 칸, 지도 칸) | P-13, P-16, 런타임 탭 | 시안 `wb-opus/parts/ext-bits.tsx` | caustic 상태 점 부품 제안(`tone`, `label`. tone은 점에만, 글은 secondary. DP-29) `[제안]` |
+| C-24 | well 머리 배지 자리 | P-05 Helm well("쓰기 도구 거부 중") | 탐구 머리 줄(본문 첫 줄)에 둠 | caustic well 머리(`CardPanel` 머리)에 `badge` 슬롯 제안. 짧은 배지 하나만(DP-21) |
+| C-25 | 대화 시스템 행(Helm 신호, 그룹 전환, 임대 교대, 목표 판정, 확장 실패 묶음) | P-02, P-05, P-14, 런타임 행 | 시안 `p05-helm/parts/chat-context.tsx` `EventRow` | caustic 대화 시스템 행 부품 제안: muted 아이콘, secondary 한 줄, 동작 0~1개(DP-19) `[제안]` |
+| C-26 | 질문 카드와 한국어 카드 머리 | P-02, P-03 | 시안 `_shell/parts/question-card.tsx`, `p03-inbox/parts/request-card.tsx`(`AgentRequest`는 질문 kind가 없고 proposal 머리가 영어 "Proposal ·") | caustic `AgentRequest`에 질문 kind와 머리 문구 prop 제안 |
+| C-27 | 도구 호출 접기·펼치기, 작성 중 커서, 입력창 "관찰 중" 잠금 | P-02 | 시안 `p02-opus/parts/tool-row.tsx`, `streaming-text.tsx`, `observe-band.tsx` | caustic `ToolCall` 접기, `Message streaming` 커서, `Composer` 잠금 상태 제안 |
+| C-28 | 여러 줄 코드 블록 | O-02, O-03 | `pre` + 토큰 클래스(`MessageCode`는 인라인) | C-06과 함께 정함 |
+| C-29 | 두 줄 목록 행(투명 바탕) | P-06, P-03 | 시안 `p06-proposals` `Row`, `p03-inbox/parts/inbox-row.tsx`(`List`는 grouped 표면, `ListNavigationItem`은 한 줄) | caustic `List`에 표면 없는 변형과 두 줄 행 제안 |
+| C-30 | 라디오 행의 이름 + 연한 설명, 여러 줄 정렬 | P-08, P-21, P-22 | 시안 `wb2-opus/parts/radio-list.tsx`, P-08 원 위쪽 맞춤 클래스 | caustic `RadioGroupItem`에 `description`과 여러 줄 정렬 제안. 고름은 점 + 굵기(DP-44) |
+| C-31 | 다시 열 수 있는 단계 목록 | P-01 | `Accordion`(`Stepper checklist`는 누를 수 없음) | caustic `Stepper`에 단계 누르기 제안 |
+| C-32 | 크기 이름이 같은 입력과 버튼의 높이 | P-01, 작업대 맥락 칸 | 입력 옆 버튼은 한 단계 큰 `size`(`Input xs` 32px, `Button xs` 24px) | caustic에서 같은 `size`의 입력·버튼 높이를 맞추는 것을 제안(DP-30) |
+| C-33 | 부품 문구 i18n과 작은 결함 | P-02, P-07, S-02 | `ListNavigationItem` 화면 리더 상태 단어가 영어("Running:"), `Field optional`의 "선택"이 라벨에 붙어 읽힘, 팔레트 listbox 높이 상한 | caustic 문구 prop과 `Field optional` 표기 위치 제안 |
 
 - caustic 문서의 "glass" 표현은 FOUNDATION 정책 1(흐림 없는 단색 떠 있는 면)로 읽습니다.
 - caustic 변경은 caustic 저장소에서 합니다. Xeon 쪽은 `just caustic-update`로 올립니다.
@@ -2887,6 +2907,28 @@ export const palette = [
 | D-23 | [결정: 오케스트레이터 기본값] 신뢰 카드(O-04)는 프로젝트 확장마다 쓰는 연산(on, post, drive)을 보임. 신뢰한 폴더의 그룹도 자동 끄기 대상 | §12.1 26번, `X.operations.spec` §4.3.3 |
 | D-24 | [결정: 오케스트레이터 기본값] 설정 시안의 런타임형 P-13은 작업대 "확장"(최상위 작업대 내비)으로 접고, "이 대화" 구역은 런타임 탭, 실패 기록은 P-17로 나눔 | §6.23 |
 
+### 12.3 사용자 결정 대기
+
+시안 2차(2026-10-31) 뒤 사용자가 정할 것입니다. 권장 기본값은 정하기 전까지 시안과 구현이 따르는 값입니다 [제안]. 번호는 §12.1 번호나 관련 절입니다.
+
+| # | 질문 | 권장 기본값 | 관련 |
+|---|---|---|---|
+| U-1 | 플러그인 화면 방식과 격리 iframe 탈출구 | ADR-0021 (d) 선언형 화면 스키마만. M4에 iframe 탈출구를 두지 않음 | 12.1-16, D-13 |
+| U-2 | 작업대를 M4 P0로 올릴지 | P-16·P-13·P-17은 P0, P-18은 P1, P-19~P-22는 P2. W-15·W-20·W-24를 먼저 만듦 | 12.1-15 |
+| U-3 | 연결(P-08)을 작업대 "엔진" 아래로 옮길지 | 옮김. 대화 내비는 넷 | 12.1-17, D-16 |
+| U-4 | replay·bench·코어 변경 검사를 배포 앱에서 돌릴지 | 개발 모드에서만 실행. 배포 앱은 시험 대화와 지난 결과 읽기만 | 12.1-18, W-29, W-30 |
+| U-5 | 프로필 저장 위치 | 데스크톱 로컬 `l4.desktop.workbench.profiles` | 12.1-19, D-18 |
+| U-6 | 확장 버전 기록과 되돌리기를 M4에 둘지 | 두지 않음. P-17 "버전" 탭은 설치본과 번들 버전 읽기만 | 12.1-21, W-31 |
+| U-7 | 그룹 단위 승인 기억("이 그룹에서 항상"), 자식 에이전트 승인을 부모 그룹 기억으로 묶을지 | M4는 `request.remember` 값만(D-12). 자식 승인은 출처만 "렌즈 · grp:helm"으로 보임(DP-33) | 12.1-25 |
+| U-8 | 템플릿 추가(L2 provider, 외부 plugin, X 훅) | M4는 의도 그룹 셋. 나머지는 설명을 둔 채 "준비 중" 배지로 잠금 | 12.1-22 |
+| U-9 | replay 보고 형식 | `ReplayDriveReport` 그대로(절단 띠, `firstDiff`, `EffectCounts`)와 JSON 복사. 새 형식은 만들지 않음 | §6.26 |
+| U-10 | 만들기 직후 replay를 자동으로 돌릴지 | 돌리지 않음. 결과 단계에 "replay 시험" 버튼만 | §6.29 |
+| U-11 | 작업대 맥락 칸이 대화 영역의 지금 대화를 따라갈지 | 따라감(기본 켬). "작업대에서 보기"로 넘어오면 그 대화로 정함 | §4.9.5 |
+| U-12 | 안전 모드에서 X 훅을 실을지 | 싣지 않음(외부 확장과 같이 빠짐) | SC-22, §6.22 |
+| U-13 | 확장 표시 이름 | 매니페스트 표시 이름이 있으면 라벨, id는 옆에 mono tertiary(DP-39). 없으면 id만 | §6.21, V-16 |
+| U-14 | 오른쪽 well이 열리면 토스트를 well 왼쪽으로 옮길지 | 옮김. 토스트가 well 내용을 가리지 않게 함 | §6.4 |
+| U-15 | 첫 실행 "기본 그룹" 단계 기본값 | 건너뛸 수 있음, Helm·학습 켬, review 끔, 안전 모드 안내 한 줄 | D-19, §6.5 |
+
 ## 13. 시각 디자인 원칙 (누적)
 
 시안을 고치며 사용자가 준 요청을 원칙으로 모읍니다. 이후 시안과 구현은 이 절을 따릅니다. 디자이너는 Opus 5.5 medium 시안(`mockups/p02-opus`)을 기준으로 삼습니다 [결정: 2026-10-30 사용자].
@@ -2958,6 +3000,18 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 - DP-38 입력 부품은 내용에 맞는 폭을 유지하고 줄 전체로 늘이지 않습니다. 기준: `NumberField` 약 9rem, `Select` 약 20rem, 목록 약 28rem.
 - DP-39 기계 이름(설정 키, 비밀 이름, 확장 id)은 한국어 라벨 옆에 mono, tertiary 글자로 둡니다. 라벨을 기계 이름으로 대신하지 않습니다.
 
+### 13.6 시안 2차에서 나온 원칙 (2026-10-31)
+
+설정·런타임·작업대 시안(`mockups/*/NOTES.md`)에서 디자이너가 낸 원칙입니다. 표지가 없는 항목은 [제안]입니다. 이미 있는 원칙과 같은 제안은 새 번호를 주지 않았습니다: 출처 표시(DP-33), 오른쪽 탭과 같은 화면이면 well 닫음(DP-34), `minmax(0, 1fr)`(DP-35), 0인 상태 칸 숨김(DP-27), 실패 Alert는 목록 바로 위(DP-28), 입력 옆 버튼 높이(DP-30), 층 mono 열과 확장 지점 글자(DP-31), 설정 행 배지 하나(DP-36), well 안 테두리 없는 변형(DP-20), 대화 시스템 행 한 줄(DP-19), well 머리에 긴 라벨 없음(DP-21).
+
+- DP-40 본문과 보조 글은 400 굵기 역할을 씁니다. `text-ui-sm`(500)은 라벨에만 씁니다. 설명, 메타, 표 칸 글을 500으로 두면 라벨과 본문의 단계가 사라집니다(DP-11c).
+- DP-41 반응형 중단점은 caustic 이름(`compact`, `medium`, `wide`)만 씁니다. Tailwind 기본 접두(`sm:`, `lg:`)는 caustic 설정에서 아무 일도 하지 않습니다.
+- DP-42 P-18에서 셸 머리와 플러그인 트리의 경계는 간격과 제목 단계(`h1`, `h2`)로만 드러내고 선을 긋지 않습니다. 플러그인 동작("멈춤" 등)은 트리 안 그 내용 옆에 두고, 셸 머리의 동작은 "대화로" 하나입니다(DP-22 보탬).
+- DP-43 작업대 표 화면(P-13, P-19, P-20, P-21)은 오른쪽 well을 닫은 채 엽니다. 1280px에서 well(352px)이 열리면 표가 650px 밑으로 줄어듭니다. 표의 고른 행은 caustic 현재 항목과 같은 raised 면 하나로만 보이고 행 사이 선은 긋지 않습니다(DP-26, `[gap:C-21]`).
+- DP-44 한 화면에 라디오 묶음이 여럿이면 고른 값을 점 + 굵기로 보입니다. 고른 행을 통째로 잉크 면으로 뒤집는 카드(`ChoiceGroup` card·answer)는 쓰지 않습니다.
+- DP-45 열린 대화가 없는 화면(첫 실행, 대화를 고르지 않은 대화 영역, 맥락이 "전체"인 작업대)은 상태 표시줄의 문맥 사용량 칸을 뺍니다(DP-27 보탬).
+- DP-46 tone 색은 아이콘을 감싼 면(`ToneIcon`, 상태 점)에만 주고, Solar 아이콘 svg 자체에 색을 주지 않습니다. 아이콘 굵기와 색은 `emphasis`가 정합니다(DP-17b, DP-29 보탬).
+
 ## 14. 작업대 시안 브리프
 
 > 이 절은 따로 떼어 읽어도 되도록 썼습니다. 디자이너는 이 절과 §13만 읽고 시안을 만듭니다.
@@ -2977,7 +3031,7 @@ Xeon 데스크톱 앱의 두 번째 1급 영역 "작업대"(런타임 작업대)
 ### 14.3 셸 규칙(요약)
 
 - 창 최상단 띠가 없습니다. 왼쪽 패널은 창 위아래 끝까지 붙는 docked 면입니다. 가운데는 표면 없이 투명합니다. 오른쪽은 아이콘만 있는 세로 떠 있는 막대이고, 누르면 well이 펼쳐집니다. 창 아래에 상태 표시줄이 있습니다.
-- 왼쪽 패널(작업대): 찾기 칸(필드 모양, 누르면 팔레트), 영역 바꾸기, 대화 맥락 칸("맥락 캐시 무효화 조사"), 내비 일곱(개요, 확장 `!1`, 시험 실행 `1*`, 측정, 구성, 만들기, 엔진), "플러그인 화면" 목록(Helm 탐구, review 대기열), 맨 아래 설정.
+- 왼쪽 패널(작업대): 찾기 칸(필드 모양, 누르면 팔레트), 영역 바꾸기, 대화 맥락 칸("맥락 캐시 무효화 조사"), 내비 일곱(개요, 확장 `!1`(자동 꺼진 확장 수), 시험 실행 `1*`(실행 중 수), 측정, 구성, 만들기, 엔진), "플러그인 화면" 목록(Helm 탐구, review 대기열), 맨 아래 설정.
 - 오른쪽 막대(작업대): 받은 요청, 기록, 대화. 오른쪽 막대(대화): 받은 요청, 런타임, 작업, Helm 탐구.
 - 상태 표시줄: "사이드카 · 연결됨", "sonnet-5-5", "41k", "drive helm", "확장 실패 1", "승인 2", "알림 3". 키 칩과 바로 가기 키 표기를 그리지 않습니다.
 - 밀도는 데스크톱 개발 도구 수준입니다. 묶음은 간격으로 드러내고 선과 상자를 더하지 않습니다. well 안의 `Plan`, `ActivityTree`, `ToolCall`은 테두리 없는 변형입니다. well 머리에는 짧은 이름과 아이콘 둘까지만 둡니다.
@@ -2986,14 +3040,14 @@ Xeon 데스크톱 앱의 두 번째 1급 영역 "작업대"(런타임 작업대)
 
 | id | 화면 | 우선 | 핵심 내용 |
 |---|---|---|---|
-| W1 | 작업대 개요 | 1차 | 머리 요약 줄(안전 모드, 확장 수, 자동 꺼짐, drive). 층 × 확장 지도(층 행 L0, L1, L2, L3, plugin, X 훅. 칸은 상태 점 + 이름 `Chip`). 주의 목록. 최근 시험과 승격 후보 |
+| W1 | 작업대 개요 | 1차 | 머리 요약 줄(안전 모드, 확장 20, 켜짐 18, 자동 꺼짐 1, drive). 층 × 확장 지도(층 행 L0, L1, L2, L3, plugin, X 훅. 칸은 상태 점 + 이름 `Chip`). 주의 목록. 최근 시험과 승격 후보 |
 | W2 | 확장 목록 | 1차 | 찾기와 거르기(층, 종류, 상태). 표(이름, 층, 종류, 등급, 상태, 버전, 켜짐 `Switch`). core tier는 `Switch` 잠김. 아래에 안전 모드 행과 drive 그룹 `Select` |
 | W3 | 확장 상세(helm) | 1차 | 머리(이름, L3 group, user, 0.1.0, 켜짐, "끄기"). 탭 여덟: 개요, 연결 지점(지점, fold, 예산, p50, p95, 실패), 임대와 상한, 설정, 측정, 기록, 버전, 화면 |
-| W4 | 플러그인 화면: Helm 탐구 | 1차 | 셸이 그린 머리 첫 줄(제목, helm · user · 0.1.0, "대화로"). 그 아래 플러그인 트리: 주제와 신호, 단계 `Stepper`(확산, 탐색, 수렴, 적용), 렌즈 `ActivityTree`(렌즈 = 자식 에이전트, 펼치면 그 렌즈의 도구 호출 행), 발견 목록(신뢰도 `Badge`, 출처, 작업 링크), 임대·토큰 `Progress`, 지난 탐구, "멈춤" |
-| W5 | 대화 영역 런타임 탭 | 1차 | P-02 대화 위에 오른쪽 "런타임" well: drive 임대(보유, 상한 사용량, 대기열과 거부), 켜진 그룹과 확장(펼치면 지점), 전환 기록, 실패 묶음, "작업대에서 보기". 대화 머리 둘째 줄 런타임 줄과 트랜스크립트 한 줄 런타임 행, Helm 카드 |
-| W6 | 시험 실행 | 2차 | 시험 표(종류, 대상, 결과, 시각, 소요)와 고른 결과 상세(replay 실패: 커밋 41개 중 17번, 첫 차이 seq, 효과 중복) |
-| W7 | 측정과 평가 | 2차 | 기간 `SegmentedControl`, 확장별 지표 표, 핸들러 시간/예산 막대, 승격 보고, 코어 변경 검사 |
-| W8 | 구성 | 2차 | 탭(프로필, 그룹 구성). 프로필 목록과 편집(확장 체크, 설정 덮어쓰기, drive 그룹, "이 대화에 적용", "새 시험 대화로") |
+| W4 | 플러그인 화면: Helm 탐구 | 1차 | 셸이 그린 머리 첫 줄(제목, helm · user · 0.1.0, "대화로"). 그 아래 플러그인 트리: 주제와 신호, 단계 `Stepper`(확산, 탐색, 수렴, 적용), 렌즈 `ActivityTree`(렌즈 = 자식 에이전트, 펼치면 그 렌즈의 도구 호출 행), 발견 목록(신뢰도 `Badge`, 출처, 작업 링크), 임대·토큰 `Progress`, 지난 탐구. "멈춤"은 셸 머리가 아니라 트리의 주제 줄에 둡니다 |
+| W5 | 대화 영역 런타임 탭 | 1차 | P-02 대화 위에 오른쪽 "런타임" well: drive 임대(보유, 상한 사용량, 대기열과 거부), 켜진 그룹과 확장(펼치면 지점), 전환 기록, 실패 묶음, "작업대에서 보기". 대화 머리 둘째 줄 런타임 줄과 트랜스크립트 한 줄 런타임 행, Helm 카드(`helm/suggested` 또는 `helm/finished`만, ADR-0021 §3.9) |
+| W6 | 시험 실행 | 2차 | 시험 표(종류, 대상, 결과, 시각, 소요)와 고른 결과 상세(replay 실패: 절단 41개 중 17·18번 digest 다름, 첫 차이 seq, 절단 효과 수 `EffectCounts`) |
+| W7 | 측정과 평가 | 2차 | 기간 `SegmentedControl`, 확장별 지표 표, 핸들러 시간/예산 막대, 승격 보고, 코어 변경 검사 한 줄 요약과 "시험 실행에서 보기" |
+| W8 | 구성 | 2차 | 탭(프로필, 그룹 구성). 프로필 목록과 편집(확장마다 켜기·끄기·그대로, 설정 덮어쓰기, drive 그룹, "이 대화에 적용", "새 시험 대화로") |
 | W9 | 만들기 | 2차 | `Stepper` 세 단계(종류, 이름, 확인). 종류 라디오(drive, 정책, 관찰 그룹, provider, X 훅. 뒤 둘은 "준비 중" 잠김), 이름·폴더, 만들 파일 목록 |
 
 ### 14.5 고정 데이터(`fixtures.ts`)
@@ -3002,16 +3056,18 @@ Xeon 데스크톱 앱의 두 번째 1급 영역 "작업대"(런타임 작업대)
 export const extensions = [
   { name: "helm", layer: "L3", kind: "group", trust: "user", tier: "user", version: "0.1.0", status: "enabled", drive: "holder", failures: 0 },
   { name: "learning", layer: "L3", kind: "group", trust: "builtin", tier: "builtin", version: "0.4.0", status: "enabled", drive: "none", failures: 0 },
-  { name: "review", layer: "L3", kind: "group", trust: "user", tier: "user", version: "0.2.1", status: "auto_disabled", drive: "waiting", failures: 5 },
-  { name: "work", layer: "L2", kind: "plugin", trust: "builtin", tier: "builtin", version: "0.4.0", status: "enabled", drive: "none", failures: 0 },
+  // 자동 꺼진 그룹은 drive 대기열에 들어가지 않습니다. 대기는 work가 맡습니다
+  { name: "review", layer: "L3", kind: "group", trust: "user", tier: "user", version: "0.2.1", status: "auto_disabled", drive: "none", failures: 5 },
+  { name: "work", layer: "L2", kind: "plugin", trust: "builtin", tier: "builtin", version: "0.4.0", status: "enabled", drive: "waiting", failures: 0 },
   { name: "web-exa", layer: "L2", kind: "plugin", trust: "user", tier: "user", version: "1.0.3", status: "enabled", drive: "none", failures: 0 },
   { name: "acme-notes", layer: "plugin", kind: "plugin", trust: "project", tier: "project", version: "0.0.9", status: "enabled", drive: "none", failures: 2 },
   { name: "core-loop", layer: "L1", kind: "core", trust: "builtin", tier: "core", version: "0.4.0", status: "enabled", drive: "none", failures: 0, exempt: true },
   { name: "provider-oauth", layer: "plugin", kind: "plugin", trust: "user", tier: "user", version: "0.1.0", status: "disabled", drive: "none", failures: 0 },
   { name: "pre-commit-lint", layer: "X", kind: "hook", trust: "user", tier: "user", version: "-", status: "enabled", drive: "none", failures: 0 },
 ];
+// 지도 칸 20개. P-16 머리 "확장 20 · 켜짐 18 · 자동 꺼짐 1"의 기준입니다(extensions에 없는 이름은 켜진 builtin)
 export const layerMap = {
-  L0: ["sqlite", "exec", "sandbox", "secrets"], L1: ["loop", "tools", "models", "agents", "context"],
+  L0: ["sqlite", "exec", "sandbox", "secrets"], L1: ["core-loop", "tools", "models", "agents", "context"],
   L2: ["web", "knowledge", "work", "dialog", "web-exa"], L3: ["helm", "learning", "review"],
   plugin: ["acme-notes", "provider-oauth"], X: ["pre-commit-lint"],
 };
@@ -3023,7 +3079,7 @@ export const helmPoints = [
   { point: "session.start", fold: "tap", budgetMs: 5000, p50: 8, p95: 8, failures: 0 },
   { point: "lifecycle.lease.rejected", fold: "tap", budgetMs: 5000, p50: null, p95: null, failures: 0 },
 ];
-export const lease = { holder: "helm", turns: [1, 4], spawns: [3, 8], tokens: [120000, 400000], queue: [{ group: "review", state: "waiting" }, { group: "work", state: "rejected" }] };
+export const lease = { holder: "helm", turns: [1, 4], spawns: [3, 8], tokens: [120000, 400000], queue: [{ group: "work", state: "waiting" }] };
 export const switches = [
   { at: "14:02", turn: 7, text: "helm이 drive 임대를 받았어요", reason: "request" },
   { at: "14:03", turn: 7, text: "acme-notes 실패 2번 (tool.call.before)", reason: "handler_failed" },
@@ -3051,14 +3107,17 @@ export const promotion = { throughSeq: 9120, threads: 14, candidates: [{ tool: "
 export const tests = [
   { kind: "trial", target: "helm", result: "running", at: "지금", took: "1:12" },
   { kind: "replay", target: "helm", result: "passed", commits: 41, at: "3분 전", took: "18s" },
-  { kind: "replay", target: "review", result: "failed", commits: 41, failedAt: 17, firstDiffSeq: 212, firstDiffKind: "grp.review.state.committed", effects: "work.task.create 2/1", at: "어제", took: "9s" },
+  // replayDrive는 41개 절단을 모두 돌립니다. 이벤트열이 다르면 failure 없이 ok: false입니다(effects-doubled는 모든 절단이 같을 때만)
+  { kind: "replay", target: "review", result: "failed", commits: 41, diffCuts: [17, 18], failure: null, firstDiffSeq: 212, firstDiffKind: "grp.review.state.committed",
+    baselineEffects: { turn: 6, spawn: 0, delegate: 1, post: 1 }, cutEffects: { turn: 0, spawn: 0, delegate: 0, post: 1 }, at: "어제", took: "9s" },
   { kind: "bench", target: "server", result: "budget_pending", at: "어제", took: "2m" },
   { kind: "diff", target: "main..HEAD", result: "clean", protectedLines: 0, at: "어제", took: "1s" },
 ];
 export const profiles = [
-  { id: "explore", title: "탐구 중심", enable: ["helm", "learning", "web-exa"], settings: [{ key: "ext.helm.maxLenses", value: 4 }], driveGroup: "helm" },
-  { id: "quiet", title: "조용히", enable: ["learning"], settings: [], driveGroup: null },
-  { id: "review-trial", title: "review 시험", enable: ["review", "web-exa"], settings: [], driveGroup: "review" },
+  // enable·disable에 없는 확장은 "그대로"입니다
+  { id: "explore", title: "탐구 중심", enable: ["helm", "learning", "web-exa"], disable: ["review"], settings: [{ key: "ext.helm.maxLenses", value: 4 }], driveGroup: "helm" },
+  { id: "quiet", title: "조용히", enable: ["learning"], disable: ["helm"], settings: [], driveGroup: null },
+  { id: "review-trial", title: "review 시험", enable: ["review", "web-exa"], disable: ["helm"], settings: [], driveGroup: "review" },
 ];
 export const templates = [
   { id: "drive", label: "의도 그룹 · drive", hint: "턴을 구동하는 그룹", files: 10 },
@@ -3082,12 +3141,12 @@ export const templates = [
 | S7 | W4 | 실행 중 | `helmInquiry` 전체. 실패 사례 렌즈 펼침(도구 호출 행) |
 | S8 | W4 | 확장 꺼짐 | 셸 자리표시 "Helm이 꺼져 있어요" + "확장 상세 열기". 플러그인 트리 없음 |
 | S9 | W4 | 화면 오류 | 트리 일부 자리표시 "이 앱 버전에서 못 그리는 부품(Sparkline)", 나머지는 그림 |
-| S10 | W5 | 기본 | 런타임 탭 열림, 대기열에 review(대기)와 work(거부) |
+| S10 | W5 | 기본 | 런타임 탭 열림, 대기열에 work(대기). review는 자동 꺼짐이라 대기열에 없고 켜진 그룹 목록에 "자동 꺼짐"으로 보임 |
 | S11 | W5 | drive 없음 | 임대 구역 "지금 drive를 쥔 그룹이 없어요", 전환 기록만 |
-| S12 | W6 | replay 실패 상세 | review 행 고름, 아래 상세 펼침 |
+| S12 | W6 | replay 실패 상세 | review 행 고름, 아래 상세: 판정 "digest 다름", 절단 띠 41칸(17·18 강조), 첫 차이 seq 212, 절단 효과 수 |
 | S13 | W7 | 기본 | 지표 표와 예산 막대 |
 | S14 | W8 | 프로필 편집 | 탐구 중심 고름 |
-| S15 | W9 | 이름 오류 | 이름 "Lens_Review" 입력, 아래 "소문자, 숫자, 하이픈만 쓸 수 있어요" |
+| S15 | W9 | 이름 오류 | 이름 "Lens_Review" 입력, 아래 "소문자로 시작하고 소문자, 숫자, 하이픈만 써서 2~32자로 지어요" |
 
 ### 14.7 상호작용(로컬 상태만)
 
@@ -3116,4 +3175,4 @@ export const templates = [
 - 층 × 확장 지도가 한눈에 건강 상태를 보이는가
 - 플러그인 화면(W4)이 앱 화면과 같은 부품과 밀도로 보이고, 셸 머리와 플러그인 트리의 경계가 분명한가
 - 런타임 탭이 drive 보유, 대기열, 전환을 놓치지 않는가
-- §13 원칙(DP-01~DP-26)을 지키는가
+- §13 원칙(DP-01~DP-46)을 지키는가
