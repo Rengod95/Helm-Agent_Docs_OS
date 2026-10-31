@@ -522,7 +522,7 @@ export function scanSource(file: SourceFile): {
   return { violations, exceptions };
 }
 
-const SKIP_DIRS = new Set(["node_modules", "dist", ".turbo", "coverage", "vendor"]);
+const SKIP_DIRS = new Set(["node_modules", "dist", ".turbo", "coverage", "vendor", "mockups"]); // mockups: 비즈니스 로직 없는 셸 목업(apps/desktop/mockups), oxlint·knip과 같이 제외
 
 export function collectSources(root: string): SourceFile[] {
   const out: SourceFile[] = [];
