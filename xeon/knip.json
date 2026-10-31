@@ -44,7 +44,7 @@
     },
     "apps/desktop": {
       "entry": ["test/**/*.test.{ts,tsx}", "mockups/*/main.tsx", "src/styles.css"],
-      "ignoreDependencies": ["@caustic/tokens"]
+      "ignore": ["mockups/**"]
     },
     "apps/host": {
       "entry": [
