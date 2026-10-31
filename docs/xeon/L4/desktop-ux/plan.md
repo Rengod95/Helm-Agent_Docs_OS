@@ -4,19 +4,20 @@ layer: L4
 domain: desktop-ux
 kind: plan
 status: draft
-depends_on: [L4.desktop-ux.spec, L4.desktop.plan, L4.settings-ui.plan, adr.0021]
+depends_on: [L4.desktop-ux.spec, L4.desktop.plan, L4.settings-ui.plan, adr.0021, review.m4-plan]
 binds: [xeon/apps/desktop/src/views/**]
 ---
 
 # L4 데스크톱 UX 구현 계획 (desktop-ux)
 
-`L4.desktop-ux.spec`의 화면을 M4에서 만드는 순서입니다. 화면의 항목, 상태, 부품은 spec이 정하고, 이 문서는 순서와 완료 기준만 정합니다.
+`L4.desktop-ux.spec`의 화면을 M4에서 만드는 순서입니다. 화면의 항목, 상태, 부품은 spec이 정하고, 이 문서는 순서와 완료 기준만 정합니다. 트랙 배치, 에이전트 구성, 종료 조건 Y1~Y17은 `review.m4-plan`이 정본입니다. 아래 UX 작업 id는 그 트랙에 묶입니다.
 
 ## 1. 목표와 마일스톤 배치
 
 - M0~M3b: 해당 작업 없음. 화면 코드는 M4입니다 [결정: 2026-10-28 사용자 지시]. M3b까지는 view-model, wire, 상태 논리만 만듭니다(`review.m3b-plan` §1.2).
 - M4: spec §5의 P0 화면 전부와 P1 화면 전부. P2 화면은 wire 간극(spec §10.1)이 풀린 만큼 만듭니다 [제안].
-- [결정: 2026-10-30 사용자] 대화와 런타임 작업대가 둘 다 1급입니다. 작업대 P1(P-16, P-13, P-17, P-18)과 플러그인 화면 기여(ADR-0021)를 M4에 넣고, 작업대 P2(P-19~P-22)는 wire·F·X 간극(spec §10.1 W-20~W-39, §10.3)이 풀린 만큼 만듭니다. 작업대를 P0로 올릴지는 spec §12.1 15번입니다.
+- [결정: 2026-10-30 사용자] 대화와 런타임 작업대가 둘 다 1급입니다.
+- [결정: 2026-10-31 사용자] 작업대 화면 전부(P-16~P-21, 시험 실행, 측정, 구성기, 플러그인 화면)가 M4입니다. P-16·P-13·P-17은 P0, 나머지는 P1입니다(spec §5, §12.3 U-2). 플러그인 화면은 두 모드(ADR-0021)이고, 구성과 만들기는 구성기 하나입니다(spec §6.28).
 
 ## 2. 패키지와 파일 배치
 
@@ -31,8 +32,8 @@ binds: [xeon/apps/desktop/src/views/**]
 
 | id | 내용 | 선행 | 규모 |
 |---|---|---|---|
-| UX-0 | 셸 목업 세 개(같은 브리프, 세 모델 병렬) | spec §8.2 | S×3 |
-| UX-1 | 사용자가 모델을 고름. 고른 목업의 셸을 `views/shell/`로 옮김 | UX-0 | S |
+| UX-0 | 셸 목업 세 개(같은 브리프, 세 모델 병렬). 끝남 | spec §8.2 | S×3 |
+| UX-1 | 고른 목업(Opus 시안)의 셸을 `views/shell/`로 옮김(T-SHELL) | UX-0 | S |
 | UX-2 | 셸(S-01~S-04), 바로 가기 키 표, 데스크톱 로컬 설정 저장소(V-14, V-15) | UX-1 | M |
 | UX-3 | P-02 대화와 승인 카드 네 종류, O-01·O-02·O-04·O-07 | UX-2 | L |
 | UX-4 | P-03 받은 요청(V-02, V-03), S-02 명령 팔레트(V-01) | UX-3 | M |
@@ -41,18 +42,20 @@ binds: [xeon/apps/desktop/src/views/**]
 | UX-7 | P-06 제안, P-07 예약(V-04, O-08), P-08 연결(V-05) | UX-2 | L |
 | UX-8 | P-04 변경 검토(V-06), P-05 탐구(V-07) | UX-3, W-02, W-04 | M |
 | UX-9 | P-14 목표와 작업, P-15 진단, O-03, O-09 | UX-3 | M |
-| UX-11 | 작업대 시안(spec §14, W1~W5 먼저, W6~W9 다음). `_shell`에 영역 바꾸기·작업대 왼쪽 패널·런타임 탭 | UX-1 | M |
-| UX-12 | 셸 영역 바꾸기(대화 ↔ 작업대), 영역별 왼쪽 패널과 오른쪽 탭, 대화 맥락 공유 상태, 연결·진단을 작업대 엔진으로 | UX-2, UX-11 | M |
-| UX-13 | wire 선행 트랙: `ext.list`(W-15), `ext.get`(W-20), `ext.reenable`(W-21), `ext.health`(W-22), `group.list`(W-24), `host.status.safeModeCause`·`engine_restart`(W-35). host와 F wire 문서 변경 포함 | 없음(M4 착수 즉시) | L |
+| UX-11 | 작업대 시안(spec §14), 캔버스·구성기 시안(`wb-canvas`, `wb-compose`). 끝남. 캔버스 2차 시안은 진행 중 | UX-1 | M |
+| UX-12 | 셸 영역 바꾸기(대화 ↔ 작업대), 영역별 왼쪽 패널과 오른쪽 탭, 맥락 칸 모델(전체·대화·프로필·시험, 따라가기·고정, V-25). 연결은 대화 주 내비에 남음(T-SHELL) | UX-2, UX-11 | M |
+| UX-13 | wire 선행: `review.m4-plan` T-F, T-WA, T-WB, T-WC | 없음(M4 착수 즉시) | L |
 | UX-14 | 대화 영역 런타임 표시: 런타임 줄, 트랜스크립트 런타임 행, 런타임 탭(V-24) | UX-3, UX-13 | M |
-| UX-15 | P-16 작업대 개요, P-13 확장 목록, P-17 확장 상세, O-10(V-16~V-18) | UX-12, UX-13 | L |
-| UX-16 | F·X 선행 트랙: 매니페스트 `views`, 확장 메서드 열기와 등록 API, 예산 등급 `view`, 화면 진단, `ext.view.*`(spec §10.3 X-1~X-7, W-33). ADR-0021 사용자 확인 뒤 | ADR-0021 accepted | L |
-| UX-17 | P-18 플러그인 화면 호스트와 여섯 슬롯, 위젯 카탈로그 v1, 화면 장부(V-19). Helm 기여(`helm/inquiry`, `helm/panel`, 카드, 상태 칸, 팔레트)로 P-05 대체(X-9) | UX-14, UX-16 | L |
-| UX-18 | P-19 시험 실행, P-20 측정과 평가, P-21 구성, P-22 만들기, O-11, O-12(V-20~V-23) | UX-15, W-23·W-25~W-31·W-34 | L |
+| UX-15 | P-13, P-16 목록 옆 패널, P-17(버전 탭 §6.24.1), P-15 엔진, O-10(V-16~V-18)(T-BENCH) | UX-12, UX-13 | L |
+| UX-16 | F·X 선행: 매니페스트 `views` 두 모드, 확장 메서드와 등록 API, 예산 등급 `view`, 화면 진단, `composition`, `loop.ask`, 계측 링 버퍼, 시험 멈춤, 버전 기록(T-F, T-XV, T-XD, T-GK) | ADR-0021 accepted(2026-10-31) | L |
+| UX-17 | P-18 플러그인 화면 호스트, 여섯 슬롯, 선언형 렌더러와 위젯 카탈로그 v1, 프레임 호스트와 다리, 화면 장부(V-19, V-29). Helm 기여로 P-05 대체(X-9)(T-VIEW) | UX-14, UX-16 | L |
+| UX-18 | P-19 시험 실행, P-20 측정과 평가, O-11, O-12(V-20, V-21)(T-TRIAL) | UX-15, T-WB | M |
+| UX-19 | P-16 런타임 캔버스, 검사기, 턴 재생, 자동 배치(V-26, V-27)(T-CANVAS) | UX-15, T-CAU2, T-WA, T-WB | L |
+| UX-20 | P-21 구성기(그룹·흐름·프로필·코드, "새 그룹", 제작 확장 연결)(V-22, V-28)(T-COMPOSE) | UX-15, T-WB, T-AUTH | L |
 | UX-10 | 접근성 점검과 수정(axe, 키보드 경로), 다크 테마 점검 | UX-3~UX-9, UX-12~UX-18 | M |
 
 - UX-3과 UX-5, UX-7은 UX-2 뒤 병렬로 갑니다.
-- UX-11(작업대 시안)은 UX-1 뒤 UX-2와 병렬입니다. UX-13(wire 선행)과 UX-16(F·X 선행)은 화면 작업과 따로 앞서 갑니다. UX-6의 P-13은 UX-15로 옮겼습니다.
+- UX-13(wire 선행)과 UX-16(F·X 선행)은 화면 작업과 따로 앞서 갑니다. UX-6의 P-13은 UX-15로 옮겼습니다. 옛 P-22 만들기는 UX-20에 합쳤습니다.
 - 각 작업의 끝 시험은 화면별 상태 여섯 가지(spec §6.0)를 고정 데이터로 그리는 시험입니다.
 
 ## 4. 채택 코드
@@ -79,6 +82,12 @@ binds: [xeon/apps/desktop/src/views/**]
 | `view-host.ledger-disables-view-only` | 화면 실패 5번 연속이면 그 화면만 `view_disabled`, 확장은 켜짐 |
 | `view-host.no-secret-binding` | `secret: true` 설정은 핸들 부품으로만, 값 바인딩 거부 |
 | `view-host.helm-renders-with-catalog-v1` | Helm `helm/inquiry` 트리가 위젯 카탈로그 v1만으로 검사를 통과 |
+| `view-host.frame-only-page-well` | `card`·`status`·`settings`의 `frame` 선언은 `view_mode_not_allowed` |
+| `view-host.frame-bridge-allowlist` | 허용 목록 밖 `op`, 선언 밖 메서드, 상한 초과 메시지는 거부되고 장부에 셈 |
+| `workbench.context-drives-all-pages` | 맥락 칸 값 하나로 작업대 화면 전부의 맥락이 바뀜 |
+| `canvas.selection-sync` | 목록 행과 캔버스 블록의 고름이 같이 움직임 |
+| `canvas.order-persists-and-resets` | 층 안 순서가 재시작 뒤 같고 초기화로 자동 배치 |
+| `compose.undeclared-group-single-block` | `composition` 없는 그룹은 블록 하나 "구성 정보 없음" |
 
 ## 6. 완료 기준
 
@@ -94,5 +103,6 @@ binds: [xeon/apps/desktop/src/views/**]
 | caustic 간극 부품이 앱마다 다르게 만들어짐 | UX-2에서 셸 부품(상태 표시줄, 팔레트)을 먼저 만들고 다른 화면은 그것을 씀 |
 | 목업 세 개의 셸이 서로 달라 비교가 어려움 | 같은 브리프, 같은 고정 데이터, 같은 완료 기준(spec §8.2) |
 | 작업대가 wire 간극(W-15, W-20~W-24) 때문에 빈 화면이 됨 | UX-13을 M4 착수 즉시 시작. 그 전에는 설정 키와 이벤트(`scope.*`, `lease.*`)로 채우고 간극을 화면에 문장으로 보임 |
-| 플러그인 화면 방식(ADR-0021)이 사용자 확인 전에 굳음 | UX-16·UX-17은 ADR-0021 accepted 뒤. 시안(UX-11 W4)으로 먼저 확인 |
-| replay·bench가 배포 앱에서 못 돎(W-29, W-30) | P-19는 개발 모드 전용으로 시작하고 spec §12.1 18번 결정을 기다림 |
+| 프레임 모드의 IPC 격리를 플랫폼에서 확인하지 못함 | `x.views.frames = false`로 내고 선언형과 `fallback`만 씀(ADR-0021 §6 1번) |
+| 캔버스 시각 언어가 2차 시안을 기다림 | 동작과 데이터를 먼저 만들고 시각 값은 토큰 교체로 나중에 |
+| replay·bench는 개발 모드에서만 돎(spec §12.3 U-4) | 배포 앱 P-19는 시험 대화와 지난 결과 읽기, 실행 항목은 잠금 |

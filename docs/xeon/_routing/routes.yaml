@@ -56,11 +56,13 @@ layout:
     domains: [workspace, mcp, web, knowledge, work, dialog, artifacts, schedule]
     path: "xeon/packages/cap-{domain}/**"
   L3:
-    domains: [group-kit, helm, learning, slots]
+    domains: [group-kit, helm, learning, slots, authoring]
     paths:
       group-kit: "xeon/packages/group-kit/**"
       helm: "xeon/packages/group-helm/**"
       learning: "xeon/packages/group-learning/**"
+      # 플러그인 제작 확장(M4). 코드는 M4 트랙 T-AUTH가 만든다
+      authoring: "xeon/packages/group-authoring/**"
       # slots는 코드 없음 (템플릿 문서만)
   L4:
     domains: [cli, desktop, host-service, settings-ui, release, desktop-ux]
@@ -178,5 +180,5 @@ manifest:
     - adr.0018   # 승인 프로토콜 하나(도구·계획·질문·검토)
     - adr.0019   # 비밀 기본 저장소 SOPS(age)
     - adr.0020   # L4 공유 클라이언트 패키지 packages/client
-    - adr.0021   # 플러그인 화면 기여: 선언형 화면 스키마 기본(혼합)
+    - adr.0021   # 플러그인 화면 기여: 선언형 모드와 격리 프레임 모드(화면마다 선언)
   layers: "각 층마다 <층>.readme 1개 + 도메인마다 spec, plan (layout.domains 참조)"
