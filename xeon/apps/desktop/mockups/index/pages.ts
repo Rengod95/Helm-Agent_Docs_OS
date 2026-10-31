@@ -76,4 +76,10 @@ export const pages: MockPage[] = [
     folder: "wb-v2a",
     states: 13,
   },
+  {
+    id: "일러스트",
+    title: "런타임 일러스트 세트: X 수명 고리, 층 쌓기, 개념 그림 8, 빈 상태 3 (밝음·어두움)",
+    folder: "_art-preview",
+    states: 1,
+  },
 ];
