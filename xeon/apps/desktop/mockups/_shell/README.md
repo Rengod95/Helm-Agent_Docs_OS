@@ -18,6 +18,8 @@
 | `fonts.ts`              | `loadCausticFonts()`: caustic 글꼴을 렌더를 막지 않게(DP-15)                                                                                                                                                   |
 | `icons.ts`              | caustic 아이콘 어댑터(Solar, DP-17) 다시 내보내기                                                                                                                                                              |
 | `fixtures.ts`           | 공용 고정 데이터(대화 목록, 내비, 승인·제안·알림, 상태, 팔레트)                                                                                                                                                |
+| `terms.ts`              | `T`: 화면에 보이는 도메인 용어 한 곳(층, 확장, 진행권, 연결 지점, 블록, 보기 기준, 시험, 다시 돌려 검사 등). 용어가 확정 전이라 페이지는 이 말들을 직접 쓰지 않고 `T.<키>`로 끼웁니다. `josa()`는 받침에 맞는 조사 |
+| `scenario.tsx`          | 눌러 볼 수 있는 시나리오: `?scenario=<id>`(`useScenarioParam`), 시간 순서 단계(`useTimeline`), 가짜 스트리밍(`useTypewriter`), `?dev=1`일 때만 왼쪽 아래에 뜨는 `ScenarioDock`(고르기·다시 시작) |
 | `parts/`                | 상태 표시줄, 알림 목록, 도구 승인 카드, 질문 카드, 작업대 "기록"(`RuntimeLog`)·"대화"(`ThreadTail`) 탭 내용, `ToneIcon`(DP-29 tone 아이콘 면)                                                                  |
 | `shell.css`             | 높이 100%, 창 바탕, 커서 깜빡임. Tailwind가 이 폴더도 읽게 `@source`                                                                                                                                           |
 
