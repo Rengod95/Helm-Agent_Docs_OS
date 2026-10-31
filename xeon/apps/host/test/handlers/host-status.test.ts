@@ -140,3 +140,19 @@ test("a check that was cancelled fails the request with request.cancelled and no
   expect(await connection.request("host.status", {})).toMatchObject({ mode: "in-process" });
   await connection.close();
 });
+
+test("host.status carries the startup failure count and the safe-mode suggestion only after failed starts", async () => {
+  const failed = createFakeHost({ startup: { failures: 3, suggestSafeMode: true } });
+  const connection = await open(failed);
+  const status = await connection.request("host.status", {});
+  expect(status.startupFailures).toBe(3);
+  expect(status.suggestSafeMode).toBe(true);
+  await connection.close();
+
+  const below = createFakeHost({ startup: { failures: 1, suggestSafeMode: false } });
+  const other = await open(below);
+  const quiet = await other.request("host.status", {});
+  expect(quiet.startupFailures).toBe(1);
+  expect("suggestSafeMode" in quiet).toBe(false);
+  await other.close();
+});

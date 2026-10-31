@@ -211,6 +211,7 @@ export interface Engine {
   readonly storeId: StoreId;
   readonly catalog: SettingCatalog;
   readonly startedAt: number;                             // ms. host.status.startedAt의 원천
+  readonly startup: { readonly failures: number; readonly suggestSafeMode: boolean }; // 연속 시작 실패 수와 안전 모드 제안. host.status.startupFailures·suggestSafeMode의 원천(X-21, X.operations.spec §4.6.4)
   readonly ports: EnginePorts;                            // §3.3.2
   readonly shutdown: EngineShutdown;                      // 종료 협조 창구(deviation). EOF, 신호, host.shutdown이 request(reason)을 부른다(HS-31)
   diagnose(signal: AbortSignal): Promise<EngineDiagnostics>; // 진단 함수(HS-69). `doctor`와 첫 실행 안내가 부른다. 외부 바이너리 점검은 자식 프로세스를 띄우므로 엔진을 열 때가 아니라 이 호출에서 한다

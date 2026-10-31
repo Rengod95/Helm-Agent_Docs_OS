@@ -25,7 +25,7 @@ const HOST_SDK_MODULES: SdkModules = { "@xeon/group-kit": groupKit };
 
 export interface ExternalLoadingDeps {
   readonly ext: ExtHost;
-  readonly operations: Pick<OperationsPolicy, "admit" | "forget">;
+  readonly operations: Pick<OperationsPolicy, "admit" | "forget" | "autoDisabler">;
   readonly fs: LoaderFs;
   /** `<config>`: 사용자 확장은 `<userDir>/extensions/<이름>/` */
   readonly userDir: string;

@@ -47,6 +47,8 @@ export interface HostGroupsOptions {
   readonly groups: () => readonly GroupCatalogEntry[];
   readonly report: (cause: unknown) => void;
   readonly loadIndex: number;
+  /** `/group on`이 켠 직후 부른다(`GroupServiceDeps.onEnabled`) */
+  readonly onEnabled?: (id: string) => void;
 }
 
 function locked(): HolderWriteError {
@@ -184,6 +186,7 @@ export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
         currentThread: options.currentThread,
         report: options.report,
         instrumentation,
+        ...(options.onEnabled === undefined ? {} : { onEnabled: options.onEnabled }),
       });
       host.providePort(LeaseArbiterPortKey, service);
       host.providePort(GroupSettingsSourceKey, {

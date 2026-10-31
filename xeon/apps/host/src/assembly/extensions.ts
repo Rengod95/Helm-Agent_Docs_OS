@@ -119,6 +119,8 @@ export interface ExtensionDeps {
     readonly currentThread: () => ThreadId | null;
     readonly heldThreads: () => readonly ThreadId[];
     readonly entries: () => readonly GroupCatalogEntry[];
+    /** `/group on` 뒤에 부른다. 실패 장부를 비운다(X-4) */
+    readonly onEnabled: (id: string) => void;
   };
   /** 학습 그룹과 L2 제안 대기열 어댑터를 잇는 자리(`proposal.*` 처리기가 읽는다) */
   readonly learning: LearningWiring;
@@ -292,6 +294,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           currentThread: deps.groups.currentThread,
           heldThreads: deps.groups.heldThreads,
           groups: deps.groups.entries,
+          onEnabled: deps.groups.onEnabled,
           report: (cause) => {
             deps.logger.error("groups.listener_failed", { message: messageOf(cause) });
           },

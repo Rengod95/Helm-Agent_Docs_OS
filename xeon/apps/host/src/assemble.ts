@@ -114,6 +114,7 @@ import {
   storeSettingsOf,
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
+import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { messageOf, sequentially } from "./util.ts";
@@ -168,6 +169,13 @@ export class AssembleError extends Error {
 function safeModeSettingOn(catalog: SettingCatalog, settings: SettingsEngine): boolean {
   const key = "x.operations.safeMode.default";
   return catalog.has(key) && settings.value(key) === true;
+}
+
+/** `x.operations.safeMode.suggestAfter`. 카탈로그에 없거나 정수가 아니면 기본값(3)이다 */
+function suggestAfterOf(catalog: SettingCatalog, settings: SettingsEngine): number {
+  const key = "x.operations.safeMode.suggestAfter";
+  const value = catalog.has(key) ? settings.value(key) : undefined;
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 ? value : 3;
 }
 
 function describeIssue(issue: AssembleIssue): string {
@@ -500,6 +508,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     logSink.attach(join(os.dirs.state, "logs", `${options.mode}.log`));
     const logger = os.logger("host");
     late.logger = logger;
+    // 연속 시작 실패 수(X.operations.spec §4.6.4). 조립이 던지면 "진행 중" 표시가 남아 다음 시작에서 1이 는다
+    const startupHealth = createFileStartupHealth(os.dirs.state);
+    const startupFailures = startupHealth.beginStartup();
     await settings.loadUserFile(join(os.dirs.config, "settings.json"));
     for (const line of settings.diagnostics) logger.warn(line);
     // 안전 모드(X.operations.spec §4.6.1): 시작 옵션(`options.safeMode`, CLI `--safe-mode`)이나 설정 `x.operations.safeMode.default`(관리·사용자 범위)가 켠다.
@@ -695,6 +706,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         groups: {
           catalog: built.catalog,
           store: () => portsHandle?.ports.settings,
+          // `/group on`이 실패 장부를 비운다. 비우지 않으면 자동으로 꺼진 그룹이 재시작 전까지 다시 꺼지지 않는다(X-4)
+          onEnabled: (id) => {
+            operations.autoDisabler.clearLedger(`ext:${id}`);
+          },
           currentThread: () => portsHandle?.activeThread() ?? null,
           heldThreads: () => portsHandle?.heldThreads() ?? [],
           entries: () => [
@@ -915,11 +930,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         });
       }
     }
+    // 첫 입력을 받을 준비가 됐다: 연속 시작 실패 수를 0으로 되돌린다
+    startupHealth.markStarted();
     const engine: Engine = {
       mode: options.mode,
       storeId: storeId.value,
       catalog: built.catalog,
       safeMode,
+      startup: startupHealthOf(startupFailures, suggestAfterOf(built.catalog, settings), safeMode),
       startedAt,
       ports: portsHandle.ports,
       shutdown: shutdownCoordinator,
