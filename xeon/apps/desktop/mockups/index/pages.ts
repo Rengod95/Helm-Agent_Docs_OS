@@ -32,4 +32,13 @@ export const pages: MockPage[] = [
   { id: "P-11", title: "계정과 제공자·예산", folder: "p11-accounts", states: 7 },
   { id: "P-12", title: "도구와 웹", folder: "p12-tools-web", states: 5 },
   { id: "P-13", title: "플러그인과 그룹", folder: "p13-plugins", states: 7 },
+  { id: "P-03", title: "받은 요청", folder: "p03-inbox", states: 9 },
+  { id: "P-04", title: "변경 검토", folder: "p04-review", states: 8 },
+  { id: "P-06", title: "제안", folder: "p06-proposals", states: 9 },
+  {
+    id: "O-02·03·04",
+    title: "셸 명령 확인 · 명령 결과 · 신뢰 카드",
+    folder: "o02-o04-chat",
+    states: 4,
+  },
 ];
