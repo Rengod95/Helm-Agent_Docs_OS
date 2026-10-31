@@ -77,6 +77,13 @@ export const pages: MockPage[] = [
     states: 13,
   },
   {
+    id: "캔버스 v3",
+    title:
+      "작업대 캔버스 v3: 턴 흐름 그림, 층마다 내장·내 것·더하기, 관계 렌즈 포커스, 플러그인 상세(블록·흐름), 보는 대상·프리셋, 층×지점 표",
+    folder: "wb-v3",
+    states: 12,
+  },
+  {
     id: "일러스트",
     title: "런타임 일러스트 세트: X 수명 고리, 층 쌓기, 개념 그림 8, 빈 상태 3 (밝음·어두움)",
     folder: "_art-preview",
