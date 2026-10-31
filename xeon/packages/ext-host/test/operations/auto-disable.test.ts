@@ -417,3 +417,16 @@ test("volatile notifier: the disabler emits one payload per failure and one auto
     "auto-disabled: ext:flaky-ext by consecutive",
   ]);
 });
+
+test("autoDisable: clearLedger resets the ledger without a toggle request, so the owner can be disabled again", () => {
+  const rec = recorder();
+  const { disabler, ledger } = disablerOf(rec);
+  for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  rec.requests.length = 0;
+  disabler.clearLedger("ext:flaky-ext");
+  expect(rec.requests).toEqual([]);
+  expect(ledger.stats("ext:flaky-ext").totalCalls).toBe(0);
+  expect(disabler.disabled()).toEqual([]);
+  for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  expect(rec.requests.filter((request) => request.startsWith("disable:flaky-ext"))).toHaveLength(2);
+});

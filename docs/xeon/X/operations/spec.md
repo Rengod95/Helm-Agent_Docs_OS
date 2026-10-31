@@ -344,6 +344,8 @@ export interface AutoDisabler {
   onOutcome(outcome: HandlerOutcomeRecord): void;
   /** 사용자가 다시 켤 때. 장부를 비우고 requestEnable을 부른다 */
   reenable(key: HandlerOwnerKey): void;
+  /** 장부와 자동으로 꺼진 주체 표만 비운다. 켜기 요청은 부르지 않는다. 켜기를 `ScopeHandle.enable()`로 이미 하는 `/group on`과 설정 토글이 부른다 */
+  clearLedger(key: HandlerOwnerKey): void;
   /**
    * 기준과 무관하게 바로 끈다. 격리 확장의 재시작 한도 초과(X.loading-trust.spec §4.9.7)와 투영기 실패(§5 6번)에서 쓴다.
    * 면제 주체(isExempt, 면제 tier)는 끄지 않고 projectionFailed(…, false)만 보낸다. 이미 꺼진 주체는 다시 알리지 않는다
@@ -797,7 +799,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy;
 - [제안] 한 지점의 핸들러 순서는 `(tier 순위, loadIndex, registrationIndex)`의 사전식 오름차순이다. `F.extensions.spec` §4.2의 사전식 순서를 그대로 쓰고 첫째 키의 값 집합을 `TIERS`로 확정한다. 디스패처 쪽 표현은 `(DispatchPolicy.tierOf(entry), entry.loadIndex, entry.seq)`다(X.primitives.spec §3.4). `loadIndex`는 X.loading-trust.spec §3.3의 로드 순서다.
 - tier 순위: `guard`(0) → `user`(1) → `project`(2) → `builtin`(3) → `core`(4). 바깥에서 안쪽 순서다.
 - Claude Code mods의 tier 순서(① 내장 가드 `sec-default` + 조직 prepend, ② 사용자 설치, ③ 조직 append, ④ 기타 내장, ⑤ core)를 따른다(`_research/refs/claude-code.md` mods "순서" 항목). 다른 점은 둘이다.
-  - 조직 append tier는 두지 않는다. 관리(managed) 범위 확장은 2차이고, 들어오면 `guard`에 둔다 [제안].
+  - 조직 append tier는 두지 않는다. 관리(managed) 범위 확장은 2차이고, 들어오면 신뢰 상한(`user`)과 같은 `user` tier에 둔다 [결정: 오케스트레이터 기본값, M4 X-13].
   - 사용자 tier와 내장 tier 사이에 `project`를 둔다. 프로젝트 폴더 확장은 사용자가 직접 설치한 확장보다 신뢰가 낮으므로 사용자 확장 안쪽에 둔다.
 - 정렬 키는 디스패치 시작 때 스냅샷한 핸들러 목록에 한 번 적용한다(`F.extensions.spec` §4.2 스냅샷 규칙).
 
@@ -810,7 +812,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `builtin` | `builtin` | 이름이 `GUARD_EXTENSIONS`에 있음 | `guard` |
 | `builtin` | `builtin` | `layer`가 `L1` | `core` |
 | `builtin` | `builtin` | `layer`가 `L2`, `L3`, `plugin` | `builtin` |
-| `managed` | `builtin` 또는 `user` | 2차 | `guard` |
+| `managed` | `user` | 2차. 신뢰 상한이 `user`다 | `user` |
 | `user` | `user` | | `user` |
 | `project` | `project` | 프로젝트 신뢰 `allow` 뒤(X.loading-trust.spec §4.6.1) | `project` |
 | 아무 출처 | `untrusted` | | 싣지 않음(`TierError.untrusted`). 로더도 import하지 않는다(`X.loading-trust.spec` §4.6.3) |
@@ -977,7 +979,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 #### 4.3.5 다시 켜기
 
-- 사용자가 명령(`xeon ext enable <name>`과 대화 중 같은 이름의 슬래시 명령 [제안], X.primitives.spec §6의 명령 가정과 같은 이름, 소유 `L4.cli.spec`)이나 설정 화면 토글로 다시 켠다. `AutoDisabler.reenable`이 장부를 비우고 `requestEnable(…, "request")`를 부른다.
+- 사용자가 명령(`xeon ext enable <name>`과 대화 중 같은 이름의 슬래시 명령 [제안], X.primitives.spec §6의 명령 가정과 같은 이름, 소유 `L4.cli.spec`)이나 설정 화면 토글로 다시 켠다. `AutoDisabler.reenable`이 장부를 비우고 `requestEnable(…, "request")`를 부른다. `ScopeHandle.enable()`로 켜는 경로(`/group on`, 로더의 `settingChanged`)는 `AutoDisabler.clearLedger`로 장부만 비운다.
 - 자동으로 다시 켜지 않는다. 재시작하면 장부가 비어 다시 실린다(§4.3.3).
 - 다시 켠 뒤 같은 기준으로 다시 꺼질 수 있다. 시간 간격 조건(쿨다운)은 두지 않는다 [제안].
 
@@ -1106,7 +1108,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `builtin` tier 중 L3 내장 그룹(학습 그룹) | 꺼짐 [결정: review.m3-design-inputs D-M3-07 a] |
 | `user`, `project` tier 확장(외부 plugin, 외부 group). 기본 플러그인 Helm은 사용자 확장 위치에 설치되므로 여기에 든다([결정: review.m3-design-inputs D-M3-01 c]) | 꺼짐 |
 | 외부 훅 전체 | 꺼짐 |
-| 관리(managed) 범위 확장(2차) | 켜짐(`guard`) |
+| 관리(managed) 범위 확장(2차) | 꺼짐(`user` tier) [결정: 오케스트레이터 기본값, M4 X-13] |
 
 - 기준: `allowedInSafeMode`는 tier가 `guard`·`core`이거나, tier가 `builtin`이고 `layer`가 `L1`·`L2`이면 참이다. 내장 L0 패키지는 on을 쓰지 않으므로 이 판정과 별개로 항상 실린다.
 - [결정: review.m3-design-inputs D-M3-07 a] L3 내장 그룹을 끈다. 이유: drive를 쓰는 그룹은 루프 진행을 바꾸므로, 복구 목적의 시작에서는 기본 루프만 남긴다. 안전 모드는 계획 v2의 "모든 확장을 끈 채 시작"(`_research/layer-plan-v2.json` X-c 안전 모드 행)을 내장 L0~L2와 보안 가드를 남기는 범위로 읽는다. Helm은 L3 기본 그룹([결정] `_research/decisions-log.md` 2026-10-21 계획 v2)이므로 안전 모드에서 기본 그룹이 빠지는 제품 동작이 된다. 사용자 확인 전이다(§10 미결 19). 확인 결과 L3 내장 그룹을 남기기로 하면 이 행과 `allowedInSafeMode`, §9 수용 기준 21을 함께 고친다.
@@ -1334,7 +1336,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 10. drive 함수는 가짜 시계로 600,000ms가 지나도 시간 예산으로 abort되지 않는다.
 11. 한 확장의 핸들러가 연속 5번 실패하면 끄기 요청이 기록되고, 다음 단계 경계에서 `scope.changed{status:"disabled"}`가 커밋된다. 요청과 경계 사이에 실행 중인 디스패치는 끊기지 않는다.
 12. `guard`, `core` tier 확장은 실패가 기준을 넘어도 자동으로 꺼지지 않는다.
-13. 자동으로 꺼진 확장을 `reenable`하면 장부가 비고 켜기 요청이 기록된다.
+13. 자동으로 꺼진 확장을 `reenable`하면 장부가 비고 켜기 요청이 기록된다. `clearLedger`나 `settingChanged`로 다시 켜도 장부가 비어 같은 기준으로 다시 꺼진다.
 14. `aborted`로 끝난 호출은 연속 실패 수와 창 실패 수를 바꾸지 않는다.
 15. `ExtStorage.defineTables`가 만든 모든 DDL 문장의 테이블·인덱스 이름은 `extTablePrefix(확장 이름)`으로 시작한다. 지역 이름·열 이름 규칙을 어긴 정의는 `identifier_invalid`다.
 16. 접두 우회 시도 문자열(`notes; DROP TABLE events`, `notes"--`, `main.events`, `sqlite_master`, `../x`, 대문자·유니코드 유사 문자, 빈 문자열)을 지역 이름이나 열 이름으로 주면 모두 거부되고 DB에 새 테이블이 생기지 않는다. `ExtTables`·`ExtWriters` API로는 접두 밖 테이블을 읽거나 쓸 방법이 없다(타입 테스트와 `checkStatement` 테스트).

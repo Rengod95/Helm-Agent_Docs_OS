@@ -80,7 +80,7 @@ export interface LoaderHarness extends OperationsHarness {
 
 export async function createLoaderHarness(
   options: HarnessOptions & {
-    readonly policy?: Pick<OperationsPolicy, "admit" | "forget">;
+    readonly policy?: Pick<OperationsPolicy, "admit" | "forget" | "autoDisabler">;
     readonly core?: LoaderDeps["coreCapabilities"];
     readonly loader?: LoaderOverrides;
   } = {},

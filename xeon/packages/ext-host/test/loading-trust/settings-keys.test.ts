@@ -184,3 +184,27 @@ test("settings: x.loading-trust keys pass the catalog and refuse the project sco
   expect(loadingTrustSettings.defs["isolation.maxRestarts"].default).toBe(3);
   expect(loadingTrustSettings.defs["isolation.restartWindowSec"].default).toBe(600);
 });
+
+test("settings: turning an auto-disabled extension back on clears its failure ledger", async () => {
+  const harness = await createLoaderHarness();
+  await harness.loader.loadAll(harness.options([moduleOf({ name: "set-ledger" })]));
+  const signal = new AbortController().signal;
+  const key = "ext:set-ledger";
+  harness.policy.ledger.record({
+    owner: { type: "extension", name: "set-ledger", scopeId: "set-ledger" },
+    tier: "builtin",
+    point: "tool.result",
+    fold: "chain",
+    failure: "skip",
+    result: "threw",
+    activeMs: 1,
+    at: 1,
+  });
+  expect(harness.policy.ledger.stats(key).consecutive).toBe(1);
+  harness.settings.enabled.set("set-ledger", false);
+  await harness.loader.settingChanged("set-ledger", signal);
+  expect(harness.policy.ledger.stats(key).consecutive).toBe(1);
+  harness.settings.enabled.set("set-ledger", true);
+  await harness.loader.settingChanged("set-ledger", signal);
+  expect(harness.policy.ledger.stats(key).consecutive).toBe(0);
+});

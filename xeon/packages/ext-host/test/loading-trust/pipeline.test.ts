@@ -316,6 +316,7 @@ test("pipeline: install failure maps through a fake host and the loader never im
       forget: (name) => {
         forgotten.push(name);
       },
+      autoDisabler: harness.policy.autoDisabler,
     },
     fs: {
       readText: () => Promise.resolve(null),
@@ -339,6 +340,7 @@ test("pipeline: install failure maps through a fake host and the loader never im
 
 test("pipeline: admit rejection skips install", async () => {
   const installed: string[] = [];
+  const base = await createLoaderHarness();
   const harness = await createLoaderHarness({
     policy: {
       admit: (info) => {
@@ -346,6 +348,7 @@ test("pipeline: admit rejection skips install", async () => {
         return err({ kind: "untrusted", name: info.name });
       },
       forget: () => {},
+      autoDisabler: base.policy.autoDisabler,
     },
   });
   const report = await harness.loader.loadAll(harness.options([moduleOf({ name: "pipe-tier" })]));
