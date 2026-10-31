@@ -56,7 +56,10 @@ export interface ServiceRig {
   readonly reported: unknown[];
 }
 
-export async function serviceRig(modules: readonly GroupModule[]): Promise<ServiceRig> {
+export async function serviceRig(
+  modules: readonly GroupModule[],
+  extra: { readonly onEnabled?: (id: string) => void } = {},
+): Promise<ServiceRig> {
   const holder = memoryDriveHolderSettings();
   const t = await createTestHost({
     settingsSource: {
@@ -76,6 +79,7 @@ export async function serviceRig(modules: readonly GroupModule[]): Promise<Servi
     report: (cause) => {
       reported.push(cause);
     },
+    ...(extra.onEnabled === undefined ? {} : { onEnabled: extra.onEnabled }),
   });
   await t.host.registerPlatform({
     name: "xeon-groups",
