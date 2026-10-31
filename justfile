@@ -81,6 +81,11 @@ docs-route +args:
 req-ledger:
     cd xeon && just req-ledger
 
+# caustic 부품 간극 표 검사: spec §9의 C 항목마다 상태 칸 (xeon/scripts/caustic-gaps.ts)
+[group('local')]
+caustic-gaps:
+    cd xeon && just caustic-gaps
+
 # 패키지 하나만 lint, typecheck, test: 각각 scripts/guard.sh run 1.5G 아래에서 차례로. 병렬 작업 중에는 이것과 just test <패키지>만 돌린다 (xeon/scripts/check-pkg.sh)
 [group('quality')]
 check pkg:

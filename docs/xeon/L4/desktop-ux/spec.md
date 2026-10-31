@@ -2841,47 +2841,47 @@ export const palette = [
 
 ## 9. caustic 부품 간극
 
-| id | 필요 | 쓰는 화면 | 지금 대용 | 권장 |
-|---|---|---|---|---|
-| C-01 | 명령 팔레트(전역 바로 가기 키, 묶음, 바로 가기 키 표시) | S-02 | `Dialog` + `Combobox mode="inline"` | caustic에 `CommandPalette` 추가 제안(z-index `palette` 토큰이 이미 있음) |
-| C-02 | 알림함(읽음 상태, 묶음, 원인 링크) | P-03, S-03 | `List` + `ListGroup` + `Badge` | 앱 조합으로 시작, 쓰임이 굳으면 caustic 제안 |
-| C-03 | 상태 표시줄(창 아래 띠, 칸, 팝오버) | S-03 | `Button` ghost + `Popover` + `Badge` | caustic `AppShell`에 `AppShellStatusbar` 슬롯 추가 제안 |
-| C-04 | 가상 목록(트랜스크립트, 긴 목록) | P-02, P-04, S-01 | 지금 앱의 `virtual-list.tsx` | 앱에 유지. caustic `ScrollArea`와 맞춤 |
-| C-05 | 게이지·미터(`role="meter"`), 예산 대비 시간 막대 | S-03, P-11, P-17, P-20 | `Progress`, `CardStat`, 시안 `wb2-opus/parts/budget-meter.tsx` | caustic `Meter` 제안: `value`, `max`, `low`·`high` 문턱(예산 50%는 warning, 100%는 danger), `label`. tone은 막대에만 |
-| C-06 | Markdown 렌더와 코드 강조, 코드 편집기 | P-02, P-03(계획), P-06, P-09(파일) | `Message` children, `MessageCode`, `Textarea` | 앱 의존성으로 해결(렌더러 선택은 [미결]) |
-| C-07 | 오른쪽 클릭 메뉴 | S-01 대화 행, P-02 메시지 | `Menu`(버튼으로 열기) | M4는 버튼 메뉴만 [결정: 오케스트레이터 기본값] |
-| C-08 | hunk 단위 diff 검토(hunk 머리, hunk별 결정, 줄 의견), 텍스트 나란히 비교 | P-04, P-06 | `CodeDiff`(diff 하나에 수락·거절 하나), `CompareView`(이미지용), 시안 `p04-review/parts/hunk-review.tsx` | caustic `CodeDiff` 확장 제안: `<CodeDiff>` 안 `<CodeDiffHunk header decision onDecide actions>`, 줄 뒤 `<CodeDiffComment>` 슬롯, `CodeDiffLine`의 `onComment`(줄 번호 hover +) |
-| C-09 | 바뀐 파일 목록(상태 글자, 진행 수) | P-04 | `List` + `Badge` | 앱 조합 |
-| C-10 | 검색 입력(`role="searchbox"`) | P-09, P-08, S-02 | `Input` + 검색 prefix | 앱 조합 |
-| C-11 | 바로 가기 키 도움말 오버레이 | O-09 | `Dialog` + `Table` + `Kbd` | 앱 조합 |
-| C-12 | 가린 비밀 값 표시와 남은 시간 | P-10 | `Input` 읽기 전용 + `Progress` | 앱 조합 |
-| C-13 | 예약 트리거 편집기(간격, 시각, cron) | O-08 | `SegmentedControl` + `NumberField` + `DatePicker` | 앱 조합 |
-| C-14 | 나눔 창 컨테이너 | P-04, P-06, P-09 | `ResizeHandle` + flex | 앱 조합 |
-| C-15 | 도구 출력·로그 보기(ANSI, 긴 출력) | P-02 도구 결과 | `MessageCode` | 앱 조합, ANSI 색은 [미결] |
-| C-16 | 층 × 확장 지도(층 행, 칸 줄바꿈, 상태 tone) | P-16 | `List` + `Chip` | 앱 조합 |
-| C-17 | 작은 추세 그래프(`Sparkline`), 시간 막대, 시간선(`Timeline`) | P-18, P-20, P-17 | `Progress` | caustic 제안. 위젯 카탈로그 v1에 필요 |
-| C-18 | 매니페스트·JSON 보기(접기, 복사) | P-17 | `MessageCode` | 앱 조합 |
-| C-19 | 자기 카드 테두리가 있는 부품의 테두리 없는 변형(`Plan`, `ActivityTree`, `ToolCall`)을 well 안에서. `Plan` 행 누르기 | 런타임 탭, 플러그인 well, P-14 | 겹친 테두리(`Plan`은 테두리와 진행 띠를 가진 자기 카드라 well 안에서 상자가 한 단계 더 깊어짐, DP-03·DP-20과 부딪힘). `Plan` 행은 누를 수 없어 "만든 턴으로"를 못 그림 | caustic `variant="ghost"` 제안(DP-20). `Plan`에 상자 없는 checklist 변형과 `onItemActivate` |
-| C-20 | 이벤트열 나란히 비교(처음 다른 위치 강조) | P-19 | `CodeDiff`(JSON 글) | 앱 조합 |
-| C-21 | 표 행 하나 고르기와 선 없는 표 | P-13, P-19, P-20, P-21, P-07 | 시안 `wb2-opus/parts/grid-table.tsx`, `wb-opus/parts/ext-bits.tsx` `PLAIN_TABLE`(`Table`은 행 사이 선을 늘 그리고 행 활성화가 없음) | caustic `Table`에 `selectionMode="single"`, `onRowActivate`, `dividers={false}` 제안. 고른 행은 현재 항목과 같은 raised 면 하나(DP-26, DP-43) |
-| C-22 | 접고 펴는 `ActivityTree` step, step 상태 pending·skipped | P-05, P-18 | 시안 `wb-opus/parts/lens-tree.tsx`(렌즈 행 직접, 펼친 렌즈의 도구 호출만 `ActivityTree`) | caustic `ActivityTree` step에 `collapsible`·`defaultOpen`·`onOpenChange`, 상태 `pending`·`skipped` 제안 |
-| C-23 | 상태 점 + 글(확장 행 상태 칸, 지도 칸) | P-13, P-16, 런타임 탭 | 시안 `wb-opus/parts/ext-bits.tsx` | caustic 상태 점 부품 제안(`tone`, `label`. tone은 점에만, 글은 secondary. DP-29) `[제안]` |
-| C-24 | well 머리 배지 자리 | P-05 Helm well("쓰기 도구 거부 중") | 탐구 머리 줄(본문 첫 줄)에 둠 | caustic well 머리(`CardPanel` 머리)에 `badge` 슬롯 제안. 짧은 배지 하나만(DP-21) |
-| C-25 | 대화 시스템 행(Helm 신호, 그룹 전환, 임대 교대, 목표 판정, 확장 실패 묶음) | P-02, P-05, P-14, 런타임 행 | 시안 `p05-helm/parts/chat-context.tsx` `EventRow` | caustic 대화 시스템 행 부품 제안: muted 아이콘, secondary 한 줄, 동작 0~1개(DP-19) `[제안]` |
-| C-26 | 질문 카드와 한국어 카드 머리 | P-02, P-03 | 시안 `_shell/parts/question-card.tsx`, `p03-inbox/parts/request-card.tsx`(`AgentRequest`는 질문 kind가 없고 proposal 머리가 영어 "Proposal ·") | caustic `AgentRequest`에 질문 kind와 머리 문구 prop 제안 |
-| C-27 | 도구 호출 접기·펼치기, 작성 중 커서, 입력창 "관찰 중" 잠금 | P-02 | 시안 `p02-opus/parts/tool-row.tsx`, `streaming-text.tsx`, `observe-band.tsx` | caustic `ToolCall` 접기, `Message streaming` 커서, `Composer` 잠금 상태 제안 |
-| C-28 | 여러 줄 코드 블록 | O-02, O-03 | `pre` + 토큰 클래스(`MessageCode`는 인라인) | C-06과 함께 정함 |
-| C-29 | 두 줄 목록 행(투명 바탕) | P-06, P-03 | 시안 `p06-proposals` `Row`, `p03-inbox/parts/inbox-row.tsx`(`List`는 grouped 표면, `ListNavigationItem`은 한 줄) | caustic `List`에 표면 없는 변형과 두 줄 행 제안 |
-| C-30 | 라디오 행의 이름 + 연한 설명, 여러 줄 정렬 | P-08, P-21 | 시안 `wb2-opus/parts/radio-list.tsx`, P-08 원 위쪽 맞춤 클래스 | caustic `RadioGroupItem`에 `description`과 여러 줄 정렬 제안. 고름은 점 + 굵기(DP-44) |
-| C-31 | 다시 열 수 있는 단계 목록 | P-01 | `Accordion`(`Stepper checklist`는 누를 수 없음) | caustic `Stepper`에 단계 누르기 제안 |
-| C-32 | 크기 이름이 같은 입력과 버튼의 높이 | P-01, 작업대 맥락 칸 | 입력 옆 버튼은 한 단계 큰 `size`(`Input xs` 32px, `Button xs` 24px) | caustic에서 같은 `size`의 입력·버튼 높이를 맞추는 것을 제안(DP-30) |
-| C-33 | 부품 문구 i18n과 작은 결함 | P-02, P-07, S-02 | `ListNavigationItem` 화면 리더 상태 단어가 영어("Running:"), `Field optional`의 "선택"이 라벨에 붙어 읽힘, 팔레트 listbox 높이 상한 | caustic 문구 prop과 `Field optional` 표기 위치 제안 |
-| C-34 | 캔버스 뷰포트(이동, 확대, 맞춤 배율, 투명 점 격자, 화면 좌표 덧그림 칸) | P-16, P-21 | 시안 `wb-canvas/parts`, `wb-compose/parts`. `canvas-grid` 유틸은 `bg.canvas` 바탕을 같이 칠해 DP-01·DP-47과 맞지 않음 | caustic `CanvasViewport`(`view`, `onViewChange`, `minZoom`, `maxZoom`, `fit`), 점 무늬만 그리는 격자 유틸 제안 |
-| C-35 | 그래프 노드와 포트(제목, 메타, 상태 면, 네 변 포트, 포트 모양·상태) | P-16, P-21 | caustic `xeon/m4-design`의 `GraphNode`·`GraphPort`(구성기 라운드에서 더함, catalog 항목·기준 스냅숏 없음). `TokenGraphNode`는 좌우 포트 하나씩이라 맞지 않음 | `GraphNode`·`GraphPort`를 catalog에 올리고 운영 캔버스 블록(상태 면, 의미 줌 막대 모양)을 변형으로 더함 |
-| C-36 | 그래프 엣지(kind별 선 모양, traced·dimmed·ghost·invalid·draft, 흐름 표시, 경로를 따르는 점, 가운데 이름표) | P-16, P-21 | caustic `xeon/m4-design`의 `GraphEdge`·`GraphDraft`·`NodeGraph` | 운영 캔버스의 엣지 kind(능력, on, post, drive, 발화)를 선 모양 표로 더함(DP-48) |
-| C-37 | 캔버스 미니맵(세계 축소판, 보이는 영역, 눌러 이동) | P-16 | 시안 `wb-canvas/parts` | caustic `CanvasMinimap`, `ZoomControl`과 한 덩어리 |
-| C-38 | 이벤트 재생 눈금(이산 눈금, 높이, 표지, 경계 표지, 재생, `role="slider"`) | P-16, P-19, P-21 | 시안 `wb-canvas/parts` | caustic `EventScrubber` |
-| C-39 | 설정 바인딩 두 단 행(값 + 기계 키, compact 한 줄) | P-16 검사기, P-17 | `InspectorBindingsRow`(토큰 경로 한 줄 전제라 두 줄 카드가 됨) | `InspectorBindingsRow`에 값·키 두 단 칸과 compact 높이 제안 |
+| id | 필요 | 쓰는 화면 | 지금 대용 | 권장 | 상태 |
+|---|---|---|---|---|---|
+| C-01 | 명령 팔레트(전역 바로 가기 키, 묶음, 바로 가기 키 표시) | S-02 | `Dialog` + `Combobox mode="inline"` | caustic에 `CommandPalette` 추가 제안(z-index `palette` 토큰이 이미 있음) | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-02 | 알림함(읽음 상태, 묶음, 원인 링크) | P-03, S-03 | `List` + `ListGroup` + `Badge` | 앱 조합으로 시작, 쓰임이 굳으면 caustic 제안 | 앱 조합 |
+| C-03 | 상태 표시줄(창 아래 띠, 칸, 팝오버) | S-03 | `Button` ghost + `Popover` + `Badge` | caustic `AppShell`에 `AppShellStatusbar` 슬롯 추가 제안 | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-04 | 가상 목록(트랜스크립트, 긴 목록) | P-02, P-04, S-01 | 지금 앱의 `virtual-list.tsx` | 앱에 유지. caustic `ScrollArea`와 맞춤 | 앱 조합 |
+| C-05 | 게이지·미터(`role="meter"`), 예산 대비 시간 막대 | S-03, P-11, P-17, P-20 | `Progress`, `CardStat`, 시안 `wb2-opus/parts/budget-meter.tsx` | caustic `Meter` 제안: `value`, `max`, `low`·`high` 문턱(예산 50%는 warning, 100%는 danger), `label`. tone은 막대에만 | caustic 반영 (`Meter`, caustic PR #11) |
+| C-06 | Markdown 렌더와 코드 강조, 코드 편집기 | P-02, P-03(계획), P-06, P-09(파일) | `Message` children, `MessageCode`, `Textarea` | 앱 의존성으로 해결(렌더러 선택은 [미결]) | 앱 조합 |
+| C-07 | 오른쪽 클릭 메뉴 | S-01 대화 행, P-02 메시지 | `Menu`(버튼으로 열기) | M4는 버튼 메뉴만 [결정: 오케스트레이터 기본값] | 앱 조합 |
+| C-08 | hunk 단위 diff 검토(hunk 머리, hunk별 결정, 줄 의견), 텍스트 나란히 비교 | P-04, P-06 | `CodeDiff`(diff 하나에 수락·거절 하나), `CompareView`(이미지용), 시안 `p04-review/parts/hunk-review.tsx` | caustic `CodeDiff` 확장 제안: `<CodeDiff>` 안 `<CodeDiffHunk header decision onDecide actions>`, 줄 뒤 `<CodeDiffComment>` 슬롯, `CodeDiffLine`의 `onComment`(줄 번호 hover +) | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-09 | 바뀐 파일 목록(상태 글자, 진행 수) | P-04 | `List` + `Badge` | 앱 조합 | 앱 조합 |
+| C-10 | 검색 입력(`role="searchbox"`) | P-09, P-08, S-02 | `Input` + 검색 prefix | 앱 조합 | 앱 조합 |
+| C-11 | 바로 가기 키 도움말 오버레이 | O-09 | `Dialog` + `Table` + `Kbd` | 앱 조합 | 앱 조합 |
+| C-12 | 가린 비밀 값 표시와 남은 시간 | P-10 | `Input` 읽기 전용 + `Progress` | 앱 조합 | 앱 조합 |
+| C-13 | 예약 트리거 편집기(간격, 시각, cron) | O-08 | `SegmentedControl` + `NumberField` + `DatePicker` | 앱 조합 | 앱 조합 |
+| C-14 | 나눔 창 컨테이너 | P-04, P-06, P-09 | `ResizeHandle` + flex | 앱 조합 | 앱 조합 |
+| C-15 | 도구 출력·로그 보기(ANSI, 긴 출력) | P-02 도구 결과 | `MessageCode` | 앱 조합, ANSI 색은 [미결] | 앱 조합 |
+| C-16 | 층 × 확장 지도(층 행, 칸 줄바꿈, 상태 tone) | P-16 | `List` + `Chip` | 앱 조합 | 앱 조합 |
+| C-17 | 작은 추세 그래프(`Sparkline`), 시간 막대, 시간선(`Timeline`) | P-18, P-20, P-17 | `Progress` | caustic 제안. 위젯 카탈로그 v1에 필요 | M5 (위젯 카탈로그 v1과 함께) |
+| C-18 | 매니페스트·JSON 보기(접기, 복사) | P-17 | `MessageCode` | 앱 조합 | 앱 조합 |
+| C-19 | 자기 카드 테두리가 있는 부품의 테두리 없는 변형(`Plan`, `ActivityTree`, `ToolCall`)을 well 안에서. `Plan` 행 누르기 | 런타임 탭, 플러그인 well, P-14 | 겹친 테두리(`Plan`은 테두리와 진행 띠를 가진 자기 카드라 well 안에서 상자가 한 단계 더 깊어짐, DP-03·DP-20과 부딪힘). `Plan` 행은 누를 수 없어 "만든 턴으로"를 못 그림 | caustic `variant="ghost"` 제안(DP-20). `Plan`에 상자 없는 checklist 변형과 `onItemActivate` | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-20 | 이벤트열 나란히 비교(처음 다른 위치 강조) | P-19 | `CodeDiff`(JSON 글) | 앱 조합 | 앱 조합 |
+| C-21 | 표 행 하나 고르기와 선 없는 표 | P-13, P-19, P-20, P-21, P-07 | 시안 `wb2-opus/parts/grid-table.tsx`, `wb-opus/parts/ext-bits.tsx` `PLAIN_TABLE`(`Table`은 행 사이 선을 늘 그리고 행 활성화가 없음) | caustic `Table`에 `selectionMode="single"`, `onRowActivate`, `dividers={false}` 제안. 고른 행은 현재 항목과 같은 raised 면 하나(DP-26, DP-43) | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-22 | 접고 펴는 `ActivityTree` step, step 상태 pending·skipped | P-05, P-18 | 시안 `wb-opus/parts/lens-tree.tsx`(렌즈 행 직접, 펼친 렌즈의 도구 호출만 `ActivityTree`) | caustic `ActivityTree` step에 `collapsible`·`defaultOpen`·`onOpenChange`, 상태 `pending`·`skipped` 제안 | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-23 | 상태 점 + 글(확장 행 상태 칸, 지도 칸) | P-13, P-16, 런타임 탭 | 시안 `wb-opus/parts/ext-bits.tsx` | caustic 상태 점 부품 제안(`tone`, `label`. tone은 점에만, 글은 secondary. DP-29) `[제안]` | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-24 | well 머리 배지 자리 | P-05 Helm well("쓰기 도구 거부 중") | 탐구 머리 줄(본문 첫 줄)에 둠 | caustic well 머리(`CardPanel` 머리)에 `badge` 슬롯 제안. 짧은 배지 하나만(DP-21) | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-25 | 대화 시스템 행(Helm 신호, 그룹 전환, 임대 교대, 목표 판정, 확장 실패 묶음) | P-02, P-05, P-14, 런타임 행 | 시안 `p05-helm/parts/chat-context.tsx` `EventRow` | caustic 대화 시스템 행 부품 제안: muted 아이콘, secondary 한 줄, 동작 0~1개(DP-19) `[제안]` | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-26 | 질문 카드와 한국어 카드 머리 | P-02, P-03 | 시안 `_shell/parts/question-card.tsx`, `p03-inbox/parts/request-card.tsx`(`AgentRequest`는 질문 kind가 없고 proposal 머리가 영어 "Proposal ·") | caustic `AgentRequest`에 질문 kind와 머리 문구 prop 제안 | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-27 | 도구 호출 접기·펼치기, 작성 중 커서, 입력창 "관찰 중" 잠금 | P-02 | 시안 `p02-opus/parts/tool-row.tsx`, `streaming-text.tsx`, `observe-band.tsx` | caustic `ToolCall` 접기, `Message streaming` 커서, `Composer` 잠금 상태 제안 | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-28 | 여러 줄 코드 블록 | O-02, O-03 | `pre` + 토큰 클래스(`MessageCode`는 인라인) | C-06과 함께 정함 | 앱 조합 |
+| C-29 | 두 줄 목록 행(투명 바탕) | P-06, P-03 | 시안 `p06-proposals` `Row`, `p03-inbox/parts/inbox-row.tsx`(`List`는 grouped 표면, `ListNavigationItem`은 한 줄) | caustic `List`에 표면 없는 변형과 두 줄 행 제안 | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-30 | 라디오 행의 이름 + 연한 설명, 여러 줄 정렬 | P-08, P-21 | 시안 `wb2-opus/parts/radio-list.tsx`, P-08 원 위쪽 맞춤 클래스 | caustic `RadioGroupItem`에 `description`과 여러 줄 정렬 제안. 고름은 점 + 굵기(DP-44) | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-31 | 다시 열 수 있는 단계 목록 | P-01 | `Accordion`(`Stepper checklist`는 누를 수 없음) | caustic `Stepper`에 단계 누르기 제안 | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-32 | 크기 이름이 같은 입력과 버튼의 높이 | P-01, 작업대 맥락 칸 | 입력 옆 버튼은 한 단계 큰 `size`(`Input xs` 32px, `Button xs` 24px) | caustic에서 같은 `size`의 입력·버튼 높이를 맞추는 것을 제안(DP-30) | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-33 | 부품 문구 i18n과 작은 결함 | P-02, P-07, S-02 | `ListNavigationItem` 화면 리더 상태 단어가 영어("Running:"), `Field optional`의 "선택"이 라벨에 붙어 읽힘, 팔레트 listbox 높이 상한 | caustic 문구 prop과 `Field optional` 표기 위치 제안 | caustic 대기 (T-CAU1 잔여, 다음 PR) |
+| C-34 | 캔버스 뷰포트(이동, 확대, 맞춤 배율, 투명 점 격자, 화면 좌표 덧그림 칸) | P-16, P-21 | 시안 `wb-canvas/parts`, `wb-compose/parts`. `canvas-grid` 유틸은 `bg.canvas` 바탕을 같이 칠해 DP-01·DP-47과 맞지 않음 | caustic `CanvasViewport`(`view`, `onViewChange`, `minZoom`, `maxZoom`, `fit`), 점 무늬만 그리는 격자 유틸 제안 | caustic 대기 (T-CAU2) |
+| C-35 | 그래프 노드와 포트(제목, 메타, 상태 면, 네 변 포트, 포트 모양·상태) | P-16, P-21 | caustic `xeon/m4-design`의 `GraphNode`·`GraphPort`(구성기 라운드에서 더함, catalog 항목·기준 스냅숏 없음). `TokenGraphNode`는 좌우 포트 하나씩이라 맞지 않음 | `GraphNode`·`GraphPort`를 catalog에 올리고 운영 캔버스 블록(상태 면, 의미 줌 막대 모양)을 변형으로 더함 | caustic 반영 (`NodeGraphNode`·`NodeGraphPort` catalog와 기준 스냅숏, caustic PR #10. 운영 캔버스 변형은 T-CAU2) |
+| C-36 | 그래프 엣지(kind별 선 모양, traced·dimmed·ghost·invalid·draft, 흐름 표시, 경로를 따르는 점, 가운데 이름표) | P-16, P-21 | caustic `xeon/m4-design`의 `GraphEdge`·`GraphDraft`·`NodeGraph` | 운영 캔버스의 엣지 kind(능력, on, post, drive, 발화)를 선 모양 표로 더함(DP-48) | caustic 반영 (`NodeGraph` 엣지, caustic PR #10. 엣지 kind 선 모양 표는 T-CAU2) |
+| C-37 | 캔버스 미니맵(세계 축소판, 보이는 영역, 눌러 이동) | P-16 | 시안 `wb-canvas/parts` | caustic `CanvasMinimap`, `ZoomControl`과 한 덩어리 | caustic 대기 (T-CAU2) |
+| C-38 | 이벤트 재생 눈금(이산 눈금, 높이, 표지, 경계 표지, 재생, `role="slider"`) | P-16, P-19, P-21 | 시안 `wb-canvas/parts` | caustic `EventScrubber` | caustic 대기 (T-CAU2) |
+| C-39 | 설정 바인딩 두 단 행(값 + 기계 키, compact 한 줄) | P-16 검사기, P-17 | `InspectorBindingsRow`(토큰 경로 한 줄 전제라 두 줄 카드가 됨) | `InspectorBindingsRow`에 값·키 두 단 칸과 compact 높이 제안 | caustic 대기 (T-CAU2) |
 
 - caustic 문서의 "glass" 표현은 FOUNDATION 정책 1(흐림 없는 단색 떠 있는 면)로 읽습니다.
 - caustic 변경은 caustic 저장소에서 합니다. Xeon 쪽은 `just caustic-update`로 올립니다.
