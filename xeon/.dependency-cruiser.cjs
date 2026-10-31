@@ -121,7 +121,7 @@ module.exports = {
   options: {
     // vendor stays in the graph only so cordis-only-in-ext-host can fire; its internals are not followed.
     doNotFollow: { path: ["node_modules", "^vendor/", "(^|/)dist/"] },
-    exclude: { path: ["(^|/)dist/"] },
+    exclude: { path: ["(^|/)dist/", "^apps/desktop/mockups/"] }, // 셸 목업은 제품 코드가 아니다(lint·knip·TS 규칙과 같이 제외)
     includeOnly: { path: "^(packages|apps|plugins|vendor)/" },
     // typescript >= 7 has no programmatic API; dependency-cruiser parses with swc instead.
     parser: "swc",
