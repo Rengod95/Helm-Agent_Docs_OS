@@ -212,3 +212,12 @@ test("X7 names the view-model test and the host test through the real settings.w
   expect(linesOf("X10")).toEqual([["apps/cli", ["test/x10-settings-keys.int.test.ts"]]]);
   expect(linesOf("X11")).toEqual([["scripts", ["release-smoke.test.ts"]]]);
 });
+
+test("the list keeps a placeholder line for each M4 condition Y1 to Y17 and for no other", () => {
+  const text = readFileSync(join(import.meta.dir, "exit-tests.txt"), "utf8");
+  const placeholders = [...text.matchAll(/^# (Y\d+) /gm)].map((match) =>
+    Number(match[1]?.slice(1)),
+  );
+  const expected = Array.from({ length: 17 }, (_, index) => index + 1);
+  expect([...new Set(placeholders)].toSorted((a, b) => a - b)).toEqual(expected);
+});

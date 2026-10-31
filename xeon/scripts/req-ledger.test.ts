@@ -3,20 +3,25 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   cellsOf,
+  countCarryover,
   countStatuses,
   declaredTracks,
   describeProblem,
   scanLedger,
+  type DeclaredTracks,
   type LedgerProblem,
   type LedgerScan,
 } from "./req-ledger.ts";
 
 const HEADER = "| ID | 층 | 바꿀 내용 | 순서 | 상태 |\n|---|---|---|---|---|";
 const CARRY_HEADER = "| 이월 항목 | 트랙 id |\n|---|---|";
-/** 단위 시험이 쓰는 선언된 트랙. 실제 목록은 아래 저장소 시험이 m3b-plan에서 읽는다 */
-const TEST_TRACKS: ReadonlySet<string> = new Set(["B0-F", "B1-NTF", "B3-L1M", "B4-GRP"]);
+/** 단위 시험이 쓰는 선언된 트랙. 실제 목록은 아래 저장소 시험이 m3b-plan과 m4-plan에서 읽는다 */
+const TEST_TRACKS: DeclaredTracks = {
+  m3b: new Set(["B0-F", "B1-NTF", "B3-L1M", "B4-GRP"]),
+  m4: new Set(["T-LED", "T-RT1", "T-I18N"]),
+};
 
-function scanOk(text: string, tracks: ReadonlySet<string> = TEST_TRACKS): LedgerScan {
+function scanOk(text: string, tracks: DeclaredTracks = TEST_TRACKS): LedgerScan {
   const scanned = scanLedger(text, tracks);
   if (!scanned.ok) throw new Error(`scan failed: ${scanned.error}`);
   return scanned.value;
@@ -64,6 +69,17 @@ test("a track id the plan does not declare is unknown_track, so the typo B9-X fa
   ]);
 });
 
+test("an M4 status names a track of m4-plan only: M4:T-RT1 is valid, M4:B3-L1M, M3b:T-RT1 and M4: are problems", () => {
+  const scanned = scanOk(
+    `${HEADER}\n| M3-REQ-01 | F | x | 0 | M4:T-RT1 |\n| M3-REQ-02 | F | x | 0 | M4:B3-L1M |\n| M3-REQ-03 | F | x | 0 | M3b:T-RT1 |\n| M3-REQ-04 | F | x | 0 | M4: |\n`,
+  );
+  expect(scanned.problems).toEqual([
+    { kind: "unknown_track", id: "M3-REQ-02", line: 4, status: "M4:B3-L1M", track: "B3-L1M" },
+    { kind: "unknown_track", id: "M3-REQ-03", line: 5, status: "M3b:T-RT1", track: "T-RT1" },
+    { kind: "missing_track", id: "M3-REQ-04", line: 6, status: "M4:" },
+  ]);
+});
+
 test("M3a, M3b, M4 and M3b with a declared track id are all valid, and counts keep the status names", () => {
   const scanned = scanOk(
     `${HEADER}\n| M3-REQ-01 | F | x | 0 | M3a |\n| M3-REQ-02 | F | x | 0 | M4 |\n| M3-REQ-03 | F | x | 0 | M3b:B3-L1M |\n| M3-REQ-04 | F | x | 0 | M3b:B3-L1M |\n| M3-REQ-05 | F | x | 0 | M3b |\n`,
@@ -99,6 +115,35 @@ test("a carry-over row needs a declared track id; an empty or undeclared one is 
   ]);
 });
 
+test("a carry-over cell takes a track id of either plan, M4, or M5 and 삭제 with a reason", () => {
+  const scanned = scanOk(
+    `${CARRY_HEADER}\n| M4 항목 | T-RT1 |\n| M3b 항목 | B0-F |\n| 완료 항목 | M4 |\n| 이월 항목 | M5: 사용자 묶음 |\n| 지운 항목 | 삭제: 다른 항목과 중복 |\n| 사유 없는 이월 | M5: |\n| 사유 없는 삭제 | 삭제: |\n| 줄인 이월 | M5 |\n| 없는 트랙 | T-NOPE |\n\n${HEADER}\n| M3-REQ-01 | F | x | 0 | M3a |\n`,
+  );
+  expect(scanned.problems).toEqual([
+    { kind: "carryover_missing_reason", item: "사유 없는 이월", line: 8, track: "M5:" },
+    { kind: "carryover_missing_reason", item: "사유 없는 삭제", line: 9, track: "삭제:" },
+    { kind: "carryover_unknown_track", item: "줄인 이월", line: 10, track: "M5" },
+    { kind: "carryover_unknown_track", item: "없는 트랙", line: 11, track: "T-NOPE" },
+  ]);
+});
+
+test("countCarryover counts a track id under itself and M5 and 삭제 under their words", () => {
+  expect(
+    countCarryover([
+      { item: "a", line: 1, track: "T-RT1" },
+      { item: "b", line: 2, track: "M5: 사유" },
+      { item: "c", line: 3, track: "삭제: 사유" },
+      { item: "d", line: 4, track: "T-RT1" },
+      { item: "e", line: 5, track: "" },
+    ]),
+  ).toEqual([
+    ["(none)", 1],
+    ["M5", 1],
+    ["T-RT1", 2],
+    ["삭제", 1],
+  ]);
+});
+
 test("tables without a 상태 or 트랙 id column are ignored; text with no M3-REQ rows is an error", () => {
   expect(scanLedger("| 트랙 | 요구 행 |\n|---|---|\n| L3 Helm | F 01 |\n", TEST_TRACKS)).toEqual({
     ok: false,
@@ -122,10 +167,22 @@ test("declaredTracks reads the bold track headings of section 2 only", () => {
   expect(declared.ok && [...declared.value]).toEqual(["B0-F", "B1-SVC"]);
 });
 
+test("declaredTracks reads the T- headings of an M4 plan section 2 as well", () => {
+  const plan = [
+    "## 2. 트랙",
+    "**T-LED 요구 장부와 종료 조건** · Haiku xhigh · 문서·`scripts` · S",
+    "**T-F F 계약 M4 묶음** · Sonnet medium · `contracts`만 · L",
+    "## 3. 대기열",
+    "**T-LATE 뒤의 절** · S",
+  ].join("\n");
+  const declared = declaredTracks(plan);
+  expect(declared.ok && [...declared.value]).toEqual(["T-LED", "T-F"]);
+});
+
 test("a plan section 2 with no track headings is an error, not an empty track set", () => {
   expect(declaredTracks("## 2. 차수와 트랙\n\n본문만 있다\n")).toEqual({
     ok: false,
-    error: "no track headings (**B<n>-<ID>) in section 2",
+    error: "no track headings (**B<n>-<ID> or **T-<ID>) in section 2",
   });
 });
 
@@ -137,27 +194,48 @@ test("the repository plan declares the 27 tracks of sections B0 to B5 and the fo
   expect(declared.ok && declared.value.has("B9-X")).toBe(false);
 });
 
+test("the repository m4-plan declares the 26 tracks of section 2 and no M3b track", () => {
+  const declared = declaredTracks(readRepoFile("docs/xeon/review/m4-plan.md"));
+  expect(declared.ok && declared.value.size).toBe(26);
+  expect(declared.ok && declared.value.has("T-LED")).toBe(true);
+  expect(declared.ok && declared.value.has("T-CLN")).toBe(true);
+  expect(declared.ok && declared.value.has("B0-F")).toBe(false);
+});
+
 test("each problem kind names the row and its line", () => {
   const problems: readonly LedgerProblem[] = [
     { kind: "missing_status", id: "M3-REQ-05", line: 3 },
     { kind: "missing_track", id: "M3-REQ-06", line: 4, status: "M3b:" },
     { kind: "unknown_track", id: "M3-REQ-08", line: 5, status: "M3b:B9-X", track: "B9-X" },
+    { kind: "unknown_track", id: "M3-REQ-09", line: 6, status: "M4:T-NOPE", track: "T-NOPE" },
+    { kind: "carryover_missing_reason", item: "항목", line: 7, track: "M5:" },
   ];
   expect(problems.map(describeProblem)).toEqual([
     "M3-REQ-05 has no status (line 3)",
     'M3-REQ-06 has status "M3b:" (line 4) without a track id',
     'M3-REQ-08 has status "M3b:B9-X" (line 5), but m3b-plan §2 declares no track B9-X',
+    'M3-REQ-09 has status "M4:T-NOPE" (line 6), but m4-plan §2 declares no track T-NOPE',
+    'carry-over item "항목" has "M5:" without a reason (line 7)',
   ]);
 });
 
-test("the repository ledger has a valid status on all 112 rows and a declared track on every carry-over item", () => {
-  const declared = declaredTracks(readRepoFile("docs/xeon/review/m3b-plan.md"));
-  if (!declared.ok) throw new Error(`plan scan failed: ${declared.error}`);
-  const scanned = scanOk(readRepoFile("docs/xeon/review/m3-lower-requirements.md"), declared.value);
+test("the repository ledger has a valid status on all 112 rows, and every carry-over item has a track, M4, M5 or 삭제", () => {
+  const m3b = declaredTracks(readRepoFile("docs/xeon/review/m3b-plan.md"));
+  if (!m3b.ok) throw new Error(`m3b-plan scan failed: ${m3b.error}`);
+  const m4 = declaredTracks(readRepoFile("docs/xeon/review/m4-plan.md"));
+  if (!m4.ok) throw new Error(`m4-plan scan failed: ${m4.error}`);
+  const scanned = scanOk(readRepoFile("docs/xeon/review/m3-lower-requirements.md"), {
+    m3b: m3b.value,
+    m4: m4.value,
+  });
   expect(scanned.requirements.length).toBe(112);
   expect(scanned.problems).toEqual([]);
-  expect(scanned.carryover.length).toBeGreaterThan(0);
+  // §9 holds the 37 M3a carry-over items on M3b tracks; §11 holds the 131 review.m3-plan §9.3 items.
+  expect(scanned.carryover.length).toBe(168);
+  expect(scanned.carryover.filter((row) => row.track.startsWith("M5:")).length).toBe(13);
+  expect(scanned.carryover.filter((row) => row.track.startsWith("삭제:")).length).toBe(1);
   const byId = new Map(scanned.requirements.map((row) => [row.id, row.status]));
-  expect(byId.get("M3-REQ-112")).toBe("M4");
+  expect(byId.get("M3-REQ-112")).toBe("M4:T-I18N");
   expect(byId.get("M3-REQ-33")).toBe("M3a");
+  expect(scanned.requirements.filter((row) => row.status.startsWith("M4:")).length).toBe(16);
 });
