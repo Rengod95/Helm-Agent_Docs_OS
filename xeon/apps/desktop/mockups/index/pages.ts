@@ -69,4 +69,11 @@ export const pages: MockPage[] = [
     folder: "wb-v2b",
     states: 14,
   },
+  {
+    id: "P-16·P-21 v2 A",
+    title:
+      "런타임 지도·구성기 v2 A: 층 건물·루프 소켓, 줌 3단계, 구조 살펴보기, 맥락 테두리, 층×지점 표, Helm 부품·흐름·시험·프로필",
+    folder: "wb-v2a",
+    states: 13,
+  },
 ];
