@@ -264,3 +264,16 @@ test("service.choose-is-the-lease-arbiter-port", async () => {
   holder.set("elsewhere");
   expect(service.choose(thread, candidates)).toBeNull();
 });
+
+test("service.enable-calls-onEnabled-so-the-failure-ledger-can-be-cleared", async () => {
+  const enabled: string[] = [];
+  const { service, t } = await serviceRig([driver("helm"), quiet("learning")], {
+    onEnabled: (id) => enabled.push(id),
+  });
+  expect(service.disable("learning")).toMatchObject({ ok: true });
+  await t.settled();
+  expect(enabled).toEqual([]);
+  expect(service.enable("learning")).toMatchObject({ ok: true });
+  expect(service.enable("ghost")).toMatchObject({ ok: false });
+  expect(enabled).toEqual(["learning"]);
+});

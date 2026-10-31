@@ -162,7 +162,10 @@ test("tier: assignTier table", () => {
   ).toEqual({ ok: true, value: "builtin" });
   expect(
     assignTier({ name: "org-policy", source: "managed", trust: "user", layer: "plugin" }),
-  ).toEqual({ ok: true, value: "guard" });
+  ).toEqual({ ok: true, value: "user" });
+  expect(
+    assignTier({ name: "org-policy", source: "managed", trust: "builtin", layer: "plugin" }),
+  ).toEqual({ ok: false, error: { kind: "source_trust_mismatch", name: "org-policy" } });
   expect(assignTier({ name: "mine", source: "user", trust: "user", layer: "plugin" })).toEqual({
     ok: true,
     value: "user",

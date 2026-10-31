@@ -159,6 +159,7 @@ export {
   createResourcePolicy,
   createVolatileNotifier,
   NO_STARTUP_OPTIONS,
+  shouldSuggestSafeMode,
   type SafeModeSource,
   type StartupOptions,
   extTablePrefix,

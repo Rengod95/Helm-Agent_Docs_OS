@@ -2931,7 +2931,7 @@ export const palette = [
 | W-36 | 외부 훅 목록(M4 N14) | P-16, P-13 | 없음 | `hooks.list` |
 | W-37 | 런타임 이벤트만 거르는 구독 | 기록 탭, 런타임 탭 | `events.subscribe`는 thread 단위 전체 | kind 접두 거름 인자 [미결] |
 | W-38 | 확장 다시 읽기(핫 리로드 요청)와 로더 진단 위치(파일:줄) | P-17, P-15 | 파일 감시 핫 리로드만(`X.loading-trust.spec` §4.4.4) | `ext.reload { name }`, 진단에 `file`, `line` |
-| W-39 | 연속 시작 실패 수와 안전 모드 제안 | P-01, 시작 화면 | `StartupHealthStore`, `shouldSuggestSafeMode`는 실제 호출처 없음 | `host.status.startupFailures`, `host.status.suggestSafeMode` |
+| W-39 | 연속 시작 실패 수와 안전 모드 제안 | P-01, 시작 화면 | `StartupHealthStore`, `shouldSuggestSafeMode`는 M4 T-FIX에서 `apps/host`가 부름(필드는 선택 값으로 이미 있음) | `host.status.startupFailures`, `host.status.suggestSafeMode` |
 | W-40 | 능력 바인딩(능력 id마다 제공 확장과 버전, 받는 확장과 requires·optional, 미충족) | P-16, P-21 | 없음 | `ext.bindings { threadId? }` |
 | W-41 | 그룹이 아닌 확장의 대화별 scope 상태 | P-16, P-13 | `GroupStatus`는 그룹만 | `ext.list { threadId }`가 대화별 scope 상태를 실음 |
 | W-42 | 임대 읽기(holder, `leaseEpoch`, limits, used, 후보별 대기 계수) | P-16, 런타임 탭 | 대기 계수(`leaseWaitLimit` 대비)는 이벤트에 없음 | `group.lease { threadId }` |

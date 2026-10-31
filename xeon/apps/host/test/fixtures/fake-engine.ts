@@ -58,6 +58,8 @@ interface FakeLog {
 
 export interface FakeEngineOptions {
   readonly mode?: HostMode;
+  /** 연속 시작 실패 수와 안전 모드 제안(`host.status`). 생략하면 0과 거짓 */
+  readonly startup?: Engine["startup"];
   readonly storeId?: StoreId;
   /** 이 owner가 모든 thread를 쥐고 있다 */
   readonly lockedBy?: OwnerKind;
@@ -395,6 +397,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     storeId,
     catalog: built.catalog,
     safeMode: false,
+    startup: options.startup ?? { failures: 0, suggestSafeMode: false },
     startedAt: RECORDED_AT,
     ports,
     shutdown,

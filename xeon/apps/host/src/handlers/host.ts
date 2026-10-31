@@ -161,6 +161,9 @@ export function createHostStatusHandler(
       idleShutdownAt: idleAt === null ? null : new Date(idleAt).toISOString(),
       // 안전 모드일 때만 싣는다(F wire host.status). 켜지 않았으면 필드를 두지 않는다
       ...(engine.safeMode ? { safeMode: true } : {}),
+      // 직전까지 연속으로 시작에 실패했을 때만 싣는다(W-39)
+      ...(engine.startup.failures > 0 ? { startupFailures: engine.startup.failures } : {}),
+      ...(engine.startup.suggestSafeMode ? { suggestSafeMode: true } : {}),
     };
     if (params.includeBinaries !== true) return status;
     const diagnosed = await engine.diagnose(context.signal);

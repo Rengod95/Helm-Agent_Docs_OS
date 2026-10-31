@@ -202,6 +202,11 @@ export interface Engine {
   readonly mode: HostMode;
   /** 안전 모드로 열렸는가(`AssembleOptions.safeMode`). host.status.safeMode의 원천 */
   readonly safeMode: boolean;
+  /** 연속 시작 실패 수와 안전 모드 제안. host.status.startupFailures·suggestSafeMode의 원천(W-39) */
+  readonly startup: {
+    readonly failures: number;
+    readonly suggestSafeMode: boolean;
+  };
   readonly storeId: StoreId;
   readonly catalog: SettingCatalog;
   /** ms. host.status.startedAt의 원천 */

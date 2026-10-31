@@ -199,7 +199,10 @@ export interface LoaderDeps {
   /** 설치 대상. 엔트리 호출과 scope 실행은 ExtHost.install이 한다 */
   readonly host: ExtHost;
   /** 운영 정책. 6a단계 admit, 설치 실패·제거 때 forget */
-  readonly policy: Pick<OperationsPolicy, "admit" | "forget">;
+  readonly policy: Pick<OperationsPolicy, "admit" | "forget"> & {
+    /** 있으면 설정으로 다시 켤 때 실패 장부를 비운다. 조립 루트는 `OperationsPolicy`를 그대로 넘긴다 */
+    readonly autoDisabler?: Pick<OperationsPolicy["autoDisabler"], "clearLedger">;
+  };
   readonly fs: LoaderFs;
   readonly paths: LoaderPaths;
   readonly trustBackend: TrustStoreBackend;
@@ -1120,6 +1123,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           if (enabled) handle?.enable();
           else handle?.disable();
         }
+        // 다시 켜면 실패 장부를 비운다. 비우지 않으면 자동으로 꺼진 확장이 재시작 전까지 다시 꺼지지 않는다(M4 X-4)
+        if (enabled) deps.policy.autoDisabler?.clearLedger(`ext:${name}`);
       }
       return infoOf(record);
     },

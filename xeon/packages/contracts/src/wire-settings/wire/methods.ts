@@ -304,6 +304,8 @@ export const HostStatusResultSchema: TObject<{
   idleShutdownAt: TUnion<[typeof IsoTimeSchema, TNull]>;
   binaries: TOptional<typeof HostBinaryReportSchema>;
   safeMode: TOptional<TBoolean>;
+  startupFailures: TOptional<TInteger>;
+  suggestSafeMode: TOptional<TBoolean>;
 }> = Type.Object(
   {
     mode: Type.Union([Type.Literal("in-process"), Type.Literal("stdio"), Type.Literal("service")]),
@@ -316,6 +318,10 @@ export const HostStatusResultSchema: TObject<{
     binaries: Type.Optional(HostBinaryReportSchema),
     /** 안전 모드로 떠 있으면 참(L3 내장 그룹과 외부 확장을 싣지 않는다, D-M3-07). 생략하면 거짓. 화면이 표시한다(M3-REQ-19) */
     safeMode: Type.Optional(Type.Boolean()),
+    /** 직전까지의 연속 시작 실패 수(W-39). 0이면 생략한다 */
+    startupFailures: Type.Optional(Type.Integer({ minimum: 1 })),
+    /** 연속 시작 실패 수가 `x.operations.safeMode.suggestAfter` 이상이면 참. 거짓이면 생략한다(W-39) */
+    suggestSafeMode: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

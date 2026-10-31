@@ -296,7 +296,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 영역 | 메서드 | params | result | 단계 |
 |---|---|---|---|---|
 | host | `host.hello` | `{ protocolVersion: SemVer, client: {name, version, kind: "cli"\|"desktop"\|"other"}, experimental?: FeatureName[], auth?: { token: string } }`(`auth`는 M2) | `{ protocolVersion: SemVer, server: {name, version}, storeId: StoreId, transport: TransportKind, features: FeatureInfo[], experimental: FeatureName[] }` | M1 |
-| host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean }` | M2 |
+| host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean, startupFailures?: integer, suggestSafeMode?: boolean }` | M2 |
 | host | `host.shutdown` | `{ reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` | `{ accepted: boolean }` | M2 |
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
 | thread | `thread.create` | `{ workspace?: string, title?: string }` | `{ threadId: ThreadId, position: StreamPosition }` | M1 |

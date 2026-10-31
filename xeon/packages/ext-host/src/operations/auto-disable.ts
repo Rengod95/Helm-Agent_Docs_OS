@@ -176,6 +176,11 @@ export interface AutoDisabler {
   /** 사용자가 다시 켤 때. 장부를 비우고 requestEnable을 부른다 */
   reenable(key: HandlerOwnerKey): void;
   /**
+   * 장부와 자동으로 꺼진 주체 표만 비운다. 켜기 요청은 부르지 않는다. 켜기를 다른 경로(`ScopeHandle.enable()`)로 이미 하는
+   * `/group on`과 설정 토글이 부른다. 이것을 빼먹으면 다시 켠 확장이 재시작 전까지 자동 끄기 대상이 되지 못한다
+   */
+  clearLedger(key: HandlerOwnerKey): void;
+  /**
    * 기준과 무관하게 바로 끈다. 격리 확장의 재시작 한도 초과와 투영기 실패에서 쓴다.
    * 면제 주체(isExempt, 면제 tier)는 끄지 않고 projectionFailed(…, false)만 보낸다. 이미 꺼진 주체는 다시 알리지 않는다
    */
@@ -244,6 +249,10 @@ export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
       } else {
         deps.hooks.enable(key.slice("hook:".length));
       }
+    },
+    clearLedger(key) {
+      deps.ledger.reset(key);
+      disabled.delete(key);
     },
     disableNow(key, cause) {
       // 격리 재시작 한도 초과는 이전처럼 면제 없이 끈다. 면제와 알림은 투영기 실패에만 적용한다

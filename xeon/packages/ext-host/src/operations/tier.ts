@@ -116,8 +116,8 @@ export function assignTier(
       if (guards.has(input.name)) return ok("guard");
       return ok(input.layer === "L1" ? "core" : "builtin");
     case "managed":
-      // 관리 위치(2차)는 사용자 등급 상한이다. builtin을 요청한 매니페스트는 거부한다
-      return input.trust === "builtin" ? mismatch : ok("guard");
+      // 관리 위치(2차)의 신뢰 상한은 user다(X.loading-trust.spec §4.6.1). tier도 상한을 넘지 않는다. builtin을 요청한 매니페스트는 거부한다
+      return input.trust === "user" ? ok("user") : mismatch;
     case "user":
       return input.trust === "user" ? ok("user") : mismatch;
     case "project":

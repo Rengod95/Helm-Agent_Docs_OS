@@ -73,6 +73,11 @@ export interface GroupServiceDeps {
    * `buildPromotionReport`를 돌린다. 현재 thread가 없으면 빈 보고다.
    */
   readonly promotion?: () => Promise<PromotionReport>;
+  /**
+   * `enable`가 켜기를 요청한 직후 부른다. 조립 루트가 X `AutoDisabler.clearLedger("ext:<id>")`를 연결한다.
+   * 연결하지 않으면 자동으로 꺼진 그룹을 다시 켜도 실패 장부가 남아 재시작 전까지 다시 꺼지지 않는다(M4 X-4)
+   */
+  readonly onEnabled?: (id: GroupId) => void;
 }
 
 /** 활성 thread 하나의 이벤트 집계. `refreshUsage`가 채운다 */
@@ -251,8 +256,10 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     if (handle === undefined) {
       return { ok: false, error: { kind: "group.unknown", id, known: knownIds() } };
     }
-    if (enabled) handle.enable();
-    else handle.disable();
+    if (enabled) {
+      handle.enable();
+      deps.onEnabled?.(id);
+    } else handle.disable();
     schedule();
     return {
       ok: true,
