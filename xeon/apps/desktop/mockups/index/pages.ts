@@ -50,4 +50,10 @@ export const pages: MockPage[] = [
   { id: "O-07", title: "새 대화", folder: "o07-new-thread", states: 5 },
   { id: "O-09", title: "바로 가기 키 도움말", folder: "o09-shortcuts", states: 4 },
   { id: "S-04", title: "토스트", folder: "s04-toast", states: 5 },
+  {
+    id: "P-21·P-22",
+    title: "블록 구성기: 그룹 쌓기, 흐름, 프로필 쌓기, 시험, 코드",
+    folder: "wb-compose",
+    states: 8,
+  },
 ];
