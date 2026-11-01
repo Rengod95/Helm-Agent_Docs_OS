@@ -46,7 +46,7 @@ export interface TrustPermissions {
   /** project_trust 지점에 on을 걸 수 있는가 */
   readonly onProjectTrust: boolean;
   readonly post: boolean;
-  /** kind가 group이고 usesDrive가 참일 때 */
+  /** 플러그인의 `drives`가 참이고 정책 `x.primitives.driveRequiresGroup`이 허용할 때 */
   readonly drive: boolean;
   /** 도구·명령·provider 등록 */
   readonly resources: boolean;
