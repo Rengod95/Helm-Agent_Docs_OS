@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ApprovalBody, ApprovalRequestInput } from "@xeon/contracts/services";
+import type { ApprovalBody, ApprovalRequestInput } from "@fresnel/contracts/services";
 import { fakeApprovals } from "../src/testing/index.ts";
 import { eachInOrder } from "../src/util.ts";
 import { expectOk } from "./support/harness.ts";

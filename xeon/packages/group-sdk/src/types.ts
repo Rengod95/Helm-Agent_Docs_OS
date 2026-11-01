@@ -5,10 +5,10 @@ import type {
   ScopeApi,
   StateDecl,
   ToolResourceDef,
-} from "@xeon/contracts/extensions";
-import type { Upcaster } from "@xeon/contracts/records";
-import type { SettingDef, SettingDefInput, SettingGroup } from "@xeon/contracts/settings";
-import type { CommandResourceDef } from "@xeon/ext-host";
+} from "@fresnel/contracts/extensions";
+import type { Upcaster } from "@fresnel/contracts/records";
+import type { SettingDef, SettingDefInput, SettingGroup } from "@fresnel/contracts/settings";
+import type { CommandResourceDef } from "@fresnel/ext-host";
 import type { Static } from "typebox";
 import type {
   CancelDelegatesResult,

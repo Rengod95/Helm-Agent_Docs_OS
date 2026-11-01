@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCatalog, checkSettingDef } from "@xeon/contracts/settings";
+import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
 import {
   DEFAULT_MCP_SETTINGS,
   MCP_SETTING_DEFS,

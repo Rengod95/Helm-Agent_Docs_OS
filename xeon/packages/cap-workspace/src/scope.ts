@@ -1,4 +1,4 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WorkspaceDeps } from "./deps.ts";
 import { defaultRoots } from "./roots.ts";
 

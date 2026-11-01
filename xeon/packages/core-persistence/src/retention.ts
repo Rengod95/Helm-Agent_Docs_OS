@@ -2,15 +2,15 @@
 // 기간(maxAgeDays)이 지난 thread를 먼저 고르고, 그래도 수(maxCount)를 넘으면 오래된 것부터 더 고른다.
 // 빼는 것: 표식이 남은 thread, 열린 turn이 있는 thread, 다른 thread가 포크로 가리키는 thread, 지금 쓰기 소유 중인 thread.
 // 삭제는 threads.remove와 같은 행 삭제 경로다(deleteThreadRows).
-import { Bug, err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { Bug, err, ok, type Clock, type Logger, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   LeaseService,
   ReadFailure,
   SessionRetention,
   StoreDb,
   StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { PersistenceSettings } from "./deps.ts";
 import { sessionResource } from "./ids.ts";
 import { deleteThreadRows } from "./lifecycle-admin.ts";

@@ -1,4 +1,4 @@
-import type { TimerHandle } from "@xeon/contracts";
+import type { TimerHandle } from "@fresnel/contracts";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { CommitBatch, Engine } from "../types.ts";
 

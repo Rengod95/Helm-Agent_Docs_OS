@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
-import { eachAsync, err, parse } from "@xeon/contracts";
+import { eachAsync, err, parse } from "@fresnel/contracts";
 import {
   CapabilityError,
   DialogAsk,
   type AskQuestion,
   type CallContext,
-} from "@xeon/contracts/capabilities";
-import { ApprovalBodyJsonSchema, ApprovalRequestedPayloadSchema } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import { ApprovalBodyJsonSchema, ApprovalRequestedPayloadSchema } from "@fresnel/contracts/records";
 import { createAskService } from "../src/ask/service.ts";
 import { callTool } from "./support/adapter.ts";
 import { realApprovals } from "./support/real-approvals.ts";

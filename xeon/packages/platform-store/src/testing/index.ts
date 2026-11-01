@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Bug, type Clock, type Scheduler } from "@xeon/contracts";
-import type { IdFactory } from "@xeon/contracts/conversation";
+import { Bug, type Clock, type Scheduler } from "@fresnel/contracts";
+import type { IdFactory } from "@fresnel/contracts/conversation";
 import type {
   FaultInjector,
   LeaseHolder,
@@ -11,7 +11,7 @@ import type {
   LeaseToken,
   StoreDb,
   StoreService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { sha256Hex } from "../hash.ts";
 import { openStore } from "../open.ts";
 import { toStorePlatform } from "../select.ts";

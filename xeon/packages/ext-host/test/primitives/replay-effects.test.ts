@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
-import { isCapabilityError, type CallOptions, type ServiceKey } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { HookName } from "@xeon/contracts/extensions";
+import {
+  isCapabilityError,
+  type CallOptions,
+  type ServiceKey,
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { HookName } from "@fresnel/contracts/extensions";
 import { hostOf } from "../../src/primitives/index.ts";
 import { makeDraft } from "../../src/primitives/drafts.ts";
 import { createTestHost, fixedIdFactory, memoryRecordStore } from "../../src/testing/index.ts";

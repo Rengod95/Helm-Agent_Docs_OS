@@ -1,7 +1,7 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope, EventKind, ReadFailure } from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope, EventKind, ReadFailure } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type {
   NoticeEmitFailure,
   NoticePort,
@@ -10,7 +10,7 @@ import type {
   NoticeRecord,
 } from "../../src/ports/notices.ts";
 
-// 메모리 내구 로그 대역. 커밋마다 등록된 리스너를 동기로 부른다(피드 구독을 흉내 낸다). 읽기는 xeon.session 피드와 같은 규칙을 따른다:
+// 메모리 내구 로그 대역. 커밋마다 등록된 리스너를 동기로 부른다(피드 구독을 흉내 낸다). 읽기는 fresnel.session 피드와 같은 규칙을 따른다:
 // 접두에 맞는 행만 돌려주고, 맞지 않는 행도 scanLimit에 센다.
 
 const FEED_PREFIXES: readonly string[] = [

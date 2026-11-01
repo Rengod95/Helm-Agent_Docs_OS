@@ -4,7 +4,7 @@ import {
   checkSettingDef,
   type ScopeLayer,
   type ScopeStack,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import {
   DEFAULT_KNOWLEDGE_SETTINGS,
   KNOWLEDGE_SETTING_DEFS,

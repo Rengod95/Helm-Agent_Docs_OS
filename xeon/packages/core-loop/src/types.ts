@@ -1,6 +1,6 @@
-import type { Clock, Logger } from "@xeon/contracts";
-import type { EventId, IdFactory, ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { CatalogEntry, SessionService } from "@xeon/contracts/records";
+import type { Clock, Logger } from "@fresnel/contracts";
+import type { EventId, IdFactory, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { CatalogEntry, SessionService } from "@fresnel/contracts/records";
 import type {
   AgentService,
   ApprovalService,
@@ -10,15 +10,15 @@ import type {
   TaskService,
   ThreadLoopStatus,
   ToolService,
-} from "@xeon/contracts/services";
-import type { ExtHost } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import type { ExtHost } from "@fresnel/ext-host";
 import type { CommitFailure } from "./commit.ts";
 import type { Drafter } from "./drafts.ts";
 import type { TurnStartPlanned } from "./turn-start.ts";
 import type { LoopSettingsSource } from "./settings.ts";
 import type { ThreadGate } from "./thread-gate.ts";
 
-/** 루프가 `xeon.ext`에서 쓰는 부분: 지점 발화와 단계 경계 훅 */
+/** 루프가 `fresnel.ext`에서 쓰는 부분: 지점 발화와 단계 경계 훅 */
 export type LoopExtHost = Pick<ExtHost, "dispatch" | "boundary">;
 
 /** `RecoverDeps.hostMode`와 같은 값 */
@@ -53,7 +53,7 @@ export interface LoopDeps {
   /** 있으면 `await_input` 재진입 전에 미해결 승인 요청을 메모리 대기로 되살린다 */
   readonly approvals?: Pick<ApprovalService, "restore" | "cancel">;
   /**
-   * `loop.spawn`이 위임하는 `xeon.agents`. 호출 때 조회한다(core-agents가 이 서비스에 의존하므로 설치 순서에 걸리지 않게).
+   * `loop.spawn`이 위임하는 `fresnel.agents`. 호출 때 조회한다(core-agents가 이 서비스에 의존하므로 설치 순서에 걸리지 않게).
    * `undefined`를 돌려주면 `spawn`은 `input_invalid`로 거부한다
    */
   readonly agents?: () => Pick<AgentService, "spawn"> | undefined;

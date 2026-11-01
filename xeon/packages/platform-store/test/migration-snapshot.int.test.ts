@@ -1,8 +1,8 @@
 import { mkdirSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import { attempt } from "@xeon/contracts";
-import type { MigrationSet } from "@xeon/contracts/records";
+import { attempt } from "@fresnel/contracts";
+import type { MigrationSet } from "@fresnel/contracts/records";
 import { openStore } from "../src/index.ts";
 import { openTestStore } from "../src/testing/index.ts";
 import { newDatabase } from "../src/sqlite-env.ts";

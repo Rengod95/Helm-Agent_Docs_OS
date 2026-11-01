@@ -1,7 +1,7 @@
 // FRESNEL-PATCH: P15
-import { eachAsync, repeatAsync } from "@xeon/contracts";
+import { eachAsync, repeatAsync } from "@fresnel/contracts";
 // FRESNEL-PATCH: P1
-import type { CancelScope as Context } from "@xeon/contracts/services";
+import type { CancelScope as Context } from "@fresnel/contracts/services";
 import {
   type ExecutionEnv,
   type ExecutionError,

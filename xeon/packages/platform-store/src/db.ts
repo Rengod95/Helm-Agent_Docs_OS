@@ -1,5 +1,5 @@
 import { SQLiteError, type Database } from "bun:sqlite";
-import { assertNever, Bug, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Result } from "@fresnel/contracts";
 import type {
   SqlRow,
   SqlTx,
@@ -7,7 +7,7 @@ import type {
   StoreDb,
   StoreReadError,
   StoreWriteError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { classifyStatement, type StatementGuard } from "./prefix.ts";
 import { toSqlRow } from "./rows.ts";
 import { asSqliteFailure } from "./sqlite-env.ts";

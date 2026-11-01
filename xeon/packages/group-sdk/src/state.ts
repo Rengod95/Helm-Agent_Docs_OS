@@ -1,7 +1,7 @@
-import { Bug, canonicalJson, parse } from "@xeon/contracts";
-import { toJsonValue, type JsonValue } from "@xeon/contracts/conversation";
-import type { StateDecl } from "@xeon/contracts/extensions";
-import type { Upcaster } from "@xeon/contracts/records";
+import { Bug, canonicalJson, parse } from "@fresnel/contracts";
+import { toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
+import type { StateDecl } from "@fresnel/contracts/extensions";
+import type { Upcaster } from "@fresnel/contracts/records";
 import { isRecord } from "./util.ts";
 
 /** 상태 문서 마이그레이션. 키는 출발 버전. { 1: v1→v2, 2: v2→v3 }. 순수 함수 */

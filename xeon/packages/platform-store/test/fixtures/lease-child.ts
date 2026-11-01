@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { attempt } from "@xeon/contracts";
-import type { LeaseToken } from "@xeon/contracts/records";
+import { attempt } from "@fresnel/contracts";
+import type { LeaseToken } from "@fresnel/contracts/records";
 import { openStore } from "../../src/index.ts";
 import { DEFAULT_STORE_SETTINGS } from "../../src/settings.ts";
 import { toStorePlatform } from "../../src/select.ts";

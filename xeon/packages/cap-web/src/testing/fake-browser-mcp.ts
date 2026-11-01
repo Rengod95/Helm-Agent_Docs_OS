@@ -1,4 +1,4 @@
-import { ok, type Result } from "@xeon/contracts";
+import { ok, type Result } from "@fresnel/contracts";
 import type { BrowserMcpError, BrowserMcpPort, BrowserMcpResult } from "../ports/browser-mcp.ts";
 
 // 가짜 Playwright MCP 포트(L2.web.spec §4.10.4a, M3-new-13). 도구 호출을 기록하고 스크립트한 응답을 돌려준다.

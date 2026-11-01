@@ -1,11 +1,11 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type {
   WebProviderAuth,
   WebProviderCapability,
   WebProviderOrigin,
   WebProviderStatus,
   WebProvidersResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { t, type MessageId } from "../i18n/index.ts";
 
 // 도구와 웹 탭의 view-model(L4.settings-ui §3.6, §4.11, M3-12 비시각 부분, M3-REQ-96). `web.providers` 결과를 화면 값으로 바꾸고,

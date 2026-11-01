@@ -9,7 +9,7 @@ import {
   DialogStyles,
   type AskQuestion,
   type AnyCapabilityDef,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { createAskService } from "../src/ask/service.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";
 import { realApprovals } from "./support/real-approvals.ts";

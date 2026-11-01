@@ -1,4 +1,4 @@
-import { attemptAsync, err, ok } from "@xeon/contracts";
+import { attemptAsync, err, ok } from "@fresnel/contracts";
 import {
   WorkGoalsKey,
   WorkPlans,
@@ -7,9 +7,13 @@ import {
   WorkTasks,
   WorkTasksKey,
   type CommandActionRegistry,
-} from "@xeon/contracts/capabilities";
-import type { IdFactory } from "@xeon/contracts/conversation";
-import { ScopedStorePortKey, type ExtensionEntry, type PortKey } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/capabilities";
+import type { IdFactory } from "@fresnel/contracts/conversation";
+import {
+  ScopedStorePortKey,
+  type ExtensionEntry,
+  type PortKey,
+} from "@fresnel/contracts/extensions";
 import {
   AgentServicePortKey,
   ApprovalServicePortKey,
@@ -20,8 +24,8 @@ import {
   type AgentService,
   type ApprovalService,
   type ToolService,
-} from "@xeon/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
 import { registerWorkCommands } from "./commands.ts";
 import { createSettleGate } from "./goals/gate.ts";
 import { createGoals } from "./goals/service.ts";
@@ -39,7 +43,7 @@ import { reminderMessage } from "./tasks/reminder.ts";
 import { createTasksApi } from "./tasks/service.ts";
 
 // L2.work.plan 패키지 구조. 구현 패키지(core-persistence, core-tools, platform-store)를 import하지 않고 F 서비스 인터페이스를
-// 포트(xeon.session, xeon.store, xeon.tools, xeon.os)로만 받는다. Cordis는 import하지 않는다(DR-11).
+// 포트(fresnel.session, fresnel.store, fresnel.tools, fresnel.os)로만 받는다. Cordis는 import하지 않는다(DR-11).
 
 export const WORK_PRODUCER = "cap.work";
 
@@ -49,11 +53,11 @@ export interface WorkPluginOptions {
   /** 설정 층. 파일 범위와 세션 범위를 합친 스택을 호출마다 돌려준다 */
   readonly settings: WorkSettingsSource;
   /**
-   * 계획 승인(F `L2ApprovalsPort`)을 출처별로 만드는 공장. 생략하면 `xeon.approvals` 포트를 `planApprovalsOver`로 감싼 기본 구현을 쓴다.
+   * 계획 승인(F `L2ApprovalsPort`)을 출처별로 만드는 공장. 생략하면 `fresnel.approvals` 포트를 `planApprovalsOver`로 감싼 기본 구현을 쓴다.
    * 둘 다 없으면 계획 제출과 결정 메서드는 `unavailable`로 거부한다
    */
   readonly approvals?: PlanApprovalsFactory;
-  /** 권한 모드 포트. 생략하면 `xeon.tools`의 `mode`·`setMode`를 감싼 기본 구현을 쓴다 */
+  /** 권한 모드 포트. 생략하면 `fresnel.tools`의 `mode`·`setMode`를 감싼 기본 구현을 쓴다 */
   readonly mode?: PermissionModePort;
   /** 계획 본문을 산출물로 등록하는 선택 의존(`artifacts.registry`). 없으면 `artifact: null`이다 */
   readonly artifacts?: PlanArtifactsPort;

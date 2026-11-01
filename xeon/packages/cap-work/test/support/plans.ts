@@ -1,5 +1,5 @@
-import { Bug, parse } from "@xeon/contracts";
-import { PlanIdSchema, type PlanId as PlanIdType } from "@xeon/contracts/capabilities";
+import { Bug, parse } from "@fresnel/contracts";
+import { PlanIdSchema, type PlanId as PlanIdType } from "@fresnel/contracts/capabilities";
 
 /** 문자열을 계획 ID로 좁힌다. 형식이 틀리면 시험 입력의 결함이다 */
 export function PlanId(raw: string): PlanIdType {

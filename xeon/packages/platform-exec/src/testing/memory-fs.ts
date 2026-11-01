@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import { attempt, err, ok, type Clock, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Clock, type Result } from "@fresnel/contracts";
 import {
   FileError,
   type BinaryReader,
@@ -8,7 +8,7 @@ import {
   type FileInfo,
   type FileSystem,
   type TextLineReader,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { LineScanner } from "../upstream/env/line-scan.ts";
 
 // L0.exec.plan §2 memoryFs. 메모리 안의 POSIX 모양 FileSystem 대역. 심볼릭 링크와 감시는 없다.

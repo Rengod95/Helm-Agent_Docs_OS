@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ServiceKey } from "@xeon/contracts/capabilities";
+import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import {
   capabilityServiceName,
   hostOf,
@@ -24,7 +24,7 @@ test("service names", async () => {
   expect(capabilityServiceName("web.search")).toBe("cap:web.search");
   expect(providerServiceName("web.search", "web-exa")).toBe("cap:web.search@web-exa");
   expect(isReservedServiceName("cap:web.search")).toBe(true);
-  expect(isReservedServiceName("xeon.loop")).toBe(true);
+  expect(isReservedServiceName("fresnel.loop")).toBe(true);
   expect(isReservedServiceName("_private")).toBe(true);
   expect(isReservedServiceName("my-service")).toBe(false);
 });

@@ -6,11 +6,11 @@ import {
   DialogCommands,
   DialogCommandsKey,
   type CapabilityApi,
-} from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import { SessionPortKey } from "@xeon/contracts/services";
-import type { SessionService } from "@xeon/contracts/records";
-import { hostOf } from "@xeon/ext-host";
+} from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import { SessionPortKey } from "@fresnel/contracts/services";
+import type { SessionService } from "@fresnel/contracts/records";
+import { hostOf } from "@fresnel/ext-host";
 import { assemble } from "../../src/assemble.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

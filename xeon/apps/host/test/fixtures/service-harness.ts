@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { repeatAsync, type Clock, type Scheduler } from "@xeon/contracts";
-import { WireError, type HostConnection } from "@xeon/contracts/wire";
+import { repeatAsync, type Clock, type Scheduler } from "@fresnel/contracts";
+import { WireError, type HostConnection } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { connectServiceTransport, type ServiceEndpoint } from "../../src/index.ts";
 import { createManualScheduler } from "./manual-scheduler.ts";

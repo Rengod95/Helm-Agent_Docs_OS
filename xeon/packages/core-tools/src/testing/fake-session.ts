@@ -1,5 +1,11 @@
-import { Bug, canonicalJson, err, ok, parse, type Clock } from "@xeon/contracts";
-import type { EffectId, EventId, IdFactory, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import { Bug, canonicalJson, err, ok, parse, type Clock } from "@fresnel/contracts";
+import type {
+  EffectId,
+  EventId,
+  IdFactory,
+  ThreadId,
+  TurnId,
+} from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
@@ -25,7 +31,7 @@ import {
   type ReadFailure,
   type StoreError,
   type TxView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { isStampedDraft } from "../effects.ts";
 import { isJsonObject } from "../util.ts";
 import type { ToolsSession } from "../deps.ts";

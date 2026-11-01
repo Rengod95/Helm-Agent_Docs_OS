@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { Type } from "typebox";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost, flushMicrotasks } from "../../src/testing/index.ts";

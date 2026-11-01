@@ -1,6 +1,6 @@
 // L0.exec.spec §3.4. OS 분기 인터페이스. 소비자와 포크 코드는 OS를 직접 묻지 않고 이 값만 묻는다(eng.dependency-rules.guide DR-13).
 
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 
 export interface ShellConfig {
   readonly shell: string;

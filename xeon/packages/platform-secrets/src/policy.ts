@@ -1,6 +1,6 @@
-import { assertNever, attempt } from "@xeon/contracts";
-import type { SecretDenyReason, SecretMeta } from "@xeon/contracts/capabilities";
-import type { ApprovalEvidence, UseCtx } from "@xeon/contracts/services";
+import { assertNever, attempt } from "@fresnel/contracts";
+import type { SecretDenyReason, SecretMeta } from "@fresnel/contracts/capabilities";
+import type { ApprovalEvidence, UseCtx } from "@fresnel/contracts/services";
 import { MCP_START_PURPOSE_PREFIX } from "./mcp-start.ts";
 
 // L0.secrets.spec §4.2. 순서대로 보고 처음 실패에서 멈춘다.

@@ -1,6 +1,6 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { WriteOutcome } from "@xeon/contracts/capabilities";
-import type { BlobRef } from "@xeon/contracts/records";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { WriteOutcome } from "@fresnel/contracts/capabilities";
+import type { BlobRef } from "@fresnel/contracts/records";
 import { fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import { SCAN_RULESET_VERSION } from "../scan/rules.ts";
 import { updateDocsAfterChange } from "../search/docs-index.ts";

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import type { ReviewView } from "@xeon/contracts/capabilities";
-import type { DurableEventEnvelope, EventKind } from "@xeon/contracts/records";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
+import type { ReviewView } from "@fresnel/contracts/capabilities";
+import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import { foldReview } from "../src/reviews/state.ts";
 import { codeOf, hunkStates, rejection } from "./support/assert.ts";
 import {

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { AgentToolCall, JsonObject } from "@xeon/contracts/conversation";
+import type { AgentToolCall, JsonObject } from "@fresnel/contracts/conversation";
 import { Type } from "typebox";
 import { validateToolArguments } from "../src/validate.ts";
 

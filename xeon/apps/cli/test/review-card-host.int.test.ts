@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, expect, test } from "bun:test";
-import { t } from "@xeon/core-models/testing";
-import type { JsonObject } from "@xeon/contracts/conversation";
+import { t } from "@fresnel/core-models/testing";
+import type { JsonObject } from "@fresnel/contracts/conversation";
 import { EXIT } from "../src/exit-codes.ts";
 import { createRealCli, modelsOf, type RealCli, type TapeStep } from "./support/real-host.ts";
 import { waitFor } from "./support/harness.ts";

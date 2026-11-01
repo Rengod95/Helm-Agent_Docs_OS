@@ -1,10 +1,10 @@
-import type { Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   DriveHolderSetting,
   GroupSettingUnwritableReason,
   HolderReceipt,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 export type HolderSettingScope = HolderReceipt["scope"];
 
@@ -20,7 +20,7 @@ export type HolderWriteError =
 /**
  * 설정 `x.primitives.activeDriveGroup`의 읽기와 쓰기(L3.group-sdk.spec §3.8, §3.13 마지막 문단).
  * 설정 서비스(F.wire-settings `EffectiveSetting`, `WriteCheck`)에 연결하는 일은 HOST 조립이 한다.
- * 그 전까지 시험은 `memoryDriveHolderSettings`(`@xeon/group-sdk/testing`)를 쓴다.
+ * 그 전까지 시험은 `memoryDriveHolderSettings`(`@fresnel/group-sdk/testing`)를 쓴다.
  */
 export interface DriveHolderSettingsPort {
   /** thread 범위 유효 값. thread가 없으면 전역 값 */

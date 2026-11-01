@@ -1,8 +1,8 @@
 // 메모리 세션 대역. core-persistence(SessionService.commit)가 아직 없어 core-tasks의 시험이 쓴다.
 // L0·L1을 import하지 않고 F 인터페이스로만 만든다(review.decisions-2 D-05). 저장소 흉내라서 TS-07의 "실제 SQLite"를
 // 대신하지 못한다. 커밋 키 멱등, 지문 비교, 롤백, 커밋 후 알림, p_inputs 투영만 같은 규칙으로 흉내 낸다.
-import { Bug, canonicalJson, err, ok, parse, type Result } from "@xeon/contracts";
-import type { EventId, IdFactory, ThreadId, ThreadStatus } from "@xeon/contracts/conversation";
+import { Bug, canonicalJson, err, ok, parse, type Result } from "@fresnel/contracts";
+import type { EventId, IdFactory, ThreadId, ThreadStatus } from "@fresnel/contracts/conversation";
 import {
   COMMIT_KEY_PATTERN,
   EVENT_CATALOG,
@@ -29,7 +29,7 @@ import {
   type StoreError,
   type ThreadSummaryRow,
   type TxView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { TasksSession } from "../session-port.ts";
 import { sourceKeyOf } from "../source-key.ts";
 

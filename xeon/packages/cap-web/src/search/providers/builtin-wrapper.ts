@@ -1,16 +1,16 @@
-import { assertNever, repeatAsync, type Clock, type Logger } from "@xeon/contracts";
+import { assertNever, repeatAsync, type Clock, type Logger } from "@fresnel/contracts";
 import type {
   ProviderAvailabilityWeb,
   ProviderSearchRequest,
   ProviderSearchResult,
   WebProviderManifest,
   WebSearchProvider,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   HostedSearchError,
   HostedSearchPort,
   HostedSearchResponse,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { computeCost } from "../../cost/meter.ts";
 import { BUILTIN_WRAPPER_PRICING } from "../../cost/pricing.ts";
 import type { WebFailure } from "../../errors.ts";

@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { GroupStatus } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import type { GroupStatus } from "@fresnel/contracts/services";
 
 export interface StatusLineOptions {
   /** 표시 폭(열). 기본 60 */

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { WIRE_CONFORMANCE_CASES } from "@xeon/contracts/wire";
+import { WIRE_CONFORMANCE_CASES } from "@fresnel/contracts/wire";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { runConformanceCase } from "./conformance-runner.ts";
 

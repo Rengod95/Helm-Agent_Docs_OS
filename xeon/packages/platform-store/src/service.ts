@@ -1,5 +1,5 @@
-import { Bug, type Result } from "@xeon/contracts";
-import { ScopedStorePortKey } from "@xeon/contracts/extensions";
+import { Bug, type Result } from "@fresnel/contracts";
+import { ScopedStorePortKey } from "@fresnel/contracts/extensions";
 import type {
   BlobError,
   BlobRef,
@@ -9,8 +9,8 @@ import type {
   StoreCapabilities,
   StoreDb,
   StoreService,
-} from "@xeon/contracts/records";
-import type { PlatformContext, PlatformModule } from "@xeon/ext-host";
+} from "@fresnel/contracts/records";
+import type { PlatformContext, PlatformModule } from "@fresnel/ext-host";
 import type { BlobStore } from "./blob.ts";
 import { createStoreDb, type StoreConnections } from "./db.ts";
 import { readOwnerSpec } from "./owner-table.ts";
@@ -87,7 +87,7 @@ export function assembleStoreService(parts: StoreServiceParts): StoreService {
 }
 
 /**
- * Cordis 서비스 xeon.store 등록 단위. 조립 루트가 ExtHost.registerPlatform으로 등록한다.
+ * Cordis 서비스 fresnel.store 등록 단위. 조립 루트가 ExtHost.registerPlatform으로 등록한다.
  * 서비스 이름 하나에 인터페이스는 StoreService 하나이고 X 포트 ScopedStorePort는 그 부분형이다(X.primitives.spec §3.6).
  * 호스트가 내려가면 close()로 임대를 반납하고 연결을 닫는다.
  */

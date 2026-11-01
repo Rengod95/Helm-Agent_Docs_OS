@@ -1,4 +1,4 @@
-import type { LogFields, Logger } from "@xeon/contracts";
+import type { LogFields, Logger } from "@fresnel/contracts";
 
 export interface LogLine {
   readonly level: "debug" | "info" | "warn" | "error";

@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
-import type { ThreadId, ToolResultRecord } from "@xeon/contracts/conversation";
+import type { ThreadId, ToolResultRecord } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type UserBashDecision,
   type UserBashPayload,
-} from "@xeon/contracts/extensions";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/extensions";
+import type { ExtensionUnit } from "@fresnel/ext-host";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { countKind, kindsOf } from "./support/inspect.ts";
 

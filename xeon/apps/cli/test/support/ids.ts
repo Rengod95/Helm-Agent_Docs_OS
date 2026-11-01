@@ -1,4 +1,4 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   EventIdSchema,
   ItemIdSchema,
@@ -8,9 +8,9 @@ import {
   type ItemId,
   type ThreadId,
   type TurnId,
-} from "@xeon/contracts/conversation";
-import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
-import { StoreIdSchema, type StoreId } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/conversation";
+import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
+import { StoreIdSchema, type StoreId } from "@fresnel/contracts/wire";
 
 // 시험용 ID. F의 ID 형식(접두 + ULID 26자, 첫 글자 0-7)을 지키는 결정적 값이다. 브랜드를 붙이는 단언은 F의 파서를 거친다:
 // F 밖에서 `as`를 쓰지 않으려고 형식이 맞는 문자열을 parse로 들인다.

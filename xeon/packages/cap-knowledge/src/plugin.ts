@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { attemptAsync, err, ok, type Logger } from "@xeon/contracts";
+import { attemptAsync, err, ok, type Logger } from "@fresnel/contracts";
 import {
   KnowledgeLedgerKey,
   KnowledgeMemory,
@@ -9,9 +9,9 @@ import {
   KnowledgeSkills,
   KnowledgeSkillsKey,
   type AnyCapabilityDef,
-} from "@xeon/contracts/capabilities";
-import type { LocalIdFactory } from "@xeon/contracts/conversation";
-import type { ExtensionEntry, PortKey } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/capabilities";
+import type { LocalIdFactory } from "@fresnel/contracts/conversation";
+import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
 import {
   ApprovalServicePortKey,
   ExecPortKey,
@@ -23,8 +23,8 @@ import {
   type SecretService,
   type ToolRegistration,
   type ToolService,
-} from "@xeon/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
 import { createNodeFs } from "./fs/node-fs.ts";
 import type { KnowledgeFs } from "./fs/port.ts";
 import { knowledgeManifest } from "./manifest.ts";

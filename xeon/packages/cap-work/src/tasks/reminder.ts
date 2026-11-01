@@ -1,5 +1,5 @@
-import type { WorkTask } from "@xeon/contracts/capabilities";
-import type { CustomMessageDraft } from "@xeon/contracts/extensions";
+import type { WorkTask } from "@fresnel/contracts/capabilities";
+import type { CustomMessageDraft } from "@fresnel/contracts/extensions";
 import type { WorkMeta } from "../projection/read.ts";
 
 // L2.work.spec §4.1.6. 작업 목록을 오래 갱신하지 않았을 때 다음 턴 시작에 붙이는 알림. 순수 함수이고 이벤트를 쓰지 않는다.

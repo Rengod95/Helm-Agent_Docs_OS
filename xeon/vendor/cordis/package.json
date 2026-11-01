@@ -1,11 +1,11 @@
 {
-  "name": "@xeon/vendor-cordis",
+  "name": "@fresnel/vendor-cordis",
   "version": "4.0.0-rc.11",
   "private": true,
   "type": "module",
   "description": "Vendored cordis (MIT) at df4431e. See UPSTREAM.json. Excluded from layer checks, lint and format.",
   "exports": { ".": "./src/index.ts" },
-  "xeon": { "layer": "vendor", "domain": "cordis" },
+  "fresnel": { "layer": "vendor", "domain": "cordis" },
   "scripts": {
     "typecheck": "tsc -b"
   },

@@ -13,8 +13,8 @@ import {
   type Logger,
   type Result,
   type Scheduler,
-} from "@xeon/contracts";
-import type { AssistantMessage } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts";
+import type { AssistantMessage } from "@fresnel/contracts/conversation";
 import {
   formatModelRef,
   type AssistantMessageEventStream,
@@ -30,7 +30,7 @@ import {
   type RoleOverrides,
   type SecretService,
   type StreamFn,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { createAccountPool, DEFAULT_RATE_LIMIT_POLICY, type RateLimitPolicy } from "./accounts.ts";
 import { buildCachePolicy, withRetention } from "./cache-policy.ts";
 import { classifyMessage } from "./classify.ts";

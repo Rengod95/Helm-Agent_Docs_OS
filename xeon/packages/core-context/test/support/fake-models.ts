@@ -1,5 +1,5 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { AssistantMessage, Usage } from "@xeon/contracts/conversation";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { AssistantMessage, Usage } from "@fresnel/contracts/conversation";
 import type {
   CachePolicy,
   ModelBinding,
@@ -9,10 +9,10 @@ import type {
   ModelService,
   ResolvedModel,
   TokenEstimator,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { tokenEstimator } from "./builders.ts";
 
-// core-context 시험용 xeon.models 대역. 요약 호출(complete)을 차례대로 준비한 응답으로 대신한다.
+// core-context 시험용 fresnel.models 대역. 요약 호출(complete)을 차례대로 준비한 응답으로 대신한다.
 // 같은 층 패키지(core-models)는 import할 수 없어서(DR-14) 테이프 가짜 대신 이 파일의 대역을 쓴다. 호출 기록으로
 // 역할(summary)과 cacheRetention(none)을 확인한다.
 

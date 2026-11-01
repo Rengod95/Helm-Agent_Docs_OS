@@ -1,5 +1,5 @@
-import type { SchemaProof } from "@xeon/contracts";
-import type { StateDecl } from "@xeon/contracts/extensions";
+import type { SchemaProof } from "@fresnel/contracts";
+import type { StateDecl } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 
 // L3.learning.spec §3.2. scope 상태 문서. g.commit으로만 바꾼다.

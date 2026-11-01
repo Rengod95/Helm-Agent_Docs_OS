@@ -3,7 +3,7 @@ import {
   COMMON_ERROR_CODES,
   type CapabilityId,
   type CommonErrorCode,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 /** 탐구가 실패하는 예상 가능한 경우(L3.helm.spec §3.12). `Result`의 오류 쪽에 싣는다 */
 export type HelmFailure =

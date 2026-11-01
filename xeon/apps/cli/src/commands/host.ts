@@ -1,6 +1,6 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever } from "@xeon/contracts";
-import type { ServiceEndpoint } from "@xeon/host";
+import { t } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
+import type { ServiceEndpoint } from "@fresnel/host";
 import { failureOfStart, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import type { CliIo } from "../io.ts";

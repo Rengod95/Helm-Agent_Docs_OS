@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
-import type { ApprovalRequestInput, ApprovalService } from "@xeon/contracts/services";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { ok } from "@fresnel/contracts";
+import type { ApprovalRequestInput, ApprovalService } from "@fresnel/contracts/services";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createBareL2ApprovalsPort } from "../../src/assembly/l2-approvals.ts";
 import { partial } from "../fixtures/unsafe.ts";
 

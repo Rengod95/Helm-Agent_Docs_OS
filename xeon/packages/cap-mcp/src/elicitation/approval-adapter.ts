@@ -1,4 +1,4 @@
-import { err, parse, type Result } from "@xeon/contracts";
+import { err, parse, type Result } from "@fresnel/contracts";
 import {
   decodeMcpAnswer,
   planMcpQuestionBody,
@@ -7,17 +7,17 @@ import {
   type McpPlanError,
   type McpQuestion,
   type PlannedMcpQuestions,
-} from "@xeon/contracts/capabilities";
-import type { JsonObject, ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { JsonObject, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   ApprovalRequestError,
   L2ApprovalSnapshot,
   L2ApprovalsPort,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { Type } from "typebox";
 
 // MCP.4(D5): 서버 주도 요청을 승인 프로토콜의 kind `question` 요청으로 옮기는 규칙. 규칙 본체(`McpQuestion` ↔ `QuestionBody`)는
-// F `@xeon/contracts/capabilities`의 `mcp-questions.ts`에 있다(L1.tools.spec §8.3 F 요청 12): L1.tools가 `input_required`(approvalId 없음)를
+// F `@fresnel/contracts/capabilities`의 `mcp-questions.ts`에 있다(L1.tools.spec §8.3 F 요청 12): L1.tools가 `input_required`(approvalId 없음)를
 // 질문 승인으로 올릴 때 같은 규칙을 쓴다. 이 파일은 cap-mcp 안의 기존 이름과, 그룹 코드가 `callTool`의 `input_required` 변형을
 // `L2ApprovalsPort`로 직접 처리하는 `askWithApprovals`(L2.mcp.spec §4.6 9번)를 가진다.
 
@@ -26,7 +26,7 @@ export {
   planMcpQuestionBody as planQuestionBody,
   uniformMcpAnswer as uniformAnswer,
   type PlannedMcpQuestions as PlannedQuestions,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 export type AskError =
   | McpPlanError

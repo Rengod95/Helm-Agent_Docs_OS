@@ -4,7 +4,7 @@ import {
   type ParseError,
   type Result,
   type SchemaProof,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import { Type, type TUnsafe } from "typebox";
 
 // L3.learning.spec §3.6, §3.8. 후보(Proposal)의 형식, 대기열 행의 검증, 화면용 보기.

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ExtDiagnostic } from "@xeon/ext-host";
+import type { ExtDiagnostic } from "@fresnel/ext-host";
 import { createExtDiagnosticSink } from "../../src/assembly/diagnostics.ts";
 
 // L0.os.spec §3.14, M3-REQ-52: 확장 진단 배열은 256개까지만 남기고, 넘친 만큼 버린 수를 센다.

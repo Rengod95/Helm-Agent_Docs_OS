@@ -1,11 +1,11 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type {
   ExecService,
   LockRequest,
   TaskScope,
   TaskService,
   ToolRunContext,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { LockDecl } from "./types.ts";
 
 // L1.tools.spec §4.2 7a~7c, §4.12. 태스크 엔진 연결: tool 범위 노드와 잠금 키 산출.

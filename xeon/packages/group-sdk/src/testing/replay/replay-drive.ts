@@ -1,4 +1,4 @@
-import type { JsonValue } from "@xeon/contracts/conversation";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { GroupModule } from "../../types.ts";
 
 /**

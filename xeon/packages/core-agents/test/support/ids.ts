@@ -1,6 +1,6 @@
 // 런타임 중립 ID 발급기(eng.testing.guide TS-03). 같은 호출 순서면 같은 ID를 낸다.
-import { Bug } from "@xeon/contracts";
-import { isId, type IdFactory, type IdPrefix } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import { isId, type IdFactory, type IdPrefix } from "@fresnel/contracts/conversation";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

@@ -1,4 +1,4 @@
-import { attempt, attemptAsync, err, ok, type Result } from "@xeon/contracts";
+import { attempt, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import { guardedFetch, isGuardedFetchError } from "guarded-fetch";
 import type { DnsResolver } from "../ports/resolver.ts";
 import type {

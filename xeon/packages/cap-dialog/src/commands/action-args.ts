@@ -1,4 +1,4 @@
-import type { CommandArg } from "@xeon/contracts/capabilities";
+import type { CommandArg } from "@fresnel/contracts/capabilities";
 
 // L2.dialog.spec §4.2.4 2번. 동작 명령 인자를 `args` 선언으로 검사한다. 선언이 없으면 아무 인자나 받는다.
 

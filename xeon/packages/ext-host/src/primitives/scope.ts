@@ -1,4 +1,4 @@
-import { err, type Result } from "@xeon/contracts";
+import { err, type Result } from "@fresnel/contracts";
 import {
   LoopPortKey,
   validateUsage,
@@ -10,9 +10,9 @@ import {
   type ScopeId,
   type ScopeSetup,
   type ScopeStatus,
-} from "@xeon/contracts/extensions";
-import type { CapabilityId } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/extensions";
+import type { CapabilityId } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { eraseScope } from "../erase.ts";
 import { withoutAmbient } from "./ambient.ts";
 import {

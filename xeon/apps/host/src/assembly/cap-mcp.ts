@@ -1,11 +1,11 @@
-import { detach, err, ok } from "@xeon/contracts";
-import { McpClient, McpClientKey } from "@xeon/contracts/capabilities";
+import { detach, err, ok } from "@fresnel/contracts";
+import { McpClient, McpClientKey } from "@fresnel/contracts/capabilities";
 import {
   defineManifest,
   McpPortKey,
   type ExtensionEntry,
   type PortKey,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   ApprovalServicePortKey,
   OsPortKey,
@@ -14,8 +14,8 @@ import {
   ToolServicePortKey,
   type RuleRegistration,
   type ToolRegistration,
-} from "@xeon/contracts/services";
-import type { ScopeStack } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/services";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import {
   createMcp,
   createSecretServiceHeaders,
@@ -24,8 +24,8 @@ import {
   type McpMasker,
   type McpProcessPort,
   type McpRulesSink,
-} from "@xeon/cap-mcp";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
+} from "@fresnel/cap-mcp";
+import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
 import { messageOf } from "../util.ts";
 import { createHostMcpStart } from "./mcp-start.ts";
 import { createLoaderFs, type ProjectTrust } from "./trust.ts";
@@ -33,7 +33,7 @@ import { createLoaderFs, type ProjectTrust } from "./trust.ts";
 // m2-plan HOST.6, L2.mcp.plan §8.5. cap-mcp는 확장 엔트리와 매니페스트를 내놓지 않는다(`createMcp(deps)`만). 이 파일이 그 몫이다:
 // 포트(도구 등록, 헤더 비밀, 프로젝트 신뢰, 상태 표, 설정 층, 승인 규칙, stdio 프로세스)를 `createMcp`에 잇고, 세션 시작에 `load`, 단계를 여는
 // `boundary.step.before`(광고 앞)마다 그 대화의 정의를 `reload`하고 도구 표에 `applyBoundary`로 반영하며, 종료에 `shutdown`을 부른다.
-// 프로젝트 출처 정의의 기준 폴더는 그 대화의 작업 폴더다(`workspaceOf`, HS-76). 능력 `mcp.client`와 `xeon.mcp`는 `runtime.service`로 낸다.
+// 프로젝트 출처 정의의 기준 폴더는 그 대화의 작업 폴더다(`workspaceOf`, HS-76). 능력 `mcp.client`와 `fresnel.mcp`는 `runtime.service`로 낸다.
 //
 // - stdio 서버(결정 D6, ADR-0011): L0 platform-process의 `createMcpProcessPort`를 조립 루트가 `options.process`로 넘긴다(`mcp-process.ts`).
 //   cap-mcp는 L0를 import하지 않는다. 비밀 env를 쓰는 stdio 서버는 정의 해시마다 한 번 기동 승인을 받는다(`mcp-start.ts`, M3-05).

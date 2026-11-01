@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, readdirSync, rmdirSync, unlinkSync, type Stats } from "node:fs";
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { attempt, attemptAsync, err, ok, type Result, type Thrown } from "@xeon/contracts";
+import { attempt, attemptAsync, err, ok, type Result, type Thrown } from "@fresnel/contracts";
 
 // L0.exec.spec §3.8.2, §10 4 [결정: M3-REQ-47]. spill 디렉터리의 보관 정리와 사용량 계산.
 // 정리는 exec 안에서 돌지 않는다. 조립 루트가 `pruneSpill`을 부른다. 심볼릭 링크는 따라가지도 지우지도 않는다.

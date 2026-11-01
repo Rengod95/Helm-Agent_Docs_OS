@@ -1,7 +1,7 @@
-import { attempt, type Logger } from "@xeon/contracts";
-import type { CommandActionHandler, CommandActionResult } from "@xeon/contracts/capabilities";
-import { toJsonValue, type ThreadId } from "@xeon/contracts/conversation";
-import type { ExtHost } from "@xeon/ext-host";
+import { attempt, type Logger } from "@fresnel/contracts";
+import type { CommandActionHandler, CommandActionResult } from "@fresnel/contracts/capabilities";
+import { toJsonValue, type ThreadId } from "@fresnel/contracts/conversation";
+import type { ExtHost } from "@fresnel/ext-host";
 import type { CommandRegistryHolder } from "./l2-units.ts";
 
 // 확장이 `registerCommand`로 올린 슬래시 명령(예: /helm)을 호스트의 명령 서비스(`command.list`·`command.run`)에 잇는다.

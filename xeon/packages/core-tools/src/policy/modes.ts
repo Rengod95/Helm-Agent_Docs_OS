@@ -1,5 +1,5 @@
-import type { PermissionMode, ToolRisk } from "@xeon/contracts/services";
-import { assertNever } from "@xeon/contracts";
+import type { PermissionMode, ToolRisk } from "@fresnel/contracts/services";
+import { assertNever } from "@fresnel/contracts";
 
 // L1.tools.spec §4.6 모드 기본값 표. 규칙이 정하지 않은 호출에 적용한다.
 export type ModeEffect = "allow" | "ask" | "deny";

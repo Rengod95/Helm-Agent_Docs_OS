@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { WorkspaceShell, type CallOptions } from "@xeon/contracts/capabilities";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { WorkspaceShell, type CallOptions } from "@fresnel/contracts/capabilities";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { DEFAULT_WORKSPACE_SETTINGS, type WorkspaceSettings } from "../src/settings.ts";
 import { createShellApi } from "../src/shell/run.ts";
 import { rejection } from "./support/assertions.ts";

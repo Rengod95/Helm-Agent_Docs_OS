@@ -1,5 +1,5 @@
-import { createBoundedList, DEFAULT_DIAGNOSTICS_CAP } from "@xeon/platform-os";
-import type { ExtDiagnostic } from "@xeon/ext-host";
+import { createBoundedList, DEFAULT_DIAGNOSTICS_CAP } from "@fresnel/platform-os";
+import type { ExtDiagnostic } from "@fresnel/ext-host";
 
 // L0.os.spec §3.14, M3-REQ-52. 확장 진단 배열은 상한이 있다(L4 쪽 적용). 넘으면 가장 오래된 진단부터 버리고 버린 수를 센다.
 

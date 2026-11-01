@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type {
   CallOptions,
   SkillIndexEntry,
@@ -7,7 +7,7 @@ import type {
   SkillScope,
   SkillViewInput,
   SkillViewOutput,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { LedgerDeps } from "../ledger/change.ts";
 import { indexVersion } from "../ledger/rows.ts";

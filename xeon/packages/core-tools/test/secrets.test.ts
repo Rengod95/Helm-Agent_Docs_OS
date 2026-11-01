@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { EffectResultSchema, SecretMaskedPayloadSchema } from "@xeon/contracts/records";
+import { parse } from "@fresnel/contracts";
+import { EffectResultSchema, SecretMaskedPayloadSchema } from "@fresnel/contracts/records";
 import { callTool, createHarness, directTool, installHandlers, textOf } from "./support/harness.ts";
 
 const SECRET = "sk-live-0123456789abcdef";

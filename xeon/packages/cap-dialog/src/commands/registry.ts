@@ -3,7 +3,7 @@ import type {
   CommandActionHandler,
   CommandInfo,
   CommandSource,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { DialogFailure } from "../errors.ts";
 import type { CommandEntry } from "./loader.ts";
 import type { TemplateSegment } from "./shell.ts";

@@ -1,4 +1,4 @@
-import { t, type MessageId } from "@xeon/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import type { PromptIo } from "./approval.ts";
 
 // L4.cli.spec §4.11 잠금 프롬프트. thread.locked(3002)의 대안(details.options) 중 가능한 것만 보인다.

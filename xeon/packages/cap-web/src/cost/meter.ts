@@ -1,5 +1,5 @@
-import { err, ok, type Clock, type Result } from "@xeon/contracts";
-import type { Cost } from "@xeon/contracts/capabilities";
+import { err, ok, type Clock, type Result } from "@fresnel/contracts";
+import type { Cost } from "@fresnel/contracts/capabilities";
 import type { WebStorePort } from "../ports/store.ts";
 import { WEB_STORE_OWNER } from "../cache/migrations.ts";
 import { numberCell, stringCell } from "../cache/rows.ts";

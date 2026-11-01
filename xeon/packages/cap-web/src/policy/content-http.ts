@@ -1,4 +1,4 @@
-import { attempt, err, ok, repeatAsync, type Result } from "@xeon/contracts";
+import { attempt, err, ok, repeatAsync, type Result } from "@fresnel/contracts";
 import type { WebFailure } from "../errors.ts";
 import type { HttpTransport, TransportResponse } from "../ports/transport.ts";
 import type { Access, AccessContext, ApprovedTarget } from "./access.ts";

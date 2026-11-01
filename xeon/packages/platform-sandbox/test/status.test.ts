@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { describeSandboxStatus, type BinaryName } from "@xeon/contracts/services";
+import { describeSandboxStatus, type BinaryName } from "@fresnel/contracts/services";
 import { createSandboxService } from "../src/service.ts";
 import { selectSandboxProvider, type PlatformInput } from "../src/select.ts";
 import {

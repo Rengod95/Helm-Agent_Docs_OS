@@ -1,6 +1,6 @@
-import type { ServiceKey, WebProviderRegistration } from "@xeon/contracts/capabilities";
-import { Bug, ok, type Result } from "@xeon/contracts";
-import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
+import type { ServiceKey, WebProviderRegistration } from "@fresnel/contracts/capabilities";
+import { Bug, ok, type Result } from "@fresnel/contracts";
+import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   DriveOptions,
   ExtensionName,
@@ -18,7 +18,7 @@ import type {
   ScopeApi,
   ScopeId,
   Unsubscribe,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   eraseDrive,
   eraseHandler,
@@ -81,7 +81,7 @@ export interface ScopeHostApi<S = unknown> {
   /** 포트 조회. builtin 확장만. 없으면 port_unavailable */
   port<Api>(key: PortKey<Api>): Api;
   /**
-   * 설정 키의 유효 값(`xeon.settings` 포트를 거친다). builtin 확장은 모든 키를 읽는다. 그 밖의 확장은 자기 이름공간
+   * 설정 키의 유효 값(`fresnel.settings` 포트를 거친다). builtin 확장은 모든 키를 읽는다. 그 밖의 확장은 자기 이름공간
    * `ext.<확장 이름>.` 아래 키만 읽고 다른 키는 값이 있어도 undefined다. 포트가 없거나 모르는 키도 undefined다
    */
   settingValue(key: string): unknown;
@@ -172,8 +172,8 @@ function directAmbient(
   };
 }
 
-/** 조립 루트가 `xeon.settings`로 올리는 설정 읽기. L3 group-sdk의 `GroupSettingsSource`와 같은 이름·모양이다 */
-const SETTINGS_READ_PORT: PortKey<{ value(key: string): unknown }> = { name: "xeon.settings" };
+/** 조립 루트가 `fresnel.settings`로 올리는 설정 읽기. L3 group-sdk의 `GroupSettingsSource`와 같은 이름·모양이다 */
+const SETTINGS_READ_PORT: PortKey<{ value(key: string): unknown }> = { name: "fresnel.settings" };
 
 export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S> {
   const found = hostApis.get(g);
@@ -228,7 +228,7 @@ export function createScopeApi(
     if (!record.builtin) {
       throw new PrimitiveError(
         "service_reserved",
-        `${record.extension} is not built in, so it cannot provide or read xeon.* ports`,
+        `${record.extension} is not built in, so it cannot provide or read fresnel.* ports`,
         { scopeId: record.id },
       );
     }

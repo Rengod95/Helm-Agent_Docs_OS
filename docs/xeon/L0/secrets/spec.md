@@ -14,7 +14,7 @@ binds: [xeon/packages/platform-secrets/**]
 
 ### 1.1 정하는 것
 
-- 서비스 `xeon.secrets`(`SecretService`)와 제공자 인터페이스 `SecretProvider`. `platform-secrets`가 구현해 Cordis에 등록한다(`eng.context-map.design` 5.3절). 참조 형식(`SECRET_REF_PATTERN`, `SecretRef`)의 정본은 F `capabilities/secrets.ts`(`F.capabilities.spec` §3.10)이고, 여러 층이 쓰는 값 타입 `SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`도 같은 파일에 둔다 [결정: review.decisions-2 U-08]. 서비스 인터페이스의 F 위치는 3절 첫 단락이다.
+- 서비스 `fresnel.secrets`(`SecretService`)와 제공자 인터페이스 `SecretProvider`. `platform-secrets`가 구현해 Cordis에 등록한다(`eng.context-map.design` 5.3절). 참조 형식(`SECRET_REF_PATTERN`, `SecretRef`)의 정본은 F `capabilities/secrets.ts`(`F.capabilities.spec` §3.10)이고, 여러 층이 쓰는 값 타입 `SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`도 같은 파일에 둔다 [결정: review.decisions-2 U-08]. 서비스 인터페이스의 F 위치는 3절 첫 단락이다.
 - 핵심 규칙 [결정: `_research/decisions-log.md` 2026-10-21 2차 "에이전트는 값을 모른 채 참조로 사용", 층 구성 계획 v2 L0-c note(`_research/layer-plan-v2.json`)]:
   1. 에이전트와 모델은 값을 모른 채 `secret://<name>` 참조만 쓴다. name은 `[a-z][a-z0-9-]{1,63}`이고 형식은 F `SecretRef`(`F.wire-settings.spec` §3.8.1)다.
   2. 값은 런타임 부모 프로세스 메모리에서 도구 실행 직전에만 풀린다.
@@ -26,16 +26,16 @@ binds: [xeon/packages/platform-secrets/**]
 
 | 주제 | 담당 문서 |
 |---|---|
-| 도구 자식 프로세스 생성과 env 구성 | `L0.exec.spec`(`xeon.exec`) |
-| 네트워크 프록시, TLS 종단, 샌드박스 정책 | `L0.sandbox.spec`(`xeon.sandbox`). sentinel 모드(M2)와의 접점은 후속이며 이 문서의 M2 요구로만 둔다 |
-| 승인 요청과 기억 범위 | `L1.tools.spec`(`xeon.approvals`) |
+| 도구 자식 프로세스 생성과 env 구성 | `L0.exec.spec`(`fresnel.exec`) |
+| 네트워크 프록시, TLS 종단, 샌드박스 정책 | `L0.sandbox.spec`(`fresnel.sandbox`). sentinel 모드(M2)와의 접점은 후속이며 이 문서의 M2 요구로만 둔다 |
+| 승인 요청과 기억 범위 | `L1.tools.spec`(`fresnel.approvals`) |
 | 감사 이벤트를 세션 이벤트로 기록하는 일 | `core-tools`(tool-runtime). kind와 payload는 `F.records.spec` §3.3.1 `secret.*`(§3.9) |
 | 런타임 HTTP 요청 전송(`GuardedHttp`) | `L2.web.spec`. 이 문서는 치환 함수만 제공한다 |
 | 브라우저 드라이버 | `L2.web.spec`(`web.browse`) |
 | `xeon secret` 명령줄 파싱, 프롬프트, 출력 형식 | `L4.cli.spec` |
 | 비밀 탭 화면, 값 입력·열람 창 | `L4.settings-ui.spec`, `L4.desktop.spec` |
 | 설정 키 문법, `SettingDef` 검사(D2, D3) | `F.wire-settings.spec` |
-| 외부 바이너리 경로 해석과 설치 안내 | `L0.os.spec`(`xeon.os`) |
+| 외부 바이너리 경로 해석과 설치 안내 | `L0.os.spec`(`fresnel.os`) |
 
 ## 2. 용어
 
@@ -59,8 +59,8 @@ binds: [xeon/packages/platform-secrets/**]
 
 아래 타입의 F 위치는 둘로 나뉜다.
 
-- 참조 형식(§3.1)과 여러 층이 함께 쓰는 값 타입(§3.2 메타, §3.5 `RedactionHit`, §3.9 감사 레코드)은 F `@xeon/contracts/capabilities`의 `capabilities/secrets.ts`(`F.capabilities.spec` §3.10)가 정본이다 [결정: review.decisions-2 U-08]. 이 문서는 그 블록을 다시 적지 않고 이름만 인용한다. 이름과 필드는 F를 따른다.
-- 서비스 인터페이스와 그 부속 타입(§3.3, §3.4, §3.5의 `Redactor`, §3.6, §3.10)은 F `@xeon/contracts/services`의 `services/secrets.ts`, 관리 서비스(§3.8)는 `services/secret-admin.ts`에 둔다 [결정: review.decisions-2 D-04]. `F.capabilities.spec` §3.12 표의 `SecretService`·`SecretAdminService` 행과 파일별 이름 표가 이 배치를 정했다(8.3절 R1-a, R2). 소비자(L1 tools, L1 models, L2 web·mcp)는 DR-14 때문에 `platform-secrets`를 import할 수 없으므로 이 서브패스로 받는다. 아래 블록은 F로 옮기기 전의 초안이고, 옮긴 뒤에는 F 이름을 인용한다(`F.capabilities.spec` §3.12 규칙 1).
+- 참조 형식(§3.1)과 여러 층이 함께 쓰는 값 타입(§3.2 메타, §3.5 `RedactionHit`, §3.9 감사 레코드)은 F `@fresnel/contracts/capabilities`의 `capabilities/secrets.ts`(`F.capabilities.spec` §3.10)가 정본이다 [결정: review.decisions-2 U-08]. 이 문서는 그 블록을 다시 적지 않고 이름만 인용한다. 이름과 필드는 F를 따른다.
+- 서비스 인터페이스와 그 부속 타입(§3.3, §3.4, §3.5의 `Redactor`, §3.6, §3.10)은 F `@fresnel/contracts/services`의 `services/secrets.ts`, 관리 서비스(§3.8)는 `services/secret-admin.ts`에 둔다 [결정: review.decisions-2 D-04]. `F.capabilities.spec` §3.12 표의 `SecretService`·`SecretAdminService` 행과 파일별 이름 표가 이 배치를 정했다(8.3절 R1-a, R2). 소비자(L1 tools, L1 models, L2 web·mcp)는 DR-14 때문에 `platform-secrets`를 import할 수 없으므로 이 서브패스로 받는다. 아래 블록은 F로 옮기기 전의 초안이고, 옮긴 뒤에는 F 이름을 인용한다(`F.capabilities.spec` §3.12 규칙 1).
 - `KeyProvider`, `Redactor` 구현, SOPS 래퍼는 `platform-secrets` 내부다.
 
 ### 3.1 참조 (`ref.ts`)
@@ -72,7 +72,7 @@ import {
   SECRET_NAME_PATTERN, SECRET_REF_PATTERN, SecretNameSchema, SecretRef,
   parseSecretRef, secretRef, findForeignSecretSyntax,
   type SecretName, type SecretHandle, type SecretRefError,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 ```
 
 - `SecretName`과 `SecretHandle`은 브랜드 타입이다. 문자열을 `SecretName`으로 바꾸는 경로는 `parseSecretRef`와 `SecretNameSchema` 검증 둘이다(`F.capabilities.spec` §3.10).
@@ -105,7 +105,7 @@ import {
   SecretUsePolicySchema, SecretMetaSchema,
   type InjectionMode, type SecretProviderId, type SecretApproval, type SecretScope,
   type SecretUsePolicy, type SecretMeta,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 ```
 
 
@@ -113,7 +113,7 @@ import {
   - `use.modes`는 번호(`M2`, `M3`) 대신 모드 이름을 쓴다(§2).
   - `approval`의 `never`를 `none`(승인 필요 없음)으로 바꾼다. `never`는 "항상 거부"로도 읽히기 때문이다.
   - `use.origins`를 더한다. M4는 호스트가 아닌 origin으로 바인딩한다(§4.3).
-- 메타 파일 형식과 위치 [제안]: 비밀 하나에 YAML 파일 하나, `<OsDirs.config>/secrets/meta/<name>.yaml`. `OsDirs.config`는 `xeon.os`가 정하고 이미 `xeon`으로 끝난다(`L0.os.spec` §3.2. 예: Linux `~/.config/xeon/secrets/meta/`). 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키 기본 위치, 수신자 기록, 기본 SOPS 파일)은 모두 `<OsDirs.config>/secrets/` 아래에 둔다. 파일에는 값이 없으므로 평문이고 권한은 0600으로 쓴다. 파싱은 [가정] Bun 1.4 내장 YAML 파서를 쓴다. 쓸 수 없으면 같은 스키마의 JSON 파일로 바꾼다.
+- 메타 파일 형식과 위치 [제안]: 비밀 하나에 YAML 파일 하나, `<OsDirs.config>/secrets/meta/<name>.yaml`. `OsDirs.config`는 `fresnel.os`가 정하고 이미 `xeon`으로 끝난다(`L0.os.spec` §3.2. 예: Linux `~/.config/xeon/secrets/meta/`). 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키 기본 위치, 수신자 기록, 기본 SOPS 파일)은 모두 `<OsDirs.config>/secrets/` 아래에 둔다. 파일에는 값이 없으므로 평문이고 권한은 0600으로 쓴다. 파싱은 [가정] Bun 1.4 내장 YAML 파서를 쓴다. 쓸 수 없으면 같은 스키마의 JSON 파일로 바꾼다.
 - 범위 규칙 [제안]: 1차는 사용자 범위 메타만 읽는다. 프로젝트 저장소 안의 메타는 읽지 않는다. 저장소를 받는 것만으로 사용자 비밀의 허용 호스트가 넓어지지 않게 하기 위해서다(`F.wire-settings.spec` §4.7 규칙 4의 "범위 제한 키"와 같은 이유). `scope: project:<id>`는 "그 프로젝트의 세션에서만 쓸 수 있다"는 제한으로만 작동한다.
 
 ### 3.3 사용 맥락과 lease (`lease.ts`)
@@ -218,7 +218,7 @@ export interface SecretProvider {
 `RedactionHit`(필드 `kind`, `count`)은 `F.capabilities.spec` §3.10이 정본이다. `kind`는 `"known:<name>"`, 접두 패턴 kind(`"github_pat"`, `"jwt"` 등), `"kv"` 중 하나다. 아래 `RegisterKnownError`와 `Redactor`는 F `services/secrets.ts`로 옮길 초안이다.
 
 ```ts
-import type { RedactionHit, SecretName } from "@xeon/contracts/capabilities";
+import type { RedactionHit, SecretName } from "@fresnel/contracts/capabilities";
 
 export type RegisterKnownError = { readonly kind: "value_too_short"; readonly minBytes: 8 };
 
@@ -259,7 +259,7 @@ export interface Redactor {
 ### 3.6 서비스 (`service.ts`)
 
 ```ts
-export const SecretServiceName = "xeon.secrets";
+export const SecretServiceName = "fresnel.secrets";
 
 export type SecretStatus = "valid" | "expiring" | "expired" | "missing" | "orphaned";
 //   expiring: expiresAt까지 7일 이하 [제안]. missing: 메타는 있으나 제공자에 항목이 없음. orphaned: 제공자 항목에 메타가 없음
@@ -382,9 +382,9 @@ export interface KeyProvider {
 ### 3.8 관리 서비스 (`admin.ts`)
 
 ```ts
-import type { ReauthMethod, SecretApproval, SecretScope, SecretUsePolicy } from "@xeon/contracts/capabilities";
+import type { ReauthMethod, SecretApproval, SecretScope, SecretUsePolicy } from "@fresnel/contracts/capabilities";
 
-export const SecretAdminServiceName = "xeon.secretAdmin";   // F.capabilities.spec §3.12 표, SERVICE_NAMES.secretAdmin
+export const SecretAdminServiceName = "fresnel.secretAdmin";   // F.capabilities.spec §3.12 표, SERVICE_NAMES.secretAdmin
 
 export interface SecretValueSource {
   /** L4가 넘기는 값 입력 통로. stdin 또는 가린 프롬프트. argv 경로는 타입에 없다 */
@@ -433,7 +433,7 @@ export interface SecretAdminService {
 }
 ```
 
-- 에이전트는 생성과 열람을 하지 않는다(`_research/secrets.md` §6.6 `rotate` 행, `docs/design/18-security.md` §3.10.5와 같은 원칙). 그래서 관리 메서드를 별도 서비스 `xeon.secretAdmin`으로 나눈다 [결정: review.decisions-2 D-04]. 이 이름은 `F.capabilities.spec` §3.12 표와 `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 있다. 조립 루트(`apps/host`)가 L4 진입점에만 이 서비스를 넘기고, 확장과 모델 도구에는 주지 않는다. 신뢰 등급과 서비스 노출 규칙은 `X.loading-trust.spec`이 정한다 [가정].
+- 에이전트는 생성과 열람을 하지 않는다(`_research/secrets.md` §6.6 `rotate` 행, `docs/design/18-security.md` §3.10.5와 같은 원칙). 그래서 관리 메서드를 별도 서비스 `fresnel.secretAdmin`으로 나눈다 [결정: review.decisions-2 D-04]. 이 이름은 `F.capabilities.spec` §3.12 표와 `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 있다. 조립 루트(`apps/host`)가 L4 진입점에만 이 서비스를 넘기고, 확장과 모델 도구에는 주지 않는다. 신뢰 등급과 서비스 노출 규칙은 `X.loading-trust.spec`이 정한다 [가정].
 - 명령과 화면의 경계는 §6.3 표다.
 
 ### 3.9 감사 레코드 (`audit.ts`)
@@ -443,7 +443,7 @@ export interface SecretAdminService {
 ```ts
 import type {
   SecretAuditRecord, SecretDenyReason, RedactionLayer, RedactionHit, ReauthMethod,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 ```
 
 - 변형은 `secret.used`, `secret.denied`, `secret.approved`, `secret.created`·`updated`·`deleted`·`rotated`, `secret.revealed`, `secret.masked`다. `secret.revealed.reauth`의 타입은 `ReauthMethod`이고 §3.8 `HumanReauth.method`와 같다. 거부 사유 `SecretDenyReason` 10종과 마스킹 계층 `RedactionLayer` 5종도 F 블록을 따른다.
@@ -508,7 +508,7 @@ export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "
 - 호스트 일치 [제안]: 소문자 비교, `*.example.com`은 한 단계 이상의 하위 도메인만 맞는다(`example.com` 자신은 아니다). IP 리터럴과 `localhost`는 메타에 그대로 적혀 있을 때만 맞는다. 포트가 메타에 없으면 443만 맞는다.
 - 모델 provider 키의 정책 [결정: M2 Mac 실기]: 새 비밀의 정책은 비어 있어(`L4.host-service.spec` HS-45) 모델 호출 lease(`runtime-http`, `model.provider:<id>`, 호스트는 provider 주소)가 거부된다. 정책은 이 패키지가 정하지 않는다. 호스트가 사람의 provider 연결 행위를 근거로 `secret.meta`와 같은 경로(`SecretAdminService.meta`)로 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [provider 호스트]`만 더한다. 이 판정(§4.2)은 바꾸지 않는다.
 - 승인 기본값 [제안, `_research/secrets.md` §6.4]: 읽기 호스트는 `per-session`, 쓰기·배포 호스트는 `per-use`. 메타를 만들 때 사람이 고르고, 고르지 않으면 `l0.secrets.approval.default`를 쓴다.
-- `check`가 `needs_approval`을 돌려주면 L1이 `xeon.approvals`로 사람에게 묻고, 받은 `ApprovalEvidence`를 넣어 `lease`를 다시 부른다. L0는 L1 승인 서비스를 부르지 않는다(층 순위).
+- `check`가 `needs_approval`을 돌려주면 L1이 `fresnel.approvals`로 사람에게 묻고, 받은 `ApprovalEvidence`를 넣어 `lease`를 다시 부른다. L0는 L1 승인 서비스를 부르지 않는다(층 순위).
 - 승인 결과를 받은 L1은 `secret.approved` 레코드를 `SecretService`에 알리지 않는다. 대신 `lease`가 승인 증거를 처음 본 때 `secret.approved`를 낸다 [제안]. 레코드 생산 위치를 한 곳으로 두기 위해서다.
 
 ### 4.3 사용 모드와 단계
@@ -548,9 +548,9 @@ M4 규칙:
 M2 설계(후속 구현):
 
 1. 도구 자식 env에는 `FRESNEL_SECRET_<NAME>=xeon-sentinel-<무작위 32 hex>` 같은 sentinel만 넣는다. sentinel은 lease 하나에 하나다.
-2. 자식의 HTTPS는 `xeon.sandbox`의 프록시를 지나고, 프록시가 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾼다. 허용 호스트 밖으로 가는 요청에 sentinel이 있으면 요청을 막고 `secret.denied`(`host_mismatch`)를 낸다.
+2. 자식의 HTTPS는 `fresnel.sandbox`의 프록시를 지나고, 프록시가 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾼다. 허용 호스트 밖으로 가는 요청에 sentinel이 있으면 요청을 막고 `secret.denied`(`host_mismatch`)를 낸다.
 3. [미결] TLS 종단 방식은 sandbox-runtime 프록시 조사 결과에 의존한다. `@anthropic-ai/sandbox-runtime` 0.0.81(조사한 판. catalog 고정은 0.0.79, review.decisions-2 U-24. 0.0.79에도 같은 선택지가 있는지 후속에서 확인한다)은 `tlsTerminate`(실험, Bun 1.4 이상)와 `mitmProxy`(외부 Unix 소켓)를 서로 배타적으로 제공하고, `SandboxManager`가 프로세스당 정책 하나인 싱글턴이다(`_research/notes/L0-1.md`). 어느 쪽을 쓸지, 자식 프로세스에 CA를 어떻게 신뢰시킬지는 후속에서 정한다.
-4. 요구: `xeon.sandbox`의 프록시 훅(후속, `L0.sandbox.spec` §10 9번, `L0.sandbox.plan` SB-16). 8.2절에 적는다.
+4. 요구: `fresnel.sandbox`의 프록시 훅(후속, `L0.sandbox.spec` §10 9번, `L0.sandbox.plan` SB-16). 8.2절에 적는다.
 
 ### 4.4 마스킹 5계층
 
@@ -571,7 +571,7 @@ M2 설계(후속 구현):
 
 ### 4.5 자식 env 필터
 
-1. 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`, `L0.exec.spec` §3.5) 하나다. 이 서비스는 별도 목록(`childEnvPolicy`)을 두지 않는다 [제안]. `L0.exec.spec`은 도구 자식 프로세스 env를 만들 때 이 상수에 맞는 이름을 모두 지운다. 그래서 부모 env에 우연히 있던 `SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_SECRET_*`(상수의 `FRESNEL_*`), 제공자 토큰(`*_TOKEN`)이 `xeon.secrets` 유무와 관계없이 도구로 넘어가지 않는다.
+1. 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@fresnel/contracts/services`, `L0.exec.spec` §3.5) 하나다. 이 서비스는 별도 목록(`childEnvPolicy`)을 두지 않는다 [제안]. `L0.exec.spec`은 도구 자식 프로세스 env를 만들 때 이 상수에 맞는 이름을 모두 지운다. 그래서 부모 env에 우연히 있던 `SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_SECRET_*`(상수의 `FRESNEL_*`), 제공자 토큰(`*_TOKEN`)이 `fresnel.secrets` 유무와 관계없이 도구로 넘어가지 않는다.
 2. `platform-secrets`가 sops를 부를 때도 같은 상수로 거른 env에 `KeyProvider.sopsKeyEnv()`의 변수 하나만 더한다.
 3. 거부 목록은 허용 목록 기반 env 구성(`L0.exec.spec` §3.5)을 대신하지 않는다. 허용 목록 위에 거는 거부 목록이다.
 4. 비밀 제공자가 새 env 이름을 쓰게 되면(2차 플러그인 제공자 등) `SENSITIVE_ENV_PATTERNS`에 패턴을 더하는 F 변경으로 반영한다. 이 문서에는 따로 목록을 두지 않는다.
@@ -582,7 +582,7 @@ M2 설계(후속 구현):
 
 [결정] 취소: `sops`와 바이너리 해석 호출은 서비스 수명 신호를 받는다. 서비스가 닫히면(`Symbol.dispose`) 신호가 중단되어 실행 중인 자식 프로세스를 죽이고 `err({ kind: "cancelled" })`를 돌려준다. `ProcessRunner`의 `RunRequest`가 `signal`을 가지며, 중단으로 끝난 호출의 잘린 출력은 결과로 쓰지 않는다(`eng.typescript.guide` TY-22).
 
-1. 바이너리 해석: `xeon.os`의 `resolveBinary("sops", …)`(`L0.os.spec` §3.6)로 `sops` 경로를 받는다. `l0.secrets.sops.binary`가 있으면 그 경로를 쓴다. 시작 때 `sops --version`으로 버전을 읽고 3.10.0 미만이면 `provider_unavailable`(`version_too_old`)이다. 권장은 3.12.0 이상이다 [미결 §10]. 3.10.x에서는 키 명령이 실패하면 `SOPS_AGE_KEY_FILE`이 유효해도 복호화가 바로 실패한다(`_research/notes/L0-3.md` §2.4).
+1. 바이너리 해석: `fresnel.os`의 `resolveBinary("sops", …)`(`L0.os.spec` §3.6)로 `sops` 경로를 받는다. `l0.secrets.sops.binary`가 있으면 그 경로를 쓴다. 시작 때 `sops --version`으로 버전을 읽고 3.10.0 미만이면 `provider_unavailable`(`version_too_old`)이다. 권장은 3.12.0 이상이다 [미결 §10]. 3.10.x에서는 키 명령이 실패하면 `SOPS_AGE_KEY_FILE`이 유효해도 복호화가 바로 실패한다(`_research/notes/L0-3.md` §2.4).
 2. 목록: 설정 `l0.secrets.sops.files`의 각 파일을 읽어 키 이름을 평문으로 파싱한다. 복호화하지 않고 sops를 부르지도 않는다. YAML·JSON은 최상위 키 가운데 값이 `ENC[` 로 시작하는 문자열인 것, dotenv는 `KEY=ENC[...]` 줄이다. `sops` 메타데이터 블록은 건너뛴다. 중첩 키는 `a.b` 형식 경로로 내보낸다 [제안]. 키 이름이 평문이라는 사실은 2차 자료로만 확인했다 [가정, `_research/secrets.md` §3.1].
 3. 제공자 참조 `sops:<env>/<KEY>`: `<env>`는 `l0.secrets.sops.files` 항목의 `env` 이름이고 `<KEY>`는 파일 안 키 경로다. 메타의 `ref`는 `"<env>/<KEY>"`다.
 4. lease: `sops decrypt --extract '["<KEY>"]' <파일>`을 부모 프로세스가 실행하고 stdout을 `Uint8Array`로 모은다. 디스크에 쓰지 않는다. 자식 env는 §4.5 규칙 2다. 출력 끝 줄바꿈 처리 규칙은 [가정] `--extract`가 문자열 값을 줄바꿈 없이 낸다는 전제이며 int 테스트로 확인한다.
@@ -598,7 +598,7 @@ M2 설계(후속 구현):
 3. Linux: Secret Service가 있으면 `secret-tool`. `probe()`는 D-Bus 이름 `org.freedesktop.secrets` 유무로 판정한다 [제안]. WSL과 헤드리스는 대부분 없다고 보고 파일 폴백으로 간다 [가정].
 4. 파일 폴백: identity 파일을 0600으로 두고 `SOPS_AGE_KEY_FILE`로 넘긴다. 생성은 `age-encryption` 0.3.1로 한다. 매번 시작할 때 소유자와 권한(0600, 소유 uid 일치)을 검사하고 틀리면 `key_unavailable`(`file_mode`)이다.
 5. 파일 폴백의 위협 수준 차이 [제안]: 키체인은 사용자 로그인 세션과 OS 접근 통제 뒤에 키를 둔다. 파일 폴백은 같은 uid로 도는 모든 프로세스(도구 자식 포함)가 파일을 읽을 수 있다. 그래서 파일 폴백을 쓸 때는 다음을 지킨다.
-   - 키 파일 경로를 `SecretService.protectedPaths()`에 넣어 알린다. `xeon.sandbox`가 이 목록을 보호 경로(`read_write`)에 합친다(`L0.sandbox.spec` §3.3). 기본 경로 `<OsDirs.config>/secrets/age/keys.txt`는 sandbox의 `<xeonConfig>/secrets/` 보호 행으로도 덮인다 [제안].
+   - 키 파일 경로를 `SecretService.protectedPaths()`에 넣어 알린다. `fresnel.sandbox`가 이 목록을 보호 경로(`read_write`)에 합친다(`L0.sandbox.spec` §3.3). 기본 경로 `<OsDirs.config>/secrets/age/keys.txt`는 sandbox의 `<xeonConfig>/secrets/` 보호 행으로도 덮인다 [제안].
    - 첫 사용과 `diagnose()` 결과에 "키가 디스크 파일에 있다. 같은 사용자 권한의 프로그램은 읽을 수 있다"는 고지를 낸다.
    - `auto` 선택으로 파일 폴백에 간 경우 사람이 한 번 확인해야 사용한다(`l0.secrets.ageKey.source`를 `file`로 저장) [제안].
 6. `@napi-rs/keyring` 2.1.2는 후보로만 둔다. Linux에서 Secret Service가 없으면 메모리 전용 keyutils로 조용히 넘어가므로, 쓰게 되면 스토어를 `secret-service`로 고정해야 한다(`_research/notes/L0-3.md` §0 11번). Bun 로드는 [미확인]이다.
@@ -695,7 +695,7 @@ M2 설계(후속 구현):
 | `l0.secrets.providers` | `string[]`(`SecretProviderId`) | `["sops"]` | managed, user | restart | secrets 탭 목록, `config` |
 | `l0.secrets.defaultProvider` | `SecretProviderId` | `"sops"` | managed, user | live | secrets 탭 select |
 | `l0.secrets.sops.files` | `{ env: string; path: string }[]` | `[]`. 비어 있으면 기본 파일 `user`(§4.8) | managed, user | live | secrets 탭 table |
-| `l0.secrets.sops.binary` | `string \| null` | `null`(xeon.os 해석) | managed, user | restart | advanced 탭 |
+| `l0.secrets.sops.binary` | `string \| null` | `null`(fresnel.os 해석) | managed, user | restart | advanced 탭 |
 | `l0.secrets.ageKey.source` | `"auto" \| "auto-file" \| "keychain" \| "file"`(`auto-file`은 원격 호스트, §4.7 8번) | `"auto"` | managed, user | restart | secrets 탭 select |
 | `l0.secrets.ageKey.filePath` | `string \| null` | `null`(기본 경로 `<OsDirs.config>/secrets/age/keys.txt`) | managed, user | restart | secrets 탭 text |
 | `l0.secrets.approval.default` | `"none" \| "per-session" \| "per-use"` | `"per-session"` | managed, user | nextTurn | permissions 탭 |
@@ -712,7 +712,7 @@ M2 설계(후속 구현):
 
 ### 6.2 화면과 파일
 
-- 설정 화면은 설정 키만 다룬다. 메타 파일(§3.2), SOPS 파일(사용자 소유), 감사 파일(§3.9)과 비밀 목록·메타·사용 이력은 secrets 탭의 비밀 관리 패널(`L4.settings-ui.spec` §4.6.3)이 `xeon.secretAdmin`으로 다룬다.
+- 설정 화면은 설정 키만 다룬다. 메타 파일(§3.2), SOPS 파일(사용자 소유), 감사 파일(§3.9)과 비밀 목록·메타·사용 이력은 secrets 탭의 비밀 관리 패널(`L4.settings-ui.spec` §4.6.3)이 `fresnel.secretAdmin`으로 다룬다.
 - 화면 공통: 값 열이 없다. 마스킹을 언급하는 문구는 "보조"로 표기한다.
 
 ### 6.3 명령·화면 경계
@@ -740,7 +740,7 @@ M2 설계(후속 구현):
 - `platform-secrets`는 on 지점, post, drive를 선언하지 않는다. 확장 지점 선언은 L1과 X가 F4에 둔다(`_research/foundation-plan.md` §3).
 - 제공자 추가는 확장 지점 대신 서비스 메서드 `registerProvider`로 한다. 등록할 수 있는 확장의 신뢰 등급은 `X.loading-trust.spec`이 정한다 [가정]. 같은 `id`의 제공자는 하나만 등록되고, `sops`는 내장이라 교체할 수 없다 [제안].
 - 감사 수신은 `onAudit` 콜백이다. 확장이 비밀 사용을 관찰하려면 tool-runtime이 기록한 세션 이벤트(§3.9)를 읽는다. 감사 수신자를 확장에 직접 열지 않는다 [제안].
-- drive와의 관계: 없음. Helm과 학습 그룹(L3 기본 그룹)은 비밀을 직접 lease하지 않고 L2 능력(`xeon.web` 등)을 거쳐 쓴다.
+- drive와의 관계: 없음. Helm과 학습 그룹(L3 기본 그룹)은 비밀을 직접 lease하지 않고 L2 능력(`fresnel.web` 등)을 거쳐 쓴다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -756,7 +756,7 @@ M2 설계(후속 구현):
 | `L2.mcp.spec` | `mcpDefinitionHash`, `mcpStartContext`, `createMcpStartApprovals`(비밀 env 서버 기동 승인, §4.3), `lease`·`use`로 MCP 서버 env·헤더 값 해석, `secret_missing` 오류 코드, 서버 stderr 마스킹 |
 | `L0.exec.spec` | env 모드 `withEnv`(§3.6, 마일스톤 M1). 자식 env 거부 목록은 F 상수 `SENSITIVE_ENV_PATTERNS`(정본, `L0.exec.spec` §3.5)이고 이 패키지도 같은 상수를 쓴다(§4.5) |
 | `L0.sandbox.spec` | `protectedPaths()`: 보호 경로 `secret_key` 행에 넣을 비밀 파일 절대 경로(SOPS 파일, `<OsDirs.config>/secrets/`, 파일 폴백 age 키) |
-| `L4.cli.spec`, `L4.settings-ui.spec` | `xeon.secretAdmin` 메서드, 5계층(Logger 구현이 출력 직전에 `mask`), `diagnose()` 안내문 |
+| `L4.cli.spec`, `L4.settings-ui.spec` | `fresnel.secretAdmin` 메서드, 5계층(Logger 구현이 출력 직전에 `mask`), `diagnose()` 안내문 |
 | `F.wire-settings.spec` | `SecretRef` 소비 확인(`settings.secretValue` 진단과 같은 형식) |
 
 ### 8.2 요구 서비스
@@ -765,18 +765,18 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 
 | 서비스 | 쓰는 것 | 상태 |
 |---|---|---|
-| `xeon.os`(`OsService`) | `dirs.config`, `resolveBinary("sops" \| "security" \| "secret-tool")`, `time.clock`, `time.random`, `logger` | `L0.os.spec` §3.2·§3.6·§3.10의 이름. `eng.context-map.design` 4.1절 `platform-secrets` 행의 (d) "없음"을 `xeon.os`로 고쳐야 한다 |
-| `xeon.exec`(`ExecutionEnv`) | 없음. `platform-secrets`는 sops를 직접 실행한다(DR-07 표에서 `Bun.spawn` 소유 허용) | 해당 없음 |
-| `xeon.sandbox`(`SandboxService`) | 프록시 훅(후속, sentinel 모드 요구, `L0.sandbox.plan` SB-16). 비밀 파일 경로의 읽기 거부는 등록 API 대신 sandbox가 이 서비스의 `protectedPaths()`를 읽는다 | 후속(sentinel 모드) |
-| `xeon.approvals` | 부르지 않는다. L1이 승인 증거를 `UseCtx`로 넘긴다 | 해당 없음 |
+| `fresnel.os`(`OsService`) | `dirs.config`, `resolveBinary("sops" \| "security" \| "secret-tool")`, `time.clock`, `time.random`, `logger` | `L0.os.spec` §3.2·§3.6·§3.10의 이름. `eng.context-map.design` 4.1절 `platform-secrets` 행의 (d) "없음"을 `fresnel.os`로 고쳐야 한다 |
+| `fresnel.exec`(`ExecutionEnv`) | 없음. `platform-secrets`는 sops를 직접 실행한다(DR-07 표에서 `Bun.spawn` 소유 허용) | 해당 없음 |
+| `fresnel.sandbox`(`SandboxService`) | 프록시 훅(후속, sentinel 모드 요구, `L0.sandbox.plan` SB-16). 비밀 파일 경로의 읽기 거부는 등록 API 대신 sandbox가 이 서비스의 `protectedPaths()`를 읽는다 | 후속(sentinel 모드) |
+| `fresnel.approvals` | 부르지 않는다. L1이 승인 증거를 `UseCtx`로 넘긴다 | 해당 없음 |
 
 ### 8.3 F에 요청
 
 | 요청 | 위치 | 내용 |
 |---|---|---|
-| R1 | `@xeon/contracts/capabilities` `secrets.ts` | 반영되었다. `F.capabilities.spec` §3.10에 참조 형식(`SECRET_REF_PATTERN`, `SECRET_NAME_PATTERN`, `SecretRef`, `SecretNameSchema`, `SecretName`, `SecretHandle`, `SecretRefError`), 순수 함수(`parseSecretRef`, `secretRef`, `findForeignSecretSyntax`), 값 타입(`SecretMeta`, `SecretUsePolicy`, `InjectionMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretAuditRecord`, `SecretDenyReason`, `RedactionLayer`, `RedactionHit`, `ReauthMethod`)이 있다 [결정: review.decisions-2 U-08]. 이 문서 §3.1, §3.2, §3.5, §3.9는 그 이름을 인용한다 |
-| R1-a | `@xeon/contracts/services` `services/secrets.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretService` 행(`xeon.secrets`)이 있고, 파일별 이름 표의 `services/secrets.ts` 행에 `SecretServiceName`, `UseCtx`, `SecretUseTarget`, `ApprovalEvidence`, `SecretValueView`, `SecretLease`, `SecretProvider`, `ProviderEntry`, `Redactor`, `SecretError` 등이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.3~§3.6, §3.10 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9) |
-| R2 | `@xeon/contracts/services` `services/secret-admin.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretAdminService` 행(`xeon.secretAdmin`)이 있고 `SERVICE_NAMES`에 들었다. `eng.context-map.design` §5.3 표에도 행이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.8 블록을 옮겨 확정한다 |
+| R1 | `@fresnel/contracts/capabilities` `secrets.ts` | 반영되었다. `F.capabilities.spec` §3.10에 참조 형식(`SECRET_REF_PATTERN`, `SECRET_NAME_PATTERN`, `SecretRef`, `SecretNameSchema`, `SecretName`, `SecretHandle`, `SecretRefError`), 순수 함수(`parseSecretRef`, `secretRef`, `findForeignSecretSyntax`), 값 타입(`SecretMeta`, `SecretUsePolicy`, `InjectionMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretAuditRecord`, `SecretDenyReason`, `RedactionLayer`, `RedactionHit`, `ReauthMethod`)이 있다 [결정: review.decisions-2 U-08]. 이 문서 §3.1, §3.2, §3.5, §3.9는 그 이름을 인용한다 |
+| R1-a | `@fresnel/contracts/services` `services/secrets.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretService` 행(`fresnel.secrets`)이 있고, 파일별 이름 표의 `services/secrets.ts` 행에 `SecretServiceName`, `UseCtx`, `SecretUseTarget`, `ApprovalEvidence`, `SecretValueView`, `SecretLease`, `SecretProvider`, `ProviderEntry`, `Redactor`, `SecretError` 등이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.3~§3.6, §3.10 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9) |
+| R2 | `@fresnel/contracts/services` `services/secret-admin.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretAdminService` 행(`fresnel.secretAdmin`)이 있고 `SERVICE_NAMES`에 들었다. `eng.context-map.design` §5.3 표에도 행이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.8 블록을 옮겨 확정한다 |
 | R3 | `F.records.spec` §3.3.1 | 반영되었다. `CoreArea`에 `secret`, `CoreEventKind`에 `secret.used`, `secret.denied`, `secret.approved`, `secret.masked`가 있고 생산자는 `core.tools`다. 관리 레코드는 세션 이벤트로 넣지 않는다 |
 | R4 | `F.wire-settings.spec` 메서드 표 | 값 없는 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(값 입력은 호스트 쪽 OS 창, `L4.settings-ui.spec` §4.6.4 C안). 값을 싣는 메서드는 요청하지 않는다 |
 | R5 | `eng.dependency-rules.guide` DR-07 | 플러그인 제공자가 `op`, `bws` 바이너리를 부를 때의 소유 행(2차) |
@@ -784,7 +784,7 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 
 ## 9. 수용 기준
 
-1. 도구 자식 env: F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`)가 `SOPS_AGE_KEY_CMD`, `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY`, `AGE_X`, `OP_SERVICE_ACCOUNT_TOKEN`, `BWS_ACCESS_TOKEN`, `BW_SESSION`, `FRESNEL_SECRET_X`에 모두 맞는다. 부모 env에 이 이름들을 넣고 `L0.exec`로 띄운 도구 자식 프로세스의 env를 덤프하면 그중 어느 것도 없다(실제 자식 프로세스, `L0.secrets.plan` SC-15). 이 패키지가 sops를 부를 때의 env에도 없다.
+1. 도구 자식 env: F 상수 `SENSITIVE_ENV_PATTERNS`(`@fresnel/contracts/services`)가 `SOPS_AGE_KEY_CMD`, `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY`, `AGE_X`, `OP_SERVICE_ACCOUNT_TOKEN`, `BWS_ACCESS_TOKEN`, `BW_SESSION`, `FRESNEL_SECRET_X`에 모두 맞는다. 부모 env에 이 이름들을 넣고 `L0.exec`로 띄운 도구 자식 프로세스의 env를 덤프하면 그중 어느 것도 없다(실제 자식 프로세스, `L0.secrets.plan` SC-15). 이 패키지가 sops를 부를 때의 env에도 없다.
 2. 호스트 바인딩: `use.hosts: ["api.example.test"]`인 비밀로 `withHttp`를 `https://other.example.test`에 부르면 `denied`(`host_mismatch`)가 돌아오고, `send`와 제공자 `lease`가 한 번도 불리지 않으며, `secret.denied` 레코드가 정확히 하나 나온다.
 3. 값 비노출(5계층 각각): 가짜 값 `S`(무작위 24바이트)를 `memorySecrets`에 넣고 각 계층 입력에 `S`, base64(`S`), base64url(`S`), URL 인코딩(`S`), hex(`S`), JSON 이스케이프(`S`), Basic 인증 형태 base64(`"user:" + S`)를 넣으면 계층 출력에 어느 형태도 남지 않는다. 계층 다섯 개를 테스트 다섯 개로 따로 확인한다.
 4. 감사 기록·오류·직렬화: `SecretLease`를 `JSON.stringify`, `Bun.inspect`, 템플릿 문자열, `Error` cause에 넣은 결과와 모든 `SecretAuditRecord`, 모든 `SecretError`에 `S`와 변형이 없다. 감사 레코드에 `S`의 SHA-256 hex의 어떤 16자 이상 부분 문자열도 없다.
@@ -806,9 +806,9 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 3. [미결] sops 최소 버전. 이 문서는 3.10.0을 하한으로 두었다. 조사는 3.12.0 하한, 3.13.3 실사용을 제안한다(`_research/notes/L0-3.md` §2.1).
 4. [결정: m2r sec, adr.0019] 기본 SOPS 파일은 `<OsDirs.config>/secrets/sops/user.yaml`(env `user`)이고 `l0.secrets.sops.files`가 비었을 때만 쓴다(§4.8). 사용자 `secrets` 도구(`just secret-add`)의 파일 위치와 env 이름 매핑 규약은 이 기본값과 별개이며 아직 확인하지 못했다. 그 파일을 쓰려면 사람이 `l0.secrets.sops.files`에 적는다 [미결].
 5. [미결] sops `set`이 stdin으로 값을 받는지. 받지 못하면 SOPS 제공자 `put`을 끄고 `just secret-add` 경로만 쓴다(§4.6 6번).
-6. [미결] M2 sentinel의 TLS 종단 방식(`tlsTerminate`와 `mitmProxy` 중 선택, 자식 CA 신뢰). `xeon.sandbox` 프록시 훅(후속, sentinel 모드 요구, `L0.sandbox.plan` SB-16)과 함께 정한다.
+6. [미결] M2 sentinel의 TLS 종단 방식(`tlsTerminate`와 `mitmProxy` 중 선택, 자식 CA 신뢰). `fresnel.sandbox` 프록시 훅(후속, sentinel 모드 요구, `L0.sandbox.plan` SB-16)과 함께 정한다.
 7. [미결] Windows 네이티브 age 키 획득 수단(PowerShell P/Invoke 헬퍼, Bun 컴파일 헬퍼 + `@napi-rs/keyring`)과 1차 `win32` 동작(파일 폴백 허용 여부).
-8. [결정: review.decisions-2 D-04] 관리 서비스는 `xeon.secretAdmin`(`SecretAdminService`)으로 나눈다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 반영되었다(8.3절 R2).
+8. [결정: review.decisions-2 D-04] 관리 서비스는 `fresnel.secretAdmin`(`SecretAdminService`)으로 나눈다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 반영되었다(8.3절 R2).
 9. [결정: review.m3-design-inputs D-M3-20 b] 이미 기록된 이벤트에 남은 값의 사후 가림은 표시·내보내기·모델 입력 단계에서 `Redactor`를 적용하고 키 회전을 안내한다. 원본 이벤트 행은 바꾸지 않는다(§3.5, `review.m3-lower-requirements` M3-REQ-59).
 10. [미결] 플러그인 제공자(`op`, `bws`)의 바이너리 호출 소유 규칙(DR-07 행 추가).
 11. [결정: M3-m2c-04 (b)] Linux Secret Service의 `provision`은 `secret-tool lookup`의 stdout을 버리고 종료 코드만 봐서 identity를 읽지 않고 존재를 확인한 뒤 `secret-tool store`로 만든다(§3.7). WSL·헤드리스는 `auto`면 사람이 `source`를 `file`로 확인한 뒤(§4.7 5번), 원격 호스트는 `auto-file`로 파일 폴백이 키를 만든다. 실제 Secret Service에서의 확인은 Linux 데스크톱 실기다.

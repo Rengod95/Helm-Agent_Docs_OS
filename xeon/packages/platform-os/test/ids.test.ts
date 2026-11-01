@@ -7,8 +7,8 @@ import {
   ULID_PATTERN,
   type IdPrefix,
   type LocalIdPrefix,
-} from "@xeon/contracts/conversation";
-import { Bug } from "@xeon/contracts";
+} from "@fresnel/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
 import { createIdFactory, createLocalIdFactory } from "../src/ids.ts";
 import { systemRandom } from "../src/time/random.ts";
 import { manualClock, seededRandom } from "./support/clock.ts";

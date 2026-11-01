@@ -1,4 +1,4 @@
-import type { SandboxPolicy, SandboxService, Shell } from "@xeon/contracts/services";
+import type { SandboxPolicy, SandboxService, Shell } from "@fresnel/contracts/services";
 
 // L0.sandbox.spec §4.8. MCP stdio 서버를 띄울 때 샌드박스를 적용할지 출처별로 정한다(M3-REQ-57, D-M3-19 행 1).
 

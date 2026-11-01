@@ -6,9 +6,9 @@ import {
   serviceKey,
   type CallContext,
   type CallOptions,
-} from "@xeon/contracts/capabilities";
-import type { ApprovalEvidence, ToolRunContext } from "@xeon/contracts/services";
-import type { JsonObject } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ApprovalEvidence, ToolRunContext } from "@fresnel/contracts/services";
+import type { JsonObject } from "@fresnel/contracts/conversation";
 import { createCallTable } from "../src/calls.ts";
 import { createPipeline } from "../src/pipeline.ts";
 import { createRegistry } from "../src/registry.ts";

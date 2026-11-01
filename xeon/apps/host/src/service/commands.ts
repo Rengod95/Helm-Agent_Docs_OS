@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import type { CommandIo, HostCommand } from "../host-command.ts";
 import { serviceStatus, stopHostService } from "./control.ts";
 import { ensureHostService, type ServiceCommand } from "./ensure.ts";

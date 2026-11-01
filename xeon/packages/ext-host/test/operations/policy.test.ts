@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { buildCatalog } from "@xeon/contracts/settings";
+import { buildCatalog } from "@fresnel/contracts/settings";
 import {
   createStaticOperationsSettings,
   DEFAULT_AUTO_DISABLE,

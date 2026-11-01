@@ -3,7 +3,7 @@ import type {
   WebProviderCapability,
   WebProviderStatus,
   WebProvidersResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { activeLocale, setActiveLocale } from "../../src/i18n/index.ts";
 import {
   moveInOrder,

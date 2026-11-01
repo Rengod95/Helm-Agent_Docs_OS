@@ -1,4 +1,4 @@
-import type { ExtensionManifest } from "@xeon/contracts/extensions";
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 
 export interface GroupCatalogEntry {
   readonly manifest: ExtensionManifest;

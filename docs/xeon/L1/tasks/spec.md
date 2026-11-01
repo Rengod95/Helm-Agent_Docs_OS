@@ -10,9 +10,9 @@ binds: [xeon/packages/core-tasks/**]
 
 # L1 태스크 엔진 (tasks)
 
-- 패키지: `xeon/packages/core-tasks`(`@xeon/core-tasks`), 계획 id L1-a "태스크 엔진"(`_research/layer-plan-v2.json` L1-a).
+- 패키지: `xeon/packages/core-tasks`(`@fresnel/core-tasks`), 계획 id L1-a "태스크 엔진"(`_research/layer-plan-v2.json` L1-a).
 - 컨텍스트: `run-engine`(`eng.context-map.design` §4.1, §4.5).
-- Cordis 서비스: `xeon.tasks`(`eng.context-map.design` §5.3). 이 문서는 인터페이스 이름을 `TaskService`로 정한다.
+- Cordis 서비스: `fresnel.tasks`(`eng.context-map.design` §5.3). 이 문서는 인터페이스 이름을 `TaskService`로 정한다.
 
 ## 1. 목적과 범위
 
@@ -64,7 +64,7 @@ turn과 step은 `F.conversation.spec` §2, §2.1을 따른다. pi의 turn은 Xeo
 
 ## 3. 인터페이스
 
-이 절의 타입은 다른 L1 패키지(core-loop, core-tools, core-agents)와 X가 함께 쓴다. 같은 층 패키지끼리 import할 수 없으므로(`eng.dependency-rules.guide` DR-14) 서비스 인터페이스 `TaskService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 두고, `core-tasks`가 구현한다 [결정: review.decisions-2 D-04]. 파일 위치는 `F.capabilities.spec` §3.12 `services/tasks.ts`(`TaskService extends InputQueuePort`)이고 §8.1 FR-T5가 반영됐다. 코드는 `isolatedDeclarations`를 켠 상태로 컴파일되므로 export 상수에는 명시 타입을 단다.
+이 절의 타입은 다른 L1 패키지(core-loop, core-tools, core-agents)와 X가 함께 쓴다. 같은 층 패키지끼리 import할 수 없으므로(`eng.dependency-rules.guide` DR-14) 서비스 인터페이스 `TaskService`와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 두고, `core-tasks`가 구현한다 [결정: review.decisions-2 D-04]. 파일 위치는 `F.capabilities.spec` §3.12 `services/tasks.ts`(`TaskService extends InputQueuePort`)이고 §8.1 FR-T5가 반영됐다. 코드는 `isolatedDeclarations`를 켠 상태로 컴파일되므로 export 상수에는 명시 타입을 단다.
 
 ### 3.1 서비스 진입점
 
@@ -78,7 +78,7 @@ import type { PostItem, PostReceipt, Unsubscribe } from "./ops.ts";
 // [제안: L1.loop.spec FR-L1] X.primitives.spec §3.6의 InputQueuePort, EnqueueRequest, EnqueueResult
 import type { InputQueuePort } from "./ports.ts";
 
-export const TaskServiceName: "xeon.tasks" = "xeon.tasks";
+export const TaskServiceName: "fresnel.tasks" = "fresnel.tasks";
 
 /**
  * InputQueuePort(X.primitives.spec §3.6)에서 받는 것:
@@ -449,7 +449,7 @@ abort(target, reason, { background }):
 | 일 | 맡는 곳 | 근거 |
 |---|---|---|
 | 도구가 어떤 경로를 읽고 쓰는지 선언 | `ToolSpec`(F.capabilities §3.3)에 잠금 선언 필드 추가 요청(FR-T6) | 병렬 허용 필드 `executionMode`가 F에 있다 |
-| 선언된 경로 → 키 산출(절대 경로, realpath, 없는 파일은 부모 realpath + 이름) | `L1.tools.spec` 어댑터. `xeon.exec`의 경로 함수를 쓴다 | 파일 시스템 접근은 L0 뒤(DR-13) |
+| 선언된 경로 → 키 산출(절대 경로, realpath, 없는 파일은 부모 realpath + 이름) | `L1.tools.spec` 어댑터. `fresnel.exec`의 경로 함수를 쓴다 | 파일 시스템 접근은 L0 뒤(DR-13) |
 | 키별 대기, shared·exclusive, 다중 키 순서, 취소 시 제거 | `core-tasks` `KeyedQueue` | 이 문서 |
 
 - 포크 원본: `~/projects/_ref/pi-src/packages/durable/src/tools/file-mutation-queue.ts`(pi 커밋 `cdaf6c2`, 55줄). 원본은 `Map<string, Promise<void>>` 꼬리 사슬 하나로 같은 키의 변경을 직렬화한다. 읽기·쓰기 구분과 대기 중 취소는 없고, 키 산출(`mutationKey`, `canonical`)이 같은 파일에 있다.
@@ -628,16 +628,16 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 ## 7. 확장 지점
 
 - 이 도메인이 발화하는 지점은 없다. 발화 소유표(46개)에서 tasks 몫은 0이다.
-- `post`: `xeon.tasks`가 `InputQueuePort`(`X.primitives.spec` §3.6)를 구현한다. `enqueue(EnqueueRequest)`를 `TaskService` 최상위에 두고, 안에서 `inputs.enqueue`를 부른다. X의 `ExtensionOps.post`(`F.extensions.spec` §3.2) 구현은 이 포트를 부른다. 대응은 `when` → `mode`, `requestId` → `requestId`, `item` → `item`, `source: { type: "extension", scopeId }`다. 결과 `EnqueueResult.duplicate`는 `EnqueueReceipt.duplicate`다.
+- `post`: `fresnel.tasks`가 `InputQueuePort`(`X.primitives.spec` §3.6)를 구현한다. `enqueue(EnqueueRequest)`를 `TaskService` 최상위에 두고, 안에서 `inputs.enqueue`를 부른다. X의 `ExtensionOps.post`(`F.extensions.spec` §3.2) 구현은 이 포트를 부른다. 대응은 `when` → `mode`, `requestId` → `requestId`, `item` → `item`, `source: { type: "extension", scopeId }`다. 결과 `EnqueueResult.duplicate`는 `EnqueueReceipt.duplicate`다.
 - [결정: review.decisions-2 U-05] 확장 post의 커밋에는 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나만 넣는다. `post.accepted`는 retire했다(`F.records.spec` §3.3 `retired: true`). 같은 post의 두 번째 호출은 커밋 키 `in:<scopeId>:<requestId>`와 `TxView.inputByRequestId`로 걸러 `duplicate: true` 영수증을 돌려준다. 배치된 item은 `input.placed`가 적는다.
-- `drive`: `LoopHandle.turn`은 `xeon.loop`가 처리한다(`L1.loop.spec`). tasks는 drive turn에 turn 노드를 주고, 임대 회수 신호를 받지 않는다. 임대 신호 처리는 loop 몫이다.
-- `scope` 토글의 정리(`onDispose`)에서 진행 중 작업을 멈추려는 확장은 자기가 연 노드만 `abort`한다. 확장은 `xeon.tasks`를 직접 받지 않고 X가 노출하는 API를 쓴다(X.primitives.spec).
+- `drive`: `LoopHandle.turn`은 `fresnel.loop`가 처리한다(`L1.loop.spec`). tasks는 drive turn에 turn 노드를 주고, 임대 회수 신호를 받지 않는다. 임대 신호 처리는 loop 몫이다.
+- `scope` 토글의 정리(`onDispose`)에서 진행 중 작업을 멈추려는 확장은 자기가 연 노드만 `abort`한다. 확장은 `fresnel.tasks`를 직접 받지 않고 X가 노출하는 API를 쓴다(X.primitives.spec).
 
 `input` 지점 발화 위치의 어긋남 [제안, 보고]:
 
 - 어긋남: `F.extensions.spec` §7 표는 `input` 종류 지점의 발화 문서를 `L1.loop.spec`으로 적었다. `architecture.runtime-flow.design` §4.1 그림은 `TASKS->>EXT: on input (chain)`으로 core-tasks가 발화하는 것처럼 그렸다.
 - 정한 것: `input`은 `L1.loop.spec`의 `LoopService.admit`이 발화한다. 순서는 runtime-flow 그림과 같게 "제출 → `input` chain → 큐 기록"이다. 그래서 F.extensions §7은 그대로 두고, runtime-flow §4.1 그림의 화살표를 `HOST->>LP: admit`, `LP->>EXT: on input (chain)`, `LP->>TASKS: enqueue`로 고치도록 요청한다. 두 문서(L1.tasks, L1.loop)가 같은 결정을 쓴다.
-- 이유: 지점 발화는 loop의 소유표 12개(input 포함)에 이미 들어가 있고, core-tasks는 확장 호스트(`xeon.ext`)를 부르지 않는 하위 기계로 둔다. 그래야 core-tasks의 의존이 `xeon.session` 하나로 줄어든다.
+- 이유: 지점 발화는 loop의 소유표 12개(input 포함)에 이미 들어가 있고, core-tasks는 확장 호스트(`fresnel.ext`)를 부르지 않는 하위 기계로 둔다. 그래야 core-tasks의 의존이 `fresnel.session` 하나로 줄어든다.
 - 확장 `post`는 `input` 지점을 지나지 않는다 [제안]. 확장이 넣은 입력이 다시 확장 핸들러를 부르는 순환을 막기 위해서다. `InputPayload.source`의 `"extension"` 값은 지금 쓰지 않는다. pi가 확장 메시지에 `input`을 발화하는지는 [가정]으로 남긴다(§10).
 
 ## 8. 다른 문서와의 인터페이스
@@ -646,7 +646,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `TaskService`, `TaskServiceName`(`xeon.tasks`) | L1.loop.spec, L1.tools.spec, L1.agents.spec, X.primitives.spec, L2.schedule.spec, L4.host-service.spec |
+| `TaskService`, `TaskServiceName`(`fresnel.tasks`) | L1.loop.spec, L1.tools.spec, L1.agents.spec, X.primitives.spec, L2.schedule.spec, L4.host-service.spec |
 | `TaskScope`, `TaskScopeSpec`, `TaskScopeKind`, `AbortIntentWriter`, `AbortReason`, `AbortCode`, `AbortTicket`, `ScopeOutcome` | L1.loop.spec, L1.tools.spec, L1.agents.spec |
 | `Limiter`, `Slot`, `PoolName` | L1.tools.spec(`tools`), L1.agents.spec(`subagents`), L1.loop.spec(`modelCalls`) |
 | `KeyedQueue`, `LockRequest`, `LockMode` | L1.tools.spec |
@@ -659,7 +659,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 
 | 이름 | 출처 |
 |---|---|
-| `SessionService.commit`(`CommitRequest` → `Result<CommitResult, StoreError>`), `TxView.inputByRequestId(threadId, sourceKey, requestId)`, `TxView.queuedInputs(threadId)`, `TxView.turnAbortRequested(turnId)`, 투영 `p_inputs` 읽기, 재개 판정 `isCancelledByOwner` 호출 | L1.persistence.spec(`xeon.session`), eng.transactions.design §4.2 |
+| `SessionService.commit`(`CommitRequest` → `Result<CommitResult, StoreError>`), `TxView.inputByRequestId(threadId, sourceKey, requestId)`, `TxView.queuedInputs(threadId)`, `TxView.turnAbortRequested(turnId)`, 투영 `p_inputs` 읽기, 재개 판정 `isCancelledByOwner` 호출 | L1.persistence.spec(`fresnel.session`), eng.transactions.design §4.2 |
 | `ThreadId`, `TurnId`, `ItemId`, `EventId` | F.conversation.spec §3.2 |
 | `PostItem`, `PostReceipt`, `PostWhen`, `Unsubscribe` | F.extensions.spec §3.2 |
 | `StampedDraft`, `CommitRequest`, `StoreError`, `InputView` | eng.transactions.design §4.2, L1.persistence.spec §3.2(F records `commit.ts`로 이전 예정, FR-P1) |
@@ -676,7 +676,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 | FR-T2 | F.records.spec §3.2, §3.3 | (반영됨) `CoreEventKind`에 `turn.abort_requested`(durable, version 1)와 `TurnAbortRequestedPayloadSchema`를 더한다 | `turn.updated`는 휘발이라 취소 의도를 남길 수 없다(§3.8). transactions §6.2 2·7항 |
 | FR-T3 | F.records.spec §3.3 | (반영됨, 바뀜) `post.accepted`를 retire한다. 카탈로그 항목은 `retired: true`로 남긴다. 확장 post는 `input.queued` 하나를 쓰고 멱등은 커밋 키가 맡는다 | `input.queued`가 `scopeId`·`requestId`를 이미 싣고 `input.placed`가 item을 적어 영수증 kind가 중복이다. retire안은 [결정: review.decisions-2 U-05]이다(2026-10-22 사용자 확인에서 유지안을 바꿈) |
 | FR-T4 | F.extensions.spec §3.2 | 철회. 1안으로 정해 `PostWhen`을 바꾸지 않는다(§4.9, review.m2-plan §8 D7) | 요청 없음 |
-| FR-T5 | F `@xeon/contracts/services` | (반영됨: `F.capabilities.spec` §3.12 `services/tasks.ts`) §3.1~§3.7의 타입과 `TaskServiceName`을 F `services` 서브패스에 둔다(review.decisions-2 D-04) | 같은 층 import 금지(DR-14) |
+| FR-T5 | F `@fresnel/contracts/services` | (반영됨: `F.capabilities.spec` §3.12 `services/tasks.ts`) §3.1~§3.7의 타입과 `TaskServiceName`을 F `services` 서브패스에 둔다(review.decisions-2 D-04) | 같은 층 import 금지(DR-14) |
 | FR-T6 | F.capabilities.spec §3.3 | `ToolSpec`에 잠금 선언 필드를 더한다. [제안] `readonly locks?: (params: Static<P>) => readonly { readonly path: string; readonly access: "read" \| "write" }[]`. 순수 함수 | 키 산출 입력을 도구 정의가 내야 L1.tools가 realpath 키를 만든다(§4.4) |
 | FR-T7 | F.records.spec(L1.agents.spec 경유) | (반영됨: `F.records.spec` §3.3 `agent.spawned`·`agent.settled`, `L1.agents.spec` §8.3 3번) 자식 thread 연결 kind `agent.spawned`, `agent.settled` 후보를 F 형식으로 둔다. 소유 간선(부모 turn·tool, background)을 payload에 싣는다 | 소유 트리 복원(§4.1 규칙 1). 정의는 L1.agents.spec이 낸다 |
 
@@ -694,7 +694,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 8. 같은 키에 `exclusive` 작업 두 개를 동시에 넣으면 실행 구간이 겹치지 않는다. 다른 키 두 개면 겹친다. 같은 키의 `shared` 두 개는 겹치고, 그 뒤의 `exclusive`는 둘이 끝난 뒤 시작한다.
 9. `stepEnd`, `continuing: false`, `steeringMode: "one-at-a-time"`에서 steer 두 건과 followUp 한 건이 queued면 `drain`은 첫 steer 하나만 고른다. `"all"`이면 steer 두 건을 고르고 followUp은 고르지 않는다.
 10. `l1.tasks.*` 다섯 키가 `checkSettingDef`와 `buildCatalog`를 통과한다.
-11. core-tasks의 import 목록에 `cordis`, 다른 `@xeon/core-*` 패키지, `@earendil-works/*`가 없다(check-layers, DR-07, DR-14).
+11. core-tasks의 import 목록에 `cordis`, 다른 `@fresnel/core-*` 패키지, `@earendil-works/*`가 없다(check-layers, DR-07, DR-14).
 
 ## 10. 미결 사항
 

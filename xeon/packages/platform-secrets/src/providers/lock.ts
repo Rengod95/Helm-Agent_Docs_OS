@@ -1,8 +1,8 @@
-import { assertNever, ok, type Result } from "@xeon/contracts";
-import type { SecretError } from "@xeon/contracts/services";
+import { assertNever, ok, type Result } from "@fresnel/contracts";
+import type { SecretError } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §4.6 8번. SOPS 파일의 읽고-고치고-쓰기와 첫 파일 만들기를 프로세스 사이에서 차례로 하게 하는 잠금.
-// 운영은 xeon.os의 파일 잠금(`OsServiceHandle.fileLock`, L0.os.spec §3.11)을 넘긴다. 같은 층이라 타입을 import하지 않고 필요한 모양만 적는다.
+// 운영은 fresnel.os의 파일 잠금(`OsServiceHandle.fileLock`, L0.os.spec §3.11)을 넘긴다. 같은 층이라 타입을 import하지 않고 필요한 모양만 적는다.
 
 export type SecretFileLockError =
   | { readonly kind: "timeout" }

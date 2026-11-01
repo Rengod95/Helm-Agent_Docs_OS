@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { McpClient, validateCapability } from "@xeon/contracts/capabilities";
+import { McpClient, validateCapability } from "@fresnel/contracts/capabilities";
 
 describe("mcp.client definition", () => {
   test("mcp.client def has no issues", () => {

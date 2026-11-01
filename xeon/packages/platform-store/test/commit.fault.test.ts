@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { FaultPoint, LeaseToken } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { FaultPoint, LeaseToken } from "@fresnel/contracts/records";
 import { faultAt, openTestStore, type TestStore } from "../src/testing/index.ts";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";
 import { disposableWith } from "./support/fixture.ts";

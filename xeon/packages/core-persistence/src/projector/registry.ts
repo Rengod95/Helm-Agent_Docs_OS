@@ -2,7 +2,7 @@
 // 등록은 이름과 테이블 소유를 검사하고, 투영 버전이 저장된 값과 다르면 등록 전에 그 투영기만 다시 만든다.
 // 확장 투영기가 커밋에서 던지면 커밋은 롤백되고, 그 투영기는 정지된 뒤 onFailure로 알려진다(X가 그 확장을 끈다).
 // 정지한 투영기는 커밋에서 빠진 채 다시 낸 커밋이 적용하고, 다음 쓰기 열기(ensure)가 이벤트에서 다시 만든다(§4.5.2).
-import { attempt, err, ok, type Logger, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type {
   Projector,
   ProjectorFailure,
@@ -11,7 +11,7 @@ import type {
   StoreDb,
   StoreWriteError,
   Unsubscribe,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { RowFault } from "../rows.ts";
 import type { KindCatalog } from "../upcast.ts";
 import { ensureProjectors } from "./rebuild.ts";

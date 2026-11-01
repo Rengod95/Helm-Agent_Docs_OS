@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { CapabilityError, type CacheUsage } from "@xeon/contracts/capabilities";
+import { CapabilityError, type CacheUsage } from "@fresnel/contracts/capabilities";
 import { DEFAULT_WEB_SETTINGS } from "../src/settings.ts";
 import {
   fakeCatalog,

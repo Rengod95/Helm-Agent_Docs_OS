@@ -9,8 +9,8 @@ import {
   type McpQuestion,
   type ReadResourceInputValue,
   type ReadResourceOutputValue,
-} from "@xeon/contracts/capabilities";
-import type { JsonObject } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { JsonObject } from "@fresnel/contracts/conversation";
 import { callTool, createHarness, textOf, until, type Harness } from "./support/harness.ts";
 
 // 결정 D5 (a): 승인 id가 없는 `input_required`(MCP의 `inputRequests`)를 어댑터가 질문 승인(kind question)으로 올리고,

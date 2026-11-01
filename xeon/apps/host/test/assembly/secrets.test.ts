@@ -2,10 +2,10 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parse } from "@xeon/contracts";
-import { secretRef, SecretNameSchema, SecretRef } from "@xeon/contracts/capabilities";
-import { defineSettings } from "@xeon/contracts/settings";
-import { DEFAULT_SECRETS_CONFIG, defaultSopsFile } from "@xeon/platform-secrets";
+import { parse } from "@fresnel/contracts";
+import { secretRef, SecretNameSchema, SecretRef } from "@fresnel/contracts/capabilities";
+import { defineSettings } from "@fresnel/contracts/settings";
+import { DEFAULT_SECRETS_CONFIG, defaultSopsFile } from "@fresnel/platform-secrets";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import {
   createSecretsPort,

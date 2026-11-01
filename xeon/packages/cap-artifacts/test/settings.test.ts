@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCatalog, checkSettingDef, type ScopeLayer } from "@xeon/contracts/settings";
+import { buildCatalog, checkSettingDef, type ScopeLayer } from "@fresnel/contracts/settings";
 import {
   ARTIFACTS_SETTING_DEFS,
   DEFAULT_ARTIFACTS_SETTINGS,

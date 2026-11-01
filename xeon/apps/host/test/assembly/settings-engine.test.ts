@@ -2,9 +2,9 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Bug } from "@xeon/contracts";
-import type { SessionSettingsStore } from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { Bug } from "@fresnel/contracts";
+import type { SessionSettingsStore } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { createSettingsEngine, type SettingsEngine } from "../../src/assembly/settings-engine.ts";
 

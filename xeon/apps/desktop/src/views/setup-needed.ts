@@ -1,7 +1,7 @@
-import { detach, rethrow } from "@xeon/contracts";
+import { detach, rethrow } from "@fresnel/contracts";
 import { useEffect, useState } from "react";
-import { t } from "@xeon/client/i18n";
-import { readyToChat } from "@xeon/client/settings";
+import { t } from "@fresnel/client/i18n";
+import { readyToChat } from "@fresnel/client/settings";
 import { useLinkPhase } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
 

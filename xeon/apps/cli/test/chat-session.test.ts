@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import type { EventsBatchParams } from "@xeon/contracts/wire";
+import type { EventsBatchParams } from "@fresnel/contracts/wire";
 import { exitCodeOfTurn } from "../src/commands/chat.ts";
 import { collapseOps, splitBatchAt } from "../src/commands/chat-session.ts";
 import { EXIT } from "../src/exit-codes.ts";

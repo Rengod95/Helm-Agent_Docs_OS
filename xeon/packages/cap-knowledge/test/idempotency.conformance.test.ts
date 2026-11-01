@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CallOptions, WriteOutcome } from "@xeon/contracts/capabilities";
+import type { CallOptions, WriteOutcome } from "@fresnel/contracts/capabilities";
 import { closeWorlds, createWorld, type World } from "./support/world.ts";
 import { asHost, rejection, threadIdOf } from "./support/helpers.ts";
 import { createMemoryFs, type MemoryFs } from "./support/memory-fs.ts";

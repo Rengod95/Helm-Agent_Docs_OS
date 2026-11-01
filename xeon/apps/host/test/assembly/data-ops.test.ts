@@ -2,10 +2,10 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync }
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import { err, ok, type Clock, type Logger } from "@xeon/contracts";
-import type { SessionService } from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import { openTestStore, type TestStore } from "@xeon/platform-store/testing";
+import { err, ok, type Clock, type Logger } from "@fresnel/contracts";
+import type { SessionService } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { openTestStore, type TestStore } from "@fresnel/platform-store/testing";
 import {
   BLOB_GC_FIRST_RUN_MS,
   DATA_OPS_DAY_MS,

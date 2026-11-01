@@ -1,10 +1,10 @@
-import { canonicalJson, err, ok, parse, parseJson, type Result } from "@xeon/contracts";
+import { canonicalJson, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import {
   DurableEventEnvelopeSchema,
   type DurableEventEnvelope,
   type SqlRow,
   type SqlTx,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { columns, rowInvalid, type RowFault } from "./rows.ts";
 
 /** events.envelope 열을 envelope로 되돌린다. 저장된 값이 스키마와 다르면 손상된 행이라 row_invalid다 */

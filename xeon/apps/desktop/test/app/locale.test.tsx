@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { activeLocale, setActiveLocale, UI_LOCALE_KEY, type Locale } from "@xeon/client/i18n";
+import { activeLocale, setActiveLocale, UI_LOCALE_KEY, type Locale } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
 import { createApp } from "../../src/app/bootstrap.ts";
 import { localeOf } from "../../src/app/locale.ts";

@@ -1,4 +1,4 @@
-import type { HostBinaryReport, HostBinaryStatus } from "@xeon/contracts/wire";
+import type { HostBinaryReport, HostBinaryStatus } from "@fresnel/contracts/wire";
 import { t } from "../i18n/index.ts";
 
 // 외부 바이너리 점검 결과(G2-07, L0.os.spec §3.6.1 `BinaryCheckReport`에서 경로만 뺀 `HostBinaryReport`)를 화면 값으로 읽는다.

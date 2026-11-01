@@ -1,6 +1,6 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { UsageMeter, UsageRecord } from "@xeon/contracts/services";
-import type { UsageGauge, UsageUnit } from "@xeon/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { UsageMeter, UsageRecord } from "@fresnel/contracts/services";
+import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
 import type { UsagePort } from "../types.ts";
 
 // M3-REQ-15. 사용량 게이지 원천의 조립 기본이다. L1.models 합산기(`ModelService.usage`)의 기록을 구독해 thread와 provider별로 모은다.

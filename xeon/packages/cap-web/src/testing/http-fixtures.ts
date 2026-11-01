@@ -1,4 +1,4 @@
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type { DnsResolver } from "../ports/resolver.ts";
 import type {
   HttpTransport,

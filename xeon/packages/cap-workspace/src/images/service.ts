@@ -3,8 +3,8 @@ import {
   type CapabilityApi,
   type ImageLimits,
   type WorkspaceImage,
-} from "@xeon/contracts/capabilities";
-import type { CancelScope } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { guarded, WorkspaceFailure } from "../errors.ts";
 import type { BlobSink } from "../ports/blobs.ts";

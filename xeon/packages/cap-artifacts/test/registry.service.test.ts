@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import type { TurnId } from "@xeon/contracts/conversation";
+import type { TurnId } from "@fresnel/contracts/conversation";
 import { codeOf, rejection } from "./support/assert.ts";
 import { openRegistry, type RegistryHarness } from "./support/harness.ts";
 

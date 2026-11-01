@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import { Type } from "typebox";
 import { hostOf, PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";

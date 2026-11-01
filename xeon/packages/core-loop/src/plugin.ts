@@ -1,11 +1,11 @@
-import type { IdFactory } from "@xeon/contracts/conversation";
+import type { IdFactory } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
   type PortKey,
-} from "@xeon/contracts/extensions";
-import { EVENT_CATALOG, SessionServiceName, type SessionService } from "@xeon/contracts/records";
+} from "@fresnel/contracts/extensions";
+import { EVENT_CATALOG, SessionServiceName, type SessionService } from "@fresnel/contracts/records";
 import {
   AgentServiceName,
   ApprovalServiceName,
@@ -23,16 +23,16 @@ import {
   type OsService,
   type TaskService,
   type ToolService,
-} from "@xeon/contracts/services";
-import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 import { createLoopService } from "./service.ts";
 import { DEFAULT_LOOP_SETTINGS, type LoopSettingsSource } from "./settings.ts";
 import type { HostMode, LoopDeps } from "./types.ts";
 
-// L1.loop.plan §2 plugin.ts. ext-host의 내장 확장 API로 `xeon.loop`를 제공하고,
-// 필요한 서비스(xeon.tasks·session·tools·context·models·ext·os)는 포트로 주입받는다(DR-14 예외 4).
+// L1.loop.plan §2 plugin.ts. ext-host의 내장 확장 API로 `fresnel.loop`를 제공하고,
+// 필요한 서비스(fresnel.tasks·session·tools·context·models·ext·os)는 포트로 주입받는다(DR-14 예외 4).
 
-/** 확장 이름. 서비스 이름 `xeon.loop`와 별개다 */
+/** 확장 이름. 서비스 이름 `fresnel.loop`와 별개다 */
 export const LOOP_EXTENSION_NAME = "core-loop";
 
 export const LOOP_MANIFEST: ExtensionManifest = defineManifest({

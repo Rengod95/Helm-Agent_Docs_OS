@@ -1097,7 +1097,7 @@ export const ArtifactsSessions: CapabilityDef<
   service: {
     methods: {
       setMeta: {
-        description: "세션 제목과 라벨을 바꾼다. 제목은 xeon.session 제목 변경 API로 기록한다.",
+        description: "세션 제목과 라벨을 바꾼다. 제목은 fresnel.session 제목 변경 API로 기록한다.",
         input: SetMetaInput,
         output: SessionMetaViewSchema,
         replay: "safe",

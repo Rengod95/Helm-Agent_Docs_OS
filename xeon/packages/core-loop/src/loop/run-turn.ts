@@ -1,6 +1,6 @@
 // Derived from pi-agent-core 1.3.0 agent-loop.ts runLoop inner iteration (MIT, Copyright (c) 2025 Mario Zechner). See LICENSE.pi.
-import { assertNever, ok, type Result } from "@xeon/contracts";
-import type { AgentToolCall, AssistantMessage } from "@xeon/contracts/conversation";
+import { assertNever, ok, type Result } from "@fresnel/contracts";
+import type { AgentToolCall, AssistantMessage } from "@fresnel/contracts/conversation";
 import type {
   PlacedMessage,
   LoopFailure,

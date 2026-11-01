@@ -8,14 +8,14 @@ import {
   type Clock,
   type Result,
   type Scheduler,
-} from "@xeon/contracts";
-import type { TunnelFailure, TunnelPort, TunnelRequest } from "@xeon/client/socket";
-import { resolveOsDirs } from "@xeon/platform-os";
-import { openTunnel, sshTunnelCommand } from "@xeon/platform-process";
+} from "@fresnel/contracts";
+import type { TunnelFailure, TunnelPort, TunnelRequest } from "@fresnel/client/socket";
+import { resolveOsDirs } from "@fresnel/platform-os";
+import { openTunnel, sshTunnelCommand } from "@fresnel/platform-process";
 import { hostResourceDir } from "../state-paths.ts";
 import { systemTime } from "./time.ts";
 
-// L4.host-service.spec §3.3.4, L0.process.spec §4.4.8. `@xeon/client`의 `TunnelPort`를 L0 `openTunnel`로 채운다. 프로세스를 띄우는 일은 L0만 하므로
+// L4.host-service.spec §3.3.4, L0.process.spec §4.4.8. `@fresnel/client`의 `TunnelPort`를 L0 `openTunnel`로 채운다. 프로세스를 띄우는 일은 L0만 하므로
 // (DR-07) 클라이언트 패키지는 포트만 알고 이 조립이 실제 `ssh -L`을 잇는다. 로컬 소켓은 이 프로세스만 쓸 수 있는 새 임시 디렉터리(0700) 안에 만든다.
 
 export interface TunnelCommand {

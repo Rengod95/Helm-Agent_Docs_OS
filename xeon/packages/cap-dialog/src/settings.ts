@@ -1,11 +1,11 @@
-import type { NoticeKind } from "@xeon/contracts/capabilities";
+import type { NoticeKind } from "@fresnel/contracts/capabilities";
 import { Type } from "typebox";
 import {
   defineSettings,
   resolveSetting,
   type ScopeStack,
   type SettingDef,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 // L2.dialog.spec §6. 13개 키를 모두 선언한다(plan D8). notify.*는 OS 전달(§4.7.2)이 읽고, styles.active는 2차 기능이 읽을 때까지 선언만 있다.
 

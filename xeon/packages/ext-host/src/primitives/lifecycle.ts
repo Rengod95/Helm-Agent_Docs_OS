@@ -1,17 +1,17 @@
-import { assertNever, parse } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, parse } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LIFECYCLE_HOOKS,
   type LifecycleEventKind,
   type PortKey,
   type ScopeId,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   AgentSettledEventPayloadSchema,
   LeaseRejectedPayloadSchema,
   type DurableEventDraft,
   type EventFeed,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { HostCore } from "./core.ts";
 import { typedDispatch } from "./dispatch.ts";
 import { eachInOrder } from "./sequence.ts";
@@ -20,10 +20,10 @@ import { eachInOrder } from "./sequence.ts";
 export type CommittedEvent = Pick<DurableEventDraft, "id" | "kind" | "payload">;
 
 /**
- * 커밋 피드 포트(서비스 `xeon.session`의 `feed` 속성, 제공 core-persistence). 다른 층(core-agents)이 커밋하는 `agent.settled`는
+ * 커밋 피드 포트(서비스 `fresnel.session`의 `feed` 속성, 제공 core-persistence). 다른 층(core-agents)이 커밋하는 `agent.settled`는
  * X의 경계 기여가 아니라 이 피드의 `onCommit`으로만 볼 수 있다(M3-REQ-102)
  */
-export const SessionFeedPortKey: PortKey<EventFeed> = { name: "xeon.session", member: "feed" };
+export const SessionFeedPortKey: PortKey<EventFeed> = { name: "fresnel.session", member: "feed" };
 
 export interface Lifecycle {
   /** 닫혀 있는 동안 피드로 온 이벤트를 thread를 연 뒤 발화한다(메모리에만 둔다 [미결: 재시작을 넘기지 못한다]) */

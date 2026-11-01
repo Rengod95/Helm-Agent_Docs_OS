@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   EventsBatchParamsSchema,
   findBatchIssue,
@@ -9,12 +9,12 @@ import {
   type StoreId,
   type StreamChunkParams,
   type Transport,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { FAKE_STORE_ID, type FakeEngine } from "../fixtures/fake-engine.ts";
 import { rawClient } from "../fixtures/raw-client.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { flushMicrotasks, settleUntil } from "../fixtures/clock.ts";
 import { sequentially } from "../../src/util.ts";
 

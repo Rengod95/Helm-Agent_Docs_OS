@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock } from "@fresnel/contracts";
 
 export interface ManualClock extends Clock {
   set(ms: number): void;

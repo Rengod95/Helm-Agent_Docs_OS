@@ -1,5 +1,13 @@
 import { basename, join } from "node:path";
-import { assertNever, eachAsync, err, ok, parse, repeatAsync, type Result } from "@xeon/contracts";
+import {
+  assertNever,
+  eachAsync,
+  err,
+  ok,
+  parse,
+  repeatAsync,
+  type Result,
+} from "@fresnel/contracts";
 import {
   MemoryAddInputSchema,
   MemoryManageInputSchema,
@@ -16,7 +24,7 @@ import {
   type MemoryStore,
   type MemoryStoreView,
   type MemoryWriteOutput,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type { Static, TSchema } from "typebox";
 import { actorOf } from "../actor.ts";
 import type { ProposalMethod } from "../approval/proposals.ts";
@@ -52,7 +60,7 @@ const MAX_BATCH_OPS = 8;
 const MAX_STALE_RETRIES = 5;
 
 export interface MemoryDeps extends LedgerDeps {
-  /** 메모리 디렉터리 `<사용자 데이터>/memory`(spec §4.1). `xeon.os`의 데이터 디렉터리에서 만든다 */
+  /** 메모리 디렉터리 `<사용자 데이터>/memory`(spec §4.1). `fresnel.os`의 데이터 디렉터리에서 만든다 */
   readonly memoryDir: string;
   readonly settings: (threadId: string | undefined) => KnowledgeSettings;
   readonly writer: Writer;

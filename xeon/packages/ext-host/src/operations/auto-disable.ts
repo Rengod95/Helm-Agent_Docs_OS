@@ -1,6 +1,6 @@
-import { attempt } from "@xeon/contracts";
-import type { ExtensionName, ScopeId } from "@xeon/contracts/extensions";
-import type { ScopeChangedPayload, ScopeHandlerFailedPayload } from "@xeon/contracts/records";
+import { attempt } from "@fresnel/contracts";
+import type { ExtensionName, ScopeId } from "@fresnel/contracts/extensions";
+import type { ScopeChangedPayload, ScopeHandlerFailedPayload } from "@fresnel/contracts/records";
 import type { FailureLedger, FailureStats, HandlerOutcomeRecord } from "./failure.ts";
 import { ownerKey, type HandlerOwnerKey, type HookId, type Tier } from "./tier.ts";
 

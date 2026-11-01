@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
+import { parse } from "@fresnel/contracts";
+import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
 import { renderToString } from "react-dom/server";
 import { keepTools } from "../../src/app/setup.ts";
-import { binaryViewOf, setupSteps, type SetupSnapshot } from "@xeon/client/settings";
+import { binaryViewOf, setupSteps, type SetupSnapshot } from "@fresnel/client/settings";
 import { errorText, SettingsBody, Steps, Tools, type KeyEntry } from "../../src/views/settings.tsx";
 
 const noop = (): void => {};

@@ -4,7 +4,7 @@ import {
   type PolicyInput,
   type PolicyRule,
   type TieredRule,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { evaluatePolicy, ruleMatches } from "../src/policy/engine.ts";
 import { deriveRisk, modeDefault } from "../src/policy/modes.ts";
 import { builtinRules, loadableRules, validateRules } from "../src/policy/rules.ts";

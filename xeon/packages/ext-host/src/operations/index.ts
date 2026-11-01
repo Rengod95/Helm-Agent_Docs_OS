@@ -1,12 +1,12 @@
 // operations 도메인의 모든 export(패키지 내부용 포함). 루트(src/index.ts)는 공개 이름만 다시 내보낸다.
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   HOOKS,
   type ExtensionManifest,
   type ExtensionName,
   type PortLookup,
-} from "@xeon/contracts/extensions";
-import type { ProjectorFailure } from "@xeon/contracts/records";
+} from "@fresnel/contracts/extensions";
+import type { ProjectorFailure } from "@fresnel/contracts/records";
 import type { ResourcePolicy } from "../primitives/resources.ts";
 import type {
   DispatchPolicy,

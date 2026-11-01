@@ -1,11 +1,11 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   PolicyRuleSchema,
   type PolicyIssue,
   type PolicyRule,
   type TieredRule,
-} from "@xeon/contracts/services";
-import type { ScopeStack } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/services";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import { layerValue, TOOLS_SETTING_KEYS } from "../settings.ts";
 import { builtinRules, loadableRules, validateRules } from "./rules.ts";
 

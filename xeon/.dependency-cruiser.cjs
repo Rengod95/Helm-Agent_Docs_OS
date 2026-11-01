@@ -2,7 +2,7 @@
  * Layer rank: F(0) < X(1) < L0(2) < L1(3) < L2(4) < L3(5) < L4(6).
  * A package imports only lower ranks. Same-layer packages never import each other.
  * plugins/* rank as L1, apps/* and packages/client (adr.0020) as L4. vendor/* is excluded from the graph.
- * Keep in sync with scripts/check-layers.ts (it reads package.json xeon.layer; this reads paths).
+ * Keep in sync with scripts/check-layers.ts (it reads package.json fresnel.layer; this reads paths).
  */
 const LAYERS = [
   { name: "F", re: "^packages/contracts/" },
@@ -51,7 +51,7 @@ const sameLayerGroups = [
     to: "^packages/group-",
     own: ["^packages/$1/", "^packages/group-sdk/src/(index|testing/index)\\.ts$"],
   },
-  // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @xeon/host entries "." and "./client" only.
+  // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @fresnel/host entries "." and "./client" only.
   // DR-10/cli-client, DR-10/desktop-client, DR-10/host-client: apps may import packages/client, so it is not in the "to" of the app groups.
   {
     name: "L4",

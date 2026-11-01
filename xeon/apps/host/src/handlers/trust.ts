@@ -1,10 +1,10 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import {
   wireError,
   type WireError,
   type WireHandler,
   type WireHandlers,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { Engine, TrustPortFailure } from "../types.ts";
 
 // F wire §3.3.1 trust.get, trust.decide. L4.host-service.spec HS-58, HS-70. 프로젝트 신뢰를 클라이언트가 묻고 정한다.

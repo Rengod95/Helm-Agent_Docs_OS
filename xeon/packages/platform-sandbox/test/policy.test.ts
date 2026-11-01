@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
-import type { SandboxPolicy } from "@xeon/contracts/services";
+import type { SandboxPolicy } from "@fresnel/contracts/services";
 import {
   BLOCKED_NETWORK,
   candidateWriteRoots,

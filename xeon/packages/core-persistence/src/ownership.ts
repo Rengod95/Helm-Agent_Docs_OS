@@ -1,6 +1,6 @@
-import type { Logger } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { LeaseService, LeaseToken, ReadOnlyReason } from "@xeon/contracts/records";
+import type { Logger } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { LeaseService, LeaseToken, ReadOnlyReason } from "@fresnel/contracts/records";
 
 /** 프로세스 안에서 thread를 연 방식. 쓰기 소유 증표(LeaseToken)는 열린 thread마다 보관한다(L1.persistence.spec §3.6) */
 type OpenState =

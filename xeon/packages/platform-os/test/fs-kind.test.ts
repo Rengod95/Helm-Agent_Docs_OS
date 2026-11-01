@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { OsInfo } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { OsInfo } from "@fresnel/contracts/services";
 import {
   classifyFs,
   createMountProvider,

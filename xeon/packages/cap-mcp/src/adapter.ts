@@ -9,8 +9,8 @@ import {
   SdkErrorCode,
   type Transport,
 } from "@modelcontextprotocol/client";
-import { attemptAsync, err, ok, type Logger, type Result } from "@xeon/contracts";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import { attemptAsync, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { asJsonValue, jsonObjectOr } from "./json.ts";
 
 // SDK 경계 어댑터(L2.mcp.spec §1.3, §4.1, L2.mcp.plan §2). `@modelcontextprotocol/client`와 zod 추론 타입은 이 파일,

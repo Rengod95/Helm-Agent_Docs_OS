@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { repeatAsync, type Clock, type Scheduler, type TimerHandle } from "@xeon/contracts";
-import type { SelfTestItemId } from "@xeon/contracts/services";
+import { repeatAsync, type Clock, type Scheduler, type TimerHandle } from "@fresnel/contracts";
+import type { SelfTestItemId } from "@fresnel/contracts/services";
 import { createSandboxService, type SandboxServiceHandle } from "../src/service.ts";
 import type { SandboxSettings } from "../src/settings.ts";
 import {

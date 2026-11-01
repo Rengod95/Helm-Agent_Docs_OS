@@ -1,12 +1,12 @@
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { CommitRequest } from "@xeon/contracts/records";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { CommitRequest } from "@fresnel/contracts/records";
 import type {
   AbortIntentWriter,
   AbortReason,
   InputDraft,
   TaskScope,
   TaskService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   createStaticTasksSettings,
   type StaticTasksSettings,

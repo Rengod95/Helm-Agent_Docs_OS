@@ -102,7 +102,7 @@ describe("work definitions", () => {
     expect(WorkPlansKey.capability).toBe("work.plans");
     expect(WorkGoalsKey.capability).toBe("work.goals");
     expect(WorkReportsKey.capability).toBe("work.reports");
-    expect(WorkServiceName).toBe("xeon.work");
+    expect(WorkServiceName).toBe("fresnel.work");
     expect(MAX_WORK_TASKS).toBe(500);
   });
 

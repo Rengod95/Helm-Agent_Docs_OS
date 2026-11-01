@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ShellOutputInfo } from "@xeon/contracts/services";
+import type { ShellOutputInfo } from "@fresnel/contracts/services";
 import { fakeExec, memoryFs } from "../src/testing/index.ts";
 
 const context = { abortSignal: undefined };

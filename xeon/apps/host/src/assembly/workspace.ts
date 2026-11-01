@@ -1,7 +1,7 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
-import { assertNever, attemptAsync, err, ok, type Result } from "@xeon/contracts";
-import { wireError, type WireError } from "@xeon/contracts/wire";
+import { assertNever, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
+import { wireError, type WireError } from "@fresnel/contracts/wire";
 
 // G2-02. 대화의 작업 폴더(`thread.started.workspace`) 규칙. 작업 폴더는 그 대화가 읽는 프로젝트 자원(`.fresnel/settings.json`, `.mcp.json`,
 // `.fresnel/skills`, `.fresnel/commands`)의 기준 폴더이고 프로젝트 신뢰 판정이 보는 폴더다(L4.host-service.spec HS-66, HS-76). 신뢰 저장소가

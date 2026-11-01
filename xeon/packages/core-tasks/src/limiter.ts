@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { Limiter, PoolName, Slot, TaskScope } from "@xeon/contracts/services";
+import { Bug } from "@fresnel/contracts";
+import type { Limiter, PoolName, Slot, TaskScope } from "@fresnel/contracts/services";
 
 // 동시 상한 풀(L1.tasks.spec §3.4, §4.5, L1.tasks.plan TK-4). 풀마다 FIFO 대기열 하나, 상한은 설정 `l1.tasks.limits.*`다.
 // - 대기 중 owner.signal이 켜지면 대기열에서 빠지고 signal.reason(AbortReason)으로 거부한다.

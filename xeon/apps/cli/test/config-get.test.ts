@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import type { EffectiveSetting } from "@xeon/contracts/settings";
-import type { HostCommand } from "@xeon/host";
+import type { EffectiveSetting } from "@fresnel/contracts/settings";
+import type { HostCommand } from "@fresnel/host";
 import { cliSettingGroups } from "../src/settings.ts";
 import { formatSettings } from "../src/commands/config.ts";
 import { createHarness, type Harness } from "./support/harness.ts";

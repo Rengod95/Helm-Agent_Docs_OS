@@ -1,9 +1,9 @@
-import type { ExtensionManifest, Handler, HookName, ScopeApi } from "@xeon/contracts/extensions";
-import type { Logger, LogFields } from "@xeon/contracts";
-import type { ProducerHandle } from "@xeon/contracts/records";
-import type { ContextService } from "@xeon/contracts/services";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
+import type { ExtensionManifest, Handler, HookName, ScopeApi } from "@fresnel/contracts/extensions";
+import type { Logger, LogFields } from "@fresnel/contracts";
+import type { ProducerHandle } from "@fresnel/contracts/records";
+import type { ContextService } from "@fresnel/contracts/services";
+import type { ExtensionUnit } from "@fresnel/ext-host";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import { createContextService } from "../../src/service.ts";
 import { DEFAULT_CONTEXT_SETTINGS, type ContextSettings } from "../../src/settings.ts";
 import { fakeModels, type FakeModels, type FakeModelsOptions } from "./fake-models.ts";

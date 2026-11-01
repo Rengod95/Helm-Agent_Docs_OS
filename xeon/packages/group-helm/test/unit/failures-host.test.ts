@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { LeaseArbiterPortKey } from "@xeon/contracts/extensions";
-import { withDriveDefaults } from "@xeon/ext-host";
-import { createTestHost, fakeUsage } from "@xeon/ext-host/testing";
-import { createGroupService } from "@xeon/group-sdk";
-import { groupCatalogOf, memoryDriveHolderSettings } from "@xeon/group-sdk/testing";
+import { LeaseArbiterPortKey } from "@fresnel/contracts/extensions";
+import { withDriveDefaults } from "@fresnel/ext-host";
+import { createTestHost, fakeUsage } from "@fresnel/ext-host/testing";
+import { createGroupService } from "@fresnel/group-sdk";
+import { groupCatalogOf, memoryDriveHolderSettings } from "@fresnel/group-sdk/testing";
 import { helmGroup } from "../../src/index.ts";
 import { callCommand, drainRounds, settleOnce } from "../support/rig.ts";
 

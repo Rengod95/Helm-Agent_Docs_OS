@@ -1,4 +1,4 @@
-import { attempt, err, ok, parseJson, type Result } from "@xeon/contracts";
+import { attempt, err, ok, parseJson, type Result } from "@fresnel/contracts";
 
 // L0.secrets.spec §4.6 2번. SOPS 파일의 키 이름을 평문으로 읽는다. 복호화하지 않고 sops를 부르지도 않는다.
 // YAML·JSON은 값이 `ENC[`로 시작하는 문자열인 항목, dotenv는 `KEY=ENC[...]` 줄이다.

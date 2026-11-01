@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatModelRef, parseModelRef } from "@xeon/contracts/services";
+import { formatModelRef, parseModelRef } from "@fresnel/contracts/services";
 
 // L1.models.plan §5 parse_model_ref_suffix_rules. parseModelRef 구현은 F에 있고 이 패키지가 쓰는 규칙을 확인한다.
 describe("parse_model_ref_suffix_rules", () => {

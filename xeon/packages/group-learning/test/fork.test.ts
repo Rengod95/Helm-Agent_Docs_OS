@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { fakeAgents } from "@xeon/group-sdk/testing";
-import { createTestHost } from "@xeon/ext-host/testing";
+import { fakeAgents } from "@fresnel/group-sdk/testing";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import {
   buildReviewSpec,
   manualReviewId,

@@ -1,4 +1,4 @@
-import { assertNever, attemptAsync, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import {
   isCapabilityError,
   type CallOptions,
@@ -8,8 +8,8 @@ import {
   type KnowledgeSearch,
   type KnowledgeSkills,
   type WriteOutcome,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ApplyResult } from "../results.ts";
 import { parsePatchEdits, parseTarget, type ParsedTarget } from "./target.ts";
 import type { Proposal } from "./proposal.ts";

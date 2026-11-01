@@ -1,6 +1,6 @@
 import { Type } from "typebox";
-import { defineSettings, validateSettingValue, type SettingDef } from "@xeon/contracts/settings";
-import type { OnUnavailable } from "@xeon/contracts/services";
+import { defineSettings, validateSettingValue, type SettingDef } from "@fresnel/contracts/settings";
+import type { OnUnavailable } from "@fresnel/contracts/services";
 
 // L0.sandbox.spec §6. 넓히는 키(enabled, onUnavailable, writeRoots.extra, escapeRetry)는 project 범위를 받지 않는다.
 // 네트워크는 기본 허용이고 차단 도메인만 관리한다(M3-REQ-55). 허용 목록 키(l0.sandbox.network.allowedDomains)는 정의하지 않는다.

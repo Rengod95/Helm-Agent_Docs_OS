@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import { buildCatalog, checkSettingDef } from "@xeon/contracts/settings";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
 import {
   DEFAULT_LOOP_SETTINGS,
   LOOP_GATE_MAX_CONTINUES_DEFAULT,

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { AssistantMessage, AssistantMessageEvent } from "@xeon/contracts/conversation";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { AssistantMessage, AssistantMessageEvent } from "@fresnel/contracts/conversation";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { saltAssistantMessage, saltStreamEvent, toolCallSalt } from "../src/loop/tool-call-ids.ts";
 import { createHarness } from "./support/harness.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";

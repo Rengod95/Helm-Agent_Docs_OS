@@ -1,9 +1,14 @@
 import { expect, test } from "bun:test";
-import { Bug, err, ok, parse } from "@xeon/contracts";
-import type { ItemId, ItemRecord } from "@xeon/contracts/conversation";
-import type { ItemPage, ItemPageFailure, ItemPageRequest, ItemPages } from "@xeon/core-persistence";
-import { StoreIdSchema, WIRE_LIMITS, type StoreId } from "@xeon/contracts/wire";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { Bug, err, ok, parse } from "@fresnel/contracts";
+import type { ItemId, ItemRecord } from "@fresnel/contracts/conversation";
+import type {
+  ItemPage,
+  ItemPageFailure,
+  ItemPageRequest,
+  ItemPages,
+} from "@fresnel/core-persistence";
+import { StoreIdSchema, WIRE_LIMITS, type StoreId } from "@fresnel/contracts/wire";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { readThread } from "../../src/assembly/thread-read.ts";
 
 // thread.read는 쪽 질의(L1.persistence `branchItemRecords`)에 before·limit을 그대로 넘기고, 응답 크기 예산만 호스트가 맞춘다(G2-11).

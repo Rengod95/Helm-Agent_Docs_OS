@@ -5,11 +5,11 @@ import type { SandboxRunReport } from "./sandbox-report.ts";
 import type { UseCtx } from "./secrets.ts";
 
 // L0.exec.spec §3.1. 구현은 platform-exec(pi durable env 포크)이다. 모양은 포크 원본 env/index.ts의 선언을 옮겼다.
-// node:* 타입을 쓰지 않는다. 출력 절단 함수(truncateHead 등)는 platform-exec가 구현하고 L1·L2는 xeon.exec로 부른다(review.decisions-2 D-08).
+// node:* 타입을 쓰지 않는다. 출력 절단 함수(truncateHead 등)는 platform-exec가 구현하고 L1·L2는 fresnel.exec로 부른다(review.decisions-2 D-08).
 
-export const ExecServiceName = "xeon.exec" as const;
+export const ExecServiceName = "fresnel.exec" as const;
 
-/** `xeon.exec` 전체 모양(ExecService)의 포트 키. 제공 platform-exec, 소비 core-tools·cap-workspace */
+/** `fresnel.exec` 전체 모양(ExecService)의 포트 키. 제공 platform-exec, 소비 core-tools·cap-workspace */
 export const ExecPortKey: PortKey<ExecService> = { name: ExecServiceName };
 
 /** 취소 신호만 전달한다. DI 기능은 없다(adr.0003 §3.1). 원본 모양대로 AbortSignal | undefined를 받는다 */
@@ -306,7 +306,7 @@ export interface BackgroundExecHandle {
   readonly exited: Promise<{ readonly code: number | null; readonly signal: string | null }>;
 }
 
-/** xeon.exec 서비스. 서비스 값 자체가 ExecutionEnv이고, 작업 디렉터리가 다른 파생 env를 만든다 */
+/** fresnel.exec 서비스. 서비스 값 자체가 ExecutionEnv이고, 작업 디렉터리가 다른 파생 env를 만든다 */
 export interface ExecService extends ExecutionEnv {
   /** 같은 구현과 설정을 쓰고 cwd만 다른 env. 파생 env의 cleanup은 그 env가 시작한 명령만 끝낸다 */
   withCwd(cwd: string): ExecutionEnv;

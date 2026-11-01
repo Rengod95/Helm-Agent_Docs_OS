@@ -1,4 +1,4 @@
-import type { EffectiveSetting, SettingDefWire } from "@xeon/contracts/settings";
+import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
 
 // 설정 view-model 시험의 입력 도우미. 정의는 와이어 형태(SettingDefWire)로 직접 쓴다.
 

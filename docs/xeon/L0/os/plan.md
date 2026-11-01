@@ -12,18 +12,18 @@ binds: [xeon/packages/platform-os/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: `L0.os.spec`의 `xeon.os` 서비스를 `xeon/packages/platform-os`에 구현한다. M0에서는 다른 L0·L1 패키지의 테스트와 구현이 쓰는 기반(경로, 시계, 로거, 테스트 도우미)을 먼저 낸다.
+목표: `L0.os.spec`의 `fresnel.os` 서비스를 `xeon/packages/platform-os`에 구현한다. M0에서는 다른 L0·L1 패키지의 테스트와 구현이 쓰는 기반(경로, 시계, 로거, 테스트 도우미)을 먼저 낸다.
 
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
 | M0 | `OsInfo`, `OsDirs`(3플랫폼 표, `home` 포함), `fsKind`, `Clock`·`Scheduler`·`RandomSource` 운영 구현, `Logger` 기본 구현과 마스킹 훅, ID 발급기 구현 `createIdFactory`·`createLocalIdFactory`, `testing` 서브패스(`tempDir`, `withIsolatedEnv`), 프로세스 지문·기계 식별자·uid(store 세션 잠금이 M0) | OS-01~OS-09, OS-18, OS-19 |
-| M1 | 바이너리 해석(`rg`, secrets 키 명령용 `security`·`secret-tool` 포함), 서비스 등록(`xeon.os`) | OS-10~OS-11 |
+| M1 | 바이너리 해석(`rg`, secrets 키 명령용 `security`·`secret-tool` 포함), 서비스 등록(`fresnel.os`) | OS-10~OS-11 |
 | M3(1차) | 알림 전달 수단 `Notifier`(macOS·Linux 먼저) [결정: review.decisions-2 S-04] | OS-13 |
 | M2 | 프로세스 사이 파일 잠금 `fileLock`(`trust.json` 쓰기), 외부 바이너리 필수/선택 표와 점검 | OS-20, OS-21 |
 | M2 이후(2차) | `FileWatcher`, 텔레메트리, Windows 보강, 번들 바이너리 추출 실측 | OS-12, OS-14~OS-17 |
 
 - [결정] M0 범위는 `contracts`, `ext-host`, `platform-store`, `platform-exec`다(`_research/foundation-plan.md` §5 P4). platform-os의 M0 작업은 store·exec 테스트가 `tempDir`과 시계 구현을 쓰기 때문에 넣는다 [제안].
-- M0 작업은 `@xeon/contracts` 루트의 `Clock`, `Scheduler`, `RandomSource`, `Logger`(`L0.os.spec` §8 F에 요청 1)와 `@xeon/contracts/conversation`의 `IdFactory`·`LocalIdFactory`를 전제로 한다. F에 아직 없으면 OS-05·OS-06·OS-07·OS-19는 F 작업을 기다린다. `manualClock` 같은 테스트 대역은 F에 두지 않고 이 패키지의 `test/` 안에 둔다 [결정: review.decisions-2 U-03].
+- M0 작업은 `@fresnel/contracts` 루트의 `Clock`, `Scheduler`, `RandomSource`, `Logger`(`L0.os.spec` §8 F에 요청 1)와 `@fresnel/contracts/conversation`의 `IdFactory`·`LocalIdFactory`를 전제로 한다. F에 아직 없으면 OS-05·OS-06·OS-07·OS-19는 F 작업을 기다린다. `manualClock` 같은 테스트 대역은 F에 두지 않고 이 패키지의 `test/` 안에 둔다 [결정: review.decisions-2 U-03].
 - 서비스 등록(OS-10)은 ext-host 등록 API(`ExtHost.registerPlatform`, `PlatformModule`, `X.primitives.spec` §3.2)가 필요하므로 M1에 둔다. M0에서는 다른 패키지가 함수(`systemClock` 등)를 쓰지 않고 테스트 도우미만 쓴다.
 
 ## 2. 패키지와 파일 배치
@@ -83,9 +83,9 @@ xeon/packages/platform-os/
 
   ```json
   {
-    "name": "@xeon/platform-os",
+    "name": "@fresnel/platform-os",
     "exports": { ".": "./src/index.ts", "./testing": "./src/testing/index.ts" },
-    "dependencies": { "@xeon/contracts": "workspace:*", "@xeon/ext-host": "workspace:*", "@vscode/ripgrep": "catalog:" },
+    "dependencies": { "@fresnel/contracts": "workspace:*", "@fresnel/ext-host": "workspace:*", "@vscode/ripgrep": "catalog:" },
     "optionalDependencies": { "@parcel/watcher": "catalog:" },
     "fresnel": { "layer": "L0", "domain": "os" }
   }
@@ -193,8 +193,8 @@ xeon/packages/platform-os/
 ## 6. 완료 기준
 
 1. `just verify`가 종료코드 0이다.
-2. M0: `platform-store`, `platform-exec`와 L1 패키지 테스트가 `@xeon/platform-os/testing`의 `tempDir`로 임시 디렉터리를 만들고, 자기 패키지에 임시 디렉터리 코드를 따로 두지 않는다.
-3. M0: `Date.now`, `Math.random`, `performance.now` 직접 호출 금지 lint(oxlint `no-restricted-properties`, 스캔 `xeon/no-ambient-time`)가 `packages/platform-os` 밖에서 0건이다.
+2. M0: `platform-store`, `platform-exec`와 L1 패키지 테스트가 `@fresnel/platform-os/testing`의 `tempDir`로 임시 디렉터리를 만들고, 자기 패키지에 임시 디렉터리 코드를 따로 두지 않는다.
+3. M0: `Date.now`, `Math.random`, `performance.now` 직접 호출 금지 lint(oxlint `no-restricted-properties`, 스캔 `fresnel/no-ambient-time`)가 `packages/platform-os` 밖에서 0건이다.
 4. M0: `time.contract.test.ts`가 운영 구현과 `manualClock`에서 모두 통과한다.
 5. M1: 조립 루트가 `platformOsPlugin`을 등록하고, `fresnel chat` 스모크에서 sandbox가 `resolveBinary("rg")`로 받은 경로를 쓴다.
 6. `L0.os.spec` §9 수용 기준 1~10에 대응하는 테스트가 있고 통과한다(2차 항목은 해당 마일스톤에서).

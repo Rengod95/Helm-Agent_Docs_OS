@@ -10,7 +10,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 
 # X 확장 원시 연산 (primitives)
 
-패키지: `@xeon/ext-host`. 코드 위치: `xeon/packages/ext-host/src/primitives/**`.
+패키지: `@fresnel/ext-host`. 코드 위치: `xeon/packages/ext-host/src/primitives/**`.
 
 이 문서는 확장 연산 네 개(`on`, `post`, `drive`, `scope`)와 리소스 등록이 실행 중에 어떻게 동작하는지 정한다. 타입, 지점 선언 표, fold 규칙, 정적 검사의 정본은 F.extensions.spec이다. 이 문서는 그 이름을 인용하고 다시 정의하지 않는다.
 
@@ -24,7 +24,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 - `drive`: 임대 중재, `leaseEpoch`, 재호출 시점, 상한 집행, 기본 `requestId` 규칙, 반납 조건
 - `scope`: 상태 문서와 커밋, 마이그레이션 훅, 켜기·끄기 상태기계와 적용 시점(실행 중인 turn이 없을 때 포함), `record`/`readRecords` 구현
 - 리소스 등록(pi API 형태)의 유지·변환·비지원 표와 자동 해제
-- `@xeon/ext-host` 공개 API 이름과 시그니처, 호스트 포트, `CapabilityId`에서 Cordis 서비스 이름을 유도하는 규칙
+- `@fresnel/ext-host` 공개 API 이름과 시그니처, 호스트 포트, `CapabilityId`에서 Cordis 서비스 이름을 유도하는 규칙
 - 그룹 간 이벤트 이름 격리 정책
 - 설정 키 `x.primitives.*`
 
@@ -60,7 +60,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 
 ## 3. 인터페이스
 
-모든 코드는 `xeon/packages/ext-host/src/primitives/` 아래에 둔다. F 타입은 `@xeon/contracts/<서브패스>`에서 `import type`으로 가져온다.
+모든 코드는 `xeon/packages/ext-host/src/primitives/` 아래에 둔다. F 타입은 `@fresnel/contracts/<서브패스>`에서 `import type`으로 가져온다.
 
 ```ts
 import type {
@@ -70,22 +70,22 @@ import type {
   SpawnSpec, SpawnOutcome, ScopeId, ScopeDef, ScopeApi, ScopeSetup, ScopeStatus, ScopeHandle, ScopeFn,
   ExtensionEntry, ExtensionManifest, ExtensionName, GroupRecord, RecordKind, RecordQuery, RecordSubject,
   ManifestIssue, Unsubscribe, SetupRefusal,
-} from "@xeon/contracts/extensions";
-import type { Result } from "@xeon/contracts";
-import type { CapabilityId, ServiceKey } from "@xeon/contracts/capabilities";
-import type { DurableEventDraft, Projector, StoreDb } from "@xeon/contracts/records";
-import type { ThreadId, TurnId, StepId, JsonValue, Usage, IdFactory } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/extensions";
+import type { Result } from "@fresnel/contracts";
+import type { CapabilityId, ServiceKey } from "@fresnel/contracts/capabilities";
+import type { DurableEventDraft, Projector, StoreDb } from "@fresnel/contracts/records";
+import type { ThreadId, TurnId, StepId, JsonValue, Usage, IdFactory } from "@fresnel/contracts/conversation";
 // 호스트 포트와 리소스 등록 정의는 F ports.ts가 정본이다(F.extensions.spec §3.2.1, 이 문서 §3.6·§3.9)
 import type {
   PortKey, PortLookup, LoopPort, InputQueuePort, RecordCommitPort, ProjectorRegistryPort, ScopedStorePort,
   ProcessPort, LeaseArbiterPort, ToolsPort, ModelsPort, McpPort,
   ToolResourceDef, ProviderResourceDef, McpServerResourceDef,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 ```
 
 ### 3.1 공개 API 목록
 
-`@xeon/ext-host` 루트(`src/index.ts`)는 아래 이름만 재export한다 [제안]. 표는 세 도메인(primitives, loading-trust, operations)의 공개 이름 전체이고, 루트 재export 목록의 정본이다. 각 이름의 시그니처는 "정의" 열의 문서가 정한다.
+`@fresnel/ext-host` 루트(`src/index.ts`)는 아래 이름만 재export한다 [제안]. 표는 세 도메인(primitives, loading-trust, operations)의 공개 이름 전체이고, 루트 재export 목록의 정본이다. 각 이름의 시그니처는 "정의" 열의 문서가 정한다.
 
 | 이름 | 종류 | 정의 |
 |---|---|---|
@@ -180,7 +180,7 @@ export interface ExtensionUnit {
   readonly entry: ExtensionEntry;
   /** 로드 순번. 0부터. 핸들러 정렬의 둘째 키 */
   readonly loadIndex: number;
-  /** 내장 패키지(core-*, cap-*, group-*)면 참. 포트 제공·조회와 xeon.* 서비스 이름을 허용한다 */
+  /** 내장 패키지(core-*, cap-*, group-*)면 참. 포트 제공·조회와 fresnel.* 서비스 이름을 허용한다 */
   readonly builtin: boolean;
 }
 
@@ -232,9 +232,9 @@ export interface PlatformSetupError {
 
 /** L0 setup이 받는 좁은 객체. Cordis Context는 넘기지 않는다 */
 export interface PlatformContext {
-  /** xeon.* 포트 제공 */
+  /** fresnel.* 포트 제공 */
   providePort<Api>(key: PortKey<Api>, impl: Api): void;
-  /** 먼저 등록된 다른 L0 포트 조회(예: xeon.secrets). 없으면 port_unavailable */
+  /** 먼저 등록된 다른 L0 포트 조회(예: fresnel.secrets). 없으면 port_unavailable */
   port<Api>(key: PortKey<Api>): Api;
   /** 호스트 dispose 때 역순으로 실행한다 */
   onDispose(fn: () => void | Promise<void>): void;
@@ -272,7 +272,7 @@ export interface ExtHost {
   readonly resources: ResourceRegistry;
   /**
    * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-sdk.spec §3.13 요청 5). 호스트용이고 확장 scope에는 열지 않는다.
-   * 서비스 `xeon.session`의 `readBranch`(`SessionBranchPortKey`)가 없으면 `port_unavailable`, 접두가 비면 `invalid_prefix`다
+   * 서비스 `fresnel.session`의 `readBranch`(`SessionBranchPortKey`)가 없으면 `port_unavailable`, 접두가 비면 `invalid_prefix`다
    */
   queryEvents(threadId: ThreadId, query: EventPrefixQuery): Promise<Result<readonly DurableEventEnvelope[], EventQueryError>>;
   /**
@@ -308,10 +308,10 @@ export interface ExtChange {
 ```
 
 - `createExtHost`는 Cordis 루트 `Context`를 안에서 만든다(`context.ts:36-49`). 루트와 `Context` 타입은 밖으로 내보내지 않는다(eng.dependency-rules.guide DR-11).
-- `createExtHost`가 만든 `ExtHost`는 Cordis 서비스 `xeon.ext`로 등록된다(eng.context-map.design §5.3). L1 내장 확장은 `hostOf(g).port(ExtHostPortKey)`로 얻는다(§3.6). `ExtHost`에는 로더 속성을 두지 않는다. 로더(`ExtensionLoader`)는 Cordis 서비스가 아니고 조립 루트가 직접 쥔다(X.loading-trust.spec §3.5).
+- `createExtHost`가 만든 `ExtHost`는 Cordis 서비스 `fresnel.ext`로 등록된다(eng.context-map.design §5.3). L1 내장 확장은 `hostOf(g).port(ExtHostPortKey)`로 얻는다(§3.6). `ExtHost`에는 로더 속성을 두지 않는다. 로더(`ExtensionLoader`)는 Cordis 서비스가 아니고 조립 루트가 직접 쥔다(X.loading-trust.spec §3.5).
 - 책임 분담 [제안]: 엔트리 탐색, import, 매니페스트 검증, 신뢰 판정, 설정 연결, 능력 요구 충족은 loading-trust가 하고 그 결과를 `ExtensionUnit`으로 넘긴다. 엔트리 호출(`ExtensionEntry`), scope 정의 수집, scope 세대마다의 Cordis fiber 생성, scope setup 실행과 시간 예산, setup 직후 `validateUsage`는 `install`과 §4.5의 `ScopeRuntime`이 한다. loading-trust는 Cordis를 직접 쓰지 않고 `InstallResult`를 진단으로 옮긴다(X.loading-trust.spec §4.4.3).
 - 엔트리 본문은 F `ExtensionEntry`가 받는 `{ manifest, scope }`만 쓴다. 그래서 엔트리 본문에서 부를 수 있는 연산은 `scope(id, def, setup)`뿐이다. `on`, `drive`, `post` 등 `ScopeApi` 연산은 scope setup이나 그 뒤의 핸들러·drive 함수 안에서 부른다. 이 문서에서 "setup"은 scope setup(`ScopeSetup`)만 뜻한다.
-- `registerPlatform`은 L0 패키지마다 Cordis fiber 하나를 만들어 `setup`을 실행한다. L0 패키지는 매니페스트 층 값(`ExtensionLayerSchema`)에 L0가 없으므로 `install` 경로를 쓰지 않는다. `providePort`는 `xeon.*` 이름만 받는다(§3.7 예약 규칙의 L0 예외). 등록 순서는 조립 루트가 정하고, 의존하는 포트가 먼저 등록되어 있어야 한다 [제안]. 시작 실패(디렉터리 준비, 플랫폼 판별 같은 예상 가능한 실패)는 `setup`이 `err({ reason, cause })`로 알린다. fiber는 던져야 닫히므로 호스트가 그 값을 내부에서 던져 fiber를 닫고, `registerPlatform`은 던진 값을 `PlatformSetupError`로 되돌려 돌려준다. 그 모듈이 제공한 포트는 남지 않는다(eng.typescript.guide TY-24).
+- `registerPlatform`은 L0 패키지마다 Cordis fiber 하나를 만들어 `setup`을 실행한다. L0 패키지는 매니페스트 층 값(`ExtensionLayerSchema`)에 L0가 없으므로 `install` 경로를 쓰지 않는다. `providePort`는 `fresnel.*` 이름만 받는다(§3.7 예약 규칙의 L0 예외). 등록 순서는 조립 루트가 정하고, 의존하는 포트가 먼저 등록되어 있어야 한다 [제안]. 시작 실패(디렉터리 준비, 플랫폼 판별 같은 예상 가능한 실패)는 `setup`이 `err({ reason, cause })`로 알린다. fiber는 던져야 닫히므로 호스트가 그 값을 내부에서 던져 fiber를 닫고, `registerPlatform`은 던진 값을 `PlatformSetupError`로 되돌려 돌려준다. 그 모듈이 제공한 포트는 남지 않는다(eng.typescript.guide TY-24).
 
 ### 3.3 디스패치 타입
 
@@ -500,38 +500,38 @@ X는 L0·L1을 import하지 않는다(architecture.layers.spec §4.3.3, eng.depe
 ```ts
 // primitives/ports.ts
 // 포트 정의는 모두 F가 정본이다(F.extensions.spec §3.2.1, F.records.spec §3.9). ext-host는 다시 export만 한다
-import type { PortKey } from "@xeon/contracts/extensions";
+import type { PortKey } from "@fresnel/contracts/extensions";
 import type { ExtHost } from "./host.ts";
 export type {
   PortKey, PortLookup,
-  // 루프 (xeon.loop)
+  // 루프 (fresnel.loop)
   LoopPort, LoopTurnRequest, LoopTurnResult, LoopSpawnRequest, LoopSpawnResult,
-  // 입력 큐 (xeon.tasks)
+  // 입력 큐 (fresnel.tasks)
   InputQueuePort, EnqueueRequest, EnqueueResult,
-  // 기록 (xeon.session의 ext 속성. 정의는 F.records.spec §3.9)
+  // 기록 (fresnel.session의 ext 속성. 정의는 F.records.spec §3.9)
   RecordCommitPort, ExtCommitRequest, ExtCommitRejectCode, ExtCommitResult,
   StoredScopeState, OpenLease, ExtThreadSnapshot, ExtRecordQuery, ExtRecordRow,
-  // 확장 투영기 등록 (xeon.session의 projectors 속성)
+  // 확장 투영기 등록 (fresnel.session의 projectors 속성)
   ProjectorRegistryPort,
-  // 접두 테이블 (xeon.store)
+  // 접두 테이블 (fresnel.store)
   ScopedStorePort,
-  // 프로세스 실행 (xeon.process). spawn 사용처는 X.loading-trust.spec §3.8, run 사용처는 X.operations.spec §3.7
+  // 프로세스 실행 (fresnel.process). spawn 사용처는 X.loading-trust.spec §3.8, run 사용처는 X.operations.spec §3.7
   ProcessPort, IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, HookProcessPort, HookRunSpec, HookRawRun,
-  // 임대 정책 (xeon.groups, 선택)
+  // 임대 정책 (fresnel.groups, 선택)
   LeaseArbiterPort, LeaseCandidate,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 export {
-  LoopPortKey,                // { name: "xeon.loop" }
-  InputQueuePortKey,          // { name: "xeon.tasks" }
-  RecordCommitPortKey,        // { name: "xeon.session", member: "ext" }
-  ProjectorRegistryPortKey,   // { name: "xeon.session", member: "projectors" }
-  ScopedStorePortKey,         // { name: "xeon.store" }
-  ProcessPortKey,             // { name: "xeon.process" }
-  LeaseArbiterPortKey,        // { name: "xeon.groups" }
-} from "@xeon/contracts/extensions";
+  LoopPortKey,                // { name: "fresnel.loop" }
+  InputQueuePortKey,          // { name: "fresnel.tasks" }
+  RecordCommitPortKey,        // { name: "fresnel.session", member: "ext" }
+  ProjectorRegistryPortKey,   // { name: "fresnel.session", member: "projectors" }
+  ScopedStorePortKey,         // { name: "fresnel.store" }
+  ProcessPortKey,             // { name: "fresnel.process" }
+  LeaseArbiterPortKey,        // { name: "fresnel.groups" }
+} from "@fresnel/contracts/extensions";
 
-// ── 확장 호스트 자신 (서비스 xeon.ext, 제공 ext-host) ───────────────
-export const ExtHostPortKey: PortKey<ExtHost>;               // { name: "xeon.ext" }
+// ── 확장 호스트 자신 (서비스 fresnel.ext, 제공 ext-host) ───────────────
+export const ExtHostPortKey: PortKey<ExtHost>;               // { name: "fresnel.ext" }
 ```
 
 X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
@@ -546,24 +546,24 @@ X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
 1. X는 포트마다 내부 Cordis 플러그인 하나를 두고 `inject: [<포트 이름>]`으로 주입받는다. 포트 fiber가 ACTIVE가 되면 참조를 잡고, 해제되면 참조를 비운다. 포트를 따로 두므로 한 포트가 없어도 나머지 연산은 동작한다.
 2. 포트가 없을 때: `dispatch`는 포트 없이 동작한다. `post`는 `InputQueuePort`, `drive`는 `LoopPort`와 `RecordCommitPort`, `commit`·`record`·`readRecords`는 `RecordCommitPort`가 필요하다. 없으면 `PrimitiveError("port_unavailable")`로 거부한다. drive 임대는 두 포트가 모두 있을 때만 부여한다.
 3. `LeaseArbiterPort`는 선택이다. 없으면 §4.4.1의 기본 규칙을 쓴다.
-4. `xeon.*` 이름의 서비스는 `ExtensionUnit.builtin`이 참인 확장과 `registerPlatform`으로 등록한 L0 패키지만 제공할 수 있다(§3.7).
+4. `fresnel.*` 이름의 서비스는 `ExtensionUnit.builtin`이 참인 확장과 `registerPlatform`으로 등록한 L0 패키지만 제공할 수 있다(§3.7).
 5. 확장이 아닌 사용처의 포트 경로 [제안]: X 안의 loading-trust·operations는 Cordis를 쓰지 않고 `ExtHost.ports`(`PortLookup`)로 포트를 얻는다. operations는 `OperationsDeps.ports`로 받은 `PortLookup`에서 `ProjectorRegistryPortKey`·`ScopedStorePortKey`(확장 전용 저장, `storageOf`)와 `ProcessPortKey`(외부 훅)를 꺼낸다. operations 정책은 `ExtHost`보다 먼저 만들어지므로 조립 루트가 `ExtHost.ports`를 늦은 연결로 넘긴다(X.operations.spec §3.8). 로더의 `IsolationProcessPort`는 조립 루트가 `ExtHost.ports.get(ProcessPortKey)`로 꺼내 `LoaderDeps.process`에 넣는다(X.loading-trust.spec §3.5).
 6. [결정: review.decisions-2 D-04] 포트와 서비스 인터페이스의 관계. 같은 서비스 이름에 등록되는 서비스 인터페이스는 F에 있고, 이 포트를 부분형으로 포함한다. 서비스 이름 하나에는 인터페이스 하나만 등록되므로 X 포트의 메서드와 서비스 인터페이스의 메서드가 어긋나지 않는다.
 
    | 서비스 이름 | 서비스 인터페이스(F 위치) | 포함하는 포트 |
    |---|---|---|
-   | `xeon.loop` | `LoopService`(`@xeon/contracts/services`) | `LoopPort` |
-   | `xeon.tasks` | `TaskService`(`@xeon/contracts/services`) | `InputQueuePort` |
-   | `xeon.session` | `SessionService`(F.records.spec §3.9) | `RecordCommitPort`(`ext` 속성), `ProjectorRegistryPort`(`projectors` 속성) |
-   | `xeon.store` | `StoreService`(F.records.spec §3.9) | `ScopedStorePort` |
-   | `xeon.process` | `ProcessService`(`@xeon/contracts/services`) | `ProcessPort` |
-   | `xeon.tools` | `ToolService`(`@xeon/contracts/services`) | `ToolsPort`(§3.9) |
-   | `xeon.models` | `ModelService`(`@xeon/contracts/services`) | `ModelsPort`(§3.9) |
-   | `xeon.mcp` | `McpService`(`@xeon/contracts/services`, F.capabilities.spec §3.12 `services/mcp.ts`) | `McpPort`(§3.9) |
-   | `xeon.groups` | `GroupService`(`@xeon/contracts/services`, F.capabilities.spec §3.12 `services/groups.ts`) | `LeaseArbiterPort` |
+   | `fresnel.loop` | `LoopService`(`@fresnel/contracts/services`) | `LoopPort` |
+   | `fresnel.tasks` | `TaskService`(`@fresnel/contracts/services`) | `InputQueuePort` |
+   | `fresnel.session` | `SessionService`(F.records.spec §3.9) | `RecordCommitPort`(`ext` 속성), `ProjectorRegistryPort`(`projectors` 속성) |
+   | `fresnel.store` | `StoreService`(F.records.spec §3.9) | `ScopedStorePort` |
+   | `fresnel.process` | `ProcessService`(`@fresnel/contracts/services`) | `ProcessPort` |
+   | `fresnel.tools` | `ToolService`(`@fresnel/contracts/services`) | `ToolsPort`(§3.9) |
+   | `fresnel.models` | `ModelService`(`@fresnel/contracts/services`) | `ModelsPort`(§3.9) |
+   | `fresnel.mcp` | `McpService`(`@fresnel/contracts/services`, F.capabilities.spec §3.12 `services/mcp.ts`) | `McpPort`(§3.9) |
+   | `fresnel.groups` | `GroupService`(`@fresnel/contracts/services`, F.capabilities.spec §3.12 `services/groups.ts`) | `LeaseArbiterPort` |
 
    - L1.loop.spec의 `LoopService extends LoopPort`와 `threadStatus`가 이 규칙의 예다. L1.tools.spec `ToolService extends ToolsPort`, L1.models.spec의 `registerProvider`, L2.mcp.spec §3.2 `McpService extends McpPort`, F.capabilities.spec §3.12 `GroupService extends LeaseArbiterPort`도 같은 규칙을 따른다.
-7. [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 포트 가짜는 X `test/`와 `@xeon/ext-host/testing` 안에 F 인터페이스로 만든다.
+7. [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 포트 가짜는 X `test/`와 `@fresnel/ext-host/testing` 안에 F 인터페이스로 만든다.
 
 ### 3.7 Cordis 서비스 이름 유도
 
@@ -575,7 +575,7 @@ F.capabilities.spec §3.5가 위임한 규칙이다.
 export function capabilityServiceName(id: CapabilityId): `cap:${string}`;
 /** 공급자별 이름. 예: "cap:web.search@web-exa" */
 export function providerServiceName(id: CapabilityId, provider: ExtensionName): `cap:${string}@${string}`;
-/** "xeon." 접두, "_" 접두, "cap:" 접두는 예약. 확장 코드가 직접 provide할 수 없다 */
+/** "fresnel." 접두, "_" 접두, "cap:" 접두는 예약. 확장 코드가 직접 provide할 수 없다 */
 export function isReservedServiceName(name: string): boolean;
 ```
 
@@ -586,7 +586,7 @@ export function isReservedServiceName(name: string): boolean;
 3. 구분자 `:`와 `@`는 `CAPABILITY_ID_PATTERN`과 `EXTENSION_NAME_PATTERN`에 없는 문자다. 그래서 이름에서 능력 id와 공급자 이름을 거꾸로 읽을 수 있다. Cordis가 특별 취급하는 이름(`_` 접두, 숫자 문자열, `then`, `prototype`, `reflect.ts:27-38`)과 겹치지 않는다.
 4. 버전은 이름에 넣지 않는다. 바인딩을 만들 때 `ServiceKey.version`과 공급자의 `provides[].version`의 major가 다르면 그 공급자를 후보에서 뺀다(F.capabilities.spec §5 1번).
 5. scope fiber의 Cordis `inject`는 매니페스트 `requires`의 능력마다 `capabilityServiceName(id)`이다. `optional`은 inject에 넣지 않고 `capability(key)` 호출 때 루트에서 찾는다. 없으면 `capability_unavailable`로 던진다 [가정: vendored Cordis의 inject에 선택 의존 표기가 없다고 읽었다. `fiber.ts:383-394`는 주입 서비스가 하나라도 없으면 epoch를 INACTIVE로 둔다].
-6. 포트 이름(`xeon.*`)은 eng.context-map.design §5.3 표가 정본이다. 능력 이름은 `cap:` 접두를 쓰므로 두 이름 공간이 겹치지 않는다.
+6. 포트 이름(`fresnel.*`)은 eng.context-map.design §5.3 표가 정본이다. 능력 이름은 `cap:` 접두를 쓰므로 두 이름 공간이 겹치지 않는다.
 
 ### 3.8 scope 확장 API (`hostOf`)
 
@@ -615,7 +615,7 @@ export interface ScopeHostApi<S = unknown> {
   /** 포트 조회. builtin 확장만. 없으면 port_unavailable */
   port<Api>(key: PortKey<Api>): Api;
   /**
-   * 설정 키의 유효 값(조립 루트가 `xeon.settings` 포트로 올린 읽기를 거친다). builtin 확장은 모든 키를, 그 밖의 확장(user 신뢰 등)은 자기 이름공간
+   * 설정 키의 유효 값(조립 루트가 `fresnel.settings` 포트로 올린 읽기를 거친다). builtin 확장은 모든 키를, 그 밖의 확장(user 신뢰 등)은 자기 이름공간
    * `ext.<확장 이름>.` 아래 키만 읽는다. 다른 키는 값이 있어도 undefined이고, 포트가 없거나 모르는 키도 undefined다
    */
   settingValue(key: string): unknown;
@@ -647,7 +647,7 @@ export interface ScopeHostApi<S = unknown> {
   registerProvider(name: string, config: ProviderResourceDef): void;
   registerMcpServer(name: string, config: McpServerResourceDef): void;
   registerMessageRenderer(customType: RecordKind, renderer: RendererResourceDef): void;
-  // 웹 provider 등록(M3-REQ-37). WebProviderRegistration은 @xeon/contracts/capabilities가 정한다. 이름은 능력 ID다(§3.9.1)
+  // 웹 provider 등록(M3-REQ-37). WebProviderRegistration은 @fresnel/contracts/capabilities가 정한다. 이름은 능력 ID다(§3.9.1)
   registerWebProvider(registration: WebProviderRegistration): void;
 }
 
@@ -744,15 +744,15 @@ export interface RendererResourceDef { readonly module: string; readonly export:
 // 포트로 넘기는 리소스(도구, provider, MCP 서버)의 정의와 등록 포트는 F가 정본이다(F.extensions.spec §3.2.1)
 export type {
   ToolResourceDef, ProviderResourceDef, McpServerResourceDef, ToolsPort, ModelsPort, McpPort,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 export {
-  ToolsPortKey,    // { name: "xeon.tools" }
-  ModelsPortKey,   // { name: "xeon.models" }
-  McpPortKey,      // { name: "xeon.mcp" }
-} from "@xeon/contracts/extensions";
+  ToolsPortKey,    // { name: "fresnel.tools" }
+  ModelsPortKey,   // { name: "fresnel.models" }
+  McpPortKey,      // { name: "fresnel.mcp" }
+} from "@fresnel/contracts/extensions";
 ```
 
-- [결정: review.decisions-2 D-04] 세 포트는 같은 서비스 이름에 등록되는 서비스 인터페이스의 부분형이다. `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `McpService extends McpPort`이고 세 인터페이스는 F `@xeon/contracts/services`에 있다(F.capabilities.spec §3.12). X가 같은 서비스 이름에 별도 인터페이스를 등록하지 않는다(§3.6 규칙 6 표).
+- [결정: review.decisions-2 D-04] 세 포트는 같은 서비스 이름에 등록되는 서비스 인터페이스의 부분형이다. `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `McpService extends McpPort`이고 세 인터페이스는 F `@fresnel/contracts/services`에 있다(F.capabilities.spec §3.12). X가 같은 서비스 이름에 별도 인터페이스를 등록하지 않는다(§3.6 규칙 6 표).
 - 등록 메서드의 이름과 인자, 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`)의 모양은 F.extensions.spec §3.2.1이 정한다. `ProviderResourceDef`와 `McpServerResourceDef`의 내용 모양은 각각 L1.models.spec과 L2.mcp.spec(`McpServerDefSchema`)이 정한다. X가 보관만 하는 리소스(`CommandResourceDef`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef`)는 위 블록이 정본이다.
 - 위장 provider 플러그인(`plugins/*`, L1 순위)은 이 포트를 쓰지 않는다. F provider 인터페이스로 `core-models` 서비스에 등록한다([결정: review.decisions-2 U-16]). `ModelsPort`는 확장의 `hostOf(g).registerProvider` 경로다.
 
@@ -768,8 +768,8 @@ export function webProviderRegistrationOf(record: ResourceRecord): WebProviderRe
 - 이 종류는 다른 확장이 같은 이름을 내도 거부하지 않습니다. 이름이 능력 ID라서 여러 확장이 같은 능력을 공급하는 것이 정상입니다. 그래서 충돌 판정은 같은 scope 안에서만 하고 `ResourcePolicy`를 부르지 않습니다. 여러 공급자 가운데 고르는 일은 소비자가 합니다 [결정: 오케스트레이터 기본값]. §4.8 규칙 3의 예외입니다.
 - 소비자는 cap-web입니다. 조립 루트를 거쳐 `ExtHost.resources.list("web_provider")`로 기록을 읽고, `webProviderRegistrationOf(record)`로 등록 값을 받습니다. 다른 종류의 기록이거나, 능력 ID가 셋 중 하나가 아니거나, `create`가 함수가 아니면 `undefined`입니다.
 - 공급자 식별자는 `plugin:<확장 이름>`입니다. X는 이 값을 만들거나 검사하지 않고 `ResourceRecord.extension`만 보관합니다. 식별자 형식과 능력별 후보 목록의 검사는 cap-web이 합니다(L2.web.spec §3.6.1).
-- 헤더 비밀(`manifest.auth.secrets`)은 X가 다루지 않습니다. 값을 헤더에 넣는 치환은 `GuardedHttp`가 전송 직전에 하며, 이 일은 cap-web과 L0 `xeon.secrets`가 맡습니다. 등록 값은 능력 ID와 `create`뿐이고 비밀 값을 담지 않습니다.
-- `create`가 돌려주는 객체(`WebSearchProvider`, `WebFetchProvider`, `WebBrowseProvider`)의 모양은 X가 실행 때 검사하지 않습니다. 이 타입은 `@xeon/contracts/capabilities`가 정하고, 소비자가 그 타입으로 씁니다.
+- 헤더 비밀(`manifest.auth.secrets`)은 X가 다루지 않습니다. 값을 헤더에 넣는 치환은 `GuardedHttp`가 전송 직전에 하며, 이 일은 cap-web과 L0 `fresnel.secrets`가 맡습니다. 등록 값은 능력 ID와 `create`뿐이고 비밀 값을 담지 않습니다.
+- `create`가 돌려주는 객체(`WebSearchProvider`, `WebFetchProvider`, `WebBrowseProvider`)의 모양은 X가 실행 때 검사하지 않습니다. 이 타입은 `@fresnel/contracts/capabilities`가 정하고, 소비자가 그 타입으로 씁니다.
 
 ### 3.10 오류
 
@@ -975,7 +975,7 @@ lifecycle [결정: adr.0017]:
 | 같은 fiber의 effect 해제는 `Promise.all`로 동시에 시작된다. 역순은 시작 순서일 뿐이다 | `fiber.ts:453-463` | `onDispose` 함수들은 effect 하나에 모아 역순으로 차례로 실행한다(§4.5.3) |
 | 해제된 fiber는 다시 살아나지 않고, FAILED fiber의 `restart()`는 아무 일도 하지 않는다 | `fiber.ts:136`, `400`, `485-491` | `restart`를 쓰지 않는다. 켤 때마다 `ctx.plugin`으로 새 fiber를 만든다 |
 | 같은 isolation에서 같은 서비스 이름을 두 번 provide하면 던진다 | `reflect.ts:214-216` | 공급자 이름에 확장 이름을 넣는다(§3.7) |
-| `_` 접두, 숫자 문자열, `then`, `prototype` 이름은 Proxy 검사를 건너뛴다 | `reflect.ts:27-38` | 서비스 이름은 `xeon.`·`cap:` 접두로만 만든다 |
+| `_` 접두, 숫자 문자열, `then`, `prototype` 이름은 Proxy 검사를 건너뛴다 | `reflect.ts:27-38` | 서비스 이름은 `fresnel.`·`cap:` 접두로만 만든다 |
 | `Config` 검증은 Standard Schema만 받는다. TypeBox 1.4.2 빌드(조사 당시)에서 `~standard` 문자열이 검색되지 않았다 | `fiber.ts:34-46` | Cordis 플러그인에 `Config` 스키마를 두지 않는다. 설정·상태는 TypeBox로 X가 먼저 검증하고 평문 객체만 넘긴다 |
 | 공급자가 내려가면 소비자 fiber가 경계와 무관하게 즉시 내려갔다 다시 올라온다. 올라올 때 Cordis가 apply를 바로 다시 부른다 | `fiber.ts:383-412`, X-2 §6 | 내려갈 때 소비자의 등록(on, drive, 리소스)은 Cordis가 해제한다. 다시 올라와 apply가 불려도 setup은 실행하지 않고 세대에 `stale` 표시만 남긴 뒤 적용을 예약한다. 다음 단계 경계(유휴면 곧바로 이어지는 유휴 적용)에서 낡은 세대를 치우고 새 세대로 setup을 다시 실행한다(§4.5.4, [결정: D8], `review.open-issues` N-02) |
 
@@ -1092,7 +1092,7 @@ makeLoopHandle(lease, inv):
 ```text
 thread T, 두 scope 모두 켜짐
   helm      : drive 등록, on(before_agent_start chain, tool_call first, turn_end chain), post
-  learning  : on(turn_end chain, agent_settled tap), post, 백그라운드 위임(xeon.agents)
+  learning  : on(turn_end chain, agent_settled tap), post, 백그라운드 위임(fresnel.agents)
 경계 b1: 후보 = [helm] → helm 임대 부여(lease.acquired)
 helm drive: loop.turn(diverge) → turn 실행 중 dispatch(turn_end) 스냅샷 = [helm.h, learning.h] 둘 다 실행
 learning 핸들러: grp.learning.skill.proposed 레코드 초안을 BoundaryPatch.entries에 추가, 백그라운드 위임 시작(임대와 무관)
@@ -1287,7 +1287,7 @@ readRecords(query):
   각 row: 선언 버전보다 큰 version이면 record_version_unknown 경고(진단)와 함께 원형 그대로 돌려준다
 ```
 
-- [결정: M3-REQ-39, M3b B4-GRP] 계측·승격 집계용 내구 이벤트 조회는 둘이다. 확장 scope 안에서는 `readRecords`의 kind 접두 질의(`grp.<이름>.*`, 자기 접두이거나 `readsRecordKinds`가 덮을 때)를 쓴다. 코어 이벤트(`turn.*`, `lease.*`, `tool.*`)는 `ExtRecordQuery.kind`가 확장 kind만 받으므로 호스트용 `ExtHost.queryEvents(threadId, { kindPrefix, limit? })`로 읽는다. 이 조회는 서비스 `xeon.session`의 `readBranch`(`SessionBranchPortKey`) 위에서 활성 가지를 커밋 순서로 거르고, 확장 scope에는 열지 않는다. 도구 소유 scope 조회는 `ExtHost.toolOwner(name)`이고 `resources.list("tool")`의 `ResourceRecord`(`scopeId`, `extension`)를 돌려준다.
+- [결정: M3-REQ-39, M3b B4-GRP] 계측·승격 집계용 내구 이벤트 조회는 둘이다. 확장 scope 안에서는 `readRecords`의 kind 접두 질의(`grp.<이름>.*`, 자기 접두이거나 `readsRecordKinds`가 덮을 때)를 쓴다. 코어 이벤트(`turn.*`, `lease.*`, `tool.*`)는 `ExtRecordQuery.kind`가 확장 kind만 받으므로 호스트용 `ExtHost.queryEvents(threadId, { kindPrefix, limit? })`로 읽는다. 이 조회는 서비스 `fresnel.session`의 `readBranch`(`SessionBranchPortKey`) 위에서 활성 가지를 커밋 순서로 거르고, 확장 scope에는 열지 않는다. 도구 소유 scope 조회는 `ExtHost.toolOwner(name)`이고 `resources.list("tool")`의 `ResourceRecord`(`scopeId`, `extension`)를 돌려준다.
 - [결정: M3b B4-GRP] 저장된 상태가 스키마·버전 검사를 못 넘기면(`state_schema`, `state_future_version`, `state_migration_*`) scope는 그 thread에서 켜지지 않고 `lastError`가 남는다. 되돌릴 길은 `ExtHost.resetScopeState(threadId, scopeId)`다. 활성 가지의 마지막 판 위에 선언 `initial`을 새 판(rev+1)으로 커밋하고(키 `reset:<scope 해시>:<기존 rev>`, 같은 판의 재호출은 한 번만 쓴다) 거부와 `lastError`를 지운 뒤 적용을 예약한다. 이전 판은 기록에 남는다. 오류가 저장 상태 오류가 아니면 `not_refused`, scope나 열린 thread가 없으면 `unknown_scope`·`thread_not_open`이다. 사람 확인은 호출하는 L3·L4의 몫이다.
 - 플러그인(`kind: "plugin"`)도 `x.<name>.` 레코드를 쓸 수 있다. `GroupRecord.groupId`에는 확장 이름이 들어간다 [제안, F `GroupId = ExtensionName`].
 - 읽기 범위는 현재 thread다 [제안]. 다른 thread의 레코드 조회는 M2 이후 별도 질의로 둔다.
@@ -1358,12 +1358,12 @@ recordPrivate(kind, payload):
 
 | pi API(`types.ts` 줄) | 처리 | Xeon 경로 | 대상 |
 |---|---|---|---|
-| `registerTool`(1643) | 유지 | `hostOf(g).registerTool(def)` | `ToolsPort`(`xeon.tools`, L1.tools.spec) |
+| `registerTool`(1643) | 유지 | `hostOf(g).registerTool(def)` | `ToolsPort`(`fresnel.tools`, L1.tools.spec) |
 | `registerCommand`(1652) | 유지 | `registerCommand(name, def)` | X 표 → L4(CLI·데스크톱 명령) |
 | `registerShortcut`(1655) | 유지 | `registerShortcut(key, def)` | X 표 → L4 |
 | `registerFlag`(1664), `getFlag`(1680) | 유지 | `registerFlag`, `getFlag` | X 표 → L4 CLI 인자 해석 |
-| `registerProvider`(1830), `unregisterProvider`(1846) | 유지(해제는 자동) | `registerProvider(name, config)` | `ModelsPort`(`xeon.models`, L1.models.spec) |
-| `registerMcpServer`(1866), `unregisterMcpServer`(1869) | 유지(해제는 자동) | `registerMcpServer(name, config)` | `McpPort`(`xeon.mcp`, L2.mcp.spec) |
+| `registerProvider`(1830), `unregisterProvider`(1846) | 유지(해제는 자동) | `registerProvider(name, config)` | `ModelsPort`(`fresnel.models`, L1.models.spec) |
+| `registerMcpServer`(1866), `unregisterMcpServer`(1869) | 유지(해제는 자동) | `registerMcpServer(name, config)` | `McpPort`(`fresnel.mcp`, L2.mcp.spec) |
 | `getMcpServers`(1872) | 변환 | `g.capability(mcp 키)`의 조회 메서드 | L2.mcp.spec |
 | `registerMessageRenderer`(1687) | 변환 | `registerMessageRenderer(customType, def)`. 키는 `RecordKind` 형식 | X 표 → L4. 데스크톱 렌더 계약은 L4.desktop.spec |
 | `registerEntryRenderer`(1693) | 변환 | `registerMessageRenderer`로 합친다 [제안] | 같음 |
@@ -1427,7 +1427,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 [결정: ADR-0017 §3.6, M3-REQ-102·108] 내구 이벤트 `agent.settled`와 `lease.rejected`가 커밋되면 대응 지점 `lifecycle.agent.settled`, `lifecycle.lease.rejected`를 디스패치한다. 이벤트 kind에서 지점 이름으로 가는 길은 F `LIFECYCLE_HOOKS` 하나이고 X는 다른 표를 두지 않는다. 디스패치 키는 이벤트 id다.
 
 - 피드의 `onCommit`은 저장소 커밋 안에서 동기로 불려 X의 상태 캐시와 임대 갱신보다 앞서므로, 호스트는 한 번 매크로태스크를 넘긴 뒤 발화한다. 핸들러가 읽는 `ctx.state`는 커밋 뒤 판이다.
-- 입구는 두 곳이고 모두 커밋 뒤다. 첫째, X가 낸 경계 기여(`lease.rejected`)는 `boundary.settle(committed)`가 `lifecycle.afterCommit`으로 알린다. 커밋 실패(`failed`)와 prepare 시점에는 발화하지 않는다. 둘째, 다른 층이 커밋하는 `agent.settled`(core-agents가 core-persistence로 씀)는 서비스 `xeon.session`의 `feed.onCommit`(F `EventFeed`, 포트 키 `SessionFeedPortKey`)으로 본다. 호스트는 `openThread`에서 피드가 제공되어 있으면 한 번 구독한다. thread가 닫혀 있는 동안 피드로 온 이벤트는 메모리에 쌓아 두었다가(전체 1024개 상한, 넘으면 오래된 것부터 버리고 진단) 그 thread를 열 때 발화한다. 쌓아 둔 이벤트는 프로세스 재시작을 넘기지 못한다 [미결: 피드 `subscribe(afterSeq)` 커서로 따라잡을지]. 같은 이벤트가 두 입구로 오면 한 번만 발화한다(이벤트 id 기억 4096개).
+- 입구는 두 곳이고 모두 커밋 뒤다. 첫째, X가 낸 경계 기여(`lease.rejected`)는 `boundary.settle(committed)`가 `lifecycle.afterCommit`으로 알린다. 커밋 실패(`failed`)와 prepare 시점에는 발화하지 않는다. 둘째, 다른 층이 커밋하는 `agent.settled`(core-agents가 core-persistence로 씀)는 서비스 `fresnel.session`의 `feed.onCommit`(F `EventFeed`, 포트 키 `SessionFeedPortKey`)으로 본다. 호스트는 `openThread`에서 피드가 제공되어 있으면 한 번 구독한다. thread가 닫혀 있는 동안 피드로 온 이벤트는 메모리에 쌓아 두었다가(전체 1024개 상한, 넘으면 오래된 것부터 버리고 진단) 그 thread를 열 때 발화한다. 쌓아 둔 이벤트는 프로세스 재시작을 넘기지 못한다 [미결: 피드 `subscribe(afterSeq)` 커서로 따라잡을지]. 같은 이벤트가 두 입구로 오면 한 번만 발화한다(이벤트 id 기억 4096개).
 - 피드가 없는 구성에서는 `ExtHost.afterCommit(threadId, events)`를 L1이 직접 부를 수 있다.
 - 페이로드는 F 스키마로 검사한다. 어기면 진단을 남기고 건너뛴다.
 - [제안] 소유 scope 거르기: `agent.settled.owner`가 `scope` 또는 `drive`이면 그 `scopeId`의 핸들러만 받는다(`DispatchOptions.onlyScope`). F.extensions.spec 지점 45행이 "소유 scope 거르기는 X"라고만 적었다. `owner`가 `tool`이거나 없으면(옛 기록) 거르지 않고 모든 구독자가 받는다 [미결: 옛 기록의 `agent.spawned.owner` 대조는 하지 않는다].
@@ -1452,7 +1452,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 15. 상태 커밋 경합: 뒤 커밋은 `state_conflict`. 확장이 다시 읽고 계산해야 한다.
 16. 상태 문서가 256 KiB 근처: `state_too_large`로 거부. 큰 데이터는 L2 지식 저장소나 확장 전용 테이블(X.operations.spec)에 둔다.
 17. 공급자 확장이 꺼져 능력 바인딩이 사라짐: 그 능력을 `requires`한 scope의 fiber가 Cordis 규칙대로 PENDING이 되고(`ScopeInfo.waiting`), 그 세대의 핸들러는 스냅샷에서 빠진다. 공급자가 돌아오면 새 세대로 setup이 다시 실행된다. 이 연쇄는 경계와 무관하게 즉시 일어난다(§10 미결).
-18. 포트 부재(`xeon.loop` 등이 등록되지 않음): 해당 연산만 `port_unavailable`. 디스패치는 동작한다.
+18. 포트 부재(`fresnel.loop` 등이 등록되지 않음): 해당 연산만 `port_unavailable`. 디스패치는 동작한다.
 19. 끈 scope의 늦은 콜백이 `on`이나 `post`를 부름: `scope_inactive`.
 20. 상태 커밋 뒤 소비 커밋 전 크래시: 재시작 뒤 핸들러가 이미 커밋된 판을 보고 다시 실행된다. 같은 키의 커밋은 `replayed`이고 X는 저장된 doc을 캐시와 반환값에 쓴다(§4.6.1 재실행 규칙).
 21. 되감기 뒤 상태: 활성 가지 위 마지막 상태로 돌아간다. 버려진 가지의 판과 임대는 보이지 않는다(§4.6.1 활성 가지 규칙).
@@ -1505,7 +1505,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | `hostOf`, `ScopeHostApi` | L1·L2 내장 확장, L3.group-sdk.spec, X.loading-trust.spec(외부 확장 로더) |
 | `capabilityServiceName`, `providerServiceName` | F.capabilities.spec §3.5(위임 답), L2 전체 |
 | `ScopeInfo`, `ResourceRegistry`, 설정 키 `x.primitives.*` | L4.settings-ui.spec, L4.cli.spec, L4.desktop.spec |
-| `@xeon/ext-host/testing`의 테스트 호스트(인메모리 포트, 가짜 타이머 연결) | eng.testing.guide §1.2, L1·L3 테스트 |
+| `@fresnel/ext-host/testing`의 테스트 호스트(인메모리 포트, 가짜 타이머 연결) | eng.testing.guide §1.2, L1·L3 테스트 |
 
 요구:
 
@@ -1562,7 +1562,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 29. 그룹 `learning`이 `recordPrivate("grp.learning.proposal.created", p)`를 부르면 `visibility: "private"`로 커밋되고, `readsRecordKinds: ["grp.learning.*"]`를 선언한 다른 그룹의 `readRecords`는 그 행을 돌려주지 않는다. 같은 그룹의 `readRecords`는 돌려준다.
 30. [M3-REQ-102] 도구 `execute`와 명령 처리기 안에서 `recordPrivate`, `record`, `commit`, `state()`가 `no_thread` 없이 동작한다. 같은 도구 호출 id(명령은 호출 id)로 다시 실행하면 기록과 상태 커밋이 한 번만 남고, 다른 id면 새로 남는다. 위임 자식 대화에서 실행된 도구의 기록은 그 자식 대화에만 남는다. thread가 열려 있지 않거나 명령의 `threadId`가 `null`이면 `no_thread`다.
 30. `recordPrivate`에 다른 확장 접두 kind, 영역 `state` kind, `recordKinds`에 선언된 공개 kind를 넘기면 모두 `record_private_invalid`다.
-31. `xeon.tools`에 등록된 가짜 `ToolService`가 `ToolsPort`를 포함하면 `hostOf(g).registerTool`이 그 서비스의 `register`를 부르고, scope를 끄면 해제된다.
+31. `fresnel.tools`에 등록된 가짜 `ToolService`가 `ToolsPort`를 포함하면 `hostOf(g).registerTool`이 그 서비스의 `register`를 부르고, scope를 끄면 해제된다.
 32. (M2, X.1) `LeaseArbiterPort`가 있으면 후보 전체(`scopeId`, `extension`, `loadIndex`, `defaultEnabled`)를 받아 고른 그룹이 임대를 받고, 임대가 있는 동안에는 다시 묻지 않는다. `null`을 돌려주면 임대가 없다.
 33. (M2, X.1) 임대를 가진 그룹이 있을 때 `activeDriveGroup`이 다른 후보 그룹을 가리키면, 다음 경계에서 `lease.released { reason: "revoked" }`와 가리킨 그룹의 `lease.acquired`가 차례로 기록되고 가리킨 그룹의 drive 함수가 호출된다. 후보가 아닌 그룹을 가리키면 임대를 유지한다. `idle`로 반납된 그룹은 다음 `turn_settled`(또는 상태 판 변화) 전까지 후보가 아니다.
 34. (M2, X.1) 저장된 상태가 낮은 버전이면 `migrateState` 훅의 결과가 새 판(`rev + 1`, 선언 버전)으로 커밋된다. 훅이 없으면 `state_migration_missing`, 훅이 던지면 `state_migration_failed`, 결과가 스키마를 어기면 `state_schema`, 저장된 버전이 선언보다 높으면 `state_future_version`이고 그 thread에서는 켜지지 않는다. 같은 이동을 두 번째 시작에서 다시 하지 않는다.
@@ -1571,7 +1571,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 37. (M2, X.1) `ExtHost.leaseOf(threadId)`가 커밋된 현재 임대를 돌려주고, `onChange`가 토글 요청, 적용, 임대 부여·반납을 알린다. 구독자가 던져도 다른 구독자는 호출된다.
 38. (M2, X.3) 공급자가 내려갔다 올라와도 소비자 setup은 즉시 다시 실행되지 않는다. 다음 단계 경계(유휴면 곧바로)에서 새 세대로 한 번 다시 실행되고 새 `scope.changed`는 남지 않는다.
 39. (M2, X.3) 저장된 켜짐 기록이 있는 thread를 다시 열면(같은 프로세스와 재시작 모두) 이미 기록된 scope의 `scope.changed`를 다시 쓰지 않는다.
-40. (M2, X.2) `hostOf(g).registerTool`·`registerProvider`·`registerMcpServer`는 각 포트(`xeon.tools`, `xeon.models`, `xeon.mcp`)의 등록 함수를 부르고, `registerCommand`·`registerShortcut`·`registerFlag`·`registerMessageRenderer`는 포트 없이 `ExtHost.resources`에 기록된다. scope를 끄면 포트의 등록과 레지스트리 기록이 모두 해제되고 구독자가 `removed`를 받는다.
+40. (M2, X.2) `hostOf(g).registerTool`·`registerProvider`·`registerMcpServer`는 각 포트(`fresnel.tools`, `fresnel.models`, `fresnel.mcp`)의 등록 함수를 부르고, `registerCommand`·`registerShortcut`·`registerFlag`·`registerMessageRenderer`는 포트 없이 `ExtHost.resources`에 기록된다. scope를 끄면 포트의 등록과 레지스트리 기록이 모두 해제되고 구독자가 `removed`를 받는다.
 41. (M2, X.2) 포트가 없으면 `port_unavailable`, 같은 scope의 같은 이름은 `resource_conflict`, 형식 위반은 `resource_name_invalid`다. 정책이 없을 때 다른 scope의 같은 이름도 `resource_conflict`다. 정책의 `rename`·`replace`·`reject`가 각각 그대로 반영된다.
 42. (M2, X.2) `exposeAll` 정책에서 외부 확장 둘이 같은 도구 이름을 등록하면 설치 순서와 관계없이 둘 다 정식 이름으로 노출되고, 한쪽을 끄면 남은 쪽이 짧은 이름으로 도구 포트에 다시 등록된다. 내장이 나중에 같은 이름을 등록하면 먼저 등록된 외부 도구가 정식 이름으로 바뀐다.
 43. (M2, X.2) 핸들러가 `hostOf(g).awaitUser`로 감싼 대기는 핸들러 시간 예산에 들어가지 않고, 감싸지 않은 같은 대기는 시간 초과다. `wait`가 받는 신호는 핸들러 신호와 호출자 신호를 합친 것이다.
@@ -1585,7 +1585,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - [미결] 유휴 상태 post의 동작(보관, 시작, 오류)과 `start` 값 추가 여부(§4.7).
 - [미결] pi `triggerTurn: false` 대응 연산(§4.7).
 - 포트 정본 이전(해소, [결정: review.decisions-2 U-14, D-04]): 모든 호스트 포트, 리소스 등록 포트와 리소스 정의, 키는 F.extensions.spec §3.2.1 `ports.ts`에 있고, `RecordCommitPort`와 부속 타입(`ExtCommitRequest.visibility` 포함)은 F.records.spec §3.9에 있다. 이 문서는 §3.6·§3.9에서 F 이름을 다시 export만 하고, ext-host 고유 키는 `ExtHostPortKey`뿐이다. `queryRecords`의 셋째 인자 `reader`도 F.records.spec §3.9에 반영됐고 §4.6.4가 호출한 확장 이름을 넘긴다.
-- 서비스 인터페이스(해소, [결정: review.decisions-2 D-04]): 같은 서비스 이름의 포트를 부분형으로 포함하는 서비스 인터페이스(`LoopService`, `TaskService`, `ProcessService`, `ToolService`, `ModelService`, `McpService`, `GroupService`)는 F `@xeon/contracts/services`(F.capabilities.spec §3.12)에, `SessionService`와 `StoreService`는 F.records.spec §3.9에 있다(§3.6 규칙 6 표). L1.tools.spec, L1.models.spec, L2.mcp.spec §3.2, L3.group-sdk.spec §3.8도 같은 구성을 쓴다.
+- 서비스 인터페이스(해소, [결정: review.decisions-2 D-04]): 같은 서비스 이름의 포트를 부분형으로 포함하는 서비스 인터페이스(`LoopService`, `TaskService`, `ProcessService`, `ToolService`, `ModelService`, `McpService`, `GroupService`)는 F `@fresnel/contracts/services`(F.capabilities.spec §3.12)에, `SessionService`와 `StoreService`는 F.records.spec §3.9에 있다(§3.6 규칙 6 표). L1.tools.spec, L1.models.spec, L2.mcp.spec §3.2, L3.group-sdk.spec §3.8도 같은 구성을 쓴다.
 - F.extensions.spec §1·§4.2 문구(해소): tier 정의와 핸들러 시간 예산은 X.operations 소유이고 primitives는 `DispatchPolicy` 주입 구멍만 둔다(§1). F.extensions.spec §1과 §4.2가 이미 X.operations.spec을 가리킨다.
 - [미결] F `ScopeApi`에 `provide`를 넣을지, X `hostOf(g).provide`로 둘지(§3.8).
 - `LeaseAcquiredPayload.leaseEpoch`(해소, F M3a A2): 선택 필드로 추가되었고 X가 채운다(§4.4.1 7번).
@@ -1602,7 +1602,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - 이름 정리(해소): eng.transactions.design·eng.events.design의 옛 키(`drive:…`, `spawn:…`, `scope:<scopeId>:<clientUlid>`, `ext:<extId>:…`)와 옛 kind(`scope.toggled`, `drive.leased`)는 고쳐졌다. 확장 kind 접두는 `x.`/`grp.`이다([결정: review.decisions-2 T-21]). 확장 id는 `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두는 `x_<name의 하이픈을 밑줄로>_`다([결정: review.decisions-2 U-18]). F.extensions.spec `EXTENSION_NAME_PATTERN`·`SCOPE_ID_PATTERN`·`RECORD_KIND_PATTERN`, eng.context-map.design §5.2 `EXT_ID_PATTERN`, eng.domain-types.guide DT-08, L0.store.spec, adr.0004도 이 결정대로 `{1,31}`과 `x_` 접두를 쓴다.
 - install 시작 적용으로 켜진 scope의 `scope.changed`(해소, M2 X.3): thread를 열 때 저장된 켜짐 상태와 다를 때만 첫 경계 기여에 넣는다(§4.5.6). `ExtThreadSnapshot.enabled`가 실제로 채워지면(core-persistence의 `ext.loadThread`, PS-16) 다시 열기에서 중복 기록이 없다. `loadThread`가 빈 `enabled`를 돌려주는 M1 대역은 같은 기록을 다시 남긴다(`review.open-issues` N-01).
 - [미결] F `TrustRequestSchema.level` 값(builtin/user/project/untrusted)은 [가정]이고 X.loading-trust.spec이 확정한다. 이 문서는 `ExtensionUnit.builtin` 불리언만 쓴다.
-- [미결] `@xeon/ext-host/src/index.ts`는 다른 작업자가 작성 중이다. §3.1 공개 이름과 충돌하면 이 문서를 기준으로 맞추되 충돌 내용을 여기에 적는다(현재 파일은 `export {}` 스텁이라 충돌 없음).
+- [미결] `@fresnel/ext-host/src/index.ts`는 다른 작업자가 작성 중이다. §3.1 공개 이름과 충돌하면 이 문서를 기준으로 맞추되 충돌 내용을 여기에 적는다(현재 파일은 `export {}` 스텁이라 충돌 없음).
 
 46. (M3) on 핸들러에서 읽기 능력 호출과 선언 없는 쓰기는 `effect_not_allowed`로 거부되고 공급자는 불리지 않는다. 키 없는 멱등 쓰기는 on·drive 모두 `invalid_input`이다(§4.4.7).
 47. (M3) 같은 상태 판으로 drive를 두 번 호출해도 능력 쓰기 효과와 `loop.turn`은 한 번이다(§4.4.7).

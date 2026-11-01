@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { LeaseToken, RecoverDeps } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { LeaseToken, RecoverDeps } from "@fresnel/contracts/records";
 import { DEFAULT_PERSISTENCE_SETTINGS } from "../src/index.ts";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {

@@ -1,13 +1,13 @@
-import type { Logger } from "@xeon/contracts";
-import { ok } from "@xeon/contracts";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { LeaseHolder } from "@xeon/contracts/records";
+import type { Logger } from "@fresnel/contracts";
+import { ok } from "@fresnel/contracts";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { LeaseHolder } from "@fresnel/contracts/records";
 import type {
   AgentDefinition,
   ChildTurnRequest,
   SpawnOrigin,
   TaskScope,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   createAgentService,
   createStaticAgentsSettings,
@@ -69,7 +69,7 @@ export interface HarnessOptions extends StaticAgentsSettings {
   /** 이전 하네스의 세션을 이어 쓴다(프로세스 재시작 흉내) */
   readonly session?: FakeSession;
   readonly definitions?: readonly AgentDefinition[];
-  /** 판정이 부르는 xeon.models 대역 */
+  /** 판정이 부르는 fresnel.models 대역 */
   readonly models?: FakeModels;
   /** 설정 읽기 대역. 주면 정적 설정 대신 쓴다(thread별 값 시험) */
   readonly agentsSettings?: AgentsSettingsSource;

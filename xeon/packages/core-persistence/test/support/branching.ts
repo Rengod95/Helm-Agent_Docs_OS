@@ -1,6 +1,6 @@
 // 분기·수명주기 시험의 도우미: 한 turn을 끝까지 돌리고 활성 가지의 item을 읽는다.
-import { isId, type EventId, type ThreadId } from "@xeon/contracts/conversation";
-import type { ItemRow } from "@xeon/contracts/records";
+import { isId, type EventId, type ThreadId } from "@fresnel/contracts/conversation";
+import type { ItemRow } from "@fresnel/contracts/records";
 import {
   endTurn,
   expectOk,

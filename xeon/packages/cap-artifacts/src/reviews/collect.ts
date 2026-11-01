@@ -1,12 +1,12 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import { FileChangeSchema } from "@xeon/contracts/capabilities";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import { FileChangeSchema } from "@fresnel/contracts/capabilities";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import {
   ItemRecordedPayloadSchema,
   type DurableEventEnvelope,
   type EventFeed,
   type ReadFailure,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 // L2.artifacts.spec §4.2.1. 도구 결과(`item.recorded`의 toolResult)에서 workspace 쓰기 도구의 변경 기록(`FileChange`)을 모은다.
 // 이벤트를 읽는다. `p_tool_calls` 같은 다른 컨텍스트 테이블은 읽지 않는다(CM-02).

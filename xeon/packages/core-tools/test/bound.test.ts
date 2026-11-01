@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { EffectResultSchema } from "@xeon/contracts/records";
+import { parse } from "@fresnel/contracts";
+import { EffectResultSchema } from "@fresnel/contracts/records";
 import { boundResult, selfBlobRef } from "../src/bound.ts";
 import { createToolRuntime } from "../src/runtime.ts";
 import { fakeStore, fakeTruncator } from "../src/testing/index.ts";

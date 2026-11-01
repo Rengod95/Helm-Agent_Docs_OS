@@ -11,13 +11,13 @@ import {
   type SecretHandle,
   type SecretMeta,
   type SecretName,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import { ToolServicePortKey } from "@xeon/contracts/services";
-import { hostOf, type BuiltinExtensionModule } from "@xeon/ext-host";
-import type { EventWire, HostConnection } from "@xeon/contracts/wire";
-import { memorySecrets, type MemorySecrets } from "@xeon/platform-secrets/testing";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import { ToolServicePortKey } from "@fresnel/contracts/services";
+import { hostOf, type BuiltinExtensionModule } from "@fresnel/ext-host";
+import type { EventWire, HostConnection } from "@fresnel/contracts/wire";
+import { memorySecrets, type MemorySecrets } from "@fresnel/platform-secrets/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { callingModels } from "./call-tape.ts";

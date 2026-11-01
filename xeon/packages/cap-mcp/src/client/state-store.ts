@@ -1,12 +1,12 @@
-import { err, ok, type Clock, type Result } from "@xeon/contracts";
-import type { McpServerState } from "@xeon/contracts/capabilities";
+import { err, ok, type Clock, type Result } from "@fresnel/contracts";
+import type { McpServerState } from "@fresnel/contracts/capabilities";
 import type {
   MigrationError,
   MigrationSet,
   SqlRow,
   StoreReadError,
   StoreWriteError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { McpMasker } from "../ports/secrets.ts";
 import type { McpStorePort } from "../ports/store.ts";
 

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import * as capabilities from "@xeon/contracts/capabilities";
-import { capabilityEffectOf } from "@xeon/contracts/extensions";
+import * as capabilities from "@fresnel/contracts/capabilities";
+import { capabilityEffectOf } from "@fresnel/contracts/extensions";
 import { BUILTIN_CAPABILITY_DEFS, capabilityDefsOf } from "../../src/assembly/capability-defs.ts";
 
 // 능력 래퍼가 읽는 내장 정의 표(X.primitives.spec §4.4.7)가 contracts가 내보내는 능력 정의를 빠짐없이 담는다.

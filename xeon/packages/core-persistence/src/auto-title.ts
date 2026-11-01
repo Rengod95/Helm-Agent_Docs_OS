@@ -1,13 +1,13 @@
 // 모델로 대화 제목을 만든다(M3-REQ-83, L1.persistence.spec §4.10.6). 모델 호출은 주입된 포트가 한다.
 // 언제 부를지는 호스트가 정한다(L4.host-service.spec HS-73). 이 파일은 활성 가지 읽기, 입력 정리, 제목 정리와 쓰기만 한다.
-import { attemptAsync, err, ok, parse, type Logger, type Result } from "@xeon/contracts";
-import type { ItemRecord, ThreadId } from "@xeon/contracts/conversation";
+import { attemptAsync, err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
+import type { ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
 import {
   ItemRecordedPayloadSchema,
   type LifecycleError,
   type ReadFailure,
   type SessionService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 /** 모델 포트. 실패는 kind가 있는 값으로 돌려준다. 던진 값은 `threw`로 감싼다 */
 export interface TitleModelPort {

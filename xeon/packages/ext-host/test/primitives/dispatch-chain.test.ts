@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { BoundaryValue } from "@xeon/contracts/extensions";
+import { Bug } from "@fresnel/contracts";
+import type { BoundaryValue } from "@fresnel/contracts/extensions";
 import { createTestHost } from "../../src/testing/index.ts";
 import {
   assistantStop,

@@ -1,4 +1,4 @@
-import { assertNever, Bug, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Result } from "@fresnel/contracts";
 import { Type, type TSchema } from "typebox";
 import { rowInvalid, type RowFault } from "./rows.ts";
 import {
@@ -11,7 +11,7 @@ import {
   type KindVersioning,
   type ReadOnlyReason,
   type UpcastResult,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { EXT_STATE_KIND_SUFFIX, ExtStatePayloadSchema } from "./ext-state.ts";
 
 /** 코어·도메인 카탈로그와 확장 kind 등록부를 한 번에 묻는 조회(L1.persistence.spec §4.12) */

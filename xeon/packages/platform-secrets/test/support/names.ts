@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { SecretHandle, SecretName } from "@xeon/contracts/capabilities";
+import { Bug } from "@fresnel/contracts";
+import type { SecretHandle, SecretName } from "@fresnel/contracts/capabilities";
 import { handleForName } from "../../src/ref.ts";
 
 /** 검증을 거친 SecretName. 잘못된 이름은 테스트 픽스처 결함이므로 Bug */

@@ -1,14 +1,14 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { JsonRpcMessage, StoreId } from "@xeon/contracts/wire";
+import { err, ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { JsonRpcMessage, StoreId } from "@fresnel/contracts/wire";
 import type {
   SecretEntryOffer,
   SecretOutOfBandPort,
   SecretRevealOffer,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type {
   AssembleOptions,
   BridgeExit,
@@ -17,7 +17,7 @@ import type {
   HostCommand,
   HostExit,
   StdioHostOptions,
-} from "@xeon/host";
+} from "@fresnel/host";
 import { createHostConnection } from "../../src/host-client.ts";
 import type { TerminalFacts } from "../../src/cli/command.ts";
 import { createConnectEngine, type ConnectEngine, type HostApi } from "../../src/engine.ts";

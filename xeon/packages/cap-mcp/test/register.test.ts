@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { ToolRegistration } from "@xeon/contracts/services";
-import type { ToolResourceDef, ToolsPort } from "@xeon/contracts/extensions";
+import { err, ok } from "@fresnel/contracts";
+import type { ToolRegistration } from "@fresnel/contracts/services";
+import type { ToolResourceDef, ToolsPort } from "@fresnel/contracts/extensions";
 import {
   createToolServiceRegistrar,
   createToolsPortRegistrar,

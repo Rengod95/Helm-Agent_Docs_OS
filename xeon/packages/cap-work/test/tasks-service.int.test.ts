@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eachAsync, parse } from "@xeon/contracts";
-import { TaskWriteOutput, renderTaskList, type WorkTaskView } from "@xeon/contracts/capabilities";
+import { eachAsync, parse } from "@fresnel/contracts";
+import {
+  TaskWriteOutput,
+  renderTaskList,
+  type WorkTaskView,
+} from "@fresnel/contracts/capabilities";
 import { DEFAULT_WORK_SETTINGS } from "../src/settings.ts";
 import { rejection } from "./support/assertions.ts";
 import { tid } from "./support/tasks.ts";

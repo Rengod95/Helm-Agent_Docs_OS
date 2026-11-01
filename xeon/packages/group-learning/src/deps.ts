@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock } from "@fresnel/contracts";
 import type { LearningBridge } from "./bridge.ts";
 import type { LearningQueueReader } from "./proposals/reader.ts";
 import type { CommandReport } from "./results.ts";

@@ -8,11 +8,15 @@ import {
   type Clock,
   type Logger,
   type Result,
-} from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { ItemRecordedPayloadSchema } from "@xeon/contracts/records";
-import { formatModelRef, type ModelRole, type ModelService } from "@xeon/contracts/services";
-import { autoTitleThread, type AutoTitleDeps, type TitleModelPort } from "@xeon/core-persistence";
+} from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { ItemRecordedPayloadSchema } from "@fresnel/contracts/records";
+import { formatModelRef, type ModelRole, type ModelService } from "@fresnel/contracts/services";
+import {
+  autoTitleThread,
+  type AutoTitleDeps,
+  type TitleModelPort,
+} from "@fresnel/core-persistence";
 import type { CommitBatch, EventFeedPort, SessionLockPort } from "../types.ts";
 import { titleFromInput } from "../title.ts";
 

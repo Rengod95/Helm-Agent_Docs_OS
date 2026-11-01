@@ -1,6 +1,6 @@
-import { assertNever, parse } from "@xeon/contracts";
-import type { PlanDecision } from "@xeon/contracts/capabilities";
-import { JsonObjectSchema, type JsonValue } from "@xeon/contracts/conversation";
+import { assertNever, parse } from "@fresnel/contracts";
+import type { PlanDecision } from "@fresnel/contracts/capabilities";
+import { JsonObjectSchema, type JsonValue } from "@fresnel/contracts/conversation";
 
 // L2.work.spec §4.2.3. 승인 해결(approval.resolved)을 계획 상태로 옮기는 표. 투영기와 submit 응답이 같은 표를 쓴다.
 

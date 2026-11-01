@@ -92,7 +92,7 @@ flowchart LR
 1. spawn 위치가 Rust 한 곳이다. adr.0008 §3.3 제안 1번(엔진 spawn은 Rust 한 곳, `CommandChild`를 앱 상태에 보관)을 그대로 만족한다. (b)는 플러그인이 정상 종료 때 SIGKILL만 보내고(`_research/notes/arch-2.md §3.2` 기본 kill 행), WebView 새로고침이나 창 재생성 때 `CommandChild` 핸들이 페이지와 함께 사라진다.
 2. envelope·메서드·params 검사 로직이 F(`checkEnvelope`, `WIRE_METHODS`) 한 벌로 남는다. (c)는 같은 검사를 Rust로 다시 써야 하고, F 스키마가 바뀔 때마다 두 곳을 고쳐야 한다.
 3. 데스크톱 TS는 CLI와 같은 `HostConnection`을 쓴다. 그래서 같은 테이프에서 CLI와 데스크톱의 호스트 메시지 열이 같은지 비교할 수 있다(§9 D-03).
-4. DR-10과 맞는다. `apps/desktop`은 `@xeon/host`를 import하지 않고 바이너리를 실행한다(`eng.dependency-rules.guide` DR-10).
+4. DR-10과 맞는다. `apps/desktop`은 `@fresnel/host`를 import하지 않고 바이너리를 실행한다(`eng.dependency-rules.guide` DR-10).
 5. WebView에 `shell:allow-spawn`을 줄 필요가 없다. 셸 권한을 WebView에 열지 않는다(§3.5).
 
 (a)의 비용:
@@ -184,7 +184,7 @@ export declare function createTauriIpc(): DesktopIpc;
 // xeon/apps/desktop/src/transport/tauri-stdio.ts
 import type {
   HostConnection, StdioTransportFactory, Transport, StreamPosition, WireResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { DesktopIpc, EngineState } from "./ipc.ts";
 
 /** 릴레이 한 세대. readable은 엔진 stdout 바이트, writable은 엔진 stdin 바이트다. */
@@ -250,7 +250,7 @@ export declare function resubscribe(
 
 ```ts
 // xeon/apps/desktop/src/settings-store/index.ts
-import type { EffectiveSetting, SettingDefWire, SettingKey } from "@xeon/contracts/settings";
+import type { EffectiveSetting, SettingDefWire, SettingKey } from "@fresnel/contracts/settings";
 
 export type DesktopSettingWrite =
   | { readonly ok: true; readonly setting: EffectiveSetting }
@@ -323,7 +323,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 1. 셸이 시작하면 데스크톱 설정 파일을 읽는다(§3.6). 파일이 없거나 읽지 못하면 기본값을 쓴다. 틀린 값은 그 키만 기본값을 쓰고, 진단은 앱 로그에 남긴다. 읽은 엔진 값은 `EngineConfig::from_values`로 바꿔 엔진 감독자에 넘긴다(M3-38).
 2. (M3) 서비스 사용 설정(`l0.process.service.enabled`)이 켜져 있으면 §4.8 서비스 경로로 가고, 꺼져 있으면 3으로 간다. M2는 이 단계 없이 3으로 간다.
-   - 이 키는 엔진 카탈로그의 user·managed 범위 파일 값이고, 셸과 WebView는 `l4.desktop.*` 로컬 저장소(§3.6)만 읽는다. `resolveLaunchMode`는 `@xeon/host` 안에 있어 desktop이 import할 수 없다(W6, DR-10). 그래서 읽기 경로를 따로 둔다.
+   - 이 키는 엔진 카탈로그의 user·managed 범위 파일 값이고, 셸과 WebView는 `l4.desktop.*` 로컬 저장소(§3.6)만 읽는다. `resolveLaunchMode`는 `@fresnel/host` 안에 있어 desktop이 import할 수 없다(W6, DR-10). 그래서 읽기 경로를 따로 둔다.
 
    | 안 | 내용 | 장점 | 단점 |
    |---|---|---|---|
@@ -420,10 +420,10 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 |---|---|---|
 | W1 | `src/transport/**`는 `src/views/**`를 import하지 않는다 | 전송 코드는 화면 코드에 의존하지 않는다. M1 적합성 테스트가 화면 없이 전송만 돈다 |
 | W2 | `@tauri-apps/*`는 `src/transport/ipc.ts`와 `src/shell/**`(창, 트레이, 알림)만 import한다 | Tauri 의존을 교체 가능한 좁은 면에 둔다. 테스트는 `DesktopIpc` 가짜를 쓴다 |
-| W3 | 설정 view-model(`@xeon/client/settings`, settings-ui 소유)은 React와 Tauri를 import하지 않는다. `@xeon/contracts`와 typebox만 쓴다 [결정: adr.0020] | 경계: 화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop |
-| W4 | `src/views/**`는 `@xeon/client/settings`의 진입점만 import한다 | 설정 화면 진입점 하나만 연다 |
+| W3 | 설정 view-model(`@fresnel/client/settings`, settings-ui 소유)은 React와 Tauri를 import하지 않는다. `@fresnel/contracts`와 typebox만 쓴다 [결정: adr.0020] | 경계: 화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop |
+| W4 | `src/views/**`는 `@fresnel/client/settings`의 진입점만 import한다 | 설정 화면 진입점 하나만 연다 |
 | W5 | TS 코드에 OS 분기를 두지 않는다. 플랫폼 차이는 Rust가 처리하고, WebView에는 기능 유무(`features`)로만 전달한다 | `eng.dependency-rules.guide` DR-13. `src-tauri/`는 규칙 밖 |
-| W6 | `@xeon/host`, `@xeon/cli`를 import하지 않는다 | DR-10 |
+| W6 | `@fresnel/host`, `@fresnel/cli`를 import하지 않는다 | DR-10 |
 | W7 | WebView 코드는 `node:*`, `bun:*`, Bun 전역을 쓰지 않는다. `test/**`와 빌드 스크립트는 예외다 | WebView에는 Bun 런타임이 없다 |
 
 ### 4.10 메모리 예산
@@ -520,7 +520,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
   - 응답이 적용되지 않으면 `approval.respond` 결과의 `reason`으로 이유별 문장을 보인다(`src/app/approval-outcome.ts`). `answer_invalid`는 `invalid`(host가 준 `detail` 한 줄을 덧붙인다), `already_resolved`와 `unknown_approval`은 `closed`, `commit_failed`와 연결 오류는 `failed`, 이유가 없으면 `unapplied`다. 스키마에 맞지 않는 질문 답의 `-32602`도 `invalid`로 읽는다.
 - 프로젝트 신뢰 카드 [결정: M2 마감 G1-03]: 신뢰하지 않은 프로젝트는 `.mcp.json`, 프로젝트 스킬, 프로젝트 슬래시 명령, 프로젝트 설정을 읽지 않는다. 열린 대화의 작업 폴더(`ThreadSummary.workspace`)에 대해 연결이 `live`가 되면 `trust.get { workspace }`를 부르고, 신뢰가 필요한 자원이 있고(`required`) 허용이 아니면(`verdict`가 `undecided` 또는 `deny`) 입력창 위에 카드를 보인다. 카드는 프로젝트 경로, 불러오려는 자원, host가 만든 선택지(`TrustOption`)를 버튼으로 둔다. 버튼 문구는 `label` 식별자(`trust-folder` 등)를 `src/views/trust-model.ts` 표로 옮기고 모르는 식별자는 그대로 보인다. 선택은 `trust.decide { workspace, choice }`로 보내고, 돌아온 판정으로 카드를 바꾼다(신뢰하면 사라진다). 판정은 이벤트가 아니라 요청 결과라 거울에 넣지 않고 부품의 로컬 상태에 둔다(`eng.frontend-state.guide` FS-03, FS-04). 거부한 프로젝트는 바꿀 수 있게 카드가 남는다. 메서드가 없는 host의 `-32601`은 `unsupported`로 읽고 카드를 그리지 않는다.
 - `thread.locked` 대화 상자 [결정: M2 마감 G2-09]: `turn.start`가 `thread.locked`(3002)로 거절되면 대화 상자를 연다(`src/views/locked-dialog.tsx`). 소유자 종류(`details.ownerKind`)를 이름으로 보이고, host가 준 대안 중 `observe`(`thread.open { mode: "observe" }`, 성공하면 그 대화의 입력창이 잠기고 "쓰기 다시 시도"가 나온다)와 `fork`(`thread.fork`, 성공하면 새 대화를 연다)만 버튼으로 둔다. `delegate`는 서비스 공급원에서만 있어 사이드카에서는 보이지 않는다. 쓰기가 성공하면 관찰 표시는 지워진다.
-- 슬래시 입력 [결정: M3b B3-SET, 이월 데스크톱 슬래시 명령 라우팅]: 입력창이 `sendTurn`으로 보낸 줄이 `/이름`(소문자 이름 규칙, `slashLineOf`)으로 시작하면 `turn.start` 대신 `command.run { threadId, text }`로 보낸다. 줄은 사용자가 친 그대로다. 결과는 `@xeon/client/settings`의 `slashStepOf`가 한 걸음으로 옮긴다: `not_command`는 줄을 대화 입력으로 보내고, `expanded`는 펼쳐진 텍스트를 같은 `requestId`로 `turn.start`에 보내고, `needs_confirmation`은 UI 스토어 `shellConfirm`에 명령과 줄을 두어 확인을 기다리고(`confirmShell()`이 같은 줄을 `confirmShell: true`로 다시 보내고 `cancelShell()`은 아무것도 실행하지 않는다), `done`은 메시지와 구조 값을 UI 스토어 `commandOutput`에 둔다(`dismissCommandOutput()`으로 닫는다). 동작 명령은 `turn.start`를 만들지 않는다. 호스트에 `command.run`이 없으면(`-32601`) 줄을 대화 입력으로 보낸다. `thread.locked`는 `turn.start`와 같은 대화 상자로 간다. `commandList(threadId)`는 `command.list`를 `commandListView`의 목록 행으로 돌려준다(자동완성은 `completeSlash`). 경로(`/usr/bin`)와 이름 규칙에 맞지 않는 줄은 대화 입력이다. 확인·출력 화면과 자동완성 목록은 M4다(caustic). Mac 실기 확인은 사용자 확인 묶음에 있다.
+- 슬래시 입력 [결정: M3b B3-SET, 이월 데스크톱 슬래시 명령 라우팅]: 입력창이 `sendTurn`으로 보낸 줄이 `/이름`(소문자 이름 규칙, `slashLineOf`)으로 시작하면 `turn.start` 대신 `command.run { threadId, text }`로 보낸다. 줄은 사용자가 친 그대로다. 결과는 `@fresnel/client/settings`의 `slashStepOf`가 한 걸음으로 옮긴다: `not_command`는 줄을 대화 입력으로 보내고, `expanded`는 펼쳐진 텍스트를 같은 `requestId`로 `turn.start`에 보내고, `needs_confirmation`은 UI 스토어 `shellConfirm`에 명령과 줄을 두어 확인을 기다리고(`confirmShell()`이 같은 줄을 `confirmShell: true`로 다시 보내고 `cancelShell()`은 아무것도 실행하지 않는다), `done`은 메시지와 구조 값을 UI 스토어 `commandOutput`에 둔다(`dismissCommandOutput()`으로 닫는다). 동작 명령은 `turn.start`를 만들지 않는다. 호스트에 `command.run`이 없으면(`-32601`) 줄을 대화 입력으로 보낸다. `thread.locked`는 `turn.start`와 같은 대화 상자로 간다. `commandList(threadId)`는 `command.list`를 `commandListView`의 목록 행으로 돌려준다(자동완성은 `completeSlash`). 경로(`/usr/bin`)와 이름 규칙에 맞지 않는 줄은 대화 입력이다. 확인·출력 화면과 자동완성 목록은 M4다(caustic). Mac 실기 확인은 사용자 확인 묶음에 있다.
 - 입력창의 `requestId`: 재기동 사이에 같은 입력이 두 번 제출되지 않도록 입력마다 새 `requestId`를 만들고, 응답을 받기 전에 연결이 끊기면 같은 `requestId`로 다시 보낸다(`F.wire-settings.spec` §3.3.1 `turn.start` 제안).
 - 키 바인딩과 테마는 `appearance` 탭 설정이다(§6).
 - 확장 이벤트(`x.<확장id>.*`)는 M2에서 일반 item(종류 이름과 요약)으로만 보인다. 확장별 화면은 범위 밖이다.
@@ -533,7 +533,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 
 ### 4.14 최소 설정 화면 [결정: M2 마감 D-b, G2-08]
 
-`L4.settings-ui.spec`의 전체 화면(12탭, 비밀 관리 패널)은 M3다. M2에는 데스크톱에서 첫 대화를 시작하는 데 필요한 것만 둔다. 상태 표시줄의 "설정" 단추가 연다(`Screen = "settings"`, `src/views/settings.tsx`). 판단과 변환은 `@xeon/client/settings`(`xeon/packages/client/src/settings/`)의 순수 함수가 하고, wire 호출은 `src/app/setup.ts`가 한다.
+`L4.settings-ui.spec`의 전체 화면(12탭, 비밀 관리 패널)은 M3다. M2에는 데스크톱에서 첫 대화를 시작하는 데 필요한 것만 둔다. 상태 표시줄의 "설정" 단추가 연다(`Screen = "settings"`, `src/views/settings.tsx`). 판단과 변환은 `@fresnel/client/settings`(`xeon/packages/client/src/settings/`)의 순수 함수가 하고, wire 호출은 `src/app/setup.ts`가 한다.
 
 | 영역 | 내용 | 쓰는 wire |
 |---|---|---|
@@ -545,7 +545,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 쓰기 범위는 `user`다. `l1.models.providers`는 목록 전체가 한 키이므로(병합 단위는 키 하나) 현재 값을 읽어 해당 provider 원소만 바꾼 목록을 보낸다. baseUrl은 그대로 둔다.
 - 키 값은 wire와 로그 어디에도 없다. 호스트가 값을 받을 수 있는 연결에서는 값 없는 `secret.beginEntry { name, action }`이 시작하고 값은 호스트가 wire 밖에서 받는다(`L4.settings-ui.spec` §4.6.4 C안).
 - 사이드카(stdio) 호스트에는 값을 받을 수단이 없어 `secret.beginEntry`가 `started: false`를 돌려준다(`L4.host-service.spec` HS-44, 서비스 쪽 OS 입력 창은 M3). 이 연결에서는 셸이 값을 받는다(§4.14.1).
-- 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `@xeon/client/settings`의 `diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `xeon doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
+- 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `@fresnel/client/settings`의 `diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `xeon doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
 - `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
 - 저장이 거절되면(`settings.set`의 3102) 화면은 host가 준 첫 문제의 문장을 그대로 보인다: `저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5, …)`. 기본 모델은 저장하기 전에 host가 카탈로그에서 검사한다(`L4.host-service.spec` HS-78). "provider에 연결"은 그 키의 모델 provider 사용을 허용하는 행위이기도 하다(`L4.host-service.spec` HS-45): 같은 연결을 다시 저장하면 이전 빌드가 빈 정책으로 만든 키의 허용이 다시 맞춰진다 [결정: M2 Mac 실기]. 연결 뒤에는 `secret.meta` 없이 모델 호출이 된다.
 - 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("설정 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
@@ -709,7 +709,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 1. [미결] 엔진 바이너리 이름과 서브커맨드. 이 문서는 `xeon`, `host --stdio`를 [제안]으로 쓴다. `L4.host-service.spec`이 확정하고, `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10의 "apps/host 단독 사이드카" 서술과 맞춘다. 바꿀 곳은 `sidecar.json` 한 곳이다.
 2. (닫힘) F 변경 요청 두 건, `host.shutdown`과 클라이언트 알림 `$/connectionReset`은 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4, review.consistency-1 K-15). 이 문서의 params 예와 다르면 F 정의를 따른다. 재설정 동작은 `F.wire-settings.spec` §4.1 5~7번이고 호스트가 구현했다(m2 F.8). 새 페이지는 `openEngineConnection`에서 hello 전에 `HostConnection.notify("$/connectionReset", {})`을 보낸다(§4.5).
-3. (닫힘, m2 F.8) [결정: adr.0020] M3에 이 구현을 L4 공유 패키지 `@xeon/client`로 옮기고 F는 계약만 둔다. 이전 기록: `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)은 F `@xeon/contracts/wire`의 런타임 중립 구현으로 옮겼다(`F.wire-settings.spec` §3.1). 데스크톱은 복사본(`apps/desktop/src/transport/connection.ts`, `json-lines.ts`)을 지우고 거기서 가져온다. 호스트와 CLI는 같은 구현을 다시 내보낸다.
+3. (닫힘, m2 F.8) [결정: adr.0020] M3에 이 구현을 L4 공유 패키지 `@fresnel/client`로 옮기고 F는 계약만 둔다. 이전 기록: `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)은 F `@fresnel/contracts/wire`의 런타임 중립 구현으로 옮겼다(`F.wire-settings.spec` §3.1). 데스크톱은 복사본(`apps/desktop/src/transport/connection.ts`, `json-lines.ts`)을 지우고 거기서 가져온다. 호스트와 CLI는 같은 구현을 다시 내보낸다.
 4. [결정: review.decisions-2 U-04] 이어서 실행 후보를 wire로 알리는 방법(`ThreadSummary` 필드 또는 이벤트)은 M1에 넣지 않고 M2 계획에서 정한다.
 5. [결정: review.decisions-2 U-04] 사용자 알림 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다. 그 전에는 내구 이벤트 kind로 알림 대상을 고른다(§4.8).
 6. [미결] `l4.desktop.*` 값의 저장 위치. 제안은 데스크톱 로컬 파일(엔진 카탈로그 밖)이다. 대안은 F에 클라이언트 카탈로그 등록을 더해 엔진 설정 계층에 넣는 것이다. 관리 범위 잠금을 로컬 파일에서 어떻게 읽을지도 함께 정한다.
@@ -724,4 +724,4 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 Rust 셸이 번들된 `xeon secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(§4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, Tauri IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.
 16. (닫힘, M2 마감 G2-07) 외부 바이너리 점검 결과를 전하는 길은 `host.status`의 `includeBinaries` 요청과 결과의 `binaries`다(F 변경, `L4.host-service.spec` HS-69). 앱이 보고서를 주입하던 방식은 없앴다(§4.14).
 17. [미결] 새 대화의 작업 폴더를 고르는 운영체제 폴더 선택 창. 지금은 경로를 입력한다(§4.16). `tauri-plugin-dialog`를 더하면 Cargo 의존과 capability(`dialog:allow-open`, 디렉터리만)가 늘고 `Cargo.lock`이 바뀐다. V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따르고 macOS에서 확인한다. [가정] capability 이름은 플러그인 문서로 확인하지 않았다.
-18. [결정: adr.0016] 화면 문자열은 `packages/client`의 ko·en 카탈로그 id(ICU MessageFormat 부분집합)로 만들고 `Intl` 기반 포트(`packages/client/src/i18n/format.ts`)로 풉니다. ADR-0016 §3.1의 react-intl은 승인 전이라 쓰지 않습니다 [결정: 오케스트레이터 기본값]. 로케일은 `l4.ui.locale`(기본 auto: OS 로케일, 없으면 영어)을 따르고, 날짜·숫자는 `Intl`로 표시합니다. 엔진 오류는 `kind`와 인자로 받아 화면이 문장을 만듭니다. 비-`.tsx` 문장은 카탈로그 id입니다(M3b B4-I18N). 설정 정의(`settings-store/defs.ts`)의 `labelKey`·`helpKey`는 `settings.l4.desktop.<키>.label|help`이고, `views/*-model.ts`와 `views/setup-needed.ts`는 `desktop.*` id이며, 턴 실패 기본 문장(`state/engine/failure-text.ts`)은 `desktop.engine.turnFailureUnknown`입니다. `xeon/hardcoded-korean` 규칙이 L4 `src`의 한국어 리터럴을 막습니다. [미결] `.tsx` 뷰(`views/*.tsx`, `main.tsx`)의 한국어 리터럴은 M4 화면 재작성에서 옮깁니다. 로케일은 `app/locale.ts`가 정합니다. 연결 전에는 설정을 읽을 수 없으므로 첫 렌더 전에 WebView 언어 단서(`navigator.languages`의 첫 항목)로 `setActiveLocale`을 부르고(지원하지 않는 언어와 단서 없음은 `en`), 엔진에 연결되면 `settings.get`으로 `l4.ui.locale`을 읽어 바로잡습니다. `settings.invalidated`가 이 키(또는 빈 키 목록)를 알리면 다시 읽고, 로케일이 바뀌면 `main.tsx`가 `key`가 로케일인 트리를 다시 그립니다. 턴 실패 기본 문장은 reduce 시점의 로케일로 풀려 거울(`turnFailures`)에 저장되므로, 나중에 로케일을 바꿔도 저장된 문장은 다시 풀리지 않습니다.
+18. [결정: adr.0016] 화면 문자열은 `packages/client`의 ko·en 카탈로그 id(ICU MessageFormat 부분집합)로 만들고 `Intl` 기반 포트(`packages/client/src/i18n/format.ts`)로 풉니다. ADR-0016 §3.1의 react-intl은 승인 전이라 쓰지 않습니다 [결정: 오케스트레이터 기본값]. 로케일은 `l4.ui.locale`(기본 auto: OS 로케일, 없으면 영어)을 따르고, 날짜·숫자는 `Intl`로 표시합니다. 엔진 오류는 `kind`와 인자로 받아 화면이 문장을 만듭니다. 비-`.tsx` 문장은 카탈로그 id입니다(M3b B4-I18N). 설정 정의(`settings-store/defs.ts`)의 `labelKey`·`helpKey`는 `settings.l4.desktop.<키>.label|help`이고, `views/*-model.ts`와 `views/setup-needed.ts`는 `desktop.*` id이며, 턴 실패 기본 문장(`state/engine/failure-text.ts`)은 `desktop.engine.turnFailureUnknown`입니다. `fresnel/hardcoded-korean` 규칙이 L4 `src`의 한국어 리터럴을 막습니다. [미결] `.tsx` 뷰(`views/*.tsx`, `main.tsx`)의 한국어 리터럴은 M4 화면 재작성에서 옮깁니다. 로케일은 `app/locale.ts`가 정합니다. 연결 전에는 설정을 읽을 수 없으므로 첫 렌더 전에 WebView 언어 단서(`navigator.languages`의 첫 항목)로 `setActiveLocale`을 부르고(지원하지 않는 언어와 단서 없음은 `en`), 엔진에 연결되면 `settings.get`으로 `l4.ui.locale`을 읽어 바로잡습니다. `settings.invalidated`가 이 키(또는 빈 키 목록)를 알리면 다시 읽고, 로케일이 바뀌면 `main.tsx`가 `key`가 로케일인 트리를 다시 그립니다. 턴 실패 기본 문장은 reduce 시점의 로케일로 풀려 거울(`turnFailures`)에 저장되므로, 나중에 로케일을 바꿔도 저장된 문장은 다시 풀리지 않습니다.

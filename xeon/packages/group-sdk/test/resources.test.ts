@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import {
   ModelsPortKey,
   ToolsPortKey,
   type ProviderResourceDef,
   type ToolResourceDef,
-} from "@xeon/contracts/extensions";
-import { createTestHost } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/extensions";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { defineGroup } from "../src/index.ts";
 import { install } from "./support/host.ts";

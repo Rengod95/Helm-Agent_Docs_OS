@@ -1,4 +1,4 @@
-import type { McpServerDef } from "@xeon/contracts/capabilities";
+import type { McpServerDef } from "@fresnel/contracts/capabilities";
 
 // L2.mcp.spec §4.2 [결정: M3-REQ-97, D-M3-19 행 3]. 서버 정의의 env·headers 값은 `secret://` 참조이거나 평문이다.
 // 평문은 허용하되 이름이 비밀처럼 보이면(KEY, TOKEN, SECRET 등) 거부한다. `secret://`로 시작하는 값은 참조 형식이어야 한다

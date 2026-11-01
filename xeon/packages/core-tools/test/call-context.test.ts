@@ -4,8 +4,8 @@ import {
   serviceKey,
   type CallContext,
   type CallOptions,
-} from "@xeon/contracts/capabilities";
-import { approvalCallerOf } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import { approvalCallerOf } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import { callTool, createHarness, layer } from "./support/harness.ts";
 

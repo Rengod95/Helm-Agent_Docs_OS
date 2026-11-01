@@ -1,4 +1,4 @@
-import { err, ok, parseJson, type Result } from "@xeon/contracts";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import type {
   CallOptions,
   DecideInput,
@@ -9,7 +9,7 @@ import type {
   ProposalsOutput,
   WritableSkillScope,
   WriteOutcome,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { actorOf } from "../actor.ts";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { LedgerDeps } from "../ledger/change.ts";

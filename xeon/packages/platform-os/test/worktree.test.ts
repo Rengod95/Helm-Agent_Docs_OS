@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, stat, symlink } from "node:fs/promises";
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import { createRunCommand, type RunCommand } from "../src/proc.ts";
 import { tempDir, type TempDir } from "../src/testing/index.ts";
 import { createWorktreeOps, parseWorktreeList } from "../src/worktree.ts";

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { AssistantMessageEvent } from "@xeon/contracts/conversation";
-import { flushMicrotasks } from "@xeon/ext-host/testing";
+import type { AssistantMessageEvent } from "@fresnel/contracts/conversation";
+import { flushMicrotasks } from "@fresnel/ext-host/testing";
 import { createAccountPool, type AccountDef } from "../src/accounts.ts";
 import { retryAfterMsOf } from "../src/rotation.ts";
 import type { ModelsSettings } from "../src/index.ts";

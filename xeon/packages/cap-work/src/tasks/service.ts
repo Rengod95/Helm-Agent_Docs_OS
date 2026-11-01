@@ -1,4 +1,4 @@
-import { assertNever, parse, type Result } from "@xeon/contracts";
+import { assertNever, parse, type Result } from "@fresnel/contracts";
 import {
   WorkTasks,
   type CallOptions,
@@ -13,8 +13,8 @@ import {
   type WorkTask,
   type WorkTaskId,
   type WorkTaskView,
-} from "@xeon/contracts/capabilities";
-import { toJsonValue, type ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import { toJsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   WorkTaskCreatedSchema,
   type CommitPlan,
@@ -22,7 +22,7 @@ import {
   type ReadFailure,
   type StampedDraft,
   type StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { WorkTasksDeps } from "../deps.ts";
 import { internalError, invalidInput, storeRejection, taskRejection } from "../errors.ts";
 import {

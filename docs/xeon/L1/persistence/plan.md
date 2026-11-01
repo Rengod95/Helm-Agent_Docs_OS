@@ -10,7 +10,7 @@ binds: [xeon/packages/core-persistence/**]
 
 # L1 영속성과 복구 구현 계획
 
-대상 스펙: `L1.persistence.spec`. 패키지: `@xeon/core-persistence`(`xeon/packages/core-persistence`, 현재 스캐폴드). 서비스: `xeon.session`. 하위 의존: `@xeon/platform-store`(L0, 서비스 `xeon.store`)와 `@xeon/contracts`(F).
+대상 스펙: `L1.persistence.spec`. 패키지: `@fresnel/core-persistence`(`xeon/packages/core-persistence`, 현재 스캐폴드). 서비스: `fresnel.session`. 하위 의존: `@fresnel/platform-store`(L0, 서비스 `fresnel.store`)와 `@fresnel/contracts`(F).
 
 [제안] 아래 표는 `platform-store`(L0)와 `core-persistence`(L1)의 책임 경계다. 두 plan의 작업은 이 표를 기준으로 나뉜다.
 
@@ -36,7 +36,7 @@ binds: [xeon/packages/core-persistence/**]
 
 | 마일스톤 | core-persistence 범위 | 스펙 절 | 소비자 |
 |---|---|---|---|
-| M0 | 스캐폴드만(`package.json`의 `xeon.layer: "L1"`, `xeon.domain: "persistence"`, 빈 `plugin.ts`). 계약 대응 표 확정과 F 변경 요청(PS-0) | §3.1 | contracts, platform-store |
+| M0 | 스캐폴드만(`package.json`의 `fresnel.layer: "L1"`, `fresnel.domain: "persistence"`, 빈 `plugin.ts`). 계약 대응 표 확정과 F 변경 요청(PS-0) | §3.1 | contracts, platform-store |
 | M1 | writer(단일 커밋 경로), requests 멱등, 코어 투영(`p_threads`, `p_items`, `p_parts`, `p_effects`, `p_turns`, `p_inputs`, `step_checkpoints`, `p_blob_refs`), 단계 체크포인트, 효과 3단 기록 경로, 커밋 뒤 방출, 열 때 복구(표식, 마지막 체크포인트, 열린 효과 판정·합성), 재개 계획, `threads.create`, `openForWrite/openForRead`, 업캐스터 연결, 장애 주입 테스트 전체, 설정 `l1.persistence.maxResumeAttempts` | §3.2~§3.7, §4.1~§4.8, §4.11, §4.12, §4.14 | core-loop, core-tasks, core-tools, ext-host, apps/host, M1 스모크 |
 | M2 | 수명주기 API 전체(`list`, `close`, `remove`, `fork`, `revert`, `moveLeaf`, `setTitle`, `prepareSwitch`), 분기와 떠난 가지 요약 기록, 승인 대기 복원(`p_approvals`, A1 체크포인트), 자식 thread 연결(`p_agents`, `TxView.agentByRequestId`, `ResumePlan.openChildren`), 확장 접두 테이블 커밋 참여(등록 검사, `ProjectionTx` 소유 검사, `onFailure`), `p_scopes`, `p_settings`, `sessionSettings`, 확장 지점 7개 발화, 보관 정리와 `retention.*` 키, `ext` 포트 | §3.8, §4.5.2, §4.10, §6, §7 | L4 host(thread.* 메서드), X.operations, L2 artifacts, L3 그룹, core-agents |
 | M3 | 서비스 모드 자동 재개(`l1.persistence.autoResume`, `AutoResumeVerdict`), 리플레이 커서(`replayFrom`, `oldestReplayableSeq` 갱신), 청크 재생성 | §4.8.3, §4.13.1, §4.5.3 | L4 host 서비스 모드 |
@@ -63,7 +63,7 @@ xeon/packages/core-persistence/
   tsconfig.json
   src/
     index.ts               # 공개 진입점: createSessionService, sessionPlugin(re-export)
-    plugin.ts              # Cordis 플러그인: inject [xeon.store, xeon.ext?], provide xeon.session. 조립 루트 전용 옵션
+    plugin.ts              # Cordis 플러그인: inject [fresnel.store, fresnel.ext?], provide fresnel.session. 조립 루트 전용 옵션
     writer.ts              # SessionWriter: 단일 커밋 경로(§4.1). FaultInjector 주입. 테이블 쓰기는 이 파일과 projector/, lifecycle.ts의 remove만
     commit-plan.ts         # CommitPlan 검증, checkpoint.step 초안 만들기, parentId·recordedAt 계산, envelope 완성
     producers.ts           # ProducerHandle, kind 소유 표(TYPE_PREFIX_OWNERS F판), 합성 결과 예외
@@ -118,7 +118,7 @@ xeon/packages/core-persistence/
     session-store.contract.test.ts   # 2차: 적합성 스위트
 ```
 
-- `core-persistence`는 `@xeon/platform-store`를 import하지 않는다. `xeon.store`를 F 타입(`StoreDb`, `StoreService`)으로 주입받는다(DR-14, CM-05). 테스트만 `@xeon/platform-store/testing`의 `openTestStore`를 쓴다(`eng.testing.guide` §1 표).
+- `core-persistence`는 `@fresnel/platform-store`를 import하지 않는다. `fresnel.store`를 F 타입(`StoreDb`, `StoreService`)으로 주입받는다(DR-14, CM-05). 테스트만 `@fresnel/platform-store/testing`의 `openTestStore`를 쓴다(`eng.testing.guide` §1 표).
 - 다른 L1 패키지(`core-loop`, `core-tools`, `core-tasks`)를 import하지 않는다(DR-02). 재개 실행은 core-loop가 `ResumePlan`을 받아 한다(스펙 §4.8.2).
 - `Date.now`, `Math.random`, `crypto.randomUUID` 금지(TX-06). `Clock`, `IdFactory`는 주입받는다. `projector/` 아래는 `node:fs`, `bun` import 금지(EV-06).
 - 테이블 이름 문자열(`events`, `requests`, `step_checkpoints`, `p_`)이 이 패키지 밖에서 나오면 `check-layers.ts`가 거부한다(TX-07 [제안]).
@@ -145,7 +145,7 @@ xeon/packages/core-persistence/
 | PS-13 | 업캐스터 연결: `upcast.ts`(등록부 조립, 읽기 경로 업캐스트, 열 때 버전 검사와 `read_only`) | PS-2, contracts(`upcastEvent`, `EventKindRegistry`) | S | M1 |
 | PS-14 | 설정 노출: `settings.ts`(`l1.persistence.*` 5키, 단계별 since), `session-settings.ts`(`settings.changed`, `p_settings`) | PS-2, contracts(`defineSettings`) | S | M1/M2 |
 | PS-15 | blob 분리: `blob.ts`(`detachLarge`, `hydrate`), `p_blob_refs`, `query.liveBlobRefs` | PS-3, L0.store.plan(`putBlob`, `readBlob`) | M | M1 |
-| PS-16 | 플러그인과 서비스 조립: `plugin.ts`(`xeon.store` 주입, `xeon.session` 제공, `producer` 한 번 받기 규칙), `index.ts`, `ext-port.ts`(M2) | PS-2, PS-12, X.primitives(플러그인 등록 API) | M | M1(ext-port M2) |
+| PS-16 | 플러그인과 서비스 조립: `plugin.ts`(`fresnel.store` 주입, `fresnel.session` 제공, `producer` 한 번 받기 규칙), `index.ts`, `ext-port.ts`(M2) | PS-2, PS-12, X.primitives(플러그인 등록 API) | M | M1(ext-port M2) |
 | PS-17 | 확장 지점 7개 발화: `points.ts`. M1은 `thread.start`, `thread.shutdown`(F 표 M1 ● 지점), M2는 나머지 5개 | PS-16, X.primitives(`ExtHost.dispatch`) | M | M1/M2 |
 | PS-18 | 보관 정리: `retention.ts`, 제외 규칙, `retention.*` 키 연결. M3b B1-SVC: 지울 때 재전송 하한(`replay.floor`) 상승, `replay.ts`(`replayFrom`), `resend.ts`(재개 때 모델 요청 재전송 정책) | PS-9 | S | M2 |
 | PS-19 | 리플레이 커서: `replay-cursor.ts`(`replayFrom` 해석, `oldestReplayableSeq`) | PS-12, FR-P7 | S | M3 |
@@ -203,9 +203,9 @@ xeon/packages/core-persistence/
 
 | 대상 | 버전 | 쓰는 방식 |
 |---|---|---|
-| `bun:sqlite` | Bun 1.4.3 내장(`packageManager: bun@1.4.3`) | 직접 쓰지 않는다. `xeon.store`(`StoreDb`) 뒤에서 L0가 쓴다 |
+| `bun:sqlite` | Bun 1.4.3 내장(`packageManager: bun@1.4.3`) | 직접 쓰지 않는다. `fresnel.store`(`StoreDb`) 뒤에서 L0가 쓴다 |
 | `typebox` | catalog 1.4.x(`_research/foundation-plan.md` §2 스키마 행) | 설정 정의, 테스트 픽스처 검증 |
-| `@xeon/contracts` | 워크스페이스 | `records`, `conversation`, `extensions`, `settings` 서브패스 |
+| `@fresnel/contracts` | 워크스페이스 | `records`, `conversation`, `extensions`, `settings` 서브패스 |
 | Cordis | `xeon/vendor/cordis` 커밋 고정 | 직접 import하지 않는다. ext-host의 플러그인 등록 API로 등록한다(ADR-0002) |
 
 패턴 참고(읽기 자료, 코드는 가져오지 않음):
@@ -318,7 +318,7 @@ xeon/packages/core-persistence/
 | 도구별 커밋 증가에 따른 fsync 비용 | 도구가 많은 단계가 느려진다 | §6 4번 측정 항목. 기준을 넘으면 읽기 도구만 의도·실행·결과를 배치하는 안을 ADR-0004 보충으로 올린다(eng T-5). 설계 변경 전에는 코드로 우회하지 않는다 |
 | bun:sqlite 저장점 의미(eng 미결 T-2) | 중첩 write가 저장점이 되어 부분 커밋처럼 보일 수 있다 | 중첩 write 금지 테스트(`commit_nested_inside_listener_is_bug`, L0의 중첩 write 테스트)로 고정한다. 결과는 L0.store.plan과 공유 |
 | `p_inputs`, `p_approvals`의 kind가 F에 없다(FR-P9) | 투영 코드를 쓸 수 없다 | M1은 `input.*`만 필요하다. F 결론 전에는 L1.tasks.spec §3.8 payload로 투영을 쓰고 kind 이름이 바뀌면 같은 PR에서 고친다 |
-| X `RecordCommitPort` 이름 충돌(`commit`) | X가 `xeon.session`을 그대로 포트로 쓰지 못한다 | `SessionService.ext` 하위 객체(스펙 §3.3)를 X.primitives 트랙과 M1 전에 합의한다. X의 포트 계약 스위트(`X.primitives.plan` P-19)를 이 패키지 테스트에서 돌린다 |
+| X `RecordCommitPort` 이름 충돌(`commit`) | X가 `fresnel.session`을 그대로 포트로 쓰지 못한다 | `SessionService.ext` 하위 객체(스펙 §3.3)를 X.primitives 트랙과 M1 전에 합의한다. X의 포트 계약 스위트(`X.primitives.plan` P-19)를 이 패키지 테스트에서 돌린다 |
 | 확장 투영기 예외가 세션 진행을 막는다 | 확장 하나 때문에 커밋이 반복 실패 | 정지한 뒤 같은 계획으로 다시 커밋한다(§4.5.2, M3-REQ-36). `projector-isolation.test.ts`가 확인한다. 자동 끄기는 X가 `onFailure`로 판정한다(X.operations 미결 6 해소) |
 | adr.0004·adr.0006 개정(OS 잠금 + `sys_leases.epoch` 펜싱, review.decisions-2 U-09)이 늦음 | 문서 정본이 잠시 둘로 보인다 | 소유 확인을 `leases.holds(tx, token)` 호출 하나로 모은다. 가짜 `LeaseService`를 테스트에 둔다 |
-| 설정 파일 소유 이전 제안(스펙 §6.2)이 거절된다 | L1이 파일 I/O를 맡아야 하고 `xeon.os` 의존이 생긴다 | 거절되면 `settings-files.ts`를 더하고 context-map (d)열에 `xeon.os`를 더하는 요청을 낸다. M1 범위에는 영향 없음(M1 `settings.get`은 호스트가 파일을 읽는다) |
+| 설정 파일 소유 이전 제안(스펙 §6.2)이 거절된다 | L1이 파일 I/O를 맡아야 하고 `fresnel.os` 의존이 생긴다 | 거절되면 `settings-files.ts`를 더하고 context-map (d)열에 `fresnel.os`를 더하는 요청을 낸다. M1 범위에는 영향 없음(M1 `settings.get`은 호스트가 파일을 읽는다) |

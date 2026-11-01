@@ -10,7 +10,7 @@ binds: [xeon/packages/cap-schedule/**]
 
 # L2 예약과 백그라운드 (schedule)
 
-패키지: `@xeon/cap-schedule`. 서비스 이름: `xeon.schedule`(`ScheduleService`). 능력 ID: `schedule.loops`, `schedule.jobs`, `schedule.sessions`, `schedule.timers`, `schedule.remote`. 이벤트 접두사: `schedule.`. 테이블 접두사: `cap_schedule_`.
+패키지: `@fresnel/cap-schedule`. 서비스 이름: `fresnel.schedule`(`ScheduleService`). 능력 ID: `schedule.loops`, `schedule.jobs`, `schedule.sessions`, `schedule.timers`, `schedule.remote`. 이벤트 접두사: `schedule.`. 테이블 접두사: `cap_schedule_`.
 
 ## 1. 목적과 범위
 
@@ -34,7 +34,7 @@ binds: [xeon/packages/cap-schedule/**]
 - 워크트리 격리 자체, 파일 감시, OS 알림, 타이머 원시 기능: `L0.os.spec`, `L0.sandbox.spec`.
 - 임대 테이블 `sys_leases`와 펜싱: `L0.store.spec`, `eng.transactions.design` §3.3.
 - 서브에이전트 백그라운드 위임과 그 결과 전달: `L1.agents.spec`.
-- 입력 큐와 전달 모드: `L1.tasks.spec`(`xeon.tasks`).
+- 입력 큐와 전달 모드: `L1.tasks.spec`(`fresnel.tasks`).
 - 서비스 프로세스 수명, 등록 파일, 유휴 종료 판정 함수, 원격 연결의 수용과 인증: `L4.host-service.spec`. 원격은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이고, 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 - 목표 판정: `L2.work.spec`(`work.goals`). 이 문서는 선택 의존으로만 쓴다.
 - 예약 세션에서 어떤 그룹 동작을 끌지 정하는 규칙: L3 그룹 문서(§4.4.8 경계).
@@ -46,14 +46,14 @@ binds: [xeon/packages/cap-schedule/**]
 
 | 이 층이 소유하는 것 | 호출만 하는 것 (소유자) | 다른 층이 소유하는 것 |
 |---|---|---|
-| 루프 정의, 종료 조건 판정, 반복 횟수, 만료와 `schedule.loop_*` 이벤트 | 입력 큐 투입 `xeon.tasks` post (`L1.tasks.spec`) | 입력 큐, 전달 모드, `input.*`(L1.tasks) |
-| 웨이크업 예약과 `schedule.wakeup_*` | 타이머 `xeon.os` (`L0.os.spec`) | 시계·타이머 원시 기능(L0.os) |
-| 셸 종료 조건의 판정(종료 코드 비교) | 명령 실행 `xeon.exec`·`xeon.sandbox` (`L0.exec.spec`, `L0.sandbox.spec`) | 실행 환경과 격리 정책(L0) |
-| 작업 상태 분류 규칙(4상태)과 감시(`watch`) | 프로세스 목록·출력 `xeon.process` (`L0.process.spec`), 위임 실행 `xeon.agents` (`L1.agents.spec`) | 프로세스 레지스트리(L0.process), 백그라운드 위임과 자식 세션(L1.agents) |
-| 세션 실행 목록(소유자, 상태, 작업 디렉터리) | 세션 생성 `xeon.session` (`L1.persistence.spec`), 워크트리 연산 `xeon.os` | 워크트리 격리(L0.os·L0.sandbox), 쓰기 소유(OS 잠금 + `sys_leases.epoch` 펜싱, L0.store·L1.persistence) |
-| 타이머 정의 테이블, 실행 기록 테이블, 틱 알고리즘, 놓친 실행 정책 | 임대 `xeon.store` lease API, 자원 `scheduler` (`L0.store.spec`) | `sys_leases`(L0.store), 틱을 돌리는 프로세스의 수명(L4.host-service) |
+| 루프 정의, 종료 조건 판정, 반복 횟수, 만료와 `schedule.loop_*` 이벤트 | 입력 큐 투입 `fresnel.tasks` post (`L1.tasks.spec`) | 입력 큐, 전달 모드, `input.*`(L1.tasks) |
+| 웨이크업 예약과 `schedule.wakeup_*` | 타이머 `fresnel.os` (`L0.os.spec`) | 시계·타이머 원시 기능(L0.os) |
+| 셸 종료 조건의 판정(종료 코드 비교) | 명령 실행 `fresnel.exec`·`fresnel.sandbox` (`L0.exec.spec`, `L0.sandbox.spec`) | 실행 환경과 격리 정책(L0) |
+| 작업 상태 분류 규칙(4상태)과 감시(`watch`) | 프로세스 목록·출력 `fresnel.process` (`L0.process.spec`), 위임 실행 `fresnel.agents` (`L1.agents.spec`) | 프로세스 레지스트리(L0.process), 백그라운드 위임과 자식 세션(L1.agents) |
+| 세션 실행 목록(소유자, 상태, 작업 디렉터리) | 세션 생성 `fresnel.session` (`L1.persistence.spec`), 워크트리 연산 `fresnel.os` | 워크트리 격리(L0.os·L0.sandbox), 쓰기 소유(OS 잠금 + `sys_leases.epoch` 펜싱, L0.store·L1.persistence) |
+| 타이머 정의 테이블, 실행 기록 테이블, 틱 알고리즘, 놓친 실행 정책 | 임대 `fresnel.store` lease API, 자원 `scheduler` (`L0.store.spec`) | `sys_leases`(L0.store), 틱을 돌리는 프로세스의 수명(L4.host-service) |
 | 대기 예약 수 계산(`pendingSchedules`) | 없음 | 유휴 종료 판정 `decideIdle`(L4.host-service) |
-| 원격 승인 중계 정책과 감사 기록 | 승인 응답 `xeon.approvals` (`L1.tools.spec`) | 원격 연결 수용, 토큰 인증(L4.host-service). 비루프백 리스너는 1차에 열지 않는다(U-11) |
+| 원격 승인 중계 정책과 감사 기록 | 승인 응답 `fresnel.approvals` (`L1.tools.spec`) | 원격 연결 수용, 토큰 인증(L4.host-service). 비루프백 리스너는 1차에 열지 않는다(U-11) |
 | 알림 대상 이벤트 kind(`schedule.run_finished` 등) | 없음 | 알림 채널(`dialog.notify`, [제안] §4.5.4), 알림 라우팅(L4.host-service HS-42), OS 알림(L0.os) |
 | 예약 세션 표식(`schedule.run_started`) | 없음 | 예약 세션에서의 그룹 정책(L3) |
 
@@ -996,7 +996,7 @@ export interface RemoteRespondedPayload {
 
 ### 3.8 테이블 (`cap_schedule_`)
 
-[제안] 두 종류가 섞인다(`L2.readme` §5.4). 세션 투영 테이블은 `cap.schedule` 투영기가 쓰고 재생으로 다시 만든다. 세션 밖 상태 테이블은 `xeon.store.scoped`로 쓰고 재생 대상이 아니다.
+[제안] 두 종류가 섞인다(`L2.readme` §5.4). 세션 투영 테이블은 `cap.schedule` 투영기가 쓰고 재생으로 다시 만든다. 세션 밖 상태 테이블은 `fresnel.store.scoped`로 쓰고 재생 대상이 아니다.
 
 ```sql
 -- 세션 투영 (투영기 cap.schedule, 재생 가능)
@@ -1044,7 +1044,7 @@ CREATE TABLE cap_schedule_session_runs (       -- 실행 세션 ↔ 타이머 �
   outcome    TEXT
 ) STRICT;
 
--- 세션 밖 상태 (xeon.store.scoped, 재생 대상 아님)
+-- 세션 밖 상태 (fresnel.store.scoped, 재생 대상 아님)
 CREATE TABLE cap_schedule_timers (
   timer_id      TEXT PRIMARY KEY,
   spec_type     TEXT NOT NULL CHECK (spec_type IN ('cron','at')),
@@ -1116,32 +1116,32 @@ export function createSchedulerHost(deps: SchedulerHostDeps): SchedulerHost;
 이 능력이 쓰는 부분만 적는다. 정본은 괄호 안 문서다.
 
 ```ts
-// L0.store.spec §3.1 (xeon.store) — 임대. 동기 Result를 돌려준다
+// L0.store.spec §3.1 (fresnel.store) — 임대. 동기 Result를 돌려준다
 //   acquire(resource: LeaseResource, holder: LeaseHolder): Result<LeaseToken, LeaseError>
 //   renew(token: LeaseToken): Result<void, LeaseError>         // 소유가 바뀌었으면 lease_lost
 //   release(token: LeaseToken): Result<void, LeaseError>
 //   holds(tx: SqlTx, token: LeaseToken): boolean               // 쓰기 트랜잭션 안에서 행을 새로 읽어 대조(TX-10)
 //   keepAlive(token: LeaseToken, onLost: (resource: LeaseResource) => void): Disposable
 type LeaseUsedBySchedule = Pick<LeaseService, "acquire" | "renew" | "release" | "holds" | "keepAlive">;   // resource는 "scheduler"
-// L1.tasks.spec (xeon.tasks)
+// L1.tasks.spec (fresnel.tasks)
 interface TaskPostApi {
   post(threadId: ThreadId, item: PostItem, options: PostOptions): Promise<PostReceipt>;
   interrupt(threadId: ThreadId): Promise<boolean>;
 }
-// L1.persistence.spec (xeon.session)
+// L1.persistence.spec (fresnel.session)
 interface SessionApiUsedBySchedule {
   create(input: { workspace?: string; title?: string; origin?: "timer" }, options: { requestId: string }): Promise<{ threadId: ThreadId }>;
   commit(input: { threadId: ThreadId; producer: "cap.schedule"; requestId: string; drafts: readonly { kind: string; payload: unknown }[] }):
     Promise<{ replayed: boolean }>;
   lastDurableAt(threadId: ThreadId): number | null;    // 워치독(§4.4.5)
 }
-// L1.agents.spec (xeon.agents)
+// L1.agents.spec (fresnel.agents)
 interface AgentApiUsedBySchedule {
   spawnBackground(input: { parentThreadId: ThreadId; prompt: string; agent?: string; detached: boolean },
                   options: { requestId: string }): Promise<{ childThreadId: ThreadId }>;
   cancel(childThreadId: ThreadId): Promise<void>;
 }
-// L0.process.spec (xeon.process)
+// L0.process.spec (fresnel.process)
 interface ProcessApiUsedBySchedule {
   list(): readonly { id: string; threadId: ThreadId | null; command: string; state: "running" | "exited" | "killed"; exitCode: number | null; startedAt: number; endedAt: number | null }[];
   onOutput(id: string, listener: (chunk: { stream: "stdout" | "stderr"; text: string }) => void): () => void;
@@ -1149,7 +1149,7 @@ interface ProcessApiUsedBySchedule {
   spawnBackground(input: { command: string; cwd?: string; threadId: ThreadId; detached: boolean }): Promise<{ id: string }>;
   kill(id: string): Promise<void>;
 }
-// L0.os.spec §3.10 (xeon.os)
+// L0.os.spec §3.10 (fresnel.os)
 //   time.scheduler.setTimeout(fn: () => void, ms: number): TimerHandle / clearTimeout(handle)   (§3.4)
 //   watch(root: string, opts: WatchOptions, onBatch: (changes: readonly FileChange[]) => void):
 //     Promise<Result<WatchHandle, WatchError>>   (§3.8, 2차. root가 앱 디렉터리 하위가 아니면 outside_app_dirs)
@@ -1158,7 +1158,7 @@ type OsUsedBySchedule = Pick<OsService, "time" | "watch">;
 // 워크트리 연산(create, list, remove)은 L0.os.spec에 없다. [미결] §10 미결 13
 ```
 
-- `eng.context-map.design` §4.1 schedule 행의 (d)열은 `xeon.store`, `xeon.tasks`, `xeon.process`, `xeon.os`다. 이 문서는 `xeon.session`(세션 생성·커밋), `xeon.agents`(위임 작업), `xeon.approvals`(입력 필요 분류, 원격 답), `xeon.exec`·`xeon.sandbox`(셸 종료 조건)를 더 쓴다. 개정 요청은 §10 미결 4다.
+- `eng.context-map.design` §4.1 schedule 행의 (d)열은 `fresnel.store`, `fresnel.tasks`, `fresnel.process`, `fresnel.os`다. 이 문서는 `fresnel.session`(세션 생성·커밋), `fresnel.agents`(위임 작업), `fresnel.approvals`(입력 필요 분류, 원격 답), `fresnel.exec`·`fresnel.sandbox`(셸 종료 조건)를 더 쓴다. 개정 요청은 §10 미결 4다.
 
 ### 3.11 서비스 묶음
 
@@ -1173,7 +1173,7 @@ export interface ScheduleService {
   readonly remote: CapabilityApi<typeof ScheduleRemote>;
 }
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
-export const ScheduleServiceName = "xeon.schedule" as const;
+export const ScheduleServiceName = "fresnel.schedule" as const;
 export const SCHEDULE_CAPABILITIES = [ScheduleLoops, ScheduleJobs, ScheduleSessions, ScheduleTimers, ScheduleRemote] as const;
 ```
 
@@ -1198,19 +1198,19 @@ export const SCHEDULE_CAPABILITIES = [ScheduleLoops, ScheduleJobs, ScheduleSessi
 |---|---|---|---|
 | 횟수 `count` | 반복 정착 뒤 | `iteration ≥ iterations` | `count` |
 | 시간 `duration` | 반복 정착 뒤, 대기 중 타이머 | `now - startedAt ≥ seconds`. 대기 중에 넘으면 다음 반복을 투입하지 않는다 | `duration` |
-| 셸 `shell` | 반복 정착 뒤 | 명령을 `xeon.exec`(샌드박스 정책 적용)로 실행해 종료 코드가 `successExitCode`면 멈춘다. 시간 초과는 "조건 미충족"으로 본다. 실행 자체가 3회 연속 실패하면 `error` | `shell` |
+| 셸 `shell` | 반복 정착 뒤 | 명령을 `fresnel.exec`(샌드박스 정책 적용)로 실행해 종료 코드가 `successExitCode`면 멈춘다. 시간 초과는 "조건 미충족"으로 본다. 실행 자체가 3회 연속 실패하면 `error` | `shell` |
 | 모델 `model` | 반복 중 | 반복 turn 안에서 `loop_done` 도구가 불리면 그 turn이 정착할 때 멈춘다. 이 조건의 루프에서만 `loop_done`을 광고한다 | `model` |
 
 - 모든 루프는 종료 조건과 별도로 두 상한을 갖는다.
   - 반복 상한 `maxIterations`: 입력값과 설정 `l2.schedule.loops.maxIterations` 중 작은 값. 도달하면 `max_iterations`.
   - 만료 `expiresAt`: 시작 + `expiresInHours`(기본·상한 설정 `l2.schedule.loops.maxLifetimeHours`, 기본 168시간). Claude Code의 7일 만료를 참고값으로 쓴다(`_research/refs/claude-code.md` 148행). 도달하면 `expired`.
 - 판정 순서는 `model` → `goal` → `count` → `shell` → `duration` → `max_iterations` → `expired`다. 여러 조건이 같은 경계에서 맞으면 앞의 사유를 기록한다.
-- 셸 조건 명령의 승인: 루프를 사용자 명령으로 시작했으면 명령도 사용자가 정한 것이므로 반복마다 승인을 묻지 않는다. 그룹 코드가 시작했으면 시작 때 `xeon.approvals`에 `tool` kind 승인을 한 번 요청한다 [제안]. 셸 명령은 매 반복 다시 실행되기 때문이다. 승인 정책 자체는 L1.tools가 정한다.
+- 셸 조건 명령의 승인: 루프를 사용자 명령으로 시작했으면 명령도 사용자가 정한 것이므로 반복마다 승인을 묻지 않는다. 그룹 코드가 시작했으면 시작 때 `fresnel.approvals`에 `tool` kind 승인을 한 번 요청한다 [제안]. 셸 명령은 매 반복 다시 실행되기 때문이다. 승인 정책 자체는 L1.tools가 정한다.
 - 상한 없는 루프는 만들 수 없다. 근거: "상한 없는 루프는 비용 사고로 이어진다"(`_research/items-from-refs.md` L1-b 종료 조건 집합 행).
 
 #### 4.1.3 간격과 웨이크업
 
-- `interval.fixed`: 반복 정착 뒤 `seconds` 대기. 0이면 바로 다음 반복이다. 대기는 `xeon.os`의 `time.scheduler.setTimeout`으로 한다(`L0.os.spec` §3.4). 최소값은 설정 `l2.schedule.loops.minIntervalSeconds`(기본 0)다.
+- `interval.fixed`: 반복 정착 뒤 `seconds` 대기. 0이면 바로 다음 반복이다. 대기는 `fresnel.os`의 `time.scheduler.setTimeout`으로 한다(`L0.os.spec` §3.4). 최소값은 설정 `l2.schedule.loops.minIntervalSeconds`(기본 0)다.
 - `interval.self`: 반복 turn 안에서 `schedule_wakeup`이 불리면 그 기한에 다음 반복을 투입한다. 불리지 않으면 모델이 계속할 뜻이 없다고 보고 `model` 사유로 멈춘다. Claude Code의 동적 `/loop`가 `ScheduleWakeup`으로 간격을 정하는 방식이다(`_research/l2e.md` §3.4 D2).
 - 루프 밖 웨이크업: 루프가 없는 세션에서 `schedule_wakeup`을 부르면 일회성 웨이크업이다. 기한이 되고 그 세션의 진행 중 turn이 정착해 있으면 `post({ kind: "user", content: prompt }, { when: "next", requestId: "wake:<wakeupId>" })`로 투입하고 `schedule.wakeup_fired`를 커밋한다. turn이 진행 중이면 정착을 기다렸다가 투입한다.
 - 한 세션에 대기 중인 웨이크업은 하나다. 새 웨이크업은 이전 것을 `wakeup_cancelled { reason: "replaced" }`로 바꾼다 [제안]. 모델이 웨이크업을 쌓아 폭주하지 않게 하려는 것이다.
@@ -1247,10 +1247,10 @@ export const SCHEDULE_CAPABILITIES = [ScheduleLoops, ScheduleJobs, ScheduleSessi
 
 #### 4.2.2 시작과 멈춤
 
-- `spawn({ task: { kind: "agent" } })`는 `xeon.agents.spawnBackground`로, `{ kind: "process" }`는 `xeon.process.spawnBackground`로 넘긴다. 실행과 결과 전달은 그 서비스가 한다. 위임 결과가 부모 입력 큐에 들어가는 규칙(`deleg:<childSessionId>:done`, `eng.transactions.design` §4.8)도 L1.agents의 것이다.
+- `spawn({ task: { kind: "agent" } })`는 `fresnel.agents.spawnBackground`로, `{ kind: "process" }`는 `fresnel.process.spawnBackground`로 넘긴다. 실행과 결과 전달은 그 서비스가 한다. 위임 결과가 부모 입력 큐에 들어가는 규칙(`deleg:<childSessionId>:done`, `eng.transactions.design` §4.8)도 L1.agents의 것이다.
 - `detached: true`는 상주 수준 2다. 서비스 모드가 꺼져 있으면 `unavailable`, `detail.reason: "service_mode_off"`다(`L2.readme` §8).
 - 동시 백그라운드 작업 상한은 `l2.schedule.jobs.maxConcurrent`(기본 8)다. 넘으면 `job_limit_reached`(retryable).
-- `stop`은 출처별로 위임 취소(`xeon.agents.cancel`), 프로세스 종료(`xeon.process.kill`), 루프 `stop`, 실행 세션 턴 중단(`xeon.tasks.interrupt`)을 부른다.
+- `stop`은 출처별로 위임 취소(`fresnel.agents.cancel`), 프로세스 종료(`fresnel.process.kill`), 루프 `stop`, 실행 세션 턴 중단(`fresnel.tasks.interrupt`)을 부른다.
 
 #### 4.2.3 감시
 
@@ -1276,8 +1276,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 - `list`는 세션의 실행 상태(소유자 표시, idle·working·needs_input, 작업 수, 마지막 활동)를 돌려준다. 제목과 라벨은 `artifacts.sessions`가 소유하고, 두 능력은 서로 부르지 않는다. L4 세션 목록 화면이 `threadId`로 두 결과를 합친다 [제안].
 - 상태 계산: 진행 중 turn이 있으면 working, 해결되지 않은 승인 요청이 있으면 needs_input(우선), 그 밖에 idle이다. turn 진행 여부는 `turn.started`·`turn.completed`(또는 `turn.ended`) 이벤트 투영으로 센다.
-- 소유자 표시는 그 세션의 `sys_leases` 행(`kind`, `host`, `epoch`)에서 온다. 별도 소유자 표시 열은 두지 않는다 [결정: review.decisions-2 U-09]. 표시값은 틀릴 수 있으며 판단 근거로 쓰지 않는다. 읽는 경로는 `xeon.session`의 조회 API다 [가정].
-- `create`의 `worktree`는 워크트리를 만든 뒤 그 경로를 `workspace`로 세션을 만든다. 워크트리 연산(만들기, 목록, 지우기)은 `L0.os.spec`에 없다. [미결] L0.os에 연산 추가를 요청할지, `xeon.exec`로 `git worktree`를 실행할지 정한다(§10 미결 13). 워크트리 격리(파일 시스템 경계, 샌드박스 허용 경로)는 L0(`L0.os.spec`, `L0.sandbox.spec`)의 것이다.
+- 소유자 표시는 그 세션의 `sys_leases` 행(`kind`, `host`, `epoch`)에서 온다. 별도 소유자 표시 열은 두지 않는다 [결정: review.decisions-2 U-09]. 표시값은 틀릴 수 있으며 판단 근거로 쓰지 않는다. 읽는 경로는 `fresnel.session`의 조회 API다 [가정].
+- `create`의 `worktree`는 워크트리를 만든 뒤 그 경로를 `workspace`로 세션을 만든다. 워크트리 연산(만들기, 목록, 지우기)은 `L0.os.spec`에 없다. [미결] L0.os에 연산 추가를 요청할지, `fresnel.exec`로 `git worktree`를 실행할지 정한다(§10 미결 13). 워크트리 격리(파일 시스템 경계, 샌드박스 허용 경로)는 L0(`L0.os.spec`, `L0.sandbox.spec`)의 것이다.
 - `worktreeRemove`는 그 워크트리를 쓰는 세션 중 working인 것이 있으면 `worktree_in_use`다.
 - 워크트리 도구 노출 [제안]: 기본 꺼짐(`l2.schedule.tools.worktree: false`). 선택 기능이고, 켜면 모델이 브랜치와 디렉터리를 만들고 지울 수 있다. 서비스 메서드는 항상 쓸 수 있으므로 L4 명령(`/worktree`)과 그룹은 영향을 받지 않는다.
 - 근거: `_research/l2e.md` §3.4 D4, 상주 수준 1(공유 관제는 2, §6).
@@ -1336,7 +1336,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 중복 방지는 세 겹이다.
 
 1. claim: 쓰기 트랜잭션 안에서 먼저 `holds(tx, token)`(`L0.store.spec` §3.1)으로 임대를 대조하고, 거짓이면 아무것도 쓰지 않는다. 참이면 같은 트랜잭션에서 `INSERT INTO cap_schedule_runs(timer_id, due_at, status = 'claimed', lease_epoch = token.epoch, …) ON CONFLICT DO NOTHING`과 타이머의 `next_due_at`·`last_due_at`·`rev` 갱신을 한 트랜잭션에 넣는다. 행이 이미 있으면 그 기한은 누가 처리했거나 처리 중이므로 건너뛴다. 펜싱 덕분에 임대를 잃은 늦은 틱은 아무것도 쓰지 못한다.
-2. 세션 생성 키: `xeon.session` `threads.create`의 `creationKey: "timer:<timerId>:<dueAt>:create"`(`L1.persistence.spec` §4.10.1 생성 멱등, `thread_creation_keys`). 재시작 뒤 새 `threadId`로 다시 불러도 처음 만든 thread를 `replayed: true`로 돌려주므로 세션이 하나만 생긴다.
+2. 세션 생성 키: `fresnel.session` `threads.create`의 `creationKey: "timer:<timerId>:<dueAt>:create"`(`L1.persistence.spec` §4.10.1 생성 멱등, `thread_creation_keys`). 재시작 뒤 새 `threadId`로 다시 불러도 처음 만든 thread를 `replayed: true`로 돌려주므로 세션이 하나만 생긴다.
 3. 입력 키: 실행 세션에 `post(…, { when: "next", requestId: "timer:<timerId>:<dueAt>" })`(`eng.transactions.design` §4.8 예약 실행 행). 같은 기한의 입력은 한 번만 큐에 들어간다.
 
 - 키 길이: `timer:` 6 + `tmr_<ULID>` 30 + `:` 1 + epoch ms 13 = 50자. `:create` 7자를 더해도 57자로 64자 안이다.
@@ -1347,7 +1347,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 재시작 복구: 틱을 시작할 때 `claimed`이거나 `started`인데 `run_finished`가 없는 실행을 찾는다. `claimed`는 (1)부터 다시 한다(키가 같아 중복이 없다). `started`는 세션의 턴 상태를 보고, 진행 중 턴이 없고 투입된 입력도 없으면 (4)를 다시 한다. 턴이 결과 불명으로 끝났으면 `failed`(사유 `host_exit`)로 닫는다 [제안]. 자동 재개 기본값 꺼짐(ADR-0006 §3.6 5번)과 맞춘다.
 - 결과: 실행 세션의 턴이 정착하면(`boundary.settle.after`) `schedule.run_finished { outcome }`을 커밋하고 실행 행을 `finished`로 바꾼다. `outcome`은 턴 결과(`completed`, `aborted`, `failed`, `awaiting_approval`)다. 알림은 호스트가 이 이벤트 kind로 라우팅한다(HS-42).
 - 승인 대기: 실행 세션이 승인을 기다리면 `outcome: "awaiting_approval"`로 끝나고 작업 상태는 needs_input이다. 승인은 로컬 클라이언트나 원격(§4.5)으로 답한다. 예약 실행의 도구 승인 정책을 따로 둘지(Hermes는 cron에서 승인을 거부한다, `_research/refs/hermes.md` 78행)는 L1.tools의 일이다. [제안] L1.tools에 "세션 origin이 timer이면 승인 요청을 거부할지 대기할지" 설정을 요청한다(§10 미결 6).
-- 워치독: `started` 실행 세션에서 진행 중 턴이 있고 마지막 내구 이벤트 뒤 `l2.schedule.timers.runIdleTimeoutSeconds`(기본 600초)가 지나면 `xeon.tasks.interrupt`로 턴을 중단하고 `schedule.run_stalled`를 커밋한다. 실행 행은 `stalled`다. 진행 중인 세션은 자르지 않고 멈춘 세션만 중단하는 Hermes 규칙을 따른다(`_research/refs/hermes.md` §3.10.4 "유휴 600초 워치독"). 승인 대기 중인 세션은 멈춘 것으로 보지 않는다.
+- 워치독: `started` 실행 세션에서 진행 중 턴이 있고 마지막 내구 이벤트 뒤 `l2.schedule.timers.runIdleTimeoutSeconds`(기본 600초)가 지나면 `fresnel.tasks.interrupt`로 턴을 중단하고 `schedule.run_stalled`를 커밋한다. 실행 행은 `stalled`다. 진행 중인 세션은 자르지 않고 멈춘 세션만 중단하는 Hermes 규칙을 따른다(`_research/refs/hermes.md` §3.10.4 "유휴 600초 워치독"). 승인 대기 중인 세션은 멈춘 것으로 보지 않는다.
 - 비용 상한: 최근 1시간 안에 시작한 실행이 `l2.schedule.timers.maxRunsPerHour`(기본 20)에 이르면 새 기한을 `skipped`(사유 `rate_limited`)로 기록한다. 예약 폭주가 모델 비용을 키우지 않게 하려는 것이다.
 
 #### 4.4.6 서비스 모드가 꺼져 있을 때의 생성
@@ -1373,7 +1373,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 #### 4.4.8 예약 세션과 L3 그룹의 경계
 
 - Hermes는 cron 세션에서 학습 관련 동작(메모리 쓰기 등)을 제한한다(`_research/refs/hermes.md` 91행 자식 차단 도구 목록의 `cronjob_manage`, `memory`). Xeon에서 "예약 세션에서는 학습 검토를 끈다" 같은 규칙은 L3 그룹 소관이다.
-- 이 능력이 하는 일은 표식뿐이다. 실행 세션의 첫 이벤트로 `schedule.run_started { origin: "timer" }`를 남긴다. L3 그룹은 자기 투영기에서 이 kind를 읽어 그 세션을 예약 세션으로 알아본다. `xeon.session.create`의 `origin: "timer"`도 같은 정보를 세션 메타에 남긴다 [가정].
+- 이 능력이 하는 일은 표식뿐이다. 실행 세션의 첫 이벤트로 `schedule.run_started { origin: "timer" }`를 남긴다. L3 그룹은 자기 투영기에서 이 kind를 읽어 그 세션을 예약 세션으로 알아본다. `fresnel.session.create`의 `origin: "timer"`도 같은 정보를 세션 메타에 남긴다 [가정].
 - 이 능력은 L3 그룹을 부르지 않고 L3 그룹의 설정도 읽지 않는다. 이 문서는 L3 그룹 이름을 쓰지 않는다 [결정: review.decisions-2 D-11].
 
 #### 4.4.9 M3b 구현 범위: 트리거 상태 기계 [결정: 오케스트레이터 기본값, M3b B1-SCH]
@@ -1413,7 +1413,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 2. 클라이언트는 호스트 계약(F wire)의 `thread.list`, `events.subscribe`로 세션과 이벤트를 본다. 어느 세션이 답을 기다리는지는 `schedule.remote.pending`(호스트가 중계)이나 `approval.requested` 이벤트로 안다.
 3. 클라이언트가 `approval.respond`(F wire §3.3.1)를 보낸다. 호스트는 연결이 원격이면 `schedule.remote.respond({ ...params, clientId })`로 넘기고, 로컬이면 기존 경로(`ApprovalPort.respond`)를 쓴다 [제안].
 4. `respond`는 정책을 검사한다: `l2.schedule.remote.enabled`가 거짓이면 `remote_disabled`, `l2.schedule.remote.allowRespond`가 거짓이면 `respond_not_allowed`, `remember: "always"`는 `remember_not_allowed`다. "항상 허용" 같은 영구 정책 변경은 로컬에서만 하게 하려는 것이다 [제안].
-5. 통과하면 `xeon.approvals`에 응답하고, 승인 요청이 있던 세션에 `schedule.remote_responded`를 커밋한다.
+5. 통과하면 `fresnel.approvals`에 응답하고, 승인 요청이 있던 세션에 `schedule.remote_responded`를 커밋한다.
 - 질문 도구(`dialog.ask`)와 계획 승인(`work.plans`), 리뷰(`artifacts.reviews`, kind `review`는 [미결] `L2.readme` §10 미결 14)는 모두 같은 승인 프로토콜을 쓰므로 원격 답도 같은 경로다(결정 5, `product.usecases.spec` "질문·계획 승인" 행).
 - `pending.summary`는 승인 요청의 표시용 요약에서 만든다. 도구 인자 원문과 출력 원문, 비밀 값을 넣지 않는다. 원격 화면이 잃어버리거나 엿보이는 기기에 있을 수 있기 때문이다.
 
@@ -1502,7 +1502,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `boundary.settle.after` (#26, tap) | 루프 반복 경계, 웨이크업 투입 시점, 예약 실행 결과(§4.1.1, §4.1.3, §4.4.5). `dispatch: detached` |
 | `thread.start` (#30, tap) | 재시작 정리(§4.1.5) |
 | `thread.shutdown` (#39, tap) | 이 세션의 메모리 타이머를 지운다. 이벤트는 쓰지 않는다(다음 열기 때 정리) |
-| post | `xeon.tasks.post`로 반복·웨이크업·감시·예약 입력을 넣는다. 키 형식 `loop:`, `wake:`, `watch:`, `timer:` |
+| post | `fresnel.tasks.post`로 반복·웨이크업·감시·예약 입력을 넣는다. 키 형식 `loop:`, `wake:`, `watch:`, `timer:` |
 | drive | 쓰지 않는다. 다음 턴 시작은 post로만 한다(`L2.readme` §4.2) |
 | scope | 능력이 꺼지면 도구가 다음 단계 경계에서 빠진다. 도는 루프는 멈추지 않는다 [제안]. 끄려면 `stop`을 쓴다 |
 
@@ -1557,7 +1557,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 1. [결정: review.decisions-2 U-11] 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket은 2차다. 이 문서의 `schedule.remote`는 서비스가 없으면 `status.transport: "unavailable"`로 동작한다.
 2. [결정: review.decisions-2 K-09] 새 ID 접두 `lop`, `wak`, `tmr`, `wch`는 F.conversation.spec §3.2.1 `LocalIdPrefix` 표의 지역 ID로 둔다.
 3. [미결] 모바일 푸시와 알림 채널의 소유(§4.5.4). 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다.
-4. [미결] `eng.context-map.design` §4.1 schedule 행 (d)열에 `xeon.session`, `xeon.agents`, `xeon.approvals`, `xeon.exec`, `xeon.sandbox`를 더하는 개정(§3.10).
+4. [미결] `eng.context-map.design` §4.1 schedule 행 (d)열에 `fresnel.session`, `fresnel.agents`, `fresnel.approvals`, `fresnel.exec`, `fresnel.sandbox`를 더하는 개정(§3.10).
 5. 닫힘. 세션 생성 멱등은 `L1.persistence.spec` §4.10.1의 `creationKey`(`thread_creation_keys`)로 한다(§4.4.4 둘째 장치).
 6. [미결] 예약 실행 세션의 승인 정책(§4.4.5): 대기(제안, 알림·원격으로 답함) 또는 거부(Hermes cron 방식). L1.tools.spec에 세션 origin 기반 설정을 요청한다.
 7. [미결] `jobs.spawn`의 replay 정책. L1.agents·L0.process가 `requestId` 멱등을 보장하면 `"safe"`로 넓힌다.
@@ -1566,4 +1566,4 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 10. [결정: 오케스트레이터 기본값, M3b B1-SCH] 기본 `once`와 최소 간격 300초로 구현했다(§4.4.9). 사용자 확인은 남아 있다. 원래 항목: 놓친 실행 기본 정책 `once`와 최소 간격 300초 같은 기본값의 사용자 확인. ADR-0006 §3.5가 이 문서에 넘긴 [미결: L2.schedule.spec](놓친 예약 따라잡기 여부)은 §4.4.4 표로 제안하고 확정은 사용자에게 받는다.
 11. [결정: 오케스트레이터 기본값, M3b B1-SCH] 넣는다(M3-10, `liveSchedulerTasks`). 원래 항목: 루프를 `ActivitySnapshot.liveTasks`에 넣을지(§3.9, §4.1.5). 넣으면 서비스 모드에서 루프가 도는 동안 유휴 종료하지 않는다. `L4.host-service.spec` `ActivitySnapshot` 정의와 맞춘다.
 12. [미결] 기존 세션을 대상으로 하는 예약(§4.4.1). 1차에서 제외를 제안한다.
-13. [미결] 워크트리 연산의 위치(§3.10, §4.3). `L0.os.spec`의 `OsService`에는 워크트리 연산이 없다. L0.os에 `worktree.create/list/remove` 추가를 요청하거나, `xeon.exec`로 `git worktree` 명령을 실행하는 안 중에서 정한다. `watch`의 `root`가 앱 디렉터리 하위로 제한되는 것(`L0.os.spec` §3.8)도 작업 디렉터리의 파일 감시(`source.type: "file"`)와 맞지 않으므로 함께 요청한다.
+13. [미결] 워크트리 연산의 위치(§3.10, §4.3). `L0.os.spec`의 `OsService`에는 워크트리 연산이 없다. L0.os에 `worktree.create/list/remove` 추가를 요청하거나, `fresnel.exec`로 `git worktree` 명령을 실행하는 안 중에서 정한다. `watch`의 `root`가 앱 디렉터리 하위로 제한되는 것(`L0.os.spec` §3.8)도 작업 디렉터리의 파일 감시(`source.type: "file"`)와 맞지 않으므로 함께 요청한다.

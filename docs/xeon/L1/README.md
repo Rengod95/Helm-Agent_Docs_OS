@@ -24,15 +24,15 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 | 도메인 | 하위 층 | 한 줄 요약 | 패키지 | 컨텍스트 | Cordis 서비스 | 문서 |
 |---|---|---|---|---|---|---|
-| tasks | L1-a 태스크 엔진 | 범위 트리, 취소 전파, 동시 상한, 키 큐, 내구 입력 큐 | `xeon/packages/core-tasks` | `run-engine` | `xeon.tasks` | `L1.tasks.spec`, `L1.tasks.plan` |
-| loop | L1-b 에이전트 루프 | 자체 루프(pi-agent-core 1.3.0 포크, adr.0009), 단계 커밋과 체크포인트, 예산(pi 방식), 완료 게이트 | `xeon/packages/core-loop` | `run-engine` | `xeon.loop` | `L1.loop.spec`, `L1.loop.plan` |
-| models | L1-c 모델 게이트웨이 | pi-ai provider, 역할 라우팅, 추론 예산, 캐시 정책, 사용량, 위장 provider 분리 | `xeon/packages/core-models` (+ `xeon/plugins/provider-anthropic-oauth`, 배포 제외) | `model-gateway` | `xeon.models` | `L1.models.spec`, `L1.models.plan` |
-| tools | L1-d 도구 실행과 권한 | 노출, 실행 파이프라인, 정책 엔진, 권한 모드, 승인 프로토콜, 결과 경계화 | `xeon/packages/core-tools` | `tool-runtime` | `xeon.tools`, `xeon.approvals` | `L1.tools.spec`, `L1.tools.plan` |
-| context | L1-e 컨텍스트와 컴팩션 | 접두 고정 조립, 도구 변경 메시지, 캐시 표식, 롤링 요약 컴팩션, 오버플로우 복구 | `xeon/packages/core-context` | `run-engine` | `xeon.context` | `L1.context.spec`, `L1.context.plan` |
-| persistence | L1-f 영속성과 복구 | 이벤트 저장과 투영, 원자 커밋, 결과 불명 처리, 재개, 분기 | `xeon/packages/core-persistence` | `session-core` | `xeon.session` | `L1.persistence.spec`, `L1.persistence.plan` |
-| agents | L1-g 서브에이전트 | 인프로세스 자식 대화, 권한 상한, 결과 반환, 백그라운드 위임, 목표 판정 호출 | `xeon/packages/core-agents` | `run-engine` | `xeon.agents` | `L1.agents.spec`, `L1.agents.plan` |
+| tasks | L1-a 태스크 엔진 | 범위 트리, 취소 전파, 동시 상한, 키 큐, 내구 입력 큐 | `xeon/packages/core-tasks` | `run-engine` | `fresnel.tasks` | `L1.tasks.spec`, `L1.tasks.plan` |
+| loop | L1-b 에이전트 루프 | 자체 루프(pi-agent-core 1.3.0 포크, adr.0009), 단계 커밋과 체크포인트, 예산(pi 방식), 완료 게이트 | `xeon/packages/core-loop` | `run-engine` | `fresnel.loop` | `L1.loop.spec`, `L1.loop.plan` |
+| models | L1-c 모델 게이트웨이 | pi-ai provider, 역할 라우팅, 추론 예산, 캐시 정책, 사용량, 위장 provider 분리 | `xeon/packages/core-models` (+ `xeon/plugins/provider-anthropic-oauth`, 배포 제외) | `model-gateway` | `fresnel.models` | `L1.models.spec`, `L1.models.plan` |
+| tools | L1-d 도구 실행과 권한 | 노출, 실행 파이프라인, 정책 엔진, 권한 모드, 승인 프로토콜, 결과 경계화 | `xeon/packages/core-tools` | `tool-runtime` | `fresnel.tools`, `fresnel.approvals` | `L1.tools.spec`, `L1.tools.plan` |
+| context | L1-e 컨텍스트와 컴팩션 | 접두 고정 조립, 도구 변경 메시지, 캐시 표식, 롤링 요약 컴팩션, 오버플로우 복구 | `xeon/packages/core-context` | `run-engine` | `fresnel.context` | `L1.context.spec`, `L1.context.plan` |
+| persistence | L1-f 영속성과 복구 | 이벤트 저장과 투영, 원자 커밋, 결과 불명 처리, 재개, 분기 | `xeon/packages/core-persistence` | `session-core` | `fresnel.session` | `L1.persistence.spec`, `L1.persistence.plan` |
+| agents | L1-g 서브에이전트 | 인프로세스 자식 대화, 권한 상한, 결과 반환, 백그라운드 위임, 목표 판정 호출 | `xeon/packages/core-agents` | `run-engine` | `fresnel.agents` | `L1.agents.spec`, `L1.agents.plan` |
 
-- 서비스 이름은 `eng.context-map.design` §5.3 표와 같다. 인터페이스(`TaskService`, `LoopService`, `ModelService`, `ToolService`, `ContextService`)와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `SessionService`는 `F.records.spec` §3.9에 있다. `ApprovalService`, `AgentService`도 같은 서브패스(`services/approvals.ts`, `services/agents.ts`)에 있다(`F.capabilities.spec` §3.12 규칙 7). X 포트가 같은 서비스 이름을 쓰면 서비스가 포트를 확장한다: `LoopService extends LoopPort`, `TaskService extends InputQueuePort`, `ToolService extends ToolsPort`, `ModelService extends ModelsPort`(같은 문서 규칙 2).
+- 서비스 이름은 `eng.context-map.design` §5.3 표와 같다. 인터페이스(`TaskService`, `LoopService`, `ModelService`, `ToolService`, `ContextService`)와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `SessionService`는 `F.records.spec` §3.9에 있다. `ApprovalService`, `AgentService`도 같은 서브패스(`services/approvals.ts`, `services/agents.ts`)에 있다(`F.capabilities.spec` §3.12 규칙 7). X 포트가 같은 서비스 이름을 쓰면 서비스가 포트를 확장한다: `LoopService extends LoopPort`, `TaskService extends InputQueuePort`, `ToolService extends ToolsPort`, `ModelService extends ModelsPort`(같은 문서 규칙 2).
 - `run-engine` 컨텍스트 하나가 패키지 넷(tasks, loop, context, agents)에 걸친다. 컨텍스트 안에서도 import하지 않고 서비스로 협력한다(`eng.context-map.design` §4.4 1행).
 
 ## 3. 경계
@@ -48,11 +48,11 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | 대상 | 층 | L1과의 연결 |
 |---|---|---|
 | 이름·타입·스키마·지점 선언 | F `contracts` | L1은 F에서 이름을 가져온다(§11 규칙 1). 지점 선언 표는 F4에 두고 X와 공유한다(DR-12) |
-| 지점 디스패치(fold, 핸들러 스냅샷, 실패 규칙), scope·drive·post 연산 | X `ext-host` | L1은 `xeon.ext`로 디스패치를 요청한다. Cordis는 ext-host 뒤에 있고 L1은 Cordis를 import하지 않는다(DR-11, ADR-0002) |
-| 저장 기반(테이블 DDL, seq, PRAGMA, 임대, blob) | L0 `platform-store`(`xeon.store`) | persistence만 전체 핸들을 받는다. models·tools는 `xeon.store.scoped`로 자기 접두 테이블만 쓴다 |
-| 실행 환경, 샌드박스 | L0 `platform-exec`, `platform-sandbox`(`xeon.exec`, `xeon.sandbox`) | 명령 실행과 샌드박스 래핑은 L2 도구(`cap-workspace`의 `bash` 등)가 쓴다. tools는 잠금 키 산출(`xeon.exec.canonicalPath`)과 출력 절단(`L1.tools.spec` §3.7)에만 `xeon.exec`를 쓴다(`L1.tools.spec` §4.12) |
-| 비밀 해석과 마스킹 | L0 `platform-secrets`(`xeon.secrets`) | models는 요청 직전에 참조를 해석한다. tools는 값을 해석하지 않고 도구 결과를 2계층 마스킹한다. 실행 env 주입은 `xeon.exec`가 한다(`L1.tools.spec` §4.12) |
-| 능력(웹, MCP, 지식, 작업, 대화, 산출물, 예약, 작업 도구) | L2 `cap-*` | L2가 L1 서비스(`xeon.tools`, `xeon.approvals`, `xeon.models`, `xeon.session`, `xeon.agents`)를 쓴다. L1은 L2를 부르지 않는다 |
+| 지점 디스패치(fold, 핸들러 스냅샷, 실패 규칙), scope·drive·post 연산 | X `ext-host` | L1은 `fresnel.ext`로 디스패치를 요청한다. Cordis는 ext-host 뒤에 있고 L1은 Cordis를 import하지 않는다(DR-11, ADR-0002) |
+| 저장 기반(테이블 DDL, seq, PRAGMA, 임대, blob) | L0 `platform-store`(`fresnel.store`) | persistence만 전체 핸들을 받는다. models·tools는 `fresnel.store.scoped`로 자기 접두 테이블만 쓴다 |
+| 실행 환경, 샌드박스 | L0 `platform-exec`, `platform-sandbox`(`fresnel.exec`, `fresnel.sandbox`) | 명령 실행과 샌드박스 래핑은 L2 도구(`cap-workspace`의 `bash` 등)가 쓴다. tools는 잠금 키 산출(`fresnel.exec.canonicalPath`)과 출력 절단(`L1.tools.spec` §3.7)에만 `fresnel.exec`를 쓴다(`L1.tools.spec` §4.12) |
+| 비밀 해석과 마스킹 | L0 `platform-secrets`(`fresnel.secrets`) | models는 요청 직전에 참조를 해석한다. tools는 값을 해석하지 않고 도구 결과를 2계층 마스킹한다. 실행 env 주입은 `fresnel.exec`가 한다(`L1.tools.spec` §4.12) |
+| 능력(웹, MCP, 지식, 작업, 대화, 산출물, 예약, 작업 도구) | L2 `cap-*` | L2가 L1 서비스(`fresnel.tools`, `fresnel.approvals`, `fresnel.models`, `fresnel.session`, `fresnel.agents`)를 쓴다. L1은 L2를 부르지 않는다 |
 | 의도 그룹(Helm, 학습 그룹) | L3 | 지점과 X 연산으로만 L1에 영향을 준다 |
 | 전송, 설정 화면, 조립 루트 | L4 | `apps/host`가 L1 패키지를 등록한다(DR-14 예외 2) |
 
@@ -64,39 +64,39 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 | 호출하는 도메인 | 호출받는 서비스 | 용도 | 근거 |
 |---|---|---|---|
-| loop | `xeon.models` | 단계 바인딩 해석, `streamFn`, 사용량 | `L1.loop.spec` §3.2, `L1.models.spec` §3.3 |
-| loop | `xeon.tools` | 광고 목록, 도구 단계 계약(`prepare`·`execute`·`settleRejected`), `meta`, `rerun`. 재개 때 대기 호출도 core-loop가 `runTurn({ kind: "tools" })`로 들어가 같은 단계 계약으로 실행(adr.0009 §3.4) | `L1.tools.spec` §3.3, §8.1 |
-| loop | `xeon.context` | 조립(`assemble`), `convertToLlm`, 임계 검사, 오버플로우 복구 | `L1.context.spec` §3.1 |
-| loop | `xeon.session` | T1~T6 커밋, 가지 읽기, 재개 | `L1.loop.spec` §3.5 |
-| loop | `xeon.tasks` | turn·step 노드, `modelCalls` 슬롯, 입력 큐 배치 | `L1.tasks.spec` §8 |
-| loop | `xeon.ext` | 지점 12개 디스패치 | `L1.loop.spec` §7 |
-| tasks | `xeon.session` | `input.*`, 취소 의도 커밋 | `L1.tasks.spec` §8 요구 |
-| models | `xeon.secrets` | 자격 증명 참조 해석, 마스킹 | `L1.models.spec` §3.9 |
-| models | `xeon.ext` [제안] | 지점 6개 디스패치 | `L1.models.spec` §8.3 4 |
-| models | `xeon.store` (M3) | `core_models_*` | `L1.models.spec` §4.8 |
-| tools | `xeon.session` | 효과 3단, 승인 이벤트 커밋 | `L1.tools.spec` §8.2 |
-| tools | `xeon.exec` | 잠금 키 산출(`canonicalPath`), 출력 절단(review.decisions-2 D-08). 명령 실행은 하지 않는다 | `L1.tools.spec` §3.7, §4.2 7b, §4.12 |
-| tools | `xeon.secrets` | 도구 결과 2계층 마스킹(`Redactor.maskDeep`), `check`의 승인 연결. 값 주입은 하지 않는다 | `L1.tools.spec` §4.12 |
-| tools | `xeon.tasks` | tool 범위 노드, 키 큐(M1), `tools` 풀(M2) | `L1.tools.spec` §4.2 7a~7c, `L1.tasks.spec` §8 제공 |
-| tools | `xeon.store` | blob, `core_tools_*` | `L1.tools.spec` §8.4 |
-| tools | `xeon.ext` | 지점 7개 디스패치 | `L1.tools.spec` §7 |
-| context | `xeon.models` | `summary` 역할 호출, 토큰 추정, 오류 분류, 캐시 정책 | `L1.context.spec` §8.2 |
-| context | `xeon.session` | 가지 읽기, `thread.compacted` 커밋 | 같음 |
-| context | `xeon.ext` | 지점 6개 디스패치 | `L1.context.spec` §7 |
-| persistence | `xeon.store` | 세션 테이블, 투영, 체크포인트 | `eng.context-map.design` §4.1 `session-core` 행 |
-| agents | `xeon.loop` | 자식 thread turn 실행(`runChildTurn`) | `L1.agents.spec` §8.2, `L1.loop.spec` §3.1·§4.13 |
-| agents | `xeon.tasks` | 소유 트리, `subagents` 풀, 완료 보고 post | 같음 |
-| agents | `xeon.tools` | `evaluatePolicy`, 자식 광고, 차단 규칙 등록(`registerRules`) | 같음, `L1.tools.spec` §3.3 |
-| agents | `xeon.models` | `judge`, `subagent` 역할 | 같음, `L1.models.spec` §3.4 |
-| agents | `xeon.session` | `agent.*` 커밋, 멱등 조회 `TxView.agentByRequestId` | `L1.agents.spec` §3.5, `L1.persistence.spec` §3.2 |
+| loop | `fresnel.models` | 단계 바인딩 해석, `streamFn`, 사용량 | `L1.loop.spec` §3.2, `L1.models.spec` §3.3 |
+| loop | `fresnel.tools` | 광고 목록, 도구 단계 계약(`prepare`·`execute`·`settleRejected`), `meta`, `rerun`. 재개 때 대기 호출도 core-loop가 `runTurn({ kind: "tools" })`로 들어가 같은 단계 계약으로 실행(adr.0009 §3.4) | `L1.tools.spec` §3.3, §8.1 |
+| loop | `fresnel.context` | 조립(`assemble`), `convertToLlm`, 임계 검사, 오버플로우 복구 | `L1.context.spec` §3.1 |
+| loop | `fresnel.session` | T1~T6 커밋, 가지 읽기, 재개 | `L1.loop.spec` §3.5 |
+| loop | `fresnel.tasks` | turn·step 노드, `modelCalls` 슬롯, 입력 큐 배치 | `L1.tasks.spec` §8 |
+| loop | `fresnel.ext` | 지점 12개 디스패치 | `L1.loop.spec` §7 |
+| tasks | `fresnel.session` | `input.*`, 취소 의도 커밋 | `L1.tasks.spec` §8 요구 |
+| models | `fresnel.secrets` | 자격 증명 참조 해석, 마스킹 | `L1.models.spec` §3.9 |
+| models | `fresnel.ext` [제안] | 지점 6개 디스패치 | `L1.models.spec` §8.3 4 |
+| models | `fresnel.store` (M3) | `core_models_*` | `L1.models.spec` §4.8 |
+| tools | `fresnel.session` | 효과 3단, 승인 이벤트 커밋 | `L1.tools.spec` §8.2 |
+| tools | `fresnel.exec` | 잠금 키 산출(`canonicalPath`), 출력 절단(review.decisions-2 D-08). 명령 실행은 하지 않는다 | `L1.tools.spec` §3.7, §4.2 7b, §4.12 |
+| tools | `fresnel.secrets` | 도구 결과 2계층 마스킹(`Redactor.maskDeep`), `check`의 승인 연결. 값 주입은 하지 않는다 | `L1.tools.spec` §4.12 |
+| tools | `fresnel.tasks` | tool 범위 노드, 키 큐(M1), `tools` 풀(M2) | `L1.tools.spec` §4.2 7a~7c, `L1.tasks.spec` §8 제공 |
+| tools | `fresnel.store` | blob, `core_tools_*` | `L1.tools.spec` §8.4 |
+| tools | `fresnel.ext` | 지점 7개 디스패치 | `L1.tools.spec` §7 |
+| context | `fresnel.models` | `summary` 역할 호출, 토큰 추정, 오류 분류, 캐시 정책 | `L1.context.spec` §8.2 |
+| context | `fresnel.session` | 가지 읽기, `thread.compacted` 커밋 | 같음 |
+| context | `fresnel.ext` | 지점 6개 디스패치 | `L1.context.spec` §7 |
+| persistence | `fresnel.store` | 세션 테이블, 투영, 체크포인트 | `eng.context-map.design` §4.1 `session-core` 행 |
+| agents | `fresnel.loop` | 자식 thread turn 실행(`runChildTurn`) | `L1.agents.spec` §8.2, `L1.loop.spec` §3.1·§4.13 |
+| agents | `fresnel.tasks` | 소유 트리, `subagents` 풀, 완료 보고 post | 같음 |
+| agents | `fresnel.tools` | `evaluatePolicy`, 자식 광고, 차단 규칙 등록(`registerRules`) | 같음, `L1.tools.spec` §3.3 |
+| agents | `fresnel.models` | `judge`, `subagent` 역할 | 같음, `L1.models.spec` §3.4 |
+| agents | `fresnel.session` | `agent.*` 커밋, 멱등 조회 `TxView.agentByRequestId` | `L1.agents.spec` §3.5, `L1.persistence.spec` §3.2 |
 
-층 밖에서 L1을 부르는 쪽(참고): X는 `xeon.session`, `xeon.tasks`, `xeon.loop`, `xeon.agents`를 쓴다(drive의 `loop.turn`·`loop.spawn`·post). L2는 `xeon.tools`(도구 등록), `xeon.approvals`, `xeon.models`(내장 검색 래퍼), `xeon.session`, `xeon.agents`를 쓴다.
+층 밖에서 L1을 부르는 쪽(참고): X는 `fresnel.session`, `fresnel.tasks`, `fresnel.loop`, `fresnel.agents`를 쓴다(drive의 `loop.turn`·`loop.spawn`·post). L2는 `fresnel.tools`(도구 등록), `fresnel.approvals`, `fresnel.models`(내장 검색 래퍼), `fresnel.session`, `fresnel.agents`를 쓴다.
 
 ### 4.2 협력 규칙
 
 1. 주고받을 타입과 서비스 이름은 F에 둔다. 제공 패키지가 Cordis에 등록하고, 쓰는 패키지는 F 타입으로 주입받는다(DR-02 협력 방법 1~3).
-2. 외부 라이브러리는 소유 패키지만 import한다. pi-ai는 `core-models`다. pi-agent-core는 어느 패키지도 import하지 않는다(DR-07, adr.0009). 다른 L1 패키지가 pi-ai 기능(토큰 추정, 오버플로우 감지)을 쓰려면 `xeon.models`를 거친다(`L1.models.spec` §3.3 `tokens`, `classify`). 에이전트 타입(`AgentTool`, `AgentEvent`, `AgentMessage` 등)은 F conversation이 정의한 것을 쓴다(`F.conversation.spec` §3.1.1). 도구 한 호출의 준비·실행은 core-tools 단계 계약이고 배치 스케줄은 core-loop다(adr.0009 §3.4). DR-07 소유 표에서 바꾸는 것은 pi-ai 소유에 위장 플러그인 `plugins/provider-anthropic-oauth`를 더하는 일 하나다(review.decisions-2 U-16).
-3. 세션 테이블 쓰기는 `xeon.session`의 커밋 하나로만 한다(`eng.transactions.design` §6, CM-02).
+2. 외부 라이브러리는 소유 패키지만 import한다. pi-ai는 `core-models`다. pi-agent-core는 어느 패키지도 import하지 않는다(DR-07, adr.0009). 다른 L1 패키지가 pi-ai 기능(토큰 추정, 오버플로우 감지)을 쓰려면 `fresnel.models`를 거친다(`L1.models.spec` §3.3 `tokens`, `classify`). 에이전트 타입(`AgentTool`, `AgentEvent`, `AgentMessage` 등)은 F conversation이 정의한 것을 쓴다(`F.conversation.spec` §3.1.1). 도구 한 호출의 준비·실행은 core-tools 단계 계약이고 배치 스케줄은 core-loop다(adr.0009 §3.4). DR-07 소유 표에서 바꾸는 것은 pi-ai 소유에 위장 플러그인 `plugins/provider-anthropic-oauth`를 더하는 일 하나다(review.decisions-2 U-16).
+3. 세션 테이블 쓰기는 `fresnel.session`의 커밋 하나로만 한다(`eng.transactions.design` §6, CM-02).
 4. 다른 컨텍스트의 테이블을 직접 쿼리하지 않는다(CM-02).
 
 ### 4.3 문서 의존 방향
@@ -112,12 +112,12 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | 5 | `L1.loop`(→ tasks, tools, context, models, persistence) |
 | 6 | `L1.agents`(→ tasks, tools, loop, models, persistence) |
 
-- 빠진 역방향 쌍과 그 이유: loop → agents(loop는 판정 API만 쓰고 agents가 loop의 `runChildTurn`을 쓴다), tools → loop(loop가 `ToolRunContext`를 만들어 tools 훅을 쓴다), tools → agents(agents가 정책 어휘와 `registerRules`를 쓴다), tasks → tools(tasks는 불투명 키만 받는다), persistence → tasks·tools·agents·loop(persistence는 `xeon.store`만 부르는 가장 아래 컨텍스트다, `eng.context-map.design` §4.1 (d)열).
+- 빠진 역방향 쌍과 그 이유: loop → agents(loop는 판정 API만 쓰고 agents가 loop의 `runChildTurn`을 쓴다), tools → loop(loop가 `ToolRunContext`를 만들어 tools 훅을 쓴다), tools → agents(agents가 정책 어휘와 `registerRules`를 쓴다), tasks → tools(tasks는 불투명 키만 받는다), persistence → tasks·tools·agents·loop(persistence는 `fresnel.store`만 부르는 가장 아래 컨텍스트다, `eng.context-map.design` §4.1 (d)열).
 - 라우팅은 `depends_on`을 한 단계 펼친다(`_research/foundation-plan.md` §4). 역방향 문서가 필요한 작업은 그 문서의 `binds`나 이 README의 `depends_on`으로 고른다.
 
 ## 5. 한 턴 흐름 요약
 
-전체 순서는 `architecture.runtime-flow.design` §4.1의 시퀀스 그림이다. L1 안의 순서는 `L1.loop.spec` §4.2다. 아래는 L1 안에서 내구 커밋이 일어나는 지점 세 곳이다. 모든 커밋은 `xeon.session` 커밋 하나를 거친다. 지점 이름은 `L1.persistence.spec` §4.2 대응표를 따른다. loop의 T1~T6과 persistence의 C·S·E·A·X는 그 표에서 서로 대응한다(T1 = C2, T2 = S1, T3 = C3, T4 = C5, T6 = C6).
+전체 순서는 `architecture.runtime-flow.design` §4.1의 시퀀스 그림이다. L1 안의 순서는 `L1.loop.spec` §4.2다. 아래는 L1 안에서 내구 커밋이 일어나는 지점 세 곳이다. 모든 커밋은 `fresnel.session` 커밋 하나를 거친다. 지점 이름은 `L1.persistence.spec` §4.2 대응표를 따른다. loop의 T1~T6과 persistence의 C·S·E·A·X는 그 표에서 서로 대응한다(T1 = C2, T2 = S1, T3 = C3, T4 = C5, T6 = C6).
 
 | 커밋 지점 | 맡는 도메인 | 커밋 내용 | 내구성 | 근거 |
 |---|---|---|---|---|
@@ -226,9 +226,9 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 | 테이블·접두 | 소유 도메인 | 쓰는 경로 | 근거 |
 |---|---|---|---|
-| `events`, `requests`, `step_checkpoints`, `consumer_cursors`, `projector_state`, `p_*` | persistence | `xeon.session` 커밋, 투영 재생성 | `eng.context-map.design` §5.2 |
-| `core_models_*` | models | `xeon.store.scoped("core_models_")`. M3(계정, 사용량 창, 대기) | `L1.models.spec` §4.8 |
-| `core_tools_*` | tools | `xeon.store.scoped("core_tools_")`. 항상 허용 캐시(2차) | `eng.context-map.design` §5.2 |
+| `events`, `requests`, `step_checkpoints`, `consumer_cursors`, `projector_state`, `p_*` | persistence | `fresnel.session` 커밋, 투영 재생성 | `eng.context-map.design` §5.2 |
+| `core_models_*` | models | `fresnel.store.scoped("core_models_")`. M3(계정, 사용량 창, 대기) | `L1.models.spec` §4.8 |
+| `core_tools_*` | tools | `fresnel.store.scoped("core_tools_")`. 항상 허용 캐시(2차) | `eng.context-map.design` §5.2 |
 | 없음 | tasks, loop, context, agents | 상태는 이벤트와 `p_*` 투영(예: `p_inputs`) | `eng.context-map.design` §4.1 `run-engine` 행 |
 
 ## 8. 설정 네임스페이스와 L4 탭
@@ -279,7 +279,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | `@earendil-works/pi-ai` | 1.3.0 정확 고정 | core-models, `plugins/provider-anthropic-oauth`(review.decisions-2 U-16) | 그대로 + 훅 래핑. provider, 카탈로그, 재시도, usage, 캐시, 추론, 추정 | ADR-0001 §3, `L1.models.spec` §3.1 |
 | `@earendil-works/pi-agent-core` | 1.3.0(1.1.0 소스와 바이트 동일). 의존하지 않음 | core-loop | 루프 포크 후 자체 재설계(adr.0009). 원본 `agent-loop.ts` 일부를 옮기고 `UPSTREAM.json`·`LICENSE.pi`로 출처 기록 | `_research/notes/L1-1.md` §0, `L1.loop.spec` §3.2, `L1.loop.plan` §4 |
 | TypeBox | `typebox` 1.3.27(catalog, review.decisions-2 U-24). pi-ai와 같은 판 | 전 층 | 스키마 단일 원천 | `_research/foundation-plan.md` §2, `F.readme` §8 7번 |
-| bun:sqlite | Bun 1.4 내장 | L0 platform-store(L1 밖) | persistence가 `xeon.store`로 쓴다 | DR-07 |
+| bun:sqlite | Bun 1.4 내장 | L0 platform-store(L1 밖) | persistence가 `fresnel.store`로 쓴다 | DR-07 |
 | Cordis | 4.0.0-rc.x vendored | X ext-host(L1 밖) | L1은 서비스 등록·주입만 X로 | ADR-0002 |
 
 포크 목록:
@@ -302,7 +302,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 5. 단계 경계: 확장 켜기·끄기, drive 임대 교대, 도구 목록 변경은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용한다 [결정: review.decisions-2 U-01](`F.extensions.spec` §4.5).
 6. 예산: 단계 수와 비용에 기본 상한을 두지 않는다. 사용자 중단, 컨텍스트 한도, 추론 레벨별 토큰 예산만 둔다. 상한은 그룹의 drive 임대에만 걸린다(`_research/layer-plan-v2-notes.md` 가드레일 절). 이 예외는 [결정: review.decisions-2 U-12]이다. 목표 판정 횟수 상한(`l1.agents.judge.maxRuns`)은 결정 4의 별도 상한이다.
 7. 비밀: 값은 요청·실행 직전에만 해석하고 이벤트, 로그, 지점 페이로드에 싣지 않는다(`_research/secrets.md` §6.2).
-8. 시계·ID·난수는 주입받는다. 모델은 테이프 가짜로 시험한다(`eng.testing.guide` TS-04, 테이프 모듈은 `@xeon/core-models/testing`).
+8. 시계·ID·난수는 주입받는다. 모델은 테이프 가짜로 시험한다(`eng.testing.guide` TS-04, 테이프 모듈은 `@fresnel/core-models/testing`).
 
 ## 12. 결정 근거
 
@@ -314,7 +314,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | [결정] 위장 provider는 `plugins/provider-anthropic-oauth`로 분리, 배포 제외, 기본 꺼짐 | `_research/decisions-log.md` 2026-10-21 결정 2차, `product.scope.spec` N6 |
 | [결정] 승인·질문·계획 승인은 L1-d 승인 프로토콜 하나 | `_research/foundation-plan.md` §1 결정 5 |
 | [결정] 목표 판정은 별도 판정 모델 + 실행 횟수 상한 | `_research/foundation-plan.md` §1 결정 4 |
-| [결정] Helm과 학습 그룹은 L3 기본 그룹. 학습 그룹은 drive를 쓰지 않는다. 검토 포크를 백그라운드 위임으로 돌리고, L1이 제공하는 쪽은 `xeon.agents`의 백그라운드 위임과 `post` 경로다 | `_research/decisions-log.md` 2026-10-21 계획 v2(학습 그룹 drive 미사용, Helm과 공존), `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `L1.agents.spec` §4.7 |
+| [결정] Helm과 학습 그룹은 L3 기본 그룹. 학습 그룹은 drive를 쓰지 않는다. 검토 포크를 백그라운드 위임으로 돌리고, L1이 제공하는 쪽은 `fresnel.agents`의 백그라운드 위임과 `post` 경로다 | `_research/decisions-log.md` 2026-10-21 계획 v2(학습 그룹 drive 미사용, Helm과 공존), `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `L1.agents.spec` §4.7 |
 | [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정 2차, ADR-0004 |
 | [결정] 확장 지점은 on(fold tap/first/chain), post, drive(배타 임대), scope | `_research/decisions-log.md` 2026-10-21 계획 v2, ADR-0007 |
 
@@ -330,13 +330,13 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | (d) | `input` 지점 발화 위치: `F.extensions.spec` §7은 loop, `architecture.runtime-flow.design` §4.1 그림은 tasks | `L1.tasks.spec` §7, `L1.loop.spec` FR-L7 | loop(`LoopService.admit`)가 발화하고 그림을 고친다 |
 | (e) | `SettingsTab`에 agents 탭 없음 | `L1.agents.spec` §6, `L4.settings-ui.spec` §4.1.1 | 고쳤다: 탭을 더하지 않고 models 탭에 둔다 [결정: review.decisions-2 S-14] |
 | (f) | ADR-0003은 truncate를 cap-workspace에 두었으나 L1-d 결과 경계화가 쓴다 | `L1.tools.spec` §4.8, adr.0003 §3 | 고쳤다: 출력 절단 함수는 `platform-exec`에 두고(adr.0003 §3 표 개정 필요), core-tools와 L2는 F 서비스로 부른다 [결정: review.decisions-2 D-08] |
-| (g) | `plugins/*`는 `check-layers.ts`에서 L1이라 `core-models`를 import할 수 없음(`architecture.layers.spec` §10). DR-09는 `core-models` 공개 계약 import를 허용 목록으로 풀고 pi-ai 직접 import를 금지 | `L1.models.spec` §3.11 | 고쳤다: `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F의 provider 인터페이스로 `xeon.models`(core-models 서비스)에 등록한다. 같은 층 예외는 두지 않는다 [결정: review.decisions-2 U-16]. DR-07 소유 표와 DR-09는 eng 쪽이 고친다 |
-| (h) | `eng.context-map.design` §4.1 `model-gateway` (d)열은 `xeon.secrets`만 적었으나 지점 6개 디스패치에 `xeon.ext`가 필요 | `L1.models.spec` §8.3 4 | (d)열에 `xeon.ext` 추가 |
+| (g) | `plugins/*`는 `check-layers.ts`에서 L1이라 `core-models`를 import할 수 없음(`architecture.layers.spec` §10). DR-09는 `core-models` 공개 계약 import를 허용 목록으로 풀고 pi-ai 직접 import를 금지 | `L1.models.spec` §3.11 | 고쳤다: `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F의 provider 인터페이스로 `fresnel.models`(core-models 서비스)에 등록한다. 같은 층 예외는 두지 않는다 [결정: review.decisions-2 U-16]. DR-07 소유 표와 DR-09는 eng 쪽이 고친다 |
+| (h) | `eng.context-map.design` §4.1 `model-gateway` (d)열은 `fresnel.secrets`만 적었으나 지점 6개 디스패치에 `fresnel.ext`가 필요 | `L1.models.spec` §8.3 4 | (d)열에 `fresnel.ext` 추가 |
 | (i) | `X.primitives.spec` §3.9 `ProviderResourceDef = JsonValue`로는 코드 provider(함수 포함)를 등록할 수 없음 | `L1.models.spec` §3.7 | `ProviderDef`(config·runtime 유니온)로 바꾼다 |
 | (j) | `checkpoint.step` 생산자: 이 층 배정과 `L1.persistence.spec` §3.8(envelope는 저장소가, 내용은 루프가 만든다)은 `core.persistence`, `L1.loop.spec` §3.7은 `core.loop` | `L1.loop.spec`, `L1.persistence.spec` | `core.persistence`로 맞추고 `L1.loop.spec` §3.7 표를 고친다 [제안]. 체크포인트 허용 지점도 다르다: loop는 T3(`next: "tools"`)를, persistence는 승인 대기 A1을 예외로 요청한다(FR-L3, FR-P4). [미결] 둘을 함께 F에 올린다 |
 | (k) | `F.conversation.spec` §3.1은 pi-ai `Context`·`TranscriptContext`를 "L1-c 몫"으로 재노출하지 않으나, `ModelService`가 F에 있으면 그 타입이 F에 필요 | `L1.models.spec` §8.3 1 | 타입 전용 재노출을 F `services/models.ts`에 둔다(`F.capabilities.spec` §3.12 규칙 3) |
 | (l) | `eng.context-map.design` §5.3은 `ContextService`를 F conversation에 두었으나 인터페이스가 capabilities 이름(`CachePolicy`, `OrderedTool`)을 쓴다. F 내부 순서상 conversation은 capabilities를 import할 수 없음 | `L1.context.spec` §3.1 | capabilities `context.ts`로 옮긴다 |
-| (m) | `_research/packages.md` §4.3은 context가 pi-ai `isContextOverflow`, `utils/estimate.ts`를 "그대로" 쓴다고 적었으나 DR-07은 pi-ai import를 core-models에 한정 | `L1.models.spec` §3.3, `L1.context.spec` §4.7 | `xeon.models.tokens`·`classify`로 위임한다 |
+| (m) | `_research/packages.md` §4.3은 context가 pi-ai `isContextOverflow`, `utils/estimate.ts`를 "그대로" 쓴다고 적었으나 DR-07은 pi-ai import를 core-models에 한정 | `L1.models.spec` §3.3, `L1.context.spec` §4.7 | `fresnel.models.tokens`·`classify`로 위임한다 |
 | (n) | 계획 v2는 구조화 출력을 2차로 두었으나 목표 판정(M3)이 구조화 판정 출력을 쓴다 | `L1.agents.spec` §4.8, `L1.models.spec` §3.10 | 최소형을 M3로 당긴다 |
 | (o) | F `ThinkingBudgets`(pi-ai)는 `minimal`~`high` 4키, 레벨은 6종(`xhigh`, `max` 포함), 설정 조사는 omp 6키 | `L1.models.spec` §3.1 | 설정은 6키를 저장하고 pi-ai에는 4키만 넘긴다. 포크하지 않는다 |
 | (p) | L1 서비스가 유효 설정을 읽는 경로와 서비스 이름이 어느 문서에도 없음(`L4.host-service.spec`의 `SettingsStorePort.layers`는 L1.persistence 소유로 적힘) | 모든 L1 spec의 "설정 노출" | [미결] X 또는 persistence가 읽기 서비스를 정한다 |
@@ -346,7 +346,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | (t) | DR-07은 pi-agent-core를 core-loop만 import하게 하는데 `L1.tools.spec` §3이 F capabilities `tools.ts`와 core-tools에서 agent-core 타입을 직접 import했고, `resumePending`이 agent-core `runToolCall`을 core-tools에서 불렀다 | `L1.tools.spec` §3·§4.7, `L1.tools.plan` §2·§4, `eng.dependency-rules.guide` DR-07 | 고쳤다: agent-core 타입은 F conversation 재노출(`AgentLoopConfig`, `AgentToolCall` 추가 요청, `L1.tools.spec` §8.3 F 요청 7)만 쓰고, `resumePending`을 지워 재실행을 core-loop로 옮겼다. DR-07 소유 표는 그대로다. 이후 adr.0009로 agent-core 의존 자체가 없어졌다. F 요청 7은 닫혔고 재실행은 `prepare`·`execute` 단계 계약이다 |
 | (u) | `L1.agents.spec`이 요청한 `LoopService.runChildTurn`이 `L1.loop.spec`과 plan에 없었다 | `L1.agents.spec` §4.1 5번·§8.4, `L1.loop.spec` §3.1 | 고쳤다: `L1.loop.spec` §3.1 `ChildTurnRequest`·`runChildTurn`, §4.13, `L1.loop.plan` LP15 |
 | (v) | 커밋 지점 이름과 목록이 문서마다 달랐다: loop는 T1~T6(T5 없음)에 T2 `step.started`·prestart 커밋을 두었고, persistence는 C1~C6(C4 없음)에 이 둘이 없어 fsync 식이 맞지 않았다 | `L1.loop.spec` §3.5, `L1.persistence.spec` §4.2, `L1.persistence.plan` §6 | 고쳤다: persistence §4.2에 S1·C2b 행과 대응표를 두고 fsync 식을 `3 + 3 × 도구 수`로 바꿨다. `eng.transactions.design` §4.1 C1~C6 표 수정은 `L1.persistence.spec` §8.4 요청에 포함된다 |
-| (w) | 같은 서비스 `xeon.loop`에 `X.primitives.spec` §3.6 `LoopPort`(`runTurn`, `status`: 문자열, `whenIdle`, `spawn`)와 `L1.loop.spec` `LoopService`(`runDriveTurn`, `status`: 객체)가 따로 있었다. 입력 큐도 X `InputQueuePort.enqueue`와 L1 `inputs.enqueue`가 달랐다 | `L1.loop.spec` §3·§3.1·§4.8, `L1.tasks.spec` §3.1·§7, `X.primitives.spec` §3.6 | 고쳤다 [제안]: `LoopService extends LoopPort`, L1 상세 상태는 `threadStatus`, drive turn은 `runTurn`(펜싱 `leaseEpoch`, T1 build 안 `turnByRequestId`). `TaskService extends InputQueuePort`. 포트 타입은 F.extensions `ports.ts`로 옮기도록 요청(`L1.loop.spec` FR-L1). 하위 객체는 최상위 이름이 겹칠 때만 쓴다(`SessionService.ext`) |
+| (w) | 같은 서비스 `fresnel.loop`에 `X.primitives.spec` §3.6 `LoopPort`(`runTurn`, `status`: 문자열, `whenIdle`, `spawn`)와 `L1.loop.spec` `LoopService`(`runDriveTurn`, `status`: 객체)가 따로 있었다. 입력 큐도 X `InputQueuePort.enqueue`와 L1 `inputs.enqueue`가 달랐다 | `L1.loop.spec` §3·§3.1·§4.8, `L1.tasks.spec` §3.1·§7, `X.primitives.spec` §3.6 | 고쳤다 [제안]: `LoopService extends LoopPort`, L1 상세 상태는 `threadStatus`, drive turn은 `runTurn`(펜싱 `leaseEpoch`, T1 build 안 `turnByRequestId`). `TaskService extends InputQueuePort`. 포트 타입은 F.extensions `ports.ts`로 옮기도록 요청(`L1.loop.spec` FR-L1). 하위 객체는 최상위 이름이 겹칠 때만 쓴다(`SessionService.ext`) |
 | (x) | `L1.tasks.spec` FR-T3이 `post.accepted` retire를 제안해 F.records·X와 반대였다 | `L1.tasks.spec` §7·FR-T3, `F.records.spec` §3.3, `X.primitives.spec` §3.6 | 고쳤다: retire안. 확장 post는 `input.queued` 하나를 쓰고 멱등은 커밋 키가 맡는다 [결정: review.decisions-2 U-05, 2026-10-22 사용자 확인에서 유지안을 바꿈] |
 | (y) | 쓰기 소유 확인이 인자 없는 `OwnershipGuard.holds()`(메모리 잠금 확인)였고 ADR-0006의 별도 소유 테이블이 L0.store `sys_leases`와 겹쳤다 | `L1.persistence.spec` §3.6·§3.10·§4.1·§4.9, `L0.store.spec` §3.1·§3.3, `eng.transactions.design` TX-10 | 고쳤다: OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱. `LeaseToken` + `leases.holds(tx, token)`, 별도 소유 테이블 없음(`sys_leases` 행이 표시를 겸한다). adr.0004 §3.4·adr.0006 개정 [결정: review.decisions-2 U-09] |
 | (z) | 백그라운드 위임 완료 보고가 `agent.settled`와 다른 커밋이었고, 자식 thread 쓰기 소유 획득 절차와 세션 생성 멱등(`creationKey`)이 없었다 | `L1.agents.spec` §4.1·§4.5·§4.7, `L1.persistence.spec` §3.8·§4.10.1 | 고쳤다 [제안]: 보고 `input.queued`를 `agent.settled`와 한 커밋에, 자식 임대는 `inheritOwnerFrom`으로 부모 holder가 얻는다. `threads.create`에 `creationKey`와 `thread_creation_keys` 표 |
@@ -355,19 +355,19 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 하위 spec의 미결 가운데 층 전체에 걸리는 것만 모은다. 세부와 선택지는 각 spec의 미결 사항 절에 있다.
 
-1. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `xeon.models`에 등록한다(§13 (g)).
+1. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `fresnel.models`에 등록한다(§13 (g)).
 2. [미결] 기본 `anthropic-messages` 경로의 위장 분기 차단을 코어 가드로 할지 pi-ai 포크로 할지(`L1.models.spec` 미결 1). 위장 플러그인의 별도 배포 여부(`product.scope.spec` N6).
 3. [미결] 컴팩션 별도 커밋 C7(§13 (s))을 `eng.transactions.design`에 반영하는 일. F `SessionStore.appendBatch`(2차)와 `SessionService.commit`(M1 정본)의 관계는 `F.records.spec` §3.8에 반영됐다(§13 (b)).
 4. [미결] `checkpoint.step` 생산자(§13 (j))와 T3 체크포인트 허용(`L1.loop.spec` FR-L3).
 5. (닫음) 컴팩션 지점 셋과 `ui_prompt_*` 두 지점의 발화 배정은 `F.extensions.spec` §7에 반영됐다(§6 표).
-6. [미결] 떠난 가지 요약의 생성 주체(`L1.context.spec` §4.9). `session-core`가 `xeon.store`만 쓰는 규칙과 맞추는 A안이 제안이다.
+6. [미결] 떠난 가지 요약의 생성 주체(`L1.context.spec` §4.9). `session-core`가 `fresnel.store`만 쓰는 규칙과 맞추는 A안이 제안이다.
 7. [미결] `settings.changed`의 생산자 규칙(§7.1 마지막 행).
 8. [결정: review.decisions-2 S-14] agents 설정 탭은 더하지 않는다. `l1.agents.*`는 models 탭이다(§13 (e)).
 9. [미결] L1 서비스의 유효 설정 읽기 경로(§13 (p)).
 10. [미결] `post.when = next`의 시작 여부와 `aside` 위치(`L1.tasks.spec`, `L1.loop.spec` 미결).
 11. [미결] 재생 정책 이름(`safe|unsafe`와 F `AgentTool.replay`의 `never|safe`, `F.readme` §8 미결 6). tools와 models가 함께 걸린다. TypeBox 버전은 1.3.27로 정했다(review.decisions-2 U-24).
 12. [미결] 구조화 출력 최소형의 M3 배치(§13 (n)). 레이트 리밋·계정 회전은 M3로 정했다 [결정: review.decisions-2 U-21](§9 각주 3).
-13. [미결] 도구가 다른 도구를 부르는 중첩 호출의 진입점. `xeon.tools`의 `prepare`·`execute`를 부르는 쪽은 지금 core-loop뿐이다(`L1.tools.spec` §4.2, §10).
+13. [미결] 도구가 다른 도구를 부르는 중첩 호출의 진입점. `fresnel.tools`의 `prepare`·`execute`를 부르는 쪽은 지금 core-loop뿐이다(`L1.tools.spec` §4.2, §10).
 14. [미결] 비밀 lease를 부르는 쪽(L0.exec 대 L1.tools)과 `secretEnv` 전달 경로(`L1.tools.spec` §4.12). M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다 [결정: review.decisions-2 U-19].
 15. [결정: review.decisions-2 U-05] `post.accepted`는 retire한다(§13 (x)). 카탈로그 항목은 `retired: true`로 남는다(F.records.spec §3.3). 확장 post의 기록은 `input.queued`이고 멱등은 커밋 키 `in:<sourceKey>:<requestId>`가 맡는다. F.conversation.spec §3.5.3 `TurnStartedPayload.scopeId`는 그대로다(L1.tasks FR-T3, L1.loop FR-L8, L1.persistence FR-P10 닫음). core-tasks의 `post.accepted` 동봉 코드는 구현 후속에서 지운다.
 16. [결정: review.decisions-2 U-09] 쓰기 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱이다. adr.0004 §3.4·adr.0006을 이에 맞게 개정한다(§13 (y), `eng.transactions.design` T-4).

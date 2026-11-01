@@ -1,4 +1,4 @@
-import { attempt, err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
 
 // L2.web.spec §4.3.3. 키와 Source ID 비교에만 쓰는 순수 함수다. 요청은 정규화 전 URL로 보낸다.
 

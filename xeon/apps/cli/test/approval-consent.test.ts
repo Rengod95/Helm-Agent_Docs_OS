@@ -1,10 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   ApprovalRequestedPayloadSchema,
   type ApprovalRequestedPayload,
-} from "@xeon/contracts/records";
-import type { ApprovalRespondResult } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/records";
+import type { ApprovalRespondResult } from "@fresnel/contracts/wire";
 import { EXIT } from "../src/exit-codes.ts";
 import {
   createApprovalPrompter,

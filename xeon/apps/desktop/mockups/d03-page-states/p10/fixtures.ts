@@ -76,7 +76,7 @@ export const secrets: Secret[] = [
   },
   {
     name: "npm-publish",
-    desc: "@xeon 패키지 배포",
+    desc: "@fresnel 패키지 배포",
     hosts: ["registry.npmjs.org"],
     refs: [],
     leases: 0,

@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { defineSettings, validateSettingValue, type SettingDef } from "@xeon/contracts/settings";
+import { defineSettings, validateSettingValue, type SettingDef } from "@fresnel/contracts/settings";
 
 // L0.exec.spec §6. 모두 layer L0, since 0.1.0이다.
 // shell과 envAllowlist.extra는 project 범위를 받지 않는다: 저장소 파일이 실행 셸을 바꾸거나 부모 env를 자식에 열지 못하게 한다.

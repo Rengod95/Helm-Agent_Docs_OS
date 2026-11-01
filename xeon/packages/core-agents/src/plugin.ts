@@ -1,13 +1,13 @@
-// ext-host 내장 플러그인: xeon.agents 제공, 내장 도구 agent와 차단 규칙 등록(L1.agents.plan AG-10).
+// ext-host 내장 플러그인: fresnel.agents 제공, 내장 도구 agent와 차단 규칙 등록(L1.agents.plan AG-10).
 // Cordis는 import하지 않는다. 서비스 등록은 hostOf(g).providePort로 한다.
-import { attempt, type Logger } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import { attempt, type Logger } from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
-} from "@xeon/contracts/extensions";
-import type { LeaseHolder, LeaseToken } from "@xeon/contracts/records";
+} from "@fresnel/contracts/extensions";
+import type { LeaseHolder, LeaseToken } from "@fresnel/contracts/records";
 import {
   ModelServicePortKey,
   SessionPortKey,
@@ -15,8 +15,8 @@ import {
   TaskServicePortKey,
   ToolServicePortKey,
   type AgentDefinition,
-} from "@xeon/contracts/services";
-import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import { hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 import type { AgentsLoop, AgentsSettingsSource } from "./deps.ts";
 import { AgentServicePortKey, LoopServicePortKey } from "./ports.ts";
 import { createAgentService } from "./service.ts";
@@ -33,7 +33,7 @@ export interface AgentsPluginOptions {
   /** 이 엔진이 쥔 thread의 세션 쓰기 토큰(조립 루트가 안다) */
   readonly parentToken: (threadId: ThreadId) => LeaseToken | undefined;
   /**
-   * 자식 turn을 돌리는 루프를 얻는 방법. 생략하면 `xeon.loop` 포트를 호출 때마다 얻는다. 조립 루트가 자식 thread를 `ExtHost.openThread`로
+   * 자식 turn을 돌리는 루프를 얻는 방법. 생략하면 `fresnel.loop` 포트를 호출 때마다 얻는다. 조립 루트가 자식 thread를 `ExtHost.openThread`로
    * 연 뒤 `runChildTurn`을 부르는 감싸개를 넣을 때 쓴다(L1.loop.spec §4.6: 경계 지점이 열린 thread를 요구한다)
    */
   readonly loop?: (resolve: () => AgentsLoop) => AgentsLoop;
@@ -48,7 +48,7 @@ export function agentsManifest(): ExtensionManifest {
     name: AGENTS_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Subagents",
-    description: "Child conversations, permission ceilings and result guarding (xeon.agents).",
+    description: "Child conversations, permission ceilings and result guarding (fresnel.agents).",
     defaultEnabled: true,
     layer: "L1",
     kind: "plugin",
@@ -59,7 +59,7 @@ export function agentsManifest(): ExtensionManifest {
   });
 }
 
-/** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다. xeon.session·tasks·tools·store 포트를 먼저 등록해 두어야 한다 */
+/** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다. fresnel.session·tasks·tools·store 포트를 먼저 등록해 두어야 한다 */
 export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
   const manifest = agentsManifest();
   const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
@@ -72,7 +72,7 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
       const store = host.port(StoreServicePortKey);
       const service = createAgentService({
         session,
-        // xeon.loop는 core-loop 플러그인이 올린다. 적재 순서에 묶이지 않게 자식 turn을 돌릴 때 얻는다
+        // fresnel.loop는 core-loop 플러그인이 올린다. 적재 순서에 묶이지 않게 자식 turn을 돌릴 때 얻는다
         loop: () => (options.loop === undefined ? resolveLoop() : options.loop(resolveLoop)),
         tasks,
         tools,
@@ -85,7 +85,7 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
           leases: store.leases,
         },
         log: options.log,
-        // xeon.models는 core-models가 올린다. 판정 때마다 얻고, 아직 없으면 판정은 failed다(적재 순서에 묶이지 않는다)
+        // fresnel.models는 core-models가 올린다. 판정 때마다 얻고, 아직 없으면 판정은 failed다(적재 순서에 묶이지 않는다)
         models: () => {
           const found = attempt(() => host.port(ModelServicePortKey));
           return found.ok ? found.value : undefined;

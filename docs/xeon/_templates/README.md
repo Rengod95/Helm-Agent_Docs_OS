@@ -1,5 +1,5 @@
 ---
-id: xeon.templates
+id: fresnel.templates
 layer: meta
 domain: templates
 kind: guide

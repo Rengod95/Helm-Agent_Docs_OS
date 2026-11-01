@@ -42,7 +42,7 @@ async function runCheckLayers(
     writeFileSync(
       join(dir, "package.json"),
       JSON.stringify({
-        name: `@xeon/${pkg.dir}`,
+        name: `@fresnel/${pkg.dir}`,
         version: "0.0.0",
         private: true,
         type: "module",
@@ -76,7 +76,7 @@ const ALLOW_KIT = {
   id: "DR-02/group-sdk",
   rule: "DR-02",
   from: "packages/group-*",
-  to: "@xeon/group-sdk",
+  to: "@fresnel/group-sdk",
   entries: [".", "./testing"],
   reason: "every group uses the shared group definition helpers of group-sdk (fixture)",
   approvedBy: "L3.group-sdk.plan G-21",
@@ -87,7 +87,7 @@ test("comms.no-cross-group-import", async () => {
   const crossing = await runCheckLayers(
     "group-imports-group",
     [
-      { dir: "group-a", deps: ["@xeon/group-b"], source: "group-a" },
+      { dir: "group-a", deps: ["@fresnel/group-b"], source: "group-a" },
       { dir: "group-b", deps: [], source: "group-b" },
     ],
     [],
@@ -99,7 +99,7 @@ test("comms.no-cross-group-import", async () => {
   const allowed = await runCheckLayers(
     "group-imports-kit",
     [
-      { dir: "group-a", deps: ["@xeon/group-sdk"], source: "group-a" },
+      { dir: "group-a", deps: ["@fresnel/group-sdk"], source: "group-a" },
       { dir: "group-sdk", deps: [], source: "group-sdk" },
     ],
     [ALLOW_KIT],
@@ -111,7 +111,7 @@ test("comms.no-cross-group-import", async () => {
   const unlisted = await runCheckLayers(
     "group-imports-kit",
     [
-      { dir: "group-a", deps: ["@xeon/group-sdk"], source: "group-a" },
+      { dir: "group-a", deps: ["@fresnel/group-sdk"], source: "group-a" },
       { dir: "group-sdk", deps: [], source: "group-sdk" },
     ],
     [],
@@ -124,7 +124,7 @@ test("comms.no-cross-group-import", async () => {
     "kit-imports-group",
     [
       { dir: "group-a", deps: [], source: "group-a" },
-      { dir: "group-sdk", deps: ["@xeon/group-a"], source: "group-sdk" },
+      { dir: "group-sdk", deps: ["@fresnel/group-a"], source: "group-sdk" },
     ],
     [ALLOW_KIT],
   );
@@ -144,7 +144,7 @@ function sourceFiles(dir: string): string[] {
 
 test("comms.group-sdk-sources-import-no-group-package", () => {
   const offenders = sourceFiles(SRC).filter((file) =>
-    /@xeon\/group-(?!sdk)/.test(readFileSync(file, "utf8")),
+    /@fresnel\/group-(?!sdk)/.test(readFileSync(file, "utf8")),
   );
   expect(offenders).toEqual([]);
 });

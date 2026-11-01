@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import type { CallOptions, WebProviderManifest } from "@xeon/contracts/capabilities";
+import { parse } from "@fresnel/contracts";
+import type { CallOptions, WebProviderManifest } from "@fresnel/contracts/capabilities";
 import {
   WebProviderStatusSchema,
   WebSettingsWireSchema,
   type WebProviderStatus,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { WebDeps } from "../src/deps.ts";
 import { describeWebProviders, describeWebSettings } from "../src/status.ts";
 import { DEFAULT_WEB_SETTINGS } from "../src/settings.ts";

@@ -1,6 +1,6 @@
-import { err, ok } from "@xeon/contracts";
-import type { PlatformModule } from "@xeon/ext-host";
-import { OsPortKey } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { PlatformModule } from "@fresnel/ext-host";
+import { OsPortKey } from "@fresnel/contracts/services";
 import { readOsRuntime, type OsRuntime } from "./runtime.ts";
 import { createOsService, type PlatformOsConfig } from "./service.ts";
 

@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import type { LoopSpawnRequest, LoopTurnRequest } from "@xeon/contracts/extensions";
-import type { SpawnOrigin, SpawnRequest } from "@xeon/contracts/services";
-import type { Usage } from "@xeon/contracts/conversation";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { LoopSpawnRequest, LoopTurnRequest } from "@fresnel/contracts/extensions";
+import type { SpawnOrigin, SpawnRequest } from "@fresnel/contracts/services";
+import type { Usage } from "@fresnel/contracts/conversation";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { LoopRejection } from "../src/index.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { countKind, firstOfKind } from "./support/inspect.ts";

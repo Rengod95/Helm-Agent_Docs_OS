@@ -1,5 +1,5 @@
-import { detach, rethrow } from "@xeon/contracts";
-import type { EventId } from "@xeon/contracts/conversation";
+import { detach, rethrow } from "@fresnel/contracts";
+import type { EventId } from "@fresnel/contracts/conversation";
 import { memo, useState, type ReactNode } from "react";
 import { useApproval, useApprovalIds } from "../state/engine/index.ts";
 import { useApprovalDetail, useApprovalSend } from "../state/ui/index.ts";

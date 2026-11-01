@@ -1,10 +1,10 @@
-import type { EventId, ItemId, ThreadId } from "@xeon/contracts/conversation";
-import { RECORD_KIND_PATTERN, type GroupId, type RecordKind } from "@xeon/contracts/extensions";
+import type { EventId, ItemId, ThreadId } from "@fresnel/contracts/conversation";
+import { RECORD_KIND_PATTERN, type GroupId, type RecordKind } from "@fresnel/contracts/extensions";
 import type {
   ChildStatus,
   DelegateRequest,
   DelegateResult as AgentsDelegateResult,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 export interface DelegateReport {
   /** 완료 보고를 부모 대화에 넣을 때 쓰는 customType. 자기 grp.<이름>. 접두여야 한다 */

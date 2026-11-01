@@ -6,7 +6,7 @@ import type { ProcessPort } from "../extensions/index.ts";
 // IsolationProcessPort와 HookProcessPort를 합친 포트)를 확장한다. 포트 메서드(spawn, run)와 부속 타입은 extensions가 정본이다.
 // 전송, 잠금 실패 정책, 재개 제시, 서비스 등록 파일은 Cordis 서비스가 아니라 조립 루트가 쓰는 라이브러리 함수다(L0.process.spec §3.2, M2).
 
-export const ProcessServiceName = "xeon.process" as const;
+export const ProcessServiceName = "fresnel.process" as const;
 
 /** "bgp_<ULID>". F.conversation.spec §3.2.1 LocalIdPrefix, 발급은 LocalIdFactory.next("bgp") */
 export type BackgroundProcessId = LocalId<"bgp">;
@@ -21,7 +21,7 @@ export interface BackgroundOwner {
   readonly ref: string | null;
 }
 
-/** 등록자가 넘기는 정지 수단. 프로세스를 띄운 쪽(xeon.exec 등)이 프로세스 그룹 kill을 구현한다 */
+/** 등록자가 넘기는 정지 수단. 프로세스를 띄운 쪽(fresnel.exec 등)이 프로세스 그룹 kill을 구현한다 */
 export interface BackgroundStopper {
   /** graceful: SIGTERM(Windows는 트리 종료 요청). force: SIGKILL. 프로세스 트리 전체 */
   stop(mode: "graceful" | "force"): Promise<void>;

@@ -1,4 +1,4 @@
-import type { Logger, Result } from "@xeon/contracts";
+import type { Logger, Result } from "@fresnel/contracts";
 import type { KnowledgeFailure } from "./errors.ts";
 import { diffIndex, formatIndexDelta, isEmptyDelta, type IndexSnapshot } from "./skills/delta.ts";
 import type { SkillIndexBlock } from "./skills/prompt-block.ts";

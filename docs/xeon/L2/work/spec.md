@@ -10,7 +10,7 @@ binds: [xeon/packages/cap-work/**]
 
 # L2 작업 관리 (work)
 
-패키지: `xeon/packages/cap-work`. 서비스: `xeon.work`. 능력: `work.tasks`, `work.plans`, `work.goals`, `work.reports`. 이벤트 접두사: `work.`. 테이블 접두사: `cap_work_`. 생산자 id: `cap.work`.
+패키지: `xeon/packages/cap-work`. 서비스: `fresnel.work`. 능력: `work.tasks`, `work.plans`, `work.goals`, `work.reports`. 이벤트 접두사: `work.`. 테이블 접두사: `cap_work_`. 생산자 id: `cap.work`.
 
 ## 1. 목적과 범위
 
@@ -695,7 +695,7 @@ export interface WorkService {
   readonly reports: CapabilityApi<typeof WorkReports>;
 }
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
-export const WorkServiceName = "xeon.work";
+export const WorkServiceName = "fresnel.work";
 export const WORK_CAPABILITIES = [WorkTasks, WorkPlans, WorkGoals, WorkReports] as const;
 ```
 
@@ -1005,7 +1005,7 @@ export interface ApprovalsPort {
 
 #### 4.2.2 승인 요청의 사용 방식
 
-- [결정] 계획 승인은 `xeon.approvals`에 kind `plan`으로 요청한다(`_research/foundation-plan.md` §1 5번). 질문(kind `question`, `L2.dialog.spec`)과 같은 레코드 형식이다. 레코드 필드(`approvalId`, kind, 대상, 선택지, 결과)의 정의는 L1.tools.spec이 소유하고, 이 문서는 대상과 결과의 내용만 정한다.
+- [결정] 계획 승인은 `fresnel.approvals`에 kind `plan`으로 요청한다(`_research/foundation-plan.md` §1 5번). 질문(kind `question`, `L2.dialog.spec`)과 같은 레코드 형식이다. 레코드 필드(`approvalId`, kind, 대상, 선택지, 결과)의 정의는 L1.tools.spec이 소유하고, 이 문서는 대상과 결과의 내용만 정한다.
 
 ```ts
 // 승인 요청의 대상(subject) 내용. kind = "plan"
@@ -1055,7 +1055,7 @@ sequenceDiagram
   participant M as 모델(submit_plan)
   participant T as L1.tools
   participant W as cap-work
-  participant A as xeon.approvals
+  participant A as fresnel.approvals
   participant U as 클라이언트
   M->>T: submit_plan(title, body)
   T->>W: plans.submit({..., wait:false}, {requestId: R, context})
@@ -1135,7 +1135,7 @@ stateDiagram-v2
 - 판정 순서(핸들러 안):
   1. 활성 목표를 투영에서 읽는다. 없으면 아무것도 하지 않는다.
   2. 증거를 모은다(§4.3.3 `GoalEvidence`). 정착 지점의 컨텍스트 미리보기에서 이번 turn의 최종 텍스트와 도구 호출을, 투영에서 작업 목록과 직전 판정을 읽는다.
-  3. `xeon.agents.judge(JudgeInput)`를 부른다(커밋 밖). L1.agents가 상한을 세고 `agent.judged`를 자기 커밋으로 남긴다. 결과 `JudgeOutcome`을 `goalGateDecision`(L1.agents.spec §4.8)으로 옮긴다.
+  3. `fresnel.agents.judge(JudgeInput)`를 부른다(커밋 밖). L1.agents가 상한을 세고 `agent.judged`를 자기 커밋으로 남긴다. 결과 `JudgeOutcome`을 `goalGateDecision`(L1.agents.spec §4.8)으로 옮긴다.
   4. 결과를 목표 쪽 이벤트로 자기 커밋에 남긴다. 커밋 키는 `work:goal:<goalId>:judge:<run>`(판정), `work:goal:<goalId>:settle:capped`, `work:goal:<goalId>:settle:failed`다. 판정을 기록하는 동안 목표가 지워졌거나 끝났으면 기록하지 않고 게이트는 끼어들지 않는다.
      - `judged`·`recorded`(`met`) → `work.goal_judged`, `work.goal_settled(met)`, `work.report_built`. turn은 정착한다.
      - `judged`·`recorded`(`not_met`·`undecidable`) → `work.goal_judged`(`n` = `record.run`). `n`이 그 시점의 `l1.agents.judge.maxRuns` 이상이면 `work.goal_settled(limit_reached)`와 `work.report_built`를 같은 커밋에 더하고 turn을 끝낸다. 아니면 목표는 활성으로 남고 한 단계 더 돈다.
@@ -1172,10 +1172,10 @@ export interface GoalEvidence {
 ```
 
 - `GoalEvidence`는 `JudgeInput`으로 바꿔 넘긴다. `goal.text` = `condition`, `goal.criteria` = `rubric`, `evidence`는 `finalText`(`assistant_text`), 도구 호출 요약(`tool.result`), 작업 목록(`work_item`), 직전 판정(`note`)이다.
-- 증거는 `xeon.session`의 이벤트 읽기로 모은다(eng.context-map.design §4.1 work 행의 의존 `xeon.session`). 다른 컨텍스트의 테이블을 직접 읽지 않는다(CM-02).
+- 증거는 `fresnel.session`의 이벤트 읽기로 모은다(eng.context-map.design §4.1 work 행의 의존 `fresnel.session`). 다른 컨텍스트의 테이블을 직접 읽지 않는다(CM-02).
 - 결과 대응: `judged`·`recorded`의 `record.verdict`가 `met`이면 `met: true`, `not_met`·`undecidable`이면 `met: false`다. `reason`은 `record.rationale`, `missing`은 `record.missing`이다. `failed`는 판정 실패이고 `failure.code`는 `upstream_error`다. `capped`는 §4.3.2의 상한 처리다.
 - 사용량은 `record.usage`를 `work.goal_judged.usage`에 남긴다. 보고의 `resources.judge`가 이 합계다.
-- 판정 호출은 `xeon.agents`의 포트로 감싼다.
+- 판정 호출은 `fresnel.agents`의 포트로 감싼다.
 
 ```ts
 // xeon/packages/cap-work/src/ports/judge.ts  (L1.agents.spec §3.4 judge를 감싼다)
@@ -1206,7 +1206,7 @@ export interface JudgePort {
 #### 4.3.6 판정 실패 정책
 
 - 판정 실패는 L1.agents가 `failed`를 돌려준 경우다. 이때 `agent.judged`가 없으므로 L1.agents의 상한 셈(`agent.judged` 수)에 들지 않는다. `undecidable`은 판정으로 기록되고 상한 셈에 든다.
-- [결정: review.m3-design-inputs D-M3-15, M3-new-02] 판정 실패는 `stop`이다. 목표를 `judge_failed`로 끝내고 `work.report_built`를 남기며 turn을 끝낸다. 판정 모델이 계속 실패하는 상태에서 작업 단계를 이어 가면 판정 없이 비용만 쌓이기 때문이다. `xeon.agents`가 없거나 `judge`가 던지거나 판정 기록 커밋이 실패한 경우도 같다(커밋이 실패하면 목표는 활성으로 남고 turn만 끝나며 재개 때 같은 판정을 다시 기록한다).
+- [결정: review.m3-design-inputs D-M3-15, M3-new-02] 판정 실패는 `stop`이다. 목표를 `judge_failed`로 끝내고 `work.report_built`를 남기며 turn을 끝낸다. 판정 모델이 계속 실패하는 상태에서 작업 단계를 이어 가면 판정 없이 비용만 쌓이기 때문이다. `fresnel.agents`가 없거나 `judge`가 던지거나 판정 기록 커밋이 실패한 경우도 같다(커밋이 실패하면 목표는 활성으로 남고 turn만 끝나며 재개 때 같은 판정을 다시 기록한다).
 - 설정 `l2.work.goal.onJudgeError`는 지운다. 게이트는 이 값을 읽지 않았고, D-M3-15가 판정 실패를 `stop`으로 닫았으므로 정책을 고르는 설정이 필요 없다 [결정: 키 삭제, W-7].
 
 ### 4.4 완료 보고
@@ -1322,7 +1322,7 @@ export const manifest = defineManifest({
 - `boundary.step.after`(chain): 정착 직전 단계 id를 기억한다. 값을 바꾸지 않는다(§4.3.2 5번).
 - `boundary.settle.before`(chain): 완료 게이트. 활성 모델 판정자 목표를 판정하고 한 단계 더 돌지 turn을 끝낼지 정한다(§4.3.2).
 - drive: 쓰지 않는다. L2는 drive 임대를 갖지 않는다(`L2.readme` §4.2).
-- 피드 구독: 승인 해결 뒤 모드 복원(`approval.resolved`)은 `xeon.session`의 내구 피드 구독으로 받는다. 확장 지점은 쓰지 않는다(eng.events.design §4.6 `SessionFeed.subscribe`). 구독자는 `seq`로 중복을 거른다(EV-05).
+- 피드 구독: 승인 해결 뒤 모드 복원(`approval.resolved`)은 `fresnel.session`의 내구 피드 구독으로 받는다. 확장 지점은 쓰지 않는다(eng.events.design §4.6 `SessionFeed.subscribe`). 구독자는 `seq`로 중복을 거른다(EV-05).
 
 ### 7.2 도구 지점
 
@@ -1353,7 +1353,7 @@ export const manifest = defineManifest({
 | `CapabilityDef`, `defineCapability`, `serviceKey`, `CallOptions`(`context: CallContext`, `L2.readme` §5.8), `CapabilityError` | F.capabilities.spec |
 | `ThreadId`, `TurnIdSchema`, `ResultStatus`, `InputRequiredInfo` | F.conversation.spec |
 | `turn.completed` payload(`usage`, 종결 상태), `CatalogEntry`와 도메인 소유 카탈로그(§3.3.2) | F.records.spec |
-| 권한 모드 전환 API, 승인 프로토콜(`xeon.approvals`, kind `plan`, `approval.*` payload), `input_required` 결과 재시도 규칙 | L1.tools.spec |
+| 권한 모드 전환 API, 승인 프로토콜(`fresnel.approvals`, kind `plan`, `approval.*` payload), `input_required` 결과 재시도 규칙 | L1.tools.spec |
 | 승인 대기 체크포인트, 턴 정착 | L1.loop.spec |
 | 목표 판정 `judge`(`JudgeInput`, `JudgeOutcome`), 상한 `l1.agents.judge.maxRuns`, `agent.judged` | L1.agents.spec |
 | 역할 `judge` 라우팅(`l1.models.routing.judge`) | L1.models.spec(L1.agents 경유) |
@@ -1366,14 +1366,14 @@ export const manifest = defineManifest({
 
 1. 질문(`dialog.ask`)과 계획 제출(`work.plans.submit`)이 각각 만든 `approval.requested` 이벤트의 payload가 L1.tools.spec의 같은 payload 스키마를 통과하고, 두 레코드는 kind(`question`, `plan`)와 대상 내용만 다르다(`product.scope.spec` §4.4 M2, `L2.dialog.spec` §9-1과 공동).
 2. `t2 blockedBy t1`, `t3 blockedBy t2`가 있을 때 `link({ id: "t1", blockedBy: ["t3"], op: "add" })`처럼 순환을 만드는 간선 추가는 `task_cycle` 오류를 내고 `detail.path`가 순환 경로이며 이벤트 수가 늘지 않는다. 자기 간선도 같다.
-3. `l1.agents.judge.maxRuns = 3`에서 판정 포트(가짜 `xeon.agents`)가 세 번 `not_met`을 내면 세 번째 판정 커밋에 `work.goal_settled(limit_reached)`와 `work.report_built`가 함께 있고 완료 게이트가 turn을 끝낸다. 판정 포트가 `capped`를 돌려주면 판정 기록 없이 같은 종결 커밋이 생기고 사용자 안내 항목이 남는다. 판정 실패는 `judge_failed`로 끝낸다(`goals-gate.test.ts`).
+3. `l1.agents.judge.maxRuns = 3`에서 판정 포트(가짜 `fresnel.agents`)가 세 번 `not_met`을 내면 세 번째 판정 커밋에 `work.goal_settled(limit_reached)`와 `work.report_built`가 함께 있고 완료 게이트가 turn을 끝낸다. 판정 포트가 `capped`를 돌려주면 판정 기록 없이 같은 종결 커밋이 생기고 사용자 안내 항목이 남는다. 판정 실패는 `judge_failed`로 끝낸다(`goals-gate.test.ts`).
 4. L1.agents가 `recorded`를 돌려주면(재개) 같은 판정 순번의 커밋 키가 같아 `work.goal_judged`가 두 번 쓰이지 않는다(`goals-gate.test.ts` resuming).
 5. `requireApproval = true`일 때 승인 전 `exit_plan_mode`는 `plan_not_approved`를 내고 권한 모드 포트에 `restore` 호출이 없다. 승인 뒤에는 `restore`가 한 번 호출된다.
 6. §3.2~§3.5의 네 정의가 `validateCapability` 이슈 0건이다(`tools: []` 허용이 [미결]인 동안은 그 검사 하나를 제외하고 0건).
 7. 임의의 작업 연산열(고정 시드 무작위 1,000개)을 적용한 뒤 `cap_work_` 테이블을 지우고 이벤트에서 재생성하면 행 해시가 같다(`expectProjectionsRebuildable`).
 8. 같은 `requestId`로 `write`를 두 번 부르면 두 번째 호출은 이벤트를 쓰지 않고 첫 결과와 같은 출력을 낸다.
 9. 승인 대기 중 프로세스를 끝내고 재개해 승인을 응답하면, `submit_plan` 도구 결과가 정확히 한 번 `decided`로 완료된다.
-10. delegated 목표에서 `judge` 호출이 판정을 기록하고, 판정 포트(`xeon.agents.judge`)는 호출되지 않는다(판정자 교체).
+10. delegated 목표에서 `judge` 호출이 판정을 기록하고, 판정 포트(`fresnel.agents.judge`)는 호출되지 않는다(판정자 교체).
 11. `continuation: "external"` 목표에서 미충족 판정이 세 번 기록되는 동안 `work.goals`의 post 호출이 0회다. 같은 시나리오에 `goalId` 루프를 붙이면 한 반복 경계마다 입력 큐 투입이 정확히 하나(`loop:` 키)이고 `goal:` 키 투입이 없다(이중 투입 검사, `L2.schedule.spec` §9와 공동). [미결: `schedule.loops` 구현이 들어올 때 공동 시험한다. 이 구현의 게이트는 `continuation` 값을 읽지 않는다(§4.3.5)]
 
 ## 10. 미결 사항
@@ -1392,5 +1392,5 @@ export const manifest = defineManifest({
 - W-12 [결정: review.decisions-2 S-06] 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다. 이 능력은 판정 상한 키와 판정 역할 키를 두지 않는다(§6.1).
 - W-13 [미결] 목표의 `continuation` 필드와 루프 결합 규칙(§4.3.5). `L2.readme` §10 미결 18과 같은 항목이다.
 - W-14 [미결] 작업 오류의 `detail.opIndex`: `write`만 싣고 단일 연산 메서드(`create`, `update`, `link`)는 싣지 않는다(WK.1 구현). 정의 파일의 `TaskErrors.detail`은 `task_` 오류의 고유 필드만 선언하고, `opIndex`는 선언 밖의 덧붙임이다. F `defs/work.ts`가 `opIndex`를 선언에 넣을지 F 레인과 정한다.
-- W-15 [해결: WK.3 통합] 승인 포트의 실제 어댑터. F `ApprovalService`에 `open`·`wait`·`get`이 올라왔고(F 요청 11), `src/ports/approvals.ts`의 `planApprovalsOver(approvals)`가 `xeon.approvals`를 출처별 `L2ApprovalsPort`로 감싼다. `workPlugin`은 `WorkPluginOptions.approvals`가 없으면 `xeon.approvals` 포트로 이 어댑터를 만든다. 어댑터는 서비스의 메모리 대기 목록이 비어 있는 재시작 직후에 모르는 `approvalId`를 만나면 그 대화의 `restore`를 먼저 부른다.
+- W-15 [해결: WK.3 통합] 승인 포트의 실제 어댑터. F `ApprovalService`에 `open`·`wait`·`get`이 올라왔고(F 요청 11), `src/ports/approvals.ts`의 `planApprovalsOver(approvals)`가 `fresnel.approvals`를 출처별 `L2ApprovalsPort`로 감싼다. `workPlugin`은 `WorkPluginOptions.approvals`가 없으면 `fresnel.approvals` 포트로 이 어댑터를 만든다. 어댑터는 서비스의 메모리 대기 목록이 비어 있는 재시작 직후에 모르는 `approvalId`를 만나면 그 대화의 `restore`를 먼저 부른다.
 - W-16 [미결] 계획 모드 직전 모드의 출처. L1.tools가 `settings.changed`에 직전 값을 싣거나 `ToolService.setMode`가 직전 모드를 돌려주면 파일 설정에서 온 모드를 정확히 되돌릴 수 있다(§3.8 마지막 결정 참조).

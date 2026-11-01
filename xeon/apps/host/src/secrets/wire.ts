@@ -1,13 +1,13 @@
-import { assertNever, attempt, parse } from "@xeon/contracts";
+import { assertNever, attempt, parse } from "@fresnel/contracts";
 import {
   parseSecretRef,
   SecretNameSchema,
   type SecretHandle,
   type SecretMeta,
   type SecretName,
-} from "@xeon/contracts/capabilities";
-import type { SecretError, SecretListing } from "@xeon/contracts/services";
-import { wireError, type SecretListEntry, type WireError } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/capabilities";
+import type { SecretError, SecretListing } from "@fresnel/contracts/services";
+import { wireError, type SecretListEntry, type WireError } from "@fresnel/contracts/wire";
 
 // F.wire-settings.spec §3.3.1 secret.*. L0.secrets의 목록·오류를 값 없는 와이어 모양으로 옮기는 순수 함수들.
 // 어느 필드에도 값을 싣지 않는다. 오류는 종류와 안전한 필드(이름, 제공자, 사유 코드)만 details에 싣는다.

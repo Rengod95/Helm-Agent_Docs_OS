@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { PolicyCeiling, ToolRunContext } from "@xeon/contracts/services";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { PolicyCeiling, ToolRunContext } from "@fresnel/contracts/services";
 import {
   callTool,
   createHarness,

@@ -5,7 +5,7 @@
 // Checks:
 //   DR-01 a package imports only lower ranks (package.json dependencies and source imports, tests included)
 //   DR-02 no same-layer import (apps/* pairs and apps/* -> packages/client are reported as DR-10), except entries in scripts/dependency-allowlist.json
-//   DR-03 package.json "xeon": {layer, domain} exists and matches the package location (domain also matches routes.yaml for L0-L2)
+//   DR-03 package.json "fresnel": {layer, domain} exists and matches the package location (domain also matches routes.yaml for L0-L2)
 //   DR-04 workspace imports are declared in package.json and tsconfig.json "references" equals the workspace dependency set
 //   DR-05 no src/dist deep import and no relative import that leaves the package
 //   DR-07 Bun.spawn, Bun.spawnSync and node:child_process: sources of the L0 owner packages only; test files of any platform-*
@@ -24,13 +24,13 @@ export const ALLOWLIST_FILE = "scripts/dependency-allowlist.json";
 const ROUTES_FILE = "../docs/xeon/_routing/routes.yaml";
 
 export interface PackageInfo {
-  /** Directory relative to the xeon root, e.g. packages/core-loop. */
+  /** Directory relative to the fresnel root, e.g. packages/core-loop. */
   dir: string;
   name: string;
   layer: string | undefined;
   domain: string | undefined;
-  /** Line of the "xeon" key in package.json, 1 when absent. */
-  xeonLine: number;
+  /** Line of the "fresnel" key in package.json, 1 when absent. */
+  fresnelLine: number;
   declared: string[];
   /** Line in package.json of each declared dependency. */
   declaredLines: Record<string, number>;
@@ -44,7 +44,7 @@ export interface PackageInfo {
 export interface Violation {
   /** Rule id such as DR-01. */
   rule: string;
-  /** File relative to the xeon root. */
+  /** File relative to the fresnel root. */
   file: string;
   line: number;
   message: string;
@@ -198,8 +198,8 @@ export function extractSpecifiers(text: string): string[] {
 }
 
 function workspaceName(spec: string): string | undefined {
-  const match = /^@xeon\/([^/]+)/.exec(spec);
-  return match?.[1] === undefined ? undefined : `@xeon/${match[1]}`;
+  const match = /^@fresnel\/([^/]+)/.exec(spec);
+  return match?.[1] === undefined ? undefined : `@fresnel/${match[1]}`;
 }
 
 /** Entry point of a workspace import: "." or "./sub". */
@@ -273,9 +273,9 @@ function readPackage(root: string, dir: string): PackageInfo {
       declaredLines[dep] ??= lineOfString(text, dep);
     }
   }
-  const xeon = stringRecord(json["xeon"]);
-  const layer = xeon["layer"];
-  const domain = xeon["domain"];
+  const fresnel = stringRecord(json["fresnel"]);
+  const layer = fresnel["layer"];
+  const domain = fresnel["domain"];
   const imports: PackageInfo["imports"] = [];
   const spawns: PackageInfo["spawns"] = [];
   for (const file of new Bun.Glob(SOURCE_GLOB).scanSync({ cwd: join(root, dir) })) {
@@ -293,7 +293,7 @@ function readPackage(root: string, dir: string): PackageInfo {
     name: typeof json["name"] === "string" ? json["name"] : dir,
     layer: typeof layer === "string" ? layer : undefined,
     domain: typeof domain === "string" ? domain : undefined,
-    xeonLine: lineOfString(text, "xeon"),
+    fresnelLine: lineOfString(text, "fresnel"),
     declared,
     declaredLines,
     imports,
@@ -386,7 +386,7 @@ export function analyze(
           pkg,
           `vendor packages must not declare layer ${pkg.layer}`,
           undefined,
-          pkg.xeonLine,
+          pkg.fresnelLine,
         );
       }
       continue;
@@ -397,7 +397,7 @@ export function analyze(
         pkg,
         `layer vendor is only valid under vendor/, not ${pkg.dir}`,
         undefined,
-        pkg.xeonLine,
+        pkg.fresnelLine,
       );
       continue;
     }
@@ -407,9 +407,9 @@ export function analyze(
       add(
         "DR-03",
         pkg,
-        'package.json needs "xeon": {"layer", "domain"}; domain is missing',
+        'package.json needs "fresnel": {"layer", "domain"}; domain is missing',
         undefined,
-        pkg.xeonLine,
+        pkg.fresnelLine,
       );
     } else if (wantDomain !== undefined && pkg.domain !== wantDomain) {
       add(
@@ -417,7 +417,7 @@ export function analyze(
         pkg,
         `${pkg.dir} must declare domain ${wantDomain} but declares ${pkg.domain}`,
         undefined,
-        pkg.xeonLine,
+        pkg.fresnelLine,
       );
     } else if (isLayer(expected) && pkg.dir.startsWith("packages/")) {
       const known = options.routeDomains?.[expected];
@@ -427,7 +427,7 @@ export function analyze(
           pkg,
           `domain ${pkg.domain} is not in routes.yaml layout.${expected}.domains`,
           undefined,
-          pkg.xeonLine,
+          pkg.fresnelLine,
         );
       }
     }
@@ -436,9 +436,9 @@ export function analyze(
       add(
         "DR-03",
         pkg,
-        `xeon.layer is ${String(pkg.layer)}; expected one of ${Object.keys(RANK).join(", ")}`,
+        `fresnel.layer is ${String(pkg.layer)}; expected one of ${Object.keys(RANK).join(", ")}`,
         undefined,
-        pkg.xeonLine,
+        pkg.fresnelLine,
       );
       continue;
     }
@@ -448,7 +448,7 @@ export function analyze(
         pkg,
         `${pkg.dir} must declare layer ${expected} but declares ${pkg.layer}`,
         undefined,
-        pkg.xeonLine,
+        pkg.fresnelLine,
       );
     }
     const layer = pkg.layer;
@@ -591,7 +591,7 @@ export function relativeEscapes(root: string, packages: readonly PackageInfo[]):
           rule: "DR-05",
           file: `${pkg.dir}/${file}`,
           line,
-          message: `${spec} leaves the package; declare a dependency and import @xeon/<name>`,
+          message: `${spec} leaves the package; declare a dependency and import @fresnel/<name>`,
         });
       }
     }
@@ -658,7 +658,7 @@ export function checkAllowlist(
 /** A source text pattern that is forbidden inside the files of one directory. */
 export interface SourcePattern {
   readonly rule: "WEB-R16";
-  /** Directory relative to the xeon root; every source file below it is scanned (tests under test/ are not). */
+  /** Directory relative to the fresnel root; every source file below it is scanned (tests under test/ are not). */
   readonly dir: string;
   readonly pattern: RegExp;
   readonly message: string;
@@ -800,7 +800,8 @@ export function missingManifests(root: string): Violation[] {
     rule: "DR-03",
     file: `${dir}/package.json`,
     line: 1,
-    message: "package.json is missing; every workspace package needs xeon.layer and xeon.domain",
+    message:
+      "package.json is missing; every workspace package needs fresnel.layer and fresnel.domain",
   }));
 }
 

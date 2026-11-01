@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { AssistantMessage } from "@xeon/contracts/conversation";
+import type { AssistantMessage } from "@fresnel/contracts/conversation";
 import { classifyMessage } from "../src/classify.ts";
 
 function message(

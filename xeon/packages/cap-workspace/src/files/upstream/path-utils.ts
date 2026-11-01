@@ -1,7 +1,7 @@
 // FRESNEL-PATCH: P10
-import { eachAsync } from "@xeon/contracts";
+import { eachAsync } from "@fresnel/contracts";
 // FRESNEL-PATCH: P1
-import type { CancelScope as Context, ExecutionEnv } from "@xeon/contracts/services";
+import type { CancelScope as Context, ExecutionEnv } from "@fresnel/contracts/services";
 // FRESNEL-PATCH: P2
 import { getOrThrow } from "../../upstream/get-or-throw.ts";
 

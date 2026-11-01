@@ -80,7 +80,7 @@ Xeon 세션 저장소는 세 가지 일을 한다(`_research/session-storage.md`
 
 ### 4.1 envelope
 
-[제안] envelope 모양의 정본은 `F.records.spec` §3.1이다. 스키마는 F `records` 서브패스(`@xeon/contracts/records`, 파일 `xeon/packages/contracts/src/records/envelope.ts`)에 있다. 필드 이름 `kind`, `version`, `durable`은 [결정]이다(`F.records.spec` §3.1, 사용자 지시). 기존 설계 09의 `type`, `typeVersion`, envelope 버전 `v`, `category`와 이 문서의 이전 판에 있던 `sessionId`, `producer`, `requestId`는 envelope에 두지 않는다(`F.records.spec` §3.1.1 대조표). 아래 코드는 F 정의를 옮겨 적은 것이고, 다르면 F를 따른다.
+[제안] envelope 모양의 정본은 `F.records.spec` §3.1이다. 스키마는 F `records` 서브패스(`@fresnel/contracts/records`, 파일 `xeon/packages/contracts/src/records/envelope.ts`)에 있다. 필드 이름 `kind`, `version`, `durable`은 [결정]이다(`F.records.spec` §3.1, 사용자 지시). 기존 설계 09의 `type`, `typeVersion`, envelope 버전 `v`, `category`와 이 문서의 이전 판에 있던 `sessionId`, `producer`, `requestId`는 envelope에 두지 않는다(`F.records.spec` §3.1.1 대조표). 아래 코드는 F 정의를 옮겨 적은 것이고, 다르면 F를 따른다.
 
 ```ts
 // xeon/packages/contracts/src/records/envelope.ts (F.records.spec §3.1 요약)
@@ -388,7 +388,7 @@ rebuild(projector P):                         // thread 열기 전, 또는 관�
 
 1. 재전송 검사: 4.6절의 같은 `seq` 바이트 비교(가져오기 경로만). 다르면 `replay_diverged`.
 2. 투영 대조: `verifyProjections(projector)`가 메모리 DB에 같은 DDL로 빈 테이블을 만들고 `events`를 재생한 뒤, 운영 DB의 소유 테이블과 행을 기본 키 순으로 정렬해 해시를 비교한다. 다르면 투영기 버그다.
-3. 투영 대조는 `core-persistence`와 각 투영기 패키지의 단위 테스트 도우미(`@xeon/core-persistence/testing`의 `expectProjectionsRebuildable`)로 모든 투영 테스트 끝에 실행한다. 운영 명령(`xeon debug verify-projections`)은 2차다.
+3. 투영 대조는 `core-persistence`와 각 투영기 패키지의 단위 테스트 도우미(`@fresnel/core-persistence/testing`의 `expectProjectionsRebuildable`)로 모든 투영 테스트 끝에 실행한다. 운영 명령(`xeon debug verify-projections`)은 2차다.
 
 ## 6. 분기와 되감기
 
@@ -525,7 +525,7 @@ export function upcastEvent(event: DurableEventEnvelope, registry: UpcasterRegis
 
 ## 10. 구현 작업자 규칙
 
-각 규칙은 `xeon/packages/contracts/src/records/**`, `platform-store`, `core-persistence`, `ext-host`, 그리고 이벤트를 쓰거나 투영하는 모든 패키지에 적용된다. 위반은 리뷰에서 반려한다. 강제 수단은 각 규칙에 적었다. 예제의 `session`은 `SessionService`(`xeon.session`), `CommitRequest`의 모양은 `L1.persistence.spec` §3.2다. 예제는 envelope 필드 일부를 `/* … */`로 줄였다.
+각 규칙은 `xeon/packages/contracts/src/records/**`, `platform-store`, `core-persistence`, `ext-host`, 그리고 이벤트를 쓰거나 투영하는 모든 패키지에 적용된다. 위반은 리뷰에서 반려한다. 강제 수단은 각 규칙에 적었다. 예제의 `session`은 `SessionService`(`fresnel.session`), `CommitRequest`의 모양은 `L1.persistence.spec` §3.2다. 예제는 envelope 필드 일부를 `/* … */`로 줄였다.
 
 ### EV-01 이벤트는 불변이다
 

@@ -1,10 +1,10 @@
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import {
   secretRef,
   type SecretHandle,
   type SecretMeta,
   type SecretName,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   HumanReauth,
   SecretAdminService,
@@ -12,8 +12,8 @@ import type {
   SecretListing,
   SecretValueSource,
   SecretValueView,
-} from "@xeon/contracts/services";
-import { DEFAULT_SECRETS_CONFIG, type SecretsConfig } from "@xeon/platform-secrets";
+} from "@fresnel/contracts/services";
+import { DEFAULT_SECRETS_CONFIG, type SecretsConfig } from "@fresnel/platform-secrets";
 import { createSecretsPort } from "../../src/assembly/secrets.ts";
 import type { ProviderLinker } from "../../src/secrets/provider-link.ts";
 import type { SecretsPort } from "../../src/types.ts";

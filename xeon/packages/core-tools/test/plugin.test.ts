@@ -1,18 +1,18 @@
 import { expect, test } from "bun:test";
-import { validateManifest, type PortKey } from "@xeon/contracts/extensions";
+import { validateManifest, type PortKey } from "@fresnel/contracts/extensions";
 import {
   WorkspaceFilesKey,
   WorkspaceFiles,
   WorkspaceShell,
   WorkspaceShellKey,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   ApprovalServicePortKey,
   ToolServicePortKey,
   type Redactor,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { OutputTruncator } from "../src/types.ts";
-import { createTestHost } from "@xeon/ext-host/testing";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { toolsManifest, toolsPlugin } from "../src/plugin.ts";
 import {
   fakeRedactor,
@@ -36,14 +36,14 @@ interface FakeExec {
   formatSize: OutputTruncator["formatSize"];
 }
 
-const SessionKey: PortKey<FakeSession> = { name: "xeon.session" };
-const StoreKey: PortKey<FakeStore> = { name: "xeon.store" };
-const TasksKey: PortKey<FakeTasks> = { name: "xeon.tasks" };
-const ExecKey: PortKey<FakeExec> = { name: "xeon.exec" };
-const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "xeon.secrets" };
+const SessionKey: PortKey<FakeSession> = { name: "fresnel.session" };
+const StoreKey: PortKey<FakeStore> = { name: "fresnel.store" };
+const TasksKey: PortKey<FakeTasks> = { name: "fresnel.tasks" };
+const ExecKey: PortKey<FakeExec> = { name: "fresnel.exec" };
+const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "fresnel.secrets" };
 
 async function boot() {
-  // 테스트 호스트의 기록 포트(xeon.session의 ext 속성)는 빼고, 이 패키지가 쓰는 세션 대역을 올린다
+  // 테스트 호스트의 기록 포트(fresnel.session의 ext 속성)는 빼고, 이 패키지가 쓰는 세션 대역을 올린다
   const t = await createTestHost({ without: ["records", "queue", "loop"] });
   const clock = { now: () => NOW };
   const ids = sequentialIds(5000);
@@ -96,7 +96,7 @@ test("the manifest passes validateManifest and the unit is a builtin L1 plugin",
   expect(unit.manifest.points).toEqual([]);
 });
 
-test("installing provides xeon.tools and xeon.approvals ports and runs a call end to end", async () => {
+test("installing provides fresnel.tools and fresnel.approvals ports and runs a call end to end", async () => {
   const { t, installed, session, tasks, ids } = await boot();
   expect(installed.setups[0]?.status).toBe("applied");
   expect(installed.issues.filter((issue) => issue.severity === "error")).toEqual([]);
@@ -142,7 +142,7 @@ test("installing provides xeon.tools and xeon.approvals ports and runs a call en
   ]);
 });
 
-test("setup takes the truncation functions from xeon.exec and needs no truncator option (D-08)", async () => {
+test("setup takes the truncation functions from fresnel.exec and needs no truncator option (D-08)", async () => {
   const { installed, t } = await boot();
   expect(installed.setups[0]?.status).toBe("applied");
   expect(t.host.ports.get(ToolServicePortKey)).toBeDefined();

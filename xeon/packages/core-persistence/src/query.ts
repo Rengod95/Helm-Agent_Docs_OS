@@ -1,5 +1,5 @@
-import { ok, type Result } from "@xeon/contracts";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
+import { ok, type Result } from "@fresnel/contracts";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   AgentView,
   EffectView,
@@ -9,7 +9,7 @@ import type {
   StoreDb,
   ThreadSummaryRow,
   TurnView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { branchItems, itemEvent, kindIn, latestEvent } from "./branch.ts";
 import { columns, readResult } from "./rows.ts";
 import {

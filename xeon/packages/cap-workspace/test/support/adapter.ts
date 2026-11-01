@@ -3,7 +3,7 @@ import {
   type AnyCapabilityDef,
   type CallOptions,
   type ToolContent,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 // L1.tools 어댑터의 환원 규칙(F.capabilities.spec §4.2, core-tools entries.ts invokeCapability)을 흉내 낸 시험용 호출자.
 // 실제 어댑터(core-tools)와의 연결 시험은 의존이 연결된 뒤(bun install) 통합 시험으로 둔다.

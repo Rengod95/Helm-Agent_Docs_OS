@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { AutoAllowBlock, SandboxPolicy } from "@xeon/contracts/services";
+import type { AutoAllowBlock, SandboxPolicy } from "@fresnel/contracts/services";
 import { decideAutoAllow } from "../src/auto-allow.ts";
 import { createSandboxService } from "../src/service.ts";
 import {

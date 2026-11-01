@@ -16,7 +16,7 @@ binds: [xeon/packages/core-context/**]
 
 ### 1.1 정하는 것
 
-- Cordis 서비스 `xeon.context`의 인터페이스 `ContextService`: `assemble`, `compact`, `shouldCompact`, `estimate`, `recoverOverflow`, `summarizeBranch`.
+- Cordis 서비스 `fresnel.context`의 인터페이스 `ContextService`: `assemble`, `compact`, `shouldCompact`, `estimate`, `recoverOverflow`, `summarizeBranch`.
 - 컨텍스트 조립: 고정 접두(시스템 프롬프트, 도구 목록, 스킬 인덱스, 메모리)와 말미의 변동 정보. stable·context·volatile 3계층.
 - 도구 목록 변경을 접두 밖에서 알리는 규칙(`SystemMessage.toolsAdded`·`toolsRemoved`)과 재광고 기준.
 - 캐시 표식 위치 계산(`CacheMarks`). 정책 객체 `CachePolicy`는 `L1.models.spec` §3.6이 만든다.
@@ -58,7 +58,7 @@ binds: [xeon/packages/core-context/**]
 
 ### 3.1 서비스 (F 요청 사항)
 
-서비스 인터페이스 `ContextService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `CachePolicy`, `CacheMarks`, `ModelBinding`, `ContextUsageEstimate`는 `L1.models.spec` §3.2~§3.6이 F capabilities에 두도록 요청한 이름이고, services 서브패스가 그 이름을 import한다. `eng.context-map.design` §5.3의 위치 표기(conversation)를 services로 고치도록 요청한다.
+서비스 인터페이스 `ContextService`와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `CachePolicy`, `CacheMarks`, `ModelBinding`, `ContextUsageEstimate`는 `L1.models.spec` §3.2~§3.6이 F capabilities에 두도록 요청한 이름이고, services 서브패스가 그 이름을 import한다. `eng.context-map.design` §5.3의 위치 표기(conversation)를 services로 고치도록 요청한다.
 
 ```ts
 // xeon/packages/contracts/src/services/context.ts (F 요청, review.decisions-2 D-04)
@@ -68,7 +68,7 @@ import type { Message, AgentMessage, AssistantMessage, SystemMessage, Usage, Jso
 import type { OrderedTool, ToolsetFingerprint } from "./ordering.ts";
 import type { CachePolicy, CacheMarks, ModelBinding, ContextUsageEstimate } from "./models.ts";
 
-export const ContextServiceName: "xeon.context" = "xeon.context";
+export const ContextServiceName: "fresnel.context" = "fresnel.context";
 
 export interface ContextService {
   /** leaf까지의 가지로 모델 요청 컨텍스트를 만든다. 같은 이벤트·도구·절이면 같은 바이트를 낸다 */
@@ -77,7 +77,7 @@ export interface ContextService {
   compact(threadId: ThreadId, request: CompactRequest): Promise<Result<CompactOutcome, ContextError>>;
   /** 임계 검사. 모델 호출 없이 계산한다 */
   shouldCompact(threadId: ThreadId, leaf: EventId, binding: ModelBinding): Promise<CompactCheck>;
-  /** 메시지 배열의 토큰 추정. xeon.models TokenEstimator에 위임한다 */
+  /** 메시지 배열의 토큰 추정. fresnel.models TokenEstimator에 위임한다 */
   estimate(messages: readonly Message[]): ContextUsageEstimate;
   /** core-loop가 스트림을 열 때 부르는 변환(adr.0009). §4.1 3번 규칙과 같다. 던지지 않는다 */
   convertToLlm(messages: readonly AgentMessage[]): Message[];
@@ -92,7 +92,7 @@ export interface AssembleOptions {
   /** 이번 단계 바인딩(체크포인트 고정값). 모델 전환 경고와 창 크기에 쓴다 */
   readonly binding: ModelBinding;
   readonly contextWindow: number;
-  /** xeon.models가 해석 때 낸 정책 */
+  /** fresnel.models가 해석 때 낸 정책 */
   readonly cachePolicy: CachePolicy;
   /** 이번 단계 도구 집합. core-tools가 orderTools로 정렬해 넘긴다 */
   readonly tools: readonly OrderedTool[];
@@ -188,7 +188,7 @@ export interface ContextError { readonly kind: ContextErrorKind; readonly messag
 
 - F 이름 `SystemMessage`는 `F.conversation.spec` §3.1의 재노출이다.
 - `assemble`은 커밋하지 않는다. 새 system item은 `pendingItems`로 돌려주고 core-loop가 단계 커밋에 넣는다. 그래서 조립 결과와 커밋이 한 트랜잭션에 묶인다 [제안].
-- `compact`는 `xeon.session`으로 직접 커밋한다. 단계 사이에서만 부르므로 단계 커밋과 겹치지 않는다(§4.6 6번).
+- `compact`는 `fresnel.session`으로 직접 커밋한다. 단계 사이에서만 부르므로 단계 커밋과 겹치지 않는다(§4.6 6번).
 
 ### 3.2 내부 타입 (core-context 내부)
 
@@ -241,7 +241,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
   Promise<Result<{ readonly summary: string; readonly usage: Usage; readonly details: JsonValue }, ContextError>>;
 ```
 
-- `SummarizeDeps.summarize`는 `xeon.models.complete`를 `summary` 역할, `cacheRetention: "none"`으로 부르는 얇은 어댑터다(`L1.models.spec` §3.4).
+- `SummarizeDeps.summarize`는 `fresnel.models.complete`를 `summary` 역할, `cacheRetention: "none"`으로 부르는 얇은 어댑터다(`L1.models.spec` §3.4).
 
 ## 4. 동작 규칙
 
@@ -256,13 +256,13 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 | 2 | 남긴 원문 항목(`firstKeptEventId`부터 leaf까지)과 그 사이의 도구 변경·절 갱신 system item | — | `item.recorded` |
 | 끝 | volatile 정보 | volatile | `AssembleOptions.volatile` |
 
-1. 가지 읽기: `xeon.session`으로 leaf에서 루트까지 거슬러 읽는다(`F.records.spec` §4.6 1). 마지막 `thread.compacted`가 머리다.
+1. 가지 읽기: `fresnel.session`으로 leaf에서 루트까지 거슬러 읽는다(`F.records.spec` §4.6 1). 마지막 `thread.compacted`가 머리다.
 2. 머리가 있으면 `firstKeptEventId` 앞의 `item.recorded`는 넣지 않는다(비파괴, `F.records.spec` §4.6 4). 요약은 `UserMessage`로 넣는다. 본문 형식은 pi `compactionSummary` 역할의 사용자 메시지 변환(`coding-agent/src/core/messages.ts`)을 따른다.
 3. 메시지 변환: `ItemRecord`를 `Message`로 바꾼다. `kind: "custom"`은 `display`와 상관없이 `content`를 `UserMessage`로 바꾸고 `details`는 넣지 않는다(`F.conversation.spec` §3.5.2). `thread.branch_summarized`는 그 위치에 요약 `UserMessage`로 넣는다.
 4. `context` 지점(chain)을 시스템 메시지를 뺀 배열로 발화한다. 결과 배열 뒤에 시스템 메시지를 원래 위치로 되돌린다. pi `ContextEvent` 주석과 같다.
 5. `request.system.before` 지점(chain)을 전체 배열로 발화한다. 결과가 최종 `messages`다.
 6. 캐시 표식 위치를 계산한다(§4.5).
-7. 토큰 추정을 계산한다(`xeon.models.tokens.estimateContext`).
+7. 토큰 추정을 계산한다(`fresnel.models.tokens.estimateContext`).
 
 - volatile 정보 위치 [구현: M2, 표의 "끝"을 따른다]: 캐시 표식을 계산한 뒤 `messages` 맨 끝에 한 메시지로 붙인다. `cachePolicy.midConversationSystem`이 참이면 `SystemMessage`, 거짓이면 `UserMessage`이고 본문은 이름순 `<이름>\n값\n</이름>` 덩어리다. 어느 쪽이든 커밋하지 않는 조립 전용 메시지이고 `tail` 표식 뒤에 놓인다. 재개 뒤 다시 만들어도 값이 같도록 volatile 원천은 단계 시작 시각과 체크포인트 값에서만 계산한다 [제안]. 앞 문단의 "마지막 사용자 메시지 앞"은 이 위치로 고쳤다. 앞에 두면 단계마다 바뀌는 값이 이전 `tail` 표식 앞으로 들어가 캐시가 매 단계 깨진다.
 - 접두 뒤 변경 처리 [구현: M2]: 도구 변경·절 갱신은 접두 뒤 system item을 모두 적용한 "현재 광고 상태"(`replaySystemMessages`)와 이번 `AssembleOptions`를 비교한다. 새 변경 item은 `pendingItems`로 내면서 같은 메시지를 이번 `messages` 끝(volatile 앞)에도 붙이므로, 단계 커밋 뒤 다시 조립해도 같은 순서가 된다. 변경이 없으면 아무것도 내지 않는다.
@@ -311,10 +311,10 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 2. 컷 포인트: 뒤에서부터 토큰을 누적하다가 `keepRecentTokens` 이상이면 멈춘다. 컷은 그 위치 이후 첫 후보이고, 없으면 마지막 후보다. 토큰 0 항목은 건너뛴다(`:458-479`). 후보는 `user`, `assistant`, `custom` 항목이고 `toolResult`, `system`은 후보가 아니다(`:351-364`, `_research/notes/L1-3.md` §5.4).
 3. `thread.compact.before`(first)를 발화한다. 결정이 `cancel`이면 멈추고 `cancelled`를 돌려준다. 결정이 `compaction`(확장 요약)이면 4번을 건너뛰고 그 요약을 쓴다(`fromExtension` = 확장 이름).
 4. 요약: 이전 요약이 없으면 `SUMMARIZATION_PROMPT`, 있으면 `UPDATE_SUMMARIZATION_PROMPT`를 쓴다(`:507-579`, `:718`). 형식은 목표(Goal), 제약(Constraints & Preferences), 진행(Done·In Progress·Blocked), 결정(Key Decisions), 다음 단계(Next Steps), 핵심 맥락(Critical Context)이다. 시스템 프롬프트는 `utils.ts:161-163`의 `SUMMARIZATION_SYSTEM_PROMPT`다. 최대 토큰은 `min(floor(0.8 × reserveTokens), model.maxTokens)`(`:712-715`). 분할 턴이면 턴 앞부분을 `TURN_PREFIX_SUMMARIZATION_PROMPT`(`:942-955`)로 따로 요약하고 `floor(0.5 × reserveTokens)`를 쓴다. 두 요약은 `요약 + "---" + 턴 맥락`으로 합친다(`:1032`). 사용자 지침(`instructions`)과 설정 `l1.context.compactionInstructions`를 프롬프트 끝에 붙인다.
-5. 커밋: `xeon.session`으로 한 커밋에 `thread.compacted{ summary, firstKeptEventId, tokensBefore, details, usage, fromExtension }`와 새 접두 system item(`item.recorded`, kind `system`, 정렬 전체 도구 목록)을 가지 끝에 덧붙인다. 원본 이벤트는 지우지 않는다. `details`에는 `{ xeon: { reason, stepId }, readFiles, modifiedFiles }`를 둔다 [제안]. `details`는 모델에 보내지 않는다(`F.records.spec` §3.3). 이 커밋은 별도 커밋 지점 C7이고 커밋 키는 `compact:<threadId>:<stepId>:<reason>`이다. 키의 `stepId`는 같은 커밋의 `details.xeon.stepId`이고 §4.7 3번 `second_overflow` 판정과 같은 값이다(`L1.persistence.spec` §4.2 C7). 단계 끝 커밋(C5)에 넣지 않는다.
+5. 커밋: `fresnel.session`으로 한 커밋에 `thread.compacted{ summary, firstKeptEventId, tokensBefore, details, usage, fromExtension }`와 새 접두 system item(`item.recorded`, kind `system`, 정렬 전체 도구 목록)을 가지 끝에 덧붙인다. 원본 이벤트는 지우지 않는다. `details`에는 `{ xeon: { reason, stepId }, readFiles, modifiedFiles }`를 둔다 [제안]. `details`는 모델에 보내지 않는다(`F.records.spec` §3.3). 이 커밋은 별도 커밋 지점 C7이고 커밋 키는 `compact:<threadId>:<stepId>:<reason>`이다. 키의 `stepId`는 같은 커밋의 `details.xeon.stepId`이고 §4.7 3번 `second_overflow` 판정과 같은 값이다(`L1.persistence.spec` §4.2 C7). 단계 끝 커밋(C5)에 넣지 않는다.
 6. 시점: 임계·수동 컴팩션은 단계 사이에서만 한다. 오버플로우 복구 컴팩션(§4.7)은 같은 단계의 재요청 전에 한다. 어느 경우든 C7 커밋 하나다. 임계 검사는 core-loop가 단계 시작 전에 `shouldCompact`로 한다. 수동 `/compact`가 단계 진행 중에 오면 다음 단계 경계까지 미룬다 [제안].
 7. 성공하면 `thread.compact.after`(tap)를, 실패하거나 중단되면 `thread.compact.failed`(tap)를 발화한다.
-7a. 요약 모델은 `xeon.models.resolve("summary")`의 결과(역할 `summary`, 캐시 없음)이고 요약 응답 상한은 `min(0.8 × reserveTokens, 모델 maxTokens, 16,000)`이다. 상한 16,000 토큰은 `thread.compacted.summary`의 65,536자 한도 안에 들게 하려는 값이고, 그래도 넘으면 `summary_truncated`다 [구현: M2]. 확장이 준 요약(`thread.compact.before`의 `compaction`)이 같은 한도를 넘거나 `firstKeptEventId`가 가지 위에 없으면 `cancelled`로 돌려준다.
+7a. 요약 모델은 `fresnel.models.resolve("summary")`의 결과(역할 `summary`, 캐시 없음)이고 요약 응답 상한은 `min(0.8 × reserveTokens, 모델 maxTokens, 16,000)`이다. 상한 16,000 토큰은 `thread.compacted.summary`의 65,536자 한도 안에 들게 하려는 값이고, 그래도 넘으면 `summary_truncated`다 [구현: M2]. 확장이 준 요약(`thread.compact.before`의 `compaction`)이 같은 한도를 넘거나 `firstKeptEventId`가 가지 위에 없으면 `cancelled`로 돌려준다.
 7b. 새 접두의 재료: 컴팩션은 `AssembleOptions`를 받지 않으므로 서비스가 스레드마다 가장 최근 `assemble`의 `basePrompt`, `sections`, `tools`를 기억해 쓴다(재광고). 기억이 없으면(프로세스를 다시 띄운 뒤 첫 컴팩션) 가지 위 기록된 광고 상태를 그대로 옮기고, 접두가 없으면 새 접두 item 없이 `thread.compacted`만 커밋한다. 다음 `assemble`이 접두를 만들어 `readvertise(compaction)`으로 낸다 [구현: M2].
 7c. 컴팩션 커밋은 `core.context` 생산자 핸들과 `IdFactory`가 있어야 한다. 둘 중 하나가 없으면 `compact`는 `skipped(disabled)`, `recoverOverflow`는 `fail(disabled)`다. 커밋은 `expectedLeaf`를 요약한 leaf로 걸어 요약하는 동안 가지가 자랐으면 `commit_failed`로 끝낸다. 지문에는 요약 문장을 넣지 않는다(재시도가 같은 키로 처음 커밋을 돌려받는다) [구현: M2].
 8. 응답 검사: `error`와 `length` 종결은 실패다(`:585-593`). 도구 호출이 든 응답도 실패다(`:759-761`). 빈 요약 대상이면 `skipped`다(`:914`).
@@ -327,26 +327,26 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 | 메시지 역할 결합: `estimateTokens`, `isCutPointMessage`, `isTurnStartMessage`, `getAssistantUsage` | 142 | 입력 타입 치환 | 입력이 `Message`와 `ItemRecord`. 턴 시작 판정은 `turnId` 비교로 바꾼다 |
 | session-manager 결합: 컷 포인트 계열, `prepareCompaction`, `extractFileOperations` | 336 | 치환·재작성 | `SessionEntry` → `CutCandidate`, `CompactionEntry` → `thread.compacted`, `firstKeptEntryId` → `firstKeptEventId`, `fromHook` → `fromExtension` |
 | pi 복구 생략 분기 `isRecoveryOmissionSuffix`(831-856) | 26 | 삭제 [제안] | F에 컨텍스트 편집 개념이 없다 |
-| 모델 호출 결합: `compact`, `generateSummaryWithUsage`, `completeSummarization`, `generateTurnPrefixSummary` | 330 | 재작성 | 위치 인자 12~14개를 `SummarizeDeps` 주입으로 바꾼다. `completeSimple`·`retryAssistantCall` 직접 호출 대신 `xeon.models.complete` |
+| 모델 호출 결합: `compact`, `generateSummaryWithUsage`, `completeSummarization`, `generateTurnPrefixSummary` | 330 | 재작성 | 위치 인자 12~14개를 `SummarizeDeps` 주입으로 바꾼다. `completeSimple`·`retryAssistantCall` 직접 호출 대신 `fresnel.models.complete` |
 | 컴팩션 적용(투영): `session-manager.ts:439-588` | 150 | 재작성 | 조립 §4.1이 맡는다 |
 | researcher가 확인할 부분 | — | — | 턴 분할 경로 약 139줄의 유지 여부, `bashExecution`·`branchSummary` 역할의 F 대응, codemode 중첩 호출 파일 추적(`utils.ts:30-33`). §10 미결 |
 
 - 같은 디렉터리의 `branch-summarization.ts`(382줄)는 `completeSummarization`, `estimateTokens`, `getSummarizationFailure`를 가져다 쓴다(`branch-summarization.ts:19`). 떠난 가지 요약(§4.9)을 위해 프롬프트 `BRANCH_SUMMARY_PROMPT`(`:258`)와 함께 옮긴다.
-- 토큰 추정은 pi-ai `utils/estimate.ts`(문자 3.5개당 1토큰)를 `xeon.models.tokens`로 쓴다. pi 컴팩션 내부 `estimateTokens`(문자 4개당 1토큰)는 쓰지 않는다 [제안]. 그래서 pi 테스트의 컷 위치 값은 이식할 때 다시 계산한다.
+- 토큰 추정은 pi-ai `utils/estimate.ts`(문자 3.5개당 1토큰)를 `fresnel.models.tokens`로 쓴다. pi 컴팩션 내부 `estimateTokens`(문자 4개당 1토큰)는 쓰지 않는다 [제안]. 그래서 pi 테스트의 컷 위치 값은 이식할 때 다시 계산한다.
 
 ### 4.7 임계와 오버플로우 복구
 
 임계:
 
 - `shouldCompact`는 `contextTokens > contextWindow - reserveTokens`이면 참이다(pi `compaction.ts:267-269`, 비교는 `>`). `contextWindow`는 카탈로그의 `Model.contextWindow`(`AssembleOptions.contextWindow`, `ResolvedModel.model`)다.
-- `contextTokens`는 `xeon.models.tokens.estimateContext(messages).tokens`다. 마지막 어시스턴트 사용량을 기준으로 그 뒤 메시지만 추정한다(pi-ai `estimateContextTokens`).
+- `contextTokens`는 `fresnel.models.tokens.estimateContext(messages).tokens`다. 마지막 어시스턴트 사용량을 기준으로 그 뒤 메시지만 추정한다(pi-ai `estimateContextTokens`).
 - 기본값 `reserveTokens` 16,384, `keepRecentTokens` 20,000. pi 런타임 기본값의 원천은 `coding-agent/src/core/settings-defaults.ts:8-12`이고, `compaction.ts:126-130`의 `DEFAULT_COMPACTION_SETTINGS`는 공개 export와 테스트용이다(`_research/notes/L1-3.md` §7). Xeon은 설정 기본값 한 곳(`settings.ts`)에만 둔다.
 - `l1.context.autoCompact`가 거짓이면 항상 거짓이다.
 - `contextTokens`는 컴팩션 머리와 기록된 접두를 반영한 모델 컨텍스트(`effectiveMessages`: 접두, 요약, 남긴 원문)의 추정이다. volatile과 이번 단계 변경 덧붙이기는 넣지 않는다. 바인딩의 모델이 카탈로그에 없으면(`rebind` 실패) 검사하지 않고 `{ should: false, tokens: 0, threshold: 0 }`이다 [구현: M2].
 
 오버플로우 복구 [제안: 계획 v2 L1-e "단계당 한 번 컴팩션 후 재시도" 표기를 따른다]:
 
-1. core-loop가 종결 메시지를 받으면 `xeon.models.classify(message, contextWindow)`로 분류한다. 분류는 pi-ai `isContextOverflow`(`utils/overflow.ts:137`)를 쓴다.
+1. core-loop가 종결 메시지를 받으면 `fresnel.models.classify(message, contextWindow)`로 분류한다. 분류는 pi-ai `isContextOverflow`(`utils/overflow.ts:137`)를 쓴다.
 2. `context_overflow`면 core-loop가 `recoverOverflow(threadId, stepId, message, binding)`을 부른다.
 3. 같은 `stepId`로 이미 `reason: "overflow"` 컴팩션이 있으면 `fail(second_overflow)`다. 판정은 가지 위 `thread.compacted.details.xeon.stepId`로 하므로 재개 뒤에도 같다.
 4. 없으면 `compact({ reason: "overflow", stepId, willRetry: true })`를 한다. 성공하면 `retry`, 거부되면 `fail(compaction_cancelled)`, 실패하면 `fail(compaction_failed)`다.
@@ -366,12 +366,12 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 ### 4.9 떠난 가지 요약 생성 주체
 
-[미결] `thread.branch_summarized`를 누가 만들고 커밋하는가. `eng.context-map.design` §4.1에서 `session-core`는 `xeon.store`만 쓴다. 그래서 persistence가 context를 부를 수 없다.
+[미결] `thread.branch_summarized`를 누가 만들고 커밋하는가. `eng.context-map.design` §4.1에서 `session-core`는 `fresnel.store`만 쓴다. 그래서 persistence가 context를 부를 수 없다.
 
 | 안 | 순서 | 장점 | 단점 |
 |---|---|---|---|
 | A [제안] | 호출자(core-loop 또는 L4 host의 `/tree` 처리)가 `thread.tree.before`(persistence 지점) 결과를 본 뒤 `context.summarizeBranch`로 초안을 받고, `session.threads.moveLeaf(threadId, target, { reason: "branch", summary, requestKey })`로 leaf 이동과 `thread.branch_summarized`를 한 커밋에 넣는다(`L1.persistence.spec` §3.8 `moveLeaf`) | 의존 방향이 context-map과 맞는다. 원자성이 유지된다 | 호출자가 순서를 알아야 한다 |
-| B | context가 `summarizeBranch` 안에서 요약하고 `xeon.session`으로 leaf 이동까지 커밋한다 | 호출이 하나다 | leaf 이동 규칙이 context에 퍼진다. `thread.tree.before` 발화 위치가 둘이 된다 |
+| B | context가 `summarizeBranch` 안에서 요약하고 `fresnel.session`으로 leaf 이동까지 커밋한다 | 호출이 하나다 | leaf 이동 규칙이 context에 퍼진다. `thread.tree.before` 발화 위치가 둘이 된다 |
 | C | persistence가 leaf 이동 뒤 이벤트로 알리고 context가 구독해 나중에 요약을 덧붙인다 | 결합이 가장 느슨하다 | 이동과 요약이 다른 커밋이다. 크래시 사이에 요약 없는 가지가 남는다 |
 
 - 확장이 `thread.tree.before`에서 요약을 직접 주면(pi `SessionBeforeTreeResult.summary`) A안의 호출자는 `summarizeBranch`를 부르지 않는다.
@@ -410,7 +410,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 | 요약 대상이 비어 있음 | `skipped(nothing_to_summarize)`. 지점을 발화하지 않는다 |
 | `thread.compact.before` 거부 | `cancelled`. 이벤트를 쓰지 않는다 |
 | 같은 단계 두 번째 오버플로우 | `fail(second_overflow)` |
-| 컴팩션 중 사용자 중단 | `aborted`, `thread.compact.failed`. 부분 요약 사용량은 `xeon.models` 합산에만 남는다 |
+| 컴팩션 중 사용자 중단 | `aborted`, `thread.compact.failed`. 부분 요약 사용량은 `fresnel.models` 합산에만 남는다 |
 | provider가 대화 중 도구 변경을 지원하지 않음 | `defer`, 다음 컴팩션에서 재광고 |
 | 모델 전환 뒤 창이 작아짐 | 조립 뒤 추정이 임계를 넘으면 경고 `near_window`. 다음 단계 시작 전 임계 검사에서 컴팩션한다 |
 
@@ -459,7 +459,7 @@ export interface SessionBeforeCompactPayload {
     readonly tokensBefore: number;
     readonly isSplitTurn: boolean;
     readonly previousSummary: string | null;
-    readonly messagesToSummarize: number;     // 개수만. 본문은 핸들러가 xeon.session으로 읽는다
+    readonly messagesToSummarize: number;     // 개수만. 본문은 핸들러가 fresnel.session으로 읽는다
   };
   readonly instructions: string | null;
 }
@@ -503,7 +503,7 @@ export interface SessionCompactFailedPayload {
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `xeon.context`(`ContextService`), `AssembleOptions`, `AssembledContext`, `PendingSystemItem` | `L1.loop.spec` |
+| `fresnel.context`(`ContextService`), `AssembleOptions`, `AssembledContext`, `PendingSystemItem` | `L1.loop.spec` |
 | `compact`, `CompactRequest`, `CompactOutcome`, `recoverOverflow` | `L1.loop.spec`, `L4.cli.spec`(`/compact`) |
 | `summarizeBranch`, `BranchSummaryDraft` | `L1.persistence.spec`, `L4.host-service.spec` |
 | 이벤트 `thread.compacted`, `thread.branch_summarized` 생산 | `F.records.spec`, `eng.events.design` |
@@ -517,14 +517,14 @@ export interface SessionCompactFailedPayload {
 | `CompactedPayload`, `BranchSummarizedPayload`, `StepCheckpoint`, 분기 규칙 | `F.records.spec` |
 | `orderTools`, `diffToolsets`, `toolsetFingerprint`, `OrderedTool`, `ToolsetDiff` | `F.capabilities.spec` §3.8 |
 | `HOOKS`의 6개 지점, `FIRST_DENY`, `CHAIN_RULES` | `F.extensions.spec` |
-| `xeon.models`: `complete`(summary 역할), `tokens`, `classify`, `CachePolicy` | `L1.models.spec` |
-| `xeon.session`: `readBranch`(가지 읽기), `commit`(컴팩션 커밋), `loadCheckpoint`(이전 바인딩), `threads.moveLeaf`의 `summary` 옵션 | `L1.persistence.spec` §3.3, §3.8 |
-| `xeon.ext`: 지점 디스패치 | `X.primitives.spec` |
+| `fresnel.models`: `complete`(summary 역할), `tokens`, `classify`, `CachePolicy` | `L1.models.spec` |
+| `fresnel.session`: `readBranch`(가지 읽기), `commit`(컴팩션 커밋), `loadCheckpoint`(이전 바인딩), `threads.moveLeaf`의 `summary` 옵션 | `L1.persistence.spec` §3.3, §3.8 |
+| `fresnel.ext`: 지점 디스패치 | `X.primitives.spec` |
 | 단계 시작 바인딩, `input.agent.before` 결과 절, 단계 커밋에 `pendingItems` 넣기 | `L1.loop.spec` |
 
 ### 8.3 F 요청 사항
 
-1. F `@xeon/contracts/services`: §3.1 `context.ts`(서비스 인터페이스, review.decisions-2 D-04). `eng.context-map.design` §5.3의 `ContextService`(conversation) 표기를 services로 고친다.
+1. F `@fresnel/contracts/services`: §3.1 `context.ts`(서비스 인터페이스, review.decisions-2 D-04). `eng.context-map.design` §5.3의 `ContextService`(conversation) 표기를 services로 고친다.
 2. `F.extensions.spec` §7.2: 페이로드를 §3.5 형식으로 확정한다. 컴팩션 지점 셋의 발화 주체는 §7에 반영됐다.
 3. `F.records.spec` §3.3: `CompactedPayload.details`에 코어 예약 키 `xeon`(`{ reason, stepId }`)을 허용한다고 적는다. 또는 `reason`, `stepId`를 별도 필드로 둔다.
 4. 이벤트 소유: `thread.compacted`, `thread.branch_summarized`의 생산자를 `core.context`로 둔다. `thread.` 영역의 나머지(`started`, `updated`, `closed`, `leaf_moved`)는 `core.persistence`다. `eng.context-map.design` §5.1의 `compaction.recorded`는 F 이름 `thread.compacted`로 고친다.

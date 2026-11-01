@@ -1,11 +1,19 @@
-import { attemptAsync, eachAsync, err, ok, parse, type Logger, type Result } from "@xeon/contracts";
+import {
+  attemptAsync,
+  eachAsync,
+  err,
+  ok,
+  parse,
+  type Logger,
+  type Result,
+} from "@fresnel/contracts";
 import {
   ItemRecordedPayloadSchema,
   type CommitBatch,
   type DurableEventEnvelope,
   type SessionService,
   type StoreDb,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 
 // L2.knowledge.spec §4.8.1 색인 소비자 `cap.knowledge.fts`. 세션의 내구 이벤트 가운데 사용자·어시스턴트 메시지(`item.recorded`)의 텍스트를

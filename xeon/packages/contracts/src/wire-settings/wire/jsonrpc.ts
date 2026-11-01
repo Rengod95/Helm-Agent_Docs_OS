@@ -189,7 +189,7 @@ export function checkEnvelope(value: unknown): EnvelopeCheck {
 
 /** W3C Trace Context traceparent. 버전 2자, trace-id 32자, parent-id 16자, 플래그 2자(소문자 hex) */
 export const TRACEPARENT_PATTERN: string = "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$";
-/** W3C 세 키 밖에서 `_meta`가 받는 키. `<네임스페이스>/<이름>` 형태다. 예: xeon/clientTime */
+/** W3C 세 키 밖에서 `_meta`가 받는 키. `<네임스페이스>/<이름>` 형태다. 예: fresnel/clientTime */
 export const WIRE_META_NAMESPACED_KEY_PATTERN: string = "^[a-z][a-z0-9-]*/[A-Za-z][A-Za-z0-9._-]*$";
 
 /**

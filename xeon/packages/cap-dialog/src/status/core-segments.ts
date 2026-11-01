@@ -1,11 +1,11 @@
-import { parse } from "@xeon/contracts";
-import type { StatusItem } from "@xeon/contracts/capabilities";
-import { TurnCompletedPayloadSchema } from "@xeon/contracts/conversation";
+import { parse } from "@fresnel/contracts";
+import type { StatusItem } from "@fresnel/contracts/capabilities";
+import { TurnCompletedPayloadSchema } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
-} from "@xeon/contracts/records";
-import type { DurableEventEnvelope } from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
+import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 
 // L2.dialog.spec §4.4 내장 세그먼트. 내구 이벤트와 도구 실행 지점에서 계산하는 순수 함수다.
 

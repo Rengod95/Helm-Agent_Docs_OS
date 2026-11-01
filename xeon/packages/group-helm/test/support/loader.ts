@@ -1,15 +1,15 @@
 import { cp, mkdir, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import {
   createExtensionLoader,
   type ExtensionLoader,
   type LoaderFs,
   type LoaderPaths,
   type SdkModules,
-} from "@xeon/ext-host";
-import type { TestHost } from "@xeon/ext-host/testing";
-import * as kit from "@xeon/group-sdk";
+} from "@fresnel/ext-host";
+import type { TestHost } from "@fresnel/ext-host/testing";
+import * as kit from "@fresnel/group-sdk";
 
 function isMissing(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
@@ -50,7 +50,7 @@ const realLoaderFs: LoaderFs = {
 };
 
 /** X가 직접 등록하지 못하는 L3 모듈만 호스트가 넘긴다(X.loading-trust.spec §4.4.6) */
-const SDK_MODULES: SdkModules = { "@xeon/group-sdk": kit };
+const SDK_MODULES: SdkModules = { "@fresnel/group-sdk": kit };
 
 export interface LoaderRig {
   readonly loader: ExtensionLoader;

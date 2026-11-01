@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import type { HelmFailure } from "./failures.ts";
 import type { HelmEvent } from "./phase.ts";
 import type { HelmPhase } from "./state.ts";

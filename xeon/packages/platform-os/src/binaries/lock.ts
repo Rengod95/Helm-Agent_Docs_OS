@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { BinaryName } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { BinaryName } from "@fresnel/contracts/services";
 
 // OS-12(생성 스크립트 부분), L0.os.spec §3.6. `binaries.lock.json`은 빌드 때 만든다. 소스 실행에는 없다.
 // 사이드카 빌드 스크립트(DESK.3)가 번들할 바이너리를 resource 디렉터리에 놓은 뒤 이 함수로 목록을 만든다.

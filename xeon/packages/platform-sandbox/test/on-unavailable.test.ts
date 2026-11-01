@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { OnUnavailable, SandboxPolicy } from "@xeon/contracts/services";
+import type { OnUnavailable, SandboxPolicy } from "@fresnel/contracts/services";
 import { createSandboxService, type SandboxServiceHandle } from "../src/service.ts";
 import type { SandboxSettings } from "../src/settings.ts";
 import {

@@ -9,7 +9,7 @@ import {
   type Clock,
   type Logger,
   type Scheduler,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import {
   CapabilityError,
   diffToolsets,
@@ -35,10 +35,10 @@ import {
   type CapabilityApi,
   type McpClient,
   type McpContinuation,
-} from "@xeon/contracts/capabilities";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
-import type { McpServersChangePayload } from "@xeon/contracts/extensions";
-import type { McpService } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
+import type { McpServersChangePayload } from "@fresnel/contracts/extensions";
+import type { McpService } from "@fresnel/contracts/services";
 import type { RawInputRequired, RawPrompt } from "../adapter.ts";
 import { buildQuestions } from "../elicitation/questions.ts";
 import { roundsExceeded } from "../elicitation/rounds.ts";
@@ -73,7 +73,7 @@ import {
 import { createRegistry, type ServerRegistry, type ServerSnapshot } from "./registry.ts";
 import { createStateStore, type StateStore } from "./state-store.ts";
 
-// L2.mcp.spec §3.2 `mcp.client` 능력 구현과 `xeon.mcp`(McpService)의 조립. 서버 목록의 변화는 메모리에 모아
+// L2.mcp.spec §3.2 `mcp.client` 능력 구현과 `fresnel.mcp`(McpService)의 조립. 서버 목록의 변화는 메모리에 모아
 // 단계 경계(`applyBoundary`)에서 한 번에 도구 표에 반영한다(§4.9).
 
 export interface McpDeps {

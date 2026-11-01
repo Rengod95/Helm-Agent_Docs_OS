@@ -1,4 +1,4 @@
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type { DirFs, EnvReader } from "../../src/dirs.ts";
 import type { OsRuntime } from "../../src/runtime.ts";
 import { systemScheduler } from "../../src/time/scheduler.ts";

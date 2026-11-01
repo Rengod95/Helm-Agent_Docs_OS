@@ -1,6 +1,6 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { WebFetchOutput, WebFetchPage, WebFetchInput } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { WebFetchOutput, WebFetchPage, WebFetchInput } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { SourceIdTable } from "../contract/source-ids.ts";
 import { buildMeta } from "../contract/meta.ts";
 import { computeCost } from "../cost/meter.ts";

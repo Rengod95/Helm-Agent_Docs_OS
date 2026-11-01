@@ -7,7 +7,7 @@ import {
   WorkspaceImages,
   WorkspaceShell,
   type AnyCapabilityDef,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 const ALL: readonly AnyCapabilityDef[] = [WorkspaceFiles, WorkspaceShell, WorkspaceImages];
 

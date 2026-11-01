@@ -4,7 +4,7 @@ import {
   type CapabilityApi,
   type CapabilityId,
   type WebService,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type { BrowseController } from "./browse/service.ts";
 import type { WebDeps } from "./deps.ts";
 import { createFetchApi } from "./fetch/pipeline.ts";

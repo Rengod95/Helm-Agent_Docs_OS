@@ -14,29 +14,29 @@ binds: [xeon/packages/client/**, xeon/packages/contracts/src/wire-settings/**, x
 
 - 상태: accepted
 - 날짜: 2026-10-26
-- [결정] CLI와 데스크톱이 함께 쓰는 연결 코드와 클라이언트 로직을 새 패키지 `xeon/packages/client`(`@xeon/client`)로 옮긴다. 이 패키지는 F에만 의존한다. F는 순수 계약으로 남긴다(사용자 결정 2026-10-26, `review.m3-design-inputs` D-M3-26 b 변형).
-- 이 ADR은 `L4.host-service.spec` §10 미결 5(데스크톱이 `@xeon/host/client`를 import할지)와 `L4.cli.spec`·`L4.settings-ui.spec`의 공유 코드 위치 미결(수집 U-41, U-56)을 닫는다.
+- [결정] CLI와 데스크톱이 함께 쓰는 연결 코드와 클라이언트 로직을 새 패키지 `xeon/packages/client`(`@fresnel/client`)로 옮긴다. 이 패키지는 F에만 의존한다. F는 순수 계약으로 남긴다(사용자 결정 2026-10-26, `review.m3-design-inputs` D-M3-26 b 변형).
+- 이 ADR은 `L4.host-service.spec` §10 미결 5(데스크톱이 `@fresnel/host/client`를 import할지)와 `L4.cli.spec`·`L4.settings-ui.spec`의 공유 코드 위치 미결(수집 U-41, U-56)을 닫는다.
 - 새 패키지의 층 배치와 같은 층 예외는 `architecture.layers.spec` §3.2 허용 목록을 바꾸므로 ADR로 남긴다(`adr.readme` §4 승격 기준).
 
 ## 2. 맥락
 
-- M2 F.8에서 `createHostConnection`(id 발급, 대기 요청 표, 취소)과 JSON Lines 프레이밍, stdio 전송 구현을 F `@xeon/contracts/wire`의 런타임 중립 구현으로 옮겼다(`L4.desktop.spec` §10 3번, `F.wire-settings.spec` §3.1). F에 타이머와 상태를 쓰는 런타임 로직이 생겼다. `F.readme` §1은 F에 실행 코드를 거의 두지 않는다고 적는다.
+- M2 F.8에서 `createHostConnection`(id 발급, 대기 요청 표, 취소)과 JSON Lines 프레이밍, stdio 전송 구현을 F `@fresnel/contracts/wire`의 런타임 중립 구현으로 옮겼다(`L4.desktop.spec` §10 3번, `F.wire-settings.spec` §3.1). F에 타이머와 상태를 쓰는 런타임 로직이 생겼다. `F.readme` §1은 F에 실행 코드를 거의 두지 않는다고 적는다.
 - 데스크톱 TS는 호스트 조립 코드를 import하면 안 된다. `apps/host`를 import하면 엔진 전체가 WebView 번들에 들어갈 위험이 있다. 그래서 같은 층 예외 `DR-10/cli-host`만 두었다(`architecture.layers.spec` §3.2).
 - 설정 화면 view-model, 오류 문장화(ADR-0016), 승인 카드 상태처럼 CLI와 데스크톱이 같은 로직을 쓰는 곳이 늘었다.
-- 검토한 안(D-M3-26): a `@xeon/host/client` 서브패스와 DR-10 예외, b 새 공유 패키지, c `createHostConnection`을 F에 둠. 사용자는 b를 고르고 F를 순수 계약으로 두는 변형을 정했다.
+- 검토한 안(D-M3-26): a `@fresnel/host/client` 서브패스와 DR-10 예외, b 새 공유 패키지, c `createHostConnection`을 F에 둠. 사용자는 b를 고르고 F를 순수 계약으로 두는 변형을 정했다.
 
 ## 3. 결정
 
-1. [결정] 새 패키지 `xeon/packages/client`, 이름 `@xeon/client`를 만든다. 층은 L4다. `package.json`은 `xeon.layer: "L4"`, `xeon.domain: "client"`다.
-2. [결정] `@xeon/client`는 F(`@xeon/contracts`)와 외부 라이브러리만 import한다. X, L0~L3, `apps/*`를 import하지 않는다. 엔진 코드가 클라이언트 번들에 들어가지 않는다.
+1. [결정] 새 패키지 `xeon/packages/client`, 이름 `@fresnel/client`를 만든다. 층은 L4다. `package.json`은 `fresnel.layer: "L4"`, `fresnel.domain: "client"`다.
+2. [결정] `@fresnel/client`는 F(`@fresnel/contracts`)와 외부 라이브러리만 import한다. X, L0~L3, `apps/*`를 import하지 않는다. 엔진 코드가 클라이언트 번들에 들어가지 않는다.
 3. [결정] 담는 것:
    - 연결: `createHostConnection`, 전송 구현(JSON Lines 프레이밍, stdio, 소켓 전송의 클라이언트 쪽), 재연결과 리플레이 커서 처리
    - 설정 화면 view-model(`L4.settings-ui.spec`)
    - CLI와 데스크톱이 함께 쓰는 표시 로직: 오류·알림 문장화와 i18n 카탈로그(ADR-0016), 승인 카드 상태
-4. [결정] F `@xeon/contracts/wire`에는 타입, 스키마, 메서드 표(`WIRE_METHODS`), 적합성 사례 데이터만 남긴다. M2 F.8에서 F로 옮긴 런타임 구현(`wire/client.ts`, `framing.ts`, `stdio.ts`의 구현부)은 `@xeon/client`로 옮긴다.
-   - [미결] 구현 편차(M3a). `framing.ts`와 `stdio.ts`는 서버 쪽(L0 `platform-process`, `apps/host`)이 같은 코드를 써서 F에 남겼고, `wire/client.ts`(`createHostConnection`)만 옮겼다. L0와 호스트는 L4인 `@xeon/client`를 import할 수 없어, 옮기려면 서버용 구현을 따로 두어야 한다. `@xeon/client/stdio`는 F 구현을 다시 내보낸다(`F.wire-settings.spec` §3.1).
-5. [결정] 같은 층 예외를 둘 더한다. `DR-10/cli-client`(`apps/cli` → `packages/client`), `DR-10/desktop-client`(`apps/desktop` → `packages/client`). `apps/host`는 서버 쪽이라 `@xeon/client`를 import하지 않는다. `DR-10/cli-host`는 in-process 전송 때문에 그대로 둔다.
-   - [미결] 구현 편차(M3a). `@xeon/host/client`를 `@xeon/client` 재노출로 남기고 호스트 시험이 연결 구현을 쓰므로 `DR-10/host-client`를 더했다. 이 항목의 "`apps/host`는 import하지 않는다"와 다르다. 재노출을 없애려면 호스트 시험 한정 DR-10 예외가 필요하다(`eng.dependency-rules.guide` 4절).
+4. [결정] F `@fresnel/contracts/wire`에는 타입, 스키마, 메서드 표(`WIRE_METHODS`), 적합성 사례 데이터만 남긴다. M2 F.8에서 F로 옮긴 런타임 구현(`wire/client.ts`, `framing.ts`, `stdio.ts`의 구현부)은 `@fresnel/client`로 옮긴다.
+   - [미결] 구현 편차(M3a). `framing.ts`와 `stdio.ts`는 서버 쪽(L0 `platform-process`, `apps/host`)이 같은 코드를 써서 F에 남겼고, `wire/client.ts`(`createHostConnection`)만 옮겼다. L0와 호스트는 L4인 `@fresnel/client`를 import할 수 없어, 옮기려면 서버용 구현을 따로 두어야 한다. `@fresnel/client/stdio`는 F 구현을 다시 내보낸다(`F.wire-settings.spec` §3.1).
+5. [결정] 같은 층 예외를 둘 더한다. `DR-10/cli-client`(`apps/cli` → `packages/client`), `DR-10/desktop-client`(`apps/desktop` → `packages/client`). `apps/host`는 서버 쪽이라 `@fresnel/client`를 import하지 않는다. `DR-10/cli-host`는 in-process 전송 때문에 그대로 둔다.
+   - [미결] 구현 편차(M3a). `@fresnel/host/client`를 `@fresnel/client` 재노출로 남기고 호스트 시험이 연결 구현을 쓰므로 `DR-10/host-client`를 더했다. 이 항목의 "`apps/host`는 import하지 않는다"와 다르다. 재노출을 없애려면 호스트 시험 한정 DR-10 예외가 필요하다(`eng.dependency-rules.guide` 4절).
 6. [제안] `check-layers.ts`의 `expectedLayer`는 디렉터리 이름 `client`를 L4로 본다. 허용 목록 파일(`xeon/scripts/dependency-allowlist.json`)에 두 예외 id를 올린다.
 7. [제안] 데스크톱 Rust 셸은 이 패키지와 무관하다. 데스크톱 TS(WebView)만 쓴다.
 
@@ -58,10 +58,10 @@ binds: [xeon/packages/client/**, xeon/packages/contracts/src/wire-settings/**, x
 
 | 대안 | 내용 | 판정 | 이유 |
 |---|---|---|---|
-| a. `@xeon/host/client` 서브패스 | 호스트 패키지 안에 엔진 없는 서브패스를 두고 데스크톱이 import | 채택하지 않음 | 데스크톱 → 호스트 간선이 패키지 단위로 열린다. 서브패스 경계를 검사로 지켜야 한다 |
+| a. `@fresnel/host/client` 서브패스 | 호스트 패키지 안에 엔진 없는 서브패스를 두고 데스크톱이 import | 채택하지 않음 | 데스크톱 → 호스트 간선이 패키지 단위로 열린다. 서브패스 경계를 검사로 지켜야 한다 |
 | c. F에 연결 코드 | `createHostConnection`을 F에 둔다(M2 F.8 상태 유지) | 채택하지 않음 | F에 런타임 로직이 남는다. 사용자 결정 D-M3-26 |
 | 별도 층 순위 | `client`를 F와 L4 사이 새 순위로 둔다 | 채택하지 않음 | 층 표와 `RANK`가 바뀌고 다른 층이 client를 import할 이유가 없다. L4 안의 예외 둘로 충분하다 |
 
 ## 6. 미결 사항
 
-- [결정: 오케스트레이터 기본값] 소켓 전송의 클라이언트 구현은 이 패키지에 둔다(M3b B2-RMT). Node API를 쓰는 `@xeon/client/socket`(`connectServiceTransport`: unix, 사설망 tcp(토큰이 있으면 host.hello에 싣는다), SSH 터널로 이은 unix)와 순수 함수인 `@xeon/client/endpoint`(주소 문법)로 나눈다. 브라우저 클라이언트(M4)는 `.`과 `./endpoint`만 쓰고 `./socket`은 import하지 않는다. 프로세스를 띄우는 일(`ssh`)은 DR-07 때문에 L0 `platform-process`만 할 수 있어, 이 패키지는 `TunnelPort`만 정의하고 `apps/host`가 L0 `openTunnel`로 채운다. `apps/host`의 `connectServiceTransport`는 이 구현에 터널 포트를 끼워 주는 얇은 함수다. L0 `connectSocket`은 서버 쪽 바인드 경합 확인용으로 남는다(스트림 어댑터 중복은 L0이 L4를 import할 수 없어서다).
+- [결정: 오케스트레이터 기본값] 소켓 전송의 클라이언트 구현은 이 패키지에 둔다(M3b B2-RMT). Node API를 쓰는 `@fresnel/client/socket`(`connectServiceTransport`: unix, 사설망 tcp(토큰이 있으면 host.hello에 싣는다), SSH 터널로 이은 unix)와 순수 함수인 `@fresnel/client/endpoint`(주소 문법)로 나눈다. 브라우저 클라이언트(M4)는 `.`과 `./endpoint`만 쓰고 `./socket`은 import하지 않는다. 프로세스를 띄우는 일(`ssh`)은 DR-07 때문에 L0 `platform-process`만 할 수 있어, 이 패키지는 `TunnelPort`만 정의하고 `apps/host`가 L0 `openTunnel`로 채운다. `apps/host`의 `connectServiceTransport`는 이 구현에 터널 포트를 끼워 주는 얇은 함수다. L0 `connectSocket`은 서버 쪽 바인드 경합 확인용으로 남는다(스트림 어댑터 중복은 L0이 L4를 import할 수 없어서다).

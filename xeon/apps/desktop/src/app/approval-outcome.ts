@@ -1,5 +1,5 @@
-import type { Result } from "@xeon/contracts";
-import type { ApprovalRespondResult } from "@xeon/contracts/wire";
+import type { Result } from "@fresnel/contracts";
+import type { ApprovalRespondResult } from "@fresnel/contracts/wire";
 import type { ApprovalFailure } from "../state/ui/index.ts";
 import type { CommandError } from "../views/commands.ts";
 

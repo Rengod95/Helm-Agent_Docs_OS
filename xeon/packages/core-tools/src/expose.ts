@@ -1,11 +1,11 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   MAX_TOOLS_PER_REQUEST,
   toolOrderKey,
   toolsetFingerprint,
   type OrderedTool,
   type ToolRef,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   TOOL_SEARCH_NAME,
   matchToolGlob,
@@ -15,7 +15,7 @@ import {
   type PolicyInput,
   type RemovedTool,
   type TieredRule,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { evaluatePolicy } from "./policy/engine.ts";
 import type { ToolEntry } from "./types.ts";
 

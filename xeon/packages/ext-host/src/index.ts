@@ -1,4 +1,4 @@
-// @xeon/ext-host 공개 진입점. X.primitives.spec §3.1 표의 이름만 이름을 적어 다시 내보낸다(export * 금지).
+// @fresnel/ext-host 공개 진입점. X.primitives.spec §3.1 표의 이름만 이름을 적어 다시 내보낸다(export * 금지).
 // 표에 없는 내부 이름(HandlerRegistry, ScopeRuntime, LeaseBroker, CordisBridge 등)은 나가지 않는다.
 export {
   // primitives §3.2
@@ -151,7 +151,7 @@ export type {
   TrustPromptRequest,
   TrustStoreBackend,
   TrustUpdate,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 
 // operations (X.operations.spec §3.1~§3.8, §6 중 M0·M1 몫)
 export {

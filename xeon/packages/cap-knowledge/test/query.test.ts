@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eachAsync } from "@xeon/contracts";
+import { eachAsync } from "@fresnel/contracts";
 import {
   clipSnippet,
   likeSnippet,

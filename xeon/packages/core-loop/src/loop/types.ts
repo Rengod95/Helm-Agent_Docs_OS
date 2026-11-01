@@ -10,9 +10,9 @@ import type {
   TurnId,
   TurnOrigin,
   Usage,
-} from "@xeon/contracts/conversation";
-import type { EffectIntent } from "@xeon/contracts/records";
-import type { ChildTurnRequest, ModelBinding, TaskScope } from "@xeon/contracts/services";
+} from "@fresnel/contracts/conversation";
+import type { EffectIntent } from "@fresnel/contracts/records";
+import type { ChildTurnRequest, ModelBinding, TaskScope } from "@fresnel/contracts/services";
 import type { PlacedInput, StepRef } from "../commits.ts";
 import type { ThreadRuntime } from "../types.ts";
 

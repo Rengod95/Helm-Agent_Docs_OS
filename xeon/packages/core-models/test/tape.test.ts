@@ -10,7 +10,7 @@ import {
   TapeLeftoverError,
   TapeMismatchError,
 } from "../src/testing/index.ts";
-import { flushMicrotasks } from "@xeon/ext-host/testing";
+import { flushMicrotasks } from "@fresnel/ext-host/testing";
 import { manualClock } from "./support/clock.ts";
 import { rejectionOf } from "./support/rejection.ts";
 

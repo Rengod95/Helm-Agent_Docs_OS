@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { activeLocale, setActiveLocale, type Locale } from "@xeon/client/i18n";
-import { WireError, wireError } from "@xeon/contracts/wire";
-import { AssembleError } from "@xeon/host";
+import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n";
+import { WireError, wireError } from "@fresnel/contracts/wire";
+import { AssembleError } from "@fresnel/host";
 import { invalidRemoteError, serviceConnectErrorOf, startErrorOf } from "../src/engine.ts";
 import { failureOfExport, failureOfWire, renderFailure } from "../src/errors.ts";
 import { EXIT } from "../src/exit-codes.ts";

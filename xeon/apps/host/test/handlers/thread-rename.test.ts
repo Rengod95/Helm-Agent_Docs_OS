@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
-import { WireError } from "@xeon/contracts/wire";
+import { err } from "@fresnel/contracts";
+import { WireError } from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 
 // thread.rename(F wire §3.3.1, HS-73)과 첫 입력 자동 제목(G2-12). 가짜 엔진 위의 실제 처리기다.
 

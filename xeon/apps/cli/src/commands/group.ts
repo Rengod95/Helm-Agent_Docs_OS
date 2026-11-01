@@ -1,7 +1,7 @@
 import { join, resolve } from "node:path";
-import { t } from "@xeon/client/i18n";
-import { err, ok, parseJson, type Result } from "@xeon/contracts";
-import { validateManifest } from "@xeon/contracts/extensions";
+import { t } from "@fresnel/client/i18n";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
+import { validateManifest } from "@fresnel/contracts/extensions";
 import type { GroupNewCommand } from "../cli/command.ts";
 import {
   DEFAULT_GROUP_VERSION,

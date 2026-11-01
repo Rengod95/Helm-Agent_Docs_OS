@@ -1,4 +1,4 @@
-import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   MAX_WORK_TASKS,
   WorkTaskIdSchema,
@@ -6,12 +6,12 @@ import {
   type WorkTask,
   type WorkTaskId,
   type WorkTaskStatus,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   WorkTaskChangedPayload,
   WorkTaskCreatedPayload,
   WorkTaskLinkPayload,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { OpFailure, TaskFailure } from "./failure.ts";
 import { findCycle } from "./graph.ts";
 import { blockersOf, indexTasks, isResolved, transitionOf } from "./model.ts";

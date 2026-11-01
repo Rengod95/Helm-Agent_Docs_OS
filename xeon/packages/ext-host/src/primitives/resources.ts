@@ -1,6 +1,9 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import { TOOL_NAME_WIRE_PATTERN, type WebProviderRegistration } from "@xeon/contracts/capabilities";
-import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import {
+  TOOL_NAME_WIRE_PATTERN,
+  type WebProviderRegistration,
+} from "@fresnel/contracts/capabilities";
+import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import {
   McpPortKey,
   ModelsPortKey,
@@ -12,14 +15,14 @@ import {
   type ScopeId,
   type ToolResourceDef,
   type Unsubscribe,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { PrimitiveError, type ExtDiagnostic } from "./errors.ts";
 
 export type {
   McpServerResourceDef,
   ProviderResourceDef,
   ToolResourceDef,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 export {
   McpPortKey,
   ModelsPortKey,
@@ -27,7 +30,7 @@ export {
   type McpPort,
   type ModelsPort,
   type ToolsPort,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 
 export type ResourceKind =
   | "tool"
@@ -244,7 +247,7 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
     switch (record.kind) {
       case "tool": {
         const port = deps.ports.get(ToolsPortKey);
-        if (port === undefined) return err(portMissing("xeon.tools", record.scopeId));
+        if (port === undefined) return err(portMissing("fresnel.tools", record.scopeId));
         // 정의의 이름은 노출 이름으로 바꿔 넘긴다. 메서드는 원본 객체를 그대로 부른다
         const original = toolDefOf(record.def);
         if (original === undefined) return ok(NOOP);
@@ -261,7 +264,7 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
           return err(
             new PrimitiveError(
               "resource_conflict",
-              `tool ${record.exposed} is already registered in xeon.tools`,
+              `tool ${record.exposed} is already registered in fresnel.tools`,
               { scopeId: record.scopeId },
             ),
           );
@@ -270,13 +273,13 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
       }
       case "provider": {
         const port = deps.ports.get(ModelsPortKey);
-        if (port === undefined) return err(portMissing("xeon.models", record.scopeId));
+        if (port === undefined) return err(portMissing("fresnel.models", record.scopeId));
         const config = providerDefOf(record.def);
         return ok(port.registerProvider(record.scopeId, record.exposed, config));
       }
       case "mcp_server": {
         const port = deps.ports.get(McpPortKey);
-        if (port === undefined) return err(portMissing("xeon.mcp", record.scopeId));
+        if (port === undefined) return err(portMissing("fresnel.mcp", record.scopeId));
         const config = mcpDefOf(record.def);
         return ok(port.registerServer(record.scopeId, record.exposed, config));
       }

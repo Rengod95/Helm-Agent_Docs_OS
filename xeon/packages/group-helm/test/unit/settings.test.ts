@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { buildCatalog, checkSettingDef } from "@xeon/contracts/settings";
+import { parse } from "@fresnel/contracts";
+import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
 import {
   DEFAULT_HELM_DRIVE_LIMITS,
   DEFAULT_HELM_SETTINGS,

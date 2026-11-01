@@ -1,4 +1,4 @@
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import {
   DialogAskKey,
   DialogAttachmentsKey,
@@ -7,9 +7,9 @@ import {
   DialogStatusKey,
   WorkspaceImagesKey,
   type CallContext,
-} from "@xeon/contracts/capabilities";
-import type { IdFactory } from "@xeon/contracts/conversation";
-import type { ExtensionEntry, PortKey } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/capabilities";
+import type { IdFactory } from "@fresnel/contracts/conversation";
+import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
 import {
   ApprovalServicePortKey,
   ExecPortKey,
@@ -18,8 +18,8 @@ import {
   SecretServicePortKey,
   SessionPortKey,
   StoreServicePortKey,
-} from "@xeon/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
 import type { DialogDeps } from "./deps.ts";
 import { dialogManifest } from "./manifest.ts";
 import { createOsDelivery } from "./notify/os-delivery.ts";
@@ -33,8 +33,8 @@ import { readDialogSettings, type DialogSettingsSource } from "./settings.ts";
 /** 내구 알림(`dialog.notified`)을 남기는 생산자 id(L2.dialog.spec §3.7, owners.ts의 `dialog.` 접두 소유) */
 const DIALOG_PRODUCER = "cap.dialog";
 
-// L2.dialog.plan §2. 구현 패키지를 import하지 않고 F 서비스 인터페이스를 포트(xeon.exec, xeon.os, xeon.store, xeon.session, xeon.secrets)로만 받는다.
-// Cordis는 import하지 않는다(DR-11). 승인 팩토리와 사용자 셸 포트는 `xeon.approvals`·`xeon.loop` 포트가 있으면 이 패키지가
+// L2.dialog.plan §2. 구현 패키지를 import하지 않고 F 서비스 인터페이스를 포트(fresnel.exec, fresnel.os, fresnel.store, fresnel.session, fresnel.secrets)로만 받는다.
+// Cordis는 import하지 않는다(DR-11). 승인 팩토리와 사용자 셸 포트는 `fresnel.approvals`·`fresnel.loop` 포트가 있으면 이 패키지가
 // 기본 어댑터로 감싸고, 조립 루트(HOST)가 옵션으로 바꿔 넣을 수도 있다.
 
 export interface DialogPluginOptions {
@@ -42,9 +42,9 @@ export interface DialogPluginOptions {
   readonly settings: DialogSettingsSource;
   /** 휘발 이벤트 id를 만든다 */
   readonly ids: IdFactory;
-  /** 질문 승인 포트 팩토리. 생략하면 `xeon.approvals`를 `questionApprovalsOver`로 감싼다. 둘 다 없으면 `ask`는 unavailable이다 */
+  /** 질문 승인 포트 팩토리. 생략하면 `fresnel.approvals`를 `questionApprovalsOver`로 감싼다. 둘 다 없으면 `ask`는 unavailable이다 */
   readonly approvals?: ApprovalsPortFactory;
-  /** 사용자 개시 셸 실행. 생략하면 `xeon.loop`를 `shellPortOver`로 감싼다. 둘 다 없으면 셸 주입 명령은 unavailable이다 */
+  /** 사용자 개시 셸 실행. 생략하면 `fresnel.loop`를 `shellPortOver`로 감싼다. 둘 다 없으면 셸 주입 명령은 unavailable이다 */
   readonly shell?: ShellPort;
   /** 사람이 답할 수 있는 호출인가. 생략하면 모든 호출이 대화형이다 */
   readonly interactive?: (context: CallContext) => boolean;
@@ -54,7 +54,7 @@ export interface DialogPluginOptions {
    */
   readonly projectTrust?: (projectDir: string) => Promise<boolean>;
   /**
-   * 대화의 작업 폴더(`L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값). 생략하면 `xeon.session`의 thread 행
+   * 대화의 작업 폴더(`L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값). 생략하면 `fresnel.session`의 thread 행
    * `workspace`를 읽는다. 어느 쪽이든 작업 폴더가 없는 대화에는 프로젝트 명령이 없다(`L2.readme` §5.10)
    */
   readonly workspaceOf?: (threadId: string) => string | undefined;
@@ -194,7 +194,7 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
         runtime.status.onEvent(event);
         runtime.notify.onEvent(event);
       });
-      // OS 알림은 알림 구독자 하나다. 마스킹은 `xeon.secrets`의 redactor가 맡고, 없으면 본문을 가릴 수 없어 보내지 않는다
+      // OS 알림은 알림 구독자 하나다. 마스킹은 `fresnel.secrets`의 redactor가 맡고, 없으면 본문을 가릴 수 없어 보내지 않는다
       const notifyAbort = new AbortController();
       const unsubscribeOs =
         secrets === undefined

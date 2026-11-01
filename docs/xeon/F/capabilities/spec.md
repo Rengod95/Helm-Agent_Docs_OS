@@ -10,7 +10,7 @@ binds: [xeon/packages/contracts/src/capabilities/**, xeon/packages/contracts/src
 
 # F 능력 계약 (capabilities)
 
-서브패스: `@xeon/contracts/capabilities`, `@xeon/contracts/services`(§3.12)
+서브패스: `@fresnel/contracts/capabilities`, `@fresnel/contracts/services`(§3.12)
 
 ## 1. 목적과 범위
 
@@ -34,7 +34,7 @@ L2 능력(capability)의 정의 형식을 정한다. 능력 하나는 서비스 
 - 정적 검증 함수 `validateCapability`, `validateCapabilitySet`
 - 형식 설명용으로 간추린 예시 정의 `web.search`
 - 호출 문맥 `CallOptions.context`와 재호출 연속 정보 `CallOptions.continuation`(§3.2), 비밀 참조 형식과 그 순수 함수(`parseSecretRef` 등), 비밀 값 타입(§3.10), provider 선택 공통 타입(§3.11)
-- 서비스 인터페이스 서브패스 `@xeon/contracts/services`(L0·L1 서비스, `McpService`, `GroupService`)의 배치 규칙과 서비스 이름 상수(§3.12)
+- 서비스 인터페이스 서브패스 `@fresnel/contracts/services`(L0·L1 서비스, `McpService`, `GroupService`)의 배치 규칙과 서비스 이름 상수(§3.12)
 
 다루지 않는 것:
 
@@ -68,7 +68,7 @@ L2 능력(capability)의 정의 형식을 정한다. 능력 하나는 서비스 
 
 ## 3. 인터페이스
 
-모든 이름은 `@xeon/contracts/capabilities`에서 export한다. TypeBox는 `typebox` 패키지의 `Type`, `Static`, `TSchema`를 쓴다.
+모든 이름은 `@fresnel/contracts/capabilities`에서 export한다. TypeBox는 `typebox` 패키지의 `Type`, `Static`, `TSchema`를 쓴다.
 
 이 문서의 `~/projects/_ref/pi-src` 경로와 줄 번호는 로컬 pi 1.1.0 소스 기준이다. 계약 대상은 npm 1.3.0이다. pi-ai `types.ts`는 1.3.0에서 `ToolCall` 이후 줄이 5줄 밀리고(예: `Tool` 749-754 → 754-759), agent-core `types.ts`는 두 버전의 줄이 같다(`_research/notes/F-2.md` §4).
 
@@ -209,7 +209,7 @@ export type CapabilityApi<D extends AnyCapabilityDef> = {
 
 - [제안] 서비스 메서드는 입력 객체 하나를 받는다. 위치 인자(`search(query, opts)`)는 쓰지 않는다. 모델 도구의 파라미터가 JSON 객체 하나이므로 메서드 입력도 객체 하나로 두면 도구를 얇은 어댑터로 유지할 수 있다(§4.2). 예시의 `search(query, opts)`는 `search({ query, ...opts })`로 표현한다.
 - [제안] `CallOptions.context`는 `L2.readme` §5.8의 요청을 받은 것이다. `context`가 없으면 provider는 `{ caller: { kind: "host" } }`로 본다. 대상 세션 해석: 메서드 입력에 `threadId`가 있으면 그것을, 없으면 `context.threadId`를 쓰고 둘 다 없으면 `invalid_input`이다. 도구 경로(`context.toolCallId`가 있음)에서 입력 `threadId`가 `context.threadId`와 다르면 `denied`다.
-- [결정: m2 F.8] `CallContext.approval`은 `L1.tools.spec` §8.3 F 요청 13이다. 타입은 `SecretApprovalEvidence`(`capabilities/secrets.ts`, §3.10)이고 `services/secrets.ts`의 `ApprovalEvidence`와 같은 타입이다(별칭). `capabilities`가 `services`보다 낮아 정본을 낮은 쪽에 두었다. `L2.knowledge`의 `ApprovalEvidence`(`defs/knowledge.ts`)는 다른 타입이다. 비밀을 쓰는 도구 구현(cap-workspace shell `run`)은 `secretEnv` 요청을 만들 때 `SecretEnvRequest.ctx.approval`에 이 값을 그대로 옮기고, 없으면 null이다(`xeon.secrets`가 `approval_missing`으로 거부한다).
+- [결정: m2 F.8] `CallContext.approval`은 `L1.tools.spec` §8.3 F 요청 13이다. 타입은 `SecretApprovalEvidence`(`capabilities/secrets.ts`, §3.10)이고 `services/secrets.ts`의 `ApprovalEvidence`와 같은 타입이다(별칭). `capabilities`가 `services`보다 낮아 정본을 낮은 쪽에 두었다. `L2.knowledge`의 `ApprovalEvidence`(`defs/knowledge.ts`)는 다른 타입이다. 비밀을 쓰는 도구 구현(cap-workspace shell `run`)은 `secretEnv` 요청을 만들 때 `SecretEnvRequest.ctx.approval`에 이 값을 그대로 옮기고, 없으면 null이다(`fresnel.secrets`가 `approval_missing`으로 거부한다).
 - [결정: m2 F.8] `CallContext.interactive`는 비대화형 실행에서 사람에게 묻는 능력(`dialog.ask`)이 `ask_unavailable_headless`를 내는 근거다(`L2.dialog.spec` §4.1.2). 그룹·확장 경로와 호스트 호출처럼 값이 없으면 대화형으로 본다.
 - [결정: m2 F.8] `CallOptions.continuation`은 `L1.tools.spec` §8.3 F 요청 12(결정 D5 (a))다. 능력 메서드가 `status: "input_required"`로 돌아오고 승인 `approvalId`가 없으면(MCP `McpInputRequired`), L1.tools가 `questions`를 kind `question` 승인으로 올리고 사용자 답을 `inputResponses`로 옮긴 뒤 같은 `requestId`로 `continuation`을 붙여 다시 부른다. 옮기는 규칙은 순수 함수 `planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`(`defs/mcp-questions.ts`, §3.9)다. 입력의 `continuation`(`CallToolInputValue.continuation`)은 그룹 코드가 직접 부르는 경로에서 계속 쓴다.
 - 서비스 메서드는 실패 시 `CapabilityError`로 거부(reject)한다(§3.6). F `AgentTool.execute`(`F.conversation.spec` §3.1.1)도 도구가 실패하면 거부하고 core-tools가 오류 결과로 바꾸므로 같은 규약을 쓴다. [가정] eng.typescript.guide의 Result 규약은 층 내부 함수에 적용되고, Cordis 서비스 경계는 예외 기반으로 둔다고 본다.
@@ -236,7 +236,7 @@ export interface ToolContent {
   readonly details?: JsonValue;
 }
 
-/** 도구 호출이 잡을 잠금 하나. path는 L1.tools가 xeon.exec의 canonicalPath로 정규화해 키를 만든다 */
+/** 도구 호출이 잡을 잠금 하나. path는 L1.tools가 fresnel.exec의 canonicalPath로 정규화해 키를 만든다 */
 export interface ToolLockDecl {
   readonly path: string;
   /** read는 같은 경로의 다른 read와 함께 돌고, write는 단독으로 돈다 */
@@ -363,9 +363,9 @@ export function serviceKey<const D extends AnyCapabilityDef>(def: D): ServiceKey
 
 - [제안] F는 Cordis를 import하지 않는다. F의 런타임 의존은 TypeBox와 pi 타입(type-only import)으로 한정한다. Cordis 서비스 등록, 주입, 도구 생성은 X(`X.primitives.spec`)와 L1.tools가 `ServiceKey`를 받아서 한다.
 - consumer는 `ScopeApi.capability(key)`(F.extensions.spec §3.2)로 서비스 API를 얻는다. 반환 타입은 `ApiOf<typeof key>`다. consumer 코드는 provider 패키지를 import하지 않는다.
-- Cordis 서비스 이름은 X가 `CapabilityId`에서 유도한다. 유도 규칙은 `X.primitives.spec` §3.7이고 능력마다 `cap:<id>` 바인딩 하나다. L0·L1 서비스 이름 `xeon.*`(§3.12, `eng.context-map.design` §5.3)와 이름 공간이 겹치지 않는다.
+- Cordis 서비스 이름은 X가 `CapabilityId`에서 유도한다. 유도 규칙은 `X.primitives.spec` §3.7이고 능력마다 `cap:<id>` 바인딩 하나다. L0·L1 서비스 이름 `fresnel.*`(§3.12, `eng.context-map.design` §5.3)와 이름 공간이 겹치지 않는다.
 - [제안] 도메인 서비스 묶음 타입(예: `WebService`)은 같은 도메인 능력 API를 모은 TypeScript 타입일 뿐이고 Cordis 서비스로 등록하지 않는다. consumer는 능력 단위 `ServiceKey`로 API를 얻는다(`L2.readme` §5.6과의 정리).
-- [결정: review.decisions-2 D-04] 예외는 `xeon.mcp` 하나다. L2 서비스 이름 중 Cordis에 등록되는 것은 `xeon.mcp`뿐이고, 인터페이스는 `McpService`(`McpPort` 확장, §3.12 `services/mcp.ts`)다. X가 확장의 MCP 서버 등록을 `McpPort`로 넘겨야 하기 때문이다(`F.extensions.spec` §3.2.1). `xeon.workspace`, `xeon.web`, `xeon.knowledge`, `xeon.work`, `xeon.dialog`, `xeon.artifacts`, `xeon.schedule`은 등록하지 않는 묶음 이름이다.
+- [결정: review.decisions-2 D-04] 예외는 `fresnel.mcp` 하나다. L2 서비스 이름 중 Cordis에 등록되는 것은 `fresnel.mcp`뿐이고, 인터페이스는 `McpService`(`McpPort` 확장, §3.12 `services/mcp.ts`)다. X가 확장의 MCP 서버 등록을 `McpPort`로 넘겨야 하기 때문이다(`F.extensions.spec` §3.2.1). `fresnel.workspace`, `fresnel.web`, `fresnel.knowledge`, `fresnel.work`, `fresnel.dialog`, `fresnel.artifacts`, `fresnel.schedule`은 등록하지 않는 묶음 이름이다.
 - [결정: review.m3-design-inputs A-01, M3-REQ-13] A안이다. F는 `ServiceKey<Api>`만 두고 Cordis `Context`에 대한 선언 병합을 하지 않는다. 타입 복원은 X의 래퍼(`ScopeApi.capability(key)`, `ApiOf<K>`)가 한다. 공급자 등록 `provide(key, impl)`은 `ScopeApi`에 두지 않고 X의 `hostOf(g).provide`로 둔다(`X.primitives.spec`, M3-REQ-30). 아래 표는 선택 근거로 남긴다.
 
 | 안 | 내용 | 장점 | 단점 |
@@ -524,7 +524,7 @@ export function diffToolsets(prev: readonly OrderedTool[], next: readonly Ordere
 
 [제안] 이 예시는 정의 형식을 설명하려고 줄인 것이다. `web.search`의 정본은 정의 파일 `xeon/packages/contracts/src/capabilities/defs/web.ts`이고 내용은 `L2.web.spec` §3.2가 정한다. 이 예시는 L2 정의와의 일치 검사 대상이 아니다. 줄인 점: 정본은 provider 정보를 최상위 `provider` 대신 `meta: WebCallMeta`(§3.11 `ProviderSelectionMeta` 포함)에 싣고, 출력에 `sources`·`answer`를, 결과에 `sourceId`와 발췌 위치·점수를, 입력에 `objective`·`freshness`·`provider`를 더하며(도구 파라미터는 `provider`를 빼고 `toInput`을 쓴다), 렌더링 표지를 `[${sourceId}]`로 쓰고, 고유 오류 `session_limit`와 `hints.idempotent`를 더한다(`L2.web.spec` §3.2 차이 표). 입력 필드는 `_research/web-tools.md` §4.2의 부분 집합이다.
 
-[결정: m2-plan F.2] 정의 파일은 M2 기준으로 `defs/workspace.ts`, `defs/web.ts`, `defs/web-provider.ts`, `defs/mcp.ts`, `defs/knowledge.ts`, `defs/work.ts`, `defs/dialog.ts`다. M3b B1-SCH2에서 `defs/schedule.ts`(능력 `schedule.entries`)가 더해졌다 [결정: 오케스트레이터 기본값]. 모두 `capabilities/index.ts`가 재노출하고 `@xeon/contracts/capabilities` 하나로 import한다. `defs/` 아래 깊은 경로는 `package.json` exports에 없다. 규칙은 다음과 같다.
+[결정: m2-plan F.2] 정의 파일은 M2 기준으로 `defs/workspace.ts`, `defs/web.ts`, `defs/web-provider.ts`, `defs/mcp.ts`, `defs/knowledge.ts`, `defs/work.ts`, `defs/dialog.ts`다. M3b B1-SCH2에서 `defs/schedule.ts`(능력 `schedule.entries`)가 더해졌다 [결정: 오케스트레이터 기본값]. 모두 `capabilities/index.ts`가 재노출하고 `@fresnel/contracts/capabilities` 하나로 import한다. `defs/` 아래 깊은 경로는 `package.json` exports에 없다. 규칙은 다음과 같다.
 
 - 객체·유니온 스키마는 `isolatedDeclarations` 때문에 export마다 타입이 필요하다. 읽기 전용 정적 타입을 손으로 적고 `Type.Unsafe<T>(shape satisfies SchemaProof<T, typeof shape>)`로 내보낸다(`eng.typescript.guide` TY-26 U5). 모양이 어긋나면 컴파일 오류다. 스키마를 이루는 하위 객체는 export하지 않는 `const`로 둔다. 정적 타입은 `type` 별칭이다. `interface`는 `ToolContent.structuredContent`(`JsonValue`)에 대입할 수 없기 때문이다.
 - 모델에 가는 텍스트를 만드는 렌더러(`renderSearch`, `renderFetch`, `renderBrowse`, `renderTaskList`, `renderPlanSubmit`, `renderAsk` 등)와 경계 감싸기(`wrapUntrusted`, `wrapUntrustedMcp`, `wrapUntrustedSession`)는 순수 함수로 정의 파일에 둔다. 경계 표지를 닫는 문자열은 본문 안에서 `<`를 `&lt;`로 바꿔 무력화한다. 도메인별 표지 이름은 `<untrusted_web_content>`, `<untrusted_mcp_content>`, `<untrusted_session_content>`다.
@@ -535,7 +535,7 @@ export function diffToolsets(prev: readonly OrderedTool[], next: readonly Ordere
 
 ```ts
 import { Type, type Static } from "typebox";
-import { defineCapability, serviceKey, type ToolContent } from "@xeon/contracts/capabilities";
+import { defineCapability, serviceKey, type ToolContent } from "@fresnel/contracts/capabilities";
 
 const Recency = Type.Union([Type.Literal("day"), Type.Literal("week"), Type.Literal("month"), Type.Literal("year")]);
 const ContentMode = Type.Union([
@@ -760,7 +760,7 @@ export type SecretAuditRecord =
 
 - [결정] 비밀 참조 형식은 `secret://<name>`이다(`_research/secrets.md` §6.1, `_research/decisions-log.md` 2026-10-21 2차).
 - [결정: review.decisions-2 U-08] 값 타입의 정본은 위 블록이다. `SecretMeta`·`SecretUsePolicy`는 TS 인터페이스와 스키마(`*Schema`)를 함께 두고, 두 모양이 같은지 타입 테스트로 확인한다(§9). 세션 이벤트로 남는 감사 레코드 네 종류(`used`, `denied`, `approved`, `masked`)는 `F.records.spec` §3.3.1 `secret.*` payload가 정본이고, `SecretAuditRecord`의 같은 `type` 변형과 필드가 같아야 한다. 관리 레코드(`created`·`updated`·`deleted`·`rotated`·`revealed`)는 세션 이벤트가 아니다.
-- 서비스 인터페이스(`SecretService`, `SecretProvider`, `Redactor`, `UseCtx`, `SecretLease`, `SecretError` 등)와 관리 서비스(`SecretAdminService`)는 이 파일에 두지 않고 `@xeon/contracts/services`의 `services/secrets.ts`, `services/secret-admin.ts`에 둔다(§3.12 표). `Redactor` 구현, SOPS 래퍼, `KeyProvider`는 `platform-secrets` 내부다.
+- 서비스 인터페이스(`SecretService`, `SecretProvider`, `Redactor`, `UseCtx`, `SecretLease`, `SecretError` 등)와 관리 서비스(`SecretAdminService`)는 이 파일에 두지 않고 `@fresnel/contracts/services`의 `services/secrets.ts`, `services/secret-admin.ts`에 둔다(§3.12 표). `Redactor` 구현, SOPS 래퍼, `KeyProvider`는 `platform-secrets` 내부다.
 
 ### 3.11 provider 선택 공통 타입 (`provider.ts`)
 
@@ -806,28 +806,28 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 - 순서 규칙: plugin은 `pluginOrder` 순(목록에 없는 플러그인은 그 뒤에 id 바이트 순), 그다음 detected, builtin은 각각 id 바이트 순이다. 명시 선택(호출 인자, 설정)은 다른 후보로 내려가지 않는다. 세부 규칙은 `L2.readme` §5.2다.
 - provider 체인을 거치는 메서드의 출력은 `meta: ProviderSelectionMeta`(또는 이를 포함하는 도메인 메타)를 갖는다. 최상위 `provider` 필드는 쓰지 않는다. §3.9 예시의 최상위 `provider`는 간추린 표기다.
 
-### 3.12 서비스 인터페이스 서브패스 (`@xeon/contracts/services`)
+### 3.12 서비스 인터페이스 서브패스 (`@fresnel/contracts/services`)
 
-[결정: review.decisions-2 D-04] L0·L1 서비스 인터페이스, X 포트를 확장하는 L2·L3 서비스 인터페이스(`McpService`, `GroupService`, 규칙 7), 서비스 이름 상수를 F 서브패스 `@xeon/contracts/services`(`src/services/`)에 둔다. DR-02·DR-14·CM-05는 층 사이와 같은 층 패키지 사이의 협력을 F 인터페이스로만 하게 한다. 그래서 구현 패키지(`platform-*`, `core-*`)는 이 인터페이스를 구현해 Cordis 서비스로 등록하고, 소비 쪽은 구현 패키지를 import하지 않고 이 인터페이스로 주입받는다. 이 서브패스는 도메인을 새로 만들지 않는다. 능력과 같은 "서비스 계약" 범주라 이 문서가 배치 규칙을 정한다(`F.readme` §3).
+[결정: review.decisions-2 D-04] L0·L1 서비스 인터페이스, X 포트를 확장하는 L2·L3 서비스 인터페이스(`McpService`, `GroupService`, 규칙 7), 서비스 이름 상수를 F 서브패스 `@fresnel/contracts/services`(`src/services/`)에 둔다. DR-02·DR-14·CM-05는 층 사이와 같은 층 패키지 사이의 협력을 F 인터페이스로만 하게 한다. 그래서 구현 패키지(`platform-*`, `core-*`)는 이 인터페이스를 구현해 Cordis 서비스로 등록하고, 소비 쪽은 구현 패키지를 import하지 않고 이 인터페이스로 주입받는다. 이 서브패스는 도메인을 새로 만들지 않는다. 능력과 같은 "서비스 계약" 범주라 이 문서가 배치 규칙을 정한다(`F.readme` §3).
 
 | 인터페이스 | 서비스 이름 상수 | 서비스 이름 | 파일 | 구현 | 확장하는 포트 | 시그니처 초안(정본으로 옮길 블록) |
 |---|---|---|---|---|---|---|
-| `TaskService` | `TaskServiceName` | `xeon.tasks` | `services/tasks.ts` | `core-tasks` | `InputQueuePort` | `L1.tasks.spec` §3 |
-| `LoopService` | `LoopServiceName` | `xeon.loop` | `services/loop.ts`(`LoopServicePortKey`, 사용자 셸 `runUserBash`와 `UserBashRequest`·`UserBashOutcome`) | `core-loop` | `LoopPort` | `L1.loop.spec` §3 |
-| `ModelService` | `ModelServiceName` | `xeon.models` | `services/models.ts` | `core-models` | `ModelsPort` | `L1.models.spec` §3.3 |
-| `ToolService` | `ToolServiceName` | `xeon.tools` | `services/tools.ts` | `core-tools` | `ToolsPort` | `L1.tools.spec` §3.3 |
-| `ApprovalService` | `ApprovalServiceName` | `xeon.approvals` | `services/approvals.ts` | `core-tools` | 없음 | `L1.tools.spec` §3.6 |
-| `AgentService` | `AgentServiceName` | `xeon.agents` | `services/agents.ts` | `core-agents` | 없음 | `L1.agents.spec` §3.3 |
-| `ContextService` | `ContextServiceName` | `xeon.context` | `services/context.ts` | `core-context` | 없음 | `L1.context.spec` §3 |
-| `ExecService`(`ExecutionEnv` 확장) | `ExecServiceName` | `xeon.exec` | `services/exec.ts` | `platform-exec` | 없음 | `L0.exec.spec` §3.1, §3.6, §3.9 |
-| `SandboxService` | `SandboxServiceName` | `xeon.sandbox` | `services/sandbox.ts` | `platform-sandbox` | 없음 | `L0.sandbox.spec` §3 |
-| `ProcessService` | `ProcessServiceName` | `xeon.process` | `services/process.ts` | `platform-process` | `ProcessPort` | `L0.process.spec` §3 |
-| `OsService` | `OsServiceName` | `xeon.os` | `services/models.ts` | `ModelService`, `ModelServiceName`, 역할·참조·바인딩 값 타입. hosted 검색 포트 `HostedSearchPort`와 `HostedSearchRequest`, `HostedSearchResponse`, `HostedSearchError`, `HostedSearchSupport`, `HostedSearchContinuation`(불투명 문자열). `ModelService.hostedSearch`는 선택 필드이고 core-models가 L1C.3에서 구현하면 필수로 올린다. 요청은 hosted 검색 도구 하나만 단 단일 턴이며 대화 기록에 남지 않는다 [결정: m2-plan F.4, L2.web.spec §4.8.4] | `L1.models.spec` §3, `L2.web.spec` §8 |
+| `TaskService` | `TaskServiceName` | `fresnel.tasks` | `services/tasks.ts` | `core-tasks` | `InputQueuePort` | `L1.tasks.spec` §3 |
+| `LoopService` | `LoopServiceName` | `fresnel.loop` | `services/loop.ts`(`LoopServicePortKey`, 사용자 셸 `runUserBash`와 `UserBashRequest`·`UserBashOutcome`) | `core-loop` | `LoopPort` | `L1.loop.spec` §3 |
+| `ModelService` | `ModelServiceName` | `fresnel.models` | `services/models.ts` | `core-models` | `ModelsPort` | `L1.models.spec` §3.3 |
+| `ToolService` | `ToolServiceName` | `fresnel.tools` | `services/tools.ts` | `core-tools` | `ToolsPort` | `L1.tools.spec` §3.3 |
+| `ApprovalService` | `ApprovalServiceName` | `fresnel.approvals` | `services/approvals.ts` | `core-tools` | 없음 | `L1.tools.spec` §3.6 |
+| `AgentService` | `AgentServiceName` | `fresnel.agents` | `services/agents.ts` | `core-agents` | 없음 | `L1.agents.spec` §3.3 |
+| `ContextService` | `ContextServiceName` | `fresnel.context` | `services/context.ts` | `core-context` | 없음 | `L1.context.spec` §3 |
+| `ExecService`(`ExecutionEnv` 확장) | `ExecServiceName` | `fresnel.exec` | `services/exec.ts` | `platform-exec` | 없음 | `L0.exec.spec` §3.1, §3.6, §3.9 |
+| `SandboxService` | `SandboxServiceName` | `fresnel.sandbox` | `services/sandbox.ts` | `platform-sandbox` | 없음 | `L0.sandbox.spec` §3 |
+| `ProcessService` | `ProcessServiceName` | `fresnel.process` | `services/process.ts` | `platform-process` | `ProcessPort` | `L0.process.spec` §3 |
+| `OsService` | `OsServiceName` | `fresnel.os` | `services/models.ts` | `ModelService`, `ModelServiceName`, 역할·참조·바인딩 값 타입. hosted 검색 포트 `HostedSearchPort`와 `HostedSearchRequest`, `HostedSearchResponse`, `HostedSearchError`, `HostedSearchSupport`, `HostedSearchContinuation`(불투명 문자열). `ModelService.hostedSearch`는 선택 필드이고 core-models가 L1C.3에서 구현하면 필수로 올린다. 요청은 hosted 검색 도구 하나만 단 단일 턴이며 대화 기록에 남지 않는다 [결정: m2-plan F.4, L2.web.spec §4.8.4] | `L1.models.spec` §3, `L2.web.spec` §8 |
 | `services/os.ts` | `platform-os` | 없음 | `L0.os.spec` §3 |
-| `SecretService` | `SecretServiceName` | `xeon.secrets` | `services/secrets.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.3~§3.6, §3.10 |
-| `SecretAdminService` | `SecretAdminServiceName` | `xeon.secretAdmin` | `services/secret-admin.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.8 |
-| `McpService` | `McpServiceName` | `xeon.mcp` | `services/mcp.ts` | `cap-mcp` | `McpPort` | `L2.mcp.spec` §3.2 |
-| `GroupService` | `GroupServiceName` | `xeon.groups` | `services/groups.ts` | `group-sdk` | `LeaseArbiterPort` | `L3.group-sdk.spec` §3.8 |
+| `SecretService` | `SecretServiceName` | `fresnel.secrets` | `services/secrets.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.3~§3.6, §3.10 |
+| `SecretAdminService` | `SecretAdminServiceName` | `fresnel.secretAdmin` | `services/secret-admin.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.8 |
+| `McpService` | `McpServiceName` | `fresnel.mcp` | `services/mcp.ts` | `cap-mcp` | `McpPort` | `L2.mcp.spec` §3.2 |
+| `GroupService` | `GroupServiceName` | `fresnel.groups` | `services/groups.ts` | `group-sdk` | `LeaseArbiterPort` | `L3.group-sdk.spec` §3.8 |
 
 파일별 이름. 위 표의 인터페이스와 이름 상수 외에 각 파일에 두는 이름이다. 필드는 오른쪽 열 블록을 옮겨 확정한다(규칙 1).
 
@@ -853,17 +853,17 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 // src/services/names.ts
 /** 서비스 이름 상수 모음. 각 파일의 <X>ServiceName과 같은 값이다 */
 export const SERVICE_NAMES: {
-  readonly tasks: "xeon.tasks"; readonly loop: "xeon.loop"; readonly models: "xeon.models";
-  readonly tools: "xeon.tools"; readonly approvals: "xeon.approvals"; readonly agents: "xeon.agents";
-  readonly context: "xeon.context"; readonly exec: "xeon.exec"; readonly sandbox: "xeon.sandbox";
-  readonly process: "xeon.process"; readonly os: "xeon.os"; readonly secrets: "xeon.secrets";
-  readonly secretAdmin: "xeon.secretAdmin"; readonly mcp: "xeon.mcp"; readonly groups: "xeon.groups";
+  readonly tasks: "fresnel.tasks"; readonly loop: "fresnel.loop"; readonly models: "fresnel.models";
+  readonly tools: "fresnel.tools"; readonly approvals: "fresnel.approvals"; readonly agents: "fresnel.agents";
+  readonly context: "fresnel.context"; readonly exec: "fresnel.exec"; readonly sandbox: "fresnel.sandbox";
+  readonly process: "fresnel.process"; readonly os: "fresnel.os"; readonly secrets: "fresnel.secrets";
+  readonly secretAdmin: "fresnel.secretAdmin"; readonly mcp: "fresnel.mcp"; readonly groups: "fresnel.groups";
 };
 export type ServiceName = (typeof SERVICE_NAMES)[keyof typeof SERVICE_NAMES];
 
 // src/services/tasks.ts (포트를 확장하는 다른 파일도 같은 모양)
 import type { InputQueuePort } from "../extensions/index.ts";
-export const TaskServiceName: "xeon.tasks" = "xeon.tasks";
+export const TaskServiceName: "fresnel.tasks" = "fresnel.tasks";
 export interface TaskService extends InputQueuePort { /* L1.tasks.spec §3의 메서드 */ }
 
 // src/services/loop.ts, tools.ts, models.ts, process.ts, mcp.ts, groups.ts
@@ -882,7 +882,7 @@ export interface ExecService extends ExecutionEnv {
   withCwd(cwd: string): ExecutionEnv;
   startBackground(command: string | readonly string[], options: Omit<ShellExecOptions, "timeout" | "spill"> | undefined, context: CancelScope): Promise<Result<BackgroundExecHandle, ExecutionError>>;
 }
-export const ExecServiceName: "xeon.exec" = "xeon.exec";
+export const ExecServiceName: "fresnel.exec" = "fresnel.exec";
 
 // src/services/os.ts (알림 발췌. 1차 M3)
 /** 알림 종류. L2.dialog.spec의 NoticeKind 5종을 이 4종으로 옮긴다(L2.dialog.spec 대응표) */
@@ -903,7 +903,7 @@ export type NotifyError =
 규칙:
 
 1. 인터페이스와 그 서비스만 쓰는 인자·결과·오류 타입은 위 표의 파일에 둔다. 메서드 모양의 정본은 F다. 표의 소유 문서 블록은 F로 옮기기 전의 초안이고, 옮긴 뒤 소유 문서는 F 이름을 인용한다. 옮기는 작업은 `F.capabilities.plan` P9가 맡는다.
-2. 서비스 이름은 `xeon.<이름>` 형식이고 `eng.context-map.design` §5.3 표와 같다. 능력 서비스 이름 `cap:<id>`(§3.5)와 이름 공간이 겹치지 않는다. [결정: review.decisions-2 D-04] 같은 서비스 이름의 X 포트(`F.extensions.spec` §3.2.1 `ports.ts`)가 있으면 서비스 인터페이스가 포트를 확장한다. 대상은 `LoopService extends LoopPort`, `TaskService extends InputQueuePort`, `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `ProcessService extends ProcessPort`, `McpService extends McpPort`, `GroupService extends LeaseArbiterPort`다(위 표 "확장하는 포트" 열). records에 있는 `StoreService`는 `ScopedStorePort`(`Pick<StoreService, "scoped">`)를 그대로 만족하고, `SessionService`는 `ext`·`projectors` 속성이 `RecordCommitPort`·`ProjectorRegistryPort`다(`F.records.spec` §3.9). Cordis에는 서비스 인터페이스 하나로 등록한다.
+2. 서비스 이름은 `fresnel.<이름>` 형식이고 `eng.context-map.design` §5.3 표와 같다. 능력 서비스 이름 `cap:<id>`(§3.5)와 이름 공간이 겹치지 않는다. [결정: review.decisions-2 D-04] 같은 서비스 이름의 X 포트(`F.extensions.spec` §3.2.1 `ports.ts`)가 있으면 서비스 인터페이스가 포트를 확장한다. 대상은 `LoopService extends LoopPort`, `TaskService extends InputQueuePort`, `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `ProcessService extends ProcessPort`, `McpService extends McpPort`, `GroupService extends LeaseArbiterPort`다(위 표 "확장하는 포트" 열). records에 있는 `StoreService`는 `ScopedStorePort`(`Pick<StoreService, "scoped">`)를 그대로 만족하고, `SessionService`는 `ext`·`projectors` 속성이 `RecordCommitPort`·`ProjectorRegistryPort`다(`F.records.spec` §3.9). Cordis에는 서비스 인터페이스 하나로 등록한다.
 3. 여러 서비스가 함께 쓰는 값 타입은 원래 도메인 파일에 둔다. 예: 저장·투영 포트(`StoreService`, `SessionService`)는 `F.records.spec` §3.9, 비밀 값 타입은 §3.10, provider 선택 타입은 §3.11이다. [제안] 모델·컨텍스트 값 타입(`ModelBinding`, `CachePolicy` 등)은 `services/models.ts`에 두고 `services/context.ts`가 import한다. `L1.models.spec`·`L1.context.spec`이 요청한 `capabilities/models.ts`·`context.ts` 위치는 이 규칙으로 바꾼다.
 4. import 순서는 `F.readme` §3 표의 순서 4다. `services/`는 base, conversation, records, capabilities, extensions를 `import type`으로만 import한다. settings·wire와는 서로 import하지 않는다. 같은 서브패스 안의 파일 사이 import는 아래 방향만 허용하고, 서브패스 안에 순환이 없어야 한다(`test/services/imports.test.ts`가 그래프를 검사한다). [결정: open-issues D-05] 여러 서비스가 쓰는 공용 값 타입은 그 타입을 정의한 파일(규칙 3)에 두고, 쓰는 쪽이 import한다. 새 방향은 이 목록을 먼저 고친다.
 
@@ -921,8 +921,8 @@ export type NotifyError =
 6. 런타임 값은 서비스 이름 상수, 서비스 전체 모양의 포트 키(규칙 9), F 런타임 로직 예외에 드는 순수 함수(`describeSandboxStatus`, `matchProtectedPath`)뿐이다. 구현, 기본 구현, 테스트 대역은 두지 않는다(`F.readme` §1, review.decisions-2 U-03).
 7. [결정: review.decisions-2 D-04] `ApprovalService`, `AgentService`, `SecretService`(`L0.secrets.spec` §8.3 R1-a), `SecretAdminService`(같은 문서 R2), `McpService`, `GroupService`도 이 서브패스에 둔다. `McpService`는 L2 서비스지만 `McpPort`(extensions)를 확장해야 하고 capabilities는 extensions보다 낮아(`F.readme` §3) `capabilities/defs/mcp.ts`에 둘 수 없다. 그래서 `services/mcp.ts`에 두고 능력 정의 `McpClient`만 capabilities에 둔다. `GroupService`는 L3 `group-sdk`이 구현하는 서비스지만 `LeaseArbiterPort`(extensions)를 확장하고 X가 그 포트로 주입받으므로 같은 이유로 `services/groups.ts`에 둔다. `L3.group-sdk.spec` §3.8의 블록은 F로 옮기기 전의 초안이다(규칙 1). 다른 L2 서비스(`WorkspaceService` 등)는 포트를 확장하지 않으므로 지금처럼 capabilities에 둔다.
 8. `SERVICE_NAMES`는 위 표의 서비스 이름 15개와 같다(§9).
-9. 서비스 전체 모양의 포트 키(`PortKey<XService>`, 값은 `{ name: <X>ServiceName }`)는 서비스 이름 상수 옆에 둔다: `TaskServicePortKey`(`services/tasks.ts`), `ModelServicePortKey`(`models.ts`), `ToolServicePortKey`(`tools.ts`), `ApprovalServicePortKey`(`approvals.ts`), `AgentServicePortKey`(`agents.ts`), `LoopServicePortKey`(`loop.ts`), `ContextPortKey`(`context.ts`), `ExecPortKey`(`exec.ts`), `OsPortKey`(`os.ts`), `SecretServicePortKey`(`secrets.ts`), `SessionPortKey`(`services/session.ts`), `StoreServicePortKey`(`services/store.ts`). `ModelService`, `TaskService`, `ToolService`는 각각 `ModelsPort`, `InputQueuePort`, `ToolsPort`를 확장하지만 키는 둘이다: 확장 지점이 등록 부분형만 볼 때는 extensions의 `ModelsPortKey`, `InputQueuePortKey`, `ToolsPortKey`를, 서비스 전체를 쓸 때는 위 키를 쓴다(이름은 같다). `SessionService`와 `StoreService`는 records가 소유하는데 records(순서 2)는 `PortKey`(extensions, 순서 3)를 import할 수 없어 키만 `services/session.ts`, `services/store.ts`에 두고, 이름은 `SessionServiceName`, `StoreServiceName`과 같아야 한다(`names.test.ts`가 지킨다). 소비 패키지는 키를 자기 쪽에 다시 만들지 않고 `@xeon/contracts/services`에서 가져온다. 남은 지역 키는 `platform-exec`의 `SecretsPortKey`(`SecretEnvSource` 부분형)뿐이며 F 서비스의 전체 모양이 아니다.
-10. [결정: open-issues D-03] 자식 프로세스 env 거부 목록 `SENSITIVE_ENV_PATTERNS`의 위치는 `@xeon/contracts/services`의 `services/exec.ts` 하나다. `capabilities` 서브패스에 두지 않는다. `L0.exec.spec`, `L0.sandbox.spec`(자가 시험), `L0.secrets.spec`(sops 호출 env)과 각 plan은 이 위치를 인용한다.
+9. 서비스 전체 모양의 포트 키(`PortKey<XService>`, 값은 `{ name: <X>ServiceName }`)는 서비스 이름 상수 옆에 둔다: `TaskServicePortKey`(`services/tasks.ts`), `ModelServicePortKey`(`models.ts`), `ToolServicePortKey`(`tools.ts`), `ApprovalServicePortKey`(`approvals.ts`), `AgentServicePortKey`(`agents.ts`), `LoopServicePortKey`(`loop.ts`), `ContextPortKey`(`context.ts`), `ExecPortKey`(`exec.ts`), `OsPortKey`(`os.ts`), `SecretServicePortKey`(`secrets.ts`), `SessionPortKey`(`services/session.ts`), `StoreServicePortKey`(`services/store.ts`). `ModelService`, `TaskService`, `ToolService`는 각각 `ModelsPort`, `InputQueuePort`, `ToolsPort`를 확장하지만 키는 둘이다: 확장 지점이 등록 부분형만 볼 때는 extensions의 `ModelsPortKey`, `InputQueuePortKey`, `ToolsPortKey`를, 서비스 전체를 쓸 때는 위 키를 쓴다(이름은 같다). `SessionService`와 `StoreService`는 records가 소유하는데 records(순서 2)는 `PortKey`(extensions, 순서 3)를 import할 수 없어 키만 `services/session.ts`, `services/store.ts`에 두고, 이름은 `SessionServiceName`, `StoreServiceName`과 같아야 한다(`names.test.ts`가 지킨다). 소비 패키지는 키를 자기 쪽에 다시 만들지 않고 `@fresnel/contracts/services`에서 가져온다. 남은 지역 키는 `platform-exec`의 `SecretsPortKey`(`SecretEnvSource` 부분형)뿐이며 F 서비스의 전체 모양이 아니다.
+10. [결정: open-issues D-03] 자식 프로세스 env 거부 목록 `SENSITIVE_ENV_PATTERNS`의 위치는 `@fresnel/contracts/services`의 `services/exec.ts` 하나다. `capabilities` 서브패스에 두지 않는다. `L0.exec.spec`, `L0.sandbox.spec`(자가 시험), `L0.secrets.spec`(sops 호출 env)과 각 plan은 이 위치를 인용한다.
 11. [결정: m2-plan F.4] 정책 상한 계산(`childDecision`)처럼 두 L1 패키지가 함께 써야 하는 순수 함수는 F `services/`에 두되, 구현 패키지만 아는 평가기는 인자로 받는다. F는 구현 패키지를 import하지 않는다.
 
 ## 4. 동작 규칙
@@ -1070,7 +1070,7 @@ export type NotifyError =
 | `CallOptions.context`, `CallContext`, `CallerInfo` | L1.tools.spec, X.primitives.spec, L2 spec(`L2.readme` §5.8) |
 | `SecretRef`, `SecretName`, `SecretNameSchema`, `SECRET_REF_PATTERN`, `SECRET_NAME_PATTERN`, `SecretRefError`, `parseSecretRef`, `secretRef`, `findForeignSecretSyntax` | F.wire-settings.spec §3.8.1, L0.secrets.spec, L4.settings-ui.spec |
 | `SecretHandle`, `InjectionMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretMeta`, `SecretUsePolicy`, `SecretDenyReason`, `RedactionHit`, `RedactionLayer`, `ReauthMethod`, `SecretAuditRecord`와 스키마 | L0.secrets.spec, L1.tools.spec, L2.workspace.spec, L4.settings-ui.spec |
-| `@xeon/contracts/services`의 서비스 인터페이스와 `SERVICE_NAMES`(§3.12) | 구현: L0 `platform-*`, L1 `core-*`, L2 `cap-mcp`(`McpService`), L3 `group-sdk`(`GroupService`). 소비: X, L1~L4 |
+| `@fresnel/contracts/services`의 서비스 인터페이스와 `SERVICE_NAMES`(§3.12) | 구현: L0 `platform-*`, L1 `core-*`, L2 `cap-mcp`(`McpService`), L3 `group-sdk`(`GroupService`). 소비: X, L1~L4 |
 | `SecretService`, `SecretAdminService`와 부속 타입(`services/secrets.ts`, `services/secret-admin.ts`) | 구현: L0.secrets.spec. 소비: L0.exec.spec(`UseCtx`), L1.tools.spec, L1.models.spec, L2.web.spec, L2.mcp.spec, L4 |
 | `ProviderId`, `ProviderSelectionMeta`, `orderProviderCandidates` 등 | L2 spec(`L2.readme` §5.2) |
 | `EXTENSION_TOOL_NAME_PATTERN` | X.operations.spec §4.5 |
@@ -1098,8 +1098,8 @@ export type NotifyError =
 8. 같은 이름의 도구 정의가 바뀌면 `added`에만 나타나고 `removed`에는 나타나지 않는다.
 9. `CapabilityError`의 `data`는 `CapabilityErrorDataSchema`를 통과하고, `rate_limited`의 기본 `retryable`은 참이다.
 10. §3.9 `web.search` 정의는 `validateCapability` 이슈 0건이다.
-11. `@xeon/contracts/capabilities`의 어떤 파일도 `cordis`를 import하지 않는다(check-layers 또는 lint 규칙으로 확인).
-14. `@xeon/contracts/services`의 `SERVICE_NAMES` 값(15개)과 각 파일의 `<X>ServiceName` 값이 같고, `eng.context-map.design` §5.3 표의 서비스 이름과 집합이 같다. `src/services/`의 파일은 값 import 없이 `import type`만 쓰고 `cordis`와 구현 패키지를 import하지 않는다.
+11. `@fresnel/contracts/capabilities`의 어떤 파일도 `cordis`를 import하지 않는다(check-layers 또는 lint 규칙으로 확인).
+14. `@fresnel/contracts/services`의 `SERVICE_NAMES` 값(15개)과 각 파일의 `<X>ServiceName` 값이 같고, `eng.context-map.design` §5.3 표의 서비스 이름과 집합이 같다. `src/services/`의 파일은 값 import 없이 `import type`만 쓰고 `cordis`와 구현 패키지를 import하지 않는다.
 15. `LoopService`, `TaskService`, `ToolService`, `ModelService`, `ProcessService`, `McpService`, `GroupService`는 각각 `LoopPort`, `InputQueuePort`, `ToolsPort`, `ModelsPort`, `ProcessPort`, `McpPort`, `LeaseArbiterPort`에 대입 가능하고 `ExecService`는 `ExecutionEnv`에 대입 가능하다(타입 테스트).
 16. `SecretMetaSchema`·`SecretUsePolicySchema`의 `Static` 타입과 `SecretMeta`·`SecretUsePolicy` 인터페이스는 서로 대입 가능하다. `SecretAuditRecord`의 `secret.used`·`secret.denied`·`secret.approved`·`secret.masked` 변형은 `F.records.spec` §3.3.1 `secret.*` payload와 필드 이름이 같다(타입 테스트).
 17. `parseSecretRef("secret://github-token")`은 `ok`이고 `name`이 `github-token`이다. `parseSecretRef("$GITHUB_TOKEN")`은 `unsupported_ref_syntax`(`env_var`), `parseSecretRef("secret://A")`는 `invalid_ref`(`name_pattern`)다. 같은 입력에 같은 결과를 내고, `SecretName`에 검사 없는 `string`을 대입하면 타입 오류다.
@@ -1114,6 +1114,6 @@ export type NotifyError =
 - 닫음 [결정: M3-REQ-07]: 도구 없는 능력은 허용한다(§4.4).
 - 닫음: 내장 L2 능력 정의의 위치는 F `capabilities/defs/<domain>.ts`다(§3.9).
 - [결정: review.decisions-2 U-08] 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`와 부속 타입)은 §3.10 `secrets.ts` 블록이 정본이다. `SECRET_REF_PATTERN` 정본도 F다.
-- [결정: review.decisions-2 D-04] L0·L1 서비스 인터페이스와 `McpService`, `GroupService`는 `@xeon/contracts/services`에 둔다. 같은 이름의 X 포트가 있으면 서비스 인터페이스가 포트를 확장한다(§3.12 표, 규칙 2·7).
+- [결정: review.decisions-2 D-04] L0·L1 서비스 인터페이스와 `McpService`, `GroupService`는 `@fresnel/contracts/services`에 둔다. 같은 이름의 X 포트가 있으면 서비스 인터페이스가 포트를 확장한다(§3.12 표, 규칙 2·7).
 - 닫음 [결정: review.m3-design-inputs D-M3-31 행 1]: `ReplayPolicy` 값 이름은 `safe|unsafe`를 유지한다(정의는 F.conversation.spec §3.6).
 - [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai 1.3.0이 고정한 판과 같다.

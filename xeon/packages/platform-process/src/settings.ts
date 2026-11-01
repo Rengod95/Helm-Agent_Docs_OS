@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
+import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 
 // L0.process.spec §6. 모두 layer L0, since 0.1.0, L4 탭은 execution이다.
 // 자동 재개 키(l1.persistence.autoResume 등)는 여기에 두지 않는다(review.decisions-2 S-03).
@@ -17,7 +17,7 @@ const group = defineSettings("l0.process", {
     ui: { tab: "execution", widget: "toggle", order: 10, label: "공유 서비스 모드" },
     since: "0.1.0",
   },
-  // 빈 값이면 로컬 서비스(또는 프로세스 안 엔진)를 쓴다. 값 형식(`unix:`, `tcp://`, `ssh://`)은 @xeon/client가 해석한다. 토큰은 설정에 두지 않는다
+  // 빈 값이면 로컬 서비스(또는 프로세스 안 엔진)를 쓴다. 값 형식(`unix:`, `tcp://`, `ssh://`)은 @fresnel/client가 해석한다. 토큰은 설정에 두지 않는다
   "service.remote": {
     type: Type.String(),
     default: "",

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { detectMimicry, guardReport, NO_REPORT_TEXT } from "../src/index.ts";
 import { fixedIdFactory } from "./support/ids.ts";
 

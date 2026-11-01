@@ -1,5 +1,5 @@
-import { WorkGoals, WorkPlans, WorkReports, WorkTasks } from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
+import { WorkGoals, WorkPlans, WorkReports, WorkTasks } from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 
 export const WORK_EXTENSION_NAME = "cap-work";
 

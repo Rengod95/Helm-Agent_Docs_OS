@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import type { JsonRpcMessage } from "@xeon/contracts/wire";
+import type { JsonRpcMessage } from "@fresnel/contracts/wire";
 import { assistantItem, turnCompleted, userItem } from "./support/events.ts";
 import type { TurnContext } from "./support/fake-server.ts";
 import { createHarness, type Harness } from "./support/harness.ts";

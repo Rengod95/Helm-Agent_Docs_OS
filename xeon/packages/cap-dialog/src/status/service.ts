@@ -1,6 +1,6 @@
-import { DialogStatus, type CapabilityApi, type StatusItem } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope } from "@xeon/contracts/records";
+import { DialogStatus, type CapabilityApi, type StatusItem } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { DialogDeps } from "../deps.ts";
 import { DialogFailure, guarded } from "../errors.ts";
 import {

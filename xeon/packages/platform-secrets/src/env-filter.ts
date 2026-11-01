@@ -1,4 +1,4 @@
-import { SENSITIVE_ENV_PATTERNS } from "@xeon/contracts/services";
+import { SENSITIVE_ENV_PATTERNS } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §4.5. 자식 env 거부 목록의 정본은 F 상수 SENSITIVE_ENV_PATTERNS 하나다.
 // 이 패키지는 별도 목록을 두지 않는다. sops를 부를 때 쓰는 env는 부모 env에서 이 상수에 맞는 이름을

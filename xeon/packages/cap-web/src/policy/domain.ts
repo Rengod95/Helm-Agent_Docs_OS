@@ -1,5 +1,5 @@
-import { attempt } from "@xeon/contracts";
-import type { ScopeStack } from "@xeon/contracts/settings";
+import { attempt } from "@fresnel/contracts";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import { DOMAIN_PATTERN_SOURCE, readWebSettings } from "../settings.ts";
 
 // L2.web.spec §4.5. 도메인 규칙 문법, 매칭, 평가 순서(deny > ask > allow, 기본 ask).

@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, parse } from "@fresnel/contracts";
 import { gateAnswers } from "./support/gate.ts";
 import { openHarness, type Harness } from "./support/harness.ts";
 import { readGoals, readJudgments, readReports } from "../src/projection/read.ts";
 import { gid, usage } from "./support/goals.ts";
 import { GOAL_CONTINUE_TYPE, GOAL_NOTICE_TYPE } from "../src/goals/gate.ts";
-import type { JudgeOutcome } from "@xeon/contracts/services";
-import { CustomItemRecordSchema } from "@xeon/contracts/conversation";
-import { DurableEventEnvelopeSchema } from "@xeon/contracts/records";
+import type { JudgeOutcome } from "@fresnel/contracts/services";
+import { CustomItemRecordSchema } from "@fresnel/contracts/conversation";
+import { DurableEventEnvelopeSchema } from "@fresnel/contracts/records";
 
 // M3-new-02, D-M3-15, L2.work.spec §4.3. `boundary.settle.before` 완료 게이트: 판정 결과를 goalGateDecision으로 옮겨 turn을 잇거나 끝낸다.
 
@@ -231,7 +231,7 @@ describe("the judge limit", () => {
 describe("a judge failure stops", () => {
   test("failed settles the goal as judge_failed, ends the turn with a notice and never keeps going without a judgment", async () => {
     const h = await open();
-    const rig = gateAnswers(h, [{ kind: "failed", message: "xeon.models is not available" }]);
+    const rig = gateAnswers(h, [{ kind: "failed", message: "fresnel.models is not available" }]);
     await h.goals.set({ condition: "x" }, h.opts());
     const patch = await rig.settle();
 
@@ -239,15 +239,15 @@ describe("a judge failure stops", () => {
     const [entry] = patch?.entries ?? [];
     expect(entry && customOf(entry)).toEqual({
       customType: GOAL_NOTICE_TYPE,
-      content: "The goal judge failed (xeon.models is not available), so the turn stopped.",
+      content: "The goal judge failed (fresnel.models is not available), so the turn stopped.",
     });
     expect(goalState(h)).toEqual([["g1", "judge_failed", 0]]);
     expect(reports(h)).toMatchObject([
-      { outcome: "judge_failed", summary: "xeon.models is not available" },
+      { outcome: "judge_failed", summary: "fresnel.models is not available" },
     ]);
   });
 
-  test("a judge that throws and a missing xeon.agents are failures too", async () => {
+  test("a judge that throws and a missing fresnel.agents are failures too", async () => {
     const h = await open();
     const throwing = gateAnswers(h, [new Error("boom")]);
     await h.goals.set({ condition: "x" }, h.opts());

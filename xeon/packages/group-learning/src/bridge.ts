@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 import type { LearningError } from "./results.ts";
 import type { ProposalView } from "./proposals/proposal.ts";
 import type { ProposalFilter } from "./proposals/reader.ts";

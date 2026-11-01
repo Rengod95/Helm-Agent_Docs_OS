@@ -1,5 +1,5 @@
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type { AgentSettledEventPayload } from "@xeon/contracts/records";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { AgentSettledEventPayload } from "@fresnel/contracts/records";
 import type {
   AgentService,
   CancelTarget,
@@ -9,7 +9,7 @@ import type {
   SpawnOrigin,
   SpawnRequest,
   SpawnResult,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 /** `FakeAgents`가 새로 만든(중복이 아닌) 위임 하나 */
 export interface FakeDelegation {
@@ -31,7 +31,7 @@ export interface FakeAgentsOptions {
 }
 
 /**
- * L1 위임 서비스의 시험 대역(`xeon.agents`, L3.group-sdk.spec §3.4). 학습·Helm 그룹 시험이 쓴다.
+ * L1 위임 서비스의 시험 대역(`fresnel.agents`, L3.group-sdk.spec §3.4). 학습·Helm 그룹 시험이 쓴다.
  * 같은 (부모 thread, requestId)의 두 번째 delegate는 `duplicate`이고 `delegated`에 더하지 않는다.
  * `settle`은 정착 이벤트 페이로드를 만들어 준다. 호스트로 보내는 일은 시험이 한다(`host.afterCommit`)
  */

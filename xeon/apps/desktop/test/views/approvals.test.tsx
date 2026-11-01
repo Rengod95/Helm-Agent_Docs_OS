@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ApprovalRequestedPayload } from "@xeon/contracts/records";
+import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import { renderToString } from "react-dom/server";
 import type { EngineMirror } from "../../src/state/engine/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";

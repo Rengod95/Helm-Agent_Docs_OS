@@ -6,7 +6,7 @@ import type {
   RemoteResolution,
   ServiceEndpoint,
   StdioHostOptions,
-} from "@xeon/host";
+} from "@fresnel/host";
 import { EXIT } from "../src/exit-codes.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 

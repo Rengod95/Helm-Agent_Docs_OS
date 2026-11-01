@@ -1,12 +1,12 @@
-import { assertNever } from "@xeon/contracts";
-import { toJsonSchema } from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
+import { assertNever } from "@fresnel/contracts";
+import { toJsonSchema } from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import type {
   ExtensionManifest,
   RecordKind,
   RecordKindDecl,
   RecordSubject,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import type { Proposal } from "./proposals/proposal.ts";
 import type { ReviewOutcome } from "./proposals/reader.ts";

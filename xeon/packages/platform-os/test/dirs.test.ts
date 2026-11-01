@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { OsInfo } from "@xeon/contracts/services";
+import { Bug } from "@fresnel/contracts";
+import type { OsInfo } from "@fresnel/contracts/services";
 import { dirsWarnings, resolveDirs, type DirsInput, type EnvReader } from "../src/dirs.ts";
 
 const DARWIN: OsInfo = { platform: "darwin", arch: "arm64", isWsl: false, release: "24.0.0" };

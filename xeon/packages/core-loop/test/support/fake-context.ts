@@ -1,20 +1,20 @@
-import { Bug, err, ok, parse, type Clock } from "@xeon/contracts";
+import { Bug, err, ok, parse, type Clock } from "@fresnel/contracts";
 import type {
   AgentMessage,
   EventId,
   Message,
   SystemMessage,
   ThreadId,
-} from "@xeon/contracts/conversation";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import { ItemRecordedPayloadSchema, type SessionService } from "@xeon/contracts/records";
+} from "@fresnel/contracts/conversation";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { ItemRecordedPayloadSchema, type SessionService } from "@fresnel/contracts/records";
 import type {
   AssembledContext,
   CompactCheck,
   CompactRequest,
   ContextService,
   OverflowRecovery,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // 테스트 대역: core-context의 `assemble`(커밋된 item으로 메시지를 다시 만든다)과 `convertToLlm`만 흉내 낸다.
 

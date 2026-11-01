@@ -1,5 +1,5 @@
-import type { AskAnswer, AskAnswerItem, AskQuestion } from "@xeon/contracts/capabilities";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import type { AskAnswer, AskAnswerItem, AskQuestion } from "@fresnel/contracts/capabilities";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { isJsonObject } from "../util.ts";
 
 // 질문 도메인 모양(AskQuestion, AskAnswer)과 L1.tools 승인 레코드 모양(QuestionBody, QuestionAnswer)을 서로 옮긴다.

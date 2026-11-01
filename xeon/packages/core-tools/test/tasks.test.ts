@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { BashToolParams, CapabilityError, WorkspaceShell } from "@xeon/contracts/capabilities";
-import { EffectResultSchema, type ProducerHandle } from "@xeon/contracts/records";
-import { parse } from "@xeon/contracts";
-import type { ExecService, ToolRunContext } from "@xeon/contracts/services";
+import { BashToolParams, CapabilityError, WorkspaceShell } from "@fresnel/contracts/capabilities";
+import { EffectResultSchema, type ProducerHandle } from "@fresnel/contracts/records";
+import { parse } from "@fresnel/contracts";
+import type { ExecService, ToolRunContext } from "@fresnel/contracts/services";
 import { createApprovalService } from "../src/approvals/service.ts";
 import { createCallTable } from "../src/calls.ts";
 import { lockRequests, openToolScope, type LockEnv } from "../src/tasks.ts";

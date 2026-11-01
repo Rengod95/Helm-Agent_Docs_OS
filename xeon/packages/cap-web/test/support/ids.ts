@@ -1,11 +1,11 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   ApprovalIdSchema,
   ThreadIdSchema,
   type ApprovalId,
   type LocalIdFactory,
   type ThreadId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

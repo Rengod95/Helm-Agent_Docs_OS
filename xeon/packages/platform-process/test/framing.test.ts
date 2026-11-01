@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { WIRE_LIMITS } from "@xeon/contracts/wire";
+import { WIRE_LIMITS } from "@fresnel/contracts/wire";
 import { createLineFramer, encodeFrame, rejectionFrame, type FrameEvent } from "../src/index.ts";
 import { bytes } from "./support/streams.ts";
 

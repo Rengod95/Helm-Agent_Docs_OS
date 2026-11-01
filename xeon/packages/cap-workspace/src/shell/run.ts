@@ -1,11 +1,11 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import {
   WorkspaceShell,
   type CallContext,
   type CapabilityApi,
   type SecretRef,
-} from "@xeon/contracts/capabilities";
-import type { CancelScope, SecretEnvRequest } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { CancelScope, SecretEnvRequest } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure, guarded } from "../errors.ts";
 import { resolveWorkspacePath } from "../roots.ts";
@@ -13,7 +13,7 @@ import { scopedDeps } from "../scope.ts";
 import { runBashCommand, type BashOutcome } from "./upstream/bash.ts";
 import { unattendedTimeoutSec } from "./unattended.ts";
 
-// L2.workspace.spec §3.3, §4.2. 샌드박스 래핑(xeon.sandbox)과 실행(xeon.exec)은 F 인터페이스로만 만난다.
+// L2.workspace.spec §3.3, §4.2. 샌드박스 래핑(fresnel.sandbox)과 실행(fresnel.exec)은 F 인터페이스로만 만난다.
 
 type ShellApi = CapabilityApi<typeof WorkspaceShell>;
 type RunInput = Parameters<ShellApi["run"]>[0];
@@ -51,9 +51,9 @@ function actorOf(context: CallContext | undefined): "agent" | "runtime" | "human
 }
 
 /**
- * `secretEnv` 요청. 값은 이 패키지를 지나지 않는다: 참조만 `xeon.exec`에 넘기고 값 주입은 spawn 직전에 한다.
+ * `secretEnv` 요청. 값은 이 패키지를 지나지 않는다: 참조만 `fresnel.exec`에 넘기고 값 주입은 spawn 직전에 한다.
  * 승인 증거(`approval`)는 `CallContext.approval`(L1.tools가 사람의 승인을 받았을 때 채운다, F 요청 13)을 그대로 옮긴다.
- * 증거가 없으면 null이라 `xeon.secrets`가 `approval_missing`으로 거부한다(fail-closed).
+ * 증거가 없으면 null이라 `fresnel.secrets`가 `approval_missing`으로 거부한다(fail-closed).
  */
 function secretEnvOf(
   input: RunInput,
@@ -164,7 +164,7 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
         if (!ran.ok) {
           const { error, partial, fullOutputPath } = ran.error;
           if (error.code === "timeout") {
-            // 프로세스 그룹 종료는 xeon.exec가 한다. 그때까지의 출력은 detail에 싣는다
+            // 프로세스 그룹 종료는 fresnel.exec가 한다. 그때까지의 출력은 detail에 싣는다
             throw new WorkspaceFailure(
               "timeout",
               `Command timed out after ${timeoutSec ?? 0} seconds`,

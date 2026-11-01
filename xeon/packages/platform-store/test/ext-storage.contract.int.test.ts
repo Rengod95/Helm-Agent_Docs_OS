@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { FaultInjector, FaultPoint } from "@xeon/contracts/records";
+import type { FaultInjector, FaultPoint } from "@fresnel/contracts/records";
 import { faultAt, openTestStore, type TestStore } from "../src/testing/index.ts";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";
 import { applyTables } from "./support/migrate.ts";

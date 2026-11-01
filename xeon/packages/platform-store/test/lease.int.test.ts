@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
-import type { LeaseHolder, LeaseToken } from "@xeon/contracts/records";
+import type { LeaseHolder, LeaseToken } from "@fresnel/contracts/records";
 import { openStore } from "../src/index.ts";
 import { openTestStore, storeFaultAt, type TestStore } from "../src/testing/index.ts";
 import { fixedIdFactory, manualClock, type ManualClock } from "./support/clock.ts";

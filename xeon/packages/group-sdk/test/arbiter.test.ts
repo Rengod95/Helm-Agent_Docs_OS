@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LeaseArbiterPortKey,
   type LeaseArbiterPort,
   type LeaseCandidate,
   type ScopeId,
-} from "@xeon/contracts/extensions";
-import { withDriveDefaults } from "@xeon/ext-host";
-import { createTestHost, type TestHost, type TestHostOptions } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/extensions";
+import { withDriveDefaults } from "@fresnel/ext-host";
+import { createTestHost, type TestHost, type TestHostOptions } from "@fresnel/ext-host/testing";
 import {
   defaultDriveArbiter,
   defineGroup,

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "bun:test";
-import { canonicalJson } from "@xeon/contracts";
-import { parseSecretRef } from "@xeon/contracts/capabilities";
+import { canonicalJson } from "@fresnel/contracts";
+import { parseSecretRef } from "@fresnel/contracts/capabilities";
 import { createMcpStartGate, type McpStartDefinition } from "../src/mcp-start.ts";
 import { fakeApprovals, fakeSecretChecker } from "../src/testing/index.ts";
 import { expectOk, until } from "./support/harness.ts";

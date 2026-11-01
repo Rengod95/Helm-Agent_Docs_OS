@@ -1,8 +1,12 @@
 import { link, mkdir, open, readdir, readFile, rename, rm, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { attempt, attemptAsync, err, ok, parse, type Result } from "@xeon/contracts";
-import { SecretMetaSchema, type SecretMeta, type SecretName } from "@xeon/contracts/capabilities";
-import type { SecretError } from "@xeon/contracts/services";
+import { attempt, attemptAsync, err, ok, parse, type Result } from "@fresnel/contracts";
+import {
+  SecretMetaSchema,
+  type SecretMeta,
+  type SecretName,
+} from "@fresnel/contracts/capabilities";
+import type { SecretError } from "@fresnel/contracts/services";
 import { errorCode } from "./errors.ts";
 import { handleForName } from "./ref.ts";
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { BeforeProviderRequestInput, ProviderDispatcher } from "../src/index.ts";
 import { noGuard, spyDispatcher } from "./support/dispatcher.ts";
 import { t, tape } from "../src/testing/index.ts";

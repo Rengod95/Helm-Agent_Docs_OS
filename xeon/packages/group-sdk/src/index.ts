@@ -126,4 +126,4 @@ export type {
   GroupStatus,
   HolderReceipt,
   ToggleReceipt,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";

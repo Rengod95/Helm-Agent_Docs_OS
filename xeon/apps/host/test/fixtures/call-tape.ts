@@ -1,5 +1,5 @@
-import type { JsonObject } from "@xeon/contracts/conversation";
-import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
+import type { JsonObject } from "@fresnel/contracts/conversation";
+import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { realTapeClock } from "./tape-host.ts";
 import type { AssembleOptions } from "../../src/types.ts";
 

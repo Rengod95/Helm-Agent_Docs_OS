@@ -1,5 +1,5 @@
-import type { Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 
 /** 사용자에게 물어야 하는 이유(L2.web.spec §4.5.3, §4.6.6) */
 export type AskReason = "policy_ask" | "unseen_url" | "secret_pattern";
@@ -16,7 +16,7 @@ export interface WebAskRequest {
 export type WebAskError = { readonly kind: "unavailable"; readonly message: string };
 
 /**
- * 도메인·URL 승인 요청. 구현은 `xeon.approvals`의 L2 공통 포트(`L2ApprovalsPort`)를 감싸는 어댑터다(`ask-adapter.ts`).
+ * 도메인·URL 승인 요청. 구현은 `fresnel.approvals`의 L2 공통 포트(`L2ApprovalsPort`)를 감싸는 어댑터다(`ask-adapter.ts`).
  * 기억 범위(이번만, 이 세션, 항상)는 승인 프로토콜이 처리한다.
  */
 export interface WebAskPort {

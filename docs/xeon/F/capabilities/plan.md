@@ -10,7 +10,7 @@ binds: [xeon/packages/contracts/src/capabilities/**, xeon/packages/contracts/src
 
 # F 능력 계약 구현 계획
 
-대상 스펙: F.capabilities.spec. 패키지: `@xeon/contracts`, 서브패스 `./capabilities`, `./services`(스펙 §3.12).
+대상 스펙: F.capabilities.spec. 패키지: `@fresnel/contracts`, 서브패스 `./capabilities`, `./services`(스펙 §3.12).
 
 ## 1. 목표와 마일스톤 배치
 
@@ -127,8 +127,8 @@ P6 해시 선택 [제안]:
 | | `ToolWire assignable to pi Tool` | `ToolWire`가 pi-ai `Tool`에 할당 가능 |
 | `secrets.test.ts` | `secret ref parse` | `secret://github-token`은 `ok`, `$GITHUB_TOKEN`은 `unsupported_ref_syntax`(`env_var`), `secret://A`는 `invalid_ref`(`name_pattern`). `secretRef("A")`는 `Bug`를 던진다. `findForeignSecretSyntax("{{token}} op://v/i")`는 `template`, `provider_uri` 두 건이다(스펙 §9 13·17) |
 | | `secret meta schema` | `SecretMetaSchema`·`SecretUsePolicySchema`와 인터페이스가 서로 대입 가능하다(스펙 §9 16, 타입 테스트) |
-| `services.test.ts` | `service names match` | `SERVICE_NAMES`의 값과 각 파일의 `<X>ServiceName` 값이 같고 15개이며 모두 `xeon.` 접두다(스펙 §9 14) |
-| | `type-only imports` | `src/services/`의 모든 import가 `import type`이고 `cordis`, `@xeon/platform-*`, `@xeon/core-*` import가 0건이다 |
+| `services.test.ts` | `service names match` | `SERVICE_NAMES`의 값과 각 파일의 `<X>ServiceName` 값이 같고 15개이며 모두 `fresnel.` 접두다(스펙 §9 14) |
+| | `type-only imports` | `src/services/`의 모든 import가 `import type`이고 `cordis`, `@fresnel/platform-*`, `@fresnel/core-*` import가 0건이다 |
 
 - `contract.type-test.ts`는 `tsc -b`로만 검사한다(실행하지 않는다). 파일 이름 규칙과 실행 방법은 eng.testing.guide를 따른다 [가정].
 
@@ -136,13 +136,13 @@ P6 해시 선택 [제안]:
 
 1. F.capabilities.spec §9 수용 기준 1~17을 위 테스트가 모두 확인하고 통과한다.
 2. `just verify`의 `tsc -b`, oxlint(type-aware), check-layers, oxfmt 검사가 통과한다. contracts 패키지에서 `cordis` import가 0건이다.
-3. `@xeon/contracts/capabilities` 서브패스로 공개 이름 전부를 import할 수 있다.
+3. `@fresnel/contracts/capabilities` 서브패스로 공개 이름 전부를 import할 수 있다.
 4. 정합성 검사 입력으로 다음 항목을 남긴다(P2 검토자용).
    - `web.search` 정의 파일(`defs/web.ts`)이 `L2.web.spec` §3.2와 같은지. 스펙 §3.9 예시 픽스처는 형식 설명용으로 간추린 것이라 이 대조에서 뺀다.
    - `ReplayPolicy`, `ResultStatus`, `JsonValue`를 F.conversation.spec(§3.1, §3.6)의 위치에서 import하는지, `requestId`를 브랜드 없는 `string`으로 쓰는지, 오류 결과를 `ResultStatus`가 아닌 `isError`로 표현하는지.
    - `CapabilityId` 형식이 F.extensions.spec 매니페스트 필드와 같은 스키마를 import하는지.
    - L1.tools.spec의 도구 어댑터가 스펙 §4.2 환원 규칙과 같은 순서를 쓰는지.
-   - L0·L1 각 plan이 서비스 인터페이스를 `@xeon/contracts/services`에서 import하고 자기 패키지에 다시 정의하지 않는지, `SERVICE_NAMES`와 `eng.context-map.design` §5.3 표가 같은지.
+   - L0·L1 각 plan이 서비스 인터페이스를 `@fresnel/contracts/services`에서 import하고 자기 패키지에 다시 정의하지 않는지, `SERVICE_NAMES`와 `eng.context-map.design` §5.3 표가 같은지.
 
 ## 7. 위험과 대응
 

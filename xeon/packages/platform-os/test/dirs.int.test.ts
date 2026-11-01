@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, stat } from "node:fs/promises";
-import { err, ok } from "@xeon/contracts";
-import type { OsDirs } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { OsDirs } from "@fresnel/contracts/services";
 import { createNodeDirFs, ensureDirs, type DirFs } from "../src/dirs.ts";
 import { tempDir, type TempDir } from "../src/testing/index.ts";
 import { exists } from "./support/json.ts";

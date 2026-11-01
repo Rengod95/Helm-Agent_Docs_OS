@@ -1,7 +1,7 @@
 import { lstatSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { attempt, err, ok, type Result } from "@xeon/contracts";
-import { resolveOsDirs } from "@xeon/platform-os";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
+import { resolveOsDirs } from "@fresnel/platform-os";
 import { hostResourceDir } from "../state-paths.ts";
 
 // L4.host-service.spec §3.5, SV-05. 서비스 파일의 위치: `<runtimeDir>/service.json`, `<runtimeDir>/fresnel.sock`.

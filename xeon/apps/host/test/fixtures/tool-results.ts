@@ -1,4 +1,4 @@
-import type { EventWire } from "@xeon/contracts/wire";
+import type { EventWire } from "@fresnel/contracts/wire";
 
 /** 도구 결과 item의 message를 JSON 텍스트로 모은다(앞 `limit`자). 시험이 본문 조각을 찾는 데 쓴다 */
 export function toolResultTexts(events: readonly EventWire[], limit = 1500): string[] {

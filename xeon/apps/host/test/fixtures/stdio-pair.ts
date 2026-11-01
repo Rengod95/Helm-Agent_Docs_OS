@@ -1,4 +1,4 @@
-import type { Transport } from "@xeon/contracts/wire";
+import type { Transport } from "@fresnel/contracts/wire";
 import { createStdioTransport } from "../../src/transport/stdio.ts";
 
 // 같은 프로세스 안의 스트림 쌍 두 개로 stdio 전송의 서버 쪽과 클라이언트 쪽을 이어 준다(L4.host-service.plan H6).

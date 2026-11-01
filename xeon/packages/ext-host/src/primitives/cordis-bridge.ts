@@ -1,7 +1,7 @@
-// Cordis(@xeon/vendor-cordis)를 import하는 유일한 파일이다(eng.dependency-rules.guide DR-11, X.primitives.plan §2).
+// Cordis(@fresnel/vendor-cordis)를 import하는 유일한 파일이다(eng.dependency-rules.guide DR-11, X.primitives.plan §2).
 // 루트 Context, scope 세대마다의 fiber, effect, 서비스 provide/inject만 쓴다. Context와 Fiber는 밖으로 내보내지 않는다.
 // emit, parallel, serial, bail, waterfall과 Config 스키마는 쓰지 않는다(X.primitives.spec §4.3 함정 표).
-import { Context } from "@xeon/vendor-cordis";
+import { Context } from "@fresnel/vendor-cordis";
 import { eachInOrder } from "./sequence.ts";
 
 /** apply 안에서 받는 좁은 객체. Cordis ctx를 넘기지 않는다 */

@@ -1,4 +1,4 @@
-import type { ItemRecord, Message, UserMessage } from "@xeon/contracts/conversation";
+import type { ItemRecord, Message, UserMessage } from "@fresnel/contracts/conversation";
 
 // L1.context.spec §4.10 컴팩션 뒤 최근 읽은 파일 재주입(M3-REQ-86). 요약에 접힌 범위의 `read` 결과 가운데 마지막에 읽은 파일을
 // `l1.context.reinjectRecentFiles`개까지 요약 뒤에 다시 놓는다. 도구를 다시 실행하지 않고 기록된 결과 원문을 쓴다.

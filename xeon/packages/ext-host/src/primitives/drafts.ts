@@ -1,5 +1,5 @@
-import type { IdFactory, StepId, ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { DurableEventDraft, EventKind } from "@xeon/contracts/records";
+import type { IdFactory, StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { DurableEventDraft, EventKind } from "@fresnel/contracts/records";
 
 export interface DraftInput {
   readonly threadId: ThreadId;

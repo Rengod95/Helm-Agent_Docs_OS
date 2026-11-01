@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { parse, parseJson } from "@xeon/contracts";
-import { CapabilityError, ScheduleEntries } from "@xeon/contracts/capabilities";
+import { parse, parseJson } from "@fresnel/contracts";
+import { CapabilityError, ScheduleEntries } from "@fresnel/contracts/capabilities";
 import { createScheduleApi } from "../src/index.ts";
 import { createHarness, MemoryStore, SECOND, type Harness } from "./support/harness.ts";
 

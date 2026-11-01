@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { buildCatalog, checkSettingDef } from "@xeon/contracts/settings";
+import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
 import {
   loadingTrustSettings,
   RESERVED_EXT_KEYS,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { defaultAskAnswer, type AskQuestion } from "@xeon/contracts/capabilities";
+import { defaultAskAnswer, type AskQuestion } from "@fresnel/contracts/capabilities";
 import { createAskService } from "../src/ask/service.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";
 import { realApprovals } from "./support/real-approvals.ts";

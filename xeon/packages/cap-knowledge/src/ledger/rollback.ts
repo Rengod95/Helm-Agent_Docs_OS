@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import { SCAN_RULESET_VERSION } from "../scan/rules.ts";
 import type { Tree } from "../skills/tree.ts";

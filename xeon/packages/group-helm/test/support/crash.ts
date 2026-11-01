@@ -1,4 +1,4 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   createTestHost,
   fixedIdFactory,
@@ -7,7 +7,7 @@ import {
   type MemoryInputQueue,
   type MemoryLoopPort,
   type TestHost,
-} from "@xeon/ext-host/testing";
+} from "@fresnel/ext-host/testing";
 import { helmGroup } from "../../src/index.ts";
 import {
   DEFS,

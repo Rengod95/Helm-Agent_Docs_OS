@@ -138,8 +138,8 @@ binds: []
 ```ts
 // group-sdk/src/testing/policies/reviewgate.ts  (fixture, 4.2.2)
 import { Type, type Static } from "typebox";
-import { defineSettings } from "@xeon/contracts/settings";
-import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-sdk";
+import { defineSettings } from "@fresnel/contracts/settings";
+import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
 
 const reviewgateManifest = groupManifest({                          // 저장소 안 fixture라 매니페스트 객체를 직접 정의한다
   schemaVersion: 1, name: "reviewgate", version: "0.1.0", displayName: "검토 강제",
@@ -276,7 +276,7 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
 
 ```ts
 // group-sdk/src/testing/policies/guardrail.ts  (fixture 골격, 4.2.4)
-import { GUARD_HOOKS, type ExtensionEntry, type GuardDecision } from "@xeon/contracts/extensions";   // GUARD_HOOKS, GuardDecision은 [제안] 이름(ADR-0017)
+import { GUARD_HOOKS, type ExtensionEntry, type GuardDecision } from "@fresnel/contracts/extensions";   // GUARD_HOOKS, GuardDecision은 [제안] 이름(ADR-0017)
 
 export type GuardVerdict =
   | { readonly kind: "pass" }
@@ -387,7 +387,7 @@ export const TemplateIndexSchema: TObject = Type.Object({
 
 - [결정: review.decisions-2 U-18] 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이다. 밑줄은 쓰지 않는다. 테이블 접두는 이름의 하이픈을 밑줄로 바꾼 `x_<id>_`이고 지역 테이블 이름에 밑줄을 쓰지 않으므로 접두의 경계를 하나로 읽는다. 정본 상수는 `L3.group-sdk.spec` §3.2 `GROUP_NAME_PATTERN`이다.
 - 쓸 수 없는 이름: 예약 이름의 정본은 `L3.group-sdk.spec` §3.2 `RESERVED_GROUP_NAMES`다(`RESERVED_EXT_IDS`, `grp`·`x`·`xeon`, L2 도메인 이름, `auto`·`all`·`none`·`group`·`groups`·`kit`). 생성 명령(R2)과 `defineGroup`은 같은 상수로 거부한다. 설치된 확장 이름(`helm`, `learning` 포함)과 겹치는 이름은 설치 목록으로 거부한다(R2, `validateManifestSet`의 `name_conflict`). 이 경우는 상수에 넣지 않는다.
-- 패키지 이름은 저장소 안이면 `@xeon/group-<id>`, 외부면 제한하지 않는다 [제안].
+- 패키지 이름은 저장소 안이면 `@fresnel/group-<id>`, 외부면 제한하지 않는다 [제안].
 - 그룹 이름에서 파생되는 이름: scope id `<id>`, 레코드 kind `grp.<id>.<영역>.<이름>`, 설정 키 `ext.<id>.<이름>`, 테이블 `x_<id의 하이픈을 밑줄로>_*`, 비공개 기록 kind `grp.<id>.*`(`recordPrivate`), 명령 `/<id>`(선택).
 
 #### 3.3.5 템플릿 골격 코드
@@ -397,7 +397,7 @@ export const TemplateIndexSchema: TObject = Type.Object({
 drive 템플릿 `src/index.ts`:
 
 ```ts
-import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-sdk";
+import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { __ID__State, initialState, type State } from "./state.ts";
 import { __ID__Settings } from "./settings.ts";
@@ -440,7 +440,7 @@ export const initialState: State = { phase: "run", round: 0 };
 policy 템플릿 `src/index.ts`(상태 없는 그룹. `state`를 생략한다, `L3.group-sdk.spec` §3.2):
 
 ```ts
-import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-sdk";
+import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { __ID__Settings } from "./settings.ts";
 
@@ -461,7 +461,7 @@ export default group;
 observe 템플릿 `src/index.ts`:
 
 ```ts
-import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-sdk";
+import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { __ID__State, initialState, type State } from "./state.ts";
 import { __ID__Settings } from "./settings.ts";
@@ -485,7 +485,7 @@ export default group;
 
 ```ts
 import { Type, type TArray, type TString } from "typebox";
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+import { defineSettings, type SettingDefInput, type SettingGroup } from "@fresnel/contracts/settings";
 
 export const __ID__Settings: SettingGroup<"ext.__ID__", { blockedTools: SettingDefInput<TArray<TString>> }> = defineSettings("ext.__ID__", {
   blockedTools: {
@@ -526,8 +526,8 @@ export const __ID__Settings: SettingGroup<"ext.__ID__", { blockedTools: SettingD
 
 ```ts
 import { test, expect } from "bun:test";
-import { replayDrive } from "@xeon/group-sdk/testing";
-import { t, tape } from "@xeon/core-models/testing";
+import { replayDrive } from "@fresnel/group-sdk/testing";
+import { t, tape } from "@fresnel/core-models/testing";
 import group from "../src/index.ts";
 
 test("__ID__.drive-replays-at-every-commit", async () => {
@@ -546,7 +546,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 ```json
 {
-  "name": "@xeon/group-__ID__",
+  "name": "@fresnel/group-__ID__",
   "version": "__VERSION__",
   "private": true,
   "type": "module",
@@ -555,7 +555,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 }
 ```
 
-- `xeon` 필드는 저장소 안 그룹일 때 check-layers가 쓴다(`architecture.layers.spec` §3 규칙 3). 저장소 안에 넣으면 routes.yaml layout L3에 도메인을 더해야 `xeon.domain` 검사를 통과한다. 이것은 문서 변경이고 코어 코드 변경은 아니다 [제안].
+- `xeon` 필드는 저장소 안 그룹일 때 check-layers가 쓴다(`architecture.layers.spec` §3 규칙 3). 저장소 안에 넣으면 routes.yaml layout L3에 도메인을 더해야 `fresnel.domain` 검사를 통과한다. 이것은 문서 변경이고 코어 코드 변경은 아니다 [제안].
 
 - [결정: B4-GRP 구현] 생성 결과가 `bun test`를 통과하도록 골격을 다음과 같이 맞췄다. 자세한 목록은 `L3.slots.plan` §8이다. (1) 식별자에는 이름을 넣지 않는다(`stateSchema`, `settings`). 그룹 이름에는 하이픈이 올 수 있어 `__ID__State` 같은 식별자가 성립하지 않는다. (2) drive는 `loop.budget.turns === 0`으로 멈추지 않고 커밋된 단계 수로 멈춘다. 임대의 남은 예산은 임대마다 새로 정해지므로 재생 복원 뒤 임대 경계가 달라지고 이벤트열 비교가 깨진다. (3) `loop.turn`에는 커밋된 상태에서 정한 `requestId`를 준다(ADR-0015 §3.4). (4) 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 위 본문의 `tape`, `cutAt` 인자는 아직 없다.
 
@@ -594,7 +594,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 |---|---|
 | scope 상태 | 상태 문서와 마이그레이션은 그룹 기반(`defineGroup`)의 `StateDecl` 경로로 다룬다 |
 | 그룹 레코드 공개 | `recordKinds`의 접두가 `grp.<id>.`이어야 다른 그룹이 의도 그룹 레코드로 읽는다 |
-| `/group` 토글과 상태줄 표시 | `GroupService`(`xeon.groups`)는 `kind: "group"`만 목록에 올린다 [가정] |
+| `/group` 토글과 상태줄 표시 | `GroupService`(`fresnel.groups`)는 `kind: "group"`만 목록에 올린다 [가정] |
 
 - 플러그인도 scope를 하나 만들고 `ext.<id>.enabled`로 켜고 끈다(`F.extensions.spec` §3.2 마지막 항목). 차이는 그룹 기반 기능(`GroupApi`의 `settings()`, `delegate`, `metrics`, `/group` 명령)을 쓰는지다.
 - [미결] 이 기준의 최종 확정. 정식 예 셋은 이 기준으로 `reviewgate`·`commitguard`를 group, `guardrail`을 plugin으로 두었다.
@@ -641,7 +641,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 | # | 상황 | 결과 |
 |---|---|---|
-| 1 | 템플릿으로 만든 그룹이 다른 그룹 패키지(`@xeon/group-helm` 등)를 import함 | 저장소 안이면 check-layers가 `DR-02`로 실패한다. 허용 목록에는 `group-sdk`만 있다. 외부 그룹이면 X 로더가 거부할지는 `X.loading-trust.spec`이 정한다 [가정] |
+| 1 | 템플릿으로 만든 그룹이 다른 그룹 패키지(`@fresnel/group-helm` 등)를 import함 | 저장소 안이면 check-layers가 `DR-02`로 실패한다. 허용 목록에는 `group-sdk`만 있다. 외부 그룹이면 X 로더가 거부할지는 `X.loading-trust.spec`이 정한다 [가정] |
 | 2 | 그룹 이름이 설치된 확장과 같음 | `validateManifestSet`이 `name_conflict` 오류를 낸다. 생성 명령은 R2에서 미리 거부한다 |
 | 3 | 그룹 이름에 밑줄이나 대문자가 있거나, 예약 이름임 | 생성 명령이 거부한다. 직접 쓴 매니페스트는 X 로더가 확장 id 규칙(review.decisions-2 U-18)과 `RESERVED_EXT_IDS`로 거부한다(CM-07) |
 | 4 | 정책 플러그인(`kind: "plugin"`)이 `usesDrive: true`를 선언함 | `validateManifest`가 `drive_requires_group` 오류를 낸다 |
@@ -694,7 +694,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 | 이름 | 출처 |
 |---|---|
-| `defineGroup`, `GroupDef<S>`(상태 생략 허용), `groupManifest`, `RESERVED_GROUP_NAMES`, `GroupApi<S>`(`settings()` 포함), `GroupModule`, `GroupService`, `DriveArbiter`, `replayDrive`(`ReplayDriveOptions`, `ReplayDriveReport`), `scanDriveSource`, `@xeon/group-sdk/testing` | `L3.group-sdk.spec` §3.2, §3.10, §3.11 |
+| `defineGroup`, `GroupDef<S>`(상태 생략 허용), `groupManifest`, `RESERVED_GROUP_NAMES`, `GroupApi<S>`(`settings()` 포함), `GroupModule`, `GroupService`, `DriveArbiter`, `replayDrive`(`ReplayDriveOptions`, `ReplayDriveReport`), `scanDriveSource`, `@fresnel/group-sdk/testing` | `L3.group-sdk.spec` §3.2, §3.10, §3.11 |
 | `ExtensionManifest`, `ExtensionEntry`, `ScopeApi`, `PostItem`, `ToolCallDecision`, `BoundaryPatch`, `InputPatch`, `ToolResultPatch`, `validateManifest`, `validateUsage`, `validateManifestSet`, `FIRST_DENY` | `F.extensions.spec` |
 | `defineSettings`, `SettingDef`, `SettingsTab`, 키 문법, 예약 키 규칙 | `F.wire-settings.spec` |
 | 테스트 계층, 테이프 도우미 `t`·`tape`, `testing` 서브패스 규칙 | `eng.testing.guide` |
@@ -713,7 +713,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
    - commitguard: 검증 성공 전 `git commit` bash 호출은 거부되고, 검증 성공 뒤에는 실행된다.
    - guardrail: 패턴에 걸린 도구 호출은 도구 호출 가드에서 차단되고, 검사 함수 예외는 `onUnknown: "deny"`에서 차단된다. 핸들러가 던지면 차단된다.
 5. policy 그룹의 first 핸들러가 예외를 던지면 도구 호출이 거부된다.
-6. 템플릿으로 만든 그룹 소스에 `@xeon/group-helm` import를 넣으면 check-layers가 `DR-02`로 실패한다.
+6. 템플릿으로 만든 그룹 소스에 `@fresnel/group-helm` import를 넣으면 check-layers가 `DR-02`로 실패한다.
 7. 템플릿으로 만든 가짜 그룹을 추가하는 변경에서 `contracts`와 `ext-host`의 diff가 0이다(`product.vision.spec` S1).
 
 ## 10. 미결 사항

@@ -1,11 +1,11 @@
-import { attemptAsync, err, ok, rethrow, type Result } from "@xeon/contracts";
+import { attemptAsync, err, ok, rethrow, type Result } from "@fresnel/contracts";
 import {
   KnowledgeMemoryKey,
   KnowledgeSearchKey,
   WebSearchKey,
   type CapabilityId,
-} from "@xeon/contracts/capabilities";
-import type { GroupApi } from "@xeon/group-sdk";
+} from "@fresnel/contracts/capabilities";
+import type { GroupApi } from "@fresnel/group-sdk";
 import { failureOf, type HelmFailure } from "./failures.ts";
 import type { HelmSource, HelmState, InquiryId } from "./state.ts";
 

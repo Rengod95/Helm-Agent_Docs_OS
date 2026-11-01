@@ -29,7 +29,7 @@ binds: [xeon/packages/cap-web/**]
 
 - `_research/layer-plan-v2.json` L2-c는 `web.browse` 기본(playwright-core)을 1차로 둔다. 1차는 첫 사용 버전(M3 종료)에 들어가야 한다(`product.scope.spec` §2). 그래서 M3 끝을 넘길 수 없다.
 - M2 종료 조건에는 browse 항목이 없다(`product.scope.spec` §4.4 M2). M2의 웹 필수 항목은 검색 단계 구성이고, fetch의 승격 경로는 browse 없이도 플러그인 provider나 `empty_content` 경고로 동작한다(`L2.web.spec` §4.9.1 6단계). 그래서 B10을 M2 앞쪽에 둘 이유가 없다.
-- playwright-core의 Bun 1.4 동작은 실행 확인이 없다(`_research/notes/L2-2.md` §1). Bun 경로가 실패하면 Node 자식 우회(B10의 두 번째 절반)가 필요하고 `xeon.process`(L0.process)에 의존한다. 이 위험(`product.scope.spec` R3)은 M3 초입 B10 착수 때 판정한다.
+- playwright-core의 Bun 1.4 동작은 실행 확인이 없다(`_research/notes/L2-2.md` §1). Bun 경로가 실패하면 Node 자식 우회(B10의 두 번째 절반)가 필요하고 `fresnel.process`(L0.process)에 의존한다. 이 위험(`product.scope.spec` R3)은 M3 초입 B10 착수 때 판정한다.
 - Helm(M2)은 `web.search`, `web.fetch`만 `requires`로 쓴다(`L3.helm.spec` §3.8). browse가 늦어도 Helm M2 종료 조건에 영향이 없다.
 
 ### 1.3 M3 이후
@@ -47,7 +47,7 @@ binds: [xeon/packages/cap-web/**]
 | 선택 엔진 플러그인(Stagehand, moli) | 보류 | — | `_research/layer-plan-v2.json` L2-c |
 | Lightpanda | 제외 | AGPL이라 배포판에서 뺀다 | 같음 |
 
-- 플러그인 패키지는 `xeon/plugins/web-<이름>/`에 둔다. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 각 패키지의 `package.json`은 `"xeon": { "layer": "L1", "domain": "web" }`이고 F(`@xeon/contracts`), X, L0, 외부 패키지만 import한다. `cap-web`과 `core-*`는 import하지 않는다(DR-02, DR-09). 확장 매니페스트의 `layer: "plugin"`(`F.extensions.spec` `ExtensionLayerSchema`)은 매니페스트 값이고 패키지 순위와 별개다. [제안] `_routing/routes.yaml` `layout.plugins`에 `{ path: "xeon/plugins/web-*/**", docs: [L2.web.spec] }` 행을 더하도록 요청한다.
+- 플러그인 패키지는 `xeon/plugins/web-<이름>/`에 둔다. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 각 패키지의 `package.json`은 `"xeon": { "layer": "L1", "domain": "web" }`이고 F(`@fresnel/contracts`), X, L0, 외부 패키지만 import한다. `cap-web`과 `core-*`는 import하지 않는다(DR-02, DR-09). 확장 매니페스트의 `layer: "plugin"`(`F.extensions.spec` `ExtensionLayerSchema`)은 매니페스트 값이고 패키지 순위와 별개다. [제안] `_routing/routes.yaml` `layout.plugins`에 `{ path: "xeon/plugins/web-*/**", docs: [L2.web.spec] }` 행을 더하도록 요청한다.
 - 플러그인은 배포판에 기본 포함하되 기본 꺼짐으로 둘지, 별도 설치로 둘지는 [미결]이다(§7 위험 표, `L2.web.spec` §10).
 
 ## 2. 패키지와 파일 배치
@@ -65,7 +65,7 @@ xeon/packages/cap-web/
   src/
     index.ts                  # 엔트리: manifest, apply(ctx)
     manifest.ts               # provides: web.search, web.fetch, web.browse (research는 2차)
-    service.ts                # xeon.web 앞단 조립(WebService)
+    service.ts                # fresnel.web 앞단 조립(WebService)
     settings.ts               # defineSettings("l2.web", …)  B11
     contract/                 # B2
       source-ids.ts           #   세션별 sN 할당기
@@ -134,7 +134,7 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 
 - `fetch/convert/**`는 `L2.web.spec` §4.9.3 WEB-R16 영역이다. `.oxlintrc.json` `overrides`와 `scripts/check-layers.ts`의 `SourcePattern`이 이 경로를 대상으로 한다.
 - 마이그레이션 파일 위치와 적용 방식은 `L0.store.plan`의 접두사별 마이그레이션 규칙을 따른다 [가정: `L0.store.plan`이 `cap-*` 패키지의 `migrations/` 디렉터리를 읽는다].
-- `playwright-node/server.mjs`는 Node 24에서 도는 JS 파일이다. TypeScript 빌드 대상 밖이고 `xeon.process`로 실행한다.
+- `playwright-node/server.mjs`는 Node 24에서 도는 JS 파일이다. TypeScript 빌드 대상 밖이고 `fresnel.process`로 실행한다.
 
 ## 3. 작업 분해
 
@@ -154,7 +154,7 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 | B10 | browse playwright provider: 세션 관리와 상한, 필터 프록시, 이동 재검사, 사람 확인, 기본 비활성 동작, ref 부여, `code` 출력. Bun 호환 스모크(launch → goto → ariaSnapshot → close, connectOverCDP)와 Node 24 자식 우회(`runtime: node`). fetch 승격의 브라우저 경로 연결 | B3, B5, B6, L0.process.plan의 자식 프로세스 API | L | M3 초입 (결정 D4) |
 | B11 | 설정 키 `l2.web.*` 전체(`L2.web.spec` §6), 도메인 목록 범위 합집합 읽기, `checkSettingDef` 통과 테스트 | B1 | S | M2 |
 | B12 | agent-browser provider(2차): 바이너리 경로 설정, `--json`·`--session`·`--allowed-domains` 호출, delta 스냅샷 적용, ref 맵, 응답 TypeBox 정규화, 버전 고정 픽스처 | B10 | M | 2차 |
-| B13 | web.research(2차): native 루프(`xeon.agents`), 예산, 인용 검증 패스, 상태 머신, `run`/`start`/`get`/`cancel`, `web.research_progress` 휘발 이벤트 | B6, B7, B9, L1.agents.plan | L | 2차 |
+| B13 | web.research(2차): native 루프(`fresnel.agents`), 예산, 인용 검증 패스, 상태 머신, `run`/`start`/`get`/`cancel`, `web.research_progress` 휘발 이벤트 | B6, B7, B9, L1.agents.plan | L | 2차 |
 
 순서: B1 → B2 → (B3, B11) → (B4, B5) → B6 → B7 → (B8, B9) → B10. B8과 B9는 병렬로 할 수 있다.
 
@@ -360,7 +360,7 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 | 대상 | 요청 | 근거 |
 |---|---|---|
 | X 레인 | 능력별 provider 후보를 등록·조회하는 API. 플러그인 엔트리가 `WebProviderRegistration` 목록을 넘기고 `cap-web`이 `RegistrationSource.list()`로 읽는 모양이면 된다. X.2 리소스 레지스트리(`tool`, `provider`, `mcp_server`)에는 웹 provider 종류가 없다 | `X.primitives.spec` [가정], 이 plan §8.3 |
-| HOST.6 | `createWebRuntime`에 실제 포트를 연결한다: `xeon.store`(`WebStorePort`), `L2ApprovalsPort`(`createAskAdapter`), `xeon.session` 이벤트 읽기(`WebSessionSourcesPort`: `tool.settled`의 `structuredContent.sources`), `Redactor.containsKnown`(`OutboundSecretGuard`), 설정 층(`readWebSettings`), `input.user.before`·`thread.shutdown`·`boundary.step.before` 지점 구독(`SeenUrls.noteText`, 브라우저·원문 정리, `decideModelSearchTool`) | m2-plan HOST.6, 스펙 §7 |
+| HOST.6 | `createWebRuntime`에 실제 포트를 연결한다: `fresnel.store`(`WebStorePort`), `L2ApprovalsPort`(`createAskAdapter`), `fresnel.session` 이벤트 읽기(`WebSessionSourcesPort`: `tool.settled`의 `structuredContent.sources`), `Redactor.containsKnown`(`OutboundSecretGuard`), 설정 층(`readWebSettings`), `input.user.before`·`thread.shutdown`·`boundary.step.before` 지점 구독(`SeenUrls.noteText`, 브라우저·원문 정리, `decideModelSearchTool`) | m2-plan HOST.6, 스펙 §7 |
 | L1.tools | `redactForPersistence`를 `tool.settled` 영속 사본에 적용하는 경로. 이 패키지는 순수 함수만 낸다 | 스펙 §4.3.4, §8 요구 표 |
 | L0.secrets | `HeaderSecretSender`(플러그인 provider 헤더 비밀을 전송 직전에만 치환하는 통로). 값을 돌려주는 `valueOf` 포트는 없앴다. 구현은 L0 `createPluginHttp`·`withHttp`를 감싸는 조립 쪽 어댑터이며 L4 후속 유닛에서 잇는다 | 스펙 §3.6.1, `L0.secrets.spec` §3.6 |
 | F 레인 | 없음. `defs/web.ts`, `web-provider.ts`는 그대로 썼다. 다만 `WebFetchPage.status`가 100~599만 받아, 일괄 호출에서 실패한 URL의 페이지는 합성 상태 값을 쓴다(스펙 §4.9.1) | 스펙 §4.9.1 |

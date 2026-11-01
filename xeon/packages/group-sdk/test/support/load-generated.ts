@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import type { GroupModule } from "../../src/index.ts";
 
 /**

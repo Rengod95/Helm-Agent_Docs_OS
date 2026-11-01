@@ -4,7 +4,7 @@ layer: eng
 domain: onboarding
 kind: guide
 status: draft
-depends_on: [eng.toolchain.guide, eng.testing.guide, xeon.routing]
+depends_on: [eng.toolchain.guide, eng.testing.guide, fresnel.routing]
 binds: []
 ---
 
@@ -63,7 +63,7 @@ just docs-route --task implement packages/core-loop/src/turn.ts
 just docs-route --task docs L1/loop
 ```
 
-- 문서와 코드가 다르면 코드를 문서에 맞춥니다. 문서가 틀렸다고 보이면 고치지 말고 `[미결]`로 보고합니다(`xeon.routing`).
+- 문서와 코드가 다르면 코드를 문서에 맞춥니다. 문서가 틀렸다고 보이면 고치지 말고 `[미결]`로 보고합니다(`fresnel.routing`).
 - 열린 결정과 미결은 `review.unresolved`, 남은 M2 일은 `review.m2-plan` §10, M3로 넘긴 일은 `review.m3-plan`에 있습니다.
 
 ### ON-05 커밋은 한 층, 문서는 같은 커밋

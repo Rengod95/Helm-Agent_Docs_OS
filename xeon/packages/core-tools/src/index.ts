@@ -1,4 +1,4 @@
-// @xeon/core-tools 공개 진입점. 다른 L1은 이 패키지를 import하지 않고 서비스(xeon.tools, xeon.approvals)로 협력한다.
+// @fresnel/core-tools 공개 진입점. 다른 L1은 이 패키지를 import하지 않고 서비스(fresnel.tools, fresnel.approvals)로 협력한다.
 export {
   toolsManifest,
   toolsPlugin,

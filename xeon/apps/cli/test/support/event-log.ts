@@ -1,5 +1,5 @@
-import type { EventWire } from "@xeon/contracts/wire";
-import { systemScheduler } from "@xeon/platform-os";
+import type { EventWire } from "@fresnel/contracts/wire";
+import { systemScheduler } from "@fresnel/platform-os";
 
 // 시험용 이벤트 수집기: 이벤트가 오면 깨어나는 대기로 기다린다(실제 시간을 폴링하지 않고 상한만 둔다, eng.testing.guide TS-03).
 

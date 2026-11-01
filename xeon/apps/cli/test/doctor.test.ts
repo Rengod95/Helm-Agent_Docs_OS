@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { wireError, type HostBinaryReport } from "@xeon/contracts/wire";
+import { wireError, type HostBinaryReport } from "@fresnel/contracts/wire";
 import { EXIT } from "../src/exit-codes.ts";
 import { describeSearch } from "../src/commands/doctor.ts";
 import { createHarness, type Harness } from "./support/harness.ts";

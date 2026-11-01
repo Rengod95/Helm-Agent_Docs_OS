@@ -1,5 +1,5 @@
 import { basename, dirname, join } from "node:path";
-import { err, ok, eachAsync, type Clock, type Result } from "@xeon/contracts";
+import { err, ok, eachAsync, type Clock, type Result } from "@fresnel/contracts";
 import { failure, fromFsError, type KnowledgeFailure } from "../errors.ts";
 import type { KnowledgeFs } from "../fs/port.ts";
 import { sha256Hex } from "../hash.ts";

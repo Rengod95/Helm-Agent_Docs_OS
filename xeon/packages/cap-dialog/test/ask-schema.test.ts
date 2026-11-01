@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   AskAnswerSchema,
   AskParams,
@@ -9,12 +9,12 @@ import {
   type AskAnswer,
   type AskAnswerIssue,
   type AskQuestion,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   ApprovalAnswerSchema,
   ApprovalBodyJsonSchema,
   QuestionAnswerSchema,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { Value } from "typebox/value";
 import { fromQuestionAnswer, toQuestionAnswer, toQuestionBody } from "../src/ask/mapping.ts";
 

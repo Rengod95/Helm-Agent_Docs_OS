@@ -1,15 +1,15 @@
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, parse } from "@fresnel/contracts";
 import {
   ThreadStartedPayloadSchema,
   ThreadUpdatedPayloadSchema,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   AgentSpawnedPayloadSchema,
   ItemRecordedPayloadSchema,
   type DurableEventEnvelope,
   type ProjectionTx,
   type Projector,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { Static, TSchema } from "typebox";
 import { sha256Hex } from "../hash.ts";
 import {

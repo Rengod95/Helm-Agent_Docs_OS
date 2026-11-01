@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
+import { err } from "@fresnel/contracts";
 import { createRunCommand, createRunCommandSync } from "../src/proc.ts";
 
 const posix = process.platform === "win32" ? test.skip : test;

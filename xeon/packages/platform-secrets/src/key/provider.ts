@@ -1,5 +1,5 @@
-import type { Result } from "@xeon/contracts";
-import type { KeyProviderIdPublic, SecretError } from "@xeon/contracts/services";
+import type { Result } from "@fresnel/contracts";
+import type { KeyProviderIdPublic, SecretError } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §3.7. age 키 획득. 이 패키지의 코드는 identity를 읽지 않는다. 키 명령이나 키 파일 경로를
 // sops의 자식 env에 넘길 뿐이다. 예외는 첫 쓰기의 provision이다(파일 폴백과 macOS Keychain이 구현한다).

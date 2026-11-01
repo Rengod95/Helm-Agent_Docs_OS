@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/client",
+  "name": "@fresnel/client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -20,14 +20,14 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
-    "@xeon/contracts": "workspace:*",
+    "@fresnel/contracts": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:",
-    "@xeon/core-models": "workspace:*"
+    "@fresnel/core-models": "workspace:*",
+    "@types/bun": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L4",
     "domain": "client"
   }

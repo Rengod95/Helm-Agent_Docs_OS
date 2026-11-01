@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import type { Logger } from "@xeon/contracts";
-import { parse } from "@xeon/contracts";
-import { UNTRUSTED_OPEN, WebSearch, WebSearchOutputSchema } from "@xeon/contracts/capabilities";
-import type { HostedSearchPort } from "@xeon/contracts/services";
+import type { Logger } from "@fresnel/contracts";
+import { parse } from "@fresnel/contracts";
+import { UNTRUSTED_OPEN, WebSearch, WebSearchOutputSchema } from "@fresnel/contracts/capabilities";
+import type { HostedSearchPort } from "@fresnel/contracts/services";
 import { directConvertRunner } from "../src/fetch/convert-runner.ts";
 import type { HttpTransport } from "../src/ports/transport.ts";
 import { createWebRuntime, type WebRuntime } from "../src/runtime.ts";

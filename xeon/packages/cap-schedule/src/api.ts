@@ -1,12 +1,12 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import {
   CapabilityError,
   type CapabilityApi,
   type ScheduleEntries,
   type ScheduleEntryView,
   type ScheduleTrigger,
-} from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { ScheduleEntry, ScheduleService, StoreFailure, TriggerSpec } from "./types.ts";
 
 // L2.schedule.spec §4.4.9. 능력 `schedule.entries`(F)의 서비스 구현. 엔진의 `Result`를 경계에서 한 번 `CapabilityError`로 바꾼다.

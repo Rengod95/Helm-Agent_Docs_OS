@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { TYPE_PREFIX_OWNERS, WORK_EVENT_CATALOG, parseEventKind } from "@xeon/contracts/records";
+import { TYPE_PREFIX_OWNERS, WORK_EVENT_CATALOG, parseEventKind } from "@fresnel/contracts/records";
 import { WORK_PROJECTOR_NAME } from "../src/projection/ddl.ts";
 import { WORK_PRODUCER } from "../src/plugin.ts";
 import { createWorkProjector } from "../src/projection/projector.ts";

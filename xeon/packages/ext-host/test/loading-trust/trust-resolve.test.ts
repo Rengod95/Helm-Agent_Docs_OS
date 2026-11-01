@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { TrustChoice, TrustPrompter, TrustPromptRequest } from "@xeon/contracts/extensions";
+import type { TrustChoice, TrustPrompter, TrustPromptRequest } from "@fresnel/contracts/extensions";
 import {
   resolveProjectTrust,
   type ResolveProjectTrustInput,

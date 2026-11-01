@@ -1,4 +1,4 @@
-import { t } from "@xeon/client/i18n";
+import { t } from "@fresnel/client/i18n";
 import type { Link } from "../state/engine/index.ts";
 import { setupRequiredText } from "./setup-needed.ts";
 

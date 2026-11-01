@@ -1,5 +1,5 @@
-import { parse } from "@xeon/contracts";
-import { WIRE_ERRORS, WireError } from "@xeon/contracts/wire";
+import { parse } from "@fresnel/contracts";
+import { WIRE_ERRORS, WireError } from "@fresnel/contracts/wire";
 import { Type } from "typebox";
 import type { LockedOption } from "../state/ui/index.ts";
 import type { CommandError } from "../views/commands.ts";

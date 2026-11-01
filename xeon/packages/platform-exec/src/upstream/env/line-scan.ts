@@ -1,6 +1,6 @@
 import { rangeDecoder, startsWithBom } from "./decode.ts";
 // FRESNEL-PATCH: P9
-import type { LineScan } from "@xeon/contracts/services";
+import type { LineScan } from "@fresnel/contracts/services";
 
 const NEWLINE = 0x0a;
 const encoder = new TextEncoder();

@@ -1,21 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
-import type { Notice, NoticeKind } from "@xeon/contracts/capabilities";
+import { err, ok, type LogFields, type Logger, type Result } from "@fresnel/contracts";
+import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
 import type {
   NotifyError,
   NotifyKind,
   OsNotification,
   OsService,
   Redactor,
-} from "@xeon/contracts/services";
-import type { ScopeLayer, ScopeStack } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/services";
+import type { ScopeLayer, ScopeStack } from "@fresnel/contracts/settings";
 import { createOsDelivery, type OsDelivery } from "../src/notify/os-delivery.ts";
 import { NOTICE_COALESCE_MS, createNotifyService } from "../src/notify/service.ts";
 import { readDialogSettings } from "../src/settings.ts";
 import { flushTicks, harness, newThread } from "./support/harness.ts";
 import { goalSettled, memoryNotices, turnCompleted } from "./support/notices.ts";
 
-// L2.dialog.spec §4.7.2. 구독 알림을 `xeon.os`의 notify로 보낸다. 시험은 가짜 OS 서비스와 수준을 남기는 로거를 쓴다.
+// L2.dialog.spec §4.7.2. 구독 알림을 `fresnel.os`의 notify로 보낸다. 시험은 가짜 OS 서비스와 수준을 남기는 로거를 쓴다.
 // 묶음 시험만 실제 알림 서비스(createNotifyService)와 수동 시계를 쓴다.
 
 type NotifyReply = Result<void, NotifyError> | "reject";
@@ -43,7 +43,7 @@ function levelLogger(entries: Entry[]): Logger {
   return logger;
 }
 
-/** 보낸 호출을 기록하는 `xeon.os` 대역. replies가 비면 성공이다 */
+/** 보낸 호출을 기록하는 `fresnel.os` 대역. replies가 비면 성공이다 */
 function fakeOs(replies: NotifyReply[] = []): { os: Pick<OsService, "notify">; sent: Sent[] } {
   const sent: Sent[] = [];
   const queue = [...replies];

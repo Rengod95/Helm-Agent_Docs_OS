@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 import { pruneSpill, spillUsageBytes, type SpillError } from "../src/spill-store.ts";
 
 // L0.exec.spec §3.8.2 [결정: M3-REQ-47]: 보관 정리와 사용량. 시각은 주입한 기준 시각에서 거꾸로 맞춘다.

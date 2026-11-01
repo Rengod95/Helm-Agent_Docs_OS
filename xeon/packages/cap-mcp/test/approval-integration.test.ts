@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug, parse, repeatAsync } from "@xeon/contracts";
-import type { McpInputRequired } from "@xeon/contracts/capabilities";
-import type { JsonObject, ThreadId } from "@xeon/contracts/conversation";
+import { Bug, parse, repeatAsync } from "@fresnel/contracts";
+import type { McpInputRequired } from "@fresnel/contracts/capabilities";
+import type { JsonObject, ThreadId } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
-} from "@xeon/contracts/records";
-import type { ApprovalRequest, QuestionAnswer } from "@xeon/contracts/services";
-import { fakeApprovals, l2ApprovalsPort } from "@xeon/core-tools/testing";
+} from "@fresnel/contracts/records";
+import type { ApprovalRequest, QuestionAnswer } from "@fresnel/contracts/services";
+import { fakeApprovals, l2ApprovalsPort } from "@fresnel/core-tools/testing";
 import { askWithApprovals, buildInputResponses, roundRequestId } from "../src/index.ts";
 import type { StubCall, StubOutcome } from "../src/testing/stub-server.ts";
 import { startWorld, buildWorld, type World } from "./support/world.ts";

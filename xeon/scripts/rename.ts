@@ -246,6 +246,10 @@ export const CATEGORIES: readonly Category[] = [
     rules: [
       simple(`(?<![A-Za-z0-9_@/-])xeon\\.(${SERVICE_ALT})(?![A-Za-z0-9_-])`, "fresnel.$1"),
       simple("(?<![A-Za-z0-9_@/-])xeon\\.(hook|model-tape)\\.v1", "fresnel.$1.v1"),
+      // 정규식 소스 안의 이름: /^xeon\.[A-Za-z]+$/
+      { pattern: /(?<![A-Za-z0-9_@/-])xeon\\\.(?=\[)/g, replace: "fresnel\\." },
+      // 접두 표기: `xeon.${string}`, "xeon.", xeon.*, xeon.<이름>
+      simple("(?<![A-Za-z0-9_@/-])xeon\\.(?=\\$\\{|\\*|<|[\"'`])", "fresnel."),
     ],
   },
   {
@@ -253,6 +257,7 @@ export const CATEGORIES: readonly Category[] = [
     title: "정적 검사 규칙 id xeon/<rule> → fresnel/<rule>",
     rules: [
       simple(`(?<![A-Za-z0-9_@.-])xeon(\\\\?/)(${RULE_ALT})(?![A-Za-z0-9_-])`, "fresnel$1$2"),
+      simple("\\(xeon\\\\/\\[a-z-\\]\\+\\)", "(fresnel\\/[a-z-]+)"),
       simple("<xeon/rule>", "<fresnel/rule>"),
       simple("`xeon/<rule>`", "`fresnel/<rule>`"),
       simple("xeon/<rule>", "fresnel/<rule>"),

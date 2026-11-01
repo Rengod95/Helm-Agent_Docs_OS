@@ -1,4 +1,4 @@
-import type { SkillIndexEntry } from "@xeon/contracts/capabilities";
+import type { SkillIndexEntry } from "@fresnel/contracts/capabilities";
 
 // L2.knowledge.spec §4.2.5 첫 turn 인덱스 블록. 순수 함수다. 같은 스킬 집합과 같은 설정은 같은 바이트의 블록을 만든다
 // (프롬프트 캐시). 블록을 어디에 넣는지는 L1.context가 정한다.

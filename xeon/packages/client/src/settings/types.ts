@@ -5,7 +5,7 @@ import type {
   SettingLockReason,
   SettingScope,
   SettingsTab,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 // 설정 화면 view-model 타입(L4.settings-ui §3.4). 화면 부품 없이 값만 담는다. 쓰기 흐름의 초안·저장 중·오류 필드는 M3 쓰기 단계에서 더한다.
 

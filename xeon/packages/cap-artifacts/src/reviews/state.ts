@@ -1,5 +1,5 @@
-import { parse } from "@xeon/contracts";
-import type { TurnId } from "@xeon/contracts/conversation";
+import { parse } from "@fresnel/contracts";
+import type { TurnId } from "@fresnel/contracts/conversation";
 import {
   ReviewAppliedPayloadSchema,
   ReviewClosedPayloadSchema,
@@ -11,7 +11,7 @@ import {
   type DurableEventEnvelope,
   type ReviewCommentedPayload,
   type ReviewOpenedPayload,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { FileChangeKind, HunkApplied, HunkDecision } from "./types.ts";
 
 // L2.artifacts.spec §4.2.3. 리뷰 상태는 `artifact.review_*` 이벤트를 커밋 순서로 접어 얻는다(투영 테이블 없음 [결정: 오케스트레이터 기본값]).

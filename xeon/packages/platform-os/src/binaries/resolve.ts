@@ -10,14 +10,14 @@ import {
   parseJson,
   type Logger,
   type Result,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import type {
   BinaryError,
   BinaryName,
   OsInfo,
   ResolveBinaryOptions,
   ResolvedBinary,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { RunCommand } from "../proc.ts";
 import { resolveInsideResource } from "./lock.ts";
 import { compareTriples, findVersion, parseTriple, requireTriple } from "./semver.ts";

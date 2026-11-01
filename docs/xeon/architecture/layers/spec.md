@@ -72,7 +72,7 @@ export interface XeonPackageField {
 |---|---|---|
 | `DR-10/cli-host` | `apps/cli` → `apps/host` | CLI의 in-process 전송은 호스트의 조립 코드를 같은 프로세스에서 쓴다. 엔진 조립 코드를 한 곳에 둔다 |
 | `DR-10/cli-client`, `DR-10/desktop-client` | `apps/cli`, `apps/desktop` → `packages/client` | CLI와 데스크톱이 연결 코드(`createHostConnection`), 설정 view-model, 공유 로직, i18n 카탈로그를 한 곳에서 쓴다. F는 런타임 로직 없는 계약으로 둔다 [결정: adr.0020] |
-| `DR-10/host-client` | `apps/host` → `packages/client` | 호스트의 `./client` 재노출(`@xeon/host/client`)과 호스트 시험이 클라이언트 연결 구현을 쓴다. [미결] adr.0020 §3.5는 호스트가 `@xeon/client`를 import하지 않는다고 적는다. 재노출을 없애고 시험만 쓰는 방식은 시험 한정 DR-10 예외가 필요하다 |
+| `DR-10/host-client` | `apps/host` → `packages/client` | 호스트의 `./client` 재노출(`@fresnel/host/client`)과 호스트 시험이 클라이언트 연결 구현을 쓴다. [미결] adr.0020 §3.5는 호스트가 `@fresnel/client`를 import하지 않는다고 적는다. 재노출을 없애고 시험만 쓰는 방식은 시험 한정 DR-10 예외가 필요하다 |
 | `DR-02/group-sdk` | `packages/group-*` 전부(`group-helm`, `group-learning`, `group-account-rotation`, `group-provider-anthropic-oauth`, 앞으로 생길 그룹) → `group-sdk`의 `.`와 `./testing` | 그룹은 `group-sdk`의 `defineGroup`을 쓴다. 그룹 공통 기반을 그룹마다 중복하지 않는다 |
 
 - 예외 대상 패키지(`apps/host`, `packages/client`, `group-sdk`) 자신은 같은 층을 import하지 않는다. `check-layers.ts`는 `apps/*` → `packages/client` 간선을 DR-10으로, `packages/client` → `apps/*` 간선을 DR-02로 보고한다. `packages/client`는 F(`contracts`)만 import한다 [결정: adr.0020].
@@ -138,7 +138,7 @@ flowchart TB
 
 F와 X는 각각 패키지가 하나라 "같은 층 금지"는 패키지 안 import에 영향이 없다.
 
-표의 허용은 순위(DR-01)만 본 값이다. 컨텍스트가 다르면 DR-14가 구현 import를 다시 막고, F와 ext-host의 서비스 등록·주입 API 외에는 서비스 주입으로 쓴다(`eng.dependency-rules.guide` DR-14, 하위 층의 `@xeon/ext-host` import 예외 [결정: review.decisions-2 U-17]). 구현 패키지를 직접 import하는 곳은 조립 루트(`apps/host`), 같은 컨텍스트 안, 테스트 파일(`*.test.ts`, `test/` 아래)뿐이다. `./testing` 서브패스는 두지 않고 테스트 대역은 각 패키지 `test/` 안에 둔다 [결정: review.decisions-2 U-03, U-17].
+표의 허용은 순위(DR-01)만 본 값이다. 컨텍스트가 다르면 DR-14가 구현 import를 다시 막고, F와 ext-host의 서비스 등록·주입 API 외에는 서비스 주입으로 쓴다(`eng.dependency-rules.guide` DR-14, 하위 층의 `@fresnel/ext-host` import 예외 [결정: review.decisions-2 U-17]). 구현 패키지를 직접 import하는 곳은 조립 루트(`apps/host`), 같은 컨텍스트 안, 테스트 파일(`*.test.ts`, `test/` 아래)뿐이다. `./testing` 서브패스는 두지 않고 테스트 대역은 각 패키지 `test/` 안에 둔다 [결정: review.decisions-2 U-03, U-17].
 
 #### 4.2.2 패키지 단위 지도
 
@@ -219,7 +219,7 @@ flowchart TB
 
 - `plugins/provider-anthropic-oauth`는 `core-models`를 import하지 않는다. F provider 인터페이스로 만든 provider를 `core-models` 서비스에 등록한다. 라벨 "provider 등록(F 타입)" 점선은 import가 아니다 [결정: review.decisions-2 U-16].
 - `cli`가 `host`를, 그룹이 `group-sdk`을 import하는 "같은 층 예외" 점선 간선은 3.2절의 허용 목록 예외(`DR-10/cli-host`, `DR-02/group-sdk`)다.
-- 그림에서 생략한 `core-*`·`cap-*`·`platform-*` 패키지도 `contracts`와 `ext-host`로 가는 실선만 가진다. `core-persistence`는 `platform-store`를 import하지 않고 `xeon.store`를 F 타입으로 주입받는다(`L1.persistence.plan`). L2 패키지는 L0 패키지를 import하지 않는다(`L0.exec.spec`).
+- 그림에서 생략한 `core-*`·`cap-*`·`platform-*` 패키지도 `contracts`와 `ext-host`로 가는 실선만 가진다. `core-persistence`는 `platform-store`를 import하지 않고 `fresnel.store`를 F 타입으로 주입받는다(`L1.persistence.plan`). L2 패키지는 L0 패키지를 import하지 않는다(`L0.exec.spec`).
 
 #### 4.2.3 하위 층과 패키지 대응
 
@@ -261,7 +261,7 @@ flowchart TB
 | L4 cli | CLI | `apps/cli` |
 | L4 desktop | 데스크톱 | `apps/desktop` |
 | L4 host-service | 엔진 진입점과 서비스 | `apps/host` |
-| L4 settings-ui | 설정 화면 | `apps/desktop/src/views`(React 화면). 설정 view-model(`model.ts`, `key-entry.ts`, `diagnostics.ts`)은 `packages/client/src/settings`(`@xeon/client/settings`) [결정: adr.0020] |
+| L4 settings-ui | 설정 화면 | `apps/desktop/src/views`(React 화면). 설정 view-model(`model.ts`, `key-entry.ts`, `diagnostics.ts`)은 `packages/client/src/settings`(`@fresnel/client/settings`) [결정: adr.0020] |
 | L4 client | 클라이언트 공유 코드(연결, view-model, i18n 카탈로그) | `packages/client` [결정: adr.0020] |
 
 - `_research/foundation-plan.md` §3은 F5 서브패스를 `wire`, `settings` 둘로 적었고, routes.yaml은 도메인 `wire-settings` 하나로 적었다. 이 표는 routes.yaml을 따른다. 서브패스 이름은 `F.wire-settings.spec`이 정한다.
@@ -305,7 +305,7 @@ flowchart TB
 결론 [결정: review.decisions-2 U-14]: 순위를 유지한다. 단 다음 세 조건을 지킨다.
 
 1. X 소스와 테스트에서 L0·L1 import가 0건이다(DR-01. 테스트도 대상이다).
-2. X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다. 포트는 `F.extensions.spec` §3.2.1, L0·L1 서비스 인터페이스와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스다 [결정: review.decisions-2 §3 D-04].
+2. X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다. 포트는 `F.extensions.spec` §3.2.1, L0·L1 서비스 인터페이스와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스다 [결정: review.decisions-2 §3 D-04].
 3. L0는 `ExtHost.registerPlatform`으로 등록한다.
 
 이 결론으로 `eng.dependency-rules.guide` 1.1절·6절, `L0.readme` 순위 제약 단락, `X.readme` 6절 마지막 단락의 [미결]을 닫는다. 각 문서의 갱신은 그 문서 담당이 이 절을 인용해 한다. X가 OS 기능을 Bun 표준 API로 직접 쓰지 않고 L0.os가 구현한 포트로 받는다는 것이 근거다(1번 질문).
@@ -315,7 +315,7 @@ flowchart TB
 서비스 이름은 [제안]이다. 최종 이름과 메서드는 각 층의 `spec.md`가 정한다.
 
 - F 계약
-  - 제공: F1 메시지·스트림 타입(pi-ai 재노출), F2 이벤트·효과·체크포인트 레코드, F3 능력 정의, F4 지점 선언 표·호스트 포트·그룹 레코드 형식(`GroupRecord`), F5 호스트 계약과 설정 스키마, 층별 서비스 인터페이스(`@xeon/contracts/services`).
+  - 제공: F1 메시지·스트림 타입(pi-ai 재노출), F2 이벤트·효과·체크포인트 레코드, F3 능력 정의, F4 지점 선언 표·호스트 포트·그룹 레코드 형식(`GroupRecord`), F5 호스트 계약과 설정 스키마, 층별 서비스 인터페이스(`@fresnel/contracts/services`).
   - 요구: 없음. pi-ai 타입과 TypeBox만 외부 의존이다.
   - Cordis 서비스: 없음.
 - X 확장 체계
@@ -380,12 +380,12 @@ flowchart TB
 | L3 | 4 | group-sdk, helm, learning, slots (slots는 코드 없음) |
 | L4 | 4 | cli, desktop, host-service, settings-ui |
 
-패키지 이름과 도메인 이름의 대응: 패키지 `@xeon/host`(`xeon/apps/host`)는 routes와 L4 spec의 도메인 `host-service`에 대응하고, 패키지 `@xeon/group-sdk`은 도메인 `group-sdk`에 대응한다. 패키지 이름은 바꾸지 않는다. `xeon.domain`이 `host`로 남은 이유는 §10에 적었다.
+패키지 이름과 도메인 이름의 대응: 패키지 `@fresnel/host`(`xeon/apps/host`)는 routes와 L4 spec의 도메인 `host-service`에 대응하고, 패키지 `@fresnel/group-sdk`은 도메인 `group-sdk`에 대응한다. 패키지 이름은 바꾸지 않는다. `fresnel.domain`이 `host`로 남은 이유는 §10에 적었다.
 
 ## 5. 실패와 경계 사례
 
 - 층 위반 import는 `just check-layers`가 종료코드 1로 거부한다(9절).
-- `package.json`의 `xeon.layer`가 디렉터리 접두사에서 나온 층과 다르면 `check-layers.ts`가 거부한다(9절).
+- `package.json`의 `fresnel.layer`가 디렉터리 접두사에서 나온 층과 다르면 `check-layers.ts`가 거부한다(9절).
 - 같은 층 간선은 3.2절 허용 목록의 예외(`group-*` → `group-sdk`, `apps/cli` → `apps/host`, `apps/cli`·`apps/desktop`·`apps/host` → `packages/client`)만 통과한다. `plugins/*` → `core-*` import는 L1 같은 층 import라 `check-layers.ts`가 거부한다.
 - `xeon/vendor/cordis`는 층 검사 대상에서 빠진다(4.1절).
 
@@ -407,13 +407,13 @@ flowchart TB
 - 4.2절과 4.2.3절의 패키지 이름이 `_research/foundation-plan.md` §3 배치와 `xeon/packages/*`, `xeon/apps/*`, `xeon/plugins/*` 디렉터리 이름과 같다.
 - 4.1절의 순위 숫자, 4.2.1절 허용 표, `check-layers.ts`의 `RANK`가 서로 같다. 4.2.1절 표의 L3 → L2 금지는 `RANK` 비교가 아니라 DR-14 컨텍스트 검사(M1부터)와 M0 구간의 dependency-cruiser `group-*` 경로 규칙으로 확인한다(3.1절 2행).
 - 층 위반을 일부러 넣은 샘플 import(예: `core-loop`가 `cap-web`을 import)로 `just check-layers`가 종료코드 1을 낸다.
-- 모든 패키지 `package.json`의 `xeon.layer`가 디렉터리 접두사에서 나온 층과 같다(`check-layers.ts`의 `expectedLayer`).
+- 모든 패키지 `package.json`의 `fresnel.layer`가 디렉터리 접두사에서 나온 층과 같다(`check-layers.ts`의 `expectedLayer`).
 - 4.3절이 대안 비교 표와 검증 질문 3개의 판단을 포함한다.
 
 ## 10. 미결 사항
 
-- [미결] L4 앱 이름. routes.yaml 도메인은 `host-service`, 패키지 디렉터리와 `xeon.domain`은 `host`다. 설정 화면(`settings-ui`)은 별도 앱 없이 view-model을 `packages/client/src/settings`, 렌더러를 `apps/desktop/src/views`에 둔다 [결정: adr.0020].
-- [미결] `package.json`의 `xeon.domain` 값과 routes.yaml 도메인의 불일치. `contracts`(routes는 F 도메인 5개), `ext-host`(routes는 X 도메인 3개), `host`(routes는 `host-service`). 패키지 하나가 도메인 여럿을 담는 F·X는 `xeon.domain`을 패키지 이름으로 둘지 정해야 한다. `group-sdk`의 `kit`은 `group-sdk`으로 맞췄다(M3-35, `check-layers.ts`의 `expectedDomain` 예외). `apps/host`의 `host-service`는 DR-03이 거부한다(디렉터리 이름 `host`를 요구한다). 바꾸려면 검사 규칙에 L4 예외를 정해야 하고, 이 결정은 아직 없다.
+- [미결] L4 앱 이름. routes.yaml 도메인은 `host-service`, 패키지 디렉터리와 `fresnel.domain`은 `host`다. 설정 화면(`settings-ui`)은 별도 앱 없이 view-model을 `packages/client/src/settings`, 렌더러를 `apps/desktop/src/views`에 둔다 [결정: adr.0020].
+- [미결] `package.json`의 `fresnel.domain` 값과 routes.yaml 도메인의 불일치. `contracts`(routes는 F 도메인 5개), `ext-host`(routes는 X 도메인 3개), `host`(routes는 `host-service`). 패키지 하나가 도메인 여럿을 담는 F·X는 `fresnel.domain`을 패키지 이름으로 둘지 정해야 한다. `group-sdk`의 `kit`은 `group-sdk`으로 맞췄다(M3-35, `check-layers.ts`의 `expectedDomain` 예외). `apps/host`의 `host-service`는 DR-03이 거부한다(디렉터리 이름 `host`를 요구한다). 바꾸려면 검사 규칙에 L4 예외를 정해야 하고, 이 결정은 아직 없다.
 - [미결] 4.6절 하위 층 수(계획 41개, 실측 33개).
 - [미결] 4.4절 Cordis 서비스 이름. 그룹 사이 이벤트를 전역으로 전달할지 그룹 필터를 기본으로 둘지와 함께 X 문서가 정한다(`_research/notes/arch-1.md` §8).
 - [결정: adr.0020] `packages/client`의 층 판정. `check-layers.ts`의 `expectedLayer`는 디렉터리 이름 `client` 하나를 L4로, `expectedDomain`은 `client`로 대응시킨다. `.dependency-cruiser.cjs`는 L4 경로를 `^(apps/|packages/client/)`로 둔다(`review.m3-lower-requirements` M3-REQ-111).

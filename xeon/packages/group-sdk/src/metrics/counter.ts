@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { GroupId } from "@xeon/contracts/extensions";
+import { Bug } from "@fresnel/contracts";
+import type { GroupId } from "@fresnel/contracts/extensions";
 import type {
   GroupMetrics,
   GroupMetricsHandle,

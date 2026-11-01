@@ -1,7 +1,7 @@
 import { mkdir, open, rename, rm, stat } from "node:fs/promises";
 import { dirname } from "node:path";
-import { attemptAsync, err, ok, type Result } from "@xeon/contracts";
-import type { SecretError } from "@xeon/contracts/services";
+import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
+import type { SecretError } from "@fresnel/contracts/services";
 import { buildPlainEnv } from "../env-filter.ts";
 import { errorCode } from "../errors.ts";
 import { formatOfPath, parseSopsKeys } from "./sops-keys.ts";

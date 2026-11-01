@@ -1,10 +1,10 @@
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
   type ScopeApi,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import type { ExtensionUnit } from "../host.ts";
 

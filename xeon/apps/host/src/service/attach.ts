@@ -1,7 +1,7 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ServiceEndpoint } from "@xeon/client/endpoint";
-import type { ServiceConnectError } from "@xeon/client/socket";
-import type { HostConnection, Transport, WireResult } from "@xeon/contracts/wire";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ServiceEndpoint } from "@fresnel/client/endpoint";
+import type { ServiceConnectError } from "@fresnel/client/socket";
+import type { HostConnection, Transport, WireResult } from "@fresnel/contracts/wire";
 import {
   connectServiceTransport,
   createHostConnection,

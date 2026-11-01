@@ -1,10 +1,10 @@
-import { isId } from "@xeon/contracts/conversation";
-import { parseSecretRef, type SecretHandle } from "@xeon/contracts/capabilities";
-import type { Clock, Logger } from "@xeon/contracts";
-import type { ApprovalService, SecretService } from "@xeon/contracts/services";
-import type { McpStartGate as McpStartPort } from "@xeon/cap-mcp";
-import { createMcpStartGate, type McpStartDefinition } from "@xeon/core-tools";
-import { mcpDefinitionHash } from "@xeon/platform-secrets";
+import { isId } from "@fresnel/contracts/conversation";
+import { parseSecretRef, type SecretHandle } from "@fresnel/contracts/capabilities";
+import type { Clock, Logger } from "@fresnel/contracts";
+import type { ApprovalService, SecretService } from "@fresnel/contracts/services";
+import type { McpStartGate as McpStartPort } from "@fresnel/cap-mcp";
+import { createMcpStartGate, type McpStartDefinition } from "@fresnel/core-tools";
+import { mcpDefinitionHash } from "@fresnel/platform-secrets";
 
 // M3-05, M3-REQ-75. 비밀 env stdio MCP 서버의 기동 승인 게이트를 잇는다. 승인 흐름과 승인 레코드(정의 해시)는 core-tools의
 // `createMcpStartGate`가, 정의 해시 계산은 platform-secrets의 `mcpDefinitionHash`가 맡는다. cap-mcp는 둘 다 import하지 않아

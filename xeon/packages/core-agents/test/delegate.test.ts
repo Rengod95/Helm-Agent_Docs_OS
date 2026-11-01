@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { parse } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   AgentSettledEventPayloadSchema,
   type AgentSettledEventPayload,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   ChildTurnRequest,
   DelegateRequest,
   ReportDelivery,
   SpawnOrigin,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { spawnRecorder, type FakeChildTurn } from "../src/testing/index.ts";
 import { EXPLORER, openHarness, type Harness } from "./support/harness.ts";
 

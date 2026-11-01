@@ -1,13 +1,18 @@
-import type { Logger } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import type { Logger } from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   LeaseHolder,
   LeaseService,
   LeaseToken,
   ProducerHandle,
   SessionService,
-} from "@xeon/contracts/records";
-import type { InputQueue, LoopService, TaskService, ToolService } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type {
+  InputQueue,
+  LoopService,
+  TaskService,
+  ToolService,
+} from "@fresnel/contracts/services";
 import type { StructuredModels } from "./structured.ts";
 
 // core-agents는 core-loop, core-tasks, core-tools, core-persistence를 import하지 않는다(DR-02). 협력은 F 서비스 타입의 부분형으로 받는다.
@@ -18,7 +23,7 @@ export type AgentsSession = Pick<
   "commit" | "threads" | "query" | "hydrate" | "openForWrite" | "release"
 >;
 
-/** 자식 turn 실행. xeon.loop는 core-loop 플러그인이 올리므로 호출 때마다 얻는다(적재 순서에 묶이지 않게) */
+/** 자식 turn 실행. fresnel.loop는 core-loop 플러그인이 올리므로 호출 때마다 얻는다(적재 순서에 묶이지 않게) */
 export type AgentsLoop = Pick<LoopService, "runChildTurn">;
 
 export type AgentsTasks = Pick<TaskService, "openScope" | "find" | "abort" | "limiter" | "root"> & {
@@ -85,7 +90,7 @@ export interface AgentsDeps {
   readonly settings: AgentsSettingsSource;
   readonly ownership: AgentsOwnership;
   readonly log: Logger;
-  /** 판정이 부르는 xeon.models. 호출 때마다 얻는다. 생략하거나 undefined를 돌려주면 판정은 `failed`다 */
+  /** 판정이 부르는 fresnel.models. 호출 때마다 얻는다. 생략하거나 undefined를 돌려주면 판정은 `failed`다 */
   readonly models?: () => StructuredModels | undefined;
   /** 시각(ms). 판정 요청 메시지에 쓴다. 생략하면 Date.now */
   readonly now?: () => number;

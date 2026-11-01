@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { Transport } from "@xeon/contracts/wire";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { Transport } from "@fresnel/contracts/wire";
 import {
   connectServiceTransport,
   type TunnelFailure,

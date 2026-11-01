@@ -191,7 +191,7 @@ export function TrialCard({
 }
 
 const FILES: [string, string][] = [
-  ["xeon.extension.json", "9f2c…41ad"],
+  ["fresnel.extension.json", "9f2c…41ad"],
   ["src/index.ts", "c81e…0b7f"],
   ["src/drive.ts", "47aa…e912"],
   ["src/digest.ts", "1d03…5c2e"],

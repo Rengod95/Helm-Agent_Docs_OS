@@ -1,5 +1,5 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { BeforeAgentStartPayload } from "@xeon/contracts/extensions";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { BeforeAgentStartPayload } from "@fresnel/contracts/extensions";
 import { commitWithRetry } from "../commit.ts";
 import { customItemOf } from "../commits.ts";
 import { prestartRequest } from "../turn-start.ts";

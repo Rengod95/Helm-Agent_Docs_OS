@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import { WireError, type WireParams, type WireResult } from "@xeon/contracts/wire";
+import { err, ok } from "@fresnel/contracts";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { WireError, type WireParams, type WireResult } from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 

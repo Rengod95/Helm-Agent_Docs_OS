@@ -1,5 +1,5 @@
-import { err, ok, type Logger, type Result, type Scheduler } from "@xeon/contracts";
-import { parseSecretRef } from "@xeon/contracts/capabilities";
+import { err, ok, type Logger, type Result, type Scheduler } from "@fresnel/contracts";
+import { parseSecretRef } from "@fresnel/contracts/capabilities";
 import { resolve as resolvePath } from "node:path";
 import {
   SENSITIVE_ENV_PATTERNS,
@@ -8,7 +8,7 @@ import {
   type SandboxedArgv,
   type SandboxService,
   type SecretService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { ProcessPlatformProvider } from "../select.ts";
 import { spawnPiped, type PipedChild, type PipedExit } from "./spawn-piped.ts";
 

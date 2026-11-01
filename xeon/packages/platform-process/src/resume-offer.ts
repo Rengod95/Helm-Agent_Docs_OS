@@ -1,4 +1,4 @@
-import type { LeaseOwnerInfo, RecoveryMarker } from "@xeon/contracts/records";
+import type { LeaseOwnerInfo, RecoveryMarker } from "@fresnel/contracts/records";
 
 // L0.process.spec §3.2·§4.6, L0.process.plan PR-16. 복구 표식('이어서 실행')을 제시 항목으로 바꾸는 순수 함수.
 // 이 패키지는 DB를 읽지 않는다. 호스트(L4)가 표식이 있는 thread를 모아 넘긴다.

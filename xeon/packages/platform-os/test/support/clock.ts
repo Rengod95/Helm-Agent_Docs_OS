@@ -5,7 +5,7 @@ import type {
   RandomSource,
   Scheduler,
   TimerHandle,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 
 // 테스트 대역. F에는 testing 서브패스를 두지 않고 쓰는 패키지의 test/ 안에 둔다(review.decisions-2 U-03).
 // 시그니처는 eng.testing.guide TS-03을 따른다.

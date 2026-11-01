@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
-import { ModelsPortKey, type ProviderResourceDef } from "@xeon/contracts/extensions";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
-import { GroupSettingsSourceKey } from "@xeon/group-sdk";
+import { ModelsPortKey, type ProviderResourceDef } from "@fresnel/contracts/extensions";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
+import { GroupSettingsSourceKey } from "@fresnel/group-sdk";
 import { providerAnthropicOauthGroup } from "../../src/index.ts";
 
 const ACK = "ext.provider-anthropic-oauth.acknowledgeRisk";
 const CREDENTIAL = "ext.provider-anthropic-oauth.credential";
 
 /**
- * 가짜 xeon.models 포트와 설정 값을 주고 그룹을 설치한다. 기본 꺼짐이라 사용자가 켠 것처럼 enable한 뒤
+ * 가짜 fresnel.models 포트와 설정 값을 주고 그룹을 설치한다. 기본 꺼짐이라 사용자가 켠 것처럼 enable한 뒤
  * thread를 열어 setup을 돌린다. setup이 돈 것은 호출자가 scope 상태 "enabled"로 확인한다
  */
 async function rigWith(values: Readonly<Record<string, unknown>>): Promise<{

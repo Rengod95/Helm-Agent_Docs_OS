@@ -1,4 +1,4 @@
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Clock, Scheduler, TimerHandle } from "@fresnel/contracts";
 
 // eng.testing.guide TS-03. 시계 대역은 F가 아니라 쓰는 패키지의 test/ 안에 둔다(review.decisions-2 U-03).
 

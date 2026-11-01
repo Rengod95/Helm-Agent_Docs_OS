@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { threadSummaryOf } from "@xeon/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { threadSummaryOf } from "@fresnel/contracts/wire";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import { branchItemsOf, completeTurn, itemAt } from "./support/branching.ts";
 import { expectOk, newThread, openHarness, reopenHarness, startTurn } from "./support/harness.ts";

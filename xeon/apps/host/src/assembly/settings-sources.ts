@@ -1,28 +1,35 @@
 import { join } from "node:path";
-import type { LogLevel } from "@xeon/contracts";
-import { isId } from "@xeon/contracts/conversation";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import type { AgentsSettingsSource } from "@xeon/core-agents";
-import type { DriveLimits } from "@xeon/contracts/extensions";
+import type { LogLevel } from "@fresnel/contracts";
+import { isId } from "@fresnel/contracts/conversation";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import type { AgentsSettingsSource } from "@fresnel/core-agents";
+import type { DriveLimits } from "@fresnel/contracts/extensions";
 import {
   modelsSettingsOf,
   type ModelsSettings,
   type ModelsSettingsSource,
-} from "@xeon/core-models";
-import { DEFAULT_PERSISTENCE_SETTINGS, resolvePersistenceSettings } from "@xeon/core-persistence";
-import type { LoopSettingsSource } from "@xeon/core-loop";
-import { createLayeredTasksSettings, type TasksSettingsSource } from "@xeon/core-tasks";
-import type { ToolsSettingsSource } from "@xeon/core-tools";
-import type { WorkspaceSettingsSource } from "@xeon/cap-workspace";
-import { withDriveDefaults, type ExtHostDeps, type OperationsSettingsSource } from "@xeon/ext-host";
+} from "@fresnel/core-models";
+import {
+  DEFAULT_PERSISTENCE_SETTINGS,
+  resolvePersistenceSettings,
+} from "@fresnel/core-persistence";
+import type { LoopSettingsSource } from "@fresnel/core-loop";
+import { createLayeredTasksSettings, type TasksSettingsSource } from "@fresnel/core-tasks";
+import type { ToolsSettingsSource } from "@fresnel/core-tools";
+import type { WorkspaceSettingsSource } from "@fresnel/cap-workspace";
+import {
+  withDriveDefaults,
+  type ExtHostDeps,
+  type OperationsSettingsSource,
+} from "@fresnel/ext-host";
 import {
   DEFAULT_STORE_SETTINGS,
   resolveStoreSettings,
   type StoreSettings,
-} from "@xeon/platform-store";
-import { readSandboxSettings, type SandboxSettings } from "@xeon/platform-sandbox";
-import { DEFAULT_SECRETS_CONFIG, type SecretsConfig } from "@xeon/platform-secrets";
-import type { PersistenceSettings } from "@xeon/core-persistence";
+} from "@fresnel/platform-store";
+import { readSandboxSettings, type SandboxSettings } from "@fresnel/platform-sandbox";
+import { DEFAULT_SECRETS_CONFIG, type SecretsConfig } from "@fresnel/platform-secrets";
+import type { PersistenceSettings } from "@fresnel/core-persistence";
 import type { HostLimits } from "../connection-types.ts";
 import { REPLAY_BATCH_MAX_EVENTS, REPLAY_SCAN_LIMIT, SEND_LOW_WATER_BYTES } from "../connection.ts";
 import {

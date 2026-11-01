@@ -4,7 +4,7 @@ import type {
   LoaderPaths,
   ScopeSetup,
   TrustStoreBackend,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   createExtensionLoader,
   type BuiltinExtensionModule,

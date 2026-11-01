@@ -1,6 +1,6 @@
 // M1 걷는 골격 스모크의 X 쪽 모양: 테스트용 그룹이 on(tool.call.before, boundary.step.after), post, drive를 쓴다(X.primitives.plan §6 7번).
 import { expect, test } from "bun:test";
-import { FIRST_DENY } from "@xeon/contracts/extensions";
+import { FIRST_DENY } from "@fresnel/contracts/extensions";
 import { createSmokeGroup, createTestHost, flushMicrotasks } from "../../src/testing/index.ts";
 import { assistantStop, toolResultMessage, userText } from "./fixtures/support.ts";
 

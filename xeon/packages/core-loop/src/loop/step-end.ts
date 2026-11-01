@@ -1,18 +1,18 @@
-import { Bug, err, ok, type Result } from "@xeon/contracts";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
 import type {
   AgentMessage,
   AssistantMessage,
   LifecycleEvent,
   ToolResultMessage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   AgentBeforeSettlePayload,
   BoundaryValue,
   PostItem,
   TurnEndPayload,
-} from "@xeon/contracts/extensions";
-import type { DurableEventDraft, PendingToolCall } from "@xeon/contracts/records";
-import type { ToolCallOutcome } from "@xeon/contracts/services";
+} from "@fresnel/contracts/extensions";
+import type { DurableEventDraft, PendingToolCall } from "@fresnel/contracts/records";
+import type { ToolCallOutcome } from "@fresnel/contracts/services";
 import { canContinue, stepLimitReached } from "../budget.ts";
 import { finalizeBoundary } from "../checkpoint.ts";
 import { commitWithRetry } from "../commit.ts";

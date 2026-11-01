@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug, eachAsync, parse } from "@xeon/contracts";
+import { Bug, eachAsync, parse } from "@fresnel/contracts";
 import { Type } from "typebox";
-import type { TaskOp, WorkTask } from "@xeon/contracts/capabilities";
+import type { TaskOp, WorkTask } from "@fresnel/contracts/capabilities";
 import { readMeta, readTasks } from "../src/projection/read.ts";
 import { planWrite } from "../src/tasks/write.ts";
 import { rejection } from "./support/assertions.ts";

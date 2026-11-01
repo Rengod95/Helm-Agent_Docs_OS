@@ -1,4 +1,4 @@
-import { assertNever, ok, type LogLevel, type Result } from "@xeon/contracts";
+import { assertNever, ok, type LogLevel, type Result } from "@fresnel/contracts";
 import type {
   BinaryName,
   DirsError,
@@ -10,7 +10,7 @@ import type {
   ResolveBinaryOptions,
   ResolvedBinary,
   BinaryError,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { createRipgrepSource } from "./binaries/rg.ts";
 import { checkExternalBinaries, type BinaryCheckReport } from "./binaries/requirements.ts";
 import { createBinaryResolver, type BundledSource } from "./binaries/resolve.ts";
@@ -45,7 +45,7 @@ export interface PlatformOsConfig {
   /** 앱과 함께 배포된 읽기 전용 자원 디렉터리. L4가 넘긴다 */
   readonly resourceDir: string;
   readonly logSink: LogSink;
-  /** 조립 루트가 xeon.secrets의 마스킹 함수를 연결한다. 무동작이 필요하면 identity를 명시적으로 넘긴다 */
+  /** 조립 루트가 fresnel.secrets의 마스킹 함수를 연결한다. 무동작이 필요하면 identity를 명시적으로 넘긴다 */
   readonly logRedact: LogRedact;
   /**
    * 설정 l0.os.log.level. 기본 "info". 함수를 넘기면 로그를 낼 때마다 불러 live 변경이 다음 호출부터 반영된다

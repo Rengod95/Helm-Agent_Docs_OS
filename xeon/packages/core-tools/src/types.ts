@@ -1,4 +1,4 @@
-import type { CapabilityId, ToolName, ToolRef, ToolSpec } from "@xeon/contracts/capabilities";
+import type { CapabilityId, ToolName, ToolRef, ToolSpec } from "@fresnel/contracts/capabilities";
 import type {
   AgentTool,
   AgentToolUpdateCallback,
@@ -11,7 +11,7 @@ import type {
   TextContent,
   ThreadId,
   Usage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   ApprovalEvidence,
   ExecService,
@@ -21,7 +21,7 @@ import type {
   ToolClass,
   ToolRisk,
   ToolRunContext,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // core-tools 내부 공용 타입.
 
@@ -95,7 +95,7 @@ export interface ToolEntry {
 }
 
 /**
- * 출력 절단 함수. 구현은 L0 platform-exec의 durable truncate 포크이고 F `ExecService`(`xeon.exec`)의 메서드로 받는다
+ * 출력 절단 함수. 구현은 L0 platform-exec의 durable truncate 포크이고 F `ExecService`(`fresnel.exec`)의 메서드로 받는다
  * (review.decisions-2 D-08, B-04, L1.tools.spec §3.7). 이 패키지에는 사본을 두지 않는다.
  */
 export type OutputTruncator = Pick<ExecService, "truncateHead" | "formatSize">;

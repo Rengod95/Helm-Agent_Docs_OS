@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { createStubServer } from "@xeon/cap-mcp/testing";
-import type { JsonObject, ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { EventWire } from "@xeon/contracts/wire";
+import { createStubServer } from "@fresnel/cap-mcp/testing";
+import type { JsonObject, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { EventWire } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { callingModels, type ToolStep } from "../fixtures/call-tape.ts";

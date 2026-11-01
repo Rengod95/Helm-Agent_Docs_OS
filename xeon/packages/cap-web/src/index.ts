@@ -1,4 +1,4 @@
-// @xeon/cap-web 공개 진입점(L2.web). 조립 루트가 쓰는 이름만 내보낸다.
+// @fresnel/cap-web 공개 진입점(L2.web). 조립 루트가 쓰는 이름만 내보낸다.
 export {
   DEFAULT_WEB_SETTINGS,
   DOMAIN_PATTERN_SOURCE,

@@ -1,4 +1,4 @@
-import type { WireHandlers } from "@xeon/contracts/wire";
+import type { WireHandlers } from "@fresnel/contracts/wire";
 import type { Engine } from "../types.ts";
 
 // F wire §3.3.1 proposal.list, proposal.decide(M3-REQ-18, D-M3-32 a). 학습 그룹의 대기열과 L2.knowledge의 쓰기 승인 대기열을 한 목록으로 보이고

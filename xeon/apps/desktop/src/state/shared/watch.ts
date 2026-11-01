@@ -1,5 +1,5 @@
 // src/state/shared/watch.ts
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 import type { ReadonlyStore } from "./readonly-store.ts";
 
 /**

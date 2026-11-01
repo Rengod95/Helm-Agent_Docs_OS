@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createHostConnection } from "@xeon/client";
-import { createStdioTransport } from "@xeon/client/stdio";
+import { createHostConnection } from "@fresnel/client";
+import { createStdioTransport } from "@fresnel/client/stdio";
 import {
   ACK_UNIT_BYTES,
   attachRelay,

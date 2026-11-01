@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { GroupRecord } from "@xeon/contracts/extensions";
+import type { GroupRecord } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";

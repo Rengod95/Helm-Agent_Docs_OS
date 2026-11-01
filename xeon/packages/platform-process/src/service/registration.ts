@@ -18,7 +18,7 @@ import {
   type TObject,
   type TString,
 } from "typebox";
-import { attempt, err, ok, parse, parseJson, type Result } from "@xeon/contracts";
+import { attempt, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 
 // L0.process.spec §3.2 service/registration.ts, §4.4.1, §4.4.7 1번. 서비스의 소켓 경로, pid, 버전, 토큰을 담은 JSON 파일(0600).
 // 쓰기는 같은 디렉터리의 임시 파일(0600으로 만든다) → fsync → rename이라 이전 내용이나 새 내용 하나가 온전하다.

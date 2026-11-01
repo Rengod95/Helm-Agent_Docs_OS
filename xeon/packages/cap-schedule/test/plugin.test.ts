@@ -1,23 +1,23 @@
 import { describe, expect, test } from "bun:test";
-import { ok, type Result } from "@xeon/contracts";
+import { ok, type Result } from "@fresnel/contracts";
 import {
   ScheduleEntries,
   ScheduleEntriesKey,
   type CapabilityApi,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   defineManifest,
   validateManifest,
   type ExtensionEntry,
   type PortKey,
   type ToolRegisterError,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   ToolServicePortKey,
   type ToolRegistration,
   type Unregister,
-} from "@xeon/contracts/services";
-import { createTestHost } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/services";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { SCHEDULE_EXTENSION_NAME, scheduleManifest, schedulePlugin } from "../src/index.ts";
 import { createHarness } from "./support/harness.ts";
 

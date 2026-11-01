@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ToolResourceDef } from "@xeon/contracts/extensions";
-import type { PolicyCeiling, ToolRunContext } from "@xeon/contracts/services";
+import type { ToolResourceDef } from "@fresnel/contracts/extensions";
+import type { PolicyCeiling, ToolRunContext } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import { callTool, createHarness, expectOk, type Harness } from "./support/harness.ts";
 

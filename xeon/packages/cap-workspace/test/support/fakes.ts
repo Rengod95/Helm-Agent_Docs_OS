@@ -1,12 +1,12 @@
-import { err, ok, type Clock } from "@xeon/contracts";
+import { err, ok, type Clock } from "@fresnel/contracts";
 import {
   ExecutionError,
   type ProtectedPathEntry,
   type SandboxPolicy,
   type SandboxService,
   type Shell,
-} from "@xeon/contracts/services";
-import type { ScopeStack } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/services";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import type { RgResolver, WorkspaceDeps } from "../../src/deps.ts";
 import type { BlobSink } from "../../src/ports/blobs.ts";
 import type { ThreadWorkspaces } from "../../src/ports/threads.ts";

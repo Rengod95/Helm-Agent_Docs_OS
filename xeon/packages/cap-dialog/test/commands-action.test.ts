@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CapabilityError } from "@xeon/contracts/capabilities";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
 import { createCommandsService } from "../src/commands/service.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";
 

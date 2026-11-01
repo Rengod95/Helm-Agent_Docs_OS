@@ -2,18 +2,23 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { RunRecord, ScheduleService, ScheduleState } from "@xeon/cap-schedule";
-import { err, ok, repeatAsync, type Logger } from "@xeon/contracts";
-import type { StoreId } from "@xeon/contracts/wire";
-import type { ThreadId, TurnCompletedPayload } from "@xeon/contracts/conversation";
+import type { RunRecord, ScheduleService, ScheduleState } from "@fresnel/cap-schedule";
+import { err, ok, repeatAsync, type Logger } from "@fresnel/contracts";
+import type { StoreId } from "@fresnel/contracts/wire";
+import type { ThreadId, TurnCompletedPayload } from "@fresnel/contracts/conversation";
 import type {
   CommitBatch,
   DurableEventEnvelope,
   EventKind,
   LeaseToken,
-} from "@xeon/contracts/records";
-import type { EnqueueReceipt, LoopService, OsService, TaskService } from "@xeon/contracts/services";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/records";
+import type {
+  EnqueueReceipt,
+  LoopService,
+  OsService,
+  TaskService,
+} from "@fresnel/contracts/services";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createFileScheduleStore } from "../../src/assembly/schedule-store.ts";
 import { createHostSchedule } from "../../src/assembly/schedule.ts";
 import type { EventFeedPort, SessionLockPort, ThreadPort } from "../../src/types.ts";

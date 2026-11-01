@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { attemptAsync } from "@xeon/contracts";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import { WireError, type HostConnection, type WireHandlers } from "@xeon/contracts/wire";
+import { attemptAsync } from "@fresnel/contracts";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { WireError, type HostConnection, type WireHandlers } from "@fresnel/contracts/wire";
 import { HostClientError } from "../src/client.ts";
 import { createFakeHost } from "./fixtures/fake-host.ts";
 import { isRecord, rawClient } from "./fixtures/raw-client.ts";

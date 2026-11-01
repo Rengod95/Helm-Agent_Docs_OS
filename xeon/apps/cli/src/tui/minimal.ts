@@ -1,6 +1,6 @@
-import { t } from "@xeon/client/i18n";
-import { attemptAsync } from "@xeon/contracts";
-import type { HostConnection } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { attemptAsync } from "@fresnel/contracts";
+import type { HostConnection } from "@fresnel/contracts/wire";
 import { HostClientError } from "../host-client.ts";
 import type { ChatSession } from "../commands/chat-session.ts";
 import { failureOfCaught, renderFailure } from "../errors.ts";

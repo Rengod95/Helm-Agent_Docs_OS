@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { ItemRecordedPayloadSchema } from "@xeon/contracts/records";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { parse } from "@fresnel/contracts";
+import { ItemRecordedPayloadSchema } from "@fresnel/contracts/records";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type AgentSettledPayload,
@@ -10,9 +10,9 @@ import {
   type GuardOutputPayload,
   type LoopTurnRequest,
   type HookName,
-} from "@xeon/contracts/extensions";
-import type { ChildTurnRequest } from "@xeon/contracts/services";
-import type { ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/contracts/extensions";
+import type { ChildTurnRequest } from "@fresnel/contracts/services";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 import { originOfSource } from "../src/turn-start.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
 import { createHarness, type Harness } from "./support/harness.ts";

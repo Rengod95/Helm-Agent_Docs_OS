@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { AssistantMessage, StepId } from "@xeon/contracts/conversation";
+import type { AssistantMessage, StepId } from "@fresnel/contracts/conversation";
 import { createContextService } from "../src/service.ts";
 import { assembleOptions, binding, userItem } from "./support/builders.ts";
 import { harness, installHandlers, type Harness } from "./support/harness.ts";

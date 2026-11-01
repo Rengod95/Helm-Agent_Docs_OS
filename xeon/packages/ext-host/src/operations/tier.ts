@@ -1,5 +1,5 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import type { ExtensionManifest, ExtensionName, ScopeId } from "@xeon/contracts/extensions";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import type { ExtensionManifest, ExtensionName, ScopeId } from "@fresnel/contracts/extensions";
 import type { HandlerEntryInfo } from "../primitives/dispatch-types.ts";
 import type { InstallSource, TrustLevel } from "../loading-trust/trust/levels.ts";
 

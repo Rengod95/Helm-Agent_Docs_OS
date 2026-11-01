@@ -1,4 +1,4 @@
-import type { PricingTable } from "@xeon/contracts/capabilities";
+import type { PricingTable } from "@fresnel/contracts/capabilities";
 
 // L2.web.spec §3.6.2, §4.4.2. 내장 provider 가격표. asOf가 90일보다 오래되면 경고한다(`just web-pricing`, 호출 경고).
 

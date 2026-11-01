@@ -1,6 +1,6 @@
 import type { AssistantMessage, FetchFunction, JsonValue } from "@earendil-works/pi-ai";
-import { Bug, err, ok, type Result } from "@xeon/contracts";
-import type { ModelRole } from "@xeon/contracts/services";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
+import type { ModelRole } from "@fresnel/contracts/services";
 import {
   findSecrets,
   requestHashOf,
@@ -312,7 +312,7 @@ export function buildRecordedTape(input: RecordedTapeInput): Result<ModelTape, R
   if (input.turns.length === 0) return err({ kind: "no_turns" });
   const header: ModelTapeHeader = {
     kind: "header",
-    format: "xeon.model-tape.v1",
+    format: "fresnel.model-tape.v1",
     tapeId: `recorded/${input.scenario}`,
     origin: "recorded",
     matching: "role-queue",

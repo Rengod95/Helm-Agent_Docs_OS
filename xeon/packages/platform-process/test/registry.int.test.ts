@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { spawn, type ChildProcess } from "node:child_process";
-import { attempt } from "@xeon/contracts";
-import type { BackgroundStopper } from "@xeon/contracts/services";
+import { attempt } from "@fresnel/contracts";
+import type { BackgroundStopper } from "@fresnel/contracts/services";
 import { createBackgroundRegistry } from "../src/index.ts";
 import { manualClock } from "./support/clock.ts";
 import { memoryLogger, sequentialLocalIds } from "./support/fakes.ts";

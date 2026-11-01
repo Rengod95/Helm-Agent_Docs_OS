@@ -1,4 +1,4 @@
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type { DnsResolver } from "../ports/resolver.ts";
 
 // 시험용 DNS 해석기(L2.web.plan §2 testing/fake-resolver.ts). 호스트마다 응답 표를 갖고, 같은 호스트를 다시 풀 때마다

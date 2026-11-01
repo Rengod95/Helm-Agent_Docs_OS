@@ -1,6 +1,6 @@
 // src/state/engine/selectors.ts
-import type { EventId, ItemId, ItemRecord, ThreadId } from "@xeon/contracts/conversation";
-import type { ThreadSummary } from "@xeon/contracts/wire";
+import type { EventId, ItemId, ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
 import type { EngineMirror, Link, PendingApproval, StreamingItem } from "./state.ts";
 

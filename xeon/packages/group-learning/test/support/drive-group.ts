@@ -1,6 +1,6 @@
-import { defineManifest } from "@xeon/contracts/extensions";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { defineGroup } from "@xeon/group-sdk";
+import { defineManifest } from "@fresnel/contracts/extensions";
+import type { ExtensionUnit } from "@fresnel/ext-host";
+import { defineGroup } from "@fresnel/group-sdk";
 
 /** Helm 대역: drive 임대를 쥐고 놓지 않는 그룹. `release`가 놓게 한다 */
 export interface DriveStandIn {

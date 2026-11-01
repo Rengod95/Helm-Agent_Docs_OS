@@ -1,5 +1,5 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { SecretHandle } from "@xeon/contracts/capabilities";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { SecretHandle } from "@fresnel/contracts/capabilities";
 import type {
   ApprovalEvidence,
   ConcreteHttpRequest,
@@ -7,7 +7,7 @@ import type {
   HttpTemplate,
   SecretError,
   SecretService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { findHandleTokens } from "./ref.ts";
 import { planHttp } from "./service.ts";
 

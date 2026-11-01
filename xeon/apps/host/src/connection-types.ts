@@ -1,4 +1,4 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   CloseInfo,
   EventFilter,
@@ -7,7 +7,7 @@ import type {
   Transport,
   TransportKind,
   Unsubscribe,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { CommitBatch } from "./types.ts";
 
 // L4.host-service.spec §3.3.3. 연결 허브와 처리기가 함께 쓰는 타입. 값은 connection.ts에 있다.

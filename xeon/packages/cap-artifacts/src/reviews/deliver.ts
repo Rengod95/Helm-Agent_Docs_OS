@@ -1,4 +1,4 @@
-import { assertNever, Bug } from "@xeon/contracts";
+import { assertNever, Bug } from "@fresnel/contracts";
 import type { DeliveryInput } from "./types.ts";
 
 // L2.artifacts.spec §4.2.6. 제출 때 에이전트에 보내는 전달 문안을 만든다. 코드 원문은 넣지 않는다.

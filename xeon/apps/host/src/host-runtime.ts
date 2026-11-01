@@ -1,5 +1,5 @@
-import { attemptAsync, Bug } from "@xeon/contracts";
-import { resolveSetting } from "@xeon/contracts/settings";
+import { attemptAsync, Bug } from "@fresnel/contracts";
+import { resolveSetting } from "@fresnel/contracts/settings";
 import { assemble, ENGINE_VERSION } from "./assemble.ts";
 import { shutdownTimeoutOf, type SettingReader } from "./assembly/settings-sources.ts";
 import { createConnectionHub } from "./connection.ts";

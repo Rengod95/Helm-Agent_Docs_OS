@@ -6,9 +6,9 @@ import type { PortKey } from "../extensions/index.ts";
 // L0.os.spec §3. 구현은 platform-os다. Clock, Scheduler, RandomSource, Logger 인터페이스는 F 루트 base에 있다
 // (review.decisions-2 U-03). 이 파일은 OsService와 그 값 타입이다.
 
-export const OsServiceName = "xeon.os" as const;
+export const OsServiceName = "fresnel.os" as const;
 
-/** `xeon.os` 전체 모양(OsService)의 포트 키. 제공 platform-os, 소비 core-context·cap-workspace·조립 루트 */
+/** `fresnel.os` 전체 모양(OsService)의 포트 키. 제공 platform-os, 소비 core-context·cap-workspace·조립 루트 */
 export const OsPortKey: PortKey<OsService> = { name: OsServiceName };
 
 // ── 플랫폼 정보 ──────────────────────────────────────────────────────────

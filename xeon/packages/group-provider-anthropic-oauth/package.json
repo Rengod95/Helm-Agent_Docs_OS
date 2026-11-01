@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/group-provider-anthropic-oauth",
+  "name": "@fresnel/group-provider-anthropic-oauth",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,15 +15,15 @@
     "build:plugin": "bun scripts/build-plugin.ts"
   },
   "dependencies": {
-    "@xeon/contracts": "workspace:*",
-    "@xeon/group-sdk": "workspace:*",
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/group-sdk": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:",
-    "@xeon/ext-host": "workspace:*"
+    "@fresnel/ext-host": "workspace:*",
+    "@types/bun": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L3",
     "domain": "provider-anthropic-oauth"
   }

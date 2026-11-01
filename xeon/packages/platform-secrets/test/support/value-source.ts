@@ -1,5 +1,5 @@
-import { err, ok } from "@xeon/contracts";
-import type { SecretValueSource } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { SecretValueSource } from "@fresnel/contracts/services";
 
 export interface TrackedSource extends SecretValueSource {
   /** 지금까지 넘겨 준 버퍼. 서비스가 쓴 뒤 0으로 덮었는지 확인한다 */

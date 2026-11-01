@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ScopeStack } from "@xeon/contracts/settings";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import { layer } from "./support/layers.ts";
 import { buildWorld, fakeFiles, fakeTrust, startWorld } from "./support/world.ts";
 

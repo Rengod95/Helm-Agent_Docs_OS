@@ -11,7 +11,7 @@ import { ThreadIdSchema } from "../../src/conversation/index.ts";
 import { must, rawId } from "../helpers/ids.ts";
 import type { Equal, Expect } from "../types/expect.ts";
 
-// L1.loop.spec §3.1 `runUserBash`: user_bash 지점(first)을 발화하고 거부가 아니면 xeon.tools.runUserShell로 실행한다.
+// L1.loop.spec §3.1 `runUserBash`: user_bash 지점(first)을 발화하고 거부가 아니면 fresnel.tools.runUserShell로 실행한다.
 export type RunUserBashSignature = Expect<
   Equal<
     LoopService["runUserBash"],

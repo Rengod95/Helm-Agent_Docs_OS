@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ScopeLayer } from "@xeon/contracts/settings";
+import type { ScopeLayer } from "@fresnel/contracts/settings";
 import { sessionRenamePolicy } from "../src/plugin.ts";
 import { readArtifactsSettings } from "../src/settings.ts";
 

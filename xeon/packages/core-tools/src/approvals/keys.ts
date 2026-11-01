@@ -1,4 +1,4 @@
-import { APPROVAL_REQUEST_KEY_MAX, commitKeyPart } from "@xeon/contracts/records";
+import { APPROVAL_REQUEST_KEY_MAX, commitKeyPart } from "@fresnel/contracts/records";
 import { sha256HexSync } from "../util.ts";
 
 // 승인 요청이 쓰는 키 함수 모음(review.open-issues N-07). 밖에서 온 id(toolCallId, L2 requestId)가 키 알파벳 밖의 문자나
@@ -7,7 +7,7 @@ import { sha256HexSync } from "../util.ts";
 //
 // | 함수 | 값 | 한도 | 쓰는 곳 |
 // |---|---|---|---|
-// | requestKeyFor (@xeon/contracts/records) | `ApprovalRequestInput.requestKey` | 1~48자 | 파이프라인의 도구 승인, L2 어댑터의 requestId. 정의는 contracts 하나이고 호출자가 동기 해시를 넘긴다 |
+// | requestKeyFor (@fresnel/contracts/records) | `ApprovalRequestInput.requestKey` | 1~48자 | 파이프라인의 도구 승인, L2 어댑터의 requestId. 정의는 contracts 하나이고 호출자가 동기 해시를 넘긴다 |
 // | requestCommitKey | `approval.requested` 커밋 키 | 1~64자 | ApprovalService.open |
 // | resolveCommitKey | `approval.resolved` 커밋 키 | approvalId(EventId)에서 결정 | ApprovalService.commitResolution |
 //

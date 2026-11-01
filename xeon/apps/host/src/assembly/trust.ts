@@ -1,20 +1,20 @@
 import { mkdir, readdir, readFile, realpath, rename, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { attemptAsync, err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
+import { attemptAsync, err, ok, type Clock, type Logger, type Result } from "@fresnel/contracts";
 import type {
   LoaderFs,
   TrustChoice,
   TrustOption,
   TrustStoreBackend,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   createProjectTrustStore,
   resolveProjectTrust,
   trustOptions,
   type ProjectTrustResult,
   type ProjectTrustStore,
-} from "@xeon/ext-host";
-import type { FileLock, FileLockError } from "@xeon/platform-os";
+} from "@fresnel/ext-host";
+import type { FileLock, FileLockError } from "@fresnel/platform-os";
 
 // X.loading-trust.spec §4.7. 프로젝트 신뢰 판정을 조립 루트에서 이어 붙인다: 저장 파일(`<config>/trust.json`), 파일 시스템 포트,
 // 판정 호출. 엔진은 프롬프트를 띄우지 않는다(`headless`): 결정이 없는 프로젝트는 `undecided`(불신)이고, 사람의 결정은 클라이언트가

@@ -1,4 +1,4 @@
-import { Nullable, parse } from "@xeon/contracts";
+import { Nullable, parse } from "@fresnel/contracts";
 import {
   MODEL_ROLES,
   ModelRefStringSchema,
@@ -6,9 +6,9 @@ import {
   type CacheRetention,
   type ModelRefString,
   type ModelRole,
-} from "@xeon/contracts/services";
-import type { ModelThinkingLevel } from "@xeon/contracts/conversation";
-import { SecretRef, defineSettings, type SettingDef } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/services";
+import type { ModelThinkingLevel } from "@fresnel/contracts/conversation";
+import { SecretRef, defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 import { Type } from "typebox";
 import type { AccountDef, RateLimitPolicy } from "./accounts.ts";
 

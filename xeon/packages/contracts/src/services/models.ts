@@ -43,10 +43,10 @@ export type {
   ThinkingBudgets,
 };
 
-export const ModelServiceName = "xeon.models" as const;
+export const ModelServiceName = "fresnel.models" as const;
 
 /**
- * `xeon.models` 전체 모양(ModelService)의 포트 키. 제공 core-models, 소비 core-context 등.
+ * `fresnel.models` 전체 모양(ModelService)의 포트 키. 제공 core-models, 소비 core-context 등.
  * 등록 부분형(ModelsPort)의 키는 extensions의 `ModelsPortKey`이고 이름은 같다.
  */
 export const ModelServicePortKey: PortKey<ModelService> = { name: ModelServiceName };

@@ -1,6 +1,6 @@
-import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
-import { ReviewAnswerSchema } from "@xeon/contracts/records";
+import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
+import { ReviewAnswerSchema } from "@fresnel/contracts/records";
 import {
   PERMISSION_MODE_STRICTNESS,
   type ApprovalDecision,
@@ -12,7 +12,7 @@ import {
   type PermissionMode,
   type QuestionBody,
   type ReviewBody,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { isJsonObject } from "../util.ts";
 import { isRequestKey } from "./keys.ts";
 

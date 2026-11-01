@@ -1,8 +1,8 @@
 import { join } from "node:path";
-import { attempt, type Clock, type Logger } from "@xeon/contracts";
-import type { SessionService } from "@xeon/contracts/records";
-import { pruneSpill } from "@xeon/platform-exec";
-import type { OpenedStore } from "@xeon/platform-store";
+import { attempt, type Clock, type Logger } from "@fresnel/contracts";
+import type { SessionService } from "@fresnel/contracts/records";
+import { pruneSpill } from "@fresnel/platform-exec";
+import type { OpenedStore } from "@fresnel/platform-store";
 
 // L4.host-service.spec §4.18(보관 정리와 블롭 GC 연결), L0.exec.spec §3.8.2, L0.store.spec §4.9, L1.persistence.spec §6.1.
 // 조립 루트가 열기 때 한 번 돌리고 그 뒤 하루마다 다시 돌린다. 실패는 로그로만 남기고 호스트를 멈추지 않는다.

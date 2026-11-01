@@ -1,6 +1,6 @@
-import { assertNever } from "@xeon/contracts";
-import type { AssistantMessage, StepId, ThreadId } from "@xeon/contracts/conversation";
-import type { ModelBinding, OverflowRecovery } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import type { AssistantMessage, StepId, ThreadId } from "@fresnel/contracts/conversation";
+import type { ModelBinding, OverflowRecovery } from "@fresnel/contracts/services";
 import { projectBranch, readBranchEvents } from "./branch.ts";
 import { compactThread, hasCompactionFor, type CompactDeps } from "./compaction/compact.ts";
 

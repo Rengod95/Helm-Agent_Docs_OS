@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
-import { ENVELOPE_MAX_BYTES, type DurableEventDraft } from "@xeon/contracts/records";
+import { err } from "@fresnel/contracts";
+import { ENVELOPE_MAX_BYTES, type DurableEventDraft } from "@fresnel/contracts/records";
 import { detachLarge, pointerOf } from "../src/blob.ts";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {

@@ -18,7 +18,7 @@ import {
 
 let root = "";
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "xeon-layers-"));
+  root = mkdtempSync(join(tmpdir(), "fresnel-layers-"));
 });
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
@@ -26,7 +26,7 @@ afterEach(() => {
 
 /** Directory of a fixture package by name, the same way the real tree is laid out. */
 function dirOfName(name: string): string {
-  const base = name.replace("@xeon/", "");
+  const base = name.replace("@fresnel/", "");
   if (base === "cordis") return "vendor/cordis";
   if (base.startsWith("provider-")) return `plugins/${base}`;
   if (["cli", "host", "desktop"].includes(base)) return `apps/${base}`;
@@ -43,7 +43,7 @@ interface PkgOptions {
 
 function pkg(dir: string, layer: string, deps: string[] = [], options: PkgOptions = {}): void {
   const base = dir.split("/")[1] ?? "";
-  const name = `@xeon/${base}`;
+  const name = `@fresnel/${base}`;
   // group-sdk의 도메인은 접두를 뺀 kit이 아니라 group-sdk이다(M3-35)
   const domain =
     options.domain ??
@@ -52,7 +52,7 @@ function pkg(dir: string, layer: string, deps: string[] = [], options: PkgOption
   mkdirSync(join(root, dir, "src"), { recursive: true });
   writeFileSync(
     join(root, dir, "package.json"),
-    JSON.stringify({ name, xeon: { layer, domain }, dependencies }, null, 2),
+    JSON.stringify({ name, fresnel: { layer, domain }, dependencies }, null, 2),
   );
   if (options.tsconfig !== false) {
     const references = options.references ?? deps.map((d) => posix.relative(dir, dirOfName(d)));
@@ -108,59 +108,59 @@ test("expectedDomain strips the layer prefix", () => {
 
 test("extractSpecifiers finds static, dynamic, type and re-export imports, ignoring comments", () => {
   const text = [
-    'import { a } from "@xeon/one";',
-    "import type { B } from '@xeon/two/sub';",
-    'import "@xeon/three";',
+    'import { a } from "@fresnel/one";',
+    "import type { B } from '@fresnel/two/sub';",
+    'import "@fresnel/three";',
     'export * from "./local.ts";',
-    'const c = await import("@xeon/four");',
-    'import {\n  x,\n  y,\n} from "@xeon/five";',
-    '// import z from "@xeon/commented";',
-    '/* import q from "@xeon/blocked"; */',
+    'const c = await import("@fresnel/four");',
+    'import {\n  x,\n  y,\n} from "@fresnel/five";',
+    '// import z from "@fresnel/commented";',
+    '/* import q from "@fresnel/blocked"; */',
   ].join("\n");
   expect(extractSpecifiers(text).toSorted()).toEqual([
     "./local.ts",
-    "@xeon/five",
-    "@xeon/four",
-    "@xeon/one",
-    "@xeon/three",
-    "@xeon/two/sub",
+    "@fresnel/five",
+    "@fresnel/four",
+    "@fresnel/one",
+    "@fresnel/three",
+    "@fresnel/two/sub",
   ]);
-  expect(extractSpecifiers(text)).not.toContain("@xeon/commented");
-  expect(extractSpecifiers(text)).not.toContain("@xeon/blocked");
+  expect(extractSpecifiers(text)).not.toContain("@fresnel/commented");
+  expect(extractSpecifiers(text)).not.toContain("@fresnel/blocked");
 });
 
 test("extractImports reports the line of the specifier and keeps lines across comments", () => {
   const text = [
     "/* header",
     "   spanning lines */",
-    'import { a } from "@xeon/one";',
+    'import { a } from "@fresnel/one";',
     "",
-    "// import z from '@xeon/commented';",
+    "// import z from '@fresnel/commented';",
     "import {",
     "  x,",
-    '} from "@xeon/two";',
-    'const c = await import("@xeon/three");',
+    '} from "@fresnel/two";',
+    'const c = await import("@fresnel/three");',
   ].join("\n");
   expect(extractImports(text)).toEqual([
-    { spec: "@xeon/one", line: 3 },
-    { spec: "@xeon/two", line: 8 },
-    { spec: "@xeon/three", line: 9 },
+    { spec: "@fresnel/one", line: 3 },
+    { spec: "@fresnel/two", line: 8 },
+    { spec: "@fresnel/three", line: 9 },
   ]);
 });
 
 test("downward dependencies pass", () => {
   pkg("packages/contracts", "F", [], { domain: "contracts" });
-  pkg("packages/core-loop", "L1", ["@xeon/contracts"], {
-    files: { "src/a.ts": 'import "@xeon/contracts";' },
+  pkg("packages/core-loop", "L1", ["@fresnel/contracts"], {
+    files: { "src/a.ts": 'import "@fresnel/contracts";' },
   });
-  pkg("apps/cli", "L4", ["@xeon/core-loop"], {
-    files: { "src/a.ts": 'import "@xeon/core-loop";' },
+  pkg("apps/cli", "L4", ["@fresnel/core-loop"], {
+    files: { "src/a.ts": 'import "@fresnel/core-loop";' },
   });
   expect(lines()).toEqual([]);
 });
 
 test("DR-01: upward package.json dependency fails at the dependency line", () => {
-  pkg("packages/core-loop", "L1", ["@xeon/cap-web"]);
+  pkg("packages/core-loop", "L1", ["@fresnel/cap-web"]);
   pkg("packages/cap-web", "L2");
   const found = checkLayers(root).violations;
   expect(found.map((v) => v.rule)).toEqual(["DR-01"]);
@@ -169,24 +169,24 @@ test("DR-01: upward package.json dependency fails at the dependency line", () =>
 });
 
 test("DR-01: upward source import is reported as file:line with the guide format", () => {
-  pkg("packages/core-loop", "L1", ["@xeon/cap-web"], {
-    files: { "src/turn.ts": '\n\nimport type { X } from "@xeon/cap-web";\n' },
+  pkg("packages/core-loop", "L1", ["@fresnel/cap-web"], {
+    files: { "src/turn.ts": '\n\nimport type { X } from "@fresnel/cap-web";\n' },
   });
   pkg("packages/cap-web", "L2");
   expect(lines()).toEqual([
-    "packages/core-loop/src/turn.ts:3 DR-01 L1 package @xeon/core-loop imports higher layer L2 (@xeon/cap-web)",
+    "packages/core-loop/src/turn.ts:3 DR-01 L1 package @fresnel/core-loop imports higher layer L2 (@fresnel/cap-web)",
   ]);
 });
 
 test("DR-04: an undeclared upward import reports both rules", () => {
-  pkg("packages/core-loop", "L1", [], { files: { "src/a.ts": 'import "@xeon/cap-web";' } });
+  pkg("packages/core-loop", "L1", [], { files: { "src/a.ts": 'import "@fresnel/cap-web";' } });
   pkg("packages/cap-web", "L2");
   expect(rules().toSorted()).toEqual(["DR-01", "DR-04"]);
 });
 
 test("DR-02: same-layer import fails", () => {
-  pkg("packages/core-loop", "L1", ["@xeon/core-tools"], {
-    files: { "src/a.ts": 'import "@xeon/core-tools";' },
+  pkg("packages/core-loop", "L1", ["@fresnel/core-tools"], {
+    files: { "src/a.ts": 'import "@fresnel/core-tools";' },
   });
   pkg("packages/core-tools", "L1");
   expect(rules()).toEqual(["DR-02"]);
@@ -195,48 +195,50 @@ test("DR-02: same-layer import fails", () => {
 test("DR-02: plugins count as L1, so importing core-* fails and platform-* passes", () => {
   pkg("packages/core-models", "L1");
   pkg("packages/platform-secrets", "L0");
-  pkg("plugins/provider-x", "L1", ["@xeon/core-models", "@xeon/platform-secrets"], {
+  pkg("plugins/provider-x", "L1", ["@fresnel/core-models", "@fresnel/platform-secrets"], {
     domain: "provider-x",
   });
   expect(rules()).toEqual(["DR-02"]);
 });
 
 test("DR-10: apps importing apps fail under DR-10", () => {
-  pkg("apps/cli", "L4", ["@xeon/host"], { files: { "src/a.ts": 'import "@xeon/host";' } });
+  pkg("apps/cli", "L4", ["@fresnel/host"], { files: { "src/a.ts": 'import "@fresnel/host";' } });
   pkg("apps/host", "L4");
   expect(rules()).toEqual(["DR-10"]);
 });
 
 test("DR-10: an app importing packages/client fails until the allowlist names it, and client importing an app fails under DR-02", () => {
   pkg("packages/contracts", "F");
-  pkg("packages/client", "L4", ["@xeon/contracts", "@xeon/host"], {
+  pkg("packages/client", "L4", ["@fresnel/contracts", "@fresnel/host"], {
     domain: "client",
-    files: { "src/a.ts": 'import "@xeon/contracts";\nimport "@xeon/host";' },
+    files: { "src/a.ts": 'import "@fresnel/contracts";\nimport "@fresnel/host";' },
   });
   pkg("apps/host", "L4");
-  pkg("apps/cli", "L4", ["@xeon/client"], { files: { "src/a.ts": 'import "@xeon/client";' } });
+  pkg("apps/cli", "L4", ["@fresnel/client"], {
+    files: { "src/a.ts": 'import "@fresnel/client";' },
+  });
   expect(rules().toSorted()).toEqual(["DR-02", "DR-10"]);
-  allowlist([{ id: "DR-10/cli-client", rule: "DR-10", from: "apps/cli", to: "@xeon/client" }]);
+  allowlist([{ id: "DR-10/cli-client", rule: "DR-10", from: "apps/cli", to: "@fresnel/client" }]);
   expect(rules()).toEqual(["DR-02"]);
 });
 
 test("allowlist: a listed same-layer pair passes, an unlisted pair still fails", () => {
-  pkg("apps/cli", "L4", ["@xeon/host", "@xeon/desktop"], {
-    files: { "src/a.ts": 'import "@xeon/host";\nimport "@xeon/desktop";' },
+  pkg("apps/cli", "L4", ["@fresnel/host", "@fresnel/desktop"], {
+    files: { "src/a.ts": 'import "@fresnel/host";\nimport "@fresnel/desktop";' },
   });
   pkg("apps/host", "L4");
   pkg("apps/desktop", "L4");
   allowlist([
-    { id: "DR-10/cli-host", rule: "DR-10", from: "apps/cli", to: "@xeon/host", entries: ["."] },
+    { id: "DR-10/cli-host", rule: "DR-10", from: "apps/cli", to: "@fresnel/host", entries: ["."] },
   ]);
   expect(lines()).toEqual([
-    "apps/cli/src/a.ts:2 DR-10 L4 package @xeon/cli imports same-layer package @xeon/desktop; apps connect through the sidecar",
+    "apps/cli/src/a.ts:2 DR-10 L4 package @fresnel/cli imports same-layer package @fresnel/desktop; apps connect through the sidecar",
   ]);
 });
 
 test("allowlist: only the listed entry points are allowed", () => {
-  pkg("packages/group-helm", "L3", ["@xeon/group-sdk"], {
-    files: { "src/a.ts": 'import "@xeon/group-sdk";\nimport "@xeon/group-sdk/internal";' },
+  pkg("packages/group-helm", "L3", ["@fresnel/group-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/group-sdk";\nimport "@fresnel/group-sdk/internal";' },
   });
   pkg("packages/group-sdk", "L3");
   allowlist([
@@ -244,7 +246,7 @@ test("allowlist: only the listed entry points are allowed", () => {
       id: "DR-02/group-sdk-helm",
       rule: "DR-02",
       from: "packages/group-helm",
-      to: "@xeon/group-sdk",
+      to: "@fresnel/group-sdk",
     },
   ]);
   expect(lines()).toHaveLength(1);
@@ -252,11 +254,11 @@ test("allowlist: only the listed entry points are allowed", () => {
 });
 
 test("allowlist: the entry must match the rule and the importing package", () => {
-  pkg("packages/group-helm", "L3", ["@xeon/group-sdk"], {
-    files: { "src/a.ts": 'import "@xeon/group-sdk";' },
+  pkg("packages/group-helm", "L3", ["@fresnel/group-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
   });
-  pkg("packages/group-learning", "L3", ["@xeon/group-sdk"], {
-    files: { "src/a.ts": 'import "@xeon/group-sdk";' },
+  pkg("packages/group-learning", "L3", ["@fresnel/group-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
   });
   pkg("packages/group-sdk", "L3");
   allowlist([
@@ -264,7 +266,7 @@ test("allowlist: the entry must match the rule and the importing package", () =>
       id: "DR-02/group-sdk-helm",
       rule: "DR-02",
       from: "packages/group-helm",
-      to: "@xeon/group-sdk",
+      to: "@fresnel/group-sdk",
     },
   ]);
   const found = checkLayers(root).violations;
@@ -284,18 +286,18 @@ test("allowlist: a family pattern matches each package of the family and no deep
 });
 
 test("allowlist: the group-sdk family entry covers each group, its two entries and nothing else", () => {
-  pkg("packages/group-helm", "L3", ["@xeon/group-sdk", "@xeon/group-learning"], {
+  pkg("packages/group-helm", "L3", ["@fresnel/group-sdk", "@fresnel/group-learning"], {
     files: {
       "src/a.ts": [
-        'import "@xeon/group-sdk";',
-        'import "@xeon/group-sdk/testing";',
-        'import "@xeon/group-sdk/internal";',
-        'import "@xeon/group-learning";',
+        'import "@fresnel/group-sdk";',
+        'import "@fresnel/group-sdk/testing";',
+        'import "@fresnel/group-sdk/internal";',
+        'import "@fresnel/group-learning";',
       ].join("\n"),
     },
   });
-  pkg("packages/group-learning", "L3", ["@xeon/group-sdk"], {
-    files: { "src/a.ts": 'import "@xeon/group-sdk";' },
+  pkg("packages/group-learning", "L3", ["@fresnel/group-sdk"], {
+    files: { "src/a.ts": 'import "@fresnel/group-sdk";' },
   });
   pkg("packages/group-sdk", "L3");
   allowlist([
@@ -303,7 +305,7 @@ test("allowlist: the group-sdk family entry covers each group, its two entries a
       id: "DR-02/group-sdk",
       rule: "DR-02",
       from: "packages/group-*",
-      to: "@xeon/group-sdk",
+      to: "@fresnel/group-sdk",
       entries: [".", "./testing"],
     },
   ]);
@@ -312,15 +314,15 @@ test("allowlist: the group-sdk family entry covers each group, its two entries a
     .violations.filter((v) => v.file === "packages/group-helm/src/a.ts")
     .map(formatViolation);
   expect(sources).toEqual([
-    "packages/group-helm/src/a.ts:3 DR-02 L3 package @xeon/group-helm imports same-layer package @xeon/group-sdk; share through F contracts or Cordis services",
-    "packages/group-helm/src/a.ts:4 DR-02 L3 package @xeon/group-helm imports same-layer package @xeon/group-learning; share through F contracts or Cordis services",
+    "packages/group-helm/src/a.ts:3 DR-02 L3 package @fresnel/group-helm imports same-layer package @fresnel/group-sdk; share through F contracts or Cordis services",
+    "packages/group-helm/src/a.ts:4 DR-02 L3 package @fresnel/group-helm imports same-layer package @fresnel/group-learning; share through F contracts or Cordis services",
   ]);
 });
 
 test("allowlist: a family pattern must match at least one workspace package", () => {
   pkg("packages/core-loop", "L1");
   allowlist([
-    { id: "DR-02/ghost", rule: "DR-02", from: "packages/ghost-*", to: "@xeon/core-loop" },
+    { id: "DR-02/ghost", rule: "DR-02", from: "packages/ghost-*", to: "@fresnel/core-loop" },
   ]);
   const found = checkLayers(root).violations;
   expect(found.map((v) => v.message)).toEqual([
@@ -331,8 +333,8 @@ test("allowlist: a family pattern must match at least one workspace package", ()
 test("allowlist: stale and inconsistent entries are violations", () => {
   pkg("packages/core-loop", "L1");
   allowlist([
-    { id: "DR-02/ghost", rule: "DR-02", from: "packages/ghost", to: "@xeon/core-loop" },
-    { id: "DR-02/other", rule: "DR-10", from: "packages/core-loop", to: "@xeon/ghost" },
+    { id: "DR-02/ghost", rule: "DR-02", from: "packages/ghost", to: "@fresnel/core-loop" },
+    { id: "DR-02/other", rule: "DR-10", from: "packages/core-loop", to: "@fresnel/ghost" },
   ]);
   const found = checkLayers(root).violations;
   expect(found.every((v) => v.file === "scripts/dependency-allowlist.json")).toBe(true);
@@ -379,7 +381,7 @@ test("DR-03: a package without domain fails", () => {
   pkg("packages/core-loop", "L1");
   writeFileSync(
     join(root, "packages/core-loop/package.json"),
-    JSON.stringify({ name: "@xeon/core-loop", xeon: { layer: "L1" } }),
+    JSON.stringify({ name: "@fresnel/core-loop", fresnel: { layer: "L1" } }),
   );
   expect(lines()[0]).toMatch(/DR-03 .*domain is missing/);
 });
@@ -423,9 +425,9 @@ test("DR-03: an unreadable routes.yaml is a tool error", () => {
 
 test("vendor is excluded in both directions", () => {
   pkg("vendor/cordis", "vendor");
-  pkg("packages/ext-host", "X", ["@xeon/cordis"], {
+  pkg("packages/ext-host", "X", ["@fresnel/cordis"], {
     domain: "ext-host",
-    files: { "src/a.ts": 'import "@xeon/cordis";' },
+    files: { "src/a.ts": 'import "@fresnel/cordis";' },
   });
   expect(lines()).toEqual([]);
 });
@@ -439,10 +441,10 @@ test("DR-05: relative import out of the package fails", () => {
   expect(lines()[0]).toMatch(/^packages\/core-loop\/src\/a\.ts:2 DR-05 /);
 });
 
-test("DR-05: importing @xeon/<name>/src fails", () => {
+test("DR-05: importing @fresnel/<name>/src fails", () => {
   pkg("packages/platform-store", "L0");
-  pkg("packages/core-loop", "L1", ["@xeon/platform-store"], {
-    files: { "src/index.ts": 'import { z } from "@xeon/platform-store/src/index.ts";' },
+  pkg("packages/core-loop", "L1", ["@fresnel/platform-store"], {
+    files: { "src/index.ts": 'import { z } from "@fresnel/platform-store/src/index.ts";' },
   });
   expect(lines()).toHaveLength(1);
   expect(lines()[0]).toMatch(/^packages\/core-loop\/src\/index\.ts:1 DR-05 /);
@@ -451,24 +453,24 @@ test("DR-05: importing @xeon/<name>/src fails", () => {
 test("test files are scanned too", () => {
   pkg("packages/contracts", "F", [], {
     domain: "contracts",
-    files: { "test/a.test.ts": 'import "@xeon/core-loop";' },
+    files: { "test/a.test.ts": 'import "@fresnel/core-loop";' },
   });
   pkg("packages/core-loop", "L1");
   expect(rules()).toContain("DR-01");
 });
 
-test("DR-04: import of an unknown @xeon package fails", () => {
-  pkg("packages/core-loop", "L1", [], { files: { "src/a.ts": 'import "@xeon/ghost";' } });
+test("DR-04: import of an unknown @fresnel package fails", () => {
+  pkg("packages/core-loop", "L1", [], { files: { "src/a.ts": 'import "@fresnel/ghost";' } });
   expect(lines()).toEqual([
-    "packages/core-loop/src/a.ts:1 DR-04 @xeon/ghost is not a workspace package",
+    "packages/core-loop/src/a.ts:1 DR-04 @fresnel/ghost is not a workspace package",
   ]);
 });
 
 test("DR-04: a workspace dependency needs a tsconfig reference", () => {
   pkg("packages/contracts", "F", [], { domain: "contracts" });
-  pkg("packages/core-loop", "L1", ["@xeon/contracts"], { references: [] });
+  pkg("packages/core-loop", "L1", ["@fresnel/contracts"], { references: [] });
   expect(lines()).toEqual([
-    "packages/core-loop/tsconfig.json:1 DR-04 package.json declares @xeon/contracts but tsconfig.json has no reference to packages/contracts",
+    "packages/core-loop/tsconfig.json:1 DR-04 package.json declares @fresnel/contracts but tsconfig.json has no reference to packages/contracts",
   ]);
 });
 
@@ -478,7 +480,7 @@ test("DR-04: a tsconfig reference needs a workspace dependency", () => {
   const found = lines();
   expect(found).toHaveLength(2);
   expect(found.join("\n")).toContain(
-    "references @xeon/contracts but package.json does not declare it",
+    "references @fresnel/contracts but package.json does not declare it",
   );
   expect(found.join("\n")).toContain("reference packages/ghost is not a workspace package");
   expect(found.every((line) => /^packages\/core-loop\/tsconfig\.json:\d+ DR-04 /.test(line))).toBe(
@@ -488,7 +490,7 @@ test("DR-04: a tsconfig reference needs a workspace dependency", () => {
 
 test("DR-04: references accept tsconfig.json file paths and comments in tsconfig", () => {
   pkg("packages/contracts", "F", [], { domain: "contracts" });
-  pkg("packages/core-loop", "L1", ["@xeon/contracts"]);
+  pkg("packages/core-loop", "L1", ["@fresnel/contracts"]);
   writeFileSync(
     join(root, "packages/core-loop/tsconfig.json"),
     '// comment\n{ "references": [{ "path": "../contracts/tsconfig.json", },], }',
@@ -540,10 +542,10 @@ test("the CLI exits 1 on violations, 2 on tool errors and 0 on a clean tree", ()
 });
 
 test("allowlist: a listed pair also passes when only package.json declares it", () => {
-  pkg("apps/cli", "L4", ["@xeon/host"]);
+  pkg("apps/cli", "L4", ["@fresnel/host"]);
   pkg("apps/host", "L4");
   expect(rules()).toEqual(["DR-10"]);
-  allowlist([{ id: "DR-10/cli-host", rule: "DR-10", from: "apps/cli", to: "@xeon/host" }]);
+  allowlist([{ id: "DR-10/cli-host", rule: "DR-10", from: "apps/cli", to: "@fresnel/host" }]);
   expect(rules()).toEqual([]);
 });
 

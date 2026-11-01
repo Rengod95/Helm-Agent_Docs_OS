@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { BinaryName } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { BinaryName } from "@fresnel/contracts/services";
 import { createRipgrepSource } from "../src/binaries/rg.ts";
 import type { CommandOutput, RunCommand } from "../src/proc.ts";
 import { memoryLogger } from "./support/clock.ts";

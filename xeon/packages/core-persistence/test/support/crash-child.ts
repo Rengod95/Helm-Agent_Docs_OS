@@ -1,7 +1,7 @@
 // restart.fault.test.ts가 자식 프로세스로 띄우는 스크립트. 이름 붙은 종료 지점에서 자기 프로세스에 SIGKILL을 보낸다
 // (L1.persistence.spec §4.14 K1~K6, eng.testing.guide TS-08 3번). 인자: <DB 파일> <지점>
-import { Bug } from "@xeon/contracts";
-import type { FaultInjector, FaultPoint } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { FaultInjector, FaultPoint } from "@fresnel/contracts/records";
 import { fixedIdFactory, manualClock } from "./clock.ts";
 import {
   commitExec,

@@ -1,12 +1,12 @@
-import { eachAsync, err, ok, parse, type Result } from "@xeon/contracts";
-import type { EventId, ThreadId } from "@xeon/contracts/conversation";
+import { eachAsync, err, ok, parse, type Result } from "@fresnel/contracts";
+import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   type ReadFailure,
   type SessionService,
-} from "@xeon/contracts/records";
-import type { ApprovalResponse, ApprovalService } from "@xeon/contracts/services";
-import type { PendingApproval, StoreId, WireResult } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/records";
+import type { ApprovalResponse, ApprovalService } from "@fresnel/contracts/services";
+import type { PendingApproval, StoreId, WireResult } from "@fresnel/contracts/wire";
 import type { ApprovalListFailure, ApprovalPort } from "../types.ts";
 
 // F.wire-settings.spec §4.6 A안, §3.4.6 5항. approval.respond는 L1.tools의 ApprovalService로 넘기고, approval.list는 저장소에서 읽는다.

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import type { ResourceRecord, ResourceRegistry } from "@xeon/ext-host";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import type { ResourceRecord, ResourceRegistry } from "@fresnel/ext-host";
 import { onWebSessionShutdown, webRegistrationSource } from "../../src/assembly/cap-web.ts";
 
 // M3-REQ-37 (등록 목록 연결)과 세션 종료 때 브라우저 세션 닫기(L2.web.spec §4.10.1). 가짜 기록과 가짜 런타임으로 값을 본다.

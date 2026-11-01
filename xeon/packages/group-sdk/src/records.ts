@@ -3,7 +3,7 @@ import {
   type ExtensionManifest,
   type PostItem,
   type RecordKind,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 
 const KIND_REGEX = new RegExp(RECORD_KIND_PATTERN);
 

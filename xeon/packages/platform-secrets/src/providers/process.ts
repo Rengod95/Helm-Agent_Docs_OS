@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { errorCode } from "../errors.ts";
 
 // L0.secrets.spec §4.6. 외부 바이너리 실행기. 호출 쪽(sops 제공자, macOS 키 저장, 파일 만들기)이 같은 주입 지점을 쓴다.

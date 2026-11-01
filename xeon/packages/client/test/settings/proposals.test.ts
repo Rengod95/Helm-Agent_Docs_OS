@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import type { ProposalDecideResult, ProposalListResult, ProposalRow } from "@xeon/contracts/wire";
-import { parse } from "@xeon/contracts";
-import { ThreadIdSchema } from "@xeon/contracts/conversation";
+import type {
+  ProposalDecideResult,
+  ProposalListResult,
+  ProposalRow,
+} from "@fresnel/contracts/wire";
+import { parse } from "@fresnel/contracts";
+import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import {
   decisionOutcomeOf,
   decisionParams,

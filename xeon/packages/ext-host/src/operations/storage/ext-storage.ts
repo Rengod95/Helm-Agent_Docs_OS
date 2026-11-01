@@ -1,12 +1,12 @@
-import { assertNever, Bug, err, ok, parse, parseJson, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, Bug, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   ProjectorRegistryPortKey,
   ScopedStorePortKey,
   type ExtensionName,
   type PortLookup,
   type ScopeApi,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   ownerOfKind,
   type DurableEventEnvelope,
@@ -17,7 +17,7 @@ import {
   type SqlRow,
   type SqlTx,
   type SqlValue,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { scopeInternalsOf } from "../../primitives/host-api.ts";
 import type { DispatchPolicy } from "../../primitives/dispatch-types.ts";
 import { namesOf, readersOf, writersOf } from "../../erase.ts";
@@ -371,8 +371,9 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
         if (defined.has(extension)) return err({ kind: "already_defined" });
         const registry = deps.ports.get(ProjectorRegistryPortKey);
         const store = deps.ports.get(ScopedStorePortKey);
-        if (registry === undefined) return err({ kind: "port_unavailable", port: "xeon.session" });
-        if (store === undefined) return err({ kind: "port_unavailable", port: "xeon.store" });
+        if (registry === undefined)
+          return err({ kind: "port_unavailable", port: "fresnel.session" });
+        if (store === undefined) return err({ kind: "port_unavailable", port: "fresnel.store" });
 
         const codecs = new Map<string, Codec>();
         const ddl: string[] = [];

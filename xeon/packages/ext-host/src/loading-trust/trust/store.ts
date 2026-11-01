@@ -2,13 +2,13 @@
 // at cdaf6c227d4718a72b59ccd02152c9614df44cfc (pi 1.1.0). MIT License, Copyright (c) 2025 Mario Zechner. See LICENSE.pi.
 // Changes: see docs/xeon/X/loading-trust/spec.md §4.7.1 and PATCHES.md.
 import { dirname } from "node:path";
-import { attemptAsync, err, ok, parse, parseJson, type Result } from "@xeon/contracts";
+import { attemptAsync, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import type {
   TrustChoice,
   TrustOption,
   TrustStoreBackend,
   TrustUpdate,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { Type, type Static } from "typebox";
 
 // FRESNEL-PATCH: verdict-type

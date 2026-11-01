@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { err, ok, type Logger } from "@xeon/contracts";
-import type { SessionRetention, StoreError } from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { err, ok, type Logger } from "@fresnel/contracts";
+import type { SessionRetention, StoreError } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { pruneOnOpen } from "../../src/assembly/retention.ts";
 
 // 보관 정리 호출(HS-62): 계약의 SessionService.retention만 쓴다. 로그 이벤트와 필드 값을 비교한다.

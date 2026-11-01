@@ -1,4 +1,4 @@
-import { ok, type Result } from "@xeon/contracts";
+import { ok, type Result } from "@fresnel/contracts";
 import type { KnowledgeCall, KnowledgeFailure, KnowledgePort } from "./knowledge.ts";
 import { isDestructiveOp, opAllowedFor, type ProposalKind, type ProposalOp } from "./proposal.ts";
 import { parsePatchEdits, parseTarget } from "./target.ts";

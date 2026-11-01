@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/cli",
+  "name": "@fresnel/cli",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,20 +13,20 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
-    "@xeon/client": "workspace:*",
-    "@xeon/contracts": "workspace:*",
-    "@xeon/core-models": "workspace:*",
-    "@xeon/group-sdk": "workspace:*",
-    "@xeon/host": "workspace:*",
-    "@xeon/platform-os": "workspace:*",
-    "@xeon/platform-store": "workspace:*",
+    "@fresnel/client": "workspace:*",
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/core-models": "workspace:*",
+    "@fresnel/group-sdk": "workspace:*",
+    "@fresnel/host": "workspace:*",
+    "@fresnel/platform-os": "workspace:*",
+    "@fresnel/platform-store": "workspace:*",
     "get-east-asian-width": "catalog:",
     "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L4",
     "domain": "cli"
   }

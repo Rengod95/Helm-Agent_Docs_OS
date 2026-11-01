@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { activeLocale, setActiveLocale, type Locale } from "@xeon/client/i18n";
-import type { ScopeHandlerFailedPayload } from "@xeon/contracts/records";
-import type { NotifyDeliveredParams, TrustStatus } from "@xeon/contracts/wire";
+import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n";
+import type { ScopeHandlerFailedPayload } from "@fresnel/contracts/records";
+import type { NotifyDeliveredParams, TrustStatus } from "@fresnel/contracts/wire";
 import type { PromptIo } from "../src/render/approval.ts";
 import { createLockPrompt } from "../src/render/lock.ts";
 import { deliveredText, handlerFailedText } from "../src/render/notices.ts";

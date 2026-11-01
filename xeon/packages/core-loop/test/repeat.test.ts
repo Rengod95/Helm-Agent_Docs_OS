@@ -4,8 +4,8 @@ import type {
   AgentToolResult,
   ToolResultMessage,
   TurnNotice,
-} from "@xeon/contracts/conversation";
-import type { ToolCallOutcome } from "@xeon/contracts/services";
+} from "@fresnel/contracts/conversation";
+import type { ToolCallOutcome } from "@fresnel/contracts/services";
 import { createRepeatDetector, type RepeatSettings } from "../src/repeat.ts";
 
 // L1.loop.spec §4.10 반복 감지 값 시험. 도구 호출과 결과는 합성 ToolCallOutcome 값이다.

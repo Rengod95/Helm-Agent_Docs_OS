@@ -1,4 +1,4 @@
-// @xeon/platform-exec: xeon.exec(ExecService)의 로컬 구현. pi durable env 포크 + Xeon 연결 코드(L0.exec.spec).
+// @fresnel/platform-exec: fresnel.exec(ExecService)의 로컬 구현. pi durable env 포크 + Xeon 연결 코드(L0.exec.spec).
 export { createExecService, type ExecServiceDeps, type ExecServiceOptions } from "./service.ts";
 export {
   BASE_ENV_POLICY,

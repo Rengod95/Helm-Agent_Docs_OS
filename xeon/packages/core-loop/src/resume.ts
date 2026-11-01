@@ -1,4 +1,4 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   StepCompletedPayloadSchema,
   StepStartedPayloadSchema,
@@ -13,7 +13,7 @@ import {
   type TurnId,
   type TurnOrigin,
   type Usage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   ItemRecordedPayloadSchema,
   TurnAbortRequestedPayloadSchema,
@@ -21,8 +21,8 @@ import {
   type EffectIntent,
   type ResumePlan,
   type StepCheckpoint,
-} from "@xeon/contracts/records";
-import type { ModelBinding, ResumeFrom } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type { ModelBinding, ResumeFrom } from "@fresnel/contracts/services";
 import type { ToolCallResume, TurnEntry } from "./loop/types.ts";
 import { textAndImages } from "./turn-start.ts";
 

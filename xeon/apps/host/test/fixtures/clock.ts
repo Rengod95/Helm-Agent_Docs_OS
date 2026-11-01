@@ -1,4 +1,4 @@
-import { flushMicrotasks } from "@xeon/ext-host/testing";
+import { flushMicrotasks } from "@fresnel/ext-host/testing";
 
 export { flushMicrotasks };
 

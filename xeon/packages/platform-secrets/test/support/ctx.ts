@@ -1,4 +1,4 @@
-import type { ApprovalEvidence, UseCtx } from "@xeon/contracts/services";
+import type { ApprovalEvidence, UseCtx } from "@fresnel/contracts/services";
 
 export const APPROVAL_PER_USE: ApprovalEvidence = {
   approvalId: "apr_test_1",

@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { ImageBlobRefSchema, WorkspaceFiles, WorkspaceImages } from "@xeon/contracts/capabilities";
-import { BlobRefSchema } from "@xeon/contracts/records";
-import type { ScopeStack } from "@xeon/contracts/settings";
+import {
+  ImageBlobRefSchema,
+  WorkspaceFiles,
+  WorkspaceImages,
+} from "@fresnel/contracts/capabilities";
+import { BlobRefSchema } from "@fresnel/contracts/records";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import { createFilesApi, createWorkspaceService } from "../src/service.ts";
 import { readWorkspaceSettings } from "../src/settings.ts";
 import { callTool, type AdaptedResult } from "./support/adapter.ts";

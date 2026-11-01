@@ -12,9 +12,9 @@ import {
   type KnowledgeMemory,
   type KnowledgeSearch,
   type WriteOutcome,
-} from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import { hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 import { partial, widen } from "./unsafe.ts";
 
 // L2.knowledge의 시험 대역(L3.learning.plan §5 "L1-g·L2-d는 각 패키지 testing 서브패스의 가짜"; cap-knowledge에는 그 서브패스가 없어 이 패키지 test/ 안에 둔다).

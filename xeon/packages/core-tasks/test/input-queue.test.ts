@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, ok, parse, type Result } from "@xeon/contracts";
-import type { EventId, ItemId, TurnId } from "@xeon/contracts/conversation";
-import { InputQueuedPayloadSchema } from "@xeon/contracts/records";
+import { Bug, ok, parse, type Result } from "@fresnel/contracts";
+import type { EventId, ItemId, TurnId } from "@fresnel/contracts/conversation";
+import { InputQueuedPayloadSchema } from "@fresnel/contracts/records";
 import type {
   DrainMode,
   InputDraft,
   InputQueueError,
   PlacementPoint,
   PlacementSelection,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { createStaticTasksSettings } from "../src/settings-source.ts";
 import { createWorld, restart, userDraft, type World } from "./support/world.ts";
 

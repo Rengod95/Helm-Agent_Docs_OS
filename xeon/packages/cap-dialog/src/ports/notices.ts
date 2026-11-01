@@ -1,10 +1,10 @@
-import type { Result } from "@xeon/contracts";
-import type { NoticeKind } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope, ReadFailure, StoreError } from "@xeon/contracts/records";
+import type { Result } from "@fresnel/contracts";
+import type { NoticeKind } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope, ReadFailure, StoreError } from "@fresnel/contracts/records";
 
 // L2.dialog.spec §3.7, §4.7. 내구 알림(`dialog.notified`)을 남기고 원인 이벤트를 당겨 읽는 좁은 포트다.
-// 구현은 `xeon.session`을 감싼 어댑터(session-adapter.ts)다. 시험은 메모리 대역을 넘긴다.
+// 구현은 `fresnel.session`을 감싼 어댑터(session-adapter.ts)다. 시험은 메모리 대역을 넘긴다.
 
 /** `dialog.notified` payload의 `notice`. DialogNotifiedSchema와 같은 모양이다 */
 export interface NoticeRecord {

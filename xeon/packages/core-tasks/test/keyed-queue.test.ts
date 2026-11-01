@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { AbortReason, KeyedQueue, TaskScope } from "@xeon/contracts/services";
+import type { AbortReason, KeyedQueue, TaskScope } from "@fresnel/contracts/services";
 import { createWorld, deferred, flush, openTurn, type Deferred } from "./support/world.ts";
 
 interface Fixture {

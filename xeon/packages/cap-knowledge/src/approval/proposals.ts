@@ -1,4 +1,4 @@
-import { err, ok, parse, parseJson, type Result } from "@xeon/contracts";
+import { err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import {
   KnowledgeActorSchema,
   LedgerOpSchema,
@@ -10,8 +10,8 @@ import {
   type ProposalStatus,
   type ScanSummary,
   type WritableSkillScope,
-} from "@xeon/contracts/capabilities";
-import { BlobRefSchema, type BlobRef, type SqlRow, type SqlTx } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import { BlobRefSchema, type BlobRef, type SqlRow, type SqlTx } from "@fresnel/contracts/records";
 import type { Static, TSchema } from "typebox";
 import { failure, type KnowledgeFailure } from "../errors.ts";
 

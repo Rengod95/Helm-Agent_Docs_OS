@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { AssistantMessage, AssistantMessageEvent } from "@xeon/contracts/conversation";
-import type { AssistantMessageEventStream } from "@xeon/contracts/services";
+import type { AssistantMessage, AssistantMessageEvent } from "@fresnel/contracts/conversation";
+import type { AssistantMessageEventStream } from "@fresnel/contracts/services";
 import { observeStream } from "../src/stream-observer.ts";
 
 function message(

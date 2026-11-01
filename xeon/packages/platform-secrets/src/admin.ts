@@ -1,12 +1,20 @@
 import { createHash } from "node:crypto";
-import { assertNever, err, ok, parse, type Clock, type Logger, type Result } from "@xeon/contracts";
+import {
+  assertNever,
+  err,
+  ok,
+  parse,
+  type Clock,
+  type Logger,
+  type Result,
+} from "@fresnel/contracts";
 import {
   SecretMetaSchema,
   type SecretAuditRecord,
   type SecretHandle,
   type SecretMeta,
   type SecretName,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   HumanReauth,
   SecretAdminService,
@@ -21,7 +29,7 @@ import type {
   SecretValueSource,
   SecretValueView,
   UseCtx,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { adminRecord, revealedRecord } from "./audit.ts";
 import type { AuditLog } from "./audit-file.ts";
 import { filterSensitiveEnv } from "./env-filter.ts";
@@ -29,7 +37,7 @@ import type { MetaStore } from "./meta.ts";
 import { parseHandle } from "./ref.ts";
 import type { SecretServiceInternal, SecretServiceRuntime } from "./service.ts";
 
-// L0.secrets.spec §3.8, §4.9. 사람 전용 관리 서비스(xeon.secretAdmin). 조립 루트가 L4 진입점에만 넘기고 확장과 모델 도구에는 주지 않는다.
+// L0.secrets.spec §3.8, §4.9. 사람 전용 관리 서비스(fresnel.secretAdmin). 조립 루트가 L4 진입점에만 넘기고 확장과 모델 도구에는 주지 않는다.
 // 값은 SecretValueSource로만 받고(argv 경로 없음), 받은 바이트는 제공자에 넘긴 직후 0으로 덮는다.
 
 /** 값 최소 길이. 이보다 짧으면 Redactor가 가릴 수 없다(spec §3.5) */
@@ -77,7 +85,7 @@ export const bunInheritRunner: ChildRunner = async (request) => {
 // ── 의존 ─────────────────────────────────────────────────────────────────
 
 export interface SecretAdminDeps {
-  /** 공개 서비스와 사람 전용 통로를 합친 값. 조립이 관리 서비스에만 넘기고 `xeon.secrets`로는 공개 쪽 객체만 등록한다 */
+  /** 공개 서비스와 사람 전용 통로를 합친 값. 조립이 관리 서비스에만 넘기고 `fresnel.secrets`로는 공개 쪽 객체만 등록한다 */
   readonly service: Pick<SecretServiceRuntime, "redactor" | "list"> & SecretServiceInternal;
   readonly meta: MetaStore;
   /** 감사 파일. 없으면 usage·references의 세션 목록이 비어 있다 */

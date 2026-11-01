@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import { createNoneLockProvider } from "./lock/none.ts";
 import type { LockProvider } from "./lock/provider.ts";
 import { createPosixLockProvider, type PosixLockConfig } from "./lock/posix.ts";
@@ -34,7 +34,7 @@ export function toStorePlatform(raw: string): StorePlatform | undefined {
     case "linux":
     case "win32":
       return raw;
-    // xeon-disable-next-line xeon/switch-default-never -- 지원 목록 밖 OS는 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 지원 목록 밖 OS는 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return undefined;
   }

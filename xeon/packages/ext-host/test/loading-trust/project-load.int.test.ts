@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { TrustChoice } from "@xeon/contracts/extensions";
+import type { TrustChoice } from "@fresnel/contracts/extensions";
 import type { LoaderPaths } from "../../src/loading-trust/index.ts";
 import { fakeGroupSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { createLoaderHarness, type LoaderHarness } from "./support/harness.ts";

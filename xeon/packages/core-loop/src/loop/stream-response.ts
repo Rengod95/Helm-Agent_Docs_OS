@@ -1,6 +1,6 @@
 // Derived from pi-agent-core 1.3.0 agent-loop.ts streamAssistantResponse (MIT, Copyright (c) 2025 Mario Zechner). See LICENSE.pi.
-import { assertNever } from "@xeon/contracts";
-import type { AssistantMessage, StreamFn } from "@xeon/contracts/conversation";
+import { assertNever } from "@fresnel/contracts";
+import type { AssistantMessage, StreamFn } from "@fresnel/contracts/conversation";
 import { abortedStream } from "../streams.ts";
 import type { RequestInput } from "./prepare-request.ts";
 import { emitMessageStart, emitMessageUpdate } from "./sink.ts";
@@ -12,7 +12,7 @@ import { currentStep, failureText, overrides, type TurnRun } from "./turn-run.ts
 // FRESNEL-PATCH: no-api-key — getApiKey·apiKey 처리는 없다. core-models가 키를 임대한다.
 // FRESNEL-PATCH: model-slot — streamFn을 `modelCalls` 슬롯으로 감싼다(L1.tasks.spec §4.5 C1).
 
-/** `xeon.models`의 streamFn을 `modelCalls` 슬롯으로 감싼 것(L1.tasks.spec §4.5 C1). 전역 기본 streamFn은 없다 */
+/** `fresnel.models`의 streamFn을 `modelCalls` 슬롯으로 감싼 것(L1.tasks.spec §4.5 C1). 전역 기본 streamFn은 없다 */
 function modelStreamFn(run: TurnRun): StreamFn {
   const { ctx, scope, threadId, turnId } = run;
   return async (model, transcript, options) => {

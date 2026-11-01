@@ -1,4 +1,4 @@
-import { err, ok, type Result, type Scheduler } from "@xeon/contracts";
+import { err, ok, type Result, type Scheduler } from "@fresnel/contracts";
 import type { FetchLike } from "@modelcontextprotocol/client";
 import type { TransportHandle } from "../adapter.ts";
 import type { McpProcessPort } from "../ports/process.ts";

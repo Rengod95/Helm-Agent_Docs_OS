@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import type { CallOptions } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import type { CallOptions } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WorkspaceEnv } from "../src/env.ts";
 import type { ThreadWorkspaces } from "../src/ports/threads.ts";
 import { scopedDeps } from "../src/scope.ts";

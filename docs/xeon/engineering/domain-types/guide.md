@@ -42,7 +42,7 @@ F 계약 패키지(`xeon/packages/contracts`)의 스키마, 와이어 DTO, 도�
 
 ### 1.2 이 문서가 정하는 공용 이름
 
-`eng.typescript.guide` 1.2절의 `Brand`, `Result`, `ok`, `err`, `Bug`, `assertNever`, `Clock`, `RandomSource`, `Scheduler`와 함께 `@xeon/contracts` 루트 진입점에 둔다 [제안].
+`eng.typescript.guide` 1.2절의 `Brand`, `Result`, `ok`, `err`, `Bug`, `assertNever`, `Clock`, `RandomSource`, `Scheduler`와 함께 `@fresnel/contracts` 루트 진입점에 둔다 [제안].
 
 | 이름 | 종류 | 정의 |
 |---|---|---|
@@ -55,7 +55,7 @@ F 계약 패키지(`xeon/packages/contracts`)의 스키마, 와이어 DTO, 도�
 | `canonicalJson` | 함수 | DT-14 |
 | 스키마 상수 이름 `<Name>Schema`, 타입 이름 `<Name>` | 명명 규약 | DT-02 |
 
-- 브랜드 ID(`ThreadId`, `TurnId`, `StepId`, `ItemId`, `PartId`, `EventId`, `EffectId`, `CheckpointId`), 그 스키마, `IdPrefix`, `IdByPrefix`, `ULID_PATTERN`, `idPattern`, `isId`, `IdFactory`는 `F.conversation.spec` §3.2가 정의하고 서브패스 `@xeon/contracts/conversation`에 둔다(DT-06). 루트 진입점에는 두지 않는다(`F.readme` §3).
+- 브랜드 ID(`ThreadId`, `TurnId`, `StepId`, `ItemId`, `PartId`, `EventId`, `EffectId`, `CheckpointId`), 그 스키마, `IdPrefix`, `IdByPrefix`, `ULID_PATTERN`, `idPattern`, `isId`, `IdFactory`는 `F.conversation.spec` §3.2가 정의하고 서브패스 `@fresnel/contracts/conversation`에 둔다(DT-06). 루트 진입점에는 두지 않는다(`F.readme` §3).
 - 이 문서의 이전 판에 있던 `SessionId`·`TaskId`·`MessageId`·`InputId`·`ApprovalId`·`RequestId`·`ToolCallId`·`ScopeId` 브랜드, `ID_PREFIXES`, `REQUEST_ID_PATTERN`, `deriveRequestId`는 두지 않는다. `createIdFactory`는 F에 두지 않는다(DT-06, [결정: review.decisions-2 U-03]).
 
 ## 2. 규칙
@@ -247,7 +247,7 @@ import { type ThreadSummaryDto } from "../wire-settings/wire/thread-summary.ts";
 [제안] 검증 진입 함수는 하나다.
 
 ```ts
-// @xeon/contracts (루트 진입점), 구현 위치 packages/contracts/src/base/parse.ts
+// @fresnel/contracts (루트 진입점), 구현 위치 packages/contracts/src/base/parse.ts
 import { type Static, type TSchema } from "typebox";
 
 export type ParseIssue = {
@@ -374,7 +374,7 @@ export interface IdFactory {
 }
 ```
 
-- 서브패스: ID 이름과 `IdFactory`는 `@xeon/contracts/conversation`에서 import한다. 루트 `@xeon/contracts`에는 두지 않는다(`F.readme` §3). `@xeon/contracts/records`가 `EventId`, `EffectId`, `CheckpointId`를 같은 심볼로 다시 export한다.
+- 서브패스: ID 이름과 `IdFactory`는 `@fresnel/contracts/conversation`에서 import한다. 루트 `@fresnel/contracts`에는 두지 않는다(`F.readme` §3). `@fresnel/contracts/records`가 `EventId`, `EffectId`, `CheckpointId`를 같은 심볼로 다시 export한다.
 - 경계에서 받은 ID는 `parse(ThreadIdSchema, input)`로만 얻는다. 별도 `parseThreadId` 함수를 만들지 않는다 [제안: 검증 진입점을 하나로 유지].
 - 새 접두 ID는 `IdFactory.next(prefix)`로만 만든다. 브랜드 단언은 `IdFactory` 구현 안에만 있다(TY-06 허용 목록 A2).
 - [결정: review.decisions-2 U-03] `IdFactory` 구현의 위치. F에는 `Clock`·`RandomSource`·`IdFactory` 인터페이스와 순수 함수만 둔다. `createIdFactory(clock, random)` 같은 발급기 구현은 `platform-os`에 두고, 조립 루트가 주입한다. F에는 `./testing` 서브패스를 두지 않는다. 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(`eng.testing.guide` 1.2절). 이 문서의 이전 판에 있던 스키마 생성 도우미 `brandedId`는 두지 않고, 각 ID 스키마는 위 구현 예처럼 `Type.Unsafe`로 직접 만든다.
@@ -564,7 +564,7 @@ export const ToolOutcomeLooseSchema: TObject<{ type: TString; data: TUnknown }> 
 });
 ```
 
-- 첫 번째 나쁜 예는 `default`에서 `outcome`이 열린 변형 타입이라 `assertNever`를 쓰지 않아도 컴파일된다. 그래서 자동 검사는 TY-14 스캔(`xeon/switch-default-never`: `default`에 `assertNever`가 없으면 실패)이 한다.
+- 첫 번째 나쁜 예는 `default`에서 `outcome`이 열린 변형 타입이라 `assertNever`를 쓰지 않아도 컴파일된다. 그래서 자동 검사는 TY-14 스캔(`fresnel/switch-default-never`: `default`에 `assertNever`가 없으면 실패)이 한다.
 - `isOpenVariant`의 `Extract` 좁히기는 [가정]이다. 컴파일 확인은 M0 타입 테스트에서 한다.
 
 ### DT-09 필드 추가는 선택 필드로만 한다. 필드 삭제와 의미 변경은 새 버전 변형으로 한다
@@ -703,7 +703,7 @@ export type DurableEventEnvelope = Static<typeof DurableEventEnvelopeSchema>;
 [제안]
 
 ```ts
-// @xeon/contracts (루트 진입점)
+// @fresnel/contracts (루트 진입점)
 /** version n의 payload를 n+1 형식으로 바꾼다. 순수 함수: I/O, 시계, 난수, 전역 상태를 쓰지 않는다. */
 export type Upcaster = (payload: unknown) => Result<unknown, ParseError>;
 ```
@@ -729,8 +729,8 @@ import {
   type TString,
   type TUnknown,
 } from "typebox";
-import { ok, parse, type Upcaster } from "@xeon/contracts";
-import { ItemIdSchema } from "@xeon/contracts/conversation";
+import { ok, parse, type Upcaster } from "@fresnel/contracts";
+import { ItemIdSchema } from "@fresnel/contracts/conversation";
 
 /** version 1: name 필드, pinned 없음 */
 export const MemoSavedV1Schema: TObject<{
@@ -798,15 +798,15 @@ test("upcastMemoSaved1to2: name을 title로 옮기고 pinned를 false로 채운�
 // 리뷰 DT-11: 저장된 행을 제자리에서 고침
 db.run("UPDATE events SET envelope = json_set(envelope, '$.payload.title', json_extract(envelope, '$.payload.name')) WHERE kind = 'x.notes.memo.saved'");
 
-// 리뷰 DT-11, 스캔 xeon/no-ambient-time 실패: 업캐스터가 시계를 읽고 값을 판단해 고침 (형식 변환과 데이터 정정을 섞음)
+// 리뷰 DT-11, 스캔 fresnel/no-ambient-time 실패: 업캐스터가 시계를 읽고 값을 판단해 고침 (형식 변환과 데이터 정정을 섞음)
 export const badUpcaster: Upcaster = (payload) => ok({ ...(payload as object), migratedAt: new Date().getTime() });
 ```
 
 ### DT-12 F 서브패스 사이 의존은 한 방향이고 순환을 두지 않는다
 
-[제안] `@xeon/contracts` 안의 의존 순서는 `F.readme` §3의 도메인 사이 import 표(base 0 < conversation 1 < capabilities 2 = records 2 < extensions 3 < settings 4 = services 4 < wire 5)를 따른다. 각 소스 디렉터리는 자기보다 순서가 낮은 것만 import하고, 순서가 같은 것끼리(capabilities와 records, settings와 services)는 import하지 않는다. `services`는 L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수 `SERVICE_NAMES`(15개)를 모은 서브패스다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12). 서비스 인터페이스가 extensions(순서 3)의 포트(`LoopPort`, `InputQueuePort`, `ToolsPort`, `ModelsPort`, `ProcessPort`, `McpPort`, `LeaseArbiterPort`)를 확장하므로 `services`는 순서 4이고, base·conversation·records·capabilities·extensions를 `import type`으로만 가져온다. 같은 순서인 settings는 import하지 않으므로 `GroupService`의 설정 범위는 `SettingScope`와 같은 모양의 리터럴 유니언으로 적는다. wire(순서 5)는 `services`를 import하지 않는다(`F.readme` §3). `import type`도 같은 방향을 지킨다. `check-layers.ts`의 서브패스 순서 검사는 그 표를 그대로 쓴다.
+[제안] `@fresnel/contracts` 안의 의존 순서는 `F.readme` §3의 도메인 사이 import 표(base 0 < conversation 1 < capabilities 2 = records 2 < extensions 3 < settings 4 = services 4 < wire 5)를 따른다. 각 소스 디렉터리는 자기보다 순서가 낮은 것만 import하고, 순서가 같은 것끼리(capabilities와 records, settings와 services)는 import하지 않는다. `services`는 L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수 `SERVICE_NAMES`(15개)를 모은 서브패스다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12). 서비스 인터페이스가 extensions(순서 3)의 포트(`LoopPort`, `InputQueuePort`, `ToolsPort`, `ModelsPort`, `ProcessPort`, `McpPort`, `LeaseArbiterPort`)를 확장하므로 `services`는 순서 4이고, base·conversation·records·capabilities·extensions를 `import type`으로만 가져온다. 같은 순서인 settings는 import하지 않으므로 `GroupService`의 설정 범위는 `SettingScope`와 같은 모양의 리터럴 유니언으로 적는다. wire(순서 5)는 `services`를 import하지 않는다(`F.readme` §3). `import type`도 같은 방향을 지킨다. `check-layers.ts`의 서브패스 순서 검사는 그 표를 그대로 쓴다.
 
-- 서브패스는 `packages/contracts/package.json` `exports`에 `F.readme` §3의 모양으로 둔다. 소비 층은 서브패스 진입점으로만 import한다(`no-restricted-imports`의 `@xeon/*/src` 금지).
+- 서브패스는 `packages/contracts/package.json` `exports`에 `F.readme` §3의 모양으로 둔다. 소비 층은 서브패스 진입점으로만 import한다(`no-restricted-imports`의 `@fresnel/*/src` 금지).
 - `import/no-cycle`의 `ignoreTypes` 기본값이 `true`라 타입 순환은 린트가 잡지 않으므로(`_research/notes/eng-1.md §2`) `check-layers.ts`가 서브패스 순서를 검사한다 [제안].
 
 이유: F는 모든 층이 의존하는 바닥이다. F 안의 순환은 import 순서에 따라 `undefined` 스키마를 만들고(모듈 초기화 순서), 서브패스 하나를 바꿔도 F 전체가 다시 검사·빌드된다. 순서를 고정하면 서브패스별 변경 영향 범위가 표로 정해진다.
@@ -997,7 +997,7 @@ export const NoticeSchema: TObject<{ text: TString }> = Type.Object({ text: Type
           { "object": "crypto", "property": "randomUUID", "message": "Use IdFactory (TY-21)." },
           { "object": "crypto", "property": "getRandomValues", "message": "Inject RandomSource (TY-21)." },
           { "object": "performance", "property": "now", "message": "Inject Clock (TY-21)." },
-          { "object": "Value", "property": "Parse", "message": "Use parse() from @xeon/contracts (DT-05)." },
+          { "object": "Value", "property": "Parse", "message": "Use parse() from @fresnel/contracts (DT-05)." },
           { "object": "Value", "property": "Clean", "message": "Stored data is not modified (DT-11)." },
           { "object": "Value", "property": "Default", "message": "Fill defaults in an explicit pure function (DT-05)." }
         ]

@@ -1,5 +1,5 @@
-import { Bug, err, ok, type Result } from "@xeon/contracts";
-import type { SqlTx, StoreDb, StoreWriteError } from "@xeon/contracts/records";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
+import type { SqlTx, StoreDb, StoreWriteError } from "@fresnel/contracts/records";
 
 /** 롤백용 표지. writeResult 밖으로 나가지 않는다(TY-11 허용 3, eng.transactions.design §4.2 끝) */
 const ROLLBACK_MARKER = new Bug(

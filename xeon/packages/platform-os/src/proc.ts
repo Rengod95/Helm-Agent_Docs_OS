@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 
 // 자식 프로세스 실행은 DR-07 표의 Bun.spawn 소유 패키지 platform-os 행을 따른다. 이 파일이 그 호출 위치다.
 

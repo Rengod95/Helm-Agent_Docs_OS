@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import { HelmStateSchema, type HelmState } from "../../src/state.ts";
 import { InquiryFinishedPayloadSchema } from "../../src/records.ts";
 import {

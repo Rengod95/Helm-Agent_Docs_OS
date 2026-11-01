@@ -1,4 +1,4 @@
-import type { WorkTask, WorkTaskId } from "@xeon/contracts/capabilities";
+import type { WorkTask, WorkTaskId } from "@fresnel/contracts/capabilities";
 
 // L2.work.spec §4.1.3. 선행 간선 `A blockedBy B`를 더하기 전의 순환 검사. 순수 함수다.
 

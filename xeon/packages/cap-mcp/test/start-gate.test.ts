@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { repeatAsync } from "@xeon/contracts";
+import { repeatAsync } from "@fresnel/contracts";
 import { createStubProcessPort } from "../src/testing/stub-process.ts";
 import type { McpStartDefinition, McpStartGate, McpStartVerdict } from "../src/ports/start-gate.ts";
 import { createTransportFactory } from "../src/transport/factory.ts";
 import { DEFAULT_MCP_SETTINGS, sandboxOf } from "../src/settings.ts";
 import type { ServerDefinition } from "../src/types.ts";
 import type { McpSpawnError } from "../src/ports/process.ts";
-import type { McpServerDef } from "@xeon/contracts/capabilities";
+import type { McpServerDef } from "@fresnel/contracts/capabilities";
 import { flush } from "./support/flush.ts";
 import { rejection } from "./support/rejection.ts";
 import { fixedClock, manualScheduler } from "./support/time.ts";

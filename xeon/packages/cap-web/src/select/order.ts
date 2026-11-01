@@ -1,4 +1,4 @@
-import type { ProviderCandidate } from "@xeon/contracts/capabilities";
+import type { ProviderCandidate } from "@fresnel/contracts/capabilities";
 
 // L2.web.spec §4.8.2 (D-M3-23 행 1). 검색·브라우저 provider의 자동 선택 순서 하나.
 // 호출 인자 provider → 설정 provider → auto. auto는 사용자가 설정 화면에서 끌어 옮겨 정한 `order` 목록이 먼저다.

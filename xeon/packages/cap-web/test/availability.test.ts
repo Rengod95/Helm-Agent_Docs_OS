@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ProviderUnavailableReason } from "@xeon/contracts/capabilities";
+import type { ProviderUnavailableReason } from "@fresnel/contracts/capabilities";
 import { createProbeCache } from "../src/search/probe-cache.ts";
 import { fakeSearchProvider } from "../src/testing/fake-providers.ts";
 import { manualClock } from "./support/clock.ts";

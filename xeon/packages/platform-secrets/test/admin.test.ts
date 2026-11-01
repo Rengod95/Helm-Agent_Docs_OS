@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
-import type { SecretMetaPatch } from "@xeon/contracts/services";
+import type { SecretMetaPatch } from "@fresnel/contracts/services";
 import type { ChildRequest, ChildResult } from "../src/admin.ts";
 import {
   memorySecrets,

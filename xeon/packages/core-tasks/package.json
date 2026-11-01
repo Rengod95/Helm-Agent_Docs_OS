@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/core-tasks",
+  "name": "@fresnel/core-tasks",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,14 +14,14 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
-    "@xeon/contracts": "workspace:*",
-    "@xeon/ext-host": "workspace:*",
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/ext-host": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L1",
     "domain": "tasks"
   }

@@ -1,5 +1,5 @@
-import { detach, rethrow } from "@xeon/contracts";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
+import { detach, rethrow } from "@fresnel/contracts";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import {
   checkEnvelope,
   isCompatible,
@@ -15,7 +15,7 @@ import {
   type VolatileEventWire,
   type WireError,
   type WireMethodName,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { materialize, type EventDraft } from "./events.ts";
 import { threadId, turnId } from "./ids.ts";
 
@@ -336,7 +336,7 @@ export function startFakeServer(
         }
         return { turnId: turn };
       }
-      // xeon-disable-next-line xeon/switch-default-never -- 메서드 이름은 문자열이다. 모르는 메서드는 와이어 오류로 돌려준다 (eng.typescript.guide TY-14)
+      // fresnel-disable-next-line fresnel/switch-default-never -- 메서드 이름은 문자열이다. 모르는 메서드는 와이어 오류로 돌려준다 (eng.typescript.guide TY-14)
       default:
         throw wireError("jsonrpc.methodNotFound", { details: { method } });
     }

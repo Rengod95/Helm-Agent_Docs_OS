@@ -5,7 +5,7 @@ import type {
   DialogNotify,
   DialogStatus,
   NoticeFeed,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { createAskService } from "./ask/service.ts";
 import { createAttachmentsApi } from "./attachments/service.ts";
 import {

@@ -1,4 +1,4 @@
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import {
   applyLearningEvent,
   decodeEvent,

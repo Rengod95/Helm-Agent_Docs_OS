@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { PostItem } from "@xeon/contracts/extensions";
+import { assertNever } from "@fresnel/contracts";
+import type { PostItem } from "@fresnel/contracts/extensions";
 import type { LensDef } from "./lenses.ts";
 import type { InquiryFinishedPayload } from "./records.ts";
 import type {

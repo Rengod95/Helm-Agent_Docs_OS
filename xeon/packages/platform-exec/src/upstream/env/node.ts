@@ -30,9 +30,9 @@ import {
   eachAsync,
   repeatAsync,
   type Logger,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 // FRESNEL-PATCH: P1
-import type { CancelScope as Context } from "@xeon/contracts/services";
+import type { CancelScope as Context } from "@fresnel/contracts/services";
 // FRESNEL-PATCH: P3
 import type { ExecPlatformProvider, ShellConfig } from "../../provider.ts";
 import { StreamDecoder } from "./decode.ts";
@@ -167,7 +167,7 @@ function toFileError(error: unknown, fallbackPath?: string): FileError {
         return new FileError("is_directory", message, path, cause);
       case "EINVAL":
         return new FileError("invalid", message, path, cause);
-      // xeon-disable-next-line xeon/switch-default-never -- errno 코드는 열린 외부 문자열이다. 모르는 코드는 unknown FileError로 묶는다 (eng.typescript.guide TY-14)
+      // fresnel-disable-next-line fresnel/switch-default-never -- errno 코드는 열린 외부 문자열이다. 모르는 코드는 unknown FileError로 묶는다 (eng.typescript.guide TY-14)
       default:
         // 그 밖의 errno는 아래 "unknown"으로 묶는다(열린 외부 값, eng.typescript.guide TY-14)
         break;

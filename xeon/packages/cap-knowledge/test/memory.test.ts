@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eachAsync, parse } from "@xeon/contracts";
-import type { CallOptions } from "@xeon/contracts/capabilities";
+import { eachAsync, parse } from "@fresnel/contracts";
+import type { CallOptions } from "@fresnel/contracts/capabilities";
 import { Type } from "typebox";
 import { sha256Hex } from "../src/hash.ts";
 import { entryIdOf } from "../src/memory/format.ts";

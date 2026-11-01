@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { err, ok, parseJson, type Logger, type Result } from "@xeon/contracts";
+import { err, ok, parseJson, type Logger, type Result } from "@fresnel/contracts";
 import type {
   BinaryError,
   BinaryName,
@@ -10,23 +10,23 @@ import type {
   ResolvedBinary,
   SandboxService,
   SecretService,
-} from "@xeon/contracts/services";
-import { ProcessServiceName, SandboxServiceName } from "@xeon/contracts/services";
-import type { ExtHost } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import { ProcessServiceName, SandboxServiceName } from "@fresnel/contracts/services";
+import type { ExtHost } from "@fresnel/ext-host";
 import {
   createSandboxService,
   readSandboxSettings,
   type SandboxServiceHandle,
   type SandboxSettings,
-} from "@xeon/platform-sandbox";
-import { createBackgroundRegistry } from "@xeon/platform-process";
+} from "@fresnel/platform-sandbox";
+import { createBackgroundRegistry } from "@fresnel/platform-process";
 import {
   createLocalIdFactory,
   systemClock,
   systemRandom,
   systemScheduler,
   type SystemScheduler,
-} from "@xeon/platform-os";
+} from "@fresnel/platform-os";
 import { createHostMcpProcessPort } from "../../src/assembly/mcp-process.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
@@ -53,7 +53,7 @@ const LOGGER: Logger = {
   child: () => LOGGER,
 };
 
-/** 조회할 서비스. xeon.process와 xeon.sandbox만 채운다 */
+/** 조회할 서비스. fresnel.process와 fresnel.sandbox만 채운다 */
 function extWith(services: {
   readonly process: ProcessService;
   readonly sandbox: SandboxService;

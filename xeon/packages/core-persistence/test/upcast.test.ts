@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { canonicalJson } from "@xeon/contracts";
-import type { LeaseToken } from "@xeon/contracts/records";
+import { canonicalJson } from "@fresnel/contracts";
+import type { LeaseToken } from "@fresnel/contracts/records";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {
   expectOk,

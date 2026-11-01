@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import type { BlobRef } from "@xeon/contracts/records";
+import type { BlobRef } from "@fresnel/contracts/records";
 import { exportDatabase, openStore } from "../src/index.ts";
 import { openTestStore, type TestStore } from "../src/testing/index.ts";
 import { fixedIdFactory, manualClock, type ManualClock } from "./support/clock.ts";

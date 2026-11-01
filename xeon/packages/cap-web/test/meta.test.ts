@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { WebCallMetaSchema } from "@xeon/contracts/capabilities";
+import { parse } from "@fresnel/contracts";
+import { WebCallMetaSchema } from "@fresnel/contracts/capabilities";
 import { buildMeta, NO_COST, normalizeWarnings } from "../src/contract/meta.ts";
 import { manualClock } from "./support/clock.ts";
 import { fixedLocalIds } from "./support/ids.ts";

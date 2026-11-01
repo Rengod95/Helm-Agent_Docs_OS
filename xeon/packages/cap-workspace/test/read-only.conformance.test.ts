@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { WorkspaceFiles, WorkspaceImages, WorkspaceShell } from "@xeon/contracts/capabilities";
+import { WorkspaceFiles, WorkspaceImages, WorkspaceShell } from "@fresnel/contracts/capabilities";
 import { createFilesApi, createWorkspaceService } from "../src/service.ts";
 import { depsFor } from "./support/fakes.ts";
 import { memoryBlobs, pngBytes } from "./support/images.ts";

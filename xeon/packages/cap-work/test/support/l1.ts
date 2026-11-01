@@ -1,14 +1,14 @@
 // 실제 L1.tools(ToolService, ApprovalService)를 시험이 조작하는 얇은 껍데기. 대역 구현이 아니다: 승인 요청과 해결, 권한 모드 쓰기는
 // 모두 core-tools의 실제 서비스가 실제 세션에 이벤트로 남긴다. 이 파일이 더하는 것은 시험이 쓰는 관찰 창(요청 목록, 호출 기록)과
 // 장애 주입(승인 요청 커밋 실패)뿐이다.
-import { Bug, err, parse } from "@xeon/contracts";
-import { ApprovalRequestedPayloadSchema, type SessionService } from "@xeon/contracts/records";
+import { Bug, err, parse } from "@fresnel/contracts";
+import { ApprovalRequestedPayloadSchema, type SessionService } from "@fresnel/contracts/records";
 import {
   ApprovalIdSchema,
   type ApprovalId,
   type JsonValue,
   type ThreadId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   ApprovalDecision,
   ApprovalService,
@@ -16,7 +16,7 @@ import type {
   L2ApprovalsPort,
   PermissionMode,
   ToolService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { planApprovalsOver, type PlanApprovalsFactory } from "../../src/ports/approvals.ts";
 import { toolsPermissionMode, type PermissionModePort } from "../../src/ports/permission-mode.ts";
 

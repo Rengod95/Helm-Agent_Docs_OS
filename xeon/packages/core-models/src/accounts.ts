@@ -1,4 +1,4 @@
-import type { SecretRefString } from "@xeon/contracts/services";
+import type { SecretRefString } from "@fresnel/contracts/services";
 
 // L1.models.spec §3.10, §4.8 (M3). 계정 풀과 레이트 리밋 상태기계다. 순수 로직이고 시계는 호출자가 now로 넘긴다.
 // 상태(대기 종료 시각, 마지막 요청 시각, 사용률)는 프로세스 메모리에만 둔다.

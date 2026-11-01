@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock } from "@fresnel/contracts";
 
 /** 시험이 시각을 직접 옮기는 시계(eng.testing.guide TS-03) */
 export interface ManualClock extends Clock {

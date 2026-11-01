@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { HostBinaryReport } from "@xeon/contracts/wire";
+import type { HostBinaryReport } from "@fresnel/contracts/wire";
 import { binaryViewOf } from "../../src/settings/index.ts";
 
 // host.status의 binaries(HostBinaryReport): platform-os BinaryCheckReport에서 실행 파일 경로만 뺀 모양

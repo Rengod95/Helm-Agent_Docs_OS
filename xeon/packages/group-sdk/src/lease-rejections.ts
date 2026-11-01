@@ -1,13 +1,13 @@
-import { parse } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { Unsubscribe } from "@xeon/contracts/extensions";
+import { parse } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { Unsubscribe } from "@fresnel/contracts/extensions";
 import {
   LeaseAcquiredPayloadSchema,
   LeaseRejectedPayloadSchema,
   LeaseReleasedPayloadSchema,
   ScopeChangedPayloadSchema,
   type EventFeed,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 /**
  * 대기 상한을 넘어 drive 임대를 거부당한 그룹의 기록(L3.group-sdk.spec §3.8, plan G-30).

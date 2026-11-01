@@ -1,19 +1,19 @@
 // 계정 회전 플러그인 산출물을 만든다(B2-MDL, group-helm의 build-plugin과 같은 모양이다).
 //   <outDir>/.fresnel-plugin/plugin.json   accountRotationManifest를 JSON으로 옮긴 것(엔트리는 ./dist/index.js)
-//   <outDir>/dist/index.js              엔트리 번들. 호스트가 같은 인스턴스를 주는 모듈(@xeon/contracts, @xeon/group-sdk, typebox)은 외부 import로 둔다
+//   <outDir>/dist/index.js              엔트리 번들. 호스트가 같은 인스턴스를 주는 모듈(@fresnel/contracts, @fresnel/group-sdk, typebox)은 외부 import로 둔다
 // 사용: bun scripts/build-plugin.ts [outDir]   (기본 dist-plugin)
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { attemptAsync, err, ok, type Result } from "@xeon/contracts";
+import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import { accountRotationManifest } from "../src/manifest.ts";
 
 const PACKAGE_DIR = resolve(import.meta.dir, "..");
 
-/** 번들에서 외부로 두는 지정자 패턴. 하위 경로 import(`@xeon/contracts/capabilities` 등)까지 포함한다 */
+/** 번들에서 외부로 두는 지정자 패턴. 하위 경로 import(`@fresnel/contracts/capabilities` 등)까지 포함한다 */
 const EXTERNAL_PATTERNS: readonly string[] = [
-  "@xeon/contracts",
-  "@xeon/contracts/*",
-  "@xeon/group-sdk",
+  "@fresnel/contracts",
+  "@fresnel/contracts/*",
+  "@fresnel/group-sdk",
   "typebox",
   "typebox/*",
 ];

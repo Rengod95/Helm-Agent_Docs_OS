@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { AgentDefinition } from "@xeon/contracts/services";
+import type { AgentDefinition } from "@fresnel/contracts/services";
 import {
   createDefinitionRegistry,
   loadDefinitionFiles,

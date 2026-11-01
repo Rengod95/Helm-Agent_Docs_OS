@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { WireError, wireError, type TrustStatus } from "@xeon/contracts/wire";
+import { WireError, wireError, type TrustStatus } from "@fresnel/contracts/wire";
 import { parseArgv, type TerminalFacts } from "../src/cli/command.ts";
 import { failureOfWire } from "../src/errors.ts";
 import { EXIT } from "../src/exit-codes.ts";

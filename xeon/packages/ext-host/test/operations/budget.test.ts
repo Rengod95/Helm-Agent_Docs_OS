@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { FIRST_DENY, HOOKS } from "@xeon/contracts/extensions";
+import { FIRST_DENY, HOOKS } from "@fresnel/contracts/extensions";
 import {
   awaitUser,
   budgetClassOf,

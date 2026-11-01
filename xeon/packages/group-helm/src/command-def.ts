@@ -1,4 +1,4 @@
-import type { GroupApi } from "@xeon/group-sdk";
+import type { GroupApi } from "@fresnel/group-sdk";
 import {
   HELM_USAGE,
   commandErrorText,

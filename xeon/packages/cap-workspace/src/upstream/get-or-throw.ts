@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 
 /**
  * 포크 본문이 쓰는 `getOrThrow`. 원본은 `env/index.ts`가 내보내지만 이 패키지는 구현 패키지를 import하지 않으므로

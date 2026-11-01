@@ -1,5 +1,5 @@
 import { basename, join } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { failure, fromFsError, type KnowledgeFailure } from "../errors.ts";
 import type { KnowledgeFs } from "../fs/port.ts";
 import { compareBytes, sha256Hex } from "../hash.ts";

@@ -1,12 +1,12 @@
-import { assertNever, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   DriveHolderSetting,
   GroupCommandError,
   GroupService,
   GroupSettingUnwritableReason,
   GroupStatus,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { GROUP_NAME_PATTERN } from "./define-group.ts";
 import type { PromotionCandidate, PromotionReport } from "./promotion/report.ts";
 

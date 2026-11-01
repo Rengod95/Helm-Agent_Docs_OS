@@ -5,7 +5,7 @@ import {
   type SettingCatalog,
   type SettingDefInput,
   type SettingGroup,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 // L4.host-service.spec §3.6, §6.1. l4.host-service.* 키 두 개와 설정 파일 JSON Schema 출력.
 // resolveLaunchMode(HS-37)는 서비스 모드(M3)라 아직 없다.

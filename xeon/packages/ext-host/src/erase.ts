@@ -1,4 +1,4 @@
-import type { ServiceKey } from "@xeon/contracts/capabilities";
+import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import type {
   DriveFn,
   Handler,
@@ -10,8 +10,8 @@ import type {
   ChainRule,
   CollectHookName,
   CollectRule,
-} from "@xeon/contracts/extensions";
-import { CHAIN_RULES, COLLECT_RULES } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
+import { CHAIN_RULES, COLLECT_RULES } from "@fresnel/contracts/extensions";
 import type {
   ExtReaders,
   ExtTableReader,

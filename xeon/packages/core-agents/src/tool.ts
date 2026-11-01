@@ -8,13 +8,13 @@ import {
   type JsonValue,
   type ThreadId,
   type TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   AGENT_REPORT_TYPE,
   type DirectToolRegistration,
   type SpawnResult,
   type TaskScope,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { sha256Hex } from "./hash.ts";
 import type { AgentsTasks, AgentsTools } from "./deps.ts";
 import { derivedRequestId } from "./request-id.ts";
@@ -165,7 +165,7 @@ function createAgentTool(
   };
 }
 
-/** xeon.tools 등록 값. 도구 부류 `spawn`은 차단 규칙(no-spawn)이 쓴다 */
+/** fresnel.tools 등록 값. 도구 부류 `spawn`은 차단 규칙(no-spawn)이 쓴다 */
 export function agentToolRegistration(
   service: AgentServiceImpl,
   tasks: AgentsTasks,

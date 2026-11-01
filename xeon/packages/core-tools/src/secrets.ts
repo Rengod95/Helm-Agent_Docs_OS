@@ -1,6 +1,6 @@
-import type { RedactionHit } from "@xeon/contracts/capabilities";
-import type { ImageContent, JsonValue, TextContent } from "@xeon/contracts/conversation";
-import type { Redactor } from "@xeon/contracts/services";
+import type { RedactionHit } from "@fresnel/contracts/capabilities";
+import type { ImageContent, JsonValue, TextContent } from "@fresnel/contracts/conversation";
+import type { Redactor } from "@fresnel/contracts/services";
 import type { RawToolResult } from "./types.ts";
 
 // L1.tools.spec §4.12 도구 결과 2계층 마스킹(tool-result 층). 값, 값의 일부, 값의 해시를 어디에도 남기지 않는다.

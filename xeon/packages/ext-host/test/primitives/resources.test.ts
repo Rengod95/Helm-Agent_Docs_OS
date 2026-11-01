@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { WebProviderRegistration } from "@xeon/contracts/capabilities";
+import { err, ok } from "@fresnel/contracts";
+import type { WebProviderRegistration } from "@fresnel/contracts/capabilities";
 import {
   McpPortKey,
   ModelsPortKey,
@@ -9,7 +9,7 @@ import {
   type ModelsPort,
   type ToolResourceDef,
   type ToolsPort,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import {
   hostOf,
@@ -30,7 +30,7 @@ interface Fakes {
   readonly log: string[];
 }
 
-/** xeon.tools, xeon.models, xeon.mcp 대역을 등록한다 */
+/** fresnel.tools, fresnel.models, fresnel.mcp 대역을 등록한다 */
 async function withPorts(t: Host): Promise<Fakes> {
   const tools = new Map<string, ToolResourceDef>();
   const providers = new Map<string, unknown>();

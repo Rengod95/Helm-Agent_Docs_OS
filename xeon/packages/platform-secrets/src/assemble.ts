@@ -1,14 +1,14 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import type { LocalIdFactory } from "@xeon/contracts/conversation";
+import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 import type {
   OsService,
   SecretAdminService,
   SecretDiagnostics,
   SecretError,
-} from "@xeon/contracts/services";
-import type { SecretHandle } from "@xeon/contracts/capabilities";
-import { err, ok, type Result } from "@xeon/contracts";
+} from "@fresnel/contracts/services";
+import type { SecretHandle } from "@fresnel/contracts/capabilities";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { META_SUBDIR, SECRETS_SUBDIR, withDefaultSopsFile, type SecretsConfig } from "./config.ts";
 import { bunInheritRunner, createSecretAdminService, type ChildRunner } from "./admin.ts";
 import { createAuditLog } from "./audit-file.ts";
@@ -29,10 +29,10 @@ import {
 import type { SecretFileLock } from "./providers/lock.ts";
 import { createSecretServiceCore, type SecretServiceRuntime } from "./service.ts";
 
-// 운영 조립: xeon.os, 설정, 부모 env를 받아 SOPS 제공자와 메타 파일 읽기를 가진 SecretService를 만든다.
+// 운영 조립: fresnel.os, 설정, 부모 env를 받아 SOPS 제공자와 메타 파일 읽기를 가진 SecretService를 만든다.
 // Cordis 등록(ExtHost.registerPlatform)은 ext-host가 그 API를 낼 때 조립 루트나 plugin.ts가 한다.
 
-/** 이 패키지가 쓰는 xeon.os의 부분. 테스트는 이 모양만 채운 가짜를 넘긴다 */
+/** 이 패키지가 쓰는 fresnel.os의 부분. 테스트는 이 모양만 채운 가짜를 넘긴다 */
 export type SecretsOs = Pick<OsService, "info" | "time" | "logger" | "resolveBinary" | "userId"> & {
   readonly dirs: Pick<OsService["dirs"], "config">;
 };

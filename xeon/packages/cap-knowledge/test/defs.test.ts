@@ -6,7 +6,7 @@ import {
   KnowledgeSkills,
   validateCapability,
   validateCapabilitySet,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { advertisedSkillsDef, IMPLEMENTED_SKILL_TOOLS } from "../src/plugin.ts";
 import { knowledgeManifest } from "../src/manifest.ts";
 

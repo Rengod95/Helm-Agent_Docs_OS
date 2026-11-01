@@ -1,4 +1,4 @@
-import { err, ok, parse, parseJson, type Result } from "@xeon/contracts";
+import { err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import type {
   HostedSearchError,
   HostedSearchModel,
@@ -6,7 +6,7 @@ import type {
   HostedSearchRequest,
   HostedSearchResponse,
   HostedSearchSupport,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { Type } from "typebox";
 
 // 시험용 `HostedSearchPort` 대역(L2.web.plan §2 `fixtures/tapes`). 모델 호출 없이 테이프에 적힌 응답을 순서대로 낸다.

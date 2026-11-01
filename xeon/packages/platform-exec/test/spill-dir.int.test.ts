@@ -10,8 +10,8 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import type { CancelScope } from "@xeon/contracts/services";
-import type { LogFields, Logger, Result } from "@xeon/contracts";
+import type { CancelScope } from "@fresnel/contracts/services";
+import type { LogFields, Logger, Result } from "@fresnel/contracts";
 import { createExecService, type ExecServiceOptions } from "../src/service.ts";
 import { hostPlatform } from "./support/platform.ts";
 

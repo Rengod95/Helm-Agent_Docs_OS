@@ -10,7 +10,7 @@ import {
   BUILTIN_WRAPPER_PROVIDER_ID,
   DEFAULT_WEB_SETTINGS,
   describeWebSettings,
-} from "@xeon/cap-web";
+} from "@fresnel/cap-web";
 
 // M3-REQ-96 (int): 실제 엔진에서 `web.providers`. cap-web이 올라와 provider 목록을 내고, 호스트된 검색이 있으면 내장 래퍼 행이 든다.
 // 설정 값은 사용자 설정 파일이 비었을 때 기본값이다.

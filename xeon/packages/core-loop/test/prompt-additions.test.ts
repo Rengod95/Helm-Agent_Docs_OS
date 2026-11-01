@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import type { ExtensionUnit } from "@xeon/ext-host";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 import { environmentText, promptAddition } from "../src/loop/environment.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
 import { createHarness } from "./support/harness.ts";

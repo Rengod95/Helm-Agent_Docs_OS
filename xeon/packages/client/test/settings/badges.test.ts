@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { SettingDefWire } from "@xeon/contracts/settings";
+import type { SettingDefWire } from "@fresnel/contracts/settings";
 import {
   defaultWriteScope,
   deprecatedInfo,

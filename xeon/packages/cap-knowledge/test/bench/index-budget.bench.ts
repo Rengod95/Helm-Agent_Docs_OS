@@ -2,8 +2,8 @@
 // 실행(xeon/에서): bash ../scripts/guard.sh run -- bun packages/cap-knowledge/test/bench/index-budget.bench.ts
 // 출력은 scripts/bench-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 bench-server.ts와 bench-gate.ts가 한다.
 // index_build 샘플은 호출 한 번의 평균 시간(ms)이다. 호출이 짧아 BUILD_CALLS번 부르고 나눈다. LIKE 샘플은 질의 한 번이다.
-import { Bug } from "@xeon/contracts";
-import type { SkillIndexEntry } from "@xeon/contracts/capabilities";
+import { Bug } from "@fresnel/contracts";
+import type { SkillIndexEntry } from "@fresnel/contracts/capabilities";
 import { DEFAULT_KNOWLEDGE_SETTINGS } from "../../src/settings.ts";
 import {
   buildSkillIndexBlock,

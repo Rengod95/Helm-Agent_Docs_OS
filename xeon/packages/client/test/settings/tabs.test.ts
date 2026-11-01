@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { SettingsTabSchema } from "@xeon/contracts/settings";
-import { parse } from "@xeon/contracts";
+import { SettingsTabSchema } from "@fresnel/contracts/settings";
+import { parse } from "@fresnel/contracts";
 import { TAB_ORDER, TAB_SPECS } from "../../src/settings/index.ts";
 
 describe("settings tabs", () => {

@@ -1,6 +1,6 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever } from "@xeon/contracts";
-import type { ApprovalRespondParams, ApprovalRespondResult } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
+import type { ApprovalRespondParams, ApprovalRespondResult } from "@fresnel/contracts/wire";
 import type { ApprovalView, QuestionView, RememberChoice, ReviewFileView } from "./ops.ts";
 
 // L4.cli.spec §4.11. 승인 프롬프트. 줄 입력으로 허용·거부·답을 받아 approval.respond 인자로 바꾼다.

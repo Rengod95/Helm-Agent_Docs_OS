@@ -1,4 +1,4 @@
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Clock, Scheduler, TimerHandle } from "@fresnel/contracts";
 
 // L0.process.spec §3.2 service/idle.ts, §4.4.4. 유휴 종료 판정기. 상태 없이 입력 표본만 받고, 입력이 바뀔 때마다 부른다.
 // 조건: 연결 0 + live task 0(승인 대기 세션 포함) + 대기 예약 0이 idleGraceMs 동안 이어질 때만 종료한다.

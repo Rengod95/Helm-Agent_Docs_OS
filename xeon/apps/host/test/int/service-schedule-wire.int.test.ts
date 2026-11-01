@@ -2,10 +2,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "bun:test";
-import type { RunRecord, ScheduleTicker } from "@xeon/cap-schedule";
-import { parse, repeatAsync } from "@xeon/contracts";
-import { ThreadIdSchema } from "@xeon/contracts/conversation";
-import type { WireResult } from "@xeon/contracts/wire";
+import type { RunRecord, ScheduleTicker } from "@fresnel/cap-schedule";
+import { parse, repeatAsync } from "@fresnel/contracts";
+import { ThreadIdSchema } from "@fresnel/contracts/conversation";
+import type { WireResult } from "@fresnel/contracts/wire";
 import { createFileScheduleStore } from "../../src/assembly/schedule-store.ts";
 import { startService, type ServiceStart } from "../../src/index.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";

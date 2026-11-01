@@ -1,6 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { attemptAsync, parse, type ParseError, type Result } from "@xeon/contracts";
-import type { SecretName } from "@xeon/contracts/capabilities";
+import { attemptAsync, parse, type ParseError, type Result } from "@fresnel/contracts";
+import type { SecretName } from "@fresnel/contracts/capabilities";
 import {
   Type,
   type Static,

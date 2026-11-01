@@ -4,21 +4,21 @@
 export type {
   PortKey,
   PortLookup,
-  // 루프 (xeon.loop)
+  // 루프 (fresnel.loop)
   LoopPort,
-  // 입력 큐 (xeon.tasks)
+  // 입력 큐 (fresnel.tasks)
   InputQueuePort,
-  // 기록 (xeon.session의 ext 속성)
+  // 기록 (fresnel.session의 ext 속성)
   RecordCommitPort,
-  // 확장 투영기 등록 (xeon.session의 projectors 속성)
+  // 확장 투영기 등록 (fresnel.session의 projectors 속성)
   ProjectorRegistryPort,
-  // 접두 테이블 (xeon.store)
+  // 접두 테이블 (fresnel.store)
   ScopedStorePort,
-  // 프로세스 실행 (xeon.process)
+  // 프로세스 실행 (fresnel.process)
   ProcessPort,
-  // 임대 정책 (xeon.groups, 선택)
+  // 임대 정책 (fresnel.groups, 선택)
   LeaseArbiterPort,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 export {
   LoopPortKey,
   InputQueuePortKey,
@@ -27,6 +27,6 @@ export {
   ScopedStorePortKey,
   ProcessPortKey,
   LeaseArbiterPortKey,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 
 export { ExtHostPortKey } from "./host.ts";

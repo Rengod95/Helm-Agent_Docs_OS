@@ -90,7 +90,7 @@ describe("knowledge definitions", () => {
     expect(KnowledgeMemoryKey.capability).toBe("knowledge.memory");
     expect(KnowledgeSearchKey.capability).toBe("knowledge.search");
     expect(KnowledgeLedgerKey.capability).toBe("knowledge.ledger");
-    expect(KnowledgeServiceName).toBe("xeon.knowledge");
+    expect(KnowledgeServiceName).toBe("fresnel.knowledge");
   });
 
   test("model tool parameters never expose approval, overrideScan, scope or actor", () => {

@@ -1,7 +1,7 @@
-import { err, ok } from "@xeon/contracts";
-import type { HostedSearchPort, HostedSearchRequest } from "@xeon/contracts/services";
-import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
-import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
+import { err, ok } from "@fresnel/contracts";
+import type { HostedSearchPort, HostedSearchRequest } from "@fresnel/contracts/services";
+import type { DnsResolver, HttpTransport } from "@fresnel/cap-web";
+import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { realTapeClock } from "./tape-host.ts";
 import type { AssembleOptions } from "../../src/types.ts";
 

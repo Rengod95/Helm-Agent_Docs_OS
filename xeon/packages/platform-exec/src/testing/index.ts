@@ -1,4 +1,4 @@
-// @xeon/platform-exec/testing: 다른 패키지 시험이 쓰는 대역(eng.testing.guide TS-05, 1.2절 표).
+// @fresnel/platform-exec/testing: 다른 패키지 시험이 쓰는 대역(eng.testing.guide TS-05, 1.2절 표).
 export {
   fakeExec,
   type FakeExec,

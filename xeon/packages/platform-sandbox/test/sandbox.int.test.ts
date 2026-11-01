@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { repeatAsync } from "@xeon/contracts";
+import { repeatAsync } from "@fresnel/contracts";
 import {
   ENVIRONMENT_EXIT_CODE,
   missingMessage,

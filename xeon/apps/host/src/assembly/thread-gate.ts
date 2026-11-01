@@ -1,4 +1,4 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 
 // L4.host-service.spec HS-77, §10 미결 31(닫힘 M2 마감 재검토 3). thread마다 하나씩만 도는 구간. 수동 컴팩션(요약 모델 호출, 수 초)과
 // turn을 여는 일(`TurnPort.submit`, `TurnPort.resume`)이 같은 thread에서 겹치지 않게 차례로 돌린다. 컴팩션은 열린 turn이 없음을

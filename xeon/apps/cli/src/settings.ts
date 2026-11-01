@@ -1,11 +1,11 @@
 import { Type, type TArray, type TLiteral, type TNull, type TString, type TUnion } from "typebox";
-import { uiSettings } from "@xeon/client/i18n";
+import { uiSettings } from "@fresnel/client/i18n";
 import {
   defineSettings,
   type SettingDefInput,
   type SettingGroup,
   type SettingNamespace,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 // L4.cli.spec §6. l4.cli.* 키 네 개. 조립 루트가 import할 수 없는 앱의 설정이라 AssembleOptions.settingGroups로 넘긴다(§3.3).
 // 네 키 모두 탭은 appearance다: 표시 설정의 소유자가 L4이기 때문이다.

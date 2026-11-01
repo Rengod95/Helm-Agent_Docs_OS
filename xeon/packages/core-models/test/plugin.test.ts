@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { createModels } from "@earendil-works/pi-ai";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
 import {
   ModelServiceName,
   SecretServiceName,
   type ModelService,
   type SecretService,
-} from "@xeon/contracts/services";
-import type { PortKey } from "@xeon/ext-host";
-import { createTestHost } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/services";
+import type { PortKey } from "@fresnel/ext-host";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import {
   createModelsExtension,
   DEFAULT_MODELS_SETTINGS,
@@ -58,7 +58,7 @@ describe("core-models builtin extension", () => {
     expect(typeof extension).toBe("function");
   });
 
-  test("installs into ext-host, provides xeon.models, and fires request.provider.before through xeon.ext", async () => {
+  test("installs into ext-host, provides fresnel.models, and fires request.provider.before through fresnel.ext", async () => {
     const th = await createTestHost();
     const secrets = memorySecrets({ "tape-key": FAKE_KEY });
     await th.host.registerPlatform({
@@ -128,7 +128,7 @@ describe("core-models builtin extension", () => {
     await th.host.dispose();
   });
 
-  test("installing without xeon.secrets surfaces a port_unavailable setup failure", async () => {
+  test("installing without fresnel.secrets surfaces a port_unavailable setup failure", async () => {
     const th = await createTestHost();
     const models = createModelsExtension({ clock: manualClock() });
     const installed = await th.host.install({
@@ -282,7 +282,7 @@ describe("core-models builtin extension", () => {
     await th.host.dispose();
   });
 
-  test("guard.model.before through xeon.ext: a block or a throwing handler stops the request, the guard sees the chained payload", async () => {
+  test("guard.model.before through fresnel.ext: a block or a throwing handler stops the request, the guard sees the chained payload", async () => {
     const th = await createTestHost();
     const secrets = memorySecrets({ "tape-key": FAKE_KEY });
     await th.host.registerPlatform({
@@ -352,7 +352,7 @@ describe("core-models builtin extension", () => {
     });
     await th.settled();
     const service = th.host.ports.get(ModelServiceKey);
-    if (service === undefined) throw new Error("xeon.models is missing");
+    if (service === undefined) throw new Error("fresnel.models is missing");
     const threadId = th.newThread();
     await th.host.openThread(threadId);
     const resolved = service.resolve("main");

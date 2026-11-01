@@ -41,7 +41,7 @@ binds: [xeon/apps/desktop/**]
 
 ```
 xeon/apps/desktop/
-  package.json                    # @xeon/desktop. 의존: @xeon/contracts(workspace:*), typebox, react·react-dom·zustand(adr.0010)
+  package.json                    # @fresnel/desktop. 의존: @fresnel/contracts(workspace:*), typebox, react·react-dom·zustand(adr.0010)
   tsconfig.json                   # src: DOM lib, types []. test: bun 타입(별도 tsconfig.test.json) [제안]
   bunfig.toml                     # [test] coverageThreshold lines 0.5, functions 0.5 (eng.testing.guide TS-10 L4 행)
   sidecar.json                    # 사이드카 이름·인자·triple 표의 단일 원천 [제안]
@@ -518,7 +518,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 | engine-env-sanitized | `src-tauri/src/engine.rs` 안 Rust 테스트 | unit(cargo) | spawn 명령 구성 함수가 만든 환경에 `BUN_OPTIONS`가 없고, cwd와 넘기는 모든 경로가 절대 경로다 | D-11, E6, E7 | M2 |
 | env-path-augment | `src-tauri/src/env_path.rs`와 `engine.rs` 안 Rust 테스트 | unit(cargo) | Finder 기본 PATH 뒤에 도구 디렉터리가 정해진 순서로 붙고, 이미 있는 항목은 중복 없이 제자리에 남고, 사용자 항목이 앞에 남고, 홈이 없으면 고정 디렉터리만 붙고, 빈 PATH는 붙인 디렉터리만 되고, 이어 붙일 수 없으면 원래 값이다. `engine_env`는 PATH 값을 바꾸고 없으면 맨 뒤에 넣는다 | E7, §4.14.1 | M3b(m2c-04 a) |
 | applog-log-crate-record | `src-tauri/src/applog.rs` 안 Rust 테스트 | unit(cargo) | `AppLog::line`이 같은 줄을 대상 `xeon_desktop`, 수준 info의 `log` 기록 하나로 낸다. 제어 문자는 공백으로 바뀌고 탭은 남는다 | §4.15 로그 파일 | M3b(m2c-04 e) |
-| check-layers-app-rules | `xeon/scripts/check-layers.test.ts`(툴체인 담당에 요청, 위치는 §2 스크립트 위치 미결과 같음) | unit | W1·W2·W6 위반 샘플 import(전송 → 화면, `@tauri-apps/*`를 허용 파일 밖에서 import, `@xeon/host` import)를 앱 내부 규칙이 거부한다 | D-12 | M2 |
+| check-layers-app-rules | `xeon/scripts/check-layers.test.ts`(툴체인 담당에 요청, 위치는 §2 스크립트 위치 미결과 같음) | unit | W1·W2·W6 위반 샘플 import(전송 → 화면, `@tauri-apps/*`를 허용 파일 밖에서 import, `@fresnel/host` import)를 앱 내부 규칙이 거부한다 | D-12 | M2 |
 
 - `e2e` 태그는 `just verify`에서 제외한다(`eng.testing.guide` TS-01 표). CI에서 수동 실행과 야간 실행으로 둔다.
 - `int` 테스트는 파일당 10초 이하, 실제 시간 대기는 조건 대기(폴링 + 상한)로만 한다(`eng.testing.guide` TS-01, 4절).

@@ -1,5 +1,5 @@
-import { err, ok, type Logger, type Result } from "@xeon/contracts";
-import type { OrderedTool } from "@xeon/contracts/capabilities";
+import { err, ok, type Logger, type Result } from "@fresnel/contracts";
+import type { OrderedTool } from "@fresnel/contracts/capabilities";
 import type {
   EventId,
   IdFactory,
@@ -9,8 +9,12 @@ import type {
   SystemMessage,
   ThreadId,
   Usage,
-} from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope, ProducerHandle, SessionService } from "@xeon/contracts/records";
+} from "@fresnel/contracts/conversation";
+import type {
+  DurableEventEnvelope,
+  ProducerHandle,
+  SessionService,
+} from "@fresnel/contracts/records";
 import type {
   CompactOutcome,
   CompactReason,
@@ -18,8 +22,8 @@ import type {
   ContextError,
   ModelService,
   ResolvedModel,
-} from "@xeon/contracts/services";
-import type { ExtHost } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import type { ExtHost } from "@fresnel/ext-host";
 import {
   effectiveMessages,
   findHead,
@@ -195,7 +199,7 @@ function textOf(blocks: readonly { readonly type: string; readonly text?: string
   return blocks.map((block) => (block.type === "text" ? (block.text ?? "") : "")).join("");
 }
 
-/** xeon.models.complete를 summary 역할, 캐시 없음으로 부르는 얇은 어댑터(§3.2) */
+/** fresnel.models.complete를 summary 역할, 캐시 없음으로 부르는 얇은 어댑터(§3.2) */
 export function summarizeVia(
   models: Pick<ModelService, "complete">,
   resolved: ResolvedModel,

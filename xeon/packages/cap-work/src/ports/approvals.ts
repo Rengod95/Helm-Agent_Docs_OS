@@ -1,11 +1,11 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   ApprovalIdSchema,
   type ApprovalId,
   type JsonValue,
   type ThreadId,
-} from "@xeon/contracts/conversation";
-import { ApprovalBodyJsonSchema, type ReadFailure } from "@xeon/contracts/records";
+} from "@fresnel/contracts/conversation";
+import { ApprovalBodyJsonSchema, type ReadFailure } from "@fresnel/contracts/records";
 import {
   L2_APPROVAL_REQUEST_ID_MAX,
   PERMISSION_MODE_STRICTNESS,
@@ -20,11 +20,11 @@ import {
   type L2ApprovalsPort,
   type OpenedApproval,
   type PermissionMode,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { planRefOf } from "../plans/refs.ts";
 
 // L2.work.spec §4.2.2. 계획 승인은 F `L2ApprovalsPort`(L2.readme §5.7)로 kind "plan" 요청을 낸다.
-// 호출마다 출처(origin)가 달라 포트는 출처를 받아 만든다. 이 파일이 `xeon.approvals`(F `ApprovalService`)를 그 포트로 감싸는 유일한 자리다.
+// 호출마다 출처(origin)가 달라 포트는 출처를 받아 만든다. 이 파일이 `fresnel.approvals`(F `ApprovalService`)를 그 포트로 감싸는 유일한 자리다.
 
 /** 출처(스레드, 턴, 도구 호출, 호출자)를 받아 승인 포트를 만드는 함수 */
 export type PlanApprovalsFactory = (origin: ApprovalOrigin) => L2ApprovalsPort;
@@ -113,7 +113,7 @@ async function known(
 }
 
 /**
- * `xeon.approvals`를 계획 승인용 `L2ApprovalsPort`로 감싼다. 규칙:
+ * `fresnel.approvals`를 계획 승인용 `L2ApprovalsPort`로 감싼다. 규칙:
  * - 요청 멱등 키는 L2 `requestId`(1~48자) 그대로다. 같은 키로 다시 부르면 서비스가 처음 요청과 현재 해결 상태를 돌려준다.
  * - 서비스의 메모리 대기 목록은 재시작하면 비므로, 모르는 approvalId를 다루기 전에 그 대화의 미해결 요청을 이벤트에서 다시 읽는다(`restore`).
  * - 응답 모양 검사는 서비스가 한다(kind plan: allow의 `{ mode?, note? }`, deny의 `{ feedback }`). 어긋나면 `applied: false`다.

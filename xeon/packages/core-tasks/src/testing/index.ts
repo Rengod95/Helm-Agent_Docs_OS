@@ -1,8 +1,8 @@
-// 다른 패키지의 시험이 쓰는 메모리 TaskService 대역(@xeon/core-tasks/testing). 테스트 파일에서만 import한다(DR-08).
-import type { Logger } from "@xeon/contracts";
-import type { IdFactory } from "@xeon/contracts/conversation";
-import type { FaultInjector } from "@xeon/contracts/records";
-import type { TaskService } from "@xeon/contracts/services";
+// 다른 패키지의 시험이 쓰는 메모리 TaskService 대역(@fresnel/core-tasks/testing). 테스트 파일에서만 import한다(DR-08).
+import type { Logger } from "@fresnel/contracts";
+import type { IdFactory } from "@fresnel/contracts/conversation";
+import type { FaultInjector } from "@fresnel/contracts/records";
+import type { TaskService } from "@fresnel/contracts/services";
 import { createTaskService } from "../service.ts";
 import { createStaticTasksSettings, type TasksSettingsSource } from "../settings-source.ts";
 import { recordingLogger } from "./log.ts";

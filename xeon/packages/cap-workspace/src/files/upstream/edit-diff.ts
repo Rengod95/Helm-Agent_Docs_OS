@@ -7,7 +7,7 @@
 
 // FRESNEL-PATCH: P14
 // FRESNEL-PATCH: P15
-import { Bug, err, ok, type Result } from "@xeon/contracts";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
 
 export function detectLineEnding(content: string): "\r\n" | "\n" {
   const crlfIdx = content.indexOf("\r\n");

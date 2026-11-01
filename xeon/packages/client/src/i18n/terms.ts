@@ -3,7 +3,7 @@
 // 파생물은 `just terms gen`이 만든다: 카탈로그 `term.*` 키(locales/ko.json, en.json)와 선택적으로 목업 용어 파일.
 // 검사는 `just terms check`(T-01~T-05 원본 검사, C-01·02·03·06 카탈로그 검사, M-01 목업 파생물).
 // 지금은 0단계라 옛 이름 금지(`forbid`)는 적어 두기만 하고 아무것도 막지 않는다. 화면 라벨은 사용자가 검토 중이라 모두 `proposed`다.
-import { parse, type ParseError, type Result } from "@xeon/contracts";
+import { parse, type ParseError, type Result } from "@fresnel/contracts";
 import { Type } from "typebox";
 import raw from "./terms.json";
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { HostBinaryReport } from "@xeon/contracts/wire";
+import type { HostBinaryReport } from "@fresnel/contracts/wire";
 import { rotationRiskNotice } from "../../src/accounts/index.ts";
 import { activeLocale, setActiveLocale, type Locale } from "../../src/i18n/index.ts";
 import {

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 
 /** 소문자 hex sha256. 문자열은 UTF-8로 본다 */
 export function sha256Hex(data: string | Uint8Array): string {

@@ -1,4 +1,4 @@
-import { defineSettings, type SettingGroup } from "@xeon/contracts/settings";
+import { defineSettings, type SettingGroup } from "@fresnel/contracts/settings";
 
 /**
  * 설정 키를 더하는 자리. 키는 ext.__ID__.<이름>으로 읽힌다(F.wire-settings.spec §3.8.3).

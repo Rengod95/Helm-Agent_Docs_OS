@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { HumanReauth, SecretValueView } from "@xeon/contracts/services";
+import type { HumanReauth, SecretValueView } from "@fresnel/contracts/services";
 import { memorySecrets, type MemorySecrets } from "../src/testing/index.ts";
 import { manualClock } from "./support/clock.ts";
 import { fixedLocalIds } from "./support/ids.ts";

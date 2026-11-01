@@ -7,7 +7,7 @@ import type {
   CancelScope,
   ExecService,
   SecretEnvRequest,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { createExecService, type ExecServiceOptions } from "../src/service.ts";
 import { fakeSecrets, type FakeSecrets } from "./support/fake-secrets.ts";
 import { hostPlatform } from "./support/platform.ts";

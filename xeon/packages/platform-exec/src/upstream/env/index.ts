@@ -1,11 +1,15 @@
 // FRESNEL-PATCH: P1
 // FRESNEL-PATCH: P6
-import type { CancelScope as Context, ExecutionError, FileError } from "@xeon/contracts/services";
+import type {
+  CancelScope as Context,
+  ExecutionError,
+  FileError,
+} from "@fresnel/contracts/services";
 // FRESNEL-PATCH: P2
-import { attempt, attemptAsync, type Logger, type Result } from "@xeon/contracts";
+import { attempt, attemptAsync, type Logger, type Result } from "@fresnel/contracts";
 
 // FRESNEL-PATCH: P2
-export { err, ok } from "@xeon/contracts";
+export { err, ok } from "@fresnel/contracts";
 // FRESNEL-PATCH: P2
 export type { Result };
 
@@ -47,7 +51,7 @@ export async function closeBestEffort(
 export type FileKind = "file" | "directory" | "symlink";
 
 // FRESNEL-PATCH: P6
-export { ExecutionError, FileError } from "@xeon/contracts/services";
+export { ExecutionError, FileError } from "@fresnel/contracts/services";
 export interface FileInfo {
   name: string;
   path: string;

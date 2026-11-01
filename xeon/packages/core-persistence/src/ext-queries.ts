@@ -1,14 +1,14 @@
 // X 기록 포트의 읽기 쪽(L1.persistence.spec §3.3 `ext.loadThread`, `ext.queryRecords`, TxView의 scopeStateRev·scopeLeaseEpoch).
 // 켜짐·임대·상태 판은 모두 활성 가지(현재 leaf에서 parentId 사슬) 위 이벤트로 계산한다(X.primitives.spec §4.6.1).
 // X 소유 투영 테이블(x_<name>_*)은 읽지 않는다(CM-02).
-import { err, ok, parse, type Result } from "@xeon/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   toJsonValue,
   TurnCompletedPayloadSchema,
   TurnStartedPayloadSchema,
   type ThreadId,
-} from "@xeon/contracts/conversation";
-import { GroupRecordSchema } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/conversation";
+import { GroupRecordSchema } from "@fresnel/contracts/extensions";
 import {
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
@@ -23,7 +23,7 @@ import {
   type OpenLease,
   type SqlTx,
   type StoredScopeState,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   branchEvents,
   branchEventsWithOwner,

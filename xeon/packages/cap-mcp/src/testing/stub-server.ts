@@ -7,15 +7,15 @@ import {
   type JSONRPCMessage,
   type JSONRPCRequest,
 } from "@modelcontextprotocol/client";
-import { attemptAsync, detach, parse, parseJson } from "@xeon/contracts";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import { attemptAsync, detach, parse, parseJson } from "@fresnel/contracts";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { Type } from "typebox";
 import type { TransportHandle } from "../adapter.ts";
 import { asJsonObject, asJsonValue, jsonObjectOr, stringOf } from "../json.ts";
 
 // 인메모리 전송 위에서 JSON-RPC를 직접 말하는 MCP 서버 스텁이다(L2.mcp.plan §2 testing/stub-server.ts).
 // SDK에 서버 패키지가 없어도 2025("legacy")와 2026("modern") 두 시대의 와이어를 흉내 낸다.
-// 테스트와 다른 패키지의 테스트(@xeon/cap-mcp/testing)가 쓴다.
+// 테스트와 다른 패키지의 테스트(@fresnel/cap-mcp/testing)가 쓴다.
 
 export type StubEra = "legacy" | "modern";
 

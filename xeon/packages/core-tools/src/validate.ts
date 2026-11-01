@@ -1,5 +1,5 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import type { AgentToolCall, JsonObject } from "@xeon/contracts/conversation";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import type { AgentToolCall, JsonObject } from "@fresnel/contracts/conversation";
 import type { TSchema } from "typebox";
 import { Value } from "typebox/value";
 import { isJsonObject, messageOf } from "./util.ts";

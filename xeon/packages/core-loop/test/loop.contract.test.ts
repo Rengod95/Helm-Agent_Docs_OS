@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import type { ExtensionUnit } from "@xeon/ext-host";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 import { createHarness } from "./support/harness.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
 import { createRecorder } from "./support/recorder.ts";
@@ -135,9 +135,9 @@ test("core_loop_imports_no_other_core_package_and_no_cordis", async () => {
   );
   for (const [index, source] of texts.entries()) {
     const file = files[index] ?? "";
-    expect(source, file).not.toMatch(/from "@xeon\/core-/);
+    expect(source, file).not.toMatch(/from "@fresnel\/core-/);
     expect(source, file).not.toMatch(/from "cordis/);
-    expect(source, file).not.toMatch(/from "@xeon\/platform-/);
+    expect(source, file).not.toMatch(/from "@fresnel\/platform-/);
     expect(source, file).not.toMatch(/from "@earendil-works\/pi-ai"/);
     // 시간·난수·ID는 주입받는다(TX-06)
     expect(source, file).not.toMatch(/Date\.now\(|Math\.random\(|crypto\.randomUUID\(/);

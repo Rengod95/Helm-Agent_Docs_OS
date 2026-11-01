@@ -1,5 +1,10 @@
-import { Bug } from "@xeon/contracts";
-import { isId, type IdByPrefix, type IdFactory, type IdPrefix } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import {
+  isId,
+  type IdByPrefix,
+  type IdFactory,
+  type IdPrefix,
+} from "@fresnel/contracts/conversation";
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

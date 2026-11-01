@@ -1,4 +1,4 @@
-import { err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
+import { err, ok, type Clock, type Logger, type Result } from "@fresnel/contracts";
 import type {
   ApprovalEvidence,
   ApprovedBy,
@@ -6,9 +6,9 @@ import type {
   LedgerOp,
   ScanSummary,
   WriteOutcome,
-} from "@xeon/contracts/capabilities";
-import type { LocalIdFactory } from "@xeon/contracts/conversation";
-import type { StoreDb } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import type { LocalIdFactory } from "@fresnel/contracts/conversation";
+import type { StoreDb } from "@fresnel/contracts/records";
 import {
   failure,
   fromStoreError,

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { DialogAsk, DialogAskKey, type AskInputValue } from "@xeon/contracts/capabilities";
-import { ApprovalResolvedPayloadSchema, EffectIntentSchema } from "@xeon/contracts/records";
+import { parse } from "@fresnel/contracts";
+import { DialogAsk, DialogAskKey, type AskInputValue } from "@fresnel/contracts/capabilities";
+import { ApprovalResolvedPayloadSchema, EffectIntentSchema } from "@fresnel/contracts/records";
 import { createToolRuntime } from "../src/runtime.ts";
 import { installDialog } from "./support/fake-dialog.ts";
 import {

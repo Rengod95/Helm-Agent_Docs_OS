@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug, repeatAsync } from "@xeon/contracts";
-import type { AssistantMessage } from "@xeon/contracts/conversation";
-import type { PortKey } from "@xeon/contracts/extensions";
+import { Bug, repeatAsync } from "@fresnel/contracts";
+import type { AssistantMessage } from "@fresnel/contracts/conversation";
+import type { PortKey } from "@fresnel/contracts/extensions";
 import {
   ApprovalServicePortKey,
   ToolServicePortKey,
   type ApprovalService,
   type Redactor,
   type ToolService,
-} from "@xeon/contracts/services";
-import { toolsPlugin } from "@xeon/core-tools";
+} from "@fresnel/contracts/services";
+import { toolsPlugin } from "@fresnel/core-tools";
 import {
   fakeRedactor,
   fakeRunContext,
@@ -17,11 +17,11 @@ import {
   fakeStore,
   fakeTruncator,
   sequentialIds,
-} from "@xeon/core-tools/testing";
-import { createTestHost } from "@xeon/ext-host/testing";
+} from "@fresnel/core-tools/testing";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { createToolServiceRegistrar } from "../src/client/register.ts";
-import { wrapUntrustedMcp } from "@xeon/contracts/capabilities";
-import type { ScopeStack } from "@xeon/contracts/settings";
+import { wrapUntrustedMcp } from "@fresnel/contracts/capabilities";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import type { StubCall, StubOutcome } from "../src/testing/stub-server.ts";
 import { layer } from "./support/layers.ts";
 import { buildWorld, startWorld, type World } from "./support/world.ts";
@@ -36,10 +36,10 @@ interface NoTasks {
   find(): undefined;
 }
 
-const SessionKey: PortKey<ReturnType<typeof fakeSession>> = { name: "xeon.session" };
-const StoreKey: PortKey<ReturnType<typeof fakeStore>> = { name: "xeon.store" };
-const TasksKey: PortKey<NoTasks> = { name: "xeon.tasks" };
-const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "xeon.secrets" };
+const SessionKey: PortKey<ReturnType<typeof fakeSession>> = { name: "fresnel.session" };
+const StoreKey: PortKey<ReturnType<typeof fakeStore>> = { name: "fresnel.store" };
+const TasksKey: PortKey<NoTasks> = { name: "fresnel.tasks" };
+const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "fresnel.secrets" };
 
 interface FakeExec {
   readonly id: string;
@@ -48,7 +48,7 @@ interface FakeExec {
   truncateHead: ReturnType<typeof fakeTruncator>["truncateHead"];
   formatSize: ReturnType<typeof fakeTruncator>["formatSize"];
 }
-const ExecKey: PortKey<FakeExec> = { name: "xeon.exec" };
+const ExecKey: PortKey<FakeExec> = { name: "fresnel.exec" };
 
 async function bootTools() {
   const t = await createTestHost({ without: ["records", "queue", "loop"] });

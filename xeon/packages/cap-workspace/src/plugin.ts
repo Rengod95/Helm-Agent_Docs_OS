@@ -1,13 +1,13 @@
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import {
   WorkspaceFiles,
   WorkspaceFilesKey,
   WorkspaceShell,
   WorkspaceImagesKey,
   WorkspaceShellKey,
-} from "@xeon/contracts/capabilities";
-import type { ExtensionEntry, PortKey } from "@xeon/contracts/extensions";
-import type { SessionService } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
+import type { SessionService } from "@fresnel/contracts/records";
 import {
   ExecPortKey,
   OsPortKey,
@@ -20,8 +20,8 @@ import {
   type SandboxService,
   type ToolRegistration,
   type ToolService,
-} from "@xeon/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
 import type { RgResolver, WorkspaceDeps } from "./deps.ts";
 import { envAtCwd } from "./env.ts";
 import { workspaceManifest } from "./manifest.ts";
@@ -31,7 +31,7 @@ import { createWorkspaceService } from "./service.ts";
 import { readWorkspaceSettings, type WorkspaceSettingsSource } from "./settings.ts";
 
 // L2.workspace.plan W4. 구현 패키지(platform-exec, platform-sandbox, core-tools)를 import하지 않고 F 서비스 인터페이스를
-// 포트(xeon.exec, xeon.sandbox, xeon.os, xeon.tools)로만 받는다. Cordis는 import하지 않는다(DR-11).
+// 포트(fresnel.exec, fresnel.sandbox, fresnel.os, fresnel.tools)로만 받는다. Cordis는 import하지 않는다(DR-11).
 
 const SandboxPortKey: PortKey<SandboxService> = { name: SandboxServiceName };
 const ToolsPortKey: PortKey<ToolService> = { name: ToolServiceName };
@@ -55,7 +55,7 @@ function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefin
 }
 
 /**
- * 대화별 작업 폴더. `xeon.session`이 대화 투영 행의 `workspace`를 주고, `xeon.exec`의 `withCwd`로 그 폴더의 env를 만든다.
+ * 대화별 작업 폴더. `fresnel.session`이 대화 투영 행의 `workspace`를 주고, `fresnel.exec`의 `withCwd`로 그 폴더의 env를 만든다.
  * 행이 없거나 읽기에 실패하면 null이다(엔진의 cwd로 간다). 읽기 실패는 다음 호출이 다시 시도하므로 여기서 던지지 않는다.
  */
 function threadWorkspaces(
@@ -72,7 +72,7 @@ function threadWorkspaces(
 }
 
 /**
- * ripgrep 경로를 고른다(spec §6 grep.rgPath). 설정에 경로가 있으면 그대로 쓰고, 없으면 `xeon.os`가 번들 바이너리를 찾는다.
+ * ripgrep 경로를 고른다(spec §6 grep.rgPath). 설정에 경로가 있으면 그대로 쓰고, 없으면 `fresnel.os`가 번들 바이너리를 찾는다.
  * 설정 경로는 managed·user 범위에서만 온다(settings.ts), 그래서 저장소를 여는 것만으로 바이너리가 바뀌지 않는다.
  */
 function rgResolver(os: OsService): RgResolver {

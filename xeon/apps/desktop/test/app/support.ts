@@ -1,5 +1,5 @@
-import { repeatAsync } from "@xeon/contracts";
-import type { ThreadSummary } from "@xeon/contracts/wire";
+import { repeatAsync } from "@fresnel/contracts";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { DesktopIpc, EngineState, SecretRegisterError } from "../../src/transport/ipc.ts";
 import { createApp, type App } from "../../src/app/bootstrap.ts";
 import { fakeIpc, requestId, type FakeIpc } from "../transport/fake-ipc.ts";

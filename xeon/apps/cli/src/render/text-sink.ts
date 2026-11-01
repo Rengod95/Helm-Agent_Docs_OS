@@ -1,5 +1,5 @@
-import { t, type MessageId } from "@xeon/client/i18n";
-import { assertNever } from "@xeon/contracts";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
 import { sequentially } from "../util.ts";
 import type { RenderOp } from "./model.ts";
 

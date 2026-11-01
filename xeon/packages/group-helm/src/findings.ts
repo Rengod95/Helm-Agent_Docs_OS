@@ -1,4 +1,4 @@
-import { parse, parseJson, type SchemaProof } from "@xeon/contracts";
+import { parse, parseJson, type SchemaProof } from "@fresnel/contracts";
 import { Type, type TUnsafe } from "typebox";
 import {
   ConfidenceSchema,

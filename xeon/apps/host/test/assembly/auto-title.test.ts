@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
-import { err, ok, parse, type Clock, type Logger, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, parse, type Clock, type Logger, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   DurableEventEnvelopeSchema,
   type DurableEventEnvelope,
   type ThreadSummaryRow,
-} from "@xeon/contracts/records";
-import type { AutoTitleDeps, TitleModelPort } from "@xeon/core-persistence";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/records";
+import type { AutoTitleDeps, TitleModelPort } from "@fresnel/core-persistence";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   startAutoTitle,
   titleModelFor,

@@ -1,4 +1,4 @@
-import type { CancelScope, FileError } from "@xeon/contracts/services";
+import type { CancelScope, FileError } from "@fresnel/contracts/services";
 import type { CommandFiles } from "../../ports/command-files.ts";
 
 // FRESNEL-PATCH: P1

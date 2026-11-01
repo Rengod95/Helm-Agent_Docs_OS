@@ -2,15 +2,15 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
-import { createIdFactory, systemRandom, systemScheduler } from "@xeon/platform-os";
+import { ok } from "@fresnel/contracts";
+import { createIdFactory, systemRandom, systemScheduler } from "@fresnel/platform-os";
 import {
   DEFAULT_STORE_SETTINGS,
   exportDatabase,
   openStore,
   type StoreEnvironment,
-} from "@xeon/platform-store";
-import { openTestStore } from "@xeon/platform-store/testing";
+} from "@fresnel/platform-store";
+import { openTestStore } from "@fresnel/platform-store/testing";
 import { EXIT } from "../src/exit-codes.ts";
 import { createHarness } from "./support/harness.ts";
 

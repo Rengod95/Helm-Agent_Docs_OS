@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { parseJson, type Result } from "@xeon/contracts";
+import { parseJson, type Result } from "@fresnel/contracts";
 import {
   ACCOUNTS_KEY,
   RATE_LIMIT_KEY,
@@ -12,7 +12,7 @@ import {
   withAccount,
   withRateLimit,
   type AccountsConnection,
-} from "@xeon/client/accounts";
+} from "@fresnel/client/accounts";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";

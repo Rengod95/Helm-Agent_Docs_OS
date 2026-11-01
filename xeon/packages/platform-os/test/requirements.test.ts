@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { BinaryError, BinaryName, ResolvedBinary } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { BinaryError, BinaryName, ResolvedBinary } from "@fresnel/contracts/services";
 import {
   binaryRequirements,
   checkExternalBinaries,

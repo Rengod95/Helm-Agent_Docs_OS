@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import {
   ownerOfKind,
   RECOVERY_SYNTHESIS_KINDS,
@@ -7,7 +7,7 @@ import {
   type ProducerHandle,
   type ProducerId,
   type StampedDraft,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { KindCatalog } from "./upcast.ts";
 
 /** 코어 영속성 생산자. 서비스가 내부에서 쓰므로 밖에서 받을 수 없다(store.producer_claimed) */

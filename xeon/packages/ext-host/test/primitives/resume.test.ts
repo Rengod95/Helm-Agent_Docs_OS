@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { attemptAsync, err } from "@xeon/contracts";
+import { attemptAsync, err } from "@fresnel/contracts";
 import { PrimitiveError } from "../../src/primitives/index.ts";
 import { createSmokeGroup, createTestHost } from "../../src/testing/index.ts";
 import { makeGroupUnit, snapshotOf } from "./fixtures/support.ts";

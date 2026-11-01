@@ -3,9 +3,9 @@ import type {
   AssistantMessage,
   ToolResultMessage,
   UserMessage,
-} from "@xeon/contracts/conversation";
-import { validateManifest } from "@xeon/contracts/extensions";
-import { createTestHost, flushMicrotasks, type TestHost } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/conversation";
+import { validateManifest } from "@fresnel/contracts/extensions";
+import { createTestHost, flushMicrotasks, type TestHost } from "@fresnel/ext-host/testing";
 import * as entry from "../src/index.ts";
 import { SMOKE_GROUP_MANIFEST, checkGroup, smokeGroup } from "../src/testing/index.ts";
 

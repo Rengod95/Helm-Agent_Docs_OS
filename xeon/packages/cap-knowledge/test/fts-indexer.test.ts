@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
-import type { StoreDb } from "@xeon/contracts/records";
+import { err } from "@fresnel/contracts";
+import type { StoreDb } from "@fresnel/contracts/records";
 import { startIndexer } from "../src/search/indexer.ts";
 import { asHost } from "./support/helpers.ts";
 import { closeWorlds, createWorld, type World } from "./support/world.ts";

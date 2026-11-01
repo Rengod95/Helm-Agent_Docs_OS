@@ -27,20 +27,20 @@ L2는 F3 능력 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provi
 
 | 하위 층 id | 계획 v2 이름 | 도메인 | 패키지 | 능력 ID | 묶음 이름(§5.6) | 이벤트 접두사 | 테이블 접두사 | 마일스톤 | 문서 id |
 |---|---|---|---|---|---|---|---|---|---|
-| L2-a | 작업 도구 | workspace | cap-workspace | workspace.files, workspace.shell, workspace.images | xeon.workspace | workspace.(예약) | cap_workspace_(예약) | M1(read, ls, bash), M3(write, edit, grep, find)[^ws] | `L2.workspace.spec`, `L2.workspace.plan` |
-| L2-b | MCP 통합 | mcp | cap-mcp | mcp.client | xeon.mcp | mcp.(휘발, 예약) | cap_mcp_ | M2(브리지, 서버 정의, 서버 주도 요청)[^mcp] | `L2.mcp.spec`, `L2.mcp.plan` |
-| L2-c | 웹 | web | cap-web | web.search, web.fetch, web.browse, web.research | xeon.web | web.(휘발, 예약) | cap_web_ | M2(search, fetch), M2 후반~M3 초입(browse)[^web] | `L2.web.spec`, `L2.web.plan` |
-| L2-d | 지식과 기억 (저장소) | knowledge | cap-knowledge | knowledge.skills, knowledge.memory, knowledge.search, knowledge.ledger | xeon.knowledge | knowledge.(예약) | cap_knowledge_ | M2 | `L2.knowledge.spec`, `L2.knowledge.plan` |
-| L2-e | 작업 관리 | work | cap-work | work.tasks, work.plans, work.goals, work.reports | xeon.work | work. | cap_work_ | M2(tasks, plans), M3(goals, reports)[^work] | `L2.work.spec`, `L2.work.plan` |
-| L2-f | 사용자 대화 | dialog | cap-dialog | dialog.ask, dialog.commands, dialog.status, dialog.attachments, dialog.aside, dialog.styles, dialog.notify | xeon.dialog | dialog.(휘발 status) | 없음 | M2(ask, commands, status, attachments), M3(notify)[^dialog] | `L2.dialog.spec`, `L2.dialog.plan` |
-| L2-g | 산출물과 세션 | artifacts | cap-artifacts | artifacts.registry, artifacts.reviews, artifacts.sessions | xeon.artifacts | artifact.(단수 주의) | cap_artifacts_ | M3(정의·카탈로그만 M2)[^art] | `L2.artifacts.spec`, `L2.artifacts.plan` |
-| L2-h | 예약과 백그라운드 | schedule | cap-schedule | schedule.loops, schedule.jobs, schedule.sessions, schedule.timers, schedule.remote | xeon.schedule | schedule. | cap_schedule_ | M3(정의·카탈로그만 M2)[^sch] | `L2.schedule.spec`, `L2.schedule.plan` |
+| L2-a | 작업 도구 | workspace | cap-workspace | workspace.files, workspace.shell, workspace.images | fresnel.workspace | workspace.(예약) | cap_workspace_(예약) | M1(read, ls, bash), M3(write, edit, grep, find)[^ws] | `L2.workspace.spec`, `L2.workspace.plan` |
+| L2-b | MCP 통합 | mcp | cap-mcp | mcp.client | fresnel.mcp | mcp.(휘발, 예약) | cap_mcp_ | M2(브리지, 서버 정의, 서버 주도 요청)[^mcp] | `L2.mcp.spec`, `L2.mcp.plan` |
+| L2-c | 웹 | web | cap-web | web.search, web.fetch, web.browse, web.research | fresnel.web | web.(휘발, 예약) | cap_web_ | M2(search, fetch), M2 후반~M3 초입(browse)[^web] | `L2.web.spec`, `L2.web.plan` |
+| L2-d | 지식과 기억 (저장소) | knowledge | cap-knowledge | knowledge.skills, knowledge.memory, knowledge.search, knowledge.ledger | fresnel.knowledge | knowledge.(예약) | cap_knowledge_ | M2 | `L2.knowledge.spec`, `L2.knowledge.plan` |
+| L2-e | 작업 관리 | work | cap-work | work.tasks, work.plans, work.goals, work.reports | fresnel.work | work. | cap_work_ | M2(tasks, plans), M3(goals, reports)[^work] | `L2.work.spec`, `L2.work.plan` |
+| L2-f | 사용자 대화 | dialog | cap-dialog | dialog.ask, dialog.commands, dialog.status, dialog.attachments, dialog.aside, dialog.styles, dialog.notify | fresnel.dialog | dialog.(휘발 status) | 없음 | M2(ask, commands, status, attachments), M3(notify)[^dialog] | `L2.dialog.spec`, `L2.dialog.plan` |
+| L2-g | 산출물과 세션 | artifacts | cap-artifacts | artifacts.registry, artifacts.reviews, artifacts.sessions | fresnel.artifacts | artifact.(단수 주의) | cap_artifacts_ | M3(정의·카탈로그만 M2)[^art] | `L2.artifacts.spec`, `L2.artifacts.plan` |
+| L2-h | 예약과 백그라운드 | schedule | cap-schedule | schedule.loops, schedule.jobs, schedule.sessions, schedule.timers, schedule.remote | fresnel.schedule | schedule. | cap_schedule_ | M3(정의·카탈로그만 M2)[^sch] | `L2.schedule.spec`, `L2.schedule.plan` |
 
 - 이름 대응: 계획 v2의 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳이 셋이다. L2-a "작업 도구" = `workspace`, L2-e "작업 관리" = `work`, L2-g "산출물과 세션" = `artifacts`. 코드, 서비스 이름, 이벤트·테이블 접두사, 설정 키는 layout 이름을 쓴다(`eng.context-map.design` §4.5, 미결 C-1).
-- 이벤트 접두사의 "예약"은 소유만 정해 둔 접두사다. type을 실제로 더할 때 해당 spec의 카탈로그에 올린다(`eng.context-map.design` §5.1). artifacts 도메인의 이벤트 접두사는 단수 `artifact.`이고 테이블 접두사와 서비스 이름은 복수(`cap_artifacts_`, `xeon.artifacts`)다.
+- 이벤트 접두사의 "예약"은 소유만 정해 둔 접두사다. type을 실제로 더할 때 해당 spec의 카탈로그에 올린다(`eng.context-map.design` §5.1). artifacts 도메인의 이벤트 접두사는 단수 `artifact.`이고 테이블 접두사와 서비스 이름은 복수(`cap_artifacts_`, `fresnel.artifacts`)다.
 - dialog의 테이블 접두사 "없음"은 이 층 공통 규약 값이다. `eng.context-map.design` §4.1은 같은 칸을 "없음(예약 `cap_dialog_*`)"으로 적었다. 예약을 둘지는 §10 미결 6이다.
 - 생산자 id는 `cap.<도메인>`이다(`eng.context-map.design` §5.1).
-- "묶음 이름" 열의 `xeon.<domain>`은 도메인 묶음 타입(§5.6)을 가리키는 이름이다. 능력의 Cordis 바인딩은 능력마다 하나이고 이름은 `cap:<능력 id>`다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). `xeon.mcp`만 Cordis 서비스로도 등록한다. X `McpPort`(`registerServer`)를 받는 서비스 이름이기 때문이다(§5.6, `F.capabilities.spec` §3.5, `X.primitives.spec` §3.6 규칙 6). 나머지 `xeon.<domain>`은 Cordis에 등록하지 않는다.
+- "묶음 이름" 열의 `fresnel.<domain>`은 도메인 묶음 타입(§5.6)을 가리키는 이름이다. 능력의 Cordis 바인딩은 능력마다 하나이고 이름은 `cap:<능력 id>`다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). `fresnel.mcp`만 Cordis 서비스로도 등록한다. X `McpPort`(`registerServer`)를 받는 서비스 이름이기 때문이다(§5.6, `F.capabilities.spec` §3.5, `X.primitives.spec` §3.6 규칙 6). 나머지 `fresnel.<domain>`은 Cordis에 등록하지 않는다.
 
 마일스톤 칸은 `product.scope.spec` §4.3을 따른다. 계획 v2 JSON의 구성요소 단계(1차/2차/보류)와 다른 곳은 아래 각주에 적는다. 단계와 마일스톤은 다른 구분이다. 단계 '1차'는 첫 사용 버전(M3 종료)에 들어간다는 뜻이고 마일스톤은 그 안의 순서다(`product.scope.spec` §2).
 
@@ -77,7 +77,7 @@ cap-<domain>/
 ```
 
 - `package.json`의 `xeon` 필드는 `{"layer": "L2", "domain": "<domain>"}`이고 값은 `routes.yaml` layout과 같아야 한다(`eng.dependency-rules.guide` DR-03).
-- 정의 파일은 `cap-*`에 두지 않는다. `@xeon/contracts/capabilities`의 `defs/<domain>.ts`에서 import한다. 그래서 각 L2 plan의 첫 작업은 F `defs/<domain>.ts` 추가다.
+- 정의 파일은 `cap-*`에 두지 않는다. `@fresnel/contracts/capabilities`의 `defs/<domain>.ts`에서 import한다. 그래서 각 L2 plan의 첫 작업은 F `defs/<domain>.ts` 추가다.
 - 포크 코드는 `src/upstream/`에 두고 패키지 루트에 `UPSTREAM.json`, `PATCHES.md`, `LICENSE.pi`(pi 포크일 때)를 둔다(ADR-0003 §3.4).
 - 외부 SDK 타입은 각 패키지의 경계 어댑터 파일 밖으로 내보내지 않는다(`eng.context-map.design` CM-03). 예: `cap-mcp/src/adapter.ts`.
 
@@ -94,7 +94,7 @@ cap-<domain>/
 
 | 대상 | 정하는 곳 |
 |---|---|
-| 권한 모드, 권한 규칙, 승인 프로토콜(`xeon.approvals`, `approval.*` 이벤트), 도구 실행 파이프라인, 도구 노출 켜기·끄기, 결과 경계화 | `L1.tools.spec` |
+| 권한 모드, 권한 규칙, 승인 프로토콜(`fresnel.approvals`, `approval.*` 이벤트), 도구 실행 파이프라인, 도구 노출 켜기·끄기, 결과 경계화 | `L1.tools.spec` |
 | 되감기, 체크포인트, 파일 복원, 세션 쓰기(`SessionWriter.commit`), `consumer_cursors` 테이블 | `L1.persistence.spec`, `eng.transactions.design` |
 | 프로세스 레지스트리, 샌드박스, 격리, 실행 환경(`ExecutionEnv`), 비밀 저장과 주입, blob 저장 | `L0.process.spec`, `L0.sandbox.spec`, `L0.exec.spec`, `L0.secrets.spec`, `L0.store.spec` |
 | 서브에이전트 실행, 백그라운드 위임 | `L1.agents.spec` |
@@ -102,7 +102,7 @@ cap-<domain>/
 | 확장 로딩, 신뢰, provider 등록 API, 4연산 실행 | `X.loading-trust.spec`, `X.primitives.spec` |
 | 화면, 명령 표면, 설정 파일 위치 | `L4.settings-ui.spec`, `L4.cli.spec`, `L4.desktop.spec`, `L4.host-service.spec` |
 
-- L2는 drive를 쓰지 않는다. drive 임대는 L3 그룹만 갖는다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `xeon.tasks` 경유 입력으로 한다(각 spec).
+- L2는 drive를 쓰지 않는다. drive 임대는 L3 그룹만 갖는다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `fresnel.tasks` 경유 입력으로 한다(각 spec).
 - [제안] 한 스레드에서 다음 턴을 투입하는 L2 주체는 하나다. 목표(`work.goals`)를 가진 루프(`schedule.loops`의 `goalId`)에서는 루프가 반복마다 다음 턴을 투입하고 `work.goals`는 판정만 기록하며 post하지 않는다. 이를 위해 목표는 `continuation` 값을 갖는다. `"self"`(기본)면 `work.goals`가 미충족 판정 뒤 post하고, `"external"`이면 판정만 기록한다. `schedule.loops.start`는 `goalId`의 목표가 `continuation: "external"`이 아니면 `invalid_input`(`detail.reason: "goal_continuation_self"`)으로 거부한다. 루프와 목표를 함께 거는 호출자(L4 명령, 그룹)는 `work.goals.set({ continuation: "external" })` 뒤 `schedule.loops.start({ goalId })`를 부른다(`L2.work.spec` §4.3.5, `L2.schedule.spec` §4.1.4). 확정은 §10 미결 18이다.
 - L3 그룹 이름은 이 층 문서에 쓰지 않는다. L2 설정의 기본값은 일반 이름으로 두고, 특정 그룹이 필요한 값은 L3가 설정으로 채운다 [결정: review.decisions-2 D-11].
 
@@ -151,7 +151,7 @@ cap-<domain>/
 | 상태 종류 | 쓰는 경로 | 저장 위치 | 근거 |
 |---|---|---|---|
 | 세션에 속한 상태(작업 목록, 산출물 색인 등) | 도메인 이벤트(`<접두사>.*`)를 세션 커밋에 넣고, `cap.<도메인>` 투영기가 투영한다 | `cap_<도메인>_` 테이블. `session_id` 열을 둔다 | `eng.context-map.design` §5.2 |
-| 세션 밖 상태(MCP 서버 상태, fetch 캐시, 스킬 색인, 타이머) | `xeon.store.scoped`(자기 접두사 범위 핸들) | `cap_<도메인>_` 테이블 | `eng.context-map.design` §5.2 |
+| 세션 밖 상태(MCP 서버 상태, fetch 캐시, 스킬 색인, 타이머) | `fresnel.store.scoped`(자기 접두사 범위 핸들) | `cap_<도메인>_` 테이블 | `eng.context-map.design` §5.2 |
 | 같은 DB 이벤트의 비동기 소비(세션 검색 FTS 색인 등) | 자기 테이블 쓰기와 커서 갱신을 한 트랜잭션에 넣는다 | `consumer_cursors` 행(`consumer` = `cap.<도메인>.<이름>`) | `eng.transactions.design` §7 |
 | 큰 바이너리(이미지, 첨부) | L0 blob API | `sys_blobs` + blob 파일, 참조는 `BlobRef` | `F.records.spec` §3.4, `eng.context-map.design` §5.2 |
 
@@ -169,12 +169,12 @@ cap-<domain>/
 
 ### 5.6 도메인 서비스와 `ServiceKey`의 대응 (f)
 
-Cordis 바인딩은 능력 단위다. X가 능력마다 `cap:<능력 id>` 바인딩 하나를 만든다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). 도메인 서비스 묶음 타입은 같은 도메인 능력 API를 모은 TypeScript 타입이고 Cordis 서비스로 등록하지 않는다(`F.capabilities.spec` §3.5). 예외는 `xeon.mcp` 하나다 [결정: review.decisions-2 D-04]. X가 확장의 MCP 서버 등록을 `McpPort`(`registerServer(owner, name, config)`, `F.extensions.spec` §3.2.1)로 넘기므로, `cap-mcp`는 `McpService extends McpPort`를 Cordis 서비스 `xeon.mcp`에 등록한다(`F.capabilities.spec` §3.5, `L2.mcp.spec` §3.2). `McpService`와 `McpServiceName`은 다른 묶음 타입과 달리 F `services/mcp.ts`에 있다(`F.capabilities.spec` §3.12 규칙 7). 능력 API(`mcp.client`)는 다른 도메인과 같이 `cap:mcp.client` 바인딩으로 얻는다.
+Cordis 바인딩은 능력 단위다. X가 능력마다 `cap:<능력 id>` 바인딩 하나를 만든다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). 도메인 서비스 묶음 타입은 같은 도메인 능력 API를 모은 TypeScript 타입이고 Cordis 서비스로 등록하지 않는다(`F.capabilities.spec` §3.5). 예외는 `fresnel.mcp` 하나다 [결정: review.decisions-2 D-04]. X가 확장의 MCP 서버 등록을 `McpPort`(`registerServer(owner, name, config)`, `F.extensions.spec` §3.2.1)로 넘기므로, `cap-mcp`는 `McpService extends McpPort`를 Cordis 서비스 `fresnel.mcp`에 등록한다(`F.capabilities.spec` §3.5, `L2.mcp.spec` §3.2). `McpService`와 `McpServiceName`은 다른 묶음 타입과 달리 F `services/mcp.ts`에 있다(`F.capabilities.spec` §3.12 규칙 7). 능력 API(`mcp.client`)는 다른 도메인과 같이 `cap:mcp.client` 바인딩으로 얻는다.
 
 ```ts
 // 예: 웹 도메인 묶음 타입. 정의 파일 defs/web.ts에 둔다
-import type { CapabilityApi } from "@xeon/contracts/capabilities";
-import type { WebSearch, WebFetch, WebBrowse, WebResearch } from "@xeon/contracts/capabilities/defs/web";
+import type { CapabilityApi } from "@fresnel/contracts/capabilities";
+import type { WebSearch, WebFetch, WebBrowse, WebResearch } from "@fresnel/contracts/capabilities/defs/web";
 
 export interface WebService {
   readonly search: CapabilityApi<typeof WebSearch>;
@@ -184,13 +184,13 @@ export interface WebService {
 }
 ```
 
-- consumer는 `ScopeApi.capability(key)`로 능력 단위 API를 얻는다(`F.extensions.spec` §3.2). 반환 타입은 `ApiOf<typeof key>`다. consumer는 묶음 타입이나 `xeon.<domain>` 이름을 쓰지 않는다.
+- consumer는 `ScopeApi.capability(key)`로 능력 단위 API를 얻는다(`F.extensions.spec` §3.2). 반환 타입은 `ApiOf<typeof key>`다. consumer는 묶음 타입이나 `fresnel.<domain>` 이름을 쓰지 않는다.
 - 묶음 타입은 provider 패키지 안에서 능력별 API 객체를 한곳에 모을 때와 문서에서 도메인을 가리킬 때 쓴다. 속성 이름은 능력 id의 둘째 마디다. 예: `web.search` → `WebService.search`.
-- 도메인 묶음 타입 이름은 `eng.context-map.design` §5.3 표(`WorkspaceService`, `McpService`, `WebService`, `KnowledgeService`, `WorkService`, `DialogService`, `ArtifactService`, `ScheduleService`)를 따른다. 그 표의 `xeon.<domain>` 행은 `xeon.mcp`를 빼면 묶음 이름이고 Cordis 등록 이름이 아니다. `xeon.mcp`는 Cordis 등록 이름이다.
+- 도메인 묶음 타입 이름은 `eng.context-map.design` §5.3 표(`WorkspaceService`, `McpService`, `WebService`, `KnowledgeService`, `WorkService`, `DialogService`, `ArtifactService`, `ScheduleService`)를 따른다. 그 표의 `fresnel.<domain>` 행은 `fresnel.mcp`를 빼면 묶음 이름이고 Cordis 등록 이름이 아니다. `fresnel.mcp`는 Cordis 등록 이름이다.
 
 ### 5.7 질문과 승인
 
-- [결정] 질문 도구와 계획 승인은 L1.tools의 승인 프로토콜 하나로 합친다(`_research/foundation-plan.md` §1 5번). 서비스는 `xeon.approvals`이고 이벤트는 `approval.requested`와 `approval.resolved`다(`eng.context-map.design` §5.1).
+- [결정] 질문 도구와 계획 승인은 L1.tools의 승인 프로토콜 하나로 합친다(`_research/foundation-plan.md` §1 5번). 서비스는 `fresnel.approvals`이고 이벤트는 `approval.requested`와 `approval.resolved`다(`eng.context-map.design` §5.1).
 - L2는 승인을 요청하고 결과 이벤트를 받는다. 승인 대기 중에는 루프가 승인 대기 상태를 단계 체크포인트로 커밋하고 멈춘다(`architecture.runtime-flow.design` §4.5). 대기 중에 도는 프로세스는 없다.
 - L2가 쓰는 kind는 넷이다. `eng.events.design` §4.4의 `approval.requested` kind는 `tool | question | plan` 셋이므로 `review` 추가는 `L1.tools.spec`에 올리는 변경 요청이다(§10 미결 14).
 
@@ -202,8 +202,8 @@ export interface WebService {
 | `tool` | `knowledge.*` 쓰기 게이트, `schedule.loops`(그룹이 시작한 셸 종료 조건) | `L2.knowledge.spec` §4.5.1, `L2.schedule.spec` §4.1.2 | |
 
 - `schedule.remote`는 요청하지 않고 원격 클라이언트의 응답을 `respond`로 중계만 한다(`L2.schedule.spec` §4.5.2).
-- [결정: m2c G1-09] 승인 origin의 `caller`는 호출 문맥의 `CallContext.caller`를 `approvalCallerOf`(`@xeon/contracts/services`)에 넣어 만든다. cap-dialog, cap-work, cap-knowledge의 승인 포트는 자기 변환 함수를 두지 않는다. 호출 문맥이 없는 요청(스레드를 다시 열 때 등)은 호스트가 직접 낸 호출이므로 `host`다. 규칙의 정본은 `F.records.spec` §3.3.1이다.
-- [제안] L2 공통 승인 포트. 각 `cap-*`는 `xeon.approvals`를 패키지 내부 포트 한 곳(`src/ports/approvals.ts`)으로 감싸고 아래 모양을 따른다. L2 패키지끼리 import하지 않으므로 같은 모양을 각자 둔다. 도메인 spec은 kind와 `subject` 타입만 좁힌다. L1.tools.spec의 실제 이름이 다르면 포트만 고친다.
+- [결정: m2c G1-09] 승인 origin의 `caller`는 호출 문맥의 `CallContext.caller`를 `approvalCallerOf`(`@fresnel/contracts/services`)에 넣어 만든다. cap-dialog, cap-work, cap-knowledge의 승인 포트는 자기 변환 함수를 두지 않는다. 호출 문맥이 없는 요청(스레드를 다시 열 때 등)은 호스트가 직접 낸 호출이므로 `host`다. 규칙의 정본은 `F.records.spec` §3.3.1이다.
+- [제안] L2 공통 승인 포트. 각 `cap-*`는 `fresnel.approvals`를 패키지 내부 포트 한 곳(`src/ports/approvals.ts`)으로 감싸고 아래 모양을 따른다. L2 패키지끼리 import하지 않으므로 같은 모양을 각자 둔다. 도메인 spec은 kind와 `subject` 타입만 좁힌다. L1.tools.spec의 실제 이름이 다르면 포트만 고친다.
 
 ```ts
 // cap-<domain>/src/ports/approvals.ts  (패키지 내부. L1.tools.spec 승인 프로토콜을 감싼다 [가정])
@@ -294,7 +294,7 @@ flowchart LR
 - 알림은 간선을 만들지 않는다. 알림 채널은 `dialog.notify`가 소유하고 `schedule`은 알림 대상 이벤트만 낸다(§8, §10 미결 15). `dialog.notify`가 `work.*`·`schedule.*` 이벤트를 분류하는 것은 이벤트 구독이고 서비스 의존이 아니다.
 - 필수 의존(`requires`)은 정의의 `CapabilityDef.requires`에도 적는다. 선택 의존(`optional`)은 매니페스트에만 적고, 호출 전에 사용 가능 여부를 확인한다(`F.capabilities.spec` §5 2항).
 - 위 표에 없는 L2 사이 의존이 필요해지면 이 절을 먼저 고친다. 새 간선이 순환을 만들면 넣지 않는다. 공통 데이터가 필요하면 F에 타입을 두고 서비스를 거친다(DR-02).
-- L1·L0 서비스 의존(`xeon.exec`, `xeon.approvals`, `xeon.store` 등)은 이 그래프에 넣지 않는다. 층 순위상 아래 방향이라 순환이 생기지 않는다. 목록은 `eng.context-map.design` §4.1 (d)열이다.
+- L1·L0 서비스 의존(`fresnel.exec`, `fresnel.approvals`, `fresnel.store` 등)은 이 그래프에 넣지 않는다. 층 순위상 아래 방향이라 순환이 생기지 않는다. 목록은 `eng.context-map.design` §4.1 (d)열이다.
 
 ## 7. 설정 노출 총괄
 
@@ -359,7 +359,7 @@ flowchart LR
 
 ## 10. 미결 사항
 
-1. 닫힘. 도메인 서비스 묶음과 `ServiceKey`의 대응(§5.6). `F.capabilities.spec` §3.5와 `X.primitives.spec` §3.7이 능력마다 `cap:<id>` 바인딩 하나로 정했다. 묶음 타입은 등록하지 않는다. 예외로 `xeon.mcp`는 `McpPort`를 확장하는 `McpService`(F `services/mcp.ts`)로 등록한다(`F.capabilities.spec` §3.5·§3.12, `X.primitives.spec` §3.6 규칙 6, §3.9).
+1. 닫힘. 도메인 서비스 묶음과 `ServiceKey`의 대응(§5.6). `F.capabilities.spec` §3.5와 `X.primitives.spec` §3.7이 능력마다 `cap:<id>` 바인딩 하나로 정했다. 묶음 타입은 등록하지 않는다. 예외로 `fresnel.mcp`는 `McpPort`를 확장하는 `McpService`(F `services/mcp.ts`)로 등록한다(`F.capabilities.spec` §3.5·§3.12, `X.primitives.spec` §3.6 규칙 6, §3.9).
 2. 닫힘. provider 공통 타입(§5.2)은 F `capabilities/provider.ts`에 있다(`F.capabilities.spec` §3.11).
 3. 닫힘. provider 메타 출력 모양은 `meta: ProviderSelectionMeta`다. `F.capabilities.spec` §3.9 예시의 최상위 `provider`는 간추린 표기다(`F.capabilities.spec` §3.11).
 4. [미결] 명시 선택 provider의 실패 처리(§5.2). 명시 선택은 내려가지 않는다는 제안과 ADR-0005 §3.3 문구("앞 provider가 실패하면 내려간다")의 적용 범위가 같은지 확인한다.

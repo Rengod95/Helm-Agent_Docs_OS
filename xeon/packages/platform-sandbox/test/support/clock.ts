@@ -1,4 +1,4 @@
-import type { Clock, RandomSource } from "@xeon/contracts";
+import type { Clock, RandomSource } from "@fresnel/contracts";
 
 /** 고정 시작값에서 advance로만 흐르는 시계. 기본 시작값은 2026-01-05T00:00:00Z */
 export interface ManualClock extends Clock {

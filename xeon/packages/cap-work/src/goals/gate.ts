@@ -1,15 +1,15 @@
-import { assertNever, attemptAsync, type Clock, type Logger } from "@xeon/contracts";
-import { CapabilityError } from "@xeon/contracts/capabilities";
-import type { IdFactory, StepId, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import { assertNever, attemptAsync, type Clock, type Logger } from "@fresnel/contracts";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
+import type { IdFactory, StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   AgentBeforeSettlePayload,
   BoundaryPatch,
   BoundaryValue,
   HandlerContext,
-} from "@xeon/contracts/extensions";
-import type { DurableEventDraft } from "@xeon/contracts/records";
-import type { AgentService, JudgeInput, JudgeOutcome } from "@xeon/contracts/services";
-import { goalGateDecision, type GoalGateDecision } from "@xeon/core-agents";
+} from "@fresnel/contracts/extensions";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
+import type { AgentService, JudgeInput, JudgeOutcome } from "@fresnel/contracts/services";
+import { goalGateDecision, type GoalGateDecision } from "@fresnel/core-agents";
 import { readTasks, type GoalRow } from "../projection/read.ts";
 import type { WorkReader } from "../ports/session.ts";
 import { criteriaOf, evidenceOf } from "./evidence.ts";
@@ -28,7 +28,7 @@ export const GOAL_NOTICE_TYPE = "x.cap-work.goal.notice";
 export interface SettleGateDeps {
   readonly goals: GoalsRuntime;
   readonly reader: WorkReader;
-  /** 호출 때마다 얻는다. xeon.agents가 아직 없으면 undefined이고 판정은 실패로 본다 */
+  /** 호출 때마다 얻는다. fresnel.agents가 아직 없으면 undefined이고 판정은 실패로 본다 */
   readonly agents: () => Pick<AgentService, "judge"> | undefined;
   readonly ids: IdFactory;
   readonly clock: Clock;
@@ -114,7 +114,7 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
     signal: AbortSignal,
   ): Promise<JudgeOutcome> {
     const agents = deps.agents();
-    if (agents === undefined) return { kind: "failed", message: "xeon.agents is not available" };
+    if (agents === undefined) return { kind: "failed", message: "fresnel.agents is not available" };
     const tasks = readTasks(deps.reader, threadId);
     const previous = deps.goals.judgments(threadId, row.goal.goalId);
     if (!tasks.ok || !previous.ok) {

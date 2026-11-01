@@ -1,13 +1,13 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   ApprovalResolvedPayloadSchema,
   ReviewAnswerSchema,
   type DurableEventEnvelope,
   type EventKind,
   type ReviewAnswerJson,
-} from "@xeon/contracts/records";
-import { toJsonValue, type JsonValue, type ThreadId } from "@xeon/contracts/conversation";
-import type { ApprovalService } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
+import type { ApprovalService } from "@fresnel/contracts/services";
 import { commitKey } from "./kernel.ts";
 import type { ReviewsRuntime } from "./service.ts";
 import { roundForNewInput, type ReviewState } from "./state.ts";

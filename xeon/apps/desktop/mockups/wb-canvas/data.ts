@@ -128,7 +128,7 @@ export const NODES: CNode[] = [
     usesDrive: false,
     consumes: [
       { id: "knowledge.skills", need: "requires" },
-      { id: "xeon.agents", need: "requires" },
+      { id: "fresnel.agents", need: "requires" },
     ],
   },
   {
@@ -298,7 +298,7 @@ export const NODES: CNode[] = [
     kind: "core",
     health: "ok",
     exempt: true,
-    provides: ["xeon.agents"],
+    provides: ["fresnel.agents"],
   },
   {
     id: "context",

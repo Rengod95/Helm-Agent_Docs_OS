@@ -653,7 +653,7 @@ export const RunInput: TObject<{
     cwd: Type.Optional(PathParam),
     /** 참이면 0이 아닌 종료 코드를 exit_nonzero 오류로 낸다. 모델 도구는 항상 참이다 */
     failOnNonZero: Type.Optional(Type.Boolean()),
-    /** 그룹 코드가 비밀을 명시적으로 넘길 때만 쓴다. 값 주입은 xeon.exec가 실행 직전에 한다 */
+    /** 그룹 코드가 비밀을 명시적으로 넘길 때만 쓴다. 값 주입은 fresnel.exec가 실행 직전에 한다 */
     secretEnv: Type.Optional(Type.Record(EnvName, SecretRefParam)),
   },
   { additionalProperties: false },
@@ -870,7 +870,7 @@ export const WorkspaceImagesKey: ServiceKey<CapabilityApi<typeof WorkspaceImages
 // ── 도메인 서비스 (§3.5) ────────────────────────────────────────────────
 
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
-export const WorkspaceServiceName = "xeon.workspace" as const;
+export const WorkspaceServiceName = "fresnel.workspace" as const;
 
 /** workspace 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
 export interface WorkspaceService {

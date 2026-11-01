@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { t } from "@xeon/core-models/testing";
+import { t } from "@fresnel/core-models/testing";
 import { EXIT } from "../src/exit-codes.ts";
 import { createRealCli, modelsOf, type RealCli, type TapeStep } from "./support/real-host.ts";
 import { scriptedInput } from "./support/script.ts";

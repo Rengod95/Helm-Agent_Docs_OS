@@ -1,5 +1,5 @@
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { EventWire, VolatileEventWire } from "@xeon/contracts/wire";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { EventWire, VolatileEventWire } from "@fresnel/contracts/wire";
 import { eventId, itemId, threadId } from "./ids.ts";
 
 // 시험용 이벤트 초안. seq와 id는 가짜 서버가 붙인다. payload 모양은 F 카탈로그 스키마를 따른다.

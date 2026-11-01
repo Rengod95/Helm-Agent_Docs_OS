@@ -44,7 +44,7 @@ binds: []
 |---|---|---|---|---|
 | K-01 | high | `F/records/spec.md` | 소비 층이 쓰는 `approval.*`, `input.*`, `agent.*`, `secret.*`, `turn.abort_requested`, `thread.resumed`, `scope.handler_failed`가 F 코어 카탈로그에 없어 `parseEventKind`가 `reserved_area`로 거부한다 | 부분. F.records §3.2·§3.3에 영역·kind·payload를 더했다(승인 kind는 F.wire-settings §4.6 A안 전제). 잔여: `L1/README.md` §7.1 표의 "F 상태: 요청" 6행, L1.tools·L1.tasks·L1.agents plan의 M1 표지 |
 | K-02 | high | `F/records/spec.md` | L2 도메인 kind(`work.`, `dialog.`, `artifact.`, `schedule.`)가 F 규칙상 거부 대상이고, L2.work는 이벤트와 `customType` 접두 규칙이 다르다 | 부분. F.records에 도메인 소유 카탈로그(`WORK_EVENT_CATALOG` 등), `TYPE_PREFIX_OWNERS`, 내장 패키지 예외를 두었다. 잔여: `L2/README.md` §5.9·§10 미결 13이 "F에 요청" 상태로 남음, `L2/work/spec.md`에 `customType`이 `x.cap-work.…`인 이유 문장 없음 |
-| K-03 | high | `L1/loop/spec.md` | 서비스 `xeon.loop`에 X `LoopPort`와 L1 `LoopService` 두 인터페이스가 있고 메서드·`status` 반환형·`leaseEpoch`가 다르다. 입력 큐 포트도 같다 | 부분. L1.loop `LoopService extends LoopPort`·`threadStatus`, L1.tasks `enqueue` 최상위 노출, F.extensions §3.2.1 `ports.ts` 표를 두었다. 잔여: `X/primitives/spec.md` §3.6이 "F에 포트 타입 없음 [미결]"과 자체 `primitives/ports.ts` 정의를 유지하고, §3.6 규칙 6 미결도 그대로다. 필드 이전은 F.extensions.plan 몫으로 남음 |
+| K-03 | high | `L1/loop/spec.md` | 서비스 `fresnel.loop`에 X `LoopPort`와 L1 `LoopService` 두 인터페이스가 있고 메서드·`status` 반환형·`leaseEpoch`가 다르다. 입력 큐 포트도 같다 | 부분. L1.loop `LoopService extends LoopPort`·`threadStatus`, L1.tasks `enqueue` 최상위 노출, F.extensions §3.2.1 `ports.ts` 표를 두었다. 잔여: `X/primitives/spec.md` §3.6이 "F에 포트 타입 없음 [미결]"과 자체 `primitives/ports.ts` 정의를 유지하고, §3.6 규칙 6 미결도 그대로다. 필드 이전은 F.extensions.plan 몫으로 남음 |
 | K-04 | high | `L3/group-sdk/spec.md` | 확장 켜기 키가 `ext.<name>.enabled`(F·X)와 `l3.<이름>.enabled`(L3) 둘이고 범위·적용 시점도 다르다 | 부분. L3 문서는 `ext.<name>.enabled` 하나로 맞췄다. 잔여: `F/wire-settings/spec.md` §3.8.1 예시 `l3.helm.enabled`, `F/extensions/spec.md` §6 범위 "사용자, 프로젝트, 세션"(X는 managed~session, live), `L4/settings-ui/spec.md` 878행 "그룹 켜기·끄기 키도 일반 토글"(키가 `l3.*`라는 전제) |
 | K-05 | high | `engineering/events/design.md` | envelope 필드, kind 형식, 확장 접두 `_ext.`, `BlobRef`가 F와 다르다 | 해결. F 이름(kind/version/threadId, `x.`/`grp.`, `{type:'blob', sha256, mediaType}`)으로 바꿨다 |
 | K-06 | high | `engineering/domain-types/guide.md` | DT-06 두 글자 ID 접두, DT-08 `_ext.` 열린 유니온, DT-12 서브패스 순서가 F와 다르다 | 해결. F 8종 접두와 `IdPrefix`·`IdByPrefix`, `x.`/`grp.`, F.readme §3 순서를 따른다. `createIdFactory` 위치는 K-18 |
@@ -58,8 +58,8 @@ binds: []
 | K-14 | medium | `F/records/spec.md` | X·L0·L1이 import하는 저장·투영 타입(`StoreDb`, `Projector`, `SessionService` 등)이 F에 없다 | 해결. F.records §3.9에 시그니처와 파일 배치를 두었다. 일부 필드 이전은 F.records.plan R12 |
 | K-15 | medium | `F/wire-settings/spec.md` | 호스트 계약에 `host.shutdown`, `$/connectionReset`, 인증 토큰, `secret.*`, `turn.start` 암묵 획득이 없다 | 해결. 해당 메서드와 오류(1004 `host.authFailed`)를 M2로 추가하고 `turn.start` 암묵 획득과 3002를 적었다. 판정하지 않은 요청은 F.wire-settings §10 미결 10 |
 | K-16 | medium | `F/extensions/spec.md` | 발화 문서 배정(§7), M1 밖 페이로드, `provide`·포트, 매니페스트 필드, tier 소유 문구가 소비 층 제안과 맞지 않는다 | 부분. §7 배정을 L1 소유표대로 고치고 §3.5 페이로드, `ports.ts`, operations 소유 문구를 반영했다. 잔여: `L1/README.md` §6 표 34·40번 등의 "다름. F §7은 persistence" 표기, `architecture/runtime-flow/design.md` 73행 `TASKS->>EXT: on input` |
-| K-17 | medium | `F/capabilities/spec.md` | `CallOptions.context`, provider 공통 타입, 정의 파일 위치, 확장 도구 이름, 서비스 이름 규칙이 소비 층 전제와 다르다 | 부분. `CallContext`, `provider.ts`, `defs/<domain>.ts` 확정, `EXTENSION_TOOL_NAME_PATTERN`, 서비스 이름 주석을 반영했다. 잔여: `L2/README.md` §5.6·70행·241행이 `xeon.<domain>` 묶음을 Cordis 서비스로 등록한다고 서술 |
-| K-18 | medium | `F/README.md` | `Clock`·`RandomSource`·`IdFactory` 구현과 `./testing` 서브패스의 위치를 F와 L0·eng가 다르게 전제한다 | 부분. F 루트에 주입 인터페이스만 두고 구현과 테스트 대역은 F 밖, `./testing` 서브패스는 두지 않는다로 정리했다. 잔여: `L0/os/spec.md` 34행 "contracts base의 `createIdFactory`"와 250·309행 `@xeon/contracts/testing`, `L4/host-service/spec.md` 154행 루트 `IdFactory` import, `engineering/typescript/guide.md` §1.2·DT-06 [미결] |
+| K-17 | medium | `F/capabilities/spec.md` | `CallOptions.context`, provider 공통 타입, 정의 파일 위치, 확장 도구 이름, 서비스 이름 규칙이 소비 층 전제와 다르다 | 부분. `CallContext`, `provider.ts`, `defs/<domain>.ts` 확정, `EXTENSION_TOOL_NAME_PATTERN`, 서비스 이름 주석을 반영했다. 잔여: `L2/README.md` §5.6·70행·241행이 `fresnel.<domain>` 묶음을 Cordis 서비스로 등록한다고 서술 |
+| K-18 | medium | `F/README.md` | `Clock`·`RandomSource`·`IdFactory` 구현과 `./testing` 서브패스의 위치를 F와 L0·eng가 다르게 전제한다 | 부분. F 루트에 주입 인터페이스만 두고 구현과 테스트 대역은 F 밖, `./testing` 서브패스는 두지 않는다로 정리했다. 잔여: `L0/os/spec.md` 34행 "contracts base의 `createIdFactory`"와 250·309행 `@fresnel/contracts/testing`, `L4/host-service/spec.md` 154행 루트 `IdFactory` import, `engineering/typescript/guide.md` §1.2·DT-06 [미결] |
 | K-19 | medium | `product/usecases/spec.md` | 제품·아키텍처·ADR의 "턴 경계"(턴 사이)와 F·X·L1의 "단계 경계"(step 종료 직후)가 다른 적용 시점을 뜻한다 | 부분(사용자). product 세 문서는 단계 경계로 고치고 [미결]을 달았다. 잔여: `architecture/layers/spec.md` 63행 규칙 5, `architecture/runtime-flow/design.md` 128·146·280행, `decisions/ADR-0002-di-cordis.md` 47행, `decisions/ADR-0007-ext-points.md` 44·106행, `L2/dialog/spec.md` 548·871행 "다음 턴 경계" |
 | K-20 | low | `F/records/spec.md` | §3.5·§7이 `tool_call` 지점을 chain·인자 변경 가능으로 적어 F.extensions(first, 인자 변경 [미결])와 어긋난다 | 해결. 두 문장을 F.extensions 기준으로 고쳤다 |
 
@@ -67,7 +67,7 @@ binds: []
 
 | 번호 | 심각도 | 경로 | 문제 | 조치 결과 |
 |---|---|---|---|---|
-| D-01 | high | `engineering/dependency-rules/guide.md` | 하위 층의 `@xeon/ext-host` import를 layers·ADR-0002·X·L0·L1은 허용하고 DR-14 예외 목록에는 없다. `xeon.ext` 인터페이스 이름(`ExtensionHost`)과 L0.os `XeonPlugin`도 X 정의(`ExtHost`, `PlatformModule`)와 다르다 | 미반영. DR-11·DR-14, `engineering/context-map/design.md` 339행, `L0/os/spec.md` 557행, `L3/group-sdk/spec.md` 1119행 [미결] 그대로 |
+| D-01 | high | `engineering/dependency-rules/guide.md` | 하위 층의 `@fresnel/ext-host` import를 layers·ADR-0002·X·L0·L1은 허용하고 DR-14 예외 목록에는 없다. `fresnel.ext` 인터페이스 이름(`ExtensionHost`)과 L0.os `XeonPlugin`도 X 정의(`ExtHost`, `PlatformModule`)와 다르다 | 미반영. DR-11·DR-14, `engineering/context-map/design.md` 339행, `L0/os/spec.md` 557행, `L3/group-sdk/spec.md` 1119행 [미결] 그대로 |
 | D-02 | high | `architecture/layers/spec.md` | 4.2.2 지도가 DR-14가 금지하는 구현 패키지 사이 import 간선을 그린다 | 해결. 실선을 `contracts`·`ext-host`로 가는 간선으로 한정하고 4.2.1 표 아래에 DR-14 문장을 더했다 |
 | D-03 | medium | `architecture/overview/spec.md` | 4.1 그림이 L2→L1, L1→L0 구현 import를 실선으로 그린다 | 부분. 구현 import 실선은 지웠다. 잔여: `cap --> exthost` 간선을 D-01 결정 대기 [미결]로 둠 |
 | D-04 | high | `F/capabilities/spec.md` | DR-02·DR-14·CM-05가 유일한 협력 경로로 지정한 F의 서비스 인터페이스가 없다 | 부분. F.records §3.9에 `StoreService`·`SessionService`, F.capabilities에 비밀 서비스 형식을 두었다. 잔여: `TaskService`, `LoopService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService`, `ModelService`, `ToolService`, `ContextService`가 F 문서에 없음. L0 서비스 서브패스(`L0/README.md` 미결 2) 미정 |
@@ -217,7 +217,7 @@ binds: []
 ### 4.3 위험이 큰 잔여
 
 - T-04: accepted ADR-0004 §3.4(OS 잠금으로 소유 판정)와 L0·L1·eng(OS 잠금 + `sys_leases` epoch 펜싱)이 다르다. M0 `platform-store`의 세션 잠금 구현이 이 결정에 의존한다.
-- D-01·D-04: 하위 층이 `@xeon/ext-host`를 import할 근거(DR-14 예외)와 F 서비스 인터페이스가 없으면 L0·L1 plan의 `package.json`과 서비스 주입 설계가 DR-14 검사에 걸린다. M0·M1 착수 조건이다.
+- D-01·D-04: 하위 층이 `@fresnel/ext-host`를 import할 근거(DR-14 예외)와 F 서비스 인터페이스가 없으면 L0·L1 plan의 `package.json`과 서비스 주입 설계가 DR-14 검사에 걸린다. M0·M1 착수 조건이다.
 - K-03·T-21: X와 F 사이 포트 정본과 `recordPrivate`가 정해지지 않아 X `ext-host` M0 구현과 L3 학습 그룹 기록 경로가 막힌다.
 - S-03·S-06: 같은 동작을 두 키가 제어한다. 구현하면 어느 쪽이 적용되는지 정해지지 않는다.
 - K-19: 켜기·끄기 적용 시점이 M1 스모크("drive 그룹 토글의 턴 경계 적용", foundation-plan §6) 판정 기준이다.

@@ -1,7 +1,7 @@
 import { statfs } from "node:fs/promises";
 import { dirname } from "node:path";
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import type { FsKind, FsKindError, OsInfo } from "@xeon/contracts/services";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import type { FsKind, FsKindError, OsInfo } from "@fresnel/contracts/services";
 import type { RunCommand } from "./proc.ts";
 
 export interface FsProbe {

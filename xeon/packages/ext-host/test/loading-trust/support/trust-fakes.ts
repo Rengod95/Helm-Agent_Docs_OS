@@ -1,4 +1,4 @@
-import type { LoaderFs, TrustStoreBackend } from "@xeon/contracts/extensions";
+import type { LoaderFs, TrustStoreBackend } from "@fresnel/contracts/extensions";
 import {
   createProjectTrustStore,
   type ProjectTrustStore,

@@ -1,5 +1,9 @@
-import { Bug, err, ok, type Result } from "@xeon/contracts";
-import { parseSecretRef, type RedactionHit, type SecretHandle } from "@xeon/contracts/capabilities";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
+import {
+  parseSecretRef,
+  type RedactionHit,
+  type SecretHandle,
+} from "@fresnel/contracts/capabilities";
 import type {
   Redactor,
   SecretError,
@@ -7,7 +11,7 @@ import type {
   SecretService,
   SecretValueView,
   UseCtx,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // 메모리 SecretService 가짜(plan §2 testing/fake-secrets.ts). 가짜 키 문자열은 호출자가 정한다.
 // lease 횟수와 마지막 사용 맥락을 센다. 정책 판정은 하지 않는다(그 시험은 platform-secrets의 몫이다).

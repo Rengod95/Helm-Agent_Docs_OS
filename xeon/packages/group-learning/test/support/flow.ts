@@ -1,5 +1,5 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { err, ok, type Result } from "@xeon/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   decisionCommandLine,
   type DecisionResult,

@@ -25,7 +25,7 @@ L3는 확장 지점 4연산(`on`, `post`, `drive`, `scope`)과 L2 능력을 묶�
 
 | 제공물 | 내용 |
 |---|---|
-| 그룹 기반 | `group-sdk`. `defineGroup`, 그룹 서비스 `xeon.groups`, drive 임대 정책(`DriveArbiter`), 전환 명령, 재생 검사 도구(`replayDrive`) |
+| 그룹 기반 | `group-sdk`. `defineGroup`, 그룹 서비스 `fresnel.groups`, drive 임대 정책(`DriveArbiter`), 전환 명령, 재생 검사 도구(`replayDrive`) |
 | 기본 그룹 둘 | Helm(`group-helm`, drive 사용), 학습 그룹(`group-learning`, drive 미사용). 함께 켤 수 있다. 학습 그룹은 내장 그룹이고, Helm은 같은 L3 그룹 코드를 기본 플러그인으로 배포한다 [결정: review.m3-design-inputs D-M3-01] |
 | 추가 그룹 슬롯 | `slots`. 코드 없음. 제2의 의도 그룹 기준, 정책 플러그인 정식 예, 그룹 템플릿을 문서로 정한다 |
 
@@ -47,7 +47,7 @@ L3는 확장 지점 4연산(`on`, `post`, `drive`, `scope`)과 L2 능력을 묶�
 
 도메인별 요약(각 spec §1 기준):
 
-- group-sdk: `defineGroup`으로 그룹을 선언하고(매니페스트, 선택 상태 스키마, 설정 스키마), `GroupApi<S>`(= F `ScopeApi<S>` + `settings()`, `delegate(spec)`, `metrics`, `registerTool`, `registerCommand`)를 그룹에 준다. `GroupService`(`xeon.groups`, 타입은 F `services/groups.ts`)가 그룹 목록, 켜기·끄기 요청, 상태(`GroupStatus`), drive 임대 정책(`DriveArbiter`를 F `LeaseArbiterPort`로 제공)을 맡는다. 임대 메커니즘(부여, 반납, 상한 집행, 재호출, 임대 이벤트)은 `X.primitives.spec`이 맡는다. 2차에 재생 규율 검사(`replayDrive` 확장, `scanDriveSource`), 승격, 계측을 더한다.
+- group-sdk: `defineGroup`으로 그룹을 선언하고(매니페스트, 선택 상태 스키마, 설정 스키마), `GroupApi<S>`(= F `ScopeApi<S>` + `settings()`, `delegate(spec)`, `metrics`, `registerTool`, `registerCommand`)를 그룹에 준다. `GroupService`(`fresnel.groups`, 타입은 F `services/groups.ts`)가 그룹 목록, 켜기·끄기 요청, 상태(`GroupStatus`), drive 임대 정책(`DriveArbiter`를 F `LeaseArbiterPort`로 제공)을 맡는다. 임대 메커니즘(부여, 반납, 상한 집행, 재호출, 임대 이벤트)은 `X.primitives.spec`이 맡는다. 2차에 재생 규율 검사(`replayDrive` 확장, `scanDriveSource`), 승격, 계측을 더한다.
 - helm: 탐구 신호 감지(tap), 관점·방법 주입(chain, post), 탐구 구동(drive, 병렬 서브에이전트), 지식 소비(L2 능력과 학습 그룹 레코드 읽기), 발견 기록과 작업 연결이다.
 - learning: 학습 트리거(카운터 관찰), 검토 포크(`GroupApi.delegate`로 L1 백그라운드 위임), 승인 대기열, 2차의 큐레이터·학습 이력·스크립트 제안이다. 저장은 L2 knowledge가 소유한다.
 - slots: 제2의 의도 그룹 판정 기준과 추가 체크리스트, 정책 플러그인(drive 없이 on과 post만 쓰는 작은 그룹)의 정식 예 3종, 그룹 템플릿 3종이다.
@@ -57,14 +57,14 @@ L3는 확장 지점 4연산(`on`, `post`, `drive`, `scope`)과 L2 능력을 묶�
 ```mermaid
 flowchart TD
   subgraph L3["L3 의도 그룹"]
-    kit["group-sdk<br/>defineGroup · xeon.groups · DriveArbiter"]
+    kit["group-sdk<br/>defineGroup · fresnel.groups · DriveArbiter"]
     helm["group-helm"]
     learn["group-learning"]
     slots["slots<br/>(코드 없음, group-sdk/templates)"]
   end
   F["F contracts<br/>extensions · capabilities · records · settings"]
   X["X ext-host<br/>on · post · drive · scope"]
-  L1["L1 core-*<br/>(서비스 xeon.agents 등은 F 타입으로 주입)"]
+  L1["L1 core-*<br/>(서비스 fresnel.agents 등은 F 타입으로 주입)"]
   CAP["L2 cap-*"]
 
   helm -->|"DR-02 허용 목록"| kit
@@ -92,18 +92,18 @@ flowchart TD
 | L3 → F `contracts` | 허용. `extensions`, `capabilities`, `records`, `settings` 서브패스 | DR-01 |
 | L3 → X `ext-host` | `group-sdk`만 허용. DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17]. 그룹 패키지는 X 타입을 F에서 가져오고, 연산은 `GroupApi`로 받는다 | DR-01, DR-14 |
 | L3 → L0 `platform-*` | 순위상 허용이나 DR-14로 구현 import 금지. 그룹은 저장소를 직접 열지 않는다 | `eng.dependency-rules.guide` DR-14 나쁜 예 |
-| L3 → L1 `core-*` | 순위상 허용이나 DR-14로 구현 import 금지. `xeon.agents` 등은 F 타입으로 주입받는다 | DR-14, `eng.context-map.design` §4.1 helm·learning 행 |
+| L3 → L1 `core-*` | 순위상 허용이나 DR-14로 구현 import 금지. `fresnel.agents` 등은 F 타입으로 주입받는다 | DR-14, `eng.context-map.design` §4.1 helm·learning 행 |
 | 테스트 파일 → 다른 패키지 `testing` 서브패스 | 테스트 파일만 허용 [결정: review.decisions-2 U-17] | DR-08, DR-14 예외 3 |
 
 각 패키지 `package.json`의 `xeon` 필드(현재 값):
 
-| 패키지 | `xeon.layer` | `xeon.domain` | routes.yaml 도메인 | 상태 |
+| 패키지 | `fresnel.layer` | `fresnel.domain` | routes.yaml 도메인 | 상태 |
 |---|---|---|---|---|
-| `@xeon/group-sdk` | `L3` | `group-sdk` | `group-sdk` | 맞춤 |
-| `@xeon/group-helm` | `L3` | `helm` | `helm` | 일치 |
-| `@xeon/group-learning` | `L3` | `learning` | `learning` | 일치 |
+| `@fresnel/group-sdk` | `L3` | `group-sdk` | `group-sdk` | 맞춤 |
+| `@fresnel/group-helm` | `L3` | `helm` | `helm` | 일치 |
+| `@fresnel/group-learning` | `L3` | `learning` | `learning` | 일치 |
 
-- 맞춤(M3-35, 2026-10-29): `group-sdk`의 `xeon.domain`을 `kit`에서 `group-sdk`으로 바꿨다. routes.yaml 도메인과 같다(`architecture.layers.spec` §10). 설정 네임스페이스 `l3.group-sdk.*`과 문서 id `L3.group-sdk.*`이 모두 `group-sdk`을 쓰기 때문이다. `scripts/check-layers.ts`의 `expectedDomain`이 `group-sdk`을 접두 규칙의 예외로 적는다.
+- 맞춤(M3-35, 2026-10-29): `group-sdk`의 `fresnel.domain`을 `kit`에서 `group-sdk`으로 바꿨다. routes.yaml 도메인과 같다(`architecture.layers.spec` §10). 설정 네임스페이스 `l3.group-sdk.*`과 문서 id `L3.group-sdk.*`이 모두 `group-sdk`을 쓰기 때문이다. `scripts/check-layers.ts`의 `expectedDomain`이 `group-sdk`을 접두 규칙의 예외로 적는다.
 
 ## 4. 이름 규칙 모음
 
@@ -119,7 +119,7 @@ flowchart TD
 | 설정 키(기본 그룹·group-sdk) | `l3.<도메인>.<이름>` | `F.wire-settings.spec` §3.8.1, §3.8.3 규칙 3 |
 | 설정 키(외부 그룹) | `ext.<id>.<이름>`. `ext.<id>.enabled`, `ext.<id>.isolation`은 X 로더 예약 키. 켜기 키 `ext.<id>.enabled`는 내장 그룹도 쓴다(`ext.helm.enabled`, `ext.learning.enabled`) | `F.wire-settings.spec` §3.8.3, `F.extensions.spec` §6 |
 | 명령 | `/group …`(group-sdk), `/<그룹 이름> …`(각 그룹) | `L3.group-sdk.spec`, 각 그룹 spec |
-| 서비스 이름 | `xeon.groups`(`GroupService`, group-sdk 제공). 인터페이스 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 두고 X `LeaseArbiterPort`를 확장한다 [결정: review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
+| 서비스 이름 | `fresnel.groups`(`GroupService`, group-sdk 제공). 인터페이스 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 두고 X `LeaseArbiterPort`를 확장한다 [결정: review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
 | 지점 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(`tool.call.before`, `boundary.settle.before`, `tool.result`, `input.user.before`, `boundary.step.after`, `boundary.settle.after` 등) | `F.extensions.spec` §3.4, §4.10 |
 
 공통 확정 이름(L3 네 문서가 같은 문자열을 쓴다):
@@ -127,7 +127,7 @@ flowchart TD
 | 분류 | 이름 |
 |---|---|
 | 패키지 | `xeon/packages/group-sdk`, `xeon/packages/group-helm`, `xeon/packages/group-learning` |
-| group-sdk 공개 이름 | `defineGroup`, `GroupDef<S>`, `GroupApi<S>`, `GroupModule`, `GroupService`(`xeon.groups`)·`GroupStatus`(F `services/groups.ts` 정의를 다시 내보냄), `DriveArbiter`, `replayDrive`, `scanDriveSource`, `PromotionReport`, `GroupMetrics` |
+| group-sdk 공개 이름 | `defineGroup`, `GroupDef<S>`, `GroupApi<S>`, `GroupModule`, `GroupService`(`fresnel.groups`)·`GroupStatus`(F `services/groups.ts` 정의를 다시 내보냄), `DriveArbiter`, `replayDrive`, `scanDriveSource`, `PromotionReport`, `GroupMetrics` |
 | helm 레코드(작성) | `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished` |
 | learning 레코드(작성) | `grp.learning.skill.proposed`, `grp.learning.skill.approved`, `grp.learning.skill.rejected`, `grp.learning.skill.applied`, `grp.learning.memory.proposed`, `grp.learning.feedback.proposed`, `grp.learning.review.finished`, (2차) `grp.learning.script.proposed` |
 | 레코드 읽기 | helm과 learning은 서로의 레코드를 읽지 않는다. 두 매니페스트의 `readsRecordKinds`는 빈 목록이다 [결정: review.decisions-2 D-10] |
@@ -145,9 +145,9 @@ flowchart TD
 
 | 그룹 | F 타입 | X 연산 | L1 서비스 | L2 능력 | 다른 그룹 레코드 |
 |---|---|---|---|---|---|
-| group-sdk | `ExtensionManifest`, `validateManifest`, `ScopeApi`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `SettingDef`, `defineSettings` | `scope`(그룹 등록), `drive` 등록 전달, `LeaseArbiterPort` 제공, `hostOf(g).registerTool`·`registerCommand` 전달 | `xeon.ext`, `xeon.agents`(`delegate` 구현) | 없음 | 없음 |
-| helm | `ScopeApi`, `LoopHandle`, `SpawnSpec`, `GroupRecord`, `RecordKindDecl`, `ServiceKey`, `ToolCallDecision`, `PostItem` | `on`(collect `input.agent.before`, first `tool.call.before`, tap `tool.execution.after`·`boundary.settle.after`·`thread.start`), `post`, `drive`, `scope` | `xeon.agents`(`loop.spawn` 경유) | 모두 선택(`optional`): `web.search`, `web.fetch`, `knowledge.search`, `knowledge.skills`, `knowledge.memory`(읽기), `work.tasks` | 없음 |
-| learning | `ScopeApi`, `GroupRecord`, `RecordKindDecl`, `PostItem`(`kind: "context"`) | `on`(tap 4개: `boundary.turn.before`, `tool.execution.after`, `boundary.settle.after`, `thread.start`), `post` 선언, `scope`. chain·first·drive 없음 | `xeon.agents`(`GroupApi.delegate`로 백그라운드 위임) | 필수(`requires`): `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`(읽기, 승인 뒤 쓰기, 원장, 스캔) | 없음 |
+| group-sdk | `ExtensionManifest`, `validateManifest`, `ScopeApi`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `SettingDef`, `defineSettings` | `scope`(그룹 등록), `drive` 등록 전달, `LeaseArbiterPort` 제공, `hostOf(g).registerTool`·`registerCommand` 전달 | `fresnel.ext`, `fresnel.agents`(`delegate` 구현) | 없음 | 없음 |
+| helm | `ScopeApi`, `LoopHandle`, `SpawnSpec`, `GroupRecord`, `RecordKindDecl`, `ServiceKey`, `ToolCallDecision`, `PostItem` | `on`(collect `input.agent.before`, first `tool.call.before`, tap `tool.execution.after`·`boundary.settle.after`·`thread.start`), `post`, `drive`, `scope` | `fresnel.agents`(`loop.spawn` 경유) | 모두 선택(`optional`): `web.search`, `web.fetch`, `knowledge.search`, `knowledge.skills`, `knowledge.memory`(읽기), `work.tasks` | 없음 |
+| learning | `ScopeApi`, `GroupRecord`, `RecordKindDecl`, `PostItem`(`kind: "context"`) | `on`(tap 4개: `boundary.turn.before`, `tool.execution.after`, `boundary.settle.after`, `thread.start`), `post` 선언, `scope`. chain·first·drive 없음 | `fresnel.agents`(`GroupApi.delegate`로 백그라운드 위임) | 필수(`requires`): `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`(읽기, 승인 뒤 쓰기, 원장, 스캔) | 없음 |
 | slots 템플릿 | 위와 같은 F 타입 | 템플릿 종류에 따른다 | 선택 | 선택 | 선택 |
 
 그룹 사이 통신:
@@ -245,7 +245,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 4. M3: `group-learning`을 추가하는 변경에서 `contracts`, `ext-host`, `platform-*`, `core-*` 경로의 diff가 0이다(`product.scope.spec` §4.4, `product.vision.spec` S1).
 5. 그룹(테스트 그룹, Helm, 학습 그룹, 템플릿 그룹)을 추가하는 변경에서 `contracts`와 `ext-host`의 diff가 0이다(`product.vision.spec` S1).
 6. `group-helm`, `group-learning`, 템플릿 그룹 사이 import가 0이다. 하나라도 넣으면 `just verify`가 `DR-02`로 실패한다.
-7. `group-*`의 `package.json` `xeon.layer`가 모두 `L3`이고, 허용 목록 밖의 같은 층 import가 0이다.
+7. `group-*`의 `package.json` `fresnel.layer`가 모두 `L3`이고, 허용 목록 밖의 같은 층 import가 0이다.
 
 ## 10. 결정 근거와 미결 사항
 
@@ -268,7 +268,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 
 1. [결정: review.decisions-2 T-21] 그룹 레코드 이름 접두: 공개 레코드와 비공개 기록 모두 F 형식 `grp.<그룹>.<영역>.<이름>`을 쓴다. 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹의 `readRecords`로 조회되지 않는다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유)다.
 2. (닫힘) [결정: adr.0015] on 핸들러 외부 효과와 `GroupApi.delegate`·`loop.spawn`의 관계. C안(선언형 허용)으로 on 핸들러의 결정적 `requestId` `delegate`를 허용한다. L3 group-sdk·Helm·학습·slots 문서에 반영했다.
-3. 맞춤: `package.json` `xeon.domain`의 `kit`을 routes.yaml `group-sdk`에 맞췄다(3절, M3-35).
+3. 맞춤: `package.json` `fresnel.domain`의 `kit`을 routes.yaml `group-sdk`에 맞췄다(3절, M3-35).
 4. [결정: review.decisions-2 U-15] 같은 층 예외: DR-02 방법 (b), `group-*` → `group-sdk` 한 방향 허용 목록(`DR-02/group-sdk`)이다(`eng.dependency-rules.guide` DR-02, `architecture.layers.spec` §3.2, `eng.context-map.design` C-5).
 
 도메인 문서에서 모은 것:

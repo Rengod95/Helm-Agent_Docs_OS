@@ -13,7 +13,7 @@
         "$TURBO_ROOT$/../scripts/guard.sh",
         "$TURBO_ROOT$/../docs/xeon/L4/desktop/spec.md"
       ],
-      "dependsOn": ["transit", "@xeon/cli#transit"]
+      "dependsOn": ["transit", "@fresnel/cli#transit"]
     }
   }
 }

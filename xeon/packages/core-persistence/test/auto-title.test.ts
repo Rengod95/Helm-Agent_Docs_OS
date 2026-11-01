@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { autoTitleThread, type AutoTitleDeps, type TitleModelPort } from "../src/index.ts";
 import { itemAt } from "./support/branching.ts";
 import {

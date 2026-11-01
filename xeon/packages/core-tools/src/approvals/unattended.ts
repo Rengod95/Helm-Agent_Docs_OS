@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { ToolRunContext } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import type { ToolRunContext } from "@fresnel/contracts/services";
 import type { ToolsUnattendedConfig } from "../settings.ts";
 
 // L1.tools.spec §4.7 무인 승인 정책(M3-REQ-73, D-M3-12). 사람이 답할 수 없는 호출(`interactive: false`)의 승인 요청을 어떻게 다룰지 정한다.

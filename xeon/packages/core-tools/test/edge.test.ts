@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
-import { err, ok, parse } from "@xeon/contracts";
-import { BashToolParams } from "@xeon/contracts/capabilities";
+import { err, ok, parse } from "@fresnel/contracts";
+import { BashToolParams } from "@fresnel/contracts/capabilities";
 import {
   COMMIT_KEY_PATTERN,
   EffectIntentSchema,
   commitKeyPart,
   requestKeyFor,
-} from "@xeon/contracts/records";
-import type { CommitRequest, CommitResult } from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
+import type { CommitRequest, CommitResult } from "@fresnel/contracts/records";
 import { sequentialIds } from "../src/testing/index.ts";
 import { commitWithRetry, describeFailure } from "../src/commit.ts";
 import { sha256HexSync } from "../src/util.ts";

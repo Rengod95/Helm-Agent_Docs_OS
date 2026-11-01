@@ -1,4 +1,4 @@
-import { resolveProjectTrust, type ResolveProjectTrustInput } from "@xeon/ext-host";
+import { resolveProjectTrust, type ResolveProjectTrustInput } from "@fresnel/ext-host";
 
 // 프로젝트 신뢰(결정 D6): `.mcp.json`, `.fresnel/mcp.json`, project 범위 서버 정의는 신뢰 뒤에만 읽는다.
 // 판정은 X의 `resolveProjectTrust`가 한다(X.loading-trust.spec §4.7.3).

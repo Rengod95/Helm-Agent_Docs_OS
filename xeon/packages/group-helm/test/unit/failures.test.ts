@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { CapabilityError } from "@xeon/contracts/capabilities";
-import { PrimitiveError, type PrimitiveErrorCode } from "@xeon/ext-host";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
+import { PrimitiveError, type PrimitiveErrorCode } from "@fresnel/ext-host";
 import { failureOf, type HelmFailure } from "../../src/failures.ts";
 
 const capability = (code: string): CapabilityError =>

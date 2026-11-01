@@ -1,6 +1,6 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DriveHolderSetting } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DriveHolderSetting } from "@fresnel/contracts/services";
 import type { GroupModule } from "../types.ts";
 import type { GroupCatalogPort } from "../ports/catalog.ts";
 import type {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { StatusItem } from "@xeon/contracts/capabilities";
-import { DialogStatus } from "@xeon/contracts/capabilities";
-import { DIALOG_EVENT_CATALOG } from "@xeon/contracts/records";
+import type { StatusItem } from "@fresnel/contracts/capabilities";
+import { DialogStatus } from "@fresnel/contracts/capabilities";
+import { DIALOG_EVENT_CATALOG } from "@fresnel/contracts/records";
 import { STATUS_BATCH_MS, createStatusService } from "../src/status/service.ts";
 import { segmentMatches, selectSegments } from "../src/status/store.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";

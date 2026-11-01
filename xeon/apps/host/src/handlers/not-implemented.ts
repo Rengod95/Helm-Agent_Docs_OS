@@ -1,4 +1,4 @@
-import { wireError, type WireHandler, type WireMethodName } from "@xeon/contracts/wire";
+import { wireError, type WireHandler, type WireMethodName } from "@fresnel/contracts/wire";
 
 // L4.host-service.spec §3.3.3. 아직 구현하지 않은 메서드의 처리기. -32601을 돌려주고 host.hello의 features에서 빠진다.
 

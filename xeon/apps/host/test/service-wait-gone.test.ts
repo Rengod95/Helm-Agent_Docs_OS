@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import {
   listenSocket,
   type RegistrationStore,
   type ServiceRegistration,
   type SocketListener,
-} from "@xeon/platform-process";
+} from "@fresnel/platform-process";
 import { waitServiceGone } from "../src/service/ensure.ts";
 import { systemTime } from "../src/service/time.ts";
 import { scratchRuntimeDir } from "./fixtures/service-harness.ts";

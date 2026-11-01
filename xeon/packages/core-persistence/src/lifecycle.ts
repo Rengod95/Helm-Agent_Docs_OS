@@ -1,7 +1,7 @@
 // 수명주기 API(L1.persistence.spec §3.8, PS-9·PS-10). create는 여기, 조회·종결·삭제·제목은 lifecycle-admin.ts,
 // 분기(moveLeaf, revert, fork, prepareSwitch)는 lifecycle-branch.ts다.
-import { assertNever, Bug, detach, err, ok, type Logger, type Result } from "@xeon/contracts";
-import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, Bug, detach, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import type { EventId, IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   CommitPlan,
   LeaseError,
@@ -13,7 +13,7 @@ import type {
   ThreadCreateInput,
   ThreadCreated,
   ThreadLifecycle,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { insertCreationKey, lookupCreationKey } from "./creation-keys.ts";
 import { sessionResource } from "./ids.ts";
 import { createAdminOps } from "./lifecycle-admin.ts";

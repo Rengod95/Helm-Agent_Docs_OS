@@ -1,8 +1,8 @@
 import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { t } from "@xeon/client/i18n";
-import { parse, parseJson } from "@xeon/contracts";
+import { t } from "@fresnel/client/i18n";
+import { parse, parseJson } from "@fresnel/contracts";
 import {
   Type,
   type Static,
@@ -12,7 +12,7 @@ import {
   type TRecord,
   type TString,
 } from "typebox";
-import type { StreamPosition } from "@xeon/contracts/wire";
+import type { StreamPosition } from "@fresnel/contracts/wire";
 
 // L4.cli.spec §3.7. CLI 상태 파일: 작업 폴더마다 마지막 thread와 위치를 적어 둔다. 이 파일은 캐시다.
 // 깨졌거나 스키마가 맞지 않으면 버린다. 경로는 EngineHandle.paths.cliStateFile이고 CLI는 경로를 계산하지 않는다(DR-13).

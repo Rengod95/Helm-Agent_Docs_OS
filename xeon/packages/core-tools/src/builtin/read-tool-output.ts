@@ -1,4 +1,4 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import { Type } from "typebox";
 import type { ToolsDeps } from "../deps.ts";
 import { errorOutcome } from "../entries.ts";

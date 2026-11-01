@@ -1,6 +1,6 @@
-import { assertNever } from "@xeon/contracts";
-import { wireError, type WireError } from "@xeon/contracts/wire";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever } from "@fresnel/contracts";
+import { wireError, type WireError } from "@fresnel/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, HostMode, OwnerKind } from "../types.ts";
 

@@ -1,6 +1,6 @@
 import { Type } from "typebox";
-import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { RepeatSettings } from "./repeat.ts";
 
 // L1.loop.spec §6. 키는 `l1.loop.maxSteps`(M1)와 `l1.loop.gate.maxContinues`(M2)다.

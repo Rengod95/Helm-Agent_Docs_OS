@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { WebSearch } from "@xeon/contracts/capabilities";
-import { FIRST_DENY, validateManifest, validateUsage } from "@xeon/contracts/extensions";
-import { capabilityDefTable } from "@xeon/ext-host";
+import { parse } from "@fresnel/contracts";
+import { WebSearch } from "@fresnel/contracts/capabilities";
+import { FIRST_DENY, validateManifest, validateUsage } from "@fresnel/contracts/extensions";
+import { capabilityDefTable } from "@fresnel/ext-host";
 import { helmManifest } from "../../src/index.ts";
 import { HelmStateSchema, INITIAL_HELM_STATE, type HelmState } from "../../src/state.ts";
 import { createRig, DEFS, type Rig } from "../support/rig.ts";

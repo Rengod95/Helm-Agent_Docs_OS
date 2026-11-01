@@ -89,7 +89,7 @@ Xeon 워크스페이스의 런타임, 패키지 관리, 타입 검사, 린트, �
 
 ```json
 // packages/core-models/package.json
-"dependencies": { "@earendil-works/pi-ai": "catalog:", "@xeon/contracts": "workspace:*" }
+"dependencies": { "@earendil-works/pi-ai": "catalog:", "@fresnel/contracts": "workspace:*" }
 ```
 
 나쁜 예:
@@ -204,8 +204,8 @@ docs/xeon/decisions/ADR-0009-add-publint.md 작성 → 승인 → catalog "publi
 [제안] 사용자 전역 작업 규칙(`~/.claude/CLAUDE.md`: 검사가 실패하면 메시지에 적힌 대로 고친다. 검사를 끄거나 우회(`--no-verify`)하지 않는다)을 옮긴 것이다. `decisions-log`나 ADR 근거가 없으므로 [제안]으로 둔다.
 
 - 금지: `git commit --no-verify`, lefthook 건너뛰기(`LEFTHOOK=0`), `just verify` 단계 삭제·약화, `.oxlintrc.json`의 규칙을 `"off"`로 바꾸기, `tsconfig`의 strict 옵션 끄기, 파일 전체 disable 주석(`/* oxlint-disable */`), `// @ts-ignore`, `// @ts-nocheck`.
-- 줄 단위 disable은 `eng.typescript.guide` 4.1절 형식만 쓴다: `// oxlint-disable-next-line <규칙> -- <이유> (<이슈 URL>)`. 구속 문서가 미리 허용한 예외는 이슈 URL 대신 `(<문서 id> <규칙 ID>)`를 쓴다. `-- <이유>` 접미는 oxlint 1.89에서 억제가 적용됨을 프로브로 확인했다(`eng.typescript.guide` 4.1절, `_research/notes/eng-1.md §4`). 형식은 스캔 `xeon/directive-format`이 검사한다. 쓰지 않는 disable 주석은 `options.reportUnusedDisableDirectives: "error"`로 실패한다.
-- `// @ts-expect-error`는 테스트 파일에서만 이유를 달아 쓴다. 운영 코드에서는 `typescript/ban-ts-comment`가 `ts-expect-error: true`로 막는다(`eng.typescript.guide` TY-08, 3.1.1절). 이유 형식은 스캔 `xeon/directive-format`이 검사한다.
+- 줄 단위 disable은 `eng.typescript.guide` 4.1절 형식만 쓴다: `// oxlint-disable-next-line <규칙> -- <이유> (<이슈 URL>)`. 구속 문서가 미리 허용한 예외는 이슈 URL 대신 `(<문서 id> <규칙 ID>)`를 쓴다. `-- <이유>` 접미는 oxlint 1.89에서 억제가 적용됨을 프로브로 확인했다(`eng.typescript.guide` 4.1절, `_research/notes/eng-1.md §4`). 형식은 스캔 `fresnel/directive-format`이 검사한다. 쓰지 않는 disable 주석은 `options.reportUnusedDisableDirectives: "error"`로 실패한다.
+- `// @ts-expect-error`는 테스트 파일에서만 이유를 달아 쓴다. 운영 코드에서는 `typescript/ban-ts-comment`가 `ts-expect-error: true`로 막는다(`eng.typescript.guide` TY-08, 3.1.1절). 이유 형식은 스캔 `fresnel/directive-format`이 검사한다.
 - typed programming 안티패턴(`as` 단언, `!`, `any`, ts 억제 주석, 삼킨 `catch`)을 막는 oxlint 규칙 목록의 정본은 `eng.typescript.guide` 3.1.1절이다. `.oxlintrc.json`은 그 목록을 모두 담는다.
 - 패키지 `tsconfig.json`은 `tsconfig.base.json`을 extends하고 TC-08 옵션을 덮어쓰지 않는다.
 - `verify`에서 단계를 빼거나 약하게 바꾸려면 사람 확인을 받는다(루트 `justfile` 머리 주석 5번).
@@ -383,7 +383,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 
 - 단계 0~8은 `_verify-steps`(`xeon/scripts/verify-steps.sh`)로 묶인다. `just verify`는 `WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps`로 기기의 검증 슬롯을 하나 잡고(기기에서 helm 검증은 한 번에 하나, 나머지는 기다린다), 단계를 차례로 돌되 단계마다 `WS_GUARD_ACTIVE`를 풀고 `scripts/guard.sh run`으로 따로 scope를 만든다(상한 `XEON_VERIFY_STEP_MAX`, 기본 2G, 시간 제한 없음). 시험 단계(`just test`)는 감싸지 않는다. `test-capped.sh`가 패키지마다 `guard.sh run` 1.5G를 건다. 처음 실패한 단계에서 멈추고 그 종료코드를 낸다. 모든 scope는 공용 예산 `ws-dev.slice` 안에 있다. 병렬 작업 중에는 저장소 전체 검사(`just verify`, `just lint`, `just typecheck`)를 돌리지 않고 `just check <패키지>`(패키지 하나의 lint, typecheck, test, 각 1.5G)만 돌린다. systemd 사용자 세션이 없는 기기(macOS, CI)에서는 한 줄 알리고 상한 없이 돈다.
 - 시험 캐시(turbo): 패키지의 시험 해시는 그 패키지의 추적 파일 전부(`$TURBO_DEFAULT$`, 시험 고정물 포함)와 `transit` 작업을 거쳐 올라오는 의존 패키지의 해시(시험 파일은 제외)로 정해진다. 의존 패키지의 소스가 바뀌면 의존하는 쪽의 시험이 다시 돌고, 시험 파일만 바뀌면 그 패키지만 다시 돈다. turbo가 보지 못하는 입력은 `xeon/turbo.json`의 `test.inputs`(`bun.lock`, `bunfig.toml`, `mise.toml`, `tsconfig.base.json`, 시험 래퍼, `guard.sh`)와 패키지별 `turbo.json`(읽는 문서: contracts는 `docs/xeon/F/`, ext-host는 `X/`, group-helm은 `L3/helm/`, desktop은 `L4/desktop/spec.md`, group-sdk은 `scripts/check-layers.ts`)에 적는다. 시험이 새 바깥 파일을 읽게 되면 그 패키지의 `turbo.json`에 입력을 더한다. 환경(bwrap, sops, rg 같은 기기 도구)은 해시에 없다. 도구를 바꾼 뒤에는 `TURBO_FORCE=true just test`로 한 번 새로 돌린다.
-- desktop의 사이드카 e2e는 gitignored 바이너리를 쓴다. desktop 시험 해시는 `@xeon/cli#transit`에 의존해 바이너리의 소스(cli와 cli가 쓰는 모든 패키지)를 따라간다. 시험을 돌릴 때 `scripts/ensure-sidecar.sh`가 그 소스의 해시를 바이너리 옆 `.sources.sha256`과 견주어, 다르거나 바이너리가 없으면 `just desktop-sidecar host`로 다시 만든다. 낡은 바이너리로 시험이 거짓 실패하지 않는다.
+- desktop의 사이드카 e2e는 gitignored 바이너리를 쓴다. desktop 시험 해시는 `@fresnel/cli#transit`에 의존해 바이너리의 소스(cli와 cli가 쓰는 모든 패키지)를 따라간다. 시험을 돌릴 때 `scripts/ensure-sidecar.sh`가 그 소스의 해시를 바이너리 옆 `.sources.sha256`과 견주어, 다르거나 바이너리가 없으면 `just desktop-sidecar host`로 다시 만든다. 낡은 바이너리로 시험이 거짓 실패하지 않는다.
 - turbo 캐시는 `~/.cache/xeon/turbo`(`TURBO_CACHE_DIR`)에 두고 모든 worktree가 함께 쓴다. 에이전트 worktree에서 통과한 패키지는 메인 체크아웃에서 재생된다. 같은 기기의 apps/host와 core-persistence는 함께 돌지 않게 `test-pkg.sh`가 `~/.cache/xeon/heavy.lock`을 잡는다.
 - 가벼운 검사(fmt-check, check-layers, check-ts-rules, docs-route, knip)는 `verify-steps.sh`가 setup 다음에 같이 돌린다(각자 scope). 출력은 모두 끝난 뒤 단계 순서대로 나온다. 하나 이상 실패하면 목록 앞쪽의 실패 단계 종료코드로 끝나고 실패한 단계 이름이 모두 적힌다. 무거운 단계(lint, typecheck, depcruise)와 test는 차례로 혼자 돈다. 그래서 단계 순서는 `setup`, 가벼운 검사, `lint`, `typecheck`, `depcruise`, `test`다.
 - knip은 `--cache`(기본 위치 `node_modules/.cache/knip`)로 돈다. 파일이 바뀌거나 늘거나 줄면 다시 계산하는 것을 확인했다. depcruise `--cache`는 쓰지 않는다. 실제 위반(다른 층의 앱을 가져오는 import)을 더해도 캐시가 "위반 없음"을 그대로 내서(metadata, content 두 전략 모두) 검사를 놓친다. 캐시 없이 4~5초라 얻는 것도 작다.

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 import { readSettingsServers } from "../src/settings.ts";
 import { normalizeServerName, parseMcpJson } from "../src/servers/loader.ts";
 import { looksLikeSecretName } from "../src/servers/values.ts";

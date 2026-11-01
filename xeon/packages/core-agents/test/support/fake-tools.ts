@@ -1,14 +1,14 @@
 // core-tools의 ToolService 부분 대역(DR-02). 규칙 등록, 도구 등록, 권한 모드만 기록한다.
-import { ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@xeon/contracts/extensions";
+import { ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@fresnel/contracts/extensions";
 import type {
   DirectToolRegistration,
   PermissionMode,
   PolicyRule,
   ToolRegistration,
   Unregister,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { AgentsTools } from "../../src/index.ts";
 
 export interface FakeTools extends AgentsTools {

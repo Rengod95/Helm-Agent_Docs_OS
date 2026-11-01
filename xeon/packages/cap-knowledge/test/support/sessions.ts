@@ -1,8 +1,8 @@
-import { Bug, type Clock, type Logger } from "@xeon/contracts";
-import type { IdFactory, ItemId, ThreadId } from "@xeon/contracts/conversation";
-import type { ProducerHandle, SessionService } from "@xeon/contracts/records";
-import { createSessionService } from "@xeon/core-persistence";
-import { TEST_HOLDER_A, type TestStore } from "@xeon/platform-store/testing";
+import { Bug, type Clock, type Logger } from "@fresnel/contracts";
+import type { IdFactory, ItemId, ThreadId } from "@fresnel/contracts/conversation";
+import type { ProducerHandle, SessionService } from "@fresnel/contracts/records";
+import { createSessionService } from "@fresnel/core-persistence";
+import { TEST_HOLDER_A, type TestStore } from "@fresnel/platform-store/testing";
 
 // 실제 SQLite 위에 core-persistence 세션 서비스를 올리고 세션과 메시지를 커밋하는 시험 도우미(eng.testing.guide TS-07).
 // 투영기 등록부도 실제 구현이라 `cap_knowledge_*` 표 이름과 소유 규칙이 그대로 검사된다.

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import type { TurnId } from "@xeon/contracts/conversation";
-import type { PayloadOf } from "@xeon/ext-host";
+import { parse } from "@fresnel/contracts";
+import type { TurnId } from "@fresnel/contracts/conversation";
+import type { PayloadOf } from "@fresnel/ext-host";
 import { HelmStateSchema, type HelmState } from "../../src/state.ts";
 import { createRig, type Rig } from "../support/rig.ts";
 

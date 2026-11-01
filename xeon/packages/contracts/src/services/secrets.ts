@@ -18,9 +18,9 @@ import type { PortKey } from "../extensions/index.ts";
 // (F.capabilities.spec §3.10, review.decisions-2 U-08). 이 파일은 서비스 인터페이스와 그 부속 타입이다.
 // KeyProvider와 Redactor 구현, SOPS 래퍼는 platform-secrets 내부다.
 
-export const SecretServiceName = "xeon.secrets" as const;
+export const SecretServiceName = "fresnel.secrets" as const;
 
-/** `xeon.secrets` 전체 모양(SecretService)의 포트 키. 제공 platform-secrets */
+/** `fresnel.secrets` 전체 모양(SecretService)의 포트 키. 제공 platform-secrets */
 export const SecretServicePortKey: PortKey<SecretService> = { name: SecretServiceName };
 
 // ── 사용 맥락과 lease ────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { canonicalJson } from "@xeon/contracts";
-import type { SystemMessage } from "@xeon/contracts/conversation";
+import { canonicalJson } from "@fresnel/contracts";
+import type { SystemMessage } from "@fresnel/contracts/conversation";
 import { prefixHash, replaySystemMessages } from "../src/prefix.ts";
 import { createContextService } from "../src/service.ts";
 import {

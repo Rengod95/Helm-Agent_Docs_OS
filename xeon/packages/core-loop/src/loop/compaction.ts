@@ -1,8 +1,8 @@
-import type { AssistantMessage, EventId } from "@xeon/contracts/conversation";
-import type { ResolvedModel } from "@xeon/contracts/services";
+import type { AssistantMessage, EventId } from "@fresnel/contracts/conversation";
+import type { ResolvedModel } from "@fresnel/contracts/services";
 import { emitNotifications, currentStep, type TurnRun } from "./turn-run.ts";
 
-// L1.loop.spec §4.2 규칙 2a·2b. 컴팩션 두 길을 `xeon.context`에 잇는다(M2 마감 G2-01, 감사 L1-01).
+// L1.loop.spec §4.2 규칙 2a·2b. 컴팩션 두 길을 `fresnel.context`에 잇는다(M2 마감 G2-01, 감사 L1-01).
 //  - 요청 전 임계 검사: 창이 차 가면 요청을 만들기 전에 컴팩션한다(`shouldCompact` → `compact{reason:"threshold"}`).
 //  - 오버플로우 복구: 종결 메시지가 `context_overflow`면 단계당 한 번 컴팩션하고 같은 단계의 요청을 다시 보낸다(`recoverOverflow`).
 // 컴팩션 커밋은 `core.context` 생산자가 하고, 루프는 커밋 피드로 새 leaf를 따라간다(`LoopServiceHandle`의 `onCommit`).

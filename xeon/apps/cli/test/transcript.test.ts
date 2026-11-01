@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { EventsBatchParams, EventWire, StreamChunkParams } from "@xeon/contracts/wire";
+import type { EventsBatchParams, EventWire, StreamChunkParams } from "@fresnel/contracts/wire";
 import {
   applyBatch,
   applyChunk,

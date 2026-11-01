@@ -10,11 +10,11 @@ binds: [xeon/packages/platform-secrets/**]
 
 # L0 비밀 (platform-secrets) 구현 계획
 
-패키지: `xeon/packages/platform-secrets` (현재 스캐폴드: `package.json`, `src/index.ts`, `test/smoke.test.ts`, `xeon.layer = "L0"`, `xeon.domain = "secrets"`). 이 계획은 코드를 바꾸지 않는다. 구현 작업자가 이 순서대로 만든다.
+패키지: `xeon/packages/platform-secrets` (현재 스캐폴드: `package.json`, `src/index.ts`, `test/smoke.test.ts`, `fresnel.layer = "L0"`, `fresnel.domain = "secrets"`). 이 계획은 코드를 바꾸지 않는다. 구현 작업자가 이 순서대로 만든다.
 
 ## 1. 목표와 마일스톤 배치
 
-목표: `L0.secrets.spec`의 `xeon.secrets`(`SecretService`)와 `xeon.secretAdmin`(`SecretAdminService`, [결정: review.decisions-2 D-04])을 구현한다. 값은 부모 프로세스의 lease 안에만 있고, 모델 컨텍스트·이벤트·로그·도구 자식 env에 나오지 않아야 한다.
+목표: `L0.secrets.spec`의 `fresnel.secrets`(`SecretService`)와 `fresnel.secretAdmin`(`SecretAdminService`, [결정: review.decisions-2 D-04])을 구현한다. 값은 부모 프로세스의 lease 안에만 있고, 모델 컨텍스트·이벤트·로그·도구 자식 env에 나오지 않아야 한다.
 
 [결정] 마일스톤 M1에 "SOPS 비밀 참조 1종"이 `xeon chat` 도구 호출에서 해석된다(`_research/foundation-plan.md` §5 P4 M1). `L0.readme` §2.2도 M1에 secrets(SOPS 참조 1종)를 둔다.
 
@@ -23,7 +23,7 @@ binds: [xeon/packages/platform-secrets/**]
 | M0 | 코드 없음. 선행 조건: contracts에 spec 8.3절 R1의 참조 형식·순수 함수·값 타입(`capabilities/secrets.ts`, `F.capabilities.spec` §3.10, `F.capabilities.plan` P8)과 R1-a·R2의 서비스 인터페이스·이름 상수(`services/secrets.ts`, `services/secret-admin.ts`, `F.capabilities.spec` §3.12, `F.capabilities.plan` P9)가 들어간다. `platform-os`의 경로·Clock·RandomSource 최소형(`L0.readme` §2.2 os M0 행) | `_research/foundation-plan.md` §5 P4 M0 |
 | M1 | `SecretProvider` 인터페이스 구현 틀, SOPS 제공자(목록·lease), 메타 파일 읽기, lease, 모드 M1 에이전트 env 주입(`withEnv`, bash 도구, 실행마다 승인. exec 쪽은 `L0.exec.plan` EX-13) [결정: review.decisions-2 U-19], 모드 M3(`withHttp`), 마스킹 기본 계층(`Redactor` 규칙 1~3, 계층 2·4·5 연결), 자식 env 필터, 감사 훅(`onAudit`), 키 획득은 OS 1종 이상 + 파일 폴백, `diagnose()` 안내문 | spec §4.3 단계 열, `_research/foundation-plan.md` §5, review.decisions-2 U-19 |
 | M2 | 관리 서비스 전체(`ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `run`, `references`, `usage`, `reveal`. `reveal`은 CLI `xeon secret reveal`이 먼저 쓰고 데스크톱 화면은 M3다 [결정: review.decisions-2 U-20]), 모드 M4(`withBrowserInput`), 마스킹 5계층 전체 연결(1·3계층 포함), 키체인 provider 3 OS(Windows는 [미결] 해소 뒤), 감사 파일 | `product.scope.spec` §4.4 M2 행(비밀 관리 명령), spec §6.3 |
-| 후속 | 모드 M2 sentinel 프록시(`xeon.sandbox` 프록시 훅 `L0.sandbox.plan` SB-16, TLS 종단), 값 저장 제공자 플러그인(1Password `op`, Bitwarden `bws`, 키체인 `keychain`) | spec §4.3, §10 6·7번 |
+| 후속 | 모드 M2 sentinel 프록시(`fresnel.sandbox` 프록시 훅 `L0.sandbox.plan` SB-16, TLS 종단), 값 저장 제공자 플러그인(1Password `op`, Bitwarden `bws`, 키체인 `keychain`) | spec §4.3, §10 6·7번 |
 
 - [제안] M1 키 획득: Linux(Secret Service)와 파일 폴백을 먼저 만든다. 개발과 CI가 Linux·WSL이고, WSL에는 Secret Service가 대부분 없기 때문이다. macOS Keychain은 M1 안에서 명령 구성만 만들고 실기 확인은 M2 완료 기준에 둔다.
 - [결정: review.decisions-2 U-19] M1 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다(spec §10 2번). SC-15와 SC-22를 M1에 둔다. 승인 증거 전달은 M2 승인 프로토콜 작업에서 완성한다. 모델 provider 키는 M1부터 `runtime-http`로 lease하고 `policy.test.ts`가 이 허용을 확인한다(spec §9 14번).
@@ -32,11 +32,11 @@ binds: [xeon/packages/platform-secrets/**]
 
 ```
 xeon/packages/platform-secrets/
-  package.json                 # dependencies: @xeon/contracts, @xeon/ext-host(서비스 등록 API), typebox, age-encryption 0.3.1
+  package.json                 # dependencies: @fresnel/contracts, @fresnel/ext-host(서비스 등록 API), typebox, age-encryption 0.3.1
                                # exports: "." → src/index.ts, "./testing" → src/testing/index.ts
   src/
     index.ts                   # secretsPlugin만 export (SC-12)
-    plugin.ts                  # PlatformModule(ext-host registerPlatform): xeon.secrets, xeon.secretAdmin 등록, 설정 등록 (SC-12)
+    plugin.ts                  # PlatformModule(ext-host registerPlatform): fresnel.secrets, fresnel.secretAdmin 등록, 설정 등록 (SC-12)
     settings.ts                # defineSettings("l0.secrets", …) spec §6.1 (SC-12)
     ref.ts                     # 입력 단계 검사 연결: F parseSecretRef·findForeignSecretSyntax를 메타 name·설정 값에 적용 (SC-01)
     meta.ts                    # 메타 파일 스키마 검증, 읽기·쓰기(0600), 디렉터리 열거 (SC-02)
@@ -83,7 +83,7 @@ xeon/packages/platform-secrets/
 |---|---|---|---|---|
 | SC-01 | 참조 입력 검사: F 순수 함수 `parseSecretRef`, `secretRef`(위반 시 `Bug`), `findForeignSecretSyntax`(구현은 `F.capabilities.plan` P8)를 메타 `name`과 설정 값 검사에 연결하고, spec §3.1 표 결과를 이 패키지 입력 경로로 다시 확인한다 | F R1 | S | M1 |
 | SC-02 | 메타 스키마와 파일 읽기·쓰기: TypeBox 검증, 비밀별 YAML 파일, 0600 쓰기, 사용자 범위만 읽기, `meta_invalid` 격리 | SC-01 | M | M1(읽기), M2(쓰기) |
-| SC-03 | sops 호출 래퍼와 오류 매핑: `xeon.os`로 경로 해석, `--version` 파싱(3.10.0 하한), `decrypt --extract`, 종료 코드·stderr → `provider_unavailable`(`binary_missing`, `version_too_old`) / `key_unavailable` / `decrypt_failed`. stderr 마스킹 | SC-11 | M | M1 |
+| SC-03 | sops 호출 래퍼와 오류 매핑: `fresnel.os`로 경로 해석, `--version` 파싱(3.10.0 하한), `decrypt --extract`, 종료 코드·stderr → `provider_unavailable`(`binary_missing`, `version_too_old`) / `key_unavailable` / `decrypt_failed`. stderr 마스킹 | SC-11 | M | M1 |
 | SC-04 | 키 이름 목록: SOPS YAML·JSON·dotenv 평문 파싱, `ENC[` 값만, `sops` 블록 제외, 중첩 경로, `sops:<env>/<KEY>` 참조 생성. sops를 부르지 않는다 | SC-02 | S | M1 |
 | SC-05 | `SOPS_AGE_KEY_CMD` 구성과 OS별 명령 3종: `KeyProvider`, shlex 인용 함수, darwin·linux 명령, win32 스텁, `select.ts`(auto·keychain·file) | — | M | M1(linux, darwin 구성), M2(darwin 실기, win32 [미결]) |
 | SC-06 | lease 수명과 폐기: 클로저 값, `use` 재검사, TTL(주입 `Clock`), 횟수, `dispose` 0 덮기, `toJSON`·inspect 차단, 도구 호출 종료 일괄 폐기 API | SC-01 | M | M1 |
@@ -100,7 +100,7 @@ xeon/packages/platform-secrets/
 | SC-17 | M4 `withBrowserInput`: origin 정확 일치, `fill` 콜백만 값 수신, 콜백 뒤 0 덮기 | SC-07 | S | M2 |
 | SC-18 | SOPS `put`·`remove`: sops `set`의 stdin 입력 지원 확인 뒤에만 켠다(spec §10 5번). 지원이 없으면 `capabilities().put = false` | SC-03, [미결] | M | M2 |
 | SC-19 | 키체인 provider 3 OS 실기 확인: darwin Keychain(승인 대화상자 횟수 기록), linux Secret Service, win32 헬퍼([미결] 해소 뒤) | SC-05 | M | M2 |
-| SC-20 | M2 sentinel 프록시: sentinel 발급, `xeon.sandbox` 프록시 훅으로 헤더 치환, 허용 호스트 밖 차단 | `L0.sandbox.plan` SB-16 프록시 훅(후속) | L | 후속 |
+| SC-20 | M2 sentinel 프록시: sentinel 발급, `fresnel.sandbox` 프록시 훅으로 헤더 치환, 허용 호스트 밖 차단 | `L0.sandbox.plan` SB-16 프록시 훅(후속) | L | 후속 |
 | SC-22 | 모드 M1 `withEnv`: `mode: "env"` 판정(명령 패턴, `per-use` 승인 필수, `target.kind` 검사), lease 발급, 8바이트 미만 거부, 감사 훅. `L0.exec.plan` EX-13과 실제 자식 프로세스 int 테스트로 연결 확인 | SC-06, SC-10, `L0.exec.plan` EX-13 | M | M1 |
 | SC-23 | `reveal`: `HumanReauth` 검사(60초, `os-auth` 우선, OS 인증을 쓸 수 없는 터미널만 `tty-confirm`), `show` 콜백 1회 뒤 0 덮기, `secret.revealed` 감사 파일 기록 | SC-14 | S | M2 |
 | SC-24 | 첫 쓰기 자동 준비(spec §4.6 8번, §4.7 7번, §4.8): 기본 SOPS 파일 `user`, 키·수신자 기록·암호화한 빈 파일 만들기, 파일 잠금, macOS `provision`, 실패 원인별 `write_failed` | SC-18, SC-13, SC-19 | M | M2 |
@@ -165,7 +165,7 @@ xeon/packages/platform-secrets/
 | `redactor.prop.test.ts` | `no registered value survives mask` | 고정 시드 무작위 값과 무작위 앞뒤 문맥에서 원문과 변형이 남지 않는다 |
 | `env-filter.test.ts` | `strips SOPS_AGE_ and provider tokens` | sops 호출 env에서 `SOPS_AGE_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_SECRET_*` 제거. 거른 기준이 F `SENSITIVE_ENV_PATTERNS`와 같은 값 |
 | | `sops env carries exactly one key variable` | sops 호출 env에 키 변수가 하나뿐 |
-| `platform-exec/test/service.int.test.ts`(`L0.exec.plan` §5) | `child env drops secret provider variables` | SC-15. 부모 env에 spec §9 1번 이름들을 넣고 실제 `xeon.exec`로 `env`를 실행하면 출력에 그 이름이 없다. L0 패키지끼리 import하지 않으므로(DR-02) 시험은 exec 패키지에 두고, 이 패키지는 이름 목록(spec §9 1번)만 정한다 |
+| `platform-exec/test/service.int.test.ts`(`L0.exec.plan` §5) | `child env drops secret provider variables` | SC-15. 부모 env에 spec §9 1번 이름들을 넣고 실제 `fresnel.exec`로 `env`를 실행하면 출력에 그 이름이 없다. L0 패키지끼리 import하지 않으므로(DR-02) 시험은 exec 패키지에 두고, 이 패키지는 이름 목록(spec §9 1번)만 정한다 |
 | `protected-paths.test.ts` | `protected paths list secret files without values` | SC-21. 설정한 SOPS 파일, `<config>/secrets/`, 파일 폴백 키 경로가 절대 경로로 나오고 값·파일 내용이 없다 |
 | `key-select.test.ts` | `auto falls back to file when secret service missing` | probe `no_secret_service` → 파일, 고지 문구 |
 | | `quotes key command for shlex` | 공백·백슬래시가 든 경로를 작은따옴표로 감싼다 |

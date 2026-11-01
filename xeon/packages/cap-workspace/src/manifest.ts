@@ -1,5 +1,5 @@
-import { WorkspaceFiles, WorkspaceImages, WorkspaceShell } from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
+import { WorkspaceFiles, WorkspaceImages, WorkspaceShell } from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 
 export const WORKSPACE_EXTENSION_NAME = "cap-workspace";
 

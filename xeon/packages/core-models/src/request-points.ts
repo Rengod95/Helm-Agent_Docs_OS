@@ -1,5 +1,5 @@
-import type { ThreadId, ModelThinkingLevel } from "@xeon/contracts/conversation";
-import type { ModelBinding, ModelRole } from "@xeon/contracts/services";
+import type { ThreadId, ModelThinkingLevel } from "@fresnel/contracts/conversation";
+import type { ModelBinding, ModelRole } from "@fresnel/contracts/services";
 
 // L1.models.spec §4.3 6~9번, §7. 요청 지점 6개의 발화 입력과 순수 도우미다. X의 ExtHost.dispatch를 plugin.ts가
 // 이 모양으로 감싼다. 이 파일은 Cordis도 ext-host도 import하지 않는다.

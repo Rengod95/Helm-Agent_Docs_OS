@@ -41,7 +41,7 @@ binds: [xeon/packages/group-learning/**]
 
 ## 2. 패키지와 파일 배치
 
-패키지 `xeon/packages/group-learning`(`@xeon/group-learning`, `package.json`의 `xeon.layer = "L3"`, `xeon.domain = "learning"`). 이 문서를 쓰는 단계에서 코드는 만들지 않는다.
+패키지 `xeon/packages/group-learning`(`@fresnel/group-learning`, `package.json`의 `fresnel.layer = "L3"`, `fresnel.domain = "learning"`). 이 문서를 쓰는 단계에서 코드는 만들지 않는다.
 
 ```text
 xeon/packages/group-learning/
@@ -75,7 +75,7 @@ xeon/packages/group-learning/
     fixtures/
 ```
 
-- import 허용: `@xeon/contracts`(F), `@xeon/group-sdk`(DR-02 허용 목록 `DR-02/group-sdk`, `eng.dependency-rules.guide` DR-02, [결정: review.decisions-2 U-15]), 테스트 파일에서만 `@xeon/core-models/testing`(테이프, `eng.testing.guide` TS-04)과 각 패키지의 `testing` 서브패스(DR-14 예외, review.decisions-2 U-17). F에는 `./testing` 서브패스가 없으므로 시계·ID 대역은 이 패키지 `test/` 안에 둔다(review.decisions-2 U-03).
+- import 허용: `@fresnel/contracts`(F), `@fresnel/group-sdk`(DR-02 허용 목록 `DR-02/group-sdk`, `eng.dependency-rules.guide` DR-02, [결정: review.decisions-2 U-15]), 테스트 파일에서만 `@fresnel/core-models/testing`(테이프, `eng.testing.guide` TS-04)과 각 패키지의 `testing` 서브패스(DR-14 예외, review.decisions-2 U-17). F에는 `./testing` 서브패스가 없으므로 시계·ID 대역은 이 패키지 `test/` 안에 둔다(review.decisions-2 U-03).
 - import 금지: `cap-*`(L2-d는 `g.capability(<ServiceKey>)`로만 쓴다), `core-*`(위임은 `g.delegate`로만 쓴다), `ext-host`, `platform-*`, `group-helm`(CM-06).
 - 의존 추가: 외부 npm 의존을 더하지 않는다. `typebox`는 workspace catalog의 1.3.27를 쓴다(`catalog:`, L3.group-sdk.plan §4 표, eng.toolchain.guide).
 
@@ -140,7 +140,7 @@ xeon/packages/group-learning/
 
 ## 5. 단위 테스트 목록
 
-테스트 계층과 이름은 `eng.testing.guide` TS-01을 따른다. 모델이 필요한 테스트는 테이프(`@xeon/core-models/testing`의 `tape`, `tapePlayer`)로 검토 포크 응답을 재생한다. L1-g·L2-d는 각 패키지 `testing` 서브패스의 가짜 구현을 쓴다(TS-05) [가정: 해당 가짜가 제공됨]. 시계와 ID는 주입한다(TS-03).
+테스트 계층과 이름은 `eng.testing.guide` TS-01을 따른다. 모델이 필요한 테스트는 테이프(`@fresnel/core-models/testing`의 `tape`, `tapePlayer`)로 검토 포크 응답을 재생한다. L1-g·L2-d는 각 패키지 `testing` 서브패스의 가짜 구현을 쓴다(TS-05) [가정: 해당 가짜가 제공됨]. 시계와 ID는 주입한다(TS-03).
 
 ### 5.1 단위
 

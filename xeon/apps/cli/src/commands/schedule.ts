@@ -1,11 +1,11 @@
 import { resolve } from "node:path";
-import { t } from "@xeon/client/i18n";
-import { assertNever, type Clock } from "@xeon/contracts";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, type Clock } from "@fresnel/contracts";
 import type {
   ScheduleError,
   ScheduleListItem,
   ScheduleTrigger,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type { ScheduleCommand, ScheduleTriggerArg } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import type { Failure } from "../errors.ts";

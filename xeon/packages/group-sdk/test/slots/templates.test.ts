@@ -2,10 +2,10 @@ import { afterAll, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { eachAsync, parse, parseJson } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { FIRST_DENY, validateManifest, type ToolCallDecision } from "@xeon/contracts/extensions";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
+import { eachAsync, parse, parseJson } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { FIRST_DENY, validateManifest, type ToolCallDecision } from "@fresnel/contracts/extensions";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
   checkGroupName,
   defineGroup,
@@ -29,7 +29,7 @@ import {
 } from "../support/generate-template.ts";
 
 // 그룹 템플릿 시험(L3.slots.plan §5, S-01·S-03·S-04). 템플릿을 test/.generated/<무작위>/ 아래에 만들고 쓴 뒤 지운다.
-// 생성 디렉터리는 패키지 안에 있어 @xeon/* 해석이 워크스페이스와 같다.
+// 생성 디렉터리는 패키지 안에 있어 @fresnel/* 해석이 워크스페이스와 같다.
 // 템플릿의 defaultEnabled는 false다(L3.slots.spec §3.3.5). 그래서 시험은 켜는 요청을 내고 다음 경계까지 돌린 뒤 본다.
 
 const TEMPLATE_KINDS: readonly TemplateKind[] = ["drive", "policy", "observe"];

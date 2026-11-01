@@ -10,7 +10,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 
 # X 운영 규칙 (operations)
 
-코드 위치: `xeon/packages/ext-host/src/operations/`. 공개 진입점은 `@xeon/ext-host`다. 루트가 다시 내보내는 이름의 목록은 `X.primitives.spec` §3.1 표(이 문서 행 포함)가 정본이고, 이 문서는 그 행에 들어갈 이름의 시그니처를 정한다.
+코드 위치: `xeon/packages/ext-host/src/operations/`. 공개 진입점은 `@fresnel/ext-host`다. 루트가 다시 내보내는 이름의 목록은 `X.primitives.spec` §3.1 표(이 문서 행 포함)가 정본이고, 이 문서는 그 행에 들어갈 이름의 시그니처를 정한다.
 
 ## 1. 목적과 범위
 
@@ -78,16 +78,16 @@ binds: [xeon/packages/ext-host/src/operations/**]
 
 ```ts
 import { Type, type Static, type TObject, type TSchema } from "typebox";
-import type { Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope, EventKind } from "@xeon/contracts/records";
+import type { Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
 import type {
   ExtensionManifest, ExtensionName, Fold, HookDecl, HookName, HookSignatures, ScopeApi, ScopeId,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 // 호스트 포트는 F가 정본이다(F.extensions.spec §3.2.1 ports.ts). 이 문서는 정의하지 않는다
 import type {
   PortLookup, ProjectorRegistryPort, ScopedStorePort, HookProcessPort, HookRunSpec, HookRawRun,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 // 같은 패키지의 다른 도메인(X.primitives.spec §3.1, X.loading-trust.spec §3.1~§3.4)
 import type {
   DispatchPolicy, HandlerEntryInfo, HandlerFailure, HandlerFailureReason, HandlerGate, HandlerRunOutcome,
@@ -525,8 +525,8 @@ export interface ExtStorageAdmin {
 ```
 
 - 포트 경로: operations는 `OperationsDeps.ports`(`PortLookup`, X.primitives.spec §3.6)에서 포트를 꺼낸다. Cordis를 쓰지 않는다.
-- 투영기 등록 경로: X는 `ExtProjection`을 F `Projector`(F.records.spec §3.9 `projector.ts`, `name: "ext.<확장 이름>"`, `version`, `tables`, `ddl`, `kinds`, `apply`)로 바꾸어 `ProjectorRegistryPortKey`(`xeon.session`의 `projectors` 속성, `core-persistence`)의 `register(projector)`로 등록한다. `ProjectorRegistryPort`는 `Pick<ProjectorRegistry, "register" | "onFailure">`이고(F.extensions.spec §3.2.1), `register`는 `Result<{ dispose(): void }, ProjectorRegisterError>`를 돌려준다(L1.persistence.spec §3.4). 오류면 `defineTables`가 실패한다. 받은 `dispose`는 확장 제거 때 투영기 해제(§4.4.7)에 쓴다. 투영기 apply 예외 통지는 같은 포트의 `onFailure`로 받아 자동 끄기(`projection_failed`, §5 6번)에 쓴다.
-- 읽기 경로: `ScopedStorePortKey`(`xeon.store`)의 `scoped(owner).read`(`eng.transactions.design` §4.2)를 쓴다. `ScopedStorePort`는 `Pick<StoreService, "scoped">`이고 인자는 소유자 id다. 확장 테이블은 `scoped("ext.<확장 이름>")`이다(L0.store.spec §4.5 소유자 표).
+- 투영기 등록 경로: X는 `ExtProjection`을 F `Projector`(F.records.spec §3.9 `projector.ts`, `name: "ext.<확장 이름>"`, `version`, `tables`, `ddl`, `kinds`, `apply`)로 바꾸어 `ProjectorRegistryPortKey`(`fresnel.session`의 `projectors` 속성, `core-persistence`)의 `register(projector)`로 등록한다. `ProjectorRegistryPort`는 `Pick<ProjectorRegistry, "register" | "onFailure">`이고(F.extensions.spec §3.2.1), `register`는 `Result<{ dispose(): void }, ProjectorRegisterError>`를 돌려준다(L1.persistence.spec §3.4). 오류면 `defineTables`가 실패한다. 받은 `dispose`는 확장 제거 때 투영기 해제(§4.4.7)에 쓴다. 투영기 apply 예외 통지는 같은 포트의 `onFailure`로 받아 자동 끄기(`projection_failed`, §5 6번)에 쓴다.
+- 읽기 경로: `ScopedStorePortKey`(`fresnel.store`)의 `scoped(owner).read`(`eng.transactions.design` §4.2)를 쓴다. `ScopedStorePort`는 `Pick<StoreService, "scoped">`이고 인자는 소유자 id다. 확장 테이블은 `scoped("ext.<확장 이름>")`이다(L0.store.spec §4.5 소유자 표).
 - `storageOf(g)`는 g를 만든 `ExtHost`를 패키지 내부 함수(`hostInternalsOf`, X.primitives.spec §3.1)로 찾고, 그 `ExtHostDeps.policy`인 `OperationsPolicy`의 저장 관리자를 쓴다. 두 포트 중 하나라도 없으면 `defineTables`는 `port_unavailable`이다.
 - 소유 장부 테이블은 `xh_ext_tables`다(`eng.context-map.design` §5.2 `xh_` 접두, extension-host 소유). 소유자 id `xh`로 `scoped("xh")`를 불러 쓴다(L0.store.spec §4.5 소유자 표).
 
@@ -662,7 +662,7 @@ export interface LoadedHook {
 
 ```ts
 // hooks/protocol.ts
-export const HOOK_SCHEMA_VERSION = "xeon.hook.v1";
+export const HOOK_SCHEMA_VERSION = "fresnel.hook.v1";
 export const HOOK_OUTPUT_MAX_CHARS = 10_000;
 export const HOOK_STDERR_MAX_CHARS = 10_000;
 export const HOOK_EXIT_DENY = 2;
@@ -692,7 +692,7 @@ export const HookOutputSchema = Type.Object({
 export type HookOutput = Static<typeof HookOutputSchema>;
 
 /** 훅 실행 결과(HookRawRun)는 F 타입이다(F.extensions.spec §3.2.1). 여기서는 다시 export만 한다 */
-export type { HookRawRun } from "@xeon/contracts/extensions";
+export type { HookRawRun } from "@fresnel/contracts/extensions";
 
 export type HookVerdict =
   | { readonly kind: "pass" }
@@ -709,9 +709,9 @@ export function interpretHookRun(point: HookDecl, run: HookRawRun): HookVerdict;
 // hooks/run.ts
 /**
  * 훅 실행 포트 HookProcessPort.run(spec: HookRunSpec): Promise<HookRawRun>은 F가 정본이다(F.extensions.spec §3.2.1).
- * ProcessPort(xeon.process, ProcessService extends ProcessPort, 구현 platform-process)의 부분형이다. 여기서는 다시 export만 한다
+ * ProcessPort(fresnel.process, ProcessService extends ProcessPort, 구현 platform-process)의 부분형이다. 여기서는 다시 export만 한다
  */
-export type { HookProcessPort, HookRunSpec } from "@xeon/contracts/extensions";
+export type { HookProcessPort, HookRunSpec } from "@fresnel/contracts/extensions";
 
 export const BASE_ENV_ALLOW: readonly string[];
 // = ["PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TMPDIR", "TERM", "SHELL"]
@@ -819,7 +819,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `user`·`project`·`managed` | `builtin` | 로더가 먼저 `trust_exceeds_source`로 거부한다 | `TierError.source_trust_mismatch`(방어 검사) |
 
 - 신뢰 등급과의 연결: tier는 신뢰 등급을 실행 순서로 옮긴 값이다. 신뢰가 높은 출처일수록 바깥에 있고, 바깥 tier의 결정은 안쪽 tier가 뒤집지 못한다(§4.1.3). 신뢰 판정 자체는 `X.loading-trust.spec`이다.
-- L0 패키지는 on을 쓰지 않는다(`architecture.layers.spec` §4.3.3 2번). L0는 `ExtHost.registerPlatform`으로 포트만 제공하고(X.primitives.spec §3.2) tier를 받지 않는다. 그래서 `TierInput.layer`(`ExtensionManifest["layer"]`)에 L0가 없어도 빠지는 경우가 없다. 샌드박스 강제를 on 핸들러로 둘 필요가 생기면 `xeon.sandbox` 포트를 쓰는 L1 내장 확장이 맡고 그 확장을 `GUARD_EXTENSIONS`에 넣는다 [가정: `L0.sandbox.spec`은 강제를 실행 경로(`xeon.exec`)에서 하고 on 핸들러를 두지 않는다]. §10 미결 20.
+- L0 패키지는 on을 쓰지 않는다(`architecture.layers.spec` §4.3.3 2번). L0는 `ExtHost.registerPlatform`으로 포트만 제공하고(X.primitives.spec §3.2) tier를 받지 않는다. 그래서 `TierInput.layer`(`ExtensionManifest["layer"]`)에 L0가 없어도 빠지는 경우가 없다. 샌드박스 강제를 on 핸들러로 둘 필요가 생기면 `fresnel.sandbox` 포트를 쓰는 L1 내장 확장이 맡고 그 확장을 `GUARD_EXTENSIONS`에 넣는다 [가정: `L0.sandbox.spec`은 강제를 실행 경로(`fresnel.exec`)에서 하고 on 핸들러를 두지 않는다]. §10 미결 20.
 
 #### 4.1.3 fold별 결과
 
@@ -843,7 +843,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 | 구분 | 위치 | 하는 일 |
 |---|---|---|
-| 강제 | 도구 실행(`L1.tools.spec` §4.2 단계 8)이 부르는 `xeon.exec`의 `Shell`. 셸 도구는 `xeon.sandbox`의 `wrapShell(shell, policy)`로 감싼 `Shell`을 쓴다(`L0.sandbox.spec` §4.2) | 감싸기·거부·감싸지 않고 실행의 판정은 `decideExecution`(`L0.sandbox.spec` §4.5)이다. 결과의 `sandbox.unsandboxedBy`가 있으면 L1이 감사 이벤트 `tool.sandbox_bypassed`를 남긴다(`L1.tools.spec` §4.12) |
+| 강제 | 도구 실행(`L1.tools.spec` §4.2 단계 8)이 부르는 `fresnel.exec`의 `Shell`. 셸 도구는 `fresnel.sandbox`의 `wrapShell(shell, policy)`로 감싼 `Shell`을 쓴다(`L0.sandbox.spec` §4.2) | 감싸기·거부·감싸지 않고 실행의 판정은 `decideExecution`(`L0.sandbox.spec` §4.5)이다. 결과의 `sandbox.unsandboxedBy`가 있으면 L1이 감사 이벤트 `tool.sandbox_bypassed`를 남긴다(`L1.tools.spec` §4.12) |
 | 가장자리 | stdio MCP 서버 프로세스 | 출처별로 켬·끔을 정한다(`L0.sandbox.spec` §4.8, `L2.mcp.spec` §4.3) |
 | 해당 없음 | 파일 도구, 웹 도구, 확장 코드 | 샌드박스로 감싸지 않는다. 파일 도구는 보호 경로 검사를 L1·L2가 한다 |
 
@@ -856,7 +856,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | 3 | 정책 평가와 승인 | 단계 5b, 5c | `core-tools` 권한 판정 |
 | 4 | `guard.tool.before`(first) | 단계 5c2 | 가드 핸들러 |
 | 5 | 의도 커밋, 잠금, 슬롯 | 단계 6, 7 | — |
-| 6 | 도구 실행. 셸 도구는 여기서 샌드박스를 거친다 | 단계 8 | `xeon.sandbox`(`sandbox_unavailable`, 쓰기·네트워크 위반) |
+| 6 | 도구 실행. 셸 도구는 여기서 샌드박스를 거친다 | 단계 8 | `fresnel.sandbox`(`sandbox_unavailable`, 쓰기·네트워크 위반) |
 | 7 | `tool.result`(chain)와 결과 기록 | 단계 9, 10 | — |
 
 - Helm 쓰기 거부가 샌드박스보다 먼저인 이유: 거부된 호출은 실행하지 않으므로 샌드박스의 허용·거부 판정이 필요 없고, 승인 대기와 감사 이벤트도 남기지 않습니다. 샌드박스는 허용된 호출의 마지막 방어선입니다.
@@ -894,12 +894,12 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 #### 4.2.3 사용자 응답 대기 제외
 
-- 핸들러가 사용자 응답을 기다리는 동안 예산 시계를 멈춘다. 대상은 `ctx.ui`의 대화상자(확인, 선택, 입력)와 승인 요청(`xeon.approvals`) 대기다.
+- 핸들러가 사용자 응답을 기다리는 동안 예산 시계를 멈춘다. 대상은 `ctx.ui`의 대화상자(확인, 선택, 입력)와 승인 요청(`fresnel.approvals`) 대기다.
 - 방식은 omp와 같다. X가 핸들러에 주는 UI 포트를 감싸서 대기 앞뒤로 `BudgetGate.pause()`·`resume()`을 부른다(`awaitUser`). 중첩 대기는 깊이를 세고 0이 될 때 다시 잰다.
 - 디스패처는 `DispatchPolicy.run`이 있으면 자기 타이머 대신 그 함수로 핸들러를 실행한다(X.primitives.spec §3.4, §4.2). `OperationsPolicy.run`은 `runWithBudget`으로 실행하고, 그 `gate`를 핸들러의 UI 포트 래퍼에 넘긴다.
 - 멈춘 동안에도 `outer` 중단 신호와 대화상자 자체의 signal은 살아 있다. 예산 signal은 대화상자 signal과 `AbortSignal.any`로 합친다(omp `attachHandlerSignal`과 같은 방식).
 - 비대화 실행(CLI print 모드)에서는 대화상자가 바로 기본값으로 끝나므로 멈춤 시간이 0이다.
-- [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않는다. 핸들러용 UI 포트는 X 공개 API의 별도 함수로 연결한다(F 타입에는 넣지 않는다)(M2, O-07). 핸들러(와 그 핸들러가 부르는 UI·승인 포트 래퍼)는 `hostOf(g).awaitUser(wait, { signal? })`로 사용자 응답 대기를 감싼다. 이 함수는 호출한 핸들러의 `gate`와 취소 신호를 비동기 맥락에서 찾아(X.primitives.spec §4.2 `withAmbient`) `gate.pause()`·`resume()`으로 예산 시계를 멈추고, `wait`에는 핸들러 신호와 호출자의 신호를 `AbortSignal.any`로 합쳐 넘긴다. 핸들러 밖(drive 함수, setup)에서는 예산이 없으므로 그대로 실행한다. 승인 대기(`xeon.approvals`)를 부르는 L2 포트 래퍼도 같은 함수를 쓴다. 게이트 쪽 함수 `awaitUser(gate, wait)`는 패키지 안에서 `hostOf(g).awaitUser`가 쓴다.
+- [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않는다. 핸들러용 UI 포트는 X 공개 API의 별도 함수로 연결한다(F 타입에는 넣지 않는다)(M2, O-07). 핸들러(와 그 핸들러가 부르는 UI·승인 포트 래퍼)는 `hostOf(g).awaitUser(wait, { signal? })`로 사용자 응답 대기를 감싼다. 이 함수는 호출한 핸들러의 `gate`와 취소 신호를 비동기 맥락에서 찾아(X.primitives.spec §4.2 `withAmbient`) `gate.pause()`·`resume()`으로 예산 시계를 멈추고, `wait`에는 핸들러 신호와 호출자의 신호를 `AbortSignal.any`로 합쳐 넘긴다. 핸들러 밖(drive 함수, setup)에서는 예산이 없으므로 그대로 실행한다. 승인 대기(`fresnel.approvals`)를 부르는 L2 포트 래퍼도 같은 함수를 쓴다. 게이트 쪽 함수 `awaitUser(gate, wait)`는 패키지 안에서 `hostOf(g).awaitUser`가 쓴다.
 
 #### 4.2.4 예산 초과 처리
 
@@ -1024,7 +1024,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 - [제안] 확장 테이블 쓰기는 확장 투영(`ExtProjection.apply`)으로만 한다. 투영기는 코어 커밋 트랜잭션 안에서 이벤트마다 실행되므로(`eng.transactions.design` §4.3 "cap·ext 투영", §4.4 4단계), 확장 쓰기는 코어 커밋과 같은 트랜잭션에 들어간다. 코어 커밋이 롤백되면 확장 쓰기도 롤백된다.
 - 확장이 커밋에 이벤트를 넣는 경로는 기존 셋이다. boundary chain 결과의 `entries`, `ScopeApi.commit`(scope 상태), `ScopeApi.record`(그룹 레코드)(`F.extensions.spec` §3.2, §3.5). 확장 투영은 이 이벤트를 받아 자기 테이블을 고친다.
-- L0 트랜잭션 핸들은 X가 직접 쥐지 않는다. X는 투영기를 `xeon.session`에 등록하고, `SessionWriter.commit`이 트랜잭션 안에서 `ProjectionTx`를 투영기에 넘긴다. X는 그 `ProjectionTx`를 `ExtWriters`로 감싼다. 이것이 "L0.store 트랜잭션 핸들을 SessionWriter 경유로 받는 방식"이고, `F.records.spec` §3.8의 [제안](확장 테이블 쓰기를 같은 트랜잭션에 넣는 방법은 `L0.store.spec`과 X가 정한다)에 대한 X 쪽 답이다.
+- L0 트랜잭션 핸들은 X가 직접 쥐지 않는다. X는 투영기를 `fresnel.session`에 등록하고, `SessionWriter.commit`이 트랜잭션 안에서 `ProjectionTx`를 투영기에 넘긴다. X는 그 `ProjectionTx`를 `ExtWriters`로 감싼다. 이것이 "L0.store 트랜잭션 핸들을 SessionWriter 경유로 받는 방식"이고, `F.records.spec` §3.8의 [제안](확장 테이블 쓰기를 같은 트랜잭션에 넣는 방법은 `L0.store.spec`과 X가 정한다)에 대한 X 쪽 답이다.
 - `apply`는 동기 순수 함수다. 시계, 난수, 네트워크, 파일을 쓰지 않는다(`eng.events.design` §5.1 규칙 1, TX-01). 쓰기 메서드가 돌려준 `ExtRowError`는 `apply`의 반환값으로 올린다(`return tables.pins.upsert(…)`). `apply`가 오류를 돌려주면 X가 투영기 `apply` 안에서 `ProjectionRollback`을 던져 커밋 전체를 롤백하고, 저장소는 `ProjectorFailure`로 알린다(`F.records.spec` §3.9). `apply`가 예외를 던져도 같다. 이 실패는 핸들러 실패 장부에 넣지 않는다(커밋 경로의 문제이고 `projection_failed`로 자동 끄기에 쓴다).
 - `kinds`에는 자기 접두 kind와 코어 kind만 둘 수 있다. 다른 확장의 kind를 넣으면 `kind_not_owned`다. 다른 그룹의 공개 정보는 `ScopeApi.readRecords`로 읽는다(`F.extensions.spec` §4.8).
 - 재생: 투영 테이블은 이벤트에서 다시 만들 수 있다. `ExtProjection.version`을 올리면 그 확장 테이블만 지우고 이벤트 전체를 재생해 다시 만든다. 이것이 1차의 스키마 마이그레이션 방식이다.
@@ -1052,7 +1052,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 확장을 제거할 때 `X.loading-trust.spec` §4.4.5의 제거 흐름이 `ExtStorageAdmin.dropExtension(name, confirmed)`를 부른다.
 - 먼저 `ExtensionLoader.previewRemoval`이 `confirmed: false`로 대상 테이블 목록을 받아 사용자에게 보인다. 사용자가 확인하면 `ExtensionLoader.remove(name, { dropTables: true })`가 `confirmed: true`로 다시 부른다. 확인 화면은 L4가 만든다.
 - 지우는 대상은 `xh_ext_tables`에 그 확장 이름으로 오른 테이블뿐이다. `LIKE 'x_…%'` 같은 접두 패턴 삭제는 하지 않는다. 확장 `a`를 지울 때 확장 `a-b`의 테이블이 지워지지 않게 하기 위해서다.
-- 목록 전달: `dropExtension(name, true)`는 소유 장부에서 그 확장 이름의 테이블 이름 목록을 읽어 `xeon.store`의 `extensions.drop(name, tables)`(`L0.store.spec`)에 정확한 이름 목록으로 넘긴다. store는 목록의 모든 이름이 `name`의 소유인지 먼저 확인하고, 하나라도 아니면 아무것도 지우지 않고 `table_not_owned`를 돌려준다. 이때 `dropExtension`은 `ExtStorageError`로 바꾸어 돌려주고 소유 장부를 고치지 않는다. 성공하면 지운 테이블의 장부 행을 지운다.
+- 목록 전달: `dropExtension(name, true)`는 소유 장부에서 그 확장 이름의 테이블 이름 목록을 읽어 `fresnel.store`의 `extensions.drop(name, tables)`(`L0.store.spec`)에 정확한 이름 목록으로 넘긴다. store는 목록의 모든 이름이 `name`의 소유인지 먼저 확인하고, 하나라도 아니면 아무것도 지우지 않고 `table_not_owned`를 돌려준다. 이때 `dropExtension`은 `ExtStorageError`로 바꾸어 돌려주고 소유 장부를 고치지 않는다. 성공하면 지운 테이블의 장부 행을 지운다.
 - 이벤트(`x.<name>.*`, `grp.<name>.*`)는 남긴다(`eng.context-map.design` §5.2 마지막 항목). 같은 확장을 다시 설치하면 투영 재생으로 테이블이 다시 만들어진다.
 - 사용자가 확인하지 않고 제거하면 테이블은 남고 투영기만 해제된다. 남은 테이블은 "주인 없는 확장 테이블"로 `xeon doctor` 진단에 나온다 [제안].
 
@@ -1170,7 +1170,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 #### 4.7.3 입력, 출력, 종료 코드
 
-- 입력: stdin에 `HookInput` JSON 한 줄과 개행을 쓰고 닫는다. `schemaVersion`은 `"xeon.hook.v1"`이다(Hermes `hermes.observer.v1` 방식, `_research/item-catalog.md` X절 훅 페이로드 스키마 버전 행). payload 형식이 바뀌면 이 값을 올린다.
+- 입력: stdin에 `HookInput` JSON 한 줄과 개행을 쓰고 닫는다. `schemaVersion`은 `"fresnel.hook.v1"`이다(Hermes `hermes.observer.v1` 방식, `_research/item-catalog.md` X절 훅 페이로드 스키마 버전 행). payload 형식이 바뀌면 이 값을 올린다.
 - 출력: stdout 전체를 JSON 하나로 읽는다. 빈 출력은 `{}`다. first 지점은 `decision`, chain 지점은 `patch`만 읽고, 지점의 결정·패치 스키마(`HOOKS[point].result`)로 검사한다. tap 지점은 stdout을 읽지 않는다.
 - 종료 코드(`interpretHookRun`):
 
@@ -1191,7 +1191,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 #### 4.7.4 실행
 
-- 프로세스 실행은 `xeon.process` 서비스(`ProcessService`, `platform-process`)를 Cordis로 주입받아 한다(`eng.context-map.design` §5.3, `architecture.layers.spec` §4.3.3 1번). X는 L0를 import하지 않는다. 주입받은 서비스가 없으면 외부 훅을 끄고 시작 진단을 남긴다.
+- 프로세스 실행은 `fresnel.process` 서비스(`ProcessService`, `platform-process`)를 Cordis로 주입받아 한다(`eng.context-map.design` §5.3, `architecture.layers.spec` §4.3.3 1번). X는 L0를 import하지 않는다. 주입받은 서비스가 없으면 외부 훅을 끄고 시작 진단을 남긴다.
 - 셸을 거치지 않는다. `command`는 argv 그대로 실행한다. 셸 기능이 필요하면 사용자가 `["sh", "-c", "…"]`로 적는다.
 - 작업 폴더: `cwd: "project"`(기본)는 프로젝트 루트, `"home"`은 사용자 홈이다.
 - 예산: 훅 정의의 `timeoutMs`, 없으면 `x.operations.budget.hookMs`. 예산이 끝나면 signal을 abort하고 `ProcessService`가 프로세스 그룹을 종료한다(종료 방식은 `L0.process.spec`).
@@ -1318,7 +1318,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `TrustLevel`, `InstallSource`, `LoadedExtensionInfo`(`essential`, `loadIndex`), `TRUST_MATRIX.storage`, 로드 파이프라인 5a·6a·7단계, 프로젝트 신뢰, 제거 흐름, 격리 확장의 outbox | X.loading-trust.spec §3.1~§3.5, §4.3, §4.4.5, §4.6, §4.7, §4.9 |
 | `Projector`, `ProjectionTx`, 투영 규칙 | eng.events.design §5.1 |
 | 커밋 순서, `SessionWriter`, `StoreService.scoped`, outbox 표 | eng.transactions.design §4, §7 |
-| 테이블·type 접두 소유표, 서비스 이름(`xeon.session`, `xeon.store`, `xeon.process`) | eng.context-map.design §5 |
+| 테이블·type 접두 소유표, 서비스 이름(`fresnel.session`, `fresnel.store`, `fresnel.process`) | eng.context-map.design §5 |
 | `ProjectorRegistry.register`의 반환(`Result<{ dispose }, ProjectorRegisterError>`)과 `onFailure` 통지 | L1.persistence.spec §3.4 |
 | `ProcessService`의 훅 실행 구현과 종료 방식 | L0.process.spec |
 | 설정 파일 경로, 시작 상태 파일 경로 | L4.host-service.spec |
@@ -1351,7 +1351,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 24. `tool.call.before` 외부 훅이 exit 2로 끝나면 결정은 거부이고 `reason`은 stderr 앞 500자다. 장부에는 실패로 남지 않는다.
 25. `tool.call.before` 외부 훅이 exit 1로 끝나면 결정은 거부이고 실패(`hook_exit`)로 남는다. `tool.result` 외부 훅이 exit 1로 끝나면 패치를 버리고 다음 핸들러로 간다.
 26. 외부 훅 stdout이 10,000자를 넘으면 10,000자에서 잘리고 실패(`hook_output`)로 처리된다(`first`면 거부).
-27. 외부 훅 stdin JSON에는 `schemaVersion: "xeon.hook.v1"`, `point`, `fold`, `payload`가 있다.
+27. 외부 훅 stdin JSON에는 `schemaVersion: "fresnel.hook.v1"`, `point`, `fold`, `payload`가 있다.
 28. `hookEnv`는 허용 목록 밖 변수와 `SECRET_ENV_PATTERN`에 맞는 변수를 넘기지 않는다. 프로젝트 범위 `x.operations.hookEnvAllow` 값은 무시된다.
 29. 프로젝트 범위 외부 훅은 프로젝트 신뢰 승인 전에 실행되지 않는다.
 30. §6 표의 키는 `defineSettings("x.operations", …)`와 `buildCatalog`를 통과하고, 기본값은 `DEFAULT_BUDGETS_MS`, `DEFAULT_AUTO_DISABLE`와 같다.

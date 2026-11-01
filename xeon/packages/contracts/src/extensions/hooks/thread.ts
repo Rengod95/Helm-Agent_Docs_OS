@@ -263,7 +263,7 @@ export const SessionBeforeCompactPayloadSchema: TObject<{
         tokensBefore: Type.Integer({ minimum: 0 }),
         isSplitTurn: Type.Boolean(),
         previousSummary: Nullable(Type.String({ maxLength: 1_000_000 })),
-        /** 개수만. 본문은 핸들러가 xeon.session으로 읽는다 */
+        /** 개수만. 본문은 핸들러가 fresnel.session으로 읽는다 */
         messagesToSummarize: Type.Integer({ minimum: 0 }),
       },
       { additionalProperties: false },
@@ -316,7 +316,7 @@ export const SessionBeforeTreePayloadSchema: TObject<{
     targetEventId: EventIdSchema,
     oldLeafEventId: NullableEventId,
     commonAncestorEventId: NullableEventId,
-    /** 개수만. 본문은 핸들러가 xeon.session으로 읽는다 */
+    /** 개수만. 본문은 핸들러가 fresnel.session으로 읽는다 */
     entriesToSummarize: Type.Integer({ minimum: 0 }),
     userWantsSummary: Type.Boolean(),
     customInstructions: Type.Optional(Type.String({ maxLength: 20_000 })),

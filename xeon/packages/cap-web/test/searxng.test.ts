@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { Logger, LogFields } from "@xeon/contracts";
-import type { ProviderSearchRequest } from "@xeon/contracts/capabilities";
+import type { Logger, LogFields } from "@fresnel/contracts";
+import type { ProviderSearchRequest } from "@fresnel/contracts/capabilities";
 import { WebHttpError } from "../src/policy/guarded-http.ts";
 import { createSearxngProvider } from "../src/search/providers/searxng.ts";
 import { parseSearchQuery } from "../src/search/query.ts";

@@ -4,7 +4,7 @@ import {
   type PolicyDecision,
   type PolicyInput,
   type TieredRule,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   AGENTS_RULE_SOURCE,
   ceilingOf,

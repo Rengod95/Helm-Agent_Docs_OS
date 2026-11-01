@@ -1,7 +1,7 @@
 // src/state/engine/thread-reader.ts
-import { attemptAsync, err, ok, repeatAsync } from "@xeon/contracts";
-import type { ItemRecord } from "@xeon/contracts/conversation";
-import type { HostConnection, StoreId } from "@xeon/contracts/wire";
+import { attemptAsync, err, ok, repeatAsync } from "@fresnel/contracts";
+import type { ItemRecord } from "@fresnel/contracts/conversation";
+import type { HostConnection, StoreId } from "@fresnel/contracts/wire";
 import type { TranscriptPort } from "./link.ts";
 
 export type ThreadReaderDeps = {

@@ -1,5 +1,5 @@
 // FRESNEL-PATCH: P7
-import type { CancelScope as Context, ExecutionEnv, FileKind } from "@xeon/contracts/services";
+import type { CancelScope as Context, ExecutionEnv, FileKind } from "@fresnel/contracts/services";
 // FRESNEL-PATCH: P2
 import { getOrThrow } from "../../upstream/get-or-throw.ts";
 // FRESNEL-PATCH: P2

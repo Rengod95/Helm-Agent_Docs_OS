@@ -1,6 +1,6 @@
-import { err, ok, parseJson, type Result } from "@xeon/contracts";
-import { isId, type EventId } from "@xeon/contracts/conversation";
-import type { CommitResult, SqlRow, SqlTx } from "@xeon/contracts/records";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
+import { isId, type EventId } from "@fresnel/contracts/conversation";
+import type { CommitResult, SqlRow, SqlTx } from "@fresnel/contracts/records";
 import { columns, rowInvalid, type RowFault } from "./rows.ts";
 
 /** 저장 결과. replayed는 저장하지 않는다(L1.persistence.spec §3.10) */

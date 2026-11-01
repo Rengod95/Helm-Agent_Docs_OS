@@ -1,10 +1,10 @@
-import { AGENTS_SETTING_DEFS } from "@xeon/core-agents";
-import { CONTEXT_SETTING_DEFS } from "@xeon/core-context";
-import { MODELS_SETTING_DEFS } from "@xeon/core-models";
-import { LOOP_SETTING_DEFS } from "@xeon/core-loop";
-import { PERSISTENCE_SETTING_DEFS } from "@xeon/core-persistence";
-import { tasksSettings } from "@xeon/core-tasks";
-import { TOOLS_SETTING_DEFS } from "@xeon/core-tools";
+import { AGENTS_SETTING_DEFS } from "@fresnel/core-agents";
+import { CONTEXT_SETTING_DEFS } from "@fresnel/core-context";
+import { MODELS_SETTING_DEFS } from "@fresnel/core-models";
+import { LOOP_SETTING_DEFS } from "@fresnel/core-loop";
+import { PERSISTENCE_SETTING_DEFS } from "@fresnel/core-persistence";
+import { tasksSettings } from "@fresnel/core-tasks";
+import { TOOLS_SETTING_DEFS } from "@fresnel/core-tools";
 import {
   buildCatalog,
   type CatalogGroupInput,
@@ -14,30 +14,30 @@ import {
   type SettingDefInput,
   type SettingGroup,
   type SettingNamespace,
-} from "@xeon/contracts/settings";
-import { DIALOG_SETTING_DEFS } from "@xeon/cap-dialog";
-import { KNOWLEDGE_SETTING_DEFS } from "@xeon/cap-knowledge";
-import { ARTIFACTS_SETTING_DEFS } from "@xeon/cap-artifacts";
-import { MCP_SETTING_DEFS } from "@xeon/cap-mcp";
-import { WEB_SETTING_DEFS } from "@xeon/cap-web";
-import { WORK_SETTING_DEFS } from "@xeon/cap-work";
-import { WORKSPACE_SETTING_DEFS } from "@xeon/cap-workspace";
-import { accountRotationManifest, accountRotationSettings } from "@xeon/group-account-rotation";
-import { helmManifest, helmSettings } from "@xeon/group-helm";
-import { learningSettings } from "@xeon/group-learning";
-import { groupSdkSettings } from "@xeon/group-sdk";
+} from "@fresnel/contracts/settings";
+import { DIALOG_SETTING_DEFS } from "@fresnel/cap-dialog";
+import { KNOWLEDGE_SETTING_DEFS } from "@fresnel/cap-knowledge";
+import { ARTIFACTS_SETTING_DEFS } from "@fresnel/cap-artifacts";
+import { MCP_SETTING_DEFS } from "@fresnel/cap-mcp";
+import { WEB_SETTING_DEFS } from "@fresnel/cap-web";
+import { WORK_SETTING_DEFS } from "@fresnel/cap-work";
+import { WORKSPACE_SETTING_DEFS } from "@fresnel/cap-workspace";
+import { accountRotationManifest, accountRotationSettings } from "@fresnel/group-account-rotation";
+import { helmManifest, helmSettings } from "@fresnel/group-helm";
+import { learningSettings } from "@fresnel/group-learning";
+import { groupSdkSettings } from "@fresnel/group-sdk";
 import {
   loadingTrustSettings,
   operationsSettings,
   primitivesSettings,
   reservedExtensionSettings,
-} from "@xeon/ext-host";
-import { EXEC_SETTING_DEFS } from "@xeon/platform-exec";
-import { OS_SETTING_DEFS } from "@xeon/platform-os";
-import { PROCESS_SETTING_DEFS } from "@xeon/platform-process";
-import { SANDBOX_SETTING_DEFS } from "@xeon/platform-sandbox";
-import { SECRETS_SETTING_DEFS } from "@xeon/platform-secrets";
-import { STORE_SETTING_DEFS } from "@xeon/platform-store";
+} from "@fresnel/ext-host";
+import { EXEC_SETTING_DEFS } from "@fresnel/platform-exec";
+import { OS_SETTING_DEFS } from "@fresnel/platform-os";
+import { PROCESS_SETTING_DEFS } from "@fresnel/platform-process";
+import { SANDBOX_SETTING_DEFS } from "@fresnel/platform-sandbox";
+import { SECRETS_SETTING_DEFS } from "@fresnel/platform-secrets";
+import { STORE_SETTING_DEFS } from "@fresnel/platform-store";
 import { hostSettings } from "../settings.ts";
 
 // L4.host-service.spec §4.1 5단계. 모든 패키지의 설정 그룹을 한 카탈로그로 합친다. 이 파일은 assemble.ts의 일부다:

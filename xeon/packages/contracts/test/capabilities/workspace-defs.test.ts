@@ -46,7 +46,7 @@ describe("workspace definitions (M1)", () => {
     expect(WorkspaceFilesKey).toEqual({ capability: "workspace.files", version: "1.0.0" });
     expect(WorkspaceShellKey).toEqual({ capability: "workspace.shell", version: "1.0.0" });
     expect(WorkspaceImagesKey).toEqual({ capability: "workspace.images", version: "1.0.0" });
-    expect(WorkspaceServiceName).toBe("xeon.workspace");
+    expect(WorkspaceServiceName).toBe("fresnel.workspace");
   });
 
   test("workspace.images is toolless", () => {

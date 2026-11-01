@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { SessionRetention } from "@xeon/contracts/records";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { SessionRetention } from "@fresnel/contracts/records";
 import { DEFAULT_PERSISTENCE_SETTINGS, type PersistenceSettings } from "../src/index.ts";
 import { completeTurn, itemAt } from "./support/branching.ts";
 import {

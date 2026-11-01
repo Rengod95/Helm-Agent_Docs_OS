@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
-import type { WebProviderManifest } from "@xeon/contracts/capabilities";
+import { err } from "@fresnel/contracts";
+import type { WebProviderManifest } from "@fresnel/contracts/capabilities";
 import { WebHttpError, createBoundProviderHttp } from "../src/policy/guarded-http.ts";
 import type { HeaderSecretSender } from "../src/ports/secrets.ts";
 import { fakeHeaderSecrets, fakeSecretGuard } from "../src/testing/fake-ports.ts";

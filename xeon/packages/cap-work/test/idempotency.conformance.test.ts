@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { WorkGoals, WorkPlans, WorkReports, WorkTasks } from "@xeon/contracts/capabilities";
+import { WorkGoals, WorkPlans, WorkReports, WorkTasks } from "@fresnel/contracts/capabilities";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

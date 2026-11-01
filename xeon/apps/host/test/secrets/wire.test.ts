@@ -1,8 +1,12 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { parseSecretRef, SecretNameSchema, type SecretHandle } from "@xeon/contracts/capabilities";
-import type { SecretError } from "@xeon/contracts/services";
-import { WIRE_ERRORS, type WireError } from "@xeon/contracts/wire";
+import { parse } from "@fresnel/contracts";
+import {
+  parseSecretRef,
+  SecretNameSchema,
+  type SecretHandle,
+} from "@fresnel/contracts/capabilities";
+import type { SecretError } from "@fresnel/contracts/services";
+import { WIRE_ERRORS, type WireError } from "@fresnel/contracts/wire";
 import { wireErrorOfSecret } from "../../src/secrets/wire.ts";
 
 // HS-47: SecretError는 internal 하나가 아니라 secret.* 전용 kind로 1:1 옮긴다(F wire §3.5.2 3201~3212).

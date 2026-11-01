@@ -1,4 +1,4 @@
-import { assertNever, Bug, detach, err, ok, type Result, type Scheduler } from "@xeon/contracts";
+import { assertNever, Bug, detach, err, ok, type Result, type Scheduler } from "@fresnel/contracts";
 import type {
   AgentToolCall,
   EventId,
@@ -7,15 +7,15 @@ import type {
   ThreadId,
   TurnId,
   Usage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   LoopSpawnRequest,
   LoopSpawnResult,
   LoopTurnRequest,
   LoopTurnResult,
   PostItem,
-} from "@xeon/contracts/extensions";
-import type { DurableEventEnvelope, ReadFailure } from "@xeon/contracts/records";
+} from "@fresnel/contracts/extensions";
+import type { DurableEventEnvelope, ReadFailure } from "@fresnel/contracts/records";
 import type {
   AdmitRequest,
   AdmitResult,
@@ -26,7 +26,7 @@ import type {
   ResumeResult,
   TaskScope,
   ThreadLoopStatus,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { abortIntentRequest } from "./commits.ts";
 import { commitWithRetry, describeCommitFailure, type CommitFailure } from "./commit.ts";
 import { createDrafter } from "./drafts.ts";
@@ -710,14 +710,17 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   }
 
   /**
-   * drive의 `loop.spawn`(L1.loop.spec §4.8). `xeon.agents`의 포그라운드 spawn에 위임한다.
+   * drive의 `loop.spawn`(L1.loop.spec §4.8). `fresnel.agents`의 포그라운드 spawn에 위임한다.
    * 멱등은 core-agents가 (부모 thread, requestId)의 `agent.spawned`와 creationKey로 맡으므로, 같은 요청을 다시 부르면
    * 새 자식을 만들지 않고 기록된 결과를 `replayed: true`로 돌려준다.
    */
   async function spawn(request: LoopSpawnRequest): Promise<LoopSpawnResult> {
     const agents = deps.agents?.();
     if (agents === undefined) {
-      throw new LoopRejection({ kind: "input_invalid", message: "xeon.agents is not available" });
+      throw new LoopRejection({
+        kind: "input_invalid",
+        message: "fresnel.agents is not available",
+      });
     }
     if (request.spec.background === true) {
       throw new LoopRejection({
@@ -871,7 +874,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
           "leaseEpoch" in request ? null : request,
         );
       }
-      // xeon-disable-next-line xeon/switch-default-never -- 거부 코드(CommitFailure.code)는 문자열이라 열린 값이다. 모르는 코드는 예상 가능한 실패로 돌려준다 (eng.typescript.guide TY-14)
+      // fresnel-disable-next-line fresnel/switch-default-never -- 거부 코드(CommitFailure.code)는 문자열이라 열린 값이다. 모르는 코드는 예상 가능한 실패로 돌려준다 (eng.typescript.guide TY-14)
       default:
         throw new LoopRejection({ kind: "input_invalid", message: describeCommitFailure(failure) });
     }
@@ -919,7 +922,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     runTurn,
     spawn,
     whenIdle: (threadId, fn) => runtimeOf(threadId).gate.run(1, fn),
-    // user_bash 지점 발화, xeon.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
+    // user_bash 지점 발화, fresnel.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
     runUserBash: (request) => userBash.run(request),
     guardExecution: (request) => guardExecution.run(request),
     admit,

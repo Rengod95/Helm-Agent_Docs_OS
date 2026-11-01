@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { attempt, err, ok, type Logger, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Logger, type Result } from "@fresnel/contracts";
 
 // L0.process.plan §2 `select.ts`. OS 이름을 읽는 곳은 이 파일 하나다(eng.dependency-rules.guide DR-13).
 // M2 범위: 외부 훅과 격리 자식의 프로세스 트리 종료, 자식 분리 옵션. OS 서비스 등록(registrar)과 소켓 경로 한도는 서비스 모드 때 더한다.
@@ -61,7 +61,7 @@ export function selectProcessPlatform(input: {
       return ok(posixProvider());
     case "win32":
       return ok(win32Provider(input.logger));
-    // xeon-disable-next-line xeon/switch-default-never -- process.platform은 지원 목록보다 넓은 외부 값이다. 지원 밖 OS는 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- process.platform은 지원 목록보다 넓은 외부 값이다. 지원 밖 OS는 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err({ kind: "unsupported_platform", platform: input.platform });
   }

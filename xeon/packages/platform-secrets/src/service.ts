@@ -6,7 +6,7 @@ import {
   type Logger,
   type Result,
   type Scheduler,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import type {
   RedactionHit,
   SecretAuditRecord,
@@ -14,7 +14,7 @@ import type {
   SecretMeta,
   SecretName,
   SecretProviderId,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   ApprovalEvidence,
   ConcreteHttpRequest,
@@ -32,7 +32,7 @@ import type {
   SecretValueView,
   UseCtx,
   UseDecision,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { approvedRecord, createAuditBus, deniedRecord, maskedRecord, usedRecord } from "./audit.ts";
 import type { AuditLog } from "./audit-file.ts";
 import { assembleDiagnostics, providerRow } from "./diagnose.ts";
@@ -70,12 +70,12 @@ export interface SecretServiceCoreDeps {
   readonly auditLog?: AuditLog;
 }
 
-/** 확장과 모델 도구에 등록되는 서비스(`xeon.secrets`). 관리·사람 전용 메서드는 싣지 않는다 */
+/** 확장과 모델 도구에 등록되는 서비스(`fresnel.secrets`). 관리·사람 전용 메서드는 싣지 않는다 */
 export type SecretServiceRuntime = SecretService & Disposable;
 
 /**
  * 관리 서비스(`createSecretAdminService`)만 받는 사람 전용 통로. 사용 정책과 승인을 건너뛰는 `leaseAsHuman`이 여기 있어
- * `xeon.secrets`로 등록된 객체에서는 동적 접근으로도 접근할 수 없다(contracts/services/secret-admin.ts의 경계)
+ * `fresnel.secrets`로 등록된 객체에서는 동적 접근으로도 접근할 수 없다(contracts/services/secret-admin.ts의 경계)
  */
 export interface SecretServiceInternal {
   /** 핸들의 활성 lease를 모두 닫고 개수를 돌려준다(rotate·rm, 마일스톤 M2 관리 서비스가 쓴다) */

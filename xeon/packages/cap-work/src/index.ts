@@ -1,4 +1,4 @@
-// @xeon/cap-work 공개 진입점(L2.work). 조립 루트가 쓰는 이름만 내보낸다.
+// @fresnel/cap-work 공개 진입점(L2.work). 조립 루트가 쓰는 이름만 내보낸다.
 export { workPlugin, WORK_PRODUCER, type WorkPluginOptions } from "./plugin.ts";
 export { registerWorkCommands, WORK_COMMAND_ORIGIN, type WorkCommandDeps } from "./commands.ts";
 export { workManifest, WORK_EXTENSION_NAME } from "./manifest.ts";

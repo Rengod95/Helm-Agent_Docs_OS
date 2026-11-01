@@ -38,8 +38,8 @@ xeon/packages/core-tasks/
     input-queue.ts        # InputQueue: enqueue/peek/drain/withdraw/draftQueued, InputQueuePort 구현(TaskService.enqueue), 배치 선택 표, requestId 판정
     service.ts            # TaskService 조립: root, abort 순서, activity 집계, close()
     settings.ts           # defineSettings("l1.tasks", …) 다섯 키
-    plugin.ts             # ext-host 플러그인 API로 xeon.tasks 등록, dispose → close() 연결
-    index.ts              # plugin, settings 공개. 타입은 @xeon/contracts/services에서 온다
+    plugin.ts             # ext-host 플러그인 API로 fresnel.tasks 등록, dispose → close() 연결
+    index.ts              # plugin, settings 공개. 타입은 @fresnel/contracts/services에서 온다
     testing/index.ts      # 다른 패키지 테스트용 memoryTasks(메모리 TaskService 가짜)
   test/
     scope.test.ts
@@ -53,9 +53,9 @@ xeon/packages/core-tasks/
     fixtures/
 ```
 
-- 타입 위치: `TaskService`와 관련 타입, 서비스 이름 상수는 `@xeon/contracts/services`에 둔다(FR-T5) [결정: review.decisions-2 D-04]. core-tasks는 구현만 한다. 다른 L1 패키지가 core-tasks를 import하지 않게 하기 위해서다(`eng.dependency-rules.guide` DR-14).
+- 타입 위치: `TaskService`와 관련 타입, 서비스 이름 상수는 `@fresnel/contracts/services`에 둔다(FR-T5) [결정: review.decisions-2 D-04]. core-tasks는 구현만 한다. 다른 L1 패키지가 core-tasks를 import하지 않게 하기 위해서다(`eng.dependency-rules.guide` DR-14).
 - 서비스 등록은 ext-host의 플러그인 API로만 한다. `cordis` import는 금지다(ADR-0002 §3 4번, DR-07 `cordis` 행). Cordis Fiber 해제와 범위 트리의 연결은 `plugin.ts` 한 곳에만 둔다.
-- 의존: `@xeon/contracts`(F), `@xeon/ext-host`(X, 플러그인 API). 테스트 전용 devDependencies: `@xeon/platform-store/testing`(테스트 파일에서만 import, DR-08·DR-14 예외 3). F에는 `./testing` 서브패스가 없다. 시계·ID 대역은 이 패키지 `test/` 안에 F `Clock`·`IdFactory` 인터페이스로 만든다 [결정: review.decisions-2 U-03].
+- 의존: `@fresnel/contracts`(F), `@fresnel/ext-host`(X, 플러그인 API). 테스트 전용 devDependencies: `@fresnel/platform-store/testing`(테스트 파일에서만 import, DR-08·DR-14 예외 3). F에는 `./testing` 서브패스가 없다. 시계·ID 대역은 이 패키지 `test/` 안에 F `Clock`·`IdFactory` 인터페이스로 만든다 [결정: review.decisions-2 U-03].
 
 ## 3. 작업 분해
 
@@ -63,13 +63,13 @@ xeon/packages/core-tasks/
 
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
-| TK-0 | F 요청 반영 확인: `@xeon/contracts/services`의 `TaskService` 타입(FR-T5), `input.*`·`turn.abort_requested` 카탈로그 항목과 payload 스키마(FR-T1, FR-T2. F.records.spec §3.3에 있음), `TxView.inputByRequestId`·`queuedInputs`·`turnAbortRequested`(L1.persistence) | M0: contracts F.extensions·F.records 타입, M0: core-persistence 커밋 API | S | M1 착수 조건 |
+| TK-0 | F 요청 반영 확인: `@fresnel/contracts/services`의 `TaskService` 타입(FR-T5), `input.*`·`turn.abort_requested` 카탈로그 항목과 payload 스키마(FR-T1, FR-T2. F.records.spec §3.3에 있음), `TxView.inputByRequestId`·`queuedInputs`·`turnAbortRequested`(L1.persistence) | M0: contracts F.extensions·F.records 타입, M0: core-persistence 커밋 API | S | M1 착수 조건 |
 | TK-1 | `scope.ts`: 범위 트리, 허용 부모 표(spec §4.1), `AbortSignal.any([부모, 자기])`, 백그라운드 노드의 root 연결, `track`, `settle()`(아래에서 위), `parent_settled`·`invalid_parent` Bug | TK-0 | M | M1 |
 | TK-2 | `service.ts`의 `abort`: 의도 기록기 호출 → 커밋 → 신호 → cascade 의도 → `settle` 반환. `busy` 재시도(같은 요청), `lease_lost` 처리, `already_*` 상태, `{ background: true }` 순회. `close()` | TK-1, M0: core-persistence `commit` | M | M1 |
 | TK-3 | `keyed-queue.ts`: `file-mutation-queue.ts` 포크. Chord 제거, 키 산출 제거(L1.tools.plan TL-17로 이전), 키별 FIFO와 shared/exclusive 상태, 다중 키 사전순 획득, 대기 중 취소 제거 | TK-1(owner 신호) | S | M1 |
 | TK-4 | `limiter.ts`: 풀 세 개, FIFO, 대기 중 취소 제거, `suspendWhile`, C4 재진입 Bug, 설정 값 변경 반영(새 획득부터) | TK-1, TK-6(설정 읽기) | M | M2 |
 | TK-5 | `input-queue.ts`: `enqueue`(커밋 안 requestId 판정, 출처 키, 신원만 담는 지문, 확장 post도 `input.queued` 하나, `post.accepted`는 retire(review.decisions-2 U-05)), `TaskService.enqueue`(`InputQueuePort`), `draftQueued`, `peek`(투영 읽기), `drain`(배치 선택 표, `consumedSeq`, `drafts`), `withdraw`, `onQueued`(커밋 후 알림) | TK-0, M0: platform-store·core-persistence 투영 인터페이스 | M | M1(steer·followUp), M2(next·aside) |
-| TK-6 | `service.ts` 조립과 `settings.ts`(`l1.tasks.*` 다섯 키, D1~D9), `plugin.ts`(ext-host 플러그인 API로 `xeon.tasks` 제공, `xeon.session` 주입, dispose → `close()`), `activity()`·`onActivity` | TK-1, TK-2, TK-3, TK-5, M0: ext-host 플러그인 API | S | M1(서비스), M2(limits 키 노출) |
+| TK-6 | `service.ts` 조립과 `settings.ts`(`l1.tasks.*` 다섯 키, D1~D9), `plugin.ts`(ext-host 플러그인 API로 `fresnel.tasks` 제공, `fresnel.session` 주입, dispose → `close()`), `activity()`·`onActivity` | TK-1, TK-2, TK-3, TK-5, M0: ext-host 플러그인 API | S | M1(서비스), M2(limits 키 노출) |
 | TK-7 | 재개 시 큐 복원: 열 때 `p_inputs` 재읽기, `consumedSeq` 일관성 검사와 진단, 자동 재개 꺼짐일 때 queued 유지 | TK-5, M0: core-persistence 열 때 복구 | S | M1 |
 | TK-8 | `next`·`aside` 모드: `L1.tasks.spec` §4.9 결정 반영(B안이면 stepEnd `continuing` 규칙과 turnStart 부착) | TK-5, 사용자 결정(§4.9 [미결]) | S | M2 |
 | TK-9 | 서브에이전트 풀 연결 시험: core-agents와 함께 렌즈 N개 탐구 테이프로 `subagents`·`modelCalls` 기본값 조정 | TK-4, L1.agents.plan의 자식 실행 | M | M2 |
@@ -132,7 +132,7 @@ xeon/packages/core-tasks/
 
 - §5의 해당 마일스톤 테스트가 모두 통과한다.
 - `cd xeon && just verify` 종료코드 0. 종료코드 2(환경 문제)면 코드를 고치지 않고 보고한다.
-- `check-layers`와 dependency-cruiser에서 core-tasks가 다른 `@xeon/core-*`, `cordis`, `@earendil-works/*`를 import하지 않는다(spec §9-11, DR-07, DR-14).
+- `check-layers`와 dependency-cruiser에서 core-tasks가 다른 `@fresnel/core-*`, `cordis`, `@earendil-works/*`를 import하지 않는다(spec §9-11, DR-07, DR-14).
 - `docs-route --check`가 이 문서와 spec의 `binds`, `depends_on`을 해석한다.
 - M1: `L1.loop.plan`의 M1 스모크(모델 테이프 한 턴, 강제 종료 뒤 재개)에서 큐 입력이 복원되고 turn 취소가 정착한다.
 - M1: "도구 병렬과 파일 직렬화(키 큐)"의 사용 쪽은 core-tools다. 잠금 키 산출과 `locks.run` 호출은 `L1.tools.plan` TL-17이 구현하고 `same_realpath_writes_serialized`로 확인한다. 이 패키지는 `KeyedQueue` 자체(TK-3)만 맡는다.

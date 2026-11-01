@@ -21,7 +21,7 @@ import { serviceKey, type ServiceKey } from "../service-key.ts";
 import type { ToolContent, ToolSpec } from "../tool-spec.ts";
 import { ImageBlobRefSchema } from "./workspace.ts";
 
-// L2.mcp.spec §3.1~§3.2. McpService(Cordis 서비스 xeon.mcp)는 services/mcp.ts에 있다(F.capabilities.spec §3.12 규칙 7).
+// L2.mcp.spec §3.1~§3.2. McpService(Cordis 서비스 fresnel.mcp)는 services/mcp.ts에 있다(F.capabilities.spec §3.12 규칙 7).
 
 // ── 서버 정의 (§3.1) ───────────────────────────────────────────────────
 

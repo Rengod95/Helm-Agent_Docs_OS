@@ -1,4 +1,4 @@
-import type { HookName } from "@xeon/contracts/extensions";
+import type { HookName } from "@fresnel/contracts/extensions";
 import type { HandlerFailure, HandlerFailureReason, HandlerRef } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";
 

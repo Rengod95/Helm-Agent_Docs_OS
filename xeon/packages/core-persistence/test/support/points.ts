@@ -1,5 +1,5 @@
 // 확장 지점 발화를 기록하는 ThreadHooks 대역(L1.persistence.spec §7.1). first 지점은 설정한 대로 취소하거나 요약을 준다.
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadHooks } from "../../src/index.ts";
 
 export interface PointCall {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { DurableEventEnvelope, Projector, ProjectorFailure } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { DurableEventEnvelope, Projector, ProjectorFailure } from "@fresnel/contracts/records";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {
   endTurn,

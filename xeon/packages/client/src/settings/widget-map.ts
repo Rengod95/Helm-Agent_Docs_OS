@@ -1,9 +1,9 @@
-import { assertNever, parse } from "@xeon/contracts";
+import { assertNever, parse } from "@fresnel/contracts";
 import {
   SettingWidgetSchema,
   type SettingDefWire,
   type SettingWidget,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { t } from "../i18n/index.ts";
 import type { ListItemKind, TableColumn, ViewDiagnostic, WidgetVM } from "./types.ts";
 

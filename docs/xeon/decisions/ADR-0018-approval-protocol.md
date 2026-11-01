@@ -27,7 +27,7 @@ binds: [xeon/packages/core-tools/**, xeon/packages/contracts/src/services/**, xe
 
 1. [결정] 도구 승인, 계획 승인, 사용자 질문, 검토 승인은 L1-d 승인 서비스(`ApprovalService`) 하나로 처리한다. 대기 레코드 형식, 저장(L1-f 체크포인트 `waiting: "approval"`), 내구 이벤트, 호스트 응답 메서드가 같다.
 2. [결정] 승인 kind는 `tool`, `plan`, `question`, `review`다. `review`는 M3-09가 더한다(`F.records.spec`, `L1.tools.spec` 반영은 M3-REQ-09).
-3. [결정] 요청자는 둘이다. 도구 승인은 core-tools 파이프라인이 내고, 계획·질문·검토 승인은 L2 능력(dialog, work, artifacts)이 자기 도구 실행 안에서 `xeon.approvals.request`를 부른다. L2는 따로 대기 상태를 저장하지 않는다.
+3. [결정] 요청자는 둘이다. 도구 승인은 core-tools 파이프라인이 내고, 계획·질문·검토 승인은 L2 능력(dialog, work, artifacts)이 자기 도구 실행 안에서 `fresnel.approvals.request`를 부른다. L2는 따로 대기 상태를 저장하지 않는다.
 4. [결정] 만료(`expiresAt`, M3-06)와 무인 실행 정책은 kind와 관계없이 같은 규칙을 쓴다. 예약 실행 세션은 대기하고 만료 뒤 거부로 끝내며, 설정으로 대기·거부·만료 뒤 거부를 고른다(D-M3-12). print 모드는 사전 허용 규칙만 적용하고 나머지는 거부하며, 전체 자동 승인 옵션을 따로 둔다(D-M3-14).
 5. [결정] 그룹(Helm, 학습)의 사용자 승인도 같은 프로토콜을 쓴다. 학습 제안 대기열의 결정은 승인 증거(`ApprovalEvidence{ source: "learning.queue" }`)로 L2 지식 쓰기 승인과 이어진다(`L3.learning.spec` §4.5).
 6. [제안] 클라이언트 승인 카드 요건(`L1.tools.spec` §4.8, M2 마감 G2-10)은 kind마다 본문 표시만 다르고 응답 흐름은 같다.

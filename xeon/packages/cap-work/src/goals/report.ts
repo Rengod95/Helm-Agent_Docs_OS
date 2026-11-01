@@ -7,8 +7,8 @@ import type {
   ReportUsage,
   WorkReport,
   WorkTask,
-} from "@xeon/contracts/capabilities";
-import type { Usage } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { Usage } from "@fresnel/contracts/conversation";
 import type { JudgmentRow, PlanRow } from "../projection/read.ts";
 
 // L2.work.spec §3.5, §4.4. 완료 보고는 이벤트에서 계산하는 순수 함수의 결과다. 모델을 부르지 않는다.

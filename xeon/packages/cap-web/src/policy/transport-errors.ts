@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import type { WebFailure } from "../errors.ts";
 import { deniedFailure } from "../errors.ts";
 import type { TransportFailure } from "../ports/transport.ts";

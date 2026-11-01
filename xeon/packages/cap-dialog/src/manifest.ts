@@ -5,8 +5,8 @@ import {
   DialogNotify,
   DialogStatus,
   WorkspaceImages,
-} from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 
 export const DIALOG_EXTENSION_NAME = "cap-dialog";
 

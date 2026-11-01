@@ -16,7 +16,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, 
 
 ### 1.1 정하는 것
 
-- Cordis 서비스 `xeon.models`의 인터페이스 `ModelService`: 역할 해석, 스트림·완성 호출, 모델 목록, provider 등록, 사용량 보고, 토큰 추정과 오류 분류 위임.
+- Cordis 서비스 `fresnel.models`의 인터페이스 `ModelService`: 역할 해석, 스트림·완성 호출, 모델 목록, provider 등록, 사용량 보고, 토큰 추정과 오류 분류 위임.
 - pi-ai를 그대로 쓰는 범위와 그 위에 Xeon이 정하는 세 가지: 캐시 정책 객체(`CachePolicy`), 용도별 라우팅(역할 표), 설정 노출.
 - 역할 표의 역할 목록, 해석 순서, 모델 참조 문자열 형식 `provider/modelId[:thinkingLevel]`.
 - 추론 레벨과 레벨별 토큰 예산, 단계 체크포인트(`StepCheckpoint.model`) 고정 규칙.
@@ -85,7 +85,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, 
 
 ### 3.2 F에 두는 이름
 
-서비스 인터페이스 `ModelService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. 나머지 이름(역할, 참조, 바인딩, `CachePolicy`)도 같은 서브패스의 `services/models.ts`에 둔다. 여러 서비스가 함께 쓰는 모델 값 타입의 위치는 `F.capabilities.spec` §3.12 규칙 3이 정했고, `L1.context.spec`은 이 파일에서 import한다. 순수 함수 `parseModelRef`, `formatModelRef`, `resolveRole`은 `F.readme` §1의 런타임 로직 예외 1(순수 함수)에 해당한다.
+서비스 인터페이스 `ModelService`와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. 나머지 이름(역할, 참조, 바인딩, `CachePolicy`)도 같은 서브패스의 `services/models.ts`에 둔다. 여러 서비스가 함께 쓰는 모델 값 타입의 위치는 `F.capabilities.spec` §3.12 규칙 3이 정했고, `L1.context.spec`은 이 파일에서 import한다. 순수 함수 `parseModelRef`, `formatModelRef`, `resolveRole`은 `F.readme` §1의 런타임 로직 예외 1(순수 함수)에 해당한다.
 
 ```ts
 // xeon/packages/contracts/src/services/models.ts  (F.capabilities.spec §3.12 규칙 3)
@@ -105,7 +105,7 @@ import type { Result } from "../base/index.ts";
  */
 export type { Model, Api, Context, Provider, CacheRetention, ThinkingBudgets, AssistantMessageEventStream, SimpleStreamOptions, StreamFn };
 
-export const ModelServiceName: "xeon.models" = "xeon.models";
+export const ModelServiceName: "fresnel.models" = "fresnel.models";
 
 export const MODEL_ROLES: readonly ["main", "review", "summary", "subagent", "judge", "search"] =
   ["main", "review", "summary", "subagent", "judge", "search"];
@@ -446,7 +446,7 @@ export interface ModelError {
 ```ts
 // xeon/packages/core-models/src/secrets-bridge.ts (core-models 내부, 공개하지 않음)
 import type { CredentialStore } from "@earendil-works/pi-ai";
-import type { SecretService } from "@xeon/contracts/services";   // xeon.secrets, F.capabilities.spec §3.12 규칙 7
+import type { SecretService } from "@fresnel/contracts/services";   // fresnel.secrets, F.capabilities.spec §3.12 규칙 7
 
 export interface ProviderCredentialRefs {
   /** providerId → 비밀 참조. l1.models.providers 설정에서 만든다 */
@@ -456,13 +456,13 @@ export interface ProviderCredentialRefs {
 export function secretBackedCredentialStore(refs: ProviderCredentialRefs, secrets: SecretService): CredentialStore;
 ```
 
-- 해석 시점: pi-ai `Models.getAuth`가 요청마다 `CredentialStore.read(providerId)`를 부른다(`auth/types.ts:65-70`). 이 함수 안에서만 `xeon.secrets`로 값을 얻고, 값은 반환 객체 안에만 있다. 캐시하지 않는다 [제안](`_research/secrets.md` §6.2 "실행 직전 해석").
+- 해석 시점: pi-ai `Models.getAuth`가 요청마다 `CredentialStore.read(providerId)`를 부른다(`auth/types.ts:65-70`). 이 함수 안에서만 `fresnel.secrets`로 값을 얻고, 값은 반환 객체 안에만 있다. 캐시하지 않는다 [제안](`_research/secrets.md` §6.2 "실행 직전 해석").
 - 값은 요청 헤더로만 나간다. `ModelCallRequest`, `ResolvedModel`, 이벤트, 로그, 지점 페이로드에 싣지 않는다(§7.2 헤더 가림).
 - 사용 모드: `runtime-http`(`L0.secrets.spec` §4.3 M3)로 `lease`한다. purpose는 `model.provider:<id>`, `target`은 provider 기본 URL의 호스트다. 마일스톤 M1부터 이 모드를 쓴다. 값은 프로세스 안 HTTP 클라이언트에만 있고 모델 컨텍스트, 이벤트, DB에 들어가지 않는다(review.decisions-2 U-19 보충). bash 도구의 비밀 주입은 `env` 모드 그대로다.
 - 사용 정책의 근원 [결정: M2 Mac 실기]: 새로 등록한 비밀의 사용 정책은 비어 있어(`L4.host-service.spec` HS-45) 위 `lease`는 `denied`다. 비밀을 provider에 연결하는 사람의 행위(사용자 범위 `l1.models.providers`의 `apiKeyRef` 쓰기. 데스크톱 "provider에 연결"과 `xeon config set`은 모두 `settings.set`이다)가 이 호출 하나만 허용하는 정책을 비밀 메타에 더한다. 허용은 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [providerTarget(<id>)의 호스트]`뿐이다. `env` 모드, 도구, 다른 호스트는 열지 않는다. 호스트 쪽 규칙은 `L4.host-service.spec` HS-45 [결정: M2 Mac 실기]다. `providerTarget`은 이 호스트 값을 호출과 같은 규칙으로 구하기 위한 조회다.
 - `modify`, `delete`는 `ModelsError("auth")`를 던진다. 키 등록과 삭제는 비밀 관리 경로(`just secret-add`, 설정 화면 secrets 탭)로만 한다.
 - `list()`는 provider 이름과 참조 유무만 돌려준다(pi 계약: "must not execute configured API-key commands while listing").
-- 오류 문자열은 `xeon.secrets`의 마스킹 함수를 지난다 [가정: L0.secrets.spec이 마스킹 API를 서비스로 제공한다].
+- 오류 문자열은 `fresnel.secrets`의 마스킹 함수를 지난다 [가정: L0.secrets.spec이 마스킹 API를 서비스로 제공한다].
 - `lease`가 정책으로 거부되면(`denied`) 종결 메시지의 사유 문장에 거부 사유를 싣는다: `secret_unresolved: secret <이름> could not be leased (denied: mode_not_allowed)`. 사람이 어디를 고칠지(사용 모드, 호스트) 알 수 있다 [결정: M2 Mac 실기].
 - 위장 경로 가드 [제안]: 기본 `anthropic` provider에서 해석한 값이 `sk-ant-oat`를 포함하면 요청을 보내지 않고 `oauth_token_on_default_provider` 오류를 낸다. pi-ai 기본 경로는 키 접두만으로 위장 분기에 들어가기 때문이다(`anthropic-messages.ts:978-980`, `1014`, `_research/notes/L1-2.md` §3.1). [결정 M-1: m2/l1c] 가드로 막는다. 설정 참조뿐 아니라 agent-core가 `apiKey` 옵션으로 넘긴 값도 같은 규칙으로 검사한다(기본 provider id `anthropic`만 대상이다). 가드에 걸리면 종결 메시지는 `oauth_token_on_default_provider: …`이고 요청은 나가지 않는다.
 
@@ -506,21 +506,21 @@ export type StructuredResult<T> =
 
 ```ts
 // xeon/plugins/provider-anthropic-oauth/src/plugin.ts
-// import 허용: @xeon/contracts(F), @xeon/ext-host(X), L0 패키지, 외부 패키지 @earendil-works/pi-ai(값)·@anthropic-ai/sdk(pi-ai가 쓰는 0.129.0과 같은 모듈)
-// import 금지: @xeon/core-*
+// import 허용: @fresnel/contracts(F), @fresnel/ext-host(X), L0 패키지, 외부 패키지 @earendil-works/pi-ai(값)·@anthropic-ai/sdk(pi-ai가 쓰는 0.129.0과 같은 모듈)
+// import 금지: @fresnel/core-*
 export const manifest: ExtensionManifest;   // name "provider-anthropic-oauth", kind "plugin", defaultEnabled false
 
-/** setup에서 주입받은 xeon.models(F ModelService)의 addProvider(owner, "anthropic-oauth", { kind: "runtime", provider, credential }) */
+/** setup에서 주입받은 fresnel.models(F ModelService)의 addProvider(owner, "anthropic-oauth", { kind: "runtime", provider, credential }) */
 export function setup(g: ScopeApi<unknown>): void;
 ```
 
 - [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`는 import하지 않는다. 같은 층 예외는 두지 않는다.
-- 등록 경로: 플러그인 → F provider 인터페이스(`ProviderDef`) → `xeon.models`(core-models 서비스)의 `addProvider`. 서비스는 X가 주입한다. 플러그인은 X `ModelsPort`(`hostOf(g).registerProvider`)를 쓰지 않는다(`X.primitives.spec` §3.9). 플러그인은 core-models를 import하지 않는다.
+- 등록 경로: 플러그인 → F provider 인터페이스(`ProviderDef`) → `fresnel.models`(core-models 서비스)의 `addProvider`. 서비스는 X가 주입한다. 플러그인은 X `ModelsPort`(`hostOf(g).registerProvider`)를 쓰지 않는다(`X.primitives.spec` §3.9). 플러그인은 core-models를 import하지 않는다.
 - 이 경로는 import 자체를 없애므로 `plugins/*`를 L1에 두어도 같은 층 import가 생기지 않는다. 고칠 구속 문서: `eng.dependency-rules.guide` DR-07(pi-ai 소유 패키지에 `plugins/provider-anthropic-oauth`를 더한다)과 DR-09(플러그인 허용 목록을 F, X, L0, pi-ai·Anthropic SDK로 바꾸고 `DR-02/provider-anthropic-oauth` 항목을 지운다).
 
 ### 3.12 hosted 검색 포트
 
-내장 검색 래퍼(`L2.web.spec` §4.8.4)가 쓰는 `ModelService.hostedSearch`(F `HostedSearchPort`, `@xeon/contracts/services`)의 구현이다 [구현: M2, L1C.3]. 타입은 F가 정했고 이 절은 구현 규칙만 적는다.
+내장 검색 래퍼(`L2.web.spec` §4.8.4)가 쓰는 `ModelService.hostedSearch`(F `HostedSearchPort`, `@fresnel/contracts/services`)의 구현이다 [구현: M2, L1C.3]. 타입은 F가 정했고 이 절은 구현 규칙만 적는다.
 
 - 모델: `HostedSearchRequest.model`이 `auto`이면 역할 `search`의 해석 결과(`l1.models.routing.search` → `summary` → `main` → default)이고, 아니면 그 모델 참조를 역할 `search`로 해석한다(허용·차단 목록을 거친다). 해석에 실패하면 `support`는 `no_model`, `search`는 `unsupported_model`(provider·모델 null)이다.
 - 지원 판정(`support`): 모델 API가 `anthropic-messages`이고 provider가 `anthropic`이거나 기본 주소의 호스트가 `anthropic.com`이면 지원한다. 같은 API를 쓰는 타사 호환 서버는 지원하지 않는다(`no_hosted_search`). 판정은 모델 호출도 비밀 해석도 하지 않는다.
@@ -531,7 +531,7 @@ export function setup(g: ScopeApi<unknown>): void;
 - 이어 요청: `pause_turn`이면 직전 응답의 content 블록 전체(`encrypted_content` 포함)를 JSON으로 직렬화해 `hs1:<base64url>` 문자열로 `continuation`에 담는다. 호출자는 읽거나 저장하지 않는다. 다음 요청의 `continuation`은 페이로드 `messages` 끝에 assistant 메시지로 되돌려 보낸다. 해석할 수 없는 문자열은 `upstream`(`status: null`)이고 요청을 보내지 않는다.
 - 오류(`HostedSearchError`): 신호가 중단됐으면 `cancelled`. HTTP 400이고 메시지에 web search와 organization·admin·disabled·not enabled 계열 단어가 함께 있으면 `org_disabled` [가정: 오류 문구는 실제 응답으로 확인하지 못했다]. 429나 도구 결과의 `too_many_requests`는 `rate_limited`(`retryAfterMs: null`). provider·모델 없음은 `unsupported_model`. 그 밖은 `upstream`이고 `status`는 메시지에서 읽은 HTTP 상태, `message`는 비밀 마스킹을 거친 문자열이다. 결과가 없고 도구 결과가 `web_search_tool_result_error`면 `upstream`이다.
 - thread에 속하지 않는 호출이다. 요청 지점(`request.provider.before` 등)과 `request.model.after`는 발화하지 않는다. 사용량은 예약 thread id(`HOSTED_SEARCH_THREAD`)에 역할 `search`로 쌓인다.
-- 시험: 어댑터 원시 이벤트를 테이프 차례의 `rawEvents`로 재생한다(`@xeon/core-models/testing`의 테이프 provider). 네트워크 호출은 없다.
+- 시험: 어댑터 원시 이벤트를 테이프 차례의 `rawEvents`로 재생한다(`@fresnel/core-models/testing`의 테이프 provider). 네트워크 호출은 없다.
 - 범위 밖: 이 포트는 대화 기록에 남지 않는 단일 턴 요청이다. 메인 모델의 일반 턴 요청에 서버 도구를 넣는 일(`L2.web.spec` §4.8.1 A안)은 M2에 구현하지 않았다. 사유는 §10 12번이다.
 
 ## 4. 동작 규칙
@@ -646,11 +646,11 @@ export function resolveRole(input: {
 - 계정 선택: 우선순위 오름차순으로, 창 사용량이 `100 - reservePct` 퍼센트 아래이고 대기 중이 아닌 첫 계정을 고른다. 고른 계정의 참조를 요청 직전 해석해 `AuthResolutionOverrides.apiKey`로 넣는다.
 - 요청 간격: 같은 계정의 직전 요청 시각에서 `minIntervalMs`가 지나기 전에는 요청을 보내지 않고 대기 상태로 둔다. 대기는 `signal`로 취소된다.
 - 한도 오류: `rate_limited`는 `retryAfterMs`만큼 그 계정을 대기 상태로 두고 `onLimit`에 따라 대기하거나 다른 계정으로 바꾼다. `quota_exhausted`는 재시도 불가로 분류하고 그 계정을 창이 끝날 때까지 뺀다.
-- 상태 저장: `core_models_accounts`(계정 메타, 참조만), `core_models_usage_windows`(계정·창별 합계), `core_models_cooldowns`(대기 종료 시각)를 `xeon.store.scoped("core_models_")`로 쓴다(`eng.context-map.design` §5.2). 세션 투영이 아니므로 재생으로 다시 만들지 않는다.
+- 상태 저장: `core_models_accounts`(계정 메타, 참조만), `core_models_usage_windows`(계정·창별 합계), `core_models_cooldowns`(대기 종료 시각)를 `fresnel.store.scoped("core_models_")`로 쓴다(`eng.context-map.design` §5.2). 세션 투영이 아니므로 재생으로 다시 만들지 않는다.
 - 읽기 자료: omp `usage-limit.ts`, `credential-pin.ts`. AgentSession에 결합된 구현이라 코드를 가져오지 않는다(`_research/packages.md` §4.3 L1-c 레이트 리밋 행).
 - 단계: M3다. 설정(`l1.models.accounts`, `l1.models.rateLimit`)은 M3 설정 화면에서 조작한다 [결정: review.decisions-2 U-21].
 - 구현(M3b B2-MDL): `core-models/src/accounts.ts`(풀 상태기계), `rotation.ts`(호출 하나를 계정 위에서 돌림), `pipeline.ts`(회전 분기). 규칙은 아래와 같다.
-  - 기본 꺼짐: 회전은 `account-rotation` 플러그인 scope가 켜져 있고(`xeon.ext` scope 상태) `ext.account-rotation.acknowledgeRisk`가 true일 때만 돈다. 어느 하나라도 아니면 계정 설정은 무시하고 provider 설정의 키를 쓴다. 첫 사용 고지 문구는 플러그인 userConfig와 설정 화면이 보인다(§4.11.3 위장 provider와 같은 방식).
+  - 기본 꺼짐: 회전은 `account-rotation` 플러그인 scope가 켜져 있고(`fresnel.ext` scope 상태) `ext.account-rotation.acknowledgeRisk`가 true일 때만 돈다. 어느 하나라도 아니면 계정 설정은 무시하고 provider 설정의 키를 쓴다. 첫 사용 고지 문구는 플러그인 userConfig와 설정 화면이 보인다(§4.11.3 위장 provider와 같은 방식).
   - 정책이 없는 provider는 `{ minIntervalMs: 0, onLimit: "switch", maxWaitMs: 0 }`이다 [결정: 오케스트레이터 기본값].
   - 계정 선택: 우선순위 오름차순(같으면 설정 순서)으로 쉬는 중이 아니고 `minIntervalMs`가 지난 첫 계정을 고른다. 쓸 수 없지만 곧 생기는 계정이 있으면 대기 대상이다. 간격 대기는 `maxWaitMs` 안에서 늘 허용하고, 한도(쿨다운) 대기는 `onLimit: "wait"`일 때만 허용한다. 넘거나 허용하지 않으면 마지막 한도 오류를 그대로 낸다.
   - `rate_limited`: 오류 문구의 `retry-after`(초 또는 ms)만큼, 없으면 60초 그 계정을 쉬게 한다 [결정: 오케스트레이터 기본값]. `onLimit`이 `fail`이면 바로 오류를 내고, 아니면 다음 계정으로 같은 요청을 다시 보낸다. `quota_exhausted`는 그 계정을 1시간 뺀다 [결정: 오케스트레이터 기본값, 창 종료 시각을 알 수 없다].
@@ -658,7 +658,7 @@ export function resolveRole(input: {
   - 호출자가 `apiKey`를 넘긴 호출과 hosted 검색 같은 내부 호출은 회전하지 않는다.
   - [미결] 상태 저장(`core_models_*` 테이블)은 아직 없다. 쉬는 시각과 마지막 요청 시각은 프로세스 메모리에만 있어 재시작하면 사라진다.
   - [미결] 창 사용률(`reservePct` 비교)을 채우는 출처가 없다. 풀의 `reportUtilization`만 있고 호출하는 곳이 없다.
-- client/accounts view-model(M3b B2-MDL): 모델 계정과 레이트 리밋 설정 화면의 순수 로직은 `packages/client/src/accounts/`(`@xeon/client/accounts`)에 둡니다. 화면 컴포넌트는 M4에서 씁니다.
+- client/accounts view-model(M3b B2-MDL): 모델 계정과 레이트 리밋 설정 화면의 순수 로직은 `packages/client/src/accounts/`(`@fresnel/client/accounts`)에 둡니다. 화면 컴포넌트는 M4에서 씁니다.
   - 읽기: `modelAccountsView({ accounts, rateLimit, acknowledged, pluginEnabled })`는 `providers`와 `rotation`을 돌려줍니다. `providers`는 계정이나 정책이 있는 provider를 id 순으로 담고, 계정은 우선순위 오름차순(같으면 설정 순서), 정책이 없으면 `policy: null`입니다. `rotation`은 `{ state, notice }`입니다. `state`는 `off`(플러그인 꺼짐, 꺼짐이 먼저 판정됩니다), `needsNotice`(켜졌지만 `ext.account-rotation.acknowledgeRisk`가 `true`가 아님), `on`입니다. 입력은 `unknown`으로 받고 모양이 맞지 않으면 빈 값으로 읽습니다(`accountsOf`, `rateLimitOf`).
   - 검사와 편집: `checkAccount`와 `checkRateLimit`은 `Result`를 돌려주고, 실패는 `{ kind: "invalid", field }`입니다. 범위는 `accountsSchema`·`rateLimitSchema`와 같습니다. client는 core-models를 import하지 않고 typebox로 같은 모양을 적습니다. `withAccount`, `withoutAccount`, `withRateLimit`, `withoutRateLimit`은 입력을 바꾸지 않고 새 값을 돌려줍니다.
   - 저장: `saveModelAccounts(connection, edits)`는 `settings.readFile`(범위 `user`)로 원문을 읽고, 편집한 키 세 개만 바꾼 원문을 같은 `baseSha256`으로 `settings.writeFile`에 보냅니다. 다른 키와 키 순서는 그대로 남습니다. 실패는 `not_object`(파일이 JSON 객체가 아님), `conflict`(`settings.fileConflict`, 읽은 뒤 파일이 바뀜), `host`(그 밖의 와이어 오류), `transport`(응답을 받지 못함)입니다 [결정: 오케스트레이터 기본값, `conflict`를 따로 뺌].
@@ -743,7 +743,7 @@ export function resolveRole(input: {
 
 | # | 검사 | 실패 조건 |
 |---|---|---|
-| 1 | 모든 `xeon/**/package.json`의 `dependencies`, `devDependencies`, `optionalDependencies`, `peerDependencies` | 플러그인 자신 밖에서 `@xeon/provider-anthropic-oauth`가 나온다 |
+| 1 | 모든 `xeon/**/package.json`의 `dependencies`, `devDependencies`, `optionalDependencies`, `peerDependencies` | 플러그인 자신 밖에서 `@fresnel/provider-anthropic-oauth`가 나온다 |
 | 2 | `bun build --compile` 진입점(`apps/cli`, `apps/host`)의 메타파일 입력 목록 | `plugins/provider-anthropic-oauth/` 경로가 있다 |
 | 3 | 배포 번들의 내장 플러그인 목록(`L4.host-service.spec` 조립 목록) | `provider-anthropic-oauth`가 있다 |
 | 4 | core-models 테스트를 플러그인 디렉터리를 지운 작업 트리에서 실행 | 하나라도 실패한다 |
@@ -869,13 +869,13 @@ export interface ThinkingLevelSelectPayload {
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `xeon.models`(`ModelService`), `ResolvedModel`, `ModelCallRequest`, `streamFn` | `L1.loop.spec`, `L1.agents.spec`, `L1.context.spec`, `L2.web.spec` |
+| `fresnel.models`(`ModelService`), `ResolvedModel`, `ModelCallRequest`, `streamFn` | `L1.loop.spec`, `L1.agents.spec`, `L1.context.spec`, `L2.web.spec` |
 | `ModelRole`, `MODEL_ROLES`, `ROLE_FALLBACK`, `ModelBinding`, `ModelRefString`, `parseModelRef` | `L1.loop.spec`, `L1.agents.spec`, `L4.settings-ui.spec`, `eng.testing.guide`(테이프 `role`) |
 | `CachePolicy`, `CacheMarks`, `CacheSite` | `L1.context.spec` |
 | `TokenEstimator`, `classify`, `ModelErrorKind` | `L1.context.spec`(임계, 오버플로우), `L1.loop.spec` |
 | `UsageMeter`, `UsageRecord`, `UsageTotals` | `L1.loop.spec`(턴 사용량), `X.primitives.spec`(drive 상한), `L4.host-service.spec`(게이지, 2차) |
 | `ProviderDef` | `X.primitives.spec` §3.9 `ProviderResourceDef` |
-| 테이프 가짜 `@xeon/core-models/testing` | 모든 L1·L2 테스트(`eng.testing.guide` TS-04) |
+| 테이프 가짜 `@fresnel/core-models/testing` | 모든 L1·L2 테스트(`eng.testing.guide` TS-04) |
 
 ### 8.2 요구
 
@@ -885,17 +885,17 @@ export interface ThinkingLevelSelectPayload {
 | `StepCheckpoint.model` | `F.records.spec` §3.6 |
 | 지점 선언(`HOOKS`), 페이로드 타입, `ScopeId` | `F.extensions.spec` |
 | `SettingDef`, `defineSettings`, `SecretRef`, `resolveSetting` | `F.wire-settings.spec` §3.8~§3.9 |
-| `xeon.secrets`(`SecretService`): 참조 해석, 마스킹 | `L0.secrets.spec` [가정: 메서드 이름] |
-| `xeon.ext`: 지점 디스패치 | `X.primitives.spec` |
-| `xeon.store.scoped("core_models_")`(2차) | `L0.store.spec` |
+| `fresnel.secrets`(`SecretService`): 참조 해석, 마스킹 | `L0.secrets.spec` [가정: 메서드 이름] |
+| `fresnel.ext`: 지점 디스패치 | `X.primitives.spec` |
+| `fresnel.store.scoped("core_models_")`(2차) | `L0.store.spec` |
 | 유효 설정 읽기 경로 | [가정] X 또는 `L1.persistence.spec`의 `SettingsStorePort`. 서비스 이름 미정 |
 
 ### 8.3 F·X·엔지니어링 요청 사항
 
-1. (반영됨) `F.capabilities.spec`: §3.2의 값 타입(역할, 참조, 바인딩, `resolveRole`, `CachePolicy`)과 §3.3 `ModelService`, 서비스 이름 상수를 `@xeon/contracts/services`의 `services/models.ts`에 둔다(review.decisions-2 D-04, F.capabilities §3.12 규칙 3). pi-ai `Model`, `Api`, `Context`, `Provider`, `CacheRetention`, `ThinkingBudgets`, `AssistantMessageEventStream`, `SimpleStreamOptions`를 타입 전용으로 재노출한다. `StreamFn`은 F가 소비 계약으로 정의한다(adr.0009 §3.2). `F.conversation.spec` §3.1은 `Context`를 "L1-c 몫"으로 남겼으나, 서비스 인터페이스가 F에 있으므로 타입 재노출은 F에 있어야 한다.
+1. (반영됨) `F.capabilities.spec`: §3.2의 값 타입(역할, 참조, 바인딩, `resolveRole`, `CachePolicy`)과 §3.3 `ModelService`, 서비스 이름 상수를 `@fresnel/contracts/services`의 `services/models.ts`에 둔다(review.decisions-2 D-04, F.capabilities §3.12 규칙 3). pi-ai `Model`, `Api`, `Context`, `Provider`, `CacheRetention`, `ThinkingBudgets`, `AssistantMessageEventStream`, `SimpleStreamOptions`를 타입 전용으로 재노출한다. `StreamFn`은 F가 소비 계약으로 정의한다(adr.0009 §3.2). `F.conversation.spec` §3.1은 `Context`를 "L1-c 몫"으로 남겼으나, 서비스 인터페이스가 F에 있으므로 타입 재노출은 F에 있어야 한다.
 2. `F.extensions.spec`: §7.2 페이로드 필드. `BeforeProviderRequestPayload`에 `provider`, `modelId`, `role` 추가.
 3. (철회) `X.primitives.spec` `ProviderResourceDef`를 `ProviderDef`로 바꾸는 요청은 거둔다. 포트 경로는 JSON `kind: "config"`만 받고, `kind: "runtime"`은 `addProvider`로 받는다(§3.7).
-4. `eng.context-map.design` §4.1: `model-gateway`의 (d) 쓰는 서비스에 `xeon.ext`(지점 디스패치)를 더한다.
+4. `eng.context-map.design` §4.1: `model-gateway`의 (d) 쓰는 서비스에 `fresnel.ext`(지점 디스패치)를 더한다.
 5. `eng.dependency-rules.guide`: DR-07, DR-09 수정(§3.11, review.decisions-2 U-16).
 
 ## 9. 수용 기준
@@ -909,7 +909,7 @@ export interface ThinkingLevelSelectPayload {
 7. 단계 시작 바인딩의 `{ provider, modelId, thinkingLevel }`이 같은 단계 `checkpoint.step`의 `model`과 같다. 재개 뒤 첫 요청은 그 사이 `l1.models.default`를 바꿔도 체크포인트 값을 쓴다.
 8. 기본 `anthropic` provider에 `sk-ant-oat`로 시작하는 가짜 키를 주면 요청이 나가지 않고 `oauth_token_on_default_provider`가 된다.
 9. `plugins/provider-anthropic-oauth` 디렉터리를 지운 작업 트리에서 core-models 테스트가 모두 통과한다.
-10. 배포 제외 검사(§4.11.4 1~3)에서 `@xeon/provider-anthropic-oauth`와 그 경로가 나오지 않는다.
+10. 배포 제외 검사(§4.11.4 1~3)에서 `@fresnel/provider-anthropic-oauth`와 그 경로가 나오지 않는다.
 11. 같은 이름으로 `addProvider`를 두 번 부르면 두 번째가 `provider_conflict`다. 반환된 `Unsubscribe`를 부르면 그 provider의 모델이 `list()`에서 빠진다.
 12. 위장 플러그인을 `defaultEnabled: false` 그대로 두면 provider 목록에 `anthropic-oauth`가 없다.
 13. `ModelService`는 `ModelsPort`에 대입 가능하다(타입 테스트). `registerProvider(owner, name, { kind: "config", baseUrl })`는 `addProvider`와 같은 등록부에 들어가고, 스키마를 통과하지 않는 `config`는 `invalid_provider` `ModelError`를 던진다.
@@ -919,7 +919,7 @@ export interface ThinkingLevelSelectPayload {
 1. (닫음) 기본 `anthropic-messages` 경로의 `sk-ant-oat` 자동 분기는 core-models 가드(§3.9)로 막는다(m2/l1c). pi-ai 포크는 하지 않는다.
 2. [미결 M-2] 방안 A의 갈래: A1(새 Api id)과 A2(Api id 유지, provider id 분리). 제안은 A2.
 3. [미결] 위장 플러그인의 별도 배포 여부(`product.scope.spec` N6)와 서버 수용·이용 조건 확인 시점.
-4. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `xeon.models`에 등록한다(§3.11). DR-07·DR-09를 고친다.
+4. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `fresnel.models`에 등록한다(§3.11). DR-07·DR-09를 고친다.
 5. [미결] 그룹 정의 역할(6종 밖)을 허용할지(§3.4).
 6. [미결] `StepCheckpoint.model`에 `role`을 넣을지(§3.2).
 7. [미결] `l1.models.thinkingLevel` 기본값과 `cacheRetention` 기본값(§4.6).

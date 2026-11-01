@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type {
   CreateAgentEventMapper,
   ItemId,
   ThreadId,
   TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import { createAgentEventMapper } from "../src/index.ts";
 import { assistant, toolResult, toolCall, twoToolCallTurn } from "./support/builders.ts";
 

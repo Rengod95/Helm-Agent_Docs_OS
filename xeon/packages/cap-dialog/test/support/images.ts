@@ -1,6 +1,6 @@
-import { err, ok } from "@xeon/contracts";
-import { CapabilityError, type WorkspaceImage } from "@xeon/contracts/capabilities";
-import type { BlobError, BlobRef } from "@xeon/contracts/records";
+import { err, ok } from "@fresnel/contracts";
+import { CapabilityError, type WorkspaceImage } from "@fresnel/contracts/capabilities";
+import type { BlobError, BlobRef } from "@fresnel/contracts/records";
 import type { BlobSink } from "../../src/ports/blobs.ts";
 import type { ImagesPort } from "../../src/ports/images.ts";
 

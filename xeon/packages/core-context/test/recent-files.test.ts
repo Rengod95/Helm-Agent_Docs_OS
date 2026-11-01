@@ -6,7 +6,7 @@ import type {
   ToolResultMessage,
   TurnId,
   Usage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   assembleOptions,
   assistantItem,

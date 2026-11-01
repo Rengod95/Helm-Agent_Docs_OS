@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { failure, type KnowledgeFailure } from "../errors.ts";
 import { parseFrontmatter } from "../upstream/skills.ts";
 

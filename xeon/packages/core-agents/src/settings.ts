@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
+import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 
 // L1.agents.spec §6. 모두 layer L1, since 0.1.0이다. F 12탭에 agents 탭이 없어 ui.tab은 models다
 // (review.decisions-2 S-14). 정의 파일은 파일로만 편집하므로 정의 목록 키는 두지 않는다.

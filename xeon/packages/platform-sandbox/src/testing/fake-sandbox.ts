@@ -1,4 +1,4 @@
-import { assertNever, err, ok } from "@xeon/contracts";
+import { assertNever, err, ok } from "@fresnel/contracts";
 import type {
   AutoAllowDecision,
   ProtectedPathEntry,
@@ -8,7 +8,7 @@ import type {
   SandboxStatus,
   SelfTestReport,
   Shell,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { decideAutoAllow } from "../auto-allow.ts";
 import { SELF_TEST_ITEM_IDS } from "../self-test.ts";
 import { decideExecution, rejectionError, unsandboxedReport, withReport } from "../wrap-shell.ts";

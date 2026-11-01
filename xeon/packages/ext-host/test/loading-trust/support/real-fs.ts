@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { LoaderFs } from "@xeon/contracts/extensions";
+import type { LoaderFs } from "@fresnel/contracts/extensions";
 import type { PluginInstallFs } from "../../../src/loading-trust/index.ts";
 
 function isMissing(error: unknown): boolean {

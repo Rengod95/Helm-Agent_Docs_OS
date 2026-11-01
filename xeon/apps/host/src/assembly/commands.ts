@@ -1,10 +1,10 @@
-import { attemptAsync, err, ok } from "@xeon/contracts";
+import { attemptAsync, err, ok } from "@fresnel/contracts";
 import {
   isCapabilityError,
   type CallContext,
   type CallOptions,
-} from "@xeon/contracts/capabilities";
-import type { IdFactory } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { IdFactory } from "@fresnel/contracts/conversation";
 import type { CommandFailure, CommandPort } from "../types.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
 

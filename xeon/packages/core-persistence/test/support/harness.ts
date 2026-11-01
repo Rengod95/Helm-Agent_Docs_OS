@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Bug, err, ok, type Logger, type Result } from "@xeon/contracts";
+import { Bug, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type {
   EffectId,
   EventId,
@@ -13,7 +13,7 @@ import type {
   StepId,
   ThreadId,
   TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
   type CommitPlan,
@@ -29,7 +29,7 @@ import {
   type StoreError,
   type StampedDraft,
   type TxView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   createSessionService,
   type PersistenceSettings,

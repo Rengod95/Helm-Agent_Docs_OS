@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { createKeyedMutex } from "../../src/fs/mutex.ts";
 import type { FsEntry, FsError, FsErrorKind, FsStat, KnowledgeFs } from "../../src/fs/port.ts";
 import { compareBytes } from "../../src/hash.ts";

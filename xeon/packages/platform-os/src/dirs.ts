@@ -1,8 +1,8 @@
 import { mkdir, stat } from "node:fs/promises";
 import { posix, win32 } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { PRODUCT, productUidDirName } from "./product.ts";
-import type { DirsError, OsDirs, OsInfo } from "@xeon/contracts/services";
+import type { DirsError, OsDirs, OsInfo } from "@fresnel/contracts/services";
 
 export interface EnvReader {
   get(name: string): string | undefined;

@@ -124,7 +124,7 @@ binds: []
 | M3-REQ-40 | X | `X.operations.spec` | 기본 예산 값(30·10·5·1·2초)과 자동 끄기 기준을 실측으로 조정한다 | A-36, M3-29 | 4 | M4:T-PERF |
 | M3-REQ-41 | X | `X.primitives.spec` §4.4.1 | 탐구가 없는 turn마다 임대 부여·`idle` 반납이 생기는 비용이 측정으로 문제가 되면 후보 제외 조건을 둔다. 문제가 없으면 행을 닫는다 | H-IN-15, U-25. Helm §10 13 | 4 | M3b |
 | M3-REQ-108 | X | `X.primitives.spec` 디스패치 절 | `collect` fold 합성, 지점 선언의 실패 정책 적용(선언값 우선, 없으면 fold별 기본), 가드레일 지점의 fail-closed 디스패치, 수명주기 지점 디스패치(디스패치 키는 이벤트 id)를 구현 규칙으로 적는다 | adr.0017, D-M3-10, D-M3-30 행 1 | 1 ← M3-REQ-12, 101, 105, 107 | M3a |
-| M3-REQ-110 | X | `X.loading-trust.spec` §4.2, §4.4 | 자체 확장 SDK 모듈(`@xeon/contracts`, `@xeon/group-sdk`, `typebox`)을 X 로더가 가상 모듈로 등록해 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 한다 [제안]. 릴리즈에 든 기본 플러그인(Helm)을 첫 실행 때 사용자 확장 위치(`<userDir>/extensions/helm/`)에 설치하는 경로와 앱 갱신 때 교체 규칙을 적는다 [제안]. 설치 위치가 `user`라 신뢰 상한은 `user`이고 안전 모드에서 실리지 않는다 | D-M3-01 c, D-M3-11 c, D-M3-07 a | 2 ← M3-REQ-34 | M3a |
+| M3-REQ-110 | X | `X.loading-trust.spec` §4.2, §4.4 | 자체 확장 SDK 모듈(`@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`)을 X 로더가 가상 모듈로 등록해 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 한다 [제안]. 릴리즈에 든 기본 플러그인(Helm)을 첫 실행 때 사용자 확장 위치(`<userDir>/extensions/helm/`)에 설치하는 경로와 앱 갱신 때 교체 규칙을 적는다 [제안]. 설치 위치가 `user`라 신뢰 상한은 `user`이고 안전 모드에서 실리지 않는다 | D-M3-01 c, D-M3-11 c, D-M3-07 a | 2 ← M3-REQ-34 | M3a |
 
 ### 3.3 L0 (플랫폼)
 
@@ -220,7 +220,7 @@ binds: []
 
 | ID | 층 | 소유 문서 | 바꿀 내용 | 이유(원천) | 순서 | 상태 |
 |---|---|---|---|---|---|---|
-| M3-REQ-111 | 공통 | `architecture.layers.spec` §3.2·§4.1·§4.2, `eng.dependency-rules.guide` 4절, `xeon/scripts/check-layers.ts`, `xeon/scripts/dependency-allowlist.json` | 새 패키지 `xeon/packages/client`(`@xeon/client`, 층 L4, F만 import)를 층 표와 검사에 넣는다. 같은 층 예외 `DR-10/cli-client`, `DR-10/desktop-client`를 허용 목록에 더한다. 연결 코드(`createHostConnection`), 설정 view-model, CLI·데스크톱 공유 로직, i18n 카탈로그를 이 패키지로 옮긴다. F는 순수 계약으로 둔다 [결정: adr.0020] | D-M3-26, U-41, U-56 | 0 | M3a |
+| M3-REQ-111 | 공통 | `architecture.layers.spec` §3.2·§4.1·§4.2, `eng.dependency-rules.guide` 4절, `xeon/scripts/check-layers.ts`, `xeon/scripts/dependency-allowlist.json` | 새 패키지 `xeon/packages/client`(`@fresnel/client`, 층 L4, F만 import)를 층 표와 검사에 넣는다. 같은 층 예외 `DR-10/cli-client`, `DR-10/desktop-client`를 허용 목록에 더한다. 연결 코드(`createHostConnection`), 설정 view-model, CLI·데스크톱 공유 로직, i18n 카탈로그를 이 패키지로 옮긴다. F는 순수 계약으로 둔다 [결정: adr.0020] | D-M3-26, U-41, U-56 | 0 | M3a |
 | M3-REQ-112 | 공통 | `F.wire-settings.spec` 오류 형식, `L0.os.spec`·`L0.secrets.spec`의 안내 문구, `L1.tools.spec`, L2 각 spec의 사용자 표시 문자열 | 하위 층은 사용자에게 보일 문장을 만들지 않고 오류·안내를 `kind`와 인자로 넘긴다. 시각은 UTC로 저장하고 날짜·숫자 표시는 클라이언트의 `Intl`이 한다 [결정: adr.0016]. 호스트·CLI의 하드코딩 한국어 문자열 이전은 M3의 L4 작업이다 | D-M3-27, M3-39, U-87 | 1 ← M3-REQ-21 | M4:T-I18N |
 
 ## 4. 트랙별 색인
@@ -353,7 +353,7 @@ binds: []
 - 닫음: 외부 훅은 M3 밖이고 M4로 옮겼다(M3-REQ-34) [결정: 2026-10-28 사용자].
 - [미결] 지점 이름 규칙과 새 이름표(M3-REQ-106). 가드레일 지점·수명주기 지점의 이름도 이 표에서 정한다. 정하기 전에는 다른 행이 옛 pi 이름을 쓴다.
 - [미결] 가드레일 지점의 정확한 발화 위치(M3-REQ-109의 [제안] 세 곳). 특히 "출력 표시·실행 직전"이 스트리밍 중 부분 출력에도 걸리는지 `L1.loop.spec` 작업에서 정한다.
-- [가정] 플러그인 번들이 가상 모듈로 받은 `@xeon/group-sdk`이 호스트 쪽 인스턴스와 같다(M3-REQ-110). `Bun.plugin` 모듈 등록의 프로세스 전역 동작에 기댄다. 스파이크로 확인한다.
+- [가정] 플러그인 번들이 가상 모듈로 받은 `@fresnel/group-sdk`이 호스트 쪽 인스턴스와 같다(M3-REQ-110). `Bun.plugin` 모듈 등록의 프로세스 전역 동작에 기댄다. 스파이크로 확인한다.
 - [가정] D-M3-11 행 5, D-M3-19 행 2·3은 명시 답이 없어 권고를 적용했다(M3-REQ-34, 58, 97).
 - [가정] 절 번호는 2026-10-26 작업 트리 기준이다. L3 세 문서는 절 번호와 항목 이름으로 인용한다. 본문이 바뀌면 §5 "L3 근거" 칸을 다시 대조한다.
 
@@ -502,7 +502,7 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | GC는 서비스 모드에서만(HS-40) | 데이터 | M5: 블롭 GC 켜기 결정과 함께(m3-plan §9.4 14번) |
 | 자동 제목 출처 메모리 전용 | 데이터 | T-RT2 |
 | `L0.store` S-13·S-14와 export ENOENT 경합 | 데이터 | T-RT2 |
-| `apps/cli`가 `@xeon/platform-store`를 import(spec은 host만) | 데이터 | M5: 층 규칙 결정 대기(m3-plan §9.4 15번) |
+| `apps/cli`가 `@fresnel/platform-store`를 import(spec은 host만) | 데이터 | M5: 층 규칙 결정 대기(m3-plan §9.4 15번) |
 | `cap.*` 투영기 격리(L1 §10-19) | 데이터 | T-RT2 |
 | 진단 배열의 wire 소비자 없음 | 데이터 | T-WA |
 | "1 blobs" 문구 | 데이터 | T-I18N |
@@ -545,8 +545,8 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | `release-sign.sh` 키체인 목록 복원 안 함 | 성능·릴리즈 | M5: 서명 비밀 등록과 함께(m3-plan §9.4 3번) |
 | macOS 릴리즈 경로 미실행 | 성능·릴리즈 | M5: macOS 릴리즈 경로 실기(사용자 묶음, m4-plan §4 7번) |
 | `L0.os` §3.6·§10-3 번들 정책 문구 | 성능·릴리즈 | T-CLN |
-| host-service의 `xeon.domain` 거부(DR-03, L4 규칙 결정) | 정리·문서 | M5: 층 규칙 결정 대기(m3-plan §9.4 15번) |
-| cli가 `@xeon/group-sdk`을 시험에만 씀(devDependencies로) | 정리·문서 | T-CLN |
+| host-service의 `fresnel.domain` 거부(DR-03, L4 규칙 결정) | 정리·문서 | M5: 층 규칙 결정 대기(m3-plan §9.4 15번) |
+| cli가 `@fresnel/group-sdk`을 시험에만 씀(devDependencies로) | 정리·문서 | T-CLN |
 | E-01·02·04·05, N-07(`requestKeyFor` 48 대 `requestCommitKey` 64), V-05 잔여 | 정리·문서 | T-CLN |
 | `F/README:207`의 `check-points-doc.ts` 없음 | 정리·문서 | T-CLN |
 | m3-design-inputs G-IN-13·H-IN-17 상태 칸 | 정리·문서 | T-CLN |

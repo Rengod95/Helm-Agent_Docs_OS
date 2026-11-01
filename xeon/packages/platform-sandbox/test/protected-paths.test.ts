@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { matchProtectedPath, type ProtectedPathEntry } from "@xeon/contracts/services";
+import { matchProtectedPath, type ProtectedPathEntry } from "@fresnel/contracts/services";
 import {
   buildProtectedPaths,
   dropProtectedWriteRoots,

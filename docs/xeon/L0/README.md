@@ -15,7 +15,7 @@ binds: [xeon/packages/platform-*/**]
 L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터페이스 뒤에 두고, OS·환경마다 구현만 바꾸는 층이다. 소비자 코드(X, L1~L4)에는 OS 분기를 두지 않는다 [결정: `_research/decisions-log.md` 2026-10-19 설계 규칙, `_research/layer-plan-v2.json` L0 intro "L0는 OS와 실행 환경 차이를 공통 인터페이스 뒤에 둡니다"].
 
 - 범위: 셸·파일 연산의 실행 위치(exec), OS 샌드박스(sandbox), 비밀 해석(secrets), 엔진 프로세스와 전송·자식 수명(process), 단일 SQLite DB와 잠금·블롭(store), 경로·시각·바이너리·알림·감시·텔레메트리(os). 하위 층 6개(`_research/layer-plan-v2.json` L0-a~L0-f)가 패키지 6개에 1:1로 대응한다.
-- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4다(`_research/foundation-plan.md` §3). L0 패키지는 F(`@xeon/contracts`)와 X(`@xeon/ext-host`의 등록 API `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext`)만 import한다. `@xeon/ext-host` import는 서비스 등록·주입 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17]. L0 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02). 같은 층 협력은 F에 둔 서비스 인터페이스와 Cordis 서비스 주입으로만 한다.
+- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4다(`_research/foundation-plan.md` §3). L0 패키지는 F(`@fresnel/contracts`)와 X(`@fresnel/ext-host`의 등록 API `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext`)만 import한다. `@fresnel/ext-host` import는 서비스 등록·주입 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17]. L0 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02). 같은 층 협력은 F에 둔 서비스 인터페이스와 Cordis 서비스 주입으로만 한다.
 - L0는 확장 지점을 구독하지 않는다 [제안: `architecture.layers.spec` 4.2절 "L0는 `on`을 쓰지 않는다"]. X에서 쓰는 것은 `PlatformModule.setup`, `PlatformContext.providePort`·`port`, `onDispose`(잠금 해제, 감시 종료, 스팬 내보내기 마무리)뿐이다(`X.primitives.spec` §3.2).
 - 예상 가능한 실패는 F `Result`와 `kind` 판별 오류 유니온으로 돌려준다. `throw`는 `Bug`에 한정한다(`eng.typescript.guide` TY-11, TY-12).
 
@@ -25,16 +25,16 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 
 | 계획 v2 id | 도메인 | 패키지 | 서비스 이름(F 인터페이스) | 한 줄 요약 | 범위 | 문서 |
 |---|---|---|---|---|---|---|
-| L0-a | exec | `platform-exec` | `xeon.exec`(`ExecService`, `ExecutionEnv` 확장) | pi durable `/env` 포크. 파일·셸 연산의 실행 위치(로컬, Docker 어댑터)를 추상화한다 | M0. Docker 어댑터는 M2 이후, 작업 트리 격리는 2차, SSH 원격 워크스페이스는 보류 | [spec](exec/spec.md), [plan](exec/plan.md) |
-| L0-b | sandbox | `platform-sandbox` | `xeon.sandbox`(`SandboxService`) | `@anthropic-ai/sandbox-runtime`(srt)로 셸 명령을 Seatbelt·bubblewrap 안에서 실행한다 | M1(OS 샌드박스, 보호 경로). 네트워크 정책·권한 프로필은 2차 | [spec](sandbox/spec.md), [plan](sandbox/plan.md) |
-| L0-c | secrets | `platform-secrets` | `xeon.secrets`(`SecretService`) | SOPS + age. 에이전트는 `secret://<name>` 참조만 다루고 값은 실행 직전 부모 프로세스에서 풀린다 | M1(SOPS 참조 1종, lease, 에이전트 env 모드 M1(bash, 실행마다 승인)과 사용 모드 M3, 마스킹 계층 2·4·5). 관리 서비스 `xeon.secretAdmin`, 값 열람 CLI, M4는 M2. sentinel은 후속 | [spec](secrets/spec.md), [plan](secrets/plan.md) |
-| L0-d | process | `platform-process` | `xeon.process`(`ProcessService`) | 엔진 전송, 자식 엔진 수명 임대, 백그라운드 프로세스 레지스트리, 공유 서비스 모드 | M1(in-process, 백그라운드 레지스트리). stdio 전송·자식 수명 임대는 M2, 공유 서비스 모드는 제품 1차 범위이고 구현은 M2 이후. 원격 사용(서비스 소켓을 SSH 터널·사설망으로 연결)은 M3. OS 서비스 등록과 내장 TLS 원격 전송은 2차 | [spec](process/spec.md), [plan](process/plan.md) |
-| L0-e | store | `platform-store` | `xeon.store`(`StoreService`) | `bun:sqlite` 단일 DB(WAL, 단계 경계 FULL), 세션 소유 잠금, 블롭 저장소 | M0(세션 잠금 포함). 블롭은 M1 | [spec](store/spec.md), [plan](store/plan.md) |
-| L0-f | os | `platform-os` | `xeon.os`(`OsService`) | 플랫폼 정보, 디렉터리, 시각·타이머·난수, 로거, 외부 바이너리, 알림·파일 감시·텔레메트리 | M0(경로·시각·ID 발급기 등 기반). 바이너리 해석은 1차(M1). 알림 전달 수단은 1차(M3). 감시·텔레메트리는 2차(M2 이후) | [spec](os/spec.md), [plan](os/plan.md) |
+| L0-a | exec | `platform-exec` | `fresnel.exec`(`ExecService`, `ExecutionEnv` 확장) | pi durable `/env` 포크. 파일·셸 연산의 실행 위치(로컬, Docker 어댑터)를 추상화한다 | M0. Docker 어댑터는 M2 이후, 작업 트리 격리는 2차, SSH 원격 워크스페이스는 보류 | [spec](exec/spec.md), [plan](exec/plan.md) |
+| L0-b | sandbox | `platform-sandbox` | `fresnel.sandbox`(`SandboxService`) | `@anthropic-ai/sandbox-runtime`(srt)로 셸 명령을 Seatbelt·bubblewrap 안에서 실행한다 | M1(OS 샌드박스, 보호 경로). 네트워크 정책·권한 프로필은 2차 | [spec](sandbox/spec.md), [plan](sandbox/plan.md) |
+| L0-c | secrets | `platform-secrets` | `fresnel.secrets`(`SecretService`) | SOPS + age. 에이전트는 `secret://<name>` 참조만 다루고 값은 실행 직전 부모 프로세스에서 풀린다 | M1(SOPS 참조 1종, lease, 에이전트 env 모드 M1(bash, 실행마다 승인)과 사용 모드 M3, 마스킹 계층 2·4·5). 관리 서비스 `fresnel.secretAdmin`, 값 열람 CLI, M4는 M2. sentinel은 후속 | [spec](secrets/spec.md), [plan](secrets/plan.md) |
+| L0-d | process | `platform-process` | `fresnel.process`(`ProcessService`) | 엔진 전송, 자식 엔진 수명 임대, 백그라운드 프로세스 레지스트리, 공유 서비스 모드 | M1(in-process, 백그라운드 레지스트리). stdio 전송·자식 수명 임대는 M2, 공유 서비스 모드는 제품 1차 범위이고 구현은 M2 이후. 원격 사용(서비스 소켓을 SSH 터널·사설망으로 연결)은 M3. OS 서비스 등록과 내장 TLS 원격 전송은 2차 | [spec](process/spec.md), [plan](process/plan.md) |
+| L0-e | store | `platform-store` | `fresnel.store`(`StoreService`) | `bun:sqlite` 단일 DB(WAL, 단계 경계 FULL), 세션 소유 잠금, 블롭 저장소 | M0(세션 잠금 포함). 블롭은 M1 | [spec](store/spec.md), [plan](store/plan.md) |
+| L0-f | os | `platform-os` | `fresnel.os`(`OsService`) | 플랫폼 정보, 디렉터리, 시각·타이머·난수, 로거, 외부 바이너리, 알림·파일 감시·텔레메트리 | M0(경로·시각·ID 발급기 등 기반). 바이너리 해석은 1차(M1). 알림 전달 수단은 1차(M3). 감시·텔레메트리는 2차(M2 이후) | [spec](os/spec.md), [plan](os/plan.md) |
 
 - 서비스 이름과 인터페이스 이름은 `eng.context-map.design` §5.3과 `F.capabilities.spec` §3.12 표가 정본이다. exec의 F 인터페이스는 `ExecService`(`ExecutionEnv` 확장, `withCwd`·`startBackground` 추가)이고, process의 `ProcessService`는 X 포트 `ProcessPort`를 확장한다(`F.extensions.spec` §3.2.1) [결정: review.decisions-2 D-04].
-- 위 표 밖에 L0가 등록하는 서비스가 하나 더 있다. `platform-secrets`의 관리 서비스 `xeon.secretAdmin`(`SecretAdminService`, `L0.secrets.spec` §3.8)이다 [결정: review.decisions-2 D-04]. 에이전트와 확장에 주지 않고 L4 진입점에만 넘기려고 `xeon.secrets`와 나눴다. `xeon.<도메인>` 이름 규칙(4절)의 예외이고, `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표에 행이 있다(9절 10). 패키지 6개 중 exec, sandbox, process는 컨텍스트 `platform-execution` 하나에 속하고, 나머지는 각자 한 컨텍스트다(`eng.context-map.design` §4.1, §4.5).
-- 위 서비스 인터페이스와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스(`src/services/`)에 둔다 [결정: review.decisions-2 D-04, `F.readme` §3, `F.capabilities.spec` §3.12]. 파일은 `services/exec.ts`(`ExecService`), `services/sandbox.ts`·`services/sandbox-report.ts`(`SandboxService`, `SandboxRunReport`), `services/process.ts`(`ProcessService`), `services/os.ts`(`OsService`), `services/secrets.ts`(`SecretService`), `services/secret-admin.ts`(`SecretAdminService`)다. `StoreService`는 `F.records.spec` §3.9에 있다. 비밀 참조 형식과 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`, `RedactionHit` 등)은 F `capabilities/secrets.ts`가 정본이다(`F.capabilities.spec` §3.10, U-08). 이름과 파일은 F 표에 있고, 필드는 각 도메인 spec 3절의 초안 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9). 옮기기 전까지는 그 초안이 기준이다.
+- 위 표 밖에 L0가 등록하는 서비스가 하나 더 있다. `platform-secrets`의 관리 서비스 `fresnel.secretAdmin`(`SecretAdminService`, `L0.secrets.spec` §3.8)이다 [결정: review.decisions-2 D-04]. 에이전트와 확장에 주지 않고 L4 진입점에만 넘기려고 `fresnel.secrets`와 나눴다. `fresnel.<도메인>` 이름 규칙(4절)의 예외이고, `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표에 행이 있다(9절 10). 패키지 6개 중 exec, sandbox, process는 컨텍스트 `platform-execution` 하나에 속하고, 나머지는 각자 한 컨텍스트다(`eng.context-map.design` §4.1, §4.5).
+- 위 서비스 인터페이스와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스(`src/services/`)에 둔다 [결정: review.decisions-2 D-04, `F.readme` §3, `F.capabilities.spec` §3.12]. 파일은 `services/exec.ts`(`ExecService`), `services/sandbox.ts`·`services/sandbox-report.ts`(`SandboxService`, `SandboxRunReport`), `services/process.ts`(`ProcessService`), `services/os.ts`(`OsService`), `services/secrets.ts`(`SecretService`), `services/secret-admin.ts`(`SecretAdminService`)다. `StoreService`는 `F.records.spec` §3.9에 있다. 비밀 참조 형식과 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`, `RedactionHit` 등)은 F `capabilities/secrets.ts`가 정본이다(`F.capabilities.spec` §3.10, U-08). 이름과 파일은 F 표에 있고, 필드는 각 도메인 spec 3절의 초안 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9). 옮기기 전까지는 그 초안이 기준이다.
 
 ### 2.1 OS 지원 매트릭스
 
@@ -53,10 +53,10 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 
 | 도메인 | M0 | M1 | M2 이후(제품 1차 범위) | 2차·후속·보류 |
 |---|---|---|---|---|
-| exec | 포크 5파일·적합성(Linux), CancelScope·Result·오류 클래스 정리, 플랫폼 provider(darwin·linux), 포크 기록 | env 허용 목록 빌더, `xeon.exec` 서비스 등록, sandbox 데코레이터 접점 시험, `fakeExec`·`memoryFs`, macOS 적합성, 비밀 주입 지점 `secretEnv`(U-19) | 백그라운드 실행 `startBackground`, Docker 어댑터, Windows provider 보강 | 작업 트리 격리(2차), SSH 원격 워크스페이스(보류) |
+| exec | 포크 5파일·적합성(Linux), CancelScope·Result·오류 클래스 정리, 플랫폼 provider(darwin·linux), 포크 기록 | env 허용 목록 빌더, `fresnel.exec` 서비스 등록, sandbox 데코레이터 접점 시험, `fakeExec`·`memoryFs`, macOS 적합성, 비밀 주입 지점 `secretEnv`(U-19) | 백그라운드 실행 `startBackground`, Docker 어댑터, Windows provider 보강 | 작업 트리 격리(2차), SSH 원격 워크스페이스(보류) |
 | sandbox | SB-01 스파이크만(M0 끝) | srt 래핑, 상태 탐지, 보호 경로, 자동 허용 판정, 자가 시험, `onUnavailable`, 위반 기록, `fakeSandbox` | — | 네트워크 정책(2차, M2 이후), 권한 프로필·오프라인 검증(2차), Windows 재평가, 프록시 훅(후속, sentinel 모드) |
-| secrets | 코드 없음(F 타입 선행) | SOPS 제공자(목록·lease), 메타 읽기, lease, 에이전트 env 모드 `withEnv`(사용 모드 M1), 사용 모드 M3(`withHttp`), `Redactor` 규칙 1~3, 마스킹 계층 2·4·5, sops 호출 env 필터, 감사 훅, 키 획득(Linux·파일 폴백), `diagnose`, `protectedPaths`, `memorySecrets` | 관리 서비스 `xeon.secretAdmin`(값 열람 `reveal` 포함, CLI M2·데스크톱 화면 M3), 사용 모드 M4, 마스킹 5계층 전체, 키체인 3 OS 실기, 감사 파일 | sentinel 모드(후속), 1Password·Bitwarden·키체인 값 제공자 플러그인 |
-| process | — | in-process 전송, 백그라운드 레지스트리, 종료 협조 골격, `xeon.process` 등록 | stdio 전송과 적합성 스위트, 자식 엔진 수명 임대, 잠금 실패 정책, 복구 표식 제시, `ProcessPort.run`(외부 훅)(M2). 공유 서비스 모드(M2 이후). 원격 사용(SSH 터널·사설망, M3) | OS 서비스 등록, 내장 TLS 원격 전송, Windows 전송 대안, `ProcessPort.spawn`(격리 확장 자식)(2차) |
+| secrets | 코드 없음(F 타입 선행) | SOPS 제공자(목록·lease), 메타 읽기, lease, 에이전트 env 모드 `withEnv`(사용 모드 M1), 사용 모드 M3(`withHttp`), `Redactor` 규칙 1~3, 마스킹 계층 2·4·5, sops 호출 env 필터, 감사 훅, 키 획득(Linux·파일 폴백), `diagnose`, `protectedPaths`, `memorySecrets` | 관리 서비스 `fresnel.secretAdmin`(값 열람 `reveal` 포함, CLI M2·데스크톱 화면 M3), 사용 모드 M4, 마스킹 5계층 전체, 키체인 3 OS 실기, 감사 파일 | sentinel 모드(후속), 1Password·Bitwarden·키체인 값 제공자 플러그인 |
+| process | — | in-process 전송, 백그라운드 레지스트리, 종료 협조 골격, `fresnel.process` 등록 | stdio 전송과 적합성 스위트, 자식 엔진 수명 임대, 잠금 실패 정책, 복구 표식 제시, `ProcessPort.run`(외부 훅)(M2). 공유 서비스 모드(M2 이후). 원격 사용(SSH 터널·사설망, M3) | OS 서비스 등록, 내장 TLS 원격 전송, Windows 전송 대안, `ProcessPort.spawn`(격리 확장 자식)(2차) |
 | store | 연결·PRAGMA, FTS5 프로브, 트랜잭션, 접두사 검사, sys v1·v2, 마이그레이션 실행기, 세션 잠금(flock + epoch), `openTestStore` | 블롭(sys v3), 확장 접두사 테이블, 장애 주입 시험, fullfsync 측정 | 블롭 GC, 청크 마이그레이션, Windows `LockProvider`, macOS 동봉 SQLite | — |
 | os | `OsInfo`, `OsDirs`, `fsKind`, `Clock`·`Scheduler`·`RandomSource`, `Logger`, `createIdFactory`·`createLocalIdFactory`, 프로세스 지문·`machineId`·`userId`, `tempDir`·`withIsolatedEnv` | 바이너리 해석(rg, security, secret-tool), 서비스 등록 | 알림 전달 수단(M3), 파일 감시, 텔레메트리, 번들 추출 실측 | Windows 보강 |
 
@@ -66,12 +66,12 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 
 | 패키지 | 디렉터리 | `package.json` `xeon` 필드 | 진입점 | 테스트 서브패스 |
 |---|---|---|---|---|
-| `@xeon/platform-exec` | `xeon/packages/platform-exec` | `{"layer": "L0", "domain": "exec"}` | `src/index.ts` | `./testing` |
-| `@xeon/platform-sandbox` | `xeon/packages/platform-sandbox` | `{"layer": "L0", "domain": "sandbox"}` | `src/index.ts` | `./testing` |
-| `@xeon/platform-secrets` | `xeon/packages/platform-secrets` | `{"layer": "L0", "domain": "secrets"}` | `src/index.ts` | `./testing` |
-| `@xeon/platform-process` | `xeon/packages/platform-process` | `{"layer": "L0", "domain": "process"}` | `src/index.ts` | `./testing` |
-| `@xeon/platform-store` | `xeon/packages/platform-store` | `{"layer": "L0", "domain": "store"}` | `src/index.ts` | `./testing` |
-| `@xeon/platform-os` | `xeon/packages/platform-os` | `{"layer": "L0", "domain": "os"}` | `src/index.ts` | `./testing` |
+| `@fresnel/platform-exec` | `xeon/packages/platform-exec` | `{"layer": "L0", "domain": "exec"}` | `src/index.ts` | `./testing` |
+| `@fresnel/platform-sandbox` | `xeon/packages/platform-sandbox` | `{"layer": "L0", "domain": "sandbox"}` | `src/index.ts` | `./testing` |
+| `@fresnel/platform-secrets` | `xeon/packages/platform-secrets` | `{"layer": "L0", "domain": "secrets"}` | `src/index.ts` | `./testing` |
+| `@fresnel/platform-process` | `xeon/packages/platform-process` | `{"layer": "L0", "domain": "process"}` | `src/index.ts` | `./testing` |
+| `@fresnel/platform-store` | `xeon/packages/platform-store` | `{"layer": "L0", "domain": "store"}` | `src/index.ts` | `./testing` |
+| `@fresnel/platform-os` | `xeon/packages/platform-os` | `{"layer": "L0", "domain": "os"}` | `src/index.ts` | `./testing` |
 
 - 각 패키지의 `src/index.ts`는 L0 등록 단위(`PlatformModule`을 만드는 함수, `X.primitives.spec` §3.2)와 그 설정 타입, 그리고 조립 루트가 쓰는 구현 함수(예: `createExecService`, `createSandboxService`, `openStore`, process의 전송·서비스 모드 함수)를 공개한다 [제안]. 이 진입점은 조립 루트(`apps/host`)만 import한다(`eng.dependency-rules.guide` DR-14 예외 2). 다른 층 소비자는 F 서비스 인터페이스와 F 순수 함수(예: `describeSandboxStatus`, `matchProtectedPath`)로만 쓴다. L4 앱(`apps/cli`, `apps/desktop`)이 구현 함수가 필요하면 `apps/host`가 다시 내보내는 진입점을 쓴다.
 - `./testing` 서브패스는 테스트 대역만 공개하고 다른 패키지의 테스트 파일만 import한다(3.3절).
@@ -133,12 +133,12 @@ provider id [미결]: 계획 v2는 "os.* provider"라고만 적었고 provider i
 
 | 서브패스 | 제공 | 쓰는 곳 | 근거 |
 |---|---|---|---|
-| `@xeon/platform-os/testing` | `tempDir`, `withIsolatedEnv` | 모든 L0·L1 패키지의 테스트 | `eng.testing.guide` §1.2, TS-03 |
-| `@xeon/platform-exec/testing` | `fakeExec`(명령별 응답 표) | L1 tools, L2 workspace 테스트 | `eng.testing.guide` §1.2, TS-05 |
-| `@xeon/platform-secrets/testing` | `memorySecrets`(가짜 값 저장소) | L1 models·tools, L2 web·mcp 테스트 | `eng.testing.guide` §1.2, TS-05 |
-| `@xeon/platform-store/testing` | `openTestStore`(실제 `bun:sqlite`, `:memory:` 또는 임시 파일, 고장 주입 옵션) | L1 persistence, L2 knowledge 등 테스트 | `eng.testing.guide` §1.2, TS-07, TS-08 |
-| `@xeon/platform-sandbox/testing` | `fakeSandbox`(상태와 판정을 표로 고정, `wrapShell`은 기록만 하는 통과 데코레이터) | L1 tools, L2 workspace 테스트 | `L0.sandbox.spec` §8.1, `L0.sandbox.plan` §2 |
-| `@xeon/platform-process/testing` | `fakeEngine`(stdio 자식 엔진 시뮬레이터), `idleClock`, 전송 적합성 하네스 연결 | L4 host-service·desktop 테스트 | `L0.process.spec` §8, `L0.process.plan` §2 |
+| `@fresnel/platform-os/testing` | `tempDir`, `withIsolatedEnv` | 모든 L0·L1 패키지의 테스트 | `eng.testing.guide` §1.2, TS-03 |
+| `@fresnel/platform-exec/testing` | `fakeExec`(명령별 응답 표) | L1 tools, L2 workspace 테스트 | `eng.testing.guide` §1.2, TS-05 |
+| `@fresnel/platform-secrets/testing` | `memorySecrets`(가짜 값 저장소) | L1 models·tools, L2 web·mcp 테스트 | `eng.testing.guide` §1.2, TS-05 |
+| `@fresnel/platform-store/testing` | `openTestStore`(실제 `bun:sqlite`, `:memory:` 또는 임시 파일, 고장 주입 옵션) | L1 persistence, L2 knowledge 등 테스트 | `eng.testing.guide` §1.2, TS-07, TS-08 |
+| `@fresnel/platform-sandbox/testing` | `fakeSandbox`(상태와 판정을 표로 고정, `wrapShell`은 기록만 하는 통과 데코레이터) | L1 tools, L2 workspace 테스트 | `L0.sandbox.spec` §8.1, `L0.sandbox.plan` §2 |
+| `@fresnel/platform-process/testing` | `fakeEngine`(stdio 자식 엔진 시뮬레이터), `idleClock`, 전송 적합성 하네스 연결 | L4 host-service·desktop 테스트 | `L0.process.spec` §8, `L0.process.plan` §2 |
 
 - 다른 컨텍스트 패키지의 `testing` 서브패스는 테스트 파일에서만 import한다(DR-08, DR-14 예외 3).
 - 시계·난수·ID 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 F에 두지 않는다. F에는 `./testing` 서브패스가 없고, 대역은 쓰는 패키지의 `test/` 안에 둔다 [결정: review.decisions-2 U-03]. 운영 구현과 ID 발급기 구현은 `platform-os`다(`L0.os.spec` §3.4).
@@ -147,8 +147,8 @@ provider id [미결]: 계획 v2는 "os.* provider"라고만 적었고 provider i
 
 | 대상 | 규칙 | 예 | 정본 |
 |---|---|---|---|
-| 패키지 | `@xeon/platform-<도메인>` | `@xeon/platform-store` | `_routing/routes.yaml` layout L0 |
-| 서비스 이름 | `xeon.<도메인>`. 예외 `xeon.secretAdmin`(9절 10) | `xeon.os` | `eng.context-map.design` §5.3 |
+| 패키지 | `@fresnel/platform-<도메인>` | `@fresnel/platform-store` | `_routing/routes.yaml` layout L0 |
+| 서비스 이름 | `fresnel.<도메인>`. 예외 `fresnel.secretAdmin`(9절 10) | `fresnel.os` | `eng.context-map.design` §5.3 |
 | F 서비스 인터페이스 | `<Name>Service`와 `<Name>ServiceName` 상수. exec는 `ExecService`(`ExecutionEnv` 확장)와 `ExecServiceName`이다(`L0.exec.spec` §3.1) | `OsService`, `OsServiceName`, `ExecService` | `eng.context-map.design` §5.3, `F.capabilities.spec` §3.12 |
 | 내부 OS 계약 | `<Domain>Provider` | `LockProvider` | 3.1절 [제안] |
 | provider id | `os.<도메인>.<슬롯>/<구현 id>` | `os.store.lock/linux` | 3.1절 [미결] |
@@ -179,20 +179,20 @@ provider id [미결]: 계획 v2는 "os.* provider"라고만 적었고 provider i
 | `platform-execution`(L0 exec·sandbox·process) | | | ○ | | ○(process `leases`) [제안] | ○ [제안] |
 | `platform-secrets`, `platform-store`(L0) | | | | | | ○ [제안] |
 
-- L0 안의 소비(마지막 두 행)는 Cordis 서비스 주입으로 한다. `platform-execution`의 `xeon.secrets` 소비는 context-map에 있고, L0 패키지들의 `xeon.os` 소비(경로, `fsKind`, 바이너리 경로, 시계, 프로세스 지문), sandbox의 `xeon.secrets.protectedPaths()`, process의 `xeon.store` 임대는 context-map (d)열에 아직 없다. 추가를 요청한다(9절 미결 9).
+- L0 안의 소비(마지막 두 행)는 Cordis 서비스 주입으로 한다. `platform-execution`의 `fresnel.secrets` 소비는 context-map에 있고, L0 패키지들의 `fresnel.os` 소비(경로, `fsKind`, 바이너리 경로, 시계, 프로세스 지문), sandbox의 `fresnel.secrets.protectedPaths()`, process의 `fresnel.store` 임대는 context-map (d)열에 아직 없다. 추가를 요청한다(9절 미결 9).
 - L4 `apps/cli`·`apps/desktop`이 쓰는 process 함수(`ensureService` 등)는 `apps/host` 경유이고(`L0.process.spec` §3.2), sandbox 상태 문구(`describeSandboxStatus`)는 F 순수 함수다(`L0.sandbox.spec` §3.1). 그래서 L4 클라이언트 행은 표에 두지 않는다.
 - `host`는 조립 루트라 서비스를 주입받는 대신 L0 등록 단위를 직접 import해 `ExtHost.registerPlatform`으로 등록한다(DR-14 예외 2). 표의 ○는 런타임에 쓰는 서비스다.
 
-협력 흐름 예: 모델이 bash 도구를 부르는 경우. 비밀 env 주입 단계(아래 `xeon.secrets` lease)는 M1 비밀 검증 경로다 [결정: review.decisions-2 U-19]. 결합(비밀 해석 → 샌드박스 감싸기 → 실행 → 마스킹)은 L1 tool-runtime이 한다. L0 패키지끼리는 서로 부르지 않는다 [제안, 상세는 `L1.tools.spec`].
+협력 흐름 예: 모델이 bash 도구를 부르는 경우. 비밀 env 주입 단계(아래 `fresnel.secrets` lease)는 M1 비밀 검증 경로다 [결정: review.decisions-2 U-19]. 결합(비밀 해석 → 샌드박스 감싸기 → 실행 → 마스킹)은 L1 tool-runtime이 한다. L0 패키지끼리는 서로 부르지 않는다 [제안, 상세는 `L1.tools.spec`].
 
 ```mermaid
 sequenceDiagram
   participant M as 모델(L1 loop)
   participant T as tool-runtime(L1 tools)
-  participant A as 승인(xeon.approvals)
-  participant S as xeon.secrets
-  participant B as xeon.sandbox
-  participant E as xeon.exec
+  participant A as 승인(fresnel.approvals)
+  participant S as fresnel.secrets
+  participant B as fresnel.sandbox
+  participant E as fresnel.exec
   M->>T: 도구 호출(bash, 인자에 secret://name 참조)
   T->>A: 승인 요청(권한 규칙 판정 뒤)
   A-->>T: 허용
@@ -247,7 +247,7 @@ L0가 정하지 않는 것:
 
 ## 8. 수용 기준
 
-1. `docs/xeon/L0/{exec,sandbox,secrets,process,store,os}/{spec,plan}.md` 12개가 있고, 각 spec의 서비스 이름이 `eng.context-map.design` §5.3 표(`xeon.exec`, `xeon.sandbox`, `xeon.secrets`, `xeon.process`, `xeon.store`, `xeon.os`)와 같다. `just docs-route --check`가 이 문서들의 `depends_on`·`binds` 오류 0건을 보고한다.
+1. `docs/xeon/L0/{exec,sandbox,secrets,process,store,os}/{spec,plan}.md` 12개가 있고, 각 spec의 서비스 이름이 `eng.context-map.design` §5.3 표(`fresnel.exec`, `fresnel.sandbox`, `fresnel.secrets`, `fresnel.process`, `fresnel.store`, `fresnel.os`)와 같다. `just docs-route --check`가 이 문서들의 `depends_on`·`binds` 오류 0건을 보고한다.
 2. `just check-layers`가 `xeon/packages/platform-*` 6개를 `layer: "L0"`으로 인식하고, L0 패키지 사이 import가 0건이다. 일부러 넣은 `platform-os` → `platform-store` import에 `DR-02` 위반을 보고한다.
 3. OS 분기 검사(`check-layers.ts`의 DR-13 호출 패턴 검사)가 `process.platform`, `process.arch`, `os.platform()`, `WSL_DISTRO_NAME`, `/proc/version` 참조를 `packages/platform-*/src/**` 밖에서 0건으로 보고한다. 패키지 안에서는 `src/select.ts` 밖 0건이다(`src/providers/*`와 기능 디렉터리의 OS 파일 포함) [제안].
 4. L0 여섯 패키지(os, exec, sandbox, secrets, process, store)의 `package.json` `exports`에 `./testing`이 있고, 3.3절 표의 이름을 export한다.
@@ -261,13 +261,13 @@ L0가 정하지 않는 것:
 도메인별 세부 미결은 각 문서의 미결 사항 절에 있다: `L0.exec.spec` 미결 사항, `L0.sandbox.spec` 미결 사항, `L0.secrets.spec` 미결 사항, `L0.process.spec` 미결 사항, `L0.store.spec` 미결 사항, `L0.os.spec` 미결 사항. 아래는 층 전체에 걸친 것만 모은다.
 
 1. [미결] provider id 이름 규칙. 계획 v2는 "os.* provider"만 적었다. 권고안은 `os.<도메인>.<슬롯>/<구현 id>`다(3.1절).
-2. [결정: review.decisions-2 D-04] F에 L0 서비스 인터페이스를 두는 서브패스는 `@xeon/contracts/services`다(2절). `StoreService`는 `F.records.spec` §3.9에 그대로 둔다. `eng.context-map.design` §5.3 표는 L0 서비스 위치를 "(services)"로 적는다.
-3. [결정: review.decisions-2 U-03] `Clock`·`Scheduler`·`RandomSource`·`Logger`는 인터페이스만 F 루트 base에 두고, 운영 구현과 `createIdFactory`·`createLocalIdFactory`는 `platform-os`에 둔다. `@xeon/contracts/testing` 서브패스는 두지 않고 테스트 대역은 쓰는 패키지의 `test/` 안에 둔다(3.3절).
+2. [결정: review.decisions-2 D-04] F에 L0 서비스 인터페이스를 두는 서브패스는 `@fresnel/contracts/services`다(2절). `StoreService`는 `F.records.spec` §3.9에 그대로 둔다. `eng.context-map.design` §5.3 표는 L0 서비스 위치를 "(services)"로 적는다.
+3. [결정: review.decisions-2 U-03] `Clock`·`Scheduler`·`RandomSource`·`Logger`는 인터페이스만 F 루트 base에 두고, 운영 구현과 `createIdFactory`·`createLocalIdFactory`는 `platform-os`에 둔다. `@fresnel/contracts/testing` 서브패스는 두지 않고 테스트 대역은 쓰는 패키지의 `test/` 안에 둔다(3.3절).
 4. [결정: review.decisions-2 D-04] `CancelScope`는 F `services/exec.ts`에 둔다(`F.capabilities.spec` §3.12 파일별 이름 표, `L0.exec.spec` §3.2). `eng.typescript.guide` §1.2·TY-22 문구 정정과 `abortSignal`의 `undefined` 허용 여부는 `L0.exec.spec` 미결 1로 남는다.
 5. [결정: review.decisions-2 U-09] 세션 쓰기 소유 판정은 OS 잠금(`bun:ffi` `flock` 사이드카 파일, 세션 id 키) + `sys_leases.epoch` 펜싱이다. `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. adr.0004 §3.4와 adr.0006은 이에 맞게 개정한다(decisions 문서 담당). Windows 수단과 Bun FFI experimental 경고 원문 확인은 `L0.store.spec` 미결 S-5·S-10으로 남는다.
 6. [미결] 전송 구현의 층 배치. F.readme §6은 "전송 구현"을 L4가 정한다고 적었고, 계획 v2 L0-d는 "엔진 라이브러리와 전송"(in-process, stdio JSONL)을 L0 process 구성요소로 둔다. 두 문서 중 하나를 고친다.
 7. 닫음. 감사 이벤트 소유자는 (a)안(tool-runtime 발행)이다(`F.records.spec` §3.3.1, `L0.secrets.spec` §3.9). 세션 밖 관리 레코드 저장 위치만 `L0.secrets.spec` 미결 1로 남는다.
 8. [결정: review.decisions-2 U-17] DR-07 표에 `platform-os`의 `@vscode/ripgrep`, `@parcel/watcher`, OTel SDK, `pi-telemetry`, `Bun.spawn`(알림 명령, 시스템 바이너리 버전 확인)과 `platform-store`의 `bun:ffi` 행이 있다(`eng.dependency-rules.guide` DR-07, 3.2절).
-9. [미결] 서비스 소비 관계의 context-map 반영. (1) exec·sandbox·process·secrets·store가 `xeon.os`(경로, `fsKind`, 바이너리 경로, 시계, 프로세스 지문)를 주입받는 관계, sandbox의 `xeon.secrets`(`protectedPaths`), process의 `xeon.store`(임대)를 `eng.context-map.design` §4.1 (d)열에 더해야 한다. `platform-os`가 쓰는 서비스는 없다. (2) §5.3 소비 열에 `xeon.sandbox` → workspace(이미 있음), `xeon.process` → tool-runtime·run-engine·session-core, `xeon.secrets` → run-engine, `xeon.store` → tool-runtime·run-engine을 더한다(5절 표).
-10. [결정: review.decisions-2 D-04] `xeon.secretAdmin` 서비스(`L0.secrets.spec` §3.8, §10 8번)는 `xeon.<도메인>` 이름 규칙의 예외로 둔다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 행이 있다.
+9. [미결] 서비스 소비 관계의 context-map 반영. (1) exec·sandbox·process·secrets·store가 `fresnel.os`(경로, `fsKind`, 바이너리 경로, 시계, 프로세스 지문)를 주입받는 관계, sandbox의 `fresnel.secrets`(`protectedPaths`), process의 `fresnel.store`(임대)를 `eng.context-map.design` §4.1 (d)열에 더해야 한다. `platform-os`가 쓰는 서비스는 없다. (2) §5.3 소비 열에 `fresnel.sandbox` → workspace(이미 있음), `fresnel.process` → tool-runtime·run-engine·session-core, `fresnel.secrets` → run-engine, `fresnel.store` → tool-runtime·run-engine을 더한다(5절 표).
+10. [결정: review.decisions-2 D-04] `fresnel.secretAdmin` 서비스(`L0.secrets.spec` §3.8, §10 8번)는 `fresnel.<도메인>` 이름 규칙의 예외로 둔다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 행이 있다.
 11. [결정: review.decisions-2 U-19] 마일스톤 M1의 비밀 경로는 에이전트 env 모드(bash 도구, 실행마다 승인)다. exec `secretEnv`와 secrets `withEnv`를 M1에 둔다(`L0.exec.spec` §3.6, `L0.secrets.spec` §3.6). `L2.workspace.spec` §3.3, `product.scope.spec` §4.4 M1 행과 같은 배치다.

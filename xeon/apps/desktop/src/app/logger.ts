@@ -1,4 +1,4 @@
-import type { LogFields, Logger, LogLevel } from "@xeon/contracts";
+import type { LogFields, Logger, LogLevel } from "@fresnel/contracts";
 
 // WebView Logger. 고정 이벤트 이름과 필드만 받는다(내용은 호출하는 쪽이 넣지 않는다, L4.desktop.design 11.2).
 // 셸 앱 로그 파일로 보내는 명령(desktop_log_write)은 L4.desktop.spec 3.3 명령 표에 아직 없다(design 14절 3번).

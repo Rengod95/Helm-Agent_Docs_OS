@@ -14,8 +14,8 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 
 | 서브패스 | 소스 디렉터리 | 내용 |
 |---|---|---|
-| `@xeon/contracts/wire` | `xeon/packages/contracts/src/wire-settings/wire/` | JSON-RPC envelope, 메서드 레지스트리, 알림, 커서, 오류, 전송 인터페이스, 버전 |
-| `@xeon/contracts/settings` | `xeon/packages/contracts/src/wire-settings/settings/` | `SettingDef`, `defineSettings`, 설정 계층, 유효 값, JSON Schema 출력 규약 |
+| `@fresnel/contracts/wire` | `xeon/packages/contracts/src/wire-settings/wire/` | JSON-RPC envelope, 메서드 레지스트리, 알림, 커서, 오류, 전송 인터페이스, 버전 |
+| `@fresnel/contracts/settings` | `xeon/packages/contracts/src/wire-settings/settings/` | `SettingDef`, `defineSettings`, 설정 계층, 유효 값, JSON Schema 출력 규약 |
 
 [제안] 서브패스를 둘로 나눈다. 설정 선언은 모든 층(X~L3)이 import하고 wire는 L4만 import하므로, 설정만 쓰는 층이 wire 타입을 끌어오지 않게 하기 위해서다.
 
@@ -25,7 +25,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 
 - CLI, 데스크톱, 서비스가 함께 쓰는 호스트 계약 하나와, 그 계약을 나르는 전송(Transport) 인터페이스 3종의 시그니처.
 - JSON-RPC 2.0 envelope 규칙, 메서드 이름 규칙, 메서드·알림 레지스트리와 각 params/result 스키마.
-- JSON Lines stdio 전송(`createStdioTransport`, 줄 프레이밍). Bun·Node API 없이 웹 스트림만 쓰고 서버 쪽(`@xeon/platform-process`, `@xeon/host`)과 클라이언트가 같은 코드를 쓴다 [결정: m2 F.8].
+- JSON Lines stdio 전송(`createStdioTransport`, 줄 프레이밍). Bun·Node API 없이 웹 스트림만 쓰고 서버 쪽(`@fresnel/platform-process`, `@fresnel/host`)과 클라이언트가 같은 코드를 쓴다 [결정: m2 F.8].
 - 이벤트 구독의 seq 커서, 재전송 계약, 휘발 스트림 규칙.
 - 오류 객체 모양과 오류 코드 구간, `_meta`와 추적 컨텍스트 전파 규약.
 - 계약 버전 정책과 기능 수명주기(Active, Deprecated, Removed, 실험 opt-in, 능력 탐지).
@@ -35,7 +35,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 
 ### 1.2 다루지 않는 것
 
-- `HostConnection` 구현(`createHostConnection`)은 L4 공유 패키지 `@xeon/client`가 가진다(§3.1, [결정: adr.0020]). F는 `HostConnection` 인터페이스만 둔다. 전송 구현 가운데 stdio 줄 프레이밍은 서버 쪽(L0, 호스트)도 써서 F가 가진다. 프로세스 기동, 소켓 서버, Tauri 릴레이는 `L0.process.spec`, `L4.host-service.spec`, `L4.desktop.spec`, `L4.cli.spec`가 맡는다.
+- `HostConnection` 구현(`createHostConnection`)은 L4 공유 패키지 `@fresnel/client`가 가진다(§3.1, [결정: adr.0020]). F는 `HostConnection` 인터페이스만 둔다. 전송 구현 가운데 stdio 줄 프레이밍은 서버 쪽(L0, 호스트)도 써서 F가 가진다. 프로세스 기동, 소켓 서버, Tauri 릴레이는 `L0.process.spec`, `L4.host-service.spec`, `L4.desktop.spec`, `L4.cli.spec`가 맡는다.
 - 엔진 쪽 메서드 처리기 구현: `L4.host-service.spec`이 L1 서비스를 엮어 구현한다.
 - 세션 소유 잠금 구현: `L0.process.spec`, `L1.persistence.spec`.
 - 설정 파일 위치, 파일 감시, 병합 실행: `L1.persistence.spec`과 `L4.host-service.spec` [가정. 아래 §4.9 참조].
@@ -164,10 +164,10 @@ export type WireHandler<M extends WireMethodName> = (params: WireParams<M>, cont
 export type WireHandlers = { readonly [M in WireMethodName]: WireHandler<M> };
 ```
 
-[결정: adr.0020] 클라이언트 쪽 `HostConnection` 구현은 L4 공유 패키지 `@xeon/client`로 옮겼다(m2 F.8에서 F로 옮긴 것을 되돌린다). F는 런타임 로직 없는 계약과 stdio 줄 프레이밍만 둔다. 소비 패키지가 복사본을 두지 않는다.
+[결정: adr.0020] 클라이언트 쪽 `HostConnection` 구현은 L4 공유 패키지 `@fresnel/client`로 옮겼다(m2 F.8에서 F로 옮긴 것을 되돌린다). F는 런타임 로직 없는 계약과 stdio 줄 프레이밍만 둔다. 소비 패키지가 복사본을 두지 않는다.
 
 ```ts
-// @xeon/client(src/connection.ts): 런타임 중립. import는 F(`@xeon/contracts`)뿐이다
+// @fresnel/client(src/connection.ts): 런타임 중립. import는 F(`@fresnel/contracts`)뿐이다
 export function createHostConnection(transport: Transport, options?: HostConnectionOptions): HostConnection;
 export interface HostConnectionOptions {
   readonly defaultTimeoutMs?: number;                         // 요청마다 따로 주지 않았을 때의 시한. 없으면 시한 없음
@@ -186,9 +186,9 @@ export function createLineFramer(options?: { readonly maxFrameBytes?: number }):
 
 - 요청 id는 연결마다 `r1`, `r2`, …로 발급한다. 응답은 `WIRE_METHODS[m].result`로, 알림은 `WIRE_NOTIFICATIONS[n].params`로 검증한 뒤 넘긴다. 맞지 않는 응답은 `HostClientError("invalidResponse")`이고 맞지 않는 알림은 처리기를 부르지 않는다(TY-10).
 - 전송은 수신 순서를 지키고, 처리기가 붙기 전에 도착한 메시지는 첫 처리기가 붙을 때 비운다. 처리기 없이 EOF가 오면 쌓인 메시지를 먼저 비운 뒤 닫힘을 알린다. 송신은 직렬이다(앞 쓰기가 끝난 뒤 `writer.ready`를 기다려 다음을 쓴다).
-- `createStdioTransport`와 줄 프레이밍(`wire/stdio.ts`, `wire/framing.ts`)은 F에 남는다. 서버 쪽 `@xeon/platform-process`(L0)와 `@xeon/host`가 같은 코드를 쓰고, L0와 호스트는 L4인 `@xeon/client`를 import할 수 없기 때문이다. 클라이언트(CLI, 데스크톱 WebView)는 `@xeon/client/stdio`로 가져온다(F 구현을 다시 내보낸다. Node 모듈을 끌어오지 않는다). `createHostConnection`은 `@xeon/client`(`.`)에서 가져오고, `@xeon/cli`와 `@xeon/host`(`./client`)는 이를 다시 내보내기만 한다.
-- [결정: adr.0020] `Transport` 인터페이스(위)가 전송을 꽂는 자리다. 소켓 전송(M3b)과 브라우저 전송(M4)은 이 인터페이스를 구현해 `createHostConnection`에 넘긴다. `@xeon/client`는 `Transport` 타입을 다시 내보낸다.
-- [미결] 줄 프레이밍과 stdio 전송 구현도 `@xeon/client`로 옮길지(adr.0020 §3.4). 서버 쪽 소비자(L0 `platform-process`, `apps/host`)가 있어 옮기려면 서버용 구현을 따로 두어야 한다.
+- `createStdioTransport`와 줄 프레이밍(`wire/stdio.ts`, `wire/framing.ts`)은 F에 남는다. 서버 쪽 `@fresnel/platform-process`(L0)와 `@fresnel/host`가 같은 코드를 쓰고, L0와 호스트는 L4인 `@fresnel/client`를 import할 수 없기 때문이다. 클라이언트(CLI, 데스크톱 WebView)는 `@fresnel/client/stdio`로 가져온다(F 구현을 다시 내보낸다. Node 모듈을 끌어오지 않는다). `createHostConnection`은 `@fresnel/client`(`.`)에서 가져오고, `@fresnel/cli`와 `@fresnel/host`(`./client`)는 이를 다시 내보내기만 한다.
+- [결정: adr.0020] `Transport` 인터페이스(위)가 전송을 꽂는 자리다. 소켓 전송(M3b)과 브라우저 전송(M4)은 이 인터페이스를 구현해 `createHostConnection`에 넘긴다. `@fresnel/client`는 `Transport` 타입을 다시 내보낸다.
+- [미결] 줄 프레이밍과 stdio 전송 구현도 `@fresnel/client`로 옮길지(adr.0020 §3.4). 서버 쪽 소비자(L0 `platform-process`, `apps/host`)가 있어 옮기려면 서버용 구현을 따로 두어야 한다.
 
 - [제안] `HostConnection`과 처리기 표는 전송 종류에 따라 바뀌지 않는다. 전송 적합성 스위트(§9 수용 기준 A10)가 in-process와 stdio에서 같은 케이스를 돌려 이를 확인한다.
 - [제안] in-process 전송도 envelope 검사, 메서드 이름 검사, params 검사를 똑같이 한다. 직렬화만 건너뛴다. 개발 빌드는 JSON 왕복(`JSON.parse(JSON.stringify(m))`) 검사를 켤 수 있다. 그래야 in-process에서만 통과하는 비직렬화 값(함수, `undefined`, `Date`, `bigint`)이 생기지 않는다.
@@ -416,7 +416,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 - [제안] `host.shutdown`은 협조 종료 요청이다. 응답은 참여자 처리가 끝난 뒤 보낸다(`L0.process.spec` FR-P1). 데스크톱 셸이 SIGKILL만 보낼 수 있어서 전송 메시지가 공통 경로다. 이 메서드를 모르는 엔진(-32601)에는 stdin 닫기(EOF)가 같은 종료를 일으킨다(`L4.desktop.spec` §4.3).
 - [제안] `secret.*` 여섯 메서드는 값 필드가 없다. 값 입력과 열람은 호스트 쪽 L0.secrets가 OS 입력 창이나 wire 밖 전달로 받는다(`L0.secrets.spec` §8.3 R4, `L4.readme` §8.1). `SecretName`은 `F.capabilities.spec` §3.10이다. `SecretListEntry`의 필드는 [가정] `L0.secrets.spec`의 값 없는 메타 모양을 따르고 M2 착수 때 정한다.
 - [결정: m2-plan F.5] `secret.beginReveal { name }`을 M2 메서드로 받았다(`L4.cli.spec` §4.7, review.decisions-2 U-20). 결과 `started`가 거짓이면 호스트가 열람을 시작하지 못한 것이다(맡긴 열람 수단이 없거나 사람 확인이 끝나지 않음). 값은 요청·응답·이벤트·오류 `details` 어디에도 없다.
-- [결정: m2-plan F.5] in-process 접속의 wire 밖 값 전달은 `@xeon/contracts/services`의 `SecretOutOfBandPort`다(`services/secret-admin.ts`). CLI가 값 입력 수단(`SecretEntryOffer`)이나 열람 수단(`SecretRevealOffer`)을 이 포트에 맡긴 뒤 `secret.beginEntry`나 `secret.beginReveal`을 보내면, 호스트 처리기가 같은 이름의 맡긴 수단 하나를 꺼내 `SecretAdminService`에 넘긴다. 맡긴 수단은 한 번 쓰이면 비워진다. 서비스 접속에는 이 포트가 없다. 구현은 `@xeon/host`다.
+- [결정: m2-plan F.5] in-process 접속의 wire 밖 값 전달은 `@fresnel/contracts/services`의 `SecretOutOfBandPort`다(`services/secret-admin.ts`). CLI가 값 입력 수단(`SecretEntryOffer`)이나 열람 수단(`SecretRevealOffer`)을 이 포트에 맡긴 뒤 `secret.beginEntry`나 `secret.beginReveal`을 보내면, 호스트 처리기가 같은 이름의 맡긴 수단 하나를 꺼내 `SecretAdminService`에 넘긴다. 맡긴 수단은 한 번 쓰이면 비워진다. 서비스 접속에는 이 포트가 없다. 구현은 `@fresnel/host`다.
 - [제안] `turn.start`의 `requestId`는 같은 연결 재시도의 중복 제출을 막는 멱등 키다. 같은 thread에서 같은 키가 오면 처음 발급한 `turnId`를 돌려준다. 의미 정본은 `F.conversation.spec` §3.5의 `requestId`다(`TurnStartedPayload.requestId`, 사용자 `ItemRecord.requestId`). 브랜드 없는 문자열이다.
 - [결정: m2-plan F.6] `ThreadSummary`는 `thread.list`의 결과 원소다(`wire/methods.ts` `ThreadSummarySchema`, §10 미결 9). 필드는 `L1.persistence.spec` §3.4 `ThreadSummaryRow`를 따르고 시각은 IsoTime 문자열이다.
 
@@ -585,7 +585,7 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 | `EffectiveSetting`의 잠금 사유 문구(39번) | 받음 | §3.8.2 | M3 | [결정: M3-REQ-15] 문구가 아니라 종류다. 선택 필드 `lockReason`(`managed_file`·`managed_policy`)을 호스트가 싣고 문장은 클라이언트가 만든다 |
 | 사용량 wire 메서드(35번) | 받음 | `usage.get` | M3 | [결정: M3-REQ-15] 레이트 리밋·계정 회전 게이지(review.decisions-2 U-21)가 읽는다. 데이터 원천은 L1.models의 사용량 투영이다. 호스트 처리기는 원천 포트(조립 기본은 빈 목록)로 구현했고, 원천은 B2-MDL 트랙이 채운다 [구현: M3b B1-NTF H4] |
 | 사용자 알림 wire 알림(13번) | 보류 | 없음 | M3 | 알림은 M3다(review.decisions-2 S-04). M2는 내구 이벤트 kind로 대상을 고른다 |
-| `host.diagnose`(26번) | 반려 | 없음 | - | `doctor`는 `@xeon/host`의 진단 함수를 직접 부른다. 서비스 모드에서 원격으로 진단할 필요가 생기면 그때 다시 올린다. 데스크톱 첫 실행 화면이 받는 외부 바이너리 점검은 `host.status`의 `includeBinaries`와 `binaries`다(§3.3.1) |
+| `host.diagnose`(26번) | 반려 | 없음 | - | `doctor`는 `@fresnel/host`의 진단 함수를 직접 부른다. 서비스 모드에서 원격으로 진단할 필요가 생기면 그때 다시 올린다. 데스크톱 첫 실행 화면이 받는 외부 바이너리 점검은 `host.status`의 `includeBinaries`와 `binaries`다(§3.3.1) |
 | `turn.interrupt`를 M1으로 당기기(25번) | 반려 | 없음 | - | M1 `chat`은 한 턴이고 프로세스 종료로 멈춘다. `turn.interrupt`는 M2 표에 있다 |
 | 적합성 실행기 `testing` 서브패스(19번) | 반려 | 없음 | - | review.decisions-2 U-03. 실행기는 각 패키지 `test/`에 둔다 |
 
@@ -896,7 +896,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 5000 ~ 5999 | 호스트(L4) | 호스트 상태, 취소, 서비스 모드 |
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |
 
-- [결정: M3-REQ-21, M3-REQ-112, adr.0016] 오류 문장은 wire에 싣지 않는다. 오류는 `kind`와 인자로 가고 문장은 클라이언트가 `kind`를 메시지 키로 ko·en 카탈로그(`@xeon/client`, JSON [제안])에서 만든다. 문장에 끼울 값은 `WireErrorData.args`(문자열·숫자·불리언·null, 비밀 값 금지)다. `details`는 구조 정보로 그대로 둔다. `message`는 개발자용 영어 한 줄로 남고 화면에 쓰지 않는다. 설정 라벨과 설명은 `SettingUi.labelKey`·`helpKey`(`MessageKey`)로 싣고 `label`·`help`는 키가 없을 때의 대체 문구다. 모델용 도구 설명은 영어 원문을 유지한다. 시각은 UTC로 저장하고 날짜·숫자 표시는 클라이언트의 `Intl`이 한다.
+- [결정: M3-REQ-21, M3-REQ-112, adr.0016] 오류 문장은 wire에 싣지 않는다. 오류는 `kind`와 인자로 가고 문장은 클라이언트가 `kind`를 메시지 키로 ko·en 카탈로그(`@fresnel/client`, JSON [제안])에서 만든다. 문장에 끼울 값은 `WireErrorData.args`(문자열·숫자·불리언·null, 비밀 값 금지)다. `details`는 구조 정보로 그대로 둔다. `message`는 개발자용 영어 한 줄로 남고 화면에 쓰지 않는다. 설정 라벨과 설명은 `SettingUi.labelKey`·`helpKey`(`MessageKey`)로 싣고 `label`·`help`는 키가 없을 때의 대체 문구다. 모델용 도구 설명은 영어 원문을 유지한다. 시각은 UTC로 저장하고 날짜·숫자 표시는 클라이언트의 `Intl`이 한다.
 - [제안] 클라이언트는 분기 판단에 `code`보다 `kind`를 쓴다. 확장 구간은 코드가 겹칠 수 있기 때문이다.
 - [결정: m2-plan F.5] 구간 표는 코드 상수 `WIRE_CODE_RANGES`(`wire/errors.ts`)다. 순수 함수 `codeRangeOf(code)`는 코드가 속한 구간을 돌려주고, 어느 구간에도 속하지 않는 코드(0~999, 6000~9999, 20000 이상, 정수가 아닌 값)는 `null`이다. `wireErrorCodeMatchesKind(code, kind)`는 능력 구간의 `cap.`, 확장 구간의 `ext.` 접두를 `kind`가 지키는지 검사한다. 능력 오류 코드 4000은 `WIRE_CAPABILITY_ERROR_CODE`다. 등록된 `WIRE_ERRORS`의 모든 코드는 시험이 이 두 함수로 확인한다.
 - 근거: MCP `JSON_RPC_ERROR_CODES`(`_research/packages.md` §4.1 F5 "오류 코드 구간"), 19 §3.3.4.
@@ -924,7 +924,7 @@ export declare function formatTraceparent(context: TraceContext): Result<string,
 ```
 
 - [결정: m2-plan F.5] `_meta`는 params 안의 예약 키다. 모든 요청 메서드의 params 스키마는 `_meta?: WireMeta`를 받는다. 레지스트리가 `withMeta(schema)`(`wire/methods.ts`)로 각 메서드 스키마에 자동으로 더한다. 원래 필드와 `additionalProperties: false`는 그대로이고 `WireParams<M>`에 `_meta?`가 들어간다. `host.status`처럼 params가 비어 있던 메서드도 `_meta`만 받는 객체가 된다. 알림 params에는 더하지 않는다.
-- [결정: m2-plan F.5] W3C Trace Context 세 키 말고는 `<네임스페이스>/<이름>` 형태만 허용한다(예: `xeon/clientTime`). 스키마는 `patternProperties`로 이 키를 받고 값은 검사하지 않는다. 네임스페이스 없는 새 키는 이 문서에서만 더한다.
+- [결정: m2-plan F.5] W3C Trace Context 세 키 말고는 `<네임스페이스>/<이름>` 형태만 허용한다(예: `fresnel/clientTime`). 스키마는 `patternProperties`로 이 키를 받고 값은 검사하지 않는다. 네임스페이스 없는 새 키는 이 문서에서만 더한다.
 - [결정] 추적 API는 `@opentelemetry/api` 1.10.0을 그대로 쓴다(`_research/packages.md` §4.1 F5 "_meta 키와 추적 컨텍스트"). F는 `import type`만 하고, `traceparent` 직렬화·역직렬화 함수(순수)를 `wire/jsonrpc.ts`에 둔다. 현재 함수 둘(`parseTraceparent`, `formatTraceparent`)은 OpenTelemetry 타입을 쓰지 않아 F는 아직 `@opentelemetry/api`에 의존하지 않는다. 호스트(L4)가 `Tracer`와 이어 줄 때 그 패키지를 쓴다(`L0.os.spec`).
 
 ### 3.7 버전 정책과 기능 수명주기
@@ -1413,7 +1413,7 @@ wire:
 - A13. `thread.read`가 돌려준 `position.seq` 이하의 그 thread 이벤트는 `items`에 모두 반영되어 있고 그 seq를 넘는 이벤트는 하나도 반영되어 있지 않다. `before` 페이지를 끝까지 이어 붙이면 중복도 빠짐도 없는 item 열이 된다. 없는 `before`는 3005, 없는 thread는 3001이다.
 - A14. 구독(`from: "head"`) 뒤 `thread.read`를 보내고 `seq > position.seq`인 이벤트만 적용하면, 읽기와 겹치는 구간에 이벤트가 커밋되어도 최종 item 집합이 중단 없이 구독한 클라이언트의 것과 같다.
 - A15. `approval.list`의 `approvals`는 `position.seq` 시점에 `approval.resolved`가 없는 `approval.requested` 전부이고 각 항목의 `request`가 이벤트 payload와 같다. 응답한 뒤에는 목록에서 빠진다.
-- A16. `createHostConnection`과 `createStdioTransport`는 `@xeon/contracts/wire`의 같은 구현을 CLI, 호스트, 데스크톱이 쓴다. 이 구현의 소스는 Bun·Node 모듈을 import하지 않는다. `HostConnection.notify`는 `$/connectionReset`을 id 없는 알림으로 보낸다.
+- A16. `createHostConnection`과 `createStdioTransport`는 `@fresnel/contracts/wire`의 같은 구현을 CLI, 호스트, 데스크톱이 쓴다. 이 구현의 소스는 Bun·Node 모듈을 import하지 않는다. `HostConnection.notify`는 `$/connectionReset`을 id 없는 알림으로 보낸다.
 - A17. `approval.respond`의 `answer`는 `QuestionAnswer`, `{ mode?, note? }`, `{ feedback }`, `ReviewAnswer` 가운데 하나여야 한다. 질문 id 아래 문자열 하나만 둔 값이나 `AskAnswer` 배열 모양은 `-32602`다.
 - A18. `web.providers`의 결과는 값으로 왕복한다. `capability`가 `web.search`, `web.fetch`, `web.browse`가 아니거나 `status.kind`가 `ok`, `unavailable`이 아니거나 필드가 빠지면 거부된다. 결과와 항목의 속성 이름에는 키나 토큰을 담을 이름이 없고, 알 수 없는 필드는 거부된다(M3-REQ-96).
 - A19. `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`의 params는 능력 입력에 `_meta`를 더한 모양이고 알 수 없는 필드를 거부한다. 트리거 다섯 모양은 정해진 필드만 받고 `atMs: 0`은 거부된다. 결과의 `ok: false`는 `ScheduleError`의 여덟 `kind`를 모두 왕복한다. 네 메서드는 단계 M3다(M3b B1-SCH2).

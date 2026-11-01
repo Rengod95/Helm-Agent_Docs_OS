@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createModels, type Api, type Model } from "@earendil-works/pi-ai";
-import { MODEL_ROLES } from "@xeon/contracts/services";
+import { MODEL_ROLES } from "@fresnel/contracts/services";
 import {
   isModelAllowed,
   matchesModelPattern,

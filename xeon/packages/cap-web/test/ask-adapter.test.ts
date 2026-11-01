@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type {
   L2ApprovalRequest,
   L2ApprovalSnapshot,
   L2ApprovalsPort,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { createAskAdapter } from "../src/ask-adapter.ts";
 import { approvalIdOf, threadIdOf } from "./support/ids.ts";
 

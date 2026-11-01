@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import type { SpawnOutcome, TurnOutcome } from "@xeon/contracts/extensions";
-import { assertNever } from "@xeon/contracts";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { SpawnOutcome, TurnOutcome } from "@fresnel/contracts/extensions";
+import { assertNever } from "@fresnel/contracts";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { TRANSITIONS, transition, type HelmEvent } from "../../src/phase.ts";
 import { reactionOf, type HelmReaction } from "../../src/reaction.ts";
 import type { HelmFailure } from "../../src/failures.ts";

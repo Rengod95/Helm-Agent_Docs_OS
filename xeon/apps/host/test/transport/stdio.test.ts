@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { WIRE_LIMITS, type CloseInfo, type JsonRpcMessage } from "@xeon/contracts/wire";
+import { WIRE_LIMITS, type CloseInfo, type JsonRpcMessage } from "@fresnel/contracts/wire";
 import { createStdioTransport } from "../../src/transport/stdio.ts";
 import { settleUntil } from "../fixtures/clock.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";

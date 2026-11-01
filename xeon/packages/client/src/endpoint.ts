@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 
 // ADR-0020 §3.3, L4.host-service.spec §3.3.4. 원격 서비스 접속 주소의 값과 문자열 문법. 순수 함수만 있어 브라우저 번들에도 들어갈 수 있다
 // (Node API는 `./socket`에 있다). 문자열은 설정 키 `l0.process.service.remote`와 CLI 플래그 `--remote`가 같은 문법으로 쓴다.

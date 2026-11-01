@@ -2,9 +2,13 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Bug } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { NOT_STARTED_TEXT, OUTCOME_UNKNOWN_TEXT, type RecoverDeps } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import {
+  NOT_STARTED_TEXT,
+  OUTCOME_UNKNOWN_TEXT,
+  type RecoverDeps,
+} from "@fresnel/contracts/records";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";
 import { endTurn, expectOk, openHarness, type Harness } from "./support/harness.ts";

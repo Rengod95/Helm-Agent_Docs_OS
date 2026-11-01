@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import {
   CapabilityError,
   DialogAttachments,
@@ -6,10 +6,10 @@ import {
   type CallOptions,
   type CapabilityApi,
   type WorkspaceImage,
-} from "@xeon/contracts/capabilities";
-import type { ImageContent, TextContent, ThreadId } from "@xeon/contracts/conversation";
-import { BLOB_PLACEHOLDER_PREFIX, type BlobRef } from "@xeon/contracts/records";
-import type { CancelScope } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { ImageContent, TextContent, ThreadId } from "@fresnel/contracts/conversation";
+import { BLOB_PLACEHOLDER_PREFIX, type BlobRef } from "@fresnel/contracts/records";
+import type { CancelScope } from "@fresnel/contracts/services";
 import type { DialogDeps } from "../deps.ts";
 import { DialogFailure, guarded } from "../errors.ts";
 import { isJsonObject } from "../util.ts";

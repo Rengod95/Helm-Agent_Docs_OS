@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { eachAsync, ok, type Result } from "@xeon/contracts";
+import { eachAsync, ok, type Result } from "@fresnel/contracts";
 import {
   DIALOG_CAPABILITIES,
   WorkspaceImages,
@@ -17,18 +17,18 @@ import {
   type Notice,
   type NoticeFeed,
   type ServiceKey,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   ApprovalServicePortKey,
   type NotifyError,
   type OsNotification,
   type OsTime,
   type Redactor,
-} from "@xeon/contracts/services";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import { defineManifest, validateManifest, type PortKey } from "@xeon/contracts/extensions";
-import { fakeRedactor } from "@xeon/core-tools/testing";
+} from "@fresnel/contracts/services";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import { defineManifest, validateManifest, type PortKey } from "@fresnel/contracts/extensions";
+import { fakeRedactor } from "@fresnel/core-tools/testing";
 import type {
   CommitBatch,
   DurableEventEnvelope,
@@ -36,9 +36,9 @@ import type {
   ProducerId,
   ReadFailure,
   VolatileEventEnvelope,
-} from "@xeon/contracts/records";
-import { capabilityDefTable, hostOf, type ExtensionUnit } from "@xeon/ext-host";
-import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/records";
+import { capabilityDefTable, hostOf, type ExtensionUnit } from "@fresnel/ext-host";
+import { createTestHost, fixedIdFactory } from "@fresnel/ext-host/testing";
 import { DIALOG_EXTENSION_NAME, dialogManifest } from "../src/manifest.ts";
 import { dialogPlugin } from "../src/plugin.ts";
 import { DIALOG_SETTING_DEFS } from "../src/settings.ts";
@@ -83,19 +83,19 @@ interface FakeOs {
 }
 type FakeExec = MemoryCommandFiles & MemoryFiles & { readonly cwd: string };
 
-const ExecKey: PortKey<FakeExec> = { name: "xeon.exec" };
-const OsKey: PortKey<FakeOs> = { name: "xeon.os" };
-const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "xeon.secrets" };
-const StoreKey: PortKey<MemoryBlobs> = { name: "xeon.store" };
-const FeedKey: PortKey<FakeFeed> = { name: "xeon.session", member: "feed" };
-const QueryKey: PortKey<FakeQuery> = { name: "xeon.session", member: "query" };
-const SubscribeKey: PortKey<SubscribeFn> = { name: "xeon.session", member: "subscribe" };
+const ExecKey: PortKey<FakeExec> = { name: "fresnel.exec" };
+const OsKey: PortKey<FakeOs> = { name: "fresnel.os" };
+const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "fresnel.secrets" };
+const StoreKey: PortKey<MemoryBlobs> = { name: "fresnel.store" };
+const FeedKey: PortKey<FakeFeed> = { name: "fresnel.session", member: "feed" };
+const QueryKey: PortKey<FakeQuery> = { name: "fresnel.session", member: "query" };
+const SubscribeKey: PortKey<SubscribeFn> = { name: "fresnel.session", member: "subscribe" };
 const EmitKey: PortKey<(event: VolatileEventEnvelope) => void> = {
-  name: "xeon.session",
+  name: "fresnel.session",
   member: "emitVolatile",
 };
 const ProducerKey: PortKey<(id: ProducerId) => ProducerHandle> = {
-  name: "xeon.session",
+  name: "fresnel.session",
   member: "producer",
 };
 
@@ -103,7 +103,7 @@ interface Collected {
   readonly volatile: VolatileEventEnvelope[];
   readonly subscribed: { afterSeq: number; kindPrefixes: readonly string[] | undefined }[];
   listener: ((batch: CommitBatch) => void) | undefined;
-  /** `xeon.os`의 notify 호출 기록 */
+  /** `fresnel.os`의 notify 호출 기록 */
   readonly notified: { readonly notification: OsNotification; readonly signal: AbortSignal }[];
 }
 
@@ -118,7 +118,7 @@ async function boot(
     extraCommands?: Record<string, string>;
     /** 설정 층. 생략하면 비어 있다(기본값) */
     layers?: ScopeStack;
-    /** `xeon.secrets`의 redactor 제공 여부. 생략하면 제공한다 */
+    /** `fresnel.secrets`의 redactor 제공 여부. 생략하면 제공한다 */
     secrets?: boolean;
   } = {},
 ) {
@@ -639,7 +639,7 @@ function feedTurnCompleted(
 }
 
 describe("OS 알림", () => {
-  test("피드의 완료 턴을 xeon.os의 notify로 보낸다", async () => {
+  test("피드의 완료 턴을 fresnel.os의 notify로 보낸다", async () => {
     const { t, collected } = await boot();
     const thread = t.newThread();
     feedTurnCompleted(collected, thread, 11, "completed");

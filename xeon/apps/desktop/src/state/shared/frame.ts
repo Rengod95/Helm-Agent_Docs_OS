@@ -1,5 +1,5 @@
 // src/state/shared/frame.ts
-import type { Scheduler } from "@xeon/contracts";
+import type { Scheduler } from "@fresnel/contracts";
 
 /** 다음 화면 프레임에 run을 한 번 부른다. 돌려준 함수는 예약을 취소한다 */
 export interface FrameClock {

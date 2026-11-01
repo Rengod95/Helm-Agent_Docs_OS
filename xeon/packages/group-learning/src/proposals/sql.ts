@@ -1,4 +1,4 @@
-import { err, ok, parseJson, type Result } from "@xeon/contracts";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import type {
   DurableEventEnvelope,
   ProjectionTx,
@@ -7,7 +7,7 @@ import type {
   SqlTx,
   SqlValue,
   StoreDb,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { decodeEvent, LEARNING_EVENT_KINDS } from "./events.ts";
 import { parseProposal, type Proposal } from "./proposal.ts";
 import {

@@ -1,8 +1,8 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { assertNever, attemptAsync, Bug, err, parse, type Logger } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ExtensionManifest, PortKey } from "@xeon/contracts/extensions";
+import { assertNever, attemptAsync, Bug, err, parse, type Logger } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ExtensionManifest, PortKey } from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -11,7 +11,7 @@ import {
   type SessionService,
   type StoreFailureKind,
   type StoreService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   ApprovalServiceName,
   ContextServiceName,
@@ -27,8 +27,8 @@ import {
   type OsService,
   type TaskService,
   type ToolService,
-} from "@xeon/contracts/services";
-import { StoreIdSchema } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/services";
+import { StoreIdSchema } from "@fresnel/contracts/wire";
 import {
   createExtHost,
   createOperationsPolicy,
@@ -39,9 +39,9 @@ import {
   type ExtensionLoader,
   type ExtensionUnit,
   type ScopeControl,
-} from "@xeon/ext-host";
-import type { ScheduleService } from "@xeon/cap-schedule";
-import { createExecPlatformModule, detectExecPlatform } from "@xeon/platform-exec";
+} from "@fresnel/ext-host";
+import type { ScheduleService } from "@fresnel/cap-schedule";
+import { createExecPlatformModule, detectExecPlatform } from "@fresnel/platform-exec";
 import {
   PRODUCT,
   createIdFactory,
@@ -49,16 +49,20 @@ import {
   readOsRuntime,
   type OsRuntime,
   type OsServiceHandle,
-} from "@xeon/platform-os";
-import { createProcessShutdown, processPlugin, type ProcessShutdown } from "@xeon/platform-process";
-import { createSecretsRuntime } from "@xeon/platform-secrets";
+} from "@fresnel/platform-os";
+import {
+  createProcessShutdown,
+  processPlugin,
+  type ProcessShutdown,
+} from "@fresnel/platform-process";
+import { createSecretsRuntime } from "@fresnel/platform-secrets";
 import {
   openStore,
   storePlugin,
   type OpenedStore,
   type StoreOpenError,
   type StoreWarning,
-} from "@xeon/platform-store";
+} from "@fresnel/platform-store";
 import { capabilityDefsOf } from "./assembly/capability-defs.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import {
@@ -102,7 +106,7 @@ import { loadExternalExtensions } from "./assembly/external.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-engine.ts";
-import type { SettingCatalog } from "@xeon/contracts/settings";
+import type { SettingCatalog } from "@fresnel/contracts/settings";
 import {
   execOptionsOf,
   logLevelOf,
@@ -501,10 +505,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
       ),
     );
-    const os: OsService = requirePort(ext, OsPortKey, "xeon.os");
+    const os: OsService = requirePort(ext, OsPortKey, "fresnel.os");
     const osHandle = osSlot.handle;
-    // xeon.os를 올린 setup이 핸들을 넘긴다. 없으면 조립 순서가 깨진 것이다
-    // xeon-disable-next-line xeon/bug-for-expected -- osPlatform의 setup이 성공하면 핸들이 항상 채워진다 (eng.typescript.guide TY-24)
+    // fresnel.os를 올린 setup이 핸들을 넘긴다. 없으면 조립 순서가 깨진 것이다
+    // fresnel-disable-next-line fresnel/bug-for-expected -- osPlatform의 setup이 성공하면 핸들이 항상 채워진다 (eng.typescript.guide TY-24)
     if (osHandle === undefined) throw new Bug("platform-os did not hand over its handle");
     logSink.attach(join(os.dirs.state, "logs", `${options.mode}.log`));
     const logger = os.logger("host");
@@ -775,9 +779,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     }
 
     // 4. 서비스 확인: 포트가 요구하는 서비스가 모두 올라왔는지 본다
-    const session = requirePort(ext, SESSION_KEY, "xeon.session");
+    const session = requirePort(ext, SESSION_KEY, "fresnel.session");
     late.session = session;
-    const storeService = requirePort(ext, STORE_KEY, "xeon.store");
+    const storeService = requirePort(ext, STORE_KEY, "fresnel.store");
     if (learningLoaded({ defaultGroups: options.defaultGroups, safeMode })) {
       const failed = registerLearningProjection({
         session,
@@ -789,12 +793,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         throw new AssembleError([{ code: "plugin", plugin: "learning", message: failed }]);
       }
     }
-    const loop = requirePort(ext, LOOP_KEY, "xeon.loop");
-    const tasks = requirePort(ext, TASKS_KEY, "xeon.tasks");
-    const approvals = requirePort(ext, APPROVALS_KEY, "xeon.approvals");
-    const tools = requirePort(ext, TOOLS_KEY, "xeon.tools");
-    const models = requirePort(ext, MODELS_KEY, "xeon.models");
-    const context = requirePort(ext, CONTEXT_KEY, "xeon.context");
+    const loop = requirePort(ext, LOOP_KEY, "fresnel.loop");
+    const tasks = requirePort(ext, TASKS_KEY, "fresnel.tasks");
+    const approvals = requirePort(ext, APPROVALS_KEY, "fresnel.approvals");
+    const tools = requirePort(ext, TOOLS_KEY, "fresnel.tools");
+    const models = requirePort(ext, MODELS_KEY, "fresnel.models");
+    const context = requirePort(ext, CONTEXT_KEY, "fresnel.context");
     // 예약 서비스(M3b, L4.host-service.spec §4.17). 실행이 쓰는 엔진 포트는 엔진 포트를 만든 뒤에 채운다(아래)
     const scheduleRunner: { ports: ScheduleRunnerPorts | undefined } = { ports: undefined };
     const schedule = createHostSchedule({
@@ -806,7 +810,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ownerKind: ownerKindOf(options.mode),
       runnerPorts: () => {
         if (scheduleRunner.ports === undefined) {
-          // xeon-disable-next-line xeon/bug-for-expected -- 틱은 엔진 포트가 채워진 뒤에만 시작한다. 여기서 비면 조립 순서가 깨진 것이다 (eng.typescript.guide TY-24)
+          // fresnel-disable-next-line fresnel/bug-for-expected -- 틱은 엔진 포트가 채워진 뒤에만 시작한다. 여기서 비면 조립 순서가 깨진 것이다 (eng.typescript.guide TY-24)
           throw new Bug("schedule runner used before the engine ports exist");
         }
         return scheduleRunner.ports;
@@ -843,7 +847,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     });
 
     const storeId = parse(StoreIdSchema, storeService.storeId);
-    // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
+    // fresnel-disable-next-line fresnel/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
     portsHandle = createEnginePorts({
       mode: options.mode,

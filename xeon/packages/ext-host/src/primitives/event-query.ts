@@ -1,15 +1,15 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { PortKey, PortLookup } from "@xeon/contracts/extensions";
-import type { DurableEventEnvelope, ReadFailure, SessionService } from "@xeon/contracts/records";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { PortKey, PortLookup } from "@fresnel/contracts/extensions";
+import type { DurableEventEnvelope, ReadFailure, SessionService } from "@fresnel/contracts/records";
 import type { ResourceRecord, ResourceRegistry } from "./resources.ts";
 
 /**
- * 내구 이벤트 읽기 포트(서비스 `xeon.session`의 `readBranch` 속성, 제공 core-persistence).
+ * 내구 이벤트 읽기 포트(서비스 `fresnel.session`의 `readBranch` 속성, 제공 core-persistence).
  * 계측·승격 집계가 코어 이벤트(`turn.*`, `lease.*`, `tool.*`)를 접두로 조회하는 데 쓴다(M3-REQ-39)
  */
 export const SessionBranchPortKey: PortKey<SessionService["readBranch"]> = {
-  name: "xeon.session",
+  name: "fresnel.session",
   member: "readBranch",
 };
 

@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { UsageMeter, UsageRecord } from "@xeon/contracts/services";
-import type { UsageGauge } from "@xeon/contracts/wire";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { UsageMeter, UsageRecord } from "@fresnel/contracts/services";
+import type { UsageGauge } from "@fresnel/contracts/wire";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createUsageSource } from "../../src/assembly/usage.ts";
 
 // M3-REQ-15: 조립 기본 사용량 원천은 L1.models 합산기의 기록으로 thread의 세션 게이지(tokens, usd, requests)를 만든다.

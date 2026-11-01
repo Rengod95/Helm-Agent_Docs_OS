@@ -1,7 +1,7 @@
-import type { ScheduleService } from "@xeon/cap-schedule";
-import { detach, err, ok, type Clock, type Scheduler } from "@xeon/contracts";
-import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
-import { createOsService, readOsRuntime, type OsServiceHandle } from "@xeon/platform-os";
+import type { ScheduleService } from "@fresnel/cap-schedule";
+import { detach, err, ok, type Clock, type Scheduler } from "@fresnel/contracts";
+import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
+import { createOsService, readOsRuntime, type OsServiceHandle } from "@fresnel/platform-os";
 import {
   bindServiceSocket,
   createIdleMonitor,
@@ -13,7 +13,7 @@ import {
   type IdleMonitor,
   type ServiceRegistration,
   type SocketListener,
-} from "@xeon/platform-process";
+} from "@fresnel/platform-process";
 import { AssembleError, ENGINE_VERSION } from "../assemble.ts";
 import { hostLimitsOf } from "../assembly/settings-sources.ts";
 import type { ServeAuth } from "../connection-types.ts";

@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
-import { attemptAsync, type Logger } from "@xeon/contracts";
-import type { OsService } from "@xeon/contracts/services";
+import { attemptAsync, type Logger } from "@fresnel/contracts";
+import type { OsService } from "@fresnel/contracts/services";
 import { messageOf } from "../util.ts";
 
 // M3-REQ-49(M3-new-08). 사용자 설정 파일을 L0.os의 `watch`로 지켜보다가 다른 프로세스(CLI의 `fresnel config set`, 다른 호스트, 사람이 연 편집기)가

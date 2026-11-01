@@ -1,8 +1,12 @@
 import { expect, test } from "bun:test";
-import { err, ok, type Logger } from "@xeon/contracts";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import type { LifecycleEvent } from "@xeon/contracts/conversation";
-import type { ReadFailure, SessionService, VolatileEventEnvelope } from "@xeon/contracts/records";
+import { err, ok, type Logger } from "@fresnel/contracts";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import type { LifecycleEvent } from "@fresnel/contracts/conversation";
+import type {
+  ReadFailure,
+  SessionService,
+  VolatileEventEnvelope,
+} from "@fresnel/contracts/records";
 import {
   createVolatileEmitter,
   splitByBytes,

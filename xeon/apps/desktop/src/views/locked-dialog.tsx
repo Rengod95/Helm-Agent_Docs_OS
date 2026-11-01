@@ -1,4 +1,4 @@
-import { detach, rethrow } from "@xeon/contracts";
+import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
 import { useLocked, type LockedThread } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";

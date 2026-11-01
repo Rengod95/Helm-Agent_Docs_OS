@@ -1,7 +1,7 @@
-// xeon.models의 resolve·complete 대역(DR-02: core-models를 import하지 않는다). 대본의 응답을 차례로 돌려주고 호출 요청을 기록한다.
-import { assertNever, err, ok } from "@xeon/contracts";
-import type { AssistantMessage, Usage } from "@xeon/contracts/conversation";
-import type { ModelCallRequest, ResolvedModel } from "@xeon/contracts/services";
+// fresnel.models의 resolve·complete 대역(DR-02: core-models를 import하지 않는다). 대본의 응답을 차례로 돌려주고 호출 요청을 기록한다.
+import { assertNever, err, ok } from "@fresnel/contracts";
+import type { AssistantMessage, Usage } from "@fresnel/contracts/conversation";
+import type { ModelCallRequest, ResolvedModel } from "@fresnel/contracts/services";
 import type { StructuredModels } from "../../src/index.ts";
 
 const ZERO_USAGE: Usage = {

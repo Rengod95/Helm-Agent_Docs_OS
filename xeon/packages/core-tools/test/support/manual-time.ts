@@ -1,4 +1,4 @@
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Clock, Scheduler, TimerHandle } from "@fresnel/contracts";
 import { eachInOrder } from "../../src/util.ts";
 
 // 시험용 시계와 타이머. `advance`가 시계를 옮기고 만기가 된 타이머를 시각 순서로 부른다.

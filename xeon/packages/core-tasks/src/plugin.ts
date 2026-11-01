@@ -1,12 +1,12 @@
-import type { Logger } from "@xeon/contracts";
-import type { IdFactory } from "@xeon/contracts/conversation";
+import type { Logger } from "@fresnel/contracts";
+import type { IdFactory } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
-} from "@xeon/contracts/extensions";
-import { SessionPortKey, TaskServicePortKey } from "@xeon/contracts/services";
-import { hostOf } from "@xeon/ext-host";
+} from "@fresnel/contracts/extensions";
+import { SessionPortKey, TaskServicePortKey } from "@fresnel/contracts/services";
+import { hostOf } from "@fresnel/ext-host";
 import { createTaskService } from "./service.ts";
 import type { TasksSettingsSource } from "./settings-source.ts";
 
@@ -16,7 +16,7 @@ export const TASKS_MANIFEST: ExtensionManifest = defineManifest({
   name: "core-tasks",
   version: "0.1.0",
   displayName: "Task engine",
-  description: "Scope tree, cancellation, keyed queue and the durable input queue (xeon.tasks).",
+  description: "Scope tree, cancellation, keyed queue and the durable input queue (fresnel.tasks).",
   defaultEnabled: true,
   layer: "L1",
   kind: "plugin",
@@ -26,7 +26,7 @@ export const TASKS_MANIFEST: ExtensionManifest = defineManifest({
   trust: { level: "builtin" },
 });
 
-/** 조립 루트(L4)가 넘기는 것. 세션 서비스는 ext-host 포트(xeon.session)에서 받는다 */
+/** 조립 루트(L4)가 넘기는 것. 세션 서비스는 ext-host 포트(fresnel.session)에서 받는다 */
 export interface TasksPluginDeps {
   readonly ids: IdFactory;
   readonly settings: TasksSettingsSource;
@@ -34,7 +34,7 @@ export interface TasksPluginDeps {
 }
 
 /**
- * ext-host 플러그인 API로 xeon.tasks를 제공한다(L1.tasks.plan §2). Cordis는 import하지 않는다.
+ * ext-host 플러그인 API로 fresnel.tasks를 제공한다(L1.tasks.plan §2). Cordis는 import하지 않는다.
  * 범위 해제(dispose)는 close() 하나로 잇는다: 신호만 보내고 의도는 쓰지 않는다(§4.1 4번)
  */
 export function createTasksEntry(deps: TasksPluginDeps): ExtensionEntry {

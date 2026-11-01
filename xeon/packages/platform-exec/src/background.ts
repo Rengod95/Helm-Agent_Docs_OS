@@ -1,11 +1,11 @@
 import { spawn } from "node:child_process";
-import { attempt, err, ok, type Logger, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import {
   ExecutionError,
   type BackgroundExecHandle,
   type CancelScope,
   type ShellExecOptions,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { ExecPlatformProvider } from "./provider.ts";
 import { StreamDecoder } from "./upstream/env/index.ts";
 

@@ -1,5 +1,5 @@
-import { attemptAsync } from "@xeon/contracts";
-import type { JsonRpcMessage } from "@xeon/contracts/wire";
+import { attemptAsync } from "@fresnel/contracts";
+import type { JsonRpcMessage } from "@fresnel/contracts/wire";
 
 // L4.cli.spec §3.3 observe, §4.4 JSON 모드. 연결에서 오간 JSON-RPC 메시지를 순서대로 한 줄에 하나씩 쓴다.
 // 출력 여부는 `l4.cli.outputMode`를 읽은 뒤에야 정해질 수 있어서(--json 플래그가 없을 때), 정해지기 전 메시지는 직렬화해

@@ -1,4 +1,4 @@
-import type { MigrationSet } from "@xeon/contracts/records";
+import type { MigrationSet } from "@fresnel/contracts/records";
 
 // L2.knowledge.spec §3.8 세션 밖 상태 테이블. 소유자 `cap.knowledge`, 테이블 접두 `cap_knowledge_`(F owners.ts).
 // 마이그레이션은 작업마다 단계를 더한다. 1단계(KN.1)는 파일 상태, 스킬 색인, 원장이다. 2단계(KN.2)는 제안 대기열이고,

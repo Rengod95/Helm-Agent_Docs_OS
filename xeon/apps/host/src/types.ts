@@ -1,11 +1,11 @@
-import type { Clock, Result, Scheduler } from "@xeon/contracts";
+import type { Clock, Result, Scheduler } from "@fresnel/contracts";
 import type {
   AnyCapabilityDef,
   Notice,
   SecretMeta,
   SecretName,
-} from "@xeon/contracts/capabilities";
-import type { IdFactory, ItemId, ThreadId, TurnId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { IdFactory, ItemId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   DurableEventEnvelope,
   LeaseToken,
@@ -14,7 +14,7 @@ import type {
   StoreError,
   StoreFailureKind,
   VolatileEventEnvelope,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   AgentDefinition,
   CompactOutcome,
@@ -25,7 +25,7 @@ import type {
   SecretAdminService,
   ShutdownCoordinator,
   ShutdownReason,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type {
   CatalogIssue,
   ScopeStack,
@@ -35,7 +35,7 @@ import type {
   SettingKey,
   SettingNamespace,
   SettingScope,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import type {
   EventFilter,
   SettingsFileScope,
@@ -47,19 +47,19 @@ import type {
   UsageGauge,
   WireParams,
   WireResult,
-} from "@xeon/contracts/wire";
-import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
+} from "@fresnel/contracts/wire";
+import type { DnsResolver, HttpTransport } from "@fresnel/cap-web";
 import type {
   ScheduleClock,
   ScheduleService,
   ScheduleStore,
   ScheduleTicker,
   SchedulePolicy,
-} from "@xeon/cap-schedule";
-import type { ModelsExtensionOptions } from "@xeon/core-models";
-import type { SecretsRuntime, SecretsRuntimeDeps } from "@xeon/platform-secrets";
-import type { BuiltinExtensionModule } from "@xeon/ext-host";
-import type { BinaryCheckReport, NotifierProvider } from "@xeon/platform-os";
+} from "@fresnel/cap-schedule";
+import type { ModelsExtensionOptions } from "@fresnel/core-models";
+import type { SecretsRuntime, SecretsRuntimeDeps } from "@fresnel/platform-secrets";
+import type { BuiltinExtensionModule } from "@fresnel/ext-host";
+import type { BinaryCheckReport, NotifierProvider } from "@fresnel/platform-os";
 import type { SecretOfferStore } from "./secrets/offers.ts";
 
 // L4.host-service.spec §3.3.1~§3.3.2. 처리기와 연결 허브는 이 파일의 타입(EnginePorts)만 쓰고 아래 층 패키지를 import하지 않는다
@@ -84,7 +84,7 @@ export interface AssembleOptions {
   readonly extraCapabilityDefs?: readonly AnyCapabilityDef[];
   /**
    * 테스트 주입: pi-ai 모델 모음을 만드는 함수(모델 테이프 provider를 더한 것). 운영은 생략하고 그러면 pi-ai 내장 provider를 쓴다.
-   * `extraPlugins`로는 모델 서비스를 바꿀 수 없다: core-models가 먼저 올라 xeon.models를 이미 냈기 때문이다(L4.host-service.plan §7).
+   * `extraPlugins`로는 모델 서비스를 바꿀 수 없다: core-models가 먼저 올라 fresnel.models를 이미 냈기 때문이다(L4.host-service.plan §7).
    */
   readonly buildModels?: ModelsExtensionOptions["buildModels"];
   /**
@@ -99,12 +99,12 @@ export interface AssembleOptions {
   readonly webPorts?: {
     readonly resolver?: DnsResolver;
     readonly transport?: HttpTransport;
-    /** 모델 provider의 hosted 검색 대역(내장 검색 래퍼). 생략하면 `xeon.models`의 포트를 쓴다 */
+    /** 모델 provider의 hosted 검색 대역(내장 검색 래퍼). 생략하면 `fresnel.models`의 포트를 쓴다 */
     readonly hostedSearch?: HostedSearchPort;
   };
   /**
    * 테스트 주입: 비밀 서비스(와 관리 서비스)를 만드는 함수. 운영은 생략하고 그러면 sops 제공자를 가진 `createSecretsRuntime`을 쓴다.
-   * 시험은 `memorySecrets`(`@xeon/platform-secrets/testing`)를 돌려줘 sops와 age 키 없이 `secretEnv` 호출의 승인 증거를 끝에서 끝까지 본다.
+   * 시험은 `memorySecrets`(`@fresnel/platform-secrets/testing`)를 돌려줘 sops와 age 키 없이 `secretEnv` 호출의 승인 증거를 끝에서 끝까지 본다.
    * 받은 deps의 시계, 스케줄러, id 발급은 엔진의 것이다
    */
   readonly secretsRuntime?: (deps: SecretsRuntimeDeps) => SecretsRuntime;
@@ -215,7 +215,7 @@ export interface Engine {
   /** 종료 협조 창구. stdio·서비스 호스트가 EOF, 신호, `host.shutdown`에서 요청한다(HS-31) */
   readonly shutdown: EngineShutdown;
   /**
-   * 첫 실행 점검과 `doctor`가 부르는 진단 함수(`F.wire-settings.spec` §3.3의 `host.diagnose` 반려 판정: 진단은 `@xeon/host`의 함수를 직접 부른다).
+   * 첫 실행 점검과 `doctor`가 부르는 진단 함수(`F.wire-settings.spec` §3.3의 `host.diagnose` 반려 판정: 진단은 `@fresnel/host`의 함수를 직접 부른다).
    * 외부 바이너리 점검은 자식 프로세스를 띄우므로 엔진을 열 때가 아니라 이 호출에서 한다
    */
   diagnose(signal: AbortSignal): Promise<EngineDiagnostics>;
@@ -636,7 +636,7 @@ export interface UserNotifyPort {
 }
 
 /**
- * `secret.*` 처리기가 쓰는 비밀 관리 포트(HOST.3). 관리 서비스(`xeon.secretAdmin`)는 사람 전용이라 L4 진입점인 이 포트에만 주고
+ * `secret.*` 처리기가 쓰는 비밀 관리 포트(HOST.3). 관리 서비스(`fresnel.secretAdmin`)는 사람 전용이라 L4 진입점인 이 포트에만 주고
  * 확장과 모델 도구에는 주지 않는다(L0.secrets.spec §3.8).
  */
 export interface SecretsPort {

@@ -1,5 +1,5 @@
-import type { ExtensionEntry, ScopeApi } from "@xeon/contracts/extensions";
-import type { TestHost } from "@xeon/ext-host/testing";
+import type { ExtensionEntry, ScopeApi } from "@fresnel/contracts/extensions";
+import type { TestHost } from "@fresnel/ext-host/testing";
 import type { GroupApi, GroupManifest } from "../../src/index.ts";
 import { realHostAccess, wrap, type GroupHostAccess } from "../../src/wrap.ts";
 

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { PrimitiveError } from "@xeon/ext-host";
+import { PrimitiveError } from "@fresnel/ext-host";
 import { gatherContext, callSource, degradeOf } from "../../src/knowledge.ts";
 import { linkWork } from "../../src/outputs.ts";
 import { INITIAL_HELM_STATE, type HelmFinding } from "../../src/state.ts";

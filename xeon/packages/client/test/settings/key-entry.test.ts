@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok, parse } from "@xeon/contracts";
-import { SecretNameSchema } from "@xeon/contracts/capabilities";
+import { err, ok, parse } from "@fresnel/contracts";
+import { SecretNameSchema } from "@fresnel/contracts/capabilities";
 import {
   keyErrorText,
   submitKey,

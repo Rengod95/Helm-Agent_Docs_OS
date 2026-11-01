@@ -6,17 +6,17 @@ import {
   type ExtensionManifest,
   type PortKey,
   type PostReceipt,
-} from "@xeon/contracts/extensions";
-import { TaskServiceName, type TaskService } from "@xeon/contracts/services";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { createTestHost } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/extensions";
+import { TaskServiceName, type TaskService } from "@fresnel/contracts/services";
+import type { ExtensionUnit } from "@fresnel/ext-host";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { createTasksEntry, TASKS_MANIFEST } from "../src/plugin.ts";
 import { createStaticTasksSettings } from "../src/settings-source.ts";
 import { memorySession, recordingLogger, type MemorySession } from "../src/testing/index.ts";
 import { fixedIdFactory } from "./support/ids.ts";
 
-// xeon.session 대역을 ext-host 포트로 제공한다. 키의 타입은 시험 대역에 맞춘다
-const FakeSessionKey: PortKey<MemorySession> = { name: "xeon.session" };
+// fresnel.session 대역을 ext-host 포트로 제공한다. 키의 타입은 시험 대역에 맞춘다
+const FakeSessionKey: PortKey<MemorySession> = { name: "fresnel.session" };
 const TaskServiceKey: PortKey<TaskService> = { name: TaskServiceName };
 
 const POSTER_MANIFEST: ExtensionManifest = {
@@ -57,7 +57,7 @@ test("the manifest passes manifest validation", () => {
   expect(TASKS_MANIFEST).toMatchObject({ name: "core-tasks", layer: "L1", kind: "plugin" });
 });
 
-test("installing the plugin provides xeon.tasks through the ext-host plugin API", async () => {
+test("installing the plugin provides fresnel.tasks through the ext-host plugin API", async () => {
   const { t, unit } = await setup();
   const installed = await t.host.install(unit);
   expect(installed.entryError).toBeUndefined();
@@ -71,7 +71,7 @@ test("installing the plugin provides xeon.tasks through the ext-host plugin API"
   expect(service?.root.kind).toBe("app");
 });
 
-test("without xeon.session the setup fails with port_unavailable", async () => {
+test("without fresnel.session the setup fails with port_unavailable", async () => {
   const t = await createTestHost({ without: ["queue", "records"] });
   const entry = createTasksEntry({
     ids: fixedIdFactory(),
@@ -134,7 +134,7 @@ test("disposing the host closes the service: signals only, no intent", async () 
   const { t, session, unit } = await setup();
   await t.host.install(unit);
   const service = t.host.ports.get(TaskServiceKey);
-  if (service === undefined) throw new Error("xeon.tasks was not provided");
+  if (service === undefined) throw new Error("fresnel.tasks was not provided");
   const thread = service.openScope(service.root, { kind: "thread", id: "thr_one" });
   await t.host.dispose();
   expect(thread.signal.aborted).toBe(true);

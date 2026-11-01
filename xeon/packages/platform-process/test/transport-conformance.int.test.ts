@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { WIRE_CONFORMANCE_CASES, type Transport } from "@xeon/contracts/wire";
-import { Bug } from "@xeon/contracts";
+import { WIRE_CONFORMANCE_CASES, type Transport } from "@fresnel/contracts/wire";
+import { Bug } from "@fresnel/contracts";
 import { createInProcessPair, createInProcessPairWith } from "../src/index.ts";
 import { serveConformanceHost, spawnFakeEngine } from "../src/testing/index.ts";
 import { runConformanceCase, type ConformanceLink } from "./support/conformance-runner.ts";

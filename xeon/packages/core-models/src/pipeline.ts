@@ -1,4 +1,4 @@
-import { parseSecretRef } from "@xeon/contracts/capabilities";
+import { parseSecretRef } from "@fresnel/contracts/capabilities";
 import {
   lazyStream,
   ModelsError,
@@ -7,9 +7,9 @@ import {
   type ModelsSimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { AssistantMessageEventStream as PiAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
-import { attemptAsync, type Clock, type Logger } from "@xeon/contracts";
-import type { AssistantMessage, ModelThinkingLevel } from "@xeon/contracts/conversation";
-import { FIRST_DENY } from "@xeon/contracts/extensions";
+import { attemptAsync, type Clock, type Logger } from "@fresnel/contracts";
+import type { AssistantMessage, ModelThinkingLevel } from "@fresnel/contracts/conversation";
+import { FIRST_DENY } from "@fresnel/contracts/extensions";
 import type {
   AssistantMessageEventStream,
   CacheMarks,
@@ -18,7 +18,7 @@ import type {
   ModelCallContext,
   ModelCallOptions,
   ModelErrorKind,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { applyCacheMarks } from "./cache-policy.ts";
 import type { FailureLog } from "./failure-log.ts";
 import type { ProviderOverlay } from "./provider-registry.ts";

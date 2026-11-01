@@ -10,7 +10,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 
 # F 확장 계약 구현 계획
 
-대상 스펙: F.extensions.spec. 패키지: `@xeon/contracts`, 서브패스 `./extensions`.
+대상 스펙: F.extensions.spec. 패키지: `@fresnel/contracts`, 서브패스 `./extensions`.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -147,10 +147,10 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 
 1. F.extensions.spec §9 수용 기준 1~11을 위 테스트와 대조 스크립트가 모두 확인하고 통과한다.
 2. 스펙 §3.4 표와 `HOOKS`의 이름·kind·fold·M1 표시가 대조 검사에서 차이 0건이다.
-3. `just verify`의 `tsc -b`, oxlint(type-aware), check-layers, oxfmt 검사가 통과한다. `@xeon/contracts/extensions`에서 `cordis`와 `@earendil-works/pi-coding-agent` import가 0건이다.
-4. `@xeon/contracts/extensions` 서브패스로 공개 이름 전부를 import할 수 있다.
+3. `just verify`의 `tsc -b`, oxlint(type-aware), check-layers, oxfmt 검사가 통과한다. `@fresnel/contracts/extensions`에서 `cordis`와 `@earendil-works/pi-coding-agent` import가 0건이다.
+4. `@fresnel/contracts/extensions` 서브패스로 공개 이름 전부를 import할 수 있다.
 5. 정합성 검사 입력으로 다음 교차 확인 항목을 남긴다(P2 검토자용).
-   - X.primitives.plan이 `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `DriveFn`, `LoopHandle`, `ScopeApi`, `ScopeFn`을 `@xeon/contracts/extensions`에서 import하고 다시 정의하지 않는지.
+   - X.primitives.plan이 `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `DriveFn`, `LoopHandle`, `ScopeApi`, `ScopeFn`을 `@fresnel/contracts/extensions`에서 import하고 다시 정의하지 않는지.
    - L1 각 plan이 지점을 발화할 때 `HOOKS`의 이름을 문자열 상수로 쓰지 않고 `HookName` 타입으로 쓰는지.
    - `CapabilityIdSchema`가 F.capabilities와 같은 객체인지.
    - `DurableEventDraft`, `EventKind`, `ExtensionEventKind`, ID 브랜드(`ThreadId` 등), `AgentMessage` 재노출을 F.records.spec, F.conversation.spec의 위치에서 import하고 다시 정의하지 않는지.

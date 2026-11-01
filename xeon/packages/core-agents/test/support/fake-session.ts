@@ -1,7 +1,7 @@
 // core-persistence의 SessionService 부분을 흉내 내는 대역(DR-02). 커밋 키 멱등, 지문 비교, 롤백 없는 단순 커밋,
 // 자식 연결(p_agents 규칙), creationKey 멱등 생성, 활성 이벤트 조회만 같은 규칙으로 만든다.
-import { Bug, canonicalJson, err, ok, parse, type Result } from "@xeon/contracts";
-import type { EventId, IdFactory, ItemId, ThreadId } from "@xeon/contracts/conversation";
+import { Bug, canonicalJson, err, ok, parse, type Result } from "@fresnel/contracts";
+import type { EventId, IdFactory, ItemId, ThreadId } from "@fresnel/contracts/conversation";
 import {
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
@@ -20,7 +20,7 @@ import {
   type StampedDraft,
   type StoreError,
   type TxView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { AgentsSession } from "../../src/index.ts";
 
 const stamped = new WeakSet<object>();

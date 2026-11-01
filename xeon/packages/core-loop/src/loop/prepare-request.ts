@@ -1,10 +1,10 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type {
   AgentMessage,
   ModelThinkingLevel,
   ThinkingBudgets,
-} from "@xeon/contracts/conversation";
-import type { ResolvedModel } from "@xeon/contracts/services";
+} from "@fresnel/contracts/conversation";
+import type { ResolvedModel } from "@fresnel/contracts/services";
 import { activatedTools } from "./activation.ts";
 import { compactBeforeRequest } from "./compaction.ts";
 import { environmentText } from "./environment.ts";
@@ -14,7 +14,7 @@ import type { LoopFailure } from "./types.ts";
 // L1.loop.spec §3.2 단계 2 `prepareRequest`. 모델 바인딩을 정하고, 도구를 광고하고, 커밋된 이벤트로 컨텍스트를 다시 만든다.
 // 루프는 메시지 배열을 들고 있지 않는다. 조립이 낸 값만 이 요청에 쓴다(adr.0009 §3.3 "문맥").
 
-/** 추론 수준에 맞는 토큰 예산 하나를 pi-ai `thinkingBudgets` 모양으로 옮긴다. 값은 `xeon.models`가 정한 그대로다(바꾸지 않는다) */
+/** 추론 수준에 맞는 토큰 예산 하나를 pi-ai `thinkingBudgets` 모양으로 옮긴다. 값은 `fresnel.models`가 정한 그대로다(바꾸지 않는다) */
 function budgetsOf(level: ModelThinkingLevel, tokens: number | null): ThinkingBudgets | undefined {
   if (tokens === null) return undefined;
   switch (level) {

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { LoopTurnRequest } from "@xeon/contracts/extensions";
+import type { LoopTurnRequest } from "@fresnel/contracts/extensions";
 import { createThreadGate } from "../src/thread-gate.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { countKind, payloadField } from "./support/inspect.ts";

@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_MODEL_KEY, PROVIDERS_KEY, readyToChat, setupSteps } from "@xeon/client/settings";
+import {
+  DEFAULT_MODEL_KEY,
+  PROVIDERS_KEY,
+  readyToChat,
+  setupSteps,
+} from "@fresnel/client/settings";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until } from "./support.ts";
 

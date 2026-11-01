@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { afterEach, expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
+import { err } from "@fresnel/contracts";
 import { EXIT } from "../src/exit-codes.ts";
 import {
   assistantItem,

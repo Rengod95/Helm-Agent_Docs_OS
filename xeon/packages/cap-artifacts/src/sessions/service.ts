@@ -1,4 +1,4 @@
-import { assertNever, Bug, parse, type Logger, type Result } from "@xeon/contracts";
+import { assertNever, Bug, parse, type Logger, type Result } from "@fresnel/contracts";
 import {
   ArtifactsSessions,
   LabelSchema,
@@ -6,14 +6,14 @@ import {
   type CapabilityApi,
   type CapabilityError,
   type SessionMetaView,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   toJsonValue,
   type IdFactory,
   type JsonValue,
   type ThreadId,
   type TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
   type CommitPlan,
@@ -29,7 +29,7 @@ import {
   type ThreadLifecycle,
   type ThreadListQuery,
   type ThreadSummaryRow,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { sha256Hex } from "../hash.ts";
 import { assertLive, requestIdOf, scopeOf } from "../call.ts";
 import { reject } from "../errors.ts";

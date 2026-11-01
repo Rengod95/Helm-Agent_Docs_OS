@@ -1,5 +1,5 @@
-import type { Logger } from "@xeon/contracts";
-import type { ExtensionLoader } from "@xeon/ext-host";
+import type { Logger } from "@fresnel/contracts";
+import type { ExtensionLoader } from "@fresnel/ext-host";
 import type { HostMode } from "../types.ts";
 import type { ProjectTrust } from "./trust.ts";
 

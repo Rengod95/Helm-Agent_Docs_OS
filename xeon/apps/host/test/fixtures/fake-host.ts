@@ -9,7 +9,7 @@ import { createWireHandlers, type HostLifecycle } from "../../src/handlers/index
 import { createInProcessTransportFactory } from "../../src/transport/in-process.ts";
 import { stdioPair } from "./stdio-pair.ts";
 import { createFakeEngine, type FakeEngine, type FakeEngineOptions } from "./fake-engine.ts";
-import type { WireHandlers, HostConnection, Transport } from "@xeon/contracts/wire";
+import type { WireHandlers, HostConnection, Transport } from "@fresnel/contracts/wire";
 
 // 가짜 엔진 위에 실제 처리기 표·연결 허브·in-process 전송을 세운다. 시험이 처리기를 바꿔 끼울 수 있다.
 

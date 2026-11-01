@@ -4,7 +4,7 @@ export {
   type InProcessMode,
   type InProcessPairOptions,
 } from "./in-process.ts";
-// 줄 프레이밍과 stdio 전송 구현은 F `@xeon/contracts/wire`에 있다(런타임 중립). 기존 import 경로를 지키려고 다시 낸다.
+// 줄 프레이밍과 stdio 전송 구현은 F `@fresnel/contracts/wire`에 있다(런타임 중립). 기존 import 경로를 지키려고 다시 낸다.
 export {
   createLineFramer,
   createStdioTransport,
@@ -17,7 +17,7 @@ export {
   type LineFramer,
   type LineFramerOptions,
   type StdioTransportDeps,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 export {
   openProcessStdio,
   writableFromSink,

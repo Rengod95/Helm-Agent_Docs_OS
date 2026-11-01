@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { WireError, type EventWire } from "@xeon/contracts/wire";
+import { WireError, type EventWire } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { createStdioTransport } from "../../src/transport/stdio.ts";

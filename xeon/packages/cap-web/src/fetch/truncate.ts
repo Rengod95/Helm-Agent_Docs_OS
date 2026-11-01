@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { invalidInput, type WebFailure } from "../errors.ts";
 
 // L2.web.spec §4.9.1 8단계, §4.9.2. `range`(문자 위치 offset, 1부터 세는 줄 번호)를 먼저 적용하고 `maxChars`로 자른다.

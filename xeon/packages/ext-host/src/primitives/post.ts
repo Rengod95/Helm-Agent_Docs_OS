@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import {
   InputQueuePortKey,
   type EnqueueError,
@@ -6,7 +6,7 @@ import {
   type PostOptions,
   type PostReceipt,
   type ScopeId,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { ambient } from "./ambient.ts";
 import type { Generation, HostCore, ScopeRecord } from "./core.ts";
 import { PrimitiveError } from "./errors.ts";
@@ -81,7 +81,7 @@ export function createPostQueue(core: HostCore): PostQueue {
       if (port === undefined) {
         throw new PrimitiveError(
           "port_unavailable",
-          "xeon.tasks (InputQueuePort) is not provided",
+          "fresnel.tasks (InputQueuePort) is not provided",
           {
             scopeId: record.id,
           },

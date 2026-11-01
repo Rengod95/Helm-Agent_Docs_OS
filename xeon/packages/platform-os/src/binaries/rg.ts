@@ -1,4 +1,4 @@
-import { attemptAsync, err, ok, type Logger } from "@xeon/contracts";
+import { attemptAsync, err, ok, type Logger } from "@fresnel/contracts";
 import type { RunCommand } from "../proc.ts";
 import type { BundledSource } from "./resolve.ts";
 import { findVersion } from "./semver.ts";

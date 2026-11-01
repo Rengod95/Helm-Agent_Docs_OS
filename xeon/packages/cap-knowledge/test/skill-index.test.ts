@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { renderSkillView } from "@xeon/contracts/capabilities";
+import { renderSkillView } from "@fresnel/contracts/capabilities";
 import { treeHash } from "../src/skills/tree.ts";
 import { buildSkillIndexBlock, truncateDescription } from "../src/skills/prompt-block.ts";
 import { asHost, rejection, treeFrom } from "./support/helpers.ts";

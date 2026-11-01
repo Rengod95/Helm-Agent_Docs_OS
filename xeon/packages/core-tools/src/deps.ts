@@ -1,15 +1,15 @@
-import type { Clock, Logger, Scheduler } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type { ProducerHandle, SessionService, StoreService } from "@xeon/contracts/records";
-import type { Redactor, TieredRule } from "@xeon/contracts/services";
-import type { ExtHost } from "@xeon/ext-host";
+import type { Clock, Logger, Scheduler } from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { ProducerHandle, SessionService, StoreService } from "@fresnel/contracts/records";
+import type { Redactor, TieredRule } from "@fresnel/contracts/services";
+import type { ExtHost } from "@fresnel/ext-host";
 import type { CapabilityResolver } from "./entries.ts";
 import type { LockEnv, ToolTasks } from "./tasks.ts";
 import type { SecretChecker } from "./secret-gate.ts";
 import type { ToolsScalarConfig } from "./settings.ts";
 import type { OutputTruncator } from "./types.ts";
 
-/** core-tools가 쓰는 xeon.session의 부분 */
+/** core-tools가 쓰는 fresnel.session의 부분 */
 export type ToolsSession = Pick<
   SessionService,
   "commit" | "query" | "readBranch" | "sessionSettings"
@@ -23,7 +23,7 @@ export interface ToolsConfig extends ToolsScalarConfig {
 /** 런타임(서비스 조립) 의존. 플러그인이 포트에서 모아 넘기고, 테스트는 대역을 넘긴다 */
 export interface ToolsDeps {
   readonly session: ToolsSession;
-  /** xeon.session.producer("core.tools")로 받은 핸들. 플러그인 setup 중 한 번만 받는다 */
+  /** fresnel.session.producer("core.tools")로 받은 핸들. 플러그인 setup 중 한 번만 받는다 */
   readonly producer: ProducerHandle;
   readonly store: Pick<StoreService, "putBlob" | "readBlob">;
   /** 없으면 tool 범위 노드와 키 큐를 쓰지 않는다 */

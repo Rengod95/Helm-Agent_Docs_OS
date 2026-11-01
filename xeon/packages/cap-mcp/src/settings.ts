@@ -1,10 +1,10 @@
 import { Type } from "typebox";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   McpServerDefSchema,
   MCP_SERVER_ID_PATTERN,
   type McpApprovalMode,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   defineSettings,
   resolveSetting,
@@ -13,7 +13,7 @@ import {
   type ScopeStack,
   type SettingDef,
   type SettingScope,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { asJsonObject } from "./json.ts";
 import { checkDefinitionValues } from "./servers/values.ts";
 import type { LoaderDiagnostic, ServerDefinition } from "./types.ts";

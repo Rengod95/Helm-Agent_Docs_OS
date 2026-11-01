@@ -1,5 +1,5 @@
-import { err, ok } from "@xeon/contracts";
-import { FileError, type FileInfo } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import { FileError, type FileInfo } from "@fresnel/contracts/services";
 import type { CommandFiles } from "../../src/ports/command-files.ts";
 import {
   loadTemplatesFromDir,

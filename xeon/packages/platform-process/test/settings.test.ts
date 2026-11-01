@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCatalog, checkSettingDef, validateSettingValue } from "@xeon/contracts/settings";
+import { buildCatalog, checkSettingDef, validateSettingValue } from "@fresnel/contracts/settings";
 import {
   PROCESS_SERVICE_SETTINGS_DEFAULTS,
   PROCESS_SETTING_DEFS,

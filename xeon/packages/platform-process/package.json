@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/platform-process",
+  "name": "@fresnel/platform-process",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,13 +14,13 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
-    "@xeon/contracts": "workspace:*",
+    "@fresnel/contracts": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L0",
     "domain": "process"
   }

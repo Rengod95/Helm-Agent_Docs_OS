@@ -10,12 +10,12 @@ import {
   type Clock,
   type Logger,
   type Result,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import {
   SecretHandleSchema,
   InjectionModeSchema,
   type SecretAuditRecord,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { Type } from "typebox";
 import { SECRETS_SUBDIR } from "./config.ts";
 import { errorCode } from "./errors.ts";

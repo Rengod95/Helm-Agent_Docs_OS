@@ -1,4 +1,4 @@
-import { eachAsync } from "@xeon/contracts";
+import { eachAsync } from "@fresnel/contracts";
 
 /** 앞 단계가 끝나야 다음을 시작하는 반복(시험에서 순서가 의미를 가질 때) */
 export async function times(

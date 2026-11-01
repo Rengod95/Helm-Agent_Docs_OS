@@ -23,8 +23,8 @@ binds: []
 | 항목 | 정본 |
 |---|---|
 | 확장 포트(LoopPort, InputQueuePort, ToolsPort, ModelsPort, McpPort, LeaseArbiterPort, RecordCommitPort, 로더·훅 포트) | `F.extensions.spec` §3.2.1 `ports.ts`. X는 재export만 한다 |
-| 서비스 인터페이스 15종과 `SERVICE_NAMES` | `F.capabilities.spec` §3.12 `@xeon/contracts/services` |
-| Cordis에 등록되는 L2 서비스 | `xeon.mcp`만. 나머지 L2 이름은 묶음 이름이다 |
+| 서비스 인터페이스 15종과 `SERVICE_NAMES` | `F.capabilities.spec` §3.12 `@fresnel/contracts/services` |
+| Cordis에 등록되는 L2 서비스 | `fresnel.mcp`만. 나머지 L2 이름은 묶음 이름이다 |
 | 확장 id | `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두 `x_<id>_`, 지역 테이블 이름에 밑줄 금지 |
 | 비공개 기록 | `ScopeApi.recordPrivate`, `queryRecords(threadId, query, reader)` |
 | 커밋 키 | 정본 `eng.transactions.design` §4.7, 코드 상수 F `records/commit.ts` |

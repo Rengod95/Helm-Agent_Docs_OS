@@ -1,4 +1,4 @@
-import type { MigrationSet } from "@xeon/contracts/records";
+import type { MigrationSet } from "@fresnel/contracts/records";
 import { SYS_OWNER } from "./prefix.ts";
 
 /**

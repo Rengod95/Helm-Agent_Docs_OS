@@ -1,5 +1,5 @@
 import { chmodSync, mkdirSync, statSync } from "node:fs";
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type { StoreOpenError, StoreWarning } from "./types.ts";
 
 function fsCode(caught: unknown): string {

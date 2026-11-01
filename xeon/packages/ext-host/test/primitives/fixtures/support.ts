@@ -1,13 +1,13 @@
-import { defineCapability } from "@xeon/contracts/capabilities";
+import { defineCapability } from "@fresnel/contracts/capabilities";
 import { Type } from "typebox";
-import type { ExtensionManifest, ScopeDef, ScopeSetup } from "@xeon/contracts/extensions";
+import type { ExtensionManifest, ScopeDef, ScopeSetup } from "@fresnel/contracts/extensions";
 import type {
   AssistantMessage,
   ToolResultMessage,
   Usage,
   UserMessage,
-} from "@xeon/contracts/conversation";
-import type { ExtThreadSnapshot, RecordCommitPort } from "@xeon/contracts/records";
+} from "@fresnel/contracts/conversation";
+import type { ExtThreadSnapshot, RecordCommitPort } from "@fresnel/contracts/records";
 import {
   capabilityDefTable,
   type CapabilityDefLookup,

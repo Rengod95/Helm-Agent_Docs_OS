@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ApprovalEvidence } from "@xeon/contracts/services";
+import type { ApprovalEvidence } from "@fresnel/contracts/services";
 import {
   createMcpStartApprovals,
   mcpDefinitionHash,

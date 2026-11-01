@@ -10,7 +10,7 @@ binds: [xeon/packages/cap-dialog/**]
 
 # L2 사용자 대화 (dialog)
 
-패키지: `xeon/packages/cap-dialog`. 서비스: `xeon.dialog`. 능력: `dialog.ask`, `dialog.commands`, `dialog.status`, `dialog.attachments`, `dialog.aside`, `dialog.styles`, `dialog.notify`. 이벤트 접두사: `dialog.`(휘발 `status`). 테이블: 없음. 생산자 id: `cap.dialog`.
+패키지: `xeon/packages/cap-dialog`. 서비스: `fresnel.dialog`. 능력: `dialog.ask`, `dialog.commands`, `dialog.status`, `dialog.attachments`, `dialog.aside`, `dialog.styles`, `dialog.notify`. 이벤트 접두사: `dialog.`(휘발 `status`). 테이블: 없음. 생산자 id: `cap.dialog`.
 
 ## 1. 목적과 범위
 
@@ -641,7 +641,7 @@ export interface DialogService {
   readonly notify: CapabilityApi<typeof DialogNotify> & NoticeFeed;
 }
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
-export const DialogServiceName = "xeon.dialog";
+export const DialogServiceName = "fresnel.dialog";
 export const DIALOG_CAPABILITIES = [DialogAsk, DialogCommands, DialogStatus, DialogAttachments, DialogAside, DialogStyles, DialogNotify] as const;
 ```
 
@@ -705,8 +705,8 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 #### 4.1.1 승인 요청의 사용 방식
 
-- [결정] 질문은 `xeon.approvals`에 kind `question`으로 요청한다. 계획 승인(kind `plan`, `L2.work.spec` §4.2)과 같은 레코드 형식이다. 레코드 필드(`approvalId`, kind, 대상, 선택지, 결과)의 정의는 L1.tools.spec이 소유하고, 이 문서는 대상 내용(`AskApprovalSubjectSchema`)과 답 내용(`AskAnswerSchema`)만 정한다.
-- cap-dialog는 `xeon.approvals`를 포트 한 곳(`cap-dialog/src/ports/approvals.ts`)으로 감싼다. 포트 모양은 F의 L2 공통 `L2ApprovalsPort`(`L2.readme` §5.7)이고 kind는 `"question"`이다. 요청이 낸 쪽(출처)은 호출마다 정해지므로 포트는 호출 문맥으로 포트를 만드는 팩토리(`ApprovalsPortFactory.forCall`)로 받는다. 도구 호출 안이면 문맥의 `toolCallId`가 요청의 `origin`이 되어 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다. 기본 팩토리는 `questionApprovalsOver(approvals)`다. `dialogPlugin`은 `DialogPluginOptions.approvals`가 없으면 `xeon.approvals` 포트를 이 함수로 감싼다. 이 어댑터는 서비스의 메모리 대기 목록이 비어 있는 재시작 직후에 모르는 `approvalId`를 만나면 그 대화의 `restore`를 먼저 부르고, 같은 `requestId`의 두 번째 요청이 처음과 다른 질문 묶음이면 `key_reused`로 거부한다(서비스는 키만 보고 처음 요청을 돌려주므로 어댑터가 비교한다).
+- [결정] 질문은 `fresnel.approvals`에 kind `question`으로 요청한다. 계획 승인(kind `plan`, `L2.work.spec` §4.2)과 같은 레코드 형식이다. 레코드 필드(`approvalId`, kind, 대상, 선택지, 결과)의 정의는 L1.tools.spec이 소유하고, 이 문서는 대상 내용(`AskApprovalSubjectSchema`)과 답 내용(`AskAnswerSchema`)만 정한다.
+- cap-dialog는 `fresnel.approvals`를 포트 한 곳(`cap-dialog/src/ports/approvals.ts`)으로 감싼다. 포트 모양은 F의 L2 공통 `L2ApprovalsPort`(`L2.readme` §5.7)이고 kind는 `"question"`이다. 요청이 낸 쪽(출처)은 호출마다 정해지므로 포트는 호출 문맥으로 포트를 만드는 팩토리(`ApprovalsPortFactory.forCall`)로 받는다. 도구 호출 안이면 문맥의 `toolCallId`가 요청의 `origin`이 되어 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다. 기본 팩토리는 `questionApprovalsOver(approvals)`다. `dialogPlugin`은 `DialogPluginOptions.approvals`가 없으면 `fresnel.approvals` 포트를 이 함수로 감싼다. 이 어댑터는 서비스의 메모리 대기 목록이 비어 있는 재시작 직후에 모르는 `approvalId`를 만나면 그 대화의 `restore`를 먼저 부르고, 같은 `requestId`의 두 번째 요청이 처음과 다른 질문 묶음이면 `key_reused`로 거부한다(서비스는 키만 보고 처음 요청을 돌려주므로 어댑터가 비교한다).
 - [결정: review.m2-plan DG.1] 레코드 모양은 L1.tools가 정한다. cap-dialog가 도메인 모양과 레코드 모양을 옮긴다(`ask/mapping.ts`).
   - 대상: `AskQuestion[]`을 `QuestionBody`(`{ questions: [{ id, text, options: [{ id, label, description? }], multiSelect, allowFreeText }] }`)로 옮긴다. `question`은 `text`가 되고, 선택지가 없는 질문은 `options: []`와 `allowFreeText: true`다(L1.tools는 선택지 없는 질문의 `allowFreeText`가 참이어야 받는다). `header`와 `recommended`도 레코드에 싣는다(F.8에서 `QuestionItem.header`, `QuestionOption.recommended`가 들어왔다). 화면이 추천 표시를 그리고, 시간 제한의 추천 답은 입력(`AskInput`)의 `defaultAskAnswer`가 정한다.
   - 응답: `approval.respond`의 `answer`는 `QuestionAnswer`(질문 id → `{ selected, text? }`)다. cap-dialog가 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)로 옮기고 `validateAskAnswer`로 다시 검사한다. `AskAnswer`는 wire를 지나지 않는다. 클라이언트는 `QuestionBody`를 그려 정본 `QuestionAnswer`(records `QuestionAnswerSchema`, 질문 4개까지)로 답하고, 모양이 다르면 `approval.respond`가 `-32602`, kind와 decision이 어긋나면 `applied: false`다. `toQuestionAnswer`·`fromQuestionAnswer`가 두 모양을 서로 옮기고, 테스트(`ask-schema.test.ts`)가 변환 결과를 정본 스키마로 검사한다.
@@ -727,7 +727,7 @@ sequenceDiagram
   participant M as 모델(ask_user)
   participant T as L1.tools
   participant D as cap-dialog
-  participant A as xeon.approvals
+  participant A as fresnel.approvals
   participant U as 클라이언트
   M->>T: ask_user(questions)
   T->>D: ask({questions, wait:false}, {requestId: R, threadId})
@@ -754,7 +754,7 @@ sequenceDiagram
 
 - 시간 제한값: 입력 `timeoutSec`, 없으면 설정 `l2.dialog.ask.timeoutSec`. 0이면 제한이 없다.
 - 시간 제한이 있으면 승인 요청에 만료 시각과 만료 시 결과를 함께 넘기는 것이 정본이다 [가정: L1.tools.spec이 만료를 내구적으로 관리한다. F.wire-settings.spec §4.6 A안 "대기 시간 제한을 엔진이 따로 관리한다"]. 만료 시 결과는 `defaultAskAnswer(questions)`가 있으면 그 답(`decision: "answer"`)이고, 없으면 취소(`cancel`)다.
-  - [잠정: review.m2-plan DG.1] F `ApprovalRequestInput`과 `L2ApprovalRequest`에 만료 필드(`expiresAt`, `onExpire`)가 들어왔다(m2c G1-11). 만료 타이머와 이 어댑터가 필드를 채우는 구현은 M3이므로(`review.m3-plan` M3-06) 그때까지 `ask/expiry.ts`가 프로세스 안 타이머(`xeon.os`의 `scheduler`)로 같은 일을 한다. 승인이 아직 대기이면 `ask`가 타이머를 걸고, 만료되면 추천 답으로 `respond`하거나 `cancel`한다. 사용자가 먼저 답했으면 `respond`의 `applied: false`로 끝난다.
+  - [잠정: review.m2-plan DG.1] F `ApprovalRequestInput`과 `L2ApprovalRequest`에 만료 필드(`expiresAt`, `onExpire`)가 들어왔다(m2c G1-11). 만료 타이머와 이 어댑터가 필드를 채우는 구현은 M3이므로(`review.m3-plan` M3-06) 그때까지 `ask/expiry.ts`가 프로세스 안 타이머(`fresnel.os`의 `scheduler`)로 같은 일을 한다. 승인이 아직 대기이면 `ask`가 타이머를 걸고, 만료되면 추천 답으로 `respond`하거나 `cancel`한다. 사용자가 먼저 답했으면 `respond`의 `applied: false`로 끝난다.
   - 잠정 구현의 한계: 프로세스가 끝나면 타이머가 사라지고, 재시작 뒤 같은 `requestId`로 `ask`를 다시 부르면 제한 시간을 처음부터 다시 잰다. `defaulted`와 `timeout` 표지는 메모리에만 있어 재시작 뒤에는 각각 `defaulted: false`와 `aborted`로 읽힌다. F에 만료 필드가 오르면 이 타이머를 지운다.
   - 모든 질문에 추천 항목이 있을 때만 자동 답을 만든다. 일부 질문만 추천이 있으면 나머지 답을 지어내야 하므로 만들지 않는다 [제안].
   - 정본 설계에서 만료 시각은 요청 커밋 시각 + 제한이다. 프로세스가 없던 동안 시각이 지났으면 다음 실행 때 L1.tools가 해결하고 cap-dialog는 타이머를 갖지 않는다.
@@ -912,7 +912,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
   - 한도: 파일은 읽기 전에 `fileInfo`의 크기로, 붙여넣기는 디코드 전에 base64 길이로 `maxBytes`를 검사한다.
   - URL: 이름은 경로 끝 마디(없으면 호스트)다. 네트워크 호출이 없다.
 - URL을 가져오지 않는 이유 [제안]: 가져오기는 `web.fetch`의 신뢰·정책(도메인 허용, 신뢰하지 않는 내용 표지)을 거쳐야 한다. 첨부 단계에서 가져오면 그 정책을 우회한다.
-- `path` 원천은 작업 폴더 밖 경로도 받는다. 사용자가 직접 붙인 파일이기 때문이다. 읽기는 `xeon.exec`의 `FileSystem.readBinaryFile`(`L0.exec.spec` §3.1)로 한다. `xeon.os`(`OsService`, `L0.os.spec` §3.10)에는 파일 읽기 API가 없다(확인함).
+- `path` 원천은 작업 폴더 밖 경로도 받는다. 사용자가 직접 붙인 파일이기 때문이다. 읽기는 `fresnel.exec`의 `FileSystem.readBinaryFile`(`L0.exec.spec` §3.1)로 한다. `fresnel.os`(`OsService`, `L0.os.spec` §3.10)에는 파일 읽기 API가 없다(확인함).
 - 상대 경로(`source.path`)는 호출 문맥의 `threadId`가 있으면 그 thread의 작업 폴더에 이어 붙여 읽는다(F wire §3.3.1). 작업 폴더는 명령 파일과 같은 `CommandRoots.projectRoot(threadId)`다. 작업 폴더가 없거나(null) `threadId`가 없으면 경로를 그대로 `files`에 넘긴다. 절대 경로는 작업 폴더와 무관하게 그대로 읽는다. 없음, 권한, 디렉터리, 한도 검사는 해석한 경로에 한다. 첨부의 `path`와 입력 파트의 `path` 속성은 해석한 경로다 [결정: 오케스트레이터 기본값]. 모델이 같은 파일을 read 도구로 다시 찾을 수 있게 하려는 것이다.
 
 ### 4.6 곁가지 질문과 출력 스타일(2차)
@@ -962,13 +962,13 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 |---|---|---|
 | 같은 프로세스 소비자(L4 in-process 클라이언트, 그룹) | `NoticeFeed.subscribe` | 1 |
 | 클라이언트 당겨 읽기 | `dialog.notify.list`(wire는 `notify.list`, `L4.host-service.spec` HS-94) | 1 |
-| OS 알림(데스크톱 알림 센터) | cap-dialog가 `xeon.os`의 `notify(n, signal)`을 부른다(`L0.os.spec` §3.7, §3.10. 확인함). M3 이전 빌드와 provider `none`이면 `disabled`를 돌려준다. 구현은 `notify/os-delivery.ts`다 [구현: M3b D11] | 1 |
+| OS 알림(데스크톱 알림 센터) | cap-dialog가 `fresnel.os`의 `notify(n, signal)`을 부른다(`L0.os.spec` §3.7, §3.10. 확인함). M3 이전 빌드와 provider `none`이면 `disabled`를 돌려준다. 구현은 `notify/os-delivery.ts`다 [구현: M3b D11] | 1 |
 | 모바일 푸시 | cap-dialog(`dialog.notify`)의 푸시 채널 [제안]. 외부 중계와 인증 계층은 서비스 모드(`L4.host-service.spec`)가 준다 | 2(서비스 모드) |
 
 - 같은 프로세스 구독(`NoticeFeed.subscribe`)은 같은 스레드·같은 종류의 알림을 1초(`NOTICE_COALESCE_MS`) 안에 한 번만 보낸다 [구현: M3b D11]. 창 안에서 묶인 알림은 시각을 갱신하지 않는다. 묶는 것은 전달뿐이고 `list`는 모든 알림을 돌려준다. 같은 단계의 `turn.completed`와 `work.goal_settled`(목표 달성)이 한 번만 전달되게 하려는 기본값이다 [결정: 오케스트레이터 기본값]. 구독은 피드 이벤트마다 알림을 한 번 계산하고, 이미 본 seq는 무시한다.
 - OS 알림은 kind별 설정(`l2.dialog.notify.<kind>`)과 `l2.dialog.notify.os`가 모두 켜졌을 때만 보낸다. 설정은 알림마다 그 대화의 범위로 읽는다 [구현: M3b D11]. 클라이언트 창이 앞에 있을 때 보내지 않는 조건은 클라이언트만 알 수 있으므로 [미결](§10 D-6). 기본은 창 상태와 관계없이 보내고 화면 표시는 클라이언트가 정한다 [결정: review.m3-design-inputs D-M3-17].
 - 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 알림 채널이 한 곳에 있어야 무엇을 어디로 받을지 정하는 사용자 설정이 하나로 모인다. 모바일 푸시는 상주 서비스와 인증 계층이 필요하므로(`_research/l2e.md` §6 B4) 서비스 모드에서만 켜지고, 꺼져 있으면 `unavailable`(`detail.reason: "service_mode_off"`)이다(`L2.readme` §8). 이 경계에서는 `schedule.remote`가 dialog를 읽지 않으므로 L2 사이 간선이 생기지 않는다(`L2.readme` §6).
-- OS 알림 kind 대응 [구현: M3b D11]: `xeon.os`의 `notify`는 `NotifyKind` 4종(`done`, `approval`, `question`, `error`)을 받는다(`L0.os.spec` §3.7). 알림 5종을 다음과 같이 옮긴다.
+- OS 알림 kind 대응 [구현: M3b D11]: `fresnel.os`의 `notify`는 `NotifyKind` 4종(`done`, `approval`, `question`, `error`)을 받는다(`L0.os.spec` §3.7). 알림 5종을 다음과 같이 옮긴다.
 
 | `NoticeKind` | `L0.os` `NotifyKind` |
 |---|---|
@@ -978,8 +978,8 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `error` | `error` |
 | `background_completed` | `done` |
 
-- 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 설정 탭은 이 문서의 `l2.dialog.notify.*`(§6)가 정본이다. L0.os는 전달 수단(`xeon.os`의 `notify`)만 소유하고 켜기·종류 키를 두지 않는다 [결정: review.decisions-2 S-04]. OS가 알림을 막아 `notify`가 전달하지 못하면 cap-dialog는 이를 실패로 보지 않고 운영 로그에 남긴다.
-- OS 알림의 내용: 제목과 본문을 `xeon.secrets`의 `redactor.mask`로 가린 뒤 제목 80자, 본문 400자로 자른다(`L0.os.spec` §3.7은 자르기 전에 가리라고 한다). 본문이 없는 알림은 빈 본문으로 보낸다. `xeon.secrets`가 없으면 본문을 가릴 수 없으므로 보내지 않고 `dialog.redactor_missing` 경고를 한 번 남긴다 [결정: 오케스트레이터 기본값] [구현: M3b D11].
+- 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 설정 탭은 이 문서의 `l2.dialog.notify.*`(§6)가 정본이다. L0.os는 전달 수단(`fresnel.os`의 `notify`)만 소유하고 켜기·종류 키를 두지 않는다 [결정: review.decisions-2 S-04]. OS가 알림을 막아 `notify`가 전달하지 못하면 cap-dialog는 이를 실패로 보지 않고 운영 로그에 남긴다.
+- OS 알림의 내용: 제목과 본문을 `fresnel.secrets`의 `redactor.mask`로 가린 뒤 제목 80자, 본문 400자로 자른다(`L0.os.spec` §3.7은 자르기 전에 가리라고 한다). 본문이 없는 알림은 빈 본문으로 보낸다. `fresnel.secrets`가 없으면 본문을 가릴 수 없으므로 보내지 않고 `dialog.redactor_missing` 경고를 한 번 남긴다 [결정: 오케스트레이터 기본값] [구현: M3b D11].
 - 보내기 결과는 대화를 실패시키지 않는다. `disabled`는 디버그 로그(`dialog.notify_os_disabled`)만 남기고, `unavailable`·`failed`·`cancelled`는 경고 로그(`dialog.notify_os_failed`, 제공자와 코드를 담는다)를 남긴다. 보내기 Promise가 거부되면 잡아서 오류 로그(`dialog.notify_os_rejected`)를 남긴다. 플러그인이 해제되면 쥔 신호를 중단해 보내는 중인 호출을 끝낸다 [구현: M3b D11].
 
 ### 4.8 노출 계약: 입력 큐와 되감기
@@ -1059,7 +1059,7 @@ export const manifest = defineManifest({
 | `input.agent.before` | collect | 명령 목록 광고와 출력 스타일 조각(시스템 프롬프트 조각 API가 이 지점이 아니면 L1.context 경로로 옮긴다 [가정]). cap-dialog는 `payload.systemPrompt` 뒤에 조각을 붙여 돌려준다. [결정: 2026-10-28 오케스트레이터] collect에서 핸들러는 원본 payload만 보고 `systemPrompt`는 마지막으로 정의한 값이 이기므로, `systemPrompt`를 기여하는 핸들러는 하나만 둔다. 두 번째 기여자가 생기면 그때 다시 본다. |
 
 - post와 drive를 쓰지 않는다.
-- 내구 피드 구독(`xeon.session`)은 `turn.*`, `approval.*`, `work.*`, `agent.*`, `schedule.*`, `dialog.*` 접두를 받는다(M3b D11, `sessionFeed`의 접두 목록). 상태줄은 `turn.*`, `approval.*`로 `core.turn`을 계산하고, 알림 분류는 §4.7.1의 원인 종류로 계산한다. 구독자는 `seq`로 중복을 거른다(EV-05).
+- 내구 피드 구독(`fresnel.session`)은 `turn.*`, `approval.*`, `work.*`, `agent.*`, `schedule.*`, `dialog.*` 접두를 받는다(M3b D11, `sessionFeed`의 접두 목록). 상태줄은 `turn.*`, `approval.*`로 `core.turn`을 계산하고, 알림 분류는 §4.7.1의 원인 종류로 계산한다. 구독자는 `seq`로 중복을 거른다(EV-05).
 - `ask_user`는 `tool.call.before`(first), `tool.result`(chain) 지점을 지난다(F.capabilities.spec §7).
 
 ## 8. 다른 문서와의 인터페이스
@@ -1102,7 +1102,7 @@ export const manifest = defineManifest({
 7. 셸 주입이 있는 템플릿은 `confirmShell` 없이 `run`하면 아무 명령도 실행하지 않고 `needs_confirmation`을 낸다.
 8. 프로젝트와 사용자에 같은 이름의 명령 파일이 있으면 프로젝트 것이 쓰이고, 사용자 것은 `includeHidden`에서만 보인다.
 9. `dialog.notify`: `emit` 뒤 `list`가 같은 알림을 같은 값으로 돌려준다. 같은 `requestId` 재호출은 처음 알림과 같은 seq를 돌려주고 기록을 늘리지 않는다. 같은 스레드·같은 종류의 알림 둘은 1초 안에 구독자에게 한 번만 가고, `list`는 둘 다 돌려준다. 시험은 `test/notify-service.test.ts`다.
-10. OS 알림: `notify.os`와 종류별 키가 모두 켜진 알림만 `xeon.os`의 `notify`로 가고, 제목은 80자, 본문은 400자 안에서 가려진 문자열만 쓴다. 보내기 실패는 대화를 실패시키지 않는다. 시험은 `test/notify-os.test.ts`와 `test/plugin.test.ts`의 OS 알림 묶음이다.
+10. OS 알림: `notify.os`와 종류별 키가 모두 켜진 알림만 `fresnel.os`의 `notify`로 가고, 제목은 80자, 본문은 400자 안에서 가려진 문자열만 쓴다. 보내기 실패는 대화를 실패시키지 않는다. 시험은 `test/notify-os.test.ts`와 `test/plugin.test.ts`의 OS 알림 묶음이다.
 
 ## 10. 미결 사항
 

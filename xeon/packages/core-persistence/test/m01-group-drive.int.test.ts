@@ -1,15 +1,15 @@
 // open-issues M-01: 그룹 drive가 실제 영속성 위에서 lease.released reason=error 없이 끝난다.
 // ext-host의 시험 호스트에 실제 SessionService.ext를 기록 저장소로 꽂는다.
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { DurableEventDraft } from "@xeon/contracts/records";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   createSmokeGroup,
   createTestHost,
   memoryRecordStore,
   type MemoryRecordStore,
-} from "@xeon/ext-host/testing";
+} from "@fresnel/ext-host/testing";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import { expectOk, openHarness, type Harness } from "./support/harness.ts";
 import { TEST_HOLDER_A } from "./support/sqlite-store.ts";

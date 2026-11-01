@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/platform-os",
+  "name": "@fresnel/platform-os",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,15 +14,15 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/ext-host": "workspace:*",
     "@vscode/ripgrep": "catalog:",
-    "@xeon/contracts": "workspace:*",
-    "@xeon/ext-host": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L0",
     "domain": "os"
   }

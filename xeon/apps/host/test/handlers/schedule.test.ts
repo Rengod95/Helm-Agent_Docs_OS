@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { err, ok, parse } from "@xeon/contracts";
-import type { ScheduleService } from "@xeon/cap-schedule";
-import type { RunView, ScheduleEntryView } from "@xeon/contracts/capabilities";
-import { WIRE_METHODS, type WireParams } from "@xeon/contracts/wire";
+import { err, ok, parse } from "@fresnel/contracts";
+import type { ScheduleService } from "@fresnel/cap-schedule";
+import type { RunView, ScheduleEntryView } from "@fresnel/contracts/capabilities";
+import { WIRE_METHODS, type WireParams } from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 

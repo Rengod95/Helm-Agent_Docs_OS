@@ -1,6 +1,6 @@
-import { attempt, type Clock, type Result } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type { ScopeHandlerFailedPayload, VolatileEventEnvelope } from "@xeon/contracts/records";
+import { attempt, type Clock, type Result } from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { ScopeHandlerFailedPayload, VolatileEventEnvelope } from "@fresnel/contracts/records";
 import { messageOf } from "../util.ts";
 
 // M3-REQ-35, X.operations.spec §4.3.4, L4.host-service.spec HS-80. 확장 핸들러 실패(`ScopeHandlerFailedPayload`)를
@@ -9,7 +9,7 @@ import { messageOf } from "../util.ts";
 
 /** 발신이 쓰는 좁은 포트. 세션과 연결 허브는 엔진을 만든 뒤에 생기므로 조립 루트가 늦게 잇는다 */
 export interface HandlerFailedPorts {
-  /** `xeon.session`의 휘발 발신. 저장하지 않는다 */
+  /** `fresnel.session`의 휘발 발신. 저장하지 않는다 */
   readonly emitVolatile: (event: VolatileEventEnvelope) => void;
   /** 발신 시점의 내구 head. 이 값이 `afterSeq`가 된다. 읽지 못하면 이 실패는 보내지 않는다 */
   readonly headSeq: () => Result<number, { readonly kind: string }>;

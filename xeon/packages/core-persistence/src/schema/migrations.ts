@@ -1,4 +1,4 @@
-import type { MigrationSet } from "@xeon/contracts/records";
+import type { MigrationSet } from "@fresnel/contracts/records";
 import { EVENTS_DDL, REQUESTS_DDL, STATE_DDL } from "./ddl.ts";
 
 /** 마이그레이션 소유자. L0.store의 sys_prefixes에 등록된 코어 소유자 이름이다 */

@@ -1,12 +1,12 @@
-import { t, type MessageId } from "@xeon/client/i18n";
-import { parse } from "@xeon/contracts";
-import type { NoticeKind } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import { parse } from "@fresnel/contracts";
+import type { NoticeKind } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   ScopeHandlerFailedPayloadSchema,
   type ScopeHandlerFailedPayload,
-} from "@xeon/contracts/records";
-import type { NotifyDeliveredParams, StreamChunkParams } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/records";
+import type { NotifyDeliveredParams, StreamChunkParams } from "@fresnel/contracts/wire";
 import type { RenderOp } from "./ops.ts";
 
 // L4.cli.spec §4.5, X.operations.spec §4.3.4, L4.host-service.spec HS-92·HS-94. 확장 핸들러 실패(`scope.handler_failed`)와

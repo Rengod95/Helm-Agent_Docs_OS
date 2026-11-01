@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { FileChange } from "@xeon/contracts/capabilities";
+import { Bug } from "@fresnel/contracts";
+import type { FileChange } from "@fresnel/contracts/capabilities";
 
 // L2.workspace.spec §4.4. `FileChange.diff`는 외부 라이브러리 없이 이 파일이 만든다(통합 diff, 문맥 3줄).
 // 줄 단위 LCS로 차이를 구하고, 앞뒤 공통 줄은 먼저 떼어 낸다. 가운데 구간의 칸 수가 MAX_LCS_CELLS를 넘으면

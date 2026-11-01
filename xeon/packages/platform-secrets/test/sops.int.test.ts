@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { err, ok } from "@xeon/contracts";
-import type { KeyProviderIdPublic, SecretError } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { KeyProviderIdPublic, SecretError } from "@fresnel/contracts/services";
 import { createRedactor } from "../src/redactor.ts";
 import {
   bunRunner,
@@ -148,7 +148,7 @@ describe("sops binary resolution", () => {
     expect(calls).toEqual([["--disable-version-check", "--version"]]);
   });
 
-  test("resolves through xeon.os when no binary is configured", async () => {
+  test("resolves through fresnel.os when no binary is configured", async () => {
     const resolver = createSopsResolver({
       configured: () => null,
       resolveBinary: (options) =>

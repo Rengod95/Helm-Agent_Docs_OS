@@ -1,4 +1,4 @@
-import type { LoopHandle } from "@xeon/contracts/extensions";
+import type { LoopHandle } from "@fresnel/contracts/extensions";
 
 // 타입 지움 자리의 이름. core.ts와 erase.ts가 함께 쓰므로 어느 쪽도 import하지 않는 잎 파일에 둔다(순환 방지).
 

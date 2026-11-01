@@ -3,7 +3,7 @@ import { systemScheduler } from "../../src/time/scheduler.ts";
 import { createFileLock, type FileLock } from "../../src/file-lock/index.ts";
 import { createFlockPrimitive } from "../../src/file-lock/flock.ts";
 import { detectPlatform, readPlatformProbe, selectProviders } from "../../src/select.ts";
-import type { Logger } from "@xeon/contracts";
+import type { Logger } from "@fresnel/contracts";
 
 const silent: Logger = {
   debug: () => {},

@@ -1,4 +1,4 @@
-import { Bug, err, ok, parse, parseJson, type Result } from "@xeon/contracts";
+import { Bug, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import {
   KnowledgeActorSchema,
   ApprovalEvidenceSchema,
@@ -13,14 +13,14 @@ import {
   type ScanSummary,
   type WriteOutcome,
   type WritableSkillScope,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   BlobRefSchema,
   type BlobRef,
   type SqlRow,
   type SqlTx,
   type SqlValue,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { Static, TSchema } from "typebox";
 import { failure, type KnowledgeFailure } from "../errors.ts";
 

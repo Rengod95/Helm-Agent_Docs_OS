@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ServerNotificationParams } from "@xeon/contracts/wire";
+import type { ServerNotificationParams } from "@fresnel/contracts/wire";
 import { hostLimitsOf } from "../../src/assembly/settings-sources.ts";
 import { createHostConnection } from "../../src/client.ts";
 import { settingReaderOf, startHost, stopHost } from "../../src/host-runtime.ts";

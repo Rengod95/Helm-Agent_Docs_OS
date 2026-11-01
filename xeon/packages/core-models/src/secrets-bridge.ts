@@ -1,7 +1,7 @@
 import { ModelsError, type CredentialInfo, type CredentialStore } from "@earendil-works/pi-ai";
-import { err, ok, type Result } from "@xeon/contracts";
-import { parseSecretRef } from "@xeon/contracts/capabilities";
-import type { SecretRefString, SecretService, UseCtx } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import { parseSecretRef } from "@fresnel/contracts/capabilities";
+import type { SecretRefString, SecretService, UseCtx } from "@fresnel/contracts/services";
 
 // L1.models.spec §3.9, §4.7, L1.models.plan M-6. core-models 내부이고 공개하지 않는다.
 // 값은 read() 안에서만 얻어 반환 객체에만 둔다. 캐시하지 않고, 요청 직전(Models.getAuth가 부를 때)마다 해석한다.

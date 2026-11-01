@@ -1,4 +1,4 @@
-import type { IdFactory, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import type { IdFactory, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import {
   STEP_CHECKPOINT_SCHEMA_VERSION,
   type DurableEventDraft,
@@ -6,8 +6,8 @@ import {
   type ProducerHandle,
   type ProducerId,
   type StepCheckpoint,
-} from "@xeon/contracts/records";
-import type { CallerId, ToolRunContext } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type { CallerId, ToolRunContext } from "@fresnel/contracts/services";
 
 /** 루프 생산자(core.loop)의 초안 생성기만 있으면 된다. 대역 세션과 실제 세션이 모두 맞는다 */
 export interface RunContextSession {

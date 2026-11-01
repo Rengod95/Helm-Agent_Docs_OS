@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { ApprovalResolvedPayloadSchema, COMMIT_KEY_PATTERN } from "@xeon/contracts/records";
-import type { ApprovalRequestInput } from "@xeon/contracts/services";
+import { parse } from "@fresnel/contracts";
+import { ApprovalResolvedPayloadSchema, COMMIT_KEY_PATTERN } from "@fresnel/contracts/records";
+import type { ApprovalRequestInput } from "@fresnel/contracts/services";
 import { createToolRuntime } from "../src/runtime.ts";
 import {
   callTool,

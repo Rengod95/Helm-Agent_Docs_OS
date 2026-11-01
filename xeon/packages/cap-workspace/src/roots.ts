@@ -3,7 +3,7 @@ import {
   type CancelScope,
   type ExecutionEnv,
   type ProtectedPathEntry,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { WorkspaceFailure } from "./errors.ts";
 import { getOrThrow } from "./upstream/get-or-throw.ts";
 import {

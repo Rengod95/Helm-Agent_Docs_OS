@@ -1,6 +1,6 @@
 import { basename, dirname, join } from "node:path";
-import { attemptAsync, err, ok, parseJson, type Result } from "@xeon/contracts";
-import { validateManifest } from "@xeon/contracts/extensions";
+import { attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
+import { validateManifest } from "@fresnel/contracts/extensions";
 import { MANIFEST_RELATIVE_PATH } from "./discover.ts";
 import { compareVersions } from "./semver.ts";
 

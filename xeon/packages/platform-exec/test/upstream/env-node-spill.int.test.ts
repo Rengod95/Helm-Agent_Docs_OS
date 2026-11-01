@@ -5,7 +5,7 @@ import { join } from "node:path";
 // FRESNEL-PATCH: P4
 import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
 // FRESNEL-PATCH: P5
-import type { CancelScope } from "@xeon/contracts/services";
+import type { CancelScope } from "@fresnel/contracts/services";
 import { getOrThrow } from "../../src/upstream/env/index.ts";
 import { NodeExecutionEnv } from "../../src/upstream/env/node.ts";
 import { hostPlatform } from "../support/platform.ts";

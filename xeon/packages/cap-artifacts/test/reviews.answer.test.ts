@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { ApprovalId, TurnId } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import type { ApprovalId, TurnId } from "@fresnel/contracts/conversation";
 import { createAnswerHandler } from "../src/reviews/answer.ts";
 import { hunkStates } from "./support/assert.ts";
 import { A_AFTER_EDIT, ONE_FILE_THREE_HUNKS } from "./support/fixtures.ts";

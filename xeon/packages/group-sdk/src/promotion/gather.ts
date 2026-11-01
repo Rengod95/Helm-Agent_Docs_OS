@@ -1,10 +1,10 @@
-import { parse } from "@xeon/contracts";
-import type { ToolName } from "@xeon/contracts/capabilities";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import { TurnStartedPayloadSchema } from "@xeon/contracts/conversation";
-import type { GroupId, ScopeId } from "@xeon/contracts/extensions";
-import { EffectIntentSchema } from "@xeon/contracts/records";
-import type { ExtHost } from "@xeon/ext-host";
+import { parse } from "@fresnel/contracts";
+import type { ToolName } from "@fresnel/contracts/capabilities";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import { TurnStartedPayloadSchema } from "@fresnel/contracts/conversation";
+import type { GroupId, ScopeId } from "@fresnel/contracts/extensions";
+import { EffectIntentSchema } from "@fresnel/contracts/records";
+import type { ExtHost } from "@fresnel/ext-host";
 import type { PromotionInput } from "./report.ts";
 
 /** 승격 집계가 ExtHost에서 읽는 부분. 서비스의 `GroupHostView`가 이 부분을 포함한다 */

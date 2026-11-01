@@ -1,6 +1,6 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { EventFeed, ReadFailure, StoreDb } from "@xeon/contracts/records";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { EventFeed, ReadFailure, StoreDb } from "@fresnel/contracts/records";
 import { columns, readResult } from "./rows.ts";
 
 // L1.persistence.spec §4.13.1 `replayFrom`의 뜻(M3-REQ-80). 재개한 연결이 이어 받을 이벤트의 출발 위치를 정한다.

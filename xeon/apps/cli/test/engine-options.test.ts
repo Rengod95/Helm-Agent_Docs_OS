@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
+import { err } from "@fresnel/contracts";
 import type { EngineConnectOptions } from "../src/engine.ts";
 import { devWireRoundTripOf } from "../src/dev-mode.ts";
 import { EXIT } from "../src/exit-codes.ts";

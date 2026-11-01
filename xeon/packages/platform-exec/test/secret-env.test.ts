@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { secretRef } from "@xeon/contracts/capabilities";
-import type { SecretEnvRequest } from "@xeon/contracts/services";
+import { secretRef } from "@fresnel/contracts/capabilities";
+import type { SecretEnvRequest } from "@fresnel/contracts/services";
 import { acquireSecretEnv, commandTarget } from "../src/secret-env.ts";
 import { fakeSecrets } from "./support/fake-secrets.ts";
 

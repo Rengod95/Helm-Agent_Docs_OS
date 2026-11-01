@@ -116,12 +116,12 @@
       {
         "patterns": [
           {
-            "group": ["@xeon/*/src", "@xeon/*/src/*", "@xeon/*/dist", "@xeon/*/dist/*"],
+            "group": ["@fresnel/*/src", "@fresnel/*/src/*", "@fresnel/*/dist", "@fresnel/*/dist/*"],
             "message": "Import a package only through its public exports, never its src or dist."
           },
           {
             "group": ["**/../packages/*", "../../../*", "../../*/src", "../../*/src/*"],
-            "message": "Do not reach into another package by relative path; declare a workspace dependency and import @xeon/<name>."
+            "message": "Do not reach into another package by relative path; declare a workspace dependency and import @fresnel/<name>."
           },
           {
             "group": ["vitest", "vitest/*", "jest", "@jest/*"],
@@ -132,7 +132,7 @@
             "message": "SQLite access goes through bun:sqlite inside platform-store."
           },
           {
-            "group": ["cordis", "cordis/*", "@xeon/vendor-cordis", "@xeon/vendor-cordis/*"],
+            "group": ["cordis", "cordis/*", "@fresnel/vendor-cordis", "@fresnel/vendor-cordis/*"],
             "message": "Cordis is reachable only from packages/ext-host."
           },
           {
@@ -167,12 +167,17 @@
           {
             "patterns": [
               {
-                "group": ["@xeon/*/src", "@xeon/*/src/*", "@xeon/*/dist", "@xeon/*/dist/*"],
+                "group": [
+                  "@fresnel/*/src",
+                  "@fresnel/*/src/*",
+                  "@fresnel/*/dist",
+                  "@fresnel/*/dist/*"
+                ],
                 "message": "Import a package only through its public exports, never its src or dist."
               },
               {
                 "group": ["**/../packages/*", "../../../*", "../../*/src", "../../*/src/*"],
-                "message": "Do not reach into another package by relative path; declare a workspace dependency and import @xeon/<name>."
+                "message": "Do not reach into another package by relative path; declare a workspace dependency and import @fresnel/<name>."
               },
               {
                 "group": ["vitest", "vitest/*", "jest", "@jest/*"],
@@ -183,7 +188,12 @@
                 "message": "SQLite access goes through bun:sqlite inside platform-store."
               },
               {
-                "group": ["cordis", "cordis/*", "@xeon/vendor-cordis", "@xeon/vendor-cordis/*"],
+                "group": [
+                  "cordis",
+                  "cordis/*",
+                  "@fresnel/vendor-cordis",
+                  "@fresnel/vendor-cordis/*"
+                ],
                 "message": "Cordis is reachable only from packages/ext-host."
               },
               {
@@ -222,12 +232,17 @@
           {
             "patterns": [
               {
-                "group": ["@xeon/*/src", "@xeon/*/src/*", "@xeon/*/dist", "@xeon/*/dist/*"],
+                "group": [
+                  "@fresnel/*/src",
+                  "@fresnel/*/src/*",
+                  "@fresnel/*/dist",
+                  "@fresnel/*/dist/*"
+                ],
                 "message": "Import a package only through its public exports, never its src or dist."
               },
               {
                 "group": ["**/../packages/*", "../../../*", "../../*/src", "../../*/src/*"],
-                "message": "Do not reach into another package by relative path; declare a workspace dependency and import @xeon/<name>."
+                "message": "Do not reach into another package by relative path; declare a workspace dependency and import @fresnel/<name>."
               },
               {
                 "group": ["vitest", "vitest/*", "jest", "@jest/*"],
@@ -238,7 +253,12 @@
                 "message": "SQLite access goes through bun:sqlite inside platform-store."
               },
               {
-                "group": ["cordis", "cordis/*", "@xeon/vendor-cordis", "@xeon/vendor-cordis/*"],
+                "group": [
+                  "cordis",
+                  "cordis/*",
+                  "@fresnel/vendor-cordis",
+                  "@fresnel/vendor-cordis/*"
+                ],
                 "message": "Cordis is reachable only from packages/ext-host."
               },
               {
@@ -383,12 +403,17 @@
             ],
             "patterns": [
               {
-                "group": ["@xeon/*/src", "@xeon/*/src/*", "@xeon/*/dist", "@xeon/*/dist/*"],
+                "group": [
+                  "@fresnel/*/src",
+                  "@fresnel/*/src/*",
+                  "@fresnel/*/dist",
+                  "@fresnel/*/dist/*"
+                ],
                 "message": "Import a package only through its public exports, never its src or dist."
               },
               {
                 "group": ["**/../packages/*", "../../../*", "../../*/src", "../../*/src/*"],
-                "message": "Do not reach into another package by relative path; declare a workspace dependency and import @xeon/<name>."
+                "message": "Do not reach into another package by relative path; declare a workspace dependency and import @fresnel/<name>."
               },
               {
                 "group": ["../**"],
@@ -403,7 +428,12 @@
                 "message": "SQLite access goes through bun:sqlite inside platform-store."
               },
               {
-                "group": ["cordis", "cordis/*", "@xeon/vendor-cordis", "@xeon/vendor-cordis/*"],
+                "group": [
+                  "cordis",
+                  "cordis/*",
+                  "@fresnel/vendor-cordis",
+                  "@fresnel/vendor-cordis/*"
+                ],
                 "message": "Cordis is reachable only from packages/ext-host."
               },
               {

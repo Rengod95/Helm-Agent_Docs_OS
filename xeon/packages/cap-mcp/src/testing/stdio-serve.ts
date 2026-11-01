@@ -1,5 +1,5 @@
 import { ReadBuffer, serializeMessage } from "@modelcontextprotocol/client";
-import { attempt, detach } from "@xeon/contracts";
+import { attempt, detach } from "@fresnel/contracts";
 import type { StubServer } from "./stub-server.ts";
 
 // 스텁 서버를 실제 표준 입출력 위에서 돌린다. 줄바꿈으로 나뉜 JSON-RPC를 stdin에서 읽어 `stub.reply`로 답하고 stdout에 쓴다.

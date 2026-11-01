@@ -29,7 +29,7 @@ if [ "$1 $2 $3" = "bun run turbo" ]; then
   cat <<JSON
 [
   {
-    "name": "@xeon/cli",
+    "name": "@fresnel/cli",
     "path": "$FAKE_PACKAGE"
   }
 ]

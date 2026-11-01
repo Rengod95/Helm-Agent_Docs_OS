@@ -1,4 +1,4 @@
-import type { JsonRpcMessage } from "@xeon/contracts/wire";
+import type { JsonRpcMessage } from "@fresnel/contracts/wire";
 
 // 시험의 타입 어김 주입기. 이 파일이 apps/host 시험에서 단언이 있는 유일한 곳이다(eng.typescript.guide TY-06 허용 목록 A6).
 

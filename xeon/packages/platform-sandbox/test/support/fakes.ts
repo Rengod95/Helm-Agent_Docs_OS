@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok, type Logger, type LogFields, type Result } from "@xeon/contracts";
+import { err, ok, type Logger, type LogFields, type Result } from "@fresnel/contracts";
 import {
   ExecutionError,
   type BinaryError,
@@ -15,7 +15,7 @@ import {
   type Shell,
   type ShellExecOptions,
   type ShellExecResult,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { PlatformInput } from "../../src/select.ts";
 import type { SandboxSettings } from "../../src/settings.ts";
 import type {

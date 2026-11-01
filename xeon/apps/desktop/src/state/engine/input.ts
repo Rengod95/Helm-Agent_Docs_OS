@@ -9,14 +9,14 @@ import type {
   ThreadUpdatedPayload,
   TurnCompletedPayload,
   TurnId,
-} from "@xeon/contracts/conversation";
-import type { ApprovalRequestedPayload } from "@xeon/contracts/records";
+} from "@fresnel/contracts/conversation";
+import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import type {
   PendingApproval as WirePendingApproval,
   StoreId,
   SubId,
   ThreadSummary,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
 
 type DurableBase = {

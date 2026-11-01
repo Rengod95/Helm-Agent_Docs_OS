@@ -1,6 +1,6 @@
 import { dlopen, FFIType, read } from "bun:ffi";
 import { closeSync, openSync } from "node:fs";
-import { attempt, err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
 import type { FileLockSource } from "../select.ts";
 
 // libc flock(2)을 bun:ffi로 부르는 유일한 파일이다. 이 패키지의 OS 분기는 select.ts가 고른 `FileLockSource` 값으로만 받는다.

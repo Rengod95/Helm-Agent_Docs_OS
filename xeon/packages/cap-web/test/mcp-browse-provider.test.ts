@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import {
   CapabilityError,
   type BrowseActInput,
@@ -7,8 +7,8 @@ import {
   type BrowserOpenOptions,
   type BrowserSessionHandle,
   type CallOptions,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { createMcpBrowseProvider } from "../src/browse/mcp-provider.ts";
 import {
   DEFAULT_SNAPSHOT_YAML,

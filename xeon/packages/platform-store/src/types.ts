@@ -1,15 +1,20 @@
-import type { Clock, Result, Scheduler } from "@xeon/contracts";
-import type { IdFactory } from "@xeon/contracts/conversation";
-import type { FaultInjector, MigrationError, StoreDb, StoreService } from "@xeon/contracts/records";
-import type { FsKind } from "@xeon/contracts/services";
+import type { Clock, Result, Scheduler } from "@fresnel/contracts";
+import type { IdFactory } from "@fresnel/contracts/conversation";
+import type {
+  FaultInjector,
+  MigrationError,
+  StoreDb,
+  StoreService,
+} from "@fresnel/contracts/records";
+import type { FsKind } from "@fresnel/contracts/services";
 import type { BlobPins, BlobStore } from "./blob.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
 import type { snapshotBeforeMigration } from "./snapshot.ts";
 import type { SqliteProbe } from "./sqlite-env.ts";
 
 /**
- * xeon.os에서 받은 판정과 경로. platform-store는 OS를 직접 판정하지 않는다(DR-13).
- * openStore와 임대 판정은 동기 경로라 조립 루트가 xeon.os의 비동기 질의를 미리 풀어 값이나 동기 함수로 넘긴다.
+ * fresnel.os에서 받은 판정과 경로. platform-store는 OS를 직접 판정하지 않는다(DR-13).
+ * openStore와 임대 판정은 동기 경로라 조립 루트가 fresnel.os의 비동기 질의를 미리 풀어 값이나 동기 함수로 넘긴다.
  */
 export interface StoreEnvironment {
   readonly platform: "darwin" | "linux" | "win32";
@@ -124,7 +129,7 @@ export type StoreWarning =
     };
 
 export interface OpenedStore extends AsyncDisposable {
-  /** Cordis xeon.store로 등록한다 */
+  /** Cordis fresnel.store로 등록한다 */
   readonly service: StoreService;
   /** core-persistence 전용 */
   readonly root: StoreDb;

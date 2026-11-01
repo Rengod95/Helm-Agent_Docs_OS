@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ServiceKey } from "@xeon/contracts/capabilities";
+import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { echoDefs, makeUnit } from "./fixtures/support.ts";

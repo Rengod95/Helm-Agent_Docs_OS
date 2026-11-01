@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { WireError, type WireParams } from "@xeon/contracts/wire";
+import { err, ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { WireError, type WireParams } from "@fresnel/contracts/wire";
 import { FAKE_STORE_ID } from "../fixtures/fake-engine.ts";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";

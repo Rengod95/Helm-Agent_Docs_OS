@@ -7,7 +7,7 @@ import {
   parse,
   type ParseError,
   type Result,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import {
   StepCompletedPayloadSchema,
   ThreadClosedPayloadSchema,
@@ -15,7 +15,7 @@ import {
   ThreadUpdatedPayloadSchema,
   TurnCompletedPayloadSchema,
   TurnStartedPayloadSchema,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
@@ -38,7 +38,7 @@ import {
   type InputQueuedPayload,
   type ProjectionTx,
   type Projector,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 /** 투영 규칙 버전. 테이블 모양이나 규칙이 바뀌면 올린다(다음 열기 때 core만 다시 만든다) */
 export const CORE_PROJECTOR_VERSION = 5;
@@ -186,7 +186,7 @@ type Reducer = (tx: ProjectionTx, event: DurableEventEnvelope) => void;
 /** 이벤트 payload를 카탈로그 스키마로 다시 좁힌다. 커밋 경로가 이미 검사했으므로 실패하면 코드 결함이다 */
 function expectPayload<T>(result: Result<T, ParseError>, event: DurableEventEnvelope): T {
   if (!result.ok) {
-    // xeon-disable-next-line xeon/bug-for-expected -- 커밋 경로가 같은 payload를 이미 검증했다. 투영기가 다시 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
+    // fresnel-disable-next-line fresnel/bug-for-expected -- 커밋 경로가 같은 payload를 이미 검증했다. 투영기가 다시 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
     throw new Bug(`store.projection_failed: invalid ${event.kind} payload at seq ${event.seq}`, {
       cause: result.error,
     });

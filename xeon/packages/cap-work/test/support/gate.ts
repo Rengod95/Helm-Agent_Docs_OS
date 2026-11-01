@@ -1,12 +1,12 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import type {
   AgentBeforeSettlePayload,
   BoundaryPatch,
   HandlerContext,
-} from "@xeon/contracts/extensions";
-import type { AgentMessage, StepId, TurnId } from "@xeon/contracts/conversation";
-import type { DurableEventDraft } from "@xeon/contracts/records";
-import type { JudgeInput, JudgeOutcome } from "@xeon/contracts/services";
+} from "@fresnel/contracts/extensions";
+import type { AgentMessage, StepId, TurnId } from "@fresnel/contracts/conversation";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
+import type { JudgeInput, JudgeOutcome } from "@fresnel/contracts/services";
 import { createSettleGate } from "../../src/goals/gate.ts";
 import type { Harness } from "./harness.ts";
 import { usage } from "./goals.ts";

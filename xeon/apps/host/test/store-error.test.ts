@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { LifecycleError } from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { Bug } from "@fresnel/contracts";
+import type { LifecycleError } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   keyReusedBug,
   wireErrorOfCreate,

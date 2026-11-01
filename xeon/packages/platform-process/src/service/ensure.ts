@@ -1,4 +1,4 @@
-import { err, ok, repeatAsync, type Clock, type Result, type Scheduler } from "@xeon/contracts";
+import { err, ok, repeatAsync, type Clock, type Result, type Scheduler } from "@fresnel/contracts";
 import type { SocketError } from "../transport/socket.ts";
 import type { ServiceRegistration, RegistrationStore } from "./registration.ts";
 import type { SpawnServiceError } from "./spawn.ts";

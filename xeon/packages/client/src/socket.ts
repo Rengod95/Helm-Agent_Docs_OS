@@ -1,16 +1,16 @@
 import { connect, type Socket } from "node:net";
-import { assertNever, detach, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, detach, err, ok, type Result } from "@fresnel/contracts";
 import {
   createStdioTransportWith,
   type JsonRpcMessage,
   type Transport,
   type Unsubscribe,
   type CloseInfo,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { ServiceEndpoint } from "./endpoint.ts";
 
 // ADR-0020 §3.3, L4.host-service.spec §3.3.4 `connectServiceTransport`. 서비스 소켓(Unix, 사설망 TCP, SSH 터널로 이은 Unix)에 접속하는
-// 클라이언트 쪽 전송이다. Node의 `node:net`을 쓰므로 브라우저 번들에 들어가면 안 된다: 이 파일은 `@xeon/client/socket`으로만 가져온다
+// 클라이언트 쪽 전송이다. Node의 `node:net`을 쓰므로 브라우저 번들에 들어가면 안 된다: 이 파일은 `@fresnel/client/socket`으로만 가져온다
 // (`.`과 `./stdio`는 Node API가 없다). 줄 프레이밍은 F `createStdioTransportWith`를 그대로 쓴다.
 // 프로세스를 띄우는 일(ssh)은 L0 `platform-process`만 할 수 있어(DR-07) 이 패키지는 `TunnelPort`만 정의하고 조립 쪽(apps/host)이 채운다.
 

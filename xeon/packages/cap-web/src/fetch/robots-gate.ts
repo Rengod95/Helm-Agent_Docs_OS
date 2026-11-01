@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock } from "@fresnel/contracts";
 import type { Access, AccessContext } from "../policy/access.ts";
 import type { ContentHttp } from "../policy/content-http.ts";
 import { createRobotsChecker, type RobotsChecker } from "../policy/robots.ts";

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { wrapUntrusted } from "@xeon/contracts/capabilities";
+import { wrapUntrusted } from "@fresnel/contracts/capabilities";
 import {
   convert,
   decodeBody,

@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { OsInfo } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { OsInfo } from "@fresnel/contracts/services";
 import { generateBinariesLock, type LockInput } from "../src/binaries/lock.ts";
 import {
   createBinaryResolver,

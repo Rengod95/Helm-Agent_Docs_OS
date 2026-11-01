@@ -1,24 +1,24 @@
-import { assertNever, attemptAsync, err, ok, type Result } from "@xeon/contracts";
-import { createHostConnection } from "@xeon/client";
-import type { ServiceEndpoint } from "@xeon/client/endpoint";
+import { assertNever, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
+import { createHostConnection } from "@fresnel/client";
+import type { ServiceEndpoint } from "@fresnel/client/endpoint";
 import {
   connectServiceTransport as connectEndpoint,
   type ConnectServiceOptions,
   type ServiceConnectError,
-} from "@xeon/client/socket";
+} from "@fresnel/client/socket";
 import {
   WIRE_PROTOCOL_VERSION,
   WireError,
   type HostConnection,
   type Transport,
   type WireResult,
-} from "@xeon/contracts/wire";
-import type { SocketError } from "@xeon/platform-process";
+} from "@fresnel/contracts/wire";
+import type { SocketError } from "@fresnel/platform-process";
 import { ENGINE_VERSION } from "../assemble.ts";
 import { createSshTunnelPort } from "./tunnel.ts";
 
 // L4.host-service.spec §3.3.4 `connectServiceTransport`. 서비스의 Unix 소켓, 사설망 TCP, SSH 터널로 이은 소켓에 접속해 JSON Lines 전송을 돌려준다.
-// 소켓 클라이언트는 `@xeon/client/socket`에 있고(adr.0020), 이 함수는 거기에 L0 `openTunnel`로 채운 터널 포트를 끼워 준다.
+// 소켓 클라이언트는 `@fresnel/client/socket`에 있고(adr.0020), 이 함수는 거기에 L0 `openTunnel`로 채운 터널 포트를 끼워 준다.
 
 export type { ServiceEndpoint };
 

@@ -1,7 +1,7 @@
-import { assertNever } from "@xeon/contracts";
-import { CapabilityError, type CapabilityId } from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
-import type { StoreError } from "@xeon/contracts/records";
+import { assertNever } from "@fresnel/contracts";
+import { CapabilityError, type CapabilityId } from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { StoreError } from "@fresnel/contracts/records";
 import type { GoalFailure } from "./goals/failure.ts";
 import type { PlanFailure } from "./plans/failure.ts";
 import type { OpFailure } from "./tasks/failure.ts";

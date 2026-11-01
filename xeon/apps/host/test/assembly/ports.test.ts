@@ -2,8 +2,8 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
-import { Bug, err, ok, type Logger } from "@xeon/contracts";
-import type { ThreadId, ThreadStatus } from "@xeon/contracts/conversation";
+import { Bug, err, ok, type Logger } from "@fresnel/contracts";
+import type { ThreadId, ThreadStatus } from "@fresnel/contracts/conversation";
 import type {
   LeaseError,
   LeaseOwnerInfo,
@@ -14,7 +14,7 @@ import type {
   StoreService,
   ThreadSummaryRow,
   TurnView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   AbortTicket,
   AdmitResult,
@@ -34,11 +34,11 @@ import type {
   ToolMeta,
   ToolService,
   UsageMeter,
-} from "@xeon/contracts/services";
-import { WireError } from "@xeon/contracts/wire";
-import type { ScheduleService } from "@xeon/cap-schedule";
-import type { ExtHost } from "@xeon/ext-host";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/services";
+import { WireError } from "@fresnel/contracts/wire";
+import type { ScheduleService } from "@fresnel/cap-schedule";
+import type { ExtHost } from "@fresnel/ext-host";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";

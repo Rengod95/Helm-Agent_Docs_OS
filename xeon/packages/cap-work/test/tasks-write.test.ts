@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, parse } from "@xeon/contracts";
-import type { TaskOp, WorkTask } from "@xeon/contracts/capabilities";
+import { Bug, parse } from "@fresnel/contracts";
+import type { TaskOp, WorkTask } from "@fresnel/contracts/capabilities";
 import {
   WorkTaskChangedSchema,
   WorkTaskCreatedSchema,
   WorkTaskLinkSchema,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { planWrite, type WritePlan } from "../src/tasks/write.ts";
 import type { OpFailure } from "../src/tasks/failure.ts";
 import { ids, task, tid } from "./support/tasks.ts";

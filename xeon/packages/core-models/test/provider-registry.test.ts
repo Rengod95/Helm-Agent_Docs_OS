@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ModelsPort } from "@xeon/contracts/extensions";
-import type { ModelService, ProviderConfigDef } from "@xeon/contracts/services";
+import type { ModelsPort } from "@fresnel/contracts/extensions";
+import type { ModelService, ProviderConfigDef } from "@fresnel/contracts/services";
 import { ModelRegistrationError } from "../src/index.ts";
 import { t, tape, tapePlayer, tapeProvider } from "../src/testing/index.ts";
 import { createHarness, FAKE_KEY, unwrap } from "./support/harness.ts";

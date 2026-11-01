@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { SENSITIVE_ENV_PATTERNS } from "@xeon/contracts/services";
+import { SENSITIVE_ENV_PATTERNS } from "@fresnel/contracts/services";
 import { BASE_ENV_POLICY, buildChildEnv, isDeniedEnvName } from "../src/env-builder.ts";
 
 const parent = {

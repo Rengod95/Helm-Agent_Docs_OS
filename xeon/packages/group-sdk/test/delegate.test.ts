@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type { AgentService } from "@xeon/contracts/services";
-import { createTestHost } from "@xeon/ext-host/testing";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { AgentService } from "@fresnel/contracts/services";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import type { DelegateResult, DelegateSpec } from "../src/index.ts";
 import { fakeAgents } from "../src/testing/index.ts";
 import type { GroupCallContext } from "../src/wrap.ts";

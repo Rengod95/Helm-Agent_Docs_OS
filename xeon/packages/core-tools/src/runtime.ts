@@ -1,13 +1,13 @@
-import { Bug, type Result } from "@xeon/contracts";
-import type { ToolName } from "@xeon/contracts/capabilities";
-import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@xeon/contracts/extensions";
+import { Bug, type Result } from "@fresnel/contracts";
+import type { ToolName } from "@fresnel/contracts/capabilities";
+import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@fresnel/contracts/extensions";
 import type {
   ModeChangeResult,
   ToolMeta,
   ToolRegistration,
   ToolService,
   Unregister,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { createApprovalService, type ApprovalsInternal } from "./approvals/service.ts";
 import { systemScheduler } from "./approvals/timer.ts";
 import { createCallTable } from "./calls.ts";
@@ -22,7 +22,7 @@ import { createCoreRules } from "./policy/core-rules.ts";
 import { createRegistry } from "./registry.ts";
 import { TOOLS_SETTING_KEYS } from "./settings.ts";
 
-// ToolService(xeon.tools)와 ApprovalService(xeon.approvals) 조립(L1.tools.plan TL-8). Cordis는 쓰지 않는다.
+// ToolService(fresnel.tools)와 ApprovalService(fresnel.approvals) 조립(L1.tools.plan TL-8). Cordis는 쓰지 않는다.
 
 export interface ToolRuntime {
   readonly tools: ToolService;
@@ -135,7 +135,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
       if (!written.ok) {
         if (written.error.kind === "key_reused") {
           // 요청 키를 이 호출이 새로 만들었으므로 재사용은 코드 결함이다
-          // xeon-disable-next-line xeon/bug-for-expected -- 호출마다 새 키를 만드는 자리라 키 재사용은 불변 조건 위반이다 (eng.typescript.guide TY-24)
+          // fresnel-disable-next-line fresnel/bug-for-expected -- 호출마다 새 키를 만드는 자리라 키 재사용은 불변 조건 위반이다 (eng.typescript.guide TY-24)
           throw new Bug("tools.mode_key_reused: a fresh settings request key was already used");
         }
         return Promise.resolve<ModeChangeResult>({

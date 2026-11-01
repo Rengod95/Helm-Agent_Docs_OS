@@ -25,7 +25,7 @@ binds: []
 | 데스크톱 UI | caustic 위의 셸, 대화 영역 P-01~P-12·P-14, 작업대 P-13·P-15~P-21, 대화 상자 O-01~O-12. 시안(`mockups/p02-opus`, `_shell`, `wb-*`, `p0*`)에서 옮김 | spec §5 |
 | 런타임 선행 | 확장·그룹 wire(W-15, W-20~W-50), F/X 계약(매니페스트 `views` 두 모드, `ext.<id>.<verb>`, 계측 링 버퍼 X-15, `composition` X-16, drive 사람 확인 X-17, 프로필 저장 X-18, 버전 기록 X-8, 시험 표지 X-14, 시험 단계 경계 멈춤 X-19) | spec §10 |
 | 설계 중 찾은 코드 결함 | `/group on`이 `AutoDisabler.reenable`을 부르지 않음(X-4), managed 설치 위치의 tier가 `guard`(X-13), 핸들러 시간이 기록되지 않음(X-6), `shouldSuggestSafeMode` 호출처 없음(X-21) | spec §10.3 |
-| 플러그인 제작 확장 | L3 그룹 `authoring`과 서비스 `xeon.devkit` | `L3.authoring.spec` |
+| 플러그인 제작 확장 | L3 그룹 `authoring`과 서비스 `fresnel.devkit` | `L3.authoring.spec` |
 | caustic | C-01~C-39 중 caustic 몫과 브랜치 `xeon/m4-design`을 caustic 저장소에 PR로 올리기 | spec §9 |
 | i18n과 M4 이월 | `review.m3-plan` §9.3 i18n 행, 새 화면 문자열, §9.3 전체 표의 처리 | `review.m3-plan` §9.3 |
 
@@ -57,7 +57,7 @@ M3가 X1~X11을 썼으므로 M4는 Y를 씁니다. T-LED가 `product.scope.spec`
 | Y12 | 코드 결함 넷: `/group on`과 설정 토글이 장부를 비움, managed 설치는 상한 `user` tier, 핸들러 시간이 지점별로 기록됨, 시작 실패 뒤 `host.status.suggestSafeMode`가 참. 안전 모드에서 X 훅이 실리지 않음 | ext-host·group-sdk·host 시험 각 1개 이상 | T-FIX, T-XD |
 | Y13 | caustic `xeon/m4-design`이 caustic `main`에 PR로 들어가고 submodule이 `main` 커밋을 가리킴. spec §9의 C 항목마다 상태(caustic 반영, 앱 조합, M5)가 있음. `grep -E '#[0-9a-fA-F]{3,6}\|rgb\('`가 `apps/desktop/src`에서 비어 있음 | `scripts/caustic-gaps.test.ts`(표 상태 검사), grep 검사 | T-CAU1, T-CAU2 |
 | Y14 | 모든 화면에서 axe 위반 0, 키보드만으로 spec §4.8 동작에 감, 라이트·다크 모두 | `a11y.axe-all-pages`, 키보드 경로 시험, 원격 점검 Phase 2 | T-A11Y |
-| Y15 | 하드코딩 한국어 검사가 `apps/desktop/src`와 하위 층에서 0이고, `ui.locale=en` 데스크톱 스모크 통과. `review.m3-plan` §9.3 i18n 행 닫음 | `xeon/hardcoded-korean` 규칙, desktop en 스모크 | T-I18N |
+| Y15 | 하드코딩 한국어 검사가 `apps/desktop/src`와 하위 층에서 0이고, `ui.locale=en` 데스크톱 스모크 통과. `review.m3-plan` §9.3 i18n 행 닫음 | `fresnel/hardcoded-korean` 규칙, desktop en 스모크 | T-I18N |
 | Y16 | `review.m3-plan` §9.3 이월 표의 모든 항목이 요구 장부에 상태(M4 완료, M5 이월과 사유, 삭제와 사유)를 가지고 `just req-ledger` 문제 0 | `req-ledger.test.ts` | T-LED, T-RT1, T-RT2 |
 | Y17 | 데스크톱 속도와 크기: 릴리즈 앱 크기 500MB 이하, 첫 화면까지 시간과 유휴 메모리를 재서 `eng.performance.guide` 표에 기록. 계측(X-15) 켜짐과 꺼짐의 턴 비용 차이를 기록 | `scripts/desktop-bench.ts` 결과, 크기 검사 | T-PERF |
 
@@ -79,7 +79,7 @@ M3가 X1~X11을 썼으므로 M4는 Y를 씁니다. T-LED가 `product.scope.spec`
 - 확장 메서드: `ext.<id>.<verb>` 확정(F wire §4.2), `ExtMethodDecl` 검사, 오류 코드 구간.
 - drive: `LoopHandle.ask`와 `lease.released.reason` `"waiting"`(X-17).
 - wire 레지스트리: W-15, W-20~W-26, W-31~W-35, W-37~W-50과 대화 영역 W-01·W-02·W-05~W-07·W-16 스키마. `ThreadSummary.trial`(X-14), `Profile`과 `profile.*`(X-18), `trial.*`, `trace.turn` 결과 타입.
-- 서비스 계약 `xeon.devkit`(X-22).
+- 서비스 계약 `fresnel.devkit`(X-22).
 - 커밋 순서: 매니페스트(`views`, `composition`) → drive(`ask`) → wire 확장 읽기 → 프로필·시험·계측 → devkit. 앞 둘이 X 트랙을 엽니다.
 - 끝 시험: 새 스키마 왕복 값 비교, `points.doc.test.ts`·wire 문서 시험이 spec 표와 일치.
 
@@ -120,7 +120,7 @@ M3가 X1~X11을 썼으므로 M4는 Y를 씁니다. T-LED가 `product.scope.spec`
 - 끝 시험: Helm 메서드 값 비교, Helm 화면 트리가 위젯 카탈로그 v1 검사 통과(트리 검사기는 T-VIEW와 공유하는 `packages/client/src/views`의 순수 함수), Y7 replay 부분.
 
 **T-AUTH 플러그인 제작 확장** · Sonnet medium · `contracts` 사용만 → `plugin-builder`(L3) → `apps/host`(L4) → `apps/cli`(L4) · L
-- `L3.authoring.plan` AU-T1~AU-T9. 서비스 `xeon.devkit` 구현과 W-27·W-28·W-47·W-49, 그룹, 카탈로그 첫 판, AU 규칙, `xeon group new`의 서비스 호출 전환.
+- `L3.authoring.plan` AU-T1~AU-T9. 서비스 `fresnel.devkit` 구현과 W-27·W-28·W-47·W-49, 그룹, 카탈로그 첫 판, AU 규칙, `xeon group new`의 서비스 호출 전환.
 - 선행: T-GK(템플릿과 `composition`), T-WB(시험 대화 W-34), T-XD(`loop.ask`). 화면 기여(AU-T7)는 T-VIEW 선언형 렌더러 병합 뒤 마지막 커밋으로 둡니다.
 - 끝 시험: Y8.
 

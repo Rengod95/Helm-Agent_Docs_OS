@@ -1,4 +1,4 @@
-import type { ItemId } from "@xeon/contracts/conversation";
+import type { ItemId } from "@fresnel/contracts/conversation";
 
 // L4.cli.spec §3.5. 화면 라이브러리와 무관한 그리기 명령(RenderOp)과 보기 모양이다. 타입만 둔다.
 

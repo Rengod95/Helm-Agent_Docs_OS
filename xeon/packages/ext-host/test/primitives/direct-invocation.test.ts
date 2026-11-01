@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { ToolsPortKey, type ScopeApi, type ToolResourceDef } from "@xeon/contracts/extensions";
+import { ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { ToolsPortKey, type ScopeApi, type ToolResourceDef } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { hostOf, PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";

@@ -1,11 +1,11 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type {
   ProposalDecideParams,
   ProposalDecideResult,
   ProposalListResult,
   ProposalRow,
   ProposalSource,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { t, type MessageId } from "../i18n/index.ts";
 
 // 지식 제안 목록 view-model(M3-REQ-18, M3-18 L4, D-M3-32 a). 대기열은 둘(학습 `x_learning_proposals`, L2.knowledge)이고 호스트가 한 목록으로

@@ -4,7 +4,7 @@ import {
   ScopedStorePortKey,
   type ExtensionName,
   type RecordCommitPort,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   createOperationsPolicy,
   createScopeControl,

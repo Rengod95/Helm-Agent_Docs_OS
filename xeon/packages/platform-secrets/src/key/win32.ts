@@ -1,5 +1,5 @@
-import { err, type Result } from "@xeon/contracts";
-import type { SecretError } from "@xeon/contracts/services";
+import { err, type Result } from "@fresnel/contracts";
+import type { SecretError } from "@fresnel/contracts/services";
 import type { KeyAvailability, KeyProvider, SopsKeyEnvName } from "./provider.ts";
 
 // L0.secrets.spec §5.1. Windows 자격 증명 관리자는 읽기 수단이 정해지지 않았다(`cmdkey`는 암호를 읽지 못한다).

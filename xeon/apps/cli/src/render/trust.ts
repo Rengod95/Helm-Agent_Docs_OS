@@ -1,6 +1,6 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever } from "@xeon/contracts";
-import type { TrustChoice, TrustOption, TrustStatus, TrustVia } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
+import type { TrustChoice, TrustOption, TrustStatus, TrustVia } from "@fresnel/contracts/wire";
 import type { PromptIo } from "./approval.ts";
 
 // L4.cli.spec §4.11 "프로젝트 신뢰". 프로젝트 신뢰 카드: 폴더와 불러오려는 자원을 보이고, host가 만든 선택지에서 번호로 고른다.

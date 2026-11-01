@@ -1,4 +1,4 @@
-import type { TurnOrigin, TurnId } from "@xeon/contracts/conversation";
+import type { TurnOrigin, TurnId } from "@fresnel/contracts/conversation";
 import { reviewRequestId, type ReviewRequestId } from "./review/fork.ts";
 import type { ReviewReason } from "./review/reason.ts";
 import type { LearningState } from "./state.ts";

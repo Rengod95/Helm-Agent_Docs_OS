@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import type {
   AbortIntentWriter,
   AbortReason,
@@ -7,7 +7,7 @@ import type {
   TaskScopeKind,
   TaskScopeSpec,
   TaskScopeState,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { isAbortReason, UNKNOWN_ABORT_REASON } from "./abort-reason.ts";
 
 // L1.tasks.spec §4.1 범위 트리. 소유 간선은 만들 때 정하고 바꾸지 않는다.

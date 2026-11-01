@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { posix } from "node:path";
-import { attemptAsync, type Clock, type Logger, type RandomSource } from "@xeon/contracts";
+import { attemptAsync, type Clock, type Logger, type RandomSource } from "@fresnel/contracts";
 import {
   SENSITIVE_ENV_PATTERNS,
   type CancelScope,
@@ -10,7 +10,7 @@ import {
   type SelfTestItemId,
   type SelfTestReport,
   type Shell,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { newCommandId } from "./wrap-shell.ts";
 
 // L0.sandbox.spec §4.4 자가 시험. 샌드박스 안에서 정해진 시도를 실행해 거부·허용이 기대대로인지 확인한다.

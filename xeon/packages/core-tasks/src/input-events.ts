@@ -1,5 +1,5 @@
-import { ok, parse, type Logger, type Result } from "@xeon/contracts";
-import type { EventId, ImageContent, TextContent, ThreadId } from "@xeon/contracts/conversation";
+import { ok, parse, type Logger, type Result } from "@fresnel/contracts";
+import type { EventId, ImageContent, TextContent, ThreadId } from "@fresnel/contracts/conversation";
 import {
   EXTENSION_KIND_PATTERN,
   InputPlacedPayloadSchema,
@@ -9,9 +9,9 @@ import {
   type InputQueuedPayload,
   type InputView,
   type ReadFailure,
-} from "@xeon/contracts/records";
-import type { PostContent, PostItem, RecordKind } from "@xeon/contracts/extensions";
-import type { InputDraft, QueuedInput } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type { PostContent, PostItem, RecordKind } from "@fresnel/contracts/extensions";
+import type { InputDraft, QueuedInput } from "@fresnel/contracts/services";
 import type { TasksSession } from "./session-port.ts";
 import { sourceKeyOf } from "./source-key.ts";
 

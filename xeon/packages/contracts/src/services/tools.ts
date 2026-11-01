@@ -55,9 +55,9 @@ import type {
 // L1.tools.spec §3. 구현은 core-tools다. 도구·정책의 공용 타입은 ToolService와 같은 파일에 둔다(F.capabilities.spec §3.12 규칙 3).
 // 정책 평가 함수(evaluatePolicy, ruleMatches, stricter, validateRules)는 core-tools가 구현한다. F에는 타입과 데이터 상수만 둔다.
 
-export const ToolServiceName = "xeon.tools" as const;
+export const ToolServiceName = "fresnel.tools" as const;
 
-/** `xeon.tools` 전체 모양(ToolService)의 포트 키. 제공 core-tools. 등록 부분형(ToolsPort)의 키는 extensions의 `ToolsPortKey`다 */
+/** `fresnel.tools` 전체 모양(ToolService)의 포트 키. 제공 core-tools. 등록 부분형(ToolsPort)의 키는 extensions의 `ToolsPortKey`다 */
 export const ToolServicePortKey: PortKey<ToolService> = { name: ToolServiceName };
 
 // ── 도구 메타 ────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { identityToRecipient } from "age-encryption";
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import { createDarwinKeyProvider, type DarwinKeyExec } from "../src/key/darwin.ts";
 import type { ProcessRunner, RunRequest } from "../src/providers/process.ts";
 import { selectKeyProvider } from "../src/select.ts";

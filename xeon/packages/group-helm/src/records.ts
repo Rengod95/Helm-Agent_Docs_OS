@@ -1,6 +1,6 @@
-import type { RecordKindDecl } from "@xeon/contracts/extensions";
-import { Bug, type SchemaProof } from "@xeon/contracts";
-import { toJsonValue, type JsonValue } from "@xeon/contracts/conversation";
+import type { RecordKindDecl } from "@fresnel/contracts/extensions";
+import { Bug, type SchemaProof } from "@fresnel/contracts";
+import { toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
 import { Type, type TUnsafe } from "typebox";
 import {
   ConfidenceSchema,

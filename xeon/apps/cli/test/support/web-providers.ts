@@ -3,7 +3,7 @@ import type {
   WebProviderState,
   WebProviderStatus,
   WebProvidersResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 
 // `web.providers` 시험 도우미. 호스트가 싣는 wire 모양 그대로 만든다. 순위(autoRank)와 현재 provider는 호스트가 정한 값을 주고,
 // 시험은 CLI가 그 값을 화면 줄로 옮기는지만 본다.

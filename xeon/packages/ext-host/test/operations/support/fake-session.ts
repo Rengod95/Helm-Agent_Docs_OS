@@ -1,7 +1,7 @@
 // F 인터페이스(ProjectorRegistryPort, ScopedStorePort)로 만든 세션 저장 대역. 이벤트 로그, 투영기 실행,
 // 트랜잭션 롤백, 장애 주입 지점(L0.store와 같은 문자열)을 갖는다(X.operations.plan O-15).
-import { err, ok, Bug } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, Bug } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   DurableEventEnvelope,
   ProjectionTx,
@@ -11,8 +11,8 @@ import type {
   ProjectorRegistry,
   SqlTx,
   StoreDb,
-} from "@xeon/contracts/records";
-import { extTablePrefix } from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
+import { extTablePrefix } from "@fresnel/contracts/records";
 import { fixedIdFactory } from "../../../src/testing/index.ts";
 import { createFakeSql, type FakeSql } from "./sql.ts";
 

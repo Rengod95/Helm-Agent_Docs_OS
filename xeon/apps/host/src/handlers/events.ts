@@ -1,12 +1,12 @@
-import { detach, err, ok, type Result } from "@xeon/contracts";
+import { detach, err, ok, type Result } from "@fresnel/contracts";
 import {
   toEventWire,
   toVolatileEventWire,
   wireError,
   type EventFilter,
   type WireHandler,
-} from "@xeon/contracts/wire";
-import type { DurableEventEnvelope, ReadFailure } from "@xeon/contracts/records";
+} from "@fresnel/contracts/wire";
+import type { DurableEventEnvelope, ReadFailure } from "@fresnel/contracts/records";
 import type { ConnectionHub, ConnectionState, Subscription } from "../connection-types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 import type { CommitBatch, Engine } from "../types.ts";

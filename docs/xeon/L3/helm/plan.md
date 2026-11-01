@@ -10,7 +10,7 @@ binds: [xeon/packages/group-helm/**]
 
 # L3 Helm 그룹 구현 계획
 
-대상 스펙: L3.helm.spec(M3 세부 설계판, 2026-10-26). 패키지: `@xeon/group-helm`(`xeon/packages/group-helm`).
+대상 스펙: L3.helm.spec(M3 세부 설계판, 2026-10-26). 패키지: `@fresnel/group-helm`(`xeon/packages/group-helm`).
 
 ## 1. 목표와 마일스톤 배치
 
@@ -19,7 +19,7 @@ binds: [xeon/packages/group-helm/**]
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
 | M0 | 없음. 의존 대상(`contracts`의 extensions·records·capabilities·settings 타입)만 준비된다 | 없음 |
-| M1 | 스캐폴드: 패키지 디렉터리, `package.json`(`xeon.layer: "L3"`, `xeon.domain: "helm"`), `tsconfig.json`, 빈 `src/index.ts`, `test/` 디렉터리. 호스트 조립 루트는 Helm을 등록하지 않는다 | H-01(완료) |
+| M1 | 스캐폴드: 패키지 디렉터리, `package.json`(`fresnel.layer: "L3"`, `fresnel.domain: "helm"`), `tsconfig.json`, 빈 `src/index.ts`, `test/` 디렉터리. 호스트 조립 루트는 Helm을 등록하지 않는다 | H-01(완료) |
 | M2 | 설정 `ext.helm.driveLimits` 하나(`src/settings.ts`). 본체 없음 | 완료 |
 | M3 | Helm 본체 1차. L3-b 구성요소 5개 전부, 명령, 설정 3키 추가(M3-04), ADR-0015 효과 계수 시험, 실패 값, UC-2 통합 테스트(E1), 학습 그룹 공존 확인, `scanDriveSource` 정적 검사, 기본 플러그인 패키징(D-M3-01) | H-02 ~ H-22 |
 | 2차 이후 | 렌즈 제안 경로(L3.helm.spec §10 미결 6), 다회 라운드와 종료 판정(미결 7), 신호 임계 설정 노출(미결 8) | 미배정 |
@@ -39,10 +39,10 @@ M3 착수 조건(선행):
 
 ```
 xeon/packages/group-helm/
-  package.json            # name @xeon/group-helm, private, type module, exports "." → ./src/index.ts
+  package.json            # name @fresnel/group-helm, private, type module, exports "." → ./src/index.ts
                           # "xeon": { "layer": "L3", "domain": "helm" }
-                          # dependencies: @xeon/contracts, @xeon/group-sdk (workspace:*), typebox (catalog:)
-                          # devDependencies: @xeon/ext-host, @xeon/core-models, @xeon/core-agents (testing 서브패스만)
+                          # dependencies: @fresnel/contracts, @fresnel/group-sdk (workspace:*), typebox (catalog:)
+                          # devDependencies: @fresnel/ext-host, @fresnel/core-models, @fresnel/core-agents (testing 서브패스만)
   tsconfig.json           # references: contracts, group-sdk (+ 테스트용 ext-host, core-models, core-agents)
   agents/
     explorer.md           # explorer 서브에이전트 정의(형식은 L1.agents.spec) [가정]
@@ -73,12 +73,12 @@ xeon/packages/group-helm/
       uc2.int.test.ts     # UC-2 수용 기준 2개 재생(§5.2)
     fault/
       resume.fault.test.ts   # 프로세스 강제 종료 뒤 재개(§5.2)
-    tapes/                # *.tape.jsonl (eng.testing.guide TS-04 xeon.model-tape.v1)
+    tapes/                # *.tape.jsonl (eng.testing.guide TS-04 fresnel.model-tape.v1)
     fixtures/             # 가짜 explorer 응답표, 학습 레코드 픽스처, 가짜 능력 provider
 ```
 
-- import 규칙: 소스는 `@xeon/contracts`, `@xeon/group-sdk`, `typebox`만 import한다. `group-sdk`은 DR-02 허용 목록 `DR-02/group-sdk`으로 허용된 유일한 같은 층 대상이다(eng.dependency-rules.guide DR-02, [결정: review.decisions-2 U-15]). `group-learning`, `cap-*`, `core-*`, `ext-host`는 소스에서 import하지 않는다(CM-06, DR-01·DR-02).
-- 테스트 파일은 다른 컨텍스트의 `testing` 서브패스를 import할 수 있다(eng.testing.guide §1.2, DR-14 예외 3): `@xeon/ext-host/testing`(테스트 확장 호스트), `@xeon/core-models/testing`(테이프), `@xeon/core-agents/testing`(가짜 서브에이전트 [가정]). 시계·ID 대역은 F에 `./testing` 서브패스가 없으므로 이 패키지 `test/` 안에 F `Clock`·`IdFactory` 인터페이스로 만든다 [결정: review.decisions-2 U-03].
+- import 규칙: 소스는 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`만 import한다. `group-sdk`은 DR-02 허용 목록 `DR-02/group-sdk`으로 허용된 유일한 같은 층 대상이다(eng.dependency-rules.guide DR-02, [결정: review.decisions-2 U-15]). `group-learning`, `cap-*`, `core-*`, `ext-host`는 소스에서 import하지 않는다(CM-06, DR-01·DR-02).
+- 테스트 파일은 다른 컨텍스트의 `testing` 서브패스를 import할 수 있다(eng.testing.guide §1.2, DR-14 예외 3): `@fresnel/ext-host/testing`(테스트 확장 호스트), `@fresnel/core-models/testing`(테이프), `@fresnel/core-agents/testing`(가짜 서브에이전트 [가정]). 시계·ID 대역은 F에 `./testing` 서브패스가 없으므로 이 패키지 `test/` 안에 F `Clock`·`IdFactory` 인터페이스로 만든다 [결정: review.decisions-2 U-03].
 - 파일 단위 교체: 내부 설계가 미결인 부분(`lenses.ts`, `prompts.ts`, `signals.ts`의 판정 함수)은 공개 시그니처를 고정하고 파일 안 구현만 바꾼다(§7 위험 1).
 
 ## 3. 작업 분해
@@ -87,7 +87,7 @@ xeon/packages/group-helm/
 
 | id | 내용 | 선행 작업 | 규모 |
 |---|---|---|---|
-| H-01 | 스캐폴드(M1): 패키지 디렉터리, `package.json`, `tsconfig.json`, 빈 `src/index.ts`, `test/` 구조. `check-layers`가 `xeon.layer`·`xeon.domain`을 통과 | P0 워크스페이스 골격, group-sdk 스캐폴드(L3.group-sdk.plan) | S |
+| H-01 | 스캐폴드(M1): 패키지 디렉터리, `package.json`, `tsconfig.json`, 빈 `src/index.ts`, `test/` 구조. `check-layers`가 `fresnel.layer`·`fresnel.domain`을 통과 | P0 워크스페이스 골격, group-sdk 스캐폴드(L3.group-sdk.plan) | S |
 | H-02 | 매니페스트와 레코드 스키마: `manifest.ts`, `records.ts`의 payload 스키마 3종과 `HELM_RECORD_KINDS` | H-01, F.extensions M0(`defineManifest`, `RecordKindDecl`, `validateManifest`) | S |
 | H-03 | 상태 스키마: `HelmStateSchema`, `INITIAL_HELM_STATE`, `helmStateDecl`, `fitState`(직렬화 60 KiB 예산), `updateState`(직렬 큐 + `fitState`) | H-02 | S |
 | H-04 | 설정: `helmSettings`(`defineSettings("ext.helm", …)`)에 `autoStart`, `maxLenses`, `writeGuard`를 더해 4개 키(M3-04). `driveLimits`는 M2에 있다. `HelmSettings` | H-01, F.wire-settings `defineSettings`·`checkSettingDef` | S |
@@ -103,9 +103,9 @@ xeon/packages/group-helm/
 | H-14 | 재생·재개 단위 테스트: `replayDrive`로 단계마다 재호출, 임대 교체 뒤 requestId 안정성 | H-13 | M |
 | H-19 | 재생 2회, 효과 1회 시험(스펙 §4.11): `replayDrive` 효과 계수로 모든 커밋 지점에서 끊고 drive·on 핸들러를 두 번 실행. `apply` 분기 안 두 지점 추가 | H-14, L3.group-sdk.plan G-20(효과 계수 확장, M3-new-01) | M |
 | H-20 | 실패 값: `failures.ts`(`HelmFailure`, `failureOf`, `reactionOf`, `HelmCommandError`), `updateState`의 `Result` 반환과 `state_conflict` 1회 재시도, 대기 거부 처리(스펙 §4.13 D-M3-05 a: `lease.rejected` 구독 핸들러) | H-03, 내구 이벤트 `lease.rejected`와 구독 수단(없으면 대기 거부 경로만 빼고 진행) | M |
-| H-22 | 기본 플러그인 패키징(D-M3-01): `.fresnel-plugin/plugin.json` 생성(매니페스트 대조 테스트), 엔트리 번들 빌드(`@xeon/contracts`·`@xeon/group-sdk`·`typebox`는 외부 import), 릴리즈 자원 배치, 첫 실행 설치와 갱신 규칙(원본 해시 일치 때만 교체), 외부 로더 적재 int 테스트(`user` 등급, 안전 모드 미적재) | H-13, X.loading-trust 외부 확장 로더와 가상 모듈 등록(M3-15), L4 릴리즈(M3-27) | M |
+| H-22 | 기본 플러그인 패키징(D-M3-01): `.fresnel-plugin/plugin.json` 생성(매니페스트 대조 테스트), 엔트리 번들 빌드(`@fresnel/contracts`·`@fresnel/group-sdk`·`typebox`는 외부 import), 릴리즈 자원 배치, 첫 실행 설치와 갱신 규칙(원본 해시 일치 때만 교체), 외부 로더 적재 int 테스트(`user` 등급, 안전 모드 미적재) | H-13, X.loading-trust 외부 확장 로더와 가상 모듈 등록(M3-15), L4 릴리즈(M3-27) | M |
 | H-21 | 효과 등급 적합 시험: 선언 없는 메서드를 가진 가짜 provider로 X 래퍼 거부와 저하 동작 확인, on 핸들러의 능력 호출 0 확인(스펙 §9 21번) | H-10, H-11, X.primitives 능력 래퍼 문맥 검사(REQ-X-01) | S |
-| H-15 | 통합 테스트: UC-2 테이프 재생(int)과 강제 종료 뒤 재개(fault) | H-13, `@xeon/ext-host/testing`, `@xeon/core-models/testing`, 가짜 서브에이전트 | M |
+| H-15 | 통합 테스트: UC-2 테이프 재생(int)과 강제 종료 뒤 재개(fault) | H-13, `@fresnel/ext-host/testing`, `@fresnel/core-models/testing`, 가짜 서브에이전트 | M |
 | H-16 | 학습 그룹 공존 확인: `grp.learning.*` 레코드 픽스처가 있어도 `gatherContext`가 다른 그룹 레코드를 읽지 않는지 검사([결정: review.decisions-2 D-10]), 학습 그룹과 공존 통합 확인 | H-10, L3.learning M3 | S |
 | H-17 | 문서 대조: 스펙 §4.2 전이표, §3.4 kind 목록, §6 설정 표와 코드 상수 대조 테스트 | H-04, H-06, H-02 | S |
 | H-18 | 정적 결정성 검사: `scanDriveSource`로 `drive.ts` 검사(테스트 26번) | H-09, L3.group-sdk.plan G-19(M3) | S |
@@ -129,7 +129,7 @@ xeon/packages/group-helm/
 | L2 메서드 효과 등급 선언(`web.search`, `knowledge.*` 읽기, `work.tasks.create` 멱등) | L2.web·knowledge·work plan(REQ-L2-01) | H-10, H-11 |
 | `replayDrive` 효과 계수(G-20 확장) | L3.group-sdk.plan | H-19 |
 | 내구 이벤트 `lease.rejected`, `GroupStatus.drive`의 `"rejected"`와 대기 상한 | L3.group-sdk.plan G-30, X.primitives.plan(REQ-X-08, D-M3-05) | H-20 |
-| 외부 확장 로더(자체 API), `@xeon/contracts`·`@xeon/group-sdk`·`typebox` 가상 모듈 등록, 첫 실행 설치 | X.loading-trust.plan(M3-15), L4 릴리즈(M3-27) | H-22, H-15 |
+| 외부 확장 로더(자체 API), `@fresnel/contracts`·`@fresnel/group-sdk`·`typebox` 가상 모듈 등록, 첫 실행 설치 | X.loading-trust.plan(M3-15), L4 릴리즈(M3-27) | H-22, H-15 |
 
 ## 4. 채택 코드
 
@@ -138,15 +138,15 @@ xeon/packages/group-helm/
 
 | 의존 | 판 | 쓰임 |
 |---|---|---|
-| `@xeon/contracts` | `workspace:*` | F 타입(extensions, records, capabilities, settings) |
-| `@xeon/group-sdk` | `workspace:*` | `defineGroup`, `GroupApi`, 테스트 도우미 `replayDrive`(M2), `scanDriveSource`(M3, G-19) |
+| `@fresnel/contracts` | `workspace:*` | F 타입(extensions, records, capabilities, settings) |
+| `@fresnel/group-sdk` | `workspace:*` | `defineGroup`, `GroupApi`, 테스트 도우미 `replayDrive`(M2), `scanDriveSource`(M3, G-19) |
 | `typebox` | 1.3.27(`catalog:`, L3.group-sdk.plan §4 표, eng.toolchain.guide TC-02) | 상태·레코드·설정 스키마 |
 
 - 참고 자료(코드 복사 없음): 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양"), ext-points 안 1 재생·토글 보장(`_research/ext-points.md` §5), F `renderSearch`의 외부 내용 표지(F.capabilities.spec §3.9).
 
 ## 5. 단위 테스트 목록
 
-테스트 가짜: 모델은 테이프(`@xeon/core-models/testing`, eng.testing.guide TS-04), 서브에이전트는 렌즈별 응답표를 받는 가짜 `loop.spawn`, 능력은 `ServiceKey`별 가짜 provider(`WebSearchKey`, `KnowledgeSearchKey`, `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `WorkTasksKey`. L3.helm.spec §3.8), 시계·ID는 `test/` 안의 대역(F `Clock`·`IdFactory` 구현)이다. 실제 네트워크와 모델을 쓰지 않는다.
+테스트 가짜: 모델은 테이프(`@fresnel/core-models/testing`, eng.testing.guide TS-04), 서브에이전트는 렌즈별 응답표를 받는 가짜 `loop.spawn`, 능력은 `ServiceKey`별 가짜 provider(`WebSearchKey`, `KnowledgeSearchKey`, `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `WorkTasksKey`. L3.helm.spec §3.8), 시계·ID는 `test/` 안의 대역(F `Clock`·`IdFactory` 구현)이다. 실제 네트워크와 모델을 쓰지 않는다.
 
 ### 5.1 단위 테스트
 
@@ -260,5 +260,5 @@ eng.testing.guide TS-01의 `scenario` 태그는 저장소 전체에 1개(`apps/c
 | 7 | 재시작 뒤 spawn이 중복된다 | 탐구 id 기반 명시 requestId(`drive.requestids-stable-across-lease-change`)와 L1 spawn 멱등의 세션 DB 기록(REQ-L1-01). `resume.after-kill-in-explore`가 둘을 함께 확인한다 |
 | 8 | `record`와 `commit` 사이 강제 종료로 발견 기록이 중복된다 | `findingId` 중복 제거 키, 읽는 쪽 중복 제거 규칙. 원자 API(REQ-X-03)가 생기면 바꾼다 |
 | 9 | 도구 메타가 비어 확산 단계에서 읽기 도구까지 거부된다 | M3-02를 H-08의 선행으로 둔다. 메타가 없는 도구 목록을 `/helm status`에 보여 준다 |
-| 10 | 기본 플러그인 적재 경로(외부 로더, 가상 모듈 등록, 첫 실행 설치)가 M3-15·M3-27보다 늦어진다 | H-02~H-21은 `defineGroup` 단위 테스트와 `@xeon/ext-host/testing`으로 진행한다. 적재 경로가 늦으면 E1 통합 시험(H-15)만 테스트 하네스의 직접 설치로 돌리고, H-22 int 테스트는 로더가 들어온 뒤 한다 |
+| 10 | 기본 플러그인 적재 경로(외부 로더, 가상 모듈 등록, 첫 실행 설치)가 M3-15·M3-27보다 늦어진다 | H-02~H-21은 `defineGroup` 단위 테스트와 `@fresnel/ext-host/testing`으로 진행한다. 적재 경로가 늦으면 E1 통합 시험(H-15)만 테스트 하네스의 직접 설치로 돌리고, H-22 int 테스트는 로더가 들어온 뒤 한다 |
 | 11 | 읽기 능력 호출이 재생마다 다시 불려 비용이 는다 | `converge` 한 분기에서만 부르고 결과를 `converged` 커밋으로 고정한다. 재생 횟수는 커밋 지점 사이 끊김 수만큼이라 정상 운영에서는 0이다 |

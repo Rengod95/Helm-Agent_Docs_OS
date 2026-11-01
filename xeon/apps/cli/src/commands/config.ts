@@ -1,8 +1,8 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever } from "@xeon/contracts";
-import type { EffectiveSetting, SettingDefWire, SettingSource } from "@xeon/contracts/settings";
-import type { HostConnection } from "@xeon/contracts/wire";
-import type { CommandIo, HostCommand } from "@xeon/host";
+import { t } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
+import type { EffectiveSetting, SettingDefWire, SettingSource } from "@fresnel/contracts/settings";
+import type { HostConnection } from "@fresnel/contracts/wire";
+import type { CommandIo, HostCommand } from "@fresnel/host";
 import type { ConfigCommand } from "../cli/command.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import { interpretRaw } from "../settings-input.ts";

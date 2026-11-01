@@ -1,6 +1,6 @@
-import { canonicalJson } from "@xeon/contracts";
-import { MAX_PARAMETERS_BYTES, MAX_SCHEMA_DEPTH } from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
+import { canonicalJson } from "@fresnel/contracts";
+import { MAX_PARAMETERS_BYTES, MAX_SCHEMA_DEPTH } from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import { asJsonObject } from "../json.ts";
 
 // L2.mcp.spec §3.3. 서버가 광고한 `inputSchema`를 노출해도 되는지 본다. 한도는 F.capabilities.spec §4.3의 상수를 쓴다.

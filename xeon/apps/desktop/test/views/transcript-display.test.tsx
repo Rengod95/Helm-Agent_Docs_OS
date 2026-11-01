@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ItemRecord } from "@xeon/contracts/conversation";
+import type { ItemRecord } from "@fresnel/contracts/conversation";
 import { renderToString } from "react-dom/server";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";

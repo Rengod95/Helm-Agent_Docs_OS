@@ -1,7 +1,7 @@
-import type { Locale } from "@xeon/client/i18n";
-import type { Clock, Scheduler } from "@xeon/contracts";
-import { createHostConnection } from "@xeon/client";
-import { createStdioTransport } from "@xeon/client/stdio";
+import type { Locale } from "@fresnel/client/i18n";
+import type { Clock, Scheduler } from "@fresnel/contracts";
+import { createHostConnection } from "@fresnel/client";
+import { createStdioTransport } from "@fresnel/client/stdio";
 import { createFrameClock, createJournal, watch } from "../state/shared/index.ts";
 import { createEngineStore, type ApplyNote, type EngineStore } from "../state/engine/index.ts";
 import { createUiStore, type UiStore } from "../state/ui/index.ts";

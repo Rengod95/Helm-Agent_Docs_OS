@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 
 /** DNS 해석 실패. 정책 거부가 아니라 "주소를 얻지 못함"이다 */
 export type ResolveError = { readonly kind: "unresolvable"; readonly message: string };

@@ -1,5 +1,5 @@
 import { unlinkSync } from "node:fs";
-import { attempt, err, type Logger, type Result } from "@xeon/contracts";
+import { attempt, err, type Logger, type Result } from "@fresnel/contracts";
 import {
   connectSocket,
   listenSocket,

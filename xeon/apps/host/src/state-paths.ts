@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
-import { resolveOsDirs } from "@xeon/platform-os";
+import { err, ok, type Result } from "@fresnel/contracts";
+import { resolveOsDirs } from "@fresnel/platform-os";
 
 // L4.host-service.spec §3.3.6 상태 디렉터리 API (review.decisions-2 B-07). CLI는 경로를 계산하지 않는다(DR-13).
 // 위치 규칙은 L0.os의 OsDirs.state와 같은 함수(resolveOsDirs)가 정한다. 서비스를 띄우지 않고 위치만 묻는다.

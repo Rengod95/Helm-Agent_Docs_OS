@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 // FRESNEL-PATCH: P1
 import type {
   CancelScope as Context,
@@ -7,7 +7,7 @@ import type {
   Shell,
   ShellExecResult,
   ShellOutputWindow,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { WorkspaceFailure } from "../../errors.ts";
 // FRESNEL-PATCH: P2
 import { OutputBuffer, PROGRESS_BYTES_PER_SECOND } from "../../upstream/output.ts";

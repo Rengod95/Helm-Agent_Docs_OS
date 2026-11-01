@@ -1,5 +1,5 @@
-import { attemptAsync, parseJson, type Result } from "@xeon/contracts";
-import { WireError, type WireParams, type WireResult } from "@xeon/contracts/wire";
+import { attemptAsync, parseJson, type Result } from "@fresnel/contracts";
+import { WireError, type WireParams, type WireResult } from "@fresnel/contracts/wire";
 import {
   ACCOUNTS_KEY,
   RATE_LIMIT_KEY,

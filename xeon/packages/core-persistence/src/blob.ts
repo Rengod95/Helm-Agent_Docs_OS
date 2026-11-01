@@ -1,6 +1,6 @@
 // 큰 문자열 분리(L1.persistence.spec §4.11, PS-15, eng.transactions.design §4.3 0단계, F.records.spec §3.4 규칙 4·5).
 // 트랜잭션 밖에서만 부른다(TX-04): blob 파일 쓰기가 들어 있다.
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   BLOB_PLACEHOLDER_PREFIX,
   ENVELOPE_MAX_BYTES,
@@ -9,7 +9,7 @@ import {
   type DetachedField,
   type DurableEventDraft,
   type StoreService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 /** 이 크기(UTF-8 바이트) 이상인 문자열만 분리 후보다. 작은 값을 blob으로 옮기면 읽기만 느려진다 */
 const DETACH_MIN_BYTES: number = 64 * 1024;

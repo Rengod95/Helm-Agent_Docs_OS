@@ -1,20 +1,20 @@
 import { dirname } from "node:path";
-import { t } from "@xeon/client/i18n";
-import { assertNever, attemptAsync, type Result } from "@xeon/contracts";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, attemptAsync, type Result } from "@fresnel/contracts";
 import type {
   HostBinaryItem,
   HostBinaryReport,
   HostConnection,
   WebProviderCapability,
   WebProviderOrigin,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import {
   toolsWebViewOf,
   type ToolsWebView,
   type WebRecommendation,
   type WebSection,
   type WebToolRow,
-} from "@xeon/client/web";
+} from "@fresnel/client/web";
 import type { DoctorCommand } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, type Failure } from "../errors.ts";

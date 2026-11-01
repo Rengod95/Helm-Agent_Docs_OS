@@ -1,6 +1,6 @@
 import { Type } from "typebox";
-import { SecretProviderIdSchema } from "@xeon/contracts/capabilities";
-import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
+import { SecretProviderIdSchema } from "@fresnel/contracts/capabilities";
+import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 import { DEFAULT_SECRETS_CONFIG } from "./config.ts";
 
 // L0.secrets.spec §6.1. 모두 layer L0, since 0.1.0이다. 비밀 값을 담는 키는 없다(D2, D3).
@@ -62,7 +62,7 @@ const group = defineSettings("l0.secrets", {
       widget: "text",
       order: 340,
       label: "sops 실행 파일",
-      help: "비우면 xeon.os가 찾는다",
+      help: "비우면 fresnel.os가 찾는다",
     },
     since: "0.1.0",
   },

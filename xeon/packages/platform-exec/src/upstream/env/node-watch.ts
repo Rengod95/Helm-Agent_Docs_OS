@@ -4,9 +4,9 @@ import { lstat, readdir, readFile, stat, statfs } from "node:fs/promises";
 import { dirname, relative, sep } from "node:path";
 // FRESNEL-PATCH: P14
 // FRESNEL-PATCH: P16
-import { attempt, detach, eachAsync, repeatAsync, type Logger } from "@xeon/contracts";
+import { attempt, detach, eachAsync, repeatAsync, type Logger } from "@fresnel/contracts";
 // FRESNEL-PATCH: P1
-import type { CancelScope as Context } from "@xeon/contracts/services";
+import type { CancelScope as Context } from "@fresnel/contracts/services";
 // FRESNEL-PATCH: P3
 import type { ExecPlatformProvider } from "../../provider.ts";
 import {

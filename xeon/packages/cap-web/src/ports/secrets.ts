@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 
 /** 외부 전송 마스킹 판정. `Redactor.containsKnown`과 같은 모양이다(L0.secrets) */
 export interface OutboundSecretGuard {

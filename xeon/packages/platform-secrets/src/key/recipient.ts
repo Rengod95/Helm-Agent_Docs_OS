@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { attemptAsync, err, ok, type Result } from "@xeon/contracts";
-import type { KeyProviderIdPublic } from "@xeon/contracts/services";
+import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
+import type { KeyProviderIdPublic } from "@fresnel/contracts/services";
 import { SECRETS_SUBDIR } from "../config.ts";
 import { errorCode } from "../errors.ts";
 

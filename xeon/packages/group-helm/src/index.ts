@@ -1,4 +1,4 @@
-import { defineGroup, type GroupApi, type GroupModule } from "@xeon/group-sdk";
+import { defineGroup, type GroupApi, type GroupModule } from "@fresnel/group-sdk";
 import { helmDrive } from "./drive.ts";
 import { guardWrite } from "./guard.ts";
 import { injectLens } from "./inject.ts";

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { NO_EFFECTS, replayDrive } from "../src/testing/index.ts";
 import {
   badDriveGroup,

@@ -1,11 +1,11 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type {
   BinaryError,
   BinaryName,
   BinarySource,
   OsPlatform,
   ResolvedBinary,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // L0.os.spec §3.6.1. 외부 바이너리 필수/선택 표와 첫 실행 점검. 표는 OS별로 어느 바이너리를 어디에 쓰고,
 // 없을 때 무엇이 안 되는지를 한 곳에 둔다. 점검 함수는 `resolveBinary`만 부르므로 서비스 없이 가짜로도 시험한다.

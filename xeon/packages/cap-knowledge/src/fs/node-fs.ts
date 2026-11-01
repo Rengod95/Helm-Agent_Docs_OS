@@ -10,7 +10,7 @@ import {
   type FileHandle,
 } from "node:fs/promises";
 import { dirname } from "node:path";
-import { err, ok, type Result, attemptAsync } from "@xeon/contracts";
+import { err, ok, type Result, attemptAsync } from "@fresnel/contracts";
 import { compareBytes } from "../hash.ts";
 import type { FsEntry, FsEntryKind, FsError, FsErrorKind, FsStat, KnowledgeFs } from "./port.ts";
 import { createKeyedMutex } from "./mutex.ts";

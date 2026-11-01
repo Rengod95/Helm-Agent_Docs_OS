@@ -1,7 +1,7 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ContextError } from "@xeon/contracts/services";
-import { assertNever, Bug } from "@xeon/contracts";
-import { wireError, type WireError, type WireHandler } from "@xeon/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ContextError } from "@fresnel/contracts/services";
+import { assertNever, Bug } from "@fresnel/contracts";
+import { wireError, type WireError, type WireHandler } from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";

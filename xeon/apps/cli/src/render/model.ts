@@ -1,12 +1,12 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import { ItemRecordedPayloadSchema, EffectResultSchema } from "@xeon/contracts/records";
-import type { ItemId } from "@xeon/contracts/conversation";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import { ItemRecordedPayloadSchema, EffectResultSchema } from "@fresnel/contracts/records";
+import type { ItemId } from "@fresnel/contracts/conversation";
 import type {
   EventsBatchParams,
   StoreId,
   StreamChunkParams,
   StreamPosition,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { RenderOp } from "./ops.ts";
 import { progressOf } from "./stream.ts";
 import { opsOfEvent, restoreRedactions } from "./transcript.ts";

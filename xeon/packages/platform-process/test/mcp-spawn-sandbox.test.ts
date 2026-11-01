@@ -2,9 +2,9 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok, parseJson, type Result } from "@xeon/contracts";
-import type { SecretHandle } from "@xeon/contracts/capabilities";
-import type { SecretError, SecretLease } from "@xeon/contracts/services";
+import { err, ok, parseJson, type Result } from "@fresnel/contracts";
+import type { SecretHandle } from "@fresnel/contracts/capabilities";
+import type { SecretError, SecretLease } from "@fresnel/contracts/services";
 import {
   createBackgroundRegistry,
   createMcpProcessPort,

@@ -1,13 +1,13 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { HttpTemplate, SecretError, SecretService } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { HttpTemplate, SecretError, SecretService } from "@fresnel/contracts/services";
 import type {
   HeaderSecretError,
   HeaderSecretSender,
   HeaderSecretTarget,
   HeaderSendResponse,
   SecretHeader,
-} from "@xeon/cap-web";
-import { createPluginHttp } from "@xeon/platform-secrets";
+} from "@fresnel/cap-web";
+import { createPluginHttp } from "@fresnel/platform-secrets";
 
 // L2.web.spec §3.6.1, L0.secrets.spec §3.6.1(M3-REQ-60). cap-web의 `HeaderSecretSender`를 L0 플러그인 HTTP 통로(`createPluginHttp`)로 옮긴다.
 // 설정 값은 `secret://<이름>` 참조 문자열이고 실제 값은 `SecretService.withHttp`가 전송 직전에 헤더에 넣는다. 이 파일은 값을 만들지 않는다.

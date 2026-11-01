@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { defineCapability, serviceKey, type CallerInfo } from "@xeon/contracts/capabilities";
+import { defineCapability, serviceKey, type CallerInfo } from "@fresnel/contracts/capabilities";
 import { Type } from "typebox";
 import { callTool, createHarness, layer, type Harness } from "./support/harness.ts";
 import { createToolRuntime } from "../src/runtime.ts";

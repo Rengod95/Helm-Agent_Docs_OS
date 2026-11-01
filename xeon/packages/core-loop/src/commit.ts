@@ -1,10 +1,10 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type {
   CommitRequest,
   CommitResult,
   SessionService,
   StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 type Committed = Extract<CommitResult, { readonly status: "committed" }>;
 

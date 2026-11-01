@@ -1,5 +1,5 @@
-import { Bug, err, ok, type Result } from "@xeon/contracts";
-import type { LeaseRowInvalid, SqlRow, SqlValue } from "@xeon/contracts/records";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
+import type { LeaseRowInvalid, SqlRow, SqlValue } from "@fresnel/contracts/records";
 
 function isSqlValue(value: unknown): value is SqlValue {
   return (

@@ -1,5 +1,5 @@
-import { assertNever, Bug, parse } from "@xeon/contracts";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import { assertNever, Bug, parse } from "@fresnel/contracts";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import {
   WIRE_METHODS,
   WIRE_NOTIFICATIONS,
@@ -8,7 +8,7 @@ import {
   type ConformanceExpect,
   type ConformanceStep,
   type EventsBatchParams,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 
 // F.wire-settings.plan W14의 실행기 틀. WIRE_CONFORMANCE_CASES(데이터)를 연결 끝점 하나에 돌린다.
 // F에서는 메모리 가짜 호스트로 자기 검사만 한다. in-process와 stdio 실제 구현은 L4.host-service의 test/contract/에서

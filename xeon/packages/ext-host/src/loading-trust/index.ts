@@ -1,7 +1,7 @@
 // loading-trust 도메인의 모든 export(패키지 내부용 포함). 루트(src/index.ts)는 공개 이름만 다시 내보낸다.
 import { basename } from "node:path";
-import { attemptAsync, Bug, parseJson } from "@xeon/contracts";
-import { isSemVer, type CapabilityId, type SemVer } from "@xeon/contracts/capabilities";
+import { attemptAsync, Bug, parseJson } from "@fresnel/contracts";
+import { isSemVer, type CapabilityId, type SemVer } from "@fresnel/contracts/capabilities";
 import {
   validateManifest,
   validateManifestSet,
@@ -13,8 +13,8 @@ import {
   type ManifestIssue,
   type TrustPrompter,
   type TrustStoreBackend,
-} from "@xeon/contracts/extensions";
-import type { SettingDef, SettingNamespace } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/extensions";
+import type { SettingDef, SettingNamespace } from "@fresnel/contracts/settings";
 import type { AdmitInfo, OperationsPolicy } from "../operations/index.ts";
 import { NO_STARTUP_OPTIONS, startupFilter, type StartupOptions } from "../operations/safe-mode.ts";
 import { assignTier } from "../operations/tier.ts";
@@ -216,7 +216,7 @@ export interface LoaderDeps {
   readonly coreCapabilities?: ReadonlyMap<CapabilityId, SemVer>;
   /**
    * 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 할 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트의 모듈 객체.
-   * `@xeon/contracts`와 하위 경로, `typebox`는 X가 등록하므로 넘기지 않아도 된다. `@xeon/group-sdk`은 L3라 X가 import할 수 없어 조립 루트가 넘긴다(M3-REQ-110)
+   * `@fresnel/contracts`와 하위 경로, `typebox`는 X가 등록하므로 넘기지 않아도 된다. `@fresnel/group-sdk`은 L3라 X가 import할 수 없어 조립 루트가 넘긴다(M3-REQ-110)
    */
   readonly sdkModules?: SdkModules;
   /** `thread.trust.before` 발화(X.loading-trust.spec §4.7.3 4번). 없으면 결정 없음으로 본다 */

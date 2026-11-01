@@ -1,5 +1,5 @@
-import type { Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 
 /** 브라우저 동작에서 사람 확인이 필요한 이유(L2.web.spec §4.10.3) */
 export type BrowseConfirmReason =
@@ -22,7 +22,7 @@ export interface BrowseConfirmRequest {
 export type BrowseConfirmError = { readonly kind: "unavailable"; readonly message: string };
 
 /**
- * 사람 확인 포트. 구현은 `xeon.approvals`를 감싸는 조립 쪽 어댑터다. 포트가 없거나 `unavailable`이면 확인이 필요한 동작은
+ * 사람 확인 포트. 구현은 `fresnel.approvals`를 감싸는 조립 쪽 어댑터다. 포트가 없거나 `unavailable`이면 확인이 필요한 동작은
  * `confirmation_denied`로 거부한다(안전한 쪽).
  */
 export interface BrowseConfirmPort {

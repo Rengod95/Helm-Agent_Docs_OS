@@ -1,5 +1,5 @@
 // src/state/engine/describe.ts
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import type { EngineState } from "../../transport/ipc.ts";
 import type { MirrorInput, VolatileFact } from "./input.ts";
 import type { ApplyNote } from "./reduce.ts";

@@ -1,4 +1,4 @@
-import type { Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Scheduler, TimerHandle } from "@fresnel/contracts";
 
 // 주입된 `Scheduler`가 없을 때 쓰는 `setTimeout` 기반 대체. 승인 만료 타이머가 없어 무인 turn이 영원히 기다리는 일을 막는다(M3-REQ-72).
 // 타이머는 프로세스 종료를 막지 않는다(`unref`).

@@ -62,7 +62,7 @@ describe("services imports", () => {
     for (const file of FILES) {
       const source = readFileSync(join(DIR, file), "utf8");
       for (const { spec } of importLines(source)) {
-        expect({ file, bad: /cordis|@xeon\/|platform-|core-/.test(spec) }).toEqual({
+        expect({ file, bad: /cordis|@fresnel\/|platform-|core-/.test(spec) }).toEqual({
           file,
           bad: false,
         });

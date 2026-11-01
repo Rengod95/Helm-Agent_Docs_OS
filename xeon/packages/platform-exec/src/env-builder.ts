@@ -1,5 +1,5 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import { SENSITIVE_ENV_PATTERNS } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import { SENSITIVE_ENV_PATTERNS } from "@fresnel/contracts/services";
 
 // L0.exec.spec §3.5. 자식 프로세스 env는 부모 env 전체가 아니라 이름 허용 목록으로 만든다.
 

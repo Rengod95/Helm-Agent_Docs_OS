@@ -1,12 +1,12 @@
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, parse } from "@fresnel/contracts";
 import {
   GoalIdSchema,
   ReportIdSchema,
   type CallOptions,
   type GoalId,
   type ReportId,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId, Usage } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId, Usage } from "@fresnel/contracts/conversation";
 
 /** 문자열을 목표 ID로 좁힌다. 형식이 틀리면 시험 입력의 결함이다 */
 export function gid(raw: string): GoalId {

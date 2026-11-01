@@ -1,5 +1,5 @@
-import { WebBrowse, WebFetch, WebSearch } from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
+import { WebBrowse, WebFetch, WebSearch } from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 
 export const WEB_EXTENSION_NAME = "cap-web";
 

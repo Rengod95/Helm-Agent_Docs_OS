@@ -1,5 +1,5 @@
-import { err, ok } from "@xeon/contracts";
-import type { ArtifactRef } from "@xeon/contracts/capabilities";
+import { err, ok } from "@fresnel/contracts";
+import type { ArtifactRef } from "@fresnel/contracts/capabilities";
 import type { PlanArtifactInput, PlanArtifactsPort } from "../ports/artifacts.ts";
 
 // artifacts.registry 대역. 같은 requestId의 재호출은 처음 결과를 돌려준다(멱등).

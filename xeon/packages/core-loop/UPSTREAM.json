@@ -28,12 +28,12 @@
     "entry-points: runLoop's two entry points (new prompt, continue) become the four resume entries fresh, request, tools, turn_end (run-turn.ts)",
     "no-outer-loop: the follow-up outer loop is removed; a follow-up starts a new turn (run-turn.ts)",
     "step-functions: commit points and extension points are called by explicit step functions, not by callback hooks (run-turn.ts, open-step.ts, commit-response.ts, step-end.ts)",
-    "no-context-array: the loop keeps no message array; every request is rebuilt from committed events by xeon.context (stream-response.ts, prepare-request.ts)",
+    "no-context-array: the loop keeps no message array; every request is rebuilt from committed events by fresnel.context (stream-response.ts, prepare-request.ts)",
     "no-api-key: getApiKey/apiKey resolution is removed; core-models leases the key (stream-response.ts)",
     "model-slot: the streamFn is wrapped by the modelCalls limiter slot (stream-response.ts)",
     "batch-cancel: on cancel the remaining calls are settled as not_executed inside the same batch instead of break (tool-batch.ts)",
     "batch-length: a response cut by the output limit settles every call as truncated through tools.settleRejected (tool-batch.ts)",
-    "batch-record: per-call prepare/execute/result recording is done by xeon.tools; the loop turns the returned ToolCallOutcome into events (tool-batch.ts)"
+    "batch-record: per-call prepare/execute/result recording is done by fresnel.tools; the loop turns the returned ToolCallOutcome into events (tool-batch.ts)"
   ],
   "tracking": "Not tracked. New pi-agent-core releases are not followed (adr.0009 section 3.7). Record any hand-ported fix here with the upstream version and function."
 }

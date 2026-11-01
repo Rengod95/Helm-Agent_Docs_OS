@@ -1,6 +1,6 @@
 import { Channel } from "@tauri-apps/api/core";
-import { parse } from "@xeon/contracts";
-import { SecretNameSchema } from "@xeon/contracts/capabilities";
+import { parse } from "@fresnel/contracts";
+import { SecretNameSchema } from "@fresnel/contracts/capabilities";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { DesktopIpc } from "../../src/transport/ipc.ts";
 import { createTauriIpc } from "../../src/transport/ipc.ts";

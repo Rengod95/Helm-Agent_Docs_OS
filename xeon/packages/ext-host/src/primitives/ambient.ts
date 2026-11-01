@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { HookName, ScopeId } from "@xeon/contracts/extensions";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { HookName, ScopeId } from "@fresnel/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { HandlerGate } from "./dispatch-types.ts";
 
 /** drive 호출 하나의 멱등 키 재료(X.primitives.spec §4.4.3, §4.6.1) */

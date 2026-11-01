@@ -1,5 +1,5 @@
-import { Bug, type Clock, type Logger, type Scheduler } from "@xeon/contracts";
-import type { LocalIdFactory } from "@xeon/contracts/conversation";
+import { Bug, type Clock, type Logger, type Scheduler } from "@fresnel/contracts";
+import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 import {
   ProcessPortKey,
   type HookRawRun,
@@ -8,15 +8,15 @@ import {
   type IsolationSpawnSpec,
   type PortKey,
   type ProcessPort,
-} from "@xeon/contracts/extensions";
-import { OsServiceName, type OsService, type ProcessService } from "@xeon/contracts/services";
+} from "@fresnel/contracts/extensions";
+import { OsServiceName, type OsService, type ProcessService } from "@fresnel/contracts/services";
 import { createProcessShutdown, type ProcessShutdown } from "./lease/shutdown.ts";
 import { createBackgroundRegistry, type BackgroundRegistryController } from "./registry.ts";
 import { createHookRunner } from "./port/hook-run.ts";
 import { detectProcessPlatform, type ProcessPlatformProvider } from "./select.ts";
 import type { ProcessServiceSettings } from "./settings.ts";
 
-// L0.process.spec §3.1·§4.8, L0.process.plan PR-08. ProcessService를 조립하고 xeon.process 포트로 내놓는다.
+// L0.process.spec §3.1·§4.8, L0.process.plan PR-08. ProcessService를 조립하고 fresnel.process 포트로 내놓는다.
 // run(외부 훅, PR-21)은 M2에서 구현했다. spawn(격리 확장 자식, PR-22)은 2차라 거부 구현이다(spec §4.8 spawn 4번).
 
 export interface ProcessServiceDeps {
@@ -100,7 +100,7 @@ export function createProcessService(deps: ProcessServiceDeps): ProcessServiceHa
 
 // ── Cordis 플랫폼 모듈 ───────────────────────────────────────────────────
 
-/** 이 패키지가 xeon.os에서 쓰는 부분: 시계·타이머와 구성요소 로거 */
+/** 이 패키지가 fresnel.os에서 쓰는 부분: 시계·타이머와 구성요소 로거 */
 export type ProcessOsPort = Pick<OsService, "time" | "logger">;
 
 /**
@@ -109,9 +109,9 @@ export type ProcessOsPort = Pick<OsService, "time" | "logger">;
  * ext-host가 `PlatformModule`·`PlatformContext`를 내보내면 이 둘을 그 타입으로 바꾼다.
  */
 export interface ProcessPlatformContext {
-  /** xeon.process 포트 제공 */
+  /** fresnel.process 포트 제공 */
   providePort(key: PortKey<ProcessPort>, impl: ProcessPort): void;
-  /** 먼저 등록된 xeon.os 조회. 없으면 던진다 */
+  /** 먼저 등록된 fresnel.os 조회. 없으면 던진다 */
   port(key: PortKey<ProcessOsPort>): ProcessOsPort;
   /** 호스트 dispose 때 역순으로 실행한다 */
   onDispose(fn: () => void | Promise<void>): void;
@@ -132,7 +132,7 @@ export interface ProcessPluginOptions {
 
 const OS_PORT_KEY: PortKey<ProcessOsPort> = { name: OsServiceName };
 
-/** `xeon.os`가 먼저 등록되어 있어야 한다. 시계·타이머·로거를 거기서 받는다 */
+/** `fresnel.os`가 먼저 등록되어 있어야 한다. 시계·타이머·로거를 거기서 받는다 */
 export function processPlugin(options: ProcessPluginOptions): ProcessPlatformModule {
   return {
     name: "platform-process",

@@ -1,5 +1,5 @@
-import { t } from "@xeon/client/i18n";
-import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
 import type { OutputMode } from "../cli/command.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 

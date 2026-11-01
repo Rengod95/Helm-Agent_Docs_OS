@@ -1,5 +1,5 @@
-import { Bug, canonicalJson, err, ok, type Result } from "@xeon/contracts";
-import type { EventId, IdFactory, StepId, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import { Bug, canonicalJson, err, ok, type Result } from "@fresnel/contracts";
+import type { EventId, IdFactory, StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import {
   ownerOfKind,
   type CommitRequest,
@@ -16,8 +16,8 @@ import {
   type StampedDraft,
   type StoreError,
   type TxView,
-} from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 
 /** 서비스가 쓰는 SessionService 부분형 */
 export type BranchReader = Pick<SessionService, "readBranch" | "hydrate" | "commit" | "producer">;

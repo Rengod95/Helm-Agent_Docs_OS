@@ -1,11 +1,11 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import { parseSecretRef } from "@xeon/contracts/capabilities";
+import { err, ok, type Result } from "@fresnel/contracts";
+import { parseSecretRef } from "@fresnel/contracts/capabilities";
 import {
   ExecutionError,
   type SecretEnvRequest,
   type SecretLease,
   type SecretService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { isValidEnvName } from "./env-builder.ts";
 
 // L0.exec.spec §3.6. 에이전트 env 모드(M1)의 비밀 주입 지점. 값은 이 파일의 지역 변수와 spawn 인자에만 있다.

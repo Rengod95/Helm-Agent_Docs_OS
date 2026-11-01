@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { readPlans } from "../src/projection/read.ts";
 import { rejection } from "./support/assertions.ts";
 import { openHarness, type Harness } from "./support/harness.ts";
 import { PlanId } from "./support/plans.ts";
-import { realTools } from "@xeon/core-tools/testing";
+import { realTools } from "@fresnel/core-tools/testing";
 import { approvalsDriver, modeDriver } from "./support/l1.ts";
 
 let opened: Harness | undefined;

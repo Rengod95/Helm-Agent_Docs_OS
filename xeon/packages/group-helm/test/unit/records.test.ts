@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { validateGroupRecord, RECORD_KIND_PATTERN } from "@xeon/contracts/extensions";
+import { parse } from "@fresnel/contracts";
+import { validateGroupRecord, RECORD_KIND_PATTERN } from "@fresnel/contracts/extensions";
 import {
   DiscoveryRecordedPayloadSchema,
   HELM_RECORD_KINDS,

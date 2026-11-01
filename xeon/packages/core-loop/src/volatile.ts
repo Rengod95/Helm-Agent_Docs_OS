@@ -1,12 +1,12 @@
-import { assertNever, type Clock, type Logger } from "@xeon/contracts";
+import { assertNever, type Clock, type Logger } from "@fresnel/contracts";
 import type {
   IdFactory,
   ItemUpdate,
   LifecycleEvent,
   ThreadId,
   TurnId,
-} from "@xeon/contracts/conversation";
-import type { SessionService, VolatileEventEnvelope } from "@xeon/contracts/records";
+} from "@fresnel/contracts/conversation";
+import type { SessionService, VolatileEventEnvelope } from "@fresnel/contracts/records";
 
 // L1.loop.spec §3.4 "휘발 발신". 휘발 kind(turn.updated, step.updated, item.started, item.updated)만 envelope로 낸다.
 // `n`은 (threadId, turnId)마다 0부터 1씩, `afterSeq`는 발신 직전 내구 head seq다.

@@ -3,7 +3,7 @@ import {
   KnowledgeMemory,
   KnowledgeSearch,
   KnowledgeSkills,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   AssistantMessage,
   ItemId,
@@ -13,16 +13,16 @@ import type {
   TurnId,
   TurnOrigin,
   UserMessage,
-} from "@xeon/contracts/conversation";
-import { ToolsPortKey, type ToolResourceDef } from "@xeon/contracts/extensions";
-import type { AgentSettledEventPayload } from "@xeon/contracts/records";
-import { ok, parse } from "@xeon/contracts";
-import { AgentServicePortKey } from "@xeon/contracts/services";
+} from "@fresnel/contracts/conversation";
+import { ToolsPortKey, type ToolResourceDef } from "@fresnel/contracts/extensions";
+import type { AgentSettledEventPayload } from "@fresnel/contracts/records";
+import { ok, parse } from "@fresnel/contracts";
+import { AgentServicePortKey } from "@fresnel/contracts/services";
 import { Type } from "typebox";
-import { capabilityDefTable } from "@xeon/ext-host";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-sdk";
-import { fakeAgents, type FakeAgents } from "@xeon/group-sdk/testing";
+import { capabilityDefTable } from "@fresnel/ext-host";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
+import { GroupSettingsSourceKey, type GroupModule } from "@fresnel/group-sdk";
+import { fakeAgents, type FakeAgents } from "@fresnel/group-sdk/testing";
 import {
   createLearningBridge,
   createLearningGroup,

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { repeatAsync } from "@xeon/contracts";
-import { fakeApprovals, l2ApprovalsPort } from "@xeon/core-tools/testing";
+import { repeatAsync } from "@fresnel/contracts";
+import { fakeApprovals, l2ApprovalsPort } from "@fresnel/core-tools/testing";
 import { createAskAdapter, webApprovalTitle } from "../src/ask-adapter.ts";
 
 // cap-web의 질문 어댑터를 core-tools의 실제 ApprovalService에 붙인다(E4/E5). 대역 포트로는 body 모양 불일치를 잡지 못한다.

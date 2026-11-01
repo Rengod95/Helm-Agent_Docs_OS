@@ -5,7 +5,7 @@ import type {
   SettingKey,
   SettingLockReason,
   SettingSource,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { t, type MessageId } from "../i18n/index.ts";
 import type {
   BadgeScope,

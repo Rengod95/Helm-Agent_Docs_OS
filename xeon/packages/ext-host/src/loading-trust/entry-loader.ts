@@ -1,12 +1,12 @@
 import { join, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { attemptAsync, err, ok, type Result } from "@xeon/contracts";
+import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import type {
   ExtensionEntry,
   ExtensionManifest,
   LoaderFs,
   ManifestIssue,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import type { ExtensionUnit, InstallResult } from "../primitives/host.ts";
 import type { BuiltinExtensionModule } from "./discover.ts";
 import type { LoadDiagnosticCode } from "./pipeline.ts";

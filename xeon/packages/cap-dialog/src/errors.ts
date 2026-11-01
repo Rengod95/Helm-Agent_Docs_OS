@@ -1,12 +1,12 @@
-import { assertNever, Bug } from "@xeon/contracts";
+import { assertNever, Bug } from "@fresnel/contracts";
 import {
   CapabilityError,
   DEFAULT_RETRYABLE,
   type CapabilityId,
   type CommonErrorCode,
-} from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
-import { FileError, type FileErrorCode } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import { FileError, type FileErrorCode } from "@fresnel/contracts/services";
 
 // 이 패키지 안에서 던지는 실패와 서비스 경계 변환. 서비스 메서드는 CapabilityError로만 거부한다(F.capabilities.spec §3.6).
 

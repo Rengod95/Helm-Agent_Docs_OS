@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { CapabilityError } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ScopeStack } from "@xeon/contracts/settings";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import { createAttachmentsApi } from "../src/attachments/service.ts";
 import type { AttachmentFiles } from "../src/ports/files.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";

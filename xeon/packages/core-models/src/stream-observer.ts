@@ -1,5 +1,5 @@
-import type { AssistantMessage, AssistantMessageEvent } from "@xeon/contracts/conversation";
-import type { AssistantMessageEventStream } from "@xeon/contracts/services";
+import type { AssistantMessage, AssistantMessageEvent } from "@fresnel/contracts/conversation";
+import type { AssistantMessageEventStream } from "@fresnel/contracts/services";
 
 // L1.models.spec §4.3 10번, §4.4. 스트림을 소비하는 쪽(for await 또는 result())이 구동하는 얇은 관찰 래퍼다.
 // 따로 도는 작업을 두지 않으므로 소비자가 없으면 아무 일도 하지 않는다.

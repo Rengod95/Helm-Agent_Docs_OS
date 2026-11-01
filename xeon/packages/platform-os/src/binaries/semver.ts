@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 
 export type VersionTriple = readonly [number, number, number];
 

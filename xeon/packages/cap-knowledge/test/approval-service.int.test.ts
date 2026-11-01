@@ -1,8 +1,8 @@
 import { idem } from "./support/helpers.ts";
 import { afterEach, expect, test } from "bun:test";
-import { eachAsync, repeatAsync } from "@xeon/contracts";
-import { fakeApprovals } from "@xeon/core-tools/testing";
-import type { CallContext } from "@xeon/contracts/capabilities";
+import { eachAsync, repeatAsync } from "@fresnel/contracts";
+import { fakeApprovals } from "@fresnel/core-tools/testing";
+import type { CallContext } from "@fresnel/contracts/capabilities";
 import { createWriteApprovals } from "../src/ports/approvals.ts";
 import { SCAN_RULESET_VERSION } from "../src/scan/rules.ts";
 import { agentActor, contextOf, createPlan, request } from "./support/plans.ts";

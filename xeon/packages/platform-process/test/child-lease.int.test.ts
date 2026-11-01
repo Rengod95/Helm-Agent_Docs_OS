@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { attempt, parseJson } from "@xeon/contracts";
-import type { Transport } from "@xeon/contracts/wire";
+import { attempt, parseJson } from "@fresnel/contracts";
+import type { Transport } from "@fresnel/contracts/wire";
 import { spawnFakeEngine } from "../src/testing/index.ts";
 import { waitFor } from "./support/real-time.ts";
 

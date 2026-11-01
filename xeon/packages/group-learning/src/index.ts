@@ -1,11 +1,11 @@
-import { attempt, err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
 import {
   KnowledgeLedgerKey,
   KnowledgeMemoryKey,
   KnowledgeSearchKey,
   KnowledgeSkillsKey,
-} from "@xeon/contracts/capabilities";
-import { defineGroup, type GroupModule } from "@xeon/group-sdk";
+} from "@fresnel/contracts/capabilities";
+import { defineGroup, type GroupModule } from "@fresnel/group-sdk";
 import {
   createReviewControls,
   registerSettledWatch,

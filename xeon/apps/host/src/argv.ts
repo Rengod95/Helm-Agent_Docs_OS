@@ -1,4 +1,4 @@
-import { isLoopbackHost } from "@xeon/platform-process";
+import { isLoopbackHost } from "@fresnel/platform-process";
 import type { HostCommand } from "./host-command.ts";
 import type { SettingsFileScope } from "./settings.ts";
 

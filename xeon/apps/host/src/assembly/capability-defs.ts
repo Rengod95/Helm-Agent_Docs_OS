@@ -27,8 +27,8 @@ import {
   WorkspaceImages,
   WorkspaceShell,
   type AnyCapabilityDef,
-} from "@xeon/contracts/capabilities";
-import { capabilityDefTable, type CapabilityDefLookup } from "@xeon/ext-host";
+} from "@fresnel/contracts/capabilities";
+import { capabilityDefTable, type CapabilityDefLookup } from "@fresnel/ext-host";
 
 // 능력 래퍼(X.primitives.spec §4.4.7)가 재실행되는 코드(on 핸들러, drive 함수)의 능력 호출을 메서드의 `idempotent`·`readOnly` 선언으로
 // 검사하려면 정의가 필요하다. `ServiceKey`는 id와 버전만 싣기 때문에 조립 루트가 내장 능력 정의 표를 ExtHostDeps.capabilityDefs로 넘긴다.

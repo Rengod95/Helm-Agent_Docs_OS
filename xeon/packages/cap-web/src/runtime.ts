@@ -1,8 +1,8 @@
-import type { Clock, Logger } from "@xeon/contracts";
-import type { WebService } from "@xeon/contracts/capabilities";
-import type { HostedSearchPort } from "@xeon/contracts/services";
-import type { LocalIdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type { WebProviderStatus } from "@xeon/contracts/wire";
+import type { Clock, Logger } from "@fresnel/contracts";
+import type { WebService } from "@fresnel/contracts/capabilities";
+import type { HostedSearchPort } from "@fresnel/contracts/services";
+import type { LocalIdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { WebProviderStatus } from "@fresnel/contracts/wire";
 import { createFetchCache, type FetchCache } from "./cache/fetch-cache.ts";
 import { createSourceIdRegistry } from "./contract/source-ids.ts";
 import { createSessionLimits } from "./cost/limits.ts";
@@ -96,7 +96,7 @@ export interface WebRuntime {
   readonly browse: BrowseController;
   /** 디스크 캐시가 켜져 있는가(저장소가 없거나 마이그레이션이 실패하면 거짓) */
   readonly cacheEnabled: boolean;
-  /** 살아 있지 않은 세션의 session 원문 행을 지운다. 세션 목록은 호출자가 `xeon.session`에서 읽는다 */
+  /** 살아 있지 않은 세션의 session 원문 행을 지운다. 세션 목록은 호출자가 `fresnel.session`에서 읽는다 */
   purgeSessionRaw(liveSessions: ReadonlySet<string>): number;
   /** `web.providers`의 provider 목록(L2.web.spec §6.1). 탐침은 캐시를 쓰고 provider마다 동시에 돈다 */
   providerStatus(signal: AbortSignal): Promise<readonly WebProviderStatus[]>;

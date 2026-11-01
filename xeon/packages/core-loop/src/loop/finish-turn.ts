@@ -1,4 +1,4 @@
-import type { TurnCompletedPayload } from "@xeon/contracts/conversation";
+import type { TurnCompletedPayload } from "@fresnel/contracts/conversation";
 import { commitWithRetry, describeCommitFailure } from "../commit.ts";
 import { turnEndRequest } from "../commits.ts";
 import { abortCodeOf, boundarySignal, failureText, tapOptions, type TurnRun } from "./turn-run.ts";

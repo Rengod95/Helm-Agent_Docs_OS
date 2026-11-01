@@ -1,4 +1,4 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   McpInputRequiredSchema,
   decodeMcpAnswer,
@@ -6,15 +6,15 @@ import {
   uniformMcpAnswer,
   type CallContinuation,
   type McpInputRequired,
-} from "@xeon/contracts/capabilities";
-import { QuestionAnswerSchema, requestKeyFor } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import { QuestionAnswerSchema, requestKeyFor } from "@fresnel/contracts/records";
 import type {
   ApprovalOrigin,
   ApprovalRequestError,
   ApprovalRequestInput,
   OpenedApproval,
-} from "@xeon/contracts/services";
-import type { Result } from "@xeon/contracts";
+} from "@fresnel/contracts/services";
+import type { Result } from "@fresnel/contracts";
 import { describeFailure } from "./commit.ts";
 import type { RawCall } from "./types.ts";
 import { sha256HexSync } from "./util.ts";

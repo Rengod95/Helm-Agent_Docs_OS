@@ -9,7 +9,7 @@ import {
   BUILTIN_WRAPPER_PRICING,
   isPricingStale,
 } from "../src/cost/pricing.ts";
-import type { PricingTable } from "@xeon/contracts/capabilities";
+import type { PricingTable } from "@fresnel/contracts/capabilities";
 import { manualClock } from "./support/clock.ts";
 import { threadIdOf } from "./support/ids.ts";
 import { openWebStore, releaseStores } from "./support/store.ts";

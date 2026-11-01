@@ -1,5 +1,5 @@
-import type { SecretProviderId } from "@xeon/contracts/capabilities";
-import type { SecretDiagnostics } from "@xeon/contracts/services";
+import type { SecretProviderId } from "@fresnel/contracts/capabilities";
+import type { SecretDiagnostics } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §4.8, plan SC-16. 안내문은 값을 싣지 않는다. 마스킹은 단정하지 않고 "보조 수단"이라고 쓴다.
 

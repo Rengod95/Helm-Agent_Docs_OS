@@ -1,6 +1,6 @@
-import { parse } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { SessionLabeledPayloadSchema, type DurableEventEnvelope } from "@xeon/contracts/records";
+import { parse } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { SessionLabeledPayloadSchema, type DurableEventEnvelope } from "@fresnel/contracts/records";
 
 // L2.artifacts.spec §3.4, §4.3.3. 라벨은 artifact.session_labeled 이벤트를 접어 얻는다. 이벤트는 전체 목록(교체)이므로
 // 같은 세션의 마지막 유효 이벤트가 이긴다. 산출물 수는 artifact.registered를 센다(보관해도 줄지 않는다, §4.1.6).

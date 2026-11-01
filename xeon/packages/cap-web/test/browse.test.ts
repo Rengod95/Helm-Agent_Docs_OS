@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { err, ok, type Result } from "@xeon/contracts";
-import { CapabilityError, type CallerInfo, type CallOptions } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, type Result } from "@fresnel/contracts";
+import {
+  CapabilityError,
+  type CallerInfo,
+  type CallOptions,
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { BrowseCandidate } from "../src/ports/providers.ts";
 import type {
   BrowseConfirmError,

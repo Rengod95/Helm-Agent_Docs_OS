@@ -1,8 +1,8 @@
-import type { EventId, Message, TurnId, Usage } from "@xeon/contracts/conversation";
+import type { EventId, Message, TurnId, Usage } from "@fresnel/contracts/conversation";
 
 // L1.context.spec §3.2, §4.6 2번, plan C-4. pi compaction.ts의 컷 포인트 계산(findValidCutPoints, findCutPoint,
 // isCutPointMessage, isTurnStartMessage)을 session-manager 타입 없이 포크했다. 입력은 컴팩션 후보 목록이고
-// 턴 시작 판정은 turnId 비교로 바꿨다. 토큰 추정은 주입한다(xeon.models.tokens).
+// 턴 시작 판정은 turnId 비교로 바꿨다. 토큰 추정은 주입한다(fresnel.models.tokens).
 
 /** 컷 후보 하나. 이벤트 하나가 모델에 보이는 메시지 조각이다 */
 export interface CutCandidate {

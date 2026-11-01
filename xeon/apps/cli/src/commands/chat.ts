@@ -1,6 +1,14 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever, attemptAsync, detach, err, ok, rethrow, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { t } from "@fresnel/client/i18n";
+import {
+  assertNever,
+  attemptAsync,
+  detach,
+  err,
+  ok,
+  rethrow,
+  type Result,
+} from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ChatCommand, ChatTarget } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, renderFailure, type Failure } from "../errors.ts";

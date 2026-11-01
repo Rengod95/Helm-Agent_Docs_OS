@@ -1,5 +1,5 @@
-import { err, ok, parse, parseJson, type Result } from "@xeon/contracts";
-import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
+import type { EventId, IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   STEP_CHECKPOINT_SCHEMA_VERSION,
   StepCheckpointSchema,
@@ -7,7 +7,7 @@ import {
   type SqlTx,
   type StepCheckpoint,
   type StepCheckpointInput,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { columns, rowInvalid, type RowFault } from "./rows.ts";
 
 /**

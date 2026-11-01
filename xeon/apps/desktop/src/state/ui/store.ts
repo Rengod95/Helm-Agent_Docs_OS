@@ -1,5 +1,5 @@
 // src/state/ui/store.ts
-import type { EventId, JsonValue, ThreadId } from "@xeon/contracts/conversation";
+import type { EventId, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import { createStore } from "zustand/vanilla";
 import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
 

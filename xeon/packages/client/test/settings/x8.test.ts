@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok, parse, type Scheduler } from "@xeon/contracts";
-import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
-import { wireError, type WireParams, type WireResult } from "@xeon/contracts/wire";
+import { err, ok, parse, type Scheduler } from "@fresnel/contracts";
+import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
+import { wireError, type WireParams, type WireResult } from "@fresnel/contracts/wire";
 import {
   createSecretReveal,
   revealViaWire,

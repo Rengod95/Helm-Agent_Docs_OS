@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 import type { AddressPolicy } from "../policy/ssrf.ts";
 
 // 요청 하나를 보내고 응답 바이트를 상한까지 읽는다. 리다이렉트는 따르지 않는다(응답 3xx를 그대로 돌려준다).

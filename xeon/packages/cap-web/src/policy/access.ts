@@ -1,6 +1,6 @@
-import { attempt, err, ok, type Result } from "@xeon/contracts";
-import type { CallerInfo } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
+import type { CallerInfo } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { deniedFailure, invalidInput, type WebFailure } from "../errors.ts";
 import type { AskReason, WebAskPort } from "../ports/ask.ts";
 import type { DnsResolver } from "../ports/resolver.ts";

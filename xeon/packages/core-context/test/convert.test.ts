@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { AgentMessage, Message } from "@xeon/contracts/conversation";
+import type { AgentMessage, Message } from "@fresnel/contracts/conversation";
 import {
   BRANCH_SUMMARY_PREFIX,
   COMPACTION_SUMMARY_PREFIX,

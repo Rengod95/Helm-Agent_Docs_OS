@@ -1,7 +1,7 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { StoreError } from "@xeon/contracts/records";
-import type { PermissionMode, ToolService } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { StoreError } from "@fresnel/contracts/records";
+import type { PermissionMode, ToolService } from "@fresnel/contracts/services";
 
 // L2.work.spec §4.2.1. 권한 모드 상태와 쓰기 차단은 L1.tools 소유다. cap-work는 모드 전환을 요청만 한다.
 // 실제 구현은 ToolService.mode·setMode(F, L1A.2)를 감싸고, 이름이 바뀌면 이 파일만 고친다.
@@ -26,7 +26,7 @@ export interface PermissionModePort {
   ): Promise<Result<{ readonly mode: PermissionMode }, ModeFailure>>;
 }
 
-/** ToolService(xeon.tools)를 PermissionModePort로 감싼다 */
+/** ToolService(fresnel.tools)를 PermissionModePort로 감싼다 */
 export function toolsPermissionMode(
   tools: Pick<ToolService, "mode" | "setMode">,
 ): PermissionModePort {

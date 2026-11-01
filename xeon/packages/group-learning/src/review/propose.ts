@@ -1,7 +1,7 @@
-import { parse, type Clock, type Result, type SchemaProof } from "@xeon/contracts";
-import type { CallerInfo } from "@xeon/contracts/capabilities";
-import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
-import type { ToolResourceDef } from "@xeon/contracts/extensions";
+import { parse, type Clock, type Result, type SchemaProof } from "@fresnel/contracts";
+import type { CallerInfo } from "@fresnel/contracts/capabilities";
+import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
+import type { ToolResourceDef } from "@fresnel/contracts/extensions";
 import { Type, type TUnsafe } from "typebox";
 import { sha256Hex } from "../hash.ts";
 import { renderDiff } from "../proposals/diff.ts";

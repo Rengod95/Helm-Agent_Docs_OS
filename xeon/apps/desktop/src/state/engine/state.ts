@@ -8,9 +8,9 @@ import type {
   PartKind,
   ThreadId,
   TurnId,
-} from "@xeon/contracts/conversation";
-import type { ApprovalRequestedPayload } from "@xeon/contracts/records";
-import type { StoreId, SubId, ThreadSummary } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/conversation";
+import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { StoreId, SubId, ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
 
 /** 재구독으로 고치는 어긋남. 화면 캐시는 그대로 둔다 */

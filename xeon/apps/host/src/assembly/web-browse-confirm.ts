@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
-import { err, ok } from "@xeon/contracts";
-import type { JsonValue } from "@xeon/contracts/conversation";
-import { requestKeyFor } from "@xeon/contracts/records";
-import type { ApprovalService } from "@xeon/contracts/services";
-import type { BrowseConfirmPort, BrowseConfirmRequest } from "@xeon/cap-web";
+import { err, ok } from "@fresnel/contracts";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import { requestKeyFor } from "@fresnel/contracts/records";
+import type { ApprovalService } from "@fresnel/contracts/services";
+import type { BrowseConfirmPort, BrowseConfirmRequest } from "@fresnel/cap-web";
 
 type BrowseConfirmReason = BrowseConfirmRequest["reason"];
 
-// L2.web.spec §4.10.3, host-service spec §10 43번. cap-web의 `BrowseConfirmPort`를 `xeon.approvals`에 잇는다. 민감한 클릭, 다른 출처 폼,
+// L2.web.spec §4.10.3, host-service spec §10 43번. cap-web의 `BrowseConfirmPort`를 `fresnel.approvals`에 잇는다. 민감한 클릭, 다른 출처 폼,
 // 신뢰할 수 없는 입력 뒤 동작, 이름 있는 프로필은 사람의 확인 뒤에만 한다. 확인 요청은 kind `tool`의 승인이고 차단형이다.
 // 대화를 알 수 없으면(`threadId` 없음) 물을 곳이 없어 `unavailable`이고 cap-web은 동작을 거부한다(안전한 쪽). 조립 루트 코드(DR-14 예외 2).
 

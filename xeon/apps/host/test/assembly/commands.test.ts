@@ -4,8 +4,8 @@ import {
   type CallOptions,
   type CommandInfo,
   type CommandRunOutputValue,
-} from "@xeon/contracts/capabilities";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/capabilities";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createCommandPort } from "../../src/assembly/commands.ts";
 import type { CommandRegistryHolder, CommandsApi } from "../../src/assembly/l2-units.ts";
 

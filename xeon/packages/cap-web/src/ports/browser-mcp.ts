@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 
 // L2.web.spec §4.10.4a. 기본 브라우저 경로인 MCP stdio 서버(Playwright MCP)를 cap-web이 아는 최소 모양으로 줄인 포트.
 // cap-web은 cap-mcp를 import하지 않는다. 실제 연결(서버 기동, 도구 목록, 호출 전달)은 조립 쪽이 `McpService`로 맞춘다.

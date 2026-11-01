@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { FaultInjector, FaultPoint } from "@xeon/contracts/records";
-import type { AbortReason } from "@xeon/contracts/services";
+import { Bug } from "@fresnel/contracts";
+import type { FaultInjector, FaultPoint } from "@fresnel/contracts/records";
+import type { AbortReason } from "@fresnel/contracts/services";
 import { memoryTasks, memorySession, recordingLogger } from "../src/testing/index.ts";
 import { fixedIdFactory } from "./support/ids.ts";
 import { createWorld, openTurn, turnAbortIntent, type World } from "./support/world.ts";

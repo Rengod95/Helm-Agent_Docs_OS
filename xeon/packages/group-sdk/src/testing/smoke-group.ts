@@ -1,4 +1,4 @@
-import { defineManifest, type ExtensionEntry, type StateDecl } from "@xeon/contracts/extensions";
+import { defineManifest, type ExtensionEntry, type StateDecl } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { defineGroup } from "../define-group.ts";
 import type { GroupApi, GroupManifest, GroupModule } from "../types.ts";

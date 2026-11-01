@@ -1,15 +1,15 @@
-import { assertNever, Bug, err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, Bug, err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   LeaseArbiterPortKey,
   type ExtensionEntry,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   checkSettingWrite,
   type SettingCatalog,
   type SettingScope,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import {
   createGroupService,
   GroupSettingsSourceKey,
@@ -17,17 +17,17 @@ import {
   type GroupCatalogEntry,
   type HolderUnwritableReason,
   type HolderWriteError,
-} from "@xeon/group-sdk";
-import { hostOf, type ExtHost, type ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/group-sdk";
+import { hostOf, type ExtHost, type ExtensionUnit } from "@fresnel/ext-host";
 import { keyReusedBug } from "../store-error.ts";
 import type { SettingsStorePort, SettingsWriteFailure } from "../types.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 
 // m2-plan HOST.6, L3.group-sdk.plan §8. group-sdk은 서비스 팩토리(`createGroupService`)만 내놓고 확장 단위가 없다. 이 파일이 서비스를 올려
-// X의 임대 중재 포트(`xeon.groups`, LeaseArbiterPort)로 낸다. 서비스가 받는 포트 셋을 실제 구현으로 잇는다:
+// X의 임대 중재 포트(`fresnel.groups`, LeaseArbiterPort)로 낸다. 서비스가 받는 포트 셋을 실제 구현으로 잇는다:
 // - 그룹 목록(GroupCatalogPort): 설치한 단위 가운데 L3 매니페스트
 // - 구동 그룹 설정(DriveHolderSettingsPort): `x.primitives.activeDriveGroup`을 설정 엔진과 설정 저장소로 읽고 쓴다
-// - 그룹 설정 읽기(GroupSettingsSource, `xeon.settings`): 설정 엔진의 유효 값
+// - 그룹 설정 읽기(GroupSettingsSource, `fresnel.settings`): 설정 엔진의 유효 값
 // `/group` 명령은 등록하지 않는다: 명령 처리기가 출력을 돌려줄 길(F `CommandResourceDef`는 void)이 아직 없다.
 // 조립 루트 코드(DR-14 예외 2).
 
@@ -157,7 +157,7 @@ export function holderSettings(options: HostGroupsOptions): DriveHolderSettingsP
   };
 }
 
-/** 내장 확장 단위. `xeon.groups`(LeaseArbiterPort)와 `xeon.settings`(GroupSettingsSource) 포트를 낸다. 그룹보다 먼저 싣는다 */
+/** 내장 확장 단위. `fresnel.groups`(LeaseArbiterPort)와 `fresnel.settings`(GroupSettingsSource) 포트를 낸다. 그룹보다 먼저 싣는다 */
 export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
   const manifest = defineManifest({
     schemaVersion: 1,

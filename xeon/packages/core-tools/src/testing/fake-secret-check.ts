@@ -1,9 +1,9 @@
-import { err, ok } from "@xeon/contracts";
-import type { SecretHandle } from "@xeon/contracts/capabilities";
-import type { SecretError, UseCtx, UseDecision } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { SecretHandle } from "@fresnel/contracts/capabilities";
+import type { SecretError, UseCtx, UseDecision } from "@fresnel/contracts/services";
 import type { SecretChecker } from "../secret-gate.ts";
 
-// `xeon.secrets.check` 대역. 참조("secret://name") → 판정을 표로 받는다. 승인 증거(`ctx.approval`)가 있으면 allow를 낸다(L0.secrets.spec §4.2).
+// `fresnel.secrets.check` 대역. 참조("secret://name") → 판정을 표로 받는다. 승인 증거(`ctx.approval`)가 있으면 allow를 낸다(L0.secrets.spec §4.2).
 
 export interface FakeSecretChecker extends SecretChecker {
   /** check 호출 기록 */

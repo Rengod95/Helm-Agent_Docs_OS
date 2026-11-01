@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import { ToolsPortKey, type ToolResourceDef, type ToolsPort } from "@xeon/contracts/extensions";
+import { err, ok } from "@fresnel/contracts";
+import { ToolsPortKey, type ToolResourceDef, type ToolsPort } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import {
   createResourcePolicy,

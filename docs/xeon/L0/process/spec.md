@@ -10,7 +10,7 @@ binds: [xeon/packages/platform-process/**]
 
 # L0 프로세스 (process)
 
-이 문서는 L0-d "프로세스"(`_research/layer-plan-v2.json` L0-d)의 스펙이다. 패키지는 `xeon/packages/platform-process`(`@xeon/platform-process`)이고 Cordis 서비스 `xeon.process`(`ProcessService`)를 등록한다(`eng.context-map.design` §5.3). 근거 자료는 `_research/process.md` §3·§5·§6이다.
+이 문서는 L0-d "프로세스"(`_research/layer-plan-v2.json` L0-d)의 스펙이다. 패키지는 `xeon/packages/platform-process`(`@fresnel/platform-process`)이고 Cordis 서비스 `fresnel.process`(`ProcessService`)를 등록한다(`eng.context-map.design` §5.3). 근거 자료는 `_research/process.md` §3·§5·§6이다.
 
 ## 1. 목적과 범위
 
@@ -40,7 +40,7 @@ binds: [xeon/packages/platform-process/**]
 | 복구 표식(`p_threads`의 `running_since`·`resume_attempts`)과 재개 커밋(`thread.resumed`) | `L1.persistence.spec` §2·§4.8 |
 | 결과 불명 도구 호출의 재실행 판정(`replay: safe`) | `L1.persistence.spec`, `eng.transactions.design` §5 |
 | 데스크톱 쪽 사이드카 spawn(Rust) | `L4.desktop.spec`, adr.0008 §3.3 |
-| 도구 셸 실행과 백그라운드 셸 작업의 spawn | `L0.exec.spec`(`xeon.exec`). 외부 훅 실행과 격리 확장 자식 기동(`ProcessPort`)은 이 문서 §4.8이다 |
+| 도구 셸 실행과 백그라운드 셸 작업의 spawn | `L0.exec.spec`(`fresnel.exec`). 외부 훅 실행과 격리 확장 자식 기동(`ProcessPort`)은 이 문서 §4.8이다 |
 | 예약 작업 테이블과 틱 | `L2.schedule.spec`. 이 문서는 유휴 판정의 입력만 받는다 |
 
 경계 표(L4 host-service와의 나눔):
@@ -81,7 +81,7 @@ binds: [xeon/packages/platform-process/**]
 
 ### 3.1 F에 둘 인터페이스 초안
 
-`ProcessService`는 F `@xeon/contracts/services` 서브패스의 `services/process.ts`에 둔다 [결정: review.decisions-2 D-04]. `ProcessService`는 X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1 `ports.ts`, `IsolationProcessPort`와 `HookProcessPort`를 합친 포트)를 확장한다(`F.capabilities.spec` §3.12 표 "확장하는 포트" 열과 규칙 2). 그래서 X는 `ProcessPortKey`(`{ name: "xeon.process" }`)로 같은 서비스 객체를 받는다. 포트 메서드(`spawn`, `run`)와 부속 타입(`IsolationSpawnSpec`, `IsolatedChild`, `HookRunSpec`, `HookRawRun`)은 F.extensions가 정본이고 이 문서는 다시 정의하지 않는다. 이 인터페이스가 더하는 것은 레지스트리와 종료 협조다. 전송, 잠금 실패 정책, 재개 제시는 Cordis 서비스가 아니고 조립 루트(`apps/host`, DR-14 예외 2)가 쓰는 라이브러리 함수다(§3.2).
+`ProcessService`는 F `@fresnel/contracts/services` 서브패스의 `services/process.ts`에 둔다 [결정: review.decisions-2 D-04]. `ProcessService`는 X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1 `ports.ts`, `IsolationProcessPort`와 `HookProcessPort`를 합친 포트)를 확장한다(`F.capabilities.spec` §3.12 표 "확장하는 포트" 열과 규칙 2). 그래서 X는 `ProcessPortKey`(`{ name: "fresnel.process" }`)로 같은 서비스 객체를 받는다. 포트 메서드(`spawn`, `run`)와 부속 타입(`IsolationSpawnSpec`, `IsolatedChild`, `HookRunSpec`, `HookRawRun`)은 F.extensions가 정본이고 이 문서는 다시 정의하지 않는다. 이 인터페이스가 더하는 것은 레지스트리와 종료 협조다. 전송, 잠금 실패 정책, 재개 제시는 Cordis 서비스가 아니고 조립 루트(`apps/host`, DR-14 예외 2)가 쓰는 라이브러리 함수다(§3.2).
 
 ```ts
 // xeon/packages/contracts/src/services/process.ts
@@ -89,7 +89,7 @@ import type { Result } from "../base/index.ts";
 import type { LocalId } from "../conversation/index.ts";
 import type { ProcessPort } from "../extensions/index.ts";        // F.extensions.spec §3.2.1. spawn(2차), run(M2)
 
-export const ProcessServiceName = "xeon.process" as const;
+export const ProcessServiceName = "fresnel.process" as const;
 
 export type BackgroundProcessId = LocalId<"bgp">;                 // "bgp_<ULID>". F.conversation.spec §3.2.1 LocalIdPrefix, 발급은 LocalIdFactory.next("bgp")
 export type BackgroundOwnerKind = "tool" | "mcp" | "schedule" | "other";
@@ -101,7 +101,7 @@ export interface BackgroundOwner {
   readonly ref: string | null;                                     // toolCallId, MCP 서버 이름 등
 }
 
-/** 등록자가 넘기는 정지 수단. 프로세스를 띄운 쪽(xeon.exec 등)이 프로세스 그룹 kill을 구현한다 */
+/** 등록자가 넘기는 정지 수단. 프로세스를 띄운 쪽(fresnel.exec 등)이 프로세스 그룹 kill을 구현한다 */
 export interface BackgroundStopper {
   /** graceful: SIGTERM(Windows는 트리 종료 요청). force: SIGKILL. 프로세스 트리 전체 */
   stop(mode: "graceful" | "force"): Promise<void>;
@@ -166,7 +166,7 @@ export interface ProcessService extends ProcessPort {
 // 이 문서가 쓰는 타입: RecoveryMarker
 ```
 
-store와 process는 서로 import하지 못한다(DR-02). 두 패키지는 records의 `LockBusy`, `LeaseOwnerInfo`를 같이 쓴다. 복구 표식 모양 `RecoveryMarker`는 `L1.persistence.spec`이 F records에 두도록 요청한 타입이다. L0는 L1 패키지를 import할 수 없으므로 이 패키지는 F 타입만 보고, 값은 호스트(L4)가 `xeon.session`에서 읽어 넘긴다(§4.6).
+store와 process는 서로 import하지 못한다(DR-02). 두 패키지는 records의 `LockBusy`, `LeaseOwnerInfo`를 같이 쓴다. 복구 표식 모양 `RecoveryMarker`는 `L1.persistence.spec`이 F records에 두도록 요청한 타입이다. L0는 L1 패키지를 import할 수 없으므로 이 패키지는 F 타입만 보고, 값은 호스트(L4)가 `fresnel.session`에서 읽어 넘긴다(§4.6).
 
 ### 3.2 패키지 공개 API (L0 platform-process)
 
@@ -176,8 +176,8 @@ store와 process는 서로 import하지 못한다(DR-02). 두 패키지는 recor
 // xeon/packages/platform-process/src/transport/index.ts
 import type {
   InProcessTransportFactory, SocketTransportOptions, StdioTransportFactory, Transport,
-} from "@xeon/contracts/wire";
-import type { Result } from "@xeon/contracts";
+} from "@fresnel/contracts/wire";
+import type { Result } from "@fresnel/contracts";
 
 export declare const createInProcessPair: InProcessTransportFactory;
 export declare const createStdioTransport: StdioTransportFactory;
@@ -217,7 +217,7 @@ export declare function listenSocket(options: SocketListenOptions): Promise<Resu
 
 ```ts
 // xeon/packages/platform-process/src/transport/tunnel.ts (§4.4.8, M3-REQ-44). 전송을 만들지 않고 터널 프로세스만 관리한다
-import type { Clock, Scheduler } from "@xeon/contracts";
+import type { Clock, Scheduler } from "@fresnel/contracts";
 export interface TunnelSpec {
   readonly command: string;                                         // 셸 없이 실행. 실제는 sshTunnelCommand가 만든 ssh
   readonly args: readonly string[];
@@ -257,8 +257,8 @@ export declare function sshTunnelCommand(input: SshTunnelInput): Result<{ readon
 
 ```ts
 // xeon/packages/platform-process/src/lease/child-lease.ts
-import type { Clock, Scheduler } from "@xeon/contracts";              // F 루트 base(review.decisions-2 U-03), L0.os.spec §3.4
-import type { ShutdownCoordinator, ShutdownReason } from "@xeon/contracts/services";
+import type { Clock, Scheduler } from "@fresnel/contracts";              // F 루트 base(review.decisions-2 U-03), L0.os.spec §3.4
+import type { ShutdownCoordinator, ShutdownReason } from "@fresnel/contracts/services";
 
 export interface ChildLeaseOptions {
   /** 자식 엔진의 stdio 전송. stdin은 전송이 읽는 스트림 하나뿐이라 EOF는 전송의 onClose로 받는다 */
@@ -403,7 +403,7 @@ export declare function createTokenGate(random: (bytes: number) => Uint8Array): 
 
 ```ts
 // xeon/packages/platform-process/src/lock-fallback.ts
-import type { LockBusy } from "@xeon/contracts/records";
+import type { LockBusy } from "@fresnel/contracts/records";
 
 export type LockFallbackChoice = "delegate" | "observe" | "fork";
 export type LockFallbackDefault = "ask" | "observe" | "fork";       // l0.process.lockFallback.default
@@ -427,7 +427,7 @@ export declare function createLockFallbackPolicy(settings: { readonly default: L
 
 ```ts
 // xeon/packages/platform-process/src/resume-offer.ts
-import type { LeaseOwnerInfo, RecoveryMarker } from "@xeon/contracts/records";
+import type { LeaseOwnerInfo, RecoveryMarker } from "@fresnel/contracts/records";
 
 /** 표식이 있는 thread 하나. 호스트가 ProjectionQuery.thread(threadId).marker(L1.persistence.spec §3.4)에서 만든다 */
 export interface ResumeCandidate {
@@ -543,7 +543,7 @@ socket(`listenSocket`, `connectSocket`):
 ### 4.3 백그라운드 프로세스 레지스트리
 
 - 장시간 셸 작업(`run_in_background`류 도구), MCP 서버 자식 프로세스, 예약 실행이 띄운 프로세스를 메모리에 등록한다. DB 테이블은 두지 않는다(`eng.context-map.design` §4.1 platform-execution "레지스트리는 메모리").
-- 종료 정리의 실제 kill: 이 문서는 L0끼리 import하지 않는 규칙(DR-02)을 지키기 위해 등록자가 `pid`와 `BackgroundStopper`를 넘기는 방식을 쓴다 [제안]. 등록자가 쓰는 실행 수단은 `xeon.exec`의 `ExecService.startBackground`(`L0.exec.spec` §3.9)다. 이 호출은 종료를 기다리지 않고 `pid`, `stop("graceful" | "force")`, `exited`를 가진 `BackgroundExecHandle`을 돌려주고, 그 모양이 `BackgroundStopper`와 같아 L1 tools, L2 mcp가 그대로 넘긴다. 종료까지 기다리는 `Shell.exec`와 `withCwd` 파생 env의 `cleanup`(pid 없음, SIGKILL만)으로는 이 계약을 채울 수 없어서 exec에 별도 계약을 두었다. 레지스트리는 kill 수단을 갖지 않고 순서와 시한만 관리한다. 등록자가 정지 수단을 갖지 못하는 경우를 위해 자체 프로세스 트리 종료 provider(`posix`: `process.kill(-pgid)`, `win32`: `taskkill /T /F`)를 둘지가 [미결 P-4]의 남은 부분이다.
+- 종료 정리의 실제 kill: 이 문서는 L0끼리 import하지 않는 규칙(DR-02)을 지키기 위해 등록자가 `pid`와 `BackgroundStopper`를 넘기는 방식을 쓴다 [제안]. 등록자가 쓰는 실행 수단은 `fresnel.exec`의 `ExecService.startBackground`(`L0.exec.spec` §3.9)다. 이 호출은 종료를 기다리지 않고 `pid`, `stop("graceful" | "force")`, `exited`를 가진 `BackgroundExecHandle`을 돌려주고, 그 모양이 `BackgroundStopper`와 같아 L1 tools, L2 mcp가 그대로 넘긴다. 종료까지 기다리는 `Shell.exec`와 `withCwd` 파생 env의 `cleanup`(pid 없음, SIGKILL만)으로는 이 계약을 채울 수 없어서 exec에 별도 계약을 두었다. 레지스트리는 kill 수단을 갖지 않고 순서와 시한만 관리한다. 등록자가 정지 수단을 갖지 못하는 경우를 위해 자체 프로세스 트리 종료 provider(`posix`: `process.kill(-pgid)`, `win32`: `taskkill /T /F`)를 둘지가 [미결 P-4]의 남은 부분이다.
 - `stop(id)`: 상태를 `stopping`으로 바꾸고 `stopper.stop("graceful")`, `graceMs`(기본 2000 [제안]) 안에 `exited`가 이행하지 않으면 `stopper.stop("force")`. 결과 상태는 `exited`(스스로 끝남) 또는 `killed`.
 - `stopOwnedBy(threadId)`: 세션 닫기, 임대 상실(`L0.store.spec` §4.7.3 `keepAlive` onLost)에서 부른다.
 - 종료 협조 참여자로 자신을 등록해 `ProcessShutdown` 때 모든 항목을 병렬로 `stop`한다.
@@ -556,7 +556,7 @@ socket(`listenSocket`, `connectSocket`):
 
 #### 4.4.1 위치
 
-- 등록 파일 `<runtimeDir>/service.json`, 소켓 `<runtimeDir>/xeon.sock`. `runtimeDir`은 `xeon.os`의 `OsDirs.runtime`이다(§8.1 FR-P4). 경로 값(Linux `$XDG_RUNTIME_DIR/xeon`, macOS `$TMPDIR/xeon`)과 길이 초과 때 `/tmp/xeon-<uid>`로 내려가는 폴백, 디렉터리 0700·소유자 검사는 `L0.os.spec` §3.2만 정한다. 이 패키지는 경로를 다시 계산하지 않는다.
+- 등록 파일 `<runtimeDir>/service.json`, 소켓 `<runtimeDir>/xeon.sock`. `runtimeDir`은 `fresnel.os`의 `OsDirs.runtime`이다(§8.1 FR-P4). 경로 값(Linux `$XDG_RUNTIME_DIR/xeon`, macOS `$TMPDIR/xeon`)과 길이 초과 때 `/tmp/xeon-<uid>`로 내려가는 폴백, 디렉터리 0700·소유자 검사는 `L0.os.spec` §3.2만 정한다. 이 패키지는 경로를 다시 계산하지 않는다.
 - [제안] 소켓 상대 경로 상한 `SOCKET_RELATIVE_PATH_MAX_BYTES = 24`. `runtimeDir` 아래 소켓 상대 경로(하위 디렉터리 포함)의 UTF-8 바이트 수는 24 이하다. `L0.os.spec` §3.2 runtime 길이 규칙의 여유 24바이트가 이 값이다. 기본 이름 `xeon.sock`은 9바이트, 아래 데이터 디렉터리 구분 이름 `d<8 hex>/xeon.sock`은 19바이트다.
 - 같은 DB를 쓰는 서비스는 기계당 하나다. 데이터 디렉터리가 여럿이면(`--data-dir`) 그 경로 SHA-256 hex 앞 8자로 하위 디렉터리 `d<8 hex>/`를 만든다 [제안].
 - 등록 파일에 실제 소켓 경로를 적으므로 클라이언트는 경로를 다시 계산하지 않는다.
@@ -589,7 +589,7 @@ ensureService():
 
 1. 서비스 프로세스는 시작하자마자 `listenSocket(path)`를 시도한다.
 2. `address_in_use`면 `connect(path)`로 상대를 확인한다. 접속되면 진 쪽이다. 등록 파일을 건드리지 않고 종료코드 0으로 끝난다.
-3. `refused`·`not_found`(이전 서비스가 죽고 소켓 파일이 남음)면 stale 소켓이다. 지우기 전에 활성화 잠금(`ActivationLock`)을 얻는다. 잠금을 얻은 쪽만 한 번 더 접속을 확인한 뒤 소켓 파일을 unlink하고 다시 바인드한다. 잠금을 못 얻으면 다른 경합자가 처리 중이므로 진 쪽으로 끝난다. 판정과 unlink 사이의 경쟁(`_research/notes/L0-2.md §2.4`)을 이 잠금으로 막는다. [결정: 오케스트레이터 기본값] 이 패키지는 다른 `platform-*`를 import하지 못하므로(DR-02) 잠금 수단은 조립 루트가 L0.os의 `fileLock.withLock`(`<runtimeDir>/service.activation`, `timeoutMs` 0)으로 만들어 넘긴다. 원안의 `xeon.store` 임대 대신이다.
+3. `refused`·`not_found`(이전 서비스가 죽고 소켓 파일이 남음)면 stale 소켓이다. 지우기 전에 활성화 잠금(`ActivationLock`)을 얻는다. 잠금을 얻은 쪽만 한 번 더 접속을 확인한 뒤 소켓 파일을 unlink하고 다시 바인드한다. 잠금을 못 얻으면 다른 경합자가 처리 중이므로 진 쪽으로 끝난다. 판정과 unlink 사이의 경쟁(`_research/notes/L0-2.md §2.4`)을 이 잠금으로 막는다. [결정: 오케스트레이터 기본값] 이 패키지는 다른 `platform-*`를 import하지 못하므로(DR-02) 잠금 수단은 조립 루트가 L0.os의 `fileLock.withLock`(`<runtimeDir>/service.activation`, `timeoutMs` 0)으로 만들어 넘긴다. 원안의 `fresnel.store` 임대 대신이다.
 4. 바인드에 이긴 서비스만 엔진을 열고 등록 파일을 쓴다. 등록 파일 쓰기 전에 들어온 클라이언트 접속은 대기열에 두고 엔진이 열린 뒤 `host.hello`를 처리한다 [제안]. 바인드 직후 접속한 클라이언트가 오류 없이 이어지게 하기 위해서다.
 5. 서비스는 종료 때 `removeIfOwned(pid, startedAt)`로 자기 등록 파일만 지운다.
 
@@ -640,7 +640,7 @@ ensureService():
 
 #### 4.4.8 소켓 터널
 
-목적은 M3-REQ-44다. 원격 사용(1차)은 서비스의 Unix 소켓을 SSH 터널이나 사설망으로 이어 쓴다 [결정: review.decisions-2 U-11]. 이 절은 터널 프로세스를 띄우고, 로컬 소켓이 준비되었음을 알리고, 닫을 때 정리하는 L0 부분을 정한다. 전송(`Transport`)은 만들지 않는다. 호출자(`@xeon/client`, L4)가 준비된 로컬 소켓에 `connectSocket`으로 접속한다. 설정 값의 해석과 연결 순서는 `@xeon/client`의 몫이다(§6).
+목적은 M3-REQ-44다. 원격 사용(1차)은 서비스의 Unix 소켓을 SSH 터널이나 사설망으로 이어 쓴다 [결정: review.decisions-2 U-11]. 이 절은 터널 프로세스를 띄우고, 로컬 소켓이 준비되었음을 알리고, 닫을 때 정리하는 L0 부분을 정한다. 전송(`Transport`)은 만들지 않는다. 호출자(`@fresnel/client`, L4)가 준비된 로컬 소켓에 `connectSocket`으로 접속한다. 설정 값의 해석과 연결 순서는 `@fresnel/client`의 몫이다(§6).
 
 - 자식 프로세스는 셸 없이 `command`와 `args`로 실행한다. 표준 입력과 출력은 무시하고 표준 오류의 꼬리(2048바이트)만 모은다. `env`를 주면 그 값만 쓴다.
 - 실제 명령은 `sshTunnelCommand`가 만든 `ssh`다. 시험은 `test/fixtures/fake-tunnel.ts` 대역으로 로컬 소켓을 만들거나 준비 전에 끝내 본다. 실제 `ssh` 중계는 이 패키지 시험에서 돌리지 않는다.
@@ -705,7 +705,7 @@ ssh -N -T -o ExitOnForwardFailure=yes -o BatchMode=yes -o ServerAliveInterval=15
 
 ### 4.6 복구 표식 제시('이어서 실행')
 
-- 세션 목록을 열 때와 서비스 시작 때 호스트(L4)가 `xeon.session`의 `query.thread(threadId).marker`(`ThreadSummaryRow.marker`, `L1.persistence.spec` §3.4)가 `null`이 아닌 thread를 모아 `ResumeCandidate[]`로 넘기고, `buildResumeOffers`가 후보를 만든다. 이 패키지는 DB를 직접 읽지 않는다. `runningSince`·`resumeAttempts`는 `RecoveryMarker`의 값을 그대로 옮긴다.
+- 세션 목록을 열 때와 서비스 시작 때 호스트(L4)가 `fresnel.session`의 `query.thread(threadId).marker`(`ThreadSummaryRow.marker`, `L1.persistence.spec` §3.4)가 `null`이 아닌 thread를 모아 `ResumeCandidate[]`로 넘기고, `buildResumeOffers`가 후보를 만든다. 이 패키지는 DB를 직접 읽지 않는다. `runningSince`·`resumeAttempts`는 `RecoveryMarker`의 값을 그대로 옮긴다.
 - `action` 판정 [제안]:
   - `resumeAttempts >= maxAttempts` → `exhausted`. 자동 재개하지 않고 사용자에게 "재개가 반복해서 실패했다"를 보인다.
   - `serviceMode && autoResumeEnabled` → `auto_resume`.
@@ -781,7 +781,7 @@ L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스�
 | 종료 참여자가 예외 | 진단에 남기고 다음 참여자를 부른다. 종료코드는 0을 유지한다 [제안] |
 | 등록 파일은 있으나 pid가 다른 프로세스(pid 재사용) | 접속이 `refused`이므로 3단계로 간다. `startedAt` 지문은 진단과 `removeIfOwned`에 쓴다 |
 | 등록 파일 모드가 0600이 아님 | `insecure_mode`. 접속하지 않고 L4가 경고한다. 서비스는 다음 기동 때 다시 0600으로 쓴다 |
-| 소켓 경로 길이 초과 | 폴백은 `xeon.os`가 `OsDirs.runtime`을 정할 때 이미 했다(`L0.os.spec` §3.2). 그래도 넘으면 `path_too_long`. runtime 디렉터리 소유자가 다르면 `xeon.os` 등록이 `not_owned`로 실패한다 |
+| 소켓 경로 길이 초과 | 폴백은 `fresnel.os`가 `OsDirs.runtime`을 정할 때 이미 했다(`L0.os.spec` §3.2). 그래도 넘으면 `path_too_long`. runtime 디렉터리 소유자가 다르면 `fresnel.os` 등록이 `not_owned`로 실패한다 |
 | 서비스 기동 시한 초과 | `start_timeout`. L4가 로그 위치를 보인다 |
 | 유휴 종료 직전에 새 연결 | `update`가 타이머를 취소한다. 종료 요청이 이미 시작됐으면 새 연결은 `host.shuttingDown`(5002) |
 | 버전 교체 재기동 중 다른 클라이언트가 접속 | 구서비스는 `host.shuttingDown`, 클라이언트는 `retryAfterMs` 뒤 `ensure`를 다시 한다 |
@@ -826,13 +826,13 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 - 자동 재개 키는 이 표에 두지 않는다. `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`(`L1.persistence.spec` §6)가 정본이다 [결정: review.decisions-2 S-03].
 - `startupGraceMs`(10000)는 설정으로 열지 않는다 [제안].
-- `l0.process.service.remote`는 원격 서비스 주소다. 빈 값이면 지금처럼 로컬 서비스나 프로세스 안 엔진에 붙는다. 값이 있으면 CLI 대화와 데스크톱 사이드카가 그 주소에 붙는다. 값은 `unix:/절대/경로`, `tcp://host:port`, `ssh://[user@]host[:port]/절대/원격/소켓/경로` 가운데 하나다. 해석은 `@xeon/client`가 한다. `ssh://` 값은 §4.4.8의 `sshTunnelCommand` 입력이 된다. `tcp://` 값의 토큰은 환경 변수 `FRESNEL_REMOTE_TOKEN`에서만 읽고 설정 파일에는 두지 않는다 [제안]. 비루프백 `tcp://`의 허용 여부는 [미결 P-13]이다.
+- `l0.process.service.remote`는 원격 서비스 주소다. 빈 값이면 지금처럼 로컬 서비스나 프로세스 안 엔진에 붙는다. 값이 있으면 CLI 대화와 데스크톱 사이드카가 그 주소에 붙는다. 값은 `unix:/절대/경로`, `tcp://host:port`, `ssh://[user@]host[:port]/절대/원격/소켓/경로` 가운데 하나다. 해석은 `@fresnel/client`가 한다. `ssh://` 값은 §4.4.8의 `sshTunnelCommand` 입력이 된다. `tcp://` 값의 토큰은 환경 변수 `FRESNEL_REMOTE_TOKEN`에서만 읽고 설정 파일에는 두지 않는다 [제안]. 비루프백 `tcp://`의 허용 여부는 [미결 P-13]이다.
 
 ## 7. 확장 지점
 
 - 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다.
-- 확장은 `xeon.process`의 `shutdown.onShutdown`으로 종료 협조에 참여할 수 있다. 시한 안에 끝나지 않는 참여자는 기다리지 않는다.
-- 확장이 장시간 프로세스를 띄우면 `background.register`로 등록해야 세션 닫기와 종료에서 정리된다. 확장은 `node:child_process`를 직접 쓸 수 없고 `xeon.exec`를 거친다(DR-07).
+- 확장은 `fresnel.process`의 `shutdown.onShutdown`으로 종료 협조에 참여할 수 있다. 시한 안에 끝나지 않는 참여자는 기다리지 않는다.
+- 확장이 장시간 프로세스를 띄우면 `background.register`로 등록해야 세션 닫기와 종료에서 정리된다. 확장은 `node:child_process`를 직접 쓸 수 없고 `fresnel.exec`를 거친다(DR-07).
 - X는 `ProcessPortKey`로 이 서비스를 `ProcessPort`로 받아 외부 훅(`run`)과 격리 자식(`spawn`)을 실행한다(§4.8). 확장 코드는 이 포트를 직접 받지 않는다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -841,7 +841,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `ProcessService`(`ProcessPort` 확장), `ProcessServiceName`(`xeon.process`), `BackgroundRegistry`, `ShutdownCoordinator` | X.operations.spec §3.7(`run`), X.loading-trust.spec §3.8(`spawn`, 2차), L1.tools.spec, L1.loop.spec, L1.persistence.spec, L2.mcp.spec, L2.schedule.spec, L4.host-service.spec. `eng.context-map.design` §5.3의 소비 열(mcp, schedule, host)에 tool-runtime, run-engine(loop), session-core(persistence)를 더하도록 요청한다(`L0.readme` §9 미결 9) |
+| `ProcessService`(`ProcessPort` 확장), `ProcessServiceName`(`fresnel.process`), `BackgroundRegistry`, `ShutdownCoordinator` | X.operations.spec §3.7(`run`), X.loading-trust.spec §3.8(`spawn`, 2차), L1.tools.spec, L1.loop.spec, L1.persistence.spec, L2.mcp.spec, L2.schedule.spec, L4.host-service.spec. `eng.context-map.design` §5.3의 소비 열(mcp, schedule, host)에 tool-runtime, run-engine(loop), session-core(persistence)를 더하도록 요청한다(`L0.readme` §9 미결 9) |
 | `createInProcessPair`, `createStdioTransport`, `listenSocket`, `connectSocket` | L4.host-service.spec, L4.cli.spec, F.wire-settings.plan(전송 적합성 스위트 A10) |
 | `openTunnel`, `sshTunnelCommand`, `SocketTunnel` | L4.host-service.spec(조립 루트 `apps/host`가 클라이언트의 터널 포트에 채운다, §4.4.8) |
 | `watchChildLease`, `createProcessShutdown` | L4.host-service.spec |
@@ -850,7 +850,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | `buildResumeOffers`, `ResumeOffer`, `ResumeCandidate` | L4.host-service.spec. L4.desktop.spec은 wire(`thread.list`)로 받는다 |
 | `OsServiceRegistrar`(2차) | L4.host-service.spec(`xeon service install`) |
 | 설정 `l0.process.*` | L4.settings-ui.spec |
-| `@xeon/platform-process/testing`: `runFakeEngine`·`spawnFakeEngine`(stdio 전송 + `watchChildLease` + `host.shutdown` 처리기 + 지연 가능한 종료 참여자를 가진 자식 진입점과 실행기), `serveConformanceHost`(적합성 케이스가 도는 최소 서버), `idleClock`(수동 시계와 `Scheduler`를 묶은 유휴 타이머 도우미, 서비스 모드 때 추가) | L4.host-service.plan, L4.desktop.plan(사이드카 시험), `L0.process.plan` |
+| `@fresnel/platform-process/testing`: `runFakeEngine`·`spawnFakeEngine`(stdio 전송 + `watchChildLease` + `host.shutdown` 처리기 + 지연 가능한 종료 참여자를 가진 자식 진입점과 실행기), `serveConformanceHost`(적합성 케이스가 도는 최소 서버), `idleClock`(수동 시계와 `Scheduler`를 묶은 유휴 타이머 도우미, 서비스 모드 때 추가) | L4.host-service.plan, L4.desktop.plan(사이드카 시험), `L0.process.plan` |
 
 요구:
 
@@ -876,7 +876,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | FR-P4 | L0.os.spec | `runtimeDir()`, `processStartFingerprint(pid)`, `userId()`를 `OsService`에 둔다(반영됨: `dirs.runtime`, `processStartFingerprint`, `userId`, `L0.os.spec` §3.10) | DR-13. L0끼리는 서비스로만 협력한다 |
 | FR-P5 | F.conversation.spec §3.2.1 | 반영되었다. `LocalIdPrefix`에 `bgp`가 있다. `BackgroundProcessId`는 `LocalId<"bgp">`다 | `BackgroundProcessId` 형식 |
 | FR-P6 | F.readme §6, F.wire-settings.spec §1.2 | "전송 구현은 L4" 줄을 "전송 구현은 `L0.process.spec`, 조립은 L4"로 고친다(미결 P-3 권고 채택 시) | 배치 정합 |
-| FR-P7 | F `@xeon/contracts/services`(`services/process.ts`, review.decisions-2 D-04) | §3.1의 `ProcessServiceName`, `ProcessService`(`ProcessPort` 확장), `BackgroundRegistry`와 관련 타입, `ShutdownCoordinator`, `ShutdownReason`을 둔다. 이름은 `F.capabilities.spec` §3.12 표와 `services/process.ts` 행에 반영되었고, 필드는 §3.1 블록을 옮겨 확정한다(`F.capabilities.plan` P9) | 같은 층 import 금지(DR-02). X가 `ProcessPortKey`로 받는다(`F.extensions.spec` §9 13) |
+| FR-P7 | F `@fresnel/contracts/services`(`services/process.ts`, review.decisions-2 D-04) | §3.1의 `ProcessServiceName`, `ProcessService`(`ProcessPort` 확장), `BackgroundRegistry`와 관련 타입, `ShutdownCoordinator`, `ShutdownReason`을 둔다. 이름은 `F.capabilities.spec` §3.12 표와 `services/process.ts` 행에 반영되었고, 필드는 §3.1 블록을 옮겨 확정한다(`F.capabilities.plan` P9) | 같은 층 import 금지(DR-02). X가 `ProcessPortKey`로 받는다(`F.extensions.spec` §9 13) |
 | FR-P8 | adr.0006 §3.3, §3.6 규칙 1·4, adr.0004 §3.4 | `HostTransport`·`service` 이름을 F 이름으로, 소유 판정을 OS 잠금 + epoch 펜싱으로, `session_owner`를 지우고 `sys_leases` 행이 표시를 겸하게 고친다 [결정: review.decisions-2 U-09] | 문서 사이 상충 |
 
 ## 9. 수용 기준
@@ -893,7 +893,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 10. 레지스트리에 등록한 프로세스 트리(자식 + 손자)가 `stopOwnedBy`와 종료 협조 뒤 모두 사라진다.
 11. 자동 재개는 기본값에서 `offer`이고, 서비스 모드 + `l1.persistence.autoResume` 켬일 때만 `auto_resume`, `resumeAttempts >= l1.persistence.maxResumeAttempts`면 `exhausted`다. `l0.process.*` 설정 선언에 자동 재개 키가 없다.
 12. 서비스를 SIGKILL하면 접속 중 클라이언트가 정지 상태로 가고, 다음 `ensure`가 재개 후보를 돌려준다.
-13. `platform-process`가 다른 `@xeon/platform-*` 패키지를 import하지 않는다(DR-02).
+13. `platform-process`가 다른 `@fresnel/platform-*` 패키지를 import하지 않는다(DR-02).
 14. `ProcessService` 구현 객체가 `ProcessPort`에 대입된다(타입 테스트). `run`은 없는 실행 파일에 대해 거부하지 않고 `spawnError`를 채운 `HookRawRun`을 돌려주고, `maxStdoutChars`보다 긴 출력은 잘리고 `stdoutTruncated: true`이며, `signal` 중단 뒤 프로세스 트리가 남지 않고 `timedOut: true`다(실제 자식 프로세스).
 15. `run`에 넘긴 `env`에 없는 부모 env 변수(예: 시험 부모의 `PATH`, `HOME`)가 훅 프로세스 env에 없다.
 16. `McpProcessPort.spawn`(실제 자식 프로세스, `mcp-spawn.int.test.ts`): 줄 단위 JSON이 양방향으로 오가고, 레지스트리에 `owner.kind: "mcp"`로 등록되며, 자식 env에 부모의 제공자 키(`ANTHROPIC_*`, `FRESNEL_*`)가 없고 `secretEnv` 값만 더해진다. 기동 실패는 `spawn_failed`(`ENOENT`), 비밀 실패는 `secret_missing`·`secret_denied`로 돌아오며 이미 연 lease는 모두 닫힌다. 종료 직전에 쓴 출력을 읽는다.
@@ -911,7 +911,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 - [결정: review.decisions-2 U-09] P-1. 세션 소유 판정은 OS 잠금 + `sys_leases` epoch 펜싱이다. adr.0004 §3.4 개정 대상이다. `L0.store.spec` S-1과 같은 항목이다.
 - [결정: review.decisions-2 U-09] P-2. adr.0006 §3.6 규칙 4의 `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. `L0.store.spec` S-2와 같은 항목이다.
 - [미결 P-3] 전송 구현 배치: L0 구현 + L4 조립(권고) 또는 L4 구현(`F.readme` §6).
-- [미결 P-4] 백그라운드 프로세스 종료 수단. 권고는 `xeon.exec`의 `startBackground`(`L0.exec.spec` §3.9) 핸들을 등록자가 `BackgroundStopper`로 넘기는 방식이다. stdin 파이프가 필요한 MCP stdio 서버(`L0.exec.spec` §10 9번)는 §4.9에서 이 패키지가 `select.ts`의 provider(`signalTree`)로 직접 띄우고 등록한다. 남은 것은 그 밖의 등록자다.
+- [미결 P-4] 백그라운드 프로세스 종료 수단. 권고는 `fresnel.exec`의 `startBackground`(`L0.exec.spec` §3.9) 핸들을 등록자가 `BackgroundStopper`로 넘기는 방식이다. stdin 파이프가 필요한 MCP stdio 서버(`L0.exec.spec` §10 9번)는 §4.9에서 이 패키지가 `select.ts`의 provider(`signalTree`)로 직접 띄우고 등록한다. 남은 것은 그 밖의 등록자다.
 - [미결 P-5] 엔진 진입점 `Runtime.open(dbPath)`의 시그니처와 소유. 권고는 L4 `apps/host`가 소유하고 `openRuntime({ dbPath, transport, … }): Promise<Result<Runtime, RuntimeOpenError>>` 모양이다. F에 둘지 함께 정한다.
 - [미결 P-6] Windows 서비스 전송(AF_UNIX, named pipe, loopback TCP + 토큰). §5.1 비교표.
 - [미결 P-7] 자동 재개 기본값(adr.0006 §6). 키 소유는 `L1.persistence.spec`이고 기본값 판단도 그 문서 미결 4로 옮겼다. 이 문서의 권고는 꺼짐, 서비스 모드에서만 켤 수 있음이다.

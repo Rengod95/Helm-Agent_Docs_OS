@@ -1,4 +1,4 @@
-import type { Shell } from "@xeon/contracts/services";
+import type { Shell } from "@fresnel/contracts/services";
 
 // L0.exec.spec §3.9. 무인 경로(예약, 루프)가 쓰는 명령 시간 상한이다(M3-REQ-46).
 // 일반 대화의 l0.exec.defaultTimeoutMs는 0(제한 없음)을 유지하고, 무인 경로 호출자가 이 데코레이터로 상한을 건다.

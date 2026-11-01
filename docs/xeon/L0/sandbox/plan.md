@@ -12,7 +12,7 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: srt 0.0.79을 감싼 `xeon.sandbox`(`SandboxService`)를 만들어 M1에서 `xeon chat`의 bash 도구가 샌드박스 안에서 돌게 한다(`L0.sandbox.spec`).
+목표: srt 0.0.79을 감싼 `fresnel.sandbox`(`SandboxService`)를 만들어 M1에서 `xeon chat`의 bash 도구가 샌드박스 안에서 돌게 한다(`L0.sandbox.spec`).
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
@@ -26,7 +26,7 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ```
 xeon/packages/platform-sandbox/
-  package.json                 # name @xeon/platform-sandbox, "xeon": {"layer": "L0", "domain": "sandbox"}
+  package.json                 # name @fresnel/platform-sandbox, "xeon": {"layer": "L0", "domain": "sandbox"}
                                # dependencies: "@anthropic-ai/sandbox-runtime": "catalog:" (0.0.79)
                                # exports: "." → src/index.ts, "./testing" → src/testing/index.ts
   tsconfig.json                # references: ../contracts, ../ext-host
@@ -47,7 +47,7 @@ xeon/packages/platform-sandbox/
     service.ts                 # createSandboxService, ext-host 등록
     settings.ts                # defineSettings("l0.sandbox", …)
     testing/
-      index.ts                 # @xeon/platform-sandbox/testing
+      index.ts                 # @fresnel/platform-sandbox/testing
       fake-sandbox.ts          # fakeSandbox
   test/
     policy.test.ts
@@ -88,7 +88,7 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | SB-01 | srt 의존 고정과 Bun 구동 스파이크: catalog에 `"@anthropic-ai/sandbox-runtime": "0.0.79"` 추가, `platform-sandbox` 의존 선언, DR-07 소유표 행 확인. `srt-spike.int.test.ts` 1개로 (a) Bun 1.4.3에서 `initialize` + `wrapWithSandboxArgv` + 실행 한 번, (b) 반환 `env`가 전체인지 추가분인지, (c) `bun build --compile` 산출물에서 헬퍼 경로(apply-seccomp) 탐색 성공 여부를 확인 | L0.exec.plan EX-09(셸 실행 경로) | M |
 | SB-02 | 상태 탐지: `provider.ts`, `providers/*`, `select.ts`, `status.ts`. 필요 프로그램 PATH 탐색과 절대 경로 기록, srt `isSupportedPlatform`·`checkDependencies` 결과 대응, `SandboxStatus.installHints`. `describeSandboxStatus` 본문은 F 순수 함수라 `F.capabilities.plan` 작업이고 이 작업은 그 시험 사례를 제공한다 | SB-01 | M |
 | SB-03 | 정책 변환기: `policy.ts`의 `toSrtConfig`(경로 절대화·realpath·정렬·중복 제거, 리터럴만, 고정 값, 프로세스 전역/명령별 분리), srt 스키마 검증 | SB-01 | M |
-| SB-04 | 보호 경로 목록과 경로 질의 연동: `protected-paths.ts`(spec §3.3 표), `xeon.os` 디렉터리(`OsDirs.home`·`data`·`config`)와 `SecretService.protectedPaths()` 주입, `<xeonConfig>/secrets/` 행, `protectedPaths.extra` 합치기, basename 전개, 보호 경로 안 쓰기 루트 제거 | SB-03, L0.os.plan 디렉터리 질의, L0.secrets.plan SC-21 | M |
+| SB-04 | 보호 경로 목록과 경로 질의 연동: `protected-paths.ts`(spec §3.3 표), `fresnel.os` 디렉터리(`OsDirs.home`·`data`·`config`)와 `SecretService.protectedPaths()` 주입, `<xeonConfig>/secrets/` 행, `protectedPaths.extra` 합치기, basename 전개, 보호 경로 안 쓰기 루트 제거 | SB-03, L0.os.plan 디렉터리 질의, L0.secrets.plan SC-21 | M |
 | SB-05 | `wrapShell` 데코레이터: `wrap-shell.ts`(spec §4.2 1~10단계), argv → 셸 문자열 인용, `commandId` 생성, srt env 차이 계산, 래핑 실패 처리 | SB-02, SB-03, SB-04 | L |
 | SB-06 | `autoAllow` 판정: `auto-allow.ts`, 경로 마디 포함 비교 | SB-03 | S |
 | SB-07 | 자가 시험: `self-test.ts` 6항목, canary 준비·정리, status 반영 | SB-05, L0.exec.plan EX-12(`SENSITIVE_ENV_PATTERNS`) | M |
@@ -182,7 +182,7 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 ## 6. 완료 기준
 
 - `cd xeon && just verify`가 종료코드 0이다. `just check-layers`가 `platform-sandbox`를 `L0`로 인식하고, srt import가 `platform-sandbox/src/srt.ts` 밖에 없다(DR-07).
-- `platform-sandbox`가 `@xeon/platform-exec`를 import하지 않는다(DR-02). `package.json` 의존 목록에도 없다.
+- `platform-sandbox`가 `@fresnel/platform-exec`를 import하지 않는다(DR-02). `package.json` 의존 목록에도 없다.
 - M1 스모크(`apps/cli` scenario 1개)에서 bash 도구 호출의 도구 결과 이벤트 details에 `sandbox.sandboxed: true`, `level: "srt"`가 있어 srt 경유 실행임을 확인한다. 같은 스모크에서 작업 폴더 밖 쓰기가 실패한다(`product.scope.spec` §4.4 M1).
 - Linux·macOS CI에서 `sandbox.int.test.ts`가 통과한다. 의존이 없는 러너는 환경 문제로 실패해 보고된다.
 - Windows provider 시험(`status.test.ts`, `on-unavailable.test.ts`의 win32 사례)에서 `status=none`, `reason=unsupported_os`, 기본 정책 `disable_execute`가 자식 프로세스 없이 거부함을 확인한다.

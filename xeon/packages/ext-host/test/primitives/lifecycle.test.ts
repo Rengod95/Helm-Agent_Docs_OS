@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope, EventFeed, CommitListener } from "@xeon/contracts/records";
-import { RecordCommitPortKey, type ScopeDef } from "@xeon/contracts/extensions";
+import { ok } from "@fresnel/contracts";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope, EventFeed, CommitListener } from "@fresnel/contracts/records";
+import { RecordCommitPortKey, type ScopeDef } from "@fresnel/contracts/extensions";
 import { SessionFeedPortKey } from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { Type } from "typebox";

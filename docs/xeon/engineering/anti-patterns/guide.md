@@ -78,7 +78,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   // xeon/packages/core-loop/src/run.ts
-  import { createModelClient } from "@xeon/core-models"; // L1 → L1
+  import { createModelClient } from "@fresnel/core-models"; // L1 → L1
 
   const client = createModelClient({ provider: "anthropic" });
   ```
@@ -87,12 +87,12 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   // xeon/packages/core-loop/src/run.ts
-  import type { ModelService } from "@xeon/contracts/capabilities"; // F 정의만 안다(eng.context-map.design 5.3절)
+  import type { ModelService } from "@fresnel/contracts/capabilities"; // F 정의만 안다(eng.context-map.design 5.3절)
 
   export function createRunner(deps: { readonly models: ModelService }) {
     return async (input: TurnInput) => deps.models.stream(input.request);
   }
-  // 플러그인 등록부(ext-host 래퍼)가 Cordis 서비스 "xeon.models"를 주입한다.
+  // 플러그인 등록부(ext-host 래퍼)가 Cordis 서비스 "fresnel.models"를 주입한다.
   ```
 
 - 감지 방법: `just check-layers`(같은 층 import와 선언되지 않은 워크스페이스 import를 거부), `just depcruise`. 규칙 원본은 `eng.dependency-rules.guide`다.
@@ -108,7 +108,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   // xeon/packages/platform-store/src/append.ts  (L0)
-  import type { TurnState } from "@xeon/core-loop"; // L0 → L1
+  import type { TurnState } from "@fresnel/core-loop"; // L0 → L1
 
   export function appendTurn(state: TurnState) { /* ... */ }
   ```
@@ -117,7 +117,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   // xeon/packages/platform-store/src/rows.ts  (L0)
-  import type { DurableEventEnvelope } from "@xeon/contracts/records"; // L0 → F
+  import type { DurableEventEnvelope } from "@fresnel/contracts/records"; // L0 → F
 
   export function toEventRow(event: DurableEventEnvelope): EventRow { /* ... */ }
   // core-loop(L1)가 turn 상태를 DurableEventDraft로 만들어 SessionService.commit에 넘긴다. L0은 F 타입만 안다.
@@ -137,7 +137,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   // xeon/packages/group-helm/src/lens.ts
-  import { pendingSkills } from "@xeon/group-learning"; // L3 → L3
+  import { pendingSkills } from "@fresnel/group-learning"; // L3 → L3
 
   export const lensFor = () => pendingSkills().map((s) => s.title);
   ```
@@ -206,7 +206,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   ```ts
   // xeon/apps/cli/src/main.ts
   // 엔진 조립 코드는 apps/host에 있다. apps/cli → apps/host는 허용 목록 DR-10/cli-host다(review.decisions-2 U-15).
-  import { createEngine, inProcessTransport } from "@xeon/host";
+  import { createEngine, inProcessTransport } from "@fresnel/host";
 
   const engine = await createEngine({ transport: inProcessTransport() });   // 데몬 없이 같은 프로세스에서 엔진을 띄운다
   // 서비스 모드(1차)는 사용자가 예약·원격·알림 기능을 쓸 때만 따로 붙는다. 원격은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다(review.decisions-2 U-11).
@@ -256,7 +256,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   // xeon/packages/group-helm/src/inject.ts
-  import { openStore } from "@xeon/platform-store";
+  import { openStore } from "@fresnel/platform-store";
 
   export async function injectHint(threadId: ThreadId, text: string) {
     const db = openStore();
@@ -276,7 +276,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   }
   ```
 
-- 감지 방법: `check-layers.ts`의 DR-14 검사(컨텍스트가 다른 구현 패키지 import 금지, M1부터)가 그룹의 `@xeon/platform-store` import를 거부한다(`eng.dependency-rules.guide` DR-14). 편집기 안 즉시 피드백으로 `no-restricted-imports`에 `@xeon/platform-store`를 조립 루트(`apps/host`) 밖에서 금지하는 패턴을 둔다 [제안]. `check-layers.ts`가 선언되지 않은 import를 거부한다. 리뷰 질문: "이 그룹 코드의 효과는 `on` 반환값, `post`, `drive`, `g.commit` 중 어디로 나가는가?"
+- 감지 방법: `check-layers.ts`의 DR-14 검사(컨텍스트가 다른 구현 패키지 import 금지, M1부터)가 그룹의 `@fresnel/platform-store` import를 거부한다(`eng.dependency-rules.guide` DR-14). 편집기 안 즉시 피드백으로 `no-restricted-imports`에 `@fresnel/platform-store`를 조립 루트(`apps/host`) 밖에서 금지하는 패턴을 둔다 [제안]. `check-layers.ts`가 선언되지 않은 import를 거부한다. 리뷰 질문: "이 그룹 코드의 효과는 `on` 반환값, `post`, `drive`, `g.commit` 중 어디로 나가는가?"
 
 <a id="ap-a-08"></a>
 #### AP-A-08 격리 없이 신뢰 등급만 선언
@@ -355,7 +355,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 증상: 외부 입력을 `as ToolCall`로 단언하거나, 타입 오류를 `any`, `as unknown as T`, `!`로 지운다.
 - 왜 문제인가:
   - 단언은 검증 없이 타입만 바꾼다. 도구 인자, 이벤트 `data`, 설정 파일처럼 경계에서 들어오는 값은 TypeBox 스키마 검증을 거쳐야 한다. 이벤트 `data`는 타입별 TypeBox 스키마로 검증한다(ADR-0004 §3.2 이벤트 레코드 초안).
-  - 단언을 허용하는 곳은 `eng.typescript.guide` TY-06 허용 목록뿐이다. A1 `@xeon/contracts`의 `parse` 구현, A2 `IdFactory` 구현(`platform-os`의 `createIdFactory`, [결정: review.decisions-2 U-03])과 테스트 대역 `fixedIdFactory`, A3 타입 키 레지스트리 조회 함수 한 곳 [제안]이다. 경계 검증은 `parse` 하나로 한다(`eng.domain-types.guide` DT-05). `typebox/value`의 `Value.Check`는 contracts base 밖에서 import하지 않는다(DT-01).
+  - 단언을 허용하는 곳은 `eng.typescript.guide` TY-06 허용 목록뿐이다. A1 `@fresnel/contracts`의 `parse` 구현, A2 `IdFactory` 구현(`platform-os`의 `createIdFactory`, [결정: review.decisions-2 U-03])과 테스트 대역 `fixedIdFactory`, A3 타입 키 레지스트리 조회 함수 한 곳 [제안]이다. 경계 검증은 `parse` 하나로 한다(`eng.domain-types.guide` DT-05). `typebox/value`의 `Value.Check`는 contracts base 밖에서 import하지 않는다(DT-01).
 - 나쁜 예:
 
   ```ts
@@ -369,8 +369,8 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 좋은 예:
 
   ```ts
-  import { err, parse, type ParseIssue, type Result } from "@xeon/contracts";
-  import { ReadArgsSchema, type ReadArgs } from "@xeon/contracts/capabilities"; // [가정] 도구 인자 스키마
+  import { err, parse, type ParseIssue, type Result } from "@fresnel/contracts";
+  import { ReadArgsSchema, type ReadArgs } from "@fresnel/contracts/capabilities"; // [가정] 도구 인자 스키마
 
   export type ToolArgError = { readonly kind: "invalid_args"; readonly issues: readonly ParseIssue[] };
 
@@ -380,7 +380,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   }
   ```
 
-- 감지 방법: oxlint `typescript/no-explicit-any`, `typescript/no-non-null-assertion`, `typescript/no-unsafe-*`, `typescript/no-unnecessary-type-assertion`(현재 `xeon/.oxlintrc.json`에 있다). `as` 단언 자체는 `typescript/consistent-type-assertions`(`assertionStyle: "never"`)가 막고, 단언 disable 주석이 TY-06 허용 목록 경로 밖에 있으면 스캔 `xeon/as-location`이 실패시킨다(`eng.typescript.guide` TY-06, 3.1절 [제안]). 리뷰 질문: "이 `as`는 TY-06 허용 목록(A1 `parse` 구현, A2 브랜드 생성 함수, A3 타입 키 레지스트리 조회) 안에 있는가?"
+- 감지 방법: oxlint `typescript/no-explicit-any`, `typescript/no-non-null-assertion`, `typescript/no-unsafe-*`, `typescript/no-unnecessary-type-assertion`(현재 `xeon/.oxlintrc.json`에 있다). `as` 단언 자체는 `typescript/consistent-type-assertions`(`assertionStyle: "never"`)가 막고, 단언 disable 주석이 TY-06 허용 목록 경로 밖에 있으면 스캔 `fresnel/as-location`이 실패시킨다(`eng.typescript.guide` TY-06, 3.1절 [제안]). 리뷰 질문: "이 `as`는 TY-06 허용 목록(A1 `parse` 구현, A2 브랜드 생성 함수, A3 타입 키 레지스트리 조회) 안에 있는가?"
 
 <a id="ap-c-02"></a>
 #### AP-C-02 광역 try/catch로 오류 삼킴
@@ -413,7 +413,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   ```
 
 - 규칙: `catch`는 변환(받은 값을 `cause`로 담은 오류 값), 근거 문서가 있는 기록 후 계속(주입된 Logger), 다시 던지기 중 하나만 한다(`eng.typescript.guide` TY-25). 빈 `catch`, 바인딩 없는 `catch`, `void caught`, `.catch(() => undefined)`, 실패를 기본값으로 바꾸는 반환은 금지다.
-- 감지 방법: oxlint `no-empty` `{ "allowEmptyCatch": false }`와 `preserve-caught-error` `{ "requireCatchParameter": true }`(추가 [제안], 1.89 프로브로 동작 확인. `no-empty`는 restriction 범주라 지금 설정에서는 꺼져 있다), `no-unused-vars`(받고 쓰지 않은 값), 스캔 `xeon/catch-swallow` [제안](`void <식별자>`, 빈 `.catch` 콜백). 리뷰 질문: "이 catch는 무엇을 복구하는가? 복구하지 않으면 왜 잡는가?"
+- 감지 방법: oxlint `no-empty` `{ "allowEmptyCatch": false }`와 `preserve-caught-error` `{ "requireCatchParameter": true }`(추가 [제안], 1.89 프로브로 동작 확인. `no-empty`는 restriction 범주라 지금 설정에서는 꺼져 있다), `no-unused-vars`(받고 쓰지 않은 값), 스캔 `fresnel/catch-swallow` [제안](`void <식별자>`, 빈 `.catch` 콜백). 리뷰 질문: "이 catch는 무엇을 복구하는가? 복구하지 않으면 왜 잡는가?"
 
 <a id="ap-c-03"></a>
 #### AP-C-03 throw를 흐름 제어에 사용
@@ -505,7 +505,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   // 테스트는 manualClock과 fixedIdFactory를 넣는다(eng.testing.guide TS-03). bun test의 setSystemTime에 기대지 않는다.
   ```
 
-- 감지 방법: oxlint `no-restricted-properties`(`Date.now`, `Math.random`, `crypto.randomUUID`, `crypto.getRandomValues`, `performance.now`)와 스캔 `xeon/no-ambient-time`(인자 없는 `new Date()`)이다(`eng.typescript.guide` TY-21, 3.1절 [제안]). 허용 위치는 `Clock`·`RandomSource`·`Scheduler` 구현(L0 `platform-os`, TY 4.3절)뿐이다. `IdFactory` 구현은 주입받은 `Clock`·`RandomSource`로 ID를 만든다(구현 위치는 `eng.domain-types.guide` DT-06 [미결]).
+- 감지 방법: oxlint `no-restricted-properties`(`Date.now`, `Math.random`, `crypto.randomUUID`, `crypto.getRandomValues`, `performance.now`)와 스캔 `fresnel/no-ambient-time`(인자 없는 `new Date()`)이다(`eng.typescript.guide` TY-21, 3.1절 [제안]). 허용 위치는 `Clock`·`RandomSource`·`Scheduler` 구현(L0 `platform-os`, TY 4.3절)뿐이다. `IdFactory` 구현은 주입받은 `Clock`·`RandomSource`로 ID를 만든다(구현 위치는 `eng.domain-types.guide` DT-06 [미결]).
 
 <a id="ap-c-06"></a>
 #### AP-C-06 트랜잭션 안에서 외부 호출 await
@@ -685,7 +685,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   if (!put.ok) return err({ kind: "blob_unavailable", cause: put.error });
   ```
 
-- 감지 방법: 스캔 `xeon/bug-for-expected` [제안]: `new Bug(` 메시지에 예상 가능한 실패 단어(`io`, `busy`, `disk_full`, `read_only`, `timeout`, `cancel`, `not_found`, `corrupt`, `lease`, `ownership`)가 있으면 실패. 리뷰 질문: "코드와 설정이 올바라도 이 실패가 일어날 수 있는가?" 테스트가 예상 가능한 실패를 `toThrow`로 확인하면 같은 안티패턴이다. 짝 규칙: `eng.typescript.guide` TY-11, TY-24, `eng.best-practices.guide` BP-04.
+- 감지 방법: 스캔 `fresnel/bug-for-expected` [제안]: `new Bug(` 메시지에 예상 가능한 실패 단어(`io`, `busy`, `disk_full`, `read_only`, `timeout`, `cancel`, `not_found`, `corrupt`, `lease`, `ownership`)가 있으면 실패. 리뷰 질문: "코드와 설정이 올바라도 이 실패가 일어날 수 있는가?" 테스트가 예상 가능한 실패를 `toThrow`로 확인하면 같은 안티패턴이다. 짝 규칙: `eng.typescript.guide` TY-11, TY-24, `eng.best-practices.guide` BP-04.
 
 ### 2.4 스택 (AP-S)
 
@@ -797,7 +797,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   // xeon/plugins/provider-anthropic-oauth/src/index.ts  (배포 제외, 사용자가 직접 설치)
-  import type { ProviderPlugin } from "@xeon/contracts/capabilities";
+  import type { ProviderPlugin } from "@fresnel/contracts/capabilities";
   export const plugin: ProviderPlugin = { id: "anthropic-oauth", register: (host) => host.registerProvider(provider) };
   ```
 
@@ -986,7 +986,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 | `no-console` | 있음 | AP-C-09 |
 | `no-restricted-imports`: `vitest`, `jest`, `better-sqlite3`, `node:sqlite`, `cordis`(ext-host 밖), 다른 패키지 `src`·`dist` | 있음 | AP-S-07, AP-S-03, AP-A-06 일부, AP-A-01 |
 | `no-restricted-imports`: `effect`, `@opencode/*`, `tsyringe`, `inversify` | [제안] | AP-A-06 |
-| `no-restricted-imports`: `@xeon/platform-store`(조립 루트 `apps/host` 밖, `eng.dependency-rules.guide` DR-14), `bun:sqlite`(`platform-store` 밖), 로거 라이브러리(L4 밖) | [제안] | AP-A-07, AP-S-03, AP-C-09 |
+| `no-restricted-imports`: `@fresnel/platform-store`(조립 루트 `apps/host` 밖, `eng.dependency-rules.guide` DR-14), `bun:sqlite`(`platform-store` 밖), 로거 라이브러리(L4 밖) | [제안] | AP-A-07, AP-S-03, AP-C-09 |
 | `no-restricted-properties`: `Date.now`, `Math.random`, `crypto.randomUUID`, `crypto.getRandomValues`, `performance.now` | [제안](`eng.typescript.guide` TY-21) | AP-C-05 |
 
 ### 3.2 검사 스크립트
@@ -998,7 +998,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 | `just knip` | 있음 | 쓰이지 않는 의존(Vitest, 포매터 등) | AP-S-07, AP-S-09 |
 | gitleaks (lefthook pre-commit) | 있음 | 커밋된 비밀 값 | AP-C-08 |
 | 금지 호출 목록: `Date.now`, `new Date()`(인자 없음), `Math.random`, `process.exit`(apps 밖), 테스트 안 `Bun.sleep` | [제안] `check-layers.ts`에 추가 | 소스 텍스트 검사 | AP-C-05, AP-S-06, AP-C-07 |
-| `scripts/check-ts-rules.ts` 스캔 `xeon/as-location`, `xeon/catch-swallow`, `xeon/bug-for-expected` | [제안] `eng.typescript.guide` 3.2절 | 허용 목록 밖 단언 주석, 삼킨 catch, 예상 가능한 실패 단어가 든 `Bug` 메시지 | AP-C-01, AP-C-02, AP-C-11 |
+| `scripts/check-ts-rules.ts` 스캔 `fresnel/as-location`, `fresnel/catch-swallow`, `fresnel/bug-for-expected` | [제안] `eng.typescript.guide` 3.2절 | 허용 목록 밖 단언 주석, 삼킨 catch, 예상 가능한 실패 단어가 든 `Bug` 메시지 | AP-C-01, AP-C-02, AP-C-11 |
 | 의존 버전 형식 검사: 정확 버전, `catalog:`, `workspace:*`만 허용 | [제안] `check-layers.ts`에 추가 | `package.json` | AP-S-08 |
 | 배포 매니페스트 검사: `plugins/provider-anthropic-oauth` 제외 | [제안] L4 빌드 단계 | 배포 산출물 목록 | AP-S-04 |
 | 재생 테스트: `drive`를 경계에서 끊고 재호출 | [제안] `eng.testing.guide` 형식 | `loop.turn` 순서 | AP-A-09 |
@@ -1041,7 +1041,7 @@ TS 7.0에는 안정 programmatic API가 없으므로(`_research/notes/eng-1.md �
 ### 4.1 줄 단위 예외 (린트)
 
 - 형식의 정본은 `eng.typescript.guide` 4.1절이다. oxlint 규칙은 `// oxlint-disable-next-line <규칙> -- <이유> (<이슈 URL>)` 또는 같은 줄 끝 `// oxlint-disable-line <규칙> -- <이유> (<이슈 URL>)`으로만 끈다. 파일 전체나 규칙 없는 disable은 쓰지 않는다(`_research/notes/eng-1.md §1`).
-- 이 문서가 미리 허용한 예외는 이슈 URL 대신 항목 ID를 인용한다. 예: `// oxlint-disable-next-line no-restricted-properties -- Clock 구현 자체 (eng.anti-patterns.guide AP-C-05)`. `-- <이유>` 접미는 oxlint 1.89에서 억제가 적용됨을 프로브로 확인했다(`eng.typescript.guide` 4.1절). 형식은 스캔 `xeon/directive-format`이 검사한다.
+- 이 문서가 미리 허용한 예외는 이슈 URL 대신 항목 ID를 인용한다. 예: `// oxlint-disable-next-line no-restricted-properties -- Clock 구현 자체 (eng.anti-patterns.guide AP-C-05)`. `-- <이유>` 접미는 oxlint 1.89에서 억제가 적용됨을 프로브로 확인했다(`eng.typescript.guide` 4.1절). 형식은 스캔 `fresnel/directive-format`이 검사한다.
 - 쓰이지 않은 disable은 `reportUnusedDisableDirectives: "error"`가 실패시킨다(현재 설정).
 
 ### 4.2 규칙별 허용 목록

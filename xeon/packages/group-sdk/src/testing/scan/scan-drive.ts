@@ -1,4 +1,4 @@
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 import { parseSync } from "@swc/core";
 
 export type DriveScanCode =

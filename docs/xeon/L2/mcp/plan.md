@@ -10,7 +10,7 @@ binds: [xeon/packages/cap-mcp/**]
 
 # L2 MCP 통합 구현 계획
 
-대상 스펙: `L2.mcp.spec`. 패키지: `@xeon/cap-mcp`(`xeon/packages/cap-mcp`). 정의 파일: `@xeon/contracts`의 `src/capabilities/defs/mcp.ts`.
+대상 스펙: `L2.mcp.spec`. 패키지: `@fresnel/cap-mcp`(`xeon/packages/cap-mcp`). 정의 파일: `@fresnel/contracts`의 `src/capabilities/defs/mcp.ts`.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -29,32 +29,32 @@ M2 완료 기준에 `product.scope.spec` §4.4 M2 종료 조건 "테스트 MCP �
 |---|---|---|---|
 | MCP Tasks | 2차(`_research/layer-plan-v2.json` L2-b) | 자체 Tasks 어댑터(명시 스키마 요청 `tasks/get`, `tasks/update`, `tasks/cancel`), 백그라운드 완료 신호 연결 | Tasks 명세 본문 필드, `notifications/tasks` 존재 여부(`L2.mcp.spec` §10 미결 7), `tasks/update`가 명시 스키마 경로로 나가는지([가정], `L2.mcp.spec` §1.3) |
 | 변경 구독 | 2차 | `Client.listen`, 2025 `listChanged`, 재연결 뒤 재-listen, 단계 경계 반영 | 없음(SDK API 확인됨) |
-| MCP OAuth | 2차 | `XeonOAuthProvider`, 토큰 `xeon.secrets` 저장, `iss` 검증, 콜백 수신 | L4 콜백 방식, CIMD 세부 |
+| MCP OAuth | 2차 | `XeonOAuthProvider`, 토큰 `fresnel.secrets` 저장, `iss` 검증, 콜백 수신 | L4 콜백 방식, CIMD 세부 |
 
 ## 2. 패키지와 파일 배치
 
 ```
 xeon/packages/cap-mcp/
-  package.json          # "name": "@xeon/cap-mcp", "xeon": { "layer": "L2", "domain": "mcp" }
+  package.json          # "name": "@fresnel/cap-mcp", "xeon": { "layer": "L2", "domain": "mcp" }
   src/
-    index.ts            # manifest, apply(ctx): 서비스 xeon.mcp 등록, 세션 시작·종료 연결
+    index.ts            # manifest, apply(ctx): 서비스 fresnel.mcp 등록, 세션 시작·종료 연결
     manifest.ts         # defineManifest({ name: "cap-mcp", layer: "L2", kind: "plugin",
                         #   provides: [{ id: "mcp.client", version: "1.0.0" }], points: ["thread.mcp.after", "thread.trust.before"], usesDrive: false })
     settings.ts         # defineSettings("l2.mcp", …)  (spec §6)
     adapter.ts          # SDK 경계 어댑터. SDK 타입과 zod는 이 파일(+ transport/, oauth/, tasks/schemas.ts) 밖으로 나가지 않는다
     client/
       registry.ts       # 서버별 연결 상태 기계(disabled → connecting → connected ↔ reconnecting → failed)
-      service.ts        # mcp.client 메서드 구현(listServers, status, connect, reconnect, disable, listTools, callTool, …)과 xeon.mcp McpService(registerServer) 등록
+      service.ts        # mcp.client 메서드 구현(listServers, status, connect, reconnect, disable, listTools, callTool, …)과 fresnel.mcp McpService(registerServer) 등록
       dynamic-tools.ts  # McpDynamicTool 생성, mcpToolName, 노출 필터, 단계 경계 반영, diffToolsets
       content.ts        # SDK 결과 → McpContent(이미지 blob 등록, untrusted 감싸기, 크기 한도)
       annotations.ts    # annotations → ToolHints(spec §3.4)
       backoff.ts        # 재연결 백오프(시계 주입)
-      state-store.ts    # cap_mcp_servers 읽기·쓰기(xeon.store.scoped)
+      state-store.ts    # cap_mcp_servers 읽기·쓰기(fresnel.store.scoped)
     servers/
       loader.ts         # l2.mcp.servers + .mcp.json 병합, 이름 변환, 진단
       policy.ts         # 허용·차단·managedOnly, 도구 allow/deny, 승인 모드 → L1.tools 규칙(mcp__<서버>)
     transport/
-      process-stdio.ts  # ProcessStdioTransport: xeon.process 자식 프로세스 ↔ SDK Transport
+      process-stdio.ts  # ProcessStdioTransport: fresnel.process 자식 프로세스 ↔ SDK Transport
       http.ts           # StreamableHTTPClientTransport·SSEClientTransport 생성, 헤더 secret:// 해석 fetch 감싸기
     elicitation/
       questions.ts      # inputRequests → McpQuestion
@@ -90,10 +90,10 @@ xeon/packages/cap-mcp/
 | MC4 | 동적 도구 광고와 순서 키: `client/dynamic-tools.ts`(`McpDynamicTool`, `mcpToolName`, 이름·스키마 검사, 충돌 시 미노출), 단계 경계 반영(`diffToolsets`), `thread.mcp.after` 발화, `client/content.ts`(결과 변환, blob, untrusted 감싸기, 크기 한도), `client/service.ts`의 `listTools`·`callTool`·프롬프트·리소스 메서드와 정적 도구 3개 | MC2, MC3, X.primitives.plan(리소스 등록 API), L1.context.plan(`toolsAdded`/`toolsRemoved` 기록), L0.store.plan(blob API) | L |
 | MC5 | input_required → 승인 프로토콜과 재시도: `elicitation/questions.ts`, `responses.ts`, `rounds.ts`. 동적 도구 `execute`의 `continuation` 처리, 라운드 상한, requestId `#r<n>` 규칙, 재시작 뒤 재개 테스트 | MC4, L1.tools.plan(승인 요청 올리기와 `continuation` 재호출, 승인 대기 체크포인트) | L |
 | MC6 | 도구 annotations 매핑: `client/annotations.ts`(spec §3.4 표, MCP 기본값, `trustAnnotations`), 승인 모드 → L1.tools 권한 규칙(`mcp__<서버 id>`, `mcp__<서버 id>__<도구>`) 공급 | MC4, L1.tools.plan(규칙 공급 API) | S |
-| MC7 | `cap_mcp_` 상태 저장: `client/state-store.ts`, `cap_mcp_servers` DDL을 `xeon.store.scoped`에 등록, 상태 변경 때 갱신, 마스킹된 `lastError` | MC2, L0.store.plan(`xeon.store.scoped`, 접두사 소유 검사) | S |
+| MC7 | `cap_mcp_` 상태 저장: `client/state-store.ts`, `cap_mcp_servers` DDL을 `fresnel.store.scoped`에 등록, 상태 변경 때 갱신, 마스킹된 `lastError` | MC2, L0.store.plan(`fresnel.store.scoped`, 접두사 소유 검사) | S |
 | MC8 | (2차) Tasks 어댑터: `tasks/schemas.ts`(명시 스키마), `tasks/adapter.ts`(`CreateTaskResult` 판별, 폴링, `tasks/update`, `tasks/cancel`), 백그라운드 완료 신호 연결 | MC5, Tasks 명세 본문 확인, `tasks/get`·`tasks/update`·`tasks/cancel`의 명시 스키마 전송을 스텁 서버로 확인(`tasks/update`는 [가정], spec §1.3·§4.10), L1.agents.plan(백그라운드 완료 신호) | M |
 | MC9 | (2차) 변경 구독: `subscriptions/listen.ts`(2026 `listen`, 2025 `listChanged`), 재연결 뒤 재-listen, 단계 경계 반영 | MC4 | M |
-| MC10 | (2차) OAuth: `oauth/provider.ts`(`XeonOAuthProvider`), 토큰·클라이언트 정보 `xeon.secrets` 저장, `finishAuth(code, iss)`, `iss` 검증, 콜백 수신 연결 | MC2, L0.secrets.plan, L4.desktop.plan·L4.cli.plan(브라우저 열기, 콜백) | L |
+| MC10 | (2차) OAuth: `oauth/provider.ts`(`XeonOAuthProvider`), 토큰·클라이언트 정보 `fresnel.secrets` 저장, `finishAuth(code, iss)`, `iss` 검증, 콜백 수신 연결 | MC2, L0.secrets.plan, L4.desktop.plan·L4.cli.plan(브라우저 열기, 콜백) | L |
 
 - M2 범위는 MC1~MC7이다. 순서는 MC1 → (MC2 ∥ MC3) → MC4 → (MC5 ∥ MC6 ∥ MC7)이다. MC7은 MC2 뒤 언제든 할 수 있다.
 - MC5는 L1.tools.plan의 승인 프로토콜 작업(M2 "승인 프로토콜 통합", `product.scope.spec` §4.1 I9)과 같은 시기에 맞춘다. `L2.mcp.spec` §10 미결 2(책임 나눔)를 MC5 시작 전에 정한다.
@@ -127,7 +127,7 @@ zod4와 TypeBox 공존: 경계 변환 지점 [제안]:
 
 ## 5. 단위 테스트 목록
 
-네트워크와 실제 프로세스 없이 인메모리 전송(`src/testing/memory-transport.ts`), 스텁 서버, 가짜 `xeon.process`·`xeon.secrets`·`xeon.store`, 주입 시계를 쓴다(`eng.testing.guide` TS-03, TS-05). 승인 흐름은 `@xeon/ext-host/testing`과 L1.tools 테스트 도우미가 주는 가짜 승인 서비스로 확인한다.
+네트워크와 실제 프로세스 없이 인메모리 전송(`src/testing/memory-transport.ts`), 스텁 서버, 가짜 `fresnel.process`·`fresnel.secrets`·`fresnel.store`, 주입 시계를 쓴다(`eng.testing.guide` TS-03, TS-05). 승인 흐름은 `@fresnel/ext-host/testing`과 L1.tools 테스트 도우미가 주는 가짜 승인 서비스로 확인한다.
 
 | 파일 | 테스트 | 확인할 동작 |
 |---|---|---|
@@ -200,7 +200,7 @@ M2 완료:
 3. `cd xeon && just verify`가 종료코드 0이다.
 4. M2 종료 조건 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다"(`product.scope.spec` §4.4)와 같은 레코드 형식으로 MCP 서버 주도 요청이 기록된다(kind `question`).
 
-2차 완료(항목별): Tasks는 스텁의 `CreateTaskResult` → 폴링 → 완료가 백그라운드 완료 신호로 이어진다. 구독은 스텁의 `tools/list_changed` 알림이 다음 단계 경계에 `added`/`removed`로 반영되고 재연결 뒤에도 유지된다. OAuth는 가짜 인가 서버로 `REDIRECT` → `finishAuth` → 토큰이 `xeon.secrets`에만 저장된다.
+2차 완료(항목별): Tasks는 스텁의 `CreateTaskResult` → 폴링 → 완료가 백그라운드 완료 신호로 이어진다. 구독은 스텁의 `tools/list_changed` 알림이 다음 단계 경계에 `added`/`removed`로 반영되고 재연결 뒤에도 유지된다. OAuth는 가짜 인가 서버로 `REDIRECT` → `finishAuth` → 토큰이 `fresnel.secrets`에만 저장된다.
 
 ## 7. 위험과 대응
 
@@ -227,8 +227,8 @@ M2 완료:
 | (F.2) | MC1 | F 레인이 완료 | `defs/mcp.ts`, `services/mcp.ts`. 이 트랙은 `defs.test.ts`로 `validateCapability` 이슈 0건과 정적 도구 3개의 읽기 전용만 확인했다 |
 | MCP.1 | MC2 | 구현 | `adapter.ts`(SDK 경계, 수동 MRTR, 오류 변환), `transport/process-stdio.ts`(`ProcessStdioTransport`), `transport/http.ts`(헤더 `secret://` 해석 fetch 감싸기), `transport/factory.ts`, `client/registry.ts`(상태 기계, 정의 동기화, 진행 중 호출 보호), `client/backoff.ts`, `testing/stub-server.ts`(2025·2026 와이어 스텁), `testing/stub-process.ts`. `sdk-bun.test.ts`, `transport-stdio.test.ts`, `transport-http.test.ts`, `reconnect.test.ts`, `cancel.test.ts` |
 | MCP.2 | MC3 | 구현 | `settings.ts`(`l2.mcp.*` 14개 키와 범위별 서버 정의 읽기), `servers/loader.ts`(`.mcp.json` 변환), `servers/definitions.ts`(설정, `.fresnel/mcp.json`, `.mcp.json` 합치기와 신뢰 연동), `servers/policy.ts`(허용·차단·managedOnly, 도구 거르기, 승인 규칙), `ports/trust.ts`(X `resolveProjectTrust` 연결). `settings.test.ts`, `loader.test.ts`, `trust.test.ts` |
-| MCP.3 | MC4 | 구현 | `client/dynamic-tools.ts`(노출 판정, 동적 도구, 결과 변환), `client/schema-check.ts`, `client/content.ts`(내용 변환, blob, 크기 한도), `client/service.ts`(`mcp.client` 구현, `xeon.mcp`의 `registerServer`, 단계 경계 반영, `thread.mcp.after` 페이로드), `client/register.ts`(`ToolService`·`ToolsPort` 등록 어댑터), `errors.ts`. `connect.test.ts`, `names.test.ts`, `boundary.test.ts`, `secrets.test.ts`, `register.test.ts` |
-| MCP.4 | MC5 | 완료 | 구현: `elicitation/questions.ts`(입력 요청 → 질문), `responses.ts`(폼 검증, `inputResponses`), `rounds.ts`(`<requestId>#r<n>`, 상한), `approval-adapter.ts`(`McpQuestion` ↔ `QuestionBody`/`QuestionAnswer`, `L2ApprovalsPort`로 묻는 `askWithApprovals`), `callTool`·`getPrompt`·`readResource`의 `continuation` 처리와 라운드 상한. `mrtr.test.ts`(가짜 `L2ApprovalsPort`). F 요청 12(L1.tools.spec §8.3)의 F 쪽은 닫혔다(m2 F.8): `CallOptions.continuation`, 질문 옮기기 규칙은 F `defs/mcp-questions.ts`로 옮겼고 `responses.ts`·`approval-adapter.ts`는 그것을 다시 내보낸다. `callTool`·`getPrompt`·`readResource`는 `options.continuation`을 먼저 읽는다(`mrtr.test.ts`). 실제 core-tools `ApprovalService`로 한 통합 시험을 더했다(`approval-integration.test.ts`, 기록 모양 E5). 테스트 전용 의존 `@xeon/core-tools`를 `devDependencies`와 `tsconfig` 참조에 더했다(cap-web과 같다). 병합 때 동적 도구 경로를 닫았다(결정 D5 (a)): F `DirectToolRegistration.executeWithContinuation`이 연속 정보를 인자로 받고, `createToolServiceRegistrar`가 이를 채우며, core-tools `settleDirectInput`이 `status: "input_required"` 결과를 질문 승인으로 올려 같은 `toolCallId`로 다시 부른다. 실제 `ToolService`로 확인한 시험은 `tool-service.test.ts`의 `an input_required result of a dynamic tool ...`와 호스트의 `approval-shapes.int.test.ts`(질문 도구, 계획 승인, MCP 질문의 기록 모양 비교 포함)다. `ToolResourceDef` 경로(X `ToolsPort`)는 연속 정보 자리가 없어 서버 주도 요청에는 직접 등록 경로를 쓴다 |
+| MCP.3 | MC4 | 구현 | `client/dynamic-tools.ts`(노출 판정, 동적 도구, 결과 변환), `client/schema-check.ts`, `client/content.ts`(내용 변환, blob, 크기 한도), `client/service.ts`(`mcp.client` 구현, `fresnel.mcp`의 `registerServer`, 단계 경계 반영, `thread.mcp.after` 페이로드), `client/register.ts`(`ToolService`·`ToolsPort` 등록 어댑터), `errors.ts`. `connect.test.ts`, `names.test.ts`, `boundary.test.ts`, `secrets.test.ts`, `register.test.ts` |
+| MCP.4 | MC5 | 완료 | 구현: `elicitation/questions.ts`(입력 요청 → 질문), `responses.ts`(폼 검증, `inputResponses`), `rounds.ts`(`<requestId>#r<n>`, 상한), `approval-adapter.ts`(`McpQuestion` ↔ `QuestionBody`/`QuestionAnswer`, `L2ApprovalsPort`로 묻는 `askWithApprovals`), `callTool`·`getPrompt`·`readResource`의 `continuation` 처리와 라운드 상한. `mrtr.test.ts`(가짜 `L2ApprovalsPort`). F 요청 12(L1.tools.spec §8.3)의 F 쪽은 닫혔다(m2 F.8): `CallOptions.continuation`, 질문 옮기기 규칙은 F `defs/mcp-questions.ts`로 옮겼고 `responses.ts`·`approval-adapter.ts`는 그것을 다시 내보낸다. `callTool`·`getPrompt`·`readResource`는 `options.continuation`을 먼저 읽는다(`mrtr.test.ts`). 실제 core-tools `ApprovalService`로 한 통합 시험을 더했다(`approval-integration.test.ts`, 기록 모양 E5). 테스트 전용 의존 `@fresnel/core-tools`를 `devDependencies`와 `tsconfig` 참조에 더했다(cap-web과 같다). 병합 때 동적 도구 경로를 닫았다(결정 D5 (a)): F `DirectToolRegistration.executeWithContinuation`이 연속 정보를 인자로 받고, `createToolServiceRegistrar`가 이를 채우며, core-tools `settleDirectInput`이 `status: "input_required"` 결과를 질문 승인으로 올려 같은 `toolCallId`로 다시 부른다. 실제 `ToolService`로 확인한 시험은 `tool-service.test.ts`의 `an input_required result of a dynamic tool ...`와 호스트의 `approval-shapes.int.test.ts`(질문 도구, 계획 승인, MCP 질문의 기록 모양 비교 포함)다. `ToolResourceDef` 경로(X `ToolsPort`)는 연속 정보 자리가 없어 서버 주도 요청에는 직접 등록 경로를 쓴다 |
 | MCP.5 | MC6, MC7 | 구현 | `client/annotations.ts`(spec §3.4 표, 신뢰 여부), `servers/policy.ts`의 `buildApprovalRules`(규칙 id, 키 `mcp__<서버>__<도구>`), `client/state-store.ts`(`cap_mcp_servers`, 소유자 `cap.mcp`). `annotations.test.ts`, `state.test.ts` |
 | (2차) | MC8~MC10 | 하지 않음 | Tasks, 변경 구독, OAuth. m2-plan §2.2가 2차로 둔다 |
 
@@ -288,5 +288,5 @@ M2 완료:
 | F 레인 | `McpQuestion`에 선택 필드 `warnings`(비밀 필드 경고를 문장 붙이기 대신 구조로) | spec §4.6 10번 |
 | L0 PLT | 닫음(m2c T3, `L0.process.spec` §4.9). `McpProcessPort`의 구현: stdin·stdout·stderr 스트림을 주고, `secret://` env를 실행 직전에 주입하고, `BackgroundRegistry`에 owner kind `mcp`, ref 서버 id로 등록하고, 종료는 stdin 닫기 → SIGTERM → SIGKILL이다. F `ProcessPort.spawn`은 격리 확장용 진입점이고 `ExecService.startBackground`는 스트림을 주지 않는다 | spec §4.3, `src/ports/process.ts` |
 | L1A | L2가 확장 티어 권한 규칙을 공급하는 API(지금 `registerRules`는 `core:<도메인>` 출처만 받는다). `PolicyRule`은 `resource.mcpServer`와 `resource.tool`을 쓰는 모양으로 이미 맞춰 두었다 | spec §4.4, `src/ports/rules.ts` |
-| HOST.6 | `createMcp(deps)` 연결: `createToolServiceRegistrar(toolService)`, `createSecretServiceHeaders(secretService)`, `createProjectTrust`(X `resolveProjectTrust` 입력), `McpStorePort`(`xeon.store`), 설정 층, `reservedToolNames`(내장 도구 이름), `onServersChange`(`thread.mcp.after` 지점). 세션 시작에 `load`, 단계를 여는 `boundary.step.before`마다 `reload(signal, { threadId })`(지문이 바뀌었을 때만 서버를 맞춤)와 `applyBoundary`, 종료에 `shutdown`. 프로젝트 루트는 `McpDeps.workspaceOf`(대화의 작업 폴더, `L2.readme` §5.10)로 넘기고 stdio 포트는 조립 루트가 `process`로 넘긴다. 능력 바인딩 `cap:mcp.client`와 `xeon.mcp`는 `runtime.service`로 등록한다. 매니페스트·`apply`는 이 단계에서 만든다 | m2-plan HOST.6, spec §3.2 |
+| HOST.6 | `createMcp(deps)` 연결: `createToolServiceRegistrar(toolService)`, `createSecretServiceHeaders(secretService)`, `createProjectTrust`(X `resolveProjectTrust` 입력), `McpStorePort`(`fresnel.store`), 설정 층, `reservedToolNames`(내장 도구 이름), `onServersChange`(`thread.mcp.after` 지점). 세션 시작에 `load`, 단계를 여는 `boundary.step.before`마다 `reload(signal, { threadId })`(지문이 바뀌었을 때만 서버를 맞춤)와 `applyBoundary`, 종료에 `shutdown`. 프로젝트 루트는 `McpDeps.workspaceOf`(대화의 작업 폴더, `L2.readme` §5.10)로 넘기고 stdio 포트는 조립 루트가 `process`로 넘긴다. 능력 바인딩 `cap:mcp.client`와 `fresnel.mcp`는 `runtime.service`로 등록한다. 매니페스트·`apply`는 이 단계에서 만든다 | m2-plan HOST.6, spec §3.2 |
 | 통합 단계 | `xeon/bun.lock`에 `@modelcontextprotocol/client` 2.3.1과 그 의존까지 패키지 12개 항목이 더해졌다(다른 트랙의 lock 변경과 병합할 때 `bun install`로 다시 만든다) | m2-plan §3 규칙 2 |

@@ -1,18 +1,18 @@
 // src/state/engine/decode.ts (발췌. 나머지 kind도 같은 모양이다)
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   ItemStartedPayloadSchema,
   ItemUpdatedPayloadSchema,
   ThreadStartedPayloadSchema,
   ThreadUpdatedPayloadSchema,
   TurnCompletedPayloadSchema,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
   ItemRecordedPayloadSchema,
-} from "@xeon/contracts/records";
-import type { EventWire, VolatileEventWire } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/records";
+import type { EventWire, VolatileEventWire } from "@fresnel/contracts/wire";
 import type { DurableFact, VolatileFact } from "./input.ts";
 
 type DurableBase = Omit<Extract<DurableFact, { type: "other" }>, "type">;

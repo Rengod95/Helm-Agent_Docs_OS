@@ -4,7 +4,7 @@ import type { LeaseService } from "./lease.ts";
 import type { ExtensionTables, MigrationRunner } from "./migrations.ts";
 import type { SqlTx } from "./sql.ts";
 
-export const StoreServiceName = "xeon.store" as const;
+export const StoreServiceName = "fresnel.store" as const;
 
 export type StoreWriteError =
   | { readonly kind: "busy" }

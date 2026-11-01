@@ -1,4 +1,4 @@
-import type { OrderedTool } from "@xeon/contracts/capabilities";
+import type { OrderedTool } from "@fresnel/contracts/capabilities";
 import type {
   AssistantMessage,
   EventId,
@@ -7,14 +7,14 @@ import type {
   SystemMessage,
   Usage,
   XeonCustomMessage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   AssembleOptions,
   CachePolicy,
   ContextUsageEstimate,
   ModelBinding,
   TokenEstimator,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { MemoryLog } from "./log.ts";
 
 const usage: Usage = {
@@ -176,7 +176,7 @@ export function compactedPayload(
 
 // ── 토큰 추정 대역 ──────────────────────────────────────────────────────
 
-/** 플러그인이 조회하는 xeon.models 중 core-context가 쓰는 부분 */
+/** 플러그인이 조회하는 fresnel.models 중 core-context가 쓰는 부분 */
 export interface TokenOnlyModels {
   readonly tokens: TokenEstimator;
 }

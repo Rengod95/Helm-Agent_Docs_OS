@@ -1,5 +1,5 @@
-import { assertNever, attemptAsync, detach, err, ok, type Result } from "@xeon/contracts";
-import type { Unsubscribe } from "@xeon/contracts/extensions";
+import { assertNever, attemptAsync, detach, err, ok, type Result } from "@fresnel/contracts";
+import type { Unsubscribe } from "@fresnel/contracts/extensions";
 import { everyMsOf, planDue } from "./due.ts";
 import {
   CRON_SESSION_KIND,

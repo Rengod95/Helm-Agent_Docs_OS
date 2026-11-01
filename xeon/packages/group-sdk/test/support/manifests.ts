@@ -1,4 +1,4 @@
-import type { ExtensionManifest } from "@xeon/contracts/extensions";
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 import type { GroupManifest } from "../../src/index.ts";
 
 export interface GroupManifestInput {

@@ -1,6 +1,6 @@
-import { canonicalJson } from "@xeon/contracts";
-import type { ToolCallOutcome } from "@xeon/contracts/services";
-import type { TurnNotice } from "@xeon/contracts/conversation";
+import { canonicalJson } from "@fresnel/contracts";
+import type { ToolCallOutcome } from "@fresnel/contracts/services";
+import type { TurnNotice } from "@fresnel/contracts/conversation";
 
 // L1.loop.spec §4.10 반복 감지. 관찰만 하고 막지 않는다. 단계마다 도구 호출 서명(도구 이름 + 인자)과 결과를 한 쌍으로 묶어
 // 직전 단계의 쌍과 같으면 연속 횟수를 늘린다. 임계에 이르는 단계에서 한 번 알림을 돌려준다(같은 되풀이에서 다시 알리지 않는다).

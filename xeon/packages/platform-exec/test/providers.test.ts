@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { LogFields, Logger } from "@xeon/contracts";
+import type { LogFields, Logger } from "@fresnel/contracts";
 import { darwinProvider } from "../src/providers/darwin.ts";
 import { createLinuxProvider } from "../src/providers/linux.ts";
 import { createWin32Provider } from "../src/providers/win32.ts";

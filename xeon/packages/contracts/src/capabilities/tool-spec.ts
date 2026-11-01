@@ -30,7 +30,7 @@ export interface ToolContent {
   readonly details?: JsonValue;
 }
 
-/** 도구 호출이 잡을 잠금 하나(L1.tasks.spec FR-T6). `path`는 L1.tools가 `xeon.exec`의 canonicalPath로 정규화해 키를 만든다 */
+/** 도구 호출이 잡을 잠금 하나(L1.tasks.spec FR-T6). `path`는 L1.tools가 `fresnel.exec`의 canonicalPath로 정규화해 키를 만든다 */
 export interface ToolLockDecl {
   readonly path: string;
   /** read는 같은 경로의 다른 read와 함께 돌고, write는 단독으로 돈다 */

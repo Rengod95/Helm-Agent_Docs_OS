@@ -1,5 +1,5 @@
-import type { ToolHints } from "@xeon/contracts/capabilities";
-import type { JsonObject } from "@xeon/contracts/conversation";
+import type { ToolHints } from "@fresnel/contracts/capabilities";
+import type { JsonObject } from "@fresnel/contracts/conversation";
 import type { RawToolAnnotations } from "../adapter.ts";
 
 // L2.mcp.spec §3.4. 서버가 광고한 annotations를 ToolHints로 옮긴다. annotations는 서버의 자기 선언이라

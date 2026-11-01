@@ -1,7 +1,7 @@
 // 결과 반환(L1.agents.spec §4.6, AG-5): 최종 보고 추출, 길이 상한, 지시문 모방 검사, 격리 블록.
 // 검사는 보조이고 결과를 버리거나 실패로 바꾸지 않는다. 기본 방어는 격리 블록과 길이 상한이다.
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { GuardedReport, MimicryFlag } from "@xeon/contracts/services";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { GuardedReport, MimicryFlag } from "@fresnel/contracts/services";
 
 /** 보고가 없을 때의 본문 */
 export const NO_REPORT_TEXT = "(no report)";

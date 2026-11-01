@@ -1,5 +1,5 @@
-import { t } from "@xeon/client/i18n";
-import type { ImageContent, TextContent } from "@xeon/contracts/conversation";
+import { t } from "@fresnel/client/i18n";
+import type { ImageContent, TextContent } from "@fresnel/contracts/conversation";
 import { displayWidth, truncateToWidth } from "./width.ts";
 
 // L4.cli.spec §3.5, §4.5. 도구 결과 3채널 표시 규칙.

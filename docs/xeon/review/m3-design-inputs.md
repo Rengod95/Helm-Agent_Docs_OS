@@ -72,7 +72,7 @@ binds: []
 
 #### D-M3-01 Helm의 형태와 기본 켬
 
-- [결정 2026-10-26] c. Helm은 기본 플러그인이다. 별도 패키지(`@xeon/group-helm`)를 플러그인 산출물로 릴리즈에 넣고 첫 실행 때 사용자 확장 위치에 설치한다 [제안: 설치 경로]. 설치되어 있으면 켠다(`defaultEnabled: true`). 자체 확장 API로 X 로더가 싣고 pi 어댑터는 거치지 않는다(D-M3-11 c). 권고(a, 내장 그룹)와 다르다. 반영: `L3.helm.spec` §3.1, `L3.helm.plan` H-22.
+- [결정 2026-10-26] c. Helm은 기본 플러그인이다. 별도 패키지(`@fresnel/group-helm`)를 플러그인 산출물로 릴리즈에 넣고 첫 실행 때 사용자 확장 위치에 설치한다 [제안: 설치 경로]. 설치되어 있으면 켠다(`defaultEnabled: true`). 자체 확장 API로 X 로더가 싣고 pi 어댑터는 거치지 않는다(D-M3-11 c). 권고(a, 내장 그룹)와 다르다. 반영: `L3.helm.spec` §3.1, `L3.helm.plan` H-22.
 
 - 원천: `L3/helm/spec.md` §10 "사용자 결정 대기" 1, `product/vision/spec.md` §10 4번(교차 C-004), 수집 U-14. L3 차단: Helm.
 
@@ -449,7 +449,7 @@ binds: []
 
 | 안 | 내용 |
 |---|---|
-| a | 데스크톱 TS가 `@xeon/host/client`를 import하는 DR-10 예외를 연다. 설정 view-model도 같은 서브패스에 둔다 |
+| a | 데스크톱 TS가 `@fresnel/host/client`를 import하는 DR-10 예외를 연다. 설정 view-model도 같은 서브패스에 둔다 |
 | b | 연결 코드와 view-model을 새 공유 패키지로 옮긴다 |
 | c | `createHostConnection`을 F로 옮긴다(F에 런타임 로직이 생긴다) |
 
@@ -572,7 +572,7 @@ L3 Helm·학습 세부 설계가 답해야 할 항목이다. "정하는 곳"이 
 | H-IN-14 | 유휴 자율 turn, 임대 충돌, 안전 모드 | `L3/group-sdk/spec.md` §10 "대기 vs 거부"와 "유휴 중 임대 부여" 항목, `X/operations/spec.md` §10 19 | D-M3-05, 06, 07 | REQ-X-08 |
 | H-IN-15 | 탐구가 없을 때 turn마다 임대 부여·반납 비용 | `L3/helm/spec.md` §3.3, §10 "남은 내부 설계" 10 | L3 Helm 설계. 문제가 되면 X 후보 제외 조건 | — |
 | H-IN-16 | Helm 쓰기 거부와 샌드박스 강제 위치가 `tool_call` 지점에서 겹치는지 | `X/operations/spec.md:1339`, `X/README.md:139` | X.operations | REQ-X-11 |
-| H-IN-17 | `xeon.domain` 불일치(C3) | `L3/helm/spec.md` §10 (닫힘) C3 | M3-35 | — |
+| H-IN-17 | `fresnel.domain` 불일치(C3) | `L3/helm/spec.md` §10 (닫힘) C3 | M3-35 | — |
 
 ### 4.2 학습 그룹
 
@@ -614,7 +614,7 @@ L3 Helm·학습 세부 설계가 답해야 할 항목이다. "정하는 곳"이 
 | G-IN-10 | 조립 루트 포트 연결(`GroupSettingsSourceKey`, `DriveHolderSettingsPort`, `GroupCatalogPort`) | `L3/group-sdk/spec.md` §10 "M2 구현이 남긴 연결" 항목 | L4 host, M3 구현 | — |
 | G-IN-11 | 2차 조회(계측·승격 집계용) | `L3/group-sdk/spec.md` §3.13 5번 | M3-new-09 | — |
 | G-IN-12 | `scanDriveSource`의 `@swc/core` import와 DR-07 행 | `L3/group-sdk/spec.md` §3.11 파서 문단과 §10 `scanDriveSource` 항목 | eng.dependency-rules | — |
-| G-IN-13 | `xeon.domain` `kit` 대 `group-sdk` | `L3/README.md` §3 `xeon.domain` 불릿, `L3/group-sdk/spec.md` §10 공통 모순 3 | M3-35. 제안대로 `group-sdk`으로 맞춘다 | — |
+| G-IN-13 | `fresnel.domain` `kit` 대 `group-sdk` | `L3/README.md` §3 `fresnel.domain` 불릿, `L3/group-sdk/spec.md` §10 공통 모순 3 | M3-35. 제안대로 `group-sdk`으로 맞춘다 | — |
 | G-IN-14 | L3.readme 표의 옛 tier·예산 소유 표기 | `X/README.md:125` | L3.readme 정정 | — |
 | G-IN-15 | 템플릿 위치, 정책 플러그인 kind 기준, `xeon group new` 소유 | `L3/README.md` §10.2 미결 11·12, `L3/slots/spec.md` §10 "템플릿 파일 위치" 항목 | M3-17. 제안대로 `group-sdk/templates/` | — |
 | G-IN-16 | 외부 그룹 신뢰 등급 값 집합 | `L3/slots/spec.md` §10 "외부 그룹의 신뢰 등급" 항목, `X/primitives/spec.md:1434` | X.loading-trust, M3-15 | — |

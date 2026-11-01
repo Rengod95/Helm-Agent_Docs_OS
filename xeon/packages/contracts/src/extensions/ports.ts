@@ -23,8 +23,8 @@ declare const portApi: unique symbol;
 
 /** Cordis 서비스 이름과 API 타입을 함께 실어 나르는 키. 런타임 값은 name과 member뿐이다 */
 export interface PortKey<Api> {
-  readonly name: `xeon.${string}`;
-  /** 있으면 서비스 객체의 이 속성이 포트다. 서비스 메서드 이름이 포트와 겹칠 때 쓴다(예: xeon.session의 ext) */
+  readonly name: `fresnel.${string}`;
+  /** 있으면 서비스 객체의 이 속성이 포트다. 서비스 메서드 이름이 포트와 겹칠 때 쓴다(예: fresnel.session의 ext) */
   readonly member?: string;
   /** 팬텀 필드. 런타임에는 없다 */
   readonly [portApi]?: Api;
@@ -35,7 +35,7 @@ export interface PortLookup {
   get<Api>(key: PortKey<Api>): Api | undefined;
 }
 
-// ── 루프 (서비스 xeon.loop, 제공 core-loop) ─────────────────────────────
+// ── 루프 (서비스 fresnel.loop, 제공 core-loop) ─────────────────────────────
 
 export interface LoopTurnRequest {
   readonly threadId: ThreadId;
@@ -81,9 +81,9 @@ export interface LoopPort {
   /** 유휴 상태에서 fn을 실행하는 동안 새 turn 시작을 막는다. 실행 중이면 정착 뒤 실행한다 */
   whenIdle<T>(threadId: ThreadId, fn: () => Promise<T>): Promise<T>;
 }
-export const LoopPortKey: PortKey<LoopPort> = { name: "xeon.loop" };
+export const LoopPortKey: PortKey<LoopPort> = { name: "fresnel.loop" };
 
-// ── 입력 큐 (서비스 xeon.tasks, 제공 core-tasks) ────────────────────────
+// ── 입력 큐 (서비스 fresnel.tasks, 제공 core-tasks) ────────────────────────
 
 export interface EnqueueRequest {
   readonly threadId: ThreadId;
@@ -109,9 +109,9 @@ export interface InputQueuePort {
   /** 입력 큐 항목(input.queued) 하나를 커밋 키로 멱등하게 남긴다(F.records.spec §3.3, U-05) */
   enqueue(request: EnqueueRequest): Promise<Result<EnqueueResult, EnqueueError>>;
 }
-export const InputQueuePortKey: PortKey<InputQueuePort> = { name: "xeon.tasks" };
+export const InputQueuePortKey: PortKey<InputQueuePort> = { name: "fresnel.tasks" };
 
-// ── 기록 (서비스 xeon.session의 ext 속성, 제공 core-persistence) ─────────
+// ── 기록 (서비스 fresnel.session의 ext 속성, 제공 core-persistence) ─────────
 
 /** 정의는 F.records.spec §3.9 session-service.ts. records가 extensions보다 낮아 그쪽에 둔다 */
 export type {
@@ -126,26 +126,26 @@ export type {
   StoredScopeState,
 } from "../records/index.ts";
 export const RecordCommitPortKey: PortKey<RecordCommitPort> = {
-  name: "xeon.session",
+  name: "fresnel.session",
   member: "ext",
 };
 
-// ── 확장 투영기 등록 (서비스 xeon.session의 projectors 속성) ─────────────
+// ── 확장 투영기 등록 (서비스 fresnel.session의 projectors 속성) ─────────────
 
 /** SessionService.projectors(ProjectorRegistry)의 부분형. 투영기 name은 "ext.<확장 이름>"이다 */
 export type ProjectorRegistryPort = Pick<ProjectorRegistry, "register" | "onFailure">;
 export const ProjectorRegistryPortKey: PortKey<ProjectorRegistryPort> = {
-  name: "xeon.session",
+  name: "fresnel.session",
   member: "projectors",
 };
 
-// ── 접두 테이블 (서비스 xeon.store, 제공 platform-store) ─────────────────
+// ── 접두 테이블 (서비스 fresnel.store, 제공 platform-store) ─────────────────
 
 /** StoreService의 부분형. scoped(owner)는 그 소유자 접두 테이블만 쓰는 StoreDb를 돌려준다 */
 export type ScopedStorePort = Pick<StoreService, "scoped">;
-export const ScopedStorePortKey: PortKey<ScopedStorePort> = { name: "xeon.store" };
+export const ScopedStorePortKey: PortKey<ScopedStorePort> = { name: "fresnel.store" };
 
-// ── 프로세스 실행 (서비스 xeon.process, 제공 platform-process) ───────────
+// ── 프로세스 실행 (서비스 fresnel.process, 제공 platform-process) ───────────
 
 /** 격리 확장 자식 프로세스(2차). 사용처: X.loading-trust.spec §3.8 */
 export interface IsolationSpawnSpec {
@@ -198,9 +198,9 @@ export interface HookProcessPort {
 }
 
 export interface ProcessPort extends IsolationProcessPort, HookProcessPort {}
-export const ProcessPortKey: PortKey<ProcessPort> = { name: "xeon.process" };
+export const ProcessPortKey: PortKey<ProcessPort> = { name: "fresnel.process" };
 
-// ── 임대 정책 (서비스 xeon.groups, 제공 group-sdk, 선택) ─────────────────
+// ── 임대 정책 (서비스 fresnel.groups, 제공 group-sdk, 선택) ─────────────────
 
 export interface LeaseCandidate {
   readonly scopeId: ScopeId;
@@ -215,7 +215,7 @@ export interface LeaseArbiterPort {
   /** 후보 중 하나를 고른다. null이면 아무에게도 주지 않는다 */
   choose(threadId: ThreadId, candidates: readonly LeaseCandidate[]): ScopeId | null;
 }
-export const LeaseArbiterPortKey: PortKey<LeaseArbiterPort> = { name: "xeon.groups" };
+export const LeaseArbiterPortKey: PortKey<LeaseArbiterPort> = { name: "fresnel.groups" };
 
 // ── 리소스 등록 (X.primitives.spec §3.9, §4.8) ───────────────────────────
 
@@ -255,21 +255,21 @@ export interface ToolRegisterError {
   readonly toolName: string;
 }
 
-/** ToolService(xeon.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 표는 그대로다 */
+/** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 표는 그대로다 */
 export interface ToolsPort {
   register(owner: ScopeId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError>;
 }
-/** ModelService(xeon.models)가 포함하는 등록 부분형 */
+/** ModelService(fresnel.models)가 포함하는 등록 부분형 */
 export interface ModelsPort {
   registerProvider(owner: ScopeId, name: string, config: ProviderResourceDef): Unsubscribe;
 }
-/** McpService(xeon.mcp)가 포함하는 등록 부분형 */
+/** McpService(fresnel.mcp)가 포함하는 등록 부분형 */
 export interface McpPort {
   registerServer(owner: ScopeId, name: string, config: McpServerResourceDef): Unsubscribe;
 }
-export const ToolsPortKey: PortKey<ToolsPort> = { name: "xeon.tools" };
-export const ModelsPortKey: PortKey<ModelsPort> = { name: "xeon.models" };
-export const McpPortKey: PortKey<McpPort> = { name: "xeon.mcp" };
+export const ToolsPortKey: PortKey<ToolsPort> = { name: "fresnel.tools" };
+export const ModelsPortKey: PortKey<ModelsPort> = { name: "fresnel.models" };
+export const McpPortKey: PortKey<McpPort> = { name: "fresnel.mcp" };
 
 // ── 로더 포트 (Cordis 서비스가 아니다. 조립 루트가 LoaderDeps로 넘긴다, X.loading-trust.spec §3.5) ──
 

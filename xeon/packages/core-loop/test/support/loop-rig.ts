@@ -1,7 +1,7 @@
-import { assertNever } from "@xeon/contracts";
-import type { AgentEvent, ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { TaskScope } from "@xeon/contracts/services";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { assertNever } from "@fresnel/contracts";
+import type { AgentEvent, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { TaskScope } from "@fresnel/contracts/services";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createDrafter } from "../../src/drafts.ts";
 import { createTurnRun, type TurnRun } from "../../src/loop/turn-run.ts";
 import type { TurnEntry, TurnRunSpec } from "../../src/loop/types.ts";

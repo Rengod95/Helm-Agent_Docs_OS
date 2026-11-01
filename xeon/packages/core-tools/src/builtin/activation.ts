@@ -1,13 +1,13 @@
-import { ok, parse, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { ok, parse, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   EffectIntentSchema,
   EffectResultSchema,
   type BlobRef,
   type ReadFailure,
   type SessionService,
-} from "@xeon/contracts/records";
-import { TOOL_SEARCH_NAME } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import { TOOL_SEARCH_NAME } from "@fresnel/contracts/services";
 import { isJsonObject } from "../util.ts";
 
 // L1.tools.spec §4.1 규칙 5, §4.8 6번. 두 내장 도구가 대화 기록(이벤트)에서 상태를 다시 읽는다.

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { attempt, err, ok, type Clock, type Result, type Scheduler } from "@xeon/contracts";
+import { attempt, err, ok, type Clock, type Result, type Scheduler } from "@fresnel/contracts";
 
 // L0.process.spec §4.4.6 기동과 분리, 감독. 서비스는 detached + unref로 띄워 띄운 CLI가 끝나도 남는다. stdio는 모두 닫는다
 // (로그는 서비스가 L0.os 로그 파일에 쓴다). cwd는 호출자가 정한다(홈 디렉터리).

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, parse } from "@xeon/contracts";
-import type { ItemId, ItemRecord, ThreadId } from "@xeon/contracts/conversation";
-import { ItemRecordedPayloadSchema } from "@xeon/contracts/records";
+import { Bug, parse } from "@fresnel/contracts";
+import type { ItemId, ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
+import { ItemRecordedPayloadSchema } from "@fresnel/contracts/records";
 import { itemPagesOf, type ItemPage } from "../src/index.ts";
 import { branchItemsOf, completeTurn, itemAt } from "./support/branching.ts";
 import {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { CancelScope, ProtectedPathEntry } from "@xeon/contracts/services";
+import type { CancelScope, ProtectedPathEntry } from "@fresnel/contracts/services";
 import { WorkspaceFailure } from "../src/errors.ts";
 import { defaultRoots, isWithin, resolveWorkspacePath, type PathAccess } from "../src/roots.ts";
 import { memoryEnv } from "./support/memory-env.ts";

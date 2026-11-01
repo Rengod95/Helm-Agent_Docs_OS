@@ -1,6 +1,6 @@
 // 수명주기 가운데 조회·종결·삭제·제목(L1.persistence.spec §4.10.5, PS-9): list, close, remove, setTitle.
-import { Bug, detach, err, ok, type Logger, type Result } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import { Bug, detach, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
   type CommitPlan,
@@ -14,7 +14,7 @@ import {
   type ThreadListQuery,
   type ThreadPage,
   type ThreadSummaryRow,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { sha256Hex } from "./hash.ts";
 import { releaseOpenSession, type GuardState, type OpenSessions } from "./ownership.ts";
 import type { ThreadHooks } from "./points.ts";

@@ -10,7 +10,7 @@ binds: [xeon/packages/contracts/src/conversation/**]
 
 # F1 대화 모델 구현 계획
 
-대상 스펙: `F.conversation.spec`. 패키지: `@xeon/contracts`, 서브패스 `./conversation`.
+대상 스펙: `F.conversation.spec`. 패키지: `@fresnel/contracts`, 서브패스 `./conversation`.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -57,7 +57,7 @@ xeon/packages/contracts/
   - Xeon 소유 스키마: `export const PartRecordSchema: TObject<{ partId: TUnsafe<PartId>; ... }> = Type.Object({...})`, 타입은 `export type PartRecord = Static<typeof PartRecordSchema>`(스펙 §3 머리말, `_research/notes/eng-2.md` §3-4의 `TAddOptional`, `TUnion<[...]>`, `TLiteral<...>` 주석 형식).
   - 브랜드 ID와 pi 래핑: `export const ThreadIdSchema: TUnsafe<ThreadId> = Type.Unsafe<ThreadId>(Type.String({...}))`.
   - 전이표 상수: `Readonly<Record<S, readonly S[]>>`.
-- `Brand`, `Result`, `Bug`는 `@xeon/contracts` 루트 진입점의 것을 쓴다(`eng.typescript.guide` §1.2). 정의는 `src/base/`에 있고 루트 `src/index.ts`는 이 공용 기반 이름만 다시 export한다(`F.readme` §3). 루트 파일을 만드는 작업이 C1보다 먼저 끝나 있어야 한다. 끝나 있지 않으면 C1이 `src/base/`에 `Brand`만 먼저 둔다.
+- `Brand`, `Result`, `Bug`는 `@fresnel/contracts` 루트 진입점의 것을 쓴다(`eng.typescript.guide` §1.2). 정의는 `src/base/`에 있고 루트 `src/index.ts`는 이 공용 기반 이름만 다시 export한다(`F.readme` §3). 루트 파일을 만드는 작업이 C1보다 먼저 끝나 있어야 한다. 끝나 있지 않으면 C1이 `src/base/`에 `Brand`만 먼저 둔다.
 - `verbatimModuleSyntax` 때문에 타입은 `import type`/`export type`으로만 가져오고 내보낸다. `index.ts`의 `pi.ts` 재수출은 `export type *`이다.
 - `package.json` 변경:
 
@@ -117,7 +117,7 @@ xeon/packages/contracts/
 | `message-schema.test.ts` › 픽스처 왕복 | `fixtures/pi-messages.ts`의 모든 픽스처를 `JSON.parse(JSON.stringify(x))` 한 뒤 `MessageSchema`를 통과한다 |
 | `message-schema.test.ts` › 판별 | role을 `"assistant2"`로 바꾸면 실패한다. assistant에 `stopReason:"deferred"`는 통과, `"unknown"`은 실패한다 |
 | `message-schema.test.ts` › 선택 필드 관용 | 픽스처에 미지 필드를 더해도 통과한다 |
-| `pi-types.type-test.ts` | `expectTypeOf<import("@xeon/contracts/conversation").Message>().toEqualTypeOf<import("@earendil-works/pi-ai").Message>()` 형식으로 pi-ai re-export 16종 항등. pi-ai `AssistantMessageEventStream` 클래스가 F 인터페이스에 대입된다. `bun test`에서 실행되고 `tsc -b`가 타입을 판정한다 |
+| `pi-types.type-test.ts` | `expectTypeOf<import("@fresnel/contracts/conversation").Message>().toEqualTypeOf<import("@earendil-works/pi-ai").Message>()` 형식으로 pi-ai re-export 16종 항등. pi-ai `AssistantMessageEventStream` 클래스가 F 인터페이스에 대입된다. `bun test`에서 실행되고 `tsc -b`가 타입을 판정한다 |
 | `agent-types.type-test.ts` | `AgentMessage`가 `Message \| XeonCustomMessage`와 `Equal`이다. `AgentEvent["type"]`이 10종 목록과 같다. `AgentTool`·`AgentToolResult`·`AgentEvent`에 `any`가 없다(`IsAny` 검사) |
 | `no-pi-agent-core.test.ts` | `src/**/*.ts`와 `package.json`에 `@earendil-works/pi-agent-core` 문자열이 0건이다(타입 import 포함) |
 | `parts.test.ts` › 결정성 | 같은 입력으로 `assignPartIds`를 두 번 부를 때 두 번째 호출에 첫 결과를 `existing`으로 주면 같은 id, `issued:false`, 생성기 호출 0회 |
@@ -134,7 +134,7 @@ xeon/packages/contracts/
 ## 6. 완료 기준
 
 1. `tsc -b`가 `isolatedDeclarations`를 켠 상태로 오류 0건이다.
-2. `just verify`의 check-layers 단계가 통과한다. F 패키지는 어떤 `@xeon/*` 패키지도 import하지 않는다.
+2. `just verify`의 check-layers 단계가 통과한다. F 패키지는 어떤 `@fresnel/*` 패키지도 import하지 않는다.
 3. 소스의 pi-ai 값 import가 0건이고(`no-pi-value-import.test.ts`), pi-agent-core 참조가 0건이다(`no-pi-agent-core.test.ts`). oxlint `no-restricted-imports`에 `allowTypeImports` 설정이 가능하면 같은 규칙을 린트에도 건다 [가정: oxlint가 이 옵션을 지원한다].
 4. 스펙 §9 수용 기준 9개가 모두 §5 테스트 하나 이상에 대응한다.
 
@@ -152,13 +152,13 @@ xeon/packages/contracts/
    | 11 에이전트 루프 타입 | `agent-types.type-test.ts`, `no-pi-agent-core.test.ts` |
 
 5. oxfmt, oxlint(type-aware), knip이 통과한다.
-6. `@xeon/contracts/conversation`에서 스펙 §3에 적힌 이름이 모두 export된다.
+6. `@fresnel/contracts/conversation`에서 스펙 §3에 적힌 이름이 모두 export된다.
 
 ## 7. 위험과 대응
 
 | 위험 | 대응 |
 |---|---|
-| pi-ai minor마다 breaking이 있다(`_research/packages.md` §4.1) | 1.3.0 정확 고정. 소비 층은 `@xeon/contracts/conversation` 별칭 re-export만 쓴다. 버전을 올릴 때는 `pi.ts`, `message-schema.ts`, 픽스처만 고치고 `pi-types.type-test.ts`로 변경점을 드러낸다 |
+| pi-ai minor마다 breaking이 있다(`_research/packages.md` §4.1) | 1.3.0 정확 고정. 소비 층은 `@fresnel/contracts/conversation` 별칭 re-export만 쓴다. 버전을 올릴 때는 `pi.ts`, `message-schema.ts`, 픽스처만 고치고 `pi-types.type-test.ts`로 변경점을 드러낸다 |
 | TS 인터페이스에 런타임 스키마가 없다 | `Type.Unsafe` 얕은 검증 + 픽스처 왕복 + 판별 값 목록 테스트. 깊은 필드 오류는 저장 경로에서 잡히지 않는다는 한계를 스펙 §3.3에 적었다. 깊은 검증 요구가 생기면 스펙 §10 미결 2로 다시 정한다 |
 | step/turn 용어 혼선 | 스펙 §2.1 표를 기준으로 쓴다. `lifecycle.ts`의 `StepStarted`, `StepCompleted` 문서 주석에 "pi turn_start/turn_end"를 적는다. 매핑은 [결정: review.decisions-2 U-01]이고 사용자가 다르게 답하면 스펙 §2.1과 이 주석을 함께 고친다 |
 | TypeBox 두 벌 설치 | 해소했다. catalog를 pi와 같은 1.3.27로 고정했다(review.decisions-2 U-24). C2에서 `bun.lock`에 사본이 하나인지 확인한다 |

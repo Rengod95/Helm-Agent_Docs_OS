@@ -1,4 +1,4 @@
-import type { StoreCapabilities } from "@xeon/contracts/records";
+import type { StoreCapabilities } from "@fresnel/contracts/records";
 import { openStore } from "../../src/index.ts";
 import { DEFAULT_STORE_SETTINGS } from "../../src/settings.ts";
 import { fixedIdFactory } from "../support/clock.ts";

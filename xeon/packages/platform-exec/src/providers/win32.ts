@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { win32 as winPath } from "node:path";
-import { attempt, type Logger } from "@xeon/contracts";
+import { attempt, type Logger } from "@fresnel/contracts";
 import { bashShellConfig, type ExecPlatformProvider } from "../provider.ts";
 
 export interface Win32ProviderDeps {

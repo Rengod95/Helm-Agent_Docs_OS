@@ -10,7 +10,7 @@ binds: [xeon/packages/contracts/src/conversation/**]
 
 # F 대화 모델 계약 (conversation)
 
-서브패스: `@xeon/contracts/conversation`. 소스: `xeon/packages/contracts/src/conversation/`.
+서브패스: `@fresnel/contracts/conversation`. 소스: `xeon/packages/contracts/src/conversation/`.
 
 ## 1. 목적과 범위
 
@@ -58,7 +58,7 @@ binds: [xeon/packages/contracts/src/conversation/**]
 - Xeon이 소유한 레코드·알림·enum 스키마는 TypeBox 명시 타입 주석(`TObject<{...}>`, `TUnion<[...]>` 등)으로 선언하고, 도메인 타입은 `export type X = Static<typeof XSchema>`로 파생한다(`eng.typescript.guide` §1.1 도메인 타입, `_research/notes/eng-2.md` §3-5). 주석과 값이 다르면 tsc가 TS2322로 알린다.
 - 이 문서의 코드 블록은 형태를 읽기 쉽게 `interface X`로 적고 스키마 상수 타입을 `Schema<X>`로 줄여 적는다. `Schema<X>`는 실제 타입 이름이 아니다. 코드에서는 "`Static<typeof XSchema>`가 X와 같은 TypeBox 명시 타입"을 뜻한다.
 - `TUnsafe<X>`는 실제 타입이다. 브랜드 ID 스키마(§3.2)와 pi 타입 래핑 스키마(§3.3)에만 쓴다. 브랜드와 외부 인터페이스는 TypeBox 구조에서 파생할 수 없기 때문이다.
-- `Brand`, `Result`, `ok`, `err`, `Bug`, `parse`는 `@xeon/contracts` 루트 진입점의 것을 쓴다(`eng.typescript.guide` §1.2). 소스 위치는 `src/base/`이고 루트 `src/index.ts`가 이 이름만 다시 export한다(`F.readme` §3). 예상 가능한 실패는 `Result`로 돌려주고, 호출 결함에는 `Bug`를 던진다(TY-11).
+- `Brand`, `Result`, `ok`, `err`, `Bug`, `parse`는 `@fresnel/contracts` 루트 진입점의 것을 쓴다(`eng.typescript.guide` §1.2). 소스 위치는 `src/base/`이고 루트 `src/index.ts`가 이 이름만 다시 export한다(`F.readme` §3). 예상 가능한 실패는 `Result`로 돌려주고, 호출 결함에는 `Bug`를 던진다(TY-11).
 - pi 소스 줄 번호: pi-ai `types.ts`는 1.3.0 줄 번호로 적는다. 로컬 소스(`~/projects/_ref/pi-src`, 1.1.0)보다 `ToolCall` 이후가 5줄 밀린다. agent-core `types.ts`는 1.1.0과 1.3.0의 줄이 같다(`_research/notes/F-2.md` §4). agent-core 줄 번호는 §3.1.1 타입의 출발점을 가리키는 참고 인용이다.
 
 ### 3.1 pi 재사용 범위
@@ -105,7 +105,7 @@ export type {
 
 1. [제안] F 소스는 pi-ai를 `import type`·`export type`으로만 참조한다. pi-ai 런타임 코드(`stream`, `Type` 재수출 등)를 import하지 않는다. `@earendil-works/pi-agent-core`는 타입으로도 참조하지 않는다(adr.0009). TypeBox는 `typebox`에서 직접 import한다.
 2. [제안] 1.3.0의 `ToolCall.argumentsError?: string`(인자 JSON이 객체가 아닐 때 설명)은 re-export된 타입에 이미 들어 있다. 저장되는 어시스턴트 메시지에도 그대로 남는다(`_research/notes/F-2.md` §4).
-3. [제안] pi 버전을 올릴 때는 이 파일과 §3.3 스키마만 고친다. 소비 층은 `@xeon/contracts/conversation`에서만 이 이름을 가져온다(별칭 re-export). L1 이상이 pi 패키지를 직접 import해 대화 타입을 얻는 것은 `eng.dependency-rules.guide`가 금지한다 [가정: 해당 가이드가 이 규칙을 둔다].
+3. [제안] pi 버전을 올릴 때는 이 파일과 §3.3 스키마만 고친다. 소비 층은 `@fresnel/contracts/conversation`에서만 이 이름을 가져온다(별칭 re-export). L1 이상이 pi 패키지를 직접 import해 대화 타입을 얻는 것은 `eng.dependency-rules.guide`가 금지한다 [가정: 해당 가이드가 이 규칙을 둔다].
 
 #### 3.1.1 에이전트 루프 타입 [결정: adr.0009]
 
@@ -226,7 +226,7 @@ export interface IdFactory {
 }
 ```
 
-- [제안] 여덟 접두를 한 파일에 둔다. 기록 계약의 `EventId`, `EffectId`, `CheckpointId`도 여기서 정의하고 `@xeon/contracts/records`가 같은 심볼을 다시 export한다. `IdFactory` 하나로 모든 ID를 발급하려는 선택이다.
+- [제안] 여덟 접두를 한 파일에 둔다. 기록 계약의 `EventId`, `EffectId`, `CheckpointId`도 여기서 정의하고 `@fresnel/contracts/records`가 같은 심볼을 다시 export한다. `IdFactory` 하나로 모든 ID를 발급하려는 선택이다.
 - [제안] `Brand`는 `eng.typescript.guide` §1.2가 정한 루트 진입점의 것을 쓴다. 정의 위치는 `src/base/`(`eng.domain-types.guide` DT-12 순서 0, `F.readme` §3)다. 같은 패키지 안이라 `../base/index.ts`를 상대 경로로 import한다.
 - [제안] 발급 인터페이스 이름은 `IdFactory`다. `eng.typescript.guide` TY-06·TY-09가 이 이름과 `next(prefix)` 모양을 인용한다. 조정 브리프의 `IdGenerator`는 `IdFactory`로 확정한다.
 - [제안] 소문자 ULID, 접두 대문자, 접두 없는 ULID, 다른 접두는 모두 스키마 검증에서 거부된다.

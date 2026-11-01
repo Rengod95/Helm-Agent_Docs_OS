@@ -1,4 +1,4 @@
-import type { Transport } from "@xeon/contracts/wire";
+import type { Transport } from "@fresnel/contracts/wire";
 import { asFrame } from "./unsafe.ts";
 
 // 규칙을 어긴 프레임까지 보내고 받은 메시지를 도착 순서대로 모으는 시험용 클라이언트. HostConnection은 envelope를 검사해

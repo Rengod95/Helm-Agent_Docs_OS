@@ -1,17 +1,17 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import type {
   ImageContent,
   JsonObject,
   JsonValue,
   TextContent,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   BlobRefSchema,
   type BlobError,
   type BlobRef,
   type StoreService,
-} from "@xeon/contracts/records";
-import type { BoundedResult, OutputLimits } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type { BoundedResult, OutputLimits } from "@fresnel/contracts/services";
 import type { OutputTruncator, RawToolResult } from "./types.ts";
 import { isJsonObject, isJsonValue, utf8Bytes } from "./util.ts";
 

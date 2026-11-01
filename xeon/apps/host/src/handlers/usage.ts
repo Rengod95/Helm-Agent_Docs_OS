@@ -1,4 +1,4 @@
-import { wireError, type WireHandler } from "@xeon/contracts/wire";
+import { wireError, type WireHandler } from "@fresnel/contracts/wire";
 import type { Engine } from "../types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 

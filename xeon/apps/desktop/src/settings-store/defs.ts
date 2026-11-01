@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
+import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 
 // L4 데스크톱 설정 키 (L4.desktop.spec §6 표 세 행). 셸은 시작할 때 이 키들을 `desktop-settings.json`에서 읽는다(§3.6).
 // Rust 쪽은 같은 기본값과 범위를 따로 갖는다: engine.rs `EngineConfig::default`와 `from_values`,

@@ -17,16 +17,16 @@ import type { CacheMarks, CachePolicy, ContextUsageEstimate, ModelBinding } from
 
 // L1.context.spec §3.1. 구현은 core-context다. 컴팩션 내부 타입(§3.2)은 core-context 안에 둔다.
 
-export const ContextServiceName = "xeon.context" as const;
+export const ContextServiceName = "fresnel.context" as const;
 
-/** `xeon.context` 전체 모양(ContextService)의 포트 키. 제공 core-context */
+/** `fresnel.context` 전체 모양(ContextService)의 포트 키. 제공 core-context */
 export const ContextPortKey: PortKey<ContextService> = { name: ContextServiceName };
 
 export interface AssembleOptions {
   /** 이번 단계 바인딩(체크포인트 고정값). 모델 전환 경고와 창 크기에 쓴다 */
   readonly binding: ModelBinding;
   readonly contextWindow: number;
-  /** xeon.models가 해석 때 낸 정책 */
+  /** fresnel.models가 해석 때 낸 정책 */
   readonly cachePolicy: CachePolicy;
   /** 이번 단계 도구 집합. core-tools가 orderTools로 정렬해 넘긴다 */
   readonly tools: readonly OrderedTool[];
@@ -177,7 +177,7 @@ export interface ContextService {
   ): Promise<Result<CompactOutcome, ContextError>>;
   /** 임계 검사. 모델 호출 없이 계산한다 */
   shouldCompact(threadId: ThreadId, leaf: EventId, binding: ModelBinding): Promise<CompactCheck>;
-  /** 메시지 배열의 토큰 추정. xeon.models TokenEstimator에 위임한다 */
+  /** 메시지 배열의 토큰 추정. fresnel.models TokenEstimator에 위임한다 */
   estimate(messages: readonly Message[]): ContextUsageEstimate;
   /** agent-core AgentLoopConfig.convertToLlm에 넣는 변환. 던지지 않는다 */
   convertToLlm(messages: readonly AgentMessage[]): Message[];

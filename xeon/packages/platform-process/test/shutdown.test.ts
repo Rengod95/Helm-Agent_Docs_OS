@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ShutdownReason } from "@xeon/contracts/services";
+import type { ShutdownReason } from "@fresnel/contracts/services";
 import { createProcessShutdown } from "../src/index.ts";
 import { flushMicrotasks, manualClock } from "./support/clock.ts";
 import { exitRecorder, memoryLogger, rejectionOf } from "./support/fakes.ts";

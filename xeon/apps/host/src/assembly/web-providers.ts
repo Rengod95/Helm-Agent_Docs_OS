@@ -1,4 +1,4 @@
-import { describeWebSettings, readWebSettings, type WebRuntime } from "@xeon/cap-web";
+import { describeWebSettings, readWebSettings, type WebRuntime } from "@fresnel/cap-web";
 import type { WebPort } from "../types.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Api, Model } from "@earendil-works/pi-ai";
-import type { CacheMarks, CachePolicy, Context } from "@xeon/contracts/services";
+import type { CacheMarks, CachePolicy, Context } from "@fresnel/contracts/services";
 import { applyCacheMarks, buildCachePolicy, withRetention } from "../src/cache-policy.ts";
 import { t, tape } from "../src/testing/index.ts";
 import { createHarness } from "./support/harness.ts";

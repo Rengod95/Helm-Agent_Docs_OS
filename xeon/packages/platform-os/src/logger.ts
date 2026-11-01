@@ -1,8 +1,14 @@
-import { attempt, type Clock, type LogFields, type Logger, type LogLevel } from "@xeon/contracts";
+import {
+  attempt,
+  type Clock,
+  type LogFields,
+  type Logger,
+  type LogLevel,
+} from "@fresnel/contracts";
 
 /**
  * 마스킹 함수. 조립 루트가 platform-secrets의 마스킹 기능을 이 자리에 연결한다. platform-os는 platform-secrets를
- * import하지 않는다. 연결 예(apps/host, xeon.secrets가 먼저 등록된 뒤):
+ * import하지 않는다. 연결 예(apps/host, fresnel.secrets가 먼저 등록된 뒤):
  *
  *     logRedact: (line) => secretService.redactor.mask(line).text
  *

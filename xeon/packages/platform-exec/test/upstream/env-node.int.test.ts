@@ -4,12 +4,12 @@ import { access, chmod, type FileHandle, open, realpath, symlink } from "node:fs
 import { homedir, tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 // FRESNEL-PATCH: P15
-import { attempt, attemptAsync, repeatAsync } from "@xeon/contracts";
+import { attempt, attemptAsync, repeatAsync } from "@fresnel/contracts";
 import { pathToFileURL } from "node:url";
 // FRESNEL-PATCH: P4
 import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 // FRESNEL-PATCH: P5
-import type { CancelScope } from "@xeon/contracts/services";
+import type { CancelScope } from "@fresnel/contracts/services";
 // FRESNEL-PATCH: P3
 import { createWin32Provider } from "../../src/providers/win32.ts";
 import {

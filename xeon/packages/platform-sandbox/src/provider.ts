@@ -1,4 +1,4 @@
-import type { OsDirs, ProtectedPathEntry, SandboxPlatform } from "@xeon/contracts/services";
+import type { OsDirs, ProtectedPathEntry, SandboxPlatform } from "@fresnel/contracts/services";
 
 // L0.sandbox.spec §3.5. OS 분기는 select.ts가 고르고, 구현은 providers/*다(DR-13).
 

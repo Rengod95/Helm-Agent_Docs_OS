@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
-import type { PortKey } from "@xeon/contracts/extensions";
-import type { StoreService } from "@xeon/contracts/records";
-import { createTestHost } from "@xeon/ext-host/testing";
+import { ok } from "@fresnel/contracts";
+import type { PortKey } from "@fresnel/contracts/extensions";
+import type { StoreService } from "@fresnel/contracts/records";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import {
   AGENTS_RULE_SOURCE,
   AgentServicePortKey,
@@ -21,13 +21,13 @@ import { EXPLORER, HOLDER, NOOP_LOG } from "./support/harness.ts";
 import { fixedIdFactory } from "./support/ids.ts";
 
 // F의 서비스 전체 모양 키 대신 이 패키지가 쓰는 부분형 키를 같은 이름으로 만든다(대역이 전체 모양을 채우지 않는다)
-const SESSION: PortKey<AgentsSession> = { name: "xeon.session" };
-const TASKS: PortKey<AgentsTasks> = { name: "xeon.tasks" };
-const TOOLS: PortKey<AgentsTools> = { name: "xeon.tools" };
-const LOOP: PortKey<AgentsLoop> = { name: "xeon.loop" };
-const STORE: PortKey<Pick<StoreService, "leases">> = { name: "xeon.store" };
+const SESSION: PortKey<AgentsSession> = { name: "fresnel.session" };
+const TASKS: PortKey<AgentsTasks> = { name: "fresnel.tasks" };
+const TOOLS: PortKey<AgentsTools> = { name: "fresnel.tools" };
+const LOOP: PortKey<AgentsLoop> = { name: "fresnel.loop" };
+const STORE: PortKey<Pick<StoreService, "leases">> = { name: "fresnel.store" };
 
-test("the plugin provides xeon.agents, registers the agent tool and the deny rules, and runs a spawn end to end", async () => {
+test("the plugin provides fresnel.agents, registers the agent tool and the deny rules, and runs a spawn end to end", async () => {
   const ids = fixedIdFactory();
   const session = fakeSession(ids);
   const tasks = fakeTasks({ producer: session.producer("core.tasks"), ids });

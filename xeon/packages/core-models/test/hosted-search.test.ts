@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { HostedSearchRequest } from "@xeon/contracts/services";
+import type { HostedSearchRequest } from "@fresnel/contracts/services";
 import { createStreamAccumulator, type AccumulatedMessage } from "../src/anthropic-stream.ts";
 import {
   decodeContinuation,
@@ -7,7 +7,7 @@ import {
   HOSTED_SEARCH_THREAD,
 } from "../src/hosted-search.ts";
 import { tape, type ModelTape } from "../src/testing/index.ts";
-import { flushMicrotasks } from "@xeon/ext-host/testing";
+import { flushMicrotasks } from "@fresnel/ext-host/testing";
 import { searchEvents, type SearchEventsInput } from "./support/anthropic-events.ts";
 import { spyDispatcher } from "./support/dispatcher.ts";
 import { createHarness, FAKE_KEY, type Harness } from "./support/harness.ts";

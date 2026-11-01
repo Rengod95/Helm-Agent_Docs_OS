@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import { StepCheckpointSchema } from "@xeon/contracts/records";
-import type { ExtensionUnit } from "@xeon/ext-host";
+import { parse } from "@fresnel/contracts";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import { StepCheckpointSchema } from "@fresnel/contracts/records";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 import { resolveModel, toolRunContext } from "../src/loop/turn-run.ts";
 import { createHarness } from "./support/harness.ts";
 import { createRig } from "./support/loop-rig.ts";

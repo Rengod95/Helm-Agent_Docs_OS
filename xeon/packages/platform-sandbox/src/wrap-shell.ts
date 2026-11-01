@@ -6,7 +6,7 @@ import {
   type Logger,
   type RandomSource,
   type Result,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import {
   ExecutionError,
   type CancelScope,
@@ -16,7 +16,7 @@ import {
   type Shell,
   type ShellExecOptions,
   type ShellExecResult,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { EffectivePolicy, SrtTools } from "./policy.ts";
 import { toSrtFileConfig, validationCandidate } from "./policy.ts";
 import type { SandboxProvider } from "./provider.ts";

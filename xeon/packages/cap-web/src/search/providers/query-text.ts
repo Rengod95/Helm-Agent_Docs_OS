@@ -1,4 +1,4 @@
-import type { ProviderSearchRequest } from "@xeon/contracts/capabilities";
+import type { ProviderSearchRequest } from "@fresnel/contracts/capabilities";
 
 // provider에 보낼 검색어 한 줄. 앞단이 푼 지시어(`ProviderSearchRequest.directives`)를 검색 엔진이 흔히 알아듣는 연산자로 되돌린다.
 // 연산자는 결과를 줄이는 시도일 뿐이다. 네이티브 적용으로 알리지 않은 차원은 앞단이 결과에 다시 적용한다(L2.web.spec §4.8.5).

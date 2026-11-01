@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 
 /** 프로세스 그룹 id에 속한 프로세스 수. `ps -A -o pgid=` 출력에서 센다(macOS·Linux 공통) */
 export function groupProcessCount(pgid: number): number {

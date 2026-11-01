@@ -1,5 +1,5 @@
 // FRESNEL-PATCH: P2
-import type { ShellOutputSkip } from "@xeon/contracts/services";
+import type { ShellOutputSkip } from "@fresnel/contracts/services";
 
 // FRESNEL-PATCH: P3
 /** UTF-8 byte length. The output buffer and the read/ls bounds count bytes the same way. */

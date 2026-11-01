@@ -1,4 +1,4 @@
-import { attemptAsync, eachAsync, err, ok, type Result } from "@xeon/contracts";
+import { attemptAsync, eachAsync, err, ok, type Result } from "@fresnel/contracts";
 import {
   WebBrowse,
   type BrowseActInput,
@@ -17,8 +17,8 @@ import {
   type CapabilityApi,
   type Cost,
   type WebProviderFallback,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { firstUseWarnings } from "../cache/notices.ts";
 import { buildMeta, NO_COST } from "../contract/meta.ts";
 import { computeCost } from "../cost/meter.ts";

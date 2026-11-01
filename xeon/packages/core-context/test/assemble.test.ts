@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { EventId, Message, SystemMessage } from "@xeon/contracts/conversation";
+import type { EventId, Message, SystemMessage } from "@fresnel/contracts/conversation";
 import { convertToLlm } from "../src/convert.ts";
 import {
   assembleOptions,

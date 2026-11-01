@@ -1,4 +1,4 @@
-import { assertNever, type Clock } from "@xeon/contracts";
+import { assertNever, type Clock } from "@fresnel/contracts";
 import type {
   AgentMessage,
   TurnOrigin,
@@ -9,15 +9,15 @@ import type {
   ItemRecord,
   ThreadId,
   TurnId,
-} from "@xeon/contracts/conversation";
-import type { LoopTurnRequest, PostContent } from "@xeon/contracts/extensions";
-import type { CommitRequest, StampedDraft } from "@xeon/contracts/records";
+} from "@fresnel/contracts/conversation";
+import type { LoopTurnRequest, PostContent } from "@fresnel/contracts/extensions";
+import type { CommitRequest, StampedDraft } from "@fresnel/contracts/records";
 import type {
   ChildTurnRequest,
   InputSource,
   QueuedInput,
   TaskService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { commitKeys, placedMessageOf } from "./commits.ts";
 import type { Drafter } from "./drafts.ts";
 

@@ -1,4 +1,4 @@
-import type { BeforeAgentStartPatch } from "@xeon/contracts/extensions";
+import type { BeforeAgentStartPatch } from "@fresnel/contracts/extensions";
 import { lensBlockFor, renderLensBlock } from "./prompts.ts";
 import { extractTerms, openTally, type TallyStore } from "./signals.ts";
 import type { HelmState } from "./state.ts";

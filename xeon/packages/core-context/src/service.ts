@@ -1,14 +1,14 @@
-import { ok, type Logger, type Result } from "@xeon/contracts";
-import type { IdFactory, Message, ThreadId } from "@xeon/contracts/conversation";
-import type { ProducerHandle, SessionService } from "@xeon/contracts/records";
+import { ok, type Logger, type Result } from "@fresnel/contracts";
+import type { IdFactory, Message, ThreadId } from "@fresnel/contracts/conversation";
+import type { ProducerHandle, SessionService } from "@fresnel/contracts/records";
 import type {
   CompactCheck,
   CompactOutcome,
   ContextError,
   ContextService,
   ModelService,
-} from "@xeon/contracts/services";
-import type { ExtHost } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import type { ExtHost } from "@fresnel/ext-host";
 import { assembleContext } from "./assemble.ts";
 import {
   effectiveMessages,

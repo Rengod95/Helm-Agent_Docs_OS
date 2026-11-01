@@ -10,7 +10,7 @@ import {
   type TString,
   type TUnion,
 } from "typebox";
-import { err, ok, parse, parseJson, repeatAsync, type Result } from "@xeon/contracts";
+import { err, ok, parse, parseJson, repeatAsync, type Result } from "@fresnel/contracts";
 import type {
   AssistantMessage,
   Context,
@@ -18,8 +18,8 @@ import type {
   ThreadId,
   TurnId,
   Usage,
-} from "@xeon/contracts/conversation";
-import type { ModelRole, ModelService } from "@xeon/contracts/services";
+} from "@fresnel/contracts/conversation";
+import type { ModelRole, ModelService } from "@fresnel/contracts/services";
 
 /** 이 호출이 쓰는 ModelService의 부분 */
 export type StructuredModels = Pick<ModelService, "resolve" | "complete">;

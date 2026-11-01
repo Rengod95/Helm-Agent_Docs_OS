@@ -1,4 +1,4 @@
-import { t } from "@xeon/client/i18n";
+import { t } from "@fresnel/client/i18n";
 import {
   assertNever,
   attempt,
@@ -9,9 +9,9 @@ import {
   ok,
   parse,
   type Result,
-} from "@xeon/contracts";
-import { ThreadIdSchema, TurnCompletedPayloadSchema } from "@xeon/contracts/conversation";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts";
+import { ThreadIdSchema, TurnCompletedPayloadSchema } from "@fresnel/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   StoreIdSchema,
   WireError,
@@ -21,7 +21,7 @@ import {
   type JsonRpcMessage,
   type StreamPosition,
   type TurnResumeResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { HostClientError } from "../host-client.ts";
 import type { ChatTarget } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";

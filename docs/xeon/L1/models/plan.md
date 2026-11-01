@@ -12,19 +12,19 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 
 패키지 둘이다. 둘 다 스캐폴드 상태이고(`package.json`, `src/index.ts`, `test/smoke.test.ts`), 이 문서는 계획만 둔다. 코드는 수정하지 않는다.
 
-- `xeon/packages/core-models`: `xeon.layer = "L1"`, `xeon.domain = "models"`.
-- `xeon/plugins/provider-anthropic-oauth`: `xeon.layer = "L1"`, `xeon.domain = "provider-anthropic-oauth"`, `private: true`.
+- `xeon/packages/core-models`: `fresnel.layer = "L1"`, `fresnel.domain = "models"`.
+- `xeon/plugins/provider-anthropic-oauth`: `fresnel.layer = "L1"`, `fresnel.domain = "provider-anthropic-oauth"`, `private: true`.
 
 ## 1. 목표와 마일스톤 배치
 
-목표: `L1.models.spec`의 `xeon.models`를 구현한다. M1 스모크의 한 턴이 테이프 모델로 재생되고, 비밀 참조가 요청 직전에만 해석되며, 위장 플러그인 없이 core-models 테스트가 통과해야 한다.
+목표: `L1.models.spec`의 `fresnel.models`를 구현한다. M1 스모크의 한 턴이 테이프 모델로 재생되고, 비밀 참조가 요청 직전에만 해석되며, 위장 플러그인 없이 core-models 테스트가 통과해야 한다.
 
 마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 능력과 Helm, M3는 첫 공개 릴리즈 후보(학습 그룹, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
-| M0 | core-models 코드 없음. 선행: contracts에 `L1.models.spec` §3.2·§3.3의 F 요청 타입(`ModelRole`, `ModelRef`, `parseModelRef`, `ModelBinding`, `CachePolicy`, 그리고 `@xeon/contracts/services`의 `ModelService`·`ModelServiceName`)이 들어가야 한다. platform-secrets의 `SecretService` 인터페이스가 F에 있어야 한다 | `_research/foundation-plan.md` §5 P4 M0 |
-| M1 | pi-ai 모델 1개 호출(`stream`, `complete`, `streamFn`), 사용량 합산(중단 응답 포함), 모델 테이프 가짜(`@xeon/core-models/testing`), 비밀 참조 해석 연결(`secretBackedCredentialStore`), `l1.models.default`·`providers`·`retry` 설정, 지점 `request.provider.before` | `_research/foundation-plan.md` §5 P4 M1 "pi-ai 모델 1개", `eng.testing.guide` TS-04 |
+| M0 | core-models 코드 없음. 선행: contracts에 `L1.models.spec` §3.2·§3.3의 F 요청 타입(`ModelRole`, `ModelRef`, `parseModelRef`, `ModelBinding`, `CachePolicy`, 그리고 `@fresnel/contracts/services`의 `ModelService`·`ModelServiceName`)이 들어가야 한다. platform-secrets의 `SecretService` 인터페이스가 F에 있어야 한다 | `_research/foundation-plan.md` §5 P4 M0 |
+| M1 | pi-ai 모델 1개 호출(`stream`, `complete`, `streamFn`), 사용량 합산(중단 응답 포함), 모델 테이프 가짜(`@fresnel/core-models/testing`), 비밀 참조 해석 연결(`secretBackedCredentialStore`), `l1.models.default`·`providers`·`retry` 설정, 지점 `request.provider.before` | `_research/foundation-plan.md` §5 P4 M1 "pi-ai 모델 1개", `eng.testing.guide` TS-04 |
 | M2 | 역할 표와 라우팅(6역할, 그룹 덮어쓰기), 추론 레벨·레벨별 토큰 예산 설정과 체크포인트 고정, 캐시 정책 객체와 표식 적용, provider 등록 API, 나머지 지점 5개, 허용·차단 목록. 별도 작업 줄기: 위장 provider 플러그인(방안 A 스파이크, 회귀 테스트, 배포 제외 CI 검사) | 계획 v2 L1-c 1차 행, `L1.agents.plan` M2(서브에이전트 역할) |
 | M3 | 구조화 출력 최소형(목표 판정용, 재시도 루프와 횟수 상한), 레이트 리밋과 계정 회전(설정은 M3 설정 화면) | `L1.models.spec` §3.10·§4.8, `L1.agents.spec` §4.8, review.decisions-2 U-21 |
 | 2차(M3 이후) | 폴백 체인, 구조화 출력 전체 | 계획 v2 L1-c 2차 행 |
@@ -34,11 +34,11 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 
 ```
 xeon/packages/core-models/
-  package.json                 # dependencies: @xeon/contracts, @earendil-works/pi-ai 1.3.0(정확), typebox(catalog)
+  package.json                 # dependencies: @fresnel/contracts, @earendil-works/pi-ai 1.3.0(정확), typebox(catalog)
                                # exports: ".": src/index.ts, "./testing": src/testing/index.ts
   src/
     index.ts                   # plugin만 export. 다른 L1은 이 패키지를 import하지 않는다(DR-02)
-    plugin.ts                  # 플러그인 정의: xeon.models 제공, inject [xeon.secrets, xeon.ext], 설정 등록 (M-1, M-7)
+    plugin.ts                  # 플러그인 정의: fresnel.models 제공, inject [fresnel.secrets, fresnel.ext], 설정 등록 (M-1, M-7)
     service.ts                 # ModelService 구현: resolve, rebind, stream, complete, streamFn, list, classify (M-1)
     routing.ts                 # 설정 스냅샷 → RoutingTable, 카탈로그 조회 연결, 바인딩 변경 감지(model_select) (M-2)
     role-table.ts              # 순수 해석기 resolveRole, ROLE_FALLBACK, 패턴 일치 (M-2)
@@ -69,11 +69,11 @@ xeon/packages/core-models/
     tapes/*.tape.jsonl
 
 xeon/plugins/provider-anthropic-oauth/
-  package.json                 # dependencies: @xeon/contracts, @earendil-works/pi-ai 1.3.0(정확), @anthropic-ai/sdk(pi-ai가 쓰는 0.129.0과 같은 판)
+  package.json                 # dependencies: @fresnel/contracts, @earendil-works/pi-ai 1.3.0(정확), @anthropic-ai/sdk(pi-ai가 쓰는 0.129.0과 같은 판)
                                # core-models는 의존하지 않는다(L1.models.spec §3.11)
   src/
     index.ts                   # manifest, setup export
-    plugin.ts                  # manifest(defaultEnabled false), setup: acknowledgeRisk 확인 → 주입받은 xeon.models.addProvider(F ProviderDef) (M-8)
+    plugin.ts                  # manifest(defaultEnabled false), setup: acknowledgeRisk 확인 → 주입받은 fresnel.models.addProvider(F ProviderDef) (M-8)
     wrapper.ts                 # ProviderStreams 래퍼, SDK 클라이언트 생성, streamSimple 복제 (M-8)
     payload-rewrite.ts         # onPayload: identity, beta 조건 분기, 도구명 세 곳 (M-8)
     tool-name-map.ts           # CC 도구명 17개 표, claudeCodeVersion 고정 (M-8)
@@ -111,7 +111,7 @@ xeon/plugins/provider-anthropic-oauth/
 | M-15 | 테이프 녹화기(M2 마감 G4-06, 결정 D-e): `scripts/record-tape.ts <scenario> <out>`와 `testing/tape-recorder.ts`, `testing/tape-wire.ts`. 규칙은 아래 "녹화기" 절 | M-1 | 중 | M2 마감 |
 
 - 구현 상태(M2, m2/l1c): M-2(역할 표 해석기, 허용·차단 목록), M-4(provider 등록부), M-5(캐시 정책 객체와 표식 적용), M-6의 `sk-ant-oat` 가드, M-7의 M2 키 11개를 구현했다. 설정 읽기는 `modelsSettingsOf`가 조립 루트의 `ModelsSettingsSource`를 대신한다. 나머지 지점 5개와 비밀 헤더 가림, 바인딩 변경 감지(M-11)도 구현했다. M1 고정값(추론 레벨 `medium`, 캐시 보존 `short`, 토큰 예산 null)은 설정 `l1.models.thinkingLevel`, `cacheRetention`, `thinkingBudgets`를 읽는 코드로 바꿨다(`review.open-issues` M-07의 core-models 몫). `HostedSearchPort`는 L1C.3에서 구현했다(spec §3.12).
-- 녹화기(M-15) 규칙. 형식은 `xeon.model-tape.v1`을 그대로 쓰고, 차례(`ModelTapeTurn`)에 선택 필드 `wire`(`TapeWire`)를 더했다.
+- 녹화기(M-15) 규칙. 형식은 `fresnel.model-tape.v1`을 그대로 쓰고, 차례(`ModelTapeTurn`)에 선택 필드 `wire`(`TapeWire`)를 더했다.
   - 주입 지점은 pi-ai 요청 옵션 `fetch`(1.3.0 `ProviderRequestOptions.fetch`)이고 전역 fetch는 바꾸지 않는다. 1.3.0 dist에서 확인한 결과, `anthropic-messages`, `openai-completions`, `openai-responses`, `azure-openai-responses`, `openai-codex-responses`, `mistral-conversations`, `pi-messages`는 `fetch`를 쓴다. `google-generative-ai`와 `google-vertex`는 사용자 정의 fetch를 오류로 거부하고 `bedrock`은 읽지 않는다. 이 셋은 `wire` 재생 대상이 아니다. 첫 시나리오(`hello-text`, `read-tool-call`)는 `anthropic` provider의 `claude-haiku-5-5`를 추론 수준 `xhigh`로 쓴다(2026-10-25 사용자 지시). 출력 상한 16000은 추론 토큰을 포함한다.
   - `wire`에는 메서드, 경로(쿼리·호스트 없음), 정규화한 요청 본문의 sha256(`requestHash`), 요청 요약(모델, 메시지 수, 도구 이름), 상태 코드, 허용 목록 응답 헤더(`content-type`, `request-id`, `x-request-id`, `retry-after`), 원본 SSE 덩어리 배열(`t`는 요청 후 ms, `data`는 텍스트)을 담는다. 요청 헤더는 저장하지 않는다. `response`는 같은 교환의 파싱 결과(`message`)이며, `tapeFetch`로 재생한 결과와 같아야 한다(`wire_replay_matches_recorded_response`).
   - 녹화 요청에는 `accept-encoding: identity`를 강제하고, 응답이 다른 `content-encoding`을 달면 녹화를 멈춘다.
@@ -131,7 +131,7 @@ xeon/plugins/provider-anthropic-oauth/
 | `usage-totals.ts` `combineUsage` | 소형 포크 후보 | `~/projects/_ref/pi-src/packages/coding-agent/src/core/usage-totals.ts:31`(커밋 `cdaf6c2`) | F `Usage`로 타입 교체. 15줄 안팎이면 자체 작성 쪽이 낫다(M-3에서 판단) |
 | 회귀 테스트 2개 | 복사 | `~/projects/_ref/pi-src/packages/ai/test/anthropic-oauth.test.ts`(299줄), `anthropic-tool-name-normalization.test.ts`(204줄) | import 경로를 플러그인 래퍼로 바꾼다. 실 API 테스트는 키가 없으면 건너뛴다 |
 | `anthropic-messages.ts` | 방안 B를 고를 때만 포크 | `~/projects/_ref/pi-src/packages/ai/src/api/anthropic-messages.ts`(pi 커밋 `cdaf6c2`, 1639줄) | 1.3.0 dist의 재시도 루프(`dist:434-470`) 차이를 반영한다. 플러그인 안 `src/anthropic-messages-cc.ts`로 둔다 |
-| 테이프 형식 | 자체 | `eng.testing.guide` TS-04 `xeon.model-tape.v1` | `role` 값은 `ModelRole` 6종 |
+| 테이프 형식 | 자체 | `eng.testing.guide` TS-04 `fresnel.model-tape.v1` | `role` 값은 `ModelRole` 6종 |
 
 - 읽기 자료(코드를 가져오지 않음): omp `usage-limit.ts`, `credential-pin.ts`, `session/retry-fallback-chains.ts`(AgentSession 결합).
 
@@ -180,7 +180,7 @@ xeon/plugins/provider-anthropic-oauth/
 2. `plugins/provider-anthropic-oauth`를 지운 작업 트리에서 `bun test`(core-models)가 통과한다.
 3. M1 스모크(`apps/cli` scenario 테스트)의 한 턴이 테이프 모델로 재생되고, 재개 뒤 같은 바인딩으로 요청이 나간다(`L1.loop.plan` 스모크와 같은 테스트).
 4. 배포 제외 검사(M-10)가 CI L1 job과 `just verify`에서 통과한다.
-5. core-models의 import 목록에 `cordis`, 다른 `@xeon/core-*`, `@earendil-works/pi-agent-core`가 없다. 플러그인의 import 목록에 `@xeon/core-*`가 없고 F, X, L0, pi-ai·Anthropic SDK만 있다(check-layers, DR-07, DR-09, review.decisions-2 U-16).
+5. core-models의 import 목록에 `cordis`, 다른 `@fresnel/core-*`, `@earendil-works/pi-agent-core`가 없다. 플러그인의 import 목록에 `@fresnel/core-*`가 없고 F, X, L0, pi-ai·Anthropic SDK만 있다(check-layers, DR-07, DR-09, review.decisions-2 U-16).
 6. `cd xeon && just verify` 종료코드 0.
 
 ## 7. 위험과 대응

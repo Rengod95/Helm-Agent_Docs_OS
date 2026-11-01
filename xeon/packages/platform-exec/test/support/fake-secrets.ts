@@ -1,6 +1,6 @@
-import { err, ok } from "@xeon/contracts";
-import type { SecretHandle } from "@xeon/contracts/capabilities";
-import type { SecretLease, SecretService, UseCtx } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { SecretHandle } from "@fresnel/contracts/capabilities";
+import type { SecretLease, SecretService, UseCtx } from "@fresnel/contracts/services";
 import type { SecretEnvSource } from "../../src/secret-env.ts";
 
 interface FakeSecretCall {

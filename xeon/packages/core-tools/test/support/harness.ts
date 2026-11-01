@@ -6,8 +6,8 @@ import {
   type ServiceKey,
   type CallContext,
   type CallOptions,
-} from "@xeon/contracts/capabilities";
-import { Bug, type Clock, type Result, type Scheduler } from "@xeon/contracts";
+} from "@fresnel/contracts/capabilities";
+import { Bug, type Clock, type Result, type Scheduler } from "@fresnel/contracts";
 import type {
   AgentTool,
   AgentToolResult,
@@ -15,18 +15,18 @@ import type {
   AssistantMessage,
   JsonValue,
   ThreadId,
-} from "@xeon/contracts/conversation";
-import type { ExtensionManifest, ScopeSetup } from "@xeon/contracts/extensions";
-import type { ScopeLayer, ScopeStack } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/conversation";
+import type { ExtensionManifest, ScopeSetup } from "@fresnel/contracts/extensions";
+import type { ScopeLayer, ScopeStack } from "@fresnel/contracts/settings";
 import type {
   CallerId,
   ToolCallOutcome,
   ToolRunContext,
   ToolService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { Type } from "typebox";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
-import type { ExtensionUnit } from "@xeon/ext-host";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 import type { ToolsDeps } from "../../src/deps.ts";
 import { configReader } from "../../src/plugin.ts";
 import { createToolRuntime, type ToolRuntime } from "../../src/runtime.ts";
@@ -54,7 +54,7 @@ export interface HarnessOptions {
   readonly withTasks?: boolean;
   /** `tools` 풀 슬롯 수. 생략하면 제한이 없다 */
   readonly toolsCapacity?: number;
-  /** `xeon.secrets.check` 대역. 없으면 secretEnv를 쓰는 호출은 거부된다 */
+  /** `fresnel.secrets.check` 대역. 없으면 secretEnv를 쓰는 호출은 거부된다 */
   readonly secretChecker?: SecretChecker;
   /**
    * 무인 승인 정책. 생략하면 `deny`(비대화형 호출의 승인을 바로 거부)다: `interactive: false`를 "사람이 없다"의 약식으로 쓰는 시험이 많다.

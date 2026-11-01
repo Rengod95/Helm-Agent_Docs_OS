@@ -1,11 +1,11 @@
-import { Bug, assertNever, err, ok, parse, type Logger, type Result } from "@xeon/contracts";
-import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import { Bug, assertNever, err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
+import type { EventId, IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   EnqueueError,
   EnqueueRequest,
   EnqueueResult,
   Unsubscribe,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   InputQueuedPayloadSchema,
   type CommitPlan,
@@ -15,7 +15,7 @@ import {
   type ReadFailure,
   type StampedDraft,
   type TxView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   DrainOptions,
   EnqueueReceipt,
@@ -27,7 +27,7 @@ import type {
   PlacementSelection,
   QueuedInput,
   WithdrawReason,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { findQueuedEvent, loadQueuedInput, queuedPayloadOf, stateOfInput } from "./input-events.ts";
 import { commitWithRetry, describeError, type TasksSession } from "./session-port.ts";
 import { inputCommitKey, sourceKeyOf } from "./source-key.ts";
@@ -183,7 +183,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
           state: state.value,
         });
       }
-      // xeon-disable-next-line xeon/switch-default-never -- 거부 코드는 문자열이다. 이 모듈의 build가 정하지 않은 코드는 호출 결함이다 (eng.typescript.guide TY-14)
+      // fresnel-disable-next-line fresnel/switch-default-never -- 거부 코드는 문자열이다. 이 모듈의 build가 정하지 않은 코드는 호출 결함이다 (eng.typescript.guide TY-14)
       default:
         throw new Bug(`tasks.enqueue_rejected: unexpected reject code ${code}`);
     }

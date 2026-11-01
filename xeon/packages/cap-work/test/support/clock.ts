@@ -1,6 +1,6 @@
 // 런타임 중립 테스트 대역(eng.testing.guide TS-03, review.decisions-2 U-03). F에 testing 서브패스를 두지 않는다.
-import { Bug, type Clock, type Scheduler, type TimerHandle } from "@xeon/contracts";
-import { isId, type IdFactory, type IdPrefix } from "@xeon/contracts/conversation";
+import { Bug, type Clock, type Scheduler, type TimerHandle } from "@fresnel/contracts";
+import { isId, type IdFactory, type IdPrefix } from "@fresnel/contracts/conversation";
 
 export interface ManualClock extends Clock, Scheduler {
   now(): number;

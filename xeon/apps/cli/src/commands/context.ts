@@ -1,5 +1,5 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { JsonRpcMessage } from "@xeon/contracts/wire";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { JsonRpcMessage } from "@fresnel/contracts/wire";
 import type { GlobalOptions } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, failureOfStart, renderFailure, type Failure } from "../errors.ts";

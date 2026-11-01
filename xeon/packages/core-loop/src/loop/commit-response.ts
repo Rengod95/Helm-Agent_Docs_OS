@@ -1,5 +1,5 @@
-import { Bug, err, ok, type Result } from "@xeon/contracts";
-import type { AssistantMessage, LifecycleEvent } from "@xeon/contracts/conversation";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
+import type { AssistantMessage, LifecycleEvent } from "@fresnel/contracts/conversation";
 import { responseRequest } from "../commits.ts";
 import { guardFinalOutput } from "./guard-output.ts";
 import {

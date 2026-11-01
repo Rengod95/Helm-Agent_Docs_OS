@@ -1,5 +1,5 @@
-import { Bug, type Logger, type Result } from "@xeon/contracts";
-import type { EventId, ThreadId } from "@xeon/contracts/conversation";
+import { Bug, type Logger, type Result } from "@fresnel/contracts";
+import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   DetachedField,
   DurableEventEnvelope,
@@ -8,7 +8,7 @@ import type {
   StepCheckpoint,
   StoreDb,
   StoreService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { readCheckpoint } from "./checkpoint.ts";
 import { envelopeOfRow } from "./events.ts";
 import { readResult } from "./rows.ts";

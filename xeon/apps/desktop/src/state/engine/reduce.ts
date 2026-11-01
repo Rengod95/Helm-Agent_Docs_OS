@@ -1,7 +1,13 @@
 // src/state/engine/reduce.ts (발췌. 7절 표의 나머지 분기도 같은 모양이다)
-import { assertNever, Bug } from "@xeon/contracts";
-import type { ItemId, ItemRecord, PartDelta, ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { ThreadSummary } from "@xeon/contracts/wire";
+import { assertNever, Bug } from "@fresnel/contracts";
+import type {
+  ItemId,
+  ItemRecord,
+  PartDelta,
+  ThreadId,
+  TurnId,
+} from "@fresnel/contracts/conversation";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { Reduced as SharedReduced } from "../shared/pipeline.ts";
 import type { DurableFact, MirrorInput, VolatileFact } from "./input.ts";
 import { unknownFailureText } from "./failure-text.ts";

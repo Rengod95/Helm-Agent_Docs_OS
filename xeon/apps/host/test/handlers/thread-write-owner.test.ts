@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
-import { WireError } from "@xeon/contracts/wire";
+import { err } from "@fresnel/contracts";
+import { WireError } from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { settleUntil } from "../fixtures/clock.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";

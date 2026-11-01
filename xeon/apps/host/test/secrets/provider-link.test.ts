@@ -2,14 +2,14 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parse, type Logger } from "@xeon/contracts";
+import { parse, type Logger } from "@fresnel/contracts";
 import {
   SecretNameSchema,
   type SecretMeta,
   type SecretName,
   type SecretUsePolicy,
-} from "@xeon/contracts/capabilities";
-import type { SecretMetaPatch } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { SecretMetaPatch } from "@fresnel/contracts/services";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { createSettingsEngine, type SettingsEngine } from "../../src/assembly/settings-engine.ts";
 import {

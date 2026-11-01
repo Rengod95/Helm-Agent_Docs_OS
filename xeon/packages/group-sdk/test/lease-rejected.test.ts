@@ -1,16 +1,16 @@
 import { expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { LeaseArbiterPortKey, RecordCommitPortKey } from "@xeon/contracts/extensions";
+import { ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { LeaseArbiterPortKey, RecordCommitPortKey } from "@fresnel/contracts/extensions";
 import type {
   CommitListener,
   DurableEventDraft,
   DurableEventEnvelope,
   EventFeed,
-} from "@xeon/contracts/records";
-import type { GroupStatus } from "@xeon/contracts/services";
-import { SessionFeedPortKey, withDriveDefaults } from "@xeon/ext-host";
-import { createTestHost, memoryRecordStore, type TestHost } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/records";
+import type { GroupStatus } from "@fresnel/contracts/services";
+import { SessionFeedPortKey, withDriveDefaults } from "@fresnel/ext-host";
+import { createTestHost, memoryRecordStore, type TestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { createGroupService, defineGroup, type GroupModule } from "../src/index.ts";
 import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
@@ -85,7 +85,7 @@ function fakeFeed(t: TestHost): Feed {
 async function rig() {
   const holder = memoryDriveHolderSettings();
   const records = memoryRecordStore();
-  // 커밋 이벤트 피드는 기록 포트와 같은 서비스(xeon.session)의 멤버라 같은 플랫폼에서 함께 제공한다
+  // 커밋 이벤트 피드는 기록 포트와 같은 서비스(fresnel.session)의 멤버라 같은 플랫폼에서 함께 제공한다
   const t = await createTestHost({
     without: ["records"],
     shared: { records },

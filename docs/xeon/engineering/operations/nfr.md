@@ -124,7 +124,7 @@ binds: []
 - 클라이언트는 모르는 알림, 모르는 필드, 모르는 오류 kind를 무시하거나 일반 오류로 처리합니다 `[제안]`.
 - 저장된 이벤트는 지우지 않고 재생합니다. 필드 추가는 선택 필드로만 합니다. 필드 삭제와 의미 변경은 새 버전 변형으로 합니다(`eng.domain-types.guide` DT-09, `F.records.spec` 업캐스터).
 - DB 스키마는 마이그레이션 실행기가 올립니다(`L0.store.spec` §4.6). 미래 버전 DB는 읽기 전용입니다.
-- 외부 확장이 쓰는 SDK 가상 모듈(`@xeon/contracts`, `@xeon/group-sdk`, `typebox`)은 X 로더가 등록해 번들에 돌려줍니다(X.loading-trust.spec §4.4.6). 번들이 받는 `@xeon/group-sdk`이 호스트 쪽 인스턴스와 같은지는 `[가정]`입니다(M3-REQ-110).
+- 외부 확장이 쓰는 SDK 가상 모듈(`@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`)은 X 로더가 등록해 번들에 돌려줍니다(X.loading-trust.spec §4.4.6). 번들이 받는 `@fresnel/group-sdk`이 호스트 쪽 인스턴스와 같은지는 `[가정]`입니다(M3-REQ-110).
 
 ## 6. 다국어
 

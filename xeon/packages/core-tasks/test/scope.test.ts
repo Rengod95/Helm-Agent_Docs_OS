@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { createWorld, deferred, flush, openTurn, watch } from "./support/world.ts";
 
 test("settle_order_bottom_up", async () => {

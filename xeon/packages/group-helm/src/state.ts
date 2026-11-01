@@ -8,8 +8,8 @@ import {
   type Result,
   type SchemaProof,
   type SchemaSound,
-} from "@xeon/contracts";
-import type { ScopeApi } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts";
+import type { ScopeApi } from "@fresnel/contracts/extensions";
 import { Type, type TUnsafe } from "typebox";
 import { failureOf, type HelmFailure } from "./failures.ts";
 

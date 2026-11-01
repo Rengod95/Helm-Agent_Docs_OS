@@ -1,4 +1,4 @@
-import { Bug, rethrow, type Logger } from "@xeon/contracts";
+import { Bug, rethrow, type Logger } from "@fresnel/contracts";
 import {
   isId,
   type EventId,
@@ -9,9 +9,9 @@ import {
   type PartId,
   type ThreadId,
   type TurnId,
-} from "@xeon/contracts/conversation";
-import type { ApprovalRequestedPayload } from "@xeon/contracts/records";
-import type { StoreId, ThreadSummary } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/conversation";
+import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { StoreId, ThreadSummary } from "@fresnel/contracts/wire";
 import { createEngineStore, type EngineStore } from "../../src/state/engine/store.ts";
 import type { DurableFact, VolatileFact } from "../../src/state/engine/input.ts";
 import type { ApplyNote } from "../../src/state/engine/reduce.ts";

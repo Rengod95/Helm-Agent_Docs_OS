@@ -1,10 +1,10 @@
-import { Nullable } from "@xeon/contracts";
+import { Nullable } from "@fresnel/contracts";
 import {
   SecretRef,
   defineSettings,
   type SettingDefInput,
   type SettingGroup,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { Type, type TBoolean, type TNull, type TString, type TUnion } from "typebox";
 
 /**

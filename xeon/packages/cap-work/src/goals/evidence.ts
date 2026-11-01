@@ -1,6 +1,6 @@
-import type { Goal, WorkTask } from "@xeon/contracts/capabilities";
-import type { AgentMessage } from "@xeon/contracts/conversation";
-import type { JudgeEvidence } from "@xeon/contracts/services";
+import type { Goal, WorkTask } from "@fresnel/contracts/capabilities";
+import type { AgentMessage } from "@fresnel/contracts/conversation";
+import type { JudgeEvidence } from "@fresnel/contracts/services";
 import type { JudgmentRow } from "../projection/read.ts";
 
 // L2.work.spec §4.3.3 GoalEvidence → L1.agents JudgeInput.evidence. 판정 모델은 증거를 데이터로만 읽는다.

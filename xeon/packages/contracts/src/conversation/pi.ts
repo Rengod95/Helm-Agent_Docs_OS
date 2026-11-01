@@ -1,7 +1,7 @@
 /**
  * pi-ai 1.3.0 타입 재노출 자리(F.conversation.spec §3.1). pi-agent-core는 import하지 않는다(adr.0009).
  *
- * 타입 재노출만 둔다. 값 import·export는 0건이다. 소비 층은 `@xeon/contracts/conversation`에서만 이 이름을
+ * 타입 재노출만 둔다. 값 import·export는 0건이다. 소비 층은 `@fresnel/contracts/conversation`에서만 이 이름을
  * 가져오므로, pi 버전을 올릴 때는 이 파일과 message-schema.ts의 스키마만 고친다.
  * 원본과 같은 타입인지는 `test/conversation/pi-types.test.ts`의 항등 검사가 판정한다.
  */

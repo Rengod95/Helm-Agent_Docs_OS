@@ -1,6 +1,6 @@
-import type { Logger } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type { ProducerHandle } from "@xeon/contracts/records";
+import type { Logger } from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { ProducerHandle } from "@fresnel/contracts/records";
 import type { PlanArtifactsPort } from "./ports/artifacts.ts";
 import type { PlanApprovalsFactory } from "./ports/approvals.ts";
 import type { PermissionModePort } from "./ports/permission-mode.ts";

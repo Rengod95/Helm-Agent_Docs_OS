@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   SkillCreateInputSchema,
   SkillEditInputSchema,
@@ -19,7 +19,7 @@ import {
   type SkillWriteFileInput,
   type WritableSkillScope,
   type WriteOutcome,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type { Static, TSchema } from "typebox";
 import { isEvidenceValid } from "../approval/gate.ts";
 import type { ProposalMethod } from "../approval/proposals.ts";

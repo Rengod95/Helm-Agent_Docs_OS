@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { CommitPlan, TxView } from "@xeon/contracts/records";
+import type { CommitPlan, TxView } from "@fresnel/contracts/records";
 import { TEST_HOLDER_B } from "./support/sqlite-store.ts";
 import { CORE_PROJECTOR_VERSION } from "../src/index.ts";
 import { checkProjectionsRebuildable, expectProjectionsRebuildable } from "../src/testing/index.ts";

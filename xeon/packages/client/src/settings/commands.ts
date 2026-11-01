@@ -1,7 +1,7 @@
-import { assertNever } from "@xeon/contracts";
-import { COMMAND_NAME_PATTERN } from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
-import type { CommandListResult, CommandRunResult } from "@xeon/contracts/wire";
+import { assertNever } from "@fresnel/contracts";
+import { COMMAND_NAME_PATTERN } from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { CommandListResult, CommandRunResult } from "@fresnel/contracts/wire";
 
 // 슬래시 명령 view-model(G1-01, L4.host-service.spec HS-72). 입력창이 `/`로 시작하는 줄을 `command.run`에 보내고,
 // `command.list`를 목록·자동완성으로 보인다. 순수 함수만 둔다: 호출과 화면은 앱이 맡는다.

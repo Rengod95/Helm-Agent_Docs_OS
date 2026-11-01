@@ -1,10 +1,10 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import type {
   CloseInfo,
   InProcessTransportFactory,
   Transport,
   Unsubscribe,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 
 // L0.process.spec §4.1 in-process, L0.process.plan PR-01.
 // client.send(m)는 queueMicrotask로 상대 onMessage에 전달한다(같은 JS 턴 안 재진입 방지).

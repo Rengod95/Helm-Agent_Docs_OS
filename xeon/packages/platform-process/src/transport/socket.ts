@@ -1,7 +1,7 @@
 import { chmodSync } from "node:fs";
 import { connect, createServer, type Server, type Socket } from "node:net";
-import { err, ok, attempt, type Logger, type Result } from "@xeon/contracts";
-import { createStdioTransportWith, type Transport } from "@xeon/contracts/wire";
+import { err, ok, attempt, type Logger, type Result } from "@fresnel/contracts";
+import { createStdioTransportWith, type Transport } from "@fresnel/contracts/wire";
 
 // L0.process.spec §3.2 transport/socket.ts, §4.1 socket, §4.4.5. 소켓 위의 JSON Lines 전송. 프레임과 한도 검사는 stdio 전송과 같은 구현이다.
 // - unix: 소켓 파일을 0600으로 만든다. 디렉터리 0700과 소유자 검사는 L0.os가 정한 runtimeDir이 맡는다. 토큰을 요구하지 않는다.

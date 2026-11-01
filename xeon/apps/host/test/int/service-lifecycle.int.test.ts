@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "bun:test";
-import { createRegistrationStore } from "@xeon/platform-process";
+import { createRegistrationStore } from "@fresnel/platform-process";
 import { createHostConnection } from "../../src/client.ts";
 import {
   connectServiceTransport,

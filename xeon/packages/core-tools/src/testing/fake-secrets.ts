@@ -1,6 +1,6 @@
-import { err, ok } from "@xeon/contracts";
-import type { RedactionHit } from "@xeon/contracts/capabilities";
-import type { Redactor } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { RedactionHit } from "@fresnel/contracts/capabilities";
+import type { Redactor } from "@fresnel/contracts/services";
 
 // Redactor 대역(L1.tools.plan 테스트 tool_result_masked_before_commit_and_points). 알려진 값을 [REDACTED:이름]으로 바꾼다.
 

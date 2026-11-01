@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { canonicalJson } from "@xeon/contracts";
-import { toJsonValue, type JsonValue } from "@xeon/contracts/conversation";
-import type { DurableEventDraft } from "@xeon/contracts/records";
+import { canonicalJson } from "@fresnel/contracts";
+import { toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
 import {
   createTestHost,
   memoryInputQueue,
@@ -9,9 +9,9 @@ import {
   type MemoryInputQueue,
   type MemoryLoopPort,
   type TestHost,
-} from "@xeon/ext-host/testing";
-import type { GroupModule } from "@xeon/group-sdk";
-import { replayDrive, type ReplayHarness } from "@xeon/group-sdk/testing";
+} from "@fresnel/ext-host/testing";
+import type { GroupModule } from "@fresnel/group-sdk";
+import { replayDrive, type ReplayHarness } from "@fresnel/group-sdk/testing";
 import group from "../src/index.ts";
 
 // 재생 하니스: 기준 실행을 끝까지 돌리고, 모든 커밋 지점에서 끊어 앞부분을 복원한 뒤 다시 돌린다.

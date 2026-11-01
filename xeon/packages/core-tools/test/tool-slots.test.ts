@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { AgentTool } from "@xeon/contracts/conversation";
+import type { AgentTool } from "@fresnel/contracts/conversation";
 import {
   callTool,
   createHarness,

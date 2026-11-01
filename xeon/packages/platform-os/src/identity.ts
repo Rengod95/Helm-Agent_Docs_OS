@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { assertNever, err, ok, type Logger, type Result } from "@xeon/contracts";
-import type { FingerprintError, OsPlatform } from "@xeon/contracts/services";
+import { assertNever, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import type { FingerprintError, OsPlatform } from "@fresnel/contracts/services";
 import type { FingerprintSource, MachineIdSource } from "./select.ts";
 import type { RunCommand, RunCommandSync } from "./proc.ts";
 

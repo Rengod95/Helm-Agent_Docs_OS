@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 
 // 엔진 로그 줄을 받는 늦은 연결 싱크. L0.os가 시작되기 전에는 로그 파일 위치(OsDirs.state)를 모르므로 줄을 모아 두었다가
 // attach 때 파일에 쓴다. stdio 호스트의 stdout에는 계약 메시지 외의 바이트를 쓰지 않는다(HS-33).

@@ -1,12 +1,16 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
-import { SecretScopeSchema, type SecretName, type SecretScope } from "@xeon/contracts/capabilities";
-import type { SecretEntryAction, SecretValueSource } from "@xeon/contracts/services";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
+import {
+  SecretScopeSchema,
+  type SecretName,
+  type SecretScope,
+} from "@fresnel/contracts/capabilities";
+import type { SecretEntryAction, SecretValueSource } from "@fresnel/contracts/services";
 import type {
   SecretListEntry,
   SecretReferencesResult,
   SecretTestResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { SecretCommand, SecretMetaFlags } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { renderFailure, type Failure } from "../errors.ts";

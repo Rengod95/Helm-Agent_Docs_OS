@@ -1,5 +1,5 @@
-import { assertNever, type Result } from "@xeon/contracts";
-import type { SecretName } from "@xeon/contracts/capabilities";
+import { assertNever, type Result } from "@fresnel/contracts";
+import type { SecretName } from "@fresnel/contracts/capabilities";
 import { t } from "../i18n/index.ts";
 
 // 모델 키 값 입력(L4.desktop.spec §4.14.1). 값은 입력란을 떠나는 순간 `take()`가 입력란을 비우고, 그 뒤로는 바이트 배열

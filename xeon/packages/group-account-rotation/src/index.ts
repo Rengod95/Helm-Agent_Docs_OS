@@ -1,4 +1,4 @@
-import { defineGroup, type GroupModule } from "@xeon/group-sdk";
+import { defineGroup, type GroupModule } from "@fresnel/group-sdk";
 import { accountRotationManifest } from "./manifest.ts";
 import { accountRotationSettings } from "./settings.ts";
 

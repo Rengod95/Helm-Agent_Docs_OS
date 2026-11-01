@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 
 // L2.knowledge.plan §2 fs/port.ts. 운영 구현(node-fs.ts)과 시험 가짜(test/support/memory-fs.ts)를 바꿔 끼우는 파일 포트다.
 // 경로는 모두 절대 경로다. 실패는 던지지 않고 FsError 값으로 돌려준다(TY-24).

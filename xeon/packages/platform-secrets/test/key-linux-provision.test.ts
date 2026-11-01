@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, stat, writeFile } from "node:fs/promises";
 import { identityToRecipient } from "age-encryption";
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import { createLinuxKeyProvider, type LinuxKeyExec } from "../src/key/linux.ts";
 import type { ProcessRunner, RunRequest } from "../src/providers/process.ts";
 import { selectKeyProvider, type KeySelectInput } from "../src/select.ts";

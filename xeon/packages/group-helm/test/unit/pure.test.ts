@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import { minLimits, spawnRequestId, turnRequestId } from "../../src/drive.ts";
 import { ExplorerReportSchema, dedupeFindings, parseExplorerAnswer } from "../../src/findings.ts";
 import { taskRequestId } from "../../src/outputs.ts";

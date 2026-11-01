@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import type { PlatformContext } from "@xeon/ext-host";
+import type { PlatformContext } from "@fresnel/ext-host";
 import { openStore, storePlugin } from "../src/index.ts";
 import { DEFAULT_STORE_SETTINGS } from "../src/settings.ts";
 import { openTestStore } from "../src/testing/index.ts";
@@ -130,7 +130,7 @@ describe("close", () => {
 });
 
 describe("storePlugin", () => {
-  test("provides xeon.store and closes the store when the host goes down", async () => {
+  test("provides fresnel.store and closes the store when the host goes down", async () => {
     const clock = manualClock();
     const store = await openTestStore({ clock, ids: fixedIdFactory(clock) });
     const provided: { name: string; impl: unknown }[] = [];
@@ -150,7 +150,7 @@ describe("storePlugin", () => {
     expect(plugin.name).toBe("platform-store");
     await plugin.setup(ctx);
     expect(provided).toHaveLength(1);
-    expect(provided[0]?.name).toBe("xeon.store");
+    expect(provided[0]?.name).toBe("fresnel.store");
     expect(provided[0]?.impl).toBe(store.service);
     expect(disposers).toHaveLength(1);
     await disposers[0]?.();

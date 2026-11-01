@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import { SecretHandleSchema } from "@xeon/contracts/capabilities";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import { SecretHandleSchema } from "@fresnel/contracts/capabilities";
 import type {
   ConcreteHttpRequest,
   HttpResponseLike,
@@ -8,8 +8,8 @@ import type {
   SecretError,
   SecretService,
   UseCtx,
-} from "@xeon/contracts/services";
-import type { HeaderSecretSender, HeaderSendResponse, SecretHeader } from "@xeon/cap-web";
+} from "@fresnel/contracts/services";
+import type { HeaderSecretSender, HeaderSendResponse, SecretHeader } from "@fresnel/cap-web";
 import {
   createWebHeaderSecrets,
   WEB_SECRET_PURPOSE,

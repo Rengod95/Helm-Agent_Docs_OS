@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { canonicalJson } from "@xeon/contracts";
-import type { CommitRequest, FaultPoint } from "@xeon/contracts/records";
+import { canonicalJson } from "@fresnel/contracts";
+import type { CommitRequest, FaultPoint } from "@fresnel/contracts/records";
 import { expectProjectionsRebuildable, faultAt } from "../src/testing/index.ts";
 import {
   checkpointInput,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ProviderCandidate } from "@xeon/contracts/capabilities";
+import type { ProviderCandidate } from "@fresnel/contracts/capabilities";
 import { planSelection, type SelectionInput } from "../src/select/order.ts";
 
 // 자동 선택 순서 하나(L2.web.spec §4.8.2, D-M3-23 행 1). 검색과 브라우저가 같이 쓴다.

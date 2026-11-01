@@ -4,7 +4,7 @@ import type {
   JsonRpcMessage,
   Transport,
   Unsubscribe,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 
 // L4.host-service.spec §3.3.4 "전송 구현" 표. 메모리 큐 쌍이고 전달은 queueMicrotask로 보낸 순서대로 한다.
 // devChecks이면 메시지마다 JSON 왕복을 거친다: JSON으로 표현되지 않는 값(undefined 필드, 함수, Date)이 다른 전송에서

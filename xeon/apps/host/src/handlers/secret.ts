@@ -1,12 +1,12 @@
-import { assertNever, type Result } from "@xeon/contracts";
-import { isId, type ThreadId } from "@xeon/contracts/conversation";
-import type { SecretError, SecretMetaPatch } from "@xeon/contracts/services";
+import { assertNever, type Result } from "@fresnel/contracts";
+import { isId, type ThreadId } from "@fresnel/contracts/conversation";
+import type { SecretError, SecretMetaPatch } from "@fresnel/contracts/services";
 import {
   wireError,
   type SecretListEntry,
   type WireHandler,
   type WireHandlers,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { handleOf, listEntryOf, wireErrorOfSecret } from "../secrets/wire.ts";
 import type { Engine } from "../types.ts";
 

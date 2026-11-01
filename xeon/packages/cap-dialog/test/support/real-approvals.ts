@@ -1,27 +1,27 @@
 // 실제 L1.tools 승인 서비스(core-tools의 ApprovalService)를 질문 시험에 붙인다. 승인 요청과 해결, 응답 검사(kind question의 QuestionAnswer 규칙),
 // 취소, 메모리 대기는 모두 core-tools의 실제 구현이다. 저장소만 core-tools의 `fakeSession`(커밋 요청과 이벤트 열을 기록하는 세션)이다.
 // 이 파일이 더하는 것은 시험이 쓰는 관찰 창(요청 목록, 호출 문맥)과 장애 주입뿐이다.
-import { Bug, parse } from "@xeon/contracts";
-import type { CallContext } from "@xeon/contracts/capabilities";
-import { toJsonValue, type ApprovalId, type JsonValue } from "@xeon/contracts/conversation";
+import { Bug, parse } from "@fresnel/contracts";
+import type { CallContext } from "@fresnel/contracts/capabilities";
+import { toJsonValue, type ApprovalId, type JsonValue } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   type ProducerHandle,
   type StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   ApprovalApplyOutcome,
   ApprovalDecision,
   L2ApprovalRequest,
   L2ApprovalSnapshot,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   fakeSession,
   realTools,
   sequentialIds,
   type FakeSession,
   type RealTools,
-} from "@xeon/core-tools/testing";
+} from "@fresnel/core-tools/testing";
 import { questionApprovalsOver, type ApprovalsPortFactory } from "../../src/ports/approvals.ts";
 
 const NOW = 1_767_571_200_000;

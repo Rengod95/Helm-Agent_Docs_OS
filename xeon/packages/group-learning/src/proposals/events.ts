@@ -1,4 +1,4 @@
-import { toJsonValue, type JsonValue } from "@xeon/contracts/conversation";
+import { toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
 import { parseProposal, type Proposal, type ProposalReason } from "./proposal.ts";
 import type { ReviewOutcome } from "./reader.ts";
 

@@ -1,5 +1,5 @@
-import { attemptAsync, repeatAsync, rethrow } from "@xeon/contracts";
-import type { TurnId } from "@xeon/contracts/conversation";
+import { attemptAsync, repeatAsync, rethrow } from "@fresnel/contracts";
+import type { TurnId } from "@fresnel/contracts/conversation";
 import {
   WIRE_PROTOCOL_VERSION,
   WireError,
@@ -7,7 +7,7 @@ import {
   type HostConnection,
   type WireParams,
   type WireResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 
 // 시험용 클라이언트 도우미: hello와 이벤트 수집. 이벤트는 알림이 올 때 깨어나는 대기로 기다린다(실제 시간을 폴링하지 않는다).
 

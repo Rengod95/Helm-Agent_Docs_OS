@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import { DEFAULT_WEB_SETTINGS, describeWebSettings } from "@xeon/cap-web";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import { DEFAULT_WEB_SETTINGS, describeWebSettings } from "@fresnel/cap-web";
 import { createWebPort, type WebStatusHolder } from "../../src/assembly/web-providers.ts";
 
 // M3-REQ-96. `web.providers`의 값: 런타임이 있으면 provider 목록을 그대로, 설정 값은 설정 층의 유효 값이다.

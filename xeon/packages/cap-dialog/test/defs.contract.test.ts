@@ -11,7 +11,7 @@ import {
   validateCapability,
   validateCapabilitySet,
   type AnyCapabilityDef,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { dialogManifest } from "../src/manifest.ts";
 
 const M2: readonly AnyCapabilityDef[] = [

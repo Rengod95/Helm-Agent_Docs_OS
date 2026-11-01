@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
-import { ProjectorRegistryPortKey, RecordCommitPortKey } from "@xeon/contracts/extensions";
+import { err } from "@fresnel/contracts";
+import { ProjectorRegistryPortKey, RecordCommitPortKey } from "@fresnel/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
   type MigrationRunner,
   type SessionService,
   type StoreService,
-} from "@xeon/contracts/records";
-import { createTestHost } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/records";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { sessionPlugin } from "../src/index.ts";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";
 import { openTestStore, TEST_HOLDER_A, type TestStore } from "./support/sqlite-store.ts";
@@ -42,7 +42,7 @@ function storeService(
 async function installed(migrations?: (store: TestStore) => MigrationRunner) {
   const clock = manualClock();
   const store = await openTestStore({ clock });
-  // 테스트 호스트의 기본 기록 포트(메모리)는 끈다: xeon.session의 ext 속성이 그 자리를 채운다
+  // 테스트 호스트의 기본 기록 포트(메모리)는 끈다: fresnel.session의 ext 속성이 그 자리를 채운다
   const host = await createTestHost({ without: ["records"] });
   const service = storeService(store, migrations?.(store));
   await host.host.registerPlatform({
@@ -57,7 +57,7 @@ async function installed(migrations?: (store: TestStore) => MigrationRunner) {
   return { host, store, result };
 }
 
-test("the plugin provides xeon.session, whose ext and projectors members are the X ports", async () => {
+test("the plugin provides fresnel.session, whose ext and projectors members are the X ports", async () => {
   const { host, result } = await installed();
   expect(result.setups.map((setup) => setup.status)).toEqual(["applied"]);
   const session = host.host.ports.get<SessionService>({ name: SessionServiceName });

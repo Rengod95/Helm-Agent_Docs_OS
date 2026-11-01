@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import { err, ok, type Logger } from "@xeon/contracts";
-import type { NotifyError, OsInfo, OsNotification } from "@xeon/contracts/services";
+import { err, ok, type Logger } from "@fresnel/contracts";
+import type { NotifyError, OsInfo, OsNotification } from "@fresnel/contracts/services";
 import {
   buildNotifyCommand,
   createNotify,

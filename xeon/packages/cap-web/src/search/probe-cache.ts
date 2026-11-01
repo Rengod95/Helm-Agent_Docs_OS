@@ -1,5 +1,5 @@
-import { Bug, attemptAsync, type Clock, type Logger } from "@xeon/contracts";
-import type { ProviderAvailabilityWeb } from "@xeon/contracts/capabilities";
+import { Bug, attemptAsync, type Clock, type Logger } from "@fresnel/contracts";
+import type { ProviderAvailabilityWeb } from "@fresnel/contracts/capabilities";
 import type { ProbeTarget } from "../ports/providers.ts";
 
 // L2.web.spec §4.8.2. 탐침 결과는 provider별로 5분 메모리 캐시한다. 실패 결과는 30초만 둔다.

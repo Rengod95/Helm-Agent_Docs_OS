@@ -1,6 +1,6 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import { SourceIdSchema, type SourceId } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import { SourceIdSchema, type SourceId } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WebSessionSourcesPort } from "../ports/session-sources.ts";
 import { normalizeUrl } from "./url.ts";
 

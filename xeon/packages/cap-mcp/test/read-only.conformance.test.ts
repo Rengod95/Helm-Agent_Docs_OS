@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { McpClient } from "@xeon/contracts/capabilities";
+import { McpClient } from "@fresnel/contracts/capabilities";
 import { openMcpStore, releaseStores } from "./support/store.ts";
 import { fixedClock } from "./support/time.ts";
 import { buildWorld, startWorld } from "./support/world.ts";

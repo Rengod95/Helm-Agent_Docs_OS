@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { SecretAuditRecord } from "@xeon/contracts/capabilities";
+import type { SecretAuditRecord } from "@fresnel/contracts/capabilities";
 import { matchOrigin } from "../src/policy.ts";
 import { memorySecrets } from "../src/testing/index.ts";
 import { manualClock } from "./support/clock.ts";

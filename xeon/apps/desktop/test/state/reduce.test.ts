@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ItemRecord } from "@xeon/contracts/conversation";
+import type { ItemRecord } from "@fresnel/contracts/conversation";
 import { INITIAL_MIRROR, type EngineMirror } from "../../src/state/engine/state.ts";
 import type { DurableFact, MirrorInput } from "../../src/state/engine/input.ts";
 import { MAX_SYNC_ATTEMPTS, reduceMirror } from "../../src/state/engine/reduce.ts";

@@ -1,7 +1,7 @@
-import { parse } from "@xeon/contracts";
-import { CapabilityError } from "@xeon/contracts/capabilities";
-import { ThreadIdSchema, type ThreadId } from "@xeon/contracts/conversation";
-import type { CallContext, CallOptions } from "@xeon/contracts/capabilities";
+import { parse } from "@fresnel/contracts";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
+import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
+import type { CallContext, CallOptions } from "@fresnel/contracts/capabilities";
 import type { Tree } from "../../src/skills/tree.ts";
 import { treeOf } from "../../src/skills/tree.ts";
 import { idemOf, type Idem } from "../../src/write/idempotency.ts";

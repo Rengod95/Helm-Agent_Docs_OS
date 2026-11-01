@@ -1,4 +1,4 @@
-import { eachAsync } from "@xeon/contracts";
+import { eachAsync } from "@fresnel/contracts";
 import { realFileLock } from "../support/file-lock.ts";
 
 /** 자식이 끝에 알리는 값. 실패하면 `FAILED <횟수>`다 */

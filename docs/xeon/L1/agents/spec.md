@@ -25,7 +25,7 @@ binds: [xeon/packages/core-agents/**]
 
 정하는 것:
 
-- Cordis 서비스 `xeon.agents`(`AgentService`): 포그라운드 `spawn`, 백그라운드 `delegate`, 취소, 상태 조회, 정의 등록·조회, 목표 판정 호출.
+- Cordis 서비스 `fresnel.agents`(`AgentService`): 포그라운드 `spawn`, 백그라운드 `delegate`, 취소, 상태 조회, 정의 등록·조회, 목표 판정 호출.
 - F.extensions.spec §3.2 `SpawnSpec`, `SpawnOutcome`, `LoopHandle.spawn`과의 필드 대응.
 - 자식 대화 생성과 부모 연결 기록, 자식 `requestId` 파생과 재개 중복 방지.
 - 권한 상한 계산과 자식 도구 차단 목록. 규칙 어휘는 L1.tools.spec §3.5를 그대로 쓴다.
@@ -61,7 +61,7 @@ L1.tools.spec 이름을 그대로 쓴다: `CallerId`, `PolicyRule`, `TieredRule`
 
 ## 3. 인터페이스
 
-[결정: review.decisions-2 D-04] 서비스 인터페이스 `AgentService`와 서비스 이름 상수 `AgentServiceName`은 F `@xeon/contracts/services`의 `services/agents.ts`에 둔다(`F.capabilities.spec` §3.12 표와 규칙 7, `eng.context-map.design` §5.3 `xeon.agents`(services)). AgentService는 확장하는 X 포트가 없다. §3.1·§3.2·§3.4의 공용 값 타입은 F `@xeon/contracts/capabilities`의 `agents.ts`에 두도록 요청한다(§8.3 8번) [제안]. 아래 절 제목의 `agents.ts`는 이 두 파일을 가리킨다.
+[결정: review.decisions-2 D-04] 서비스 인터페이스 `AgentService`와 서비스 이름 상수 `AgentServiceName`은 F `@fresnel/contracts/services`의 `services/agents.ts`에 둔다(`F.capabilities.spec` §3.12 표와 규칙 7, `eng.context-map.design` §5.3 `fresnel.agents`(services)). AgentService는 확장하는 X 포트가 없다. §3.1·§3.2·§3.4의 공용 값 타입은 F `@fresnel/contracts/capabilities`의 `agents.ts`에 두도록 요청한다(§8.3 8번) [제안]. 아래 절 제목의 `agents.ts`는 이 두 파일을 가리킨다.
 
 ### 3.1 정의 (`agents.ts`)
 
@@ -208,7 +208,7 @@ export const AGENT_REPORT_TYPE = "agent.report" as const;
 ### 3.3 `AgentService` (`services/agents.ts`)
 
 ```ts
-export const AgentServiceName = "xeon.agents" as const;
+export const AgentServiceName = "fresnel.agents" as const;
 
 export interface AgentService {
   /** 포그라운드 생성. 자식이 정착할 때까지 기다린다. 같은 (부모, requestId)면 기존 자식을 쓴다 */
@@ -240,7 +240,7 @@ export type DelegateResult =
 ```
 
 - `spawn`의 예상 실패(`agents.depth_exceeded`, `agents.denied`, `agents.unknown_definition`)는 `SpawnResult{ status: "error", report: null }`로 돌려준다. drive 함수와 도구 어댑터가 예외 처리 없이 결과로 다룬다. 버그만 예외다(eng.typescript.guide TY-11).
-- 모델 도구 [제안]: core-agents는 내장 도구 `agent`(순서 키 `core.agents`, 파라미터 `{ agent: string, task: string, background?: boolean }`, risk `exec`, classes `["spawn"]`, replay `"safe"`)를 `xeon.tools`에 등록한다. 실행 함수는 `spawn` 또는 `delegate`를 부른다. replay가 safe인 이유: 재실행해도 같은 requestId로 기존 자식을 돌려받는다(§4.5). durable spec 3206-3266의 서브에이전트 도구 예시도 `replay: "safe"`다.
+- 모델 도구 [제안]: core-agents는 내장 도구 `agent`(순서 키 `core.agents`, 파라미터 `{ agent: string, task: string, background?: boolean }`, risk `exec`, classes `["spawn"]`, replay `"safe"`)를 `fresnel.tools`에 등록한다. 실행 함수는 `spawn` 또는 `delegate`를 부른다. replay가 safe인 이유: 재실행해도 같은 requestId로 기존 자식을 돌려받는다(§4.5). durable spec 3206-3266의 서브에이전트 도구 예시도 `replay: "safe"`다.
 
 ### 3.4 목표 판정 (`agents.ts`)
 
@@ -329,14 +329,14 @@ export type AgentJudgedPayload = JudgeRecord;
 2. 멱등 확인(§4.5): 같은 부모·같은 자식 requestId의 `agent.spawned`가 있으면 새로 만들지 않는다. 조회는 커밋 안의 `TxView.agentByRequestId`다(L1.persistence.spec §3.2).
 3. 커밋 [결정: L1B.4]: F `ThreadCreateInput`에는 다른 대화의 초안을 같은 커밋에 싣는 자리가 없어 두 커밋으로 나눈다. (1) `threads.create({ creationKey: "spawn:" + sha256(부모 threadId, 자식 requestId) 앞 40자, inheritOwnerFrom })`로 자식을 만든다. (2) 부모 대화에 `agent.spawned`를 커밋한다(`build` 안에서 `TxView.agentByRequestId`로 같은 requestId를 먼저 보고, 있으면 `exists`로 그 연결을 따른다). 두 커밋 사이에 죽으면 같은 `creationKey`가 같은 자식을 돌려주므로(`replayed: true`) 중복 자식이 생기지 않는다. 이어서 자식 임대를 다시 얻고 쓰기로 연다. `L1.persistence.spec` §4.10.1이 같은 결정을 적는다. 한 커밋으로 합치려면 F에 부모 초안을 받는 자리가 필요하다 [미결: F 요청]. fork 지점이 `item`이면 `threads.fork`로 만들고 임대는 `ownership.leases`로 얻는다. `event` 지점은 세션에 이벤트 기준 fork가 없어 `agents.invalid_request`다.
    - 부모 토큰 [미결]: `SpawnOrigin`에도 `SessionService`에도 부모의 `LeaseToken`이 없다. `AgentsOwnership.parentToken(threadId)`를 조립 루트가 넘긴다(F 요청: `SessionService`의 소유 토큰 조회 또는 `SpawnOrigin.parentToken`).
-   - 자식 쓰기 소유 [제안]: 자식 thread의 쓰기 소유자는 부모 thread의 소유자(같은 엔진 인스턴스)다. 이 커밋 직전에 core-persistence가 부모 토큰의 holder로 `thread:<childThreadId>` 임대를 `xeon.store.leases.acquire`로 얻는다(`L1.persistence.spec` §3.8 `ThreadCreateInput.inheritOwnerFrom`, §4.10.1). 새 id라 경합이 없고, 커밋이 실패하면 반납한다. 소유 확인 면제는 자식의 첫 이벤트 `thread.started` 하나뿐이다. 같은 커밋의 부모 `agent.spawned`와 이후 자식의 `turn.started`, 도구 효과, 부모의 `agent.settled`는 각 thread의 토큰으로 확인한다(`L1.persistence.spec` §4.1 2단계).
+   - 자식 쓰기 소유 [제안]: 자식 thread의 쓰기 소유자는 부모 thread의 소유자(같은 엔진 인스턴스)다. 이 커밋 직전에 core-persistence가 부모 토큰의 holder로 `thread:<childThreadId>` 임대를 `fresnel.store.leases.acquire`로 얻는다(`L1.persistence.spec` §3.8 `ThreadCreateInput.inheritOwnerFrom`, §4.10.1). 새 id라 경합이 없고, 커밋이 실패하면 반납한다. 소유 확인 면제는 자식의 첫 이벤트 `thread.started` 하나뿐이다. 같은 커밋의 부모 `agent.spawned`와 이후 자식의 `turn.started`, 도구 효과, 부모의 `agent.settled`는 각 thread의 토큰으로 확인한다(`L1.persistence.spec` §4.1 2단계).
    - 하트비트는 core-persistence가 자식 토큰에 건다. 자식 임대는 자식 정착(6번) 뒤 `release`로 반납한다.
    - 부모 임대 상실(`lease_lost`, `ownership_lost`)은 소유 트리 취소로 자식 전체에 전파한다. 부모 thread 노드에 `abort(…, { code: "lease_lost" }, { background: true })`를 걸어 백그라운드 자식도 멈춘다(`eng.transactions.design` §3.3 규칙 2 "임대를 잃으면 메모리 작업을 모두 취소", `L1.tasks.spec` `AbortCode`). 자식 임대 상실도 그 자식 노드를 같은 사유로 취소한다.
    - 다른 프로세스(CLI와 데스크톱)가 자식 thread를 쓰기로 열려 하면 임대가 이미 있으므로 잠금 실패 경로(위임·관찰·분기)로 간다(`L1.persistence.spec` §4.9).
-4. 소유 간선: `xeon.tasks.openScope(parent, { kind: "subagent", background })`로 자식 노드를 만든다. 포그라운드는 부모 `tool` 노드(모델 도구) 또는 `turn` 노드(drive) 아래 `background: false`, 백그라운드는 부모 `thread` 노드 아래 `background: true`다. 실행 중인 turn이 없는 drive(`owner.turnId`가 `null`)의 `loop.spawn`은 호출자가 결과를 기다리는 포그라운드이지만 노드는 부모 `thread` 노드 아래 `background: true`로 연다(thread 아래에는 그 값만 허용된다). 이 노드의 취소는 소유 트리가 잇지 못하므로 `origin.signal`(임대 신호)이 `abortChild`로 잇는다. thread 노드가 없으면 `agents.unavailable`이다(L1.tasks.spec §3 노드 표 374행, eng.transactions.design §6.1). 자식을 기다리는 도구 호출은 `slot.suspendWhile(child.settle())`로 `tools` 슬롯을 내려놓는다(L1.tasks.spec §4.5 규칙 C2).
-5. 실행: `xeon.loop`에 자식 대화를 열고 첫 turn을 시작한다. 입력은 `task` 텍스트 하나(사용자 item, `requestId` = 자식 requestId)다. 시스템 프롬프트는 정의 `prompt`, 모델은 정의 `model` 역할이다.
+4. 소유 간선: `fresnel.tasks.openScope(parent, { kind: "subagent", background })`로 자식 노드를 만든다. 포그라운드는 부모 `tool` 노드(모델 도구) 또는 `turn` 노드(drive) 아래 `background: false`, 백그라운드는 부모 `thread` 노드 아래 `background: true`다. 실행 중인 turn이 없는 drive(`owner.turnId`가 `null`)의 `loop.spawn`은 호출자가 결과를 기다리는 포그라운드이지만 노드는 부모 `thread` 노드 아래 `background: true`로 연다(thread 아래에는 그 값만 허용된다). 이 노드의 취소는 소유 트리가 잇지 못하므로 `origin.signal`(임대 신호)이 `abortChild`로 잇는다. thread 노드가 없으면 `agents.unavailable`이다(L1.tasks.spec §3 노드 표 374행, eng.transactions.design §6.1). 자식을 기다리는 도구 호출은 `slot.suspendWhile(child.settle())`로 `tools` 슬롯을 내려놓는다(L1.tasks.spec §4.5 규칙 C2).
+5. 실행: `fresnel.loop`에 자식 대화를 열고 첫 turn을 시작한다. 입력은 `task` 텍스트 하나(사용자 item, `requestId` = 자식 requestId)다. 시스템 프롬프트는 정의 `prompt`, 모델은 정의 `model` 역할이다.
    - 패키지 판정은 "agent-core `Agent` 클래스(agent.ts:188)를 자식마다 생성"이다(`_research/packages.md` §4.3 L1-g). 이 판정은 pi-agent-core 의존을 전제로 했다. adr.0009로 그 의존이 없어졌고, L1.loop.spec §3.2는 turn마다 core-loop 자체 루프 `runTurn(entry)`를 부른다. [제안] 자식 대화도 주 대화와 같은 자체 루프로 돈다. 자식마다 thread 구동기 하나를 두어 "자식마다 독립 실행 단위 하나"라는 판정의 뜻은 지킨다. 판정 문구의 정정은 [미결](§10)이다.
-   - core-agents는 루프를 직접 만들지 않고 `xeon.loop`의 `runChildTurn(request: ChildTurnRequest)`로 자식 turn 실행을 요청한다(L1.loop.spec §3.1, §4.13). 요청 필드: `threadId`(자식), `input`(task), `requestId`(자식 requestId), `systemPrompt`, `model`(역할 또는 ref), `tools: { caller, depth, ceiling, surfaceThreadId, interactive, allow?, keepParentList? }`, `scope`(자식 `TaskScope`), `limits?`, `signal`. 결과는 `LoopTurnResult`(`X.primitives.spec` §3.6, F `ports.ts` 이전 요청)와 같은 모양(`outcome: TurnOutcome` + `usage` + `replayed`)이다.
+   - core-agents는 루프를 직접 만들지 않고 `fresnel.loop`의 `runChildTurn(request: ChildTurnRequest)`로 자식 turn 실행을 요청한다(L1.loop.spec §3.1, §4.13). 요청 필드: `threadId`(자식), `input`(task), `requestId`(자식 requestId), `systemPrompt`, `model`(역할 또는 ref), `tools: { caller, depth, ceiling, surfaceThreadId, interactive, allow?, keepParentList? }`, `scope`(자식 `TaskScope`), `limits?`, `signal`. 결과는 `LoopTurnResult`(`X.primitives.spec` §3.6, F `ports.ts` 이전 요청)와 같은 모양(`outcome: TurnOutcome` + `usage` + `replayed`)이다.
    - 자식의 `ToolRunContext`는 `caller: "subagent:<agent>"`, `depth: 부모 + 1`, `surfaceThreadId: 소유 트리 루트`, `ceiling: 부모 관점`, `interactive: 부모와 같음`이다(L1.tools.spec §3.2).
 6. 정착: 자식 turn이 끝나면 최종 보고를 뽑아 결과 검사(§4.6)를 하고 부모 대화에 `agent.settled`를 커밋한다. 포그라운드는 결과를 호출자에게 돌려주고, 백그라운드는 보고 입력을 같은 커밋에 넣는다(§4.7).
 7. 중간 과정(자식의 도구 호출, 생각, 메시지)은 자식 대화에만 남는다. 부모 대화에는 `agent.spawned`, `agent.settled`, 결과(도구 결과 또는 post 항목)만 들어간다.
@@ -452,7 +452,7 @@ export type AgentJudgedPayload = JudgeRecord;
 [제안] 핸들을 즉시 돌려주고 완료 결과는 합성 입력으로 부모 inbox에 넣는다. drive 임대 없이 그룹도 쓴다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "백그라운드 위임", F.extensions.spec §4.6).
 
 1. 접수: `delegate`는 §4.1 1~4를 하고 자식 turn을 풀에 넣은 뒤 `DelegateReceipt{ status: "accepted" }`를 돌려준다. 같은 requestId면 `"duplicate"`와 기존 `childThreadId`다.
-2. 완료 보고: 자식이 정착하면 `agent.settled`와 보고 입력 `input.queued`를 부모 대화의 한 커밋에 쓴다 [제안]. 단일 DB이고 부모 thread도 같은 엔진 인스턴스가 쓰기 소유하므로 한 트랜잭션에 넣을 수 있다(spawn 커밋과 같은 방식). 두 커밋으로 나누면 그 사이 크래시 뒤 `agent.settled`만 남고, §4.5 재개 규칙상 자식을 다시 돌리지 않으므로 보고가 영영 들어가지 않는다. 보고 초안은 `agent.settled` 커밋의 `build` 안에서 `xeon.tasks.inputs.draftQueued(view, draft)`로 만든다(`L1.tasks.spec` §3.6). `InputDraft{ mode: report.when, item: { kind: "context", customType: report.customType, content: report.text, display: report.display, details: { childThreadId, requestId, status, flags } }, requestId: "<requestId>:report", source: { type: "delegation", childThreadId } }`. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(L3.group-sdk.spec §3.4).
+2. 완료 보고: 자식이 정착하면 `agent.settled`와 보고 입력 `input.queued`를 부모 대화의 한 커밋에 쓴다 [제안]. 단일 DB이고 부모 thread도 같은 엔진 인스턴스가 쓰기 소유하므로 한 트랜잭션에 넣을 수 있다(spawn 커밋과 같은 방식). 두 커밋으로 나누면 그 사이 크래시 뒤 `agent.settled`만 남고, §4.5 재개 규칙상 자식을 다시 돌리지 않으므로 보고가 영영 들어가지 않는다. 보고 초안은 `agent.settled` 커밋의 `build` 안에서 `fresnel.tasks.inputs.draftQueued(view, draft)`로 만든다(`L1.tasks.spec` §3.6). `InputDraft{ mode: report.when, item: { kind: "context", customType: report.customType, content: report.text, display: report.display, details: { childThreadId, requestId, status, flags } }, requestId: "<requestId>:report", source: { type: "delegation", childThreadId } }`. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(L3.group-sdk.spec §3.4).
    - 모델 도구 `agent`의 `background: true` 경로는 `customType: AGENT_REPORT_TYPE`(`"agent.report"`), `display: true`, `when: "followUp"`다. 코어 customType은 F 형식(`x.`·`grp.` 접두)에 없으므로 코어 예약 값 허용을 요청한다(§8.3 F 요청 6).
    - eng.transactions.design §4.8 표의 `deleg:<childSessionId>:done` 키는 이 문서의 `<requestId>:report`로 바꾸도록 요청한다(§8.4). 그룹이 정한 requestId와 연결되어야 재개 중복을 막을 수 있기 때문이다.
 3. 소유 경계: 백그라운드 자식은 소유 경계다. 부모 turn 취소와 부모 대화의 보통 취소는 경계를 넘지 않는다(durable spec 1972-2030 "a background task is a boundary", eng.transactions.design §6.1). 부모 turn은 백그라운드 자식을 기다리지 않고 정착한다.
@@ -468,7 +468,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 | 안 | 내용 | 장점 | 단점 |
 |---|---|---|---|
-| A. 무도구 단발 호출(채택) | `xeon.models`에 역할 `judge`로 요청 하나. 입력은 목표·기준·증거, 출력은 구조화 판정(JSON 스키마) | 비용이 한 요청으로 정해진다. 재생 규칙이 단순하다(효과 하나). 권한·깊이·풀과 얽히지 않는다. 판정 모델이 루프 모델의 도구 결과를 다시 만들 수 없어 증거가 고정된다 | 증거가 부족하면 `undecidable`이 나온다. 증거 수집을 호출자(완료 게이트)가 해야 한다 |
+| A. 무도구 단발 호출(채택) | `fresnel.models`에 역할 `judge`로 요청 하나. 입력은 목표·기준·증거, 출력은 구조화 판정(JSON 스키마) | 비용이 한 요청으로 정해진다. 재생 규칙이 단순하다(효과 하나). 권한·깊이·풀과 얽히지 않는다. 판정 모델이 루프 모델의 도구 결과를 다시 만들 수 없어 증거가 고정된다 | 증거가 부족하면 `undecidable`이 나온다. 증거 수집을 호출자(완료 게이트)가 해야 한다 |
 | B. 제한된 자식 세션 | 읽기 도구만 가진 자식 대화가 직접 확인한다 | 파일·상태를 스스로 확인한다 | 비용과 시간이 정해지지 않는다. 자식 도구 결과가 다시 증거가 되어 판정 근거를 추적하기 어렵다. 깊이 한도와 동시 풀을 차지한다 |
 
 - B안은 2차 선택지로 둔다. 증거가 파일 내용이어야 하는 목표가 많으면 다시 본다.
@@ -525,7 +525,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - core-agents는 지점을 소유하지 않는다(`L1.readme` §6 소유표).
 - 자식 대화 안의 지점(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 그룹 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
 - drive와의 관계: `LoopHandle.spawn`이 이 서비스의 `spawn`이다. `LeaseBudget.spawns`(F.extensions.spec §3.2) 집계는 X가 한다. 백그라운드 위임은 drive 임대 상한에 들어가지 않는다(L3.group-sdk.spec §3.4).
-- post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `xeon.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`, `origin: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 확장 post 경로를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
+- post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `fresnel.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`, `origin: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 확장 post 경로를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
 - scope와의 관계: 확장이 비활성화되면 그 확장이 등록한 정의는 빠진다. 이미 실행 중인 자식은 끝까지 실행된다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -534,7 +534,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `xeon.agents` / `AgentService`, `SpawnRequest`, `SpawnResult`, `DelegateRequest`, `DelegateReceipt`, `ChildStatus` | X.primitives.spec(`loop.spawn`), L3.group-sdk.spec(`delegate`), L3.helm.spec, L3.learning.spec |
+| `fresnel.agents` / `AgentService`, `SpawnRequest`, `SpawnResult`, `DelegateRequest`, `DelegateReceipt`, `ChildStatus` | X.primitives.spec(`loop.spawn`), L3.group-sdk.spec(`delegate`), L3.helm.spec, L3.learning.spec |
 | `judge`, `JudgeInput`, `JudgeOutcome`, `JudgeRecord` | L1.loop.spec(완료 게이트), L2.work.spec |
 | `AgentDefinition`, `AgentDefinitionSchema`, 정의 파일 형식 | L3.helm.spec(`explorer`), L3.learning.spec(`learning-review`), L4.settings-ui.spec |
 | 자식 차단 규칙 id(`subagent.*`, `registerRules("core:agents")`로 등록), `childDecision` | L1.tools.spec |
@@ -563,13 +563,13 @@ export type AgentJudgedPayload = JudgeRecord;
 5. F.capabilities.spec `policy.ts`: 권한 상한 함수 `childDecision`을 순수 함수로 둔다(§4.3 4번). core-tools가 L1.agents 패키지를 import하지 않고 쓰기 위해서다.
 6. F.conversation.spec §3.5.2·F.extensions.spec §3.2: 코어가 쓰는 `customType` 예약 값(`agent.report`) 허용. 현재 형식은 `x.`·`grp.` 접두만 받는다.
 7. (철회) `SettingsTab`에 `agents`를 더하지 않는다. `l1.agents.*`는 models 탭이다(review.decisions-2 S-14).
-8. F: `AgentService` 인터페이스와 서비스 이름 상수를 `@xeon/contracts/services`에 두고(review.decisions-2 D-04의 서비스 서브패스), §3.1~§3.4 타입은 `capabilities/agents.ts`로 이전한다(eng.context-map.design §5.3). 서비스 부분은 반영됨(`F.capabilities.spec` §3.12 `services/agents.ts`). 값 타입 위치는 `F.capabilities.spec` §3.12 이름 표가 이 항목을 따른다고 적었으므로 F가 `capabilities/agents.ts`를 만들 때 닫는다.
+8. F: `AgentService` 인터페이스와 서비스 이름 상수를 `@fresnel/contracts/services`에 두고(review.decisions-2 D-04의 서비스 서브패스), §3.1~§3.4 타입은 `capabilities/agents.ts`로 이전한다(eng.context-map.design §5.3). 서비스 부분은 반영됨(`F.capabilities.spec` §3.12 `services/agents.ts`). 값 타입 위치는 `F.capabilities.spec` §3.12 이름 표가 이 항목을 따른다고 적었으므로 F가 `capabilities/agents.ts`를 만들 때 닫는다.
 
 ### 8.4 다른 문서 수정 요청
 
 - L1.loop.spec §3.1: `LoopService.runChildTurn(request: ChildTurnRequest)` 추가(§4.1 5번). 자식 thread의 turn을 주 대화와 같은 래퍼로 돌리되 시스템 프롬프트, 모델, `ToolRunContext` 값(caller, depth, ceiling, surfaceThreadId)을 요청에서 받는다. 반영됨: L1.loop.spec §3.1, §4.13.
 - eng.transactions.design §4.8 표: `agent.spawned` 키 `spawn:<toolCallId>`를 `<ownerRequestId>:spawn:<n>` 파생 규칙으로, 백그라운드 완료 키 `deleg:<childSessionId>:done`을 `<requestId>:report`로 고친다. `childSessionId`는 F 이름 `childThreadId`로 바꾼다. §7 표에 "백그라운드 위임 완료 보고 | outbox 불필요(`agent.settled`와 같은 커밋)" 행을 더한다.
-- L3.group-sdk.spec §3.4: `DelegateSpec` → `DelegateRequest` 필드 대응(§3.2 끝)을 반영하고 [가정] "`g.capability(AgentsDelegateKey)`"를 "X가 주입한 `xeon.agents` 서비스"로 고친다. `xeon.agents`는 능력 정의가 없는 코어 서비스이므로 `capability()` 경로를 쓰지 않는다(L3.learning.spec 96행과 같은 판단).
+- L3.group-sdk.spec §3.4: `DelegateSpec` → `DelegateRequest` 필드 대응(§3.2 끝)을 반영하고 [가정] "`g.capability(AgentsDelegateKey)`"를 "X가 주입한 `fresnel.agents` 서비스"로 고친다. `fresnel.agents`는 능력 정의가 없는 코어 서비스이므로 `capability()` 경로를 쓰지 않는다(L3.learning.spec 96행과 같은 판단).
 - L2 spec 전체: 도구 등록에 부류 표지(`classes`)를 선언한다. 질문·계획 도구는 `user_interaction`, 메모리·스킬 쓰기는 `shared_state_write`, 외부 메시지 발신은 `external_send`.
 
 ## 9. 수용 기준

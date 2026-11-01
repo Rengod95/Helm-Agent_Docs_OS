@@ -1,13 +1,13 @@
 import { chmod, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { attemptAsync, err, ok, parse, parseJson, type Result } from "@xeon/contracts";
+import { attemptAsync, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import {
   EMPTY_STATE,
   upgradeScheduleState,
   type ScheduleState,
   type ScheduleStore,
   type StoreFailure,
-} from "@xeon/cap-schedule";
+} from "@fresnel/cap-schedule";
 import { Type, type TSchema } from "typebox";
 import { messageOf } from "../util.ts";
 

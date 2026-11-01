@@ -1,12 +1,12 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import {
   CapabilityError,
   DEFAULT_RETRYABLE,
   type CapabilityId,
   type CommonErrorCode,
-} from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
-import type { StoreReadError, StoreWriteError } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { StoreReadError, StoreWriteError } from "@fresnel/contracts/records";
 import type { FsError } from "./fs/port.ts";
 
 // L2.knowledge.spec §3.2·§3.3·§3.5 오류 코드와 §5 경계 사례. 안쪽 코드는 Result<T, KnowledgeFailure>로 실패를 돌려주고,

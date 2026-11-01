@@ -1,5 +1,5 @@
-import type { Clock, Logger } from "@xeon/contracts";
-import type { LocalIdFactory, ThreadId } from "@xeon/contracts/conversation";
+import type { Clock, Logger } from "@fresnel/contracts";
+import type { LocalIdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type { FetchCache } from "./cache/fetch-cache.ts";
 import type { FirstUseNotices } from "./cache/notices.ts";
 import type { SourceIdRegistry } from "./contract/source-ids.ts";

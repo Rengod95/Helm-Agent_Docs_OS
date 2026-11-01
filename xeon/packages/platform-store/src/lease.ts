@@ -7,8 +7,8 @@ import {
   type Result,
   type Scheduler,
   type TimerHandle,
-} from "@xeon/contracts";
-import { LEASE_RESOURCE_PATTERN } from "@xeon/contracts/records";
+} from "@fresnel/contracts";
+import { LEASE_RESOURCE_PATTERN } from "@fresnel/contracts/records";
 import type {
   LeaseError,
   LeaseHolder,
@@ -21,7 +21,7 @@ import type {
   SqlRow,
   SqlTx,
   StoreWriteError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { assertNotInWrite, createStoreDb, readOnlyRefusal, type StoreConnections } from "./db.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
 import type { LockHandle, LockProvider } from "./lock/provider.ts";

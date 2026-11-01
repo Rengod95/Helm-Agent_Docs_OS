@@ -51,7 +51,7 @@ Xeon 워크스페이스의 패키지가 무엇을 import할 수 있는지 정한
 
 ```text
 <파일>:<행> <규칙ID> <설명>
-packages/core-loop/src/turn.ts:3 DR-01 L1 package @xeon/core-loop imports higher layer L2 (@xeon/cap-web)
+packages/core-loop/src/turn.ts:3 DR-01 L1 package @fresnel/core-loop imports higher layer L2 (@fresnel/cap-web)
 ```
 
 - `check-layers.ts`는 이 형식을 직접 출력한다. 현재 구현은 `FAIL <규칙이름> <패키지>: <설명>` 형식이고 행 번호가 없다. 규칙 이름을 아래 대응표의 DR ID로 바꾸고 행 번호를 더하는 작업이 남아 있다(`eng.toolchain.guide` 수용 기준).
@@ -85,28 +85,28 @@ packages/core-loop/src/turn.ts:3 DR-01 L1 package @xeon/core-loop imports higher
 
 ```ts
 // packages/core-loop/src/turn.ts  (L1, 순위 3)
-import type { TurnId } from "@xeon/contracts";                       // F(0)
-import { StoreServiceName, type StoreService } from "@xeon/contracts"; // L0 기능은 F 서비스 타입으로 주입받는다(DR-14)
+import type { TurnId } from "@fresnel/contracts";                       // F(0)
+import { StoreServiceName, type StoreService } from "@fresnel/contracts"; // L0 기능은 F 서비스 타입으로 주입받는다(DR-14)
 ```
 
 ```ts
 // apps/host/src/assemble.ts  (L4, 순위 6, 조립 루트)
-import { storePlugin } from "@xeon/platform-store";     // L0(2). 조립 루트라 DR-14 예외
-import { loopPlugin } from "@xeon/core-loop";           // L1(3)
+import { storePlugin } from "@fresnel/platform-store";     // L0(2). 조립 루트라 DR-14 예외
+import { loopPlugin } from "@fresnel/core-loop";           // L1(3)
 ```
 
-- DR-01은 순위만 본다. 순위상 허용되는 하위 층 import라도 컨텍스트가 다르면 DR-14가 다시 막는다. 그래서 F와 조립 루트 밖에서 실제로 남는 하위 층 import는 같은 컨텍스트 안의 import, `@xeon/ext-host`의 서비스 등록·주입 API, 테스트 파일의 `testing` 서브패스뿐이다(DR-14 예외).
+- DR-01은 순위만 본다. 순위상 허용되는 하위 층 import라도 컨텍스트가 다르면 DR-14가 다시 막는다. 그래서 F와 조립 루트 밖에서 실제로 남는 하위 층 import는 같은 컨텍스트 안의 import, `@fresnel/ext-host`의 서비스 등록·주입 API, 테스트 파일의 `testing` 서브패스뿐이다(DR-14 예외).
 
 나쁜 예:
 
 ```ts
 // packages/core-loop/src/turn.ts  (L1, 순위 3)
-import type { SearchResult } from "@xeon/cap-web";    // DR-01: L2(4)는 L1보다 위다
+import type { SearchResult } from "@fresnel/cap-web";    // DR-01: L2(4)는 L1보다 위다
 ```
 
 ```ts
 // packages/contracts/src/index.ts  (F, 순위 0)
-export type { ExtHost } from "@xeon/ext-host";  // DR-01: F는 어떤 워크스페이스 패키지도 import하지 않는다
+export type { ExtHost } from "@fresnel/ext-host";  // DR-01: F는 어떤 워크스페이스 패키지도 import하지 않는다
 ```
 
 ### DR-02 같은 층 패키지끼리 import하지 않는다
@@ -127,9 +127,9 @@ export type { ExtHost } from "@xeon/ext-host";  // DR-01: F는 어떤 워크스�
 좋은 예:
 
 ```ts
-// packages/contracts/src/services/models.ts  (F, 서브패스 @xeon/contracts/services)
+// packages/contracts/src/services/models.ts  (F, 서브패스 @fresnel/contracts/services)
 import { Type, type Static } from "typebox";
-export const ModelServiceName = "xeon.models" as const;
+export const ModelServiceName = "fresnel.models" as const;
 export interface ModelService {
   resolve(ref: ModelRef): ResolvedModel;
 }
@@ -137,22 +137,22 @@ export interface ModelService {
 
 ```ts
 // packages/core-loop/src/turn.ts  (L1)
-import { ModelServiceName, type ModelService } from "@xeon/contracts/services";
+import { ModelServiceName, type ModelService } from "@fresnel/contracts/services";
 // ModelService 구현은 core-models가 Cordis 서비스로 등록한다. core-loop는 F 타입으로만 받는다.
 ```
 
-- [결정: review.decisions-2 D-04] L1·L0 서비스 인터페이스(`TaskService`, `LoopService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService`, `ModelService`, `ToolService`, `ContextService`)와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다. 위 예의 메서드 모양은 설명용이고, 실제 시그니처는 F 문서와 `L1.models.spec`이 정한다 [가정].
+- [결정: review.decisions-2 D-04] L1·L0 서비스 인터페이스(`TaskService`, `LoopService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService`, `ModelService`, `ToolService`, `ContextService`)와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다. 위 예의 메서드 모양은 설명용이고, 실제 시그니처는 F 문서와 `L1.models.spec`이 정한다 [가정].
 
 나쁜 예:
 
 ```ts
 // packages/core-loop/src/turn.ts  (L1)
-import { resolveModel } from "@xeon/core-models";     // DR-02: 같은 L1
+import { resolveModel } from "@fresnel/core-models";     // DR-02: 같은 L1
 ```
 
 ```ts
 // packages/group-learning/src/index.ts  (L3)
-import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
+import { helmSignals } from "@fresnel/group-helm";       // DR-02: L3 그룹끼리
 ```
 
 - [결정: review.decisions-2 U-15] `group-sdk`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-sdk` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-sdk` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/group-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 그룹과 `group-sdk`의 나머지 경로는 위반이다. `group-sdk`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
@@ -171,7 +171,7 @@ import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
 
 ```json
 {
-  "name": "@xeon/core-loop",
+  "name": "@fresnel/core-loop",
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
@@ -183,7 +183,7 @@ import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
 
 ```json
 {
-  "name": "@xeon/core-web-cache",
+  "name": "@fresnel/core-web-cache",
   "xeon": { "layer": "L2", "domain": "web" }
 }
 ```
@@ -194,7 +194,7 @@ import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
 
 [제안] `docs/design/06-system-architecture.md §3.5.1` R1·R11을 옮긴다.
 
-- 소스에서 `@xeon/<이름>`을 import하면 그 패키지의 `package.json`에 `"@xeon/<이름>": "workspace:*"`가 있어야 한다. 테스트에서만 쓰면 `devDependencies`에 둔다.
+- 소스에서 `@fresnel/<이름>`을 import하면 그 패키지의 `package.json`에 `"@fresnel/<이름>": "workspace:*"`가 있어야 한다. 테스트에서만 쓰면 `devDependencies`에 둔다.
 - 같은 대상을 그 패키지 `tsconfig.json`의 `references`에 `{ "path": "<대상 패키지 디렉터리의 상대 경로>" }`로 둔다. `references`와 워크스페이스 의존 목록은 같은 집합이다.
 - 외부 npm 패키지도 선언 없이 import하지 않는다. 버전 값은 `"catalog:"`만 쓴다(`eng.toolchain.guide` TC-02).
 
@@ -207,7 +207,7 @@ import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
 
 ```jsonc
 // apps/host/package.json  (조립 루트, DR-14 예외)
-"dependencies": { "@xeon/contracts": "workspace:*", "@xeon/platform-store": "workspace:*" }
+"dependencies": { "@fresnel/contracts": "workspace:*", "@fresnel/platform-store": "workspace:*" }
 // apps/host/tsconfig.json
 "references": [{ "path": "../../packages/contracts" }, { "path": "../../packages/platform-store" }]
 ```
@@ -215,15 +215,15 @@ import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
 나쁜 예:
 
 ```ts
-// apps/host/src/assemble.ts. package.json에 @xeon/platform-store가 없다
-import { storePlugin } from "@xeon/platform-store"; // DR-04 undeclared-dependency
+// apps/host/src/assemble.ts. package.json에 @fresnel/platform-store가 없다
+import { storePlugin } from "@fresnel/platform-store"; // DR-04 undeclared-dependency
 ```
 
 ### DR-05 다른 패키지는 `exports`에 적힌 진입점으로만 import한다
 
 [제안] 06 §3.5.1 R9를 옮긴다.
 
-- 금지: `@xeon/<이름>/src/...`, `@xeon/<이름>/dist/...`, 상대 경로로 패키지 디렉터리를 벗어나는 import(`../../platform-store/src/db.ts`).
+- 금지: `@fresnel/<이름>/src/...`, `@fresnel/<이름>/dist/...`, 상대 경로로 패키지 디렉터리를 벗어나는 import(`../../platform-store/src/db.ts`).
 - 각 패키지의 `exports`는 명시한 진입점만 둔다. 와일드카드(`"./*"`)는 쓰지 않는다.
 - 서브패스는 `exports`에 이름을 적어 연다. 예: `"./testing": "./src/testing/index.ts"`(DR-08).
 - 내부 패키지는 TS 소스를 그대로 export한다(`eng.toolchain.guide` TC-05). `exports` 값은 `./src/*.ts` 경로다.
@@ -234,15 +234,15 @@ import { storePlugin } from "@xeon/platform-store"; // DR-04 undeclared-dependen
 
 ```ts
 // apps/host/src/assemble.ts  (조립 루트, DR-14 예외)
-import { storePlugin } from "@xeon/platform-store";
+import { storePlugin } from "@fresnel/platform-store";
 // packages/core-persistence/test/commit.int.test.ts  (테스트 파일, DR-14 예외 3)
-import { openTestStore } from "@xeon/platform-store/testing";   // exports에 "./testing"이 있다. 테스트 파일에서만(DR-08)
+import { openTestStore } from "@fresnel/platform-store/testing";   // exports에 "./testing"이 있다. 테스트 파일에서만(DR-08)
 ```
 
 나쁜 예:
 
 ```ts
-import { openDb } from "@xeon/platform-store/src/db.ts";     // DR-05: src로 들어감
+import { openDb } from "@fresnel/platform-store/src/db.ts";     // DR-05: src로 들어감
 import { openDb } from "../../platform-store/src/db.ts";     // DR-05 relative-escape
 ```
 
@@ -320,7 +320,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 
 ```ts
 // packages/core-tools/src/read.ts  (L1)
-import { SecretServiceName, type SecretService } from "@xeon/contracts/services";   // 서비스 이름은 eng.context-map.design 5.3절(xeon.secrets), 위치는 L0.secrets.spec §8.3 R1-a
+import { SecretServiceName, type SecretService } from "@fresnel/contracts/services";   // 서비스 이름은 eng.context-map.design 5.3절(fresnel.secrets), 위치는 L0.secrets.spec §8.3 R1-a
 // 비밀 값은 platform-secrets가 등록한 서비스로 참조만 받는다. sops를 직접 부르지 않는다.
 ```
 
@@ -345,7 +345,7 @@ import { streamSimple } from "@earendil-works/pi-ai";   // DR-07: pi-ai는 core-
 
 [제안] 06 §3.5.1 R3을 옮긴다. testing 정의는 [결정: review.decisions-2 U-17]로 DR-14 예외 3과 하나로 맞춘다.
 
-- 테스트 전용 모듈: `testing` 서브패스가 있는 패키지의 `testing` 서브패스(`@xeon/<이름>/testing`), `bun:test`. F(`contracts`)는 `testing` 서브패스를 두지 않고, 시계·난수·ID 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다([결정: review.decisions-2 U-03]).
+- 테스트 전용 모듈: `testing` 서브패스가 있는 패키지의 `testing` 서브패스(`@fresnel/<이름>/testing`), `bun:test`. F(`contracts`)는 `testing` 서브패스를 두지 않고, 시계·난수·ID 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다([결정: review.decisions-2 U-03]).
 - 테스트 파일: `src/**/*.test.ts`, `test/**`. 다른 패키지의 `testing` 서브패스를 import할 수 있는 파일은 테스트 파일뿐이다. 패키지 자신의 `src/testing/**`도 테스트 파일이 아니므로 다른 패키지의 `testing` 서브패스를 import하지 않는다.
 - 다른 패키지의 `testing` 서브패스를 쓰는 패키지는 그 패키지를 `devDependencies`에 둔다. 이미 `dependencies`에 있으면 그대로 쓴다. DR-01 순위는 테스트 파일에도 적용된다.
 
@@ -356,7 +356,7 @@ import { streamSimple } from "@earendil-works/pi-ai";   // DR-07: pi-ai는 core-
 ```ts
 // packages/core-persistence/test/commit.int.test.ts
 import { test, expect } from "bun:test";
-import { openTestStore } from "@xeon/platform-store/testing";
+import { openTestStore } from "@fresnel/platform-store/testing";
 import { manualClock } from "./support/clock.ts";   // 시계·난수·ID 대역은 자기 패키지 test/ 안에 둔다(U-03)
 ```
 
@@ -364,12 +364,12 @@ import { manualClock } from "./support/clock.ts";   // 시계·난수·ID 대역
 
 ```ts
 // packages/core-persistence/src/open.ts. 운영 코드
-import { openTestStore } from "@xeon/platform-store/testing";   // DR-08
+import { openTestStore } from "@fresnel/platform-store/testing";   // DR-08
 ```
 
 ```ts
 // packages/core-models/src/testing/index.ts. 테스트 파일이 아니다
-export { openTestStore } from "@xeon/platform-store/testing";   // DR-08: testing 서브패스 소스의 교차 import
+export { openTestStore } from "@fresnel/platform-store/testing";   // DR-08: testing 서브패스 소스의 교차 import
 ```
 
 ### DR-09 `plugins/*`는 F, X, L0, 외부 패키지만 import하고 `core-*`는 import하지 않는다. `plugins/provider-anthropic-oauth`는 배포판에 들어가지 않는다
@@ -378,11 +378,11 @@ export { openTestStore } from "@xeon/platform-store/testing";   // DR-08: testin
 
 [결정: review.decisions-2 U-16] import 범위와 등록 경로:
 
-- import 허용: `@xeon/contracts`의 공개 진입점, `@xeon/ext-host`의 서비스 등록·주입 API(DR-14 예외 4), 외부 패키지 `@earendil-works/pi-ai`(DR-07 표). L0 패키지 import는 DR-01 순위상 허용되지만 컨텍스트가 다르므로 DR-14에 따라 F 서비스 타입으로 주입받는다.
+- import 허용: `@fresnel/contracts`의 공개 진입점, `@fresnel/ext-host`의 서비스 등록·주입 API(DR-14 예외 4), 외부 패키지 `@earendil-works/pi-ai`(DR-07 표). L0 패키지 import는 DR-01 순위상 허용되지만 컨텍스트가 다르므로 DR-14에 따라 F 서비스 타입으로 주입받는다.
 - import 금지: `core-*`를 포함한 L1 패키지 전부. `plugins/*`는 L1 순위이므로 L1 import는 DR-02(같은 층)에 걸리고, 같은 층 예외는 두지 않는다.
-- 등록 경로: 위장 provider는 F의 provider 인터페이스(`ProviderDef`)로 `core-models` 서비스에 등록한다. 플러그인은 setup에서 X가 주입한 `xeon.models`(F `ModelService`)의 `addProvider(owner, name, def)`를 부른다(`L1.models.spec` §3.11). 플러그인은 X `ModelsPort`(`hostOf(g).registerProvider`)를 쓰지 않는다. 이 포트는 확장의 등록 경로다(`X.primitives.spec` §3.9).
+- 등록 경로: 위장 provider는 F의 provider 인터페이스(`ProviderDef`)로 `core-models` 서비스에 등록한다. 플러그인은 setup에서 X가 주입한 `fresnel.models`(F `ModelService`)의 `addProvider(owner, name, def)`를 부른다(`L1.models.spec` §3.11). 플러그인은 X `ModelsPort`(`hostOf(g).registerProvider`)를 쓰지 않는다. 이 포트는 확장의 등록 경로다(`X.primitives.spec` §3.9).
 - 배포 제외:
-  - 어떤 패키지와 앱도 `@xeon/provider-anthropic-oauth`를 `dependencies`에 두지 않는다.
+  - 어떤 패키지와 앱도 `@fresnel/provider-anthropic-oauth`를 `dependencies`에 두지 않는다.
   - `bun build --compile` 진입점(`apps/cli`, `apps/host`)의 import 그래프에 이 패키지가 없어야 한다.
   - 사용자는 확장 로딩(`X.loading-trust.spec`)으로 별도 설치한다.
 
@@ -392,33 +392,33 @@ export { openTestStore } from "@xeon/platform-store/testing";   // DR-08: testin
 
 ```ts
 // plugins/provider-anthropic-oauth/src/index.ts
-import type { SecretRef } from "@xeon/contracts";
+import type { SecretRef } from "@fresnel/contracts";
 import { anthropicMessages } from "@earendil-works/pi-ai";   // DR-07 표의 소유 패키지
-// setup에서 주입받은 xeon.models(F ModelService)의 addProvider(owner, "anthropic-oauth", { kind: "runtime", provider, credential })
+// setup에서 주입받은 fresnel.models(F ModelService)의 addProvider(owner, "anthropic-oauth", { kind: "runtime", provider, credential })
 ```
 
 나쁜 예:
 
 ```ts
 // plugins/provider-anthropic-oauth/src/index.ts
-import type { ProviderRegistration } from "@xeon/core-models";   // DR-09: core-* import
-import { runTurn } from "@xeon/core-loop";                        // DR-09: L1 import
+import type { ProviderRegistration } from "@fresnel/core-models";   // DR-09: core-* import
+import { runTurn } from "@fresnel/core-loop";                        // DR-09: L1 import
 ```
 
 ```jsonc
 // apps/cli/package.json
-"dependencies": { "@xeon/provider-anthropic-oauth": "workspace:*" }   // DR-09: 배포판 의존
+"dependencies": { "@fresnel/provider-anthropic-oauth": "workspace:*" }   // DR-09: 배포판 의존
 ```
 
 ### DR-10 앱(`apps/*`)끼리 import하지 않는다
 
 [제안] DR-02를 L4에 적용한 것이다. 별도 ID를 두는 이유는 앱 사이 연결 방식이 다르기 때문이다.
 
-- `apps/desktop`은 엔진을 `apps/host`에서 만든 사이드카 바이너리로 실행하고 stdio JSON-RPC로 연결한다(`_research/foundation-plan.md §1` 결정 3). `@xeon/host`를 import하지 않는다.
+- `apps/desktop`은 엔진을 `apps/host`에서 만든 사이드카 바이너리로 실행하고 stdio JSON-RPC로 연결한다(`_research/foundation-plan.md §1` 결정 3). `@fresnel/host`를 import하지 않는다.
 - `apps/cli`는 엔진 라이브러리를 in-process로 쓴다.
 - [결정: review.decisions-2 U-15] 엔진 조립 코드는 `apps/host` 한 곳에 둔다. `apps/cli` → `apps/host` 한 방향만 허용 목록 항목 `DR-10/cli-host`로 허용한다(4절). `apps/host`는 다른 앱을 import하지 않고, `apps/desktop`은 어떤 앱도 import하지 않는다.
-- [결정: adr.0020] CLI와 데스크톱이 함께 쓰는 연결 코드(`createHostConnection`), 설정 view-model, 공유 로직, i18n 카탈로그는 L4 공유 패키지 `xeon/packages/client`(`@xeon/client`)에 둔다. 이 패키지는 F(`@xeon/contracts`)만 import한다. `apps/cli` → `@xeon/client`, `apps/desktop` → `@xeon/client` 두 간선을 허용 목록 항목 `DR-10/cli-client`, `DR-10/desktop-client`로 허용한다(4절). `@xeon/client`는 앱이나 엔진 패키지를 import하지 않는다. `check-layers.ts`는 `apps/*` → `packages/client`를 DR-10으로 보고하고, `expectedLayer`는 디렉터리 이름 `client`를 L4로 본다. `.dependency-cruiser.cjs`는 L4 경로에 `packages/client/`를 넣고 `client` → `apps/*` 간선을 막는다.
-- `apps/host` → `@xeon/client`는 호스트의 `./client` 재노출과 시험 때문에 `DR-10/host-client`로 열었다. [미결] adr.0020 §3.5는 이 간선을 두지 않는 안이다.
+- [결정: adr.0020] CLI와 데스크톱이 함께 쓰는 연결 코드(`createHostConnection`), 설정 view-model, 공유 로직, i18n 카탈로그는 L4 공유 패키지 `xeon/packages/client`(`@fresnel/client`)에 둔다. 이 패키지는 F(`@fresnel/contracts`)만 import한다. `apps/cli` → `@fresnel/client`, `apps/desktop` → `@fresnel/client` 두 간선을 허용 목록 항목 `DR-10/cli-client`, `DR-10/desktop-client`로 허용한다(4절). `@fresnel/client`는 앱이나 엔진 패키지를 import하지 않는다. `check-layers.ts`는 `apps/*` → `packages/client`를 DR-10으로 보고하고, `expectedLayer`는 디렉터리 이름 `client`를 L4로 본다. `.dependency-cruiser.cjs`는 L4 경로에 `packages/client/`를 넣고 `client` → `apps/*` 간선을 막는다.
+- `apps/host` → `@fresnel/client`는 호스트의 `./client` 재노출과 시험 때문에 `DR-10/host-client`로 열었다. [미결] adr.0020 §3.5는 이 간선을 두지 않는 안이다.
 
 이유: 앱끼리 import하면 데스크톱 번들에 CLI 코드가 섞이고, 사이드카 경계(프로세스 분리)가 무너진다. 조립 코드를 두 앱에 나눠 두면 플러그인 등록 순서가 두 벌이 된다.
 
@@ -433,14 +433,14 @@ const engine = Bun.spawn([sidecarPath, "--stdio"]);   // 바이너리 실행. �
 
 ```ts
 // apps/desktop/src/engine.ts
-import { startHost } from "@xeon/host";                 // DR-10
+import { startHost } from "@fresnel/host";                 // DR-10
 ```
 
 ### DR-11 `vendor/cordis`와 Cordis 패키지는 `ext-host`만 import한다
 
 [결정] Cordis는 rc 버전이라 vendored로 고정하고 ext-host 뒤에 숨긴다(`_research/foundation-plan.md §7`, adr.0002).
 
-- `cordis`, `cordis/*`, `@cordisjs/*`, `@xeon/vendor-cordis`, `vendor/cordis/**`는 `packages/ext-host`만 import한다.
+- `cordis`, `cordis/*`, `@cordisjs/*`, `@fresnel/vendor-cordis`, `vendor/cordis/**`는 `packages/ext-host`만 import한다.
 - 다른 패키지는 X가 F 타입으로 내보낸 API를 쓴다. Cordis의 `Context`, `Fiber` 같은 타입을 F나 다른 층의 공개 타입에 노출하지 않는다.
 
 이유: Cordis API는 불안정하다(`_research/decisions-log.md` 2026-10-19 확장 호스트 후보). 갱신할 때 고칠 곳을 `ext-host` 하나로 줄인다.
@@ -449,7 +449,7 @@ import { startHost } from "@xeon/host";                 // DR-10
 
 ```ts
 // packages/core-models/src/register.ts  (L1)
-import type { ExtensionContext } from "@xeon/contracts";   // F가 정의한 중립 타입
+import type { ExtensionContext } from "@fresnel/contracts";   // F가 정의한 중립 타입
 ```
 
 나쁜 예:
@@ -484,7 +484,7 @@ export const ToolCallPoint = {
 
 ```ts
 // packages/core-tools/src/pipeline.ts  (L1): 선언 객체로 지점을 연다
-import { ToolCallPoint } from "@xeon/contracts/extensions";
+import { ToolCallPoint } from "@fresnel/contracts/extensions";
 const verdict = await ext.dispatch(ToolCallPoint, payload);
 ```
 
@@ -523,7 +523,7 @@ export function dataDir(env: EnvReader): Result<string, DataDirError> {
   switch (process.platform) {
     case "darwin": return ok(join(env.home(), "Library", "Application Support", "xeon"));
     case "linux": return ok(join(env.xdgDataHome(), "xeon"));
-    // xeon-disable-next-line xeon/switch-default-never -- 지원 목록 밖 OS는 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 지원 목록 밖 OS는 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default: return err({ kind: "unsupported_platform", platform: process.platform });
   }
 }
@@ -531,7 +531,7 @@ export function dataDir(env: EnvReader): Result<string, DataDirError> {
 
 ```ts
 // packages/core-persistence/src/open.ts  (L1)
-import { OsServiceName, type OsService } from "@xeon/contracts/services";   // 서비스 이름은 eng.context-map.design 5.3절(xeon.os)
+import { OsServiceName, type OsService } from "@fresnel/contracts/services";   // 서비스 이름은 eng.context-map.design 5.3절(fresnel.os)
 const dir = os.dataDir();
 ```
 
@@ -556,7 +556,7 @@ const dir = process.platform === "darwin"
   1. F(`contracts`)는 공유 커널이다. 모든 패키지가 import한다.
   2. 조립 루트 `apps/host`는 플러그인을 등록하려고 모든 패키지를 import한다. `apps/cli`는 엔진 조립 코드를 `apps/host`에서 가져온다(DR-10, 허용 목록 `DR-10/cli-host`).
   3. 테스트 파일(DR-08의 정의: `src/**/*.test.ts`, `test/**`)만 다른 컨텍스트 패키지의 `testing` 서브패스를 import한다. 공용 가짜가 L0 인터페이스 구현이기 때문이다(`eng.testing.guide` TS-05, TS-07). 패키지의 `src/testing/**` 소스는 이 예외에 들지 않는다.
-  4. X 위의 패키지(L0~L4, `plugins/*`)는 `@xeon/ext-host`를 import할 수 있다. 쓸 수 있는 것은 서비스 등록·주입 API(`ExtHost.registerPlatform`, `PlatformModule`, `hostOf`, 포트 제공 등 `X.primitives.spec` §3.2가 공개한 이름)뿐이다. 확장 지점 디스패치와 4연산은 F 타입(DR-12)으로 쓴다.
+  4. X 위의 패키지(L0~L4, `plugins/*`)는 `@fresnel/ext-host`를 import할 수 있다. 쓸 수 있는 것은 서비스 등록·주입 API(`ExtHost.registerPlatform`, `PlatformModule`, `hostOf`, 포트 제공 등 `X.primitives.spec` §3.2가 공개한 이름)뿐이다. 확장 지점 디스패치와 4연산은 F 타입(DR-12)으로 쓴다.
   5. 4절 허용 목록의 `DR-02/group-sdk` 항목은 DR-14도 허용한 것으로 본다.
 
 이유:
@@ -568,7 +568,7 @@ const dir = process.platform === "darwin"
 
 ```ts
 // packages/core-persistence/src/plugin.ts  (L1, 컨텍스트 session-core)
-import { StoreServiceName, type StoreService } from "@xeon/contracts";
+import { StoreServiceName, type StoreService } from "@fresnel/contracts";
 export const inject: readonly string[] = [StoreServiceName];   // platform-store 구현은 주입받는다
 ```
 
@@ -576,12 +576,12 @@ export const inject: readonly string[] = [StoreServiceName];   // platform-store
 
 ```ts
 // packages/core-persistence/src/open.ts  (L1, 컨텍스트 session-core)
-import { openEventStore } from "@xeon/platform-store";   // DR-14: 컨텍스트 platform-store의 구현 import
+import { openEventStore } from "@fresnel/platform-store";   // DR-14: 컨텍스트 platform-store의 구현 import
 ```
 
 ```ts
 // packages/group-helm/src/inject.ts  (L3, 컨텍스트 helm)
-import { openStore } from "@xeon/platform-store";        // DR-14: 확장이 저장소 구현을 직접 연다
+import { openStore } from "@fresnel/platform-store";        // DR-14: 확장이 저장소 구현을 직접 연다
 ```
 
 ## 3. 강제 수단
@@ -725,7 +725,7 @@ export const AllowList = Type.Array(AllowEntry);
     "id": "DR-02/group-sdk",
     "rule": "DR-02",
     "from": "packages/group-*",
-    "to": "@xeon/group-sdk",
+    "to": "@fresnel/group-sdk",
     "entries": [".", "./testing"],
     "reason": "Every L3 group uses the shared group definition helpers of group-sdk through its entries \".\" and \"./testing\" only (review.decisions-2 U-15).",
     "approvedBy": "review.decisions-2"
@@ -734,7 +734,7 @@ export const AllowList = Type.Array(AllowEntry);
     "id": "DR-10/cli-host",
     "rule": "DR-10",
     "from": "apps/cli",
-    "to": "@xeon/host",
+    "to": "@fresnel/host",
     "entries": [".", "./client"],
     "reason": "The CLI reuses the single engine assembly code in apps/host (review.decisions-2 U-15).",
     "approvedBy": "review.decisions-2"
@@ -743,7 +743,7 @@ export const AllowList = Type.Array(AllowEntry);
     "id": "DR-10/cli-client",
     "rule": "DR-10",
     "from": "apps/cli",
-    "to": "@xeon/client",
+    "to": "@fresnel/client",
     "entries": ["."],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
     "approvedBy": "adr.0020"
@@ -752,7 +752,7 @@ export const AllowList = Type.Array(AllowEntry);
     "id": "DR-10/desktop-client",
     "rule": "DR-10",
     "from": "apps/desktop",
-    "to": "@xeon/client",
+    "to": "@fresnel/client",
     "entries": [".", "./stdio", "./settings"],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
     "approvedBy": "adr.0020"
@@ -761,9 +761,9 @@ export const AllowList = Type.Array(AllowEntry);
     "id": "DR-10/host-client",
     "rule": "DR-10",
     "from": "apps/host",
-    "to": "@xeon/client",
+    "to": "@fresnel/client",
     "entries": ["."],
-    "reason": "apps/host keeps the @xeon/host/client re-export and its tests drive the host through the client connection (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
+    "reason": "apps/host keeps the @fresnel/host/client re-export and its tests drive the host through the client connection (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
     "approvedBy": "adr.0020"
   },
   {
@@ -793,9 +793,9 @@ export const AllowList = Type.Array(AllowEntry);
 
 | # | 샘플 | 넣는 곳 | 기대 실패 단계와 규칙 ID |
 |---|---|---|---|
-| 1 | 상향: `import type { X } from "@xeon/cap-web";` | `packages/core-loop/src/index.ts`, `package.json`에 의존 추가 | check-layers `DR-01`, depcruise `DR-01-no-upward-import-from-L1` |
-| 2 | 동층: `import { y } from "@xeon/core-models";` | `packages/core-loop/src/index.ts`, `package.json`에 의존 추가 | check-layers `DR-02`, depcruise `DR-02-no-same-layer-import-L1-core` |
-| 3 | 깊은 경로: `import { z } from "@xeon/platform-store/src/index.ts";` | `packages/core-loop/src/index.ts` | oxlint 메시지 `DR-05: ...`, check-layers `DR-05` |
+| 1 | 상향: `import type { X } from "@fresnel/cap-web";` | `packages/core-loop/src/index.ts`, `package.json`에 의존 추가 | check-layers `DR-01`, depcruise `DR-01-no-upward-import-from-L1` |
+| 2 | 동층: `import { y } from "@fresnel/core-models";` | `packages/core-loop/src/index.ts`, `package.json`에 의존 추가 | check-layers `DR-02`, depcruise `DR-02-no-same-layer-import-L1-core` |
+| 3 | 깊은 경로: `import { z } from "@fresnel/platform-store/src/index.ts";` | `packages/core-loop/src/index.ts` | oxlint 메시지 `DR-05: ...`, check-layers `DR-05` |
 | 4 | 순환: `a.ts` ↔ `b.ts` 값 import | `packages/core-loop/src/` | oxlint `import/no-cycle`(메시지에 ID 없음), depcruise `DR-06-no-circular` |
 | 5 | 소유 모듈 위반: `import { Database } from "bun:sqlite";` | `packages/core-loop/src/index.ts` | check-layers `DR-07`, oxlint 메시지 `DR-07: ...` |
 

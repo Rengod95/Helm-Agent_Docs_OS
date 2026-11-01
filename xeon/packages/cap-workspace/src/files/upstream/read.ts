@@ -1,5 +1,5 @@
 // FRESNEL-PATCH: P10
-import { repeatAsync } from "@xeon/contracts";
+import { repeatAsync } from "@fresnel/contracts";
 // FRESNEL-PATCH: P1
 import type {
   BinaryReader,
@@ -7,7 +7,7 @@ import type {
   ExecService,
   ExecutionEnv,
   FileInfo,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 // FRESNEL-PATCH: P2
 import { getOrThrow } from "../../upstream/get-or-throw.ts";
 // FRESNEL-PATCH: P2

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { wrapUntrustedMcp } from "@xeon/contracts/capabilities";
+import { wrapUntrustedMcp } from "@fresnel/contracts/capabilities";
 import { STUB_LEGACY_VERSION, STUB_MODERN_VERSION } from "../src/testing/stub-server.ts";
 import { releaseStores, openMcpStore } from "./support/store.ts";
 import { rejection } from "./support/rejection.ts";

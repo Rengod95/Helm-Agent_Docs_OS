@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { attempt, type Logger, type Scheduler, type TimerHandle } from "@xeon/contracts";
-import type { HookRawRun, HookRunSpec } from "@xeon/contracts/extensions";
+import { attempt, type Logger, type Scheduler, type TimerHandle } from "@fresnel/contracts";
+import type { HookRawRun, HookRunSpec } from "@fresnel/contracts/extensions";
 import type { ProcessPlatformProvider } from "../select.ts";
 
 // L0.process.spec §4.8 `run`, L0.process.plan PR-21. 외부 훅 실행(ProcessPort.run).

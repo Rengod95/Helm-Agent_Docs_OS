@@ -1,4 +1,4 @@
-import { err, ok, parse } from "@xeon/contracts";
+import { err, ok, parse } from "@fresnel/contracts";
 import {
   McpClient,
   McpClientKey,
@@ -9,15 +9,15 @@ import {
   WebSearch,
   WebSearchKey,
   type ServiceKey,
-} from "@xeon/contracts/capabilities";
-import type { LocalIdFactory, ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { LocalIdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type PortKey,
   type ScopeApi,
-} from "@xeon/contracts/extensions";
-import type { SessionService } from "@xeon/contracts/records";
+} from "@fresnel/contracts/extensions";
+import type { SessionService } from "@fresnel/contracts/records";
 import {
   ApprovalServicePortKey,
   ModelServicePortKey,
@@ -28,8 +28,8 @@ import {
   StoreServicePortKey,
   ToolServicePortKey,
   type ToolRegistration,
-} from "@xeon/contracts/services";
-import type { ScopeStack } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/services";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import {
   createAskAdapter,
   createWebRuntime,
@@ -42,7 +42,7 @@ import {
   type RegistrationSource,
   type WebRuntime,
   type WebSessionSourcesPort,
-} from "@xeon/cap-web";
+} from "@fresnel/cap-web";
 import {
   hostOf,
   PrimitiveError,
@@ -50,18 +50,18 @@ import {
   type ExtensionUnit,
   type ResourceRegistry,
   type ScopeHostApi,
-} from "@xeon/ext-host";
+} from "@fresnel/ext-host";
 import { Type } from "typebox";
 import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
-import { readMcpSettings, readSettingsServers } from "@xeon/cap-mcp";
+import { readMcpSettings, readSettingsServers } from "@fresnel/cap-mcp";
 import { createBrowseConfirm } from "./web-browse-confirm.ts";
 import { BROWSER_MCP_SERVER, createBrowserMcpPort } from "./web-browser-mcp.ts";
 import { createWebHeaderSecrets } from "./web-header-secrets.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 
 // m2-plan HOST.6, L2.web.plan §8.5. cap-web은 확장 엔트리를 내놓지 않아(WEB.6) 조립 루트가 `createWebRuntime`에 실제 포트를 이어 붙인다:
-// `xeon.store`(WebStorePort), `xeon.approvals`(도메인·URL 승인), `xeon.session` 이벤트 읽기(이미 나온 URL), `xeon.secrets`(외부 전송 마스킹),
-// `xeon.models`의 hosted 검색(내장 검색 래퍼, E4), 설정 층. `web.search`의 기본 provider는 내장 검색 래퍼다: 이 조립이 `hostedSearch`를
+// `fresnel.store`(WebStorePort), `fresnel.approvals`(도메인·URL 승인), `fresnel.session` 이벤트 읽기(이미 나온 URL), `fresnel.secrets`(외부 전송 마스킹),
+// `fresnel.models`의 hosted 검색(내장 검색 래퍼, E4), 설정 층. `web.search`의 기본 provider는 내장 검색 래퍼다: 이 조립이 `hostedSearch`를
 // 넘기지 않으면 래퍼가 후보에 들지 않아 설정한 provider가 없을 때 검색할 곳이 없다(M2 마감 G1-12, H1). SearXNG와 키 API는 사용자가 설정했을 때만
 // 체인에 든다(ADR-0005 개정, L2.web.spec §4.8).
 // 지점 구독(결과를 바꾸지 않는 tap): `input.user.before`(나온 URL), `thread.shutdown`(닫힌 세션의 보관 원문 정리와 브라우저 세션 닫기).
@@ -78,7 +78,7 @@ export interface HostWebOptions {
   /** 시험 주입(AssembleOptions.webPorts) */
   readonly resolver?: DnsResolver;
   readonly transport?: HttpTransport;
-  /** 시험 주입(AssembleOptions.webPorts): 모델 provider의 hosted 검색 대역. 생략하면 `xeon.models`의 포트다 */
+  /** 시험 주입(AssembleOptions.webPorts): 모델 provider의 hosted 검색 대역. 생략하면 `fresnel.models`의 포트다 */
   readonly hostedSearch?: HostedSearchPort;
   /** 설정이 바뀔 때마다 부른다. 돌려주는 함수로 구독을 푼다 */
   readonly onSettingsChange: (listener: () => void) => () => void;

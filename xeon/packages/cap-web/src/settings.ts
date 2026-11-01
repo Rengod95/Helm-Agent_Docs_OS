@@ -1,6 +1,6 @@
 import { Type } from "typebox";
-import { parse } from "@xeon/contracts";
-import { PROVIDER_ID_PATTERN } from "@xeon/contracts/capabilities";
+import { parse } from "@fresnel/contracts";
+import { PROVIDER_ID_PATTERN } from "@fresnel/contracts/capabilities";
 import {
   defineSettings,
   resolveSetting,
@@ -9,7 +9,7 @@ import {
   type ScopeStack,
   type SettingDef,
   type SettingScope,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 // L2.web.spec §6. 키 문법은 `l2.web.<이름>`이다. 표 전체를 선언한다(L2.web.plan B11). 읽는 쪽은 이 파일의
 // `readWebSettings`이고, 브라우저·조사 키(browse.*, research.*)는 그 기능이 들어오는 트랙이 읽는다.

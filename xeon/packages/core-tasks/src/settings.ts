@@ -1,11 +1,11 @@
-import type { DrainMode, PoolName } from "@xeon/contracts/services";
+import type { DrainMode, PoolName } from "@fresnel/contracts/services";
 import {
   defineSettings,
   resolveSetting,
   type ScopeStack,
   type SettingDefInput,
   type SettingGroup,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { Type } from "typebox";
 import { DEFAULT_POOL_LIMITS, type TasksSettingsSource } from "./settings-source.ts";
 

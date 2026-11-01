@@ -1,7 +1,7 @@
-import { KnowledgeLedger, KnowledgeLedgerKey } from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import { createKnowledgeProposalWire, type KnowledgeProposalWire } from "@xeon/cap-knowledge";
-import type { CommandResourceDef, ExtensionUnit, ResourceRegistry } from "@xeon/ext-host";
+import { KnowledgeLedger, KnowledgeLedgerKey } from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import { createKnowledgeProposalWire, type KnowledgeProposalWire } from "@fresnel/cap-knowledge";
+import type { CommandResourceDef, ExtensionUnit, ResourceRegistry } from "@fresnel/ext-host";
 import {
   createLearningBridge,
   createLearningGroup,
@@ -12,10 +12,10 @@ import {
   type LearningBridge,
   type LearningQueueReader,
   type StoreFailure,
-} from "@xeon/group-learning";
-import { err, type Clock, type Logger } from "@xeon/contracts";
-import type { SessionService, StoreService } from "@xeon/contracts/records";
-import { isId, type IdFactory, type ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/group-learning";
+import { err, type Clock, type Logger } from "@fresnel/contracts";
+import type { SessionService, StoreService } from "@fresnel/contracts/records";
+import { isId, type IdFactory, type ThreadId } from "@fresnel/contracts/conversation";
 
 // 학습 그룹을 내장 그룹으로 싣는다(D-M3-02: 기본 켬). 조립 루트가 하는 일은 넷이다: 대기열 읽기 면과 목록 면(브리지)을 만들어 그룹에 넘기고,
 // 투영기(`learningProjector`)를 세션 서비스에 등록하고(`registerLearningProjection`), 결정과 지연 정리를 `/learning` 명령으로 실행하고(`createLearningRunner`),
@@ -31,7 +31,7 @@ export function learningLoaded(options: {
   return options.defaultGroups !== false && options.safeMode !== true;
 }
 
-/** `xeon.knowledge`의 제안 대기열 어댑터를 나중에 채우는 자리. 브리지 확장이 채우고 `proposal.*` 처리기가 부를 때 읽는다 */
+/** `fresnel.knowledge`의 제안 대기열 어댑터를 나중에 채우는 자리. 브리지 확장이 채우고 `proposal.*` 처리기가 부를 때 읽는다 */
 export interface KnowledgeWireHolder {
   current: KnowledgeProposalWire | undefined;
 }

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ServiceKey } from "@xeon/contracts/capabilities";
+import type { ServiceKey } from "@fresnel/contracts/capabilities";
 import { satisfiesRange } from "../../src/loading-trust/index.ts";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createLoaderHarness, moduleOf } from "./support/harness.ts";

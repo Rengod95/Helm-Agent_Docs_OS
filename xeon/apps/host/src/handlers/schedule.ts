@@ -5,9 +5,9 @@ import type {
   ScheduleEntry,
   ScheduleService,
   StoreFailure,
-} from "@xeon/cap-schedule";
-import type { ScheduleEntryView, ScheduleTrigger } from "@xeon/contracts/capabilities";
-import type { WireHandlers, WireResult } from "@xeon/contracts/wire";
+} from "@fresnel/cap-schedule";
+import type { ScheduleEntryView, ScheduleTrigger } from "@fresnel/contracts/capabilities";
+import type { WireHandlers, WireResult } from "@fresnel/contracts/wire";
 import type { Engine } from "../types.ts";
 
 // F wire `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`(M3b B1-SCH2, L2.schedule.spec §4.4.9).

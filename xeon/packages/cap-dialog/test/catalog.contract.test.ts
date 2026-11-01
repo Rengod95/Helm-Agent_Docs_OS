@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DIALOG_EVENT_CATALOG, TYPE_PREFIX_OWNERS } from "@xeon/contracts/records";
+import { DIALOG_EVENT_CATALOG, TYPE_PREFIX_OWNERS } from "@fresnel/contracts/records";
 
 describe("카탈로그", () => {
   test("dialog.status는 휘발이고 dialog.notified는 내구이며 접두 소유자는 cap.dialog다", () => {

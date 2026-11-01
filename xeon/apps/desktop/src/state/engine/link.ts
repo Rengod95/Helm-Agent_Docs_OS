@@ -6,8 +6,8 @@ import {
   repeatAsync,
   type Logger,
   type Result,
-} from "@xeon/contracts";
-import type { ItemRecord, ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts";
+import type { ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
 import {
   WireError,
   type EventsBatchParams,
@@ -15,7 +15,7 @@ import {
   type StreamPosition,
   type SubId,
   type ThreadSummary,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { watch } from "../shared/watch.ts";
 import { MAX_SYNC_ATTEMPTS } from "./reduce.ts";
 import { decodeDurable, decodeVolatile } from "./decode.ts";

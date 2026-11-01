@@ -4,7 +4,7 @@ import {
   resolveSetting,
   type ScopeStack,
   type SettingDef,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 // L2.knowledge.spec §6. 키 문법 `l2.knowledge.<이름>`. 쓰기 승인·스캔·증거 출처 키와 `skills.paths`는 관리·사용자 범위만
 // 허용한다. 저장소에 커밋되는 프로젝트 파일로 승인을 끄거나 스킬 경로를 더하는 길을 막기 위해서다.

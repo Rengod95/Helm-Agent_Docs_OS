@@ -1,5 +1,5 @@
-import { detach, rethrow } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { detach, rethrow } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { memo, useState, type ReactNode } from "react";
 import {
   useRecentWorkspaces,

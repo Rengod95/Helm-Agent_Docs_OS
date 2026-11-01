@@ -1,9 +1,9 @@
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { attemptAsync, parse, parseJson, type Logger } from "@xeon/contracts";
-import type { AgentDefinition } from "@xeon/contracts/services";
-import { parseDefinitionFile } from "@xeon/core-agents";
-import { installDefaultPlugin, type PluginInstallFs } from "@xeon/ext-host";
+import { attemptAsync, parse, parseJson, type Logger } from "@fresnel/contracts";
+import type { AgentDefinition } from "@fresnel/contracts/services";
+import { parseDefinitionFile } from "@fresnel/core-agents";
+import { installDefaultPlugin, type PluginInstallFs } from "@fresnel/ext-host";
 import { Type } from "typebox";
 
 // X.loading-trust.spec §4.4.7. 릴리즈에 든 기본 플러그인(Helm, 계정 회전)을 첫 실행에 사용자 확장 위치로 복사한다. 조립 루트 코드(DR-14 예외 2).

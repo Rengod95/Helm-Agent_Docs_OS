@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
+import { err, ok, type LogFields, type Logger, type Result } from "@fresnel/contracts";
 import {
   KnowledgeLedgerKey,
   KnowledgeSearchKey,
@@ -8,20 +8,20 @@ import {
   type KnowledgeLedger,
   type KnowledgeSearch,
   type KnowledgeSkills,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   defineManifest,
   validateManifest,
   type ExtensionEntry,
   type PortKey,
   type ToolRegisterError,
-} from "@xeon/contracts/extensions";
-import type { SessionService, StoreService } from "@xeon/contracts/records";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import type { ToolRegistration, Unregister } from "@xeon/contracts/services";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { createTestHost } from "@xeon/ext-host/testing";
-import { openTestStore, type TestStore } from "@xeon/platform-store/testing";
+} from "@fresnel/contracts/extensions";
+import type { SessionService, StoreService } from "@fresnel/contracts/records";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import type { ToolRegistration, Unregister } from "@fresnel/contracts/services";
+import type { ExtensionUnit } from "@fresnel/ext-host";
+import { createTestHost } from "@fresnel/ext-host/testing";
+import { openTestStore, type TestStore } from "@fresnel/platform-store/testing";
 import { KNOWLEDGE_EXTENSION_NAME, knowledgeManifest } from "../src/manifest.ts";
 import { IMPLEMENTED_SKILL_TOOLS, knowledgePlugin } from "../src/plugin.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock } from "./support/clock.ts";
@@ -38,11 +38,11 @@ interface FakeOs {
   logger(component: string): Logger;
 }
 
-const OsKey: PortKey<FakeOs> = { name: "xeon.os" };
-const StoreKey: PortKey<StoreService> = { name: "xeon.store" };
-const ExecKey: PortKey<{ readonly cwd: string }> = { name: "xeon.exec" };
-const ToolsKey: PortKey<FakeTools> = { name: "xeon.tools" };
-const SessionKey: PortKey<SessionService> = { name: "xeon.session" };
+const OsKey: PortKey<FakeOs> = { name: "fresnel.os" };
+const StoreKey: PortKey<StoreService> = { name: "fresnel.store" };
+const ExecKey: PortKey<{ readonly cwd: string }> = { name: "fresnel.exec" };
+const ToolsKey: PortKey<FakeTools> = { name: "fresnel.tools" };
+const SessionKey: PortKey<SessionService> = { name: "fresnel.session" };
 
 interface LogLine {
   readonly event: string;
@@ -73,9 +73,9 @@ async function boot(
     projectTrust?: (projectDir: string) => Promise<boolean>;
     workspaceOf?: (threadId: string) => string | undefined;
     layers?: ScopeStack;
-    /** true면 실제 세션 서비스를 `xeon.session`으로 제공한다 */
+    /** true면 실제 세션 서비스를 `fresnel.session`으로 제공한다 */
     sessions?: boolean;
-    /** true면 시험 호스트가 기본으로 주는 부분 구현(RecordCommitPort 대역)을 `xeon.session`으로 둔다 */
+    /** true면 시험 호스트가 기본으로 주는 부분 구현(RecordCommitPort 대역)을 `fresnel.session`으로 둔다 */
     partialSession?: boolean;
   } = {},
 ) {
@@ -89,7 +89,7 @@ async function boot(
     options.sessions === true
       ? createSessionKit({ store, clock, ids, logger: recordingLogger([]) })
       : undefined;
-  // `xeon.session`은 SessionService 전체여야 한다. 시험 호스트의 부분 구현(records)은 `partialSession`일 때만 남긴다
+  // `fresnel.session`은 SessionService 전체여야 한다. 시험 호스트의 부분 구현(records)은 `partialSession`일 때만 남긴다
   const t = await createTestHost(options.partialSession === true ? {} : { without: ["records"] });
   const registered: ToolRegistration[] = [];
   const unregistered: string[] = [];
@@ -254,7 +254,7 @@ describe("plugin", () => {
     expect(skill?.hits.map((hit) => hit.ref)).toEqual(["deploy"]);
   });
 
-  test("a partial xeon.session is not accepted: the plugin setup fails instead of starting without search", async () => {
+  test("a partial fresnel.session is not accepted: the plugin setup fails instead of starting without search", async () => {
     const { installed } = await boot({ partialSession: true });
     expect(installed.setups[0]?.status).toBe("failed");
     const failure = installed.setups[0]?.failure;

@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { ProjectionTx, SqlRow, SqlTx, SqlValue } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { ProjectionTx, SqlRow, SqlTx, SqlValue } from "@fresnel/contracts/records";
 
 /** 문장이 건드리는 테이블 이름 자리. INSERT/REPLACE INTO, UPDATE, DELETE FROM, FROM, JOIN, CREATE/DROP TABLE, CREATE INDEX ... ON */
 const TABLE_REFERENCE =

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { t as tapeText, tape, tapePlayer } from "@xeon/core-models/testing";
-import { createTestHost } from "@xeon/ext-host/testing";
+import { parse } from "@fresnel/contracts";
+import { t as tapeText, tape, tapePlayer } from "@fresnel/core-models/testing";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { helmGroup } from "../../src/index.ts";
 import { WRITE_DENY_REASON } from "../../src/guard.ts";
 import { HelmStateSchema } from "../../src/state.ts";

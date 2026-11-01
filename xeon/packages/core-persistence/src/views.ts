@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   ReplayPolicySchema,
   ThreadStatusSchema,
@@ -7,7 +7,7 @@ import {
   type ThreadId,
   type ThreadStatus,
   type TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   EffectStatusSchema,
   type AgentView,
@@ -19,7 +19,7 @@ import {
   type SqlTx,
   type ThreadSummaryRow,
   type TurnView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { columns, rowInvalid, type RowFault } from "./rows.ts";
 import { AgentSettledStatusSchema } from "./agent-status.ts";
 

@@ -1,10 +1,10 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   FIRST_DENY,
   HOOKS,
   type FailOpenFirstHookName,
   type FirstHookName,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import type { FirstOutcome, HandlerFailure } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";
 import { eachInOrder } from "../sequence.ts";

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { createGroupService, defineGroup, groupCommand, type GroupModule } from "../src/index.ts";
 import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";

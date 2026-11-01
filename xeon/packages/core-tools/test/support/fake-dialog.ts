@@ -6,10 +6,10 @@ import {
   type AskQuestion,
   type AskResult,
   type CallOptions,
-} from "@xeon/contracts/capabilities";
-import { ApprovalIdSchema, type JsonObject } from "@xeon/contracts/conversation";
-import { Bug, parse } from "@xeon/contracts";
-import type { ApprovalOrigin } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import { ApprovalIdSchema, type JsonObject } from "@fresnel/contracts/conversation";
+import { Bug, parse } from "@fresnel/contracts";
+import type { ApprovalOrigin } from "@fresnel/contracts/services";
 import { isJsonObject } from "../../src/util.ts";
 import type { ToolRuntime } from "../../src/runtime.ts";
 import { l2ApprovalsPort } from "../../src/testing/index.ts";

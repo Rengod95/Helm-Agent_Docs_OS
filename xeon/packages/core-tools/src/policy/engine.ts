@@ -1,5 +1,5 @@
-import { canonicalJson } from "@xeon/contracts";
-import type { JsonValue } from "@xeon/contracts/conversation";
+import { canonicalJson } from "@fresnel/contracts";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import {
   POLICY_TIER_ORDER,
   type PolicyDecision,
@@ -8,7 +8,7 @@ import {
   type PolicyRule,
   type PolicyTier,
   type TieredRule,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { globMatches, isJsonObject, tryRegExp } from "../util.ts";
 import { DEFAULT_RULE_PRIORITY } from "./rules.ts";
 import { modeDefault } from "./modes.ts";

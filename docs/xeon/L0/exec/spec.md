@@ -8,11 +8,11 @@ depends_on: [F.capabilities.spec, F.conversation.spec, adr.0003, eng.typescript.
 binds: [xeon/packages/platform-exec/**]
 ---
 
-# L0 exec 스펙: 실행 환경 `xeon.exec`
+# L0 exec 스펙: 실행 환경 `fresnel.exec`
 
 ## 1. 목적과 범위
 
-`platform-exec`는 파일 연산과 셸 실행을 한 인터페이스 `ExecutionEnv`(= `FileSystem` + `Shell`) 뒤에 두고, 로컬 구현을 Cordis 서비스 `xeon.exec`로 등록한다. 구현 원본은 pi durable `env` 모듈의 포크다 [결정: adr.0003 §3.1, `_research/foundation-plan.md` §1 결정 1].
+`platform-exec`는 파일 연산과 셸 실행을 한 인터페이스 `ExecutionEnv`(= `FileSystem` + `Shell`) 뒤에 두고, 로컬 구현을 Cordis 서비스 `fresnel.exec`로 등록한다. 구현 원본은 pi durable `env` 모듈의 포크다 [결정: adr.0003 §3.1, `_research/foundation-plan.md` §1 결정 1].
 
 정하는 것:
 
@@ -32,7 +32,7 @@ binds: [xeon/packages/platform-exec/**]
 | 장시간 백그라운드 프로세스 레지스트리, 엔진 프로세스 수명 | `L0.process.spec`. 레지스트리에 넘길 pid와 정지 수단은 이 문서의 `startBackground`(3.9절)가 만든다 |
 | 비밀 해석(lease), 마스킹, 사용 감사 | `L0.secrets.spec` |
 | 사용자 디렉터리 질의, `Clock`·`Scheduler`·`RandomSource` 구현 | `L0.os.spec` |
-| 앱 설정·스킬·플러그인 디렉터리 감시 | `L0.os.spec` §3.8. 파일 감시 책임 경계: 작업 공간 파일 감시는 `xeon.exec`의 `ExecutionEnv.watch`가 맡고, 앱 설정·스킬·플러그인 디렉터리 감시는 `xeon.os`의 `FileWatcher`가 맡는다. 판정은 경로 기준이다. `OsDirs`(config, data, state) 아래 경로는 os, 작업 공간 루트 아래 경로(프로젝트 안 `.fresnel/` 포함)는 exec다 [미결: `L0.os.spec` 10절 2번과 같은 문장] |
+| 앱 설정·스킬·플러그인 디렉터리 감시 | `L0.os.spec` §3.8. 파일 감시 책임 경계: 작업 공간 파일 감시는 `fresnel.exec`의 `ExecutionEnv.watch`가 맡고, 앱 설정·스킬·플러그인 디렉터리 감시는 `fresnel.os`의 `FileWatcher`가 맡는다. 판정은 경로 기준이다. `OsDirs`(config, data, state) 아래 경로는 os, 작업 공간 루트 아래 경로(프로젝트 안 `.fresnel/` 포함)는 exec다 [미결: `L0.os.spec` 10절 2번과 같은 문장] |
 | 도구 승인, 권한 모드, 명령 패턴 규칙 | `L1.tools.spec` |
 
 범위와 단계:
@@ -60,20 +60,20 @@ binds: [xeon/packages/platform-exec/**]
 | window | 호출자가 출력의 꼬리만 남길 때 넘기는 범위. 구현은 범위 밖 출력을 건너뛰고 `skipped`로 알린다 |
 | 소유자 | `ExecutionEnv` 인스턴스를 만든 쪽. 서비스 인스턴스의 소유자는 `platform-exec` Cordis 플러그인이다 |
 | 허용 목록 env | 자식 프로세스에 넘기는 환경 변수를 이름 목록으로 고른 결과. 부모 `process.env` 전체를 넘기지 않는다 |
-| lease | `xeon.secrets`가 돌려주는 비밀 값 보관 객체. 사용 후 폐기한다(`_research/secrets.md` §6.2) |
+| lease | `fresnel.secrets`가 돌려주는 비밀 값 보관 객체. 사용 후 폐기한다(`_research/secrets.md` §6.2) |
 
 ## 3. 인터페이스
 
 ### 3.1 F에 둘 실행 계약 초안
 
-아래 타입은 F `@xeon/contracts/services` 서브패스의 `services/exec.ts`에 둔다. L0·L1 서비스 인터페이스는 이 서브패스에 둔다 [결정: review.decisions-2 D-04]. L0 `platform-exec`(구현), L0 `platform-sandbox`(`Shell` 데코레이터), L1 `core-tools`, L2 `cap-workspace`(포크한 도구 본문)가 같은 타입을 쓰므로 F 외에는 공유할 곳이 없다(`eng.dependency-rules.guide` DR-02, DR-07의 "pi durable env 포크는 `platform-exec`만"). 이 절의 이름은 `F.capabilities.spec` §3.12 파일별 이름 표의 `services/exec.ts` 행에 있다. 아래 블록은 F로 옮기기 전의 초안이고, 필드는 이 블록을 F로 옮겨 확정한다(같은 절 규칙 1, `F.capabilities.plan` P9). 8절 'F에 요청'은 그 작업의 목록이다.
+아래 타입은 F `@fresnel/contracts/services` 서브패스의 `services/exec.ts`에 둔다. L0·L1 서비스 인터페이스는 이 서브패스에 둔다 [결정: review.decisions-2 D-04]. L0 `platform-exec`(구현), L0 `platform-sandbox`(`Shell` 데코레이터), L1 `core-tools`, L2 `cap-workspace`(포크한 도구 본문)가 같은 타입을 쓰므로 F 외에는 공유할 곳이 없다(`eng.dependency-rules.guide` DR-02, DR-07의 "pi durable env 포크는 `platform-exec`만"). 이 절의 이름은 `F.capabilities.spec` §3.12 파일별 이름 표의 `services/exec.ts` 행에 있다. 아래 블록은 F로 옮기기 전의 초안이고, 필드는 이 블록을 F로 옮겨 확정한다(같은 절 규칙 1, `F.capabilities.plan` P9). 8절 'F에 요청'은 그 작업의 목록이다.
 
 - 모양은 포크 원본 `D/src/env/index.ts`의 선언을 그대로 옮긴다. 포크한 도구 본문(`L2.workspace.plan`)이 원본 시그니처로 `env.exec(…, context)`를 부르기 때문이다.
 - F 규칙(`F.readme` §1): `node:*` 타입을 쓰지 않는다. 원본의 `NodeJS.ProcessEnv`는 연결 코드 쪽 생성 옵션에만 있고 아래 계약에는 없다.
 - 오류 클래스 두 개(`FileError`, `ExecutionError`)는 F 런타임 예외 4번 "오류 클래스"(`F.readme` §1)에 해당한다.
 
 ```ts
-// @xeon/contracts/services — exec.ts
+// @fresnel/contracts/services — exec.ts
 import type { Result } from "../base/index.ts";
 // services(F 순서 4)는 base·conversation·records·capabilities·extensions를 import type으로만 쓴다(F.readme §3 순서 표)
 import type { SecretRef } from "../capabilities/index.ts";      // capabilities/secrets.ts, F.capabilities.spec §3.10. 값은 "secret://<name>"
@@ -218,7 +218,7 @@ export interface BackgroundExecHandle {
   readonly exited: Promise<{ readonly code: number | null; readonly signal: string | null }>;
 }
 
-/** xeon.exec 서비스. 서비스 값 자체가 ExecutionEnv이고, 작업 디렉터리가 다른 파생 env를 만든다 */
+/** fresnel.exec 서비스. 서비스 값 자체가 ExecutionEnv이고, 작업 디렉터리가 다른 파생 env를 만든다 */
 export interface ExecService extends ExecutionEnv {
   /** 같은 구현과 설정을 쓰고 cwd만 다른 env. 파생 env의 cleanup은 그 env가 시작한 명령만 끝낸다 */
   withCwd(cwd: string): ExecutionEnv;
@@ -246,14 +246,14 @@ export interface TruncationResult {
   readonly maxLines: number;
   readonly maxBytes: number;
 }
-export const ExecServiceName = "xeon.exec" as const;
+export const ExecServiceName = "fresnel.exec" as const;
 ```
 
 - `SandboxRunReport`는 `L0.sandbox.spec` §3.1의 초안이고 F 위치는 `services/sandbox-report.ts`다(`F.capabilities.spec` §3.12). `ShellExecResult`가 그 이름을 참조하므로 두 블록은 같은 F 변경(`F.capabilities.plan` P9)으로 옮긴다.
 - import 방향 [제안]: `sandbox.ts`는 `exec.ts`(`CancelScope`, `Shell`)를 import한다. 그래서 `exec.ts`가 `sandbox.ts`를 import하면 `import/no-cycle`(타입 import 포함)에 걸린다. `SandboxRunReport`와 `SandboxViolation`은 아무것도 import하지 않는 `services/sandbox-report.ts`에 두고, `exec.ts`와 `sandbox.ts`가 둘 다 이 파일을 import한다. 방향은 `sandbox-report.ts` ← `exec.ts` ← `sandbox.ts` 한 방향이다(`L0.store.spec` §3.1의 `sql.ts` 분리와 같은 방식).
 - `SecretRef`는 F `capabilities/secrets.ts`가 정본이고(`F.capabilities.spec` §3.10) settings가 다시 export한다. services(순서 4)는 capabilities를 `import type`으로 쓸 수 있다(`F.readme` §3). `UseCtx`는 같은 서브패스의 `services/secrets.ts`에 있고, 그 파일은 같은 서브패스의 다른 파일을 import하지 않으므로 순환이 없다(`F.capabilities.spec` §3.12 규칙 4).
-- 출력 절단 [결정: review.decisions-2 D-08]: 절단 함수의 유일한 구현은 이 패키지의 포크(`src/upstream/truncate.ts`)다. L1(core-tools 결과 경계화)과 L2(cap-workspace `read`·`bash`)는 `xeon.exec`의 `truncateHead`·`truncateHeadOf`·`formatSize`로 부르고 사본을 두지 않는다. M1 코드에 있던 사본 두 곳(`cap-workspace/src/truncate/upstream`, `apps/host/src/assembly/truncator.ts`)과 core-tools의 `truncator` 주입 옵션은 이 메서드로 바꾸고 지웠다 [결정: review.decisions-2 B-04]. 파생 env(`withCwd`)는 `ExecutionEnv`라 절단 메서드를 갖지 않는다. 절단은 cwd와 무관한 순수 계산이어서 서비스 값에서만 부른다. 포크 패치는 `platform-exec/PATCHES.md` P10~P13이다. `TruncationResult` 필드는 포크 원본을 옮길 때 원문과 대조해 확정한다.
-- [결정: review.decisions-2 D-04] `xeon.exec`의 F 인터페이스는 `ExecService`(`ExecService extends ExecutionEnv`)다. 세션마다 cwd가 다른 공유 서비스 모드(`L0.process.spec`, ADR-0006)에서 파생 env가 필요해 `withCwd`와 `startBackground`를 더했다. `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표가 이 이름을 쓴다.
+- 출력 절단 [결정: review.decisions-2 D-08]: 절단 함수의 유일한 구현은 이 패키지의 포크(`src/upstream/truncate.ts`)다. L1(core-tools 결과 경계화)과 L2(cap-workspace `read`·`bash`)는 `fresnel.exec`의 `truncateHead`·`truncateHeadOf`·`formatSize`로 부르고 사본을 두지 않는다. M1 코드에 있던 사본 두 곳(`cap-workspace/src/truncate/upstream`, `apps/host/src/assembly/truncator.ts`)과 core-tools의 `truncator` 주입 옵션은 이 메서드로 바꾸고 지웠다 [결정: review.decisions-2 B-04]. 파생 env(`withCwd`)는 `ExecutionEnv`라 절단 메서드를 갖지 않는다. 절단은 cwd와 무관한 순수 계산이어서 서비스 값에서만 부른다. 포크 패치는 `platform-exec/PATCHES.md` P10~P13이다. `TruncationResult` 필드는 포크 원본을 옮길 때 원문과 대조해 확정한다.
+- [결정: review.decisions-2 D-04] `fresnel.exec`의 F 인터페이스는 `ExecService`(`ExecService extends ExecutionEnv`)다. 세션마다 cwd가 다른 공유 서비스 모드(`L0.process.spec`, ADR-0006)에서 파생 env가 필요해 `withCwd`와 `startBackground`를 더했다. `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표가 이 이름을 쓴다.
 - [제안] 원본 `Result`, `ok`, `err`는 F 루트(`eng.typescript.guide` §1.2)의 것으로 바꾼다(3.3절 P2). F 계약의 `Result`는 F 루트 타입이다.
 - [제안] `CancelScope`는 원본 모양대로 `AbortSignal | undefined`를 받는다. `eng.typescript.guide` §1.2·TY-22 예시는 `AbortSignal`(undefined 없음)이다. 원본 테스트와 적합성 스위트가 취소 없는 호출을 `{ abortSignal: undefined }`로 표현하므로(`D/src/testing/env-conformance.ts`, `BACKGROUND_CONTEXT`) undefined를 허용한다. 10절 [미결] 1과 함께 정한다.
 
@@ -266,7 +266,7 @@ export const ExecServiceName = "xeon.exec" as const;
 | `L2.workspace.plan` 102행 | `CancelScope`는 L0와 L2가 함께 쓰므로 F에 둔다 |
 
 - 위치 [결정: review.decisions-2 D-04]: F `services/exec.ts`에 둔다(`F.capabilities.spec` §3.12 파일별 이름 표). L2 `cap-workspace`의 포크한 도구 본문(`tools/read.ts:1`, `bash.ts:1`, `file-mutation-queue.ts:1`, `path-utils.ts:1`)이 같은 타입을 쓰고, L2는 L0 패키지를 import할 수 없다(DR-14). 로컬 타입으로 두면 L2가 같은 모양을 다시 선언해야 하고, 이는 TY-22 4번이 금지한 것이다.
-- 남은 일은 `eng.typescript.guide` 문구다. 확정은 사용자와 `eng.typescript.guide` 소유자가 한다. TY-22 4번과 §1.2 마지막 항목의 문구를 "F `services`(`@xeon/contracts/services`)의 `CancelScope`. 포크 코드와 그 직접 소비자만 쓴다. 그 밖의 API는 `AbortSignal`을 받는다"로 고치기를 요청한다(8절).
+- 남은 일은 `eng.typescript.guide` 문구다. 확정은 사용자와 `eng.typescript.guide` 소유자가 한다. TY-22 4번과 §1.2 마지막 항목의 문구를 "F `services`(`@fresnel/contracts/services`)의 `CancelScope`. 포크 코드와 그 직접 소비자만 쓴다. 그 밖의 API는 `AbortSignal`을 받는다"로 고치기를 요청한다(8절).
 
 ### 3.3 포크 범위, 기록, 바꿀 점
 
@@ -306,8 +306,8 @@ export const ExecServiceName = "xeon.exec" as const;
 
 | 패치 id | 파일:줄 | 바꾸는 점 | 이유 | 확인 테스트 |
 |---|---|---|---|---|
-| P1 | `env/index.ts:1`, `env/node.ts:23`, `env/node-watch.ts:5` | `import type { Context } from "@earendil-works/chord"`를 `import type { CancelScope as Context } from "@xeon/contracts/services"`로 바꾼다. 본문의 `context.abortSignal` 접근(`node.ts` 31곳, 예: `:403`, `:624`, `:1082`)과 `Context` 타입 표기는 그대로 둔다 | Chord 제거 [결정: adr.0003 §3.1]. 별칭 import로 본문 diff를 3줄로 줄인다 [제안] | `tsc -b`가 chord 미설치 상태에서 통과. `grep -rnE "from ['\"][^'\"]*chord" src test` 0건(adr.0003 §4.2 검증 1·3) |
-| P2 | `env/index.ts:3-17` | 자체 `Result`, `ok`, `err`를 지우고 `export type { Result } from "@xeon/contracts"`, `export { ok, err } from "@xeon/contracts"`로 바꾼다. `getOrThrow`, `getOrUndefined`, `toError`(:14-32)는 남긴다 | 모양 대조 결과 같다: 원본 `{ ok: true; value } \| { ok: false; error }`, F `{ readonly ok: true; readonly value } \| { readonly ok: false; readonly error }`(`eng.typescript.guide` §1.2). 원본의 두 타입 인자 `ok<TValue, TError>`는 F의 `ok<T>(): Result<T, never>`로 바뀐다. 원본 env 안에 타입 인자를 직접 쓴 호출(`ok<`, `err<`)이 없음을 확인했다 | 타입체크. 적합성 스위트 전체 통과 |
+| P1 | `env/index.ts:1`, `env/node.ts:23`, `env/node-watch.ts:5` | `import type { Context } from "@earendil-works/chord"`를 `import type { CancelScope as Context } from "@fresnel/contracts/services"`로 바꾼다. 본문의 `context.abortSignal` 접근(`node.ts` 31곳, 예: `:403`, `:624`, `:1082`)과 `Context` 타입 표기는 그대로 둔다 | Chord 제거 [결정: adr.0003 §3.1]. 별칭 import로 본문 diff를 3줄로 줄인다 [제안] | `tsc -b`가 chord 미설치 상태에서 통과. `grep -rnE "from ['\"][^'\"]*chord" src test` 0건(adr.0003 §4.2 검증 1·3) |
+| P2 | `env/index.ts:3-17` | 자체 `Result`, `ok`, `err`를 지우고 `export type { Result } from "@fresnel/contracts"`, `export { ok, err } from "@fresnel/contracts"`로 바꾼다. `getOrThrow`, `getOrUndefined`, `toError`(:14-32)는 남긴다 | 모양 대조 결과 같다: 원본 `{ ok: true; value } \| { ok: false; error }`, F `{ readonly ok: true; readonly value } \| { readonly ok: false; readonly error }`(`eng.typescript.guide` §1.2). 원본의 두 타입 인자 `ok<TValue, TError>`는 F의 `ok<T>(): Result<T, never>`로 바뀐다. 원본 env 안에 타입 인자를 직접 쓴 호출(`ok<`, `err<`)이 없음을 확인했다 | 타입체크. 적합성 스위트 전체 통과 |
 | P3 | `env/node.ts:76, 194, 224, 275, 805, 971`, `env/node-watch.ts:184, 294, 415, 512` | `process.platform` 분기 10곳을 `ExecPlatformProvider`(3.4절) 질의로 바꾼다. `NodeExecutionEnv` 생성 옵션과 `NodeWatchOptions`에 `platform: ExecPlatformProvider`를 더한다. `node.ts:226, 228, 278`의 `process.env` 읽기(Git Bash 후보, `SystemRoot`)는 win32 provider로 옮긴다 | DR-13, 3.4절. [제안] brief는 `node.ts` 6곳을 적었으나 원본 확인 결과 `node-watch.ts`에도 4곳(win32 polling 강제, darwin FSEvents 재스캔, linux 디렉터리별 감시, linux statfs 검사)이 있다 | `process-platform-scan` 검사(9절 7번), provider별 단위 시험 |
 | P4 | `test/env-*.test.ts` 4파일 | `vitest`를 `bun:test`로 바꾼다. `vi.spyOn`(`env-node.test.ts:442, 541`)은 `spyOn`, `vi.restoreAllMocks`(:139)는 `mock.restore`, `env-node-spill.test.ts:12-15`의 `vi.hoisted` + `vi.mock("node:fs")`는 `mock.module("node:fs", …)`로 옮긴다 | Vitest 미사용 [결정: `_research/foundation-plan.md` §2 테스트 행] | 포팅한 4파일 통과. `mock.module` 예외 기록(5.3절) |
 | P5 | `src/testing/env-conformance.ts:1-2`, `test/env-node.test.ts:7`, `test/env-node-conformance.test.ts:5`, `test/env-node-spill.test.ts:5` | `BACKGROUND_CONTEXT`를 `{ abortSignal: undefined }`로, `withAbortSignal(ctx, signal)`을 `{ abortSignal: signal }` 직접 조합으로 바꾼다. `env-conformance.ts:1`의 `import type { Context }`는 P1과 같은 별칭 import로 바꾼다 | Chord 값 import 제거(`_research/durable-and-search-facts.md` §A-3) | 적합성 스위트 통과 |
@@ -329,8 +329,8 @@ export const ExecServiceName = "xeon.exec" as const;
 
 ```ts
 // platform-exec/src/provider.ts [제안]
-import type { Result } from "@xeon/contracts";
-import type { ExecutionError } from "@xeon/contracts/services";
+import type { Result } from "@fresnel/contracts";
+import type { ExecutionError } from "@fresnel/contracts/services";
 
 export interface ShellConfig {
   readonly shell: string;
@@ -431,7 +431,7 @@ export function buildChildEnv(input: {
 | `fixed` | `TERM=dumb`, `NO_COLOR=1`, `CI=1`. `LANG`이 부모에 없으면 `LANG=C.UTF-8` |
 | `deny` | `*_TOKEN`, `*_KEY`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY`, `SOPS_*`, `SOPS_AGE_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `AWS_*`, `ANTHROPIC_*`, `OPENAI_*`, `GEMINI_*`, `OPENROUTER_*`, `FRESNEL_*`, `SSH_AUTH_SOCK`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `WSL_INTEROP`, `WSL_DISTRO_NAME`, `NODE_OPTIONS`, `BUN_OPTIONS` |
 
-- [제안] 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`의 `services/exec.ts`, `F.capabilities.spec` §3.12) 하나다. 위 `deny` 행이 그 값이고 `BASE_ENV_POLICY.deny`는 이 상수를 그대로 쓴다. `L0.sandbox.spec`의 자가 시험(env 허용 목록 항목)과 `L0.secrets.spec` §4.5(sops 호출 env)도 같은 상수를 쓴다. secrets 서비스에는 별도 거부 목록(`childEnvPolicy`)을 두지 않으므로 `xeon.exec`는 `xeon.secrets`가 없어도 같은 목록으로 동작한다. 비밀 제공자 변수(`SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_*` 아래 `FRESNEL_SECRET_*`)가 모두 이 목록에 들어 있다.
+- [제안] 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@fresnel/contracts/services`의 `services/exec.ts`, `F.capabilities.spec` §3.12) 하나다. 위 `deny` 행이 그 값이고 `BASE_ENV_POLICY.deny`는 이 상수를 그대로 쓴다. `L0.sandbox.spec`의 자가 시험(env 허용 목록 항목)과 `L0.secrets.spec` §4.5(sops 호출 env)도 같은 상수를 쓴다. secrets 서비스에는 별도 거부 목록(`childEnvPolicy`)을 두지 않으므로 `fresnel.exec`는 `fresnel.secrets`가 없어도 같은 목록으로 동작한다. 비밀 제공자 변수(`SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_*` 아래 `FRESNEL_SECRET_*`)가 모두 이 목록에 들어 있다.
 
 규칙:
 
@@ -450,27 +450,27 @@ export function buildChildEnv(input: {
 
 구현의 전제 [제안]:
 
-- `xeon.secrets`가 env 모드 lease 메서드 `withEnv`(`L0.secrets.spec` §3.6)를 제공한다. 이 메서드는 `SecretService.lease(handle, ctx)`와 같은 `UseCtx`를 받는다.
+- `fresnel.secrets`가 env 모드 lease 메서드 `withEnv`(`L0.secrets.spec` §3.6)를 제공한다. 이 메서드는 `SecretService.lease(handle, ctx)`와 같은 `UseCtx`를 받는다.
 - `SecretEnvRequest.ctx`가 `UseCtx`에서 `mode`·`target`을 뺀 값을 싣는다. `purpose`(예: `"bash:gh"`), `toolCallId`, `threadId`, `projectId`, `approval`(`ApprovalEvidence`, env 모드는 `per-use` 필수)은 L1 tools가 승인 뒤 채운다. 연결 코드는 `mode: "env"`, `target: { kind: "command", argv0, commandLine }`을 실행할 명령에서 채운다.
 
 순서(연결 코드 `src/service.ts`의 `exec`):
 
 1. `buildChildEnv`로 기본 env를 만든다. 실패하면 3번 이후를 하지 않는다.
 2. `signal`이 이미 취소됐으면 `aborted`.
-3. `secretEnv.refs`의 각 항목에 대해 `xeon.secrets`의 env 모드 lease를 요청한다(`withEnv`, 인자는 `secretEnv.ctx`와 위에서 채운 `mode`·`target`). 같은 핸들을 가리키는 env 이름이 여럿이면 핸들당 lease를 한 번만 열고 읽은 값을 그 이름 모두에 채운다(핸들당 승인 1회이므로 두 번째 lease는 `approval_missing`이 된다. 승인 정책은 바꾸지 않는다). 하나라도 실패하면 이미 얻은 lease를 모두 폐기하고 `ExecutionError("secret_unavailable")`를 돌려준다. 오류 메시지에는 참조 이름(`secret://…`)만 넣는다.
+3. `secretEnv.refs`의 각 항목에 대해 `fresnel.secrets`의 env 모드 lease를 요청한다(`withEnv`, 인자는 `secretEnv.ctx`와 위에서 채운 `mode`·`target`). 같은 핸들을 가리키는 env 이름이 여럿이면 핸들당 lease를 한 번만 열고 읽은 값을 그 이름 모두에 채운다(핸들당 승인 1회이므로 두 번째 lease는 `approval_missing`이 된다. 승인 정책은 바꾸지 않는다). 하나라도 실패하면 이미 얻은 lease를 모두 폐기하고 `ExecutionError("secret_unavailable")`를 돌려준다. 오류 메시지에는 참조 이름(`secret://…`)만 넣는다.
 4. lease 값을 기본 env 사본에 넣어 포크 `exec`를 부른다(`inheritEnv: false`).
 5. `exec`가 끝나면(성공, 실패, 취소, 시간 초과 모두) `finally`에서 lease를 폐기하고 env 사본의 참조를 버린다.
 
 규칙:
 
-- `platform-exec`는 `platform-secrets`를 import하지 않는다(DR-02). `xeon.secrets`는 Cordis로 주입받는다. 서비스가 없으면 `secretEnv`가 있는 호출은 `secret_unavailable`이다.
+- `platform-exec`는 `platform-secrets`를 import하지 않는다(DR-02). `fresnel.secrets`는 Cordis로 주입받는다. 서비스가 없으면 `secretEnv`가 있는 호출은 `secret_unavailable`이다.
 - 값은 지역 변수와 spawn 인자에만 있다. 인스턴스 필드, 캐시, 로그, 오류 메시지, `ShellExecResult`, `onOutput` 호출 인자에 넣지 않는다. 자식이 출력으로 값을 되돌려 보내는 경우의 마스킹은 `L0.secrets.spec`과 `L1.tools.spec`이 한다.
 - `secretEnv`는 모델 도구 파라미터로 노출하지 않는다(`L2.workspace.spec` 454행). 승인과 명령 패턴 검사는 `L1.tools.spec`이 이 호출 전에 한다(`_research/secrets.md` §6.2 "M1은 승인과 명령 패턴이 있을 때만").
 - 데코레이터(`L0.sandbox.spec`의 `wrapShell`)는 `secretEnv`를 해석하지 않고 그대로 아래 `Shell`에 넘긴다. 그래서 값은 샌드박스 래핑 뒤, spawn 직전에만 env에 들어간다.
 
 ### 3.7 데코레이션 가능한 `Shell`
 
-exec와 sandbox는 서로 import하지 않고 F의 `Shell` 인터페이스로만 만난다. `xeon.sandbox`의 `wrapShell`은 F `Shell`을 받아 F `Shell`을 돌려주고, 두 서비스의 조립은 L1 tools 또는 apps/host가 한다.
+exec와 sandbox는 서로 import하지 않고 F의 `Shell` 인터페이스로만 만난다. `fresnel.sandbox`의 `wrapShell`은 F `Shell`을 받아 F `Shell`을 돌려주고, 두 서비스의 조립은 L1 tools 또는 apps/host가 한다.
 
 `Shell` 구현이 지킬 것 [제안]:
 
@@ -485,7 +485,7 @@ exec와 sandbox는 서로 import하지 않고 F의 `Shell` 인터페이스로만
 
 ```ts
 // platform-exec/src/service.ts [제안]
-import type { ExecService } from "@xeon/contracts/services";
+import type { ExecService } from "@fresnel/contracts/services";
 
 export interface ExecServiceOptions {
   readonly cwd: string;                         // 엔진 시작 cwd
@@ -505,11 +505,11 @@ export function createExecService(
 ): ExecService;
 ```
 
-- 등록은 ext-host의 서비스 등록 API로 하고(adr.0003 §3.3, `X.primitives.spec`), 이름은 `ExecServiceName`(`"xeon.exec"`)이다. `platform-exec`는 Cordis를 직접 import하지 않는다(DR-11).
+- 등록은 ext-host의 서비스 등록 API로 하고(adr.0003 §3.3, `X.primitives.spec`), 이름은 `ExecServiceName`(`"fresnel.exec"`)이다. `platform-exec`는 Cordis를 직접 import하지 않는다(DR-11).
 - 플러그인 dispose 때 서비스 `cleanup`을 한 번 부른다. 파생 env(`withCwd`)의 `cleanup`은 파생 env를 만든 소유자가 부른다.
 - `defaultTimeoutMs`는 호출자가 `timeout`을 주지 않았을 때만 쓴다. 원본 `timeout`이 초 단위이므로 `defaultTimeoutMs / 1000`으로 넘긴다.
 - `outputSpillBytes`는 호출자가 `spill`을 주지 않았을 때 `{ afterBytes: outputSpillBytes, afterLines: Number.MAX_SAFE_INTEGER }`로 넘긴다.
-- `tempDir`는 `createTempDir`·`createTempFile`과 spill 파일의 위치다(PATCHES P19). 있으면 그 디렉터리를 0700으로 만들고(없을 때) 아래에 `tmp-XXXX/`(0700)를 두며, 임시 파일은 0600이다. 없으면 원본대로 OS 임시 폴더다. 운영 조립은 항상 `<xeon.os dirs.state>/spill`을 넘긴다 [결정: m2 마감 G2-05].
+- `tempDir`는 `createTempDir`·`createTempFile`과 spill 파일의 위치다(PATCHES P19). 있으면 그 디렉터리를 0700으로 만들고(없을 때) 아래에 `tmp-XXXX/`(0700)를 두며, 임시 파일은 0600이다. 없으면 원본대로 OS 임시 폴더다. 운영 조립은 항상 `<fresnel.os dirs.state>/spill`을 넘긴다 [결정: m2 마감 G2-05].
 - `spillMaxBytes`는 `tempDir` 아래 사용량이 상한 이상이면 새 spill을 시작하지 않는다. 호출자가 준 `spill`도 같다. 규칙은 3.8.2절이다.
 
 ### 3.8.1 무인 경로 시간 상한 [결정: M3-REQ-46]
@@ -597,7 +597,7 @@ export function createExecService(
 
 ### 4.5 원본에서 바뀌지 않는 것
 
-- 재생 규칙은 없다. `xeon.exec`는 이벤트를 쓰지 않고 이벤트 type을 소유하지 않는다(`eng.context-map.design` §4.1 platform-execution 행 "없음"). 도구 효과의 의도·결과 기록과 재생 판단은 `L1.tools.spec`이 한다.
+- 재생 규칙은 없다. `fresnel.exec`는 이벤트를 쓰지 않고 이벤트 type을 소유하지 않는다(`eng.context-map.design` §4.1 platform-execution 행 "없음"). 도구 효과의 의도·결과 기록과 재생 판단은 `L1.tools.spec`이 한다.
 
 ## 5. 실패와 경계 사례
 
@@ -676,7 +676,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 ## 7. 확장 지점
 
-- `xeon.exec`는 `on` 지점을 선언하지 않는다. 도구 실행 전후 지점(`tool.call.before`, `tool.result`)은 L1이 선언한다(`F.extensions.spec`).
+- `fresnel.exec`는 `on` 지점을 선언하지 않는다. 도구 실행 전후 지점(`tool.call.before`, `tool.result`)은 L1이 선언한다(`F.extensions.spec`).
 - `post`, `drive`와 관계가 없다. drive 임대 반납·단계 경계 비활성화가 진행 중 명령을 끝낼 때는 L1이 `CancelScope.abortSignal`을 취소한다(B-17).
 - 확장은 `scope`로 `ExecServiceName`을 주입받아 쓸 수 있다. 확장이 자기 셸 데코레이터를 끼우는 것은 이 문서가 열지 않는다. `Shell` 데코레이터 조립 지점은 L1 tools와 apps/host 하나다(3.7절) [제안].
 
@@ -686,10 +686,10 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 | 이름 | 소비 문서 |
 |---|---|
-| `xeon.exec`(`ExecService`): 파일 연산, 셸 실행, `withCwd` | `L1.tools.spec`, `L2.workspace.spec`, `L1.tasks.spec`(경로 키 산출) |
+| `fresnel.exec`(`ExecService`): 파일 연산, 셸 실행, `withCwd` | `L1.tools.spec`, `L2.workspace.spec`, `L1.tasks.spec`(경로 키 산출) |
 | `ExecService.startBackground`와 `BackgroundExecHandle`(3.9절). 결과를 `BackgroundStopper`로 그대로 넘긴다 | `L0.process.spec` §4.3(레지스트리 등록자 계약), `L1.tools.spec`(백그라운드 셸), `L2.mcp.spec` |
 | 파일 감시 책임 경계 문장(1절 다루지 않는 것 표) | `L0.os.spec` §3.8 |
-| `@xeon/platform-exec/testing`: `fakeExec`(명령별 응답 표), `memoryFs`, `registerExecConformance` | `eng.testing.guide` TS-05, `L2.workspace.plan`, 다른 `ExecutionEnv` 구현(Docker 어댑터) |
+| `@fresnel/platform-exec/testing`: `fakeExec`(명령별 응답 표), `memoryFs`, `registerExecConformance` | `eng.testing.guide` TS-05, `L2.workspace.plan`, 다른 `ExecutionEnv` 구현(Docker 어댑터) |
 | 동작 보장 표(4.1절), 플랫폼 제약 표(5.2절) | `L2.workspace.spec` §4.2·§4.3 |
 | `pruneSpill`, `spillUsageBytes`(3.8.2절). 보관 정리는 조립 루트가 부른다 | 조립 루트 apps/host(L4.host) |
 
@@ -697,7 +697,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 | 요청 | 대상 | 이유 |
 |---|---|---|
-| `CancelScope`, `FileKind`, `FileErrorCode`, `ExecutionErrorCode`, `FileError`, `ExecutionError`, `FileInfo`, `TextLine`, `TextLineReader`, `LineScan`, `BinaryReader`, `DirReader`, `WatchTarget`, `WatchChange`, `FileWatcher`, `FileSystem`, `ShellSpillOptions`, `ShellOutputWindow`, `ShellOutputSkip`, `ShellOutputInfo`, `ShellExecOptions`, `ShellExecResult`, `Shell`, `ExecutionEnv`, `ExecService`, `ExecServiceName`를 `@xeon/contracts/services`(`services/exec.ts`)에 둔다 [결정: review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절. L0 두 패키지와 L1·L2가 공유한다 |
+| `CancelScope`, `FileKind`, `FileErrorCode`, `ExecutionErrorCode`, `FileError`, `ExecutionError`, `FileInfo`, `TextLine`, `TextLineReader`, `LineScan`, `BinaryReader`, `DirReader`, `WatchTarget`, `WatchChange`, `FileWatcher`, `FileSystem`, `ShellSpillOptions`, `ShellOutputWindow`, `ShellOutputSkip`, `ShellOutputInfo`, `ShellExecOptions`, `ShellExecResult`, `Shell`, `ExecutionEnv`, `ExecService`, `ExecServiceName`를 `@fresnel/contracts/services`(`services/exec.ts`)에 둔다 [결정: review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절. L0 두 패키지와 L1·L2가 공유한다 |
 | `ShellExecResult.sandbox`(`SandboxRunReport`) 필드 추가. `SandboxRunReport`·`SandboxViolation`은 아무것도 import하지 않는 `services/sandbox-report.ts`에 둔다 [결정: review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절 import 방향, `L0.sandbox.spec` §3.1 |
 | `ShellExecOptions.secretEnv`(`SecretEnvRequest`: `refs`와 `ctx`) 필드 추가 | `F.capabilities.spec` §3.12(services) | 반영되었다. 파일별 이름 표 `services/exec.ts` 행에 `ShellExecOptions`(`secretEnv?: SecretEnvRequest` 포함)와 `SecretEnvRequest`가 있다. `SecretRef`는 `capabilities/secrets.ts`(§3.10, settings가 다시 export), `UseCtx`는 `services/secrets.ts`에서 가져온다. 3.6절. M1 F 변경에 넣는다(U-19) |
 | `BackgroundExecHandle`, `ExecService.startBackground` | `F.capabilities.spec` §3.12(services) | 반영되었다(`services/exec.ts` 행과 `ExecService` 발췌 블록). 3.9절 |
@@ -710,18 +710,18 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 | 서비스 | 쓰는 곳 | 요구 내용 |
 |---|---|---|
-| `xeon.secrets`(`SecretService`) | 3.6절 비밀 주입(M1) | env 모드 lease 메서드 `withEnv(handle, ctx)`(`L0.secrets.spec` §3.6). 값은 lease 안에만. 실패는 `Result` |
-| `xeon.os`(`OsService`) | 3.4절 WSL 판정 | WSL 판정 기준은 `L0.os.spec` §3.1이 정본이다(`WSL_DISTRO_NAME` 또는 `/proc/version`의 `microsoft`·`WSL`). exec `select.ts`는 같은 기준을 쓴다 |
+| `fresnel.secrets`(`SecretService`) | 3.6절 비밀 주입(M1) | env 모드 lease 메서드 `withEnv(handle, ctx)`(`L0.secrets.spec` §3.6). 값은 lease 안에만. 실패는 `Result` |
+| `fresnel.os`(`OsService`) | 3.4절 WSL 판정 | WSL 판정 기준은 `L0.os.spec` §3.1이 정본이다(`WSL_DISTRO_NAME` 또는 `/proc/version`의 `microsoft`·`WSL`). exec `select.ts`는 같은 기준을 쓴다 |
 | ext-host 서비스 등록 API | 3.8절 | 서비스 이름 상수로 등록, dispose 콜백(`X.primitives.spec`) |
 | 조립 도우미 | 3.7절 | 파일 메서드는 원래 env, `exec`·`cleanup`은 감싼 `Shell`에 위임하는 `ExecutionEnv` 조립. 위치는 `L1.tools.spec`이 정한다 |
 
 ## 9. 수용 기준
 
-1. 적합성 스위트(`registerExecConformance`, 원본 사례 24개)가 Linux와 macOS CI에서 `NodeExecutionEnv` 기반 `xeon.exec`로 모두 통과한다.
+1. 적합성 스위트(`registerExecConformance`, 원본 사례 24개)가 Linux와 macOS CI에서 `NodeExecutionEnv` 기반 `fresnel.exec`로 모두 통과한다.
 2. `sh -c 'sleep 30 & sleep 30 & wait'`을 실행하고 abort하면, `aborted`가 돌아온 뒤 1초 안에 그 명령의 프로세스 그룹에 속한 프로세스가 0개다(`ps -o pid= -g <pgid>` 결과가 비어 있음). 시간 초과도 같다.
 3. 부모 env에 `GITHUB_TOKEN=x`, `SOPS_AGE_KEY=y`, `OP_SESSION_z=w`, `FOO=1`이 있을 때 `env`를 실행한 출력에 네 이름이 모두 없다. `l0.exec.envAllowlist.extra = ["FOO"]`이면 `FOO=1`만 나타난다.
 4. `env: { AWS_SECRET_ACCESS_KEY: "v" }` 요청은 `env_denied`이고 자식 프로세스가 생기지 않는다.
-5. (M1) `secretEnv: { refs: { GH_TOKEN: "secret://gh" }, ctx }` 호출에서 자식은 값을 받는다(`printenv GH_TOKEN`의 종료 코드 0). 값을 출력하지 않는 명령으로 실행했을 때 그 호출의 `ShellExecResult`, `ExecutionError` 메시지, 연결 코드의 로그 기록에 값 문자열이 나타나지 않는다. 호출이 끝난 뒤 가짜 `xeon.secrets`의 lease 폐기 횟수가 획득 횟수와 같다(성공, 실패, 취소, 시간 초과 4경우).
+5. (M1) `secretEnv: { refs: { GH_TOKEN: "secret://gh" }, ctx }` 호출에서 자식은 값을 받는다(`printenv GH_TOKEN`의 종료 코드 0). 값을 출력하지 않는 명령으로 실행했을 때 그 호출의 `ShellExecResult`, `ExecutionError` 메시지, 연결 코드의 로그 기록에 값 문자열이 나타나지 않는다. 호출이 끝난 뒤 가짜 `fresnel.secrets`의 lease 폐기 횟수가 획득 횟수와 같다(성공, 실패, 취소, 시간 초과 4경우).
 6. `select.ts`에 `platform: "freebsd"`를 주면 `err({ kind: "unsupported_platform", platform: "freebsd" })`이다.
 7. `platform-exec/src`에서 `process.platform`을 읽는 줄이 `src/select.ts` 밖에 0건이다(`src/upstream/**`, `src/providers/*` 포함). provider 파일은 `select.ts`가 고른 결과로만 쓰인다(`L0.readme` §3.1). 검사 스크립트가 이를 확인한다.
 8. 포크 5파일과 테스트의 변경점이 `PATCHES.md`, `UPSTREAM.json` `modifications`, `// FRESNEL-PATCH:` 표지 셋에서 같은 id 집합이다.

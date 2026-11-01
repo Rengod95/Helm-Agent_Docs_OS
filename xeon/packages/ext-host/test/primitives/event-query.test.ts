@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import type { DurableEventDraft } from "@xeon/contracts/records";
-import { err, ok } from "@xeon/contracts";
-import { ToolsPortKey } from "@xeon/contracts/extensions";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
+import { err, ok } from "@fresnel/contracts";
+import { ToolsPortKey } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { hostOf } from "../../src/primitives/index.ts";
 import { makeDraft } from "../../src/primitives/drafts.ts";

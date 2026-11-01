@@ -1,5 +1,5 @@
 // AgentService 구현(L1.agents.spec §3.3, §4.1~§4.8, AG-1·2·3·6·7·8·11). 포그라운드 spawn, 백그라운드 delegate, 목표 판정을 한다.
-import { assertNever, attemptAsync, detach, parse } from "@xeon/contracts";
+import { assertNever, attemptAsync, detach, parse } from "@fresnel/contracts";
 import {
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
@@ -8,12 +8,12 @@ import {
   type CommitPlan,
   type LeaseToken,
   type SpawnOwnerJson,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   TurnCompletedPayloadSchema,
   type ItemId,
   type ThreadId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   AGENT_REPORT_TYPE,
   type AgentDefinition,
@@ -33,8 +33,8 @@ import {
   type SpawnRequest,
   type SpawnResult,
   type TaskScope,
-} from "@xeon/contracts/services";
-import type { RecordKind, ScopeId } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/services";
+import type { RecordKind, ScopeId } from "@fresnel/contracts/extensions";
 import { ceilingOf, childMode } from "./permission-ceiling.ts";
 import { AGENTS_RULE_SOURCE, definitionRules, subagentRules } from "./denylist.ts";
 import { createDefinitionRegistry } from "./definitions/registry.ts";

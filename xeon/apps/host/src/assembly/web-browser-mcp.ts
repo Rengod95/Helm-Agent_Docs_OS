@@ -1,15 +1,15 @@
-import { attemptAsync, err, ok } from "@xeon/contracts";
-import type { CapabilityApi, McpApprovalMode, McpClient } from "@xeon/contracts/capabilities";
-import type { JsonObject } from "@xeon/contracts/conversation";
-import type { StoreService } from "@xeon/contracts/records";
-import type { BrowserMcpImage, BrowserMcpPort } from "@xeon/cap-web";
+import { attemptAsync, err, ok } from "@fresnel/contracts";
+import type { CapabilityApi, McpApprovalMode, McpClient } from "@fresnel/contracts/capabilities";
+import type { JsonObject } from "@fresnel/contracts/conversation";
+import type { StoreService } from "@fresnel/contracts/records";
+import type { BrowserMcpImage, BrowserMcpPort } from "@fresnel/cap-web";
 import { messageOf } from "../util.ts";
 
 // L2.web.spec §4.10.4a. `BrowserMcpPort`(cap-web이 아는 최소 모양)를 cap-mcp의 `mcp.client` 능력으로 맞춘다. cap-web은 cap-mcp를 import하지 않는다.
 // 서버 이름 `playwright`는 사용자가 설정에 둔 MCP 서버(`@playwright/mcp`)의 이름이다. 다른 이름을 고르는 설정은 나중 옵션이다 [결정: 오케스트레이터 기본값].
 // 이 경로는 cap-mcp의 `callTool`을 직접 부른다. 서버 도구의 승인 모드(`l2.mcp` approval)는 L1.tools 도구 경로에서만 검사하므로
 // `approvalModeOf`로 deny를 이 경로에서도 지키고, prompt는 감싼 `web_browse_*` 도구의 승인이 대신한다(아래 deps 주석).
-// 브라우저 동작의 사람 확인(`browseConfirm`)은 `web-browse-confirm.ts`가 `xeon.approvals`에 잇는다.
+// 브라우저 동작의 사람 확인(`browseConfirm`)은 `web-browse-confirm.ts`가 `fresnel.approvals`에 잇는다.
 
 /** 브라우저 MCP 서버의 설정 이름 */
 export const BROWSER_MCP_SERVER = "playwright";

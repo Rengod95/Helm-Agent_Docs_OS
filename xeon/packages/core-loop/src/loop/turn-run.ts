@@ -1,4 +1,4 @@
-import { Bug, err, ok, type Result } from "@xeon/contracts";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
 import type {
   AgentMessage,
   AssistantMessage,
@@ -8,14 +8,14 @@ import type {
   StepId,
   ThreadId,
   TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   STEP_CHECKPOINT_SCHEMA_VERSION,
   type CommitRequest,
   type DurableEventDraft,
   type ItemRecordedPayload,
   type StepCheckpoint,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   MODEL_ROLES,
   type AbortReason,
@@ -26,9 +26,9 @@ import {
   type TaskScope,
   type ToolRunContext,
   type ToolRunDrafts,
-} from "@xeon/contracts/services";
-import type { BoundarySignal } from "@xeon/ext-host";
-import type { ToolName } from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/services";
+import type { BoundarySignal } from "@fresnel/ext-host";
+import type { ToolName } from "@fresnel/contracts/capabilities";
 import { commitWithRetry, describeCommitFailure, type CommitOutcome } from "../commit.ts";
 import type { PreludeItem, StepRef } from "../commits.ts";
 import { createAgentEventMapper, type BoundAgentEventMapper } from "../event-mapper.ts";

@@ -1,5 +1,5 @@
-import { eachAsync, err, ok, type Result } from "@xeon/contracts";
-import type { WriteOutcome } from "@xeon/contracts/capabilities";
+import { eachAsync, err, ok, type Result } from "@fresnel/contracts";
+import type { WriteOutcome } from "@fresnel/contracts/capabilities";
 import { fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import { updateIndexAfterChange } from "../skills/index-update.ts";
 import type { LedgerDeps } from "./change.ts";

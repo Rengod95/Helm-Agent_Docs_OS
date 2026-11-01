@@ -1,6 +1,6 @@
 import { isContextOverflow, isRetryableAssistantError } from "@earendil-works/pi-ai";
-import type { AssistantMessage } from "@xeon/contracts/conversation";
-import type { ModelErrorKind } from "@xeon/contracts/services";
+import type { AssistantMessage } from "@fresnel/contracts/conversation";
+import type { ModelErrorKind } from "@fresnel/contracts/services";
 
 // L1.models.spec §3.8 classify 규칙, plan M-1.
 //

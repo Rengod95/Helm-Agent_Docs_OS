@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { forwardFileSystem, type FileMethods } from "../forward.ts";
 import { formatSize, truncateHead, truncateHeadOf } from "../upstream/truncate.ts";
 import {
@@ -12,7 +12,7 @@ import {
   type FileSystem,
   type ShellExecOptions,
   type ShellExecResult,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // L0.exec.plan §2 fakeExec. 명령별 응답 표로 ExecService를 대신하는 테스트 대역(eng.testing.guide TS-05).
 

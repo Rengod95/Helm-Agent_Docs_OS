@@ -1,8 +1,8 @@
 import { dirname } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import { fileURLToPath } from "node:url";
-import { attemptAsync, parseJson } from "@xeon/contracts";
-import { resolveOsDirs, systemClock } from "@xeon/platform-os";
+import { attemptAsync, parseJson } from "@fresnel/contracts";
+import { resolveOsDirs, systemClock } from "@fresnel/platform-os";
 import { devWireRoundTripOf } from "./dev-mode.ts";
 import { createGroupTemplatesFs, locateGroupTemplates } from "./group/fs-port.ts";
 import type { CliDeps, CliIo, CliSignal, DoctorProbes } from "./io.ts";
@@ -11,7 +11,7 @@ import type { CliDeps, CliIo, CliSignal, DoctorProbes } from "./io.ts";
 // runCli에 가짜 io·deps를 넣는다(그래서 이 파일은 커버리지 대상에서 제외하는 편이 맞다).
 
 /**
- * 테스트 격리용 상태 파일 덮어쓰기. 운영 경로는 @xeon/host의 resolveHostStatePaths()가 정한 `<OsDirs.state>/cli/state.json`이고
+ * 테스트 격리용 상태 파일 덮어쓰기. 운영 경로는 @fresnel/host의 resolveHostStatePaths()가 정한 `<OsDirs.state>/cli/state.json`이고
  * 이 변수가 없을 때 그 경로를 쓴다 [결정: review.decisions-2 B-07]
  */
 const STATE_FILE_ENV = "FRESNEL_CLI_STATE_FILE";
@@ -290,19 +290,19 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
       return connectEngine(options);
     },
     runHostCommand: async (command, io) => {
-      const { runHostCommand } = await import("@xeon/host");
+      const { runHostCommand } = await import("@fresnel/host");
       return runHostCommand(command, io);
     },
     startStdioHost: async (options) => {
-      const { startStdioHost } = await import("@xeon/host");
+      const { startStdioHost } = await import("@fresnel/host");
       return startStdioHost(options);
     },
     resolveRemote: async (options) => {
-      const { resolveRemoteEndpoint } = await import("@xeon/host");
+      const { resolveRemoteEndpoint } = await import("@fresnel/host");
       return resolveRemoteEndpoint(options);
     },
     bridgeStdio: async (options) => {
-      const { bridgeStdioToService } = await import("@xeon/host");
+      const { bridgeStdioToService } = await import("@fresnel/host");
       return bridgeStdioToService(options);
     },
     probes: REAL_PROBES,
@@ -319,11 +319,11 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
     clock: systemClock(),
     // 엔진 없이 저장소를 내보낸다. 모듈은 부를 때 읽는다: version·help가 SQLite 모듈을 끌어오지 않게 한다
     exportDatabase: async (options) => {
-      const { exportDatabase } = await import("@xeon/platform-store");
+      const { exportDatabase } = await import("@fresnel/platform-store");
       return exportDatabase(options);
     },
     // 데이터 디렉터리는 호스트와 같은 resolveOsDirs가 정한다(FRESNEL_HOME 포함). 자원 디렉터리는 데이터 위치와 무관하고
-    // resolveOsDirs가 절대 경로를 요구해 실행 파일 옆을 넘긴다(@xeon/host의 hostResourceDir과 같은 값)
+    // resolveOsDirs가 절대 경로를 요구해 실행 파일 옆을 넘긴다(@fresnel/host의 hostResourceDir과 같은 값)
     resolveDataDir: () => {
       const dirs = resolveOsDirs({ resourceDir: dirname(process.execPath) });
       return dirs.ok ? dirs.value.data : null;

@@ -1,11 +1,11 @@
-import { attemptAsync, eachAsync, err, ok, type Result } from "@xeon/contracts";
+import { attemptAsync, eachAsync, err, ok, type Result } from "@fresnel/contracts";
 import type {
   ProviderAvailabilityWeb,
   ProviderSearchRequest,
   ProviderSearchResult,
   WebCallMeta,
   WebProviderFallback,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type { WebDeps } from "../deps.ts";
 import type { WebFailure } from "../errors.ts";
 import type { SearchCandidate } from "../ports/providers.ts";

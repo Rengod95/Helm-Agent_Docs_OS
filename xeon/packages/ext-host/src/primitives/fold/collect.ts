@@ -1,5 +1,5 @@
-import { attempt, parse } from "@xeon/contracts";
-import { HOOKS, type CollectHookName } from "@xeon/contracts/extensions";
+import { attempt, parse } from "@fresnel/contracts";
+import { HOOKS, type CollectHookName } from "@fresnel/contracts/extensions";
 import { collectRuleOf } from "../../erase.ts";
 import type { CollectOutcome, HandlerFailure, HandlerRef } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";

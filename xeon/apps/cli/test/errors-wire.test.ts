@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { WireError, wireError } from "@xeon/contracts/wire";
+import { WireError, wireError } from "@fresnel/contracts/wire";
 import { failureOfWire } from "../src/errors.ts";
 import { EXIT } from "../src/exit-codes.ts";
 

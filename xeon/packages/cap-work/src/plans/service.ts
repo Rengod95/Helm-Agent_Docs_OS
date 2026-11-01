@@ -1,4 +1,4 @@
-import { assertNever, eachAsync, parse, type Result } from "@xeon/contracts";
+import { assertNever, eachAsync, parse, type Result } from "@fresnel/contracts";
 import {
   WorkPlans,
   type CallerInfo,
@@ -6,13 +6,13 @@ import {
   type PlanId,
   type PlanSubmitResult,
   type PlanVersion,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   toJsonValue,
   ThreadIdSchema,
   type JsonValue,
   type ThreadId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   ApprovalResolvedPayloadSchema,
   WorkPlanSubmittedSchema,
@@ -23,14 +23,14 @@ import {
   type ReadFailure,
   type StampedDraft,
   type StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   approvalCallerOf,
   type ApprovalOrigin,
   type L2ApprovalSnapshot,
   type L2ApprovalsPort,
   type PermissionMode,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   commitKeyOf,
   orThrow as orThrowIn,

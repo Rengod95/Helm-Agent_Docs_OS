@@ -1,4 +1,4 @@
-import { Bug, canonicalJson, ok, parse, type Clock, type Result } from "@xeon/contracts";
+import { Bug, canonicalJson, ok, parse, type Clock, type Result } from "@fresnel/contracts";
 import type {
   AgentToolCall,
   AgentToolResult,
@@ -8,7 +8,7 @@ import type {
   JsonValue,
   ToolResultMessage,
   ToolResultRecord,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
@@ -17,7 +17,7 @@ import {
   type ReadFailure,
   type SessionService,
   type StepCheckpointInput,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   AdvertiseInput,
   AdvertisedToolset,
@@ -30,7 +30,7 @@ import type {
   ToolRunContext,
   ToolService,
   UserShellRequest,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { Type } from "typebox";
 
 // 테스트 대역: core-tools의 파이프라인 중 루프와 접하는 부분만 흉내 낸다.

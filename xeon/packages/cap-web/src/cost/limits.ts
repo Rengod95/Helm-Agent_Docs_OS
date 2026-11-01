@@ -1,4 +1,4 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WebFailure } from "../errors.ts";
 
 // L2.web.spec §4.4.4. 세션당 호출 상한(기본 search 100, fetch 300, 0은 상한 없음). 카운터는 세션별 프로세스 메모리다.

@@ -3,7 +3,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import { manualClock } from "./support/clock.ts";
 import {

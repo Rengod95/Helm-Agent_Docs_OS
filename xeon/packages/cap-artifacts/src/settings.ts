@@ -1,11 +1,11 @@
 import { Type } from "typebox";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineSettings,
   resolveSetting,
   type ScopeStack,
   type SettingDef,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 // L2.artifacts.spec §6. M3b가 읽는 키는 다섯 개다. autoTitle.*, retentionDays, reviews.autoRequest,
 // reviews.fuzzLines, export.*, handoff.*는 읽는 코드가 없어 선언하지 않는다 [미결 §6].

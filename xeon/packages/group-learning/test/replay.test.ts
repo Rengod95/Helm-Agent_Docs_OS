@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { NO_EFFECTS, replayDrive } from "@xeon/group-sdk/testing";
+import { NO_EFFECTS, replayDrive } from "@fresnel/group-sdk/testing";
 import { createLearningGroup } from "../src/index.ts";
 import { manualClock } from "./support/clock.ts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { TestHost } from "@xeon/ext-host/testing";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { TestHost } from "@fresnel/ext-host/testing";
 import {
   createLearningReplayHarness,
   scriptIds,

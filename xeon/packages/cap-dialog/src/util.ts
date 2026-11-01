@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 
 /** JSON 값이 객체(배열과 null이 아님)인가 */
 export function isJsonObject(value: JsonValue | null | undefined): value is JsonObject {

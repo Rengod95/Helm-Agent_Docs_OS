@@ -1,5 +1,9 @@
 import { Type, type TString } from "typebox";
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+import {
+  defineSettings,
+  type SettingDefInput,
+  type SettingGroup,
+} from "@fresnel/contracts/settings";
 
 // ADR-0016 §3.3. 표시 언어 설정. CLI와 데스크톱이 함께 쓰므로 클라이언트 패키지에 둔다.
 // 키는 `l4.ui.locale`이다: 설정 키 이름공간이 `f|x|l0-4|ext`로 고정이라 ADR의 논리 이름 `ui.locale`을 그대로 쓸 수 없다

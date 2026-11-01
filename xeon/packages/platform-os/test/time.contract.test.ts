@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, setSystemTime, test } from "bun:test";
-import type { Clock, Scheduler } from "@xeon/contracts";
+import type { Clock, Scheduler } from "@fresnel/contracts";
 import { systemClock } from "../src/time/clock.ts";
 import { systemScheduler } from "../src/time/scheduler.ts";
 import { DEFAULT_START, manualClock } from "./support/clock.ts";

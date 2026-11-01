@@ -1,4 +1,4 @@
-import type { McpBlockedReason, McpServerDef } from "@xeon/contracts/capabilities";
+import type { McpBlockedReason, McpServerDef } from "@fresnel/contracts/capabilities";
 
 // 패키지 내부 공용 타입. SDK 타입을 담지 않는다(adapter.ts 경계).
 

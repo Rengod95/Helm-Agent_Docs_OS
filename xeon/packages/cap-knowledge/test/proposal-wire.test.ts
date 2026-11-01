@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eachAsync } from "@xeon/contracts";
-import type { CallOptions, Proposal } from "@xeon/contracts/capabilities";
+import { eachAsync } from "@fresnel/contracts";
+import type { CallOptions, Proposal } from "@fresnel/contracts/capabilities";
 import {
   proposalRowOf,
   createKnowledgeProposalWire,

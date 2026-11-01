@@ -1,5 +1,5 @@
 import { parse } from "yaml";
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 
 // pi `coding-agent/src/utils/frontmatter.ts`(커밋 cdaf6c2) 포크(L1.agents.plan §4, AG-9).
 // 바꾼 점: stripBom을 파일 안 한 줄로 옮겼고, yaml 예외를 Result로 돌려주며, frontmatter는 unknown으로 둔다

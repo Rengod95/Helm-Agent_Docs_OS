@@ -1,4 +1,4 @@
-import { assertNever, attempt, parse, type Clock, type Logger } from "@xeon/contracts";
+import { assertNever, attempt, parse, type Clock, type Logger } from "@fresnel/contracts";
 import {
   WebProviderManifestSchema,
   type CacheUsage,
@@ -7,7 +7,7 @@ import {
   type WebSearchProvider,
   webRegistrationCapability,
   type WebProviderRegistration,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { effectiveCachePolicy } from "../cache/policy.ts";
 import { createBoundProviderHttp, type ProviderHttpDeps } from "../policy/guarded-http.ts";
 import type {

@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type { GroupIoError, GroupTargetState, GroupTemplatesPort } from "../../src/io.ts";
 
 // 시험 도구: `fresnel group new`의 파일 작업을 메모리에서 흉내 낸다(L4.cli.plan §5). 템플릿 파일과 설치 목록을 넣고,

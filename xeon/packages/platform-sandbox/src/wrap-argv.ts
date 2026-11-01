@@ -1,11 +1,11 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type {
   CancelScope,
   SandboxArgvRequest,
   SandboxPolicy,
   SandboxedArgv,
   SandboxWrapError,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   decideExecution,
   envAdditions,

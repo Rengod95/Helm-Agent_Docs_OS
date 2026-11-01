@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ApprovalEvidence, KnowledgeActor } from "@xeon/contracts/capabilities";
+import type { ApprovalEvidence, KnowledgeActor } from "@fresnel/contracts/capabilities";
 import { decideGate, isEvidenceValid, type GateInput } from "../src/approval/gate.ts";
 
 type Action = "apply:user" | "apply:evidence" | "apply:policy" | "apply:approval" | "ask" | "queue";

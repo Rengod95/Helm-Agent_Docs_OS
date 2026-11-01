@@ -2,13 +2,13 @@
 // at cdaf6c227d4718a72b59ccd02152c9614df44cfc (pi 1.1.0). MIT License, Copyright (c) 2025 Mario Zechner. See LICENSE.pi.
 // Changes: see docs/xeon/X/loading-trust/spec.md §4.7.1, §4.7.3 and PATCHES.md.
 import { dirname } from "node:path";
-import { attemptAsync } from "@xeon/contracts";
+import { attemptAsync } from "@fresnel/contracts";
 import type {
   LoaderFs,
   TrustChoice,
   TrustPrompter,
   TrustPromptRequest,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import type { LoaderMode } from "./levels.ts";
 import { findTrustRequiringResources } from "./resources.ts";
 import {

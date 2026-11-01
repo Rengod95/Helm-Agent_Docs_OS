@@ -1,4 +1,4 @@
-import { parse, parseJson, type Logger } from "@xeon/contracts";
+import { parse, parseJson, type Logger } from "@fresnel/contracts";
 import type {
   ProviderAvailabilityWeb,
   ProviderSearchItem,
@@ -6,7 +6,7 @@ import type {
   ProviderSearchResult,
   WebProviderManifest,
   WebSearchProvider,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { Type } from "typebox";
 import type { WebFailure } from "../../errors.ts";
 import {

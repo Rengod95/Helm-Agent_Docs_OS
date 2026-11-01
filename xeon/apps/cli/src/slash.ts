@@ -1,14 +1,14 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever, attemptAsync, parse, type Result } from "@xeon/contracts";
-import { ThreadIdSchema, type ThreadId } from "@xeon/contracts/conversation";
-import { SETTING_KEY_PATTERN, type EffectiveSetting } from "@xeon/contracts/settings";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, attemptAsync, parse, type Result } from "@fresnel/contracts";
+import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
+import { SETTING_KEY_PATTERN, type EffectiveSetting } from "@fresnel/contracts/settings";
 import type {
   CommandListResult,
   CommandRunResult,
   HostConnection,
   ThreadCompactSkipReason,
   ThreadSummary,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { failureOfCaught, renderFailure, type Failure } from "./errors.ts";
 import type { CliIo } from "./io.ts";
 import { interpretRaw, showValue } from "./settings-input.ts";
@@ -100,7 +100,7 @@ export function parseSlash(line: string): SlashCommand {
     case "compact":
       // 요약 지침은 thread.compact가 1자 이상 2만 자 이하만 받는다. 길이를 넘으면 호스트가 invalidParams로 거부한다
       return { kind: "compact", instructions: rest.length === 0 ? null : rest };
-    // xeon-disable-next-line xeon/switch-default-never -- 슬래시 이름은 닫히지 않은 문자열이다. 별칭이 아니면 모르는 명령 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 슬래시 이름은 닫히지 않은 문자열이다. 별칭이 아니면 모르는 명령 값으로 돌려준다 (eng.typescript.guide TY-14)
     default: {
       const alias = SLASH_ALIASES.find((candidate) => candidate.name === name);
       if (alias !== undefined)

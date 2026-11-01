@@ -1,5 +1,5 @@
-import type { Clock, RandomSource, Scheduler, TimerHandle } from "@xeon/contracts";
-import type { IdByPrefix, IdFactory, IdPrefix } from "@xeon/contracts/conversation";
+import type { Clock, RandomSource, Scheduler, TimerHandle } from "@fresnel/contracts";
+import type { IdByPrefix, IdFactory, IdPrefix } from "@fresnel/contracts/conversation";
 
 /** 운영 코드가 받는 Clock과 Scheduler를 한 객체로 구현한다(eng.testing.guide TS-03) */
 export interface ManualClock extends Clock, Scheduler {

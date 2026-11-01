@@ -1,5 +1,5 @@
-import type { CapabilityId } from "@xeon/contracts/capabilities";
-import type { ExtensionName } from "@xeon/contracts/extensions";
+import type { CapabilityId } from "@fresnel/contracts/capabilities";
+import type { ExtensionName } from "@fresnel/contracts/extensions";
 import type { CordisBridge, OpenedFiber } from "./cordis-bridge.ts";
 import type { ExtDiagnostic } from "./errors.ts";
 import { eachInOrder } from "./sequence.ts";

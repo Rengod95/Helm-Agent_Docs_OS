@@ -1,6 +1,6 @@
-import type { SemVer } from "@xeon/contracts/capabilities";
-import type { ExtensionName, ManifestIssue } from "@xeon/contracts/extensions";
-import type { CatalogIssue } from "@xeon/contracts/settings";
+import type { SemVer } from "@fresnel/contracts/capabilities";
+import type { ExtensionName, ManifestIssue } from "@fresnel/contracts/extensions";
+import type { CatalogIssue } from "@fresnel/contracts/settings";
 import {
   Type,
   type TArray,

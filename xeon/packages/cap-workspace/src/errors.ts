@@ -1,17 +1,17 @@
-import { assertNever, Bug } from "@xeon/contracts";
+import { assertNever, Bug } from "@fresnel/contracts";
 import {
   CapabilityError,
   DEFAULT_RETRYABLE,
   type CapabilityId,
   type CommonErrorCode,
-} from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import {
   ExecutionError,
   FileError,
   type ExecutionErrorCode,
   type FileErrorCode,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // L2.workspace.spec §4.1. 포크 본문과 경로 검사는 WorkspaceFailure, FileError, ExecutionError를 던지고,
 // 서비스 경계(guarded)가 CapabilityError로 바꾼다. 서비스 메서드는 CapabilityError로만 거부한다(F.capabilities.spec §3.6).

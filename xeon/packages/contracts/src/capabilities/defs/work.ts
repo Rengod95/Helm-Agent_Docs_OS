@@ -1320,7 +1320,7 @@ export interface WorkService {
   readonly reports: CapabilityApi<typeof WorkReports>;
 }
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
-export const WorkServiceName = "xeon.work" as const;
+export const WorkServiceName = "fresnel.work" as const;
 export const WORK_CAPABILITIES: readonly [
   typeof WorkTasks,
   typeof WorkPlans,

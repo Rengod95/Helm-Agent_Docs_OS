@@ -1,19 +1,19 @@
-import { attempt, type Clock, type Logger, type Scheduler } from "@xeon/contracts";
+import { attempt, type Clock, type Logger, type Scheduler } from "@fresnel/contracts";
 import {
   WorkspaceFiles,
   WorkspaceImages,
   WorkspaceShell,
   type AnyCapabilityDef,
   type ServiceKey,
-} from "@xeon/contracts/capabilities";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type CapabilityRequirement,
   type ExtensionEntry,
   type ExtensionManifest,
-} from "@xeon/contracts/extensions";
-import type { SessionService } from "@xeon/contracts/records";
+} from "@fresnel/contracts/extensions";
+import type { SessionService } from "@fresnel/contracts/records";
 import {
   ApprovalServicePortKey,
   ExecPortKey,
@@ -23,16 +23,16 @@ import {
   StoreServicePortKey,
   TaskServicePortKey,
   ToolServicePortKey,
-} from "@xeon/contracts/services";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 import type { ToolsConfig, ToolsDeps } from "./deps.ts";
 import type { CapabilityResolver } from "./entries.ts";
 import { collectRules } from "./policy/tiers.ts";
 import { createToolRuntime } from "./runtime.ts";
 import { readScalarConfig, type ToolsSettingsSource } from "./settings.ts";
 
-// L1.tools.plan TL-8 plugin.ts. ext-host의 내장 확장 단위로 xeon.tools, xeon.approvals를 제공한다.
+// L1.tools.plan TL-8 plugin.ts. ext-host의 내장 확장 단위로 fresnel.tools, fresnel.approvals를 제공한다.
 // 이 패키지는 Cordis를 import하지 않는다(DR-11). 서비스 등록은 hostOf(g).providePort로 한다.
 
 /** 도구 어댑터가 서비스 API를 얻도록 매니페스트 optional에 올리는 내장 능력(L2.workspace) */
@@ -50,10 +50,10 @@ export const TOOLS_EXTENSION_NAME = "core-tools";
 
 export interface ToolsPluginOptions {
   readonly clock: Clock;
-  /** 승인 만료 타이머. 생략하면 `xeon.os`가 있을 때 그 스케줄러를 쓰고, 없으면 타이머 없이 시계만 본다 */
+  /** 승인 만료 타이머. 생략하면 `fresnel.os`가 있을 때 그 스케줄러를 쓰고, 없으면 타이머 없이 시계만 본다 */
   readonly scheduler?: Scheduler;
   readonly ids: IdFactory;
-  /** 파일 범위(managed, user, project, local) 설정 층. 세션 범위는 xeon.session에서 읽는다 */
+  /** 파일 범위(managed, user, project, local) 설정 층. 세션 범위는 fresnel.session에서 읽는다 */
   readonly settings: ToolsSettingsSource;
   readonly logger?: Logger;
   /** 매니페스트 optional에 더할 능력(워크스페이스 능력 밖의 L2 능력 도구를 쓸 때) */
@@ -124,7 +124,7 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         store,
         tasks,
         lockEnv: exec,
-        // 출력 절단은 xeon.exec가 제공한다. core-tools에는 사본을 두지 않는다(review.decisions-2 D-08, B-04)
+        // 출력 절단은 fresnel.exec가 제공한다. core-tools에는 사본을 두지 않는다(review.decisions-2 D-08, B-04)
         truncator: exec,
         redactor: secrets.redactor,
         secrets,

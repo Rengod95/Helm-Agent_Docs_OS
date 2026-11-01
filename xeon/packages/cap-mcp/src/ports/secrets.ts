@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 
 // HTTP·SSE 서버 헤더의 `secret://` 참조를 요청 직전에 푸는 포트(L2.mcp.spec §4.3).
 // 값은 요청 헤더에만 들어가고 이 패키지의 로그, 이벤트, 오류 메시지, 상태 표에 나타나지 않는다.

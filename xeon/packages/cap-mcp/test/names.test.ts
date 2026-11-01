@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { JsonObject } from "@xeon/contracts/conversation";
+import type { JsonObject } from "@fresnel/contracts/conversation";
 import { orderedOf } from "../src/client/dynamic-tools.ts";
 import { buildWorld, startWorld } from "./support/world.ts";
 

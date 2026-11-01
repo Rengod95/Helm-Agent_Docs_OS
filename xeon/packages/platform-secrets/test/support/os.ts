@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok, type Logger } from "@xeon/contracts";
-import type { BinaryName, OsPlatform, ResolvedBinary } from "@xeon/contracts/services";
+import { err, ok, type Logger } from "@fresnel/contracts";
+import type { BinaryName, OsPlatform, ResolvedBinary } from "@fresnel/contracts/services";
 import type { SecretsOs } from "../../src/assemble.ts";
 import { versionAtLeast } from "../../src/providers/sops.ts";
 import { seededRandom } from "./random.ts";

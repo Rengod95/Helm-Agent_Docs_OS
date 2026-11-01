@@ -1,7 +1,7 @@
-import type { Clock } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type { ApprovalOrigin } from "@xeon/contracts/services";
-import { createTestHost } from "@xeon/ext-host/testing";
+import type { Clock } from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { ApprovalOrigin } from "@fresnel/contracts/services";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { createApprovalService, type ApprovalsInternal } from "../approvals/service.ts";
 import { fakeSession, type FakeSession } from "./fake-session.ts";
 import { sequentialIds } from "./ids.ts";

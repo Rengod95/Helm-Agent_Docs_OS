@@ -1,6 +1,6 @@
-import { CapabilityError, type CapabilityId } from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
-import type { ReadFailure, StoreError } from "@xeon/contracts/records";
+import { CapabilityError, type CapabilityId } from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { ReadFailure, StoreError } from "@fresnel/contracts/records";
 
 // 서비스 메서드는 CapabilityError로만 거부한다(F.capabilities.spec §3.6). 내부 규칙은 값으로 다루고 경계에서 한 번 바꾼다.
 

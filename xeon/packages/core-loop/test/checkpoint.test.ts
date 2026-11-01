@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
-import type { EventId, StepId, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import type { EventId, StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type BoundaryValue,
   type ExtensionEntry,
-} from "@xeon/contracts/extensions";
-import type { CatalogEntry, DurableEventDraft } from "@xeon/contracts/records";
-import type { ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/contracts/extensions";
+import type { CatalogEntry, DurableEventDraft } from "@fresnel/contracts/records";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 import { finalizeBoundary, type BoundaryCheckContext } from "../src/index.ts";
 import { createHarness } from "./support/harness.ts";
 import { countKind, kindsOf } from "./support/inspect.ts";

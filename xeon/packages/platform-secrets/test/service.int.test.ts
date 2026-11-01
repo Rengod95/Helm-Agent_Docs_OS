@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { SecretAuditRecord } from "@xeon/contracts/capabilities";
+import type { SecretAuditRecord } from "@fresnel/contracts/capabilities";
 import { createSecretService } from "../src/assemble.ts";
 import { DEFAULT_SECRETS_CONFIG, type SecretsConfig } from "../src/config.ts";
 import { fakeSopsBinary, type FakeSops } from "../src/testing/index.ts";

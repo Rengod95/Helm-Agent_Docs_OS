@@ -4,7 +4,7 @@ import {
   checkSettingDef,
   type ScopeLayer,
   type ScopeStack,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { createAskService } from "../src/ask/service.ts";
 import { realApprovals } from "./support/real-approvals.ts";
 import {

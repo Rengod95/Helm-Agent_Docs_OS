@@ -1,6 +1,6 @@
-import { assertNever } from "@xeon/contracts";
-import { CapabilityError, McpClient, DEFAULT_RETRYABLE } from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
+import { assertNever } from "@fresnel/contracts";
+import { CapabilityError, McpClient, DEFAULT_RETRYABLE } from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { McpFailure } from "./adapter.ts";
 import type { McpMasker } from "./ports/secrets.ts";
 

@@ -1,7 +1,7 @@
 // 결과 불명 효과의 판정과 합성 결과 커밋 초안(L1.persistence.spec §3.7, §4.7).
 // decideOpenEffect는 순수 함수다. F decideEffectRecovery에 재실행 상한을 더한다.
-import type { Clock } from "@xeon/contracts";
-import type { EffectId, IdFactory, ItemId, ThreadId } from "@xeon/contracts/conversation";
+import type { Clock } from "@fresnel/contracts";
+import type { EffectId, IdFactory, ItemId, ThreadId } from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
   decideEffectRecovery,
@@ -17,7 +17,7 @@ import {
   type EffectResult,
   type ReplayPolicy,
   type StampedDraft,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { sha256Hex } from "./hash.ts";
 import type { ProducerRegistry } from "./producers.ts";
 

@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { EventId, JsonValue, ThreadId } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import type { EventId, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   DurableEventDraft,
   ExtCommitRequest,
   RecordCommitPort,
-} from "@xeon/contracts/records";
-import { memoryInputQueue, memoryLoopPort, runPortContract } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/records";
+import { memoryInputQueue, memoryLoopPort, runPortContract } from "@fresnel/ext-host/testing";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {
   endTurn,

@@ -1,6 +1,6 @@
-import type { IdByPrefix, IdFactory, IdPrefix } from "@xeon/contracts/conversation";
-import { validateManifest, type ManifestIssue } from "@xeon/contracts/extensions";
-import { createExtHost, PrimitiveError } from "@xeon/ext-host";
+import type { IdByPrefix, IdFactory, IdPrefix } from "@fresnel/contracts/conversation";
+import { validateManifest, type ManifestIssue } from "@fresnel/contracts/extensions";
+import { createExtHost, PrimitiveError } from "@fresnel/ext-host";
 import type { GroupDefIssue, GroupModule } from "../types.ts";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";

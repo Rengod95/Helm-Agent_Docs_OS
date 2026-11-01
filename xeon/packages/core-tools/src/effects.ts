@@ -1,5 +1,5 @@
-import { canonicalJson } from "@xeon/contracts";
-import type { Clock } from "@xeon/contracts";
+import { canonicalJson } from "@fresnel/contracts";
+import type { Clock } from "@fresnel/contracts";
 import type {
   EffectId,
   IdFactory,
@@ -7,8 +7,8 @@ import type {
   JsonValue,
   ThreadId,
   ToolResultMessage,
-} from "@xeon/contracts/conversation";
-import type { ToolRunContext } from "@xeon/contracts/services";
+} from "@fresnel/contracts/conversation";
+import type { ToolRunContext } from "@fresnel/contracts/services";
 import type {
   CommitRequest,
   EffectExec,
@@ -16,7 +16,7 @@ import type {
   EffectResult,
   ProducerHandle,
   StampedDraft,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { sha256Hex, utf8Bytes } from "./util.ts";
 
 // L1.tools.spec §3.9, §4.4. 도구 효과 커밋 3단(E1 의도, E2 실행 시작, E3 결과)의 요청을 만든다.

@@ -1,17 +1,17 @@
 import { afterEach, expect, test } from "bun:test";
-import { parse, parseJson } from "@xeon/contracts";
-import type { TurnId } from "@xeon/contracts/conversation";
-import type { ExtensionEntry, ScopeHandle } from "@xeon/contracts/extensions";
+import { parse, parseJson } from "@fresnel/contracts";
+import type { TurnId } from "@fresnel/contracts/conversation";
+import type { ExtensionEntry, ScopeHandle } from "@fresnel/contracts/extensions";
 import {
   checkEnvelope,
   EventsBatchParamsSchema,
   WIRE_PROTOCOL_VERSION,
   WireError,
   type EventWire,
-} from "@xeon/contracts/wire";
-import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
-import { smokeGroup } from "@xeon/group-sdk/testing";
-import { startInProcessHost } from "@xeon/host";
+} from "@fresnel/contracts/wire";
+import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
+import { smokeGroup } from "@fresnel/group-sdk/testing";
+import { startInProcessHost } from "@fresnel/host";
 import { createHostConnection } from "../src/host-client.ts";
 import {
   createEventLog,
@@ -34,7 +34,7 @@ import {
 } from "./support/scenario.ts";
 
 // M1 걸어 다니는 골격의 스모크(foundation-plan §6, L4.cli.plan §5.2). 저장소에서 유일한 scenario다(eng.testing.guide TS-01).
-// 모델은 테이프다. 엔진은 가짜가 아니라 실제 조립(@xeon/host)이다.
+// 모델은 테이프다. 엔진은 가짜가 아니라 실제 조립(@fresnel/host)이다.
 //   1. fresnel chat 한 턴이 read 도구를 쓰고 끝난다(실제 자식 프로세스).
 //   2. 실행 중 SIGKILL 뒤 --continue로 다시 열면 같은 thread에서 이벤트가 이어진다(실제 자식 프로세스).
 //   3. 테스트 그룹의 scope 토글은 단계 경계에서 적용되고, drive가 turn을 만든다(같은 프로세스 안 엔진).

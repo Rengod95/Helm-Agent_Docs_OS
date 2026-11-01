@@ -1,4 +1,4 @@
-import { isSkillFilePath } from "@xeon/contracts/capabilities";
+import { isSkillFilePath } from "@fresnel/contracts/capabilities";
 
 // 지원 파일 경로 검사. F의 `isSkillFilePath`(스키마와 같은 패턴: "."·".." 마디와 점으로 시작하는 마디 거부)를 파일을 열기 전에 반드시 먼저 부른다.
 // F가 패턴을 좁혔으므로(KN.1 요청 반영) 아래 점 검사는 같은 규칙을 한 번 더 확인하는 방어선이다. 트리 해시와 캡처가 점 항목을 보지 않으므로,

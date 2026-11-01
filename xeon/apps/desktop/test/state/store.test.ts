@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { ThreadSummary } from "@xeon/contracts/wire";
+import { Bug } from "@fresnel/contracts";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { MirrorInput } from "../../src/state/engine/input.ts";
 import { describeInput } from "../../src/state/engine/describe.ts";
 import {

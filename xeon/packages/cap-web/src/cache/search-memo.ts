@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock } from "@fresnel/contracts";
 import { sha256Hex } from "../util/hash.ts";
 
 // L2.web.spec §4.3.1 (2). 프로세스 메모리의 검색 결과 메모: LRU 500항목, TTL은 `l2.web.cache.searchTtlMinutes`.

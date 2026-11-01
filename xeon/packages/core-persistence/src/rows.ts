@@ -1,6 +1,6 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import { isId, type IdByPrefix, type IdPrefix } from "@xeon/contracts/conversation";
-import type { ReadFailure, SqlRow, SqlTx, StoreDb, StoreError } from "@xeon/contracts/records";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import { isId, type IdByPrefix, type IdPrefix } from "@fresnel/contracts/conversation";
+import type { ReadFailure, SqlRow, SqlTx, StoreDb, StoreError } from "@fresnel/contracts/records";
 import type { Static, TSchema } from "typebox";
 
 // SqlRow의 열을 좁히는 도우미. 저장된 값이 모양과 다르면(손상, 수동 편집, 이전 버전) 코드가 고칠 수 없는 입력이라

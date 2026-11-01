@@ -1,4 +1,4 @@
-import type { Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Scheduler, TimerHandle } from "@fresnel/contracts";
 
 /** 운영 스케줄러. dispose는 서비스 종료 때 남은 타이머를 모두 취소한다(L0.os.spec §4 6번). */
 export interface SystemScheduler extends Scheduler {

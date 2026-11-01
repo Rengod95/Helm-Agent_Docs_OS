@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { stat } from "node:fs/promises";
 
 /** JSON Lines 한 줄을 객체로 읽는다. 객체가 아니면 테스트 픽스처 오류(Bug) */

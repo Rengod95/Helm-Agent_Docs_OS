@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, parse } from "@fresnel/contracts";
 import {
   CapabilityError,
   WorkspaceFiles,
   WorkspaceFilesKey,
   WorkspaceShell,
-} from "@xeon/contracts/capabilities";
-import { EffectIntentSchema, EffectResultSchema } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import { EffectIntentSchema, EffectResultSchema } from "@fresnel/contracts/records";
 import { createToolRuntime } from "../src/runtime.ts";
 import {
   ASSISTANT,

@@ -1,13 +1,13 @@
 import { isAbsolute, relative, sep } from "node:path";
-import { err, ok, parse, type Result } from "@xeon/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   SkillNameSchema,
   type SkillCreatedBy,
   type SkillScope,
   type WriteOutcome,
   type WritableSkillScope,
-} from "@xeon/contracts/capabilities";
-import type { BlobRef, SqlTx } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import type { BlobRef, SqlTx } from "@fresnel/contracts/records";
 import { fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { LedgerDeps } from "../ledger/change.ts";
 import { pinBlobs, putTree, type StoredTree } from "../ledger/manifest.ts";

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { CloseInfo, JsonRpcMessage } from "@xeon/contracts/wire";
+import type { CloseInfo, JsonRpcMessage } from "@fresnel/contracts/wire";
 import { createInProcessTransportFactory } from "../../src/transport/in-process.ts";
 import { flushMicrotasks } from "../fixtures/clock.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";

@@ -10,8 +10,8 @@ import {
   type Clock,
   type Logger,
   type Result,
-} from "@xeon/contracts";
-import type { EventId, IdFactory, ThreadId, TurnId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts";
+import type { EventId, IdFactory, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import {
   EffectExecSchema,
   EffectIntentSchema,
@@ -36,7 +36,7 @@ import {
   type StepCheckpoint,
   type StoreDb,
   type StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { readCheckpoint } from "./checkpoint.ts";
 import type { PersistenceSettings } from "./deps.ts";
 import { envelopeAtSeq, envelopeOfRow } from "./events.ts";

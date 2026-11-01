@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { TrustStatus } from "@xeon/contracts/wire";
+import type { TrustStatus } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { TrustCardBody } from "../../src/views/trust.tsx";
 import { trustCardOf } from "../../src/views/trust-model.ts";

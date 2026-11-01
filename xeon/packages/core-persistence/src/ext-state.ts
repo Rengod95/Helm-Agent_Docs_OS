@@ -1,7 +1,7 @@
 // 확장 상태 문서 이벤트 `<x|grp>.<이름>.state.committed`의 payload(X.primitives.spec §4.6.1).
 // 이 kind는 X가 정하고 쓴다. 저장소는 활성 가지 위 마지막 판을 찾는 데(expectStateRev, loadThread) 필요한 필드만 안다.
-import { Nullable } from "@xeon/contracts";
-import { EventIdSchema, type EventId } from "@xeon/contracts/conversation";
+import { Nullable } from "@fresnel/contracts";
+import { EventIdSchema, type EventId } from "@fresnel/contracts/conversation";
 import {
   Type,
   type TInteger,

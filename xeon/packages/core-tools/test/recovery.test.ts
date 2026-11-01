@@ -1,9 +1,13 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { NOT_STARTED_TEXT, EffectIntentSchema, EffectResultSchema } from "@xeon/contracts/records";
-import type { EffectIntent } from "@xeon/contracts/records";
-import type { AgentToolCall } from "@xeon/contracts/conversation";
-import type { ToolRunContext } from "@xeon/contracts/services";
+import { parse } from "@fresnel/contracts";
+import {
+  NOT_STARTED_TEXT,
+  EffectIntentSchema,
+  EffectResultSchema,
+} from "@fresnel/contracts/records";
+import type { EffectIntent } from "@fresnel/contracts/records";
+import type { AgentToolCall } from "@fresnel/contracts/conversation";
+import type { ToolRunContext } from "@fresnel/contracts/services";
 import {
   ASSISTANT,
   callTool,

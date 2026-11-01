@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import type { EventWire, HostConnection } from "@xeon/contracts/wire";
+import type { EventWire, HostConnection } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost, startStdioHost, type HostExit } from "../../src/main.ts";
 import type { AssembleOptions } from "../../src/types.ts";

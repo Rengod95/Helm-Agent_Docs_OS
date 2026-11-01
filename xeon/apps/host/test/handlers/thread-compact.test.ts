@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { CompactOutcome, ContextError } from "@xeon/contracts/services";
-import { WireError, type WireParams } from "@xeon/contracts/wire";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { CompactOutcome, ContextError } from "@fresnel/contracts/services";
+import { WireError, type WireParams } from "@fresnel/contracts/wire";
 import type { ThreadCompactFailure } from "../../src/types.ts";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 
 // thread.compact(F wire §3.3.1, HS-77). 가짜 엔진 위의 실제 처리기다. 컨텍스트 서비스와 모델을 두는 어댑터는 test/assembly/ports.test.ts,
 // 실제 엔진 위의 요약은 test/int/thread-compact.int.test.ts다.

@@ -1,12 +1,12 @@
-import { Bug, err, ok, parse, type Result } from "@xeon/contracts";
+import { Bug, err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   validateManifest,
   type ExtensionEntry,
   type ExtensionManifest,
   type ManifestIssue,
   type ScopeDef,
-} from "@xeon/contracts/extensions";
-import type { SettingDef, SettingGroup } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/extensions";
+import type { SettingDef, SettingGroup } from "@fresnel/contracts/settings";
 import { stateUpcasters } from "./state.ts";
 import type {
   GroupDef,

@@ -1,7 +1,7 @@
-import { canonicalJson, err, ok, parse, type Result } from "@xeon/contracts";
-import type { CallContext, CallerInfo } from "@xeon/contracts/capabilities";
-import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@xeon/contracts/conversation";
-import { ApprovalBodyJsonSchema, type ReadFailure } from "@xeon/contracts/records";
+import { canonicalJson, err, ok, parse, type Result } from "@fresnel/contracts";
+import type { CallContext, CallerInfo } from "@fresnel/contracts/capabilities";
+import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@fresnel/contracts/conversation";
+import { ApprovalBodyJsonSchema, type ReadFailure } from "@fresnel/contracts/records";
 import {
   approvalCallerOf,
   L2_APPROVAL_REQUEST_ID_MAX,
@@ -14,12 +14,12 @@ import {
   type L2ApprovalSnapshot,
   type L2ApprovalsPort,
   type OpenedApproval,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 export type { L2ApprovalsPort };
 
 /**
- * 승인 프로토콜(`xeon.approvals`, kind `question`)을 쓰는 유일한 자리(L2.dialog.spec §4.1.1).
+ * 승인 프로토콜(`fresnel.approvals`, kind `question`)을 쓰는 유일한 자리(L2.dialog.spec §4.1.1).
  * 포트 모양은 F의 L2 공통 `L2ApprovalsPort`(L2.readme §5.7)다. 이 포트는 요청이 낸 쪽(출처)을 호출마다 정해야 해서
  * 호출 문맥으로 포트를 만드는 팩토리로 받는다: 도구 호출 안이면 문맥의 `toolCallId`·`turnId`가 요청의 `origin`이 되어
  * L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다.
@@ -78,7 +78,7 @@ async function known(
 }
 
 /**
- * `xeon.approvals`를 질문 승인용 `L2ApprovalsPort`로 감싼다. 규칙:
+ * `fresnel.approvals`를 질문 승인용 `L2ApprovalsPort`로 감싼다. 규칙:
  * - 요청 대상(`subject`)은 F `QuestionBody`(`{ questions }`) 모양이다. `toQuestionBody`가 만든다.
  * - 요청 멱등 키는 L2 `requestId`(1~48자) 그대로다. 같은 키로 다시 부르면 서비스가 처음 요청과 현재 해결 상태를 돌려준다(재시작 뒤에도 같다).
  *   서비스가 내용을 비교하지 않으므로 질문 묶음이 처음과 다르면 이 어댑터가 `key_reused`로 거부한다.

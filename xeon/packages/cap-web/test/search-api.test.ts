@@ -4,7 +4,7 @@ import {
   renderSearch,
   type ProviderSearchResult,
   type WebSearchOutput,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { redactForPersistence } from "../src/contract/redact.ts";
 import {
   fakeCatalog,

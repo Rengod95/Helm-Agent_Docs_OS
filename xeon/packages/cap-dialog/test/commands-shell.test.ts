@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
-import { err, ok, type Result } from "@xeon/contracts";
-import { CapabilityError } from "@xeon/contracts/capabilities";
-import type { LoopError, UserBashOutcome, UserBashRequest } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
+import type { LoopError, UserBashOutcome, UserBashRequest } from "@fresnel/contracts/services";
 import { createCommandsService } from "../src/commands/service.ts";
 import { callOptions, fakeShell, harness, newThread } from "./support/harness.ts";
 import { memoryCommandFiles } from "./support/memory-command-files.ts";

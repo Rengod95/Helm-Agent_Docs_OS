@@ -10,7 +10,7 @@ binds: [xeon/packages/cap-workspace/**]
 
 # L2 작업 도구 (workspace)
 
-패키지: `@xeon/cap-workspace` (`xeon/packages/cap-workspace`). 서비스: `xeon.workspace`. 계획 v2 하위 층: L2-a "작업 도구".
+패키지: `@fresnel/cap-workspace` (`xeon/packages/cap-workspace`). 서비스: `fresnel.workspace`. 계획 v2 하위 층: L2-a "작업 도구".
 
 ## 1. 목적과 범위
 
@@ -21,7 +21,7 @@ binds: [xeon/packages/cap-workspace/**]
 - 편집 방식: 정확 일치, 퍼지 일치, `edits` 배열, 실패 코드. 줄 해시 편집은 2차 설계 메모만 둔다.
 - 이미지와 첨부 처리: 이미지 읽기, 크기 맞춤, blob 등록, 모델에 참조로 전달.
 - 출력 절단: 한도, 이어 읽기 정보, 절단 코드의 위치.
-- 경로 해석과 탈출 검사, 실행 기반(`xeon.exec`, `xeon.sandbox`)과의 경계.
+- 경로 해석과 탈출 검사, 실행 기반(`fresnel.exec`, `fresnel.sandbox`)과의 경계.
 - 설정 키 `l2.workspace.*`.
 
 ### 1.2 다루지 않는 것
@@ -37,7 +37,7 @@ binds: [xeon/packages/cap-workspace/**]
 | 첨부 입력 경로(붙여넣기, URL 첨부, 사용자 입력과의 결합) | `L2.dialog.spec` |
 | 변경 리뷰(hunk 승인, 코멘트) | `L2.artifacts.spec` |
 
-AST·LSP [결정: 보류]: 구문 트리 검색·편집(omp `crates/pi-ast`)과 언어 서버 진단(vscode-jsonrpc 9.0.3)은 계획 v2에서 보류다(`_research/layer-plan-v2.json` L2-a "AST·LSP", `_research/packages.md` §4.4 L2-a 4행). 대규모 리팩터링 비중이 커지면 다시 다룬다. 다시 다룰 때는 이 도메인에 새 능력(`workspace.code` 같은 id)을 더하는 방식을 [제안]하고, 기존 세 능력의 정의는 바꾸지 않는다. 언어 서버는 장수 자식 프로세스라 상주 수준 1(`L2.readme` §8)이 되고 `xeon.process`를 쓴다.
+AST·LSP [결정: 보류]: 구문 트리 검색·편집(omp `crates/pi-ast`)과 언어 서버 진단(vscode-jsonrpc 9.0.3)은 계획 v2에서 보류다(`_research/layer-plan-v2.json` L2-a "AST·LSP", `_research/packages.md` §4.4 L2-a 4행). 대규모 리팩터링 비중이 커지면 다시 다룬다. 다시 다룰 때는 이 도메인에 새 능력(`workspace.code` 같은 id)을 더하는 방식을 [제안]하고, 기존 세 능력의 정의는 바꾸지 않는다. 언어 서버는 장수 자식 프로세스라 상주 수준 1(`L2.readme` §8)이 되고 `fresnel.process`를 쓴다.
 
 ## 2. 용어
 
@@ -395,7 +395,7 @@ export const RunInput = Type.Object({
   cwd: Type.Optional(PathParam),
   /** 참이면 0이 아닌 종료 코드를 exit_nonzero 오류로 낸다. 모델 도구는 항상 참이다 */
   failOnNonZero: Type.Optional(Type.Boolean()),
-  /** 그룹 코드가 비밀을 명시적으로 넘길 때만 쓴다. 값 주입은 xeon.exec가 실행 직전에 한다 */
+  /** 그룹 코드가 비밀을 명시적으로 넘길 때만 쓴다. 값 주입은 fresnel.exec가 실행 직전에 한다 */
   secretEnv: Type.Optional(Type.Record(EnvName, SecretRefParam)),
 });
 export const RunOutput = Type.Object({
@@ -454,7 +454,7 @@ export const WorkspaceShellKey = serviceKey(WorkspaceShell);
 ```
 
 - 모델 도구의 0 아닌 종료 코드: pi durable `bash`는 0이 아닌 종료를 출력이 담긴 오류 결과로 낸다(`packages/durable/src/tools/bash.ts` `runCommand`). [제안] 같은 동작을 F 환원 규칙 안에서 내기 위해 도구 `toInput`이 `failOnNonZero: true`를 넣고, 메서드가 `exit_nonzero` `CapabilityError`를 낸다. `message`는 `"exit code <n>\n<출력 꼬리>"`이고 `detail`은 `RunOutput`이다. 그래서 모델은 `isError: true` 결과에서 출력을 그대로 본다. 그룹 코드는 `failOnNonZero`를 생략하고 `exitCode`를 직접 읽는다.
-- `secretEnv`는 모델 도구 파라미터에 없다. M1의 비밀 참조 검증(`product.scope.spec` §4.4 M1)은 `env` 주입 모드(bash 도구, 실행마다 승인)로 `xeon.exec`와 `xeon.secrets`가 처리한다 [결정: review.decisions-2 U-19]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)과 `SECRET_REF_PATTERN`의 정본은 F `capabilities/secrets.ts`다(U-08). 출력 마스킹은 저장 전에 L0.secrets·L1.tools가 한다.
+- `secretEnv`는 모델 도구 파라미터에 없다. M1의 비밀 참조 검증(`product.scope.spec` §4.4 M1)은 `env` 주입 모드(bash 도구, 실행마다 승인)로 `fresnel.exec`와 `fresnel.secrets`가 처리한다 [결정: review.decisions-2 U-19]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)과 `SECRET_REF_PATTERN`의 정본은 F `capabilities/secrets.ts`다(U-08). 출력 마스킹은 저장 전에 L0.secrets·L1.tools가 한다.
 - `bash`를 `sequential`로 둔 이유 [제안]: 명령의 부수 효과 순서를 모델이 적은 순서와 같게 한다. core-loop(pi-agent-core 1.3.0 배치 규칙을 옮긴 `loop/tool-batch.ts`, adr.0009)는 한 배치에 `sequential` 도구가 하나라도 있으면 그 배치를 순차로 돈다(`_research/refs/pi-durable.md` 도구 라운드 병렬/순차). `write`, `edit`는 `parallel`로 두고 같은 경로의 변경은 포크한 `file-mutation-queue.ts`가 경로별로 줄 세운다.
 
 ### 3.4 `workspace.images`
@@ -505,7 +505,7 @@ export const WorkspaceImagesKey = serviceKey(WorkspaceImages);
 import type { CapabilityApi } from "../index.ts";
 
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
-export const WorkspaceServiceName = "xeon.workspace" as const;
+export const WorkspaceServiceName = "fresnel.workspace" as const;
 /** workspace 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
 export interface WorkspaceService {
   readonly files: CapabilityApi<typeof WorkspaceFiles>;
@@ -544,7 +544,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 ### 4.1 실행 기반
 
-- 모든 파일·셸 접근은 `xeon.exec`가 주는 `ExecutionEnv`(`L0.exec.spec`) 위에서 한다. `cap-workspace`는 `node:fs`, `Bun.file`, `Bun.spawn`을 직접 쓰지 않는다. OS 분기는 L0 구현에만 있다(`eng.dependency-rules.guide` DR-13).
+- 모든 파일·셸 접근은 `fresnel.exec`가 주는 `ExecutionEnv`(`L0.exec.spec`) 위에서 한다. `cap-workspace`는 `node:fs`, `Bun.file`, `Bun.spawn`을 직접 쓰지 않는다. OS 분기는 L0 구현에만 있다(`eng.dependency-rules.guide` DR-13).
 - `ExecutionEnv`는 pi durable `env/index.ts`의 `FileSystem`(`absolutePath`, `canonicalPath`, `exists`, `readTextLines`, `readBinaryFile`, `writeFile`, `listDir`, `createDir` 등)과 `Shell`(`exec`) 합이다. 메서드 이름과 인자는 포크 그대로라고 [가정]하고, 확정은 `L0.exec.spec`을 따른다.
 - 취소: 서비스 호출의 `CallOptions.signal`을 `CancelScope { abortSignal }`로 감싸 넘긴다(ADR-0003 §3.1). 취소되면 `aborted` 오류다.
 - `ExecutionEnv` 오류 코드의 대응 [제안]:
@@ -563,8 +563,8 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 ### 4.2 셸 실행과 샌드박스
 
 1. `cwd`를 §4.3 규칙으로 해석한다(쓰기 root 검사는 하지 않고 읽기 root 안인지만 본다).
-2. `xeon.sandbox`에 명령과 cwd를 넘겨 샌드박스 래핑을 받는다. 샌드박스 설정이 꺼져 있으면 래핑 없이 실행하고 `sandboxed: false`와 이유 `unsandboxedBy: "disabled"`를 돌려준다. 켜고 끄는 설정은 L0.sandbox·L1.tools 소관이다(`_research/layer-plan-v2-notes.md` "OS 샌드박스가 왜 필요한가").
-3. `xeon.sandbox`가 실행 전에 거부하면(정책상 금지, 샌드박스 필수인데 사용 불가) `denied` `CapabilityError`를 낸다. `detail`은 `{ by: "sandbox", reason: <L0.sandbox가 준 사유 코드> }`다. 도구 경로에서는 `isError: true` 결과가 된다.
+2. `fresnel.sandbox`에 명령과 cwd를 넘겨 샌드박스 래핑을 받는다. 샌드박스 설정이 꺼져 있으면 래핑 없이 실행하고 `sandboxed: false`와 이유 `unsandboxedBy: "disabled"`를 돌려준다. 켜고 끄는 설정은 L0.sandbox·L1.tools 소관이다(`_research/layer-plan-v2-notes.md` "OS 샌드박스가 왜 필요한가").
+3. `fresnel.sandbox`가 실행 전에 거부하면(정책상 금지, 샌드박스 필수인데 사용 불가) `denied` `CapabilityError`를 낸다. `detail`은 `{ by: "sandbox", reason: <L0.sandbox가 준 사유 코드> }`다. 도구 경로에서는 `isError: true` 결과가 된다.
 4. 래핑한 명령을 `ExecutionEnv.exec`로 실행한다. 출력 spill 기준은 `l2.workspace.shell.maxLines`, `l2.workspace.shell.maxBytes`이고 남기는 쪽은 꼬리다(durable `bash.ts` `outputLimits: { retain: "tail" }`).
 5. 실행 중 샌드박스 위반(커널이 막은 쓰기·네트워크)은 명령 자체의 실패로 나타난다. 종료 코드가 0이 아니면 3.3절 `exit_nonzero` 규칙을 따른다. 위반 보고를 L0.sandbox가 주면 `detail.sandboxViolations`에 싣는다 [가정].
 6. 제한 시간: 입력 `timeoutSec` → 설정 기본값 순. 넘기면 `timeout` 오류이고 프로세스 그룹 전체를 종료한다(`L0.exec.spec`).
@@ -596,7 +596,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | 보호 경로 목록 | 조회해 파일 도구에도 적용 | 관여 없음 | 소유 |
 
 - 허용 root를 얻는 API는 `L1.tools.spec`이 정한다 [가정]. 그 API가 생기기 전에는 읽기 root와 쓰기 root 모두 대화의 작업 폴더 하나로 둔다 [제안].
-- [결정: review.m2-plan DG.4, open-issues M-06] 대화의 작업 폴더는 `thread.started`의 `workspace`(`ThreadSummaryRow.workspace`)다. 호출 문맥(`CallOptions.context.threadId`)으로 `xeon.session`의 대화 투영을 읽고(`ThreadWorkspaces.workspaceOf`), 값이 있으면 그 폴더가 다음 셋의 기준이 된다. (1) 상대 경로를 푸는 cwd, (2) 읽기·쓰기 root 하나, (3) `bash`의 기본 cwd와 샌드박스 쓰기 root. 실행 환경은 `xeon.exec`의 `withCwd`로 만든다. 값이 없거나(옛 행) 대화 문맥이 없으면 엔진의 cwd를 쓴다(M1 동작). 작업 폴더가 없는 경로를 가리키면 `not_found`이고 엔진 cwd로 물러나지 않는다. 한 엔진이 여러 프로젝트의 대화를 동시에 열어도 대화마다 root가 다르다.
+- [결정: review.m2-plan DG.4, open-issues M-06] 대화의 작업 폴더는 `thread.started`의 `workspace`(`ThreadSummaryRow.workspace`)다. 호출 문맥(`CallOptions.context.threadId`)으로 `fresnel.session`의 대화 투영을 읽고(`ThreadWorkspaces.workspaceOf`), 값이 있으면 그 폴더가 다음 셋의 기준이 된다. (1) 상대 경로를 푸는 cwd, (2) 읽기·쓰기 root 하나, (3) `bash`의 기본 cwd와 샌드박스 쓰기 root. 실행 환경은 `fresnel.exec`의 `withCwd`로 만든다. 값이 없거나(옛 행) 대화 문맥이 없으면 엔진의 cwd를 쓴다(M1 동작). 작업 폴더가 없는 경로를 가리키면 `not_found`이고 엔진 cwd로 물러나지 않는다. 한 엔진이 여러 프로젝트의 대화를 동시에 열어도 대화마다 root가 다르다.
 - 같은 쓰기를 파일 도구는 L2에서 거부하고, bash는 L0 샌드박스가 거부한다. 파일 도구는 샌드박스를 거치지 않으므로 L2 검사가 유일한 경로 방어다.
 
 ### 4.4 편집 방식
@@ -641,11 +641,11 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 ### 4.5 출력 절단
 
 - 원본은 durable `truncate.ts`(205줄, import 없음)다. 기본 한도는 2,000줄 또는 50KB 중 먼저 걸리는 쪽이고 줄 중간에서 자르지 않는다(`truncate.ts` `DEFAULT_MAX_LINES`, `DEFAULT_MAX_BYTES`).
-- 위치 [결정: review.decisions-2 D-08]: 절단 함수의 포크 원본은 ADR-0003대로 `platform-exec`에 둔다. `cap-workspace`는 구현 패키지를 import하지 않고 F 서비스 인터페이스(`ExecutionEnv`, `@xeon/contracts/services`, 서비스 `xeon.exec`)로 절단을 호출한다. L1.tools의 결과 경계화도 같은 서비스를 쓴다. `cap-workspace/src/truncate/`에는 `read`의 이어 읽기 계산(offset, nextOffset, `TruncationInfo` 조립)만 둔다. 서비스 메서드는 `truncateHead`·`truncateHeadOf`·`formatSize`다(`L0.exec.spec` §3.1). `read`는 파일 앞부분만 읽으므로 앞부분과 전체 합계를 받는 `truncateHeadOf`를 부른다.
+- 위치 [결정: review.decisions-2 D-08]: 절단 함수의 포크 원본은 ADR-0003대로 `platform-exec`에 둔다. `cap-workspace`는 구현 패키지를 import하지 않고 F 서비스 인터페이스(`ExecutionEnv`, `@fresnel/contracts/services`, 서비스 `fresnel.exec`)로 절단을 호출한다. L1.tools의 결과 경계화도 같은 서비스를 쓴다. `cap-workspace/src/truncate/`에는 `read`의 이어 읽기 계산(offset, nextOffset, `TruncationInfo` 조립)만 둔다. 서비스 메서드는 `truncateHead`·`truncateHeadOf`·`formatSize`다(`L0.exec.spec` §3.1). `read`는 파일 앞부분만 읽으므로 앞부분과 전체 합계를 받는 `truncateHeadOf`를 부른다.
 - `read`: 앞에서부터 남긴다. `offset`부터 `min(limit, maxLines)`줄을 읽고 바이트 한도를 넘으면 그 전 줄까지 남긴다. 남긴 줄이 끝까지가 아니면 `truncated = { by, shown, total, nextOffset: endLine + 1 }`이다. 첫 줄 하나가 바이트 한도를 넘으면 그 줄의 앞부분만 남기고 `by: "bytes"`, `nextOffset: startLine + 1`로 둔다(`TruncationResult.firstLineExceedsLimit`).
 - `bash`: 꼬리를 남기고 넘친 출력은 spill 파일로 둔다(`fullOutputPath`). spill은 `ExecutionEnv.exec`가 한다.
 - `grep`, `find`, `ls`: 항목 수 한도(`limit` 또는 설정 기본값)와 바이트 한도 중 먼저 걸리는 쪽에서 자른다. `by: "entries"` 또는 `"bytes"`. `grep`의 긴 줄은 설정 `l2.workspace.grep.maxLineLength`자에서 자른다.
-- `grep`와 `find`는 ripgrep(`rg`)을 `ExecutionEnv.exec`에 argv 배열로 실행한다. 셸 문자열을 만들지 않고, 샌드박스(§4.2)도 거치지 않는다. 실행 파일은 설정 `l2.workspace.grep.rgPath`가 비어 있지 않으면 그 경로이고, 비어 있으면 `xeon.os`의 `resolveBinary("rg")`다. 찾지 못하거나 띄우지 못하면 `unavailable`(`detail.reason: "rg_missing"`)이다.
+- `grep`와 `find`는 ripgrep(`rg`)을 `ExecutionEnv.exec`에 argv 배열로 실행한다. 셸 문자열을 만들지 않고, 샌드박스(§4.2)도 거치지 않는다. 실행 파일은 설정 `l2.workspace.grep.rgPath`가 비어 있지 않으면 그 경로이고, 비어 있으면 `fresnel.os`의 `resolveBinary("rg")`다. 찾지 못하거나 띄우지 못하면 `unavailable`(`detail.reason: "rg_missing"`)이다.
   - `grep`: `rg --json --no-config --no-require-git --sort path -e <패턴> [-i] [-F] [-C n] [--glob <glob>] --no-messages -- .`. `-i`는 `ignoreCase`, `-F`는 `literal`, `-C`는 `context`가 0보다 클 때다.
   - `find`: `rg --files --no-config --no-require-git --sort path --glob <패턴> --no-messages -- .`.
   - 검색 기준 디렉터리가 cwd이고, 출력 경로는 그 기준 상대 경로다. 결과는 경로의 바이트 순이다. `--no-require-git`은 git 저장소 밖에서도 `.gitignore`를 읽게 한다. 숨김 파일은 rg 기본대로 건너뛴다.
@@ -674,7 +674,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 - [결정: review.m2-plan DG.3] M2 최소형 구현 규칙:
   - 형식 판별은 pi `tools/image.ts`의 `detectSupportedImageMimeType`과 `imageDimensions`다(`PATCHES.md` P11). 선언한 `mimeType`보다 머리 바이트로 판별한 형식이 앞선다. 판별하지 못하면 `image_decode_failed`, bmp처럼 인라인 형식이 아니면 `image_unsupported`다. 애니메이션 PNG는 판별 대상이 아니라 `image_decode_failed`다.
   - 한도 검사는 base64 길이 대 `maxBytes`뿐이다. 픽셀 한도(`maxWidth`, `maxHeight`)는 처리기 없이 맞출 수 없어 검사하지 않고 헤더에서 읽은 크기만 결과의 `size`에 싣는다.
-  - blob 등록은 `BlobSink.putBlob`(실제 구현은 `xeon.store`)이다. 저장소가 없으면 `unavailable`(`detail.reason: "blob_store_missing"`), 저장 실패는 `unavailable`(`detail.by: "store"`, 디스크 부족과 입출력 오류는 재시도 가능)이다.
+  - blob 등록은 `BlobSink.putBlob`(실제 구현은 `fresnel.store`)이다. 저장소가 없으면 `unavailable`(`detail.reason: "blob_store_missing"`), 저장 실패는 `unavailable`(`detail.by: "store"`, 디스크 부족과 입출력 오류는 재시도 가능)이다.
   - `load`는 §4.3 경로 해석(읽기 변형 포함)을 거치고, 파일 크기가 `maxInputBytes`를 넘으면 읽기 전에 `invalid_input`이다. `resize`는 처리기가 들어오는 2차까지 `unsupported`다.
   - `read`가 이미지 파일을 만나면(blob 저장소가 있을 때만) 같은 경로로 준비해 `{ kind: "image", path, image }`를 돌려준다. 저장소가 없으면 이미지도 `read_binary`다.
 
@@ -732,7 +732,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | `l2.workspace.grep.rgPath` | string | `""` | — | restart | managed, user | tools | false |
 
 - `shell.defaultTimeoutSec`의 0은 제한 없음이다(pi durable `bash`의 기본값과 같다).
-- `grep.rgPath`가 빈 문자열이면 `xeon.os`의 `resolveBinary("rg")`가 돌려주는 경로를 쓴다. `@vscode/ripgrep`은 `platform-os`가 번들하고 이 패키지는 그 경로로 `rg`를 실행만 한다(`ExecutionEnv.exec`) [결정: review.m2-plan §8]. 범위를 관리·사용자로 제한한다. 프로젝트 설정 파일이 실행 파일 경로를 바꾸게 두면 저장소를 여는 것만으로 임의 바이너리가 실행될 수 있기 때문이다 [제안]. `find`도 같은 바이너리(`rg --files --glob`)를 쓴다(§10 미결 6).
+- `grep.rgPath`가 빈 문자열이면 `fresnel.os`의 `resolveBinary("rg")`가 돌려주는 경로를 쓴다. `@vscode/ripgrep`은 `platform-os`가 번들하고 이 패키지는 그 경로로 `rg`를 실행만 한다(`ExecutionEnv.exec`) [결정: review.m2-plan §8]. 범위를 관리·사용자로 제한한다. 프로젝트 설정 파일이 실행 파일 경로를 바꾸게 두면 저장소를 여는 것만으로 임의 바이너리가 실행될 수 있기 때문이다 [제안]. `find`도 같은 바이너리(`rg --files --glob`)를 쓴다(§10 미결 6).
 - 이미지 한도의 기본값은 durable `DEFAULT_IMAGE_LIMITS`와 같다. 모델 provider별 한도가 더 작으면 L1.models가 요청 조립 때 다시 줄인다 [가정].
 - UI 위젯: integer 키는 `number`, boolean은 `toggle`, string은 `text`. `ui.label`은 한국어로 둔다(예: `read.maxLines` → "읽기 최대 줄 수").
 
@@ -759,23 +759,23 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 | 이름 | 출처 |
 |---|---|
-| `ExecutionEnv`, `CancelScope`, `xeon.exec` | `L0.exec.spec`, ADR-0003 |
-| 샌드박스 래핑·사전 거부 API, 보호 경로 목록, `xeon.sandbox` | `L0.sandbox.spec` |
+| `ExecutionEnv`, `CancelScope`, `fresnel.exec` | `L0.exec.spec`, ADR-0003 |
+| 샌드박스 래핑·사전 거부 API, 보호 경로 목록, `fresnel.sandbox` | `L0.sandbox.spec` |
 | blob 등록 API(`sys_blobs`) | `L0.store.spec` |
 | 허용 root 조회, 결과 경계화, 도구 어댑터, 절단 함수 위치 | `L1.tools.spec` |
 | `blob:sha256:` 자리표시 치환 | `L1.context.spec` |
 | `defineCapability`, `serviceKey`, `ToolContent`, `CapabilityError` | `F.capabilities.spec` |
 | `ReplayPolicy`, `ImageContent` | `F.conversation.spec` |
-| 서비스 이름 `xeon.workspace`, 접두사 예약 | `eng.context-map.design` §4.1, §5 |
+| 서비스 이름 `fresnel.workspace`, 접두사 예약 | `eng.context-map.design` §4.1, §5 |
 
 ## 9. 수용 기준
 
-1. `ExecutionEnv` 가짜 구현(`@xeon/platform-exec/testing`의 `fakeExec`와 메모리 파일 시스템) 위에서 7개 도구(`read`, `write`, `edit`, `ls`, `grep`, `find`, `bash`)가 같은 입력에 같은 결과(`structuredContent` 바이트 일치)를 낸다. `grep`, `find`는 ripgrep 실행을 가짜 `exec` 응답 표로 대신한다.
+1. `ExecutionEnv` 가짜 구현(`@fresnel/platform-exec/testing`의 `fakeExec`와 메모리 파일 시스템) 위에서 7개 도구(`read`, `write`, `edit`, `ls`, `grep`, `find`, `bash`)가 같은 입력에 같은 결과(`structuredContent` 바이트 일치)를 낸다. `grep`, `find`는 ripgrep 실행을 가짜 `exec` 응답 표로 대신한다.
 2. `WorkspaceFiles`, `WorkspaceShell`, `WorkspaceImages` 각각에 대해 `validateCapability`의 이슈가 0건이고, 세 정의를 합친 `validateCapabilitySet` 이슈도 0건이다.
 3. §4.4 표의 규칙 E1~E17이 같은 이름의 테스트와 1:1로 대응하고 모두 통과한다. 표에 없는 테스트 이름이나 테스트가 없는 규칙이 있으면 실패하는 검사를 둔다.
 4. `l2.workspace.read.maxLines`보다 긴 파일을 `read`하면 결과의 `truncated.nextOffset`이 `endLine + 1`이고, 그 값으로 다시 `read`하면 이어지는 줄부터 나온다.
 5. `../` 조합, root 밖을 가리키는 심볼릭 링크, 존재하지 않는 `..` 마디가 섞인 새 파일 경로가 모두 `denied` `CapabilityError`를 낸다.
-6. 가짜 `xeon.sandbox`가 실행 전 거부를 돌려주면 `bash` 도구 결과가 `isError: true`이고 `details.code`가 `denied`다.
+6. 가짜 `fresnel.sandbox`가 실행 전 거부를 돌려주면 `bash` 도구 결과가 `isError: true`이고 `details.code`가 `denied`다.
 7. `read`, `ls`, `grep`, `find`의 메서드와 도구 `replay`가 `"safe"`이고 `executionMode`가 `"parallel"`, `hints.readOnly`가 참이다. `write`, `edit`, `bash`의 `replay`는 `"unsafe"`다(정의 상수 검사).
 8. 0이 아닌 종료 코드의 `bash` 도구 결과는 `isError: true`이고 `content`에 출력 꼬리가 있다. 같은 명령을 서비스로 `failOnNonZero` 없이 부르면 오류 없이 `exitCode`를 돌려준다.
 9. 이미지 파일 `read` 결과의 `content`에 `ImageContent`가 있고 `data`가 `blob:sha256:`로 시작하며, 같은 파일을 두 번 읽으면 같은 sha256이다.

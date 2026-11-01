@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir, hostname, tmpdir } from "node:os";
-import { err, ok, type Clock, type RandomSource } from "@xeon/contracts";
+import { err, ok, type Clock, type RandomSource } from "@fresnel/contracts";
 import { createNodeDirFs, type DirFs, type EnvReader } from "./dirs.ts";
 import { processEnvReader } from "./env.ts";
 import type { ReadTextFile, ReadTextFileSync } from "./identity.ts";

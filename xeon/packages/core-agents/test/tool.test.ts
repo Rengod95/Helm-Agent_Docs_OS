@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import { AGENT_TOOL_NAME } from "../src/index.ts";
 import { spawnRecorder } from "../src/testing/index.ts";
 import { agentToolRegistration } from "../src/tool.ts";

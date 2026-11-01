@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { Logger } from "@xeon/contracts";
-import type { ProviderSearchRequest } from "@xeon/contracts/capabilities";
+import type { Logger } from "@fresnel/contracts";
+import type { ProviderSearchRequest } from "@fresnel/contracts/capabilities";
 import { BUILTIN_WRAPPER_PRICING } from "../src/cost/pricing.ts";
 import type { WebFailure } from "../src/errors.ts";
 import { WebHttpError } from "../src/policy/guarded-http.ts";

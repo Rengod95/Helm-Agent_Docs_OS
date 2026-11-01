@@ -1,9 +1,9 @@
-import type { EventId, ThreadId } from "@xeon/contracts/conversation";
+import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import { createContext, useContext } from "react";
-import { Bug, type Result } from "@xeon/contracts";
-import type { SecretName } from "@xeon/contracts/capabilities";
-import type { TrustChoice, TrustStatus } from "@xeon/contracts/wire";
-import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@xeon/client/settings";
+import { Bug, type Result } from "@fresnel/contracts";
+import type { SecretName } from "@fresnel/contracts/capabilities";
+import type { TrustChoice, TrustStatus } from "@fresnel/contracts/wire";
+import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@fresnel/client/settings";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):

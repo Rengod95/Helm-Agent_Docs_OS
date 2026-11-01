@@ -1,4 +1,4 @@
-import type { ServiceKey } from "@xeon/contracts/capabilities";
+import type { ServiceKey } from "@fresnel/contracts/capabilities";
 
 /** 시험의 부분 대역: 능력 서비스에서 쓰이지 않는 메서드와 브랜드 값을 생략한다. 키가 서비스의 타입을 정한다 */
 export function fakeService<Api>(_key: ServiceKey<Api>, partial: object): Api {

@@ -1,4 +1,4 @@
-import type { SettingsTab } from "@xeon/contracts/settings";
+import type { SettingsTab } from "@fresnel/contracts/settings";
 import { t, type MessageId } from "../i18n/index.ts";
 
 // 설정 탭 표(L4.settings-ui §4.1.1, 탭 13개). 값이 `SettingsTab`과 어긋나면 Record 타입이 컴파일 오류로 잡는다.

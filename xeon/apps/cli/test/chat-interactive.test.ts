@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { afterEach, expect, test } from "bun:test";
-import { wireError } from "@xeon/contracts/wire";
+import { wireError } from "@fresnel/contracts/wire";
 import { EXIT } from "../src/exit-codes.ts";
 import {
   assistantItem,

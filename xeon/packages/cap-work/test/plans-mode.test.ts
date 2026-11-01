@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { DEFAULT_WORK_SETTINGS } from "../src/settings.ts";
 import { readModeMeta, readPlans } from "../src/projection/read.ts";
 import { rejection } from "./support/assertions.ts";

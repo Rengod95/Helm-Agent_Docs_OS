@@ -1,12 +1,12 @@
-import { assertNever } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { LoopError } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { LoopError } from "@fresnel/contracts/services";
 import {
   wireError,
   type TurnStartInput,
   type WireError,
   type WireHandler,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine } from "../types.ts";
 import { wireErrorOfStore } from "../store-error.ts";

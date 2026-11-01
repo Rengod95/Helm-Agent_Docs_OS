@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
 import { posix } from "node:path";
 
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 // 경로 도우미. 이 패키지의 경로 문자열은 모두 POSIX 형식이다(Windows는 1차 범위 밖, L0.sandbox.spec §1).
 
 /** 끝의 "/"를 지운다. 루트는 그대로 둔다 */

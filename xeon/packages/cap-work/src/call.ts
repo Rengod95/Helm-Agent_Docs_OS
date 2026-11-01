@@ -1,7 +1,7 @@
-import { parse, type Result } from "@xeon/contracts";
-import type { CallContext, CallOptions, CapabilityId } from "@xeon/contracts/capabilities";
-import { ThreadIdSchema, type ThreadId, type TurnId } from "@xeon/contracts/conversation";
-import { commitKeyPart, type ReadFailure, type StoreError } from "@xeon/contracts/records";
+import { parse, type Result } from "@fresnel/contracts";
+import type { CallContext, CallOptions, CapabilityId } from "@fresnel/contracts/capabilities";
+import { ThreadIdSchema, type ThreadId, type TurnId } from "@fresnel/contracts/conversation";
+import { commitKeyPart, type ReadFailure, type StoreError } from "@fresnel/contracts/records";
 import { abortedError, invalidInput, storeRejection } from "./errors.ts";
 import { sha256Hex } from "./hash.ts";
 

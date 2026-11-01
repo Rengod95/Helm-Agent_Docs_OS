@@ -1,17 +1,17 @@
-import { Bug, ok, parse, type Logger, type LogFields } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { InputQueuePortKey, LoopPortKey, RecordCommitPortKey } from "@xeon/contracts/extensions";
+import { Bug, ok, parse, type Logger, type LogFields } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { InputQueuePortKey, LoopPortKey, RecordCommitPortKey } from "@fresnel/contracts/extensions";
 import {
   EVENT_CATALOG,
   ItemRecordedPayloadSchema,
   type CatalogEntry,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   createTestHost,
   fixedIdFactory,
   flushMicrotasks,
   type TestHost,
-} from "@xeon/ext-host/testing";
+} from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { createLoopService, type LoopServiceHandle } from "../../src/index.ts";
 import type { RepeatSettings } from "../../src/repeat.ts";
@@ -72,7 +72,7 @@ export interface HarnessOptions {
   readonly withApprovals?: boolean;
   /** 루프 서비스를 만들지 않는다. 단계 함수를 직접 부르는 시험(loop-rig)이 `core.loop` 생산자를 쓰려고 한다 */
   readonly withoutLoop?: boolean;
-  /** `loop.spawn`이 위임하는 `xeon.agents` 대역. 생략하면 서비스가 없는 구성이다 */
+  /** `loop.spawn`이 위임하는 `fresnel.agents` 대역. 생략하면 서비스가 없는 구성이다 */
   readonly agents?: LoopDeps["agents"];
 }
 

@@ -1,5 +1,5 @@
-import { err, ok, type Clock, type Result } from "@xeon/contracts";
-import type { HumanReauth, OsPlatform } from "@xeon/contracts/services";
+import { err, ok, type Clock, type Result } from "@fresnel/contracts";
+import type { HumanReauth, OsPlatform } from "@fresnel/contracts/services";
 import type { ProcessRunner } from "./providers/process.ts";
 
 // L0.secrets.spec §4.9.1 (M3-m2c-01). 사람의 OS 인증 재확인(Touch ID, 암호). 결과는 reveal이 받는 HumanReauth(`os-auth`)다.

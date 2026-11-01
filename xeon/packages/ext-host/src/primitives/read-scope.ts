@@ -1,4 +1,4 @@
-import type { ExtensionManifest } from "@xeon/contracts/extensions";
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 
 /** 확장이 쓰는 kind 접두: 그룹은 `grp.<이름>.`, 플러그인은 `x.<이름>.` */
 export function ownKindPrefix(manifest: Pick<ExtensionManifest, "kind" | "name">): string {

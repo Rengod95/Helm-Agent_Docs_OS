@@ -1,11 +1,11 @@
 import { Type, type TUnsafe } from "typebox";
-import { parse, parseJson, type SchemaProof } from "@xeon/contracts";
+import { parse, parseJson, type SchemaProof } from "@fresnel/contracts";
 import {
   WorkTaskIdSchema,
   WorkTaskStatusSchema,
   type WorkTaskId,
   type WorkTaskStatus,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 // L2.work.spec §3.2 TaskErrors, §4.1.3, §5. 작업 규칙이 거부하는 이유를 값으로 표현한다.
 // 서비스 경계(errors.ts)가 CapabilityError로 바꾼다. 같은 값을 커밋 거부(reject) 레코드의 detail에 JSON으로 남겨,

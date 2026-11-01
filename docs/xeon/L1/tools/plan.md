@@ -10,18 +10,18 @@ binds: [xeon/packages/core-tools/**]
 
 # L1 도구 실행과 권한 (tools) 구현 계획
 
-패키지: `xeon/packages/core-tools` (현재 스캐폴드: `package.json`, `src/index.ts`, `xeon.layer = "L1"`, `xeon.domain = "tools"`)
+패키지: `xeon/packages/core-tools` (현재 스캐폴드: `package.json`, `src/index.ts`, `fresnel.layer = "L1"`, `fresnel.domain = "tools"`)
 
 ## 1. 목표와 마일스톤 배치
 
-목표: L1.tools.spec의 `xeon.tools`, `xeon.approvals`를 구현한다. M1 스모크에서 bash 호출 한 건이 `effect.intent` → `effect.exec` → `effect.result` 3단으로 기록되고, 강제 종료 뒤 재개가 그 기록으로 이어져야 한다.
+목표: L1.tools.spec의 `fresnel.tools`, `fresnel.approvals`를 구현한다. M1 스모크에서 bash 호출 한 건이 `effect.intent` → `effect.exec` → `effect.result` 3단으로 기록되고, 강제 종료 뒤 재개가 그 기록으로 이어져야 한다.
 
 마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 능력과 Helm(승인 프로토콜 통합 포함), M3는 첫 공개 릴리즈 후보(학습 그룹, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이고 확정은 [미결]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
-| M0 | core-tools 코드 없음. 선행 조건만: contracts에 L1.tools.spec §8.3 F 요청 1·4·6의 타입이 들어가야 한다(F.capabilities.plan, F.extensions.plan, `@xeon/contracts/services`). 요청 3의 `approval.*` kind는 F.records 카탈로그에 있다 | `_research/foundation-plan.md` §5 P4 M0 범위 |
-| M1 | 어댑터와 파이프라인(agent-core 훅 연결), tool 범위 노드와 키 큐 연결(잠금 키 산출 포함), 2계층 비밀 마스킹, 의도·실행·결과 커밋, 최소 정책(티어 default·user, resource는 `tool` glob과 `args` 패턴만), 내장 규칙(read·ls allow, bash ask), 권한 모드 `default`만, 결과 경계화(`xeon.exec` 절단 + blob), 최소 승인 대기(kind `tool`만, CLI 한 곳에서 응답), 대기 내구화와 재개 복원 | `_research/foundation-plan.md` §5 P4 M1(도구 read, ls, bash), product.scope.spec M1 종료 조건(승인과 명령 패턴을 갖춘 bash 호출) |
+| M0 | core-tools 코드 없음. 선행 조건만: contracts에 L1.tools.spec §8.3 F 요청 1·4·6의 타입이 들어가야 한다(F.capabilities.plan, F.extensions.plan, `@fresnel/contracts/services`). 요청 3의 `approval.*` kind는 F.records 카탈로그에 있다 | `_research/foundation-plan.md` §5 P4 M0 범위 |
+| M1 | 어댑터와 파이프라인(agent-core 훅 연결), tool 범위 노드와 키 큐 연결(잠금 키 산출 포함), 2계층 비밀 마스킹, 의도·실행·결과 커밋, 최소 정책(티어 default·user, resource는 `tool` glob과 `args` 패턴만), 내장 규칙(read·ls allow, bash ask), 권한 모드 `default`만, 결과 경계화(`fresnel.exec` 절단 + blob), 최소 승인 대기(kind `tool`만, CLI 한 곳에서 응답), 대기 내구화와 재개 복원 | `_research/foundation-plan.md` §5 P4 M1(도구 read, ls, bash), product.scope.spec M1 종료 조건(승인과 명령 패턴을 갖춘 bash 호출) |
 | M2 | 정책 티어 4종 전체와 resource 전 필드, 코어 규칙 등록(`registerRules`), `tools` 풀 슬롯(C3 순서), 모드 4종(`acceptEdits`, `plan`, `bypass`, managed 금지), 승인·질문·계획 승인 통합 프로토콜(`kind: plan`, `question`, wire `approval.respond`), 도구 지연 노출(`tool_search`), `read_tool_output`, 서브에이전트 ceiling 연결 | product.scope.spec M2 종료 조건 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다", L1.agents.plan M2 |
 | M3 | 서비스 모드의 승인 대기 처리(runtime-flow §7 [미결] 결정 뒤), 원격 클라이언트 응답 | product.scope.spec M3 |
 | 2차(M3 이후) | 항상 허용 캐시(`core_tools_approvals`), 셸 명령 접두 규칙, 인자 변경용 별도 chain 지점(`tool.call.before`은 인자 변경 없음, review.decisions-2 U-06), 확장 티어 규칙 등록 | `_research/layer-plan-v2.json` L1-d 2차 행 |
@@ -34,10 +34,10 @@ binds: [xeon/packages/core-tools/**]
 
 ```
 xeon/packages/core-tools/
-  package.json                 # dependencies: @xeon/contracts, @xeon/ext-host(플러그인 등록 API), typebox. @earendil-works/pi-agent-core는 넣지 않는다(adr.0009, 타입은 F `conversation/agent.ts`)
+  package.json                 # dependencies: @fresnel/contracts, @fresnel/ext-host(플러그인 등록 API), typebox. @earendil-works/pi-agent-core는 넣지 않는다(adr.0009, 타입은 F `conversation/agent.ts`)
   src/
     index.ts                   # plugin만 export. 다른 L1은 이 패키지를 import하지 않는다
-    plugin.ts                  # ext-host 플러그인 정의: xeon.tools, xeon.approvals 제공, 설정 등록 (TL-8)
+    plugin.ts                  # ext-host 플러그인 정의: fresnel.tools, fresnel.approvals 제공, 설정 등록 (TL-8)
     runtime.ts                 # ToolService·ApprovalService 조립: meta, mode (TL-8)
     registry.ts                # 등록 표, 이름 충돌(name_conflict) (TL-8)
     expose.ts                  # advertise: orderTools, 전역 deny 제거, 지연 분리, 상한 128 (TL-7)
@@ -47,7 +47,7 @@ xeon/packages/core-tools/
     calls.ts                   # 진행 중 호출 표(의도 표) (TL-2)
     tasks.ts                   # tool 범위 노드, 잠금 키 산출(mutationKey·canonical 이전), locks.run → tools 슬롯 (TL-17)
     secrets.ts                 # 2계층 마스킹(Redactor.maskDeep), secret.masked, needs_approval 연결 (TL-18)
-    bound.ts                   # 결과 경계화: 텍스트 결합, xeon.exec 절단 호출, putBlob, 안내 문장 (TL-6)
+    bound.ts                   # 결과 경계화: 텍스트 결합, fresnel.exec 절단 호출, putBlob, 안내 문장 (TL-6)
     effects.ts                 # effect.intent/exec/result 초안과 커밋 요청, requestId 규칙 (TL-2)
     policy/
       engine.ts                # evaluatePolicy, ruleMatches, stricter (순수) (TL-3)
@@ -68,9 +68,9 @@ xeon/packages/core-tools/
     *.test.ts, *.fault.test.ts, *.contract.test.ts
 ```
 
-- `bound.ts`, `effects.ts`, `tasks.ts`, `secrets.ts`, `builtin/`, `testing/`은 이 계획이 나눈 파일이다 [제안]. durable `truncate.ts` 포크는 core-tools에 두지 않는다. 포크는 L0 `platform-exec`에 있고 `bound.ts`가 F 서비스 `xeon.exec`로 부른다 [결정: review.decisions-2 D-08].
+- `bound.ts`, `effects.ts`, `tasks.ts`, `secrets.ts`, `builtin/`, `testing/`은 이 계획이 나눈 파일이다 [제안]. durable `truncate.ts` 포크는 core-tools에 두지 않는다. 포크는 L0 `platform-exec`에 있고 `bound.ts`가 F 서비스 `fresnel.exec`로 부른다 [결정: review.decisions-2 D-08].
 - Cordis는 import하지 않는다. 서비스 등록은 ext-host가 주는 플러그인 API로 한다(`eng.dependency-rules.guide` DR-11, `L1.readme` §4.2, X.primitives.spec) [가정: API 이름은 X.primitives.spec이 정한다].
-- `@earendil-works/pi-agent-core`는 import하지 않는다. `AgentTool`, `AgentToolCall`, `AgentToolResult`는 `@xeon/contracts/conversation`의 F 정의를 쓴다(L1.tools.spec §3 머리말). 도구 한 호출의 `prepare`·`execute`·`settleRejected`는 core-tools가, 배치 스케줄은 core-loop가 한다(adr.0009).
+- `@earendil-works/pi-agent-core`는 import하지 않는다. `AgentTool`, `AgentToolCall`, `AgentToolResult`는 `@fresnel/contracts/conversation`의 F 정의를 쓴다(L1.tools.spec §3 머리말). 도구 한 호출의 `prepare`·`execute`·`settleRejected`는 core-tools가, 배치 스케줄은 core-loop가 한다(adr.0009).
 - 공용 타입(`ToolService`, `PolicyRule` 등)은 contracts에 둔다(L1.tools.spec §8.3 F 요청 6). core-tools는 그 타입을 구현한다.
 
 ## 3. 작업 분해
@@ -79,13 +79,13 @@ xeon/packages/core-tools/
 
 | id | 내용 | 선행 | 규모 | 단계 |
 |---|---|---|---|---|
-| TL-0 | 선행 확인: contracts의 F.capabilities 타입(`ToolSpec`, `orderTools`, 요청 1·6·8), F.conversation 에이전트 타입 `AgentTool`·`AgentToolCall`(F 정의, adr.0009), F.records `approval.*` kind(요청 3), core-persistence 커밋 API(`xeon.session` `commit`), platform-store `putBlob`, platform-sandbox 인터페이스(bash 실행용, L2.workspace 경유) | — | S | M1 |
+| TL-0 | 선행 확인: contracts의 F.capabilities 타입(`ToolSpec`, `orderTools`, 요청 1·6·8), F.conversation 에이전트 타입 `AgentTool`·`AgentToolCall`(F 정의, adr.0009), F.records `approval.*` kind(요청 3), core-persistence 커밋 API(`fresnel.session` `commit`), platform-store `putBlob`, platform-sandbox 인터페이스(bash 실행용, L2.workspace 경유) | — | S | M1 |
 | TL-1 | 어댑터: `ToolSpec` → 도구 항목(`ToolEntry`) 5단계 환원과 `CapabilityError` → `isError` 변환(F.capabilities.spec §4.2), `replay` 대응, `outputSchema` 검증, `DirectToolRegistration` 감싸기, 의도 표 확인과 `effect.exec` 커밋 | TL-0 | M | M1 |
 | TL-2 | 파이프라인과 단계 계약(adr.0009 §3.4, 이전 판의 훅 연결을 L1.loop.plan LP18이 대체): `prepare`(`tool.execution.before` → 이름 해석 → 인자 검증 → `tool.call.before` 지점 → 정책 → 승인 → `effect.intent`), `execute`(`effect.exec` → 실행 → `tool.result` chain → 경계화 → `effect.result`+item 한 커밋 → `tool.execution.after`), 차단 결과의 toolResult item 기록, requestId 규칙(`tool:<id>:intent|exec|result`) | TL-1, TL-3, TL-9 | L | M1 |
 | TL-3 | 정책 평가기(순수): `evaluatePolicy` 7단계, `ruleMatches`(glob, JSON Pointer, 정규식), `stricter`, `validateRules`, 내장 기본 규칙. 코어 규칙 등록 `registerRules`(같은 출처 교체, `issues`, `dispose`)는 M2. M1은 티어 default·user와 `tool`·`args`만 (완료 2026-10-24: 티어 4종 순위 시험, `registerRules`는 `policy/core-rules.ts`, 확장 티어 규칙을 넣는 경로는 2차) | TL-0 | M | M1(부분), M2(전체) |
 | TL-4 | 권한 모드: 모드 표, 위험 등급 유도(`risk` → `hints.readOnly` → `exec`), `setMode`(세션 범위 설정 쓰기), managed `bypassAllowed`. M1은 `default`만 (완료 2026-10-24: 모드 4종, managed 금지 때 `tools.mode_forbidden`) | TL-3 | S | M1(default), M2 |
 | TL-5 | 승인 대기와 재개 복원: `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`), `approval.requested`+`checkpoint.step`(`next: "await_input"`) 한 커밋, `approval.resolved`, 기억 범위(`thread`, `always` → `thread`), 비대화형 처리. 재개 때 대기 호출은 core-loop가 `runTurn({ kind: "tools", awaitInput: true })`로 `prepare`를 다시 거쳐 같은 승인 요청을 이어 기다린다(L1.loop.spec §4.5) (M2 완료 2026-10-24: kind 셋의 요청·응답 검사, 비대화형 감사 기록, 비차단 `open`·`wait`·`get`, 요청 키 변환은 F `requestKeyFor`, 커밋 키 함수는 `approvals/keys.ts`) | TL-2 | L | M1(tool), M2(plan, question) |
-| TL-6 | 경계화와 blob 연결: `bound.ts`(한도 설정, `xeon.exec` 절단 호출, 원문 putBlob, 50 MiB 상한, 안내 문장, `"self"` 도구 처리). 절단 함수 포크는 L0.exec.plan 몫 | TL-0, L0.exec.plan의 절단 메서드 | S | M1 |
+| TL-6 | 경계화와 blob 연결: `bound.ts`(한도 설정, `fresnel.exec` 절단 호출, 원문 putBlob, 50 MiB 상한, 안내 문장, `"self"` 도구 처리). 절단 함수 포크는 L0.exec.plan 몫 | TL-0, L0.exec.plan의 절단 메서드 | S | M1 |
 | TL-7 | 노출 목록: `advertise`(orderTools 부분 수열, 전역 deny 제거, 지연 분리, 128 상한, `tools.too_many`, fingerprint), 활성화 집합 재계산 (M2 완료 2026-10-24: 임계 지연, 활성화, `planExposure`) | TL-3 | M | M1(정렬·deny·상한), M2(지연) |
 | TL-8 | 서비스·설정 등록: `plugin.ts`, `service.ts`(등록 표, 이름 충돌), `settings.ts`(L1.tools.spec §6 키 6개), 범위별 규칙 수집(`tiers.ts`) | TL-1, TL-3 | M | M1 |
 | TL-9 | `tool.call.before` fail-closed: ext-host first 디스패치 결과 처리, 핸들러 예외·디스패처 예외·결정 스키마 위반을 모두 거부로, 거부 사유 문장 고정 | TL-0 | S | M1 |
@@ -96,7 +96,7 @@ xeon/packages/core-tools/
 | TL-14 | `rerun`: 저장된 `intent.args`로 단계 7a~11 실행(키 잠금·슬롯 재획득 포함), `tool.call.before`·정책 생략 | TL-2, TL-17 | S | M1 |
 | TL-15 | `settleRejected`: 중단으로 실행하지 않는 호출을 `not_executed`로, `length` 절단 응답의 호출을 `truncated`로 닫기(adr.0009 §3.4, 이전 이름 `closeUnexecuted`) | TL-2 | S | M1 |
 | TL-16 | `runUserShell`: 사용자 셸 경로(L1.loop.spec `runUserBash`가 부름), caller `main` 대화형 평가 (완료 2026-10-24: `pipeline.ts` `runUserShell`. loop의 `runUserBash`는 L1F에서 완료, 실행 전에 닫힌 호출의 레코드는 `details.code: "not_executed"`) | TL-2, TL-4 | S | M2 |
-| TL-17 | 태스크 엔진 연결: tool 범위 노드(`find("turn")`, `openScope` kind `tool`, `track`), 잠금 키 산출(`ToolSpec.locks` → `xeon.exec.canonicalPath` → `${env.id}\0${realpath}`, shared·exclusive), `locks.run` 획득(M1), `limiter("tools")` 슬롯과 C3 순서, 자식 대기 때 `suspendWhile`(M2), 대기 중 취소 처리 | TL-1, L1.tasks.plan TK-1·TK-3(M1)·TK-4(M2), L0.exec `canonicalPath` (M2 완료 2026-10-24: `limiter("tools")` 슬롯을 키 잠금 뒤에 얻고, `ToolServiceInternal.suspendWhile`은 F 요청 14) | M | M1(노드·키 큐), M2(풀) |
+| TL-17 | 태스크 엔진 연결: tool 범위 노드(`find("turn")`, `openScope` kind `tool`, `track`), 잠금 키 산출(`ToolSpec.locks` → `fresnel.exec.canonicalPath` → `${env.id}\0${realpath}`, shared·exclusive), `locks.run` 획득(M1), `limiter("tools")` 슬롯과 C3 순서, 자식 대기 때 `suspendWhile`(M2), 대기 중 취소 처리 | TL-1, L1.tasks.plan TK-1·TK-3(M1)·TK-4(M2), L0.exec `canonicalPath` (M2 완료 2026-10-24: `limiter("tools")` 슬롯을 키 잠금 뒤에 얻고, `ToolServiceInternal.suspendWhile`은 F 요청 14) | M | M1(노드·키 큐), M2(풀) |
 | TL-18 | 비밀 경계(L1.tools.spec §4.12): 2계층 마스킹(`Redactor.maskDeep`, 8단계 뒤·9단계 전, 휘발 갱신 전, 경계화·blob 전), `secret.masked` 기록, `findForeignSecretSyntax` 호출, `check`의 `needs_approval` → 승인 요청 연결 (M2 완료 2026-10-24: `secret-gate.ts`, 증거는 L1F에서 `CallContext.approval`로 도구 구현에 전달) | TL-2, L0.secrets 서비스 인터페이스 | S | M1(마스킹), M2(승인 연결) |
 
 선행 관계 요약: TL-0 → {TL-1, TL-3, TL-6, TL-9} → TL-2 → {TL-5, TL-14, TL-15} → TL-12. TL-1 → TL-17 → TL-14. TL-2 → TL-18. TL-2·TL-4 → TL-16. TL-3 → {TL-4, TL-7, TL-8}. TL-7 → TL-10.
@@ -105,9 +105,9 @@ xeon/packages/core-tools/
 
 - contracts: F.capabilities(`ToolSpec`, `orderTools`, `toolsetFingerprint`, `MAX_TOOLS_PER_REQUEST`, 요청 1·2·6), F.records(`EffectIntent` 등, 요청 3), F.extensions(`FIRST_DENY`, `CHAIN_RULES`, 요청 4), F.wire-settings(`defineSettings`, 요청 5).
 - core-tasks: `TaskService.find`, `openScope`, `TaskScope.track`, `locks`(M1, L1.tasks.plan TK-1·TK-3), `limiter("tools")`·`Slot.suspendWhile`(M2, TK-4).
-- core-persistence: `xeon.session` 커밋 API(requestId 멱등, 장애 주입 `FaultInjector`), 재개 절차의 `restore` 호출 자리(L1.persistence.plan).
+- core-persistence: `fresnel.session` 커밋 API(requestId 멱등, 장애 주입 `FaultInjector`), 재개 절차의 `restore` 호출 자리(L1.persistence.plan).
 - platform-exec: `canonicalPath`(L0.exec.plan). platform-secrets: `Redactor`, `check`, `findForeignSecretSyntax`(L0.secrets.plan).
-- platform-store: `xeon.store.putBlob`, `readBlob`(L0.store.plan).
+- platform-store: `fresnel.store.putBlob`, `readBlob`(L0.store.plan).
 - platform-sandbox: bash 실행 인터페이스. core-tools는 직접 부르지 않고 L2.workspace의 bash 도구가 쓴다. M1 스모크의 선행으로만 둔다.
 - core-loop: `ToolRunContext` 생성과 `drafts`, 배치 스케줄(순차·병렬, 중단, `terminate`, `length`)과 `prepare`·`execute`·`settleRejected` 호출, 재개 때 `runTurn({ kind: "tools" })`로 대기 호출 재실행(L1.loop.spec §3.3, §4.5).
 - ext-host: tool 지점 디스패치(first·chain 규칙, 핸들러 스냅샷)(X.primitives.plan).
@@ -118,7 +118,7 @@ xeon/packages/core-tools/
 |---|---|---|---|
 | `@earendil-works/pi-agent-core` | 의존하지 않음(adr.0009). 설계 참고만 | 1.3.0. 소스는 1.1.0과 바이트 동일(`_research/notes/L1-1.md` §2) | 파이프라인 순서는 `agent-loop.ts:684-949`를 참고해 `prepare`·`execute`·`settleRejected`로 나눴다. `AgentTool`·`AgentToolCall`은 F `conversation/agent.ts` 정의를 쓴다 |
 | `@earendil-works/pi-ai` `validateToolArguments` | 옮겨 씀(core-tools `validate.ts`). core-tools는 pi-ai를 import하지 않는다(DR-07) | 1.3.0 `utils/validation.ts`. `argumentsError` 검사(318-320)를 포함한 TypeBox 경로 | 순수 JSON Schema(MCP)의 `coerceWithJsonSchema` 경로는 옮기지 않았다. M2 cap-mcp에서 `ModelService` 감싸기 메서드로 더한다(adr.0009 §7) |
-| durable `truncate.ts` | L0 `platform-exec` 포크를 `xeon.exec`로 사용(core-tools에는 사본을 두지 않는다, review.decisions-2 D-08) | `~/projects/_ref/pi-src/packages/durable/src/truncate.ts`, pi 커밋 `cdaf6c2`, 205줄, import 없음 | core-tools 쪽 바꿀 점 없음. 한도 설정은 `bound.ts`가 `TruncationOptions`로 넘긴다 |
+| durable `truncate.ts` | L0 `platform-exec` 포크를 `fresnel.exec`로 사용(core-tools에는 사본을 두지 않는다, review.decisions-2 D-08) | `~/projects/_ref/pi-src/packages/durable/src/truncate.ts`, pi 커밋 `cdaf6c2`, 205줄, import 없음 | core-tools 쪽 바꿀 점 없음. 한도 설정은 `bound.ts`가 `TruncationOptions`로 넘긴다 |
 | typebox | 그대로 | catalog 값(F.capabilities.spec §10 TypeBox 버전 [미결]을 따른다) | 없음 |
 | Gemini CLI 정책 엔진 | 설계 참고만 | `policy-engine.ts`(TOML 규칙, 우선순위 0~999, 티어, 서브에이전트 조건) | 코드를 가져오지 않는다. [가정] 결합도는 확인하지 않았다(`_research/packages.md` §4.3 "둘 다 import 불가"는 조사 판정이다) |
 | opencode `permission.ts` | 설계 참고만 | Effect 결합 | `findLast` 평가, 저장된 승인, `registry.snapshot` 노출 제거를 참고한다(`_research/refs/opencode.md` 157-161행) |
@@ -135,7 +135,7 @@ xeon/packages/core-tools/
 
 ## 5. 단위 테스트 목록
 
-모델은 테이프(`@xeon/core-models/testing`, eng.testing.guide TS-04), 커밋은 `testing/fakeSession` 또는 core-persistence 테스트 대역, 시계·ID는 주입한다(TS-03).
+모델은 테이프(`@fresnel/core-models/testing`, eng.testing.guide TS-04), 커밋은 `testing/fakeSession` 또는 core-persistence 테스트 대역, 시계·ID는 주입한다(TS-03).
 
 [결정: review.m2-plan WK·DG 통합] 다른 패키지의 통합 시험은 `testing/real-runtime.ts`의 `realTools({ session, ... })`로 실제 `ToolService`·`ApprovalService`를 caller가 준 세션(`fakeSession` 또는 core-persistence의 실제 세션) 위에 세운다. 같은 세션 위에서 서비스를 다시 세워 재시작을 흉내 낼 때는 처음 조립이 돌려준 `producer`를 넘긴다(세션 서비스 하나에서 `core.tools` 생산자는 한 번만 받을 수 있다).
 
@@ -175,7 +175,7 @@ xeon/packages/core-tools/
 | `secret_use_evidence_from_the_bash_approval` | `check`가 `needs_approval`인 `secretEnv` 호출이 정책 승인 하나로 증거를 얻고, 규칙이 허용한 호출은 `secret.use` 요청을 따로 올린다 | TL-18 |
 | `plan_approval_switches_mode` | 계획 승인 `answer: { mode: "acceptEdits" }`가 `settings.changed`(session 범위)를 남긴다 | TL-12 |
 | `truncate_spills_full_output_to_blob` | 60,000바이트 출력 → `putBlob` 1회, `effect.result.blobRef.sha256`가 원문 해시, 모델 내용은 51,200바이트 이하 미리보기 + 안내 문장 | TL-6 |
-| `bound_uses_exec_truncation` | `bound.ts`가 절단을 `xeon.exec` 대역으로 부르고 `truncateHead` 결과를 그대로 미리보기로 쓴다(core-tools 소스에 `truncate.ts`가 없다) | TL-6 |
+| `bound_uses_exec_truncation` | `bound.ts`가 절단을 `fresnel.exec` 대역으로 부르고 `truncateHead` 결과를 그대로 미리보기로 쓴다(core-tools 소스에 `truncate.ts`가 없다) | TL-6 |
 | `self_bounded_tool_skips_bounding` | `outputLimits: "self"` 도구의 `details.blobRef`가 `effect.result.blobRef`로 옮겨지고 다시 자르지 않는다 | TL-6 |
 | `rerun_skips_tool_call_hook` | `rerun`은 `tool.call.before` 핸들러와 정책을 부르지 않고 저장 인자로 실행, 결과 requestId는 처음과 같다 | TL-14 |
 | `tool_result_handler_throw_skipped` | `tool.result` 핸들러 하나가 던져도 다른 핸들러 패치는 적용되고 결과가 오류로 바뀌지 않는다 | TL-2 |
@@ -221,7 +221,7 @@ xeon/packages/core-tools/
 | 질문 도구가 실행 중 대기하므로 재개 때 `unsafe`면 결과 불명으로 닫힘 | 질문·계획 도구에 `replay: "safe"` 선언을 L2에 요청한다(L1.tools.spec §8.4). 선언이 없으면 등록 때 경고 진단 |
 | 범위별 규칙 수집이 F 설정 규칙(키 단위 교체)과 어긋남 | F 요청 5가 닫히기 전에는 core-tools가 범위 층을 직접 읽는다. 거절되면 범위별 키로 나눈다(L1.tools.spec §10) |
 | F 에이전트 타입(`agent.ts`) 반영이 늦음 | 반영됐다(adr.0009 이행 LP16). core-tools에 `@earendil-works/pi-agent-core` 의존을 넣지 않는다 |
-| 절단 함수가 `platform-exec`로 옮겨지는 adr.0003·L0.exec 수정이 늦음 | TL-6은 `xeon.exec` 절단 메서드의 F 시그니처만 전제하고 테스트는 대역으로 한다. core-tools에 임시 사본을 두지 않는다(review.decisions-2 D-08) |
+| 절단 함수가 `platform-exec`로 옮겨지는 adr.0003·L0.exec 수정이 늦음 | TL-6은 `fresnel.exec` 절단 메서드의 F 시그니처만 전제하고 테스트는 대역으로 한다. core-tools에 임시 사본을 두지 않는다(review.decisions-2 D-08) |
 
 인자 재작성 도입 방법 [제안]:
 

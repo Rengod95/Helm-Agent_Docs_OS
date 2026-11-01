@@ -10,7 +10,7 @@ binds: [xeon/packages/cap-artifacts/**]
 
 # L2 산출물과 세션 구현 계획 (artifacts)
 
-`L2.artifacts.spec`을 `xeon/packages/cap-artifacts`(`@xeon/cap-artifacts`)와 F 정의 파일로 옮기는 계획이다. 절 번호(§)는 따로 적지 않으면 그 스펙의 것이다.
+`L2.artifacts.spec`을 `xeon/packages/cap-artifacts`(`@fresnel/cap-artifacts`)와 F 정의 파일로 옮기는 계획이다. 절 번호(§)는 따로 적지 않으면 그 스펙의 것이다.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -22,7 +22,7 @@ binds: [xeon/packages/cap-artifacts/**]
 
 - 이 패키지의 구현 작업은 없다. 스캐폴드(`package.json`, `src/index.ts`, `test/smoke.test.ts`)는 P0에서 이미 있다.
 - 선행 조건(다른 계획의 산출물):
-  - `@xeon/contracts`의 `capabilities`(`defineCapability`, `validateCapability`), `records`(`BlobRef`, `CatalogEntry`, `Projector`), `conversation`(ID 스키마) M0 범위(`F.capabilities.plan`, `F.records.plan`).
+  - `@fresnel/contracts`의 `capabilities`(`defineCapability`, `validateCapability`), `records`(`BlobRef`, `CatalogEntry`, `Projector`), `conversation`(ID 스키마) M0 범위(`F.capabilities.plan`, `F.records.plan`).
   - `platform-store`의 blob API와 `openTestStore`(`L0.store.plan`).
   - `core-persistence`의 `SessionWriter.commit`, 투영기 등록, `expectProjectionsRebuildable`(`L1.persistence.plan`).
 
@@ -62,7 +62,7 @@ xeon/packages/cap-artifacts/
   tsconfig.json
   src/
     index.ts               # 플러그인 진입: 매니페스트, provider 등록, 투영기 등록, 설정 그룹
-    manifest.ts            # provides 3개, optional [workspace.files], usesPost: false(xeon.tasks 경유)
+    manifest.ts            # provides 3개, optional [workspace.files], usesPost: false(fresnel.tasks 경유)
     settings.ts            # defineSettings("l2.artifacts", …)  (A13)
     context.ts             # CallContext 해석(spec §3.5), requestId 파생 도우미
     registry/
@@ -111,13 +111,13 @@ xeon/packages/cap-artifacts/
 |---|---|---|---|---|
 | A1 | F `defs/artifacts.ts`에 정의 3개와 공통 스키마, `ReviewAnswerSchema`, 서비스 묶음 `ArtifactService`·`ArtifactServiceName`·`ARTIFACTS_CAPABILITIES`(spec §3.9)를 둔다. F `records/catalog/artifact.ts`에 `artifact.*` 12종 카탈로그(`CatalogEntry`, `F.records.spec` §3.3.2)와 payload 스키마를 둔다. ID 접두 `art`·`rvw`·`cmt`·`hof`는 F.conversation §3.2.1 `LocalIdPrefix`를 쓴다. `artifact` 영역, `TYPE_PREFIX_OWNERS` 행, `CallOptions.context`는 F에 이미 있으므로 확인만 한다. `validateCapability` 0건 테스트 | `F.capabilities.plan` M0, `F.records.plan` M0 | M | M2 |
 | A2 | 산출물 모델: kind 판정, 메타 검사, 버전 규칙(`baseVersion`), 보관 기한 판정, 미리보기 메타 계산 | A1 | S | M3(안 2면 M2) |
-| A3 | blob 등록(`xeon.store` blob API, `sys_blobs`)과 커밋 순서, 투영기 `cap.artifacts`와 DDL, 목록 커서. `register`·`update`·`list`·`get`·`archive` 서비스 | A2, `L0.store.plan` blob API, `L1.persistence.plan` 투영기 등록 | M | M3(안 2면 M2) |
+| A3 | blob 등록(`fresnel.store` blob API, `sys_blobs`)과 커밋 순서, 투영기 `cap.artifacts`와 DDL, 목록 커서. `register`·`update`·`list`·`get`·`archive` 서비스 | A2, `L0.store.plan` blob API, `L1.persistence.plan` 투영기 등록 | M | M3(안 2면 M2) |
 | A4 | `artifact_create`, `artifact_update` 도구 등록과 도구 경로 메타 병합 규칙(spec §3.2 둘째 항목), `CallContext` 해석과 다른 세션 거부 | A3, A1의 `CallContext` 확정 | S | M3 |
 | A5 | diff 수집: `tool.settled`에서 workspace 결과 `details.diff` 추출(파서), 체크포인트 기준 diff 계산, 통합 diff 정규화와 hunk ID, 같은 파일 다중 diff 병합, 상한 | A1, `L2.workspace.spec` 결과 `details` 계약 | M | M3 |
 | A6 | hunk 단위 승인 모델과 상태 머신(open/submitted/closed, 라운드), `ReviewAnswer` 반영, `open`의 changeset 등록·승인 요청 | A3, A5, L1.tools `review` kind 결정(spec §10 미결 4) | M | M3 |
-| A7 | 코멘트 → 입력 큐 전달: 본문 렌더, `xeon.tasks.post`(`when` 선택), `requestId = review:<reviewId>:r<round>`, 제출 절차 6단계 | A6, `L1.tasks` post | S | M3 |
+| A7 | 코멘트 → 입력 큐 전달: 본문 렌더, `fresnel.tasks.post`(`when` 선택), `requestId = review:<reviewId>:r<round>`, 제출 절차 6단계 | A6, `L1.tasks` post | S | M3 |
 | A8 | 거절 적용: 역패치 계산(순수), 적용 전 확인(fuzz), 파일 단위 원자성, 결과 기록. 적용 포트 구현은 [미결] 해소 후 하나만 만든다(후보 A `workspace.files` 또는 B L1 복원) | A6, spec §10 미결 6 해소 | M | M3(미해소 시 M3 이후) |
-| A9 | 자동 제목: `boundary.settle.after` 핸들러(detached), 프롬프트·후처리, `xeon.models` 용도 호출, `xeon.session.retitle(onlyIfUntitled)` 호출과 requestId. `setMeta.title`의 제목 변경 호출 | A3, `L1.persistence` 제목 API, `L1.models` 용도 라우팅 | S | M3 |
+| A9 | 자동 제목: `boundary.settle.after` 핸들러(detached), 프롬프트·후처리, `fresnel.models` 용도 호출, `fresnel.session.retitle(onlyIfUntitled)` 호출과 requestId. `setMeta.title`의 제목 변경 호출 | A3, `L1.persistence` 제목 API, `L1.models` 용도 라우팅 | S | M3 |
 | A10 | 라벨: 정규화, `artifact.session_labeled`, 세션 메타 투영(L1 세션 이벤트 복사), `list`·`search` | A3 | S | M3 |
 | A11 | (2차) 핸드오프: 컴팩션 요약 재사용 판정, 요약 생성, `HandoffPackage`, 새 세션 생성과 양쪽 기록, 입력 post, 도구 `handoff` | A3, A10 | M | M3 이후 |
 | A12 | (2차) Markdown·HTML 내보내기: 이벤트 렌더러, 도구 출력 옵션, 산출물 부록, `Source.usage.cache` 필터, 결과 위치 | A3, `L2.web.spec` Source 모양 | M | M3 이후 |
@@ -150,7 +150,7 @@ xeon/packages/cap-artifacts/
 
 ## 5. 단위 테스트 목록
 
-모든 테스트는 `eng.testing.guide`를 따른다. 시계는 `manualClock`, ID는 `fixedIdFactory`, 저장은 `openTestStore`(실제 `bun:sqlite`), 파일 시스템은 `fakeExec`(`@xeon/platform-exec/testing`, ExecutionEnv 가짜), 모델은 테이프(`@xeon/core-models/testing`)다. L1 서비스(session·tasks·approvals·models)는 `src/testing`의 가짜 포트로 주입한다.
+모든 테스트는 `eng.testing.guide`를 따른다. 시계는 `manualClock`, ID는 `fixedIdFactory`, 저장은 `openTestStore`(실제 `bun:sqlite`), 파일 시스템은 `fakeExec`(`@fresnel/platform-exec/testing`, ExecutionEnv 가짜), 모델은 테이프(`@fresnel/core-models/testing`)다. L1 서비스(session·tasks·approvals·models)는 `src/testing`의 가짜 포트로 주입한다.
 
 ### 5.1 정의 (A1)
 

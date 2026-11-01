@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 import {
   applyEdits,
   detectLineEnding,

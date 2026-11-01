@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { OsPortKey } from "@xeon/contracts/services";
-import { createExtHost } from "@xeon/ext-host";
+import { OsPortKey } from "@fresnel/contracts/services";
+import { createExtHost } from "@fresnel/ext-host";
 import { createIdFactory, platformOsPlugin } from "../src/index.ts";
 import { eventOf } from "./support/json.ts";
 import { manualClock, seededRandom } from "./support/clock.ts";
@@ -27,7 +27,7 @@ function newHost() {
 }
 
 describe("ExtHost.registerPlatform", () => {
-  test("등록하면 xeon.os 포트가 조회되고 dispose가 서비스를 내린다", async () => {
+  test("등록하면 fresnel.os 포트가 조회되고 dispose가 서비스를 내린다", async () => {
     const lines: string[] = [];
     const host = newHost();
     await host.registerPlatform(

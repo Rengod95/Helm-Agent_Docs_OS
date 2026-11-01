@@ -10,8 +10,8 @@ import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generati
 import { mistralConversationsApi } from "@earendil-works/pi-ai/api/mistral-conversations.lazy";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import type { ScopeId, Unsubscribe } from "@xeon/contracts/extensions";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import type { ScopeId, Unsubscribe } from "@fresnel/contracts/extensions";
 import {
   ProviderConfigDefSchema,
   type ModelError,
@@ -20,7 +20,7 @@ import {
   type ProviderDef,
   type ProviderModelDef,
   type SecretRefString,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // L1.models.spec §3.7, L1.models.plan M-4. provider 등록부다. addProvider(코드로 만든 runtime provider와 config)와
 // 포트 경로 registerProvider(JSON config만)가 같은 등록부를 쓴다.

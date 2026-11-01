@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { buildCatalog } from "@xeon/contracts/settings";
+import { buildCatalog } from "@fresnel/contracts/settings";
 import { fixedIdFactory } from "../../src/testing/index.ts";
 import {
   DEFAULT_DRIVE_LIMITS,

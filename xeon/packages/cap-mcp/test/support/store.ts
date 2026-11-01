@@ -1,6 +1,6 @@
-import type { Clock } from "@xeon/contracts";
-import type { IdByPrefix, IdFactory, IdPrefix } from "@xeon/contracts/conversation";
-import { openTestStore, type TestStore } from "@xeon/platform-store/testing";
+import type { Clock } from "@fresnel/contracts";
+import type { IdByPrefix, IdFactory, IdPrefix } from "@fresnel/contracts/conversation";
+import { openTestStore, type TestStore } from "@fresnel/platform-store/testing";
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

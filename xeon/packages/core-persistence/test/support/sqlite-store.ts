@@ -1,8 +1,8 @@
-// 시험용 L0 저장소. platform-store의 실제 저장소(`@xeon/platform-store/testing`)를 열고, 이 패키지 시험이 쓰는 모양
+// 시험용 L0 저장소. platform-store의 실제 저장소(`@fresnel/platform-store/testing`)를 열고, 이 패키지 시험이 쓰는 모양
 // (raw 검사 연결, 동기 rowCounts·tableHashes, takeover·loseLease가 붙은 leases)으로 감싼다(open-issues M-04).
 import { Database } from "bun:sqlite";
 import { dirname, join } from "node:path";
-import { Bug, canonicalJson } from "@xeon/contracts";
+import { Bug, canonicalJson } from "@fresnel/contracts";
 import type {
   LeaseHolder,
   LeaseResource,
@@ -11,13 +11,13 @@ import type {
   MigrationRunner,
   StoreDb,
   StoreService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   openTestStore as openPlatformStore,
   TEST_HOLDER_A,
   TEST_HOLDER_B,
   type TestStore as PlatformTestStore,
-} from "@xeon/platform-store/testing";
+} from "@fresnel/platform-store/testing";
 import { sha256Hex } from "../../src/hash.ts";
 import { fixedIdFactory, type ManualClock } from "./clock.ts";
 

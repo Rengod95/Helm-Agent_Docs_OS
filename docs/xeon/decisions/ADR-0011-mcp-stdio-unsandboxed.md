@@ -24,7 +24,7 @@ binds: [xeon/packages/cap-mcp/**, xeon/packages/platform-process/**]
 - 서버 정의는 두 곳에서 옵니다.
   - 사용자 설정 `l2.mcp.servers`: 사용자가 직접 씁니다.
   - 프로젝트 파일 `.mcp.json`, `.fresnel/mcp.json`: 저장소를 받으면 같이 옵니다. 신뢰하지 않은 저장소의 파일은 임의 명령 실행과 같습니다(`architecture.security.spec` §4 T-03).
-- L0 샌드박스(`xeon.sandbox`, srt 0.0.79)는 `bash` 도구를 감쌉니다. Linux는 bubblewrap과 socat, macOS는 Seatbelt를 씁니다(`L0.sandbox.spec` §3.5).
+- L0 샌드박스(`fresnel.sandbox`, srt 0.0.79)는 `bash` 도구를 감쌉니다. Linux는 bubblewrap과 socat, macOS는 Seatbelt를 씁니다(`L0.sandbox.spec` §3.5).
 - 2026-10-25 기준으로 샌드박스 실제 시험(int)이 없습니다. 개발 기기에는 socat이 없고 CI에는 bwrap이 설치되지 않았습니다(마일스톤 재점검 G4-01). 샌드박스 네트워크 정책은 M3입니다(`review.m3-plan`).
 - MCP 서버는 대부분 네트워크와 홈 디렉터리 설정 파일을 씁니다. 쓰기 경로와 네트워크 허용 목록을 서버마다 정하는 설계가 아직 없습니다.
 - 비밀 env 서버를 띄우려면 기동 시점에 승인을 받아야 합니다. 승인 없는 `env` 주입은 금지입니다(`review.decisions-2` U-19). 기동 승인 단위는 설계 감사 A-04의 제안(서버 기동 승인 한 번)만 있고 설계가 없습니다.

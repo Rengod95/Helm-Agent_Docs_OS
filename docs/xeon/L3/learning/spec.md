@@ -81,7 +81,7 @@ M3a 구현(`xeon/packages/group-learning`)에서 아래를 문서에 맞췄다. 
 ### 3.1 매니페스트 (`manifest.ts`)
 
 ```ts
-import { defineManifest } from "@xeon/contracts/extensions";
+import { defineManifest } from "@fresnel/contracts/extensions";
 import { learningRecordKindDecls } from "./records.ts";
 
 export const manifest = defineManifest({
@@ -114,7 +114,7 @@ export const manifest = defineManifest({
 
 - 능력 ID는 L2.knowledge.spec §1의 네 능력이다. 이 문서의 옛 [가정] 이름과의 대응은 L2.knowledge.spec §3.9 표를 따른다: 읽기(`knowledge.skills.view`, `knowledge.memory.read`, `knowledge.search.query`), 쓰기(`knowledge.skills.create`·`edit`·`patch`·`writeFile`·`remove`, `knowledge.memory.add`·`replace`·`remove`), 원장(`knowledge.ledger.list`·`show`·`rollback`), 스캔(`knowledge.ledger.scan`). 서비스 키는 `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `KnowledgeSearchKey`, `KnowledgeLedgerKey`다.
 - 스캔은 `knowledge.ledger.scan`으로 따로 노출된다(L2.knowledge.spec §3). 그래서 사전 스캔(§4.6 2단계)은 `knowledge.ledger`가 제공되면 항상 돌 수 있다.
-- 위임 서비스(`xeon.agents`)는 능력이 아니므로 `requires`에 넣지 않는다(F.extensions.spec §3.1에 위임 필드가 없다). 학습 그룹은 group-sdk의 `GroupApi.delegate`(§3.4)로만 위임한다. `GroupApi.delegate`가 매니페스트 선언을 요구할지는 L3.group-sdk.spec이 정한다 [가정].
+- 위임 서비스(`fresnel.agents`)는 능력이 아니므로 `requires`에 넣지 않는다(F.extensions.spec §3.1에 위임 필드가 없다). 학습 그룹은 group-sdk의 `GroupApi.delegate`(§3.4)로만 위임한다. `GroupApi.delegate`가 매니페스트 선언을 요구할지는 L3.group-sdk.spec이 정한다 [가정].
 - `components.agents`의 `learning-review` 정의 파일은 그룹 패키지 안에 둔다. L1.agents.spec §4.9는 확장 경로(매니페스트 `components.agents`)의 정의 읽기를 M2에 둔다. 정의의 `tools`에는 §3.4 허용 목록을 넣고 위임 도구를 넣지 않는다(재귀 방지, §4.3).
 - `readsRecordKinds`는 빈 목록이다 [결정: review.decisions-2 D-10]. 그룹 사이 레코드는 F에 스키마가 없으므로 학습 그룹은 Helm을 비롯한 다른 그룹의 레코드를 읽지 않는다. 검토 포크의 입력은 부모 대화 스냅샷뿐이다.
 
@@ -122,7 +122,7 @@ export const manifest = defineManifest({
 
 ```ts
 import { Type, type Static } from "typebox";
-import { defineGroup, type GroupApi } from "@xeon/group-sdk";
+import { defineGroup, type GroupApi } from "@fresnel/group-sdk";
 
 export const LearningStateSchema = Type.Object({
   /** 마지막 검토 이후 센 사용자 turn 수 */
@@ -222,7 +222,7 @@ export function reviewRequestId(epoch: number): ReviewRequestId;
 `GroupApi.delegate`는 group-sdk이 F의 `ScopeApi`에 더하는 연산이다. 학습 그룹은 group-sdk의 `DelegateSpec`(L3.group-sdk.spec §3.4)을 그대로 만들어 넘기고, 결과는 `DelegateResult`(`{ ok: true, receipt } | { ok: false, error }`)로 받는다. 학습 그룹은 위임 타입을 따로 정의하지 않는다.
 
 ```ts
-import type { DelegateError, DelegateResult, DelegateSpec } from "@xeon/group-sdk";
+import type { DelegateError, DelegateResult, DelegateSpec } from "@fresnel/group-sdk";
 
 /** 검토 포크 서브에이전트 정의 이름. 정의 파일은 그룹 패키지 agents/learning-review.md(매니페스트 components.agents) */
 export const REVIEW_AGENT = "learning-review";
@@ -1012,7 +1012,7 @@ M3 설계 개정(2026-10-26)에서 옛 번호를 정리했다. 닫은 항목은 
 
 설계 질문:
 
-9. 맞춤: 패키지 `xeon.domain` 값(옛 미결 3). group-sdk 쪽 `kit`은 `group-sdk`으로 맞췄다(`review.m3-design-inputs` G-IN-13, M3-35). 학습 그룹(`learning`)은 영향이 없다.
+9. 맞춤: 패키지 `fresnel.domain` 값(옛 미결 3). group-sdk 쪽 `kit`은 `group-sdk`으로 맞췄다(`review.m3-design-inputs` G-IN-13, M3-35). 학습 그룹(`learning`)은 영향이 없다.
 10. [미결] `agent.settled` 구독 수단(REQ-LN-02)의 F 형태. 매니페스트 선언 필드와 `GroupApi` 연산 이름은 F·X 계약 트랙이 정한다. 정해지기 전에는 §4.3 대체 경로(명령 진입 조회)만 동작한다.
 11. [미결] 대화당 검토 1개(`inFlightReviewId`) 외의 프로세스 전체 상한. L1-g 백그라운드 풀 상한(REQ-L1-03)이 정해지면 그 값을 따른다.
 12. [가정] `ApprovalEvidence{ source: "learning.queue" }`를 L2-d가 믿도록 하는 기본 설정 경로(REQ-LN-09). L2 문서가 D-11에 맞춰 정한다.

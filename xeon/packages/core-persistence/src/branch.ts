@@ -1,7 +1,7 @@
 // 활성 가지 질의(L1.persistence.spec §3.4, §4.10, X.primitives.spec §4.6.1 활성 가지 규칙).
 // 활성 가지는 thread의 현재 leaf에서 parent_id를 따라 올라간 사슬이다. 버려진 가지의 이벤트는 들어가지 않는다.
 // 이 파일의 함수는 모두 읽기 전용이고 SqlTx 하나 안에서 같은 스냅숏을 본다.
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   ItemKindSchema,
   ItemStatusSchema,
@@ -9,14 +9,14 @@ import {
   type ItemId,
   type JsonValue,
   type ThreadId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   DurableEventEnvelope,
   ItemRow,
   SqlRow,
   SqlTx,
   SqlValue,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { envelopeOfRow } from "./events.ts";
 import { columns, rowInvalid, type RowFault } from "./rows.ts";
 import { readThread } from "./views.ts";

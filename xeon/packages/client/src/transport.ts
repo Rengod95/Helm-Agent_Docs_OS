@@ -10,4 +10,4 @@ export type {
   TransportKind,
   Unsubscribe,
   WireRequestOptions,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";

@@ -1,4 +1,4 @@
-import { parseJson } from "@xeon/contracts";
+import { parseJson } from "@fresnel/contracts";
 
 // L1.models.spec §3.1, L2.web.spec §4.8.4. pi-ai anthropic-messages 어댑터는 서버 도구 블록(server_tool_use,
 // web_search_tool_result)을 AssistantMessage에 싣지 않는다. 그래서 어댑터가 `onProviderStreamEvent`로 넘기는 원시 SSE 이벤트를

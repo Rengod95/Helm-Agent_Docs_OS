@@ -9,7 +9,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 
 const vaultFile = process.argv[2];
 const outsideFile = process.argv[3];

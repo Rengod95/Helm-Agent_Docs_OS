@@ -1,4 +1,4 @@
-import { assertNever, Bug } from "@xeon/contracts";
+import { assertNever, Bug } from "@fresnel/contracts";
 import {
   assignPartIds,
   type AgentEvent,
@@ -15,7 +15,7 @@ import {
   type StepId,
   type StopReason,
   type Usage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 
 // L1.loop.spec §3.4, F.conversation.spec §3.5.4~§3.5.5. pi AgentEvent를 Xeon 알림 열로 바꾸는 순수 매퍼다.
 // 시계와 난수를 쓰지 않고 id는 init.ids로만 만든다.

@@ -1,4 +1,4 @@
-import type { CancelScope, ExecutionEnv } from "@xeon/contracts/services";
+import type { CancelScope, ExecutionEnv } from "@fresnel/contracts/services";
 import { WorkspaceFailure } from "../errors.ts";
 import { getOrThrow } from "../upstream/get-or-throw.ts";
 

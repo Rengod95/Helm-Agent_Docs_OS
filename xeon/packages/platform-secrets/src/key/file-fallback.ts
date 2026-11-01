@@ -2,8 +2,8 @@ import { statSync } from "node:fs";
 import { mkdir, open, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import { generateIdentity, identityToRecipient } from "age-encryption";
-import { attempt, attemptAsync, err, ok, type Result } from "@xeon/contracts";
-import type { SecretError } from "@xeon/contracts/services";
+import { attempt, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
+import type { SecretError } from "@fresnel/contracts/services";
 import { errorCode } from "../errors.ts";
 import type { KeyAvailability, KeyProvider, SopsKeyEnvName } from "./provider.ts";
 

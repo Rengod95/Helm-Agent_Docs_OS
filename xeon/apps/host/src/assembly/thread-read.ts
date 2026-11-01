@@ -1,7 +1,12 @@
-import type { ItemPages } from "@xeon/core-persistence";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ItemRecord } from "@xeon/contracts/conversation";
-import { WIRE_LIMITS, type StoreId, type WireParams, type WireResult } from "@xeon/contracts/wire";
+import type { ItemPages } from "@fresnel/core-persistence";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ItemRecord } from "@fresnel/contracts/conversation";
+import {
+  WIRE_LIMITS,
+  type StoreId,
+  type WireParams,
+  type WireResult,
+} from "@fresnel/contracts/wire";
 import type { ThreadReadFailure } from "../types.ts";
 
 // F.wire-settings.spec §3.4.6. thread.read: 현재 가지의 내구 item을 오래된 것부터 돌려주는 읽기 전용 조회.

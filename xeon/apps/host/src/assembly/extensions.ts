@@ -1,12 +1,12 @@
 import { Type } from "typebox";
-import type { Clock, Logger } from "@xeon/contracts";
+import type { Clock, Logger } from "@fresnel/contracts";
 import {
   isId,
   type IdFactory,
   type LocalIdFactory,
   type ThreadId,
-} from "@xeon/contracts/conversation";
-import type { ExtensionName } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/conversation";
+import type { ExtensionName } from "@fresnel/contracts/extensions";
 import {
   EVENT_CATALOG,
   EXTENSION_KIND_PATTERN,
@@ -16,7 +16,7 @@ import {
   type LeaseHolder,
   type LeaseToken,
   type StoreDb,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   ArtifactsRegistry,
   ArtifactsReviews,
@@ -31,26 +31,31 @@ import {
   WorkPlans,
   WorkTasks,
   type AnyCapabilityDef,
-} from "@xeon/contracts/capabilities";
-import { artifactsPlugin } from "@xeon/cap-artifacts";
-import { schedulePlugin, type ScheduleService } from "@xeon/cap-schedule";
-import { dialogPlugin } from "@xeon/cap-dialog";
-import { knowledgePlugin } from "@xeon/cap-knowledge";
-import { APPROVAL_SOURCE } from "@xeon/group-learning";
-import { workPlugin } from "@xeon/cap-work";
-import { workspacePlugin } from "@xeon/cap-workspace";
-import { readUnattendedTimeoutMs } from "@xeon/platform-exec";
-import type { AgentDefinition } from "@xeon/contracts/services";
-import { agentsPlugin } from "@xeon/core-agents";
-import { contextSettingsOf, createContextExtension } from "@xeon/core-context";
-import { loopExtensionUnit } from "@xeon/core-loop";
-import { createModelsExtension, type ModelsExtensionOptions } from "@xeon/core-models";
-import { sessionPlugin } from "@xeon/core-persistence";
-import { createTasksEntry, TASKS_MANIFEST } from "@xeon/core-tasks";
-import { toolsPlugin } from "@xeon/core-tools";
-import type { BuiltinExtensionModule, ExtHost, ExtensionUnit, InstallResult } from "@xeon/ext-host";
+} from "@fresnel/contracts/capabilities";
+import { artifactsPlugin } from "@fresnel/cap-artifacts";
+import { schedulePlugin, type ScheduleService } from "@fresnel/cap-schedule";
+import { dialogPlugin } from "@fresnel/cap-dialog";
+import { knowledgePlugin } from "@fresnel/cap-knowledge";
+import { APPROVAL_SOURCE } from "@fresnel/group-learning";
+import { workPlugin } from "@fresnel/cap-work";
+import { workspacePlugin } from "@fresnel/cap-workspace";
+import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
+import type { AgentDefinition } from "@fresnel/contracts/services";
+import { agentsPlugin } from "@fresnel/core-agents";
+import { contextSettingsOf, createContextExtension } from "@fresnel/core-context";
+import { loopExtensionUnit } from "@fresnel/core-loop";
+import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/core-models";
+import { sessionPlugin } from "@fresnel/core-persistence";
+import { createTasksEntry, TASKS_MANIFEST } from "@fresnel/core-tasks";
+import { toolsPlugin } from "@fresnel/core-tools";
+import type {
+  BuiltinExtensionModule,
+  ExtHost,
+  ExtensionUnit,
+  InstallResult,
+} from "@fresnel/ext-host";
 import type { AssembleOptions, HostMode, SettingsStorePort } from "../types.ts";
-import type { McpProcessPort } from "@xeon/cap-mcp";
+import type { McpProcessPort } from "@fresnel/cap-mcp";
 import { hostMcpPlugin } from "./cap-mcp.ts";
 import { hostGroupsPlugin } from "./groups.ts";
 import {
@@ -65,8 +70,8 @@ import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
-import type { GroupCatalogEntry } from "@xeon/group-sdk";
-import type { SettingCatalog } from "@xeon/contracts/settings";
+import type { GroupCatalogEntry } from "@fresnel/group-sdk";
+import type { SettingCatalog } from "@fresnel/contracts/settings";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
@@ -112,7 +117,7 @@ export interface ExtensionDeps {
   readonly parentToken: (threadId: ThreadId) => LeaseToken | undefined;
   readonly onLeaseLost: (threadId: ThreadId) => void;
   readonly reportSetting: (message: string) => void;
-  /** 그룹 서비스(`xeon.groups`) 연결: 카탈로그, 설정 저장소, 현재 thread */
+  /** 그룹 서비스(`fresnel.groups`) 연결: 카탈로그, 설정 저장소, 현재 thread */
   readonly groups: {
     readonly catalog: SettingCatalog;
     readonly store: () => SettingsStorePort | undefined;

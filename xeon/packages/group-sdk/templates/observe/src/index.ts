@@ -1,4 +1,4 @@
-import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-sdk";
+import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 import { initialState, stateSchema, type State } from "./state.ts";

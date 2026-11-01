@@ -4,9 +4,9 @@ import {
   parseServiceEndpoint,
   type EndpointParseError,
   type ServiceEndpoint,
-} from "@xeon/client/endpoint";
-import { attemptAsync, parseJson } from "@xeon/contracts";
-import { resolveOsDirs } from "@xeon/platform-os";
+} from "@fresnel/client/endpoint";
+import { attemptAsync, parseJson } from "@fresnel/contracts";
+import { resolveOsDirs } from "@fresnel/platform-os";
 import { hostResourceDir } from "../state-paths.ts";
 
 // L4.host-service.spec §3.6 resolveLaunchMode, HS-37. 엔진 없이 사용자 설정 파일만 읽어 `l0.process.service.enabled`를 해석한다.

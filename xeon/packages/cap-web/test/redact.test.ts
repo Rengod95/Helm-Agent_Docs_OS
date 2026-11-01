@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { WebFetchOutput, WebSearchOutput } from "@xeon/contracts/capabilities";
+import type { WebFetchOutput, WebSearchOutput } from "@fresnel/contracts/capabilities";
 import { redactForPersistence } from "../src/contract/redact.ts";
 import { metaOf, pageOf, sourceOf } from "./support/builders.ts";
 

@@ -1,16 +1,16 @@
-import { assertNever, Bug, detach, err, ok, parse, rethrow, type Result } from "@xeon/contracts";
+import { assertNever, Bug, detach, err, ok, parse, rethrow, type Result } from "@fresnel/contracts";
 import {
   EventIdSchema,
   type EventId,
   type IdFactory,
   type ThreadId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   RecordKindSchema,
   type EnqueueRequest,
   type EnqueueError,
   type EnqueueResult,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   InputPlacedPayloadSchema,
   InputQueuedPayloadSchema,
@@ -18,7 +18,7 @@ import {
   type DurableEventEnvelope,
   type SessionService,
   type StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   AbortReason,
   AbortTicket,
@@ -37,7 +37,7 @@ import type {
   TaskScopeKind,
   TaskScopeSpec,
   TaskService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // 테스트 대역: core-tasks의 범위 트리·취소·내구 입력 큐 중 루프가 쓰는 부분만 흉내 낸다.
 

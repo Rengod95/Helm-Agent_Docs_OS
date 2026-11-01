@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { ok } from "@xeon/contracts";
-import type { SelfTestItemId, Shell } from "@xeon/contracts/services";
+import { ok } from "@fresnel/contracts";
+import type { SelfTestItemId, Shell } from "@fresnel/contracts/services";
 import {
   runSelfTest,
   SELF_TEST_ITEM_IDS,

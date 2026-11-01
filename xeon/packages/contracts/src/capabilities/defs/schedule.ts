@@ -19,7 +19,7 @@ import { serviceKey, type ServiceKey } from "../service-key.ts";
 import type { ToolSpec } from "../tool-spec.ts";
 
 // L2.schedule.spec §4.4.9 (M3b B1-SCH2). 능력 ID는 `schedule.entries`다. §3.5의 `schedule.timers`(cron 식)와는 다른 능력이다.
-// 트리거와 항목, 실행 기록 모양은 `@xeon/cap-schedule`의 `TriggerSpec`, `ScheduleEntry`, `RunRecord`와 같은 필드 이름을 쓴다.
+// 트리거와 항목, 실행 기록 모양은 `@fresnel/cap-schedule`의 `TriggerSpec`, `ScheduleEntry`, `RunRecord`와 같은 필드 이름을 쓴다.
 // F는 cap-schedule을 import하지 않는다(층 순서). 엔진과 같은 모양인지는 호스트가 엔진 포트를 조립할 때 타입으로 확인한다 [미결: 호스트 조립 커밋].
 // 간격 최소값 300초는 엔진이 `interval_too_short`로 거부한다. 이 스키마는 그 값을 두지 않는다.
 

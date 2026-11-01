@@ -1,6 +1,6 @@
 import { generateIdentity, identityToRecipient } from "age-encryption";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { SecretError } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { SecretError } from "@fresnel/contracts/services";
 import type { ProcessRunner } from "../providers/process.ts";
 import {
   KEY_ACCOUNT,
@@ -22,7 +22,7 @@ export interface DarwinKeyExec {
 }
 
 export interface DarwinKeyDeps {
-  /** xeon.os가 해석한 security 절대 경로. 없으면 null */
+  /** fresnel.os가 해석한 security 절대 경로. 없으면 null */
   readonly securityPath: string | null;
   /** 있으면 provision을 켠다. 시험은 가짜 실행기를 넣는다 */
   readonly exec?: DarwinKeyExec;

@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import type { ExecPlatformProvider } from "../../src/provider.ts";
 import { detectExecPlatform } from "../../src/select.ts";
 

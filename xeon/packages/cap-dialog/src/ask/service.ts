@@ -6,11 +6,11 @@ import {
   type AskResult,
   type CallContext,
   type CapabilityApi,
-} from "@xeon/contracts/capabilities";
-import { assertNever } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { requestKeyFor } from "@xeon/contracts/records";
-import type { ApprovalRequestError, L2ApprovalSnapshot } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import { assertNever } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { requestKeyFor } from "@fresnel/contracts/records";
+import type { ApprovalRequestError, L2ApprovalSnapshot } from "@fresnel/contracts/services";
 import type { DialogDeps } from "../deps.ts";
 import { DialogFailure, guarded } from "../errors.ts";
 import { createAskExpiry, type AskExpiry } from "./expiry.ts";

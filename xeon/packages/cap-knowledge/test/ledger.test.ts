@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eachAsync } from "@xeon/contracts";
+import { eachAsync } from "@fresnel/contracts";
 import { SCAN_RULESET_VERSION } from "../src/scan/rules.ts";
 import type { ChangeSpec } from "../src/ledger/change.ts";
 import { hashOfTarget, readTarget, type ChangeTarget } from "../src/ledger/target.ts";

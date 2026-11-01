@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { SandboxArgvRequest, SandboxPolicy } from "@xeon/contracts/services";
+import type { SandboxArgvRequest, SandboxPolicy } from "@fresnel/contracts/services";
 import type { PlatformInput } from "../src/select.ts";
 import { createSandboxService, type SandboxServiceHandle } from "../src/service.ts";
 import type { SandboxSettings } from "../src/settings.ts";

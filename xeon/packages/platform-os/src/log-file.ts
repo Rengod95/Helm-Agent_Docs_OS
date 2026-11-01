@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 import type { LogSink } from "./logger.ts";
 import { PRODUCT } from "./product.ts";
 

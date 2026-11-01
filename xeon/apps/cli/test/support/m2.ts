@@ -1,6 +1,6 @@
-import type { EffectiveSetting, SettingDefWire } from "@xeon/contracts/settings";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { wireError, type ThreadSummary } from "@xeon/contracts/wire";
+import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { wireError, type ThreadSummary } from "@fresnel/contracts/wire";
 import type { FakeHandlers } from "./fake-server.ts";
 
 // M2 메서드의 가짜 처리기 도우미. 호스트 계약(F.wire-settings.spec)만 따르고 실제 엔진을 쓰지 않는다.

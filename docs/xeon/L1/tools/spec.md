@@ -25,7 +25,7 @@ binds: [xeon/packages/core-tools/**]
 
 정하는 것:
 
-- Cordis 서비스 `xeon.tools`(`ToolService`)와 `xeon.approvals`(`ApprovalService`). 두 서비스 모두 `core-tools`가 제공한다(eng.context-map.design §5.3).
+- Cordis 서비스 `fresnel.tools`(`ToolService`)와 `fresnel.approvals`(`ApprovalService`). 두 서비스 모두 `core-tools`가 제공한다(eng.context-map.design §5.3).
 - 도구 등록 형식(`ToolRegistration`), 광고 목록 산출(`advertise`), `ToolSpec`·`DirectToolRegistration` → 도구 항목(core-tools `ToolEntry`) 어댑터, 실행 파이프라인.
 - 선언형 정책 엔진의 규칙 어휘(`PolicyRule`, 티어, 호출 주체 조건)와 순수 평가기 `evaluatePolicy`. L1.agents.spec이 같은 어휘를 그대로 쓴다.
 - 권한 모드 4종과 비대화형 실행 규칙.
@@ -67,7 +67,7 @@ binds: [xeon/packages/core-tools/**]
 
 ## 3. 인터페이스
 
-서비스 인터페이스 `ToolService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `ApprovalService`도 같은 서브패스에 두도록 요청한다. 도구·정책·승인의 공용 타입은 F `@xeon/contracts/capabilities`의 `tools.ts`, `policy.ts`, `approvals.ts`에 둔다 [제안](eng.context-map.design §5.3 표의 "F 인터페이스(위치)" 열). L1 패키지끼리 import하지 않으므로 L1.loop, L1.agents, L2가 이 타입을 쓰려면 F에 있어야 한다. F.capabilities.spec에 이전을 요청한다(§8.3). 아래 블록의 파일 경로는 이전 뒤 위치다. 구현은 `core-tools`가 한다.
+서비스 인터페이스 `ToolService`와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `ApprovalService`도 같은 서브패스에 두도록 요청한다. 도구·정책·승인의 공용 타입은 F `@fresnel/contracts/capabilities`의 `tools.ts`, `policy.ts`, `approvals.ts`에 둔다 [제안](eng.context-map.design §5.3 표의 "F 인터페이스(위치)" 열). L1 패키지끼리 import하지 않으므로 L1.loop, L1.agents, L2가 이 타입을 쓰려면 F에 있어야 한다. F.capabilities.spec에 이전을 요청한다(§8.3). 아래 블록의 파일 경로는 이전 뒤 위치다. 구현은 `core-tools`가 한다.
 
 [결정: adr.0009] 에이전트 타입의 출처: `@earendil-works/pi-agent-core`는 어느 패키지도 import하지 않는다. F `services/tools.ts`와 core-tools는 F conversation이 정의한 이름(`F.conversation.spec` §3.1.1 `agent.ts`의 `AgentTool`, `AgentToolCall`, `AgentToolResult` 등)만 쓴다. 도구 한 호출의 준비·실행·마감은 core-tools의 단계 계약(`prepare`·`execute`·`settleRejected`, adr.0009 §3.4)이고, 배치 스케줄은 core-loop가 한다(L1.loop.spec §3.3).
 
@@ -210,7 +210,7 @@ import type { EffectIntent } from "../records/index.ts";
 import type { ToolResultRecord } from "../conversation/index.ts";
 import type { ScopeId, ToolsPort, ToolResourceDef } from "../extensions/index.ts";   // ToolsPort·ToolResourceDef: F.extensions.spec §3.2.1 ports.ts
 
-export const ToolServiceName = "xeon.tools" as const;
+export const ToolServiceName = "fresnel.tools" as const;
 
 export interface ToolService extends ToolsPort {
   /** L1·L2 코드 등록. 같은 순서 키·이름이 이미 있으면 ToolsError(tools.name_conflict)를 던진다 */
@@ -251,7 +251,7 @@ export interface ToolService extends ToolsPort {
 }
 ```
 
-- [결정: review.decisions-2 D-04] `ToolService`는 `ToolsPort`(`F.extensions.spec` §3.2.1 `ports.ts`, X.primitives.spec §3.9)를 확장한다(`F.capabilities.spec` §3.12 규칙 2, `services/tools.ts`). X는 같은 서비스 이름 `xeon.tools`에 별도 인터페이스를 등록하지 않고, 확장의 `hostOf(g).registerTool(def)`는 `register(owner, def)` 오버로드로 들어온다. 이 오버로드가 `ToolsPort`를 충족한다.
+- [결정: review.decisions-2 D-04] `ToolService`는 `ToolsPort`(`F.extensions.spec` §3.2.1 `ports.ts`, X.primitives.spec §3.9)를 확장한다(`F.capabilities.spec` §3.12 규칙 2, `services/tools.ts`). X는 같은 서비스 이름 `fresnel.tools`에 별도 인터페이스를 등록하지 않고, 확장의 `hostOf(g).registerTool(def)`는 `register(owner, def)` 오버로드로 들어온다. 이 오버로드가 `ToolsPort`를 충족한다.
 - `register(owner, def)` 변환 규칙 [제안]: `orderKey`는 `ext.<owner의 확장 이름>`, `tool`은 `def.name`·`def.description`·`def.parameters`와 `def.execute`를 감싼 `AgentTool`, 재생 정책은 `def.replay`다. `def.risk`와 `def.hints`가 있으면 `ToolMeta.risk`·`hints`로 쓰고(`risk`가 없으면 `hints.readOnly`로 유도하고 그것도 없으면 `exec`), `policy`·`exposure`·`outputLimits`는 생략하고 §4.6 유도 규칙을 따른다 [제안: M3-REQ-78]. 선언의 신뢰는 core-tools가 가리지 않는다: builtin이 아닌 확장의 `read`·`write`·`hints.readOnly` 선언은 X의 `registerTool`이 `tool_risk_reserved`로 거부해 이 오버로드까지 오지 않는다(X.primitives.spec §4.6.6). 그래서 learning 같은 builtin 그룹의 도구가 `risk: "read"`로 등록되면 무인 위임 자식에서도 승인 없이 돈다. 반환 `Unregister`는 F `Unsubscribe`와 같은 모양(`() => void`)이다. owner scope가 dispose되면 X가 이 함수를 부른다.
 
 ```ts
@@ -457,7 +457,7 @@ export function validateRules(rules: readonly PolicyRule[]): readonly { readonly
 ### 3.6 승인 (`approvals.ts`)
 
 ```ts
-export const ApprovalServiceName = "xeon.approvals" as const;
+export const ApprovalServiceName = "fresnel.approvals" as const;
 
 export type ApprovalKind = "tool" | "plan" | "question";
 export type ApprovalDecision = "allow" | "deny" | "answer";
@@ -614,10 +614,10 @@ export const ApprovalResolutionSchema: TSchema;
 
 ### 3.7 결과 경계화 (`core-tools/src/bound.ts`)
 
-출력 절단 함수(pi durable `truncate.ts` 포크)는 L0 `platform-exec`에 둔다. core-tools와 L2는 그 함수를 F 서비스 `xeon.exec`로 부른다 [결정: review.decisions-2 D-08]. 아래는 core-tools가 쓰는 모양이다. 메서드 이름과 F 위치(`@xeon/contracts/services`)는 `L0.exec.spec`이 정한다.
+출력 절단 함수(pi durable `truncate.ts` 포크)는 L0 `platform-exec`에 둔다. core-tools와 L2는 그 함수를 F 서비스 `fresnel.exec`로 부른다 [결정: review.decisions-2 D-08]. 아래는 core-tools가 쓰는 모양이다. 메서드 이름과 F 위치(`@fresnel/contracts/services`)는 `L0.exec.spec`이 정한다.
 
 ```ts
-// platform-exec가 제공하는 절단(원본 truncate.ts의 export 이름과 시그니처 그대로). core-tools는 xeon.exec로 받는다
+// platform-exec가 제공하는 절단(원본 truncate.ts의 export 이름과 시그니처 그대로). core-tools는 fresnel.exec로 받는다
 export const DEFAULT_MAX_LINES = 2000;
 export const DEFAULT_MAX_BYTES = 50 * 1024;
 export interface TruncationResult { /* 원본 truncate.ts:14-37과 같다 */ }
@@ -690,7 +690,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 - 이벤트는 `surfaceThreadId` 대화에 기록한다. 그래야 서브에이전트의 승인 요청이 부모 대화 구독자에게 보인다. 요청을 낸 대화는 payload `origin.threadId`에 남는다 [제안].
 - [제안] 이벤트 소유: `effect.*`, `approval.*`는 `tool-runtime`(core-tools) 소유다. eng.context-map.design §5.1 표의 `tool.` 행을 F 이름 `effect.`로 바꾸도록 요청한다(§8.4).
 - requestId 길이: `approval:<threadId>:<requestKey>:request`는 `thr_` ULID(30자) + 키 48자로 64자를 넘을 수 있다. 64자를 넘으면 `approval:` + `sha256(threadId + ":" + 키 부분)` 앞 32자 + `:request`로 바꾼다 [제안].
-- 키 부분: 도구 승인의 `requestKey`는 `toolCallId`에서 F `requestKeyFor(raw, sha256Hex)`(`@xeon/contracts/records`, `commitKeyPart`(F.records.spec §3.9, eng.transactions.design §4.7, U-13) 위에 선 유일한 요청 키 변환, 상한 `APPROVAL_REQUEST_KEY_MAX`)로 만든다. core-tools는 자기 함수를 두지 않고 `sha256HexSync`를 넘겨 이 함수를 부른다 [결정: 통합 검토 L6]. `toolCallId`는 provider가 정하는 밖의 값이라 커밋 키 알파벳 밖 문자를 가질 수 있기 때문이다. 결과가 48자를 넘으면 `h_` + 원문 sha256 앞 40자로 줄인다. 호출자가 직접 넘긴 `requestKey`도 커밋 키에 넣기 전에 `commitKeyPart`를 거친다(`h_` + 해시 40자 형식은 그대로 쓴다) [제안].
+- 키 부분: 도구 승인의 `requestKey`는 `toolCallId`에서 F `requestKeyFor(raw, sha256Hex)`(`@fresnel/contracts/records`, `commitKeyPart`(F.records.spec §3.9, eng.transactions.design §4.7, U-13) 위에 선 유일한 요청 키 변환, 상한 `APPROVAL_REQUEST_KEY_MAX`)로 만든다. core-tools는 자기 함수를 두지 않고 `sha256HexSync`를 넘겨 이 함수를 부른다 [결정: 통합 검토 L6]. `toolCallId`는 provider가 정하는 밖의 값이라 커밋 키 알파벳 밖 문자를 가질 수 있기 때문이다. 결과가 48자를 넘으면 `h_` + 원문 sha256 앞 40자로 줄인다. 호출자가 직접 넘긴 `requestKey`도 커밋 키에 넣기 전에 `commitKeyPart`를 거친다(`h_` + 해시 40자 형식은 그대로 쓴다) [제안].
 
 ## 4. 동작 규칙
 
@@ -735,9 +735,9 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | 5c2 | `guard.tool.before` 지점(first) [M3-REQ-109] | `prepare`. 정책·승인(비밀 사용 승인 포함)을 모두 통과한 호출만 온다. 의도를 쓰기 전이다 | 핸들러 `{ block: true, reason }`는 `settled`(`[xeon:denied_by_guard] <reason>`)이고 효과 이벤트가 없다. 핸들러·디스패처 예외도 거부(fail-closed, `FIRST_DENY["guard.tool.before"]`). 내장 검사는 없다. 페이로드는 5a와 같은 `ToolCallPayload`다 |
 | 5d | 중단 확인 | `prepare`. 의도를 쓰기 전에 turn 신호를 본다 | 중단이면 `settled`(`[xeon:aborted]`) |
 | 6 | `effect.intent` 커밋 | `prepare`의 끝 | 커밋 실패는 `settled`(`[xeon:tools.commit_failed] …`) |
-| 7a | tool 범위 노드 열기: `xeon.tasks.find("turn", run.turnId)`로 turn 노드를 찾고 `openScope(turn, { kind: "tool", id: toolCallId })`(L1.tasks.spec §4.1) | `execute` 진입 | 의도가 없으면 `tools.intent_missing`(호출 순서 위반, Bug). turn 노드가 `aborting`이면 신호가 켜진 노드를 받고 중단 결과로 끝난다 |
-| 7b | 잠금 키 산출: 도구의 잠금 선언(`ToolSpec.locks`, L1.tasks.spec FR-T6)이 낸 경로마다 `xeon.exec`의 `canonicalPath`로 정규 경로를 얻어 키 `${env.id}\0${realpath}`를 만든다. 없는 파일은 부모 정규 경로 + 이름이다. 읽기 도구(`hints.readOnly`)는 `shared`, 그 밖은 `exclusive`다 | 같은 자리 | 잠금 선언이 없으면 키 큐를 쓰지 않는다. 경로 해석 실패는 `invalid_input` 오류 결과다 [제안] |
-| 7c | 키 잠금 뒤 `tools` 풀 슬롯 획득: `xeon.tasks.locks.run(keys, toolNode, () => limiter("tools").acquire(toolNode) …)`. 순서는 L1.tasks.spec §4.5 C3(키 먼저, 슬롯 나중)이다. 잠금 선언이 없는 호출도 슬롯은 얻는다. 실행이 끝나면 슬롯을 놓는다(M2 구현 완료) | 같은 자리 | 대기 중 취소는 `[aborted]` 중단 결과이고 `effect.exec` 전이므로 재개 판정은 `not_started`다 |
+| 7a | tool 범위 노드 열기: `fresnel.tasks.find("turn", run.turnId)`로 turn 노드를 찾고 `openScope(turn, { kind: "tool", id: toolCallId })`(L1.tasks.spec §4.1) | `execute` 진입 | 의도가 없으면 `tools.intent_missing`(호출 순서 위반, Bug). turn 노드가 `aborting`이면 신호가 켜진 노드를 받고 중단 결과로 끝난다 |
+| 7b | 잠금 키 산출: 도구의 잠금 선언(`ToolSpec.locks`, L1.tasks.spec FR-T6)이 낸 경로마다 `fresnel.exec`의 `canonicalPath`로 정규 경로를 얻어 키 `${env.id}\0${realpath}`를 만든다. 없는 파일은 부모 정규 경로 + 이름이다. 읽기 도구(`hints.readOnly`)는 `shared`, 그 밖은 `exclusive`다 | 같은 자리 | 잠금 선언이 없으면 키 큐를 쓰지 않는다. 경로 해석 실패는 `invalid_input` 오류 결과다 [제안] |
+| 7c | 키 잠금 뒤 `tools` 풀 슬롯 획득: `fresnel.tasks.locks.run(keys, toolNode, () => limiter("tools").acquire(toolNode) …)`. 순서는 L1.tasks.spec §4.5 C3(키 먼저, 슬롯 나중)이다. 잠금 선언이 없는 호출도 슬롯은 얻는다. 실행이 끝나면 슬롯을 놓는다(M2 구현 완료) | 같은 자리 | 대기 중 취소는 `[aborted]` 중단 결과이고 `effect.exec` 전이므로 재개 판정은 `not_started`다 |
 | 7d | `effect.exec` 커밋 | 같은 자리 | 커밋 실패는 실행하지 않고 `tools.commit_failed` 결과 |
 | 8 | 도구 실행 | 어댑터가 provider 메서드 또는 `DirectToolRegistration.tool.execute`를 부른다. `signal`은 tool 노드 신호다. 진행은 `onUpdate` 콜백과 `tool.execution.update`(tap)이고 발화 전에 비밀 마스킹을 거친다(§4.12) | 예외는 오류 결과, `CapabilityError`는 §4.3. 실행이 끝나면 슬롯을 반납한다(C1) |
 | 9 | `tool.result` 지점(chain) | `execute`의 마감. 페이로드는 마스킹한 결과다(§4.12) | 실패한 핸들러의 패치만 버린다(skip) |
@@ -757,7 +757,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 - 태스크 엔진 연결 규칙 [제안]:
   - tool 노드의 작업은 7a~10단계다. 어댑터는 이 구간을 `toolNode.track(…)`으로 등록한다. 그래서 turn 취소(L1.tasks.spec §4.2)는 실행 중 도구의 신호를 켜고, turn 노드는 10단계 커밋이 끝난 뒤 정착한다.
   - 서브에이전트를 부르고 결과를 기다리는 도구(core-agents의 `agent` 도구)는 기다리는 동안 `slot.suspendWhile(child.settle())`로 `tools` 슬롯을 내려놓는다(L1.tasks.spec §4.5 C2, L1.agents.spec §4.1 4번). 슬롯은 7c에서 얻은 것을 어댑터가 실행 맥락으로 넘긴다.
-  - 7b의 키 산출 함수(durable `file-mutation-queue.ts` 7-26행 `mutationKey`, `canonical`)는 core-tools로 옮긴다(L1.tasks.spec §4.4 포크 2번). 파일 시스템 접근은 `xeon.exec`만 쓴다(DR-13).
+  - 7b의 키 산출 함수(durable `file-mutation-queue.ts` 7-26행 `mutationKey`, `canonical`)는 core-tools로 옮긴다(L1.tasks.spec §4.4 포크 2번). 파일 시스템 접근은 `fresnel.exec`만 쓴다(DR-13).
   - 능력 밖 도구(`DirectToolRegistration`)는 M1에 잠금 선언이 없다. 필요해지면 같은 모양의 선택 필드를 더한다 [제안].
   - `rerun`(§4.9)도 7a~11단계를 지나므로 키 잠금과 슬롯을 다시 얻는다.
 
@@ -794,7 +794,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 3. `effect.exec`는 의도와 별도 커밋이다 [제안]. 두 커밋을 나누면 재개 때 "실행 시작 전 중단"(`not_started`)과 "실행 중 중단"(`outcome_unknown`)이 구분된다(F.records.spec §3.5 결정표).
 4. `effect.result`와 toolResult `item.recorded`는 한 커밋이다. `effect.result.resultItemId`는 같은 커밋의 item id, `output`은 `{ structuredContent, terminate, status, inputRequired }`, `blobRef`는 경계화로 옮긴 원문(§4.8), `durationMs`는 어댑터가 잰 실행 시간이다.
 5. 도구별 커밋: 의도·실행·결과는 도구 호출마다 따로 커밋한다(E1 의도, E2 실행 시작, E3 결과). ADR-0004 §3.2 3번의 보충으로 올리고 단계당 커밋 수는 `3 + 3n`이다 [결정: review.decisions-2 U-10]. eng.transactions.design §4.1 C3은 모델 응답 확정 커밋에 호출마다 의도를 넣는다고 적었지만, 승인 대기(§4.7)가 의도 앞에 오므로 응답 확정 때는 의도를 쓸 수 없다. architecture.runtime-flow.design §4.1 그림도 도구마다 의도를 커밋한다. eng.transactions.design은 이 모양으로 고쳤다(§4.1·TX-08).
-6. 커밋은 모두 `xeon.session`의 커밋 경로(eng.transactions.design TX-07 `SessionWriter.commit`)로 한다. core-tools는 세션 테이블에 직접 쓰지 않는다.
+6. 커밋은 모두 `fresnel.session`의 커밋 경로(eng.transactions.design TX-07 `SessionWriter.commit`)로 한다. core-tools는 세션 테이블에 직접 쓰지 않는다.
 
 ### 4.5 정책 평가
 
@@ -817,7 +817,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - `ToolRunContext.ceiling`이 있으면 5b의 결정은 `stricter(childDecision(call, parent, child, rules), evaluatePolicy(input, rules))`다. `parent`는 `ToolRunContext.ceiling`, `child`는 자식 관점 입력(caller, depth, 자식 모드)이다. `childDecision`은 부모 관점 평가, 자식 관점 평가, 정의 제한(`ceiling.allow`)을 `stricter`로 합치는 순수 함수다(L1.agents.spec §4.3 1번). F `policy.ts`에 두도록 요청한다(§8.3 F 요청 9, L1.agents.spec §8.3 5와 같은 항목).
 - `evaluatePolicy` 자체는 ceiling을 받지 않는다. ceiling 단계는 파이프라인이 평가기 바깥에서 적용한다. 그래서 위 1~7단계의 순수성과 번호는 그대로다.
 - 합친 결과가 ask이고 `interactive`가 거짓이면 deny(`reason: "noninteractive"`)다. 7단계와 같은 규칙이다.
-- 구현 [결정: L1A.6]: `prepare`는 `ceiling`이 있으면 `stricter(childDecision(evaluatePolicy, input, ceiling, { caller, depth, mode }, rules), evaluatePolicy(input, rules))`를 5b 결정으로 쓴다. `stricter`와 `childDecision`은 F `@xeon/contracts/services`의 순수 함수이고 core-tools는 사본을 두지 않는다. 자식 관점의 `mode`는 자식 대화의 유효 권한 모드(`l1.tools.permissionMode`, core-agents가 교집합으로 써 둔다)다. 정의의 도구 제한은 `ceiling.allow`가 실행 시점에 거부하고(`agent.<이름>.tools`), 호출자의 `tools.deny`는 `ceiling.deny`가 거부한다(`agent.<이름>.tools.deny`). 두 거부 문장은 `ceiling.denyHint`로 끝난다 [제안: M3-REQ-78]. 정의가 더하는 규칙은 `registerRules("core:agents")`의 default 티어 규칙으로 들어온다.
+- 구현 [결정: L1A.6]: `prepare`는 `ceiling`이 있으면 `stricter(childDecision(evaluatePolicy, input, ceiling, { caller, depth, mode }, rules), evaluatePolicy(input, rules))`를 5b 결정으로 쓴다. `stricter`와 `childDecision`은 F `@fresnel/contracts/services`의 순수 함수이고 core-tools는 사본을 두지 않는다. 자식 관점의 `mode`는 자식 대화의 유효 권한 모드(`l1.tools.permissionMode`, core-agents가 교집합으로 써 둔다)다. 정의의 도구 제한은 `ceiling.allow`가 실행 시점에 거부하고(`agent.<이름>.tools`), 호출자의 `tools.deny`는 `ceiling.deny`가 거부한다(`agent.<이름>.tools.deny`). 두 거부 문장은 `ceiling.denyHint`로 끝난다 [제안: M3-REQ-78]. 정의가 더하는 규칙은 `registerRules("core:agents")`의 default 티어 규칙으로 들어온다.
 - 서브에이전트 승인 [결정: L1A.6]: 자식 호출의 승인 요청은 `surfaceThreadId`(소유 트리 루트 대화)에 기록하고 `origin`에 자식 대화·호출·caller를 남긴다. 한 커밋은 한 대화의 것이라 대기 체크포인트는 같은 커밋에 넣지 않는다. 이벤트의 `turnId`·`stepId`는 비운다. 자식 대화는 재개 때 마지막 단계 체크포인트의 `tools` 진입으로 같은 `requestKey` 요청을 다시 내고, 커밋이 `replayed`로 끝나 기록된 요청을 이어 받는다.
 - `childDecision`이 F에 들어가기 전에는 ceiling 단계를 켜지 않는다. 그 사이 자식 대화는 M2 착수 조건을 채우지 못한 것으로 본다(L1.tools.plan TL-13 선행).
 - `ruleMatches`의 glob은 `*`(구분자 없는 임의 문자열)와 `?`만 쓴다. 정규식은 규칙 적재 때 `validateRules`로 한 번 컴파일해 캐시하고, 잘못된 규칙은 적재하지 않고 진단으로 남긴다. 평가 중에 예외를 던지지 않는다.
@@ -861,7 +861,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 
 흐름:
 
-1. 요청자: 도구 승인은 core-tools 파이프라인(§4.2 5c)이 낸다. 질문과 계획 승인은 L2 dialog·work 능력이 자기 도구의 실행 안에서 `xeon.approvals.request`를 부른다(eng.context-map.design §4.4 표 3행).
+1. 요청자: 도구 승인은 core-tools 파이프라인(§4.2 5c)이 낸다. 질문과 계획 승인은 L2 dialog·work 능력이 자기 도구의 실행 안에서 `fresnel.approvals.request`를 부른다(eng.context-map.design §4.4 표 3행).
 2. 커밋: `request`는 한 커밋에 `approval.requested`와 `checkpoint.step`(`ToolRunContext.drafts.waitingCheckpoint`, `next: "await_input"`(L1.loop.spec §4.5 재진입 표), 해당 호출의 `pendingToolCalls[].waiting = "approval"`)을 쓴다. requestId는 §3.9 표다. 커밋 뒤 `thread.prompt.before`를 발화한다.
    - L2가 낸 요청은 `origin.toolCallId`로 core-tools의 활성 호출 표에서 그 호출의 `ToolRunContext`를 찾아 체크포인트 초안을 만든다. 도구 승인은 의도 전이라 `pendingToolCalls[].effectId`가 null이고, 도구 실행 안에서 낸 질문·계획 요청은 그 호출의 `effect.intent`의 `effectId`를 싣는다. `waiting`은 모두 `"approval"`이다(저장소의 A1 예외가 이 값만 받는다). 활성 호출이 없는 요청(그룹 코드가 턴 밖에서 낸 요청)은 체크포인트 없이 이벤트만 쓴다.
 3. 대기: 메모리 대기 목록에 넣고 응답을 기다린다. 대기 중에 도는 프로세스는 없다(architecture.runtime-flow.design §4.5).
@@ -905,12 +905,12 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 
 ### 4.8 결과 경계화
 
-[결정] 긴 출력을 자르고 원문은 blob으로 뺀다. pi durable truncate 포크를 쓴다(`_research/layer-plan-v2.json` L1-d "결과 경계화", adr.0003). 포크 위치는 `platform-exec`이고 core-tools는 `xeon.exec`로 부른다(§3.7).
+[결정] 긴 출력을 자르고 원문은 blob으로 뺀다. pi durable truncate 포크를 쓴다(`_research/layer-plan-v2.json` L1-d "결과 경계화", adr.0003). 포크 위치는 `platform-exec`이고 core-tools는 `fresnel.exec`로 부른다(§3.7).
 
 1. 한도: 줄 `l1.tools.output.maxLines`(기본 2,000), 바이트 `l1.tools.output.maxBytes`(기본 51,200). 먼저 걸리는 쪽이 적용된다. pi와 같은 값이다(`_research/item-catalog.md` L1-d "도구 결과 경계화", durable `truncate.ts:11-12`). 도구별 `outputLimits`가 있으면 그 값을 쓴다.
 2. 대상: `tool.result` chain(§4.2 9단계)을 거친 최종 결과의 텍스트 파트다. 텍스트 파트를 `"\n"`으로 이어 한 문자열로 재고, 한도 안이면 그대로 둔다. 이미지 파트는 자르지 않는다. 큰 이미지 데이터는 F.records.spec §3.4의 문자열 분리 규칙으로 blob이 된다.
 3. 한도를 넘으면:
-   - 원문 전체(이어 붙인 텍스트)를 UTF-8로 `xeon.store.putBlob(bytes, "text/plain; charset=utf-8")`에 넣는다. 커밋 전, 트랜잭션 밖에서 한다(eng.transactions.design §4.2 `StoreService.putBlob`).
+   - 원문 전체(이어 붙인 텍스트)를 UTF-8로 `fresnel.store.putBlob(bytes, "text/plain; charset=utf-8")`에 넣는다. 커밋 전, 트랜잭션 밖에서 한다(eng.transactions.design §4.2 `StoreService.putBlob`).
    - 모델용 내용은 `truncateHead(full, limits).content` 한 파트와 안내 문장 한 파트다. 안내 문장: `"[xeon:output_truncated] Showing the first <outputLines> of <totalLines> lines (<formatSize(outputBytes)> of <formatSize(totalBytes)>). The full output is stored as blob sha256:<hex>."`
    - `effect.result.blobRef`에 그 `BlobRef`를 넣는다. 이벤트에는 해시만 남는다(architecture.runtime-flow.design §5 "큰 도구 출력은 블롭 파일로 저장하고 이벤트에는 해시만").
    - `details`에 `{ truncation: { totalLines, totalBytes, outputLines, outputBytes, truncatedBy } }`를 더한다.
@@ -919,7 +919,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 6. 모델이 원문을 다시 읽는 도구 [결정: L1A.5]: 내장 도구 `read_tool_output`(순서 키 `core.tools`, 항상 광고, risk `read`, `replay: "safe"`)다. 인자는 `sha256`(64자 hex), `offset`(1부터 시작하는 줄 번호, 기본 1), `limit`(줄 수, 기본 `l1.tools.output.maxLines`)다. 이 대화의 `effect.result.blobRef`로 기록된 해시만 읽는다. 인자 blob이나 다른 대화의 blob은 `[xeon:output_not_found]` 오류 결과다. 결과는 `[xeon:output_page] Lines <a>-<b> of <n> of blob sha256:<hex>.` 머리줄에 이어 읽을 `offset` 안내와 해당 줄들이다. 읽은 결과도 일반 도구 결과처럼 경계화 한도를 받는다. 형식이 틀린 해시는 인자 검증에서 막힌다.
 7. 꼬리 보존 미리보기(bash처럼 끝부분이 중요한 출력)는 durable 포크에 `truncateTail`이 없어 1차에 두지 않는다. 필요한 도구는 `"self"`로 스스로 처리한다. 공통 꼬리 모드를 둘지는 [미결](§10)이다.
 
-truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `platform-exec`에 둔다. core-tools와 L2.workspace의 read·bash 포크는 같은 함수를 F 서비스 `xeon.exec`로 부른다. L1과 L2가 구현 패키지를 import하지 않으므로 사본이나 F 순수 함수가 필요 없다 [결정: review.decisions-2 D-08]. adr.0003 §3 표의 `D/src/truncate.ts` 행 위치를 `xeon/packages/platform-exec`로 고치는 일은 §8.4에 적는다.
+truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `platform-exec`에 둔다. core-tools와 L2.workspace의 read·bash 포크는 같은 함수를 F 서비스 `fresnel.exec`로 부른다. L1과 L2가 구현 패키지를 import하지 않으므로 사본이나 F 순수 함수가 필요 없다 [결정: review.decisions-2 D-08]. adr.0003 §3 표의 `D/src/truncate.ts` 행 위치를 `xeon/packages/platform-exec`로 고치는 일은 §8.4에 적는다.
 
 ### 4.9 재생
 
@@ -946,20 +946,20 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 | 일 | L1.tools (core-tools) | L2.workspace (cap-workspace) | L0 |
 |---|---|---|---|
-| 명령 실행, 샌드박스 래핑 | 하지 않는다. `xeon.exec`의 `Shell`과 `xeon.sandbox`를 부르지 않는다 | `bash` 도구가 샌드박스 데코레이터를 거친 `Shell`로 실행한다(L2.workspace.spec §3.3) | `xeon.exec`, `xeon.sandbox`(L0.exec.spec, L0.sandbox.spec) |
-| 경로 정규화 | 잠금 키 산출에만 `xeon.exec.canonicalPath`를 쓴다(§4.2 7b) | 파일 도구의 탈출 검사(L2.workspace.spec "역할 나눔" 표) | `xeon.exec` |
-| 비밀 값 주입(`ShellExecOptions.secretEnv`) | 하지 않는다. 값을 보지 않는다 | 실행 옵션으로 참조(`secret://…`)를 넘긴다 | `xeon.exec`가 spawn 직전에 `xeon.secrets` lease로 값을 넣는다(L0.exec.spec §3.6) |
-| 승인과 명령 패턴 | 정책 규칙의 `args` 패턴과 승인 프로토콜(§4.5, §4.7). `xeon.secrets.check`가 `needs_approval`이면 `xeon.approvals`로 묻고 받은 증거를 넘긴다(L0.secrets.spec §4.2) | 없음 | 정책 판정은 `xeon.secrets`(L0.secrets.spec §4.2) |
+| 명령 실행, 샌드박스 래핑 | 하지 않는다. `fresnel.exec`의 `Shell`과 `fresnel.sandbox`를 부르지 않는다 | `bash` 도구가 샌드박스 데코레이터를 거친 `Shell`로 실행한다(L2.workspace.spec §3.3) | `fresnel.exec`, `fresnel.sandbox`(L0.exec.spec, L0.sandbox.spec) |
+| 경로 정규화 | 잠금 키 산출에만 `fresnel.exec.canonicalPath`를 쓴다(§4.2 7b) | 파일 도구의 탈출 검사(L2.workspace.spec "역할 나눔" 표) | `fresnel.exec` |
+| 비밀 값 주입(`ShellExecOptions.secretEnv`) | 하지 않는다. 값을 보지 않는다 | 실행 옵션으로 참조(`secret://…`)를 넘긴다 | `fresnel.exec`가 spawn 직전에 `fresnel.secrets` lease로 값을 넣는다(L0.exec.spec §3.6) |
+| 승인과 명령 패턴 | 정책 규칙의 `args` 패턴과 승인 프로토콜(§4.5, §4.7). `fresnel.secrets.check`가 `needs_approval`이면 `fresnel.approvals`로 묻고 받은 증거를 넘긴다(L0.secrets.spec §4.2) | 없음 | 정책 판정은 `fresnel.secrets`(L0.secrets.spec §4.2) |
 | 도구 결과 마스킹(2계층 `tool-result`) | 8단계 결과와 진행 갱신을 `tool.execution.update`·`tool.result` 발화, 경계화·blob 쓰기, 10단계 커밋 전에 `Redactor.maskDeep`으로 가린다. 텍스트, `structuredContent`, `details`, 오류 문장 모두다. 가린 것이 있으면 `secret.masked`(`layer: "tool-result"`)를 남긴다 | 없음 | `Redactor` 구현(L0.secrets.spec §3.5, §4.4) |
 | 도구 인자의 남의 비밀 구문 검사 | 4단계 검증 뒤 `findForeignSecretSyntax`를 부른다 [가정: L0.secrets.spec 103행] | 없음 | 검사 함수 |
 
 - M1 종료 조건의 비밀 항목(`product.scope.spec` §4.4 M1 행: SOPS 비밀 참조 1종을 쓰는 도구 호출에서 값이 이벤트 DB와 모델 요청 본문에 없다)은 위 표대로 나뉜다. L1.tools 몫은 승인·명령 패턴과 2계층 마스킹이다. 주입과 lease는 L0.exec·L0.secrets 몫이다. 세 몫을 한 번에 확인하는 것은 `apps/cli` M1 스모크 시나리오다(L1.tools.plan §6).
 - 비밀 사용 승인 [결정: L1A.4]: 5b 정책과 5c 승인 뒤, 의도 커밋 전에 한다. 도구 인자에 `secretEnv`(env 이름 → `secret://<name>`)가 있는 호출만 대상이다.
   1. `secretEnv`의 값이 `secret://<name>` 형식이 아니면(`$VAR`, `{{secret:x}}` 같은 남의 구문 포함) `[xeon:invalid_secret_ref]` 거부다. 이 검사는 비밀 인자로 선언된 필드에만 한다(L0.secrets.spec §3.1). `command` 문자열이 없으면 묶을 명령이 없어 거부다.
-  2. 비밀마다 `xeon.secrets.check`를 모드 `env`, 목적 `bash:<명령 이름>`, 대상 `{ kind: "command", argv0, commandLine }`, 행위자 `agent`, 증거 없이 부른다. 목적 문자열은 cap-workspace의 shell `run`이 lease에 넘기는 값과 같은 규칙이다. `check`가 오류이거나 `deny`면 `[xeon:secret_denied]` 거부다. secrets 서비스가 없으면 `[xeon:secret_unavailable]` 거부다.
+  2. 비밀마다 `fresnel.secrets.check`를 모드 `env`, 목적 `bash:<명령 이름>`, 대상 `{ kind: "command", argv0, commandLine }`, 행위자 `agent`, 증거 없이 부른다. 목적 문자열은 cap-workspace의 shell `run`이 lease에 넘기는 값과 같은 규칙이다. `check`가 오류이거나 `deny`면 `[xeon:secret_denied]` 거부다. secrets 서비스가 없으면 `[xeon:secret_unavailable]` 거부다.
   3. 하나라도 `needs_approval`이면 승인 증거(`ApprovalEvidence { approvalId, scope: "per-use", grantedAt, expiresAt: null }`)를 만든다. 이 호출의 정책 승인을 사용자가 방금 허용했으면(`resolvedBy: "user"`) 그 승인이 실행마다의 승인(U-19)이라 같은 `approvalId`를 증거로 쓴다. 규칙이나 모드가 허용했거나 `thread` 기억으로 건너뛴 호출은 사용자가 이 호출을 본 적이 없으므로 비밀 사용을 따로 묻는다: kind `tool`, 규칙 id `secret.use`, 제목에 비밀 참조, `remember: ["once"]`, `requestKey`는 `<toolCallId>:secret`을 `requestKeyFor`로 줄인 값이다. 거부·취소는 §4.7 5번과 같은 거부 문장이다.
-  4. 증거는 호출 상태(`RawCall.secretApproval`)에 실리고, 어댑터가 `CallContext.approval`로 도구 구현에 전달한다(§8.3 F 요청 13). cap-workspace의 shell `run`이 이를 `SecretEnvRequest.ctx.approval`에 옮긴다. 증거가 없으면 `xeon.exec`의 `withEnv`가 `approval_missing`으로 거부한다(fail-closed). `rerun`은 증거를 만들지 않는다.
-- [미결] lease를 부르는 쪽이 문서마다 다르다. L0.exec.spec §3.6은 `xeon.exec`가 `secretEnv`마다 lease를 얻는다고 적었고, L0.secrets.spec §8.1 제공 표는 L1.tools가 `lease`를 쓴다고 적었다. 이 문서는 L0.exec 쪽을 따른다.
+  4. 증거는 호출 상태(`RawCall.secretApproval`)에 실리고, 어댑터가 `CallContext.approval`로 도구 구현에 전달한다(§8.3 F 요청 13). cap-workspace의 shell `run`이 이를 `SecretEnvRequest.ctx.approval`에 옮긴다. 증거가 없으면 `fresnel.exec`의 `withEnv`가 `approval_missing`으로 거부한다(fail-closed). `rerun`은 증거를 만들지 않는다.
+- [미결] lease를 부르는 쪽이 문서마다 다르다. L0.exec.spec §3.6은 `fresnel.exec`가 `secretEnv`마다 lease를 얻는다고 적었고, L0.secrets.spec §8.1 제공 표는 L1.tools가 `lease`를 쓴다고 적었다. 이 문서는 L0.exec 쪽을 따른다.
 - M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다 [결정: review.decisions-2 U-19]. L1.tools 몫은 실행마다의 승인(§4.7)과 2계층 마스킹이다.
 - [미결] M1에서 모델 도구 호출이 `secretEnv`를 받는 경로. L2.workspace.spec §3.3은 `secretEnv`를 모델 도구 파라미터에 두지 않는다. 참조를 bash 실행 옵션으로 넘기는 위치는 L2.workspace.spec과 정한다.
 
@@ -968,7 +968,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 비밀 env(`secret://` 참조)를 쓰는 stdio MCP 서버는 도구 호출이 아니라 연결 때 뜬다. 기동 승인은 서버 정의 해시마다 한 번이고 정의가 바뀌면 다시 받는다(`L2.mcp.spec` §4.3, `L0.secrets.spec` §4.3.1).
 
 - 승인 레코드: kind `tool`의 비차단 요청이다. 본문은 `toolName: "mcp_start"`, `risk: "exec"`, `ruleId: "mcp.start"`, `argsHash`는 정의 해시, `args`는 `{ server, source, command, args, cwd, envNames, secretEnv, definitionHash }`다. 평문 env 값은 싣지 않고 이름만 싣는다(해시가 값을 덮는다). 제목은 `Start MCP server "<id>" with <비밀 참조>?`다. 요청 키는 `mcpstart:<서버 id>:<해시 앞 24자>`라 같은 정의는 같은 요청이다.
-- `createMcpStartGate`가 흐름을 맡는다: ① 해시와 같은 정의에 받은 증거가 있으면 `approved`. ② `xeon.secrets.check`를 `mcp.start:<서버 id>` 맥락(대상 `mcp:<서버 id>`)으로 비밀마다 부르고 거부가 있으면 `denied`(요청을 올리지 않는다). ③ 대화가 없으면 `pending`이다(올릴 곳이 없다). ④ `open`으로 요청을 올리고 응답이 없으면 `pending`, 허용이면 `approved`, 거부면 `denied`다.
+- `createMcpStartGate`가 흐름을 맡는다: ① 해시와 같은 정의에 받은 증거가 있으면 `approved`. ② `fresnel.secrets.check`를 `mcp.start:<서버 id>` 맥락(대상 `mcp:<서버 id>`)으로 비밀마다 부르고 거부가 있으면 `denied`(요청을 올리지 않는다). ③ 대화가 없으면 `pending`이다(올릴 곳이 없다). ④ `open`으로 요청을 올리고 응답이 없으면 `pending`, 허용이면 `approved`, 거부면 `denied`다.
 - 증거: 허용된 요청의 `approvalId`와 `scope: "per-session"`, `expiresAt: null`이다. 정의를 되돌리면 같은 요청 키가 이미 해결되어 있어 다시 묻지 않는다.
 - 응답이 오면 `onResolved(server)`가 서버 id를 알려 L2가 다시 연결을 시도한다. 증거는 프로세스 안에만 두고, 재시작 뒤에는 같은 대화에서 `open`이 해결된 요청을 돌려준다(요청 키가 같으므로). 다른 대화에서는 한 번 더 묻는다 [제안].
 
@@ -1037,11 +1037,11 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `xeon.tools` / `ToolService`, `ToolRegistration`, `ToolMeta`, `ToolRunContext`, `AdvertisedToolset`, `prepare`, `execute`, `settleRejected`, `runUserShell` | L1.loop.spec(광고·도구 배치·중단 정리·사용자 셸, 재개 때 같은 단계 계약으로 실행), L1.context.spec(광고 목록 차이), L1.agents.spec(자식 광고·평가), L1.persistence.spec(`rerun`), 모든 L2 spec(도구 등록), L2.mcp.spec(동적 도구 등록) |
+| `fresnel.tools` / `ToolService`, `ToolRegistration`, `ToolMeta`, `ToolRunContext`, `AdvertisedToolset`, `prepare`, `execute`, `settleRejected`, `runUserShell` | L1.loop.spec(광고·도구 배치·중단 정리·사용자 셸, 재개 때 같은 단계 계약으로 실행), L1.context.spec(광고 목록 차이), L1.agents.spec(자식 광고·평가), L1.persistence.spec(`rerun`), 모든 L2 spec(도구 등록), L2.mcp.spec(동적 도구 등록) |
 | `registerRules`, `RuleRegistration` | L1.agents.spec(자식 차단 규칙, 출처 `core:agents`) |
 | 잠금 키 산출(§4.2 7b) | L1.tasks.spec §4.4(키 큐는 불투명 키만 받는다) |
 | `PolicyRule`, `TieredRule`, `PolicyResource`, `PolicyInput`, `PolicyDecision`, `PermissionMode`, `CallerId`, `ToolRisk`, `ToolClass`, `evaluatePolicy`, `stricter`, `PolicyCeiling` | L1.agents.spec(권한 상한, 차단 목록), L4.settings-ui.spec(규칙 편집기) |
-| `xeon.approvals` / `ApprovalService`, `ApprovalRequest`, `ApprovalResolution`, `ApprovalBody` | L2.dialog.spec(질문), L2.work.spec(계획 승인), L2.knowledge.spec, L4.host-service.spec(`approval.respond` 처리), L4.cli.spec·L4.desktop.spec(승인 화면) |
+| `fresnel.approvals` / `ApprovalService`, `ApprovalRequest`, `ApprovalResolution`, `ApprovalBody` | L2.dialog.spec(질문), L2.work.spec(계획 승인), L2.knowledge.spec, L4.host-service.spec(`approval.respond` 처리), L4.cli.spec·L4.desktop.spec(승인 화면) |
 | `approval.requested`, `approval.resolved` payload | F.records.spec(카탈로그), F.wire-settings.spec §4.6 |
 | `boundToolResult` 동작, 한도 설정 | L2.workspace.spec(`"self"` 도구) |
 
@@ -1054,11 +1054,11 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 | `EffectIntent`, `EffectExec`, `EffectResult`, `decideEffectRecovery`, `StepCheckpoint`, `PendingToolCall`, `BlobRef` | F.records.spec |
 | 지점 선언, `FIRST_DENY`, `CHAIN_RULES`, 재생 계약 | F.extensions.spec |
 | `approval.respond`, `SettingDef`, `defineSettings`, 범위 층 | F.wire-settings.spec |
-| 커밋 경로 `SessionWriter.commit`, requestId 규칙, TX-02 | eng.transactions.design, L1.persistence.spec(`xeon.session`) |
-| `xeon.store.putBlob` | L0.store.spec |
+| 커밋 경로 `SessionWriter.commit`, requestId 규칙, TX-02 | eng.transactions.design, L1.persistence.spec(`fresnel.session`) |
+| `fresnel.store.putBlob` | L0.store.spec |
 | `TaskService`: `find("turn", …)`, `openScope`(kind `tool`), `TaskScope.track`, `locks`(`KeyedQueue`, `LockRequest`), `limiter("tools")`, `Slot.suspendWhile` | L1.tasks.spec §3.1~§3.5, §4.4, §4.5 |
-| `xeon.exec`의 `canonicalPath`(잠금 키 산출), 출력 절단 메서드(§3.7, review.decisions-2 D-08) | L0.exec.spec §3 |
-| `xeon.secrets`: `Redactor.maskDeep`, `check`, `findForeignSecretSyntax` | L0.secrets.spec §8.1 |
+| `fresnel.exec`의 `canonicalPath`(잠금 키 산출), 출력 절단 메서드(§3.7, review.decisions-2 D-08) | L0.exec.spec §3 |
+| `fresnel.secrets`: `Redactor.maskDeep`, `check`, `findForeignSecretSyntax` | L0.secrets.spec §8.1 |
 | `ToolSpec.locks`(잠금 선언, FR-T6) | L1.tasks.spec §8.1, F.capabilities.spec |
 | `childDecision`(ceiling 단계) | L1.agents.spec §4.3(F `policy.ts` 이전 요청) |
 | 에이전트 타입 `AgentTool`, `AgentToolCall`, `AgentToolResult`, `AgentToolUpdateCallback`, `ToolExecutionMode`(F 정의). 어느 패키지도 `@earendil-works/pi-agent-core`를 import하지 않는다 | F.conversation.spec §3.1.1, eng.dependency-rules.guide DR-07, adr.0009 |
@@ -1072,7 +1072,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 3. F.records.spec §3.2·§3.3: `CoreArea`에 `approval` 추가, 카탈로그에 `approval.requested`, `approval.resolved`(둘 다 durable, payload §3.9) 추가. F.wire-settings.spec §4.6이 낸 요청과 같은 항목이다.
 4. F.extensions.spec §3.5: `ToolCallPayload`에 `caller: CallerId`, `risk: ToolRisk`, `hints?: ToolHints` 추가.
 5. F.wire-settings.spec §3.8.2: 범위별 값을 모으는 키 표시(예: `SettingDef.merge?: "replace" | "collect"`, 기본 replace) 추가. `l1.tools.rules`가 첫 사용처다.
-6. F: 서비스 인터페이스 `ToolService`, `ApprovalService`와 서비스 이름 상수를 `@xeon/contracts/services`에 둔다(review.decisions-2 D-04). 이 부분은 반영됨(`F.capabilities.spec` §3.12 `services/tools.ts`, `services/approvals.ts`). 정책·도구·승인 공용 타입(§3.1~§3.6)은 `capabilities/tools.ts`, `policy.ts`, `approvals.ts`로 이전한다(eng.context-map.design §5.3).
+6. F: 서비스 인터페이스 `ToolService`, `ApprovalService`와 서비스 이름 상수를 `@fresnel/contracts/services`에 둔다(review.decisions-2 D-04). 이 부분은 반영됨(`F.capabilities.spec` §3.12 `services/tools.ts`, `services/approvals.ts`). 정책·도구·승인 공용 타입(§3.1~§3.6)은 `capabilities/tools.ts`, `policy.ts`, `approvals.ts`로 이전한다(eng.context-map.design §5.3).
 7. (없앰) F.conversation.spec §3.1 `pi.ts`의 agent-core 재노출에 `AgentLoopConfig`, `AgentToolCall`을 더하는 요청. adr.0009로 F가 `AgentToolCall` 등을 `agent.ts`에서 직접 정의하고(F.conversation.spec §3.1.1) `AgentLoopConfig`는 두지 않는다.
 8. F.capabilities.spec §3.3: `ToolSpec.locks`(잠금 선언) 추가. L1.tasks.spec FR-T6과 같은 항목이고 core-tools가 키를 산출한다(§4.2 7b).
 9. F.capabilities.spec `policy.ts`: `childDecision`을 순수 함수로 둔다. L1.agents.spec §8.3 5와 같은 항목이고 §4.5 ceiling 단계가 쓴다.
@@ -1086,9 +1086,9 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 ### 8.4 다른 문서 수정 요청
 
-- (반영됨) adr.0003 §3 표·§6, L0.exec.spec §1·§3, L2.workspace.spec: `D/src/truncate.ts` 포크 위치를 `xeon/packages/platform-exec`로 고치고 `xeon.exec`에 절단 메서드(`truncateHead`, `formatSize`)를 둔다 [결정: review.decisions-2 D-08].
-- eng.context-map.design §5.1: `tool.` 접두 행을 `effect.`로 바꾸고 `approval.` 행 type 이름을 F 형식으로 맞춘다. §4.1 `tool-runtime` 행의 쓰는 서비스에 `xeon.store`(blob)를 더한다.
-- L2.dialog.spec, L2.work.spec: 질문 도구와 계획 도구는 `replay: "safe"`, `risk: "read"`, `classes: ["user_interaction"]`를 선언하고 `xeon.approvals.request`를 실행 안에서 부른다(§4.7).
+- (반영됨) adr.0003 §3 표·§6, L0.exec.spec §1·§3, L2.workspace.spec: `D/src/truncate.ts` 포크 위치를 `xeon/packages/platform-exec`로 고치고 `fresnel.exec`에 절단 메서드(`truncateHead`, `formatSize`)를 둔다 [결정: review.decisions-2 D-08].
+- eng.context-map.design §5.1: `tool.` 접두 행을 `effect.`로 바꾸고 `approval.` 행 type 이름을 F 형식으로 맞춘다. §4.1 `tool-runtime` 행의 쓰는 서비스에 `fresnel.store`(blob)를 더한다.
+- L2.dialog.spec, L2.work.spec: 질문 도구와 계획 도구는 `replay: "safe"`, `risk: "read"`, `classes: ["user_interaction"]`를 선언하고 `fresnel.approvals.request`를 실행 안에서 부른다(§4.7).
 
 ## 9. 수용 기준
 

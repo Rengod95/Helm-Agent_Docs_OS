@@ -1,4 +1,4 @@
-import type { ExtensionEntry, ScopeApi } from "@xeon/contracts/extensions";
+import type { ExtensionEntry, ScopeApi } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { defineGroup, type GroupModule } from "../../src/index.ts";
 import { realHostAccess, wrap } from "../../src/wrap.ts";

@@ -1,4 +1,4 @@
-import { ok, type Logger, type Result } from "@xeon/contracts";
+import { ok, type Logger, type Result } from "@fresnel/contracts";
 import type {
   CommitBatch,
   CommitListener,
@@ -9,7 +9,7 @@ import type {
   StoreDb,
   Unsubscribe,
   VolatileEventEnvelope,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { envelopeOfRow, headSeqOf } from "./events.ts";
 import { REPLAY_FLOOR_CONSUMER } from "./replay-floor.ts";
 import type { GuardState } from "./ownership.ts";

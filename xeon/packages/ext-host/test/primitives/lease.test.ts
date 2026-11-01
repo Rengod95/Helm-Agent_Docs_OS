@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { LeaseArbiterPortKey, type LeaseCandidate, type ScopeId } from "@xeon/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import {
+  LeaseArbiterPortKey,
+  type LeaseCandidate,
+  type ScopeId,
+} from "@fresnel/contracts/extensions";
 import type { PlatformModule } from "../../src/primitives/index.ts";
 import {
   createStaticPrimitivesSettings,

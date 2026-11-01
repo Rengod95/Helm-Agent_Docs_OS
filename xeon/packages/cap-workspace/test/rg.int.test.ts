@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import { createFilesApi } from "../src/service.ts";
 import { rejection } from "./support/assertions.ts";
 import { realDeps, realEnv } from "./support/real-env.ts";

@@ -1,8 +1,8 @@
-import { err, ok } from "@xeon/contracts";
-import { ScheduleEntries, ScheduleEntriesKey } from "@xeon/contracts/capabilities";
-import type { ExtensionEntry, PortKey } from "@xeon/contracts/extensions";
-import { ToolServicePortKey } from "@xeon/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
+import { err, ok } from "@fresnel/contracts";
+import { ScheduleEntries, ScheduleEntriesKey } from "@fresnel/contracts/capabilities";
+import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
+import { ToolServicePortKey } from "@fresnel/contracts/services";
+import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
 import { createScheduleApi } from "./api.ts";
 import { scheduleManifest } from "./manifest.ts";
 import type { ScheduleService } from "./types.ts";

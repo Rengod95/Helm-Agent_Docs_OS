@@ -1,4 +1,4 @@
-import type { TurnStartInput } from "@xeon/contracts/wire";
+import type { TurnStartInput } from "@fresnel/contracts/wire";
 
 // 대화 제목의 자동 정하기(M2 마감 G2-12). 첫 입력에서 뽑는다. 제목을 만드는 모델 호출(자동 제목)은 M3다.
 // F wire `thread.rename`의 제목 상한은 200자이고, 첫 입력에서 뽑는 길이는 80자다(F wire §3.3.1).

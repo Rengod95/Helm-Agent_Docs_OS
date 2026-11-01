@@ -1,6 +1,6 @@
-import { assertNever } from "@xeon/contracts";
-import type { McpApprovalMode, McpServerDef } from "@xeon/contracts/capabilities";
-import type { PolicyRule } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import type { McpApprovalMode, McpServerDef } from "@fresnel/contracts/capabilities";
+import type { PolicyRule } from "@fresnel/contracts/services";
 import type { McpSettings } from "../settings.ts";
 import type { BlockedReason, ServerDefinition } from "../types.ts";
 

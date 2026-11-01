@@ -1,5 +1,5 @@
-import type { Clock, Logger } from "@xeon/contracts";
-import type { ProviderOrigin, WebProviderManifest } from "@xeon/contracts/capabilities";
+import type { Clock, Logger } from "@fresnel/contracts";
+import type { ProviderOrigin, WebProviderManifest } from "@fresnel/contracts/capabilities";
 import type { WebStorePort } from "../ports/store.ts";
 import { WEB_STORE_OWNER } from "./migrations.ts";
 

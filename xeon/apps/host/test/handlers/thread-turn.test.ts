@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import { WireError } from "@xeon/contracts/wire";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { WireError } from "@fresnel/contracts/wire";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { FAKE_STORE_ID } from "../fixtures/fake-engine.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";

@@ -1,8 +1,12 @@
 import { expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
-import { CapabilityError, type CallOptions } from "@xeon/contracts/capabilities";
-import type { ProposalDecideParams, ProposalRow, ProposalStatusWire } from "@xeon/contracts/wire";
-import type { KnowledgeProposalListInput, KnowledgeProposalWire } from "@xeon/cap-knowledge";
+import { ok } from "@fresnel/contracts";
+import { CapabilityError, type CallOptions } from "@fresnel/contracts/capabilities";
+import type {
+  ProposalDecideParams,
+  ProposalRow,
+  ProposalStatusWire,
+} from "@fresnel/contracts/wire";
+import type { KnowledgeProposalListInput, KnowledgeProposalWire } from "@fresnel/cap-knowledge";
 import {
   decisionCommandLine,
   type DecisionResult,
@@ -10,10 +14,10 @@ import {
   type LearningQueueApi,
   type ProposalDecision,
   type ProposalView,
-} from "@xeon/group-learning";
+} from "@fresnel/group-learning";
 import type { LearningRunner } from "../../src/assembly/learning.ts";
 import { createProposalPort } from "../../src/assembly/proposals.ts";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 
 // M3-REQ-18(D-M3-32 a): `proposal.list`·`proposal.decide`의 포트. 두 출처를 한 목록으로 합치고 결정을 출처로 보낸다. 가짜 두 출처 위의 시험이다.
 // 실제 L2 대기열과 학습 대기열 위의 시험은 test/int/proposals.int.test.ts다.

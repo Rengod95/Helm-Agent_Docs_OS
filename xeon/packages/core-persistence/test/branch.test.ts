@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { EventId } from "@xeon/contracts/conversation";
+import type { EventId } from "@fresnel/contracts/conversation";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import { branchItemsOf, completeTurn, itemAt, leafOfThread } from "./support/branching.ts";
 import { expectOk, newThread, openHarness, startTurn, reopenHarness } from "./support/harness.ts";

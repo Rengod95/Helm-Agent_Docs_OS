@@ -1,8 +1,16 @@
-import { CapabilityError, isCapabilityId, type CapabilityId } from "@xeon/contracts/capabilities";
-import { parse } from "@xeon/contracts";
-import { toJsonValue, type JsonValue, type ThreadId } from "@xeon/contracts/conversation";
-import { RecordCommitPortKey, type ExtensionName, type ScopeId } from "@xeon/contracts/extensions";
-import type { ExtensionEventKind } from "@xeon/contracts/records";
+import {
+  CapabilityError,
+  isCapabilityId,
+  type CapabilityId,
+} from "@fresnel/contracts/capabilities";
+import { parse } from "@fresnel/contracts";
+import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
+import {
+  RecordCommitPortKey,
+  type ExtensionName,
+  type ScopeId,
+} from "@fresnel/contracts/extensions";
+import type { ExtensionEventKind } from "@fresnel/contracts/records";
 import { Type, type Static } from "typebox";
 import { withoutAmbient } from "./ambient.ts";
 import type { CapabilityDefLookup } from "./capability-guard.ts";

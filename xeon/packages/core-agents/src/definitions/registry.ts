@@ -1,6 +1,6 @@
 // 정의 등록부(L1.agents.spec §3.3 define·definition·definitions, §4.9). 같은 이름은 우선순위가 높은 출처가 이긴다:
 // 프로젝트 > 사용자 > 확장 > 내장. 같은 출처끼리는 나중에 등록한 것이 이긴다.
-import type { AgentDefinition, AgentDefinitionSource } from "@xeon/contracts/services";
+import type { AgentDefinition, AgentDefinitionSource } from "@fresnel/contracts/services";
 
 const SOURCE_RANK: Readonly<Record<AgentDefinitionSource["kind"], number>> = {
   builtin: 0,

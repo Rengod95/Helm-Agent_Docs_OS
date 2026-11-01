@@ -1,7 +1,7 @@
-import type { Logger, LogFields } from "@xeon/contracts";
-import type { CallOptions, WebService } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { HostedSearchPort } from "@xeon/contracts/services";
+import type { Logger, LogFields } from "@fresnel/contracts";
+import type { CallOptions, WebService } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { HostedSearchPort } from "@fresnel/contracts/services";
 import type { WebDeps } from "../../src/deps.ts";
 import { directConvertRunner, type ConvertRunner } from "../../src/fetch/convert-runner.ts";
 import { createWebRuntime, type WebRuntime } from "../../src/runtime.ts";
@@ -33,7 +33,7 @@ import {
 import { manualClock, type ManualClock } from "./clock.ts";
 import { fixedLocalIds } from "./ids.ts";
 import { openWebStore } from "./store.ts";
-import type { TestStore } from "@xeon/platform-store/testing";
+import type { TestStore } from "@fresnel/platform-store/testing";
 
 export const PUBLIC_IP = "93.184.216.34";
 

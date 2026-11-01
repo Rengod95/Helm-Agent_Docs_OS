@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { attemptAsync } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { SpawnOrigin } from "@xeon/contracts/services";
+import { attemptAsync } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { SpawnOrigin } from "@fresnel/contracts/services";
 import { spawnRecorder } from "../src/testing/index.ts";
 import { EXPLORER, openHarness, type Harness } from "./support/harness.ts";
 

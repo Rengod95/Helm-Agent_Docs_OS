@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { matchProtectedPath } from "@xeon/contracts/services";
+import { matchProtectedPath } from "@fresnel/contracts/services";
 import { createSandboxService } from "../src/service.ts";
 import type { SandboxSettings } from "../src/settings.ts";
 import {

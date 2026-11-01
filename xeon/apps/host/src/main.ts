@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
-import { assertNever, detach } from "@xeon/contracts";
-import type { SecretOutOfBandPort } from "@xeon/contracts/services";
-import type { StdioTransportOptions, Transport } from "@xeon/contracts/wire";
+import { assertNever, detach } from "@fresnel/contracts";
+import type { SecretOutOfBandPort } from "@fresnel/contracts/services";
+import type { StdioTransportOptions, Transport } from "@fresnel/contracts/wire";
 import { AssembleError } from "./assemble.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import { hostLimitsOf } from "./assembly/settings-sources.ts";

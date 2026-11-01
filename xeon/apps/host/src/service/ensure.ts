@@ -7,7 +7,7 @@ import {
   type Clock,
   type Result,
   type Scheduler,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import {
   ensureService,
   isProcessAlive,
@@ -20,8 +20,8 @@ import {
   type ServiceRegistration,
   type SocketError,
   createRegistrationStore,
-} from "@xeon/platform-process";
-import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
+} from "@fresnel/platform-process";
+import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
 import { ENGINE_VERSION } from "../assemble.ts";
 import {
   createHostConnection,

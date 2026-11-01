@@ -8,8 +8,8 @@ import {
   type Result,
   type Scheduler,
   type TimerHandle,
-} from "@xeon/contracts";
-import type { McpServerState } from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts";
+import type { McpServerState } from "@fresnel/contracts/capabilities";
 import {
   connectMcp,
   type McpConnection,

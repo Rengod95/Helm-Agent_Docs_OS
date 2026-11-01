@@ -1,4 +1,4 @@
-import { t, type MessageId } from "@xeon/client/i18n";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 
 // L4.cli.spec §3.1 명령 표. 도움말에 보이지 않는 명령(host --stdio, service launch-mode, service run)은 싣지 않는다.

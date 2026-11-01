@@ -72,7 +72,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
   export type ReadArgs = Static<typeof ReadArgsSchema>;
 
   // xeon/packages/core-tools/src/read.ts  (L1)
-  import { ReadArgsSchema } from "@xeon/contracts/capabilities";
+  import { ReadArgsSchema } from "@fresnel/contracts/capabilities";
   export const readTool = defineTool({ name: "read", args: ReadArgsSchema, execute: runRead });
   ```
 
@@ -392,7 +392,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 ### BP-09 공개 API는 작게, 서브패스 export로 노출
 
 - 규칙:
-  - 각 패키지는 `package.json`의 `exports`에 적은 진입점만 공개한다. 기능 묶음마다 서브패스를 둔다. 예: `@xeon/contracts/extensions`, `@xeon/contracts/records`.
+  - 각 패키지는 `package.json`의 `exports`에 적은 진입점만 공개한다. 기능 묶음마다 서브패스를 둔다. 예: `@fresnel/contracts/extensions`, `@fresnel/contracts/records`.
   - 진입점은 다른 패키지가 실제로 쓰는 이름만 다시 내보낸다. 내부 도우미와 테스트 도구는 내보내지 않거나 `./testing` 서브패스에 둔다.
   - `export default`를 쓰지 않는다. 이름 있는 export만 쓴다.
   - 배포에서 빠지는 코드(위장 provider 등)는 별도 패키지(`plugins/*`)로 두고 본체 서브패스에 넣지 않는다.
@@ -404,7 +404,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
   ```json
   {
-    "name": "@xeon/core-tools",
+    "name": "@fresnel/core-tools",
     "exports": {
       ".": "./src/index.ts",
       "./testing": "./src/testing/index.ts"
@@ -422,7 +422,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
   ```ts
   // 다른 패키지에서
-  import { normalizePath } from "@xeon/core-tools/src/internal/path.ts"; // 내부 경로 import
+  import { normalizePath } from "@fresnel/core-tools/src/internal/path.ts"; // 내부 경로 import
   // core-tools 안에서
   export * from "./internal/index.ts";                                    // 내부 전부 노출
   export default createToolRegistry;
@@ -532,7 +532,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 | BP-01 | `just typecheck`(`isolatedDeclarations`), `check-layers.ts` | 새 경계 값의 스키마가 `contracts`에 있는가? |
 | BP-02 | 단위 테스트 커버리지(`bunfig.toml` `coverageThreshold`) | 판단 로직이 I/O 없이 테스트되는가? 소비자 코드에 OS 분기가 있는가? |
 | BP-03 | 재생 테스트, ext-host 런타임 검사(`requestId` 필수) | 선택 표의 위 행으로 해결되는가? `drive`가 꼭 필요한가? |
-| BP-04 | oxlint `typescript/only-throw-error`, `no-throw-literal`, `no-empty`, `preserve-caught-error`, 스캔 `xeon/error-discriminant`(TY-12), `xeon/bug-for-expected`(TY-24), `xeon/catch-swallow`(TY-25) | 이 실패는 호출자가 처리해야 하는가? 이 `Bug`는 코드와 설정이 올바라도 생길 수 있는가? 오류 유니온의 판별자가 `kind`이고 표시 문구가 코드에 없는가? |
+| BP-04 | oxlint `typescript/only-throw-error`, `no-throw-literal`, `no-empty`, `preserve-caught-error`, 스캔 `fresnel/error-discriminant`(TY-12), `fresnel/bug-for-expected`(TY-24), `fresnel/catch-swallow`(TY-25) | 이 실패는 호출자가 처리해야 하는가? 이 `Bug`는 코드와 설정이 올바라도 생길 수 있는가? 오류 유니온의 판별자가 `kind`이고 표시 문구가 코드에 없는가? |
 | BP-05 | oxlint `no-restricted-imports`(`cordis`), 금지 호출 검사 [제안] | 시간·ID·난수를 주입받는가? |
 | BP-06 | 설정 스키마 테스트 | 설정 키가 `wire-settings` 스키마에 있는가? 기본값이 한 곳에 있는가? |
 | BP-07 | gitleaks, Logger 마스킹 테스트 | 로그와 오류에 lease 값이 들어갈 수 있는가? |

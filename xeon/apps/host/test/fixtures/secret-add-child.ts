@@ -1,15 +1,15 @@
-import { ok, parse } from "@xeon/contracts";
-import { SecretMetaSchema } from "@xeon/contracts/capabilities";
+import { ok, parse } from "@fresnel/contracts";
+import { SecretMetaSchema } from "@fresnel/contracts/capabilities";
 import {
   createLocalIdFactory,
   createOsService,
   readOsRuntime,
   systemClock,
   systemRandom,
-} from "@xeon/platform-os";
-import { createSecretsRuntime, DEFAULT_SECRETS_CONFIG } from "@xeon/platform-secrets";
+} from "@fresnel/platform-os";
+import { createSecretsRuntime, DEFAULT_SECRETS_CONFIG } from "@fresnel/platform-secrets";
 
-// 시험 보조 프로세스: 한 클라이언트(CLI나 데스크톱 사이드카 자리)처럼 xeon.os(파일 잠금 포함)와 platform-secrets를 올리고
+// 시험 보조 프로세스: 한 클라이언트(CLI나 데스크톱 사이드카 자리)처럼 fresnel.os(파일 잠금 포함)와 platform-secrets를 올리고
 // 비밀 하나를 `add`한다. FRESNEL_HOME은 부모 시험이 정한 임시 디렉터리다. 결과는 한 줄 JSON이고 값은 싣지 않는다(시험이 만든 가짜 값이다).
 
 // 이름은 인자, 값은 표준 입력으로 받는다(값을 환경 변수에 두지 않는다)

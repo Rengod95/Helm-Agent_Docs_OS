@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { wireError } from "@xeon/contracts/wire";
+import { wireError } from "@fresnel/contracts/wire";
 import { errorOf } from "../../src/app/command-error.ts";
 
 describe("errorOf", () => {

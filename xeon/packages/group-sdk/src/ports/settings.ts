@@ -1,4 +1,4 @@
-import type { PortKey } from "@xeon/contracts/extensions";
+import type { PortKey } from "@fresnel/contracts/extensions";
 
 /**
  * 그룹 설정의 유효 값 읽기. 조립 루트(L4 host)가 설정 서비스에 연결해 넘긴다
@@ -10,4 +10,4 @@ export interface GroupSettingsSource {
   value(key: string): unknown;
 }
 
-export const GroupSettingsSourceKey: PortKey<GroupSettingsSource> = { name: "xeon.settings" };
+export const GroupSettingsSourceKey: PortKey<GroupSettingsSource> = { name: "fresnel.settings" };

@@ -9,8 +9,8 @@ import {
   parse,
   type Clock,
   type Result,
-} from "@xeon/contracts";
-import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts";
+import type { EventId, IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   checkEnvelopeSize,
   COMMIT_KEY_PATTERN,
@@ -33,7 +33,7 @@ import {
   type StoreDb,
   type StoreError,
   type StoreWriteError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { detachLarge, needsDetach, type PutBlob } from "./blob.ts";
 import { checkpointDraftInput, completeCheckpoint, isApprovalWait } from "./checkpoint.ts";
 import { insertEvent, headSeqOf } from "./events.ts";
@@ -219,25 +219,25 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
     const envelope: DurableEventEnvelope = { ...draft, seq, recordedAt, parentId };
     const shape = parse(DurableEventEnvelopeSchema, envelope);
     if (!shape.ok) {
-      // xeon-disable-next-line xeon/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
+      // fresnel-disable-next-line fresnel/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
       throw new Bug(`store.schema_invalid: ${draft.kind} envelope`, { cause: shape.error });
     }
     const upcasted = catalog.upcast(envelope);
     if (!upcasted.ok) {
-      // xeon-disable-next-line xeon/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
+      // fresnel-disable-next-line fresnel/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
       throw new Bug(`store.schema_invalid: cannot upcast ${draft.kind}`, { cause: upcasted.error });
     }
     if (!prevalidated.has(draft)) {
       const payload = parse(entry.payload, upcasted.value.payload);
       if (!payload.ok) {
-        // xeon-disable-next-line xeon/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
+        // fresnel-disable-next-line fresnel/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
         throw new Bug(`store.schema_invalid: ${draft.kind} payload`, { cause: payload.error });
       }
     }
     if (checkSize) {
       const size = checkEnvelopeSize(envelope);
       if (!size.ok) {
-        // xeon-disable-next-line xeon/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
+        // fresnel-disable-next-line fresnel/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
         throw new Bug(
           `store.event_too_large: ${draft.kind} is ${size.error.bytes} bytes (limit ${size.error.limit})`,
         );

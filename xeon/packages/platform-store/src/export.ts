@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { err, ok, type Clock, type Result } from "@xeon/contracts";
+import { err, ok, type Clock, type Result } from "@fresnel/contracts";
 import { sqliteIoFailureOf } from "./db.ts";
 import { APPLICATION_ID, readIdentity } from "./pragmas.ts";
 import { columnString, toSqlRow } from "./rows.ts";

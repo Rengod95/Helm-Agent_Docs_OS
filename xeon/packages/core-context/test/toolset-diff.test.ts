@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { SystemMessage } from "@xeon/contracts/conversation";
+import type { SystemMessage } from "@fresnel/contracts/conversation";
 import { decideToolChange } from "../src/toolset-diff.ts";
 import {
   assembleOptions,

@@ -9,7 +9,7 @@
  */
 
 // FRESNEL-PATCH: P13
-import type { TruncationOptions, TruncationResult } from "@xeon/contracts/services";
+import type { TruncationOptions, TruncationResult } from "@fresnel/contracts/services";
 
 // FRESNEL-PATCH: P12
 const DEFAULT_MAX_LINES: number = 2000;

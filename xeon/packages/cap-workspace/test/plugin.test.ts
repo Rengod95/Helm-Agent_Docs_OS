@@ -7,20 +7,20 @@ import {
   type WorkspaceFiles,
   type WorkspaceImages,
   type WorkspaceShell,
-} from "@xeon/contracts/capabilities";
-import { err, ok, type Logger, type LogFields, type Result } from "@xeon/contracts";
+} from "@fresnel/contracts/capabilities";
+import { err, ok, type Logger, type LogFields, type Result } from "@fresnel/contracts";
 import {
   defineManifest,
   validateManifest,
   type ExtensionEntry,
   type PortKey,
   type ToolRegisterError,
-} from "@xeon/contracts/extensions";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ToolRegistration, Unregister } from "@xeon/contracts/services";
-import type { ScopeLayer } from "@xeon/contracts/settings";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ToolRegistration, Unregister } from "@fresnel/contracts/services";
+import type { ScopeLayer } from "@fresnel/contracts/settings";
+import type { ExtensionUnit } from "@fresnel/ext-host";
+import { createTestHost, fixedIdFactory } from "@fresnel/ext-host/testing";
 import { workspacePlugin } from "../src/plugin.ts";
 import { WORKSPACE_EXTENSION_NAME, workspaceManifest } from "../src/manifest.ts";
 import { rejection } from "./support/assertions.ts";
@@ -42,10 +42,10 @@ interface FakeOs {
   ): Promise<Result<{ readonly path: string }, { readonly kind: string }>>;
 }
 
-const ExecKey: PortKey<MemoryEnv> = { name: "xeon.exec" };
-const OsKey: PortKey<FakeOs> = { name: "xeon.os" };
-const SandboxKey: PortKey<ReturnType<typeof fakeSandbox>> = { name: "xeon.sandbox" };
-const ToolsKey: PortKey<FakeTools> = { name: "xeon.tools" };
+const ExecKey: PortKey<MemoryEnv> = { name: "fresnel.exec" };
+const OsKey: PortKey<FakeOs> = { name: "fresnel.os" };
+const SandboxKey: PortKey<ReturnType<typeof fakeSandbox>> = { name: "fresnel.sandbox" };
+const ToolsKey: PortKey<FakeTools> = { name: "fresnel.tools" };
 
 interface LogLine {
   readonly event: string;
@@ -68,8 +68,8 @@ interface FakeSession {
     thread(threadId: ThreadId): Result<{ readonly workspace: string | null } | undefined, never>;
   };
 }
-const SessionKey: PortKey<FakeSession> = { name: "xeon.session" };
-const StoreKey: PortKey<MemoryBlobs> = { name: "xeon.store" };
+const SessionKey: PortKey<FakeSession> = { name: "fresnel.session" };
+const StoreKey: PortKey<MemoryBlobs> = { name: "fresnel.store" };
 
 async function boot(
   options: {
@@ -84,7 +84,7 @@ async function boot(
     layers?: readonly ScopeLayer[];
   } = {},
 ) {
-  // 시험 호스트가 기본으로 내는 xeon.session(ext 멤버만)이 이 시험의 session 포트와 겹치지 않게 뺀다
+  // 시험 호스트가 기본으로 내는 fresnel.session(ext 멤버만)이 이 시험의 session 포트와 겹치지 않게 뺀다
   const t = await createTestHost({ without: ["records"] });
   const env = memoryEnv({ cwd: "/work" });
   env.mkdir("/work");
@@ -227,7 +227,7 @@ describe("plugin", () => {
     expect(env.calls).toHaveLength(0);
   });
 
-  test("grep finds the bundled rg through xeon.os, and grep.rgPath replaces it", async () => {
+  test("grep finds the bundled rg through fresnel.os, and grep.rgPath replaces it", async () => {
     const bundled = await boot();
     const { apis, unit } = consumer();
     await bundled.t.host.install(unit);
@@ -330,7 +330,7 @@ describe("plugin", () => {
 });
 
 describe("session and store ports", () => {
-  test("thread workspaces and image blobs come from xeon.session and xeon.store", async () => {
+  test("thread workspaces and image blobs come from fresnel.session and fresnel.store", async () => {
     const ids = fixedIdFactory();
     const alpha = ids.next("thr");
     const other = ids.next("thr");

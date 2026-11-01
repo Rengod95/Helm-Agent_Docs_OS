@@ -27,7 +27,7 @@ binds: [xeon/packages/client/src/settings/**]
 - 쓰기 흐름: 편집, 클라이언트 즉시 검사, `settings.set`, 오류 코드의 필드 문구 변환, 변경 수신, 재시작 안내(§4.4, §4.5).
 - 비밀 화면: 참조와 상태 표시, 값 입력과 열람 경로의 비교와 제안(§4.6).
 - 첫 실행 권장 화면: 검색 provider 상태, SearXNG 주소, 무료 크레딧 API 플러그인 권장 목록(§4.10, ADR-0005 ④, `product.scope.spec` I10 M3).
-- 도구와 웹 탭의 view-model(`@xeon/client/web`): `web.providers` 결과에서 provider 행, 현재·고정 표시, 추천 키 플러그인 상태를 만들고, 끌어 옮긴 순서를 `settings.set` 값으로 바꾸는 규칙(§3.6, §4.11, M3-12 비시각 부분).
+- 도구와 웹 탭의 view-model(`@fresnel/client/web`): `web.providers` 결과에서 provider 행, 현재·고정 표시, 추천 키 플러그인 상태를 만들고, 끌어 옮긴 순서를 `settings.set` 값으로 바꾸는 규칙(§3.6, §4.11, M3-12 비시각 부분).
 - 상태 게이지 자리(§4.7), 접근성과 문구 규칙(§4.8), 코드 위치(§4.9).
 - 화면 로직을 DOM과 무관한 순수 TS view-model(`settings/model`)과 렌더링 부분(`settings/views`)으로 나누는 경계(§3).
 
@@ -54,7 +54,7 @@ binds: [xeon/packages/client/src/settings/**]
 | 초안 | 사용자가 편집 중이고 아직 `settings.set`으로 보내지 않은 값 |
 | 쓰기 범위 | 이 화면이 값을 저장할 수 있는 범위. `managed`를 뺀 `SettingScope` 값. 타입은 `WritableScope` |
 | 변경 신호 | 다른 연결(CLI 등)이나 엔진이 설정을 바꿨다는 수신 정보. 현재는 `settings.changed` 내구 이벤트(§4.5) |
-| view-model | DOM, 프레임워크, 전송에 의존하지 않는 순수 TS 상태와 함수. `xeon/packages/client/src/settings/`(`@xeon/client/settings`, adr.0020) |
+| view-model | DOM, 프레임워크, 전송에 의존하지 않는 순수 TS 상태와 함수. `xeon/packages/client/src/settings/`(`@fresnel/client/settings`, adr.0020) |
 | 렌더러 | view-model을 화면 부품으로 그리는 코드. `xeon/apps/desktop/src/views/` |
 | 셸 포트 | desktop이 settings-ui에 넘기는 의존 묶음(`SettingsHostPort`). 연결, 현재 thread, 재시작 동작을 담는다 |
 
@@ -68,16 +68,16 @@ binds: [xeon/packages/client/src/settings/**]
 
 | 가져오는 것 | 출처 | 쓰는 곳 |
 |---|---|---|
-| `HostConnection`, `WireParams`, `WireResult`, `WireError`, `WireErrorData`, `EventWire`, `EventsBatchParams`, `Unsubscribe` | `@xeon/contracts/wire`(F) | `connection.ts` |
-| `SettingDefWire`, `EffectiveSetting`, `SettingsTab`, `SettingWidget`, `SettingScope`, `RuntimeChange`, `SettingKey`, `SecretRef` 타입 | `@xeon/contracts/settings`(F) | `model/**` |
-| `ThreadId` 타입 | `@xeon/contracts/conversation`(F) | `model/**`, `connection.ts` |
-| `Result` 타입 | `@xeon/contracts`(F 루트) | `model/**` |
+| `HostConnection`, `WireParams`, `WireResult`, `WireError`, `WireErrorData`, `EventWire`, `EventsBatchParams`, `Unsubscribe` | `@fresnel/contracts/wire`(F) | `connection.ts` |
+| `SettingDefWire`, `EffectiveSetting`, `SettingsTab`, `SettingWidget`, `SettingScope`, `RuntimeChange`, `SettingKey`, `SecretRef` 타입 | `@fresnel/contracts/settings`(F) | `model/**` |
+| `ThreadId` 타입 | `@fresnel/contracts/conversation`(F) | `model/**`, `connection.ts` |
+| `Result` 타입 | `@fresnel/contracts`(F 루트) | `model/**` |
 | `Check`(JSON Schema 검사) | `typebox/schema`(1.3.27, `xeon/package.json` catalog) | `model/validate.ts` |
 | `DesktopSettingsStore` 타입 | `xeon/apps/desktop/src/settings-store`(같은 desktop 패키지, `L4.desktop.spec` §3.6) | `index.ts`, `connection.ts` |
 | `HostConnection` 인스턴스 | `xeon/apps/desktop/src/transport` 공개 진입점(같은 패키지). 실제 값은 셸 포트로 받는다 | `index.ts` |
 
 - import 범위는 `L4.desktop.spec` §4.9 규칙 W3("`src/settings/**`는 `src/transport`의 공개 진입점과 `src/settings-store`만 import한다")과 같다. 위 F 서브패스와 `typebox/schema`는 W3이 다루지 않는 외부 의존이고, [제안] W3의 허용 목록에 더하도록 desktop에 요청한다(§10 미결 17).
-- F는 모든 층보다 낮으므로 L4가 import할 수 있다(`eng.dependency-rules.guide` DR-01). X~L3 패키지(`@xeon/ext-host`, `@xeon/platform-*`, `@xeon/core-*`, `@xeon/cap-*`, `@xeon/group-*`)와 다른 앱(`@xeon/host`, `@xeon/cli`)은 import하지 않는다(DR-10, `L4.desktop.spec` §4.9 W6).
+- F는 모든 층보다 낮으므로 L4가 import할 수 있다(`eng.dependency-rules.guide` DR-01). X~L3 패키지(`@fresnel/ext-host`, `@fresnel/platform-*`, `@fresnel/core-*`, `@fresnel/cap-*`, `@fresnel/group-*`)와 다른 앱(`@fresnel/host`, `@fresnel/cli`)은 import하지 않는다(DR-10, `L4.desktop.spec` §4.9 W6).
 - 호스트 메서드는 `settings.list`, `settings.get`, `settings.set`, `settings.reset` 네 개와 변경 신호 수신용 `events.subscribe`·`events.unsubscribe`만 쓴다. `HostConnection` 객체는 desktop이 만들어 셸 포트로 넘긴다. 설정 화면은 연결을 열거나 닫지 않는다.
 - 설정 원천은 둘이다. 엔진 카탈로그(`settings.*` 메서드)와 데스크톱 로컬 저장소(`DesktopSettingsStore`, `l4.desktop.*` 키만)다. 로컬 저장소는 엔진이 꺼져 있어도 셸이 읽어야 하는 값 때문에 desktop이 둔 것이다(`L4.desktop.spec` §3.6, 같은 문서 §10 미결 6). 두 원천의 합치기 규칙은 §4.1.3이다.
 - [제안] `model/**`은 `document`, `window`, `HTMLElement` 같은 DOM 전역과 `views/**`를 참조하지 않는다. `bun test`로 DOM 없이 돈다.
@@ -87,9 +87,9 @@ binds: [xeon/packages/client/src/settings/**]
 
 ```ts
 // xeon/packages/client/src/settings/index.ts
-import type { HostConnection, Unsubscribe } from "@xeon/contracts/wire";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { SettingKey, SettingScope } from "@xeon/contracts/settings";
+import type { HostConnection, Unsubscribe } from "@fresnel/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { SettingKey, SettingScope } from "@fresnel/contracts/settings";
 import type { DesktopSettingsStore } from "../settings-store/index.ts";
 import type { SettingsState } from "./model/state.ts";
 import type { SecretStatus, WritableScope } from "./model/types.ts";
@@ -143,9 +143,9 @@ export type { SecretStatus };
 
 ```ts
 // xeon/packages/client/src/settings/connection.ts
-import type { HostConnection, Unsubscribe, WireParams, WireResult } from "@xeon/contracts/wire";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { SettingKey, SettingScope } from "@xeon/contracts/settings";
+import type { HostConnection, Unsubscribe, WireParams, WireResult } from "@fresnel/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { SettingKey, SettingScope } from "@fresnel/contracts/settings";
 
 /** 변경 신호 하나. 값은 싣지 않는다. 받은 쪽은 settings.get으로 다시 읽는다(§4.5). */
 export interface SettingsChangeSignal {
@@ -176,7 +176,7 @@ export declare function createSettingsClient(connection: HostConnection): Settin
 // xeon/packages/client/src/settings/types.ts
 import type {
   EffectiveSetting, RuntimeChange, SecretRef, SettingDefWire, SettingKey, SettingScope, SettingsTab,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 export type WritableScope = Exclude<SettingScope, "managed">;
 export type BadgeScope = SettingScope | "default";
@@ -325,7 +325,7 @@ export interface SettingsView {
 
 ```ts
 // model/group-by-tab.ts
-import type { SettingDefWire, SettingsTab } from "@xeon/contracts/settings";
+import type { SettingDefWire, SettingsTab } from "@fresnel/contracts/settings";
 
 export interface TabSpec {
   readonly id: SettingsTab;
@@ -366,8 +366,8 @@ export declare function defaultWriteScope(scopes: readonly WritableScope[]): Wri
 
 ```ts
 // model/validate.ts
-import type { SettingDefWire } from "@xeon/contracts/settings";
-import type { Result } from "@xeon/contracts";
+import type { SettingDefWire } from "@fresnel/contracts/settings";
+import type { Result } from "@fresnel/contracts";
 
 export type JsonSchemaObject = Readonly<Record<string, unknown>>;
 export interface ValueIssue { readonly path: string; readonly message: string }
@@ -386,7 +386,7 @@ export declare function coerceInput(widget: WidgetVM, raw: unknown): Result<unkn
 
 ```ts
 // model/write-flow.ts
-import type { WireParams } from "@xeon/contracts/wire";
+import type { WireParams } from "@fresnel/contracts/wire";
 
 export type WritePlan =
   | { readonly kind: "send"; readonly params: WireParams<"settings.set"> }
@@ -447,12 +447,12 @@ export declare function reduceSettings(state: SettingsState, action: SettingsAct
 
 ### 3.6 도구와 웹 view-model
 
-도구와 웹 탭의 값은 `@xeon/client/web`(`xeon/packages/client/src/web/`, adr.0020)이 만든다. 입력은 `web.providers`의 결과 `WebProvidersResult`(F `wire/web-providers.ts`)다. 모든 함수는 순수 함수이고 I/O가 없다. 공개 이름은 아래 여섯 개와 타입 셋이고, `index.ts`가 `tools-web.ts`를 그대로 다시 내보낸다. 사용처는 `xeon doctor`(다음 유닛, `L4.cli.spec` §4.7.1)와 M4 설정 화면이다. 두 곳 모두 이 값을 그대로 쓴다.
+도구와 웹 탭의 값은 `@fresnel/client/web`(`xeon/packages/client/src/web/`, adr.0020)이 만든다. 입력은 `web.providers`의 결과 `WebProvidersResult`(F `wire/web-providers.ts`)다. 모든 함수는 순수 함수이고 I/O가 없다. 공개 이름은 아래 여섯 개와 타입 셋이고, `index.ts`가 `tools-web.ts`를 그대로 다시 내보낸다. 사용처는 `xeon doctor`(다음 유닛, `L4.cli.spec` §4.7.1)와 M4 설정 화면이다. 두 곳 모두 이 값을 그대로 쓴다.
 
 ```ts
 // xeon/packages/client/src/web/tools-web.ts
-import type { Result } from "@xeon/contracts";
-import type { WebProviderAuth, WebProviderCapability, WebProviderOrigin, WebProvidersResult } from "@xeon/contracts/wire";
+import type { Result } from "@fresnel/contracts";
+import type { WebProviderAuth, WebProviderCapability, WebProviderOrigin, WebProvidersResult } from "@fresnel/contracts/wire";
 
 export type WebToolRow = {
   readonly id: string;
@@ -519,7 +519,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 ### 3.7 명령, 제안, 비밀 열람 view-model (M3b B3-SET)
 
-`@xeon/client/settings`의 순수 함수다. 호출과 화면은 앱이 맡는다. 시험은 `test/settings/`의 같은 이름 파일이다.
+`@fresnel/client/settings`의 순수 함수다. 호출과 화면은 앱이 맡는다. 시험은 `test/settings/`의 같은 이름 파일이다.
 
 | 모듈 | 공개 이름 | 내용 |
 |---|---|---|
@@ -658,7 +658,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | 폴백 체인 | models | 폴백 체인(`L1.models.spec`) | 순서 끌어 옮기기, 발동 조건 설명 |
 | 권한 규칙 편집기 | permissions | 권한 규칙(`L1.tools.spec`) | 허용·거부·질문 열, 규칙 충돌 표시 |
 | 샌드박스 경로·도메인 목록 | permissions | 쓰기 경로, 차단 도메인(`L0.sandbox.spec`. 네트워크 기본 허용 + 차단 목록, [결정: review.m3-design-inputs D-M3-18]) | 차단 우선 표시, 경로 형식 검사 |
-| 검색 도구 순서 | tools | 자동 선택 순서(`L2.web.spec`) | 등록된 검색 도구 목록(기본 웹 검색 도구 포함)을 끌어 옮겨 순서를 정한다. 플러그인은 기본 후순위다 [결정: review.m3-design-inputs D-M3-23]. 끌어 옮긴 결과는 `@xeon/client/web`의 `orderUpdateOf`가 `settings.set` 값으로 바꾼다(§4.11) |
+| 검색 도구 순서 | tools | 자동 선택 순서(`L2.web.spec`) | 등록된 검색 도구 목록(기본 웹 검색 도구 포함)을 끌어 옮겨 순서를 정한다. 플러그인은 기본 후순위다 [결정: review.m3-design-inputs D-M3-23]. 끌어 옮긴 결과는 `@fresnel/client/web`의 `orderUpdateOf`가 `settings.set` 값으로 바꾼다(§4.11) |
 | 계정 풀 | providers | 계정 목록, 우선순위, 예약 %(`L1.models.spec`). API 키 계정과 구독 계정 모두. 회전은 기본 꺼짐이고 켤 때 첫 사용 고지(약관 위험)를 보인다 [결정: review.m3-design-inputs D-M3-22] | 순위 끌어 옮기기, 키 참조는 `secret` 위젯 |
 
 - 전용 편집기를 고르는 기준은 키 이름이다(예: 정의 키가 정해진 목록에 있음). [미결] 키 이름에 묶는 대신 F `SettingUi`에 편집기 힌트 필드를 더할지(§10 미결 8).
@@ -875,7 +875,7 @@ sequenceDiagram
 | 정책 편집 | 허용 도구, 호스트, 모드, 승인. 기본은 거부 | 없음 |
 | 삭제 | 참조하는 정책과 세션, 그리고 이 화면이 아는 설정 키 참조(§4.6.1 3번 목록)를 보인 뒤 확인. 사용 중이면 거부 | 없음 |
 
-- 값 보기 view-model [결정: M3-REQ-17, M3b B3-SET]: `@xeon/client/settings`의 `createSecretReveal({ port, scheduler, visibleMs? })`가 상태를 `hidden` → `reauth` → `revealed` | `failed`로 옮긴다. `reveal(name)`은 셸 포트 `SecretRevealPort.reveal(name)`을 부르고(재인증은 포트가 한다), 성공이면 `revealed`, 실패면 `failed`에 이유(`reauth_denied`, `reauth_expired`, `unavailable`, `not_started`, `not_found`, `failed`)만 싣는다. 값은 `revealed` 상태의 `RevealedValue` 안에만 있고(`read()`는 사본, `toJSON()`은 가려진 표시) 숨기기·시한(`REVEAL_VISIBLE_MS`, 기본 30초)·다른 이름 열기·실패 때 0으로 덮어 지운다. 재인증이 진행 중이면 두 번째 `reveal`은 무시한다. 포트가 던지면 값 없이 `failed`다. wire만 쓰는 연결의 어댑터 `revealViaWire`는 `secret.beginReveal`을 불러 호스트가 값을 자기 창에 보이게 하고(`started: true`), 이 view-model은 `revealed`에 값 없음(`value: null`)을 둔다. `started: false`는 `not_started`다(재인증 미완료와 열람 수단 없음을 wire가 가르지 않는다). 시험은 X8이다(`test/settings/x8.test.ts`).
+- 값 보기 view-model [결정: M3-REQ-17, M3b B3-SET]: `@fresnel/client/settings`의 `createSecretReveal({ port, scheduler, visibleMs? })`가 상태를 `hidden` → `reauth` → `revealed` | `failed`로 옮긴다. `reveal(name)`은 셸 포트 `SecretRevealPort.reveal(name)`을 부르고(재인증은 포트가 한다), 성공이면 `revealed`, 실패면 `failed`에 이유(`reauth_denied`, `reauth_expired`, `unavailable`, `not_started`, `not_found`, `failed`)만 싣는다. 값은 `revealed` 상태의 `RevealedValue` 안에만 있고(`read()`는 사본, `toJSON()`은 가려진 표시) 숨기기·시한(`REVEAL_VISIBLE_MS`, 기본 30초)·다른 이름 열기·실패 때 0으로 덮어 지운다. 재인증이 진행 중이면 두 번째 `reveal`은 무시한다. 포트가 던지면 값 없이 `failed`다. wire만 쓰는 연결의 어댑터 `revealViaWire`는 `secret.beginReveal`을 불러 호스트가 값을 자기 창에 보이게 하고(`started: true`), 이 view-model은 `revealed`에 값 없음(`value: null`)을 둔다. `started: false`는 `not_started`다(재인증 미완료와 열람 수단 없음을 wire가 가르지 않는다). 시험은 X8이다(`test/settings/x8.test.ts`).
 - 설정 키 참조 목록은 화면이 이미 가진 `EffectiveSetting`에서 계산한다(값이 `secret://<이름>`인 키). 정책·세션 참조는 L0.secrets가 돌려줘야 한다.
 
 #### 4.6.4 값 입력과 열람 경로 비교
@@ -928,9 +928,9 @@ sequenceDiagram
 
 ### 4.9 코드 위치
 
-- [결정: adr.0020] view-model은 `xeon/packages/client/src/settings/`(`@xeon/client/settings`)에 두고 렌더러는 `xeon/apps/desktop/src/views/`에 둔다. 별도 앱은 두지 않는다.
-- `package.json`의 `xeon.domain`은 `desktop`이다. settings-ui는 별도 패키지가 아니므로 층 검사(`check-layers.ts`)는 desktop 패키지 단위로 돈다.
-- [결정: adr.0020] 도구와 웹 탭의 view-model은 `xeon/packages/client/src/web/`(`@xeon/client/web`)에 둔다. 화면 부품(M4)은 `apps/desktop/src/views/`에 둔다(§3.6, §4.11).
+- [결정: adr.0020] view-model은 `xeon/packages/client/src/settings/`(`@fresnel/client/settings`)에 두고 렌더러는 `xeon/apps/desktop/src/views/`에 둔다. 별도 앱은 두지 않는다.
+- `package.json`의 `fresnel.domain`은 `desktop`이다. settings-ui는 별도 패키지가 아니므로 층 검사(`check-layers.ts`)는 desktop 패키지 단위로 돈다.
+- [결정: adr.0020] 도구와 웹 탭의 view-model은 `xeon/packages/client/src/web/`(`@fresnel/client/web`)에 둔다. 화면 부품(M4)은 `apps/desktop/src/views/`에 둔다(§3.6, §4.11).
 - [결정: adr.0020] CLI와 데스크톱이 view-model을 함께 쓰는 위치는 `packages/client`다. `apps/cli`와 `apps/desktop`은 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`로 import한다.
   - 공유 패키지로 내린다. L4 아래 층에 화면 view-model을 두는 것이 층 뜻과 맞는지 정해야 한다.
   - `apps/` 아래 라이브러리 패키지(앱이 아닌 L4 패키지)를 허용한다. DR-10과 `architecture.layers.spec` §10 "같은 층 예외"를 바꾸는 일이다.
@@ -956,7 +956,7 @@ sequenceDiagram
 
 ### 4.11 도구와 웹 탭 규칙 (M3-12, M3-REQ-96)
 
-이 절은 `@xeon/client/web`(§3.6)의 값이 어떻게 정해지는지 적는다. 값의 원천은 F `web.providers` 결과 하나다.
+이 절은 `@fresnel/client/web`(§3.6)의 값이 어떻게 정해지는지 적는다. 값의 원천은 F `web.providers` 결과 하나다.
 
 - [결정: 오케스트레이터 기본값] 순위는 호스트가 cap-web에서 정해 wire `autoRank`로 싣는다. 값은 자동 선택 순서(`L2.web.spec` §4.8.2 `planSelection`)와 같다. 화면과 CLI는 순위를 다시 계산하지 않는다.
 - 행 순서: 검색과 브라우즈는 `autoRank` 오름차순이고 없으면 뒤로 간다. 같으면 id 순서다. 가져오기는 id 순서다.
@@ -1043,7 +1043,7 @@ sequenceDiagram
 | 요구 | `L1.models.spec` | 사용량 투영(게이지 자리, §4.7), 라우팅·폴백·계정 풀 키 모양(전용 편집기, §4.2.4) |
 | 요구 | 각 층 spec(X, L0~L4) | "설정 노출" 표의 `ui` 필드. 탭 배치는 §4.1.1 안내를 참고한다 |
 | 제공 | `L4.cli.spec` | 없음. view-model 공유는 §10 미결 12 |
-| 제공 | `@xeon/client/web` (adr.0020) | `toolsWebViewOf`, `orderUpdateOf`, `moveInOrder`와 타입(§3.6). 사용처는 `xeon doctor`(다음 유닛)와 M4 설정 화면이다 |
+| 제공 | `@fresnel/client/web` (adr.0020) | `toolsWebViewOf`, `orderUpdateOf`, `moveInOrder`와 타입(§3.6). 사용처는 `xeon doctor`(다음 유닛)와 M4 설정 화면이다 |
 | 참고 | `adr.0008` | Tauri 2 WebView 렌더링, stdio JSON-RPC 연결 |
 
 ## 9. 수용 기준
@@ -1084,7 +1084,7 @@ sequenceDiagram
 14. 닫음: project·local 범위 쓰기에서 열린 프로젝트가 없을 때의 오류는 3103 `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"`다(`L4.host-service.spec` §3.4 `settings.set` 행). §4.4.4 표와 §5에 반영했다.
 15. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다(`F.wire-settings.spec` §10 6번). 클라이언트 `Check`와 서버 검사가 catalog의 같은 사본을 써서 AC11이 성립한다.
 16. [미결] 화면 프레임워크와 렌더러 형식, 화면 부품 테스트(`ui` 태그)와 시각 회귀(`visual`) 도입 여부. `eng.testing.guide` TS-01에서 보류이고 `L4.desktop.spec`이 정한다. AC4의 "렌더러가 8종 모두를 그린다"와 AC6의 DOM 확인은 이 결정 뒤에 테스트 형식이 정해진다. 프레임워크는 React 19 + Zustand 5로 정해졌다(adr.0010, `L4.desktop.spec` §10 미결 11 닫힘). 렌더러 형식과 `ui`·`visual` 시험 도입은 남는다.
-17. [미결] `L4.desktop.spec` §4.9 규칙 W3의 허용 목록에 `@xeon/contracts/{wire,settings,conversation}`와 `typebox/schema`를 넣을지(§3.1). W3을 문자 그대로 읽으면 F 서브패스 import가 빠진다.
+17. [미결] `L4.desktop.spec` §4.9 규칙 W3의 허용 목록에 `@fresnel/contracts/{wire,settings,conversation}`와 `typebox/schema`를 넣을지(§3.1). W3을 문자 그대로 읽으면 F 서브패스 import가 빠진다.
 18. [미결] 설정 원천 둘(§4.1.3). `L4.desktop.spec` §10 미결 6과 같은 항목이다. 로컬 저장소 키의 관리 잠금(`locked`)을 어떻게 채울지도 그 결정에 따른다.
 19. [미결] 가져오기(`web.fetch`) 행의 현재 표시. wire에 가져오기 설정과 순서가 없어 `current`를 정하지 않는다(§4.11). 가져오기 순서를 `web.providers`에 실을지는 F 변경 요청으로 정한다.
 20. [미결] 추천 키 플러그인의 `unavailable` hint에 사유 코드를 쓴다. 한국어 문구로 바꿀지와 문구 자리(§4.11 표)는 M4 화면 작업에서 정한다.

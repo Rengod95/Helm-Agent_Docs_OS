@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 import type { Static } from "typebox";
 import type { ExtRowError } from "./errors.ts";
 import type { ExtTableDef, ExtTableDefs } from "./tables.ts";

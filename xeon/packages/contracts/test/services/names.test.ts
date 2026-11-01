@@ -70,9 +70,9 @@ describe("SERVICE_NAMES", () => {
     expect({ ...SERVICE_NAMES }).toEqual(CONSTANTS);
   });
 
-  test("every name is xeon.<name> and unique", () => {
+  test("every name is fresnel.<name> and unique", () => {
     const values: string[] = Object.values(SERVICE_NAMES);
-    for (const value of values) expect(value).toMatch(/^xeon\.[A-Za-z]+$/);
+    for (const value of values) expect(value).toMatch(/^fresnel\.[A-Za-z]+$/);
     expect(new Set(values).size).toBe(values.length);
   });
 
@@ -111,9 +111,9 @@ describe("SERVICE_NAMES", () => {
   });
 
   test("services that records and capabilities own keep their own names", () => {
-    expect(SessionServiceName).toBe("xeon.session");
-    expect(StoreServiceName).toBe("xeon.store");
-    expect(WorkspaceServiceName).toBe("xeon.workspace");
+    expect(SessionServiceName).toBe("fresnel.session");
+    expect(StoreServiceName).toBe("fresnel.store");
+    expect(WorkspaceServiceName).toBe("fresnel.workspace");
     const all: string[] = Object.values(SERVICE_NAMES);
     for (const other of [SessionServiceName, StoreServiceName, WorkspaceServiceName]) {
       expect(all.includes(other)).toBe(false);
@@ -128,7 +128,7 @@ describe("SERVICE_NAMES", () => {
       .slice(start, end)
       .split("\n")
       .map((line) => line.split("|").map((cell) => cell.trim()))
-      .map((cells) => /^`(xeon\.[A-Za-z]+)`$/.exec(cells[3] ?? "")?.[1])
+      .map((cells) => /^`(fresnel\.[A-Za-z]+)`$/.exec(cells[3] ?? "")?.[1])
       .filter((name) => name !== undefined);
     expect(names).toHaveLength(15);
     expect(names.toSorted()).toEqual(Object.values(SERVICE_NAMES).toSorted());

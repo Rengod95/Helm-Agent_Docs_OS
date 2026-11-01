@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { err, type Logger } from "@xeon/contracts";
-import type { CallOptions, WebProviderManifest } from "@xeon/contracts/capabilities";
-import type { MigrationSet, StoreReadError, StoreWriteError } from "@xeon/contracts/records";
+import { err, type Logger } from "@fresnel/contracts";
+import type { CallOptions, WebProviderManifest } from "@fresnel/contracts/capabilities";
+import type { MigrationSet, StoreReadError, StoreWriteError } from "@fresnel/contracts/records";
 import { createFetchCache } from "../src/cache/fetch-cache.ts";
 import { CAP_WEB_MIGRATIONS, WEB_STORE_OWNER } from "../src/cache/migrations.ts";
 import { createFirstUseNotices } from "../src/cache/notices.ts";

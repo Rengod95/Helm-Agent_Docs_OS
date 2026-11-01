@@ -1,5 +1,5 @@
-import { attempt } from "@xeon/contracts";
-import { HOOKS, type FailurePolicy, type Fold } from "@xeon/contracts/extensions";
+import { attempt } from "@fresnel/contracts";
+import { HOOKS, type FailurePolicy, type Fold } from "@fresnel/contracts/extensions";
 import type { HandlerFailure, HandlerFailureReason } from "../primitives/dispatch-types.ts";
 import type { HandlerOwner, HandlerOwnerKey, Tier } from "./tier.ts";
 import { ownerKey } from "./tier.ts";

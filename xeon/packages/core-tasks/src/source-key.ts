@@ -1,6 +1,6 @@
-import { assertNever } from "@xeon/contracts";
-import { COMMIT_KEY_PATTERN } from "@xeon/contracts/records";
-import type { InputSource } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import { COMMIT_KEY_PATTERN } from "@fresnel/contracts/records";
+import type { InputSource } from "@fresnel/contracts/services";
 
 /** F.extensions.spec §2, PostOptions.requestId: 1~64자 */
 const REQUEST_ID_MAX_LENGTH = 64;

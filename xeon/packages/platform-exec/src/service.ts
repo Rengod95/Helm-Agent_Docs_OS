@@ -1,5 +1,12 @@
 import { access } from "node:fs/promises";
-import { attemptAsync, err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
+import {
+  attemptAsync,
+  err,
+  ok,
+  type LogFields,
+  type Logger,
+  type Result,
+} from "@fresnel/contracts";
 import {
   ExecutionError,
   type BackgroundExecHandle,
@@ -9,7 +16,7 @@ import {
   type SecretEnvRequest,
   type Shell,
   type ShellExecOptions,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { spawnBackground } from "./background.ts";
 import { BASE_ENV_POLICY, buildChildEnv } from "./env-builder.ts";
 import type { ExecPlatformProvider } from "./provider.ts";
@@ -308,7 +315,7 @@ export function createExecService(options: ExecServiceOptions, deps: ExecService
     },
     withCwd: (cwd) => createEnv(cwd),
     startBackground,
-    // 출력 절단은 순수 계산이다. L1·L2가 사본 없이 xeon.exec로 부른다(review.decisions-2 D-08, B-04)
+    // 출력 절단은 순수 계산이다. L1·L2가 사본 없이 fresnel.exec로 부른다(review.decisions-2 D-08, B-04)
     truncateHead,
     truncateHeadOf,
     formatSize,

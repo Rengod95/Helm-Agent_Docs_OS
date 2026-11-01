@@ -10,7 +10,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 
 # X 로딩과 신뢰 (loading-trust)
 
-코드 위치: `xeon/packages/ext-host/src/loading-trust/`. 공개 이름은 `@xeon/ext-host`가 재export한다. 루트가 다시 내보내는 이름의 목록은 X.primitives.spec §3.1 표(이 문서 행 포함)가 정본이고, 이 문서는 그 행에 들어갈 로딩·신뢰 이름의 시그니처를 정한다.
+코드 위치: `xeon/packages/ext-host/src/loading-trust/`. 공개 이름은 `@fresnel/ext-host`가 재export한다. 루트가 다시 내보내는 이름의 목록은 X.primitives.spec §3.1 표(이 문서 행 포함)가 정본이고, 이 문서는 그 행에 들어갈 로딩·신뢰 이름의 시그니처를 정한다.
 
 ## 1. 목적과 범위
 
@@ -32,7 +32,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 - 확장 설정 연결과 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, X 층 키 `x.loading-trust.*`
 - 신뢰 등급 4값의 뜻과 허용 연산 표, 프로젝트 신뢰 판정과 저장
 - 프로세스 격리(2차)의 전송, 프록시, 직렬화, 수명, 기록 경로
-- SDK 가상 모듈(`@xeon/contracts`, `@xeon/group-sdk`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
+- SDK 가상 모듈(`@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
 - `thread.trust.before`, `thread.resources` 지점의 발화 시점(F.extensions.spec §7)
 
 다루지 않는 것:
@@ -57,7 +57,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 내장 필수 확장 | `essential: true`로 등록된 내장 확장. 이 확장의 실패는 시작 실패다 |
 | 격리 확장 | `ext.<name>.isolation`이 `process`인 확장. 자식 프로세스에서 실행된다 |
 | 프록시 | 격리 확장 대신 호스트 프로세스에서 지점 핸들러와 리소스를 등록하는 대리 객체 |
-| SDK 가상 모듈 | 플러그인 번들이 import하는 `@xeon/contracts`, `@xeon/group-sdk`, `typebox`를 호스트가 쓰는 모듈 객체로 돌려주는 등록(§4.4.6) |
+| SDK 가상 모듈 | 플러그인 번들이 import하는 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`를 호스트가 쓰는 모듈 객체로 돌려주는 등록(§4.4.6) |
 | 기본 플러그인 | 릴리즈에 들어 있고 첫 실행 때 사용자 확장 위치에 복사되는 외부 확장 형식의 플러그인(Helm, §4.4.7) |
 
 ## 3. 인터페이스
@@ -112,7 +112,7 @@ export const TRUST_MATRIX: { readonly [L in TrustLevel]: TrustPermissions };
 ### 3.2 내장 모듈과 후보 (`discover.ts`)
 
 ```ts
-import type { ExtensionEntry, ExtensionManifest, ExtensionName } from "@xeon/contracts/extensions";
+import type { ExtensionEntry, ExtensionManifest, ExtensionName } from "@fresnel/contracts/extensions";
 
 /** 내장 패키지(core-*, cap-*, group-*)가 export하는 확장 모듈. 조립 루트(L4 host)가 목록을 넘긴다 */
 export interface BuiltinExtensionModule {
@@ -135,8 +135,8 @@ export interface ExtensionCandidate {
 
 // 탐색이 쓰는 파일 접근(LoaderFs)과 설치 위치 경로(LoaderPaths)는 F 포트다(F.extensions.spec §3.2.1 로더 포트).
 // X는 L0를 import하지 않으므로 조립 루트가 구현(L0.os)을 주입한다(architecture.layers.spec §4.3.3). 여기서는 다시 export만 한다
-import type { LoaderFs, LoaderPaths } from "@xeon/contracts/extensions";
-export type { LoaderFs, LoaderPaths } from "@xeon/contracts/extensions";
+import type { LoaderFs, LoaderPaths } from "@fresnel/contracts/extensions";
+export type { LoaderFs, LoaderPaths } from "@fresnel/contracts/extensions";
 
 export interface ExternalLocation {
   readonly source: "managed" | "user" | "project";
@@ -367,8 +367,8 @@ export interface LoaderDeps {
   readonly storageAdmin?: ExtStorageAdmin;
   readonly clock: { now(): number };
   /**
-   * 플러그인 번들에 줄 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트가 쓰는 모듈 객체(§4.4.6). `@xeon/contracts`와
-   * 하위 경로, `typebox`는 X가 등록한다. `@xeon/group-sdk`은 L3라 X가 import할 수 없어 조립 루트가 넘기며, 없으면 그 import가 실패한다(`entry_import_failed`)
+   * 플러그인 번들에 줄 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트가 쓰는 모듈 객체(§4.4.6). `@fresnel/contracts`와
+   * 하위 경로, `typebox`는 X가 등록한다. `@fresnel/group-sdk`은 L3라 X가 import할 수 없어 조립 루트가 넘기며, 없으면 그 import가 실패한다(`entry_import_failed`)
    */
   readonly sdkModules?: SdkModules;
   /** `thread.trust.before` 발화(§4.7.3 4번). 없으면 결정 없음으로 본다 */
@@ -379,15 +379,15 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader;
 ```
 
 - 같은 패키지의 다른 도메인 이름은 타입만 가져온다: `ExtHost`, `ExtensionUnit`, `InstallResult`(`../primitives/index.ts`), `OperationsPolicy`, `StartupOptions`, `ExtStorageAdmin`(`../operations/index.ts`). 값 import가 없으므로 도메인 사이 값 순환이 없다.
-- [제안] `ExtensionLoader`는 Cordis 서비스로 등록하지 않는다. 조립 루트(L4 host)가 `createExtensionLoader(deps)` 결과를 직접 쥐고 `host.status`, 설정 화면, 확장 명령에 넘긴다. `ExtHost`(`xeon.ext`)에는 `loader` 속성을 두지 않는다. 로더는 `ExtHost`를 쓰고 `ExtHost`는 로더를 참조하지 않으므로 의존이 한 방향이다.
+- [제안] `ExtensionLoader`는 Cordis 서비스로 등록하지 않는다. 조립 루트(L4 host)가 `createExtensionLoader(deps)` 결과를 직접 쥐고 `host.status`, 설정 화면, 확장 명령에 넘긴다. `ExtHost`(`fresnel.ext`)에는 `loader` 속성을 두지 않는다. 로더는 `ExtHost`를 쓰고 `ExtHost`는 로더를 참조하지 않으므로 의존이 한 방향이다.
 - 조립 순서: `createOperationsPolicy` → `createExtHost` → `ExtHost.registerPlatform`(L0) → `createExtensionLoader({ host, policy, … })` → `loadAll`(X.operations.spec §3.8, L4.host-service.spec).
-- L4.host-service.spec이 [가정]으로 둔 `HostPluginModule = import("@xeon/ext-host").PluginModule`은 이 문서의 `BuiltinExtensionModule`이다 [제안]. 이름 `PluginModule`을 따로 두지 않는다.
-- `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `IsolationProcessPort`는 L0·L4가 구현하는 포트다. 타입 정본은 F.extensions.spec §3.2.1 `ports.ts`이고, 이 문서는 `@xeon/contracts/extensions`에서 가져와 다시 export만 한다([결정: review.decisions-2 U-14]). 판정 함수(`discover`, `resolveProjectTrust`, `trustOptions`)와 신뢰 파일 스키마(`TrustFileSchema`)는 X에 남는다.
+- L4.host-service.spec이 [가정]으로 둔 `HostPluginModule = import("@fresnel/ext-host").PluginModule`은 이 문서의 `BuiltinExtensionModule`이다 [제안]. 이름 `PluginModule`을 따로 두지 않는다.
+- `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `IsolationProcessPort`는 L0·L4가 구현하는 포트다. 타입 정본은 F.extensions.spec §3.2.1 `ports.ts`이고, 이 문서는 `@fresnel/contracts/extensions`에서 가져와 다시 export만 한다([결정: review.decisions-2 U-14]). 판정 함수(`discover`, `resolveProjectTrust`, `trustOptions`)와 신뢰 파일 스키마(`TrustFileSchema`)는 X에 남는다.
 
 ### 3.6 설정 키 정의 (`settings-keys.ts`)
 
 ```ts
-import type { SettingDef, SettingDefInput, SettingGroup } from "@xeon/contracts/settings";
+import type { SettingDef, SettingDefInput, SettingGroup } from "@fresnel/contracts/settings";
 
 /** ext.<name>.enabled, ext.<name>.isolation. 확장마다 로더가 만든다(§4.5) */
 export function reservedExtensionSettings(manifest: ExtensionManifest, source: InstallSource): {
@@ -413,13 +413,13 @@ export declare const loadingTrustSettings: SettingGroup<"x.loading-trust", {
 ```ts
 // 신뢰 포트와 부속 타입은 F가 정본이다(F.extensions.spec §3.2.1 로더 포트). 여기서는 다시 export만 한다.
 // 구현: TrustStoreBackend는 L0.os, TrustPrompter는 대화형 클라이언트(L4)
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 import type {
   LoaderFs, TrustStoreBackend, TrustPrompter, TrustPromptRequest, TrustOption, TrustUpdate, TrustChoice, TrustChoiceKind,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 export type {
   TrustStoreBackend, TrustPrompter, TrustPromptRequest, TrustOption, TrustUpdate, TrustChoice, TrustChoiceKind,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 
 export type TrustVerdict = "allow" | "deny" | "undecided";
 
@@ -516,9 +516,9 @@ export function resolveProjectTrust(input: ResolveProjectTrustInput): Promise<Pr
 
 ```ts
 // 자식 프로세스 기동 포트와 부속 타입은 F가 정본이다(F.extensions.spec §3.2.1, ProcessPort의 부분).
-// 구현은 platform-process(서비스 xeon.process, ProcessService extends ProcessPort)다. 여기서는 다시 export만 한다
-import type { IsolationProcessPort, IsolatedChild } from "@xeon/contracts/extensions";
-export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild } from "@xeon/contracts/extensions";
+// 구현은 platform-process(서비스 fresnel.process, ProcessService extends ProcessPort)다. 여기서는 다시 export만 한다
+import type { IsolationProcessPort, IsolatedChild } from "@fresnel/contracts/extensions";
+export type { IsolationProcessPort, IsolationSpawnSpec, IsolatedChild } from "@fresnel/contracts/extensions";
 
 export const ISOLATION_PROTOCOL_VERSION = 1;
 
@@ -528,7 +528,7 @@ export const IsoMethods = {
   init: "xeon/iso.init",
   dispatch: "xeon/iso.dispatch",
   toolExecute: "xeon/iso.tool.execute",
-  dispose: "xeon/iso.dispose",
+  dispose: "fresnel/iso.dispose",
   // 자식 → 호스트
   register: "xeon/iso.register",
   post: "xeon/iso.post",
@@ -606,7 +606,7 @@ export interface IsolationPolicy {
 ```ts
 // virtual-modules.ts
 /** 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 하는 지정자 */
-export const SDK_MODULE_SPECIFIERS: readonly ["@xeon/contracts", "@xeon/group-sdk", "typebox"];
+export const SDK_MODULE_SPECIFIERS: readonly ["@fresnel/contracts", "@fresnel/group-sdk", "typebox"];
 /** 지정자 → 호스트의 모듈 객체(보통 `import * as ns`의 결과) */
 export type SdkModules = Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 export type SdkRegisterError =
@@ -653,7 +653,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 - [결정] 기본 로딩은 같은 프로세스의 Cordis 플러그인이다. 격리는 확장마다 사용자가 켜는 2차 선택이다(§1 근거).
 - [제안] 로더는 검증을 마친 확장을 `ExtensionUnit`(정규화 매니페스트, 엔트리, `loadIndex`, `builtin`)으로 만들어 `ExtHost.install(unit)`에 넘긴다(X.primitives.spec §3.2). 엔트리 호출, scope 정의 수집, scope 세대마다의 Cordis fiber 생성, scope setup 실행과 시간 예산, setup 직후 `validateUsage`는 primitives가 한다(X.primitives.spec §4.5.3, §4.5.6). 로더는 `InstallResult`를 진단으로 옮긴다(§4.4.3).
-- 로더는 Cordis(`@xeon/vendor-cordis`)를 import하지 않는다. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이다(X.primitives.plan §2). Cordis 객체(`Context`, `Fiber`)는 확장 코드에 넘기지 않는다(adr.0002 §3).
+- 로더는 Cordis(`@fresnel/vendor-cordis`)를 import하지 않는다. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이다(X.primitives.plan §2). Cordis 객체(`Context`, `Fiber`)는 확장 코드에 넘기지 않는다(adr.0002 §3).
 - 로드 세대는 엔트리를 다시 실행하는 단위(핫 리로드, 격리 재시작)다. scope를 켤 때마다 바뀌는 scope 세대(X.primitives.spec §2)와 다르다. 다시 로드할 때 로더는 `ExtHost.uninstall` 뒤 새 `install`을 부른다. 세대 번호는 `LoadedExtensionInfo.generation`과 진단 레코드에 남긴다.
 
 ### 4.2 탐색 규칙
@@ -797,8 +797,8 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 #### 4.4.6 SDK 가상 모듈
 
-- [제안] 플러그인 번들은 `@xeon/contracts`와 그 하위 경로(`/capabilities`, `/conversation`, `/extensions`, `/records`, `/services`, `/settings`, `/wire`), `@xeon/group-sdk`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof CapabilityError`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 이 밖의 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
-- `@xeon/contracts`와 하위 경로, `typebox`는 X가 자기 의존으로 직접 등록한다(`X_SDK_MODULES`). 조립 루트는 넘기지 않아도 된다. `@xeon/group-sdk`은 L3 패키지라 X가 import할 수 없으므로 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. 조립 루트가 X 몫의 지정자를 다른 객체로 넘기면 `conflict`다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
+- [제안] 플러그인 번들은 `@fresnel/contracts`와 그 하위 경로(`/capabilities`, `/conversation`, `/extensions`, `/records`, `/services`, `/settings`, `/wire`), `@fresnel/group-sdk`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof CapabilityError`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 이 밖의 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
+- `@fresnel/contracts`와 하위 경로, `typebox`는 X가 자기 의존으로 직접 등록한다(`X_SDK_MODULES`). 조립 루트는 넘기지 않아도 된다. `@fresnel/group-sdk`은 L3 패키지라 X가 import할 수 없으므로 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. 조립 루트가 X 몫의 지정자를 다른 객체로 넘기면 `conflict`다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
 - 등록은 `Bun.plugin`이라 프로세스 전역이고 첫 import 뒤에는 바꿀 수 없다. 같은 지정자에 같은 객체를 다시 등록하면 아무 일도 하지 않고, 다른 객체를 등록하려 하면 `conflict`다. 이 오류는 외부 확장의 `entry_import_failed`로 보인다. Bun이 아닌 런타임에서는 `unavailable`이다.
 - 등록한 지정자는 같은 프로세스의 Xeon 패키지가 import해도 같은 객체를 받는다. 호스트가 넘긴 객체가 곧 호스트가 쓰는 모듈이므로 결과가 같다.
 
@@ -847,7 +847,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 #### 4.5.4 카탈로그 재조립
 
-- 외부 확장 그룹이 자기 설정을 읽는 길은 `ScopeHostApi.settingValue`다(X.primitives.spec §3.8). 내장이 아닌 확장은 `xeon.*` 포트를 쓸 수 없지만 이 메서드로 `ext.<자기 이름>.*` 키만 읽는다. 그룹 설정 이름공간은 신뢰 `user`이면 `ext.<id>`다(`defineGroup`).
+- 외부 확장 그룹이 자기 설정을 읽는 길은 `ScopeHostApi.settingValue`다(X.primitives.spec §3.8). 내장이 아닌 확장은 `fresnel.*` 포트를 쓸 수 없지만 이 메서드로 `ext.<자기 이름>.*` 키만 읽는다. 그룹 설정 이름공간은 신뢰 `user`이면 `ext.<id>`다(`defineGroup`).
 - 카탈로그는 시작 때 한 번 만들고 외부 확장이 낸 키는 적재 뒤에야 알려진다. 그래서 조립 루트가 적재 전에 키를 알아야 하는 확장(기본 플러그인 Helm)은 `reservedExtensionSettings(manifest, source)`를 X 루트에서 import해 예약 키(`enabled`, `isolation`)를 만들고, 자기 설정 그룹(`ext.<id>.*`)은 그 그룹의 `defineSettings` 값을 함께 카탈로그에 넣는다. 확장이 선언한 키를 적재 뒤에 카탈로그에 잇는 일은 하지 않는다 [제안: 시작 때 정적 카탈로그가 설정 스키마 산출물(`schema/`)의 원천이어서].
 - `LoadReport.settingGroups`는 `rejected`가 아닌 확장의 그룹(`ext.<name>`)만 담는다. `x.*` 설정 그룹(`primitivesSettings`, `loadingTrustSettings`, `operationsSettings`)은 조립 루트(L4 host)가 코어 그룹, `LoadReport.settingGroups`와 함께 `buildCatalog`에 넣는다.
 - 확장 그룹끼리 `duplicateKey`가 나면(같은 이름은 3단계에서 막히므로 [가정] 생기지 않는다) 로드 순서가 뒤인 확장을 `rejected`로 바꾸고 다시 조립한다. 다시 조립한 결과도 `ok: false`이면 남은 이슈는 코어 키 문제이므로 조립 루트가 시작을 거부한다(L4.host-service.spec §4.1 5번).
@@ -1076,7 +1076,7 @@ flowchart LR
 - [제안] 재시작 정책: `isolation.restartWindowSec`(기본 600초) 안의 종료 횟수가 `isolation.maxRestarts`(기본 3) 이하면 지수 대기(1초, 2초, 4초) 뒤 새 세대로 다시 띄운다. 재시작 때 `init`의 `usage`가 이전 세대와 다르면 `error`(`isolation_protocol`)다.
 - 횟수를 넘으면 `error`(`isolation_restart_limit`)로 두고 scope 끄기를 요청한다. 자동 끄기 기록과 사용자 알림은 X.operations.spec의 실패 격리 경로를 쓴다.
 - 대기 중에 들어온 디스패치는 프로세스가 없으므로 즉시 예외로 처리한다.
-- 호스트 종료(`ExtensionLoader.dispose`) 때는 `xeon/iso.dispose`를 보내고 `killGraceMs` 뒤 `SIGKILL`한다. 서비스 모드의 유휴 종료도 같은 경로를 쓴다(adr.0006 §3.4).
+- 호스트 종료(`ExtensionLoader.dispose`) 때는 `fresnel/iso.dispose`를 보내고 `killGraceMs` 뒤 `SIGKILL`한다. 서비스 모드의 유휴 종료도 같은 경로를 쓴다(adr.0006 §3.4).
 
 ### 4.10 pi 확장 호환 (두지 않음)
 
@@ -1107,7 +1107,7 @@ flowchart LR
 | userConfig `setting`이 `l1.loop.maxSteps` | `foreignNamespace` → `rejected`(`settings_rejected`) |
 | `requires: [{ id: "web.search", range: "^2.0.0" }]`인데 provider가 1.x | `error`(`capability_missing`). 진단에 능력 ID와 범위 |
 | provider 확장이 9단계에서 실패 | 그 능력을 `requires`한 확장도 `error`(`capability_provider_failed`) |
-| 격리 설정인데 `xeon.process` 서비스 없음 | `error`(`isolation_unavailable`) |
+| 격리 설정인데 `fresnel.process` 서비스 없음 | `error`(`isolation_unavailable`) |
 | 격리 확장의 first 핸들러가 예산 초과 | `FIRST_DENY` 적용, 취소 전송, 유예 뒤 강제 종료 |
 | 격리 프로세스 연결 끊김 | 진행 중 요청 예외 처리, 재시작 정책(§4.9.7) |
 
@@ -1189,7 +1189,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 14. 이 문서 §4.6.2 표의 각 행·열과 `TRUST_MATRIX` 상수가 같다(문서 대조 테스트).
 15. 외부 확장 매니페스트의 `trust.level: "builtin"`은 `trust_exceeds_source`로 거부된다.
 16. 외부 확장의 `entry`가 없는 파일이거나 함수 export가 없거나 import 중 던지면 그 확장만 `error`(`entry_not_found`, `entry_not_function`, `entry_import_failed`)이고 다른 확장의 로드는 계속된다.
-17. 사용자 위치의 외부 확장은 `<userDir>/extensions/<이름>/.fresnel-plugin/plugin.json`에서 발견되어 `user` 등급, `user` tier로 로드되고 `on` 핸들러가 호출된다. 플러그인이 import한 `@xeon/contracts`, `typebox`, `@xeon/group-sdk`은 호스트가 넘긴 값과 같다.
+17. 사용자 위치의 외부 확장은 `<userDir>/extensions/<이름>/.fresnel-plugin/plugin.json`에서 발견되어 `user` 등급, `user` tier로 로드되고 `on` 핸들러가 호출된다. 플러그인이 import한 `@fresnel/contracts`, `typebox`, `@fresnel/group-sdk`은 호스트가 넘긴 값과 같다.
 18. 격리 자식이 `restartWindowSec` 안에 `maxRestarts + 1`번 끝나면 상태가 `error`(`isolation_restart_limit`)다.
 19. 로더는 Cordis를 import하지 않는다. 확장 엔트리는 `ExtHost.install`로만 실행되고(가짜 `ExtHost`의 호출 기록으로 확인), scope setup 본문의 `post`는 `setup_action`, 엔트리 본문 예외는 `entry_threw`가 된다.
 20. `policy.admit`이 `TierError`를 내면 그 확장은 install되지 않고 진단이 `tier_rejected`다.

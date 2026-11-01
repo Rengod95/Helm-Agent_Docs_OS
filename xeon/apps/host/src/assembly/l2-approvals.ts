@@ -1,12 +1,12 @@
-import { assertNever, Bug, err, ok, parse, type Result } from "@xeon/contracts";
-import { isCapabilityId } from "@xeon/contracts/capabilities";
-import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, Bug, err, ok, parse, type Result } from "@fresnel/contracts";
+import { isCapabilityId } from "@fresnel/contracts/capabilities";
+import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   ApprovalBodyJsonSchema,
   isApprovalRequestKey,
   type ApprovalBodyJson,
   type ReadFailure,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   L2_APPROVAL_REQUEST_ID_MAX,
   type ApprovalBody,
@@ -20,7 +20,7 @@ import {
   type OpenedApproval,
   type PermissionMode,
   type ToolRisk,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // L2.readme §5.7. 각 cap-*는 F `L2ApprovalsPort` 모양으로 승인을 쓴다. 이 파일은 그 포트를 F `ApprovalService`(open/wait/get) 위에 얹는
 // 조립 루트의 어댑터다(core-tools의 `testing/l2-port.ts`가 같은 규칙의 시험용 기준 구현이다). 호출마다 출처(origin)가 달라
@@ -76,7 +76,7 @@ function bodyOfJson(body: ApprovalBodyJson): ApprovalBody | undefined {
 
 function toApprovalId(value: string): ApprovalId {
   const parsed = parse(ApprovalIdSchema, value);
-  // xeon-disable-next-line xeon/bug-for-expected -- ApprovalService가 만든 id(approval.requested 이벤트 id)라 형식이 어긋나면 코드 결함이다 (eng.typescript.guide TY-24)
+  // fresnel-disable-next-line fresnel/bug-for-expected -- ApprovalService가 만든 id(approval.requested 이벤트 id)라 형식이 어긋나면 코드 결함이다 (eng.typescript.guide TY-24)
   if (!parsed.ok) throw new Bug(`l2port.approval_id_invalid: ${value}`);
   return parsed.value;
 }

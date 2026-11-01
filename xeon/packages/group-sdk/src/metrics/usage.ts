@@ -1,11 +1,14 @@
-import { parse } from "@xeon/contracts";
-import { TurnCompletedPayloadSchema, TurnStartedPayloadSchema } from "@xeon/contracts/conversation";
-import type { ScopeId } from "@xeon/contracts/extensions";
+import { parse } from "@fresnel/contracts";
+import {
+  TurnCompletedPayloadSchema,
+  TurnStartedPayloadSchema,
+} from "@fresnel/contracts/conversation";
+import type { ScopeId } from "@fresnel/contracts/extensions";
 import {
   LeaseAcquiredPayloadSchema,
   LeaseReleasedPayloadSchema,
   type DurableEventEnvelope,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 /** scope 하나의 이벤트 집계(L3.group-sdk.spec §3.12). 임대는 `lease.*`, 사용량은 `turn.*`에서 나온다 */
 export interface ScopeUsage {

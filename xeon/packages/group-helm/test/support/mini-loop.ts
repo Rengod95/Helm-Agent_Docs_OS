@@ -1,13 +1,13 @@
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ToolRisk } from "@xeon/contracts/capabilities";
-import type { TapePlayer } from "@xeon/core-models/testing";
+import type { Clock, Scheduler, TimerHandle } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ToolRisk } from "@fresnel/contracts/capabilities";
+import type { TapePlayer } from "@fresnel/core-models/testing";
 import {
   fakeUsage,
   fixedIdFactory,
   type MemoryLoopOptions,
   type TestHost,
-} from "@xeon/ext-host/testing";
+} from "@fresnel/ext-host/testing";
 import { ABORTED, ERROR, type LensAnswers } from "./rig.ts";
 
 /** 도구 이름 → 위험 등급. L1.tools가 도구마다 채우는 `risk`를 흉내 낸다 */

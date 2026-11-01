@@ -1,4 +1,4 @@
-import type { ProviderResourceDef } from "@xeon/contracts/extensions";
+import type { ProviderResourceDef } from "@fresnel/contracts/extensions";
 
 /** provider 등록 이름. 모델 참조는 `anthropic-oauth/<모델 id>`가 된다 */
 export const ANTHROPIC_OAUTH_PROVIDER_NAME: string = "anthropic-oauth";

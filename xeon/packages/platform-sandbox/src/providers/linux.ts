@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import type { ProtectedPathEntry } from "@xeon/contracts/services";
+import type { ProtectedPathEntry } from "@fresnel/contracts/services";
 import type { RequiredBinary, SandboxProvider } from "../provider.ts";
 
 const REQUIRED: readonly RequiredBinary[] = [

@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
+import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 
 // L0.os.spec §6. 모두 layer L0, since 0.1.0이다. 알림 키(l0.os.notify.*)는 두지 않는다: 정본은 l2.dialog.notify.*이다.
 // dirs.override는 관리 범위만 받는다: 사용자 설정 파일이 config 디렉터리 안에 있어 사용자 범위에서 읽으면 순환한다.

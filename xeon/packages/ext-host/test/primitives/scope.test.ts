@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ScopeApi } from "@xeon/contracts/extensions";
+import type { ScopeApi } from "@fresnel/contracts/extensions";
 import { hostInternalsOf, PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost, memoryRecordStore } from "../../src/testing/index.ts";
 import { makeGroupUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";

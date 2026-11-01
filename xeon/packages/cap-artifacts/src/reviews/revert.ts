@@ -1,8 +1,8 @@
-import type { ApplyOutcome } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ApplyOutcome } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { Kernel } from "./kernel.ts";
 import type { FileState, HunkState, ReviewState } from "./state.ts";
-import type { BlobRef } from "@xeon/contracts/records";
+import type { BlobRef } from "@fresnel/contracts/records";
 import { hunkSides, normalizeReview, parseUnifiedDiff } from "./unified-diff.ts";
 import type { ReviewHunk } from "./types.ts";
 

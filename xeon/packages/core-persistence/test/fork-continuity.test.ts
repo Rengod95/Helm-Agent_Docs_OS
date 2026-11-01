@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { EventId, ThreadId } from "@xeon/contracts/conversation";
+import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import { branchItemsOf, completeTurn, itemAt } from "./support/branching.ts";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { expectOk, newThread, openHarness, type Harness } from "./support/harness.ts";
 import { TEST_HOLDER_A } from "./support/sqlite-store.ts";
 

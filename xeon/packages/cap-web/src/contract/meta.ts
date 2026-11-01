@@ -1,6 +1,6 @@
-import type { Clock } from "@xeon/contracts";
-import type { Cost, WebCallMeta, WebProviderFallback } from "@xeon/contracts/capabilities";
-import type { LocalIdFactory } from "@xeon/contracts/conversation";
+import type { Clock } from "@fresnel/contracts";
+import type { Cost, WebCallMeta, WebProviderFallback } from "@fresnel/contracts/capabilities";
+import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 
 // L2.web.spec §3.1 WebCallMeta 조립. 호출 ID는 LocalIdFactory로 만든다.
 

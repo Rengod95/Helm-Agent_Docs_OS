@@ -38,7 +38,7 @@ test("E renames lint rule ids and leaves repository paths", () => {
     "see xeon/packages/core-loop and xeon/scripts/check-layers.ts",
   );
   expect(apply("E", String.raw`/(xeon\/[a-z-]+)/ xeon/iso.dispose xeon/clientTime`)).toBe(
-    String.raw`/(xeon\/[a-z-]+)/ fresnel/iso.dispose fresnel/clientTime`,
+    String.raw`/(fresnel\/[a-z-]+)/ fresnel/iso.dispose fresnel/clientTime`,
   );
 });
 

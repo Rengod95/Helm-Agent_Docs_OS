@@ -1,4 +1,8 @@
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+import {
+  defineSettings,
+  type SettingDefInput,
+  type SettingGroup,
+} from "@fresnel/contracts/settings";
 import { Type, type TBoolean } from "typebox";
 
 /**

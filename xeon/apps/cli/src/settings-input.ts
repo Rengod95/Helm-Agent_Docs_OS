@@ -1,4 +1,4 @@
-import { parseJson } from "@xeon/contracts";
+import { parseJson } from "@fresnel/contracts";
 
 // L4.cli.spec §4.8. `config set`, `--set`, `/set`의 값 해석. 최종 판정은 host의 settings.set이다(checkSettingWrite).
 

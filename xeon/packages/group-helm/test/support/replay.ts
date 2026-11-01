@@ -1,6 +1,6 @@
-import { canonicalJson } from "@xeon/contracts";
-import { toJsonValue, type JsonValue } from "@xeon/contracts/conversation";
-import type { DurableEventDraft } from "@xeon/contracts/records";
+import { canonicalJson } from "@fresnel/contracts";
+import { toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
 import {
   createTestHost,
   fixedIdFactory,
@@ -9,9 +9,9 @@ import {
   type MemoryInputQueue,
   type MemoryLoopPort,
   type TestHost,
-} from "@xeon/ext-host/testing";
-import type { GroupModule } from "@xeon/group-sdk";
-import type { ReplayHarness } from "@xeon/group-sdk/testing";
+} from "@fresnel/ext-host/testing";
+import type { GroupModule } from "@fresnel/group-sdk";
+import type { ReplayHarness } from "@fresnel/group-sdk/testing";
 import {
   DEFS,
   callCommand,

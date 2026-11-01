@@ -1,4 +1,4 @@
-import { err, ok, parse, type Logger, type ParseError, type Result } from "@xeon/contracts";
+import { err, ok, parse, type Logger, type ParseError, type Result } from "@fresnel/contracts";
 import type {
   EventId,
   ItemRecord,
@@ -6,7 +6,7 @@ import type {
   Message,
   SystemMessage,
   ThreadId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   BranchSummarizedPayloadSchema,
   CompactedPayloadSchema,
@@ -15,8 +15,8 @@ import {
   type CompactedPayload,
   type DurableEventEnvelope,
   type SessionService,
-} from "@xeon/contracts/records";
-import type { ContextError } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type { ContextError } from "@fresnel/contracts/services";
 import {
   branchSummaryMessage,
   compactionSummaryMessage,

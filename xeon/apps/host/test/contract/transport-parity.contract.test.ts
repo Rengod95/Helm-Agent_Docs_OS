@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { repeatAsync } from "@xeon/contracts";
-import type { EventWire, HostConnection, Transport } from "@xeon/contracts/wire";
+import { repeatAsync } from "@fresnel/contracts";
+import type { EventWire, HostConnection, Transport } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost, startStdioHost } from "../../src/main.ts";
 import { createStdioTransport } from "../../src/transport/stdio.ts";

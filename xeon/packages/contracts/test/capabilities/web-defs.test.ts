@@ -83,7 +83,7 @@ describe("web definitions", () => {
     expect(WebFetchKey).toEqual({ capability: "web.fetch", version: "1.0.0" });
     expect(WebBrowseKey).toEqual({ capability: "web.browse", version: "1.0.0" });
     expect(WebResearchKey).toEqual({ capability: "web.research", version: "1.0.0" });
-    expect(WebServiceName).toBe("xeon.web");
+    expect(WebServiceName).toBe("fresnel.web");
   });
 
   test("search tool params exclude provider and toInput output passes the input schema", () => {

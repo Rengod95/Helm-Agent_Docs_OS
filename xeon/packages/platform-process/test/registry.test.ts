@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { BackgroundOwner, BackgroundProcessInfo } from "@xeon/contracts/services";
+import type { BackgroundOwner, BackgroundProcessInfo } from "@fresnel/contracts/services";
 import {
   DEFAULT_BACKGROUND_GRACE_MS,
   DEFAULT_BACKGROUND_RETENTION_MS,

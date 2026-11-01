@@ -1,4 +1,4 @@
-import { Bug, type Result } from "@xeon/contracts";
+import { Bug, type Result } from "@fresnel/contracts";
 
 /** 시험 전용: 성공 값을 꺼낸다. 실패면 그 자리에서 시험을 실패시킨다 */
 export function valueOf<T, E>(result: Result<T, E>): T {

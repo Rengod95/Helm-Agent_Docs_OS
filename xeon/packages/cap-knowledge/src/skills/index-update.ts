@@ -1,6 +1,6 @@
-import { assertNever } from "@xeon/contracts";
-import type { KnowledgeActor, LedgerOp, SkillCreatedBy } from "@xeon/contracts/capabilities";
-import type { SqlTx } from "@xeon/contracts/records";
+import { assertNever } from "@fresnel/contracts";
+import type { KnowledgeActor, LedgerOp, SkillCreatedBy } from "@fresnel/contracts/capabilities";
+import type { SqlTx } from "@fresnel/contracts/records";
 import type { ChangeTarget } from "../ledger/target.ts";
 import { createdByFromLedger } from "../ledger/rows.ts";
 import { updateDocsAfterChange } from "../search/docs-index.ts";

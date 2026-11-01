@@ -6,7 +6,7 @@ import type {
   CacheSite,
   Context,
   ModelRole,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // L1.models.spec §3.6, §4.6, L1.models.plan M-5. 정책은 이 서비스가 만들고 표식 위치는 core-context가 계산하며,
 // 요청 적용은 이 서비스가 한다. 적용은 anthropic-messages 페이로드에만 한다. 다른 API는 자동 접두 캐시를 쓰므로

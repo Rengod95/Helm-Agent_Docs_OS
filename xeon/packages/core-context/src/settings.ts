@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
+import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 
 // L1.context.spec §6. 모두 layer L1, tab sessions, since 0.1.0이다. 단계(M2, 2차)는 구현 시점이고 선언은 한 번에 둔다.
 // 범위 약어: M managed, U user, P project, Lo local, S session.

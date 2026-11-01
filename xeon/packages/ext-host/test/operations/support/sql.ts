@@ -1,7 +1,7 @@
 // X가 만드는 SQL 문장 형태만 이해하는 작은 인메모리 엔진(X.operations.plan O-15, review.decisions-2 D-05).
 // X 테스트는 L0(bun:sqlite)를 import하지 않는다. 실제 SQLite 실행은 L0.store.plan ST-23의 계약 시나리오가 맡는다.
-import { Bug } from "@xeon/contracts";
-import type { SqlRow, SqlValue } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { SqlRow, SqlValue } from "@fresnel/contracts/records";
 
 interface FakeTable {
   readonly columns: string[];

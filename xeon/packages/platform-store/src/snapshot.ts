@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { sqliteIoFailureOf } from "./db.ts";
 import type { SqliteConnection } from "./sqlite-env.ts";
 

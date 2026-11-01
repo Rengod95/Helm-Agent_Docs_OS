@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { DelegateError } from "@xeon/group-sdk";
+import { assertNever } from "@fresnel/contracts";
+import type { DelegateError } from "@fresnel/group-sdk";
 import type { ProposalId } from "./proposals/ids.ts";
 import type { ProposalStatus, ProposalView } from "./proposals/proposal.ts";
 

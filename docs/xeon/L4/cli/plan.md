@@ -31,7 +31,7 @@ binds: [xeon/apps/cli/**]
 
 ```
 xeon/apps/cli/
-  package.json            # @xeon/cli, xeon.layer L4, xeon.domain cli
+  package.json            # @fresnel/cli, fresnel.layer L4, fresnel.domain cli
   tsconfig.json           # references: ../../packages/contracts, ../host (허용 목록 DR-10/cli-host)
   bunfig.toml             # [test] coverageThreshold = { lines = 0.5, functions = 0.5 }, coverageSkipTestFiles
   src/
@@ -79,13 +79,13 @@ xeon/apps/cli/
 | 항목 | 현재 | 목표 | 작업 |
 |---|---|---|---|
 | `package.json` `exports` | `".": "./src/index.ts"` | [제안] `".": "./src/main.ts"`. 다른 앱이 import하지 않으므로(DR-10) 테스트와 knip용이다 | C0 |
-| `package.json` 의존 | `devDependencies: { "@types/bun": "catalog:" }`만 | `dependencies`: `@xeon/contracts`(`workspace:*`), `typebox`(`catalog:`), `@xeon/host`(`workspace:*`, 허용 목록 `DR-10/cli-host`, review.decisions-2 U-15), `@xeon/platform-os`(`workspace:*`, 운영 `Clock`, CLI.5), `get-east-asian-width`(`catalog:`, 칸 수 계산). pi-tui는 C8 결과가 채택일 때만(§4.4) | C0, C8 |
+| `package.json` 의존 | `devDependencies: { "@types/bun": "catalog:" }`만 | `dependencies`: `@fresnel/contracts`(`workspace:*`), `typebox`(`catalog:`), `@fresnel/host`(`workspace:*`, 허용 목록 `DR-10/cli-host`, review.decisions-2 U-15), `@fresnel/platform-os`(`workspace:*`, 운영 `Clock`, CLI.5), `get-east-asian-width`(`catalog:`, 칸 수 계산). pi-tui는 C8 결과가 채택일 때만(§4.4) | C0, C8 |
 | `src/index.ts` | `export {};` | 지우고 `src/main.ts`로 바꾼다 | C0 |
 | `test/smoke.test.ts` | 진입 모듈 로드 확인 | `parse-chat-flags` 등 단위 테스트로 바꾼다 | C1 |
 | `tsconfig.json` `references` | `[]` | `../../packages/contracts`, `../host` | C0 |
 | `bunfig.toml` | 없음 | L4 임계 0.5/0.5(`eng.testing.guide` TS-10) | C0 |
 | `dist/` | `tsc -b` 선언 출력(`dist/src/index.d.ts`, `dist/test/smoke.test.d.ts`) | 같은 디렉터리에 바이너리 `dist/<target>/xeon`도 둔다. 둘 다 커밋하지 않는다(`eng.toolchain.guide` TC-05) | C14 |
-| `xeon.domain` | `cli` | 같음 | — |
+| `fresnel.domain` | `cli` | 같음 | — |
 
 - 이 문서 작성 중 코드는 고치지 않았다. 위 작업은 각 작업 id의 구현 단계에서 한다.
 
@@ -99,10 +99,10 @@ xeon/apps/cli/
 | C1 | 인자 파서와 명령 분기: `parseArgv`(spec §3.2) 전체 문법, 모드 결정(spec §4.2), 설정 키 형식 검사(`SETTING_KEY_PATTERN`, F wire §4.11), 비밀 값 argv 거부. M1 밖 명령은 "M2에서 제공" 한 줄과 1 | C0 | M | M1 |
 | C2 | `chat -p`(in-process): `connectEngine`(spec §3.3, `startInProcessHost` + `createHostConnection` 조합, `AssembleError` → `EngineStartError` 변환), `thread.create`, `events.subscribe`, `turn.start`, 종료 판정(spec §3.6), `devWireRoundTrip` → `devChecks` 전달, `--json` 탭 연결 | C1, C3, `L4.host-service.plan` H2(`assemble`)·H3(`createHostConnection`)·H4(처리기) | M | M1 |
 | C3 | renderer: `applyBatch`·`applyChunk`(내구·휘발 분리, 구간 검사, seq 중복 제거, `afterSeq` 지연), 도구 결과 3채널 규칙, `text-sink`, `json-tap` | C0 | M | M1 |
-| C4 | 재개: `--continue`/`--resume`, CLI 상태 파일(spec §3.7, 경로는 `@xeon/host` `resolveHostStatePaths`, review.decisions-2 B-07) 원자 쓰기, `replay.outOfRange` 처리, 대화형의 접힌 이전 기록 | C2, C3 | M | M1 |
+| C4 | 재개: `--continue`/`--resume`, CLI 상태 파일(spec §3.7, 경로는 `@fresnel/host` `resolveHostStatePaths`, review.decisions-2 B-07) 원자 쓰기, `replay.outOfRange` 처리, 대화형의 접힌 이전 기록 | C2, C3 | M | M1 |
 | C5 | `config get`: 텍스트·JSON 출력, `source`·`shadowed`·`locked`·`pendingUntil` 표시. `config schema`: `--scope <managed\|user\|project\|local>`, `--out`, `--core-only` 파싱과 `runHostCommand({ kind: "config-schema" })` 호출 | C2, `L4.host-service.plan` H8 | S | M1 |
 | C6 | 최소 대화형: `node:readline` 입력, 진행 줄 한 줄 덮어쓰기, Ctrl+C 계수(`signals.ts`), SIGTERM·SIGHUP 종료 요청 | C3, C2 | M | M1 |
-| C7 | scenario 테스트와 테이프: `chat.scenario.test.ts`, `fixtures/scenario-main.ts`, 테이프 2개(§5.2) | C2, C4, `@xeon/core-models/testing` 테이프, 조립 진입점의 테스트용 모델 주입 | M | M1 |
+| C7 | scenario 테스트와 테이프: `chat.scenario.test.ts`, `fixtures/scenario-main.ts`, 테이프 2개(§5.2) | C2, C4, `@fresnel/core-models/testing` 테이프, 조립 진입점의 테스트용 모델 주입 | M | M1 |
 | C8 | TUI 채택 스파이크: `_research/notes/L4-1.md` §7의 1·6번, 한글 IME·CJK 폭 확인(macOS Terminal·iTerm2, Linux, WSL). 통과하면 `tui/pi-tui.ts` 화면과 키 바인딩 파일. 실패하면 결과를 spec §10 6번에 적고 최소 renderer 유지. 상태: 자동 확인 통과, 수동 확인 대기(§4.4) | C6, 스택 추가(TC-04). 채택은 스파이크 통과 조건부 [결정: review.m2-plan §8 D10] | M(스파이크) + M(화면) | M2(스파이크는 M1 말에 시작 가능, M1 완료 조건 아님) |
 | C9 | `secret` 명령: 프롬프트(에코 없음, 2회 비교), stdin 읽기, 바이트 배열 0 덮기, `secret test` 출력, `secret reveal`(TTY 전용, review.decisions-2 U-20), JSON 탭 해제. wire는 값 없는 `secret.*`만 쓴다(spec §4.7) | C1, F `secret.*`(M2), `secret.beginReveal` F 추가(spec §10 3번), in-process 값 전달 API(spec §10 3번), `L0.secrets.plan` | M | M2 |
 | C10 | `sessions ls/show/fork/rm` | C1, C3, host M2 처리기(`thread.list`, `thread.fork`, `thread.delete`, `events.unsubscribe`) | M | M2 |
@@ -122,12 +122,12 @@ xeon/apps/cli/
 
 | 패키지 | 버전 | 고정 위치 | 쓰는 곳 | 비고 |
 |---|---|---|---|---|
-| `@xeon/contracts` | `workspace:*` | `apps/cli/package.json` | wire·settings·conversation 타입, `SETTING_KEY_PATTERN` | F |
+| `@fresnel/contracts` | `workspace:*` | `apps/cli/package.json` | wire·settings·conversation 타입, `SETTING_KEY_PATTERN` | F |
 | `typebox` | 1.3.27 | 루트 catalog | `CliStateSchema`, 미리 검사(`typebox/schema` `Check`) | pi-ai와 같은 판(review.decisions-2 U-24) |
 | `@earendil-works/pi-tui` | 1.3.0 정확 고정 | 루트 catalog(C8 통과와 승인 뒤 추가) | 대화형 화면 | pi-ai·agent-core 1.3.0과 같은 릴리즈 묶음(`_research/notes/L4-1.md` §2). 배포물에 MIT 고지를 함께 싣는다 |
 | `get-east-asian-width` | 1.6.0 | pi-tui 전이 의존. 최소 renderer가 직접 쓰면 catalog에 같은 값 | CJK 폭 | pi-tui 1.3.0 의존과 같은 값 |
 | `marked` | 18.0.11 | pi-tui 전이 의존 | Markdown 렌더 | 직접 import하지 않는다 |
-| `@xeon/host` | `workspace:*` | `apps/cli/package.json`(허용 목록 `DR-10/cli-host`) | `resolveLaunchMode`, `startInProcessHost`, `startStdioHost`, `ensureService`, `runHostCommand`(`.`), `createHostConnection`, `connectServiceTransport`(`./client`) | `L4.host-service.spec` §3.3, §3.3.5. 선행 작업은 `L4.host-service.plan` H2~H5, H8, H10, H20 |
+| `@fresnel/host` | `workspace:*` | `apps/cli/package.json`(허용 목록 `DR-10/cli-host`) | `resolveLaunchMode`, `startInProcessHost`, `startStdioHost`, `ensureService`, `runHostCommand`(`.`), `createHostConnection`, `connectServiceTransport`(`./client`) | `L4.host-service.spec` §3.3, §3.3.5. 선행 작업은 `L4.host-service.plan` H2~H5, H8, H10, H20 |
 
 - 버전 고정 방식: 모든 외부 패키지는 루트 catalog에 정확 버전으로 둔다(`eng.toolchain.guide` TC-01, TC-02). pi-tui는 pi-ai를 올릴 때 같은 묶음 버전으로 함께 올린다 [제안]. pi-agent-core는 adr.0009로 의존하지 않는다.
 - 인자 파서, 프롬프트, 진행 줄은 외부 패키지 없이 쓴다 [제안](spec §3.2).
@@ -158,7 +158,7 @@ xeon/apps/cli/
 
 - 명령 [제안]: `bun build --compile --target=<타깃> --minify apps/cli/src/main.ts --outfile apps/cli/dist/<타깃 접미사>/xeon`. 레시피 이름은 `just build-cli [타깃]`으로 제안하고, justfile 변경은 툴체인 담당에 요청한다(TC-09).
 - `--bytecode`: 시작 속도 개선 사례가 있다(`_research/stack-status.md` §7-C). C14에서 켠 것과 끈 것을 함께 측정하고, 오류 스택·소스맵과의 호환을 확인한 뒤 정한다 [미결]. 사이드카 빌드(`just desktop-sidecar host`, `--minify --bytecode`)는 CLI 진입 전체를 묶는다: 2026-10-24 WSL2 linux-x64 한 번의 측정으로 103.4 MiB(상한 500 MiB), 빌드 3.4초다(§4.5).
-- 최상위 await: `apps/cli/src` 안에는 없고 `test/no-top-level-await.test.ts`가 0열에서 시작하는 await 식을 막는다. `main.ts`는 `runFromProcess().catch(...)`로 부르고 `import.meta.main`일 때만 실행한다. CLI 바이너리는 `@xeon/host`의 `main.ts`를 번들에 넣으므로, `--bytecode` 빌드는 `apps/host/src/main.ts`의 최상위 await 제거(m2-plan HOST.5)가 끝나야 통과한다.
+- 최상위 await: `apps/cli/src` 안에는 없고 `test/no-top-level-await.test.ts`가 0열에서 시작하는 await 식을 막는다. `main.ts`는 `runFromProcess().catch(...)`로 부르고 `import.meta.main`일 때만 실행한다. CLI 바이너리는 `@fresnel/host`의 `main.ts`를 번들에 넣으므로, `--bytecode` 빌드는 `apps/host/src/main.ts`의 최상위 await 제거(m2-plan HOST.5)가 끝나야 통과한다.
 - 산출물은 커밋하지 않는다(`eng.toolchain.guide` TC-05). `apps/*/dist/`를 `.gitignore`가 덮는지 C14에서 확인한다.
 - 엔진 바이너리 이름과 진입(`apps/cli/src/main.ts`)은 [제안]이다. `L4.host-service.spec`이 다른 진입을 정하면 이 표를 고친다.
 - 측정(C14): 공식 크기 수치가 없다(`_research/stack-status.md` §7-C "still way too big"). 타깃별 바이너리 크기, `xeon version` 기동 시간(20회 중앙값), `xeon config get` 기동 시간과 시작 RSS를 잰다. 측정 스크립트는 `xeon/scripts/`에 두고 새 도구를 들이지 않는다(TC-04). 결과는 이 문서 §4.3에 표로 더한다.
@@ -269,7 +269,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 
 #### 실제 호스트 종단 시험 (M2 마감 병합 뒤)
 
-가짜 호스트 시험(`test/support/fake-server.ts`)은 CLI가 보낸 요청과 받은 값의 처리를 빠르게 확인하고, 아래 시험은 같은 흐름을 실제 `@xeon/host`와 모델 테이프로 다시 확인한다. 공통 도구는 `test/support/real-host.ts`다. `connectEngine`이 실제 호스트를 같은 프로세스에 세우고, 입출력은 `harness.ts`의 가짜 `CliIo`를 그대로 쓰며, 보낸 요청은 `observe` 탭으로 모은다(`RealCli.sent`). 엔진 홈(`FRESNEL_HOME`)은 시험마다 임시 디렉터리다. 승인을 기다리다 죽는 호스트는 실제 자식 프로세스(`test/fixtures/scenario-host.ts`, `test/support/stdio-child.ts`)로 띄워 SIGKILL한다.
+가짜 호스트 시험(`test/support/fake-server.ts`)은 CLI가 보낸 요청과 받은 값의 처리를 빠르게 확인하고, 아래 시험은 같은 흐름을 실제 `@fresnel/host`와 모델 테이프로 다시 확인한다. 공통 도구는 `test/support/real-host.ts`다. `connectEngine`이 실제 호스트를 같은 프로세스에 세우고, 입출력은 `harness.ts`의 가짜 `CliIo`를 그대로 쓰며, 보낸 요청은 `observe` 탭으로 모은다(`RealCli.sent`). 엔진 홈(`FRESNEL_HOME`)은 시험마다 임시 디렉터리다. 승인을 기다리다 죽는 호스트는 실제 자식 프로세스(`test/fixtures/scenario-host.ts`, `test/support/stdio-child.ts`)로 띄워 SIGKILL한다.
 
 | 시험 파일 | 실제 호스트에서 확인한 것 | 가짜 호스트 시험에만 남은 것 |
 |---|---|---|
@@ -296,8 +296,8 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | C17 `group new` | 구현: 플래그 충돌(R1), 이름 검사와 예약 이름(R2), 설치 이름 겹침(R2), 대상 폴더 검사(R3), 메모리 치환과 쓰기, F `validateManifest`와 되돌리기(R4), 안내와 `--json`(R5) | `src/cli/command.ts`(`parseGroup`), `src/commands/group.ts`, `src/group/rules.ts`, `src/group/fs-port.ts`, `src/io.ts`(`GroupTemplatesPort`), `src/runtime.ts`(조립), `src/main.ts`(분기), `src/commands/help.ts` |
 
 - 바뀐 점: 이름 상수와 색인 스키마는 `group-sdk`을 import하지 않고 옮겨 적었다(DR-14). 시험이 원본 텍스트와 비교한다.
-- 바뀐 점: `apps/cli/package.json`의 `@xeon/group-sdk` 의존은 그대로 두었다. 소스가 쓰지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 트랙 범위 밖이다([미결] spec §10 31번).
-- 시험 결과: `just test apps/cli`가 554개 중 553개 통과, 1개 건너뜀(기존 건너뜀)이다. 이전에는 526개였다. `just check apps/cli`의 타입 검사 단계는 의존 패키지 `@xeon/core-persistence`의 시험 파일 오류(`MemoryRecordStore`에 `readBranch`가 없다)에서 멈춘다. 이 파일은 이 변경의 범위 밖이다. 대신 `tsc -p apps/cli`로 직접 확인하니 이 변경의 파일에는 타입 오류가 없었다. 나머지 오류는 빌드하지 않은 참조의 TS6305와 그에 딸린 `any` 오류이고, 손대지 않은 `doctor.ts`, `host.ts`, `engine.ts`, `errors.ts`에 있다.
+- 바뀐 점: `apps/cli/package.json`의 `@fresnel/group-sdk` 의존은 그대로 두었다. 소스가 쓰지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 트랙 범위 밖이다([미결] spec §10 31번).
+- 시험 결과: `just test apps/cli`가 554개 중 553개 통과, 1개 건너뜀(기존 건너뜀)이다. 이전에는 526개였다. `just check apps/cli`의 타입 검사 단계는 의존 패키지 `@fresnel/core-persistence`의 시험 파일 오류(`MemoryRecordStore`에 `readBranch`가 없다)에서 멈춘다. 이 파일은 이 변경의 범위 밖이다. 대신 `tsc -p apps/cli`로 직접 확인하니 이 변경의 파일에는 타입 오류가 없었다. 나머지 오류는 빌드하지 않은 참조의 TS6305와 그에 딸린 `any` 오류이고, 손대지 않은 `doctor.ts`, `host.ts`, `engine.ts`, `errors.ts`에 있다.
 
 ## 5. 단위 테스트 목록
 
@@ -315,7 +315,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | json-mode-equals-host-messages | `test/json-mode.int.test.ts` | int | 테이프 모델 조립으로 `chat -p --json`을 in-process로 돌리면 stdout 줄 열이 `observe` 탭이 받은 메시지 열과 같다(spec AC4) | M1 |
 | non-tty-disables-tui | `test/non-tty.test.ts` | unit | stdin 비TTY면 print 모드, stdout 비TTY면 출력에 0x1B가 없다. `NO_COLOR`, `TERM=dumb`이면 대화형에서도 색 없음 | M1 |
 | exit-code-for-lock-denied | `test/exit-codes.test.ts` | unit | `turn.start`가 `thread.locked`를 돌려주면 M1은 4. 그 밖의 kind와 `EngineStartError`가 spec §3.6·§4.10 표의 코드로 바뀐다(`catalogConflict`·`missingService`는 1, 나머지는 3). `runHostCommand`의 0·1·2는 그대로다 | M1 |
-| dev-wire-round-trip-passed | `test/engine-options.test.ts` | unit | 개발 빌드 조건(`FRESNEL_DEV=1` 또는 소스 실행)에서 `connectEngine`이 `startInProcessHost`에 `devChecks: true`를 넘기고, 컴파일 바이너리 조건에서 `false`를 넘긴다. 가짜 `@xeon/host` 함수로 인자를 기록한다(spec AC11) | M1 |
+| dev-wire-round-trip-passed | `test/engine-options.test.ts` | unit | 개발 빌드 조건(`FRESNEL_DEV=1` 또는 소스 실행)에서 `connectEngine`이 `startInProcessHost`에 `devChecks: true`를 넘기고, 컴파일 바이너리 조건에서 `false`를 넘긴다. 가짜 `@fresnel/host` 함수로 인자를 기록한다(spec AC11) | M1 |
 | usage-error-two-lines | `test/usage-error.test.ts` | unit | 사용법 오류 코드 각각에서 stderr 출력이 `xeon: …`와 `  해결: …` 두 줄이고 종료 코드가 2다(spec AC12, §4.10) | M1 |
 | sigint-once-interrupts-turn | `test/signals.test.ts` | unit | 주입한 시계로 Ctrl+C 1회(turn 진행 중)는 M2에서 `turn.interrupt`를 한 번 보내고, 2초 안 2회는 종료 요청과 130, 3회는 강제 종료다. M1 설정에서는 1회가 종료 요청이다 | M1, M2 |
 | transcript-replay-from-cursor | `test/transcript.test.ts` | unit | 위치 k에서 시작한 `applyBatch`가 seq ≤ k 이벤트를 무시하고, `from` 불일치에 `gap`을 돌려주고, 같은 item의 `item.recorded`가 오면 진행 줄을 지운다. `afterSeq` 지연 조각이 위치 도달 뒤 적용된다 | M1 |
@@ -393,7 +393,7 @@ M3b C17 시험(`group new`). 이름은 시험 제목을 줄여 적었다. 정확
   2. 자식을 SIGKILL한다. 받은 마지막 seq를 기억한다.
   3. 같은 디렉터리로 `chat --continue -p "<입력>" --json`을 띄워 끝까지 받는다.
   4. 확인: 종료 코드 0, 같은 `threadId`, 새로 받은 seq가 모두 기억한 seq보다 크고 중복 없음, 새 turn `completed`(spec AC1·AC2). 이전 turn의 종결 상태는 엔진 복구 규칙에 따른다 [가정].
-- 전역 시각과 sleep을 쓰지 않는다(open-issues V-02, eng.typescript.guide TY-21). 운영 `Clock`은 `@xeon/platform-os`의 `systemClock()`이고, 테스트의 실시간 시계와 대기 한도 타이머는 `systemClock`·`systemScheduler`로 만든다. 세 번째 시험의 `turn.busy` 재시도는 이벤트 루프를 한 바퀴씩 넘기며 시도 횟수 상한(2000) 안에서 다시 시도한다. M1 엔진에는 루프 정착을 알리는 포트가 없어서다(`ActivityPort`는 task 그래프 변화만 알리고, M1에서 `snapshot()`은 던진다). 정착 알림이 생기면 그 알림을 기다리는 방식으로 바꾼다.
+- 전역 시각과 sleep을 쓰지 않는다(open-issues V-02, eng.typescript.guide TY-21). 운영 `Clock`은 `@fresnel/platform-os`의 `systemClock()`이고, 테스트의 실시간 시계와 대기 한도 타이머는 `systemClock`·`systemScheduler`로 만든다. 세 번째 시험의 `turn.busy` 재시도는 이벤트 루프를 한 바퀴씩 넘기며 시도 횟수 상한(2000) 안에서 다시 시도한다. M1 엔진에는 루프 정착을 알리는 포트가 없어서다(`ActivityPort`는 task 그래프 변화만 알리고, M1에서 `snapshot()`은 던진다). 정착 알림이 생기면 그 알림을 기다리는 방식으로 바꾼다.
 - 결정성은 D1이다. 특정 이벤트열을 바이트로 비교하지 않는다(TS-08 3번).
 
 ## 6. 완료 기준
@@ -422,6 +422,6 @@ M3b C17 시험(`group new`). 이름은 시험 제목을 줄여 적었다. 정확
 | `--bytecode`와의 호환 | 기동 실패나 스택 정보 손실 | C14에서 켠 것과 끈 것을 비교하고, 문제가 있으면 끈다 |
 | M1 대화형 범위가 커진다 | M1 지연 | print 모드를 먼저 끝내고(C2·C3·C4), 대화형은 C6 범위(한 줄 입력, 진행 줄)로 제한한다. 화면 기능은 M2 C8로 넘긴다 |
 | 승인 wire가 번복된다(A안은 review.decisions-2 U-02로 결정, 2026-10-22 확인) | C11 재작업 | C11을 M2에 둔다. `ApprovalView` 변환 함수 하나에 payload 의존을 모아 바뀌는 범위를 줄인다 |
-| 허용 목록 `DR-10/cli-host`(review.decisions-2 U-15, 2026-10-22 확인)가 번복된다 | C2·C7 재작업 | spec §3.3의 `ConnectEngine` 가짜를 먼저 두고 C1·C3·C5의 단위 테스트를 진행한다. 실제 `@xeon/host` 연결은 그 뒤 붙인다 |
+| 허용 목록 `DR-10/cli-host`(review.decisions-2 U-15, 2026-10-22 확인)가 번복된다 | C2·C7 재작업 | spec §3.3의 `ConnectEngine` 가짜를 먼저 두고 C1·C3·C5의 단위 테스트를 진행한다. 실제 `@fresnel/host` 연결은 그 뒤 붙인다 |
 | M1 wire에 `turn.interrupt`·`thread.open`이 없다 | M1 Ctrl+C와 재개 동작 제한 | spec §4.6, §4.4의 M1 동작(종료 요청, `turn.start`의 암묵 획득 `L4.host-service.spec` HS-28)으로 통과하고, 필요하면 F 변경 요청(spec §10 2번) |
-| macOS FTS5 | M1 시작 실패(종료 코드 3) | `@xeon/host`가 `AssembleError { code: "store" }`를 던지고 `connectEngine`이 `fts5Missing`으로 바꿔 해결 한 줄을 보인다(TC-11). 해결책은 `L0.store.spec`이 정한다 |
+| macOS FTS5 | M1 시작 실패(종료 코드 3) | `@fresnel/host`가 `AssembleError { code: "store" }`를 던지고 `connectEngine`이 `fts5Missing`으로 바꿔 해결 한 줄을 보인다(TC-11). 해결책은 `L0.store.spec`이 정한다 |

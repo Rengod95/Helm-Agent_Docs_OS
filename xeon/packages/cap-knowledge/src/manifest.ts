@@ -3,8 +3,8 @@ import {
   KnowledgeMemory,
   KnowledgeSearch,
   KnowledgeSkills,
-} from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 
 export const KNOWLEDGE_EXTENSION_NAME = "cap-knowledge";
 

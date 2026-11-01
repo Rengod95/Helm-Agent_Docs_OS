@@ -1,4 +1,4 @@
-import type { PolicyRule, RuleRegistration, TieredRule } from "@xeon/contracts/services";
+import type { PolicyRule, RuleRegistration, TieredRule } from "@fresnel/contracts/services";
 import { loadableRules, validateRules } from "./rules.ts";
 import { tag } from "./tiers.ts";
 

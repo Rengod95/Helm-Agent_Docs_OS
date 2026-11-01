@@ -1,5 +1,5 @@
-import type { RedactionHit } from "@xeon/contracts/capabilities";
-import type { Redactor } from "@xeon/contracts/services";
+import type { RedactionHit } from "@fresnel/contracts/capabilities";
+import type { Redactor } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §3.5.1 (M3-REQ-59). 이미 기록된 이벤트의 사후 가림. 표시, 내보내기, 모델 입력 단계가 읽는 시점에 Redactor를 적용한다.
 // 저장된 원본 행은 바꾸지 않는다(maskDeep은 새 값을 돌려준다). 그래서 나중에 값을 등록한 비밀도 이전 기록의 표시와 내보내기에서 가려진다.

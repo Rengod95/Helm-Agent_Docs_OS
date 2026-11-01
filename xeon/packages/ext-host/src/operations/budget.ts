@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import { HOOKS, type HookDecl, type HookName } from "@xeon/contracts/extensions";
+import { assertNever } from "@fresnel/contracts";
+import { HOOKS, type HookDecl, type HookName } from "@fresnel/contracts/extensions";
 import type {
   HandlerEntryInfo,
   HandlerGate,

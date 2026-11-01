@@ -1,6 +1,6 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { DurableEventEnvelope } from "@xeon/contracts/records";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { DurableEventEnvelope } from "@fresnel/contracts/records";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import { portAs } from "../erase.ts";
 import type {
   SetupRefusal,
@@ -14,7 +14,7 @@ import type {
   ScopeHandle,
   ScopeId,
   Unsubscribe,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { createCapabilityBindings } from "./bindings.ts";
 import { EMPTY_CAPABILITY_DEFS, type CapabilityDefLookup } from "./capability-guard.ts";
 import {
@@ -70,8 +70,8 @@ import { createStateService } from "./state.ts";
 
 export type {} from "./errors.ts";
 
-/** 확장 호스트 자신(서비스 xeon.ext, 제공 ext-host). ExtHost가 X 타입이라 F에 둘 수 없다 */
-export const ExtHostPortKey: PortKey<ExtHost> = { name: "xeon.ext" };
+/** 확장 호스트 자신(서비스 fresnel.ext, 제공 ext-host). ExtHost가 X 타입이라 F에 둘 수 없다 */
+export const ExtHostPortKey: PortKey<ExtHost> = { name: "fresnel.ext" };
 export type {} from "./scope.ts";
 export type {} from "./core.ts";
 
@@ -109,7 +109,7 @@ export interface ExtensionUnit {
   readonly entry: ExtensionEntry;
   /** 로드 순번. 0부터. 핸들러 정렬의 둘째 키 */
   readonly loadIndex: number;
-  /** 내장 패키지(core-*, cap-*, group-*)면 참. 포트 제공·조회와 xeon.* 서비스 이름을 허용한다 */
+  /** 내장 패키지(core-*, cap-*, group-*)면 참. 포트 제공·조회와 fresnel.* 서비스 이름을 허용한다 */
   readonly builtin: boolean;
   /**
    * 주 scope의 초기 켜기 요청. `ext.<name>.enabled` 설정 값이 있으면 로더가 넘긴다 [제안].
@@ -149,7 +149,7 @@ export interface PlatformModule {
 
 /** L0 setup이 받는 좁은 객체. Cordis Context는 넘기지 않는다 */
 export interface PlatformContext {
-  /** xeon.* 포트 제공 */
+  /** fresnel.* 포트 제공 */
   providePort<Api>(key: PortKey<Api>, impl: Api): void;
   /** 먼저 등록된 다른 L0 포트 조회. 없으면 port_unavailable */
   port<Api>(key: PortKey<Api>): Api;
@@ -208,7 +208,7 @@ export interface ExtHost {
   /** L4가 읽는 명령·키 조합·플래그·렌더러 표(X.primitives.spec §3.9) */
   readonly resources: ResourceRegistry;
   /**
-   * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-sdk.spec §3.13 요청 5). `xeon.session`의 `readBranch` 포트가 없으면
+   * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-sdk.spec §3.13 요청 5). `fresnel.session`의 `readBranch` 포트가 없으면
    * `port_unavailable`이다. 확장 scope에는 열지 않는 호스트용 조회다
    */
   queryEvents(
@@ -515,9 +515,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     if (core.threads.has(id)) boundary.requestApply(id);
   };
 
-  // 서비스 xeon.ext. 시작하자마자 provide하지만 Cordis 전이는 비동기라 install이 준비를 기다린다
+  // 서비스 fresnel.ext. 시작하자마자 provide하지만 Cordis 전이는 비동기라 install이 준비를 기다린다
   const selfFiber = bridge.openFiber({
-    name: "xeon.ext",
+    name: "fresnel.ext",
     inject: [],
     apply: (fiber) => {
       fiber.provide(ExtHostPortKey.name, host);

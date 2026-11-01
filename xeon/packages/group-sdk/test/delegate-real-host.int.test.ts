@@ -1,8 +1,8 @@
 // 실제 ext-host의 hostOf(g).callContext()를 쓰는 delegate 시험. 호출 문맥만 대역이 아니다(X.primitives.spec §3.8)
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { createTestHost } from "@xeon/ext-host/testing";
-import { AgentServicePortKey } from "@xeon/contracts/services";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { createTestHost } from "@fresnel/ext-host/testing";
+import { AgentServicePortKey } from "@fresnel/contracts/services";
 import { defineGroup, type GroupApi } from "../src/index.ts";
 import { fakeAgents } from "../src/testing/index.ts";
 import { installInjected } from "./support/injected-group.ts";

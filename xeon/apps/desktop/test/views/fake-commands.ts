@@ -1,4 +1,4 @@
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type { Commands } from "../../src/views/commands.ts";
 
 /** 화면 시험이 쓰는 명령 대역. 기본은 모두 성공하고 신뢰 메서드는 host에 없는 것(unsupported)처럼 답한다 */

@@ -1,19 +1,19 @@
-import { assertNever, Bug, err, ok, type Logger } from "@xeon/contracts";
-import type { StatusItem } from "@xeon/contracts/capabilities";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, Bug, err, ok, type Logger } from "@fresnel/contracts";
+import type { StatusItem } from "@fresnel/contracts/capabilities";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
   type FeedFilter,
   type ProducerHandle,
   type SessionService,
   type VolatileEventEnvelope,
-} from "@xeon/contracts/records";
-import type { OsTime } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type { OsTime } from "@fresnel/contracts/services";
 import { sha256Hex } from "./hash.ts";
 import type { NoticePort } from "./ports/notices.ts";
 import type { DialogFeed, StatusPublisher } from "./ports/session.ts";
 
-// `xeon.session`을 이 패키지의 좁은 포트(DialogFeed, StatusPublisher, NoticePort)로 감싼다.
+// `fresnel.session`을 이 패키지의 좁은 포트(DialogFeed, StatusPublisher, NoticePort)로 감싼다.
 
 /** 피드가 거르는 내구 이벤트 접두. 상태줄(turn., approval.)과 알림 분류(work., agent., schedule.)의 원인 종류다 */
 const FEED_KIND_PREFIXES = [
@@ -56,7 +56,7 @@ export function sessionFeed(
   };
 }
 
-/** `dialog.status` 휘발 이벤트를 `xeon.session`으로 내보낸다. 읽기에 실패하면 이 이벤트는 건너뛴다(최선 노력) */
+/** `dialog.status` 휘발 이벤트를 `fresnel.session`으로 내보낸다. 읽기에 실패하면 이 이벤트는 건너뛴다(최선 노력) */
 export function sessionStatusPublisher(
   session: Pick<SessionService, "feed" | "emitVolatile">,
   ids: IdFactory,
@@ -94,7 +94,7 @@ export function sessionStatusPublisher(
 }
 
 /**
- * `dialog.notified`를 `xeon.session` 커밋으로 남기고 원인 이벤트를 피드에서 읽는다(L2.dialog.spec §3.7, §4.7).
+ * `dialog.notified`를 `fresnel.session` 커밋으로 남기고 원인 이벤트를 피드에서 읽는다(L2.dialog.spec §3.7, §4.7).
  * 커밋 키는 `dialog:notify:<requestId>`다. requestId가 없으면 고유한 토막을 써서 멱등을 걸지 않는다.
  * producer 핸들은 플러그인 setup에서 한 번 받아 넘긴다.
  */

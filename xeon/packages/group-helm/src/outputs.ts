@@ -1,6 +1,6 @@
-import type { TurnOutcome } from "@xeon/contracts/extensions";
-import { WorkTasksKey } from "@xeon/contracts/capabilities";
-import type { GroupApi } from "@xeon/group-sdk";
+import type { TurnOutcome } from "@fresnel/contracts/extensions";
+import { WorkTasksKey } from "@fresnel/contracts/capabilities";
+import type { GroupApi } from "@fresnel/group-sdk";
 import { callSource } from "./knowledge.ts";
 import { jsonOf, type DiscoveryRecordedPayload, type InquiryFinishedPayload } from "./records.ts";
 import type { HelmFailure } from "./failures.ts";

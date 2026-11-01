@@ -1,12 +1,12 @@
-import { assertNever, attemptAsync, err, ok, rethrow, type Result } from "@xeon/contracts";
+import { assertNever, attemptAsync, err, ok, rethrow, type Result } from "@fresnel/contracts";
 import type {
   DriveFn,
   DriveLimits,
   LoopHandle,
   SpawnOutcome,
   TurnOutcome,
-} from "@xeon/contracts/extensions";
-import type { GroupApi } from "@xeon/group-sdk";
+} from "@fresnel/contracts/extensions";
+import type { GroupApi } from "@fresnel/group-sdk";
 import { dedupeFindings } from "./findings.ts";
 import { failureOf, type FailureSite, type HelmFailure } from "./failures.ts";
 import { gatherContext } from "./knowledge.ts";

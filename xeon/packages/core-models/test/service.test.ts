@@ -1,7 +1,7 @@
 import { describe, expect, jest, test, afterEach } from "bun:test";
-import type { AssistantMessageEvent, AssistantMessage } from "@xeon/contracts/conversation";
-import type { UsageRecord } from "@xeon/contracts/services";
-import { fixedIdFactory, flushMicrotasks } from "@xeon/ext-host/testing";
+import type { AssistantMessageEvent, AssistantMessage } from "@fresnel/contracts/conversation";
+import type { UsageRecord } from "@fresnel/contracts/services";
+import { fixedIdFactory, flushMicrotasks } from "@fresnel/ext-host/testing";
 import { loadTape, t, tape } from "../src/testing/index.ts";
 import { createHarness, unwrap } from "./support/harness.ts";
 import { memoryLogger, type LogLine } from "./support/logger.ts";

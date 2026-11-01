@@ -1,6 +1,6 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import { PlanIdSchema, type PlanId } from "@xeon/contracts/capabilities";
-import type { PermissionMode } from "@xeon/contracts/services";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import { PlanIdSchema, type PlanId } from "@fresnel/contracts/capabilities";
+import type { PermissionMode } from "@fresnel/contracts/services";
 import type { PlanRow } from "../projection/read.ts";
 import type { PlanFailure } from "./failure.ts";
 

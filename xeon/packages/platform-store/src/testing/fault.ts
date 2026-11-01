@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { FaultInjector, FaultPoint } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { FaultInjector, FaultPoint } from "@fresnel/contracts/records";
 import {
   NO_STORE_FAULTS,
   STORE_FAULT_POINTS,

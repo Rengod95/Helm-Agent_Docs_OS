@@ -1,10 +1,10 @@
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, parse } from "@fresnel/contracts";
 import {
   WorkTaskIdSchema,
   type WorkTask,
   type WorkTaskId,
   type WorkTaskStatus,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 /** 문자열을 작업 ID로 좁힌다. 형식이 틀리면 시험 입력의 결함이다 */
 export function tid(raw: string): WorkTaskId {

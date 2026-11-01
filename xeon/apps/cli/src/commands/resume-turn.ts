@@ -1,6 +1,6 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever, attemptAsync } from "@xeon/contracts";
-import type { ThreadResumable, TurnResumeResult } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, attemptAsync } from "@fresnel/contracts";
+import type { ThreadResumable, TurnResumeResult } from "@fresnel/contracts/wire";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, renderFailure } from "../errors.ts";
 import type { PromptIo } from "../render/approval.ts";

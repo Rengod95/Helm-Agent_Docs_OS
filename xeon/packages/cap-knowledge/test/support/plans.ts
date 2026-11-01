@@ -1,5 +1,5 @@
-import type { CallContext, KnowledgeActor, ScanSummary } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { CallContext, KnowledgeActor, ScanSummary } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { SCAN_RULESET_VERSION } from "../../src/scan/rules.ts";
 import type { Writer, WritePlan, WriteRequest } from "../../src/write/pipeline.ts";
 import { hashOfTarget, readTarget, type ChangeTarget } from "../../src/ledger/target.ts";

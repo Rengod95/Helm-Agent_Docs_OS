@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { AssistantMessage } from "@xeon/contracts/conversation";
+import type { AssistantMessage } from "@fresnel/contracts/conversation";
 import { endStep } from "../../src/loop/step-end.ts";
 import { resolveModel } from "../../src/loop/turn-run.ts";
 import { createHarness } from "../support/harness.ts";

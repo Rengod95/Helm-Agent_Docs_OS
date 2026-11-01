@@ -1,4 +1,4 @@
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+import { defineSettings, type SettingDefInput, type SettingGroup } from "@fresnel/contracts/settings";
 import { Type, type TArray, type TString } from "typebox";
 
 /** ext.__ID__.* 설정 키. enabled와 isolation은 X가 예약한 키라 여기에 두지 않는다 */

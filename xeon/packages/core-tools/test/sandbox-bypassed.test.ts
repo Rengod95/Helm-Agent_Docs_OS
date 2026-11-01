@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { callTool, createHarness, layer } from "./support/harness.ts";
-import type { JsonObject } from "@xeon/contracts/conversation";
+import type { JsonObject } from "@fresnel/contracts/conversation";
 import { Type } from "typebox";
 
 // M3-33, L0.sandbox.spec §4.8, L1.tools.spec §4.12.2. 도구 결과가 샌드박스 밖 실행을 알리면 결과 커밋에 감사 이벤트 tool.sandbox_bypassed가 함께 남는다.

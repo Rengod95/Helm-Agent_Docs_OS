@@ -1,10 +1,10 @@
-import type { SecretName } from "@xeon/contracts/capabilities";
+import type { SecretName } from "@fresnel/contracts/capabilities";
 import type {
   SecretEntryAction,
   SecretEntryOffer,
   SecretOutOfBandPort,
   SecretRevealOffer,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // F.wire-settings.spec §3.3.1 secret.beginEntry·beginReveal, services/secret-admin.ts SecretOutOfBandPort.
 // in-process 접속(CLI)이 값 입력·열람 수단을 wire 밖으로 호스트에 맡기는 통로의 구현이다. 맡긴 수단은 한 번 쓰이면 비워진다.

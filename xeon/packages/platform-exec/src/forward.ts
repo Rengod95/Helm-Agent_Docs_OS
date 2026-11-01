@@ -1,4 +1,4 @@
-import type { FileSystem } from "@xeon/contracts/services";
+import type { FileSystem } from "@fresnel/contracts/services";
 
 /** `cwd`와 `cleanup`을 뺀 파일 연산 모음 */
 export type FileMethods = Omit<FileSystem, "cwd" | "cleanup">;

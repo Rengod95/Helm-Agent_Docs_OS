@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { LifecycleError } from "@xeon/contracts/records";
-import { WireError } from "@xeon/contracts/wire";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { err, ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { LifecycleError } from "@fresnel/contracts/records";
+import { WireError } from "@fresnel/contracts/wire";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { ThreadReadFailure } from "../../src/types.ts";
 import { FAKE_STORE_ID } from "../fixtures/fake-engine.ts";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";

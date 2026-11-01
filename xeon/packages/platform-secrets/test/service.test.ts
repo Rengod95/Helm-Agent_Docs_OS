@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
-import type { SecretAuditRecord } from "@xeon/contracts/capabilities";
-import type { SecretError, SecretProvider } from "@xeon/contracts/services";
+import type { SecretAuditRecord } from "@fresnel/contracts/capabilities";
+import type { SecretError, SecretProvider } from "@fresnel/contracts/services";
 import { memorySecrets, type MemorySecrets } from "../src/testing/index.ts";
 import { manualClock } from "./support/clock.ts";
 import { APPROVAL_PER_SESSION, APPROVAL_PER_USE, envCtx, httpCtx } from "./support/ctx.ts";

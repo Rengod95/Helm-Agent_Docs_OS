@@ -6,8 +6,8 @@ import {
   parseJson,
   type Result,
   type SchemaSound,
-} from "@xeon/contracts";
-import { isSkillFilePath, SkillNameSchema } from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts";
+import { isSkillFilePath, SkillNameSchema } from "@fresnel/contracts/capabilities";
 import { Type, type TUnsafe } from "typebox";
 import type { ProposalKind, ProposalOp } from "./proposal.ts";
 

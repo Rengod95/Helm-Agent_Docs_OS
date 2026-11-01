@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/desktop",
+  "name": "@fresnel/desktop",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -24,9 +24,9 @@
   "dependencies": {
     "@caustic/react": "workspace:*",
     "@caustic/tokens": "workspace:*",
+    "@fresnel/client": "workspace:*",
+    "@fresnel/contracts": "workspace:*",
     "@tauri-apps/api": "catalog:",
-    "@xeon/client": "workspace:*",
-    "@xeon/contracts": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",
     "typebox": "catalog:",
@@ -40,7 +40,7 @@
     "@vitejs/plugin-react": "catalog:",
     "vite": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L4",
     "domain": "desktop"
   }

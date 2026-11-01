@@ -1,5 +1,5 @@
-import { assertNever, attempt, err, ok, type Result } from "@xeon/contracts";
-import type { FetchFormat } from "@xeon/contracts/capabilities";
+import { assertNever, attempt, err, ok, type Result } from "@fresnel/contracts";
+import type { FetchFormat } from "@fresnel/contracts/capabilities";
 import type { WebFailure } from "../errors.ts";
 import type { AccessContext, ApprovedTarget } from "../policy/access.ts";
 import type { WebDeps } from "../deps.ts";

@@ -204,7 +204,7 @@ binds: []
 - 작업: 블롭 고정(pin) 틈과 이미지 블롭을 고정하지 않는 근거의 시험·문서, 사용량 게이지 틈.
 
 **B3-SEC2 MCP stdio 샌드박스 연결** · Sonnet medium · `apps/host`(L4) · S
-- 작업: stdio MCP 서버의 샌드박스 요청을 `xeon.sandbox` `wrapArgv`에 잇고 실제 bwrap으로 밖 읽기·밖 쓰기 거부를 확인.
+- 작업: stdio MCP 서버의 샌드박스 요청을 `fresnel.sandbox` `wrapArgv`에 잇고 실제 bwrap으로 밖 읽기·밖 쓰기 거부를 확인.
 
 **B5-FIX2 S-15·반복 감지 설정** · Sonnet medium · `core-persistence`·`apps/host`·문서 · S
 - 작업: 자리표시 참조를 `p_blob_refs`에 모아 GC가 지우지 않게 하고(S-15), `l1.loop.repeat.*` 설정을 루프 설정 원천에 잇고 성능 지침에 맞춥니다.

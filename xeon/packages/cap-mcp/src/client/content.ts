@@ -1,14 +1,14 @@
-import { parse, type Result } from "@xeon/contracts";
-import type { McpContent } from "@xeon/contracts/capabilities";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
-import type { BlobError, BlobRef } from "@xeon/contracts/records";
+import { parse, type Result } from "@fresnel/contracts";
+import type { McpContent } from "@fresnel/contracts/capabilities";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
+import type { BlobError, BlobRef } from "@fresnel/contracts/records";
 import { Type } from "typebox";
 import { asJsonObject, stringOf } from "../json.ts";
 
 // L2.mcp.spec §4.5 5~6번. 서버 결과의 내용 블록을 Xeon 쪽 모양(McpContent)으로 바꾸고 크기 한도를 적용한다.
 // 입력은 어댑터가 JSON으로 옮긴 블록이라 SDK 타입을 보지 않는다.
 
-/** blob 저장 포트(`xeon.store.putBlob`의 부분형). 없으면 이미지·바이너리는 지원하지 않는 내용으로 둔다 */
+/** blob 저장 포트(`fresnel.store.putBlob`의 부분형). 없으면 이미지·바이너리는 지원하지 않는 내용으로 둔다 */
 export type BlobPutter = (
   bytes: Uint8Array,
   mediaType: string | null,

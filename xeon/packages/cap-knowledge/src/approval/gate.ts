@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { ApprovalEvidence, ApprovedBy, KnowledgeActor } from "@xeon/contracts/capabilities";
+import { assertNever } from "@fresnel/contracts";
+import type { ApprovalEvidence, ApprovedBy, KnowledgeActor } from "@fresnel/contracts/capabilities";
 
 // L2.knowledge.spec §4.5.1 게이트 표. 쓰기 하나가 바로 적용되는지, 사람에게 승인을 묻는지, 제안 대기열로 가는지를 정하는 순수 함수다.
 

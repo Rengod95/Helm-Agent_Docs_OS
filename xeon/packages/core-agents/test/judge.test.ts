@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { AgentJudgedPayloadSchema, type AgentJudgedPayload } from "@xeon/contracts/records";
-import type { JudgeInput } from "@xeon/contracts/services";
+import { parse } from "@fresnel/contracts";
+import { AgentJudgedPayloadSchema, type AgentJudgedPayload } from "@fresnel/contracts/records";
+import type { JudgeInput } from "@fresnel/contracts/services";
 import { completeStructured, goalGateDecision, JudgeAnswerSchema } from "../src/index.ts";
 import { fakeModels, type FakeReply } from "./support/fake-models.ts";
 import { openHarness, type Harness } from "./support/harness.ts";
@@ -132,7 +132,7 @@ describe("judge", () => {
     expect(goalGateDecision(next)).toMatchObject({ continue: false, reason: "met" });
   });
 
-  test("an unresolved judge role or a missing xeon.models is a failure too", async () => {
+  test("an unresolved judge role or a missing fresnel.models is a failure too", async () => {
     const noRole = openHarness({ models: fakeModels([MET], { noModel: true }) });
     expect(await noRole.service.judge(inputOf(noRole))).toMatchObject({
       kind: "failed",

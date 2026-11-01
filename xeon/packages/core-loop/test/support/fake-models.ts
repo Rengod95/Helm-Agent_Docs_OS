@@ -1,4 +1,4 @@
-import { Bug, err, ok } from "@xeon/contracts";
+import { Bug, err, ok } from "@fresnel/contracts";
 import type {
   Api,
   AssistantMessage,
@@ -14,18 +14,18 @@ import type {
   ThinkingContent,
   ToolCall,
   Usage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   ModelBinding,
   ModelError,
   ModelService,
   ResolvedModel,
   RoleOverrides,
-} from "@xeon/contracts/services";
-import type { Clock } from "@xeon/contracts";
+} from "@fresnel/contracts/services";
+import type { Clock } from "@fresnel/contracts";
 
 // 테스트 대역: core-models의 `resolve`·`rebind`·`streamFn`만 흉내 낸다. 모델 호출은 대본(테이프) 순서로 응답한다
-// (eng.testing.guide TS-04 role-queue). `@xeon/core-models/testing`을 import할 수 없어 같은 모양을 여기 둔다.
+// (eng.testing.guide TS-04 role-queue). `@fresnel/core-models/testing`을 import할 수 없어 같은 모양을 여기 둔다.
 
 type ScriptedBlock = TextContent | ThinkingContent | ToolCall;
 

@@ -1,4 +1,4 @@
-import { ok, type Result } from "@xeon/contracts";
+import { ok, type Result } from "@fresnel/contracts";
 import type { LockAcquireError, LockHandle, LockProvider } from "./provider.ts";
 
 /**

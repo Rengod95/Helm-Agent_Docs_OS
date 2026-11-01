@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok, parse } from "@xeon/contracts";
+import { err, ok, parse } from "@fresnel/contracts";
 import {
   DIALOG_EVENT_CATALOG,
   VolatileEventEnvelopeSchema,
@@ -9,8 +9,8 @@ import {
   type ProducerHandle,
   type SessionService,
   type VolatileEventEnvelope,
-} from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { sessionFeed, sessionNoticePort, sessionStatusPublisher } from "../src/session-adapter.ts";
 import { newThread, recordingLogger, type LogLine } from "./support/harness.ts";
 

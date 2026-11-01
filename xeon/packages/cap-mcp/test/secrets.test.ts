@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { ok, err } from "@xeon/contracts";
+import { ok, err } from "@fresnel/contracts";
 import { createTransportFactory } from "../src/transport/factory.ts";
 import type { McpHeaderRequest, McpHeaderSecrets } from "../src/ports/secrets.ts";
 import { createStubProcessPort } from "../src/testing/stub-process.ts";

@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/platform-sandbox",
+  "name": "@fresnel/platform-sandbox",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,13 +15,13 @@
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "catalog:",
-    "@xeon/contracts": "workspace:*",
+    "@fresnel/contracts": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L0",
     "domain": "sandbox"
   }

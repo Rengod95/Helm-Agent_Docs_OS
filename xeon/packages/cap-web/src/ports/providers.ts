@@ -5,7 +5,7 @@ import type {
   WebFetchProvider,
   WebProviderManifest,
   WebSearchProvider,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 // 능력별 provider 후보(L2.web.spec §3.6.1 2번, §4.8.2). 후보 등록·조회는 X가 정한다 [가정: X.primitives]. cap-web은 이 모양만 안다.
 // 내장 provider(searxng, builtin-wrapper, local)와 플러그인 provider를 같은 목록에서 받는다.

@@ -1,5 +1,5 @@
 // 자식 도구 차단 목록과 정의 규칙(L1.agents.spec §4.3, AG-4). 규칙은 default 티어 deny로 `core:agents` 출처에 등록한다.
-import type { AgentDefinition, PolicyRule } from "@xeon/contracts/services";
+import type { AgentDefinition, PolicyRule } from "@fresnel/contracts/services";
 
 /** `ToolService.registerRules`의 출처 이름 */
 export const AGENTS_RULE_SOURCE = "core:agents" as const;

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import { WireError } from "@xeon/contracts/wire";
+import { err, ok } from "@fresnel/contracts";
+import { WireError } from "@fresnel/contracts/wire";
 import type {
   SettingsFileFailure,
   SettingsFileRead,
@@ -8,9 +8,9 @@ import type {
 } from "../../src/types.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
-import { defineSettings } from "@xeon/contracts/settings";
+import { defineSettings } from "@fresnel/contracts/settings";
 import { flushMicrotasks, settleUntil } from "../fixtures/clock.ts";
 import type { WireNotificationParams } from "../fixtures/notifications.ts";
 

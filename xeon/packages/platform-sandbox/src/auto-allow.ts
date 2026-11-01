@@ -4,7 +4,7 @@ import type {
   AutoAllowDecision,
   SandboxPolicy,
   SandboxStatus,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { isInside } from "./paths.ts";
 
 // L0.sandbox.spec §4.3. 자동 허용 판정만 한다. 승인 UI와 적용은 L1 tools다. command는 판정에 쓰지 않는다.

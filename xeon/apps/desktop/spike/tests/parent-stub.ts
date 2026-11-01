@@ -1,5 +1,5 @@
 // S4 측정용 부모: 엔진을 stdin 파이프로 띄우고 pid를 알린 뒤 죽을 때까지 자는 척한다.
-import { detach, rethrow } from "@xeon/contracts";
+import { detach, rethrow } from "@fresnel/contracts";
 // 하네스(s4.ts)가 이 프로세스를 SIGKILL하면 OS가 엔진 stdin 파이프의 쓰기 끝을 닫는다.
 const [enginePath, ...engineArgs] = process.argv.slice(2);
 if (enginePath === undefined) {

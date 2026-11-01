@@ -111,7 +111,7 @@ xeon/packages/group-sdk/
 | S-04 | 매니페스트 검증 테스트: 세 템플릿 생성 결과가 `validateManifest`·`validateUsage`를 통과하고, 잘못된 이름·kind 조합이 거부되는지 확인 | S-01, F `validateManifest`(`F.extensions.plan`) | 소 |
 | S-05 | `xeon group new <이름> [--drive\|--policy]` 계약(요구 R1~R6, `templates/index.json` 형식)을 `L4.cli.spec`·`L4.cli.plan`에 전달하고 반영을 확인 | S-01, S-04 | 소 |
 | S-06 | (닫힘) 가드레일 보류 해제 조건. [결정: review.m3-design-inputs D-M3-30] 내장 검사 없이 fail-closed 가드 지점 셋을 둔다(ADR-0017). 남은 일은 S-02의 `guardrail` 예를 가드 지점으로 쓰는 것뿐이다 | 없음 | — |
-| S-07 | 교차 import 거부 테스트: 생성한 그룹에 `@xeon/group-helm` import를 넣은 가짜 워크스페이스로 check-layers `DR-02` 실패 확인 | S-01, `check-layers.ts`의 허용 목록 구현(`eng.dependency-rules.guide` 4절) | 소 |
+| S-07 | 교차 import 거부 테스트: 생성한 그룹에 `@fresnel/group-helm` import를 넣은 가짜 워크스페이스로 check-layers `DR-02` 실패 확인 | S-01, `check-layers.ts`의 허용 목록 구현(`eng.dependency-rules.guide` 4절) | 소 |
 | S-08 | 코어 diff 0 확인: 템플릿으로 만든 가짜 그룹을 워크스페이스에 더하는 변경에서 `packages/contracts`, `packages/ext-host` diff가 0인지 검사하는 스크립트 단계 | S-01, S-04 | 소 |
 
 - 규모: 소는 하루 이내, 중은 2~3일이다 [가정].
@@ -125,11 +125,11 @@ xeon/packages/group-sdk/
 
 - [가정] 버전 0.3.1은 `_research/packages.md` §4.6의 기록이고, 그 행의 판정 자체가 추측이다. 코드를 채택하지 않으므로 의존성에 넣지 않는다. 참고할 때 npm 레지스트리의 실제 판과 라이선스를 다시 확인한다.
 - 그 밖의 채택 코드는 없다. L3 구성요소는 21개다(`_research/layer-plan-v2.json` L3-a 7, L3-b 5, L3-c 6, L3-d 3). 코드를 채택한 것은 없다. L3-c 학습 그룹 6개 가운데 4개(학습 트리거, 검토 포크, 큐레이터, 학습 이력 보기)는 출처 표기가 '설계'이고 Hermes 자기 개선 루프의 설계를 차용한다(L3.learning.plan §4). 나머지 17개는 선례가 없어 자체 구현이다. `_research/packages.md` §4.6 제목의 "17개 모두 자체"는 학습 그룹을 L3로 옮기기 전 집계이고 L3-c 행이 지금의 L3-d(추가 그룹 슬롯) 구성요소를 적고 있으므로 갱신이 필요하다.
-- 템플릿이 쓰는 패키지(`typebox`, `@xeon/contracts`, `@xeon/group-sdk`)의 판은 워크스페이스 catalog를 따른다. `typebox`는 1.3.27다(L3.group-sdk.plan §4 표). 템플릿 `package.json`에 판을 직접 적지 않는다 [제안].
+- 템플릿이 쓰는 패키지(`typebox`, `@fresnel/contracts`, `@fresnel/group-sdk`)의 판은 워크스페이스 catalog를 따른다. `typebox`는 1.3.27다(L3.group-sdk.plan §4 표). 템플릿 `package.json`에 판을 직접 적지 않는다 [제안].
 
 ## 5. 단위 테스트 목록
 
-모두 `group-sdk`의 테스트 도우미(그룹 하네스, `replayDrive`)와 테이프 가짜(`@xeon/core-models/testing`의 `tape`, `tapePlayer`)를 쓴다. 파일은 `xeon/packages/group-sdk/test/slots/`에 둔다.
+모두 `group-sdk`의 테스트 도우미(그룹 하네스, `replayDrive`)와 테이프 가짜(`@fresnel/core-models/testing`의 `tape`, `tapePlayer`)를 쓴다. 파일은 `xeon/packages/group-sdk/test/slots/`에 둔다.
 
 | 테스트 이름 | 확인할 동작 | 작업 |
 |---|---|---|
@@ -141,7 +141,7 @@ xeon/packages/group-sdk/
 | `template.replay-test-cuts-at-every-commit` | drive 템플릿의 `test/replay.test.ts`가 생성 직후 통과한다. 커밋 지점 수만큼 끊어 재개한 효과 열이 끊지 않은 실행과 같다 | S-03 |
 | `policy.verify-before-commit-blocks-until-verified` | `commitguard`: 검증 전 `git commit` bash 호출 거부 → `just verify` 성공 → 커밋 실행 → `write` 성공 → 다시 거부 | S-02 |
 | `policy.review-enforced-posts-once-with-requestid` | `reviewgate`: 쓰기 턴에서 `reviewgate:<turnId>` post가 한 번 들어가고 `continue`가 한 번 요청되며, 두 번째 정착에서 post는 `duplicate: true`이고 턴이 정착한다 | S-02 |
-| `template.rejects-cross-group-import` | 생성한 그룹에 `@xeon/group-helm` import를 넣은 가짜 워크스페이스에서 check-layers가 `DR-02`로 실패한다 | S-07 |
+| `template.rejects-cross-group-import` | 생성한 그룹에 `@fresnel/group-helm` import를 넣은 가짜 워크스페이스에서 check-layers가 `DR-02`로 실패한다 | S-07 |
 
 추가로 두는 테스트 [제안]:
 
@@ -196,13 +196,13 @@ S-01 구현에서 바뀐 점은 다음과 같다. 골격의 계약은 `L3.slots.
 - drive는 임대 예산 대신 커밋된 단계 수(`ROUNDS = 3`)로 멈춘다. 예산으로 멈추면 재생 복원 뒤 임대 경계가 달라져 `replayDrive` 비교가 깨진다. 시험으로 확인했다(절단 실행마다 첫 차이가 여섯 번째 이벤트에 났다).
 - `loop.turn`에 `requestId: "__ID__:round:<round>"`를 준다. 빼면 X가 임대 id로 만들어 재생마다 턴이 새로 난다(ADR-0015 §3.4).
 - 템플릿 `defaultEnabled`는 `false`다(§3.3.5). 시험은 켜는 요청을 낸 뒤 다음 경계까지 돌린다. 재생 시험은 켜진 그룹을 본다(범위 정의에 `defaultEnabled: true`만 더한 같은 그룹).
-- 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 하니스는 테스트 파일 안에 있다. 생성 그룹은 `@xeon/group-sdk/testing`의 `replayDrive`만 import한다.
+- 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 하니스는 테스트 파일 안에 있다. 생성 그룹은 `@fresnel/group-sdk/testing`의 `replayDrive`만 import한다.
 - drive·observe의 `settings.ts`는 키가 없는 묶음이다. 키를 더하는 자리만 둔다.
 - 생성 `package.json`은 `name`, `version`, `private`, `type`, `exports`, `xeon`만 둔다. 의존 선언은 없다. 시험은 워크스페이스 해석에 기댄다. 생성 명령이 의존을 어떻게 적을지는 [미결](`L4.cli.spec`)이다.
 
 시험 지원 파일은 `xeon/packages/group-sdk/test/support/`에 있다.
 
-- `generate-template.ts`: 색인을 읽어 파일을 복사하고 `__ID__`, `__TITLE__`, `__VERSION__`을 치환한다. 대상은 `test/.generated/<무작위>/` 아래이고 시험이 끝나면 지운다. 생성 루트에는 `node_modules/@xeon/group-sdk` 링크를 둔다(생성 그룹이 자기 패키지를 이름으로 import하므로).
+- `generate-template.ts`: 색인을 읽어 파일을 복사하고 `__ID__`, `__TITLE__`, `__VERSION__`을 치환한다. 대상은 `test/.generated/<무작위>/` 아래이고 시험이 끝나면 지운다. 생성 루트에는 `node_modules/@fresnel/group-sdk` 링크를 둔다(생성 그룹이 자기 패키지를 이름으로 import하므로).
 - `load-generated.ts`: 생성 그룹의 default export를 `GroupModule`로 읽는다. 동적 import는 모양을 모르는 값을 돌려주므로 단언이 한 곳 필요하다. TY-06 A6 행을 쓴다. [미결] A6은 시험의 부분 대역을 위한 행이라 생성 모듈을 읽는 쓰임을 포함하는지 확인이 필요하다.
 
 설정 파일 변경(B4-GRP 커밋 1):

@@ -5,7 +5,7 @@ import type {
   ToolCall,
   ToolResultMessage,
   Usage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 
 function usage(totalTokens = 10): Usage {
   return {

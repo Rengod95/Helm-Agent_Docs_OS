@@ -1,5 +1,5 @@
-import { ScheduleEntries } from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
+import { ScheduleEntries } from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 
 export const SCHEDULE_EXTENSION_NAME = "cap-schedule";
 

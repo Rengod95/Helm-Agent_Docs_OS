@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { WebBrowse, WebFetch, WebResearch, WebSearch } from "@xeon/contracts/capabilities";
+import { WebBrowse, WebFetch, WebResearch, WebSearch } from "@fresnel/contracts/capabilities";
 import { fakeCatalog, fakeSearchProvider, searchCandidate } from "../src/testing/fake-providers.ts";
 import { releaseStores } from "./support/store.ts";
 import { makeWebWorld } from "./support/web-world.ts";

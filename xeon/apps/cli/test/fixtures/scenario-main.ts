@@ -1,4 +1,4 @@
-import { loadTape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
+import { loadTape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { runCli } from "../../src/main.ts";
 import { createRealDeps, createRealIo } from "../../src/runtime.ts";
 import { realTapeClock } from "../support/scenario.ts";

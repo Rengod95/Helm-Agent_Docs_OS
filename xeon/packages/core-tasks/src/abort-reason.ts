@@ -1,4 +1,4 @@
-import type { AbortCode, AbortReason } from "@xeon/contracts/services";
+import type { AbortCode, AbortReason } from "@fresnel/contracts/services";
 
 const ABORT_CODES: readonly string[] = [
   "user",

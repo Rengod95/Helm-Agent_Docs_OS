@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import { toJsonValue } from "@xeon/contracts/conversation";
+import { toJsonValue } from "@fresnel/contracts/conversation";
 import { LEARNING_EVENT_KINDS } from "../src/index.ts";
 import {
   RECORD_KIND_PATTERN,
   validateGroupRecord,
   type GroupRecord,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { learningRecordKindDecls, proposedRecordOf } from "../src/records.ts";
 import type { Proposal } from "../src/proposals/proposal.ts";
 

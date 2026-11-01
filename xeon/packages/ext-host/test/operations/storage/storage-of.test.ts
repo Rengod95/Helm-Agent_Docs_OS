@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DurableEventDraft } from "@xeon/contracts/records";
+import { ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
 import { Type } from "typebox";
 import {
   storageOf,

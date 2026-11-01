@@ -1,10 +1,10 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   IsoTimeSchema,
   type CacheUsage,
   type Source,
   type SourceId,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { sha256Hex } from "../util/hash.ts";
 
 // Source 한 건을 만든다(L2.web.spec §3.1, §4.2.3). 스키마 상한을 넘는 값은 자른다.

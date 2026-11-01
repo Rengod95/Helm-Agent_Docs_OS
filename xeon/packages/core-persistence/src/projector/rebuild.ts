@@ -1,11 +1,11 @@
-import { assertNever, Bug, ok, type Result } from "@xeon/contracts";
+import { assertNever, Bug, ok, type Result } from "@fresnel/contracts";
 import type {
   DurableEventEnvelope,
   Projector,
   SqlTx,
   StoreDb,
   StoreWriteError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { envelopeOfRow, headSeqOf } from "../events.ts";
 import { columns, readResult, type RowFault } from "../rows.ts";
 import { writeResult } from "../tx-result.ts";

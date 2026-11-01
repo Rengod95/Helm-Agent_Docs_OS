@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { OsInfo } from "@xeon/contracts/services";
+import type { OsInfo } from "@fresnel/contracts/services";
 import { resolveDirs } from "../src/dirs.ts";
 import { PRODUCT, productUidDirName, productUserAgent } from "../src/product.ts";
 

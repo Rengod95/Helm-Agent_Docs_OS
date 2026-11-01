@@ -1,4 +1,4 @@
-import type { CancelScope } from "@xeon/contracts/services";
+import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure } from "../errors.ts";
 import { relativeToRoots, resolveWorkspacePath } from "../roots.ts";

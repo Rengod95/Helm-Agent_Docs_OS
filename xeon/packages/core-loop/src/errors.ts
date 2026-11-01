@@ -1,4 +1,4 @@
-import type { LoopError } from "@xeon/contracts/services";
+import type { LoopError } from "@fresnel/contracts/services";
 
 /**
  * `LoopPort`의 포트 메서드는 Result를 쓰지 않고 turn을 열기 전 실패를 Promise 거부로 알린다(L1.loop.spec §3.1 주석).

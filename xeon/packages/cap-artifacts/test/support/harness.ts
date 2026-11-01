@@ -1,7 +1,7 @@
 // 실제 SQLite(platform-store) 위에 core-persistence 세션 서비스를 올리고 리뷰 서비스(createReviews)를 붙이는 시험 조립.
 // 포트는 test/support/ports.ts의 대역이다. 저장소를 배열로 흉내 내지 않는다(eng.testing.guide TS-07).
-import { Bug, type Clock, type Logger, type LogFields } from "@xeon/contracts";
-import type { CallerInfo, CallOptions } from "@xeon/contracts/capabilities";
+import { Bug, type Clock, type Logger, type LogFields } from "@fresnel/contracts";
+import type { CallerInfo, CallOptions } from "@fresnel/contracts/capabilities";
 import {
   isId,
   isLocalId,
@@ -12,16 +12,16 @@ import {
   type LocalIdPrefix,
   type ThreadId,
   type TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   ApprovalResolvedPayload,
   CommitRequest,
   DurableEventEnvelope,
   SessionService,
   ThreadLifecycle,
-} from "@xeon/contracts/records";
-import { createSessionService } from "@xeon/core-persistence";
-import { openTestStore, TEST_HOLDER_A, type TestStore } from "@xeon/platform-store/testing";
+} from "@fresnel/contracts/records";
+import { createSessionService } from "@fresnel/core-persistence";
+import { openTestStore, TEST_HOLDER_A, type TestStore } from "@fresnel/platform-store/testing";
 import { REVIEWS_PRODUCER } from "../../src/reviews/kernel.ts";
 import {
   createRegistry,

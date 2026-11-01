@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { ItemId, ItemRecord } from "@xeon/contracts/conversation";
+import { assertNever } from "@fresnel/contracts";
+import type { ItemId, ItemRecord } from "@fresnel/contracts/conversation";
 import { memo, useState, type NamedExoticComponent, type ReactNode } from "react";
 import { useItem, useOpenThreadId, usePartText, useStreamingItem } from "../state/engine/index.ts";
 

@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { SqlTx } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { SqlTx } from "@fresnel/contracts/records";
 import { coreOwnerSpecs, type OwnerKind, type OwnerSpec } from "./prefix.ts";
 import { columnString, toSqlRow } from "./rows.ts";
 import type { SqliteConnection } from "./sqlite-env.ts";

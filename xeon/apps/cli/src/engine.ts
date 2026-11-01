@@ -1,7 +1,7 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever, attemptAsync, err, ok, type Clock, type Result } from "@xeon/contracts";
-import type { SecretOutOfBandPort } from "@xeon/contracts/services";
-import type { SettingDefInput, SettingGroup, SettingNamespace } from "@xeon/contracts/settings";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, attemptAsync, err, ok, type Clock, type Result } from "@fresnel/contracts";
+import type { SecretOutOfBandPort } from "@fresnel/contracts/services";
+import type { SettingDefInput, SettingGroup, SettingNamespace } from "@fresnel/contracts/settings";
 import {
   checkEnvelope,
   WIRE_PROTOCOL_VERSION,
@@ -12,8 +12,8 @@ import {
   type Transport,
   type TransportKind,
   type WireResult,
-} from "@xeon/contracts/wire";
-import type { IdFactory } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/wire";
+import type { IdFactory } from "@fresnel/contracts/conversation";
 import {
   AssembleError,
   attachToService,
@@ -32,19 +32,19 @@ import {
   type RemoteResolution,
   type ResolveHostStatePathsOptions,
   type ServiceAttachment,
-} from "@xeon/host";
-import { createIdFactory, systemClock, systemRandom } from "@xeon/platform-os";
+} from "@fresnel/host";
+import { createIdFactory, systemClock, systemRandom } from "@fresnel/platform-os";
 import { createHostConnection, type HostConnectionOptions } from "./host-client.ts";
 
-// L4.cli.spec §3.3. 엔진 연결: @xeon/host의 공개 API를 조합한다. CLI는 엔진 객체를 다루지 않고 HostConnection만 쓴다.
+// L4.cli.spec §3.3. 엔진 연결: @fresnel/host의 공개 API를 조합한다. CLI는 엔진 객체를 다루지 않고 HostConnection만 쓴다.
 // 서비스 접속(로컬·원격)은 엔진을 열지 않고 `attachToService`로 host.hello까지 마친 연결을 받는다(L4.host-service.spec HS-88).
-// EngineConnector 같은 이름은 @xeon/host에 없다. 연결 타입과 오류 문구는 CLI 안의 이름이다(L4.host-service.spec §3.3.5).
+// EngineConnector 같은 이름은 @fresnel/host에 없다. 연결 타입과 오류 문구는 CLI 안의 이름이다(L4.host-service.spec §3.3.5).
 
 type ConnectPreference = "auto" | "in-process" | "service";
 
 /**
  * 조립 옵션 덮어쓰기. 모델 테이프 provider와 테스트용 그룹을 extraPlugins로 넣는 자리다(L4.host-service.spec §3.3.1,
- * L4.cli.plan §5.2). 테이프를 만드는 코드는 @xeon/core-models/testing에 있어 CLI 소스가 import할 수 없다(DR-08, DR-14):
+ * L4.cli.plan §5.2). 테이프를 만드는 코드는 @fresnel/core-models/testing에 있어 CLI 소스가 import할 수 없다(DR-08, DR-14):
  * 그것을 만드는 테스트 진입(scenario-main)이 이 자리로 넘긴다.
  */
 export interface EngineAssembleOverrides {
@@ -81,7 +81,7 @@ export interface EngineConnectOptions {
   readonly assemble?: EngineAssembleOverrides;
   /**
    * 테스트 격리용 CLI 상태 파일 덮어쓰기(환경 변수 FRESNEL_CLI_STATE_FILE). 경로 계산(OS 분기)은 CLI가 하지 않는다(DR-13).
-   * 없으면 `@xeon/host`의 `resolveHostStatePaths()`가 정한 `<OsDirs.state>/cli/state.json`을 쓴다 [결정: review.decisions-2 B-07]
+   * 없으면 `@fresnel/host`의 `resolveHostStatePaths()`가 정한 `<OsDirs.state>/cli/state.json`을 쓴다 [결정: review.decisions-2 B-07]
    */
   readonly stateFile?: string | null;
 }
@@ -155,7 +155,7 @@ export interface StartedHost {
   close(): Promise<"clean" | "deadline">;
 }
 
-/** @xeon/host 호출을 바꿔 끼울 수 있게 한 틈. 테스트가 가짜를 넣는다 */
+/** @fresnel/host 호출을 바꿔 끼울 수 있게 한 틈. 테스트가 가짜를 넣는다 */
 export interface HostApi {
   startInProcessHost(options?: Omit<AssembleOptions, "mode">): Promise<StartedHost>;
   /** CLI 상태 파일 위치와 상태 디렉터리 준비(L4.host-service.spec §3.3.6) */
@@ -176,7 +176,7 @@ export interface HostApi {
     options: AttachOptions,
   ): Promise<Result<ServiceAttachment, AttachError>>;
   /**
-   * 서비스 접속의 시계와 turn.start용 id. 엔진이 CLI 밖에 있으므로 CLI가 낸다. 운영 값은 @xeon/platform-os다
+   * 서비스 접속의 시계와 turn.start용 id. 엔진이 CLI 밖에 있으므로 CLI가 낸다. 운영 값은 @fresnel/platform-os다
    * (in-process는 엔진의 ports를 쓴다)
    */
   serviceClock(): { readonly clock: Clock; readonly ids: { next(prefix: "evt"): string } };
@@ -247,7 +247,7 @@ function storeError(message: string): EngineStartError {
         message: t("cli.errors.engineStart.dataDirPermission.message"),
         fix: t("cli.errors.engineStart.dataDirPermission.fix"),
       };
-    // xeon-disable-next-line xeon/switch-default-never -- AssembleIssue 메시지 키는 문자열이다. 모르는 키는 일반 저장소 오류로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- AssembleIssue 메시지 키는 문자열이다. 모르는 키는 일반 저장소 오류로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return {
         kind: "storeUnavailable",
@@ -671,5 +671,5 @@ export function createConnectEngine(api: HostApi): ConnectEngine {
   };
 }
 
-/** 실제 @xeon/host를 쓰는 connectEngine */
+/** 실제 @fresnel/host를 쓰는 connectEngine */
 export const connectEngine: ConnectEngine = createConnectEngine(REAL_HOST_API);

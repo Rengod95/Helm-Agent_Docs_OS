@@ -1,4 +1,4 @@
-import { tapeBuildModels, tapeProvider } from "@xeon/core-models/testing";
+import { tapeBuildModels, tapeProvider } from "@fresnel/core-models/testing";
 import { startStdioHost } from "../../src/main.ts";
 import { helmDivergeTape, holdingPlayer } from "./helm-tape.ts";
 

@@ -1,4 +1,4 @@
-import type { DurableEventEnvelope, VolatileEventEnvelope } from "@xeon/contracts/records";
+import type { DurableEventEnvelope, VolatileEventEnvelope } from "@fresnel/contracts/records";
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

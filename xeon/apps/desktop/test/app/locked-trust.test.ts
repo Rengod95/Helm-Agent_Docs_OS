@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { providerSecretName } from "@xeon/client/settings";
+import { providerSecretName } from "@fresnel/client/settings";
 import { evt, STORE, summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until } from "./support.ts";
 

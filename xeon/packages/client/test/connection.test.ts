@@ -7,7 +7,7 @@ import {
   type CloseInfo,
   type JsonRpcMessage,
   type Transport,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { createHostConnection, HostClientError } from "../src/index.ts";
 import { createStdioTransport } from "../src/stdio.ts";
 

@@ -1,5 +1,5 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { LedgerShowOutput } from "@xeon/contracts/capabilities";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { LedgerShowOutput } from "@fresnel/contracts/capabilities";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import { compareBytes, utf8DecodeStrict } from "../hash.ts";
 import type { Tree } from "../skills/tree.ts";

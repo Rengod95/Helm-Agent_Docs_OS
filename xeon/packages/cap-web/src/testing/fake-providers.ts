@@ -7,7 +7,7 @@ import type {
   WebFetchProvider,
   WebProviderManifest,
   WebSearchProvider,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   BrowseCandidate,
   FetchCandidate,

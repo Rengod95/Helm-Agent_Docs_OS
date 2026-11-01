@@ -1,14 +1,14 @@
-import { canonicalJson, ok } from "@xeon/contracts";
+import { canonicalJson, ok } from "@fresnel/contracts";
 import {
   toJsonValue,
   type ItemId,
   type JsonValue,
   type ThreadId,
   type TurnId,
-} from "@xeon/contracts/conversation";
-import { ToolsPortKey, type ExtCommitRequest } from "@xeon/contracts/extensions";
-import type { DurableEventDraft } from "@xeon/contracts/records";
-import { AgentServicePortKey } from "@xeon/contracts/services";
+} from "@fresnel/contracts/conversation";
+import { ToolsPortKey, type ExtCommitRequest } from "@fresnel/contracts/extensions";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
+import { AgentServicePortKey } from "@fresnel/contracts/services";
 import {
   createTestHost,
   memoryInputQueue,
@@ -16,14 +16,14 @@ import {
   memoryRecordStore,
   type MemoryRecordStore,
   type TestHost,
-} from "@xeon/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-sdk";
+} from "@fresnel/ext-host/testing";
+import { GroupSettingsSourceKey, type GroupModule } from "@fresnel/group-sdk";
 import {
   fakeAgents,
   type EffectCounts,
   type FakeAgents,
   type ReplayHarness,
-} from "@xeon/group-sdk/testing";
+} from "@fresnel/group-sdk/testing";
 import type { LearningQueueReader } from "../../src/index.ts";
 import { foldReader } from "./projection.ts";
 import { fakeKnowledge, type FakeKnowledge } from "./fake-knowledge.ts";

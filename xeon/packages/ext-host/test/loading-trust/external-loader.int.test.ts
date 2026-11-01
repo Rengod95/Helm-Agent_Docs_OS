@@ -65,19 +65,19 @@ test("a user extension loads from <userDir>/extensions and its on handler fires"
   );
   expect(harness.policy.tiers.get("hello")).toBe("user");
   await fire(harness);
-  // 플러그인이 받은 `@xeon/contracts`와 `typebox`는 호스트와 같은 값이고, `@xeon/group-sdk`은 호스트 객체다
+  // 플러그인이 받은 `@fresnel/contracts`와 `typebox`는 호스트와 같은 값이고, `@fresnel/group-sdk`은 호스트 객체다
   expect(fakeGroupSdk.seen).toEqual(["hello:shared:true:true", "hello:fired"]);
 });
 
 test("a plugin importing a contracts subpath gets the host's module without the host registering it", async () => {
-  // 조립 루트는 group-sdk만 넘긴다. `@xeon/contracts/*` 하위 경로는 X가 등록해 `instanceof CapabilityError`가 호스트와 맞는다
-  const kitSpecifier = ["@xeon", "group-sdk"].join("/");
+  // 조립 루트는 group-sdk만 넘긴다. `@fresnel/contracts/*` 하위 경로는 X가 등록해 `instanceof CapabilityError`가 호스트와 맞는다
+  const kitSpecifier = ["@fresnel", "group-sdk"].join("/");
   await writePlugin(userExtensions, "sub", {
     name: "sub",
     points: [],
     entry: `import * as kit from "${kitSpecifier}";
-import { CapabilityError } from "@xeon/contracts/capabilities";
-import { ok } from "@xeon/contracts";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
+import { ok } from "@fresnel/contracts";
 export const extension = ({ scope }) => {
   scope("sub", {}, (g) => {
     kit.record("sub:error:" + String(CapabilityError === kit.capabilityError));
@@ -87,7 +87,7 @@ export const extension = ({ scope }) => {
 `,
   });
   const harness = await harnessOf({
-    loader: { sdkModules: { "@xeon/group-sdk": fakeGroupSdk } },
+    loader: { sdkModules: { "@fresnel/group-sdk": fakeGroupSdk } },
   });
   const report = await harness.loader.loadAll(loadOptions(harness));
   expect(report.diagnostics).toEqual([]);

@@ -1,4 +1,4 @@
-import { Bug, type Clock, type RandomSource } from "@xeon/contracts";
+import { Bug, type Clock, type RandomSource } from "@fresnel/contracts";
 import type {
   IdByPrefix,
   IdFactory,
@@ -6,7 +6,7 @@ import type {
   LocalId,
   LocalIdFactory,
   LocalIdPrefix,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 
 // ULID: 시각 48비트(문자 10자) + 난수 80비트(문자 16자), Crockford base32 대문자.
 // F.conversation.spec §3.2의 ULID_PATTERN(첫 글자 0-7)을 지킨다. 시각은 주입한 Clock, 난수는 주입한 RandomSource만 쓴다.

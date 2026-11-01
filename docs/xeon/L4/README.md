@@ -51,12 +51,12 @@ L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용
 
 ## 3. 패키지 배치
 
-| 패키지 | 디렉터리 | `xeon.domain` | 진입점 |
+| 패키지 | 디렉터리 | `fresnel.domain` | 진입점 |
 |---|---|---|---|
-| `@xeon/cli` | `xeon/apps/cli` | `cli` | `src/main.ts`(배포 바이너리 `xeon`의 진입 [제안]) |
-| `@xeon/host` | `xeon/apps/host` | `host` | `.`(조립, 호스트 시작, 서비스), `./client`(`createHostConnection`, `connectServiceTransport`) |
-| `@xeon/desktop` | `xeon/apps/desktop` | `desktop` | WebView `src/main.ts`(M2). `src-tauri/`는 층 규칙 밖 |
-| (settings-ui) | `xeon/apps/desktop/src/settings` | 패키지 없음. `@xeon/desktop` 안의 디렉터리 | - |
+| `@fresnel/cli` | `xeon/apps/cli` | `cli` | `src/main.ts`(배포 바이너리 `xeon`의 진입 [제안]) |
+| `@fresnel/host` | `xeon/apps/host` | `host` | `.`(조립, 호스트 시작, 서비스), `./client`(`createHostConnection`, `connectServiceTransport`) |
+| `@fresnel/desktop` | `xeon/apps/desktop` | `desktop` | WebView `src/main.ts`(M2). `src-tauri/`는 층 규칙 밖 |
+| (settings-ui) | `xeon/apps/desktop/src/settings` | 패키지 없음. `@fresnel/desktop` 안의 디렉터리 | - |
 
 엔진 바이너리 [제안]: 단일 `xeon`(`bun build --compile`)에 서브커맨드 `chat`, `host --stdio`(데스크톱 사이드카), `service start|status|stop|ensure|launch-mode|run`, `config`, `secret`을 둔다. 근거와 별도 사이드카안과의 비교는 `L4.host-service.spec` §3.2다. 다른 문서는 "엔진 바이너리"라고 쓰고 이 이름을 병기한다.
 
@@ -87,7 +87,7 @@ flowchart LR
 
 | `TransportKind` | 매체 | 소비자 | 서버 쪽 | 마일스톤 |
 |---|---|---|---|---|
-| `in-process` | 메모리 채널. 직렬화 없음(개발 빌드는 JSON 왕복 검사) | cli | CLI 프로세스 안의 `@xeon/host` | M1 |
+| `in-process` | 메모리 채널. 직렬화 없음(개발 빌드는 JSON 왕복 검사) | cli | CLI 프로세스 안의 `@fresnel/host` | M1 |
 | `stdio` | 자식 프로세스 stdin/stdout, JSON Lines | desktop(셸이 바이트 릴레이, WebView가 프레이밍) | 엔진 사이드카 `xeon host --stdio` | M1(계약·적합성), M2(사이드카) |
 | `socket` | Unix 도메인 소켓 위 JSON Lines | cli, desktop(셸 릴레이) | `xeon service` | M3 |
 
@@ -121,11 +121,11 @@ L4 각 문서가 아래 층 문서의 무엇을 쓰는지 적는다. 실제로 �
 
 의존 규칙 요약(`eng.dependency-rules.guide`, `architecture.layers.spec` §3.2):
 
-- DR-10: 앱(`apps/*`)끼리 import하지 않는다. 예외 하나를 둔다 [결정: review.decisions-2 U-15]: `apps/cli` → `@xeon/host`(진입점 `.`, `./client`)의 한 방향 간선. 허용 목록 항목 `DR-10/cli-host`로 연다. 이는 `architecture.layers.spec` §3.2의 "층 기반 패키지"(L4는 `host`)를 L4에 적용한 결과다. `apps/host`는 다른 앱을 import하지 않는다. `apps/desktop`은 `@xeon/host`를 import하지 않고 엔진 바이너리를 실행한다(`L4.host-service.spec` §3.1).
-- DR-14: 조립 루트는 `apps/host` 하나다. 플러그인을 등록하려고 모든 패키지를 import한다. `apps/cli`는 조립 루트가 아니며 F와 `@xeon/host` 공개 진입점 외의 워크스페이스 패키지를 import하지 않는다(같은 절 수정안).
+- DR-10: 앱(`apps/*`)끼리 import하지 않는다. 예외 하나를 둔다 [결정: review.decisions-2 U-15]: `apps/cli` → `@fresnel/host`(진입점 `.`, `./client`)의 한 방향 간선. 허용 목록 항목 `DR-10/cli-host`로 연다. 이는 `architecture.layers.spec` §3.2의 "층 기반 패키지"(L4는 `host`)를 L4에 적용한 결과다. `apps/host`는 다른 앱을 import하지 않는다. `apps/desktop`은 `@fresnel/host`를 import하지 않고 엔진 바이너리를 실행한다(`L4.host-service.spec` §3.1).
+- DR-14: 조립 루트는 `apps/host` 하나다. 플러그인을 등록하려고 모든 패키지를 import한다. `apps/cli`는 조립 루트가 아니며 F와 `@fresnel/host` 공개 진입점 외의 워크스페이스 패키지를 import하지 않는다(같은 절 수정안).
 - 조립 위치 결정의 근거: 조립 코드는 L3 그룹까지 모두 import하므로 L4 아래 어느 순위에도 둘 수 없다(DR-01·DR-02). CLI가 항상 서비스를 거치는 안은 in-process 결정과 충돌한다(`L4.host-service.spec` §3.1 비교표).
 - `@tauri-apps/*`는 `apps/desktop`만 import한다. WebView 코드 안에서도 셸 경계 모듈로 제한한다(`L4.desktop.spec` §4.9 W2).
-- UI(CLI 화면, 데스크톱 WebView, 설정 화면)는 F의 `@xeon/contracts/wire`·`@xeon/contracts/settings` 서브패스와 `HostConnection`으로만 엔진에 접근한다. 엔진 내부 패키지를 import하지 않는다(ADR-0006 §3.2).
+- UI(CLI 화면, 데스크톱 WebView, 설정 화면)는 F의 `@fresnel/contracts/wire`·`@fresnel/contracts/settings` 서브패스와 `HostConnection`으로만 엔진에 접근한다. 엔진 내부 패키지를 import하지 않는다(ADR-0006 §3.2).
 - 처리기와 연결 코드는 엔진 포트(`EnginePorts`)만 쓰고, 아래 층 서비스 어댑터는 `apps/host/src/assemble.ts` 한 곳에 둔다(`L4.host-service.plan` §2).
 
 L4가 정하지 않는 것:
@@ -160,9 +160,9 @@ L4가 정하지 않는 것:
 
 | # | 항목 | 소유 문서 | 결정 필요 |
 |---|---|---|---|
-| 1 | 닫음: 조립 위치(DR-10)는 안 1로 결정(review.decisions-2 U-15). CLI 상태 파일 경로는 `@xeon/host` `resolveHostStatePaths`가 준다(review.decisions-2 B-07) | `L4.host-service.spec` §3.1, §10-1, `L4.cli.spec` §10-1 | - |
+| 1 | 닫음: 조립 위치(DR-10)는 안 1로 결정(review.decisions-2 U-15). CLI 상태 파일 경로는 `@fresnel/host` `resolveHostStatePaths`가 준다(review.decisions-2 B-07) | `L4.host-service.spec` §3.1, §10-1, `L4.cli.spec` §10-1 | - |
 | 2 | 단일 바이너리 `xeon` 대 `apps/host` 단독 사이드카. 확정 뒤 `eng.toolchain.guide` TC-10과 `xeon/apps/desktop/README.md` 문구 수정 | `L4.host-service.spec` §3.2, §10-2·3, `L4.desktop.spec` §10-1, `L4.cli.spec` §10-1 | 사용자 확인 |
-| 3 | `createHostConnection`·`StdioTransportFactory` 구현의 위치. host는 `@xeon/host/client`(desktop import는 DR-10 예외 추가), desktop은 F에 런타임 중립 구현 요청 | `L4.host-service.spec` §10-5, `L4.desktop.spec` §10-3 | 사용자 확인(DR-10 예외) 또는 F 변경 요청 |
+| 3 | `createHostConnection`·`StdioTransportFactory` 구현의 위치. host는 `@fresnel/host/client`(desktop import는 DR-10 예외 추가), desktop은 F에 런타임 중립 구현 요청 | `L4.host-service.spec` §10-5, `L4.desktop.spec` §10-3 | 사용자 확인(DR-10 예외) 또는 F 변경 요청 |
 | 4 | TUI 선택(pi-tui 채택, 스택 표에 행 없음) | `L4.cli.spec` §10-6 | 사용자 확인 |
 | 5 | 닫음: 데스크톱 프런트엔드는 React 19 + Zustand 5(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`. `L4.settings-ui.spec` §10-16의 부품 형식과 `ui`·`visual` 시험 도입은 남는다 | `L4.desktop.spec` §10-11, `L4.settings-ui.spec` §10-16 | - |
 | 6 | Linux/WSL 데스크톱 지원 수준, 최소 macOS·WebKitGTK 버전 | `L4.desktop.spec` §10-9·10 | 사용자 확인 |
@@ -185,7 +185,7 @@ L4가 정하지 않는 것:
 | 23 | 패키지 도메인 이름 `host`와 routes 도메인 `host-service`의 불일치, 설정 화면 코드 위치 | `L4.host-service.spec` §10-18, `L4.settings-ui.spec` §10-11, `architecture.layers.spec` §10 | 작성자 결정 |
 | 24 | 릴리즈 형태(단일 파일, `native/` 사이드카 디렉터리), 사이드카 크기 상한, Windows 크래시 시 엔진 잔존 | `L4.cli.spec` §10-7, `L4.desktop.spec` §10-7, ADR-0008 §6 | 사용자 확인 |
 | 25 | M1에서 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기기 | `L4.cli.spec` §10-2 | F 변경 요청 |
-| 26 | 닫음: `doctor`는 `@xeon/host`의 진단 함수 `Engine.diagnose`(외부 바이너리 점검)를 직접 부른다. F `host.diagnose`는 반려됐다(m2c G2-07, `L4.host-service.spec` HS-69). 데스크톱이 같은 결과를 받는 경로는 `host.status`의 `includeBinaries`와 `binaries`다(F와 호스트 반영, `L4.host-service.spec` HS-69) | `L4.cli.spec` §10-5 | 데스크톱 화면 |
+| 26 | 닫음: `doctor`는 `@fresnel/host`의 진단 함수 `Engine.diagnose`(외부 바이너리 점검)를 직접 부른다. F `host.diagnose`는 반려됐다(m2c G2-07, `L4.host-service.spec` HS-69). 데스크톱이 같은 결과를 받는 경로는 `host.status`의 `includeBinaries`와 `binaries`다(F와 호스트 반영, `L4.host-service.spec` HS-69) | `L4.cli.spec` §10-5 | 데스크톱 화면 |
 | 27 | print 모드의 승인 요청 기본 거부, 비대화 자동 승인 플래그 | `L4.cli.spec` §10-8 | 사용자 확인 |
 | 28 | 닫음: 승인 A안(review.decisions-2 U-02). `approval.requested`/`approval.resolved` kind는 `F.records.spec` 카탈로그에 있다 | `L4.cli.spec` §10-9 | - |
 | 29 | TUI 설정 화면과 view-model 공유 위치(DR-10) | `L4.cli.spec` §10-10, `L4.settings-ui.spec` §10-12 | 사용자 확인 |
@@ -207,7 +207,7 @@ L4가 정하지 않는 것:
 
 | # | 어긋남 | host-service의 정함 | 반영한 문서 |
 |---|---|---|---|
-| A | `L4.cli.spec` §3.3이 `EngineConnector`, `StdioHostRunner`, `ServiceControl` 이름을 조립 진입점에 요구한다 | 세 이름을 `@xeon/host`에 두지 않는다. CLI가 `resolveLaunchMode`, `startInProcessHost`, `ensureService`, `connectServiceTransport`, `createHostConnection`, `runHostCommand`로 만든다(`L4.host-service.spec` §3.3.5) | `L4.cli.spec` §3.3, §10-1 |
+| A | `L4.cli.spec` §3.3이 `EngineConnector`, `StdioHostRunner`, `ServiceControl` 이름을 조립 진입점에 요구한다 | 세 이름을 `@fresnel/host`에 두지 않는다. CLI가 `resolveLaunchMode`, `startInProcessHost`, `ensureService`, `connectServiceTransport`, `createHostConnection`, `runHostCommand`로 만든다(`L4.host-service.spec` §3.3.5) | `L4.cli.spec` §3.3, §10-1 |
 | B | `L4.cli.spec` §3.1이 `xeon config schema`를 M2, F 변경 요청(`settings.schema`)으로 둔다 | wire 메서드 없이 로컬 명령 `runHostCommand({ kind: "config-schema" })`로 M1에 둔다(`L4.host-service.spec` §6.2) | `L4.cli.spec` §3.1, §10-4 |
 | C | `L4.cli.spec` §4.3 [가정]: 기존 세션의 쓰기 소유를 `turn.start`가 얻는다 | 확정: `turn.start`의 암묵 획득(HS-28) | `L4.cli.spec` §4.3, §10-2 |
 | D | `L4.cli.spec` §3.1이 `xeon host --stdio`를 M2로 둔다. `L4.desktop.plan` D1은 M1에 엔진 프로세스를 띄워 적합성을 돌린다 | M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(H5). 컴파일 바이너리 서브커맨드는 M2 | `L4.cli.spec` §3.1, `L4.cli.plan` §1, `L4.host-service.plan` §1.2, `L4.desktop.plan` D1(실행 명령 명시) |

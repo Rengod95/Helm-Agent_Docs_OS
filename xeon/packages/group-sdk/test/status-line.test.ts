@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { GroupStatus } from "@xeon/contracts/services";
+import type { GroupStatus } from "@fresnel/contracts/services";
 import { displayWidth, formatGroupStatusLine } from "../src/index.ts";
 
 function group(id: string, patch: Partial<GroupStatus> = {}): GroupStatus {

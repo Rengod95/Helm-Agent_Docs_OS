@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { Bug } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LoopPortKey,
   RecordCommitPortKey,
@@ -8,8 +8,8 @@ import {
   type RecordCommitPort,
   type ExtThreadSnapshot,
   type ScopeId,
-} from "@xeon/contracts/extensions";
-import type { DurableEventDraft } from "@xeon/contracts/records";
+} from "@fresnel/contracts/extensions";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
 import type {
   BoundarySignal,
   BoundaryTxn,
@@ -301,7 +301,7 @@ export function createBoundary(
           level: "warning",
           code: "port_unavailable",
           message:
-            "xeon.session (RecordCommitPort) is not provided; boundary contribution is dropped",
+            "fresnel.session (RecordCommitPort) is not provided; boundary contribution is dropped",
         });
         committed = false;
       } else {

@@ -1,12 +1,12 @@
 {
-  "name": "@xeon/group-__ID__",
+  "name": "@fresnel/group-__ID__",
   "version": "__VERSION__",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L3",
     "domain": "__ID__"
   }

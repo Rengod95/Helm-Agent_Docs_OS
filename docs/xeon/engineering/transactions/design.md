@@ -170,7 +170,7 @@ CREATE TABLE sys_leases (
 
 | 이 문서의 이전 판 이름 | 정본 이름 | 위치 |
 |---|---|---|
-| `SessionWriter.commit`(공개) | `SessionService.commit`(서비스 `xeon.session`). `SessionWriter`는 내부 구현 클래스 | `L1.persistence.spec` §3.1, §3.3 |
+| `SessionWriter.commit`(공개) | `SessionService.commit`(서비스 `fresnel.session`). `SessionWriter`는 내부 구현 클래스 | `L1.persistence.spec` §3.1, §3.3 |
 | `SessionId`, `RequestId`(브랜드) | `ThreadId`, `CommitKey`(브랜드 없는 문자열) | `L1.persistence.spec` §3.2 |
 | `StepCheckpointDraft { state }` | `StepCheckpointInput`(이벤트 `checkpoint.step`으로 기록) | `L1.persistence.spec` §3.2 |
 | `StampedDraft extends EventDraft` | `StampedDraft { draft: DurableEventDraft, producer }` | `L1.persistence.spec` §3.2 |
@@ -225,7 +225,7 @@ export interface FaultInjector {
 }
 ```
 
-- L0 store는 서비스 `xeon.store`로 등록한다. 세션 테이블에 쓸 수 있는 전체 핸들은 조립 루트(L4 host)가 `core-persistence`에만 넘긴다. 다른 컨텍스트는 `scoped(owner)`로 자기 접두사 테이블용 핸들만 받는다 [제안].
+- L0 store는 서비스 `fresnel.store`로 등록한다. 세션 테이블에 쓸 수 있는 전체 핸들은 조립 루트(L4 host)가 `core-persistence`에만 넘긴다. 다른 컨텍스트는 `scoped(owner)`로 자기 접두사 테이블용 핸들만 받는다 [제안].
 - [제안] `write`는 bun:sqlite의 `db.transaction(fn).immediate()`로 구현한다. 안쪽 트랜잭션 호출은 저장점이 되므로(`_research/notes/eng-3.md §2.1`), 의도하지 않은 저장점을 막으려고 중첩 `write`를 금지한다. 세부(저장점 의미 확인, 직접 `BEGIN IMMEDIATE` 문장 사용 여부)는 미결 T-2다.
 - `SQLITE_BUSY`(busy_timeout 5000 초과)는 `err({ kind: "busy" })`, `SQLITE_FULL`은 `err({ kind: "disk_full" })`, I/O 계열은 `err({ kind: "io" })`로 바꾼다(`L0.store.spec` §3.1). 쓰기 결과는 저장되지 않았으므로 호출자는 같은 커밋 키로 다시 시도한다(TX-05).
 - bun:sqlite는 콜백이 던질 때 롤백한다. 그래서 트랜잭션 안의 예상 실패(`ownership_lost`)는 `core-persistence` 내부 표지 값으로 던져 롤백하고, `commit` 밖에서 `err(...)`로 바꾼다. 이 throw는 `eng.typescript.guide` TY-11의 허용 경우 3(외부 API 계약)이고, 그 줄에 예외 주석을 단다. 표지 값은 `commit` 밖으로 나가지 않는다.
@@ -632,7 +632,7 @@ CREATE TABLE consumer_cursors (
 
 ## 9. 구현 작업자 규칙
 
-예제의 `session`은 `SessionService`(`xeon.session`), `CommitRequest`의 모양은 `L1.persistence.spec` §3.2다. 예제는 envelope 필드 일부를 `/* … */`로 줄였다.
+예제의 `session`은 `SessionService`(`fresnel.session`), `CommitRequest`의 모양은 `L1.persistence.spec` §3.2다. 예제는 envelope 필드 일부를 `/* … */`로 줄였다.
 
 ### TX-01 트랜잭션 안에서 await, 네트워크, 모델 호출을 하지 않는다
 
@@ -688,7 +688,7 @@ session.commit(resultRequest(call.toolCallId, out));
 
 이유: 확장이 세션 테이블이나 투영을 직접 고치면 재생으로 다시 만들 수 없고, 확장을 지울 때 남는 흔적을 찾을 수 없다. 확장 기록은 `x.<extId>.*`·`grp.<groupId>.*` 이벤트와 그 이벤트의 투영(`x_<확장 이름의 '-'를 '_'로>_*`, `eng.context-map.design` 5.2절)으로만 남긴다.
 
-강제: `ProducerHandle.draft`의 kind 접두 소유 검사, `ProjectionTx`의 소유 테이블 검사(테스트·디버그 빌드), 확장은 `@xeon/platform-store`를 import할 수 없다(`eng.dependency-rules.guide` DR-14).
+강제: `ProducerHandle.draft`의 kind 접두 소유 검사, `ProjectionTx`의 소유 테이블 검사(테스트·디버그 빌드), 확장은 `@fresnel/platform-store`를 import할 수 없다(`eng.dependency-rules.guide` DR-14).
 
 좋은 예:
 

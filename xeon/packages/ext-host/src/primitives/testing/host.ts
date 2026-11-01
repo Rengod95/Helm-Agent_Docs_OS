@@ -1,11 +1,11 @@
-import type { IdFactory, ThreadId, StepId, TurnId } from "@xeon/contracts/conversation";
-import type { DurableEventDraft } from "@xeon/contracts/records";
+import type { IdFactory, ThreadId, StepId, TurnId } from "@fresnel/contracts/conversation";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
 import {
   InputQueuePortKey,
   LoopPortKey,
   RecordCommitPortKey,
   type ExtCommitResult,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import type { CapabilityDefLookup } from "../capability-guard.ts";
 import type { DispatchPolicy } from "../dispatch-types.ts";
 import { SessionBranchPortKey } from "../event-query.ts";

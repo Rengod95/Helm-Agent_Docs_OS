@@ -1,5 +1,5 @@
-import type { CallContext, KnowledgeActor } from "@xeon/contracts/capabilities";
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import type { CallContext, KnowledgeActor } from "@fresnel/contracts/capabilities";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import { failure, type KnowledgeFailure } from "./errors.ts";
 
 // L2.knowledge.spec §3.1 행위자는 입력 필드가 아니다. 서비스가 `CallOptions.context.caller`에서 만든다.

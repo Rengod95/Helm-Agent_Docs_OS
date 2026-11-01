@@ -2,9 +2,9 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
-import type { JsonObject } from "@xeon/contracts/conversation";
-import type { EventWire } from "@xeon/contracts/wire";
+import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
+import type { JsonObject } from "@fresnel/contracts/conversation";
+import type { EventWire } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";

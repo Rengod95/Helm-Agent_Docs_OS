@@ -1,18 +1,18 @@
-import { Bug, err, ok, parse, type Result } from "@xeon/contracts";
+import { Bug, err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   ApprovalIdSchema,
   ThreadIdSchema,
   type ApprovalId,
   type JsonValue,
   type ThreadId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   ApprovalDecision,
   ApprovalRequestError,
   L2ApprovalRequest,
   L2ApprovalSnapshot,
   L2ApprovalsPort,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // F `L2ApprovalsPort`의 메모리 대역(m2-plan §3 규칙 6). 같은 requestId로 다시 요청하면 기존 요청의 현재 상태를 돌려준다.
 

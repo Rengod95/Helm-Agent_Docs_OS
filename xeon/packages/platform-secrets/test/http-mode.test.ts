@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { SecretAuditRecord } from "@xeon/contracts/capabilities";
-import type { ConcreteHttpRequest, HttpResponseLike, UseCtx } from "@xeon/contracts/services";
+import type { SecretAuditRecord } from "@fresnel/contracts/capabilities";
+import type { ConcreteHttpRequest, HttpResponseLike, UseCtx } from "@fresnel/contracts/services";
 import { memorySecrets } from "../src/testing/index.ts";
 import { manualClock } from "./support/clock.ts";
 import { forms } from "./support/encode.ts";

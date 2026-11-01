@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { ok, repeatAsync } from "@xeon/contracts";
-import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
+import { ok, repeatAsync } from "@fresnel/contracts";
+import type { DnsResolver, HttpTransport } from "@fresnel/cap-web";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
@@ -93,7 +93,7 @@ realTest(
 );
 
 // E4(M2 종료 조건, ADR-0005 개정, H1): `web.search`의 기본 provider는 내장 검색 래퍼이고, SearXNG는 사용자가 주소를 설정했을 때만 쓴다.
-// 조립 루트가 `xeon.models`의 hosted 검색을 cap-web에 넘기지 않으면 래퍼가 후보에 들지 않는다.
+// 조립 루트가 `fresnel.models`의 hosted 검색을 cap-web에 넘기지 않으면 래퍼가 후보에 들지 않는다.
 
 const SEARXNG_URL = "http://127.0.0.1:8888";
 
@@ -230,7 +230,7 @@ realTest(
 realTest(
   "the assembly root hands the engine's own hosted search to cap-web, so the built-in wrapper is in the provider chain",
   async () => {
-    // 시험이 hosted 검색 대역을 주지 않으면 xeon.models의 포트가 쓰인다. 테이프 provider는 hosted 검색이 없어 래퍼가 모델 미지원으로 내려가지만,
+    // 시험이 hosted 검색 대역을 주지 않으면 fresnel.models의 포트가 쓰인다. 테이프 provider는 hosted 검색이 없어 래퍼가 모델 미지원으로 내려가지만,
     // 래퍼가 후보에 올라 있다는 것이 연결의 증거다(연결하지 않으면 후보에 없다)
     const rig = await searchRig({}, false, ["any"], false);
     await rig.runTurn("search it");

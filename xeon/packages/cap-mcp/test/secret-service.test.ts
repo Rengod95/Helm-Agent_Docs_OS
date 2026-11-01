@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import { secretRef } from "@xeon/contracts/capabilities";
-import type { SecretError, UseCtx } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import { secretRef } from "@fresnel/contracts/capabilities";
+import type { SecretError, UseCtx } from "@fresnel/contracts/services";
 import { createSecretServiceHeaders, type LeasingSecrets } from "../src/index.ts";
 
 const signal = new AbortController().signal;

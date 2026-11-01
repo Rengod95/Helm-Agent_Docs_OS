@@ -10,7 +10,7 @@ binds: [xeon/packages/contracts/src/records/**]
 
 # F 기록 계약 (records)
 
-서브패스: `@xeon/contracts/records`. 소스: `xeon/packages/contracts/src/records/`.
+서브패스: `@fresnel/contracts/records`. 소스: `xeon/packages/contracts/src/records/`.
 
 ## 1. 목적과 범위
 
@@ -49,7 +49,7 @@ binds: [xeon/packages/contracts/src/records/**]
 
 ## 3. 인터페이스
 
-ID 타입(`EventId`, `EffectId`, `CheckpointId` 등)과 스키마는 `F.conversation.spec` §3.2에서 정의하고 이 서브패스가 같은 심볼을 다시 export한다. 스키마 선언 형식(명시 타입 주석, `Static` 파생, 인터페이스 표기의 뜻)은 `F.conversation.spec` §3 머리말을 따른다. 예상 가능한 실패는 `@xeon/contracts` 루트의 `Result<T, E>`로 돌려주고 `E`는 `kind` 판별 유니온이다(`eng.typescript.guide` §1.2, TY-11). 루트 진입점의 범위는 `F.readme` §3을 따른다.
+ID 타입(`EventId`, `EffectId`, `CheckpointId` 등)과 스키마는 `F.conversation.spec` §3.2에서 정의하고 이 서브패스가 같은 심볼을 다시 export한다. 스키마 선언 형식(명시 타입 주석, `Static` 파생, 인터페이스 표기의 뜻)은 `F.conversation.spec` §3 머리말을 따른다. 예상 가능한 실패는 `@fresnel/contracts` 루트의 `Result<T, E>`로 돌려주고 `E`는 `kind` 판별 유니온이다(`eng.typescript.guide` §1.2, TY-11). 루트 진입점의 범위는 `F.readme` §3을 따른다.
 
 이 문서의 pi 소스 경로와 줄 번호(`~/projects/_ref/pi-src`, `durable/…`, agent `types.ts:490` 등)는 로컬 pi 1.1.0 소스 기준이다. 계약 대상은 npm 1.3.0이고, agent-core `types.ts`는 두 버전의 줄이 같다(`_research/notes/F-2.md` §4).
 
@@ -149,10 +149,10 @@ export function checkEnvelopeSize(envelope: EventEnvelope): Result<number, Envel
 | ID 접두 | 세 글자 8종 `thr` `trn` `stp` `itm` `prt` `evt` `efx` `ckp`, 타입 `IdPrefix`(`F.conversation.spec` §3.2). `ID_PREFIXES` 상수와 `SessionId`·`RequestId`·`TaskId`는 없다 | 두 글자 `ss` `ev` `rq` `tk`, 상수 `ID_PREFIXES`(`eng.domain-types.guide` DT-06) | F. DT-06은 F 표를 정본으로 지정했다 |
 | 확장 접두 | 이벤트·레코드 kind `x.<extId>.<영역>.<이름>`, `grp.<groupId>.<영역>.<이름>`, `extId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용·밑줄 금지, §3.2) | DT-08은 `x.`/`grp.` 접두로 고쳤다(K-06). `extId` 정규식은 하이픈을 허용하지 않는다(`eng.domain-types.guide` DT-08) | F. 정규식은 [결정: review.decisions-2 U-18]. `_` 접두는 코어 열거형 확장 예약으로만 남는다(`F.extensions.spec` §4.9) |
 | 코어 kind 형식 | `<영역>.<이름>` snake_case(§3.2) | `<대상>.<과거형>`(`eng.events.design` §4.1) | F [제안] |
-| `IdFactory` | `F.conversation.spec` §3.2, 서브패스 `./conversation` | 루트 `@xeon/contracts`에서 import(`eng.testing.guide`) | F. 루트에는 두지 않는다(`F.readme` §3) |
+| `IdFactory` | `F.conversation.spec` §3.2, 서브패스 `./conversation` | 루트 `@fresnel/contracts`에서 import(`eng.testing.guide`) | F. 루트에는 두지 않는다(`F.readme` §3) |
 | `Clock`, 난수, `Logger` 인터페이스 | 루트 base의 `Clock`, `Scheduler`, `TimerHandle`, `RandomSource`, `Logger` 인터페이스(`F.readme` §3) | `Clock`·`RandomSource`(`eng.typescript.guide`), `Clock`·`IdSource`·`Random`·`Logger`(`eng.best-practices.guide` BP-05) | F [제안]. `IdSource`·`Random`은 `IdFactory`·`RandomSource`로 읽는다(`F.readme` §8 미결 10 정리) |
-| 테스트 대역 서브패스 `@xeon/contracts/testing` | 없음(서브패스 7개, `F.readme` §3). 대역 구현(`manualClock`, `seededRandom`, `fixedIdFactory`)은 쓰는 패키지마다 자기 `test/` 안에 둔다 | `manualClock`, `fixedIdFactory` 등(`eng.testing.guide`) | F [결정: review.decisions-2 U-03]. 대역은 시계·난수 구현이라 F 런타임 로직 예외(`F.readme` §1)에 들지 않는다 |
-| `createIdFactory` 위치 | F에 없음. 구현은 `platform-os`(`F.readme` §1, §8 10번) | `@xeon/contracts` base(`eng.typescript.guide` §1.2) | F [결정: review.decisions-2 U-03]. eng 문서의 수정은 요청으로 남긴다 |
+| 테스트 대역 서브패스 `@fresnel/contracts/testing` | 없음(서브패스 7개, `F.readme` §3). 대역 구현(`manualClock`, `seededRandom`, `fixedIdFactory`)은 쓰는 패키지마다 자기 `test/` 안에 둔다 | `manualClock`, `fixedIdFactory` 등(`eng.testing.guide`) | F [결정: review.decisions-2 U-03]. 대역은 시계·난수 구현이라 F 런타임 로직 예외(`F.readme` §1)에 들지 않는다 |
+| `createIdFactory` 위치 | F에 없음. 구현은 `platform-os`(`F.readme` §1, §8 10번) | `@fresnel/contracts` base(`eng.typescript.guide` §1.2) | F [결정: review.decisions-2 U-03]. eng 문서의 수정은 요청으로 남긴다 |
 
 ### 3.2 이벤트 종류 이름 규칙
 
@@ -879,7 +879,7 @@ import type { LeaseService } from "./lease.ts";
 import type { ExtensionTables, MigrationRunner } from "./migrations.ts";
 import type { SqlTx } from "./sql.ts";
 
-export const StoreServiceName: "xeon.store" = "xeon.store";
+export const StoreServiceName: "fresnel.store" = "fresnel.store";
 export type StoreWriteError =
   | { readonly kind: "busy" }
   | { readonly kind: "disk_full" }
@@ -1003,7 +1003,7 @@ export interface Projector {
 
 // src/records/session-service.ts
 export type Unsubscribe = () => void;         // records는 extensions보다 낮아 같은 모양을 적는다
-export const SessionServiceName: "xeon.session" = "xeon.session";
+export const SessionServiceName: "fresnel.session" = "fresnel.session";
 export interface SessionRetention {
   preview(): Result<readonly ThreadId[], ReadFailure>;   // 지금 설정으로 지워질 thread. 지우지 않는다
   prune(): Result<readonly ThreadId[], StoreError>;      // 지울 thread를 지우고 지운 목록을 돌려준다
@@ -1137,7 +1137,7 @@ export interface RecordCommitPort {
 
 - [제안] `SqlValue`·`SqlRow`는 `sql.ts` 한 곳에 둔다. `ProjectionTx`는 `run`의 반환만 다른 별도 인터페이스다.
 - [제안] `SessionService.readFrom`·`subscribe`의 첫 인자는 배타 경계 `afterSeq`다. §3.8 `SessionStore`의 `fromSeq`와 이름이 다르며, 정리는 §10 미결 9다.
-- [제안] 복구 표식은 records에 두지 않는다. 복구 표식의 정본은 `L1.persistence.spec` §4.8.1의 `p_threads` 열이고, 읽는 경로는 `xeon.session`의 `RecoveryMarker`(`OpenReport.marker`, `ProjectionQuery.thread(threadId)`가 돌려주는 값의 `marker`)다.
+- [제안] 복구 표식은 records에 두지 않는다. 복구 표식의 정본은 `L1.persistence.spec` §4.8.1의 `p_threads` 열이고, 읽는 경로는 `fresnel.session`의 `RecoveryMarker`(`OpenReport.marker`, `ProjectionQuery.thread(threadId)`가 돌려주는 값의 `marker`)다.
 - 같은 절에 옮길 이름 [제안]. 아래 이름은 이 절의 파일에 두기로 하고, 필드는 오른쪽 소유 문서의 현재 블록을 옮긴다. 옮기는 작업은 `F.records.plan`이 맡고, 옮기기 전에는 소유 문서 블록이 필드의 후보 정본이다.
 
 | 파일 | 이름 | 필드 후보 정본 |
@@ -1243,7 +1243,7 @@ export interface RecordCommitPort {
 2. 알 수 없는 `version`(현재보다 큼, 또는 업캐스터 누락)은 `upcastEvent`가 각각 `future_version`, `missing_upcaster` 오류를 낸다.
 3. 업캐스터 체인 v1→v3이 순서대로 적용되고 원본 envelope 객체는 바뀌지 않는다.
 4. `decideEffectRecovery`는 순수 함수이며 결정표 다섯 행을 그대로 낸다. intent만 있는 `unsafe` 효과는 `synthesize`/`not_started`, intent+exec만 있는 `unsafe` 효과는 `synthesize`/`outcome_unknown`으로 닫힌다.
-5. `@xeon/contracts/records`가 export하는 `ReplayPolicy`, `ReplayPolicySchema`, `toReplayPolicy`는 `@xeon/contracts/conversation`의 것과 같은 심볼이다(동일 참조). 매핑 값은 `F.conversation.spec` §9 수용 기준 9가 확인한다.
+5. `@fresnel/contracts/records`가 export하는 `ReplayPolicy`, `ReplayPolicySchema`, `toReplayPolicy`는 `@fresnel/contracts/conversation`의 것과 같은 심볼이다(동일 참조). 매핑 값은 `F.conversation.spec` §9 수용 기준 9가 확인한다.
 6. 직렬화 크기가 262,145바이트인 envelope는 `checkEnvelopeSize`에서 `ok: false`(`event_too_large`)다. 262,144바이트는 `ok: true`다.
 7. `parseEventKind`는 코어 kind 43개와 병합된 도메인 카탈로그 kind를 통과시키고, 접두 없는 비코어·비도메인 kind, `ReservedDomainArea` kind, 형식 위반을 거부한다.
 8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(43종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).

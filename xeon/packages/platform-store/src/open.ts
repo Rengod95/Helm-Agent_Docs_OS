@@ -1,7 +1,7 @@
 import { existsSync, closeSync, openSync, realpathSync, statSync } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import type { FaultInjector, StoreCapabilities } from "@xeon/contracts/records";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import type { FaultInjector, StoreCapabilities } from "@fresnel/contracts/records";
 import { createBlobStore } from "./blob.ts";
 import {
   classifySqliteCode,

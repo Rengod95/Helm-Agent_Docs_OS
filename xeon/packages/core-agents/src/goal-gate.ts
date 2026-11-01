@@ -1,7 +1,7 @@
 // 완료 게이트가 판정 결과를 소비하는 규칙(L1.loop.spec §4.9, L1.agents.spec §4.8, D-M3-15).
 // `boundary.settle.before` chain 핸들러는 L2.work가 걸고, 결과를 이 순수 함수로 BoundaryValue의 `continue`와 안내로 바꾼다.
-import { assertNever } from "@xeon/contracts";
-import type { JudgeOutcome } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import type { JudgeOutcome } from "@fresnel/contracts/services";
 
 export type GoalGateReason = "met" | "not_met" | "undecidable" | "capped" | "failed";
 

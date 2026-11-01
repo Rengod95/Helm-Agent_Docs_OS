@@ -1,11 +1,11 @@
-import { Bug } from "@xeon/contracts";
-import { createExecService, detectExecPlatform } from "@xeon/platform-exec";
+import { Bug } from "@fresnel/contracts";
+import { createExecService, detectExecPlatform } from "@fresnel/platform-exec";
 import type { WorkspaceDeps } from "../../src/deps.ts";
 import type { WorkspaceEnv } from "../../src/env.ts";
 import { defaultRoots } from "../../src/roots.ts";
 import { DEFAULT_WORKSPACE_SETTINGS } from "../../src/settings.ts";
 
-// 실제 파일 시스템 위의 xeon.exec로 서비스 의존을 만든다(int 시험용). `override`는 일부 메서드를 바꾼 env를 만든다.
+// 실제 파일 시스템 위의 fresnel.exec로 서비스 의존을 만든다(int 시험용). `override`는 일부 메서드를 바꾼 env를 만든다.
 
 export function realEnv(root: string): WorkspaceEnv {
   const platform = detectExecPlatform();

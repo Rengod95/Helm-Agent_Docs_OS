@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { FileChange, WatchError, WatchHandle } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { FileChange, WatchError, WatchHandle } from "@fresnel/contracts/services";
 import { createFileWatcher, type WatchBackend } from "../src/watch/watcher.ts";
 import { manualClock, memoryLogger } from "./support/clock.ts";
 

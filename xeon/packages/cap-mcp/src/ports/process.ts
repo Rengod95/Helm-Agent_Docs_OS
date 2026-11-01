@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 import type { McpStartEvidence } from "./start-gate.ts";
 
 // stdio 서버를 띄우는 포트(L2.mcp.spec §4.3). 자식 프로세스의 표준 입출력을 SDK 전송으로 감싸려면 스트림이 필요한데

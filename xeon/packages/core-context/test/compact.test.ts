@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { canonicalJson } from "@xeon/contracts";
-import type { ItemRecord } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope } from "@xeon/contracts/records";
+import { canonicalJson } from "@fresnel/contracts";
+import type { ItemRecord } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import {
   UPDATE_SUMMARIZATION_PROMPT,
   SUMMARIZATION_SYSTEM_PROMPT,

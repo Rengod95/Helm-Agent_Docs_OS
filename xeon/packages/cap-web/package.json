@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/cap-web",
+  "name": "@fresnel/cap-web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,8 +14,8 @@
     "web-pricing": "bun src/cost/pricing-cli.ts"
   },
   "dependencies": {
+    "@fresnel/contracts": "workspace:*",
     "@mozilla/readability": "catalog:",
-    "@xeon/contracts": "workspace:*",
     "defuddle": "catalog:",
     "guarded-fetch": "catalog:",
     "linkedom": "catalog:",
@@ -23,12 +23,12 @@
     "typebox": "catalog:"
   },
   "devDependencies": {
+    "@fresnel/core-tools": "workspace:*",
+    "@fresnel/platform-store": "workspace:*",
     "@types/bun": "catalog:",
-    "@types/turndown": "catalog:",
-    "@xeon/core-tools": "workspace:*",
-    "@xeon/platform-store": "workspace:*"
+    "@types/turndown": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L2",
     "domain": "web"
   }

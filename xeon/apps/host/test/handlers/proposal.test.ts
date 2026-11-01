@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { WireError, type WireParams, type WireResult } from "@xeon/contracts/wire";
+import { WireError, type WireParams, type WireResult } from "@fresnel/contracts/wire";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { invalidParams } from "../fixtures/unsafe.ts";

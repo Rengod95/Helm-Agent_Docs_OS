@@ -1,12 +1,12 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import {
   CapabilityError,
   DEFAULT_RETRYABLE,
   type CapabilityId,
   type CommonErrorCode,
-} from "@xeon/contracts/capabilities";
-import type { JsonValue } from "@xeon/contracts/conversation";
-import type { Result } from "@xeon/contracts";
+} from "@fresnel/contracts/capabilities";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { Result } from "@fresnel/contracts";
 
 // L2.web.spec §5. 내부 실패는 값(WebFailure)으로 다루고, 서비스 경계에서만 CapabilityError로 거부한다
 // (F.capabilities.spec §3.6: 서비스 메서드는 CapabilityError로만 거부한다).

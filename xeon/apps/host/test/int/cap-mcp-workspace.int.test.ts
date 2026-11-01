@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { callingModels } from "../fixtures/call-tape.ts";

@@ -1,15 +1,15 @@
-// 다른 패키지의 시험이 쓰는 대역(@xeon/core-agents/testing). 테스트 파일에서만 import한다(DR-08).
+// 다른 패키지의 시험이 쓰는 대역(@fresnel/core-agents/testing). 테스트 파일에서만 import한다(DR-08).
 // spawnRecorder·settleAll은 UC-2 통합 시험의 훅이고(L1.agents.plan AG-12), fakeChildLoop은 core-loop의 runChildTurn 대역이다.
-import { ok, parse, type Result } from "@xeon/contracts";
-import type { IdFactory, ItemId, ThreadId } from "@xeon/contracts/conversation";
-import type { LoopTurnResult } from "@xeon/contracts/extensions";
+import { ok, parse, type Result } from "@fresnel/contracts";
+import type { IdFactory, ItemId, ThreadId } from "@fresnel/contracts/conversation";
+import type { LoopTurnResult } from "@fresnel/contracts/extensions";
 import {
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
   type CommitListener,
   type SessionService,
-} from "@xeon/contracts/records";
-import type { ChildTurnRequest, LoopError } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type { ChildTurnRequest, LoopError } from "@fresnel/contracts/services";
 import type { AgentsLoop } from "../deps.ts";
 
 export interface SpawnRecord {

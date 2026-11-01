@@ -118,7 +118,7 @@ test("vendored Cordis is imported only by the bridge", async () => {
     cwd: join(import.meta.dir, "../.."),
   })) {
     const text = await Bun.file(join(import.meta.dir, "../..", file)).text();
-    if (text.includes("@xeon/vendor-cordis")) importers.push(file);
+    if (text.includes("@fresnel/vendor-cordis")) importers.push(file);
   }
   expect(importers).toEqual(["src/primitives/cordis-bridge.ts"]);
 });

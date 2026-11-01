@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import type { Logger } from "@xeon/contracts";
+import type { Logger } from "@fresnel/contracts";
 import {
   DEFAULT_PLUGIN_NAMES,
   DEFAULT_PLUGINS_MARKER_FILE,

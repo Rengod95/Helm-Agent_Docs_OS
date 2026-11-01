@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { validateManifest, type PortKey } from "@xeon/contracts/extensions";
-import { ContextPortKey } from "@xeon/contracts/services";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
+import { validateManifest, type PortKey } from "@fresnel/contracts/extensions";
+import { ContextPortKey } from "@fresnel/contracts/services";
+import type { ExtensionUnit } from "@fresnel/ext-host";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
   createContextExtension,
   DEFAULT_CONTEXT_SETTINGS,
@@ -20,9 +20,9 @@ import {
 import { present, valueOf } from "./support/result.ts";
 
 // 플러그인은 서비스 전체 모양의 포트를 조회한다. 시험에서는 필요한 부분만 가진 대역을 같은 이름으로 제공한다
-const sessionKey: PortKey<BranchReader> = { name: "xeon.session" };
-const modelsKey: PortKey<TokenOnlyModels> = { name: "xeon.models" };
-const fakeModelsKey: PortKey<FakeModels["models"]> = { name: "xeon.models" };
+const sessionKey: PortKey<BranchReader> = { name: "fresnel.session" };
+const modelsKey: PortKey<TokenOnlyModels> = { name: "fresnel.models" };
+const fakeModelsKey: PortKey<FakeModels["models"]> = { name: "fresnel.models" };
 
 function unitOf(loadIndex: number): ExtensionUnit {
   return { manifest, entry: extension, loadIndex, builtin: true };

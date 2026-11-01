@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { Bug, err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DriveHolderSettingsPort } from "@xeon/group-sdk";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DriveHolderSettingsPort } from "@fresnel/group-sdk";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { holderSettings, type HostGroupsOptions } from "../../src/assembly/groups.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";

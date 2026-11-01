@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createThreadGate } from "../../src/assembly/thread-gate.ts";
 import { flushMicrotasks } from "../fixtures/clock.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";

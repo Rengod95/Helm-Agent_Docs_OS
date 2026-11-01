@@ -1,6 +1,6 @@
-import type { Clock, Logger } from "@xeon/contracts";
+import type { Clock, Logger } from "@fresnel/contracts";
 import type { ThreadHooks } from "./points.ts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   EventKindRegistry,
   FaultInjector,
@@ -9,7 +9,7 @@ import type {
   MigrationRunner,
   StoreDb,
   StoreService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 /** `l1.persistence.*` 중 이 패키지가 읽는 값(L1.persistence.spec §6.1) */
 export interface PersistenceSettings {
@@ -30,13 +30,13 @@ export interface PersistenceSettings {
 export interface SessionDeps {
   /** 세션 테이블에 쓸 수 있는 루트 핸들(`scoped`가 아니다). 이 패키지 밖에 넘기지 않는다 */
   readonly db: StoreDb;
-  /** xeon.store의 임대 API. 커밋 트랜잭션 안에서 `holds(tx, token)`로 소유를 확인한다(TX-10) */
+  /** fresnel.store의 임대 API. 커밋 트랜잭션 안에서 `holds(tx, token)`로 소유를 확인한다(TX-10) */
   readonly leases: LeaseService;
-  /** xeon.store의 마이그레이션 실행기. 시작할 때 비투영 테이블 DDL을 적용한다 */
+  /** fresnel.store의 마이그레이션 실행기. 시작할 때 비투영 테이블 DDL을 적용한다 */
   readonly migrations: MigrationRunner;
-  /** xeon.store의 blob 읽기. 없으면 detached 필드를 되돌리지 못한다(hydrate가 Bug) */
+  /** fresnel.store의 blob 읽기. 없으면 detached 필드를 되돌리지 못한다(hydrate가 Bug) */
   readonly readBlob?: StoreService["readBlob"];
-  /** xeon.store의 blob 쓰기. 큰 문자열 분리(detachLarge)에 쓴다. 없으면 상한을 넘는 envelope는 store.event_too_large다 */
+  /** fresnel.store의 blob 쓰기. 큰 문자열 분리(detachLarge)에 쓴다. 없으면 상한을 넘는 envelope는 store.event_too_large다 */
   readonly putBlob?: StoreService["putBlob"];
   readonly clock: Clock;
   readonly ids: IdFactory;

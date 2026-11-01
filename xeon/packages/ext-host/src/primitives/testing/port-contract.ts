@@ -1,14 +1,14 @@
 // L1 포트 구현(core-loop, core-tasks, core-persistence)이 자기 테스트에서 돌리는 계약 시나리오(X.primitives.plan P-19).
 // 인메모리 대역도 같은 시나리오를 통과해야 한다(test/primitives/port-contract.test.ts).
 import { describe, expect, test } from "bun:test";
-import { attemptAsync, ok } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { attemptAsync, ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   InputQueuePort,
   LoopPort,
   LoopTurnRequest,
   RecordCommitPort,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { fixedIdFactory } from "./ids.ts";
 import { flushMicrotasks } from "./timers.ts";
 

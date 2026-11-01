@@ -1,5 +1,5 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import { requestKeyFor } from "@xeon/contracts/records";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import { requestKeyFor } from "@fresnel/contracts/records";
 import type {
   ApprovalEvidence,
   CallContext,
@@ -8,7 +8,7 @@ import type {
   LedgerOp,
   ScanSummary,
   WriteOutcome,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import {
   decideGate,

@@ -1,10 +1,18 @@
-import { assertNever, err, ok, parse, parseJson, type Logger, type Result } from "@xeon/contracts";
+import {
+  assertNever,
+  err,
+  ok,
+  parse,
+  parseJson,
+  type Logger,
+  type Result,
+} from "@fresnel/contracts";
 import {
   BlobRefSchema,
   type BlobError,
   type BlobRef,
   type StoreService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { Type } from "typebox";
 import { failure, type KnowledgeFailure } from "../errors.ts";
 import { utf8Encode } from "../hash.ts";

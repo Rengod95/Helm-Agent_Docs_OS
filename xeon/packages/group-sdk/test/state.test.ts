@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import type { StateDecl } from "@xeon/contracts/extensions";
-import { PrimitiveError } from "@xeon/ext-host";
-import { createTestHost } from "@xeon/ext-host/testing";
+import type { StateDecl } from "@fresnel/contracts/extensions";
+import { PrimitiveError } from "@fresnel/ext-host";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import {
   STATE_DOC_MAX_BYTES,

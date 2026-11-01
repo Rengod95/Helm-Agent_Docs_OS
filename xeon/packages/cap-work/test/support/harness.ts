@@ -1,6 +1,6 @@
 // 실제 SQLite(platform-store) 위에 core-persistence 세션 서비스를 올리고 cap-work 작업 서비스를 붙이는 시험 조립.
 // 저장소를 배열로 흉내 내지 않는다(eng.testing.guide TS-07).
-import { Bug, type Logger, type LogFields } from "@xeon/contracts";
+import { Bug, type Logger, type LogFields } from "@fresnel/contracts";
 import type {
   CallOptions,
   CapabilityApi,
@@ -8,13 +8,13 @@ import type {
   WorkPlans,
   WorkReports,
   WorkTasks,
-} from "@xeon/contracts/capabilities";
-import type { IdFactory, ThreadId, TurnId, Usage } from "@xeon/contracts/conversation";
-import type { SessionService } from "@xeon/contracts/records";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import { createSessionService } from "@xeon/core-persistence";
-import { realTools, type RealTools } from "@xeon/core-tools/testing";
-import { openTestStore, TEST_HOLDER_A, type TestStore } from "@xeon/platform-store/testing";
+} from "@fresnel/contracts/capabilities";
+import type { IdFactory, ThreadId, TurnId, Usage } from "@fresnel/contracts/conversation";
+import type { SessionService } from "@fresnel/contracts/records";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import { createSessionService } from "@fresnel/core-persistence";
+import { realTools, type RealTools } from "@fresnel/core-tools/testing";
+import { openTestStore, TEST_HOLDER_A, type TestStore } from "@fresnel/platform-store/testing";
 import type { WorkPlansDeps } from "../../src/deps.ts";
 import { startPlanModeListener, type PlanModeListener } from "../../src/plans/listener.ts";
 import { createPlans, type PlansRuntime } from "../../src/plans/service.ts";
@@ -23,7 +23,7 @@ import { createGoals, type GoalsRuntime } from "../../src/goals/service.ts";
 import { createTasksApi } from "../../src/tasks/service.ts";
 import { createWorkProjector } from "../../src/projection/projector.ts";
 import { DEFAULT_WORK_SETTINGS, type WorkSettings } from "../../src/settings.ts";
-import { flushMicrotasks } from "@xeon/ext-host/testing";
+import { flushMicrotasks } from "@fresnel/ext-host/testing";
 import { fixedIdFactory, manualClock, type ManualClock } from "./clock.ts";
 import {
   approvalsDriver,

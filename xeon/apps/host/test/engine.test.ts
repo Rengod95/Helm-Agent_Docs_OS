@@ -1,10 +1,10 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { SecretNameSchema } from "@xeon/contracts/capabilities";
-import { defineManifest } from "@xeon/contracts/extensions";
-import { defineSettings } from "@xeon/contracts/settings";
-import { WireError } from "@xeon/contracts/wire";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { parse } from "@fresnel/contracts";
+import { SecretNameSchema } from "@fresnel/contracts/capabilities";
+import { defineManifest } from "@fresnel/contracts/extensions";
+import { defineSettings } from "@fresnel/contracts/settings";
+import { WireError } from "@fresnel/contracts/wire";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { AssembleError, assemble } from "../src/assemble.ts";
 import { createHostConnection } from "../src/client.ts";

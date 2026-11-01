@@ -4,7 +4,7 @@ import type {
   Message,
   UserMessage,
   XeonCustomMessage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 
 // L1.context.spec §4.1 3번. ItemRecord, 컴팩션 요약, 떠난 가지 요약을 모델에 보낼 Message로 바꾼다.
 // 요약 본문 형식은 pi coding-agent/src/core/messages.ts의 compactionSummary·branchSummary 변환을 그대로 따른다.

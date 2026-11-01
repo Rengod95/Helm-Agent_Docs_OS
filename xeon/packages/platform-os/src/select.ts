@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { release } from "node:os";
-import { assertNever, attempt, err, ok, type Result } from "@xeon/contracts";
-import type { OsArch, OsInfo, OsPlatform, PlatformError } from "@xeon/contracts/services";
+import { assertNever, attempt, err, ok, type Result } from "@fresnel/contracts";
+import type { OsArch, OsInfo, OsPlatform, PlatformError } from "@fresnel/contracts/services";
 
 // OS 분기 표현(process.platform, os.platform(), WSL 판정에 쓰는 환경 변수와 /proc 파일)은 이 패키지에서 이 파일에만
 // 둔다(DR-13, L0.os.spec §1.1, OS-16). 다른 파일은 detectPlatform이 만든 OsInfo와 selectProviders의 결과만 쓴다.
@@ -45,7 +45,7 @@ function toPlatform(value: string): OsPlatform | undefined {
     case "linux":
     case "win32":
       return value;
-    // xeon-disable-next-line xeon/switch-default-never -- process.platform은 지원 목록보다 넓은 외부 값이다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- process.platform은 지원 목록보다 넓은 외부 값이다 (eng.typescript.guide TY-14)
     default:
       return undefined;
   }
@@ -56,7 +56,7 @@ function toArch(value: string): OsArch | undefined {
     case "x64":
     case "arm64":
       return value;
-    // xeon-disable-next-line xeon/switch-default-never -- process.arch는 지원 목록보다 넓은 외부 값이다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- process.arch는 지원 목록보다 넓은 외부 값이다 (eng.typescript.guide TY-14)
     default:
       return undefined;
   }

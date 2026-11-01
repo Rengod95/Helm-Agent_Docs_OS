@@ -1,4 +1,4 @@
-import { detach, parse } from "@xeon/contracts";
+import { detach, parse } from "@fresnel/contracts";
 import {
   checkEnvelope,
   WIRE_METHODS,
@@ -17,11 +17,11 @@ import {
   type WireParams,
   type WireRequestOptions,
   type WireResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 
 // F.wire-settings.spec §3.1 `HostConnection`의 런타임 중립 구현(adr.0020 §3.3, L4.host-service.spec §3.3.4 client.ts).
 // Bun·Node API를 쓰지 않는다: CLI(Bun), 호스트의 in-process 클라이언트, 데스크톱 WebView가 같은 구현을 쓴다.
-// 이 파일이 import하는 것은 F(`@xeon/contracts`)뿐이다. 소켓 전송과 재연결은 M3 서비스·원격 작업이다(adr.0020 §6).
+// 이 파일이 import하는 것은 F(`@fresnel/contracts`)뿐이다. 소켓 전송과 재연결은 M3 서비스·원격 작업이다(adr.0020 §6).
 
 export interface HostConnectionOptions {
   /** 요청마다 따로 주지 않았을 때의 시한(ms). 없으면 시한 없음 */

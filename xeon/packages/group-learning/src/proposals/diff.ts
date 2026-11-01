@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import type { ProposalOp } from "./proposal.ts";
 import { parsePatchEdits } from "./target.ts";
 

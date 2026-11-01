@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import { checkEnvelope, type CloseInfo, type JsonRpcMessage } from "@xeon/contracts/wire";
+import { Bug } from "@fresnel/contracts";
+import { checkEnvelope, type CloseInfo, type JsonRpcMessage } from "@fresnel/contracts/wire";
 import { createInProcessPair, createInProcessPairWith } from "../src/index.ts";
 import { flushMicrotasks } from "./support/clock.ts";
 

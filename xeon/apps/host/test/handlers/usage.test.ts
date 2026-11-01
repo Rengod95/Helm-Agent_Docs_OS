@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { WireError, type UsageGauge, type WireParams } from "@xeon/contracts/wire";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { WireError, type UsageGauge, type WireParams } from "@fresnel/contracts/wire";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 

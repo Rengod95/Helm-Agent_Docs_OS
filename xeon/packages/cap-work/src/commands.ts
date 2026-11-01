@@ -7,8 +7,8 @@ import {
   type CommandActionResult,
   type WorkPlans,
   type WorkTasks,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { PlansRuntime } from "./plans/service.ts";
 
 // L2.work.spec §6.2. 계획 모드와 작업 목록의 슬래시 명령. 목표 명령(/goal)은 work.goals와 함께 M3에서 더한다.

@@ -2,8 +2,8 @@ import { afterEach, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok, type Logger, type Result } from "@xeon/contracts";
-import { parseSecretRef } from "@xeon/contracts/capabilities";
+import { err, ok, type Logger, type Result } from "@fresnel/contracts";
+import { parseSecretRef } from "@fresnel/contracts/capabilities";
 import {
   ProcessServiceName,
   SandboxServiceName,
@@ -16,15 +16,15 @@ import {
   type SandboxWrapError,
   type SandboxedArgv,
   type SecretService,
-} from "@xeon/contracts/services";
-import type { ExtHost } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import type { ExtHost } from "@fresnel/ext-host";
 import { createHostMcpProcessPort } from "../../src/assembly/mcp-process.ts";
 import { createManualScheduler } from "../fixtures/manual-scheduler.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
-// G1-04, ADR-0011: 조립 루트가 L0의 McpProcessPort를 만든다. 레지스트리는 xeon.process의 것이고, 비밀 env 서버는 기동 승인 지점이 없어
+// G1-04, ADR-0011: 조립 루트가 L0의 McpProcessPort를 만든다. 레지스트리는 fresnel.process의 것이고, 비밀 env 서버는 기동 승인 지점이 없어
 // secret_denied로 끝난다(자식을 띄우지 않는다).
-// P-15: 샌드박스를 요청한 서버(`sandbox: true`)는 xeon.sandbox의 `wrapArgv` 명령줄로 뜬다. xeon.sandbox는 이 포트보다 늦게 올라오므로
+// P-15: 샌드박스를 요청한 서버(`sandbox: true`)는 fresnel.sandbox의 `wrapArgv` 명령줄로 뜬다. fresnel.sandbox는 이 포트보다 늦게 올라오므로
 // spawn 때마다 찾고, 없거나 격리할 수 없으면 `sandbox_unavailable`로 막힌다. 자식이 떴는지는 표식 파일로 본다.
 
 const LOGGER: Logger = {
@@ -35,7 +35,7 @@ const LOGGER: Logger = {
   child: () => LOGGER,
 };
 
-/** 조회할 서비스. 시험이 조회 뒤에 채울 수 있게 가변이다(조립 순서: xeon.sandbox는 나중에 올라온다) */
+/** 조회할 서비스. 시험이 조회 뒤에 채울 수 있게 가변이다(조립 순서: fresnel.sandbox는 나중에 올라온다) */
 interface Services {
   process?: ProcessService;
   sandbox?: SandboxService;
@@ -121,7 +121,7 @@ function markerArgv(marker: string): SandboxedArgv {
   return { argv: [NODE, MARKER_CHILD, marker], env: {}, sandboxed: true, cleanup: () => undefined };
 }
 
-test("without xeon.process there is no port, so stdio servers fail to connect instead of starting", () => {
+test("without fresnel.process there is no port, so stdio servers fail to connect instead of starting", () => {
   const port = createHostMcpProcessPort({
     ext: extWith({}),
     secrets: partial<SecretService>({}),
@@ -133,7 +133,7 @@ test("without xeon.process there is no port, so stdio servers fail to connect in
   expect(port).toBeUndefined();
 });
 
-test("a server is started as a child and registered in the xeon.process registry under the mcp owner", async () => {
+test("a server is started as a child and registered in the fresnel.process registry under the mcp owner", async () => {
   const { registry, seen } = recordingRegistry();
   const port = createHostMcpProcessPort({
     ext: extWith({ process: partial<ProcessService>({ background: registry }) }),
@@ -204,7 +204,7 @@ test("a server whose environment needs a secret is secret_denied and nothing is 
   expect(seen).toEqual([]);
 });
 
-test("a sandboxed server runs the command line that xeon.sandbox wraps, with the given temp dir as the policy's temp root", async () => {
+test("a sandboxed server runs the command line that fresnel.sandbox wraps, with the given temp dir as the policy's temp root", async () => {
   const dir = scratch();
   const marker = join(dir, "ran");
   const tempDir = join(dir, "tmp");
@@ -244,7 +244,7 @@ test("a sandboxed server runs the command line that xeon.sandbox wraps, with the
   expect(existsSync(marker)).toBe(true);
 });
 
-test("xeon.sandbox is looked up at spawn time: a server refused before it appears starts after it does", async () => {
+test("fresnel.sandbox is looked up at spawn time: a server refused before it appears starts after it does", async () => {
   const dir = scratch();
   const marker = join(dir, "ran");
   const { registry } = recordingRegistry();
@@ -287,7 +287,7 @@ test("xeon.sandbox is looked up at spawn time: a server refused before it appear
   expect(existsSync(marker)).toBe(false);
 });
 
-test("without xeon.sandbox a sandboxed server is refused as service_missing and no child runs", async () => {
+test("without fresnel.sandbox a sandboxed server is refused as service_missing and no child runs", async () => {
   const dir = scratch();
   const marker = join(dir, "ran");
   const { registry, seen } = recordingRegistry();

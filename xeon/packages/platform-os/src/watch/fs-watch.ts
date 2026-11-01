@@ -1,8 +1,8 @@
 import { watch, type FSWatcher } from "node:fs";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import { attemptAsync, detach, err, ok, type Logger } from "@xeon/contracts";
-import type { FileChange, WatchError } from "@xeon/contracts/services";
+import { attemptAsync, detach, err, ok, type Logger } from "@fresnel/contracts";
+import type { FileChange, WatchError } from "@fresnel/contracts/services";
 import type { WatchBackend } from "./watcher.ts";
 
 // node:fs.watch(recursive) 백엔드. 새 의존 없이 Linux(inotify)·macOS(FSEvents)에서 돈다. 이벤트는 파일 이름만 주므로

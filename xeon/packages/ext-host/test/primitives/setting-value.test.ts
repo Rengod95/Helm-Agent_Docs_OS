@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import type { PortKey } from "@xeon/contracts/extensions";
+import type { PortKey } from "@fresnel/contracts/extensions";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { makeUnit } from "./fixtures/support.ts";
 
 // 설정 읽기: builtin은 모든 키, 그 밖의 확장은 자기 ext.<이름>. 키만(X.primitives.spec §3.8 settingValue)
 
-const settingsKey: PortKey<{ value(key: string): unknown }> = { name: "xeon.settings" };
+const settingsKey: PortKey<{ value(key: string): unknown }> = { name: "fresnel.settings" };
 const VALUES: Readonly<Record<string, unknown>> = {
   "ext.mine.limit": 7,
   "ext.mine.nested.flag": true,

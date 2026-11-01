@@ -1,19 +1,19 @@
-import { Bug, parse } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { Bug, parse } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   ArtifactArchivedPayloadSchema,
   ArtifactRegisteredPayloadSchema,
   ArtifactUpdatedPayloadSchema,
   type BlobRef,
   type DurableEventEnvelope,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   ArtifactKindSchema,
   ArtifactMetaSchema,
   type ArtifactKind,
   type ArtifactMeta,
   type ArtifactSummary,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 // L2.artifacts.spec §3.2, §4.1. 산출물 레지스트리 상태는 artifact.registered·updated·archived 이벤트를 커밋 순서로 접어 얻는다.
 // 투영 테이블을 두지 않는다. 접는 규칙은 순수하고, 같은 이벤트 열은 늘 같은 상태를 낸다.

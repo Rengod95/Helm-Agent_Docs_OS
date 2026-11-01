@@ -1,4 +1,4 @@
-import type { PolicyRule } from "@xeon/contracts/services";
+import type { PolicyRule } from "@fresnel/contracts/services";
 
 /**
  * 승인 모드를 L1.tools 권한 규칙으로 공급하는 포트(L2.mcp.spec §4.4). `ToolService.registerRules`는 `core:` 출처만

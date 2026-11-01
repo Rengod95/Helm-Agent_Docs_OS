@@ -1,5 +1,9 @@
-import type { DriveLimits } from "@xeon/contracts/extensions";
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+import type { DriveLimits } from "@fresnel/contracts/extensions";
+import {
+  defineSettings,
+  type SettingDefInput,
+  type SettingGroup,
+} from "@fresnel/contracts/settings";
 import {
   Type,
   type Static,

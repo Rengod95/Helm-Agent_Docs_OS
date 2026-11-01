@@ -1,9 +1,9 @@
-import { parse, parseJson, type Result, err, ok } from "@xeon/contracts";
+import { parse, parseJson, type Result, err, ok } from "@fresnel/contracts";
 import {
   McpServerDefSchema,
   MCP_SERVER_ID_PATTERN,
   type McpServerDef,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { Type } from "typebox";
 import { asJsonObject } from "../json.ts";
 import { checkDefinitionValues } from "./values.ts";

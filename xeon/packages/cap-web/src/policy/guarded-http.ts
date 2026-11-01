@@ -1,10 +1,10 @@
-import { Bug, err, ok, type Result } from "@xeon/contracts";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
 import type {
   GuardedHttp,
   GuardedHttpRequest,
   GuardedHttpResponse,
   WebProviderManifest,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { deniedFailure, type WebFailure } from "../errors.ts";
 import type { DnsResolver } from "../ports/resolver.ts";
 import type {

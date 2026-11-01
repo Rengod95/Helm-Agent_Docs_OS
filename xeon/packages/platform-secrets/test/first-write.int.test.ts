@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import { createSecretsRuntime, type SecretsRuntime } from "../src/assemble.ts";
 import { DEFAULT_SECRETS_CONFIG, defaultSopsFile, type SecretsConfig } from "../src/config.ts";
 import { bunRunner, type ProcessRunner } from "../src/providers/process.ts";

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   HELM_STATE_BUDGET_BYTES,
   HelmStateSchema,

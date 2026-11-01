@@ -11,9 +11,9 @@ import {
   writeSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { assertNever, Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
-import type { IdFactory } from "@xeon/contracts/conversation";
-import type { BlobError, BlobRef, SqlTx, StoreWriteError } from "@xeon/contracts/records";
+import { assertNever, Bug, err, ok, type Clock, type Result } from "@fresnel/contracts";
+import type { IdFactory } from "@fresnel/contracts/conversation";
+import type { BlobError, BlobRef, SqlTx, StoreWriteError } from "@fresnel/contracts/records";
 import { assertNotInWrite, createStoreDb, readOnlyRefusal, type StoreConnections } from "./db.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
 import { sha256Hex } from "./hash.ts";

@@ -1,5 +1,5 @@
 // src/state/shared/pipeline.ts
-import { Bug, type Clock } from "@xeon/contracts";
+import { Bug, type Clock } from "@fresnel/contracts";
 import type { Journal, JournalLabel } from "./journal.ts";
 
 export type Reduced<S, N extends string> = { readonly state: S; readonly note: N };

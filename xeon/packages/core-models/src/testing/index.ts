@@ -1,4 +1,4 @@
-// @xeon/core-models/testing. 모델 테이프 가짜와 메모리 비밀 서비스(eng.testing.guide TS-04, L1.models.plan §2).
+// @fresnel/core-models/testing. 모델 테이프 가짜와 메모리 비밀 서비스(eng.testing.guide TS-04, L1.models.plan §2).
 // 운영 코드는 이 서브패스를 import하지 않는다(DR-08).
 export {
   contextHash,

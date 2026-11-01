@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { activeLocale, setActiveLocale, type Locale } from "@xeon/client/i18n";
-import { ok } from "@xeon/contracts";
+import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n";
+import { ok } from "@fresnel/contracts";
 import { describeSearch } from "../src/commands/doctor.ts";
 import { EXIT } from "../src/exit-codes.ts";
 import type { DoctorProbes } from "../src/io.ts";

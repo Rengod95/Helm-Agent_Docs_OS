@@ -1,7 +1,7 @@
-import { assertNever } from "@xeon/contracts";
-import { WireError } from "@xeon/contracts/wire";
-import { t, type MessageId } from "@xeon/client/i18n";
-import type { ExportError } from "@xeon/platform-store";
+import { assertNever } from "@fresnel/contracts";
+import { WireError } from "@fresnel/contracts/wire";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import type { ExportError } from "@fresnel/platform-store";
 import { HostClientError } from "./host-client.ts";
 import type { UsageError } from "./cli/command.ts";
 import { EXIT, type ExitCode } from "./exit-codes.ts";
@@ -278,7 +278,7 @@ function secretFailureOf(
         fix: t("cli.errors.common.checkDataDirAndDisk.fix"),
         code: EXIT.environment,
       };
-    // xeon-disable-next-line xeon/switch-default-never -- 비밀 오류 kind는 서버가 더 새로우면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 비밀 오류 kind는 서버가 더 새로우면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return undefined;
   }
@@ -306,7 +306,7 @@ function commandFailure(error: WireError): Failure | undefined {
         fix: t("cli.errors.command.shellDisabled.fix"),
         code: EXIT.error,
       };
-    // xeon-disable-next-line xeon/switch-default-never -- 명령 오류 code는 능력이 더하면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령 오류 code는 능력이 더하면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return {
         message: t("cli.errors.command.commandFailed.message", { kind: error.data.kind }),
@@ -530,7 +530,7 @@ export function failureOfWire(error: WireError): Failure {
         code: EXIT.error,
       };
     }
-    // xeon-disable-next-line xeon/switch-default-never -- 서버가 더 새로우면 모르는 와이어 오류 kind가 온다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 서버가 더 새로우면 모르는 와이어 오류 kind가 온다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
     default: {
       const secret = secretFailure(error);
       if (secret !== undefined) return secret;

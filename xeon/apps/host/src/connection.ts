@@ -1,4 +1,4 @@
-import { detach, parse } from "@xeon/contracts";
+import { detach, parse } from "@fresnel/contracts";
 import {
   checkEnvelope,
   internalJsonRpcError,
@@ -22,8 +22,8 @@ import {
   type WireParams,
   type WireRequestContext,
   type WireResult,
-} from "@xeon/contracts/wire";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { startEventFanout } from "./handlers/events.ts";
 import { isNotImplemented } from "./handlers/not-implemented.ts";
 import type {

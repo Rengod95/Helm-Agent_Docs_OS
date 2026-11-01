@@ -4,7 +4,7 @@ import {
   checkSettingDef,
   type ScopeLayer,
   type ScopeStack,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { DEFAULT_WEB_SETTINGS, readWebSettings, WEB_SETTING_DEFS } from "../src/settings.ts";
 
 function layer(scope: ScopeLayer["scope"], values: Record<string, unknown>): ScopeLayer {

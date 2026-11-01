@@ -1,8 +1,8 @@
-import { Bug } from "@xeon/contracts";
-import type { Notice, NoticeKind } from "@xeon/contracts/capabilities";
-import type { SettingCatalog, SettingDef } from "@xeon/contracts/settings";
-import { resolveSetting } from "@xeon/contracts/settings";
-import type { Unsubscribe } from "@xeon/contracts/wire";
+import { Bug } from "@fresnel/contracts";
+import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
+import type { SettingCatalog, SettingDef } from "@fresnel/contracts/settings";
+import { resolveSetting } from "@fresnel/contracts/settings";
+import type { Unsubscribe } from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine } from "../types.ts";
 import { toRecord } from "../util.ts";

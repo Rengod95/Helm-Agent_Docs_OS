@@ -1,5 +1,5 @@
-import { parseModelRef } from "@xeon/contracts/services";
-import type { SettingProblem } from "@xeon/contracts/settings";
+import { parseModelRef } from "@fresnel/contracts/services";
+import type { SettingProblem } from "@fresnel/contracts/settings";
 
 // L4.host-service.spec HS-80, F.wire-settings.spec §4.10 11. 값은 검사를 통과했어도 호스트만 아는 사실로 쓸 수 없을 때 `problem`을 싣는다.
 // 이 파일은 조립 루트 밖의 순수 함수다. 설정 화면과 데스크톱 첫 실행 안내가 이 표시를 본다.

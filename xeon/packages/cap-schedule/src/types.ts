@@ -1,5 +1,5 @@
-import type { Result } from "@xeon/contracts";
-import type { Unsubscribe } from "@xeon/contracts/extensions";
+import type { Result } from "@fresnel/contracts";
+import type { Unsubscribe } from "@fresnel/contracts/extensions";
 
 // L2.schedule.spec 4.4 (timer), 4.1 (loop). M3b B1-SCH: the schedule state machine behind ports.
 // Wire/capability definitions (F) are not part of this package yet; the host owns the ports.

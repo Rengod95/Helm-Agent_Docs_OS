@@ -1,5 +1,5 @@
 import { join, resolve } from "node:path";
-import { t } from "@xeon/client/i18n";
+import { t } from "@fresnel/client/i18n";
 import type { DbCommand } from "../cli/command.ts";
 import { failureOfExport, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";

@@ -1,11 +1,11 @@
-import { diffToolsets, toolOrderKey, type OrderedTool } from "@xeon/contracts/capabilities";
-import type { SystemMessage } from "@xeon/contracts/conversation";
+import { diffToolsets, toolOrderKey, type OrderedTool } from "@fresnel/contracts/capabilities";
+import type { SystemMessage } from "@fresnel/contracts/conversation";
 import type {
   CachePolicy,
   ContextWarning,
   PendingSystemItem,
   ToolChangeDecision,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // L1.context.spec §4.3, plan C-2. 접두가 광고한 도구 목록과 이번 단계 도구 집합을 비교해 접두 뒤 변경 메시지를 낼지,
 // 미룰지 정한다. 재광고(readvertise)는 첫 요청과 컴팩션에서 접두를 새로 만들 때뿐이라 여기서는 다루지 않는다.

@@ -1,4 +1,4 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   ChainSig,
   CollectSig,
@@ -8,7 +8,7 @@ import type {
   HookSignatures,
   ScopeId,
   TapSig,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import type { HandlerEntryInfo } from "./registry.ts";
 
 export type { HandlerEntryInfo } from "./registry.ts";

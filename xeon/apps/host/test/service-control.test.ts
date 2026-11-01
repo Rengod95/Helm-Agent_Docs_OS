@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { createRegistrationStore, isProcessAlive } from "@xeon/platform-process";
+import { createRegistrationStore, isProcessAlive } from "@fresnel/platform-process";
 import { parseHostArgv } from "../src/argv.ts";
 import { serviceStatus, stopHostService } from "../src/service/control.ts";
 import { scratchRuntimeDir } from "./fixtures/service-harness.ts";

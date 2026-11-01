@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock } from "@fresnel/contracts";
 import type {
   AgentMessage,
   EventId,
@@ -14,8 +14,8 @@ import type {
   TurnCompletedPayload,
   TurnId,
   XeonCustomMessage,
-} from "@xeon/contracts/conversation";
-import type { CustomMessageDraft, PostContent, PostItem } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/conversation";
+import type { CustomMessageDraft, PostContent, PostItem } from "@fresnel/contracts/extensions";
 import type {
   CommitPlan,
   CommitRequest,
@@ -25,13 +25,13 @@ import type {
   StepCheckpoint,
   StepCheckpointInput,
   TxView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   AbortReason,
   PlacementSelection,
   QueuedInput,
   TaskService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { Drafter, DraftScope } from "./drafts.ts";
 
 // L1.loop.spec §3.5 커밋 지점 T1~T4·T6, 취소 의도. 커밋 키는 eng.transactions.design §4.8,

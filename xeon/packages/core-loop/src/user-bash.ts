@@ -1,26 +1,26 @@
 import { createHash } from "node:crypto";
-import { Bug, attemptAsync, detach, err, ok, parse, type Result } from "@xeon/contracts";
+import { Bug, attemptAsync, detach, err, ok, parse, type Result } from "@fresnel/contracts";
 import type {
   JsonValue,
   ThreadId,
   ToolResultRecord,
   XeonCustomMessage,
-} from "@xeon/contracts/conversation";
-import { commitKeyPart } from "@xeon/contracts/records";
-import type { UserBashResult } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/conversation";
+import { commitKeyPart } from "@fresnel/contracts/records";
+import type { UserBashResult } from "@fresnel/contracts/extensions";
 import type {
   ToolRunContext,
   UserBashOutcome,
   UserBashRequest,
   LoopError,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import { commitWithRetry, describeCommitFailure } from "./commit.ts";
 import type { LoopContext } from "./types.ts";
 
 // L1.loop.spec §3.1 `runUserBash`, LP12 `input.bash.before`. 사용자가 `!명령`으로 친 셸 명령을 처리한다.
 // 1. `input.bash.before`(first) 지점을 발화한다. 거부면 실행하지 않고, 결과 대체면 명령을 실행하지 않고 그 결과를 쓴다.
-// 2. 거부가 아니면 `xeon.tools.runUserShell`로 실행한다(정책 deny와 `tool.call.before` 거부는 도구 쪽이 막는다).
+// 2. 거부가 아니면 `fresnel.tools.runUserShell`로 실행한다(정책 deny와 `tool.call.before` 거부는 도구 쪽이 막는다).
 // 3. `!!`가 아니면 명령과 출력을 custom item 하나로 기록해 다음 요청의 컨텍스트에 들어가게 한다. `!!`는 효과 3단만 남는다.
 //
 // turn을 열지 않는다. 도구 쪽 효과 기록은 turn과 단계 id를 요구하므로 이 호출 전용 id를 새로 만들어 쓴다.

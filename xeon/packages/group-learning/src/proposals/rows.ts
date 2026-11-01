@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import { renderDiff } from "./diff.ts";
 import type { LearningEvent } from "./events.ts";
 import type { Proposal } from "./proposal.ts";

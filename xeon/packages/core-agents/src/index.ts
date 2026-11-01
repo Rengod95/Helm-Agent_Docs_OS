@@ -1,4 +1,4 @@
-// @xeon/core-agents 공개 진입점(L1.agents.plan §2).
+// @fresnel/core-agents 공개 진입점(L1.agents.plan §2).
 export { AGENTS_SETTING_DEFS } from "./settings.ts";
 export {
   AGENTS_EXTENSION_NAME,

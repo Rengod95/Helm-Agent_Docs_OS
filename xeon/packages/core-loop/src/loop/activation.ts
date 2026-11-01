@@ -1,7 +1,7 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import type { ToolName } from "@xeon/contracts/capabilities";
-import { EffectIntentSchema, EffectResultSchema } from "@xeon/contracts/records";
-import { TOOL_SEARCH_NAME, type ToolCallOutcome } from "@xeon/contracts/services";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import type { ToolName } from "@fresnel/contracts/capabilities";
+import { EffectIntentSchema, EffectResultSchema } from "@fresnel/contracts/records";
+import { TOOL_SEARCH_NAME, type ToolCallOutcome } from "@fresnel/contracts/services";
 import type { TurnRun } from "./turn-run.ts";
 import type { LoopFailure } from "./types.ts";
 

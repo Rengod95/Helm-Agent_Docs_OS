@@ -1,13 +1,13 @@
 import { readFile } from "node:fs/promises";
-import { parseJson } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { SessionSettingsStore } from "@xeon/contracts/records";
+import { parseJson } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { SessionSettingsStore } from "@fresnel/contracts/records";
 import {
   resolveSetting,
   type ScopeLayer,
   type ScopeStack,
   type SettingCatalog,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import type { SettingsChange } from "../types.ts";
 
 // L4.host-service.spec §3.3.2 SettingsStorePort의 읽기 쪽. 설정 파일 범위의 위치·읽기·병합은 호스트 소유다

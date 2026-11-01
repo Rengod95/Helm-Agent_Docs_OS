@@ -1,4 +1,4 @@
-import type { Logger, LogFields } from "@xeon/contracts";
+import type { Logger, LogFields } from "@fresnel/contracts";
 
 export interface LoggedEvent {
   readonly level: string;

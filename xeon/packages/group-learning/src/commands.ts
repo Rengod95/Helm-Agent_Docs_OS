@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { PROPOSAL_STATUS_VALUES, type ProposalStatus } from "./proposals/proposal.ts";
 import type { ProposalDecision, QueueOps } from "./proposals/ops.ts";
 import type { CommandReport, LearningError } from "./results.ts";

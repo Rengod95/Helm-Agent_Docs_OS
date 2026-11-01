@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { MigrationSet } from "@xeon/contracts/records";
+import type { MigrationSet } from "@fresnel/contracts/records";
 import { openTestStore, storeFaultAt } from "../src/testing/index.ts";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";
 import { rejection } from "./support/fixture.ts";

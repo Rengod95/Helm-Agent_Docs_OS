@@ -1,4 +1,4 @@
-import { assertNever, eachAsync, err, ok, type Clock, type Result } from "@xeon/contracts";
+import { assertNever, eachAsync, err, ok, type Clock, type Result } from "@fresnel/contracts";
 import { proposedRecordOf, skillDecisionRecordOf, type RecordDraft } from "../records.ts";
 import {
   applyOutcome,

@@ -1,6 +1,6 @@
-import { parse, type Result } from "@xeon/contracts";
-import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
-import { MODEL_REF_PATTERN } from "@xeon/contracts/services";
+import { parse, type Result } from "@fresnel/contracts";
+import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
+import { MODEL_REF_PATTERN } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import type { BinaryView } from "./diagnostics.ts";
 

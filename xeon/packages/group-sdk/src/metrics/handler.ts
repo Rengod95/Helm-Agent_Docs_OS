@@ -1,4 +1,4 @@
-import { HOOKS, type Fold, type Handler, type HookName } from "@xeon/contracts/extensions";
+import { HOOKS, type Fold, type Handler, type HookName } from "@fresnel/contracts/extensions";
 import type { MetricsCounter } from "./counter.ts";
 
 /**

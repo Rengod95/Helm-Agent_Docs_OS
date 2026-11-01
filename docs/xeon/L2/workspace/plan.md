@@ -10,14 +10,14 @@ binds: [xeon/packages/cap-workspace/**]
 
 # L2 작업 도구 구현 계획
 
-대상 스펙: `L2.workspace.spec`. 패키지: `@xeon/cap-workspace`(`xeon/packages/cap-workspace`). 정의 파일: `@xeon/contracts`의 `src/capabilities/defs/workspace.ts`.
+대상 스펙: `L2.workspace.spec`. 패키지: `@fresnel/cap-workspace`(`xeon/packages/cap-workspace`). 정의 파일: `@fresnel/contracts`의 `src/capabilities/defs/workspace.ts`.
 
 ## 1. 목표와 마일스톤 배치
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
 | M0 | 없음. 선행 조건만 준비된다: `contracts`의 능력 계약(F.capabilities.plan M0), `platform-exec`(durable env 포크) | `_research/foundation-plan.md` §5 P4 M0 |
-| M1 | F `defs/workspace.ts`의 정의 3개 전체(도구 7개 선언 포함). 구현은 `read`, `ls`, `bash` 3개. `xeon.workspace` 서비스 등록, L1.tools 어댑터 연결. 걸어 다니는 골격 스모크에서 이 세 도구가 호출된다 | [결정] `_research/foundation-plan.md` §5 P4 M1, `F.capabilities.plan` M1, `product.scope.spec` §4.3 M1 |
+| M1 | F `defs/workspace.ts`의 정의 3개 전체(도구 7개 선언 포함). 구현은 `read`, `ls`, `bash` 3개. `fresnel.workspace` 서비스 등록, L1.tools 어댑터 연결. 걸어 다니는 골격 스모크에서 이 세 도구가 호출된다 | [결정] `_research/foundation-plan.md` §5 P4 M1, `F.capabilities.plan` M1, `product.scope.spec` §4.3 M1 |
 | M2 | `workspace.images` 최소형(`register`, `load`. 처리기 없이 형식·크기 검사와 blob 등록)과 `read`의 이미지 분기. `dialog.attachments`의 필수 의존. 대화별 작업 폴더 root(`thread.started.workspace`, open-issues M-06) (구현 2026-10-24, §8 기록) | [제안] `L2.readme` §2 각주 ws, §10 미결 10 |
 | M3 | `write`, `edit`(정확·퍼지 일치, `edits` 배열), `grep`, `find` | `product.scope.spec` §4.3 M3 "`cap-workspace`의 M1 밖 도구" |
 
@@ -37,10 +37,10 @@ M3 이후(2차·보류) 표:
 
 ```
 xeon/packages/cap-workspace/
-  package.json            # "name": "@xeon/cap-workspace", "xeon": { "layer": "L2", "domain": "workspace" }
+  package.json            # "name": "@fresnel/cap-workspace", "xeon": { "layer": "L2", "domain": "workspace" }
   UPSTREAM.json  PATCHES.md  LICENSE.pi          # ADR-0003 §3.4
   src/
-    index.ts              # manifest, apply(ctx): 서비스 xeon.workspace 등록
+    index.ts              # manifest, apply(ctx): 서비스 fresnel.workspace 등록
     manifest.ts           # defineManifest({ name: "cap-workspace", layer: "L2", kind: "plugin",
                           #   provides: [workspace.files, workspace.shell, workspace.images @1.0.0], usesDrive: false, points: [] })
     service.ts            # WorkspaceService 조립
@@ -78,7 +78,7 @@ xeon/packages/cap-workspace/
 |---|---|---|---|---|
 | `D/tools/read.ts` | 312 | `src/files/upstream/read.ts` | M1 | `Context` import type → `CancelScope`. `defineTool`·`ToolRegistration`·`ToolExecutionApi` → `src/upstream/tool-types.ts`. `requireEnv(api)` → 주입받은 `ExecutionEnv`. 결과를 `ReadOutput`으로 바꾸는 감싸기는 `src/files/read.ts`에 둔다 |
 | `D/tools/path-utils.ts` | 30 | `src/files/upstream/path-utils.ts` | M1 | `Context` 치환. 탈출 검사는 넣지 않고 `src/roots.ts`가 결과 경로를 검사한다 |
-| `D/tools/bash.ts` | 184 | `src/shell/upstream/bash.ts` | M1 | `Context` 치환. `prepareExecution` 앞에 `xeon.sandbox` 래핑을 넣는다(`src/shell/run.ts`). `api.output`·`retainedOutput` 대신 `ExecutionEnv.exec`의 spill·window 옵션을 직접 쓴다. PowerShell 부분은 복사만 하고 등록하지 않는다 |
+| `D/tools/bash.ts` | 184 | `src/shell/upstream/bash.ts` | M1 | `Context` 치환. `prepareExecution` 앞에 `fresnel.sandbox` 래핑을 넣는다(`src/shell/run.ts`). `api.output`·`retainedOutput` 대신 `ExecutionEnv.exec`의 spill·window 옵션을 직접 쓴다. PowerShell 부분은 복사만 하고 등록하지 않는다 |
 | `D/tools/env.ts` | 8 | 복사하지 않음 | — | `requireEnv`는 서비스 주입으로 대체 |
 | `D/tools/index.ts` | 39 | 복사하지 않음 | — | Harness 확장 객체(`createCodingTools`)라 쓰지 않는다 |
 | `CA/ls.ts` | 175 | `src/files/upstream/ls.ts` | M1 | fs 직접 호출 → `ExecutionEnv.listDir`. 렌더러·TUI 의존 제거. 정렬을 코드 단위 바이트 순으로 고정(`localeCompare` 제거) |
@@ -86,11 +86,11 @@ xeon/packages/cap-workspace/
 | `D/tools/file-mutation-queue.ts` | 55 | `src/files/upstream/file-mutation-queue.ts` | M3 | `Context` 치환 |
 | `D/tools/edit.ts` | 144 | `src/edit/upstream/edit.ts` | M3 | 도구 타입 치환. `prepareEditArguments`는 F 정의의 `toEditInput`으로 옮겼으므로 지운다. 오류 메시지 문자열 대신 고유 코드로 던진다(`edit_not_found` 등) |
 | `D/tools/edit-diff.ts` | 500 | `src/files/upstream/edit-diff.ts` | M3 | 오류 생성 함수 5개(`getNotFoundError` 등)가 코드 달린 오류를 만들도록 고친다. 정규화 규칙은 바꾸지 않는다 |
-| `CA/grep.ts` | 323 | `src/files/upstream/grep.ts` | M3 | `ensureTool` 내려받기 제거, `xeon.os`가 제공하는 `rg` 경로(`platform-os`의 `@vscode/ripgrep` 연결) 또는 `l2.workspace.grep.rgPath`. 실행은 `ExecutionEnv.exec`. 출력 파싱은 `rg --json`으로 고정 |
+| `CA/grep.ts` | 323 | `src/files/upstream/grep.ts` | M3 | `ensureTool` 내려받기 제거, `fresnel.os`가 제공하는 `rg` 경로(`platform-os`의 `@vscode/ripgrep` 연결) 또는 `l2.workspace.grep.rgPath`. 실행은 `ExecutionEnv.exec`. 출력 파싱은 `rg --json`으로 고정 |
 | `CA/find.ts` | 318 | `src/files/upstream/find.ts` | M3 | `fd` 대신 `rg --files --glob`(spec §10 미결 6). 실행은 `ExecutionEnv.exec` |
-| `D/truncate.ts` | 205 | 이 패키지에 두지 않는다. `platform-exec`(L0.exec.plan)가 포크한다 | M1 | spec §4.5 D-08. 이 패키지는 `xeon.exec`(F `ExecutionEnv`)로 호출한다 |
+| `D/truncate.ts` | 205 | 이 패키지에 두지 않는다. `platform-exec`(L0.exec.plan)가 포크한다 | M1 | spec §4.5 D-08. 이 패키지는 `fresnel.exec`(F `ExecutionEnv`)로 호출한다 |
 | `D/harness/types.ts` | 786 중 100~200 | `src/upstream/tool-types.ts` | M1 | `ToolRegistration`, `ToolExecutionApi`, `ToolExecutionResult`, `ToolDiagnostic`과 이들이 참조하는 타입만 추출 |
-| `D/harness/define.ts` | 44 | `src/upstream/tool-types.ts`에 합침 | M1 | `JsonValue`(Chord) → `@xeon/contracts/conversation`의 `JsonValue` |
+| `D/harness/define.ts` | 44 | `src/upstream/tool-types.ts`에 합침 | M1 | `JsonValue`(Chord) → `@fresnel/contracts/conversation`의 `JsonValue` |
 | `D/harness/output.ts` | 341 중 일부 | `src/upstream/output.ts` | M1 | `read`가 쓰는 `characterEnd`와 그 의존만 |
 | `D/tools/image.ts` | 182 | `src/images/upstream/image.ts` | M2 | 형식 판별(`detectSupportedImageMimeTypeOf`, `imageDimensions`). 수정 없음 [가정] |
 | `D/tools/image-processor.ts` | 69 | `src/images/upstream/image-processor.ts` | M2 | 수정 없음 |
@@ -142,7 +142,7 @@ Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키�
 
 ## 5. 단위 테스트 목록
 
-외부 호출 없이 `ExecutionEnv` 가짜(`@xeon/platform-exec/testing`의 `fakeExec`와 메모리 파일 시스템), 가짜 `xeon.sandbox`, 가짜 blob 저장소만 쓴다. 통합 스모크는 모델 테이프로 한 턴만 돈다(`eng.testing.guide` TS-01, TS-04, TS-05).
+외부 호출 없이 `ExecutionEnv` 가짜(`@fresnel/platform-exec/testing`의 `fakeExec`와 메모리 파일 시스템), 가짜 `fresnel.sandbox`, 가짜 blob 저장소만 쓴다. 통합 스모크는 모델 테이프로 한 턴만 돈다(`eng.testing.guide` TS-01, TS-04, TS-05).
 
 | 파일 | 테스트 | 확인할 동작 |
 |---|---|---|
@@ -218,7 +218,7 @@ M3 완료: spec §9 수용 기준 1~10 전부. 퍼지 규칙 표와 테스트 �
 |---|---|---|
 | photon wasm이 `bun build --compile` 산출물에서 로드되지 않음 | 2차 이미지 처리기가 배포 바이너리에서 동작하지 않는다 | 처리기를 2차로 두고 M2는 처리기 없는 최소형으로 간다. 2차 착수 때 첫 작업으로 임베드 로드를 확인하고, 실패하면 처리기 없음 상태를 기본으로 둔다(spec §4.6 대체 경로) |
 | 워커 스레드가 Bun에서 durable 원본과 다르게 동작 | 이미지 처리가 메인 스레드를 막거나 실패한다 | 2차 착수 때 Bun `Worker`로 원본 테스트(`test/tools-images.test.ts` 포크)를 돌려 확인한다. 안 되면 메인 스레드 처리로 바꾼다 |
-| 절단 함수 사본이 남음 | 두 구현이 서로 다른 한도로 자른다 | 위치는 `platform-exec`로 정했다(review.decisions-2 D-08). M1에 있던 `cap-workspace/src/truncate/upstream` 사본은 지웠고 `xeon.exec`의 `truncateHeadOf`를 부른다(`L0.exec.plan` EX-21, 구현됨). `truncate/paging.ts`는 이어 읽기 계산만 둔다. `utf8ByteLength`는 `src/upstream/output.ts`의 한 줄 함수다(`PATCHES.md` P3) |
+| 절단 함수 사본이 남음 | 두 구현이 서로 다른 한도로 자른다 | 위치는 `platform-exec`로 정했다(review.decisions-2 D-08). M1에 있던 `cap-workspace/src/truncate/upstream` 사본은 지웠고 `fresnel.exec`의 `truncateHeadOf`를 부른다(`L0.exec.plan` EX-21, 구현됨). `truncate/paging.ts`는 이어 읽기 계산만 둔다. `utf8ByteLength`는 `src/upstream/output.ts`의 한 줄 함수다(`PATCHES.md` P3) |
 | 퍼지 편집 오적용 | 정규화된 공간에서 엉뚱한 구간이 바뀐다 | 모호 일치(`edit_ambiguous`)를 퍼지 공간에서도 센다(원본 규칙 E14). 바뀌지 않은 줄 원문 보존(E10). 설정으로 퍼지를 끌 수 있다(E17). `FileChange.diff`가 결과에 남아 리뷰할 수 있다 |
 | 포크 원본이 실험 API라 upstream이 예고 없이 바뀜 | 업그레이드 때 diff가 크다 | 커밋 `cdaf6c2`로 고정하고 `UPSTREAM.json`·`PATCHES.md`·`FRESNEL-PATCH` 표지로 바꾼 점을 추적한다(ADR-0003 §3.4). upstream 변경은 필요할 때만 수동으로 가져온다 |
 | 도구 타입 추출 규모가 추정(100~200줄)보다 큼 | W2가 길어진다 | W2를 W1과 병렬로 먼저 시작하고, 추출 대상이 도구 본문이 실제로 쓰는 타입뿐인지 타입체크로 좁힌다(ADR-0003 §4.2) |
@@ -231,8 +231,8 @@ M3 완료: spec §9 수용 기준 1~10 전부. 퍼지 규칙 표와 테스트 �
 - 이미지 포크는 `image.ts`(형식 판별과 크기 읽기, 패치 P11)와 `image-processor.ts`(`INLINE_IMAGE_TYPES`, `base64Length`만, 패치 P12)다. 처리기 타입과 `toBase64`는 쓰는 곳이 없어 2차로 미뤘다. 한도 기본값은 `DEFAULT_IMAGE_LIMITS` 대신 설정 키 `l2.workspace.images.*`가 갖는다.
 - 설정 키는 `images.maxWidth`, `maxHeight`, `maxBytes`, `maxInputBytes` 넷을 선언했다(§6 표). 나머지(`grep.*`, `find.*`, `edit.fuzzy`)는 M3다.
 - 파일 배치: `src/ports/blobs.ts`(`BlobSink`), `src/ports/threads.ts`(`ThreadWorkspaces`), `src/scope.ts`(`scopedDeps`), `src/images/{service,prepare,decode}.ts`. 계획의 `images/blob.ts`는 포트 파일로 대신했다.
-- 대화별 작업 폴더: `createFilesApi`, `createShellApi`, `createImagesApi`가 호출마다 `scopedDeps(deps, context.threadId)`로 의존을 맞춘다. 플러그인은 `xeon.session`의 `query.thread(threadId).workspace`와 `xeon.exec`의 `withCwd`로 `ThreadWorkspaces`를 만든다. `xeon.session`, `xeon.store` 포트가 없으면 경고 로그를 남기고 각각 엔진 cwd와 `unavailable`로 동작한다.
+- 대화별 작업 폴더: `createFilesApi`, `createShellApi`, `createImagesApi`가 호출마다 `scopedDeps(deps, context.threadId)`로 의존을 맞춘다. 플러그인은 `fresnel.session`의 `query.thread(threadId).workspace`와 `fresnel.exec`의 `withCwd`로 `ThreadWorkspaces`를 만든다. `fresnel.session`, `fresnel.store` 포트가 없으면 경고 로그를 남기고 각각 엔진 cwd와 `unavailable`로 동작한다.
 - 확인한 것: `images.test.ts`(최소형 규칙 전부와 `read` 이미지 분기), `thread-workspace.test.ts`(root, 상대 경로, 셸 cwd, 보호 경로, 작업 폴더 없음), `plugin.test.ts`(세션·저장소 포트 연결).
-- 통합 단계에서 확인할 것: (1) HOST 조립이 `xeon.session`과 `xeon.store`를 이 플러그인보다 먼저 제공하는지(포트는 설치 때 한 번 읽는다), (2) `thread.create`가 `workspace`를 `thread.started` payload에 싣는지(L1B, open-issues M-06의 남은 부분), (3) 샌드박스 쓰기 root가 대화의 작업 폴더와 같은 값을 쓰는지(L1.tools의 허용 root API가 정해지기 전까지 이 패키지가 정한다).
-- `grep`·`find`는 M3이고, `rg` 경로는 `xeon.os`의 `resolveBinary("rg")`가 준다. 이 패키지는 `@vscode/ripgrep`을 import하지 않는다.
+- 통합 단계에서 확인할 것: (1) HOST 조립이 `fresnel.session`과 `fresnel.store`를 이 플러그인보다 먼저 제공하는지(포트는 설치 때 한 번 읽는다), (2) `thread.create`가 `workspace`를 `thread.started` payload에 싣는지(L1B, open-issues M-06의 남은 부분), (3) 샌드박스 쓰기 root가 대화의 작업 폴더와 같은 값을 쓰는지(L1.tools의 허용 root API가 정해지기 전까지 이 패키지가 정한다).
+- `grep`·`find`는 M3이고, `rg` 경로는 `fresnel.os`의 `resolveBinary("rg")`가 준다. 이 패키지는 `@vscode/ripgrep`을 import하지 않는다.
 

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
   GroupSettingsSourceKey,
   createGroupService,

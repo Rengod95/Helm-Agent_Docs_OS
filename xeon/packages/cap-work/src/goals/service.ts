@@ -1,4 +1,4 @@
-import { assertNever, err, ok, parse, type Clock, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, parse, type Clock, type Result } from "@fresnel/contracts";
 import {
   GoalIdSchema,
   ReportIdSchema,
@@ -19,14 +19,14 @@ import {
   type ReportId,
   type ReportOutcome,
   type WorkReport,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   TurnCompletedPayloadSchema,
   toJsonValue,
   type ThreadId,
   type TurnId,
   type Usage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   ItemRecordedPayloadSchema,
   WorkGoalJudgedSchema,
@@ -42,7 +42,7 @@ import {
   type WorkGoalSetPayload,
   type WorkGoalSettledPayload,
   type WorkReportBuiltPayload,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   commitKeyOf,
   orThrow as orThrowIn,

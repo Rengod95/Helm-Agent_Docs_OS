@@ -1,4 +1,4 @@
-import type { Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Scheduler, TimerHandle } from "@fresnel/contracts";
 
 // 수동 스케줄러: 시간은 advance가 흘리고, 그때까지 기한이 된 타이머만 등록 순서대로 실행한다. 실제 시간을 기다리지 않는다(eng.testing.guide TS-03).
 

@@ -1,10 +1,10 @@
-import { attemptAsync, parse } from "@xeon/contracts";
+import { attemptAsync, parse } from "@fresnel/contracts";
 import {
   AgentSettledPayloadSchema,
   type GroupId,
   type RecordKind,
   type ScopeApi,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import type { MetricsCounter } from "./counter.ts";
 import type { AfterRun } from "./handler.ts";
 import type { GroupMetricsTotals } from "./types.ts";

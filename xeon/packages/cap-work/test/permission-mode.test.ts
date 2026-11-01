@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ModeChangeResult, PermissionMode, ToolService } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ModeChangeResult, PermissionMode, ToolService } from "@fresnel/contracts/services";
 import { toolsPermissionMode } from "../src/ports/permission-mode.ts";
 import { fixedIdFactory } from "./support/clock.ts";
 

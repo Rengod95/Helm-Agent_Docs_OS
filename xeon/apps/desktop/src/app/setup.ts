@@ -1,5 +1,5 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import type { HostConnection } from "@xeon/contracts/wire";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import type { HostConnection } from "@fresnel/contracts/wire";
 import {
   binaryViewOf,
   DEFAULT_MODEL_KEY,
@@ -11,7 +11,7 @@ import {
   type KeyRegisterError,
   type SecretRow,
   type SetupSnapshot,
-} from "@xeon/client/settings";
+} from "@fresnel/client/settings";
 import type { DesktopIpc, SecretRegisterError } from "../transport/ipc.ts";
 import type { CommandError, SetupCommands } from "../views/commands.ts";
 

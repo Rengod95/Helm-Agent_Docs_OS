@@ -1,6 +1,11 @@
-import { commandListView, slashLineOf, slashStepOf, type SlashLine } from "@xeon/client/settings";
-import { assertNever, attemptAsync, err, ok, type Result } from "@xeon/contracts";
-import type { EventId, ThreadId } from "@xeon/contracts/conversation";
+import {
+  commandListView,
+  slashLineOf,
+  slashStepOf,
+  type SlashLine,
+} from "@fresnel/client/settings";
+import { assertNever, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
+import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import {
   buildDiagnostics,
   type AppVersions,

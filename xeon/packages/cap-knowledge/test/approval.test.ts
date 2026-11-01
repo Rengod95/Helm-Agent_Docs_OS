@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { sha256Hex } from "../src/hash.ts";
-import type { CallContext } from "@xeon/contracts/capabilities";
+import type { CallContext } from "@fresnel/contracts/capabilities";
 import { SCAN_RULESET_VERSION } from "../src/scan/rules.ts";
 import { treeHash } from "../src/skills/tree.ts";
 import { scriptedApprovals } from "./support/approvals.ts";

@@ -10,16 +10,16 @@ binds: [xeon/packages/core-agents/**]
 
 # L1 서브에이전트 (agents) 구현 계획
 
-패키지: `xeon/packages/core-agents` (현재 스캐폴드: `package.json`, `src/index.ts`, `xeon.layer = "L1"`, `xeon.domain = "agents"`)
+패키지: `xeon/packages/core-agents` (현재 스캐폴드: `package.json`, `src/index.ts`, `fresnel.layer = "L1"`, `fresnel.domain = "agents"`)
 
 ## 1. 목표와 마일스톤 배치
 
-목표: L1.agents.spec의 `xeon.agents`를 구현한다. M2에서 Helm의 렌즈 N개 탐구(UC-2)가 서브에이전트 N개를 돌려 결과를 커밋하고, M3에서 학습 그룹의 검토 포크(UC-3)가 백그라운드 위임으로 돈다.
+목표: L1.agents.spec의 `fresnel.agents`를 구현한다. M2에서 Helm의 렌즈 N개 탐구(UC-2)가 서브에이전트 N개를 돌려 결과를 커밋하고, M3에서 학습 그룹의 검토 포크(UC-3)가 백그라운드 위임으로 돈다.
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
 | M0 | core-agents 코드 없음 | `_research/foundation-plan.md` §5 P4 M0 |
-| M1 | core-agents 코드 없음. 걸어 다니는 골격 범위 밖이다. 단, contracts M1에서 `LoopHandle.spawn`, `SpawnSpec`, `SpawnOutcome` 타입 자리를 확보한다(F.extensions.spec §3.2, 이미 F에 있음). M1 테스트 그룹의 drive는 `loop.spawn`을 부르지 않는다. [제안] X가 `xeon.agents`가 없을 때 `spawn`을 `{ status: "error", answer: "agents.unavailable" }`로 돌려주는지만 확인한다 | `_research/foundation-plan.md` §5 P4 M1 범위, `product.scope.spec` §4.3 M1 행 |
+| M1 | core-agents 코드 없음. 걸어 다니는 골격 범위 밖이다. 단, contracts M1에서 `LoopHandle.spawn`, `SpawnSpec`, `SpawnOutcome` 타입 자리를 확보한다(F.extensions.spec §3.2, 이미 F에 있음). M1 테스트 그룹의 drive는 `loop.spawn`을 부르지 않는다. [제안] X가 `fresnel.agents`가 없을 때 `spawn`을 `{ status: "error", answer: "agents.unavailable" }`로 돌려주는지만 확인한다 | `_research/foundation-plan.md` §5 P4 M1 범위, `product.scope.spec` §4.3 M1 행 |
 | M2 | 자식 대화 생성과 부모 연결, 포그라운드 `spawn`(모델 도구 `agent`, drive `loop.spawn`), 권한 상한과 차단 목록, 깊이·동시 상한, 결과 반환(길이 상한, 모방 검사, 격리 블록), requestId 파생과 재개 중복 방지, 확장 정의(매니페스트 `components.agents`)와 코드 등록 `define` | product.scope.spec M2 종료 조건 "렌즈 N개 탐구에서 서브에이전트 N개 결과 커밋 뒤 적용 턴을 한 번 실행"(UC-2) |
 | M3 | 백그라운드 위임(`delegate`, 완료 보고 post, 직접 취소), 목표 판정(`judge`, 상한, `agent.judged`) | product.scope.spec M3 종료 조건 UC-3, "목표 판정이 실행 횟수 상한에서 멈춘다" |
 | 2차(M3 이후) | 프로젝트·사용자 디렉터리 정의 파일 로더와 위치 우선순위, 새 스레드 handoff, 판정 B안(제한된 자식 세션) 검토 | `_research/layer-plan-v2.json` L1-g 2차 행 |
@@ -31,12 +31,12 @@ binds: [xeon/packages/core-agents/**]
 
 ```
 xeon/packages/core-agents/
-  package.json                 # dependencies: @xeon/contracts, @xeon/ext-host(플러그인 API), yaml 2.9.0
+  package.json                 # dependencies: @fresnel/contracts, @fresnel/ext-host(플러그인 API), yaml 2.9.0
   src/
     index.ts                   # plugin만 export
-    plugin.ts                  # ext-host 플러그인: xeon.agents 제공, 내장 도구 agent와 차단 규칙 등록, 설정 등록 (AG-10)
+    plugin.ts                  # ext-host 플러그인: fresnel.agents 제공, 내장 도구 agent와 차단 규칙 등록, 설정 등록 (AG-10)
     service.ts                 # AgentService 구현: spawn, delegate, cancel, status, define (AG-1, AG-6, AG-7)
-    child-session.ts           # 자식 thread 생성(thread.started + agent.spawned 한 커밋), xeon.loop 열기, 정착 처리 (AG-1, AG-2)
+    child-session.ts           # 자식 thread 생성(thread.started + agent.spawned 한 커밋), fresnel.loop 열기, 정착 처리 (AG-1, AG-2)
     permission-ceiling.ts      # childDecision(순수), 자식 모드 계산, 자식 광고 입력 (AG-3)
     denylist.ts                # subagent.* 차단 규칙 생성(깊이 설정 반영) (AG-4)
     result-guard.ts            # 최종 보고 추출, 길이 상한, 모방 검사, 격리 블록 (AG-5)
@@ -54,7 +54,7 @@ xeon/packages/core-agents/
 ```
 
 - `denylist.ts`, `request-id.ts`, `tool.ts`, `testing/`은 이 계획이 나눈 파일이다 [제안].
-- core-agents는 core-loop·core-tasks·core-tools를 import하지 않는다. 협력은 `xeon.loop`, `xeon.tasks`, `xeon.tools`, `xeon.session` 서비스와 F 타입으로 한다(`eng.dependency-rules.guide` DR-02, `L1.readme` §4.2).
+- core-agents는 core-loop·core-tasks·core-tools를 import하지 않는다. 협력은 `fresnel.loop`, `fresnel.tasks`, `fresnel.tools`, `fresnel.session` 서비스와 F 타입으로 한다(`eng.dependency-rules.guide` DR-02, `L1.readme` §4.2).
 - `childDecision`은 F `policy.ts`로 옮기도록 요청했다(L1.agents.spec §8.3 F 요청 5). 옮겨지면 `permission-ceiling.ts`는 자식 모드와 광고 입력 계산만 남는다.
 
 ## 3. 작업 분해
@@ -65,15 +65,15 @@ xeon/packages/core-agents/
 |---|---|---|---|---|
 | AG-0 | 선행 확인: core-tasks 소유 트리·`subagents` 풀·입력 큐 초안 `draftQueued`(L1.tasks.plan), core-tools 정책 엔진·`registerRules`와 `ToolRunContext.ceiling`(L1.tools.plan TL-3·TL-13), core-persistence 커밋 API와 자식 연결 kind(F 요청 3, F.records 카탈로그에 있음), `TxView.agentByRequestId`·`p_agents`(L1.persistence.plan PS-23), core-loop `runChildTurn`(L1.loop.plan LP15) | — | S | M2 |
 | AG-1 | 자식 thread 생성과 부모 연결 기록: `thread.started`(fork면 `forkedFrom`) + 부모 `agent.spawned` 한 커밋 | AG-0 | M | M2 |
-| AG-2 | 자식 실행 단위 수명과 취소 연결: `xeon.loop.runChildTurn`(L1.loop.spec §3.1·§4.13, L1.loop.plan LP15)으로 자식 turn 실행, 소유 노드 등록(`openScope` kind `subagent`), 부모 취소 전파와 하향 정착 순서, `agent.settled` 커밋 | AG-1 | L | M2 |
+| AG-2 | 자식 실행 단위 수명과 취소 연결: `fresnel.loop.runChildTurn`(L1.loop.spec §3.1·§4.13, L1.loop.plan LP15)으로 자식 turn 실행, 소유 노드 등록(`openScope` kind `subagent`), 부모 취소 전파와 하향 정착 순서, `agent.settled` 커밋 | AG-1 | L | M2 |
 | AG-3 | 권한 교집합 계산: `childDecision`(부모 관점·자식 관점·정의 제한의 `stricter`), 자식 모드, 자식 광고 입력(`allow`, `keepParentList`), core-tools 정책 엔진 호출 | AG-0 | M | M2 |
 | AG-4 | 차단 목록: `subagent.no-spawn`(minDepth = maxDepth), `no-user-interaction`, `no-shared-write`, `no-external-send`를 `ToolService.registerRules("core:agents", …)`(L1.tools.plan TL-3)로 default 티어 deny 등록, `maxDepth` 변경 시 같은 출처로 다시 등록 | AG-3 | S | M2 |
 | AG-5 | 결과 길이 제한과 모방 검사: 최종 보고 추출, `resultMaxChars` 절단, flag 5종 검사, 격리 블록과 이스케이프, 경고 문장 | — | S | M2 |
 | AG-6 | requestId 파생과 재개 중복 방지: `<ownerRequestId>:spawn:<n>`, 64자 해시, 커밋 안 조회(`TxView.agentByRequestId`, L1.persistence.plan PS-23)로 기존 자식 재사용(정착·진행·끊김 세 경우), 재개 때 `ResumePlan.openChildren` 처리 | AG-1 | M | M2 |
 | AG-7 | 백그라운드 위임과 inbox 합성 입력: `delegate` 접수, 경계 소유 노드, 정착 뒤 `PostItem{ kind: "context" }` post(`<requestId>:report`), 직접 취소, 세션 `{ background: true }` 취소 연결 | AG-2, AG-6 | M | M3 |
-| AG-8 | 판정 호출과 횟수 상한: `xeon.models` 역할 `judge` 단발 호출, 구조화 출력 검증, `(threadId, goalRef)` 실행 수 집계, `capped`·`recorded`·`failed`, 응답 직후 `agent.judged` 자기 커밋 | AG-0 | M | M3 |
+| AG-8 | 판정 호출과 횟수 상한: `fresnel.models` 역할 `judge` 단발 호출, 구조화 출력 검증, `(threadId, goalRef)` 실행 수 집계, `capped`·`recorded`·`failed`, 응답 직후 `agent.judged` 자기 커밋 | AG-0 | M | M3 |
 | AG-9 | 정의 파일 로더: frontmatter 포크, `AgentDefinitionSchema` 검증, 매니페스트 `components.agents` 읽기(M2), 디렉터리 탐색과 우선순위(2차), 진단 | — | S(M2) + M(2차) | M2, 2차 |
-| AG-10 | 서비스·도구·설정 등록: `plugin.ts`, 내장 도구 `agent`(`xeon.tools` 등록, classes `["spawn"]`, replay safe), `settings.ts`(키 4개) | AG-3, AG-4 | S | M2 |
+| AG-10 | 서비스·도구·설정 등록: `plugin.ts`, 내장 도구 `agent`(`fresnel.tools` 등록, classes `["spawn"]`, replay safe), `settings.ts`(키 4개) | AG-3, AG-4 | S | M2 |
 | AG-11 | 동시 상한: 전체 풀 `limiter("subagents")`(크기 `l1.tasks.limits.subagents`) + 소유 트리 루트별 상한 `l1.agents.maxConcurrent`, 대기 상태 `queued`, 대기 중 취소, 자식을 기다리는 도구의 `slot.suspendWhile` | AG-2 | S | M2 |
 | AG-12 | UC-2 통합 테스트 훅: `testing/spawnRecorder`(agent.spawned·settled seq 기록), `settleAll(parentThreadId, requestIds)` | AG-2 | S | M2 |
 
@@ -86,7 +86,7 @@ xeon/packages/core-agents/
 - core-persistence: 커밋 API, 자식 대화 재개, 자식 연결 kind(`agent.*`, F 요청 3 반영), `p_agents` 투영과 `TxView.agentByRequestId`, `ResumePlan.openChildren`(L1.persistence.plan PS-23).
 - core-loop: `runChildTurn` 진입점(L1.loop.plan LP15), 완료 게이트(`boundary.settle.before`)에서 L2.work 핸들러가 `judge`를 부르는 경로(L1.loop.plan).
 - core-models: 역할 `judge`, `subagent` 라우팅과 구조화 출력, 테이프(L1.models.plan).
-- ext-host: `loop.spawn` → `xeon.agents.spawn` 연결, 그룹 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-sdk.plan).
+- ext-host: `loop.spawn` → `fresnel.agents.spawn` 연결, 그룹 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-sdk.plan).
 
 ### 3.1 M2 구현 상태 (2026-10-24, 레인 L1B)
 
@@ -155,7 +155,7 @@ xeon/packages/core-agents/
 ## 6. 완료 기준
 
 - 위 단위 테스트가 패키지 단위 `bun test`로 통과한다(단계별 범위).
-- M2: UC-2 수용 기준(서브에이전트 N개 결과 커밋 뒤 적용 턴 1회)을 통합 테스트로 확인할 수 있는 훅을 제공한다. `@xeon/core-agents/testing`의 `spawnRecorder`가 `agent.spawned`·`agent.settled`의 seq를 기록하고, `settleAll(parentThreadId, requestIds)`가 N개 정착을 기다린다. L3.helm.plan의 통합 테스트가 "N개 `agent.settled` seq < 적용 turn의 `turn.started` seq, 적용 turn 1회"를 이 훅으로 검사한다.
+- M2: UC-2 수용 기준(서브에이전트 N개 결과 커밋 뒤 적용 턴 1회)을 통합 테스트로 확인할 수 있는 훅을 제공한다. `@fresnel/core-agents/testing`의 `spawnRecorder`가 `agent.spawned`·`agent.settled`의 seq를 기록하고, `settleAll(parentThreadId, requestIds)`가 N개 정착을 기다린다. L3.helm.plan의 통합 테스트가 "N개 `agent.settled` seq < 적용 turn의 `turn.started` seq, 적용 turn 1회"를 이 훅으로 검사한다.
 - M3: UC-3 경로(학습 그룹 `g.delegate` → `delegate` → 보고 post)가 Helm drive 임대 중에도 동작하는 테스트가 L3.learning.plan 쪽에 있고 이 패키지의 훅으로 돈다.
 - `just verify`가 종료코드 0이다.
 - check-layers: core-agents가 다른 `core-*`, `cap-*`, `group-*` 패키지와 `cordis`를 import하지 않는다.

@@ -1,7 +1,7 @@
-import type { AskQuestion } from "@xeon/contracts/capabilities";
-import { defaultAskAnswer } from "@xeon/contracts/capabilities";
-import type { ApprovalId, ThreadId } from "@xeon/contracts/conversation";
-import type { Logger, TimerHandle } from "@xeon/contracts";
+import type { AskQuestion } from "@fresnel/contracts/capabilities";
+import { defaultAskAnswer } from "@fresnel/contracts/capabilities";
+import type { ApprovalId, ThreadId } from "@fresnel/contracts/conversation";
+import type { Logger, TimerHandle } from "@fresnel/contracts";
 import type { L2ApprovalsPort } from "../ports/approvals.ts";
 import type { Timers } from "../ports/timers.ts";
 import { toQuestionAnswer } from "./mapping.ts";

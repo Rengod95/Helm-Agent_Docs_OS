@@ -4,7 +4,7 @@ import type {
   Source,
   WebCallMeta,
   WebFetchPage,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 const FREE_COST: Cost = { usd: 0, basis: "free", units: [] };
 

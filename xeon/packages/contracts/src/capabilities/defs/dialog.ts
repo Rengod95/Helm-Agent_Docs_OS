@@ -1262,7 +1262,7 @@ export interface DialogService {
   readonly notify: CapabilityApi<typeof DialogNotify> & NoticeFeed;
 }
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
-export const DialogServiceName = "xeon.dialog" as const;
+export const DialogServiceName = "fresnel.dialog" as const;
 export const DIALOG_CAPABILITIES: readonly [
   typeof DialogAsk,
   typeof DialogCommands,

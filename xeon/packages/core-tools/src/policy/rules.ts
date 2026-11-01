@@ -1,4 +1,4 @@
-import type { PolicyIssue, PolicyRule } from "@xeon/contracts/services";
+import type { PolicyIssue, PolicyRule } from "@fresnel/contracts/services";
 import { tryRegExp } from "../util.ts";
 
 // L1.tools.spec §4.5 내장 기본 규칙(M1)과 규칙 정적 검사.

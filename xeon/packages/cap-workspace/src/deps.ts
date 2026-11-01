@@ -1,5 +1,5 @@
-import type { Clock, Result } from "@xeon/contracts";
-import type { SandboxService } from "@xeon/contracts/services";
+import type { Clock, Result } from "@fresnel/contracts";
+import type { SandboxService } from "@fresnel/contracts/services";
 import type { WorkspaceEnv } from "./env.ts";
 import type { BlobSink } from "./ports/blobs.ts";
 import type { ThreadWorkspaces } from "./ports/threads.ts";
@@ -8,7 +8,7 @@ import type { WorkspaceSettings } from "./settings.ts";
 
 /**
  * ripgrep 실행 파일 경로를 얻는다. `rgPath`가 빈 문자열이 아니면 그 경로를 그대로 돌려준다(spec §6 grep.rgPath).
- * 빈 문자열이면 `xeon.os`가 번들 바이너리를 찾는다. 실패는 값이다: `missing`은 찾지 못함, `cancelled`는 중단 신호.
+ * 빈 문자열이면 `fresnel.os`가 번들 바이너리를 찾는다. 실패는 값이다: `missing`은 찾지 못함, `cancelled`는 중단 신호.
  */
 export type RgResolver = (
   rgPath: string,

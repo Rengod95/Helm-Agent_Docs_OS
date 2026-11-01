@@ -11,14 +11,14 @@ import {
   type LogFields,
   type LogValue,
   type Logger,
-} from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type {
   LeaseHolder,
   LeaseToken,
   SessionService,
   StoreService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   ApprovalService,
   ContextService,
@@ -27,7 +27,7 @@ import type {
   OsService,
   TaskService,
   ToolService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   StoreIdSchema,
   threadSummaryOf,
@@ -36,12 +36,12 @@ import {
   type ThreadSummary,
   type TurnStartInput,
   type WireResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { isAbsolute } from "node:path";
-import type { ScheduleService } from "@xeon/cap-schedule";
-import { itemPagesOf } from "@xeon/core-persistence";
-import { PrimitiveError, type ExtHost } from "@xeon/ext-host";
-import type { FileLock } from "@xeon/platform-os";
+import type { ScheduleService } from "@fresnel/cap-schedule";
+import { itemPagesOf } from "@fresnel/core-persistence";
+import { PrimitiveError, type ExtHost } from "@fresnel/ext-host";
+import type { FileLock } from "@fresnel/platform-os";
 import type {
   ActivityPort,
   ApprovalPort,
@@ -173,7 +173,7 @@ function trustStatusOf(inspection: TrustInspection): WireResult<"trust.get"> {
 
 function storeIdOf(raw: string): StoreId {
   const parsed = parse(StoreIdSchema, raw);
-  // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
+  // fresnel-disable-next-line fresnel/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
   if (!parsed.ok) throw new Bug(`store.invalid_store_id: ${raw}`, { cause: parsed.error });
   return parsed.value;
 }
@@ -295,7 +295,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       // 쪽 질의는 L1.persistence가 세션 서비스에 딸려 내놓는다. 그 서비스가 아닌 구현이 들어왔다면 조립이 틀린 것이다
       const itemPages = itemPagesOf(session);
       if (itemPages === undefined) {
-        throw new Bug("host.item_pages_missing: xeon.session has no item page query");
+        throw new Bug("host.item_pages_missing: fresnel.session has no item page query");
       }
       return readThread(itemPages, storeId, params);
     },

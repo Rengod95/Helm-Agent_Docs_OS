@@ -1,6 +1,6 @@
-import type { ItemId, ThreadId } from "@xeon/contracts/conversation";
-import type { AgentSettledEventPayload } from "@xeon/contracts/records";
-import type { DelegateError, DelegateResult, DelegateSpec } from "@xeon/group-sdk";
+import type { ItemId, ThreadId } from "@fresnel/contracts/conversation";
+import type { AgentSettledEventPayload } from "@fresnel/contracts/records";
+import type { DelegateError, DelegateResult, DelegateSpec } from "@fresnel/group-sdk";
 import type { LearningSettings } from "../settings.ts";
 import type { LearningState } from "../state.ts";
 import type { ReviewOutcome } from "../proposals/reader.ts";

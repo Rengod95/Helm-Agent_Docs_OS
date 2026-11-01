@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { AgentToolCall, AssistantMessage } from "@xeon/contracts/conversation";
+import type { AgentToolCall, AssistantMessage } from "@fresnel/contracts/conversation";
 import { runToolBatch } from "../../src/loop/tool-batch.ts";
 import { currentStep } from "../../src/loop/turn-run.ts";
 import type { ToolCallResume } from "../../src/loop/types.ts";

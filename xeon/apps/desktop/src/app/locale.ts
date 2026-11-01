@@ -4,9 +4,9 @@ import {
   setActiveLocale,
   UI_LOCALE_KEY,
   type Locale,
-} from "@xeon/client/i18n";
-import { detach } from "@xeon/contracts";
-import type { HostConnection } from "@xeon/contracts/wire";
+} from "@fresnel/client/i18n";
+import { detach } from "@fresnel/contracts";
+import type { HostConnection } from "@fresnel/contracts/wire";
 
 // 표시 언어(ADR-0016 §3.3). 엔진에 연결하기 전에는 `l4.ui.locale`을 읽을 수 없으므로 WebView의 언어 단서
 // (`navigator.languages`)로 첫 렌더 전 로케일을 정하고, 연결된 뒤 설정 값으로 바로잡는다.

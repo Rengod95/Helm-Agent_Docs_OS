@@ -1,5 +1,5 @@
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { attempt, err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
 import type { FsEntry, KnowledgeFs } from "../fs/port.ts";
 import { utf8DecodeStrict } from "../hash.ts";
 
@@ -58,7 +58,7 @@ export interface LoadSkillsResult {
 }
 
 // FRESNEL-PATCH: KN-01
-/** 스킬 루트 넷. 경로는 `skills/roots.ts`가 `xeon.os`와 설정에서 만든다 */
+/** 스킬 루트 넷. 경로는 `skills/roots.ts`가 `fresnel.os`와 설정에서 만든다 */
 export interface SkillRoots {
   readonly project?: string;
   readonly user: string;

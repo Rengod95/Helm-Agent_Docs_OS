@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { stat } from "node:fs/promises";
-import { Bug, err, ok } from "@xeon/contracts";
-import { OsServiceName } from "@xeon/contracts/services";
-import type { PortKey } from "@xeon/contracts/extensions";
-import type { PlatformContext } from "@xeon/ext-host";
+import { Bug, err, ok } from "@fresnel/contracts";
+import { OsServiceName } from "@fresnel/contracts/services";
+import type { PortKey } from "@fresnel/contracts/extensions";
+import type { PlatformContext } from "@fresnel/ext-host";
 import { platformOsPlugin } from "../src/index.ts";
 import { createOsService, resolveOsDirs, type PlatformOsConfig } from "../src/service.ts";
 import { readOsRuntime } from "../src/runtime.ts";
@@ -362,7 +362,7 @@ describe("createOsService", () => {
 });
 
 describe("platformOsPlugin", () => {
-  test("setup이 xeon.os 포트를 제공하고 dispose를 등록한다", async () => {
+  test("setup이 fresnel.os 포트를 제공하고 dispose를 등록한다", async () => {
     const lines: string[] = [];
     const runtime = fakeRuntime();
     const plugin = platformOsPlugin(config(lines), runtime);
@@ -371,7 +371,7 @@ describe("platformOsPlugin", () => {
     await plugin.setup(ctx);
     expect(provided.length).toBe(1);
     expect(provided[0]?.key.name).toBe(OsServiceName);
-    expect(provided[0]?.key.name).toBe("xeon.os");
+    expect(provided[0]?.key.name).toBe("fresnel.os");
     expect(disposers.length).toBe(1);
     expect(provided[0]?.impl).toMatchObject({ info: { platform: "linux" } });
     await disposers[0]?.();

@@ -1,4 +1,4 @@
-import type { WireHandlers } from "@xeon/contracts/wire";
+import type { WireHandlers } from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine } from "../types.ts";
 import { createApprovalListHandler, createApprovalRespondHandler } from "./approval.ts";

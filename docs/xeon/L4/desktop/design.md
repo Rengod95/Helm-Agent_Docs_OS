@@ -95,7 +95,7 @@ src/
 
 ## 5. 소비하는 wire 입력
 
-연결 컨트롤러(`link.ts`)가 `HostConnection`의 알림과 응답을 `MirrorInput`으로 바꾼다. payload는 `decode.ts`가 `@xeon/contracts` 스키마로 검증한다(FS-12).
+연결 컨트롤러(`link.ts`)가 `HostConnection`의 알림과 응답을 `MirrorInput`으로 바꾼다. payload는 `decode.ts`가 `@fresnel/contracts` 스키마로 검증한다(FS-12).
 
 | wire | 출처 | 입력 | 비고 |
 |---|---|---|---|
@@ -134,9 +134,9 @@ src/
 // src/state/engine/state.ts
 import type {
   EventId, ItemId, ItemKind, ItemRecord, PartId, PartKind, ThreadId, TurnId,
-} from "@xeon/contracts/conversation";
-import type { ApprovalRequestedPayload } from "@xeon/contracts/records";
-import type { StoreId, SubId, ThreadSummary } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/conversation";
+import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { StoreId, SubId, ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
 
 /** 재구독으로 고치는 어긋남. 화면 캐시는 그대로 둔다 */
@@ -422,7 +422,7 @@ flowchart LR
 
 ## 12. 코드 골격
 
-아래 코드는 2026-10-24 프로토타입(저장소 밖 임시 프로젝트, zustand 5.0.16, react 19.3.1, @types/react 19.3.0, tsgo 7.0.2)에서 파일로 옮겨 검사했다. tsconfig는 저장소 `tsconfig.base.json` 옵션에서 `composite`와 `declarationMap`만 뺐다(`@xeon/contracts` 소스를 `paths`로 가리키면 `composite`가 파일 목록 오류를 낸다). 저장소 `.oxlintrc.json`(type-aware, `--deny-warnings`)으로 `src`와 `test`를 검사했고 오류와 경고가 없었다. `as`, `!`, `any`가 없다. 같은 프로젝트의 `bun test` 62건이 통과한다. `@xeon/contracts`는 이 저장소의 소스를 그대로 썼고 `EngineState`만 대역이었다.
+아래 코드는 2026-10-24 프로토타입(저장소 밖 임시 프로젝트, zustand 5.0.16, react 19.3.1, @types/react 19.3.0, tsgo 7.0.2)에서 파일로 옮겨 검사했다. tsconfig는 저장소 `tsconfig.base.json` 옵션에서 `composite`와 `declarationMap`만 뺐다(`@fresnel/contracts` 소스를 `paths`로 가리키면 `composite`가 파일 목록 오류를 낸다). 저장소 `.oxlintrc.json`(type-aware, `--deny-warnings`)으로 `src`와 `test`를 검사했고 오류와 경고가 없었다. `as`, `!`, `any`가 없다. 같은 프로젝트의 `bun test` 62건이 통과한다. `@fresnel/contracts`는 이 저장소의 소스를 그대로 썼고 `EngineState`만 대역이었다.
 
 처음 골격은 발췌여서 7.2 표의 함수, `invariants.ts`, `index.ts`, 나머지 decode 항목이 빠져 있었다. 이 판은 그 부분을 채워, 블록을 파일로 옮기면 그대로 컴파일된다. 프로토타입 시험이 드러낸 결함 네 건은 코드와 §7, §8, §10에 반영했다. (1) `failed`가 흡수 상태가 아니었다. (2) reducer 실패가 반복돼도 재구독이 성공하면 상한이 풀렸다. (3) 열린 thread 밖에서 확정된 item의 늦은 조각이 슬롯을 되살렸다. (4) `stale` 스냅샷을 다시 읽지 않아 loading이 남았다.
 
@@ -435,9 +435,9 @@ flowchart LR
 import type {
   EventId, ItemRecord, ItemStartedPayload, ItemUpdatedPayload, ThreadId,
   ThreadStartedPayload, ThreadUpdatedPayload, TurnCompletedPayload, TurnId,
-} from "@xeon/contracts/conversation";
-import type { ApprovalRequestedPayload } from "@xeon/contracts/records";
-import type { StoreId, SubId, ThreadSummary } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/conversation";
+import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { StoreId, SubId, ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
 
 type DurableBase = {
@@ -505,15 +505,15 @@ export type MirrorInput =
 
 ```ts
 // src/state/engine/decode.ts
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   ItemStartedPayloadSchema, ItemUpdatedPayloadSchema, ThreadStartedPayloadSchema,
   ThreadUpdatedPayloadSchema, TurnCompletedPayloadSchema,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema, ItemRecordedPayloadSchema,
-} from "@xeon/contracts/records";
-import type { EventWire, VolatileEventWire } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/records";
+import type { EventWire, VolatileEventWire } from "@fresnel/contracts/wire";
 import type { DurableFact, VolatileFact } from "./input.ts";
 
 type DurableBase = Omit<Extract<DurableFact, { type: "other" }>, "type">;
@@ -592,9 +592,9 @@ export function decodeVolatile(event: VolatileEventWire): VolatileFact {
 
 ```ts
 // src/state/engine/reduce.ts
-import { assertNever, Bug } from "@xeon/contracts";
-import type { ItemId, ItemRecord, PartDelta, ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { ThreadSummary } from "@xeon/contracts/wire";
+import { assertNever, Bug } from "@fresnel/contracts";
+import type { ItemId, ItemRecord, PartDelta, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { Reduced as SharedReduced } from "../shared/pipeline.ts";
 import type { DurableFact, MirrorInput, VolatileFact } from "./input.ts";
 import { EMPTY_STREAMING, INITIAL_MIRROR, type EngineMirror, type Link, type ResetReason,
@@ -939,7 +939,7 @@ function applySnapshot(
 
 ```ts
 // src/state/shared/pipeline.ts
-import { Bug, type Clock } from "@xeon/contracts";
+import { Bug, type Clock } from "@fresnel/contracts";
 import type { Journal, JournalLabel } from "./journal.ts";
 
 export type Reduced<S, N extends string> = { readonly state: S; readonly note: N };
@@ -1039,7 +1039,7 @@ export function createJournal<N extends string>(capacity: number): Journal<N> {
 
 ```ts
 // src/state/engine/describe.ts
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import type { EngineState } from "../../transport/ipc.ts";
 import type { MirrorInput, VolatileFact } from "./input.ts";
 import type { ApplyNote } from "./reduce.ts";
@@ -1093,7 +1093,7 @@ export function journalLabel(input: MirrorInput, note: ApplyNote): InputLabel | 
 
 ```ts
 // src/state/shared/frame.ts
-import type { Scheduler } from "@xeon/contracts";
+import type { Scheduler } from "@fresnel/contracts";
 
 /** 다음 화면 프레임에 run을 한 번 부른다. 돌려준 함수는 예약을 취소한다 */
 export interface FrameClock {
@@ -1163,7 +1163,7 @@ export function readonlyView<T>(api: StoreApi<T>): ReadonlyStore<T> {
 
 ```ts
 // src/state/engine/store.ts
-import type { Clock, Logger } from "@xeon/contracts";
+import type { Clock, Logger } from "@fresnel/contracts";
 import { createStore } from "zustand/vanilla";
 import type { FrameClock } from "../shared/frame.ts";
 import type { Journal } from "../shared/journal.ts";
@@ -1304,8 +1304,8 @@ export function checkMirror(state: EngineMirror): readonly string[] {
 
 ```ts
 // src/state/engine/selectors.ts
-import type { EventId, ItemId, ItemRecord, ThreadId } from "@xeon/contracts/conversation";
-import type { ThreadSummary } from "@xeon/contracts/wire";
+import type { EventId, ItemId, ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineMirror, Link, PendingApproval, StreamingItem } from "./state.ts";
 
 // 빈 값은 모듈 상수다. 선택자가 [] 리터럴을 돌려주면 매번 새 참조라 재렌더가 끝나지 않는다
@@ -1337,9 +1337,9 @@ export const selectLinkBanner = (s: EngineMirror): { readonly phase: Link["phase
 
 ```ts
 // src/state/engine/hooks.ts
-import { Bug } from "@xeon/contracts";
-import type { EventId, ItemId, ItemRecord, ThreadId } from "@xeon/contracts/conversation";
-import type { ThreadSummary } from "@xeon/contracts/wire";
+import { Bug } from "@fresnel/contracts";
+import type { EventId, ItemId, ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -1379,7 +1379,7 @@ export const useLinkBanner = (): { readonly phase: Link["phase"]; readonly attem
 
 ```tsx
 // src/views/transcript.tsx (구독 단위만 보인다. 가상 스크롤은 생략)
-import type { ItemId } from "@xeon/contracts/conversation";
+import type { ItemId } from "@fresnel/contracts/conversation";
 import { memo, type ReactNode } from "react";
 import {
   EngineStoreContext, useItem, usePartText, useStreamingIds, useStreamingItem, useTranscriptItemIds,
@@ -1451,7 +1451,7 @@ export type { ReadonlyStore } from "../shared/readonly-store.ts";
 
 ```ts
 // src/state/ui/store.ts
-import type { EventId, ThreadId } from "@xeon/contracts/conversation";
+import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import { createStore } from "zustand/vanilla";
 import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
 
@@ -1498,7 +1498,7 @@ export function createUiStore(): { readonly read: ReadonlyStore<UiState>; readon
 
 ```ts
 // src/state/shared/watch.ts
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 import type { ReadonlyStore } from "./readonly-store.ts";
 
 /**
@@ -1525,11 +1525,11 @@ export function watch<T, U>(
 
 ```ts
 // src/state/engine/link.ts
-import { attemptAsync, detach, repeatAsync, type Logger } from "@xeon/contracts";
-import type { ItemRecord, ThreadId } from "@xeon/contracts/conversation";
+import { attemptAsync, detach, repeatAsync, type Logger } from "@fresnel/contracts";
+import type { ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
 import {
   WireError, type EventsBatchParams, type HostConnection, type StreamPosition, type SubId,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { watch } from "../shared/watch.ts";
 import { MAX_SYNC_ATTEMPTS } from "./reduce.ts";
 import { decodeDurable, decodeVolatile } from "./decode.ts";

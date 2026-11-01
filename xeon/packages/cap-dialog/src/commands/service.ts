@@ -1,4 +1,4 @@
-import { attemptAsync, eachAsync } from "@xeon/contracts";
+import { attemptAsync, eachAsync } from "@fresnel/contracts";
 import {
   DialogCommands,
   type CallOptions,
@@ -6,9 +6,9 @@ import {
   type CommandActionRegistry,
   type CommandArg,
   type CommandInfo,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { CancelScope } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { CancelScope } from "@fresnel/contracts/services";
 import type { DialogDeps } from "../deps.ts";
 import { DialogFailure, guarded, toCapabilityError } from "../errors.ts";
 import { PROJECT_COMMANDS_DIR } from "../ports/command-files.ts";

@@ -1,5 +1,5 @@
-import { t } from "@xeon/core-models/testing";
-import { startStdioHost } from "@xeon/host";
+import { t } from "@fresnel/core-models/testing";
+import { startStdioHost } from "@fresnel/host";
 import { modelsOf } from "../support/real-host.ts";
 
 // L4.cli.plan §5.2: 실제 프로세스로 도는 호스트 진입(`host --stdio`와 같은 startStdioHost)에 모델 테이프만 넣는다. 시험 파일이다(DR-08).

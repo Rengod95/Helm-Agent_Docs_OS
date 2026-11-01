@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, parse } from "@fresnel/contracts";
 import { Type } from "typebox";
-import type { TaskOp, WorkTask } from "@xeon/contracts/capabilities";
+import type { TaskOp, WorkTask } from "@fresnel/contracts/capabilities";
 import { planWrite } from "../src/tasks/write.ts";
 import seedsJson from "./property/seeds.json" with { type: "json" };
 import { seededRandom } from "./support/clock.ts";

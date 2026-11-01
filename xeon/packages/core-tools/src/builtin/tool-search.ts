@@ -1,6 +1,6 @@
-import { MAX_TOOLS_PER_REQUEST } from "@xeon/contracts/capabilities";
-import { parse } from "@xeon/contracts";
-import { TOOL_SEARCH_NAME } from "@xeon/contracts/services";
+import { MAX_TOOLS_PER_REQUEST } from "@fresnel/contracts/capabilities";
+import { parse } from "@fresnel/contracts";
+import { TOOL_SEARCH_NAME } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import type { ToolsDeps } from "../deps.ts";
 import { errorOutcome } from "../entries.ts";

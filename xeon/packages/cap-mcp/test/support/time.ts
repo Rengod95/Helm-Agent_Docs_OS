@@ -1,4 +1,4 @@
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Clock, Scheduler, TimerHandle } from "@fresnel/contracts";
 
 // 고정 시계와 손으로 돌리는 스케줄러(eng.testing.guide TS-05). 실제 시간이 흐르지 않는다.
 

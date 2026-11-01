@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
-import type { BlobError } from "@xeon/contracts/records";
-import type { TestStore } from "@xeon/platform-store/testing";
+import { err } from "@fresnel/contracts";
+import type { BlobError } from "@fresnel/contracts/records";
+import type { TestStore } from "@fresnel/platform-store/testing";
 import {
   cacheKeyOf,
   createFetchCache,

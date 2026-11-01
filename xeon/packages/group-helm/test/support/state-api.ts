@@ -1,4 +1,4 @@
-import { PrimitiveError } from "@xeon/ext-host";
+import { PrimitiveError } from "@fresnel/ext-host";
 import { INITIAL_HELM_STATE, type HelmState } from "../../src/state.ts";
 
 export interface FakeStateApi {

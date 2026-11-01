@@ -1,4 +1,4 @@
-import type { ResumePlan } from "@xeon/contracts/records";
+import type { ResumePlan } from "@fresnel/contracts/records";
 
 // L1.persistence.spec §4.8.4, L1.loop.spec §4.5 (M3-REQ-81). 재개 때 모델 요청을 다시 보낼지의 정책.
 // [결정: 오케스트레이터 기본값] 체크포인트 재전송이다. 요청별 멱등 키는 쓰지 않는다: 제공자 API에 멱등 키 수단이 공통으로 없고,

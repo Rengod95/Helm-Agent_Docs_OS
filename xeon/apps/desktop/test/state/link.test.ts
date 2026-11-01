@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, repeatAsync, type Result } from "@xeon/contracts";
-import type { ItemRecord } from "@xeon/contracts/conversation";
+import { Bug, repeatAsync, type Result } from "@fresnel/contracts";
+import type { ItemRecord } from "@fresnel/contracts/conversation";
 import {
   WireError,
   type EventsBatchParams,
   type EventsEndedParams,
   type StreamChunkParams,
   type WireResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import {
   startLink,
   type SnapshotError,

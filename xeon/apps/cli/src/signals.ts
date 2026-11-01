@@ -1,4 +1,4 @@
-import { assertNever, type Clock } from "@xeon/contracts";
+import { assertNever, type Clock } from "@fresnel/contracts";
 import { EXIT, type ExitCode } from "./exit-codes.ts";
 import type { CliIo } from "./io.ts";
 

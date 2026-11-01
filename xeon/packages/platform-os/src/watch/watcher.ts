@@ -1,6 +1,11 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import { eachAsync, err, ok, type Logger, type Result, type Scheduler } from "@xeon/contracts";
-import type { FileChange, WatchError, WatchHandle, WatchOptions } from "@xeon/contracts/services";
+import { eachAsync, err, ok, type Logger, type Result, type Scheduler } from "@fresnel/contracts";
+import type {
+  FileChange,
+  WatchError,
+  WatchHandle,
+  WatchOptions,
+} from "@fresnel/contracts/services";
 
 // L0.os.spec §3.8. 앱 설정·스킬·플러그인 디렉터리 감시. 백엔드는 좁은 포트(WatchBackend) 뒤에 둔다. 승인된 외부 의존이
 // 없는 지금은 fs.watch 구현이 기본이고, `@parcel/watcher` 어댑터는 승인 뒤 같은 포트를 구현하는 1커밋으로 더한다

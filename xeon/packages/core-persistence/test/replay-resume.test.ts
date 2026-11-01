@@ -8,7 +8,7 @@ import {
   PERSISTENCE_SETTING_DEFS,
   type PersistenceSettings,
 } from "../src/index.ts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { completeTurn } from "./support/branching.ts";
 import {
   expectOk,

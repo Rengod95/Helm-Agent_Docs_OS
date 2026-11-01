@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
-import { WireError } from "@xeon/contracts/wire";
+import { WireError } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";

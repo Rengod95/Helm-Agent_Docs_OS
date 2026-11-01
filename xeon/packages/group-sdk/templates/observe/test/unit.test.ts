@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { checkGroup } from "@xeon/group-sdk/testing";
+import { parse } from "@fresnel/contracts";
+import { checkGroup } from "@fresnel/group-sdk/testing";
 import group from "../src/index.ts";
 import { initialState, stateSchema } from "../src/state.ts";
 

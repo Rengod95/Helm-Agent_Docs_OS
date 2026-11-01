@@ -1,8 +1,8 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { GroupId } from "@xeon/contracts/extensions";
-import type { GroupMetricsSummary } from "@xeon/contracts/services";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { GroupId } from "@fresnel/contracts/extensions";
+import type { GroupMetricsSummary } from "@fresnel/contracts/services";
 
-export type { GroupMetricsSummary } from "@xeon/contracts/services";
+export type { GroupMetricsSummary } from "@fresnel/contracts/services";
 
 /**
  * 그룹 계측 집계(L3.group-sdk.spec §3.12). snapshot은 메모리 카운터만 담는다.

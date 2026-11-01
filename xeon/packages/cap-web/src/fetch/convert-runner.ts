@@ -1,5 +1,5 @@
 import { Worker } from "node:worker_threads";
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { convert, type ConvertInput, type ConvertResult } from "./convert/convert.ts";
 
 // 변환 실행기. 운영은 Worker 하나(네트워크 전역을 지운 뒤 변환 모듈을 import, `convert-worker.ts`)에서 돌리고,

@@ -1,6 +1,6 @@
-import { parse } from "@xeon/contracts";
-import { ItemUpdatedPayloadSchema, type ItemId } from "@xeon/contracts/conversation";
-import type { StreamChunkParams } from "@xeon/contracts/wire";
+import { parse } from "@fresnel/contracts";
+import { ItemUpdatedPayloadSchema, type ItemId } from "@fresnel/contracts/conversation";
+import type { StreamChunkParams } from "@fresnel/contracts/wire";
 
 // L4.cli.spec §4.5. 휘발 조각(stream.chunk)을 진행 줄 텍스트로 바꾼다. 순수 함수.
 //   item.updated{part_delta}: 본문(text) 조각은 그 item의 누적 텍스트에 이어 붙인다. thinking과 toolCall 인자 조각은 그리지 않는다.

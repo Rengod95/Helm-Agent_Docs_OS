@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { hostOf, type ScopeCallContext, type ScopeHostApi } from "../../src/primitives/index.ts";
 import { createTestHost, flushMicrotasks } from "../../src/testing/index.ts";
 import { createOperationsHarness } from "../operations/support/harness.ts";

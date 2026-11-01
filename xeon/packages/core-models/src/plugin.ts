@@ -1,11 +1,11 @@
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
-import type { Clock, Scheduler } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { Clock, Scheduler } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   ModelServiceName,
   OsServiceName,
@@ -13,14 +13,14 @@ import {
   type ModelService,
   type OsService,
   type SecretService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   ExtHostPortKey,
   hostOf,
   type BuiltinExtensionModule,
   type ExtHost,
   type PortKey,
-} from "@xeon/ext-host";
+} from "@fresnel/ext-host";
 import type { HookInput, ProviderDispatcher } from "./request-points.ts";
 import { createModelService, type ModelServiceDeps, type ModelsSettingsSource } from "./service.ts";
 import { DEFAULT_MODELS_SETTINGS } from "./settings.ts";
@@ -28,8 +28,8 @@ import { DEFAULT_MODELS_SETTINGS } from "./settings.ts";
 /** 계정 회전 플러그인의 scope id(= 매니페스트 name) */
 const ROTATION_PLUGIN = "account-rotation";
 
-// L1.models.plan §2 plugin.ts. 내장 확장(builtin)으로 xeon.models를 제공한다. 쓰는 서비스는 xeon.secrets, xeon.ext,
-// xeon.os(시계)다. Cordis는 import하지 않고 ext-host의 hostOf 포트 API만 쓴다(DR-11, DR-14 예외 4).
+// L1.models.plan §2 plugin.ts. 내장 확장(builtin)으로 fresnel.models를 제공한다. 쓰는 서비스는 fresnel.secrets, fresnel.ext,
+// fresnel.os(시계)다. Cordis는 import하지 않고 ext-host의 hostOf 포트 API만 쓴다(DR-11, DR-14 예외 4).
 
 const ModelServicePortKey: PortKey<ModelService> = { name: ModelServiceName };
 const SecretServicePortKey: PortKey<SecretService> = { name: SecretServiceName };
@@ -40,7 +40,7 @@ export const manifest: ExtensionManifest = defineManifest({
   name: "core-models",
   version: "0.1.0",
   displayName: "Model gateway",
-  description: "xeon.models: pi-ai provider calls, role resolution, usage metering.",
+  description: "fresnel.models: pi-ai provider calls, role resolution, usage metering.",
   defaultEnabled: true,
   layer: "L1",
   kind: "plugin",
@@ -53,9 +53,9 @@ export const manifest: ExtensionManifest = defineManifest({
 export interface ModelsExtensionOptions {
   /** 유효 설정 읽기. 경로가 미결이라(L1.models.spec §8.2) 조립 루트가 넘긴다. 없으면 기본값이다 */
   readonly settings?: ModelsSettingsSource;
-  /** 없으면 xeon.os의 시계를 쓴다 */
+  /** 없으면 fresnel.os의 시계를 쓴다 */
   readonly clock?: Clock;
-  /** 계정 회전의 기다림에 쓴다. 시계를 넘기지 않았으면 xeon.os의 타이머를 쓴다 */
+  /** 계정 회전의 기다림에 쓴다. 시계를 넘기지 않았으면 fresnel.os의 타이머를 쓴다 */
   readonly scheduler?: Scheduler;
   /** 없으면 pi-ai 내장 provider 전체를 등록한 모음을 쓴다 */
   readonly buildModels?: ModelServiceDeps["buildModels"];

@@ -1,5 +1,5 @@
 // src/state/engine/store.ts
-import type { Clock, Logger } from "@xeon/contracts";
+import type { Clock, Logger } from "@fresnel/contracts";
 import { createStore } from "zustand/vanilla";
 import type { FrameClock } from "../shared/frame.ts";
 import type { Journal } from "../shared/journal.ts";

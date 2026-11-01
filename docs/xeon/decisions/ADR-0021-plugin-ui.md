@@ -140,7 +140,7 @@ interface ExtMethodDecl {
 - 메시지 형식: 요청 `{ v: 1, id, op, args }`, 응답 `{ v: 1, id, ok, value | error }`, 셸이 먼저 보내는 `{ v: 1, push: "theme" | "host" | "event" | "invalidate", value }`입니다. `op`는 §3.4 표의 이름 아홉 개와 `resize`(well 높이 안내), `log`(진단 줄, 길이 상한), `pong`뿐입니다.
 - 셸은 요청마다 `op` 허용 목록, `args` 스키마, 매니페스트 선언(`methods`, `readsRecordKinds`), 확장 상태(켜짐, 안전 모드)를 확인한 뒤 wire를 부릅니다. 엔진은 같은 검사를 다시 합니다. 판정의 정본은 엔진입니다.
 - 다리 API 버전은 `frame.bridge`(SemVer 범위)로 맞춥니다. 앱이 범위를 채우지 못하면 그 화면은 `invalid`(`bridge_unsupported`)입니다.
-- 다리 클라이언트 라이브러리(`@xeon/view-bridge` [제안])는 타입 있는 얇은 래퍼만 제공합니다. 판정은 셸 쪽에 있으므로 프레임 코드가 이 라이브러리를 쓰지 않아도 보안이 바뀌지 않습니다.
+- 다리 클라이언트 라이브러리(`@fresnel/view-bridge` [제안])는 타입 있는 얇은 래퍼만 제공합니다. 판정은 셸 쪽에 있으므로 프레임 코드가 이 라이브러리를 쓰지 않아도 보안이 바뀌지 않습니다.
 
 ### 3.5 모드 고르기: 플러그인 제작 에이전트의 기준
 
@@ -199,7 +199,7 @@ interface ExtMethodDecl {
 
 #### 3.6.6 승인은 언제나 셸이 그림
 
-- `requestApproval`과 `approval: true` 메서드는 엔진이 `xeon.approvals`로 승인을 만들고, 셸이 표준 승인 카드(트랜스크립트, 받은 요청)로 그립니다. 화면은 결과(`allow`, `deny`, 만료)만 받습니다.
+- `requestApproval`과 `approval: true` 메서드는 엔진이 `fresnel.approvals`로 승인을 만들고, 셸이 표준 승인 카드(트랜스크립트, 받은 요청)로 그립니다. 화면은 결과(`allow`, `deny`, 만료)만 받습니다.
 - 프레임은 자기 slot 상자 밖에 그릴 수 없고 전체 화면, 팝업, 모달을 열 수 없습니다(§3.6.2). 셸 머리(확장 이름, 등급, 버전, `project` 배지)와 승인 카드는 프레임 밖 셸 층에 있습니다. 프레임 안에 "허용" 버튼을 그려도 승인이 되지 않습니다.
 
 #### 3.6.7 등급과 사용자 제한

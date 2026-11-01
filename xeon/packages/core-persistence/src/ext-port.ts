@@ -1,7 +1,7 @@
 // X 기록 포트 `SessionService.ext`(L1.persistence.spec §3.3, PS-16). 확장 레코드·상태·scope·임대 이벤트를 SessionWriter 한 트랜잭션으로
 // 커밋하고, 활성 가지 기준 스냅샷과 기록 조회를 돌려준다. 결과는 스펙 §3.3 변환표를 따른다.
-import { assertNever, parse, type Result } from "@xeon/contracts";
-import { toJsonValue, type JsonValue, type ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, parse, type Result } from "@fresnel/contracts";
+import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   checkEnvelopeSize,
   COMMIT_KEY_PATTERN,
@@ -22,7 +22,7 @@ import {
   type StampedDraft,
   type StoreDb,
   type StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { needsDetach } from "./blob.ts";
 import { activeStateOf, loadSnapshot, queryActiveRecords } from "./ext-queries.ts";
 import type { ProducerRegistry } from "./producers.ts";

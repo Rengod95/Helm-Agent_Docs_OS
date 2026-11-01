@@ -1,4 +1,4 @@
-import { assertNever, Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Clock, type Result } from "@fresnel/contracts";
 import type {
   MigrationError,
   MigrationReport,
@@ -6,7 +6,7 @@ import type {
   MigrationSet,
   MigrationStep,
   SqlTx,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   assertNotInWrite,
   classifySqliteCode,

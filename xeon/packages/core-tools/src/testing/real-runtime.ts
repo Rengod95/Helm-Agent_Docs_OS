@@ -1,8 +1,8 @@
-import type { Clock, Scheduler } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type { ProducerHandle, SessionService } from "@xeon/contracts/records";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
+import type { Clock, Scheduler } from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import type { ProducerHandle, SessionService } from "@fresnel/contracts/records";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import type { ToolsDeps, ToolsSession } from "../deps.ts";
 import type { CapabilityResolver } from "../entries.ts";
 import { createToolRuntime, type ToolRuntime } from "../runtime.ts";

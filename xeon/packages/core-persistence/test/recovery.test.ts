@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import {
   MAX_REPLAY_ATTEMPTS,
   commitKeyPart,
@@ -9,7 +9,7 @@ import {
   type EffectIntent,
   type RecoverDeps,
   type ReplayPolicy,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { sha256Hex } from "../src/hash.ts";
 import { DEFAULT_PERSISTENCE_SETTINGS, decideOpenEffect } from "../src/index.ts";
 import { fixedIdFactory } from "./support/clock.ts";

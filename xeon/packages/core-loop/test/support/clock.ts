@@ -1,5 +1,5 @@
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
-import { fakeTimers, type FakeTimers } from "@xeon/ext-host/testing";
+import type { Clock, Scheduler, TimerHandle } from "@fresnel/contracts";
+import { fakeTimers, type FakeTimers } from "@fresnel/ext-host/testing";
 
 /** 운영 코드가 받는 Clock과 Scheduler를 한 객체로 구현한다(eng.testing.guide TS-03 ManualClock) */
 export interface ManualClock extends Clock, Scheduler {

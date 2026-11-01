@@ -1,8 +1,8 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Clock, Scheduler } from "@xeon/contracts";
-import { systemClock, systemScheduler } from "@xeon/platform-os";
+import type { Clock, Scheduler } from "@fresnel/contracts";
+import { systemClock, systemScheduler } from "@fresnel/platform-os";
 
 // L4.cli.plan §5.2 scenario의 공용 도구. 임시 엔진 홈(FRESNEL_HOME) 하나와 작업 폴더 하나를 만들고, 자식 프로세스 진입과
 // 같은 프로세스 안 테스트가 같은 설정(테이프 provider가 기본 모델)을 쓰게 한다.

@@ -1,4 +1,4 @@
-import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   BrowsePageSchema,
   BrowseSnapshotSchema,
@@ -11,7 +11,7 @@ import {
   type ProviderAvailabilityWeb,
   type WebBrowseProvider,
   type WebProviderManifest,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { Type, type Static } from "typebox";
 import type { BrowserMcpError, BrowserMcpPort, BrowserMcpResult } from "../ports/browser-mcp.ts";
 

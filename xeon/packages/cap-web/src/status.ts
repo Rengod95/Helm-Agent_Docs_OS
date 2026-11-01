@@ -1,15 +1,15 @@
-import { attemptAsync } from "@xeon/contracts";
+import { attemptAsync } from "@fresnel/contracts";
 import type {
   ProviderAvailabilityWeb,
   ProviderCandidate,
   ProviderOrigin,
   WebProviderManifest,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   WebProviderCapability,
   WebProviderStatus,
   WebProvidersResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { needsFirstUseNotice } from "./cache/notices.ts";
 import type { WebDeps } from "./deps.ts";
 import { isPricingStale } from "./cost/pricing.ts";

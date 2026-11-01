@@ -1,4 +1,4 @@
-import type { ScanFinding, ScanSummary } from "@xeon/contracts/capabilities";
+import type { ScanFinding, ScanSummary } from "@fresnel/contracts/capabilities";
 
 // L2.knowledge.spec §4.6 위협 패턴 검사. 순수 함수다. 걸린 문자열은 결과에 담지 않고 규칙 이름과 줄 번호만 담는다
 // (비밀 재노출 방지). 규칙을 더하거나 바꾸면 SCAN_RULESET_VERSION을 올린다.
@@ -11,7 +11,7 @@ const MAX_FINDINGS = 64;
 export interface ScanOptions {
   /** `scripts/` 아래 파일처럼 유출 규칙을 엄격하게 적용한다 */
   readonly strict?: boolean;
-  /** `xeon.secrets` 마스킹 등록부 판정(Redactor.containsKnown). 값을 노출하지 않는다 */
+  /** `fresnel.secrets` 마스킹 등록부 판정(Redactor.containsKnown). 값을 노출하지 않는다 */
   readonly containsKnown?: ((text: string) => boolean) | undefined;
 }
 

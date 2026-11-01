@@ -45,7 +45,7 @@ describe("mcp.client definition", () => {
 
   test("key, bundle service name and server id pattern", () => {
     expect(McpClientKey).toEqual({ capability: "mcp.client", version: "1.0.0" });
-    expect(McpServiceName).toBe("xeon.mcp");
+    expect(McpServiceName).toBe("fresnel.mcp");
     const pattern = new RegExp(MCP_SERVER_ID_PATTERN);
     expect(pattern.test("github")).toBe(true);
     expect(pattern.test("my-server-2")).toBe(true);

@@ -1,5 +1,5 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { SqlRow } from "@xeon/contracts/records";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { SqlRow } from "@fresnel/contracts/records";
 
 // 우리 표의 행을 읽는 작은 도우미. 저장된 값이 모양과 다르면(손상, 수동 편집) 예상 가능한 실패라 값으로 돌려준다(TY-24).
 

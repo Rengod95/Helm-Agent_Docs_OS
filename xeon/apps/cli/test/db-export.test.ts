@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ExportError, ExportOptions, ExportReport } from "@xeon/platform-store";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ExportError, ExportOptions, ExportReport } from "@fresnel/platform-store";
 import { parseArgv, type TerminalFacts } from "../src/cli/command.ts";
 import { EXIT, type ExitCode } from "../src/exit-codes.ts";
 import type { CliDeps } from "../src/io.ts";

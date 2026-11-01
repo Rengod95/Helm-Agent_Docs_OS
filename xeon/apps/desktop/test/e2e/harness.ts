@@ -1,8 +1,8 @@
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { attempt, parseJson } from "@xeon/contracts";
-import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
+import { attempt, parseJson } from "@fresnel/contracts";
+import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
 
 // 엔진 프로세스를 stdio JSON-RPC로 모는 시험 도구(G4-03). 컴파일한 사이드카 바이너리와 소스 진입(`bun apps/cli/src/main.ts host --stdio`)을
 // 같은 모양으로 다뤄서 같은 요청열의 응답과 이벤트열을 견줄 수 있게 한다. 앱(Tauri 셸)은 거치지 않는다: 셸의 몫(릴레이, 종료 순서)은

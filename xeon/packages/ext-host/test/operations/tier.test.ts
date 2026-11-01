@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { FIRST_DENY } from "@xeon/contracts/extensions";
+import { FIRST_DENY } from "@fresnel/contracts/extensions";
 import {
   assignTier,
   compareOrderKey,

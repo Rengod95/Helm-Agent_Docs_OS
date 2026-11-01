@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { Nullable } from "@xeon/contracts";
+import { Nullable } from "@fresnel/contracts";
 import {
   toSettingDefWire,
   type SettingDefWire,
   type SettingWidget,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { Type, type TSchema } from "typebox";
 import { resolveWidget } from "../../src/settings/index.ts";
 import { wireDef } from "./fixtures.ts";

@@ -1,5 +1,9 @@
-import { attempt, err, ok, parse, type Result } from "@xeon/contracts";
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+import { attempt, err, ok, parse, type Result } from "@fresnel/contracts";
+import {
+  defineSettings,
+  type SettingDefInput,
+  type SettingGroup,
+} from "@fresnel/contracts/settings";
 import { Type } from "typebox";
 
 // L3.learning.spec §6.1. 키 접두는 내장 그룹 규칙 `l3.learning.`이다. 켜기·끄기는 X 예약 키 `ext.learning.enabled`라 여기에 없다.

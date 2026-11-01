@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { WireError } from "@xeon/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { WireError } from "@fresnel/contracts/wire";
 import { OBSERVE_POLL_MS } from "../../src/handlers/observe.ts";
 import { flushMicrotasks, settleUntil } from "../fixtures/clock.ts";
 import { FAKE_STORE_ID } from "../fixtures/fake-engine.ts";

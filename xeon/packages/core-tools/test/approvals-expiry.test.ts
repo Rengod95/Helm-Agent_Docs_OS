@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
-} from "@xeon/contracts/records";
-import type { ApprovalBody, ApprovalRequestInput } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type { ApprovalBody, ApprovalRequestInput } from "@fresnel/contracts/services";
 import { createApprovalService } from "../src/approvals/service.ts";
 import { unattendedPlan } from "../src/approvals/unattended.ts";
 import { systemScheduler } from "../src/approvals/timer.ts";

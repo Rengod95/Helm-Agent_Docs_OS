@@ -1,12 +1,12 @@
-// Cordis 서비스 xeon.session(SessionService)의 조립(L1.persistence.spec §3.3). 조립 루트가 deps를 넘긴다.
-import { err, ok, type Result } from "@xeon/contracts";
+// Cordis 서비스 fresnel.session(SessionService)의 조립(L1.persistence.spec §3.3). 조립 루트가 deps를 넘긴다.
+import { err, ok, type Result } from "@fresnel/contracts";
 import type {
   MigrationError,
   ProducerHandle,
   ProducerId,
   SessionService,
   StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   DEFAULT_PERSISTENCE_SETTINGS,
   type PersistenceSettings,

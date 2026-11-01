@@ -1,4 +1,4 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { CallState } from "./types.ts";
 
 // 진행 중인 도구 호출 표. 의도 표(intent table)는 각 CallState.intent다(L1.tools.spec §4.4 1번).

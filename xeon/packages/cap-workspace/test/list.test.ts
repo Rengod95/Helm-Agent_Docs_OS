@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { WorkspaceFiles } from "@xeon/contracts/capabilities";
+import { WorkspaceFiles } from "@fresnel/contracts/capabilities";
 import { createFilesApi } from "../src/service.ts";
 import { DEFAULT_WORKSPACE_SETTINGS } from "../src/settings.ts";
 import { rejection } from "./support/assertions.ts";

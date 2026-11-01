@@ -3,9 +3,13 @@ import {
   type DriveLimits,
   type ExtensionName,
   type ScopeId,
-} from "@xeon/contracts/extensions";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import {
+  defineSettings,
+  type SettingDefInput,
+  type SettingGroup,
+} from "@fresnel/contracts/settings";
 import { Type } from "typebox";
 import type { PrimitivesSettingsSource } from "./core.ts";
 

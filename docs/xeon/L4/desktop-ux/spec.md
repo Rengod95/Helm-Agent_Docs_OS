@@ -2478,7 +2478,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 시험 실행 진행 | `lease.*`, `scope.changed`, `trial.phase` `[gap:W-50]`, 자식 `agent.*`, `tool.call` 결정 이벤트, 멈춤 `[gap:W-48]` |
 | 프로필 | `profile.list`·`get`·`put`·`delete`·`apply` `[gap:W-46]` |
 | 실효 스택 | `profile.preview` `[gap:W-44]` |
-| 뼈대 파일 | 제작 확장 종류 카탈로그와 `xeon.devkit.scaffold` `[gap:W-27]` |
+| 뼈대 파일 | 제작 확장 종류 카탈로그와 `fresnel.devkit.scaffold` `[gap:W-27]` |
 
 - caustic: `NodeGraph`·`GraphNode`·`GraphPort`·`GraphEdge`·`GraphDraft`(caustic `xeon/m4-design`, `[gap:C-35]` `[gap:C-36]`), `ZoomControl`, `LayerTree`, `CodeRealization`, `SegmentedControl`, `Select`, `Button`, `Badge`, `Alert`, `Progress`, `ListDescription`, `Input`. 캔버스 호스트 `[gap:C-34]`.
 
@@ -2919,7 +2919,7 @@ export const palette = [
 | W-24 | 그룹 상태 목록(`GroupStatus`: drive 역할, 대기, 거부, `pendingToggle`, `lastError`, 요약 지표) | 런타임 탭, P-16 | `GroupService.list`는 엔진 안에만 | `group.list { threadId? }`, 바뀜 알림 |
 | W-25 | 그룹 지표 전체와 기간 합 | P-17, P-20 | `/group status` 글 | `group.metrics { id, threadId?, since? }` |
 | W-26 | 승격 보고 | P-16, P-20 | `/group status` 부가 줄 | `group.promotion { threadIds? }` |
-| W-27 | 종류 목록과 뼈대 만들기 | P-21, 제작 확장 | CLI `xeon group new`만 | `ext.kinds`(제작 확장 카탈로그), `ext.scaffold { kind, name, dir, composition?, views? }`. 구현은 서비스 `xeon.devkit`(`L3.authoring.spec` §3.3) |
+| W-27 | 종류 목록과 뼈대 만들기 | P-21, 제작 확장 | CLI `xeon group new`만 | `ext.kinds`(제작 확장 카탈로그), `ext.scaffold { kind, name, dir, composition?, views? }`. 구현은 서비스 `fresnel.devkit`(`L3.authoring.spec` §3.3) |
 | W-28 | 폴더의 매니페스트와 drive 소스 검사 | P-21, P-17, 제작 확장 | `validateManifest`, `scanDriveSource`는 라이브러리 | `ext.validate { dir }`(F 검사 + AU 규칙) |
 | W-29 | 시험 실행과 결과(replay, 시험 대화 묶음) | P-19, P-16 | `replayDrive`는 시험 파일의 하니스로만 실행 | `ext.test.run`, `ext.test.list`, 진행 이벤트. replay 실행은 개발 모드만 [결정: 2026-10-31 사용자]. 런타임 하니스는 X-10 |
 | W-30 | bench와 코어 변경 검사 실행 | P-19, P-20 | `just bench --server`, `bun scripts/core-diff-check.ts <base>`는 저장소 스크립트(배포 앱에 없음) | 개발 모드 전용 셸 명령 [결정: 2026-10-31 사용자]. 배포 앱은 결과 읽기만 |
@@ -3005,7 +3005,7 @@ export const palette = [
 | X-19 | 시험 대화 단계 경계 멈춤: 멈춤 표지가 있으면 다음 `step_end` 경계 뒤 새 turn과 drive 재호출을 열지 않음. 임대 유지, 사용자 입력은 큐에만 | `X.primitives.spec` §4.4.3, `L1.loop.spec` | 없음 [결정: 2026-10-31 사용자] |
 | X-20 | 안전 모드에서 X 훅을 싣지 않음 | `X.operations.spec` §4.7 | 외부 훅 M4 [결정: 2026-10-31 사용자] |
 | X-21 | `shouldSuggestSafeMode`를 실제 시작 경로에서 부르고 `host.status`에 싣기(W-39) | `X.operations.spec`, `L4.host-service.spec` | 호출처 없음(코드 결함) |
-| X-22 | 서비스 `xeon.devkit` 계약(제작 확장과 W-27·W-28·W-47·W-49의 공통 구현) | `F.extensions.spec`, `L3.authoring.spec` §3.3 | 없음 |
+| X-22 | 서비스 `fresnel.devkit` 계약(제작 확장과 W-27·W-28·W-47·W-49의 공통 구현) | `F.extensions.spec`, `L3.authoring.spec` §3.3 | 없음 |
 
 ## 11. 다른 문서와의 인터페이스와 수용 기준
 
@@ -3021,7 +3021,7 @@ export const palette = [
 | `L2.schedule.spec`, `L2.dialog.spec`, `L2.work.spec` | 예약, 알림 분류, 목표·계획을 받습니다 |
 | `L4.desktop-ux.plan` | 이 문서의 화면 우선순위로 M4 작업 순서를 정합니다 |
 | adr.0021 | 플러그인 화면 기여의 두 모드, 슬롯, 호스트 API, 프레임 보안, 실패 격리. P-18과 슬롯 규칙의 근거입니다 |
-| `L3.authoring.spec` | 제작 확장. 구성기 "새 그룹"과 시험 실행이 같은 서비스(`xeon.devkit`)를 씁니다 |
+| `L3.authoring.spec` | 제작 확장. 구성기 "새 그룹"과 시험 실행이 같은 서비스(`fresnel.devkit`)를 씁니다 |
 | `review.m4-plan` | 이 문서의 화면과 간극을 트랙으로 나눈 M4 구현 계획입니다 |
 | `F.extensions.spec`, `X.loading-trust.spec`, `X.operations.spec` | 매니페스트, 신뢰 등급, 예산, 자동 끄기, 안전 모드를 받아 작업대에 놓습니다. §10.3 간극을 요구합니다 |
 | `L3.group-sdk.spec`, `L3.slots.spec` | `GroupStatus`, `GroupMetrics`, `PromotionReport`, `replayDrive`, 템플릿을 받습니다 |

@@ -1,5 +1,5 @@
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
-import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
+import type { Clock, Scheduler, TimerHandle } from "@fresnel/contracts";
+import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import type { AssembleOptions } from "../../src/types.ts";
 
 // 모델 테이프로 엔진을 움직이는 시험의 도우미. 실제 시간으로 도는 시계(stall 응답이 abort를 기다릴 때 쓴다)와,

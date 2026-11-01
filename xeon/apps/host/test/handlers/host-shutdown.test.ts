@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ShutdownReason } from "@xeon/contracts/services";
-import type { Transport } from "@xeon/contracts/wire";
+import type { ShutdownReason } from "@fresnel/contracts/services";
+import type { Transport } from "@fresnel/contracts/wire";
 import { flushMicrotasks, settleUntil } from "../fixtures/clock.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";

@@ -69,7 +69,7 @@ ADR-0005와의 관계: 이 문서는 ADR-0005 §3.1~3.5를 인용하고 구체�
 
 ## 3. 인터페이스
 
-모든 이름은 `@xeon/contracts/capabilities`의 `defs/web.ts`, `defs/web-provider.ts`에서 export한다. 정의 위치는 `F.capabilities.spec` §3.9 [제안]과 `L2.readme` §3을 따른다. 아래 코드는 읽기 쉽도록 export 상수의 명시 타입 주석을 줄였다. 실제 파일은 `isolatedDeclarations` 때문에 export마다 명시 타입을 단다(`F.capabilities.spec` §3.9 아래 주석과 같은 처리).
+모든 이름은 `@fresnel/contracts/capabilities`의 `defs/web.ts`, `defs/web-provider.ts`에서 export한다. 정의 위치는 `F.capabilities.spec` §3.9 [제안]과 `L2.readme` §3을 따른다. 아래 코드는 읽기 쉽도록 export 상수의 명시 타입 주석을 줄였다. 실제 파일은 `isolatedDeclarations` 때문에 export마다 명시 타입을 단다(`F.capabilities.spec` §3.9 아래 주석과 같은 처리).
 
 provider 공통 타입(`ProviderIdSchema`, `ProviderAvailability`, `ProviderFallback`, `ProviderSelectionMeta`, `orderProviderCandidates`)은 F `capabilities/provider.ts`(`F.capabilities.spec` §3.11, `L2.readme` §5.2)의 이름을 그대로 쓴다.
 
@@ -911,8 +911,8 @@ ADR-0005 §3.4 초안과의 차이:
 
 ```ts
 // xeon/plugins/web-exa/src/index.ts (예시. 플러그인 계획은 L2.web.plan §1.3)
-import { defineManifest } from "@xeon/contracts/extensions";
-import type { WebProviderRegistration } from "@xeon/contracts/capabilities";
+import { defineManifest } from "@fresnel/contracts/extensions";
+import type { WebProviderRegistration } from "@fresnel/contracts/capabilities";
 
 export const manifest = defineManifest({
   schemaVersion: 1,
@@ -972,7 +972,7 @@ export const registrations: readonly WebProviderRegistration[] = [
 
 ### 3.8 저장 테이블
 
-`eng.context-map.design` §5.2 `cap_web_`. 모두 세션 밖 상태이고 `xeon.store.scoped("cap_web_")`로만 쓴다. 재생 대상이 아니다(`L2.readme` §5.4).
+`eng.context-map.design` §5.2 `cap_web_`. 모두 세션 밖 상태이고 `fresnel.store.scoped("cap_web_")`로만 쓴다. 재생 대상이 아니다(`L2.readme` §5.4).
 
 ```sql
 CREATE TABLE cap_web_fetch_cache (
@@ -1024,7 +1024,7 @@ CREATE TABLE cap_web_notices (
 ```
 
 - `cap_web_raw`의 `url`부터 `published_at`까지 열은 재조회 결과의 `Source`(sN 재사용, 제목, 게시일)를 만들려고 더했다. 같은 바이트의 원문은 `raw_ref`가 같아 처음 저장한 URL의 출처가 남는다.
-- `cap_web_raw`의 `retention='session'` 행은 세션 종료 후 첫 시작 정리 때 지운다. 세션 존재 여부는 `xeon.session`의 목록 API로 확인하고 세션 테이블을 직접 읽지 않는다(CM-02).
+- `cap_web_raw`의 `retention='session'` 행은 세션 종료 후 첫 시작 정리 때 지운다. 세션 존재 여부는 `fresnel.session`의 목록 API로 확인하고 세션 테이블을 직접 읽지 않는다(CM-02).
 - 블롭 고정: `cap_web_raw` 행 하나가 가리키는 `raw_blob`과 `text_blob`은 `cap.web` 소유로 `pinBlob`에 고정한다. refKey는 `raw_ref`(`webraw:<sha256>`)이고 행 하나가 두 블롭을 함께 고정한다. 저장할 때는 행을 커밋한 뒤 `unpinBlob(cap.web, raw_ref)`로 이 행의 고정을 모두 풀고 두 블롭을 다시 적는다. 두 호출 사이에 GC가 끼지 않도록 저장은 동기로 끝낸다. 원문 행을 지우는 `sweep`(마지막 캐시 행이 사라질 때)과 `purgeSessionRaw`는 지운 행마다 같은 키로 푼다. 만료(`expires_at`)만으로는 행을 지우지 않으므로 고정도 풀지 않는다. 고정이나 해제가 실패하면 `{ kind: "blob" }` 오류를 돌려준다. 실패 뒤에는 행이 고정 없이 남고, 다음 저장이 다시 적는다 [제안]. 시험은 `test/fetch-cache-pin.int.test.ts`다.
 - `cap_web_notices`는 키 플러그인 첫 사용 고지의 기록이다(§4.8.2). provider마다 한 행이고 지우지 않는다. 마이그레이션 버전 2에서 더했고 버전 1의 표와 행은 그대로 남는다(`cache/migrations.ts`).
 - 이벤트: 내구 이벤트 type을 1차에 두지 않는다. 웹 호출의 기록은 도구 3단 기록(`tool.intended`, `tool.settled`)이 맡는다. 휘발 접두사 `web.`은 예약이고 2차에 `web.research_progress`를 더한다.
@@ -1042,7 +1042,7 @@ export interface WebService {
   readonly research: CapabilityApi<typeof WebResearch>;
 }
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
-export const WebServiceName = "xeon.web" as const;
+export const WebServiceName = "fresnel.web" as const;
 export const WEB_CAPABILITIES = [WebSearch, WebFetch, WebBrowse, WebResearch] as const;
 ```
 
@@ -1074,7 +1074,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 
 1. 입력 검증(`invalid_input`).
 2. 호출자 판정(§3.7)과 세션 상한 검사(§4.4.4).
-3. 외부 전송 마스킹: 검색어·URL에 등록된 비밀 값이 있으면 `denied`(`detail.reason: "secret_in_query"`)로 거부한다. 판정은 `xeon.secrets`의 마스킹 등록부를 쓴다(`_research/secrets.md` §6.3 3번) [가정: L0.secrets.spec이 판정 함수를 제공한다].
+3. 외부 전송 마스킹: 검색어·URL에 등록된 비밀 값이 있으면 `denied`(`detail.reason: "secret_in_query"`)로 거부한다. 판정은 `fresnel.secrets`의 마스킹 등록부를 쓴다(`_research/secrets.md` §6.3 3번) [가정: L0.secrets.spec이 판정 함수를 제공한다].
 4. 정책 검사: 도메인 정책(§4.5), SSRF(§4.6), robots.txt(§4.7).
 5. 캐시 조회(§4.3).
 6. provider 선택과 호출(§4.8, §4.9, §4.10). 체인은 `orderProviderCandidates`(`L2.readme` §5.2).
@@ -1090,7 +1090,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 #### 4.2.1 Source ID
 
 - [제안] `sN`은 세션 안에서 유일하다. 같은 세션에서 같은 정규화 URL(§4.3.3)은 같은 ID를 다시 쓴다. 새 URL은 다음 번호를 받는다. 모델이 여러 호출의 결과를 한 답변에서 `[sN]`으로 인용해도 겹치지 않게 하기 위해서다.
-- 번호 할당기는 세션별 메모리 표다. 프로세스에서 그 세션의 첫 웹 호출 때 `xeon.session`의 이벤트 읽기 API로 그 세션의 웹 도구 결과(`tool.settled`의 `structuredContent.sources`)를 읽어 표를 채운다 [가정: L1.persistence.spec이 type 필터 읽기를 제공한다]. 테이블을 따로 두지 않는다.
+- 번호 할당기는 세션별 메모리 표다. 프로세스에서 그 세션의 첫 웹 호출 때 `fresnel.session`의 이벤트 읽기 API로 그 세션의 웹 도구 결과(`tool.settled`의 `structuredContent.sources`)를 읽어 표를 채운다 [가정: L1.persistence.spec이 type 필터 읽기를 제공한다]. 테이블을 따로 두지 않는다.
 - 결과가 기록되지 않은 호출(크래시)에서 쓴 번호는 다음 호출에서 다른 URL에 다시 쓰일 수 있다. 그 결과는 모델에게 전달되지 않았으므로 인용이 섞이지 않는다.
 - 세션이 없는 호출(호스트, 세션 밖 그룹 호출)은 호출 안에서만 `s1`부터 번호를 매긴다.
 
@@ -1227,7 +1227,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 #### 4.5.3 ask 처리
 
-- `ask` 판정이면 `xeon.approvals`로 승인을 요청한다(`L2.readme` §5.7). 요청 kind는 `tool`이고 대상은 도구 승인 body(`ToolApprovalDetail`, `additionalProperties:false`)다: `toolName`은 능력 id(`web.fetch`), `capability`는 `{ id, method }`, `risk`는 `"read"`(`ToolRisk` 안의 값만 읽힌다), `args`는 `{ host, reasons }`, `argsHash`는 그 정규화 JSON의 sha256, `ruleId`는 `null`이다. 화면 제목은 호스트 이름을 넣어 만든다(`ask-adapter.ts`의 `webApprovalTitle`).
+- `ask` 판정이면 `fresnel.approvals`로 승인을 요청한다(`L2.readme` §5.7). 요청 kind는 `tool`이고 대상은 도구 승인 body(`ToolApprovalDetail`, `additionalProperties:false`)다: `toolName`은 능력 id(`web.fetch`), `capability`는 `{ id, method }`, `risk`는 `"read"`(`ToolRisk` 안의 값만 읽힌다), `args`는 `{ host, reasons }`, `argsHash`는 그 정규화 JSON의 sha256, `ruleId`는 `null`이다. 화면 제목은 호스트 이름을 넣어 만든다(`ask-adapter.ts`의 `webApprovalTitle`).
 - 승인 범위는 승인 프로토콜의 기억 범위(이번만, 이 세션, 항상)를 따른다(`L4.cli.spec` 승인 화면). "항상"이면 local 범위 `l2.web.policy.allow`에 그 호스트를 더한다. project 범위는 허용하지 않는다(§6) [제안].
 - 호출자가 확장이고 세션이 없으면 승인 창을 띄울 곳이 없다. 이때 `ask`는 `denied`(`detail.reason: "ask_without_session"`)다.
 - 백그라운드 포크(`caller.agent = "background"`)는 `ask`를 `denied`로 바꾼다. 사람이 없는 경로에서 승인 대기를 만들지 않는다 [제안].
@@ -1419,7 +1419,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
    - `application/pdf` 등 로컬 변환기가 없는 형식.
    - 승격 순서: `render: "always"`면 `web.browse`의 `playwright-local`로 렌더링해 텍스트를 읽는다(`method: "browser"`). 그 밖에는 fetch 능력의 플러그인 후보를 `l2.web.fetch.pluginOrder` 순으로 쓰고(`method: "provider:<id>"`), 없으면 `render: "auto"`일 때만 브라우저로 간다. 모두 없으면 빈 결과를 그대로 돌려주고 `meta.warnings`에 `"empty_content"`를 남긴다.
    - 승격으로 얻은 결과의 `cachePolicy`는 실제로 응답한 provider의 값이다.
-7. 저장: 받은 원문 바이트와 변환 본문을 `xeon.store.putBlob`으로 저장하고(트랜잭션 밖, TX-04), `cap_web_raw`와 `cap_web_fetch_cache`에 행을 쓴다. `cachePolicy`가 `none`이면 저장하지 않는다.
+7. 저장: 받은 원문 바이트와 변환 본문을 `fresnel.store.putBlob`으로 저장하고(트랜잭션 밖, TX-04), `cap_web_raw`와 `cap_web_fetch_cache`에 행을 쓴다. `cachePolicy`가 `none`이면 저장하지 않는다.
 8. 절단: `format`에 맞춰 본문을 고르고 `maxChars`(기본 15,000, `_research/web-tools.md` §4.3 hermes 값)로 자른다. 절단은 줄 경계에서 하고 `truncated.nextOffset`에 다음 문자 위치를 둔다. 잘렸으면 렌더링에 "잘림: 전체 N자. rawRef와 range.offset으로 이어 읽는다" 안내를 경계 밖에 붙인다.
 
 - 오류 응답(상태 400 이상)의 본문도 페이지로 돌려주되 디스크 캐시 행은 쓰지 않고 `retention='session'`으로만 보관한다. 일괄 호출에서 실패한 URL의 페이지는 `status`를 오류 코드에 가까운 합성 값(`denied` 403, `not_found` 404, `timeout` 504, `upstream_error` 502, `too_large` 413, `robots_disallowed` 403, 그 밖 502)으로 채우고 `method`는 `plain`이다. `WebFetchPage.status`가 100~599만 받기 때문이다.
@@ -1445,7 +1445,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 | 항목 | 규칙 |
 |---|---|
 | 대상 경로 | `xeon/packages/cap-web/src/fetch/convert/**` |
-| 허용 import | `@mozilla/readability`, `linkedom`, `defuddle`, `turndown`, `@xeon/contracts`, 같은 디렉터리의 상대 경로 |
+| 허용 import | `@mozilla/readability`, `linkedom`, `defuddle`, `turndown`, `@fresnel/contracts`, 같은 디렉터리의 상대 경로 |
 | 금지 import | `node:http`, `node:https`, `node:http2`, `node:net`, `node:tls`, `node:dgram`, `node:dns`, `node:child_process`, `node:worker_threads`, 같은 이름의 접두 없는 지정자, `undici`, `ws`, `guarded-fetch`, `request-filtering-agent`, `playwright-core`, 이 디렉터리 밖의 `cap-web` 소스 |
 | 금지 전역 | `fetch`, `WebSocket`, `EventSource`, `XMLHttpRequest`, `Bun`, `navigator` |
 | 함수 모양 | `convert(input: { bytes: Uint8Array; contentType: string; baseUrl: string; extractor: "readability" \| "defuddle" }): ConvertResult`. 동기 순수 함수. 시각·난수·I/O를 쓰지 않는다 |
@@ -1487,7 +1487,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 
 - 로그인 프로필(`profile: "named:<id>"`)은 기본 비활성이다(`l2.web.browse.allowNamedProfiles = false`). 켜도 서비스 호출로만 쓸 수 있고 모델 도구 파라미터에는 없다. 호출마다 승인을 요구한다(`_research/web-tools.md` §4.4).
 - `evaluate`(javascript_exec)와 `upload`(file_upload)는 기본 비활성이다(`allowJavascriptExec`, `allowFileUpload`). 꺼져 있으면 `action_disabled` 오류다(`_research/web-tools.md` §2.2 Anthropic browser_toolset 행).
-- 사람 확인: 아래 동작은 실행 전에 `xeon.approvals` 승인을 받는다. 거부되면 `confirmation_denied`다.
+- 사람 확인: 아래 동작은 실행 전에 `fresnel.approvals` 승인을 받는다. 거부되면 `confirmation_denied`다.
   - 대상 요소의 역할·이름(`BrowserSessionHandle.describe`)이 결제·구매·주문·송금·전송·게시·삭제·약관 동의 어휘에 맞는 `click`. 어휘 표는 `browse/confirm.ts`의 상수다(영어·한국어).
   - 현재 origin과 다른 origin으로 제출되는 폼(`formAction`).
   - `caller.afterUntrusted = true`인 `fill`, `type`, 폼 제출(§4.6.6).
@@ -1500,7 +1500,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 - 브라우저 바이너리는 패키지에 들어 있지 않다. 처음 쓸 때 사용자 확인 뒤 내려받는다(`L2.web.plan` §7). 설정 `l2.web.browse.executablePath`로 기존 Chrome·Chromium을 지정할 수 있다.
 - 실행 런타임 `l2.web.browse.runtime`:
   - `bun`: Bun 프로세스 안에서 playwright-core를 쓴다.
-  - `node`: playwright-core를 Node 24 자식 프로세스에서 돌리고 stdio JSON-RPC로 중계한다. 자식 프로세스는 `xeon.process`로 띄운다. `cap-web`은 `Bun.spawn`, `node:child_process`를 쓰지 않는다(`eng.dependency-rules.guide` DR-07, DR-13).
+  - `node`: playwright-core를 Node 24 자식 프로세스에서 돌리고 stdio JSON-RPC로 중계한다. 자식 프로세스는 `fresnel.process`로 띄운다. `cap-web`은 `Bun.spawn`, `node:child_process`를 쓰지 않는다(`eng.dependency-rules.guide` DR-07, DR-13).
   - `auto`(기본): 첫 사용 때 Bun 경로 스모크(launch → goto → ariaSnapshot → close)를 돌려 성공하면 `bun`, 실패하면 `node`. 결과를 `cap_web_` 테이블이 아닌 메모리에 프로세스 수명 동안 둔다.
   - 근거: playwright-core의 Bun 지원은 공식이 아니고 실행은 확인하지 않았다(`_research/notes/L2-2.md` §1, §3). 우회 범위(부분·전체)는 [미결]이다(`_research/notes/L2-2.md` §4, §10 미결 9).
 - Bun 경로에서 쓰지 않는 기능: `recordHar`(Bun 이벤트 루프 교착 보고, oven-sh/bun#30652), 클라이언트 인증서(oven-sh/bun#44523)(`_research/notes/L2-2.md` §1).
@@ -1546,7 +1546,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 #### 4.10.5 `agent-browser` provider (2차, 미구현)
 
 - agent-browser 0.39.1의 네이티브 바이너리를 직접 호출한다. npm 래퍼는 Node 24를 요구하지만 소스 빌드에만 필요하므로 쓰지 않는다(`_research/notes/L2-2.md` §2.4, §5).
-- 호출 형식: `<바이너리> --json --session <id> [--allowed-domains <목록>] <명령…>`. 실행은 `xeon.process`로 한다.
+- 호출 형식: `<바이너리> --json --session <id> [--allowed-domains <목록>] <명령…>`. 실행은 `fresnel.process`로 한다.
 - 장점: 문서 단위 영구 ref, `snapshot --delta`, Fetch 가로채기 + WebSocket·Worker·WebRTC 차단까지 하는 넓은 도메인 제한(`_research/browser-tools.md` agent-browser 절). `--allowed-domains`는 앞단 정책의 allow 목록에서 만든다. 기존 로그인 브라우저와는 함께 쓸 수 없으므로 `named` 프로필을 지원하지 않는다.
 - 단점: Rust 바이너리 7종 합계 119MB(`_research/packages.md` §4.4 L2-c), Playwright식 auto-wait가 없어 동작 뒤 확인을 따로 해야 한다는 선행 조사(`_research/browser-tools.md`)와 응답 JSON 정식 스키마 부재(`_research/notes/L2-2.md` §5 [미확인]).
 - 응답은 TypeBox로 정규화하고 버전 고정 픽스처로 형식을 시험한다. 설치는 `agent-browser install`(Chrome for Testing 다운로드)을 사용자 확인 뒤 실행한다.
@@ -1572,7 +1572,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 #### 4.11.1 루프
 
 - 기본 provider `native`는 우리 에이전트 루프다(`_research/web-tools.md` §1.1, §4.5).
-- `xeon.agents`로 서브에이전트 하나를 띄운다. 서브에이전트의 도구는 `web_search`, `web_fetch`와 내부 노트 도구 하나뿐이다. 파일 쓰기, 셸, 메시지 전송 도구를 주지 않는다(`_research/web-tools.md` §5.2 3번 능력 분리).
+- `fresnel.agents`로 서브에이전트 하나를 띄운다. 서브에이전트의 도구는 `web_search`, `web_fetch`와 내부 노트 도구 하나뿐이다. 파일 쓰기, 셸, 메시지 전송 도구를 주지 않는다(`_research/web-tools.md` §5.2 3번 능력 분리).
 - 단계: plan(질문을 하위 질문 3~8개로) → search·read 반복 → write(보고서와 주장 목록) → verify(인용 검증). `plan: "confirm"`이면 plan 결과를 승인 요청(kind `plan`)으로 보이고 승인 뒤 계속한다.
 - 하위 호출은 이 문서의 `search`, `fetch` 앞단을 그대로 쓰므로 정책·캐시·비용·상한이 같게 적용된다. 하위 fetch는 자동 수집이라 robots.txt를 지킨다(§4.7).
 - 외부 위임 provider(Exa Agent, Parallel Task API 등)는 플러그인 후보로 두고 2차 이후 정한다.
@@ -1711,7 +1711,7 @@ stateDiagram-v2
 | `l2.web.research.keepUnverified` | boolean | `false` | — | nextTurn | managed, user, project, local, launch | tools | false |
 
 - 플러그인 키는 `ext.<확장 이름>.*`이다. 예: `ext.web-exa.apiKey`(string, `secret://` 참조, `secret: true`, 기본값 없음, ui.tab `plugins`)(`F.wire-settings.spec` §3.8.3). L2 키에는 비밀이 없다.
-- `l2.web.search.provider`, `l2.web.browse.provider`, `order`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `xeon.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
+- `l2.web.search.provider`, `l2.web.browse.provider`, `order`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `fresnel.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
 - 도메인 목록 세 키는 범위별 값을 합친다(§4.5.2). 다른 키는 `F.wire-settings.spec` §3.9 일반 규칙(높은 범위 하나)을 따른다.
 - `l2.web.browse.allowNamedProfiles`는 관리·사용자 범위만 허용한다. 프로젝트 파일로 로그인 프로필을 켜는 경로를 막기 위해서다.
 - `l2.web.policy.allow`(허용 목록)와 `l2.web.policy.unseenUrl`(대화에 없던 URL 확인)은 project 범위를 허용하지 않는다 [제안]. 저장소 설정 파일이 `allow: ["*"]`와 `unseenUrl: "allow"`를 넣으면 기본 `ask`가 모든 도메인에서 꺼지고 대화 내용을 쿼리에 실어 내보내는 경로를 막는 검사도 꺼진다. project 범위는 `ask`와 `deny`처럼 막는 쪽 목록에만 더할 수 있다.
@@ -1723,7 +1723,7 @@ stateDiagram-v2
 
 ```ts
 import { Type } from "typebox";
-import { defineSettings } from "@xeon/contracts/settings";
+import { defineSettings } from "@fresnel/contracts/settings";
 
 export const webSettings = defineSettings("l2.web", {
   "search.provider": {
@@ -1792,7 +1792,7 @@ export const webSettings = defineSettings("l2.web", {
 | `WebProviderManifestSchema`, `WebSearchProvider`, `WebFetchProvider`, `WebBrowseProvider`, `WebProviderRegistration`, `GuardedHttp`, `ProviderUnavailableReason` | 웹 provider 플러그인(`xeon/plugins/web-*`), `X.primitives.spec` |
 | `decideModelSearchTool`, `normalizeHostedSearch`, `redactForPersistence` | `L1.models.spec`, `L1.tools.spec` |
 | `l2.web.*` 설정 키 | `L4.settings-ui.spec`(tools 탭) |
-| 서비스 `xeon.web`(`WebService`, `WebServiceName`, `WEB_CAPABILITIES`, §3.9) | `L2.readme` §5.6, `eng.context-map.design` §5.3, `X.primitives.spec` |
+| 서비스 `fresnel.web`(`WebService`, `WebServiceName`, `WEB_CAPABILITIES`, §3.9) | `L2.readme` §5.6, `eng.context-map.design` §5.3, `X.primitives.spec` |
 
 요구:
 
@@ -1804,14 +1804,14 @@ export const webSettings = defineSettings("l2.web", {
 | `defineSettings`, `ScopeStack`, `SettingDef` | `F.wire-settings.spec` | 있음 |
 | `HostedSearchPort`: 모델 지정, hosted 검색 도구 하나만 단 단일 턴 요청, `stopReason`(`end_turn`·`pause_turn`·`max_tokens`·`refusal`), 이어 요청용 불투명 continuation, 결과 블록(url, title, page_age, cited_text), 토큰·검색 요청 사용량, 조직 차단 400 식별, 모델별 hosted 지원 여부 조회 | `L1.models.spec` | 있음(F `services/models.ts`의 `HostedSearchPort`, 구현 `core-models`의 `createHostedSearch`, `ModelService.hostedSearch`) |
 | hosted 서버 도구를 모델 요청에 넣는 기능과 `encrypted_content` 반송(§4.8.1 A안) | `L1.models.spec` | 없음 [미결]. M2에 구현하지 않았다(§10 미결 3, `L1.models.spec` §10 12번) |
-| `ApprovalService`(`xeon.approvals`) 요청 kind `tool`·`plan`, 기억 범위 | `L1.tools.spec` | [가정] |
+| `ApprovalService`(`fresnel.approvals`) 요청 kind `tool`·`plan`, 기억 범위 | `L1.tools.spec` | [가정] |
 | `redactForPersistence` 적용 경로(영속 사본) | `L1.tools.spec`, `L1.persistence.spec` | 요청 [가정] |
 | 서브에이전트 실행과 위임 옵션의 웹 규칙 필드 | `L1.agents.spec` | 2차 [가정] |
 | 플러그인 provider 헤더 비밀 치환(M3), 마스킹 등록부 조회 | `L0.secrets.spec` §3.5, §3.6(`createPluginHttp`, `withHttp`) | 통로는 있음. 조립 쪽 어댑터(`HeaderSecretSender` 구현)는 L4 후속 유닛에서 잇는다 [결정: 오케스트레이터 기본값] |
-| `putBlob`, `readBlob`, `pinBlob`, `unpinBlob`, `scoped("cap_web_")`, blob GC | `L0.store.spec`(`xeon.store`) | 있음(`eng.transactions.design` §4.2) |
-| 자식 프로세스 실행(Node 우회, agent-browser) | `L0.process.spec`(`xeon.process`) | [가정] |
+| `putBlob`, `readBlob`, `pinBlob`, `unpinBlob`, `scoped("cap_web_")`, blob GC | `L0.store.spec`(`fresnel.store`) | 있음(`eng.transactions.design` §4.2) |
+| 자식 프로세스 실행(Node 우회, agent-browser) | `L0.process.spec`(`fresnel.process`) | [가정] |
 | 브라우저 네트워크 필터 대안 | `L0.sandbox.spec` | 선택 [미결] |
-| 세션 이벤트 type 필터 읽기, 세션 목록 | `L1.persistence.spec`(`xeon.session`) | [가정] |
+| 세션 이벤트 type 필터 읽기, 세션 목록 | `L1.persistence.spec`(`fresnel.session`) | [가정] |
 | 능력별 provider 후보 등록·조회 API | `X.primitives.spec` | [가정] |
 | `Clock`, `IdFactory`, `LocalIdFactory`, `localIdPattern` | `F.readme`(주입 인터페이스, 구현은 `platform-os`), `F.conversation.spec` §3.2.1 | 있음 |
 

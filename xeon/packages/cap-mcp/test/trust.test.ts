@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createProjectTrust } from "../src/index.ts";
-import { createProjectTrustStore, type TrustStoreBackend } from "@xeon/ext-host";
-import type { LoaderFs } from "@xeon/contracts/extensions";
+import { createProjectTrustStore, type TrustStoreBackend } from "@fresnel/ext-host";
+import type { LoaderFs } from "@fresnel/contracts/extensions";
 
 const ROOT = "/work/repo";
 const signal = new AbortController().signal;

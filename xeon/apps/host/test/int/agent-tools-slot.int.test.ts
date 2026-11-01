@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { Type } from "typebox";
-import type { AgentTool, ThreadId } from "@xeon/contracts/conversation";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
+import type { AgentTool, ThreadId } from "@fresnel/contracts/conversation";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
 import {
   LoopServicePortKey,
   SessionPortKey,
@@ -11,8 +11,8 @@ import {
   type LoopService,
   type TaskService,
   type ToolService,
-} from "@xeon/contracts/services";
-import type { SessionService, StoreService } from "@xeon/contracts/records";
+} from "@fresnel/contracts/services";
+import type { SessionService, StoreService } from "@fresnel/contracts/records";
 import {
   t,
   tape,
@@ -20,8 +20,8 @@ import {
   tapePlayer,
   tapeProvider,
   type TapeClock,
-} from "@xeon/core-models/testing";
-import { ExtHostPortKey, hostOf, type ExtHost } from "@xeon/ext-host";
+} from "@fresnel/core-models/testing";
+import { ExtHostPortKey, hostOf, type ExtHost } from "@fresnel/ext-host";
 import { assemble } from "../../src/assemble.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";

@@ -1,8 +1,8 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { FileSystem } from "@xeon/contracts/services";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { FileSystem } from "@fresnel/contracts/services";
 
 /**
- * 명령 파일을 읽는 포트. 실제 구현은 `xeon.exec`의 파일 시스템 부분이다(L2.dialog.plan §4.2 포크 표 첫 행).
+ * 명령 파일을 읽는 포트. 실제 구현은 `fresnel.exec`의 파일 시스템 부분이다(L2.dialog.plan §4.2 포크 표 첫 행).
  * pi 원본은 `fs`를 직접 불렀다.
  */
 export type CommandFiles = Pick<FileSystem, "listDir" | "readTextFile">;

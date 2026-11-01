@@ -1,4 +1,4 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   LedgerRollbackInputSchema,
   type CallContext,
@@ -16,7 +16,7 @@ import {
   type ProposalsOutput,
   type ScanSummary,
   type WriteOutcome,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { actorOf } from "../actor.ts";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { ProposalQueue, Replayer } from "../approval/queue.ts";
@@ -50,7 +50,7 @@ export interface LedgerRuntime {
 export interface LedgerServiceDeps extends LedgerDeps {
   readonly writer: Writer;
   readonly queue: ProposalQueue;
-  /** `xeon.secrets` 마스킹 등록부 판정(값을 노출하지 않는다). 서비스가 없으면 undefined */
+  /** `fresnel.secrets` 마스킹 등록부 판정(값을 노출하지 않는다). 서비스가 없으면 undefined */
   readonly containsKnown: ((text: string) => boolean) | undefined;
 }
 

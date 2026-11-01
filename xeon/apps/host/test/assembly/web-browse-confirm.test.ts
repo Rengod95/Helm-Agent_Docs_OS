@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import { isId } from "@xeon/contracts/conversation";
-import type { ApprovalRequestInput, ApprovalResolution } from "@xeon/contracts/services";
+import { err, ok } from "@fresnel/contracts";
+import { isId } from "@fresnel/contracts/conversation";
+import type { ApprovalRequestInput, ApprovalResolution } from "@fresnel/contracts/services";
 import { createBrowseConfirm } from "../../src/assembly/web-browse-confirm.ts";
 
-// host-service spec §10 43번. cap-web의 BrowseConfirmPort를 xeon.approvals의 차단형 승인으로 잇는다.
+// host-service spec §10 43번. cap-web의 BrowseConfirmPort를 fresnel.approvals의 차단형 승인으로 잇는다.
 
 const THREAD = "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ";
 

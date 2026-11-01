@@ -5,7 +5,7 @@
 // 샘플 하나는 배치 평균(ms)이다. 배치는 호출을 여러 번 한 번에 부르고 나눈다. 빼는 기준은 기준 배치 평균들의 평균이고 음수도 그대로 낸다.
 // 턴은 t.boundary(thread).turnSettled()와 settled()의 한 쌍이다. 시험 호스트는 loop.turn을 실행하지 않으므로
 // 기록은 임대 부여·반납과 상태 커밋에서만 생긴다. 실제 턴의 모델 호출과 그 기록 비용은 이 값에 들지 않는다.
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { DEFAULT_BUDGETS_MS } from "../../src/operations/index.ts";
 import type { BudgetClass } from "../../src/operations/budget.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";

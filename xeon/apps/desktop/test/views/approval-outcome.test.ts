@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import { approvalFailureOf } from "../../src/app/approval-outcome.ts";
 
 describe("approvalFailureOf", () => {

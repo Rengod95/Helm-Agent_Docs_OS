@@ -6,8 +6,8 @@ import {
   type ScopeStack,
   type SettingDef,
   type SettingScope,
-} from "@xeon/contracts/settings";
-import { PolicyRuleSchema, type PermissionMode } from "@xeon/contracts/services";
+} from "@fresnel/contracts/settings";
+import { PolicyRuleSchema, type PermissionMode } from "@fresnel/contracts/services";
 
 // L1.tools.spec §6. `l1.tools.*` 키 8개를 선언(defineSettings, TL-8)하고 읽는다.
 // 읽기는 resolveSetting과 같은 규칙(우선순위, 허용 범위, 값 검사 실패한 층은 건너뜀, 키 단위 교체)을 따른다.

@@ -4,7 +4,7 @@ import type {
   Recency,
   SearchDirectives,
   SearchRelaxed,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { matchDomain } from "../policy/domain.ts";
 
 // L2.web.spec §4.8.5. omp 방식의 쿼리 지시어 파서와 후처리 필터. 지시어는 앞단이 풀고 provider에는 정규화한 요청을 준다.

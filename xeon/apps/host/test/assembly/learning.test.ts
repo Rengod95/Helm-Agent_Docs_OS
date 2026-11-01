@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ResourceRecord, ResourceRegistry } from "@xeon/ext-host";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ResourceRecord, ResourceRegistry } from "@fresnel/ext-host";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   createLearningRunner,
   slotReader,

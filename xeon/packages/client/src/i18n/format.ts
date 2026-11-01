@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 
 // ADR-0016 §3.1. ICU MessageFormat 부분집합을 `Intl`만으로 푸는 포맷 포트와 기본 구현.
 // FormatJS(`@formatjs/intl`)는 승인 전이라 쓰지 않는다 [결정: 오케스트레이터 기본값]. 승인되면 같은 포트 뒤에 어댑터를 둔다.

@@ -340,7 +340,7 @@ const api = createStore<UiState>()(devtools(persist(() => INITIAL_UI, { name: "u
 
 #### FS-12 엔진 값은 경계에서 검증한 뒤 입력이 된다
 
-- `EventWire.payload`와 `VolatileEventWire.payload`는 `unknown`이다. 연결 컨트롤러가 `decodeDurable`, `decodeVolatile`로 kind별 TypeBox 스키마(`@xeon/contracts`)를 `parse`한 뒤 입력을 만든다(TY-10).
+- `EventWire.payload`와 `VolatileEventWire.payload`는 `unknown`이다. 연결 컨트롤러가 `decodeDurable`, `decodeVolatile`로 kind별 TypeBox 스키마(`@fresnel/contracts`)를 `parse`한 뒤 입력을 만든다(TY-10).
 - 거울이 읽는 kind는 decode 표에 있는 것뿐이다. 표에 없는 kind는 `other`, 검증 실패는 `unreadable` 사실이 되고 위치(seq)는 넘어간다.
 
 이유: reducer가 `unknown`을 다루면 좁히기 코드가 상태 논리와 섞인다. 한 이벤트의 payload가 깨져도 위치가 넘어가야 구독이 멈추지 않는다. 엔진 kind 집합은 확장 kind(`x.<id>.*`)까지 열려 있어 `switch`보다 표 조회가 맞다.

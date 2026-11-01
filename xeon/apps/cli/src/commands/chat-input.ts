@@ -1,6 +1,6 @@
-import { t } from "@xeon/client/i18n";
-import { err, ok, type Result } from "@xeon/contracts";
-import { WIRE_LIMITS } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { err, ok, type Result } from "@fresnel/contracts";
+import { WIRE_LIMITS } from "@fresnel/contracts/wire";
 import type { ChatCommand } from "../cli/command.ts";
 import type { Failure } from "../errors.ts";
 import { EXIT } from "../exit-codes.ts";

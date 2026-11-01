@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { activeLocale, setActiveLocale, type Locale } from "@xeon/client/i18n";
-import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
+import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n";
+import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
 import { parseArgv, type TerminalFacts, type UsageError } from "../src/cli/command.ts";
 import { runHelp } from "../src/commands/help.ts";
 import { runVersion } from "../src/commands/version.ts";

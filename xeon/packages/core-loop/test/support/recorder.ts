@@ -1,5 +1,5 @@
-import { defineManifest, type ExtensionEntry, type HookName } from "@xeon/contracts/extensions";
-import type { ExtensionUnit } from "@xeon/ext-host";
+import { defineManifest, type ExtensionEntry, type HookName } from "@fresnel/contracts/extensions";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 import type { FakeSession } from "./fake-session.ts";
 
 /** 한 번 발화된 지점과 그 순간 마지막으로 커밋된 이벤트 종류 */

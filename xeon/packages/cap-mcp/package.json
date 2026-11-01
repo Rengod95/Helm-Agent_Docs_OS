@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/cap-mcp",
+  "name": "@fresnel/cap-mcp",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,17 +14,17 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/ext-host": "workspace:*",
     "@modelcontextprotocol/client": "catalog:",
-    "@xeon/contracts": "workspace:*",
-    "@xeon/ext-host": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:",
-    "@xeon/core-tools": "workspace:*",
-    "@xeon/platform-store": "workspace:*"
+    "@fresnel/core-tools": "workspace:*",
+    "@fresnel/platform-store": "workspace:*",
+    "@types/bun": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L2",
     "domain": "mcp"
   }

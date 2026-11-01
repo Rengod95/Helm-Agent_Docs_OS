@@ -1,6 +1,6 @@
 import { realpath } from "node:fs/promises";
 import { isAbsolute } from "node:path";
-import { attemptAsync, err, ok, type Result } from "@xeon/contracts";
+import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import type { RunCommand } from "./proc.ts";
 
 // L0.os.spec §3.13, M3-REQ-48. git 워크트리 연산(create, list, remove). 셸 없이 argv로 git을 부른다.

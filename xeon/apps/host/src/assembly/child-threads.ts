@@ -1,6 +1,6 @@
-import { attemptAsync, err, rethrow, type Logger } from "@xeon/contracts";
-import type { AgentsLoop } from "@xeon/core-agents";
-import { PrimitiveError, type ExtHost } from "@xeon/ext-host";
+import { attemptAsync, err, rethrow, type Logger } from "@fresnel/contracts";
+import type { AgentsLoop } from "@fresnel/core-agents";
+import { PrimitiveError, type ExtHost } from "@fresnel/ext-host";
 import { messageOf } from "../util.ts";
 
 // L1.loop.spec §4.6 마지막 항목: 자식 turn의 경계 지점은 열린 thread를 요구하므로 호스트가 자식 thread를 `ExtHost.openThread`로 열어 둔다.

@@ -1,4 +1,4 @@
-import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-kit";
+import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-kit";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { lensReviewState, initialState, type State } from "./state.ts";
 import { lensReviewSettings } from "./settings.ts";

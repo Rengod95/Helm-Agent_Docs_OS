@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug, parse } from "@xeon/contracts";
-import { GoalSchema, WorkReportSchema, type GoalVerdict } from "@xeon/contracts/capabilities";
+import { Bug, parse } from "@fresnel/contracts";
+import { GoalSchema, WorkReportSchema, type GoalVerdict } from "@fresnel/contracts/capabilities";
 import { rejection } from "./support/assertions.ts";
 import { asCaller, gid, rid, usage } from "./support/goals.ts";
 import { openHarness, type Harness } from "./support/harness.ts";

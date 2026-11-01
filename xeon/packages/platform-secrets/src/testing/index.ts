@@ -1,15 +1,15 @@
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { err, ok, type Clock, type Logger, type Result, type Scheduler } from "@xeon/contracts";
-import type { SecretAuditRecord, SecretHandle, SecretMeta } from "@xeon/contracts/capabilities";
-import type { LocalIdFactory } from "@xeon/contracts/conversation";
+import { err, ok, type Clock, type Logger, type Result, type Scheduler } from "@fresnel/contracts";
+import type { SecretAuditRecord, SecretHandle, SecretMeta } from "@fresnel/contracts/capabilities";
+import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 import type {
   ProviderEntry,
   SecretAdminService,
   SecretError,
   SecretLease,
   SecretProvider,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { bunInheritRunner, createSecretAdminService, type ChildRunner } from "../admin.ts";
 import type { AuditLog } from "../audit-file.ts";
 import { DEFAULT_SECRETS_CONFIG } from "../config.ts";

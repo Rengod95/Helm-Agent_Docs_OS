@@ -1,7 +1,7 @@
-import { t } from "@xeon/client/i18n";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { WireError, type HostConnection } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { WireError, type HostConnection } from "@fresnel/contracts/wire";
 import type { SessionOverride } from "../cli/command.ts";
 import { failureOfCaught, failureOfWire, type Failure } from "../errors.ts";
 import { EXIT } from "../exit-codes.ts";

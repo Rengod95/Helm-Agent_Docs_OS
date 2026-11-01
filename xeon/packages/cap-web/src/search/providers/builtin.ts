@@ -1,5 +1,5 @@
-import type { Clock, Logger } from "@xeon/contracts";
-import type { HostedSearchPort } from "@xeon/contracts/services";
+import type { Clock, Logger } from "@fresnel/contracts";
+import type { HostedSearchPort } from "@fresnel/contracts/services";
 import type { ProviderHttpDeps } from "../../policy/guarded-http.ts";
 import type { SearchCandidate } from "../../ports/providers.ts";
 import type { WebSettings } from "../../settings.ts";

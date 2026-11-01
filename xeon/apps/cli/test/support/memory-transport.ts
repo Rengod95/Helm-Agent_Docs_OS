@@ -1,4 +1,4 @@
-import type { CloseInfo, JsonRpcMessage, Transport } from "@xeon/contracts/wire";
+import type { CloseInfo, JsonRpcMessage, Transport } from "@fresnel/contracts/wire";
 
 // 시험용 메모리 전송 쌍. 전달은 queueMicrotask로 보낸 순서대로 한다.
 

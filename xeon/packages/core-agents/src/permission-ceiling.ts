@@ -6,7 +6,7 @@ import {
   type CallerId,
   type PermissionMode,
   type PolicyCeiling,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 /** 자식 모드: 부모 모드와 정의가 요청한 모드 중 엄격한 쪽. 부모가 plan이면 자식도 plan이다 */
 export function childMode(

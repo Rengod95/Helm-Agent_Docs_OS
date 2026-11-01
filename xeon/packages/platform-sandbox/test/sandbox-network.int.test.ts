@@ -1,6 +1,6 @@
 import { rmSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
-import { repeatAsync } from "@xeon/contracts";
+import { repeatAsync } from "@fresnel/contracts";
 import {
   ENVIRONMENT_EXIT_CODE,
   missingMessage,

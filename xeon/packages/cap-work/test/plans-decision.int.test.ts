@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { Bug, eachAsync, parse } from "@xeon/contracts";
+import { Bug, eachAsync, parse } from "@fresnel/contracts";
 import {
   PlanApprovalSubjectSchema,
   PlanSubmitOutput,
   type CallContext,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   ApprovalAnswerSchema,
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { PLAN_REF_PATTERN } from "../src/plans/refs.ts";
 import { rejection } from "./support/assertions.ts";
 import { openHarness, type Harness } from "./support/harness.ts";

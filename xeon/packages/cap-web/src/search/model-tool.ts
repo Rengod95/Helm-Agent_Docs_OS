@@ -1,6 +1,6 @@
-import { assertNever } from "@xeon/contracts";
-import type { ProviderSearchItem } from "@xeon/contracts/capabilities";
-import type { HostedSearchResponse } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import type { ProviderSearchItem } from "@fresnel/contracts/capabilities";
+import type { HostedSearchResponse } from "@fresnel/contracts/services";
 import { normalizeUrl } from "../contract/url.ts";
 import type { SearchCandidate } from "../ports/providers.ts";
 

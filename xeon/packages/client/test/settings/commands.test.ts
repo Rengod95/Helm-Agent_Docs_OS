@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { CommandListResult, CommandRunResult } from "@xeon/contracts/wire";
+import type { CommandListResult, CommandRunResult } from "@fresnel/contracts/wire";
 import {
   commandListView,
   completeSlash,

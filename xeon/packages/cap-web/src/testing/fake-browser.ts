@@ -9,7 +9,7 @@ import type {
   ProviderAvailabilityWeb,
   WebBrowseProvider,
   WebProviderManifest,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type { BrowseCandidate } from "../ports/providers.ts";
 import { fakeManifest } from "./fake-providers.ts";
 

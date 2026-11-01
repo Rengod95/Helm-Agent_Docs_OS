@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { activeLocale, catalogOf, setActiveLocale, type Locale } from "@xeon/client/i18n";
-import { WIRE_ERRORS, type TrustStatus } from "@xeon/contracts/wire";
+import { activeLocale, catalogOf, setActiveLocale, type Locale } from "@fresnel/client/i18n";
+import { WIRE_ERRORS, type TrustStatus } from "@fresnel/contracts/wire";
 import { DESKTOP_SETTING_DEFS } from "../src/settings-store/defs.ts";
 import { unknownFailureText } from "../src/state/engine/failure-text.ts";
 import type { DurableFact, MirrorInput } from "../src/state/engine/input.ts";

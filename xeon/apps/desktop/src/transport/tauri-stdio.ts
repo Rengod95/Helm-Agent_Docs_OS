@@ -1,4 +1,4 @@
-import { attemptAsync, detach, err, ok, rethrow, type Result } from "@xeon/contracts";
+import { attemptAsync, detach, err, ok, rethrow, type Result } from "@fresnel/contracts";
 import {
   WIRE_PROTOCOL_VERSION,
   WireError,
@@ -6,7 +6,7 @@ import {
   type StdioTransportFactory,
   type Transport,
   type WireResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { DesktopIpc, EngineState, IpcError } from "./ipc.ts";
 
 // L4.desktop.spec 3.4. 릴레이 바이트를 스트림 쌍으로 감싸 F `StdioTransportFactory`에 넘긴다.

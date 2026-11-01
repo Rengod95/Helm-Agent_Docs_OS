@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { EventId } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import type { EventId } from "@fresnel/contracts/conversation";
 import { assembleOptions, assistantItem, systemItem, userItem } from "./builders.ts";
 import type { Harness } from "./harness.ts";
 import { present, valueOf } from "./result.ts";

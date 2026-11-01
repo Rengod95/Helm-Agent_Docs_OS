@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { MODELS_SETTING_DEFS } from "@xeon/core-models";
+import { MODELS_SETTING_DEFS } from "@fresnel/core-models";
 import {
   toSettingDefWire,
   type EffectiveSetting,
   type SettingDefWire,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { activeLocale, setActiveLocale, type Locale } from "../../src/i18n/index.ts";
 import {
   TAB_ORDER,

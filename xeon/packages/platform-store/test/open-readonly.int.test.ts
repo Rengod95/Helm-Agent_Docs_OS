@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import type { BlobRef } from "@xeon/contracts/records";
+import type { BlobRef } from "@fresnel/contracts/records";
 import { sha256Hex } from "../src/hash.ts";
 import { openStore, type OpenResult } from "../src/index.ts";
 import { TEST_HOLDER_A } from "../src/testing/index.ts";

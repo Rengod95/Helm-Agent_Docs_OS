@@ -3,7 +3,7 @@ import { EXIT } from "../src/exit-codes.ts";
 import { answeringModels, createRealCli, type RealCli } from "./support/real-host.ts";
 import { scriptedInput } from "./support/script.ts";
 
-// G1-01, G2-01: 실제 호스트(@xeon/host)와 모델 테이프 위의 슬래시 명령. test/slash-commands.test.ts의 가짜 처리기를 실제 처리기로 바꿔
+// G1-01, G2-01: 실제 호스트(@fresnel/host)와 모델 테이프 위의 슬래시 명령. test/slash-commands.test.ts의 가짜 처리기를 실제 처리기로 바꿔
 // 같은 흐름을 다시 확인한다: command.list { threadId }, command.run(done·expanded), 프로젝트 신뢰 뒤의 프로젝트 명령, /compact.
 
 const clis: RealCli[] = [];

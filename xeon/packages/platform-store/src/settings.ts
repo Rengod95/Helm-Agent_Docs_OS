@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 import { Type } from "typebox";
-import { err, ok, type Result } from "@xeon/contracts";
-import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
+import { err, ok, type Result } from "@fresnel/contracts";
+import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 import type { StoreSettings } from "./types.ts";
 
 /** l0.store.* 기본값(L0.store.spec §6) */

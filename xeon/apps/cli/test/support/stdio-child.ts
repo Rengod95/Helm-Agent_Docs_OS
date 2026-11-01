@@ -1,10 +1,10 @@
-import { parse, parseJson } from "@xeon/contracts";
+import { parse, parseJson } from "@fresnel/contracts";
 import {
   checkEnvelope,
   EventsBatchParamsSchema,
   WIRE_PROTOCOL_VERSION,
   type EventWire,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { createEventLog, type EventLog } from "./event-log.ts";
 
 // 실제 자식 프로세스로 도는 호스트(`test/fixtures/scenario-host.ts`)와 JSON Lines로 말하는 시험 도구. 부모가 SIGKILL로 죽이는 시험에 쓴다.

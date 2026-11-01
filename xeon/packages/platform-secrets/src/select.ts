@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { OsInfo } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import type { OsInfo } from "@fresnel/contracts/services";
 import { createDarwinKeyProvider, type DarwinKeyExec } from "./key/darwin.ts";
 import { createFileKeyProvider, type StatKeyFile } from "./key/file-fallback.ts";
 import { createLinuxKeyProvider } from "./key/linux.ts";
@@ -7,7 +7,7 @@ import type { KeyProvider } from "./key/provider.ts";
 import { createWin32KeyProvider } from "./key/win32.ts";
 
 // L0.secrets.spec §3.7 마지막 단락. 키 획득 방식 선택은 이 파일 한 곳에만 둔다(DR-13, spec §9 12번).
-// 플랫폼과 WSL 판정은 xeon.os의 OsInfo가 정하고, 이 파일만 그 값으로 분기한다.
+// 플랫폼과 WSL 판정은 fresnel.os의 OsInfo가 정하고, 이 파일만 그 값으로 분기한다.
 
 export interface KeySelectInput {
   /** auto-file: auto와 같지만 OS 키 저장소가 없을 때 사람 확인 없이 파일 폴백을 쓴다(원격 호스트, spec §4.7 8번) */
@@ -17,7 +17,7 @@ export interface KeySelectInput {
   readonly info: Pick<OsInfo, "platform" | "isWsl">;
   readonly userId: number | null;
   readonly env: Readonly<Record<string, string | undefined>>;
-  /** xeon.os resolveBinary로 찾은 절대 경로. 없으면 null */
+  /** fresnel.os resolveBinary로 찾은 절대 경로. 없으면 null */
   readonly resolveTool: (name: "security" | "secret-tool") => Promise<string | null>;
   readonly pathExists: (path: string) => boolean;
   readonly stat?: StatKeyFile;

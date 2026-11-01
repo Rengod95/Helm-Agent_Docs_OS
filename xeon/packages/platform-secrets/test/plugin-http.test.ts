@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ConcreteHttpRequest, HttpResponseLike } from "@xeon/contracts/services";
+import type { ConcreteHttpRequest, HttpResponseLike } from "@fresnel/contracts/services";
 import { createPluginHttp, type PluginHttpCall } from "../src/plugin-http.ts";
 import { memorySecrets } from "../src/testing/index.ts";
 import { manualClock } from "./support/clock.ts";

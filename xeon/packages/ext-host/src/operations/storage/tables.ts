@@ -1,6 +1,6 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ExtensionName } from "@xeon/contracts/extensions";
-import { extTablePrefix as extTablePrefixOf } from "@xeon/contracts/records";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ExtensionName } from "@fresnel/contracts/extensions";
+import { extTablePrefix as extTablePrefixOf } from "@fresnel/contracts/records";
 import type { Static, TObject, TSchema } from "typebox";
 import type { ExtStorageError } from "./errors.ts";
 
@@ -114,7 +114,7 @@ export function columnTypeOf(schema: TSchema): ColumnType | undefined {
     case "array":
       return { sql: "TEXT", acceptsNull: false, json: true, boolean: false, nullable: false };
     case undefined:
-    // xeon-disable-next-line xeon/switch-default-never -- TypeBox type 이름은 열린 문자열이다. 지원 밖 타입은 undefined로 돌려주고 호출자가 선언 오류로 바꾼다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- TypeBox type 이름은 열린 문자열이다. 지원 밖 타입은 undefined로 돌려주고 호출자가 선언 오류로 바꾼다 (eng.typescript.guide TY-14)
     default:
       return undefined;
   }

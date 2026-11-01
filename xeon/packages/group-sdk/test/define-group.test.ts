@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import { validateManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
-import { defineSettings } from "@xeon/contracts/settings";
+import { Bug } from "@fresnel/contracts";
+import { validateManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
+import { defineSettings } from "@fresnel/contracts/settings";
 import { Type } from "typebox";
 import {
   GROUP_NAME_PATTERN,

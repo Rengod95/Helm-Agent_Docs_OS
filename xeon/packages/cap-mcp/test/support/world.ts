@@ -1,8 +1,8 @@
-import { ok } from "@xeon/contracts";
-import type { McpServerDef } from "@xeon/contracts/capabilities";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import type { McpServersChangePayload } from "@xeon/contracts/extensions";
-import type { PolicyRule } from "@xeon/contracts/services";
+import { ok } from "@fresnel/contracts";
+import type { McpServerDef } from "@fresnel/contracts/capabilities";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import type { McpServersChangePayload } from "@fresnel/contracts/extensions";
+import type { PolicyRule } from "@fresnel/contracts/services";
 import { createMcp, type McpDeps, type McpRuntime } from "../../src/client/service.ts";
 import type { McpDynamicTool } from "../../src/client/dynamic-tools.ts";
 import type { McpFileReader } from "../../src/ports/files.ts";

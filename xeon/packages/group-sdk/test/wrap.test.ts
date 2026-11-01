@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { defineSettings } from "@xeon/contracts/settings";
-import { createTestHost } from "@xeon/ext-host/testing";
+import { defineSettings } from "@fresnel/contracts/settings";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { defineGroup, GroupSettingsSourceKey, type GroupApi } from "../src/index.ts";
 import { fireSettled, install } from "./support/host.ts";

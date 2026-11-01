@@ -1,4 +1,4 @@
-import type { CloseInfo, JsonRpcMessage, Transport } from "@xeon/contracts/wire";
+import type { CloseInfo, JsonRpcMessage, Transport } from "@fresnel/contracts/wire";
 
 // 시험이 직접 메시지를 밀어 넣고 보낸 것을 읽는 전송.
 

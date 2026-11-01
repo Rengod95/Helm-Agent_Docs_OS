@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { parseJson } from "@xeon/contracts";
+import { parseJson } from "@fresnel/contracts";
 
 // 실제 stdio MCP 서버 대역(자식 프로세스로 뜬다). 사용: bun mcp-stdio-server.ts <pid 파일> <도구 목록 응답 뒤 만드는 표식 파일>
 // 줄바꿈으로 나뉜 JSON-RPC를 stdin에서 읽어 stdout으로 답한다. 도구 `stdio_marker`가 고정 문자열을 돌려주고, stdin이 닫히면 끝난다.
@@ -59,7 +59,7 @@ function handle(message: unknown): void {
     case "ping":
       reply(id, {});
       return;
-    // xeon-disable-next-line xeon/switch-default-never -- 메서드 이름은 문자열이다. 모르는 메서드는 JSON-RPC 오류로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 메서드 이름은 문자열이다. 모르는 메서드는 JSON-RPC 오류로 돌려준다 (eng.typescript.guide TY-14)
     default:
       fail(id, -32601, `method not found: ${method}`);
   }

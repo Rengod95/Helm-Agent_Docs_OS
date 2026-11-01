@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { stepStartRequest } from "../commits.ts";
 import { forEachSequential } from "../sequence.ts";
 import { emitEvent, emitMessageStart } from "./sink.ts";

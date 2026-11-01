@@ -58,12 +58,12 @@ xeon/packages/cap-knowledge/
   src/
     index.ts              # 엔트리: manifest, apply(ctx)
     manifest.ts           # provides: knowledge.skills, knowledge.memory, knowledge.search, knowledge.ledger
-    service.ts            # xeon.knowledge 묶음(KnowledgeService)
+    service.ts            # fresnel.knowledge 묶음(KnowledgeService)
     settings.ts           # defineSettings("l2.knowledge", …)  K10
     actor.ts              # CallOptions.context.caller(CallerInfo, L2.readme §5.8) → KnowledgeActor
     fs/                   # 파일 포트. 운영 구현과 테스트 가짜를 바꿔 끼운다
       port.ts             #   KnowledgeFs: read, list, stat, writeAtomic, rename, remove, lock
-      node-fs.ts          #   운영 구현(node:fs/promises + xeon.os 파일 락)
+      node-fs.ts          #   운영 구현(node:fs/promises + fresnel.os 파일 락)
     upstream/
       skills.ts           # K2: pi core/skills.ts 포크(FRESNEL-PATCH 표지)
     skills/               # K2, K3, K11
@@ -100,7 +100,7 @@ xeon/packages/cap-knowledge/
     testing/
       memory-fs.ts        # KnowledgeFs 메모리 가짜(락, 실패 주입 포함)
       event-fixtures.ts   # message.recorded·session.created 픽스처 만들기
-      fake-approvals.ts   # xeon.approvals 가짜(승인·거부 각본)
+      fake-approvals.ts   # fresnel.approvals 가짜(승인·거부 각본)
   test/
     *.test.ts
     fixtures/skills/**    # 포크 회귀용 스킬 디렉터리 예시
@@ -108,8 +108,8 @@ xeon/packages/cap-knowledge/
 
 - 세션 투영·색인 테이블 셋(`cap_knowledge_sessions`, `cap_knowledge_session_docs`, `cap_knowledge_session_fts`)의 DDL은 마이그레이션 파일에 두지 않고 투영기 `cap.knowledge`의 `ddl`에 둔다. 투영 재생성 규칙(`eng.events.design` §5.1 규칙 4)을 따르기 위해서다.
 - 세션 밖 상태 테이블의 마이그레이션 위치와 적용 방식은 `L0.store.plan`을 따른다 [가정: `cap-*` 패키지의 `migrations/`를 접두사별로 적용한다].
-- 정본 파일 경로(사용자 데이터 디렉터리, 프로젝트 `.fresnel/skills`)는 코드에 상수로 두지 않고 `xeon.os`의 경로 API에서 받는다(`L0.os.spec`, `eng.dependency-rules.guide` DR-13).
-- `cap-knowledge`는 `bun:sqlite`를 import하지 않는다. SQL은 `xeon.store.scoped("cap_knowledge_")` 핸들로만 실행한다(DR-07).
+- 정본 파일 경로(사용자 데이터 디렉터리, 프로젝트 `.fresnel/skills`)는 코드에 상수로 두지 않고 `fresnel.os`의 경로 API에서 받는다(`L0.os.spec`, `eng.dependency-rules.guide` DR-13).
+- `cap-knowledge`는 `bun:sqlite`를 import하지 않는다. SQL은 `fresnel.store.scoped("cap_knowledge_")` 핸들로만 실행한다(DR-07).
 
 ## 3. 작업 분해
 
@@ -122,7 +122,7 @@ xeon/packages/cap-knowledge/
 | K3 | 스킬 쓰기 연산 `create`·`edit`·`patch`·`writeFile`·`remove`·`manage`와 구조 검증(이름 64자, 설명 1,024자, 본문 100,000자, 지원 파일 1 MiB, 하위 디렉터리 허용 목록, 파일 수 500). 보관함 이동. 쓰기 경로 1~6단계 뼈대 | K2, K5, K6, K7 | M |
 | K4 | 메모리 스토어: § 형식, 항목 ID, 한도 거절(`memory_full` detail), 파일 락, 원자 쓰기, 드리프트 판정과 `.bak`, 바깥 편집 `external` 기록, 첫 turn 스냅샷 블록, `read`·`add`·`replace`·`remove`·`manage`(batch 원자) | K1, K5, K6, K7 | M |
 | K5 | 변경 원장과 롤백: 안전 캡처(manifest blob), `prepared`→`applied`/`aborted`, `request_id` 멱등 재응답, 시작 시 복구, `list`·`show`(diff)·`rollback`(`rollback_conflict`, `rollback_unsafe`) | K1, L0.store.plan의 `putBlob`·`scoped` | L |
-| K6 | 쓰기 승인 게이트(행위자 × 연산 × 설정 표), `xeon.approvals` 요청과 결과 처리, `ApprovalEvidence` 유효성(`trustedEvidenceSources`, 소유 확장), 제안 대기열(`cap_knowledge_proposals`, `proposals`, `decide`, 만료, `stale`) | K1, K5, L1.tools.plan의 `ApprovalService` | M |
+| K6 | 쓰기 승인 게이트(행위자 × 연산 × 설정 표), `fresnel.approvals` 요청과 결과 처리, `ApprovalEvidence` 유효성(`trustedEvidenceSources`, 소유 확장), 제안 대기열(`cap_knowledge_proposals`, `proposals`, `decide`, 만료, `stale`) | K1, K5, L1.tools.plan의 `ApprovalService` | M |
 | K7 | 위협 패턴 검사: 규칙 표(지시 주입, 경계 표지, 유출, 비밀 형태, 숨은 문자, 숨은 지시, 우회 권유), `rulesetVersion`, 걸린 문자열 비노출, 마스킹 등록부 연결, `ledger.scan` | K1 | M |
 | K8 | FTS5 trigram 프로브, 투영기 `cap.knowledge`(세션 목록, 세 테이블 DDL), 소비자 `cap.knowledge.fts`(pos 커서, 배치 500, `event_id` 멱등, 커서와 행 같은 트랜잭션, blob 자리표시 해석, NFC), 프로브 실패 시 비활성 | K1, L1.persistence.plan의 투영기 등록·전역 피드·`consumer_cursors` | L |
 | K9 | 검색 질의 `query`(토큰화, MATCH/LIKE 분기, bm25·최신순, 종류 순 결합, 스니펫, scope, includeHidden), `scroll`, `read`, `list`, 스킬·메모리 docs FTS 재구성 | K2, K4, K8 | M |
@@ -229,7 +229,7 @@ xeon/packages/cap-knowledge/
 - `search/indexer.ts`가 `projector.ts`와 소비자를 나눈다. 계획의 `search/probe.ts`(trigram 프로브)는 능력 판정으로, `search/query.ts`는 `query-model.ts`(순수)와 `service.ts`로 나눴다. `docs-index.ts`는 계획 위치 그대로다.
 - 표 이름과 열은 spec §3.8 구현 메모를 따른다(`sessiondocs`, `sessionfts`, `docsfts`, `sessioncursor`, `thread_id`, `event_seq`).
 - 마이그레이션(`CAP_KNOWLEDGE` 세션 밖 상태)은 바꾸지 않았다. 검색 표는 모두 투영기가 선언한다.
-- 세션 포트는 `SessionService` 전체다 [결정: 통합 검토 L3]. 부분 구현을 걸러내는 덕 타이핑 검사(`isKnowledgeSessionPort`)와 `ports/session.ts`를 지웠다. `xeon.session`이 없으면(포트 미제공) 세션 검색 없이 시작하고, 있는데 완전한 `SessionService`가 아니면 플러그인 setup이 실패한다. 시험 호스트의 부분 구현(`RecordCommitPort` 대역)은 `without: ["records"]`로 빼고 완전한 세션(`createSessionKit`)이나 아무것도 주지 않는다.
+- 세션 포트는 `SessionService` 전체다 [결정: 통합 검토 L3]. 부분 구현을 걸러내는 덕 타이핑 검사(`isKnowledgeSessionPort`)와 `ports/session.ts`를 지웠다. `fresnel.session`이 없으면(포트 미제공) 세션 검색 없이 시작하고, 있는데 완전한 `SessionService`가 아니면 플러그인 setup이 실패한다. 시험 호스트의 부분 구현(`RecordCommitPort` 대역)은 `without: ["records"]`로 빼고 완전한 세션(`createSessionKit`)이나 아무것도 주지 않는다.
 - 투영기 이벤트 kind와 세션 종류 추론은 spec §4.8.1·§4.8.2에 적었다.
 
 시험(모두 실제 SQLite와 실제 `core-persistence` 세션 서비스 위에서 돈다):
@@ -240,7 +240,7 @@ xeon/packages/cap-knowledge/
 | `query.test.ts` | 질의 모델(토큰, 경로, MATCH·LIKE 식, 스니펫), `korean short query uses like`, `three char query uses fts`, `nfc normalization`, `bm25 then recency`, `fts special chars quoted`, LIKE 와일드카드 리터럴, 숨김·ID·시각·한도·프로젝트 범위, scroll·read·list, `kind order concatenation`, 쓰기와 같은 트랜잭션의 색인 갱신, 가려진 스킬 |
 | `probe.test.ts` | 능력 판정 표, `probe failure disables session search`(FTS5 없음), `degraded: ["session"]`와 스킬·메모리 LIKE 대체, 세션 서비스 없이 시작 |
 | `fts-trigram.int.test.ts` | 실제 `bun:sqlite`에서 3글자 MATCH, 2글자 0건, 대소문자 무시, 조사 앞뒤 일치, bm25 순서 |
-| `plugin.test.ts` | 세션 서비스가 있을 때 투영기 등록·색인·검색·목록이 플러그인 경로로 동작, 없을 때 `unavailable`, 부분 `xeon.session`이면 setup 실패 |
+| `plugin.test.ts` | 세션 서비스가 있을 때 투영기 등록·색인·검색·목록이 플러그인 경로로 동작, 없을 때 `unavailable`, 부분 `fresnel.session`이면 setup 실패 |
 
 완료 기준 9(macOS FTS5·trigram 확인)는 이 기기에서 할 수 없다. `desktop-macos` CI job이나 실기에서 `fts-trigram.int.test.ts`를 한 번 돌려 기록한다.
 
@@ -284,7 +284,7 @@ xeon/packages/cap-knowledge/
 
 | 패치 id | 원본 결합 | 바꾸는 방식 |
 |---|---|---|
-| `KN-01 config` | `import { CONFIG_DIR_NAME, getAgentDir } from "../config.ts"`(skills.ts:4, config.ts:581·605) | 함수 인자 `SkillRoots { project?: string; user: string; extension: readonly { dir: string; extension: string }[]; paths: readonly string[] }`로 받는다. 경로는 `skills/roots.ts`가 `xeon.os`에서 만든다 |
+| `KN-01 config` | `import { CONFIG_DIR_NAME, getAgentDir } from "../config.ts"`(skills.ts:4, config.ts:581·605) | 함수 인자 `SkillRoots { project?: string; user: string; extension: readonly { dir: string; extension: string }[]; paths: readonly string[] }`로 받는다. 경로는 `skills/roots.ts`가 `fresnel.os`에서 만든다 |
 | `KN-02 frontmatter` | `import { parseFrontmatter } from "../utils/frontmatter.ts"`(yaml 2.9.0 의존) | 같은 경계 규칙(`---` 줄, BOM 제거, 줄바꿈 정규화)의 40줄 함수를 포크 안에 옮기고, YAML 파싱은 `Bun.YAML.parse`로 바꾼다(`bun-types` 1.4.3 `bun.d.ts:1494` `namespace YAML`). 결과가 일반 객체가 아니거나 순환이면(같은 줄 주석: 별칭이 순환을 만들 수 있음) frontmatter 오류로 본다 |
 | `KN-03 paths` | `import { canonicalizePath, resolvePath } from "../utils/paths.ts"`(paths.ts:28, 103) | `KnowledgeFs.realpath`와 `node:path`의 `resolve`로 바꾼다. 동기 `fs` 호출(`existsSync`, `readdirSync`, `readFileSync`, `statSync`)은 `KnowledgeFs` 비동기 포트로 바꾼다. 테스트에서 메모리 가짜를 쓰기 위해서다 |
 | `KN-04 ignore` | `import ignore from "ignore"`(7.0.8), `addIgnoreRules` | 제거한다. 스킬 루트에 `.gitignore` 계열 규칙을 적용하지 않는다(`L2.knowledge.spec` §4.2.1, §10 미결 10) |
@@ -307,7 +307,7 @@ xeon/packages/cap-knowledge/
 
 ## 5. 단위 테스트 목록
 
-방침: `eng.testing.guide` TS-01(단위 우선), TS-03(시계·ID 주입), TS-05(가짜 포트). 단위 테스트는 인메모리 SQLite(`@xeon/platform-store/testing`의 `openTestStore(":memory:")`), 이벤트 픽스처(`src/testing/event-fixtures.ts`), 메모리 파일 가짜(`src/testing/memory-fs.ts`)만 쓴다. 실제 파일 시스템을 쓰는 검사는 `int` 태그 하나로 둔다.
+방침: `eng.testing.guide` TS-01(단위 우선), TS-03(시계·ID 주입), TS-05(가짜 포트). 단위 테스트는 인메모리 SQLite(`@fresnel/platform-store/testing`의 `openTestStore(":memory:")`), 이벤트 픽스처(`src/testing/event-fixtures.ts`), 메모리 파일 가짜(`src/testing/memory-fs.ts`)만 쓴다. 실제 파일 시스템을 쓰는 검사는 `int` 태그 하나로 둔다.
 
 | 파일 | 테스트 이름 | 확인할 동작 |
 |---|---|---|
@@ -353,7 +353,7 @@ xeon/packages/cap-knowledge/
 | 같음 | `memory scan cannot be disabled` | `write.scan = false`에서도 메모리의 `sk-…` 키 형태 → block |
 | 같음 | `warn does not block` | warn 규칙만 걸리면 적용되고 원장 `scan`에 규칙 이름 |
 | `test/fts-indexer.test.ts` | `idempotent on redelivery` | 같은 이벤트 배치 두 번 → docs·FTS 행 수 같음 |
-| 같음 | `cursor and rows in one transaction` | `@xeon/platform-store/testing` 고장 주입(`before_commit`) → 커서·행 모두 반영 안 됨, 재시작 뒤 같은 배치 처리 |
+| 같음 | `cursor and rows in one transaction` | `@fresnel/platform-store/testing` 고장 주입(`before_commit`) → 커서·행 모두 반영 안 됨, 재시작 뒤 같은 배치 처리 |
 | 같음 | `session delete removes index` | 투영기 DDL 선언 테이블의 세션 행 삭제를 흉내 냄 → 그 세션의 sessions·docs·FTS 행 0 |
 | 같음 | `hidden kinds` | cron·subagent·background 세션 메시지는 기본 `query`에 없고 `includeHidden`에서 보임 |
 | 같음 | `tool results not indexed` | 도구 결과·thinking 파트는 색인 0 |
@@ -371,7 +371,7 @@ xeon/packages/cap-knowledge/
 
 | 파일 | 테스트 | verify |
 |---|---|---|
-| `test/node-fs.int.test.ts` | 실제 임시 디렉터리(`@xeon/platform-os/testing` `tempDir`)에서 원자 쓰기(임시 파일 → rename), 락 두 프로세스 직렬화, 보관함 이동 | 넣는다(10초 이하) |
+| `test/node-fs.int.test.ts` | 실제 임시 디렉터리(`@fresnel/platform-os/testing` `tempDir`)에서 원자 쓰기(임시 파일 → rename), 락 두 프로세스 직렬화, 보관함 이동 | 넣는다(10초 이하) |
 | `test/fts-trigram.int.test.ts` | 실제 `bun:sqlite`(임시 파일 DB)에서 trigram 테이블 생성, bm25 정렬, 2글자 MATCH 0건 확인 | 넣는다 |
 
 ## 6. 완료 기준

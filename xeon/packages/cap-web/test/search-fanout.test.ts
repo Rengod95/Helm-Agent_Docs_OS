@@ -4,7 +4,7 @@ import {
   type ProviderSearchItem,
   type ProviderSearchResult,
   type WebSearchOutput,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   fakeCatalog,
   fakeManifest,

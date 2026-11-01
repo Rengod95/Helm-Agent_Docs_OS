@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Message } from "@xeon/contracts/conversation";
+import type { Message } from "@fresnel/contracts/conversation";
 import {
   assembleOptions,
   assistantItem,

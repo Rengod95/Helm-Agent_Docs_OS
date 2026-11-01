@@ -1,10 +1,10 @@
-import { Bug, canonicalJson, ok, parse, type Result } from "@xeon/contracts";
+import { Bug, canonicalJson, ok, parse, type Result } from "@fresnel/contracts";
 import {
   FIRST_DENY,
   type CapabilityRef,
   type ToolCallPayload,
   type ToolResultValue,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   BlobRefSchema,
   NOT_STARTED_TEXT,
@@ -17,7 +17,7 @@ import {
   type EffectStatus,
   type ReadFailure,
   type StampedDraft,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   toToolResultRecord,
   type AgentToolCall,
@@ -30,7 +30,7 @@ import {
   type ThreadId,
   type ToolResultMessage,
   type ToolResultRecord,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   childDecision,
   stricter,
@@ -46,7 +46,7 @@ import {
   type ToolCallOutcome,
   type ToolCallState,
   type ToolRunContext,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { denialReason } from "./approvals/protocol.ts";
 import { unattendedPlan } from "./approvals/unattended.ts";
 import type { ApprovalsInternal } from "./approvals/service.ts";
@@ -610,7 +610,7 @@ export function createPipeline(
   // ── 5c' 비밀 사용 승인(L1.tools.spec §4.12) ────────────────────────────
 
   /**
-   * 호출이 `secretEnv`로 비밀을 쓰면 `xeon.secrets.check`가 `needs_approval`을 낼 때 승인 증거를 만든다. 이 호출의 정책 승인을 사용자가
+   * 호출이 `secretEnv`로 비밀을 쓰면 `fresnel.secrets.check`가 `needs_approval`을 낼 때 승인 증거를 만든다. 이 호출의 정책 승인을 사용자가
    * 방금 허용했으면 그 승인이 실행마다의 승인(U-19)이라 같은 승인을 증거로 쓴다. 아니면(규칙이 허용, 모드가 허용, thread 기억) 비밀 사용을 따로 묻는다
    */
   async function approveSecretUse(

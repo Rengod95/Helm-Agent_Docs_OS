@@ -1,7 +1,7 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { LeaseArbiterPortKey } from "@xeon/contracts/extensions";
-import { withDriveDefaults } from "@xeon/ext-host";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { LeaseArbiterPortKey } from "@fresnel/contracts/extensions";
+import { withDriveDefaults } from "@fresnel/ext-host";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
   createGroupService,
   type GroupModule,

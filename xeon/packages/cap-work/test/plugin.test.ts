@@ -7,7 +7,7 @@ import {
   type Logger,
   type LogFields,
   type Result,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import {
   WorkPlansKey,
   WorkTasksKey,
@@ -15,7 +15,7 @@ import {
   type CommandActionRegistry,
   type WorkPlans,
   type WorkTasks,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   defineManifest,
   validateManifest,
@@ -23,16 +23,16 @@ import {
   type ExtensionEntry,
   type PortKey,
   type ToolRegisterError,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   ApprovalServicePortKey,
   SessionPortKey,
   type ToolRegistration,
   type Unregister,
-} from "@xeon/contracts/services";
-import type { ScopeLayer } from "@xeon/contracts/settings";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { createTestHost, flushMicrotasks, type TestHost } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/services";
+import type { ScopeLayer } from "@fresnel/contracts/settings";
+import type { ExtensionUnit } from "@fresnel/ext-host";
+import { createTestHost, flushMicrotasks, type TestHost } from "@fresnel/ext-host/testing";
 import { workManifest, WORK_EXTENSION_NAME } from "../src/manifest.ts";
 import { workPlugin } from "../src/plugin.ts";
 import { rejection } from "./support/assertions.ts";
@@ -48,8 +48,8 @@ interface FakeOs {
   readonly time: { readonly clock: Clock };
 }
 
-const OsKey: PortKey<FakeOs> = { name: "xeon.os" };
-const ToolsKey: PortKey<FakeTools> = { name: "xeon.tools" };
+const OsKey: PortKey<FakeOs> = { name: "fresnel.os" };
+const ToolsKey: PortKey<FakeTools> = { name: "fresnel.tools" };
 
 interface LogLine {
   readonly event: string;
@@ -88,7 +88,7 @@ async function boot(
 ) {
   const opened = await openBase();
   base = opened;
-  // xeon.session 전체를 이 시험이 제공하므로 호스트 대역의 기록 포트(같은 서비스 이름의 ext 멤버)는 빼 둔다
+  // fresnel.session 전체를 이 시험이 제공하므로 호스트 대역의 기록 포트(같은 서비스 이름의 ext 멤버)는 빼 둔다
   const t: TestHost = await createTestHost({ without: ["records"] });
   const registered: ToolRegistration[] = [];
   const unregistered: string[] = [];

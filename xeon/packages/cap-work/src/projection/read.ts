@@ -1,4 +1,4 @@
-import { err, ok, parse, parseJson, type Result } from "@xeon/contracts";
+import { err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import {
   GoalJudgmentSchema,
   GoalSchema,
@@ -13,9 +13,9 @@ import {
   type ReportUsage,
   type WorkReport,
   type WorkTask,
-} from "@xeon/contracts/capabilities";
-import type { ReadFailure, SqlRow } from "@xeon/contracts/records";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ReadFailure, SqlRow } from "@fresnel/contracts/records";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WorkReader } from "../ports/session.ts";
 
 // 투영 테이블 읽기(L2.work.spec §3.8). 읽은 행이 스키마와 다르면 손상이므로 row_invalid로 알린다(TY-24).

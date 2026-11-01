@@ -3,7 +3,7 @@
     "id": "DR-10/cli-host",
     "rule": "DR-10",
     "from": "apps/cli",
-    "to": "@xeon/host",
+    "to": "@fresnel/host",
     "entries": [".", "./client"],
     "reason": "The CLI reuses the single engine assembly code in apps/host (review.decisions-2 U-15).",
     "approvedBy": "review.decisions-2"
@@ -12,7 +12,7 @@
     "id": "DR-10/cli-client",
     "rule": "DR-10",
     "from": "apps/cli",
-    "to": "@xeon/client",
+    "to": "@fresnel/client",
     "entries": [".", "./web", "./settings", "./i18n"],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020). The X10 test compares the settings view-model item set with the config command key set.",
     "approvedBy": "adr.0020"
@@ -21,7 +21,7 @@
     "id": "DR-10/desktop-client",
     "rule": "DR-10",
     "from": "apps/desktop",
-    "to": "@xeon/client",
+    "to": "@fresnel/client",
     "entries": [".", "./stdio", "./settings", "./i18n"],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
     "approvedBy": "adr.0020"
@@ -30,16 +30,16 @@
     "id": "DR-10/host-client",
     "rule": "DR-10",
     "from": "apps/host",
-    "to": "@xeon/client",
+    "to": "@fresnel/client",
     "entries": [".", "./endpoint", "./socket", "./accounts"],
-    "reason": "apps/host keeps the @xeon/host/client re-export, its tests drive the host through the client connection (the X7 settings-file test also drives the model account view-model from ./accounts), and connectServiceTransport/attachToService/bridgeStdioToService use the client socket transport and endpoint grammar (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
+    "reason": "apps/host keeps the @fresnel/host/client re-export, its tests drive the host through the client connection (the X7 settings-file test also drives the model account view-model from ./accounts), and connectServiceTransport/attachToService/bridgeStdioToService use the client socket transport and endpoint grammar (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
     "approvedBy": "adr.0020"
   },
   {
     "id": "DR-02/group-sdk",
     "rule": "DR-02",
     "from": "packages/group-*",
-    "to": "@xeon/group-sdk",
+    "to": "@fresnel/group-sdk",
     "entries": [".", "./testing"],
     "reason": "Every L3 group (packages/group-<name>, group-sdk excepted) uses the shared group definition helpers of group-sdk through its entries \".\" and \"./testing\" only (review.decisions-2 U-15). Other group paths and other group-sdk entries stay violations. The group templates (group-sdk/templates) import the same entries.",
     "approvedBy": "review.decisions-2"

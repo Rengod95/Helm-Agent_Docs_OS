@@ -1,7 +1,7 @@
 // 수명주기 가운데 분기 쪽(L1.persistence.spec §4.10.2~§4.10.4, PS-9·PS-10): moveLeaf, revert, fork, prepareSwitch.
 // first 지점(session_before_*)은 커밋 전, 트랜잭션 밖에서 await하고 거부면 아무것도 커밋하지 않는다.
-import { assertNever, detach, err, ok, type Logger, type Result } from "@xeon/contracts";
-import type { EventId, IdFactory, ItemId, ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, detach, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import type { EventId, IdFactory, ItemId, ThreadId } from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
   type BranchSummaryInput,
@@ -14,7 +14,7 @@ import {
   type ThreadCreateInput,
   type ThreadCreated,
   type ThreadLifecycle,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   commonAncestor,
   countBranchItemsAfter,

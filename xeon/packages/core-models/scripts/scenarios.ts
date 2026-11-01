@@ -1,6 +1,6 @@
 import type { AssistantMessage, Context, ThinkingLevel } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
-import type { ModelRole } from "@xeon/contracts/services";
+import type { ModelRole } from "@fresnel/contracts/services";
 
 // 녹화 시나리오. 이름이 `just tape-record <scenario>`의 인자다. 프롬프트에 비밀을 넣지 않는다(키가 바뀌면 테이프가 남는다).
 // 모델은 Haiku 5.5, 추론 수준은 xhigh로 고정한다(2026-10-25 사용자 지시). 출력 상한은 추론 토큰을 포함하므로 넉넉히 둔다.

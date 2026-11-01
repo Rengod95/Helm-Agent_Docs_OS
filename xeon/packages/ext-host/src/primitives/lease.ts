@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import {
   LeaseArbiterPortKey,
   LoopPortKey,
@@ -12,8 +12,8 @@ import {
   type SpawnSpec,
   type TurnInput,
   type TurnOutcome,
-} from "@xeon/contracts/extensions";
-import type { Usage } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/extensions";
+import type { Usage } from "@fresnel/contracts/conversation";
 import { withAmbient, withoutAmbient, type DriveInvocation } from "./ambient.ts";
 import type {
   BoundarySignal,
@@ -158,7 +158,7 @@ export function createLeaseBroker(
     const requireLoop = () => {
       const loop = core.ports.get(LoopPortKey);
       if (loop === undefined) {
-        throw new PrimitiveError("port_unavailable", "xeon.loop (LoopPort) is not provided", {
+        throw new PrimitiveError("port_unavailable", "fresnel.loop (LoopPort) is not provided", {
           scopeId: lease.scopeId,
         });
       }
@@ -373,7 +373,7 @@ export function createLeaseBroker(
     const candidates = candidatesFor(thread, txn);
     if (candidates.length === 0) return;
     if (loop === undefined || records === undefined) {
-      warnPortOnce(thread, loop === undefined ? "xeon.loop" : "xeon.session");
+      warnPortOnce(thread, loop === undefined ? "fresnel.loop" : "fresnel.session");
       return;
     }
     let chosen: ScopeRecord | undefined;

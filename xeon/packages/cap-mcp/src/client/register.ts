@@ -1,12 +1,12 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { AgentTool, JsonValue } from "@xeon/contracts/conversation";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { AgentTool, JsonValue } from "@fresnel/contracts/conversation";
 import type {
   ScopeId,
   ToolRegisterError,
   ToolResourceDef,
   ToolsPort,
-} from "@xeon/contracts/extensions";
-import type { ToolRegistration, Unregister } from "@xeon/contracts/services";
+} from "@fresnel/contracts/extensions";
+import type { ToolRegistration, Unregister } from "@fresnel/contracts/services";
 import { asJsonObject } from "../json.ts";
 import type { McpRegisterError, McpToolRegistrar } from "../ports/tools.ts";
 import type { McpDynamicTool } from "./dynamic-tools.ts";

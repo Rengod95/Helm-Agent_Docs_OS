@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { CapabilityError } from "@xeon/contracts/capabilities";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
 import { planChain } from "../src/search/chain.ts";
 import { fakeCatalog, fakeSearchProvider, searchCandidate } from "../src/testing/fake-providers.ts";
 import { releaseStores } from "./support/store.ts";

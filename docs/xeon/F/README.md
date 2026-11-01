@@ -12,7 +12,7 @@ binds: [xeon/packages/contracts/**]
 
 ## 1. 목적
 
-F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 확장, 호스트 계약, 설정의 타입과 스키마와 규약을 한 패키지 `@xeon/contracts`에 둔다. 다른 층 문서와 코드는 이름을 F 문서에서 가져온다(`_templates/README.md` 문체 규칙 마지막 항목).
+F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 확장, 호스트 계약, 설정의 타입과 스키마와 규약을 한 패키지 `@fresnel/contracts`에 둔다. 다른 층 문서와 코드는 이름을 F 문서에서 가져온다(`_templates/README.md` 문체 규칙 마지막 항목).
 
 - F에는 타입, TypeBox 스키마, 상수, 규약만 있다. 런타임 로직은 두지 않는다.
 - 런타임 로직 예외 [제안]: 아래 다섯 종류는 F에 둘 수 있다. 공통 조건은 셋이다. 입출력, 시계, 난수, 전역 가변 상태를 쓰지 않는다. 여러 층이 같은 규칙을 써야 해서 F보다 위에 두면 같은 층끼리 import가 생긴다. 함수 하나가 한 규칙만 계산한다.
@@ -22,7 +22,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
   4. 오류 클래스와 선언 함수: 오류를 나타내는 `Error` 하위 클래스(`CapabilityError`, `WireError`, `SettingDefError`, 루트의 `Bug`)와, 선언을 받아 그대로 또는 정규화해 돌려주는 `define*` 함수(`defineCapability`, `defineManifest`, `defineSettings`). `define*`는 규칙 위반이면 오류 클래스를 던질 수 있다(`defineSettings` → `SettingDefError`, `F.wire-settings.spec` §3.8.3). 호출 결함과 선언 결함은 `Result` 대신 예외로 알린다(`eng.typescript.guide` TY-11).
   5. 데이터 상수: 케이스 표나 선언 표 같은 값만 있는 상수. 예: `HOOKS`, `CORE_EVENT_CATALOG`, `WIRE_METHODS`, `WIRE_CONFORMANCE_CASES`. 케이스를 돌리는 실행기 틀은 `src/`가 아닌 `test/`에 둔다(`F.wire-settings.plan` W14).
 - 발급(`IdFactory`·`LocalIdFactory` 구현), 저장, 전송, 로딩은 F 밖에서 구현한다. `createIdFactory(clock, random)` 같은 발급기 구현과 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 시계·난수를 쓰므로 위 다섯 예외에 들지 않는다. 운영 구현은 `platform-os`에 두고, 테스트 대역은 쓰는 패키지마다 자기 `test/` 안에 둔다 [결정: review.decisions-2 U-03](§8 10번).
-- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4이고 F가 가장 낮다(`_research/foundation-plan.md` §3). 그래서 `@xeon/contracts`는 다른 xeon 패키지를 import하지 않는다. `scripts/check-layers.ts`가 `package.json`의 `xeon.layer = "F"`로 이를 검사한다.
+- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4이고 F가 가장 낮다(`_research/foundation-plan.md` §3). 그래서 `@fresnel/contracts`는 다른 xeon 패키지를 import하지 않는다. `scripts/check-layers.ts`가 `package.json`의 `fresnel.layer = "F"`로 이를 검사한다.
 - 허용하는 외부 의존:
   - `typebox` 1.3.27(워크스페이스 catalog). 값 import 허용.
   - `@earendil-works/pi-ai` 1.3.0. `import type`, `export type`만 허용(`F.conversation.spec` §3.1 규칙 1). `@earendil-works/pi-agent-core`에는 의존하지 않는다(adr.0009).
@@ -35,13 +35,13 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 
 | 도메인 | 한 줄 요약 | 계획 v2 | 서브패스 | 문서 | M0 |
 |---|---|---|---|---|---|
-| conversation | 브랜드 ID 8종, pi 메시지·스트림·도구 타입 재노출과 런타임 스키마, 파트 id, thread/turn/step/item 계층과 수명주기 알림, 도구 결과 3채널, 재생 정책 `ReplayPolicy` | F1 대화 모델 | `@xeon/contracts/conversation` | `F.conversation.spec`, `F.conversation.plan` | 포함 |
-| records | 이벤트 envelope(내구/휘발), kind 이름 규칙과 코어 카탈로그, blob 분리, 효과 3단과 복구 규칙, 단계 체크포인트, 업캐스터·마이그레이션 | F2 기록 계약 | `@xeon/contracts/records` | `F.records.spec`, `F.records.plan` | 포함(`SessionStore`는 2차) |
-| capabilities | 능력 정의(서비스 메서드 + 모델 도구 쌍), `ServiceKey`, 도구 이름·제목, 결정적 도구 순서, 능력 오류, 정적 검증 | F3 능력 계약 | `@xeon/contracts/capabilities` | `F.capabilities.spec`, `F.capabilities.plan` | 포함(내장 능력 정의는 M1부터) |
-| extensions | 확장 매니페스트, 지점 선언 표(on fold, post, drive, scope), 그룹 레코드 형식(kind 접두, `GroupRecord`, 종류 등록), 열거형 확장 예약 | F4 확장 계약 | `@xeon/contracts/extensions` | `F.extensions.spec`, `F.extensions.plan` | 포함(열거형 확장 예약은 2차) |
-| wire-settings | 호스트 계약(JSON-RPC, 메서드 레지스트리, seq 커서, 오류, 전송 인터페이스, 버전 정책)과 설정 스키마 단일 원천(`SettingDef`, 범위 우선순위, JSON Schema 출력) | F5 연결·설정 계약 | `@xeon/contracts/wire`, `@xeon/contracts/settings` | `F.wire-settings.spec`, `F.wire-settings.plan` | 포함(오류 구간, `_meta`, 소켓 전송은 M2) |
+| conversation | 브랜드 ID 8종, pi 메시지·스트림·도구 타입 재노출과 런타임 스키마, 파트 id, thread/turn/step/item 계층과 수명주기 알림, 도구 결과 3채널, 재생 정책 `ReplayPolicy` | F1 대화 모델 | `@fresnel/contracts/conversation` | `F.conversation.spec`, `F.conversation.plan` | 포함 |
+| records | 이벤트 envelope(내구/휘발), kind 이름 규칙과 코어 카탈로그, blob 분리, 효과 3단과 복구 규칙, 단계 체크포인트, 업캐스터·마이그레이션 | F2 기록 계약 | `@fresnel/contracts/records` | `F.records.spec`, `F.records.plan` | 포함(`SessionStore`는 2차) |
+| capabilities | 능력 정의(서비스 메서드 + 모델 도구 쌍), `ServiceKey`, 도구 이름·제목, 결정적 도구 순서, 능력 오류, 정적 검증 | F3 능력 계약 | `@fresnel/contracts/capabilities` | `F.capabilities.spec`, `F.capabilities.plan` | 포함(내장 능력 정의는 M1부터) |
+| extensions | 확장 매니페스트, 지점 선언 표(on fold, post, drive, scope), 그룹 레코드 형식(kind 접두, `GroupRecord`, 종류 등록), 열거형 확장 예약 | F4 확장 계약 | `@fresnel/contracts/extensions` | `F.extensions.spec`, `F.extensions.plan` | 포함(열거형 확장 예약은 2차) |
+| wire-settings | 호스트 계약(JSON-RPC, 메서드 레지스트리, seq 커서, 오류, 전송 인터페이스, 버전 정책)과 설정 스키마 단일 원천(`SettingDef`, 범위 우선순위, JSON Schema 출력) | F5 연결·설정 계약 | `@fresnel/contracts/wire`, `@fresnel/contracts/settings` | `F.wire-settings.spec`, `F.wire-settings.plan` | 포함(오류 구간, `_meta`, 소켓 전송은 M2) |
 
-- 서비스 인터페이스 서브패스 `@xeon/contracts/services`는 도메인을 새로 만들지 않는다. L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수를 모으는 서브패스이고 정의는 `F.capabilities.spec` §3.12가 정한다 [결정: review.decisions-2 D-04]. 층 사이 협력은 이 인터페이스로만 한다(DR-02, DR-14, CM-05).
+- 서비스 인터페이스 서브패스 `@fresnel/contracts/services`는 도메인을 새로 만들지 않는다. L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수를 모으는 서브패스이고 정의는 `F.capabilities.spec` §3.12가 정한다 [결정: review.decisions-2 D-04]. 층 사이 협력은 이 인터페이스로만 한다(DR-02, DR-14, CM-05).
 
 [결정] M0 범위에 `contracts`(F 전 도메인의 TypeBox 타입)가 들어간다(`_research/foundation-plan.md` §5 P4).
 
@@ -49,20 +49,20 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 
 | 서브패스 | 소스 디렉터리 | 진입 파일 |
 |---|---|---|
-| `@xeon/contracts/conversation` | `src/conversation/` | `src/conversation/index.ts` |
-| `@xeon/contracts/records` | `src/records/` | `src/records/index.ts` |
-| `@xeon/contracts/capabilities` | `src/capabilities/` | `src/capabilities/index.ts` |
-| `@xeon/contracts/extensions` | `src/extensions/` | `src/extensions/index.ts` |
-| `@xeon/contracts/wire` | `src/wire-settings/wire/` | `src/wire-settings/wire/index.ts` |
-| `@xeon/contracts/settings` | `src/wire-settings/settings/` | `src/wire-settings/settings/index.ts` |
-| `@xeon/contracts/services` | `src/services/` | `src/services/index.ts` |
+| `@fresnel/contracts/conversation` | `src/conversation/` | `src/conversation/index.ts` |
+| `@fresnel/contracts/records` | `src/records/` | `src/records/index.ts` |
+| `@fresnel/contracts/capabilities` | `src/capabilities/` | `src/capabilities/index.ts` |
+| `@fresnel/contracts/extensions` | `src/extensions/` | `src/extensions/index.ts` |
+| `@fresnel/contracts/wire` | `src/wire-settings/wire/` | `src/wire-settings/wire/index.ts` |
+| `@fresnel/contracts/settings` | `src/wire-settings/settings/` | `src/wire-settings/settings/index.ts` |
+| `@fresnel/contracts/services` | `src/services/` | `src/services/index.ts` |
 
 - 패키지는 `xeon/packages/contracts`다. 도메인은 5개이고 서브패스는 7개다. wire-settings 도메인 하나가 서브패스 둘을 만든다. 설정 선언은 X~L4 모두 쓰고 wire는 L4만 쓰기 때문이다(`F.wire-settings.spec` 첫 표). `./services`는 L0·L1 서비스 인터페이스와 X 포트를 확장하는 `McpService`·`GroupService`, `SERVICE_NAMES`(15개)의 모음이다(`F.capabilities.spec` §3.12).
 - `package.json`은 다음 모양을 목표로 한다. 각 도메인 plan이 자기 항목을 더한다.
 
   ```json
   {
-    "name": "@xeon/contracts",
+    "name": "@fresnel/contracts",
     "exports": {
       ".": "./src/index.ts",
       "./conversation": "./src/conversation/index.ts",

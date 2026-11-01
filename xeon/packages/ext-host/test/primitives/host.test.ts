@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
+import { err } from "@fresnel/contracts";
 import {
   InputQueuePortKey,
   ProjectorRegistryPortKey,
   RecordCommitPortKey,
   ScopedStorePortKey,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { ExtHostPortKey, hostOf, PrimitiveError } from "../../src/primitives/index.ts";
 import {
   createTestHost,
@@ -125,7 +125,7 @@ test("registerPlatform provides ports and surfaces setup errors", async () => {
     name: "platform-fake",
     setup(ctx) {
       ctx.providePort(ScopedStorePortKey, store);
-      // xeon.session의 두 하위 포트는 한 서비스로 묶여 제공된다
+      // fresnel.session의 두 하위 포트는 한 서비스로 묶여 제공된다
       ctx.providePort(RecordCommitPortKey, records);
       ctx.providePort(ProjectorRegistryPortKey, registry);
       ctx.onDispose(() => {

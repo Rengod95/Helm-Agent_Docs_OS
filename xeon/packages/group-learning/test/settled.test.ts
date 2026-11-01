@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import type { AgentSettledEventPayload } from "@xeon/contracts/records";
-import { fakeAgents } from "@xeon/group-sdk/testing";
-import { defaultMetricsRegistry } from "@xeon/group-sdk";
-import { createTestHost } from "@xeon/ext-host/testing";
+import type { AgentSettledEventPayload } from "@fresnel/contracts/records";
+import { fakeAgents } from "@fresnel/group-sdk/testing";
+import { defaultMetricsRegistry } from "@fresnel/group-sdk";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { NEW_SKILL, startReview, submit } from "./support/flow.ts";
 import { rigOn } from "./support/rig.ts";
 

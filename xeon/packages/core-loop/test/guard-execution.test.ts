@@ -3,9 +3,9 @@ import {
   defineManifest,
   type ExtensionEntry,
   type GuardOutputPayload,
-} from "@xeon/contracts/extensions";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/extensions";
+import type { ExtensionUnit } from "@fresnel/ext-host";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createHarness } from "./support/harness.ts";
 
 // M3-REQ-109 / B2-ART: guard.output.before의 target "execution". 산출물 적용 직전에 L2가 loop.guardExecution으로 부른다.

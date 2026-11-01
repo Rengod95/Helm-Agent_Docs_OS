@@ -1,7 +1,7 @@
 // 리뷰 서비스의 포트 대역(파일, 가드, 큐, 승인). 실제 구현 대신 기록과 설정 가능한 응답만 둔다.
-import { Bug, err, ok, type Result } from "@xeon/contracts";
-import type { ApprovalId, ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { EnqueueError, PostItem, PostWhen } from "@xeon/contracts/extensions";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
+import type { ApprovalId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { EnqueueError, PostItem, PostWhen } from "@fresnel/contracts/extensions";
 import type {
   ApprovalRequestError,
   GuardExecutionOutcome,
@@ -9,7 +9,7 @@ import type {
   L2ApprovalSnapshot,
   L2ApprovalsPort,
   LoopError,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { ExecutionGuardPort, ReviewFilesPort, ReviewQueuePort } from "../../src/ports.ts";
 
 function occurrences(text: string, needle: string): number {

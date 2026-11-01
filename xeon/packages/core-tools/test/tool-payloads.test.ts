@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { WorkspaceFiles } from "@xeon/contracts/capabilities";
-import type { ToolCallPayload, ToolExecutionEndPayload } from "@xeon/contracts/extensions";
+import { WorkspaceFiles } from "@fresnel/contracts/capabilities";
+import type { ToolCallPayload, ToolExecutionEndPayload } from "@fresnel/contracts/extensions";
 import { entriesOf } from "../src/entries.ts";
 import {
   callTool,

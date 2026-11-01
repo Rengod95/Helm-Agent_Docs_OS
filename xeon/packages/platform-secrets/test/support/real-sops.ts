@@ -1,6 +1,6 @@
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { generateIdentity, identityToRecipient } from "age-encryption";
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import { createRedactor } from "../../src/redactor.ts";
 import {
   bunRunner,

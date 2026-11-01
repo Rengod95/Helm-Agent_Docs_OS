@@ -1,10 +1,10 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   ExtensionManifest,
   ExtensionName,
   HookName,
   ScopeId,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 
 /** 정책이 보는 핸들러 항목의 읽기 전용 모습(X.primitives.spec §3.4) */
 export interface HandlerEntryInfo {

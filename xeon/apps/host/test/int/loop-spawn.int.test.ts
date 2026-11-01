@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { LoopPort } from "@xeon/contracts/extensions";
+import type { LoopPort } from "@fresnel/contracts/extensions";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { EXPLORER } from "../fixtures/agent-tape.ts";
@@ -40,7 +40,7 @@ realTest(
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", {});
     const port = captured.port;
-    if (port === undefined) throw new Error("xeon.loop was not captured");
+    if (port === undefined) throw new Error("fresnel.loop was not captured");
     const request = {
       threadId: created.threadId,
       scopeId: "probe-scope",

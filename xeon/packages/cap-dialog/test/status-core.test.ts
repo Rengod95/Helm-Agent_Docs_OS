@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { DurableEventEnvelope, EventKind } from "@xeon/contracts/records";
+import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
 import { createStatusService, STATUS_BATCH_MS } from "../src/status/service.ts";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { callOptions, harness, newThread } from "./support/harness.ts";
 
 // 피드의 내구 이벤트와 도구 실행 지점이 내장 세그먼트 core.turn, core.tools, core.usage를 채운다.

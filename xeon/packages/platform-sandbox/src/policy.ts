@@ -1,4 +1,4 @@
-import type { SandboxNetworkPolicy, SandboxPolicy } from "@xeon/contracts/services";
+import type { SandboxNetworkPolicy, SandboxPolicy } from "@fresnel/contracts/services";
 import { toAbsolutePath, canonicalizePath, sortedUnique } from "./paths.ts";
 import type { SrtCommandConfig, SrtConfig } from "./srt.ts";
 

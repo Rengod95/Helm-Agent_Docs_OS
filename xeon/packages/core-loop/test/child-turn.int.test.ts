@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ChildTurnRequest, TaskScope } from "@xeon/contracts/services";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ChildTurnRequest, TaskScope } from "@fresnel/contracts/services";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { countKind, firstOfKind } from "./support/inspect.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";

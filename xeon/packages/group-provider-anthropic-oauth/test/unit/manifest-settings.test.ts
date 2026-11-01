@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { validateManifest } from "@xeon/contracts/extensions";
-import { buildCatalog, checkSettingDef } from "@xeon/contracts/settings";
-import { checkGroup } from "@xeon/group-sdk/testing";
+import { validateManifest } from "@fresnel/contracts/extensions";
+import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
+import { checkGroup } from "@fresnel/group-sdk/testing";
 import {
   DISGUISE_RISK_NOTICE,
   providerAnthropicOauthGroup,

@@ -1,17 +1,17 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
   EffectIntentSchema,
   StepCheckpointSchema,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type {
   ApprovalBody,
   ApprovalRequest,
   ApprovalResolution,
   ApprovalRequestInput,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { createToolRuntime } from "../src/runtime.ts";
 import { eachInOrder } from "../src/util.ts";
 import {
@@ -56,7 +56,7 @@ interface Asker {
   readonly resolutions: ApprovalResolution[];
 }
 
-/** 질문·계획 도구: 실행 안에서 xeon.approvals.request를 부르고 해결이 오면 끝난다 */
+/** 질문·계획 도구: 실행 안에서 fresnel.approvals.request를 부르고 해결이 오면 끝난다 */
 function registerAsker(
   h: Harness,
   name: string,

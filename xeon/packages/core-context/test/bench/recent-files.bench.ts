@@ -6,14 +6,14 @@
 // 출처: packages/core-models/node_modules/@earendil-works/pi-ai/dist/utils/estimate.js. 모델 토크나이저의 값이 아니다.
 // 재주입 본문은 글자만 있으므로 이미지 블록(4800자) 분기는 옮기지 않았다.
 // compute 샘플 하나는 호출 COMPUTE_CALLS번의 평균 시간(ms)이다. 호출이 짧아 여러 번 부르고 나눈다.
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import type {
   AssistantMessage,
   ItemRecord,
   ToolResultMessage,
   Usage,
   UserMessage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import { recentFileMessages } from "../../src/recent-files.ts";
 import { DEFAULT_CONTEXT_SETTINGS } from "../../src/settings.ts";
 import { assistantItem, userItem } from "../support/builders.ts";

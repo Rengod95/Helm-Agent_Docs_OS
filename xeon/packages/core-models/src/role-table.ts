@@ -1,5 +1,5 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { ModelThinkingLevel } from "@xeon/contracts/conversation";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { ModelThinkingLevel } from "@fresnel/contracts/conversation";
 import {
   parseModelRef,
   type ModelBinding,
@@ -9,7 +9,7 @@ import {
   type ResolutionSource,
   type ResolvedModel,
   type RoleOverrides,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { clampThinkingLevel, type Api, type Model } from "@earendil-works/pi-ai";
 import type { BudgetLevel, ThinkingBudgetSettings } from "./settings.ts";
 

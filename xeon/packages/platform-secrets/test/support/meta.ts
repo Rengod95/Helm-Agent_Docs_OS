@@ -1,5 +1,5 @@
-import { Bug, parse } from "@xeon/contracts";
-import { SecretMetaSchema, type SecretMeta } from "@xeon/contracts/capabilities";
+import { Bug, parse } from "@fresnel/contracts";
+import { SecretMetaSchema, type SecretMeta } from "@fresnel/contracts/capabilities";
 
 export interface MetaInput {
   readonly name?: string;

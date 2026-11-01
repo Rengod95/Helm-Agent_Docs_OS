@@ -1,4 +1,4 @@
-import type { LockBusy } from "@xeon/contracts/records";
+import type { LockBusy } from "@fresnel/contracts/records";
 
 // L0.process.spec §3.2·§4.5, L0.process.plan PR-15. 세션 잠금 실패 때 무엇을 할지 정하는 순수 함수.
 // store는 LockBusy 정보만 돌려주고, 위임·관찰·분기 선택은 여기서 정한다. 실행은 L4·L1이 한다.

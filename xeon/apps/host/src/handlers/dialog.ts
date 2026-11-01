@@ -1,10 +1,10 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import {
   wireError,
   type WireError,
   type WireHandler,
   type WireHandlers,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { DialogWireFailure, Engine } from "../types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 

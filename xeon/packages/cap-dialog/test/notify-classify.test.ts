@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope, EventKind } from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { classifyNotice } from "../src/notify/classify.ts";
 import { newThread } from "./support/harness.ts";
 

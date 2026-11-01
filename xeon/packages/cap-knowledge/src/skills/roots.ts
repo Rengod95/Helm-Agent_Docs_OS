@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { SkillDiagnostic, SkillRoots } from "../upstream/skills.ts";
 
-// L2.knowledge.spec §4.1 경로, §4.2.1 루트 순서. 경로는 `xeon.os`가 준 디렉터리와 설정에서만 만든다(DR-13).
+// L2.knowledge.spec §4.1 경로, §4.2.1 루트 순서. 경로는 `fresnel.os`가 준 디렉터리와 설정에서만 만든다(DR-13).
 
 export interface RootsInput {
   /** `OsDirs.data`. 사용자 스킬은 `<data>/skills` */

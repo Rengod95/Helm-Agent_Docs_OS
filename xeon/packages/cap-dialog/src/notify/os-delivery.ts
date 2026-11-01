@@ -1,17 +1,17 @@
-import { assertNever, detach, type Logger } from "@xeon/contracts";
-import type { Notice, NoticeKind } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, detach, type Logger } from "@fresnel/contracts";
+import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   NotifyError,
   NotifyKind,
   OsNotification,
   OsService,
   Redactor,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { DialogSettings } from "../settings.ts";
 import { clip } from "../util.ts";
 
-// L2.dialog.spec §4.7.2. 구독으로 받은 알림을 `xeon.os`의 `notify`로 보낸다. 보낼지는 `notify.os`와 종류별 키가 정하고,
+// L2.dialog.spec §4.7.2. 구독으로 받은 알림을 `fresnel.os`의 `notify`로 보낸다. 보낼지는 `notify.os`와 종류별 키가 정하고,
 // 이 함수는 마스킹과 길이 제한만 한다. OS가 막아 전달하지 못한 것은 대화의 실패가 아니므로 운영 로그에만 남긴다.
 
 /** 제목 길이 상한(L0.os.spec §3.7) */
@@ -20,7 +20,7 @@ const OS_TITLE_MAX = 80;
 const OS_BODY_MAX = 400;
 
 export interface OsDeliveryOptions {
-  /** `xeon.os`. 이 함수가 쓰는 것은 `notify`뿐이다 */
+  /** `fresnel.os`. 이 함수가 쓰는 것은 `notify`뿐이다 */
   readonly os: Pick<OsService, "notify">;
   /** 대화 한 개의 유효 설정. 세션 범위를 포함하므로 알림마다 읽는다 */
   readonly settings: (threadId: ThreadId) => DialogSettings;
@@ -34,7 +34,7 @@ export interface OsDeliveryOptions {
 /** `NoticeFeed.subscribe`의 리스너 모양 */
 export type OsDelivery = (threadId: ThreadId, notice: Notice) => void;
 
-/** 알림 종류를 `xeon.os`의 종류로 옮긴다(§4.7.2 표) */
+/** 알림 종류를 `fresnel.os`의 종류로 옮긴다(§4.7.2 표) */
 function osKindOf(kind: NoticeKind): NotifyKind {
   switch (kind) {
     case "completed":

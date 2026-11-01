@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import { CapabilityError, type CommonErrorCode } from "@xeon/contracts/capabilities";
+import { Bug } from "@fresnel/contracts";
+import { CapabilityError, type CommonErrorCode } from "@fresnel/contracts/capabilities";
 import {
   ExecutionError,
   FileError,
   type ExecutionErrorCode,
   type FileErrorCode,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   executionErrorCode,
   fileErrorCode,

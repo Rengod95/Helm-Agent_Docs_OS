@@ -1,13 +1,17 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
-import { ScheduleIdSchema, SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
+import {
+  ScheduleIdSchema,
+  SecretNameSchema,
+  type SecretName,
+} from "@fresnel/contracts/capabilities";
 import {
   ItemIdSchema,
   ThreadIdSchema,
   type ItemId,
   type ThreadId,
-} from "@xeon/contracts/conversation";
-import { SettingKeySchema, type SettingKey, type SettingScope } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/conversation";
+import { SettingKeySchema, type SettingKey, type SettingScope } from "@fresnel/contracts/settings";
 import { checkGroupName, type GroupTemplateKind } from "../group/rules.ts";
 import { titleProblem } from "../threads.ts";
 
@@ -175,7 +179,7 @@ export interface ServiceCommand {
   /** `--allow-non-loopback`. 루프백이 아닌 `--listen-tcp` 주소를 허용한다 */
   readonly allowNonLoopback: boolean;
 }
-/** @xeon/host의 HostCommand(runHostCommand 입력)와 다른 타입이다. 이름을 나눠 둔다. */
+/** @fresnel/host의 HostCommand(runHostCommand 입력)와 다른 타입이다. 이름을 나눠 둔다. */
 interface CliHostCommand {
   readonly kind: "host";
   readonly stdio: true;
@@ -780,7 +784,7 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
           t("cli.usage.oneOf.fix", { list: "get, set, reset, list, schema" }),
         ),
       );
-    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
@@ -1143,7 +1147,7 @@ function parseSchedule(
           t("cli.usage.oneOf.fix", { list: "add, list, cancel, run" }),
         ),
       );
-    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
@@ -1325,7 +1329,7 @@ function parseSessions(
           t("cli.usage.oneOf.fix", { list: "ls, show, fork, rm, rename" }),
         ),
       );
-    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
@@ -1551,7 +1555,7 @@ function parseSecret(
           t("cli.usage.oneOf.fix", { list: "ls, add, set, meta, rotate, rm, test, reveal" }),
         ),
       );
-    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
@@ -1742,7 +1746,7 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
           t("cli.usage.db.exportSyntax"),
         ),
       );
-    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
@@ -1856,7 +1860,7 @@ function parseGroup(acc: GlobalAcc, rest: readonly string[]): Result<GroupNewCom
           t("cli.usage.group.newSyntax"),
         ),
       );
-    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
@@ -1925,7 +1929,7 @@ function commandOf(
       return parseJsonOnly(acc, "version", rest);
     case "help":
       return ok({ kind: "help", topic: rest[0] ?? null });
-    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
+    // fresnel-disable-next-line fresnel/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(

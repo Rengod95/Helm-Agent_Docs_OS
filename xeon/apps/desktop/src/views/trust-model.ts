@@ -1,5 +1,5 @@
-import { t, type MessageId } from "@xeon/client/i18n";
-import type { TrustChoice, TrustOption, TrustStatus } from "@xeon/contracts/wire";
+import { t, type MessageId } from "@fresnel/client/i18n";
+import type { TrustChoice, TrustOption, TrustStatus } from "@fresnel/contracts/wire";
 
 // 프로젝트 신뢰 카드의 순수 로직(L4.desktop.spec §4.13). 판정(`trust.get`/`trust.decide`의 TrustStatus)을 카드가 그리는 값으로 바꾼다.
 // 선택지의 `label`은 현지화 식별자다(F.wire-settings.spec). 이 표가 식별자를 카탈로그 id로 옮기고, 모르는 식별자는 식별자 그대로 보인다.

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { LeaseOwnerInfo, LockBusy } from "@xeon/contracts/records";
+import type { LeaseOwnerInfo, LockBusy } from "@fresnel/contracts/records";
 import {
   createLockFallbackPolicy,
   threadLockedDetails,

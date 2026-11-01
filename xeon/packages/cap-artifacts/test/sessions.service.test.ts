@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { codeOf } from "./support/assert.ts";
 import { openSessions, type SessionsHarness } from "./support/harness.ts";
 

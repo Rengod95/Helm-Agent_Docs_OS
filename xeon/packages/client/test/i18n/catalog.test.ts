@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { MESSAGE_KEY_PATTERN } from "@xeon/contracts/settings";
+import { MESSAGE_KEY_PATTERN } from "@fresnel/contracts/settings";
 import { catalogOf } from "../../src/i18n/index.ts";
 
 const en = catalogOf("en");

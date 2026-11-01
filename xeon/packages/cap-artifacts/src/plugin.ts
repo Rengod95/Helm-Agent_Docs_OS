@@ -1,4 +1,4 @@
-import { attemptAsync, detach, err, ok } from "@xeon/contracts";
+import { attemptAsync, detach, err, ok } from "@fresnel/contracts";
 import {
   ArtifactsRegistry,
   ArtifactsRegistryKey,
@@ -8,10 +8,14 @@ import {
   ArtifactsSessionsKey,
   CapabilityError,
   WorkspaceFilesKey,
-} from "@xeon/contracts/capabilities";
-import type { IdFactory, LocalIdFactory, ThreadId } from "@xeon/contracts/conversation";
-import { InputQueuePortKey, type ExtensionEntry, type PortKey } from "@xeon/contracts/extensions";
-import type { Unsubscribe } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import type { IdFactory, LocalIdFactory, ThreadId } from "@fresnel/contracts/conversation";
+import {
+  InputQueuePortKey,
+  type ExtensionEntry,
+  type PortKey,
+} from "@fresnel/contracts/extensions";
+import type { Unsubscribe } from "@fresnel/contracts/records";
 import {
   ApprovalServicePortKey,
   LoopServicePortKey,
@@ -22,8 +26,8 @@ import {
   type ApprovalService,
   type L2ApprovalsPort,
   type ToolPolicyMeta,
-} from "@xeon/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
 import { ARTIFACTS_EXTENSION_NAME, artifactsManifest } from "./manifest.ts";
 import type { ExecutionGuardPort, ReviewFilesPort, ReviewQueuePort } from "./ports.ts";
 import { createAnswerHandler } from "./reviews/answer.ts";
@@ -42,7 +46,7 @@ import {
 export interface ArtifactsPluginOptions {
   readonly ids: IdFactory;
   readonly localIds: LocalIdFactory;
-  /** `xeon.approvals`를 검토 승인(kind review)을 내는 포트로 감싸는 함수. 조립 루트가 넘긴다. 없으면 열 때 승인 요청을 내지 않는다 */
+  /** `fresnel.approvals`를 검토 승인(kind review)을 내는 포트로 감싸는 함수. 조립 루트가 넘긴다. 없으면 열 때 승인 요청을 내지 않는다 */
   readonly approvals?: (service: ApprovalService) => L2ApprovalsPort;
   readonly loadIndex?: number;
   /** 설정 층. 없으면 기본값(`DEFAULT_ARTIFACTS_SETTINGS`)으로 돈다 */

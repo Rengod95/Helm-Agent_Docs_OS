@@ -62,7 +62,7 @@ M1 구현(`bcd77b4`)은 `@earendil-works/pi-agent-core` 1.3.0의 `runAgentLoop`�
 
 ### 3.2 F 타입
 
-[결정] 루프가 내고 받는 타입은 F `@xeon/contracts/conversation`이 직접 정의한다. pi-ai 타입(메시지, 콘텐츠 블록, 스트림 이벤트, `Tool`, `Usage` 등)은 계속 재노출한다.
+[결정] 루프가 내고 받는 타입은 F `@fresnel/contracts/conversation`이 직접 정의한다. pi-ai 타입(메시지, 콘텐츠 블록, 스트림 이벤트, `Tool`, `Usage` 등)은 계속 재노출한다.
 
 | 이름 | 처리 |
 |---|---|
@@ -97,7 +97,7 @@ M1 구현(`bcd77b4`)은 `@earendil-works/pi-agent-core` 1.3.0의 `runAgentLoop`�
 | 단계 경계 커밋 | 없음(래퍼가 싱크·훅에서 커밋) | 루프 단계 함수가 순서대로 부른다: T1/C2 → S1(`step.started`) → 요청 → `message_end` chain → C3(응답, `next:"tools"` 체크포인트) → 도구 배치(E1~E3는 core-tools) → `turn_end`·`agent_before_settle` chain → C5(`step.completed` + 체크포인트 + 엔트리 + 배치) → … → C6. 커밋 실패는 값(`Result`)으로 돌아와 run을 끝낸다 |
 | 확장 지점 | 없음(이벤트만) | on: 단계 함수가 지점을 직접 발화한다(tap은 커밋 뒤, chain은 커밋 전). post: C5의 `inputs.drain` 결과가 다음 요청 앞에 붙는다. drive: `LoopPort.runTurn` 진입과 단계 경계의 drive 신호 확인. scope: C5 뒤 적용된 토글을 다음 S1의 도구 광고가 읽는다 |
 | 문맥 | 루프가 `context.messages` 배열을 들고 push | 루프는 메시지 배열을 들고 있지 않다. 요청마다 L1.context가 커밋된 이벤트에서 다시 만든다. 단계 안 메시지(응답, 도구 결과)는 커밋된 뒤에만 다음 요청에 들어간다 |
-| 모델·추론 레벨 변경 | `prepareRequest`·`prepareNextTurn` 반환값 | S1 직전에 xeon.models가 단계 바인딩을 정한다. 체크포인트 `model` 필드와 같은 값이다 |
+| 모델·추론 레벨 변경 | `prepareRequest`·`prepareNextTurn` 반환값 | S1 직전에 fresnel.models가 단계 바인딩을 정한다. 체크포인트 `model` 필드와 같은 값이다 |
 | 도구 선언 차이 | 루프 안 `declareToolChanges`(pi-ai 값 함수 사용) | core-models가 감싼 함수로 차이를 구하고 system item으로 기록한다. 기록 위치는 지금과 같은 C3다 |
 | steer·aside·next | `getSteeringMessages` 콜백 | C5 커밋 안의 `inputs.drain`이 고른 메시지를 단계 결과로 돌려받아 다음 요청 앞에 둔다. 콜백이 없다 |
 | follow-up | `getFollowUpMessages` 콜백, 바깥 반복 | 없음. 새 turn |
@@ -112,7 +112,7 @@ M1 구현(`bcd77b4`)은 `@earendil-works/pi-agent-core` 1.3.0의 `runAgentLoop`�
 [결정] 도구 한 호출의 준비·실행·마감은 core-tools가 하고, 배치 스케줄(순차·병렬, 이벤트 순서, 중단, `terminate` 규칙, `length` 실패)은 core-loop가 한다. `ToolService`의 `toAgentTools`·`hooks`·`observe`와 core-loop의 `runToolCall` 사용은 단계 계약으로 바꾼다 [제안: 이름과 시그니처는 `L1.tools.spec` §3.3에서 정한다].
 
 ```ts
-// F @xeon/contracts/services tools.ts (개요). 실패는 값으로 돌려준다
+// F @fresnel/contracts/services tools.ts (개요). 실패는 값으로 돌려준다
 export type CallPreparation =
   | { readonly kind: "ready"; readonly call: PreparedCall }          // 정책 허용, E1 intent 커밋됨
   | { readonly kind: "settled"; readonly outcome: ToolCallOutcome }; // 미발견·인자 오류·거부·중단: 결과까지 기록됨

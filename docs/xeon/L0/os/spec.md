@@ -14,7 +14,7 @@ binds: [xeon/packages/platform-os/**]
 
 ### 1.1 정하는 것
 
-서비스 `xeon.os`(F 인터페이스 `OsService`)를 정한다. 패키지는 `@xeon/platform-os`다(`eng.context-map.design` §5.3). 내용은 두 묶음이다.
+서비스 `fresnel.os`(F 인터페이스 `OsService`)를 정한다. 패키지는 `@fresnel/platform-os`다(`eng.context-map.design` §5.3). 내용은 두 묶음이다.
 
 | 묶음 | 구성요소 | 범위 | 근거 |
 |---|---|---|---|
@@ -54,14 +54,14 @@ binds: [xeon/packages/platform-os/**]
 
 ### 3.0 위치
 
-- `OsService`와 그 값 타입, 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스(`src/services/os.ts`)에 둔다 [결정: review.decisions-2 D-04].
-- `Clock`, `Scheduler`, `TimerHandle`, `RandomSource`, `Logger`, `LogLevel`, `LogValue`, `LogFields`는 인터페이스만 F 루트 base(`@xeon/contracts`)에 두고 구현은 이 패키지에 둔다 [결정: review.decisions-2 U-03, `F.readme` §3·§8 10번]. `IdFactory`·`LocalIdFactory` 인터페이스는 `@xeon/contracts/conversation`이고 구현(`createIdFactory`, `createLocalIdFactory`)은 이 패키지가 둔다(3.4절).
+- `OsService`와 그 값 타입, 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스(`src/services/os.ts`)에 둔다 [결정: review.decisions-2 D-04].
+- `Clock`, `Scheduler`, `TimerHandle`, `RandomSource`, `Logger`, `LogLevel`, `LogValue`, `LogFields`는 인터페이스만 F 루트 base(`@fresnel/contracts`)에 두고 구현은 이 패키지에 둔다 [결정: review.decisions-2 U-03, `F.readme` §3·§8 10번]. `IdFactory`·`LocalIdFactory` 인터페이스는 `@fresnel/contracts/conversation`이고 구현(`createIdFactory`, `createLocalIdFactory`)은 이 패키지가 둔다(3.4절).
 - 아래 코드는 F에 들어갈 정의 초안과 `platform-os` 내부 정의를 함께 적는다. 각 블록 첫 줄 주석이 위치다.
 
 ### 3.1 플랫폼 정보
 
 ```ts
-// F: @xeon/contracts/services  src/services/os.ts
+// F: @fresnel/contracts/services  src/services/os.ts
 import { Type, type TUnsafe } from "typebox";
 
 export type OsPlatform = "darwin" | "linux" | "win32";
@@ -89,8 +89,8 @@ export type PlatformError =
 
 ```ts
 // platform-os 내부: src/select.ts  (OS 분기 표현이 허용되는 유일한 파일)
-import type { Result } from "@xeon/contracts";
-import type { OsInfo, PlatformError } from "@xeon/contracts/services";
+import type { Result } from "@fresnel/contracts";
+import type { OsInfo, PlatformError } from "@fresnel/contracts/services";
 
 export interface PlatformProbe {
   readonly platform: string;          // process.platform
@@ -116,7 +116,7 @@ export function selectProviders(info: OsInfo, env: EnvOverrides): OsProviders;
 ### 3.2 디렉터리
 
 ```ts
-// F: @xeon/contracts/services  src/services/os.ts
+// F: @fresnel/contracts/services  src/services/os.ts
 export interface OsDirs {
   /** 사용자 홈(os.homedir()). 보호 경로 계산(L0.sandbox.spec §3.3)과 서비스 cwd에 쓴다. ensureDirs가 만들거나 검사하지 않는다 */
   readonly home: string;
@@ -199,7 +199,7 @@ export function ensureDirs(dirs: OsDirs, fs: DirFs, signal: AbortSignal): Promis
 ### 3.3 파일 시스템 종류
 
 ```ts
-// F: @xeon/contracts/services  src/services/os.ts
+// F: @fresnel/contracts/services  src/services/os.ts
 export type FsKind = "local" | "network" | "drvfs" | "unknown";
 export type FsKindError =
   | { readonly kind: "not_found"; readonly path: string }
@@ -261,7 +261,7 @@ export function systemRandom(): RandomSource;       // crypto.getRandomValues �
 
 ```ts
 // platform-os 공개: src/ids.ts
-import type { IdFactory, LocalIdFactory } from "@xeon/contracts/conversation";
+import type { IdFactory, LocalIdFactory } from "@fresnel/contracts/conversation";
 /** 브랜드 ID 8종(thr, trn, stp, itm, prt, evt, efx, ckp) 발급. ULID 시각 부분은 clock, 난수 부분은 random */
 export function createIdFactory(clock: Clock, random: RandomSource): IdFactory;
 /** 도메인 지역 ID(LocalIdPrefix 표의 sls, bgp 등) 발급. 같은 ULID 규칙 */
@@ -283,7 +283,7 @@ export function createLocalIdFactory(clock: Clock, random: RandomSource): LocalI
 (a)안의 근거는 위 표의 X 제약과 DR-14다. 정의:
 
 ```ts
-// F: @xeon/contracts 루트 base  src/base/log.ts
+// F: @fresnel/contracts 루트 base  src/base/log.ts
 export type LogLevel = "debug" | "info" | "warn" | "error";
 export type LogValue = string | number | boolean | null | readonly LogValue[] | { readonly [k: string]: LogValue };
 export type LogFields = { readonly [k: string]: LogValue };
@@ -317,7 +317,7 @@ export function createJsonLinesLogger(opts: JsonLinesLoggerOptions): Logger & { 
 
 - 형식: 한 줄에 JSON 객체 하나(JSON Lines). 필드는 `ts`(`clock.now()`), `level`, `event`, 그 뒤 `baseFields`, `child` 필드, 호출 필드 순서로 합친다. 같은 키는 뒤가 이긴다.
 - `event`는 고정 이름(`turn.finished` 꼴)이다. 문자열 보간 메시지를 받지 않는다(BP-12).
-- 마스킹: 직렬화한 한 줄 전체를 `redact`에 넘긴 뒤 `sink`로 보낸다. `platform-os`는 `platform-secrets`를 import하지 않는다. 조립 루트(`apps/host`)가 `xeon.secrets`의 마스킹 함수를 `redact`에 연결한다. `redact`가 던지면 그 줄을 버리고 `{"event":"log.redact_failed"}` 한 줄만 쓴다(원문이 새지 않게).
+- 마스킹: 직렬화한 한 줄 전체를 `redact`에 넘긴 뒤 `sink`로 보낸다. `platform-os`는 `platform-secrets`를 import하지 않는다. 조립 루트(`apps/host`)가 `fresnel.secrets`의 마스킹 함수를 `redact`에 연결한다. `redact`가 던지면 그 줄을 버리고 `{"event":"log.redact_failed"}` 한 줄만 쓴다(원문이 새지 않게).
 - 출력 위치: `sink`는 L4가 고른다(BP-12). stdio JSON-RPC 사이드카에서는 stdout을 쓰면 안 되므로 기본값은 stderr이고, 데스크톱 사이드카는 L4가 파일 sink를 줄 수 있다 [제안].
 - 레벨 미만 호출은 직렬화하지 않는다. 설정 `l0.os.log.level`(`runtimeChange: "live"`) 변경은 두 방법으로 반영한다. `PlatformOsConfig.logLevel`에 함수 `() => LogLevel`을 주면 로그를 낼 때마다 그 값을 읽어 구독 없이 다음 호출부터 반영된다(조립 루트가 설정 조회 함수를 넘긴다) [결정: m2 마감 G1-12]. `setLevel`(`OsServiceHandle.setLogLevel`)을 부르면 그 값으로 고정하고 함수 읽기를 멈춘다.
 
@@ -329,7 +329,7 @@ export function createJsonLinesLogger(opts: JsonLinesLoggerOptions): Logger & { 
 |---|---|---|
 | `manualClock`, `seededRandom`, `fixedIdFactory` | 쓰는 패키지의 `test/` 안 | 시각·타이머·난수·ID. F에는 `./testing` 서브패스를 두지 않는다 [결정: review.decisions-2 U-03] |
 | `memoryLogger` [제안] | 쓰는 패키지의 `test/` 안 | 기록된 로그 줄 배열을 돌려주는 `Logger`. BP-05 좋은 예가 쓰는 이름 |
-| `tempDir`, `withIsolatedEnv` | `@xeon/platform-os/testing` | 임시 디렉터리, 격리된 환경 변수. 파일 시스템을 쓰므로 L0에 둔다 |
+| `tempDir`, `withIsolatedEnv` | `@fresnel/platform-os/testing` | 임시 디렉터리, 격리된 환경 변수. 파일 시스템을 쓰므로 L0에 둔다 |
 
 ```ts
 // platform-os: src/testing/index.ts  (exports "./testing")
@@ -355,7 +355,7 @@ export interface IsolatedEnv {
 ### 3.6 외부 바이너리 (1차)
 
 ```ts
-// F: @xeon/contracts/services  src/services/os.ts
+// F: @fresnel/contracts/services  src/services/os.ts
 export type BinaryName = "rg" | "sops" | "age" | "git" | "bwrap" | "socat" | "security" | "secret-tool";
 export type BinarySource = "bundled" | "system";
 
@@ -428,8 +428,8 @@ export type BinaryError =
 ### 3.7 사용자 알림 (1차, M3)
 
 ```ts
-// F: @xeon/contracts/services  src/services/os.ts
-import type { ThreadId } from "@xeon/contracts/conversation";
+// F: @fresnel/contracts/services  src/services/os.ts
+import type { ThreadId } from "@fresnel/contracts/conversation";
 
 export type NotifyKind = "done" | "approval" | "question" | "error";
 export interface OsNotification {
@@ -474,12 +474,12 @@ export function buildNotifyCommand(info: OsInfo, n: OsNotification): readonly st
 
 ### 3.8 파일 감시 (2차)
 
-책임 경계 [미결 2, `L0.exec.spec`과 같은 문장으로 맞춘다]: 작업 공간 파일 감시는 `xeon.exec`의 `ExecutionEnv.watch`가 맡고, 앱 설정·스킬·플러그인 디렉터리 감시는 `xeon.os`의 `FileWatcher`가 맡는다. 판정은 경로 기준이다. `OsDirs`(config, data, state) 아래 경로는 os, 작업 공간 루트 아래 경로(프로젝트 안 `.fresnel/` 포함)는 exec다.
+책임 경계 [미결 2, `L0.exec.spec`과 같은 문장으로 맞춘다]: 작업 공간 파일 감시는 `fresnel.exec`의 `ExecutionEnv.watch`가 맡고, 앱 설정·스킬·플러그인 디렉터리 감시는 `fresnel.os`의 `FileWatcher`가 맡는다. 판정은 경로 기준이다. `OsDirs`(config, data, state) 아래 경로는 os, 작업 공간 루트 아래 경로(프로젝트 안 `.fresnel/` 포함)는 exec다.
 
 계획 v2는 "ExecutionEnv.watch를 쓰고, 없으면 @parcel/watcher를 쓴다"고 적었다(`_research/layer-plan-v2.json` L0-f 파일 감시). L0 패키지끼리 import할 수 없으므로(DR-02) os가 exec의 감시를 대신 부르거나 exec가 os의 감시로 넘기는 구조는 두지 않는다. 위 경계로 두 감시가 겹치지 않게 한다.
 
 ```ts
-// F: @xeon/contracts/services  src/services/os.ts
+// F: @fresnel/contracts/services  src/services/os.ts
 export type FileChangeType = "create" | "update" | "delete";
 export interface FileChange {
   readonly type: FileChangeType;
@@ -532,7 +532,7 @@ export function createFileWatcher(deps: {
 ### 3.9 텔레메트리 (2차)
 
 ```ts
-// F: @xeon/contracts/services  src/services/os.ts
+// F: @fresnel/contracts/services  src/services/os.ts
 import type { Tracer } from "@opentelemetry/api";   // F는 import type만(F.readme §1)
 
 export interface OsTelemetry {
@@ -553,10 +553,10 @@ export interface OsTelemetry {
 ### 3.10 OsService
 
 ```ts
-// F: @xeon/contracts/services  src/services/os.ts
-import type { Clock, Logger, RandomSource, Result, Scheduler } from "@xeon/contracts";
+// F: @fresnel/contracts/services  src/services/os.ts
+import type { Clock, Logger, RandomSource, Result, Scheduler } from "@fresnel/contracts";
 
-export const OsServiceName = "xeon.os" as const;
+export const OsServiceName = "fresnel.os" as const;
 
 export interface OsTime {
   readonly clock: Clock;
@@ -609,7 +609,7 @@ export function platformOsPlugin(config: PlatformOsConfig): PlatformModule;   //
 - 다른 L0 문서가 요구한 이름과 이 인터페이스의 대응: `resourceDir()`(`L0.store.spec` FR-S8) = `dirs.resource`, `runtimeDir()`(`L0.process.spec` FR-P4) = `dirs.runtime`, `userId()` = `userId`, `machineId()` = `machineId`, `processStartFingerprint(pid)` = 같은 이름의 메서드, 홈 디렉터리 = `dirs.home`.
 - `machineId` [제안]: Linux는 `/etc/machine-id`, macOS는 `ioreg -rd1 -c IOPlatformExpertDevice`의 `IOPlatformUUID` [가정], Windows는 레지스트리 `MachineGuid` [가정]. 읽지 못하면 `os.hostname()`의 SHA-256 hex 앞 32자를 쓰고 경고 로그를 남긴다. 서비스 등록 때 한 번 읽는다.
 - `processStartFingerprint` [제안]: Linux는 `/proc/<pid>/stat` 22번째 필드(부팅 뒤 클록 틱)를 `/proc/stat`의 `btime`과 `CLK_TCK`로 epoch ms로 바꾼다. macOS는 `Bun.spawnSync(["ps", "-o", "lstart=", "-p", <pid>])` 출력 파싱이다 [가정: 초 단위 해상도]. Windows는 `unsupported`(2차). 같은 pid에 대해 같은 값을 돌려주는 것만 보장하고, 다른 측정 수단의 값과 비교하지 않는다.
-- `time`은 서비스 등록 뒤 바뀌지 않는다. 조립 루트는 이 값을 꺼내 `deps`로 다른 패키지에 넘긴다(BP-05). 시계를 별도 서비스 이름(`xeon.clock` 등)으로 나눌지는 미결 7이다.
+- `time`은 서비스 등록 뒤 바뀌지 않는다. 조립 루트는 이 값을 꺼내 `deps`로 다른 패키지에 넘긴다(BP-05). 시계를 별도 서비스 이름(`fresnel.clock` 등)으로 나눌지는 미결 7이다.
 - `PlatformOsConfig.notifier`의 타입 `NotifierProvider`를 L4가 구현하려면 공개 진입점에서 이 타입을 export해야 한다. L4 조립 루트만 쓴다.
 
 ### 3.11 파일 잠금
@@ -740,8 +740,8 @@ export interface WorktreeOps {
 ## 7. 확장 지점
 
 - 이 패키지는 on 지점을 구독하지 않고, post·drive·scope를 쓰지 않는다(`L0.readme` §1).
-- X에서 쓰는 것은 `PlatformModule`(`setup`), `PlatformContext.providePort`, `onDispose`(4절 6번)다. 등록은 조립 루트가 `ExtHost.registerPlatform`으로 한다(`X.primitives.spec` §3.2). `@xeon/ext-host` import는 이 등록 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17].
-- 확장(플러그인)이 알림을 보내려면 `dialog.notify`의 `emit`을 쓴다(`L2.dialog.spec` §3.6). `xeon.os`의 `notify`는 `cap-dialog`가 부르는 전달 수단이다. 확장이 OS 명령을 직접 실행하는 경로는 없다.
+- X에서 쓰는 것은 `PlatformModule`(`setup`), `PlatformContext.providePort`, `onDispose`(4절 6번)다. 등록은 조립 루트가 `ExtHost.registerPlatform`으로 한다(`X.primitives.spec` §3.2). `@fresnel/ext-host` import는 이 등록 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17].
+- 확장(플러그인)이 알림을 보내려면 `dialog.notify`의 `emit`을 쓴다(`L2.dialog.spec` §3.6). `fresnel.os`의 `notify`는 `cap-dialog`가 부르는 전달 수단이다. 확장이 OS 명령을 직접 실행하는 경로는 없다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -770,9 +770,9 @@ export interface WorktreeOps {
 
 F에 요청:
 
-1. `@xeon/contracts` 루트 base: `Clock`, `TimerHandle`, `Scheduler`, `RandomSource`(이미 `eng.typescript.guide` §1.2 이름)와 `Logger`, `LogLevel`, `LogValue`, `LogFields`(3.5절)를 둔다. `F.readme` §3에 반영되었다(U-03).
-2. (철회) `@xeon/contracts/testing` 서브패스는 두지 않는다 [결정: review.decisions-2 U-03]. `manualClock`, `seededRandom`, `fixedIdFactory`, `memoryLogger`는 쓰는 패키지의 `test/` 안에 둔다.
-3. `@xeon/contracts/services` [결정: review.decisions-2 D-04]: `OsService`, `OsServiceName`, `OsTime`, `FingerprintError`, `OsInfo`, `OsInfoSchema`, `OsPlatform`, `OsArch`, `PlatformError`, `OsDirs`, `DirsError`, `FsKind`, `FsKindError`, `BinaryName`, `BinarySource`, `ResolveBinaryOptions`, `ResolvedBinary`, `BinaryError`, `NotifyKind`, `OsNotification`, `NotifyError`, `FileChangeType`, `FileChange`, `WatchOptions`, `WatchHandle`, `WatchError`, `OsTelemetry`.
+1. `@fresnel/contracts` 루트 base: `Clock`, `TimerHandle`, `Scheduler`, `RandomSource`(이미 `eng.typescript.guide` §1.2 이름)와 `Logger`, `LogLevel`, `LogValue`, `LogFields`(3.5절)를 둔다. `F.readme` §3에 반영되었다(U-03).
+2. (철회) `@fresnel/contracts/testing` 서브패스는 두지 않는다 [결정: review.decisions-2 U-03]. `manualClock`, `seededRandom`, `fixedIdFactory`, `memoryLogger`는 쓰는 패키지의 `test/` 안에 둔다.
+3. `@fresnel/contracts/services` [결정: review.decisions-2 D-04]: `OsService`, `OsServiceName`, `OsTime`, `FingerprintError`, `OsInfo`, `OsInfoSchema`, `OsPlatform`, `OsArch`, `PlatformError`, `OsDirs`, `DirsError`, `FsKind`, `FsKindError`, `BinaryName`, `BinarySource`, `ResolveBinaryOptions`, `ResolvedBinary`, `BinaryError`, `NotifyKind`, `OsNotification`, `NotifyError`, `FileChangeType`, `FileChange`, `WatchOptions`, `WatchHandle`, `WatchError`, `OsTelemetry`.
 4. (반영됨) `eng.dependency-rules.guide` DR-07 표: `@vscode/ripgrep`, `@parcel/watcher`, `pi-telemetry`, `@opentelemetry/sdk-trace-node`, `@opentelemetry/api`(값 import)의 소유 패키지와 `Bun.spawn` 소유 패키지에 `platform-os`가 있다 [결정: review.decisions-2 U-17].
 
 ## 9. 수용 기준
@@ -782,7 +782,7 @@ F에 요청:
 3. WSL probe(`isWsl: true`)에서 data가 `/mnt/c/...`로 해석되면 `data_dir_on_drvfs`를 돌려준다.
 4. `ensureDirs`가 새로 만든 디렉터리의 권한이 macOS·Linux에서 `0o700`이고, 0755인 기존 디렉터리에는 `permission_too_open`을 돌려준다.
 5. 같은 Clock·Scheduler 계약 테스트 묶음이 `systemClock`·`systemScheduler`와 `manualClock`에서 모두 통과한다(취소, 만기 순서, 음수·NaN 지연, 모르는 핸들 취소).
-6. `Date.now`, `Math.random`, `performance.now`, 인자 없는 `new Date()` 직접 호출이 `packages/platform-os` 밖에서 0건이다(oxlint `no-restricted-properties`와 스캔 `xeon/no-ambient-time`).
+6. `Date.now`, `Math.random`, `performance.now`, 인자 없는 `new Date()` 직접 호출이 `packages/platform-os` 밖에서 0건이다(oxlint `no-restricted-properties`와 스캔 `fresnel/no-ambient-time`).
 7. `process.platform`, `os.platform()`, `WSL_DISTRO_NAME`, `/proc/version` 참조가 `packages/platform-os/src/select.ts` 밖에서 0건이다.
 8. 번들 rg의 해시를 바꾼 픽스처에서 `resolveBinary("rg")`가 `integrity_mismatch`를 돌려주고 실행 함수가 한 번도 불리지 않는다.
 9. 설정 기본값으로 시작한 서비스에서 `telemetry.enabled`가 false이고 OTel SDK 모듈이 로드되지 않는다. 설정 키 `l0.os.notify.*`는 선언되어 있지 않다. M3 빌드에서 provider가 `none`이 아니면 `notify`는 `disabled`를 돌려주지 않는다.

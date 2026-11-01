@@ -4,14 +4,14 @@ import {
   type CapabilityApi,
   type CommentView,
   type ReviewView,
-} from "@xeon/contracts/capabilities";
-import { toJsonValue, type JsonValue, type ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   ReviewOpenedPayloadSchema,
   type EventKind,
   type ReviewOpenedPayload,
-} from "@xeon/contracts/records";
-import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
+} from "@fresnel/contracts/records";
+import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
 import { actorOf, requestIdOf, scopeOf, type CallScope } from "../call.ts";
 import { reject, storeRejection } from "../errors.ts";
 import { collectDiffs } from "./collect.ts";

@@ -4,9 +4,9 @@ import {
   type Result,
   type Scheduler,
   type TimerHandle,
-} from "@xeon/contracts";
-import type { SecretName } from "@xeon/contracts/capabilities";
-import { WireError, type WireParams, type WireResult } from "@xeon/contracts/wire";
+} from "@fresnel/contracts";
+import type { SecretName } from "@fresnel/contracts/capabilities";
+import { WireError, type WireParams, type WireResult } from "@fresnel/contracts/wire";
 
 // 비밀 값 열람 view-model(M3-REQ-17, L4.settings-ui.spec §4.6.3 "값 보기", §4.6.4). 열람은 사람 전용이고 재인증을 거친다.
 // 상태는 hidden → reauth → revealed | failed 한 줄이다. 값은 `revealed` 상태에서만 존재하고, 숨기거나 시한이 지나거나

@@ -1,5 +1,5 @@
-import { detach, repeatAsync, type Logger } from "@xeon/contracts";
-import type { HostConnection } from "@xeon/contracts/wire";
+import { detach, repeatAsync, type Logger } from "@fresnel/contracts";
+import type { HostConnection } from "@fresnel/contracts/wire";
 import {
   createThreadReaderPort,
   startLink,

@@ -1,11 +1,11 @@
 import { Type } from "typebox";
-import type { IdFactory, StepId } from "@xeon/contracts/conversation";
+import type { IdFactory, StepId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
-} from "@xeon/contracts/extensions";
-import type { ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/contracts/extensions";
+import type { ExtensionUnit } from "@fresnel/ext-host";
 
 // M1 걸어 다니는 골격의 테스트용 그룹: on(turn_end), post(followUp 한 번), drive(loop.turn 몇 번), scope(켜기·끄기).
 

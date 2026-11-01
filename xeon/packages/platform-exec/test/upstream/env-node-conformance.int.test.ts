@@ -5,9 +5,9 @@ import { join } from "node:path";
 // FRESNEL-PATCH: P4
 import { afterEach, describe, expect, it } from "bun:test";
 // FRESNEL-PATCH: P15
-import { repeatAsync } from "@xeon/contracts";
+import { repeatAsync } from "@fresnel/contracts";
 // FRESNEL-PATCH: P5
-import type { CancelScope } from "@xeon/contracts/services";
+import type { CancelScope } from "@fresnel/contracts/services";
 import { registerExecConformance } from "../../src/testing/conformance.ts";
 import { getOrThrow, type WatchChange } from "../../src/upstream/env/index.ts";
 import { NodeExecutionEnv } from "../../src/upstream/env/node.ts";

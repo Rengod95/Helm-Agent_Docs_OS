@@ -1,11 +1,11 @@
-import { attemptAsync, err, ok } from "@xeon/contracts";
+import { attemptAsync, err, ok } from "@fresnel/contracts";
 import {
   isCapabilityError,
   type CallOptions,
   type Notice,
   type NotifyListInputValue,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DialogWireFailure, DialogWirePort } from "../types.ts";
 import { hostContext } from "./commands.ts";
 import type { CommandRegistryHolder, NotifyApi } from "./l2-units.ts";

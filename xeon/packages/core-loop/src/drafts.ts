@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { EventId, IdFactory, StepId, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import type { EventId, IdFactory, StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import {
   ownerOfKind,
   type DurableEventDraft,
@@ -8,7 +8,7 @@ import {
   type ProducerId,
   type SessionService,
   type StampedDraft,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 /** 이벤트 초안의 범위 필드. envelope 범위 필드와 같은 이름이다 */
 export interface DraftScope {

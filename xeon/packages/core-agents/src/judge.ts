@@ -5,10 +5,10 @@ import {
   commitKeyPart,
   type CommitPlan,
   type ProducerHandle,
-} from "@xeon/contracts/records";
-import { parse, type Logger } from "@xeon/contracts";
-import type { IdFactory, StepId } from "@xeon/contracts/conversation";
-import type { JudgeInput, JudgeOutcome, JudgeRecord } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import { parse, type Logger } from "@fresnel/contracts";
+import type { IdFactory, StepId } from "@fresnel/contracts/conversation";
+import type { JudgeInput, JudgeOutcome, JudgeRecord } from "@fresnel/contracts/services";
 import type { AgentsSession } from "./deps.ts";
 import { sha256Hex } from "./hash.ts";
 import { completeStructured, JudgeAnswerSchema, type StructuredModels } from "./structured.ts";
@@ -20,7 +20,7 @@ export interface JudgeDeps {
   readonly session: Pick<AgentsSession, "commit" | "query">;
   readonly producer: ProducerHandle;
   readonly ids: IdFactory;
-  /** 호출 때마다 얻는다(xeon.models는 core-models가 올린다). 없으면 판정은 `failed`다 */
+  /** 호출 때마다 얻는다(fresnel.models는 core-models가 올린다). 없으면 판정은 `failed`다 */
   readonly models: () => StructuredModels | undefined;
   readonly maxRuns: (input: JudgeInput) => number;
   readonly now: () => number;
@@ -86,7 +86,7 @@ export function createJudge(deps: JudgeDeps): (input: JudgeInput) => Promise<Jud
     const maxRuns = deps.maxRuns(input);
     if (runs >= maxRuns) return { kind: "capped", runs, maxRuns };
     const models = deps.models();
-    if (models === undefined) return { kind: "failed", message: "xeon.models is not available" };
+    if (models === undefined) return { kind: "failed", message: "fresnel.models is not available" };
 
     const answered = await completeStructured(models, {
       role: "judge",

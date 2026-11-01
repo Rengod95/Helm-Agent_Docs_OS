@@ -105,7 +105,7 @@ describe("record_tape_entry", () => {
     const tape = await loadTape(r.out);
     expect(tape.header).toEqual({
       kind: "header",
-      format: "xeon.model-tape.v1",
+      format: "fresnel.model-tape.v1",
       tapeId: "recorded/hello-text",
       origin: "recorded",
       matching: "role-queue",

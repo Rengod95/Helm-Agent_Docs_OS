@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { attemptAsync, repeatAsync } from "@xeon/contracts";
+import { attemptAsync, repeatAsync } from "@fresnel/contracts";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tempDir, type TempDir } from "../src/testing/index.ts";

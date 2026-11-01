@@ -105,7 +105,7 @@ const POLICY_MANIFEST = `{
 `;
 
 const TEMPLATES: Readonly<Record<string, string>> = {
-  "common/package.json": `{ "name": "@xeon/group-__ID__", "version": "__VERSION__" }\n`,
+  "common/package.json": `{ "name": "@fresnel/group-__ID__", "version": "__VERSION__" }\n`,
   "common/README.md": `# __TITLE__\n`,
   "drive/.fresnel-plugin/plugin.json": DRIVE_MANIFEST,
   "drive/src/index.ts": `// __ID__\n`,
@@ -178,7 +178,7 @@ test("placeholders are replaced in file contents and in file paths", async () =>
   const fake = templatesFake();
   await harness(fake).run(["group", "new", "focus-lens"]);
   expect(fake.files.get("/work/project/focus-lens/package.json")).toBe(
-    `{ "name": "@xeon/group-focus-lens", "version": "0.1.0" }\n`,
+    `{ "name": "@fresnel/group-focus-lens", "version": "0.1.0" }\n`,
   );
   expect(fake.files.get("/work/project/focus-lens/README.md")).toBe("# focus-lens\n");
   expect(fake.files.get("/work/project/focus-lens/src/focus-lens.ts")).toBe("// focus-lens\n");
@@ -247,7 +247,7 @@ test("the longest allowed name (32 characters) is accepted", async () => {
   const fake = templatesFake();
   expect(await harness(fake).run(["group", "new", name])).toBe(EXIT.ok);
   expect(fake.files.get(`/work/project/${name}/package.json`)).toBe(
-    `{ "name": "@xeon/group-${name}", "version": "0.1.0" }\n`,
+    `{ "name": "@fresnel/group-${name}", "version": "0.1.0" }\n`,
   );
 });
 

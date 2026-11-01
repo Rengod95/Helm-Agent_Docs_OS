@@ -1,6 +1,6 @@
-import { Bug, err, ok, type Result } from "@xeon/contracts";
-import type { ToolName } from "@xeon/contracts/capabilities";
-import type { ToolRegisterError } from "@xeon/contracts/extensions";
+import { Bug, err, ok, type Result } from "@fresnel/contracts";
+import type { ToolName } from "@fresnel/contracts/capabilities";
+import type { ToolRegisterError } from "@fresnel/contracts/extensions";
 import type { ToolEntry } from "./types.ts";
 
 // L1.tools.spec §3.3 등록 표. 같은 이름이 이미 있으면 등록은 통째로 실패하고 표는 그대로다(name_conflict). 확장 조합이 낼 수 있는 정상 운영 중의 실패라 값으로 돌려준다(TY-24).

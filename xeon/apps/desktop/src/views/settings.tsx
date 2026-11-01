@@ -1,5 +1,5 @@
-import { detach, rethrow } from "@xeon/contracts";
-import type { SecretName } from "@xeon/contracts/capabilities";
+import { detach, rethrow } from "@fresnel/contracts";
+import type { SecretName } from "@fresnel/contracts/capabilities";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { keepTools } from "../app/setup.ts";
 import { useLinkPhase } from "../state/engine/index.ts";
@@ -14,7 +14,7 @@ import {
   type BinaryView,
   type SetupSnapshot,
   type SetupStep,
-} from "@xeon/client/settings";
+} from "@fresnel/client/settings";
 import { useCommands, type CommandError } from "./commands.ts";
 
 // 최소 설정 화면(G2-08, L4.desktop.spec §4.14): 첫 실행 안내, 외부 도구 점검 결과, 모델 키 등록, 기본 모델.

@@ -1,5 +1,5 @@
 {
-  "name": "@xeon/cap-workspace",
+  "name": "@fresnel/cap-workspace",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,16 +13,16 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
-    "@xeon/contracts": "workspace:*",
-    "@xeon/ext-host": "workspace:*",
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/ext-host": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:",
-    "@xeon/core-tools": "workspace:*",
-    "@xeon/platform-exec": "workspace:*"
+    "@fresnel/core-tools": "workspace:*",
+    "@fresnel/platform-exec": "workspace:*",
+    "@types/bun": "catalog:"
   },
-  "xeon": {
+  "fresnel": {
     "layer": "L2",
     "domain": "workspace"
   }

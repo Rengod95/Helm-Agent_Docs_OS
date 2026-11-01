@@ -1,13 +1,13 @@
 import { readdirSync } from "node:fs";
 import { posix } from "node:path";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 import {
   matchProtectedPath,
   type OsDirs,
   type ProtectedAccess,
   type ProtectedMatch,
   type ProtectedPathEntry,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { canonicalizePath, toAbsolutePath } from "./paths.ts";
 
 // L0.sandbox.spec §3.3. 보호 경로는 줄일 수 없고 설정으로 더할 수만 있다.

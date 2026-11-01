@@ -2,8 +2,8 @@
 // 활성 가지 위 이벤트를 seq 순으로 접어 읽는다: 분기·되감기·재개를 따라간다.
 // 이벤트 순서로 쌓는 투영(p_settings)은 두지 않는다. 버려진 가지의 값을 담을 수 있어서다(§3.10 p_scopes와 같은 이유).
 // 도구 호출마다 읽으므로 thread별 캐시를 두고 leaf가 앞으로만 나아갔을 때는 새 이벤트만 접는다.
-import { Bug, err, ok, parse, type Logger, type Result } from "@xeon/contracts";
-import type { EventId, IdFactory, JsonValue, ThreadId } from "@xeon/contracts/conversation";
+import { Bug, err, ok, parse, type Logger, type Result } from "@fresnel/contracts";
+import type { EventId, IdFactory, JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
   SettingsChangedPayloadSchema,
@@ -13,7 +13,7 @@ import {
   type SessionSettingsStore,
   type SqlTx,
   type StoreDb,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { sha256Hex } from "./hash.ts";
 import { branchEvents, isOnBranch, kindIn, leafOf } from "./branch.ts";
 import { envelopeOfRow } from "./events.ts";

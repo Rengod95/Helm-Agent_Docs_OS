@@ -1,5 +1,5 @@
-import { assertNever, Bug, parse } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, Bug, parse } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   HOOKS,
   type ChainHookName,
@@ -7,7 +7,7 @@ import {
   type FirstHookName,
   type HookName,
   type ScopeId,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { eraseDispatchOptions, restoreOutcome } from "../erase.ts";
 import { withAmbient } from "./ambient.ts";
 import type {

@@ -10,7 +10,7 @@ binds: [xeon/packages/platform-store/**]
 
 # L0 저장 기반 (store)
 
-이 문서는 L0-e "저장 기반"(`_research/layer-plan-v2.json` L0-e)의 스펙이다. 패키지는 `xeon/packages/platform-store`(`@xeon/platform-store`)이고 Cordis 서비스 `xeon.store`(`StoreService`)를 등록한다(`eng.context-map.design` §5.3).
+이 문서는 L0-e "저장 기반"(`_research/layer-plan-v2.json` L0-e)의 스펙이다. 패키지는 `xeon/packages/platform-store`(`@fresnel/platform-store`)이고 Cordis 서비스 `fresnel.store`(`StoreService`)를 등록한다(`eng.context-map.design` §5.3).
 
 [결정] `bun:sqlite`는 이 패키지만 import한다(`eng.dependency-rules.guide` DR-07). `better-sqlite3`, `node:sqlite`, `sqlite3`는 모든 패키지에서 금지다. 계획 v2 L0-e 표의 better-sqlite3 서술은 `_research/foundation-plan.md §2` DB 행의 bun:sqlite 결정이 우선한다.
 
@@ -67,11 +67,11 @@ binds: [xeon/packages/platform-store/**]
 
 ## 3. 인터페이스
 
-코드 표기는 `F.conversation.spec` §3 머리말을 따른다. 예상 가능한 실패는 `@xeon/contracts`의 `Result<T, E>`로 돌려주고 `E`는 `kind` 판별 유니온이다. 버그는 `Bug`를 던진다(`eng.typescript.guide` TY-11). `Clock`(`now(): number`, epoch ms)과 `Scheduler`(`setTimeout`, `clearTimeout`)는 `L0.os.spec` §3.4의 분리를 따른다. `Clock`은 시각만 주고 타이머는 `Scheduler`가 건다. 두 인터페이스는 F 루트 base에 둔다 [결정: review.decisions-2 U-03, `L0.readme` §9 3번].
+코드 표기는 `F.conversation.spec` §3 머리말을 따른다. 예상 가능한 실패는 `@fresnel/contracts`의 `Result<T, E>`로 돌려주고 `E`는 `kind` 판별 유니온이다. 버그는 `Bug`를 던진다(`eng.typescript.guide` TY-11). `Clock`(`now(): number`, epoch ms)과 `Scheduler`(`setTimeout`, `clearTimeout`)는 `L0.os.spec` §3.4의 분리를 따른다. `Clock`은 시각만 주고 타이머는 `Scheduler`가 건다. 두 인터페이스는 F 루트 base에 둔다 [결정: review.decisions-2 U-03, `L0.readme` §9 3번].
 
 ### 3.1 F에 둘 인터페이스 초안 (records)
 
-[제안] 아래 타입은 `@xeon/contracts/records`에 둔다(§8.1 FR-S1~FR-S5). `eng.transactions.design` §4.2의 `StoreDb`, `SqlTx`, `StoreService` 초안을 기준으로 임대·표식·마이그레이션·능력 조회를 더했다. records는 wire·capabilities를 import하지 않는다(`F.readme` §3 순서 표).
+[제안] 아래 타입은 `@fresnel/contracts/records`에 둔다(§8.1 FR-S1~FR-S5). `eng.transactions.design` §4.2의 `StoreDb`, `SqlTx`, `StoreService` 초안을 기준으로 임대·표식·마이그레이션·능력 조회를 더했다. records는 wire·capabilities를 import하지 않는다(`F.readme` §3 순서 표).
 
 ```ts
 // xeon/packages/contracts/src/records/sql.ts
@@ -97,7 +97,7 @@ import type { ExtensionTables, MigrationRunner } from "./migrations.ts";
 
 import type { SqlTx } from "./sql.ts";
 
-export const StoreServiceName = "xeon.store" as const;
+export const StoreServiceName = "fresnel.store" as const;
 
 export type StoreWriteError =
   | { readonly kind: "busy" }
@@ -145,7 +145,7 @@ export interface StoreService {
 }
 ```
 
-- `StoreService`는 X 포트 `ScopedStorePort`(`Pick<StoreService, "scoped">`, `F.extensions.spec` §3.2.1)를 그대로 만족한다. X는 `ScopedStorePortKey`(`{ name: "xeon.store" }`)로 이 서비스의 `scoped`만 받는다(`F.capabilities.spec` §3.12 규칙 2, `F.extensions.spec` §9 13). 별도 어댑터는 두지 않는다.
+- `StoreService`는 X 포트 `ScopedStorePort`(`Pick<StoreService, "scoped">`, `F.extensions.spec` §3.2.1)를 그대로 만족한다. X는 `ScopedStorePortKey`(`{ name: "fresnel.store" }`)로 이 서비스의 `scoped`만 받는다(`F.capabilities.spec` §3.12 규칙 2, `F.extensions.spec` §9 13). 별도 어댑터는 두지 않는다.
 - [제안] `putBlob`/`readBlob`은 `Result`를 돌려준다. `eng.transactions.design` §4.2 초안은 `BlobRef`를 바로 돌려주지만 디스크 부족과 파일 소실은 예상 가능한 실패다(TY-11). 그 문서의 수정 요청은 §8.1 FR-S6이다.
 - `BlobRef`의 모양은 F 정본 `{ type: "blob", sha256, size, mediaType }`이다(`F.records.spec` §3.4, §3.1.2 정본 표). `eng.events.design` §4.1의 `{ hash: "sha256:…", size, mime }`는 F 이름으로 읽는다. 내용 주소의 문자열 표기 `sha256:<hex>`는 로그와 자리표시(`blob:sha256:<hex>`, `BLOB_PLACEHOLDER_PREFIX`)에만 쓴다.
 
@@ -289,19 +289,19 @@ export interface ExtensionTables {
 
 ### 3.2 패키지 공개 API (L0 platform-store)
 
-조립 루트(`apps/host`, DR-14 예외 2)만 아래 함수를 import한다. 다른 컨텍스트는 Cordis 서비스 `xeon.store`로만 쓴다.
+조립 루트(`apps/host`, DR-14 예외 2)만 아래 함수를 import한다. 다른 컨텍스트는 Cordis 서비스 `fresnel.store`로만 쓴다.
 
 ```ts
 // xeon/packages/platform-store/src/index.ts
-import type { Clock, Scheduler } from "@xeon/contracts";           // F 루트 base(review.decisions-2 U-03), L0.os.spec §3.4
-import type { FsKind } from "@xeon/contracts/services";            // L0.os.spec §3.3(review.decisions-2 D-04). 값 local | network | drvfs | unknown
-import type { IdFactory } from "@xeon/contracts/conversation";
-import type { FaultInjector, MigrationError, StoreDb, StoreService } from "@xeon/contracts/records";
+import type { Clock, Scheduler } from "@fresnel/contracts";           // F 루트 base(review.decisions-2 U-03), L0.os.spec §3.4
+import type { FsKind } from "@fresnel/contracts/services";            // L0.os.spec §3.3(review.decisions-2 D-04). 값 local | network | drvfs | unknown
+import type { IdFactory } from "@fresnel/contracts/conversation";
+import type { FaultInjector, MigrationError, StoreDb, StoreService } from "@fresnel/contracts/records";
 import type { BlobPins } from "./blob.ts";
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 
-/** xeon.os에서 받은 판정과 경로. platform-store는 OS를 직접 판정하지 않는다(DR-13 선택 지점은 select.ts).
- *  openStore와 임대 판정은 동기 경로라 조립 루트가 xeon.os의 비동기 질의를 미리 풀어 값이나 동기 함수로 넘긴다 */
+/** fresnel.os에서 받은 판정과 경로. platform-store는 OS를 직접 판정하지 않는다(DR-13 선택 지점은 select.ts).
+ *  openStore와 임대 판정은 동기 경로라 조립 루트가 fresnel.os의 비동기 질의를 미리 풀어 값이나 동기 함수로 넘긴다 */
 export interface StoreEnvironment {
   readonly platform: "darwin" | "linux" | "win32";                 // OsService.info.platform
   readonly wsl: boolean;                                           // OsService.info.isWsl
@@ -350,7 +350,7 @@ export type StoreOpenError =
   | MigrationError;                                                // owner "sys"와 "core.persistence"의 마이그레이션 실패
 
 export interface OpenedStore extends AsyncDisposable {
-  readonly service: StoreService;                                  // Cordis xeon.store로 등록
+  readonly service: StoreService;                                  // Cordis fresnel.store로 등록
   readonly root: StoreDb;                                          // core-persistence 전용 (eng.transactions.design §4.2)
   readonly blobPins: BlobPins;                                     // core-persistence 전용 (§3.4)
   readonly gcBlobs: (options: { readonly liveRefs: ReadonlySet<string> }) => Result<BlobGcReport, BlobError>; // §4.9 GC 한 번. 조립 루트 전용
@@ -369,7 +369,7 @@ export declare function openStore(options: OpenStoreOptions): Promise<Result<Ope
 /** §4.10. 원본을 읽기 전용으로만 열어 `destDir`로 내보낸다. 동기 함수다 */
 export declare function exportDatabase(options: { readonly dbPath: string; readonly destDir: string; readonly clock: Clock }): Result<ExportReport, ExportError>;
 
-/** L0 등록 단위. setup(ctx)가 ctx.providePort로 opened.service를 xeon.store에 등록한다. 조립 루트가 ExtHost.registerPlatform으로 등록한다(X.primitives.spec §3.2) */
+/** L0 등록 단위. setup(ctx)가 ctx.providePort로 opened.service를 fresnel.store에 등록한다. 조립 루트가 ExtHost.registerPlatform으로 등록한다(X.primitives.spec §3.2) */
 export declare function storePlugin(opened: OpenedStore): PlatformModule;   // name: "platform-store"
 ```
 
@@ -514,23 +514,23 @@ export interface LockProvider {
 - [실측: macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25] 시스템 `bun:sqlite`는 SQLite 3.51.0이고 `create virtual table … using fts5(x, tokenize="trigram")`가 성공해 프로브가 참이다. 따라서 macOS 26에서는 동봉 dylib 없이도 FTS5가 있다. 동봉 dylib(ST-21)은 대비책으로 남기며, 낮은 macOS 버전은 미실측이다. Homebrew sqlite(`/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib`)는 있으나 자동 탐색하지 않는다.
 - 근거: 세션 저장의 핵심(이벤트, 재개)은 FTS5 없이 동작한다. 검색이 빠진 상태로라도 대화를 이어 쓸 수 있는 편이 사용자 손실이 작다. 확정은 [미결 S-4]다.
 - FTS5 소비자 규칙: `CREATE VIRTUAL TABLE … USING fts5`를 담은 마이그레이션 단계는 `capabilities.fts5`가 거짓이면 그 소유자가 건너뛸 수 있게 `MigrationSet`을 두 벌(FTS 있음·없음) 선언하지 않고, 소유자가 FTS 테이블을 별도 owner(예: `cap.knowledge.fts`)로 나눠 조건부로 `apply`한다 [제안].
-- macOS 배포: FTS5를 포함해 빌드한 SQLite dylib을 앱 리소스 디렉터리에 동봉하고, 경로는 `xeon.os`의 리소스 디렉터리 질의로 얻는다(`env.bundledSqlitePath`) [제안]. 동봉 빌드 방법과 서명은 `L4.desktop.plan`, CLI 배포 경로는 `L4.cli.plan`이 정한다. Homebrew 경로 자동 탐색은 하지 않는다(재현성). 사용자가 다른 dylib을 쓰려면 설정 `l0.store.customSqlitePath`를 쓴다(adr.0004 §6 미결 "dylib 경로 지정 방식"에 대한 제안).
+- macOS 배포: FTS5를 포함해 빌드한 SQLite dylib을 앱 리소스 디렉터리에 동봉하고, 경로는 `fresnel.os`의 리소스 디렉터리 질의로 얻는다(`env.bundledSqlitePath`) [제안]. 동봉 빌드 방법과 서명은 `L4.desktop.plan`, CLI 배포 경로는 `L4.cli.plan`이 정한다. Homebrew 경로 자동 탐색은 하지 않는다(재현성). 사용자가 다른 dylib을 쓰려면 설정 `l0.store.customSqlitePath`를 쓴다(adr.0004 §6 미결 "dylib 경로 지정 방식"에 대한 제안).
 - [제안] 프로세스 안에서 `bun:sqlite` 외 SQLite 로더(`node:sqlite` 등)를 쓰지 않는다(adr.0004 §3.5 [제안], `eng.dependency-rules.guide` DR-07 금지 목록). macOS에서 두 모듈이 같은 라이브러리를 공유하기 때문이다.
 
 ### 4.2 DB 위치와 환경 검사
 
-- 경로는 호출자(`apps/host`)가 `xeon.os`에서 얻어 `openStore({ dbPath })`로 넘긴다. 상대 경로면 `db_path_invalid`다. platform-store는 데이터 디렉터리를 정하지 않는다.
+- 경로는 호출자(`apps/host`)가 `fresnel.os`에서 얻어 `openStore({ dbPath })`로 넘긴다. 상대 경로면 `db_path_invalid`다. platform-store는 데이터 디렉터리를 정하지 않는다.
 - 디렉터리는 없으면 0700으로 만든다. 있으면 모드를 검사해 그룹·기타 권한 비트가 있으면 `warnings`에 남기고 0700으로 고친다 [제안]. 소유자가 현재 사용자가 아니면 `permission`이다.
 - 파일 존재 검사: bun:sqlite의 `fileMustExist` 옵션은 쓰지 않는다(Bun 1.4.3에서 오류, TC-11). 열기 전에 `fs.statSync`로 존재를 확인하고 새 파일 여부를 기억한다.
 - 새 파일이면 열고 첫 PRAGMA 전에 `chmod 0600`을 한다. 기존 파일은 모드를 검사해 고친다. `-wal`, `-shm` 파일은 SQLite가 DB 파일 권한에 맞춰 만든다 [가정: SQLite 문서 미대조]. 열기 뒤 두 파일의 모드도 검사한다.
-- 파일시스템 판정은 `env.dbDirFsKind`(조립 루트가 `xeon.os`의 `fsKind`로 미리 푼 값, §3.2)로 받는다. 값 집합은 F `FsKind`(`L0.os.spec` §3.3)다. 판정은 아래와 같다 [제안].
+- 파일시스템 판정은 `env.dbDirFsKind`(조립 루트가 `fresnel.os`의 `fsKind`로 미리 푼 값, §3.2)로 받는다. 값 집합은 F `FsKind`(`L0.os.spec` §3.3)다. 판정은 아래와 같다 [제안].
 
 | `fsKind` | 예 | 동작 |
 |---|---|---|
 | `local` | ext4, APFS, NTFS(로컬) | 연다 |
 | `network` | SMB, NFS, AFP | `unsupported_filesystem`으로 거부. WAL은 공유 메모리(`-shm`)를 쓰므로 네트워크 파일시스템에서 동작하지 않는다(SQLite WAL 문서) |
 | `drvfs` | WSL의 `/mnt/<drive>`(drvfs·9p) | 거부. flock·fsync 동작이 확인되지 않았다(`_research/notes/L0-2.md §2.7`) |
-| `unknown` | 판정 실패, FUSE 등 `xeon.os` 분류 표에 없는 값 | 연다. `warnings`에 `fs_unknown` |
+| `unknown` | 판정 실패, FUSE 등 `fresnel.os` 분류 표에 없는 값 | 연다. `warnings`에 `fs_unknown` |
 
 ### 4.3 연결 설정
 
@@ -714,14 +714,14 @@ macOS `fullfsync` [제안]:
 
 `lockProvider.kind === "none"`(Windows M2 이전, FFI 로드 실패)이면 DB 임대만으로 판정한다(`eng.transactions.design` T-4 (a)안).
 
-- 획득 3단계의 "같은 host 즉시 인수"를 "같은 host이고 `pid`·`started_at` 프로세스가 살아 있지 않으면 인수"로 바꾼다. 생존 확인은 `env.processStartedAt(pid)`(`xeon.os` `processStartFingerprint`)가 `null`이거나 행의 `started_at`과 다를 때 "살아 있지 않음"이다(§8.1 FR-S8).
+- 획득 3단계의 "같은 host 즉시 인수"를 "같은 host이고 `pid`·`started_at` 프로세스가 살아 있지 않으면 인수"로 바꾼다. 생존 확인은 `env.processStartedAt(pid)`(`fresnel.os` `processStartFingerprint`)가 `null`이거나 행의 `started_at`과 다를 때 "살아 있지 않음"이다(§8.1 FR-S8).
 - 같은 host에서 죽은 소유자는 위 규칙으로 바로 인수한다. 기록된 `pid`와 프로세스 시작 지문 `started_at`으로 판정하고 만료를 기다리지 않는다(`platform-store/src/lease.ts` `decide`).
 - 만료(`leaseTtlMs`, 기본 30초)를 기다리는 경우는 둘이다. 소유자가 살아 있지만 멈춰서 하트비트가 끊긴 경우(같은 host), 그리고 다른 host이거나 생존 확인이 불가한 경우다. 정합성은 epoch 펜싱으로 같고, 비용은 이 경우의 인수 지연 최대 30초와 PID 검사 코드다(`_research/notes/L0-2.md §4.3`). 크래시(죽은 소유자)는 지연이 없다 [결정: review.decisions-2 U-09 정정].
 
 ### 4.8 복구 표식
 
 - [결정] 복구 표식은 이 패키지가 저장하지 않는다. `L1.persistence.spec` §2·§4.8.1이 정본이다. 표식은 투영 `p_threads`의 열(`running_since`, `resume_attempts`)이고 별도 쓰기 없이 이벤트에서 나온다. `turn.started` 커밋이 `running_since`를 세우고 `turn.completed`가 지우며, `resume_attempts`는 `thread.resumed` 수다. 그래서 표식은 재생으로 다시 만들어지고 `SessionWriter.commit` 한 번에 함께 바뀐다.
-- 읽는 경로는 `xeon.session`의 `RecoveryMarker`(`OpenReport.marker`, `ProjectionQuery.thread(threadId).marker`)다. `L0.process.spec` §4.6의 '이어서 실행' 제시는 호스트(L4)가 이 값을 넘겨받아 만든다.
+- 읽는 경로는 `fresnel.session`의 `RecoveryMarker`(`OpenReport.marker`, `ProjectionQuery.thread(threadId).marker`)다. `L0.process.spec` §4.6의 '이어서 실행' 제시는 호스트(L4)가 이 값을 넘겨받아 만든다.
 - 이 패키지가 맡는 것은 세션 소유 판정(§4.7)뿐이다. 표식이 남은 세션을 지금 다른 프로세스가 쥐고 있는지는 `leases.inspect`로 본다.
 
 ### 4.9 블롭 저장소
@@ -883,7 +883,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다.
 - 확장(L3 그룹, 사용자 플러그인)과의 관계는 둘이다.
   - 확장 접두사 테이블: X 로딩(`X.loading-trust.spec`)이 확장을 켤 때 `extensions.register(name)`과 `migrations.apply`를 부르고, 확장을 제거할 때 X(`X.operations.spec` §4.4.7 `dropExtension`)가 소유 장부 `xh_ext_tables`의 이름 목록으로 `extensions.drop(name, tables)`를 부른다.
-  - 확장 투영기는 §4.5 소유 판정으로 그 확장의 것인 `x_` 테이블만 쓴다(TX-03). 확장은 `@xeon/platform-store`를 import할 수 없다(DR-14). 범위 핸들이나 투영 트랜잭션 핸들만 받는다.
+  - 확장 투영기는 §4.5 소유 판정으로 그 확장의 것인 `x_` 테이블만 쓴다(TX-03). 확장은 `@fresnel/platform-store`를 import할 수 없다(DR-14). 범위 핸들이나 투영 트랜잭션 핸들만 받는다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -891,7 +891,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `StoreService`, `StoreServiceName`(`xeon.store`), `StoreDb`, `SqlTx`, `StoreCapabilities` | L1.persistence.spec, L2.knowledge.spec, L2.web.spec, L2.mcp.spec, L2.schedule.spec, L2.artifacts.spec |
+| `StoreService`, `StoreServiceName`(`fresnel.store`), `StoreDb`, `SqlTx`, `StoreCapabilities` | L1.persistence.spec, L2.knowledge.spec, L2.web.spec, L2.mcp.spec, L2.schedule.spec, L2.artifacts.spec |
 | 루트 핸들, `BlobPins`(`OpenedStore`) | L1.persistence.spec, L4.host-service.spec(조립) |
 | `LeaseService`, `LeaseToken`, `LeaseHolder`, `LockBusy`, `LeaseOwnerInfo` | L1.persistence.spec, L0.process.spec, L2.schedule.spec(`scheduler`) |
 | `MigrationRunner`, `MigrationSet`, `ExtensionTables` | L1.persistence.spec, X.loading-trust.spec, X.operations.spec, L2 각 spec |
@@ -912,7 +912,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | `EXTENSION_NAME_PATTERN`(`ExtensionName`) | F.extensions.spec |
 | 확장 테이블 이름 변환과 지역 이름 규칙, 소유 장부 `xh_ext_tables` | X.operations.spec §3.4·§4.4.2·§4.4.7 |
 | `defineSettings` | F.wire-settings.spec §3.8 |
-| DB 경로(`dirs.data`), 파일시스템 종류(`fsKind`), 리소스 디렉터리(`dirs.resource`), 프로세스 시작 시각 지문(`processStartFingerprint`), 기계 식별자(`machineId`), `Clock`·`Scheduler`(`time`) | L0.os.spec §3.2·§3.3·§3.10(서비스 `xeon.os`) |
+| DB 경로(`dirs.data`), 파일시스템 종류(`fsKind`), 리소스 디렉터리(`dirs.resource`), 프로세스 시작 시각 지문(`processStartFingerprint`), 기계 식별자(`machineId`), `Clock`·`Scheduler`(`time`) | L0.os.spec §3.2·§3.3·§3.10(서비스 `fresnel.os`) |
 
 ### 8.1 F와 다른 문서에 요청
 

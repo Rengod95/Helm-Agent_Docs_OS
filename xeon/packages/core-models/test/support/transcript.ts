@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import type { Message, TranscriptContext } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import type { Message, TranscriptContext } from "@fresnel/contracts/conversation";
 
 /**
  * F의 TranscriptContext는 pi-ai 정규화 함수만 만드는 브랜드 타입이다. F의 브랜드 심볼이 pi-ai와 따로 선언되어 있어

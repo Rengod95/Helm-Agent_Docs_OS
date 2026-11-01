@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { WireError, type HostConnection } from "@xeon/contracts/wire";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { WireError, type HostConnection } from "@fresnel/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost, type InProcessHost } from "../../src/main.ts";
 import { useEngineHome, type EngineHome } from "../fixtures/engine-home.ts";

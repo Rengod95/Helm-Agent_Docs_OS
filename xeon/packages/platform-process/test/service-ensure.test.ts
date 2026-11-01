@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok, repeatAsync, type Result } from "@xeon/contracts";
+import { err, ok, repeatAsync, type Result } from "@fresnel/contracts";
 import {
   ensureService,
   newServiceToken,

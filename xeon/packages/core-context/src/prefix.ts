@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
-import { Bug, canonicalJson } from "@xeon/contracts";
+import { Bug, canonicalJson } from "@fresnel/contracts";
 import {
   toJsonSchema,
   toolOrderKey,
   toolsetFingerprint,
   type OrderedTool,
   type ToolsetFingerprint,
-} from "@xeon/contracts/capabilities";
-import type { SystemMessage, TextContent, Tool } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { SystemMessage, TextContent, Tool } from "@fresnel/contracts/conversation";
 
 // L1.context.spec §4.2 접두 고정. 접두는 대화 첫머리의 시스템 메시지 하나다.
 // 만드는 값은 입력과 가지(타임스탬프)에서만 정해진다. 시계와 난수를 쓰지 않으므로 같은 입력이면 같은 바이트다.

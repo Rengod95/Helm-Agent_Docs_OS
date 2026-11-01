@@ -1,6 +1,6 @@
-import { t } from "@xeon/client/i18n";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { HostConnection, ThreadListResult, ThreadSummary } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { HostConnection, ThreadListResult, ThreadSummary } from "@fresnel/contracts/wire";
 
 // thread.list에서 세션 하나의 요약을 찾는다. thread.list에는 id로 거르는 질의가 없어 쪽을 넘기며 찾는다.
 

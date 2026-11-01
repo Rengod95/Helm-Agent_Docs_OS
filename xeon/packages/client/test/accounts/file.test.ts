@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { settingsFileWith, type AccountEntry } from "../../src/accounts/index.ts";
-import { parseJson, type Result } from "@xeon/contracts";
+import { parseJson, type Result } from "@fresnel/contracts";
 
 const account: AccountEntry = {
   provider: "anthropic",

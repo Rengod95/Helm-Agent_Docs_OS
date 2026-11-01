@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, parse } from "@xeon/contracts";
-import { TurnIdSchema } from "@xeon/contracts/conversation";
-import type { LeaseOwnerInfo, RecoveryMarker } from "@xeon/contracts/records";
+import { Bug, parse } from "@fresnel/contracts";
+import { TurnIdSchema } from "@fresnel/contracts/conversation";
+import type { LeaseOwnerInfo, RecoveryMarker } from "@fresnel/contracts/records";
 import { buildResumeOffers, type ResumeCandidate, type ResumePolicyInput } from "../src/index.ts";
 
 function marker(resumeAttempts: number): RecoveryMarker {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, expect, test } from "bun:test";
 
 // L0.secrets.spec §4.6 8번. 같은 사용자의 호스트 두 프로세스(CLI와 데스크톱 사이드카 자리)가 깨끗한 홈에서 동시에 첫 `add`를 해도
-// 키와 SOPS 파일은 하나만 생기고 두 값이 모두 들어간다. 프로세스 사이 잠금은 xeon.os의 flock이다. 임시 FRESNEL_HOME만 쓴다.
+// 키와 SOPS 파일은 하나만 생기고 두 값이 모두 들어간다. 프로세스 사이 잠금은 fresnel.os의 flock이다. 임시 FRESNEL_HOME만 쓴다.
 
 const real = Bun.which("sops") !== null && Bun.which("age-keygen") !== null;
 const CHILD = join(import.meta.dir, "..", "fixtures", "secret-add-child.ts");

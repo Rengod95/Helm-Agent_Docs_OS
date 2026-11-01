@@ -10,7 +10,7 @@ binds: [xeon/packages/client/src/settings/**]
 
 # L4 설정 화면 구현 계획 (settings-ui)
 
-`L4.settings-ui.spec`을 코드로 옮기는 계획이다. view-model은 `xeon/packages/client/src/settings/`(`@xeon/client/settings`, adr.0020)에 두고 렌더러는 `xeon/apps/desktop/src/views/`에 둔다. 화면 로직은 프레임워크와 DOM에 의존하지 않는 `model/`에 모으고, `views/`는 그 결과를 그리기만 한다.
+`L4.settings-ui.spec`을 코드로 옮기는 계획이다. view-model은 `xeon/packages/client/src/settings/`(`@fresnel/client/settings`, adr.0020)에 두고 렌더러는 `xeon/apps/desktop/src/views/`에 둔다. 화면 로직은 프레임워크와 DOM에 의존하지 않는 `model/`에 모으고, `views/`는 그 결과를 그리기만 한다.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -73,7 +73,7 @@ xeon/packages/client/src/settings/          # settings-ui 소유 (binds, view-mo
     fixtures/fake-store.ts # DesktopSettingsStore 가짜
     *.test.ts              # model 단위 테스트 (unit)
     client-check.contract.test.ts   # 클라이언트 검사와 F validateSettingValue 대조 (contract)
-xeon/packages/client/src/web/            # 도구와 웹 view-model (@xeon/client/web, adr.0020, spec §3.6, §4.11)
+xeon/packages/client/src/web/            # 도구와 웹 view-model (@fresnel/client/web, adr.0020, spec §3.6, §4.11)
   index.ts                 # tools-web.ts를 다시 내보낸다
   tools-web.ts             # toolsWebViewOf, orderUpdateOf, moveInOrder와 행·구획·추천 타입
 xeon/packages/client/test/web/
@@ -83,7 +83,7 @@ xeon/packages/client/test/web/
 - [제안] 테스트는 `xeon/packages/client/test/settings/`에 둔다. `binds`(`xeon/packages/client/src/settings/**`) 안에 있어 라우팅이 같은 문서를 고르고, `eng.testing.guide` TS-06의 "`src/**/*.test.ts` 또는 `test/**`" 위치 규칙에도 맞는다. desktop 패키지의 `knip.json` `entry`에 `src/**/*.test.ts`가 있어야 한다(TS-06 마지막 항목).
 - [미결] `views/`의 확장자와 부품 형식(`.tsx` 함수 부품, 단일 파일 부품 등). 프런트엔드 프레임워크는 React 19 + Zustand 5로 정해졌다(adr.0010, `L4.desktop.spec` §10 미결 11 닫힘). 원칙: `model/`은 프레임워크 무관을 유지하고, 프레임워크가 바뀌어도 `views/`만 다시 쓴다.
 - [제안] `model/**`의 DOM 무관을 검사로 강제한다. `.oxlintrc.json` override로 `src/settings/model/**`에 `no-restricted-globals`(`document`, `window`, `HTMLElement`, `navigator`)와 `no-restricted-imports`(`../views/**`, 프레임워크 패키지)를 건다. oxlint 파일 단위 override 문제(`eng.dependency-rules.guide` 3.2절)가 있으면 `check-layers.ts`의 desktop 앱 내부 규칙(W1~W7, `L4.desktop.spec` §4.9)에 같은 항목을 더하도록 desktop에 요청한다.
-- `package.json`은 desktop의 것을 쓴다. 이 계획이 더하는 의존은 `@xeon/contracts`(workspace)와 `typebox`(`catalog:` 1.3.27)다. 추가는 desktop plan 담당자가 한다.
+- `package.json`은 desktop의 것을 쓴다. 이 계획이 더하는 의존은 `@fresnel/contracts`(workspace)와 `typebox`(`catalog:` 1.3.27)다. 추가는 desktop plan 담당자가 한다.
 
 ## 3. 작업 분해
 
@@ -104,7 +104,7 @@ xeon/packages/client/test/web/
 | U11 | 게이지 자리: budgets·providers 탭의 `GaugeSlotVM`(`unavailable`)과 문구 | `model/group-by-tab.ts`, `views/TabPage.*` | U7 | S | M3 |
 | U13 | 첫 실행 권장 화면(spec §4.10): provider 상태, SearXNG 주소 입력, 권장 목록과 키 등록 버튼(C안). "다시 보지 않음"은 desktop 로컬 값 | `model/first-run.ts`, `views/FirstRun.*` | U7, U9(키 등록 경로), `L2.web.spec` provider 설정 키 | S | M3 |
 | U12 | 접근성 점검: 탭 키보드 조작, 접근 이름(`ui.label`), 오류 설명 연결, 상태 영역, 대비 4.5:1·3:1, 잠긴 항목 읽기. 점검표를 완료 기준에 남긴다 | `views/**` | U7~U11 | M | M3 |
-| U14 | 도구와 웹 view-model(`@xeon/client/web`): 행과 구획 만들기, 순위·현재·고정 표시, 추천 키 플러그인 상태, 첫 사용 고지 목록, `orderUpdateOf`, `moveInOrder`(spec §3.6, §4.11) | `src/web/*`, `test/web/tools-web.test.ts` | F `web.providers`(wire 완료, M3-REQ-96), `L2.web.spec` §4.8.2 | S | M3 |
+| U14 | 도구와 웹 view-model(`@fresnel/client/web`): 행과 구획 만들기, 순위·현재·고정 표시, 추천 키 플러그인 상태, 첫 사용 고지 목록, `orderUpdateOf`, `moveInOrder`(spec §3.6, §4.11) | `src/web/*`, `test/web/tools-web.test.ts` | F `web.providers`(wire 완료, M3-REQ-96), `L2.web.spec` §4.8.2 | S | M3 |
 
 - 순서: U1 → (U2, U3, U4 병렬) → U5 → U6 → U7 → U8. M3에서 U9, U10, U11은 U7 뒤 병렬, U13은 U9 뒤, U12는 마지막이다.
 - [제안] U10은 일반 렌더러로 같은 키를 먼저 편집할 수 있게 둔 뒤에 착수한다. 전용 편집기가 늦어도 값 편집은 막히지 않는다.
@@ -114,7 +114,7 @@ xeon/packages/client/test/web/
 | 대상 | 방식 | 버전·원본 | 바꿀 점 |
 |---|---|---|---|
 | `typebox`(`typebox/schema`의 `Check`) | 그대로 사용 | 1.3.27(`xeon/package.json` catalog). F와 같은 사본 | 없음. 클라이언트 번들에는 `typebox/schema` 서브패스만 넣는다(`_research/notes/L4-3.md` §4 P4). 1.3.27로 맞추는 결정(`F.wire-settings.spec` §10 미결 6)이 나면 catalog를 따른다 |
-| `@xeon/contracts`(`wire`, `settings`, `conversation` 서브패스) | 그대로 사용 | workspace | 없음 |
+| `@fresnel/contracts`(`wire`, `settings`, `conversation` 서브패스) | 그대로 사용 | workspace | 없음 |
 | 화면 프레임워크 | `L4.desktop.plan` 결정에 따른다 | desktop plan이 정확 버전으로 고정한다(`adr.0010`: React 19 + Zustand 5) | 이 계획은 따로 고정하지 않는다 |
 | omp 설정 정의 `register`와 `/settings` 패널 | 구조 참고만(포크 없음) | 커밋 `d1bffdfdcbf9ee36db8e5b4b72d24790dd00689f`, `docs/settings.md`(`_research/settings.md` S36) | 한 정의에서 패널·명령·파일을 만드는 구조만 참고한다 |
 | pi `settings-selector.ts`(UI 항목 39개) | 구조 참고만(포크 없음) | `/home/user/projects/_ref/pi-src` 커밋 `cdaf6c227d4718a72b59ccd02152c9614df44cfc`, `packages/coding-agent` 1.1.0, `src/modes/interactive/components/settings-selector.ts`(`_research/settings.md` S34) | 항목 목록 구성과 선택 UI 흐름만 참고한다 |
@@ -176,7 +176,7 @@ M3:
 - 비밀 탭이 값 없이 동작한다. 목록·메타·정책·이력·삭제가 보이고, 값 입력·열람은 `openSecretFlow` 경로로만 일어나며, 그 사이 WebView DOM과 상태 직렬화와 앱 로그에 값이 없다(수동 확인 또는 미결 해소 뒤 `ui` 테스트).
 - 전용 편집기 5종(U10)이 각 키를 일반 렌더러와 같은 결과로 저장한다.
 - budgets·providers 탭에 게이지 자리와 문구가 보인다.
-- 도구와 웹 view-model(U14, `@xeon/client/web`)의 값 비교 시험이 통과한다. 이 값은 `xeon doctor`와 M4 설정 화면이 그대로 쓴다(spec §3.6).
+- 도구와 웹 view-model(U14, `@fresnel/client/web`)의 값 비교 시험이 통과한다. 이 값은 `xeon doctor`와 M4 설정 화면이 그대로 쓴다(spec §3.6).
 - U12 접근성 점검표의 항목이 모두 통과한다.
 - `product.scope.spec` §4.4 M3 조건 중 "스키마 키 집합과 화면 항목 집합이 같다"를 `every-def-in-exactly-one-tab`을 실제 카탈로그(`settings.list` 결과)로 돌려 확인한다.
 - `cd xeon && just verify` 종료코드 0.

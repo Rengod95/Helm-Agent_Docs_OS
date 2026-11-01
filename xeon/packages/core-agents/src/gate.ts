@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 
 // 소유 트리 루트 하나의 동시 자식 수 상한(`l1.agents.maxConcurrent`, L1.agents.spec §4.4, AG-11).
 // 전체 풀(`limiter("subagents")`)과 별개의 두 번째 상한이다. FIFO이고 대기 중 취소하면 대기열에서 빠진다.

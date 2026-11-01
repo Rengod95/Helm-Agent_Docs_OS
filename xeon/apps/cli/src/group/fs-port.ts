@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { t } from "@xeon/client/i18n";
-import { attemptAsync, err, ok, parseJson, type Result } from "@xeon/contracts";
+import { t } from "@fresnel/client/i18n";
+import { attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
 import type { GroupIoError, GroupTargetState, GroupTemplatesPort } from "../io.ts";
 
 // L4.cli.spec §3.8. `fresnel group new`의 실제 파일 작업. 시험(group-new-core-diff.test.ts)도 이 구현을 쓴다.

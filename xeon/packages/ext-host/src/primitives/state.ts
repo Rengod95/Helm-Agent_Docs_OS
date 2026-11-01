@@ -1,5 +1,5 @@
-import { assertNever, Bug, err, ok, parse, type Result } from "@xeon/contracts";
-import { toJsonValue, type JsonValue, type ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, Bug, err, ok, parse, type Result } from "@fresnel/contracts";
+import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
 import {
   RECORD_KIND_PATTERN,
   RecordCommitPortKey,
@@ -13,12 +13,12 @@ import {
   type RecordSubject,
   type ScopeId,
   validateGroupRecord,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   ENVELOPE_MAX_BYTES,
   type DurableEventDraft,
   type ExtensionEventKind,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { ambient, type Ambient } from "./ambient.ts";
 import type { Generation, HostCore, ScopeRecord, StateCacheEntry, ThreadRuntime } from "./core.ts";
 import { makeDraft } from "./drafts.ts";
@@ -239,7 +239,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
     if (port === undefined) {
       throw new PrimitiveError(
         "port_unavailable",
-        "xeon.session (RecordCommitPort) is not provided",
+        "fresnel.session (RecordCommitPort) is not provided",
         {
           scopeId: record.id,
         },
@@ -296,7 +296,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
     if (port === undefined) {
       return new PrimitiveError(
         "port_unavailable",
-        "xeon.session (RecordCommitPort) is not provided, so the state cannot be migrated",
+        "fresnel.session (RecordCommitPort) is not provided, so the state cannot be migrated",
         { scopeId: record.id },
       );
     }

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
-import { attempt, err, ok, type Clock, type Result, type Scheduler } from "@xeon/contracts";
+import { attempt, err, ok, type Clock, type Result, type Scheduler } from "@fresnel/contracts";
 import { UNIX_SOCKET_PATH_LIMIT } from "./socket.ts";
 
 // L0.process.spec §4.4.8 소켓 터널. 원격 사용(M3-REQ-44)은 서비스 소켓을 SSH 터널이나 사설망으로 이어 쓴다. 이 파일은 터널 프로세스를 띄우고,

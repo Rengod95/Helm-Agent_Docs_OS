@@ -1,4 +1,4 @@
-import type { ExtensionName, ManifestIssue, ScopeId } from "@xeon/contracts/extensions";
+import type { ExtensionName, ManifestIssue, ScopeId } from "@fresnel/contracts/extensions";
 
 /** X.primitives.spec §3.10. ManifestIssue 코드와 겹치는 항목은 같은 문자열을 쓴다 */
 export type PrimitiveErrorCode =

@@ -1,11 +1,11 @@
 // 정의 파일 로더(L1.agents.spec §4.9, AG-9). M2는 확장 매니페스트 `components.agents`의 파일을 읽는다.
 // 프로젝트·사용자 디렉터리 탐색과 우선순위 덮어쓰기는 2차다. 잘못된 파일은 그 정의만 빼고 진단으로 남긴다.
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   AgentDefinitionSchema,
   type AgentDefinition,
   type AgentDefinitionSource,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { parseFrontmatter } from "./frontmatter.ts";
 
 export interface DefinitionDiagnostic {

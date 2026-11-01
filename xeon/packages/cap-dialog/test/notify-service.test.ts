@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Notice } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { Notice } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LIST_DEFAULT_LIMIT,
   NOTICE_COALESCE_MS,

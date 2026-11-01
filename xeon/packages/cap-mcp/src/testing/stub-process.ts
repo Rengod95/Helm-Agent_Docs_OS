@@ -1,6 +1,6 @@
 import { PassThrough } from "node:stream";
 import { deserializeMessage, serializeMessage } from "@modelcontextprotocol/client";
-import { detach, err, ok } from "@xeon/contracts";
+import { detach, err, ok } from "@fresnel/contracts";
 import type { McpChild, McpProcessPort, McpSpawnError, McpSpawnSpec } from "../ports/process.ts";
 import type { StubServer } from "./stub-server.ts";
 

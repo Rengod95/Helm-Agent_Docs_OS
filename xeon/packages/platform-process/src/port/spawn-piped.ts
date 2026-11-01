@@ -8,7 +8,7 @@ import {
   type Result,
   type Scheduler,
   type TimerHandle,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import type { ProcessPlatformProvider, TreeSignal } from "../select.ts";
 
 // L0.process.spec §4.9, L0.process.plan PR-23. 표준 입출력을 파이프로 받는 자식 프로세스 기동.

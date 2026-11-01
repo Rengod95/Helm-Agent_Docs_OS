@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { activeLocale, setActiveLocale, type Locale } from "@xeon/client/i18n";
+import { activeLocale, setActiveLocale, type Locale } from "@fresnel/client/i18n";
 import { describeResumable, resumeResultText } from "../src/commands/resume-turn.ts";
 import { EXIT } from "../src/exit-codes.ts";
 import { parseSlash } from "../src/slash.ts";

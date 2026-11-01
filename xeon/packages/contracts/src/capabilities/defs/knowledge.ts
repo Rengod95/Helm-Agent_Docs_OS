@@ -158,7 +158,7 @@ export const ScanSummarySchema: TUnsafe<ScanSummary> = Type.Unsafe<ScanSummary>(
 export type ApprovedBy = "user" | "approval" | "evidence" | "policy";
 const ApprovedBySchema = Type.Union([
   Type.Literal("user"), // 행위자가 사용자
-  Type.Literal("approval"), // xeon.approvals 승인
+  Type.Literal("approval"), // fresnel.approvals 승인
   Type.Literal("evidence"), // ApprovalEvidence
   Type.Literal("policy"), // 쓰기 승인 꺼짐, 비파괴 연산
 ]);
@@ -1685,4 +1685,4 @@ export interface KnowledgeService {
   readonly ledger: CapabilityApi<typeof KnowledgeLedger>;
 }
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
-export const KnowledgeServiceName = "xeon.knowledge" as const;
+export const KnowledgeServiceName = "fresnel.knowledge" as const;

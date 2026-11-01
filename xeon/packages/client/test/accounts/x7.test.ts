@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { parseJson, type Result } from "@xeon/contracts";
-import { validateSettingValue } from "@xeon/contracts/settings";
-import { wireError, type WireParams, type WireResult } from "@xeon/contracts/wire";
-import { MODELS_SETTING_DEFS } from "@xeon/core-models";
+import { parseJson, type Result } from "@fresnel/contracts";
+import { validateSettingValue } from "@fresnel/contracts/settings";
+import { wireError, type WireParams, type WireResult } from "@fresnel/contracts/wire";
+import { MODELS_SETTING_DEFS } from "@fresnel/core-models";
 import {
   ACCOUNTS_KEY,
   DEFAULT_RATE_LIMIT_POLICY,

@@ -21,9 +21,9 @@ import type { AdvertisedToolset, CallerId, PolicyCeiling } from "./tools.ts";
 // L1.loop.spec §3.1. 구현은 core-loop다. LoopService는 LoopPort(F.extensions.spec §3.2.1)를 확장한다.
 // 포트의 status와 이름이 겹치는 상세 상태는 threadStatus로 둔다.
 
-export const LoopServiceName = "xeon.loop" as const;
+export const LoopServiceName = "fresnel.loop" as const;
 
-/** `xeon.loop` 전체 모양(LoopService)의 포트 키. 제공 core-loop. 확장 지점이 부분형만 볼 때는 extensions의 `LoopPortKey`다 */
+/** `fresnel.loop` 전체 모양(LoopService)의 포트 키. 제공 core-loop. 확장 지점이 부분형만 볼 때는 extensions의 `LoopPortKey`다 */
 export const LoopServicePortKey: PortKey<LoopService> = { name: LoopServiceName };
 
 export interface AdmitRequest {
@@ -64,7 +64,7 @@ export interface UserBashRequest {
 export type UserBashOutcome =
   /**
    * 실행이 끝났다. `replaced`가 참이면 `input.bash.before` 핸들러가 결과를 대체해 명령을 실행하지 않았다.
-   * 실행 결과는 `xeon.tools`의 `runUserShell` 효과 3단(`effect.intent`·`effect.exec`·`effect.result`)으로 남는다
+   * 실행 결과는 `fresnel.tools`의 `runUserShell` 효과 3단(`effect.intent`·`effect.exec`·`effect.result`)으로 남는다
    */
   | { readonly status: "completed"; readonly result: UserBashResult; readonly replaced: boolean }
   /** `input.bash.before` 지점이나 정책 deny가 막았다. 명령을 실행하지 않았다. `reason`은 사용자에게 보이는 문장이다 */
@@ -80,7 +80,7 @@ export interface ChildTurnRequest {
   readonly requestId: string;
   /** 정의 prompt. L1.context 조립의 기본 프롬프트로 넘긴다 */
   readonly systemPrompt: string;
-  /** ModelRole 이름 또는 ModelRef 문자열. xeon.models가 해석한다 */
+  /** ModelRole 이름 또는 ModelRef 문자열. fresnel.models가 해석한다 */
   readonly model: string;
   /** 자식 ToolRunContext에 넣을 값 */
   readonly tools: {
@@ -154,19 +154,19 @@ export type LoopError =
  * LoopPort.status는 threadStatus(threadId).phase가 "idle"이면 "idle", 아니면 "running"이다.
  */
 export interface LoopService extends LoopPort {
-  /** 사용자 입력 제출. input 지점(chain)을 발화하고 xeon.tasks 큐에 넣는다 */
+  /** 사용자 입력 제출. input 지점(chain)을 발화하고 fresnel.tasks 큐에 넣는다 */
   admit(request: AdmitRequest): Promise<Result<AdmitResult, LoopError>>;
   /** 자식 thread turn. 주 대화와 같은 래퍼로 돈다. 같은 requestId면 기록된 결과를 돌려주거나 열린 turn을 이어 끝낸다 */
   runChildTurn(request: ChildTurnRequest): Promise<Result<LoopTurnResult, LoopError>>;
   /**
-   * 사용자 셸 입력(`!명령`). `input.bash.before`(first)를 발화하고 거부가 아니면 `xeon.tools.runUserShell`로 실행한다.
+   * 사용자 셸 입력(`!명령`). `input.bash.before`(first)를 발화하고 거부가 아니면 `fresnel.tools.runUserShell`로 실행한다.
    * turn을 열지 않으므로 turn이 실행 중이어도 부를 수 있다. 결과가 모델 컨텍스트에 들어가는지는 `excludeFromContext`가 정한다.
    * 실행 실패(명령 오류, 종료 코드)는 `completed`의 `result`로 돌려주고, `LoopError`는 실행 전의 실패(저장소, 없는 대화)다
    */
   runUserBash(request: UserBashRequest): Promise<Result<UserBashOutcome, LoopError>>;
   /** 출력을 실행에 넘기기 전의 가드 검사(`guard.output.before`, target `execution`). 차단이거나 디스패치 실패면 blocked다 */
   guardExecution(request: GuardExecutionRequest): Promise<Result<GuardExecutionOutcome, LoopError>>;
-  /** 사용자 중단(Esc). xeon.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
+  /** 사용자 중단(Esc). fresnel.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
   interrupt(threadId: ThreadId, turnId?: TurnId): Promise<boolean>;
   /** 열린 turn을 재개한다. 자동 재개는 하지 않는다 */
   resume(threadId: ThreadId): Promise<Result<ResumeResult, LoopError>>;

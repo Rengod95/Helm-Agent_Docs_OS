@@ -1,13 +1,13 @@
 import { existsSync } from "node:fs";
 import { afterAll, expect, test } from "bun:test";
 import { Type } from "typebox";
-import { err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ReadFailure, StoreFailureKind } from "@xeon/contracts/records";
-import type { StoreOpenError, StoreWarning } from "@xeon/platform-store";
-import type { ExtHost } from "@xeon/ext-host";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import { defineSettings } from "@xeon/contracts/settings";
+import { err, ok, type LogFields, type Logger, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ReadFailure, StoreFailureKind } from "@fresnel/contracts/records";
+import type { StoreOpenError, StoreWarning } from "@fresnel/platform-store";
+import type { ExtHost } from "@fresnel/ext-host";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { defineSettings } from "@fresnel/contracts/settings";
 import {
   AssembleError,
   assemble,

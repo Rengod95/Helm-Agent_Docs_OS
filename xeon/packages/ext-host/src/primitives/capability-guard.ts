@@ -4,7 +4,7 @@ import {
   type CallOptions,
   type CapabilityId,
   type MethodDef,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   capabilityEffectOf,
   isEffectAllowed,
@@ -13,7 +13,7 @@ import {
   type ReplayContext,
   type ReplayEffect,
   type ScopeId,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { ambient, withoutAmbient, type Ambient } from "./ambient.ts";
 
 /**

@@ -1,7 +1,7 @@
-import type { Logger, LogFields } from "@xeon/contracts";
-import { Bug } from "@xeon/contracts";
-import type { LocalId, LocalIdFactory, LocalIdPrefix } from "@xeon/contracts/conversation";
-import type { BackgroundStopper } from "@xeon/contracts/services";
+import type { Logger, LogFields } from "@fresnel/contracts";
+import { Bug } from "@fresnel/contracts";
+import type { LocalId, LocalIdFactory, LocalIdPrefix } from "@fresnel/contracts/conversation";
+import type { BackgroundStopper } from "@fresnel/contracts/services";
 
 interface LogRecord {
   readonly level: "debug" | "info" | "warn" | "error";

@@ -8,9 +8,9 @@ import {
   type Logger,
   type Result,
   type Scheduler,
-} from "@xeon/contracts";
-import { secretRef, type SecretHandle } from "@xeon/contracts/capabilities";
-import type { LocalIdFactory } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts";
+import { secretRef, type SecretHandle } from "@fresnel/contracts/capabilities";
+import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 import type {
   BinaryError,
   KeyProviderIdPublic,
@@ -23,7 +23,7 @@ import type {
   SecretProvider,
   SecretProviderCapabilities,
   UseCtx,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { SOPS_MIN_VERSION, type SecretsSopsFile } from "../config.ts";
 import { buildPlainEnv, buildSopsEnv, type KeyEnv } from "../env-filter.ts";
 import { errorCode, maskStderr } from "../errors.ts";
@@ -71,7 +71,7 @@ export function versionAtLeast(found: string, required: string): boolean {
 }
 
 export interface SopsResolverDeps {
-  /** l0.secrets.sops.binary. null이면 xeon.os가 해석한다 */
+  /** l0.secrets.sops.binary. null이면 fresnel.os가 해석한다 */
   readonly configured: () => string | null;
   readonly resolveBinary: (
     options: { readonly minVersion: string },

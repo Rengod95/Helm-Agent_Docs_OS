@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
-import { resolveLocale, setActiveLocale, t, UI_LOCALE_KEY } from "@xeon/client/i18n";
-import { assertNever } from "@xeon/contracts";
+import { resolveLocale, setActiveLocale, t, UI_LOCALE_KEY } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
 import { parseArgv, type CliCommand } from "./cli/command.ts";
 import type { CommandContext } from "./commands/context.ts";
 import { runHelp } from "./commands/help.ts";

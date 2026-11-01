@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   WebFetch,
   type CacheUsage,
@@ -13,7 +13,7 @@ import {
   type WebFetchOutput,
   type WebFetchPage,
   type WebProviderFallback,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { buildMeta, NO_COST } from "../contract/meta.ts";
 import type { SourceIdTable } from "../contract/source-ids.ts";
 import { normalizeUrl } from "../contract/url.ts";

@@ -2,20 +2,20 @@ import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
-} from "@xeon/contracts/extensions";
-import type { IdFactory } from "@xeon/contracts/conversation";
-import type { ProducerHandle } from "@xeon/contracts/records";
+} from "@fresnel/contracts/extensions";
+import type { IdFactory } from "@fresnel/contracts/conversation";
+import type { ProducerHandle } from "@fresnel/contracts/records";
 import {
   ContextPortKey,
   ModelServicePortKey,
   OsPortKey,
   SessionPortKey,
-} from "@xeon/contracts/services";
-import { ExtHostPortKey, hostOf, type BuiltinExtensionModule } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import { ExtHostPortKey, hostOf, type BuiltinExtensionModule } from "@fresnel/ext-host";
 import { createContextService } from "./service.ts";
 import type { ContextSettingsSource } from "./settings.ts";
 
-// 플러그인 정의: xeon.context를 제공하고 xeon.models, xeon.session, xeon.ext를 주입받는다(L1.context.plan §2).
+// 플러그인 정의: fresnel.context를 제공하고 fresnel.models, fresnel.session, fresnel.ext를 주입받는다(L1.context.plan §2).
 // 서비스 전체 모양의 포트 키(ContextPortKey, ModelServicePortKey, SessionPortKey, OsPortKey)는 F `services`가 내보낸다.
 
 export const manifest: ExtensionManifest = defineManifest({
@@ -23,7 +23,7 @@ export const manifest: ExtensionManifest = defineManifest({
   name: "core-context",
   version: "0.0.0",
   displayName: "Context",
-  description: "Context assembly, compaction and overflow recovery (xeon.context)",
+  description: "Context assembly, compaction and overflow recovery (fresnel.context)",
   layer: "L1",
   kind: "plugin",
   entry: "./src/index.ts",

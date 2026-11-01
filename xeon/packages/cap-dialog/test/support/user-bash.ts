@@ -1,10 +1,14 @@
 // `LoopService.runUserBash`의 시험용 얇은 껍데기. core-loop의 `runUserBash`는 아직 오류 값을 돌려주는 자리표시라(F.8, L1.loop 작업)
 // 그 아래 실제 경로를 확인할 수 없다. 이 껍데기는 loop가 할 일 가운데 turn 문맥 만들기와 결과 옮기기만 하고, 정책 평가, `tool.call.before` 지점,
 // 효과 3단 기록, 도구 실행은 core-tools의 실제 `ToolService.runUserShell`이 한다. 셸 능력(`workspace.shell`)만 대역 프로브다.
-import { Bug, ok } from "@xeon/contracts";
-import { WorkspaceShell, WorkspaceShellKey, type CallOptions } from "@xeon/contracts/capabilities";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import type { LoopService, UserBashOutcome } from "@xeon/contracts/services";
+import { Bug, ok } from "@fresnel/contracts";
+import {
+  WorkspaceShell,
+  WorkspaceShellKey,
+  type CallOptions,
+} from "@fresnel/contracts/capabilities";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import type { LoopService, UserBashOutcome } from "@fresnel/contracts/services";
 import {
   fakeRunContext,
   fakeSession,
@@ -12,7 +16,7 @@ import {
   sequentialIds,
   type FakeSession,
   type RealTools,
-} from "@xeon/core-tools/testing";
+} from "@fresnel/core-tools/testing";
 
 const NOW = 1_767_571_200_000;
 

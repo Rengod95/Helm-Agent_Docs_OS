@@ -1,5 +1,5 @@
 import { SQLiteError, type Database } from "bun:sqlite";
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { classifySqliteCode } from "./db.ts";
 import { columnInt, toSqlRow } from "./rows.ts";
 

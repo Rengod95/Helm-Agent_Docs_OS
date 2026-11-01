@@ -3,8 +3,8 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { Transport } from "@xeon/contracts/wire";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { Transport } from "@fresnel/contracts/wire";
 import {
   bindServiceSocket,
   connectSocket,

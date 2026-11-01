@@ -1,7 +1,7 @@
 import { AssistantMessageEventStream as PiAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
-import type { Clock, Scheduler } from "@xeon/contracts";
-import type { AssistantMessage, AssistantMessageEvent } from "@xeon/contracts/conversation";
-import type { AssistantMessageEventStream } from "@xeon/contracts/services";
+import type { Clock, Scheduler } from "@fresnel/contracts";
+import type { AssistantMessage, AssistantMessageEvent } from "@fresnel/contracts/conversation";
+import type { AssistantMessageEventStream } from "@fresnel/contracts/services";
 import type { AccountDef, AccountPool, RateLimitPolicy } from "./accounts.ts";
 import { classifyMessage } from "./classify.ts";
 import type { CredentialFailure, SecretResolver } from "./secrets-bridge.ts";

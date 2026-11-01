@@ -1,4 +1,4 @@
-import type { ExtensionName } from "@xeon/contracts/extensions";
+import type { ExtensionName } from "@fresnel/contracts/extensions";
 
 export type ExtStorageError =
   | { readonly kind: "identifier_invalid"; readonly name: string }

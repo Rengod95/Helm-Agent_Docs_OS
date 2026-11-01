@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import type { FileChange } from "@xeon/contracts/services";
+import type { FileChange } from "@fresnel/contracts/services";
 import { memoryLogger } from "./support/clock.ts";
 import { tempDir, type TempDir } from "../src/testing/index.ts";
 import { systemScheduler } from "../src/time/scheduler.ts";

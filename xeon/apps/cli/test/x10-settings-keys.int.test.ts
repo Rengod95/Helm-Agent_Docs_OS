@@ -1,13 +1,13 @@
 import { afterEach, expect, test } from "bun:test";
-import { parse, parseJson } from "@xeon/contracts";
+import { parse, parseJson } from "@fresnel/contracts";
 import {
   EffectiveSettingSchema,
   SettingDefWireSchema,
   type EffectiveSetting,
   type SettingDefWire,
-} from "@xeon/contracts/settings";
-import { buildSettingsView, settingsViewKeys } from "@xeon/client/settings";
-import { runHostCommand } from "@xeon/host";
+} from "@fresnel/contracts/settings";
+import { buildSettingsView, settingsViewKeys } from "@fresnel/client/settings";
+import { runHostCommand } from "@fresnel/host";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EXIT } from "../src/exit-codes.ts";

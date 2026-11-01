@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import {
   ExecutionError,
   type BinaryError,
@@ -12,7 +12,7 @@ import {
   type Shell,
   type ShellExecOptions,
   type ShellExecResult,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { createSandboxService, type SandboxServiceHandle } from "../../src/service.ts";
 import { detectPlatformInput, selectSandboxProvider } from "../../src/select.ts";
 import { readSandboxSettings, type SandboxSettings } from "../../src/settings.ts";

@@ -1,4 +1,4 @@
-import { ok, type Result } from "@xeon/contracts";
+import { ok, type Result } from "@fresnel/contracts";
 import type { KnowledgeFailure } from "../../src/errors.ts";
 import type {
   WriteApprovalAnswer,

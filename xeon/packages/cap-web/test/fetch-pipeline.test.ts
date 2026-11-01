@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { CapabilityError, type WebFetchOutput } from "@xeon/contracts/capabilities";
+import { CapabilityError, type WebFetchOutput } from "@fresnel/contracts/capabilities";
 import { directConvertRunner } from "../src/fetch/convert-runner.ts";
 import { fakeFetchProvider, fakeCatalog, fetchCandidate } from "../src/testing/fake-providers.ts";
 import { threadIdOf } from "./support/ids.ts";

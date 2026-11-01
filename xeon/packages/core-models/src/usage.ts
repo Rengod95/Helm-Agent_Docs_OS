@@ -1,7 +1,7 @@
-import type { Logger } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { Unsubscribe } from "@xeon/contracts/records";
-import type { UsageMeter, UsageRecord, UsageScope, UsageTotals } from "@xeon/contracts/services";
+import type { Logger } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { Unsubscribe } from "@fresnel/contracts/records";
+import type { UsageMeter, UsageRecord, UsageScope, UsageTotals } from "@fresnel/contracts/services";
 
 // L1.models.spec §3.5, §4.4, L1.models.plan M-3. 프로세스 메모리의 합산기다. 내구 기록의 원천은 어시스턴트
 // item.recorded의 message.usage와 turn.completed이고, 재개 뒤에는 이벤트를 다시 읽어 채운다.

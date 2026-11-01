@@ -1,6 +1,6 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever, attemptAsync } from "@xeon/contracts";
-import type { TrustStatus } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, attemptAsync } from "@fresnel/contracts";
+import type { TrustStatus } from "@fresnel/contracts/wire";
 import type { TrustCommand } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, renderFailure, type Failure } from "../errors.ts";

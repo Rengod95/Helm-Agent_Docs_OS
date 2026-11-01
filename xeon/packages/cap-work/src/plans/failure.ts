@@ -1,6 +1,6 @@
 import { Type, type TUnsafe } from "typebox";
-import { parse, parseJson, type SchemaProof } from "@xeon/contracts";
-import { PlanStatusSchema, type PlanStatus } from "@xeon/contracts/capabilities";
+import { parse, parseJson, type SchemaProof } from "@fresnel/contracts";
+import { PlanStatusSchema, type PlanStatus } from "@fresnel/contracts/capabilities";
 
 // L2.work.spec §3.3 PlanErrors, §5. 계획 규칙이 거부하는 이유를 값으로 표현한다.
 // 서비스 경계(errors.ts planRejection)가 CapabilityError로 바꾼다. 제출 거부는 커밋 거부(reject) 레코드의 detail에 JSON으로 남아

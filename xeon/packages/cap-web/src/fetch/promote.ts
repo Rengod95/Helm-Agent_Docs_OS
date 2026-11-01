@@ -1,11 +1,11 @@
-import { attemptAsync, eachAsync } from "@xeon/contracts";
+import { attemptAsync, eachAsync } from "@fresnel/contracts";
 import {
   orderProviderCandidates,
   type FetchFormat,
   type ProviderFetchResult,
   type RenderMode,
   type WebProviderFallback,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type { WebDeps } from "../deps.ts";
 import { failureOfThrown } from "../provider-errors.ts";
 import type { FetchCandidate } from "../ports/providers.ts";

@@ -1,4 +1,4 @@
-import { parse, type Result } from "@xeon/contracts";
+import { parse, type Result } from "@fresnel/contracts";
 import { Type } from "typebox";
 import { t } from "../i18n/index.ts";
 

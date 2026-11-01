@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { ApprovalResolvedPayloadSchema } from "@xeon/contracts/records";
-import type { ApprovalBody, ApprovalRequestInput } from "@xeon/contracts/services";
+import { parse } from "@fresnel/contracts";
+import { ApprovalResolvedPayloadSchema } from "@fresnel/contracts/records";
+import type { ApprovalBody, ApprovalRequestInput } from "@fresnel/contracts/services";
 import { createHarness, expectOk, until, type Harness } from "./support/harness.ts";
 
 // M3-REQ-74(M3-09, ADR-0018): 승인 kind review를 요청·대기·응답·기록까지 받는다.

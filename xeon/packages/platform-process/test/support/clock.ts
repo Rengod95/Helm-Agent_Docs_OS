@@ -1,4 +1,4 @@
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Clock, Scheduler, TimerHandle } from "@fresnel/contracts";
 
 // eng.testing.guide TS-03. 런타임 중립 수동 시계. 기본 시작값은 2026-01-05T00:00:00Z.
 

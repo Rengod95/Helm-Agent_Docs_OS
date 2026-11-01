@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import { ProcessPortKey, type PortKey, type ProcessPort } from "@xeon/contracts/extensions";
-import type { ProcessService, ShutdownCoordinator } from "@xeon/contracts/services";
+import { Bug } from "@fresnel/contracts";
+import { ProcessPortKey, type PortKey, type ProcessPort } from "@fresnel/contracts/extensions";
+import type { ProcessService, ShutdownCoordinator } from "@fresnel/contracts/services";
 import {
   PROCESS_SERVICE_SETTINGS_DEFAULTS,
   createProcessService,
@@ -167,7 +167,7 @@ function fakeContext() {
 }
 
 describe("processPlugin", () => {
-  test("provides ProcessService under the xeon.process port", () => {
+  test("provides ProcessService under the fresnel.process port", () => {
     const { ctx, looked, provided } = fakeContext();
     const exits = exitRecorder();
     const module = processPlugin({
@@ -177,10 +177,10 @@ describe("processPlugin", () => {
     });
     expect(module.name).toBe("platform-process");
     module.setup(ctx);
-    expect(looked).toEqual(["xeon.os"]);
+    expect(looked).toEqual(["fresnel.os"]);
     expect(provided).toHaveLength(1);
     expect(provided[0]?.key).toBe(ProcessPortKey);
-    expect(provided[0]?.key.name).toBe("xeon.process");
+    expect(provided[0]?.key.name).toBe("fresnel.process");
   });
 
   test("closes the background registry when the host is disposed", async () => {

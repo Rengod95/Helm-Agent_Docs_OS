@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { AbortReason } from "@xeon/contracts/services";
+import { Bug } from "@fresnel/contracts";
+import type { AbortReason } from "@fresnel/contracts/services";
 import { createWorld, deferred, flush, openTurn, turnAbortIntent, watch } from "./support/world.ts";
 
 const USER_STOP: AbortReason = { code: "user", message: "stop" };

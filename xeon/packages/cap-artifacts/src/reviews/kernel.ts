@@ -1,13 +1,13 @@
-import type { Logger, Result } from "@xeon/contracts";
-import { ok, err } from "@xeon/contracts";
-import type { ReviewView } from "@xeon/contracts/capabilities";
+import type { Logger, Result } from "@fresnel/contracts";
+import { ok, err } from "@fresnel/contracts";
+import type { ReviewView } from "@fresnel/contracts/capabilities";
 import type {
   IdFactory,
   JsonValue,
   LocalIdFactory,
   ThreadId,
   TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   commitKeyPart,
   requestKeyFor,
@@ -19,8 +19,8 @@ import {
   type StampedDraft,
   type StoreError,
   type StoreService,
-} from "@xeon/contracts/records";
-import type { L2ApprovalSnapshot, L2ApprovalsPort } from "@xeon/contracts/services";
+} from "@fresnel/contracts/records";
+import type { L2ApprovalSnapshot, L2ApprovalsPort } from "@fresnel/contracts/services";
 import { sha256Hex } from "../hash.ts";
 import type { ExecutionGuardPort, ReviewFilesPort, ReviewQueuePort } from "../ports.ts";
 import { readEvents } from "./collect.ts";

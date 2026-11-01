@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ScopeLayer, ScopeStack } from "@xeon/contracts/settings";
+import type { ScopeLayer, ScopeStack } from "@fresnel/contracts/settings";
 import {
   decideDomain,
   isDomainPattern,

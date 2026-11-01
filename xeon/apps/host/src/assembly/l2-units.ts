@@ -1,4 +1,4 @@
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import {
   DialogAsk,
   DialogAskKey,
@@ -13,14 +13,14 @@ import {
   type CapabilityApi,
   type CommandActionRegistry,
   type NoticeFeed,
-} from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import { OsPortKey, ToolServicePortKey, type ToolRegistration } from "@xeon/contracts/services";
-import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import { OsPortKey, ToolServicePortKey, type ToolRegistration } from "@fresnel/contracts/services";
+import { hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 
 // m2-plan HOST.6. cap-dialog와 cap-work가 옵션으로 받는 명령 등록부, 그리고 질문 도구를 L1.tools에 올리는 브리지 확장.
-// 질문·계획 승인 포트와 사용자 셸은 두 패키지의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `xeon.approvals`와
-// `xeon.loop`를 감싸므로 조립 루트가 따로 잇지 않는다. 조립 루트 코드(DR-14 예외 2).
+// 질문·계획 승인 포트와 사용자 셸은 두 패키지의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `fresnel.approvals`와
+// `fresnel.loop`를 감싸므로 조립 루트가 따로 잇지 않는다. 조립 루트 코드(DR-14 예외 2).
 
 /** `dialog.commands` 능력의 서비스 API(목록, 실행). 호스트의 `command.*` 처리기가 쓴다 */
 export type CommandsApi = CapabilityApi<typeof DialogCommands>;

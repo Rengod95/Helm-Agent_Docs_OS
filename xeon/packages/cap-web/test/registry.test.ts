@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { WebProviderManifest } from "@xeon/contracts/capabilities";
+import type { WebProviderManifest } from "@fresnel/contracts/capabilities";
 import { effectiveCachePolicy } from "../src/cache/policy.ts";
 import { createProviderRegistry, type PluginRegistration } from "../src/search/registry.ts";
 import { fakeResolver } from "../src/testing/fake-resolver.ts";

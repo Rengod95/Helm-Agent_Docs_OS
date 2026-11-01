@@ -10,7 +10,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { AssistantMessage, FetchFunction, Models } from "@earendil-works/pi-ai";
-import { assertNever, attemptAsync, eachAsync, parseJson } from "@xeon/contracts";
+import { assertNever, attemptAsync, eachAsync, parseJson } from "@fresnel/contracts";
 import { isOauthTokenOnDefaultProvider } from "../src/secrets-bridge.ts";
 import {
   buildRecordedTape,

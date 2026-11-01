@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import { threadSummaryOf } from "@xeon/contracts/wire";
+import { Bug } from "@fresnel/contracts";
+import { threadSummaryOf } from "@fresnel/contracts/wire";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {
   expectOk,

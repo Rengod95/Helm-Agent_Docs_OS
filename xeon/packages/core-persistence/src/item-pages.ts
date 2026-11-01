@@ -1,5 +1,5 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
-import type { ItemId, ItemRecord, ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import type { ItemId, ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
 import {
   ItemRecordedPayloadSchema,
   type DurableEventEnvelope,
@@ -7,7 +7,7 @@ import {
   type SessionService,
   type SqlRow,
   type StoreDb,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { envelopeOfRow, headSeqOf } from "./events.ts";
 import type { Reader } from "./read.ts";
 import { columns, readResult, rowInvalid, type RowFault } from "./rows.ts";

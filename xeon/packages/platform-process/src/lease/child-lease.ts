@@ -1,5 +1,5 @@
-import { detach, type Logger, type Scheduler } from "@xeon/contracts";
-import type { HostShutdownParams, HostShutdownResult, Transport } from "@xeon/contracts/wire";
+import { detach, type Logger, type Scheduler } from "@fresnel/contracts";
+import type { HostShutdownParams, HostShutdownResult, Transport } from "@fresnel/contracts/wire";
 import type { ProcessShutdown } from "./shutdown.ts";
 
 // L0.process.spec §3.2·§4.2, L0.process.plan PR-05. 자식 엔진 수명 임대.

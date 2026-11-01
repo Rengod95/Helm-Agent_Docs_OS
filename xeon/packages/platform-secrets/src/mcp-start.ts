@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import type { SecretHandle } from "@xeon/contracts/capabilities";
-import type { ApprovalEvidence, UseCtx } from "@xeon/contracts/services";
+import type { SecretHandle } from "@fresnel/contracts/capabilities";
+import type { ApprovalEvidence, UseCtx } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §4.3.1 (M3-REQ-58). 비밀 env를 쓰는 MCP stdio 서버의 기동 승인은 서버 정의 해시 단위로 한 번 받는다.
 // 정의가 바뀌면 해시가 달라져 다시 받는다. 승인 UI와 승인 레코드(정의 해시 포함)는 L1·L2(M3-REQ-75, 97)가 맡고,

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Message } from "@xeon/contracts/conversation";
-import type { CachePolicy } from "@xeon/contracts/services";
+import type { Message } from "@fresnel/contracts/conversation";
+import type { CachePolicy } from "@fresnel/contracts/services";
 import { computeCacheMarks } from "../src/cache-marks.ts";
 import { COMPACTION_SUMMARY_PREFIX } from "../src/convert.ts";
 import { cachePolicy } from "./support/builders.ts";

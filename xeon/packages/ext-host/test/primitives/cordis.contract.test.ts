@@ -1,7 +1,7 @@
 // vendored Cordis(df4431e, 4.0.0-rc.11)의 동작을 고정한다(eng.testing.guide TS-01 contract).
 // 판본을 바꾸면 가장 먼저 실패해야 하는 파일이다. 결과가 바뀌면 X.primitives.spec §4.3 표를 다시 확인한다.
 import { expect, test } from "bun:test";
-import { Context } from "@xeon/vendor-cordis";
+import { Context } from "@fresnel/vendor-cordis";
 import { rejectionOf } from "./fixtures/support.ts";
 
 test("bail treats zero as decision", () => {

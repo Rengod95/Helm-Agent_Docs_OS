@@ -1,4 +1,4 @@
-// @xeon/core-loop 공개 진입점. L1.loop.spec §8.1 제공 목록.
+// @fresnel/core-loop 공개 진입점. L1.loop.spec §8.1 제공 목록.
 export { createLoopService, type LoopServiceDeps, type LoopServiceHandle } from "./service.ts";
 export {
   DEFAULT_BASE_PROMPT,

@@ -1,12 +1,12 @@
-import { parse, type Logger } from "@xeon/contracts";
+import { parse, type Logger } from "@fresnel/contracts";
 import {
   COMMAND_NAME_PATTERN,
   CommandArgSchema,
   type CommandArg,
   type CommandInfo,
   type CommandSource,
-} from "@xeon/contracts/capabilities";
-import type { CancelScope } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { CancelScope } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import type { CommandFiles } from "../ports/command-files.ts";
 import {
@@ -16,7 +16,7 @@ import {
 } from "../upstream/pi/prompt-templates.ts";
 import { MAX_SHELL_INJECTIONS, shellCommands, splitShell, type TemplateSegment } from "./shell.ts";
 
-// L2.dialog.spec §4.2.1. 명령 파일 하나가 명령 하나다. 읽기는 포트(`xeon.exec`의 파일 시스템)로 한다.
+// L2.dialog.spec §4.2.1. 명령 파일 하나가 명령 하나다. 읽기는 포트(`fresnel.exec`의 파일 시스템)로 한다.
 // pi 포크(`upstream/pi/prompt-templates.ts`)를 감싸 이름 규칙, `args` 앞머리, 셸 자리를 더한다.
 
 const NAME_PATTERN = new RegExp(COMMAND_NAME_PATTERN);

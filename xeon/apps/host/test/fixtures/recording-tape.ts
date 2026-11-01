@@ -1,5 +1,5 @@
-import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
-import type { TapePlayer } from "@xeon/core-models/testing";
+import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
+import type { TapePlayer } from "@fresnel/core-models/testing";
 import { realTapeClock } from "./tape-host.ts";
 import type { AssembleOptions } from "../../src/types.ts";
 

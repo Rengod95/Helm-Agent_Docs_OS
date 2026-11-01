@@ -6,9 +6,9 @@ import {
   defineManifest,
   type ExtensionEntry,
   type UserBashPayload,
-} from "@xeon/contracts/extensions";
-import { LoopServicePortKey, type LoopService } from "@xeon/contracts/services";
-import { hostOf } from "@xeon/ext-host";
+} from "@fresnel/contracts/extensions";
+import { LoopServicePortKey, type LoopService } from "@fresnel/contracts/services";
+import { hostOf } from "@fresnel/ext-host";
 import { assemble } from "../../src/assemble.ts";
 import { sequentially } from "../../src/util.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";

@@ -1,11 +1,11 @@
-import { assertNever, parse, type Logger, type Result } from "@xeon/contracts";
+import { assertNever, parse, type Logger, type Result } from "@fresnel/contracts";
 import {
   ArtifactsRegistry,
   type ArtifactSummary,
   type CallContext,
   type CallOptions,
   type CapabilityApi,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import {
   toJsonValue,
   type IdFactory,
@@ -13,7 +13,7 @@ import {
   type LocalIdFactory,
   type ThreadId,
   type TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   ArtifactRegisteredPayloadSchema,
   ArtifactUpdatedPayloadSchema,
@@ -32,7 +32,7 @@ import {
   type StampedDraft,
   type StoreError,
   type StoreService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { sha256Hex } from "../hash.ts";
 import { assertLive, requestIdOf, scopeOf } from "../call.ts";
 import { reject } from "../errors.ts";

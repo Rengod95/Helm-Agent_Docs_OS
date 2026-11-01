@@ -1,5 +1,10 @@
-import type { Clock } from "@xeon/contracts";
-import type { IdByPrefix, IdFactory, IdPrefix, LocalIdFactory } from "@xeon/contracts/conversation";
+import type { Clock } from "@fresnel/contracts";
+import type {
+  IdByPrefix,
+  IdFactory,
+  IdPrefix,
+  LocalIdFactory,
+} from "@fresnel/contracts/conversation";
 
 // 시험용 시계와 ID 발급기(eng.testing.guide TS-03). F에는 ./testing이 없어 각 패키지 test/ 안에 둔다.
 

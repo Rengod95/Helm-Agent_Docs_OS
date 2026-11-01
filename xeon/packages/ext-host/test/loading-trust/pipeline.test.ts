@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { attempt, err, ok } from "@xeon/contracts";
+import { attempt, err, ok } from "@fresnel/contracts";
 import {
   createExtensionLoader,
   LoadAbortError,

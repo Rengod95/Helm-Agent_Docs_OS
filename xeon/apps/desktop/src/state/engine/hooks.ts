@@ -1,7 +1,7 @@
 // src/state/engine/hooks.ts
-import { Bug } from "@xeon/contracts";
-import type { EventId, ItemId, ItemRecord, ThreadId } from "@xeon/contracts/conversation";
-import type { ThreadSummary } from "@xeon/contracts/wire";
+import { Bug } from "@fresnel/contracts";
+import type { EventId, ItemId, ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";

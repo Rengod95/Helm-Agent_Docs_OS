@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
-import { WireError } from "@xeon/contracts/wire";
+import { parse } from "@fresnel/contracts";
+import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
+import { WireError } from "@fresnel/contracts/wire";
 import { createSecretsPort } from "../../src/assembly/secrets.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { createFakeSecrets, NO_PROVIDER_LINKS, sampleMeta } from "../fixtures/fake-secrets.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
-import { DEFAULT_SECRETS_CONFIG } from "@xeon/platform-secrets";
+import { DEFAULT_SECRETS_CONFIG } from "@fresnel/platform-secrets";
 
 // HOST.3: secret.list·meta·remove·test·beginEntry·beginReveal. 처리기는 실제 코드이고 L0.secrets 관리 서비스만 대역이다.
 // 어느 요청·응답·로그에도 값이 없어야 한다.

@@ -1,5 +1,9 @@
-import { assertNever } from "@xeon/contracts";
-import type { AssistantMessage, AssistantMessageEvent, StepId } from "@xeon/contracts/conversation";
+import { assertNever } from "@fresnel/contracts";
+import type {
+  AssistantMessage,
+  AssistantMessageEvent,
+  StepId,
+} from "@fresnel/contracts/conversation";
 
 // L1.loop.spec §3.3 도구 호출 id 염. 제공자가 응답마다 같은 id(`call_0` 등)를 다시 쓰면 X의 `tool:<id>` 요청 키,
 // core-tools의 closedKey, 학습 제안 id가 서로 다른 호출에서 겹친다. 응답을 받은 자리에서 단계 id의 끝부분을 붙여 대화 안에서 유일하게 만든다.

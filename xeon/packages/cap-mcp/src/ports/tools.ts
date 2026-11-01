@@ -1,5 +1,5 @@
-import type { Result } from "@xeon/contracts";
-import type { McpContinuation } from "@xeon/contracts/capabilities";
+import type { Result } from "@fresnel/contracts";
+import type { McpContinuation } from "@fresnel/contracts/capabilities";
 import type { McpDynamicTool } from "../client/dynamic-tools.ts";
 
 // 동적 도구를 도구 표에 올리는 포트(L2.mcp.spec §3.3). 실제 연결은 HOST.6 조립에서 `ToolService.register`

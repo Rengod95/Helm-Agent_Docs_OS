@@ -1,4 +1,4 @@
-import type { LocalIdFactory } from "@xeon/contracts/conversation";
+import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 

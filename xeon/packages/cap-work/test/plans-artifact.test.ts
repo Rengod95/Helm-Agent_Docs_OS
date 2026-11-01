@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { readPlans } from "../src/projection/read.ts";
 import { openHarness, type Harness } from "./support/harness.ts";
 import { PlanId } from "./support/plans.ts";

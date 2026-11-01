@@ -9,7 +9,7 @@ import {
   type WireHandler,
   type WireHandlers,
   type WireMethodName,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
 import { hostBinaryReportOf } from "../binary-report.ts";
 import type { Engine } from "../types.ts";

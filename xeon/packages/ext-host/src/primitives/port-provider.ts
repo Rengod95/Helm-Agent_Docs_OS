@@ -1,10 +1,10 @@
-import type { PortKey } from "@xeon/contracts/extensions";
+import type { PortKey } from "@fresnel/contracts/extensions";
 import type { FiberHandle } from "./cordis-bridge.ts";
 import { PrimitiveError } from "./errors.ts";
 
 /**
- * fiber 하나가 xeon.* 서비스를 제공하는 도구. Cordis는 서비스 이름 하나에 공급자 하나만 허용한다.
- * 키에 member가 있으면(xeon.session의 ext, projectors) 같은 이름의 포트들을 한 객체로 묶어 한 번만 provide한다
+ * fiber 하나가 fresnel.* 서비스를 제공하는 도구. Cordis는 서비스 이름 하나에 공급자 하나만 허용한다.
+ * 키에 member가 있으면(fresnel.session의 ext, projectors) 같은 이름의 포트들을 한 객체로 묶어 한 번만 provide한다
  * (X.primitives.spec §3.6, F.extensions.spec §3.2.1 PortKey.member)
  */
 export interface PortProvider {

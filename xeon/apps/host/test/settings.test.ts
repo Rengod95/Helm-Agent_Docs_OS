@@ -91,7 +91,7 @@ test("hostSettings declares the two l4.host-service keys with the documented def
   expect(maxSubscriptionsPerConnection.ui?.tab).toBe("execution");
 });
 
-/** 클라이언트 카탈로그 원문. 호스트 테스트는 `@xeon/client`를 import하지 않으므로(DR-10) JSON 파일을 직접 읽는다 */
+/** 클라이언트 카탈로그 원문. 호스트 테스트는 `@fresnel/client`를 import하지 않으므로(DR-10) JSON 파일을 직접 읽는다 */
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

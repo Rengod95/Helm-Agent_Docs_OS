@@ -1,4 +1,4 @@
-import { assertNever, attempt, parse } from "@xeon/contracts";
+import { assertNever, attempt, parse } from "@fresnel/contracts";
 import {
   DialogNotify,
   NotifyEmitInput,
@@ -7,9 +7,9 @@ import {
   type Notice,
   type NoticeFeed,
   type NoticeKind,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope, StoreError } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope, StoreError } from "@fresnel/contracts/records";
 import type { DialogDeps } from "../deps.ts";
 import { DialogFailure, guarded } from "../errors.ts";
 import type { NoticeEmitFailure, NoticePort, NoticeReadFilter } from "../ports/notices.ts";

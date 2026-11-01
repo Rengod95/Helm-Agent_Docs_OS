@@ -1,10 +1,10 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type {
   ApprovalEvidence,
   CallContext,
   ScanFinding,
   ScanSummary,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { failure, type KnowledgeFailure } from "../errors.ts";
 import { blockingRules, SCAN_RULESET_VERSION, scanText } from "../scan/rules.ts";
 

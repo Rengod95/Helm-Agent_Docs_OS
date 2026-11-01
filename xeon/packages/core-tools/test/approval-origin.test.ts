@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { ApprovalRequestedPayloadSchema } from "@xeon/contracts/records";
-import type { ApprovalBody, ApprovalRequestInput } from "@xeon/contracts/services";
+import { parse } from "@fresnel/contracts";
+import { ApprovalRequestedPayloadSchema } from "@fresnel/contracts/records";
+import type { ApprovalBody, ApprovalRequestInput } from "@fresnel/contracts/services";
 import {
   callTool,
   createHarness,

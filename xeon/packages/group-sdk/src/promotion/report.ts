@@ -1,5 +1,5 @@
-import type { ToolName } from "@xeon/contracts/capabilities";
-import type { GroupId, ScopeId } from "@xeon/contracts/extensions";
+import type { ToolName } from "@fresnel/contracts/capabilities";
+import type { GroupId, ScopeId } from "@fresnel/contracts/extensions";
 
 /** 한 도구를 한 scope가 호출한 집계(L3.group-sdk.spec §3.12). 소유 그룹 밖의 scope만 든다 */
 export interface ToolConsumer {

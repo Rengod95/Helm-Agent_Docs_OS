@@ -1,13 +1,17 @@
-import { parse, type Logger } from "@xeon/contracts";
+import { parse, type Logger } from "@fresnel/contracts";
 import {
   parseSecretRef,
   type SecretHandle,
   type SecretMeta,
   type SecretName,
   type SecretUsePolicy,
-} from "@xeon/contracts/capabilities";
-import type { ProviderTarget, SecretAdminService, SecretMetaPatch } from "@xeon/contracts/services";
-import { resolveSetting, type SettingCatalog } from "@xeon/contracts/settings";
+} from "@fresnel/contracts/capabilities";
+import type {
+  ProviderTarget,
+  SecretAdminService,
+  SecretMetaPatch,
+} from "@fresnel/contracts/services";
+import { resolveSetting, type SettingCatalog } from "@fresnel/contracts/settings";
 import { Type } from "typebox";
 import type { SettingsEngine } from "../assembly/settings-engine.ts";
 

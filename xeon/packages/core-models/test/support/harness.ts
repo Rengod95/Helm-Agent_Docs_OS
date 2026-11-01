@@ -1,6 +1,6 @@
 import { createModels } from "@earendil-works/pi-ai";
-import { Bug, type Logger, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { Bug, type Logger, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   Context,
   ModelCallContext,
@@ -8,8 +8,8 @@ import type {
   ModelRole,
   ModelService,
   ResolvedModel,
-} from "@xeon/contracts/services";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/services";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   createModelService,
   DEFAULT_MODELS_SETTINGS,

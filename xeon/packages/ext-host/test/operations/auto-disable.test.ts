@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ScopeHandlerFailedPayload } from "@xeon/contracts/records";
+import type { ScopeHandlerFailedPayload } from "@fresnel/contracts/records";
 import {
   createAutoDisabler,
   createFailureLedger,

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { DurableEventDraft, Projector, ProjectorFailure } from "@xeon/contracts/records";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { DurableEventDraft, Projector, ProjectorFailure } from "@fresnel/contracts/records";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import { expectOk, newThread, openHarness, type Harness } from "./support/harness.ts";
 

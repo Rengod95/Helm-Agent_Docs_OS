@@ -1,5 +1,5 @@
-import { Bug, detach, parse } from "@xeon/contracts";
-import { DurableEventEnvelopeSchema, type DurableEventEnvelope } from "@xeon/contracts/records";
+import { Bug, detach, parse } from "@fresnel/contracts";
+import { DurableEventEnvelopeSchema, type DurableEventEnvelope } from "@fresnel/contracts/records";
 import {
   RpcIdSchema,
   StreamPositionSchema,
@@ -17,7 +17,7 @@ import {
   type JsonRpcMessage,
   type Transport,
   type WireErrorKind,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 
 // 전송 적합성 케이스(F.wire-settings.plan W14, WIRE_CONFORMANCE_CASES)가 돌 수 있는 최소 서버. 메모리 이벤트 목록 위에서
 // host.hello, thread.create, turn.start, settings.get, events.subscribe만 흉내 내고 host.shutdown은 주입한 처리기에 넘긴다.
@@ -220,7 +220,7 @@ export function serveConformanceHost(
         if (!valid.ok) return fail("jsonrpc.invalidParams", { issues: [] });
         return handler(valid.value);
       }
-      // xeon-disable-next-line xeon/switch-default-never -- 메서드 이름은 문자열이다. 모르는 메서드는 와이어 오류로 돌려준다 (eng.typescript.guide TY-14)
+      // fresnel-disable-next-line fresnel/switch-default-never -- 메서드 이름은 문자열이다. 모르는 메서드는 와이어 오류로 돌려준다 (eng.typescript.guide TY-14)
       default:
         return fail("jsonrpc.methodNotFound", { method });
     }

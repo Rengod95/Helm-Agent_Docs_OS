@@ -1,4 +1,4 @@
-import { eachAsync, err, ok, type Result } from "@xeon/contracts";
+import { eachAsync, err, ok, type Result } from "@fresnel/contracts";
 import type {
   CallOptions,
   KnowledgeHit,
@@ -12,8 +12,8 @@ import type {
   SessionReadInput,
   SessionScrollInput,
   SkillScope,
-} from "@xeon/contracts/capabilities";
-import type { SqlRow, SqlTx, StoreDb } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import type { SqlRow, SqlTx, StoreDb } from "@fresnel/contracts/records";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { KnowledgeSettings } from "../settings.ts";
 import { allSkills, type SkillRow } from "../skills/store.ts";

@@ -1,5 +1,5 @@
-import { defineManifest } from "@xeon/contracts/extensions";
-import type { GroupManifest } from "@xeon/group-sdk";
+import { defineManifest } from "@fresnel/contracts/extensions";
+import type { GroupManifest } from "@fresnel/group-sdk";
 
 /**
  * 약관 위험 고지 문구. 매니페스트 userConfig 설명이고, 설정 화면은 켜기 전에 이 문구를 보인다(L1.models.spec §4.11.3).

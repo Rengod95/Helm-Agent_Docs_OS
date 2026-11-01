@@ -2,8 +2,8 @@ import { afterEach, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseJson } from "@xeon/contracts";
-import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
+import { parseJson } from "@fresnel/contracts";
+import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
 
 // 컴파일 바이너리가 사이드카로 도는 모양과 같다: `fresnel host --stdio`를 실제 프로세스로 띄우고 JSON Lines로 말한다
 // (L4.cli.plan C16, m2-plan CLI.4). stdout은 계약 전용이어야 하고, stdin EOF로 정상 종료(0)해야 한다.

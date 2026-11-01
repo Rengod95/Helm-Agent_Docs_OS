@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { afterEach, expect, test } from "bun:test";
-import { wireError, type SecretListEntry, type SecretReferencesResult } from "@xeon/contracts/wire";
+import {
+  wireError,
+  type SecretListEntry,
+  type SecretReferencesResult,
+} from "@fresnel/contracts/wire";
 import { EXIT } from "../src/exit-codes.ts";
 import { secretName, threadId } from "./support/ids.ts";
 import { createHarness, type Harness } from "./support/harness.ts";

@@ -9,16 +9,16 @@ import {
   parseJson,
   type Logger,
   type Result,
-} from "@xeon/contracts";
-import { toJsonValue, type IdFactory, type ThreadId } from "@xeon/contracts/conversation";
-import type { SessionService } from "@xeon/contracts/records";
-import type { ScopeStack, SettingKey, SettingScope } from "@xeon/contracts/settings";
+} from "@fresnel/contracts";
+import { toJsonValue, type IdFactory, type ThreadId } from "@fresnel/contracts/conversation";
+import type { SessionService } from "@fresnel/contracts/records";
+import type { ScopeStack, SettingKey, SettingScope } from "@fresnel/contracts/settings";
 import type {
   SettingsFileScope,
   SettingsWritableFileScope,
   Unsubscribe,
-} from "@xeon/contracts/wire";
-import type { FileLock, FileLockError } from "@xeon/platform-os";
+} from "@fresnel/contracts/wire";
+import type { FileLock, FileLockError } from "@fresnel/platform-os";
 import type {
   SettingsFileFailure,
   SettingsFileRead,

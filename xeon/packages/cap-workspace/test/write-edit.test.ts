@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ProtectedPathEntry } from "@xeon/contracts/services";
+import type { ProtectedPathEntry } from "@fresnel/contracts/services";
 import { createFilesApi } from "../src/service.ts";
 import { DEFAULT_WORKSPACE_SETTINGS } from "../src/settings.ts";
 import { rejection } from "./support/assertions.ts";

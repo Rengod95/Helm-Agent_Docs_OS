@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createLearningProjector } from "../src/proposals/sql.ts";
 import { NEW_SKILL, queueApi, startReview, submit } from "./support/flow.ts";
 import { foldEvents } from "./support/projection.ts";

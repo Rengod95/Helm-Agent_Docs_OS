@@ -1,10 +1,10 @@
-import { attemptAsync, err, ok, type Result } from "@xeon/contracts";
-import { FIRST_DENY } from "@xeon/contracts/extensions";
+import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
+import { FIRST_DENY } from "@fresnel/contracts/extensions";
 import type {
   GuardExecutionOutcome,
   GuardExecutionRequest,
   LoopError,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { LoopContext } from "./types.ts";
 
 // L1.loop.spec §4.11 `guard.output.before`의 `target: "execution"`(adr.0017 §3.6, M3-REQ-109). 모델이나 사용자가 만든 내용을 실행(파일 쓰기 등)에

@@ -1,4 +1,4 @@
-import { canonicalJson, ok, type Logger, type Result } from "@xeon/contracts";
+import { canonicalJson, ok, type Logger, type Result } from "@fresnel/contracts";
 import type {
   EventId,
   Message,
@@ -6,7 +6,7 @@ import type {
   SystemMessage,
   ThreadId,
   UserMessage,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type {
   AssembleOptions,
   AssembledContext,
@@ -17,9 +17,9 @@ import type {
   PendingSystemItem,
   PrefixInfo,
   ToolChangeDecision,
-} from "@xeon/contracts/services";
-import type { DurableEventEnvelope } from "@xeon/contracts/records";
-import type { ExtHost } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import type { DurableEventEnvelope } from "@fresnel/contracts/records";
+import type { ExtHost } from "@fresnel/ext-host";
 import {
   findHead,
   effectiveMessages,

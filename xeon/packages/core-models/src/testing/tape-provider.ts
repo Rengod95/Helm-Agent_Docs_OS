@@ -11,8 +11,8 @@ import {
   type SimpleStreamOptions,
   type TranscriptContext,
 } from "@earendil-works/pi-ai";
-import { eachAsync } from "@xeon/contracts";
-import type { ModelRole } from "@xeon/contracts/services";
+import { eachAsync } from "@fresnel/contracts";
+import type { ModelRole } from "@fresnel/contracts/services";
 import { TapeMismatchError, type TapePlayer, type TapeStream } from "./tape.ts";
 
 // 테이프 재생기를 pi-ai Provider로 감싼다. core-models의 ModelService, 다른 L1·L2 패키지 테스트가 실제 모델 대신

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { parseJson } from "@xeon/contracts";
-import type { CloseInfo, JsonRpcMessage, Transport } from "@xeon/contracts/wire";
+import { parseJson } from "@fresnel/contracts";
+import type { CloseInfo, JsonRpcMessage, Transport } from "@fresnel/contracts/wire";
 import { createStdioTransport, createStdioTransportWith } from "../src/index.ts";
 import { memoryLogger, rejectionOf } from "./support/fakes.ts";
 import { bytePipe, bytes, readText } from "./support/streams.ts";

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { WireError, type WireResult } from "@xeon/contracts/wire";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { WireError, type WireResult } from "@fresnel/contracts/wire";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createHostConnection, HostClientError } from "../src/client.ts";
 import { flushMicrotasks } from "./fixtures/clock.ts";
 import { manualTransport } from "./fixtures/manual-transport.ts";

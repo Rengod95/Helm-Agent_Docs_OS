@@ -1,6 +1,10 @@
-import { Bug, err, ok, parse, type Result } from "@xeon/contracts";
-import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@xeon/contracts/conversation";
-import { ApprovalBodyJsonSchema, requestKeyFor, type ReadFailure } from "@xeon/contracts/records";
+import { Bug, err, ok, parse, type Result } from "@fresnel/contracts";
+import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@fresnel/contracts/conversation";
+import {
+  ApprovalBodyJsonSchema,
+  requestKeyFor,
+  type ReadFailure,
+} from "@fresnel/contracts/records";
 import {
   L2_APPROVAL_REQUEST_ID_MAX,
   type ApprovalBody,
@@ -12,7 +16,7 @@ import {
   type L2ApprovalSnapshot,
   type L2ApprovalsPort,
   type OpenedApproval,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { approvalBodyOf } from "../approvals/pending.ts";
 import { sha256HexSync } from "../util.ts";
 import type { ApprovalsInternal } from "../approvals/service.ts";
@@ -20,7 +24,7 @@ import type { ApprovalsInternal } from "../approvals/service.ts";
 // F `L2ApprovalsPort`(L2.readme §5.7)를 core-tools의 실제 `ApprovalService` 위에 얹은 기준 어댑터. 각 cap-*의 `src/ports/approvals.ts`가
 // 같은 일을 한다. 이 파일은 그 어댑터가 따라야 할 규칙을 실제 서비스로 확인하는 시험용 구현이다(다른 패키지 테스트용 `./testing`).
 //
-// - 요청 키: L2 `requestId`(1~48자)는 `requestKeyFor`(@xeon/contracts/records)를 거쳐 승인 요청 키가 된다. 커밋 키 알파벳 밖의 문자나 한도 밖의 길이는 해시로 줄인다.
+// - 요청 키: L2 `requestId`(1~48자)는 `requestKeyFor`(@fresnel/contracts/records)를 거쳐 승인 요청 키가 된다. 커밋 키 알파벳 밖의 문자나 한도 밖의 길이는 해시로 줄인다.
 // - 출처: L2 포트의 `request`에는 도구 호출 맥락이 없다. cap-*는 도구 메서드가 받은 `CallOptions.context`로 `origin`을 만들어 호출마다 포트를 만든다.
 //   `origin.toolCallId`가 있으면 core-tools가 활성 호출 표에서 대기 체크포인트 초안을 만든다.
 // - 대상(`subject`): 여기서는 kind의 body 내용 그대로(`question`은 `{ questions }`, `plan`은 `{ plan, planRef, nextModes }`, `tool`은 도구 승인 body)다.

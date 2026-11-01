@@ -1,6 +1,6 @@
-import type { Logger, LogFields } from "@xeon/contracts";
-import type { ScopeLayer, ScopeStack } from "@xeon/contracts/settings";
-import { openTestStore, type TestStore } from "@xeon/platform-store/testing";
+import type { Logger, LogFields } from "@fresnel/contracts";
+import type { ScopeLayer, ScopeStack } from "@fresnel/contracts/settings";
+import { openTestStore, type TestStore } from "@fresnel/platform-store/testing";
 import { KNOWLEDGE_MIGRATIONS, KNOWLEDGE_OWNER } from "../../src/migrations.ts";
 import type { BlobPort } from "../../src/ledger/manifest.ts";
 import { createChangeExecutor, type ChangeExecutor } from "../../src/ledger/change.ts";

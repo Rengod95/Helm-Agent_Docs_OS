@@ -12,7 +12,7 @@ import type {
 // L3.group-sdk.spec §3.8. 구현은 group-sdk이다. GroupService는 X 포트 LeaseArbiterPort(F.extensions.spec §3.2.1)를 확장하고
 // X가 그 포트로 주입받는다. settings를 import하지 않으므로 설정 범위는 SettingScope와 같은 모양의 리터럴 유니언으로 적는다.
 
-export const GroupServiceName = "xeon.groups" as const;
+export const GroupServiceName = "fresnel.groups" as const;
 
 /** 설정 x.primitives.activeDriveGroup의 유효 값. null은 auto(요청 순서)다 */
 export type DriveHolderSetting = ScopeId | null;
@@ -106,7 +106,7 @@ export interface HolderReceipt {
   readonly appliesAt: "nextStepBoundary" | "now" | "afterLeaseRelease";
 }
 
-/** xeon.groups 서비스. X LeaseArbiterPort(choose)를 확장한다 */
+/** fresnel.groups 서비스. X LeaseArbiterPort(choose)를 확장한다 */
 export interface GroupService extends LeaseArbiterPort {
   /** 설치된 모든 그룹. 정렬: holder, 켜진 그룹(로드 순서), 꺼진 그룹(이름순) */
   list(): readonly GroupStatus[];

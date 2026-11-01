@@ -1,4 +1,4 @@
-import { err, ok, parse, type Result } from "@xeon/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   IsoTimeSchema,
   WebSearch,
@@ -17,8 +17,8 @@ import {
   type WebSearchOutput,
   type WebSearchResult,
   type CacheUsage,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   createSearchMemo,
   limitBucket,

@@ -1,5 +1,5 @@
-import { parse } from "@xeon/contracts";
-import { HOOKS, type ChainHookName, type HookName } from "@xeon/contracts/extensions";
+import { parse } from "@fresnel/contracts";
+import { HOOKS, type ChainHookName, type HookName } from "@fresnel/contracts/extensions";
 import { chainRuleOf } from "../../erase.ts";
 import type { ChainOutcome, HandlerFailure, HandlerRef } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";

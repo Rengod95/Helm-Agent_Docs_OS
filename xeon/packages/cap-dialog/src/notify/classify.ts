@@ -1,14 +1,14 @@
-import { assertNever, parse } from "@xeon/contracts";
-import type { Notice, NoticeKind } from "@xeon/contracts/capabilities";
-import { TurnCompletedPayloadSchema } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope } from "@xeon/contracts/records";
+import { assertNever, parse } from "@fresnel/contracts";
+import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
+import { TurnCompletedPayloadSchema } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import {
   AgentSettledEventPayloadSchema,
   ApprovalRequestedPayloadSchema,
   DialogNotifiedSchema,
   RunFinishedPayloadSchema,
   WorkGoalSettledSchema,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { clip } from "../util.ts";
 
 // L2.dialog.spec §4.7.1 분류 표. 내구 이벤트 하나에서 알림을 계산하는 순수 함수다.

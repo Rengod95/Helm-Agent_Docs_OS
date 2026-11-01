@@ -1,7 +1,7 @@
 import { dlopen, FFIType, read } from "bun:ffi";
 import { closeSync, openSync } from "node:fs";
 import { join } from "node:path";
-import { attempt, err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
 import { sha256Hex } from "../hash.ts";
 import type { LockAcquireError, LockHandle, LockProvider } from "./provider.ts";
 

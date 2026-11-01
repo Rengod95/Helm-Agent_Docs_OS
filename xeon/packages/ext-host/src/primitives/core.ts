@@ -1,6 +1,6 @@
 // primitives 내부 공유 타입과 호스트 핵심 상태. 패키지 밖으로 내보내지 않는다.
-import type { CapabilityId } from "@xeon/contracts/capabilities";
-import type { IdFactory, ThreadId, TurnId, StepId, EventId } from "@xeon/contracts/conversation";
+import type { CapabilityId } from "@fresnel/contracts/capabilities";
+import type { IdFactory, ThreadId, TurnId, StepId, EventId } from "@fresnel/contracts/conversation";
 import type {
   DriveLimits,
   DriveOptions,
@@ -14,12 +14,12 @@ import type {
   ScopeId,
   ScopeSetup,
   ScopeStatus,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import type {
   DurableEventDraft,
   LeaseReleasedPayload,
   ScopeChangedPayload,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { CordisBridge, FiberHandle, OpenedFiber } from "./cordis-bridge.ts";
 import type { StateMigration } from "./state-migration.ts";
 import type { Dispatcher } from "./dispatch.ts";

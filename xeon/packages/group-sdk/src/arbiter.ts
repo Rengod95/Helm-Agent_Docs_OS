@@ -1,11 +1,11 @@
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   GroupId,
   LeaseArbiterPort,
   LeaseCandidate,
   ScopeId,
-} from "@xeon/contracts/extensions";
-import type { DriveHolderSetting } from "@xeon/contracts/services";
+} from "@fresnel/contracts/extensions";
+import type { DriveHolderSetting } from "@fresnel/contracts/services";
 
 export interface DriveCandidate {
   readonly scopeId: ScopeId;

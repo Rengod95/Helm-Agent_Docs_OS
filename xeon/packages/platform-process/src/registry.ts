@@ -6,8 +6,8 @@ import {
   type Result,
   type Scheduler,
   type TimerHandle,
-} from "@xeon/contracts";
-import type { LocalIdFactory } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts";
+import type { LocalIdFactory } from "@fresnel/contracts/conversation";
 import type {
   BackgroundError,
   BackgroundOwnerKind,
@@ -16,7 +16,7 @@ import type {
   BackgroundRegistry,
   BackgroundState,
   RegisterBackgroundInput,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // L0.process.spec §4.3, L0.process.plan PR-06. 메모리 레지스트리다(DB 테이블 없음).
 // 레지스트리는 kill 수단을 갖지 않는다. 등록자가 넘긴 BackgroundStopper를 순서와 시한에 맞춰 부른다.

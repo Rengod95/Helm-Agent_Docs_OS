@@ -10,7 +10,7 @@ binds: [xeon/packages/cap-schedule/**]
 
 # L2 예약과 백그라운드 구현 계획 (schedule)
 
-`L2.schedule.spec`을 `xeon/packages/cap-schedule`(`@xeon/cap-schedule`)와 F 정의 파일로 옮기는 계획이다. 절 번호(§)는 따로 적지 않으면 그 스펙의 것이다.
+`L2.schedule.spec`을 `xeon/packages/cap-schedule`(`@fresnel/cap-schedule`)와 F 정의 파일로 옮기는 계획이다. 절 번호(§)는 따로 적지 않으면 그 스펙의 것이다.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -64,7 +64,7 @@ xeon/packages/cap-schedule/
     loops/
       model.ts             # 종료 조건 판정, 상한·만료, 판정 순서(순수)  (H2)
       runner.ts            # 반복 상태 기계, agent_settled 연결, 재시작 정리  (H2)
-      shell-condition.ts   # 셸 조건 실행 포트(xeon.exec)  (H2)
+      shell-condition.ts   # 셸 조건 실행 포트(fresnel.exec)  (H2)
       wakeup.ts            # 웨이크업 대체 규칙, 투입  (H3)
       service.ts           # start, stop, status, list, wakeup, done
     jobs/
@@ -117,7 +117,7 @@ xeon/packages/cap-schedule/
 | H7 | 틱 루프와 `sys_leases` `scheduler` 임대: `SchedulerHost`, 획득·하트비트·펜싱, 틱 절차, `pendingSchedules`·`liveSchedulerTasks`, `startTick` 모드(service, app) | H6, `L0.store.plan` 임대 API, `L4.host-service.plan` HS-39·HS-40 | M | S3 |
 | H8 | 놓친 실행·중복 방지: 정책 표(`skip`·`once`·`all`), 따라잡기 상한, 최소 간격, 시간당 상한, claim 기본 키와 펜싱 | H6, H7 | S | S3 |
 | H9 | 예약 세션 생성과 결과 전달: 세션 생성 키, `run_started`(origin 표식), 프롬프트 post(`timer:` 키), 재시작 복구, `run_finished`, 워치독(600초) | H7, H8, `L1.persistence` 세션 생성 `creationKey`(§4.10.1) | M | S3 |
-| H10 | remote 승인 중계: 정책 검사, 대기 요청 요약(마스킹), `respond` → `xeon.approvals`, `schedule.remote_responded`, host 연결 지점 | H1, `L4.host-service` 원격 연결 인증(U-11) | S | S4 |
+| H10 | remote 승인 중계: 정책 검사, 대기 요청 요약(마스킹), `respond` → `fresnel.approvals`, `schedule.remote_responded`, host 연결 지점 | H1, `L4.host-service` 원격 연결 인증(U-11) | S | S4 |
 | H11 | 설정 키 `l2.schedule.*`(spec §6)와 도구 노출 키 연결, `whenServiceOff`·`ensureOnCreate` 동작 | H1 | S | S1~S4 |
 
 선행 관계 요약: H1 → (H2 → H3), H4, H5, H6 → H7 → H8 → H9, H10. 다른 층 선행은 `L0.process`(H4), `L1.agents`(H4), `L4.host-service` 서비스 모드(H7, H9)와 원격 연결 인증(H10)이다.
@@ -274,7 +274,7 @@ xeon/packages/cap-schedule/
 |---|---|
 | `remote.policy.test.ts` › 꺼짐 | `remote.enabled: false`에서 `respond`가 `remote_disabled` |
 | › always 거부 | `remember: "always"`가 `remember_not_allowed` |
-| › 응답 전달과 감사 | 가짜 `xeon.approvals`가 1회 호출되고 `remote_responded` 커밋 |
+| › 응답 전달과 감사 | 가짜 `fresnel.approvals`가 1회 호출되고 `remote_responded` 커밋 |
 | › 요약 마스킹 | `pending.summary`에 도구 인자 원문과 가짜 비밀 값이 없다 |
 | `remote.auth.test.ts` › 토큰 없는 접속 | 가짜 원격 전송에서 토큰 없는 연결이 `host.hello` 처리 전에 닫힌다(L4 호스트 테스트 도우미 사용, 수용 기준 5) |
 | › 비루프백 무인증 기동 거부 | 비루프백 주소 + 인증 꺼짐 설정으로 서비스 시작이 실패한다 |

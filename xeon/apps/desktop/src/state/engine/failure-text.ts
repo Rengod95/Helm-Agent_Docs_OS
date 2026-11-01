@@ -1,4 +1,4 @@
-import { t } from "@xeon/client/i18n";
+import { t } from "@fresnel/client/i18n";
 
 /**
  * 턴이 실패했는데 host가 원인 문장을 주지 않았을 때 거울에 넣는 문장. reduce.ts가 `t`라는 이름의 지역 변수를 많이 쓰므로

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { type EngineProcess, processesWithHome, startEngine } from "./harness.ts";
-import { binaryViewOf } from "@xeon/client/settings";
-import { HostBinaryReportSchema, type HostBinaryReport } from "@xeon/contracts/wire";
-import { parse } from "@xeon/contracts";
+import { binaryViewOf } from "@fresnel/client/settings";
+import { HostBinaryReportSchema, type HostBinaryReport } from "@fresnel/contracts/wire";
+import { parse } from "@fresnel/contracts";
 import { binaryReportOf, CLI_MAIN, nthReply, runScenario, sidecarPath } from "./scenario.ts";
 
 // G4-03 (E2, E3): 컴파일한 사이드카 바이너리를 stdio로 몰아 소스 진입과 같은 응답·이벤트열이 나오는지, 정상 종료 뒤 프로세스가 남지 않는지 본다.

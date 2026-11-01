@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import { ok, type Logger, type LogFields } from "@xeon/contracts";
+import { ok, type Logger, type LogFields } from "@fresnel/contracts";
 import type {
   CancelScope,
   ExecService,
@@ -10,7 +10,7 @@ import type {
   Shell,
   ShellExecOptions,
   ShellExecResult,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { createExecService, type ExecServiceOptions } from "../src/service.ts";
 import { fakeSecrets, type FakeSecrets } from "./support/fake-secrets.ts";
 import { hostPlatform } from "./support/platform.ts";

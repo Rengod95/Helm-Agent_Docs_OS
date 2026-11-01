@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { CallOptions } from "@xeon/contracts/capabilities";
+import type { CallOptions } from "@fresnel/contracts/capabilities";
 import { DEFAULT_KNOWLEDGE_SETTINGS, withTrustedEvidence } from "../src/settings.ts";
 import { scriptedApprovals } from "./support/approvals.ts";
 import { asHost, rejection, threadIdOf } from "./support/helpers.ts";

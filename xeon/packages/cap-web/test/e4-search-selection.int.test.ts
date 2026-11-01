@@ -1,7 +1,7 @@
 import { afterAll, afterEach, describe, expect, test } from "bun:test";
-import type { Logger } from "@xeon/contracts";
-import type { WebService } from "@xeon/contracts/capabilities";
-import type { HostedSearchPort } from "@xeon/contracts/services";
+import type { Logger } from "@fresnel/contracts";
+import type { WebService } from "@fresnel/contracts/capabilities";
+import type { HostedSearchPort } from "@fresnel/contracts/services";
 import { directConvertRunner } from "../src/fetch/convert-runner.ts";
 import type { HttpTransport } from "../src/ports/transport.ts";
 import { createWebRuntime, type WebRuntime } from "../src/runtime.ts";

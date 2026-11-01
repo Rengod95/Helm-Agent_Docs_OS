@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { GroupService, GroupSettingUnwritableReason } from "@xeon/contracts/services";
+import type { GroupService, GroupSettingUnwritableReason } from "@fresnel/contracts/services";
 import {
   GROUP_USAGE,
   createGroupService,

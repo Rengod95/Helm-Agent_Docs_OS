@@ -2,7 +2,7 @@ import type {
   AssistantMessage,
   AssistantMessageEvent,
   AssistantMessageEventStream,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 
 /** 슬롯 대기 중 취소된 모델 요청에 돌려주는 스트림: 종결 이벤트 하나로 `aborted`를 낸다 */
 export function abortedStream(

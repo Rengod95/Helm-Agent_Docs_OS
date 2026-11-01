@@ -1,5 +1,5 @@
-import type { Message } from "@xeon/contracts/conversation";
-import type { CacheMarks, CachePolicy, CacheSite } from "@xeon/contracts/services";
+import type { Message } from "@fresnel/contracts/conversation";
+import type { CacheMarks, CachePolicy, CacheSite } from "@fresnel/contracts/services";
 import { COMPACTION_SUMMARY_PREFIX } from "./convert.ts";
 
 // L1.context.spec §4.5, plan C-3. 정책(`CachePolicy.sites`)의 우선순위대로 표식 위치를 고르고 상한(`maxBreakpoints`)을 넘으면

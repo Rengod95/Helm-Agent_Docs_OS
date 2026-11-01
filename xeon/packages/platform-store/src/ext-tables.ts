@@ -1,10 +1,10 @@
-import { assertNever, err, ok, type Clock, type Result } from "@xeon/contracts";
-import { extTablePrefix } from "@xeon/contracts/records";
+import { assertNever, err, ok, type Clock, type Result } from "@fresnel/contracts";
+import { extTablePrefix } from "@fresnel/contracts/records";
 import type {
   ExtensionTableError,
   ExtensionTables,
   StoreWriteError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { assertNotInWrite, createStoreDb, type StoreConnections } from "./db.ts";
 import { checkExtName, extOwnerId, isExtTableOf } from "./prefix.ts";
 

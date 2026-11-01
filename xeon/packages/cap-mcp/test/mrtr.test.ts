@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { parse, parseJson } from "@xeon/contracts";
+import { parse, parseJson } from "@fresnel/contracts";
 import {
   CallToolOutput,
   type CallToolOutputValue,
   type McpContinuation,
   type McpInputRequired,
-} from "@xeon/contracts/capabilities";
-import type { JsonObject } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { JsonObject } from "@fresnel/contracts/conversation";
 import {
   askWithApprovals,
   buildInputResponses,

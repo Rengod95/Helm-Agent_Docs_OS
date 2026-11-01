@@ -1,6 +1,6 @@
-import { assertNever, ok, parse, type Result } from "@xeon/contracts";
-import { isCapabilityId, type CapabilityId } from "@xeon/contracts/capabilities";
-import type { EventId, ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, ok, parse, type Result } from "@fresnel/contracts";
+import { isCapabilityId, type CapabilityId } from "@fresnel/contracts/capabilities";
+import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
@@ -9,7 +9,7 @@ import {
   type DurableEventEnvelope,
   type ReadFailure,
   type SessionService,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   PERMISSION_MODE_STRICTNESS,
   TOOL_RISK_ORDER,
@@ -18,7 +18,7 @@ import {
   type CallerId,
   type PermissionMode,
   type ToolRisk,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 
 // L1.tools.spec §4.7 내구화와 재개. 미해결 approval.requested를 이벤트에서 다시 읽는다.
 

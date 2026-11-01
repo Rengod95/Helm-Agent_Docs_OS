@@ -1,6 +1,6 @@
-import { assertNever, parseJson, type Bug } from "@xeon/contracts";
-import { parseModelRef } from "@xeon/contracts/services";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever, parseJson, type Bug } from "@fresnel/contracts";
+import { parseModelRef } from "@fresnel/contracts/services";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   checkSettingWrite,
   resolveSetting,
@@ -8,14 +8,14 @@ import {
   type EffectiveSetting,
   type SettingDef,
   type SettingScope,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import {
   SETTINGS_FILE_TEXT_MAX,
   wireError,
   type SettingsFileScope,
   type WireError,
   type WireHandler,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { keyReusedBug, wireErrorOfStore } from "../store-error.ts";
 import { settingProblemOf } from "../settings-problems.ts";
 import type { Engine, SettingsFileFailure, SettingsWriteFailure } from "../types.ts";

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { stat } from "node:fs/promises";
 import { dirname } from "node:path";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { tempDir, withIsolatedEnv } from "../src/testing/index.ts";
 import { exists } from "./support/json.ts";
 

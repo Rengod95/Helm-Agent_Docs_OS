@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { CapabilityError, type CommandInfo } from "@xeon/contracts/capabilities";
+import { CapabilityError, type CommandInfo } from "@fresnel/contracts/capabilities";
 import { createCommandsService } from "../src/commands/service.ts";
 import { memoryCommandFiles } from "./support/memory-command-files.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { err, ok } from "@xeon/contracts";
-import type { BlobError, BlobRef, StoreService } from "@xeon/contracts/records";
+import { err, ok } from "@fresnel/contracts";
+import type { BlobError, BlobRef, StoreService } from "@fresnel/contracts/records";
 
 // blob 쓰기·읽기 대역(L1.tools.plan §2 testing/fakeStore). 해시는 실제 sha256이다.
 

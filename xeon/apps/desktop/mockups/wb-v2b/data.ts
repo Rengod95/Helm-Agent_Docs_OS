@@ -76,7 +76,7 @@ export const EXTS: Ext[] = [
     trust: "builtin",
     version: "0.4.0",
     health: "ok",
-    provides: ["xeon.agents", "xeon.tools"],
+    provides: ["fresnel.agents", "fresnel.tools"],
     parts: 9,
     icon: "core",
   },
@@ -219,7 +219,7 @@ export const EXTS: Ext[] = [
     usesDrive: false,
     consumes: [
       { id: "knowledge.skills", need: "requires" },
-      { id: "xeon.agents", need: "requires" },
+      { id: "fresnel.agents", need: "requires" },
     ],
     parts: 5,
     icon: "learn",

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { PrimitiveError } from "@xeon/ext-host";
-import { createTestHost } from "@xeon/ext-host/testing";
+import { PrimitiveError } from "@fresnel/ext-host";
+import { createTestHost } from "@fresnel/ext-host/testing";
 import { checkRecordKind, checkPostItem, defineGroup, kindVisibleTo } from "../src/index.ts";
 import { fireSettled, install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";

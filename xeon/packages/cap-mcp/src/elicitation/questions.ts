@@ -1,6 +1,6 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { McpQuestion } from "@xeon/contracts/capabilities";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { McpQuestion } from "@fresnel/contracts/capabilities";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { asJsonObject, stringOf } from "../json.ts";
 
 // L2.mcp.spec §4.6 1번, 10번과 §4.7. `input_required` 결과의 입력 요청을 사람에게 묻는 질문으로 바꾼다.

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ShellExecOptions } from "@xeon/contracts/services";
+import type { ShellExecOptions } from "@fresnel/contracts/services";
 import { createSandboxService, type SandboxServiceHandle } from "../src/service.ts";
 import { MAX_VIOLATIONS } from "../src/violations.ts";
 import { envAdditions, newCommandId, quoteArgv } from "../src/wrap-shell.ts";

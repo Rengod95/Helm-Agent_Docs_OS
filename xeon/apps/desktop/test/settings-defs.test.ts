@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { checkSettingDef, validateSettingValue, type SettingDef } from "@xeon/contracts/settings";
+import {
+  checkSettingDef,
+  validateSettingValue,
+  type SettingDef,
+} from "@fresnel/contracts/settings";
 import { DESKTOP_SETTING_DEFS } from "../src/settings-store/defs.ts";
 
 // 셸이 읽는 `l4.desktop.*` 키 세 개의 선언을 spec §6 표에 맞춘다 (L4.desktop.spec §6, plan M3-38).

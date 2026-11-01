@@ -165,7 +165,7 @@ export const SettingEditorSchema: TUnion<
 export type SettingEditor = Static<typeof SettingEditorSchema>;
 
 /**
- * 메시지 키 [결정: M3-REQ-21, adr.0016]. 화면 문자열은 키로 싣고 ko·en 카탈로그(JSON, `@xeon/client`)가 문장을 낸다.
+ * 메시지 키 [결정: M3-REQ-21, adr.0016]. 화면 문자열은 키로 싣고 ko·en 카탈로그(JSON, `@fresnel/client`)가 문장을 낸다.
  * 점으로 이은 낙타 표기 식별자다. 예: `settings.l1.loop.maxSteps.label`.
  */
 export const MESSAGE_KEY_PATTERN: string = "^[a-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$";

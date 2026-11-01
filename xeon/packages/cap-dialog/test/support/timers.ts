@@ -1,4 +1,4 @@
-import { fakeTimers } from "@xeon/ext-host/testing";
+import { fakeTimers } from "@fresnel/ext-host/testing";
 import type { Timers } from "../../src/ports/timers.ts";
 
 export interface ManualTimers extends Timers {

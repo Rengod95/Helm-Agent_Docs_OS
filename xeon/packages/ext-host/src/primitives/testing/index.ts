@@ -1,4 +1,4 @@
-// 테스트 대역과 도우미(@xeon/ext-host/testing). L0·L1을 import하지 않는다(review.decisions-2 D-05).
+// 테스트 대역과 도우미(@fresnel/ext-host/testing). L0·L1을 import하지 않는다(review.decisions-2 D-05).
 export { fixedIdFactory } from "./ids.ts";
 export { fakeTimers, flushMicrotasks, type FakeTimers } from "./timers.ts";
 export {

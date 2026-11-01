@@ -7,8 +7,8 @@
 //   4. 여러 키는 사전순으로 차례로 얻는다.
 //   5. 대기 중 owner.signal이 켜지면 대기열에서 빠지고 signal.reason으로 거부한다.
 // 원본과 같은 한계: 같은 프로세스 안의 직렬화다. bash나 다른 프로세스의 쓰기는 막지 못한다.
-import { Bug } from "@xeon/contracts";
-import type { KeyedQueue, LockMode, LockRequest, TaskScope } from "@xeon/contracts/services";
+import { Bug } from "@fresnel/contracts";
+import type { KeyedQueue, LockMode, LockRequest, TaskScope } from "@fresnel/contracts/services";
 
 interface Waiter {
   readonly mode: LockMode;

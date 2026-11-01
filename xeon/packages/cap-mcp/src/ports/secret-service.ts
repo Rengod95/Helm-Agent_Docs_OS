@@ -1,10 +1,10 @@
-import { eachAsync, err, ok, type Result } from "@xeon/contracts";
-import { parseSecretRef } from "@xeon/contracts/capabilities";
-import type { SecretError, SecretLease, UseCtx } from "@xeon/contracts/services";
-import type { SecretHandle } from "@xeon/contracts/capabilities";
+import { eachAsync, err, ok, type Result } from "@fresnel/contracts";
+import { parseSecretRef } from "@fresnel/contracts/capabilities";
+import type { SecretError, SecretLease, UseCtx } from "@fresnel/contracts/services";
+import type { SecretHandle } from "@fresnel/contracts/capabilities";
 import type { McpHeaderRequest, McpHeaderSecrets, McpSecretError } from "./secrets.ts";
 
-// `xeon.secrets`(SecretService)를 `McpHeaderSecrets`로 감싼다. HTTP·SSE 서버 헤더의 `secret://` 값을 요청 직전에
+// `fresnel.secrets`(SecretService)를 `McpHeaderSecrets`로 감싼다. HTTP·SSE 서버 헤더의 `secret://` 값을 요청 직전에
 // runtime-http 모드 lease로 열어 값만 헤더에 넣고 바로 닫는다(L0.secrets.spec §4.3).
 
 /** `SecretService.lease`의 부분형. 이 패키지는 lease에서 `use`와 `dispose`만 쓴다 */

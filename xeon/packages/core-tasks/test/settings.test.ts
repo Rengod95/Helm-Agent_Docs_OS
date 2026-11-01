@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { buildCatalog, checkSettingDef, type ScopeStack } from "@xeon/contracts/settings";
+import { buildCatalog, checkSettingDef, type ScopeStack } from "@fresnel/contracts/settings";
 import { createLayeredTasksSettings, tasksSettings } from "../src/settings.ts";
 import { createStaticTasksSettings } from "../src/settings-source.ts";
 

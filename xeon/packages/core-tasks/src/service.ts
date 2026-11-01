@@ -1,7 +1,7 @@
-import { Bug, err, ok, type Logger, type Result } from "@xeon/contracts";
-import type { IdFactory } from "@xeon/contracts/conversation";
-import type { ProducerHandle, StoreError } from "@xeon/contracts/records";
-import type { Unsubscribe } from "@xeon/contracts/extensions";
+import { Bug, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import type { IdFactory } from "@fresnel/contracts/conversation";
+import type { ProducerHandle, StoreError } from "@fresnel/contracts/records";
+import type { Unsubscribe } from "@fresnel/contracts/extensions";
 import type {
   AbortOptions,
   AbortReason,
@@ -11,7 +11,7 @@ import type {
   PoolName,
   TaskScope,
   TaskService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { CLOSE_ABORT_REASON, UNKNOWN_ABORT_REASON } from "./abort-reason.ts";
 import { createInputQueue } from "./input-queue.ts";
 import { createKeyedQueue } from "./keyed-queue.ts";
@@ -33,7 +33,7 @@ export interface TaskServiceDeps {
 const THREAD_PAGE_LIMIT = 200;
 
 /**
- * xeon.tasks(TaskService)를 만든다. Cordis에 등록하는 일은 plugin.ts가 한다(ADR-0002).
+ * fresnel.tasks(TaskService)를 만든다. Cordis에 등록하는 일은 plugin.ts가 한다(ADR-0002).
  * 범위 트리와 취소(spec §4.1~§4.3), 키 큐(§4.4), 내구 입력 큐(§4.6~§4.8)를 조립한다
  */
 export function createTaskService(deps: TaskServiceDeps): TaskService {

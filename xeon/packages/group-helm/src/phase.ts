@@ -1,5 +1,5 @@
-import type { SpawnOutcome, TurnOutcome } from "@xeon/contracts/extensions";
-import { assertNever, type Result } from "@xeon/contracts";
+import type { SpawnOutcome, TurnOutcome } from "@fresnel/contracts/extensions";
+import { assertNever, type Result } from "@fresnel/contracts";
 import { dedupeFindings, parseExplorerAnswer } from "./findings.ts";
 import type { HelmFailure } from "./failures.ts";
 import type { InquiryFinishedPayload, InquiryOutcome } from "./records.ts";

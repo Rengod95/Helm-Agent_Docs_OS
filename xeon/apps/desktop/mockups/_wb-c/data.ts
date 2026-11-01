@@ -357,7 +357,7 @@ export const acmeLog: LogRow[] = [
     kind: "loader.diagnostic",
     text: "manifest.points[2] 알 수 없는 지점 tool.result.after",
     tone: "danger",
-    loc: "xeon.extension.json:18",
+    loc: "fresnel.extension.json:18",
   },
   { at: "13:58:40", kind: "x.reload", text: "다시 읽음 · 0.0.9 · 지점 3" },
 ];

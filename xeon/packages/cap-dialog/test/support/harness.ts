@@ -1,9 +1,9 @@
-import { err, ok, type LogFields, type Logger } from "@xeon/contracts";
-import type { CallOptions, StatusItem } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { FileError, type FileInfo } from "@xeon/contracts/services";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { err, ok, type LogFields, type Logger } from "@fresnel/contracts";
+import type { CallOptions, StatusItem } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { FileError, type FileInfo } from "@fresnel/contracts/services";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { DialogDeps } from "../../src/deps.ts";
 import type { BlobSink } from "../../src/ports/blobs.ts";
 import type { AttachmentFiles } from "../../src/ports/files.ts";

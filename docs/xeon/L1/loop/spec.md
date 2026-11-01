@@ -10,9 +10,9 @@ binds: [xeon/packages/core-loop/**]
 
 # L1 에이전트 루프 (loop)
 
-- 패키지: `xeon/packages/core-loop`(`@xeon/core-loop`), 계획 id L1-b "에이전트 루프"(`_research/layer-plan-v2.json` L1-b).
+- 패키지: `xeon/packages/core-loop`(`@fresnel/core-loop`), 계획 id L1-b "에이전트 루프"(`_research/layer-plan-v2.json` L1-b).
 - 컨텍스트: `run-engine`(`eng.context-map.design` §4.1, §4.5).
-- Cordis 서비스: `xeon.loop`(`eng.context-map.design` §5.3). 이 문서는 인터페이스 이름을 `LoopService`로 정한다.
+- Cordis 서비스: `fresnel.loop`(`eng.context-map.design` §5.3). 이 문서는 인터페이스 이름을 `LoopService`로 정한다.
 - 외부 모듈: `@earendil-works/pi-agent-core`는 어느 패키지도 import하지 않는다. 루프는 pi-agent-core 1.3.0 루프를 포크한 core-loop 자체 코드다(adr.0009). `@earendil-works/pi-ai`는 core-models 소유라 core-loop는 직접 import하지 않는다(`eng.dependency-rules.guide` DR-07). 대화 타입(`AgentMessage`, `AgentEvent`, `AgentTool`)은 F conversation이 정의한 것, pi-ai 타입은 F가 다시 export한 이름을 쓴다(`F.conversation.spec` §3.1).
 
 ## 1. 목적과 범위
@@ -71,14 +71,14 @@ binds: [xeon/packages/core-loop/**]
 
 ## 3. 인터페이스
 
-다른 L1 패키지와 X, L4가 같은 타입을 쓰므로 서비스 인터페이스 `LoopService`와 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04](§8.1 FR-L1). `isolatedDeclarations` 때문에 export 상수에는 명시 타입을 단다.
+다른 L1 패키지와 X, L4가 같은 타입을 쓰므로 서비스 인터페이스 `LoopService`와 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04](§8.1 FR-L1). `isolatedDeclarations` 때문에 export 상수에는 명시 타입을 단다.
 
 X가 부르는 부분의 기준은 `X.primitives.spec` §3.6 `LoopPort`다. X(순위 1)는 L1을 import할 수 없으므로 L1이 X가 정한 포트를 구현한다. `LoopPort`, `InputQueuePort`와 그 요청·결과 타입은 F.extensions `ports.ts`(`F.extensions.spec` §3.2.1)에 두고 X와 L1이 모두 F에서 import한다(FR-L1). `RecordCommitPort`는 `F.records.spec` §3.9 `session-service.ts`에 있다. `LoopService`는 `LoopPort`를 확장한다. 같은 Cordis 서비스에 두 모양을 함께 둘 때의 규칙은 하나다 [제안]: 최상위 메서드 이름이 포트와 겹쳐 시그니처가 다를 때만 하위 객체로 나누고(`L1.persistence.spec` §3.3 `SessionService.ext`), 겹치지 않으면 포트 메서드를 최상위에 둔다(이 문서, `L1.tasks.spec` §7). 이 문서는 겹치는 `status`를 L1 쪽 이름 `threadStatus`로 바꿔 최상위에 둔다.
 
 ### 3.1 LoopService
 
 ```ts
-// 파일 위치: F @xeon/contracts/services(review.decisions-2 D-04). 포트 타입은 F.extensions ports.ts에서 가져온다
+// 파일 위치: F @fresnel/contracts/services(review.decisions-2 D-04). 포트 타입은 F.extensions ports.ts에서 가져온다
 // 그 전까지 아래 경로는 F.records.spec·F.extensions.spec에 실제로 있는 파일과 L1.persistence FR-P1 제안 파일만 가리킨다.
 import type { Result } from "../base/index.ts";
 import type { EventId, ImageContent, TextContent, ThreadId, TurnId } from "../conversation/index.ts";
@@ -91,7 +91,7 @@ import type { InputMode, TaskScope } from "./tasks-service.ts";
 // [가정] F 안에서 extensions가 capabilities 타입을 import할 수 있다(F 내부 순서는 F 문서가 정한다)
 import type { AdvertisedToolset, CallerId, ChildLimits, PolicyCeiling } from "../capabilities/index.ts";
 
-export const LoopServiceName: "xeon.loop" = "xeon.loop";
+export const LoopServiceName: "fresnel.loop" = "fresnel.loop";
 
 export interface AdmitRequest {
   readonly threadId: ThreadId;
@@ -124,7 +124,7 @@ export interface ChildTurnRequest {
   readonly requestId: string;
   /** 정의 prompt. L1.context 조립의 기본 프롬프트로 넘긴다 */
   readonly systemPrompt: string;
-  /** ModelRole 이름 또는 ModelRef 문자열. xeon.models가 해석한다 */
+  /** ModelRole 이름 또는 ModelRef 문자열. fresnel.models가 해석한다 */
   readonly model: string;
   /** 자식 ToolRunContext에 넣을 값(L1.tools.spec §3.2, §3.4) */
   readonly tools: {
@@ -183,22 +183,22 @@ export type LoopError =
  * LoopPort(X.primitives.spec §3.6)에서 받는 것:
  * - status(threadId): "idle" | "running"
  * - runTurn(request: LoopTurnRequest): Promise<LoopTurnResult>  drive turn(§4.8)
- * - spawn(request: LoopSpawnRequest): Promise<LoopSpawnResult>   xeon.agents의 spawn에 위임한다(L1.agents.spec §4.2)
+ * - spawn(request: LoopSpawnRequest): Promise<LoopSpawnResult>   fresnel.agents의 spawn에 위임한다(L1.agents.spec §4.2)
  * - whenIdle(threadId, fn)                                        유휴 동안 새 turn 시작을 막는다(§4.1)
  * 포트 메서드는 Result를 쓰지 않는다. turn을 열기 전 실패(stale_lease, StoreError)는 Promise를 LoopError 값으로 거부한다 [제안].
  */
 export interface LoopService extends LoopPort {
-  /** 사용자 입력 제출. input 지점(chain)을 발화하고 xeon.tasks 큐에 넣는다(§4.1) */
+  /** 사용자 입력 제출. input 지점(chain)을 발화하고 fresnel.tasks 큐에 넣는다(§4.1) */
   admit(request: AdmitRequest): Promise<Result<AdmitResult, LoopError>>;
   /** 자식 thread turn. 주 대화와 같은 루프로 돈다. 같은 requestId면 기록된 결과를 돌려주거나 열린 turn을 이어 끝낸다(§4.13) */
   runChildTurn(request: ChildTurnRequest): Promise<Result<LoopTurnResult, LoopError>>;
   /**
-   * 사용자 셸 입력(`!명령`) [결정: m2 F.8]. `input.bash.before`(first)를 발화하고 거부가 아니면 `xeon.tools.runUserShell`로 실행한다(§3.1 끝).
+   * 사용자 셸 입력(`!명령`) [결정: m2 F.8]. `input.bash.before`(first)를 발화하고 거부가 아니면 `fresnel.tools.runUserShell`로 실행한다(§3.1 끝).
    * turn을 열지 않으므로 turn이 실행 중이어도 부를 수 있다. 실행 실패(명령 오류, 종료 코드)는 completed의 result로, LoopError는 실행 전의 실패(저장소, 없는 대화)다
    */
   runUserBash(request: UserBashRequest): Promise<Result<UserBashOutcome, LoopError>>;
   guardExecution(request: GuardExecutionRequest): Promise<Result<GuardExecutionOutcome, LoopError>>;
-  /** 사용자 중단(Esc). xeon.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
+  /** 사용자 중단(Esc). fresnel.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
   interrupt(threadId: ThreadId, turnId?: TurnId): Promise<boolean>;
   /** 열린 turn을 재개한다. 자동 재개는 하지 않는다(§4.6) */
   resume(threadId: ThreadId): Promise<Result<ResumeResult, LoopError>>;
@@ -212,9 +212,9 @@ export interface LoopService extends LoopPort {
 - `LoopPort.status`는 `threadStatus(threadId).phase`가 `"idle"`이면 `"idle"`, 아니면 `"running"`이다.
 - `TurnOutcome`은 `F.extensions.spec` §3.2의 것이다. `LoopTurnResult.outcome.status`는 `turn.completed.status`에서 `completed` → `"completed"`, `interrupted` → `"aborted"`, `failed` → `"error"`로 옮긴다.
 - L4 `TurnPort`(`L4.host-service.spec` §3.3)의 `submit`은 `admit`, `interrupt`는 `interrupt`, `stopAtSafeBoundary`는 같은 이름에 대응한다. `SubmitOutcome`의 `busy`는 `AdmitResult.status: "queued"`에 대응하고 그때 `turnId`는 `runningTurnId`다 [가정: host 어댑터가 옮긴다].
-- `input.bash.before` 지점(`!명령` 입력)의 진입점은 `runUserBash(request)`다. [결정: m2 F.8] F `LoopService`에 시그니처가 들어갔다(`UserBashRequest`, `UserBashOutcome`). `input.bash.before`(first)를 발화한 뒤 거부가 아니면 `xeon.tools`의 사용자 셸 경로(`runUserShell`, `includeInContext = !excludeFromContext`)로 실행한다(`L1.tools.spec` 요구). 거부는 `denied`로 돌려주고 실행하지 않는다. 구현은 `src/user-bash.ts`다 [결정: L1F].
+- `input.bash.before` 지점(`!명령` 입력)의 진입점은 `runUserBash(request)`다. [결정: m2 F.8] F `LoopService`에 시그니처가 들어갔다(`UserBashRequest`, `UserBashOutcome`). `input.bash.before`(first)를 발화한 뒤 거부가 아니면 `fresnel.tools`의 사용자 셸 경로(`runUserShell`, `includeInContext = !excludeFromContext`)로 실행한다(`L1.tools.spec` 요구). 거부는 `denied`로 돌려주고 실행하지 않는다. 구현은 `src/user-bash.ts`다 [결정: L1F].
 - 출력을 실행에 넘기기 직전의 가드 진입점은 `guardExecution(request)`다 [결정: M3b B2-ART]. `guard.output.before`를 `target: "execution"`으로 발화하고 `allowed` 또는 `blocked`를 `Result`로 돌려준다(`requestId` 길이 오류는 `input_invalid`). turn을 열지 않고 `requestId`(1~64자)를 디스패치 키로 쓴다. 구현은 `src/guard-execution.ts`다.
-  - 순서: (1) 요청 검사(빈 명령, 64자를 넘는 `requestId`는 `input_invalid`)와 대화 확인(`thread_not_found`, 닫힌 대화는 `input_invalid`). (2) `input.bash.before`(first) 발화. `deny` 결정이나 핸들러 실패는 `denied`(핸들러 실패는 fail-closed)이고, `result` 결정은 명령을 실행하지 않은 `completed{ replaced: true }`다. (3) 거부가 아니면 `xeon.tools.runUserShell`로 실행한다. 레코드의 `details.code`가 `not_executed`·`tool_unavailable`이면 명령이 돌지 않은 것이라 `denied`다. 그 밖에는 성공의 `structuredContent`나 0이 아닌 종료의 오류 상세(`detail`)에서 `UserBashResult`(`output`, `exitCode`, `truncated`, `fullOutputPath`)를 만들고, 요약이 없는 오류(중단 등)는 본문을 `output`으로, `cancelled`는 `aborted` 코드일 때 참으로 둔다.
+  - 순서: (1) 요청 검사(빈 명령, 64자를 넘는 `requestId`는 `input_invalid`)와 대화 확인(`thread_not_found`, 닫힌 대화는 `input_invalid`). (2) `input.bash.before`(first) 발화. `deny` 결정이나 핸들러 실패는 `denied`(핸들러 실패는 fail-closed)이고, `result` 결정은 명령을 실행하지 않은 `completed{ replaced: true }`다. (3) 거부가 아니면 `fresnel.tools.runUserShell`로 실행한다. 레코드의 `details.code`가 `not_executed`·`tool_unavailable`이면 명령이 돌지 않은 것이라 `denied`다. 그 밖에는 성공의 `structuredContent`나 0이 아닌 종료의 오류 상세(`detail`)에서 `UserBashResult`(`output`, `exitCode`, `truncated`, `fullOutputPath`)를 만들고, 요약이 없는 오류(중단 등)는 본문을 `output`으로, `cancelled`는 `aborted` 코드일 때 참으로 둔다.
   - 도구 쪽 실행 맥락(`ToolRunContext`)은 turn을 열지 않으므로 이 호출 전용의 새 `turnId`·`stepId`로 만든다. caller `main`, 깊이 0, 대화형이고 `signal`은 요청의 것이다. 이 id는 어떤 `turn.*` 이벤트와도 이어지지 않아 열린 turn의 재개 판정(`reduceOpenTurn`)에 끼지 않는다. `toolResultItem`·`waitingCheckpoint` 초안은 만들지 않는다(사용자 셸은 toolResult item도 승인 대기도 없다).
   - 컨텍스트 기록: `!`(`excludeFromContext = false`)이면 명령과 출력을 `custom` item 하나로 커밋한다. `customType`은 `core.loop.user_bash`, 본문은 명령 줄("Ran" 다음에 백틱으로 감싼 명령), 출력, 중단·종료 코드·절단 안내 순이고 `details`는 `{ command, exitCode?, cancelled, truncated, replaced }`다. F에 `bashExecution` 역할이 없어(L1.context.spec §10 4번) `custom`으로 흡수했고, `custom` item은 컨텍스트 조립 때 `UserMessage`가 된다. `!!`이면 item을 남기지 않고 효과 3단만 남는다. 커밋 키는 `ubash:<commitKeyPart(requestId)>`다.
   - 멱등: 같은 `(threadId, requestId)`는 진행 중이거나 끝난 결과를 돌려주고 명령을 다시 실행하지 않는다. 이 기억은 프로세스 안(대화당 64개)에만 있다. 실패한 요청(저장소 오류, 없는 대화)은 기억하지 않아 같은 키로 다시 부르면 처음부터 한다. 다만 명령이 이미 돈 뒤 컨텍스트 기록만 실패한 요청은 돈 결과를 프로세스 안(대화당 16개)에 두고, 같은 `requestId`의 재호출이 `input.bash.before` 발화와 셸 실행을 건너뛰고 기록 커밋만 다시 한다 [결정: 통합 검토 L1]. 그래서 기록 실패 뒤 재시도가 명령을 두 번 실행하지 않는다. 기록이 끝나면 이 보관은 지운다. F `UserShellRequest`에 요청 id가 없어 도구 쪽 호출 id를 고정할 수 없기 때문에, 재시작 뒤 같은 `requestId`는 명령을 다시 실행할 수 있다(컨텍스트 item은 커밋 키로 한 번만 남는다) [미결].
@@ -225,7 +225,7 @@ export interface LoopService extends LoopPort {
 
 [결정] turn 하나는 core-loop 자체 루프의 `runTurn(entry)` 호출 하나다(adr.0009). 루프는 pi-agent-core 1.3.0(MIT) `agent-loop.ts`의 `runLoop`, `streamAssistantResponse`, 도구 배치 실행을 포크해 다시 설계한 것이다. pi-agent-core는 import하지 않는다. 원본 줄 번호는 `~/projects/_ref/pi-src/packages/agent/src`(1.1.0 = 1.3.0 바이트 동일) 기준이고 대조용으로만 인용한다.
 
-- 루프는 메시지 배열을 들고 있지 않다. 요청마다 `xeon.context`가 커밋된 이벤트에서 컨텍스트를 다시 만든다. 단계 안에서 나온 메시지(응답, 도구 결과, 배치된 입력)는 커밋된 뒤에만 다음 요청에 들어간다.
+- 루프는 메시지 배열을 들고 있지 않다. 요청마다 `fresnel.context`가 커밋된 이벤트에서 컨텍스트를 다시 만든다. 단계 안에서 나온 메시지(응답, 도구 결과, 배치된 입력)는 커밋된 뒤에만 다음 요청에 들어간다.
 - 커밋 지점(§3.5)과 확장 지점(§7)은 루프 단계 함수가 차례로 부른다. 콜백 훅으로 바깥 동작을 끼우지 않는다.
 - 이벤트 싱크는 매퍼(§3.4)와 tap 발화만 한다. 싱크는 커밋하지 않는다.
 - 한 thread에서 동시에 실행되는 turn은 하나다(`F.conversation.spec` §3.5.1). thread 구동기가 이를 지킨다. 루프 안에서 다른 turn을 시작하지 않는다.
@@ -235,9 +235,9 @@ export interface LoopService extends LoopPort {
 
 ```ts
 // xeon/packages/core-loop/src/loop/types.ts (내부, 공개하지 않는다)
-import type { AgentToolCall, AssistantMessage, ItemId, StepId, ToolResultMessage } from "@xeon/contracts/conversation";
-import type { EffectIntent } from "@xeon/contracts/records";
-import type { ModelBinding } from "@xeon/contracts/services";
+import type { AgentToolCall, AssistantMessage, ItemId, StepId, ToolResultMessage } from "@fresnel/contracts/conversation";
+import type { EffectIntent } from "@fresnel/contracts/records";
+import type { ModelBinding } from "@fresnel/contracts/services";
 
 /** 재개 판별자(§4.5)가 그대로 진입점이 된다 */
 export type TurnEntry =
@@ -278,8 +278,8 @@ export type LoopFailure =
 
 | 순서 | 루프 단계 | 하는 일 | 원본 대응 |
 |---|---|---|---|
-| 1 | `openStep` | 바인딩 결정(`xeon.models`), 도구 광고(`xeon.tools.advertise`, 단계 경계에 적용된 scope 토글 반영), S1(T2) 커밋, `boundary.step.before` tap | `turn_start` 이벤트, `prepareNextTurn` |
-| 2 | `prepareRequest` | `xeon.context`가 커밋된 이벤트로 컨텍스트 조립. request 지점은 L1.context·L1.models가 발화 | `prepareRequest`, `transformContext`, `convertToLlm` |
+| 1 | `openStep` | 바인딩 결정(`fresnel.models`), 도구 광고(`fresnel.tools.advertise`, 단계 경계에 적용된 scope 토글 반영), S1(T2) 커밋, `boundary.step.before` tap | `turn_start` 이벤트, `prepareNextTurn` |
+| 2 | `prepareRequest` | `fresnel.context`가 커밋된 이벤트로 컨텍스트 조립. request 지점은 L1.context·L1.models가 발화 | `prepareRequest`, `transformContext`, `convertToLlm` |
 | 3 | `streamResponse` | `modelCalls` 슬롯을 잡고 streamFn 호출, 부분 메시지와 휘발 이벤트, `boundary.message.before`·`boundary.message.update` tap | `streamAssistantResponse`(381-476) |
 | 4 | `commitResponse` | `boundary.message.after` chain, 도구 선언 차이 system item과 응답을 C3(T3) 커밋, 도구 호출이 있으면 `next:"tools"` 체크포인트 | `message_end` 이벤트 |
 | 5 | `runToolBatch` | 도구 배치(§3.3). `stopReason: "length"`면 실행하지 않고 전부 실패 결과 | `executeToolCalls*`(508-660), `failToolCallsFromTruncatedMessage`(478-506) |
@@ -291,14 +291,14 @@ turn 순서: T1(구동기) → `input.agent.before`(entry `fresh`) → `boundary
 
 | 값 | 출처 | 이 문서 절 |
 |---|---|---|
-| `model`, 추론 레벨, `thinkingBudgets`, 캐시 정책 | `xeon.models`가 thread 설정으로 해석한 단계 바인딩. 체크포인트 `model` 필드와 같은 값 | §4.7 |
-| 컨텍스트(`AgentMessage[]`) | `xeon.context` 조립. `convertToLlm`과 pi-ai `normalizeContext`는 `xeon.models` streamFn 안에서 한다(adr.0009 §3.5) | §4.2 |
-| streamFn | `xeon.models`의 streamFn을 `modelCalls` 슬롯으로 감싼 것(`L1.tasks.spec` §4.5 C1). 전역 기본 streamFn은 없다 | |
+| `model`, 추론 레벨, `thinkingBudgets`, 캐시 정책 | `fresnel.models`가 thread 설정으로 해석한 단계 바인딩. 체크포인트 `model` 필드와 같은 값 | §4.7 |
+| 컨텍스트(`AgentMessage[]`) | `fresnel.context` 조립. `convertToLlm`과 pi-ai `normalizeContext`는 `fresnel.models` streamFn 안에서 한다(adr.0009 §3.5) | §4.2 |
+| streamFn | `fresnel.models`의 streamFn을 `modelCalls` 슬롯으로 감싼 것(`L1.tasks.spec` §4.5 C1). 전역 기본 streamFn은 없다 | |
 | 취소 | turn 범위 노드의 `CancelScope`(`L1.tasks.spec` §3.2, adr.0003 §3.1) | §3.3 |
 
 ### 3.3 도구 배치와 pi 루프 대비 처리
 
-도구 배치는 원본의 순차·병렬 규칙을 옮긴다 [결정: adr.0009 §3.3]. 한 호출의 준비·실행·마감은 `xeon.tools`의 단계 계약(adr.0009 §3.4, `L1.tools.spec` §3.3)으로 넘긴다.
+도구 배치는 원본의 순차·병렬 규칙을 옮긴다 [결정: adr.0009 §3.3]. 한 호출의 준비·실행·마감은 `fresnel.tools`의 단계 계약(adr.0009 §3.4, `L1.tools.spec` §3.3)으로 넘긴다.
 
 1. 배치 모드: 설정 기본은 `"parallel"`이다. 호출 중 하나라도 도구 `executionMode`가 `"sequential"`이면 배치 전체를 순차로 돈다(원본 508-523).
 2. 준비는 항상 원래 순서대로 하나씩 한다: `tool.execution.before` 발신 → `tools.prepare(call)`. 결과가 `settled`(미발견, 인자 오류, 거부, 중단)면 곧바로 `tool.execution.after`를 낸다.
@@ -328,7 +328,7 @@ pi 루프 대비 처리표. 이전 판의 훅 판정표(07 §3.5 A1~A7)를 자�
 
 ```ts
 // xeon/packages/core-loop/src/event-mapper.ts
-import type { AgentEventMapInit, AgentEventMapper, CreateAgentEventMapper } from "@xeon/contracts/conversation";
+import type { AgentEventMapInit, AgentEventMapper, CreateAgentEventMapper } from "@fresnel/contracts/conversation";
 
 export const createAgentEventMapper: CreateAgentEventMapper = (init: AgentEventMapInit): AgentEventMapper => { /* … */ };
 
@@ -350,23 +350,23 @@ export interface BoundAgentEventMapper extends AgentEventMapper {
 
 - envelope는 `VolatileEventEnvelope`(`F.records.spec` §3.1)이고 `durable: false`다.
 - `n`: `(threadId, turnId)`마다 0부터 1씩 늘린다. turn 밖 휘발(`turnId: null`)은 `(threadId, null)` 열을 따로 센다. 재개로 같은 turn을 다시 열면 0부터 다시 센다 [제안]. 클라이언트는 재접속 때 휘발 상태를 버리므로 충돌하지 않는다(`eng.events.design` §4.2).
-- `afterSeq`: 발신 직전 `xeon.session`의 head seq(`headSeq()`, L1.persistence 요구)다. 루프는 같은 turn의 커밋을 기다린 뒤 다음 휘발을 낸다. 그래서 어떤 휘발 이벤트의 `afterSeq`도 그 휘발이 가리키는 내구 사건(예: 같은 step의 `step.started`)의 seq보다 작지 않다.
+- `afterSeq`: 발신 직전 `fresnel.session`의 head seq(`headSeq()`, L1.persistence 요구)다. 루프는 같은 turn의 커밋을 기다린 뒤 다음 휘발을 낸다. 그래서 어떤 휘발 이벤트의 `afterSeq`도 그 휘발이 가리키는 내구 사건(예: 같은 step의 `step.started`)의 seq보다 작지 않다.
 - `recordedAt`은 주입한 `Clock`으로 채운다.
 - 토큰 델타는 50 ms 단위로 묶고 `data` 하나를 16 KiB 이하로 자른다 [제안: `eng.events.design` §4.3].
 
 ### 3.5 커밋 지점과 단계 체크포인트
 
-모든 커밋은 `xeon.session`의 `commit`(`SessionWriter.commit`, TX-07) 하나로 하고 동기다(TX-01). 지점의 이벤트 이름은 F 카탈로그 이름이다. `CommitRequest.requestId`(커밋 키)는 `eng.transactions.design` §4.7·§4.8 형식이고, 키에 넣는 id는 먼저 커밋된 값이다.
+모든 커밋은 `fresnel.session`의 `commit`(`SessionWriter.commit`, TX-07) 하나로 하고 동기다(TX-01). 지점의 이벤트 이름은 F 카탈로그 이름이다. `CommitRequest.requestId`(커밋 키)는 `eng.transactions.design` §4.7·§4.8 형식이고, 키에 넣는 id는 먼저 커밋된 값이다.
 
 | 지점 | 시점 | 커밋 내용 | 커밋 키 | 체크포인트 |
 |---|---|---|---|---|
 | T1 turn 시작 | 구동기가 turn을 열 때 | `item.recorded`(입력 item들, user·custom) → `input.placed`(큐 입력이면) → `turn.started{inputItemIds, requestId, scopeId, origin}`(`scopeId`는 drive turn만, 그 밖은 null. FR-L8. `origin`은 입력 출처, §4.4b) | `turn:<turnId>:start` | 없음 |
 | T2 단계 시작 | 루프 `openStep` | `step.started{stepIndex}` | `step:<turnId>:<i>:start` | 없음 |
-| T3 응답 확정 | 루프 `commitResponse`, `boundary.message.after` chain 뒤 | 도구 선언 차이 system item(`xeon.models`가 계산, adr.0009 §3.5)의 `item.recorded` → `part.recorded`×N → `item.recorded`(assistant) | `resp:<turnId>:<i>` | 도구 호출이 있으면 `checkpoint.step{next:"tools", pendingToolCalls}` |
+| T3 응답 확정 | 루프 `commitResponse`, `boundary.message.after` chain 뒤 | 도구 선언 차이 system item(`fresnel.models`가 계산, adr.0009 §3.5)의 `item.recorded` → `part.recorded`×N → `item.recorded`(assistant) | `resp:<turnId>:<i>` | 도구 호출이 있으면 `checkpoint.step{next:"tools", pendingToolCalls}` |
 | (도구) | L1.tools | `effect.intent`, `effect.exec`, `effect.result` + toolResult `item.recorded` | L1.tools.spec | L1.tools.spec |
 | T4 단계 끝 | 루프 `endStep` | `step.completed` → `checkpoint.step` → `boundary.step.after` 엔트리 → (정착 후보면) `boundary.settle.before` 엔트리 → 배치(`item.recorded` + `input.placed`, steer·next·aside) | `step:<turnId>:<i>:end` | 예. `next`는 `request`, `await_input`, `boundary.step.after` 중 하나 |
 | T6 turn 끝 | 단계 반복이 끝나고 turn 노드의 소유 작업 정착 뒤 | `turn.completed{status, stepCount, usage, error}` | `turn:<turnId>:end` | 없음 |
-| 취소 의도 | `xeon.tasks.abort`가 turn 노드의 `abortIntent`로 부른다 | `turn.abort_requested`(FR-T2) | `abort:<turnId>` | 없음 |
+| 취소 의도 | `fresnel.tasks.abort`가 turn 노드의 `abortIntent`로 부른다 | `turn.abort_requested`(FR-T2) | `abort:<turnId>` | 없음 |
 
 - [결정] `boundary.step.after`(Xeon step 끝)에서 `step.completed`와 `checkpoint.step`을 한 커밋(FULL)에 넣는다(`F.conversation.spec` §3.5.4 `boundary.step.after` 행, `F.records.spec` §4.2 1항). T4가 그 커밋이고 같은 경계의 나머지 쓰기(boundary 엔트리, 배치)도 같은 커밋에 넣는다(TX-08).
 - [제안] T3에 `next: "tools"` 체크포인트를 함께 쓴다. `F.records.spec` §3.6은 체크포인트를 "단계 경계마다 `step.completed`와 같은 커밋"으로 적었다. 도구 단계에서 끊긴 재개(§4.5 `tools` 행)를 위해 T3에도 쓰도록 F 확인을 요청한다(FR-L3). T3 체크포인트의 `leafEventId`는 같은 커밋의 assistant `item.recorded`다.
@@ -375,7 +375,7 @@ export interface BoundAgentEventMapper extends AgentEventMapper {
 - 지점 번호 T5는 쓰지 않는다. `boundary.settle.before` 엔트리는 같은 경계의 쓰기라서 T4에 합친다(TX-08).
 - `L1.persistence.spec` §4.2는 같은 커밋을 C·S·E·A·X 이름으로 적는다. 두 이름의 대응표는 그 절에 있다(T1 = C2, prestart = C2b, T2 = S1, T3 = C3, T4 = C5, T6 = C6, 취소 의도 = X1).
 - `input.agent.before`가 추가한 메시지는 T1 바로 뒤 커밋(`turn:<turnId>:prestart`)에 custom item으로 기록한다(§4.2 규칙 1).
-- `StepCheckpoint`(`F.records.spec` §3.6) 필드 채우기: `inputCursor.consumedSeq`는 T4 배치 선택의 `consumedSeq`(`L1.tasks.spec` §3.6), `model`은 다음 요청에 쓸 모델·추론 레벨, `leaseRefs`·`scopeRef`는 `xeon.ext`가 알려 준 현재 값, `pendingToolCalls`는 T3에서 도구 호출 목록, T4에서는 승인 대기 중인 호출만이다.
+- `StepCheckpoint`(`F.records.spec` §3.6) 필드 채우기: `inputCursor.consumedSeq`는 T4 배치 선택의 `consumedSeq`(`L1.tasks.spec` §3.6), `model`은 다음 요청에 쓸 모델·추론 레벨, `leaseRefs`·`scopeRef`는 `fresnel.ext`가 알려 준 현재 값, `pendingToolCalls`는 T3에서 도구 호출 목록, T4에서는 승인 대기 중인 호출만이다.
 
 ### 3.6 boundary 최종 검증
 
@@ -383,7 +383,7 @@ export interface BoundAgentEventMapper extends AgentEventMapper {
 
 ```ts
 // xeon/packages/core-loop/src/checkpoint.ts
-import type { BoundaryValue } from "@xeon/contracts/extensions";
+import type { BoundaryValue } from "@fresnel/contracts/extensions";
 
 export interface BoundaryCheckContext {
   readonly threadId: ThreadId;
@@ -440,10 +440,10 @@ export function finalizeBoundary(value: BoundaryValue, ctx: BoundaryCheckContext
 ```text
 admit({ threadId, content, requestId, via, whenBusy }):
   1. requestId가 없으면 ids로 만든다. 1~64자 검사
-  2. 중복 사전 확인: xeon.tasks inputs의 (threadId, "user", requestId)가 있으면 duplicate를 돌려준다(최종 판정은 3의 커밋 안)
+  2. 중복 사전 확인: fresnel.tasks inputs의 (threadId, "user", requestId)가 있으면 duplicate를 돌려준다(최종 판정은 3의 커밋 안)
   3. on input (chain). payload { text, images, source: via, streamingBehavior: 실행 중이면 whenBusy ?? "followUp" }
      handled면 { status: "handled" }. 기록 없음
-  4. xeon.tasks.inputs.enqueue({ mode: 실행 중이면 whenBusy ?? "followUp", 아니면 "followUp", item: { kind: "user", content: 변형된 text·images }, source: { type: "user", via } })
+  4. fresnel.tasks.inputs.enqueue({ mode: 실행 중이면 whenBusy ?? "followUp", 아니면 "followUp", item: { kind: "user", content: 변형된 text·images }, source: { type: "user", via } })
      duplicate면 { status: "duplicate" }
   5. 유휴 thread면 구동기가 T1을 커밋할 때까지 기다리고 { status: "started", turnId }
      실행 중이면 { status: "queued", runningTurnId }
@@ -460,10 +460,10 @@ sequenceDiagram
   autonumber
   participant DRV as thread 구동기 (core-loop)
   participant WR as 자체 루프
-  participant EXT as xeon.ext
-  participant CTX as xeon.context / xeon.models
-  participant TL as xeon.tools
-  participant SES as xeon.session
+  participant EXT as fresnel.ext
+  participant CTX as fresnel.context / fresnel.models
+  participant TL as fresnel.tools
+  participant SES as fresnel.session
   DRV->>SES: T1 item.recorded + input.placed + turn.started
   DRV->>EXT: on before_agent_start (chain)
   DRV->>WR: runTurn(entry)
@@ -490,9 +490,9 @@ sequenceDiagram
    - `instructions`는 커밋하지 않는다. 재개 진입(`request`, `tools`)은 `input.agent.before`를 다시 발화하지 않으므로 재개한 turn의 남은 단계에는 이 안내가 없고 다음 turn부터 다시 붙는다 [제안].
    - 환경 블록의 소유자는 L1.loop이다. 단계마다 `environment` volatile 항목으로 날짜(단계를 여는 시각의 UTC 날짜), 대화의 작업 디렉터리(`workingDirectory`), `platform`(조립 루트가 OS 서비스의 `info`로 채운 `<platform>/<arch>`)을 줄 단위로 넘긴다. 모르는 값은 줄을 내지 않는다. 응답 언어와 도구 사용 규칙을 포함한 기본 프롬프트 문안은 M3의 프롬프트 설계에서 정한다(`review.m3-plan`).
 2. `prepareRequest`는 매 요청마다 커밋된 이벤트에서 컨텍스트를 다시 만든다. 그래서 `boundary.message.after` chain이 바꾼 메시지는 기록된 모양으로 다음 요청에 들어간다. 루프 안 메모리 배열을 직접 고치지 않는다.
-   - 도구 광고(`xeon.tools.advertise`)에 넘기는 `activated`는 이 대화의 `tool_search` 효과 결과(`structuredContent.activated`)의 합집합이다(`L1.tools.spec` §4.1 규칙 5). 루프는 turn마다 활성 가지를 한 번 읽어 집합을 만들고, 같은 turn의 `tool_search` 결과는 도구 배치가 끝날 때 더한다. 재개한 turn도 같은 방법으로 집합을 다시 만들어 광고 목록이 끊기지 않은 실행과 같다(`loop/activation.ts`).
-   - 요청 전 임계 검사(`loop/compaction.ts`, M2 마감 G2-01): 모델을 해석한 뒤 조립 앞에서 `xeon.context.shouldCompact(threadId, leaf, binding)`을 부르고, 참이면 `compact({ reason: "threshold", binding, contextWindow, willRetry: false, signal })`를 한다. 컴팩션 커밋은 `core.context` 생산자가 하고, 루프는 커밋 피드로 leaf를 새 값으로 옮긴 뒤 그 leaf로 조립한다. 컴팩션이 실패하거나(`summary_failed` 등) 건너뛰거나(`nothing_to_summarize`) 확장이 거부해도 turn은 멈추지 않는다. 경고를 남기고 이 turn의 남은 단계에서는 다시 시도하지 않는다(`state.compactionBlocked`). 그 요청이 창을 넘으면 아래 오버플로우 복구가 한 번 더 시도한다. `l1.context.autoCompact`가 거짓이면 `shouldCompact`가 거짓이다.
-   - 오버플로우 복구: `streamResponse`가 돌려준 종결 메시지가 `stopReason: "error"`이고 `xeon.models.classify(message, contextWindow)`가 `context_overflow`이면 `xeon.context.recoverOverflow(threadId, stepId, message, binding)`을 부른다. `retry`면 실패한 시도를 커밋하지 않고(매퍼가 열어 둔 item만 휘발 알림으로 닫는다) 앞 시도가 쌓은 prelude를 버리고 같은 단계의 요청을 한 번 다시 만들어 보낸다. 단계 시작(`step.started`)은 한 번이다. 다시 보낸 응답이 또 오버플로우여도 복구는 단계당 한 번뿐이므로 그 응답을 오류로 커밋하고 turn은 `failed`로 끝난다. `fail`(`second_overflow`, `compaction_failed`, `compaction_cancelled`, `disabled`)이면 오류 응답을 그대로 커밋하고 사유를 경고로 남긴다. 재개한 turn도 같은 길을 쓴다.
+   - 도구 광고(`fresnel.tools.advertise`)에 넘기는 `activated`는 이 대화의 `tool_search` 효과 결과(`structuredContent.activated`)의 합집합이다(`L1.tools.spec` §4.1 규칙 5). 루프는 turn마다 활성 가지를 한 번 읽어 집합을 만들고, 같은 turn의 `tool_search` 결과는 도구 배치가 끝날 때 더한다. 재개한 turn도 같은 방법으로 집합을 다시 만들어 광고 목록이 끊기지 않은 실행과 같다(`loop/activation.ts`).
+   - 요청 전 임계 검사(`loop/compaction.ts`, M2 마감 G2-01): 모델을 해석한 뒤 조립 앞에서 `fresnel.context.shouldCompact(threadId, leaf, binding)`을 부르고, 참이면 `compact({ reason: "threshold", binding, contextWindow, willRetry: false, signal })`를 한다. 컴팩션 커밋은 `core.context` 생산자가 하고, 루프는 커밋 피드로 leaf를 새 값으로 옮긴 뒤 그 leaf로 조립한다. 컴팩션이 실패하거나(`summary_failed` 등) 건너뛰거나(`nothing_to_summarize`) 확장이 거부해도 turn은 멈추지 않는다. 경고를 남기고 이 turn의 남은 단계에서는 다시 시도하지 않는다(`state.compactionBlocked`). 그 요청이 창을 넘으면 아래 오버플로우 복구가 한 번 더 시도한다. `l1.context.autoCompact`가 거짓이면 `shouldCompact`가 거짓이다.
+   - 오버플로우 복구: `streamResponse`가 돌려준 종결 메시지가 `stopReason: "error"`이고 `fresnel.models.classify(message, contextWindow)`가 `context_overflow`이면 `fresnel.context.recoverOverflow(threadId, stepId, message, binding)`을 부른다. `retry`면 실패한 시도를 커밋하지 않고(매퍼가 열어 둔 item만 휘발 알림으로 닫는다) 앞 시도가 쌓은 prelude를 버리고 같은 단계의 요청을 한 번 다시 만들어 보낸다. 단계 시작(`step.started`)은 한 번이다. 다시 보낸 응답이 또 오버플로우여도 복구는 단계당 한 번뿐이므로 그 응답을 오류로 커밋하고 turn은 `failed`로 끝난다. `fail`(`second_overflow`, `compaction_failed`, `compaction_cancelled`, `disabled`)이면 오류 응답을 그대로 커밋하고 사유를 경고로 남긴다. 재개한 turn도 같은 길을 쓴다.
    - 호출하지 않는 것: 수동 컴팩션(`/compact`)은 루프가 부르지 않는다. wire 메서드 `thread.compact`(`F.wire-settings.spec` §3.3.1)가 정했고, 호출자는 L4 host가 `ContextService.compact({ reason: "manual", … })`로 부른다(진행 중인 turn이 있으면 `turn.busy`로 거절하므로 루프와 겹치지 않는다). 떠난 가지 요약은 `L1.context.spec` §4.9 A안대로 호출자(L4 host의 `/tree` 처리)가 `thread.tree.before` 결과를 본 뒤 `summarizeBranch`를 부르고 `moveLeaf`에 넘기므로 루프가 부르지 않는다.
 3. `openStep`은 단계 경계에 적용된 scope 토글(F.extensions.spec §4.5)을 반영해 도구 광고를 다시 받는다. 모델 바인딩도 여기서 정한다.
 4. `endStep` 안의 순서: (a) 결과 없는 호출이 없음을 확인(배치가 이미 닫았다, §3.3 규칙 4. 진입 `turn_end`의 `closing`만 여기서 닫는다) → (b) `boundary.step.after` chain → (c) 정착 후보 판정(도구 호출 없음 또는 배치 `terminate`, 그리고 `inputs.peek`의 steer 없음) → (d) 후보면 `boundary.settle.before` chain → (e) `finalizeBoundary` 두 값 → (f) 예산·게이트·중단 판정으로 계속 여부 결정 → (g) T4 커밋(build 안에서 `inputs.drain(view, …, "stepEnd", { continuing })`) → (h) `StepNext` 반환(배치된 입력은 `placed`로 다음 요청 앞에 붙는다). `stopReason`이 `error`·`aborted`이면 (d)는 `outcome`을 그대로 넘기고 `StepNext`는 `settle`이다.
@@ -512,7 +512,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 | `l1.loop.maxSteps`에 이름 | `interrupted` | `"step_limit"` |
 | drive turn 신호(`LoopTurnRequest.signal`, X가 넘기는 thread 취소 신호) | `interrupted` | 취소 사유 코드 |
 | 루프 run 실패(커밋 실패 등) | `failed` | `"loop_rejected"` |
-| 모델을 해석하지 못함(`xeon.models.resolve`가 `err`: 모르는 모델 id, 차단, provider 없음) | `failed` | `"model_unavailable: <ModelError.kind>: <ModelError.message>"`. 사용자가 설정으로 고칠 수 있는 원인이라 화면이 그대로 보인다 [결정: M2 Mac 실기] |
+| 모델을 해석하지 못함(`fresnel.models.resolve`가 `err`: 모르는 모델 id, 차단, provider 없음) | `failed` | `"model_unavailable: <ModelError.kind>: <ModelError.message>"`. 사용자가 설정으로 고칠 수 있는 원인이라 화면이 그대로 보인다 [결정: M2 Mac 실기] |
 | 자식 turn 한도(`ChildTurnRequest.limits`) 도달 | `interrupted` | `"child_limit"` |
 
 ### 4.4 입력 큐 연결
@@ -565,9 +565,9 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 
 | 장치 | 위치 | 기본 |
 |---|---|---|
-| 사용자 중단 | `interrupt` → `xeon.tasks.abort` → turn 신호 → 스트림 `aborted` | 항상 |
+| 사용자 중단 | `interrupt` → `fresnel.tasks.abort` → turn 신호 → 스트림 `aborted` | 항상 |
 | 컨텍스트 한도 | 루프 `prepareRequest` 단계에서 L1.context가 컴팩션·오버플로우 처리 | L1.context.spec |
-| 추론 레벨별 토큰 예산 | `ResolvedModel.thinkingBudgetTokens`(`xeon.models`가 설정 `l1.models.*`에서 만든 현재 레벨의 예산)를 pi-ai `SimpleStreamOptions.thinkingBudgets`의 그 레벨 항목 하나(`{ [레벨]: 토큰 }`)로 요청에 싣는다. 값은 바꾸지 않는다. 레벨이 `off`·`xhigh`·`max`이거나 예산이 null이면 싣지 않는다 [가정: 키는 L1.models.spec 소유, L4 models 탭] | 레벨별 pi-ai 기본 |
+| 추론 레벨별 토큰 예산 | `ResolvedModel.thinkingBudgetTokens`(`fresnel.models`가 설정 `l1.models.*`에서 만든 현재 레벨의 예산)를 pi-ai `SimpleStreamOptions.thinkingBudgets`의 그 레벨 항목 하나(`{ [레벨]: 토큰 }`)로 요청에 싣는다. 값은 바꾸지 않는다. 레벨이 `off`·`xhigh`·`max`이거나 예산이 null이면 싣지 않는다 [가정: 키는 L1.models.spec 소유, L4 models 탭] | 레벨별 pi-ai 기본 |
 | 단계 상한 | `l1.loop.maxSteps` | 0(무제한) |
 | drive turn 상한 | X가 `LeaseBudget.turns`로 센다 | 임대 설정 |
 | drive 토큰 상한 | X가 `LeaseBudget.tokens`로 센다. `loop.turn` 호출 사이에서 검사하고 실행 중인 turn은 끊지 않는다(`X.primitives.spec` §4.4.4) | 임대 설정 |
@@ -579,7 +579,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 
 ### 4.8 drive 연동
 
-[결정] drive 함수의 효과는 `loop.turn`, `loop.spawn`, `post`로만 나고, `loop.turn`의 기본 `requestId`는 `${leaseId}:${순번}`이다(`F.extensions.spec` §4.6). X의 `LoopHandle.turn`은 `xeon.loop`의 `LoopPort.runTurn`을 부른다(`X.primitives.spec` §3.6, §4.4.4). 순번과 예산은 X가 계산한다.
+[결정] drive 함수의 효과는 `loop.turn`, `loop.spawn`, `post`로만 나고, `loop.turn`의 기본 `requestId`는 `${leaseId}:${순번}`이다(`F.extensions.spec` §4.6). X의 `LoopHandle.turn`은 `fresnel.loop`의 `LoopPort.runTurn`을 부른다(`X.primitives.spec` §3.6, §4.4.4). 순번과 예산은 X가 계산한다.
 
 ```text
 runTurn(req: LoopTurnRequest):
@@ -602,7 +602,7 @@ runTurn(req: LoopTurnRequest):
 - 멱등 판정은 신원 `(scopeId, requestId)`로만 한다 [제안]. 커밋 지문에도 신원만 넣고 입력 내용은 넣지 않는다(`L1.tasks.spec` §4.7과 같은 원칙). 같은 신원인데 입력이 다르면 `turn_exists`로 기록된 turn을 그대로 돌려주고 진단 로그에 불일치를 남긴다. drive 재생 규율 위반이므로 L3.group-sdk.spec의 재생 테스트 도우미가 잡는다.
 - 펜싱: `leaseEpoch`는 `p_scopes.lease_epoch`와 같은 트랜잭션에서 대조한다. 임대가 다른 차수로 넘어간 뒤 늦게 도착한 요청은 turn을 열지 않는다.
 
-`spawn(req: LoopSpawnRequest)`는 `xeon.agents`의 포그라운드 `spawn`에 위임한다(`L1.agents.spec` §4.2). 요청은 이렇게 옮긴다.
+`spawn(req: LoopSpawnRequest)`는 `fresnel.agents`의 포그라운드 `spawn`에 위임한다(`L1.agents.spec` §4.2). 요청은 이렇게 옮긴다.
 
 | `LoopSpawnRequest` | `AgentService.spawn` |
 |---|---|
@@ -615,7 +615,7 @@ runTurn(req: LoopTurnRequest):
 - 멱등은 core-agents가 맡는다. 같은 (부모 thread, `requestId`)의 `agent.spawned`가 세션 DB에 있으면 새 자식을 만들지 않고 기록된 결과를 돌려주며, 그때 `replayed`는 `true`다(M3-REQ-69). 루프는 별도 표를 두지 않는다.
 - 결과는 `SpawnResult`의 `childThreadId`, `status`, `answer`를 `SpawnOutcome`으로, `reused`를 `replayed`로, `usage`를 그대로 옮긴다. core-agents의 거절(`agents.*`)은 `status: "error"`와 거절 문장을 담은 `answer`로 돌아온다.
 - `spec.background`가 참이면 `input_invalid`로 거부한다. 백그라운드 위임은 그룹의 `delegate`가 한다.
-- `xeon.agents`가 아직 없으면 `input_invalid`로 거부한다. core-agents가 루프에 의존하므로 루프는 서비스를 부를 때 찾는다(`LoopDeps.agents`).
+- `fresnel.agents`가 아직 없으면 `input_invalid`로 거부한다. core-agents가 루프에 의존하므로 루프는 서비스를 부를 때 찾는다(`LoopDeps.agents`).
 - `leaseEpoch` 펜싱은 `runTurn`만 한다. `spawn`은 X가 `releasing` 임대의 호출을 막는다(`X.primitives.spec` §4.4.4).
 - 임대 신호는 실행 중인 단계를 끊지 않는다. 단계 경계에서만 멈춘다. `F.extensions.spec` §4.5 "실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다"와 맞추고, `loop.turn()` 단위로 기다릴지는 X가 신호를 켜는 시점으로 정한다.
 
@@ -627,7 +627,7 @@ runTurn(req: LoopTurnRequest):
 - `endStep` 결정: 정착 후보 단계에서 검증을 통과한 `continue: true`면 `StepNext`를 `request`로 고른다(다음 요청 한 번). 원본 `finishTurn`의 `{ action: "continue" }` 의미(`types.ts:145-153`)와 같다. 정착 후보가 아닌 단계(도구 호출, steer)의 `continue`는 요청이 어차피 나가므로 무시하고 세지 않는다.
 - 상한: turn 안에서 게이트 계속의 누적 횟수가 `l1.loop.gate.maxContinues`(기본 8)에 이르면 그 뒤의 `continue`를 false로 바꾸고 휘발 알림으로 사용자에게 보인다. 사용자 입력이 새 turn을 열면 0부터 센다. 기본 8은 Claude Code Stop 훅 8회, omp `session_stop` 8회를 따른다(`_research/item-catalog.md` L1-b "완료 게이트" 행). 구현(L1A.6)은 상한을 turn 시작 때 한 번 읽고(`nextTurn`) 0이면 `continue`를 따르지 않는다. 알림 필드 `TurnUpdatedPayload.notice`(FR-L5)는 F에 들어왔다(m2 F.8). 핸들러가 `continue`를 원했는데 상한 때문에만 계속하지 못한 단계(`endStep`의 정착 후보)에서 휘발 `turn.updated { status: "running", notice: { code: "gate_limit", detail: { limit } } }`를 낸다 [결정: L1F]. `finalizeBoundary`가 계속할 수 없는 단계의 `continue`를 false로 바꾸므로 원한 값은 `finalize` 콜백에서 기억한다. 중단·단계 상한 같은 다른 이유로 끝나는 단계에는 알림이 없다. 알림은 내구 기록과 모델 컨텍스트에 들어가지 않는다.
 - `canContinue`(§3.6): 다음이 하나라도 참이면 false다. 마지막 `stopReason`이 `error`·`aborted`, turn에 취소 의도, `maxSteps` 도달, drive 신호·토큰 소진, 게이트 상한 도달, `stopAtSafeBoundary` 진행 중.
-- 목표 판정의 소비 지점 [제안]: `boundary.settle.before`이다. 목표 지속 기능(`L2.work.spec`)이 이 지점에 chain 핸들러를 걸고, 핸들러 안에서 판정 모델 호출을 `xeon.agents`의 판정 API로 한다(`L1.agents.spec`, 결정: 별도 판정 모델 + 실행 횟수 상한, `_research/foundation-plan.md` §1 4번). 판정 결과는 확장 kind 엔트리로 돌려주고 T4에 기록되므로 재개 때 다시 판정하지 않는다(`architecture.runtime-flow.design` §4.5). 미달이면 `continue: true`와 지시 custom item을 낸다. 게이트 상한은 판정 기능의 판정 횟수 상한과 따로 적용된다. M3.
+- 목표 판정의 소비 지점 [제안]: `boundary.settle.before`이다. 목표 지속 기능(`L2.work.spec`)이 이 지점에 chain 핸들러를 걸고, 핸들러 안에서 판정 모델 호출을 `fresnel.agents`의 판정 API로 한다(`L1.agents.spec`, 결정: 별도 판정 모델 + 실행 횟수 상한, `_research/foundation-plan.md` §1 4번). 판정 결과는 확장 kind 엔트리로 돌려주고 T4에 기록되므로 재개 때 다시 판정하지 않는다(`architecture.runtime-flow.design` §4.5). 미달이면 `continue: true`와 지시 custom item을 낸다. 게이트 상한은 판정 기능의 판정 횟수 상한과 따로 적용된다. M3.
 
 ### 4.10 반복 감지
 
@@ -660,12 +660,12 @@ runChildTurn(req):
   1. T1 build 안에서 view.turnByRequestId(자식 threadId, null, req.requestId)를 찾는다(runTurn 2·3단계와 같다)
      - turn.completed가 있으면 기록된 결과로 { ..., replayed: true }
      - 열린 turn이면 resume으로 끝까지 이어간 뒤 결과를 돌려준다
-  2. turn 노드: xeon.tasks.openScope(req.scope, { kind: "turn", id: turnId, abortIntent })
+  2. turn 노드: fresnel.tasks.openScope(req.scope, { kind: "turn", id: turnId, abortIntent })
   3. T1: req.input을 item으로 기록(user → user item, context → custom item) → turn.started{ requestId: req.requestId }
      input 지점은 발화하지 않는다(사용자 입력이 아니다. drive turn과 같다). before_agent_start는 주 대화와 같이 발화한다
-  4. 바인딩과 조립: xeon.models가 req.model을 해석한다. xeon.context 조립의 기본 프롬프트는 req.systemPrompt다
+  4. 바인딩과 조립: fresnel.models가 req.model을 해석한다. fresnel.context 조립의 기본 프롬프트는 req.systemPrompt다
   5. ToolRunContext: caller, depth, ceiling, surfaceThreadId, interactive를 req.tools에서 그대로 쓴다.
-     광고 목록은 xeon.tools.advertise({ run, allow: req.tools.allow, keepParentList: req.tools.keepParentList })
+     광고 목록은 fresnel.tools.advertise({ run, allow: req.tools.allow, keepParentList: req.tools.keepParentList })
   6. 실행. req.limits.maxSteps는 이 turn의 단계 상한이다. req.limits.maxInputTokens를 넘으면 다음 T4에서 결정 end.
      두 경우 모두 turn.completed{ interrupted, error: "child_limit" }(§4.3)
   7. T6 뒤 { outcome: { turnId, status, finalItemId }, usage, replayed: false }
@@ -715,7 +715,7 @@ runChildTurn(req):
 
 - 모든 키의 `layer`는 `"L1"`, `since`는 그 단계 첫 릴리스 판(M1 키는 `"0.1.0"`)이다.
 - `l1.loop.maxSteps`는 `F.wire-settings.spec` §3.8.3 사용 예와 같은 정의다.
-- 추론 레벨별 토큰 예산은 이 네임스페이스에 두지 않는다. 값은 `l1.models.*`(L4 models 탭) 소유이고 loop는 `xeon.models`가 준 `thinkingBudgets`를 넘기기만 한다(§4.7) [가정: L1.models.spec이 키를 정한다].
+- 추론 레벨별 토큰 예산은 이 네임스페이스에 두지 않는다. 값은 `l1.models.*`(L4 models 탭) 소유이고 loop는 `fresnel.models`가 준 `thinkingBudgets`를 넘기기만 한다(§4.7) [가정: L1.models.spec이 키를 정한다].
 - 자동 재개 키는 L1.persistence 소유다(§4.6).
 - D1~D9 대조: 키 접두 `l1.loop.` ↔ `layer: "L1"`(D1). 비밀 없음(D2·D3). 기본값이 range 안(D4). number에만 min·max(D5). 제약은 `range`에만(D6). `restart` 키 없음(D7). integer ↔ number, boolean ↔ toggle(D8). `deprecated` 없음(D9).
 
@@ -750,7 +750,7 @@ runChildTurn(req):
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `LoopService`(`LoopPort` 구현 포함), `LoopServiceName`(`xeon.loop`), `AdmitRequest`, `AdmitResult`, `ChildTurnRequest`, `ResumeFrom`, `ResumeResult`, `ThreadLoopStatus`, `LoopError` | X.primitives.spec(`LoopPort.runTurn`·`spawn`·`whenIdle`·`status`), L4.host-service.spec(`TurnPort`), L1.agents.spec(`runChildTurn`으로 자식 thread turn 실행, §4.13) |
+| `LoopService`(`LoopPort` 구현 포함), `LoopServiceName`(`fresnel.loop`), `AdmitRequest`, `AdmitResult`, `ChildTurnRequest`, `ResumeFrom`, `ResumeResult`, `ThreadLoopStatus`, `LoopError` | X.primitives.spec(`LoopPort.runTurn`·`spawn`·`whenIdle`·`status`), L4.host-service.spec(`TurnPort`), L1.agents.spec(`runChildTurn`으로 자식 thread turn 실행, §4.13) |
 | `CreateAgentEventMapper` 구현 | 같은 패키지. F.conversation.plan의 계약 테스트 |
 | `finalizeBoundary`, 검증 규칙 | F.extensions.spec §4.1이 가리킨다 |
 | 휘발 envelope 발신(`n`, `afterSeq`) | F.records.spec §4.3, L4.host-service.spec(`stream.chunk`) |
@@ -766,17 +766,17 @@ runChildTurn(req):
 | `ContextService`: 커밋된 이벤트에서 `AgentMessage[]` 만들기, `convertToLlm`, 컴팩션 | L1.context.spec |
 | `ModelService`: 스레드 설정으로 단계 바인딩(모델, 추론 레벨, `thinkingBudgets`), streamFn(`convertToLlm` 결과 정규화 포함), 도구 선언 차이 계산(adr.0009 §3.5) | L1.models.spec |
 | 판정 API(목표 판정, M3), `ChildTurnRequest`를 채우는 쪽 | L1.agents.spec |
-| `ExtHost` 디스패치(`dispatch(point, payload)`, 서비스 `xeon.ext`), 현재 `leaseRefs`·`scopeRef`, 단계 경계 토글 적용 알림, `LoopPort`·`LoopTurnRequest`·`LoopTurnResult`·`LoopSpawnRequest`·`LoopSpawnResult` 모양(§3.6) | X.primitives.spec |
+| `ExtHost` 디스패치(`dispatch(point, payload)`, 서비스 `fresnel.ext`), 현재 `leaseRefs`·`scopeRef`, 단계 경계 토글 적용 알림, `LoopPort`·`LoopTurnRequest`·`LoopTurnResult`·`LoopSpawnRequest`·`LoopSpawnResult` 모양(§3.6) | X.primitives.spec |
 | `AgentEventMapInit`, `AgentEventMapper`, `LifecycleEvent`, 상태 enum, `ItemRecord` | F.conversation.spec §3.5 |
 | `StepCheckpoint`, `VolatileEventEnvelope`, `DurableEventDraft`, `parseEventKind`, `checkEnvelopeSize`, 카탈로그 | F.records.spec |
 | `HOOKS`, 페이로드·패치 타입, `BoundaryValue`, `TurnOutcome`, `PostItem` | F.extensions.spec |
-| 모델 테이프 `@xeon/core-models/testing` | eng.testing.guide TS-04(테스트 파일에서만 import, DR-14 예외 3) |
+| 모델 테이프 `@fresnel/core-models/testing` | eng.testing.guide TS-04(테스트 파일에서만 import, DR-14 예외 3) |
 
 ### 8.1 F 요청 사항
 
 | id | 대상 문서 | 요청 | 이유 |
 |---|---|---|---|
-| FR-L1 | F.extensions.spec `ports.ts`, F `@xeon/contracts/services` | (반영됨: F.extensions.spec §3.2.1, F.capabilities.spec §3.12 `services/loop.ts` `LoopService extends LoopPort`) `X.primitives.spec` §3.6의 `LoopPort`, `InputQueuePort`와 요청·결과 타입을 `ports.ts`로 옮긴다(`RecordCommitPort`는 F.records §3.9). §3.1 타입(`ChildTurnRequest` 포함)과 `LoopServiceName`은 `services` 서브패스에 둔다(review.decisions-2 D-04). X와 L1이 모두 F에서 import한다 | X(순위 1)는 L1을 import할 수 없다. 포트 위치 [미결](`X.readme` §8 10번)을 F로 닫는다. context-map §5.3은 위치를 "extensions: drive의 `loop.turn`"으로 적었다 |
+| FR-L1 | F.extensions.spec `ports.ts`, F `@fresnel/contracts/services` | (반영됨: F.extensions.spec §3.2.1, F.capabilities.spec §3.12 `services/loop.ts` `LoopService extends LoopPort`) `X.primitives.spec` §3.6의 `LoopPort`, `InputQueuePort`와 요청·결과 타입을 `ports.ts`로 옮긴다(`RecordCommitPort`는 F.records §3.9). §3.1 타입(`ChildTurnRequest` 포함)과 `LoopServiceName`은 `services` 서브패스에 둔다(review.decisions-2 D-04). X와 L1이 모두 F에서 import한다 | X(순위 1)는 L1을 import할 수 없다. 포트 위치 [미결](`X.readme` §8 10번)을 F로 닫는다. context-map §5.3은 위치를 "extensions: drive의 `loop.turn`"으로 적었다 |
 | FR-L2 | (철회) | drive 순번은 X가 `requestId`를 만들 때 쓰고 L1에 넘기지 않는다(`X.primitives.spec` §4.4.4) | `LoopTurnRequest`에 순번 필드가 없다 |
 | FR-L3 | F.records.spec §3.6 | 체크포인트를 T3(assistant 응답 확정 커밋)에도 `next: "tools"`로 쓸 수 있다고 적는다. `leafEventId` 규칙을 "같은 커밋의 마지막 이벤트"로 넓힌다 | 도구 단계 재진입(§4.5) |
 | FR-L4 | F.conversation.spec §3.5.4 | `turn.completed.status` 결정표에 §4.3 추가 행(취소 의도, 단계 상한, drive 예산·신호, 루프 run 실패)과 `error` 코드 값을 더한다 | `stopReason`만으로 정할 수 없는 경우 |
@@ -796,7 +796,7 @@ runChildTurn(req):
 7. T1에서 입력 `item.recorded`의 seq가 `turn.started`의 seq보다 작다.
 8. drive turn을 같은 `requestId`로 두 번 부르면 두 번째는 `replayed: true`이고 `turn.started`가 하나다.
 9. 스트리밍 중 `interrupt`하면 부분 assistant item이 `stopReason: "aborted"`로 기록되고 `turn.completed.status`는 `interrupted`다.
-10. core-loop의 import 목록에 `@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`, `cordis`, 다른 `@xeon/core-*`(테스트 파일의 `testing` 서브패스 제외)가 없다. 워크스페이스 전체에 `@earendil-works/pi-agent-core` 의존이 없다(adr.0009).
+10. core-loop의 import 목록에 `@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`, `cordis`, 다른 `@fresnel/core-*`(테스트 파일의 `testing` 서브패스 제외)가 없다. 워크스페이스 전체에 `@earendil-works/pi-agent-core` 의존이 없다(adr.0009).
 15. 도구 2개 병렬 배치 중 첫 호출이 끝난 뒤 중단하면 남은 호출이 같은 단계 안에서 `not_executed`로 기록되고, C5 커밋 전에 결과 없는 toolCall이 없다.
 16. 재개 진입 `tools`·`request`·`turn_end`가 주 경로와 같은 단계 함수(`runToolBatch`, `openStep`, `endStep`)를 쓴다. 같은 테이프에서 끊긴 실행과 끊기지 않은 실행의 내구 이벤트 열이 같다(§9-2와 같은 조건).
 11. `runChildTurn`을 같은 `requestId`로 두 번 부르면 두 번째는 `replayed: true`이고 자식 thread에 `turn.started`가 하나다.

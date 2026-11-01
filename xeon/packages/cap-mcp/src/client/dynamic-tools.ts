@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import { Type } from "typebox";
 import {
   CapabilityError,
@@ -14,7 +14,7 @@ import {
   type OrderedTool,
   type ToolHints,
   type ToolWire,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   AgentToolResult,
   ImageContent,
@@ -23,7 +23,7 @@ import type {
   JsonValue,
   ReplayPolicy,
   TextContent,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import type { RawTool } from "../adapter.ts";
 import { asJsonObject } from "../json.ts";
 import { byteOrder } from "../order.ts";
@@ -299,7 +299,7 @@ export function createDynamicTool(
     wire: {
       name: info.machineName,
       description,
-      // xeon-disable-next-line xeon/type-unsafe -- 서버가 준 JSON Schema는 데이터이고 정적 타입을 주장하지 않는다. 노출 전에 schemaProblem이 크기, 깊이, 외부 $ref를 검사했다 (eng.typescript.guide TY-26)
+      // fresnel-disable-next-line fresnel/type-unsafe -- 서버가 준 JSON Schema는 데이터이고 정적 타입을 주장하지 않는다. 노출 전에 schemaProblem이 크기, 깊이, 외부 $ref를 검사했다 (eng.typescript.guide TY-26)
       parameters: Type.Unsafe(asJsonObject(raw.inputSchema) ?? {}),
     },
     label: mapped.label,

@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
-import { DEFAULT_WEB_SETTINGS, describeWebSettings } from "@xeon/cap-web";
-import type { WireResult } from "@xeon/contracts/wire";
+import { DEFAULT_WEB_SETTINGS, describeWebSettings } from "@fresnel/cap-web";
+import type { WireResult } from "@fresnel/contracts/wire";
 
 // M3-REQ-96. `web.providers`는 엔진 웹 포트의 값을 그대로 낸다. 쓰기 소유를 얻지 않고, 신호를 포트에 넘긴다.
 

@@ -2,10 +2,10 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseJson } from "@xeon/contracts";
-import { validateManifest } from "@xeon/contracts/extensions";
-import { SDK_MODULE_SPECIFIERS } from "@xeon/ext-host";
-import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
+import { parseJson } from "@fresnel/contracts";
+import { validateManifest } from "@fresnel/contracts/extensions";
+import { SDK_MODULE_SPECIFIERS } from "@fresnel/ext-host";
+import { createTestHost, fixedIdFactory } from "@fresnel/ext-host/testing";
 import { helmManifest } from "../../src/index.ts";
 import { buildHelmPlugin, type PluginBuild } from "../../scripts/build-plugin.ts";
 import { loaderFor } from "../support/loader.ts";
@@ -49,10 +49,10 @@ test("plugin.json is the manifest as JSON and the bundle keeps the host SDK modu
   expect(built.externals.filter((specifier) => !SDK_MODULE_SPECIFIERS.includes(specifier))).toEqual(
     [],
   );
-  expect(built.externals).toContain("@xeon/group-sdk");
+  expect(built.externals).toContain("@fresnel/group-sdk");
   expect(built.externals).toContain("typebox");
   const bundle = await Bun.file(join(built.outDir, "dist", "index.js")).text();
-  expect(bundle).not.toContain("@xeon/ext-host");
+  expect(bundle).not.toContain("@fresnel/ext-host");
   expect(await Bun.file(join(built.outDir, "agents", "explorer.md")).exists()).toBe(true);
 });
 

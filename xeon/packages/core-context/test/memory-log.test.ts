@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { DraftInput, EventKind } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { DraftInput, EventKind } from "@fresnel/contracts/records";
 import { userItem } from "./support/builders.ts";
 import { memoryLog, type MemoryLog } from "./support/log.ts";
 

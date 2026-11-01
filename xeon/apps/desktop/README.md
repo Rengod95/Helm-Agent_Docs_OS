@@ -1,4 +1,4 @@
-# @xeon/desktop
+# @fresnel/desktop
 
 L4 데스크톱 앱. Tauri 2 셸(`src-tauri/`)이 엔진 사이드카를 띄우고 stdout/stdin 바이트를 WebView로 중계한다. 화면은 React 19 + Zustand 5(`src/`)이고 `bun build`로 번들해 `src-tauri/ui`에 둔다.
 

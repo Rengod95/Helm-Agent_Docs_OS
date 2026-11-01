@@ -1,5 +1,5 @@
-import { assertNever, parse } from "@xeon/contracts";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import { assertNever, parse } from "@fresnel/contracts";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import {
   EventsBatchParamsSchema,
   findBatchIssue,
@@ -9,7 +9,7 @@ import {
   type ConformanceStep,
   type EventsBatchParams,
   type Transport,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { isRecord, rawClient, type RawClient } from "../fixtures/raw-client.ts";
 
 // WIRE_CONFORMANCE_CASES를 한 전송 위에서 돌리는 실행기(F.wire-settings.plan W14, review.decisions-2 U-03: F에는 ./testing이 없어

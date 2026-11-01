@@ -6,8 +6,8 @@ import type {
   ToolResultMessage,
   TurnId,
   Usage,
-} from "@xeon/contracts/conversation";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/conversation";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { findCutPoint, type CutCandidate } from "../src/compaction/cut-point.ts";
 import { prepareCompaction, type ThreadCompactionView } from "../src/compaction/compact.ts";
 

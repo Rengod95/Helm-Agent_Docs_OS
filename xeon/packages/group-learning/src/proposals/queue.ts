@@ -1,4 +1,4 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type { ApplyTransition, LearningError } from "../results.ts";
 import type { Proposal, ProposalReason } from "./proposal.ts";
 

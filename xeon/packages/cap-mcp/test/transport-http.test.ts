@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import { connectMcp } from "../src/adapter.ts";
 import type { McpHeaderSecrets } from "../src/ports/secrets.ts";
 import { createStubServer, type StubServer } from "../src/testing/stub-server.ts";

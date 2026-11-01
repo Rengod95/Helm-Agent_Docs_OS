@@ -1,4 +1,4 @@
-// @xeon/host 공개 진입점(L4.host-service.spec §3.3). apps/cli가 쓴다. 엔진 없는 클라이언트는 "./client"다.
+// @fresnel/host 공개 진입점(L4.host-service.spec §3.3). apps/cli가 쓴다. 엔진 없는 클라이언트는 "./client"다.
 // 서비스 모드: startService, ensureHostService, serviceStatus, stopHostService는 service/ 아래다.
 export { assemble, AssembleError } from "./assemble.ts";
 export type {

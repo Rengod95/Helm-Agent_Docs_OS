@@ -1,6 +1,6 @@
 import { Type, type TUnsafe } from "typebox";
-import { parse, parseJson, type SchemaProof } from "@xeon/contracts";
-import { GoalIdSchema, type GoalId } from "@xeon/contracts/capabilities";
+import { parse, parseJson, type SchemaProof } from "@fresnel/contracts";
+import { GoalIdSchema, type GoalId } from "@fresnel/contracts/capabilities";
 
 // L2.work.spec §3.4 GoalErrors, §4.3.4. 목표 규칙이 거부하는 이유를 값으로 표현한다. 서비스 경계(errors.ts goalRejection)가
 // CapabilityError로 바꾼다. 거부는 커밋 거부(reject) 레코드의 detail에 JSON으로 남아 같은 requestId 재호출이 처음 거부를 되풀이한다.

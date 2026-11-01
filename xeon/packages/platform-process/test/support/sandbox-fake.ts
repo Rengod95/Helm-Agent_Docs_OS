@@ -1,10 +1,10 @@
-import { ok, type Result } from "@xeon/contracts";
+import { ok, type Result } from "@fresnel/contracts";
 import type {
   SandboxArgvRequest,
   SandboxedArgv,
   SandboxPolicy,
   SandboxWrapError,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { McpSandboxSource } from "../../src/index.ts";
 
 // 샌드박스 서비스 대역. platform-process는 platform-sandbox를 import하지 않으므로(DR-02) F 인터페이스 모양만 흉내 낸다.

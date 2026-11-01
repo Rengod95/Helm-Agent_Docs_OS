@@ -1,4 +1,4 @@
-import type { LogFields, LogLevel, Logger } from "@xeon/contracts";
+import type { LogFields, LogLevel, Logger } from "@fresnel/contracts";
 
 export interface LogRecord {
   readonly level: LogLevel;

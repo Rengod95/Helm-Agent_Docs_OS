@@ -1,4 +1,4 @@
-import type { MigrationSet } from "@xeon/contracts/records";
+import type { MigrationSet } from "@fresnel/contracts/records";
 
 // L2.web.spec §3.8. 세션 밖 상태다. 소유자 `cap.web`, 테이블 접두 `cap_web_`.
 // `cap_web_raw`는 rawRef 재조회가 Source를 다시 만들 수 있도록 원문의 출처 열(url ~ published_at)을 더 가진다(L2.web.plan §8.4).

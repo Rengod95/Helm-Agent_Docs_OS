@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { CancelScope } from "@xeon/contracts/services";
+import { assertNever } from "@fresnel/contracts";
+import type { CancelScope } from "@fresnel/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure } from "../errors.ts";
 import { loadImageAt, probeImageType } from "../images/service.ts";

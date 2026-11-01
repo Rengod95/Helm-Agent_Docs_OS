@@ -1,4 +1,4 @@
-import type { RandomSource } from "@xeon/contracts";
+import type { RandomSource } from "@fresnel/contracts";
 
 const TWO_POW_26 = 67_108_864;
 const TWO_POW_53 = 9_007_199_254_740_992;

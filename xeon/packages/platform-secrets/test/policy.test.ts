@@ -8,7 +8,7 @@ import {
   matchHost,
   matchTool,
 } from "../src/policy.ts";
-import type { UseCtx } from "@xeon/contracts/services";
+import type { UseCtx } from "@fresnel/contracts/services";
 import { CLOCK_START } from "./support/clock.ts";
 import { APPROVAL_PER_SESSION, APPROVAL_PER_USE, envCtx, httpCtx } from "./support/ctx.ts";
 import { metaOf } from "./support/meta.ts";

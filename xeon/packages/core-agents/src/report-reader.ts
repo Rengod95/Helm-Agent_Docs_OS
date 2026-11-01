@@ -1,6 +1,6 @@
-import { ok, parse, type Result } from "@xeon/contracts";
-import type { ItemId, ThreadId } from "@xeon/contracts/conversation";
-import { ItemRecordedPayloadSchema, type ReadFailure } from "@xeon/contracts/records";
+import { ok, parse, type Result } from "@fresnel/contracts";
+import type { ItemId, ThreadId } from "@fresnel/contracts/conversation";
+import { ItemRecordedPayloadSchema, type ReadFailure } from "@fresnel/contracts/records";
 import type { AgentsSession } from "./deps.ts";
 
 /**

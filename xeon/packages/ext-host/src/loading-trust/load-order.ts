@@ -1,4 +1,4 @@
-import type { ExtensionName } from "@xeon/contracts/extensions";
+import type { ExtensionName } from "@fresnel/contracts/extensions";
 import type { InstallSource } from "./trust/levels.ts";
 
 /** 내장 층 순서. L0 플랫폼 플러그인은 이 파이프라인 밖에서 먼저 등록된다(X.loading-trust.spec §4.2.3) */

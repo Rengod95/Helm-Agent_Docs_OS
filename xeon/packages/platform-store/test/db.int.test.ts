@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { classifySqliteCode } from "../src/db.ts";
 import { openTestStore } from "../src/testing/index.ts";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";

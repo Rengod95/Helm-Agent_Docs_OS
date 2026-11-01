@@ -1,6 +1,6 @@
-import { detach } from "@xeon/contracts";
-import type { Logger } from "@xeon/contracts";
-import type { Unsubscribe } from "@xeon/contracts/records";
+import { detach } from "@fresnel/contracts";
+import type { Logger } from "@fresnel/contracts";
+import type { Unsubscribe } from "@fresnel/contracts/records";
 import type { WorkSessionPort } from "../ports/session.ts";
 import type { PlansRuntime } from "./service.ts";
 

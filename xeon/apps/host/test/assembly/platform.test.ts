@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { ok, type LogFields, type Logger } from "@xeon/contracts";
+import { ok, type LogFields, type Logger } from "@fresnel/contracts";
 import {
   ExecPortKey,
   OsPortKey,
@@ -10,14 +10,14 @@ import {
   type SecretService,
   type SelfTestItemId,
   type SelfTestReport,
-} from "@xeon/contracts/services";
-import type { PlatformContext } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import type { PlatformContext } from "@fresnel/ext-host";
 import type {
   SandboxServiceHandle,
   SandboxSettings,
   SelfTestRunError,
   SelfTestSchedule,
-} from "@xeon/platform-sandbox";
+} from "@fresnel/platform-sandbox";
 import { sandboxPlatform } from "../../src/assembly/platform.ts";
 import { partial } from "../fixtures/unsafe.ts";
 

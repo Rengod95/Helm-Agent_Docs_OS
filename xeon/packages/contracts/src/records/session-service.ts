@@ -33,7 +33,7 @@ import type { ProjectorRegistry, Unsubscribe } from "./projector.ts";
 
 export type { Unsubscribe } from "./projector.ts";
 
-export const SessionServiceName = "xeon.session" as const;
+export const SessionServiceName = "fresnel.session" as const;
 
 // ── 읽기와 구독 (L1.persistence.spec §3.5) ───────────────────────────────
 

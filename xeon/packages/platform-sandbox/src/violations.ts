@@ -1,4 +1,4 @@
-import type { SandboxViolation } from "@xeon/contracts/services";
+import type { SandboxViolation } from "@fresnel/contracts/services";
 import type { SandboxProvider } from "./provider.ts";
 
 // L0.sandbox.spec §4.2 9단계. srt의 위반 기록(원문 줄)을 SandboxViolation으로 바꾼다.

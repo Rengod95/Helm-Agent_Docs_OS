@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, readlinkSync } from "node:fs";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 
 // 이 프로세스가 듣고 있는 소켓 주소를 운영체제 표(/proc/net)에서 읽는다(Linux). X5가 "서비스 리스너가 모두 루프백 또는 Unix 소켓"임을
 // 서비스가 스스로 적은 값이 아니라 커널이 아는 값으로 확인하려고 쓴다. /proc이 없으면 undefined다.

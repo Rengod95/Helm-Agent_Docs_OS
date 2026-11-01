@@ -1,11 +1,11 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import {
   ArtifactsRegistry,
   type ArtifactMeta,
   type CapabilityApi,
-} from "@xeon/contracts/capabilities";
-import { toJsonValue, type JsonValue } from "@xeon/contracts/conversation";
-import type { BlobError, BlobRef, StoreService } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import { toJsonValue, type JsonValue } from "@fresnel/contracts/conversation";
+import type { BlobError, BlobRef, StoreService } from "@fresnel/contracts/records";
 import { reject } from "../errors.ts";
 
 // L2.artifacts.spec §4.1.1, §4.1.2, §4.1.4. 본문을 blob으로 만들고, 미리보기 메타를 채우고, 메타 크기를 검사한다.

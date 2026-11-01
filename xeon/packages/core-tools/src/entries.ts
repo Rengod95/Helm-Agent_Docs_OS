@@ -1,5 +1,5 @@
-import { Bug, canonicalJson, parse } from "@xeon/contracts";
-import { isCapabilityError } from "@xeon/contracts/capabilities";
+import { Bug, canonicalJson, parse } from "@fresnel/contracts";
+import { isCapabilityError } from "@fresnel/contracts/capabilities";
 import type {
   CallContext,
   CallContinuation,
@@ -9,22 +9,22 @@ import type {
   ServiceKey,
   ToolContent,
   ToolSpec,
-} from "@xeon/contracts/capabilities";
-import { toReplayPolicy } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import { toReplayPolicy } from "@fresnel/contracts/conversation";
 import type {
   AgentToolResult,
   JsonObject,
   JsonValue,
   TextContent,
-} from "@xeon/contracts/conversation";
-import type { ScopeId, ToolResourceDef } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/conversation";
+import type { ScopeId, ToolResourceDef } from "@fresnel/contracts/extensions";
 import type {
   CallerId,
   CapabilityToolsRegistration,
   DirectToolRegistration,
   ToolMeta,
   ToolRegistration,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   inputRequestOf,
   inputRequestOfResult,

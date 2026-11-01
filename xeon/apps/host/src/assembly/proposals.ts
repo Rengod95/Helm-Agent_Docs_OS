@@ -1,6 +1,6 @@
-import { assertNever, attemptAsync, parse, parseJson, type LogFields } from "@xeon/contracts";
-import { isId } from "@xeon/contracts/conversation";
-import { isCapabilityError, type CallOptions } from "@xeon/contracts/capabilities";
+import { assertNever, attemptAsync, parse, parseJson, type LogFields } from "@fresnel/contracts";
+import { isId } from "@fresnel/contracts/conversation";
+import { isCapabilityError, type CallOptions } from "@fresnel/contracts/capabilities";
 import type {
   ProposalDecideParams,
   ProposalDecideResult,
@@ -9,8 +9,8 @@ import type {
   ProposalRow,
   ProposalSource,
   ProposalStatusWire,
-} from "@xeon/contracts/wire";
-import type { KnowledgeProposalWire } from "@xeon/cap-knowledge";
+} from "@fresnel/contracts/wire";
+import type { KnowledgeProposalWire } from "@fresnel/cap-knowledge";
 import {
   decisionCommandLine,
   type CommandReport,
@@ -19,7 +19,7 @@ import {
   type LearningQueueApi,
   type ProposalDecision,
   type ProposalView,
-} from "@xeon/group-learning";
+} from "@fresnel/group-learning";
 import type { LearningRunner } from "./learning.ts";
 import { Type } from "typebox";
 import type { ProposalPort } from "../types.ts";

@@ -5,9 +5,9 @@
 // DB는 tempDbPath가 만든 임시 디렉터리의 디스크 파일이다. fsync 비용을 재는 것이 목적이라 메모리 DB를 쓰지 않는다.
 // 쓰기 연결의 PRAGMA(synchronous=FULL, WAL)는 platform-store가 연다. 시작 때 쓰기 연결에서 값을 읽어 note에 싣는다.
 // 재지 않는 값: store_commit_event_sync_normal(쓰기 연결의 synchronous를 바꿀 길이 없다), process_start_fingerprint(platform-os 의존이 필요하다).
-import { Bug } from "@xeon/contracts";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope, StampedDraft } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope, StampedDraft } from "@fresnel/contracts/records";
 import { createCoreProjector } from "../../src/projector/core.ts";
 import { rebuildProjector } from "../../src/projector/rebuild.ts";
 import { createKindCatalog } from "../../src/upcast.ts";

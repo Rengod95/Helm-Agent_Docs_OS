@@ -1,4 +1,4 @@
-import { assertNever, attempt, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, attempt, err, ok, type Result } from "@fresnel/contracts";
 import { classifyAddress, parseIpv4, parseIpv6, type AddressClass } from "./address.ts";
 
 // L2.web.spec §4.6. 연결 전 URL 검사(§4.6.1)와 해석된 주소 판정(§4.6.3)을 순수 함수로 둔다.

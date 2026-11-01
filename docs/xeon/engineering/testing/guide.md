@@ -37,14 +37,14 @@ Xeon 코드의 테스트를 어떻게 쓰고, 어디에 두고, 어떻게 돌리
 | 서브패스 | 층 | 제공하는 것 | 근거 규칙 |
 |---|---|---|---|
 | 각 패키지 `test/support/` | 전 층 | `manualClock`, `fixedIdFactory`, `seededRandom`. 런타임 중립(`node:*`, `bun:*` 없음) | TS-03, TS-09 |
-| `@xeon/contracts/records` | F | 고장 주입 타입 `FaultPoint`, `FaultInjector`(운영 타입, 정본은 `eng.transactions.design` 4.2절) | TS-07, TS-08 |
-| `@xeon/platform-os/testing` | L0 | `tempDir`, `withIsolatedEnv` | TS-03 |
-| `@xeon/platform-exec/testing` | L0 | `fakeExec`(명령별 응답 표) | TS-05 |
-| `@xeon/platform-secrets/testing` | L0 | `memorySecrets`(가짜 값 저장소) | TS-05 |
-| `@xeon/platform-store/testing` | L0 | `openTestStore`(실제 `bun:sqlite`, `:memory:` 또는 임시 파일), 고장 주입 옵션(F `FaultInjector`를 받는다) | TS-07, TS-08 |
-| `@xeon/core-persistence/testing` | L1 | `normalizeEvents`, `eventDigest`, `expectProjectionsRebuildable` [제안]. L1 아래 층 테스트는 같은 함수를 자기 `test/support/`에 둔다 | TS-02, TS-08 |
-| `@xeon/core-models/testing` | L1 | 모델 테이프 형식, `loadTape`, `tape`, `tapePlayer`, `contextHash`, `t` | TS-04 |
-| `@xeon/ext-host/testing` | X | 테스트용 확장 호스트(on/post/drive/scope 최소형). L0를 import하지 않는다 | `X.primitives.spec`이 정한다 |
+| `@fresnel/contracts/records` | F | 고장 주입 타입 `FaultPoint`, `FaultInjector`(운영 타입, 정본은 `eng.transactions.design` 4.2절) | TS-07, TS-08 |
+| `@fresnel/platform-os/testing` | L0 | `tempDir`, `withIsolatedEnv` | TS-03 |
+| `@fresnel/platform-exec/testing` | L0 | `fakeExec`(명령별 응답 표) | TS-05 |
+| `@fresnel/platform-secrets/testing` | L0 | `memorySecrets`(가짜 값 저장소) | TS-05 |
+| `@fresnel/platform-store/testing` | L0 | `openTestStore`(실제 `bun:sqlite`, `:memory:` 또는 임시 파일), 고장 주입 옵션(F `FaultInjector`를 받는다) | TS-07, TS-08 |
+| `@fresnel/core-persistence/testing` | L1 | `normalizeEvents`, `eventDigest`, `expectProjectionsRebuildable` [제안]. L1 아래 층 테스트는 같은 함수를 자기 `test/support/`에 둔다 | TS-02, TS-08 |
+| `@fresnel/core-models/testing` | L1 | 모델 테이프 형식, `loadTape`, `tape`, `tapePlayer`, `contextHash`, `t` | TS-04 |
+| `@fresnel/ext-host/testing` | X | 테스트용 확장 호스트(on/post/drive/scope 최소형). L0를 import하지 않는다 | `X.primitives.spec`이 정한다 |
 
 - 다른 컨텍스트 패키지의 `testing` 서브패스는 테스트 파일(`src/**/*.test.ts`, `test/**`)에서만 import한다. 패키지의 `src/testing/**` 소스는 다른 패키지의 `testing` 서브패스를 import하지 않는다(`eng.dependency-rules.guide` DR-08, DR-14 예외 3, [결정: review.decisions-2 U-17]).
 - F와 X 패키지의 테스트는 L0 `testing`을 쓸 수 없다(DR-01). F 테스트는 임시 디렉터리가 필요 없게 순수 함수로 쓴다. X 테스트가 파일 시스템을 쓰면 `node:os`의 `tmpdir()`를 직접 쓰되 정리를 `afterEach`에 둔다.
@@ -114,7 +114,7 @@ tests/integration/loop-and-web.test.ts                  # TS-01: 패키지 밖 �
 
 ```ts
 import { expect, test } from "bun:test";
-import { eventDigest } from "@xeon/core-persistence/testing";
+import { eventDigest } from "@fresnel/core-persistence/testing";
 
 test("same input events give the same projection digest", () => {
   const a = runFixture(seedEvents);
@@ -142,15 +142,15 @@ test("projection looks right", () => {
 | 타이머 | F `Scheduler` 구현(L0 `platform-os`, `eng.typescript.guide` 1.2절) | 같은 `ManualClock`의 가짜 타이머. `advance(ms)`가 만기 타이머를 만기 순서로 실행한다 | 같음 |
 | ID 생성기 | F `IdFactory` 구현(인터페이스는 `F.conversation.spec` §3.2, 구현 `createIdFactory`는 L0 `platform-os`) | `fixedIdFactory(clock, seed)` | 같음 |
 | 난수 | F `RandomSource` 구현(L0 `platform-os`) | `seededRandom(seed)` | 같음 |
-| 임시 디렉터리 | 데이터 디렉터리(`platform-os`) | `tempDir()`. 테스트가 끝나면 지운다 | `@xeon/platform-os/testing` |
+| 임시 디렉터리 | 데이터 디렉터리(`platform-os`) | `tempDir()`. 테스트가 끝나면 지운다 | `@fresnel/platform-os/testing` |
 | 환경 변수 | 프로세스 환경 | `withIsolatedEnv(fn)`: `HOME`, `XDG_*`, `TMPDIR`를 임시 디렉터리로 바꾸고 `*_API_KEY`, `ANTHROPIC_*`, `OPENAI_*`, `SOPS_AGE_KEY*`, `SSH_AUTH_SOCK`을 지운다 | 같음 |
 | 시간대·로케일 | 기기 값 | `TZ=UTC`, `LANG=C.UTF-8` | 테스트 preload |
 | 네트워크 | 모델 API, 웹 | 루프백 밖 주소로 가는 `fetch`와 `WebSocket`은 예외를 던진다 | 테스트 preload |
 
 ```ts
 // <패키지>/test/support/clock.ts  (런타임 중립. F에 testing 서브패스를 두지 않는다, U-03)
-import type { Clock, RandomSource, Scheduler, TimerHandle } from "@xeon/contracts";   // eng.typescript.guide 1.2절
-import type { IdFactory } from "@xeon/contracts/conversation";                       // F.conversation.spec §3.2. 루트에 두지 않는다(F.readme §3)
+import type { Clock, RandomSource, Scheduler, TimerHandle } from "@fresnel/contracts";   // eng.typescript.guide 1.2절
+import type { IdFactory } from "@fresnel/contracts/conversation";                       // F.conversation.spec §3.2. 루트에 두지 않는다(F.readme §3)
 
 /** 운영 코드가 받는 Clock과 Scheduler를 한 객체로 구현한다 */
 export interface ManualClock extends Clock, Scheduler {
@@ -170,7 +170,7 @@ export declare function seededRandom(seed: number): RandomSource;
 ```
 
 ```ts
-// @xeon/platform-os/testing  (L0)
+// @fresnel/platform-os/testing  (L0)
 export interface TempDir {
   readonly path: string;
   join(...parts: readonly string[]): string;
@@ -193,7 +193,7 @@ export declare function withIsolatedEnv<T>(
 
 ```ts
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import { manualClock } from "./support/clock.ts";
 import { createRetry } from "../src/retry.ts";
 
@@ -246,10 +246,10 @@ test("retry waits", async () => {
 
 [제안] `docs/design/22-testing-strategy.md §3.5.4`를 pi-ai 1.3.0 스트림 이벤트(`AssistantMessageEvent` 12종: `start`, `text_start`, `text_delta`, `text_end`, `thinking_start`, `thinking_delta`, `thinking_end`, `toolcall_start`, `toolcall_delta`, `toolcall_end`, `done`, `error`, `_research/notes/F-2.md §5.1`) 기준으로 옮긴다. 테이프 모듈은 pi-ai를 소유한 `core-models`의 `testing` 서브패스에 둔다(DR-07).
 
-형식 `xeon.model-tape.v1`: JSONL, 한 줄에 객체 하나. 첫 줄은 헤더다. 파일 이름은 `*.tape.jsonl`이고 패키지의 `test/tapes/` 아래에 둔다.
+형식 `fresnel.model-tape.v1`: JSONL, 한 줄에 객체 하나. 첫 줄은 헤더다. 파일 이름은 `*.tape.jsonl`이고 패키지의 `test/tapes/` 아래에 둔다.
 
 ```ts
-// @xeon/core-models/testing  (packages/core-models/src/testing/tape.ts)
+// @fresnel/core-models/testing  (packages/core-models/src/testing/tape.ts)
 import type {
   AssistantMessageEvent,
   Context,
@@ -258,13 +258,13 @@ import type {
   ToolCall,
   Usage,
 } from "@earendil-works/pi-ai";   // 이름은 pi-ai 1.3.0 types.ts 기준 [가정: TextContent, ThinkingContent, ToolCall의 정확한 export 이름]
-import { Bug, type Clock, type Scheduler } from "@xeon/contracts";
+import { Bug, type Clock, type Scheduler } from "@fresnel/contracts";
 
 export type TapeContent = TextContent | ThinkingContent | ToolCall;
 
 export interface ModelTapeHeader {
   readonly kind: "header";
-  readonly format: "xeon.model-tape.v1";
+  readonly format: "fresnel.model-tape.v1";
   readonly tapeId: string;                       // 예: "core-loop/two-tool-calls"
   readonly origin: "authored" | "recorded";
   readonly matching: "role-queue" | "context-hash";
@@ -369,7 +369,7 @@ export declare const t: {
 ```ts
 import { expect, test } from "bun:test";
 import { manualClock } from "./support/clock.ts";
-import { t, tape, tapePlayer } from "@xeon/core-models/testing";
+import { t, tape, tapePlayer } from "@fresnel/core-models/testing";
 
 test("one tool call then a final answer", async () => {
   const clock = manualClock();
@@ -400,7 +400,7 @@ test("answers", async () => {
 [제안]
 
 - 가짜가 필요한 외부 경계(프로세스 실행, 비밀, 파일 시스템, OS 정보, 저장)는 L0 인터페이스(F 정의)를 구현한 가짜를 `testing` 서브패스로 제공한다(1.2 표). 테스트는 그 가짜를 생성자나 Cordis 서비스로 주입한다.
-- `mock.module()`로 `@xeon/*` 패키지나 같은 패키지의 상대 경로 모듈을 바꾸지 않는다.
+- `mock.module()`로 `@fresnel/*` 패키지나 같은 패키지의 상대 경로 모듈을 바꾸지 않는다.
   - 이유 1: 주입 지점이 없는 설계를 가린다. 주입 지점이 없으면 운영 코드도 교체할 수 없다.
   - 이유 2: `bun test` 기본 실행에서 `mock.module`은 파일 사이에 새어 다른 테스트 파일을 깨뜨린다. `--isolate`나 `--parallel`에서만 막힌다(`_research/notes/eng-3.md §3.2`). `mock.restore()`는 `mock.module`을 되돌리지 않는다.
 - 외부 npm 모듈을 `mock.module`로 바꿔야 하는 예외는 `eng.dependency-rules.guide` 4절 허용 목록에 `TS-05/<이름>`으로 기록하고, 그 패키지의 `test` 스크립트를 `bun test --isolate`로 둔다.
@@ -410,7 +410,7 @@ test("answers", async () => {
 
 ```ts
 import { expect, test } from "bun:test";
-import { fakeExec } from "@xeon/platform-exec/testing";
+import { fakeExec } from "@fresnel/platform-exec/testing";
 import { createGitStatus } from "../src/git-status.ts";
 
 test("parses porcelain output", async () => {
@@ -426,7 +426,7 @@ test("parses porcelain output", async () => {
 
 ```ts
 import { mock } from "bun:test";
-mock.module("@xeon/platform-exec", () => ({ run: async () => ({ stdout: " M a.ts\n" }) }));   // TS-05
+mock.module("@fresnel/platform-exec", () => ({ run: async () => ({ stdout: " M a.ts\n" }) }));   // TS-05
 ```
 
 ### TS-06 테스트는 패키지 안에 두고, 공용 가짜는 `testing` 서브패스로 낸다
@@ -465,7 +465,7 @@ const text = await Bun.file("packages/core-tools/test/fixtures/a.txt").text();  
 
 [제안] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB다([결정] `_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004).
 
-- 이벤트·투영·체크포인트·잠금을 건드리는 테스트는 `bun:sqlite`의 `:memory:` 또는 `tempDir()` 안 임시 파일로 실제 SQLite를 연다. `@xeon/platform-store/testing`의 `openTestStore()`를 쓴다.
+- 이벤트·투영·체크포인트·잠금을 건드리는 테스트는 `bun:sqlite`의 `:memory:` 또는 `tempDir()` 안 임시 파일로 실제 SQLite를 연다. `@fresnel/platform-store/testing`의 `openTestStore()`를 쓴다.
 - 저장소 가짜(배열이나 `Map`으로 흉내 낸 저장소)를 만들지 않는다. SQL 제약, 트랜잭션 롤백, `SQLITE_BUSY` 같은 동작은 실제 SQLite에서만 확인된다.
 - WAL, 잠금, `busy_timeout`, 파일 손상 시험은 임시 파일을 쓴다. `:memory:`는 WAL과 다른 연결을 시험하지 못한다.
 - 임시 파일 시험은 `scripts/test-preload.ts`(각 패키지 `bunfig.toml`의 `preload`)가 `TMPDIR`을 `/dev/shm` 아래 디렉터리로 돌린 상태에서 돈다. 파일, SQLite, 잠금, 자식 프로세스는 실제 그대로이고 디스크 fsync 지연만 없다. 내구성 자체를 보는 시험은 `XEON_TEST_DISK_TMP=1`로 디스크에서 돌린다. `/dev/shm`이 없으면 훅은 아무것도 하지 않는다.
@@ -473,11 +473,11 @@ const text = await Bun.file("packages/core-tools/test/fixtures/a.txt").text();  
 - 오류 판정은 `SQLiteError`의 `code`(예: `SQLITE_CONSTRAINT_UNIQUE`)로 한다. 메시지 문자열로 판정하지 않는다(`_research/notes/eng-3.md §2.2`).
 
 ```ts
-// @xeon/platform-store/testing  (L0)
-import type { Clock } from "@xeon/contracts";
-import type { IdFactory } from "@xeon/contracts/conversation";
+// @fresnel/platform-store/testing  (L0)
+import type { Clock } from "@fresnel/contracts";
+import type { IdFactory } from "@fresnel/contracts/conversation";
 // FaultPoint(10개 지점)와 FaultInjector의 정본은 eng.transactions.design 4.2절. 여기서 다시 정의하지 않는다
-import type { FaultInjector } from "@xeon/contracts/records";
+import type { FaultInjector } from "@fresnel/contracts/records";
 
 export interface TestStoreOptions {
   /** 생략하면 ":memory:" */
@@ -500,7 +500,7 @@ export interface TestStore extends AsyncDisposable {
 ```ts
 import { expect, test } from "bun:test";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";
-import { openTestStore } from "@xeon/platform-store/testing";
+import { openTestStore } from "@fresnel/platform-store/testing";
 
 // 같은 requestId 재제출은 replayed 결과를 돌려준다(eng.transactions.design 4.7절, TS-08).
 // 제약 위반은 같은 (session_id, seq) 행을 직접 두 번 넣는 저수준 경로로 확인한다(eng.events.design 4.6절).
@@ -535,10 +535,10 @@ class FakeEventStore { events: unknown[] = []; append(e: unknown) { this.events.
 
 ```ts
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import { type FaultInjector, type FaultPoint } from "@xeon/contracts/records";
+import { Bug } from "@fresnel/contracts";
+import { type FaultInjector, type FaultPoint } from "@fresnel/contracts/records";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";
-import { openTestStore } from "@xeon/platform-store/testing";
+import { openTestStore } from "@fresnel/platform-store/testing";
 
 // 커밋 전 지점. after_commit은 기대 결과가 달라 아래 테스트로 따로 본다
 const BEFORE_COMMIT: readonly FaultPoint[] = [
@@ -603,7 +603,7 @@ test("rollback works", async () => {
 ```ts
 import { expect, test } from "bun:test";
 import { Type } from "typebox";
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, parse } from "@fresnel/contracts";
 import { seededRandom } from "./support/clock.ts";
 import seedsJson from "./property/seeds.json" with { type: "json" };
 
@@ -673,7 +673,7 @@ coverageThreshold = { lines = 0.9, functions = 0.9 }
 | TS-02 결정성 | 같은 테스트를 CI 층 job과 `just verify`에서 두 번 돌린다. 결과가 다르면 D0 위반으로 본다 |
 | TS-03 주입·실제 대기 금지 | [제안] `check-layers.ts` 패턴 스캔: 테스트 파일의 `Bun.sleep(`, `setTimeout(` 뒤 `await`, `Math.random(`, 인자 없는 `Date.now()`. oxlint `no-restricted-globals`는 1.89에 있으나 파일 단위 override가 기본 패턴을 대체하는 문제(`eng.dependency-rules.guide` 3.2절)가 있어 2차 수단으로 둔다 |
 | TS-04 테이프 | preload의 네트워크 차단, `assertExhausted()` 리뷰, DR-07(pi-ai 소유) |
-| TS-05 `mock.module` 금지 | [제안] `check-layers.ts` 패턴 스캔: `mock.module(` 인자가 `@xeon/` 또는 `.`으로 시작하면 실패. 허용 목록 `TS-05/<이름>` |
+| TS-05 `mock.module` 금지 | [제안] `check-layers.ts` 패턴 스캔: `mock.module(` 인자가 `@fresnel/` 또는 `.`으로 시작하면 실패. 허용 목록 `TS-05/<이름>` |
 | TS-06 위치 | knip `entry`, DR-08(check-layers) |
 | TS-07 실제 SQLite | 리뷰, DR-07(`bun:sqlite`는 `platform-store`만이므로 다른 패키지는 `openTestStore`를 쓸 수밖에 없다) |
 | TS-08 재생·고장 주입 | `core-persistence`·`platform-store`의 `fault` 테스트가 `FaultPoint` 10개 지점(`eng.transactions.design` 4.2절)을 모두 돈다. 지점 목록과 테스트 목록을 대조하는 테스트를 둔다 |
@@ -702,4 +702,4 @@ coverageThreshold = { lines = 0.9, functions = 0.9 }
 - [미결] 속성 테스트 라이브러리(fast-check) 도입 여부. 도입하면 TC-04 절차로 ADR을 쓴다.
 - [미결] 모델 용도 이름(`role`)과 테이프 재생기를 L1 모델 서비스에 연결하는 방식. `L1.models.spec`이 정한다.
 - [미결] preload가 소켓 수준 네트워크(`Bun.connect`, `node:net`)를 막지 못하는 문제의 보완.
-- `ManualClock`이 구현할 F `Clock`·`Scheduler`는 F 루트 base, `IdFactory`는 `@xeon/contracts/conversation`이다(`F.readme` §3, `eng.typescript.guide` 1.2절). 대역은 각 패키지 `test/support/`에 둔다([결정: review.decisions-2 U-03]).
+- `ManualClock`이 구현할 F `Clock`·`Scheduler`는 F 루트 base, `IdFactory`는 `@fresnel/contracts/conversation`이다(`F.readme` §3, `eng.typescript.guide` 1.2절). 대역은 각 패키지 `test/support/`에 둔다([결정: review.decisions-2 U-03]).

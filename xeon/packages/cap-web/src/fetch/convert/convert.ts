@@ -1,4 +1,4 @@
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 import { parseHTML } from "linkedom";
 import { extractWithDefuddle } from "./defuddle.ts";
 import { extractWithReadability, type Extracted } from "./readability.ts";

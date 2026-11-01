@@ -1,4 +1,4 @@
-import type { ImageLimits, WorkspaceImage } from "@xeon/contracts/capabilities";
+import type { ImageLimits, WorkspaceImage } from "@fresnel/contracts/capabilities";
 import { WorkspaceFailure } from "../errors.ts";
 import type { BlobSink } from "../ports/blobs.ts";
 import { detectSupportedImageMimeType, imageDimensions } from "./upstream/image.ts";

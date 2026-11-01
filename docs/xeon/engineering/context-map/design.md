@@ -37,7 +37,7 @@ Xeon 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유 �
 협력 규칙:
 
 1. [결정] 컨텍스트 사이 협력은 F 정의, Cordis 서비스, 이벤트로만 한다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다(`_research/foundation-plan.md §3`, DR-02). DI는 Cordis 하나다(`_research/decisions-log.md` 2026-10-21 결정 3차).
-2. [제안] 다른 컨텍스트의 구현 패키지를 import하지 않는다. 층 순위상 허용되는 하위 층 패키지(DR-01)라도, 컨텍스트가 다르면 F에 둔 서비스 타입으로 주입받는다. 규칙 본문과 예외(F, 조립 루트 `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@xeon/ext-host`의 서비스 등록·주입 API, `group-sdk` 허용 목록)는 `eng.dependency-rules.guide` DR-14가 정본이다. 이 문서는 4.1절 표로 "다른 컨텍스트"를 정한다. 이 규칙은 OS·환경별 구현을 바꿔 끼울 수 있게 한다(`_research/decisions-log.md` 2026-10-19 설계 규칙: 공통 인터페이스, 구현만 교체).
+2. [제안] 다른 컨텍스트의 구현 패키지를 import하지 않는다. 층 순위상 허용되는 하위 층 패키지(DR-01)라도, 컨텍스트가 다르면 F에 둔 서비스 타입으로 주입받는다. 규칙 본문과 예외(F, 조립 루트 `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@fresnel/ext-host`의 서비스 등록·주입 API, `group-sdk` 허용 목록)는 `eng.dependency-rules.guide` DR-14가 정본이다. 이 문서는 4.1절 표로 "다른 컨텍스트"를 정한다. 이 규칙은 OS·환경별 구현을 바꿔 끼울 수 있게 한다(`_research/decisions-log.md` 2026-10-19 설계 규칙: 공통 인터페이스, 구현만 교체).
 3. [결정] 세션 코어(L1 persistence, 컨텍스트 `session-core`)가 세션 테이블과 투영을 소유한다. 확장과 그룹은 `x_<extKey>_` 접두사 테이블만 소유한다(`_research/decisions-log.md` 2026-10-21 결정 2차 "확장 접두사 테이블", 층 구성 계획 v2 X-c "확장 전용 저장 영역"). `extKey`는 확장 id의 `-`를 `_`로 바꾼 값이다([결정: review.decisions-2 U-18], 5.2절).
 4. [결정] Helm은 L3 기본 그룹이다. 학습 그룹도 L3 기본 그룹이며 drive를 쓰지 않는다(on, post, scope만). 두 그룹은 공존한다(`_research/decisions-log.md` 2026-10-21 계획 v2, 층 구성 계획 v2 L3-c).
 5. [결정] 학습 그룹의 저장(스킬, 메모리, 세션 검색, 변경 원장)은 L2 knowledge가 소유한다. 학습 그룹은 정책(트리거, 검토 포크, 제안)만 가진다(층 구성 계획 v2 "Hermes 학습 루프를 별도 그룹으로": "저장소인 스킬, 메모리, 세션 검색, 변경 원장은 L2-d에 남깁니다").
@@ -48,31 +48,31 @@ Xeon 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유 �
 
 ### 4.1 컨텍스트 목록
 
-[제안] 서비스 이름은 `xeon.<이름>` 형식이고, F에 `<이름>ServiceName` 상수와 서비스 인터페이스를 둔다(DR-02 예시 `"xeon.models"`와 같은 형식). Cordis `Context`의 기존 속성 이름과 `_`로 시작하는 이름은 피한다(`_research/notes/arch-1.md §2` 이름 규칙).
+[제안] 서비스 이름은 `fresnel.<이름>` 형식이고, F에 `<이름>ServiceName` 상수와 서비스 인터페이스를 둔다(DR-02 예시 `"fresnel.models"`와 같은 형식). Cordis `Context`의 기존 속성 이름과 `_`로 시작하는 이름은 피한다(`_research/notes/arch-1.md §2` 이름 규칙).
 
 | 컨텍스트 | 층 | layout 도메인 | 패키지 | (a) 소유 데이터 | (b) 발행 kind 접두 | (c) 제공 서비스 | (d) 쓰는 서비스(허용 의존) |
 |---|---|---|---|---|---|---|---|
 | `contracts` | F | conversation, records, capabilities, extensions, wire-settings | `contracts` | 없음(스키마·타입·상수만) | 없음(카탈로그 정의만) | 없음 | 없음. 외부는 `typebox`와 pi-ai 타입 재노출만 |
-| `extension-host` | X | loading-trust, primitives, operations | `ext-host` | `xh_*`(신뢰 결정, 설치·신뢰 등급) | `scope.`, `lease.` | `xeon.ext` | `xeon.session`, `xeon.tasks`, `xeon.loop`, `xeon.agents`(drive의 `loop.turn`·`loop.spawn`·`post`) |
-| `platform-execution` | L0 | exec, sandbox, process | `platform-exec`, `platform-sandbox`, `platform-process` | 없음(백그라운드 프로세스 레지스트리는 메모리) | 없음 | `xeon.exec`, `xeon.sandbox`, `xeon.process` | `xeon.secrets`(실행 직전 비밀 주입) |
-| `platform-secrets` | L0 | secrets | `platform-secrets` | DB 밖 SOPS 파일, OS 키체인 | 없음 | `xeon.secrets`, `xeon.secretAdmin` | 없음 |
-| `platform-store` | L0 | store | `platform-store` | `sys_*`(메타, 마이그레이션, 임대, blob 색인), blob 파일 | 없음 | `xeon.store` | 없음 |
-| `platform-os` | L0 | os | `platform-os` | 없음 | 없음 | `xeon.os` | 없음 |
-| `session-core` | L1 | persistence | `core-persistence` | `events`, `event_seq`, `thread_delete_guard`, `requests`, `step_checkpoints`, `consumer_cursors`, `projector_state`, `p_*` | `thread.`, `checkpoint.`, `settings.` | `xeon.session` | `xeon.store`(전체 핸들은 조립 루트가 넘김) |
-| `run-engine` | L1 | tasks, loop, context, agents | `core-tasks`, `core-loop`, `core-context`, `core-agents` | 없음(상태는 이벤트와 `p_*`) | `input.`, `turn.`, `step.`, `item.`, `part.`, `post.`, `agent.`, kind 단위 `thread.compacted` | `xeon.tasks`, `xeon.loop`, `xeon.context`, `xeon.agents` | `xeon.session`, `xeon.models`, `xeon.tools`, `xeon.ext` |
-| `model-gateway` | L1 | models | `core-models`, `plugins/provider-anthropic-oauth` | `core_models_*`(사용량, 계정 회전 상태. 설정 화면은 M3, [결정: review.decisions-2 U-21]) | `model.`(휘발만, 예약) | `xeon.models` | `xeon.secrets` |
-| `tool-runtime` | L1 | tools | `core-tools` | `core_tools_*`(항상 허용 캐시) | `effect.`, `approval.`, `secret.`, `tool.` | `xeon.tools`, `xeon.approvals` | `xeon.session`, `xeon.exec`, `xeon.sandbox`, `xeon.secrets`, `xeon.ext` |
-| `workspace` | L2 | workspace | `cap-workspace` | 없음(예약 `cap_workspace_*`) | `workspace.`(예약) | `xeon.workspace` | `xeon.exec`, `xeon.os`, `xeon.tools` |
-| `mcp` | L2 | mcp | `cap-mcp` | `cap_mcp_*`(서버 상태) | `mcp.`(휘발, 예약) | `xeon.mcp` | `xeon.process`, `xeon.secrets`, `xeon.tools`, `xeon.store` |
-| `web` | L2 | web | `cap-web` | `cap_web_*`(fetch 캐시) | `web.`(휘발, 예약) | `xeon.web` | `xeon.models`(내장 검색 래퍼), `xeon.secrets`, `xeon.tools`, `xeon.store` |
-| `knowledge` | L2 | knowledge | `cap-knowledge` | `cap_knowledge_*`(스킬 색인, 메모리, 변경 원장, 제안 대기열, 세션 검색 FTS) | `knowledge.`(예약) | `xeon.knowledge` | `xeon.session`(피드, 소비자 커서), `xeon.store`, `xeon.tools`, `xeon.approvals` |
-| `work` | L2 | work | `cap-work` | `cap_work_*`(작업 목록·계획 투영) | `work.` | `xeon.work` | `xeon.session`, `xeon.approvals`, `xeon.tools` |
-| `dialog` | L2 | dialog | `cap-dialog` | 없음(예약 `cap_dialog_*`) | `dialog.` | `xeon.dialog` | `xeon.approvals`, `xeon.tools`, `xeon.os`(알림), `xeon.exec`(첨부·명령 파일 읽기, `L2.dialog.spec` §8) |
-| `artifacts` | L2 | artifacts | `cap-artifacts` | `cap_artifacts_*`(산출물 색인 투영) | `artifact.` | `xeon.artifacts` | `xeon.session`(제목 요청 포함), `xeon.store`, `xeon.tools` |
-| `schedule` | L2 | schedule | `cap-schedule` | `cap_schedule_*`(타이머, 루프 정의) | `schedule.` | `xeon.schedule` | `xeon.store`, `xeon.tasks`(post), `xeon.process`, `xeon.os` |
-| `group-sdk` | L3 | group-sdk, slots | `group-sdk`(slots는 코드 없음) | 없음 | 없음(그룹 상태는 각 그룹의 `grp.<groupId>.`) | `xeon.groups` | `xeon.ext` |
-| `helm` | L3 | helm | `group-helm` | `x_helm_*` | `grp.helm.` | 없음 | `xeon.groups`, `xeon.ext`, L2 서비스(`xeon.web`, `xeon.knowledge`, `xeon.work`, `xeon.agents`) |
-| `learning` | L3 | learning | `group-learning` | `x_learning_*`(트리거 카운터) | `grp.learning.` | 없음 | `xeon.groups`, `xeon.ext`, `xeon.knowledge`, `xeon.agents`(백그라운드 위임) |
+| `extension-host` | X | loading-trust, primitives, operations | `ext-host` | `xh_*`(신뢰 결정, 설치·신뢰 등급) | `scope.`, `lease.` | `fresnel.ext` | `fresnel.session`, `fresnel.tasks`, `fresnel.loop`, `fresnel.agents`(drive의 `loop.turn`·`loop.spawn`·`post`) |
+| `platform-execution` | L0 | exec, sandbox, process | `platform-exec`, `platform-sandbox`, `platform-process` | 없음(백그라운드 프로세스 레지스트리는 메모리) | 없음 | `fresnel.exec`, `fresnel.sandbox`, `fresnel.process` | `fresnel.secrets`(실행 직전 비밀 주입) |
+| `platform-secrets` | L0 | secrets | `platform-secrets` | DB 밖 SOPS 파일, OS 키체인 | 없음 | `fresnel.secrets`, `fresnel.secretAdmin` | 없음 |
+| `platform-store` | L0 | store | `platform-store` | `sys_*`(메타, 마이그레이션, 임대, blob 색인), blob 파일 | 없음 | `fresnel.store` | 없음 |
+| `platform-os` | L0 | os | `platform-os` | 없음 | 없음 | `fresnel.os` | 없음 |
+| `session-core` | L1 | persistence | `core-persistence` | `events`, `event_seq`, `thread_delete_guard`, `requests`, `step_checkpoints`, `consumer_cursors`, `projector_state`, `p_*` | `thread.`, `checkpoint.`, `settings.` | `fresnel.session` | `fresnel.store`(전체 핸들은 조립 루트가 넘김) |
+| `run-engine` | L1 | tasks, loop, context, agents | `core-tasks`, `core-loop`, `core-context`, `core-agents` | 없음(상태는 이벤트와 `p_*`) | `input.`, `turn.`, `step.`, `item.`, `part.`, `post.`, `agent.`, kind 단위 `thread.compacted` | `fresnel.tasks`, `fresnel.loop`, `fresnel.context`, `fresnel.agents` | `fresnel.session`, `fresnel.models`, `fresnel.tools`, `fresnel.ext` |
+| `model-gateway` | L1 | models | `core-models`, `plugins/provider-anthropic-oauth` | `core_models_*`(사용량, 계정 회전 상태. 설정 화면은 M3, [결정: review.decisions-2 U-21]) | `model.`(휘발만, 예약) | `fresnel.models` | `fresnel.secrets` |
+| `tool-runtime` | L1 | tools | `core-tools` | `core_tools_*`(항상 허용 캐시) | `effect.`, `approval.`, `secret.`, `tool.` | `fresnel.tools`, `fresnel.approvals` | `fresnel.session`, `fresnel.exec`, `fresnel.sandbox`, `fresnel.secrets`, `fresnel.ext` |
+| `workspace` | L2 | workspace | `cap-workspace` | 없음(예약 `cap_workspace_*`) | `workspace.`(예약) | `fresnel.workspace` | `fresnel.exec`, `fresnel.os`, `fresnel.tools` |
+| `mcp` | L2 | mcp | `cap-mcp` | `cap_mcp_*`(서버 상태) | `mcp.`(휘발, 예약) | `fresnel.mcp` | `fresnel.process`, `fresnel.secrets`, `fresnel.tools`, `fresnel.store` |
+| `web` | L2 | web | `cap-web` | `cap_web_*`(fetch 캐시) | `web.`(휘발, 예약) | `fresnel.web` | `fresnel.models`(내장 검색 래퍼), `fresnel.secrets`, `fresnel.tools`, `fresnel.store` |
+| `knowledge` | L2 | knowledge | `cap-knowledge` | `cap_knowledge_*`(스킬 색인, 메모리, 변경 원장, 제안 대기열, 세션 검색 FTS) | `knowledge.`(예약) | `fresnel.knowledge` | `fresnel.session`(피드, 소비자 커서), `fresnel.store`, `fresnel.tools`, `fresnel.approvals` |
+| `work` | L2 | work | `cap-work` | `cap_work_*`(작업 목록·계획 투영) | `work.` | `fresnel.work` | `fresnel.session`, `fresnel.approvals`, `fresnel.tools` |
+| `dialog` | L2 | dialog | `cap-dialog` | 없음(예약 `cap_dialog_*`) | `dialog.` | `fresnel.dialog` | `fresnel.approvals`, `fresnel.tools`, `fresnel.os`(알림), `fresnel.exec`(첨부·명령 파일 읽기, `L2.dialog.spec` §8) |
+| `artifacts` | L2 | artifacts | `cap-artifacts` | `cap_artifacts_*`(산출물 색인 투영) | `artifact.` | `fresnel.artifacts` | `fresnel.session`(제목 요청 포함), `fresnel.store`, `fresnel.tools` |
+| `schedule` | L2 | schedule | `cap-schedule` | `cap_schedule_*`(타이머, 루프 정의) | `schedule.` | `fresnel.schedule` | `fresnel.store`, `fresnel.tasks`(post), `fresnel.process`, `fresnel.os` |
+| `group-sdk` | L3 | group-sdk, slots | `group-sdk`(slots는 코드 없음) | 없음 | 없음(그룹 상태는 각 그룹의 `grp.<groupId>.`) | `fresnel.groups` | `fresnel.ext` |
+| `helm` | L3 | helm | `group-helm` | `x_helm_*` | `grp.helm.` | 없음 | `fresnel.groups`, `fresnel.ext`, L2 서비스(`fresnel.web`, `fresnel.knowledge`, `fresnel.work`, `fresnel.agents`) |
+| `learning` | L3 | learning | `group-learning` | `x_learning_*`(트리거 카운터) | `grp.learning.` | 없음 | `fresnel.groups`, `fresnel.ext`, `fresnel.knowledge`, `fresnel.agents`(백그라운드 위임) |
 | `clients` | L4 | cli, desktop, settings-ui | `apps/cli`, `apps/desktop`(`src/settings` 포함) | 설정 파일(스키마는 F wire-settings) | 없음 | 없음 | F5 wire(전송 계층). Cordis 서비스를 직접 쓰지 않는다 |
 | `host` | L4 | host-service | `apps/host` | 서비스 모드 상태 파일(1차). OS 서비스 등록 파일만 2차 | 없음 | 없음(F5 wire 서버) | 조립 루트: 모든 패키지를 import해 플러그인을 등록 |
 
@@ -165,7 +165,7 @@ flowchart LR
 | 고객-공급자 | 위 그림의 대부분 | 하류가 F의 서비스 인터페이스로 상류를 쓴다. 인터페이스 변경은 F 문서와 함께 한다 |
 | 순응자 | pi-ai 메시지 타입 → F1. pi-agent-core 루프는 run-engine이 포크해 자체 코드로 가지므로(adr.0009) 순응 관계가 없다 | 외부 모델을 바꾸지 않고 따른다. 정확 버전 고정 + 별칭 재노출(`_research/packages.md §4.1` F1 메시지 스키마 "그대로") |
 | 부패 방지 계층 | `model-gateway`(pi-ai provider·스트림), `mcp`(MCP SDK), `clients`·`host`(Tauri IPC ↔ F5 wire), `extension-host`(Cordis), `platform-store`(bun:sqlite) | 외부 타입을 경계에서 F 타입으로 바꾼다. 경계 밖으로 외부 타입이 나가지 않는다(CM-03) |
-| 양방향(파트너) | `extension-host` ↔ `run-engine` | run-engine은 지점을 열고 ext-host는 핸들러를 실행한다. drive는 ext-host가 `xeon.loop`로 턴을 요청한다. 두 쪽 계약은 F4 지점 선언 하나다(DR-12) |
+| 양방향(파트너) | `extension-host` ↔ `run-engine` | run-engine은 지점을 열고 ext-host는 핸들러를 실행한다. drive는 ext-host가 `fresnel.loop`로 턴을 요청한다. 두 쪽 계약은 F4 지점 선언 하나다(DR-12) |
 
 ### 4.3 층 의존 그림
 
@@ -183,16 +183,16 @@ flowchart TD
 ```
 
 - 순위는 F(0) → X(1) → L0(2) → L1(3) → L2(4) → L3(5) → L4(6)이다(`_research/foundation-plan.md §3`). 그림의 실선 하나는 "바로 아래 층까지"를 뜻하지만 순위상 더 아래 층 import도 허용된다(DR-01).
-- DR-14(3절 협력 규칙 2)에 따라, 컨텍스트가 다른 하위 패키지는 import하는 대신 F 서비스 타입으로 주입받는다. 실제 워크스페이스 import는 F, 조립 루트(`apps/cli` → `apps/host` 포함), 같은 컨텍스트 안의 import, `@xeon/ext-host`의 서비스 등록·주입 API, 테스트 파일의 `testing` 서브패스만 남는다.
+- DR-14(3절 협력 규칙 2)에 따라, 컨텍스트가 다른 하위 패키지는 import하는 대신 F 서비스 타입으로 주입받는다. 실제 워크스페이스 import는 F, 조립 루트(`apps/cli` → `apps/host` 포함), 같은 컨텍스트 안의 import, `@fresnel/ext-host`의 서비스 등록·주입 API, 테스트 파일의 `testing` 서브패스만 남는다.
 
 ### 4.4 층 순위와 컨텍스트 경계가 어긋나는 곳
 
 | # | 위치 | 어긋남 | 처리 |
 |---|---|---|---|
-| 1 | `run-engine`(L1 tasks·loop·context·agents) | 컨텍스트 하나가 같은 층 패키지 넷에 걸친다. DR-02 때문에 컨텍스트 안에서도 import할 수 없다 | 컨텍스트 안 협력도 F 정의와 `xeon.tasks`·`xeon.loop`·`xeon.context`·`xeon.agents` 서비스로 한다. 컨텍스트는 이벤트 어휘와 데이터 소유를 묶는 단위다. import 허용 여부는 층 규칙(DR-01, DR-02)이 패키지 단위로 정한다 |
+| 1 | `run-engine`(L1 tasks·loop·context·agents) | 컨텍스트 하나가 같은 층 패키지 넷에 걸친다. DR-02 때문에 컨텍스트 안에서도 import할 수 없다 | 컨텍스트 안 협력도 F 정의와 `fresnel.tasks`·`fresnel.loop`·`fresnel.context`·`fresnel.agents` 서비스로 한다. 컨텍스트는 이벤트 어휘와 데이터 소유를 묶는 단위다. import 허용 여부는 층 규칙(DR-01, DR-02)이 패키지 단위로 정한다 |
 | 2 | `extension-host`(X, 순위 1) | L3 그룹(순위 5)을 호스트하고, 세션 쓰기(L1 `session-core`)와 루프(L1 `run-engine`)를 써야 한다. 순위상 import할 수 없다 | F2 `SessionService`·`ProducerHandle`, F4 지점 선언과 포트를 F에 두고, 구현은 Cordis로 주입받는다. X 순위 유지와 세 조건은 [결정: review.decisions-2 U-14](`eng.dependency-rules.guide` 1.1절, `architecture.layers.spec` 4.3.3절) |
-| 3 | `approval.` 접두사(L1 `tool-runtime`) | 질문 도구(L2 dialog)와 계획 승인(L2 work)의 기능은 L2에 있으나 이벤트는 L1이 소유한다 | 결정 5(질문·계획 승인을 L1-d 승인 프로토콜 하나로)를 따른다. L2는 `xeon.approvals`로 요청하고 결과를 이벤트로 받는다 |
-| 4 | 세션 제목(L2 artifacts "세션 제목과 메타") | 기능은 L2, 이벤트 `thread.updated`(제목)는 L1 `session-core` 소유 | artifacts가 `xeon.session`의 제목 변경 API를 부르고, 이벤트는 session-core가 쓴다 |
+| 3 | `approval.` 접두사(L1 `tool-runtime`) | 질문 도구(L2 dialog)와 계획 승인(L2 work)의 기능은 L2에 있으나 이벤트는 L1이 소유한다 | 결정 5(질문·계획 승인을 L1-d 승인 프로토콜 하나로)를 따른다. L2는 `fresnel.approvals`로 요청하고 결과를 이벤트로 받는다 |
+| 4 | 세션 제목(L2 artifacts "세션 제목과 메타") | 기능은 L2, 이벤트 `thread.updated`(제목)는 L1 `session-core` 소유 | artifacts가 `fresnel.session`의 제목 변경 API를 부르고, 이벤트는 session-core가 쓴다 |
 | 5 | 학습 그룹(L3)의 저장 | 그룹의 산출물이 아래 층 컨텍스트(L2 knowledge) 테이블에 있다 | 3절 결정 5. 학습 그룹은 `x_learning_*`에 트리거 카운터만 둔다 |
 | 6 | `settings-ui`(L4) | layout 경로 `xeon/packages/client/src/settings/**`가 `client` 패키지 안이다(adr.0020). 화면은 `desktop`에 있다 | 두 도메인을 `clients` 컨텍스트로 묶는다. 설정 화면 생성은 F5 설정 스키마 하나에서 나온다 |
 | 7 | `slots`(L3) | layout 도메인이지만 코드가 없다(템플릿 문서만) | `group-sdk` 컨텍스트에 둔다. 미결 C-2 |
@@ -308,9 +308,9 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `consumer_cursors` | session-core(테이블), 각 소비자(행) | 소비자가 자기 행만, 자기 테이블과 같은 트랜잭션에서 | 아니오(재생성 때 0으로) |
 | `p_` | session-core | 코어 투영기 `core` | 예 |
 | `xh_` | extension-host | ext-host 내부(세션 밖) | 아니오 |
-| `core_models_` | model-gateway | `xeon.store.scoped` | 아니오 |
-| `core_tools_` | tool-runtime | `xeon.store.scoped` | 아니오 |
-| `cap_<도메인>_` | 해당 L2 컨텍스트 | 세션 투영이면 `cap.<도메인>` 투영기, 세션 밖 상태면 `xeon.store.scoped` | 투영 테이블은 예, 나머지는 아니오 |
+| `core_models_` | model-gateway | `fresnel.store.scoped` | 아니오 |
+| `core_tools_` | tool-runtime | `fresnel.store.scoped` | 아니오 |
+| `cap_<도메인>_` | 해당 L2 컨텍스트 | 세션 투영이면 `cap.<도메인>` 투영기, 세션 밖 상태면 `fresnel.store.scoped` | 투영 테이블은 예, 나머지는 아니오 |
 | `x_<extKey>_` | 그 확장(`helm`, `learning`, 사용자 확장) | 확장 투영기 `ext.<extId>`만 | 예 |
 
 - [결정: review.decisions-2 U-18] `extId`는 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)다. 밑줄은 쓰지 않는다. 테이블 접두는 `x_<extKey>_`이고 `extKey`는 `extId`의 `-`를 `_`로 바꾼 값이다. 접두 뒤의 지역 테이블 이름에는 밑줄을 쓰지 않는다. 그래서 `x_<extKey>_<지역 이름>`에서 마지막 `_` 앞까지가 확장 키로 하나로 읽히고, 접두 일치로 다른 확장의 테이블을 지우는 일이 생기지 않는다. 예: `focus-lens`의 `notes` → `x_focus_lens_notes`.
@@ -320,35 +320,35 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 
 ### 5.3 서비스 이름 소유표
 
-[제안] 이름과 인터페이스는 F에 두고(`<Name>ServiceName`, `<Name>Service`), "등록" 열이 "예"인 서비스는 구현 패키지가 Cordis에 등록한다. 정확한 메서드는 각 소유 spec이 정한다. 괄호 안은 F 서브패스다. L1·L0 서비스 인터페이스와 이름 상수, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3)는 `@xeon/contracts/services`에 둔다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12 규칙 7). [결정: review.decisions-2 D-04] L2 서비스 이름 중 Cordis에 등록되는 것은 `xeon.mcp`뿐이다. `xeon.workspace`, `xeon.web`, `xeon.knowledge`, `xeon.work`, `xeon.dialog`, `xeon.artifacts`, `xeon.schedule`은 같은 도메인 능력 API를 모은 TypeScript 묶음 타입의 이름이고 Cordis에 등록하지 않는다. 소비 쪽은 능력 단위 `ServiceKey`로 API를 얻는다(`F.capabilities.spec` §3.5, `L2.readme` §5.6). 비밀 서비스 인터페이스(`SecretService`, `SecretAdminService`)와 승인·에이전트 서비스 인터페이스(`ApprovalService`, `AgentService`)도 `services`에 둔다(`F.capabilities.spec` §3.12 규칙 7, `L0.secrets.spec` §8.3 R1-a·R2, `L1.tools.spec` §8.3, `L1.agents.spec` §8.3) [제안]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)은 `capabilities/secrets.ts`에 둔다([결정: review.decisions-2 U-08]). 표에서 위치가 `services`인 서비스 이름의 집합은 F `SERVICE_NAMES`(`F.capabilities.spec` §3.12)와 같다.
+[제안] 이름과 인터페이스는 F에 두고(`<Name>ServiceName`, `<Name>Service`), "등록" 열이 "예"인 서비스는 구현 패키지가 Cordis에 등록한다. 정확한 메서드는 각 소유 spec이 정한다. 괄호 안은 F 서브패스다. L1·L0 서비스 인터페이스와 이름 상수, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3)는 `@fresnel/contracts/services`에 둔다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12 규칙 7). [결정: review.decisions-2 D-04] L2 서비스 이름 중 Cordis에 등록되는 것은 `fresnel.mcp`뿐이다. `fresnel.workspace`, `fresnel.web`, `fresnel.knowledge`, `fresnel.work`, `fresnel.dialog`, `fresnel.artifacts`, `fresnel.schedule`은 같은 도메인 능력 API를 모은 TypeScript 묶음 타입의 이름이고 Cordis에 등록하지 않는다. 소비 쪽은 능력 단위 `ServiceKey`로 API를 얻는다(`F.capabilities.spec` §3.5, `L2.readme` §5.6). 비밀 서비스 인터페이스(`SecretService`, `SecretAdminService`)와 승인·에이전트 서비스 인터페이스(`ApprovalService`, `AgentService`)도 `services`에 둔다(`F.capabilities.spec` §3.12 규칙 7, `L0.secrets.spec` §8.3 R1-a·R2, `L1.tools.spec` §8.3, `L1.agents.spec` §8.3) [제안]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)은 `capabilities/secrets.ts`에 둔다([결정: review.decisions-2 U-08]). 표에서 위치가 `services`인 서비스 이름의 집합은 F `SERVICE_NAMES`(`F.capabilities.spec` §3.12)와 같다.
 
 | 서비스 이름 | F 인터페이스(위치) | 제공 패키지 | 등록 | 주요 소비 컨텍스트 |
 |---|---|---|---|---|
-| `xeon.store` | `StoreService`(records) | `platform-store` | 예 | session-core, knowledge, web, mcp, schedule, artifacts |
-| `xeon.exec` | `ExecService`(services. `ExecutionEnv`를 확장하고 `withCwd`를 더한다, `L0.exec.spec` §3) | `platform-exec` | 예 | tool-runtime, workspace |
-| `xeon.sandbox` | `SandboxService`(services) | `platform-sandbox` | 예 | tool-runtime, workspace |
-| `xeon.process` | `ProcessService`(services. `ProcessPort`를 확장한다) | `platform-process` | 예 | mcp, schedule, host |
-| `xeon.secrets` | `SecretService`(services) | `platform-secrets` | 예 | tool-runtime, model-gateway, mcp, web, platform-execution |
-| `xeon.secretAdmin` | `SecretAdminService`(services, `L0.secrets.spec` §3.8) | `platform-secrets` | 예 | host |
-| `xeon.os` | `OsService`(services) | `platform-os` | 예 | workspace, dialog, schedule |
-| `xeon.session` | `SessionService`(records) | `core-persistence` | 예 | run-engine, tool-runtime, extension-host, knowledge, work, artifacts, host |
-| `xeon.tasks` | `TaskService`(services. post 대상. `InputQueuePort`를 확장한다) | `core-tasks` | 예 | extension-host, schedule, run-engine |
-| `xeon.loop` | `LoopService`(services. drive의 `loop.turn`. `LoopPort`를 확장한다) | `core-loop` | 예 | extension-host, host |
-| `xeon.context` | `ContextService`(services) | `core-context` | 예 | run-engine |
-| `xeon.agents` | `AgentService`(services) | `core-agents` | 예 | tool-runtime, extension-host, helm, learning |
-| `xeon.models` | `ModelService`(services. `ModelsPort`를 확장한다) | `core-models` | 예 | run-engine, web |
-| `xeon.tools` | `ToolService`(services. `ToolsPort`를 확장한다) | `core-tools` | 예 | run-engine, L2 전체(도구 등록) |
-| `xeon.approvals` | `ApprovalService`(services) | `core-tools` | 예 | dialog, work, knowledge, host |
-| `xeon.ext` | `ExtHost`(X `primitives`의 공개 타입. F에는 이 인터페이스가 없다. DR-14 예외 4) | `ext-host` | 예 | run-engine, tool-runtime, group-sdk, helm, learning, host |
-| `xeon.workspace` | `WorkspaceService`(capabilities) | `cap-workspace` | 아니오(묶음 이름) | 그룹 |
-| `xeon.mcp` | `McpService`(services. `McpPort`를 확장한다. 능력 정의 `McpClient`는 capabilities) | `cap-mcp` | 예 | 그룹, host |
-| `xeon.web` | `WebService`(capabilities) | `cap-web` | 아니오(묶음 이름) | helm, 그룹 |
-| `xeon.knowledge` | `KnowledgeService`(capabilities) | `cap-knowledge` | 아니오(묶음 이름) | helm, learning |
-| `xeon.work` | `WorkService`(capabilities) | `cap-work` | 아니오(묶음 이름) | helm, 그룹 |
-| `xeon.dialog` | `DialogService`(capabilities) | `cap-dialog` | 아니오(묶음 이름) | 그룹 |
-| `xeon.artifacts` | `ArtifactService`(capabilities) | `cap-artifacts` | 아니오(묶음 이름) | 그룹, host |
-| `xeon.schedule` | `ScheduleService`(capabilities) | `cap-schedule` | 아니오(묶음 이름) | 그룹, host |
-| `xeon.groups` | `GroupService`(services. `LeaseArbiterPort`를 확장한다, `F.capabilities.spec` §3.12 `services/groups.ts`) | `group-sdk` | 예 | helm, learning, host |
+| `fresnel.store` | `StoreService`(records) | `platform-store` | 예 | session-core, knowledge, web, mcp, schedule, artifacts |
+| `fresnel.exec` | `ExecService`(services. `ExecutionEnv`를 확장하고 `withCwd`를 더한다, `L0.exec.spec` §3) | `platform-exec` | 예 | tool-runtime, workspace |
+| `fresnel.sandbox` | `SandboxService`(services) | `platform-sandbox` | 예 | tool-runtime, workspace |
+| `fresnel.process` | `ProcessService`(services. `ProcessPort`를 확장한다) | `platform-process` | 예 | mcp, schedule, host |
+| `fresnel.secrets` | `SecretService`(services) | `platform-secrets` | 예 | tool-runtime, model-gateway, mcp, web, platform-execution |
+| `fresnel.secretAdmin` | `SecretAdminService`(services, `L0.secrets.spec` §3.8) | `platform-secrets` | 예 | host |
+| `fresnel.os` | `OsService`(services) | `platform-os` | 예 | workspace, dialog, schedule |
+| `fresnel.session` | `SessionService`(records) | `core-persistence` | 예 | run-engine, tool-runtime, extension-host, knowledge, work, artifacts, host |
+| `fresnel.tasks` | `TaskService`(services. post 대상. `InputQueuePort`를 확장한다) | `core-tasks` | 예 | extension-host, schedule, run-engine |
+| `fresnel.loop` | `LoopService`(services. drive의 `loop.turn`. `LoopPort`를 확장한다) | `core-loop` | 예 | extension-host, host |
+| `fresnel.context` | `ContextService`(services) | `core-context` | 예 | run-engine |
+| `fresnel.agents` | `AgentService`(services) | `core-agents` | 예 | tool-runtime, extension-host, helm, learning |
+| `fresnel.models` | `ModelService`(services. `ModelsPort`를 확장한다) | `core-models` | 예 | run-engine, web |
+| `fresnel.tools` | `ToolService`(services. `ToolsPort`를 확장한다) | `core-tools` | 예 | run-engine, L2 전체(도구 등록) |
+| `fresnel.approvals` | `ApprovalService`(services) | `core-tools` | 예 | dialog, work, knowledge, host |
+| `fresnel.ext` | `ExtHost`(X `primitives`의 공개 타입. F에는 이 인터페이스가 없다. DR-14 예외 4) | `ext-host` | 예 | run-engine, tool-runtime, group-sdk, helm, learning, host |
+| `fresnel.workspace` | `WorkspaceService`(capabilities) | `cap-workspace` | 아니오(묶음 이름) | 그룹 |
+| `fresnel.mcp` | `McpService`(services. `McpPort`를 확장한다. 능력 정의 `McpClient`는 capabilities) | `cap-mcp` | 예 | 그룹, host |
+| `fresnel.web` | `WebService`(capabilities) | `cap-web` | 아니오(묶음 이름) | helm, 그룹 |
+| `fresnel.knowledge` | `KnowledgeService`(capabilities) | `cap-knowledge` | 아니오(묶음 이름) | helm, learning |
+| `fresnel.work` | `WorkService`(capabilities) | `cap-work` | 아니오(묶음 이름) | helm, 그룹 |
+| `fresnel.dialog` | `DialogService`(capabilities) | `cap-dialog` | 아니오(묶음 이름) | 그룹 |
+| `fresnel.artifacts` | `ArtifactService`(capabilities) | `cap-artifacts` | 아니오(묶음 이름) | 그룹, host |
+| `fresnel.schedule` | `ScheduleService`(capabilities) | `cap-schedule` | 아니오(묶음 이름) | 그룹, host |
+| `fresnel.groups` | `GroupService`(services. `LeaseArbiterPort`를 확장한다, `F.capabilities.spec` §3.12 `services/groups.ts`) | `group-sdk` | 예 | helm, learning, host |
 
 - `helm`, `learning`, 사용자 확장은 서비스를 제공하지 않는다(3절 협력 규칙 7).
 - L4(`clients`, `host`)는 Cordis 서비스를 제공하지 않는다. `host`는 F5 wire 서버를 열고, `clients`는 그 wire로 접속한다.
@@ -400,8 +400,8 @@ export const extTablePrefix = (extId: string): string => `x_${extId.replaceAll("
 |---|---|---|---|
 | `owners.ts`(`CONTEXTS`, `TYPE_PREFIX_OWNERS`, `TABLE_PREFIX_OWNERS`), layout 대조 테스트 | 예(contracts) | | |
 | 저장소의 접두사 소유 검사 | 예(platform-store, core-persistence) | | |
-| `xeon.store`, `xeon.session`, `xeon.ext` 서비스 등록 | 예 | | | | 예
-| L1 서비스(`xeon.tasks`, `xeon.loop`, `xeon.models`, `xeon.tools`, `xeon.approvals`) | | 예 | |
+| `fresnel.store`, `fresnel.session`, `fresnel.ext` 서비스 등록 | 예 | | | | 예
+| L1 서비스(`fresnel.tasks`, `fresnel.loop`, `fresnel.models`, `fresnel.tools`, `fresnel.approvals`) | | 예 | |
 | `check-layers.ts`의 다른 컨텍스트 패키지 import 검사(DR-14, CM-05) | | 예 | |
 | L2·L3 서비스와 접두사 | | 테스트용 그룹만 | 예 |
 
@@ -437,7 +437,7 @@ export const TodoAddedEntry: CatalogEntry = {
 
 이유: 테이블 모양은 소유 컨텍스트가 바꿀 수 있어야 한다. 다른 컨텍스트가 직접 읽으면 투영 버전을 올리는 순간 숨은 소비자가 깨진다. 필요한 데이터는 서비스 API로 묻거나, 이벤트를 구독해 자기 투영으로 둔다.
 
-강제: `xeon.store.scoped(owner)` 핸들이 테스트·디버그 빌드에서 다른 접두사 문장을 거부한다. 다른 컨텍스트 테이블 이름 문자열을 찾는 검사를 `check-layers.ts`에 더한다 [제안].
+강제: `fresnel.store.scoped(owner)` 핸들이 테스트·디버그 빌드에서 다른 접두사 문장을 거부한다. 다른 컨텍스트 테이블 이름 문자열을 찾는 검사를 `check-layers.ts`에 더한다 [제안].
 
 좋은 예:
 
@@ -479,7 +479,7 @@ db.read((tx) => tx.all("SELECT i.item_id, p.text FROM p_items i JOIN p_parts p U
 ```ts
 // xeon/packages/cap-mcp/src/adapter.ts (경계 안)
 import type { Tool as McpTool } from "@modelcontextprotocol/client";
-import type { ToolDecl } from "@xeon/contracts";
+import type { ToolDecl } from "@fresnel/contracts";
 export function toToolDecl(t: McpTool, serverId: string): ToolDecl {
   return { name: `mcp:${serverId}:${t.name}`, label: t.title ?? t.name, parameters: t.inputSchema, replay: "unsafe" };
 }
@@ -528,14 +528,14 @@ export function pickLens(tools: readonly McpTool[]): McpTool | undefined { /* �
 
 ```ts
 // xeon/packages/core-persistence/src/plugin.ts (L1 session-core)
-import { StoreServiceName, type StoreService } from "@xeon/contracts";
+import { StoreServiceName, type StoreService } from "@fresnel/contracts";
 export const inject: readonly string[] = [StoreServiceName];   // 주입받는다
 ```
 
 나쁜 예:
 
 ```ts
-import { openStore } from "@xeon/platform-store";             // 다른 컨텍스트 구현 import
+import { openStore } from "@fresnel/platform-store";             // 다른 컨텍스트 구현 import
 ```
 
 ### CM-06 그룹은 다른 그룹을 부르지 않는다. 공유가 필요한 능력은 L2로 옮긴다
@@ -582,7 +582,7 @@ const learned = ctx.get("learning").recentProposals();
 1. `routes.yaml` `layout`의 모든 도메인(F 5, X 3, L0 6, L1 7, L2 8, L3 4, L4 4, 합계 37)이 `CONTEXTS`의 `domains`에 정확히 한 번 나온다. 테스트가 `routes.yaml`을 읽어 대조한다.
 2. 이벤트 카탈로그의 모든 kind 접두와 모든 투영기 `ddl`·`scoped` 접두사가 `TYPE_PREFIX_OWNERS`·`TABLE_PREFIX_OWNERS`에 소유자를 가진다. 소유되지 않은 접두사가 0개다.
 3. 4.1절 표의 패키지 경로가 `routes.yaml` layout의 경로 규칙(`platform-{domain}`, `core-{domain}`, `cap-{domain}`, `group-sdk`·`group-helm`·`group-learning`, `apps/*`)과 일치한다.
-4. DR-14 예외(F, `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@xeon/ext-host`의 서비스 등록·주입 API, `group-sdk` 허용 목록) 밖에서 다른 컨텍스트의 패키지를 import하면 `check-layers.ts`가 `DR-14`로 실패한다(M1부터).
+4. DR-14 예외(F, `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@fresnel/ext-host`의 서비스 등록·주입 API, `group-sdk` 허용 목록) 밖에서 다른 컨텍스트의 패키지를 import하면 `check-layers.ts`가 `DR-14`로 실패한다(M1부터).
 5. 확장 id `focus_lens`, `core`를 가진 매니페스트는 로드되지 않는다. `focus-lens`는 로드되고 테이블 접두가 `x_focus_lens_`다. 이 확장이 지역 이름 `my_notes`로 테이블을 만들면 거부된다.
 6. `ext.helm` 생산자로 `effect.result`를 커밋하면 실패하고 행이 남지 않는다(`eng.events.design` 수용 기준 9와 같은 시험).
 
@@ -591,5 +591,5 @@ const learned = ctx.get("learning").recentProposals();
 - [미결 C-1] 컨텍스트 이름과 식별자 정리. 층 구성 계획 v2·`_research/packages.md`의 하위 층 id(`L1-a`~`L1-g`, `L2-a`~`L2-h`)와 layout 도메인 이름이 다르게 읽히는 곳(L2-a "작업 도구" = `workspace`, L2-e "작업 관리" = `work`)과, 이 문서가 새로 붙인 컨텍스트 이름(`run-engine`, `session-core`, `tool-runtime`, `model-gateway`, `platform-execution`)을 문서 전체에서 어느 쪽으로 부를지 정한다. 이 문서는 코드·서비스·접두사에 layout 도메인 이름을, 묶음에 컨텍스트 이름을 쓴다.
 - [미결 C-2] `slots`의 위치. 코드가 없는 L3 도메인(그룹 템플릿 문서)을 `group-sdk` 컨텍스트에 두었다. 템플릿이 `group-sdk` 패키지의 스캐폴드 명령이 되면 그대로 두고, 독립 저장소 템플릿이 되면 layout에서 뺄지 정한다.
 - [미결 C-3] L2 능력 테이블 접두사. 이 문서는 L2에 `cap_<도메인>_`, 설치형 확장에 `x_<extKey>_`를 쓴다. 내장 L2 능력도 사용자가 교체할 수 있는 플러그인이므로 `x_`로 통일할지 정한다.
-- [결정: review.decisions-2 U-15] C-5 `group-sdk` 런타임 도우미를 그룹이 import하는 방식. 허용 목록 `DR-02/group-sdk`(`from`은 `packages/group-*`)로 `group-*` → `group-sdk` import를 허용한다(`eng.dependency-rules.guide` DR-02). 4.1절 `group-sdk` 행의 서비스(`xeon.groups`)는 그대로 둔다.
+- [결정: review.decisions-2 U-15] C-5 `group-sdk` 런타임 도우미를 그룹이 import하는 방식. 허용 목록 `DR-02/group-sdk`(`from`은 `packages/group-*`)로 `group-*` → `group-sdk` import를 허용한다(`eng.dependency-rules.guide` DR-02). 4.1절 `group-sdk` 행의 서비스(`fresnel.groups`)는 그대로 둔다.
 - [결정: review.decisions-2 U-18] C-6 확장 id 형식. `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이고 밑줄은 쓰지 않는다. 테이블 접두는 `x_<extKey>_`, 지역 테이블 이름에는 밑줄을 쓰지 않는다(5.2절, CM-07). adr.0004의 `[a-z0-9_]` 서술은 이 형식으로 고친다(decisions 문서 담당).

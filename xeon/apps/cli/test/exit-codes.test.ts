@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import { err } from "@xeon/contracts";
-import { WireError, wireError } from "@xeon/contracts/wire";
+import { err } from "@fresnel/contracts";
+import { WireError, wireError } from "@fresnel/contracts/wire";
 import type { ConnectEngine, EngineStartErrorKind } from "../src/engine.ts";
 import { exitCodeOfStartError, failureOfWire } from "../src/errors.ts";
 import { EXIT } from "../src/exit-codes.ts";

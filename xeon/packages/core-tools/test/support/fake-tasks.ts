@@ -1,4 +1,4 @@
-import type { TurnId } from "@xeon/contracts/conversation";
+import type { TurnId } from "@fresnel/contracts/conversation";
 import type {
   Limiter,
   LockRequest,
@@ -8,7 +8,7 @@ import type {
   TaskScope,
   TaskScopeKind,
   TaskScopeSpec,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { ToolTasks } from "../../src/tasks.ts";
 
 // core-tasks 대역. 범위 노드의 신호 전파와 키 큐(공유·배타, 사전순 획득)만 흉내 낸다.

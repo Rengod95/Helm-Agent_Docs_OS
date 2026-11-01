@@ -1,5 +1,5 @@
 import { lookup } from "node:dns/promises";
-import { attemptAsync, err, ok } from "@xeon/contracts";
+import { attemptAsync, err, ok } from "@fresnel/contracts";
 import type { DnsResolver } from "../ports/resolver.ts";
 
 /** 운영 DNS 해석기: OS 해석기로 모든 A/AAAA 주소를 얻는다. 연결 시점 재검증은 전송이 따로 한다 */

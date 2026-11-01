@@ -1,12 +1,12 @@
-import { parse, parseJson } from "@xeon/contracts";
-import { matchProtectedPath, type CancelScope } from "@xeon/contracts/services";
+import { parse, parseJson } from "@fresnel/contracts";
+import { matchProtectedPath, type CancelScope } from "@fresnel/contracts/services";
 import { Type, type Static } from "typebox";
 import type { WorkspaceDeps } from "../deps.ts";
 import type { WorkspaceEnv } from "../env.ts";
 import { WorkspaceFailure } from "../errors.ts";
 
-// L2.workspace.spec §3.2 grep·find, §4.2(샌드박스 밖), §5 10번. ripgrep은 `xeon.exec`에 argv 배열로 넘긴다(셸 문자열을 만들지 않는다).
-// 샌드박스(xeon.sandbox)는 거치지 않는다. 이 패키지가 고른 인자로만 실행하고, 검색 경로는 `resolveWorkspacePath`가 검사한다.
+// L2.workspace.spec §3.2 grep·find, §4.2(샌드박스 밖), §5 10번. ripgrep은 `fresnel.exec`에 argv 배열로 넘긴다(셸 문자열을 만들지 않는다).
+// 샌드박스(fresnel.sandbox)는 거치지 않는다. 이 패키지가 고른 인자로만 실행하고, 검색 경로는 `resolveWorkspacePath`가 검사한다.
 
 /** `rg`의 실행 결과. 출력은 전부 모은다. 한도는 호출자가 건다 */
 export interface RgRun {

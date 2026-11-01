@@ -1,5 +1,5 @@
-import { activeLocale } from "@xeon/client/i18n";
-import { detach, rethrow } from "@xeon/contracts";
+import { activeLocale } from "@fresnel/client/i18n";
+import { detach, rethrow } from "@fresnel/contracts";
 import { createRoot } from "react-dom/client";
 import pkg from "../package.json" with { type: "json" };
 import { createApp } from "./app/bootstrap.ts";

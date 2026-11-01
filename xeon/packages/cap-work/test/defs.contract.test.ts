@@ -7,7 +7,7 @@ import {
   WorkPlans,
   WorkReports,
   WorkTasks,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 // L2.work.spec §9-6, plan §5 defs.contract. 정의의 정본은 F다. cap-work가 그 정의로 일하기 시작해도 계약이 깨지지 않았는지 확인한다.
 

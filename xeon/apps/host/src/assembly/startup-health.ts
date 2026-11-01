@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { attempt } from "@xeon/contracts";
-import { shouldSuggestSafeMode } from "@xeon/ext-host";
+import { attempt } from "@fresnel/contracts";
+import { shouldSuggestSafeMode } from "@fresnel/ext-host";
 
 // X.operations.spec §4.6.4, M4 X-21. 연속 시작 실패 수를 상태 디렉터리의 작은 파일에 둔다. DB 밖이다: DB를 여는 단계에서 실패할 수 있기 때문이다.
 // 시작할 때 "진행 중" 표시를 남기고, 첫 입력을 받을 준비가 되면 지운다. 시작 도중 프로세스가 죽거나 조립이 던지면 표시가 남아 다음 시작에서 1이 는다.

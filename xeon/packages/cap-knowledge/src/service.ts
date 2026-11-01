@@ -1,4 +1,4 @@
-import { ok, type Result } from "@xeon/contracts";
+import { ok, type Result } from "@fresnel/contracts";
 import {
   KnowledgeLedger,
   KnowledgeMemory,
@@ -6,7 +6,7 @@ import {
   KnowledgeSkills,
   type CapabilityApi,
   type CapabilityId,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { createProposalQueue, type Replayers } from "./approval/queue.ts";
 import { toCapabilityError, type KnowledgeFailure } from "./errors.ts";
 import { createChangeExecutor } from "./ledger/change.ts";
@@ -14,7 +14,7 @@ import { recoverPrepared, type RecoverReport } from "./ledger/recover.ts";
 import { createLedgerRuntime } from "./ledger/service.ts";
 import { createMemory, type MemoryRuntime } from "./memory/store.ts";
 import type { WriteApprovals } from "./ports/approvals.ts";
-import type { SessionService } from "@xeon/contracts/records";
+import type { SessionService } from "@fresnel/contracts/records";
 import { createDocsIndex, type DocsIndex } from "./search/docs-index.ts";
 import { startIndexer, type Indexer } from "./search/indexer.ts";
 import { createSearch, type SearchAvailability, type SearchRuntime } from "./search/service.ts";
@@ -27,9 +27,9 @@ import type { ReindexResult } from "./skills/reindex.ts";
 // (L2.readme §5.6). 이 단계(KN.3)가 제공하는 능력은 knowledge.skills(읽기와 쓰기), knowledge.memory, knowledge.ledger다.
 
 export interface KnowledgeDeps extends SkillsDeps {
-  /** `xeon.secrets` 마스킹 등록부 판정. 서비스가 없으면 undefined */
+  /** `fresnel.secrets` 마스킹 등록부 판정. 서비스가 없으면 undefined */
   readonly containsKnown: ((text: string) => boolean) | undefined;
-  /** 사람에게 쓰기 승인을 묻는 포트(`xeon.approvals`). 없으면 묻는 대신 제안 대기열로 보낸다 */
+  /** 사람에게 쓰기 승인을 묻는 포트(`fresnel.approvals`). 없으면 묻는 대신 제안 대기열로 보낸다 */
   readonly approvals: WriteApprovals | undefined;
   /** 메모리 파일 디렉터리 `<사용자 데이터>/memory`(spec §4.1) */
   readonly memoryDir: string;

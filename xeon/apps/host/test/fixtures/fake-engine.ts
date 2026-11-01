@@ -1,22 +1,22 @@
-import { err, ok } from "@xeon/contracts";
-import type { Notice } from "@xeon/contracts/capabilities";
-import type { IdFactory, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import { err, ok } from "@fresnel/contracts";
+import type { Notice } from "@fresnel/contracts/capabilities";
+import type { IdFactory, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   DurableEventEnvelope,
   EventKind,
   ReadFailure,
   VolatileEventEnvelope,
-} from "@xeon/contracts/records";
-import type { LoopError } from "@xeon/contracts/services";
-import type { ScopeStack } from "@xeon/contracts/settings";
-import type { StoreId, StreamPosition } from "@xeon/contracts/wire";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import type { ScheduleService } from "@xeon/cap-schedule";
+} from "@fresnel/contracts/records";
+import type { LoopError } from "@fresnel/contracts/services";
+import type { ScopeStack } from "@fresnel/contracts/settings";
+import type { StoreId, StreamPosition } from "@fresnel/contracts/wire";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
-import { createProcessShutdown } from "@xeon/platform-process";
+import { createProcessShutdown } from "@fresnel/platform-process";
 import { createManualScheduler, type ManualScheduler } from "./manual-scheduler.ts";
 import type {
   CommitBatch,

@@ -2,8 +2,8 @@ import {
   isProcessAlive,
   type ServiceRegistration,
   createRegistrationStore,
-} from "@xeon/platform-process";
-import { createOsService, readOsRuntime } from "@xeon/platform-os";
+} from "@fresnel/platform-process";
+import { createOsService, readOsRuntime } from "@fresnel/platform-os";
 import { hostResourceDir } from "../state-paths.ts";
 import {
   ok,
@@ -12,8 +12,8 @@ import {
   type Clock,
   type Result,
   type Scheduler,
-} from "@xeon/contracts";
-import type { WireResult } from "@xeon/contracts/wire";
+} from "@fresnel/contracts";
+import type { WireResult } from "@fresnel/contracts/wire";
 import { connectServiceTransport, createHostConnection, helloService } from "./connect.ts";
 import { requestServiceShutdown, waitServiceGone } from "./ensure.ts";
 import { resolveServicePaths, type ServicePathError } from "./paths.ts";

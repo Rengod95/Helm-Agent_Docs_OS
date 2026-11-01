@@ -1,4 +1,4 @@
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type { WebAskPort, WebAskRequest } from "../ports/ask.ts";
 import type { HeaderSecretSender, OutboundSecretGuard } from "../ports/secrets.ts";
 import type { RecordedSource, WebSessionSourcesPort } from "../ports/session-sources.ts";

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { EffectResultSchema } from "@xeon/contracts/records";
+import { parse } from "@fresnel/contracts";
+import { EffectResultSchema } from "@fresnel/contracts/records";
 import { activatedTools } from "../src/builtin/activation.ts";
 import { createToolRuntime } from "../src/runtime.ts";
 import {

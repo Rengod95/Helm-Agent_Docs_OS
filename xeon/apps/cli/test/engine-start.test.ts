@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import {
   WIRE_PROTOCOL_VERSION,
   wireError,
   type HostConnection,
   type JsonRpcMessage,
   type Transport,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import {
   AssembleError,
   type AttachError,
@@ -15,7 +15,7 @@ import {
   type RemoteResolution,
   type ServiceAttachment,
   type ServiceEndpoint,
-} from "@xeon/host";
+} from "@fresnel/host";
 import { createHostConnection } from "../src/host-client.ts";
 import {
   createConnectEngine,
@@ -160,7 +160,7 @@ test("catalog, missing service and plugin issues map to their own kinds", () => 
   expect(catalog.kind).toBe("catalogConflict");
   expect(catalog.message).toContain("l1.loop.maxSteps");
   expect(
-    startErrorOf(new AssembleError([{ code: "missingService", service: "xeon.tools" }])).kind,
+    startErrorOf(new AssembleError([{ code: "missingService", service: "fresnel.tools" }])).kind,
   ).toBe("missingService");
   expect(
     startErrorOf(new AssembleError([{ code: "plugin", plugin: "platform-exec", message: "boom" }])),

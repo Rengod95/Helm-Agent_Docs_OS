@@ -22,7 +22,7 @@ describe("WireMetaSchema", () => {
         traceparent: TRACEPARENT,
         tracestate: "vendor=1",
         baggage: "userId=alice",
-        "xeon/clientTime": 1_700_000_000,
+        "fresnel/clientTime": 1_700_000_000,
         "acme-cli/Build.id": { any: "value" },
       }).ok,
     ).toBe(true);

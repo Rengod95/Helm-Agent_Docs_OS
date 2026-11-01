@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { PolicyRule } from "@xeon/contracts/services";
+import type { PolicyRule } from "@fresnel/contracts/services";
 import {
   callTool,
   createHarness,

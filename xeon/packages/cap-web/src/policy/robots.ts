@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock } from "@fresnel/contracts";
 
 // L2.web.spec §4.7. robots.txt(RFC 9309) 파서와 호스트별 24시간 메모리 캐시.
 // 4xx는 전부 허용, 5xx·연결 실패는 전부 금지로 본다(§2.3.1) [제안]. 사용자 에이전트 토큰은 `Xeon`이다.

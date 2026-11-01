@@ -1,4 +1,8 @@
-import { defineSettings, type SettingDefInput, type SettingGroup } from "@xeon/contracts/settings";
+import {
+  defineSettings,
+  type SettingDefInput,
+  type SettingGroup,
+} from "@fresnel/contracts/settings";
 import { Type } from "typebox";
 import { DEFAULT_AUTO_DISABLE, type AutoDisablePolicy } from "./auto-disable.ts";
 import { DEFAULT_BUDGETS_MS, type BudgetTable } from "./budget.ts";

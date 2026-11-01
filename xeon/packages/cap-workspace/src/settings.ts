@@ -4,7 +4,7 @@ import {
   resolveSetting,
   type ScopeStack,
   type SettingDef,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 // L2.workspace.spec §6. 읽는 키만 선언한다(M1: read.*, shell.*, list.maxEntries, M2: images.*; plan W8).
 // M3b: edit.fuzzy, grep.*, find.*를 더했다. grep·find는 ripgrep으로 돈다(spec §4.5).
@@ -198,7 +198,7 @@ export interface WorkspaceSettings {
   readonly grep: {
     readonly maxMatches: number;
     readonly maxLineLength: number;
-    /** 빈 문자열이면 `xeon.os`가 번들 rg를 찾는다 */
+    /** 빈 문자열이면 `fresnel.os`가 번들 rg를 찾는다 */
     readonly rgPath: string;
   };
   readonly find: { readonly maxResults: number };

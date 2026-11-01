@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, afterEach, expect, test } from "bun:test";
-import type { Logger } from "@xeon/contracts";
+import type { Logger } from "@fresnel/contracts";
 import { createProjectTrust, type ProjectTrust } from "../../src/assembly/trust.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { openFileLock, type OpenedFileLock } from "../fixtures/file-lock.ts";

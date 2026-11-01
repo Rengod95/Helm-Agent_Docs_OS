@@ -2,15 +2,15 @@
 // X 테스트는 자체 인메모리 대역(support/fake-session.ts)으로 돌리고, 실제 bun:sqlite 저장소로 같은 시나리오를
 // 돌리는 일은 L0.store.plan ST-23이 한다(테스트 파일 교차 import, review.decisions-2 U-17).
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { err, ok } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   ProjectorRegistryPortKey,
   ScopedStorePortKey,
   type PortKey,
   type PortLookup,
-} from "@xeon/contracts/extensions";
-import type { DurableEventEnvelope, ProjectorRegistry, StoreDb } from "@xeon/contracts/records";
+} from "@fresnel/contracts/extensions";
+import type { DurableEventEnvelope, ProjectorRegistry, StoreDb } from "@fresnel/contracts/records";
 import { Type } from "typebox";
 import { fixedIdFactory } from "../../../src/testing/index.ts";
 import { portAs } from "../../../src/erase.ts";

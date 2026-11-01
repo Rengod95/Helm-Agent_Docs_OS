@@ -1,4 +1,4 @@
-import type { ItemId } from "@xeon/contracts/conversation";
+import type { ItemId } from "@fresnel/contracts/conversation";
 import { useMemo, type ReactNode } from "react";
 import {
   useOpenThreadId,

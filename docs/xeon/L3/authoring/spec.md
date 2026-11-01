@@ -87,10 +87,10 @@ binds: [xeon/packages/plugin-builder/**]
 | `authoring_package` | `{ sessionId, out? }` | 패키지 경로, 내용 목록, 해시 | 쓰기 + 사람 확인 |
 | `authoring_install` | `{ sessionId, scope: "user" }` | 설치 위치 연결 결과 | 사람 확인 |
 
-- 모든 도구는 같은 서비스 `xeon.devkit`(§3.3)을 부릅니다. 도구는 입력 검사, 세션 상태 커밋, 결과 요약만 합니다.
+- 모든 도구는 같은 서비스 `fresnel.devkit`(§3.3)을 부릅니다. 도구는 입력 검사, 세션 상태 커밋, 결과 요약만 합니다.
 - 화면(구성기, 시험 실행)도 wire로 같은 서비스를 부릅니다(`L4.desktop-ux.spec` W-27, W-28, W-29, W-47, W-49). 그래서 에이전트와 사용자가 같은 검사와 같은 뼈대를 얻습니다.
 
-### 3.3 서비스 `xeon.devkit`
+### 3.3 서비스 `fresnel.devkit`
 
 [제안] 제작에 필요한 특권 동작을 F 서비스 계약으로 둡니다. 구현은 `apps/host`(L4)가 하고 그룹에는 DI로 줍니다. L3가 L4를 import하지 않게 하는 방식이고, `ApprovalService`를 L2가 쓰는 방식과 같습니다.
 
@@ -195,7 +195,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 ### 4.2 쓰기 범위 가드
 
 - [제안] 제작 세션이 열린 대화에서 `tool.call.before`(first)는 쓰기 도구(`write`, `edit`, 셸 실행의 쓰기)를 세션 대상 폴더 안으로 제한합니다. 밖이면 거부하고 이유를 돌려줍니다.
-- 사용자 확장 위치, 관리 위치, 앱 자원 폴더에 직접 쓰지 않습니다. 설치는 `xeon.devkit.link`(사람 확인 뒤)만 합니다.
+- 사용자 확장 위치, 관리 위치, 앱 자원 폴더에 직접 쓰지 않습니다. 설치는 `fresnel.devkit.link`(사람 확인 뒤)만 합니다.
 - 가드는 세션이 끝나면 풀립니다. 제작 확장이 꺼져도 풀립니다.
 
 ### 4.3 구성기와 화면 모드와의 관계
@@ -217,7 +217,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 ### 4.5 CLI와의 관계
 
-- `xeon group new`는 `xeon.devkit.scaffold`를 부르는 진입점이 됩니다(엔진이 떠 있으면 wire, 아니면 같은 F 함수와 템플릿 파일로 로컬 실행). 결과 파일은 지금과 같아야 합니다(`L3.slots.spec` §3.3.6 R1~R6).
+- `xeon group new`는 `fresnel.devkit.scaffold`를 부르는 진입점이 됩니다(엔진이 떠 있으면 wire, 아니면 같은 F 함수와 템플릿 파일로 로컬 실행). 결과 파일은 지금과 같아야 합니다(`L3.slots.spec` §3.3.6 R1~R6).
 - `xeon author <명령>` [제안]은 제작 세션을 CLI에서 엽니다. 모델 없이 `scaffold`, `validate`, `pack`만 쓰는 모드도 둡니다.
 
 ## 5. 실패와 경계 사례
@@ -253,7 +253,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 | 문서 | 관계 |
 |---|---|
-| `F.extensions.spec` | 요구: `composition` 필드와 `validateComposition`(X-16), `views` 두 모드(ADR-0021), 서비스 `xeon.devkit` 계약 |
+| `F.extensions.spec` | 요구: `composition` 필드와 `validateComposition`(X-16), `views` 두 모드(ADR-0021), 서비스 `fresnel.devkit` 계약 |
 | `X.primitives.spec` | 요구: `loop.ask`와 반납 사유 `waiting`(X-17), 시험 대화 단계 경계 멈춤(X-19) |
 | `L3.group-sdk.spec` | 받음: `defineGroup`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineGroup({ composition })` 채움 |
 | `L3.slots.spec` | 받음: 템플릿 세 종류와 이름 규칙. 카탈로그 첫 항목 |
@@ -275,7 +275,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 ## 10. 미결 사항
 
 1. [미결] `L3/README.md` 도메인 표에 `authoring`을 더하는 일(README 수정 금지라 사용자 몫).
-2. [미결] 서비스 `xeon.devkit`의 정본 위치(F `services/devkit.ts` [제안])와 L4 구현 위치(`apps/host`).
+2. [미결] 서비스 `fresnel.devkit`의 정본 위치(F `services/devkit.ts` [제안])와 L4 구현 위치(`apps/host`).
 3. [미결] 제작 확장을 기본 켬으로 둘지. 이 문서는 꺼짐을 기본값으로 둡니다.
 4. [미결] 묶음 형식(폴더 사본, tar, 서명). 서명은 릴리즈 서명(`L4.release.spec`)과 함께 정합니다.
 5. [미결] 사용자 로컬 카탈로그 경로와, 로컬 항목을 다른 기기와 나눌지.

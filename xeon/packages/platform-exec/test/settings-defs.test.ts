@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCatalog, checkSettingDef, validateSettingValue } from "@xeon/contracts/settings";
+import { buildCatalog, checkSettingDef, validateSettingValue } from "@fresnel/contracts/settings";
 import { EXEC_SETTING_DEFS } from "../src/index.ts";
 
 function defOf(key: string) {

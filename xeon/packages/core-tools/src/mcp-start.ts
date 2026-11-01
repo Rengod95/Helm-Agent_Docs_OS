@@ -1,13 +1,13 @@
-import { detach, type Clock, type Logger } from "@xeon/contracts";
-import { parseSecretRef, type SecretHandle } from "@xeon/contracts/capabilities";
-import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
-import { requestKeyFor } from "@xeon/contracts/records";
+import { detach, type Clock, type Logger } from "@fresnel/contracts";
+import { parseSecretRef, type SecretHandle } from "@fresnel/contracts/capabilities";
+import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
+import { requestKeyFor } from "@fresnel/contracts/records";
 import type {
   ApprovalEvidence,
   ApprovalRequestInput,
   ApprovalService,
   UseCtx,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { SecretChecker } from "./secret-gate.ts";
 import { sha256HexSync } from "./util.ts";
 

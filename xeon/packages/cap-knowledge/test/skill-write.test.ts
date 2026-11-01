@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eachAsync } from "@xeon/contracts";
-import type { CallOptions } from "@xeon/contracts/capabilities";
+import { eachAsync } from "@fresnel/contracts";
+import type { CallOptions } from "@fresnel/contracts/capabilities";
 import { scriptedApprovals } from "./support/approvals.ts";
 import { asHost, rejection, threadIdOf } from "./support/helpers.ts";
 import { contextOf } from "./support/plans.ts";

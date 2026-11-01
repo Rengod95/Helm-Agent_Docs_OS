@@ -1,4 +1,4 @@
-import { Bug, canonicalJson, err, ok, parse, type Clock, type Result } from "@xeon/contracts";
+import { Bug, canonicalJson, err, ok, parse, type Clock, type Result } from "@fresnel/contracts";
 import {
   EventIdSchema,
   type EffectId,
@@ -6,7 +6,7 @@ import {
   type IdFactory,
   type ThreadId,
   type TurnId,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   decideEffectRecovery,
   EffectExecSchema,
@@ -35,8 +35,8 @@ import {
   type TurnView,
   type TxView,
   type VolatileEventEnvelope,
-} from "@xeon/contracts/records";
-import { memoryRecordStore } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/records";
+import { memoryRecordStore } from "@fresnel/ext-host/testing";
 
 // 테스트 대역: core-persistence의 커밋 의미(커밋 키 멱등, build 동기 호출, 낙인 검사, 피드 방출)만 흉내 낸다.
 // 실제 SQLite를 쓰지 않는다(core-loop는 platform-store·core-persistence를 import할 수 없다, DR-14).

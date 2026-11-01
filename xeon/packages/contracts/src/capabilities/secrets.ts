@@ -18,7 +18,7 @@ import { Bug, err, ok, parse, type Brand, type Result } from "../base/index.ts";
 
 /**
  * 사람이 비밀 사용을 승인한 증거. L1.tools가 `CallContext.approval`에 채우고, 도구 구현(L2.workspace shell `run`)이
- * `SecretEnvRequest.ctx.approval`에 옮긴다. 값은 `xeon.secrets`가 `approvalId`·`scope`로 정책을 다시 검사한다.
+ * `SecretEnvRequest.ctx.approval`에 옮긴다. 값은 `fresnel.secrets`가 `approvalId`·`scope`로 정책을 다시 검사한다.
  * 서비스 쪽 이름은 `ApprovalEvidence`(services/secrets.ts)이고 같은 모양이다. L2.knowledge의 `ApprovalEvidence`(`defs/knowledge.ts`)와는 다른 타입이다.
  */
 export interface SecretApprovalEvidence {
@@ -107,7 +107,7 @@ export function parseSecretRef(
 /** 순수 함수. secretRef("exa-key") → "secret://exa-key". 이름 규칙 위반은 호출 결함이므로 Bug를 던진다 */
 export function secretRef(name: string): SecretHandle {
   const parsed = parseSecretRef(`${SECRET_PREFIX}${name}`);
-  // xeon-disable-next-line xeon/bug-for-expected -- secretRef 호출자가 이름 규칙을 어긴 호출 결함이다. 입력 검증은 parseSecretRef가 값으로 돌려준다 (eng.typescript.guide TY-24)
+  // fresnel-disable-next-line fresnel/bug-for-expected -- secretRef 호출자가 이름 규칙을 어긴 호출 결함이다. 입력 검증은 parseSecretRef가 값으로 돌려준다 (eng.typescript.guide TY-24)
   if (!parsed.ok) throw new Bug(`secretRef: "${name}" is not a valid secret name`);
   return parsed.value.handle;
 }

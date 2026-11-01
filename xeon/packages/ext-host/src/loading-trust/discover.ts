@@ -1,17 +1,17 @@
 import { join, sep } from "node:path";
-import { attemptAsync } from "@xeon/contracts";
+import { attemptAsync } from "@fresnel/contracts";
 import type {
   ExtensionEntry,
   ExtensionManifest,
   LoaderFs,
   LoaderPaths,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { BUILTIN_LAYER_ORDER, type OrderKey } from "./load-order.ts";
 import { eachInOrder } from "../primitives/sequence.ts";
 import type { LoadDiagnostic } from "./pipeline.ts";
 import type { InstallSource } from "./trust/levels.ts";
 
-export type { LoaderFs, LoaderPaths } from "@xeon/contracts/extensions";
+export type { LoaderFs, LoaderPaths } from "@fresnel/contracts/extensions";
 
 /** 내장 패키지(core-*, cap-*, group-*)가 export하는 확장 모듈. 조립 루트(L4 host)가 목록을 넘긴다 */
 export interface BuiltinExtensionModule {

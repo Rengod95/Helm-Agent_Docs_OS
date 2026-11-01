@@ -10,7 +10,7 @@ binds: [xeon/packages/group-helm/**]
 
 # L3 Helm 그룹 (helm)
 
-패키지: `@xeon/group-helm`(`xeon/packages/group-helm`). 그룹 이름(`ExtensionName`, 주 scope id): `helm`.
+패키지: `@fresnel/group-helm`(`xeon/packages/group-helm`). 그룹 이름(`ExtensionName`, 주 scope id): `helm`.
 
 M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-plan` §9 D-a, `review.m3-plan` M3-01). 이 판은 M3 설계 단계 입력(`review.m3-design-inputs` §4.1 H-IN-01~17)에 답하고, ADR-0015(효과 목록 C안)와 도구 메타(G1-05, `review.m3-plan` M3-02)를 반영한다. 2026-10-26 사용자 결정(`review.m3-design-inputs` §3 D-M3-01·05·06·07·11·17)을 반영했다. Helm은 L3 그룹 코드를 담은 기본 플러그인이다 [결정: review.m3-design-inputs D-M3-01].
 
@@ -123,7 +123,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 
 ## 3. 인터페이스
 
-모든 공개 이름은 `@xeon/group-helm`의 `src/index.ts`가 export한다. 다른 패키지는 이 패키지를 import하지 않는다(CM-06). export는 플러그인 엔트리(§3.1 플러그인 산출물의 `entry`)와 테스트용이다. 설정 정의 `helmSettings`는 호스트 설정 카탈로그도 가져간다(§6) [제안].
+모든 공개 이름은 `@fresnel/group-helm`의 `src/index.ts`가 export한다. 다른 패키지는 이 패키지를 import하지 않는다(CM-06). export는 플러그인 엔트리(§3.1 플러그인 산출물의 `entry`)와 테스트용이다. 설정 정의 `helmSettings`는 호스트 설정 카탈로그도 가져간다(§6) [제안].
 
 외부 이름의 출처:
 
@@ -139,7 +139,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 ### 3.1 매니페스트 (`src/manifest.ts`)
 
 ```ts
-import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
+import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 import { HELM_RECORD_KINDS } from "./records.ts";
 
 export const helmManifest = defineManifest({
@@ -183,10 +183,10 @@ export const helmManifest = defineManifest({
 - `web.fetch`는 Helm 코드가 부르지 않는다. explorer가 모델 도구 `web_fetch`로 쓴다(§4.7). 매니페스트에 두는 것은 provider 유무를 저하 판정(explorer 과제의 고지)에 쓰기 위해서다.
 - `explorer` 정의 파일은 그룹 패키지 안에 둔다 [가정]. L1.agents.spec이 그룹 제공 정의를 받지 않으면 정의를 L1 기본 정의로 옮긴다.
 - `drive_conflict` 경고: 다른 drive 그룹이 기본 활성이면 `validateManifestSet`이 경고한다. 실행 중에는 임대를 하나만 준다(F.extensions.spec §4.7).
-- 형태와 기본 켬 [결정: review.m3-design-inputs D-M3-01]: Helm은 기본 플러그인이다. 별도 패키지(`@xeon/group-helm`)로 설치하고, 설치되어 있으면 켠다(`defaultEnabled: true`). 소스 패키지의 층과 kind는 그대로다(`layer: "L3"`, `kind: "group"`, `group-sdk`의 `defineGroup` 사용). 조립 루트(`apps/host`)는 Helm을 내장 확장으로 등록하지 않는다.
+- 형태와 기본 켬 [결정: review.m3-design-inputs D-M3-01]: Helm은 기본 플러그인이다. 별도 패키지(`@fresnel/group-helm`)로 설치하고, 설치되어 있으면 켠다(`defaultEnabled: true`). 소스 패키지의 층과 kind는 그대로다(`layer: "L3"`, `kind: "group"`, `group-sdk`의 `defineGroup` 사용). 조립 루트(`apps/host`)는 Helm을 내장 확장으로 등록하지 않는다.
 - 패키징 [제안]: `bun run build:plugin`(`packages/group-helm/scripts/build-plugin.ts`)이 플러그인 산출물 하나를 만든다. 번들이 남긴 외부 지정자 목록을 시험(`test/int/plugin.int.test.ts`)이 호스트 등록 목록과 대조한다. 산출물은 `.fresnel-plugin/plugin.json`(이 매니페스트를 JSON으로 옮긴 것)과 엔트리 번들(`entry`), `agents/explorer.md`다. 릴리즈는 이 산출물을 앱 자원 디렉터리(`OsDirs.resource`)에 넣고, 첫 실행이 사용자 확장 위치 `<userDir>/extensions/helm/`에 설치한다. 교체 규칙은 X 로더의 `installDefaultPlugin`을 따른다(번들 `version`이 설치본보다 높을 때만 디렉터리째 바꾼다). 사용자가 지운 설치본은 호스트 상태 표지로 다시 설치하지 않는다(X.loading-trust.spec §4.4.7).
 - 적재와 신뢰: X.loading-trust의 외부 확장 로더가 설치 위치 `user`의 후보로 찾는다. 신뢰 상한은 `user`이고 매니페스트도 `trust.level: "user"`를 요청한다. `user` 등급은 `on`, `post`, `drive`, 리소스 등록, 접두 테이블 저장을 쓸 수 있다(X.loading-trust.spec §4.6.2). Helm은 자체 확장 API(`ScopeApi`, `group-sdk`)만 쓴다. pi 확장 어댑터는 두지 않는다 [결정: review.m3-design-inputs D-M3-11].
-- 의존 해석 [제안]: 엔트리 번들은 `@xeon/contracts`(하위 경로 포함), `@xeon/group-sdk`, `typebox`를 넣지 않고 외부 import로 남긴다. X가 `@xeon/contracts`와 하위 경로, `typebox`를 가상 모듈로 직접 등록하고(`SDK_MODULE_SPECIFIERS`), `@xeon/group-sdk`은 L3라 조립 루트가 넘긴다(X.loading-trust.spec §4.4.6). 그래야 F 스키마 객체와 `group-sdk` 상태가 호스트와 하나다.
+- 의존 해석 [제안]: 엔트리 번들은 `@fresnel/contracts`(하위 경로 포함), `@fresnel/group-sdk`, `typebox`를 넣지 않고 외부 import로 남긴다. X가 `@fresnel/contracts`와 하위 경로, `typebox`를 가상 모듈로 직접 등록하고(`SDK_MODULE_SPECIFIERS`), `@fresnel/group-sdk`은 L3라 조립 루트가 넘긴다(X.loading-trust.spec §4.4.6). 그래야 F 스키마 객체와 `group-sdk` 상태가 호스트와 하나다.
 - 끄기와 지우기: 끄기는 `ext.helm.enabled`(§6)다. 지우기는 설치 디렉터리를 지우는 것이고, 지운 뒤에는 Helm 지점 핸들러와 명령이 없다. 커밋된 상태(`x_helm_state`)와 기록은 남아 다시 설치하면 이어 쓴다.
 - 안전 모드 [결정: review.m3-design-inputs D-M3-07]: 안전 모드는 L3 그룹과 `user` 등급 외부 확장을 싣지 않으므로(X.operations.spec §4.6.2) Helm은 적재되지 않는다. Helm 쪽 코드 변경은 없다(REQ-X-08).
 
@@ -402,7 +402,7 @@ export const TRANSITIONS: readonly {
 
 ```ts
 import { Type, type Static } from "typebox";
-import type { RecordKindDecl } from "@xeon/contracts/extensions";
+import type { RecordKindDecl } from "@fresnel/contracts/extensions";
 
 export const SignalDetectedPayloadSchema = Type.Object({
   signal: HelmSignalKindSchema,
@@ -745,7 +745,7 @@ export function helmCommand(g: Pick<GroupApi<HelmState>, "state" | "commit" | "p
 ### 3.10 그룹 모듈 (`src/index.ts`)
 
 ```ts
-import { defineGroup, type GroupModule } from "@xeon/group-sdk";
+import { defineGroup, type GroupModule } from "@fresnel/group-sdk";
 
 export const helmGroup: GroupModule = defineGroup<HelmState>({
   manifest: helmManifest,
@@ -784,7 +784,7 @@ Helm은 L3.slots.spec §3.1의 판정과 체크리스트를 따르는 첫 drive 
 | C5 설정 네임스페이스 | `ext.helm.*`다 [결정: 조정자 2026-10-28, `l3.helm.*`에서 바꿈]. 신뢰 등급 user 그룹의 네임스페이스 규칙(`validateGroupDef`)을 따른다. `enabled`는 X 예약 키 `ext.helm.enabled`(`reservedExtensionSettings`)이고 호스트 카탈로그가 `helmSettings`와 함께 싣는다(§6, §10 미결 13) | plan 테스트 6 |
 | C6 단위 테스트 | plan §5.1 | |
 | C7 재생 테스트 | `replayDrive` 효과 계수(§4.11, ADR-0015 §3.6) | plan 테스트 21, 35 |
-| C8 다른 그룹 import 없음 | 소스 import는 `@xeon/contracts`, `@xeon/group-sdk`, `typebox`뿐 | check-layers DR-02 |
+| C8 다른 그룹 import 없음 | 소스 import는 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`뿐 | check-layers DR-02 |
 | C9 코어 diff 0 | Helm 본체 변경에서 `contracts`, `ext-host`, `group-sdk`, `core-*`, `platform-*` diff 0 | plan §6 3번 |
 
 group-sdk이 주는 것과 Helm이 쓰는 방식:
@@ -804,8 +804,8 @@ group-sdk이 주는 것과 Helm이 쓰는 방식:
 예상 가능한 실패는 `Result<T, HelmFailure>`로 돌려준다(eng.typescript.guide TY-11, TY-24). X 연산(`commit`, `record`, `post`, `loop.*`)과 능력 메서드는 실패를 예외로 알린다(`PrimitiveError`, `CapabilityError`, F.capabilities.spec §3.6). Helm은 그 경계에서 `attemptAsync`로 받아 아래 kind로 바꾸고, 그 안쪽 코드는 `Result`만 다룬다.
 
 ```ts
-import type { CapabilityId, CommonErrorCode } from "@xeon/contracts/capabilities";
-import type { Result } from "@xeon/contracts";
+import type { CapabilityId, CommonErrorCode } from "@fresnel/contracts/capabilities";
+import type { Result } from "@fresnel/contracts";
 
 export type HelmFailure =
   /** 임대 회수·중단(PrimitiveError lease_inactive·lease_revoked, CapabilityError aborted, loop.signal) */
@@ -1042,7 +1042,7 @@ export function helmDrive(g: GroupApi<HelmState>): DriveFn<HelmState> {
 
 ```ts
 // src/guard.ts
-import type { CallerId, ToolRisk } from "@xeon/contracts/services";
+import type { CallerId, ToolRisk } from "@fresnel/contracts/services";
 
 export const WRITE_DENY_REASON: string;   // 본문은 구현 작업 H-08. 단계 이름, 해제 방법(/helm stop, 탐구 종료)을 담는다
 
@@ -1314,7 +1314,7 @@ export interface HelmSettings {
 | 대기 기본, 대기 상한, 거부 통지, 유휴 자율 turn, 안전 모드의 L3 그룹(D-M3-05·06·07 결정 반영) | X.primitives.spec §4.5.5, X.operations.spec, L3.group-sdk.spec §3.5, §3.8 | 요구. 내구 이벤트 `lease.rejected`와 화면용 `GroupStatus.drive` `"rejected"`를 더한다(§4.13) | REQ-X-08, G-IN-04 |
 | 서비스 키 A안 래퍼 | X.primitives.spec, F.extensions.spec | 요구. Helm은 `g.capability(key)`만 쓴다 | REQ-X-09 |
 | `tool.call.before` 지점과 정책·승인·샌드박스의 처리 순서 | X.operations.spec, L1.tools.spec | 요구. §4.6 처리 순서 [가정] | REQ-X-11 |
-| 외부 확장 로더(자체 API), 기본 플러그인의 첫 실행 설치, `@xeon/contracts`·`@xeon/group-sdk`·`typebox` 가상 모듈 등록 | X.loading-trust.spec §4.2, §4.10.6, `review.m3-plan` M3-15 | 요구 [제안]. 없으면 Helm을 적재할 수 없다(§3.1) | M3-15 |
+| 외부 확장 로더(자체 API), 기본 플러그인의 첫 실행 설치, `@fresnel/contracts`·`@fresnel/group-sdk`·`typebox` 가상 모듈 등록 | X.loading-trust.spec §4.2, §4.10.6, `review.m3-plan` M3-15 | 요구 [제안]. 없으면 Helm을 적재할 수 없다(§3.1) | M3-15 |
 | `defineGroup`, `GroupApi.settings()`·`registerCommand`, `DriveArbiter`, `replayDrive`(G-20 효과 계수), `scanDriveSource`, `GroupStatus` | L3.group-sdk.spec §3.2, §3.5, §3.8, §3.10, §3.11 | 문서 있음. G-20 효과 계수는 ADR-0015 §4.3 반영 대기 | G-IN-02 |
 | `loop.spawn`의 (thread, `requestId`) 멱등을 세션 DB에 남겨 재시작 뒤에도 유지 | L1.agents.spec, L1.loop.spec §4.8 | 요구. 지금은 프로세스 메모리 64개 | REQ-L1-01 |
 | 자식 대화의 지점 발화와 그룹 핸들러 적용 범위 | L1.agents.spec | 요구. Helm은 `caller`로 대상을 고르고 explorer 도구 상한으로 보강한다(§4.6) | REQ-L1-04 |
@@ -1341,7 +1341,7 @@ export interface HelmSettings {
 12. 단계 경계에서 disable하면 `lease.released`(`disabled`)가 한 번 기록되고, 다시 켜면 같은 `inquiryId`와 단계에서 이어진다.
 13. `grp.helm.discovery.recorded` payload가 `DiscoveryRecordedPayloadSchema`와 F `validateGroupRecord`를 통과한다. `helmManifest`가 `validateManifest`와 `validateUsage`를 통과한다.
 14. `web.search` provider가 없어도 탐구가 끝나고 `degraded`에 `web`이 들어간다.
-15. `group-helm` 패키지의 import 대상은 `@xeon/contracts`, `@xeon/group-sdk`, `typebox`뿐이다(check-layers). Helm 그룹 코드를 추가하는 변경에서 `contracts`, `ext-host`, `group-sdk` 경로의 diff가 0이다(product.vision.spec S1). 이 항목은 하위 층 요구(§8 요구 표: REQ-F-01·04, X 능력 래퍼, group-sdk의 `rejected`·G-20)를 먼저 별도 작업으로 반영한 뒤에 확인한다. 요구 반영 작업의 diff는 이 기준의 대상이 아니다(`L3.helm.plan` §6 3번과 같은 조건).
+15. `group-helm` 패키지의 import 대상은 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`뿐이다(check-layers). Helm 그룹 코드를 추가하는 변경에서 `contracts`, `ext-host`, `group-sdk` 경로의 diff가 0이다(product.vision.spec S1). 이 항목은 하위 층 요구(§8 요구 표: REQ-F-01·04, X 능력 래퍼, group-sdk의 `rejected`·G-20)를 먼저 별도 작업으로 반영한 뒤에 확인한다. 요구 반영 작업의 diff는 이 기준의 대상이 아니다(`L3.helm.plan` §6 3번과 같은 조건).
 16. (ADR-0015) UC-2 기준 실행의 모든 커밋 지점에서 끊고 drive와 on 핸들러를 두 번 실행한 뒤 재개해도 효과 계수가 §4.11 표의 기대값과 같다(새 turn 2, 새 spawn 3, 새 작업 2, 종료 알림 1, `inquiry.finished` 1).
 17. 쓰기 판정은 §4.6 표를 따른다. `risk: read`는 허용, `write`·`exec`·없음은 거부, `hints.readOnly: true`이고 `risk: exec`이면 거부, `caller`가 `subagent:explorer`가 아닌 서브에이전트면 허용이다.
 18. 탐구 단계의 `input.agent.before` 패치는 `payload.systemPrompt`(collect라 핸들러는 원본을 본다) 뒤에 Helm 블록 하나를 붙이고, 렌즈 본문을 둘 이상 넣지 않는다.
@@ -1363,7 +1363,7 @@ M3 판에서 닫은 항목:
 - (닫힘) 이전 미결 16 식별자와 전이표: 이 판으로 고정한다(§3.2) [제안]. 바꾸려면 상태 버전을 올린다.
 - (닫힘) C1 서비스 키: A안(§3.8, `review.m3-design-inputs` §3.8 A-01).
 - (닫힘) C2 효과 목록: [결정: adr.0015] C안. Helm의 효과 전부를 §4.11에 적었다.
-- (닫힘) C3 `xeon.domain`: Helm은 `group-helm` → `helm`으로 두 규칙의 값이 같다. group-sdk 쪽 값은 M3-35에서 `group-sdk`으로 맞췄다(L3.group-sdk.spec §10 공통 모순 3).
+- (닫힘) C3 `fresnel.domain`: Helm은 `group-helm` → `helm`으로 두 규칙의 값이 같다. group-sdk 쪽 값은 M3-35에서 `group-sdk`으로 맞췄다(L3.group-sdk.spec §10 공통 모순 3).
 - [결정: review.decisions-2 T-21] 레코드 kind 접두: 공개·비공개 모두 `grp.<그룹>.<영역>.<이름>`이다.
 
 사용자 결정으로 닫은 항목(`review.m3-design-inputs` §3, 2026-10-26):

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
+import { err, ok } from "@fresnel/contracts";
 import { promptText, selectOsAuth } from "../src/os-auth.ts";
 import type { ProcessRunner, RunRequest } from "../src/providers/process.ts";
 import { fakeOsAuth, memorySecrets } from "../src/testing/index.ts";

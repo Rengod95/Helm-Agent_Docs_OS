@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HOOKS } from "@xeon/contracts/extensions";
+import { HOOKS } from "@fresnel/contracts/extensions";
 import { assembleOptions, binding } from "./support/builders.ts";
 import { harness, installHandlers, type Harness } from "./support/harness.ts";
 import { present, valueOf } from "./support/result.ts";

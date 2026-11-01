@@ -1,6 +1,6 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { EventId, Message, ThreadId } from "@xeon/contracts/conversation";
-import type { BranchSummaryDraft, ContextError, ModelService } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { EventId, Message, ThreadId } from "@fresnel/contracts/conversation";
+import type { BranchSummaryDraft, ContextError, ModelService } from "@fresnel/contracts/services";
 import { projectBranch, readBranchEvents, type BranchReaderDeps } from "../branch.ts";
 import { branchSummaryMessage, compactionSummaryMessage, itemToMessage } from "../convert.ts";
 import type { ContextSettings } from "../settings.ts";

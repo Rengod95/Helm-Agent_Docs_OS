@@ -1,4 +1,4 @@
-// @xeon/cap-dialog 공개 진입점(L2.dialog). 조립 루트가 쓰는 이름만 내보낸다.
+// @fresnel/cap-dialog 공개 진입점(L2.dialog). 조립 루트가 쓰는 이름만 내보낸다.
 export { dialogPlugin } from "./plugin.ts";
 export type { DialogPluginOptions } from "./plugin.ts";
 export { dialogManifest, DIALOG_EXTENSION_NAME } from "./manifest.ts";

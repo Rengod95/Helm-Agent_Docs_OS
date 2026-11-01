@@ -15,9 +15,9 @@ import type { CallerId, PermissionMode, ToolRisk } from "./tools.ts";
 // L1.tools.spec §3.6. 구현은 core-tools다. 승인 요청은 내구 이벤트 approval.requested로 나가고
 // 응답은 호스트 메서드 approval.respond로 들어온다(review.decisions-2 U-02).
 
-export const ApprovalServiceName = "xeon.approvals" as const;
+export const ApprovalServiceName = "fresnel.approvals" as const;
 
-/** `xeon.approvals` 전체 모양(ApprovalService)의 포트 키. 제공 core-tools */
+/** `fresnel.approvals` 전체 모양(ApprovalService)의 포트 키. 제공 core-tools */
 export const ApprovalServicePortKey: PortKey<ApprovalService> = { name: ApprovalServiceName };
 
 export type ApprovalKind = "tool" | "plan" | "question" | "review";
@@ -297,7 +297,7 @@ export interface ApprovalService {
 export const L2_APPROVAL_REQUEST_ID_MAX: number = 48;
 
 /**
- * L2 능력이 승인 프로토콜을 쓰는 공통 포트 모양. cap-*가 `xeon.approvals`(ApprovalService)를 이 모양으로 감싸 쓴다.
+ * L2 능력이 승인 프로토콜을 쓰는 공통 포트 모양. cap-*가 `fresnel.approvals`(ApprovalService)를 이 모양으로 감싸 쓴다.
  * L2 패키지끼리 import하지 않으므로 F가 이 모양을 한 번만 정의한다. 구현(어댑터)은 각 cap-*의 `src/ports/approvals.ts`가 맡고,
  * 도메인 대상(subject)을 ApprovalBody로, 응답(answer)을 도메인 답으로 바꾸는 규칙은 그 어댑터가 가진다.
  *

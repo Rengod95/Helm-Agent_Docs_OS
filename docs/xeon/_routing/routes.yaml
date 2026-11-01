@@ -23,7 +23,7 @@ by_task:
     - X.primitives.spec
     - F.extensions.spec
   docs:               # 문서를 쓰거나 고치는 작업
-    - xeon.templates
+    - fresnel.templates
     - xeon.readme
   review:             # 정합성 검토. 코드 리뷰는 implement와 함께 지정한다
     - architecture.layers.spec

@@ -1,6 +1,6 @@
-import { attempt, err, ok, type Result } from "@xeon/contracts";
-import type { RedactionHit, SecretName } from "@xeon/contracts/capabilities";
-import type { RegisterKnownError, Redactor } from "@xeon/contracts/services";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
+import type { RedactionHit, SecretName } from "@fresnel/contracts/capabilities";
+import type { RegisterKnownError, Redactor } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §3.5. docs/design/18-security.md §3.10.4의 규칙 1~3을 옮긴 것이다.
 // 마스킹은 보조 수단이다. 등록하지 않은 인코딩이나 조각난 값은 잡지 못한다.

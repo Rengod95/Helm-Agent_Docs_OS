@@ -14,7 +14,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 ## 1. 목표와 마일스톤 배치
 
-- M4: 서비스 `xeon.devkit`(host 구현), 그룹 `authoring`(도구, 단계 머신, 가드, 선언형 화면), 카탈로그 첫 판(spec §3.4 표), 검사 AU-001~AU-012, 카탈로그 적합성 시험.
+- M4: 서비스 `fresnel.devkit`(host 구현), 그룹 `authoring`(도구, 단계 머신, 가드, 선언형 화면), 카탈로그 첫 판(spec §3.4 표), 검사 AU-001~AU-012, 카탈로그 적합성 시험.
 - M4 밖: 묶음 서명, 로컬 카탈로그 공유, `x.hook` 종류(외부 훅 확정 뒤).
 
 ## 2. 패키지와 파일 배치
@@ -28,7 +28,7 @@ binds: [xeon/packages/plugin-builder/**]
 | id | 내용 | 선행 | 규모 |
 |---|---|---|---|
 | AU-T1 | F: `DevkitService` 계약, `KindEntry`·`CompositionDecl` 스키마. contracts는 T-F만 고치므로 T-F가 만들고 이 트랙은 요구를 넘김 | T-F의 `composition`(X-16) | S |
-| AU-T2 | host: `xeon.devkit` 구현(scaffold, validate, validateComposition, trial, pack, link), wire W-27·W-28·W-47·W-49 처리기 | AU-T1, T-WB의 `thread.create { trial }`(W-34) | M |
+| AU-T2 | host: `fresnel.devkit` 구현(scaffold, validate, validateComposition, trial, pack, link), wire W-27·W-28·W-47·W-49 처리기 | AU-T1, T-WB의 `thread.create { trial }`(W-34) | M |
 | AU-T3 | 그룹 골격, 상태 스키마, 단계 머신(drive), `loop.ask` 사용 | AU-T1, X-17 | M |
 | AU-T4 | 도구 9개와 `/author` 명령 | AU-T2, AU-T3 | M |
 | AU-T5 | 쓰기 범위 가드(`tool.call.before`) | AU-T3 | S |
@@ -65,4 +65,4 @@ binds: [xeon/packages/plugin-builder/**]
 |---|---|
 | X-17(`loop.ask`)이 늦어 단계 머신이 막힘 | 그 전에는 post + 상태 대기로 임시 구현하고 X-17 병합 뒤 1커밋으로 바꿈 |
 | 카탈로그 적합성 시험이 F·X 변경마다 깨져 다른 트랙을 막음 | 시험 실패 메시지에 고칠 항목 파일을 적고, F·X 트랙이 같은 커밋에서 카탈로그를 고치게 함 |
-| 개발 모드 판정이 배포 앱에서 우회됨 | 판정은 host 한 곳(`xeon.devkit`)에서만, 설정 `l3.authoring.devMode`는 managed·user 범위만 |
+| 개발 모드 판정이 배포 앱에서 우회됨 | 판정은 host 한 곳(`fresnel.devkit`)에서만, 설정 `l3.authoring.devMode`는 managed·user 범위만 |

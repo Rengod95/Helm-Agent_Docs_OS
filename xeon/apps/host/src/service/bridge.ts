@@ -1,11 +1,11 @@
-import type { ServiceEndpoint } from "@xeon/client/endpoint";
-import type { ServiceConnectError } from "@xeon/client/socket";
+import type { ServiceEndpoint } from "@fresnel/client/endpoint";
+import type { ServiceConnectError } from "@fresnel/client/socket";
 import {
   checkEnvelope,
   createStdioTransport,
   type CloseInfo,
   type Transport,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 import { messageOf } from "../util.ts";
 import { connectServiceTransport } from "./connect.ts";
 

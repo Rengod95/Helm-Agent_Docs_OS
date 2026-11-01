@@ -10,7 +10,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 
 # F 연결·설정 계약 구현 계획 (wire-settings)
 
-`F.wire-settings.spec`을 코드로 옮기는 계획이다. 코드는 `xeon/packages/contracts/src/wire-settings/`에 두고 서브패스 `@xeon/contracts/wire`, `@xeon/contracts/settings`로 내보낸다. F에는 타입, 스키마, 순수 함수만 둔다. 전송 구현과 설정 파일 입출력은 L4·L1 몫이다.
+`F.wire-settings.spec`을 코드로 옮기는 계획이다. 코드는 `xeon/packages/contracts/src/wire-settings/`에 두고 서브패스 `@fresnel/contracts/wire`, `@fresnel/contracts/settings`로 내보낸다. F에는 타입, 스키마, 순수 함수만 둔다. 전송 구현과 설정 파일 입출력은 L4·L1 몫이다.
 
 ## 1. 목표와 마일스톤 배치
 

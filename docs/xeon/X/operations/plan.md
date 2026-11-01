@@ -10,7 +10,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 
 # X 운영 규칙 구현 계획
 
-대상 스펙: `X.operations.spec`. 패키지: `@xeon/ext-host`(`xeon/packages/ext-host`), 소스 `src/operations/`.
+대상 스펙: `X.operations.spec`. 패키지: `@fresnel/ext-host`(`xeon/packages/ext-host`), 소스 `src/operations/`.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -74,9 +74,9 @@ xeon/packages/ext-host/
 ```
 
 - import 방향: `tier` ← `budget` ← `failure` ← `auto-disable` ← `index`. `storage/tables` ← `storage/guard` ← `storage/ext-storage`. `hooks/config` ← `hooks/protocol` ← `hooks/run`. `naming`, `safe-mode`는 `tier`만 import한다. `index.ts`만 모든 파일을 import한다.
-- 외부 import: `@xeon/contracts`(루트, `/extensions`, `/records`, `/conversation`, `/settings`)와 `typebox`만 쓴다. 같은 패키지의 `../primitives/index.ts`(`DispatchPolicy`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy` 등)와 `../loading-trust/index.ts`(`TrustLevel`, `InstallSource`, `LoadedExtensionInfo`)는 타입만 import한다(`import type`). 그래서 도메인 사이 값 순환이 없다. `operations/`는 Cordis를 import하지 않는다 [제안]. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이고(X.primitives.plan §2), operations는 포트(`ScopeControl`, `PortLookup`, 설정 포트)로만 받는다. 이 규칙은 `eng.dependency-rules.guide` DR-11(Cordis는 `ext-host`만 import)보다 좁고, X.primitives.plan §6 4번의 grep 검사로 확인한다.
-- L0·L1 기능(`xeon.store`, `xeon.session`, `xeon.process`)은 Cordis 서비스 주입으로 받는다. primitives가 주입받은 서비스를 `ExtHost.ports`(`PortLookup`)로 내놓고, 조립 루트가 그것을 `OperationsDeps.ports`로 늦은 연결해 넘긴다. operations는 `ProjectorRegistryPortKey`·`ScopedStorePortKey`(저장 영역, `storageOf`)와 `ProcessPortKey`(외부 훅)로 꺼낸다(X.primitives.spec §3.6, `architecture.layers.spec` §4.3.3).
-- 시계와 타이머는 `ExtHostDeps`와 같은 `now`, `setTimer` 함수로 받는다(X.primitives.spec §3.2). [결정: review.decisions-2 U-03] F에는 `./testing` 서브패스가 없고 테스트 대역은 각 패키지 `test/` 안에 둔다. 그래서 `test/operations/support/manual-clock.ts`에 F `Clock` 인터페이스로 `ManualClock`을 두고 두 함수를 만든다. 같은 패키지의 `@xeon/ext-host/testing` 가짜 타이머(X.primitives.plan P-03)가 같은 일을 하면 그것을 쓴다.
+- 외부 import: `@fresnel/contracts`(루트, `/extensions`, `/records`, `/conversation`, `/settings`)와 `typebox`만 쓴다. 같은 패키지의 `../primitives/index.ts`(`DispatchPolicy`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy` 등)와 `../loading-trust/index.ts`(`TrustLevel`, `InstallSource`, `LoadedExtensionInfo`)는 타입만 import한다(`import type`). 그래서 도메인 사이 값 순환이 없다. `operations/`는 Cordis를 import하지 않는다 [제안]. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이고(X.primitives.plan §2), operations는 포트(`ScopeControl`, `PortLookup`, 설정 포트)로만 받는다. 이 규칙은 `eng.dependency-rules.guide` DR-11(Cordis는 `ext-host`만 import)보다 좁고, X.primitives.plan §6 4번의 grep 검사로 확인한다.
+- L0·L1 기능(`fresnel.store`, `fresnel.session`, `fresnel.process`)은 Cordis 서비스 주입으로 받는다. primitives가 주입받은 서비스를 `ExtHost.ports`(`PortLookup`)로 내놓고, 조립 루트가 그것을 `OperationsDeps.ports`로 늦은 연결해 넘긴다. operations는 `ProjectorRegistryPortKey`·`ScopedStorePortKey`(저장 영역, `storageOf`)와 `ProcessPortKey`(외부 훅)로 꺼낸다(X.primitives.spec §3.6, `architecture.layers.spec` §4.3.3).
+- 시계와 타이머는 `ExtHostDeps`와 같은 `now`, `setTimer` 함수로 받는다(X.primitives.spec §3.2). [결정: review.decisions-2 U-03] F에는 `./testing` 서브패스가 없고 테스트 대역은 각 패키지 `test/` 안에 둔다. 그래서 `test/operations/support/manual-clock.ts`에 F `Clock` 인터페이스로 `ManualClock`을 두고 두 함수를 만든다. 같은 패키지의 `@fresnel/ext-host/testing` 가짜 타이머(X.primitives.plan P-03)가 같은 일을 하면 그것을 쓴다.
 - [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 저장 대역은 `test/operations/support/` 안에 F 인터페이스(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 만든다. 실제 bun:sqlite 저장소로 같은 계약 시나리오를 돌리는 일은 L0.store.plan ST-23(`ext-storage.contract.int.test.ts`, L0.store.spec §9 18번)이 맡는다(O-15).
 - 아래 표의 L0·L1 plan 선행 작업은 구현 순서의 의존이다. X 코드와 테스트의 import 의존은 아니다.
 
@@ -117,7 +117,7 @@ xeon/packages/ext-host/
 ## 4. 채택 코드
 
 - 외부 패키지: 없음. 이 도메인은 자체 구현이다(`_research/packages.md` §4.5 X-c "패키지 없음", "자체").
-- 쓰는 워크스페이스 의존: `@xeon/contracts`(workspace), `typebox` 1.3.27(워크스페이스 catalog, `F.readme` §1). 런타임 Bun 1.4.3, TypeScript 7.0.x(`_research/foundation-plan.md` §2).
+- 쓰는 워크스페이스 의존: `@fresnel/contracts`(workspace), `typebox` 1.3.27(워크스페이스 catalog, `F.readme` §1). 런타임 Bun 1.4.3, TypeScript 7.0.x(`_research/foundation-plan.md` §2).
 - 읽기 자료(복사하지 않음):
 
   | 자료 | 경로 | 라이선스 | 쓰는 방법 |
@@ -180,7 +180,7 @@ xeon/packages/ext-host/
 4. 문서-코드 상수가 일치한다. 대상은 기본 예산(`DEFAULT_BUDGETS_MS`), 자동 끄기 기본값(`DEFAULT_AUTO_DISABLE`), tier 이름과 순서(`TIERS`), 훅 상수(`HOOK_SCHEMA_VERSION`, `HOOK_OUTPUT_MAX_CHARS`, `HOOK_EXIT_DENY`, M2)다. `doc-constants.test.ts`가 확인한다.
 5. M0 끝: primitives 디스패처가 `createOperationsPolicy`를 받아 실행 순서와 예산을 적용한다. operations 쪽 기본 구현 없이 primitives만으로 디스패치하는 경로가 남지 않는다.
 6. M1 끝: M1 스모크의 테스트 그룹이 `ExtStorage`로 테이블 하나를 쓰고, 강제 종료·재개 뒤 행이 이벤트와 일치한다.
-7. `src/operations/`와 `test/operations/`에서 `cordis`, `@cordisjs/*`, `@xeon/platform-*`, `@xeon/core-*` import가 0개다(architecture.layers.spec §4.3.3 결론 1번, 테스트 포함).
+7. `src/operations/`와 `test/operations/`에서 `cordis`, `@cordisjs/*`, `@fresnel/platform-*`, `@fresnel/core-*` import가 0개다(architecture.layers.spec §4.3.3 결론 1번, 테스트 포함).
 
 ## 7. 위험과 대응
 

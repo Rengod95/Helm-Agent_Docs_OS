@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { FetchFunction } from "@earendil-works/pi-ai";
-import { canonicalJson, parseJson } from "@xeon/contracts";
+import { canonicalJson, parseJson } from "@fresnel/contracts";
 import {
   TapeLeftoverError,
   TapeMismatchError,

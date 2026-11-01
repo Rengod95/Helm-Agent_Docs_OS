@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { WorkGoalsKey, type Notice } from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import type { ServerNotificationParams } from "@xeon/contracts/wire";
-import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
+import { WorkGoalsKey, type Notice } from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionEntry } from "@fresnel/contracts/extensions";
+import type { ServerNotificationParams } from "@fresnel/contracts/wire";
+import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { hostLimitsOf } from "../../src/assembly/settings-sources.ts";
 import { settingReaderOf, startHost, stopHost } from "../../src/host-runtime.ts";

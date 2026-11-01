@@ -4,7 +4,7 @@ import type {
   SandboxStatus,
   SandboxUnavailableReason,
   SelfTestItemId,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import type { SandboxProvider } from "./provider.ts";
 import type { SrtPort } from "./srt.ts";
 import type { SrtTools } from "./policy.ts";

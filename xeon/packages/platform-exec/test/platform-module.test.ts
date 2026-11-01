@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { PortKey } from "@xeon/contracts/extensions";
-import { type ExecService, ExecPortKey, SecretServiceName } from "@xeon/contracts/services";
-import type { PlatformContext } from "@xeon/ext-host";
-import { portAs } from "@xeon/ext-host/testing";
+import type { PortKey } from "@fresnel/contracts/extensions";
+import { type ExecService, ExecPortKey, SecretServiceName } from "@fresnel/contracts/services";
+import type { PlatformContext } from "@fresnel/ext-host";
+import { portAs } from "@fresnel/ext-host/testing";
 import { createExecPlatformModule } from "../src/platform-module.ts";
 import { darwinProvider } from "../src/providers/darwin.ts";
 import { fakeSecrets } from "./support/fake-secrets.ts";
@@ -58,23 +58,23 @@ const request = {
 
 function providedService(fake: FakeContext): ExecService {
   const service = fake.provided.get(ExecPortKey.name);
-  if (service === undefined) throw new Error("xeon.exec was not provided");
+  if (service === undefined) throw new Error("fresnel.exec was not provided");
   return portAs(ExecPortKey, service);
 }
 
 describe("createExecPlatformModule", () => {
-  test("the module provides the xeon.exec port and cleans up on dispose", async () => {
+  test("the module provides the fresnel.exec port and cleans up on dispose", async () => {
     const module = createExecPlatformModule(config);
     expect(module.name).toBe("platform-exec");
     const fake = fakeContext(new Map());
     await module.setup(fake.ctx);
-    expect(ExecPortKey.name).toBe("xeon.exec");
+    expect(ExecPortKey.name).toBe("fresnel.exec");
     expect(typeof providedService(fake).exec).toBe("function");
     expect(fake.disposers).toHaveLength(1);
     await fake.disposers[0]?.();
   });
 
-  test("without xeon.secrets a secretEnv call fails as secret_unavailable", async () => {
+  test("without fresnel.secrets a secretEnv call fails as secret_unavailable", async () => {
     const fake = fakeContext(new Map());
     await createExecPlatformModule(config).setup(fake.ctx);
     const result = await providedService(fake).exec(
@@ -85,7 +85,7 @@ describe("createExecPlatformModule", () => {
     expect(!result.ok && result.error.code).toBe("secret_unavailable");
   });
 
-  test("the module wires xeon.secrets when it is registered first", async () => {
+  test("the module wires fresnel.secrets when it is registered first", async () => {
     const secrets = fakeSecrets({});
     const fake = fakeContext(new Map([[SecretServiceName, secrets]]));
     await createExecPlatformModule(config).setup(fake.ctx);

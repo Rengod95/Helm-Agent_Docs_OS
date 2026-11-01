@@ -1,20 +1,20 @@
-// 서비스 xeon.session의 등록 단위(L1.persistence.plan PS-16). ext-host의 내장 확장으로 올리고, 이 패키지는 Cordis를
+// 서비스 fresnel.session의 등록 단위(L1.persistence.plan PS-16). ext-host의 내장 확장으로 올리고, 이 패키지는 Cordis를
 // import하지 않는다(DR-11). 서비스 등록은 hostOf(g).providePort로 한다.
-import { err, ok, type Clock, type Logger } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import { err, ok, type Clock, type Logger } from "@fresnel/contracts";
+import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import type {
   EventKindRegistry,
   FaultInjector,
   LeaseHolder,
   StoreDb,
-} from "@xeon/contracts/records";
-import { SessionPortKey, StoreServicePortKey } from "@xeon/contracts/services";
-import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@xeon/ext-host";
+} from "@fresnel/contracts/records";
+import { SessionPortKey, StoreServicePortKey } from "@fresnel/contracts/services";
+import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 import type { PersistenceSettings } from "./deps.ts";
 import { createThreadHooks } from "./points.ts";
 import { createSessionService } from "./service.ts";
@@ -24,7 +24,7 @@ export const SESSION_EXTENSION_NAME = "core-persistence";
 export interface SessionPluginOptions {
   /**
    * 세션 테이블에 쓸 수 있는 루트 StoreDb. 조립 루트(L4 host)가 platform-store에서 얻어 이 패키지에만 넘긴다
-   * (eng.transactions.design §4.2). xeon.store 서비스는 임대·마이그레이션·blob 읽기를 준다
+   * (eng.transactions.design §4.2). fresnel.store 서비스는 임대·마이그레이션·blob 읽기를 준다
    */
   readonly db: StoreDb;
   readonly clock: Clock;
@@ -59,7 +59,7 @@ export function sessionManifest(): ExtensionManifest {
 }
 
 /**
- * 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다. xeon.store 포트를 먼저 등록해 두어야 한다.
+ * 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다. fresnel.store 포트를 먼저 등록해 두어야 한다.
  * setup이 실패하면(마이그레이션 오류 등) err(SetupRefusal)을 돌려준다: 시작 실패는 install 결과의 setups[].failure로 나온다(X.primitives.spec §3.2)
  */
 export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {

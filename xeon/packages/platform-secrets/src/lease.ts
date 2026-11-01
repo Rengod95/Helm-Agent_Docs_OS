@@ -1,7 +1,11 @@
-import { err, ok, type Clock, type Result, type Scheduler } from "@xeon/contracts";
-import type { SecretDenyReason, SecretHandle, InjectionMode } from "@xeon/contracts/capabilities";
-import type { LocalId } from "@xeon/contracts/conversation";
-import type { SecretError, SecretLease, SecretValueView } from "@xeon/contracts/services";
+import { err, ok, type Clock, type Result, type Scheduler } from "@fresnel/contracts";
+import type {
+  SecretDenyReason,
+  SecretHandle,
+  InjectionMode,
+} from "@fresnel/contracts/capabilities";
+import type { LocalId } from "@fresnel/contracts/conversation";
+import type { SecretError, SecretLease, SecretValueView } from "@fresnel/contracts/services";
 import { deniedError } from "./errors.ts";
 
 // L0.secrets.spec §3.3, §4.1. 값은 클로저에만 있고 객체 속성으로 두지 않는다.

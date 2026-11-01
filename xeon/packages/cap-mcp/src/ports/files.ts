@@ -1,4 +1,4 @@
-import type { LoaderFs } from "@xeon/contracts/extensions";
+import type { LoaderFs } from "@fresnel/contracts/extensions";
 
 /**
  * `.mcp.json`을 읽는 포트. `readText`는 없으면 null이고, `exists`는 내용을 읽지 않고 있는지만 본다(신뢰되지 않은

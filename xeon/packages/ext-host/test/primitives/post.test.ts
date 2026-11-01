@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { PostReceipt } from "@xeon/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { PostReceipt } from "@fresnel/contracts/extensions";
 import { PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";

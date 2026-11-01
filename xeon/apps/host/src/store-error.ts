@@ -1,6 +1,6 @@
-import { assertNever, Bug } from "@xeon/contracts";
-import type { LeaseError, LifecycleError, StoreError } from "@xeon/contracts/records";
-import { wireError, type WireError } from "@xeon/contracts/wire";
+import { assertNever, Bug } from "@fresnel/contracts";
+import type { LeaseError, LifecycleError, StoreError } from "@fresnel/contracts/records";
+import { wireError, type WireError } from "@fresnel/contracts/wire";
 import { threadLocked } from "./handlers/owner.ts";
 
 // 저장소 오류는 예상 가능한 실패다(eng.typescript.guide TY-24). 결함(Bug)으로 던지지 않고 와이어 오류 kind로 옮긴다

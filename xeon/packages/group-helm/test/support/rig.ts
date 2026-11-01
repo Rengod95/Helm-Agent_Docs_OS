@@ -13,20 +13,20 @@ import {
   type CallOptions,
   type CapabilityApi,
   type ServiceKey,
-} from "@xeon/contracts/capabilities";
-import type { IdFactory, ThreadId, TurnId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { IdFactory, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   ExtensionManifest,
   LoopSpawnRequest,
   LoopTurnRequest,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import {
   capabilityDefTable,
   hostOf,
   type CapabilityDefLookup,
   type ExtensionUnit,
   type PayloadOf,
-} from "@xeon/ext-host";
+} from "@fresnel/ext-host";
 import {
   createTestHost,
   fakeUsage,
@@ -34,8 +34,8 @@ import {
   type MemoryLoopOptions,
   type TestHost,
   type TestHostOptions,
-} from "@xeon/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-sdk";
+} from "@fresnel/ext-host/testing";
+import { GroupSettingsSourceKey, type GroupModule } from "@fresnel/group-sdk";
 import { helmGroup } from "../../src/index.ts";
 import { fakeService } from "./unsafe.ts";
 

@@ -1,5 +1,5 @@
 // core-tasks의 TaskService 부분을 흉내 내는 대역(DR-02: core-tasks를 import하지 않는다). 범위 트리, 취소 전파, 풀 상한(FIFO)만 같은 규칙으로 만든다.
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type {
   AbortOptions,
   AbortReason,
@@ -11,9 +11,9 @@ import type {
   TaskScope,
   TaskScopeKind,
   TaskScopeSpec,
-} from "@xeon/contracts/services";
-import type { StoreError, ProducerHandle } from "@xeon/contracts/records";
-import type { IdFactory } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/services";
+import type { StoreError, ProducerHandle } from "@fresnel/contracts/records";
+import type { IdFactory } from "@fresnel/contracts/conversation";
 import type { AgentsTasks } from "../../src/index.ts";
 
 class FakeScope implements TaskScope {

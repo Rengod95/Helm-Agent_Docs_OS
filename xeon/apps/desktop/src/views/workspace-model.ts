@@ -2,8 +2,8 @@
 // 프로젝트 자원(`.mcp.json`, `.fresnel/skills`)과 신뢰 판정이 홈 기준이 된다. 그래서 대화를 만들 때 폴더를 `thread.create`의 `workspace`로 보낸다.
 // 호스트가 절대 경로이고 있는 폴더인지 확인해 정규 경로로 저장한다(L4.host-service.spec HS-76). 여기서는 보내기 전에 알 수 있는 것만 본다.
 
-import { t } from "@xeon/client/i18n";
-import { WIRE_ERRORS } from "@xeon/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { WIRE_ERRORS } from "@fresnel/contracts/wire";
 import type { CommandError } from "./commands.ts";
 
 const INVALID_PARAMS = WIRE_ERRORS["jsonrpc.invalidParams"].code;

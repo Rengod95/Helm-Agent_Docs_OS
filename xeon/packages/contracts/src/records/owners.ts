@@ -32,7 +32,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["xh"],
     typePrefixes: ["scope.", "lease."],
     tablePrefixes: ["xh_"],
-    services: ["xeon.ext"],
+    services: ["fresnel.ext"],
   },
   {
     id: "platform-execution",
@@ -41,7 +41,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: [],
     typePrefixes: [],
     tablePrefixes: [],
-    services: ["xeon.exec", "xeon.sandbox", "xeon.process"],
+    services: ["fresnel.exec", "fresnel.sandbox", "fresnel.process"],
   },
   {
     id: "platform-secrets",
@@ -50,7 +50,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: [],
     typePrefixes: [],
     tablePrefixes: [],
-    services: ["xeon.secrets", "xeon.secretAdmin"],
+    services: ["fresnel.secrets", "fresnel.secretAdmin"],
   },
   {
     id: "platform-store",
@@ -59,7 +59,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: [],
     typePrefixes: [],
     tablePrefixes: ["sys_"],
-    services: ["xeon.store"],
+    services: ["fresnel.store"],
   },
   {
     id: "platform-os",
@@ -68,7 +68,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: [],
     typePrefixes: [],
     tablePrefixes: [],
-    services: ["xeon.os"],
+    services: ["fresnel.os"],
   },
   {
     id: "session-core",
@@ -86,7 +86,7 @@ export const CONTEXTS: readonly ContextDef[] = [
       "projector_state",
       "p_",
     ],
-    services: ["xeon.session"],
+    services: ["fresnel.session"],
   },
   {
     id: "run-engine",
@@ -95,7 +95,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["core.tasks", "core.loop", "core.context", "core.agents"],
     typePrefixes: ["input.", "turn.", "step.", "item.", "part.", "post.", "agent."],
     tablePrefixes: [],
-    services: ["xeon.tasks", "xeon.loop", "xeon.context", "xeon.agents"],
+    services: ["fresnel.tasks", "fresnel.loop", "fresnel.context", "fresnel.agents"],
   },
   {
     id: "model-gateway",
@@ -104,7 +104,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["core.models"],
     typePrefixes: ["model."],
     tablePrefixes: ["core_models_"],
-    services: ["xeon.models"],
+    services: ["fresnel.models"],
   },
   {
     id: "tool-runtime",
@@ -113,7 +113,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["core.tools"],
     typePrefixes: ["effect.", "approval.", "secret.", "tool."],
     tablePrefixes: ["core_tools_"],
-    services: ["xeon.tools", "xeon.approvals"],
+    services: ["fresnel.tools", "fresnel.approvals"],
   },
   {
     id: "workspace",
@@ -122,7 +122,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["cap.workspace"],
     typePrefixes: ["workspace."],
     tablePrefixes: ["cap_workspace_"],
-    services: ["xeon.workspace"],
+    services: ["fresnel.workspace"],
   },
   {
     id: "mcp",
@@ -131,7 +131,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["cap.mcp"],
     typePrefixes: ["mcp."],
     tablePrefixes: ["cap_mcp_"],
-    services: ["xeon.mcp"],
+    services: ["fresnel.mcp"],
   },
   {
     id: "web",
@@ -140,7 +140,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["cap.web"],
     typePrefixes: ["web."],
     tablePrefixes: ["cap_web_"],
-    services: ["xeon.web"],
+    services: ["fresnel.web"],
   },
   {
     id: "knowledge",
@@ -149,7 +149,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["cap.knowledge"],
     typePrefixes: ["knowledge."],
     tablePrefixes: ["cap_knowledge_"],
-    services: ["xeon.knowledge"],
+    services: ["fresnel.knowledge"],
   },
   {
     id: "work",
@@ -158,7 +158,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["cap.work"],
     typePrefixes: ["work."],
     tablePrefixes: ["cap_work_"],
-    services: ["xeon.work"],
+    services: ["fresnel.work"],
   },
   {
     id: "dialog",
@@ -167,7 +167,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["cap.dialog"],
     typePrefixes: ["dialog."],
     tablePrefixes: ["cap_dialog_"],
-    services: ["xeon.dialog"],
+    services: ["fresnel.dialog"],
   },
   {
     id: "artifacts",
@@ -176,7 +176,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["cap.artifacts"],
     typePrefixes: ["artifact."],
     tablePrefixes: ["cap_artifacts_"],
-    services: ["xeon.artifacts"],
+    services: ["fresnel.artifacts"],
   },
   {
     id: "schedule",
@@ -185,7 +185,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: ["cap.schedule"],
     typePrefixes: ["schedule."],
     tablePrefixes: ["cap_schedule_"],
-    services: ["xeon.schedule"],
+    services: ["fresnel.schedule"],
   },
   {
     id: "group-sdk",
@@ -194,7 +194,7 @@ export const CONTEXTS: readonly ContextDef[] = [
     producers: [],
     typePrefixes: [],
     tablePrefixes: [],
-    services: ["xeon.groups"],
+    services: ["fresnel.groups"],
   },
   {
     id: "helm",

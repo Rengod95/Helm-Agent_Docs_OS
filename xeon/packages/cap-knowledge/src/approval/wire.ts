@@ -1,4 +1,4 @@
-import { assertNever, attemptAsync } from "@xeon/contracts";
+import { assertNever, attemptAsync } from "@fresnel/contracts";
 import {
   CapabilityError,
   type CallOptions,
@@ -6,13 +6,13 @@ import {
   type KnowledgeLedger,
   type Proposal,
   type ProposalStatus,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import type {
   ProposalDecideParams,
   ProposalDecideResult,
   ProposalRow,
   ProposalStatusWire,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 
 // M3-REQ-91(D-M3-32 a): 승인 화면은 대기열 둘을 한 목록으로 합친다. 이 파일은 L2.knowledge 쪽 절반이다. 지식 대기열의 `Proposal`을
 // 합친 목록의 행(`ProposalRow`)으로 옮기고, `ledger.decide`의 오류를 결정 실패 이유로 옮긴다. 호스트의 `proposal.list`·

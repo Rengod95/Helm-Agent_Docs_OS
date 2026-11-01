@@ -1,5 +1,5 @@
 import type { WebFailure } from "../../src/errors.ts";
-import type { CallerInfo } from "@xeon/contracts/capabilities";
+import type { CallerInfo } from "@fresnel/contracts/capabilities";
 import { createAccess, type Access, type AccessContext } from "../../src/policy/access.ts";
 import { createContentHttp, type ContentHttp } from "../../src/policy/content-http.ts";
 import { createSeenUrls, type SeenUrls } from "../../src/policy/seen-urls.ts";

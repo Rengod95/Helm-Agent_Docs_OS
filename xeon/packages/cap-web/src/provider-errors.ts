@@ -1,5 +1,5 @@
-import { Bug } from "@xeon/contracts";
-import { CapabilityError } from "@xeon/contracts/capabilities";
+import { Bug } from "@fresnel/contracts";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
 import type { WebFailure } from "./errors.ts";
 import { WebHttpError } from "./policy/guarded-http.ts";
 

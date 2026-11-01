@@ -1,5 +1,5 @@
-import type { Logger } from "@xeon/contracts";
-import type { SessionService, StoreDb, StoreCapabilities } from "@xeon/contracts/records";
+import type { Logger } from "@fresnel/contracts";
+import type { SessionService, StoreDb, StoreCapabilities } from "@fresnel/contracts/records";
 import { probeFts } from "./probe.ts";
 import { createKnowledgeProjector } from "./projector.ts";
 import type { SearchAvailability } from "./service.ts";

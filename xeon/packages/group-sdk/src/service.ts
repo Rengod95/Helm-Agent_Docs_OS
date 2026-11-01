@@ -1,13 +1,13 @@
-import { assertNever } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { assertNever } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LoopPortKey,
   type GroupId,
   type LeaseArbiterPort,
   type ScopeId,
   type Unsubscribe,
-} from "@xeon/contracts/extensions";
-import { SessionFeedPortKey, type ExtHost, type ScopeInfo } from "@xeon/ext-host";
+} from "@fresnel/contracts/extensions";
+import { SessionFeedPortKey, type ExtHost, type ScopeInfo } from "@fresnel/ext-host";
 import {
   GroupServiceName,
   type DriveHolderSetting,
@@ -19,7 +19,7 @@ import {
   type GroupStatus,
   type HolderReceipt,
   type ToggleReceipt,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { defaultDriveArbiter, leaseArbiterPort, type DriveArbiter } from "./arbiter.ts";
 import type { GroupResetError, GroupServiceWithUsage } from "./commands.ts";
 import { gatherPromotionInput } from "./promotion/gather.ts";
@@ -124,7 +124,7 @@ function driveRoleOf(
 }
 
 /**
- * `xeon.groups` 서비스 구현(L3.group-sdk.spec §3.8). X `LeaseArbiterPort.choose`와 그룹 목록·전환·구동 그룹 선택을 한 객체로 낸다.
+ * `fresnel.groups` 서비스 구현(L3.group-sdk.spec §3.8). X `LeaseArbiterPort.choose`와 그룹 목록·전환·구동 그룹 선택을 한 객체로 낸다.
  * 상태는 `ExtHost.scopes()`·`leaseOf()`를 부를 때마다 새로 읽는다. 따로 쌓아 두는 사본이 없다.
  */
 /** 설정 쓰기 실패를 서비스 오류로 옮긴다. 관리 범위의 잠금만 `group.settingLocked`고 나머지는 이유를 그대로 싣는다 */

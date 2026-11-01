@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eachAsync } from "@xeon/contracts";
+import { eachAsync } from "@fresnel/contracts";
 import { asHost, rejection } from "./support/helpers.ts";
 import { closeWorlds, createWorld, USER_SKILLS, userLayer } from "./support/world.ts";
 

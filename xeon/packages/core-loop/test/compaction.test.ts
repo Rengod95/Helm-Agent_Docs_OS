@@ -3,7 +3,7 @@ import { countKind, firstOfKind, kindsOf } from "./support/inspect.ts";
 import { createHarness } from "./support/harness.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
 
-// M2 마감 G2-01(감사 L1-01). 루프가 컴팩션 두 길을 `xeon.context`에 잇는다: 요청 전 임계 검사와 오버플로우 복구.
+// M2 마감 G2-01(감사 L1-01). 루프가 컴팩션 두 길을 `fresnel.context`에 잇는다: 요청 전 임계 검사와 오버플로우 복구.
 
 const done: ScriptedResponse = {
   kind: "message",

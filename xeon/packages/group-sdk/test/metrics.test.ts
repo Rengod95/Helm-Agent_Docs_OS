@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { AssistantMessage, TurnId, UserMessage } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import type { AssistantMessage, TurnId, UserMessage } from "@fresnel/contracts/conversation";
 import type {
   AgentSettledPayload,
   HandlerContext,
   ToolCallDecision,
   ToolCallPayload,
-} from "@xeon/contracts/extensions";
-import type { DurableEventEnvelope, EventKind } from "@xeon/contracts/records";
-import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/extensions";
+import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
+import { createTestHost, fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   defaultMetricsRegistry,
   createMetricsRegistry,

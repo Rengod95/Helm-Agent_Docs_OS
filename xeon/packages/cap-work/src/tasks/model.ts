@@ -3,7 +3,7 @@ import type {
   WorkTaskId,
   WorkTaskStatus,
   WorkTaskView,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 // L2.work.spec §4.1.2~§4.1.3. 상태 전이 표와 막힘 계산. 순수 함수다.
 

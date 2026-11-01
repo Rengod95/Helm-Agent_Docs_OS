@@ -10,7 +10,7 @@ binds: [xeon/packages/contracts/src/records/**]
 
 # F2 기록 계약 구현 계획
 
-대상 스펙: `F.records.spec`. 패키지: `@xeon/contracts`, 서브패스 `./records`.
+대상 스펙: `F.records.spec`. 패키지: `@fresnel/contracts`, 서브패스 `./records`.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -154,7 +154,7 @@ xeon/packages/contracts/test/records/catalog-doc.test.ts  # 스펙 §3.3 표와 
 
 2. `tsc -b`, oxlint(type-aware), oxfmt, check-layers가 통과한다. records 소스는 `../conversation/*` 외의 내부 모듈과 `typebox`만 import한다.
 3. 카탈로그 검사는 시험 1개(`xeon/packages/contracts/test/records/catalog-doc.test.ts`)다. 시험은 `docs/xeon/F/records/spec.md`의 `<!-- catalog:start -->`~`<!-- catalog:end -->` 사이 표에서 kind·durable 열을 읽어 `CORE_EVENT_CATALOG`와 비교하고, 다르면 시험이 실패한다. 스크립트나 `just verify` 단계는 따로 두지 않는다. 문서가 없는 패키지 복사본에서는 건너뛴다.
-4. `@xeon/contracts/records`에서 스펙 §3의 이름이 모두 export된다. `SessionStore` 계열은 M2 전에는 export만 하고 구현 요구를 걸지 않는다.
+4. `@fresnel/contracts/records`에서 스펙 §3의 이름이 모두 export된다. `SessionStore` 계열은 M2 전에는 export만 하고 구현 요구를 걸지 않는다.
 
 ## 7. 위험과 대응
 

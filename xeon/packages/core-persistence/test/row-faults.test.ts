@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { CommitPlan, ReadFailure } from "@xeon/contracts/records";
-import type { Result } from "@xeon/contracts";
+import type { CommitPlan, ReadFailure } from "@fresnel/contracts/records";
+import type { Result } from "@fresnel/contracts";
 import {
   commitResult,
   expectOk,

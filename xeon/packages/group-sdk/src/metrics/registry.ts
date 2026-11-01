@@ -1,4 +1,4 @@
-import type { GroupId } from "@xeon/contracts/extensions";
+import type { GroupId } from "@fresnel/contracts/extensions";
 import type { GroupMetricsHandle } from "./types.ts";
 
 /** 그룹 계측 핸들의 등록부. wrap이 그룹마다 등록하고 createGroupService가 `GroupStatus.metrics`에 읽는다 */

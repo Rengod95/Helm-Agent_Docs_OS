@@ -1145,7 +1145,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "비우면 xeon.os가 찾는다",
+          "help": "비우면 fresnel.os가 찾는다",
           "label": "sops 실행 파일",
           "order": 340,
           "tab": "advanced",

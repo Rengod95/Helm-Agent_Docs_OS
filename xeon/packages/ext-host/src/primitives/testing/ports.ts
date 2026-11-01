@@ -1,7 +1,12 @@
 // L0·L1을 import하지 않는 인메모리 포트 대역(review.decisions-2 D-05). F 인터페이스로만 만든다.
-import { canonicalJson, err, ok, parse, type Result } from "@xeon/contracts";
+import { canonicalJson, err, ok, parse, type Result } from "@fresnel/contracts";
 import { fixedIdFactory } from "./ids.ts";
-import { toJsonValue, type EventId, type ThreadId, type Usage } from "@xeon/contracts/conversation";
+import {
+  toJsonValue,
+  type EventId,
+  type ThreadId,
+  type Usage,
+} from "@fresnel/contracts/conversation";
 import {
   GroupRecordSchema,
   type EnqueueRequest,
@@ -25,7 +30,7 @@ import {
   type SpawnOutcome,
   type StoredScopeState,
   type TurnOutcome,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import type {
   DurableEventDraft,
   DurableEventEnvelope,
@@ -34,7 +39,7 @@ import type {
   ProjectorFailure,
   ReadFailure,
   StoreDb,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 // ── LoopPort ──────────────────────────────────────────────────────────────
 
@@ -240,7 +245,7 @@ export interface MemoryRecordStore extends RecordCommitPort {
   events(threadId: ThreadId): readonly DurableEventDraft[];
   /** 활성 가지 위 이벤트(루트 → leaf) */
   branch(threadId: ThreadId): readonly DurableEventDraft[];
-  /** 활성 가지를 루트에서 leaf 순으로 봉투로 돌려준다(`xeon.session`의 `readBranch` 모양). recordedAt은 0이다 */
+  /** 활성 가지를 루트에서 leaf 순으로 봉투로 돌려준다(`fresnel.session`의 `readBranch` 모양). recordedAt은 0이다 */
   readBranch(threadId: ThreadId): AsyncIterable<Result<DurableEventEnvelope, ReadFailure>>;
   /** 활성 leaf를 옮긴다(되감기). 이후 새 이벤트는 그 이벤트에 붙는다 */
   rewindTo(threadId: ThreadId, eventId: EventId | null): void;

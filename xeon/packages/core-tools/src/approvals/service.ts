@@ -9,8 +9,8 @@ import {
   type Result,
   type Scheduler,
   type TimerHandle,
-} from "@xeon/contracts";
-import type { EffectId, EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts";
+import type { EffectId, EventId, IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   StepCheckpointSchema,
@@ -20,7 +20,7 @@ import {
   type SessionService,
   type StampedDraft,
   type StepCheckpointInput,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import {
   PERMISSION_MODE_STRICTNESS,
   type ApprovalApplyOutcome,
@@ -35,8 +35,8 @@ import {
   type ModeChangeResult,
   type PermissionMode,
   type ToolRunContext,
-} from "@xeon/contracts/services";
-import type { ExtHost } from "@xeon/ext-host";
+} from "@fresnel/contracts/services";
+import type { ExtHost } from "@fresnel/ext-host";
 import { commitWithRetry, type CommitFailure } from "../commit.ts";
 import { UNATTENDED_DEFAULTS, type ToolsUnattendedConfig } from "../settings.ts";
 import { isJsonObject, messageOf } from "../util.ts";
@@ -132,7 +132,7 @@ function waitingCheckpointInput(draft: unknown): StepCheckpointInput {
     typeof draft === "object" && draft !== null && "payload" in draft ? draft.payload : undefined;
   const parsed = parse(StepCheckpointSchema, payload);
   if (!parsed.ok) {
-    // xeon-disable-next-line xeon/bug-for-expected -- 루프가 만든 대기 체크포인트가 StepCheckpoint가 아니면 L1 사이 계약 위반이다 (eng.typescript.guide TY-24)
+    // fresnel-disable-next-line fresnel/bug-for-expected -- 루프가 만든 대기 체크포인트가 StepCheckpoint가 아니면 L1 사이 계약 위반이다 (eng.typescript.guide TY-24)
     throw new Bug(
       "tools.waiting_checkpoint_invalid: the loop's waiting checkpoint is not a StepCheckpoint",
       {

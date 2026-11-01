@@ -1,4 +1,4 @@
-import type { DelegateToolPolicy } from "@xeon/group-sdk";
+import type { DelegateToolPolicy } from "@fresnel/group-sdk";
 
 // L3.learning.spec §3.4 도구 정책. 광고 도구 배열은 부모와 같게 두고 실행 시점에 거른다(keepParentList, 캐시 접두 공유).
 

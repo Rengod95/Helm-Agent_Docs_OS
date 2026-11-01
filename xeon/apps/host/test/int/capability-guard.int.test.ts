@@ -4,9 +4,9 @@ import {
   isCapabilityError,
   type CallOptions,
   type ServiceKey,
-} from "@xeon/contracts/capabilities";
-import { defineManifest } from "@xeon/contracts/extensions";
-import { hostOf } from "@xeon/ext-host";
+} from "@fresnel/contracts/capabilities";
+import { defineManifest } from "@fresnel/contracts/extensions";
+import { hostOf } from "@fresnel/ext-host";
 import { Type } from "typebox";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";

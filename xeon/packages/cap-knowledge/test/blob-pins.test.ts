@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { Result } from "@xeon/contracts";
-import type { CallContext, WriteOutcome } from "@xeon/contracts/capabilities";
-import type { BlobRef } from "@xeon/contracts/records";
+import type { Result } from "@fresnel/contracts";
+import type { CallContext, WriteOutcome } from "@fresnel/contracts/capabilities";
+import type { BlobRef } from "@fresnel/contracts/records";
 import type { ChangeSpec } from "../src/ledger/change.ts";
 import { putTree } from "../src/ledger/manifest.ts";
 import type { ChangeTarget } from "../src/ledger/target.ts";

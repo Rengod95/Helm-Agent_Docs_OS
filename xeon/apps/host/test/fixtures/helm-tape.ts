@@ -1,4 +1,4 @@
-import { t, tape, tapePlayer, type TapePlayer } from "@xeon/core-models/testing";
+import { t, tape, tapePlayer, type TapePlayer } from "@fresnel/core-models/testing";
 import { realTapeClock } from "./tape-host.ts";
 
 // Helm 조사 한 번(발산 turn, 렌즈 탐색 3, 적용 turn)의 모델 대본. helm.int.test.ts의 uc2 대본에서 사용자 turn을 뺀 명령 경로다.

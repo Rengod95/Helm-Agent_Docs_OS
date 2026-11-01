@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { EMPTY_STATE, type ScheduleState } from "@xeon/cap-schedule";
+import { EMPTY_STATE, type ScheduleState } from "@fresnel/cap-schedule";
 import { createFileScheduleStore } from "../../src/assembly/schedule-store.ts";
 
 // 예약 저장소(L4.host-service.spec §4.17). 파일 하나에 상태를 쓰고, 없으면 빈 상태, 손상되면 값으로 실패한다.

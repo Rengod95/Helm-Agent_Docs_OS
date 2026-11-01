@@ -3,8 +3,8 @@ import {
   ArtifactsReviews,
   ArtifactsSessions,
   WorkspaceFiles,
-} from "@xeon/contracts/capabilities";
-import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/capabilities";
+import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/extensions";
 
 export const ARTIFACTS_EXTENSION_NAME = "cap-artifacts";
 

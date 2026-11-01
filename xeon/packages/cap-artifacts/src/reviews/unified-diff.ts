@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import { sha256Hex } from "../hash.ts";
 import type {
   DiffFile,

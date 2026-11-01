@@ -1,24 +1,24 @@
-import { assertNever, canonicalJson, err, ok, parse, type Result } from "@xeon/contracts";
+import { assertNever, canonicalJson, err, ok, parse, type Result } from "@fresnel/contracts";
 import type {
   CallContext,
   CapabilityId,
   LedgerOp,
   LedgerTarget,
   ScanSummary,
-} from "@xeon/contracts/capabilities";
-import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/capabilities";
+import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import {
   approvalCallerOf,
   type ApprovalRequestError,
   type ApprovalRequestInput,
   type ApprovalResolution,
   type ApprovalService,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import { failure, type KnowledgeFailure } from "../errors.ts";
 import { sha256Hex } from "../hash.ts";
 
-// L2.knowledge.spec §4.5.1. 쓰기 승인 요청은 `xeon.approvals`(`ApprovalService`)의 도구 승인(kind `tool`)이다. 요청과 응답 기다림을
+// L2.knowledge.spec §4.5.1. 쓰기 승인 요청은 `fresnel.approvals`(`ApprovalService`)의 도구 승인(kind `tool`)이다. 요청과 응답 기다림을
 // 이 모듈 한 곳이 맡는다: `open`으로 요청을 커밋하고(같은 `requestKey`면 기존 요청을 돌려받는다) 해결이 없으면 `wait`로 기다린다.
 // 기다리다 신호가 끊기면 기다림만 그만두고 요청은 남는다. 승인 결과 "항상"은 쓰지 않는다(스킬·메모리 쓰기는 매번 내용이 다르다).
 

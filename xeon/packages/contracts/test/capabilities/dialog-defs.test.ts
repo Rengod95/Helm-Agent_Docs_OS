@@ -103,7 +103,7 @@ describe("dialog definitions", () => {
   test("ask_user is the only dialog tool", () => {
     expect(orderTools([...DIALOG_CAPABILITIES]).map((t) => t.name)).toEqual(["ask_user"]);
     expect(DialogAskKey).toEqual({ capability: "dialog.ask", version: "1.0.0" });
-    expect(DialogServiceName).toBe("xeon.dialog");
+    expect(DialogServiceName).toBe("fresnel.dialog");
     const tool = DialogAsk.tools[0];
     expect(tool.executionMode).toBe("sequential");
     expect(tool.hints?.readOnly).toBe(true);

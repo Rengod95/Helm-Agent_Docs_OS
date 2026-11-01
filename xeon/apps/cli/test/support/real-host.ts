@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { JsonRpcMessage } from "@xeon/contracts/wire";
+import type { JsonRpcMessage } from "@fresnel/contracts/wire";
 import {
   t,
   tape,
@@ -8,13 +8,13 @@ import {
   tapePlayer,
   tapeProvider,
   type ModelTapeTurn,
-} from "@xeon/core-models/testing";
-import type { AssembleOptions } from "@xeon/host";
+} from "@fresnel/core-models/testing";
+import type { AssembleOptions } from "@fresnel/host";
 import { connectEngine } from "../../src/engine.ts";
 import { createHarness, type Harness, type HarnessOptions } from "./harness.ts";
 import { createScenarioHome, realTapeClock, type ScenarioHome } from "./scenario.ts";
 
-// 실제 호스트 위의 CLI 시험 도구(L4.cli.plan §5.2). 가짜 서버 대신 `connectEngine`이 실제 @xeon/host를 같은 프로세스에 세우고,
+// 실제 호스트 위의 CLI 시험 도구(L4.cli.plan §5.2). 가짜 서버 대신 `connectEngine`이 실제 @fresnel/host를 같은 프로세스에 세우고,
 // 모델은 테이프다. 엔진 홈(FRESNEL_HOME)은 임시 디렉터리 하나이고 작업 폴더는 그 안의 work다. 입출력은 harness의 가짜 CliIo를 그대로 쓴다.
 
 /** 테이프 한 단계(`tape()`가 받는 모양) */

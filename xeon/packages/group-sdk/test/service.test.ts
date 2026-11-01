@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { GroupSettingUnwritableReason, GroupStatus } from "@xeon/contracts/services";
+import type { GroupSettingUnwritableReason, GroupStatus } from "@fresnel/contracts/services";
 import { createGroupService, defineGroup, type GroupModule } from "../src/index.ts";
 import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
 import { serviceRig } from "./support/host.ts";

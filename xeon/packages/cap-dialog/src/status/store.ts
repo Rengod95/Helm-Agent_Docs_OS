@@ -1,4 +1,4 @@
-import type { StatusItem } from "@xeon/contracts/capabilities";
+import type { StatusItem } from "@fresnel/contracts/capabilities";
 
 // L2.dialog.spec §4.4. 스레드마다 세그먼트 스냅숏을 메모리에 둔다. 재시작하면 비고 피드 구독으로 다시 채운다.
 

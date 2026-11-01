@@ -1,5 +1,5 @@
-import { eachAsync, type Logger } from "@xeon/contracts";
-import type { ScopeStack } from "@xeon/contracts/settings";
+import { eachAsync, type Logger } from "@fresnel/contracts";
+import type { ScopeStack } from "@fresnel/contracts/settings";
 import type { McpFileReader } from "../ports/files.ts";
 import type { McpProjectTrust } from "../ports/trust.ts";
 import { readMcpSettings, readSettingsServers, type McpSettings } from "../settings.ts";

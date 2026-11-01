@@ -1,5 +1,5 @@
-import type { Result } from "@xeon/contracts";
-import type { EffectId, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import type { Result } from "@fresnel/contracts";
+import type { EffectId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   AgentView,
   ApprovalView,
@@ -9,7 +9,7 @@ import type {
   StepCheckpoint,
   TurnView,
   TxView,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { readCheckpoint } from "./checkpoint.ts";
 import { activeLeaseEpoch, activeStateOf } from "./ext-queries.ts";
 import { headSeqOf } from "./events.ts";

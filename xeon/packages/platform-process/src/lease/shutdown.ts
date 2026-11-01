@@ -1,5 +1,5 @@
-import { Bug, type Clock, type Logger, type Scheduler } from "@xeon/contracts";
-import type { ShutdownCoordinator, ShutdownReason } from "@xeon/contracts/services";
+import { Bug, type Clock, type Logger, type Scheduler } from "@fresnel/contracts";
+import type { ShutdownCoordinator, ShutdownReason } from "@fresnel/contracts/services";
 
 // L0.process.spec §3.2·§4.2, L0.process.plan PR-07. ShutdownCoordinator의 소유자 쪽이다.
 // 참여자는 등록 역순으로 하나씩 기다리며 부르고, 시한을 넘기면 기다리지 않고 exit(1)을 부른다.

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { attempt } from "@xeon/contracts";
+import { attempt } from "@fresnel/contracts";
 import type { SandboxProvider } from "./provider.ts";
 import { createDarwinProvider } from "./providers/darwin.ts";
 import { createLinuxProvider } from "./providers/linux.ts";
@@ -58,7 +58,7 @@ export function selectSandboxProvider(input: PlatformInput): SandboxProvider {
     case "win32":
       return createWin32Provider();
     default:
-      // xeon-disable-next-line xeon/switch-default-never -- 지원 목록 밖 OS는 오류 값(none provider)으로 돌려준다 (eng.typescript.guide TY-14)
+      // fresnel-disable-next-line fresnel/switch-default-never -- 지원 목록 밖 OS는 오류 값(none provider)으로 돌려준다 (eng.typescript.guide TY-14)
       return createNoneProvider("other");
   }
 }

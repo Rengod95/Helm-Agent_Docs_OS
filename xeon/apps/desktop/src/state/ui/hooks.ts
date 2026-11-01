@@ -1,6 +1,6 @@
 // src/state/ui/hooks.ts
-import { Bug } from "@xeon/contracts";
-import type { EventId, ThreadId } from "@xeon/contracts/conversation";
+import { Bug } from "@fresnel/contracts";
+import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
 import type { ReadonlyStore } from "../shared/readonly-store.ts";

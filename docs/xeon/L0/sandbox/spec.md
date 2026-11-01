@@ -8,11 +8,11 @@ depends_on: [F.capabilities.spec, L0.exec.spec, L0.os.spec, L0.secrets.spec, adr
 binds: [xeon/packages/platform-sandbox/**]
 ---
 
-# L0 sandbox 스펙: OS 샌드박스 `xeon.sandbox`
+# L0 sandbox 스펙: OS 샌드박스 `fresnel.sandbox`
 
 ## 1. 목적과 범위
 
-`platform-sandbox`는 셸 명령과 그 자식 프로세스를 OS 샌드박스(macOS Seatbelt, Linux bubblewrap) 안에서 실행하게 하는 서비스 `xeon.sandbox`(`SandboxService`)를 제공한다. 격리 구현은 `@anthropic-ai/sandbox-runtime`(이하 srt) 0.0.79(Apache-2.0)을 그대로 쓰고, 이 패키지는 Xeon 정책과 srt 설정 사이의 접착 계층이다 [결정: `_research/foundation-plan.md` §2 샌드박스 행, `_research/packages.md` §4.2 L0-b].
+`platform-sandbox`는 셸 명령과 그 자식 프로세스를 OS 샌드박스(macOS Seatbelt, Linux bubblewrap) 안에서 실행하게 하는 서비스 `fresnel.sandbox`(`SandboxService`)를 제공한다. 격리 구현은 `@anthropic-ai/sandbox-runtime`(이하 srt) 0.0.79(Apache-2.0)을 그대로 쓰고, 이 패키지는 Xeon 정책과 srt 설정 사이의 접착 계층이다 [결정: `_research/foundation-plan.md` §2 샌드박스 행, `_research/packages.md` §4.2 L0-b].
 
 - [결정: `eng.dependency-rules.guide` DR-07] srt는 `platform-sandbox`만 import한다.
 - [결정: DR-02] `platform-sandbox`는 `platform-exec`를 import하지 않는다. 두 패키지는 F `Shell` 인터페이스로만 만난다(3.4절).
@@ -55,7 +55,7 @@ binds: [xeon/packages/platform-sandbox/**]
 | 읽기 범위 | 홈을 빈 tmpfs로 덮는 허용 목록(R-4) | srt 기본(읽기 전체 허용) + `denyRead` 목록 | `_research/notes/L0-1.md` §3.2 "읽기는 전체 허용". [제안] 읽기 허용 목록 방식은 2차 프로필에서 다시 본다 |
 | 네트워크 | 네트워크 네임스페이스 + 데몬 CONNECT 프록시(R-6) | 1차 전부 차단, 2차 srt 내장 프록시와 도메인 목록 | 계획 v2 L0-b |
 | 프로세스 분리 | PID 네임스페이스 권장(R-5) | srt의 플랫폼 동작을 따른다 [가정: srt Linux 구성의 PID 네임스페이스 여부 미확인] | `_research/notes/L0-1.md` §6 |
-| 자원 한도 | `MemoryMax`, `TasksMax`(R-7) | 1차 없음. 시간 제한은 `xeon.exec` timeout | [제안] |
+| 자원 한도 | `MemoryMax`, `TasksMax`(R-7) | 1차 없음. 시간 제한은 `fresnel.exec` timeout | [제안] |
 | 격리 불가 시 | `execute` 끔(R-10), 운영자 `off`만 S0 | `l0.sandbox.onUnavailable` 3값, 기본 `disable_execute` | 18 R-10 계승 [제안] |
 | 자가 시험 | 시작·1시간마다·doctor, 9항목(§3.11.4) | 시작·주기·doctor, 6항목(4.4절) | 18 §3.11.4 이식 |
 | 보호 경로 | Helm 경로(`/srv/volumes`, `~/.config/helm`) 포함 | Xeon 경로로 바꾼 표(3.3절) | 18 §3.11.5 |
@@ -76,10 +76,10 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ### 3.1 F에 둘 샌드박스 계약 초안
 
-아래 타입은 F `@xeon/contracts/services`의 `services/sandbox.ts`와 `services/sandbox-report.ts`에 둔다. L0·L1 서비스 인터페이스는 이 서브패스에 둔다 [결정: review.decisions-2 D-04]. 이름은 `F.capabilities.spec` §3.12 파일별 이름 표의 두 파일 행에 있다. 아래 블록은 F로 옮기기 전의 초안이고, 필드는 이 블록을 F로 옮겨 확정한다(같은 절 규칙 1, `F.capabilities.plan` P9). 8절 'F에 요청'은 그 작업의 목록이다. 표기는 `F.conversation.spec` §3 머리말을 따른다(`interface X` + `XSchema: Schema<X>`는 TypeBox 명시 타입 상수).
+아래 타입은 F `@fresnel/contracts/services`의 `services/sandbox.ts`와 `services/sandbox-report.ts`에 둔다. L0·L1 서비스 인터페이스는 이 서브패스에 둔다 [결정: review.decisions-2 D-04]. 이름은 `F.capabilities.spec` §3.12 파일별 이름 표의 두 파일 행에 있다. 아래 블록은 F로 옮기기 전의 초안이고, 필드는 이 블록을 F로 옮겨 확정한다(같은 절 규칙 1, `F.capabilities.plan` P9). 8절 'F에 요청'은 그 작업의 목록이다. 표기는 `F.conversation.spec` §3 머리말을 따른다(`interface X` + `XSchema: Schema<X>`는 TypeBox 명시 타입 상수).
 
 ```ts
-// @xeon/contracts/services — sandbox-report.ts [결정: review.decisions-2 D-04]. 아무것도 import하지 않는다(exec.ts와 sandbox.ts가 함께 쓴다)
+// @fresnel/contracts/services — sandbox-report.ts [결정: review.decisions-2 D-04]. 아무것도 import하지 않는다(exec.ts와 sandbox.ts가 함께 쓴다)
 export interface SandboxViolation {
   source: "proxy" | "seatbelt" | "seccomp";
   operation: "file_read" | "file_write" | "network" | "other";
@@ -101,7 +101,7 @@ export const SandboxRunReportSchema: Schema<SandboxRunReport>;
 ```
 
 ```ts
-// @xeon/contracts/services — sandbox.ts
+// @fresnel/contracts/services — sandbox.ts
 import type { CancelScope, Shell } from "./exec.ts";                       // L0.exec.spec §3.1
 import type { SandboxRunReport, SandboxViolation } from "./sandbox-report.ts";
 
@@ -217,7 +217,7 @@ export interface SandboxService {
   /** 주어진 Shell을 감싸 자가 시험을 실행하고 status에 반영한다 */
   selfTest(shell: Shell, context: CancelScope): Promise<SelfTestReport>;
 }
-export const SandboxServiceName = "xeon.sandbox" as const;
+export const SandboxServiceName = "fresnel.sandbox" as const;
 ```
 
 - [제안] brief 초안의 `selfTest(): SelfTestReport`를 `selfTest(shell, context): Promise<SelfTestReport>`로 바꿨다. 자가 시험은 실제 명령 실행이 필요하고, `platform-sandbox`는 exec를 import하지 않으므로 조립하는 쪽이 `Shell`을 넘겨야 한다(3.4절). 실행이라 비동기다.
@@ -258,7 +258,7 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 
 ### 3.3 보호 경로 (1차)
 
-[제안] `docs/design/18-security.md` §3.11.5 표에서 Helm 전용 경로를 지우고 Xeon 경로로 바꿨다. 줄일 수 없고 `l0.sandbox.protectedPaths.extra`로 더할 수만 있다. `<home>`, `<xeonData>`, `<xeonConfig>`는 `xeon.os`의 `OsDirs.home`, `OsDirs.data`, `OsDirs.config`다(`L0.os.spec` §3.2, 8.3절). `<root>`는 정책의 각 쓰기 루트다.
+[제안] `docs/design/18-security.md` §3.11.5 표에서 Helm 전용 경로를 지우고 Xeon 경로로 바꿨다. 줄일 수 없고 `l0.sandbox.protectedPaths.extra`로 더할 수만 있다. `<home>`, `<xeonData>`, `<xeonConfig>`는 `fresnel.os`의 `OsDirs.home`, `OsDirs.data`, `OsDirs.config`다(`L0.os.spec` §3.2, 8.3절). `<root>`는 정책의 각 쓰기 루트다.
 
 | 경로 | 일치 | 접근 거부 | 이유 코드 | 18 §3.11.5 대응 |
 |---|---|---|---|---|
@@ -285,7 +285,7 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 
 ### 3.4 exec와의 접점
 
-exec와 sandbox는 서로 import하지 않고 F의 `Shell` 인터페이스로만 만난다. `xeon.sandbox`의 `wrapShell`은 F `Shell`을 받아 F `Shell`을 돌려주고, 두 서비스의 조립은 L1 tools 또는 apps/host가 한다.
+exec와 sandbox는 서로 import하지 않고 F의 `Shell` 인터페이스로만 만난다. `fresnel.sandbox`의 `wrapShell`은 F `Shell`을 받아 F `Shell`을 돌려주고, 두 서비스의 조립은 L1 tools 또는 apps/host가 한다.
 
 - `wrapShell`이 기대하는 `Shell`의 성질은 `L0.exec.spec` §3.7(옵션 전달, argv 실행, 결과 필드 보존)이다.
 - 비밀 값(`secretEnv`)은 `wrapShell`이 해석하지 않는다. 래핑 뒤 아래 `Shell`이 spawn 직전에 넣는다(`L0.exec.spec` §3.6).
@@ -321,7 +321,7 @@ export function selectSandboxProvider(input: {
 
 - darwin → `seatbelt`, 필요 프로그램 `rg`.
 - linux → `bwrap`, 필요 프로그램 `bwrap`(0.4.0 이상, 0.5.0 이상 권장), `socat`, `rg`. WSL2는 `platform: "wsl2"`로 같은 provider다. WSL1(`procVersion`에 `Microsoft`가 있고 `WSL2`가 없음)은 `none`, `unsupported_os`다 [제안].
-- linux에서 `arch`가 `x64`·`arm64` 밖이면 seccomp 필터가 번들되지 않는다. `select.ts`는 이 경우 `none`, `unsupported_os`를 돌려준다. 다만 `xeon.os`가 `x64`·`arm64` 밖 arch를 `unsupported_arch`로 등록 실패시키므로(`L0.os.spec` §3.1, §3.10) 운영에서는 이 분기에 오지 않는다. 분기는 `xeon.os` 규칙이 넓어질 때를 위한 방어이고 단위 시험으로만 확인한다(10절 [미결] 5).
+- linux에서 `arch`가 `x64`·`arm64` 밖이면 seccomp 필터가 번들되지 않는다. `select.ts`는 이 경우 `none`, `unsupported_os`를 돌려준다. 다만 `fresnel.os`가 `x64`·`arm64` 밖 arch를 `unsupported_arch`로 등록 실패시키므로(`L0.os.spec` §3.1, §3.10) 운영에서는 이 분기에 오지 않는다. 분기는 `fresnel.os` 규칙이 넓어질 때를 위한 방어이고 단위 시험으로만 확인한다(10절 [미결] 5).
 - WSL 판정은 `L0.os.spec` §3.1 기준(`WSL_DISTRO_NAME` 또는 `/proc/version`의 `microsoft`·`WSL`)을 따르고, 그 위에 WSL1과 WSL2를 나누는 것만 이 패키지의 예외다(`L0.readme` §3.1 WSL 판정 행).
 - win32 → `none`, `unsupported_os`. srt Windows 지원은 alpha이고 Claude Code도 네이티브 Windows를 샌드박스 대상에서 뺐다(`_research/notes/L0-1.md` §6).
 - 그 밖의 OS → `none`, `unsupported_os`. `select.ts`는 throw하지 않는다.
@@ -377,9 +377,9 @@ export function selectSandboxProvider(input: {
 
 ### 4.4 자가 시험
 
-`docs/design/18-security.md` §3.11.4를 옮긴다. 시작 때, `l0.sandbox.selfTestIntervalMin`마다, doctor 실행 때 돈다. 호출자는 조립 지점(apps/host)이고 `Shell`은 `xeon.exec`의 것이다(8.3절). 시험용 쓰기 루트는 새 임시 디렉터리 하나다.
+`docs/design/18-security.md` §3.11.4를 옮긴다. 시작 때, `l0.sandbox.selfTestIntervalMin`마다, doctor 실행 때 돈다. 호출자는 조립 지점(apps/host)이고 `Shell`은 `fresnel.exec`의 것이다(8.3절). 시험용 쓰기 루트는 새 임시 디렉터리 하나다.
 
-호출 경로 [결정: m2 마감 G1-12]: 조립 루트가 `SandboxServiceHandle.startSelfTests(shell)`을 한 번 부른다. 이 메서드가 시작 직후 `selfTest`를 한 번 돌리고, 끝날 때마다 `l0.sandbox.selfTestIntervalMin`분 뒤로 다음 실행을 `xeon.os`의 `Scheduler`에 건다(0이면 시작 때 한 번뿐이다). 실행은 겹치지 않고, 간격은 한 실행이 끝날 때마다 설정 함수에서 다시 읽는다. 돌려주는 `SelfTestSchedule`은 `first`(첫 실행의 `Result<SelfTestReport, SelfTestRunError>`)와 `stop()`을 가진다. 항목 실패는 보고서 값(`passed: false`)이고 `status()`의 `lastSelfTest`와 `available`에 반영된다. 시험 자체가 던지면(`crashed`) 로그 `sandbox.self_test_crashed`만 남기고 반복은 계속한다. 서비스 `dispose()`가 모든 반복을 멈춘다. doctor는 `selfTest`를 직접 부른다.
+호출 경로 [결정: m2 마감 G1-12]: 조립 루트가 `SandboxServiceHandle.startSelfTests(shell)`을 한 번 부른다. 이 메서드가 시작 직후 `selfTest`를 한 번 돌리고, 끝날 때마다 `l0.sandbox.selfTestIntervalMin`분 뒤로 다음 실행을 `fresnel.os`의 `Scheduler`에 건다(0이면 시작 때 한 번뿐이다). 실행은 겹치지 않고, 간격은 한 실행이 끝날 때마다 설정 함수에서 다시 읽는다. 돌려주는 `SelfTestSchedule`은 `first`(첫 실행의 `Result<SelfTestReport, SelfTestRunError>`)와 `stop()`을 가진다. 항목 실패는 보고서 값(`passed: false`)이고 `status()`의 `lastSelfTest`와 `available`에 반영된다. 시험 자체가 던지면(`crashed`) 로그 `sandbox.self_test_crashed`만 남기고 반복은 계속한다. 서비스 `dispose()`가 모든 반복을 멈춘다. doctor는 `selfTest`를 직접 부른다.
 
 | id | 시도(샌드박스 안) | 기대 |
 |---|---|---|
@@ -498,7 +498,7 @@ export function selectSandboxProvider(input: {
 
 ## 7. 확장 지점
 
-- `xeon.sandbox`는 `on` 지점을 선언하지 않는다. 도구 실행 지점(`tool.call.before` first, `tool.result` chain)은 L1이 선언하고(`F.extensions.spec`), 자동 허용 판정 결과를 쓰는 곳도 L1이다.
+- `fresnel.sandbox`는 `on` 지점을 선언하지 않는다. 도구 실행 지점(`tool.call.before` first, `tool.result` chain)은 L1이 선언하고(`F.extensions.spec`), 자동 허용 판정 결과를 쓰는 곳도 L1이다.
 - `post`, `drive`와 관계없다.
 - 확장(플러그인)이 정책을 완화하는 경로는 없다. 확장은 `scope`로 `SandboxServiceName`을 주입받아 `status()`, `protectedPaths()`, `autoAllow()`를 읽을 수 있다. `wrapShell`을 직접 써서 자기 프로세스를 감쌀 수 있다 [제안].
 
@@ -508,15 +508,15 @@ export function selectSandboxProvider(input: {
 
 | 이름 | 소비 문서 |
 |---|---|
-| `xeon.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `wrapShell`, `wrapArgv`, `autoAllow`, `selfTest` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor), `platform-process`(stdio MCP 서버, 4.9절) |
+| `fresnel.sandbox`(`SandboxService`): `status`, `defaultPolicy`, `protectedPaths`, `wrapShell`, `wrapArgv`, `autoAllow`, `selfTest` | `L1.tools.spec`, `L2.workspace.spec`, `L4.host-service.spec`(자가 시험 주기 호출), `L4.cli.spec`(doctor), `platform-process`(stdio MCP 서버, 4.9절) |
 | `describeSandboxStatus`(F `services/sandbox.ts`의 순수 함수, review.decisions-2 D-04) | `L4.cli.spec`, `L4.settings-ui.spec`. 구현 패키지를 import하지 않고 F에서 가져온다(DR-14) |
-| `@xeon/platform-sandbox/testing`: `fakeSandbox`(상태와 판정을 표로 고정, `wrapShell`은 기록만 하는 통과 데코레이터, `wrapArgv`는 요청을 `wrappedArgv`에 기록하고 판정대로 argv를 돌려준다) | `L1.tools.plan`, `L2.workspace.plan` |
+| `@fresnel/platform-sandbox/testing`: `fakeSandbox`(상태와 판정을 표로 고정, `wrapShell`은 기록만 하는 통과 데코레이터, `wrapArgv`는 요청을 `wrappedArgv`에 기록하고 판정대로 argv를 돌려준다) | `L1.tools.plan`, `L2.workspace.plan` |
 
 ### 8.2 F에 요청
 
 | 요청 | 대상 | 이유 |
 |---|---|---|
-| `SandboxPlatform`, `SandboxUnavailableReason`, `OnUnavailable`, `SandboxStatus`(+Schema), `SandboxNetworkPolicy`, `SandboxPolicy`(+Schema), `ProtectedAccess`, `ProtectedMatch`, `ProtectedPathEntry`, `matchProtectedPath`, `AutoAllowBlock`, `AutoAllowDecision`, `SelfTestItemId`, `SelfTestItem`, `SelfTestReport`(+Schema), `SandboxViolation`, `SandboxRunReport`(+Schema), `SandboxService`, `SandboxServiceName`을 `@xeon/contracts/services`(`services/sandbox.ts`)에 둔다 [결정: review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절. L1 tools, L2 workspace가 같은 타입을 쓴다 |
+| `SandboxPlatform`, `SandboxUnavailableReason`, `OnUnavailable`, `SandboxStatus`(+Schema), `SandboxNetworkPolicy`, `SandboxPolicy`(+Schema), `ProtectedAccess`, `ProtectedMatch`, `ProtectedPathEntry`, `matchProtectedPath`, `AutoAllowBlock`, `AutoAllowDecision`, `SelfTestItemId`, `SelfTestItem`, `SelfTestReport`(+Schema), `SandboxViolation`, `SandboxRunReport`(+Schema), `SandboxService`, `SandboxServiceName`을 `@fresnel/contracts/services`(`services/sandbox.ts`)에 둔다 [결정: review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절. L1 tools, L2 workspace가 같은 타입을 쓴다 |
 | `ShellExecResult.sandbox?: SandboxRunReport`. `SandboxRunReport`·`SandboxViolation`은 `services/sandbox-report.ts`에 두고 `exec.ts`·`sandbox.ts`가 그 파일만 import한다 | `F.capabilities.spec` §3.12(services) | `L0.exec.spec` §3.1과 같은 요청. 순환 import 방지 |
 | `describeSandboxStatus`, `SandboxStatusSummary`, `SandboxStatus.installHints`를 `services/sandbox.ts`에 둔다 | `F.capabilities.spec` §3.12(services, 규칙 6의 순수 함수) | 4.6절. L4 소비자가 구현 패키지를 import하지 않게 한다 |
 | `SettingsTab`에 `"sandbox"` 추가 | `F.wire-settings.spec` §3.8.2 | 6절. `_research/settings.md` §4 5번 탭 |
@@ -525,12 +525,12 @@ export function selectSandboxProvider(input: {
 
 | 대상 | 요구 |
 |---|---|
-| `xeon.os`(`OsService`, `L0.os.spec`) | `OsDirs.home`, `OsDirs.config`, `OsDirs.data`(DB·blob 포함), `OsDirs.tmp`의 절대 경로(`L0.os.spec` §3.2). `resolveBinary("rg" \| "bwrap" \| "socat")`(§3.6) |
-| `xeon.secrets`(`SecretService`, `L0.secrets.spec`) | `protectedPaths()`: 비밀 파일 절대 경로 목록(값 없음, `L0.secrets.spec` §3.6). 보호 경로 `secret_key` 행. 후속에서 sentinel 모드의 프록시 훅 요구를 받는다(10절 9번) |
-| `xeon.exec`(`L0.exec.spec`) | `SENSITIVE_ENV_PATTERNS`를 F에 두는 것(자가 시험 `env_allowlist`), `Shell` 데코레이션 성질(§3.7) |
+| `fresnel.os`(`OsService`, `L0.os.spec`) | `OsDirs.home`, `OsDirs.config`, `OsDirs.data`(DB·blob 포함), `OsDirs.tmp`의 절대 경로(`L0.os.spec` §3.2). `resolveBinary("rg" \| "bwrap" \| "socat")`(§3.6) |
+| `fresnel.secrets`(`SecretService`, `L0.secrets.spec`) | `protectedPaths()`: 비밀 파일 절대 경로 목록(값 없음, `L0.secrets.spec` §3.6). 보호 경로 `secret_key` 행. 후속에서 sentinel 모드의 프록시 훅 요구를 받는다(10절 9번) |
+| `fresnel.exec`(`L0.exec.spec`) | `SENSITIVE_ENV_PATTERNS`를 F에 두는 것(자가 시험 `env_allowlist`), `Shell` 데코레이션 성질(§3.7) |
 | `L1.tools.spec` | (1) 셸 도구 실행 경로에서 `wrapShell`로 감싼 `Shell`을 쓰는 조립. (2) `onUnavailable` 표(4.5절)의 도구 광고·승인 처리. (3) `autoAllow` 판정의 적용. (4) 파일 도구가 `protectedPaths()`와 `matchProtectedPath`로 realpath 검사(18 R-12). (5) 격리 없이 실행한 호출의 기록(이벤트 소유 [미결]) |
 | `L2.workspace.spec` | §4.3 6번 보호 경로 검사에 `matchProtectedPath` 사용. 쓰기 루트를 `defaultPolicy` 입력과 같은 값으로 쓰기 |
-| `L4.host-service.spec`, apps/host | 시작 때와 `l0.sandbox.selfTestIntervalMin`마다 `selfTest(<xeon.exec Shell>, …)` 호출. exec·sandbox 조립 지점 |
+| `L4.host-service.spec`, apps/host | 시작 때와 `l0.sandbox.selfTestIntervalMin`마다 `selfTest(<fresnel.exec Shell>, …)` 호출. exec·sandbox 조립 지점 |
 | `L4.cli.spec` | doctor 출력에 `describeSandboxStatus`, `missing_dependency`는 종료 코드 2 계열 |
 | `L2.mcp.spec` | MCP stdio 서버를 샌드박스에 넣을지 협의(10절 3번) |
 
@@ -559,10 +559,10 @@ export function selectSandboxProvider(input: {
 2. [결정: 오케스트레이터 기본값] 격리 없이 실행한 호출(`tool.sandbox_bypassed`)과 자가 시험 실패의 감사 이벤트 소유자는 L1 tools(`tool.` 접두)다(§4.8). `platform-sandbox`는 이벤트 type을 소유하지 않는다(`eng.context-map.design` §4.1). 이벤트를 만드는 구현은 B3-SEC가 한다.
 3. [결정: review.m3-design-inputs D-M3-19 행 1] MCP stdio 서버는 출처별 기본값을 쓴다. 프로젝트 출처 서버는 샌드박스에 넣고, 사용자 출처 서버는 넣지 않는다. 서버별 설정으로 바꿀 수 있다(`L2.mcp.spec`, M3-REQ-57).
 4. [결정: review.m3-design-inputs D-M3-18 행 3] 샌드박스 밖 재시도(`l0.sandbox.escapeRetry`)를 둔다. 기본은 끔이고, 켜도 재시도마다 승인을 받는다(`_research/notes/L0-1.md` §9).
-5. [미결] x64·arm64 밖 Linux 지원. seccomp 필터가 번들되지 않아 `select.ts`는 `unsupported_os`를 돌려준다. 지금은 `xeon.os`가 해당 arch를 등록 실패로 처리하므로 운영 경로가 없다(3.5절). 지원을 넓히면 두 문서를 함께 고친다.
+5. [미결] x64·arm64 밖 Linux 지원. seccomp 필터가 번들되지 않아 `select.ts`는 `unsupported_os`를 돌려준다. 지금은 `fresnel.os`가 해당 arch를 등록 실패로 처리하므로 운영 경로가 없다(3.5절). 지원을 넓히면 두 문서를 함께 고친다.
 6. [결정: 오케스트레이터 기본값] 중첩 사용자 네임스페이스. 기본 브라우저 provider는 Stagehand다([결정: review.m3-design-inputs D-M3-23]). srt 0.0.79에는 `allowNestedUserNamespaces`가 없어 `enableWeakerNestedSandbox`로 허용하고 설정 `l0.sandbox.nestedNamespaces`(기본 거짓, `restart`)로 켠다(§4.8). 쓰기 거부가 약해질 수 있다(`_research/notes/L0-1.md` §6). 켠 상태에서 브라우저가 실제로 뜨는지는 실기 확인이 필요하다.
 7. [결정: review.m3-design-inputs D-M3-18 행 2] 자격 파일 행(`~/.npmrc`, `~/.config/gh` 등)은 기본으로 읽기를 허용하고, 설정 `l0.sandbox.credentialFiles`(`allow`·`deny`)로 거부할 수 있다(§3.3). 이전 질문: 자격 파일 행의 읽기 거부 기본값. 안전하지만 `gh`, 사설 레지스트리 `npm`이 샌드박스 안에서 인증 없이 돈다. 비밀 env 주입(`L0.exec.spec` §3.6)으로 대신할 수 있는지 `L0.secrets.spec`과 함께 정한다.
 8. [미결] `SettingsTab`의 `"sandbox"` 추가(F 변경).
-9. [미결] 프록시 훅(후속, sentinel 모드). `L0.secrets.spec` §4.3 M2 sentinel 설계는 자식 HTTPS가 `xeon.sandbox` 프록시를 지나고 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 요구한다. 이 문서는 아직 그 훅을 정하지 않았다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안을 `L0.sandbox.plan` SB-16에서 비교하고 TLS 종단(`L0.secrets.spec` §10 6번)과 함께 정한다.
+9. [미결] 프록시 훅(후속, sentinel 모드). `L0.secrets.spec` §4.3 M2 sentinel 설계는 자식 HTTPS가 `fresnel.sandbox` 프록시를 지나고 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 요구한다. 이 문서는 아직 그 훅을 정하지 않았다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안을 `L0.sandbox.plan` SB-16에서 비교하고 TLS 종단(`L0.secrets.spec` §10 6번)과 함께 정한다.
 10. [미결] `wrapArgv`의 위반 수집. 장수 프로세스는 위반 줄을 언제 모을지 정해야 한다(종료 때 한 번, 주기적으로 등). 1차는 모으지 않고, `SandboxedArgv`에도 위반 필드가 없다(4.9절).
 11. [미결] `cleanupAfterCommand`의 전역 범위. srt 상태는 프로세스 전역이고, 이 함수는 실행 중인 다른 샌드박스가 쓰는 마운트 지점을 지울 수 있다(`_research/notes/L0-1.md` §8). `wrapArgv`의 `cleanup`은 호출 횟수만 한 번으로 막는다. 여러 장수 프로세스의 정리 시점을 어떻게 정할지 정해야 한다(4.9절).

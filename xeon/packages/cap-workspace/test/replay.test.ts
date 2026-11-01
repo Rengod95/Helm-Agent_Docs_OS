@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { WorkspaceFiles, WorkspaceShell } from "@xeon/contracts/capabilities";
-import type { EffectIntent, EffectExec } from "@xeon/contracts/records";
-import { decideEffectRecovery } from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { WorkspaceFiles, WorkspaceShell } from "@fresnel/contracts/capabilities";
+import type { EffectIntent, EffectExec } from "@fresnel/contracts/records";
+import { decideEffectRecovery } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 
 function execFor(intent: EffectIntent): EffectExec {
   return { effectId: intent.effectId, startedAt: 1_700_000_000_000 };

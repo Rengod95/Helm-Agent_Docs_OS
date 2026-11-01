@@ -15,7 +15,7 @@ import type { SecretError, SecretListing, SecretValueView } from "./secrets.ts";
 // L0.secrets.spec §3.8. 구현은 platform-secrets다. 에이전트는 생성과 열람을 하지 않으므로 관리 메서드를 별도 서비스로 나눈다.
 // 조립 루트(apps/host)가 L4 진입점에만 이 서비스를 넘기고 확장과 모델 도구에는 주지 않는다.
 
-export const SecretAdminServiceName = "xeon.secretAdmin" as const;
+export const SecretAdminServiceName = "fresnel.secretAdmin" as const;
 
 export interface SecretValueSource {
   /** L4가 넘기는 값 입력 통로. stdin 또는 가린 프롬프트. argv 경로는 타입에 없다 */
@@ -118,7 +118,7 @@ export interface SecretRevealOffer {
  * wire 메서드 `secret.beginEntry`·`secret.beginReveal`은 값 필드 없이 시작만 알리고, 호스트 처리기가 같은 이름의
  * 맡긴 수단 하나를 꺼내 L0.secrets(`SecretAdminService`)에 넘긴다. 맡긴 수단이 없으면 처리기는 `started: false`를 돌려준다.
  * 서비스 접속에는 이 통로가 없고 호스트 쪽 L0.secrets가 OS 입력 창을 쓴다(L4.settings-ui.spec §4.6.4 C안).
- * 값은 wire 프레임, 로그, 이벤트, 오류 details에 나타나지 않는다. 구현은 `@xeon/host`, 호출은 CLI다.
+ * 값은 wire 프레임, 로그, 이벤트, 오류 details에 나타나지 않는다. 구현은 `@fresnel/host`, 호출은 CLI다.
  */
 export interface SecretOutOfBandPort {
   /** 값 입력 수단을 맡긴다. 한 번 쓰이면 비워진다. 반환 함수로 쓰이지 않은 수단을 거둔다 */

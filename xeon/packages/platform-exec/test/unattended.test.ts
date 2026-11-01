@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { ok } from "@xeon/contracts";
-import type { Shell, ShellExecOptions } from "@xeon/contracts/services";
+import { ok } from "@fresnel/contracts";
+import type { Shell, ShellExecOptions } from "@fresnel/contracts/services";
 import { createExecService } from "../src/service.ts";
 import { readUnattendedTimeoutMs } from "../src/settings.ts";
 import { withUnattendedTimeout } from "../src/unattended.ts";

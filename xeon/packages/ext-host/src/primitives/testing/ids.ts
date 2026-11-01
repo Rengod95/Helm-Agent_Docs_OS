@@ -1,4 +1,4 @@
-import type { IdByPrefix, IdFactory, IdPrefix } from "@xeon/contracts/conversation";
+import type { IdByPrefix, IdFactory, IdPrefix } from "@fresnel/contracts/conversation";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const ULID_BODY_LENGTH = 26;

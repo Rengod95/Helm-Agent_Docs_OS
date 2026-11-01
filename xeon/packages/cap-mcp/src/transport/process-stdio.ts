@@ -1,9 +1,9 @@
 import { ReadBuffer, serializeMessage, type JSONRPCMessage } from "@modelcontextprotocol/client";
-import { attempt, detach, type Scheduler } from "@xeon/contracts";
+import { attempt, detach, type Scheduler } from "@fresnel/contracts";
 import type { TransportHandle } from "../adapter.ts";
 import type { McpChild } from "../ports/process.ts";
 
-// SDK `Transport`를 `xeon.process`로 띄운 자식 프로세스의 표준 입출력 위에 올린다(L2.mcp.spec §4.3).
+// SDK `Transport`를 `fresnel.process`로 띄운 자식 프로세스의 표준 입출력 위에 올린다(L2.mcp.spec §4.3).
 // 줄바꿈으로 나뉜 JSON-RPC 메시지(MCP stdio 규약)를 SDK의 ReadBuffer·serializeMessage로 읽고 쓴다.
 // 프로세스 생성과 종료 정책(SIGTERM 뒤 유예, 그다음 SIGKILL)은 이 파일이 아니라 포트와 `close()`가 맡는다.
 

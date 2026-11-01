@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { WorkTaskStatus } from "@xeon/contracts/capabilities";
+import type { WorkTaskStatus } from "@fresnel/contracts/capabilities";
 import {
   blockersOf,
   indexTasks,

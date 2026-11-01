@@ -1,5 +1,5 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import type { GroupApi } from "@xeon/group-sdk";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import type { GroupApi } from "@fresnel/group-sdk";
 import type { HelmCommandError } from "./failures.ts";
 import { inquiryIdFrom } from "./signals.ts";
 import {

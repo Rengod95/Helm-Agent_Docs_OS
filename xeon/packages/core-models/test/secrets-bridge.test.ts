@@ -1,9 +1,9 @@
 import { noGuard } from "./support/dispatcher.ts";
 import { describe, expect, test } from "bun:test";
-import type { AssistantMessageEvent } from "@xeon/contracts/conversation";
-import type { UsageRecord } from "@xeon/contracts/services";
-import { err } from "@xeon/contracts";
-import { parseSecretRef } from "@xeon/contracts/capabilities";
+import type { AssistantMessageEvent } from "@fresnel/contracts/conversation";
+import type { UsageRecord } from "@fresnel/contracts/services";
+import { err } from "@fresnel/contracts";
+import { parseSecretRef } from "@fresnel/contracts/capabilities";
 import {
   createSecretResolver,
   secretBackedCredentialStore,

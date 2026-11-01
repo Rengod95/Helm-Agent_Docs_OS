@@ -1,11 +1,11 @@
 import { join } from "node:path";
-import * as contracts from "@xeon/contracts";
-import { CapabilityError } from "@xeon/contracts/capabilities";
+import * as contracts from "@fresnel/contracts";
+import { CapabilityError } from "@fresnel/contracts/capabilities";
 import type { SdkModules } from "../../../src/loading-trust/index.ts";
 import * as typebox from "typebox";
 import { putFile } from "./real-fs.ts";
 
-/** 호스트 쪽 `@xeon/group-sdk` 대역. 플러그인 번들이 import하면 같은 객체를 받아야 한다 */
+/** 호스트 쪽 `@fresnel/group-sdk` 대역. 플러그인 번들이 import하면 같은 객체를 받아야 한다 */
 export const fakeGroupSdk: {
   readonly marker: symbol;
   readonly seen: string[];
@@ -30,8 +30,8 @@ export const fakeGroupSdk: {
 
 /** 프로세스 전역 등록이라 모든 시험이 같은 객체를 넘긴다 */
 export const SDK: SdkModules = {
-  "@xeon/contracts": contracts,
-  "@xeon/group-sdk": fakeGroupSdk,
+  "@fresnel/contracts": contracts,
+  "@fresnel/group-sdk": fakeGroupSdk,
   typebox,
 };
 
@@ -49,9 +49,9 @@ export interface PluginFiles {
 /** `boundary.settle.after`에 `on` 핸들러를 걸고 호출 때 `<이름>:fired`를 기록하는 엔트리 */
 function defaultEntry(name: string): string {
   // 플러그인 본문은 문자열이다. 층 검사가 import로 읽지 않게 지정자를 조립한다
-  const kitSpecifier = ["@xeon", "group-sdk"].join("/");
+  const kitSpecifier = ["@fresnel", "group-sdk"].join("/");
   return `import * as kit from "${kitSpecifier}";
-import { ok } from "@xeon/contracts";
+import { ok } from "@fresnel/contracts";
 import { Type } from "typebox";
 export const extension = ({ scope }) => {
   scope(${JSON.stringify(name)}, {}, (g) => {

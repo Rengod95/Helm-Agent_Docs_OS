@@ -1,4 +1,4 @@
-import { WorkspaceFiles, type WorkspaceService } from "@xeon/contracts/capabilities";
+import { WorkspaceFiles, type WorkspaceService } from "@fresnel/contracts/capabilities";
 import type { WorkspaceDeps } from "./deps.ts";
 import { guarded } from "./errors.ts";
 import type { FilesApi } from "./files/api.ts";

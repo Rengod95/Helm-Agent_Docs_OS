@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { ThreadId, TurnId, UserMessage } from "@xeon/contracts/conversation";
-import type { DurableEventEnvelope, EventKind } from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { err, ok } from "@fresnel/contracts";
+import type { ThreadId, TurnId, UserMessage } from "@fresnel/contracts/conversation";
+import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   createGroupService,
   defineGroup,

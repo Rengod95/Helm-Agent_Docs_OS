@@ -10,7 +10,7 @@ binds: [xeon/packages/platform-process/**]
 
 # L0 프로세스 구현 계획 (process)
 
-대상 스펙: `L0.process.spec`. 패키지: `xeon/packages/platform-process`(`@xeon/platform-process`, 서브패스 `./testing`).
+대상 스펙: `L0.process.spec`. 패키지: `xeon/packages/platform-process`(`@fresnel/platform-process`, 서브패스 `./testing`).
 
 ## 1. 목표와 마일스톤 배치
 
@@ -31,7 +31,7 @@ binds: [xeon/packages/platform-process/**]
 
 ```
 xeon/packages/platform-process/
-  package.json                    # exports ".", "./testing". xeon.layer L0, domain process
+  package.json                    # exports ".", "./testing". fresnel.layer L0, domain process
   bunfig.toml
   src/
     index.ts                      # 공개 API 재수출, processPlugin
@@ -66,7 +66,7 @@ xeon/packages/platform-process/
       none.ts
     select.ts                     # OS provider 선택 지점 하나 (프로세스 트리 종료·분리 옵션은 M2 구현, registrar·소켓 경로 한도는 서비스 모드 때)
     settings.ts                   # defineSettings("l0.process", …)
-    service.ts                    # ProcessService 조립, Cordis 플러그인 (xeon.process)
+    service.ts                    # ProcessService 조립, Cordis 플러그인 (fresnel.process)
     testing/
       index.ts                    # 가짜 자식 엔진 실행기, 전송 적합성 하네스 연결
       fake-engine.ts              # 자식 프로세스 진입점이자 모듈: runFakeEngine, spawnFakeEngine. stdio 전송 + watchChildLease + host.shutdown + 지연 가능한 참여자
@@ -92,7 +92,7 @@ xeon/packages/platform-process/
 
 - 파일 이름 접미사는 `eng.testing.guide` TS-01을 따른다. 실제 자식 프로세스·소켓·파일을 쓰면 `.int`다. 순수 함수 테스트는 소스 옆 `*.test.ts`에 둔다.
 - `node:child_process`, `Bun.spawn`, `Bun.listen`, `Bun.connect`는 이 패키지가 소유한다(DR-07). OS 분기는 `select.ts`만 쓴다(DR-13).
-- 다른 `@xeon/platform-*`를 import하지 않는다(DR-02). `xeon.store`·`xeon.os`·`xeon.exec`는 Cordis 서비스와 F 타입으로만 쓴다.
+- 다른 `@fresnel/platform-*`를 import하지 않는다(DR-02). `fresnel.store`·`fresnel.os`·`fresnel.exec`는 Cordis 서비스와 F 타입으로만 쓴다.
 
 ## 3. 작업 분해
 
@@ -107,12 +107,12 @@ xeon/packages/platform-process/
 | PR-05 | 자식 엔진 임대와 shutdown 협조: `watchChildLease`, `host.shutdown` 처리 연결(L4 처리기에서 부를 함수), 시한 뒤 강제 종료, `testing/fake-engine.ts` 사이드카 시뮬레이터 | PR-03, PR-07, FR-P1 | M | M2 |
 | PR-06 | `registry.ts`: `register`·`list`·`get`·`stop`·`stopOwnedBy`·`onChange`, graceful → force, 끝난 항목 보관 시간, 종료 참여자 등록. 프로세스 트리 정리 통합 테스트(등록자 쪽 `BackgroundStopper`를 프로세스 그룹 kill로 구현한 테스트 도우미. L0 패키지끼리 import하지 않으므로(DR-02) 실제 `startBackground` 핸들과의 결합은 L1 tools 통합 시험이 확인한다) | FR-P7, PR-07 | M | M1 |
 | PR-07 | `lease/shutdown.ts`: `createProcessShutdown`(신호, 참여자 역순 호출, 시한, `exit` 주입, 중복 요청 합치기) | FR-P7 | S | M1 |
-| PR-08 | `service.ts`, `settings.ts`: `ProcessService` 조립과 `xeon.process` 등록, `l0.process.*` 선언 | PR-06, PR-07 | S | M1 |
+| PR-08 | `service.ts`, `settings.ts`: `ProcessService` 조립과 `fresnel.process` 등록, `l0.process.*` 선언 | PR-06, PR-07 | S | M1 |
 | PR-09 | `service/registration.ts`: `ServiceRegistrationSchema`, 0600 임시 파일 + fsync + rename, 미지 필드 병합 보존, 모드 검사, `removeIfOwned` | FR-P3 | S | M2 이후 |
 | PR-10 | `service/ensure.ts`와 `service/supervisor.ts`: `ensureService` 알고리즘, bind-first-wins, stale 소켓은 활성화 잠금(조립 루트가 L0.os fileLock으로 주입, DR-02)을 얻은 쪽만 unlink, detached + unref 기동(`service/bind.ts`, `service/spawn.ts`). 등록 전 접속 대기열은 L4가 맡는다 | PR-09, PR-13 | L | M3b B1-SVC 구현됨 |
 | PR-11 | 버전 불일치 처리: 한가하면 `host.shutdown(version_replace)` 후 재기동, 바쁘면 `version_mismatch_busy`, 주 버전 다르면 접속 거부 | PR-10, FR-P1 | M | M3b B1-SVC 구현됨 |
 | PR-12 | `service/idle.ts`: 유휴 종료 판정기(수동 시계), 시작 유예, 승인 대기 live 계산, `idleShutdownAt` | PR-07 | S | M3b B1-SVC 구현됨 |
-| PR-13 | `service/auth.ts`와 `transport/socket.ts`: 토큰 생성·상수 시간 비교, `host.hello` 전 인증 연결, Unix 소켓 리스너(0600, 경로 길이 검사 103바이트, 소켓 상대 경로 24바이트 상한), TCP 리스너는 토큰 없이 열지 않고 `PeerInfo.requiresToken`을 위층에 알린다, 토큰 회전 `TokenGate`. runtime 경로 폴백은 `xeon.os`가 한다(`L0.os.spec` §3.2) | PR-02, FR-P2 | M | M3b B1-SVC 구현됨 |
+| PR-13 | `service/auth.ts`와 `transport/socket.ts`: 토큰 생성·상수 시간 비교, `host.hello` 전 인증 연결, Unix 소켓 리스너(0600, 경로 길이 검사 103바이트, 소켓 상대 경로 24바이트 상한), TCP 리스너는 토큰 없이 열지 않고 `PeerInfo.requiresToken`을 위층에 알린다, 토큰 회전 `TokenGate`. runtime 경로 폴백은 `fresnel.os`가 한다(`L0.os.spec` §3.2) | PR-02, FR-P2 | M | M3b B1-SVC 구현됨 |
 | PR-14 | 서비스 소실 처리: 클라이언트 정지 상태, 재접속 안 함, 다음 `ensure`의 재개 후보 제시 통합 테스트 | PR-10, PR-16 | S | M2 이후 |
 | PR-15 | `lock-fallback.ts`: `LockFallbackPolicy.decide` 규칙 네 가지, `thread.locked` details 생성 도우미 | FR-S2 | S | M2 |
 | PR-16 | `resume-offer.ts`: `buildResumeOffers`(입력 `ResumeCandidate[]`, 자동 재개 꺼짐 기본, 서비스 모드 한정, 상한, `heldBy`) | L1.persistence FR-P1(`RecoveryMarker`) | S | M2 |
@@ -189,7 +189,7 @@ xeon/packages/platform-process/
 - M2: stdio 사이드카 시뮬레이터(`testing/fake-engine.ts`)로 임대 시나리오(stdin EOF 종료, `host.shutdown` 응답 뒤 종료, 시한 초과 강제 종료, 부모 kill -9 뒤 자식 종료)가 통과한다. 전송 적합성 스위트가 in-process와 stdio에서 통과한다. `hook-run.int.test.ts`가 통과한다(spec §9 14·15).
 - 서비스 모드: adr.0006 §3.7 체크리스트 8항이 `L0.process.spec` §4.4.7 표의 문장마다 §5의 테스트 하나 이상에 대응하고 모두 통과한다.
 - M3: PR-20 원격 중계 시험이 통과한다(review.decisions-2 U-11).
-- `platform-process`의 import 목록에 다른 `@xeon/platform-*`가 없다(check-layers, DR-02).
+- `platform-process`의 import 목록에 다른 `@fresnel/platform-*`가 없다(check-layers, DR-02).
 
 ## 7. 위험과 대응
 

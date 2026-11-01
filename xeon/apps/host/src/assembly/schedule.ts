@@ -11,20 +11,20 @@ import {
   type Result,
   type Scheduler,
   type TimerHandle,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import {
   TurnCompletedPayloadSchema,
   type IdFactory,
   type ThreadId,
-} from "@xeon/contracts/conversation";
-import type { Unsubscribe } from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/conversation";
+import type { Unsubscribe } from "@fresnel/contracts/extensions";
 import type {
   InputDraft,
   LoopService,
   OsService,
   TaskService,
   WatchHandle,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import {
   createScheduleService,
   type RunOutcome,
@@ -36,7 +36,7 @@ import {
   type ScheduleTicker,
   type ScheduleWatcher,
   type StartedRun,
-} from "@xeon/cap-schedule";
+} from "@fresnel/cap-schedule";
 import type {
   EventFeedPort,
   OwnerKind,
@@ -48,7 +48,7 @@ import { messageOf } from "../util.ts";
 import { toLogFields } from "./ports.ts";
 import { createFileScheduleStore } from "./schedule-store.ts";
 
-// L2.schedule.spec §4.4.9, L4.host-service.spec §4.17. 예약 상태 기계(`@xeon/cap-schedule`)에 호스트의 포트를 잇는다.
+// L2.schedule.spec §4.4.9, L4.host-service.spec §4.17. 예약 상태 기계(`@fresnel/cap-schedule`)에 호스트의 포트를 잇는다.
 // 실행은 새 thread를 만들고 그 thread에 무인 입력을 넣는다. 그 입력은 `schedule` 출처의 followUp이라 turn의 `interactive`가 거짓이다.
 
 /** 상태 디렉터리 아래 예약 폴더 이름 */

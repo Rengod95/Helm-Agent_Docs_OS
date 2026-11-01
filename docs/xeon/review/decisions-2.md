@@ -38,7 +38,7 @@ binds: []
 | U-14 | X는 순위 1(L0 아래)을 유지한다. 조건은 architecture.layers 4.3.3의 세 가지다. | X가 L0 기능을 직접 쓰지 않고 F 포트로 받는다. | eng.dependency-rules, X.readme, L0.readme |
 | U-15 | 같은 층 예외 두 개를 허용 목록에 둔다: `apps/cli`→`apps/host`(`DR-10/cli-host`), `group-*`→`group-sdk`(`DR-02/group-sdk-*`). | 엔진 조립 코드를 한 곳에 두고, 그룹 공통 기반을 중복하지 않는다. | eng.dependency-rules, architecture.layers |
 | U-16 | `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F의 provider 인터페이스로 `core-models` 서비스에 등록한다. 같은 층 예외는 두지 않는다. | 층 규칙에 예외를 더하지 않고 플러그인 경계를 지킨다. | eng.dependency-rules(DR-09), L1.readme, L1.models, X.loading-trust, architecture.layers, L2.web.plan |
-| U-17 | 구속 문서 개정을 승인한다: DR-14에 `@xeon/ext-host` import 예외(하위 층이 서비스 등록·주입 API만 사용), DR-07 F의 pi 타입 재노출 예외, DR-08·DR-14 testing 정의 통일(테스트 파일만 교차 import 허용), 서비스 모드 1차 표기, 확장 id 정규식 통일. | 결정 2와 U-03, U-18을 구속 문서에 반영한다. | eng 전체 |
+| U-17 | 구속 문서 개정을 승인한다: DR-14에 `@fresnel/ext-host` import 예외(하위 층이 서비스 등록·주입 API만 사용), DR-07 F의 pi 타입 재노출 예외, DR-08·DR-14 testing 정의 통일(테스트 파일만 교차 import 허용), 서비스 모드 1차 표기, 확장 id 정규식 통일. | 결정 2와 U-03, U-18을 구속 문서에 반영한다. | eng 전체 |
 | U-18 | 확장 id는 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이다. 밑줄은 쓰지 않는다. 테이블 접두는 `x_<id에서 하이픈을 밑줄로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다. | 밑줄을 금지하면 접두 일치로 다른 확장의 테이블을 지우는 일이 생기지 않는다(T-18). | eng.context-map, eng.domain-types, eng.events, X.operations, L0.store, ADR-0004 |
 | U-19 | M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다. 이 경로는 아직 끝까지 이어지지 않았다. M1 코드는 승인 증거를 `null`로 넘기고 호스트 `approval.respond`는 `notImplemented`다. M2 승인 프로토콜 작업(`L4.host-service.plan` H18)에서 완성한다. 보충(§4 B-05): 모델 provider API 키는 M1부터 `runtime-http` 모드로 lease한다. | 가장 단순하고 SOPS 해석 경로 전체를 확인한다. | product.scope, L0.readme, L0.secrets, L2.workspace, L4.host-service.plan |
 | U-20 | 비밀 값 열람은 M2 CLI `xeon secret reveal`(OS 인증 재확인이 가능한 곳은 재확인)과 M3 데스크톱 화면 둘이다. 에이전트 경로에는 열람이 없다. | 사용자가 요청한 키체인식 열람을 CLI에서 먼저 제공한다. | product.scope, L4.cli, L4.settings-ui |
@@ -59,7 +59,7 @@ binds: []
 | S-14 | `l1.agents.*` 탭은 F 12탭 기준 모델 탭이다. |
 | S-15 | drive 보유 그룹 설정은 `x.primitives.activeDriveGroup` 하나다. |
 | S-01 | 서비스 모드는 1차, OS 서비스 등록만 2차다(결정 2). |
-| D-04 | L1·L0 서비스 인터페이스(`TaskService`, `LoopService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService`, `ModelService`, `ToolService`, `ContextService`)는 F `@xeon/contracts/services` 서브패스에 둔다. 서비스 이름 상수도 같은 곳에 둔다. |
+| D-04 | L1·L0 서비스 인터페이스(`TaskService`, `LoopService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService`, `ModelService`, `ToolService`, `ContextService`)는 F `@fresnel/contracts/services` 서브패스에 둔다. 서비스 이름 상수도 같은 곳에 둔다. |
 | D-05 | X 테스트는 L0를 import하지 않는다. 저장 대역은 X `test/` 안에 F 인터페이스로 만든다. |
 | D-08 | 출력 절단 함수는 ADR-0003대로 `platform-exec`에 둔다. L2는 F 서비스로 호출한다. |
 | D-10 | 그룹 사이 레코드는 F에 스키마를 두지 않는다. 그룹은 다른 그룹의 비공개 레코드를 읽지 않는다. 예시를 지운다. |
@@ -79,7 +79,7 @@ binds: []
 | B-04 | 출력 절단 함수는 D-08대로 `platform-exec`에 둔다. `ExecService`에 `truncateHead`·`formatSize`를 더한다. cap-workspace와 apps/host의 사본은 지운다. | 구현이 한 곳이어야 L1·L2가 같은 한도로 자른다. | L0.exec.spec §1·§3.1·§3.3.1, L0.exec.plan EX-21, L1.tools, L2.workspace.plan |
 | B-05 | 모델 provider API 키는 M1부터 `runtime-http` 모드로 lease한다. core-models가 프로세스 안 HTTP 클라이언트에 넘기고, 값은 모델 컨텍스트, 이벤트, DB에 들어가지 않는다. bash 도구는 `env` 모드 그대로다(U-19). | 실제 키로 chat을 돌리려면 provider 호출 경로의 모드가 정해져 있어야 한다. | F.capabilities `SecretUseModeSchema` 주석, L0.secrets §4.3·§8.3 R6·§9 14번, L0.secrets.plan, L1.models |
 | B-06 | DR-07에 테스트 한정 행을 둔다. `Bun.spawn`·`Bun.spawnSync`·`node:child_process`는 허용 목록 `scope: "test"` 항목이 있는 패키지의 테스트 파일에서만 쓸 수 있다. `check-layers.ts`가 범위를 검사한다. | 엔진 재개와 stdio 적합성은 실제 프로세스로 시험해야 한다. 운영 소스의 금지는 그대로다. | eng.dependency-rules DR-07·§4·§5, L4.desktop.plan |
-| B-07 | `@xeon/host`에 `resolveHostStatePaths()`를 둔다. CLI 상태 파일은 `OsDirs.state` 아래 `cli/state.json`이다. `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남긴다. | CLI는 경로를 계산하지 않는다(DR-13). 환경 변수가 없으면 `--continue`가 동작하지 않던 M1 상태를 고친다. | L4.host-service.spec §3.3.6, L4.host-service.plan H21, L4.cli.spec §3.3·§10-1, L4.cli.plan C4, L4.readme |
+| B-07 | `@fresnel/host`에 `resolveHostStatePaths()`를 둔다. CLI 상태 파일은 `OsDirs.state` 아래 `cli/state.json`이다. `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남긴다. | CLI는 경로를 계산하지 않는다(DR-13). 환경 변수가 없으면 `--continue`가 동작하지 않던 M1 상태를 고친다. | L4.host-service.spec §3.3.6, L4.host-service.plan H21, L4.cli.spec §3.3·§10-1, L4.cli.plan C4, L4.readme |
 
 ## 5. 구현 후속
 

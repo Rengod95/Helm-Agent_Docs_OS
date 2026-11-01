@@ -1,4 +1,4 @@
-import type { Result } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
 import type {
   CommitRequest,
   CommitResult,
@@ -6,10 +6,10 @@ import type {
   ProjectionQuery,
   StoreError,
   ThreadLifecycle,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 /**
- * core-tasks가 xeon.session(SessionService)에서 쓰는 부분. 실제 SessionService가 그대로 맞는다.
+ * core-tasks가 fresnel.session(SessionService)에서 쓰는 부분. 실제 SessionService가 그대로 맞는다.
  * 쓰기는 commit 한 경로뿐이다(TX-07). 읽기는 투영 질의와 이벤트 피드의 동기 읽기다
  */
 export interface TasksSession {

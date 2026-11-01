@@ -36,8 +36,8 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 
 - 패키지는 자기보다 낮은 순위만 import한다. 같은 층 패키지끼리는 import하지 않는다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다.
 - 각 `package.json`의 `"xeon": {"layer", "domain"}`이 기준이다. 디렉터리 이름과 층이 맞아야 한다.
-- 의존을 더하면 `package.json`에 `"@xeon/<이름>": "workspace:*"`를 적고, 그 패키지 `tsconfig.json`의 `references`에 대상 패키지를 더한다.
-- 다른 패키지는 `@xeon/<이름>`의 exports로만 import한다. `src`, `dist`, 상대 경로로 들어가지 않는다.
+- 의존을 더하면 `package.json`에 `"@fresnel/<이름>": "workspace:*"`를 적고, 그 패키지 `tsconfig.json`의 `references`에 대상 패키지를 더한다.
+- 다른 패키지는 `@fresnel/<이름>`의 exports로만 import한다. `src`, `dist`, 상대 경로로 들어가지 않는다.
 - 강제 수단: `just check-layers`(package.json과 import), `just depcruise`(경로 규칙, 순환), oxlint `no-restricted-imports`와 `import/no-cycle`.
 
 ## 코드 규칙
@@ -57,7 +57,7 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 - 단언 대신 `parse`(TypeBox), 타입 가드, `satisfies`, 브랜드 생성 함수, 판별 유니온 + `assertNever`를 쓴다. 타입은 런타임에 지워지므로 경계 값은 항상 `parse`로 검증한다 (TY-10, TY-23).
 - 예상 가능한 실패(I/O, busy, disk_full, read_only, cancelled, not_found, 검증 실패, ownership_lost, timeout, 저장 데이터 손상)는 `kind`가 있는 오류 값을 `Result`로 돌려준다. `throw`하지 않고 `Bug`로 던지지 않는다. `Bug`는 불변 조건 위반에만 쓴다 (TY-11, TY-24).
 - `catch`는 오류를 조용히 삼키지 않는다. `cause`를 담은 오류 값으로 바꾸거나, 근거 문서가 있는 자리에서 주입된 Logger로 기록하거나, 그대로 다시 던진다 (TY-25).
-- 던질 수 있는 외부 호출 하나는 `attempt`/`attemptAsync`, JSON 문자열은 `parseJson`, 기다리지 않는 비동기 호출은 `detach(work, onFailure)`로 받는다(`@xeon/contracts`, guide 1.2절). `try`/`catch`를 새로 쓰기 전에 먼저 이 도구를 쓸 수 있는지 본다. `catch`에서 받은 값을 `cause`로 담지 않으면 `preserve-caught-error`가 실패한다.
+- 던질 수 있는 외부 호출 하나는 `attempt`/`attemptAsync`, JSON 문자열은 `parseJson`, 기다리지 않는 비동기 호출은 `detach(work, onFailure)`로 받는다(`@fresnel/contracts`, guide 1.2절). `try`/`catch`를 새로 쓰기 전에 먼저 이 도구를 쓸 수 있는지 본다. `catch`에서 받은 값을 `cause`로 담지 않으면 `preserve-caught-error`가 실패한다.
 - 단언 허용 위치는 guide TY-06 표의 A1~A6뿐이다(예: ext-host의 `src/erase.ts`, 시험의 `unsafe.ts`·`fixtures/support.ts`). 시험의 부분 대역과 어긴 입력은 이 파일의 함수를 거치고 시험 본문에 `as`를 쓰지 않는다. 행을 더하려면 guide 표를 먼저 고치고 승인을 받는다.
 - `just check-ts-rules`(`just verify`에 포함)가 단언 위치, `Bug` 메시지의 예상 가능한 실패 단어, 오류 삼킴, disable 주석 형식을 검사한다.
 - 지킬 수 없는 줄이 있으면 주석으로 넘기지 말고 작업 보고에 `[미결] TY-NN <파일:줄> <이유>`로 적는다.

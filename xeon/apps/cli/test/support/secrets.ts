@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import { wireError, type SecretListEntry, type SecretReferencesResult } from "@xeon/contracts/wire";
+import {
+  wireError,
+  type SecretListEntry,
+  type SecretReferencesResult,
+} from "@fresnel/contracts/wire";
 import { secretName } from "./ids.ts";
 import type { FakeHandlers } from "./fake-server.ts";
 import type { Harness } from "./harness.ts";

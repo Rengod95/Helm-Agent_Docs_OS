@@ -1,6 +1,6 @@
 import type { TSchema } from "typebox";
-import { defineManifest } from "@xeon/contracts/extensions";
-import type { GroupManifest } from "@xeon/group-sdk";
+import { defineManifest } from "@fresnel/contracts/extensions";
+import type { GroupManifest } from "@fresnel/group-sdk";
 import { HELM_RECORD_KINDS } from "./records.ts";
 
 function jsonSchemaOf(schema: TSchema): Record<string, unknown> {

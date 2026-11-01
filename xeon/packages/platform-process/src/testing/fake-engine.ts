@@ -1,11 +1,11 @@
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
-import { parse, parseJson } from "@xeon/contracts";
+import type { Clock, Scheduler, TimerHandle } from "@fresnel/contracts";
+import { parse, parseJson } from "@fresnel/contracts";
 import { Type } from "typebox";
-import type { Transport } from "@xeon/contracts/wire";
+import type { Transport } from "@fresnel/contracts/wire";
 import { createHostShutdownHandler, watchChildLease } from "../lease/child-lease.ts";
 import { createProcessShutdown, type ProcessShutdown } from "../lease/shutdown.ts";
 import { openProcessStdio, writableFromSink } from "../transport/process-stdio.ts";
-import { createStdioTransportWith } from "@xeon/contracts/wire";
+import { createStdioTransportWith } from "@fresnel/contracts/wire";
 import { serveConformanceHost } from "./conformance-host.ts";
 
 // L0.process.plan PR-05 `testing/fake-engine.ts`, L0.process.spec §8 `fakeEngine`.

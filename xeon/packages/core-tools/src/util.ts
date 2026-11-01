@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { attempt } from "@xeon/contracts";
-import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import { attempt } from "@fresnel/contracts";
+import type { JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 
 /** JSON으로 직렬화되는 값인가. undefined, 함수, NaN·Infinity는 아니다 */
 export function isJsonValue(value: unknown, depth = 0): value is JsonValue {

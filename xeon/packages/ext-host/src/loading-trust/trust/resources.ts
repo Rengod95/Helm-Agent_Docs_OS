@@ -2,7 +2,7 @@
 // at cdaf6c227d4718a72b59ccd02152c9614df44cfc (pi 1.1.0). MIT License, Copyright (c) 2025 Mario Zechner. See LICENSE.pi.
 // Changes: see docs/xeon/X/loading-trust/spec.md §4.7.1, §4.7.2 and PATCHES.md.
 import { dirname, join } from "node:path";
-import type { LoaderFs } from "@xeon/contracts/extensions";
+import type { LoaderFs } from "@fresnel/contracts/extensions";
 
 // FRESNEL-PATCH: config-dir-constant
 /** 프로젝트 설정 디렉터리 이름. pi는 `../config.ts`의 `CONFIG_DIR_NAME`(`.pi`)을 읽었다 */

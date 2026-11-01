@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   parseSecretRef,
   SecretNameSchema,
@@ -10,10 +10,10 @@ import {
   type SecretMeta,
   type SecretName,
   type SecretUsePolicy,
-} from "@xeon/contracts/capabilities";
-import type { UseCtx } from "@xeon/contracts/services";
-import type { EventWire, HostConnection } from "@xeon/contracts/wire";
-import { memorySecrets, type MemorySecrets } from "@xeon/platform-secrets/testing";
+} from "@fresnel/contracts/capabilities";
+import type { UseCtx } from "@fresnel/contracts/services";
+import type { EventWire, HostConnection } from "@fresnel/contracts/wire";
+import { memorySecrets, type MemorySecrets } from "@fresnel/platform-secrets/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost, type InProcessHost } from "../../src/main.ts";
 import { startFakeAnthropic, type FakeAnthropic } from "../fixtures/fake-anthropic.ts";

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type {
   CommitBatch,
   DurableEventEnvelope,
   ReadFailure,
   VolatileEventEnvelope,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { faultAt } from "../src/testing/index.ts";
 import {
   commitOrThrow,

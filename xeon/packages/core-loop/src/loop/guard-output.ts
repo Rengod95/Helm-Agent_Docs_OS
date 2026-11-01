@@ -1,6 +1,6 @@
-import { FIRST_DENY } from "@xeon/contracts/extensions";
-import { attemptAsync } from "@xeon/contracts";
-import type { AssistantMessage } from "@xeon/contracts/conversation";
+import { FIRST_DENY } from "@fresnel/contracts/extensions";
+import { attemptAsync } from "@fresnel/contracts";
+import type { AssistantMessage } from "@fresnel/contracts/conversation";
 import { dispatchKey, messageIdentity, currentStep, type TurnRun } from "./turn-run.ts";
 
 // L1.loop.spec §4.11 `guard.output.before`(adr.0017 §3.6, M3-REQ-109). 사용자에게 보이는 최종 어시스턴트 답은 `boundary.message.after` 체인이 끝난 뒤,

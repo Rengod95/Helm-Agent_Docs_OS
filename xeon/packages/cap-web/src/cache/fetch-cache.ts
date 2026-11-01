@@ -1,4 +1,4 @@
-import { err, ok, parse, parseJson, type Clock, type Result } from "@xeon/contracts";
+import { err, ok, parse, parseJson, type Clock, type Result } from "@fresnel/contracts";
 import {
   BlobRefSchema,
   type BlobError,
@@ -7,7 +7,7 @@ import {
   type MigrationReport,
   type StoreReadError,
   type StoreWriteError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import type { WebStorePort } from "../ports/store.ts";
 import { sha256Hex } from "../util/hash.ts";
 import { CAP_WEB_MIGRATIONS, WEB_STORE_OWNER } from "./migrations.ts";

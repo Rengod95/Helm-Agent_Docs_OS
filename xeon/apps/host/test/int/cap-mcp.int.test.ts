@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createStubServer } from "@xeon/cap-mcp/testing";
+import { createStubServer } from "@fresnel/cap-mcp/testing";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { callingModels } from "../fixtures/call-tape.ts";

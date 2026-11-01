@@ -1,12 +1,12 @@
-// @xeon/core-persistence/testing: 투영을 건드리는 테스트의 도우미(L1.persistence.spec §8.1, eng.testing.guide TS-08).
+// @fresnel/core-persistence/testing: 투영을 건드리는 테스트의 도우미(L1.persistence.spec §8.1, eng.testing.guide TS-08).
 // 다른 패키지의 테스트 파일에서만 import한다(DR-08).
-import { Bug, canonicalJson, err, ok, type Result } from "@xeon/contracts";
+import { Bug, canonicalJson, err, ok, type Result } from "@fresnel/contracts";
 import type {
   EventKindRegistry,
   FaultInjector,
   FaultPoint,
   StoreDb,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { sha256Hex } from "../hash.ts";
 import { CORE_PROJECTOR_TABLES, createCoreProjector } from "../projector/core.ts";
 import { rebuildProjector } from "../projector/rebuild.ts";

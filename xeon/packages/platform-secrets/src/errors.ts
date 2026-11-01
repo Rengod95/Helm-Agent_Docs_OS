@@ -1,5 +1,5 @@
-import type { SecretDenyReason, SecretHandle } from "@xeon/contracts/capabilities";
-import type { Redactor, SecretError } from "@xeon/contracts/services";
+import type { SecretDenyReason, SecretHandle } from "@fresnel/contracts/capabilities";
+import type { Redactor, SecretError } from "@fresnel/contracts/services";
 
 /** `decrypt_failed.stderrMasked`의 길이 상한(spec §3.10) */
 const STDERR_MASKED_MAX_CHARS = 500;

@@ -1,6 +1,6 @@
-import { detach, rethrow } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { TrustChoice } from "@xeon/contracts/wire";
+import { detach, rethrow } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { TrustChoice } from "@fresnel/contracts/wire";
 import { useEffect, useState, type ReactNode } from "react";
 import { useLinkPhase, useOpenThreadId, useThread } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";

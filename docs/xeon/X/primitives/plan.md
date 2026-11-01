@@ -10,14 +10,14 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 
 # X 확장 원시 연산 구현 계획
 
-대상 스펙: X.primitives.spec. 패키지: `@xeon/ext-host`(`xeon/packages/ext-host`). 코드: `src/primitives/**`. 테스트: `test/primitives/**`(eng.testing.guide TS-06).
+대상 스펙: X.primitives.spec. 패키지: `@fresnel/ext-host`(`xeon/packages/ext-host`). 코드: `src/primitives/**`. 테스트: `test/primitives/**`(eng.testing.guide TS-06).
 
 ## 1. 목표와 마일스톤 배치
 
 | 마일스톤 | 범위 | 확인 방법 | 소비자 |
 |---|---|---|---|
-| M0 | Cordis 래퍼(`cordis-bridge.ts`: 루트, scope fiber, effect, dispose, 포트 inject), 레지스트리와 스냅샷, 세대 가드, fold 디스패처 tap·first·chain(시간 예산 포함, `DEFAULT_DISPATCH_POLICY`, `DispatchPolicy`의 선택 메서드 `run`·`onHandlerSettled`), X.operations 정책 결합(P-20), 인메모리 포트로 동작하는 post(멱등), drive 단일 그룹(임대 부여·상한·재호출·반납), scope enable/disable 최소형(경계 훅 `prepare`/`settle`, 유휴 적용), 상태 문서 `state()`/`commit()`(마이그레이션 제외), `createExtHost`·`install`(시작 적용, `InstallResult`)·`registerPlatform`·`ExtHost.ports`·`hostOf`(provide·port만), `@xeon/ext-host/testing`의 인메모리 포트·가짜 타이머 | §5 단위 테스트 중 M0 표시 항목 | L1 core-loop·core-tools 구현자(지점 발화), X.loading-trust(L-06), X.operations(O-03, O-06), M1 스모크 |
-| M1 | 걷는 골격: 테스트용 그룹이 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓰고, drive 그룹의 켜기·끄기가 단계 경계에서 적용됨을 모델 테이프 스모크로 확인한다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 실제 L1 포트(`xeon.loop`, `xeon.tasks`, `xeon.session`)와 연결, 포트 계약 스위트, `record`/`readRecords`, 능력 바인딩(공급자 하나), 설정 `x.primitives.driveLimits`, 재개(`openThread`의 열린 임대·상태 판 복원), 투영기 등록·접두 테이블·프로세스 포트 키(P-30) | M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 저장소 1개), 포트 계약 스위트를 L1 구현이 통과 | L3 테스트 그룹, X.operations(O-14) |
+| M0 | Cordis 래퍼(`cordis-bridge.ts`: 루트, scope fiber, effect, dispose, 포트 inject), 레지스트리와 스냅샷, 세대 가드, fold 디스패처 tap·first·chain(시간 예산 포함, `DEFAULT_DISPATCH_POLICY`, `DispatchPolicy`의 선택 메서드 `run`·`onHandlerSettled`), X.operations 정책 결합(P-20), 인메모리 포트로 동작하는 post(멱등), drive 단일 그룹(임대 부여·상한·재호출·반납), scope enable/disable 최소형(경계 훅 `prepare`/`settle`, 유휴 적용), 상태 문서 `state()`/`commit()`(마이그레이션 제외), `createExtHost`·`install`(시작 적용, `InstallResult`)·`registerPlatform`·`ExtHost.ports`·`hostOf`(provide·port만), `@fresnel/ext-host/testing`의 인메모리 포트·가짜 타이머 | §5 단위 테스트 중 M0 표시 항목 | L1 core-loop·core-tools 구현자(지점 발화), X.loading-trust(L-06), X.operations(O-03, O-06), M1 스모크 |
+| M1 | 걷는 골격: 테스트용 그룹이 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓰고, drive 그룹의 켜기·끄기가 단계 경계에서 적용됨을 모델 테이프 스모크로 확인한다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 실제 L1 포트(`fresnel.loop`, `fresnel.tasks`, `fresnel.session`)와 연결, 포트 계약 스위트, `record`/`readRecords`, 능력 바인딩(공급자 하나), 설정 `x.primitives.driveLimits`, 재개(`openThread`의 열린 임대·상태 판 복원), 투영기 등록·접두 테이블·프로세스 포트 키(P-30) | M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 저장소 1개), 포트 계약 스위트를 L1 구현이 통과 | L3 테스트 그룹, X.operations(O-14) |
 | M2 이후 | 임대 중재 설정(`x.primitives.activeDriveGroup`, `LeaseArbiterPort`, `revoked`), 상태 마이그레이션 훅, 리소스 등록 전체(도구·명령·키 조합·플래그·provider·MCP·렌더러, `ResourceRegistry`, `ResourcePolicy`), 진짜 detached tap, 그룹 간 이벤트 격리(호스트 안쪽 휘발 버스), 공급자 여럿의 선택 설정(`x.primitives.capabilityProviders`), thread별 scope 켜짐 상태(서비스 모드) | §5의 M2 표시 항목 | L3 Helm·학습 그룹, X.loading-trust(외부 확장 로더), L4 설정 화면 |
 
 - M0에서 `dispatch: "detached"` 지점(5개)은 await 방식으로 실행했다 [제안]. 결과와 실패 규칙은 같고 지연만 다르다. 진짜 detached 실행은 M2(P-25)에서 구현했다.
@@ -27,7 +27,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 
 ```
 xeon/packages/ext-host/
-  package.json             # dependencies: @xeon/contracts(workspace:*), @xeon/vendor-cordis(workspace:*), typebox(catalog:)
+  package.json             # dependencies: @fresnel/contracts(workspace:*), @fresnel/vendor-cordis(workspace:*), typebox(catalog:)
                            # exports: ".": "./src/index.ts", "./testing": "./src/testing/index.ts"
   src/
     index.ts               # 공개 이름만 명시 재export(아래 규칙). 다른 작업자가 작성 중 → 이 목록으로 맞춘다
@@ -69,21 +69,21 @@ xeon/packages/ext-host/
     fixtures/
 ```
 
-- `src/testing/`과 `src/index.ts`는 이 문서의 binds(`src/primitives/**`) 밖이다. 두 파일은 재export 한 줄씩만 두고 내용은 `src/primitives/` 안에 둔다. 위치는 eng.testing.guide §1.2의 `@xeon/ext-host/testing` 행을 따른다.
+- `src/testing/`과 `src/index.ts`는 이 문서의 binds(`src/primitives/**`) 밖이다. 두 파일은 재export 한 줄씩만 두고 내용은 `src/primitives/` 안에 둔다. 위치는 eng.testing.guide §1.2의 `@fresnel/ext-host/testing` 행을 따른다.
 - 공개 export 규칙 [제안]:
   - `src/index.ts`는 X.primitives.spec §3.1 표의 이름만 이름을 적어 재export한다. `export *`를 쓰지 않는다. 내부 이름(`ScopeRuntime`, `PostQueue`, `LeaseBroker`, `HandlerRegistry`, `CordisBridge`)은 루트로 나가지 않는다.
   - loading-trust와 operations 도메인 코드는 같은 패키지 안이므로 `../primitives/index.ts`에서 내부 이름을 import한다.
-  - F 타입은 재export하지 않는다. 소비자는 `@xeon/contracts/extensions`에서 직접 가져온다(F 타입 재정의·이중 경로 방지).
-- Cordis import 범위(eng.dependency-rules.guide DR-11) [제안]: `@xeon/vendor-cordis`는 `src/primitives/cordis-bridge.ts`만 import한다. loading-trust·operations가 Cordis 기능이 필요하면 `cordis-bridge.ts`의 함수를 쓴다. oxlint `no-restricted-imports` 예외를 이 파일 하나로 좁히는 설정을 eng.toolchain.guide 담당과 조율한다. 조율 전에는 패키지 단위 예외(DR-11 원문)로 둔다.
+  - F 타입은 재export하지 않는다. 소비자는 `@fresnel/contracts/extensions`에서 직접 가져온다(F 타입 재정의·이중 경로 방지).
+- Cordis import 범위(eng.dependency-rules.guide DR-11) [제안]: `@fresnel/vendor-cordis`는 `src/primitives/cordis-bridge.ts`만 import한다. loading-trust·operations가 Cordis 기능이 필요하면 `cordis-bridge.ts`의 함수를 쓴다. oxlint `no-restricted-imports` 예외를 이 파일 하나로 좁히는 설정을 eng.toolchain.guide 담당과 조율한다. 조율 전에는 패키지 단위 예외(DR-11 원문)로 둔다.
 - `package.json`의 `xeon` 필드는 현재 `{ "layer": "X", "domain": "ext-host" }`다. routes.yaml 도메인(primitives 등)과의 불일치는 architecture.layers.spec §10 미결이다. 이 계획은 값을 바꾸지 않는다.
 
 ## 3. 작업 분해
 
-선행 작업 중 F.extensions.plan의 E1~E9(M0)는 `@xeon/contracts/extensions`의 타입, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `validateManifest`·`validateUsage`·`validateManifestSet`·`validateGroupRecord`를 낸다. 이 계획은 그 산출을 import만 한다.
+선행 작업 중 F.extensions.plan의 E1~E9(M0)는 `@fresnel/contracts/extensions`의 타입, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `validateManifest`·`validateUsage`·`validateManifestSet`·`validateGroupRecord`를 낸다. 이 계획은 그 산출을 import만 한다.
 
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
-| P-01 | 패키지 준비: 의존 선언(`@xeon/contracts`, `@xeon/vendor-cordis`, `typebox`), `tsconfig.json` references, `exports`에 `./testing`, `src/primitives/index.ts`·`src/testing/index.ts` 골격 | F.extensions.plan E5·E6 | S | M0 |
+| P-01 | 패키지 준비: 의존 선언(`@fresnel/contracts`, `@fresnel/vendor-cordis`, `typebox`), `tsconfig.json` references, `exports`에 `./testing`, `src/primitives/index.ts`·`src/testing/index.ts` 골격 | F.extensions.plan E5·E6 | S | M0 |
 | P-02 | `errors.ts`, `ports.ts`(F 포트·키 재export와 `ExtHostPortKey`), `services.ts`의 이름 함수 3개 | P-01, F.extensions.plan E10(`ports.ts`) | S | M0 |
 | P-03 | `testing/ports.ts`, `testing/timers.ts`: 인메모리 `LoopPort`(turn 결과 표, `(scopeId, requestId)` 멱등, `whenIdle` 잠금), `InputQueuePort`(멱등 표), `RecordCommitPort`(이벤트 배열, `expectStateRev`, `loadThread`), 가짜 타이머 | P-02 | M | M0 |
 | P-04 | `registry.ts`: 항목, 등록 순번, `add`·`remove`(멱등), `snapshot(point, threadId)`, 세대 필터, 정렬 캐시(레지스트리 버전) | P-01, F E4(`HookName`) | M | M0 |
@@ -95,7 +95,7 @@ xeon/packages/ext-host/
 | P-10 | `lease.ts` 중재부 `LeaseBroker`: drive 등록 검사(`drive_requires_group`, `drive_undeclared`, `drive_duplicate`, `drive_outside_setup`), 후보 계산, 단일 후보 부여, `leaseEpoch`, `leaseId` 발급, 상한 클램프(설정 × `DriveOptions`), `lease.acquired`·`lease.released` 초안, 반납 사유 6종, `releasing` 상태 | P-09 | M | M0 |
 | P-11 | `lease.ts` 구동부: `LoopHandle`(`turn`, `spawn`, `budget` getter, `signal`), 기본 requestId `${leaseId}:${baseRev}.${i}`, 사용량 집계(재생 제외), 호출 예약(`turn_settled`·`idle`), 같은 판 연속 무효과 반납, 예외 반납과 오류 표시, 동시 호출 금지 | P-10, P-12(상태 판) | L | M0 |
 | P-12 | `state.ts`: 상태 캐시(`openThread`에서 적재), `state()`, `commit()`(스키마, 크기, 멱등 키, `expectStateRev`), 상태 이벤트 kind `<x\|grp>.<name>.state.committed` 초안 | P-05, P-07, P-03 | M | M0 |
-| P-13 | `host.ts`, `host-api.ts`: `createExtHost`, `install`(엔트리 실행과 `entryError`, scope 정의 수집, 시작 적용 spec §4.5.6과 `ScopeSetupOutcome`, `setupBudgetMs`), `uninstall`, `dispatch`·`boundary`·`openThread`·`closeThread`·`dispose` 연결, `hostOf`(M0는 `provide`, `providePort`, `port`), `xeon.ext` 서비스 등록, `src/index.ts` 공개 목록(spec §3.1 표 전체. loading-trust·operations 행은 그 도메인 작업이 끝날 때 더한다) | P-06, P-08, P-09, P-11, P-12 | M | M0 |
+| P-13 | `host.ts`, `host-api.ts`: `createExtHost`, `install`(엔트리 실행과 `entryError`, scope 정의 수집, 시작 적용 spec §4.5.6과 `ScopeSetupOutcome`, `setupBudgetMs`), `uninstall`, `dispatch`·`boundary`·`openThread`·`closeThread`·`dispose` 연결, `hostOf`(M0는 `provide`, `providePort`, `port`), `fresnel.ext` 서비스 등록, `src/index.ts` 공개 목록(spec §3.1 표 전체. loading-trust·operations 행은 그 도메인 작업이 끝날 때 더한다) | P-06, P-08, P-09, P-11, P-12 | M | M0 |
 | P-14 | `testing/host.ts`: `createTestHost`와 경계 도우미(`stepEnd`, `turnSettled`, `idle`) | P-13 | S | M0 |
 | P-15 | `state.ts` 확장: `record`(`validateGroupRecord`), `readRecords`(읽기 선언 검사, `queryRecords`의 셋째 인자 `reader`에 호출한 확장 이름을 넘겨 다른 확장의 비공개 행 제외, `record_version_unknown` 진단), `recordPrivate`(자기 접두·`state` 영역·공개 kind 중복 검사, `visibility: "private"` 커밋, `record`와 같은 멱등 키, spec §4.6.5, [결정: review.decisions-2 T-21]). `testing/ports.ts`의 `RecordCommitPort` 가짜에 `visibility`와 `reader` 필터를 더한다(F.records.spec §3.9 비공개 기록 규칙 3) | P-12, F E6(`ScopeApi.recordPrivate`), F E9 | S | M1 |
 | P-16 | 재개: `openThread`가 `ExtThreadSnapshot`으로 켜짐 상태·상태 판·열린 임대·차수를 복원하고 첫 경계에서 drive 재호출 또는 `restart` 반납 | P-11, P-12 | M | M1 |
@@ -112,12 +112,12 @@ xeon/packages/ext-host/
 | P-27 | 공급자 여럿의 선택(`capabilityProviders`), major 불일치 공급자 제외, `capability_ambiguous` 진단 | P-17, P-18 | S | M2 |
 | P-28 | thread별 scope 켜짐 상태와 fiber 수명(한 thread 이상 켜짐 동안 유지) | P-09, P-16 | M | M2 |
 | P-29 | `ExtHost.registerPlatform`(`PlatformModule`, `PlatformContext`, L0 fiber, dispose 역순)과 `ExtHost.ports`(`PortLookup`) | P-07, P-13 | S | M0 |
-| P-30 | 포트 키 재export 추가: `ProjectorRegistryPortKey`(`xeon.session`의 `projectors`), `ScopedStorePortKey`(`xeon.store`), `ProcessPortKey`(`xeon.process`)와 `testing/ports.ts`의 가짜 구현(`register`는 `Result<{ dispose }, ProjectorRegisterError>`, `scoped(owner)`). O-14(저장 영역), O-23(외부 훅), L-22(격리)의 선행 | P-02, P-29 | S | M1 |
+| P-30 | 포트 키 재export 추가: `ProjectorRegistryPortKey`(`fresnel.session`의 `projectors`), `ScopedStorePortKey`(`fresnel.store`), `ProcessPortKey`(`fresnel.process`)와 `testing/ports.ts`의 가짜 구현(`register`는 `Result<{ dispose }, ProjectorRegisterError>`, `scoped(owner)`). O-14(저장 영역), O-23(외부 훅), L-22(격리)의 선행 | P-02, P-29 | S | M1 |
 | P-32 | 능력 래퍼 문맥 검사(`capability-guard.ts`, `ExtHostDeps.capabilityDefs`), drive 멱등 쓰기 기본 키 [제안] (M3-REQ-22) | P-13 | M | M3a |
 | P-33 | 효과 워커(`effect-worker.ts`, `requestEffect`, `EffectWorkerPort`) (M3-REQ-27) | P-32 | M | M3a |
 | P-34 | 상태 커밋 줄, `updateState`, `commitWith` (M3-REQ-23·24) | P-13 | M | M3a |
 | P-35 | 임대 대기 상한과 `lease.rejected`, `leaseEpoch` 기록 (M3-REQ-25·28) | P-10 | M | M3a |
-| P-36 | 수명주기 지점 디스패치(`lifecycle.ts`, `xeon.session` 피드, 소유 scope 거르기), 이벤트 버스 제거 (M3-REQ-26·102·108) | P-06 | M | M3a |
+| P-36 | 수명주기 지점 디스패치(`lifecycle.ts`, `fresnel.session` 피드, 소유 scope 거르기), 이벤트 버스 제거 (M3-REQ-26·102·108) | P-06 | M | M3a |
 | P-37 | 도구 `execute`·명령 처리기의 ambient(디스패치 키는 도구 호출 id·명령 호출 id), 능력 래퍼의 재실행 검사 제외 (M3-REQ-102) | P-13, P-24 | S | M3a |
 | P-31 | 포트 재export 확인: `primitives/ports.ts`·`resources.ts`, loading-trust의 로더 포트, operations의 훅 포트에 자기 정의가 없고 모두 F `ports.ts` 이름을 다시 export하는지(spec §3.6, §3.9, [결정: review.decisions-2 U-14, D-04]), `src/index.ts` 공개 이름이 spec §3.1 표와 같은지 타입 테스트로 확인 | P-02, P-30, F.extensions.plan E10 | S | M1 |
 
@@ -127,10 +127,10 @@ xeon/packages/ext-host/
 
 | 대상 | 버전 | 쓰는 방식 |
 |---|---|---|
-| Cordis core (`xeon/vendor/cordis`, 패키지 이름 `@xeon/vendor-cordis`) | upstream `cordiverse/cordis` 커밋 `df4431eb43086bd1f8263a0e8c03e9b7c5233b68`, `UPSTREAM.json` 표기 "4.0.0-rc.11" | 그대로. 수정 금지(`UPSTREAM.json` `modifications: none`). `Context`, `ctx.plugin`, `fiber.effect`, `fiber.dispose`, `ctx.provide`, `inject`만 쓴다. `emit`·`parallel`·`serial`·`bail`·`waterfall`과 `Config` 스키마는 쓰지 않는다 |
+| Cordis core (`xeon/vendor/cordis`, 패키지 이름 `@fresnel/vendor-cordis`) | upstream `cordiverse/cordis` 커밋 `df4431eb43086bd1f8263a0e8c03e9b7c5233b68`, `UPSTREAM.json` 표기 "4.0.0-rc.11" | 그대로. 수정 금지(`UPSTREAM.json` `modifications: none`). `Context`, `ctx.plugin`, `fiber.effect`, `fiber.dispose`, `ctx.provide`, `inject`만 쓴다. `emit`·`parallel`·`serial`·`bail`·`waterfall`과 `Config` 스키마는 쓰지 않는다 |
 | `cosmokit`, `@standard-schema/spec` | 1.8.1, 1.1.0 (`xeon/package.json` catalog) | Cordis 런타임 의존. ext-host가 직접 import하지 않는다 |
 | `typebox` | 1.3.27 (`xeon/package.json` catalog `"typebox": "1.3.27"`) | 그대로. `Value.Check`로 결정·패치·상태·페이로드 검사 |
-| `@xeon/contracts` | 워크스페이스 | `extensions`, `capabilities`, `records`, `conversation`, `settings` 서브패스에서 타입과 상수 import |
+| `@fresnel/contracts` | 워크스페이스 | `extensions`, `capabilities`, `records`, `conversation`, `settings` 서브패스에서 타입과 상수 import |
 | Bun | 1.4.3 (`packageManager: bun@1.4.3`) | `bun:test`, `node:async_hooks`의 `AsyncLocalStorage` |
 | pi coding-agent 확장 러너 | 소스 1.1.0 `~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/runner.ts` | 읽기 자료. 복사하지 않는다. 참고 위치: 스냅샷 `snapshotEventHandlers` 269-271, 일반 `emit` 1089-1119, `emitToolCall` 1242-1260, `emitBoundary` 1029-1087 |
 | pi coding-agent 확장 타입 | 같은 소스 `types.ts` 1564-1890 | 읽기 자료. 리소스 등록 표(spec §4.8)의 대응 근거 |
@@ -141,7 +141,7 @@ xeon/packages/ext-host/
 
 ## 5. 단위 테스트 목록
 
-규칙: eng.testing.guide를 따른다. 결정성 D0, 실제 시간 대기 없음(가짜 타이머, TS-03), 저장은 인메모리 포트(X는 L0 `testing`을 쓸 수 없다, eng.testing.guide §1.2), Cordis 동작 고정은 `contract` 태그 파일(TS-01). 포트 가짜는 `@xeon/ext-host/testing`이 제공한다.
+규칙: eng.testing.guide를 따른다. 결정성 D0, 실제 시간 대기 없음(가짜 타이머, TS-03), 저장은 인메모리 포트(X는 L0 `testing`을 쓸 수 없다, eng.testing.guide §1.2), Cordis 동작 고정은 `contract` 태그 파일(TS-01). 포트 가짜는 `@fresnel/ext-host/testing`이 제공한다.
 
 | 파일 | 테스트 | 확인할 동작 | M |
 |---|---|---|---|
@@ -210,10 +210,10 @@ xeon/packages/ext-host/
 
 1. §5 표의 해당 마일스톤 테스트가 모두 통과한다. M0 종료 시 M0 표시 39개, M1 종료 시 M1 표시 포함 전부(M2 표시 제외).
 2. X.primitives.spec §9 수용 기준 1~26이 §5의 테스트 이름과 대응되고(표의 "수용 n" 표기), M2 항목(11, 18의 도구 부분)을 뺀 나머지가 M1까지 통과한다.
-3. `just verify`가 종료코드 0이다. 특히 `check-layers`와 `depcruise`가 통과한다. `@xeon/ext-host`가 `platform-*`, `core-*`, `cap-*`, `group-*`, `apps/*`를 import하지 않는다(F와 vendor만).
-4. `@xeon/vendor-cordis` import가 `src/primitives/cordis-bridge.ts` 한 파일에만 있다(grep 0건 확인. 다른 도메인 파일 포함).
-5. F 타입을 재정의하지 않는다. `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ExtensionEntry`, `validate*`는 `@xeon/contracts/extensions`에서 import한다. 같은 이름의 `interface`·`type`·`const` 선언이 ext-host 안에 0건이다(F.extensions.plan §6 5번 교차 확인 항목).
-6. 문서-코드 이름 대조: X.primitives.spec §3.1 표(primitives·loading-trust·operations 행 전체)의 공개 이름 전부가 `src/index.ts`에서 export되고, 표에 없는 이름은 export되지 않는다(테스트 `host.test.ts`의 `public surface` 항목이 `Object.keys(await import("@xeon/ext-host"))` 값 이름과 타입 전용 이름 목록을 대조한다 [제안]). 마일스톤 중간에는 아직 만들지 않은 loading-trust·operations 이름을 대조 목록에서 빼고, 그 작업(L-*, O-*)이 끝날 때 더한다. 최종 목록은 §3.1 표와 같아야 한다.
+3. `just verify`가 종료코드 0이다. 특히 `check-layers`와 `depcruise`가 통과한다. `@fresnel/ext-host`가 `platform-*`, `core-*`, `cap-*`, `group-*`, `apps/*`를 import하지 않는다(F와 vendor만).
+4. `@fresnel/vendor-cordis` import가 `src/primitives/cordis-bridge.ts` 한 파일에만 있다(grep 0건 확인. 다른 도메인 파일 포함).
+5. F 타입을 재정의하지 않는다. `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ExtensionEntry`, `validate*`는 `@fresnel/contracts/extensions`에서 import한다. 같은 이름의 `interface`·`type`·`const` 선언이 ext-host 안에 0건이다(F.extensions.plan §6 5번 교차 확인 항목).
+6. 문서-코드 이름 대조: X.primitives.spec §3.1 표(primitives·loading-trust·operations 행 전체)의 공개 이름 전부가 `src/index.ts`에서 export되고, 표에 없는 이름은 export되지 않는다(테스트 `host.test.ts`의 `public surface` 항목이 `Object.keys(await import("@fresnel/ext-host"))` 값 이름과 타입 전용 이름 목록을 대조한다 [제안]). 마일스톤 중간에는 아직 만들지 않은 loading-trust·operations 이름을 대조 목록에서 빼고, 그 작업(L-*, O-*)이 끝날 때 더한다. 최종 목록은 §3.1 표와 같아야 한다.
 7. M1: 모델 테이프 스모크에서 스모크 그룹을 turn 중에 끄면 다음 단계 경계에서 `scope.changed { disabled }`와 `lease.released { disabled }`가 커밋되고, 진행 중인 turn은 정착까지 진행한다(`_research/foundation-plan.md` §6).
 
 ## 7. 위험과 대응

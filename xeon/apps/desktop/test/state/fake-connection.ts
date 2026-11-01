@@ -5,7 +5,7 @@ import type {
   WireMethodName,
   WireParams,
   WireResult,
-} from "@xeon/contracts/wire";
+} from "@fresnel/contracts/wire";
 
 type Handler<M extends WireMethodName> = (params: WireParams<M>) => Promise<WireResult<M>>;
 export type Table = { [M in WireMethodName]?: Handler<M> };

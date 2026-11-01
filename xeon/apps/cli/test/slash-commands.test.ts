@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import { WireError, wireError } from "@xeon/contracts/wire";
-import type { CommandListResult } from "@xeon/contracts/wire";
+import { WireError, wireError } from "@fresnel/contracts/wire";
+import type { CommandListResult } from "@fresnel/contracts/wire";
 import { EXIT } from "../src/exit-codes.ts";
 import { completionsOf, parseSlash } from "../src/slash.ts";
 import { assistantItem, turnCompleted } from "./support/events.ts";

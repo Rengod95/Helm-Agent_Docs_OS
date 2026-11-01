@@ -8,11 +8,11 @@ import type {
   ToolCall,
   Usage,
 } from "@earendil-works/pi-ai";
-import { Bug, canonicalJson, parse, type Clock, type Scheduler } from "@xeon/contracts";
-import type { ModelRole } from "@xeon/contracts/services";
+import { Bug, canonicalJson, parse, type Clock, type Scheduler } from "@fresnel/contracts";
+import type { ModelRole } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 
-// eng.testing.guide TS-04 `xeon.model-tape.v1`. 모델 호출을 녹화·작성한 응답으로 대신하는 테스트 가짜다.
+// eng.testing.guide TS-04 `fresnel.model-tape.v1`. 모델 호출을 녹화·작성한 응답으로 대신하는 테스트 가짜다.
 // 형식은 spec 그대로이고 두 가지를 더했다: TapeRequest.target(응답 메시지에 싣는 api, provider, model)과
 // TapeFormatError(테이프 파일 형식 오류). role은 ModelRole 6종이다(L1.models.plan §4).
 
@@ -20,7 +20,7 @@ export type TapeContent = TextContent | ThinkingContent | ToolCall;
 
 export interface ModelTapeHeader {
   readonly kind: "header";
-  readonly format: "xeon.model-tape.v1";
+  readonly format: "fresnel.model-tape.v1";
   /** 예: "core-loop/two-tool-calls" */
   readonly tapeId: string;
   readonly origin: "authored" | "recorded";
@@ -193,7 +193,7 @@ export function tape(
   return {
     header: {
       kind: "header",
-      format: "xeon.model-tape.v1",
+      format: "fresnel.model-tape.v1",
       tapeId: id,
       origin: "authored",
       matching: opts.matching ?? "role-queue",
@@ -238,7 +238,7 @@ const HeaderSchema = Type.Unsafe<ModelTapeHeader>(
   Type.Object(
     {
       kind: Type.Literal("header"),
-      format: Type.Literal("xeon.model-tape.v1"),
+      format: Type.Literal("fresnel.model-tape.v1"),
       tapeId: Type.String({ minLength: 1 }),
       origin: Type.Union([Type.Literal("authored"), Type.Literal("recorded")]),
       matching: Type.Union([Type.Literal("role-queue"), Type.Literal("context-hash")]),

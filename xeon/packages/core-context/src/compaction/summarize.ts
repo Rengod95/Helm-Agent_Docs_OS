@@ -1,6 +1,12 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import type { EventId, JsonObject, JsonValue, Message, Usage } from "@xeon/contracts/conversation";
-import type { ContextError } from "@xeon/contracts/services";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type {
+  EventId,
+  JsonObject,
+  JsonValue,
+  Message,
+  Usage,
+} from "@fresnel/contracts/conversation";
+import type { ContextError } from "@fresnel/contracts/services";
 import { isJsonObject } from "../json.ts";
 import {
   SUMMARIZATION_PROMPT,
@@ -10,9 +16,9 @@ import {
 
 // L1.context.spec §3.2, §4.6 4·8번, plan C-5. pi compaction.ts의 generateSummary, generateTurnPrefixSummary, compact와
 // utils.ts의 serializeConversation·파일 추적을 모델 호출 주입(SummarizeDeps)으로 포크했다. pi의 위치 인자 12~14개 대신
-// 호출 하나를 SummarizeDeps.summarize로 표현한다. 추정·모델 선택은 이 파일 밖(xeon.models)이 맡는다.
+// 호출 하나를 SummarizeDeps.summarize로 표현한다. 추정·모델 선택은 이 파일 밖(fresnel.models)이 맡는다.
 
-/** 요약 호출 하나의 결과. 어댑터가 xeon.models의 종결 메시지에서 옮겨 담는다 */
+/** 요약 호출 하나의 결과. 어댑터가 fresnel.models의 종결 메시지에서 옮겨 담는다 */
 export interface SummaryReply {
   readonly text: string;
   readonly usage: Usage;

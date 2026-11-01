@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import type {
   CommandActionContext,
   CommandActionDecl,
   CommandActionHandler,
   CommandActionRegistry,
   CommandActionResult,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 import { registerWorkCommands, WORK_COMMAND_ORIGIN } from "../src/commands.ts";
 import { openHarness, type Harness } from "./support/harness.ts";
 import { PlanId } from "./support/plans.ts";

@@ -5,7 +5,7 @@ import {
   WEB_CAPABILITIES,
   WebSearch,
   WebFetch,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 describe("web capability definitions", () => {
   test("four web capabilities validate with zero issues", () => {

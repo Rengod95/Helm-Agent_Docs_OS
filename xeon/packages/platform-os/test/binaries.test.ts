@@ -2,8 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { Bug, err, ok } from "@xeon/contracts";
-import type { OsInfo } from "@xeon/contracts/services";
+import { Bug, err, ok } from "@fresnel/contracts";
+import type { OsInfo } from "@fresnel/contracts/services";
 import {
   createBinaryResolver,
   createNodeBinaryFs,

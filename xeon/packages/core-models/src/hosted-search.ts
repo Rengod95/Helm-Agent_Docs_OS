@@ -1,6 +1,6 @@
-import { Bug, err, ok, parse, parseJson, type Logger, type Result } from "@xeon/contracts";
-import type { AssistantMessage, ThreadId } from "@xeon/contracts/conversation";
-import { isId } from "@xeon/contracts/conversation";
+import { Bug, err, ok, parse, parseJson, type Logger, type Result } from "@fresnel/contracts";
+import type { AssistantMessage, ThreadId } from "@fresnel/contracts/conversation";
+import { isId } from "@fresnel/contracts/conversation";
 import type {
   AssistantMessageEventStream,
   HostedSearchCitation,
@@ -14,7 +14,7 @@ import type {
   HostedSearchSupport,
   ModelError,
   ResolvedModel,
-} from "@xeon/contracts/services";
+} from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import {
   createStreamAccumulator,

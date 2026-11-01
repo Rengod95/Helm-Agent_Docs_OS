@@ -1,5 +1,5 @@
 import { Database, SQLiteError } from "bun:sqlite";
-import { attempt, Bug, err, ok, type Result } from "@xeon/contracts";
+import { attempt, Bug, err, ok, type Result } from "@fresnel/contracts";
 
 /**
  * SQLite 로드 상태(L0.store.spec §4.1 2번). Database.setCustomSQLite는 프로세스에서 첫 Database를 만들기 전에

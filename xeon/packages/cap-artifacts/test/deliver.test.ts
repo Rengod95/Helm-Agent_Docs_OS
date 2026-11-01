@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { renderDelivery } from "../src/reviews/deliver.ts";
 import type { DeliveryInput } from "../src/reviews/types.ts";
 

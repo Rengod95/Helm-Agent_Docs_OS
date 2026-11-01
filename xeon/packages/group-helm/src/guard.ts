@@ -1,5 +1,5 @@
-import type { CallerId, ToolHints, ToolRisk } from "@xeon/contracts/capabilities";
-import type { ToolCallDecision } from "@xeon/contracts/extensions";
+import type { CallerId, ToolHints, ToolRisk } from "@fresnel/contracts/capabilities";
+import type { ToolCallDecision } from "@fresnel/contracts/extensions";
 import type { HelmSettings } from "./settings.ts";
 import type { HelmState } from "./state.ts";
 

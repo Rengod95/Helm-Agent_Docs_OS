@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createStdioTransport } from "../../src/wire-settings/wire/index.ts";
 
-// F.wire-settings.spec §3.1: JSON Lines stdio 전송. Bun·Node API 없이 웹 스트림만 쓴다. HostConnection 구현은 `@xeon/client`로 옮겼다(adr.0020).
+// F.wire-settings.spec §3.1: JSON Lines stdio 전송. Bun·Node API 없이 웹 스트림만 쓴다. HostConnection 구현은 `@fresnel/client`로 옮겼다(adr.0020).
 
 const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 5));
 

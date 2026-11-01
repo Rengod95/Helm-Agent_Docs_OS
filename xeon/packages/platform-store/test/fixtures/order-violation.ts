@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { initSqlite, newDatabase } from "../../src/sqlite-env.ts";
 
 /** 자식이 표준 출력에 남기는 보고 */

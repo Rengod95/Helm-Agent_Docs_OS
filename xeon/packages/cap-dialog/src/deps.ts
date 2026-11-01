@@ -1,5 +1,5 @@
-import type { Logger } from "@xeon/contracts";
-import type { CallContext } from "@xeon/contracts/capabilities";
+import type { Logger } from "@fresnel/contracts";
+import type { CallContext } from "@fresnel/contracts/capabilities";
 import type { ApprovalsPortFactory } from "./ports/approvals.ts";
 import type { AttachmentFiles } from "./ports/files.ts";
 import type { ImagesPort } from "./ports/images.ts";

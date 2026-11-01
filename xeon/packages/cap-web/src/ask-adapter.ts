@@ -1,11 +1,11 @@
-import { canonicalJson, err, ok, parse } from "@xeon/contracts";
-import type { JsonObject } from "@xeon/contracts/conversation";
-import type { L2ApprovalRequest, L2ApprovalsPort } from "@xeon/contracts/services";
+import { canonicalJson, err, ok, parse } from "@fresnel/contracts";
+import type { JsonObject } from "@fresnel/contracts/conversation";
+import type { L2ApprovalRequest, L2ApprovalsPort } from "@fresnel/contracts/services";
 import { Type } from "typebox";
 import type { WebAskPort, WebAskRequest } from "./ports/ask.ts";
 import { sha256Hex } from "./util/hash.ts";
 
-// 도메인·URL 승인 요청을 `xeon.approvals`의 도구 승인 body(`ToolApprovalDetail`, additionalProperties:false)로 옮긴다.
+// 도메인·URL 승인 요청을 `fresnel.approvals`의 도구 승인 body(`ToolApprovalDetail`, additionalProperties:false)로 옮긴다.
 // 도메인 대상을 body로 바꾸는 규칙은 cap-*가 가진다(core-tools `l2ApprovalsPort` 주석).
 //
 // - toolName은 능력 id(`web.fetch`)이고 capability.method는 그 능력의 메서드 이름이다.
@@ -47,7 +47,7 @@ export function webApprovalTitle(request: L2ApprovalRequest): string {
     : "Allow this web access?";
 }
 
-/** `xeon.approvals`의 L2 공통 포트를 웹 승인 요청 모양으로 감싼다. 요청 kind는 `tool`, 대상은 `webAskSubject`다 */
+/** `fresnel.approvals`의 L2 공통 포트를 웹 승인 요청 모양으로 감싼다. 요청 kind는 `tool`, 대상은 `webAskSubject`다 */
 export function createAskAdapter(approvals: L2ApprovalsPort): WebAskPort {
   return {
     async ask(request, signal) {

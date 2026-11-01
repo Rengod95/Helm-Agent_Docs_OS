@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { Usage } from "@xeon/contracts/conversation";
-import type { UsageRecord } from "@xeon/contracts/services";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { Usage } from "@fresnel/contracts/conversation";
+import type { UsageRecord } from "@fresnel/contracts/services";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createUsageMeter } from "../src/usage.ts";
 
 const ids = fixedIdFactory();

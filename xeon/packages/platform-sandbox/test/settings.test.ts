@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCatalog, checkSettingDef } from "@xeon/contracts/settings";
+import { buildCatalog, checkSettingDef } from "@fresnel/contracts/settings";
 import {
   DEFAULT_SANDBOX_SETTINGS,
   SANDBOX_SETTING_DEFS,

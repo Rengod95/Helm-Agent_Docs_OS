@@ -34,7 +34,7 @@ binds: [xeon/packages/core-loop/**]
 
 ```text
 xeon/packages/core-loop/
-  package.json              # dependencies: "@xeon/contracts", "@xeon/ext-host", "typebox". pi-agent-core·pi-ai 없음
+  package.json              # dependencies: "@fresnel/contracts", "@fresnel/ext-host", "typebox". pi-agent-core·pi-ai 없음
   UPSTREAM.json             # pi-agent-core 1.3.0 출처, copiedPaths, notCopied, modifications (adr.0009 §3.6)
   LICENSE.pi                # pi 저장소 MIT LICENSE 원문 사본
   src/
@@ -66,7 +66,7 @@ xeon/packages/core-loop/
     turn-start.ts           # T1
     service.ts              # LoopService 조립
     settings.ts             # defineSettings("l1.loop", …)
-    plugin.ts               # ext-host 플러그인 API로 xeon.loop 제공
+    plugin.ts               # ext-host 플러그인 API로 fresnel.loop 제공
     index.ts
   test/
     tapes/                  # *.tape.jsonl (eng.testing.guide TS-04, TS-06)
@@ -88,8 +88,8 @@ xeon/packages/core-loop/
     loop.contract.test.ts            # 확장 지점·커밋 순서, import 검사 (이전 agent-wrapper.contract.test.ts)
 ```
 
-- 모델 테이프 가짜는 `eng.testing.guide` TS-04가 정한 `@xeon/core-models/testing`(`loadTape`, `tape`, `tapePlayer`, `contextHash`, `t`)을 테스트 파일에서만 import한다(DR-08, DR-14 예외 3). 테이프 파일은 `core-loop/test/tapes/`에 둔다(TS-06).
-- `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`는 import하지 않는다(DR-07, adr.0009). streamFn과 도구 선언 차이 계산은 `xeon.models` 서비스에서 받고, 대화 타입은 `@xeon/contracts/conversation`의 F 정의를 쓴다.
+- 모델 테이프 가짜는 `eng.testing.guide` TS-04가 정한 `@fresnel/core-models/testing`(`loadTape`, `tape`, `tapePlayer`, `contextHash`, `t`)을 테스트 파일에서만 import한다(DR-08, DR-14 예외 3). 테이프 파일은 `core-loop/test/tapes/`에 둔다(TS-06).
+- `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`는 import하지 않는다(DR-07, adr.0009). streamFn과 도구 선언 차이 계산은 `fresnel.models` 서비스에서 받고, 대화 타입은 `@fresnel/contracts/conversation`의 F 정의를 쓴다.
 - `loop/` 아래 파일 중 원본 함수에서 출발한 것(`run-turn.ts`, `stream-response.ts`, `tool-batch.ts`)은 머리에 출처 주석을 단다. 원본 구조에서 벗어난 줄에는 `// FRESNEL-PATCH: <id>`를 단다. 나머지는 자체 코드다.
 - 스모크 시나리오 테스트(`*.scenario.test.ts`)는 `apps/cli/test/`에 하나만 둔다(TS-01, TS-06). core-loop는 그 스모크가 쓰는 테이프 일부를 함께 만든다.
 
@@ -99,7 +99,7 @@ xeon/packages/core-loop/
 
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
-| LP0 | F 요청 반영 확인: `ports.ts`와 `@xeon/contracts/services`의 L1 서비스 타입(FR-L1, review.decisions-2 D-04), `TurnStartedPayload.scopeId`(FR-L8), T3 체크포인트 허용(FR-L3), `turn.completed` 추가 행(FR-L4). 미반영이면 해당 동작을 [가정]으로 구현하지 않고 대기 | M0: contracts | S | M1 착수 조건 |
+| LP0 | F 요청 반영 확인: `ports.ts`와 `@fresnel/contracts/services`의 L1 서비스 타입(FR-L1, review.decisions-2 D-04), `TurnStartedPayload.scopeId`(FR-L8), T3 체크포인트 허용(FR-L3), `turn.completed` 추가 행(FR-L4). 미반영이면 해당 동작을 [가정]으로 구현하지 않고 대기 | M0: contracts | S | M1 착수 조건 |
 | LP1 | (완료, LP16~LP21로 대체) 래퍼와 훅 연결: `runAgentLoop([], context)`, `AgentLoopConfig` 조립, streamFn의 `modelCalls` 슬롯 감싸기, 재진입 금지, run 거부 → T6 `failed` | LP0, M0: core-persistence 커밋 API, L1.tasks.plan TK-1·TK-6 | M | M1 |
 | LP2 | `AgentEventMapper` 구현과 골든 테스트: F.conversation §3.5.4 표 전 행, `bindItem`, 결정적 id 순서 | M0: contracts F.conversation 매퍼 타입 | M | M1 |
 | LP3 | 휘발 이벤트 발신자: `VolatileEventEnvelope` 구성, `(threadId, turnId)`별 `n`, `afterSeq = headSeq()`, 50 ms 묶음, 16 KiB 자르기 | LP2, M0: core-persistence `headSeq`·휘발 피드 | S | M1 |
@@ -116,7 +116,7 @@ xeon/packages/core-loop/
 | LP14 | 반복 감지 | LP7, FR-L5 | M | 2차 |
 | LP15 | 자식 thread turn `runChildTurn`(spec §4.13): requestId 멱등 조회, 자식 turn 노드(`openScope` 부모 subagent), `systemPrompt`·`model`·`ToolRunContext` 값 전달, 자식 한도(`child_limit`) (M2 완료 2026-10-24: `runChildTurn`, 시험 `child-turn.int.test.ts`) | LP5, LP10, L1.agents.plan AG-2 | M | M2 |
 | LP16 | (완료 2026-10-23) F 타입 이행: `contracts/src/conversation/agent.ts`에 `AgentMessage`(닫힌 유니온), `AgentEvent`, `AgentTool`, `AgentToolResult`, `AgentToolCall`, `AgentToolUpdateCallback`, `ToolExecutionMode`, `AgentContext` 정의(`F.conversation.spec` §3.1.1). `pi.ts`에서 agent-core 재노출 제거, `hierarchy.ts` 선언 병합 제거, `AgentToolHooks` 제거. `pi-types.test.ts`의 agent-core 항등 검사를 F 정의 검사로 바꾼다 | — | M | 이행 1 |
-| LP17 | (완료 2026-10-23) 루프 본체 포크: `loop/stream-response.ts`, `loop/tool-batch.ts`, `loop/run-turn.ts`. 원본 `agent-loop.ts` 1.3.0의 해당 함수를 옮기고 spec §3.2·§3.3대로 고친다. `UPSTREAM.json`, `LICENSE.pi`, 출처 주석. pi-ai 값 함수 호출은 `xeon.models` 메서드로 바꾼다 | LP16, LP18 | L | 이행 2 |
+| LP17 | (완료 2026-10-23) 루프 본체 포크: `loop/stream-response.ts`, `loop/tool-batch.ts`, `loop/run-turn.ts`. 원본 `agent-loop.ts` 1.3.0의 해당 함수를 옮기고 spec §3.2·§3.3대로 고친다. `UPSTREAM.json`, `LICENSE.pi`, 출처 주석. pi-ai 값 함수 호출은 `fresnel.models` 메서드로 바꾼다 | LP16, LP18 | L | 이행 2 |
 | LP18 | (완료 2026-10-23) 이웃 계약 바꾸기(다른 plan과 함께): `ToolService`의 `hooks`·`toAgentTools`·`observe`·`closeUnexecuted`를 `prepare`·`execute`·`settleRejected` 단계 계약으로(`L1.tools.plan`), `ModelService`에 도구 선언 차이 계산과 streamFn 안 정규화(`L1.models.plan`). 첫 테스트로 typebox 검증이 pi-ai `validateToolArguments`와 같은 결과를 내는지 확인(adr.0009 §6 [가정]) | LP16 | M | 이행 2 |
 | LP19 | (완료 2026-10-23) 단계 함수와 진입점: `open-step.ts`, `commit-response.ts`, `step-end.ts`, `before-start.ts`. `agent-wrapper.ts`의 `executeTurn`·`finishStep`·`replayTools`·`runPendingCall`·`emit` 본문을 단계 함수로 나눠 옮긴다. `resume.ts`는 `TurnEntry`만 만든다. 커밋 실패는 `Result`로 돌린다(throw 제거, `RunFailure` 예외 제거) | LP17 | L | 이행 3 |
 | LP20 | (완료 2026-10-23) 정리: `agent-wrapper.ts`, `pi-bridge.ts`, `streams.ts`의 pi 대응 부분 삭제. `core-loop`·`contracts`의 `package.json`과 bun catalog에서 `@earendil-works/pi-agent-core` 제거, `bun.lock` 갱신. `check-layers.ts` `MODULE_OWNERS`의 pi-agent-core 행을 owners `[]`로. `plugin.ts` 설명 문구 수정 | LP19 | S | 이행 4 |
@@ -132,7 +132,7 @@ xeon/packages/core-loop/
 |---|---|---|---|
 | `@earendil-works/pi-agent-core` `agent-loop.ts` | 포크(자체 루프로 재설계, adr.0009) | 1.3.0. tarball sha1 `aec4d26bf7cdab5bca2a129f6a6dffc606c892db`, `dist/*.js.map` `sourcesContent`(1.1.0 소스 `~/projects/_ref/pi-src/packages/agent/src`와 바이트 동일, `_research/notes/L1-1.md` §0). MIT, Copyright (c) 2025 Mario Zechner | 옮기는 함수: `runLoop` 안쪽 반복(163-321), `streamAssistantResponse`(381-476), `failToolCallsFromTruncatedMessage`(478-506), `executeToolCalls*`(508-660), `shouldTerminateToolBatch`(690-692). 바꾸는 점은 `L1.loop.spec` §3.2·§3.3 |
 | `@earendil-works/pi-agent-core` `types.ts` | 설계 참고 | 같은 판 | F `conversation/agent.ts`가 이름과 필드를 따른다(`any` 제거, 닫힌 유니온) |
-| `@earendil-works/pi-agent-core` `agent.ts`, `proxy.ts`, `stream-fn.ts`, `agentLoop`, `agentLoopContinue`, `declareToolChanges`, `runToolCall` | 옮기지 않음 | — | `UPSTREAM.json`의 `notCopied`에 적는다. `declareToolChanges`는 `xeon.models`가 pi-ai 함수로 대신한다 |
+| `@earendil-works/pi-agent-core` `agent.ts`, `proxy.ts`, `stream-fn.ts`, `agentLoop`, `agentLoopContinue`, `declareToolChanges`, `runToolCall` | 옮기지 않음 | — | `UPSTREAM.json`의 `notCopied`에 적는다. `declareToolChanges`는 `fresnel.models`가 pi-ai 함수로 대신한다 |
 | `@earendil-works/pi-ai` | 그대로(npm 정확 고정), core-models 소유 | 1.3.0, bun catalog `"1.3.0"` | core-loop는 import하지 않는다(DR-07) |
 | 루프 단계 정의 | 설계 근거 | durable `docs/spec.md` 3715-3868(phase 표), 3136-3170(재생 시 정책), `docs/design/12-runtime-engine.md` §3.4.3(순서 대조용) | 코드 없음 |
 
@@ -169,7 +169,7 @@ xeon/packages/core-loop/
 | `admit_fires_input_before_enqueue` | `loop.contract.test.ts` | `input` chain이 `handled`면 `input.queued`가 없고, `transform`이면 바뀐 내용이 큐에 들어간다 | M1 |
 | `workspace_has_no_pi_agent_core_dependency` | `loop.contract.test.ts` | core-loop·contracts 소스와 모든 `package.json`에 `@earendil-works/pi-agent-core`가 없다(spec §9-10, adr.0009) | 이행 |
 | `stop_at_safe_boundary_leaves_turn_open` | `checkpoint.fault.test.ts` | T4 뒤 멈추고 `turn.completed`가 없으며 재개 후보에 남는다 | M1 |
-| `thinking_budgets_passed_through` | `loop.contract.test.ts` | `xeon.models`가 준 단계 바인딩의 `thinkingBudgets`와 추론 레벨이 streamFn 요청에 그대로 들어가고 loop가 값을 바꾸지 않는다(LP6) | M2 |
+| `thinking_budgets_passed_through` | `loop.contract.test.ts` | `fresnel.models`가 준 단계 바인딩의 `thinkingBudgets`와 추론 레벨이 streamFn 요청에 그대로 들어가고 loop가 값을 바꾸지 않는다(LP6) | M2 |
 | `user_bash_first_deny_skips_shell` | `user-bash.test.ts` | `input.bash.before`(first)가 거부면 `runUserShell` 호출 0회, 허용이면 1회이고 결과 기록 방식이 `includeInContext`를 따른다(LP12) | M2 |
 | `user_bash_runs_the_command_and_records_it_for_the_model` | `user-bash.test.ts` | `!명령`은 caller main·대화형 맥락으로 `runUserShell`을 한 번 부르고 `custom` item 하나(`core.loop.user_bash`)가 기록된다. `!!`는 item 없이 `includeInContext: false`다 | M2 |
 | `user_bash_replace_and_refusals` | `user-bash.test.ts` | 핸들러의 결과 대체는 실행 0회 `replaced: true`이고 item이 남는다. 도구 쪽이 실행 전에 닫은 명령(`not_executed`)은 `denied`다. 0이 아닌 종료는 `completed`이고 종료 코드·전체 출력 경로가 본문에 든다 | M2 |
@@ -211,7 +211,7 @@ xeon/packages/core-loop/
 - §5의 해당 마일스톤 테스트가 통과한다.
 - M1 스모크(`apps/cli` 시나리오 1개): 모델 테이프로 `xeon chat` 한 턴을 실행하고, 프로세스를 강제 종료한 뒤 재개하면 이벤트가 끊김 없이 이어진다(seq 무간격, 같은 turn의 `turn.completed` 하나). drive 그룹 토글이 단계 경계에서 적용된다(`_research/foundation-plan.md` §6).
 - `cd xeon && just verify` 종료코드 0. 종료코드 2면 코드를 고치지 않고 보고한다.
-- check-layers·dependency-cruiser에서 core-loop가 `@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`, `cordis`, 다른 `@xeon/core-*`를 import하지 않는다(테스트 파일의 `testing` 서브패스 제외, spec §9-10). 워크스페이스 `bun.lock`에 `@earendil-works/pi-agent-core`가 없다.
+- check-layers·dependency-cruiser에서 core-loop가 `@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`, `cordis`, 다른 `@fresnel/core-*`를 import하지 않는다(테스트 파일의 `testing` 서브패스 제외, spec §9-10). 워크스페이스 `bun.lock`에 `@earendil-works/pi-agent-core`가 없다.
 - 이행 완료: `agent-wrapper.ts`, `pi-bridge.ts`가 없고, core-loop 소스에 `as unknown as`와 `typescript/no-unsafe-type-assertion` 예외 주석이 0건이다. `UPSTREAM.json`, `LICENSE.pi`, 출처 주석이 있다.
 - `docs-route --check`가 이 문서와 spec을 해석한다.
 
@@ -222,7 +222,7 @@ xeon/packages/core-loop/
 | 포크 과정에서 원본의 스트림·배치 순서 규칙을 놓친다 | `loop/upstream-parity.test.ts`에 원본 시험 사례를 옮겨 적고, M1 테이프·결정성 시험을 이행 내내 유지한다 |
 | 이행이 core-loop·core-tools·core-models·contracts에 걸쳐 한 번에 커진다 | LP16(F 타입) → LP18(이웃 계약) → LP17·LP19(루프) → LP20·LP21(정리) 순서로 나누고, 각 단계에서 `just verify`를 통과시킨다 |
 | 휘발 이벤트 순서와 내구 커밋 순서가 어긋난다 | `afterSeq` 규칙 테스트(`volatile_after_seq_not_behind_durable`). 래퍼는 같은 turn의 커밋이 끝난 뒤 다음 휘발을 낸다 |
-| typebox 검증이 pi-ai `validateToolArguments`의 정규화(선택 null, `Value.Convert`)와 다르다 | LP18 첫 테스트로 대조하고, 다르면 `xeon.models`가 pi-ai 함수를 감싼 `Result` 메서드를 쓴다(adr.0009 §3.5) |
+| typebox 검증이 pi-ai `validateToolArguments`의 정규화(선택 null, `Value.Convert`)와 다르다 | LP18 첫 테스트로 대조하고, 다르면 `fresnel.models`가 pi-ai 함수를 감싼 `Result` 메서드를 쓴다(adr.0009 §3.5) |
 | 재개 때 컨텍스트 재구성이 결정적이지 않으면 요청이 달라진다 | 녹화 테이프 `context-hash` 모드(TS-04)로 재개 테스트를 돌린다. 불일치는 L1.context의 버그로 다룬다 |
 | T3 체크포인트(FR-L3)를 F가 받지 않는다 | `tools` 재진입을 "T3의 assistant item과 효과 이벤트에서 도출"하는 방식으로 바꾼다. 체크포인트 없이도 같은 정보가 이벤트에 있다 |
 | 유휴 입력의 두 커밋(`input.queued`, T1) 사이 끊김 | 입력이 queued로 남아 다음 시작에서 배치된다. `resume.int.test.ts`에 그 지점 끊김을 넣는다 |

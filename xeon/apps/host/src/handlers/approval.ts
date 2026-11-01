@@ -1,5 +1,5 @@
-import { assertNever } from "@xeon/contracts";
-import type { WireError, WireHandler } from "@xeon/contracts/wire";
+import { assertNever } from "@fresnel/contracts";
+import type { WireError, WireHandler } from "@fresnel/contracts/wire";
 import { wireErrorOfStore } from "../store-error.ts";
 import type { ApprovalListFailure, Engine } from "../types.ts";
 import { threadLocked } from "./owner.ts";

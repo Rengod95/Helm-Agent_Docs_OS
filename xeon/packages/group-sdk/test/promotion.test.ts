@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import { ToolsPortKey } from "@xeon/contracts/extensions";
-import type { DurableEventDraft } from "@xeon/contracts/records";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
+import { err, ok } from "@fresnel/contracts";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import { ToolsPortKey } from "@fresnel/contracts/extensions";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
+import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import {
   buildPromotionReport,

@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { WorkspaceShell, WorkspaceShellKey, type CallOptions } from "@xeon/contracts/capabilities";
-import { fakeRunContext, fakeSession, realTools, sequentialIds } from "@xeon/core-tools/testing";
+import {
+  WorkspaceShell,
+  WorkspaceShellKey,
+  type CallOptions,
+} from "@fresnel/contracts/capabilities";
+import { fakeRunContext, fakeSession, realTools, sequentialIds } from "@fresnel/core-tools/testing";
 import { createShellApi } from "../src/shell/run.ts";
 import { depsFor, fakeSandbox } from "./support/fakes.ts";
 import { memoryEnv } from "./support/memory-env.ts";

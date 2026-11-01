@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { AGENTS_SETTING_DEFS, JUDGE_MAX_RUNS_DEFAULT } from "@xeon/core-agents";
+import { AGENTS_SETTING_DEFS, JUDGE_MAX_RUNS_DEFAULT } from "@fresnel/core-agents";
 import {
   defineSettings,
   resolveSetting,
@@ -7,7 +7,7 @@ import {
   type SettingDef,
   type SettingDefInput,
   type SettingGroup,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 
 // L2.work.spec §6.1. 키 다섯 개를 한 번에 선언한다. 이 마일스톤(WK.1)이 읽는 것은 tasks.* 둘이고,
 // plans.*는 WK.2·WK.3, goal.*는 M3(T9~T11)가 읽는다. 상한과 판정 역할은 l1.agents.judge.maxRuns,

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ExposureMode } from "@xeon/contracts/services";
+import type { ExposureMode } from "@fresnel/contracts/services";
 import {
   createHarness,
   directTool,

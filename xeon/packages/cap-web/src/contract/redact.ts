@@ -4,7 +4,7 @@ import type {
   WebSearchAnswer,
   WebSearchOutput,
   WebSearchResult,
-} from "@xeon/contracts/capabilities";
+} from "@fresnel/contracts/capabilities";
 
 // L2.web.spec §4.3.4. `Source.usage.cache = "none"`인 Source의 발췌·본문은 세션 이벤트에 영속화하지 않는다.
 // 모델은 이번 호출의 결과를 그대로 받고, 저장하는 사본만 이 함수로 비운다. URL, 제목, 출처 정보는 남긴다.

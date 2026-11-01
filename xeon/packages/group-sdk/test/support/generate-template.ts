@@ -2,7 +2,7 @@ import { existsSync, readdirSync, rmSync } from "node:fs";
 import { mkdir, symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { attempt, attemptAsync, err, ok, parse, parseJson, type Result } from "@xeon/contracts";
+import { attempt, attemptAsync, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import {
   checkGroupName,
   TEMPLATE_PLACEHOLDERS,
@@ -18,20 +18,20 @@ import {
 
 export const TEMPLATES_DIR: string = fileURLToPath(new URL("../../templates/", import.meta.url));
 
-/** 생성 시험이 만드는 디렉터리의 뿌리. 패키지 안에 둬서 워크스페이스 해석(@xeon/*)이 그대로 된다. 시험이 끝나면 지운다 */
+/** 생성 시험이 만드는 디렉터리의 뿌리. 패키지 안에 둬서 워크스페이스 해석(@fresnel/*)이 그대로 된다. 시험이 끝나면 지운다 */
 export const GENERATED_ROOT: string = fileURLToPath(new URL("../.generated/", import.meta.url));
 
-/** 이 패키지(@xeon/group-sdk)의 디렉터리. 생성 그룹은 자기 패키지를 이름으로 import하므로 링크가 필요하다 */
+/** 이 패키지(@fresnel/group-sdk)의 디렉터리. 생성 그룹은 자기 패키지를 이름으로 import하므로 링크가 필요하다 */
 const GROUP_SDK_DIR: string = fileURLToPath(new URL("../../", import.meta.url));
 
 /**
- * 생성 루트 아래 node_modules/@xeon/group-sdk을 이 패키지로 잇는다. 워크스페이스 설치가 하는 일의 시험용 흉내다.
- * 나머지 @xeon/* 패키지와 typebox는 이 패키지의 node_modules에서 이미 해석된다.
+ * 생성 루트 아래 node_modules/@fresnel/group-sdk을 이 패키지로 잇는다. 워크스페이스 설치가 하는 일의 시험용 흉내다.
+ * 나머지 @fresnel/* 패키지와 typebox는 이 패키지의 node_modules에서 이미 해석된다.
  */
 export async function linkGroupSdk(root: string): Promise<Result<void, GenerateError>> {
   const linked = await attemptAsync(async () => {
-    await mkdir(join(root, "node_modules", "@xeon"), { recursive: true });
-    await symlink(GROUP_SDK_DIR, join(root, "node_modules", "@xeon", "group-sdk"), "dir");
+    await mkdir(join(root, "node_modules", "@fresnel"), { recursive: true });
+    await symlink(GROUP_SDK_DIR, join(root, "node_modules", "@fresnel", "group-sdk"), "dir");
   });
   if (!linked.ok) return err({ kind: "io", cause: linked.error.cause });
   return ok(undefined);
@@ -42,7 +42,7 @@ export async function linkGroupSdk(root: string): Promise<Result<void, GenerateE
  * 이 함수는 패키지 원본을 지우지 않는다.
  */
 export function removeGenerated(root: string): void {
-  rmSync(join(root, "node_modules", "@xeon", "group-sdk"), { force: true });
+  rmSync(join(root, "node_modules", "@fresnel", "group-sdk"), { force: true });
   rmSync(root, { recursive: true, force: true });
 }
 

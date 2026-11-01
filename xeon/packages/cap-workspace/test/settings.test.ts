@@ -4,7 +4,7 @@ import {
   checkSettingDef,
   type ScopeLayer,
   type ScopeStack,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { createFilesApi } from "../src/service.ts";
 import {
   DEFAULT_WORKSPACE_SETTINGS,

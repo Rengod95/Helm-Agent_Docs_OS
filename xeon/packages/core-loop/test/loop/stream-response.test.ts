@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { ItemRecordedPayloadSchema } from "@xeon/contracts/records";
+import { parse } from "@fresnel/contracts";
+import { ItemRecordedPayloadSchema } from "@fresnel/contracts/records";
 import { createHarness } from "../support/harness.ts";
 import { countKind } from "../support/inspect.ts";
 import { createRecorder } from "../support/recorder.ts";

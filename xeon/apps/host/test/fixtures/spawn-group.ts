@@ -3,10 +3,10 @@ import {
   LoopPortKey,
   type LoopPort,
   type SpawnOutcome,
-} from "@xeon/contracts/extensions";
+} from "@fresnel/contracts/extensions";
 import { Type, type Static } from "typebox";
-import { hostOf } from "@xeon/ext-host";
-import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
+import { hostOf } from "@fresnel/ext-host";
+import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { realTapeClock } from "./tape-host.ts";
 import type { AssembleOptions, HostPluginModule } from "../../src/types.ts";
 
@@ -126,7 +126,7 @@ export function spawnGroup(count: number): {
   };
 }
 
-/** 시험이 실제 엔진의 `xeon.loop` 포트를 직접 부르려고 붙잡는 확장 */
+/** 시험이 실제 엔진의 `fresnel.loop` 포트를 직접 부르려고 붙잡는 확장 */
 export function loopPortProbe(captured: { port: LoopPort | undefined }): HostPluginModule {
   return {
     manifest: defineManifest({
@@ -134,7 +134,7 @@ export function loopPortProbe(captured: { port: LoopPort | undefined }): HostPlu
       name: "loop-port-probe",
       version: "0.1.0",
       displayName: "Loop port probe",
-      description: "Captures xeon.loop for a test.",
+      description: "Captures fresnel.loop for a test.",
       defaultEnabled: true,
       layer: "plugin",
       kind: "plugin",

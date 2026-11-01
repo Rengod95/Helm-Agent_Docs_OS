@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, type Scheduler } from "@xeon/contracts";
+import { Bug, type Scheduler } from "@fresnel/contracts";
 import { renderToString } from "react-dom/server";
 import { decodeDurable, decodeVolatile } from "../../src/state/engine/decode.ts";
 import { SETTLED_CAP, type EngineMirror } from "../../src/state/engine/state.ts";

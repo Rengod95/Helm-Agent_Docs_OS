@@ -1,12 +1,12 @@
-import { parse } from "@xeon/contracts";
-import type { EventId, StepId, ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { BoundaryValue } from "@xeon/contracts/extensions";
+import { parse } from "@fresnel/contracts";
+import type { EventId, StepId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { BoundaryValue } from "@fresnel/contracts/extensions";
 import {
   checkEnvelopeSize,
   parseEventKind,
   type CatalogEntry,
   type DurableEventDraft,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 // L1.loop.spec §3.6 boundary 최종 검증. 순수 함수다.
 

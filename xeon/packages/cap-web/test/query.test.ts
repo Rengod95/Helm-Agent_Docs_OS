@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ProviderSearchItem } from "@xeon/contracts/capabilities";
+import type { ProviderSearchItem } from "@fresnel/contracts/capabilities";
 import {
   applyPostFilters,
   mergeFilters,

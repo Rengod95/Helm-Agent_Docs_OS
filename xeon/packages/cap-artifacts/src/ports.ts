@@ -1,7 +1,7 @@
-import type { Result } from "@xeon/contracts";
-import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { EnqueueError, PostItem, PostWhen } from "@xeon/contracts/extensions";
-import type { GuardExecutionOutcome, LoopError } from "@xeon/contracts/services";
+import type { Result } from "@fresnel/contracts";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { EnqueueError, PostItem, PostWhen } from "@fresnel/contracts/extensions";
+import type { GuardExecutionOutcome, LoopError } from "@fresnel/contracts/services";
 
 // L2.artifacts.spec §3.8. 리뷰가 쓰는 하위 서비스의 좁은 모양. 플러그인이 실제 포트와 능력에서 만들고, 시험은 직접 넘긴다.
 
@@ -26,7 +26,7 @@ export interface ReviewFilesPort {
   }): Promise<Result<void, ReplaceFailure>>;
 }
 
-/** 출력을 실행에 넘기기 전의 가드(`xeon.loop`의 `guardExecution`) */
+/** 출력을 실행에 넘기기 전의 가드(`fresnel.loop`의 `guardExecution`) */
 export interface ExecutionGuardPort {
   check(input: {
     readonly threadId: ThreadId;
@@ -37,7 +37,7 @@ export interface ExecutionGuardPort {
   }): Promise<Result<GuardExecutionOutcome, LoopError>>;
 }
 
-/** 에이전트 입력 큐(`xeon.tasks`). 조립 루트가 이 확장의 scopeId를 묶어 넘긴다 */
+/** 에이전트 입력 큐(`fresnel.tasks`). 조립 루트가 이 확장의 scopeId를 묶어 넘긴다 */
 export interface ReviewQueuePort {
   enqueue(input: {
     readonly threadId: ThreadId;

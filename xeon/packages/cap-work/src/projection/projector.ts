@@ -1,5 +1,5 @@
-import { Bug, parse, parseJson } from "@xeon/contracts";
-import { GoalSchema, type Goal } from "@xeon/contracts/capabilities";
+import { Bug, parse, parseJson } from "@fresnel/contracts";
+import { GoalSchema, type Goal } from "@fresnel/contracts/capabilities";
 import type { TSchema, Static } from "typebox";
 import {
   ApprovalRequestedPayloadSchema,
@@ -18,7 +18,7 @@ import {
   type EventKind,
   type ProjectionTx,
   type Projector,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 import { outcomeOf } from "../plans/decision.ts";
 import { PERMISSION_MODE_KEY, PLAN_REF_PATTERN } from "../plans/refs.ts";
 import {

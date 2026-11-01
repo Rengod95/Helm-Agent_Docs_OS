@@ -1,11 +1,11 @@
-import { t } from "@xeon/client/i18n";
-import { assertNever, parse } from "@xeon/contracts";
+import { t } from "@fresnel/client/i18n";
+import { assertNever, parse } from "@fresnel/contracts";
 import {
   TurnCompletedPayloadSchema,
   type ImageContent,
   type ItemRecord,
   type TextContent,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   type ApprovalRequestedPayload,
@@ -13,8 +13,8 @@ import {
   EffectIntentSchema,
   ItemRecordedPayloadSchema,
   SettingsChangedPayloadSchema,
-} from "@xeon/contracts/records";
-import type { EventWire } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/records";
+import type { EventWire } from "@fresnel/contracts/wire";
 import type { ApprovalView, RenderOp, ToolCallView, ToolResultView } from "./ops.ts";
 import { resultLines } from "./tools.ts";
 

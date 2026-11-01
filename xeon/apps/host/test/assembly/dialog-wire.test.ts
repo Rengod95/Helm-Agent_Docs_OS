@@ -6,10 +6,10 @@ import {
   type Notice,
   type StatusItem,
   type StatusListOutputValue,
-} from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
-import type { WireParams } from "@xeon/contracts/wire";
+} from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import type { WireParams } from "@fresnel/contracts/wire";
 import { createDialogWirePort } from "../../src/assembly/dialog-wire.ts";
 import type {
   AttachmentsApi,

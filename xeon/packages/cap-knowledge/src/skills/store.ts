@@ -2,9 +2,9 @@ import {
   SkillScopeSchema,
   type SkillCreatedBy,
   type SkillScope,
-} from "@xeon/contracts/capabilities";
-import { parse } from "@xeon/contracts";
-import type { SqlRow, SqlTx } from "@xeon/contracts/records";
+} from "@fresnel/contracts/capabilities";
+import { parse } from "@fresnel/contracts";
+import type { SqlRow, SqlTx } from "@fresnel/contracts/records";
 import { intCell, textCell } from "../ledger/rows.ts";
 
 // cap_knowledge_skills(스킬 색인)와 cap_knowledge_files(마지막으로 확인한 내용 해시)의 입출력.

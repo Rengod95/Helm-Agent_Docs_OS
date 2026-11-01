@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
-import { WireError } from "@xeon/contracts/wire";
-import type { BinaryCheckReport } from "@xeon/platform-os";
+import { err, ok } from "@fresnel/contracts";
+import { WireError } from "@fresnel/contracts/wire";
+import type { BinaryCheckReport } from "@fresnel/platform-os";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 

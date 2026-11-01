@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { ScopeHandlerFailedPayload } from "@xeon/contracts/records";
-import type { NotifyDeliveredParams, StreamChunkParams } from "@xeon/contracts/wire";
+import type { ScopeHandlerFailedPayload } from "@fresnel/contracts/records";
+import type { NotifyDeliveredParams, StreamChunkParams } from "@fresnel/contracts/wire";
 import {
   deliveredOpsOf,
   deliveredText,

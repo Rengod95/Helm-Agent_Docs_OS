@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
-import { defineManifest, LeaseArbiterPortKey } from "@xeon/contracts/extensions";
-import { withDriveDefaults } from "@xeon/ext-host";
-import { createTestHost } from "@xeon/ext-host/testing";
-import { createGroupService, defineGroup, type GroupModule } from "@xeon/group-sdk";
-import { groupCatalogOf, memoryDriveHolderSettings } from "@xeon/group-sdk/testing";
+import { parse } from "@fresnel/contracts";
+import { defineManifest, LeaseArbiterPortKey } from "@fresnel/contracts/extensions";
+import { withDriveDefaults } from "@fresnel/ext-host";
+import { createTestHost } from "@fresnel/ext-host/testing";
+import { createGroupService, defineGroup, type GroupModule } from "@fresnel/group-sdk";
+import { groupCatalogOf, memoryDriveHolderSettings } from "@fresnel/group-sdk/testing";
 import { Type } from "typebox";
 import { helmGroup } from "../../src/index.ts";
 import { HelmStateSchema, type HelmState } from "../../src/state.ts";

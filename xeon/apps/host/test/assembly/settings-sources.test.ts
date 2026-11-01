@@ -1,9 +1,9 @@
 import { afterAll, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug } from "@fresnel/contracts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { createSettingsEngine, type SettingsEngine } from "../../src/assembly/settings-engine.ts";
 import {

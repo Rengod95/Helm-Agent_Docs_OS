@@ -1,7 +1,7 @@
-import type { SecretHandle, SecretMeta, SecretName } from "@xeon/contracts/capabilities";
-import { resolveSetting } from "@xeon/contracts/settings";
-import type { SecretAdminService } from "@xeon/contracts/services";
-import { withDefaultSopsFile, type SecretsConfig } from "@xeon/platform-secrets";
+import type { SecretHandle, SecretMeta, SecretName } from "@fresnel/contracts/capabilities";
+import { resolveSetting } from "@fresnel/contracts/settings";
+import type { SecretAdminService } from "@fresnel/contracts/services";
+import { withDefaultSopsFile, type SecretsConfig } from "@fresnel/platform-secrets";
 import { createSecretOfferStore } from "../secrets/offers.ts";
 import type { ProviderLinker } from "../secrets/provider-link.ts";
 import type { SecretsPort } from "../types.ts";

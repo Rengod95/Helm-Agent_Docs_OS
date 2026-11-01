@@ -3,7 +3,7 @@ import type {
   AgentMessage,
   AssistantMessage,
   AssistantMessageEvent,
-} from "@xeon/contracts/conversation";
+} from "@fresnel/contracts/conversation";
 import {
   dispatchKey,
   emitNotifications,

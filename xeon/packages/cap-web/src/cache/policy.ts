@@ -1,4 +1,4 @@
-import type { CacheUsage, WebProviderManifest } from "@xeon/contracts/capabilities";
+import type { CacheUsage, WebProviderManifest } from "@fresnel/contracts/capabilities";
 
 // L2.web.spec §4.3.2. 앞단은 매니페스트의 cachePolicy만 본다. 약관 검토일(`termsFlags.reviewedAt`)이 없는 `persist`는 `session`으로 낮춘다.
 

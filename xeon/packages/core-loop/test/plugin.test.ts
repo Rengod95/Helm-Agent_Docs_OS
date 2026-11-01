@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { Bug, err } from "@xeon/contracts";
-import { LoopPortKey, type PortKey } from "@xeon/contracts/extensions";
-import { EVENT_CATALOG, SessionServiceName, type SessionService } from "@xeon/contracts/records";
+import { Bug, err } from "@fresnel/contracts";
+import { LoopPortKey, type PortKey } from "@fresnel/contracts/extensions";
+import { EVENT_CATALOG, SessionServiceName, type SessionService } from "@fresnel/contracts/records";
 import {
   ContextServiceName,
   LoopServiceName,
@@ -15,8 +15,8 @@ import {
   type OsService,
   type TaskService,
   type ToolService,
-} from "@xeon/contracts/services";
-import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
+} from "@fresnel/contracts/services";
+import { createTestHost, fixedIdFactory } from "@fresnel/ext-host/testing";
 import { LOOP_MANIFEST, loopExtensionUnit } from "../src/index.ts";
 import { manualClock } from "./support/clock.ts";
 import { createFakeContext } from "./support/fake-context.ts";

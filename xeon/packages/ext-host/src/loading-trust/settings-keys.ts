@@ -1,11 +1,11 @@
-import type { ExtensionManifest } from "@xeon/contracts/extensions";
+import type { ExtensionManifest } from "@fresnel/contracts/extensions";
 import {
   defineSettings,
   type SettingDef,
   type SettingDefInput,
   type SettingGroup,
   type SettingNamespace,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { Type } from "typebox";
 import type { InstallSource } from "./trust/levels.ts";
 

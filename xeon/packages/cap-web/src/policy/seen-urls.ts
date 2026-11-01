@@ -1,5 +1,5 @@
-import { attempt, err, ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import { attempt, err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WebSessionSourcesPort } from "../ports/session-sources.ts";
 
 // L2.web.spec §4.6.6. "대화에 나온 URL" 집합: 웹 능력이 돌려준 URL(검색 결과, fetch의 links, 리다이렉트 to)과

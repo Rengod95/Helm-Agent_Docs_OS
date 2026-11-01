@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import type { LeaseHolder } from "@xeon/contracts/records";
+import type { LeaseHolder } from "@fresnel/contracts/records";
 import * as entry from "../src/index.ts";
 import {
   NO_STORE_FAULTS,

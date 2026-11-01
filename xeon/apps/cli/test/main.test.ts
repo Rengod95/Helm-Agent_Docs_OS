@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
-import type { HostCommand } from "@xeon/host";
+import { WIRE_PROTOCOL_VERSION } from "@fresnel/contracts/wire";
+import type { HostCommand } from "@fresnel/host";
 import { EXIT } from "../src/exit-codes.ts";
 import { assistantItem, turnCompleted } from "./support/events.ts";
 import type { TurnContext } from "./support/fake-server.ts";

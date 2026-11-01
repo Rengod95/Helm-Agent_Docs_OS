@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { assertNever, attempt, type Logger } from "@xeon/contracts";
+import { assertNever, attempt, type Logger } from "@fresnel/contracts";
 import type {
   ReauthMethod,
   RedactionHit,
@@ -8,8 +8,8 @@ import type {
   SecretDenyReason,
   SecretHandle,
   InjectionMode,
-} from "@xeon/contracts/capabilities";
-import type { ApprovalEvidence, UseCtx } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { ApprovalEvidence, UseCtx } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §3.9. 어느 레코드에도 값, 값의 일부, 값의 해시를 싣지 않는다.
 // 이 패키지는 레코드를 만들어 onAudit 수신자에게 배포하고 감사 파일(audit-file.ts)에 쓴다.

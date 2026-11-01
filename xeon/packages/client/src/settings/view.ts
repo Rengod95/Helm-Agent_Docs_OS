@@ -1,4 +1,4 @@
-import { parse } from "@xeon/contracts";
+import { parse } from "@fresnel/contracts";
 import {
   SecretRef,
   SettingsTabSchema,
@@ -9,7 +9,7 @@ import {
   type SettingSource,
   type SettingUi,
   type SettingsTab,
-} from "@xeon/contracts/settings";
+} from "@fresnel/contracts/settings";
 import { t, tKey } from "../i18n/index.ts";
 import {
   deprecatedInfo,

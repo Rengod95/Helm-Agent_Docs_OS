@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { EventId, ThreadId, TurnId } from "@xeon/contracts/conversation";
-import type { CommitPlan, StepCheckpointInput } from "@xeon/contracts/records";
+import type { EventId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { CommitPlan, StepCheckpointInput } from "@fresnel/contracts/records";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {
   checkpointInput,

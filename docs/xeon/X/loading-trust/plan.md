@@ -10,7 +10,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 
 # X 로딩과 신뢰 구현 계획
 
-대상 스펙: X.loading-trust.spec. 패키지: `@xeon/ext-host`(층 X), 디렉터리 `src/loading-trust/`. 테스트는 `xeon/packages/ext-host/test/loading-trust/`에 둔다(`xeon/AGENTS.md` "테스트는 패키지의 `test/*.test.ts`").
+대상 스펙: X.loading-trust.spec. 패키지: `@fresnel/ext-host`(층 X), 디렉터리 `src/loading-trust/`. 테스트는 `xeon/packages/ext-host/test/loading-trust/`에 둔다(`xeon/AGENTS.md` "테스트는 패키지의 `test/*.test.ts`").
 
 ## 1. 목표와 마일스톤 배치
 
@@ -73,7 +73,7 @@ xeon/packages/ext-host/
 
 - import 방향(파일 사이): `trust/levels` ← `load-order` ← `pipeline` ← `index`. `discover`, `entry-loader`, `settings-keys`, `trust/*`는 `pipeline`이 부른다. `isolation/*`와 `pi-adapter/*`는 `entry-loader`의 다른 실행 경로로 꽂히고 `pipeline`을 import하지 않는다(순환 방지, DR-06).
 - `src/loading-trust/` 밖(같은 패키지의 `src/primitives/`, `src/operations/`)은 이 계획의 binds 밖이다. `ExtHost`, 디스패처, 리소스 등록 API는 X.primitives.plan이, `OperationsPolicy`와 `ExtStorageAdmin`은 X.operations.plan이 만든 것을 타입으로 import한다(`import type`).
-- `src/loading-trust/`는 `@xeon/vendor-cordis`를 import하지 않는다. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이다(X.primitives.plan §2).
+- `src/loading-trust/`는 `@fresnel/vendor-cordis`를 import하지 않는다. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이다(X.primitives.plan §2).
 
 ## 3. 작업 분해
 
@@ -190,7 +190,7 @@ xeon/packages/ext-host/
 | `remove.test.ts` | `remove previews then drops` | `previewRemoval`은 변화 없음, `remove`는 `uninstall` → `forget` → `dropExtension(true)` 순서, `dropTables: false`면 테이블 남음, 내장 확장 제거 거부 | §9-21 |
 | `pipeline.test.ts`(시작 옵션) | `safe mode and disable flag skip entry` | `startup.disabled`의 외부 확장은 import 0회, 내장 확장은 install 0회, 진단 `disabled_flag`·`safe_mode` | §9-22 |
 | `trust-resources.test.ts` | `bare dir needs no trust` | 빈 `.fresnel`은 판정 불필요, `.fresnel/extensions/` 있으면 필요, 홈의 `.agents/skills`는 제외 | §4.7.2 |
-| `external-loader.int.test.ts` | `a user extension loads and its on handler fires` | 임시 사용자 디렉터리의 플러그인이 `user` 등급으로 로드되고 핸들러가 호출된다. `@xeon/contracts`·`typebox`·`@xeon/group-sdk`은 호스트와 같은 값이다 | §9-17 |
+| `external-loader.int.test.ts` | `a user extension loads and its on handler fires` | 임시 사용자 디렉터리의 플러그인이 `user` 등급으로 로드되고 핸들러가 호출된다. `@fresnel/contracts`·`typebox`·`@fresnel/group-sdk`은 호스트와 같은 값이다 | §9-17 |
 | | `safe mode skips user extensions` | 안전 모드에서 사용자 확장은 import되지 않고 `disabled`(`safe_mode`)다. L3 내장은 빠지고 L1·L2 내장은 남는다. 프로젝트는 탐색하지 않는다 | §9-23 |
 | | `bad manifests give diagnostics` | JSON 아님, 스키마 위반, 파일 없음이 진단만 남기고 다른 확장은 로드된다 | §9-24 |
 | | `entry failures reject only that extension` | 없는 엔트리, 함수 없음, import 중 예외, 루트 밖 심볼릭 링크 | §9-16 |
@@ -221,7 +221,7 @@ xeon/packages/ext-host/
 
 1. 위 단위 테스트 중 해당 마일스톤 몫과 통합 테스트 1개가 `bun test`로 통과한다(M2 완료 시 전부).
 2. X.loading-trust.spec §9 수용 기준 1~22가 §5 표의 테스트로 모두 확인된다.
-3. `just check-layers`와 `just depcruise`가 통과한다. `src/loading-trust/**`에서 `@xeon/platform-*`, `@xeon/core-*`, `@xeon/cap-*`, `@xeon/group-*`, `@earendil-works/*` import가 0건이다(X→L0 이상 import 없음). `node:child_process`, `Bun.spawn` 사용이 0건이다(DR-07). `@xeon/vendor-cordis` import도 0건이다(X.primitives.plan §6 4번).
+3. `just check-layers`와 `just depcruise`가 통과한다. `src/loading-trust/**`에서 `@fresnel/platform-*`, `@fresnel/core-*`, `@fresnel/cap-*`, `@fresnel/group-*`, `@earendil-works/*` import가 0건이다(X→L0 이상 import 없음). `node:child_process`, `Bun.spawn` 사용이 0건이다(DR-07). `@fresnel/vendor-cordis` import도 0건이다(X.primitives.plan §6 4번).
 4. 문서 대조: 스펙 §4.6.2 신뢰 등급 표와 `TRUST_MATRIX`, 스펙 §4.10.4 지원 표와 `PI_COMPAT_TABLE`이 `docs-consistency.test.ts`에서 차이 0건이다.
 5. `just verify`가 종료코드 0이다(oxfmt, oxlint type-aware, `tsc -b`, knip 포함). default export와 `any`가 없다.
 6. 포크 파일 2개(`trust/store.ts`·`trust/resources.ts`의 trust-manager 부분, `trust/resolve.ts`) 머리에 원본 경로, 커밋, MIT 표기가 있다.
@@ -238,7 +238,7 @@ xeon/packages/ext-host/
 | pi `trust-manager.ts`의 설정·잠금 결합이 예상보다 깊다 | 포크가 커지고 pi 갱신을 따라가기 어렵다 | 결합 지점은 import 8줄(proper-lockfile, config, utils 2개, runner, types, settings 2개)로 확인했다(스펙 §4.7.1). 포크는 공개 함수 단위로 옮기고, 동작 비교 테스트(`trust-store`, `trust-resolve`)를 pi 동작 기준으로 먼저 쓴다. 결합이 더 나오면 해당 함수는 포크하지 않고 새로 쓴다 |
 | Bun에서 TS 엔트리 동적 import와 캐시 무효화(핫 리로드) | 컴파일 바이너리에서 외부 확장을 못 불러오거나 리로드가 이전 모듈을 쓴다 | L-01 스파이크를 M0 첫 작업으로 둔다. A안 불가면 B안(jiti)으로 바꾼다. 핫 리로드는 개발용(M2 이후)으로 한정하고, 실패하면 "호스트 재시작" 안내로 대체한다. 격리 확장은 프로세스 재시작이라 영향이 없다 |
 | JSON 직렬화가 안 되는 페이로드가 지점에 있다 | 격리 확장이 일부 지점을 쓸 수 없거나 직렬화 오류가 실행 중에 난다 | `isolatableHooks()`를 `HOOKS` 스키마에서 계산해 로드 시점(격리 확장 검사)에 거부한다. 고빈도 휘발 지점 3개는 고정 제외. F.extensions.plan M2의 페이로드 정확화 때 목록을 다시 계산하는 테스트를 둔다 |
-| 격리 프로세스 수명이 서비스 모드와 충돌 | 유휴 종료가 자식 프로세스를 남기거나, 자식이 남아 있어 유휴 판정이 계속 거짓이 된다 | 자식 기동·종료는 platform-process 서비스로만 한다. `dispose`는 `xeon/iso.dispose` → 유예 → `SIGKILL` 순서를 지킨다. 격리 자식은 유휴 판정의 live 작업으로 세지 않는다 [제안]. adr.0006 §3.7 체크리스트 작업자와 판정 규칙을 맞춘다 |
+| 격리 프로세스 수명이 서비스 모드와 충돌 | 유휴 종료가 자식 프로세스를 남기거나, 자식이 남아 있어 유휴 판정이 계속 거짓이 된다 | 자식 기동·종료는 platform-process 서비스로만 한다. `dispose`는 `fresnel/iso.dispose` → 유예 → `SIGKILL` 순서를 지킨다. 격리 자식은 유휴 판정의 live 작업으로 세지 않는다 [제안]. adr.0006 §3.7 체크리스트 작업자와 판정 규칙을 맞춘다 |
 | `Bun.plugin` 가상 모듈이 프로세스 전역이다 | 같은 지정자에 다른 객체를 등록하면 먼저 import한 모듈과 어긋난다 | `registerSdkModules`가 같은 객체의 재등록만 허용하고 다른 객체는 `conflict`로 거부한다. 호스트가 넘긴 객체가 호스트가 쓰는 모듈이므로 인스턴스가 같다. Bun 1.4.3에서 확인했다(스펙 §4.4.1) |
 | X.primitives의 `ExtHost.install`(P-13)이나 X.operations의 `admit`(O-03)이 늦는다 | M0의 L-06, L-07이 막힌다 | 스펙 §4.4.3 표를 기준으로 가짜 `ExtHost`·가짜 정책으로 구현을 끝낸다. 연결은 두 산출물이 나온 뒤 한다 |
 | 프로젝트 설정 적용 제외 규칙(스펙 §4.7.4)을 L1.persistence가 구현하지 않는다 | 신뢰 전 프로젝트 `ext.*` 값이 적용되어 확장이 켜지거나 꺼진다 | 로더가 유효 값을 읽을 때 프로젝트·로컬 범위를 빼는 필터를 자기 쪽에도 둔다(이중 방어). 통합 테스트에 프로젝트 설정 파일을 넣어 확인한다 |
@@ -251,5 +251,5 @@ xeon/packages/ext-host/
 | L-16 | 완료 | `trust/resources.ts` 포크: `TRUST_REQUIRING_PROJECT_RESOURCES`(스펙 §4.7.2 표와 대조 시험), `findTrustRequiringResources`(상위 `.agents/skills`는 상대 경로, 홈 제외, 존재만 확인). L-13(외부 탐색)에는 의존하지 않고 `LoaderFs`만 쓴다. `trust-resources.test.ts` |
 | L-17 | 완료 | `trust/resolve.ts` 포크: 판정 순서 1~8, `thread.trust.before` 발화(발화가 던지면 불신), `sessionMemory`, 비대화형 불신, 손상 저장소 무프롬프트, 프롬프트 결과 저장, 저장 실패는 `storeError`. `trust-resolve.test.ts` |
 | 포크 기록 | 완료 | `LICENSE.pi`, `UPSTREAM.json`, `PATCHES.md`, 소스의 `// FRESNEL-PATCH` 표지가 일치한다(`fork-records.test.ts`) |
-| L-18 | 보류 | 시작 순서 통합(신뢰 판정 뒤 프로젝트 탐색, `thread.resources`)은 결정 D9(X.5)에 따라 M3다. M2에서 MCP·프로젝트 스킬은 `resolveProjectTrust`와 `findTrustRequiringResources`를 직접 부른다(`@xeon/ext-host` 공개 이름) |
+| L-18 | 보류 | 시작 순서 통합(신뢰 판정 뒤 프로젝트 탐색, `thread.resources`)은 결정 D9(X.5)에 따라 M3다. M2에서 MCP·프로젝트 스킬은 `resolveProjectTrust`와 `findTrustRequiringResources`를 직접 부른다(`@fresnel/ext-host` 공개 이름) |
 | `project-trust.int.test.ts` | 보류 | 통합 시험은 L-18과 함께 한다 |

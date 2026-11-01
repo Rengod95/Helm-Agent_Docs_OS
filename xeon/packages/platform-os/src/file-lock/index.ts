@@ -9,7 +9,7 @@ import {
   type Logger,
   type Result,
   type Scheduler,
-} from "@xeon/contracts";
+} from "@fresnel/contracts";
 import type { FlockPrimitive } from "./flock.ts";
 
 // L0.os.spec §3.11. 프로세스 사이 파일 잠금. `trust.json`처럼 둘 이상의 호스트가 읽고 고쳐 쓰는 사용자 파일의 덮어쓰기를 막는다.

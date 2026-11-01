@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
-import type { Logger } from "@xeon/contracts";
-import type { CommandActionHandler, CommandActionRegistry } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ResourceRecord, ResourceRegistry } from "@xeon/ext-host";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import type { Logger } from "@fresnel/contracts";
+import type { CommandActionHandler, CommandActionRegistry } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ResourceRecord, ResourceRegistry } from "@fresnel/ext-host";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { bridgeExtensionCommands } from "../../src/assembly/extension-commands.ts";
 import type { CommandRegistryHolder } from "../../src/assembly/l2-units.ts";
 

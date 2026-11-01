@@ -1,29 +1,29 @@
 #!/usr/bin/env bun
 // TypeScript rule scan (engineering/typescript guide 3.2). Rules that oxlint and tsc do not cover.
 // Prints one line per violation:
-//   <file>:<line> <xeon/rule> <message>
+//   <file>:<line> <fresnel/rule> <message>
 // Exit codes: 0 pass, 1 violations, 2 tool error (unreadable source tree).
 // Rules:
-//   xeon/as-location      an assertion exception comment (consistent-type-assertions, no-unsafe-type-assertion) sits outside
+//   fresnel/as-location      an assertion exception comment (consistent-type-assertions, no-unsafe-type-assertion) sits outside
 //                         the TY-06 allowlist or does not name its row (A1..A6)
-//   xeon/bug-for-expected `new Bug(...)` message names an expected failure (io, busy, disk_full, read_only, timeout, cancelled,
+//   fresnel/bug-for-expected `new Bug(...)` message names an expected failure (io, busy, disk_full, read_only, timeout, cancelled,
 //                         not_found, corrupt, ownership_lost, lease_lost, row_invalid, row_corrupt, read_failed, commit_failed,
 //                         name_conflict, setup_failed) or interpolates a Result error (`${x.error.kind}`), or sits directly
 //                         under `if (!x.ok)` in non-test code: a Result failure converted to a Bug (TY-24)
-//   xeon/type-unsafe     `Type.Unsafe` call outside the TY-26 allowlist: not wrapping `Type.String(...)` (brand), not wrapping
+//   fresnel/type-unsafe     `Type.Unsafe` call outside the TY-26 allowlist: not wrapping `Type.String(...)` (brand), not wrapping
 //                         `Type.Unknown()`/`Type.Record(Type.String(), Type.Unknown())` (JSON passthrough), without
 //                         `satisfies SchemaProof<...>`/`SchemaSound<...>` (compile-time proof), and not in a row-U2/U3/U4 file
-//   xeon/switch-default-never a `switch` whose `default` block has no `assertNever` call (TY-14)
-//   xeon/catch-swallow    `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` or `void <caught>` (TY-25)
-//   xeon/no-void-promise  `void <call>` (and `void (async ...)()`) in non-test code: a Promise and its Result are dropped (TY-22).
+//   fresnel/switch-default-never a `switch` whose `default` block has no `assertNever` call (TY-14)
+//   fresnel/catch-swallow    `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` or `void <caught>` (TY-25)
+//   fresnel/no-void-promise  `void <call>` (and `void (async ...)()`) in non-test code: a Promise and its Result are dropped (TY-22).
 //                         Use `detach(promise, onFailure)` or await it. Tests may start a call and await it later
-//   xeon/reflect-get      `Reflect.get(` in a test file: narrow the value with `in` or a guard (TY-23). Source files are not scanned
-//   xeon/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
+//   fresnel/reflect-get      `Reflect.get(` in a test file: narrow the value with `in` or a guard (TY-23). Source files are not scanned
+//   fresnel/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
 //                         ts-expect-error comments outside tests (TY-08, guide 4.1)
-//   xeon/hardcoded-korean a string literal with Hangul in L4 `src` (apps/host, apps/cli, apps/desktop, packages/client), excluding
+//   fresnel/hardcoded-korean a string literal with Hangul in L4 `src` (apps/host, apps/cli, apps/desktop, packages/client), excluding
 //                         tests, `testing/`, `.tsx` view components (M4 rewrites them) and the catalogs (JSON, not scanned).
 //                         User sentences come from the message catalog (ADR-0016); code holds ids and arguments
-// A line is exempt from a scan rule by `// xeon-disable-next-line xeon/<rule> -- <reason> (<issue url or doc id>)` above it.
+// A line is exempt from a scan rule by `// fresnel-disable-next-line fresnel/<rule> -- <reason> (<issue url or doc id>)` above it.
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
@@ -82,7 +82,7 @@ const RESULT_TO_BUG = /if\s*\(\s*!\s*[\w.?]+\.ok\s*\)\s*\{?\s*throw\s+$/;
 const VOID_CALL =
   /\bvoid[ \t]+(?:[A-Za-z_$#][\w$#?]*(?:\??\.[A-Za-z_$#][\w$#]*)*[ \t]*\(|\([ \t]*async\b)/g;
 const ASSERTION_RULES = /(?:consistent-type-assertions|no-unsafe-type-assertion)/;
-const SCAN_DISABLE = /\/\/ xeon-disable-next-line (xeon\/[a-z-]+) -- (.+)$/;
+const SCAN_DISABLE = /\/\/ fresnel-disable-next-line (fresnel\/[a-z-]+) -- (.+)$/;
 /** 포크 코드의 억제 사유로 인정하지 않는 말. 업스트림 병합 비용은 예외 사유가 아니다(eng.typescript.guide 1절 포크 코드). */
 const MERGE_COST_REASON =
   /upstream shape|keep upstream|merge cost|업스트림[^.]*(?:모양|병합)|원본[^.]*(?:모양|병합)|포크 코드의 모양|병합 비용/i;
@@ -411,7 +411,7 @@ function scanTypeUnsafe(
       /\bsatisfies\s+Schema(?:Proof|Sound)</.test(args);
     if (!allowed) {
       add(
-        "xeon/type-unsafe",
+        "fresnel/type-unsafe",
         lineOf(text, match.index),
         "Type.Unsafe needs a brand (Type.String), a JSON passthrough, a `satisfies SchemaProof<...>` proof or a TY-26 allowlist row",
       );
@@ -421,7 +421,7 @@ function scanTypeUnsafe(
 
 /**
  * TY-14: 모든 switch의 default 블록은 assertNever를 부른다. default 블록은 default 절부터 같은 switch의
- * 다음 case(또는 switch의 끝)까지다. 예외는 default 줄 위나 default 블록 안의 `xeon-disable-next-line xeon/switch-default-never` 주석이다
+ * 다음 case(또는 switch의 끝)까지다. 예외는 default 줄 위나 default 블록 안의 `fresnel-disable-next-line fresnel/switch-default-never` 주석이다
  */
 function scanSwitchDefaults(
   text: string,
@@ -455,7 +455,7 @@ function scanSwitchDefaults(
       !exemptedIn(lineOf(text, defaultAt), lineOf(text, blockEnd))
     ) {
       add(
-        "xeon/switch-default-never",
+        "fresnel/switch-default-never",
         lineOf(text, defaultAt),
         "the default block of a switch must call assertNever (TY-14)",
       );
@@ -485,7 +485,7 @@ export function scanSource(file: SourceFile): {
     if (scanDisable !== null) {
       if (MERGE_COST_REASON.test(scanDisable[2] ?? "")) {
         add(
-          "xeon/directive-format",
+          "fresnel/directive-format",
           line,
           "upstream merge cost is not a reason for an exception (guide section 1, fork code)",
         );
@@ -502,7 +502,7 @@ export function scanSource(file: SourceFile): {
     const oxlint = /oxlint-disable(?:-next-line|-line)?\s+(.+?)(?:\s+--\s+(.*))?$/.exec(trimmed);
     if (/^\/\*\s*oxlint-(?:disable|enable)\b/.test(trimmed)) {
       add(
-        "xeon/directive-format",
+        "fresnel/directive-format",
         line,
         "block disable comments are not allowed; use disable-next-line",
       );
@@ -512,20 +512,20 @@ export function scanSource(file: SourceFile): {
       exceptions.push({ file: file.path, line, kind: "oxlint", rule: rules, reason });
       if (MERGE_COST_REASON.test(reason)) {
         add(
-          "xeon/directive-format",
+          "fresnel/directive-format",
           line,
           "upstream merge cost is not a reason for an exception (guide section 1, fork code)",
         );
       }
       if (reason === "") {
         add(
-          "xeon/directive-format",
+          "fresnel/directive-format",
           line,
           "oxlint disable comment needs ` -- <reason> (<issue or doc id>)`",
         );
       } else if (!/\([^()]*\)$/.test(reason)) {
         add(
-          "xeon/directive-format",
+          "fresnel/directive-format",
           line,
           "oxlint disable reason must end with `(<issue url or doc id>)`",
         );
@@ -535,21 +535,21 @@ export function scanSource(file: SourceFile): {
         const allowed = row === undefined ? undefined : ALLOWLIST[row];
         if (row === undefined) {
           add(
-            "xeon/as-location",
+            "fresnel/as-location",
             line,
             "assertion exception must name its TY-06 allowlist row (허용 목록 A1..A6)",
           );
         } else if (allowed === undefined || !allowed(file.path)) {
-          add("xeon/as-location", line, `allowlist row ${row} does not cover ${file.path}`);
+          add("fresnel/as-location", line, `allowlist row ${row} does not cover ${file.path}`);
         }
       }
     }
 
     if (/@ts-ignore|@ts-nocheck/.test(raw)) {
-      add("xeon/directive-format", line, "@ts-ignore and @ts-nocheck are not allowed (TY-08)");
+      add("fresnel/directive-format", line, "@ts-ignore and @ts-nocheck are not allowed (TY-08)");
     }
     if (/@ts-expect-error/.test(raw) && !test) {
-      add("xeon/directive-format", line, "@ts-expect-error is allowed only in tests (TY-08)");
+      add("fresnel/directive-format", line, "@ts-expect-error is allowed only in tests (TY-08)");
     }
 
     const commentLine = /^(?:\/\/|\/\*|\*)/.test(trimmed);
@@ -558,13 +558,13 @@ export function scanSource(file: SourceFile): {
       /\.catch\(\s*\(\s*\)\s*=>\s*(?:undefined|\{\s*\}|null)\s*\)|\.catch\(\s*noop\s*\)/.test(raw)
     ) {
       add(
-        "xeon/catch-swallow",
+        "fresnel/catch-swallow",
         line,
         "a rejection must be converted, logged or rethrown, not dropped (TY-25)",
       );
     }
     if (/^\s*void\s+(?:caught|error|err|cause|e)\s*;/.test(raw)) {
-      add("xeon/catch-swallow", line, "`void <caught>` discards the caught value (TY-25)");
+      add("fresnel/catch-swallow", line, "`void <caught>` discards the caught value (TY-25)");
     }
   });
 
@@ -573,7 +573,7 @@ export function scanSource(file: SourceFile): {
     const code = maskCode(file.text);
     for (const match of code.matchAll(/\bReflect\.get\s*\(/g)) {
       add(
-        "xeon/reflect-get",
+        "fresnel/reflect-get",
         lineOf(file.text, match.index),
         "Reflect.get hides a type hole; narrow with `in` or a guard (TY-23)",
       );
@@ -590,13 +590,13 @@ export function scanSource(file: SourceFile): {
       const line = lineOf(file.text, match.index);
       if (EXPECTED_WORDS.test(first)) {
         add(
-          "xeon/bug-for-expected",
+          "fresnel/bug-for-expected",
           line,
           `Bug message names an expected failure (${first.slice(0, 60)}); return a typed error value (TY-24)`,
         );
       } else if (!isTestSupport(file.path) && ERROR_INTERPOLATION.test(args)) {
         add(
-          "xeon/bug-for-expected",
+          "fresnel/bug-for-expected",
           line,
           "Bug message interpolates a Result error; return a typed error value (TY-24)",
         );
@@ -606,7 +606,7 @@ export function scanSource(file: SourceFile): {
         RESULT_TO_BUG.test(file.text.slice(Math.max(0, match.index - 200), match.index))
       ) {
         add(
-          "xeon/bug-for-expected",
+          "fresnel/bug-for-expected",
           line,
           "a Result failure is converted to a Bug; return it or add a variant to your error union (TY-24)",
         );
@@ -617,7 +617,7 @@ export function scanSource(file: SourceFile): {
     const code = maskCode(file.text);
     for (const match of code.matchAll(VOID_CALL)) {
       add(
-        "xeon/no-void-promise",
+        "fresnel/no-void-promise",
         lineOf(file.text, match.index),
         "`void <call>` drops a Promise and its Result; use detach(promise, onFailure) or await it (TY-22)",
       );
@@ -626,7 +626,7 @@ export function scanSource(file: SourceFile): {
   if (isCatalogScoped(file.path)) {
     for (const line of hangulLiteralLines(file.text)) {
       add(
-        "xeon/hardcoded-korean",
+        "fresnel/hardcoded-korean",
         line,
         "hard-coded Korean string; add a message id to the ko and en catalogs and use t() (ADR-0016)",
       );
@@ -635,7 +635,7 @@ export function scanSource(file: SourceFile): {
   scanTypeUnsafe(file.text, file.path, add);
   scanSwitchDefaults(file.text, add, (from, to) => {
     for (let at = from; at <= to; at += 1) {
-      if (exempt.get(at)?.has("xeon/switch-default-never") === true) return true;
+      if (exempt.get(at)?.has("fresnel/switch-default-never") === true) return true;
     }
     return false;
   });

@@ -1,7 +1,7 @@
-import { canonicalJson } from "@xeon/contracts";
-import { toJsonValue, type JsonValue, type ThreadId } from "@xeon/contracts/conversation";
-import type { DurableEventDraft } from "@xeon/contracts/records";
-import { AgentServicePortKey } from "@xeon/contracts/services";
+import { canonicalJson } from "@fresnel/contracts";
+import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/conversation";
+import type { DurableEventDraft } from "@fresnel/contracts/records";
+import { AgentServicePortKey } from "@fresnel/contracts/services";
 import {
   createTestHost,
   memoryInputQueue,
@@ -9,7 +9,7 @@ import {
   type MemoryInputQueue,
   type MemoryLoopPort,
   type TestHost,
-} from "@xeon/ext-host/testing";
+} from "@fresnel/ext-host/testing";
 import type { GroupModule } from "../../src/index.ts";
 import { fakeAgents, type FakeAgents, type ReplayHarness } from "../../src/testing/index.ts";
 import { install } from "./host.ts";

@@ -1,16 +1,21 @@
-import type { Result } from "@xeon/contracts";
-import { ok, err } from "@xeon/contracts";
+import type { Result } from "@fresnel/contracts";
+import { ok, err } from "@fresnel/contracts";
 import {
   parseSecretRef,
   type SecretHandle,
   type SecretRefError,
-} from "@xeon/contracts/capabilities";
-import type { JsonObject } from "@xeon/contracts/conversation";
-import type { SecretError, SecretService, ToolRunContext, UseCtx } from "@xeon/contracts/services";
+} from "@fresnel/contracts/capabilities";
+import type { JsonObject } from "@fresnel/contracts/conversation";
+import type {
+  SecretError,
+  SecretService,
+  ToolRunContext,
+  UseCtx,
+} from "@fresnel/contracts/services";
 import { isJsonObject } from "./util.ts";
 
-// L1.tools.spec §4.12, L0.secrets.spec §4.2. 도구 호출이 비밀을 쓰면(`secretEnv`) 실행 전에 `xeon.secrets.check`로 정책을 본다.
-// `needs_approval`이면 사람의 승인이 필요하고, 받은 증거(`ApprovalEvidence`)를 호출에 실어 `xeon.exec`의 `withEnv`가 `lease`에 넣는다(U-19).
+// L1.tools.spec §4.12, L0.secrets.spec §4.2. 도구 호출이 비밀을 쓰면(`secretEnv`) 실행 전에 `fresnel.secrets.check`로 정책을 본다.
+// `needs_approval`이면 사람의 승인이 필요하고, 받은 증거(`ApprovalEvidence`)를 호출에 실어 `fresnel.exec`의 `withEnv`가 `lease`에 넣는다(U-19).
 // 값은 이 파일에 오지 않는다. 참조(`secret://<name>`)만 다룬다.
 
 /** secrets 서비스 중 이 파일이 쓰는 메서드 */

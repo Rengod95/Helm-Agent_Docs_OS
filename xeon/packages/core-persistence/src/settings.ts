@@ -1,6 +1,6 @@
 import { Type } from "typebox";
-import { err, ok, type Result } from "@xeon/contracts";
-import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
+import { err, ok, type Result } from "@fresnel/contracts";
+import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 import { DEFAULT_PERSISTENCE_SETTINGS, type PersistenceSettings } from "./deps.ts";
 
 // L1.persistence.spec §6.1. 모두 layer L1, tab sessions, since 0.1.0이다. 단계(M1~2차)는 구현 시점이고 선언은 한 번에 둔다.

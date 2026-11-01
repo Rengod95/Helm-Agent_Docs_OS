@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
-import type { KnowledgeHit } from "@xeon/contracts/capabilities";
-import type { SqlTx, StoreDb } from "@xeon/contracts/records";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { KnowledgeHit } from "@fresnel/contracts/capabilities";
+import type { SqlTx, StoreDb } from "@fresnel/contracts/records";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { KnowledgeFs } from "../fs/port.ts";
 import { parseMemoryFile } from "../memory/format.ts";

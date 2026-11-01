@@ -1,4 +1,4 @@
-import type { RandomSource } from "@xeon/contracts";
+import type { RandomSource } from "@fresnel/contracts";
 
 /** mulberry32. 같은 seed는 같은 열을 낸다. [0, 1) 균등 */
 export function seededRandom(seed: number): RandomSource {

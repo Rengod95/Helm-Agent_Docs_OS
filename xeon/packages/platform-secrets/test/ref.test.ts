@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import { secretRef } from "@xeon/contracts/capabilities";
+import { Bug } from "@fresnel/contracts";
+import { secretRef } from "@fresnel/contracts/capabilities";
 import {
   checkSecretArgument,
   checkSettingRef,

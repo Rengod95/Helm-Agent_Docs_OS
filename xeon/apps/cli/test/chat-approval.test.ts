@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
-import { ReviewAnswerSchema } from "@xeon/contracts/records";
-import { parse } from "@xeon/contracts";
+import { ReviewAnswerSchema } from "@fresnel/contracts/records";
+import { parse } from "@fresnel/contracts";
 import { EXIT } from "../src/exit-codes.ts";
 import {
   approvalRequested,

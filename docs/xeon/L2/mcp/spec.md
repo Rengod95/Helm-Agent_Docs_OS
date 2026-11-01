@@ -10,7 +10,7 @@ binds: [xeon/packages/cap-mcp/**]
 
 # L2 MCP 통합 (mcp)
 
-패키지: `@xeon/cap-mcp` (`xeon/packages/cap-mcp`). 서비스: `xeon.mcp`. 계획 v2 하위 층: L2-b "MCP 통합".
+패키지: `@fresnel/cap-mcp` (`xeon/packages/cap-mcp`). 서비스: `fresnel.mcp`. 계획 v2 하위 층: L2-b "MCP 통합".
 
 ## 1. 목적과 범위
 
@@ -393,9 +393,9 @@ import type { McpPort } from "../extensions/ports.ts";      // F.extensions.spec
 import type { McpClient } from "../capabilities/defs/mcp.ts";
 
 /** Cordis 서비스 이름. SERVICE_NAMES.mcp, eng.context-map.design §5.3 표와 같다 */
-export const McpServiceName = "xeon.mcp" as const;
+export const McpServiceName = "fresnel.mcp" as const;
 /**
- * xeon.mcp에 Cordis로 등록하는 서비스 인터페이스. X McpPort(registerServer)를 확장한다.
+ * fresnel.mcp에 Cordis로 등록하는 서비스 인터페이스. X McpPort(registerServer)를 확장한다.
  * L2 서비스 이름 중 Cordis에 등록하는 것은 이것 하나다(F.capabilities.spec §3.5 [결정: review.decisions-2 D-04], L2.readme §5.6)
  */
 export interface McpService extends McpPort {
@@ -405,7 +405,7 @@ export interface McpService extends McpPort {
 ```
 
 - export 상수의 타입 주석은 `F.capabilities.spec` §3.9와 같은 이유로 생략했다. 실제 파일은 명시 주석을 단다.
-- `xeon.mcp` 등록: `cap-mcp`는 능력 바인딩(`hostOf(g).provide(McpClientKey, impl)`, `cap:mcp.client`)과 별도로 `McpService` 구현 하나를 Cordis 서비스 `xeon.mcp`에 등록한다(`hostOf(g).providePort(McpPortKey, impl)`, `X.primitives.spec` §3.6 규칙 4·6, §3.8). `cap-mcp`는 `builtin` 확장이라 `xeon.*` 이름을 제공할 수 있다. 같은 서비스 이름에 다른 인터페이스는 등록하지 않는다.
+- `fresnel.mcp` 등록: `cap-mcp`는 능력 바인딩(`hostOf(g).provide(McpClientKey, impl)`, `cap:mcp.client`)과 별도로 `McpService` 구현 하나를 Cordis 서비스 `fresnel.mcp`에 등록한다(`hostOf(g).providePort(McpPortKey, impl)`, `X.primitives.spec` §3.6 규칙 4·6, §3.8). `cap-mcp`는 `builtin` 확장이라 `fresnel.*` 이름을 제공할 수 있다. 같은 서비스 이름에 다른 인터페이스는 등록하지 않는다.
 - `registerServer(owner, name, config)`: 확장이 `hostOf(g).registerMcpServer(name, config)`로 부르면 X가 이 메서드를 부른다(`X.primitives.spec` §4.8). 규칙은 다음과 같다.
   - `name`은 서버 id이고 `MCP_SERVER_ID_PATTERN`을 따른다. `config`(`McpServerResourceDef`)는 `McpServerDefSchema`로 검사한다. 어긋나면 `CapabilityError("invalid_input")`을 던진다.
   - 같은 id가 설정(`l2.mcp.servers`)이나 `.mcp.json`에 있으면 `CapabilityError("invalid_input")`으로 거부한다. 확장끼리의 같은 이름 판정은 X `ResourcePolicy`가 먼저 한다(`X.primitives.spec` §4.8 등록 규칙 3).
@@ -418,13 +418,13 @@ export interface McpService extends McpPort {
 
 ### 3.3 동적 도구 광고
 
-서버 도구는 X 리소스 등록으로 광고한다(`F.capabilities.spec` §4.4 마지막 단락, §5 6항). 등록 API는 `hostOf(g).registerTool(def: ToolResourceDef)`이고 X가 `ToolsPort.register(owner, def)`(`xeon.tools`)로 넘긴다(`X.primitives.spec` §3.8, §3.9, §4.8). 등록은 `cap-mcp` scope 세대의 fiber effect라 scope가 꺼지면 자동으로 해제된다(`X.primitives.spec` §4.8 등록 규칙 1). 서버가 끊기거나 도구가 사라질 때는 `cap-mcp`가 등록할 때 잡은 해제기를 부른다 [제안]. `cap-mcp` 내부에서 쓰는 값은 다음 모양이고, 등록할 때 `ToolResourceDef`로 바꾼다 [제안].
+서버 도구는 X 리소스 등록으로 광고한다(`F.capabilities.spec` §4.4 마지막 단락, §5 6항). 등록 API는 `hostOf(g).registerTool(def: ToolResourceDef)`이고 X가 `ToolsPort.register(owner, def)`(`fresnel.tools`)로 넘긴다(`X.primitives.spec` §3.8, §3.9, §4.8). 등록은 `cap-mcp` scope 세대의 fiber effect라 scope가 꺼지면 자동으로 해제된다(`X.primitives.spec` §4.8 등록 규칙 1). 서버가 끊기거나 도구가 사라질 때는 `cap-mcp`가 등록할 때 잡은 해제기를 부른다 [제안]. `cap-mcp` 내부에서 쓰는 값은 다음 모양이고, 등록할 때 `ToolResourceDef`로 바꾼다 [제안].
 
 ```ts
 // xeon/packages/cap-mcp/src/client/dynamic-tools.ts (패키지 내부 타입)
-import type { ToolWire, ToolHints } from "@xeon/contracts/capabilities";
-import type { AgentToolResult, InputRequiredInfo, ReplayPolicy } from "@xeon/contracts/conversation";   // AgentToolResult는 pi 재노출
-import type { McpContinuation } from "@xeon/contracts/capabilities/defs/mcp";   // 서브패스 경로는 F가 정한다
+import type { ToolWire, ToolHints } from "@fresnel/contracts/capabilities";
+import type { AgentToolResult, InputRequiredInfo, ReplayPolicy } from "@fresnel/contracts/conversation";   // AgentToolResult는 pi 재노출
+import type { McpContinuation } from "@fresnel/contracts/capabilities/defs/mcp";   // 서브패스 경로는 F가 정한다
 
 export interface McpDynamicTool {
   /** F.capabilities.spec §4.5 순서 키의 capability 자리 */
@@ -473,7 +473,7 @@ export function mcpToolName(server: string, tool: string): string;
 
 - 이벤트 접두사 `mcp.`는 휘발 예약이다(`eng.context-map.design` §5.1). 이 문서는 내구 이벤트를 정의하지 않는다. 서버 도구 호출 기록은 L1.tools의 `tool.*`, 서버 주도 요청은 `approval.*`다.
 - [제안] 휘발 `mcp.server_status`(서버 상태 변경을 화면에 알림)를 후보로 둔다. L4 화면이 필요로 할 때 카탈로그에 올린다.
-- 세션 밖 상태 테이블(`xeon.store.scoped`):
+- 세션 밖 상태 테이블(`fresnel.store.scoped`):
 
 ```sql
 CREATE TABLE cap_mcp_servers (
@@ -530,15 +530,15 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
    - `type` 생략 + `command` 있음 → `stdio`, `type: "http"`·`"streamable-http"` → `http`, `type: "sse"` → `sse`.
    - [결정: M3-REQ-97] `env`·`headers` 값은 `secret://` 참조이거나 평문이다. 평문은 허용하되 이름이 비밀처럼 보이면 그 서버를 건너뛰고 `plaintext_secret` 진단(값 없음)을 남긴다. 이름은 `_`·`-`·대소문자 경계로 낱말을 나눠 `KEY`, `APIKEY`, `TOKEN`, `SECRET`(S), `PASSWORD`, `PASSWD`, `PWD`, `CREDENTIAL`(S), `AUTH`, `AUTHORIZATION`, `COOKIE`, `BEARER` 중 하나가 있으면 비밀 이름이다(`MAX_TOKENS`, `KEYBOARD`는 아니다). `secret://`로 시작하는데 참조 형식이 아닌 값은 `invalid_definition`이다(오타가 평문으로 나가지 않게 한다). 같은 검사를 설정 `l2.mcp.servers`와 `registerServer`에도 한다.
    - 출처는 루트 `.mcp.json`이 `mcpjson:project`, `.fresnel/mcp.json`이 `mcpjson:xeon`이다. 같은 id가 있으면 설정이 이기고, 두 파일 사이에서는 `.fresnel/mcp.json`이 이긴다.
-   - 확장이 `registerServer`로 등록한 서버(§3.2 `xeon.mcp` 등록)를 더한다. 출처는 `ext:<확장 이름>`이고, 설정·`.mcp.json`의 id와 겹치는 등록은 등록 시점에 거부되었으므로 여기서 다시 겹치지 않는다.
+   - 확장이 `registerServer`로 등록한 서버(§3.2 `fresnel.mcp` 등록)를 더한다. 출처는 `ext:<확장 이름>`이고, 설정·`.mcp.json`의 id와 겹치는 등록은 등록 시점에 거부되었으므로 여기서 다시 겹치지 않는다.
 3. 허용·차단(§4.4)을 적용해 `blocked` 서버를 표시한다.
 4. 변경 반영: 설정이나 `.mcp.json`이 바뀌면 다음 단계 경계에서 차이(추가·삭제·변경된 서버)만 연결·해제한다. 정의가 바뀐 서버는 다시 연결한다.
 
 ### 4.3 전송과 비밀
 
-- stdio [제안]: SDK의 stdio 전송(`./stdio` 서브패스, 내부에서 `cross-spawn`)을 쓰지 않고, `xeon.process`로 띄운 자식 프로세스의 표준 입출력을 SDK `Transport` 인터페이스로 감싼 `ProcessStdioTransport`를 둔다. 프로세스 레지스트리, 그룹 종료, 비밀 주입을 L0 한 곳에서 하기 위해서다(`eng.context-map.design` §4.1 mcp 행 `xeon.process`). SDK `Transport` 인터페이스는 선언 파일로 확인했다: `start`, `send`, `close`와 콜백 속성 `onclose`, `onerror`, `onmessage`다(`L2.mcp.plan` §8.2). F `ProcessPort.spawn`은 격리 확장용이고 `ExecService.startBackground`는 스트림을 주지 않으므로, 스트림과 `secret://` env 주입을 주는 포트를 `McpProcessPort`(`src/ports/process.ts`)로 선언하고 L0 구현을 요청했다(`L2.mcp.plan` §8.5).
-- `env`의 `secret://` 값은 `cap-mcp`가 풀지 않는다. 참조 그대로 `xeon.process`에 넘기고 L0.secrets가 실행 직전에 주입한다(`_research/secrets.md` §6, `L0.secrets.spec`).
-- HTTP·SSE: SDK의 `StreamableHTTPClientTransport`, `SSEClientTransport`를 쓴다(공개 export, `_research/notes/L2-1.md` §2). `headers`의 `secret://` 값은 요청 직전에 `xeon.secrets`로 풀어 붙이는 fetch 감싸기를 전송 옵션으로 넘긴다 [확인: 두 전송의 옵션 모두 `fetch`를 받는다, `L2.mcp.plan` §8.2].
+- stdio [제안]: SDK의 stdio 전송(`./stdio` 서브패스, 내부에서 `cross-spawn`)을 쓰지 않고, `fresnel.process`로 띄운 자식 프로세스의 표준 입출력을 SDK `Transport` 인터페이스로 감싼 `ProcessStdioTransport`를 둔다. 프로세스 레지스트리, 그룹 종료, 비밀 주입을 L0 한 곳에서 하기 위해서다(`eng.context-map.design` §4.1 mcp 행 `fresnel.process`). SDK `Transport` 인터페이스는 선언 파일로 확인했다: `start`, `send`, `close`와 콜백 속성 `onclose`, `onerror`, `onmessage`다(`L2.mcp.plan` §8.2). F `ProcessPort.spawn`은 격리 확장용이고 `ExecService.startBackground`는 스트림을 주지 않으므로, 스트림과 `secret://` env 주입을 주는 포트를 `McpProcessPort`(`src/ports/process.ts`)로 선언하고 L0 구현을 요청했다(`L2.mcp.plan` §8.5).
+- `env`의 `secret://` 값은 `cap-mcp`가 풀지 않는다. 참조 그대로 `fresnel.process`에 넘기고 L0.secrets가 실행 직전에 주입한다(`_research/secrets.md` §6, `L0.secrets.spec`).
+- HTTP·SSE: SDK의 `StreamableHTTPClientTransport`, `SSEClientTransport`를 쓴다(공개 export, `_research/notes/L2-1.md` §2). `headers`의 `secret://` 값은 요청 직전에 `fresnel.secrets`로 풀어 붙이는 fetch 감싸기를 전송 옵션으로 넘긴다 [확인: 두 전송의 옵션 모두 `fetch`를 받는다, `L2.mcp.plan` §8.2].
 - 비밀 값은 `cap-mcp`의 로그, 이벤트, 오류 `message`, `cap_mcp_servers`, 모델 요청에 나타나지 않는다. 서버 stderr와 오류 메시지는 L0.secrets 마스킹을 거친 뒤 저장한다.
 - 기동 승인 [결정: M3-05, D-M3-19 행 2 권고 적용]: `env`에 `secret://` 값이 있는 stdio 서버는 정의 해시마다 한 번 사용자의 기동 승인을 받아야 뜬다. 승인 포트 `McpStartGate`(`src/ports/start-gate.ts`)가 판정하고(`L1.tools.spec` §4.12.1), 전송 팩토리가 spawn 전에 부른다. `pending`이면 서버는 `blocked`(`blockedReason: "approval_required"`)로 두고 spawn하지 않으며 재시도 타이머를 쓰지 않는다. 응답이 오면 게이트가 서버 id로 알리고 레지스트리가 연결을 다시 시작한다. `denied`면 spawn하지 않고 `lastError.code = "secret_denied"`다. 승인 증거는 `McpSpawnSpec.approval`로 L0에 가고 `mcp.start:<서버 id>` 맥락으로 비밀을 푼다(`L0.process.spec` §4.9). 승인을 올릴 대화는 가장 최근에 정의를 읽은 대화다. 대화가 없으면 대화가 생기는 첫 단계 경계에서 다시 시도한다. 평문 env는 `McpSpawnSpec.env`로 간다.
 - 샌드박스 [결정: M3-REQ-97, D-M3-19 행 1]: stdio 서버를 샌드박스에 넣을지는 서버별 `sandbox`(F `McpServerDef`)가 있으면 그 값이고, 없으면 출처별 설정 키다. 사용자 설정(`settings:user`) 출처는 `l2.mcp.sandbox.userSource`(기본 끔), 그 밖의 출처(`settings:project`, `settings:local`, `mcpjson:*`, `ext:*`)는 `l2.mcp.sandbox.projectSource`(기본 켬)다. 두 키는 managed·user 범위만 받는다(프로젝트가 스스로 끄지 못한다). 결과는 `McpSpawnSpec.sandbox`로 L0에 가고 L0가 강제한다(`L0.sandbox.spec` §4.8).
@@ -582,7 +582,7 @@ sequenceDiagram
   participant T as L1.tools
   participant C as cap-mcp
   participant S as MCP 서버
-  participant A as xeon.approvals
+  participant A as fresnel.approvals
   participant U as 사용자(L4)
   M->>T: 서버 도구 호출 (toolCallId)
   T->>C: execute(args, requestId)
@@ -603,7 +603,7 @@ sequenceDiagram
 규칙 [제안]:
 
 1. `cap-mcp`는 `input_required`를 받으면 각 입력 요청을 `McpQuestion`으로 바꾸고, 결과를 `status: "input_required"`, `inputRequired: { inputRequests, requestState }`(`F.conversation.spec` §3.6 `InputRequiredInfo`), `details.questions`로 돌려준다. 이 결과는 도구 호출의 최종 결과가 아니다.
-2. L1.tools는 이 결과를 받으면 `xeon.approvals`에 kind `question` 승인 요청을 올린다. 요청 payload에 `questions`와 `server`, 서버 도구 이름을 싣는다. 승인 요청과 대기 체크포인트(`PendingToolCall.waiting = "input_required"`, `F.records.spec` §3.6)는 같은 커밋이다. 이 흐름은 `L2.readme` §5.7 "L2는 요청하고 결과 이벤트를 받는다"의 MCP 사례다. 승인 요청 payload 모양과 커밋 순서는 `L1.tools.spec`이 정한다 [가정].
+2. L1.tools는 이 결과를 받으면 `fresnel.approvals`에 kind `question` 승인 요청을 올린다. 요청 payload에 `questions`와 `server`, 서버 도구 이름을 싣는다. 승인 요청과 대기 체크포인트(`PendingToolCall.waiting = "input_required"`, `F.records.spec` §3.6)는 같은 커밋이다. 이 흐름은 `L2.readme` §5.7 "L2는 요청하고 결과 이벤트를 받는다"의 MCP 사례다. 승인 요청 payload 모양과 커밋 순서는 `L1.tools.spec`이 정한다 [가정].
 3. 응답 변환: 사용자 응답을 입력 요청 키별 `inputResponses`로 바꾼다.
    - elicitation form: `{ action: "accept", content: <폼 값> }`, 거절은 `{ action: "decline" }`, 닫기는 `{ action: "cancel" }`. 폼 값은 `requestedSchema`로 검증한 뒤 넣는다.
    - elicitation url: 사용자가 URL 흐름을 마쳤다고 답하면 `{ action: "accept" }`. URL 열기는 L4가 한다.
@@ -613,7 +613,7 @@ sequenceDiagram
 6. `requestId` 규칙: 라운드 r의 요청 키는 `<기본 requestId>#r<r>`이다. 기본값은 `CallOptions.requestId`이고, 합친 길이가 64자를 넘으면 기본값 부분을 SHA-256 앞 32자 hex로 줄인다. 같은 라운드를 다시 보낼 때 같은 키를 쓴다(`eng.transactions.design` TX-05).
 7. 재시작 뒤 재개: 대기 상태(질문, `inputRequests`, `requestState`, 라운드)는 승인 요청 이벤트와 도구 결과 레코드에 내구로 있으므로 `cap-mcp` 메모리 없이 4번을 다시 할 수 있다. 서버 연결은 재시작 뒤 새로 맺는다. 2026 무상태 서버는 `requestState`만으로 이어진다. 2025 세션 서버는 세션이 바뀌어 `requestState`가 무효일 수 있고, 그때 서버 오류가 그대로 도구 오류 결과가 된다.
 8. 멱등: 승인 해결 뒤의 재시도는 L1.tools가 의도를 먼저 커밋하고 보낸다. 보낸 뒤 결과가 기록되기 전에 프로세스가 죽으면 그 라운드는 결과 불명이고 `callTool`이 `unsafe`라 자동으로 다시 보내지 않는다(`F.records.spec` §3.5 판정 표). 승인 대기 중의 재시작은 아직 보내지 않은 상태라 재시도가 한 번만 일어난다.
-9. 같은 규칙을 `getPrompt`, `readResource`에도 쓴다. MRTR이 이 세 요청에만 `input_required`를 허용하기 때문이다(`_research/notes/L2-1.md` §3 사양 제약). 그룹 코드가 서비스로 부를 때는 `CallToolOutput`의 `input_required` 변형을 그룹이 직접 처리하고, 사람에게 물을 때는 `xeon.approvals`를 쓴다.
+9. 같은 규칙을 `getPrompt`, `readResource`에도 쓴다. MRTR이 이 세 요청에만 `input_required`를 허용하기 때문이다(`_research/notes/L2-1.md` §3 사양 제약). 그룹 코드가 서비스로 부를 때는 `CallToolOutput`의 `input_required` 변형을 그룹이 직접 처리하고, 사람에게 물을 때는 `fresnel.approvals`를 쓴다.
 10. elicitation 보안: 비밀번호, API 키, 토큰, 결제 정보는 form 모드로 받지 않는다(사양 규칙, `_research/notes/L2-1.md` §5). form 스키마 필드 이름이 비밀처럼 보이면(`password`, `token`, `apiKey`, `secret` 등) 질문에 경고를 붙이고(`McpQuestion`에 경고 필드가 없어 구현은 `message` 앞에 경고 문장을 붙인다) 응답을 저장할 때 L0.secrets 마스킹을 거친다 [제안].
 
 ### 4.7 sampling과 roots
@@ -626,7 +626,7 @@ sequenceDiagram
 - 연결이 끊기면 상태를 `reconnecting`으로 바꾸고, 다음 단계 경계에서 그 서버의 도구를 `toolsRemoved`로 뺀다(`diffToolsets`의 `removed`).
 - 지수 백오프: 1초, 2초, 4초 … `l2.mcp.reconnect.maxDelayMs`까지. 연속 `l2.mcp.reconnect.maxAttempts`번 실패하면 `failed`로 두고 자동 시도를 멈춘다. `reconnect` 메서드나 설정 변경이 다시 시작시킨다. 시계는 주입한다(`eng.transactions.design` TX-06).
 - 복구되면 도구 목록을 다시 읽고 다음 단계 경계에 `toolsAdded`로 넣는다. 정의가 같은 도구는 같은 기계 이름을 다시 쓰므로 `diffToolsets`의 `added`에 들어간다.
-- stdio 서버 프로세스가 죽은 경우도 같은 규칙이다. 재기동은 `xeon.process`로 한다.
+- stdio 서버 프로세스가 죽은 경우도 같은 규칙이다. 재기동은 `fresnel.process`로 한다.
 - 재연결 중 들어온 호출은 §4.5 2번대로 바로 `server_disconnected`다.
 
 ### 4.9 목록 변경과 진행 중 호출
@@ -655,7 +655,7 @@ sequenceDiagram
 
 ### 4.12 2차: OAuth
 
-- SDK `OAuthClientProvider`를 구현한 `XeonOAuthProvider`를 둔다 [제안]. 토큰, 클라이언트 정보, code verifier, 인가 서버 URL은 `xeon.secrets`에 저장한다. 서버별로 발급자(`iss`) 단위 키를 쓴다(발급자 혼동 방지, `_research/item-catalog.md` L2 MCP OAuth 행).
+- SDK `OAuthClientProvider`를 구현한 `XeonOAuthProvider`를 둔다 [제안]. 토큰, 클라이언트 정보, code verifier, 인가 서버 URL은 `fresnel.secrets`에 저장한다. 서버별로 발급자(`iss`) 단위 키를 쓴다(발급자 혼동 방지, `_research/item-catalog.md` L2 MCP OAuth 행).
 - 흐름: `auth(provider, options)`가 `"REDIRECT"`면 `redirectToAuthorization(url)`에서 L4가 브라우저를 연다. 콜백을 받으면 `finishAuth(code, iss)`를 부른다(API 이름은 `_research/notes/L2-1.md` §7). `iss` 검증은 `validateAuthorizationResponseIssuer`를 쓴다(판정 세부 [가정]).
 - 등록: 2026 사양에서 CIMD(`clientMetadataUrl`)가 권장이고 DCR은 deprecated다. CIMD 동작 세부는 확인하지 않은 [가정]이다(`_research/notes/L2-1.md` §7).
 - 콜백 수신: 루프백 포트 하나를 열지, 데스크톱 앱의 커스텀 스킴을 쓸지는 L4가 정한다(`L2.mcp.plan` 위험 표).
@@ -725,7 +725,7 @@ sequenceDiagram
 | 이름 | 쓰는 문서 |
 |---|---|
 | `McpClient`, `McpClientKey`(F `capabilities/defs/mcp.ts`) | L3 그룹 spec, `L4.host-service.spec`(상태 조회), `L2.readme` |
-| `McpService` 구현(`registerServer`는 `McpPort` 구현, Cordis `xeon.mcp`). 타입 `McpService`, `McpServiceName`은 F `services/mcp.ts`에 있다 | `X.primitives.spec`(`hostOf(g).registerMcpServer`), L3 그룹 spec |
+| `McpService` 구현(`registerServer`는 `McpPort` 구현, Cordis `fresnel.mcp`). 타입 `McpService`, `McpServiceName`은 F `services/mcp.ts`에 있다 | `X.primitives.spec`(`hostOf(g).registerMcpServer`), L3 그룹 spec |
 | `McpServerDef`, `McpServerDefSchema`, `McpServerStatusSchema` | `L4.settings-ui.spec`, `L4.cli.spec` |
 | `McpQuestionSchema`, `McpContinuationSchema` | `L1.tools.spec`(승인 payload, 재호출), `L2.dialog.spec`(질문 표시) |
 | 권한 규칙 키 `mcp__<서버 id>`, `mcp__<서버 id>__<도구>` | `L1.tools.spec` |
@@ -740,7 +740,7 @@ sequenceDiagram
 | `toolsAdded`/`toolsRemoved` 기록 | `L1.context.spec` |
 | 자식 프로세스 기동·종료, stdio 핸들 | `L0.process.spec` |
 | `secret://` 해석, 실행 직전 주입, 마스킹 | `L0.secrets.spec` |
-| blob 등록, `xeon.store.scoped` | `L0.store.spec` |
+| blob 등록, `fresnel.store.scoped` | `L0.store.spec` |
 | `InputRequiredInfo`, `ResultStatus`, `ReplayPolicy` | `F.conversation.spec` |
 | `ToolWire`, `ToolHints`, `diffToolsets`, `toolsetFingerprint`, `CapabilityError` | `F.capabilities.spec` |
 | `McpService`, `McpServiceName`(`services/mcp.ts`, `SERVICE_NAMES.mcp`) | `F.capabilities.spec` §3.12 |

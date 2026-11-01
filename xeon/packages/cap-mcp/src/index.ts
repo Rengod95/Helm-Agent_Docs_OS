@@ -1,4 +1,4 @@
-// @xeon/cap-mcp 공개 진입점(L2.mcp). 조립 루트(HOST.6)가 쓰는 이름만 내보낸다.
+// @fresnel/cap-mcp 공개 진입점(L2.mcp). 조립 루트(HOST.6)가 쓰는 이름만 내보낸다.
 // SDK 타입은 어댑터 경계(adapter.ts, transport/, testing/) 밖으로 나가지 않는다.
 
 export { createMcp } from "./client/service.ts";

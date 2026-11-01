@@ -4,8 +4,8 @@ import {
   type SecretHandle,
   type SecretName,
   type SecretRefError,
-} from "@xeon/contracts/capabilities";
-import { err, type Result } from "@xeon/contracts";
+} from "@fresnel/contracts/capabilities";
+import { err, type Result } from "@fresnel/contracts";
 
 // L0.secrets.spec §3.1. 참조 구문 분석은 F 순수 함수가 정본이다. 이 파일은 이 패키지의 입력 경로
 // (메타 name, 설정 값, 도구 인자, HTTP 템플릿)에 그 함수를 연결할 뿐이고 규칙을 다시 정의하지 않는다.

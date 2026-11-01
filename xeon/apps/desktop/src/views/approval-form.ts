@@ -1,5 +1,5 @@
-import type { JsonValue } from "@xeon/contracts/conversation";
-import type { ApprovalRequestedPayload, BlobRef } from "@xeon/contracts/records";
+import type { JsonValue } from "@fresnel/contracts/conversation";
+import type { ApprovalRequestedPayload, BlobRef } from "@fresnel/contracts/records";
 
 // 승인 카드의 순수 로직(L4.desktop.spec §4.13). 도구 승인 카드가 보이는 값과 질문 카드의 답 조립을 React 밖에서 시험한다.
 // 질문 응답은 core-tools `validateResponse`(L1.tools.spec §3.6)가 받는 모양으로만 만든다: 모든 질문에 답이 하나씩,

@@ -1,6 +1,6 @@
-import { ok, type Result } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { SqlTx } from "@xeon/contracts/records";
+import { ok, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { SqlTx } from "@fresnel/contracts/records";
 import { columns, type RowFault } from "./rows.ts";
 
 // 전역 thread 생성 멱등 키(L1.persistence.spec §4.10.1). requests는 thread 범위라 thread 밖 키를 받지 못한다

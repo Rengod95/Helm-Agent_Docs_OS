@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { err, ok, type Clock } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ScopeHandlerFailedPayload, VolatileEventEnvelope } from "@xeon/contracts/records";
-import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { err, ok, type Clock } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ScopeHandlerFailedPayload, VolatileEventEnvelope } from "@fresnel/contracts/records";
+import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createHandlerFailedEmitter } from "../../src/assembly/handler-failed.ts";
 
 // M3-REQ-35(HS-92): 확장 핸들러 실패는 열린 thread마다 `scope.handler_failed` 휘발 이벤트 하나가 된다.

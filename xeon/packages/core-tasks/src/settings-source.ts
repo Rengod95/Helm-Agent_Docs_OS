@@ -1,4 +1,4 @@
-import type { DrainMode, PoolName } from "@xeon/contracts/services";
+import type { DrainMode, PoolName } from "@fresnel/contracts/services";
 
 /**
  * l1.tasks.* 설정 읽기(L1.tasks.spec §6). drain 모드와 동시 상한은 쓸 때마다 그때 읽는다(runtimeChange: live).

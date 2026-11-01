@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
-import type { CloseInfo, Transport } from "@xeon/contracts/wire";
+import { Bug } from "@fresnel/contracts";
+import type { CloseInfo, Transport } from "@fresnel/contracts/wire";
 import { createHostShutdownHandler, createProcessShutdown, watchChildLease } from "../src/index.ts";
 import { flushMicrotasks, manualClock } from "./support/clock.ts";
 import { exitRecorder, memoryLogger, rejectionOf } from "./support/fakes.ts";

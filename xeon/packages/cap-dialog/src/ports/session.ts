@@ -1,7 +1,7 @@
-import type { StatusItem } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
-import type { Unsubscribe } from "@xeon/contracts/extensions";
-import type { DurableEventEnvelope } from "@xeon/contracts/records";
+import type { StatusItem } from "@fresnel/contracts/capabilities";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { Unsubscribe } from "@fresnel/contracts/extensions";
+import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 
 /** `dialog.status` 휘발 이벤트를 내보낸다. 저장하지 않는다(L2.dialog.spec §3.7). 최대 32개가 전체 스냅숏이다 */
 export interface StatusPublisher {

@@ -1,10 +1,10 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever } from "@fresnel/contracts";
 import type {
   CommitRequest,
   CommitResult,
   SessionService,
   StoreError,
-} from "@xeon/contracts/records";
+} from "@fresnel/contracts/records";
 
 // 세션 커밋 경로(eng.transactions.design TX-07). 커밋은 동기이고 트랜잭션 안에서 await하지 않는다(TX-01).
 
