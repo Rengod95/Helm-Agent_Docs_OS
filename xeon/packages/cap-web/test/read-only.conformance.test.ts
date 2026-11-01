@@ -58,9 +58,9 @@ describe("web readOnly conformance", () => {
     const store = world.store;
     if (store === undefined) throw new Error("the world has a store");
     const before = await store.rowDigests();
-    await world.search({ query: "xeon" });
+    await world.search({ query: "fresnel" });
     await world.fetch({ url: "https://example.com/a" });
-    await world.search({ query: "xeon" });
+    await world.search({ query: "fresnel" });
     await world.fetch({ url: "https://example.com/a" });
     const after = await store.rowDigests();
     const changed = Object.keys(after)

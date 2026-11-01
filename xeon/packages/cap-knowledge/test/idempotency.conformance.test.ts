@@ -172,8 +172,8 @@ async function ledgerCount(world: World): Promise<number> {
 describe("knowledge writes dedupe on requestId across a store reopen", () => {
   for (const { name, setup } of CASES) {
     test(name, async () => {
-      const dir = mkdtempSync(join(tmpdir(), "xeon-knowledge-idem-"));
-      const path = join(dir, "xeon.db");
+      const dir = mkdtempSync(join(tmpdir(), "fresnel-knowledge-idem-"));
+      const path = join(dir, "fresnel.db");
       const fs: MemoryFs = createMemoryFs();
       const first = await createWorld({ path, fs });
       let second: World | undefined;

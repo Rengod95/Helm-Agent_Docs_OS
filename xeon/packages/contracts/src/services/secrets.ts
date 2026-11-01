@@ -184,7 +184,7 @@ export interface HttpResponseLike {
  * 내용은 plan SC-16(sops 유무·버전, 키 provider 상태, 파일 폴백 고지, orphaned 수, 등록 안내문)에 맞춰 정한다.
  */
 export interface SecretDiagnostics {
-  /** 등록 안내문. 첫 줄은 `just secret-add <키> [env]`, 둘째 줄은 `xeon secret add <name>` [제안] */
+  /** 등록 안내문. 첫 줄은 `just secret-add <키> [env]`, 둘째 줄은 `fresnel secret add <name>` [제안] */
   readonly hints: readonly string[];
   /** sops 바이너리 */
   readonly sops: {

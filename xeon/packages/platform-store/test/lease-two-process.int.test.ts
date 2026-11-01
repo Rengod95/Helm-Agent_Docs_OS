@@ -47,7 +47,7 @@ async function openShared(path: string): Promise<Awaited<ReturnType<typeof openT
 describe("two processes and one session", () => {
   test("two processes own one session and the survivor takes over at once", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     const store = own(await openShared(path));
     const a = startChild(CHILD, [path, "native", "30000"]);
     const b = startChild(CHILD, [path, "native", "30000"]);
@@ -84,7 +84,7 @@ describe("two processes and one session", () => {
     "a stopped owner that wakes up after takeover is fenced",
     async () => {
       const dir = own(tempDir());
-      const path = dir.join("xeon.db");
+      const path = dir.join("fresnel.db");
       const store = own(await openShared(path));
       // OS 잠금이 없는 후퇴안(win32 선택)으로 돌려 만료 뒤 인수와 늦은 쓰기 거부를 본다
       const a = startChild(CHILD, [path, "win32", "800"]);
@@ -126,7 +126,7 @@ describe("two processes and one session", () => {
 describe("first open by several processes", () => {
   test("concurrent first opens of a new database all succeed with one store identity", async () => {
     const dir = own(tempDir());
-    const path = dir.join("fresh", "xeon.db");
+    const path = dir.join("fresh", "fresnel.db");
     const children = [0, 1, 2, 3].map(() => startChild(CHILD, [path, "native", "30000"]));
     try {
       const lines = await Promise.all(children.map((child) => child.nextLine()));

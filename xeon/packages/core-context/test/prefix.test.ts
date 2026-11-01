@@ -46,7 +46,7 @@ test("prefix_has_base_prompt_sections_and_sorted_tools", async () => {
   const [prefix] = assembled.messages;
   expect(prefix?.role).toBe("system");
   if (prefix?.role !== "system") return;
-  expect(prefix.content).toBe("You are Xeon.");
+  expect(prefix.content).toBe("You are Fresnel.");
   expect(Object.keys(prefix.sections ?? {})).toEqual(["memory", "project"]);
   expect(prefix.toolsAdded?.map((tool) => tool.name)).toEqual(["bash", "ls", "read"]);
   expect(assembled.prefix.prefixHash).toMatch(/^[0-9a-f]{64}$/);

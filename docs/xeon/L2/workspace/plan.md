@@ -37,7 +37,7 @@ M3 이후(2차·보류) 표:
 
 ```
 xeon/packages/cap-workspace/
-  package.json            # "name": "@fresnel/cap-workspace", "xeon": { "layer": "L2", "domain": "workspace" }
+  package.json            # "name": "@fresnel/cap-workspace", "fresnel": { "layer": "L2", "domain": "workspace" }
   UPSTREAM.json  PATCHES.md  LICENSE.pi          # ADR-0003 §3.4
   src/
     index.ts              # manifest, apply(ctx): 서비스 fresnel.workspace 등록
@@ -202,7 +202,7 @@ Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키�
 
 M1 완료:
 
-1. `xeon chat` 한 턴에서 `read`, `ls`, `bash` 도구 호출이 모델 테이프로 재생되고 결과가 기대값과 같다(`_research/foundation-plan.md` §6 M1 스모크).
+1. `fresnel chat` 한 턴에서 `read`, `ls`, `bash` 도구 호출이 모델 테이프로 재생되고 결과가 기대값과 같다(`_research/foundation-plan.md` §6 M1 스모크).
 2. `cd xeon && just verify`가 종료코드 0이다.
 3. F `defs/workspace.ts`의 정의 3개가 `validateCapability` 이슈 0건이다(`F.capabilities.plan` M1).
 4. `L2.workspace.spec` §9 수용 기준 2, 4, 5, 6, 7(M1 도구 범위), 10이 테스트로 확인된다.

@@ -6,7 +6,7 @@ import { checkDocs, countUnresolved, parseFrontmatter, routeDocs } from "./docs-
 
 let root = "";
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "xeon-docs-"));
+  root = mkdtempSync(join(tmpdir(), "fresnel-docs-"));
   write(
     "docs/xeon/_routing/routes.yaml",
     `version: 1

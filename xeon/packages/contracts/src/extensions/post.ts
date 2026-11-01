@@ -12,7 +12,7 @@ export type PostItem =
   /** 확장 메시지. 모델 컨텍스트에 들어가고 display가 참이면 UI에도 보인다 */
   | {
       readonly kind: "context";
-      /** XeonCustomMessage.customType(F.conversation.spec §3.5.2) */
+      /** FresnelCustomMessage.customType(F.conversation.spec §3.5.2) */
       readonly customType: RecordKind;
       readonly content: PostContent;
       readonly display: boolean;

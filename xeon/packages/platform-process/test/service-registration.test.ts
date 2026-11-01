@@ -10,7 +10,7 @@ import {
 
 const dirs: string[] = [];
 function scratch(): string {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-reg-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-reg-"));
   dirs.push(dir);
   return dir;
 }
@@ -25,7 +25,7 @@ function registration(overrides: Partial<ServiceRegistration> = {}): ServiceRegi
     schemaVersion: 1,
     version: "0.1.0",
     protocolVersion: "1.0.0",
-    socket: "/run/xeon/xeon.sock",
+    socket: "/run/fresnel/fresnel.sock",
     pid: 4242,
     startedAt: 1_700_000_000_000,
     token: TOKEN,

@@ -50,7 +50,7 @@ binds: [xeon/apps/desktop/**]
 | WebView | 시스템 WebView(macOS WKWebView, Linux WebKitGTK, Windows WebView2)에서 도는 TS UI |
 | 엔진 사이드카 | `bun build --compile`로 만든 엔진 바이너리. `bundle.externalBin`으로 앱에 들어간다 |
 | 릴레이 | 셸이 엔진의 stdin/stdout(또는 서비스 소켓) 바이트를 WebView와 주고받는 경로. JSON-RPC를 해석하지 않는다 |
-| 엔진 공급원 | WebView가 접속하는 엔진의 출처. `"sidecar"`(앱이 띄운 자식) 또는 `"service"`(`xeon service`, M3) |
+| 엔진 공급원 | WebView가 접속하는 엔진의 출처. `"sidecar"`(앱이 띄운 자식) 또는 `"service"`(`fresnel service`, M3) |
 | 릴레이 세대(epoch) | 셸이 WebView 페이지 하나에 릴레이를 붙일 때마다 1씩 올리는 번호. 새로고침과 창 재생성을 구별한다 |
 | 손자 프로세스 | 엔진이 띄운 자식(도구 셸 명령, MCP 서버 등) |
 | 이어서 실행 후보 | 비정상 종료 표식(`running_since`)이 남은 세션(adr.0006 §3.6 5번) |
@@ -67,8 +67,8 @@ flowchart LR
     core["Tauri core (Rust)<br/>engine.rs: spawn·종료·재기동<br/>relay.rs: 바이트 릴레이"]
     web["WebView (TS UI)<br/>transport/tauri-stdio.ts<br/>views/*, settings/*"]
   end
-  eng["엔진 사이드카<br/>xeon host --stdio"]
-  svc["xeon service (M3)<br/>Unix 소켓"]
+  eng["엔진 사이드카<br/>fresnel host --stdio"]
+  svc["fresnel service (M3)<br/>Unix 소켓"]
   kids["손자 프로세스<br/>bash, MCP 서버"]
   web <-->|"Tauri IPC: invoke + Channel (바이트)"| core
   core <-->|"stdin/stdout JSON Lines"| eng
@@ -84,7 +84,7 @@ flowchart LR
 | 안 | 내용 | spawn 위치 | envelope 검사 | 판정 |
 |---|---|---|---|---|
 | (a) Rust 바이트 릴레이 + WebView TS 전송 | 셸이 사이드카를 띄우고 stdout 바이트를 그대로 WebView에 넘긴다. WebView의 TS가 F `StdioTransportFactory`로 JSON Lines 프레이밍을 하고 `HostConnection`이 envelope를 검사한다 | Rust 한 곳 | TS(F 함수) 한 곳 | [제안] 채택 |
-| (b) WebView가 JS shell 플러그인으로 직접 spawn | `Command.sidecar("binaries/xeon").spawn()`을 WebView에서 부른다 | WebView | TS | 탈락 |
+| (b) WebView가 JS shell 플러그인으로 직접 spawn | `Command.sidecar("binaries/fresnel").spawn()`을 WebView에서 부른다 | WebView | TS | 탈락 |
 | (c) Rust가 JSON-RPC를 해석 | 셸이 메시지를 파싱하고 Tauri 명령·이벤트로 바꿔 WebView에 준다 | Rust | Rust와 TS 두 곳 | 탈락 |
 
 (a)를 고르는 근거:
@@ -107,12 +107,12 @@ flowchart LR
 | 명령 | 인자 | 결과 | 뜻 |
 |---|---|---|---|
 | `engine_attach` | `onBytes: Channel<ArrayBuffer>`, `onState: Channel<EngineState>` | `AttachResult` | 현재 페이지에 릴레이를 붙인다. 이전 세대 릴레이는 끊는다 |
-| `engine_write` | 원시 바이트 본문(`Uint8Array`), 헤더 `x-xeon-epoch` | `null` | 엔진 stdin(또는 소켓)에 쓴다. 세대가 다르면 거부한다. 본문은 줄(프레임) 단위이고 2 MiB 이하다 |
+| `engine_write` | 원시 바이트 본문(`Uint8Array`), 헤더 `x-fresnel-epoch` | `null` | 엔진 stdin(또는 소켓)에 쓴다. 세대가 다르면 거부한다. 본문은 줄(프레임) 단위이고 2 MiB 이하다 |
 | `engine_ack` | `epoch: number`, `bytes: number` | `null` | `onBytes`로 받은 바이트 중 처리를 끝낸 양을 알린다(신용 반환). 세대가 다르면 무시한다 |
 | `engine_restart` | 없음 | `null` | `failed` 상태에서 사용자가 수동 재기동을 고를 때 부른다. `failed`가 아니면 `not-failed`로 거부한다 |
 | `engine_detach` | `epoch: number` | `null` | 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다. `epoch`가 현재 연결일 때만 끊으므로 새로고침 뒤 늦게 온 이전 페이지의 호출이 새 연결을 끊지 못한다 |
 
-- 키 등록 명령 `secret_register`는 엔진 중계가 아니다. 원시 바이트 본문 `<동작> <이름>\n<값>`(동작은 `add` 또는 `set`)을 받아 번들된 사이드카를 `xeon secret <동작> <이름>`으로 한 번 실행하고, 값을 그 stdin에 한 번 쓴 뒤 닫고, 끝나기를 기다려 `null`을 돌려준다. 거부는 `{ kind, ... }` 객체다: `bad-request`, `empty`, `too-large`(값 8 KiB 초과), `busy`(이미 진행 중), `timeout`(30초), `unavailable { detail }`(사이드카를 띄우지 못함), `rejected { exitCode, detail }`(자식이 0이 아닌 코드로 끝남). 규칙과 약점은 §4.14.1이다.
+- 키 등록 명령 `secret_register`는 엔진 중계가 아니다. 원시 바이트 본문 `<동작> <이름>\n<값>`(동작은 `add` 또는 `set`)을 받아 번들된 사이드카를 `fresnel secret <동작> <이름>`으로 한 번 실행하고, 값을 그 stdin에 한 번 쓴 뒤 닫고, 끝나기를 기다려 `null`을 돌려준다. 거부는 `{ kind, ... }` 객체다: `bad-request`, `empty`, `too-large`(값 8 KiB 초과), `busy`(이미 진행 중), `timeout`(30초), `unavailable { detail }`(사이드카를 띄우지 못함), `rejected { exitCode, detail }`(자식이 0이 아닌 코드로 끝남). 규칙과 약점은 §4.14.1이다.
 - 오류 값은 kebab-case 문자열 코드다: `epoch-stale`, `engine-not-running`, `engine-stopping`, `not-failed`, `too-large`, `bad-request`.
 - `onBytes`의 메시지는 엔진 stdout 바이트 그대로이고 완성된 줄(`\n`으로 끝나는 바이트열)만 담는다. 종류 표지나 세대 접두사는 없다. attach마다 `Channel`이 따로이므로 세대는 `AttachResult.epoch`로 안다. 셸은 줄 끝이 오지 않은 꼬리를 쥐고 있다가 줄이 완성되면 보낸다.
 - 신용 기반 역압 [결정: `L4.desktop.plan` §3.1.1 S3 조건 1]: 셸은 보낸 바이트에서 `engine_ack`로 돌려받은 바이트를 뺀 값이 4 MiB를 넘으면 더 보내지 않는다. 이 동안 엔진 stdout 읽기가 멈추고 엔진의 stdout 쓰기가 막힌다. WebView는 처리한 바이트가 256 KiB 쌓일 때마다 `engine_ack(epoch, bytes)`를 부른다(창은 확인 단위의 16배라 확인이 늦어도 송신이 멎지 않는다). 미확인 바이트가 창 이하이면 다음 묶음을 보낸다(묶음 하나가 창을 넘을 수 있어 큰 프레임도 멈추지 않는다).
@@ -203,7 +203,7 @@ export interface EngineConnectionDeps {
   readonly ipc: DesktopIpc;
   readonly stdioTransport: StdioTransportFactory;               // F 구현 (§10 미결 3)
   readonly connect: (transport: Transport) => HostConnection;   // F 구현 (§10 미결 3)
-  readonly client: { readonly name: "xeon-desktop"; readonly version: string };
+  readonly client: { readonly name: "fresnel-desktop"; readonly version: string };
 }
 
 export interface EngineConnection {
@@ -237,10 +237,10 @@ export declare function resubscribe(
 
 ### 3.5 사이드카 등록과 권한
 
-[제안] 사이드카 이름은 `xeon`이고 인자는 `host --stdio`다(adr.0008 §3.2 제안, `L4.host-service.spec` §3.2 [제안]). 확정은 `L4.host-service.spec`이 한다. `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10은 `apps/host` 단독 사이드카로 적고 있어 어긋난다(§10 미결 1).
+[제안] 사이드카 이름은 `fresnel`이고 인자는 `host --stdio`다(adr.0008 §3.2 제안, `L4.host-service.spec` §3.2 [제안]). 확정은 `L4.host-service.spec`이 한다. `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10은 `apps/host` 단독 사이드카로 적고 있어 어긋난다(§10 미결 1).
 
 - 이름, 인자, triple 목록은 한 곳(`xeon/apps/desktop/sidecar.json`, `L4.desktop.plan` §2)에 모은다. `tauri.conf.json`의 `bundle.externalBin`, capabilities, Rust 상수는 이 파일과 같아야 하고 테스트가 대조한다. 이름이 바뀌면 이 파일 하나와 그 파생물만 고친다.
-- 파일 위치는 `src-tauri/binaries/xeon-<target-triple>`(Windows는 `.exe`)다(adr.0008 §3.2).
+- 파일 위치는 `src-tauri/binaries/fresnel-<target-triple>`(Windows는 `.exe`)다(adr.0008 §3.2).
 - [제안] (a)안에서는 WebView가 spawn하지 않으므로 capabilities에 `shell:allow-spawn`을 WebView용으로 두지 않는다. adr.0008 §3.2의 capabilities 발췌(`args: ["host", "--stdio"]` 고정)는 (b)안으로 되돌릴 때의 형식으로 남긴다. [가정] Rust API(`app.shell().sidecar()`)는 capabilities 검사를 받지 않는다. S1 spike에서 확인한다.
 - [제안] 셸 플러그인의 JS API(`@tauri-apps/plugin-shell`)는 앱에 넣지 않는다.
 
@@ -317,7 +317,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 - E5의 체크포인트 시한: 엔진은 EOF 뒤 `l0.process.shutdown.timeoutMs`(기본 3000ms) 안에 종료한다(`L0.process.spec` §6, `L4.host-service.spec` HS-31, HS-32). S4 측정(WSL2, 20회)에서 idle 호스트의 EOF → 종료는 중앙값 약 28 ms, 최대 61 ms였다. 기본값은 종료 경로에 충분하고, 진행 중 turn이 있을 때의 체크포인트 시간은 [미확인]이다(`L4.desktop.plan` §3.1.1 S4).
 - E8의 확인: `L0.os.spec`이 CLI와 엔진 사이드카에 같은 데이터 디렉터리를 돌려주는지는 그 문서의 수용 기준에 요구한다.
-- E7의 PATH 보강: Finder로 띄운 macOS 앱의 PATH는 `/usr/bin:/bin:/usr/sbin:/sbin`뿐이라 sops, age, rg를 찾지 못합니다. `src-tauri/src/env_path.rs`의 `augment_path`는 기존 항목과 순서를 그대로 두고, 없는 디렉터리만 이 순서로 뒤에 붙입니다: `/opt/homebrew/bin`, `/opt/homebrew/sbin`, `/usr/local/bin`, `<홈>/.local/bin`, `<홈>/.nix-profile/bin`(뒤의 둘은 홈이 있을 때만). 이미 있는 디렉터리는 중복하지 않고, 빈 항목은 버립니다. PATH 키가 없으면 붙인 디렉터리만 담은 키를 맨 뒤에 넣습니다. 붙일 수 없는 값이면 원래 PATH를 씁니다. 엔진과 `xeon secret` 자식(§4.14.1)이 같은 함수를 씁니다. 홈은 E6의 작업 디렉터리입니다.
+- E7의 PATH 보강: Finder로 띄운 macOS 앱의 PATH는 `/usr/bin:/bin:/usr/sbin:/sbin`뿐이라 sops, age, rg를 찾지 못합니다. `src-tauri/src/env_path.rs`의 `augment_path`는 기존 항목과 순서를 그대로 두고, 없는 디렉터리만 이 순서로 뒤에 붙입니다: `/opt/homebrew/bin`, `/opt/homebrew/sbin`, `/usr/local/bin`, `<홈>/.local/bin`, `<홈>/.nix-profile/bin`(뒤의 둘은 홈이 있을 때만). 이미 있는 디렉터리는 중복하지 않고, 빈 항목은 버립니다. PATH 키가 없으면 붙인 디렉터리만 담은 키를 맨 뒤에 넣습니다. 붙일 수 없는 값이면 원래 PATH를 씁니다. 엔진과 `fresnel secret` 자식(§4.14.1)이 같은 함수를 씁니다. 홈은 E6의 작업 디렉터리입니다.
 
 ### 4.2 기동 순서
 
@@ -327,7 +327,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
    | 안 | 내용 | 장점 | 단점 |
    |---|---|---|---|
-   | 1 | 셸이 엔진 바이너리의 설정 해석 전용 서브커맨드 `xeon service launch-mode --json`을 짧게 실행하고 `{ "mode": "in-process" \| "service" }` 한 줄을 읽는다(`L4.host-service.spec` §3.2) | 해석 코드가 `resolveLaunchMode` 하나다. CLI(`xeon config set`)나 파일 편집으로 바꾼 값이 바로 반영된다 | 시작마다 짧은 프로세스 하나가 더 뜬다(기동 시간은 S2 측정에 포함) |
+   | 1 | 셸이 엔진 바이너리의 설정 해석 전용 서브커맨드 `fresnel service launch-mode --json`을 짧게 실행하고 `{ "mode": "in-process" \| "service" }` 한 줄을 읽는다(`L4.host-service.spec` §3.2) | 해석 코드가 `resolveLaunchMode` 하나다. CLI(`fresnel config set`)나 파일 편집으로 바꾼 값이 바로 반영된다 | 시작마다 짧은 프로세스 하나가 더 뜬다(기동 시간은 S2 측정에 포함) |
    | 2 | `l0.process.service.enabled`를 `l4.desktop.*` 로컬 저장소에 거울 값으로 둔다 | 추가 프로세스가 없다 | 엔진 쪽 값과 어긋날 수 있다. CLI나 파일로 바꾼 값을 셸이 알 수단이 없고, 관리 범위 잠금도 따로 읽어야 한다 |
 
    [제안] 안 1을 쓴다. 명령이 실패하면(바이너리 없음, 종료코드 0 아님, JSON 해석 실패) 사이드카 경로(3단계)로 가고 진단을 남긴다.
@@ -394,7 +394,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 ### 4.8 서비스 모드 연동 (M3)
 
-- `l4.host-service`의 서비스 사용 설정이 켜져 있으면 셸은 사이드카를 stdio 엔진으로 띄우지 않고 서비스 소켓에 접속한다(adr.0006 §3.4 "CLI와 데스크톱은 서비스 사용 설정이 켜져 있으면 시작할 때 `ensure`를 부르고 service 전송으로 접속한다"). 설정을 읽는 경로는 §4.2 2단계(`xeon service launch-mode --json`)다.
+- `l4.host-service`의 서비스 사용 설정이 켜져 있으면 셸은 사이드카를 stdio 엔진으로 띄우지 않고 서비스 소켓에 접속한다(adr.0006 §3.4 "CLI와 데스크톱은 서비스 사용 설정이 켜져 있으면 시작할 때 `ensure`를 부르고 service 전송으로 접속한다"). 설정을 읽는 경로는 §4.2 2단계(`fresnel service launch-mode --json`)다.
 - WebView는 소켓을 열 수 없다. 셸이 `relay.rs`의 같은 바이트 파이프 추상화로 소켓 바이트를 중계한다. WebView 쪽 코드(§3.4)는 바뀌지 않는다.
 
 ```rust
@@ -406,9 +406,9 @@ pub trait EnginePipe: Send {
 pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 ```
 
-- `ensure`는 셸이 엔진 바이너리를 `xeon service ensure --json`으로 짧게 실행해 얻는다(`L4.host-service.spec` HS-38). stdout은 JSON 한 줄이다. 성공이면 `{ "ok": true, "socket": <경로>, "version": <버전>, "action": <EnsureResult.action> }`이고 종료코드 0, 실패면 `{ "ok": false, "reason": <EnsureResult.reason> }`이고 종료코드 1이다. 셸은 `socket`만 쓰고, 실패면 `restarting` 상태와 §4.4 재기동 정책을 따른다.
+- `ensure`는 셸이 엔진 바이너리를 `fresnel service ensure --json`으로 짧게 실행해 얻는다(`L4.host-service.spec` HS-38). stdout은 JSON 한 줄이다. 성공이면 `{ "ok": true, "socket": <경로>, "version": <버전>, "action": <EnsureResult.action> }`이고 종료코드 0, 실패면 `{ "ok": false, "reason": <EnsureResult.reason> }`이고 종료코드 1이다. 셸은 `socket`만 쓰고, 실패면 `restarting` 상태와 §4.4 재기동 정책을 따른다.
 - 서비스 공급원에서 앱을 닫아도 서비스와 진행 중 turn은 계속된다. §4.3의 `host.shutdown`과 그룹 SIGKILL은 서비스에 보내지 않는다. 셸은 소켓만 닫는다.
-- 원격 서비스(M3-REQ-44, `L4.host-service.spec` HS-87·HS-89)는 셸을 바꾸지 않는다. 사용자 설정 `l0.process.service.remote`(또는 사이드카 인자)에 주소가 있으면 사이드카 `xeon host --stdio`가 엔진을 열지 않고 원격 서비스 소켓(SSH 터널, 사설망)에 stdin/stdout을 중계한다. 셸은 평소처럼 사이드카의 바이트만 중계하고 `EngineState.source`는 `"sidecar"`다. 원격이 끊기면 사이드카가 종료코드 1로 끝나므로 §4.4 재기동 정책이 그대로 적용된다. 주소 문법이 틀리면 종료코드 2, 접속 실패는 3이다. 화면 쪽 설정 항목은 M4다 [결정: 오케스트레이터 기본값].
+- 원격 서비스(M3-REQ-44, `L4.host-service.spec` HS-87·HS-89)는 셸을 바꾸지 않는다. 사용자 설정 `l0.process.service.remote`(또는 사이드카 인자)에 주소가 있으면 사이드카 `fresnel host --stdio`가 엔진을 열지 않고 원격 서비스 소켓(SSH 터널, 사설망)에 stdin/stdout을 중계한다. 셸은 평소처럼 사이드카의 바이트만 중계하고 `EngineState.source`는 `"sidecar"`다. 원격이 끊기면 사이드카가 종료코드 1로 끝나므로 §4.4 재기동 정책이 그대로 적용된다. 주소 문법이 틀리면 종료코드 2, 접속 실패는 3이다. 화면 쪽 설정 항목은 M4다 [결정: 오케스트레이터 기본값].
 - 서비스가 사라지면(소켓 EOF) 셸은 `restarting`으로 두고 `ensure`를 다시 부른다. 재기동 정책은 §4.4와 같다.
 - 알림 [결정: review.decisions-2 S-04]: 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 탭은 `L2.dialog.spec`의 `l2.dialog.notify.*` 정의(`notify.os`, `notify.completed`, `notify.approvalWaiting`, `notify.questionWaiting`, `notify.error`, `notify.backgroundCompleted`, 탭 `execution`)를 따른다. 데스크톱은 전달 수단으로 Tauri 알림 플러그인(`tauri-plugin-notification`)을 쓴다. 사건 원천은 `events.batch`의 내구 이벤트(승인 요청 등)다. 창이 앞에 있어도 기본으로 OS 알림을 보내고, 설정으로 끌 수 있다 [결정: review.m3-design-inputs D-M3-17]. 웹·모바일 푸시 알림은 후순위다. 사용자 알림 전용 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다(review.decisions-2 U-04, §10 미결 5).
 
@@ -525,7 +525,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 키 바인딩과 테마는 `appearance` 탭 설정이다(§6).
 - 확장 이벤트(`x.<확장id>.*`)는 M2에서 일반 item(종류 이름과 요약)으로만 보인다. 확장별 화면은 범위 밖이다.
 - `display: false`인 확장 item(`kind: "custom"`, 예: `x.knowledge.context`)은 모델 문맥 전용이라 트랜스크립트에 그리지 않는다(`F.conversation.spec` §3.5.2). `display: true`만 위 규칙으로 보인다.
-- `kind: "system"` item(요청 앞에 붙는 시스템 프롬프트, 예: "You are Xeon, a helpful coding assistant.")는 모델 문맥 전용이라 그리지 않는다 [결정: M2 Mac 실기]. 사용자가 쓴 말과 모델의 응답이 아니고 F 명세도 화면 표시를 요구하지 않는다. 내용 없이 `failed`로 끝난 어시스턴트 item도 그리지 않는다: 보일 내용이 없고 실패 원인은 트랜스크립트 아래 `role="alert"` 한 곳에만 보인다(실패가 두 번 보이지 않게 한다). 내용이 있는 `failed`·`interrupted` item은 내용과 상태 표지를 그대로 보인다.
+- `kind: "system"` item(요청 앞에 붙는 시스템 프롬프트, 예: "You are Fresnel, a helpful coding assistant.")는 모델 문맥 전용이라 그리지 않는다 [결정: M2 Mac 실기]. 사용자가 쓴 말과 모델의 응답이 아니고 F 명세도 화면 표시를 요구하지 않는다. 내용 없이 `failed`로 끝난 어시스턴트 item도 그리지 않는다: 보일 내용이 없고 실패 원인은 트랜스크립트 아래 `role="alert"` 한 곳에만 보인다(실패가 두 번 보이지 않게 한다). 내용이 있는 `failed`·`interrupted` item은 내용과 상태 표지를 그대로 보인다.
 - 실패 문장은 host가 준 `turn.completed.error`를 그대로 보인다. 모델을 해석하지 못했으면 `model_unavailable: model_not_found: model <ref> is not in the catalog`처럼 종류와 모델이 보이고(`L1.loop.spec` §4.3), 비밀을 열지 못했으면 `secret_unresolved: ... could not be leased (denied: <사유>)`로 사유가 보인다(`L1.models.spec` §3.9).
 - 입력창 Enter [결정: M2 Mac 실기]: 한글 조합 중의 Enter는 보내지 않는다. WebKit(Safari, WKWebView)은 `compositionend`를 Enter keydown보다 먼저 내고 그 keydown의 `isComposing`이 거짓이라, `isComposing`, `keyCode === 229`, `compositionend` 직후 50ms 안의 Enter를 모두 조합 확정으로 본다(`src/views/composer-model.ts`). 전송은 동기 잠금(ref)으로 한 번에 하나만 나가고, 보내는 즉시 입력을 비우며 실패하면 입력을 돌려준다.
 - 입력창 잠금 [결정: M2 Mac 실기]: 모델 키와 기본 모델이 끝나지 않았으면(시작 안내 띠와 같은 판단) 입력창을 잠그고 안내 문장을 보인다.
@@ -545,7 +545,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 쓰기 범위는 `user`다. `l1.models.providers`는 목록 전체가 한 키이므로(병합 단위는 키 하나) 현재 값을 읽어 해당 provider 원소만 바꾼 목록을 보낸다. baseUrl은 그대로 둔다.
 - 키 값은 wire와 로그 어디에도 없다. 호스트가 값을 받을 수 있는 연결에서는 값 없는 `secret.beginEntry { name, action }`이 시작하고 값은 호스트가 wire 밖에서 받는다(`L4.settings-ui.spec` §4.6.4 C안).
 - 사이드카(stdio) 호스트에는 값을 받을 수단이 없어 `secret.beginEntry`가 `started: false`를 돌려준다(`L4.host-service.spec` HS-44, 서비스 쪽 OS 입력 창은 M3). 이 연결에서는 셸이 값을 받는다(§4.14.1).
-- 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `@fresnel/client/settings`의 `diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `xeon doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
+- 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `@fresnel/client/settings`의 `diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `fresnel doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
 - `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
 - 저장이 거절되면(`settings.set`의 3102) 화면은 host가 준 첫 문제의 문장을 그대로 보인다: `저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5, …)`. 기본 모델은 저장하기 전에 host가 카탈로그에서 검사한다(`L4.host-service.spec` HS-78). "provider에 연결"은 그 키의 모델 provider 사용을 허용하는 행위이기도 하다(`L4.host-service.spec` HS-45): 같은 연결을 다시 저장하면 이전 빌드가 빈 정책으로 만든 키의 허용이 다시 맞춰진다 [결정: M2 Mac 실기]. 연결 뒤에는 `secret.meta` 없이 모델 호출이 된다.
 - 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("설정 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
@@ -553,14 +553,14 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 
 #### 4.14.1 사이드카 연결에서 키 값 받기 [결정: M2 첫 실행 M-12]
 
-M2 첫 실행에서 깨끗한 Mac에는 `xeon` 명령이 설치되어 있지 않았고, 설정 화면의 터미널 안내(`xeon secret add <이름>`)를 따를 수 없었다. 사이드카 호스트는 값을 받을 수단이 없어(HS-44) 키 등록이 끝나지 않았다. 두 경로를 고려했다.
+M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 않았고, 설정 화면의 터미널 안내(`fresnel secret add <이름>`)를 따를 수 없었다. 사이드카 호스트는 값을 받을 수단이 없어(HS-44) 키 등록이 끝나지 않았다. 두 경로를 고려했다.
 
 | 경로 | 값이 지나는 곳 | 약점 |
 |---|---|---|
 | 서비스 쪽 OS 입력 창(M3) | OS 입력 창과 L0.secrets | 서비스 모드가 있어야 한다. M2에는 없다 |
-| Rust 셸이 번들된 `xeon secret`을 실행하고 stdin에 한 번 쓴다(채택) | WebView 입력란, Tauri IPC 본문, 셸의 요청 버퍼, 자식 stdin 파이프 | 값이 DOM과 IPC를 지난다(`L4.settings-ui.spec` §4.6.4 B안과 같은 약점). 아래 약점 항목 |
+| Rust 셸이 번들된 `fresnel secret`을 실행하고 stdin에 한 번 쓴다(채택) | WebView 입력란, Tauri IPC 본문, 셸의 요청 버퍼, 자식 stdin 파이프 | 값이 DOM과 IPC를 지난다(`L4.settings-ui.spec` §4.6.4 B안과 같은 약점). 아래 약점 항목 |
 
-채택한 경로는 비밀 저장 로직을 Rust에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `xeon` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
+채택한 경로는 비밀 저장 로직을 Rust에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `fresnel` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
 
 흐름(`src-tauri/src/secret_entry.rs`, `xeon/packages/client/src/settings/key-entry.ts`):
 
@@ -593,7 +593,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 | 부분 | 내용 | 코드 |
 |---|---|---|
-| 로그 파일 | `tauri-plugin-log`의 `LogDir` 대상(`xeon-desktop-debug.log`)과 표준 출력. 수준 info, 파일 하나, 2 MB에서 새로 시작(`KeepOne`). 들어가는 줄은 셸 로그(`applog.rs`)와 같은 줄이고, 시작할 때 `xeon-desktop <버전> started` 한 줄이 먼저 온다 | `main.rs` `debug_log_plugin`, `applog.rs` `AppLog::line` |
+| 로그 파일 | `tauri-plugin-log`의 `LogDir` 대상(`fresnel-desktop-debug.log`)과 표준 출력. 수준 info, 파일 하나, 2 MB에서 새로 시작(`KeepOne`). 들어가는 줄은 셸 로그(`applog.rs`)와 같은 줄이고, 시작할 때 `fresnel-desktop <버전> started` 한 줄이 먼저 온다 | `main.rs` `debug_log_plugin`, `applog.rs` `AppLog::line` |
 | 상태 덤프 | 줄 단위 JSON-RPC 2.0 `state.dump`: 앱 이름·버전·pid·가동 시간, 엔진 상태(IPC 상태 채널과 같은 직렬화), 릴레이 세대, 메인 창 크기·가시·포커스·최소화, 로그 폴더. 대화 내용과 비밀 값은 싣지 않는다 | `src-tauri/src/inspect/mod.rs`, `probe.rs` |
 | 뷰포트 스냅샷 | `viewport.snapshot`: WKWebView가 보이는 영역을 PNG로 `<LogDir>/snapshots/viewport-<ms>.png`에 저장하고 `{ path, bytes, mime }`을 돌려준다. 이미지 바이트는 응답에 없다. macOS만 되고 그 밖은 오류(-32000)다 | `inspect/snapshot_macos.rs` |
 | 듣는 곳 | Unix 도메인 소켓 하나(기본 `<LogDir>/inspect.sock`, 환경 변수 `FRESNEL_DESKTOP_INSPECT_SOCKET`으로 바꾼다). 소켓 파일 0600. 소켓 폴더는 없으면 앱이 0700으로 만들고(위쪽 폴더는 기본 권한), 이미 있으면 권한을 바꾸지 않는다. 이미 있는 폴더는 앱 사용자 소유이고 other 쓰기가 없을 때만 쓰며, `/tmp` 같은 공용 폴더는 `PermissionDenied`로 거절하고 소켓을 열지 않는다(M2 마감 재검토 11). 동시 접속 4개, 요청 줄 16 KiB 상한. 모르는 메서드는 -32601이고 읽기 전용이다 | `inspect/server.rs` |
@@ -605,7 +605,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
   3. 릴리스 바이너리에서 `strings <앱 바이너리> | grep -c 'viewport.snapshot'`이 0이다.
 - 소스 수준 보장은 `test/inspect-guard.test.ts`가 시험한다(`mod inspect;`와 호출 지점의 cfg 줄, 소켓 생성이 `inspect` 밖에 없음, 로그 플러그인 cfg). 위 1~3은 컴파일 산출물 확인이라 자동화하지 않았다.
 - `tauri-plugin-log`는 crate 의존성이라 릴리스 빌드에도 링크 대상이다. 등록하지 않으므로 파일도 소켓도 생기지 않는다. 의존성을 디버그 전용으로 줄이는 일은 하지 않았다(`cfg(debug_assertions)`로 의존성을 나눌 수 없다).
-- 로그 파일이 0바이트였던 것은 플러그인이 받을 `log` 호출이 앱에 없었기 때문으로 봅니다 [가정: Mac 실기 확인 전]. `AppLog::line`은 같은 줄을 대상 `xeon_desktop`의 `log` info 기록으로도 냅니다. 릴리스 빌드에는 기록기가 없어 이 호출은 아무 일도 하지 않습니다. 시작 줄은 앱 이름과 버전만 싣습니다(E11).
+- 로그 파일이 0바이트였던 것은 플러그인이 받을 `log` 호출이 앱에 없었기 때문으로 봅니다 [가정: Mac 실기 확인 전]. `AppLog::line`은 같은 줄을 대상 `fresnel_desktop`의 `log` info 기록으로도 냅니다. 릴리스 빌드에는 기록기가 없어 이 호출은 아무 일도 하지 않습니다. 시작 줄은 앱 이름과 버전만 싣습니다(E11).
 - 스냅샷 구현은 macOS에서만 컴파일된다. WSL에서는 컴파일도 시험도 못 했고 Mac 확인이 필요하다 [가정](`review.macos-checklist`에 더할 항목).
 
 ### 4.16 새 대화의 작업 폴더 [결정: M2 마감 G2-02]
@@ -659,9 +659,9 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - `shutdownGraceMs`의 기본 7000은 엔진 체크포인트 시한 `l0.process.shutdown.timeoutMs` 기본 3000에 2000을 더한 하한(5000)보다 2000 크다. 여유분은 엔진 시한을 5000까지 올려도 불변식이 깨지지 않게 둔 값이다. 하한 규칙은 `service stop`의 "`l0.process.shutdown.timeoutMs` + 2000ms 뒤 SIGKILL"(`L4.host-service.spec` SV-07)과 같다 [제안]. 불변식은 §4.3에 둔다. S1 측정 뒤 확정한다.
 - `l4.desktop.update.auto`: 자동 업데이트는 M3 이후 검토이고 채택 여부가 [미결]이다(§10 미결 12). 정의는 M3에서 더한다.
 - `allowedScopes`에 `managed`를 넣은 키는 관리 범위가 잠글 수 있다. 데스크톱 로컬 저장소가 관리 범위 파일을 읽는 방법은 `L4.settings-ui.spec`과 함께 정한다 [미결: §10 미결 6에 포함].
-- 서비스 사용 설정 키는 `l0.process.service.enabled`이고 `L0.process.spec` §6이 소유한다. 데스크톱은 §4.2 2단계의 `xeon service launch-mode --json`으로 읽기만 한다.
+- 서비스 사용 설정 키는 `l0.process.service.enabled`이고 `L0.process.spec` §6이 소유한다. 데스크톱은 §4.2 2단계의 `fresnel service launch-mode --json`으로 읽기만 한다.
 
-노출 위치: 설정 화면(`L4.settings-ui.spec`)이 엔진 `settings.list` 결과와 `DesktopSettingsStore.defs()`를 합쳐 탭별로 보인다. 파일은 데스크톱 설정 파일, 명령은 없다(CLI `xeon config`는 엔진 카탈로그만 다룬다).
+노출 위치: 설정 화면(`L4.settings-ui.spec`)이 엔진 `settings.list` 결과와 `DesktopSettingsStore.defs()`를 합쳐 탭별로 보인다. 파일은 데스크톱 설정 파일, 명령은 없다(CLI `fresnel config`는 엔진 카탈로그만 다룬다).
 
 ## 7. 확장 지점
 
@@ -676,7 +676,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | 방향 | 문서 | 내용 |
 |---|---|---|
 | 요구 | `F.wire-settings.spec` | `Transport`, `StdioTransportFactory`, `HostConnection`, `WIRE_METHODS`, `WIRE_CONFORMANCE_CASES`, `StreamPosition`, `SettingDefWire`, `EffectiveSetting`, `validateSettingValue`. 변경 요청: `host.shutdown` 메서드, `$/connectionReset` 알림, `HostConnection`이 모르는 id의 응답을 무시하는 규칙, `createHostConnection`과 `StdioTransportFactory` 구현의 제공 위치 |
-| 요구 | `L4.host-service.spec` | 엔진 바이너리 이름과 서브커맨드(`xeon host --stdio` [제안]), stdin EOF 임대(E5) 구현과 시한 `l0.process.shutdown.timeoutMs`(HS-31, HS-32), `host.shutdown` 처리기, `xeon service ensure --json`(HS-38), `xeon service launch-mode --json`(§3.2), 서비스 사용 설정 키 `l0.process.service.enabled`의 엔진 없는 해석(HS-37) |
+| 요구 | `L4.host-service.spec` | 엔진 바이너리 이름과 서브커맨드(`fresnel host --stdio` [제안]), stdin EOF 임대(E5) 구현과 시한 `l0.process.shutdown.timeoutMs`(HS-31, HS-32), `host.shutdown` 처리기, `fresnel service ensure --json`(HS-38), `fresnel service launch-mode --json`(§3.2), 서비스 사용 설정 키 `l0.process.service.enabled`의 엔진 없는 해석(HS-37) |
 | 요구 | `L0.os.spec` | CLI와 엔진 사이드카가 같은 사용자 데이터 디렉터리를 쓰는 것(E8), 서비스 소켓 경로 |
 | 요구 | `L0.process.spec` | 엔진이 띄운 손자 프로세스의 그룹 규칙(E9) |
 | 요구 | `F.records.spec`, `L1.tools.spec` | 승인 요청·해결 이벤트 kind와 payload(A안 [가정]) |
@@ -693,7 +693,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - D-03. 같은 모델 테이프와 입력으로 CLI(in-process)와 데스크톱 사이드카(stdio)의 호스트 메시지 열이 같다. 비교 전에 `id`, 시각 필드, `pid`, `transport` 값만 정규화한다(`product.scope.spec` M2 종료 조건).
 - D-04. WebView를 새로고침한 뒤 마지막으로 처리한 위치 다음 seq의 내구 이벤트부터 빠짐없이, 중복 없이 이어서 받는다. 새로고침 전후 트랜스크립트의 item 집합이 같다.
 - D-05. 엔진을 강제 종료하면 셸이 재기동 정책에 따라 다시 띄우고, WebView가 저장한 위치부터 재구독한다. 10분 안에 `restartLimit + 1`번째 종료가 오면 `failed`가 되고 자동 재기동하지 않는다.
-- D-06. 3플랫폼 빌드 산출물 각각이 자기 triple의 사이드카(`xeon-<triple>`)를 포함하고, 다른 triple의 사이드카를 포함하지 않는다.
+- D-06. 3플랫폼 빌드 산출물 각각이 자기 triple의 사이드카(`fresnel-<triple>`)를 포함하고, 다른 triple의 사이드카를 포함하지 않는다.
 - D-07. M1: WebView 쪽에서 쓸 `StdioTransportFactory` 구현과 `HostConnection`으로 엔진 바이너리(실제 프로세스 stdin/stdout)에 대해 `WIRE_CONFORMANCE_CASES`가 모두 통과한다.
 - D-08. 셸 로그와 앱 로그 파일에 프레임 내용이 없다. 비밀 참조를 담은 `settings.get` 응답을 릴레이한 뒤 로그에 `secret://` 문자열과 그 해석 값이 없다.
 - D-09. `engine_write`에 이전 세대 번호를 주면 거부되고 엔진 stdin에 아무것도 쓰이지 않는다.
@@ -707,7 +707,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 ## 10. 미결 사항
 
-1. [미결] 엔진 바이너리 이름과 서브커맨드. 이 문서는 `xeon`, `host --stdio`를 [제안]으로 쓴다. `L4.host-service.spec`이 확정하고, `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10의 "apps/host 단독 사이드카" 서술과 맞춘다. 바꿀 곳은 `sidecar.json` 한 곳이다.
+1. [미결] 엔진 바이너리 이름과 서브커맨드. 이 문서는 `fresnel`, `host --stdio`를 [제안]으로 쓴다. `L4.host-service.spec`이 확정하고, `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10의 "apps/host 단독 사이드카" 서술과 맞춘다. 바꿀 곳은 `sidecar.json` 한 곳이다.
 2. (닫힘) F 변경 요청 두 건, `host.shutdown`과 클라이언트 알림 `$/connectionReset`은 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4, review.consistency-1 K-15). 이 문서의 params 예와 다르면 F 정의를 따른다. 재설정 동작은 `F.wire-settings.spec` §4.1 5~7번이고 호스트가 구현했다(m2 F.8). 새 페이지는 `openEngineConnection`에서 hello 전에 `HostConnection.notify("$/connectionReset", {})`을 보낸다(§4.5).
 3. (닫힘, m2 F.8) [결정: adr.0020] M3에 이 구현을 L4 공유 패키지 `@fresnel/client`로 옮기고 F는 계약만 둔다. 이전 기록: `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)은 F `@fresnel/contracts/wire`의 런타임 중립 구현으로 옮겼다(`F.wire-settings.spec` §3.1). 데스크톱은 복사본(`apps/desktop/src/transport/connection.ts`, `json-lines.ts`)을 지우고 거기서 가져온다. 호스트와 CLI는 같은 구현을 다시 내보낸다.
 4. [결정: review.decisions-2 U-04] 이어서 실행 후보를 wire로 알리는 방법(`ThreadSummary` 필드 또는 이벤트)은 M1에 넣지 않고 M2 계획에서 정한다.
@@ -721,7 +721,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 12. [미결] 자동 업데이트 채택(M3 이후). Tauri updater 플러그인과 서명 키 관리가 필요하다.
 13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. 세 조건은 M2 DESK.2에서 `relay.rs`에 구현됐고(`L4.desktop.plan` §3.2.1), Linux/WSL2에서 32 MB 연속 송신이 손실·중복 없이 지났다. macOS·Windows 재측정 뒤 확정한다.
 14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
-15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 Rust 셸이 번들된 `xeon secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(§4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, Tauri IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.
+15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 Rust 셸이 번들된 `fresnel secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(§4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, Tauri IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.
 16. (닫힘, M2 마감 G2-07) 외부 바이너리 점검 결과를 전하는 길은 `host.status`의 `includeBinaries` 요청과 결과의 `binaries`다(F 변경, `L4.host-service.spec` HS-69). 앱이 보고서를 주입하던 방식은 없앴다(§4.14).
 17. [미결] 새 대화의 작업 폴더를 고르는 운영체제 폴더 선택 창. 지금은 경로를 입력한다(§4.16). `tauri-plugin-dialog`를 더하면 Cargo 의존과 capability(`dialog:allow-open`, 디렉터리만)가 늘고 `Cargo.lock`이 바뀐다. V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따르고 macOS에서 확인한다. [가정] capability 이름은 플러그인 문서로 확인하지 않았다.
 18. [결정: adr.0016] 화면 문자열은 `packages/client`의 ko·en 카탈로그 id(ICU MessageFormat 부분집합)로 만들고 `Intl` 기반 포트(`packages/client/src/i18n/format.ts`)로 풉니다. ADR-0016 §3.1의 react-intl은 승인 전이라 쓰지 않습니다 [결정: 오케스트레이터 기본값]. 로케일은 `l4.ui.locale`(기본 auto: OS 로케일, 없으면 영어)을 따르고, 날짜·숫자는 `Intl`로 표시합니다. 엔진 오류는 `kind`와 인자로 받아 화면이 문장을 만듭니다. 비-`.tsx` 문장은 카탈로그 id입니다(M3b B4-I18N). 설정 정의(`settings-store/defs.ts`)의 `labelKey`·`helpKey`는 `settings.l4.desktop.<키>.label|help`이고, `views/*-model.ts`와 `views/setup-needed.ts`는 `desktop.*` id이며, 턴 실패 기본 문장(`state/engine/failure-text.ts`)은 `desktop.engine.turnFailureUnknown`입니다. `fresnel/hardcoded-korean` 규칙이 L4 `src`의 한국어 리터럴을 막습니다. [미결] `.tsx` 뷰(`views/*.tsx`, `main.tsx`)의 한국어 리터럴은 M4 화면 재작성에서 옮깁니다. 로케일은 `app/locale.ts`가 정합니다. 연결 전에는 설정을 읽을 수 없으므로 첫 렌더 전에 WebView 언어 단서(`navigator.languages`의 첫 항목)로 `setActiveLocale`을 부르고(지원하지 않는 언어와 단서 없음은 `en`), 엔진에 연결되면 `settings.get`으로 `l4.ui.locale`을 읽어 바로잡습니다. `settings.invalidated`가 이 키(또는 빈 키 목록)를 알리면 다시 읽고, 로케일이 바뀌면 `main.tsx`가 `key`가 로케일인 트리를 다시 그립니다. 턴 실패 기본 문장은 reduce 시점의 로케일로 풀려 거울(`turnFailures`)에 저장되므로, 나중에 로케일을 바꿔도 저장된 문장은 다시 풀리지 않습니다.

@@ -95,7 +95,7 @@ const SERVICE_ALT = SERVICE_NAMES.join("|");
 
 /** 저장소 경로로 남기는 `xeon/` 뒤 이름(디렉터리 이동 전까지) */
 const REPO_PATH_TAIL =
-  "(?:packages|apps|plugins|scripts|vendor|external|justfile|package\\.json|tsconfig|turbo\\.json|knip\\.json|bun\\.lock|bunfig\\.toml|mise\\.toml|lefthook\\.yml|\\.oxlintrc|\\.oxfmtrc|\\.dependency-cruiser|\\.env\\.example|\\.gitignore|AGENTS\\.md|CLAUDE\\.md|node_modules|foundation|m4-|\\*|\\.(?![A-Za-z])|[\\s`'\"),;:\\]]|$)";
+  "(?:packages|apps|plugins|scripts|vendor|external|dist|justfile|package\\.json|tsconfig|turbo\\.json|knip\\.json|bun\\.lock|bunfig\\.toml|mise\\.toml|lefthook\\.yml|\\.oxlintrc|\\.oxfmtrc|\\.dependency-cruiser|\\.env\\.example|\\.gitignore|AGENTS\\.md|CLAUDE\\.md|node_modules|foundation|m4-|\\*|\\.(?![A-Za-z])|[\\s`'\"),;:\\]]|$)";
 
 /** 일반 단어 치환에서 건드리지 않는 곳: 저장소 경로, 브랜치, 작업 폴더 */
 export const PROTECTED: readonly RegExp[] = [
@@ -105,6 +105,10 @@ export const PROTECTED: readonly RegExp[] = [
   // 경로를 이어 붙이는 인자: join(root, "xeon", "packages"), join("docs", "xeon") (디렉터리 이동 전까지 그대로)
   /"xeon"(?=,\s*"(?:packages|apps|plugins|scripts|vendor|external|justfile|package\.json|tsconfig|turbo\.json|knip\.json|bun\.lock|mise\.toml)")/g,
   /(?<="docs",\s*)"xeon"/g,
+  // CI와 스크립트의 작업 디렉터리 지정(디렉터리 이동 전까지 xeon)
+  /(?<=working_directory: )xeon(?![A-Za-z0-9_-])/g,
+  /(?<=\}\}\/)xeon(?![A-Za-z0-9_-])/g,
+  /(?<=\s-C )xeon(?![A-Za-z0-9_-])/g,
   // 사용자 데이터 경로 `.config/xeon/…`, `/tmp/xeon/…` 등은 보호하지 않는다. 저장소 경로만 보호한다
   new RegExp(
     `(?<![A-Za-z0-9_@.$-])(?<!config/)(?<!share/)(?<!state/)(?<!cache/)(?<!Support/)(?<!Caches/)(?<!tmp/)(?<!TMPDIR/)(?<!XDG_RUNTIME_DIR/)(?<!/etc/)(?<!/opt/)(?<!/home/u/)xeon\\/(?!(?:${RULE_ALT})(?![A-Za-z0-9_-]))(?=${REPO_PATH_TAIL})`,
@@ -296,7 +300,12 @@ export const CATEGORIES: readonly Category[] = [
   {
     id: "P",
     title: "CI·스킬 파일 이름 xeon-*.yml, .claude/skills/xeon-* → fresnel-*",
-    rules: [],
+    rules: [
+      { pattern: /\.github\/workflows\/xeon-/g, replace: ".github/workflows/fresnel-" },
+      { pattern: /(?<![A-Za-z0-9-])xeon-(ci|macos|release)\.yml/g, replace: "fresnel-$1.yml" },
+      { pattern: /\.claude\/skills\/xeon-/g, replace: ".claude/skills/fresnel-" },
+      { pattern: /(?<![A-Za-z0-9_@.-])xeon\.readme(?![A-Za-z0-9_-])/g, replace: "fresnel.readme" },
+    ],
     pathRules: [
       { pattern: /^\.github\/workflows\/xeon-/, replace: ".github/workflows/fresnel-" },
       { pattern: /^\.claude\/skills\/xeon-/, replace: ".claude/skills/fresnel-" },
@@ -637,6 +646,10 @@ export const CATEGORIES: readonly Category[] = [
         pattern: /^xeon\/scripts\/bench(-gate|-server)?(\.test)?\.ts$/,
         replace: "xeon/scripts/benchmark$1$2.ts",
       },
+      {
+        pattern: /\/test\/bench\/([A-Za-z0-9-]+)\.bench\.ts$/,
+        replace: "/test/benchmark/$1.benchmark.ts",
+      },
     ],
   },
 ];
@@ -657,6 +670,7 @@ const EXCLUDED_PREFIXES = [
   "xeon/vendor/",
   "xeon/external/",
   "docs/xeon/_research/",
+  "docs/xeon/L4/desktop/_research/",
   "docs/xeon/decisions/ADR-0022-plugin-group-and-terms.md",
   "xeon/scripts/rename.ts",
   "xeon/scripts/rename.test.ts",

@@ -19,7 +19,7 @@ export interface WebDeps {
   readonly clock: Clock;
   readonly ids: LocalIdFactory;
   readonly logger: Logger;
-  /** UA 문자열 `Xeon/<버전>`. 프로젝트 URL은 정해지지 않았다 [미결] */
+  /** UA 문자열 `Fresnel/<버전>`. 프로젝트 URL은 정해지지 않았다 [미결] */
   readonly userAgent: string;
   /** 호출 한 번이 읽는 유효 설정. threadId가 있으면 세션 범위를 포함한다 */
   readonly settings: (threadId: ThreadId | undefined) => WebSettings;

@@ -192,16 +192,16 @@ mod tests {
     }
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("xeon-inspect-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("fresnel-inspect-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
     }
 
     #[test]
     fn socket_path_defaults_next_to_the_log_and_honours_the_override() {
-        let log = Path::new("/logs/dev.helm.xeon");
-        assert_eq!(socket_path(log, None), PathBuf::from("/logs/dev.helm.xeon/inspect.sock"));
-        assert_eq!(socket_path(log, Some(String::new())), PathBuf::from("/logs/dev.helm.xeon/inspect.sock"));
+        let log = Path::new("/logs/dev.fresnel.desktop");
+        assert_eq!(socket_path(log, None), PathBuf::from("/logs/dev.fresnel.desktop/inspect.sock"));
+        assert_eq!(socket_path(log, Some(String::new())), PathBuf::from("/logs/dev.fresnel.desktop/inspect.sock"));
         assert_eq!(socket_path(log, Some("/run/x.sock".into())), PathBuf::from("/run/x.sock"));
     }
 
@@ -297,7 +297,7 @@ mod tests {
     async fn the_system_temp_folder_is_never_taken_over_by_an_override_path() {
         let tmp = Path::new("/tmp");
         let before = std::fs::metadata(tmp).unwrap().permissions().mode();
-        let path = tmp.join(format!("xeon-inspect-override-{}.sock", std::process::id()));
+        let path = tmp.join(format!("fresnel-inspect-override-{}.sock", std::process::id()));
         assert_eq!(bind(&path).err().map(|e| e.kind()), Some(io::ErrorKind::PermissionDenied));
         assert_eq!(std::fs::metadata(tmp).unwrap().permissions().mode(), before);
         assert!(!path.exists());

@@ -17,7 +17,7 @@ import {
   type Usage,
 } from "@fresnel/contracts/conversation";
 
-// L1.loop.spec §3.4, F.conversation.spec §3.5.4~§3.5.5. pi AgentEvent를 Xeon 알림 열로 바꾸는 순수 매퍼다.
+// L1.loop.spec §3.4, F.conversation.spec §3.5.4~§3.5.5. pi AgentEvent를 Fresnel 알림 열로 바꾸는 순수 매퍼다.
 // 시계와 난수를 쓰지 않고 id는 init.ids로만 만든다.
 
 /** 래퍼 전용 확장. 이미 기록된 item의 id를 매퍼에 알린다. 공개하지 않는다 */

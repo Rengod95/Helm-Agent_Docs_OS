@@ -24,7 +24,7 @@ import { asSqliteFailure, newDatabase, type SqliteConnection } from "./sqlite-en
 
 /** manifest.json의 format. 디렉터리 구조가 바뀌면 올린다 */
 const EXPORT_FORMAT = 1;
-const EXPORT_SQLITE_FILE = "xeon.sqlite";
+const EXPORT_SQLITE_FILE = "fresnel.sqlite";
 const EXPORT_MANIFEST_FILE = "manifest.json";
 const EXPORT_BUSY_TIMEOUT_MS = 5000;
 const SHA256_HEX = /^[0-9a-f]{64}$/;
@@ -280,7 +280,7 @@ function cleanup(created: Created, original: ExportError): ExportError {
 
 /**
  * DB를 `destDir`로 내보낸다(L0.store.spec §4.10). 동기 함수다. 원본 DB는 읽기 전용으로만 연다.
- * 결과 디렉터리: `xeon.sqlite`(VACUUM INTO 복사본), `blobs/<ab>/<rest>`(sys_blobs의 파일), `manifest.json`.
+ * 결과 디렉터리: `fresnel.sqlite`(VACUUM INTO 복사본), `blobs/<ab>/<rest>`(sys_blobs의 파일), `manifest.json`.
  */
 export function exportDatabase(options: ExportOptions): Result<ExportReport, ExportError> {
   const createDest = checkDestination(options.destDir);

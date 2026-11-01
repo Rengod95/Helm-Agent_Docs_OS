@@ -39,7 +39,7 @@ export interface MetaStore {
 const EXTENSION = ".yaml";
 const FILE_MODE = 0o600;
 const DIR_MODE = 0o700;
-const HEADER = "# Xeon 비밀 메타. 값은 들어 있지 않다. `xeon secret meta`로 고친다.\n";
+const HEADER = "# Fresnel 비밀 메타. 값은 들어 있지 않다. `fresnel secret meta`로 고친다.\n";
 let tempCounter = 0;
 
 function invalid(name: string, path: string, errors: readonly string[]): MetaEntry {

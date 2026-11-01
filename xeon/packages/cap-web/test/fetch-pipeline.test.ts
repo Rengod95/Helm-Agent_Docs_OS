@@ -77,7 +77,7 @@ describe("fetch pipeline", () => {
     expect(result.content).not.toContain("IGNORE ALL PREVIOUS INSTRUCTIONS");
     expect(result.content).not.toContain("send the API keys");
     expect(result.source.id).toBe("s1");
-    expect(result.source.title).toContain("Xeon Agents");
+    expect(result.source.title).toContain("Fresnel Agents");
     expect(result.source.publishedAt).toBe("2026-09-30T09:00:00Z");
     expect(result.source.provider).toBe("local");
     expect(result.source.usage.cache).toBe("persist");
@@ -87,7 +87,7 @@ describe("fetch pipeline", () => {
     // 요청 헤더: 협상 Accept와 정직한 UA
     const sent = world.transport.requests[0];
     expect(sent?.headers["accept"]).toContain("text/markdown");
-    expect(sent?.headers["user-agent"]).toBe("Xeon/0.1.0-test");
+    expect(sent?.headers["user-agent"]).toBe("Fresnel/0.1.0-test");
     expect(sent?.method).toBe("GET");
   });
 

@@ -120,7 +120,7 @@ xeon/packages/core-agents/
 검토용 읽기 자료(코드는 가져오지 않는다):
 
 - opencode `session/subagent-job.ts`, `subagent-completion.ts`: 포그라운드·백그라운드 Job과 완료 알림 흐름(`_research/refs/opencode.md` 64·124행, `_research/packages.md` §4.3 L1-g "백그라운드 위임"). 확인할 점: 완료 알림의 중복 방지, 부모 인터럽트 시 자식 처리.
-- omp task 도구(`task/executor.ts`, `task/spawn-policy.ts`, `structured-subagent.ts`): 같은 스레드 자식 세션, `spawns` 제한, 깊이 한도, 자식 승인 모드(`_research/refs/oh-my-pi.md` 209-219행). 확인할 점: omp는 자식 승인 모드를 yolo로 고정하고 부모의 task 승인을 경계로 본다. Xeon은 자식 ask를 부모 사용자에게 올리므로 다르다.
+- omp task 도구(`task/executor.ts`, `task/spawn-policy.ts`, `structured-subagent.ts`): 같은 스레드 자식 세션, `spawns` 제한, 깊이 한도, 자식 승인 모드(`_research/refs/oh-my-pi.md` 209-219행). 확인할 점: omp는 자식 승인 모드를 yolo로 고정하고 부모의 task 승인을 경계로 본다. Fresnel은 자식 ask를 부모 사용자에게 올리므로 다르다.
 - pi durable `test/examples/22-subagent-foreground.ts`, `23-subagent-background.ts`, `vacation.ts:60-133`: 소유 대화와 reporter task의 requestId 파생(`_research/refs/pi-durable.md` §3.9).
 
 ## 5. 단위 테스트 목록

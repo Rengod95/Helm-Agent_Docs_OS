@@ -81,7 +81,7 @@ function toResult(outcome: SpawnResult): AgentToolResult {
 
 function failed(message: string): AgentToolResult {
   return {
-    content: [{ type: "text", text: `[xeon:subagent_error] ${message}` }],
+    content: [{ type: "text", text: `[fresnel:subagent_error] ${message}` }],
     details: null,
     isError: true,
   };

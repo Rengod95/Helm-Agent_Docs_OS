@@ -20,7 +20,7 @@ export type OnUnavailable = "disable_execute" | "ask" | "run_unsandboxed";
 
 export type SelfTestItemId =
   | "protected_read_denied"
-  | "xeon_data_write_denied"
+  | "fresnel_data_write_denied"
   | "network_denied"
   | "workspace_write_allowed"
   | "env_allowlist"
@@ -46,7 +46,7 @@ export interface SandboxStatus {
 
 const SELF_TEST_IDS = [
   "protected_read_denied",
-  "xeon_data_write_denied",
+  "fresnel_data_write_denied",
   "network_denied",
   "workspace_write_allowed",
   "env_allowlist",
@@ -159,8 +159,8 @@ export interface ProtectedPathEntry {
   except?: string[];
   /** 표시용 이유 코드 */
   reason:
-    | "xeon_data"
-    | "xeon_config"
+    | "fresnel_data"
+    | "fresnel_config"
     | "secret_key"
     | "credentials"
     | "agent_credentials"

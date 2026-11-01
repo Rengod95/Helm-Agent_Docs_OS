@@ -83,8 +83,10 @@ function hasCountOfOne(row: unknown): boolean {
 export function probeFts5(driver: ProbeDriver): Result<void, Fts5ProbeError> {
   const probed = attempt(() => {
     driver.run("CREATE VIRTUAL TABLE temp.fts5_probe USING fts5(x)");
-    driver.run("INSERT INTO temp.fts5_probe(x) VALUES ('xeon')");
-    return driver.query("SELECT count(*) AS n FROM temp.fts5_probe WHERE fts5_probe MATCH 'xeon'");
+    driver.run("INSERT INTO temp.fts5_probe(x) VALUES ('fresnel')");
+    return driver.query(
+      "SELECT count(*) AS n FROM temp.fts5_probe WHERE fts5_probe MATCH 'fresnel'",
+    );
   });
   // no such module: fts5 등 어떤 SQLite 오류든 능력 없음으로 본다. 판정은 예외가 아니라 값으로 돌려준다
   if (!probed.ok) return err({ kind: "fts5_missing" });

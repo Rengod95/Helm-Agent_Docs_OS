@@ -50,7 +50,7 @@ describe("bash", () => {
     });
     expect(call?.options?.timeout).toBeUndefined();
     // 샌드박스 정책의 쓰기 root는 작업 root와 임시 디렉터리다
-    expect(sandbox?.policies[0]?.writeRoots).toEqual(["/work", "/tmp/xeon"]);
+    expect(sandbox?.policies[0]?.writeRoots).toEqual(["/work", "/tmp/fresnel"]);
   });
 
   test("bash nonzero exit is tool error", async () => {
@@ -136,7 +136,7 @@ describe("bash", () => {
     const { env, shell } = setup();
     env.reply({
       chunks: [{ text: "partial\n" }],
-      error: { code: "timeout", spillPath: "/tmp/xeon/spill-1" },
+      error: { code: "timeout", spillPath: "/tmp/fresnel/spill-1" },
     });
     const error = await rejection(shell.run({ command: "sleep 99", timeoutSec: 2 }));
     expect(error.data.code).toBe("timeout");
@@ -144,7 +144,7 @@ describe("bash", () => {
     expect(error.data.detail).toMatchObject({
       output: "partial\n",
       truncated: false,
-      fullOutputPath: "/tmp/xeon/spill-1",
+      fullOutputPath: "/tmp/fresnel/spill-1",
       sandboxed: false,
     });
     expect(env.calls[0]?.options?.timeout).toBe(2);
@@ -216,22 +216,22 @@ describe("bash", () => {
     env.reply({
       chunks: [{ text: "l1\nl2\nl3\n" }, { text: "l4\nl5\n" }],
       exitCode: 0,
-      spillPath: "/tmp/xeon/spill-2",
+      spillPath: "/tmp/fresnel/spill-2",
     });
     const out = await shell.run({ command: "seq 5" });
     expect(out.output).toBe("l3\nl4\nl5\n");
     expect(out.truncated).toBe(true);
-    expect(out.fullOutputPath).toBe("/tmp/xeon/spill-2");
+    expect(out.fullOutputPath).toBe("/tmp/fresnel/spill-2");
     expect(env.calls[0]?.options?.spill).toEqual({ afterBytes: 51200, afterLines: 3 });
     // 모델 쪽 렌더링: 앞부분 생략 안내와 전체 출력 경로
     env.reply({
       chunks: [{ text: "l1\nl2\nl3\nl4\n" }],
       exitCode: 0,
-      spillPath: "/tmp/xeon/spill-3",
+      spillPath: "/tmp/fresnel/spill-3",
     });
     const result = await callTool(WorkspaceShell, shell, "bash", { command: "seq 4" });
     expect(result.isError).toBe(false);
-    expect(result.text).toBe("[앞부분 생략, 전체 출력: /tmp/xeon/spill-3]\nl2\nl3\nl4\n");
+    expect(result.text).toBe("[앞부분 생략, 전체 출력: /tmp/fresnel/spill-3]\nl2\nl3\nl4\n");
   });
 
   test("output the environment omitted is counted as dropped", async () => {

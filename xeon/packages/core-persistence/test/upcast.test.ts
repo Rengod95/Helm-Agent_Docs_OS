@@ -11,7 +11,7 @@ import {
   type Harness,
 } from "./support/harness.ts";
 
-/** 더 새 Xeon이 같은 DB에 쓴 행을 흉내 낸다. events의 UPDATE·DELETE는 막혀 있지만 INSERT는 된다 */
+/** 더 새 Fresnel이 같은 DB에 쓴 행을 흉내 낸다. events의 UPDATE·DELETE는 막혀 있지만 INSERT는 된다 */
 function foreignEvent(h: Harness, threadId: string, kind: string, version: number): void {
   const seq = expectOk(h.service.feed.headSeq()) + 1;
   const id = h.ids.next("evt");

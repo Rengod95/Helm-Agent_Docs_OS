@@ -8,7 +8,7 @@ export interface TempDir extends Disposable {
 }
 
 /** 테스트마다 따로 쓰는 임시 디렉터리. `using`으로 지운다 */
-export function tempDir(prefix: string = "xeon-store-test-"): TempDir {
+export function tempDir(prefix: string = "fresnel-store-test-"): TempDir {
   const path = mkdtempSync(join(tmpdir(), prefix));
   return {
     path,

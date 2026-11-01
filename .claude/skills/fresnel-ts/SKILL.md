@@ -1,9 +1,9 @@
 ---
-name: xeon-ts
+name: fresnel-ts
 description: xeon/ 워크스페이스의 TypeScript 코드를 쓰거나 고치거나 리뷰할 때 쓴다. as 단언, 비null 단언, any, ts 억제 주석, 예상 가능한 실패의 Bug throw, 오류를 삼키는 catch를 막는 구속 규칙을 따르게 한다.
 ---
 
-# Xeon TypeScript 구속 규칙
+# Fresnel TypeScript 구속 규칙
 
 정본은 `docs/xeon/engineering/typescript/guide.md`(eng.typescript.guide)다. 코드를 쓰기 전에 1.3절 체크리스트와 아래 규칙 본문을 읽는다. 판정이 애매하면 규칙 본문이 우선한다.
 
@@ -37,4 +37,4 @@ description: xeon/ 워크스페이스의 TypeScript 코드를 쓰거나 고치�
 
 ## 강제 수단
 
-oxlint 규칙 목록은 eng.typescript.guide 3.1.1절, 스캔(`xeon/as-location`, `xeon/catch-swallow`, `xeon/bug-for-expected` 등)은 3.2절이다. 끝내기 전에 `just verify`를 통과시킨다.
+oxlint 규칙 목록은 eng.typescript.guide 3.1.1절, 스캔(`fresnel/as-location`, `fresnel/catch-swallow`, `fresnel/bug-for-expected` 등)은 3.2절이다. 끝내기 전에 `just verify`를 통과시킨다.

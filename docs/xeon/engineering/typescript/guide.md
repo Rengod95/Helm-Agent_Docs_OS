@@ -115,7 +115,7 @@ export function eachAsync<I, T>(items: Iterable<I>, step: (item: I) => Promise<{
 
 ### 1.3 구현자 체크리스트 (구속)
 
-구현 에이전트와 사람 구현자는 코드를 쓰기 전과 `just verify` 전에 이 목록을 확인한다. 각 줄은 2절 규칙의 요약이고, 판정은 규칙 본문이 한다. `xeon/AGENTS.md`와 `.claude/skills/xeon-*/SKILL.md`는 이 목록을 가리킨다.
+구현 에이전트와 사람 구현자는 코드를 쓰기 전과 `just verify` 전에 이 목록을 확인한다. 각 줄은 2절 규칙의 요약이고, 판정은 규칙 본문이 한다. `xeon/AGENTS.md`와 `.claude/skills/fresnel-*/SKILL.md`는 이 목록을 가리킨다.
 
 타입 단언과 우회 금지:
 
@@ -1393,7 +1393,7 @@ flushLater();
 
 - `bun scripts/check-ts-rules.ts --exceptions`는 모든 예외 주석을 표로 출력한다. 열: 파일, 줄, 종류(oxlint, ts, 스캔), 규칙, 이유, 이슈 URL.
 - `just verify`는 예외 개수를 규칙별로 한 줄씩 출력한다. 개수 자체로는 실패하지 않는다.
-- CI(`.github/workflows/xeon-ci.yml`)는 기준 브랜치와 PR의 예외 표를 비교해 늘어난 행을 PR 요약에 적는다.
+- CI(`.github/workflows/fresnel-ci.yml`)는 기준 브랜치와 PR의 예외 표를 비교해 늘어난 행을 PR 요약에 적는다.
 - 늘어난 예외는 리뷰어 한 명의 명시 승인이 필요하다. 이슈가 닫히면 해당 주석을 지우는 것이 이슈 완료 조건이다.
 - 집계 결과는 커밋하지 않는다. 매번 소스에서 다시 계산한다.
 

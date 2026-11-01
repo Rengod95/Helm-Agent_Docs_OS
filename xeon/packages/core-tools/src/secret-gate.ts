@@ -104,7 +104,7 @@ export type SecretUseVerdict =
 function deniedBy(handle: SecretHandle, detail: string): SecretUseVerdict {
   return {
     kind: "denied",
-    reason: `[xeon:secret_denied] The call cannot use ${handle}: ${detail}.`,
+    reason: `[fresnel:secret_denied] The call cannot use ${handle}: ${detail}.`,
   };
 }
 
@@ -129,7 +129,7 @@ export async function checkSecretUse(
   if (!scanned.ok) {
     return {
       kind: "denied",
-      reason: `[xeon:invalid_secret_ref] secretEnv.${scanned.error.name} is not a secret://<name> reference.`,
+      reason: `[fresnel:invalid_secret_ref] secretEnv.${scanned.error.name} is not a secret://<name> reference.`,
     };
   }
   const use = scanned.value;
@@ -137,13 +137,13 @@ export async function checkSecretUse(
   if (secrets === undefined) {
     return {
       kind: "denied",
-      reason: "[xeon:secret_unavailable] The secrets service is not available.",
+      reason: "[fresnel:secret_unavailable] The secrets service is not available.",
     };
   }
   if (use.command === undefined) {
     return {
       kind: "denied",
-      reason: "[xeon:invalid_secret_ref] secretEnv needs a command to bind to.",
+      reason: "[fresnel:invalid_secret_ref] secretEnv needs a command to bind to.",
     };
   }
   const command = use.command;

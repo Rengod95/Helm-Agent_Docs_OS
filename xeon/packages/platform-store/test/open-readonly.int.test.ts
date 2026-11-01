@@ -32,7 +32,7 @@ async function seed(path: string): Promise<BlobRef> {
   return put.value;
 }
 
-/** 코드보다 높은 sys 버전을 적어 다른 Xeon 버전이 만든 DB를 흉내 낸다 */
+/** 코드보다 높은 sys 버전을 적어 다른 Fresnel 버전이 만든 DB를 흉내 낸다 */
 function markFuture(path: string): void {
   const newer = new Database(path);
   newer.run(
@@ -53,7 +53,7 @@ function openReadOnly(path: string): Promise<OpenResult> {
 describe("read-only open", () => {
   test("a future-version database opens read-only and reports the version gap", async () => {
     const dir = own(tempDir());
-    const path = join(dir.path, "xeon.db");
+    const path = join(dir.path, "fresnel.db");
     await seed(path);
     markFuture(path);
 
@@ -68,7 +68,7 @@ describe("read-only open", () => {
 
   test("reads return the rows and blobs that were written", async () => {
     const dir = own(tempDir());
-    const path = join(dir.path, "xeon.db");
+    const path = join(dir.path, "fresnel.db");
     const ref = await seed(path);
     markFuture(path);
 
@@ -84,7 +84,7 @@ describe("read-only open", () => {
 
   test("every write path refuses with SQLITE_READONLY and the database file is unchanged", async () => {
     const dir = own(tempDir());
-    const path = join(dir.path, "xeon.db");
+    const path = join(dir.path, "fresnel.db");
     const ref = await seed(path);
     markFuture(path);
     const before = digest(path);
@@ -130,7 +130,7 @@ describe("read-only open", () => {
 
   test("a current-version database opens read-only without warnings", async () => {
     const dir = own(tempDir());
-    const path = join(dir.path, "xeon.db");
+    const path = join(dir.path, "fresnel.db");
     await seed(path);
 
     const opened = await openReadOnly(path);

@@ -45,5 +45,5 @@ export function keyCommand(argv: readonly string[]): string {
 }
 
 /** age 키 항목 이름(spec §3.7 표) */
-export const KEY_SERVICE = "xeon.age";
+export const KEY_SERVICE = "fresnel.age";
 export const KEY_ACCOUNT = "default";

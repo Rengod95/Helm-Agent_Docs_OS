@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 function root(): string {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-exec-spill-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-exec-spill-"));
   roots.push(dir);
   return dir;
 }

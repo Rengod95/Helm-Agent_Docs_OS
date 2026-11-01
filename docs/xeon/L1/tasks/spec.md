@@ -60,7 +60,7 @@ binds: [xeon/packages/core-tasks/**]
 | 배치 (placement) | 큐의 입력을 대화에 item으로 넣는 일. 이벤트 `input.placed` |
 | 배치 지점 | `turnStart`(turn 시작 커밋)와 `stepEnd`(단계 끝 커밋) 둘 |
 
-turn과 step은 `F.conversation.spec` §2, §2.1을 따른다. pi의 turn은 Xeon의 step이고, pi의 run(`boundary.turn.before`~`boundary.turn.after`)이 Xeon의 turn이다.
+turn과 step은 `F.conversation.spec` §2, §2.1을 따른다. pi의 turn은 Fresnel의 step이고, pi의 run(`boundary.turn.before`~`boundary.turn.after`)이 Fresnel의 turn이다.
 
 ## 3. 인터페이스
 

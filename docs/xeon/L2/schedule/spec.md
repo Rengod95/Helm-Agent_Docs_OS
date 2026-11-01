@@ -16,7 +16,7 @@ binds: [xeon/packages/cap-schedule/**]
 
 계획 v2 하위 층 L2-h "예약과 백그라운드"(`_research/layer-plan-v2.json` L2-h)의 능력 다섯 개를 정한다. 시간이 지나면 다시 일하는 기능(루프, 웨이크업, 예약)과 백그라운드 작업의 상태를 보는 기능(작업 모니터, 세션 목록), 다른 기기에서 답하는 기능(원격 승인)을 묶는다.
 
-이 도메인의 기능은 공유 서비스 모드(`xeon service`, ADR-0006)가 필요한지로 둘로 나뉜다. 계획 v2의 L2-h 메모가 이 구분을 적었다: "앱이 켜져 있는 동안만 도는 항목(루프, 모니터)은 데몬 없이 됩니다. 앱을 닫아도 도는 항목(예약, 분리 실행, 원격)은 L0-d 공유 서비스 모드가 필요합니다." 이 문서는 기능마다 상주 수준을 적고(§1.2), 서비스 모드가 꺼졌을 때의 동작을 정한다(§4.4.6).
+이 도메인의 기능은 공유 서비스 모드(`fresnel service`, ADR-0006)가 필요한지로 둘로 나뉜다. 계획 v2의 L2-h 메모가 이 구분을 적었다: "앱이 켜져 있는 동안만 도는 항목(루프, 모니터)은 데몬 없이 됩니다. 앱을 닫아도 도는 항목(예약, 분리 실행, 원격)은 L0-d 공유 서비스 모드가 필요합니다." 이 문서는 기능마다 상주 수준을 적고(§1.2), 서비스 모드가 꺼졌을 때의 동작을 정한다(§4.4.6).
 
 정하는 것:
 
@@ -1356,7 +1356,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 | 값 | `create` 동작 | 이후 실행 |
 |---|---|---|
-| `"autoStart"` (기본) | 서비스 자동 기동을 시도한다. 기동하면 저장한다. 실패하면 `unavailable`, `detail.reason: "service_mode_off"`와 조치 안내(`detail.hint`: 서비스 모드 켜기, `xeon service start`)를 싣고 저장하지 않는다 | 서비스가 틱을 돌린다 |
+| `"autoStart"` (기본) | 서비스 자동 기동을 시도한다. 기동하면 저장한다. 실패하면 `unavailable`, `detail.reason: "service_mode_off"`와 조치 안내(`detail.hint`: 서비스 모드 켜기, `fresnel service start`)를 싣고 저장하지 않는다 | 서비스가 틱을 돌린다 |
 | `"reject"` | `unavailable`, `detail.reason: "service_mode_off"`와 조치 안내. 저장하지 않는다 | 없음 |
 | `"keepWithWarning"` | 저장하고 결과 `warnings`에 `runs_only_while_app_open`을 싣는다 | 앱 호스트가 임대를 쥐는 동안(앱이 열려 있는 동안)만 틱이 돈다. 앱을 닫은 동안의 기한은 다음에 앱을 열 때 놓친 실행 정책을 따른다 |
 
@@ -1368,11 +1368,11 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 - 서비스는 연결 0, live task 0, 대기 예약 0일 때만 유예 뒤 종료한다(ADR-0006 §3.4, §3.7 4번). 대기 예약이 있으면 유휴 종료가 성립하지 않는다.
 - 대기 예약 수는 `SchedulerHost.pendingSchedules()`다: `enabled = 1 AND next_due_at IS NOT NULL`인 타이머 수 + `claimed`·`started` 실행 수. 서비스 호스트가 `ActivitySnapshot.pendingSchedules`에 넣고 `decideIdle`이 읽는다(`L4.host-service.spec` SV-04).
-- 그래서 켜진 cron 타이머가 하나라도 있으면 서비스는 사실상 계속 살아 있다. 이는 의도한 동작이다. 사용자가 서비스를 멈추고 싶으면 `xeon service stop`을 쓰고, 그동안의 기한은 놓친 실행 정책을 따른다.
+- 그래서 켜진 cron 타이머가 하나라도 있으면 서비스는 사실상 계속 살아 있다. 이는 의도한 동작이다. 사용자가 서비스를 멈추고 싶으면 `fresnel service stop`을 쓰고, 그동안의 기한은 놓친 실행 정책을 따른다.
 
 #### 4.4.8 예약 세션과 L3 그룹의 경계
 
-- Hermes는 cron 세션에서 학습 관련 동작(메모리 쓰기 등)을 제한한다(`_research/refs/hermes.md` 91행 자식 차단 도구 목록의 `cronjob_manage`, `memory`). Xeon에서 "예약 세션에서는 학습 검토를 끈다" 같은 규칙은 L3 그룹 소관이다.
+- Hermes는 cron 세션에서 학습 관련 동작(메모리 쓰기 등)을 제한한다(`_research/refs/hermes.md` 91행 자식 차단 도구 목록의 `cronjob_manage`, `memory`). Fresnel에서 "예약 세션에서는 학습 검토를 끈다" 같은 규칙은 L3 그룹 소관이다.
 - 이 능력이 하는 일은 표식뿐이다. 실행 세션의 첫 이벤트로 `schedule.run_started { origin: "timer" }`를 남긴다. L3 그룹은 자기 투영기에서 이 kind를 읽어 그 세션을 예약 세션으로 알아본다. `fresnel.session.create`의 `origin: "timer"`도 같은 정보를 세션 메타에 남긴다 [가정].
 - 이 능력은 L3 그룹을 부르지 않고 L3 그룹의 설정도 읽지 않는다. 이 문서는 L3 그룹 이름을 쓰지 않는다 [결정: review.decisions-2 D-11].
 
@@ -1481,7 +1481,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `l2.schedule.timers.keepRuns` | integer | 100 | min 10, max 10000 | live | managed, user | advanced | false | 파일만 |
 | `l2.schedule.timers.whenServiceOff` | string | `"autoStart"` | enum `autoStart`, `reject`, `keepWithWarning` | live | managed, user | execution | false | 화면 |
 | `l2.schedule.service.ensureOnCreate` | boolean | true | — | live | managed, user | execution | false | 화면. 서비스 모드 연동 |
-| `l2.schedule.remote.enabled` | boolean | false | — | restart | managed, user | execution | false | 화면, 명령(`xeon service remote on`) |
+| `l2.schedule.remote.enabled` | boolean | false | — | restart | managed, user | execution | false | 화면, 명령(`fresnel service remote on`) |
 | `l2.schedule.remote.allowRespond` | boolean | true | — | live | managed, user | execution | false | 화면 |
 | `l2.schedule.remote.tokenRef` | string(`SecretRef`) | 없음 | — | restart | managed, user | secrets | true | 화면(비밀 탭). 값은 `secret://<name>` |
 | `l2.schedule.tools.timers` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_*` 도구 노출 |
@@ -1492,8 +1492,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 안전 상한(`l2.schedule.timers.maxRunsPerHour`, `l2.schedule.timers.minIntervalSeconds`, `l2.schedule.timers.maxActive`, `l2.schedule.loops.maxIterations`, `l2.schedule.loops.maxLifetimeHours`)은 pi 방식(기본 상한 없음)의 예외다. 사용자 입력 없이 실행되는 경로라 상한이 없으면 무한 실행된다 [결정: review.decisions-2 U-22].
 - 타이머·원격 키의 `allowedScopes`를 `managed`, `user`로 좁힌 이유: 예약과 원격은 기기 단위 기능이고, 저장소를 받는 것만으로 예약 폭주나 원격 접속이 켜지지 않게 하려는 것이다.
 - `l2.schedule.remote.tokenRef`는 D2·D3 규칙에 따라 `default`가 없고 `ui.widget`은 `"secret"`이다.
-- `l2.schedule.remote.enabled`와 서비스 사용 설정(`l0.process.service.enabled`, `L0.process.spec` §6)은 다른 키다. 서비스 로컬 소켓 위치는 설정 키가 없고 `L0.process.spec` §4.4가 `<runtimeDir>/xeon.sock`으로 정한다.
-- L4 노출 구분: "화면"은 설정 화면 항목, "명령"은 CLI 명령(`/loop`, `/schedule`, `/jobs`, `/worktree`, `xeon service remote`)이 같은 서비스 메서드를 쓰는 경우, "파일만"은 `ui`가 없는 키다. 명령 이름은 `L4.cli.spec`이 정한다.
+- `l2.schedule.remote.enabled`와 서비스 사용 설정(`l0.process.service.enabled`, `L0.process.spec` §6)은 다른 키다. 서비스 로컬 소켓 위치는 설정 키가 없고 `L0.process.spec` §4.4가 `<runtimeDir>/fresnel.sock`으로 정한다.
+- L4 노출 구분: "화면"은 설정 화면 항목, "명령"은 CLI 명령(`/loop`, `/schedule`, `/jobs`, `/worktree`, `fresnel service remote`)이 같은 서비스 메서드를 쓰는 경우, "파일만"은 `ui`가 없는 키다. 명령 이름은 `L4.cli.spec`이 정한다.
 
 ## 7. 확장 지점
 

@@ -58,7 +58,7 @@ test("truncate_spills_full_output_to_blob: 60,000 bytes become one blob and a bo
     preview?.type === "text" && new TextEncoder().encode(preview.text).length,
   ).toBeLessThanOrEqual(51_200);
   expect(notice?.type === "text" && notice.text).toContain(
-    "[xeon:output_truncated] Showing the first",
+    "[fresnel:output_truncated] Showing the first",
   );
   expect(notice?.type === "text" && notice.text).toContain(
     `blob sha256:${result.value.blobRef?.sha256}`,
@@ -256,7 +256,7 @@ test("a text over 50 MiB keeps only the head and tail in the blob", () => {
   expect(read.ok).toBe(true);
   if (!read.ok) return;
   const text = new TextDecoder().decode(read.value);
-  expect(text).toContain("[xeon:omitted");
+  expect(text).toContain("[fresnel:omitted");
   expect(text.startsWith("aaa")).toBe(true);
   expect(text.endsWith("bbb")).toBe(true);
 });

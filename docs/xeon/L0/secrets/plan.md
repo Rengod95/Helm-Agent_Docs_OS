@@ -16,13 +16,13 @@ binds: [xeon/packages/platform-secrets/**]
 
 목표: `L0.secrets.spec`의 `fresnel.secrets`(`SecretService`)와 `fresnel.secretAdmin`(`SecretAdminService`, [결정: review.decisions-2 D-04])을 구현한다. 값은 부모 프로세스의 lease 안에만 있고, 모델 컨텍스트·이벤트·로그·도구 자식 env에 나오지 않아야 한다.
 
-[결정] 마일스톤 M1에 "SOPS 비밀 참조 1종"이 `xeon chat` 도구 호출에서 해석된다(`_research/foundation-plan.md` §5 P4 M1). `L0.readme` §2.2도 M1에 secrets(SOPS 참조 1종)를 둔다.
+[결정] 마일스톤 M1에 "SOPS 비밀 참조 1종"이 `fresnel chat` 도구 호출에서 해석된다(`_research/foundation-plan.md` §5 P4 M1). `L0.readme` §2.2도 M1에 secrets(SOPS 참조 1종)를 둔다.
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
 | M0 | 코드 없음. 선행 조건: contracts에 spec 8.3절 R1의 참조 형식·순수 함수·값 타입(`capabilities/secrets.ts`, `F.capabilities.spec` §3.10, `F.capabilities.plan` P8)과 R1-a·R2의 서비스 인터페이스·이름 상수(`services/secrets.ts`, `services/secret-admin.ts`, `F.capabilities.spec` §3.12, `F.capabilities.plan` P9)가 들어간다. `platform-os`의 경로·Clock·RandomSource 최소형(`L0.readme` §2.2 os M0 행) | `_research/foundation-plan.md` §5 P4 M0 |
 | M1 | `SecretProvider` 인터페이스 구현 틀, SOPS 제공자(목록·lease), 메타 파일 읽기, lease, 모드 M1 에이전트 env 주입(`withEnv`, bash 도구, 실행마다 승인. exec 쪽은 `L0.exec.plan` EX-13) [결정: review.decisions-2 U-19], 모드 M3(`withHttp`), 마스킹 기본 계층(`Redactor` 규칙 1~3, 계층 2·4·5 연결), 자식 env 필터, 감사 훅(`onAudit`), 키 획득은 OS 1종 이상 + 파일 폴백, `diagnose()` 안내문 | spec §4.3 단계 열, `_research/foundation-plan.md` §5, review.decisions-2 U-19 |
-| M2 | 관리 서비스 전체(`ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `run`, `references`, `usage`, `reveal`. `reveal`은 CLI `xeon secret reveal`이 먼저 쓰고 데스크톱 화면은 M3다 [결정: review.decisions-2 U-20]), 모드 M4(`withBrowserInput`), 마스킹 5계층 전체 연결(1·3계층 포함), 키체인 provider 3 OS(Windows는 [미결] 해소 뒤), 감사 파일 | `product.scope.spec` §4.4 M2 행(비밀 관리 명령), spec §6.3 |
+| M2 | 관리 서비스 전체(`ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `run`, `references`, `usage`, `reveal`. `reveal`은 CLI `fresnel secret reveal`이 먼저 쓰고 데스크톱 화면은 M3다 [결정: review.decisions-2 U-20]), 모드 M4(`withBrowserInput`), 마스킹 5계층 전체 연결(1·3계층 포함), 키체인 provider 3 OS(Windows는 [미결] 해소 뒤), 감사 파일 | `product.scope.spec` §4.4 M2 행(비밀 관리 명령), spec §6.3 |
 | 후속 | 모드 M2 sentinel 프록시(`fresnel.sandbox` 프록시 훅 `L0.sandbox.plan` SB-16, TLS 종단), 값 저장 제공자 플러그인(1Password `op`, Bitwarden `bws`, 키체인 `keychain`) | spec §4.3, §10 6·7번 |
 
 - [제안] M1 키 획득: Linux(Secret Service)와 파일 폴백을 먼저 만든다. 개발과 CI가 Linux·WSL이고, WSL에는 Secret Service가 대부분 없기 때문이다. macOS Keychain은 M1 안에서 명령 구성만 만들고 실기 확인은 M2 완료 기준에 둔다.
@@ -62,7 +62,7 @@ xeon/packages/platform-secrets/
     audit.ts                   # SecretAuditRecord 생성, onAudit 배포, 감사 파일 쓰기(M2) (SC-09)
     service.ts                 # SecretService 조립: resolve, list, check, lease (SC-10)
     admin.ts                   # SecretAdminService (M2, SC-14)
-    diagnose.ts                # SecretDiagnostics, 등록 안내문(just secret-add / xeon secret add) (SC-16)
+    diagnose.ts                # SecretDiagnostics, 등록 안내문(just secret-add / fresnel secret add) (SC-16)
     errors.ts                  # SecretError 생성 도우미, stderr 마스킹 500자 (SC-03)
     testing/
       index.ts                 # memorySecrets, fakeSopsBinary 경로 도우미 (SC-12, eng.testing.guide TS-05)
@@ -106,7 +106,7 @@ xeon/packages/platform-secrets/
 | SC-24 | 첫 쓰기 자동 준비(spec §4.6 8번, §4.7 7번, §4.8): 기본 SOPS 파일 `user`, 키·수신자 기록·암호화한 빈 파일 만들기, 파일 잠금, macOS `provision`, 실패 원인별 `write_failed` | SC-18, SC-13, SC-19 | M | M2 |
 | SC-21 | `protectedPaths()`: `l0.secrets.sops.files` 경로, `<OsDirs.config>/secrets/`, 파일 폴백 age 키 경로(`l0.secrets.ageKey.filePath` 또는 기본값)를 절대 경로로 돌려준다. 값 없음 | SC-02, SC-13 | S | M1 |
 
-- SC-24는 M2 첫 실행(macOS M-12)에서 "깨끗한 기기에서 `xeon secret add`가 설정 없이 실패한다"는 결과가 나와 더했다. 순서는 SC-18, SC-13 뒤다.
+- SC-24는 M2 첫 실행(macOS M-12)에서 "깨끗한 기기에서 `fresnel secret add`가 설정 없이 실패한다"는 결과가 나와 더했다. 순서는 SC-18, SC-13 뒤다.
 - 순서: SC-01·SC-05·SC-08·SC-11 → SC-02·SC-06·SC-13 → SC-03·SC-04·SC-07·SC-09·SC-21 → SC-10 → SC-12·SC-15·SC-16·SC-22 (M1) → SC-14·SC-17·SC-18·SC-19·SC-23 (M2) → SC-20 (후속).
 - 규모: S는 반나절 이하, M은 1~2일, L은 3일 이상 [가정: 구현자 1명 기준].
 
@@ -181,7 +181,7 @@ xeon/packages/platform-secrets/
 ## 6. 완료 기준
 
 1. `just verify`가 종료코드 0이다.
-2. M1 스모크 [결정: review.decisions-2 U-19]: 모델 테이프로 `xeon chat` 한 턴을 돌릴 때 bash 도구가 `secret://` 참조 1개를 env 주입으로 쓴다(사용 모드 M1, 실행마다 승인, 메타 `use.commands`에 시험 명령 등록). 시험 명령은 받은 env 값의 길이와 해시 비교 결과만 출력한다. 다음 검사를 통과한다.
+2. M1 스모크 [결정: review.decisions-2 U-19]: 모델 테이프로 `fresnel chat` 한 턴을 돌릴 때 bash 도구가 `secret://` 참조 1개를 env 주입으로 쓴다(사용 모드 M1, 실행마다 승인, 메타 `use.commands`에 시험 명령 등록). 시험 명령은 받은 env 값의 길이와 해시 비교 결과만 출력한다. 다음 검사를 통과한다.
    - 시험 명령이 기대한 값을 받았다고 보고한다(종료 코드 0).
    - 이벤트 DB 전체, blob, 운영 로그, 모델 요청 본문(테이프 기록), CLI stdout·stderr에 값과 변형(base64, URL, hex, JSON 이스케이프)이 없다.
    - 승인을 거부한 같은 시나리오는 `secret.denied`(`approval_missing`) 레코드를 남기고 자식 프로세스를 띄우지 않는다. 명령 패턴 밖 명령은 `command_mismatch`다.
@@ -240,8 +240,8 @@ xeon/packages/platform-secrets/
 
 | 항목 | 이유 | 확인 방법 |
 |---|---|---|
-| `reveal`의 `os-auth` 경로(M3b: `os-auth.ts`, macOS osascript provider와 가짜 provider 시험을 더했다. 아래는 M2 시점 기록이다) | 이 기기에 OS 인증 수단이 없다. `osAuthAvailable`은 조립 루트가 넘기는 값이고 기본은 `false`다. 서비스는 `os-auth` 증거의 시각만 검사하고, 인증이 실제로 일어났는지는 L4·L0.os가 책임진다. 시험은 `tty-confirm` 경로와 "OS 인증 가능 환경에서 `tty-confirm` 거부" 규칙까지 확인했다 | macOS·Windows·Linux 데스크톱 실기에서 L4의 OS 인증 연결 뒤 `xeon secret reveal` |
-| macOS Keychain | macOS 기기 없음. 명령 구성(`security find-generic-password -s xeon.age -a default -w`)만 단위 시험이 있다. 접근 승인 대화상자 횟수(위험 표 1행)도 기록하지 못했다 | macOS 실기에서 lease 5회에 뜬 대화상자 수를 세어 기록 |
+| `reveal`의 `os-auth` 경로(M3b: `os-auth.ts`, macOS osascript provider와 가짜 provider 시험을 더했다. 아래는 M2 시점 기록이다) | 이 기기에 OS 인증 수단이 없다. `osAuthAvailable`은 조립 루트가 넘기는 값이고 기본은 `false`다. 서비스는 `os-auth` 증거의 시각만 검사하고, 인증이 실제로 일어났는지는 L4·L0.os가 책임진다. 시험은 `tty-confirm` 경로와 "OS 인증 가능 환경에서 `tty-confirm` 거부" 규칙까지 확인했다 | macOS·Windows·Linux 데스크톱 실기에서 L4의 OS 인증 연결 뒤 `fresnel secret reveal` |
+| macOS Keychain | macOS 기기 없음. 명령 구성(`security find-generic-password -s fresnel.age -a default -w`)만 단위 시험이 있다. 접근 승인 대화상자 횟수(위험 표 1행)도 기록하지 못했다 | macOS 실기에서 lease 5회에 뜬 대화상자 수를 세어 기록 |
 | Windows 자격 증명 관리자 | 스텁(`not_implemented`)이다. 읽기 수단은 [미결](spec §10 7번)이다 | Windows 네이티브 착수 때 |
 | Linux Secret Service 실기 | `secret-tool`과 D-Bus 서비스가 없다. 대역으로 명령 인용과 sops 연동만 확인했다 | GNOME Keyring나 KWallet이 있는 Linux 데스크톱 |
 | 감사 파일의 프로세스 간 동시 정리 | 정리(prune)가 파일을 다시 쓰므로, 같은 시각에 다른 프로세스가 붙인 줄이 사라질 수 있다. 같은 사용자의 CLI와 호스트가 동시에 첫 쓰기를 하는 경우에만 생긴다 | 파일 잠금을 넣을지 M3 운영 로그 설계 때 정한다 |
@@ -271,7 +271,7 @@ xeon/packages/platform-secrets/
 
 ### 8.5 M2 첫 실행 기록 (m2r sec)
 
-macOS 깨끗한 기기의 첫 실행에서 `xeon secret add`가 `not_registered`로 실패했다(`l0.secrets.sops.files`의 기본값이 빈 목록이라 값을 놓을 파일이 없었다). 아래로 고쳤다. 시험 환경은 WSL2(sops 3.13.3, age 1.3.2)이고 macOS 실기는 없다.
+macOS 깨끗한 기기의 첫 실행에서 `fresnel secret add`가 `not_registered`로 실패했다(`l0.secrets.sops.files`의 기본값이 빈 목록이라 값을 놓을 파일이 없었다). 아래로 고쳤다. 시험 환경은 WSL2(sops 3.13.3, age 1.3.2)이고 macOS 실기는 없다.
 
 | 항목 | 내용과 시험 |
 |---|---|

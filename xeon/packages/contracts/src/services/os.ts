@@ -229,7 +229,7 @@ export interface OsService {
   readonly time: OsTime;
   /** 기계 식별자. 같은 기계 판정용(LeaseHolder.host). 서비스 수명 동안 바뀌지 않는다 */
   readonly machineId: string;
-  /** POSIX uid. Windows는 null. /tmp/xeon-<uid>, 소켓 디렉터리 소유자 검사에 쓴다 */
+  /** POSIX uid. Windows는 null. /tmp/fresnel-<uid>, 소켓 디렉터리 소유자 검사에 쓴다 */
   readonly userId: number | null;
   /** pid 프로세스의 시작 시각(epoch ms). 그 pid의 프로세스가 없으면 ok(null). 동기다(store 임대 판정이 동기 경로다) */
   processStartFingerprint(pid: number): Result<number | null, FingerprintError>;

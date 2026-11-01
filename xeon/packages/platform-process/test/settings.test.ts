@@ -63,7 +63,7 @@ describe("l0.process settings", () => {
       label: "원격 서비스 주소",
     });
     expect(
-      validateSettingValue(remote, "ssh://me@box.example/run/user/1000/xeon/xeon.sock").ok,
+      validateSettingValue(remote, "ssh://me@box.example/run/user/1000/fresnel/fresnel.sock").ok,
     ).toBe(true);
     expect(validateSettingValue(remote, 1).ok).toBe(false);
   });

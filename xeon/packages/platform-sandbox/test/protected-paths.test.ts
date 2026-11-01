@@ -47,18 +47,18 @@ function find(
 }
 
 describe("protected paths", () => {
-  test("default table has the Xeon rows with the documented access and reasons", () => {
+  test("default table has the Fresnel rows with the documented access and reasons", () => {
     const dirs = makeTestDirs();
     const entries = build(dirs);
     expect(find(entries, dirs.data)).toMatchObject({
       match: "prefix",
       access: "read_write",
-      reason: "xeon_data",
+      reason: "fresnel_data",
     });
     expect(find(entries, dirs.config)).toMatchObject({
       match: "prefix",
       access: "write",
-      reason: "xeon_config",
+      reason: "fresnel_config",
     });
     expect(find(entries, join(dirs.home, ".ssh"))).toMatchObject({
       access: "read_write",
@@ -163,7 +163,7 @@ describe("protected paths", () => {
     );
     expect(matchProtectedPath(entries, join(dirs.config, "settings.json"), "read")).toBeUndefined();
     expect(matchProtectedPath(entries, join(dirs.config, "settings.json"), "write")?.reason).toBe(
-      "xeon_config",
+      "fresnel_config",
     );
   });
 

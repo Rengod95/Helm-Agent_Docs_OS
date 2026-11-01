@@ -465,7 +465,7 @@ export function createSecretAdminService(deps: SecretAdminDeps): SecretAdminServ
     if (!provider.ok) return provider;
     const opened = await provider.value.lease(
       loaded.value.meta.ref,
-      humanCtx("secret.test", "xeon secret test"),
+      humanCtx("secret.test", "fresnel secret test"),
       ADMIN_LEASE_LIMITS,
     );
     if (!opened.ok) {
@@ -575,7 +575,7 @@ export function createSecretAdminService(deps: SecretAdminDeps): SecretAdminServ
     if (!provider.ok) return provider;
     const opened = await provider.value.lease(
       loaded.value.meta.ref,
-      humanCtx("secret.reveal", "xeon secret reveal"),
+      humanCtx("secret.reveal", "fresnel secret reveal"),
       ADMIN_LEASE_LIMITS,
     );
     if (!opened.ok)

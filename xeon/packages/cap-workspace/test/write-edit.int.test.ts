@@ -21,7 +21,7 @@ import { override, realDeps, realEnv } from "./support/real-env.ts";
 const dirs: string[] = [];
 
 function tempRoot(): string {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "xeon-ws-int-")));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "fresnel-ws-int-")));
   dirs.push(dir);
   return dir;
 }

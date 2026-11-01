@@ -8,14 +8,14 @@ describe("protectedPaths (SC-21)", () => {
         { env: "dev", path: "/home/u/projects/secrets/dev.sops.yaml" },
         { env: "prod", path: "/home/u/projects/secrets/prod.sops.yaml" },
       ],
-      configDir: "/home/u/.config/xeon",
+      configDir: "/home/u/.config/fresnel",
       ageKeyFilePath: null,
     });
     expect(paths).toEqual([
       "/home/u/projects/secrets/dev.sops.yaml",
       "/home/u/projects/secrets/prod.sops.yaml",
-      "/home/u/.config/xeon/secrets",
-      "/home/u/.config/xeon/secrets/age/keys.txt",
+      "/home/u/.config/fresnel/secrets",
+      "/home/u/.config/fresnel/secrets/age/keys.txt",
     ]);
     for (const path of paths) expect(path.startsWith("/")).toBe(true);
   });

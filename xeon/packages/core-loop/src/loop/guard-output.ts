@@ -7,7 +7,7 @@ import { dispatchKey, messageIdentity, currentStep, type TurnRun } from "./turn-
 // 커밋과 표시 전에 가드를 거친다. 가드는 값을 바꾸지 못하고 차단만 한다. 내장 검사는 없다.
 
 /** 차단된 답 대신 기록·표시하는 문장 앞부분. 사유는 대화 기록에 남는다 */
-const WITHHELD_PREFIX = "[xeon:withheld_by_guard]";
+const WITHHELD_PREFIX = "[fresnel:withheld_by_guard]";
 
 function textOf(message: AssistantMessage): string {
   return message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("\n");

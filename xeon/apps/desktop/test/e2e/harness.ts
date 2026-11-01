@@ -37,11 +37,11 @@ const HELLO: {
   readonly client: { readonly name: string; readonly version: string; readonly kind: string };
 } = {
   protocolVersion: WIRE_PROTOCOL_VERSION,
-  client: { name: "xeon-e2e", version: "0.0.0", kind: "other" },
+  client: { name: "fresnel-e2e", version: "0.0.0", kind: "other" },
 };
 
 function newHome(): string {
-  const root = mkdtempSync(join(tmpdir(), "xeon-e2e-"));
+  const root = mkdtempSync(join(tmpdir(), "fresnel-e2e-"));
   chmodSync(root, 0o700);
   mkdirSync(join(root, "config"), { mode: 0o700 });
   return root;

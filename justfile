@@ -8,7 +8,7 @@
 # 7. 환경·비밀 동사(secret-add, dotenv …)는 ~/.config/ws/ws.just에서 온다. 여기서 다시 만들지 않는다.
 # 8. 고친 뒤 `just --list`, `just verify`.
 # 9. test·verify는 scripts/guard.sh(기기 슬롯, 공용 메모리 예산) 아래에서 돈다: `scripts/guard.sh run -- <명령>`, verify는 `scripts/guard.sh verify -- just _verify-steps`.
-# 이 저장소: verify는 기기에서 한 번에 하나(WS_GUARD_SLOTS=1)이고 _verify-steps(xeon/scripts/verify-steps.sh)가 단계마다 guard.sh run scope(2G, XEON_VERIFY_STEP_MAX)를 따로 만든다. test 단계는 turbo(동시 2개)로 패키지마다 1.5G, 캐시에 맞는 패키지는 다시 돌지 않는다.
+# 이 저장소: verify는 기기에서 한 번에 하나(WS_GUARD_SLOTS=1)이고 _verify-steps(xeon/scripts/verify-steps.sh)가 단계마다 guard.sh run scope(2G, FRESNEL_VERIFY_STEP_MAX)를 따로 만든다. test 단계는 turbo(동시 2개)로 패키지마다 1.5G, 캐시에 맞는 패키지는 다시 돌지 않는다.
 # verify는 빠른 길(병합·push 전), verify-full은 마일스톤 마감과 CI만. 병렬 작업 중에는 `just check <패키지>`·`just test <패키지>`만 돌린다. 저장소 전체 verify·lint·typecheck는 마지막 병합 단계 한 곳에서만.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set allow-duplicate-recipes
@@ -16,7 +16,7 @@ import? '~/.config/ws/ws.just'
 
 envs := "dev"
 
-# Xeon 의존성 설치: 잠금 파일 기준 (xeon/bun.lock, bun install --frozen-lockfile)
+# Fresnel 의존성 설치: 잠금 파일 기준 (xeon/bun.lock, bun install --frozen-lockfile)
 [group('setup')]
 setup:
     cd xeon && just setup
@@ -26,27 +26,27 @@ setup:
 caustic-update:
     cd xeon && just caustic-update
 
-# Xeon 포매팅 적용 (oxfmt)
+# Fresnel 포매팅 적용 (oxfmt)
 [group('quality')]
 fmt:
     cd xeon && just fmt
 
-# Xeon 포매팅 검사 (oxfmt --check)
+# Fresnel 포매팅 검사 (oxfmt --check)
 [group('quality')]
 fmt-check:
     cd xeon && just fmt-check
 
-# Xeon 정적 검사: mode=full은 type-aware(turbo 캐시), mode=fast는 type-aware 없이 한 번에 (.oxlintrc.fast.json)
+# Fresnel 정적 검사: mode=full은 type-aware(turbo 캐시), mode=fast는 type-aware 없이 한 번에 (.oxlintrc.fast.json)
 [group('quality')]
 lint mode="full":
     cd xeon && just lint {{mode}}
 
-# Xeon 타입 검사 (tsc -b, TypeScript 7)
+# Fresnel 타입 검사 (tsc -b, TypeScript 7)
 [group('quality')]
 typecheck:
     cd xeon && just typecheck
 
-# Xeon 단위 테스트: scripts는 매번, 패키지는 turbo 캐시(모든 worktree 공용)에 맞으면 재생하고 아니면 scripts/guard.sh run 상한 아래에서. 인자로 패키지 디렉터리 (xeon/scripts/test-capped.sh)
+# Fresnel 단위 테스트: scripts는 매번, 패키지는 turbo 캐시(모든 worktree 공용)에 맞으면 재생하고 아니면 scripts/guard.sh run 상한 아래에서. 인자로 패키지 디렉터리 (xeon/scripts/test-capped.sh)
 [group('quality')]
 test *targets:
     cd xeon && just test {{targets}}
@@ -101,7 +101,7 @@ ci-layer layer affected="false":
 exit-tests:
     cd xeon && just exit-tests
 
-# 완료 기준, 빠른 길: 병합과 push 전에 돈다. 검사 전부와 ws check. 시험·lint·타입 검사는 turbo 캐시(모든 worktree 공용)를 쓰고 lint는 type-aware 없이 돈다. 마일스톤 마감과 CI는 verify-full. 기기에서 한 번에 하나(슬롯 1), 단계마다 따로 메모리 상한 2G(XEON_VERIFY_STEP_MAX), 시험은 패키지마다 1.5G, 공용 예산 ws-dev.slice (scripts/guard.sh)
+# 완료 기준, 빠른 길: 병합과 push 전에 돈다. 검사 전부와 ws check. 시험·lint·타입 검사는 turbo 캐시(모든 worktree 공용)를 쓰고 lint는 type-aware 없이 돈다. 마일스톤 마감과 CI는 verify-full. 기기에서 한 번에 하나(슬롯 1), 단계마다 따로 메모리 상한 2G(FRESNEL_VERIFY_STEP_MAX), 시험은 패키지마다 1.5G, 공용 예산 ws-dev.slice (scripts/guard.sh)
 [group('quality')]
 verify:
     WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps fast
@@ -163,12 +163,12 @@ desktop-test:
 tape-record scenario *flags:
     cd xeon && just tape-record {{scenario}} {{flags}}
 
-# 속도 기준선(콜드 스타트, --first-token은 실제 모델 호출이라 --yes 필요, 없으면 종료코드 3). 예산은 eng.performance.guide (xeon/scripts/bench.ts)
+# 속도 기준선(콜드 스타트, --first-token은 실제 모델 호출이라 --yes 필요, 없으면 종료코드 3). 예산은 eng.performance.guide (xeon/scripts/benchmark.ts)
 [group('local')]
-bench *flags:
-    cd xeon && just bench {{flags}}
+benchmark *flags:
+    cd xeon && just benchmark {{flags}}
 
-# 서버 측정 결과의 예산 판정(예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패) (xeon/scripts/bench-gate.ts)
+# 서버 측정 결과의 예산 판정(예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패) (xeon/scripts/benchmark-gate.ts)
 [group('local')]
-bench-gate *flags:
-    cd xeon && just bench-gate {{flags}}
+benchmark-gate *flags:
+    cd xeon && just benchmark-gate {{flags}}

@@ -73,7 +73,7 @@ export async function makeTempDir(): Promise<{
   readonly dir: string;
   cleanup(): Promise<void>;
 }> {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), "xeon-x1-")));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "fresnel-x1-")));
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 

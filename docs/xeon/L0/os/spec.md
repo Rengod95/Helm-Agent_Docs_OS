@@ -643,7 +643,7 @@ export interface FileLock {
 
 ### 3.12 제품 이름 상수
 
-제품 이름에 묶인 값은 `src/product.ts`의 `PRODUCT` 한 곳에서만 읽는다 [결정: review.m3-design-inputs D-M3-24 b, M3-REQ-54]. 값은 `name: "fresnel"`, `displayName: "Fresnel"`, `settingsFileName: "settings.json"`, `dbFileName: "fresnel.db"`이다(제품 이름 Fresnel, ADR-0022). 옛 이름 `xeon`의 디렉터리와 DB는 읽지 않고, 개발 기기는 일회성 이전 스크립트(`xeon/scripts/migrate-dev-machine.ts`)가 옮긴다. 앱 디렉터리 이름(`dirs.ts`의 3플랫폼 표와 `<tmp>/<name>-<uid>`), 알림 앱 이름이 이 상수를 쓴다. 사용자 대행 UA는 `productUserAgent(version)`(`fresnel/<version>`)이다. 개명은 이 파일만 바꾼다. 서버 이름처럼 F가 정하는 값은 F의 몫이고 한 곳으로 모을지는 개명 작업 전에 정한다 [미결 14].
+제품 이름에 묶인 값은 `src/product.ts`의 `PRODUCT` 한 곳에서만 읽는다 [결정: review.m3-design-inputs D-M3-24 b, M3-REQ-54]. 값은 `name: "fresnel"`, `displayName: "Fresnel"`, `settingsFileName: "settings.json"`, `dbFileName: "fresnel.db"`이다(제품 이름 Fresnel, ADR-0022). 옛 이름 `fresnel`의 디렉터리와 DB는 읽지 않고, 개발 기기는 일회성 이전 스크립트(`xeon/scripts/migrate-dev-machine.ts`)가 옮긴다. 앱 디렉터리 이름(`dirs.ts`의 3플랫폼 표와 `<tmp>/<name>-<uid>`), 알림 앱 이름이 이 상수를 쓴다. 사용자 대행 UA는 `productUserAgent(version)`(`fresnel/<version>`)이다. 개명은 이 파일만 바꾼다. 서버 이름처럼 F가 정하는 값은 F의 몫이고 한 곳으로 모을지는 개명 작업 전에 정한다 [미결 14].
 
 ### 3.13 워크트리 연산
 

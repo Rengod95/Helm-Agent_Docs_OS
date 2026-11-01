@@ -93,7 +93,7 @@ describe("definition loader", () => {
         f: { type: "http" },
         g: { type: "stdio" },
       }),
-      "xeon",
+      "fresnel",
       new Set(),
     );
     expect(parsed.ok).toBe(true);
@@ -104,7 +104,7 @@ describe("definition loader", () => {
     expect(transports).toEqual({ a: "stdio", b: "http", c: "http", d: "sse" });
     expect(
       parsed.value.servers.every(
-        (server) => server.source === "mcpjson:xeon" && server.requiresTrust,
+        (server) => server.source === "mcpjson:fresnel" && server.requiresTrust,
       ),
     ).toBe(true);
     expect(parsed.value.diagnostics.map((diagnostic) => diagnostic.server)).toEqual([
@@ -184,12 +184,12 @@ describe("definition loader", () => {
     await world.runtime.shutdown();
   });
 
-  test("trusted project reads both files and the xeon file wins", async () => {
+  test("trusted project reads both files and the fresnel file wins", async () => {
     const { world, files } = projectWorld({
       files: {
         [`${ROOT}/.mcp.json`]: mcpJson({ proj: { command: "root" } }),
         [`${ROOT}/.fresnel/mcp.json`]: mcpJson({
-          proj: { command: "xeon" },
+          proj: { command: "fresnel" },
           other: { command: "o" },
         }),
       },
@@ -201,7 +201,7 @@ describe("definition loader", () => {
     const bySource = Object.fromEntries(
       listed.servers.map((server) => [server.server, server.source]),
     );
-    expect(bySource).toEqual({ proj: "mcpjson:xeon", other: "mcpjson:xeon" });
+    expect(bySource).toEqual({ proj: "mcpjson:fresnel", other: "mcpjson:fresnel" });
     await world.runtime.shutdown();
   });
 

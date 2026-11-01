@@ -1,9 +1,9 @@
 # core-loop 포크 패치 기록
 
-`src/loop/`의 `run-turn.ts`, `stream-response.ts`, `tool-batch.ts`는 pi-agent-core 1.3.0(MIT) `agent-loop.ts`의 함수를 옮겨 Xeon 루프로 다시 설계한 것이다(`adr.0009`).
+`src/loop/`의 `run-turn.ts`, `stream-response.ts`, `tool-batch.ts`는 pi-agent-core 1.3.0(MIT) `agent-loop.ts`의 함수를 옮겨 Fresnel 루프로 다시 설계한 것이다(`adr.0009`).
 원본 패키지, 판, tarball sha1, 복사 범위는 `UPSTREAM.json`에 있다. 라이선스 원문은 `LICENSE.pi`다.
 세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// FRESNEL-PATCH: <id>` 표지. `test/fork-records.test.ts`가 이를 검사한다.
-처음부터 Xeon 설계로 쓴 파일(`open-step.ts`, `commit-response.ts`, `step-end.ts`, `before-start.ts`, `prepare-request.ts`, `finish-turn.ts`, `turn-run.ts`, `sink.ts`, `types.ts`)에는 표지를 달지 않는다.
+처음부터 Fresnel 설계로 쓴 파일(`open-step.ts`, `commit-response.ts`, `step-end.ts`, `before-start.ts`, `prepare-request.ts`, `finish-turn.ts`, `turn-run.ts`, `sink.ts`, `types.ts`)에는 표지를 달지 않는다.
 원본 줄 번호는 `agent-loop.ts` 1.3.0 기준이다. 새 판은 따라가지 않는다(`adr.0009` §3.7).
 
 ## 패치 표

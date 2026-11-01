@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Run `bun test` for scripts/ and every workspace package. The packages go through turbo (`turbo run test`): a package whose inputs
 # and dependencies are unchanged replays from the turbo cache, shared by all worktrees (TURBO_CACHE_DIR, default
-# ~/.cache/xeon/turbo). A miss runs the package's `test` script, scripts/test-pkg.sh: bun test under the machine guard
+# ~/.cache/fresnel/turbo). A miss runs the package's `test` script, scripts/test-pkg.sh: bun test under the machine guard
 # (../scripts/guard.sh run: a memory cap per run inside the shared ws-dev.slice budget) with a time limit, so a runaway test ends
 # only its own run (oom-kill). turbo runs two packages at a time; apps/host and core-persistence never run together (test-pkg.sh lock).
 # xeon/scripts itself (`bun test scripts`) is cheap and reads the docs and CI files, so it always runs, uncached, one scope.
 # `just verify` does not wrap the test step (xeon/scripts/verify-steps.sh): WS_GUARD_ACTIVE must be unset when this script is called.
 # usage: test-capped.sh [package-dir ...]   (default: scripts and all packages with a "test" script)
-# env: XEON_TEST_TIMEOUT_SEC (default 300) seconds per target; WS_GUARD_RUN_MAX (default 1500M) memory cap per target;
+# env: FRESNEL_TEST_TIMEOUT_SEC (default 300) seconds per target; WS_GUARD_RUN_MAX (default 1500M) memory cap per target;
 #      TURBO_FORCE=true runs every package (no cache read); TURBO_CACHE_DIR cache location
 #      (see ../scripts/guard.sh for the other WS_GUARD_* knobs).
 # The summary line counts the tests bun reported as skipped, so a skip in CI is visible (just exit-tests fails on it). The count
@@ -18,9 +18,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 root="$PWD"
 guard="$root/../scripts/guard.sh"
-timeout_sec="${XEON_TEST_TIMEOUT_SEC:-300}"
+timeout_sec="${FRESNEL_TEST_TIMEOUT_SEC:-300}"
 export TURBO_TELEMETRY_DISABLED=1
-export TURBO_CACHE_DIR="${TURBO_CACHE_DIR:-$HOME/.cache/xeon/turbo}"
+export TURBO_CACHE_DIR="${TURBO_CACHE_DIR:-$HOME/.cache/fresnel/turbo}"
 
 if [[ ! -x "$guard" ]]; then
   echo "test-capped: $guard is missing (ws repo adopt copies it)" >&2

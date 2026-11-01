@@ -5,7 +5,7 @@ import { projectBranch, readBranchEvents } from "./branch.ts";
 import { compactThread, hasCompactionFor, type CompactDeps } from "./compaction/compact.ts";
 
 // L1.context.spec §4.7 오버플로우 복구, plan C-8. 단계당 한 번만 컴팩션하고 재시도하게 한다.
-// "이미 했는가"는 가지 위 thread.compacted의 details.xeon.stepId로 판정하므로 서비스를 다시 만들거나 재개해도 같다.
+// "이미 했는가"는 가지 위 thread.compacted의 details.fresnel.stepId로 판정하므로 서비스를 다시 만들거나 재개해도 같다.
 
 export function disabledOverflowRecovery(): OverflowRecovery {
   return { action: "fail", reason: "disabled" };

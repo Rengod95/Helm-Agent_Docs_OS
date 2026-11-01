@@ -59,7 +59,7 @@ describe("settingsJsonSchema output", () => {
     expect(document["$schema"]).toBe("https://json-schema.org/draft/2020-12/schema");
     expect(document["type"]).toBe("object");
     expect(document["additionalProperties"]).toBe(true);
-    expect(document["x-xeon-unknownKeys"]).toBe("warn");
+    expect(document["x-fresnel-unknownKeys"]).toBe("warn");
     expect(Object.keys(properties(document))).toContain("l1.loop.maxSteps");
   });
 
@@ -91,9 +91,9 @@ describe("settingsJsonSchema output", () => {
     expect(key?.["pattern"]).toBe("^secret://[a-z][a-z0-9-]{1,63}$");
   });
 
-  test("x-xeon metadata and deprecation", () => {
+  test("x-fresnel metadata and deprecation", () => {
     const props = properties(settingsJsonSchema(catalog(), { scope: "user" }));
-    expect(props["l1.loop.maxSteps"]?.["x-xeon"]).toMatchObject({
+    expect(props["l1.loop.maxSteps"]?.["x-fresnel"]).toMatchObject({
       layer: "L1",
       runtimeChange: "nextTurn",
       secret: false,

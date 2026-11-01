@@ -22,7 +22,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
   4. 오류 클래스와 선언 함수: 오류를 나타내는 `Error` 하위 클래스(`CapabilityError`, `WireError`, `SettingDefError`, 루트의 `Bug`)와, 선언을 받아 그대로 또는 정규화해 돌려주는 `define*` 함수(`defineCapability`, `defineManifest`, `defineSettings`). `define*`는 규칙 위반이면 오류 클래스를 던질 수 있다(`defineSettings` → `SettingDefError`, `F.wire-settings.spec` §3.8.3). 호출 결함과 선언 결함은 `Result` 대신 예외로 알린다(`eng.typescript.guide` TY-11).
   5. 데이터 상수: 케이스 표나 선언 표 같은 값만 있는 상수. 예: `HOOKS`, `CORE_EVENT_CATALOG`, `WIRE_METHODS`, `WIRE_CONFORMANCE_CASES`. 케이스를 돌리는 실행기 틀은 `src/`가 아닌 `test/`에 둔다(`F.wire-settings.plan` W14).
 - 발급(`IdFactory`·`LocalIdFactory` 구현), 저장, 전송, 로딩은 F 밖에서 구현한다. `createIdFactory(clock, random)` 같은 발급기 구현과 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 시계·난수를 쓰므로 위 다섯 예외에 들지 않는다. 운영 구현은 `platform-os`에 두고, 테스트 대역은 쓰는 패키지마다 자기 `test/` 안에 둔다 [결정: review.decisions-2 U-03](§8 10번).
-- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4이고 F가 가장 낮다(`_research/foundation-plan.md` §3). 그래서 `@fresnel/contracts`는 다른 xeon 패키지를 import하지 않는다. `scripts/check-layers.ts`가 `package.json`의 `fresnel.layer = "F"`로 이를 검사한다.
+- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4이고 F가 가장 낮다(`_research/foundation-plan.md` §3). 그래서 `@fresnel/contracts`는 다른 fresnel 패키지를 import하지 않는다. `scripts/check-layers.ts`가 `package.json`의 `fresnel.layer = "F"`로 이를 검사한다.
 - 허용하는 외부 의존:
   - `typebox` 1.3.27(워크스페이스 catalog). 값 import 허용.
   - `@earendil-works/pi-ai` 1.3.0. `import type`, `export type`만 허용(`F.conversation.spec` §3.1 규칙 1). `@earendil-works/pi-agent-core`에는 의존하지 않는다(adr.0009).
@@ -121,7 +121,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 
 ### 4.1 대화 계층 용어
 
-| Xeon | 뜻 | pi 대응 |
+| Fresnel | 뜻 | pi 대응 |
 |---|---|---|
 | thread | 대화 하나. 분기 트리 포함 | 세션 파일 하나 |
 | turn | 사용자 입력 하나에 대한 작업 전체 | run(`boundary.turn.before`~`boundary.turn.after`) |
@@ -129,7 +129,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | item | 입출력 단위(메시지, 도구 호출, 도구 결과) | message, tool_execution |
 | part | 어시스턴트 메시지 블록 하나의 id 레코드 | `contentIndex` |
 
-[결정: review.decisions-2 U-01] pi turn = Xeon step이다. 지점 이름은 pi 이름을 그대로 쓰므로 `boundary.step.before` 지점은 Xeon step 경계에서 발화한다. 켜기·끄기와 drive 임대 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
+[결정: review.decisions-2 U-01] pi turn = Fresnel step이다. 지점 이름은 pi 이름을 그대로 쓰므로 `boundary.step.before` 지점은 Fresnel step 경계에서 발화한다. 켜기·끄기와 drive 임대 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
 
 ### 4.2 대표 타입
 
@@ -222,7 +222,7 @@ F가 정하지 않는 것:
 
 하위 spec의 미결 가운데 층 전체에 걸리는 것만 모은다. 세부와 선택지는 각 spec의 "미결 사항" 절에 있다.
 
-1. [결정: review.decisions-2 U-01] 용어: pi turn = Xeon step, pi run = Xeon turn(`F.conversation.spec` §10 1번). scope 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(`F.extensions.spec` §4.5). 사용자 확인 대상이다.
+1. [결정: review.decisions-2 U-01] 용어: pi turn = Fresnel step, pi run = Fresnel turn(`F.conversation.spec` §10 1번). scope 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(`F.extensions.spec` §4.5). 사용자 확인 대상이다.
 2. [미결] boundary fold: `F.extensions.spec`은 fold 3종을 유지하고 chain 교체 + `finalize` 표지로 표현하자고 제안한다. 4번째 fold(collect)나 지점별 예외 표를 둘지 결정이 필요하다(`F.extensions.spec` §4.1, §10, `_research/notes/F-1.md` §3).
 3. [결정: review.m3-design-inputs A-01] Cordis 선언 병합은 하지 않는다. F는 `ServiceKey<Api>`만 두고(A안), `provide`는 X `hostOf(g).provide`다(`F.capabilities.spec` §3.5).
 4. [미결] 설정 우선순위 표: 관리 > 세션 > 로컬 > 프로젝트 > 사용자 > 기본값 제안과 관리 기본값 여부(`F.wire-settings.spec` §4.7).

@@ -183,7 +183,7 @@ M2 Mac 실기(`review.macos-checklist` M-10~M-13, `xeon/foundation` `c8afa8b`)�
 | X8 비밀 재인증 뒤 열람(UC-6) | 충족(재범위) | `packages/client` `test/settings/x8.test.ts`(9): 가짜 재인증 성공 뒤 값 상태, 실패는 값 없음, 값은 직렬화에 없고 `clear()`가 바이트를 지움, 표시 시간이 지나면 숨김, wire 어댑터는 값을 view-model에 넘기지 않음. 단서: 실제 재인증(os-auth Touch ID)과 서비스에 붙은 상태의 비밀 열람(§9.3 사용자 결정 3)은 확인하지 못했습니다 |
 | X9 검색 provider 상태·키 플러그인 권장 | 충족(분할) | `apps/cli` `test/doctor-web.test.ts`(13)가 `xeon doctor` 출력(Exa·Brave 권장 상태, provider 순서, 고정 provider), `packages/client` `test/web/tools-web.test.ts`(16)가 "도구와 웹" view-model. SearXNG 항목은 계획에서 뺐습니다. 단서: Playwright MCP 도구 이름은 [가정]이고 실제 서버로 확인하지 않았습니다 |
 | X10 설정 키 집합 일치 | 충족(재범위) | `apps/cli` `test/x10-settings-keys.int.test.ts`(1): 파일 스키마 키 = `config list` 키 = view-model 항목 키. 예약된(`reserved`) 학습 curator 키 4개는 스키마에만 있고 쓰기를 거부하는 것까지 값으로 확인. 화면 렌더는 M4 |
-| X11 macOS·Linux 같은 릴리즈 스모크 | 부분 | `scripts/release-smoke.test.ts`(1): Linux x86_64에서 릴리즈 아카이브 빌드와 스모크 통과(로컬 실행). `.github/workflows/xeon-macos.yml`의 macOS arm64 job(`just release-smoke`)과 `xeon-release.yml`은 아직 돌지 않았습니다. 서명·공증과 Mac 실기는 사용자 묶음 |
+| X11 macOS·Linux 같은 릴리즈 스모크 | 부분 | `scripts/release-smoke.test.ts`(1): Linux x86_64에서 릴리즈 아카이브 빌드와 스모크 통과(로컬 실행). `.github/workflows/fresnel-macos.yml`의 macOS arm64 job(`just release-smoke`)과 `fresnel-release.yml`은 아직 돌지 않았습니다. 서명·공증과 Mac 실기는 사용자 묶음 |
 
 - 시험 실행: `apps/host` 788 통과·1 건너뜀, `packages/client` 213, `packages/core-models` 268, `apps/cli` 661 통과·1 건너뜀, `scripts` 187. 실패 0. 건너뛴 2개는 종료 조건 줄 밖의 시험입니다.
 

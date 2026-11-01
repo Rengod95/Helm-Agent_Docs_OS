@@ -4,8 +4,8 @@
 //   1. the archive matches its .sha256 file and every file matches SHA256SUMS
 //   2. the layout: binary, group templates, both default plugins, notices; binaries.lock.json only for a macOS archive,
 //      every entry matches its file
-//   3. the binary starts: `xeon version`, `xeon group new` without XEON_GROUP_TEMPLATES_DIR (the compiled binary finds the
-//      templates through its resource directory), `xeon doctor` names the external binaries (macOS: sops, age, rg as bundled)
+//   3. the binary starts: `fresnel version`, `fresnel group new` without FRESNEL_GROUP_TEMPLATES_DIR (the compiled binary finds the
+//      templates through its resource directory), `fresnel doctor` names the external binaries (macOS: sops, age, rg as bundled)
 //   4. @swc/core is not inside the binary (DR-07)
 //   release-smoke <archive>
 // This file imports no workspace package. Exit codes: 0 every check passed, 1 a check failed, 2 environment (tar missing).
@@ -19,12 +19,12 @@ export interface SmokeFailure {
   readonly detail: string;
 }
 
-/** `xeon-<version>-<triple>.tar.gz` -> its parts. undefined for any other name. */
+/** `fresnel-<version>-<triple>.tar.gz` -> its parts. undefined for any other name. */
 export function parseArchiveName(
   name: string,
 ): { readonly version: string; readonly triple: string } | undefined {
   const found =
-    /^xeon-([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.]+)?)-([a-z0-9_]+-[a-z]+-[a-z0-9-]+)\.tar\.gz$/.exec(
+    /^fresnel-([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.]+)?)-([a-z0-9_]+-[a-z]+-[a-z0-9-]+)\.tar\.gz$/.exec(
       name,
     );
   const version = found?.[1];
@@ -52,7 +52,7 @@ export function parseSums(
 /** The layout every archive has, relative to the stage directory; the macOS archive adds the lock and binaries. */
 export function requiredPaths(triple: string): readonly string[] {
   const common = [
-    triple.includes("-windows-") ? "xeon.exe" : "xeon",
+    triple.includes("-windows-") ? "fresnel.exe" : "fresnel",
     "group-sdk/templates/index.json",
     "default-plugins/helm/.fresnel-plugin/plugin.json",
     "default-plugins/account-rotation/.fresnel-plugin/plugin.json",
@@ -72,7 +72,7 @@ interface Ran {
   readonly output: string;
 }
 
-async function runXeon(
+async function runFresnel(
   binary: string,
   args: readonly string[],
   cwd: string,
@@ -81,7 +81,7 @@ async function runXeon(
   const env: Record<string, string> = {
     PATH: process.env["PATH"] ?? "",
     HOME: home,
-    XEON_HOME: join(home, "xeon-home"),
+    FRESNEL_HOME: join(home, "fresnel-home"),
     XDG_RUNTIME_DIR: join(home, "run"),
   };
   mkdirSync(join(home, "run"), { recursive: true, mode: 0o700 });
@@ -111,7 +111,7 @@ export async function smoke(archive: string): Promise<readonly SmokeFailure[]> {
     sidecarSum,
   );
 
-  const work = mkdtempSync(join(tmpdir(), "xeon-release-smoke-"));
+  const work = mkdtempSync(join(tmpdir(), "fresnel-release-smoke-"));
   try {
     const tar = Bun.spawn(["tar", "-xzf", archive, "-C", work], {
       stdout: "ignore",
@@ -119,7 +119,7 @@ export async function smoke(archive: string): Promise<readonly SmokeFailure[]> {
     });
     const tarErr = await new Response(tar.stderr).text();
     if ((await tar.exited) !== 0) return [{ check: "archive.extract", detail: tarErr.trim() }];
-    const stage = join(work, `xeon-${version}-${triple}`);
+    const stage = join(work, `fresnel-${version}-${triple}`);
 
     for (const rel of requiredPaths(triple)) check("layout", existsSync(join(stage, rel)), rel);
     check(
@@ -169,21 +169,21 @@ export async function smoke(archive: string): Promise<readonly SmokeFailure[]> {
     }
     if (failures.length > 0) return failures;
 
-    const binary = join(stage, triple.includes("-windows-") ? "xeon.exe" : "xeon");
+    const binary = join(stage, triple.includes("-windows-") ? "fresnel.exe" : "fresnel");
     const home = join(work, "home");
     const cwd = join(work, "cwd");
     mkdirSync(cwd, { recursive: true });
 
-    const ver = await runXeon(binary, ["version"], cwd, home);
+    const ver = await runFresnel(binary, ["version"], cwd, home);
     check("run.version", ver.exitCode === 0, `exit ${String(ver.exitCode)}`);
-    // the release version is injected at build time (L4.release.spec 8.1): `xeon version` prints the archive's version
+    // the release version is injected at build time (L4.release.spec 8.1): `fresnel version` prints the archive's version
     check(
       "run.version-injected",
       ver.output.includes(version),
-      `xeon version does not print ${version}: ${ver.output.trim().slice(0, 200)}`,
+      `fresnel version does not print ${version}: ${ver.output.trim().slice(0, 200)}`,
     );
 
-    const group = await runXeon(binary, ["group", "new", "smoke-group", "--drive"], cwd, home);
+    const group = await runFresnel(binary, ["group", "new", "smoke-group", "--drive"], cwd, home);
     check(
       "run.group-new",
       group.exitCode === 0,
@@ -195,7 +195,7 @@ export async function smoke(archive: string): Promise<readonly SmokeFailure[]> {
       "smoke-group/package.json",
     );
 
-    const doctor = await runXeon(binary, ["doctor"], cwd, home);
+    const doctor = await runFresnel(binary, ["doctor"], cwd, home);
     const names = triple.includes("-apple-") ? ["sops", "age", "rg"] : ["rg", "bwrap", "socat"];
     for (const name of names)
       check(

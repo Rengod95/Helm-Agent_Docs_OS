@@ -15,21 +15,21 @@ Disallow: /private/
 Allow: /private/public.html
 Disallow: /*.pdf$
 
-User-agent: Xeon
-Disallow: /xeon-only/
-Allow: /xeon-only/ok
+User-agent: Fresnel
+Disallow: /fresnel-only/
+Allow: /fresnel-only/ok
 `;
 
 describe("robots.txt", () => {
-  test("the Xeon group wins over the wildcard group", () => {
+  test("the Fresnel group wins over the wildcard group", () => {
     const rules = parseRobots(SAMPLE);
-    expect(robotsAllows(rules, "/xeon-only/page")).toBe(false);
-    expect(robotsAllows(rules, "/xeon-only/ok")).toBe(true);
-    // 와일드카드 그룹의 규칙은 Xeon 그룹이 있으면 쓰지 않는다
+    expect(robotsAllows(rules, "/fresnel-only/page")).toBe(false);
+    expect(robotsAllows(rules, "/fresnel-only/ok")).toBe(true);
+    // 와일드카드 그룹의 규칙은 Fresnel 그룹이 있으면 쓰지 않는다
     expect(robotsAllows(rules, "/private/page")).toBe(true);
   });
 
-  test("the wildcard group applies when no group names Xeon", () => {
+  test("the wildcard group applies when no group names Fresnel", () => {
     const rules = parseRobots(
       "User-agent: *\nDisallow: /private/\nAllow: /private/public.html\nDisallow: /*.pdf$",
     );
@@ -49,7 +49,7 @@ describe("robots.txt", () => {
 
   test("grouped user agents share rules and an empty disallow allows all", () => {
     const rules = parseRobots(
-      "User-agent: foo\nUser-agent: xeon\nDisallow: /x\n\nUser-agent: *\nDisallow:",
+      "User-agent: foo\nUser-agent: fresnel\nDisallow: /x\n\nUser-agent: *\nDisallow:",
     );
     expect(robotsAllows(rules, "/x")).toBe(false);
     expect(robotsAllows(parseRobots("User-agent: *\nDisallow:"), "/anything")).toBe(true);

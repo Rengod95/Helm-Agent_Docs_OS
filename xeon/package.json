@@ -1,5 +1,5 @@
 {
-  "name": "xeon",
+  "name": "fresnel",
   "private": true,
   "workspaces": {
     "packages": [

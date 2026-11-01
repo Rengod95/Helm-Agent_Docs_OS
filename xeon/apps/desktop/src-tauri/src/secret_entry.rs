@@ -1,5 +1,5 @@
-//! 모델 키 등록: 번들된 사이드카 바이너리를 `xeon secret add|set <이름>`으로 한 번 실행하고 값을 stdin에 한 번 쓴다
-//! (L4.desktop.spec §4.14.1, ADR-0014: 사이드카 바이너리가 곧 xeon CLI다).
+//! 모델 키 등록: 번들된 사이드카 바이너리를 `fresnel secret add|set <이름>`으로 한 번 실행하고 값을 stdin에 한 번 쓴다
+//! (L4.desktop.spec §4.14.1, ADR-0014: 사이드카 바이너리가 곧 fresnel CLI다).
 //!
 //! 값이 지나는 곳은 WebView 입력란, Tauri IPC 본문, 이 프로세스의 요청 버퍼, 자식 stdin 파이프다. 넘지 않는 곳:
 //! - argv와 환경 변수. 자식의 인자는 `secret <동작> <이름>`뿐이다.

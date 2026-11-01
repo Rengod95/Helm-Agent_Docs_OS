@@ -36,7 +36,7 @@ built="$(cat "$stamp" 2>/dev/null || true)"
 # build and is stale for the e2e tests. A binary that cannot run here (another triple) or has no JSON answer is not judged by this.
 version_mismatch() {
   local file reported
-  for file in "$dir"/xeon-*; do
+  for file in "$dir"/fresnel-*; do
     [[ -x "$file" ]] || continue
     reported="$("$file" version --json 2>/dev/null | sed -n 's/.*"cli":"\([^"]*\)".*/\1/p' || true)"
     [[ -n "$reported" && "$reported" != "0.0.0" ]] && return 0
@@ -44,7 +44,7 @@ version_mismatch() {
   return 1
 }
 
-if [[ "$current" == "$built" ]] && compgen -G "$dir/xeon-*" >/dev/null && ! version_mismatch; then
+if [[ "$current" == "$built" ]] && compgen -G "$dir/fresnel-*" >/dev/null && ! version_mismatch; then
   echo "ensure-sidecar: binary is current"
   exit 0
 fi

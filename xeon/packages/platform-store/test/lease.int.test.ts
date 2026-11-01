@@ -411,7 +411,7 @@ describe("lease faults and shutdown", () => {
 
   test("close releases every lease so the next owner takes over at once", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     const first = directOptions(path);
     const opened = await openStore(first.options);
     if (!opened.ok) throw new Error("open failed");
@@ -428,7 +428,7 @@ describe("lease faults and shutdown", () => {
 
   test("two open stores in one process contend through the os lock", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     const one = await openStore(directOptions(path).options);
     const two = await openStore(directOptions(path).options);
     if (!one.ok || !two.ok) throw new Error("open failed");

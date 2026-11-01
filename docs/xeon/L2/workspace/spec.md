@@ -621,11 +621,11 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | E14 | 두 곳 이상에 있으면 `edit_ambiguous`(`detail.occurrences`) | `getDuplicateError` | `edit rejects ambiguous oldText` |
 | E15 | 두 편집 구간이 겹치면 `edit_overlap` | 겹침 검사 | `edit rejects overlapping edits` |
 | E16 | 결과가 원본과 같으면 `edit_no_change` | `getNoChangeError` | `edit rejects no-op edits` |
-| E17 | 설정 `l2.workspace.edit.fuzzy`가 거짓이면 E4~E10을 쓰지 않고, 정확 일치 실패는 `edit_not_found`(`detail.fuzzyDisabled: true`) | Xeon 추가 | `edit fuzzy can be disabled` |
+| E17 | 설정 `l2.workspace.edit.fuzzy`가 거짓이면 E4~E10을 쓰지 않고, 정확 일치 실패는 `edit_not_found`(`detail.fuzzyDisabled: true`) | Fresnel 추가 | `edit fuzzy can be disabled` |
 
 - 오류 `detail`은 `{ editIndex, totalEdits }`를 공통으로 싣는다. 원본 메시지 문구(`edits[i].oldText ...`)는 `message`에 그대로 둔다.
 - 같은 경로의 동시 변경은 durable `tools/file-mutation-queue.ts`로 경로별로 줄 세운다. 다른 경로는 병렬로 돈다.
-- 쓰기(`write`, `edit`)는 원자적이다. 포크 원본의 `writeFile`은 직접 덮어쓰므로 쓰지 않고, `files/atomic.ts`가 같은 디렉터리의 임시 파일(`.<이름>.xeon-tmp-<uuid>`)에 쓰고 `flushFile`로 디스크에 내린 뒤 `renameFile`로 대상을 바꾼다. 쓰는 도중 프로세스가 SIGKILL로 죽어도 대상은 원본이거나 새 내용 전체다. 실패하면 임시 파일을 지운다. 죽은 쓰기가 남긴 임시 파일은 지우지 않으며 다음 쓰기를 막지 않는다 [결정: 오케스트레이터 기본값].
+- 쓰기(`write`, `edit`)는 원자적이다. 포크 원본의 `writeFile`은 직접 덮어쓰므로 쓰지 않고, `files/atomic.ts`가 같은 디렉터리의 임시 파일(`.<이름>.fresnel-tmp-<uuid>`)에 쓰고 `flushFile`로 디스크에 내린 뒤 `renameFile`로 대상을 바꾼다. 쓰는 도중 프로세스가 SIGKILL로 죽어도 대상은 원본이거나 새 내용 전체다. 실패하면 임시 파일을 지운다. 죽은 쓰기가 남긴 임시 파일은 지우지 않으며 다음 쓰기를 막지 않는다 [결정: 오케스트레이터 기본값].
 - 동시 변경 감지: `edit`는 읽은 내용을 보관하고, 이름을 바꾸기 직전에 대상을 다시 읽어 같은지 비교한다. 다르거나 파일이 없어졌으면 `edit_conflict`(`detail.reason: "changed" | "removed"`)로 거부하고 아무것도 쓰지 않는다. 다른 프로세스나 `bash`의 쓰기가 대상이다. 확인과 이름 바꾸기 사이의 짧은 틈은 남으므로 이 검사는 잠금이 아니라 감지다. `write`는 파일 전체를 바꾸는 도구라 감지하지 않는다 [결정: 오케스트레이터 기본값].
 - 같은 프로세스 안의 같은 경로 변경은 `files/queue.ts`가 차례로 세운다(포크 원본 `file-mutation-queue.ts`의 동작, 키는 파일 시스템 id와 정규 경로). 경로 해석이 비동기라 해석을 마친 순서로 줄에 서면 호출 순서가 바뀔 수 있으므로, 같은 파일 시스템의 `write`·`edit`은 해석을 호출 순서로 한 번에 하나씩 하고 줄에 자리를 잡은 뒤에 다음 호출의 해석을 시작한다(`queueInCallOrder`).
 - 알려진 제약: 이름 바꾸기로 파일을 바꾸므로 기존 파일의 실행 권한 등 모드 비트와 하드 링크는 유지되지 않는다. `ExecutionEnv`에 모드를 다루는 메서드가 없다 [미결 14].

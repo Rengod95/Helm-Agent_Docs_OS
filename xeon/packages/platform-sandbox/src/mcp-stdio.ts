@@ -12,7 +12,7 @@ export interface McpStdioSandboxDecision {
 }
 
 /**
- * source는 `L2.mcp.spec` 정의 출처 문자열이다(`settings:user`, `settings:project`, `mcpjson:project`, `mcpjson:xeon`, `ext:<이름>`).
+ * source는 `L2.mcp.spec` 정의 출처 문자열이다(`settings:user`, `settings:project`, `mcpjson:project`, `mcpjson:fresnel`, `ext:<이름>`).
  * serverSetting은 서버별 설정(참·거짓)이고, 있으면 출처 기본값보다 우선한다.
  * 알 수 없는 출처는 격리하는 쪽으로 해석한다(저장소가 가져온 정의를 격리 없이 돌리지 않는다).
  */

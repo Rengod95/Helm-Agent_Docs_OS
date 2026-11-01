@@ -20,7 +20,7 @@ import { hostedTape } from "./support/tapes.ts";
 // 인터넷으로 나가는 요청은 없다.
 
 const SEARX_JSON = JSON.stringify({
-  query: "xeon",
+  query: "fresnel",
   results: [
     { url: "https://docs.example.org/a", title: "A", content: "first result" },
     { url: "https://docs.example.org/b", title: "B", content: "second result" },
@@ -106,7 +106,7 @@ describe("E4 web.search provider selection", () => {
   test("a reachable SearXNG answers and the wrapper is never called", async () => {
     const hosted = hostedTape("wrapper-basic");
     const { service } = build({ url: SEARX_URL }, { hosted });
-    const found = await service.search.search({ query: "xeon" });
+    const found = await service.search.search({ query: "fresnel" });
     expect(found.meta.provider).toBe("searxng");
     expect(found.meta.selectedBy).toBe("auto");
     expect(found.meta.fallbacks).toEqual([]);
@@ -124,7 +124,7 @@ describe("E4 web.search provider selection", () => {
     const hosted = hostedTape("wrapper-basic");
     const port = await closedPort();
     const { service } = build({ url: `http://127.0.0.1:${String(port)}` }, { hosted });
-    const found = await service.search.search({ query: "xeon" });
+    const found = await service.search.search({ query: "fresnel" });
     expect(found.meta.provider).toBe("builtin-wrapper");
     expect(found.meta.selectedBy).toBe("auto");
     expect(found.meta.fallbacks).toHaveLength(1);
@@ -142,12 +142,12 @@ describe("E4 web.search provider selection", () => {
     state.mode = "forbidden";
     const hosted = hostedTape("wrapper-basic");
     const { service } = build({ url: SEARX_URL }, { hosted });
-    const first = await service.search.search({ query: "xeon one" });
+    const first = await service.search.search({ query: "fresnel one" });
     expect(first.meta.provider).toBe("builtin-wrapper");
     expect(first.meta.fallbacks[0]).toMatchObject({ provider: "searxng", reason: "json-disabled" });
     expect(first.meta.warnings.some((line) => line.startsWith("searxng_json_disabled"))).toBe(true);
     // 두 번째 호출은 같은 안내를 다시 붙이지 않는다. 탐침 실패는 30초 동안 기억되어 서버에도 다시 가지 않는다
-    const second = await service.search.search({ query: "xeon two" });
+    const second = await service.search.search({ query: "fresnel two" });
     expect(second.meta.fallbacks[0]).toMatchObject({ reason: "json-disabled" });
     expect(second.meta.warnings.some((line) => line.startsWith("searxng_json_disabled"))).toBe(
       false,
@@ -158,7 +158,7 @@ describe("E4 web.search provider selection", () => {
   test("an explicit builtin-wrapper never asks SearXNG", async () => {
     const hosted = hostedTape("wrapper-basic");
     const { service } = build({ url: SEARX_URL }, { hosted });
-    const found = await service.search.search({ query: "xeon", provider: "builtin-wrapper" });
+    const found = await service.search.search({ query: "fresnel", provider: "builtin-wrapper" });
     expect(found.meta.provider).toBe("builtin-wrapper");
     expect(found.meta.selectedBy).toBe("call");
     expect(state.hits).toEqual([]);
@@ -168,7 +168,7 @@ describe("E4 web.search provider selection", () => {
     const hosted = hostedTape("wrapper-basic");
     const port = await closedPort();
     const { service } = build({ url: `http://127.0.0.1:${String(port)}` }, { hosted });
-    const failed = await service.search.search({ query: "xeon", provider: "searxng" }).then(
+    const failed = await service.search.search({ query: "fresnel", provider: "searxng" }).then(
       () => undefined,
       (reason: unknown) => reason,
     );
@@ -181,7 +181,7 @@ describe("E4 web.search provider selection", () => {
   test("neither provider available is unavailable with the whole fallback list", async () => {
     const port = await closedPort();
     const { service } = build({ url: `http://127.0.0.1:${String(port)}` });
-    const failed = await service.search.search({ query: "xeon" }).then(
+    const failed = await service.search.search({ query: "fresnel" }).then(
       () => undefined,
       (reason: unknown) => reason,
     );
@@ -193,7 +193,7 @@ describe("E4 web.search provider selection", () => {
     const hosted = hostedTape("wrapper-basic");
     const transport = fixtureTransport({}, fakeResolver());
     const { service } = build({ url: "" }, { hosted, transport });
-    const found = await service.search.search({ query: "xeon" });
+    const found = await service.search.search({ query: "fresnel" });
     expect(found.meta.provider).toBe("builtin-wrapper");
     expect(found.meta.selectedBy).toBe("auto");
     expect(found.meta.fallbacks).toEqual([]);
@@ -207,15 +207,15 @@ describe("E4 web.search provider selection", () => {
     const answer = { body: SEARX_JSON };
     const transport = fixtureTransport(
       {
-        "http://127.0.0.1:8888/search?q=xeon&format=json&pageno=1": answer,
-        "http://127.0.0.1:8080/search?q=xeon&format=json&pageno=1": answer,
-        "http://localhost:8888/search?q=xeon&format=json&pageno=1": answer,
-        "http://localhost:8080/search?q=xeon&format=json&pageno=1": answer,
+        "http://127.0.0.1:8888/search?q=fresnel&format=json&pageno=1": answer,
+        "http://127.0.0.1:8080/search?q=fresnel&format=json&pageno=1": answer,
+        "http://localhost:8888/search?q=fresnel&format=json&pageno=1": answer,
+        "http://localhost:8080/search?q=fresnel&format=json&pageno=1": answer,
       },
       resolver,
     );
     const { service } = build({ url: "" }, { hosted, transport });
-    const found = await service.search.search({ query: "xeon" });
+    const found = await service.search.search({ query: "fresnel" });
     expect(found.meta.provider).toBe("builtin-wrapper");
     expect(transport.requests).toHaveLength(0);
   });
@@ -224,7 +224,7 @@ describe("E4 web.search provider selection", () => {
     const hosted = hostedTape("wrapper-basic");
     const transport = fixtureTransport({}, fakeResolver());
     const { service } = build({ url: "" }, { hosted, transport });
-    const failed = await service.search.search({ query: "xeon", provider: "searxng" }).then(
+    const failed = await service.search.search({ query: "fresnel", provider: "searxng" }).then(
       () => undefined,
       (reason: unknown) => reason,
     );

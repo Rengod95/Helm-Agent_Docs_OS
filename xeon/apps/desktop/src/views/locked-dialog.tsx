@@ -7,7 +7,7 @@ import { useCommands } from "./commands.ts";
 // 관찰만 하거나 분기해 이어 쓰는 길을 묻는다. 위임은 서비스 공급원에서만 있어 이 화면에는 없다.
 
 const OWNER_TEXT: Readonly<Record<string, string>> = {
-  cli: "터미널(xeon CLI)",
+  cli: "터미널(fresnel CLI)",
   desktop: "다른 데스크톱 창",
 };
 

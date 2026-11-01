@@ -30,7 +30,7 @@ describe("WireMetaSchema", () => {
 
   test("rejects bare unknown keys and malformed traceparent values", () => {
     expect(parse(WireMetaSchema, { clientTime: 1 }).ok).toBe(false);
-    expect(parse(WireMetaSchema, { "Xeon/clientTime": 1 }).ok).toBe(false);
+    expect(parse(WireMetaSchema, { "Fresnel/clientTime": 1 }).ok).toBe(false);
     expect(parse(WireMetaSchema, { "xeon/": 1 }).ok).toBe(false);
     expect(parse(WireMetaSchema, { traceparent: "00-abc" }).ok).toBe(false);
     expect(parse(WireMetaSchema, { traceparent: TRACEPARENT.toUpperCase() }).ok).toBe(false);

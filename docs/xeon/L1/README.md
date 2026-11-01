@@ -41,7 +41,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 - 패키지 7개: `core-tasks`, `core-loop`, `core-models`, `core-tools`, `core-context`, `core-persistence`, `core-agents`.
 - 플러그인 1개: `plugins/provider-anthropic-oauth`. `check-layers.ts`의 층 판정은 L1이다. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`는 import하지 않는다 [결정: review.decisions-2 U-16]. 배포판에 넣지 않고 기본 꺼짐이다(`L1.models.spec` §4.11, `eng.dependency-rules.guide` DR-09).
-- 각 패키지의 `package.json`은 `"xeon": { "layer": "L1", "domain": "<도메인>" }`을 둔다(`_research/foundation-plan.md` §3).
+- 각 패키지의 `package.json`은 `"fresnel": { "layer": "L1", "domain": "<도메인>" }`을 둔다(`_research/foundation-plan.md` §3).
 
 ### 3.2 밖
 
@@ -268,7 +268,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 - 집계 방식: 숫자는 구성요소 단위다. 구성요소 일부를 앞 마일스톤으로 당긴 경우는 괄호로 적고 숫자에 넣지 않는다. 그래서 합계 열의 숫자는 당기기 전과 같다(M1 24, M2 14 + 배포 제외 1, M3 1, 2차 10, 보류 1, 배포 제외 1, 합 51). "1차/전체" 열은 계획 JSON 표기라 당기기와 무관하다.
 - 각주 1: 완료 게이트는 계획 JSON에서 2차다. drive 계속 지시(M2 Helm)와 목표 판정(M3)이 `boundary.settle.before`의 계속을 쓰므로 횟수 상한(`l1.loop.gate.maxContinues`)만 M2로 당긴다(`L1.loop.plan` §1).
 - 각주 2: 리플레이 커서는 계획 JSON의 2차 구성요소 "되감기, 리플레이 커서, JSONL 내보내기"의 일부다. M3 공유 서비스 모드의 원격 클라이언트 재접속에 필요해 이 부분만 M3로 당긴다(`L1.persistence.plan` §1).
-- M1 스모크: 모델 테이프로 `xeon chat` 한 턴, 강제 종료 뒤 재개, drive 그룹 토글이 단계 경계에서 적용(`_research/foundation-plan.md` §6). L1의 몫은 models·loop·tools·persistence·tasks의 M1 열과 context의 최소 조립이다.
+- M1 스모크: 모델 테이프로 `fresnel chat` 한 턴, 강제 종료 뒤 재개, drive 그룹 토글이 단계 경계에서 적용(`_research/foundation-plan.md` §6). L1의 몫은 models·loop·tools·persistence·tasks의 M1 열과 context의 최소 조립이다.
 - 각주 3: 레이트 리밋과 계정 회전은 계획 JSON에서 2차다. 설정을 M3 설정 화면에서 조작할 수 있어야 하므로 M3로 당긴다 [결정: review.decisions-2 U-21]. 합계의 2차 칸 10에는 그대로 센다(당기기 집계 방식). 구독 계정 회전의 약관 검토는 M3 착수 전에 한다(`L1.models.spec` §4.8).
 - 목표 판정(`judge` 호출)은 `L1.agents.spec`의 구성요소 표에 따로 없고 제품 범위 I11(M3)이다. 판정 출력에 구조화 출력이 필요해 models의 구조화 출력 최소형을 M3에 당긴다(`L1.models.spec` §3.10).
 

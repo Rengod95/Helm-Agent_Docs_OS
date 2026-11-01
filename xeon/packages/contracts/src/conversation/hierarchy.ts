@@ -148,7 +148,7 @@ export function canTransition<S extends string>(
  * customType은 "x.<extId>.<영역>.<이름>" 또는 "grp.<groupId>.<영역>.<이름>"이다.
  * conversation은 records를 import하지 않으므로 형식 검사는 하지 않고 문자열로 둔다(F.conversation.spec §3.5.2).
  */
-export const XeonCustomMessageSchema: TObject<{
+export const FresnelCustomMessageSchema: TObject<{
   role: TLiteral<"custom">;
   customType: TString;
   content: TUnion<[TString, TArray<TUnion<[TUnsafe<TextContent>, TUnsafe<ImageContent>]>>]>;
@@ -170,7 +170,7 @@ export const XeonCustomMessageSchema: TObject<{
   },
   { additionalProperties: false },
 );
-export type XeonCustomMessage = Static<typeof XeonCustomMessageSchema>;
+export type FresnelCustomMessage = Static<typeof FresnelCustomMessageSchema>;
 
 // ── item 레코드 ─────────────────────────────────────────────────────────
 const requestIdSchema = Nullable(Type.String({ minLength: 1, maxLength: 64 }));
@@ -246,13 +246,13 @@ export const CustomItemRecordSchema: TObject<{
   itemId: TUnsafe<ItemId>;
   status: typeof ItemStatusSchema;
   kind: TLiteral<"custom">;
-  message: typeof XeonCustomMessageSchema;
+  message: typeof FresnelCustomMessageSchema;
 }> = Type.Object(
   {
     itemId: ItemIdSchema,
     status: ItemStatusSchema,
     kind: Type.Literal("custom"),
-    message: XeonCustomMessageSchema,
+    message: FresnelCustomMessageSchema,
   },
   { additionalProperties: false },
 );

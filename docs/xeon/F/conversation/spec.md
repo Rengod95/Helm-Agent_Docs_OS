@@ -41,13 +41,13 @@ binds: [xeon/packages/contracts/src/conversation/**]
 | turn | 사용자 입력 하나(또는 예약·원격 입력 하나)에 대한 한 번의 작업. 첫 모델 호출부터 루프 종료까지다 | `agent_start` ~ `agent_end` |
 | step | 모델 응답 1회와 그 응답이 부른 도구 결과 묶음. 체크포인트 단위다 | `turn_start` ~ `turn_end` |
 | item | 입출력 단위. 사용자 메시지, 어시스턴트 메시지, 시스템 메시지, 도구 호출, 도구 결과, 확장 커스텀 메시지 | `message_start` ~ `message_end`, `tool_execution_start` ~ `tool_execution_end` |
-| part | 어시스턴트 메시지 `content` 배열의 블록 하나(text, thinking, toolCall)에 Xeon이 붙인 id 레코드 | `contentIndex` |
+| part | 어시스턴트 메시지 `content` 배열의 블록 하나(text, thinking, toolCall)에 Fresnel이 붙인 id 레코드 | `contentIndex` |
 | 단계 경계 | step이 끝나고 다음 step이 시작되기 전 시점(step 종료 직후, 도구 결과 커밋 뒤). 체크포인트 커밋, drive 임대 교대, scope 켜기·끄기 적용 시점이다 [결정: review.decisions-2 U-01] | `turn_end` 직후 |
 
 ### 2.1 turn과 step 용어 충돌 [결정: review.decisions-2 U-01]
 
-- pi의 turn은 Xeon의 step이다. pi의 run(`agent_start`~`agent_end`)이 Xeon의 turn이다.
-- 확장 지점 이름은 pi 이벤트 이름을 그대로 쓴다(`F.extensions.spec`의 지점 선언 표). 그래서 `turn_start`·`turn_end` 지점은 Xeon의 step 경계에서 발화한다. 지점 이름과 Xeon 계층 이름이 다르다는 점을 지점 선언 표의 설명 열에 적는다.
+- pi의 turn은 Fresnel의 step이다. pi의 run(`agent_start`~`agent_end`)이 Fresnel의 turn이다.
+- 확장 지점 이름은 pi 이벤트 이름을 그대로 쓴다(`F.extensions.spec`의 지점 선언 표). 그래서 `turn_start`·`turn_end` 지점은 Fresnel의 step 경계에서 발화한다. 지점 이름과 Fresnel 계층 이름이 다르다는 점을 지점 선언 표의 설명 열에 적는다.
 - `_research/foundation-plan.md` §6 M1 스모크가 정한 drive 그룹 켜기·끄기의 적용 시점은 단계 경계다. 턴은 여러 단계로 이어질 수 있어 턴이 끝날 때까지 기다리면 긴 턴에서 토글이 늦게 적용된다. 단계 경계는 커밋된 상태만 보이는 가장 이른 안전 지점이고, 턴의 끝은 그 부분집합이다. 모든 문서는 적용 시점을 "단계 경계"로 쓴다.
 - 이 매핑은 `review.decisions-2` U-01의 결정이다(2026-10-22 사용자 확인). 번복하면 이 절과 §10 1번을 고친다.
 
@@ -55,7 +55,7 @@ binds: [xeon/packages/contracts/src/conversation/**]
 
 모든 코드는 `isolatedDeclarations`를 켠 상태로 컴파일된다(`_research/foundation-plan.md` §2). 그래서 export되는 상수와 함수에는 명시 타입 주석을 단다. 스키마 선언 형식은 다음과 같다 [제안].
 
-- Xeon이 소유한 레코드·알림·enum 스키마는 TypeBox 명시 타입 주석(`TObject<{...}>`, `TUnion<[...]>` 등)으로 선언하고, 도메인 타입은 `export type X = Static<typeof XSchema>`로 파생한다(`eng.typescript.guide` §1.1 도메인 타입, `_research/notes/eng-2.md` §3-5). 주석과 값이 다르면 tsc가 TS2322로 알린다.
+- Fresnel이 소유한 레코드·알림·enum 스키마는 TypeBox 명시 타입 주석(`TObject<{...}>`, `TUnion<[...]>` 등)으로 선언하고, 도메인 타입은 `export type X = Static<typeof XSchema>`로 파생한다(`eng.typescript.guide` §1.1 도메인 타입, `_research/notes/eng-2.md` §3-5). 주석과 값이 다르면 tsc가 TS2322로 알린다.
 - 이 문서의 코드 블록은 형태를 읽기 쉽게 `interface X`로 적고 스키마 상수 타입을 `Schema<X>`로 줄여 적는다. `Schema<X>`는 실제 타입 이름이 아니다. 코드에서는 "`Static<typeof XSchema>`가 X와 같은 TypeBox 명시 타입"을 뜻한다.
 - `TUnsafe<X>`는 실제 타입이다. 브랜드 ID 스키마(§3.2)와 pi 타입 래핑 스키마(§3.3)에만 쓴다. 브랜드와 외부 인터페이스는 TypeBox 구조에서 파생할 수 없기 때문이다.
 - `Brand`, `Result`, `ok`, `err`, `Bug`, `parse`는 `@fresnel/contracts` 루트 진입점의 것을 쓴다(`eng.typescript.guide` §1.2). 소스 위치는 `src/base/`이고 루트 `src/index.ts`가 이 이름만 다시 export한다(`F.readme` §3). 예상 가능한 실패는 `Result`로 돌려주고, 호출 결함에는 `Bug`를 던진다(TY-11).
@@ -65,7 +65,7 @@ binds: [xeon/packages/contracts/src/conversation/**]
 
 [결정] pi-ai provider와 타입은 그대로 쓰고 부족분만 포크한다(`_research/decisions-log.md` 2026-10-21 결정 2차). 모델 패키지는 `@earendil-works/pi-ai` 1.3.0 정확 고정이다(`_research/foundation-plan.md` §2). [결정] `@earendil-works/pi-agent-core`에는 의존하지 않는다. 루프는 그 1.3.0 루프를 포크한 core-loop 자체 루프이고, 에이전트 타입은 F가 정의한다(adr.0009, §3.1.1). 판정 근거는 `_research/packages.md` §4.1 F1이다. `_research/item-catalog.md` F절은 메시지 스키마를 "설계 채택, 우리 스키마로 재정의"로 적었으나 결정 로그 2차가 뒤의 판단이므로 이를 따른다.
 
-| 구성 | 그대로 (pi-ai 타입 re-export) | 자체 (Xeon 정의) | 설계 (모양만 참고) |
+| 구성 | 그대로 (pi-ai 타입 re-export) | 자체 (Fresnel 정의) | 설계 (모양만 참고) |
 |---|---|---|---|
 | 메시지 | `Message`, `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage` (pi-ai 1.3.0 `types.ts:546-644`) | 런타임 검증 스키마 `MessageSchema` 등(§3.3) | — |
 | 콘텐츠 블록 | `TextContent`, `ThinkingContent`, `ImageContent`, `ToolCall` | 파트 id 래퍼 `PartRecord`(§3.4) | ACP 메시지 chunk id |
@@ -74,7 +74,7 @@ binds: [xeon/packages/contracts/src/conversation/**]
 | 도구 | `Tool` | `AgentTool`(§3.1.1. `label`, `replay`, `executionMode`) | pi-agent-core `AgentTool`(agent `types.ts:463-500`) |
 | 도구 결과 | — | `AgentToolResult`(§3.1.1. `content`, `details`, `structuredContent`, `usage`, `isError`, `terminate`), 저장용 `ToolResultRecord`, `ResultStatus`(§3.6) | pi-agent-core `AgentToolResult`(agent `types.ts:424-445`), MCP 2026-07-28 `resultType` |
 | 에이전트 이벤트 | — | `AgentEvent` 10종(§3.1.1), 대응 함수 시그니처 `AgentEventMapper`(§3.5.5) | pi-agent-core `AgentEvent`(agent `types.ts:516`) |
-| 에이전트 메시지 | — | `AgentMessage = Message \| XeonCustomMessage`(§3.1.1, 선언 병합 없음) | pi-agent-core `AgentMessage`·`CustomAgentMessages`(agent `types.ts:365-374`) |
+| 에이전트 메시지 | — | `AgentMessage = Message \| FresnelCustomMessage`(§3.1.1, 선언 병합 없음) | pi-agent-core `AgentMessage`·`CustomAgentMessages`(agent `types.ts:365-374`) |
 | 추론 수준 | `ModelThinkingLevel`(7종, `off` 포함) | — | — |
 | JSON 값 | `JsonValue`, `JsonObject` | — | — |
 | 계층 | — | ID, 상태 enum, 알림 유니온(§3.5) | Codex app-server thread/turn/item, pi durable conversation/entry/task |
@@ -118,10 +118,10 @@ import type {
   AssistantMessage, AssistantMessageEvent, ImageContent, JsonObject, JsonValue,
   Message, TextContent, Tool, ToolResultMessage, Usage,
 } from "./pi.ts";
-import type { XeonCustomMessage } from "./hierarchy.ts";
+import type { FresnelCustomMessage } from "./hierarchy.ts";
 
-/** 대화 기록에 들어가는 메시지. 닫힌 유니온이고 선언 병합은 없다. 확장 구분은 XeonCustomMessage.customType */
-export type AgentMessage = Message | XeonCustomMessage;
+/** 대화 기록에 들어가는 메시지. 닫힌 유니온이고 선언 병합은 없다. 확장 구분은 FresnelCustomMessage.customType */
+export type AgentMessage = Message | FresnelCustomMessage;
 
 /** 어시스턴트 메시지의 도구 호출 블록 하나 */
 export type AgentToolCall = Extract<AssistantMessage["content"][number], { type: "toolCall" }>;
@@ -179,7 +179,7 @@ export type AgentEvent =
 - pi-agent-core의 `AgentTool.prepareArguments`(인자 호환 변환)는 두지 않는다. 인자 준비와 검증은 L1.tools가 한다(`L1.tools.spec` §3.3, adr.0009 §3.4).
 - `turn_end.message`, `message_update.message`는 pi에서 `AgentMessage`였으나 실제 값은 항상 어시스턴트 메시지라 `AssistantMessage`로 좁혔다.
 - `beforeToolCall`·`afterToolCall` 훅 타입, `AgentToolHooks`, `AgentLoopConfig`, `CustomAgentMessages`는 두지 않는다. 도구 단계 계약은 `F.capabilities.spec` §3.12 `services/tools.ts`(`L1.tools.spec` §3.3)가 정한다.
-- `agent.ts`가 `hierarchy.ts`의 `XeonCustomMessage`를 import하고 `hierarchy.ts`는 `agent.ts`를 import하지 않는다(DR-06 순환 금지).
+- `agent.ts`가 `hierarchy.ts`의 `FresnelCustomMessage`를 import하고 `hierarchy.ts`는 `agent.ts`를 import하지 않는다(DR-06 순환 금지).
 
 ### 3.2 브랜드 ID
 
@@ -314,7 +314,7 @@ export const UserMessageSchema: TUnsafe<UserMessage>;
 export const AssistantMessageSchema: TUnsafe<AssistantMessage>;
 export const ToolResultMessageSchema: TUnsafe<ToolResultMessage>;
 
-/** Message + XeonCustomMessage(role "custom"). */
+/** Message + FresnelCustomMessage(role "custom"). */
 export const AgentMessageSchema: TUnsafe<AgentMessage>;
 
 /** type 판별만 한다. 휘발 경로 디버깅용이며 저장 경로에서는 쓰지 않는다. */
@@ -324,13 +324,13 @@ export const AssistantMessageEventSchema: TUnsafe<AssistantMessageEvent>;
 한계:
 
 1. `Tool.parameters`는 JSON Schema라 객체인지만 본다. 그 안의 키워드는 검사하지 않는다.
-2. `Type.Unsafe`는 정적 타입과 스키마의 일치를 컴파일러가 보장하지 않는다. pi 타입을 비춘 이 파일들(`message-schema.ts`, `agent-schema.ts`)은 `eng.typescript.guide` TY-26의 허용 행 U2이고, 일치는 픽스처 왕복 테스트와 판별 값 목록 테스트로만 확인한다(§9 수용 기준 2, 6). Xeon이 소유한 객체 타입은 `SchemaProof`로 컴파일 시점에 증명한다(U5). `AgentToolResultSchema`는 `additionalProperties: false`이고 여섯 필드를 모두 가진다.
+2. `Type.Unsafe`는 정적 타입과 스키마의 일치를 컴파일러가 보장하지 않는다. pi 타입을 비춘 이 파일들(`message-schema.ts`, `agent-schema.ts`)은 `eng.typescript.guide` TY-26의 허용 행 U2이고, 일치는 픽스처 왕복 테스트와 판별 값 목록 테스트로만 확인한다(§9 수용 기준 2, 6). Fresnel이 소유한 객체 타입은 `SchemaProof`로 컴파일 시점에 증명한다(U5). `AgentToolResultSchema`는 `additionalProperties: false`이고 여섯 필드를 모두 가진다.
 3. `ToolResultMessage<TDetails>`는 `TDetails`가 JSON 호환일 때만 성립하는 조건부 타입이다(`_research/notes/F-2.md` §5.1). 스키마는 기본 인자 `JsonValue`만 다룬다.
 4. TypeBox 1.x의 `Value.Check`가 `Unsafe`로 감싼 객체 스키마의 키워드를 그대로 검사한다고 본다 [가정]. C3 작업의 첫 테스트가 이를 확인한다(`F.conversation.plan`).
 
 ### 3.4 파트와 발급 ID
 
-pi-ai 콘텐츠 블록에는 id가 없다. 스트림 이벤트는 `contentIndex`로 블록을 가리키고, 블록 중 `ToolCall`만 `id`를 가진다(`_research/packages.md` §4.1 F1, pi-ai 1.3.0 `types.ts:806-822`). Xeon은 어시스턴트 메시지의 블록마다 `PartRecord`를 둔다.
+pi-ai 콘텐츠 블록에는 id가 없다. 스트림 이벤트는 `contentIndex`로 블록을 가리키고, 블록 중 `ToolCall`만 `id`를 가진다(`_research/packages.md` §4.1 F1, pi-ai 1.3.0 `types.ts:806-822`). Fresnel은 어시스턴트 메시지의 블록마다 `PartRecord`를 둔다.
 
 ```ts
 // src/conversation/parts.ts
@@ -428,7 +428,7 @@ export function canTransition<S extends string>(table: Readonly<Record<S, readon
 #### 3.5.2 item 레코드
 
 ```ts
-export interface XeonCustomMessage {
+export interface FresnelCustomMessage {
   role: "custom";
   customType: string;          // "x.<extId>.<영역>.<이름>" 또는 "grp.<groupId>.<영역>.<이름>". F.records.spec §3.2 ExtensionEventKind와 같은 형식
   content: string | (TextContent | ImageContent)[];
@@ -443,7 +443,7 @@ export type ItemRecord =
   | ItemBase & { kind: "assistant"; message: AssistantMessage; partIds: PartId[] }   // partIds[i] ↔ content[i]
   | ItemBase & { kind: "system"; message: SystemMessage }
   | ItemBase & { kind: "toolResult"; message: ToolResultMessage; effectId: EffectId | null }
-  | ItemBase & { kind: "custom"; message: XeonCustomMessage };
+  | ItemBase & { kind: "custom"; message: FresnelCustomMessage };
 export const ItemRecordSchema: Schema<ItemRecord>;
 
 /** 도구 호출 item은 내구 레코드가 따로 없다. 기록은 효과 이벤트(effect.intent/exec/result)가 맡는다. */
@@ -457,7 +457,7 @@ export interface ToolCallItem {
 }
 ```
 
-- [결정: adr.0009] 확장 커스텀 메시지는 `AgentMessage = Message | XeonCustomMessage`(§3.1.1)의 한 변형이다. 선언 병합은 없다. 이전 판의 `CustomAgentMessages` 병합(`@earendil-works/pi-agent-core` 대상)은 없앴다.
+- [결정: adr.0009] 확장 커스텀 메시지는 `AgentMessage = Message | FresnelCustomMessage`(§3.1.1)의 한 변형이다. 선언 병합은 없다. 이전 판의 `CustomAgentMessages` 병합(`@earendil-works/pi-agent-core` 대상)은 없앴다.
 - `customType`의 형식은 확장 이벤트 kind와 같다(`F.records.spec` §3.2, `F.extensions.spec` §3.6 `RecordKind`). conversation은 records를 import하지 않으므로 타입은 `string`으로 두고 형식 검사는 `F.extensions.spec`의 `PostItem.customType`(`RecordKind`)과 X가 한다. 다른 확장이 쓴 값의 충돌 처리는 `F.extensions.spec`이 정한다.
 
 #### 3.5.3 수명주기 알림 유니온
@@ -577,11 +577,11 @@ export const ItemUpdatedPayloadSchema: Schema<ItemUpdatedPayload>;
 - 알림 `type` 문자열은 `F.records.spec` 카탈로그의 `kind`와 같다. 예외는 하나다. `item.completed` 알림의 내구 기록은 `item.recorded`(메시지 item)이거나 `effect.result`(도구 호출 item)다. 대응은 §3.5.4 표에 있다.
 - `item.updated`의 `part_completed`에 대응하는 내구 기록은 `part.recorded`다.
 
-#### 3.5.4 `AgentEvent` → Xeon 알림 대응표
+#### 3.5.4 `AgentEvent` → Fresnel 알림 대응표
 
 `AgentEvent`는 §3.1.1의 F 정의이고 변형 이름은 pi와 같다. 이벤트를 내는 쪽은 core-loop 자체 루프다(`L1.loop.spec` §3.2).
 
-| `AgentEvent` | Xeon 알림 | 내구 기록 (`F.records.spec`) | 비고 |
+| `AgentEvent` | Fresnel 알림 | 내구 기록 (`F.records.spec`) | 비고 |
 |---|---|---|---|
 | (입력 접수, pi 이전) | `item.started`/`item.completed`(user), `turn.started` | `item.recorded`, `turn.started` | 입력 item은 turn 시작 전에 기록한다. `requestId` 멱등 |
 | `agent_start` | `turn.updated{status:"running"}` | — | turn.started는 입력 접수 때 이미 냈다 |
@@ -730,8 +730,8 @@ export * from "./tool-result.ts";
 ## 7. 확장 지점
 
 - 지점 `turn_start`, `turn_end`, `message_start`, `message_update`, `message_end`, `tool_execution_*`은 pi 이벤트 이름을 그대로 쓴다. 선언(fold 종류, 페이로드 타입)은 `F.extensions.spec`의 지점 선언 표가 정한다. 페이로드 타입은 이 문서의 `AgentEvent`(§3.1.1) 변형과 알림 타입을 참조한다.
-- `turn_start`·`turn_end` 지점은 Xeon step 경계에서 발화한다(§2.1).
-- 확장은 `XeonCustomMessage.customType`으로 구분한다. `AgentMessage`는 닫힌 유니온이고 선언 병합은 없다(§3.1.1, adr.0009).
+- `turn_start`·`turn_end` 지점은 Fresnel step 경계에서 발화한다(§2.1).
+- 확장은 `FresnelCustomMessage.customType`으로 구분한다. `AgentMessage`는 닫힌 유니온이고 선언 병합은 없다(§3.1.1, adr.0009).
 - post로 들어온 내용이 대화에 남을 때는 `custom` item으로 기록된다. post 수용 기록은 `F.records.spec`의 `input.queued`(`source.type: "extension"`)다(`post.accepted` retire, review.decisions-2 U-05).
 
 ## 8. 다른 문서와의 인터페이스
@@ -760,11 +760,11 @@ export * from "./tool-result.ts";
 8. `pi.ts`의 re-export 타입이 pi-ai 원본 타입과 같다(`expectTypeOf` + `tsc -b`). pi-ai `AssistantMessageEventStream` 클래스는 F `AssistantMessageEventStream`에 대입할 수 있다.
 9. `toReplayPolicy("never")`, `toReplayPolicy(undefined)`는 `"unsafe"`, `toReplayPolicy("safe")`는 `"safe"`다.
 10. `LOCAL_ID_PREFIXES`의 키는 모두 `LOCAL_ID_PREFIX_PATTERN`을 만족하고 `RESERVED_ID_PREFIXES`(`IdPrefix` 8종과 `sto`)와 겹치지 않는다. `localIdPattern("art")`은 `art_` + 소문자 ULID와 두 글자 접두 값을 거부한다.
-11. `AgentMessage`가 `Message | XeonCustomMessage`와 같다(`Equal` 타입 검사). §3.1.1 타입 선언에 `any`가 0건이고, `AgentEvent`의 `type` 값 목록이 §3.5.4 표 첫 열(10종)과 같다.
+11. `AgentMessage`가 `Message | FresnelCustomMessage`와 같다(`Equal` 타입 검사). §3.1.1 타입 선언에 `any`가 0건이고, `AgentEvent`의 `type` 값 목록이 §3.5.4 표 첫 열(10종)과 같다.
 
 ## 10. 미결 사항
 
-1. [결정: review.decisions-2 U-01] 용어: pi turn = Xeon step, pi run = Xeon turn이다. 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§2.1). 사용자 확인 대상이다.
+1. [결정: review.decisions-2 U-01] 용어: pi turn = Fresnel step, pi run = Fresnel turn이다. 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§2.1). 사용자 확인 대상이다.
 2. [결정: M3-REQ-20] 런타임 스키마 방식: `Type.Unsafe` 래핑을 유지하되 객체를 깊게 검사한다(§3.3). 모든 객체가 열려 있어 pi가 선택 필드를 더해도 옛 기록이 통과한다. pi를 올릴 때는 이 파일의 스키마를 함께 고친다.
 3. [결정: M2 마감 G5-03] ULID 단조성은 L0 `createIdFactory`·`createLocalIdFactory`(`L0.os.spec` §3.4, `platform-os/src/ids.ts`)가 지킨다. 같은 밀리초이거나 시계가 뒤로 가면 직전 시각을 유지하고 난수 부분을 1 올리며, 80비트가 넘치면 시각을 1ms 올린다. L1 래퍼는 두지 않는다. `platform-os/test/ids.test.ts`가 연속 발급의 사전순 증가를 확인한다.
 4. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 고정한 판과 같아 한 사본만 설치한다.

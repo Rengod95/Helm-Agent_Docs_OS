@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 // CI must run what `just verify` runs (M2 closing G4-07). The steps come from xeon/scripts/verify-steps.sh (the list the root justfile's _verify-steps runs), the
-// commands from .github/workflows/xeon-ci.yml. lint, typecheck and test run per layer through `just ci-layer`, so the
+// commands from .github/workflows/fresnel-ci.yml. lint, typecheck and test run per layer through `just ci-layer`, so the
 // matrix must hold every layer and root (xeon/scripts).
 
 const REPO = join(import.meta.dir, "..", "..");
@@ -31,9 +31,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 function workflow(): Workflow {
   const data: unknown = Bun.YAML.parse(
-    readFileSync(join(REPO, ".github", "workflows", "xeon-ci.yml"), "utf8"),
+    readFileSync(join(REPO, ".github", "workflows", "fresnel-ci.yml"), "utf8"),
   );
-  if (!isRecord(data) || !isRecord(data["jobs"])) throw new Error("xeon-ci.yml has no jobs");
+  if (!isRecord(data) || !isRecord(data["jobs"])) throw new Error("fresnel-ci.yml has no jobs");
   const runs: string[] = [];
   let matrix: string[] = [];
   for (const job of Object.values(data["jobs"])) {
@@ -66,7 +66,7 @@ test("every verify step has a CI command", () => {
 });
 
 test("CI is the full form of verify: turbo reads no cache in either workflow", () => {
-  for (const file of ["xeon-ci.yml", "xeon-macos.yml"]) {
+  for (const file of ["fresnel-ci.yml", "fresnel-macos.yml"]) {
     const data: unknown = Bun.YAML.parse(
       readFileSync(join(REPO, ".github", "workflows", file), "utf8"),
     );

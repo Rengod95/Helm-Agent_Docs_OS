@@ -11,7 +11,7 @@
 # (xeon/.oxlintrc.fast.json, one oxlint call). full (`just verify-full`): TURBO_FORCE=true, so nothing is read from the turbo cache
 # (results are still written), and lint is the type-aware run of every package.
 # usage: verify-steps.sh [fast|full]   (from anywhere; steps run from the repository root)
-# env: XEON_VERIFY_STEP_MAX (default 2G) memory cap of each step; no time limit for a step (WS_GUARD_TIMEOUT_SEC=0).
+# env: FRESNEL_VERIFY_STEP_MAX (default 2G) memory cap of each step; no time limit for a step (WS_GUARD_TIMEOUT_SEC=0).
 #      The other WS_GUARD_* knobs are described in ../scripts/guard.sh.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
@@ -26,7 +26,7 @@ case "$mode" in
     ;;
 esac
 
-step_max="${XEON_VERIFY_STEP_MAX:-2G}"
+step_max="${FRESNEL_VERIFY_STEP_MAX:-2G}"
 steps=(setup fmt-check check-layers check-ts-rules "docs-route --check" "terms check" knip lint typecheck depcruise test)
 light=(fmt-check check-layers check-ts-rules "docs-route --check" "terms check" knip)
 

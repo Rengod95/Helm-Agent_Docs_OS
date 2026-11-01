@@ -21,7 +21,7 @@ import { hostedTape } from "./support/tapes.ts";
 // 기본 설정(주소 없음)에서는 어느 주소에도 요청이 나가지 않고 내장 래퍼가 답한다(H1). 인터넷으로 나가는 요청은 없다.
 
 const SEARX_JSON = JSON.stringify({
-  query: "xeon",
+  query: "fresnel",
   results: [{ url: "https://docs.example.org/a", title: "Alpha", content: "first result" }],
 });
 
@@ -90,7 +90,7 @@ describe("web_search tool path (G4-05)", () => {
     const hosted = hostedTape("wrapper-basic");
     const transport = fixtureTransport({}, fakeResolver());
     const runtime = build(readWebSettings([]), { hosted, transport });
-    const { output, text } = await callTool(runtime, { query: "xeon" });
+    const { output, text } = await callTool(runtime, { query: "fresnel" });
     expect(output.meta.provider).toBe("builtin-wrapper");
     expect(output.meta.fallbacks).toEqual([]);
     expect(output.results.map((result) => result.sourceId)).toEqual(["s1", "s2", "s3", "s4"]);
@@ -122,7 +122,7 @@ describe("web_search tool path (G4-05)", () => {
       search: { ...base.search, searxng: { url: `http://127.0.0.1:${String(server.port)}` } },
     };
     const runtime = build(settings, { hosted });
-    const { output, text } = await callTool(runtime, { query: "xeon" });
+    const { output, text } = await callTool(runtime, { query: "fresnel" });
     expect(output.meta.provider).toBe("searxng");
     expect(output.results.map((result) => result.url)).toEqual(["https://docs.example.org/a"]);
     expect(text).toContain("[s1] Alpha");

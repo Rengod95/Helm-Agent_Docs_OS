@@ -55,7 +55,7 @@ async function listThroughHttp(
     negotiation,
     connectTimeoutMs: 5000,
     signal,
-    client: { name: "xeon-test", version: "0.0.0" },
+    client: { name: "fresnel-test", version: "0.0.0" },
     logger: captureLogger(),
   });
   if (!connected.ok) throw new Error(`connect failed: ${connected.error.message}`);
@@ -124,7 +124,7 @@ describe("http transport", () => {
       negotiation: "auto",
       connectTimeoutMs: 5000,
       signal,
-      client: { name: "xeon-test", version: "0.0.0" },
+      client: { name: "fresnel-test", version: "0.0.0" },
       logger: captureLogger(),
     });
     expect(connected.ok).toBe(true);
@@ -152,7 +152,7 @@ describe("http transport", () => {
       negotiation: "auto",
       connectTimeoutMs: 1000,
       signal,
-      client: { name: "xeon-test", version: "0.0.0" },
+      client: { name: "fresnel-test", version: "0.0.0" },
       logger: captureLogger(),
     });
     expect(connected.ok).toBe(false);

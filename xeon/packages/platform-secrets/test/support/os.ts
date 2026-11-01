@@ -40,7 +40,7 @@ export interface TempDir {
   remove(): Promise<void>;
 }
 
-export async function tempDir(prefix = "xeon-secrets-"): Promise<TempDir> {
+export async function tempDir(prefix = "fresnel-secrets-"): Promise<TempDir> {
   const path = await mkdtemp(join(tmpdir(), prefix));
   return {
     path,

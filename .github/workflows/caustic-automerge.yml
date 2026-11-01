@@ -1,4 +1,4 @@
-# Dependabot의 caustic submodule 갱신 PR에 자동 병합을 건다. 필수 검사(xeon CI)가 통과해야 실제로 병합된다.
+# Dependabot의 caustic submodule 갱신 PR에 자동 병합을 건다. 필수 검사(fresnel CI)가 통과해야 실제로 병합된다.
 # 저장소 설정에서 "Allow auto-merge"를 켜고 대상 브랜치에 필수 검사를 걸어야 동작한다.
 name: caustic auto-merge
 on:

@@ -1388,7 +1388,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 ### 4.6 공유 링크 (보류)
 
-호스팅 공유 링크는 이 능력의 범위에 넣지 않는다. 공유 링크는 내보낸 내용을 받아 두는 호스팅 서버가 있어야 하고 그 서버는 앱을 닫아도 살아 있어야 한다. 조사에서 opencode는 공유 기능을 중단하고 내보내기만 남겼고, Amp는 자사 클라우드에 의존한다(`_research/l2e.md` §1 7항). 상주 수준으로도 C2 공유 링크는 2이고 "개인 용도에서는 범위 밖 가능"으로 분류되었다(`_research/l2e.md` §6 C2 행). Xeon은 첫 공개 릴리즈까지 운영 서버를 두지 않고, 3차 결정이 허용한 데몬도 사용자 기기의 `xeon service`일 뿐 외부에서 접근하는 호스팅이 아니다(ADR-0006 §5 "원격 실행" 범위 밖). 그래서 1차·2차에는 Markdown·HTML 파일 내보내기로 공유를 대신하고, 공유 링크는 호스팅 방식(자가 호스팅 서버, 종단 간 암호화 릴레이)을 정할 때 다시 연다.
+호스팅 공유 링크는 이 능력의 범위에 넣지 않는다. 공유 링크는 내보낸 내용을 받아 두는 호스팅 서버가 있어야 하고 그 서버는 앱을 닫아도 살아 있어야 한다. 조사에서 opencode는 공유 기능을 중단하고 내보내기만 남겼고, Amp는 자사 클라우드에 의존한다(`_research/l2e.md` §1 7항). 상주 수준으로도 C2 공유 링크는 2이고 "개인 용도에서는 범위 밖 가능"으로 분류되었다(`_research/l2e.md` §6 C2 행). Fresnel은 첫 공개 릴리즈까지 운영 서버를 두지 않고, 3차 결정이 허용한 데몬도 사용자 기기의 `fresnel service`일 뿐 외부에서 접근하는 호스팅이 아니다(ADR-0006 §5 "원격 실행" 범위 밖). 그래서 1차·2차에는 Markdown·HTML 파일 내보내기로 공유를 대신하고, 공유 링크는 호스팅 방식(자가 호스팅 서버, 종단 간 암호화 릴레이)을 정할 때 다시 연다.
 
 ## 5. 실패와 경계 사례
 
@@ -1435,7 +1435,7 @@ export const ReviewAnswerSchema = Type.Object({
 | `l2.artifacts.export.defaultFormat` | string | `"markdown"` | enum `markdown`, `html` | live | managed, user, project, local | sessions | false | 화면, 명령. 2차 |
 | `l2.artifacts.export.maxBytes` | integer | 52428800 | min 1048576, max 1073741824 | live | managed, user, local | advanced | false | 파일만. 2차 |
 
-- L4 노출 구분: "화면"은 설정 화면 항목(`ui`가 있음), "명령"은 CLI 명령(`/rename`, `/export`, `/handoff`, `xeon session label`)이 같은 키나 메서드를 쓰는 경우, "파일만"은 `ui`를 두지 않는 키다(`F.wire-settings.spec` §3.8.2 `ui` 주석). 명령 이름은 `L4.cli.spec`이 정한다.
+- L4 노출 구분: "화면"은 설정 화면 항목(`ui`가 있음), "명령"은 CLI 명령(`/rename`, `/export`, `/handoff`, `fresnel session label`)이 같은 키나 메서드를 쓰는 경우, "파일만"은 `ui`를 두지 않는 키다(`F.wire-settings.spec` §3.8.2 `ui` 주석). 명령 이름은 `L4.cli.spec`이 정한다.
 - `autoTitle.purpose`가 존재하지 않는 용도 이름이면 L1.models가 기본 모델로 대신하는지 거부하는지는 `L1.models.spec`을 따른다. 거부하면 자동 제목을 건너뛴다.
 - 도구 노출 키(`l2.artifacts.tools.*`)는 L1.tools의 도구 켜기·끄기 규칙과 겹친다. [제안] 이 키는 능력의 기본 노출값이고, L1.tools의 사용자 규칙이 있으면 그것이 우선한다.
 - M3b가 읽는 키는 `maxPerSession`, `maxContentBytes`, `reviews.deliverAs`, `tools.reviewRequest`, `tools.sessionRename` 다섯 개다. `autoTitle.*`, `retentionDays`, `reviews.autoRequest`, `reviews.fuzzLines`, `export.*`, `handoff.*`는 M3b에서 읽는 코드가 없어 선언하지 않는다 [미결].

@@ -304,7 +304,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
               const reason = guard.ok
                 ? guard.value?.reason
                 : FIRST_DENY["guard.model.before"].reason;
-              if (reason !== undefined) throw new Error(`[xeon:denied_by_guard] ${reason}`);
+              if (reason !== undefined) throw new Error(`[fresnel:denied_by_guard] ${reason}`);
               return final;
             },
           }),

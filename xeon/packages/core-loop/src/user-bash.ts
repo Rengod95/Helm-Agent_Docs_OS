@@ -4,7 +4,7 @@ import type {
   JsonValue,
   ThreadId,
   ToolResultRecord,
-  XeonCustomMessage,
+  FresnelCustomMessage,
 } from "@fresnel/contracts/conversation";
 import { commitKeyPart } from "@fresnel/contracts/records";
 import type { UserBashResult } from "@fresnel/contracts/extensions";
@@ -208,7 +208,7 @@ export function createUserBash(ctx: LoopContext): UserBashRunner {
       replaced,
       ...(result.exitCode === undefined ? {} : { exitCode: result.exitCode }),
     };
-    const message: XeonCustomMessage = {
+    const message: FresnelCustomMessage = {
       role: "custom",
       customType: USER_BASH_CUSTOM_TYPE,
       content: userBashText(request.command, result),

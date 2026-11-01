@@ -64,7 +64,7 @@ xeon/packages/
 
 ```
 cap-<domain>/
-  package.json        # "xeon": { "layer": "L2", "domain": "<domain>" }
+  package.json        # "fresnel": { "layer": "L2", "domain": "<domain>" }
   src/
     index.ts          # 플러그인 엔트리. manifest 상수와 apply(ctx) export
     manifest.ts       # defineManifest({ layer: "L2", kind: "plugin", provides, requires, optional, ... })
@@ -76,7 +76,7 @@ cap-<domain>/
   test/
 ```
 
-- `package.json`의 `xeon` 필드는 `{"layer": "L2", "domain": "<domain>"}`이고 값은 `routes.yaml` layout과 같아야 한다(`eng.dependency-rules.guide` DR-03).
+- `package.json`의 `fresnel` 필드는 `{"layer": "L2", "domain": "<domain>"}`이고 값은 `routes.yaml` layout과 같아야 한다(`eng.dependency-rules.guide` DR-03).
 - 정의 파일은 `cap-*`에 두지 않는다. `@fresnel/contracts/capabilities`의 `defs/<domain>.ts`에서 import한다. 그래서 각 L2 plan의 첫 작업은 F `defs/<domain>.ts` 추가다.
 - 포크 코드는 `src/upstream/`에 두고 패키지 루트에 `UPSTREAM.json`, `PATCHES.md`, `LICENSE.pi`(pi 포크일 때)를 둔다(ADR-0003 §3.4).
 - 외부 SDK 타입은 각 패키지의 경계 어댑터 파일 밖으로 내보내지 않는다(`eng.context-map.design` CM-03). 예: `cap-mcp/src/adapter.ts`.
@@ -331,7 +331,7 @@ flowchart LR
 
 ## 8. 상주 수준
 
-`_research/l2e.md` §6의 기준을 L2 능력에 적용한다 [제안]. 0은 요청 처리 중 메모리만 쓴다. 1은 앱(세션 프로세스)이 살아 있어야 한다. 2는 앱을 닫아도 독립 프로세스가 살아 있어야 하므로 공유 서비스 모드(`xeon service`, ADR-0006)가 필요하다.
+`_research/l2e.md` §6의 기준을 L2 능력에 적용한다 [제안]. 0은 요청 처리 중 메모리만 쓴다. 1은 앱(세션 프로세스)이 살아 있어야 한다. 2는 앱을 닫아도 독립 프로세스가 살아 있어야 하므로 공유 서비스 모드(`fresnel service`, ADR-0006)가 필요하다.
 
 | 수준 | 능력 | 이유 |
 |---|---|---|

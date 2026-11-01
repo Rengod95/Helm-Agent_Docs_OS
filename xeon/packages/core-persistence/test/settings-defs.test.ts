@@ -46,6 +46,8 @@ describe("l1.persistence settings", () => {
 
   test("values outside the documented type or range are rejected, valid ones pass", () => {
     expect(validateSettingValue(defOf("l1.persistence.maxResumeAttempts"), 21).ok).toBe(false);
-    expect(validateSettingValue(defOf("l1.persistence.export.format"), "xeon-jsonl").ok).toBe(true);
+    expect(validateSettingValue(defOf("l1.persistence.export.format"), "fresnel-jsonl").ok).toBe(
+      true,
+    );
   });
 });

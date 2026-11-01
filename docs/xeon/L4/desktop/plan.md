@@ -16,13 +16,13 @@ binds: [xeon/apps/desktop/**]
 
 ### 1.1 M0
 
-- 데스크톱 쪽 작업은 없다. `xeon/apps/desktop/package.json`(`"xeon": {"layer": "L4", "domain": "desktop"}`)과 README가 이미 있다.
+- 데스크톱 쪽 작업은 없다. `xeon/apps/desktop/package.json`(`"fresnel": {"layer": "L4", "domain": "desktop"}`)과 README가 이미 있다.
 
 ### 1.2 M1 (이번 실행, 스캐폴드까지)
 
 [결정] 이번 실행은 데스크톱 스캐폴드까지다(`_research/foundation-plan.md §5` P4). Rust 툴체인이 없으므로(`xeon/apps/desktop/README.md`) TS 쪽만 만든다.
 
-- D1: WebView에서 쓸 `StdioTransportFactory` 구현과 `HostConnection`이 엔진 프로세스에 대해 `WIRE_CONFORMANCE_CASES`를 통과한다. 엔진은 `bun xeon/apps/host/src/main.ts host --stdio`로 띄운 실제 프로세스이고, 그 stdin/stdout을 `StdioTransportOptions`에 넘긴다. M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다.
+- D1: WebView에서 쓸 `StdioTransportFactory` 구현과 `HostConnection`이 엔진 프로세스에 대해 `WIRE_CONFORMANCE_CASES`를 통과한다. 엔진은 `bun xeon/apps/host/src/main.ts host --stdio`로 띄운 실제 프로세스이고, 그 stdin/stdout을 `StdioTransportOptions`에 넘긴다. M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다.
 - 디렉터리·패키지 골격: `src/transport/`, `src/views/`(빈 진입점), `src/settings-store/`(키 정의만), `test/`, `sidecar.json`.
 - `src-tauri/`는 만들지 않는다.
 
@@ -67,16 +67,16 @@ xeon/apps/desktop/
     Cargo.toml                    # rust-version 1.99. rust-toolchain.toml은 없다(§3.2.1)
     Cargo.lock
     build.rs                      # 앱 명령 권한(allow-engine-*) 생성
-    .cargo/config.toml            # jobs = 2로 묶는다. target-dir은 두지 않는다: scripts/cargo.sh가 CARGO_TARGET_DIR을 ${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target(Syncthing 밖, 기기별, spike/shell과 공용)으로 정한다
+    .cargo/config.toml            # jobs = 2로 묶는다. target-dir은 두지 않는다: scripts/cargo.sh가 CARGO_TARGET_DIR을 ${XDG_CACHE_HOME:-$HOME/.cache}/fresnel/cargo-target(Syncthing 밖, 기기별, spike/shell과 공용)으로 정한다
     tauri.conf.json
     capabilities/default.json
     ui/index.html                 # DESK.4 전까지의 자리 표시 화면(frontendDist)
-    binaries/                     # xeon-<triple>[.exe]. 빌드 산출물, 커밋하지 않는다 (TC-05)
+    binaries/                     # fresnel-<triple>[.exe]. 빌드 산출물, 커밋하지 않는다 (TC-05)
     src/
       main.rs                     # 앱 조립, RunEvent 처리, 신호 처리기
       engine.rs                   # Supervisor: spawn·종료·재기동 (spec §4.1 E1~E11, §4.4), Launcher 추상화
       relay.rs                    # 줄 버퍼, 신용, stdin 쓰기 스레드, 셸 명령 engine_* (spec §3.3)
-      secret_entry.rs             # 키 등록: 번들 사이드카를 `xeon secret add|set`으로 한 번 실행, 값은 stdin에만 (spec §4.14.1)
+      secret_entry.rs             # 키 등록: 번들 사이드카를 `fresnel secret add|set`으로 한 번 실행, 값은 stdin에만 (spec §4.14.1)
       applog.rs                   # 앱 로그 파일(바이트 수만 기록, E11), 같은 줄을 log 크레이트 info로도 낸다(디버그 로그 파일)
       env_path.rs                 # 엔진과 키 등록 자식의 PATH 보강(Finder 기본 경로에 도구 디렉터리 덧붙임, spec E7)
       time.rs                     # RFC 3339 UTC 문자열
@@ -104,7 +104,7 @@ xeon/scripts/
 
 ```json
 {
-  "name": "xeon",
+  "name": "fresnel",
   "args": ["host", "--stdio"],
   "entry": "../cli/src/main.ts",
   "maxSizeMiB": 500,
@@ -133,7 +133,7 @@ adr.0008 §3.2 형식을 따른다.
 // src-tauri/tauri.conf.json (발췌)
 {
   "bundle": {
-    "externalBin": ["binaries/xeon"],
+    "externalBin": ["binaries/fresnel"],
     "macOS": {
       "frameworks": ["../vendor-libs/macos/libsqlite3.dylib"],   // FTS5 SQLite (D8). resources에 두지 않는다
       "hardenedRuntime": true
@@ -160,7 +160,7 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
   "permissions": [
     {
       "identifier": "shell:allow-spawn",
-      "allow": [{ "name": "binaries/xeon", "sidecar": true, "args": ["host", "--stdio"] }]
+      "allow": [{ "name": "binaries/fresnel", "sidecar": true, "args": ["host", "--stdio"] }]
     }
   ]
 }
@@ -311,7 +311,7 @@ S1에서 spec에 반영할 내용:
 |---|---|---|---|---|
 | D1 | TS `StdioTransportFactory` 구현(`json-lines.ts`)과 `createHostConnection`(`connection.ts`), 적합성 테스트. 엔진을 `bun xeon/apps/host/src/main.ts host --stdio`(개발 진입)로 띄워 `WIRE_CONFORMANCE_CASES`를 돌린다. 디렉터리·패키지 골격, `sidecar.json`, `settings-store/defs.ts` | F W12·W14(`F.wire-settings.plan`), `L4.host-service.plan` H5(stdio 전송과 `main.ts` 개발 진입) | M | M1 |
 | D2 | Tauri 프로젝트 생성(`src-tauri/`), `tauri.conf.json`, capabilities, `rust-toolchain.toml`, 버전 고정 | S1 | S | M2 |
-| D3 | 사이드카 빌드 스크립트 `xeon/scripts/build-sidecar.ts`와 just 레시피. `sidecar.json`의 `entry`(`apps/cli/src/main.ts`, S2와 같은 진입 파일)를 triple 5종 → bun target 대응으로 컴파일해 `binaries/xeon-<triple>`을 만든다. 크기 상한 검사(S2 결과) | S2, D1(`sidecar.json`) | S | M2 (스크립트 골격과 대응 단위 테스트는 M1에 둘 수 있다) |
+| D3 | 사이드카 빌드 스크립트 `xeon/scripts/build-sidecar.ts`와 just 레시피. `sidecar.json`의 `entry`(`apps/cli/src/main.ts`, S2와 같은 진입 파일)를 triple 5종 → bun target 대응으로 컴파일해 `binaries/fresnel-<triple>`을 만든다. 크기 상한 검사(S2 결과) | S2, D1(`sidecar.json`) | S | M2 (스크립트 골격과 대응 단위 테스트는 M1에 둘 수 있다) |
 | D4 | `engine.rs`: spawn(E1, E3, E6, E7), 앱 상태 보관(E2), 정상 종료 순서(spec §4.3), 재기동 정책(spec §4.4), Unix 신호 처리기, stderr 로그(E10, E11) | D2, S1, S4 | L | M2 |
 | D5 | `relay.rs`: `EnginePipe`, 셸 명령 `engine_*`, 세대 관리와 줄 경계 버림, 송신 버퍼 한도 | D4, S3 | M | M2 |
 | D6 | UI 셸: `transport/ipc.ts`·`tauri-stdio.ts`, 스레드 목록, 트랜스크립트(가상 스크롤, 조각 합치기), 입력창, 상태 표시줄, 설정 진입점 | D5, 상태 관리 결정(spec §10 미결 11). 프레임워크는 React 19 [결정: review.m2-plan §8 D2] | L | M2 |
@@ -326,7 +326,7 @@ S1에서 spec에 반영할 내용:
 
 - 규모: S는 하루 안, M은 2~4일, L은 1주 이상 [가정].
 - D1의 `Bun.spawn` [결정: review.decisions-2 B-06]: `eng.dependency-rules.guide` DR-07의 테스트 한정 행으로 푼다. 허용 목록 `DR-07/desktop-test-spawn`(from `apps/desktop`, to `Bun.spawn`, `scope: "test"`)을 쓰고, 운영 소스에서는 여전히 금지다. `L4.host-service.plan`과 `L4.cli.plan`의 자식 프로세스 테스트도 같은 방식이다(`DR-07/cli-test-spawn`).
-- D1의 실행 명령: M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다. 그래서 D1은 `bun xeon/apps/host/src/main.ts host --stdio`를 실행한다(`L4.host-service.spec` §3.2 개발 실행 항목). M2부터는 같은 테스트를 컴파일 바이너리 `xeon host --stdio`로도 돈다. 둘 다 import가 아닌 실행이므로 DR-10에 맞는다.
+- D1의 실행 명령: M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다. 그래서 D1은 `bun xeon/apps/host/src/main.ts host --stdio`를 실행한다(`L4.host-service.spec` §3.2 개발 실행 항목). M2부터는 같은 테스트를 컴파일 바이너리 `fresnel host --stdio`로도 돈다. 둘 다 import가 아닌 실행이므로 DR-10에 맞는다.
 
 ### 3.2.1 M2 DESK.2·DESK.3 구현 기록 (2026-10-24, `m2/desk`)
 
@@ -379,7 +379,7 @@ M2 마감 반영(T7 DESK, 외부 도구 점검을 wire로 받기, G2-07): 설정
 
 M2 마감 반영(T7 DESK, 작업 폴더, G2-02): 새 대화가 고른 폴더를 `thread.create`의 `workspace`로 보낸다(spec §4.16). `Commands.createThread(workspace?)`가 폴더가 없으면 `{}`를, 있으면 `{ workspace }`를 보낸다. 입력 검사와 문구는 `src/views/workspace-model.ts`(순수 함수), 후보 목록은 `selectRecentWorkspaces`/`useRecentWorkspaces`다. 시험은 `test/views/workspace-model.test.ts`(빈 값, POSIX·드라이브·UNC 절대 경로, 상대 경로와 `~` 거부, 4096자 상한, 거부 문구), `test/app/locked-trust.test.ts`의 "new thread workspace"(요청 params의 값, 폴더 없으면 키 없음, `-32602`이면 선택된 대화 없음), `test/state/store.test.ts`(후보의 중복 제거, 순서, 개수 상한)다. 운영체제 폴더 선택 창은 만들지 않았다(spec §10 17번).
 
-M2 마감 반영(T7 DESK, 시험): 실제 `createTauriIpc`(invoke, Channel)를 `@tauri-apps/api/mocks`의 `mockIPC` 위에서 돌린다(`test/transport/tauri-mock.ts`, `tauri-mock.test.ts`, bun test). 셸 역할은 `fake-ipc.ts`가 맡고 `mockIPC`가 `engine_*` 명령을 그쪽으로 옮긴다. 시험하는 것은 명령 이름과 인자 모양, 바이트·상태 Channel 메시지의 해석(모르는 상태는 버림), 문자열 오류의 코드 변환, 결과 스키마 검사, 그리고 앱 전체가 이 경로로 `live` 연결에 이르는 흐름이다. `mockIPC`는 `invoke`의 세 번째 인자(헤더 `x-xeon-epoch`)를 넘기지 않아 세대 검사는 Rust 시험(`relay.rs`)이 맡는다. vitest는 쓰지 않는다.
+M2 마감 반영(T7 DESK, 시험): 실제 `createTauriIpc`(invoke, Channel)를 `@tauri-apps/api/mocks`의 `mockIPC` 위에서 돌린다(`test/transport/tauri-mock.ts`, `tauri-mock.test.ts`, bun test). 셸 역할은 `fake-ipc.ts`가 맡고 `mockIPC`가 `engine_*` 명령을 그쪽으로 옮긴다. 시험하는 것은 명령 이름과 인자 모양, 바이트·상태 Channel 메시지의 해석(모르는 상태는 버림), 문자열 오류의 코드 변환, 결과 스키마 검사, 그리고 앱 전체가 이 경로로 `live` 연결에 이르는 흐름이다. `mockIPC`는 `invoke`의 세 번째 인자(헤더 `x-fresnel-epoch`)를 넘기지 않아 세대 검사는 Rust 시험(`relay.rs`)이 맡는다. vitest는 쓰지 않는다.
 
 M2 마감 반영(T7 DESK, Rust 셸과 사이드카 e2e, G2-09·G4-03·원격 점검 Phase 1):
 
@@ -389,11 +389,11 @@ M2 마감 반영(T7 DESK, Rust 셸과 사이드카 e2e, G2-09·G4-03·원격 점
 | 로그 파일 | `main.rs` `debug_log_plugin`, `applog.rs` | 디버그 빌드만. `LogDir` 파일과 표준 출력, 2 MB `KeepOne`. 받는 줄은 `AppLog::line`의 줄과 시작 줄이다(M3b, M3-m2c-04 e, spec §4.15) |
 | 상태 덤프, 스냅샷 | `src-tauri/src/inspect/` | spec §4.15. JSON-RPC 처리(`mod.rs`), 소켓 서버(`server.rs`: 소켓 0600/폴더 0700, 접속 4개, 줄 16 KiB, 낡은 소켓 교체와 일반 파일 보존), 실제 앱 정보(`probe.rs`), macOS 스냅샷(`snapshot_macos.rs`). Rust 시험 65개가 `just desktop-test`로 통과했다 |
 | 릴리스 점검 | `test/inspect-guard.test.ts` | 소스 수준 cfg 보장. 산출물 확인 목록은 spec §4.15. `cargo check --release`는 경고 없이 통과했다 |
-| e2e 틀 | `test/e2e/harness.ts`, `scenario.ts`, `sidecar.e2e.test.ts` | stdio JSON-RPC로 엔진 프로세스를 모는 도구. 소스 진입(`bun apps/cli/src/main.ts host --stdio`)과 컴파일 사이드카(`xeon-<triple> host --stdio`)에 같은 요청열(hello, 구독, thread.create/list/read, settings.get, approval.list, secret.list, trust.get, command.list, host.status. 재실행에서 작업 폴더가 있는 thread.create, trust.decide, command.list { threadId }, settings.set, secret.beginEntry를 더했다)을 보내 정규화한 응답과 이벤트열이 같은지, `host.shutdown` 또는 stdin EOF만으로 종료코드 0과 홈을 쥔 프로세스 0개인지 본다 |
+| e2e 틀 | `test/e2e/harness.ts`, `scenario.ts`, `sidecar.e2e.test.ts` | stdio JSON-RPC로 엔진 프로세스를 모는 도구. 소스 진입(`bun apps/cli/src/main.ts host --stdio`)과 컴파일 사이드카(`fresnel-<triple> host --stdio`)에 같은 요청열(hello, 구독, thread.create/list/read, settings.get, approval.list, secret.list, trust.get, command.list, host.status. 재실행에서 작업 폴더가 있는 thread.create, trust.decide, command.list { threadId }, settings.set, secret.beginEntry를 더했다)을 보내 정규화한 응답과 이벤트열이 같은지, `host.shutdown` 또는 stdin EOF만으로 종료코드 0과 홈을 쥔 프로세스 0개인지 본다 |
 
 순서 경합(G4-03): thread를 연 직후 기본 켜짐 scope의 `scope.changed` 묶음이 다음 유휴 경계의 한 커밋으로 남고, 뒤따르는 입력과의 앞뒤는 시간에 달려 있다. 이전 도구는 60 ms를 기다려 이 경합을 가렸다. `untilScopesCommitted`가 시간 대신 조건을 기다린다: 구독으로 첫 `scope.changed`가 도착할 때까지 기다리고(커밋은 원자적이라 첫 이벤트가 오면 묶음 전체가 와 있다) seq가 이어지는지 확인한다. 시간 대기는 없고, 상한은 실패 메시지에 경과 시간과 stderr를 싣는 용도다. 상한의 기본값은 60초이고 환경 변수 `FRESNEL_E2E_TIMEOUT_MS`(양의 정수)로 바꾼다. 부하가 걸린 기기에서 한 시험이 20초 상한에 걸려 실패해서 올렸다(`resolveTimeoutMs`, `test/e2e/harness.test.ts`). 이 방식으로 소스 진입 두 번 실행의 응답·이벤트열이 같음을 시험한다.
 
-시험 결과(`just test apps/desktop`): 사이드카를 빌드하지 않았을 때 171 통과, 건너뜀 3(바이너리 시험). `just desktop-sidecar host`를 한 번 돌려 `xeon-x86_64-unknown-linux-gnu`(109.8 MiB)를 만든 뒤 174 통과, 건너뜀 0이다. 즉 Linux 컴파일 바이너리가 소스 진입과 같은 응답·이벤트열을 내고 EOF와 `host.shutdown`으로 종료코드 0, 잔존 프로세스 0이다. 그때 foundation에는 `trust.get`, `command.list` 처리기가 없어 두 쪽이 같은 `jsonrpc.methodNotFound`(-32601)를 내는 것만 견줬다. turn은 모델 테이프를 컴파일 바이너리에 넣을 길이 없어 e2e에 없다(메시지 열 동등은 `apps/host`의 transport-parity 시험이 맡는다). macOS와 Windows 바이너리는 확인하지 못했다.
+시험 결과(`just test apps/desktop`): 사이드카를 빌드하지 않았을 때 171 통과, 건너뜀 3(바이너리 시험). `just desktop-sidecar host`를 한 번 돌려 `fresnel-x86_64-unknown-linux-gnu`(109.8 MiB)를 만든 뒤 174 통과, 건너뜀 0이다. 즉 Linux 컴파일 바이너리가 소스 진입과 같은 응답·이벤트열을 내고 EOF와 `host.shutdown`으로 종료코드 0, 잔존 프로세스 0이다. 그때 foundation에는 `trust.get`, `command.list` 처리기가 없어 두 쪽이 같은 `jsonrpc.methodNotFound`(-32601)를 내는 것만 견줬다. turn은 모델 테이프를 컴파일 바이너리에 넣을 길이 없어 e2e에 없다(메시지 열 동등은 `apps/host`의 transport-parity 시험이 맡는다). macOS와 Windows 바이너리는 확인하지 못했다.
 
 M2 마감 반영(T7 DESK, 실제 host와 맞춘 재실행, G4-03): wave 1~2가 병합된 `m2c/h2` 위로 옮긴 뒤(rebase 충돌 없음) 같은 요청열을 실제 처리기로 다시 돌렸다. 사이드카는 `just desktop-sidecar host`를 한 번만 다시 빌드했다(낡은 바이너리는 `trust.get`, `command.list`, `thread.compact` 등이 없어 `-32601`을 냈고 이전 기록의 비교는 소스 진입과 달라졌다). 이 재실행으로 바뀐 것:
 
@@ -418,7 +418,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 
 ### 3.3 CI 매트릭스 (D9)
 
-[결정: review.m2-plan §8 D1] `.github/workflows/xeon-ci.yml`에 Linux `desktop-build` job(Z.1)과 macOS `desktop-macos` job을 더한다. `desktop-macos`는 `workflow_dispatch`나 PR 라벨 `ci:macos`가 있을 때만 돈다. 개발 반복은 WSL에 설치한 Rust 툴체인(rustc·cargo 1.99.1)과 WebKitGTK 4.1로 로컬에서 한다. 공식 사이드카 스크립트는 호스트 아키텍처에서만 동작한다고 경고하므로(`_research/stack-status.md §7-F` 3개 플랫폼 빌드 행) triple마다 같은 아키텍처의 러너를 쓴다.
+[결정: review.m2-plan §8 D1] `.github/workflows/fresnel-ci.yml`에 Linux `desktop-build` job(Z.1)과 macOS `desktop-macos` job을 더한다. `desktop-macos`는 `workflow_dispatch`나 PR 라벨 `ci:macos`가 있을 때만 돈다. 개발 반복은 WSL에 설치한 Rust 툴체인(rustc·cargo 1.99.1)과 WebKitGTK 4.1로 로컬에서 한다. 공식 사이드카 스크립트는 호스트 아키텍처에서만 동작한다고 경고하므로(`_research/stack-status.md §7-F` 3개 플랫폼 빌드 행) triple마다 같은 아키텍처의 러너를 쓴다.
 
 | triple | 러너 [가정] | 비고 |
 |---|---|---|
@@ -429,7 +429,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 | `x86_64-pc-windows-msvc` | `windows-latest` | Windows 서명 기본 구현이 동작한다(§3.4) |
 
 - `desktop-build`는 PR에서 수동 실행, `main`에서 야간 실행으로 둔다 [제안]. `desktop-macos`는 위 두 조건에서만 돈다. `just verify` 시간 목표(`eng.toolchain.guide` 3.1)에 넣지 않는다.
-- 산출물 검사: 각 산출물이 자기 triple의 `xeon-<triple>`만 포함하는지(spec D-06), macOS `.app`의 `Contents/Resources` 아래 Mach-O가 없는지(`_research/notes/L4-2.md §11` 1번).
+- 산출물 검사: 각 산출물이 자기 triple의 `fresnel-<triple>`만 포함하는지(spec D-06), macOS `.app`의 `Contents/Resources` 아래 Mach-O가 없는지(`_research/notes/L4-2.md §11` 1번).
 - Windows 메타데이터 플래그(`--windows-icon`, `hideConsole` 등)는 교차 컴파일에서 쓸 수 없다는 기록이 있다(`_research/stack-status.md §7-C` 제한 행. arch-2 §4.2는 원문 문장을 찾지 못해 [미확인]). Windows 사이드카는 Windows 러너에서만 만든다.
 
 ### 3.4 서명·배포 (D10)
@@ -499,8 +499,8 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 | relay-line-framing | `test/relay-line-framing.test.ts` | unit | 1 MiB 경계 프레임(한도 정확히, 한도 + 1), 한 프레임이 여러 바이트 조각으로 나뉘어 오는 경우, 조각 하나에 여러 프레임이 들어 있는 경우, UTF-8 다중 바이트 문자가 조각 경계에서 잘리는 경우, 한도 초과 줄을 버린 뒤 다음 줄을 정상 처리하는 경우 | §3.4, §5 | M1 |
 | reconnect-resubscribe-from-cursor | `test/reconnect-resubscribe-from-cursor.test.ts` | unit | `CursorStore`에 저장한 위치로 `events.subscribe`를 보낸다. `replay.outOfRange`면 `onReset`을 한 번 부르고 `from: "head"`로 다시 보낸다. 위치가 없으면 `"head"`다. 가짜 `HostConnection`을 쓴다 | D-04, §4.6 | M1 |
 | sidecar-config | `test/sidecar-config.test.ts` | unit | `sidecar.json`의 name·args가 `tauri.conf.json` `externalBin`, capabilities, Rust 상수와 같다. M1에서는 `sidecar.json` 스키마 검사만 하고 나머지는 M2에서 켠다 | §3.5 | M1(일부) |
-| sidecar-triple-mapping | `xeon/scripts/build-sidecar.test.ts` | unit | triple 5종이 정해진 bun target으로 대응하고, 산출 파일명이 `binaries/xeon-<triple>`(Windows `.exe`)이며, 모르는 triple은 종료코드 1로 거부한다 | §3.5(D-06의 이름 규칙) | M1(스크립트 골격) 또는 M2 |
-| sidecar-bundle-contents | CI `desktop-build` job의 산출물 검사 단계(§3.3) | CI 검사(테스트 태그 아님) | 각 플랫폼 산출물이 자기 triple의 `xeon-<triple>`만 포함하고 다른 triple의 사이드카를 포함하지 않는다. 단위 테스트가 아닌 산출물 검사다 | D-06 | M2 |
+| sidecar-triple-mapping | `xeon/scripts/build-sidecar.test.ts` | unit | triple 5종이 정해진 bun target으로 대응하고, 산출 파일명이 `binaries/fresnel-<triple>`(Windows `.exe`)이며, 모르는 triple은 종료코드 1로 거부한다 | §3.5(D-06의 이름 규칙) | M1(스크립트 골격) 또는 M2 |
+| sidecar-bundle-contents | CI `desktop-build` job의 산출물 검사 단계(§3.3) | CI 검사(테스트 태그 아님) | 각 플랫폼 산출물이 자기 triple의 `fresnel-<triple>`만 포함하고 다른 triple의 사이드카를 포함하지 않는다. 단위 테스트가 아닌 산출물 검사다 | D-06 | M2 |
 | shutdown-message-then-exit | `test/shutdown-message-then-exit.int.test.ts` | int | 엔진 stdin에 `host.shutdown` 요청을 쓰고 stdin을 닫으면 엔진이 `shutdownGraceMs` 안에 종료코드 0으로 끝난다. `host.shutdown`이 F에 없을 때는 `-32601` 응답 뒤 EOF로 같은 결과가 나온다 | E4, §4.3 | M2(F 변경 요청 처리 뒤) |
 | stdin-eof-checkpoint | `test/stdin-eof-checkpoint.int.test.ts` | int | 테이프로 turn을 진행하는 중에 stdin을 닫으면 엔진이 `l0.process.shutdown.timeoutMs`(테스트에서는 1초로 줄임) 안에 끝나고, DB에 비정상 종료 표식 또는 체크포인트가 남는다 | E5, D-02 | M2 |
 | no-grandchild-left | `test/no-grandchild-left.int.test.ts` | int | 엔진이 손자 프로세스(긴 `sleep` 명령 도구 호출)를 띄운 상태에서 정상 종료 순서를 돌리면 그룹 안 프로세스가 0개가 된다. Linux·macOS 한정 | E3, E9, D-01 | M2 |
@@ -517,7 +517,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 | window-ensure-main | `src-tauri/src/window.rs` 안 Rust 테스트 | unit(cargo) | `main` 항목으로 메인 창을 한 번만 만들고, 이미 있으면 중복 없이 앞으로 가져오며, 설정에 `main` 항목이 없으면 아무것도 만들지 않는다 | §5, §6 | M3b(M3-38). 상태: 통과(Linux) |
 | engine-env-sanitized | `src-tauri/src/engine.rs` 안 Rust 테스트 | unit(cargo) | spawn 명령 구성 함수가 만든 환경에 `BUN_OPTIONS`가 없고, cwd와 넘기는 모든 경로가 절대 경로다 | D-11, E6, E7 | M2 |
 | env-path-augment | `src-tauri/src/env_path.rs`와 `engine.rs` 안 Rust 테스트 | unit(cargo) | Finder 기본 PATH 뒤에 도구 디렉터리가 정해진 순서로 붙고, 이미 있는 항목은 중복 없이 제자리에 남고, 사용자 항목이 앞에 남고, 홈이 없으면 고정 디렉터리만 붙고, 빈 PATH는 붙인 디렉터리만 되고, 이어 붙일 수 없으면 원래 값이다. `engine_env`는 PATH 값을 바꾸고 없으면 맨 뒤에 넣는다 | E7, §4.14.1 | M3b(m2c-04 a) |
-| applog-log-crate-record | `src-tauri/src/applog.rs` 안 Rust 테스트 | unit(cargo) | `AppLog::line`이 같은 줄을 대상 `xeon_desktop`, 수준 info의 `log` 기록 하나로 낸다. 제어 문자는 공백으로 바뀌고 탭은 남는다 | §4.15 로그 파일 | M3b(m2c-04 e) |
+| applog-log-crate-record | `src-tauri/src/applog.rs` 안 Rust 테스트 | unit(cargo) | `AppLog::line`이 같은 줄을 대상 `fresnel_desktop`, 수준 info의 `log` 기록 하나로 낸다. 제어 문자는 공백으로 바뀌고 탭은 남는다 | §4.15 로그 파일 | M3b(m2c-04 e) |
 | check-layers-app-rules | `xeon/scripts/check-layers.test.ts`(툴체인 담당에 요청, 위치는 §2 스크립트 위치 미결과 같음) | unit | W1·W2·W6 위반 샘플 import(전송 → 화면, `@tauri-apps/*`를 허용 파일 밖에서 import, `@fresnel/host` import)를 앱 내부 규칙이 거부한다 | D-12 | M2 |
 
 - `e2e` 태그는 `just verify`에서 제외한다(`eng.testing.guide` TS-01 표). CI에서 수동 실행과 야간 실행으로 둔다.
@@ -548,7 +548,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 
 - 서비스 사용 설정이 켜지면 셸이 서비스 소켓을 릴레이하고, 앱을 닫아도 서비스의 turn이 계속된다.
 - 알림 wire가 정해졌으면 알림이 OS 알림으로 보인다.
-M2 첫 실행 반영(M-12, 키 등록): 깨끗한 Mac에는 `xeon` 명령이 없어 터미널 안내로는 키를 등록할 수 없었다. 셸 명령 `secret_register`(`src-tauri/src/secret_entry.rs`)가 번들된 사이드카를 `xeon secret add|set <이름>`으로 실행하고 값을 stdin에 한 번 쓴다(spec §4.14.1, §3.3). 화면은 `src/settings/key-entry.ts`(`submitKey`: 입력란을 읽는 즉시 비우고 바이트 배열만 넘기고 보낸 뒤 0으로 덮는다), `src/views/settings.tsx`의 `KeyForm`(제어하지 않는 password 입력란), `src/transport/ipc.ts`의 `registerSecret`이다. 시험: Rust(`secret_entry.rs` 안: 값이 인자에 없음, stdin 쓰기 한 번 뒤 닫힘, 종료 코드·출력 변환과 값이 든 출력 비움, 시한 뒤 그룹 종료, 동시 등록 거절, 본문 검사), `test/settings/key-entry.test.ts`(입력란이 대기 중에 이미 비어 있음, 바이트 0으로 덮임), `test/app/key-register.test.ts`(실제 앱과 `ipc.ts`를 `mockIPC` 위에서 돌려 값이 셸 명령 본문에만 있고 wire, 화면 상태, 거울, 로그에 없음, 오류 변환), `test/views/settings.test.tsx`(등록 창이 값 속성 없는 password 입력란 하나).
+M2 첫 실행 반영(M-12, 키 등록): 깨끗한 Mac에는 `fresnel` 명령이 없어 터미널 안내로는 키를 등록할 수 없었다. 셸 명령 `secret_register`(`src-tauri/src/secret_entry.rs`)가 번들된 사이드카를 `fresnel secret add|set <이름>`으로 실행하고 값을 stdin에 한 번 쓴다(spec §4.14.1, §3.3). 화면은 `src/settings/key-entry.ts`(`submitKey`: 입력란을 읽는 즉시 비우고 바이트 배열만 넘기고 보낸 뒤 0으로 덮는다), `src/views/settings.tsx`의 `KeyForm`(제어하지 않는 password 입력란), `src/transport/ipc.ts`의 `registerSecret`이다. 시험: Rust(`secret_entry.rs` 안: 값이 인자에 없음, stdin 쓰기 한 번 뒤 닫힘, 종료 코드·출력 변환과 값이 든 출력 비움, 시한 뒤 그룹 종료, 동시 등록 거절, 본문 검사), `test/settings/key-entry.test.ts`(입력란이 대기 중에 이미 비어 있음, 바이트 0으로 덮임), `test/app/key-register.test.ts`(실제 앱과 `ipc.ts`를 `mockIPC` 위에서 돌려 값이 셸 명령 본문에만 있고 wire, 화면 상태, 거울, 로그에 없음, 오류 변환), `test/views/settings.test.tsx`(등록 창이 값 속성 없는 password 입력란 하나).
 
 
 ## 7. 위험과 대응

@@ -370,13 +370,13 @@ describe("core-models builtin extension", () => {
         .result();
     const blocked = await call();
     expect(blocked.stopReason).toBe("error");
-    expect(blocked.errorMessage).toBe("[xeon:denied_by_guard] no model calls");
+    expect(blocked.errorMessage).toBe("[fresnel:denied_by_guard] no model calls");
     expect(seen[0]).toMatchObject({ patched: true, was: { model: "tape-1" } });
     expect(fake.calls()).toEqual([]);
     mode = "throw";
     const thrown = await call();
     expect(thrown.stopReason).toBe("error");
-    expect(thrown.errorMessage).toBe("[xeon:denied_by_guard] extension handler failed");
+    expect(thrown.errorMessage).toBe("[fresnel:denied_by_guard] extension handler failed");
     expect(fake.calls()).toEqual([]);
     await th.host.dispose();
   });

@@ -24,7 +24,7 @@ test("a guard.tool.before block stops the tool, writes no effect and tells the m
     name: "read",
     args: { path: "a.txt" },
   });
-  expect(out.blocked).toBe("[xeon:denied_by_guard] no reads today");
+  expect(out.blocked).toBe("[fresnel:denied_by_guard] no reads today");
   expect(probe.calls).toEqual([]);
   expect(kinds(h)).toEqual(["item.recorded"]);
 });
@@ -42,7 +42,7 @@ test("a throwing guard.tool.before handler also blocks (fail closed)", async () 
     name: "read",
     args: { path: "a.txt" },
   });
-  expect(out.blocked).toBe("[xeon:denied_by_guard] extension handler failed");
+  expect(out.blocked).toBe("[fresnel:denied_by_guard] extension handler failed");
   expect(probe.calls).toEqual([]);
   expect(kinds(h)).toEqual(["item.recorded"]);
 });
@@ -87,6 +87,6 @@ test("a call denied earlier never reaches the guard", async () => {
     name: "read",
     args: { path: "a.txt" },
   });
-  expect(out.blocked).toBe("[xeon:denied_by_extension] no");
+  expect(out.blocked).toBe("[fresnel:denied_by_extension] no");
   expect(seen).toEqual([]);
 });

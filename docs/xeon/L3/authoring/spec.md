@@ -32,7 +32,7 @@ binds: [xeon/packages/plugin-builder/**]
 - `defineGroup`, `replayDrive`, `scanDriveSource`: `L3.group-sdk.spec`
 - 기존 그룹 템플릿 세 종류의 파일 내용: `L3.slots.spec` §3.3. 이 문서는 그 템플릿을 카탈로그의 첫 항목으로 씁니다.
 - 화면(구성기, 시험 실행)의 모양: `L4.desktop-ux.spec` §6.26, §6.28
-- `xeon group new` 명령: `L4.cli.spec`. 제작 확장이 생기면 이 명령은 같은 서비스를 부르는 얇은 진입점이 됩니다(§4.5).
+- `fresnel group new` 명령: `L4.cli.spec`. 제작 확장이 생기면 이 명령은 같은 서비스를 부르는 얇은 진입점이 됩니다(§4.5).
 
 ### 1.3 이 도메인을 L3에 두는 이유
 
@@ -51,7 +51,7 @@ binds: [xeon/packages/plugin-builder/**]
 | 종류 카탈로그 | 종류 항목의 목록과 각 항목의 템플릿, 필수 검사, 보안 메모, 지원 범위 |
 | 구성 초안 | 매니페스트 `composition`(`L4.desktop-ux.spec` §10.3 X-16)과 같은 모양의 블록 목록. 구성기와 제작 확장이 같은 형식을 씁니다 |
 | 제작 검사 | `AU-NNN` 번호를 가진 검사 규칙. F 검사 함수 결과에 제작 전용 규칙을 더합니다 |
-| 개발 모드 | 저장소 스크립트와 시험 하니스를 쓸 수 있는 실행 형태. replay, bench, 코어 변경 검사는 개발 모드에서만 돕니다(`L4.desktop-ux.spec` §12.3 U-4) |
+| 개발 모드 | 저장소 스크립트와 시험 하니스를 쓸 수 있는 실행 형태. replay, benchmark, 코어 변경 검사는 개발 모드에서만 돕니다(`L4.desktop-ux.spec` §12.3 U-4) |
 
 ## 3. 인터페이스
 
@@ -217,8 +217,8 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 ### 4.5 CLI와의 관계
 
-- `xeon group new`는 `fresnel.devkit.scaffold`를 부르는 진입점이 됩니다(엔진이 떠 있으면 wire, 아니면 같은 F 함수와 템플릿 파일로 로컬 실행). 결과 파일은 지금과 같아야 합니다(`L3.slots.spec` §3.3.6 R1~R6).
-- `xeon author <명령>` [제안]은 제작 세션을 CLI에서 엽니다. 모델 없이 `scaffold`, `validate`, `pack`만 쓰는 모드도 둡니다.
+- `fresnel group new`는 `fresnel.devkit.scaffold`를 부르는 진입점이 됩니다(엔진이 떠 있으면 wire, 아니면 같은 F 함수와 템플릿 파일로 로컬 실행). 결과 파일은 지금과 같아야 합니다(`L3.slots.spec` §3.3.6 R1~R6).
+- `fresnel author <명령>` [제안]은 제작 세션을 CLI에서 엽니다. 모델 없이 `scaffold`, `validate`, `pack`만 쓰는 모드도 둡니다.
 
 ## 5. 실패와 경계 사례
 
@@ -230,14 +230,14 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | 시험 대화에서 대상이 자동 꺼짐 | 시험을 멈추고 실패 장부를 세션에 붙임. 고친 뒤 `ext.reenable`(W-21)로 다시 시험 |
 | 카탈로그 항목이 `blocked` | `authoring_start` 거부와 `blockedReason` |
 | 엔진 재시작 | 세션 상태는 그룹 상태 문서에 있어 `thread.start`에서 복원. 진행 중 시험 대화는 그대로 남음 |
-| 안전 모드 | 제작 확장은 내장 L3 그룹이라 빠짐. `xeon group new`와 `xeon author scaffold`(모델 없음)는 동작 |
+| 안전 모드 | 제작 확장은 내장 L3 그룹이라 빠짐. `fresnel group new`와 `fresnel author scaffold`(모델 없음)는 동작 |
 
 ## 6. 설정 노출
 
 | 키 | 기본 | 범위 | 뜻 |
 |---|---|---|---|
 | `l3.authoring.enabled` | `false` | user, project, launch | 제작 확장 켜기(일반 `ext.<id>.enabled` 규칙과 같음) [제안] |
-| `l3.authoring.devMode` | 앱 형태에 따름 | managed, user | 개발 모드 동작(replay, bench) 허용. 배포 앱에서는 저장소 경로가 있어야 켜짐 |
+| `l3.authoring.devMode` | 앱 형태에 따름 | managed, user | 개발 모드 동작(replay, benchmark) 허용. 배포 앱에서는 저장소 경로가 있어야 켜짐 |
 | `l3.authoring.fixLoopLimit` | `3` | user, launch | 같은 검사 오류가 남는 고치기 반복 한도 |
 | `l3.authoring.localCatalog` | `true` | user | 사용자 로컬 카탈로그 읽기 |
 
@@ -258,14 +258,14 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | `L3.group-sdk.spec` | 받음: `defineGroup`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineGroup({ composition })` 채움 |
 | `L3.slots.spec` | 받음: 템플릿 세 종류와 이름 규칙. 카탈로그 첫 항목 |
 | `L4.desktop-ux.spec` | 제공: 구성기 "새 그룹"의 실행 흐름, 시험 실행의 제작 시험. 요구: W-27~W-29, W-34, W-47~W-49 |
-| `L4.cli.spec` | 제공: `xeon group new`가 부를 서비스 |
+| `L4.cli.spec` | 제공: `fresnel group new`가 부를 서비스 |
 | ADR-0021 | 받음: 모드 고르기 기준과 등급표. 제공: AU-005~AU-008 검사 |
 | `architecture.security.spec` | 받음: T 행. 갱신 규칙 §4.4 3번 |
 
 ## 9. 수용 기준
 
 - A-1. 카탈로그의 `stable`·`preview` 항목마다 뼈대를 만들면 `validate`가 오류 0으로 통과합니다(카탈로그 적합성 시험).
-- A-2. `group.drive`·`group.policy`·`group.observe`로 만든 파일이 `xeon group new`의 결과와 같고 `core-diff-check`에서 보호 경로 변경 0줄입니다.
+- A-2. `group.drive`·`group.policy`·`group.observe`로 만든 파일이 `fresnel group new`의 결과와 같고 `core-diff-check`에서 보호 경로 변경 0줄입니다.
 - A-3. 제작 세션 대화에서 대상 폴더 밖 쓰기 도구 호출이 거부됩니다.
 - A-4. `authoring_package`와 `authoring_install`은 사람 확인 없이는 파일을 쓰지 않고, 확인을 기다리는 동안 그 대화의 drive 임대가 반납된 상태입니다.
 - A-5. 배포 앱 형태에서 `authoring_replay`가 `dev_mode_required`를 돌려줍니다.

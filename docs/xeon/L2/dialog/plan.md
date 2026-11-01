@@ -16,8 +16,8 @@ binds: [xeon/packages/cap-dialog/**]
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
-| M0 | 없음. 패키지 골격(`"xeon": {"layer": "L2", "domain": "dialog"}`)만 P0에서 만든다 | `_research/foundation-plan.md` §5 P0·P4 |
-| M1 | 없음. M1 `xeon chat`은 질문·명령을 쓰지 않는다 | `product.scope.spec` §4.3 M1 |
+| M0 | 없음. 패키지 골격(`"fresnel": {"layer": "L2", "domain": "dialog"}`)만 P0에서 만든다 | `_research/foundation-plan.md` §5 P0·P4 |
+| M1 | 없음. M1 `fresnel chat`은 질문·명령을 쓰지 않는다 | `product.scope.spec` §4.3 M1 |
 | M2 | 1차: 질문 도구(`dialog.ask`), 슬래시 명령(`dialog.commands`), 상태줄(`dialog.status`), 첨부(`dialog.attachments`). D1~D8 | `_research/layer-plan-v2.json` L2-f 1차, `product.scope.spec` §4.3 M2 |
 | M3 | 알림 분류(`dialog.notify`). D11 [제안] | 3차 결정(예약·원격·알림 범위 포함), `product.scope.spec` §4.1 I13 |
 | M3 이후(2차) | 곁가지 질문(`dialog.aside`) D9, 출력 스타일(`dialog.styles`) D10 | `_research/layer-plan-v2.json` L2-f 2차 |
@@ -34,7 +34,7 @@ xeon/packages/contracts/src/                      # F. 선행 작업(D1)
   records/catalog/dialog.ts                       # DIALOG_EVENT_CATALOG(CatalogEntry, dialog.status 휘발, dialog.notified 내구)
 
 xeon/packages/cap-dialog/
-  package.json                                    # "xeon": {"layer":"L2","domain":"dialog"}, 외부 의존 없음
+  package.json                                    # "fresnel": {"layer":"L2","domain":"dialog"}, 외부 의존 없음
   UPSTREAM.json  PATCHES.md  LICENSE.pi           # pi 포크 출처 기록(ADR-0003 §3.4, L2.readme §3)
   src/
     index.ts                                      # manifest, apply(ctx): 서비스·지점·피드 구독 등록

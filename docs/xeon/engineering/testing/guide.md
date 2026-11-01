@@ -678,7 +678,7 @@ coverageThreshold = { lines = 0.9, functions = 0.9 }
 | TS-07 실제 SQLite | 리뷰, DR-07(`bun:sqlite`는 `platform-store`만이므로 다른 패키지는 `openTestStore`를 쓸 수밖에 없다) |
 | TS-08 재생·고장 주입 | `core-persistence`·`platform-store`의 `fault` 테스트가 `FaultPoint` 10개 지점(`eng.transactions.design` 4.2절)을 모두 돈다. 지점 목록과 테스트 목록을 대조하는 테스트를 둔다 |
 | TS-09 고정 시드 | 리뷰, TS-03 패턴(`Math.random`) |
-| TS-10 층별 CI·커버리지 | `.github/workflows/xeon-ci.yml` 층 matrix, 패키지 `bunfig.toml` 임계 |
+| TS-10 층별 CI·커버리지 | `.github/workflows/fresnel-ci.yml` 층 matrix, 패키지 `bunfig.toml` 임계 |
 
 ## 4. 예외와 승인 절차
 

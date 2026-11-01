@@ -12,7 +12,7 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ## 1. 목적과 범위
 
-`platform-sandbox`는 셸 명령과 그 자식 프로세스를 OS 샌드박스(macOS Seatbelt, Linux bubblewrap) 안에서 실행하게 하는 서비스 `fresnel.sandbox`(`SandboxService`)를 제공한다. 격리 구현은 `@anthropic-ai/sandbox-runtime`(이하 srt) 0.0.79(Apache-2.0)을 그대로 쓰고, 이 패키지는 Xeon 정책과 srt 설정 사이의 접착 계층이다 [결정: `_research/foundation-plan.md` §2 샌드박스 행, `_research/packages.md` §4.2 L0-b].
+`platform-sandbox`는 셸 명령과 그 자식 프로세스를 OS 샌드박스(macOS Seatbelt, Linux bubblewrap) 안에서 실행하게 하는 서비스 `fresnel.sandbox`(`SandboxService`)를 제공한다. 격리 구현은 `@anthropic-ai/sandbox-runtime`(이하 srt) 0.0.79(Apache-2.0)을 그대로 쓰고, 이 패키지는 Fresnel 정책과 srt 설정 사이의 접착 계층이다 [결정: `_research/foundation-plan.md` §2 샌드박스 행, `_research/packages.md` §4.2 L0-b].
 
 - [결정: `eng.dependency-rules.guide` DR-07] srt는 `platform-sandbox`만 import한다.
 - [결정: DR-02] `platform-sandbox`는 `platform-exec`를 import하지 않는다. 두 패키지는 F `Shell` 인터페이스로만 만난다(3.4절).
@@ -20,7 +20,7 @@ binds: [xeon/packages/platform-sandbox/**]
 정하는 것:
 
 - F에 둘 샌드박스 계약 초안: `SandboxService`, `SandboxStatus`, `SandboxPolicy`, `AutoAllowDecision`, `SelfTestReport`, `SandboxRunReport`, `describeSandboxStatus`(3.1절)
-- Xeon 정책 → srt 설정 매핑(3.2절), 보호 경로 목록(3.3절)
+- Fresnel 정책 → srt 설정 매핑(3.2절), 보호 경로 목록(3.3절)
 - `wrapShell` 데코레이터의 동작(4.2절), 자동 허용 판정(4.3절), 자가 시험(4.4절), 격리 불가 시 동작(4.5절)
 - 플랫폼별 제약(5.2절), 설정 키(6절), 수용 기준(9절)
 
@@ -46,9 +46,9 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ### 1.1 기존 설계와의 대조
 
-`docs/design/13-tools-and-execution.md` §3.6은 격리 수준 S0·S1·S1b와 bwrap 인자를 직접 다루는 설계다. Xeon은 이를 따르지 않는다(`architecture.overview.spec` 174-175행 "13의 S0~S2는 bubblewrap을 직접 다루는 설계이고, Xeon은 `@anthropic-ai/sandbox-runtime`을 그대로 쓴다").
+`docs/design/13-tools-and-execution.md` §3.6은 격리 수준 S0·S1·S1b와 bwrap 인자를 직접 다루는 설계다. Fresnel은 이를 따르지 않는다(`architecture.overview.spec` 174-175행 "13의 S0~S2는 bubblewrap을 직접 다루는 설계이고, Fresnel은 `@anthropic-ai/sandbox-runtime`을 그대로 쓴다").
 
-| 항목 | docs/design 13 §3.6, 18 §3.11 | Xeon `platform-sandbox` | 근거 |
+| 항목 | docs/design 13 §3.6, 18 §3.11 | Fresnel `platform-sandbox` | 근거 |
 |---|---|---|---|
 | 격리 수단 | bwrap 인자 직접 조립(S1), `systemd-run --user` 일회성 단위(S1b) | srt `wrapWithSandboxArgv`. macOS Seatbelt, Linux bubblewrap + seccomp | foundation-plan §2 |
 | 수준 | S0, S1b, S1, S2 판별 합집합(`SandboxSpec`) | `level: "srt" \| "none"` 두 값 | [제안] srt가 플랫폼 수단을 고른다 |
@@ -58,7 +58,7 @@ binds: [xeon/packages/platform-sandbox/**]
 | 자원 한도 | `MemoryMax`, `TasksMax`(R-7) | 1차 없음. 시간 제한은 `fresnel.exec` timeout | [제안] |
 | 격리 불가 시 | `execute` 끔(R-10), 운영자 `off`만 S0 | `l0.sandbox.onUnavailable` 3값, 기본 `disable_execute` | 18 R-10 계승 [제안] |
 | 자가 시험 | 시작·1시간마다·doctor, 9항목(§3.11.4) | 시작·주기·doctor, 6항목(4.4절) | 18 §3.11.4 이식 |
-| 보호 경로 | Helm 경로(`/srv/volumes`, `~/.config/helm`) 포함 | Xeon 경로로 바꾼 표(3.3절) | 18 §3.11.5 |
+| 보호 경로 | Helm 경로(`/srv/volumes`, `~/.config/helm`) 포함 | Fresnel 경로로 바꾼 표(3.3절) | 18 §3.11.5 |
 
 ## 2. 용어
 
@@ -158,7 +158,7 @@ export interface ProtectedPathEntry {
   /** basename 패턴의 예외 이름(예: ".env.example") */
   except?: string[];
   /** 표시용 이유 코드 */
-  reason: "xeon_data" | "xeon_config" | "secret_key" | "credentials" | "agent_credentials" | "shell_startup" | "git_exec" | "persistence" | "user_extra";
+  reason: "fresnel_data" | "fresnel_config" | "secret_key" | "credentials" | "agent_credentials" | "shell_startup" | "git_exec" | "persistence" | "user_extra";
 }
 
 /** 순수 함수. L2 파일 도구가 realpath 결과로 검사한다(R-12) */
@@ -176,7 +176,7 @@ export type AutoAllowDecision =
   | { readonly allow: false; readonly blocks: readonly AutoAllowBlock[] };
 
 export type SelfTestItemId =
-  | "protected_read_denied" | "xeon_data_write_denied" | "network_denied"
+  | "protected_read_denied" | "fresnel_data_write_denied" | "network_denied"
   | "workspace_write_allowed" | "env_allowlist" | "git_hooks_write_denied";
 export interface SelfTestItem { id: SelfTestItemId; passed: boolean; detail?: string }
 export interface SelfTestReport { at: number; durationMs: number; passed: boolean; items: SelfTestItem[] }
@@ -226,11 +226,11 @@ export const SandboxServiceName = "fresnel.sandbox" as const;
 - import 방향 [제안]: `SandboxRunReport`와 `SandboxViolation`은 `sandbox-report.ts`에 둔다. `exec.ts`는 `sandbox-report.ts`만, `sandbox.ts`는 `exec.ts`와 `sandbox-report.ts`를 import한다. `exec.ts`가 `sandbox.ts`를 import하지 않으므로 `import/no-cycle`(타입 import 포함)에 걸리지 않는다(`L0.exec.spec` §3.1).
 - [제안] `describeSandboxStatus`는 F 순수 함수다(`F.readme` §1 예외 1). 소비자 `L4.cli`·`L4.settings-ui`는 구현 패키지를 import할 수 없으므로(DR-14) F에서 가져온다. 설치 안내는 `SandboxStatus.installHints`에 실어 함수가 상태 값만으로 결과를 내게 한다 [제안].
 
-### 3.2 Xeon 정책 → srt 설정 매핑
+### 3.2 Fresnel 정책 → srt 설정 매핑
 
 srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandbox-config.ts:957-1266`, `.d.ts` 대조)으로 확인했다. 실제 격리 효과는 실행으로 확인하지 않았다(같은 문서 §0 1번 [미확인]). 동작 열의 [가정]은 실행 확인 전이다.
 
-| Xeon | srt 설정 | 키 확인 | 동작 |
+| Fresnel | srt 설정 | 키 확인 | 동작 |
 |---|---|---|---|
 | `policy.writeRoots` | `filesystem.allowWrite` | 확인 | 기본은 쓰기 전부 거부, 목록만 허용 [가정] |
 | `policy.writeDeny` ∪ 보호 경로(`write`, `read_write`) | `filesystem.denyWrite` | 확인 | `allowWrite` 안에서도 거부(`denyWrite`가 이긴다) [가정] |
@@ -240,7 +240,7 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 | `policy.network.allowedDomains` | `network.allowedDomains` | 확인 | 빈 목록이면 허용 목록은 비어 있다. 목록 밖 호스트는 아래 `strictAllowlist` 행이 정한다 |
 | `policy.network.deniedDomains` ← 설정 `l0.sandbox.network.blockedDomains` | `network.deniedDomains` | 확인 | 허용 목록보다 먼저 검사. 서비스가 `initialize`에 한 번 넘긴다. srt 스키마가 받지 않는 항목은 빼고 `SandboxStatus.rejectedBlockedDomains`에 목록으로 싣는다(status와 doctor가 보여 준다). 개수는 `sandbox.blocked_domain_rejected` 로그에도 남긴다. 목록은 갱신할 때마다 새로 정하고, 탐지가 끝나지 않은 갱신에서는 빈 목록이다 [결정: M3-REQ-55] |
 | (서비스 고정) | `network.strictAllowlist` = 거짓과 `initialize`의 질의 콜백(항상 허용) | 확인 | 거부 목록은 콜백보다 먼저 검사되므로 목록 밖 호스트는 모두 허용이고 거부 목록만 막는다(차단 목록 방식, 기본 허용). 목록 방식 엄격 모드(콜백 없음, `strictAllowlist` 참)는 `SrtPort.initialize`의 `allowUnlistedHosts` 거짓으로 남아 있다 |
-| `policy.allowEscape` | 없음 | — | Xeon만 쓴다. 참이면 srt로 감싸지 않는다(4.2절) |
+| `policy.allowEscape` | 없음 | — | Fresnel만 쓴다. 참이면 srt로 감싸지 않는다(4.2절) |
 | `l0.sandbox.enabled = false` | srt `initialize` 안 함 | — | status `none`, reason `disabled` |
 | 상태 탐지가 찾은 절대 경로 | `bwrapPath`, `socatPath`, `ripgrep.command`, `seccomp.applyPath` | 확인(`bwrapPath`, `socatPath`는 절대 경로만) | 사이드카에서 헬퍼 위치를 명시(5.3절) |
 | 설정 `l0.sandbox.nestedNamespaces`(기본 거짓) | `enableWeakerNestedSandbox` | 확인 | 참이면 `/proc`을 새로 마운트하지 않고 호스트 것을 묶어 중첩 사용자 네임스페이스를 허용한다. 브라우저 provider(Stagehand, Playwright)용이고 격리가 약해진다(§4.8) [결정: 오케스트레이터 기본값, M3-REQ-56] |
@@ -251,27 +251,27 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 변환 규칙(순수 함수 `toSrtConfig`, `src/policy.ts`):
 
 1. 모든 경로를 절대 경로로 만들고, 존재하는 경로는 realpath로 바꾼다. 없는 경로는 가장 가까운 존재하는 상위의 realpath에 나머지를 붙인다. 정렬하고 중복을 지운다.
-2. Linux에서 `allowWrite`·`denyWrite`는 리터럴 경로만 받는다. 끝의 `/**`는 srt가 버리고 다른 글로브는 건너뛴다("A skipped pattern hides nothing", `_research/notes/L0-1.md` §3.2). 그래서 Xeon은 모든 OS에 리터럴 경로만 넘긴다 [제안].
+2. Linux에서 `allowWrite`·`denyWrite`는 리터럴 경로만 받는다. 끝의 `/**`는 srt가 버리고 다른 글로브는 건너뛴다("A skipped pattern hides nothing", `_research/notes/L0-1.md` §3.2). 그래서 Fresnel은 모든 OS에 리터럴 경로만 넘긴다 [제안].
 3. `basename` 보호 항목(`.env`, `.env.*`)은 명령마다 쓰기 루트 아래를 깊이 `mandatoryDenySearchDepth`까지 훑어 찾은 파일의 리터럴 경로로 바꾼다. 실행 중에 새로 생긴 파일은 덮지 못한다(5.1절).
 4. 변환 결과를 srt `SandboxRuntimeConfigSchema`로 검증한다. 실패는 버그(`Bug`)다. Linux에서 `getLinuxGlobPatternWarnings()`가 비어 있지 않으면 버그다.
 5. 프로세스 전역 설정(`initialize`)에는 네트워크와 고정 값만 넣고, 파일 정책은 명령마다 `customConfig`로 넘긴다. srt의 네트워크 설정은 명령마다 바뀌지 않는다(`_research/notes/L0-1.md` §8).
 
 ### 3.3 보호 경로 (1차)
 
-[제안] `docs/design/18-security.md` §3.11.5 표에서 Helm 전용 경로를 지우고 Xeon 경로로 바꿨다. 줄일 수 없고 `l0.sandbox.protectedPaths.extra`로 더할 수만 있다. `<home>`, `<xeonData>`, `<xeonConfig>`는 `fresnel.os`의 `OsDirs.home`, `OsDirs.data`, `OsDirs.config`다(`L0.os.spec` §3.2, 8.3절). `<root>`는 정책의 각 쓰기 루트다.
+[제안] `docs/design/18-security.md` §3.11.5 표에서 Helm 전용 경로를 지우고 Fresnel 경로로 바꿨다. 줄일 수 없고 `l0.sandbox.protectedPaths.extra`로 더할 수만 있다. `<home>`, `<fresnelData>`, `<fresnelConfig>`는 `fresnel.os`의 `OsDirs.home`, `OsDirs.data`, `OsDirs.config`다(`L0.os.spec` §3.2, 8.3절). `<root>`는 정책의 각 쓰기 루트다.
 
 | 경로 | 일치 | 접근 거부 | 이유 코드 | 18 §3.11.5 대응 |
 |---|---|---|---|---|
-| `<xeonData>/` 전체(단일 DB, WAL, blob) | prefix | 읽기·쓰기 | `xeon_data` | `/srv/volumes/**` 대체. bash로 DB·blob을 직접 고치는 우회 쓰기(13 §3.5.1 W-3)와 다른 세션 내용 읽기를 막는다 |
-| `<xeonConfig>/` 전체 | prefix | 쓰기 | `xeon_config` | `~/.config/helm/**` 대체. 다음 시작 때 설정·플러그인으로 코드가 실행된다 |
-| `<xeonConfig>/secrets/` 전체(메타 파일, 감사 파일, 파일 폴백 age 키 기본 위치 `<xeonConfig>/secrets/age/keys.txt`) | prefix | 읽기·쓰기 | `secret_key` | 새 행. `<xeonConfig>/` 행은 쓰기만 막으므로 비밀 파일의 읽기를 따로 막는다(`L0.secrets.spec` §3.2·§4.7) |
+| `<fresnelData>/` 전체(단일 DB, WAL, blob) | prefix | 읽기·쓰기 | `fresnel_data` | `/srv/volumes/**` 대체. bash로 DB·blob을 직접 고치는 우회 쓰기(13 §3.5.1 W-3)와 다른 세션 내용 읽기를 막는다 |
+| `<fresnelConfig>/` 전체 | prefix | 쓰기 | `fresnel_config` | `~/.config/helm/**` 대체. 다음 시작 때 설정·플러그인으로 코드가 실행된다 |
+| `<fresnelConfig>/secrets/` 전체(메타 파일, 감사 파일, 파일 폴백 age 키 기본 위치 `<fresnelConfig>/secrets/age/keys.txt`) | prefix | 읽기·쓰기 | `secret_key` | 새 행. `<fresnelConfig>/` 행은 쓰기만 막으므로 비밀 파일의 읽기를 따로 막는다(`L0.secrets.spec` §3.2·§4.7) |
 | `SecretService.protectedPaths()`가 돌려주는 절대 경로(설정한 SOPS 파일, `l0.secrets.ageKey.filePath`로 바꾼 파일 폴백 age 키) | exact | 읽기·쓰기 | `secret_key` | SOPS 원본 행 대체. 등록 API를 두지 않고 sandbox가 상태 탐지 때와 `l0.secrets.*` 변경 뒤에 이 목록을 다시 읽는다 [제안] |
 | `<home>/.config/sops/` | prefix | 읽기·쓰기 | `secret_key` | 같음 |
 | age 키 파일: `<home>/.config/sops/age/keys.txt`, macOS `<home>/Library/Application Support/sops/age/keys.txt`, 부모 env `SOPS_AGE_KEY_FILE` 값 | exact | 읽기·쓰기 | `secret_key` | `**/keys.txt` 대체. macOS 기본 위치는 [가정: sops 문서 확인 필요] |
 | `<home>/.ssh/` | prefix | 읽기·쓰기 | `credentials` | 같음 |
 | `.env`, `.env.*`(예외 `.env.example`) | basename | 읽기·쓰기 | `credentials` | 같음 |
 | `<home>/.claude/`, `<home>/.codex/`, `<home>/.pi/` | prefix | 읽기·쓰기 | `agent_credentials` | 같음 |
-| `<home>/.git-credentials`, `<home>/.aws/`, `<home>/.kube/`, `<home>/.config/gcloud/` | prefix·exact | 읽기·쓰기 | `credentials` | 클라우드·저장소 자격 행. 18은 데몬 파일 도구용이었고 Xeon은 샌드박스에도 쓴다 [제안] |
+| `<home>/.git-credentials`, `<home>/.aws/`, `<home>/.kube/`, `<home>/.config/gcloud/` | prefix·exact | 읽기·쓰기 | `credentials` | 클라우드·저장소 자격 행. 18은 데몬 파일 도구용이었고 Fresnel은 샌드박스에도 쓴다 [제안] |
 | `<home>/.config/gh/`, `<home>/.netrc`, `<home>/.docker/config.json`, `<home>/.npmrc`, `<home>/.pypirc` | prefix·exact | 설정 `l0.sandbox.credentialFiles`가 `allow`(기본)이면 쓰기, `deny`이면 읽기·쓰기 | `credentials` | CLI 인증 파일. 기본은 읽기를 허용해 `gh`와 사설 레지스트리 `npm`이 샌드박스 안에서 인증된다 [결정: review.m3-design-inputs D-M3-18 행 2]. 개인 키(`.ssh`)와 클라우드 자격은 항상 읽기도 거부한다 [결정: 오케스트레이터 기본값, D-M3-18은 `~/.npmrc`, `~/.config/gh` 등을 예로만 들었다] |
 | `<home>/.bashrc`, `.bash_profile`, `.zshrc`, `.zprofile`, `.zshenv`, `.profile`, `<home>/.gitconfig` | exact | 쓰기 | `shell_startup` | 같음. srt 자동 보호와 겹친다(README:1142-1190) |
 | `<root>/.git/config`, `<root>/.git/config.worktree`, `<root>/.git/info/attributes`, `<root>/.git/hooks/`, `<root>/.gitmodules` | exact·prefix | 쓰기 | `git_exec` | 같음. 다음 git 호출에서 명령이 실행된다. srt 자동 보호와 겹친다 |
@@ -281,7 +281,7 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 
 - 보호 경로의 기본 집합은 `SandboxProvider.defaultProtectedPaths(dirs)`(OS별)와 공통 표를 합친 것이다. macOS 전용 행은 darwin provider만 낸다.
 - `wrapShell`은 호출자가 넘긴 정책에 보호 경로를 항상 합친다. 호출자가 `readDeny`·`writeDeny`를 비워도 보호 경로는 빠지지 않는다.
-- 쓰기 루트가 보호 경로 안에 있으면(예: `writeRoots`에 `<xeonData>`) `defaultPolicy`와 `wrapShell` 모두 그 쓰기 루트를 지우고 위반 사유를 시작 로그에 남긴다 [제안]. `denyWrite`가 이기므로 결과는 같지만 자동 허용 판정을 흐리지 않기 위해서다.
+- 쓰기 루트가 보호 경로 안에 있으면(예: `writeRoots`에 `<fresnelData>`) `defaultPolicy`와 `wrapShell` 모두 그 쓰기 루트를 지우고 위반 사유를 시작 로그에 남긴다 [제안]. `denyWrite`가 이기므로 결과는 같지만 자동 허용 판정을 흐리지 않기 위해서다.
 
 ### 3.4 exec와의 접점
 
@@ -383,8 +383,8 @@ export function selectSandboxProvider(input: {
 
 | id | 시도(샌드박스 안) | 기대 |
 |---|---|---|
-| `protected_read_denied` | 샌드박스 밖에서 `<xeonData>/selftest/canary`에 무작위 문자열을 쓴 뒤 안에서 `cat` | 종료 코드 0 아님, 출력에 무작위 문자열 없음 |
-| `xeon_data_write_denied` | `touch <xeonData>/selftest/write-probe` | 실패하고 파일이 생기지 않음 |
+| `protected_read_denied` | 샌드박스 밖에서 `<fresnelData>/selftest/canary`에 무작위 문자열을 쓴 뒤 안에서 `cat` | 종료 코드 0 아님, 출력에 무작위 문자열 없음 |
+| `fresnel_data_write_denied` | `touch <fresnelData>/selftest/write-probe` | 실패하고 파일이 생기지 않음 |
 | `network_denied` | `bash -c 'exec 3<>/dev/tcp/example.com/80'` | 실패 [가정: bash `/dev/tcp`가 두 OS에서 동작] |
 | `workspace_write_allowed` | `touch <tmp>/ok` | 성공하고 파일이 생김 |
 | `env_allowlist` | `env` | 출력의 이름 중 `SENSITIVE_ENV_PATTERNS`(`L0.exec.spec` §3.5)에 맞는 것이 0개. 단 srt가 자체 프록시 클라이언트용으로 내보내는 `CLOUDSDK_PROXY_PASSWORD`(프로세스마다 새로 만든 프록시 인증 토큰, srt 0.0.79)는 세지 않는다 [결정: m2 마감 G4-01, 실제 srt로 시험하면 이 이름 때문에 항상 실패했다] |
@@ -392,7 +392,7 @@ export function selectSandboxProvider(input: {
 
 - 하나라도 기대와 다르면 status를 `available: false`, `reason: "self_test_failed"`로 바꾸고 4.5절 정책을 적용한다.
 - 자가 시험 명령은 `allowEscape: false` 정책으로 감싼다. 결과 보고에는 항목 id와 통과 여부, 실패 시 종료 코드만 싣는다. 출력 원문은 싣지 않는다.
-- 시험 뒤 `<xeonData>/selftest/`와 임시 디렉터리를 지운다.
+- 시험 뒤 `<fresnelData>/selftest/`와 임시 디렉터리를 지운다.
 
 ### 4.5 격리 불가 시 동작
 
@@ -411,7 +411,7 @@ export function selectSandboxProvider(input: {
 ### 4.6 doctor와 시작 로그
 
 - F 순수 함수 `describeSandboxStatus(status): SandboxStatusSummary`(3.1절)를 쓴다. `ok`: available. `warn`: `disabled` 또는 `run_unsandboxed`로 실행 중. `critical`: 그 밖의 불가 상태.
-- `missing_dependency`의 `hints`는 `status.installHints`(provider의 `installHint`)다. 이 상태는 환경 문제이므로 `xeon doctor`가 종료 코드 2 계열로 보고하는 것을 `L4.cli.spec`에 요구한다 [제안].
+- `missing_dependency`의 `hints`는 `status.installHints`(provider의 `installHint`)다. 이 상태는 환경 문제이므로 `fresnel doctor`가 종료 코드 2 계열로 보고하는 것을 `L4.cli.spec`에 요구한다 [제안].
 - 시작 로그: `sandbox level=<level> platform=<platform> available=<bool> reason=<reason> onUnavailable=<value>` 한 줄.
 
 ### 4.7 감싸는 범위
@@ -424,7 +424,7 @@ export function selectSandboxProvider(input: {
 
 [결정: review.m3-design-inputs D-M3-19 행 1, M3-REQ-57·56]
 
-- `decideMcpStdioSandbox(source, serverSetting)`(`src/mcp-stdio.ts`)가 서버 정의 출처(`L2.mcp.spec` §3.1 `source`)로 격리 여부를 정한다. `settings:user`는 끔이고 `settings:project`, `mcpjson:project`, `mcpjson:xeon`, `ext:<이름>`, 알 수 없는 출처는 켬이다. 서버별 설정 값(참·거짓)이 있으면 출처 기본값보다 우선한다. 알 수 없는 출처를 켬으로 두는 것은 [결정: 오케스트레이터 기본값]이다.
+- `decideMcpStdioSandbox(source, serverSetting)`(`src/mcp-stdio.ts`)가 서버 정의 출처(`L2.mcp.spec` §3.1 `source`)로 격리 여부를 정한다. `settings:user`는 끔이고 `settings:project`, `mcpjson:project`, `mcpjson:fresnel`, `ext:<이름>`, 알 수 없는 출처는 켬이다. 서버별 설정 값(참·거짓)이 있으면 출처 기본값보다 우선한다. 알 수 없는 출처를 켬으로 두는 것은 [결정: 오케스트레이터 기본값]이다.
 - `shellForMcpStdio(service, shell, policy, decision)`은 켬이면 `service.wrapShell(shell, policy)`, 끔이면 받은 `shell`을 돌려준다. 격리를 쓸 수 없는 상태의 처리는 §4.5가 그대로 정한다. 서버별 설정 키와 호출은 `L2.mcp.spec`이 가진다(B3-SEC). `platform-process`의 MCP stdio 띄우기는 이 함수 대신 `wrapArgv`(4.9절)를 쓴다.
 - 브라우저 provider는 샌드박스 셸 안에서 자체 샌드박스를 띄우려고 중첩 사용자 네임스페이스가 필요하다. 설정 `l0.sandbox.nestedNamespaces`를 켜면 srt `enableWeakerNestedSandbox`가 참이 된다. 기본은 거짓이고 `restart` 반영이다. 켠 상태는 시작 로그에 경고로 남긴다 [제안]. 중첩 허용 때문에 쓰기 거부가 약해질 수 있어(`_research/notes/L0-1.md` §3.6) 브라우저를 쓰지 않는 사용자는 켜지 않는다.
 - `tool.sandbox_bypassed`(샌드박스 밖 실행 감사 이벤트)의 소유자는 L1 tools(`tool.` 접두)이다 [결정: 오케스트레이터 기본값, 10절 2번의 후보 채택]. `platform-sandbox`는 `ShellExecResult.sandbox.unsandboxedBy`만 돌려주고 이벤트를 내지 않는다.
@@ -462,11 +462,11 @@ export function selectSandboxProvider(input: {
 
 | 항목 | macOS | Linux(WSL2 포함) | Windows 네이티브 |
 |---|---|---|---|
-| 격리 수단 | Seatbelt(`sandbox-exec`, 동적 프로필). 시스템 기능이라 추가 설치 없음 | bubblewrap + seccomp(apply-seccomp 정적 바이너리 x64·arm64 번들) | srt `srt-win.exe`는 alpha. Xeon 1차는 쓰지 않는다 |
+| 격리 수단 | Seatbelt(`sandbox-exec`, 동적 프로필). 시스템 기능이라 추가 설치 없음 | bubblewrap + seccomp(apply-seccomp 정적 바이너리 x64·arm64 번들) | srt `srt-win.exe`는 alpha. Fresnel 1차는 쓰지 않는다 |
 | 필요 프로그램 | `rg`(ripgrep) | `bwrap`(0.4.0 이상, 0.5.0 이상 권장), `socat`, `rg`. 없으면 `missing` 목록과 설치 안내, 환경 문제(종료 코드 2 계열) | 해당 없음 |
 | status | `srt` | `srt`. WSL2는 Linux로 다룬다. WSL1은 `none`(`unsupported_os`) | `none`(`unsupported_os`) → `onUnavailable` 적용 |
 | 알려진 제약 | Apple Events·pty 기본 거부. macOS `sandbox-exec`의 Apple 측 지원 상태 [미확인] | Ubuntu 24.04 이후 `kernel.apparmor_restrict_unprivileged_userns`가 bwrap 사용자 네임스페이스를 막는다(sysctl 또는 AppArmor 프로필 필요). 루트 실행은 `CAP_SETFCAP` 필요. 중첩 사용자 네임스페이스 거부로 Chromium·rootless podman이 샌드박스 안에서 실패. x64·arm64 밖은 seccomp 미번들 | srt-win 설치는 관리자 승인 1회. SMB·WSL 기동·시스템 리졸버 DNS는 차단 밖(srt README:1000-1011) |
-| 경로 문법 | gitignore식 글로브 가능. Xeon은 리터럴만 넘긴다 | `allowWrite`·`denyWrite`는 리터럴만 | 해당 없음 |
+| 경로 문법 | gitignore식 글로브 가능. Fresnel은 리터럴만 넘긴다 | `allowWrite`·`denyWrite`는 리터럴만 | 해당 없음 |
 | 위반 기록 | 로그 스트림(`enableLogMonitor` 참) | 프록시 거부만 기본. seccomp 모니터는 진단용이라 기본 끔 | 해당 없음 |
 | 근거 | `_research/notes/L0-1.md` §6 | 같음, `_research/packages.md` §4.2 159행·§6 338행 | 같음, `_research/refs/claude-code.md` §3.2 "네이티브 Windows는 미지원, WSL2 사용"(원문 확인 필요 [가정]) |
 
@@ -536,8 +536,8 @@ export function selectSandboxProvider(input: {
 
 ## 9. 수용 기준
 
-1. Linux·macOS CI의 실제 srt에서 샌드박스 안 `cat <home>/.ssh/<canary>`와 `cat <xeonData>/selftest/canary`가 실패하고 출력에 canary 값이 없다.
-2. 샌드박스 안 `touch <xeonData>/x`, `touch <root>/.git/hooks/pre-commit`, `echo >> <root>/.git/config`가 실패하고 파일이 바뀌지 않는다.
+1. Linux·macOS CI의 실제 srt에서 샌드박스 안 `cat <home>/.ssh/<canary>`와 `cat <fresnelData>/selftest/canary`가 실패하고 출력에 canary 값이 없다.
+2. 샌드박스 안 `touch <fresnelData>/x`, `touch <root>/.git/hooks/pre-commit`, `echo >> <root>/.git/config`가 실패하고 파일이 바뀌지 않는다.
 3. 샌드박스 안 `touch <writeRoot>/ok`가 성공한다.
 4. 호출자가 `readDeny: []`, `writeDeny: []`인 정책으로 `wrapShell`을 써도 1·2번 결과가 같다(보호 경로는 줄일 수 없다). `l0.sandbox.protectedPaths.extra`에 경로를 더하면 그 경로 읽기도 실패한다.
 5. 의존 프로그램이 없는 환경(가짜 provider로 `bwrap` 부재)에서 `status()`가 `{ available: false, reason: "missing_dependency", missing: ["bwrap"] }`이고 `describeSandboxStatus`의 `severity`가 `critical`, `hints`에 설치 안내가 있다.
@@ -547,7 +547,7 @@ export function selectSandboxProvider(input: {
 9. 성공한 샌드박스 실행의 `ShellExecResult.sandbox.sandboxed`가 참이고, M1 스모크의 bash 도구 호출 이벤트 details에서 이 값을 확인할 수 있다.
 10. `wrapShell`이 넘긴 `secretEnv` 참조는 아래 `Shell`에 그대로 도착하고, `SandboxRunReport`와 시작 로그에 비밀 값이 없다.
 11. srt 래핑이 throw하면 `sandbox_failed`이고 `cleanupAfterCommand` 호출이 0회다.
-12. 실제 srt와 OS 격리(Linux bubblewrap, macOS Seatbelt)로 `sandbox.int.test.ts`가 다음을 확인한다. 각 거부 시험은 같은 명령을 감싸지 않은 Shell로 돌려 성공함을 보이는 대조를 함께 둔다. (a) 쓰기 루트 안 쓰기는 성공하고 `sandbox.sandboxed`가 참이다. (b) 쓰기 루트 밖 쓰기가 종료 코드 0이 아니고 파일이 생기지 않는다(M1 종료 조건). (c) 쓰기 루트 안의 `.git/hooks` 쓰기가 거부된다. (d) `<xeonData>/selftest/canary` 읽기가 거부된다. (e) 호출자 `readDeny`·`writeDeny`가 비어도 (c)와 `protectedPaths.extra` 경로 읽기 거부가 그대로다. (f) 로컬 TCP 서버로 가는 `/dev/tcp` 연결이 거부되고 서버가 연결을 받지 못한다. (g) 자가 시험 여섯 항목이 모두 통과한다.
+12. 실제 srt와 OS 격리(Linux bubblewrap, macOS Seatbelt)로 `sandbox.int.test.ts`가 다음을 확인한다. 각 거부 시험은 같은 명령을 감싸지 않은 Shell로 돌려 성공함을 보이는 대조를 함께 둔다. (a) 쓰기 루트 안 쓰기는 성공하고 `sandbox.sandboxed`가 참이다. (b) 쓰기 루트 밖 쓰기가 종료 코드 0이 아니고 파일이 생기지 않는다(M1 종료 조건). (c) 쓰기 루트 안의 `.git/hooks` 쓰기가 거부된다. (d) `<fresnelData>/selftest/canary` 읽기가 거부된다. (e) 호출자 `readDeny`·`writeDeny`가 비어도 (c)와 `protectedPaths.extra` 경로 읽기 거부가 그대로다. (f) 로컬 TCP 서버로 가는 `/dev/tcp` 연결이 거부되고 서버가 연결을 받지 못한다. (g) 자가 시험 여섯 항목이 모두 통과한다.
 13. 12번 시험의 필수 바이너리(Linux: `bwrap`, `socat`, `rg` / macOS: `rg`)가 없으면, 환경 변수 `FRESNEL_REQUIRE_SANDBOX=1`이거나 `CI=true`일 때 종료 코드 2(환경 문제)로 끝나고 stderr에 `ENV sandbox.int: missing <이름>. <설치 안내>`를 쓴다. 그 밖의 기기에서는 건너뛰고 stderr에 `SKIPPED ENV sandbox.int: …`를 한 줄 남긴다. CI가 이 파일을 건너뛴 채 통과하지 않게 하는 쪽은 Z 트랙(G4-07)이 `test-capped.sh`의 종료 코드 전달과 건너뜀 수 출력으로 잇는다.
 14. `test/wrap-argv.test.ts`가 4.9절을 값으로 확인한다. 격리 가능 시 srt가 준 argv와 한 번만 인용한 명령 문자열, 부모 env와 다른 항목만 든 env, `wrapShell`과 같은 srt 설정, `cleanup` 두 번 호출에 `cleanupAfterCommand` 한 번, 래핑 실패의 `failed`(이름과 code만)와 `cleanupAfterCommand` 0회, 중단의 `aborted`, 격리 불가의 `unavailable`, 실행 허락 시 요청 그대로의 argv와 `unsandboxedBy`, 허용 도메인의 `failed`.
 

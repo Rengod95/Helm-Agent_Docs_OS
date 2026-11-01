@@ -52,7 +52,7 @@ xeon/packages/contracts/src/
   records/catalog/schedule.ts         # H1. SCHEDULE_EVENT_CATALOG, payload 스키마(spec §3.7)
 
 xeon/packages/cap-schedule/
-  package.json             # exports ".", "./host", "./testing". xeon { layer: "L2", domain: "schedule" }
+  package.json             # exports ".", "./host", "./testing". fresnel { layer: "L2", domain: "schedule" }
   tsconfig.json
   migrations/
     0001_cap_schedule.sql  # 세션 밖 테이블(cap_schedule_timers, cap_schedule_runs). scoped 핸들로 적용

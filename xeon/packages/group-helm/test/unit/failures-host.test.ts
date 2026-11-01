@@ -36,7 +36,7 @@ test("failures.unknown-error-rethrown: an unexpected exception leaves the drive 
     report: () => {},
   });
   await t.host.registerPlatform({
-    name: "xeon-groups",
+    name: "fresnel-groups",
     setup(ctx) {
       ctx.providePort(LeaseArbiterPortKey, service);
     },

@@ -112,7 +112,7 @@ describe("error classes", () => {
     expect(new ExecutionError("unknown", "m") instanceof FileError).toBe(false);
   });
 
-  test("error codes include the Xeon additions", () => {
+  test("error codes include the Fresnel additions", () => {
     const codes: readonly ExecutionErrorCode[] = [
       "env_denied",
       "secret_unavailable",

@@ -5,7 +5,7 @@
     "ext.account-rotation.acknowledgeRisk": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -25,7 +25,7 @@
     "ext.account-rotation.enabled": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -52,7 +52,7 @@
         "process"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -78,7 +78,7 @@
       ],
       "maxLength": 16,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -121,7 +121,7 @@
         }
       },
       "type": "object",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -145,7 +145,7 @@
     "ext.helm.enabled": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -172,7 +172,7 @@
         "process"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -194,7 +194,7 @@
       "maximum": 8,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -219,7 +219,7 @@
     "ext.helm.writeGuard": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -245,7 +245,7 @@
       "maximum": 2147483647,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -273,7 +273,7 @@
       },
       "maxItems": 256,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -296,7 +296,7 @@
       "maximum": 1073741824,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -312,7 +312,7 @@
       "maxLength": 4096,
       "minLength": 1,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -335,7 +335,7 @@
       "maximum": 1099511627776,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -359,7 +359,7 @@
       "maximum": 3650,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -383,7 +383,7 @@
       "maximum": 2147483647,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -406,7 +406,7 @@
       "maxLength": 4096,
       "minLength": 1,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed"
         ],
@@ -426,7 +426,7 @@
       ],
       "maxLength": 8,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -448,7 +448,7 @@
     "l0.os.telemetry.enabled": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -470,7 +470,7 @@
       "maxLength": 2048,
       "minLength": 1,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -495,7 +495,7 @@
       ],
       "maxLength": 16,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -520,7 +520,7 @@
         "fork"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -541,7 +541,7 @@
     "l0.process.service.enabled": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -563,7 +563,7 @@
       "maximum": 86400000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -584,7 +584,7 @@
     "l0.process.service.remote": {
       "default": "",
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -606,7 +606,7 @@
       "maximum": 120000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -622,7 +622,7 @@
       "maximum": 60000,
       "minimum": 500,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -648,7 +648,7 @@
       ],
       "maxLength": 8,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -669,7 +669,7 @@
     "l0.sandbox.enabled": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -690,7 +690,7 @@
     "l0.sandbox.escapeRetry": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -711,7 +711,7 @@
     "l0.sandbox.nestedNamespaces": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -738,7 +738,7 @@
       },
       "maxItems": 256,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -766,7 +766,7 @@
       ],
       "maxLength": 32,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -793,7 +793,7 @@
       },
       "maxItems": 256,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -817,7 +817,7 @@
       "maximum": 1440,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -837,7 +837,7 @@
       },
       "maxItems": 256,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -866,7 +866,7 @@
         }
       ],
       "default": null,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -894,7 +894,7 @@
       ],
       "maxLength": 16,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -920,7 +920,7 @@
       ],
       "maxLength": 16,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -945,7 +945,7 @@
       ],
       "maxLength": 16,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -967,7 +967,7 @@
       "maximum": 3650,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -995,7 +995,7 @@
       ],
       "maxLength": 32,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1017,7 +1017,7 @@
       "maximum": 100000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1040,7 +1040,7 @@
       "maximum": 86400,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1086,7 +1086,7 @@
       "minItems": 1,
       "type": "array",
       "uniqueItems": true,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1107,7 +1107,7 @@
       "const": true,
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed"
         ],
@@ -1135,7 +1135,7 @@
         }
       ],
       "default": null,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1177,7 +1177,7 @@
       },
       "maxItems": 64,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1198,7 +1198,7 @@
     "l0.store.blobGcEnabled": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1221,7 +1221,7 @@
       "maximum": 2592000000,
       "minimum": 600000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1244,7 +1244,7 @@
       "maximum": 60000,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1267,7 +1267,7 @@
         }
       ],
       "default": null,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1283,7 +1283,7 @@
       "maximum": 60000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1306,7 +1306,7 @@
       "maximum": 600000,
       "minimum": 3000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1328,7 +1328,7 @@
     "l0.store.macFullFsync": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1349,7 +1349,7 @@
     "l0.store.requireFts5": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1371,7 +1371,7 @@
       "maximum": 20,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1397,7 +1397,7 @@
       "maximum": 32,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1423,7 +1423,7 @@
       "maximum": 5,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1448,7 +1448,7 @@
       "maximum": 200000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1471,7 +1471,7 @@
     "l1.context.autoCompact": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1499,7 +1499,7 @@
       ],
       "maxLength": 8,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1520,7 +1520,7 @@
       "default": "",
       "maxLength": 4000,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1544,7 +1544,7 @@
       "maximum": 262144,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1570,7 +1570,7 @@
       "maximum": 100000,
       "minimum": 50,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1592,7 +1592,7 @@
     "l1.context.pruneToolResults": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1617,7 +1617,7 @@
       "maximum": 20,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1641,7 +1641,7 @@
       "maximum": 262144,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1667,7 +1667,7 @@
       "maximum": 100,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1694,7 +1694,7 @@
       "maximum": 10000,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1721,7 +1721,7 @@
       "maximum": 50,
       "minimum": 2,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1747,7 +1747,7 @@
       "maximum": 50,
       "minimum": 2,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1771,7 +1771,7 @@
     "l1.loop.repeat.enabled": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1833,7 +1833,7 @@
       },
       "maxItems": 64,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -1860,7 +1860,7 @@
       },
       "maxItems": 256,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1888,7 +1888,7 @@
       ],
       "maxLength": 8,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1918,7 +1918,7 @@
         }
       ],
       "default": null,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1948,7 +1948,7 @@
       },
       "maxItems": 256,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -1985,7 +1985,7 @@
         }
       },
       "type": "object",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2053,7 +2053,7 @@
       },
       "maxItems": 64,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2117,7 +2117,7 @@
         }
       },
       "type": "object",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2166,7 +2166,7 @@
         "maxDelayMs"
       ],
       "type": "object",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -2195,7 +2195,7 @@
         }
       ],
       "default": null,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2227,7 +2227,7 @@
         }
       ],
       "default": null,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2259,7 +2259,7 @@
         }
       ],
       "default": null,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2291,7 +2291,7 @@
         }
       ],
       "default": null,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2323,7 +2323,7 @@
         }
       ],
       "default": null,
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2394,7 +2394,7 @@
         "max"
       ],
       "type": "object",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2426,7 +2426,7 @@
       ],
       "maxLength": 8,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2449,7 +2449,7 @@
     "l1.persistence.autoResume": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -2471,11 +2471,11 @@
       "default": "pi-jsonl",
       "enum": [
         "pi-jsonl",
-        "xeon-jsonl"
+        "fresnel-jsonl"
       ],
       "maxLength": 16,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2498,7 +2498,7 @@
       "maximum": 20,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -2521,7 +2521,7 @@
       "maximum": 3650,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -2545,7 +2545,7 @@
       "maximum": 100000,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -2568,7 +2568,7 @@
       "maximum": 100,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2594,7 +2594,7 @@
       "maximum": 100,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2620,7 +2620,7 @@
       "maximum": 64,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2648,7 +2648,7 @@
         "one-at-a-time"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2675,7 +2675,7 @@
         "one-at-a-time"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2698,7 +2698,7 @@
     "l1.tools.bypassAllowed": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed"
         ],
@@ -2720,7 +2720,7 @@
       "maximum": 128,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2746,7 +2746,7 @@
       "maximum": 1048576,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2771,7 +2771,7 @@
       "maximum": 100000,
       "minimum": 100,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2801,7 +2801,7 @@
       ],
       "maxLength": 16,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -2992,7 +2992,7 @@
       },
       "maxItems": 512,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3021,7 +3021,7 @@
       ],
       "maxLength": 16,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3047,7 +3047,7 @@
       "maximum": 604800,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3074,7 +3074,7 @@
       "maximum": 268435456,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3099,7 +3099,7 @@
       "maximum": 10000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3127,7 +3127,7 @@
         "next"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3150,7 +3150,7 @@
     "l2.artifacts.tools.reviewRequest": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3174,7 +3174,7 @@
     "l2.artifacts.tools.sessionRename": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3199,7 +3199,7 @@
       "maximum": 104857600,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3227,7 +3227,7 @@
       ],
       "maxLength": 16,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3250,7 +3250,7 @@
     "l2.knowledge.memory.enabled": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3275,7 +3275,7 @@
       "maximum": 20000,
       "minimum": 200,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3298,7 +3298,7 @@
       "maximum": 20000,
       "minimum": 200,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3323,7 +3323,7 @@
         "project"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3346,7 +3346,7 @@
     "l2.knowledge.search.enabled": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3369,7 +3369,7 @@
     "l2.knowledge.search.includeHiddenDefault": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3391,7 +3391,7 @@
       "maximum": 1000000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3412,7 +3412,7 @@
     "l2.knowledge.skills.enabled": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3437,7 +3437,7 @@
       "maximum": 50000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3462,7 +3462,7 @@
       "maximum": 1024,
       "minimum": 40,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3491,7 +3491,7 @@
       },
       "maxItems": 64,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3512,7 +3512,7 @@
     "l2.knowledge.skills.projectSkills": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3532,7 +3532,7 @@
     "l2.knowledge.write.approval": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3555,7 +3555,7 @@
       "maximum": 365,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3576,7 +3576,7 @@
     "l2.knowledge.write.scan": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3603,7 +3603,7 @@
       },
       "maxItems": 32,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3630,7 +3630,7 @@
       },
       "maxItems": 500,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3655,7 +3655,7 @@
         "deny"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3680,7 +3680,7 @@
       "maximum": 3600000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3706,7 +3706,7 @@
       "maximum": 600000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3735,7 +3735,7 @@
       },
       "maxItems": 500,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3756,7 +3756,7 @@
     "l2.mcp.importMcpJson": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3779,7 +3779,7 @@
       "maximum": 50,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3800,7 +3800,7 @@
     "l2.mcp.managedOnly": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed"
         ],
@@ -3821,7 +3821,7 @@
       "maximum": 100,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3844,7 +3844,7 @@
       "maximum": 3600000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3867,7 +3867,7 @@
       "maximum": 10485760,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -3891,7 +3891,7 @@
     "l2.mcp.sandbox.projectSource": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -3911,7 +3911,7 @@
     "l2.mcp.sandbox.userSource": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -4101,7 +4101,7 @@
         }
       },
       "type": "object",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4128,7 +4128,7 @@
         "pin"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4149,7 +4149,7 @@
     "l2.web.browse.allowFileUpload": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4170,7 +4170,7 @@
     "l2.web.browse.allowJavascriptExec": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4191,7 +4191,7 @@
     "l2.web.browse.allowNamedProfiles": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -4212,7 +4212,7 @@
       "default": "",
       "maxLength": 4096,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4233,7 +4233,7 @@
     "l2.web.browse.headless": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4258,7 +4258,7 @@
       "maximum": 10000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4284,7 +4284,7 @@
       "maximum": 480,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4310,7 +4310,7 @@
       "maximum": 16,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4334,7 +4334,7 @@
       "maximum": 100,
       "minimum": 0,
       "type": "number",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4364,7 +4364,7 @@
       },
       "maxItems": 32,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4389,7 +4389,7 @@
       "maxLength": 96,
       "pattern": "^(plugin:[a-z][a-z0-9-]{1,31}|[a-z][a-z0-9-]{0,63})$",
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4418,7 +4418,7 @@
         "node"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -4440,7 +4440,7 @@
       "maximum": 1440,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4465,7 +4465,7 @@
       "maximum": 8192,
       "minimum": 16,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -4488,7 +4488,7 @@
       "maximum": 1440,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4515,7 +4515,7 @@
         "defuddle"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4539,7 +4539,7 @@
       "maximum": 500000,
       "minimum": 2000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4569,7 +4569,7 @@
       },
       "maxItems": 32,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4595,7 +4595,7 @@
         "never"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4620,7 +4620,7 @@
       "maximum": 120,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4646,7 +4646,7 @@
       "maximum": 100000,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4673,7 +4673,7 @@
       "maximum": 100000,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4704,7 +4704,7 @@
       },
       "maxItems": 500,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4726,7 +4726,7 @@
     "l2.web.policy.allowPrivateNetwork": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4754,7 +4754,7 @@
       },
       "maxItems": 500,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4783,7 +4783,7 @@
       },
       "maxItems": 500,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4811,7 +4811,7 @@
         "never"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4839,7 +4839,7 @@
         "deny"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4861,7 +4861,7 @@
     "l2.web.research.keepUnverified": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4886,7 +4886,7 @@
       "maximum": 100,
       "minimum": 0.01,
       "type": "number",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4912,7 +4912,7 @@
       "maxLength": 96,
       "pattern": "^(plugin:[a-z][a-z0-9-]{1,31}|[a-z][a-z0-9-]{0,63})$",
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4942,7 +4942,7 @@
         "off"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4971,7 +4971,7 @@
       },
       "maxItems": 32,
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -4996,7 +4996,7 @@
       "maximum": 4,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5022,7 +5022,7 @@
       "maxLength": 96,
       "pattern": "^(plugin:[a-z][a-z0-9-]{1,31}|[a-z][a-z0-9-]{0,63})$",
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5048,7 +5048,7 @@
       "maxLength": 2048,
       "pattern": "^(|https?://[^\\s]+)$",
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5072,7 +5072,7 @@
       "maximum": 10,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5097,7 +5097,7 @@
       "maxLength": 128,
       "minLength": 1,
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5121,7 +5121,7 @@
     "l2.work.plans.requireApproval": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5145,7 +5145,7 @@
     "l2.workspace.edit.fuzzy": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5171,7 +5171,7 @@
       "maximum": 100000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5197,7 +5197,7 @@
       "maximum": 10000,
       "minimum": 80,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5223,7 +5223,7 @@
       "maximum": 10000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5247,7 +5247,7 @@
     "l2.workspace.grep.rgPath": {
       "default": "",
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -5270,7 +5270,7 @@
       "maximum": 52428800,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5295,7 +5295,7 @@
       "maximum": 16384,
       "minimum": 64,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5320,7 +5320,7 @@
       "maximum": 268435456,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -5344,7 +5344,7 @@
       "maximum": 16384,
       "minimum": 64,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5369,7 +5369,7 @@
       "maximum": 10000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5395,7 +5395,7 @@
       "maximum": 10485760,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5421,7 +5421,7 @@
       "maximum": 100000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5447,7 +5447,7 @@
       "maximum": 86400,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5474,7 +5474,7 @@
       "maximum": 10485760,
       "minimum": 1024,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5500,7 +5500,7 @@
       "maximum": 100000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5524,7 +5524,7 @@
     "l3.group-sdk.instrumentation": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5550,7 +5550,7 @@
       "maximum": 1000000,
       "minimum": 1000,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -5576,7 +5576,7 @@
       "maximum": 256,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -5603,7 +5603,7 @@
         "never"
       ],
       "type": "string",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -5625,7 +5625,7 @@
       "maximum": 20,
       "minimum": 0,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -5647,7 +5647,7 @@
       "maximum": 86400,
       "minimum": 10,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -5671,7 +5671,7 @@
         "type": "string"
       },
       "type": "array",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -5693,7 +5693,7 @@
       "maximum": 1000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5714,7 +5714,7 @@
     "x.operations.autoDisable.enabled": {
       "default": true,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5737,7 +5737,7 @@
       "maximum": 1,
       "minimum": 0.05,
       "type": "number",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5760,7 +5760,7 @@
       "maximum": 10000,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5783,7 +5783,7 @@
       "maximum": 10000,
       "minimum": 5,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5806,7 +5806,7 @@
       "maximum": 600000,
       "minimum": 100,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5831,7 +5831,7 @@
       "maximum": 600000,
       "minimum": 100,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5856,7 +5856,7 @@
       "maximum": 600000,
       "minimum": 100,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5880,7 +5880,7 @@
       "maximum": 30000,
       "minimum": 100,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5904,7 +5904,7 @@
       "maximum": 60000,
       "minimum": 50,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5929,7 +5929,7 @@
       "maximum": 600000,
       "minimum": 100,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -5952,7 +5952,7 @@
     "x.operations.safeMode.default": {
       "default": false,
       "type": "boolean",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -5974,7 +5974,7 @@
       "maximum": 100,
       "minimum": 1,
       "type": "integer",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user"
@@ -6013,7 +6013,7 @@
         }
       },
       "type": "object",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -6051,7 +6051,7 @@
         }
       },
       "type": "object",
-      "x-xeon": {
+      "x-fresnel": {
         "allowedScopes": [
           "managed",
           "user",
@@ -6073,5 +6073,5 @@
     }
   },
   "type": "object",
-  "x-xeon-unknownKeys": "warn"
+  "x-fresnel-unknownKeys": "warn"
 }

@@ -95,7 +95,7 @@ flowchart TD
 | L3 → L1 `core-*` | 순위상 허용이나 DR-14로 구현 import 금지. `fresnel.agents` 등은 F 타입으로 주입받는다 | DR-14, `eng.context-map.design` §4.1 helm·learning 행 |
 | 테스트 파일 → 다른 패키지 `testing` 서브패스 | 테스트 파일만 허용 [결정: review.decisions-2 U-17] | DR-08, DR-14 예외 3 |
 
-각 패키지 `package.json`의 `xeon` 필드(현재 값):
+각 패키지 `package.json`의 `fresnel` 필드(현재 값):
 
 | 패키지 | `fresnel.layer` | `fresnel.domain` | routes.yaml 도메인 | 상태 |
 |---|---|---|---|---|
@@ -110,7 +110,7 @@ flowchart TD
 | 대상 | 규칙 | 정본 |
 |---|---|---|
 | 그룹 이름(확장 이름) | 기본 그룹 `helm`, `learning`. 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음)을 따른다 [결정: review.decisions-2 U-18]. 밑줄을 금지하므로 테이블 접두의 경계를 하나로 읽는다 | `L3.group-sdk.spec` §3.2 `GROUP_NAME_PATTERN`, `L3.slots.spec` §3.3 |
-| 예약 이름 | 정본은 `RESERVED_GROUP_NAMES`(`L3.group-sdk.spec` §3.2): `core`, `cap`, `xh`, `sys`, `p`, `ext`, `grp`, `x`, `xeon`, L2 도메인 이름(`workspace`, `mcp`, `web`, `knowledge`, `work`, `dialog`, `artifacts`, `schedule`), `auto`, `all`, `none`, `group`, `groups`, `kit`. 설치된 확장 이름과의 충돌은 `name_conflict`로 따로 거부한다 | `L3.group-sdk.spec` §3.2, `eng.context-map.design` §5.2, `F.extensions.spec` §4.7 `name_reserved` |
+| 예약 이름 | 정본은 `RESERVED_GROUP_NAMES`(`L3.group-sdk.spec` §3.2): `core`, `cap`, `xh`, `sys`, `p`, `ext`, `grp`, `x`, `fresnel`, L2 도메인 이름(`workspace`, `mcp`, `web`, `knowledge`, `work`, `dialog`, `artifacts`, `schedule`), `auto`, `all`, `none`, `group`, `groups`, `kit`. 설치된 확장 이름과의 충돌은 `name_conflict`로 따로 거부한다 | `L3.group-sdk.spec` §3.2, `eng.context-map.design` §5.2, `F.extensions.spec` §4.7 `name_reserved` |
 | scope id | 주 scope id는 그룹 이름. 하위 scope는 `<그룹>/<하위>`(`SCOPE_ID_PATTERN`) | `F.extensions.spec` §3.2 |
 | 그룹 레코드 kind | `grp.<그룹>.<영역>.<이름>`(`RecordKind`, 4마디) | `F.extensions.spec` §3.6 |
 | 커스텀 메시지 `customType` | 레코드 kind와 같은 형식 | `F.extensions.spec` §3.2 `PostItem` |
@@ -239,7 +239,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 
 ## 9. 층 수용 기준
 
-1. M1: 테스트 그룹 하나가 `on`(tap, first, chain), `post`, `drive`를 쓰는 테이프 세션에서 `xeon chat` 한 턴이 실행되고, 그 그룹을 켜고 끄는 요청이 단계 경계에서 적용된다(`_research/foundation-plan.md` §5 P4, §6 M1).
+1. M1: 테스트 그룹 하나가 `on`(tap, first, chain), `post`, `drive`를 쓰는 테이프 세션에서 `fresnel chat` 한 턴이 실행되고, 그 그룹을 켜고 끄는 요청이 단계 경계에서 적용된다(`_research/foundation-plan.md` §5 P4, §6 M1).
 2. M2(UC-2): Helm이 확산 단계일 때 쓰기 도구 호출은 실행되지 않고 거부 사유가 모델에 돌아가며, 같은 호출은 Helm을 끈 다음 턴에서 실행된다. 렌즈 N개로 탐구하면 서브에이전트 N개가 시작되고, 결과 커밋 이벤트 뒤에 적용 턴이 정확히 한 번 실행된다(`product.usecases.spec` UC-2).
 3. M3(UC-3): 카운터 임계를 넘는 테이프 세션을 실행하면 검토 포크가 백그라운드로 한 번 실행되고 후보가 대기열에 들어가며, 승인 전에는 스킬 디렉터리와 메모리 파일의 내용이 바뀌지 않는다. Helm이 drive 임대를 가진 상태에서도 학습 그룹의 트리거와 검토 포크가 동작한다(`product.usecases.spec` UC-3).
 4. M3: `group-learning`을 추가하는 변경에서 `contracts`, `ext-host`, `platform-*`, `core-*` 경로의 diff가 0이다(`product.scope.spec` §4.4, `product.vision.spec` S1).

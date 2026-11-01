@@ -67,7 +67,7 @@ export function fileErrorCode(code: FileErrorCode): CommonErrorCode {
 }
 
 /**
- * 표: ExecutionErrorCode → CapabilityError.code (spec §4.1). Xeon 추가 코드 넷은 표에 없어 가장 보수적인 쪽으로
+ * 표: ExecutionErrorCode → CapabilityError.code (spec §4.1). Fresnel 추가 코드 넷은 표에 없어 가장 보수적인 쪽으로
  * 정한다: 막은 것은 denied(`detail.by`로 출처), 샌드박스 래핑 실패는 internal.
  */
 export function executionErrorCode(code: ExecutionErrorCode): CommonErrorCode {

@@ -81,7 +81,7 @@ function propertyOf(def: SettingDef): JsonObject {
     since: def.since,
   };
   if (def.ui !== undefined) meta["ui"] = { ...def.ui };
-  property["x-xeon"] = meta;
+  property["x-fresnel"] = meta;
   return property;
 }
 
@@ -106,7 +106,7 @@ export function settingsJsonSchema(
     type: "object",
     properties,
     additionalProperties: true,
-    "x-xeon-unknownKeys": "warn",
+    "x-fresnel-unknownKeys": "warn",
   };
   return sortObject(document);
 }

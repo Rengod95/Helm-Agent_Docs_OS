@@ -3,7 +3,7 @@ import type {
   ItemRecord,
   Message,
   UserMessage,
-  XeonCustomMessage,
+  FresnelCustomMessage,
 } from "@fresnel/contracts/conversation";
 
 // L1.context.spec §4.1 3번. ItemRecord, 컴팩션 요약, 떠난 가지 요약을 모델에 보낼 Message로 바꾼다.
@@ -17,7 +17,7 @@ export const BRANCH_SUMMARY_PREFIX =
 const BRANCH_SUMMARY_SUFFIX = "</summary>";
 
 /** custom 메시지는 display와 상관없이 content만 사용자 메시지로 보낸다. details와 customType은 모델에 보내지 않는다 */
-export function customToUser(message: XeonCustomMessage): UserMessage {
+export function customToUser(message: FresnelCustomMessage): UserMessage {
   return { role: "user", content: message.content, timestamp: message.timestamp };
 }
 

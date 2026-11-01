@@ -198,10 +198,10 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 - 커밋 범위는 다음 넷으로 한정한다 [결정: `_research/foundation-plan.md` §6].
   - `xeon/`
   - `docs/xeon/`
-  - `.github/workflows/xeon-ci.yml`
-  - `.claude/skills/xeon-*`
+  - `.github/workflows/fresnel-ci.yml`
+  - `.claude/skills/fresnel-*`
 - 커밋할 때는 위 경로를 명시해서 add한다. 레거시 미추적 파일은 커밋에 넣지 않는다.
-- `docs/xeon/`은 "설계 문서는 `docs/design/`에 둔다"는 기존 결정 40의 예외다. 예외 근거는 4.3절과 `xeon.readme`다.
+- `docs/xeon/`은 "설계 문서는 `docs/design/`에 둔다"는 기존 결정 40의 예외다. 예외 근거는 4.3절과 `fresnel.readme`다.
 
 ## 5. 실패와 경계 사례
 

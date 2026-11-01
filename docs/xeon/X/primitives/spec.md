@@ -56,7 +56,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 | 임대 차수 (leaseEpoch) | (thread, scope)의 활성 가지 위 `lease.acquired` 개수. 1부터 센다 |
 | 호출 (invocation) | drive 함수를 한 번 부른 것. 임대 하나에 여러 번 일어난다 |
 
-턴과 step의 대응은 F.extensions.spec §2를 따른다. pi `turn_*` 지점은 Xeon step 경계에서 발화한다.
+턴과 step의 대응은 F.extensions.spec §2를 따른다. pi `turn_*` 지점은 Fresnel step 경계에서 발화한다.
 
 ## 3. 인터페이스
 
@@ -1356,7 +1356,7 @@ recordPrivate(kind, payload):
 
 [결정] 도구, 명령, provider 등록은 확장 지점에 넣지 않고 pi API 형태를 따른다(ADR-0007 §3.4).
 
-| pi API(`types.ts` 줄) | 처리 | Xeon 경로 | 대상 |
+| pi API(`types.ts` 줄) | 처리 | Fresnel 경로 | 대상 |
 |---|---|---|---|
 | `registerTool`(1643) | 유지 | `hostOf(g).registerTool(def)` | `ToolsPort`(`fresnel.tools`, L1.tools.spec) |
 | `registerCommand`(1652) | 유지 | `registerCommand(name, def)` | X 표 → L4(CLI·데스크톱 명령) |
@@ -1378,7 +1378,7 @@ recordPrivate(kind, payload):
 | `ctx.ui.*` | 범위 밖 | L2.dialog, L4 | X.loading-trust.spec 어댑터 |
 | 명령 전용 세션 제어(`newSession`, `reload`, `fork` 등) | 비지원 | drive와 L4 명령 | [미결] `_research/notes/X-3.md` §5 2번 |
 
-- 위 표는 Xeon 확장이 쓰는 `hostOf(g)` API다. pi 호환은 두지 않으므로(adr.0017 §3.7) 표의 pi 열은 출처 기록일 뿐 어댑터 대상이 아니다. 렌더러는 함수가 아니라 `RendererResourceDef`(모듈 경로)로 등록한다.
+- 위 표는 Fresnel 확장이 쓰는 `hostOf(g)` API다. pi 호환은 두지 않으므로(adr.0017 §3.7) 표의 pi 열은 출처 기록일 뿐 어댑터 대상이 아니다. 렌더러는 함수가 아니라 `RendererResourceDef`(모듈 경로)로 등록한다.
 
 등록 규칙:
 
@@ -1473,7 +1473,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - `driveDefaultLimits`·`driveLimits`의 `ui.tab`은 `plugins`, `ui.widget`은 `table`이다. `activeDriveGroup`은 `select`, `capabilityProviders`는 `table`이다 [제안]. 두 상한 키는 F 설정 정의(`defineSettings`)의 `allowedScopes`·`ui` 메타데이터를 다른 키와 같은 방식으로 갖는다.
 - [결정: review.decisions-2 S-15] drive 보유 그룹 설정은 `x.primitives.activeDriveGroup` 하나다. L3 문서는 별도 키를 두지 않고 이 키를 쓴다. L4 설정 화면은 이 표의 탭을 따른다([결정: review.decisions-2 S-11]).
 - [결정: review.decisions-2 U-12] 상한을 명시하지 않은 임대의 기본값은 `driveDefaultLimits` `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`이다. 값 근거는 Helm 기본값과 같다(`L3.helm.spec` §6) [제안]. 그룹 덮어쓰기(예: `ext.helm.driveLimits`)는 각 그룹이 소유하고 `DriveOptions.limits`로 넘긴다. `driveLimits`는 천장이고 기본값 `{}`다(§4.4.2).
-- 명령 [가정: L4.cli.spec이 이름을 정한다]: `xeon ext drive <scopeId>`가 `activeDriveGroup`을 세션 범위로 바꾸고, `xeon ext enable|disable <scopeId>`가 `ScopeHandle.enable/disable`을 부른다.
+- 명령 [가정: L4.cli.spec이 이름을 정한다]: `fresnel ext drive <scopeId>`가 `activeDriveGroup`을 세션 범위로 바꾸고, `fresnel ext enable|disable <scopeId>`가 `ScopeHandle.enable/disable`을 부른다.
 - 파일: 사용자·프로젝트 설정 파일의 같은 키(F.wire-settings.spec).
 
 ## 7. 확장 지점

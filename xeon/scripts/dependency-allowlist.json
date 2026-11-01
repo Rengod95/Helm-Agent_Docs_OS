@@ -58,7 +58,7 @@
     "rule": "DR-07",
     "from": "apps/cli",
     "to": "Bun.spawn",
-    "reason": "CLI scenario tests run the real xeon process and kill it to check resume (review.decisions-2 B-06).",
+    "reason": "CLI scenario tests run the real fresnel process and kill it to check resume (review.decisions-2 B-06).",
     "approvedBy": "review.decisions-2",
     "scope": "test"
   },

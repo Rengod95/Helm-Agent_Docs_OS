@@ -147,9 +147,9 @@ describe("work effect classes", () => {
 describe("work writes dedupe on requestId across a store reopen", () => {
   for (const { name, setup } of CASES) {
     test(name, async () => {
-      const dir = mkdtempSync(join(tmpdir(), "xeon-work-idem-"));
+      const dir = mkdtempSync(join(tmpdir(), "fresnel-work-idem-"));
       dirs.push(dir);
-      const path = join(dir, "xeon.db");
+      const path = join(dir, "fresnel.db");
       const first = await openHarness({ path });
       harnesses.push(first);
       const call = await setup(first);

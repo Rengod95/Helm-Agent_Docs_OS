@@ -22,7 +22,7 @@ function request(patch: Partial<HostedSearchRequest> = {}): HostedSearchRequest 
   return {
     model: "auto",
     system: SYSTEM,
-    query: "xeon runtime",
+    query: "fresnel runtime",
     maxOutputTokens: 512,
     domains: { allow: [], deny: [] },
     continuation: null,
@@ -154,7 +154,7 @@ describe("hosted_search_single_turn", () => {
     ]);
     // 시스템 프롬프트와 정규화한 검색어 한 줄이 전부다
     expect(JSON.stringify(at(payload, "messages"))).toContain(SYSTEM);
-    expect(JSON.stringify(at(payload, "messages"))).toContain("xeon runtime");
+    expect(JSON.stringify(at(payload, "messages"))).toContain("fresnel runtime");
     h.player.assertExhausted();
   });
 
@@ -261,7 +261,7 @@ describe("pause_turn continuation", () => {
     expect(JSON.stringify(at(last, "content"))).toContain("ENCRYPTED-1");
     expect(JSON.stringify(at(last, "content"))).toContain("server_tool_use");
     // 첫 요청과 이어 요청에서 사용자 메시지는 같다
-    expect(JSON.stringify(messages)).toContain("xeon runtime");
+    expect(JSON.stringify(messages)).toContain("fresnel runtime");
   });
 
   test("an invalid continuation is an upstream error and sends nothing", async () => {

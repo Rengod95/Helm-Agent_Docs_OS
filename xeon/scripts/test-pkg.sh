@@ -5,8 +5,8 @@
 # The last line is `test-pkg: ran <s>s, <n> skipped`; it is part of the cached log, so the skip count survives a cache replay
 # (the seconds are those of the run that filled the cache).
 # The heavy packages (apps/host, core-persistence) take a machine-wide lock so that two of them never run at once.
-# env: XEON_TEST_TIMEOUT_SEC (default 300) seconds per package; WS_GUARD_RUN_MAX (default 1500M) memory cap
-#      (see ../../scripts/guard.sh for the other WS_GUARD_* knobs); XEON_HEAVY_LOCK lock file (default ~/.cache/xeon/heavy.lock).
+# env: FRESNEL_TEST_TIMEOUT_SEC (default 300) seconds per package; WS_GUARD_RUN_MAX (default 1500M) memory cap
+#      (see ../../scripts/guard.sh for the other WS_GUARD_* knobs); FRESNEL_HEAVY_LOCK lock file (default ~/.cache/fresnel/heavy.lock).
 # exit: bun's exit code (124: time limit; 137: memory cap, see journalctl --user -n 20), 2 when guard.sh is missing.
 set -euo pipefail
 
@@ -15,7 +15,7 @@ if [[ ! -x "$guard" ]]; then
   echo "test-pkg: $guard is missing (ws repo adopt copies it)" >&2
   exit 2
 fi
-timeout_sec="${XEON_TEST_TIMEOUT_SEC:-300}"
+timeout_sec="${FRESNEL_TEST_TIMEOUT_SEC:-300}"
 limit=()
 if command -v timeout >/dev/null 2>&1; then limit=(timeout "$timeout_sec"); fi
 
@@ -26,7 +26,7 @@ esac
 lock=()
 case "$(basename "$PWD")" in
   host | core-persistence)
-    lock_file="${XEON_HEAVY_LOCK:-$HOME/.cache/xeon/heavy.lock}"
+    lock_file="${FRESNEL_HEAVY_LOCK:-$HOME/.cache/fresnel/heavy.lock}"
     if command -v flock >/dev/null 2>&1; then
       mkdir -p "$(dirname "$lock_file")"
       lock=(flock "$lock_file")

@@ -67,12 +67,12 @@ describe("first use notice", () => {
     const world = await makeWebWorld({
       catalog: fakeCatalog([searchCandidate(key, "plugin")]),
     });
-    const first = await world.search({ query: "xeon notice" });
+    const first = await world.search({ query: "fresnel notice" });
     expect(notices(first.meta.warnings)).toEqual(["first_use_notice:plugin:web-key"]);
-    const second = await world.search({ query: "xeon again" });
+    const second = await world.search({ query: "fresnel again" });
     expect(notices(second.meta.warnings)).toEqual([]);
     // 같은 질의는 메모에서 나온다. 메모 호출에는 고지가 붙지 않는다
-    const third = await world.search({ query: "xeon notice" });
+    const third = await world.search({ query: "fresnel notice" });
     expect(third.meta.cache).toBe("hit");
     expect(notices(third.meta.warnings)).toEqual([]);
     expect(key.searches.length).toBe(2);

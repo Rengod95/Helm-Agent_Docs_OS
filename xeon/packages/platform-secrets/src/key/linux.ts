@@ -11,7 +11,7 @@ import {
   type SopsKeyEnvName,
 } from "./provider.ts";
 
-// L0.secrets.spec §3.7, §4.7 3번. Linux Secret Service. 키 명령: `secret-tool lookup service xeon.age account default`.
+// L0.secrets.spec §3.7, §4.7 3번. Linux Secret Service. 키 명령: `secret-tool lookup service fresnel.age account default`.
 // probe는 D-Bus 이름 org.freedesktop.secrets의 존재를 완전하게 확인하지 못하므로(D-Bus 호출 수단이 없다)
 // secret-tool 바이너리와 세션 버스 단서(env, 소켓)만 본다 [가정]. WSL과 헤드리스는 없다고 본다.
 
@@ -33,7 +33,7 @@ export interface LinuxKeyDeps {
 }
 
 const TIMEOUT_MS = 60_000;
-const ITEM_LABEL = "xeon age key";
+const ITEM_LABEL = "fresnel age key";
 
 function keyStoreFailure(code: string): SecretError {
   return { kind: "write_failed", target: "key_store", path: "secret-service", code };

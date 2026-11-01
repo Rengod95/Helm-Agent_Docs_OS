@@ -214,7 +214,7 @@ export function createSearxngProvider(deps: SearxngDeps): WebSearchProvider {
     const sent = await clientFor(base).request(
       {
         method: "GET",
-        url: `${base}/search?q=xeon&format=json&pageno=1`,
+        url: `${base}/search?q=fresnel&format=json&pageno=1`,
         headers: { accept: "application/json" },
         timeoutMs: PROBE_TIMEOUT_MS,
         maxBytes: PROBE_MAX_BYTES,

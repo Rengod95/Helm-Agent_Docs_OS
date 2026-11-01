@@ -178,13 +178,13 @@ test("sumsBody writes one `<sha256>  <path>` line per file, sorted by path", () 
   const d = "d".repeat(64);
   expect(
     sumsBody([
-      { path: "xeon", sha256: a },
+      { path: "fresnel", sha256: a },
       { path: "THIRD-PARTY-NOTICES.txt", sha256: b },
       { path: "group-sdk/templates/index.json", sha256: c },
       { path: "binaries/age", sha256: d },
     ]),
   ).toEqual(
-    `${d}  binaries/age\n${c}  group-sdk/templates/index.json\n${b}  THIRD-PARTY-NOTICES.txt\n${a}  xeon\n`,
+    `${d}  binaries/age\n${a}  fresnel\n${c}  group-sdk/templates/index.json\n${b}  THIRD-PARTY-NOTICES.txt\n`,
   );
 });
 
@@ -211,7 +211,7 @@ test("noticesBody names each bundled binary with its license and source on a mac
   ];
   expect(noticesBody("0.0.0-smoke", MAC, bundled, [])).toEqual(
     [
-      "Xeon 0.0.0-smoke (aarch64-apple-darwin) third-party notices",
+      "Fresnel 0.0.0-smoke (aarch64-apple-darwin) third-party notices",
       "",
       "sops 3.13.3",
       "  license: MPL-2.0",
@@ -235,11 +235,11 @@ test("noticesBody names each bundled binary with its license and source on a mac
 test("noticesBody on linux says nothing is bundled and names rg, bwrap and socat as required from the system", () => {
   expect(noticesBody("0.0.0-smoke", LINUX, [], ["rg", "bwrap", "socat"])).toEqual(
     [
-      "Xeon 0.0.0-smoke (x86_64-unknown-linux-gnu) third-party notices",
+      "Fresnel 0.0.0-smoke (x86_64-unknown-linux-gnu) third-party notices",
       "",
       "Bundled external binaries: none.",
       "Required from the system, not bundled: rg, bwrap, socat.",
-      "Install them with the package manager (`xeon doctor` prints the command).",
+      "Install them with the package manager (`fresnel doctor` prints the command).",
       "",
       "The full license texts are in the sources above.",
       "",
@@ -247,8 +247,8 @@ test("noticesBody on linux says nothing is bundled and names rg, bwrap and socat
   );
 });
 
-test("archiveName is xeon-<version>-<triple>.tar.gz and parseArchiveName reads it back", () => {
-  expect(archiveName("1.2.3", MAC)).toEqual("xeon-1.2.3-aarch64-apple-darwin.tar.gz");
+test("archiveName is fresnel-<version>-<triple>.tar.gz and parseArchiveName reads it back", () => {
+  expect(archiveName("1.2.3", MAC)).toEqual("fresnel-1.2.3-aarch64-apple-darwin.tar.gz");
   expect(parseArchiveName(archiveName("1.2.3-rc.1", LINUX))).toEqual({
     version: "1.2.3-rc.1",
     triple: LINUX,
@@ -286,14 +286,14 @@ test("describeError names the cause and the fix for each kind", () => {
   ]);
 });
 
-test("parseArchiveName accepts only xeon-<version>-<triple>.tar.gz", () => {
+test("parseArchiveName accepts only fresnel-<version>-<triple>.tar.gz", () => {
   const names = [
-    "xeon-0.0.0-smoke-aarch64-apple-darwin.tar.gz",
-    "xeon-1.2.3-x86_64-unknown-linux-gnu.tar.gz",
-    "xeon-1.2-aarch64-apple-darwin.tar.gz",
-    "xeon-1.2.3-aarch64-apple-darwin.zip",
+    "fresnel-0.0.0-smoke-aarch64-apple-darwin.tar.gz",
+    "fresnel-1.2.3-x86_64-unknown-linux-gnu.tar.gz",
+    "fresnel-1.2-aarch64-apple-darwin.tar.gz",
+    "fresnel-1.2.3-aarch64-apple-darwin.zip",
     "other-1.2.3-aarch64-apple-darwin.tar.gz",
-    "xeon-../x-aarch64-apple-darwin.tar.gz",
+    "fresnel-../x-aarch64-apple-darwin.tar.gz",
   ];
   expect(names.map((name) => parseArchiveName(name))).toEqual([
     { version: "0.0.0-smoke", triple: MAC },
@@ -309,14 +309,14 @@ const H1 = "a".repeat(64);
 const H2 = "b".repeat(64);
 
 test("parseSums reads `<sha256>  <path>` lines and rejects a malformed line, a `..` path or an absolute path", () => {
-  expect(parseSums(`${H1}  xeon\n${H2}  binaries/age\n`)).toEqual([
-    { sha256: H1, path: "xeon" },
+  expect(parseSums(`${H1}  fresnel\n${H2}  binaries/age\n`)).toEqual([
+    { sha256: H1, path: "fresnel" },
     { sha256: H2, path: "binaries/age" },
   ]);
   const malformed = [
     "not a sum line\n",
-    `${H1} xeon\n`,
-    `${"A".repeat(64)}  xeon\n`,
+    `${H1} fresnel\n`,
+    `${"A".repeat(64)}  fresnel\n`,
     `${H1}  ../secret\n`,
     `${H1}  binaries/../../secret\n`,
     `${H1}  /etc/passwd\n`,
@@ -326,7 +326,7 @@ test("parseSums reads `<sha256>  <path>` lines and rejects a malformed line, a `
 
 test("requiredPaths asks for the lock and the bundled binaries only on macOS", () => {
   const common = [
-    "xeon",
+    "fresnel",
     "group-sdk/templates/index.json",
     "default-plugins/helm/.fresnel-plugin/plugin.json",
     "default-plugins/account-rotation/.fresnel-plugin/plugin.json",
@@ -341,7 +341,7 @@ test("requiredPaths asks for the lock and the bundled binaries only on macOS", (
     "binaries/rg",
   ]);
   expect(requiredPaths(LINUX)).toEqual(common);
-  expect(requiredPaths("x86_64-pc-windows-msvc")).toEqual(["xeon.exe", ...common.slice(1)]);
+  expect(requiredPaths("x86_64-pc-windows-msvc")).toEqual(["fresnel.exe", ...common.slice(1)]);
 });
 
 function miseVersions(file: string): readonly string[] | undefined {
@@ -355,8 +355,8 @@ test("the sops, age and rg versions in release-bundle.json match the mise pins o
   const bundled = result.value.bundledBinaries[MAC]?.binaries ?? [];
   expect({
     bundle: bundled.map((binary) => binary.version),
-    macos: miseVersions("xeon-macos.yml"),
-    release: miseVersions("xeon-release.yml"),
+    macos: miseVersions("fresnel-macos.yml"),
+    release: miseVersions("fresnel-release.yml"),
   }).toEqual({
     bundle: ["3.13.3", "1.3.2", "15.0.0"],
     macos: ["3.13.3", "1.3.2", "15.0.0"],
@@ -383,10 +383,10 @@ test("a release build writes its sidecar under the output directory, never the d
   expect(devSidecarDir("/x")).toBe(join("/x", "apps", "desktop", "src-tauri", "binaries"));
 });
 
-test("release-smoke.sh passes its version to release.ts, and xeon-release.yml sets XEON_RELEASE_VERSION from a tag", () => {
+test("release-smoke.sh passes its version to release.ts, and fresnel-release.yml sets FRESNEL_RELEASE_VERSION from a tag", () => {
   const smoke = readFileSync(join(import.meta.dir, "release-smoke.sh"), "utf8");
   expect(smoke).toContain('scripts/release.ts host --version "$version"');
-  const workflow = readFileSync(join(REPO, ".github", "workflows", "xeon-release.yml"), "utf8");
-  expect(workflow).toContain("XEON_RELEASE_VERSION:");
+  const workflow = readFileSync(join(REPO, ".github", "workflows", "fresnel-release.yml"), "utf8");
+  expect(workflow).toContain("FRESNEL_RELEASE_VERSION:");
   expect(workflow).toContain("refs/tags/v");
 });

@@ -97,7 +97,7 @@ async function boot(
     setup(ctx) {
       ctx.providePort(ExecKey, env);
       ctx.providePort(OsKey, {
-        dirs: { tmp: "/tmp/xeon" },
+        dirs: { tmp: "/tmp/fresnel" },
         time: { clock: { now: () => 0 } },
         logger: () => recordingLogger(lines),
         resolveBinary: (name) => {

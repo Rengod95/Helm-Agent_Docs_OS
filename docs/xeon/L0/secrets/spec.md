@@ -32,7 +32,7 @@ binds: [xeon/packages/platform-secrets/**]
 | 감사 이벤트를 세션 이벤트로 기록하는 일 | `core-tools`(tool-runtime). kind와 payload는 `F.records.spec` §3.3.1 `secret.*`(§3.9) |
 | 런타임 HTTP 요청 전송(`GuardedHttp`) | `L2.web.spec`. 이 문서는 치환 함수만 제공한다 |
 | 브라우저 드라이버 | `L2.web.spec`(`web.browse`) |
-| `xeon secret` 명령줄 파싱, 프롬프트, 출력 형식 | `L4.cli.spec` |
+| `fresnel secret` 명령줄 파싱, 프롬프트, 출력 형식 | `L4.cli.spec` |
 | 비밀 탭 화면, 값 입력·열람 창 | `L4.settings-ui.spec`, `L4.desktop.spec` |
 | 설정 키 문법, `SettingDef` 검사(D2, D3) | `F.wire-settings.spec` |
 | 외부 바이너리 경로 해석과 설치 안내 | `L0.os.spec`(`fresnel.os`) |
@@ -113,7 +113,7 @@ import {
   - `use.modes`는 번호(`M2`, `M3`) 대신 모드 이름을 쓴다(§2).
   - `approval`의 `never`를 `none`(승인 필요 없음)으로 바꾼다. `never`는 "항상 거부"로도 읽히기 때문이다.
   - `use.origins`를 더한다. M4는 호스트가 아닌 origin으로 바인딩한다(§4.3).
-- 메타 파일 형식과 위치 [제안]: 비밀 하나에 YAML 파일 하나, `<OsDirs.config>/secrets/meta/<name>.yaml`. `OsDirs.config`는 `fresnel.os`가 정하고 이미 `xeon`으로 끝난다(`L0.os.spec` §3.2. 예: Linux `~/.config/xeon/secrets/meta/`). 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키 기본 위치, 수신자 기록, 기본 SOPS 파일)은 모두 `<OsDirs.config>/secrets/` 아래에 둔다. 파일에는 값이 없으므로 평문이고 권한은 0600으로 쓴다. 파싱은 [가정] Bun 1.4 내장 YAML 파서를 쓴다. 쓸 수 없으면 같은 스키마의 JSON 파일로 바꾼다.
+- 메타 파일 형식과 위치 [제안]: 비밀 하나에 YAML 파일 하나, `<OsDirs.config>/secrets/meta/<name>.yaml`. `OsDirs.config`는 `fresnel.os`가 정하고 이미 `fresnel`으로 끝난다(`L0.os.spec` §3.2. 예: Linux `~/.config/fresnel/secrets/meta/`). 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키 기본 위치, 수신자 기록, 기본 SOPS 파일)은 모두 `<OsDirs.config>/secrets/` 아래에 둔다. 파일에는 값이 없으므로 평문이고 권한은 0600으로 쓴다. 파싱은 [가정] Bun 1.4 내장 YAML 파서를 쓴다. 쓸 수 없으면 같은 스키마의 JSON 파일로 바꾼다.
 - 범위 규칙 [제안]: 1차는 사용자 범위 메타만 읽는다. 프로젝트 저장소 안의 메타는 읽지 않는다. 저장소를 받는 것만으로 사용자 비밀의 허용 호스트가 넓어지지 않게 하기 위해서다(`F.wire-settings.spec` §4.7 규칙 4의 "범위 제한 키"와 같은 이유). `scope: project:<id>`는 "그 프로젝트의 세션에서만 쓸 수 있다"는 제한으로만 작동한다.
 
 ### 3.3 사용 맥락과 lease (`lease.ts`)
@@ -253,7 +253,7 @@ export interface Redactor {
 
 - 이미 기록된 이벤트 행은 바꾸지 않는다. 표시(`display`), 내보내기(`export`), 모델 입력(`model-input`) 세 단계가 행을 읽는 시점에 `createPostHocRedaction(redactor).apply(stage, value)`를 부른다. 결과 `PostHocResult`는 가려진 새 값(`value`), `hits`, 키 회전 안내(`advice`)를 가진다. 입력 객체는 바뀌지 않는다(`Redactor.maskDeep`은 새 값을 돌려준다).
 - 값이 기록된 뒤에 등록된 비밀(예: 기록 뒤 처음 lease가 풀린 값)도 이후 표시와 내보내기에서 가려진다. 반대로 등록 전에는 알 수 없어 가릴 수 없다. 프로세스가 다시 시작되면 등록부가 비므로, 단계 호출자는 필요할 때 목록(`list`)의 비밀을 먼저 lease해 등록한다 [가정].
-- 키 회전 안내는 문장이 아니라 값이다. `advice`는 `{ kind: "rotate_key", names, patternHits }`이고 가려진 것이 없으면 null이다. `names`는 `known:<이름>`으로 가려진 비밀 이름(중복 없음, 정렬), `patternHits`는 이름 없이 패턴으로 가려진 개수다. 문구는 L4가 이 값으로 만든다(i18n, `eng.context-map.design` 하위 층 문장 금지). 이미 모델이나 외부에 나간 값은 가려도 되돌릴 수 없으므로 안내는 "원본 키를 회전한다"(`xeon secret rotate`)가 기본이다.
+- 키 회전 안내는 문장이 아니라 값이다. `advice`는 `{ kind: "rotate_key", names, patternHits }`이고 가려진 것이 없으면 null이다. `names`는 `known:<이름>`으로 가려진 비밀 이름(중복 없음, 정렬), `patternHits`는 이름 없이 패턴으로 가려진 개수다. 문구는 L4가 이 값으로 만든다(i18n, `eng.context-map.design` 하위 층 문장 금지). 이미 모델이나 외부에 나간 값은 가려도 되돌릴 수 없으므로 안내는 "원본 키를 회전한다"(`fresnel secret rotate`)가 기본이다.
 - 호출 지점은 L1 persistence의 내보내기, L1 context의 모델 입력 투영(4계층), L4의 표시다. 이 문서는 호출 지점을 정하지 않고 적용 함수만 제공한다. `secret.masked` 감사 레코드는 단계 호출자가 필요하면 낸다.
 
 ### 3.6 서비스 (`service.ts`)
@@ -368,13 +368,13 @@ export interface KeyProvider {
 
 | OS provider | 파일 | 키 명령 [제안] | 근거 |
 |---|---|---|---|
-| macOS Keychain | `key/darwin.ts` | `security find-generic-password -s xeon.age -a default -w`. 항목 만들기(`provision`)는 `security -i`의 stdin으로 `add-generic-password`를 보낸다 [가정, macOS 실기 확인 전] | `_research/notes/L0-3.md` §3 |
-| Linux Secret Service | `key/linux.ts` | `secret-tool lookup service xeon.age account default` | 같은 곳. Secret Service(D-Bus `org.freedesktop.secrets`)가 필요하다 |
+| macOS Keychain | `key/darwin.ts` | `security find-generic-password -s fresnel.age -a default -w`. 항목 만들기(`provision`)는 `security -i`의 stdin으로 `add-generic-password`를 보낸다 [가정, macOS 실기 확인 전] | `_research/notes/L0-3.md` §3 |
+| Linux Secret Service | `key/linux.ts` | `secret-tool lookup service fresnel.age account default` | 같은 곳. Secret Service(D-Bus `org.freedesktop.secrets`)가 필요하다 |
 | Windows 자격 증명 관리자 | `key/win32.ts` | 헬퍼 실행 파일 필요(`cmdkey`는 암호를 읽지 못한다) [미결] | 같은 곳 §3.3 |
 | 파일 폴백 | `key/file-fallback.ts` | `SOPS_AGE_KEY_FILE=<경로>`(0600) | 같은 곳 §3 표 "WSL·헤드리스" |
 
 - 키 명령은 셸 없이 실행되고 google/shlex 규칙으로 나뉜다. 인자는 작은따옴표로 감싸 만든다. Windows 경로의 백슬래시는 따옴표 밖에서 사라진다(`_research/notes/L0-3.md` §2.3).
-- `provision`을 가진 provider는 파일 폴백, macOS Keychain, Linux Secret Service다(WSL은 제외). Linux는 `secret-tool lookup`의 stdout을 버리고(`RunRequest.discardStdout`) 종료 코드(0 있음, 1 없음)만 봐서 identity를 읽지 않고 존재를 확인한다. 없으면 `secret-tool store --label=… service xeon.age account default`의 stdin으로 identity를 보내고(argv에 오르지 않는다, 버퍼는 쓴 직후 0으로 덮는다), 다시 `lookup`으로 확인한다. 이미 있으면 `EEXIST`다 [결정: M3-m2c-04 (b), §10 11번]. 실제 Secret Service에서의 동작은 Linux 데스크톱 실기 확인 전이다 [가정].
+- `provision`을 가진 provider는 파일 폴백, macOS Keychain, Linux Secret Service다(WSL은 제외). Linux는 `secret-tool lookup`의 stdout을 버리고(`RunRequest.discardStdout`) 종료 코드(0 있음, 1 없음)만 봐서 identity를 읽지 않고 존재를 확인한다. 없으면 `secret-tool store --label=… service fresnel.age account default`의 stdin으로 identity를 보내고(argv에 오르지 않는다, 버퍼는 쓴 직후 0으로 덮는다), 다시 `lookup`으로 확인한다. 이미 있으면 `EEXIST`다 [결정: M3-m2c-04 (b), §10 11번]. 실제 Secret Service에서의 동작은 Linux 데스크톱 실기 확인 전이다 [가정].
 - `SOPS_AGE_KEY`(키 값을 env로 전달)는 쓰지 않는다. sops는 부모 env를 키 명령에 그대로 넘긴다(같은 곳 §7).
 - 3.12.0 이상의 `SOPS_AGE_RECIPIENT`를 쓰는 수신자별 출력은 1차에서 쓰지 않는다. 키체인 항목 하나에 identity 한 줄을 둔다 [제안].
 - 선택 로직은 `src/select.ts` 한 곳에만 둔다(DR-13, `L0.readme` §3.1). `process.platform`과 WSL 판정은 이 파일 안에서만 읽는다. 순서 [제안]: `l0.secrets.ageKey.source`가 `file`이면 파일, `keychain`이면 OS provider(없으면 오류), `auto`면 OS provider의 `probe()`가 `available`일 때 그것, 아니면 파일 폴백을 쓰되 §4.7의 고지를 낸다. `auto-file`은 `auto`와 같지만 파일 폴백에 사람 확인 없이 간다(원격 호스트, §4.7 8번).
@@ -547,7 +547,7 @@ M4 규칙:
 
 M2 설계(후속 구현):
 
-1. 도구 자식 env에는 `FRESNEL_SECRET_<NAME>=xeon-sentinel-<무작위 32 hex>` 같은 sentinel만 넣는다. sentinel은 lease 하나에 하나다.
+1. 도구 자식 env에는 `FRESNEL_SECRET_<NAME>=fresnel-sentinel-<무작위 32 hex>` 같은 sentinel만 넣는다. sentinel은 lease 하나에 하나다.
 2. 자식의 HTTPS는 `fresnel.sandbox`의 프록시를 지나고, 프록시가 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾼다. 허용 호스트 밖으로 가는 요청에 sentinel이 있으면 요청을 막고 `secret.denied`(`host_mismatch`)를 낸다.
 3. [미결] TLS 종단 방식은 sandbox-runtime 프록시 조사 결과에 의존한다. `@anthropic-ai/sandbox-runtime` 0.0.81(조사한 판. catalog 고정은 0.0.79, review.decisions-2 U-24. 0.0.79에도 같은 선택지가 있는지 후속에서 확인한다)은 `tlsTerminate`(실험, Bun 1.4 이상)와 `mitmProxy`(외부 Unix 소켓)를 서로 배타적으로 제공하고, `SandboxManager`가 프로세스당 정책 하나인 싱글턴이다(`_research/notes/L0-1.md`). 어느 쪽을 쓸지, 자식 프로세스에 CA를 어떻게 신뢰시킬지는 후속에서 정한다.
 4. 요구: `fresnel.sandbox`의 프록시 훅(후속, `L0.sandbox.spec` §10 9번, `L0.sandbox.plan` SB-16). 8.2절에 적는다.
@@ -594,21 +594,21 @@ M2 설계(후속 구현):
 ### 4.7 age 키 획득과 파일 폴백
 
 1. age 개인 키는 부모 프로세스만 다룬다. 이 패키지의 코드는 identity를 읽지 않는다. 키 명령을 sops에 넘길 뿐이다. 예외는 첫 실행의 `provision`이며, 생성한 identity는 저장 직후 버퍼를 0으로 덮는다.
-2. macOS: Keychain 항목 `xeon.age`/`default`. 첫 조회 때 접근 승인 대화상자가 뜰 수 있고, 키 명령이 복호화마다 실행되므로 대화상자가 반복될 수 있다 [가정, `_research/notes/L0-3.md` §2.2]. 대응은 §5와 plan 위험 표다.
+2. macOS: Keychain 항목 `fresnel.age`/`default`. 첫 조회 때 접근 승인 대화상자가 뜰 수 있고, 키 명령이 복호화마다 실행되므로 대화상자가 반복될 수 있다 [가정, `_research/notes/L0-3.md` §2.2]. 대응은 §5와 plan 위험 표다.
 3. Linux: Secret Service가 있으면 `secret-tool`. `probe()`는 D-Bus 이름 `org.freedesktop.secrets` 유무로 판정한다 [제안]. WSL과 헤드리스는 대부분 없다고 보고 파일 폴백으로 간다 [가정].
 4. 파일 폴백: identity 파일을 0600으로 두고 `SOPS_AGE_KEY_FILE`로 넘긴다. 생성은 `age-encryption` 0.3.1로 한다. 매번 시작할 때 소유자와 권한(0600, 소유 uid 일치)을 검사하고 틀리면 `key_unavailable`(`file_mode`)이다.
 5. 파일 폴백의 위협 수준 차이 [제안]: 키체인은 사용자 로그인 세션과 OS 접근 통제 뒤에 키를 둔다. 파일 폴백은 같은 uid로 도는 모든 프로세스(도구 자식 포함)가 파일을 읽을 수 있다. 그래서 파일 폴백을 쓸 때는 다음을 지킨다.
-   - 키 파일 경로를 `SecretService.protectedPaths()`에 넣어 알린다. `fresnel.sandbox`가 이 목록을 보호 경로(`read_write`)에 합친다(`L0.sandbox.spec` §3.3). 기본 경로 `<OsDirs.config>/secrets/age/keys.txt`는 sandbox의 `<xeonConfig>/secrets/` 보호 행으로도 덮인다 [제안].
+   - 키 파일 경로를 `SecretService.protectedPaths()`에 넣어 알린다. `fresnel.sandbox`가 이 목록을 보호 경로(`read_write`)에 합친다(`L0.sandbox.spec` §3.3). 기본 경로 `<OsDirs.config>/secrets/age/keys.txt`는 sandbox의 `<fresnelConfig>/secrets/` 보호 행으로도 덮인다 [제안].
    - 첫 사용과 `diagnose()` 결과에 "키가 디스크 파일에 있다. 같은 사용자 권한의 프로그램은 읽을 수 있다"는 고지를 낸다.
    - `auto` 선택으로 파일 폴백에 간 경우 사람이 한 번 확인해야 사용한다(`l0.secrets.ageKey.source`를 `file`로 저장) [제안].
 6. `@napi-rs/keyring` 2.1.2는 후보로만 둔다. Linux에서 Secret Service가 없으면 메모리 전용 keyutils로 조용히 넘어가므로, 쓰게 되면 스토어를 `secret-service`로 고정해야 한다(`_research/notes/L0-3.md` §0 11번). Bun 로드는 [미확인]이다.
-7. [결정: m2r sec] 첫 쓰기의 키 만들기(`provision`)와 수신자 기록. 첫 `add`는 기본 SOPS 파일이 없을 때 키가 없으면 만든다. `provision`은 이미 있는 키를 덮어쓰지 않는다. 이 패키지는 identity를 읽지 않으므로(1번) 키가 이미 있을 때 수신자를 되찾을 수 없다. 그래서 만든 직후 수신자(공개키)를 `<OsDirs.config>/secrets/age/recipient.<provider id>.txt`(평문, 0600)에 기록하고, 이후에는 이 기록을 읽는다. 키를 만든 뒤 SOPS 파일 암호화가 실패해도 다음 시도가 같은 키와 수신자를 쓴다. 키는 있는데 기록이 없으면(밖에서 만든 키 등) 파일을 만들 수 없어 `write_failed`(`sops_file`, `recipient_unknown`)이고, 사람이 기존 SOPS 파일을 `l0.secrets.sops.files`에 적는다. macOS의 `provision`은 항목 존재를 `security find-generic-password`(`-w` 없이)로 확인하고, 없으면 `security -i`의 stdin으로 `add-generic-password -s xeon.age -a default -w <identity>`를 보낸 뒤 항목을 다시 찾아 확인한다. identity는 argv에 오르지 않고, stdin 버퍼는 쓴 직후 0으로 덮는다. `auto`가 확인 전 파일 폴백으로 떨어진 경우(5번)에는 키를 만들지 않고 `key_unavailable`(`file`, `access_denied`)이다.
+7. [결정: m2r sec] 첫 쓰기의 키 만들기(`provision`)와 수신자 기록. 첫 `add`는 기본 SOPS 파일이 없을 때 키가 없으면 만든다. `provision`은 이미 있는 키를 덮어쓰지 않는다. 이 패키지는 identity를 읽지 않으므로(1번) 키가 이미 있을 때 수신자를 되찾을 수 없다. 그래서 만든 직후 수신자(공개키)를 `<OsDirs.config>/secrets/age/recipient.<provider id>.txt`(평문, 0600)에 기록하고, 이후에는 이 기록을 읽는다. 키를 만든 뒤 SOPS 파일 암호화가 실패해도 다음 시도가 같은 키와 수신자를 쓴다. 키는 있는데 기록이 없으면(밖에서 만든 키 등) 파일을 만들 수 없어 `write_failed`(`sops_file`, `recipient_unknown`)이고, 사람이 기존 SOPS 파일을 `l0.secrets.sops.files`에 적는다. macOS의 `provision`은 항목 존재를 `security find-generic-password`(`-w` 없이)로 확인하고, 없으면 `security -i`의 stdin으로 `add-generic-password -s fresnel.age -a default -w <identity>`를 보낸 뒤 항목을 다시 찾아 확인한다. identity는 argv에 오르지 않고, stdin 버퍼는 쓴 직후 0으로 덮는다. `auto`가 확인 전 파일 폴백으로 떨어진 경우(5번)에는 키를 만들지 않고 `key_unavailable`(`file`, `access_denied`)이다.
 
 8. [결정: 2026-10-28 사용자] 키체인이 없는 원격 서버(D-M3-17 형태 1)는 파일 폴백(4번, 0600)을 쓴다. Secret Service가 있으면 3번에 따라 먼저 시도한다. 파일 폴백을 처음 쓸 때 키 파일 위치와 위험(5번의 고지 문장)을 알린다. 구현: 설정 `l0.secrets.ageKey.source = "auto-file"`(§6.1)이 `auto`와 같은 순서(Secret Service 먼저)로 고르되 파일 폴백을 사람 확인 없이 쓰고 `fileFallbackNotice`는 그대로 낸다. 키 파일 권한은 정확히 0600이고 소유 uid가 같아야 하며 아니면 `key_unavailable`(`file_mode`)이다. 0400처럼 더 좁은 값도 거부한다 [결정: 오케스트레이터 기본값, 요구 문구가 "0600이 아니면 거부"다]. 서비스 모드 호스트가 이 값을 `serve` 설정에 넣는 일은 B1-SVC가 한다. [제안] 5번의 확인 절차는 바꾸지 않는다. 두 항목은 함께 적용된다. 5번은 로컬 `auto`가 파일 폴백에 갔을 때, 8번은 키체인이 없는 원격 호스트에서 적용한다.
 
 ### 4.8 사용자 등록 경로
 
-[결정: m2r sec, adr.0019] 기본 SOPS 파일. 비밀 기본 저장소가 SOPS(age)라는 결정과 이 기본 파일은 adr.0019로 승격했다(`review.m3-design-inputs` D-M3-31 행 6). `l0.secrets.sops.files`가 비어 있으면 항목 하나 `{ env: "user", path: "<OsDirs.config>/secrets/sops/user.yaml" }`를 쓴다(`withDefaultSopsFile`). 사람이 파일을 한 줄이라도 적으면 기본 파일은 쓰지 않는다(섞지 않는다). 위치를 `<OsDirs.config>/secrets/` 아래로 정한 이유는 셋이다. 첫째, 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키)이 모두 이 아래라 한 곳만 보호하면 된다. 둘째, 샌드박스 보호 행(`<xeonConfig>/secrets/`)이 이미 덮는다. 셋째, `OsDirs`는 사용자 하나에 하나이고 클라이언트(CLI, 데스크톱 사이드카)마다 나뉘지 않는다(`L0.os.spec` §3.2. 클라이언트마다 다른 것은 `OsDirs.state` 아래 `cli/state.json` 같은 클라이언트 상태뿐이다). 그래서 메타(`<config>/secrets/meta/`), 감사 파일, age 키, 수신자 기록, 기본 SOPS 파일이 모든 클라이언트에서 같고, 한 클라이언트가 등록한 비밀을 다른 클라이언트가 바로 본다. 사용자의 `secrets` 도구(`just secret-add`)가 쓰는 파일과는 별개이며 이 기본값은 그 도구에 의존하지 않는다. 그 도구의 파일을 쓰려면 사람이 `l0.secrets.sops.files`에 적는다(아래 (b)).
+[결정: m2r sec, adr.0019] 기본 SOPS 파일. 비밀 기본 저장소가 SOPS(age)라는 결정과 이 기본 파일은 adr.0019로 승격했다(`review.m3-design-inputs` D-M3-31 행 6). `l0.secrets.sops.files`가 비어 있으면 항목 하나 `{ env: "user", path: "<OsDirs.config>/secrets/sops/user.yaml" }`를 쓴다(`withDefaultSopsFile`). 사람이 파일을 한 줄이라도 적으면 기본 파일은 쓰지 않는다(섞지 않는다). 위치를 `<OsDirs.config>/secrets/` 아래로 정한 이유는 셋이다. 첫째, 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키)이 모두 이 아래라 한 곳만 보호하면 된다. 둘째, 샌드박스 보호 행(`<fresnelConfig>/secrets/`)이 이미 덮는다. 셋째, `OsDirs`는 사용자 하나에 하나이고 클라이언트(CLI, 데스크톱 사이드카)마다 나뉘지 않는다(`L0.os.spec` §3.2. 클라이언트마다 다른 것은 `OsDirs.state` 아래 `cli/state.json` 같은 클라이언트 상태뿐이다). 그래서 메타(`<config>/secrets/meta/`), 감사 파일, age 키, 수신자 기록, 기본 SOPS 파일이 모든 클라이언트에서 같고, 한 클라이언트가 등록한 비밀을 다른 클라이언트가 바로 본다. 사용자의 `secrets` 도구(`just secret-add`)가 쓰는 파일과는 별개이며 이 기본값은 그 도구에 의존하지 않는다. 그 도구의 파일을 쓰려면 사람이 `l0.secrets.sops.files`에 적는다(아래 (b)).
 
 첫 `add`는 설정 없이 동작한다: SOPS 파일과 age 키가 없으면 §4.6 8번과 §4.7 7번대로 만들고 값을 쓴다. 설정에 적은 파일이 아직 없을 때도 같다.
 
@@ -616,18 +616,18 @@ M2 설계(후속 구현):
 
 | 경로 | 누가 | 흐름 | 이 문서의 역할 |
 |---|---|---|---|
-| (a) 안내 | 모든 사용자 | 메시지, 오류, doctor 안내문이 등록 방법을 보인다 | `secret_missing` 오류와 `diagnose()`의 `hint`에 `just secret-add <키> [env]`를 첫 경로로 적는다. ws 레시피가 없는 환경(공개 배포 사용자)을 위해 둘째 줄에 `xeon secret add <name>`을 적는다 [제안]. 레시피 존재 여부는 `secrets` 실행 파일이 PATH에 있는지로 판정한다 [가정] |
+| (a) 안내 | 모든 사용자 | 메시지, 오류, doctor 안내문이 등록 방법을 보인다 | `secret_missing` 오류와 `diagnose()`의 `hint`에 `just secret-add <키> [env]`를 첫 경로로 적는다. ws 레시피가 없는 환경(공개 배포 사용자)을 위해 둘째 줄에 `fresnel secret add <name>`을 적는다 [제안]. 레시피 존재 여부는 `secrets` 실행 파일이 PATH에 있는지로 판정한다 [가정] |
 | (b) 레시피가 관리하는 SOPS 파일 읽기 | 레시피 사용자 | 레시피가 SOPS 파일에 키를 쓴다 → SOPS 제공자가 그 파일의 키 이름을 복호화 없이 읽는다 → `sops:<env>/<KEY>` 참조로 목록에 `orphaned`로 보인다 → 사람이 `secret meta`로 이름과 정책을 붙인다 | §4.6 2·3번. 파일 위치와 env 매핑은 `l0.secrets.sops.files` 설정이다. 그 도구의 파일 규약은 확인하지 못했으므로 사람이 `{ env, path }`를 적는다 [미결 §10 4번 후속] |
-| (c) `xeon secret add` | 레시피를 쓰지 않는 사용자 | `xeon secret add <name>` → 값은 stdin 또는 가린 프롬프트 → SOPS 제공자 `put`(기본 파일이 없으면 만든다) | §3.8 `add`. `put`이 꺼진 제공자면 (a) 안내로 돌아간다 |
+| (c) `fresnel secret add` | 레시피를 쓰지 않는 사용자 | `fresnel secret add <name>` → 값은 stdin 또는 가린 프롬프트 → SOPS 제공자 `put`(기본 파일이 없으면 만든다) | §3.8 `add`. `put`이 꺼진 제공자면 (a) 안내로 돌아간다 |
 
-- `just secret-add`의 키 이름(대문자 env 변수 형식)과 핸들 이름(소문자, 하이픈)은 다르다. 자동 변환(`GITHUB_TOKEN` → `github-token`)은 제안으로만 보이고 사람이 확정한다 [제안]. 기본 파일에 `xeon secret add`로 만든 키는 같은 규칙(`anthropic-api-key` → `ANTHROPIC_API_KEY`)을 쓴다.
+- `just secret-add`의 키 이름(대문자 env 변수 형식)과 핸들 이름(소문자, 하이픈)은 다르다. 자동 변환(`GITHUB_TOKEN` → `github-token`)은 제안으로만 보이고 사람이 확정한다 [제안]. 기본 파일에 `fresnel secret add`로 만든 키는 같은 규칙(`anthropic-api-key` → `ANTHROPIC_API_KEY`)을 쓴다.
 - 문서, 예시, 테스트 픽스처에는 실제 값이나 SOPS 파일 내용을 쓰지 않는다. 예시는 `secret://github-token` 같은 이름만 쓴다.
 
 ### 4.9.1 OS 인증 재확인 (`os-auth.ts`) [결정: M3-m2c-01]
 
 - `OsAuthProvider`(`available()`, `verify(reason, signal)`)가 사람의 OS 인증을 요청하고 `HumanReauth`(`method: "os-auth"`, `verifiedAt`)를 돌려준다. L4는 reveal 직전에 `runtime.osAuth.verify`를 부르고 받은 증거를 `admin.reveal`에 넘긴다. 서비스는 증거의 시각(60초)만 본다(§4.9 값 보기).
 - macOS 구현(`selectOsAuth({ platform: "darwin", … })`)은 `/usr/bin/osascript -e 'do shell script "true" with prompt "<문구>" with administrator privileges'`로 인증 대화상자(암호, Touch ID 지원 기기는 생체 인증)를 띄운다. 종료 코드 0이면 인증된 것이다. stderr가 `-128`·`User canceled`면 `cancelled`, 그 밖의 실패는 `denied`, 실행 실패는 `failed`다. 문구에서 따옴표·역슬래시·제어 문자는 공백으로 바꿔 스크립트 문자열을 깨지 못하게 한다. 이 방식은 [결정: 오케스트레이터 기본값]이다(새 의존 없이 쓸 수 있는 수단. Touch ID 전용 네이티브 헬퍼는 후속). 실제 대화상자는 macOS 실기(사용자 묶음)에서 확인한다.
-- `createSecretsRuntime`은 `deps.osAuth`를 넘길 때만 OS 인증을 켠다. 켜면 `osAuthAvailable`이 참이 되어 reveal이 `tty-confirm`을 거부하므로, L4가 `verify`를 연결한 뒤에 넘긴다(연결 전에 켜면 macOS `xeon secret reveal`이 막힌다). 지원하지 않는 플랫폼에는 `selectOsAuth`가 undefined를 돌려준다.
+- `createSecretsRuntime`은 `deps.osAuth`를 넘길 때만 OS 인증을 켠다. 켜면 `osAuthAvailable`이 참이 되어 reveal이 `tty-confirm`을 거부하므로, L4가 `verify`를 연결한 뒤에 넘긴다(연결 전에 켜면 macOS `fresnel secret reveal`이 막힌다). 지원하지 않는 플랫폼에는 `selectOsAuth`가 undefined를 돌려준다.
 - 시험은 가짜 provider(`fakeOsAuth`, `src/testing`)로 취소, 거절, 60초 지난 증거, `tty-confirm` 거부를 값으로 확인한다.
 
 ### 4.9 관리 동작 규칙
@@ -721,17 +721,17 @@ M2 설계(후속 구현):
 
 | 동작 | L0 서비스 메서드 | 명령줄(`L4.cli.spec`) | 화면(`L4.settings-ui.spec`) | 단계 |
 |---|---|---|---|---|
-| 목록 | `ls`, `list` | `xeon secret ls [--meta \| --usage]` | 목록, 사용 이력 | 마일스톤 M2 |
-| 추가 | `add` | `xeon secret add <name> [--provider …]`, 값은 stdin·가린 프롬프트 | 추가(값은 OS 입력 창, C안) | M2 |
-| 값 교체 | `set` | `xeon secret set <name>` | 회전 동작에 포함 | M2 |
-| 메타 수정 | `meta` | `xeon secret meta <name> …` | 메타 편집, 정책 편집 | M2 |
-| 회전 | `rotate` | `xeon secret rotate <name>`(TTY만) | 회전 | M2 |
-| 삭제 | `references`, `rm` | `xeon secret rm <name> [--yes]` | 삭제(참조 표시 후 확인) | M2 |
-| 점검 | `test` | `xeon secret test <name>` | 상태 열 | M2 |
+| 목록 | `ls`, `list` | `fresnel secret ls [--meta \| --usage]` | 목록, 사용 이력 | 마일스톤 M2 |
+| 추가 | `add` | `fresnel secret add <name> [--provider …]`, 값은 stdin·가린 프롬프트 | 추가(값은 OS 입력 창, C안) | M2 |
+| 값 교체 | `set` | `fresnel secret set <name>` | 회전 동작에 포함 | M2 |
+| 메타 수정 | `meta` | `fresnel secret meta <name> …` | 메타 편집, 정책 편집 | M2 |
+| 회전 | `rotate` | `fresnel secret rotate <name>`(TTY만) | 회전 | M2 |
+| 삭제 | `references`, `rm` | `fresnel secret rm <name> [--yes]` | 삭제(참조 표시 후 확인) | M2 |
+| 점검 | `test` | `fresnel secret test <name>` | 상태 열 | M2 |
 | 사람 실행 | `run` | [미결] `L4.cli.spec` §10 3번 | 없음 | M2 |
-| 값 보기 | `reveal` | `xeon secret reveal <name>`(TTY만, OS 인증 재확인이 가능한 곳은 재확인) | 값 보기(재인증 후 한 번) | 명령줄 M2, 화면 M3 [결정: review.decisions-2 U-20] |
+| 값 보기 | `reveal` | `fresnel secret reveal <name>`(TTY만, OS 인증 재확인이 가능한 곳은 재확인) | 값 보기(재인증 후 한 번) | 명령줄 M2, 화면 M3 [결정: review.decisions-2 U-20] |
 | 승인 | `check` → L1 | 대화형 승인 프롬프트(`L1.tools.spec`) | 승인 요청 "무엇에, 어느 호스트에, 몇 분간" | M2 |
-| 등록 안내 | `diagnose`의 `hint` | `xeon doctor` 출력 | 첫 실행 설정 | M1 |
+| 등록 안내 | `diagnose`의 `hint` | `fresnel doctor` 출력 | 첫 실행 설정 | M1 |
 
 - 명령의 wire 경로(`secret.*` 메서드)는 F에 없다(`L4.cli.spec` §10 3번). 8.3절에 요청한다.
 

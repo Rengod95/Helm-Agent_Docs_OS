@@ -100,7 +100,7 @@ describe("compaction_is_non_destructive", () => {
     ]);
     const compacted = present(h.log.events.findLast((event) => event.kind === "thread.compacted"));
     expect(compacted.payload).toMatchObject({
-      details: { xeon: { reason: "threshold", stepId }, readFiles: [], modifiedFiles: [] },
+      details: { fresnel: { reason: "threshold", stepId }, readFiles: [], modifiedFiles: [] },
       fromExtension: null,
     });
     expect(compacted.stepId).toBe(stepId);
@@ -114,7 +114,7 @@ describe("compaction_is_non_destructive", () => {
     valueOf(await h.service.compact(h.log.threadId, request()));
     expect(h.log.commits[0]?.requestId).toBe(`compact:${h.log.threadId}:${leaf}:manual`);
     const compacted = present(h.log.events.findLast((event) => event.kind === "thread.compacted"));
-    expect(compacted.payload).toMatchObject({ details: { xeon: { stepId: null } } });
+    expect(compacted.payload).toMatchObject({ details: { fresnel: { stepId: null } } });
   });
 
   test("the summary usage and tokensBefore are recorded", async () => {

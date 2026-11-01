@@ -149,7 +149,9 @@ describe("search chain", () => {
     const world = await makeWebWorld({
       catalog: fakeCatalog([searchCandidate(down, "plugin"), searchCandidate(other, "builtin")]),
     });
-    const failure = await rejection(world.search({ query: "xeon", provider: "plugin:web-down" }));
+    const failure = await rejection(
+      world.search({ query: "fresnel", provider: "plugin:web-down" }),
+    );
     expect(failure.data.code).toBe("unavailable");
     expect(failure.data.detail).toMatchObject({ reason: "no-key" });
     expect(other.searches.length).toBe(0);
@@ -159,11 +161,11 @@ describe("search chain", () => {
       ...world.settings(),
       search: { ...world.settings().search, provider: "plugin:web-down" },
     });
-    const bySetting = await rejection(world.search({ query: "xeon" }));
+    const bySetting = await rejection(world.search({ query: "fresnel" }));
     expect(bySetting.data.detail).toMatchObject({ reason: "no-key" });
     expect(other.searches.length).toBe(0);
     // 등록되지 않은 ID
-    const unknown = await rejection(world.search({ query: "xeon", provider: "plugin:ghost" }));
+    const unknown = await rejection(world.search({ query: "fresnel", provider: "plugin:ghost" }));
     expect(unknown.data.detail).toMatchObject({ reason: "unknown_provider" });
   });
 
@@ -183,7 +185,7 @@ describe("search chain", () => {
         searchCandidate(wrapper, "builtin"),
       ]),
     });
-    const output = await world.search({ query: "xeon agents" });
+    const output = await world.search({ query: "fresnel agents" });
     expect(output.meta.provider).toBe("builtin-wrapper");
     expect(output.meta.selectedBy).toBe("auto");
     expect(output.meta.fallbacks).toEqual([
@@ -203,7 +205,7 @@ describe("search chain", () => {
         searchCandidate(wrapper, "builtin"),
       ]),
     });
-    const output = await world.search({ query: "xeon" });
+    const output = await world.search({ query: "fresnel" });
     expect(output.meta.provider).toBe("searxng");
     expect(output.meta.fallbacks).toEqual([]);
     expect(wrapper.probes()).toBe(0);
@@ -220,7 +222,7 @@ describe("search chain", () => {
         searchCandidate(wrapper, "builtin"),
       ]),
     });
-    const fellBack = await world.search({ query: "xeon" });
+    const fellBack = await world.search({ query: "fresnel" });
     expect(fellBack.meta.provider).toBe("builtin-wrapper");
     expect(fellBack.meta.fallbacks).toEqual([
       { provider: "plugin:web-limited", stage: "call", reason: "rate_limited" },
@@ -229,14 +231,14 @@ describe("search chain", () => {
     // invalid_input은 다른 provider를 부르지 않고 바로 실패한다
     limited.failWith(capabilityError("invalid_input"));
     const before = wrapper.searches.length;
-    const failure = await rejection(world.search({ query: "xeon two" }));
+    const failure = await rejection(world.search({ query: "fresnel two" }));
     expect(failure.data.code).toBe("invalid_input");
     expect(wrapper.searches.length).toBe(before);
 
     // 명시 선택이면 rate_limited도 retryAfterMs와 함께 그대로 거부한다
     limited.failWith(capabilityError("rate_limited", { retryAfterMs: 2000 }));
     const explicit = await rejection(
-      world.search({ query: "xeon three", provider: "plugin:web-limited" }),
+      world.search({ query: "fresnel three", provider: "plugin:web-limited" }),
     );
     expect(explicit.data.code).toBe("rate_limited");
     expect(explicit.data.retryAfterMs).toBe(2000);
@@ -254,7 +256,7 @@ describe("search chain", () => {
         searchCandidate(wrapper, "builtin"),
       ]),
     });
-    const output = await world.search({ query: "xeon" });
+    const output = await world.search({ query: "fresnel" });
     expect(output.meta.fallbacks).toEqual([
       { provider: "plugin:web-broken", stage: "call", reason: "upstream_error" },
     ]);
@@ -272,7 +274,7 @@ describe("search chain", () => {
       settings: { search: { order: ["plugin:web-one"] } },
       catalog: fakeCatalog([searchCandidate(one, "plugin"), searchCandidate(two, "builtin")]),
     });
-    const failure = await rejection(world.search({ query: "xeon" }));
+    const failure = await rejection(world.search({ query: "fresnel" }));
     expect(failure.data.code).toBe("unavailable");
     expect(failure.data.detail).toMatchObject({
       reason: "all_failed",
@@ -282,7 +284,7 @@ describe("search chain", () => {
       ],
     });
     const empty = await makeWebWorld({ catalog: fakeCatalog() });
-    const none = await rejection(empty.search({ query: "xeon" }));
+    const none = await rejection(empty.search({ query: "fresnel" }));
     expect(none.data.detail).toMatchObject({ reason: "no_provider" });
   });
 });

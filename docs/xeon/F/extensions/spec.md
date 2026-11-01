@@ -62,9 +62,9 @@ binds: [xeon/packages/contracts/src/extensions/**]
 
 턴과 step [제안]:
 
-- pi의 `turn_start`, `turn_end`는 모델 요청 한 번과 그 도구 라운드 단위로 발화한다. Xeon 용어로 이 단위는 step이다. 그래서 pi `turn_*` 지점은 Xeon의 step 경계에서 발화한다.
-- Xeon의 turn은 입력 하나가 들어와 정착(settle)할 때까지다. pi의 `agent_start`, `agent_end`, `agent_before_settle`, `agent_settled`가 Xeon turn 경계에서 발화한다. Xeon 이름은 `boundary.turn.before`, `boundary.turn.after`, `boundary.settle.before`, `boundary.settle.after`다.
-- 이 대응은 F.conversation.spec §2 용어표(thread, turn, step, item)와 §2.1을 따른다. pi의 세션(session)은 Xeon의 thread다.
+- pi의 `turn_start`, `turn_end`는 모델 요청 한 번과 그 도구 라운드 단위로 발화한다. Fresnel 용어로 이 단위는 step이다. 그래서 pi `turn_*` 지점은 Fresnel의 step 경계에서 발화한다.
+- Fresnel의 turn은 입력 하나가 들어와 정착(settle)할 때까지다. pi의 `agent_start`, `agent_end`, `agent_before_settle`, `agent_settled`가 Fresnel turn 경계에서 발화한다. Fresnel 이름은 `boundary.turn.before`, `boundary.turn.after`, `boundary.settle.before`, `boundary.settle.after`다.
+- 이 대응은 F.conversation.spec §2 용어표(thread, turn, step, item)와 §2.1을 따른다. pi의 세션(session)은 Fresnel의 thread다.
 
 다른 F 도메인에서 가져오는 이름:
 
@@ -76,7 +76,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 
 ### 3.1 매니페스트 (`manifest.ts`)
 
-Claude Code `plugin.json`의 레이아웃과 메타 필드를 따르고 Xeon 필드를 더한다(`_research/ref-synthesis.md` F 계약 표 확장 매니페스트 행, `_research/refs/claude-code.md` 96-99행).
+Claude Code `plugin.json`의 레이아웃과 메타 필드를 따르고 Fresnel 필드를 더한다(`_research/ref-synthesis.md` F 계약 표 확장 매니페스트 행, `_research/refs/claude-code.md` 96-99행).
 
 ```ts
 import { Type, type Static, type TSchema } from "typebox";
@@ -146,7 +146,7 @@ export const ExtensionManifestSchema = Type.Object({
     mcpServers: Type.Optional(Type.String()),
   })),
   userConfig: Type.Optional(Type.Record(Type.String({ pattern: "^[a-zA-Z][a-zA-Z0-9_]{0,63}$" }), UserConfigEntrySchema)),
-  // Xeon 필드
+  // Fresnel 필드
   layer: ExtensionLayerSchema,
   kind: ExtensionKindSchema,
   /** 확장 루트 기준 상대 경로. 예: "./src/index.ts" */
@@ -217,7 +217,7 @@ export type PostItem =
   /** 확장 메시지. 모델 컨텍스트에 들어가고 display가 참이면 UI에도 보인다 */
   | {
       readonly kind: "context";
-      readonly customType: RecordKind;   // XeonCustomMessage.customType(F.conversation.spec §3.5.2)
+      readonly customType: RecordKind;   // FresnelCustomMessage.customType(F.conversation.spec §3.5.2)
       readonly content: PostContent;
       readonly display: boolean;
       readonly details?: JsonValue;
@@ -775,13 +775,13 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 
 ### 3.4 지점 선언 표
 
-- 이름 규칙 [결정: adr.0017, 2026-10-28 오케스트레이터]: 소문자 점 표기 `<종류>.<대상>[.<시점>]`이다. 첫 마디는 `kind`와 같다. 시점은 `before`, `after` 둘이다. 시점이 없는 명사형 대상은 마지막 마디로 `update`, `failed`, `start`, `shutdown`, `stream`만 쓴다(예: `tool.result`, `tool.execution.update`, `thread.start`, `request.stream`). 별칭은 두지 않는다. Xeon 용어가 pi와 다르면 Xeon 용어를 쓴다: pi의 agent는 turn, pi의 turn은 step이다(`boundary.turn.*`, `boundary.step.*`).
+- 이름 규칙 [결정: adr.0017, 2026-10-28 오케스트레이터]: 소문자 점 표기 `<종류>.<대상>[.<시점>]`이다. 첫 마디는 `kind`와 같다. 시점은 `before`, `after` 둘이다. 시점이 없는 명사형 대상은 마지막 마디로 `update`, `failed`, `start`, `shutdown`, `stream`만 쓴다(예: `tool.result`, `tool.execution.update`, `thread.start`, `request.stream`). 별칭은 두지 않는다. Fresnel 용어가 pi와 다르면 Fresnel 용어를 쓴다: pi의 agent는 turn, pi의 turn은 step이다(`boundary.turn.*`, `boundary.step.*`).
 - `lifecycle` 지점은 이름이 `lifecycle.<내구 kind>`다. 내구 레코드 kind(`agent.settled`, `lease.rejected`)는 따로 있는 이름 공간이고, 레코드 kind에서 지점 이름으로 가는 대응은 `LIFECYCLE_HOOKS` 표 하나가 정한다. 디스패치는 이 표를 쓴다.
 - 이름 대응(옛 pi 이름)은 표의 `pi 이름` 열이다. 코드의 `PiSource.event`와 같다. 문서 대조 시험이 이 열을 코드와 맞춘다.
 - pi 위치 약어: 정의는 `~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/types.ts`의 줄(이벤트/결과), 합성은 같은 디렉터리 `runner.ts`의 줄이다. `cache-warmer.ts`는 `core/cache-warmer.ts`다. 줄 번호는 pi 1.1.0 소스 기준이다(`_research/notes/F-1.md` §2).
 - 실패 열은 지점 선언의 `failure` 필드다 [결정: adr.0017 §3.4]. `closed` = 핸들러 예외를 거부값(`FIRST_DENY`)으로 처리, `open` = 기록하고 그 핸들러의 몫만 버린 채 계속, `skip` = 그 핸들러의 패치만 버림. fold 기본값은 tap·collect `open`, first `closed`, chain `skip`이고, 기본값과 다른 지점은 `thread.compact.before`(first, `open`) 하나다. 사유는 `HOOKS` 선언의 주석에 적는다.
 - M1 열의 ●는 M1 스모크에서 페이로드를 정확화하는 지점이다(F.extensions.plan).
-- pi 차이 열은 Xeon fold가 pi 합성과 다른 점이다. 41종의 pi fold 분포는 tap 22, 제자리 변경 tap 1, first 7, chain 9, collect 2다(`_research/notes/F-1.md` §2.6). Xeon 표의 pi 41행은 tap 22, first 7, chain 10, collect 2다. `request.cache.before`은 pi collect지만 핸들러가 원본을 받으므로 chain으로 둔다 [결정: 2026-10-28 오케스트레이터].
+- pi 차이 열은 Fresnel fold가 pi 합성과 다른 점이다. 41종의 pi fold 분포는 tap 22, 제자리 변경 tap 1, first 7, chain 9, collect 2다(`_research/notes/F-1.md` §2.6). Fresnel 표의 pi 41행은 tap 22, first 7, chain 10, collect 2다. `request.cache.before`은 pi collect지만 핸들러가 원본을 받으므로 chain으로 둔다 [결정: 2026-10-28 오케스트레이터].
 - `collect` 배정은 `input.agent.before`와 `thread.resources` 둘이다. boundary 엔트리 추가(`boundary.step.after`, `boundary.settle.before`)는 chain + `finalize`로 둔다. `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 [결정: 2026-10-28 오케스트레이터].
 - guard 지점(42~44)은 `GuardDecision`(`{ block: true, reason }`, 값이 없으면 통과)으로 결정한다. 허용을 값으로 내면 `first`가 뒤 가드를 멈추므로 두지 않는다. 출력 대상 `display`, `execution`은 [가정]이다(L1·L4 출력 경로 목록이 정해진 뒤 확정, adr.0017 §6). 내장 검사는 없다(M3-REQ-107).
 
@@ -794,7 +794,7 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 5 | `request.system.before` | request | chain | ContextPayload | ContextPatch | skip |  | `context_with_system` | types.ts:881/1415 | runner.ts:1298 emitContext 2단계 | 같음 |
 | 6 | `request.cache.before` | request | chain | CacheWarmingDecisionPayload | CacheWarmingPatch | skip |  | `cache_warming_decision` | cache-warmer.ts:112/117 | runner.ts:1121 emitCacheWarmingDecision | pi collect(마지막 정의값). 핸들러가 원본 payload를 받으므로 결과가 같다 |
 | 7 | `request.provider.before` | request | chain | BeforeProviderRequestPayload | ProviderPayloadPatch | skip | ● | `before_provider_request` | types.ts:887/1422 | runner.ts:1361 emitBeforeProviderRequest | 같음 |
-| 8 | `request.headers.before` | request | chain | BeforeProviderHeadersPayload | HeadersPatch | skip |  | `before_provider_headers` | types.ts:897/— | runner.ts:1392 emitBeforeProviderHeaders | pi는 제자리 변경 tap. Xeon은 헤더 패치(null은 삭제) |
+| 8 | `request.headers.before` | request | chain | BeforeProviderHeadersPayload | HeadersPatch | skip |  | `before_provider_headers` | types.ts:897/— | runner.ts:1392 emitBeforeProviderHeaders | pi는 제자리 변경 tap. Fresnel은 헤더 패치(null은 삭제) |
 | 9 | `request.provider.after` | request | tap | AfterProviderResponsePayload | void | open |  | `after_provider_response` | types.ts:903 | runner.ts:1089 emit | 같음 |
 | 10 | `request.stream` | request | tap | ProviderStreamPayload | void | open |  | `provider_stream_event` | types.ts:910 | runner.ts:1089 emit | 같음 |
 | 11 | `request.model.after` | request | tap | ModelSelectPayload | void | open |  | `model_select` | types.ts:1106 | runner.ts:1089 emit | 같음 |
@@ -804,23 +804,23 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 15 | `tool.execution.before` | tool | tap | ToolExecutionStartPayload | void | open |  | `tool_execution_start` | types.ts:1066 | runner.ts:1089 emit | 같음 |
 | 16 | `tool.execution.update` | tool | tap | ToolExecutionUpdatePayload | void | open |  | `tool_execution_update` | types.ts:1076 | runner.ts:1089 emit | 같음 |
 | 17 | `tool.execution.after` | tool | tap | ToolExecutionEndPayload | void | open |  | `tool_execution_end` | types.ts:1087 | runner.ts:1089 emit | 같음. `input`과 `stepId`를 더 싣는다(M3-REQ-04) |
-| 18 | `boundary.turn.before` | boundary | tap | AgentStartPayload | void | open |  | `agent_start` | types.ts:932 | runner.ts:1089 emit | Xeon turn 시작. 페이로드 `{ turnId, origin?: TurnOrigin }`(M3-REQ-06, 선택은 L1이 채우기 전까지) |
-| 19 | `boundary.step.before` | boundary | tap | TurnStartPayload | void | open | ● | `turn_start` | types.ts:1030 | runner.ts:1089 emit | Xeon step 시작 |
+| 18 | `boundary.turn.before` | boundary | tap | AgentStartPayload | void | open |  | `agent_start` | types.ts:932 | runner.ts:1089 emit | Fresnel turn 시작. 페이로드 `{ turnId, origin?: TurnOrigin }`(M3-REQ-06, 선택은 L1이 채우기 전까지) |
+| 19 | `boundary.step.before` | boundary | tap | TurnStartPayload | void | open | ● | `turn_start` | types.ts:1030 | runner.ts:1089 emit | Fresnel step 시작 |
 | 20 | `boundary.message.before` | boundary | tap | MessageStartPayload | void | open |  | `message_start` | types.ts:1047 | runner.ts:1089 emit | 같음 |
 | 21 | `boundary.message.update` | boundary | tap | MessageUpdatePayload | void | open |  | `message_update` | types.ts:1053 | runner.ts:1089 emit | 같음 |
 | 22 | `boundary.message.after` | boundary | chain | MessageEndPayload | MessageEndPatch | skip |  | `message_end` | types.ts:1060/1463 | runner.ts:1144 emitMessageEnd | 같음(role 불일치 패치는 건너뜀) |
-| 23 | `boundary.step.after` | boundary | chain | TurnEndPayload | BoundaryPatch | skip | ● | `turn_end` | types.ts:1037/994 | runner.ts:1029 emitBoundary | Xeon step 끝. 최종 검증(`finalize`). boundary 엔트리 추가의 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 |
-| 24 | `boundary.settle.before` | boundary | chain | AgentBeforeSettlePayload | BoundaryPatch | skip | ● | `agent_before_settle` | types.ts:1000/994 | runner.ts:1029 emitBoundary | Xeon turn 정착 직전. 최종 검증(`finalize`). boundary 엔트리 추가의 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 |
+| 23 | `boundary.step.after` | boundary | chain | TurnEndPayload | BoundaryPatch | skip | ● | `turn_end` | types.ts:1037/994 | runner.ts:1029 emitBoundary | Fresnel step 끝. 최종 검증(`finalize`). boundary 엔트리 추가의 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 |
+| 24 | `boundary.settle.before` | boundary | chain | AgentBeforeSettlePayload | BoundaryPatch | skip | ● | `agent_before_settle` | types.ts:1000/994 | runner.ts:1029 emitBoundary | Fresnel turn 정착 직전. 최종 검증(`finalize`). boundary 엔트리 추가의 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 |
 | 25 | `boundary.turn.after` | boundary | tap | AgentEndPayload | void | open |  | `agent_end` | types.ts:937 | runner.ts:1089 emit | 같음 |
-| 26 | `boundary.settle.after` | boundary | tap | AgentSettledPayload | void | open | ● | `agent_settled` | types.ts:1005 | runner.ts:1089 emit | Xeon turn 끝. `origin`, `status`, `hasFinalAnswer`, `lastItemId`를 싣는다(M3-REQ-100, §3.5 블록) |
-| 27 | `thread.trust.before` | thread | first | ProjectTrustPayload | ProjectTrustDecision | closed |  | `project_trust` | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Xeon은 불신(no). thread 없이 호스트 수준에서 발화한다(`threadless`, §7) |
+| 26 | `boundary.settle.after` | boundary | tap | AgentSettledPayload | void | open | ● | `agent_settled` | types.ts:1005 | runner.ts:1089 emit | Fresnel turn 끝. `origin`, `status`, `hasFinalAnswer`, `lastItemId`를 싣는다(M3-REQ-100, §3.5 블록) |
+| 27 | `thread.trust.before` | thread | first | ProjectTrustPayload | ProjectTrustDecision | closed |  | `project_trust` | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Fresnel은 불신(no). thread 없이 호스트 수준에서 발화한다(`threadless`, §7) |
 | 28 | `thread.resources` | thread | collect | ResourcesDiscoverPayload | ResourcesPatch | open |  | `resources_discover` | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. 병합 규칙이 경로를 확장 이름과 함께 추가 |
 | 29 | `thread.mcp.after` | thread | tap | McpServersChangePayload | void | open |  | `mcp_servers_change` | types.ts:730 | runner.ts:459 emit (대기 안 함) | `dispatch: detached` |
 | 30 | `thread.start` | thread | tap | SessionStartPayload | void | open | ● | `session_start` | types.ts:741 | runner.ts:1089 emit | 같음 |
 | 31 | `thread.info.after` | thread | tap | SessionInfoChangedPayload | void | open |  | `session_info_changed` | types.ts:750 | runner.ts:1089 emit (대기 안 함) | `dispatch: detached` |
-| 32 | `thread.switch.before` | thread | first | SessionBeforeSwitchPayload | SessionCancelDecision | closed |  | `session_before_switch` | types.ts:757/1474 | runner.ts:1089 emit (cancel 중단 1096-1103) | pi fail-open. Xeon은 예외 시 취소 |
+| 32 | `thread.switch.before` | thread | first | SessionBeforeSwitchPayload | SessionCancelDecision | closed |  | `session_before_switch` | types.ts:757/1474 | runner.ts:1089 emit (cancel 중단 1096-1103) | pi fail-open. Fresnel은 예외 시 취소 |
 | 33 | `thread.fork.before` | thread | first | SessionBeforeForkPayload | SessionBeforeForkDecision | closed |  | `session_before_fork` | types.ts:764/1478 | runner.ts:1089 emit | 같은 차이 |
-| 34 | `thread.compact.before` | thread | first | SessionBeforeCompactPayload | SessionBeforeCompactDecision | open |  | `session_before_compact` | types.ts:771/1483 | runner.ts:1089 emit | pi는 cancel 외 필드를 마지막 정의값으로 모음. Xeon은 첫 결정. pi와 같이 fail-open이다(핸들러 예외는 결정 없음). 컨텍스트가 넘친 상태에서 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4] |
+| 34 | `thread.compact.before` | thread | first | SessionBeforeCompactPayload | SessionBeforeCompactDecision | open |  | `session_before_compact` | types.ts:771/1483 | runner.ts:1089 emit | pi는 cancel 외 필드를 마지막 정의값으로 모음. Fresnel은 첫 결정. pi와 같이 fail-open이다(핸들러 예외는 결정 없음). 컨텍스트가 넘친 상태에서 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4] |
 | 35 | `thread.compact.after` | thread | tap | SessionCompactPayload | void | open |  | `session_compact` | types.ts:784 | runner.ts:1089 emit | 같음 |
 | 36 | `thread.compact.failed` | thread | tap | SessionCompactFailedPayload | void | open |  | `session_compact_failed` | types.ts:795 | runner.ts:1089 emit | 같음 |
 | 37 | `thread.tree.before` | thread | first | SessionBeforeTreePayload | SessionBeforeTreeDecision | closed |  | `session_before_tree` | types.ts:833/1488 | runner.ts:1089 emit | 34번과 같은 차이 |
@@ -930,7 +930,7 @@ export type ToolResultPatch = Partial<ToolResultValue>;
 // structuredContent를 지운다(pi types.ts:1450-1455 주석과 같은 규칙)
 
 // hooks/boundary.ts
-export interface TurnStartPayload {           // Xeon step 시작
+export interface TurnStartPayload {           // Fresnel step 시작
   readonly stepIndex: number;
   readonly stepId: StepId;
   readonly timestamp: number;
@@ -952,7 +952,7 @@ export interface BoundaryPatch {
   readonly entries?: readonly DurableEventDraft[];
   readonly continue?: boolean;
 }
-export interface TurnEndPayload {             // Xeon step 끝
+export interface TurnEndPayload {             // Fresnel step 끝
   readonly stepIndex: number;
   readonly stepId: StepId;
   readonly message: AgentMessage;
@@ -961,7 +961,7 @@ export interface TurnEndPayload {             // Xeon step 끝
   readonly toolResultItemIds: readonly ItemId[];
   readonly context: BoundaryContextPreview;
 }
-export interface AgentBeforeSettlePayload {   // Xeon turn 정착 직전
+export interface AgentBeforeSettlePayload {   // Fresnel turn 정착 직전
   readonly turnId: TurnId;
   readonly context: BoundaryContextPreview;
   readonly outcome: "completed" | "aborted" | "error";
@@ -994,7 +994,7 @@ export interface SessionShutdownPayload {
 }
 ```
 
-- pi 필드 이름 중 파일 경로나 엔트리 id를 담는 것은 Xeon ID로 바꾼다(`messageEntryId` → `messageItemId`, `previousSessionFile` → `previousThreadId`, `targetSessionFile` → `targetThreadId`). `SessionStartPayload.threadId`는 pi에 없는 필드이고 시작한 thread를 가리킨다. 그 밖의 이름은 pi와 같다.
+- pi 필드 이름 중 파일 경로나 엔트리 id를 담는 것은 Fresnel ID로 바꾼다(`messageEntryId` → `messageItemId`, `previousSessionFile` → `previousThreadId`, `targetSessionFile` → `targetThreadId`). `SessionStartPayload.threadId`는 pi에 없는 필드이고 시작한 thread를 가리킨다. 그 밖의 이름은 pi와 같다.
 - `BoundaryContextPreview`에서 pi의 `contextEntries: ProjectedSessionEntry[]`는 F.records.spec의 투영 타입이 정해진 뒤 추가한다.
 
 #### 3.5.1 M1 밖 지점 중 소유 문서가 제안한 페이로드 [제안]
@@ -1068,7 +1068,7 @@ export interface SessionCompactFailedPayload {
 ```
 
 - `McpServersChangePayload.servers[].status` 값 집합은 [가정]이다. `L2.mcp.spec`의 서버 상태 이름이 다르면 그쪽 이름으로 고친다.
-- pi `model_select`(`request.model.after`)의 `source: "cycle"`은 Xeon에 대응 기능이 없어 뺐다(`L1.models.spec` §7.2).
+- pi `model_select`(`request.model.after`)의 `source: "cycle"`은 Fresnel에 대응 기능이 없어 뺐다(`L1.models.spec` §7.2).
 
 ### 3.6 그룹 간 레코드 (`group-record.ts`)
 
@@ -1116,7 +1116,7 @@ export function isRecordKindOf(kind: string, owner: { kind: "group" | "plugin"; 
 `validateGroupRecord`는 import 순환을 피하려고 `validate.ts`에 둔다(§3.7).
 
 - 그룹 레코드는 세션 이벤트 로그에 이벤트로 저장된다. 이벤트 종류(`EventKind`)는 레코드의 `kind` 문자열을 그대로 쓰고, `EventEnvelope`가 감싼다. `RecordKind`는 F.records.spec §3.2의 `ExtensionEventKind`와 같은 타입이므로 `parseEventKind`를 통과한다. 코어 커밋과 같은 트랜잭션으로 쓴다.
-- 접두 규칙 [제안]: 이벤트 kind, 레코드 kind, `XeonCustomMessage.customType`(`PostItem.customType`)은 모두 이 형식 하나를 쓴다. 플러그인은 `x.<확장 이름>.`, 그룹은 `grp.<그룹 이름>.`이다. 설정 키와 wire 메서드의 `ext.` 접두는 다른 규칙이다(F.wire-settings.spec §3.8.1).
+- 접두 규칙 [제안]: 이벤트 kind, 레코드 kind, `FresnelCustomMessage.customType`(`PostItem.customType`)은 모두 이 형식 하나를 쓴다. 플러그인은 `x.<확장 이름>.`, 그룹은 `grp.<그룹 이름>.`이다. 설정 키와 wire 메서드의 `ext.` 접두는 다른 규칙이다(F.wire-settings.spec §3.8.1).
 - 그룹의 비공개 상태는 확장 접두 테이블(세션 저장 C안)에 둔다. 비공개 상태는 다른 그룹이 읽지 않는다. 공개할 정보는 그룹 레코드로만 낸다.
 
 ### 3.7 검증 함수 (`validate.ts`)
@@ -1270,7 +1270,7 @@ chain의 보충 규칙 [제안]:
 |---|---|---|
 | `schema` | error | `ExtensionManifestSchema` 위반 |
 | `unknown_key` | warning | 알 수 없는 최상위 키(제거됨) |
-| `name_invalid` / `name_reserved` | error | 이름 형식 위반 / `core`, `ext`, `grp`, `x`, `xeon` 또는 L2 도메인 이름을 외부 확장(`trust.level`이 `builtin`이 아님)이 씀. 입력 출처 키 `user`, `deleg`, `timer`(F `RESERVED_SOURCE_KEYS`)는 신뢰 등급과 무관하게 모든 확장에 금지한다(review.decisions-2 U-13, `eng.transactions.design` §4.7) |
+| `name_invalid` / `name_reserved` | error | 이름 형식 위반 / `core`, `ext`, `grp`, `x`, `fresnel` 또는 L2 도메인 이름을 외부 확장(`trust.level`이 `builtin`이 아님)이 씀. 입력 출처 키 `user`, `deleg`, `timer`(F `RESERVED_SOURCE_KEYS`)는 신뢰 등급과 무관하게 모든 확장에 금지한다(review.decisions-2 U-13, `eng.transactions.design` §4.7) |
 | `layer_kind_mismatch` | error | `kind: "group"`인데 `layer`가 `L3`가 아님, 또는 `layer: "L3"`인데 `kind`가 `group`이 아님 |
 | `drive_requires_group` | error | `usesDrive: true`인데 `kind`가 `group`이 아님 |
 | `entry_invalid` | error | `entry`가 절대 경로이거나 `..`로 확장 루트 밖을 가리킴 |
@@ -1369,7 +1369,7 @@ chain의 보충 규칙 [제안]:
 
 - [결정: m2c G1-03] `thread.trust.before`는 kind가 `thread`이지만 thread 없이 호스트 수준에서 발화한다. 폴더 신뢰는 thread를 만들거나 열기 전에 판정해야 하기 때문이다(`X.loading-trust.spec` §4.7.4). `HookDecl.threadless: true`가 이 지점을 표시하고, 페이로드(`{ cwd }`)와 발화 문맥에 `threadId`가 없다. 그래서 핸들러는 thread 상태(`stateOf`)나 thread 신호를 쓰지 못하고, 예산·진단은 호스트 수준 한도를 따른다. 그 밖의 `session` 지점은 모두 thread에 묶여 발화한다. 발화 규칙의 구현(디스패처의 thread 없는 경로, 예산, 진단)은 X.primitives가 정한다. M2의 호스트는 이 지점에 핸들러를 거는 확장이 없어 발화하지 않는다.
 - 능력 도구 호출은 tool 지점을 지난다. 페이로드의 `capability` 필드로 능력을 식별한다(F.capabilities.spec §7).
-- [결정: adr.0017] 지점 5종 밖 Xeon 고유 이벤트는 수명주기 지점으로 연다. 첫 목록은 L3 요구분(위임 정착 `agent.settled`, 임대 거부 `lease.rejected`)이고 나머지(승인 요청·응답, 그룹 레코드 쓰기, scope 토글 등)는 요구가 생길 때 더한다(`review.m3-lower-requirements` M3-REQ-101).
+- [결정: adr.0017] 지점 5종 밖 Fresnel 고유 이벤트는 수명주기 지점으로 연다. 첫 목록은 L3 요구분(위임 정착 `agent.settled`, 임대 거부 `lease.rejected`)이고 나머지(승인 요청·응답, 그룹 레코드 쓰기, scope 토글 등)는 요구가 생길 때 더한다(`review.m3-lower-requirements` M3-REQ-101).
 
 ## 8. 다른 문서와의 인터페이스
 

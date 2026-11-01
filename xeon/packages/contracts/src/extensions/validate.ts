@@ -69,7 +69,7 @@ export interface ManifestResult {
 }
 
 /**
- * 외부 확장이 쓸 수 없는 이름. core, ext, grp, x, xeon과 내장 L2 도메인 이름이다.
+ * 외부 확장이 쓸 수 없는 이름. core, ext, grp, x, fresnel과 내장 L2 도메인 이름이다.
  * 정확한 목록은 F.capabilities.spec §10 미결(능력·확장 이름 네임스페이스)이 풀린 뒤 확정한다 [가정]
  */
 export const RESERVED_EXTENSION_NAMES: readonly string[] = [
@@ -77,7 +77,7 @@ export const RESERVED_EXTENSION_NAMES: readonly string[] = [
   "ext",
   "grp",
   "x",
-  "xeon",
+  "fresnel",
   "workspace",
   "mcp",
   "web",

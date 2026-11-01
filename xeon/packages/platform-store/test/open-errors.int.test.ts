@@ -19,21 +19,23 @@ describe("open errors", () => {
   test("a parent that is a file is an io error", async () => {
     const dir = own(tempDir());
     writeFileSync(dir.join("file.txt"), "x");
-    const opened = await openStore(directOptions(dir.join("file.txt", "sub", "xeon.db")).options);
+    const opened = await openStore(
+      directOptions(dir.join("file.txt", "sub", "fresnel.db")).options,
+    );
     expect(opened).toEqual({ ok: false, error: { kind: "io", code: "ENOTDIR" } });
   });
 
   test.skipIf(process.getuid?.() === 0 || process.platform === "win32")(
     "a data directory owned by someone else is a permission error",
     async () => {
-      const opened = await openStore(directOptions("/usr/xeon-test.db").options);
+      const opened = await openStore(directOptions("/usr/fresnel-test.db").options);
       expect(opened).toMatchObject({ ok: false, error: { kind: "permission", path: "/usr" } });
     },
   );
 
   test("a busy database fails the open with busy", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     await createStore(path);
     const other = new Database(path);
     other.run("PRAGMA busy_timeout = 0");
@@ -51,7 +53,7 @@ describe("open errors", () => {
 
   test("a tampered sys migration fails the open and closes the connections", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     await createStore(path);
     const tamper = new Database(path);
     tamper.run(
@@ -67,7 +69,7 @@ describe("open errors", () => {
 
   test("a database written by a newer engine is reported as a future version", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     await createStore(path);
     const newer = new Database(path);
     newer.run(
@@ -84,7 +86,7 @@ describe("open errors", () => {
 
   test("opening the same file again after a failed open still works", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     await createStore(path);
     const again = await openStore(directOptions(path).options);
     expect(again.ok).toBe(true);

@@ -111,24 +111,24 @@ describe("precedence (S5)", () => {
 describe("managed locks (S4)", () => {
   test("a managed value wins, locks, and keeps the others as shadowed", () => {
     const { setting } = resolveSetting(intDef(), [
-      layer("managed", KEY, 7, "/etc/xeon/managed.json"),
+      layer("managed", KEY, 7, "/etc/fresnel/managed.json"),
       layer("user", KEY, 1),
       layer("launch", KEY, 2),
     ]);
     expect(setting.value).toBe(7);
     expect(setting.locked).toBe(true);
-    expect(setting.source).toEqual({ scope: "managed", path: "/etc/xeon/managed.json" });
+    expect(setting.source).toEqual({ scope: "managed", path: "/etc/fresnel/managed.json" });
     expect(setting.shadowed).toEqual([{ scope: "launch" }, { scope: "user" }]);
   });
 
   test("writes to other scopes are settings.locked, writes to managed itself are not", () => {
     const catalog = catalogOf(intDef());
-    const stack = [layer("managed", KEY, 7, "/etc/xeon/managed.json")];
+    const stack = [layer("managed", KEY, 7, "/etc/fresnel/managed.json")];
     const blocked = checkSettingWrite(catalog, stack, KEY, "user", 3);
     expect(blocked).toEqual({
       ok: false,
       kind: "settings.locked",
-      details: { key: KEY, lockedBy: "managed", path: "/etc/xeon/managed.json" },
+      details: { key: KEY, lockedBy: "managed", path: "/etc/fresnel/managed.json" },
     });
     expect(checkSettingWrite(catalog, stack, KEY, "managed", 3).ok).toBe(true);
     expect(checkSettingWrite(catalog, [], KEY, "user", 3).ok).toBe(true);

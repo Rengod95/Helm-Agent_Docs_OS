@@ -43,7 +43,7 @@ export const GROUP_NAME_PATTERN: string = "^[a-z][a-z0-9-]{1,31}$";
 
 /**
  * 그룹 이름 예약 목록의 정본. 네 묶음을 합친다.
- * RESERVED_EXT_IDS(eng.context-map §5.4), F.extensions.spec §4.7 name_reserved의 grp·x·xeon,
+ * RESERVED_EXT_IDS(eng.context-map §5.4), F.extensions.spec §4.7 name_reserved의 grp·x·fresnel,
  * L2 도메인 이름(_routing/routes.yaml layout L2), 그룹 명령·설정 값과 겹치는 이름.
  * 설치된 확장 이름과의 충돌은 이 상수에 넣지 않는다. validateManifestSet의 name_conflict로 거부한다.
  */
@@ -56,7 +56,7 @@ export const RESERVED_GROUP_NAMES: readonly string[] = [
   "ext",
   "x",
   "grp",
-  "xeon",
+  "fresnel",
   "workspace",
   "mcp",
   "web",

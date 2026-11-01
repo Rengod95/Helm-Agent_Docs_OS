@@ -4,7 +4,7 @@ import { captureLogger } from "./support/logger.ts";
 import { createStubServer } from "../src/testing/stub-server.ts";
 
 const signal = new AbortController().signal;
-const client = { name: "xeon-test", version: "0.0.0" };
+const client = { name: "fresnel-test", version: "0.0.0" };
 const logger = captureLogger();
 
 describe("sdk under bun", () => {

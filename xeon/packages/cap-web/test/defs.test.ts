@@ -20,7 +20,7 @@ describe("web capability definitions", () => {
     const params = JSON.stringify(tool.parameters);
     expect(params).not.toContain('"provider"');
     expect(JSON.stringify(WebSearch.service.methods.search.input)).toContain('"provider"');
-    expect(tool.toInput?.({ query: "xeon" })).toEqual({ query: "xeon" });
+    expect(tool.toInput?.({ query: "fresnel" })).toEqual({ query: "fresnel" });
     const fetchTool = WebFetch.tools[0];
     expect(JSON.stringify(fetchTool.parameters)).not.toContain('"provider"');
   });

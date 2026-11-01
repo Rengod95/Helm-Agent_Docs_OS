@@ -1,6 +1,6 @@
-# Xeon 작업 규칙
+# Fresnel 작업 규칙
 
-Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 코드는 이 `xeon/` 워크스페이스에, 문서는 `../docs/xeon/`에 있다. 루트 레거시 파일(`package.json`, `apps/`, `experiments/`, `packages/helm-*`)은 건드리지 않는다.
+Fresnel(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 코드는 이 `xeon/` 워크스페이스에, 문서는 `../docs/xeon/`에 있다. 루트 레거시 파일(`package.json`, `apps/`, `experiments/`, `packages/helm-*`)은 건드리지 않는다.
 
 ## 시작하기 전에
 
@@ -35,7 +35,7 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 | 제외 | `vendor/*` (층 검사, lint, 포맷 대상 아님)     |
 
 - 패키지는 자기보다 낮은 순위만 import한다. 같은 층 패키지끼리는 import하지 않는다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다.
-- 각 `package.json`의 `"xeon": {"layer", "domain"}`이 기준이다. 디렉터리 이름과 층이 맞아야 한다.
+- 각 `package.json`의 `"fresnel": {"layer", "domain"}`이 기준이다. 디렉터리 이름과 층이 맞아야 한다.
 - 의존을 더하면 `package.json`에 `"@fresnel/<이름>": "workspace:*"`를 적고, 그 패키지 `tsconfig.json`의 `references`에 대상 패키지를 더한다.
 - 다른 패키지는 `@fresnel/<이름>`의 exports로만 import한다. `src`, `dist`, 상대 경로로 들어가지 않는다.
 - 강제 수단: `just check-layers`(package.json과 import), `just depcruise`(경로 규칙, 순환), oxlint `no-restricted-imports`와 `import/no-cycle`.
@@ -48,7 +48,7 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 - 스키마는 `typebox`(1.x). SQLite는 `bun:sqlite`만 쓴다.
 - `console`(scripts와 apps/cli, apps/host 제외), default export는 lint가 막는다. 검사를 끄거나 우회하지 않는다.
 
-### 타입과 실패 처리 (구속, `xeon-ts` 스킬)
+### 타입과 실패 처리 (구속, `fresnel-ts` 스킬)
 
 정본은 `../docs/xeon/engineering/typescript/guide.md`(eng.typescript.guide) 1.3절 체크리스트와 2절 규칙이다. 구현·리뷰 작업자는 코드를 쓰기 전에 읽는다.
 
@@ -86,8 +86,8 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 ### 병렬 작업 중 규칙
 
 - 에이전트를 여럿 돌리는 동안에는 `just check <패키지>`와 `just test <패키지>`만 돌린다(예: `just check packages/core-tools`). 저장소 전체를 도는 `just verify`, `just lint`, `just typecheck`는 마지막 병합 단계 한 곳에서만 돌린다.
-- 모든 무거운 명령은 `scripts/guard.sh run` scope(기본 1.5G, 공용 예산 `ws-dev.slice`) 안에서 돈다. 한도를 넘으면 그 실행만 종료되고(137) 기기는 살아 있다. `just verify`는 기기에서 하나만 돌고(슬롯 1) 단계를 차례로, 단계마다 따로 상한(2G, `XEON_VERIFY_STEP_MAX`)을 건다. 시험 단계는 감싸지 않고 `test-capped.sh`가 패키지마다 1.5G를 건다.
-- pre-commit의 oxfmt, oxlint도 `guard.sh run` 1.5G 아래에서 돈다. cargo(`just desktop-*`)는 2G(`XEON_CARGO_MAX`).
+- 모든 무거운 명령은 `scripts/guard.sh run` scope(기본 1.5G, 공용 예산 `ws-dev.slice`) 안에서 돈다. 한도를 넘으면 그 실행만 종료되고(137) 기기는 살아 있다. `just verify`는 기기에서 하나만 돌고(슬롯 1) 단계를 차례로, 단계마다 따로 상한(2G, `FRESNEL_VERIFY_STEP_MAX`)을 건다. 시험 단계는 감싸지 않고 `test-capped.sh`가 패키지마다 1.5G를 건다.
+- pre-commit의 oxfmt, oxlint도 `guard.sh run` 1.5G 아래에서 돈다. cargo(`just desktop-*`)는 2G(`FRESNEL_CARGO_MAX`).
 
 종료코드 1은 고친다. 2는 환경 문제이므로 코드를 고치지 말고 보고한다. 3은 사람 확인 뒤 `--yes`.
 

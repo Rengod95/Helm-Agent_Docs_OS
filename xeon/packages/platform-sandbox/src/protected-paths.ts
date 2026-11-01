@@ -134,9 +134,9 @@ export function buildProtectedPaths(input: ProtectedPathInput): readonly Protect
     ...(input.ageKeyFileEnv !== undefined && posix.isAbsolute(input.ageKeyFileEnv)
       ? [pathEntry(input.ageKeyFileEnv, "exact", "read_write", "secret_key")]
       : []),
-    // Xeon 데이터와 설정
-    pathEntry(data, "prefix", "read_write", "xeon_data"),
-    pathEntry(config, "prefix", "write", "xeon_config"),
+    // Fresnel 데이터와 설정
+    pathEntry(data, "prefix", "read_write", "fresnel_data"),
+    pathEntry(config, "prefix", "write", "fresnel_config"),
     // 자격 파일
     pathEntry(posix.join(home, ".ssh"), "prefix", "read_write", "credentials"),
     entry(".env", "basename", "read_write", "credentials", [".env.example"]),

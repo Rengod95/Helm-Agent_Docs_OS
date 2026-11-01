@@ -1,5 +1,5 @@
 {
-  "name": "xeon",
+  "name": "fresnel",
   "args": ["host", "--stdio"],
   "entry": "../cli/src/main.ts",
   "maxSizeMiB": 500,

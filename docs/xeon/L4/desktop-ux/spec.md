@@ -93,10 +93,10 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | SC-13 | 설정 바꾸기와 외부 변경 | X10, settings-ui §4.4~4.5 |
 | SC-14 | 웹 검색 provider 순서 정하기 | X9, ADR-0005 |
 | SC-15 | 대화에서 런타임 상태를 보고 작업대로 넘어가기 | [결정: 2026-10-30 사용자] 대화와 런타임 작업 둘 다 1급, ADR-0021 |
-| SC-16 | 플러그인·그룹 만들기 | `xeon group new`, `L3.group-sdk.spec`, `L3.slots.spec` |
+| SC-16 | 플러그인·그룹 만들기 | `fresnel group new`, `L3.group-sdk.spec`, `L3.slots.spec` |
 | SC-17 | 플러그인 설계: 연결 지점, 임대와 상한, 설정 | `F.extensions.spec` §3.1, `X.operations.spec` §4.2 |
 | SC-18 | 플러그인 적용: 켜기, 대화 범위, 신뢰 | `X.loading-trust.spec` §4.6, `L3.group-sdk.spec` §3.8 |
-| SC-19 | 시험 실행: replay, 테이프, 시험 대화 | `L3.group-sdk.spec` §3.10, `just bench --server` |
+| SC-19 | 시험 실행: replay, 테이프, 시험 대화 | `L3.group-sdk.spec` §3.10, `just benchmark --server` |
 | SC-20 | 평가와 측정: 지표, 비용, 핸들러 시간, 승격 보고, 코어 변경 검사 | `L3.group-sdk.spec` §3.12, `X.operations.spec` §4.2, `scripts/core-diff-check.ts` |
 | SC-21 | 묶기: 그룹 구성과 프로필 | `L3.slots.spec`, `x.primitives.activeDriveGroup` |
 | SC-22 | 제어: 켜기·끄기, 안전 모드, 자동 끄기 복구, 버전과 되돌리기 | `X.operations.spec` §4.3, §4.6 |
@@ -302,7 +302,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
   4. "제작 확장으로 만들기"를 누르면 이 대화(또는 새 대화)에서 제작 세션이 열리고 초안이 넘어갑니다. 에이전트가 뼈대를 만들고, 검사하고, 고칩니다. 화면 기여가 있으면 에이전트가 화면마다 모드를 고릅니다(ADR-0021 §3.5).
   5. 결과 단계에서 "replay 시험"(자동으로 돌지 않음 [결정: 2026-10-31 사용자]), "시험 대화에서 켜기", "편집기에서 열기", "사용자 확장 위치에 연결"(사람 확인)로 이어집니다.
 - 거치는 화면: P-21, P-02(제작 세션), P-19, P-13, P-17
-- 성공 기준: `group.*` 종류의 생성물이 CLI `xeon group new`와 같은 파일이고 `core-diff-check`에서 보호 경로 변경 0줄입니다. 지금은 wire가 없어 `[gap:W-27]`, `[gap:W-47]`입니다.
+- 성공 기준: `group.*` 종류의 생성물이 CLI `fresnel group new`와 같은 파일이고 `core-diff-check`에서 보호 경로 변경 0줄입니다. 지금은 wire가 없어 `[gap:W-27]`, `[gap:W-47]`입니다.
 
 ### SC-17 플러그인 설계: 연결 지점, 임대와 상한, 설정
 
@@ -334,9 +334,9 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 단계
   1. 시험 실행(P-19)에서 "새 시험"을 누르고 종류를 고릅니다.
      - replay: `replayDrive`로 모든 커밋 지점에서 끊어 재개하고 절단마다 digest를 비교합니다. 첫 실패에서 멈추지 않습니다. 효과 중복(`effects-doubled`)은 모든 절단의 이벤트열이 같을 때만 판정합니다. 효과 수는 `EffectCounts`(turn, spawn, delegate, post)입니다.
-     - bench: `just bench --server`의 서버 묶음(확장 디스패치, 임대 비용 등)을 돌립니다.
+     - benchmark: `just benchmark --server`의 서버 묶음(확장 디스패치, 임대 비용 등)을 돌립니다.
      - 시험 대화: 프로필(P-21)을 적용한 새 대화를 "시험" 표지로 만들고 프롬프트를 보냅니다.
-     - replay, bench, 코어 변경 검사는 개발 모드에서만 실행합니다. 배포 앱은 시험 대화와 지난 결과 읽기만 합니다 [결정: 2026-10-31 사용자].
+     - replay, benchmark, 코어 변경 검사는 개발 모드에서만 실행합니다. 배포 앱은 시험 대화와 지난 결과 읽기만 합니다 [결정: 2026-10-31 사용자].
   1a. 시험 대화는 "멈춤"으로 다음 단계 경계에서 멈춥니다. 임대는 쥔 채로 두고, "이어서"나 "한 경계씩"으로 다시 갑니다. 멈춤은 시험 대화에만 있습니다 [결정: 2026-10-31 사용자] `[gap:W-48]`.
   2. 실행 중인 시험은 왼쪽 패널 "시험 실행"에 `*`로 보입니다. 시험 대화는 대화 목록에 "시험" 표지로 보입니다.
   3. 결과에서 replay 실패는 처음 달라진 위치(`firstDiff`)와 그 이벤트 kind를 보이고, "이벤트 비교"로 두 이벤트열을 나란히 봅니다.
@@ -398,10 +398,10 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 |---|---|---|---|---|---|---|---|
 | F 계약 | 없음 | 없음. 계약 버전만 보기(P-15) | 없음 | 없음 | 없음 | 없음 | 없음 |
 | X 확장 체계 | 제작 확장 종류 `x.hook`(외부 훅 확정 전 blocked) | 훅 매칭, `timeoutMs` | 켜기·끄기 | 훅 한 번 실행 `[미결]` | 훅 시간과 실패(`hook:<id>` 장부) | 프로필에 넣기 | 안전 모드에서 모두 꺼짐 |
-| L0 플랫폼 | 없음 | 보기만(구현 이름, 상태) | 없음 | bench 서버 묶음 | bench 값 | 없음 | 없음(항상 실림) |
-| L1 코어 | 외부 `layer: "L1"` 확장 [가정: 코어 대체가 아닌 추가]. 제작 확장 카탈로그에 종류 없음 | 지점, 설정 | 켜기·끄기. 내장 core tier는 끌 수 없음 | replay(지점 핸들러), bench | 핸들러 시간 | 프로필 | 자동 끄기 면제(core tier), 안전 모드에서 켜짐 |
+| L0 플랫폼 | 없음 | 보기만(구현 이름, 상태) | 없음 | benchmark 서버 묶음 | benchmark 값 | 없음 | 없음(항상 실림) |
+| L1 코어 | 외부 `layer: "L1"` 확장 [가정: 코어 대체가 아닌 추가]. 제작 확장 카탈로그에 종류 없음 | 지점, 설정 | 켜기·끄기. 내장 core tier는 끌 수 없음 | replay(지점 핸들러), benchmark | 핸들러 시간 | 프로필 | 자동 끄기 면제(core tier), 안전 모드에서 켜짐 |
 | L2 능력 | 제작 확장 종류 `plugin.l2-provider`(preview) | `provides`, 설정(키, `secret://`) | 켜기, 능력 바인딩 확인 | 시험 대화 | 호출 수, 비용 | 프로필 | 자동 끄기, 안전 모드에서 외부 provider 꺼짐 |
-| L3 의도 그룹 | 구성기 "새 그룹" + 제작 확장 종류 `group.drive`·`group.policy`·`group.observe`. CLI `xeon group new` | 지점, drive 상한, 레코드 종류, 구성 선언(`composition`), 화면 기여(두 모드) | 켜기, 대화 범위, drive 그룹 고르기, 신뢰 | replay(개발 모드), 시험 대화, 턴 재생 | `GroupMetrics`, 승격 보고 | 구성기, 프로필 | 자동 끄기, 안전 모드에서 꺼짐, 버전 |
+| L3 의도 그룹 | 구성기 "새 그룹" + 제작 확장 종류 `group.drive`·`group.policy`·`group.observe`. CLI `fresnel group new` | 지점, drive 상한, 레코드 종류, 구성 선언(`composition`), 화면 기여(두 모드) | 켜기, 대화 범위, drive 그룹 고르기, 신뢰 | replay(개발 모드), 시험 대화, 턴 재생 | `GroupMetrics`, 승격 보고 | 구성기, 프로필 | 자동 끄기, 안전 모드에서 꺼짐, 버전 |
 | plugin(외부) | 제작 확장 종류 `plugin.tool`(preview) | 지점, 도구 등록, 설정 | 켜기, 신뢰 | 시험 대화 | 핸들러 시간, 실패 | 프로필 | 자동 끄기, 안전 모드에서 꺼짐, 버전 |
 
 ## 4. 정보 구조
@@ -512,7 +512,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 > 2026-10-30: §4.9.6 사이트맵이 이 그림을 대체합니다.
 
 ```text
-Xeon 데스크톱
+Fresnel 데스크톱
 ├─ S-01 앱 셸
 │  ├─ S-01a 제목 띠 ── 대상 팝오버, 팔레트 열기, 받은 요청, 설정
 │  ├─ S-01b 시작 영역
@@ -638,7 +638,7 @@ Xeon 데스크톱
 #### 4.9.6 사이트맵(대체)
 
 ```text
-Xeon 데스크톱
+Fresnel 데스크톱
 ├─ S-01 앱 셸: 왼쪽 패널(영역 바꾸기) · 투명한 가운데 · 오른쪽 떠 있는 막대 · 상태 표시줄
 ├─ S-02 명령 팔레트 · S-04 토스트 · O-09 바로 가기 키 도움말
 ├─ 대화 영역
@@ -674,7 +674,7 @@ Xeon 데스크톱
 │ 제안                  3  │ 어시스턴트                            │ plugin acme-notes ! 실패 2 │
 │ 예약                 !1  │   > bash bun test cache  실패      │                            │
 │                        │   · helm drive 임대 받음 1/4         │ 임대 턴 1/4 · spawn 3/8    │
-│ ~/code/xeon         +  │   · acme-notes 실패 2번             │ 토큰 [###-------] 120k     │
+│ ~/code/fresnel         +  │   · acme-notes 실패 2번             │ 토큰 [###-------] 120k     │
 │>캐시 무효화 조사     *        │   ┌ Helm 제안 ───────────────┐        │                            │
 │  테스트 정리     승인1        │   │ 같은 오류 3번 · 캐시 무효화  │       │ 최근 기록                  │
 │  시험: 렌즈 5개    시험       │   └ 탐구 시작함 ─────────────┘        │ 14:02 lease.acquired helm  │
@@ -743,7 +743,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | P-16 | 작업대 개요 | 나눔 보기: 확장 목록 + 런타임 캔버스(층 띠, 블록, 엣지), 검사기, 턴 재생 | 작업대 기본, ⌥⌘2, 런타임 탭 | P0 | SC-15, SC-22 |
 | P-17 | 확장 상세 | 개요, 연결 지점, 임대와 상한, 설정, 측정, 기록, 버전, 화면 | P-13 행, 캔버스 블록, 검사기, 런타임 탭 행 | P0 | SC-17, SC-18, SC-20, SC-22 |
 | P-18 | 플러그인 화면 호스트 | `page` 기여 그리기(선언형, 프레임)와 슬롯 규칙(ADR-0021). Helm 탐구가 기준 | 플러그인 화면 목록, 카드 "더 보기", well "크게" | P1 | SC-23, SC-05 |
-| P-19 | 시험 실행 | 시험 대화(멈춤, 한 경계씩), 지난 결과 읽기. replay·bench·코어 변경 검사 실행은 개발 모드만 | 작업대 내비, P-17, 구성기 흐름 보기 | P1 | SC-19 |
+| P-19 | 시험 실행 | 시험 대화(멈춤, 한 경계씩), 지난 결과 읽기. replay·benchmark·코어 변경 검사 실행은 개발 모드만 | 작업대 내비, P-17, 구성기 흐름 보기 | P1 | SC-19 |
 | P-20 | 측정과 평가 | 지표, 비용, 핸들러 시간과 예산, 승격 보고 | 작업대 내비, P-17 측정 탭 | P1 | SC-20 |
 | P-21 | 구성(구성기) | 그룹 쌓기, 흐름, 프로필, 코드 보기. "새 그룹" | 작업대 내비, P-13 "새 그룹", 캔버스 "구성기에서 열기" | P1 | SC-16, SC-21 |
 | P-22 | (P-21에 합침) | 옛 "만들기". id는 결번으로 둡니다 [결정: 2026-10-31 사용자] | P-21 "새 그룹" | - | SC-16 |
@@ -788,14 +788,14 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ [=]  로컬 / ~/code/xeon / 캐시 무효화 조사     [⌘K 명령 또는 대화 찾기]  [받은 요청 5]  [설정] │
+│ [=]  로컬 / ~/code/fresnel / 캐시 무효화 조사     [⌘K 명령 또는 대화 찾기]  [받은 요청 5]  [설정] │
 ├────────────────────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                                │
 │               ┌──────────────────────────────────────────────────────────────┐                 │
 │               │ > 컴팩션|                                                    │                 │
 │               │                                                              │                 │
 │               │ 대화                                                         │                 │
-│               │   캐시 무효화 조사           ~/code/xeon                     │                 │
+│               │   캐시 무효화 조사           ~/code/fresnel                     │                 │
 │               │ 명령                                                         │                 │
 │               │ > 대화 컴팩션                                   /compact     │                 │
 │               │   대화 분기                                                  │                 │
@@ -933,28 +933,28 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
   - 읽는 중: 단계 옆 `Progress indeterminate`, 도구 표 `Skeleton`.
   - 오류: 설정을 못 읽으면 "설정을 읽지 못했어요" + "다시 시도". 키 등록 오류는 `keyErrorText` 문장(busy, timeout, rejected detail).
   - 오프라인: 모든 쓰기 잠금, 도구 표는 "엔진에 연결되면 확인해요".
-  - 권한 필요: 키체인 잠김 등 SOPS 실패는 `rejected` detail을 보이고 "터미널에서 `xeon secret add <이름>`" 안내를 덧붙입니다.
+  - 권한 필요: 키체인 잠김 등 SOPS 실패는 `rejected` detail을 보이고 "터미널에서 `fresnel secret add <이름>`" 안내를 덧붙입니다.
   - 긴 내용: 도구 표가 8행을 넘으면 필수만 펼치고 선택은 접습니다.
 - 상호작용: 단계는 순서대로 열리지만 끝난 단계도 다시 열 수 있습니다(`Stepper variant="checklist"`). 키 값 입력란은 제어하지 않는 password 입력이고 React 상태에 값이 없습니다(`L4.desktop.spec` §4.14.1). 키 단계가 끝나면 모델 단계가 자동으로 펼쳐집니다.
 - 바로 가기 키: ⌘Enter 현재 단계 주 동작.
 - 접근성: 단계 목록은 `aria-current="step"`, 완료는 문장 "완료됨"을 함께 읽습니다. 키 입력란 `autocomplete="off"`, 라벨 "키 값".
 - caustic: `Stepper`(checklist), `Card`, `FormLayout`, `Field`, `Input`, `Combobox mode="popup"`(provider, 모델), `Table`(도구), `Badge`, `Button`, `Alert`, `ChoiceGroup`(권장 provider 카드), `Progress`.
 
-- 기본 그룹 단계 [결정: 2026-10-31 사용자]: 첫 실행은 검색 권장 다음에 건너뛸 수 있는 "기본 그룹" 단계를 둡니다. Helm과 학습 그룹은 켬, review는 끔이고, 안전 모드 안내 한 줄을 둡니다. Helm과 학습 그룹의 `Switch`와 한 줄 설명을 보이고 기본값은 둘 다 켬입니다(Helm `defaultEnabled: true`, `L3.helm.spec` §3.1. 학습 그룹 `defaultEnabled: true`, `L3.learning.spec` §3.1 [결정: review.m3-design-inputs D-M3-02]). 값은 `ext.helm.enabled`, `ext.learning.enabled` 사용자 범위입니다. `xeon group new` 안내는 두지 않고 "작업대에서 더 보기" 링크 하나만 둡니다(새 그룹은 작업대 구성기 P-21 소유). 안전 모드로 시작했으면 이 단계 맨 위에 "안전 모드라 그룹이 실리지 않았어요" 한 줄을 둡니다.
+- 기본 그룹 단계 [결정: 2026-10-31 사용자]: 첫 실행은 검색 권장 다음에 건너뛸 수 있는 "기본 그룹" 단계를 둡니다. Helm과 학습 그룹은 켬, review는 끔이고, 안전 모드 안내 한 줄을 둡니다. Helm과 학습 그룹의 `Switch`와 한 줄 설명을 보이고 기본값은 둘 다 켬입니다(Helm `defaultEnabled: true`, `L3.helm.spec` §3.1. 학습 그룹 `defaultEnabled: true`, `L3.learning.spec` §3.1 [결정: review.m3-design-inputs D-M3-02]). 값은 `ext.helm.enabled`, `ext.learning.enabled` 사용자 범위입니다. `fresnel group new` 안내는 두지 않고 "작업대에서 더 보기" 링크 하나만 둡니다(새 그룹은 작업대 구성기 P-21 소유). 안전 모드로 시작했으면 이 단계 맨 위에 "안전 모드라 그룹이 실리지 않았어요" 한 줄을 둡니다.
 
 ### 6.6 P-02 대화
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ [=]  로컬 / ~/code/xeon / 캐시 무효화 조사     [⌘K 명령 또는 대화 찾기]  [받은 요청 5]  [설정] │
+│ [=]  로컬 / ~/code/fresnel / 캐시 무효화 조사     [⌘K 명령 또는 대화 찾기]  [받은 요청 5]  [설정] │
 ├──────────────────────┬──────────────────────────────────────────┬──────────────────────────────┤
 │>대화               2 │ 캐시 무효화 조사     [탐구] [작업] [...] │ [받은 요청] 탐구  작업       │
-│ 받은 요청          5 │ ~/code/xeon | 목표 2/3                   │──────────────────────────────│
+│ 받은 요청          5 │ ~/code/fresnel | 목표 2/3                   │──────────────────────────────│
 │ 제안               3 │──────────────────────────────────────────│ 승인 2                       │
 │ 예약              !1 │ 나                                       │ bash | 캐시 무효화      지금 │
 │ 연결                 │   무효화 시험이 계속 실패해. 원인 찾아줘 │   rm -rf .cache && bun...    │
 │──────────────────────│ 어시스턴트                               │   [허용] [거부]       [열기] │
-│ ~/code/xeon      [+] │   먼저 실패하는 시험을 돌려 볼게요.      │ 질문 | 테스트 정리       3분 │
+│ ~/code/fresnel      [+] │   먼저 실패하는 시험을 돌려 볼게요.      │ 질문 | 테스트 정리       3분 │
 │>캐시 무효화 조사   * │   > 도구 bash  bun test cache       1.2s │   어느 시험 묶음부터?        │
 │  테스트 정리   승인1 │   > 도구 read  src/cache.ts         완료 │                     [답하기] │
 │  빌드 실패 분석      │   v 생각                                 │ 제안 3                       │
@@ -1029,7 +1029,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │   먼저 실패하는 시험을...              │    │ 예약              !1                   │
 │ +- 승인 필요 ------------+             │    │ 연결                                   │
 │ | bash rm -rf .cache     |             │    │────────────────────────────────────────│
-│ | [허용] [거부]          |             │    │ ~/code/xeon                            │
+│ | [허용] [거부]          |             │    │ ~/code/fresnel                            │
 │ +------------------------+             │    │ > 캐시 무효화 조사                     │
 │                                        │    │   테스트 정리                          │
 ├────────────────────────────────────────┤    │                                        │
@@ -1099,7 +1099,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 예약              !1 │ 승인 대기 3                                                             │
 │ 연결                 │  o 도구 bash    캐시 무효화 조사   rm -rf .cache && bun test       지금 │
 │──────────────────────│  o 질문         테스트 정리         어느 시험 묶음부터?             3분 │
-│ ~/code/xeon      [+] │  o 변경 검토    캐시 무효화 조사   파일 3, hunk 7                   5분 │
+│ ~/code/fresnel      [+] │  o 변경 검토    캐시 무효화 조사   파일 3, hunk 7                   5분 │
 │>캐시 무효화 조사   * │ 제안 대기 3                                                             │
 │  테스트 정리   승인1 │  o 스킬 생성    cache-debug        학습                            어제 │
 │  빌드 실패 분석      │  o 메모리 추가  user               학습                            어제 │
@@ -1343,7 +1343,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 예약              !1 │>스킬 생성 cache-debug        학습 │  캐시 만료 디버깅을 3번 반복함      │
 │ 연결                 │   대기 | 근거 4 | 1일             │ 변경 (diff)                         │
 │──────────────────────│ 메모리 추가 user             학습 │  + # cache-debug                    │
-│ ~/code/xeon      [+] │   대기 | 근거 2 | 1일             │  + 1. 단위를 확인한다               │
+│ ~/code/fresnel      [+] │   대기 | 근거 2 | 1일             │  + 1. 단위를 확인한다               │
 │>캐시 무효화 조사   * │ 스킬 수정 bun-test           지식 │  + 2. 경계 시각 시험                │
 │  테스트 정리   승인1 │   대기 | 충돌 1 | 2일             │ 근거 이벤트 4  [보기]               │
 │  빌드 실패 분석      │ 피드백 style                 학습 │ 범위 (o)사용자 ( )프로젝트          │
@@ -1404,7 +1404,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │>예약              !1 │ 제목            트리거         다음 실행       마지막 실행              │
 │ 연결                 │ 매일 정리       매일 09:00     내일 09:00      실패 rate_limited  [...] │
 │──────────────────────│ 빌드 감시       파일 src/**    변경 시         완료 3분 전        [...] │
-│ ~/code/xeon      [+] │ 원격 점검       원격           수동            완료 어제         [실행] │
+│ ~/code/fresnel      [+] │ 원격 점검       원격           수동            완료 어제         [실행] │
 │>캐시 무효화 조사   * │ 리팩터 루프     루프 600s 4/10 14:20           진행 중            [...] │
 │  테스트 정리   승인1 │ 주간 보고       매주 월 08:00  -               취소됨             [...] │
 │  빌드 실패 분석      │                                                                         │
@@ -1432,7 +1432,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │           매  [86400] 초  (최소 300초)         │
 │ 프롬프트  [오래된 브랜치를 정리하고     ]      │
 │           [결과를 요약해 줘            ]       │
-│ 작업 폴더 [~/code/xeon             v]          │
+│ 작업 폴더 [~/code/fresnel             v]          │
 │ [x] 만들고 바로 켜기                           │
 │                                                │
 │ ! 서비스 모드 꺼짐: 저장하면 서비스를          │
@@ -1483,7 +1483,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 예약              !1 │ (o) 이 컴퓨터: 서비스        │ 연결 수  2                               │
 │>연결                 │ ( ) build-box           원격 │ 진행 중  1 turn                          │
 │──────────────────────│     ssh://me@build/.../s.sock│ 유휴 종료 연결 0, live 0, 예약 0일 때    │
-│ ~/code/xeon      [+] │ ( ) mac-mini            원격 │ 대기 예약 2                              │
+│ ~/code/fresnel      [+] │ ( ) mac-mini            원격 │ 대기 예약 2                              │
 │>캐시 무효화 조사   * │                              │ 안전 모드 꺼짐                           │
 │  테스트 정리   승인1 │ [연결]                       │                                          │
 │  빌드 실패 분석      │                              │ 서비스 모드  [켜짐]  재시작 필요         │
@@ -1543,7 +1543,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 예약              !1 │ 개요                 │──────────────────────────────────────────────────│
 │ 연결                 │>모델                 │ 기본 모델                        [사용자] [즉시] │
 │──────────────────────│ 예산과 한도          │   [anthropic/claude-sonnet-5-5   v]              │
-│ ~/code/xeon      [+] │ 계정과 제공자        │ 추론 레벨                   [프로젝트] [다음 턴] │
+│ ~/code/fresnel      [+] │ 계정과 제공자        │ 추론 레벨                   [프로젝트] [다음 턴] │
 │>캐시 무효화 조사   * │ 비밀                 │   (o)low (o)medium ( )high                       │
 │  테스트 정리   승인1 │ 권한                 │   > 다른 범위 값이 가려져 있어요: 사용자         │
 │  빌드 실패 분석      │ 샌드박스             │   [이 범위 값 지우기]                            │
@@ -1552,7 +1552,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │  주간 회고           │ 플러그인과 그룹      │   ! 1에서 20 사이여야 해요                       │
 │  CLI 세션       잠김 │ 실행과 서비스        │ 라우팅 표                            [관리] 잠김 │
 │                      │ 외관                 │   관리 정책으로 잠겨 있어요                      │
-│                      │ 고급                 │   정책 파일: /etc/xeon/managed.json              │
+│                      │ 고급                 │   정책 파일: /etc/fresnel/managed.json              │
 │                      │                      │ 폴백 체인                                 [저장] │
 │                      │ [대화로 ⌘[]          │   1 sonnet-5-5  2 haiku-5-5  [+]                 │
 │                      │                      │   [ ] 이번 대화에만 적용                         │
@@ -1609,7 +1609,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 예약              !1 │ 개요                 │ 이름              provider 마지막 사용  상태     │
 │ 연결                 │ 모델                 │ anthropic-api-key sops     2분 전           정상 │
 │──────────────────────│ 예산과 한도          │ github-token      sops     어제         만료 3일 │
-│ ~/code/xeon      [+] │ 계정과 제공자        │ brave-api-key     sops     -                정상 │
+│ ~/code/fresnel      [+] │ 계정과 제공자        │ brave-api-key     sops     -                정상 │
 │>캐시 무효화 조사   * │>비밀                 │                                                  │
 │  테스트 정리   승인1 │ 권한                 │ > anthropic-api-key                              │
 │  빌드 실패 분석      │ 샌드박스             │   설명   기본 모델 키                            │
@@ -1638,7 +1638,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ │ 30초 뒤 자동으로 가려지고 기록이 남아요.   │  │                                            │ │
 │ │                                            │  │ 값을 못 보는 연결                          │ │
 │ │       [취소]  [OS 인증으로 계속]           │  │   '이 연결에서는 값을 볼 수 없어요.        │ │
-│ │                                            │  │    터미널에서 xeon secret reveal'          │ │
+│ │                                            │  │    터미널에서 fresnel secret reveal'          │ │
 │ └────────────────────────────────────────────┘  └────────────────────────────────────────────┘ │
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1663,7 +1663,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 삭제 | `secret.references` → O-06 → `secret.remove { name }`. 사용 중이면 거부 문장 |
 
 - 값 보기 규칙: 값은 30초(`REVEAL_VISIBLE_MS`) 보인 뒤 가려집니다. 다른 이름을 열거나 "지금 가리기"를 누르면 즉시 0으로 덮습니다. 창이 뒤로 가거나 화면을 떠나도 가립니다 [제안]. 복사는 클립보드에 넣고 30초 뒤 비우기를 시도합니다 [제안, 미결: OS 지원].
-- 현재 제약: 사이드카(stdio)와 서비스 연결의 `secret.beginReveal`은 `started: false`라 데스크톱에서 값을 볼 수 없습니다. M4는 이 경우 `not_started` 문장과 CLI 명령(`xeon secret reveal <이름>`) 복사를 보입니다. 값 보기 경로(셸 쪽 OS 인증과 표시)는 [미결] `[gap:W-10]`입니다.
+- 현재 제약: 사이드카(stdio)와 서비스 연결의 `secret.beginReveal`은 `started: false`라 데스크톱에서 값을 볼 수 없습니다. M4는 이 경우 `not_started` 문장과 CLI 명령(`fresnel secret reveal <이름>`) 복사를 보입니다. 값 보기 경로(셸 쪽 OS 인증과 표시)는 [미결] `[gap:W-10]`입니다.
 - 상태
   - 빈: "등록된 비밀이 없어요" + "추가".
   - 읽는 중: 표 `Skeleton`.
@@ -1687,7 +1687,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 예약              !1 │ 개요                 │  anthropic 비용 [##--------] $0.82               │
 │ 연결                 │ 모델                 │  한도와 재설정 시각은 아직 몰라요                │
 │──────────────────────│ 예산과 한도          │──────────────────────────────────────────────────│
-│ ~/code/xeon      [+] │>계정과 제공자        │ anthropic                            [계정 추가] │
+│ ~/code/fresnel      [+] │>계정과 제공자        │ anthropic                            [계정 추가] │
 │>캐시 무효화 조사   * │ 비밀                 │ 계정     자격(비밀)          우선 예비%          │
 │  테스트 정리   승인1 │ 권한                 │ work     secret://ant-work    0    10  [...]     │
 │  빌드 실패 분석      │ 샌드박스             │ personal secret://ant-me     10    30  [...]     │
@@ -1758,7 +1758,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 예약              !1 │ 개요                 │ 1 :: SearXNG     쓸 수 있음  무료    현재        │
 │ 연결                 │ 모델                 │ 2 :: 내장 검색   쓸 수 있음  유료                │
 │──────────────────────│ 예산과 한도          │ 3 :: Exa         키 없음     2026-08             │
-│ ~/code/xeon      [+] │ 계정과 제공자        │ 4 :: Brave       연결 안 됨  가격 오래됨         │
+│ ~/code/fresnel      [+] │ 계정과 제공자        │ 4 :: Brave       연결 안 됨  가격 오래됨         │
 │>캐시 무효화 조사   * │ 비밀                 │ SearXNG 주소 [http://localhost:8888  ]           │
 │  테스트 정리   승인1 │ 권한                 │──────────────────────────────────────────────────│
 │  빌드 실패 분석      │ 샌드박스             │ 브라우저                                         │
@@ -1818,7 +1818,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 예약              !1 │ 개요                 │ Helm  group-helm                          [켜짐] │
 │ 연결                 │ 모델                 │   다음 단계 경계에 적용 | drive 사용             │
 │──────────────────────│ 예산과 한도          │   자동 시작 [제안 v]  렌즈 수 [3]                │
-│ ~/code/xeon      [+] │ 계정과 제공자        │   쓰기 거부 [켜짐]  임대 상한 턴4 spawn8         │
+│ ~/code/fresnel      [+] │ 계정과 제공자        │   쓰기 거부 [켜짐]  임대 상한 턴4 spawn8         │
 │>캐시 무효화 조사   * │ 비밀                 │ 학습  group-learning                      [켜짐] │
 │  테스트 정리   승인1 │ 권한                 │   리뷰 기준 사용자 턴 [10] 도구 [10]             │
 │  빌드 실패 분석      │ 샌드박스             │   승인 필요 [켜짐]  스캔 [켜짐]                  │
@@ -1847,7 +1847,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 핸들러 실패 | `scope.handler_failed` 이벤트(휘발, 내구) |
 
 - 기능: 켜기·끄기(`settings.set`, "다음 단계 경계에 적용" 배지), 그룹 설정 편집(P-09 규칙), 실패 자세히(`Popover`).
-- 상태: 빈(사용자 그룹 없음 "그룹을 만들려면 `xeon group new`"), 읽는 중 `Skeleton`, 오류 저장 실패 `FieldError`, 오프라인 잠금, 권한 필요(안전 모드에서는 외부 확장 꺼짐 안내, 신뢰 필요), 긴 내용(그룹 설정은 그룹 행 아래 `Accordion`).
+- 상태: 빈(사용자 그룹 없음 "그룹을 만들려면 `fresnel group new`"), 읽는 중 `Skeleton`, 오류 저장 실패 `FieldError`, 오프라인 잠금, 권한 필요(안전 모드에서는 외부 확장 꺼짐 안내, 신뢰 필요), 긴 내용(그룹 설정은 그룹 행 아래 `Accordion`).
 - caustic: `List`, `Accordion`, `Switch`, `Select`, `NumberField`, `Badge`, `Popover`, `Alert`.
 
 ### 6.18 P-14 목표와 작업(끝 영역)
@@ -1897,7 +1897,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ bwrap       필수  사용 가능             샌드박스 없이 실행 안 함                           │
 │ git         선택  없음: brew install git 작업 공간 도구 일부                               │
 │                                                                                            │
-│ 웹 provider 요약 (xeon doctor와 같은 내용) [도구와 웹 열기]                                │
+│ 웹 provider 요약 (fresnel doctor와 같은 내용) [도구와 웹 열기]                                │
 └────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1915,7 +1915,7 @@ compact 폭(720 이하)과 사이드바 시트:
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ ┌─ O-01 잠긴 대화 ───────────────────────────┐  ┌─ O-02 셸 명령 확인 ────────────────────────┐ │
-│ │ 이 대화는 터미널(xeon CLI)이               │  │ /deploy 명령이 셸을 실행해요               │ │
+│ │ 이 대화는 터미널(fresnel CLI)이               │  │ /deploy 명령이 셸을 실행해요               │ │
 │ │ 쓰고 있어요                                │  │   $ git push origin main                   │ │
 │ │                                            │  │   $ ./scripts/release.sh                   │ │
 │ │ [관찰만 하기] [분기해서 이어 쓰기]         │  │                                            │ │
@@ -1924,15 +1924,15 @@ compact 폭(720 이하)과 사이드바 시트:
 │ └────────────────────────────────────────────┘  └────────────────────────────────────────────┘ │
 │ ┌─ O-06 삭제 확인 ───────────────────────────┐  ┌─ O-07 새 대화 ─────────────────────────────┐ │
 │ │ github-token을 지울까요?                   │  │ 작업 폴더 (선택)                           │ │
-│ │ 참조: l2.web.policy (설정 1)               │  │ [~/code/xeon                    v]         │ │
-│ │ 활성 lease 0 | 최근 세션 2                 │  │  최근: ~/code/xeon, ~/notes                │ │
+│ │ 참조: l2.web.policy (설정 1)               │  │ [~/code/fresnel                    v]         │ │
+│ │ 활성 lease 0 | 최근 세션 2                 │  │  최근: ~/code/fresnel, ~/notes                │ │
 │ │ 되돌릴 수 없어요.                          │  │  [폴더 고르기...] (gap: dialog 플러그인)   │ │
 │ │          [취소]  [삭제]                    │  │ ! 절대 경로여야 해요                       │ │
 │ │ 사용 중이면: 지울 수 없어요(사용 중)       │  │          [취소]  [만들기]                  │ │
 │ └────────────────────────────────────────────┘  └────────────────────────────────────────────┘ │
 │ ┌─ O-03 명령 결과 ───────────────────────────┐  ┌─ O-04 신뢰 카드 ───────────────────────────┐ │
 │ │ /helm status                           [x] │  │ 이 프로젝트의 설정을 신뢰할까요?           │ │
-│ │ 단계 explore | 렌즈 3 | 발견 0             │  │ ~/code/xeon                                │ │
+│ │ 단계 explore | 렌즈 3 | 발견 0             │  │ ~/code/fresnel                                │ │
 │ │ 임대 held | 턴 1/4                         │  │ 불러오려는 자원: .mcp.json, 스킬 2         │ │
 │ │                                            │  │ [이 폴더 신뢰] [상위 폴더 전체]            │ │
 │ │ 결과(JSON) > 펼치기                        │  │ [이번 실행만] [신뢰하지 않음]              │ │
@@ -2284,7 +2284,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 항목 | 출처 |
 |---|---|
 | 기여 목록과 트리 | `ext.view.list` `[gap:W-33]`(엔진이 검사한 트리와 진단, 모드, 프레임 선언) |
-| 프레임 파일 | 셸 전용 스킴 `xeon-view://`(ADR-0021 §3.6.2) `[gap:W-33]` |
+| 프레임 파일 | 셸 전용 스킴 `fresnel-view://`(ADR-0021 §3.6.2) `[gap:W-33]` |
 | 트리 데이터 | ADR-0021 §3.4 `query`(`ext.<id>.<verb>`), `events`, `settings`, `host` |
 | Helm 예 | `ext.helm.status`, `ext.helm.inquiries`, `ext.helm.findings`, `grp.helm.*` 이벤트 |
 
@@ -2307,7 +2307,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 │ 개요                     │ * 시험 대화 helm   실행 중     지금      1:12
 │ 확장                 !1  │ replay    helm     통과 41/41  3분 전    18s
 │>시험 실행              1*  │ replay    review   실패 2/41   어제      9s
-│ 측정                     │ bench     server   예산 대기   어제      2m
+│ 측정                     │ benchmark     server   예산 대기   어제      2m
 │ 구성                     │ diff      main..   보호 경로 0 어제      1s
 │ 만들기                    │
 │ 엔진                     │ replay review · 실패
@@ -2321,8 +2321,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
  사이드카 · 연결됨      sonnet-5-5 · 41k · drive helm · 확장 실패 1 · 승인 2 · 알림 3
 ```
 
-- 목적: replay, bench, 코어 변경 검사, 시험 대화를 한 목록에서 시작하고 결과를 봅니다(SC-19).
-- 실행 범위 [결정: 2026-10-31 사용자]: replay, bench, 코어 변경 검사의 실행은 개발 모드에서만 합니다. 배포 앱은 시험 대화를 만들고 돌리며, 지난 결과는 읽기만 합니다. 배포 앱에서 "새 시험"의 replay·bench·diff 항목은 "개발 모드에서만" 배지로 잠급니다.
+- 목적: replay, benchmark, 코어 변경 검사, 시험 대화를 한 목록에서 시작하고 결과를 봅니다(SC-19).
+- 실행 범위 [결정: 2026-10-31 사용자]: replay, benchmark, 코어 변경 검사의 실행은 개발 모드에서만 합니다. 배포 앱은 시험 대화를 만들고 돌리며, 지난 결과는 읽기만 합니다. 배포 앱에서 "새 시험"의 replay·benchmark·diff 항목은 "개발 모드에서만" 배지로 잠급니다.
 - replay 보고 형식 [결정: 2026-10-31 사용자]: `ReplayDriveReport` 그대로(절단 띠, `firstDiff`, `EffectCounts`)이고 "JSON 복사"를 둡니다. 새 형식을 만들지 않습니다.
 - 시험 대화 멈춤 [결정: 2026-10-31 사용자]: 실행 중 시험 대화 행의 "멈춤"은 다음 단계 경계에서 실제로 멈추고 임대를 쥔 채 둡니다. "이어서", "한 경계씩"이 있습니다(W-48). 행을 고르면 아래 상세에 턴 재생 막대(§6.22.5)와 경계 기록이 보입니다.
 - 맥락: 맥락 칸이 시험이면 그 시험 대화의 결과만, 대화면 그 대화를 대상으로 한 시험만 보입니다(§4.9.3).
@@ -2333,7 +2333,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 |---|---|
 | 시험 목록(종류, 대상, 결과, 시각, 소요) | `ext.test.list` `[gap:W-29]` |
 | replay 결과(커밋 수, 절단마다 같음·다름(`cuts[].equal`), 처음 다른 위치 `firstDiff`, 효과 수 `EffectCounts`(turn, spawn, delegate, post), 실패 종류 `effects-doubled`·`effects-mismatch`·`max-commits-exceeded`·`no-commits`) | `ReplayDriveReport`(`group-sdk/src/testing/replay/replay-drive.ts`) `[gap:W-29]` |
-| bench 결과(지표, 값, 예산, 판정) | `scripts/bench-server.ts` 출력과 `bench-gate` 판정. 예산은 모두 미정("사용자 결정 대기") `[gap:W-30]` |
+| benchmark 결과(지표, 값, 예산, 판정) | `scripts/benchmark-server.ts` 출력과 `benchmark-gate` 판정. 예산은 모두 미정("사용자 결정 대기") `[gap:W-30]` |
 | 코어 변경 검사(보호 경로 변경 파일) | `scripts/core-diff-check.ts` 종료 코드 0·1·2와 파일 목록 `[gap:W-30]` |
 | 시험 대화 | `thread.list`의 시험 표지 `[gap:W-34]` |
 
@@ -2345,7 +2345,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 다시 실행 | 같은 인자로 `ext.test.run` |
 
 - 상태: 빈 "아직 돌린 시험이 없어요 [새 시험]", 읽는 중 행 `Skeleton`, 오류(시험 시작 실패 사유: 환경 문제는 종료 코드 2 문장 "도구나 환경이 없어 못 돌렸어요"), 오프라인 잠금, 권한 필요(`--first-token` 같은 비용 드는 시험은 확인 대화 상자, CLI의 종료 코드 3과 같은 뜻), 긴 내용(결과 이벤트 500행씩).
-- 상호작용: 실행 중 행은 `Progress`와 "멈춤"(시험 대화는 단계 경계 멈춤, replay·bench는 실행 취소). 결과 행을 고르면 아래에 상세가 펼쳐집니다(같은 화면, 나눔 창 `[gap:C-14]`).
+- 상호작용: 실행 중 행은 `Progress`와 "멈춤"(시험 대화는 단계 경계 멈춤, replay·benchmark는 실행 취소). 결과 행을 고르면 아래에 상세가 펼쳐집니다(같은 화면, 나눔 창 `[gap:C-14]`).
 - caustic: `Table`, `Progress`, `Badge`, `Alert`, `Dialog`, `Sheet`(O-12), `CodeDiff`(이벤트 JSON 비교 대용).
 
 ### 6.27 P-20 측정과 평가
@@ -2432,7 +2432,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - first·chain 지점 순서는 (tier, loadIndex, 등록 순번)으로 정해지고 런타임에 순서 입력이 없습니다. 그래서 보기만 하고 "런타임에 순서 입력 없음" 배지를 답니다(DP-56).
 - 오른쪽 "실효 스택": 맥락 대화의 지금 값과 프로필을 합친 결과(바뀌는 확장, drive, 덮어쓰는 설정, 켜지는 지점 수)이고 `profile.preview`(W-44)의 결과입니다.
 - 동작: 이 대화에 적용(`profile.apply { id, threadId }`, W-46. 엔진이 원자적으로 쓰고 하나라도 실패하면 모두 되돌림), 새 시험 대화로(`thread.create { trial: true, profileId }`), 저장(`profile.put`).
-- 프로필 저장 [결정: 2026-10-31 사용자, U-5]: 프로필은 데스크톱 로컬이 아니라 런타임 호스트 설정에 둡니다. CLI(`xeon profile list|apply` [제안])와 서비스 모드가 같은 목록을 봅니다. 모양 [제안]: `{ id, title, enable: ExtensionName[], disable: ExtensionName[], settings: { key: value }[], driveGroup: string | null, updatedAt, rev }`. 저장소는 사용자 설정 폴더의 `profiles.json`이고 `settings.writeFile`처럼 `baseRev` 비교로 충돌을 막습니다. 키 검사는 F 설정 카탈로그로 하고, `allowedScopes`에 `session`이 없는 키는 프로필에 넣을 수 없습니다(F §4.7 4번).
+- 프로필 저장 [결정: 2026-10-31 사용자, U-5]: 프로필은 데스크톱 로컬이 아니라 런타임 호스트 설정에 둡니다. CLI(`fresnel profile list|apply` [제안])와 서비스 모드가 같은 목록을 봅니다. 모양 [제안]: `{ id, title, enable: ExtensionName[], disable: ExtensionName[], settings: { key: value }[], driveGroup: string | null, updatedAt, rev }`. 저장소는 사용자 설정 폴더의 `profiles.json`이고 `settings.writeFile`처럼 `baseRev` 비교로 충돌을 막습니다. 키 검사는 F 설정 카탈로그로 하고, `allowedScopes`에 `session`이 없는 키는 프로필에 넣을 수 없습니다(F §4.7 4번).
 
 #### 6.28.4 흐름 보기의 시험 실행
 
@@ -2447,7 +2447,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 세 열: 블록 목록(그룹 머리 포함) · 만들 파일(종류의 템플릿 파일 목록, caustic `CodeRealization`) · 고른 파일의 생성 결과(`src/index.ts`, `plugin.json`).
 - 블록을 고르면 그 블록에서 나온 파일과 줄을 강조합니다.
-- "제작 확장으로 만들기": 제작 세션을 열고 초안을 넘깁니다(`L3.authoring.spec` §4.3). 엔진이 없거나 제작 확장이 꺼져 있으면 "터미널에서 `xeon group new <이름> --drive`" 복사로 대신합니다.
+- "제작 확장으로 만들기": 제작 세션을 열고 초안을 넘깁니다(`L3.authoring.spec` §4.3). 엔진이 없거나 제작 확장이 꺼져 있으면 "터미널에서 `fresnel group new <이름> --drive`" 복사로 대신합니다.
 
 #### 6.28.6 상태
 
@@ -2510,7 +2510,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 |---|---|---|---|---|---|
 | O-10 | 확장 신뢰 확인 | `Dialog kind="alert"` | 요청 등급, 설치 위치 상한, 쓰는 연산(on, post, drive, 저장, 리소스 등록), 지점 목록 | 켜기, 취소 | 처음 켜는 `user`·`project` 위치 확장. 기본 초점 "취소" |
 | O-11 | 되돌리기 확인 | `Dialog kind="alert"` | 지금 버전, 되돌릴 버전, 상태 스키마 버전 차이 | 되돌리기 `[gap:W-31]` | 상태 마이그레이션이 없으면 경고. 대체 단계는 §6.24.1 |
-| O-12 | 새 시험 | `Sheet side="right"` | 종류, 대상, 프로필, 옵션(replay `maxCommits` 기본 200, bench `--runs` 1~50) | `ext.test.run` `[gap:W-29]` | 비용 드는 시험은 확인 문장. replay·bench·diff는 개발 모드만 |
+| O-12 | 새 시험 | `Sheet side="right"` | 종류, 대상, 프로필, 옵션(replay `maxCommits` 기본 200, benchmark `--runs` 1~50) | `ext.test.run` `[gap:W-29]` | 비용 드는 시험은 확인 문장. replay·benchmark·diff는 개발 모드만 |
 
 ## 7. 화면 사이 흐름
 
@@ -2687,12 +2687,12 @@ flowchart LR
 
 **과제**
 
-Xeon 데스크톱 앱의 "대화" 화면을 비즈니스 로직 없는 셸 목업으로 만듭니다. 엔진, wire, Tauri를 부르지 않고 고정 데이터만 씁니다. 결과물은 다른 모든 화면이 쓸 앱 셸의 기준이 됩니다.
+Fresnel 데스크톱 앱의 "대화" 화면을 비즈니스 로직 없는 셸 목업으로 만듭니다. 엔진, wire, Tauri를 부르지 않고 고정 데이터만 씁니다. 결과물은 다른 모든 화면이 쓸 앱 셸의 기준이 됩니다.
 
 **만들 곳과 실행**
 
 - 위치: `xeon/apps/desktop/mockups/p02-<모델이름>/` [결정: 오케스트레이터 기본값]. 파일은 `index.html`, `main.tsx`, `fixtures.ts`, 필요한 `*.tsx`, `mockup.css`(레이아웃만)입니다.
-- 실행: `xeon/apps/desktop`에서 `MOCKUP=p02-<모델이름> bun run mockup`(Vite 개발 서버, `mockups/vite.config.ts`), 정적 빌드는 `MOCKUP=p02-<모델이름> bun run mockup:build`(출력은 저장소 밖 `<tmpdir>/xeon-mockups/<이름>` 또는 `MOCKUP_OUT`). caustic 스타일이 Tailwind 4 빌드를 거쳐야 해서 caustic 문서 앱과 같은 Vite 구성을 씁니다. React 19를 씁니다. 실행 기반 점검 예시는 `mockups/_base/`입니다.
+- 실행: `xeon/apps/desktop`에서 `MOCKUP=p02-<모델이름> bun run mockup`(Vite 개발 서버, `mockups/vite.config.ts`), 정적 빌드는 `MOCKUP=p02-<모델이름> bun run mockup:build`(출력은 저장소 밖 `<tmpdir>/fresnel-mockups/<이름>` 또는 `MOCKUP_OUT`). caustic 스타일이 Tailwind 4 빌드를 거쳐야 해서 caustic 문서 앱과 같은 Vite 구성을 씁니다. React 19를 씁니다. 실행 기반 점검 예시는 `mockups/_base/`입니다.
 - 디자인 시스템: `@caustic/react`의 부품과 `@caustic/tokens`의 CSS 변수만 씁니다. 다른 UI 라이브러리, 아이콘 세트 외 이미지, 직접 정한 색 값(hex, rgb)을 쓰지 않습니다. 아이콘은 `lucide-react`입니다. caustic 스타일은 `@caustic/react/styles.css`를 import합니다. caustic 소스는 `xeon/external/caustic`(submodule)에 있고, 부품 사용 예는 `packages/react/src/components/<id>/<id>.fixture.tsx`와 `apps/docs/src/showcase/samples/agent.tsx`에 있습니다 [가정: 작업 전 `git submodule update --init xeon/external/caustic`과 `just setup`이 끝나 있음].
 - caustic 부품으로 표현하기 애매한 디자인은 caustic 토큰(`@caustic/tokens`의 CSS 변수)과 Tailwind 유틸리티로 목업 안에서 직접 만들어도 됩니다 [결정: 2026-10-29 사용자 지시]. 직접 만든 부품은 `mockups/p02-<모델이름>/parts/`에 두고, 어떤 caustic 빈틈을 메운 것인지 파일 머리 주석에 적습니다.
 - 문구는 한국어 해요체입니다. 아래 고정 데이터의 문구를 그대로 씁니다.
@@ -2703,7 +2703,7 @@ Xeon 데스크톱 앱의 "대화" 화면을 비즈니스 로직 없는 셸 목�
 - 시작 영역: `SidePanel side="start" preset="inspector" label="대화와 이동"`, 폭 272px, 끌어서 240~360px. 위에 `ListNavigation kind="navigation"` 다섯 항목(대화, 받은 요청, 제안, 예약, 연결)과 배지, 아래에 `ListNavigation kind="sessions"` 대화 목록(작업 폴더 묶음), 맨 아래 "설정" 항목.
 - 무대: 머리(대화 제목, 작업 폴더, 목표 칩, "탐구"·"작업" 버튼, 더보기 `Menu`), 트랜스크립트(스크롤), 입력창(`Composer`, 아래 고정).
 - 끝 영역: `SidePanel side="end" preset="pane" label="맥락 패널"`, 폭 352px. `Tabs` 세 개(받은 요청, 탐구, 작업). 받은 요청 탭만 내용을 채우고, 탐구·작업 탭은 `EmptyState`("셸 목업에서는 비어 있어요")입니다.
-- 제목 띠: 왼쪽 사이드바 토글 `IconButton`, `Breadcrumb`(로컬 / ~/code/xeon / 캐시 무효화 조사). 오른쪽 "명령 또는 대화 찾기 ⌘K" 버튼, 받은 요청 `IconButton`(배지 5), 설정 `IconButton`.
+- 제목 띠: 왼쪽 사이드바 토글 `IconButton`, `Breadcrumb`(로컬 / ~/code/fresnel / 캐시 무효화 조사). 오른쪽 "명령 또는 대화 찾기 ⌘K" 버튼, 받은 요청 `IconButton`(배지 5), 설정 `IconButton`.
 - 상태 표시줄: 왼쪽 "사이드카 | 실행 중 | 연결됨", 오른쪽 "sonnet-5-5", 토큰 막대(41k, `Progress`), "목표 2/3", "Helm", "승인 2", "알림 3". 각 칸은 `Button size="xs" variant="ghost"`이고 누르면 `Popover`(내용은 한 줄 설명이면 됩니다).
 - 반응형: 폭 1100px 이하에서 끝 영역은 무대 위 시트(`AppShell`이 자동 처리), 720px 이하에서 시작 영역도 시트이고 제목 띠 토글로 엽니다. 상태 표시줄은 720px 이하에서 "연결됨"과 "승인 2"만 남깁니다.
 
@@ -2711,15 +2711,15 @@ Xeon 데스크톱 앱의 "대화" 화면을 비즈니스 로직 없는 셸 목�
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ [=]  로컬 / ~/code/xeon / 캐시 무효화 조사     [⌘K 명령 또는 대화 찾기]  [받은 요청 5]  [설정] │
+│ [=]  로컬 / ~/code/fresnel / 캐시 무효화 조사     [⌘K 명령 또는 대화 찾기]  [받은 요청 5]  [설정] │
 ├──────────────────────┬──────────────────────────────────────────┬──────────────────────────────┤
 │>대화               2 │ 캐시 무효화 조사     [탐구] [작업] [...] │ [받은 요청] 탐구  작업       │
-│ 받은 요청          5 │ ~/code/xeon | 목표 2/3                   │──────────────────────────────│
+│ 받은 요청          5 │ ~/code/fresnel | 목표 2/3                   │──────────────────────────────│
 │ 제안               3 │──────────────────────────────────────────│ 승인 2                       │
 │ 예약              !1 │ 나                                       │ bash | 캐시 무효화      지금 │
 │ 연결                 │   무효화 시험이 계속 실패해. 원인 찾아줘 │   rm -rf .cache && bun...    │
 │──────────────────────│ 어시스턴트                               │   [허용] [거부]       [열기] │
-│ ~/code/xeon      [+] │   먼저 실패하는 시험을 돌려 볼게요.      │ 질문 | 테스트 정리       3분 │
+│ ~/code/fresnel      [+] │   먼저 실패하는 시험을 돌려 볼게요.      │ 질문 | 테스트 정리       3분 │
 │>캐시 무효화 조사   * │   > 도구 bash  bun test cache       1.2s │   어느 시험 묶음부터?        │
 │  테스트 정리   승인1 │   > 도구 read  src/cache.ts         완료 │                     [답하기] │
 │  빌드 실패 분석      │   v 생각                                 │ 제안 3                       │
@@ -2743,10 +2743,10 @@ Xeon 데스크톱 앱의 "대화" 화면을 비즈니스 로직 없는 셸 목�
 
 ```ts
 export const threads = [
-  { id: "t1", folder: "~/code/xeon", title: "캐시 무효화 조사", status: "running", approvals: 1, current: true },
-  { id: "t2", folder: "~/code/xeon", title: "테스트 정리", status: "idle", approvals: 1 },
-  { id: "t3", folder: "~/code/xeon", title: "빌드 실패 분석", status: "idle", approvals: 0 },
-  { id: "t4", folder: "~/code/xeon", title: "예약: 매일 정리", status: "failed", approvals: 0 },
+  { id: "t1", folder: "~/code/fresnel", title: "캐시 무효화 조사", status: "running", approvals: 1, current: true },
+  { id: "t2", folder: "~/code/fresnel", title: "테스트 정리", status: "idle", approvals: 1 },
+  { id: "t3", folder: "~/code/fresnel", title: "빌드 실패 분석", status: "idle", approvals: 0 },
+  { id: "t4", folder: "~/code/fresnel", title: "예약: 매일 정리", status: "failed", approvals: 0 },
   { id: "t5", folder: "~/notes", title: "주간 회고", status: "idle", approvals: 0 },
   { id: "t6", folder: "~/notes", title: "CLI 세션", status: "locked", approvals: 0 },
   { id: "t7", folder: "~/notes", title: "", status: "resumable", approvals: 0 },
@@ -2770,7 +2770,7 @@ export const transcript = [
 export const approvals = {
   a1: { kind: "tool", thread: "캐시 무효화 조사", tool: "bash", risk: "exec", at: "지금",
         command: "rm -rf .cache && bun test", secrets: [{ env: "GH_TOKEN", ref: "secret://github-token" }],
-        args: { command: "rm -rf .cache && bun test", cwd: "~/code/xeon", timeoutSeconds: 120 },
+        args: { command: "rm -rf .cache && bun test", cwd: "~/code/fresnel", timeoutSeconds: 120 },
         remember: ["once", "thread"] },
   a2: { kind: "question", thread: "테스트 정리", at: "3분 전",
         questions: [{ id: "q1", header: "범위", text: "어느 시험 묶음부터 볼까요?", multiSelect: false, allowFreeText: true,
@@ -2804,7 +2804,7 @@ export const palette = [
 | S2 | 대화 안 고름 | 무대에 `EmptyState`("왼쪽에서 대화를 고르거나 새로 만드세요", 버튼 "새 대화 ⌘N"). 끝 영역은 받은 요청만 |
 | S3 | 빈 대화 | 제목 "새 대화", 트랜스크립트 대신 `Suggestions` 세 개("이 저장소 구조 설명", "실패하는 시험 찾기", "최근 변경 요약"), 입력창 "보내기" |
 | S4 | 다시 연결 중 | 무대 머리 아래 `Alert tone="warning"`("연결을 다시 맞추는 중이에요 (2/3)", 버튼 "다시 연결"), 입력창 잠김과 안내 문장, 상태 표시줄 "다시 맞추는 중 (2/3)", 승인 카드 버튼 잠김 |
-| S5 | 잠긴 대화 | O-01 `Dialog kind="alert"`: 제목 "이 대화는 터미널(xeon CLI)이 쓰고 있어요", 버튼 "관찰만 하기", "분기해서 이어 쓰기", "닫기". "관찰만 하기"를 누르면 입력창 자리에 "관찰 중이에요" 띠와 "쓰기 다시 시도" |
+| S5 | 잠긴 대화 | O-01 `Dialog kind="alert"`: 제목 "이 대화는 터미널(fresnel CLI)이 쓰고 있어요", 버튼 "관찰만 하기", "분기해서 이어 쓰기", "닫기". "관찰만 하기"를 누르면 입력창 자리에 "관찰 중이에요" 띠와 "쓰기 다시 시도" |
 | S6 | 질문 카드 | 트랜스크립트 끝 카드가 `a2` 질문. 라디오 세 개(unit에 "(추천)"), 직접 입력란, "답하기"(선택 전 잠김), "거부" |
 | S7 | 팔레트 | ⌘K 또는 제목 띠 버튼으로 `Dialog` 안 `Combobox mode="inline"`. 위 `palette` 묶음, 입력하면 라벨로 거름 |
 
@@ -2884,7 +2884,7 @@ export const palette = [
 | C-39 | 설정 바인딩 두 단 행(값 + 기계 키, compact 한 줄) | P-16 검사기, P-17 | `InspectorBindingsRow`(토큰 경로 한 줄 전제라 두 줄 카드가 됨) | `InspectorBindingsRow`에 값·키 두 단 칸과 compact 높이 제안 |
 
 - caustic 문서의 "glass" 표현은 FOUNDATION 정책 1(흐림 없는 단색 떠 있는 면)로 읽습니다.
-- caustic 변경은 caustic 저장소에서 합니다. Xeon 쪽은 `just caustic-update`로 올립니다.
+- caustic 변경은 caustic 저장소에서 합니다. Fresnel 쪽은 `just caustic-update`로 올립니다.
 - 시안 라운드가 만든 caustic 변경(Solar 아이콘, 툴콜 상태 알약, 구성기의 `node-graph`)은 caustic 브랜치 `xeon/m4-design`에 있습니다. M4에서 이 브랜치를 caustic `main`에 PR로 올리고 submodule을 `main`에 맞춥니다(`review.m4-plan` 트랙 T-CAU).
 
 ## 10. wire와 view-model 간극
@@ -2919,10 +2919,10 @@ export const palette = [
 | W-24 | 그룹 상태 목록(`GroupStatus`: drive 역할, 대기, 거부, `pendingToggle`, `lastError`, 요약 지표) | 런타임 탭, P-16 | `GroupService.list`는 엔진 안에만 | `group.list { threadId? }`, 바뀜 알림 |
 | W-25 | 그룹 지표 전체와 기간 합 | P-17, P-20 | `/group status` 글 | `group.metrics { id, threadId?, since? }` |
 | W-26 | 승격 보고 | P-16, P-20 | `/group status` 부가 줄 | `group.promotion { threadIds? }` |
-| W-27 | 종류 목록과 뼈대 만들기 | P-21, 제작 확장 | CLI `xeon group new`만 | `ext.kinds`(제작 확장 카탈로그), `ext.scaffold { kind, name, dir, composition?, views? }`. 구현은 서비스 `fresnel.devkit`(`L3.authoring.spec` §3.3) |
+| W-27 | 종류 목록과 뼈대 만들기 | P-21, 제작 확장 | CLI `fresnel group new`만 | `ext.kinds`(제작 확장 카탈로그), `ext.scaffold { kind, name, dir, composition?, views? }`. 구현은 서비스 `fresnel.devkit`(`L3.authoring.spec` §3.3) |
 | W-28 | 폴더의 매니페스트와 drive 소스 검사 | P-21, P-17, 제작 확장 | `validateManifest`, `scanDriveSource`는 라이브러리 | `ext.validate { dir }`(F 검사 + AU 규칙) |
 | W-29 | 시험 실행과 결과(replay, 시험 대화 묶음) | P-19, P-16 | `replayDrive`는 시험 파일의 하니스로만 실행 | `ext.test.run`, `ext.test.list`, 진행 이벤트. replay 실행은 개발 모드만 [결정: 2026-10-31 사용자]. 런타임 하니스는 X-10 |
-| W-30 | bench와 코어 변경 검사 실행 | P-19, P-20 | `just bench --server`, `bun scripts/core-diff-check.ts <base>`는 저장소 스크립트(배포 앱에 없음) | 개발 모드 전용 셸 명령 [결정: 2026-10-31 사용자]. 배포 앱은 결과 읽기만 |
+| W-30 | benchmark와 코어 변경 검사 실행 | P-19, P-20 | `just benchmark --server`, `bun scripts/core-diff-check.ts <base>`는 저장소 스크립트(배포 앱에 없음) | 개발 모드 전용 셸 명령 [결정: 2026-10-31 사용자]. 배포 앱은 결과 읽기만 |
 | W-31 | 확장 버전 기록과 되돌리기 | P-17, O-11 | 기본 플러그인은 번들 버전이 높을 때 디렉터리째 교체, 기록 없음 | `ext.versions { name }`, `ext.rollback { name, version }`. M4에 되는 만큼, 대체 경로는 §6.24.1 [결정: 2026-10-31 사용자] |
 | W-32 | 확장 설치·지우기·사용자 위치 연결(W-15의 설치 부분) | P-13, P-21, 제작 확장 | 디렉터리 복사 | `ext.install { source }`, `ext.remove { name }` [미결] |
 | W-33 | 화면 기여 목록, 확장 메서드, 화면용 post·승인 | P-18, 슬롯 전부 | `ext.<id>.<verb>`는 이름만 예약 | `ext.view.list`, `ext.<id>.<verb>`, `ext.view.post`, `ext.view.requestApproval`(ADR-0021 §6) |
@@ -3046,7 +3046,7 @@ export const palette = [
 - 같은 층 안에서 바꾼 블록 순서가 재시작 뒤에도 같고, "배치 초기화"로 자동 배치가 돌아옵니다(§6.22.6).
 - 턴 재생 막대의 핸들러 시간이 `trace.turn` 결과와 같고, 계측을 끄면 "턴 재생"이 "계측 꺼짐"으로 잠깁니다(§6.22.5).
 - 구성 선언이 없는 설치 그룹은 구성기와 캔버스에서 블록 하나 "구성 정보 없음"으로 보입니다(§6.28).
-- 프로필을 데스크톱에서 저장하면 CLI `xeon profile list`에 같은 프로필이 보입니다(W-46).
+- 프로필을 데스크톱에서 저장하면 CLI `fresnel profile list`에 같은 프로필이 보입니다(W-46).
 - 시험 대화의 "멈춤" 뒤 다음 단계 경계 이후 새 turn이 열리지 않고 임대 보유가 그대로이며, "이어서" 뒤 계속됩니다(W-48).
 - drive의 사람 확인을 기다리는 동안 그 대화의 임대가 반납된 상태이고, 답한 뒤 같은 그룹이 다시 임대를 받습니다(X-17).
 - 프레임 화면은 Tauri IPC와 wire에 닿지 못하고(e2e), 프레임 안 "허용" 버튼으로 승인이 되지 않으며, 비밀 값이 다리 메시지에 나타나지 않습니다(ADR-0021 §3.6).
@@ -3069,12 +3069,12 @@ export const palette = [
 | 10 | Helm·학습 기록을 알림 kind에 넣을지(L2 dialog 분류표에 없음) | `L2.dialog.spec`, `L3.helm.spec` §4.13 |
 | 11 | 클립보드 비우기(비밀 복사 30초 뒤) 지원 범위 | `L4.desktop.spec` |
 | 12 | 큐 입력 철회(W-17) | ADR-0007, `L1.tasks.spec` |
-| 13 | 제품 이름. M4 전에 바꾸므로 화면 문구의 "Xeon"과 `xeon` 명령 안내가 바뀝니다 | 사용자(`product.scope.spec` 미결 2) |
+| 13 | 제품 이름. M4 전에 바꾸므로 화면 문구의 "Fresnel"과 `fresnel` 명령 안내가 바뀝니다 | 사용자(`product.scope.spec` 미결 2) |
 | 14 | 이 도메인을 `L4/README.md` 도메인 표에 더하는 일. README는 이번 작업에서 고치지 않았습니다 | 오케스트레이터 |
 | 15 | 닫음 [결정: 2026-10-31 사용자] 작업대 전부 M4. P-16·P-13·P-17 P0, 나머지 P1(§5). 옛 문장: 작업대를 P0로 올릴지. 이 문서는 P-16·P-17·P-18을 P1, 나머지를 P2로 둡니다. "둘 다 1급"을 M4 종료 필수로 읽으면 P-16·P-13·P-17을 P0로 올리고 W-15·W-20·W-24를 먼저 만들어야 합니다 | 사용자 |
 | 16 | 닫음 [결정: 2026-10-31 사용자] 두 모드(선언형, 격리 프레임), 모드는 에이전트가 고름(ADR-0021 개정) | 사용자, ADR-0021 §6 |
 | 17 | 닫음 [결정: 2026-10-31 사용자] 연결은 대화 주 내비에 남음(다섯) | 사용자 |
-| 18 | 닫음 [결정: 2026-10-31 사용자] 개발 모드에서만. 옛 문장: 배포 앱에서 replay·bench·코어 변경 검사를 돌릴지(W-29, W-30). 지금은 저장소 스크립트와 시험 파일 전용이라 개발 모드에서만 가능합니다 | 사용자, `L3.group-sdk.spec`, `eng.toolchain.guide` |
+| 18 | 닫음 [결정: 2026-10-31 사용자] 개발 모드에서만. 옛 문장: 배포 앱에서 replay·benchmark·코어 변경 검사를 돌릴지(W-29, W-30). 지금은 저장소 스크립트와 시험 파일 전용이라 개발 모드에서만 가능합니다 | 사용자, `L3.group-sdk.spec`, `eng.toolchain.guide` |
 | 19 | 닫음 [결정: 2026-10-31 사용자] 런타임 호스트 저장, CLI·서비스와 공유(W-46, X-18) | 사용자, `F.wire-settings.spec` |
 | 20 | 시험 대화를 학습 그룹 리뷰에서 뺄지(X-14) | 사용자, `L3.learning.spec` |
 | 21 | 닫음 [결정: 2026-10-31 사용자] M4에 되는 만큼, 대체 경로 §6.24.1 | 사용자, `X.loading-trust.spec` |
@@ -3127,7 +3127,7 @@ export const palette = [
 | U-1 | 플러그인 화면 방식과 격리 iframe 탈출구 | [결정: 2026-10-31 사용자] 두 모드 모두. 선언형(클라이언트가 caustic으로 그림)과 격리 iframe·웹 컴포넌트. 플러그인을 만드는 에이전트가 모드를 고름 | ADR-0021 개정, §6.25, D-13 |
 | U-2 | 작업대를 M4 P0로 올릴지 | [결정: 2026-10-31 사용자] 작업대 화면 전부(P-16~P-22, 시험 실행, 측정, 구성기, 플러그인 화면) M4. 우선순위는 P-16·P-13·P-17 P0, 나머지 P1 | §5, 12.1-15 |
 | U-3 | 연결(P-08)을 작업대 "엔진" 아래로 옮길지 | [결정: 2026-10-31 사용자] 옮기지 않음. 대화 주 내비 다섯 유지 | §4.2, §4.9.3, D-16 |
-| U-4 | replay·bench·코어 변경 검사를 배포 앱에서 돌릴지 | [결정: 2026-10-31 사용자] 개발 모드에서만. 배포 앱은 시험 대화와 지난 결과 읽기 | §6.26, W-29, W-30 |
+| U-4 | replay·benchmark·코어 변경 검사를 배포 앱에서 돌릴지 | [결정: 2026-10-31 사용자] 개발 모드에서만. 배포 앱은 시험 대화와 지난 결과 읽기 | §6.26, W-29, W-30 |
 | U-5 | 프로필 저장 위치 | [결정: 2026-10-31 사용자] 데스크톱보다 아래, 런타임·호스트 설정(CLI·서비스와 공유) | §6.28.3, W-46, X-18, D-18 |
 | U-6 | 확장 버전 기록과 되돌리기를 M4에 둘지 | [결정: 2026-10-31 사용자] 되면 M4에 넣음. 대체 경로를 함께 둠 | §6.24.1, W-31, X-8 |
 | U-7 | 그룹 단위 승인 기억, 자식 에이전트 승인 묶기 | [결정: 2026-10-31 사용자] M4는 요청 단위만. 자식 승인은 출처("렌즈 · grp:helm")만 보임 | §6.6, DP-33 |
@@ -3266,7 +3266,7 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 
 ### 14.1 과제
 
-Xeon 데스크톱 앱의 두 번째 1급 영역 "작업대"(런타임 작업대) 화면들과, 대화 영역의 "런타임" 탭을 비즈니스 로직 없는 시안으로 만듭니다. 엔진, wire, Tauri를 부르지 않고 고정 데이터만 씁니다. Xeon은 층별 플러그인(L1 코어, L2 능력, L3 의도 그룹, 외부 plugin, X 훅)을 조립하는 대화형 에이전트 런타임이고, 작업대는 그 플러그인을 만들고, 켜고, 시험하고, 재고, 묶고, 제어하는 곳입니다.
+Fresnel 데스크톱 앱의 두 번째 1급 영역 "작업대"(런타임 작업대) 화면들과, 대화 영역의 "런타임" 탭을 비즈니스 로직 없는 시안으로 만듭니다. 엔진, wire, Tauri를 부르지 않고 고정 데이터만 씁니다. Fresnel은 층별 플러그인(L1 코어, L2 능력, L3 의도 그룹, 외부 plugin, X 훅)을 조립하는 대화형 에이전트 런타임이고, 작업대는 그 플러그인을 만들고, 켜고, 시험하고, 재고, 묶고, 제어하는 곳입니다.
 
 ### 14.2 만들 곳과 실행
 
@@ -3358,7 +3358,7 @@ export const tests = [
   // replayDrive는 41개 절단을 모두 돌립니다. 이벤트열이 다르면 failure 없이 ok: false입니다(effects-doubled는 모든 절단이 같을 때만)
   { kind: "replay", target: "review", result: "failed", commits: 41, diffCuts: [17, 18], failure: null, firstDiffSeq: 212, firstDiffKind: "grp.review.state.committed",
     baselineEffects: { turn: 6, spawn: 0, delegate: 1, post: 1 }, cutEffects: { turn: 0, spawn: 0, delegate: 0, post: 1 }, at: "어제", took: "9s" },
-  { kind: "bench", target: "server", result: "budget_pending", at: "어제", took: "2m" },
+  { kind: "benchmark", target: "server", result: "budget_pending", at: "어제", took: "2m" },
   { kind: "diff", target: "main..HEAD", result: "clean", protectedLines: 0, at: "어제", took: "1s" },
 ];
 export const profiles = [

@@ -1,7 +1,7 @@
 // 릴리스 빌드에서 Windows 콘솔 창을 띄우지 않는다.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-//! Xeon 데스크톱 셸. 앱 조립, RunEvent 처리, Unix 신호 처리기 (L4.desktop.plan 2).
+//! Fresnel 데스크톱 셸. 앱 조립, RunEvent 처리, Unix 신호 처리기 (L4.desktop.plan 2).
 //! 엔진 수명은 engine.rs, 바이트 릴레이와 `engine_*` 명령은 relay.rs가 맡는다.
 
 mod applog;
@@ -90,7 +90,7 @@ fn main() {
     let app = match app {
         Ok(app) => app,
         Err(error) => {
-            eprintln!("xeon-desktop: failed to build the app: {error}");
+            eprintln!("fresnel-desktop: failed to build the app: {error}");
             std::process::exit(1);
         }
     };
@@ -180,7 +180,7 @@ fn install_signal_handlers(
             }
         });
     if spawned.is_err() {
-        eprintln!("xeon-desktop: signal thread could not start");
+        eprintln!("fresnel-desktop: signal thread could not start");
     }
 }
 
@@ -192,7 +192,7 @@ fn debug_log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_log::Builder::new()
         .targets([
             Target::new(TargetKind::LogDir {
-                file_name: Some("xeon-desktop-debug".into()),
+                file_name: Some("fresnel-desktop-debug".into()),
             }),
             Target::new(TargetKind::Stdout),
         ])

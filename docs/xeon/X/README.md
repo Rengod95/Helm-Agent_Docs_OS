@@ -50,7 +50,7 @@ X가 정하지 않는 것:
 | operations | `xeon/packages/ext-host/src/operations/` | `src/operations/index.ts` |
 
 - 패키지는 `xeon/packages/ext-host` 하나다. 공개 진입점은 제품 코드용 `@fresnel/ext-host`(`src/index.ts`)와 테스트용 `@fresnel/ext-host/testing`(`src/testing/index.ts`, 인메모리 포트·가짜 타이머, `X.primitives.plan` §2) 둘이다. 루트 진입점이 다시 내보내는 이름의 목록은 세 도메인 모두 `X.primitives.spec` §3.1 표가 정한다. 같은 패키지 안의 도메인 사이 import는 상대 경로이고, operations와 loading-trust는 primitives의 타입을 `import type`으로 쓴다.
-- `package.json`의 현재 값은 `"xeon": { "layer": "X", "domain": "ext-host" }`다. routes.yaml은 X 도메인을 셋으로 둔다. 패키지 하나가 도메인 여럿을 담는 F·X의 `fresnel.domain` 값을 패키지 이름으로 둘지는 `architecture.layers.spec` §10의 [미결]이다. 문서 라우팅은 `binds`(`src/<도메인>/**`)로 도메인을 고르므로 이 값과 무관하게 동작한다.
+- `package.json`의 현재 값은 `"fresnel": { "layer": "X", "domain": "ext-host" }`다. routes.yaml은 X 도메인을 셋으로 둔다. 패키지 하나가 도메인 여럿을 담는 F·X의 `fresnel.domain` 값을 패키지 이름으로 둘지는 `architecture.layers.spec` §10의 [미결]이다. 문서 라우팅은 `binds`(`src/<도메인>/**`)로 도메인을 고르므로 이 값과 무관하게 동작한다.
 - 이 README의 `binds`는 패키지 전체(`xeon/packages/ext-host/**`)다. 도메인 문서의 `binds`는 각자의 `src/<도메인>/**`다(`_routing/routes.yaml` layout.X).
 
 ## 4. 이름 규칙 모음

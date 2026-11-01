@@ -58,7 +58,7 @@ xeon/packages/contracts/src/
   records/catalog/artifacts.ts          # A1. ARTIFACT_EVENT_CATALOG, payload 스키마(spec §3.6)
 
 xeon/packages/cap-artifacts/
-  package.json             # exports ".", "./testing". xeon { layer: "L2", domain: "artifacts" }
+  package.json             # exports ".", "./testing". fresnel { layer: "L2", domain: "artifacts" }
   tsconfig.json
   src/
     index.ts               # 플러그인 진입: 매니페스트, provider 등록, 투영기 등록, 설정 그룹

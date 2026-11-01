@@ -317,7 +317,7 @@ test("collectRules tags settings layers as user or managed and drops invalid rul
           { id: "m.deny", action: "tool.call", resource: { tool: "rm*" }, effect: "deny" },
         ],
       },
-      "/etc/xeon/managed.json",
+      "/etc/fresnel/managed.json",
     ),
     layer("user", {
       "l1.tools.rules": [
@@ -350,5 +350,5 @@ test("collectRules tags settings layers as user or managed and drops invalid rul
     "schema_invalid",
   ]);
   const managed = collected.rules.find((entry) => entry.id === "m.deny");
-  expect(managed?.source).toBe("settings:managed:/etc/xeon/managed.json");
+  expect(managed?.source).toBe("settings:managed:/etc/fresnel/managed.json");
 });

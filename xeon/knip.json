@@ -25,19 +25,19 @@
       "ignoreBinaries": ["mkfifo"]
     },
     "packages/cap-knowledge": {
-      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
+      "entry": ["test/**/*.test.ts", "test/**/*.benchmark.ts"]
     },
     "packages/core-context": {
-      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
+      "entry": ["test/**/*.test.ts", "test/**/*.benchmark.ts"]
     },
     "packages/ext-host": {
-      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts"]
+      "entry": ["test/**/*.test.ts", "test/**/*.benchmark.ts"]
     },
     "packages/cap-workspace": {
       "entry": ["test/**/*.test.ts", "test/support/atomic-victim.ts"]
     },
     "packages/core-persistence": {
-      "entry": ["test/**/*.test.ts", "test/**/*.bench.ts", "test/support/crash-child.ts"]
+      "entry": ["test/**/*.test.ts", "test/**/*.benchmark.ts", "test/support/crash-child.ts"]
     },
     "packages/platform-process": {
       "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]

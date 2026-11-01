@@ -75,7 +75,7 @@ describe("connection pragmas", () => {
 
   test("a missing file is created with mode 0600 and the store opens", async () => {
     const dir = own(tempDir());
-    const path = dir.join("nested", "xeon.db");
+    const path = dir.join("nested", "fresnel.db");
     const { options } = directOptions(path);
     const opened = await openStore(options);
     expect(opened.ok).toBe(true);
@@ -193,7 +193,7 @@ describe("connection pragmas", () => {
   test("a group-readable data directory is fixed with a warning", async () => {
     const dir = own(tempDir());
     const nested = dir.join("open");
-    const { options } = directOptions(join(nested, "xeon.db"));
+    const { options } = directOptions(join(nested, "fresnel.db"));
     const first = await openStore(options);
     if (!first.ok) throw new Error("setup failed");
     await first.value.close();

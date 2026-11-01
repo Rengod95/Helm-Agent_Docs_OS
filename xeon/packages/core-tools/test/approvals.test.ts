@@ -87,7 +87,7 @@ test("a deny response blocks the call with the fixed sentence and the user's fee
   });
   const out = await done;
   expect(out.blocked).toBe(
-    "[xeon:denied_by_user] The user denied this tool call. Feedback: use trash instead",
+    "[fresnel:denied_by_user] The user denied this tool call. Feedback: use trash instead",
   );
   expect(probe.calls).toEqual([]);
   // 거부된 호출에는 효과 이벤트가 없다

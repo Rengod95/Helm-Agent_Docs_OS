@@ -36,7 +36,7 @@ export type ExecutionErrorCode =
   | "spawn_error"
   | "callback_error"
   | "unknown"
-  // Xeon 추가 [제안]: 원본에 없다. 데코레이터와 연결 코드만 만든다.
+  // Fresnel 추가 [제안]: 원본에 없다. 데코레이터와 연결 코드만 만든다.
   /** 허용 목록 규칙이 막는 이름을 요청함 */
   | "env_denied"
   /** secretEnv의 lease를 얻지 못함 */
@@ -269,21 +269,21 @@ export interface ShellExecOptions {
   cwd?: string;
   /** 자식 env에 더할 이름과 값. 허용 목록 규칙을 통과해야 한다 */
   env?: Record<string, string>;
-  /** Xeon 연결 코드에서는 "허용 목록 기본 env를 물려받는가"로 뜻이 바뀐다 */
+  /** Fresnel 연결 코드에서는 "허용 목록 기본 env를 물려받는가"로 뜻이 바뀐다 */
   inheritEnv?: boolean;
   /** 초 단위. 원본과 같다 */
   timeout?: number;
   onOutput?: (text: string, context: CancelScope, info: ShellOutputInfo) => void;
   spill?: ShellSpillOptions;
   window?: ShellOutputWindow;
-  /** [제안] Xeon 추가, M1. env 이름 → 비밀 참조와 사용 맥락. 값은 spawn 직전에만 env에 들어간다 */
+  /** [제안] Fresnel 추가, M1. env 이름 → 비밀 참조와 사용 맥락. 값은 spawn 직전에만 env에 들어간다 */
   secretEnv?: SecretEnvRequest;
 }
 
 export interface ShellExecResult {
   exitCode: number;
   spillPath?: string;
-  /** [제안] Xeon 추가. 데코레이터가 붙인 실행 정보. 값(비밀, 파일 내용)은 싣지 않는다 */
+  /** [제안] Fresnel 추가. 데코레이터가 붙인 실행 정보. 값(비밀, 파일 내용)은 싣지 않는다 */
   sandbox?: SandboxRunReport;
 }
 

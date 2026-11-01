@@ -131,7 +131,7 @@ describe("validateManifest rules", () => {
   });
 
   test("reserved names", () => {
-    for (const name of ["web", "core", "xeon", "workspace"]) {
+    for (const name of ["web", "core", "fresnel", "workspace"]) {
       expect(codesOf(validateManifest(pluginJson({ name })).issues)).toEqual(["name_reserved"]);
     }
     const builtin = pluginJson({ name: "web", trust: { level: "builtin" } });

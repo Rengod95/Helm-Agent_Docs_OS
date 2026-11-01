@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 function root(): string {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-spill-store-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-spill-store-"));
   roots.push(dir);
   return dir;
 }

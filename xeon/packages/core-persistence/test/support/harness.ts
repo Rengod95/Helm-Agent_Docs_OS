@@ -48,7 +48,7 @@ function keyPart(toolCallId: string): string {
 
 /** 임시 디렉터리 안 DB 파일 경로. 호출자가 cleanup을 afterEach에 건다 */
 export function tempDbPath(): { readonly path: string; readonly cleanup: () => void } {
-  const directory = mkdtempSync(join(tmpdir(), "xeon-persistence-"));
+  const directory = mkdtempSync(join(tmpdir(), "fresnel-persistence-"));
   return {
     path: join(directory, "session.db"),
     cleanup: () => {

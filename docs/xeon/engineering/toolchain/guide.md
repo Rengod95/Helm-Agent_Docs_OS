@@ -5,7 +5,7 @@ domain: toolchain
 kind: guide
 status: draft
 depends_on: [eng.dependency-rules.guide]
-binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base.json, xeon/.oxlintrc.json, xeon/.oxfmtrc.json, xeon/lefthook.yml, xeon/justfile, .github/workflows/xeon-ci.yml]
+binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base.json, xeon/.oxlintrc.json, xeon/.oxfmtrc.json, xeon/lefthook.yml, xeon/justfile, .github/workflows/fresnel-ci.yml]
 ---
 
 # 툴체인 가이드
@@ -14,7 +14,7 @@ Xeon 워크스페이스의 런타임, 패키지 관리, 타입 검사, 린트, �
 
 ## 1. 적용 범위
 
-- 대상 파일: `xeon/package.json`(workspaces, catalog, 루트 scripts), `xeon/bunfig.toml`, `xeon/turbo.json`, `xeon/tsconfig.base.json`과 각 패키지 `tsconfig.json`, `xeon/.oxlintrc.json`, `xeon/.oxfmtrc.json`, `xeon/knip.json`, `xeon/.dependency-cruiser.cjs`, `xeon/lefthook.yml`(루트 `lefthook.yml`이 extends), `xeon/justfile`(루트 `justfile`이 `cd xeon && just <레시피>`로 부른다), `xeon/mise.toml`, `.github/workflows/xeon-ci.yml`.
+- 대상 파일: `xeon/package.json`(workspaces, catalog, 루트 scripts), `xeon/bunfig.toml`, `xeon/turbo.json`, `xeon/tsconfig.base.json`과 각 패키지 `tsconfig.json`, `xeon/.oxlintrc.json`, `xeon/.oxfmtrc.json`, `xeon/knip.json`, `xeon/.dependency-cruiser.cjs`, `xeon/lefthook.yml`(루트 `lefthook.yml`이 extends), `xeon/justfile`(루트 `justfile`이 `cd xeon && just <레시피>`로 부른다), `xeon/mise.toml`, `.github/workflows/fresnel-ci.yml`.
 - 대상 작업: 도구 추가·갱신, 버전 변경, 검사 단계 변경, CI 변경, 새 패키지 생성(설정 파일 복사).
 - 이 문서가 다루지 않는 것:
   - 타입 금지 구문의 규칙 본문은 `eng.typescript.guide`. 여기서는 그 규칙을 켜는 oxlint·tsconfig 설정 위치만 적는다.
@@ -441,7 +441,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 - pre-commit에는 빠른 검사만 둔다. `tsc -b`, check-layers, depcruise, knip, 테스트는 `just verify`와 CI가 돈다.
 - 훅 실패를 `--no-verify`로 넘기지 않는다(TC-07).
 
-### 3.4 CI (`.github/workflows/xeon-ci.yml`)
+### 3.4 CI (`.github/workflows/fresnel-ci.yml`)
 
 [결정] `_research/foundation-plan.md §5` P3: 층별 job matrix, 각 job은 turbo `--affected`의 lint·typecheck·test, 통합 테스트는 모델 테이프 기반 스모크 1개.
 
@@ -455,13 +455,13 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 - 문서의 `[미결` 표지 수는 `just docs-route --unresolved`가 문서마다 셉니다. 추적 규칙은 `review.unresolved`입니다. verify 단계가 아니고 종료코드는 항상 0입니다.
 | `smoke` [제안] | 모델 테이프로 `xeon chat` 한 턴과 강제 종료 뒤 재개(`eng.testing.guide` TS-01 `scenario`). M1에서 더한다 | `just smoke` [제안] |
 
-- CI job 전체가 `just verify-full`과 같은 단계를 모두 돈다(두 워크플로의 `TURBO_FORCE: "true"`로 turbo 캐시를 읽지 않고, lint는 type-aware다). `xeon/scripts/ci-alignment.test.ts`가 루트 justfile의 단계 목록과 `xeon-ci.yml`의 명령을 비교해, 단계가 CI에서 빠지면 실패한다. `ws check`는 사용자 환경 검사라 CI에서 돌지 않는다.
+- CI job 전체가 `just verify-full`과 같은 단계를 모두 돈다(두 워크플로의 `TURBO_FORCE: "true"`로 turbo 캐시를 읽지 않고, lint는 type-aware다). `xeon/scripts/ci-alignment.test.ts`가 루트 justfile의 단계 목록과 `fresnel-ci.yml`의 명령을 비교해, 단계가 CI에서 빠지면 실패한다. `ws check`는 사용자 환경 검사라 CI에서 돌지 않는다.
 - 체크아웃은 `fetch-depth: 0`이다. `--affected`는 기준 커밋이 있어야 한다. 얕은 체크아웃이면 turbo가 모든 패키지를 바뀐 것으로 본다(`_research/stack-status.md §5-B`, §9).
 - 기준 커밋: PR은 `origin/<base_ref>`, push는 `origin/main`(`TURBO_SCM_BASE`).
 - 각 job은 `jdx/mise-action`으로 `mise.toml`의 Bun 1.4.3을 설치하고 just 1.58.0을 쓴다.
 - 워크플로의 액션은 태그 대신 커밋 SHA로 고정합니다. 줄 끝 주석에 판을 적습니다(`uses: owner/repo@<sha> # v4.4.0`). 올릴 때는 같은 메이저 안의 최신 정식 판을 고르고 SHA를 새로 적습니다.
 - 원격 캐시는 쓰지 않는다 [제안]. 필요해지면 TC-04 절차로 더한다.
-- macOS job: `.github/workflows/xeon-macos.yml`. `workflow_dispatch`나 PR 라벨 `ci:macos`로만 돈다(`review.m2-plan` §8 D1). `macos-15`에서 `platform-store`(FTS5와 `setCustomSQLite`, TC-11), `platform-os`, `platform-sandbox`(Seatbelt), `platform-secrets`, `cap-knowledge` 시험, `just exit-tests`, `aarch64-apple-darwin` 사이드카 빌드, `just desktop-test`를 돈다. 결과는 `review.macos-checklist`에 적는다.
+- macOS job: `.github/workflows/fresnel-macos.yml`. `workflow_dispatch`나 PR 라벨 `ci:macos`로만 돈다(`review.m2-plan` §8 D1). `macos-15`에서 `platform-store`(FTS5와 `setCustomSQLite`, TC-11), `platform-os`, `platform-sandbox`(Seatbelt), `platform-secrets`, `cap-knowledge` 시험, `just exit-tests`, `aarch64-apple-darwin` 사이드카 빌드, `just desktop-test`를 돈다. 결과는 `review.macos-checklist`에 적는다.
 
 ### 3.5 규칙과 도구 행렬
 
@@ -477,7 +477,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | TC-08 tsconfig 기반 하나 | [제안] `check-layers.ts`: 패키지 tsconfig의 `compilerOptions` 키가 허용 목록 안인지 |
 | TC-09 just 레시피 | 리뷰, CI가 레시피만 부른다 |
 | TC-10 공개 패키지 도구 | 리뷰, 첫 공개 패키지 때 verify 단계 |
-| TC-11 FTS5 | `platform-store` 단위 테스트, macOS 수동 CI job(`xeon-macos.yml`) |
+| TC-11 FTS5 | `platform-store` 단위 테스트, macOS 수동 CI job(`fresnel-macos.yml`) |
 | TC-12 Playwright | `cap-web` 계획의 호환 확인 테스트 |
 
 ## 4. 예외와 승인 절차

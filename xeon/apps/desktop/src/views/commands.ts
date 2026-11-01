@@ -62,7 +62,7 @@ export interface SetupCommands {
     action: "add" | "set",
   ): Promise<Result<boolean, CommandError>>;
   /**
-   * 셸이 값을 받아 번들된 `xeon secret add|set`의 stdin에 한 번 쓴다. 값을 담은 `value`는 호출자가 보낸 뒤 덮는다.
+   * 셸이 값을 받아 번들된 `fresnel secret add|set`의 stdin에 한 번 쓴다. 값을 담은 `value`는 호출자가 보낸 뒤 덮는다.
    * 이 연결에 셸 경로가 없으면 `unavailable`이다.
    */
   registerKey(

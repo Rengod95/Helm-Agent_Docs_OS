@@ -18,7 +18,7 @@ afterEach(releaseOwned);
 describe("store identity", () => {
   test("storeId is a sto_ULID and survives reopening", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     const first = await openStore(directOptions(path).options);
     if (!first.ok) throw new Error("open failed");
     const id = first.value.service.storeId;
@@ -44,7 +44,7 @@ describe("store identity", () => {
 
   test("data and extension bookkeeping survive reopening", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     const first = await openStore(directOptions(path).options);
     if (!first.ok) throw new Error("open failed");
     first.value.service.extensions.register("acme-notes");
@@ -84,7 +84,7 @@ describe("store identity", () => {
 describe("close", () => {
   test("is idempotent and truncates the wal", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     const opened = await openStore(directOptions(path).options);
     if (!opened.ok) throw new Error("open failed");
     opened.value.root.write((tx) => {
@@ -100,7 +100,7 @@ describe("close", () => {
 
   test("a reader holding an old snapshot leaves a checkpoint_incomplete warning", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     const { options } = directOptions(path, {
       settings: { ...DEFAULT_STORE_SETTINGS, busyTimeoutMs: 20 },
     });
@@ -162,7 +162,7 @@ describe("storePlugin", () => {
 describe("platform policies", () => {
   test("the macOS policy sets fullfsync and falls back to no os lock without libSystem", async () => {
     const dir = own(tempDir());
-    const { options } = directOptions(dir.join("xeon.db"), {
+    const { options } = directOptions(dir.join("fresnel.db"), {
       env: { ...directOptions("/x").options.env, platform: "darwin" },
     });
     const opened = await openStore(options);
@@ -181,7 +181,7 @@ describe("platform policies", () => {
 
   test("turning macFullFsync off sets checkpoint_fullfsync only", async () => {
     const dir = own(tempDir());
-    const { options } = directOptions(dir.join("xeon.db"), {
+    const { options } = directOptions(dir.join("fresnel.db"), {
       env: { ...directOptions("/x").options.env, platform: "darwin" },
       settings: { ...DEFAULT_STORE_SETTINGS, macFullFsync: false },
     });
@@ -198,7 +198,7 @@ describe("platform policies", () => {
     // dlopen 실패는 macOS에서만 실제로 나므로 로더를 주입한다. 프로세스당 한 번만 로드할 수 있어 자식에서 돈다(§4.1 2번)
     const dir = own(tempDir());
     const result = await runScript(join(import.meta.dir, "fixtures", "darwin-custom.ts"), [
-      dir.join("xeon.db"),
+      dir.join("fresnel.db"),
       "/nonexistent/libsqlite3.dylib",
       "fail-load",
     ]);
@@ -209,7 +209,7 @@ describe("platform policies", () => {
   test("a custom sqlite path is recorded in the capabilities", async () => {
     const dir = own(tempDir());
     const result = await runScript(join(import.meta.dir, "fixtures", "darwin-custom.ts"), [
-      dir.join("xeon.db"),
+      dir.join("fresnel.db"),
       "/nonexistent/libsqlite3.dylib",
     ]);
     if (process.platform === "darwin") {

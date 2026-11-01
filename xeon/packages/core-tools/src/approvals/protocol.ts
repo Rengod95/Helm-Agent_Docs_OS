@@ -305,10 +305,10 @@ export function validateResponse(
 }
 
 const DENIED_EXPIRED =
-  "[xeon:approval_expired] The approval request expired before an answer, so it was denied.";
-const DENIED_BY_USER = "[xeon:denied_by_user] The user denied this tool call.";
+  "[fresnel:approval_expired] The approval request expired before an answer, so it was denied.";
+const DENIED_BY_USER = "[fresnel:denied_by_user] The user denied this tool call.";
 const DENIED_CANCELLED =
-  "[xeon:approval_cancelled] The approval request was cancelled before an answer.";
+  "[fresnel:approval_cancelled] The approval request was cancelled before an answer.";
 
 /** 사용자가 거부했을 때 모델에 보일 사유. feedback이 있으면 덧붙인다 */
 export function denialReason(resolution: ApprovalResolution): string {
@@ -317,7 +317,7 @@ export function denialReason(resolution: ApprovalResolution): string {
   }
   if (resolution.resolvedBy === "expired") return DENIED_EXPIRED;
   if (resolution.resolvedBy === "noninteractive") {
-    return "[xeon:noninteractive_ask_denied] This tool call needs approval, but nobody can answer in a non-interactive run.";
+    return "[fresnel:noninteractive_ask_denied] This tool call needs approval, but nobody can answer in a non-interactive run.";
   }
   const feedback = isJsonObject(resolution.answer) ? resolution.answer["feedback"] : undefined;
   return typeof feedback === "string" && feedback.length > 0

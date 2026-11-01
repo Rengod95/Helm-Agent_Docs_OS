@@ -114,7 +114,7 @@ describe("model constants and schemas", () => {
       baseUrl: "https://llm.example.com/v1",
       api: "openai-completions",
       apiKey: "secret://example-key",
-      headers: { "x-team": "xeon" },
+      headers: { "x-team": "fresnel" },
       models: [
         {
           id: "m1",

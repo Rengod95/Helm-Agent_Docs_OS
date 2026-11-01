@@ -36,7 +36,7 @@ describe("error mapping", () => {
       ["spawn_error", "internal"],
       ["callback_error", "internal"],
       ["unknown", "internal"],
-      // Xeon 추가 코드: 표에 없어 막은 것은 denied, 래핑 실패는 internal
+      // Fresnel 추가 코드: 표에 없어 막은 것은 denied, 래핑 실패는 internal
       ["env_denied", "denied"],
       ["secret_unavailable", "denied"],
       ["sandbox_unavailable", "denied"],

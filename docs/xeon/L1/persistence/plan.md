@@ -32,7 +32,7 @@ binds: [xeon/packages/core-persistence/**]
 
 ## 1. 목표와 마일스톤 배치
 
-[결정] M0 범위는 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·세션 잠금)이고, M1은 `xeon chat` 걸어 다니는 골격(이벤트 저장과 재개 포함)이다(`_research/foundation-plan.md` §5 P4). 마일스톤 정의는 `product.scope.spec` §4.3을 따른다(M2·M3 정의는 그 문서의 [제안]). `_research/layer-plan-v2.json` L1-f의 "2차"는 M3 이후에 둔다 [제안]. 예외로 리플레이 커서는 M3로 당긴다(아래 표 아래 항목).
+[결정] M0 범위는 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·세션 잠금)이고, M1은 `fresnel chat` 걸어 다니는 골격(이벤트 저장과 재개 포함)이다(`_research/foundation-plan.md` §5 P4). 마일스톤 정의는 `product.scope.spec` §4.3을 따른다(M2·M3 정의는 그 문서의 [제안]). `_research/layer-plan-v2.json` L1-f의 "2차"는 M3 이후에 둔다 [제안]. 예외로 리플레이 커서는 M3로 당긴다(아래 표 아래 항목).
 
 | 마일스톤 | core-persistence 범위 | 스펙 절 | 소비자 |
 |---|---|---|---|
@@ -40,7 +40,7 @@ binds: [xeon/packages/core-persistence/**]
 | M1 | writer(단일 커밋 경로), requests 멱등, 코어 투영(`p_threads`, `p_items`, `p_parts`, `p_effects`, `p_turns`, `p_inputs`, `step_checkpoints`, `p_blob_refs`), 단계 체크포인트, 효과 3단 기록 경로, 커밋 뒤 방출, 열 때 복구(표식, 마지막 체크포인트, 열린 효과 판정·합성), 재개 계획, `threads.create`, `openForWrite/openForRead`, 업캐스터 연결, 장애 주입 테스트 전체, 설정 `l1.persistence.maxResumeAttempts` | §3.2~§3.7, §4.1~§4.8, §4.11, §4.12, §4.14 | core-loop, core-tasks, core-tools, ext-host, apps/host, M1 스모크 |
 | M2 | 수명주기 API 전체(`list`, `close`, `remove`, `fork`, `revert`, `moveLeaf`, `setTitle`, `prepareSwitch`), 분기와 떠난 가지 요약 기록, 승인 대기 복원(`p_approvals`, A1 체크포인트), 자식 thread 연결(`p_agents`, `TxView.agentByRequestId`, `ResumePlan.openChildren`), 확장 접두 테이블 커밋 참여(등록 검사, `ProjectionTx` 소유 검사, `onFailure`), `p_scopes`, `p_settings`, `sessionSettings`, 확장 지점 7개 발화, 보관 정리와 `retention.*` 키, `ext` 포트 | §3.8, §4.5.2, §4.10, §6, §7 | L4 host(thread.* 메서드), X.operations, L2 artifacts, L3 그룹, core-agents |
 | M3 | 서비스 모드 자동 재개(`l1.persistence.autoResume`, `AutoResumeVerdict`), 리플레이 커서(`replayFrom`, `oldestReplayableSeq` 갱신), 청크 재생성 | §4.8.3, §4.13.1, §4.5.3 | L4 host 서비스 모드 |
-| 2차 | 되감기(파일 스냅샷 복원), JSONL 내보내기(`pi-jsonl`, `xeon-jsonl`), `SessionStore` 어댑터와 적합성 스위트, `xeon debug verify-projections` | §3.11, §4.13.2, §4.13.3, §3.1 3번 | L4 cli, L2 workspace |
+| 2차 | 되감기(파일 스냅샷 복원), JSONL 내보내기(`pi-jsonl`, `fresnel-jsonl`), `SessionStore` 어댑터와 적합성 스위트, `fresnel debug verify-projections` | §3.11, §4.13.2, §4.13.3, §3.1 3번 | L4 cli, L2 workspace |
 
 - [제안] 리플레이 커서(§4.13.1)는 계획 JSON에서 2차 구성요소 "되감기, 리플레이 커서, JSONL 내보내기"의 일부다. M3의 공유 서비스 모드와 원격 클라이언트 재접속(`product.scope.spec` §4.3 M3)에 필요해 이 부분만 M3로 당긴다. 되감기와 JSONL 내보내기는 2차에 남는다. `L1.readme` §9 표와 각주에 같은 배치를 적는다.
 
@@ -59,7 +59,7 @@ M0 종료 조건과 L0 몫:
 
 ```
 xeon/packages/core-persistence/
-  package.json             # "xeon": { "layer": "L1", "domain": "persistence" }, exports: ".", "./testing"
+  package.json             # "fresnel": { "layer": "L1", "domain": "persistence" }, exports: ".", "./testing"
   tsconfig.json
   src/
     index.ts               # 공개 진입점: createSessionService, sessionPlugin(re-export)
@@ -94,7 +94,7 @@ xeon/packages/core-persistence/
     settings.ts            # defineSettings("l1.persistence", …)
     replay-cursor.ts       # 2차(M3): replayFrom 해석, oldestReplayableSeq
     rewind.ts              # 2차: 파일 스냅샷 기록·복원 계획
-    export-jsonl.ts        # 2차: pi-jsonl, xeon-jsonl
+    export-jsonl.ts        # 2차: pi-jsonl, fresnel-jsonl
     testing/
       index.ts             # openTestSession, expectProjectionsRebuildable, faultAt, fakeGuard, fakeExtHost
   test/
@@ -150,7 +150,7 @@ xeon/packages/core-persistence/
 | PS-18 | 보관 정리: `retention.ts`, 제외 규칙, `retention.*` 키 연결. M3b B1-SVC: 지울 때 재전송 하한(`replay.floor`) 상승, `replay.ts`(`replayFrom`), `resend.ts`(재개 때 모델 요청 재전송 정책) | PS-9 | S | M2 |
 | PS-19 | 리플레이 커서: `replay-cursor.ts`(`replayFrom` 해석, `oldestReplayableSeq`) | PS-12, FR-P7 | S | M3 |
 | PS-20 | 되감기: `rewind.ts`(스냅샷 기록 `checkpoint.files`, `RewindPlan`, 복원 효과 3단) | PS-10, FR-P8, L1.tools(쓰기 분류) | L | 2차 |
-| PS-21 | JSONL 내보내기: `export-jsonl.ts`(pi v3 대응 표, xeon-jsonl), `export.format` 키 | PS-10, PS-15 | M | 2차 |
+| PS-21 | JSONL 내보내기: `export-jsonl.ts`(pi v3 대응 표, fresnel-jsonl), `export.format` 키 | PS-10, PS-15 | M | 2차 |
 | PS-22 | `SessionStore` 어댑터와 적합성 스위트(`replay_diverged` 검사 포함) | PS-2, PS-12, FR-P2 | M | 2차 |
 | PS-23 | 자식 thread 연결: `p_agents` 투영(DDL·리듀서, `agent.spawned`·`agent.settled` 원천, F.records 카탈로그에 있음), `TxView.agentByRequestId`, `query.childAgents`, `ResumePlan.openChildren`(재개 5단계) | PS-3, PS-6, FR-P9(`agent.*`) 또는 L1.agents.spec F 요청 4 | M | M2 |
 
@@ -214,10 +214,10 @@ xeon/packages/core-persistence/
 |---|---|---|
 | pi durable 원자 커밋 | `~/projects/_ref/pi-src/packages/durable/src/storage/sqlite/storage.ts:179-189` | 한 SQL 트랜잭션 = 한 커밋, 메타 행의 `next_seq`를 같은 트랜잭션에서 올리는 방식(`event_seq`) |
 | pi durable 적합성 스위트 | `durable/src/testing/storage-conformance.ts` | 어댑터 팩토리를 받아 같은 시나리오를 돌리는 방식(PS-22) |
-| pi durable fork | `durable/src/session/forks.ts`(97줄) | fork 시점(`asOf`)과 현재(`current`) 정책 구분. Xeon은 scope 상태 이벤트로 대응 |
+| pi durable fork | `durable/src/session/forks.ts`(97줄) | fork 시점(`asOf`)과 현재(`current`) 정책 구분. Fresnel은 scope 상태 이벤트로 대응 |
 | pi durable requestId | `durable/src/harness/submissions.ts:155-160` | 쓰기 전 대화 범위 중복 판정 |
 | pi durable 열기 | `durable/src/harness/scheduler.ts:287-318` | 열 때 아무것도 실행하지 않는 규칙 |
-| opencode 이벤트 표 | `event/sql.ts`(`event_sequence`, `event(id, aggregate_id, seq, created, type, data)`, `unique(aggregate_id, seq)`) | 표 모양. Xeon은 seq가 DB 전역이라 `UNIQUE(thread_id, seq)` 대신 `seq` 기본 키 |
+| opencode 이벤트 표 | `event/sql.ts`(`event_sequence`, `event(id, aggregate_id, seq, created, type, data)`, `unique(aggregate_id, seq)`) | 표 모양. Fresnel은 seq가 DB 전역이라 `UNIQUE(thread_id, seq)` 대신 `seq` 기본 키 |
 | opencode 리듀서 | `session/message-updater.ts`(485줄) `update` | 이벤트별 투영 갱신 논리 |
 | opencode 되감기 | `packages/core/src/snapshot.ts`(244줄), `packages/core/src/session/revert.ts`(114줄) | 2차 PS-20 스냅샷 범위와 stage·commit 단계 |
 | pi 세션 JSONL | `coding-agent/src/core/session-manager.ts:41-195`(`CURRENT_SESSION_VERSION = 3`, 엔트리 11종) | 2차 PS-21 내보내기 형식 |

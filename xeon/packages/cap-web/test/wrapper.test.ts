@@ -20,7 +20,7 @@ afterEach(releaseStores);
 
 const SIGNAL = new AbortController().signal;
 
-function request(query = "xeon runtime", overrides: Partial<ProviderSearchRequest> = {}) {
+function request(query = "fresnel runtime", overrides: Partial<ProviderSearchRequest> = {}) {
   const parsed = parseSearchQuery(query);
   const value: ProviderSearchRequest = {
     terms: parsed.terms,
@@ -148,7 +148,7 @@ describe("builtin wrapper", () => {
     const hosted = hostedTape("wrapper-basic");
     const world = await makeWebWorld({ builtinSearch: true, hostedSearch: hosted });
     // SearXNG는 이 시험에서 없다. 래퍼만 고른다
-    const found = await world.search({ query: "xeon", provider: "builtin-wrapper" });
+    const found = await world.search({ query: "fresnel", provider: "builtin-wrapper" });
     expect(found.meta.provider).toBe("builtin-wrapper");
     expect(found.meta.cost.basis).toBe("estimated");
     expect(found.meta.cost.pricingAsOf).toBe("2026-10-21");

@@ -68,7 +68,7 @@ async function search(deps: SearchDeps, call: RawCall): Promise<RawOutcome> {
   const threadId = call.run.threadId;
   const activated = await activatedTools(deps.session, threadId);
   if (!activated.ok) {
-    return errorOutcome(`[xeon:tools.read_failed] ${activated.error.kind}`, {
+    return errorOutcome(`[fresnel:tools.read_failed] ${activated.error.kind}`, {
       code: "tools.read_failed",
     });
   }
@@ -92,7 +92,7 @@ async function search(deps: SearchDeps, call: RawCall): Promise<RawOutcome> {
     },
   );
   if (!planned.ok) {
-    return errorOutcome(`[xeon:tools.too_many] ${advertiseErrorText(planned.error)}`, {
+    return errorOutcome(`[fresnel:tools.too_many] ${advertiseErrorText(planned.error)}`, {
       code: "tools.too_many",
     });
   }

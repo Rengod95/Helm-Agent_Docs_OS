@@ -18,7 +18,7 @@ binds: [xeon/packages/cap-knowledge/**]
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
-| M0 | 없음. `cap-knowledge` 스캐폴드(`package.json`의 `xeon` 필드, 빈 `src/index.ts`)는 이미 있다 | `_research/foundation-plan.md` §5 P4 |
+| M0 | 없음. `cap-knowledge` 스캐폴드(`package.json`의 `fresnel` 필드, 빈 `src/index.ts`)는 이미 있다 | `_research/foundation-plan.md` §5 P4 |
 | M1 | 없음. 지식 능력은 걸어 다니는 골격 범위 밖이다 | `product.scope.spec` §4.3 M1 |
 | M2 | K1~K11 전부 | 아래 |
 
@@ -51,7 +51,7 @@ M2 안의 순서와 근거:
 xeon/packages/contracts/src/capabilities/defs/knowledge.ts   # K1: 4개 정의, 공통 타입, ServiceKey
 
 xeon/packages/cap-knowledge/
-  package.json            # "xeon": { "layer": "L2", "domain": "knowledge" }
+  package.json            # "fresnel": { "layer": "L2", "domain": "knowledge" }
   UPSTREAM.json           # pi skills.ts 포크 출처(ADR-0003 §3.4)
   PATCHES.md              # FRESNEL-PATCH 목록
   LICENSE.pi              # pi MIT 고지

@@ -2,7 +2,7 @@
 # Signing and notarization of a macOS release stage (L4.release.spec 5). Skips with exit 0 when the secrets are absent, so
 # forks and pull requests stay green; the secrets are registered by the user, never by this repository. Values are never
 # printed: only whether a name is set.
-#   release-sign.sh <stage-dir>      the xeon-<version>-aarch64-apple-darwin directory release.ts left (before tar)
+#   release-sign.sh <stage-dir>      the fresnel-<version>-aarch64-apple-darwin directory release.ts left (before tar)
 # env: APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY (codesign),
 #      APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD (notarytool)
 # exit: 0 signed and notarized, or skipped; 1 a step failed; 2 environment (not macOS, tools missing)
@@ -45,11 +45,11 @@ security set-key-partition-list -S apple-tool:,apple: -s -k "$kc_pass" "$keychai
 security list-keychains -d user -s "$keychain" login.keychain-db
 
 # the bundled helpers first, then the main binary, all with the hardened runtime and a secure timestamp
-for file in "$stage"/binaries/* "$stage"/xeon; do
+for file in "$stage"/binaries/* "$stage"/fresnel; do
   [[ -f "$file" ]] || continue
   codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$APPLE_SIGNING_IDENTITY" "$file"
 done
-codesign --verify --strict "$stage/xeon"
+codesign --verify --strict "$stage/fresnel"
 
 # notarization takes a zip; a bare binary cannot be stapled, Gatekeeper checks the ticket online
 zip_path="$work/notarize.zip"

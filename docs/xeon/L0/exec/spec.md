@@ -20,7 +20,7 @@ binds: [xeon/packages/platform-exec/**]
 - 출력 절단: pi durable `truncate.ts` 포크와 `ExecService.truncateHead`·`formatSize`(3.1절 끝, 3.3.1절) [결정: review.decisions-2 D-08]
 - 포크 범위, 포크 기록, 바꿀 점(패치 표, 3.3절)
 - OS 분기 인터페이스 `ExecPlatformProvider`와 선택 지점 `select.ts`(3.4절)
-- 포크 위에 얹는 Xeon 연결 코드: 자식 프로세스 환경 변수 허용 목록 빌더, 비밀 주입 지점 `ShellExecOptions.secretEnv`(M1), 데코레이션 가능한 `Shell` 요구(3.5절~3.7절), 백그라운드 실행 `startBackground`(3.9절)
+- 포크 위에 얹는 Fresnel 연결 코드: 자식 프로세스 환경 변수 허용 목록 빌더, 비밀 주입 지점 `ShellExecOptions.secretEnv`(M1), 데코레이션 가능한 `Shell` 요구(3.5절~3.7절), 백그라운드 실행 `startBackground`(3.9절)
 - 동작 보장 표(포크 원본 주석의 보장과 변경 여부, 4절), 플랫폼별 제약(5.2절), 설정 키(6절), 수용 기준(9절)
 
 다루지 않는 것:
@@ -39,7 +39,7 @@ binds: [xeon/packages/platform-exec/**]
 
 | 구성요소 | 단계 | 표지 |
 |---|---|---|
-| 로컬 `NodeExecutionEnv`(포크) + Xeon 연결 코드 | 1차, M0(포크·적합성), M1(env 빌더·서비스 등록) | [결정: `_research/foundation-plan.md` §5 P4 M0 `platform-exec`] |
+| 로컬 `NodeExecutionEnv`(포크) + Fresnel 연결 코드 | 1차, M0(포크·적합성), M1(env 빌더·서비스 등록) | [결정: `_research/foundation-plan.md` §5 P4 M0 `platform-exec`] |
 | 비밀 주입 지점 `secretEnv`(에이전트 env 모드) | 1차, M1. M1 비밀 검증 경로다(3.6절) | [결정: review.decisions-2 U-19] |
 | 백그라운드 실행 `startBackground` | 1차, 구현은 M2(소비자 L1 tools 백그라운드 셸, L2 mcp) | [제안] |
 | Docker 어댑터(`ExecutionEnv`의 컨테이너 구현) | 1차 목표, 구현은 M2 이후 | [제안, `_research/layer-plan-v2.json` L0-a "Docker만 어댑터"] |
@@ -54,7 +54,7 @@ binds: [xeon/packages/platform-exec/**]
 | `ExecutionEnv` | 파일 연산(`FileSystem`)과 명령 실행(`Shell`)을 합친 인터페이스. 원본 `D/src/env/index.ts:324` |
 | 포크 원본 | `~/projects/_ref/pi-src/packages/durable/src/`(이하 `D/src/`), 저장소 `https://github.com/earendil-works/pi`, 커밋 `cdaf6c227d4718a72b59ccd02152c9614df44cfc`(약칭 `cdaf6c2`), 패키지 버전 1.1.0. 줄 번호는 이 사본 기준이다 [가정: adr.0003 §3.2] |
 | 포크 코드 | `platform-exec/src/upstream/` 아래에 복사한 원본 파일. 바꾼 줄에는 `// FRESNEL-PATCH: <id>`를 단다 |
-| 연결 코드 | `src/upstream/` 밖에 Xeon이 새로 쓴 코드. 서비스 등록, env 빌더, 비밀 주입, provider |
+| 연결 코드 | `src/upstream/` 밖에 Fresnel이 새로 쓴 코드. 서비스 등록, env 빌더, 비밀 주입, provider |
 | `CancelScope` | 취소 신호 하나만 담는 객체 `{ readonly abortSignal }`. Chord `Context`(`chord/src/types.ts:15-16`)와 같은 모양이다 |
 | spill | 명령 출력이 임계(바이트 또는 줄)를 넘으면 전체 원출력을 임시 파일에 쓰는 동작 |
 | window | 호출자가 출력의 꼬리만 남길 때 넘기는 범위. 구현은 범위 밖 출력을 건너뛰고 `skipped`로 알린다 |
@@ -91,7 +91,7 @@ export type FileErrorCode =
   | "is_directory" | "invalid" | "not_supported" | "unknown";
 export type ExecutionErrorCode =
   | "aborted" | "timeout" | "shell_unavailable" | "spawn_error" | "callback_error" | "unknown"
-  // Xeon 추가 [제안]: 원본에 없다. 데코레이터와 연결 코드만 만든다.
+  // Fresnel 추가 [제안]: 원본에 없다. 데코레이터와 연결 코드만 만든다.
   | "env_denied"            // 허용 목록 규칙이 막는 이름을 요청함(3.5절)
   | "secret_unavailable"    // secretEnv의 lease를 얻지 못함(3.6절)
   | "sandbox_unavailable"   // 격리가 필요한데 쓸 수 없음(L0.sandbox.spec §4.5)
@@ -178,14 +178,14 @@ export interface ShellExecOptions {
   cwd?: string;
   /** 자식 env에 더할 이름과 값. 허용 목록 규칙(3.5절)을 통과해야 한다 */
   env?: Record<string, string>;
-  /** Xeon 연결 코드에서는 "허용 목록 기본 env를 물려받는가"로 뜻이 바뀐다(4절 B-12) */
+  /** Fresnel 연결 코드에서는 "허용 목록 기본 env를 물려받는가"로 뜻이 바뀐다(4절 B-12) */
   inheritEnv?: boolean;
   /** 초 단위. 원본과 같다 */
   timeout?: number;
   onOutput?: (text: string, context: CancelScope, info: ShellOutputInfo) => void;
   spill?: ShellSpillOptions;
   window?: ShellOutputWindow;
-  /** [제안] Xeon 추가, M1. env 이름 → 비밀 참조와 사용 맥락. 값은 spawn 직전에만 env에 들어간다(3.6절) */
+  /** [제안] Fresnel 추가, M1. env 이름 → 비밀 참조와 사용 맥락. 값은 spawn 직전에만 env에 들어간다(3.6절) */
   secretEnv?: SecretEnvRequest;
 }
 
@@ -199,7 +199,7 @@ export interface SecretEnvRequest {
 export interface ShellExecResult {
   exitCode: number;
   spillPath?: string;
-  /** [제안] Xeon 추가. 데코레이터가 붙인 실행 정보. 값(비밀, 파일 내용)은 싣지 않는다. 모양은 L0.sandbox.spec §3.1 */
+  /** [제안] Fresnel 추가. 데코레이터가 붙인 실행 정보. 값(비밀, 파일 내용)은 싣지 않는다. 모양은 L0.sandbox.spec §3.1 */
   sandbox?: SandboxRunReport;
 }
 
@@ -391,12 +391,12 @@ export function selectExecPlatform(input: {
 - win32 provider의 `killProcessTree`는 `taskkill`을 분리 실행하고 기다리지 않는다. 실행 자체가 실패하면(`spawn`이 던지거나 `error` 이벤트가 오면) 삼키지 않고 `logger`가 있으면 `warn("exec.kill_tree_spawn_failed")`로 남긴다(`eng.typescript.guide` TY-25). `detectExecPlatform(logger?)`가 조립 루트의 로거를 넘긴다.
 
 - 구현 파일: `src/providers/darwin.ts`, `src/providers/linux.ts`(WSL은 `wsl: true` 변종), `src/providers/win32.ts`.
-- `select.ts`는 `"darwin" | "linux" | "win32"` 밖의 값(`freebsd`, `android` 등)을 `err({ kind: "unsupported_platform" })`로 돌려준다(DR-13 열린 외부 값 규칙, TY-14). 원본은 `android`를 linux처럼 다룬다(`node-watch.ts:415, 512`). Xeon은 android를 지원 목록에 넣지 않는다 [제안].
+- `select.ts`는 `"darwin" | "linux" | "win32"` 밖의 값(`freebsd`, `android` 등)을 `err({ kind: "unsupported_platform" })`로 돌려준다(DR-13 열린 외부 값 규칙, TY-14). 원본은 `android`를 linux처럼 다룬다(`node-watch.ts:415, 512`). Fresnel은 android를 지원 목록에 넣지 않는다 [제안].
 - WSL 판정 기준은 `L0.os.spec` §3.1을 따른다: `platform === "linux"`이고 `WSL_DISTRO_NAME`이 비어 있지 않거나 `/proc/version`에 `microsoft` 또는 `WSL`(대소문자 무시)이 있으면 `wsl: true`다(`L0.readme` §3.1 WSL 판정 행). exec에서 WSL 여부는 동작을 바꾸지 않는다. `/mnt/*`(9P)는 원본의 statfs 판정(`node-watch.ts:67` `0x01021997`)이 polling으로 바꾼다.
 
 ### 3.5 자식 프로세스 환경 변수 허용 목록
 
-원본은 `inheritEnv`가 기본 참이고 부모 `process.env` 전체를 자식에 넘긴다(`node.ts:262-271` `getShellEnv`). Xeon 연결 코드는 이 경로를 쓰지 않는다. 포크한 `exec`에는 항상 `inheritEnv: false`와 아래 빌더의 결과를 `env`로 넘긴다 [제안]. 포크 본문은 바꾸지 않는다.
+원본은 `inheritEnv`가 기본 참이고 부모 `process.env` 전체를 자식에 넘긴다(`node.ts:262-271` `getShellEnv`). Fresnel 연결 코드는 이 경로를 쓰지 않는다. 포크한 `exec`에는 항상 `inheritEnv: false`와 아래 빌더의 결과를 `env`로 넘긴다 [제안]. 포크 본문은 바꾸지 않는다.
 
 ```ts
 // platform-exec/src/env-builder.ts [제안]
@@ -423,7 +423,7 @@ export function buildChildEnv(input: {
 }): Result<Record<string, string>, EnvBuildError>;
 ```
 
-`BASE_ENV_POLICY` [제안, `docs/design/18-security.md` §3.11.1 R-2를 Xeon 이름으로 옮김]:
+`BASE_ENV_POLICY` [제안, `docs/design/18-security.md` §3.11.1 R-2를 Fresnel 이름으로 옮김]:
 
 | 구분 | 이름 |
 |---|---|
@@ -554,7 +554,7 @@ export function createExecService(
 
 ### 4.1 원본 보장 표
 
-원본 인터페이스 주석(`D/src/env/index.ts:76-324`)의 보장을 옮긴다. "변경" 열은 Xeon 연결 코드에서 바뀌는지다.
+원본 인터페이스 주석(`D/src/env/index.ts:76-324`)의 보장을 옮긴다. "변경" 열은 Fresnel 연결 코드에서 바뀌는지다.
 
 | # | 대상 | 보장 | 원본 위치 | 변경 |
 |---|---|---|---|---|
@@ -703,7 +703,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 | `BackgroundExecHandle`, `ExecService.startBackground` | `F.capabilities.spec` §3.12(services) | 반영되었다(`services/exec.ts` 행과 `ExecService` 발췌 블록). 3.9절 |
 | `ExecService.truncateHead`·`formatSize`, `TruncationOptions`, `TruncationResult` | `F.capabilities.spec` §3.12(services) | 출력 절단을 L1·L2가 F 서비스로 부른다(3.1절 끝, review.decisions-2 D-08) |
 | `SENSITIVE_ENV_PATTERNS`(3.5절 `deny` 표의 값, `readonly string[]` 상수). 자식 env 거부 목록의 유일한 정본 | `F.capabilities.spec` §3.12(services) | 이름은 `services/exec.ts` 행에 있다. exec env 빌더, sandbox 자가 시험, secrets의 sops 호출 env가 같은 목록을 쓴다 |
-| `ExecutionErrorCode`에 Xeon 코드 4개(`env_denied`, `secret_unavailable`, `sandbox_unavailable`, `sandbox_failed`) 추가 | `F.capabilities.spec` §3.12(services) | 3.1절. 필드를 옮길 때(P9) 넣는다 |
+| `ExecutionErrorCode`에 Fresnel 코드 4개(`env_denied`, `secret_unavailable`, `sandbox_unavailable`, `sandbox_failed`) 추가 | `F.capabilities.spec` §3.12(services) | 3.1절. 필드를 옮길 때(P9) 넣는다 |
 | `eng.typescript.guide` TY-22 4번·§1.2 문구 정정(`CancelScope`는 F `services/exec.ts`) | `eng.typescript.guide` | 3.2절 |
 
 ### 8.3 요구 서비스

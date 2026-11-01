@@ -40,7 +40,7 @@ async function connect(factory: ReturnType<typeof setup>["factory"]) {
     negotiation: "legacy",
     connectTimeoutMs: 5000,
     signal,
-    client: { name: "xeon-test", version: "0.0.0" },
+    client: { name: "fresnel-test", version: "0.0.0" },
     logger: captureLogger(),
   });
   if (!connected.ok) throw new Error(`connect failed: ${connected.error.message}`);

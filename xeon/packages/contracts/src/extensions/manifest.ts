@@ -123,7 +123,7 @@ export const ManifestComponentsSchema: TObject<{
   { additionalProperties: false },
 );
 
-/** Claude Code plugin.json의 레이아웃과 메타 필드를 따르고 Xeon 필드를 더한다 */
+/** Claude Code plugin.json의 레이아웃과 메타 필드를 따르고 Fresnel 필드를 더한다 */
 export const ExtensionManifestSchema: TObject<{
   schemaVersion: TLiteral<1>;
   name: typeof ExtensionNameSchema;
@@ -169,7 +169,7 @@ export const ExtensionManifestSchema: TObject<{
     userConfig: Type.Optional(
       Type.Record(Type.String({ pattern: "^[a-zA-Z][a-zA-Z0-9_]{0,63}$" }), UserConfigEntrySchema),
     ),
-    // Xeon 필드
+    // Fresnel 필드
     layer: ExtensionLayerSchema,
     kind: ExtensionKindSchema,
     /** 확장 루트 기준 상대 경로. 예: "./src/index.ts" */

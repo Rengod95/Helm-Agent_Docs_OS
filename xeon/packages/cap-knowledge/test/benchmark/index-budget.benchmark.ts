@@ -1,6 +1,6 @@
 // M3-REQ-98 (M3b B5-PERF). 스킬 인덱스 블록을 만드는 시간, 예산 안에 싣는 스킬 수, 2글자 질의의 세션 LIKE 탐색 시간을 잰다.
-// 실행(xeon/에서): bash ../scripts/guard.sh run -- bun packages/cap-knowledge/test/bench/index-budget.bench.ts
-// 출력은 scripts/bench-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 bench-server.ts와 bench-gate.ts가 한다.
+// 실행(fresnel/에서): bash ../scripts/guard.sh run -- bun packages/cap-knowledge/test/benchmark/index-budget.benchmark.ts
+// 출력은 scripts/benchmark-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 benchmark-server.ts와 benchmark-gate.ts가 한다.
 // index_build 샘플은 호출 한 번의 평균 시간(ms)이다. 호출이 짧아 BUILD_CALLS번 부르고 나눈다. LIKE 샘플은 질의 한 번이다.
 import { Bug } from "@fresnel/contracts";
 import type { SkillIndexEntry } from "@fresnel/contracts/capabilities";
@@ -247,7 +247,7 @@ function seedSessions(world: World): void {
   const written = world.deps.db.write((tx) => {
     for (let t = 0; t < LIKE_THREADS; t += 1) {
       tx.run(
-        "INSERT INTO cap_knowledge_sessions (thread_id, kind, project, title, created_at, last_at, messages) VALUES (?, 'main', 'xeon', ?, ?, ?, ?)",
+        "INSERT INTO cap_knowledge_sessions (thread_id, kind, project, title, created_at, last_at, messages) VALUES (?, 'main', 'fresnel', ?, ?, ?, ?)",
         [
           threadId(t),
           `세션 ${String(t)}`,

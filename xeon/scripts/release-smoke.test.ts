@@ -22,13 +22,13 @@ test("X11 the release archive of this machine builds and passes the smoke checks
     "desktop",
     "src-tauri",
     "binaries",
-    `xeon-${hostTripleOrThrow()}`,
+    `fresnel-${hostTripleOrThrow()}`,
   );
   const before = existsSync(dev) ? readFileSync(dev) : null;
   const child = Bun.spawn([script], {
     env: {
       ...process.env,
-      XEON_RELEASE_OUT: join(import.meta.dir, "..", "dist", "release-smoke-x11"),
+      FRESNEL_RELEASE_OUT: join(import.meta.dir, "..", "dist", "release-smoke-x11"),
     },
     stdout: "pipe",
     stderr: "pipe",

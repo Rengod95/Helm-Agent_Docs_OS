@@ -106,7 +106,7 @@ function strongest(rules: readonly TieredRule[]): readonly TieredRule[] {
 }
 
 const NONINTERACTIVE_MESSAGE =
-  "[xeon:noninteractive_ask_denied] This tool call needs approval, but nobody can answer in a non-interactive run.";
+  "[fresnel:noninteractive_ask_denied] This tool call needs approval, but nobody can answer in a non-interactive run.";
 
 function denyByRule(rule: TieredRule, tool: string): PolicyDecision {
   return {
@@ -114,7 +114,7 @@ function denyByRule(rule: TieredRule, tool: string): PolicyDecision {
     reason: "rule",
     ruleId: rule.id,
     tier: rule.tier,
-    message: `[xeon:denied_by_policy] Tool call "${tool}" is denied by policy rule ${rule.id}.`,
+    message: `[fresnel:denied_by_policy] Tool call "${tool}" is denied by policy rule ${rule.id}.`,
   };
 }
 
@@ -163,7 +163,7 @@ export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[])
         reason: "mode",
         ruleId: null,
         tier: null,
-        message: `[xeon:denied_by_mode] Tool "${input.tool}" changes state and is not allowed in plan mode.`,
+        message: `[fresnel:denied_by_mode] Tool "${input.tool}" changes state and is not allowed in plan mode.`,
       },
       input,
     );
@@ -193,7 +193,7 @@ export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[])
           reason,
           ruleId: null,
           tier: null,
-          message: `[xeon:denied_by_mode] Tool "${input.tool}" is not allowed in ${mode} mode.`,
+          message: `[fresnel:denied_by_mode] Tool "${input.tool}" is not allowed in ${mode} mode.`,
         }
       : { effect, reason, ruleId: null, tier: null };
   return finish(decision, input);

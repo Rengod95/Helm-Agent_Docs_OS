@@ -12,8 +12,13 @@ import {
 } from "../../src/services/index.ts";
 
 const ENTRIES: readonly ProtectedPathEntry[] = [
-  { path: "/home/u/.local/share/xeon", match: "prefix", access: "read_write", reason: "xeon_data" },
-  { path: "/home/u/.config/xeon", match: "prefix", access: "write", reason: "xeon_config" },
+  {
+    path: "/home/u/.local/share/fresnel",
+    match: "prefix",
+    access: "read_write",
+    reason: "fresnel_data",
+  },
+  { path: "/home/u/.config/fresnel", match: "prefix", access: "write", reason: "fresnel_config" },
   { path: "/home/u/.bashrc", match: "exact", access: "write", reason: "shell_startup" },
   { path: ".env.*", match: "basename", access: "read_write", reason: "credentials" },
   {
@@ -28,24 +33,24 @@ const ENTRIES: readonly ProtectedPathEntry[] = [
 
 describe("matchProtectedPath", () => {
   test("prefix entries cover the directory itself and everything below", () => {
-    expect(matchProtectedPath(ENTRIES, "/home/u/.local/share/xeon", "read")?.reason).toBe(
-      "xeon_data",
+    expect(matchProtectedPath(ENTRIES, "/home/u/.local/share/fresnel", "read")?.reason).toBe(
+      "fresnel_data",
     );
     expect(
-      matchProtectedPath(ENTRIES, "/home/u/.local/share/xeon/db/x.sqlite", "write")?.reason,
-    ).toBe("xeon_data");
+      matchProtectedPath(ENTRIES, "/home/u/.local/share/fresnel/db/x.sqlite", "write")?.reason,
+    ).toBe("fresnel_data");
     expect(
-      matchProtectedPath(ENTRIES, "/home/u/.local/share/xeon-other/x", "write"),
+      matchProtectedPath(ENTRIES, "/home/u/.local/share/fresnel-other/x", "write"),
     ).toBeUndefined();
   });
 
   test("write-only entries do not block reads", () => {
     expect(
-      matchProtectedPath(ENTRIES, "/home/u/.config/xeon/settings.json", "read"),
+      matchProtectedPath(ENTRIES, "/home/u/.config/fresnel/settings.json", "read"),
     ).toBeUndefined();
-    expect(matchProtectedPath(ENTRIES, "/home/u/.config/xeon/settings.json", "write")?.reason).toBe(
-      "xeon_config",
-    );
+    expect(
+      matchProtectedPath(ENTRIES, "/home/u/.config/fresnel/settings.json", "write")?.reason,
+    ).toBe("fresnel_config");
     expect(matchProtectedPath(ENTRIES, "/home/u/.bashrc", "read")).toBeUndefined();
     expect(matchProtectedPath(ENTRIES, "/home/u/.bashrc", "write")?.reason).toBe("shell_startup");
   });

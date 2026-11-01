@@ -6,7 +6,7 @@ import type {
   Message,
   SystemMessage,
   Usage,
-  XeonCustomMessage,
+  FresnelCustomMessage,
 } from "@fresnel/contracts/conversation";
 import type {
   AssembleOptions,
@@ -89,7 +89,7 @@ export function assembleOptions(
     contextWindow: 200_000,
     cachePolicy,
     tools: sortedTools,
-    basePrompt: "You are Xeon.",
+    basePrompt: "You are Fresnel.",
     sections: { project: "Project notes", memory: "Memory notes" },
     volatile: {},
     turnId: ids.next("trn"),
@@ -140,7 +140,7 @@ export function systemItem(log: MemoryLog, message: SystemMessage): { item: Item
 
 export function customItem(
   log: MemoryLog,
-  message: Partial<XeonCustomMessage> = {},
+  message: Partial<FresnelCustomMessage> = {},
 ): { item: ItemRecord } {
   return {
     item: {
@@ -168,7 +168,7 @@ export function compactedPayload(
     summary,
     firstKeptEventId,
     tokensBefore: 1234,
-    details: { xeon: { reason: "threshold", stepId: "stp_x" } },
+    details: { fresnel: { reason: "threshold", stepId: "stp_x" } },
     usage: null,
     fromExtension: null,
   };

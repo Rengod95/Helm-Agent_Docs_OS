@@ -22,7 +22,7 @@ function registration(version: string, pid: number): ServiceRegistration {
     schemaVersion: 1,
     version,
     protocolVersion: "1.0.0",
-    socket: "/run/xeon/xeon.sock",
+    socket: "/run/fresnel/fresnel.sock",
     pid,
     startedAt: 1,
     token: TOKEN,
@@ -45,7 +45,7 @@ function build(world: World, options: { readonly spawnDelayMs?: number } = {}) {
   const clock = manualClock();
   let spawnedAt: number | null = null;
   const store: RegistrationStore = {
-    path: "/run/xeon/service.json",
+    path: "/run/fresnel/service.json",
     read() {
       if (world.insecure !== null) return err({ kind: "insecure_mode", mode: world.insecure });
       // 띄운 서비스는 지연 뒤에 등록 파일을 쓰고 듣기 시작한다
@@ -62,7 +62,9 @@ function build(world: World, options: { readonly spawnDelayMs?: number } = {}) {
     registration: store,
     probe(): Promise<Result<ServiceProbe, ProbeError | SocketError>> {
       return Promise.resolve(
-        world.listening ? ok(world.probe) : err({ kind: "refused", path: "/run/xeon/xeon.sock" }),
+        world.listening
+          ? ok(world.probe)
+          : err({ kind: "refused", path: "/run/fresnel/fresnel.sock" }),
       );
     },
     replace() {
@@ -265,7 +267,11 @@ describe("supervision helpers", () => {
   });
 
   test("spawnDetachedService returns spawn_failed for a missing program and a live pid otherwise", () => {
-    const missing = spawnDetachedService({ command: "/nonexistent/xeon-none", args: [], cwd: "/" });
+    const missing = spawnDetachedService({
+      command: "/nonexistent/fresnel-none",
+      args: [],
+      cwd: "/",
+    });
     expect(missing).toEqual({ ok: false, error: { kind: "spawn_failed", code: "ENOENT" } });
     const started = spawnDetachedService({ command: "sleep", args: ["30"], cwd: "/" });
     if (!started.ok) throw new Error("spawn failed");

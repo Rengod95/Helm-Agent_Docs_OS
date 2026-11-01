@@ -54,7 +54,7 @@ describe("sqlite environment", () => {
 
   test("missing fts5 fails when requireFts5 is set", async () => {
     const dir = own(tempDir());
-    const { options } = directOptions(dir.join("xeon.db"), {
+    const { options } = directOptions(dir.join("fresnel.db"), {
       probe: () => WITHOUT_FTS5,
       settings: { ...DEFAULT_STORE_SETTINGS, requireFts5: true },
     });

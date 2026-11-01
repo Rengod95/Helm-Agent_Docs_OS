@@ -75,7 +75,7 @@ xeon/packages/ext-host/
   - loading-trust와 operations 도메인 코드는 같은 패키지 안이므로 `../primitives/index.ts`에서 내부 이름을 import한다.
   - F 타입은 재export하지 않는다. 소비자는 `@fresnel/contracts/extensions`에서 직접 가져온다(F 타입 재정의·이중 경로 방지).
 - Cordis import 범위(eng.dependency-rules.guide DR-11) [제안]: `@fresnel/vendor-cordis`는 `src/primitives/cordis-bridge.ts`만 import한다. loading-trust·operations가 Cordis 기능이 필요하면 `cordis-bridge.ts`의 함수를 쓴다. oxlint `no-restricted-imports` 예외를 이 파일 하나로 좁히는 설정을 eng.toolchain.guide 담당과 조율한다. 조율 전에는 패키지 단위 예외(DR-11 원문)로 둔다.
-- `package.json`의 `xeon` 필드는 현재 `{ "layer": "X", "domain": "ext-host" }`다. routes.yaml 도메인(primitives 등)과의 불일치는 architecture.layers.spec §10 미결이다. 이 계획은 값을 바꾸지 않는다.
+- `package.json`의 `fresnel` 필드는 현재 `{ "layer": "X", "domain": "ext-host" }`다. routes.yaml 도메인(primitives 등)과의 불일치는 architecture.layers.spec §10 미결이다. 이 계획은 값을 바꾸지 않는다.
 
 ## 3. 작업 분해
 

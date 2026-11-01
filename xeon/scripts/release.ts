@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 // Release build (L4.release.spec). Builds the sidecar binary for one target triple and lays out the resource directory next
 // to it, then packs one archive per target:
-//   xeon-<version>-<triple>/
-//     xeon                         the compiled binary (the resource directory is its parent, hostResourceDir())
-//     group-sdk/templates/         group templates for `xeon group new` (locateGroupTemplates)
+//   fresnel-<version>-<triple>/
+//     fresnel                         the compiled binary (the resource directory is its parent, hostResourceDir())
+//     group-sdk/templates/         group templates for `fresnel group new` (locateGroupTemplates)
 //     default-plugins/<name>/      default plugin bundles (installDefaultPlugins)
 //     binaries/<name> + binaries.lock.json   bundled external binaries (macOS only, L0.os.spec 3.6)
 //     THIRD-PARTY-NOTICES.txt, SHA256SUMS
@@ -173,7 +173,7 @@ export function noticesBody(
   bundled: readonly BundledBinary[],
   systemRequired: readonly string[],
 ): string {
-  const lines = [`Xeon ${version} (${triple}) third-party notices`, ""];
+  const lines = [`Fresnel ${version} (${triple}) third-party notices`, ""];
   if (bundled.length === 0) lines.push("Bundled external binaries: none.");
   for (const b of bundled) {
     lines.push(`${b.name} ${b.version}`, `  license: ${b.license}`, `  source:  ${b.source}`, "");
@@ -181,7 +181,7 @@ export function noticesBody(
   if (systemRequired.length > 0) {
     lines.push(
       `Required from the system, not bundled: ${systemRequired.join(", ")}.`,
-      "Install them with the package manager (`xeon doctor` prints the command).",
+      "Install them with the package manager (`fresnel doctor` prints the command).",
     );
   }
   lines.push("", "The full license texts are in the sources above.", "");
@@ -189,7 +189,7 @@ export function noticesBody(
 }
 
 export function archiveName(version: string, triple: string): string {
-  return `xeon-${version}-${triple}.tar.gz`;
+  return `fresnel-${version}-${triple}.tar.gz`;
 }
 
 /** Version is part of file names and paths: only a plain dotted version with an optional pre-release tail. */
@@ -233,7 +233,7 @@ async function versionOf(path: string): Promise<string> {
 }
 
 export interface ReleaseRequest {
-  readonly xeonRoot: string;
+  readonly fresnelRoot: string;
   readonly triple: string;
   readonly version: string;
   readonly outDir: string;
@@ -260,14 +260,14 @@ export function releaseSidecarDir(outDir: string): string {
 }
 
 /** The development sidecar directory (build-sidecar's default). Only `--no-build` reads it; no release build writes it. */
-export function devSidecarDir(xeonRoot: string): string {
-  return join(xeonRoot, "apps", "desktop", "src-tauri", "binaries");
+export function devSidecarDir(fresnelRoot: string): string {
+  return join(fresnelRoot, "apps", "desktop", "src-tauri", "binaries");
 }
 
 /** Lays out and packs one release. Returns the archive path. */
 export async function buildRelease(request: ReleaseRequest): Promise<Result<string, ReleaseError>> {
-  const { xeonRoot, triple, version } = request;
-  const configPath = join(xeonRoot, "scripts", "release-bundle.json");
+  const { fresnelRoot, triple, version } = request;
+  const configPath = join(fresnelRoot, "scripts", "release-bundle.json");
   const config = parseBundleConfig(readFileSync(configPath, "utf8"));
   if (!config.ok) return config;
   const target = config.value.bundledBinaries[triple];
@@ -279,22 +279,26 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   }
   const bundled = target?.binaries ?? [];
 
-  const sidecarDir = request.build ? releaseSidecarDir(request.outDir) : devSidecarDir(xeonRoot);
+  const sidecarDir = request.build ? releaseSidecarDir(request.outDir) : devSidecarDir(fresnelRoot);
   if (request.build) {
-    const built = await run("build-sidecar", sidecarCommand(triple, version, sidecarDir), xeonRoot);
+    const built = await run(
+      "build-sidecar",
+      sidecarCommand(triple, version, sidecarDir),
+      fresnelRoot,
+    );
     if (!built.ok) return built;
   }
-  const sidecar = join(sidecarDir, outputFileName("xeon", triple));
+  const sidecar = join(sidecarDir, outputFileName("fresnel", triple));
   if (!existsSync(sidecar)) return fail({ kind: "input.missing", path: sidecar });
 
-  const stage = join(request.outDir, `xeon-${version}-${triple}`);
+  const stage = join(request.outDir, `fresnel-${version}-${triple}`);
   rmSync(stage, { recursive: true, force: true });
   mkdirSync(stage, { recursive: true });
-  const binaryName = triple.includes("-windows-") ? "xeon.exe" : "xeon";
+  const binaryName = triple.includes("-windows-") ? "fresnel.exe" : "fresnel";
   copyFileSync(sidecar, join(stage, binaryName));
   chmodSync(join(stage, binaryName), 0o755);
 
-  const templates = join(xeonRoot, config.value.templates);
+  const templates = join(fresnelRoot, config.value.templates);
   if (!existsSync(join(templates, "index.json")))
     return fail({ kind: "input.missing", path: templates });
   copyTree(templates, join(stage, "group-sdk", "templates"));
@@ -306,7 +310,7 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
       return run(
         `plugin ${plugin.name}`,
         [process.execPath, plugin.buildScript, join(stage, "default-plugins", plugin.name)],
-        xeonRoot,
+        fresnelRoot,
       );
     },
     Promise.resolve(succeed(true)),
@@ -350,8 +354,8 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   if (triple.includes("-apple-")) {
     const signed = await run(
       "sign",
-      [join(xeonRoot, "scripts", "release-sign.sh"), stage],
-      xeonRoot,
+      [join(fresnelRoot, "scripts", "release-sign.sh"), stage],
+      fresnelRoot,
     );
     if (!signed.ok) return signed;
   }
@@ -389,8 +393,8 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   const archive = join(request.outDir, archiveName(version, triple));
   const tar = await run(
     "tar",
-    ["tar", "-czf", archive, "-C", request.outDir, `xeon-${version}-${triple}`],
-    xeonRoot,
+    ["tar", "-czf", archive, "-C", request.outDir, `fresnel-${version}-${triple}`],
+    fresnelRoot,
   );
   if (!tar.ok) return tar;
   writeFileSync(
@@ -440,7 +444,7 @@ if (import.meta.main) {
       "no-build": { type: "boolean", default: false },
     },
   });
-  const xeonRoot = resolve(import.meta.dir, "..");
+  const fresnelRoot = resolve(import.meta.dir, "..");
   const requested = positionals[0];
   if (requested === undefined || positionals.length > 1 || !isSafeVersion(values.version)) {
     process.stderr.write(
@@ -454,10 +458,10 @@ if (import.meta.main) {
     process.stderr.write("release: unsupported host\n");
     process.exit(2);
   }
-  const outDir = resolve(values.out ?? join(xeonRoot, "dist", "release"));
+  const outDir = resolve(values.out ?? join(fresnelRoot, "dist", "release"));
   mkdirSync(outDir, { recursive: true });
   const result = await buildRelease({
-    xeonRoot,
+    fresnelRoot,
     triple: triple.value,
     version: values.version,
     outDir,
@@ -469,5 +473,7 @@ if (import.meta.main) {
     process.exit(exitCodeOf(result.error));
   }
   const bytes = statSync(result.value).size;
-  process.stdout.write(`release: ${relative(xeonRoot, result.value)} (${String(bytes)} bytes)\n`);
+  process.stdout.write(
+    `release: ${relative(fresnelRoot, result.value)} (${String(bytes)} bytes)\n`,
+  );
 }

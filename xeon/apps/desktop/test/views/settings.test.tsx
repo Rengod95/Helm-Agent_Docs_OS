@@ -50,7 +50,7 @@ describe("settings screen", () => {
   test("a fresh install shows the three steps open, the doctor hint and no key input yet", () => {
     const out = body(EMPTY);
     expect(out.match(/data-done="no"/g)?.length).toBe(3);
-    expect(out).toContain("xeon doctor");
+    expect(out).toContain("fresnel doctor");
     expect(out).toContain("anthropic-api-key");
     expect(out).toContain("등록되지 않음");
     expect(out).toContain("키 등록");
@@ -97,14 +97,14 @@ describe("settings screen", () => {
     expect(out).toMatch(/<button[^>]*type="submit"[^>]*>저장</);
     expect(out).toContain("취소");
     // 터미널 안내는 셸에도 길이 없을 때만이다
-    expect(out).not.toContain("xeon secret add anthropic-api-key");
+    expect(out).not.toContain("fresnel secret add anthropic-api-key");
   });
 
   test("when not even the shell can take the key it shows the terminal command, never an input for the value", () => {
     const out = body(EMPTY, {
-      keyEntry: { state: "terminal", command: "xeon secret add anthropic-api-key" },
+      keyEntry: { state: "terminal", command: "fresnel secret add anthropic-api-key" },
     });
-    expect(out).toContain("xeon secret add anthropic-api-key");
+    expect(out).toContain("fresnel secret add anthropic-api-key");
     expect(out).not.toContain('type="password"');
   });
 

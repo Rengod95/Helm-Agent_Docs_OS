@@ -1300,8 +1300,8 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 - 사용자 대행 단건 fetch는 robots.txt 검사 대상이 아니다. 해당 경로: 사용자가 대화에 적은 URL의 fetch, 모델이 검색 결과 하나를 읽는 fetch, 그룹 코드의 단건 fetch. Anthropic web_fetch는 robots.txt를 차단 기준으로 쓰므로 이 선택은 공개 릴리즈 전에 다시 정한다(`_research/web-tools.md` §4.9, §10 미결 6).
 - 구현은 `auto`를 이렇게 읽는다: 자동 수집 경로(조사의 하위 fetch)이거나, 호출자가 호스트가 아닌 `urls` 일괄 fetch이면 적용한다. 일괄 호출의 URL이 사용자 입력에서 왔는지는 구분하지 않는다 [제안].
 - 설정 `l2.web.policy.robots`: `never`(기본, 적용 안 함), `auto`(위 규칙), `always`(모든 fetch에 적용). 관리 범위에서 잠글 수 있다.
-- 처리: 호스트별 `/robots.txt`를 24시간 메모리 캐시한다. 사용자 에이전트 토큰은 `Xeon`이다. 4xx는 전부 허용, 5xx·연결 실패는 전부 금지로 본다(RFC 9309 §2.3.1) [제안].
-- UA 문자열은 `Xeon/<버전> (+<프로젝트 URL>)`로 정직하게 밝힌다. Cloudflare 챌린지 같은 봇 차단을 우회하지 않는다(`_research/web-tools.md` §4.9, §5.1 크롤링 윤리 행).
+- 처리: 호스트별 `/robots.txt`를 24시간 메모리 캐시한다. 사용자 에이전트 토큰은 `Fresnel`이다. 4xx는 전부 허용, 5xx·연결 실패는 전부 금지로 본다(RFC 9309 §2.3.1) [제안].
+- UA 문자열은 `Fresnel/<버전> (+<프로젝트 URL>)`로 정직하게 밝힌다. Cloudflare 챌린지 같은 봇 차단을 우회하지 않는다(`_research/web-tools.md` §4.9, §5.1 크롤링 윤리 행).
 
 ### 4.8 `web.search`
 
@@ -1358,7 +1358,7 @@ ADR-0005 §3.3(2026-10-25 개정)과 `L2.readme` §5.2를 따른다.
 SearXNG는 사용자가 `l2.web.search.searxng.url`을 설정했을 때만 provider가 된다. 자동 감지는 없다(사용자 결정 H1, ADR-0005 §3.3 개정). 감지를 없앤 이유는 ADR-0005 §3.3에 있다: 탐침이 검색어를 상위 검색 엔진으로 내보내고, 기본 경로가 로컬 서버의 기동 여부에 달리며, 조사한 런타임 중 SearXNG를 기본값으로 쓰는 곳이 없었다. 감지 설정 `l2.web.search.searxng.detect`와 후보 주소 목록(`127.0.0.1`·`localhost`의 8888, 8080)은 삭제했다.
 
 - 주소: `l2.web.search.searxng.url` 하나뿐이다. 범위는 managed, user, local이고 project 범위에서는 정하지 못한다(저장소를 여는 것만으로 요청 대상이 바뀌지 않게 한다). 비어 있으면 후보에서 빠지고 어디에도 요청을 보내지 않는다. http(s) 주소가 아니면 요청 없이 `unreachable`이다. 경로가 있으면(`https://host/searx`) 경로를 유지하고 끝 슬래시만 뺀다.
-- 탐침 요청: `GET <base>/search?q=xeon&format=json&pageno=1`, 제한 시간 1.5초, 응답 512 KiB 상한 [가정: WEB.6. 처음 제안한 64 KiB는 실제 응답 크기를 재지 않은 추측이었다. 결과 수십 건의 `format=json` 응답은 그보다 커서 64 KiB에서 잘리면 탐침이 항상 실패한다. 실측 전까지 넉넉히 잡는다]. 질의는 고정 문자열 `xeon`이고 사용자의 검색어는 탐침에 들어가지 않는다. 탐침은 사용자가 설정한 인스턴스에만 간다.
+- 탐침 요청: `GET <base>/search?q=fresnel&format=json&pageno=1`, 제한 시간 1.5초, 응답 512 KiB 상한 [가정: WEB.6. 처음 제안한 64 KiB는 실제 응답 크기를 재지 않은 추측이었다. 결과 수십 건의 `format=json` 응답은 그보다 커서 64 KiB에서 잘리면 탐침이 항상 실패한다. 실측 전까지 넉넉히 잡는다]. 질의는 고정 문자열 `fresnel`이고 사용자의 검색어는 탐침에 들어가지 않는다. 탐침은 사용자가 설정한 인스턴스에만 간다.
   - 200이고 JSON 본문에 `results` 배열과 `query` 문자열이 있으면 성공.
   - 403이면 `json-disabled`. `settings.yml` `search.formats`에 `json`이 없을 때다(`_research/durable-and-search-facts.md` §B-2).
   - 연결 거부, 시간 초과, JSON이 아니거나 필드가 없으면 `unreachable`.
@@ -1553,9 +1553,9 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 
 #### 4.10.6 브라우저 도구 선택 요약
 
-`_research/browser-tools.md` "작업별 선택 가이드"를 Xeon provider로 요약한다.
+`_research/browser-tools.md` "작업별 선택 가이드"를 Fresnel provider로 요약한다.
 
-| 작업 | 조사 결론의 도구 | Xeon provider | 단계 |
+| 작업 | 조사 결론의 도구 | Fresnel provider | 단계 |
 |---|---|---|---|
 | 내 앱 E2E 재현, 동작을 코드로 남기기 | Playwright CLI/MCP | `playwright-local`(`code` 출력) | 1차 |
 | 빠른 일반 웹 조작, 토큰 절약 | agent-browser(영구 ref, `--delta`) | `agent-browser` | 2차 |

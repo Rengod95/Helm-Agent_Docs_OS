@@ -38,7 +38,7 @@ export function promptText(reason: string): string {
     cleaned += char === '"' || char === "\\" || code < 32 ? " " : char;
   }
   const text = cleaned.replaceAll(SPACE_RUN, " ").trim();
-  return text === "" ? "Xeon" : text.slice(0, MAX_PROMPT);
+  return text === "" ? "Fresnel" : text.slice(0, MAX_PROMPT);
 }
 
 interface DarwinOsAuthDeps {

@@ -10,7 +10,7 @@ binds: [xeon/packages/core-tasks/**]
 
 # L1 태스크 엔진 구현 계획 (tasks)
 
-대상 패키지는 `xeon/packages/core-tasks`다. 현재는 스캐폴드(`src/index.ts`, `test/smoke.test.ts`, `package.json`의 `"xeon": {"layer": "L1", "domain": "tasks"}`)만 있다. 이 문서는 계획만 정하고 코드는 고치지 않는다. 인터페이스와 동작은 `L1.tasks.spec`이 정본이다.
+대상 패키지는 `xeon/packages/core-tasks`다. 현재는 스캐폴드(`src/index.ts`, `test/smoke.test.ts`, `package.json`의 `"fresnel": {"layer": "L1", "domain": "tasks"}`)만 있다. 이 문서는 계획만 정하고 코드는 고치지 않는다. 인터페이스와 동작은 `L1.tasks.spec`이 정본이다.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -93,7 +93,7 @@ xeon/packages/core-tasks/
 |---|---|---|---|
 | 같은 파일 직렬화 큐 | 포크 | `~/projects/_ref/pi-src/packages/durable/src/tools/file-mutation-queue.ts`(pi 커밋 `cdaf6c2`, 55줄, MIT) | (1) `import type { Context } from "@earendil-works/chord"`와 `context` 인자를 지우고 `owner: TaskScope`의 신호로 대체(ADR-0003 `CancelScope` 치환과 같은 목적) (2) `mutationKey`·`canonical`(7-26행)은 L1.tools로 옮김(키 산출은 L1.tools.plan TL-17) (3) 꼬리 사슬 `Map<string, Promise<void>>`를 키별 FIFO와 shared/exclusive 상태로 바꿈 (4) 다중 키 사전순 획득 (5) 대기 중 취소 제거. 파일 머리에 원본 경로·커밋·라이선스를 적는다 |
 | 큐 모드 의미 | 참고만 | agent-core `PendingMessageQueue`(`~/projects/_ref/pi-src/packages/agent/src/agent.ts:143-174`, `@earendil-works/pi-agent-core` 1.3.0과 바이트 동일, `_research/notes/L1-1.md` §2) | 코드는 가져오지 않는다. `one-at-a-time`은 첫 항목, `all`은 전부(`peek`·`drain`, 159-169행) 의미만 따른다. DR-07상 core-tasks는 agent-core를 import할 수 없다 |
-| 배치 선택 규칙 | 참고만 | durable `src/harness/inbox.ts` `applyBoundary`(같은 커밋 기준), `docs/spec.md` 2297-2321 | 지점별 steer·followUp 선택을 Xeon 지점(`turnStart`, `stepEnd`)으로 옮긴다. write 항목과 head·stale 규칙은 가져오지 않는다 |
+| 배치 선택 규칙 | 참고만 | durable `src/harness/inbox.ts` `applyBoundary`(같은 커밋 기준), `docs/spec.md` 2297-2321 | 지점별 steer·followUp 선택을 Fresnel 지점(`turnStart`, `stepEnd`)으로 옮긴다. write 항목과 head·stale 규칙은 가져오지 않는다 |
 | 소유 트리·취소 순서 | 설계 근거 | durable `docs/spec.md` 1972-2060(§5.4), 2156-2200(§5.5) | 코드 없음. 의도 → 신호 → 정착(아래에서 위)만 따른다 |
 | 범위 해제 트리 | 참고만 | `xeon/vendor/cordis` Fiber(`fiber.ts:103`, 273-338, 453-463) | import하지 않는다(ADR-0002). 플러그인 dispose 연결만 `plugin.ts`에서 ext-host API로 한다 |
 | 외부 npm 패키지 | 없음 | — | `typebox`(설정 스키마)는 소유 제한이 없다(DR-07 표 아래 항목) |

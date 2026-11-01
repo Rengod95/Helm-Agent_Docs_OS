@@ -35,7 +35,7 @@ binds: [xeon/packages/client/src/settings/**]
 
 - 설정 키 목록과 각 키의 탭 배정: 키를 소유하는 각 층 spec의 "설정 노출" 절이 정한다(`F.wire-settings.spec` §1.2, §6). 이 문서는 그 정의를 읽는 쪽이다. 키를 새로 정의하지 않는다.
 - 설정 파일 JSON Schema 생성 명령: `L4.host-service.spec`(`F.wire-settings.spec` §4.9 표).
-- `xeon config get/set/reset/list` 명령: `L4.cli.spec`(같은 표).
+- `fresnel config get/set/reset/list` 명령: `L4.cli.spec`(같은 표).
 - 설정 병합, 파일 감시, 파일 쓰기: `L1.persistence.spec`, `L4.host-service.spec`.
 - 셸 창, 엔진 사이드카 수명, 전송, 패키징: `L4.desktop.spec`. 경계는 "화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop"이다 [제안](`L4.desktop.spec` §1.2 첫 항목, `L4.readme` §2).
 - 비밀 값 저장, 해석, 마스킹, 승인: `L0.secrets.spec`.
@@ -447,7 +447,7 @@ export declare function reduceSettings(state: SettingsState, action: SettingsAct
 
 ### 3.6 도구와 웹 view-model
 
-도구와 웹 탭의 값은 `@fresnel/client/web`(`xeon/packages/client/src/web/`, adr.0020)이 만든다. 입력은 `web.providers`의 결과 `WebProvidersResult`(F `wire/web-providers.ts`)다. 모든 함수는 순수 함수이고 I/O가 없다. 공개 이름은 아래 여섯 개와 타입 셋이고, `index.ts`가 `tools-web.ts`를 그대로 다시 내보낸다. 사용처는 `xeon doctor`(다음 유닛, `L4.cli.spec` §4.7.1)와 M4 설정 화면이다. 두 곳 모두 이 값을 그대로 쓴다.
+도구와 웹 탭의 값은 `@fresnel/client/web`(`xeon/packages/client/src/web/`, adr.0020)이 만든다. 입력은 `web.providers`의 결과 `WebProvidersResult`(F `wire/web-providers.ts`)다. 모든 함수는 순수 함수이고 I/O가 없다. 공개 이름은 아래 여섯 개와 타입 셋이고, `index.ts`가 `tools-web.ts`를 그대로 다시 내보낸다. 사용처는 `fresnel doctor`(다음 유닛, `L4.cli.spec` §4.7.1)와 M4 설정 화면이다. 두 곳 모두 이 값을 그대로 쓴다.
 
 ```ts
 // xeon/packages/client/src/web/tools-web.ts
@@ -827,7 +827,7 @@ sequenceDiagram
 
 #### 4.5.2 범위의 빈틈
 
-- `settings.changed`는 세션 동작에 영향을 주는 변경만 기록하는 thread 내구 이벤트다(`F.records.spec` §3.3 표 "세션 범위 설정 변경", 같은 절 [제안]). `EventWire.threadId`는 null이 될 수 없다. 그래서 CLI가 `xeon config set`으로 user·project 파일을 바꾸거나 사용자가 파일을 직접 고친 변경은 이 이벤트로 오지 않을 수 있다.
+- `settings.changed`는 세션 동작에 영향을 주는 변경만 기록하는 thread 내구 이벤트다(`F.records.spec` §3.3 표 "세션 범위 설정 변경", 같은 절 [제안]). `EventWire.threadId`는 null이 될 수 없다. 그래서 CLI가 `fresnel config set`으로 user·project 파일을 바꾸거나 사용자가 파일을 직접 고친 변경은 이 이벤트로 오지 않을 수 있다.
 - [제안] F 변경 요청: 서버 알림 `settings.invalidated`(params `{ keys: SettingKey[], scopes: SettingScope[], threadId: ThreadId | null }`, 값 없음)를 `ServerNotificationMap`에 더한다. 호스트는 모든 범위의 쓰기와 파일 감시 결과에 이 알림을 보낸다. 값이 없으므로 비밀이 실릴 수 없다(§10 미결 1).
 - 알림이 생기기 전 [제안]: 설정 화면이 다시 보일 때(창 포커스, 탭 전환) 전체 `settings.get`을 한 번 부른다. 이 동작은 알림이 생긴 뒤에도 남겨 둔다.
 - 어긋남이 있으면 `L4.host-service.spec`의 정의를 따른다(`L4.readme` §8 어긋남 표 머리말).
@@ -888,8 +888,8 @@ sequenceDiagram
 | B. Tauri command | WebView 입력란 → Rust command → sops·키체인 직접 호출 | WebView DOM, Tauri IPC, Rust 프로세스 | wire를 지나지 않는다 | 값이 DOM을 지난다. 비밀 저장 로직이 L0.secrets(TS)와 Rust 두 곳에 생긴다. 메타·감사 기록이 엔진 밖에서 생긴다 | 없음(대신 desktop에 비밀 로직) |
 | C. L0.secrets 흐름 위임 | WebView는 `secret.beginEntry {name, action}` 같은 값 없는 요청만 보낸다 → 호스트의 L0.secrets가 OS 보안 입력(키체인 대화상자, pinentry 등)이나 터미널 프롬프트를 띄워 값을 직접 받는다 → 결과 상태만 돌려준다 | L0.secrets와 OS 입력 창 | 값이 DOM, wire, 이벤트 어디에도 없다. 열람(`secret.beginReveal`)도 같은 경로로 OS 창에 한 번 보이고 닫힌다. CLI의 `secret add`(stdin) 흐름과 소유 위치가 같다(`_research/secrets.md` §6.6) | OS별 보안 입력 구현이 필요하다(L0.os·L0.secrets). Linux에 pinentry가 없으면 대체 경로가 필요하다 | 값 없는 메서드 추가 |
 
-- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)의 사이드카 연결에는 호스트가 값을 받을 수단이 없다(HS-44). 이 연결의 최소 설정 화면은 C안 대신 B안의 변형을 쓴다 [결정: M2 첫 실행 M-12]: 화면 안의 등록 창이 값을 한 번 받아 Rust 셸에 넘기고, 셸은 번들된 `xeon secret add|set`을 실행해 stdin에 한 번 쓴다. 비밀 저장 로직은 Rust에 새로 생기지 않고 CLI의 것을 그대로 쓴다. 약점은 B안과 같다(값이 DOM과 Tauri IPC를 지난다). 규칙과 약점은 `L4.desktop.spec` §4.14.1이다. 셸 경로가 없으면 `xeon secret add <이름>` 명령 안내로 돌아간다(이 명령은 stdin으로 값을 받는다, `_research/secrets.md` §6.6). M3의 비밀 탭은 C안을 쓴다.
-- [결정: review.decisions-2 U-20] 값 열람 경로는 M2 CLI `xeon secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다.
+- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)의 사이드카 연결에는 호스트가 값을 받을 수단이 없다(HS-44). 이 연결의 최소 설정 화면은 C안 대신 B안의 변형을 쓴다 [결정: M2 첫 실행 M-12]: 화면 안의 등록 창이 값을 한 번 받아 Rust 셸에 넘기고, 셸은 번들된 `fresnel secret add|set`을 실행해 stdin에 한 번 쓴다. 비밀 저장 로직은 Rust에 새로 생기지 않고 CLI의 것을 그대로 쓴다. 약점은 B안과 같다(값이 DOM과 Tauri IPC를 지난다). 규칙과 약점은 `L4.desktop.spec` §4.14.1이다. 셸 경로가 없으면 `fresnel secret add <이름>` 명령 안내로 돌아간다(이 명령은 stdin으로 값을 받는다, `_research/secrets.md` §6.6). M3의 비밀 탭은 C안을 쓴다.
+- [결정: review.decisions-2 U-20] 값 열람 경로는 M2 CLI `fresnel secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다.
 - [제안] C안에서 셸 포트 `openSecretFlow`는 desktop이 호스트 메서드를 불러 구현한다. settings-ui는 결과 상태(`SecretFlowOutcome`)만 받는다.
 - C안이 OS에서 불가능한 경우의 대체로 A안을 쓸지는 [미결]이다(§10 미결 2). A안을 쓰면 값이 wire를 지나므로 `L4.readme` §4 비밀 행, `L4.desktop.spec` E11, `L0.secrets.spec` §8.3 R4의 전제를 함께 고쳐야 한다. 그때도 입력란은 한 번 쓰고 비우는 별도 창에 두고, view-model 상태에는 넣지 않는다.
 - 어느 안이든 F 메서드 추가가 필요하므로 F 변경 요청 여부를 §10 미결 2, 3에 둔다.
@@ -934,7 +934,7 @@ sequenceDiagram
 - [결정: adr.0020] CLI와 데스크톱이 view-model을 함께 쓰는 위치는 `packages/client`다. `apps/cli`와 `apps/desktop`은 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`로 import한다.
   - 공유 패키지로 내린다. L4 아래 층에 화면 view-model을 두는 것이 층 뜻과 맞는지 정해야 한다.
   - `apps/` 아래 라이브러리 패키지(앱이 아닌 L4 패키지)를 허용한다. DR-10과 `architecture.layers.spec` §10 "같은 층 예외"를 바꾸는 일이다.
-  - CLI는 `xeon config`(F `checkSettingWrite` 기반)만 쓰고 view-model을 공유하지 않는다.
+  - CLI는 `fresnel config`(F `checkSettingWrite` 기반)만 쓰고 view-model을 공유하지 않는다.
 
 ### 4.10 첫 실행 권장 화면 (M3)
 
@@ -952,7 +952,7 @@ sequenceDiagram
 - 키 등록 버튼은 §4.6.4 C안(`secret.beginEntry`)을 쓰고, 값은 이 화면을 지나지 않는다. 호스트가 값을 받을 수 없는 사이드카 연결의 M2 최소 화면만 예외다: 그 화면의 등록 창이 값을 한 번 받는다(§4.6.4, `L4.desktop.spec` §4.14.1). 등록 뒤 provider 설정에는 `secret://<이름>` 참조만 쓴다.
 - [결정: review.m2-plan §9 H1] SearXNG 자동 감지는 없다. SearXNG는 사용자가 주소를 설정했을 때만 체인에 들어가므로 이 화면에 감지 결과 칸을 두지 않는다. provider 상태 행은 설정 값으로 계산한 체인만 보인다.
 - [가정] 마지막 검색에서 실제로 쓴 provider와 탐침 결과(`unreachable`, `json-disabled`)를 읽는 wire 수단은 없다. 이 값을 화면에 보이려면 F 변경 요청이 필요하고 M3 첫 실행 화면 작업에서 정한다. 그 전까지 탐침 실패는 `meta.warnings`와 L4 진단으로만 보인다(`L2.web.spec` §4.8.3).
-- CLI는 같은 내용을 `xeon doctor`의 검색 provider 묶음으로 보인다(`L4.cli.spec` §4.7.1).
+- CLI는 같은 내용을 `fresnel doctor`의 검색 provider 묶음으로 보인다(`L4.cli.spec` §4.7.1).
 
 ### 4.11 도구와 웹 탭 규칙 (M3-12, M3-REQ-96)
 
@@ -971,8 +971,8 @@ sequenceDiagram
 | 상태 | note |
 |---|---|
 | 쓸 수 있음 | 사용할 수 있다 |
-| `no-key`, `plugin:web-exa` | 키가 없다 — 해결: xeon secret add exa-api-key |
-| `no-key`, `plugin:web-brave` | 키가 없다 — 해결: xeon secret add brave-api-key |
+| `no-key`, `plugin:web-exa` | 키가 없다 — 해결: fresnel secret add exa-api-key |
+| `no-key`, `plugin:web-brave` | 키가 없다 — 해결: fresnel secret add brave-api-key |
 | `no-key`, 그 밖의 provider | 키가 없다 — 해결: 키 플러그인 설정에서 키를 등록한다 |
 | `unreachable` | 응답이 없다 |
 | `json-disabled` | JSON 응답이 꺼져 있다 |
@@ -983,7 +983,7 @@ sequenceDiagram
 - [제안] 세 사유(`json-disabled`, `org-disabled`, `unsupported-model`)의 한국어 문구는 이 문서가 정한다. wire에는 문구가 없다. 소스에서는 `client.web.note.*` 메시지 id로 두고, 같은 id의 영어 문구를 `packages/client`의 en 카탈로그에 함께 둔다(ADR-0016).
 - 추천 키 플러그인(`recommendations`): [결정: ADR-0005 §3.1 ④, review.m3-design-inputs D-M3-23] Exa(`plugin:web-exa`, 비밀 이름 `exa-api-key`)와 Brave(`plugin:web-brave`, `brave-api-key`) 둘이다. Parallel과 Jina는 넣지 않는다. 상태는 다음과 같다.
   - 행이 없으면 `not-installed`이고 hint는 "플러그인을 설치한다"다.
-  - `no-key`면 `needs-key`이고 hint는 `xeon secret add <비밀 이름>`이다.
+  - `no-key`면 `needs-key`이고 hint는 `fresnel secret add <비밀 이름>`이다.
   - 쓸 수 있으면 `ready`이고 hint는 빈 문자열이다.
   - 그 밖의 사유면 `unavailable`이고 hint는 사유 코드다 [미결: §10 20].
 - 순서 끌어 옮기기: 끌어 옮긴 뒤 같은 탭의 전체 id 목록을 `orderUpdateOf(capability, ids, view)`에 넘긴다. 같은 탭에 보이지 않는 id(다른 능력의 id 포함)는 `unknown_id`로, 두 번 나온 id는 `duplicate_id`로 값 거부한다. 성공하면 `{ key, value }`를 `settings.set` 한 번으로 보낸다. 키는 `l2.web.search.order` 또는 `l2.web.browse.order`다(`L2.web.spec` §4.8.2). 빠진 id는 지금 거부하지 않는다 [미결: §10 21].
@@ -1019,7 +1019,7 @@ sequenceDiagram
 - 이 문서가 소유하는 설정 키: 없음. 설정 화면의 동작 중 사용자가 바꿀 값이 없다. 마지막으로 연 탭 같은 화면 상태는 desktop의 창 상태로 다루고 설정 키로 두지 않는다 [제안].
 - 표시 설정(테마, 글꼴, 글자 크기, 키 바인딩, 창 닫기 동작)은 `l4.desktop.*`에 있고 소유 문서는 `L4.desktop.spec`(§6)이다. 값은 데스크톱 로컬 저장소(`DesktopSettingsStore`)에 있고, 설정 화면은 §4.1.3 규칙으로 엔진 카탈로그와 합쳐 appearance 탭 등에 그린다.
 - 다른 층의 키는 이 문서가 읽는 입력이다. 각 층 spec의 "설정 노출" 표(키, 타입, 기본값, range, runtimeChange, allowedScopes, ui.tab, secret)가 화면 배치를 정한다(`F.wire-settings.spec` §6).
-- 화면에서 쓴 엔진 원천 값은 `settings.set`을 통해 호스트가 파일에 저장하고, desktop 원천 값은 `DesktopSettingsStore.set`으로 셸이 저장한다. 같은 키를 `xeon config set`(CLI)과 설정 파일로도 바꿀 수 있다(`F.wire-settings.spec` §4.9 표).
+- 화면에서 쓴 엔진 원천 값은 `settings.set`을 통해 호스트가 파일에 저장하고, desktop 원천 값은 `DesktopSettingsStore.set`으로 셸이 저장한다. 같은 키를 `fresnel config set`(CLI)과 설정 파일로도 바꿀 수 있다(`F.wire-settings.spec` §4.9 표).
 
 ## 7. 확장 지점
 
@@ -1043,7 +1043,7 @@ sequenceDiagram
 | 요구 | `L1.models.spec` | 사용량 투영(게이지 자리, §4.7), 라우팅·폴백·계정 풀 키 모양(전용 편집기, §4.2.4) |
 | 요구 | 각 층 spec(X, L0~L4) | "설정 노출" 표의 `ui` 필드. 탭 배치는 §4.1.1 안내를 참고한다 |
 | 제공 | `L4.cli.spec` | 없음. view-model 공유는 §10 미결 12 |
-| 제공 | `@fresnel/client/web` (adr.0020) | `toolsWebViewOf`, `orderUpdateOf`, `moveInOrder`와 타입(§3.6). 사용처는 `xeon doctor`(다음 유닛)와 M4 설정 화면이다 |
+| 제공 | `@fresnel/client/web` (adr.0020) | `toolsWebViewOf`, `orderUpdateOf`, `moveInOrder`와 타입(§3.6). 사용처는 `fresnel doctor`(다음 유닛)와 M4 설정 화면이다 |
 | 참고 | `adr.0008` | Tauri 2 WebView 렌더링, stdio JSON-RPC 연결 |
 
 ## 9. 수용 기준

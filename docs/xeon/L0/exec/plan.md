@@ -27,7 +27,7 @@ binds: [xeon/packages/platform-exec/**]
 
 ```
 xeon/packages/platform-exec/
-  package.json                 # name @fresnel/platform-exec, "xeon": {"layer": "L0", "domain": "exec"}
+  package.json                 # name @fresnel/platform-exec, "fresnel": {"layer": "L0", "domain": "exec"}
                                # exports: "." → src/index.ts, "./testing" → src/testing/index.ts
   tsconfig.json                # references: ../contracts, ../ext-host
   UPSTREAM.json                # 포크 원본·커밋·복사 경로·패치 id (adr.0003 §3.4)
@@ -211,7 +211,7 @@ export function fakeExec(
 
 - M0:
   - `cd xeon && just verify`가 종료코드 0이다.
-  - `just check-layers`가 `platform-exec`를 `L0`로 인식하고 위반 0건이다(`package.json` `"xeon": {"layer": "L0", "domain": "exec"}`).
+  - `just check-layers`가 `platform-exec`를 `L0`로 인식하고 위반 0건이다(`package.json` `"fresnel": {"layer": "L0", "domain": "exec"}`).
   - 포크 5파일과 테스트의 변경점이 `PATCHES.md`, `UPSTREAM.json` `modifications`, `// FRESNEL-PATCH:` 표지 셋에서 일치한다(`fork-records.test.ts`).
   - 적합성 스위트 24개 사례가 Linux CI에서 통과한다.
   - EX-10 스파이크 결과(통과 또는 대응 전환)를 `PATCHES.md` 끝 "확인 기록"에 남긴다.

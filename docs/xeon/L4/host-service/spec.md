@@ -13,7 +13,7 @@ binds: [xeon/apps/host/**]
 `xeon/apps/host`(패키지 `@fresnel/host`)의 스펙이다. 이 패키지는 두 가지 일을 한다.
 
 - 엔진 조립: F~L3의 플러그인을 Cordis 루트 컨텍스트(ext-host 경유)에 등록해 엔진 하나를 만든다. 저장소 전체에서 조립 루트는 이 패키지 하나다.
-- 호스트 계약의 서버 쪽: `F.wire-settings.spec`이 정한 메서드·알림을 처리하는 `WireHandlers` 표를 만들고, 세 전송(in-process, stdio, socket)에 같은 표를 건다. 서비스 모드 `xeon service`의 수명도 이 패키지가 정한다.
+- 호스트 계약의 서버 쪽: `F.wire-settings.spec`이 정한 메서드·알림을 처리하는 `WireHandlers` 표를 만들고, 세 전송(in-process, stdio, socket)에 같은 표를 건다. 서비스 모드 `fresnel service`의 수명도 이 패키지가 정한다.
 
 ## 1. 목적과 범위
 
@@ -35,7 +35,7 @@ binds: [xeon/apps/host/**]
 | 대상 | 정하는 곳 |
 |---|---|
 | 메시지 모양, 메서드·알림 레지스트리, 오류 표, 커서, `Transport`·`HostConnection` 인터페이스 | `F.wire-settings.spec` |
-| 명령줄 파싱, TUI, `xeon chat`의 화면 | `L4.cli.spec` |
+| 명령줄 파싱, TUI, `fresnel chat`의 화면 | `L4.cli.spec` |
 | Tauri 셸, 사이드카 spawn, WebView 쪽 연결 | `L4.desktop.spec` |
 | 설정 화면 | `L4.settings-ui.spec` |
 | 세션 잠금 구현(OS 잠금 + `sys_leases` epoch 펜싱, review.decisions-2 U-09) | `L0.process.spec`, `L0.store.spec` |
@@ -45,7 +45,7 @@ binds: [xeon/apps/host/**]
 | 입력 큐, 턴 실행, 안전 경계 | `L1.tasks.spec`, `L1.loop.spec` |
 | 승인 프로토콜과 승인 이벤트 payload | `L1.tools.spec` |
 | 예약 테이블, 놓친 예약 처리 | `L2.schedule.spec` |
-| OS 서비스 등록(`xeon service install`) | 2차. 이 문서 범위 밖(ADR-0006 §3.4) |
+| OS 서비스 등록(`fresnel service install`) | 2차. 이 문서 범위 밖(ADR-0006 §3.4) |
 
 ## 2. 용어
 
@@ -102,35 +102,35 @@ CLI는 엔진을 in-process로 쓴다(ADR-0006 §3.3). 그래서 CLI 프로세�
 
 ### 3.2 바이너리와 진입
 
-[제안] 배포 바이너리는 `xeon` 하나다(`bun build --compile`). 진입 파일은 `apps/cli/src/main.ts`이고, 서브커맨드가 호스트 기능을 부른다.
+[제안] 배포 바이너리는 `fresnel` 하나다(`bun build --compile`). 진입 파일은 `apps/cli/src/main.ts`이고, 서브커맨드가 호스트 기능을 부른다.
 
 | 서브커맨드 | 동작 | 호출하는 `@fresnel/host` API | 단계 |
 |---|---|---|---|
-| `xeon chat` | 대화. 기본 in-process, 서비스 사용 설정이 켜져 있으면 `ensure` 뒤 socket | `startInProcessHost` 또는 `ensureService` + `connectServiceTransport` | M1(in-process), M3(socket) |
-| `xeon host --stdio` | 데스크톱 사이드카. stdin/stdout으로 계약을 처리한다 | `runHostCommand({ kind: "host-stdio" })` → `startStdioHost` | M1(개발 진입, H5), M2(컴파일 바이너리 서브커맨드) |
-| `xeon service start` / `status` / `stop` | 서비스 기동·조회·정지 | `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" })` | M3 |
-| `xeon service ensure --json` | `ensure`만 하고 소켓 경로를 JSON 한 줄로 출력한다. 데스크톱 셸이 쓴다(HS-38) | `runHostCommand({ kind: "service-ensure" })` | M3 |
-| `xeon service launch-mode --json` | 엔진 없이 `l0.process.service.enabled`를 읽어 `{ "mode": "in-process" \| "service" }` 한 줄을 쓰고 종료코드 0으로 끝난다. 데스크톱 셸이 사이드카와 서비스 중 어느 쪽으로 갈지 정할 때 쓴다(HS-38, `L4.desktop.spec` §4.2). 사용자 문서에는 싣지 않는다 | `runHostCommand({ kind: "service-launch-mode" })` → `resolveLaunchMode` | M3 |
-| `xeon service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 이 인자로 자기 바이너리를 detached 실행한다. 사용자 문서에는 싣지 않는다 | `runHostCommand({ kind: "service-run" })` → `startService` | M3 |
-| `xeon config schema --scope <scope>` | 설정 파일 JSON Schema 출력(§6.2) | `runHostCommand({ kind: "config-schema" })` | M1 |
+| `fresnel chat` | 대화. 기본 in-process, 서비스 사용 설정이 켜져 있으면 `ensure` 뒤 socket | `startInProcessHost` 또는 `ensureService` + `connectServiceTransport` | M1(in-process), M3(socket) |
+| `fresnel host --stdio` | 데스크톱 사이드카. stdin/stdout으로 계약을 처리한다 | `runHostCommand({ kind: "host-stdio" })` → `startStdioHost` | M1(개발 진입, H5), M2(컴파일 바이너리 서브커맨드) |
+| `fresnel service start` / `status` / `stop` | 서비스 기동·조회·정지 | `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" })` | M3 |
+| `fresnel service ensure --json` | `ensure`만 하고 소켓 경로를 JSON 한 줄로 출력한다. 데스크톱 셸이 쓴다(HS-38) | `runHostCommand({ kind: "service-ensure" })` | M3 |
+| `fresnel service launch-mode --json` | 엔진 없이 `l0.process.service.enabled`를 읽어 `{ "mode": "in-process" \| "service" }` 한 줄을 쓰고 종료코드 0으로 끝난다. 데스크톱 셸이 사이드카와 서비스 중 어느 쪽으로 갈지 정할 때 쓴다(HS-38, `L4.desktop.spec` §4.2). 사용자 문서에는 싣지 않는다 | `runHostCommand({ kind: "service-launch-mode" })` → `resolveLaunchMode` | M3 |
+| `fresnel service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 이 인자로 자기 바이너리를 detached 실행한다. 사용자 문서에는 싣지 않는다 | `runHostCommand({ kind: "service-run" })` → `startService` | M3 |
+| `fresnel config schema --scope <scope>` | 설정 파일 JSON Schema 출력(§6.2) | `runHostCommand({ kind: "config-schema" })` | M1 |
 
 명령줄 파싱과 도움말은 `L4.cli.spec`(§3.1, §3.2)이 정한다. 이 문서는 서브커맨드 이름과 호출 API만 정한다.
 
-M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다.
+M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다.
 
 두 안의 비교:
 
-| 항목 | 단일 `xeon` [제안] | `apps/host` 단독 사이드카 + `apps/cli` 바이너리(현행 `apps/desktop/README.md`, `eng.toolchain.guide` TC-10 문구) |
+| 항목 | 단일 `fresnel` [제안] | `apps/host` 단독 사이드카 + `apps/cli` 바이너리(현행 `apps/desktop/README.md`, `eng.toolchain.guide` TC-10 문구) |
 |---|---|---|
 | 빌드 산출물 | 대상(triple)마다 1개 | 대상마다 2개. 둘 다 Bun 런타임을 포함한다 |
 | 디스크 크기 | Bun 런타임 1벌. CLI 전용 코드(TUI, pi-tui의 선택 `.node` 애드온 약 146 KB, `_research/notes/L4-1.md` §5.4)가 사이드카에도 들어간다 | CLI 설치본과 데스크톱 번들에 Bun 런타임이 따로 들어간다. 한 기기에 둘 다 있으면 런타임 2벌이다. Bun 문서는 단일 바이너리 크기를 "still way too big"이라고만 적고 수치는 없다(ADR-0008 §4.2) |
 | 서비스 재기동 | `service start`와 `ensure`가 `process.execPath`로 자기 자신을 실행한다. 클라이언트와 서비스의 버전이 항상 같다 | CLI가 host 바이너리 경로를 찾아야 한다. 설치 위치가 다르면 버전이 어긋날 수 있다 |
-| 데스크톱 사이드카 인자 | `xeon host --stdio`(ADR-0008 §3.2 제안과 같다) | `xeon-host --stdio` |
+| 데스크톱 사이드카 인자 | `fresnel host --stdio`(ADR-0008 §3.2 제안과 같다) | `fresnel-host --stdio` |
 | 엔진 진입 코드 | 하나 | 둘. 같은 `assemble`을 부르지만 시작 경로가 둘이다 |
 | 위험 | 컴파일 바이너리의 `process.execPath` 값은 H15 spike로 확인했다(아래 표, Linux x64). macOS arm64는 [미확인]이다. TUI 모듈을 `host --stdio`에서 불러오지 않도록 `chat` 경로만 동적 import한다 | 위 위험 중 self-exec 부분은 없다. 대신 경로 탐색 코드가 생긴다 |
 
-- [제안] 근거: ADR-0008 §3.2 제안("사이드카 이름은 `xeon`, CLI와 같은 바이너리를 `host --stdio`로 실행"), `_research/process.md` §6.1 "같은 엔진 바이너리를 CLI도 쓴다".
-- 수정 요청 [미결 3]: `eng.toolchain.guide` TC-10 "배포 바이너리: `apps/cli`(CLI), `apps/host`(데스크톱 사이드카, 서비스 모드)를 `bun build --compile`로 만든다"를 "배포 바이너리는 `apps/cli/src/main.ts`를 진입점으로 하는 `xeon` 하나다. 데스크톱 사이드카와 서비스 모드는 같은 바이너리의 `host --stdio`, `service` 서브커맨드다"로 고친다. 같은 문서 §2 바이너리 행(`apps/cli`, `apps/host`(사이드카))도 맞춘다. `xeon/apps/desktop/README.md`의 "엔진은 `apps/host`를 `bun build --compile`로 묶은 사이드카"는 "엔진은 `xeon` 바이너리를 `host --stdio`로 실행한 사이드카"로 고친다.
+- [제안] 근거: ADR-0008 §3.2 제안("사이드카 이름은 `fresnel`, CLI와 같은 바이너리를 `host --stdio`로 실행"), `_research/process.md` §6.1 "같은 엔진 바이너리를 CLI도 쓴다".
+- 수정 요청 [미결 3]: `eng.toolchain.guide` TC-10 "배포 바이너리: `apps/cli`(CLI), `apps/host`(데스크톱 사이드카, 서비스 모드)를 `bun build --compile`로 만든다"를 "배포 바이너리는 `apps/cli/src/main.ts`를 진입점으로 하는 `fresnel` 하나다. 데스크톱 사이드카와 서비스 모드는 같은 바이너리의 `host --stdio`, `service` 서브커맨드다"로 고친다. 같은 문서 §2 바이너리 행(`apps/cli`, `apps/host`(사이드카))도 맞춘다. `xeon/apps/desktop/README.md`의 "엔진은 `apps/host`를 `bun build --compile`로 묶은 사이드카"는 "엔진은 `fresnel` 바이너리를 `host --stdio`로 실행한 사이드카"로 고친다.
 - 개발과 테스트에서는 컴파일하지 않고 `bun xeon/apps/host/src/main.ts host --stdio`처럼 실행한다. `main.ts`는 `import.meta.main`일 때 `process.argv`를 `HostCommand`로 바꿔 `runHostCommand`를 부른다. 이 경로는 테스트 전용이고 배포 진입점이 아니다.
 - 자기 실행 명령(§4.9.2): 컴파일 바이너리이면 `[process.execPath]`, 아니면 `[process.execPath, Bun.main]`이다. 판별은 `Bun.main`이 `/$bunfs/` 아래인지로 한다 [결정: H15 spike, Linux x64에서 확인. macOS arm64는 미확인].
 - 컴파일 진입은 최상위 `await`를 쓸 수 없다. `bun build --compile --bytecode`가 거부하기 때문이다. `main.ts`는 `detach(runFromProcess(...).then(process.exit), …)`로 끝나고, `test/entry-bundle.test.ts`가 같은 옵션으로 진입을 번들해 최상위 `await`가 다시 생기면 깨진다 [결정: m2-plan HOST.5, open-issues M-08].
@@ -450,7 +450,7 @@ export declare function createConnectionHub(engine: Engine, handlers: WireHandle
 
 // src/handlers/index.ts
 export interface HostInfo {
-  readonly serverName: "xeon";
+  readonly serverName: "fresnel";
   readonly serverVersion: string;                // 엔진 빌드 버전. 등록 파일 version과 같은 값
   readonly pid: number;
 }
@@ -492,7 +492,7 @@ export declare function startStdioHost(options: StdioHostOptions): Promise<HostE
 
 export type HostCommand =
   | { readonly kind: "host-stdio" }
-  | { readonly kind: "service-run"; readonly safeMode: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // `xeon service run`, `xeon host --service [--safe-mode] [--listen-tcp <host>:<port> [--allow-non-loopback]]`
+  | { readonly kind: "service-run"; readonly safeMode: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // `fresnel service run`, `fresnel host --service [--safe-mode] [--listen-tcp <host>:<port> [--allow-non-loopback]]`
   | { readonly kind: "service-start"; readonly start?: ServiceCommand; readonly safeMode?: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // safeMode·tcp는 새로 띄울 때 `service run`의 인자가 된다
   | { readonly kind: "service-status"; readonly json: boolean }
   | { readonly kind: "service-stop" }
@@ -620,10 +620,10 @@ export declare function listenServiceSocket(path: string, maxFrameBytes?: number
 | `EngineConnectOptions.observe` | 없음. CLI가 `Transport`를 감싸 `send`·`onMessage`를 탭한다 | 호스트는 관여하지 않는다 |
 | `EngineStartError.kind` | `AssembleError.issues[].code`(`catalog`, `store`, `missingService`), `EnsureResult.reason` | CLI가 자기 kind로 바꾼다. `store`는 `message`로 `fts5Missing`·`dataDirPermission`·`storeFutureVersion`·`storeCorrupt`·`storeMigrationFailed`·`storeUnavailable`을 구별하고 `failure`로 안내 분류(`future_version`, `corrupt`, `migration_failed`, `unavailable`)를 준다(HS-68). `catalog` → `catalogConflict`, `missingService` → `missingService`이고 둘 다 CLI 종료코드 1이다. 나머지 kind는 3이다(`L4.cli.spec` §4.10) |
 | `EngineHandle.shutdown(reason)` | in-process: `InProcessHost.close()`(HS-31, 시한은 `l0.process.shutdown.timeoutMs`). socket: `HostConnection.close()` | 시한 인자 없이 설정 키 값을 쓴다 |
-| `xeon host --stdio`(`CliHostCommand`) | `runHostCommand({ kind: "host-stdio" }, io)` | 같은 일. 설정 그룹을 넘길 때는 `startStdioHost`의 `assemble.settingGroups` |
-| `xeon service *`, `xeon config schema` | `runHostCommand({ kind: "service-…" \| "config-schema" }, io)` | 결과는 종료코드와 stderr 문구. 구조화 결과가 필요하면 CLI가 `ensureService`, `readRegistration`을 직접 쓴다 |
+| `fresnel host --stdio`(`CliHostCommand`) | `runHostCommand({ kind: "host-stdio" }, io)` | 같은 일. 설정 그룹을 넘길 때는 `startStdioHost`의 `assemble.settingGroups` |
+| `fresnel service *`, `fresnel config schema` | `runHostCommand({ kind: "service-…" \| "config-schema" }, io)` | 결과는 종료코드와 stderr 문구. 구조화 결과가 필요하면 CLI가 `ensureService`, `readRegistration`을 직접 쓴다 |
 
-- 종료코드 관계: `runHostCommand`의 0·1·2는 CLI가 바꾸지 않고 그대로 `xeon`의 종료코드로 쓴다(`L4.cli.spec` §3.6의 0 정상, 1 일반 오류, 2 사용법 오류와 같은 뜻). 이 경로의 시작 거부(`AssembleError`, SV-05 권한 검사)는 1이다. CLI가 in-process로 `assemble`할 때의 `EngineStartError`만 `L4.cli.spec` §4.10 표로 1 또는 3이 된다.
+- 종료코드 관계: `runHostCommand`의 0·1·2는 CLI가 바꾸지 않고 그대로 `fresnel`의 종료코드로 쓴다(`L4.cli.spec` §3.6의 0 정상, 1 일반 오류, 2 사용법 오류와 같은 뜻). 이 경로의 시작 거부(`AssembleError`, SV-05 권한 검사)는 1이다. CLI가 in-process로 `assemble`할 때의 `EngineStartError`만 `L4.cli.spec` §4.10 표로 1 또는 3이 된다.
 
 #### 3.3.6 상태 디렉터리 API [결정: review.decisions-2 B-07]
 
@@ -683,7 +683,7 @@ M2:
 | `thread.read` | 현재 가지의 내구 item을 오래된 것부터 `limit`개(기본 200). 소유를 얻지 않고 닫힌 thread도 읽는다. §4.13의 스냅샷 규칙 | `ThreadPort.read`(L1.persistence) | 3001, 3005 |
 | `thread.fork` | 원본의 쓰기 소유 없이 새 thread를 만들고(`forkedFrom`), 이 연결이 새 thread의 쓰기 소유를 얻는다. 확장이 막으면(`thread.fork.before`) 3006 | `ThreadPort.fork`, `SessionLockPort` | 3001, 3002, 3005, 3006 |
 | `thread.revert` | 쓰기 소유자만(HS-28: 암묵 획득 없음). 진행 중 turn이 있으면 3003. 호출마다 새 요청 키를 만든다 | `ThreadPort.revert`(L1.persistence) | 3001, 3002, 3003, 3005, 3006 |
-| `thread.delete` | 쓰기 소유자만 지운다. 소유를 쥐지 않았으면 한 번 얻어 본다(`xeon sessions rm`처럼 열지 않고 지우는 클라이언트를 위해 HS-28의 암묵 획득을 따른다). 얻지 못하면 3002. 지우지 못하면 이 호출이 얻은 잠금은 놓되, 그동안 다른 연결이 소유를 이어받았으면 놓지 않는다(HS-28). 이 thread를 `forkedFrom`으로 가리키는 thread가 있으면 3004 | `ThreadPort.remove`, `SessionLockPort` | 3001, 3002, 3004 |
+| `thread.delete` | 쓰기 소유자만 지운다. 소유를 쥐지 않았으면 한 번 얻어 본다(`fresnel sessions rm`처럼 열지 않고 지우는 클라이언트를 위해 HS-28의 암묵 획득을 따른다). 얻지 못하면 3002. 지우지 못하면 이 호출이 얻은 잠금은 놓되, 그동안 다른 연결이 소유를 이어받았으면 놓지 않는다(HS-28). 이 thread를 `forkedFrom`으로 가리키는 thread가 있으면 3004 | `ThreadPort.remove`, `SessionLockPort` | 3001, 3002, 3004 |
 | `turn.interrupt` | 쓰기 소유자만(HS-28). `interrupted`는 중단할 turn이 있었는가 | `TurnPort.interrupt`(L1.loop) | 3001, 3002 |
 | `events.unsubscribe` | 구독을 지운다 | 연결 허브 | 2002 `events.subscriptionNotFound` |
 | `approval.respond` | [가정: F wire §4.6 A안] 요청이 속한 thread를 찾아(§4.13) 이 프로세스가 그 thread의 쓰기 소유를 쥐고 있으면 응답을 L1.tools에 넘긴다. 적용하지 못하면 `applied: false`와 이유(`reason`)를 돌려준다: 모르는 `approvalId`는 호스트가 `unknown_approval`, 이미 해결됨(`already_resolved`)·응답이 요청에 맞지 않음(`answer_invalid`, `detail`에 어디가 맞지 않는지 한 줄)·커밋 실패(`commit_failed`)는 L1.tools가 낸다. 쥐지 않았으면 3002(잠금을 얻으려 하지 않는다) | `ApprovalPort.locate`·`respond`(L1.tools) | 3002 |
@@ -768,7 +768,7 @@ export declare function writeRegistration(path: string, value: ServiceRegistrati
 export declare function removeRegistration(path: string, own: Pick<ServiceRegistration, "pid" | "startedAt">): Promise<void>;
 ```
 
-- 위치 [제안]: L0.os가 주는 사용자 상태 디렉터리 아래 `service.json`. 소켓은 L0.os가 주는 런타임 디렉터리(권한 0700) 아래 `xeon.sock`. 경로 결정은 `L0.os.spec`이 한다. macOS의 Unix 소켓 경로 길이 한도(`sun_path` 104바이트)를 넘지 않는 위치여야 한다 [가정: 한도 값은 플랫폼 헤더 기준이고 실측하지 않았다].
+- 위치 [제안]: L0.os가 주는 사용자 상태 디렉터리 아래 `service.json`. 소켓은 L0.os가 주는 런타임 디렉터리(권한 0700) 아래 `fresnel.sock`. 경로 결정은 `L0.os.spec`이 한다. macOS의 Unix 소켓 경로 길이 한도(`sun_path` 104바이트)를 넘지 않는 위치여야 한다 [가정: 한도 값은 플랫폼 헤더 기준이고 실측하지 않았다].
 - `L0.process.spec`이 등록 파일 형식을 따로 정하지 않는다면 이 절이 정본이다. ADR-0006 §3.4는 최종 형태를 이 문서와 `L0.process.spec`에 맡겼다. 두 문서가 어긋나면 이 문서의 스키마를 고친다(§10 미결 7).
 
 ### 3.6 설정 파일 JSON Schema 출력
@@ -819,7 +819,7 @@ export declare function resolveLaunchMode(options?: { readonly dataDir?: string 
 - HS-02. `host.hello`에서 `isCompatible`이 거짓이면 1003(`details: { serverVersion, clientVersion }`)을 돌려주고 연결은 `awaitingHello`에 남긴다. 닫기는 클라이언트가 한다. 두 번째 hello는 1002다.
 - HS-03. hello 결과:
   - `protocolVersion`: `WIRE_PROTOCOL_VERSION`.
-  - `server`: `{ name: "xeon", version: HostInfo.serverVersion }`.
+  - `server`: `{ name: "fresnel", version: HostInfo.serverVersion }`.
   - `storeId`: `Engine.storeId`.
   - `transport`: 그 연결의 `Transport.kind`.
   - `features`: `notImplemented`가 아닌 메서드와 알림의 `FeatureInfo`.
@@ -888,7 +888,7 @@ F wire §4.3의 1~7단계를 그대로 구현한다. 1단계(프레임 크기)�
   - 구현(`ConnectionHub.releaseUnused`): 연결이 닫힐 때 그 연결이 쓰기로 연 thread마다 판정하고, 서비스 모드만 `SessionLockPort.release`를 부른다. live 작업은 `TurnPort.isLive`(진행 중 turn)로 본다. 연결이 떠난 뒤 turn이 끝나는 시점에 다시 판정하지 않으므로, live 작업 때문에 쥔 잠금은 서비스가 닫힐 때까지 남는다 [미결 §10 20번].
   - 잠금을 기다리는 동안 연결이 닫혔으면 처리기는 `request.cancelled`로 끝나고 얻은 잠금은 같은 판정으로 놓는다.
   - `thread.close`(HOST.2)도 같은 판정을 쓴다.
-- HS-28. `turn.start`는 이 프로세스가 그 thread의 잠금을 쥐고 있지 않으면 먼저 `tryAcquire`를 한 번 시도한다(암묵 획득) [제안]. 성공하면 HS-24 4단계처럼 토큰으로 쓰기를 열고 제출한다. 실패하면 3002와 HS-25의 `options`다. 그래서 M1에서도 기존 thread의 재개(`xeon chat --continue`, `L4.cli.spec` §4.3)가 `thread.open` 없이 동작한다. `turn.interrupt`, `thread.revert`는 암묵 획득을 하지 않고 `SessionLockPort.holds(threadId)`가 거짓이면 3002다. `thread.delete`는 한 번 얻어 본다: 열지 않고 지우는 클라이언트(`xeon sessions rm`)가 있고, 지우려면 쓰기 소유가 필요하기 때문이다(§3.4 표). `approval.respond`는 잠금을 얻으려 하지 않는다(§4.13). 소유를 한 번 얻어 쓰고 놓는 처리기(`thread.rename`, `thread.delete`)는 `holds`만 보고 "내가 얻었다"고 판단하지 않는다. 같은 프로세스의 모든 처리기가 같은 `holds`를 보므로 빌린 잠금도 쥔 것으로 보이고, 같은 thread의 다른 연결이 그동안 `turn.start`·`thread.open`으로 소유를 이어받았는데 빌린 쪽이 일을 마치고 놓으면 그 연결이 잠금 없이 쓰게 된다. 그래서 빌린 호출은 같은 thread에서 일하는 호출 가운데 마지막이 끝날 때 한 번 놓고, 그때 쓰기로 연 연결(`writeThreads`)이 있거나 소유를 얻는 중인 호출이 있거나 turn이 도는 중이면 놓지 않는다(`handlers/owner.ts`의 `withWriteOwner`와 `claimWrite`). 연결 단위 소유자 검사는 하지 않는다: 같은 호스트의 여러 연결이 쓰기 소유를 함께 쓴다(HS-23) [결정: M2 마감 재검토 결함 10].
+- HS-28. `turn.start`는 이 프로세스가 그 thread의 잠금을 쥐고 있지 않으면 먼저 `tryAcquire`를 한 번 시도한다(암묵 획득) [제안]. 성공하면 HS-24 4단계처럼 토큰으로 쓰기를 열고 제출한다. 실패하면 3002와 HS-25의 `options`다. 그래서 M1에서도 기존 thread의 재개(`fresnel chat --continue`, `L4.cli.spec` §4.3)가 `thread.open` 없이 동작한다. `turn.interrupt`, `thread.revert`는 암묵 획득을 하지 않고 `SessionLockPort.holds(threadId)`가 거짓이면 3002다. `thread.delete`는 한 번 얻어 본다: 열지 않고 지우는 클라이언트(`fresnel sessions rm`)가 있고, 지우려면 쓰기 소유가 필요하기 때문이다(§3.4 표). `approval.respond`는 잠금을 얻으려 하지 않는다(§4.13). 소유를 한 번 얻어 쓰고 놓는 처리기(`thread.rename`, `thread.delete`)는 `holds`만 보고 "내가 얻었다"고 판단하지 않는다. 같은 프로세스의 모든 처리기가 같은 `holds`를 보므로 빌린 잠금도 쥔 것으로 보이고, 같은 thread의 다른 연결이 그동안 `turn.start`·`thread.open`으로 소유를 이어받았는데 빌린 쪽이 일을 마치고 놓으면 그 연결이 잠금 없이 쓰게 된다. 그래서 빌린 호출은 같은 thread에서 일하는 호출 가운데 마지막이 끝날 때 한 번 놓고, 그때 쓰기로 연 연결(`writeThreads`)이 있거나 소유를 얻는 중인 호출이 있거나 turn이 도는 중이면 놓지 않는다(`handlers/owner.ts`의 `withWriteOwner`와 `claimWrite`). 연결 단위 소유자 검사는 하지 않는다: 같은 호스트의 여러 연결이 쓰기 소유를 함께 쓴다(HS-23) [결정: M2 마감 재검토 결함 10].
 - HS-29. `sys_leases.heartbeat_at` 갱신은 `LeaseService.keepAlive`가 한다. 갱신이 `lease_lost`로 실패하면 호스트는 그 thread의 쓰기를 멈추고 소유를 잃은 것으로 다룬다. 주기는 L0.store가 정한다.
 - HS-30. 비정상 종료 표식의 "이어서 실행" 후보는 `thread.list`의 `ThreadSummary.resumable`(`turnId`, `runningSince`, `resumeAttempts`)이 클라이언트에 알린다(`F.wire-settings.spec` §3.3.1, 미결 9). 호스트는 `L1.persistence`의 `ThreadSummaryRow.marker`를 그 모양으로 옮길 뿐 자동으로 재개하지 않는다. 이어 실행은 사용자 확인 뒤 `turn.resume`이다(HS-74).
 
@@ -909,7 +909,7 @@ F wire §4.3의 1~7단계를 그대로 구현한다. 1단계(프레임 크기)�
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Binding: xeon service run
+  [*] --> Binding: fresnel service run
   Binding --> Exit0: 소켓 선점 실패, 기존 서비스 살아 있음 (SV-02)
   Binding --> Starting: 소켓 바인드 성공
   Starting --> Serving: assemble 완료, 등록 파일 기록 (SV-01)
@@ -923,7 +923,7 @@ stateDiagram-v2
 
 #### 4.9.1 시작
 
-`xeon service run`이 `startService`를 부른다.
+`fresnel service run`이 `startService`를 부른다.
 
 1. 소켓 선점(SV-02).
 2. `assemble({ mode: "service" })`. 실패하면 소켓을 닫고 종료코드 1.
@@ -952,7 +952,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
   2. 소켓에 접속해 `host.hello`, `host.status`를 부른다. 접속이 안 되거나 `status.startedAt`이 등록 파일과 다르면 낡은 등록이다. 기동으로 간다.
   3. `version`이 자기 버전과 다르면:
      - 서비스가 한가하면 재기동한다. 한가함은 `liveTurns == 0`이고 `connections == 1`(자기 연결뿐)이다. 재기동은 등록 파일의 pid로 SIGTERM을 보내고(L0.process), 등록 파일이 사라지거나 `l0.process.shutdown.timeoutMs` + 2000ms가 지나면 기동한다. 신호 전에 `host.status.pid`와 `startedAt`이 등록 파일과 같은지 확인한다. pid 재사용 오인을 막기 위해서다.
-     - 한가하지 않으면 경고를 남기고 그대로 접속한다(`action: "versionWarning"`). hello가 1003이면 `{ ok: false, reason: "protocolUnsupported" }`이고, CLI는 `xeon service stop` 뒤 다시 시도하라고 안내한다.
+     - 한가하지 않으면 경고를 남기고 그대로 접속한다(`action: "versionWarning"`). hello가 1003이면 `{ ok: false, reason: "protocolUnsupported" }`이고, CLI는 `fresnel service stop` 뒤 다시 시도하라고 안내한다.
   4. 기동: L0.process로 자기 실행 명령(§3.2)에 `service run`을 붙여 detached로 띄운다(SV-06). 소켓이 hello에 응답할 때까지 조건 대기(100ms 간격, 상한 `spawnTimeoutMs`)한다.
 - SV-04 유휴 종료 [결정: ADR-0006 §3.7 4번]
   - 판정은 L0.process의 `createIdleMonitor`가 한다(`L0.process.spec` §3.2, §4.4.4). 서비스는 `IdleInputs { connections, liveTasks, pendingSchedules }`를 입력이 바뀔 때마다 넘긴다. `liveTasks`는 `ActivitySnapshot.liveTasks + waitingApprovals`다(승인 대기 세션 포함). `pendingSchedules`는 `ActivitySnapshot.pendingSchedules`이고 값의 출처는 예약 서비스의 대기 수다(HS-84). `AssembleOptions.pendingSchedules`(`PendingSchedulesPort { count, onChange }`)를 넣으면 그 값이 이긴다(시험 주입) [결정: 오케스트레이터 기본값, M3b B1-SVC, B1-SCH].
@@ -970,7 +970,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
   - 서비스는 L0.process의 detached spawn으로 띄운다. 요구 동작: 새 세션(setsid), stdin·stdout·stderr를 부모와 공유하지 않음(로그는 L0.os 로그 파일), 부모 이벤트 루프에서 `unref`. 부모(`ensure`를 부른 CLI)가 끝나도 서비스는 남는다(pi `PX/process.ts:40-70`).
 - SV-07 종료 협조 [결정: ADR-0006 §3.7 7번]
   - 서비스는 SIGTERM을 받으면 HS-31 절차를 `reason: "signal"`로 실행하고, 등록 파일을 지우고, 소켓을 닫고, 종료코드 0으로 끝난다.
-  - `xeon service stop`(`stopHostService`)은 등록 파일을 읽고 `host.status`로 pid가 같은지 확인한 뒤 먼저 `host.shutdown`(reason `user`)을 보내 협조 종료를 시도하고 `l0.process.shutdown.timeoutMs` + 1000ms 안에 등록 파일이 사라지기를 기다린다. 남아 있으면 SIGTERM, 시한 안에 안 끝나면 SIGKILL을 보낸다. 신호는 보내기 직전마다 그 pid가 등록 파일의 서비스인지(살아 있고 L0.os 시작 시각 지문 == `startedAt`) 다시 확인하고, 확인하지 못하면(지문 없음, 불일치 = pid 재사용) 보내지 않고 `not_running`이다. 등록 파일은 있고 프로세스가 같은데 hello·status에 답하지 않는 멈춘 서비스는 `host.shutdown` 없이 바로 SIGTERM → SIGKILL이다. `serviceStatus`도 `host.status`의 pid와 `startedAt`이 등록 파일과 같을 때만 실행 중으로 본다. SIGKILL 뒤 남은 등록 파일과 소켓 파일은 다음 `ensure`가 낡은 기록으로 처리한다.
+  - `fresnel service stop`(`stopHostService`)은 등록 파일을 읽고 `host.status`로 pid가 같은지 확인한 뒤 먼저 `host.shutdown`(reason `user`)을 보내 협조 종료를 시도하고 `l0.process.shutdown.timeoutMs` + 1000ms 안에 등록 파일이 사라지기를 기다린다. 남아 있으면 SIGTERM, 시한 안에 안 끝나면 SIGKILL을 보낸다. 신호는 보내기 직전마다 그 pid가 등록 파일의 서비스인지(살아 있고 L0.os 시작 시각 지문 == `startedAt`) 다시 확인하고, 확인하지 못하면(지문 없음, 불일치 = pid 재사용) 보내지 않고 `not_running`이다. 등록 파일은 있고 프로세스가 같은데 hello·status에 답하지 않는 멈춘 서비스는 `host.shutdown` 없이 바로 SIGTERM → SIGKILL이다. `serviceStatus`도 `host.status`의 pid와 `startedAt`이 등록 파일과 같을 때만 실행 중으로 본다. SIGKILL 뒤 남은 등록 파일과 소켓 파일은 다음 `ensure`가 낡은 기록으로 처리한다.
   - 비협조 확장 코드는 안전 경계 도달을 막을 수 있다(ADR-0006 §4.2). 시한 뒤 SIGKILL이 마지막 수단이고, 진행 중 단계는 다음 열기에서 복구한다.
 - SV-08 단일 장애점 [결정: ADR-0006 §3.7 8번]
   - 서비스가 죽어도 DB와 복구 표식은 남는다. 다음 `ensure`가 새 서비스를 띄우고, 그 서비스가 §4.1의 7·8단계(열 때 복구, 설정 시 자동 재개)를 한다.
@@ -980,7 +980,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 #### 4.9.3 클라이언트의 전송 선택
 
 - HS-37. [제안] CLI는 시작할 때 `l0.process.service.enabled`를 사용자·관리 범위 파일에서 읽는다. `false`면 `startInProcessHost`, `true`면 `ensureService` 뒤 `connectServiceTransport`를 쓴다. 이 값을 읽는 함수는 엔진 없이 설정 파일만 읽는다(`resolveLaunchMode`, `src/settings.ts`).
-- HS-38. 데스크톱은 서비스 사용 설정이 켜져 있으면 사이드카 엔진을 띄우지 않고, 셸(Rust)이 서비스 소켓 바이트를 WebView로 중계한다(`L4.desktop.spec` §4.8). 이를 위해 이 문서는 `xeon service ensure --json` 서브커맨드를 둔다 [제안]. 동작은 `ensureService`이고, stdout에 JSON 한 줄 `{ "ok": true, "socket": <경로>, "version": <버전>, "action": <EnsureResult.action> }` 또는 `{ "ok": false, "reason": <EnsureResult.reason> }`을 쓰고 끝난다. 종료코드는 성공 0, 실패 1이다. 셸은 이 명령을 짧게 실행해 소켓 경로를 얻는다. 셸은 엔진 카탈로그를 읽지 못하므로 서비스 경로로 갈지는 먼저 `xeon service launch-mode --json`(§3.2, `resolveLaunchMode`)으로 정한다 [제안]. 사이드카가 stdio와 소켓 사이를 중계하는 안은 쓰지 않는다. 엔진 프로세스가 하나 더 생기고, 데스크톱 쪽 소켓 중계(`EnginePipe`)가 이미 같은 일을 하기 때문이다.
+- HS-38. 데스크톱은 서비스 사용 설정이 켜져 있으면 사이드카 엔진을 띄우지 않고, 셸(Rust)이 서비스 소켓 바이트를 WebView로 중계한다(`L4.desktop.spec` §4.8). 이를 위해 이 문서는 `fresnel service ensure --json` 서브커맨드를 둔다 [제안]. 동작은 `ensureService`이고, stdout에 JSON 한 줄 `{ "ok": true, "socket": <경로>, "version": <버전>, "action": <EnsureResult.action> }` 또는 `{ "ok": false, "reason": <EnsureResult.reason> }`을 쓰고 끝난다. 종료코드는 성공 0, 실패 1이다. 셸은 이 명령을 짧게 실행해 소켓 경로를 얻는다. 셸은 엔진 카탈로그를 읽지 못하므로 서비스 경로로 갈지는 먼저 `fresnel service launch-mode --json`(§3.2, `resolveLaunchMode`)으로 정한다 [제안]. 사이드카가 stdio와 소켓 사이를 중계하는 안은 쓰지 않는다. 엔진 프로세스가 하나 더 생기고, 데스크톱 쪽 소켓 중계(`EnginePipe`)가 이미 같은 일을 하기 때문이다.
 
 #### 4.9.4 서비스 모드의 프로젝트 확장 [결정: 오케스트레이터 기본값, M3-REQ-38]
 
@@ -1006,7 +1006,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 
 - HS-43. 처리기는 `EnginePorts.secrets`만 쓴다. 관리 서비스(`fresnel.secretAdmin`)는 조립 루트가 `createSecretsRuntime().admin`으로 얻어 이 포트에만 넣는다. 확장과 모델 도구에는 `fresnel.secrets`만 주어지고 관리 서비스는 주어지지 않는다.
 - HS-44. `secret.beginEntry`와 `secret.beginReveal`은 CLI가 `InProcessHost.secretOutOfBand`(F `SecretOutOfBandPort`)에 맡긴 수단 하나를 꺼낸다. 입력 수단은 이름과 동작(`add`·`set`·`rotate`)이 모두 같아야 꺼내고, 열람 수단은 이름이 같아야 꺼낸다. 꺼내면 비워진다. 맡긴 수단이 없으면 `{ started: false }`이다. stdio 호스트와 서비스에는 이 통로가 없으므로 항상 `started: false`다(서비스 쪽 OS 입력 창은 M3).
-- HS-45. `add`가 만드는 메타는 wire에 필드가 없어 호스트가 정한다(`SecretsPort.newMeta`): 제공자 `sops`, `ref`는 `l0.secrets.sops.files`의 첫 항목 `env`와 이름을 대문자·밑줄로 바꾼 키(`exa-key` → `dev/EXA_KEY`), 범위 `user`, 승인 `l0.secrets.approval.default`, `ttlSeconds`·`maxUses`는 `l0.secrets.lease.*`, 사용 정책은 비어 있다(사용 불가). 사람이 `secret.meta`로 모드·도구·호스트를 정해야 에이전트가 쓴다. [결정: m2r sec] 설정에 SOPS 파일이 없으면 사용자 기본 파일(env `user`, `<OsDirs.config>/secrets/sops/user.yaml`)이 첫 항목이다(`L0.secrets.spec` §4.8). 조립 루트가 `l0.secrets.*` 설정에 이 기본값을 채운 유효 설정(`effectiveSecretsConfig`)을 `newMeta`와 platform-secrets에 같이 넘기므로 새 비밀의 `ref`가 SOPS 제공자가 찾는 파일과 어긋나지 않고, `ref`는 `user/<KEY>`다. 파일과 age 키는 첫 `add`가 만든다. 이제 `provider_unavailable`(`not_registered`)은 기본 제공자가 `sops`가 아닐 때만 나온다 [제안]. 같은 사용자의 호스트가 여럿(CLI, 데스크톱 사이드카)이어도 `OsDirs`가 사용자 하나에 하나라 메타, 감사 파일, age 키, SOPS 파일이 같고, 조립 루트가 `fresnel.os`의 파일 잠금(`OsServiceHandle.fileLock`)을 platform-secrets에 넘겨 같은 SOPS 파일에 대한 쓰기를 프로세스 사이에서 차례로 한다. 실패 원인은 `secret.writeFailed`(`target`: `sops_file`, `key_store`, `key_file`)로 알린다. [결정: M2 Mac 실기] 사용 정책이 비어 있는 채로는 모델 provider 키를 쓸 수 없다(L1.models가 `runtime-http` 모드, purpose `model.provider:<id>`, 대상 호스트 = provider 주소의 호스트로 lease하므로 `mode_not_allowed`다. 기본 승인 `per-session`도 승인 증거 없는 모델 호출에는 `approval_missing`이다). 그래서 사람이 비밀을 provider에 연결하는 행위가 그 호출 하나를 허용한다: 사용자 범위 `l1.models.providers`의 `settings.set`(데스크톱 "provider에 연결"과 `xeon config set`이 같은 요청이다)이 성공하면 호스트가 켜진 모든 항목의 `apiKeyRef`가 가리키는 비밀 메타에 `use`를 더한다. 더하는 것은 `modes`에 `runtime-http`, `tools`에 `model.provider:<id>`, `hosts`에 `ModelService.providerTarget(<id>)`의 호스트(포트가 있으면 `host:port`)뿐이다. `env` 모드, 도구 이름, 와일드카드, 다른 호스트는 열지 않고, 이미 있는 항목과 `origins`·`commands`는 그대로 둔다(합집합, 멱등). 정책이 모델 provider 사용만 남으면 승인을 `none`으로 낮춘다(모델 호출은 사람에게 승인을 물을 수 없고, 연결이 사람의 허용이다). 다른 사용이 함께 있으면 승인은 그대로다(`env` 모드는 어느 쪽이든 실행마다 승인을 요구한다, `L0.secrets.spec` §4.2 6번). 연결은 사용자 범위뿐이다: project·local·session·managed 범위의 `l1.models.providers`는 연결로 세지 않아 저장소 안 파일이 비밀의 사용 범위를 넓히지 못한다. 비밀이 아직 없으면 건너뛰고(CLI처럼 연결을 먼저 쓴 경우), 새 비밀을 만들 때 `newMeta`가 이미 연결된 이름이면 같은 정책으로 시작한다. 연결 뒤 provider를 끄거나 키 참조를 바꿔도 더한 허용은 거두지 않는다(허용은 그 호스트·목적 하나라 값이 다른 곳에 닿지 않는다. 거두려면 `secret meta`). 메타를 쓰지 못하면 경고(`secret.provider_link_failed`)만 남기고 설정 쓰기는 되돌리지 않는다. 제안한 대안 중 시작 때 설정을 훑어 허용을 더하는 방법은 쓰지 않았다(설정 파일을 읽는 것만으로 정책이 바뀌어 사람의 행위가 근거가 아니게 된다)
+- HS-45. `add`가 만드는 메타는 wire에 필드가 없어 호스트가 정한다(`SecretsPort.newMeta`): 제공자 `sops`, `ref`는 `l0.secrets.sops.files`의 첫 항목 `env`와 이름을 대문자·밑줄로 바꾼 키(`exa-key` → `dev/EXA_KEY`), 범위 `user`, 승인 `l0.secrets.approval.default`, `ttlSeconds`·`maxUses`는 `l0.secrets.lease.*`, 사용 정책은 비어 있다(사용 불가). 사람이 `secret.meta`로 모드·도구·호스트를 정해야 에이전트가 쓴다. [결정: m2r sec] 설정에 SOPS 파일이 없으면 사용자 기본 파일(env `user`, `<OsDirs.config>/secrets/sops/user.yaml`)이 첫 항목이다(`L0.secrets.spec` §4.8). 조립 루트가 `l0.secrets.*` 설정에 이 기본값을 채운 유효 설정(`effectiveSecretsConfig`)을 `newMeta`와 platform-secrets에 같이 넘기므로 새 비밀의 `ref`가 SOPS 제공자가 찾는 파일과 어긋나지 않고, `ref`는 `user/<KEY>`다. 파일과 age 키는 첫 `add`가 만든다. 이제 `provider_unavailable`(`not_registered`)은 기본 제공자가 `sops`가 아닐 때만 나온다 [제안]. 같은 사용자의 호스트가 여럿(CLI, 데스크톱 사이드카)이어도 `OsDirs`가 사용자 하나에 하나라 메타, 감사 파일, age 키, SOPS 파일이 같고, 조립 루트가 `fresnel.os`의 파일 잠금(`OsServiceHandle.fileLock`)을 platform-secrets에 넘겨 같은 SOPS 파일에 대한 쓰기를 프로세스 사이에서 차례로 한다. 실패 원인은 `secret.writeFailed`(`target`: `sops_file`, `key_store`, `key_file`)로 알린다. [결정: M2 Mac 실기] 사용 정책이 비어 있는 채로는 모델 provider 키를 쓸 수 없다(L1.models가 `runtime-http` 모드, purpose `model.provider:<id>`, 대상 호스트 = provider 주소의 호스트로 lease하므로 `mode_not_allowed`다. 기본 승인 `per-session`도 승인 증거 없는 모델 호출에는 `approval_missing`이다). 그래서 사람이 비밀을 provider에 연결하는 행위가 그 호출 하나를 허용한다: 사용자 범위 `l1.models.providers`의 `settings.set`(데스크톱 "provider에 연결"과 `fresnel config set`이 같은 요청이다)이 성공하면 호스트가 켜진 모든 항목의 `apiKeyRef`가 가리키는 비밀 메타에 `use`를 더한다. 더하는 것은 `modes`에 `runtime-http`, `tools`에 `model.provider:<id>`, `hosts`에 `ModelService.providerTarget(<id>)`의 호스트(포트가 있으면 `host:port`)뿐이다. `env` 모드, 도구 이름, 와일드카드, 다른 호스트는 열지 않고, 이미 있는 항목과 `origins`·`commands`는 그대로 둔다(합집합, 멱등). 정책이 모델 provider 사용만 남으면 승인을 `none`으로 낮춘다(모델 호출은 사람에게 승인을 물을 수 없고, 연결이 사람의 허용이다). 다른 사용이 함께 있으면 승인은 그대로다(`env` 모드는 어느 쪽이든 실행마다 승인을 요구한다, `L0.secrets.spec` §4.2 6번). 연결은 사용자 범위뿐이다: project·local·session·managed 범위의 `l1.models.providers`는 연결로 세지 않아 저장소 안 파일이 비밀의 사용 범위를 넓히지 못한다. 비밀이 아직 없으면 건너뛰고(CLI처럼 연결을 먼저 쓴 경우), 새 비밀을 만들 때 `newMeta`가 이미 연결된 이름이면 같은 정책으로 시작한다. 연결 뒤 provider를 끄거나 키 참조를 바꿔도 더한 허용은 거두지 않는다(허용은 그 호스트·목적 하나라 값이 다른 곳에 닿지 않는다. 거두려면 `secret meta`). 메타를 쓰지 못하면 경고(`secret.provider_link_failed`)만 남기고 설정 쓰기는 되돌리지 않는다. 제안한 대안 중 시작 때 설정을 훑어 허용을 더하는 방법은 쓰지 않았다(설정 파일을 읽는 것만으로 정책이 바뀌어 사람의 행위가 근거가 아니게 된다)
 - HS-46. 사람이 입력을 취소(`cancelled`)했거나 사람 확인이 유효하지 않으면(`reauth_required`) 오류로 다루지 않고 `{ started: false }`를 돌려준다. 이때 아무것도 저장하지 않는다. 값 길이 오류(`value_too_short`)와 메타 검사 오류는 `-32602`이고 `details`에 값이 없다.
 - HS-47. [결정: m2c G1-07] `SecretError`는 `secret.<kind>` 전용 kind로 1:1 옮긴다(F wire §3.5.2 3201~3212): `secret_missing`→`secret.notFound`(`where`), `denied`→`secret.denied`(`reason`), `provider_unavailable`→`secret.providerUnavailable`(`provider`, `reason`), `key_unavailable`→`secret.keyUnavailable`(`key`, `reason`), `decrypt_failed`→`secret.decryptFailed`(`provider`, `exitCode`), `in_use`→`secret.inUse`(`activeLeases`), `already_exists`→`secret.alreadyExists`, `read_only_provider`→`secret.readOnlyProvider`(`provider`), `reauth_required`→`secret.reauthRequired`, `cancelled`→`secret.cancelled`, `audit_unwritable`→`secret.auditUnwritable`(`code`), `write_failed`→`secret.writeFailed`(`target`, `code`). 입력 오류(`invalid_ref`, `unsupported_ref_syntax`, `meta_invalid`, `value_too_short`)는 새 kind 없이 `-32602`다. `details`는 안전한 필드만 싣는다: `decrypt_failed`의 `stderrMasked`와 `audit_unwritable`·`write_failed`의 파일 경로는 싣지 않는다(HS-56). 이전의 `-32603 internal` + `details.secret` 대용은 없어졌다.
 - HS-48. `secret.list`는 메타가 없는 제공자 항목(`orphaned`)의 이름을 `ref` 마지막 조각을 소문자·하이픈으로 바꿔 만든다(`dev/OLD_TOKEN` → `old-token`). 이름 규칙(`^[a-z][a-z0-9-]{1,63}$`)에 맞지 않으면 목록에서 빼고 로그에 상태만 남긴다. `secret.test`의 결과는 `state`(`registered`/`missing`)에 복호화 가능 여부, 길이, SHA-256 앞 8자(값이 없거나 풀 수 없으면 `null`)를 더해 싣는다. 값 자체는 어디에도 없다.
@@ -1039,7 +1039,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 ### 4.15 M2 조립 [결정: m2-plan HOST.6]
 
 - HS-57. 기본 플러그인 순서는 이렇다: core-persistence → core-tasks → core-models → core-context → core-tools → core-loop → host-groups → core-agents → cap-workspace → cap-dialog → host-dialog-bridge → cap-work → cap-mcp → cap-web → cap-knowledge. 뒤 단위의 setup이 앞 서비스를 동기로 찾으므로 순서가 곧 의존이다. 조립 루트가 만든 단위(`host-groups`, `host-dialog-bridge`, cap-web·cap-mcp의 엔트리)는 해당 패키지가 확장 엔트리를 내놓지 않아서 이 패키지에 있다.
-- HS-58. 프로젝트 신뢰(X.loading-trust.spec §4.7, 결정 D6): 저장 파일은 `<config>/trust.json`이고 읽고-고치고-쓰기는 L0.os의 `fileLock.updateText`(`<path>.lock` 아래 OS 잠금, 같은 디렉터리 임시 파일과 이름 바꾸기)로 한다. CLI의 `xeon trust`와 데스크톱 카드가 각자의 호스트로 쓰므로 호스트 프로세스 둘이 동시에 결정을 저장해도 앞 결정을 덮지 않는다[결정: m2c G1-10]. 잠금을 얻지 못하면(시간 초과, I/O) 결정은 저장되지 않고 `trust.decide`는 `store.io`다. 모드는 `headless`다. 프롬프트를 띄울 클라이언트가 없어 결정이 없는 프로젝트는 `undecided`이고 불신으로 다룬다(fail-closed). 기본 정책은 `x.loading-trust.defaultProjectTrust`다. `thread.trust.before` 지점은 thread 없이 발화할 수 없고 그 지점에 핸들러를 거는 확장이 M2에 없어 발화하지 않는다(`HookDecl.threadless`는 메타데이터일 뿐 디스패처의 thread 없는 경로는 M3다). 이 판정을 쓰는 곳은 셋이다: project·local 설정 파일(HS-54), cap-knowledge의 프로젝트 스킬(`.fresnel/skills`), cap-mcp의 `.mcp.json`·`.fresnel/mcp.json`.
+- HS-58. 프로젝트 신뢰(X.loading-trust.spec §4.7, 결정 D6): 저장 파일은 `<config>/trust.json`이고 읽고-고치고-쓰기는 L0.os의 `fileLock.updateText`(`<path>.lock` 아래 OS 잠금, 같은 디렉터리 임시 파일과 이름 바꾸기)로 한다. CLI의 `fresnel trust`와 데스크톱 카드가 각자의 호스트로 쓰므로 호스트 프로세스 둘이 동시에 결정을 저장해도 앞 결정을 덮지 않는다[결정: m2c G1-10]. 잠금을 얻지 못하면(시간 초과, I/O) 결정은 저장되지 않고 `trust.decide`는 `store.io`다. 모드는 `headless`다. 프롬프트를 띄울 클라이언트가 없어 결정이 없는 프로젝트는 `undecided`이고 불신으로 다룬다(fail-closed). 기본 정책은 `x.loading-trust.defaultProjectTrust`다. `thread.trust.before` 지점은 thread 없이 발화할 수 없고 그 지점에 핸들러를 거는 확장이 M2에 없어 발화하지 않는다(`HookDecl.threadless`는 메타데이터일 뿐 디스패처의 thread 없는 경로는 M3다). 이 판정을 쓰는 곳은 셋이다: project·local 설정 파일(HS-54), cap-knowledge의 프로젝트 스킬(`.fresnel/skills`), cap-mcp의 `.mcp.json`·`.fresnel/mcp.json`.
 - HS-59. L2 승인 포트: cap-*는 F `L2ApprovalsPort` 모양으로 승인을 쓰고(L2.readme §5.7), 조립 루트가 F `ApprovalService`(`open`·`wait`·`get`) 위에 어댑터를 얹는다(`assembly/l2-approvals.ts`). 질문(`dialog.ask`)은 호출 문맥에서 출처를 만든다: 도구 호출 안이면 `origin.toolCallId`가 있어 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다. 계획 승인은 호출마다 출처를 받는 공장이고, 웹 도메인 질문은 대화만 아는 출처 없는 포트다(체크포인트 없음). 요청 키: cap-*는 F `requestKeyFor`(records)로 만든 키를 `requestId`로 넘기므로 어댑터는 다시 해시하지 않고 F `isApprovalRequestKey`(records)로 키인지만 검사해 그대로 쓴다(`h_` 해시 키를 한 번 더 해시하면 cap이 아는 키와 달라진다). 키가 아닌 `requestId`(허용 밖 문자, 48자 초과, `h_` + hex 40자가 아닌 `h_` 접두 원문)는 `approvals.request_invalid` 거부 Result로 돌려준다: 어댑터가 조용히 해시하면 `h_plain` 같은 원문이 해시 키와 겹칠 수 있다 [결정: 통합 검토 L5 후속 N-2, U-13]. 키 알파벳 정규식은 호스트에 두지 않는다. 어댑터에 자체 키 변환 함수를 두지 않는다.
 - HS-60. core-tools는 도구 호출에서 능력 공급자를 `ScopeHostApi.capability`로 찾으므로 그 능력이 core-tools 매니페스트 `optional`에 있어야 한다. 조립 루트가 도구를 올리는 L2 능력(web.search, web.fetch, web.browse, knowledge.skills, work.tasks, work.plans, dialog.ask, mcp.client)을 `toolsPlugin({ capabilities })`로 넘긴다. 빠지면 도구 호출이 "공급자 없음"으로 끝난다.
 - HS-61. 자식 thread: core-agents가 자식 thread를 만들고 `runChildTurn`을 부르는 사이에 열 틈이 없어, 조립 루트가 `agentsPlugin({ loop })`에 감싸개를 넘긴다. 감싸개는 `ExtHost.openThread(child)`를 하고 자식 turn을 돌린 뒤 `closeThread`한다. 열지 못하면(`storage_unavailable`) 자식 turn을 시작하지 않고 `io` 오류 값으로 돌려준다. 부모의 세션 쓰기 토큰은 이 프로세스가 쥔 thread의 임대 토큰이고(`parentToken`), 자식은 같은 holder로 소유를 이어받는다.
@@ -1089,7 +1089,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - HS-85. 무인 명령 상한(M3-16). `cap-workspace`는 `unattendedTimeoutMs`를 호출마다 읽는다. 값은 `readUnattendedTimeoutMs`가 `l0.exec.unattendedTimeoutMs`에서 읽는다. 값이 없거나 범위 밖이면 기본값 30분이다. 설정 변경은 다음 무인 호출부터 반영된다.
 - HS-86. 시험 주입과 접근자. `AssembleOptions.schedule`(`clock`, `ticker`, `store`, `policy`)을 넣으면 운영 구현 대신 쓴다. `EnginePorts.schedule`이 서비스이고 `ServiceHandle.schedule()`이 같은 서비스를 돌려준다.
 - HS-87. 원격 사용(M3-REQ-44). 서비스는 비루프백 리스너를 만들지 않는다. 다른 기기의 CLI·데스크톱은 SSH 터널(`ssh -L 로컬소켓:원격소켓`, `BatchMode`라 키나 ssh-agent가 필요하다)이나 사설망으로 서비스의 Unix 소켓(또는 루프백 TCP)에 붙는다. 주소는 설정 `l0.process.service.remote` 또는 CLI 전역 플래그 `--remote`(플래그 우선)이고, 비어 있으면 평소대로 in-process나 로컬 서비스다. 문법이 틀리면 로컬로 가지 않고 사용 오류로 알린다. tcp 주소의 토큰은 환경 변수 `FRESNEL_REMOTE_TOKEN`에서 읽고 `host.hello`의 `auth.token`에 싣는다 [결정: 오케스트레이터 기본값, 설정 파일과 argv에는 비밀을 두지 않는다].
-- HS-88. `xeon chat` 등 엔진을 쓰는 CLI 명령은 원격 주소가 있으면 `attachToService`로 원격에 붙고, 서비스 사용 설정이 켜져 있으면 `ensureHostService` 뒤 로컬 서비스에 붙는다. 서비스 접속에는 값 입력 통로(`secretOutOfBand`)가 없고 종료는 연결을 닫는 것뿐이다(서비스와 진행 중 turn은 계속된다).
+- HS-88. `fresnel chat` 등 엔진을 쓰는 CLI 명령은 원격 주소가 있으면 `attachToService`로 원격에 붙고, 서비스 사용 설정이 켜져 있으면 `ensureHostService` 뒤 로컬 서비스에 붙는다. 서비스 접속에는 값 입력 통로(`secretOutOfBand`)가 없고 종료는 연결을 닫는 것뿐이다(서비스와 진행 중 turn은 계속된다).
 - HS-89. 데스크톱 사이드카 `host --stdio`에 원격 주소가 있으면(플래그 또는 설정) 엔진을 열지 않고 `bridgeStdioToService`로 stdin/stdout을 원격 서비스에 중계한다. 셸(Rust)과 `sidecar.json`은 바뀌지 않는다. stdin이 닫히면 원격 연결만 닫고 종료코드 0, 원격이 끊기면 1이다. HS-38이 로컬 서비스에서 이 중계를 쓰지 않는 이유(엔진 프로세스 추가)는 원격에는 해당하지 않는다: 이 경우 엔진 프로세스를 띄우지 않는다.
 - HS-90. `waitServiceGone`은 기다리는 서비스의 pid와 시작 시각을 받아, 등록이 다른 서비스를 가리키면 내려간 것으로 본다(교체 중 승계 경쟁). 유휴 타이머는 울릴 때 연결·live·예약 수를 다시 읽어 한가하지 않으면 종료하지 않는다.
 - HS-91. 웹 provider 등록·헤더 비밀·브라우저 MCP·브라우저 도구와 `web.providers` [결정: m3b-plan B2-WEB, M3-REQ-37, M3-REQ-96]. (1) 등록 목록. 플러그인이 `hostOf(g).registerWebProvider`로 낸 `web_provider` 기록을 `ExtHost.resources.list("web_provider")`로 읽고, `webProviderRegistrationOf`가 등록 값을 돌려준 기록만 cap-web의 `registrations`로 넘긴다(`webRegistrationSource`, `assembly/cap-web.ts`). 공급자 ID는 cap-web이 `plugin:<확장 이름>`으로 만든다. (2) 헤더 비밀. `SecretService`가 있으면 `createWebHeaderSecrets`(`assembly/web-header-secrets.ts`)가 `createPluginHttp(secrets, { purpose: "web.search" })`로 치환을 맡는다. 목적은 세 능력(검색, 가져오기, 브라우즈)이 모두 `web.search`다. 인터페이스가 능력별 목적을 받지 않아서다 [결정: 오케스트레이터 기본값]. 설정 값은 `ext.<확장>.<키>`를 설정 엔진의 유효 값으로 읽는다(카탈로그에 정의가 없으면 undefined). 값이 `secret://` 참조 문자열이 아니면 `unset`이다. 참조의 이름이 잘못되었거나 제공자에 항목이 없으면 `unset`, 잠긴 키·승인 필요·제공자 오류는 `unavailable`이다. 오류 값에는 설정 키 이름만 싣고 값은 싣지 않는다. 템플릿은 참조만 담고 값은 `send` 콜백 인자로만 간다. 비밀 서비스가 없으면 비밀 헤더 provider는 no-key다. (3) 브라우저 MCP. `mcp.client` 능력이 있으면(cap-mcp, 매니페스트 `optional`) `createBrowserMcpPort`(`assembly/web-browser-mcp.ts`)가 `BrowserMcpPort`를 맞춘다. 서버 이름은 `playwright`다. 사용자가 설정에 `@playwright/mcp`를 이 이름으로 둔다. 다른 이름을 고르는 설정은 나중 옵션이다 [결정: 오케스트레이터 기본값]. `available`은 목록에서 그 서버가 `connected`일 때만 참이다. `callTool`은 텍스트 부분을 줄바꿈으로 잇고 이미지 부분은 blob 저장소에서 읽어 base64로 싣는다. `input_required`, 호출 예외, blob 읽기 실패는 `unavailable`이고 중단은 `aborted`다. 이 경로는 cap-mcp의 `callTool`을 직접 부르므로 서버 도구의 승인 모드(`l2.mcp` 승인)를 거치지 않는다 [미결: L1.tools 도구 경로 밖의 승인, §10 34]. (4) 브라우저 도구. `WebBrowse`의 네 도구 가운데 `web_browse_open`, `web_browse_act`, `web_browse_close`는 위험 등급 `write`, `web_browse_read`는 `read`로 등록하고 능력 공급자 `WebBrowseKey`를 낸다[결정: 오케스트레이터 기본값]. 기본 모드에서 쓰기 등급 도구는 승인을 거치고 plan 모드에서는 막힌다. 능력은 L1 도구 능력 목록(HS-60)에도 든다. (5) 세션 종료. `thread.shutdown` 지점에서 `onWebSessionShutdown`이 그 대화가 연 브라우저 세션을 `closeThread`로 닫고(L2.web.spec §4.10.1), 살아 있지 않은 대화의 session 원문을 지운다(HS-75 (2)). 사람 확인 포트 `browseConfirm`은 아직 잇지 않았다. 확인이 필요한 브라우저 동작(결제·게시 어휘의 click, 교차 origin 폼 제출, 신뢰하지 않은 입력 뒤의 입력)은 `confirmation_denied`로 거부된다 [미결: fresnel.approvals를 감싸는 어댑터, §10 35]. (6) `web.providers`. 처리기(`handlers/web.ts`)는 `EnginePorts.web`을 부른다(`assembly/web-providers.ts`). 포트는 런타임이 채운 holder의 `providerStatus(signal)`로 행을 얻고, 웹 설정은 설정 층에서 `readWebSettings`로 읽어 `describeWebSettings`로 옮긴다. 런타임이 없으면 행은 비고 설정 값은 같은 설정 층에서 읽는다. 설정 파일이 비었으면 `DEFAULT_WEB_SETTINGS`와 같다 [결정: 오케스트레이터 기본값, 기본값 상수 대신 유효 값을 읽는다]. 읽기 전용이라 쓰기 소유를 얻지 않는다. 시험: `test/assembly/cap-web-bridge.test.ts`(등록 목록 값, 세션 종료), `test/assembly/web-header-secrets.test.ts`(비밀 값이 `send` 인자에만 가고 템플릿과 오류에는 없다), `test/assembly/web-browser-mcp.test.ts`(텍스트·이미지 조립, 미연결, input_required, 중단), `test/assembly/web-providers.test.ts`, `test/handlers/web.test.ts`, `test/int/web-providers.int.test.ts`(실제 엔진의 목록과 기본 설정).
@@ -1120,7 +1120,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 
 | 사례 | 처리 |
 |---|---|
-| `buildCatalog`가 코어 키 중복을 돌려준다 | `AssembleError { code: "catalog" }`. `xeon`은 문제 목록을 stderr에 쓰고 종료코드 1. CLI in-process 경로는 `catalogConflict`로 바꿔 같은 1이다(`L4.cli.spec` §4.10). 서비스면 등록 파일을 쓰지 않는다 |
+| `buildCatalog`가 코어 키 중복을 돌려준다 | `AssembleError { code: "catalog" }`. `fresnel`은 문제 목록을 stderr에 쓰고 종료코드 1. CLI in-process 경로는 `catalogConflict`로 바꿔 같은 1이다(`L4.cli.spec` §4.10). 서비스면 등록 파일을 쓰지 않는다 |
 | 포트가 요구하는 서비스가 없다(플러그인 누락) | `AssembleError { code: "missingService" }`. 종료코드 1. CLI in-process 경로는 `missingService`, 1이다 |
 | DB를 열 수 없다(권한, 손상, 새 버전, 마이그레이션 실패, FTS5 없음) | `AssembleError { code: "store", message, failure }`. FTS5 검사는 L0.store(TC-11). 안내가 갈리는 분류(`future_version`, `corrupt`, `migration_failed`, `unavailable`)를 `failure`에 싣는다(HS-68) |
 | 처리기가 알 수 없는 예외를 던진다 | `-32603 "Internal error"`, 원문은 로그에만(HS-08) |
@@ -1165,13 +1165,13 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - 같은 동작을 가리키는 키는 한 층만 정의한다 [제안]. 이 문서가 읽기만 하고 정의하지 않는 키는 아래와 같다.
   - 서비스 수명: `l0.process.service.enabled`(서비스 사용, HS-37·HS-38·HS-40), `l0.process.service.idleGraceMs`(유휴 유예, SV-04), `l0.process.service.startTimeoutMs`(기동 대기), `l0.process.service.remote`(원격 서비스 주소, HS-87), `l0.process.shutdown.timeoutMs`(종료 체크포인트 시한, HS-31·SV-07). 단위는 ms다. 소유는 `L0.process.spec` §6이다.
   - 자동 재개: `l1.persistence.autoResume`(§4.1 8단계)과 재개 횟수 상한 `l1.persistence.maxResumeAttempts`. 소유는 `L1.persistence.spec` §6이다.
-- 화면: `L4.settings-ui.spec`의 `execution` 탭("실행과 서비스", ADR-0006 §3.4). 명령: `xeon config get/set/reset l4.host-service.<이름>`(`L4.cli.spec`). 서비스 수명·자동 재개 키는 각 소유 층 이름으로 바꾼다. 파일: 사용자·관리 설정 파일.
+- 화면: `L4.settings-ui.spec`의 `execution` 탭("실행과 서비스", ADR-0006 §3.4). 명령: `fresnel config get/set/reset l4.host-service.<이름>`(`L4.cli.spec`). 서비스 수명·자동 재개 키는 각 소유 층 이름으로 바꾼다. 파일: 사용자·관리 설정 파일.
 
 ### 6.2 설정 파일 JSON Schema 출력 명령
 
 [제안] F wire §4.9 표가 이 문서에 맡긴 생성 명령이다.
 
-- 명령: `xeon config schema --scope <managed|user|project|local> [--out <path>]`. `--out`이 없으면 stdout에 쓴다. 앱이 카탈로그에 더하는 설정 그룹(CLI의 `l4.cli.*`)은 `HostCommand`의 `settingGroups`로 받아 파일 스키마에 넣는다(`--core-only`면 넣지 않는다). 그래서 `xeon config schema`의 키 집합이 `xeon config list`의 키 집합과 같다(X10) [결정: M3b B3-SET]. `session`은 파일이 없으므로 받지 않는다(종료코드 2).
+- 명령: `fresnel config schema --scope <managed|user|project|local> [--out <path>]`. `--out`이 없으면 stdout에 쓴다. 앱이 카탈로그에 더하는 설정 그룹(CLI의 `l4.cli.*`)은 `HostCommand`의 `settingGroups`로 받아 파일 스키마에 넣는다(`--core-only`면 넣지 않는다). 그래서 `fresnel config schema`의 키 집합이 `fresnel config list`의 키 집합과 같다(X10) [결정: M3b B3-SET]. `session`은 파일이 없으므로 받지 않는다(종료코드 2).
 - 내용: `renderSettingsSchema(engine.catalog, scope)`. `settingsJsonSchema` 결과를 `JSON.stringify(value, null, 2) + "\n"`으로 쓴다. 키 정렬은 `settingsJsonSchema`가 보장하므로(F wire §4.10 9번) 같은 카탈로그와 범위면 바이트가 같다(F wire S10).
 - 카탈로그는 `assemble({ defaultGroups: true })`의 결과다. 외부 확장은 사용자 환경에 따라 다르므로, 저장소에 커밋하는 스키마 파일은 외부 확장 없이 만든다. 명령은 외부 확장을 싣지 않는 옵션 `--core-only`를 둔다 [제안].
 - 커밋본: `xeon/apps/host/schema/settings.<scope>.schema.json` 네 파일. 테스트가 `--core-only` 출력과 커밋본을 바이트 비교한다(plan §5 `settings-schema-committed`). 커밋본에는 `ext.account-rotation.*` 키가 듭니다(HS-80).
@@ -1203,7 +1203,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 | 요구 | `eng.events.design`, `eng.transactions.design` | 커밋 뒤 방출, TX-07(세션 쓰기 단일 경로), TX-09, `scheduler` 임대 |
 | 요구 | adr.0004, adr.0006, adr.0008 | 단일 DB, 프로세스 구조와 체크리스트, 사이드카 수명 |
 | 제공 | `L4.cli.spec` | `startInProcessHost`, `startStdioHost`, `ensureService`, `createHostConnection`, `connectServiceTransport`, `runHostCommand`(`HostCommand`, `CommandIo`), `resolveLaunchMode`, 바이너리 서브커맨드 표(§3.2), §3.3.5 대응표와 종료코드 관계 |
-| 제공 | `L4.desktop.spec` | 사이드카 인자 `host --stdio`, stdin EOF 종료와 시한 `l0.process.shutdown.timeoutMs`, 서비스 중계와 `xeon service ensure --json`(HS-38), `xeon service launch-mode --json`(§3.2), `shutdown` 부재와 대체 경로(HS-34) |
+| 제공 | `L4.desktop.spec` | 사이드카 인자 `host --stdio`, stdin EOF 종료와 시한 `l0.process.shutdown.timeoutMs`, 서비스 중계와 `fresnel service ensure --json`(HS-38), `fresnel service launch-mode --json`(§3.2), `shutdown` 부재와 대체 경로(HS-34) |
 | 제공 | `L4.settings-ui.spec` | `l4.host-service.*` 키(§6.1), `settings.*` 처리기 |
 | 제공 | `eng.testing.guide` | 전송 동등성 `contract` 테스트(TS-01 `conf` 행이 이 문서에 맡김) |
 | 제공 | `eng.toolchain.guide` | TC-10 수정 요청(§3.2) |
@@ -1236,7 +1236,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-15] 조립 위치(DR-10)는 안 1이다(§3.1). 허용 목록 항목 `DR-10/cli-host`, DR-10·DR-14 문구 수정, `architecture.layers.spec` §3.2의 L4 부분은 각 문서 쪽에서 반영한다.
-2. [미결] 바이너리 구성. 단일 `xeon`(제안)과 `apps/host` 단독 사이드카 중 선택(§3.2). 사용자 확인.
+2. [미결] 바이너리 구성. 단일 `fresnel`(제안)과 `apps/host` 단독 사이드카 중 선택(§3.2). 사용자 확인.
 3. [미결] 문서 수정 요청: `eng.toolchain.guide` TC-10과 같은 문서 §2 바이너리 행, `xeon/apps/desktop/README.md`의 사이드카 문구(§3.2). 2번이 확정되면 작성자가 고친다.
 4. [결정: review.decisions-2 U-11] 원격 사용은 M3이고 로컬 서비스 소켓을 SSH 터널·사설망으로 연결한다. 내장 TLS + 토큰 WebSocket은 2차다(§4.11).
 5. [결정: adr.0020] 클라이언트 연결 코드(`createHostConnection`)와 설정 view-model, CLI·데스크톱 공유 로직은 새 L4 공유 패키지 `xeon/packages/client`(`@fresnel/client`, F만 import)로 옮긴다(`review.m3-design-inputs` D-M3-26 b 변형). `@fresnel/host/client`는 M3a 구현에서 `@fresnel/client`를 다시 내보내는 얇은 파일로 남겼고(허용 목록 `DR-10/host-client`), F는 런타임 로직 없는 계약(stdio 줄 프레이밍 제외)으로 둔다. [미결] 재노출을 없애는 안은 호스트 시험의 `@fresnel/client` import에 시험 한정 DR-10 예외가 필요하다. `apps/cli`·`apps/desktop` → `@fresnel/client`는 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`다(`architecture.layers.spec` §3.2).
@@ -1246,7 +1246,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 9. (닫힘) 종료 협조용 메시지는 F `host.shutdown`(M2)이다(`F.wire-settings.spec` §4). M2 전까지 stdin 닫기로 대신한다(HS-34).
 10. [결정: review.m3-design-inputs D-M3-16 c] 서비스 인증: 로컬 Unix 소켓은 파일 권한만 쓰고, TCP로 열 때만 `host.hello` 토큰이 필수다(SV-05). 원격 형태는 자체 호스트 서버의 호스트에 다른 기기의 데스크톱·CLI가 접속하는 것과 자기 컴퓨터에서 호스트를 켜는 것 둘이다([결정: review.m3-design-inputs D-M3-17]).
 11. [미결] `settings.list`의 `SettingDefWire.type`에 `range`를 합쳐 실을지, 병합 함수를 F에 둘지(`_research/notes/L4-3.md` §1, §4). F 변경 요청.
-12. 닫음: `xeon service ensure --json` 출력 형식(HS-38)을 `L4.desktop.spec` §4.8이 그대로 인용한다. 서비스 경로 진입 판정은 `xeon service launch-mode --json`(§3.2)으로 맞췄다.
+12. 닫음: `fresnel service ensure --json` 출력 형식(HS-38)을 `L4.desktop.spec` §4.8이 그대로 인용한다. 서비스 경로 진입 판정은 `fresnel service launch-mode --json`(§3.2)으로 맞췄다.
 13. [결정: review.decisions-2 U-04] F 변경 요청: 사용자 알림용 wire 알림 또는 표시 힌트 필드(HS-43). M1에 넣지 않고 M2 계획에서 정한다. (닫힘 m3b B1-NTF H4) 사용자 알림 전용 서버 알림 `notify.delivered`가 F wire §3.3.2에 있고 HS-82가 보낸다. 표시 힌트 필드는 넣지 않았다. 창 앞 생략은 클라이언트가 정한다.
 14. [결정: review.decisions-2 U-09] 세션 잠금 구현은 OS 잠금(생존) + `sys_leases.epoch` 펜싱이다. 호스트는 `SessionLockPort`로 감싸고 받은 `LeaseToken`을 L1.persistence에 넘긴다(§4.7).
 15. (닫힘) `architecture.runtime-flow.design` §4.6 표의 service 열은 로컬 소켓과 원격 [미결]로 고쳐졌다(review.consistency-1 S-16). 원격은 U-11에 따라 로컬 소켓을 터널로 연결한다.
@@ -1262,7 +1262,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 25. (닫힘 m2c G1-04) `McpProcessPort`는 L0 platform-process가 내놓았고 조립 루트가 잇는다(HS-64). 비밀 env를 쓰는 stdio 서버의 기동 승인은 HS-96으로 닫았다(ADR-0011).
 26. (일부 닫힘 m2c G1-01) 명령 처리기의 출력은 `command.run`의 `done { message, result }`로 낸다(HS-72). 동작 명령(`CommandActionRegistry.registerAction`)은 메시지를 돌려줄 수 있다. 남은 것: `host-groups`가 `/group` 명령을 이 등록부로 등록하는 일(구동 그룹 상태 출력)은 M3 그룹 작업에서 한다.
 27. [미결] 문서 정정 요청 D-12의 F 쪽: `F.wire-settings.spec` §3.4.3의 4·5단계 사이에 취소 창이 있다(HS-21), `F.records.spec` §4.3과 §3.4.4의 `n`·`afterSeq`는 발신자 값이다(HS-18). F 작성자가 반영한다.
-28. (닫힘 m2c G2-07) 데스크톱이 외부 바이너리 점검 결과를 받는 경로는 `host.status`의 `includeBinaries`와 `binaries`다(HS-69). `host.diagnose`는 반려 그대로이고 진단 서브커맨드(`xeon doctor --json`)를 Rust 셸이 실행하는 후보는 쓰지 않는다. 데스크톱이 첫 실행 화면에서 이 필드를 읽는 일은 `L4.desktop.spec` 몫이다.
+28. (닫힘 m2c G2-07) 데스크톱이 외부 바이너리 점검 결과를 받는 경로는 `host.status`의 `includeBinaries`와 `binaries`다(HS-69). `host.diagnose`는 반려 그대로이고 진단 서브커맨드(`fresnel doctor --json`)를 Rust 셸이 실행하는 후보는 쓰지 않는다. 데스크톱이 첫 실행 화면에서 이 필드를 읽는 일은 `L4.desktop.spec` 몫이다.
 29. (닫힘 m2c G1-01) `command.list`의 선택 params `threadId`는 호스트가 받는다(HS-72). 데스크톱이 열린 thread의 id를 보내는 일은 `L4.desktop.spec` 몫이다.
 30. (닫힘 m2c G2-01) 수동 컴팩션 `thread.compact`는 호스트가 처리한다(HS-77). `host.hello`의 features에 오른다. 클라이언트가 `/compact`를 `command.run`이 아니라 이 메서드로 부르는 일(cap-dialog에 `/compact` 명령 등록 여부 포함)은 CLI·데스크톱과 L2.dialog 몫이다.
 31. (닫힘 M2 마감 재검토 3) 수동 컴팩션과 같은 thread의 `turn.start`가 겹치던 틈을 막았다. 전에는 어댑터가 열린 turn이 없음을 확인한 뒤 요약(모델 호출, 수 초)과 커밋을 하는 사이에 thread 단위 잠금이 없어 다른 연결의 `turn.start`가 turn을 열 수 있었다. 해결 후보 (a) `TurnPort.submit`이 컴팩션 중인 thread에 `turn.busy`와 같은 재시도 가능 거절을 낸다, (b) L1.context가 컴팩션 중 표지를 커밋한다 가운데 어느 쪽도 항목이 우선이라고 적지 않았다. 둘 다 고르지 않고 어댑터 안의 thread별 순차 구간으로 `turn.start`를 기다리게 했다(HS-77). 이유: (a)의 `turn.busy`는 `details.turnId`가 필수인데(`F.wire-settings.spec` §3.5.2) 컴팩션에는 turn이 없어 가짜 id를 싣거나 F 계약을 바꿔야 하고, (b)는 표지 커밋과 해제의 실패 처리를 L1에 더한다. 기다리기는 호스트의 어댑터 한 곳에서 끝나고 계약과 L1을 건드리지 않으며, 클라이언트는 응답이 늦을 뿐 새 오류 경로가 없다. 시험: `test/assembly/thread-gate.test.ts`, `test/assembly/ports.test.ts`의 "a manual compaction and the turns of the same thread", `test/int/thread-compact-turn-start.int.test.ts`(HOST.22).

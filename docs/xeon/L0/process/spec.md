@@ -33,7 +33,7 @@ binds: [xeon/packages/platform-process/**]
 
 | 대상 | 정하는 곳 |
 |---|---|
-| `xeon service start\|status\|stop\|install\|uninstall` 명령줄, 호스트 조립(엔진 열기, 처리기 표, 전송 연결) | `L4.host-service.spec` |
+| `fresnel service start\|status\|stop\|install\|uninstall` 명령줄, 호스트 조립(엔진 열기, 처리기 표, 전송 연결) | `L4.host-service.spec` |
 | 엔진 진입점(`Runtime.open`) 구현 | [미결 P-5] 권고는 `L4.host-service.spec`(§3.2) |
 | JSON-RPC envelope 검사, 메서드 레지스트리, `HostConnection` | `F.wire-settings.spec` §3.2~§3.5. 이 패키지는 그 함수를 호출만 한다 |
 | 세션 소유 잠금 구현(OS 잠금, `sys_leases`) | `L0.store.spec` §4.7 |
@@ -48,11 +48,11 @@ binds: [xeon/packages/platform-process/**]
 | 기능 | L0 process(이 문서) | L4 host-service |
 |---|---|---|
 | 전송 | `Transport` 구현과 프레이밍 | 어느 전송을 열지 고르고 `HostConnection`과 처리기 표에 연결 |
-| 서비스 모드 | 등록 파일 읽기·쓰기, `ensure` 알고리즘, 바인드 경합, 유휴 판정기, 토큰 검사, detached 기동 함수 | `xeon service` 명령, 서비스 프로세스 `main`, 처리기에서 `host.status` 값 채우기 |
+| 서비스 모드 | 등록 파일 읽기·쓰기, `ensure` 알고리즘, 바인드 경합, 유휴 판정기, 토큰 검사, detached 기동 함수 | `fresnel service` 명령, 서비스 프로세스 `main`, 처리기에서 `host.status` 값 채우기 |
 | 수명 | stdin EOF 감시, `ShutdownCoordinator`, 시한 뒤 강제 종료 | `host.shutdown` 처리기에서 coordinator 호출 |
 | 잠금 실패 | `chooseLockFallback` 순수 함수 | `thread.locked`(3002) 오류 조립, 사용자 질문 UI |
 | 재개 제시 | `buildResumeOffers` 순수 함수 | `thread.list`·UI에 후보 표시 |
-| OS 서비스 등록 | `OsServiceRegistrar` provider | `xeon service install` 명령과 동의 질문 |
+| OS 서비스 등록 | `OsServiceRegistrar` provider | `fresnel service install` 명령과 동의 질문 |
 
 ### 1.3 배치 [미결 P-3]
 
@@ -66,9 +66,9 @@ binds: [xeon/packages/platform-process/**]
 |---|---|
 | 엔진 | Cordis 호스트 + 루프 + SQLite. 프로세스 정책을 갖지 않는 라이브러리 |
 | 호스트 | 엔진을 소유하고 계약의 서버 쪽을 맡는 코드(`apps/host`) |
-| 자식 엔진 | 데스크톱이 사이드카로 띄운 엔진 프로세스(`xeon host --stdio`) |
+| 자식 엔진 | 데스크톱이 사이드카로 띄운 엔진 프로세스(`fresnel host --stdio`) |
 | 수명 임대 | 부모가 쥔 stdin 파이프. 부모가 어떻게 끝나도 OS가 쓰기 끝을 닫아 자식이 EOF를 읽는다 |
-| 서비스 | `xeon service`로 뜬 공유 엔진 프로세스. 여러 클라이언트가 socket 전송으로 접속한다 |
+| 서비스 | `fresnel service`로 뜬 공유 엔진 프로세스. 여러 클라이언트가 socket 전송으로 접속한다 |
 | 등록 파일 | 서비스의 소켓 경로·pid·버전·토큰을 담은 JSON 파일(0600) |
 | `ensure` | 클라이언트가 서비스를 찾거나 기동하는 절차 |
 | live task | 진행 중 턴, 실행 중 도구, 승인 대기 세션, 활성 drive 임대 |
@@ -335,7 +335,7 @@ export interface EnsureDeps {
   readonly probe: (socket: string, registration: ServiceRegistration) => Promise<Result<ServiceProbe, ProbeError | SocketError>>;
   /** 한가한 구버전을 host.shutdown(reason version_replace)으로 내리고 종료를 기다린다 */
   readonly replace: (registration: ServiceRegistration) => Promise<Result<void, { readonly kind: "replace_failed" }>>;
-  /** detached + unref로 `xeon service run`을 띄운다 (L4가 명령 배열을 준다) */
+  /** detached + unref로 `fresnel service run`을 띄운다 (L4가 명령 배열을 준다) */
   readonly spawnService: () => Result<{ readonly pid: number }, { readonly kind: "spawn_failed"; readonly code: string }>;
   readonly clock: Clock;
   readonly scheduler: Scheduler;                                     // 200 ms 재시도 간격, startTimeoutMs 시한
@@ -458,7 +458,7 @@ export declare function buildResumeOffers(
 ```ts
 // xeon/packages/platform-process/src/registrar/provider.ts (2차)
 export interface OsServiceSpec {
-  readonly label: string;                                           // 예: "dev.xeon.service" [제안]
+  readonly label: string;                                           // 예: "dev.fresnel.service" [제안]
   readonly program: readonly string[];                              // 절대 경로 실행 파일 + 인자
   readonly environment: Readonly<Record<string, string>>;           // 비밀 값 금지
   readonly logDir: string;
@@ -527,7 +527,7 @@ socket(`listenSocket`, `connectSocket`):
 
 [결정] 데스크톱이 엔진 사이드카를 띄우고 stdin EOF를 임대 해제 신호로 쓴다(adr.0008 §3.3, adr.0006 §3.7 6번, opencode `standalone.ts:23-27`).
 
-1. 자식 엔진(`xeon host --stdio`)은 시작 때 `watchChildLease`를 건다. stdin은 stdio 전송이 읽는 스트림 하나뿐이라(reader를 둘 붙일 수 없다) 감시는 전송의 `onClose`(`eof` 또는 `error`)를 듣는다.
+1. 자식 엔진(`fresnel host --stdio`)은 시작 때 `watchChildLease`를 건다. stdin은 stdio 전송이 읽는 스트림 하나뿐이라(reader를 둘 붙일 수 없다) 감시는 전송의 `onClose`(`eof` 또는 `error`)를 듣는다.
 2. 종료 요청은 두 경로로 온다.
    - `host.shutdown` 요청(§8.1 FR-P1): 데스크톱은 SIGKILL만 보내는 Tauri 셸 플러그인 제약 때문에 신호 전에 이 요청을 먼저 보낸다(adr.0006 §3.7 7번, adr.0008 §3.3 [제안] 3번). 응답을 받은 뒤 데스크톱이 프로세스를 정리한다.
    - stdin EOF: 데스크톱이 비정상 종료해도 OS가 파이프 쓰기 끝을 닫는다.
@@ -556,8 +556,8 @@ socket(`listenSocket`, `connectSocket`):
 
 #### 4.4.1 위치
 
-- 등록 파일 `<runtimeDir>/service.json`, 소켓 `<runtimeDir>/xeon.sock`. `runtimeDir`은 `fresnel.os`의 `OsDirs.runtime`이다(§8.1 FR-P4). 경로 값(Linux `$XDG_RUNTIME_DIR/xeon`, macOS `$TMPDIR/xeon`)과 길이 초과 때 `/tmp/xeon-<uid>`로 내려가는 폴백, 디렉터리 0700·소유자 검사는 `L0.os.spec` §3.2만 정한다. 이 패키지는 경로를 다시 계산하지 않는다.
-- [제안] 소켓 상대 경로 상한 `SOCKET_RELATIVE_PATH_MAX_BYTES = 24`. `runtimeDir` 아래 소켓 상대 경로(하위 디렉터리 포함)의 UTF-8 바이트 수는 24 이하다. `L0.os.spec` §3.2 runtime 길이 규칙의 여유 24바이트가 이 값이다. 기본 이름 `xeon.sock`은 9바이트, 아래 데이터 디렉터리 구분 이름 `d<8 hex>/xeon.sock`은 19바이트다.
+- 등록 파일 `<runtimeDir>/service.json`, 소켓 `<runtimeDir>/fresnel.sock`. `runtimeDir`은 `fresnel.os`의 `OsDirs.runtime`이다(§8.1 FR-P4). 경로 값(Linux `$XDG_RUNTIME_DIR/fresnel`, macOS `$TMPDIR/fresnel`)과 길이 초과 때 `/tmp/fresnel-<uid>`로 내려가는 폴백, 디렉터리 0700·소유자 검사는 `L0.os.spec` §3.2만 정한다. 이 패키지는 경로를 다시 계산하지 않는다.
+- [제안] 소켓 상대 경로 상한 `SOCKET_RELATIVE_PATH_MAX_BYTES = 24`. `runtimeDir` 아래 소켓 상대 경로(하위 디렉터리 포함)의 UTF-8 바이트 수는 24 이하다. `L0.os.spec` §3.2 runtime 길이 규칙의 여유 24바이트가 이 값이다. 기본 이름 `fresnel.sock`은 9바이트, 아래 데이터 디렉터리 구분 이름 `d<8 hex>/fresnel.sock`은 19바이트다.
 - 같은 DB를 쓰는 서비스는 기계당 하나다. 데이터 디렉터리가 여럿이면(`--data-dir`) 그 경로 SHA-256 hex 앞 8자로 하위 디렉터리 `d<8 hex>/`를 만든다 [제안].
 - 등록 파일에 실제 소켓 경로를 적으므로 클라이언트는 경로를 다시 계산하지 않는다.
 
@@ -616,13 +616,13 @@ ensureService():
 - [결정: review.m3-design-inputs D-M3-16, M3-REQ-43] Unix 소켓은 파일 권한(소켓 0600, 디렉터리 0700)으로만 막고 토큰을 검사하지 않는다(P-10 닫힘). `listenSocket`은 소켓 파일을 0600으로 만든다. `PeerInfo.requiresToken`은 unix에서 거짓이다.
 - TCP로 열 때만 토큰을 검사한다. `listenSocket({ kind: "tcp" })`는 토큰이 비어 있으면 `token_required`로 열지 않는다. `PeerInfo.requiresToken`이 참인 연결의 `host.hello`는 `auth.token`을 `verifyToken`(상수 시간 비교)으로 검사하고, 없으면 `host.authFailed`(`details.reason: "missing"`), 틀리면 `"invalid"`로 응답한 뒤 연결을 닫는다. hello 전 다른 메서드는 1001로 거부된다. 토큰 회전은 `TokenGate.rotate()`가 새 토큰을 만들고 이전 토큰을 즉시 무효로 한다. 이미 열린 연결은 그대로다.
 - 원격(1차, M3): SSH 터널이나 사설망으로 연결된 클라이언트도 로컬 소켓에 접속하므로 같은 규칙을 쓴다. 터널 끝이 서버 쪽 사용자 권한으로 소켓에 접속하기 때문이다. 토큰 검사는 이 경로의 추가 방어다(미결 P-10).
-- TCP 전송(`xeon host --service`의 `--listen-tcp <host:port>` 옵션, L4): 위 규칙대로 토큰이 필수다. 루프백 주소(`localhost`, `127.x`, `::1`)가 아니면 토큰이 있어도 `allowNonLoopback`을 명시해야 열린다(`tcp_not_loopback`) [결정: 오케스트레이터 기본값, Codex app-server 선례]. 내장 TLS + WebSocket은 2차다.
+- TCP 전송(`fresnel host --service`의 `--listen-tcp <host:port>` 옵션, L4): 위 규칙대로 토큰이 필수다. 루프백 주소(`localhost`, `127.x`, `::1`)가 아니면 토큰이 있어도 `allowNonLoopback`을 명시해야 열린다(`tcp_not_loopback`) [결정: 오케스트레이터 기본값, Codex app-server 선례]. 내장 TLS + WebSocket은 2차다.
 - 토큰은 32바이트 무작위(`crypto.getRandomValues`, 주입), base64url. 등록 파일 밖으로 쓰지 않고 로그에 남기지 않는다.
 
 #### 4.4.6 기동과 분리, 종료 협조, 소실
 
 - 서비스는 `spawnDetachedService`가 `node:child_process.spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true })` 후 `unref()`로 부모에서 분리한다(adr.0006 §3.7 6번, pi `PX/process.ts:40-70`). Bun 1.4.3 Linux에서 시험으로 확인했다(`service-ensure.test.ts`). macOS는 실측 전이다. 서비스의 cwd는 홈 디렉터리로 둔다(opencode `server-process.ts:60-64`).
-- 종료 협조: SIGTERM을 받으면 `ProcessShutdown.request("signal")`. 시한(`shutdown.timeoutMs`) 뒤 스스로 종료코드 1로 끝난다. `xeon service stop`(L4)은 먼저 `host.shutdown`을 보내고, 시한 + 1초 뒤에도 살아 있으면 `stopProcess`로 SIGTERM, 다시 시한 뒤 SIGKILL을 보낸다(adr.0006 §3.7 7번). `stopProcess`와 `isProcessAlive`가 감독 쪽 L0 부분이다.
+- 종료 협조: SIGTERM을 받으면 `ProcessShutdown.request("signal")`. 시한(`shutdown.timeoutMs`) 뒤 스스로 종료코드 1로 끝난다. `fresnel service stop`(L4)은 먼저 `host.shutdown`을 보내고, 시한 + 1초 뒤에도 살아 있으면 `stopProcess`로 SIGTERM, 다시 시한 뒤 SIGKILL을 보낸다(adr.0006 §3.7 7번). `stopProcess`와 `isProcessAlive`가 감독 쪽 L0 부분이다.
 - 서비스 소실: 클라이언트 쪽 socket 전송이 `onClose`(`eof`, `error`)를 받았고 자신이 닫지 않았다면, 클라이언트는 진행 중 요청을 실패로 끝내고 입력을 받지 않는 정지 상태로 간다. 자동 재접속은 하지 않는다 [제안]. 다음 `ensure`가 서비스를 다시 띄우고 복구 표식(§4.6)으로 재개 후보를 보인다(adr.0006 §3.7 8번).
 
 #### 4.4.7 adr.0006 §3.7 체크리스트의 테스트 문장
@@ -725,8 +725,8 @@ ssh -N -T -o ExitOnForwardFailure=yes -o BatchMode=yes -o ServerAliveInterval=15
 | `systemd` | Linux 사용자 유닛 | `~/.config/systemd/user/<label>.service` | 유닛 쓰기 뒤 `systemctl --user daemon-reload`, `enable --now`. 해제는 `disable --now` 후 파일 삭제 |
 | `none` | Windows(작업 스케줄러 또는 Windows 서비스, 미정), WSL에서 systemd가 없을 때 | - | `unsupported` |
 
-- 명시 동의가 있어야만 설치한다. `install`은 `consent` 인자 없이 부를 수 없고, 동의 질문과 기록은 `xeon service install`(L4)이 한다(Hermes 선례 `HM/website/docs/user-guide/windows-native.md:243`).
-- 등록된 유닛이 실행하는 명령은 `xeon service start --foreground`다. 이중 기동 방지는 §4.4.3 규칙이 그대로 막는다.
+- 명시 동의가 있어야만 설치한다. `install`은 `consent` 인자 없이 부를 수 없고, 동의 질문과 기록은 `fresnel service install`(L4)이 한다(Hermes 선례 `HM/website/docs/user-guide/windows-native.md:243`).
+- 등록된 유닛이 실행하는 명령은 `fresnel service start --foreground`다. 이중 기동 방지는 §4.4.3 규칙이 그대로 막는다.
 - 설정 충돌로 시작할 수 없을 때는 종료코드 78로 끝내 감독자의 재시작 반복을 멈춘다 [제안](Hermes `gateway-internals.md:613`).
 - 예약 틱은 서비스 프로세스 안에서 돈다(adr.0006 §3.5). OS 등록은 재부팅 뒤 자동 시작만 더한다.
 
@@ -808,7 +808,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | 안 | 인증 | 장점 | 단점 | F `TransportKind` 영향 |
 |---|---|---|---|---|
 | AF_UNIX 소켓 | 파일 ACL | 코드가 macOS·Linux와 같다 | Bun의 Windows AF_UNIX 지원 [가정], ACL 설정 코드 필요 | 없음(`socket`) |
-| named pipe(`\\.\pipe\xeon-<user>`) | 파이프 보안 기술자 | Windows 표준 IPC | 별도 구현, Bun 지원 [가정] | `socket`에 경로 형식만 다르게 둘지, 새 종류를 둘지 |
+| named pipe(`\\.\pipe\fresnel-<user>`) | 파이프 보안 기술자 | Windows 표준 IPC | 별도 구현, Bun 지원 [가정] | `socket`에 경로 형식만 다르게 둘지, 새 종류를 둘지 |
 | loopback TCP + 토큰 | 토큰(필수) | 어디서나 동작 | 같은 기계 다른 사용자가 포트에 접속 시도 가능. 토큰이 유일한 방어 | 새 종류(`tcp`) 필요 |
 
 ## 6. 설정 노출
@@ -848,7 +848,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | `ServiceRegistration`, `RegistrationStore`(`createRegistrationStore`), `ensureService`, `bindServiceSocket`, `createIdleMonitor`, `verifyToken`, `createTokenGate`, `spawnDetachedService`, `stopProcess` | L4.host-service.spec. L4.cli.spec·L4.desktop.spec은 `apps/host` 경유(§3.2) |
 | `LockFallbackPolicy`, `LockFallbackChoice` | L4.host-service.spec(`thread.locked` 조립). L4.cli.spec·L4.desktop.spec은 `apps/host` 경유 또는 wire 오류 `thread.locked`로 받는다 |
 | `buildResumeOffers`, `ResumeOffer`, `ResumeCandidate` | L4.host-service.spec. L4.desktop.spec은 wire(`thread.list`)로 받는다 |
-| `OsServiceRegistrar`(2차) | L4.host-service.spec(`xeon service install`) |
+| `OsServiceRegistrar`(2차) | L4.host-service.spec(`fresnel service install`) |
 | 설정 `l0.process.*` | L4.settings-ui.spec |
 | `@fresnel/platform-process/testing`: `runFakeEngine`·`spawnFakeEngine`(stdio 전송 + `watchChildLease` + `host.shutdown` 처리기 + 지연 가능한 종료 참여자를 가진 자식 진입점과 실행기), `serveConformanceHost`(적합성 케이스가 도는 최소 서버), `idleClock`(수동 시계와 `Scheduler`를 묶은 유휴 타이머 도우미, 서비스 모드 때 추가) | L4.host-service.plan, L4.desktop.plan(사이드카 시험), `L0.process.plan` |
 

@@ -1,7 +1,7 @@
 // M3-REQ-41, M3-REQ-40 (M3b B5-PERF). 탐구가 없는 턴마다 생기는 임대 부여·idle 반납의 비용(lease_turn_overhead, lease_records_per_turn),
 // tap 지점 핸들러 하나를 시간 예산 아래에서 실행할 때 더해지는 시간(dispatch_overhead_per_handler), 기본 예산 값(budget_default_<class>)을 잰다.
-// 실행(xeon/에서): bash ../scripts/guard.sh run -- bun packages/ext-host/test/bench/dispatch-lease.bench.ts
-// 출력은 scripts/bench-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 bench-server.ts와 bench-gate.ts가 한다.
+// 실행(fresnel/에서): bash ../scripts/guard.sh run -- bun packages/ext-host/test/benchmark/dispatch-lease.benchmark.ts
+// 출력은 scripts/benchmark-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 benchmark-server.ts와 benchmark-gate.ts가 한다.
 // 샘플 하나는 배치 평균(ms)이다. 배치는 호출을 여러 번 한 번에 부르고 나눈다. 빼는 기준은 기준 배치 평균들의 평균이고 음수도 그대로 낸다.
 // 턴은 t.boundary(thread).turnSettled()와 settled()의 한 쌍이다. 시험 호스트는 loop.turn을 실행하지 않으므로
 // 기록은 임대 부여·반납과 상태 커밋에서만 생긴다. 실제 턴의 모델 호출과 그 기록 비용은 이 값에 들지 않는다.
@@ -41,7 +41,7 @@ function range(count: number): number[] {
 }
 
 function mean(values: readonly number[]): number {
-  if (values.length === 0) throw new Bug("dispatch-lease bench: mean of an empty batch list");
+  if (values.length === 0) throw new Bug("dispatch-lease benchmark: mean of an empty batch list");
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
@@ -73,7 +73,7 @@ async function turnBatch(withDrive: boolean): Promise<TurnBatch> {
   let drives = 0;
   if (withDrive) {
     await t.host.install(
-      makeGroupUnit({ name: "bench-drive" }, (g) => {
+      makeGroupUnit({ name: "benchmark-drive" }, (g) => {
         g.drive(() => {
           drives += 1;
           return Promise.resolve();
@@ -158,7 +158,7 @@ async function measureLease(): Promise<void> {
 /** 디스패치 배치 하나의 핸들러 하나당 평균 시간(ms). budgeted가 참이면 OperationsPolicy(기본 예산) 경로다 */
 async function dispatchBatch(budgeted: boolean): Promise<number> {
   let handled = 0;
-  const unit = makeUnit({ name: "bench-tap", points: [TAP_HOOK] }, (g) => {
+  const unit = makeUnit({ name: "benchmark-tap", points: [TAP_HOOK] }, (g) => {
     g.on(TAP_HOOK, () => {
       handled += 1;
     });
@@ -168,10 +168,11 @@ async function dispatchBatch(budgeted: boolean): Promise<number> {
     // 조립 루트와 같은 순서: 정책을 만들고, 확장을 admit하고, 호스트에 정책을 꽂는다(harness.ts)
     const harness = await createOperationsHarness();
     const admitted = harness.policy.admit(
-      { name: "bench-tap", source: "user", trust: "user", essential: false },
+      { name: "benchmark-tap", source: "user", trust: "user", essential: false },
       "plugin",
     );
-    if (!admitted.ok) throw new Error(`dispatch-lease bench: admit failed: ${admitted.error.kind}`);
+    if (!admitted.ok)
+      throw new Error(`dispatch-lease benchmark: admit failed: ${admitted.error.kind}`);
     t = harness.t;
   } else {
     t = await createTestHost();
@@ -187,16 +188,17 @@ async function dispatchBatch(budgeted: boolean): Promise<number> {
     const outcome = await t.host.dispatch(
       TAP_HOOK,
       { turnId, aborted: false },
-      { threadId: thread, dispatchKey: `bench-${String(index)}` },
+      { threadId: thread, dispatchKey: `benchmark-${String(index)}` },
     );
     failures += outcome.failures.length;
     return "continue";
   });
   const elapsedMs = performance.now() - started;
-  if (failures !== 0) throw new Error(`dispatch-lease bench: ${String(failures)} handler failures`);
+  if (failures !== 0)
+    throw new Error(`dispatch-lease benchmark: ${String(failures)} handler failures`);
   if (handled !== DISPATCHES_PER_BATCH) {
     throw new Bug(
-      `dispatch-lease bench: ${String(handled)} handler calls for ${String(DISPATCHES_PER_BATCH)} dispatches`,
+      `dispatch-lease benchmark: ${String(handled)} handler calls for ${String(DISPATCHES_PER_BATCH)} dispatches`,
     );
   }
   return elapsedMs / DISPATCHES_PER_BATCH;

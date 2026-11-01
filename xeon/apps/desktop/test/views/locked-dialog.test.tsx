@@ -18,7 +18,7 @@ describe("LockedDialogView", () => {
         onClose={noop}
       />,
     );
-    expect(out).toContain("터미널(xeon CLI)");
+    expect(out).toContain("터미널(fresnel CLI)");
     expect(out).toContain("관찰만 하기");
     expect(out).toContain("분기해서 이어 쓰기");
     expect(out).not.toContain("위임");

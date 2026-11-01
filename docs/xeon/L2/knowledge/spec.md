@@ -1022,7 +1022,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.3.3 락과 원자 쓰기
 
-- 쓰기는 저장소별 락 안에서 한다. 프로세스 사이 배타 [결정: KN.1]: `fresnel.os`(`OsService`)는 파일 락 API를 제공하지 않는다(Hermes는 fcntl·msvcrt를 직접 쓰지만 Xeon은 OS 분기를 L0에 둔다, `eng.dependency-rules.guide` DR-13). 그래서 `KnowledgeFs.withLock`은 같은 프로세스 안의 키별 직렬화만 한다. 프로세스 사이는 두 장치가 맡는다: 한 데이터 디렉터리에 엔진 하나만 쓰는 임대(ADR-0006)와 락 안에서 하는 해시 재확인(§4.4.1 9단계). 바깥 편집기나 다른 도구가 그 사이에 쓰면 `base_stale`로 거부하고 원장 행을 `aborted`로 한다. L0.os에 파일 락 API가 생기면 `node-fs.ts`가 그것을 부른다(§10 미결 18).
+- 쓰기는 저장소별 락 안에서 한다. 프로세스 사이 배타 [결정: KN.1]: `fresnel.os`(`OsService`)는 파일 락 API를 제공하지 않는다(Hermes는 fcntl·msvcrt를 직접 쓰지만 Fresnel은 OS 분기를 L0에 둔다, `eng.dependency-rules.guide` DR-13). 그래서 `KnowledgeFs.withLock`은 같은 프로세스 안의 키별 직렬화만 한다. 프로세스 사이는 두 장치가 맡는다: 한 데이터 디렉터리에 엔진 하나만 쓰는 임대(ADR-0006)와 락 안에서 하는 해시 재확인(§4.4.1 9단계). 바깥 편집기나 다른 도구가 그 사이에 쓰면 `base_stale`로 거부하고 원장 행을 `aborted`로 한다. L0.os에 파일 락 API가 생기면 `node-fs.ts`가 그것을 부른다(§10 미결 18).
 - 같은 프로세스 안에서는 저장소별 메모리 뮤텍스로 먼저 직렬화한다.
 - 파일 쓰기는 같은 디렉터리의 임시 파일에 쓰고 fsync한 뒤 rename한다.
 - 스킬도 스킬 디렉터리별로 같은 방식의 락을 쓴다(Hermes 스킬별 락, `skill_manager_tool.py:84-106`).

@@ -13,7 +13,7 @@ import type {
   Message,
   ToolCall,
   ToolExecutionMode,
-  XeonCustomMessage,
+  FresnelCustomMessage,
 } from "../../src/conversation/index.ts";
 import type { Assignable, Equal, Expect } from "../types/expect.ts";
 
@@ -21,10 +21,10 @@ import type { Assignable, Equal, Expect } from "../types/expect.ts";
 
 type IsAny<T> = 0 extends 1 & T ? true : false;
 
-/** AgentMessage는 Message와 XeonCustomMessage의 닫힌 유니온이다(선언 병합 없음) */
-export type MessageUnion = Expect<Equal<AgentMessage, Message | XeonCustomMessage>>;
-export type CustomIsAgentMessage = Expect<Assignable<XeonCustomMessage, AgentMessage>>;
-export type CustomIsNotMessage = Expect<Equal<Assignable<XeonCustomMessage, Message>, false>>;
+/** AgentMessage는 Message와 FresnelCustomMessage의 닫힌 유니온이다(선언 병합 없음) */
+export type MessageUnion = Expect<Equal<AgentMessage, Message | FresnelCustomMessage>>;
+export type CustomIsAgentMessage = Expect<Assignable<FresnelCustomMessage, AgentMessage>>;
+export type CustomIsNotMessage = Expect<Equal<Assignable<FresnelCustomMessage, Message>, false>>;
 export type RolesAreClosed = Expect<
   Equal<AgentMessage["role"], "system" | "user" | "assistant" | "toolResult" | "custom">
 >;

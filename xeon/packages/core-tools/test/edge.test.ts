@@ -128,7 +128,7 @@ test("details and structuredContent over the event limit are replaced by their s
   const out = await callTool(h.runtime.tools, h.run(), { id: "call_1", name: "fat", args: {} });
   expect(out.isError).toBe(false);
   const text = JSON.stringify(h.session.events);
-  expect(text).toContain("xeonOversize");
+  expect(text).toContain("fresnelOversize");
   expect(text.length).toBeLessThan(10_000);
 });
 
@@ -234,7 +234,7 @@ test("a tool.call.before decision with terminate stops the batch", async () => {
   );
   expect(prepared.kind).toBe("settled");
   if (prepared.kind !== "settled") return;
-  expect(textOf(prepared.outcome.result)).toBe("[xeon:denied_by_extension] stop here");
+  expect(textOf(prepared.outcome.result)).toBe("[fresnel:denied_by_extension] stop here");
   expect(prepared.outcome.result.terminate).toBe(true);
   expect(prepared.outcome.state).toBe("rejected");
 });

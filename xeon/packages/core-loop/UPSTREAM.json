@@ -1,5 +1,5 @@
 {
-  "name": "pi-agent-core loop (Xeon own agent loop)",
+  "name": "pi-agent-core loop (Fresnel own agent loop)",
   "upstream": "https://github.com/earendil-works/pi",
   "package": "@earendil-works/pi-agent-core",
   "version": "1.3.0",

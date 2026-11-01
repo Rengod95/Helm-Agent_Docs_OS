@@ -1,9 +1,9 @@
 import type { Clock } from "@fresnel/contracts";
 
 // L2.web.spec §4.7. robots.txt(RFC 9309) 파서와 호스트별 24시간 메모리 캐시.
-// 4xx는 전부 허용, 5xx·연결 실패는 전부 금지로 본다(§2.3.1) [제안]. 사용자 에이전트 토큰은 `Xeon`이다.
+// 4xx는 전부 허용, 5xx·연결 실패는 전부 금지로 본다(§2.3.1) [제안]. 사용자 에이전트 토큰은 `Fresnel`이다.
 
-export const ROBOTS_USER_AGENT_TOKEN: string = "Xeon";
+export const ROBOTS_USER_AGENT_TOKEN: string = "Fresnel";
 const ROBOTS_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface RobotsRule {

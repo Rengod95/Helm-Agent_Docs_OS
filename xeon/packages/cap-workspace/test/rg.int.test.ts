@@ -14,7 +14,7 @@ const RG = Bun.which("rg");
 const dirs: string[] = [];
 
 function tempRoot(): string {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "xeon-rg-int-")));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "fresnel-rg-int-")));
   dirs.push(dir);
   return dir;
 }

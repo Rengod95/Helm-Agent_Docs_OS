@@ -83,7 +83,7 @@ describe("답 검증", () => {
     const ok: AskAnswer = {
       answers: [
         { questionId: "scope", selected: ["small"], text: null },
-        { questionId: "name", selected: [], text: "xeon" },
+        { questionId: "name", selected: [], text: "fresnel" },
       ],
     };
     expect(issuesOf([SCOPE, NAME], ok)).toEqual([]);
@@ -115,7 +115,7 @@ describe("답 검증", () => {
     const good = {
       answers: [
         { questionId: "scope", selected: ["small"], text: null },
-        { questionId: "name", selected: [], text: "xeon" },
+        { questionId: "name", selected: [], text: "fresnel" },
       ],
     };
     expect(Value.Check(schema, good)).toBe(true);
@@ -123,7 +123,7 @@ describe("답 검증", () => {
       Value.Check(schema, {
         answers: [
           { questionId: "scope", selected: ["huge"], text: null },
-          { questionId: "name", selected: [], text: "xeon" },
+          { questionId: "name", selected: [], text: "fresnel" },
         ],
       }),
     ).toBe(false);
@@ -159,7 +159,7 @@ describe("L1.tools 승인 레코드와의 변환", () => {
     const answer: AskAnswer = {
       answers: [
         { questionId: "scope", selected: ["small"], text: null },
-        { questionId: "name", selected: [], text: "xeon" },
+        { questionId: "name", selected: [], text: "fresnel" },
       ],
     };
     expect(parse(QuestionAnswerSchema, toQuestionAnswer(answer)).ok).toBe(true);
@@ -175,13 +175,13 @@ describe("L1.tools 승인 레코드와의 변환", () => {
     const answer: AskAnswer = {
       answers: [
         { questionId: "scope", selected: ["small"], text: null },
-        { questionId: "name", selected: [], text: "xeon" },
+        { questionId: "name", selected: [], text: "fresnel" },
       ],
     };
     const record = toQuestionAnswer(answer);
     expect(record).toEqual({
       scope: { selected: ["small"] },
-      name: { selected: [], text: "xeon" },
+      name: { selected: [], text: "fresnel" },
     });
     expect(fromQuestionAnswer(record, [SCOPE, NAME])).toEqual(answer);
   });

@@ -21,7 +21,7 @@ export interface AtomicWriteOptions {
 }
 
 /** 임시 파일 이름의 접두. 죽은 쓰기가 남긴 파일을 알아보는 표지 */
-const ATOMIC_TEMP_MARK = ".xeon-tmp-";
+const ATOMIC_TEMP_MARK = ".fresnel-tmp-";
 
 function splitName(path: string): { readonly dir: string; readonly name: string } {
   const cut = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));

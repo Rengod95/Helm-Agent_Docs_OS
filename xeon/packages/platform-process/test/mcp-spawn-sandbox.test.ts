@@ -45,7 +45,7 @@ afterEach(async () => {
 });
 
 function tempDirOf(): string {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-mcp-sb-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-mcp-sb-"));
   dirs.push(dir);
   return dir;
 }

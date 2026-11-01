@@ -23,7 +23,7 @@ function isExtensionKind(kind: string): boolean {
  * 재생 때 투영기에 넘길 envelope(L1.persistence.spec §4.12):
  * - 등록되지 않은 확장 kind는 업캐스트할 수 없으므로 원본을 그대로 넘긴다. 코어 투영기는 그 이벤트의 payload를 읽지 않고
  *   head와 leaf만 올린다. 확장을 다시 설치하면 그 확장 투영기만 다시 만든다.
- * - 코어 kind를 모르거나 카탈로그보다 높은 version이면(더 새 Xeon이 쓴 이벤트) 투영하지 않고 건너뛴다. 그 thread는
+ * - 코어 kind를 모르거나 카탈로그보다 높은 version이면(더 새 Fresnel이 쓴 이벤트) 투영하지 않고 건너뛴다. 그 thread는
  *   쓰기 모드로 열 수 없고(read_only), 다른 thread의 시작을 막아서는 안 된다.
  * - 업캐스터가 빠진 경우는 코드 결함이다
  */

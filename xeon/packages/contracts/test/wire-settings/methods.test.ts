@@ -98,7 +98,7 @@ describe("M1 method schemas", () => {
     const { params, result } = WIRE_METHODS["host.hello"];
     const hello = {
       protocolVersion: WIRE_PROTOCOL_VERSION,
-      client: { name: "xeon-cli", version: "0.0.0", kind: "cli" },
+      client: { name: "fresnel-cli", version: "0.0.0", kind: "cli" },
     };
     expect(parse(params, hello).ok).toBe(true);
     expect(
@@ -108,7 +108,7 @@ describe("M1 method schemas", () => {
     expect(parse(params, { ...hello, protocolVersion: "1" }).ok).toBe(false);
     const answer = {
       protocolVersion: WIRE_PROTOCOL_VERSION,
-      server: { name: "xeon-host", version: "0.0.0" },
+      server: { name: "fresnel-host", version: "0.0.0" },
       storeId: STORE,
       transport: "in-process",
       features: [{ name: "turn.start", status: "active", since: "0.1.0" }],

@@ -386,7 +386,7 @@ export async function compactThread(
   }
 
   const details: JsonValue = {
-    xeon: { reason: request.reason, stepId: request.stepId ?? null },
+    fresnel: { reason: request.reason, stepId: request.stepId ?? null },
     readFiles: [...files.readFiles],
     modifiedFiles: [...files.modifiedFiles],
     ...(extraDetails === null ? {} : { extension: extraDetails }),
@@ -507,8 +507,8 @@ export function hasCompactionFor(
     if (entry?.type !== "compacted") return false;
     const details = entry.payload.details;
     if (!isJsonObject(details)) return false;
-    const xeon = details["xeon"];
-    if (!isJsonObject(xeon)) return false;
-    return xeon["reason"] === reason && xeon["stepId"] === stepId;
+    const fresnel = details["fresnel"];
+    if (!isJsonObject(fresnel)) return false;
+    return fresnel["reason"] === reason && fresnel["stepId"] === stepId;
   });
 }

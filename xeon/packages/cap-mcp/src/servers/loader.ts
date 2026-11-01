@@ -32,7 +32,7 @@ const McpJsonEntrySchema = Type.Object({
   headers: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
-export type McpJsonOrigin = "root" | "xeon";
+export type McpJsonOrigin = "root" | "fresnel";
 
 export interface McpJsonResult {
   readonly servers: readonly ServerDefinition[];
@@ -103,7 +103,7 @@ export function parseMcpJson(
   origin: McpJsonOrigin,
   taken: ReadonlySet<string>,
 ): Result<McpJsonResult, McpJsonParseError> {
-  const source = origin === "root" ? "mcpjson:project" : "mcpjson:xeon";
+  const source = origin === "root" ? "mcpjson:project" : "mcpjson:fresnel";
   const json = parseJson(text);
   if (!json.ok) return err({ kind: "invalid_json" });
   const file = parse(McpJsonFileSchema, json.value);

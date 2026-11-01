@@ -881,7 +881,7 @@ CREATE TABLE thread_creation_keys (
 
 ```ts
 // xeon/packages/core-persistence/src/export-jsonl.ts  (2차)
-export type ExportFormat = "pi-jsonl" | "xeon-jsonl";
+export type ExportFormat = "pi-jsonl" | "fresnel-jsonl";
 export interface ExportOptions {
   readonly format: ExportFormat;
   /** 생략하면 활성 가지만. "all"이면 모든 가지 */
@@ -951,7 +951,7 @@ export interface RewindPlan {
 | X1 취소 의도 | `turn.abort_requested` | `abort:<turnId>` | 아니오 | `L1.tasks.spec` §4.2 |
 | C7 컴팩션 | `thread.compacted` + 새 접두 system `item.recorded` | `compact:<threadId>:<stepId>:<reason>` | 아니오 | `L1.context.spec` §4.6 5번 |
 
-- [제안] 컴팩션은 별도 커밋 지점 C7이다. 임계·수동 컴팩션(단계 사이)과 오버플로우 복구 컴팩션(단계 중간, 같은 단계 재요청 전, `L1.context.spec` §4.7)이 같은 지점을 쓴다. C5 `build` 안에 넣지 않는 이유는 오버플로우 복구가 단계 끝 전에 일어나 C5에 합칠 수 없고, 두 경로를 한 방식으로 두어야 크래시 뒤 상태가 하나로 정해지기 때문이다(§4.14). 키의 `stepId`는 같은 커밋의 `thread.compacted.details.xeon.stepId`이고 `L1.context.spec`의 `second_overflow` 판정과 같은 값이다. `stepId`가 없는 수동 컴팩션(유휴 thread)은 그 자리에 직전 leaf 이벤트 id를 쓴다. C7은 체크포인트를 쓰지 않는다. 이름을 K1로 두지 않은 이유는 K1~K6이 §4.14의 종료 지점 이름이기 때문이다.
+- [제안] 컴팩션은 별도 커밋 지점 C7이다. 임계·수동 컴팩션(단계 사이)과 오버플로우 복구 컴팩션(단계 중간, 같은 단계 재요청 전, `L1.context.spec` §4.7)이 같은 지점을 쓴다. C5 `build` 안에 넣지 않는 이유는 오버플로우 복구가 단계 끝 전에 일어나 C5에 합칠 수 없고, 두 경로를 한 방식으로 두어야 크래시 뒤 상태가 하나로 정해지기 때문이다(§4.14). 키의 `stepId`는 같은 커밋의 `thread.compacted.details.fresnel.stepId`이고 `L1.context.spec`의 `second_overflow` 판정과 같은 값이다. `stepId`가 없는 수동 컴팩션(유휴 thread)은 그 자리에 직전 leaf 이벤트 id를 쓴다. C7은 체크포인트를 쓰지 않는다. 이름을 K1로 두지 않은 이유는 K1~K6이 §4.14의 종료 지점 이름이기 때문이다.
 - [제안] 체크포인트는 단계 경계(C5)와 승인 대기(A1)에만 쓴다. `F.records.spec` §3.6은 "단계 경계마다 `step.completed`와 같은 커밋"으로 정했고, A1은 단계 중간이므로 `step.completed` 없이 체크포인트를 쓴다. 그래서 A1은 §4.1 8단계의 `store.checkpoint_without_step` 검사에서 예외다(`next: "await_input"`이고 `pendingToolCalls`에 `waiting: "approval"`이 있을 때. `next: "tools"`는 C3의 도구 단계 체크포인트라 이 예외가 아니다, review.open-issues D-06). 이 예외를 F에 적도록 요청한다(FR-P4).
 - C2에 체크포인트를 두지 않는 이유: turn 시작 직후 크래시는 마지막 체크포인트(이전 turn의 C5, 없으면 없음)와 그 뒤 이벤트로 복원된다. `next: "request"`는 리듀서가 `turn.started` 뒤 이벤트에서 얻는다.
 - 도구별 커밋(E1 의도, E2 실행 시작, E3 결과)은 ADR-0004 §3.2 3번의 보충이다. 단계당 커밋 수는 `3 + 3n`이다 [결정: review.decisions-2 U-10].
@@ -1031,7 +1031,7 @@ export interface RewindPlan {
 - 재생성: `DROP TABLE` → `ddl` 실행 → `events`를 seq 순으로 5,000행씩 읽어 업캐스트 후 `kinds`가 맞는 이벤트만 apply → `projector_state` 갱신. 한 트랜잭션이다.
 - [제안] 이벤트가 많으면 청크 재생성으로 바꾼다. 청크마다 별도 트랜잭션이고 커서를 `projector_state.rebuild_cursor`에 같은 트랜잭션으로 저장한다(`F.records.spec` §3.7 규칙 6 `ChunkMigration`). 청크 재생성 중인 투영기가 있는 thread는 쓰기 모드로 열지 않는다(`read_only`, `core_projection_stale`). 기준은 이벤트 10만 건 [가정].
 - 재생성은 투영 버전이 오를 때와 투영기를 새로 등록할 때만 한다. 열 때마다 하지 않는다. 정지한 확장 투영기는 예외입니다. 다음 쓰기 열기가 다시 만듭니다(§4.5.2).
-- 불일치 검출: 테스트 도우미 `expectProjectionsRebuildable(session)`(`@fresnel/core-persistence/testing`)가 메모리 DB에 같은 DDL로 테이블을 만들고 이벤트를 재생한 뒤, 운영 테이블과 기본 키 정렬 행 해시를 비교한다. 모든 투영 테스트 끝에 부른다. 운영 명령 `xeon debug verify-projections`는 2차다.
+- 불일치 검출: 테스트 도우미 `expectProjectionsRebuildable(session)`(`@fresnel/core-persistence/testing`)가 메모리 DB에 같은 DDL로 테이블을 만들고 이벤트를 재생한 뒤, 운영 테이블과 기본 키 정렬 행 해시를 비교한다. 모든 투영 테스트 끝에 부른다. 운영 명령 `fresnel debug verify-projections`는 2차다.
 - 재전송 검사(`replay_diverged`): seq를 저장소가 매기므로 일반 커밋에서는 같은 seq를 두 번 쓰지 않는다. 2차 `SessionStore` 어댑터의 가져오기 경로처럼 seq가 정해진 이벤트를 넣을 때만, 같은 seq의 기존 행과 정규화 envelope 바이트를 비교해 다르면 `Bug("store.replay_diverged")`다(opencode v2 "Replay diverged", adr.0004 §3.2 8번).
 
 ### 4.6 커밋 뒤 방출
@@ -1164,7 +1164,7 @@ export interface RewindPlan {
 
 - `fork(threadId, at, newThreadId)`: `at`이 있으면 `query.itemEvent(threadId, at)`, 없으면 현재 leaf를 출처 이벤트로 쓴다. 출처가 활성 가지에 없으면 `invalid_target{not_on_branch}`, item이 없으면 `item_not_found`다. `thread.fork.before`의 `itemId`는 `at`, 없으면 활성 가지의 마지막 item이다(`position: "at"`). 쓰기 소유자가 아니어도(관찰 열기) 새 thread를 만들 수 있다. 새 thread에는 출처의 제목과 workspace를 옮긴다. 새 thread의 소유 잠금은 호출한 호스트가 얻는다.
 - 커밋 전 `thread.fork.before`(first)를 발화하고, 거부면 `cancelled_by_extension`이다.
-- 새 thread의 첫 이벤트 `thread.started { title, forkedFrom: { threadId, eventId } }`를 커밋한다. 출처 이벤트를 복사하지 않는다. 컨텍스트 조립은 출처 thread의 `eventId`까지 활성 사슬을 앞에 잇는다(`eng.events.design` §6) [제안]. pi durable `session/forks.ts`(97줄)는 대화 문서를 fork 시점(`asOf`)과 현재(`current`) 정책으로 복사한다. Xeon의 문서 대응물은 scope 상태 이벤트이므로, 새 thread의 scope 상태는 X가 출처 thread의 `x|grp.<name>.state.committed`를 `at` 시점으로 읽어 새 thread에 다시 커밋한다 [가정: X.primitives.spec이 정한다].
+- 새 thread의 첫 이벤트 `thread.started { title, forkedFrom: { threadId, eventId } }`를 커밋한다. 출처 이벤트를 복사하지 않는다. 컨텍스트 조립은 출처 thread의 `eventId`까지 활성 사슬을 앞에 잇는다(`eng.events.design` §6) [제안]. pi durable `session/forks.ts`(97줄)는 대화 문서를 fork 시점(`asOf`)과 현재(`current`) 정책으로 복사한다. Fresnel의 문서 대응물은 scope 상태 이벤트이므로, 새 thread의 scope 상태는 X가 출처 thread의 `x|grp.<name>.state.committed`를 `at` 시점으로 읽어 새 thread에 다시 커밋한다 [가정: X.primitives.spec이 정한다].
 - fork 연속성 [결정: m2c G2-11]: 새 thread의 첫 이벤트 `thread.started`의 `parentId`는 출처 이벤트(`forkedFrom.eventId`)다. 활성 가지는 leaf에서 `parentId`를 따라 올라간 사슬이므로 fork thread의 `readBranch`, `query.branchItems`, `branchItemRecords`가 출처 thread의 fork 지점까지의 이벤트와 item을 같은 `itemId`로 잇는다. 출처가 다시 fork이면 사슬을 거슬러 올라간다. 이벤트를 복사하지 않고, 출처에 fork 뒤에 쓰인 이벤트는 사슬에 없다. 이벤트 읽기(`readFrom`/`subscribe`)와 `query.thread`, `p_items`는 이 thread의 것만 다룬다. 출처 쪽 item은 이 thread에서 `itemEvent`로 찾을 수 없어(`p_items`가 thread별이다) 되감기·fork·`moveLeaf`의 대상이 아니다. 출처 thread를 지우려면 fork가 없어야 한다(`has_forks`).
 - 커밋 뒤 `session_start{ reason: "fork", previousThreadId: threadId }`를 새 thread에 발화한다.
 
@@ -1266,7 +1266,7 @@ export interface RewindPlan {
 - [결정] 세션을 JSONL로 내보내는 명령을 둔다(adr.0004 §3.2 7번). 명령 이름은 `L4.cli.spec`이 정한다.
 - [제안] 기본 형식 `pi-jsonl`은 pi 세션 JSONL v3(`coding-agent/src/core/session-manager.ts:41` `CURRENT_SESSION_VERSION = 3`)과 호환을 목표로 한다. 대응:
 
-| Xeon | pi 엔트리(`session-manager.ts:43-195`) |
+| Fresnel | pi 엔트리(`session-manager.ts:43-195`) |
 |---|---|
 | `thread.started` | 첫 줄 `{ type: "session", version: 3, id, timestamp, cwd, parentSession? }`. `cwd`는 workspace, `parentSession`은 `forkedFrom.threadId` |
 | user·assistant·toolResult·system `item.recorded` | `{ type: "message", id, parentId, timestamp, message }` |
@@ -1276,12 +1276,12 @@ export interface RewindPlan {
 | `thread.updated{title}` | `{ type: "session_info", name }` |
 | `settings.changed`(모델, 추론 수준) | `model_change`, `thinking_level_change` |
 | 확장 kind(`x.*`, `grp.*`) | `{ type: "custom", customType: kind, data: payload }` |
-| `effect.*`, `checkpoint.step`, `input.*`, `approval.*`, `scope.*`, `lease.*` | 내보내지 않는다(pi에 대응 엔트리 없음). `xeon-jsonl`에만 싣는다 |
+| `effect.*`, `checkpoint.step`, `input.*`, `approval.*`, `scope.*`, `lease.*` | 내보내지 않는다(pi에 대응 엔트리 없음). `fresnel-jsonl`에만 싣는다 |
 
 - 엔트리 `id`·`parentId`는 내보내는 엔트리끼리의 사슬로 다시 잇는다. 내보내지 않는 이벤트를 건너뛰면 다음 엔트리의 `parentId`는 내보낸 가장 가까운 조상이다. `timestamp`는 `recordedAt`의 ISO 문자열이다.
-- `xeon-jsonl`은 업캐스트한 envelope를 seq 순서로 줄마다 쓴다. 디버깅용이다.
+- `fresnel-jsonl`은 업캐스트한 envelope를 seq 순서로 줄마다 쓴다. 디버깅용이다.
 - 내보내기 전 민감 정보 경고 확인 단계를 둔다(`_research/settings.md` §2.8). 비밀은 기록 규칙상 참조만 있다(`F.records.spec` §3.3).
-- 가져오기(`/import`, pi JSONL → Xeon thread) 지원 여부는 [미결]이다.
+- 가져오기(`/import`, pi JSONL → Fresnel thread) 지원 여부는 [미결]이다.
 
 ### 4.14 종료 지점과 재시작 불변식
 
@@ -1339,11 +1339,11 @@ export interface RewindPlan {
 | `l1.persistence.retention.maxCount` | integer | `0` | min 0, max 100000 | `live` | `managed`, `user` | `number` | M2 | thread 수 상한. 넘으면 오래된 것부터 지운다. 0이면 상한 없음 |
 | `l1.persistence.autoResume` | boolean | `false` | - | `restart` | `managed`, `user` | `toggle` | M3 | 서비스 모드에서 열 때 표식이 남은 thread를 자동 재개한다 |
 | `l1.persistence.maxResumeAttempts` | integer | `3` | min 1, max 20 | `live` | `managed`, `user` | `number`, unit "회" | M1 | 한 turn의 재개 시도 상한(수동·자동 공통) |
-| `l1.persistence.export.format` | string | `"pi-jsonl"` | enum `pi-jsonl`, `xeon-jsonl` | `live` | `managed`, `user`, `session` | `select` | 2차 | 내보내기 기본 형식 |
+| `l1.persistence.export.format` | string | `"pi-jsonl"` | enum `pi-jsonl`, `fresnel-jsonl` | `live` | `managed`, `user`, `session` | `select` | 2차 | 내보내기 기본 형식 |
 
 - 보관 정리 규칙 [제안]: 정리는 엔진 열기 때 한 번 돈다(조립 루트가 F 계약 `SessionService.retention`(`SessionRetention`)의 `prune()`을 부른다. `createSessionService`가 돌려주는 `SessionService`가 `retention`을 필수 멤버로 갖고, `RetentionApi`는 `SessionRetention`의 별칭이다. 구현 전용 타입을 따로 두지 않는다 [결정: 통합 검토 L3]. `preview()`는 지우지 않고 대상만 돌려준다). 기간(`maxAgeDays`)에 걸린 것을 먼저 고르고, 남은 수가 `maxCount`를 넘으면 오래된 것부터 더 고른다. 한 라운드에서 포크가 지워져도 그 원본은 계획 때 포크가 가리키고 있었으므로 다음 라운드에 지운다. 대상에서 빼는 것: 표식이 남은 thread, 열린 turn이 있는 thread, 다른 thread가 포크로 가리키는 thread, 지금 쓰기 소유 중인 thread. 화면은 삭제 대상 수 미리보기와 복구 불가 경고를 보인다(`_research/settings.md` §2.8). 삭제는 `threads.remove`와 같은 경로다.
 - 자동 재개 키는 `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts` 둘만 둔다. L0.process·L4.host-service는 자기 자동 재개 키를 두지 않고 이 두 키를 읽는다 [결정: review.decisions-2 S-03].
-- 화면: `sessions` 탭 "세션과 컨텍스트". 명령: `xeon config get/set/reset l1.persistence.<이름>`(`L4.cli.spec`). 파일: 사용자·관리 설정 파일.
+- 화면: `sessions` 탭 "세션과 컨텍스트". 명령: `fresnel config get/set/reset l1.persistence.<이름>`(`L4.cli.spec`). 파일: 사용자·관리 설정 파일.
 
 ### 6.2 세션 범위 값과 설정 파일
 
@@ -1381,7 +1381,7 @@ export type SessionSettingsError =
 |---|---|---|---|---|
 | 30 | `thread.start` | tap | `create`(`new`), `openForWrite`(`startup`, 재개 후보면 `resume`), `fork` 새 thread(`fork`), 엔진 재적재(`reload`). 커밋과 복구 뒤 | 기록 후 계속 |
 | 31 | `thread.info.after` | tap(detached) | `setTitle` 커밋 뒤 | 기다리지 않음 |
-| 32 | `thread.switch.before` | first | `prepareSwitch`, 커밋 없음 | 거부면 `cancelled_by_extension`. 예외도 거부(Xeon fail-closed) |
+| 32 | `thread.switch.before` | first | `prepareSwitch`, 커밋 없음 | 거부면 `cancelled_by_extension`. 예외도 거부(Fresnel fail-closed) |
 | 33 | `thread.fork.before` | first | `fork` 커밋 전, 트랜잭션 밖 | 거부면 fork 안 함 |
 | 37 | `thread.tree.before` | first | `moveLeaf`, `revert` 커밋 전 | 거부면 이동 안 함. 결정이 요약을 주면 `summary`로 쓴다 [가정: `SessionBeforeTreeDecision` 필드는 F가 정한다, pi `types.ts:833/1488`] |
 | 38 | `thread.tree.after` | tap | `moveLeaf`, `revert` 커밋 뒤 | 기록 후 계속 |
@@ -1514,7 +1514,7 @@ export type SessionSettingsError =
 10. [미결] `LifecycleError`를 wire 오류로 옮길 kind(FR-P6)와 thread 종결(`thread.closed`)을 wire로 노출할지.
 11. [미결] 등록 해제된 확장 kind를 투영 재생에서 건너뛰는 제안(§4.12)을 `F.records.spec` §10 미결 5의 답으로 받을지.
 12. [미결] blob GC 뿌리 집합을 L0.store에 넘기는 경로(§4.11).
-13. [미결] JSONL 가져오기(pi JSONL → Xeon thread) 지원 여부(§4.13.3).
+13. [미결] JSONL 가져오기(pi JSONL → Fresnel thread) 지원 여부(§4.13.3).
 14. (닫음) `ext` 하위 객체 방식(§3.3). `F.extensions.spec` §3.2.1 `PortKey.member`로 `fresnel.session`의 `ext`를 꺼낸다. `RecordCommitPort` 타입 위치는 F(`F.records.spec` §3.9 `session-service.ts`, `F.extensions.spec` §3.2.1이 다시 export)다.
 15. [미결] 청크 재생성으로 바꾸는 기준 이벤트 수(10만 건 [가정])와 재생성 중 쓰기 거부가 사용자에게 주는 지연.
 16. (닫음, M3-REQ-36) [결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영기 예외 뒤 복구는 저장소가 투영기를 정지하고 같은 계획으로 커밋을 다시 내는 방식입니다(§4.5.2). X는 알림으로 자동 끄기 판정만 합니다(`X.operations.spec` §10 미결 6 해소). 세션을 읽기 전용으로 여는 방식은 채택하지 않습니다.

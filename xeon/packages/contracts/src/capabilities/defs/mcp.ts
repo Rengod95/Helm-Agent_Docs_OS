@@ -286,7 +286,7 @@ export const McpInputRequiredSchema: TUnsafe<McpInputRequired> = Type.Unsafe<Mcp
   inputRequiredShape satisfies SchemaProof<McpInputRequired, typeof inputRequiredShape>,
 );
 
-/** 서버 결과 내용을 Xeon 쪽 모양으로 바꾼 것. 이미지는 blob으로 옮긴다 */
+/** 서버 결과 내용을 Fresnel 쪽 모양으로 바꾼 것. 이미지는 blob으로 옮긴다 */
 type McpBlob = Static<typeof ImageBlobRefSchema>;
 export type McpContent =
   | { type: "text"; text: string }
@@ -331,7 +331,7 @@ export type McpToolInfo = {
   server: string;
   /** 서버가 광고한 원래 이름 */
   name: string;
-  /** Xeon 기계 이름(§3.3). 노출하지 않는 도구는 null */
+  /** Fresnel 기계 이름(§3.3). 노출하지 않는 도구는 null */
   machineName: string | null;
   title?: string;
   description?: string;

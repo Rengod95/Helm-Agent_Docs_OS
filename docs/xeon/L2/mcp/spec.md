@@ -16,7 +16,7 @@ binds: [xeon/packages/cap-mcp/**]
 
 ### 1.1 정하는 것
 
-- MCP 브리지: 서버 연결, 서버 도구·프롬프트·리소스를 Xeon 도구와 서비스로 노출(`_research/layer-plan-v2.json` L2-b "MCP 브리지").
+- MCP 브리지: 서버 연결, 서버 도구·프롬프트·리소스를 Fresnel 도구와 서비스로 노출(`_research/layer-plan-v2.json` L2-b "MCP 브리지").
 - 능력 `mcp.client`의 정의(서비스 메서드와 관리용 정적 도구).
 - 서버 도구의 동적 광고(X 리소스 등록), 순서 키, annotations → `ToolHints` 대응.
 - 서버 정의: 사용자·프로젝트 범위, 전송(stdio, Streamable HTTP, SSE), 비밀 참조, 허용·차단·도구별 승인.
@@ -35,7 +35,7 @@ binds: [xeon/packages/cap-mcp/**]
 | 동적 도구 등록 API(리소스 등록), 확장 켜기·끄기 | `X.primitives.spec`, `F.extensions.spec` §4.5 |
 | MCP 프롬프트를 슬래시 명령으로 보이는 일 | `L2.dialog.spec`(`dialog.commands`). `cap-mcp`가 `dialog.commands`에 등록하는 선택 의존은 `L2.readme` §6 표의 [미결] 간선이다(`L2.readme` §10 미결 16). 넣지 않으면 L4 클라이언트가 등록한다 |
 | 서버 목록·연결 상태 화면, OAuth 브라우저 열기 | `L4.settings-ui.spec`, `L4.desktop.spec`, `L4.cli.spec` |
-| MCP 서버 모드(Xeon을 MCP 서버로 노출) | 범위 밖 |
+| MCP 서버 모드(Fresnel을 MCP 서버로 노출) | 범위 밖 |
 
 ### 1.3 SDK 결정
 
@@ -198,7 +198,7 @@ const ImageBlob = Type.Object({   // F.records.spec §3.4 BlobRef와 같은 모�
   size: Type.Integer({ minimum: 0 }), mediaType: Type.Union([Type.String(), Type.Null()]),
 });
 
-/** 서버 결과 내용을 Xeon 쪽 모양으로 바꾼 것. 이미지는 blob으로 옮긴다 */
+/** 서버 결과 내용을 Fresnel 쪽 모양으로 바꾼 것. 이미지는 blob으로 옮긴다 */
 export const McpContentSchema = Type.Union([
   Type.Object({ type: Type.Literal("text"), text: Type.String() }),
   Type.Object({ type: Type.Literal("image"), blob: ImageBlob, mimeType: Type.String() }),
@@ -212,7 +212,7 @@ export const McpToolInfoSchema = Type.Object({
   server: McpServerIdSchema,
   /** 서버가 광고한 원래 이름 */
   name: Type.String(),
-  /** Xeon 기계 이름(§3.3). 노출하지 않는 도구는 null */
+  /** Fresnel 기계 이름(§3.3). 노출하지 않는 도구는 null */
   machineName: Type.Union([Type.String(), Type.Null()]),
   title: Type.Optional(Type.String()),
   description: Type.Optional(Type.String()),
@@ -529,7 +529,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
    - 이름 변환: 소문자로 바꾸고 `[a-z0-9-]` 밖 문자를 `-`로 바꾸고 32자로 자른다. 결과가 형식에 맞지 않거나 1번 목록의 id와 겹치면 그 항목을 건너뛰고 진단을 남긴다.
    - `type` 생략 + `command` 있음 → `stdio`, `type: "http"`·`"streamable-http"` → `http`, `type: "sse"` → `sse`.
    - [결정: M3-REQ-97] `env`·`headers` 값은 `secret://` 참조이거나 평문이다. 평문은 허용하되 이름이 비밀처럼 보이면 그 서버를 건너뛰고 `plaintext_secret` 진단(값 없음)을 남긴다. 이름은 `_`·`-`·대소문자 경계로 낱말을 나눠 `KEY`, `APIKEY`, `TOKEN`, `SECRET`(S), `PASSWORD`, `PASSWD`, `PWD`, `CREDENTIAL`(S), `AUTH`, `AUTHORIZATION`, `COOKIE`, `BEARER` 중 하나가 있으면 비밀 이름이다(`MAX_TOKENS`, `KEYBOARD`는 아니다). `secret://`로 시작하는데 참조 형식이 아닌 값은 `invalid_definition`이다(오타가 평문으로 나가지 않게 한다). 같은 검사를 설정 `l2.mcp.servers`와 `registerServer`에도 한다.
-   - 출처는 루트 `.mcp.json`이 `mcpjson:project`, `.fresnel/mcp.json`이 `mcpjson:xeon`이다. 같은 id가 있으면 설정이 이기고, 두 파일 사이에서는 `.fresnel/mcp.json`이 이긴다.
+   - 출처는 루트 `.mcp.json`이 `mcpjson:project`, `.fresnel/mcp.json`이 `mcpjson:fresnel`이다. 같은 id가 있으면 설정이 이기고, 두 파일 사이에서는 `.fresnel/mcp.json`이 이긴다.
    - 확장이 `registerServer`로 등록한 서버(§3.2 `fresnel.mcp` 등록)를 더한다. 출처는 `ext:<확장 이름>`이고, 설정·`.mcp.json`의 id와 겹치는 등록은 등록 시점에 거부되었으므로 여기서 다시 겹치지 않는다.
 3. 허용·차단(§4.4)을 적용해 `blocked` 서버를 표시한다.
 4. 변경 반영: 설정이나 `.mcp.json`이 바뀌면 다음 단계 경계에서 차이(추가·삭제·변경된 서버)만 연결·해제한다. 정의가 바뀐 서버는 다시 연결한다.
@@ -655,7 +655,7 @@ sequenceDiagram
 
 ### 4.12 2차: OAuth
 
-- SDK `OAuthClientProvider`를 구현한 `XeonOAuthProvider`를 둔다 [제안]. 토큰, 클라이언트 정보, code verifier, 인가 서버 URL은 `fresnel.secrets`에 저장한다. 서버별로 발급자(`iss`) 단위 키를 쓴다(발급자 혼동 방지, `_research/item-catalog.md` L2 MCP OAuth 행).
+- SDK `OAuthClientProvider`를 구현한 `FresnelOAuthProvider`를 둔다 [제안]. 토큰, 클라이언트 정보, code verifier, 인가 서버 URL은 `fresnel.secrets`에 저장한다. 서버별로 발급자(`iss`) 단위 키를 쓴다(발급자 혼동 방지, `_research/item-catalog.md` L2 MCP OAuth 행).
 - 흐름: `auth(provider, options)`가 `"REDIRECT"`면 `redirectToAuthorization(url)`에서 L4가 브라우저를 연다. 콜백을 받으면 `finishAuth(code, iss)`를 부른다(API 이름은 `_research/notes/L2-1.md` §7). `iss` 검증은 `validateAuthorizationResponseIssuer`를 쓴다(판정 세부 [가정]).
 - 등록: 2026 사양에서 CIMD(`clientMetadataUrl`)가 권장이고 DCR은 deprecated다. CIMD 동작 세부는 확인하지 않은 [가정]이다(`_research/notes/L2-1.md` §7).
 - 콜백 수신: 루프백 포트 하나를 열지, 데스크톱 앱의 커스텀 스킴을 쓸지는 L4가 정한다(`L2.mcp.plan` 위험 표).

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-/** docs/xeon 아래 문서를 읽는다. 문서는 xeon 워크스페이스의 형제 디렉터리(code/helm/docs)에 있다 */
+/** docs/xeon 아래 문서를 읽는다. 문서는 fresnel 워크스페이스의 형제 디렉터리(code/helm/docs)에 있다 */
 export async function readDoc(relative: string): Promise<string> {
   const path = join(import.meta.dir, "../../../../..", "docs/xeon", relative);
   return Bun.file(path).text();

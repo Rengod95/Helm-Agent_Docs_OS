@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { BUDGET_MS, formatRow, isStreamChunk, judgeBudget, planBench, stats } from "./bench.ts";
+import { BUDGET_MS, formatRow, isStreamChunk, judgeBudget, planBench, stats } from "./benchmark.ts";
 
 test("stats gives min, median, p90 and max of the samples", () => {
   expect(stats([30, 10, 20, 50, 40])).toEqual({ runs: 5, min: 10, median: 30, p90: 50, max: 50 });

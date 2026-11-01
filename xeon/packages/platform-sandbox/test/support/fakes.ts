@@ -38,7 +38,7 @@ export interface TestDirs extends OsDirs {
 
 /** 실제 임시 디렉터리 아래에 home, data, config, tmp, workspace를 만든다. 경로는 모두 realpath다 */
 export function makeTestDirs(): TestDirs {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "xeon-sandbox-test-")));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "fresnel-sandbox-test-")));
   const dirs = {
     root,
     home: join(root, "home"),
@@ -301,7 +301,7 @@ export function selfTestShell(fail: ReadonlySet<SelfTestItemId> = new Set()): Re
     if (touched?.[1] !== undefined) {
       const path = touched[1];
       if (path.includes("/selftest/")) {
-        if (fail.has("xeon_data_write_denied")) {
+        if (fail.has("fresnel_data_write_denied")) {
           touch(path);
           return ok({ exitCode: 0 });
         }

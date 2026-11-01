@@ -143,7 +143,7 @@ export async function answerMcpInput(input: {
   if (!planned.ok) {
     return stopped(
       "input_questions_too_many",
-      `[xeon:input_questions_too_many] ${toolName} asked ${planned.error.count} questions at once and the user can be asked at most 4.`,
+      `[fresnel:input_questions_too_many] ${toolName} asked ${planned.error.count} questions at once and the user can be asked at most 4.`,
     );
   }
   const origin: ApprovalOrigin = {
@@ -168,7 +168,7 @@ export async function answerMcpInput(input: {
         : describeFailure(failure);
     return stopped(
       "input_request_failed",
-      `[xeon:input_request_failed] The question for ${toolName} could not be recorded: ${detail}`,
+      `[fresnel:input_request_failed] The question for ${toolName} could not be recorded: ${detail}`,
     );
   }
   const approvalId = opened.value.request.approvalId;
@@ -184,7 +184,7 @@ export async function answerMcpInput(input: {
   if (resolution === undefined || resolution === null) {
     return stopped(
       "approval_unknown",
-      `[xeon:approval_unknown] ${toolName} is waiting for an approval that this runtime does not know.`,
+      `[fresnel:approval_unknown] ${toolName} is waiting for an approval that this runtime does not know.`,
     );
   }
   const continuation = (inputResponses: CallContinuation["inputResponses"]): McpInputStep => ({
@@ -200,21 +200,21 @@ export async function answerMcpInput(input: {
       ? continuation(uniform.value)
       : stopped(
           "input_answer_invalid",
-          `[xeon:input_answer_invalid] The server's input request could not be declined: ${uniform.error.kind}`,
+          `[fresnel:input_answer_invalid] The server's input request could not be declined: ${uniform.error.kind}`,
         );
   }
   const answer = parse(QuestionAnswerSchema, resolution.answer);
   if (!answer.ok) {
     return stopped(
       "input_answer_invalid",
-      "[xeon:input_answer_invalid] The recorded answer is not a question answer.",
+      "[fresnel:input_answer_invalid] The recorded answer is not a question answer.",
     );
   }
   const decoded = decodeMcpAnswer(planned.value, answer.value);
   if (!decoded.ok) {
     return stopped(
       "input_answer_invalid",
-      `[xeon:input_answer_invalid] The user's answer does not fit the server's request (${decoded.error.kind}).`,
+      `[fresnel:input_answer_invalid] The user's answer does not fit the server's request (${decoded.error.kind}).`,
     );
   }
   return continuation(decoded.value);

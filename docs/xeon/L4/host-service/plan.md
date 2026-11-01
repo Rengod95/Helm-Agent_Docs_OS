@@ -24,14 +24,14 @@ binds: [xeon/apps/host/**]
   - `ext-host`의 루트 컨텍스트 생성과 플러그인 등록 API(`X.loading-trust.plan`).
   - `platform-store`의 `headSeq`, 구간 읽기, 커밋 후 알림, 세션 잠금(`L0.store.plan`).
 
-### 1.2 M1: `xeon chat` 걸어 다니는 골격
+### 1.2 M1: `fresnel chat` 걸어 다니는 골격
 
 - in-process 전송 쌍(`transport/in-process.ts`)과 클라이언트 `createHostConnection`.
 - 처리기 5개: `host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`. 알림 `events.batch`, `stream.chunk`, `$/cancelRequest`. 나머지 메서드는 `notImplemented`.
 - stdio 전송 팩토리(`transport/stdio.ts`)를 `startStdioHost`에 연결하고 `WIRE_CONFORMANCE_CASES`를 in-process와 stdio에서 통과한다(AH-02).
-- M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다. `L4.desktop.plan` D1은 이 개발 진입을 자식 프로세스로 띄워 적합성 테스트를 돈다.
+- M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다. `L4.desktop.plan` D1은 이 개발 진입을 자식 프로세스로 띄워 적합성 테스트를 돈다.
 - `assemble` 최소형: M1에 존재하는 패키지만 싣는다. 테스트용 그룹(on/post/drive 사용)과 모델 테이프 provider를 `extraPlugins`로 받는다.
-- 카탈로그 조립과 기동 거부(`CatalogIssue`), `xeon config schema`.
+- 카탈로그 조립과 기동 거부(`CatalogIssue`), `fresnel config schema`.
 - `apps/cli`의 `chat.scenario.test.ts`(저장소 유일한 scenario 테스트, `eng.testing.guide` TS-01)가 이 호스트로 동작한다.
 
 ### 1.3 M2: 데스크톱 사이드카와 나머지 처리기
@@ -45,12 +45,12 @@ binds: [xeon/apps/host/**]
 
 - socket 전송, 등록 파일, `ensure`, 기동 경합, 버전 불일치, 유휴 종료, 종료 협조, 인증, 부모-자식 수명(SV-01~SV-08).
 - 예약 틱 호스팅(HS-39~HS-41)과 알림 라우팅(HS-42).
-- `xeon service start|status|stop|ensure|launch-mode|run` 서브커맨드의 호스트 쪽 함수(spec §3.2).
+- `fresnel service start|status|stop|ensure|launch-mode|run` 서브커맨드의 호스트 쪽 함수(spec §3.2).
 
 ### 1.5 M3 이후
 
 - [결정: review.decisions-2 U-11] 원격 사용(M3)은 로컬 서비스 소켓을 SSH 터널·사설망으로 연결하므로 새 전송 파일이 없다. 내장 TLS + 토큰 WebSocket(`transport/websocket.ts`)은 2차다.
-- 2차: `xeon service install`/`uninstall`(launchd, systemd 사용자 단위). 이 패키지가 아닌 `L0.os`·`L4.cli` 작업으로 둔다.
+- 2차: `fresnel service install`/`uninstall`(launchd, systemd 사용자 단위). 이 패키지가 아닌 `L0.os`·`L4.cli` 작업으로 둔다.
 
 ## 2. 패키지와 파일 배치
 
@@ -164,7 +164,7 @@ xeon/apps/host/
 | H13 | 예약 틱: 서비스 시작·종료에 틱 연결, `scheduler` 실행권, in-process·stdio에서 `l0.process.service.enabled=false`일 때만 틱(HS-39~HS-41) | H11, `L2.schedule.plan` 틱 API | S | M3 |
 | H14 | 알림: 연결 유무에 따른 라우팅(HS-42), `UserNotifyPort` 어댑터 | H13, `L0.os.plan` 알림 | S | M3 |
 | H21 | 상태 디렉터리 API `resolveHostStatePaths`(spec §3.3.6): `OsDirs.state` 아래 `cli/state.json`, 0700 디렉터리 생성, 오류 값 `HostStatePathError`, 테스트 덮어쓰기 인자. CLI `connectEngine`이 이 값으로 `paths.cliStateFile`을 채우고 `FRESNEL_CLI_STATE_FILE`은 덮어쓰기로만 쓴다(review.decisions-2 B-07) | H2 | S | M1 |
-| H20 | 클라이언트 전송 선택: `resolveLaunchMode`(HS-37), `xeon service ensure --json`(HS-38), `xeon service launch-mode --json`(spec §3.2, 데스크톱 셸의 진입 판정) | H10 | S | M3 |
+| H20 | 클라이언트 전송 선택: `resolveLaunchMode`(HS-37), `fresnel service ensure --json`(HS-38), `fresnel service launch-mode --json`(spec §3.2, 데스크톱 셸의 진입 판정) | H10 | S | M3 |
 
 순서 요약: M1은 H1 → H2 → H3 → H4 → (H5 → H6), (H7), (H8), (H21). M2는 H9 → H16 → H17·H18, H19 → H15. M3는 H10 → H11 → H12·H13 → H14, H20.
 

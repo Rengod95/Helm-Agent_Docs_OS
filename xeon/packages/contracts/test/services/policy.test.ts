@@ -172,7 +172,7 @@ describe("childDecision", () => {
     expect(denied.effect).toBe("deny");
     expect(denied.ruleId).toBe("agent.review.tools.deny");
     expect(denied.message).toBe(
-      '[xeon:denied_by_policy] Tool call "bash" is denied for this subagent. read only',
+      '[fresnel:denied_by_policy] Tool call "bash" is denied for this subagent. read only',
     );
     expect(childDecision(evaluate, { ...CALL, tool: "read" }, denying, CHILD, [])).toBe(ALLOW);
   });
@@ -206,7 +206,7 @@ describe("childDecision", () => {
     const decision = childDecision(evaluate, { ...CALL, interactive: false }, PARENT, CHILD, []);
     expect(decision.effect).toBe("deny");
     expect(decision.reason).toBe("noninteractive");
-    expect(decision.message).toContain("xeon:noninteractive_ask_denied");
+    expect(decision.message).toContain("fresnel:noninteractive_ask_denied");
     expect(childDecision(evaluate, CALL, PARENT, CHILD, []).effect).toBe("ask");
   });
 

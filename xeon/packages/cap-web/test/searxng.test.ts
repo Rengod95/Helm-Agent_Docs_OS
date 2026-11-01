@@ -12,10 +12,10 @@ import { makeWebWorld } from "./support/web-world.ts";
 afterEach(releaseStores);
 
 const SIGNAL = new AbortController().signal;
-const PROBE = (base: string): string => `${base}/search?q=xeon&format=json&pageno=1`;
+const PROBE = (base: string): string => `${base}/search?q=fresnel&format=json&pageno=1`;
 
 const SEARX_BODY = JSON.stringify({
-  query: "xeon",
+  query: "fresnel",
   number_of_results: 3,
   results: [
     {
@@ -60,7 +60,7 @@ function recordingLogger(lines: Logged[]): Logger {
   return logger;
 }
 
-function request(query = "xeon", overrides: Partial<ProviderSearchRequest> = {}) {
+function request(query = "fresnel", overrides: Partial<ProviderSearchRequest> = {}) {
   const parsed = parseSearchQuery(query);
   const value: ProviderSearchRequest = {
     terms: parsed.terms,
@@ -184,7 +184,7 @@ describe("searxng search", () => {
     `${BASE}/search?${new URLSearchParams({ q, format: "json", pageno: "1", categories: "general", ...extra }).toString()}`;
 
   test("normalize searxng results", async () => {
-    const { provider } = setup({ url: BASE }, { [searchUrl("xeon")]: { body: SEARX_BODY } });
+    const { provider } = setup({ url: BASE }, { [searchUrl("fresnel")]: { body: SEARX_BODY } });
     const result = await provider.search(request(), SIGNAL);
     expect(result.items).toEqual([
       {
@@ -240,7 +240,7 @@ describe("searxng search", () => {
         const { provider } = setup(
           { url: BASE },
           {
-            [searchUrl("xeon")]: {
+            [searchUrl("fresnel")]: {
               status: item.status,
               headers: { "retry-after": "7" },
               body: "x",
@@ -261,9 +261,9 @@ describe("searxng search", () => {
     const { provider } = setup(
       { url: BASE },
       {
-        [searchUrl("xeon")]: {
+        [searchUrl("fresnel")]: {
           body: JSON.stringify({
-            query: "xeon",
+            query: "fresnel",
             results: [],
             unresponsive_engines: [["brave", "timeout"]],
           }),
@@ -274,7 +274,7 @@ describe("searxng search", () => {
   });
 
   test("a body that is not search json is an upstream error", async () => {
-    const { provider } = setup({ url: BASE }, { [searchUrl("xeon")]: { body: "oops" } });
+    const { provider } = setup({ url: BASE }, { [searchUrl("fresnel")]: { body: "oops" } });
     expect((await failure(provider.search(request(), SIGNAL))).code).toBe("upstream_error");
   });
 });
@@ -289,10 +289,10 @@ describe("searxng through the service", () => {
       hosts: { localhost: ["127.0.0.1"] },
     });
     world.transport.route(PROBE(BASE), { body: SEARX_BODY });
-    world.transport.route(`${BASE}/search?q=xeon&format=json&pageno=1&categories=general`, {
+    world.transport.route(`${BASE}/search?q=fresnel&format=json&pageno=1&categories=general`, {
       body: SEARX_BODY,
     });
-    const found = await world.search({ query: "xeon" });
+    const found = await world.search({ query: "fresnel" });
     expect(found.meta.provider).toBe("searxng");
     expect(found.meta.selectedBy).toBe("auto");
     expect(found.meta.cost).toMatchObject({ basis: "free", usd: 0 });
@@ -306,10 +306,10 @@ describe("searxng through the service", () => {
       settings: { search: { searxng: { url: BASE } } },
     });
     world.transport.route(PROBE(BASE), { body: SEARX_BODY });
-    world.transport.route(`${BASE}/search?q=xeon&format=json&pageno=1&categories=general`, {
+    world.transport.route(`${BASE}/search?q=fresnel&format=json&pageno=1&categories=general`, {
       body: SEARX_BODY,
     });
-    await world.search({ query: "xeon" });
+    await world.search({ query: "fresnel" });
     const before = world.transport.requests.length;
     // 같은 주소를 콘텐츠 URL로 읽으려 하면 거부된다. 연결 시도가 없다
     const denied = await world.fetch({ url: `${BASE}/` }).then(

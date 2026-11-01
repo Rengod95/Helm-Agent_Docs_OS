@@ -27,7 +27,7 @@ async function rig(
   env: Record<string, string | undefined>,
   reply: (request: { readonly body: string }) => FakeProviderResponse,
 ): Promise<Rig> {
-  const dir = await mkdtemp(join(tmpdir(), "xeon-tape-"));
+  const dir = await mkdtemp(join(tmpdir(), "fresnel-tape-"));
   const provider = fakeProvider(reply);
   const stdout: string[] = [];
   const stderr: string[] = [];

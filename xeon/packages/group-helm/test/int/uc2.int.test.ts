@@ -92,8 +92,8 @@ test("uc2.write-deny-and-n-lenses", async () => {
     { tool: "write", reason: WRITE_DENY_REASON },
   ]);
   expect(loop.log.results).toEqual([
-    `[xeon:denied_by_extension] ${WRITE_DENY_REASON}`,
-    `[xeon:denied_by_extension] ${WRITE_DENY_REASON}`,
+    `[fresnel:denied_by_extension] ${WRITE_DENY_REASON}`,
+    `[fresnel:denied_by_extension] ${WRITE_DENY_REASON}`,
   ]);
   // 발산 turn의 시스템 프롬프트에는 Helm 블록이 하나 붙는다
   expect(loop.log.systemPrompts[0]).toMatch(

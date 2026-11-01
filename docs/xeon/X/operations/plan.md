@@ -109,7 +109,7 @@ xeon/packages/ext-host/
 | O-21 | `hooks/config.ts`: `HookDefSchema`, 범위별 목록 병합, tier 부여, 프로젝트 신뢰 조건, 2차 훅 키 3개 | L-17(프로젝트 신뢰), F.wire-settings.plan(배열 키 병합, 스펙 §10 미결 13), O-02 | M | M4 |
 | O-22 | `hooks/protocol.ts`: `HookInput` 직렬화, `HookOutputSchema`, `interpretHookRun`(스펙 §4.7.3 표 전체) | F.extensions.plan(`HOOKS[point].result` 스키마), O-21 | M | M4 |
 | O-23 | `hooks/run.ts`: `hookEnv`, `HookProcessPort`(`ProcessPortKey`로 조회)로 실행, 출력 상한, 예산, 결과를 `HandlerOutcomeRecord`로 보고 | P-30(`ProcessPortKey`), L0.process.plan(`ProcessService` 실행 메서드, 프로세스 그룹 종료), O-22, O-08 | M | M4 |
-| O-24 | 외부 훅 등록: 범위별 내부 내장 확장 단위(`xeon-hooks-<범위>`)를 `ExtHost.install`로 싣고 훅마다 on 핸들러 하나를 등록(모든 확장 뒤 loadIndex, `TierTable`에 범위별 tier), (단위, 순번) → 훅 id 표, 자동 끄기의 훅 끄기 연결 | P-13(`install`), O-03, O-10, O-23 | M | M4 |
+| O-24 | 외부 훅 등록: 범위별 내부 내장 확장 단위(`fresnel-hooks-<범위>`)를 `ExtHost.install`로 싣고 훅마다 on 핸들러 하나를 등록(모든 확장 뒤 loadIndex, `TierTable`에 범위별 tier), (단위, 순번) → 훅 id 표, 자동 끄기의 훅 끄기 연결 | P-13(`install`), O-03, O-10, O-23 | M | M4 |
 | O-25 | `ExtStorageAdmin`(`tablesOf`, `dropExtension` 2단계 확인)과 제거 흐름 연결(`LoaderDeps.storageAdmin`) | L-28(제거 흐름), L4.settings-ui.plan(확인 화면), O-14 | M | M2 |
 | O-26 | 접두 차단 강화: `bun:sqlite` authorizer 노출 여부 조사(문서·소스 읽기만), `ExtQuery` 범위 조건 | O-14, 스펙 §10 미결 9 | M | M2 |
 | O-27 | 보존 테이블과 `storage/migrate.ts` 열 추가 마이그레이션 | 스펙 §10 미결 8 결정, F.records.plan(`CommitPlan` 확장 시) | L | M2 이후 |
@@ -122,7 +122,7 @@ xeon/packages/ext-host/
 
   | 자료 | 경로 | 라이선스 | 쓰는 방법 |
   |---|---|---|---|
-  | omp 핸들러 예산 | `packages/coding-agent/src/extensibility/extensions/runner.ts:133-200`(`EXTENSION_HANDLER_TIMEOUT_MS`, `SESSION_SHUTDOWN_HANDLER_TIMEOUT_MS`, `HandlerTimeoutBudget`, `createHandlerUIContext`), `:300-375`(`raceHandlerWithTimeout`) | MIT | pause 깊이 세기, 남은 시간 계산, 늦은 결과 버림, 타이머 해제 방식만 참고한다. 코드는 Xeon의 `now`·`setTimer` 주입 구조로 새로 쓴다. `performance.now()`·`setTimeout` 직접 호출은 쓰지 않는다 |
+  | omp 핸들러 예산 | `packages/coding-agent/src/extensibility/extensions/runner.ts:133-200`(`EXTENSION_HANDLER_TIMEOUT_MS`, `SESSION_SHUTDOWN_HANDLER_TIMEOUT_MS`, `HandlerTimeoutBudget`, `createHandlerUIContext`), `:300-375`(`raceHandlerWithTimeout`) | MIT | pause 깊이 세기, 남은 시간 계산, 늦은 결과 버림, 타이머 해제 방식만 참고한다. 코드는 Fresnel의 `now`·`setTimer` 주입 구조로 새로 쓴다. `performance.now()`·`setTimeout` 직접 호출은 쓰지 않는다 |
   | pi 오류 처리 | `~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/runner.ts`(`emitError` 737-746, emit 루프의 catch 1104-1113), `types.ts:2268`(`ExtensionError`) | MIT | 오류 기록 필드(확장 경로, 이벤트, 메시지, 스택)를 `HandlerOutcomeRecord` 설계 참고로만 쓴다 |
   | Claude Code 훅·mods | 공개 문서만(`_research/refs/claude-code.md` hooks·mods 항목) | 코드 비공개, "All rights reserved"(`_research/refs/claude-code.md` 27행) | 문서화된 프로토콜(stdin JSON, 종료 코드 0·2, 출력 10,000자, tier 순서)만 따른다. 공개 저장소의 `mods/` 소스와 타입 선언은 읽지 않고 가져오지 않는다 |
   | Hermes 관찰 훅 | `_research/refs/hermes.md` 46·304행 | MIT | 스키마 버전 필드 관례와 `pre_tool_call` 시간 초과 차단 규칙만 참고 |

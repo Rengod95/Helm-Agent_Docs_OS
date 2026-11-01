@@ -12,7 +12,7 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: srt 0.0.79을 감싼 `fresnel.sandbox`(`SandboxService`)를 만들어 M1에서 `xeon chat`의 bash 도구가 샌드박스 안에서 돌게 한다(`L0.sandbox.spec`).
+목표: srt 0.0.79을 감싼 `fresnel.sandbox`(`SandboxService`)를 만들어 M1에서 `fresnel chat`의 bash 도구가 샌드박스 안에서 돌게 한다(`L0.sandbox.spec`).
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
@@ -26,7 +26,7 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ```
 xeon/packages/platform-sandbox/
-  package.json                 # name @fresnel/platform-sandbox, "xeon": {"layer": "L0", "domain": "sandbox"}
+  package.json                 # name @fresnel/platform-sandbox, "fresnel": {"layer": "L0", "domain": "sandbox"}
                                # dependencies: "@anthropic-ai/sandbox-runtime": "catalog:" (0.0.79)
                                # exports: "." → src/index.ts, "./testing" → src/testing/index.ts
   tsconfig.json                # references: ../contracts, ../ext-host
@@ -37,7 +37,7 @@ xeon/packages/platform-sandbox/
     providers/linux.ts         # bwrap, socat, rg, WSL2 변종, WSL1·지원 밖 아키텍처 → none
     providers/win32.ts         # none, unsupported_os
     select.ts                  # process.platform·process.arch·/proc/version을 읽는 유일한 곳
-    policy.ts                  # toSrtConfig: Xeon 정책 → srt 설정 (순수 함수)
+    policy.ts                  # toSrtConfig: Fresnel 정책 → srt 설정 (순수 함수)
     protected-paths.ts         # 공통 보호 경로 표, OsDirs 입력으로 항목 생성, basename 전개
     auto-allow.ts              # autoAllow 판정 (순수 함수)
     self-test.ts               # 자가 시험 6항목
@@ -88,7 +88,7 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | SB-01 | srt 의존 고정과 Bun 구동 스파이크: catalog에 `"@anthropic-ai/sandbox-runtime": "0.0.79"` 추가, `platform-sandbox` 의존 선언, DR-07 소유표 행 확인. `srt-spike.int.test.ts` 1개로 (a) Bun 1.4.3에서 `initialize` + `wrapWithSandboxArgv` + 실행 한 번, (b) 반환 `env`가 전체인지 추가분인지, (c) `bun build --compile` 산출물에서 헬퍼 경로(apply-seccomp) 탐색 성공 여부를 확인 | L0.exec.plan EX-09(셸 실행 경로) | M |
 | SB-02 | 상태 탐지: `provider.ts`, `providers/*`, `select.ts`, `status.ts`. 필요 프로그램 PATH 탐색과 절대 경로 기록, srt `isSupportedPlatform`·`checkDependencies` 결과 대응, `SandboxStatus.installHints`. `describeSandboxStatus` 본문은 F 순수 함수라 `F.capabilities.plan` 작업이고 이 작업은 그 시험 사례를 제공한다 | SB-01 | M |
 | SB-03 | 정책 변환기: `policy.ts`의 `toSrtConfig`(경로 절대화·realpath·정렬·중복 제거, 리터럴만, 고정 값, 프로세스 전역/명령별 분리), srt 스키마 검증 | SB-01 | M |
-| SB-04 | 보호 경로 목록과 경로 질의 연동: `protected-paths.ts`(spec §3.3 표), `fresnel.os` 디렉터리(`OsDirs.home`·`data`·`config`)와 `SecretService.protectedPaths()` 주입, `<xeonConfig>/secrets/` 행, `protectedPaths.extra` 합치기, basename 전개, 보호 경로 안 쓰기 루트 제거 | SB-03, L0.os.plan 디렉터리 질의, L0.secrets.plan SC-21 | M |
+| SB-04 | 보호 경로 목록과 경로 질의 연동: `protected-paths.ts`(spec §3.3 표), `fresnel.os` 디렉터리(`OsDirs.home`·`data`·`config`)와 `SecretService.protectedPaths()` 주입, `<fresnelConfig>/secrets/` 행, `protectedPaths.extra` 합치기, basename 전개, 보호 경로 안 쓰기 루트 제거 | SB-03, L0.os.plan 디렉터리 질의, L0.secrets.plan SC-21 | M |
 | SB-05 | `wrapShell` 데코레이터: `wrap-shell.ts`(spec §4.2 1~10단계), argv → 셸 문자열 인용, `commandId` 생성, srt env 차이 계산, 래핑 실패 처리 | SB-02, SB-03, SB-04 | L |
 | SB-06 | `autoAllow` 판정: `auto-allow.ts`, 경로 마디 포함 비교 | SB-03 | S |
 | SB-07 | 자가 시험: `self-test.ts` 6항목, canary 준비·정리, status 반영 | SB-05, L0.exec.plan EX-12(`SENSITIVE_ENV_PATTERNS`) | M |
@@ -123,7 +123,7 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 
 1. `SandboxRuntimeConfigSchema` diff: `filesystem.*`, `network.*`, `seccomp`, `bwrapPath`, `socatPath`, `ripgrep`, `mandatoryDenySearchDepth`의 키 이름·기본값·타입이 바뀌었는지(`src/sandbox/sandbox-config.ts`).
 2. `ISandboxManager` 메서드 시그니처 diff: `initialize`, `wrapWithSandboxArgv`, `getSandboxViolationStore`, `cleanupAfterCommand`, `reset`, `checkDependencies`(`dist/sandbox/sandbox-manager.d.ts`).
-3. 자동 보호 경로 목록(README "mandatory deny")이 줄었는지. 줄었으면 Xeon 보호 경로 표에 해당 경로가 있는지 확인한다.
+3. 자동 보호 경로 목록(README "mandatory deny")이 줄었는지. 줄었으면 Fresnel 보호 경로 표에 해당 경로가 있는지 확인한다.
 4. Linux 경로 문법 규칙(리터럴·글로브 처리) 변경 여부.
 5. Bun 분기(`process.versions.bun`) 변경 여부와 Bun 최소 버전.
 6. `srt-config.contract.test.ts`, `sandbox.int.test.ts`를 새 버전으로 통과.
@@ -140,7 +140,7 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | srt schema accepts converted config | `srt-config.contract.test.ts` | `toSrtConfig` 결과가 srt `SandboxRuntimeConfigSchema`를 통과 |
 | protected paths cannot be reduced by settings | `protected-paths.test.ts` | `protectedPaths.extra`를 비우거나 정책 `readDeny: []`여도 기본 항목이 모두 유효 정책에 있음 |
 | protected paths extra adds entries | `protected-paths.test.ts` | 추가 경로가 `read_write`로 들어감 |
-| protected paths include secret files | `protected-paths.test.ts` | 가짜 `SecretService.protectedPaths()`의 경로와 `<xeonConfig>/secrets/`가 `read_write` `secret_key` 항목으로 들어감 |
+| protected paths include secret files | `protected-paths.test.ts` | 가짜 `SecretService.protectedPaths()`의 경로와 `<fresnelConfig>/secrets/`가 `read_write` `secret_key` 항목으로 들어감 |
 | protected paths use OS dirs | `protected-paths.test.ts` | 가짜 `OsDirs`의 데이터·설정 디렉터리가 표에 반영, darwin만 LaunchAgents·Library sops 경로 |
 | basename entries expand with exceptions | `protected-paths.test.ts` | 쓰기 루트 아래 `.env`, `.env.local`은 들어가고 `.env.example`은 빠짐, 깊이 상한 준수 |
 | write root inside protected path is removed | `protected-paths.test.ts` | `writeRoots`에 데이터 디렉터리가 있으면 유효 정책에서 빠짐 |

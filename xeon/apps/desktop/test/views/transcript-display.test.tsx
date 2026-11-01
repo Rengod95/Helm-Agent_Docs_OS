@@ -89,7 +89,7 @@ function system(n: number): ItemRecord {
     kind: "system",
     message: {
       role: "system",
-      content: "You are Xeon, a helpful coding assistant.",
+      content: "You are Fresnel, a helpful coding assistant.",
       timestamp: 0,
     },
   };

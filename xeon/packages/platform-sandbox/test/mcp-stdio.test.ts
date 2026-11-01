@@ -15,7 +15,7 @@ describe("MCP stdio sandbox decision", () => {
   test.each([
     ["settings:project", undefined, true, "origin_default"],
     ["mcpjson:project", undefined, true, "origin_default"],
-    ["mcpjson:xeon", undefined, true, "origin_default"],
+    ["mcpjson:fresnel", undefined, true, "origin_default"],
     ["ext:some-ext", undefined, true, "origin_default"],
     ["something:new", undefined, true, "origin_default"],
     ["settings:user", undefined, false, "origin_default"],

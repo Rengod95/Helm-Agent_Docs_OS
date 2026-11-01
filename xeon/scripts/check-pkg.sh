@@ -3,7 +3,7 @@
 # For agents working in parallel: this is the check to run before a commit. The repo-wide `just verify`, `just lint` and
 # `just typecheck` belong to the final merge step only.
 # usage: check-pkg.sh <package-dir>   (e.g. packages/core-tools, apps/host, plugins/x; "scripts" is xeon/scripts itself)
-# env: XEON_CHECK_MAX (default 1500M) memory cap of lint and typecheck; test runs through test-capped.sh (its own knobs).
+# env: FRESNEL_CHECK_MAX (default 1500M) memory cap of lint and typecheck; test runs through test-capped.sh (its own knobs).
 # turbo runs with --concurrency=1: a package with many dependencies has dozens of upstream tsc tasks on a cold cache, and turbo starts
 # them side by side (one tsc is several hundred MB), which went past the cap and got the run killed (137). One at a time stays under it.
 # exit: 0 passed, 1 a check failed (the first failure stops the run), 2 environment problem, 64 wrong call.
@@ -28,7 +28,7 @@ if [[ ! -x "$guard" ]]; then
   exit 2
 fi
 export TURBO_TELEMETRY_DISABLED=1
-export WS_GUARD_RUN_MAX="${XEON_CHECK_MAX:-1500M}"
+export WS_GUARD_RUN_MAX="${FRESNEL_CHECK_MAX:-1500M}"
 
 run() {
   echo "== $pkg: $*"

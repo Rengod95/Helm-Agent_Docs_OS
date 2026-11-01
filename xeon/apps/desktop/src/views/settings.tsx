@@ -68,8 +68,8 @@ export function Tools(props: { readonly binaries: BinaryView | null }): ReactNod
   if (binaries === null) {
     return (
       <p className="dim">
-        이 연결에서는 점검 결과를 받을 수 없습니다. 터미널에서 <code>xeon doctor</code>로 확인할 수
-        있습니다.
+        이 연결에서는 점검 결과를 받을 수 없습니다. 터미널에서 <code>fresnel doctor</code>로 확인할
+        수 있습니다.
       </p>
     );
   }
@@ -209,7 +209,7 @@ export function SettingsBody(props: {
         <h2>모델 키</h2>
         <p className="dim">
           키 값은 등록 창에 한 번 입력하면 바로 지워지고 엔진 연결을 지나지 않습니다. 앱이 번들된
-          <code>xeon</code>으로 비밀 저장소에 두고, 설정에는 <code>secret://이름</code> 참조만
+          <code>fresnel</code>으로 비밀 저장소에 두고, 설정에는 <code>secret://이름</code> 참조만
           남습니다.
         </p>
         <label className="field">
@@ -417,7 +417,7 @@ export function SettingsScreen(): ReactNode {
       setKeyEntry({ state: "busy" });
       const outcome = await submitting;
       if (outcome.kind === "terminal") {
-        setKeyEntry({ state: "terminal", command: `xeon secret ${action} ${name}` });
+        setKeyEntry({ state: "terminal", command: `fresnel secret ${action} ${name}` });
         return;
       }
       if (outcome.kind === "failed") {

@@ -525,18 +525,18 @@ export const ISOLATION_PROTOCOL_VERSION = 1;
 /** vscode-jsonrpc 메서드 이름. 접두 "xeon/"는 F.wire-settings의 호스트 계약과 겹치지 않게 둔다 */
 export const IsoMethods = {
   // 호스트 → 자식
-  init: "xeon/iso.init",
-  dispatch: "xeon/iso.dispatch",
-  toolExecute: "xeon/iso.tool.execute",
+  init: "fresnel/iso.init",
+  dispatch: "fresnel/iso.dispatch",
+  toolExecute: "fresnel/iso.tool.execute",
   dispose: "fresnel/iso.dispose",
   // 자식 → 호스트
-  register: "xeon/iso.register",
-  post: "xeon/iso.post",
-  commit: "xeon/iso.commit",
-  record: "xeon/iso.record",
-  readRecords: "xeon/iso.readRecords",
-  capabilityCall: "xeon/iso.capability.call",
-  log: "xeon/iso.log",
+  register: "fresnel/iso.register",
+  post: "fresnel/iso.post",
+  commit: "fresnel/iso.commit",
+  record: "fresnel/iso.record",
+  readRecords: "fresnel/iso.readRecords",
+  capabilityCall: "fresnel/iso.capability.call",
+  log: "fresnel/iso.log",
 } as const;
 
 export const IsoInitParams = Type.Object({
@@ -745,7 +745,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 #### 4.4.2 엔트리 모듈 형태
 
 - 외부 확장: 매니페스트 `entry`(확장 루트 상대 경로)를 import한다. export는 `default` 또는 named `extension` 중 하나가 `ExtensionEntry` 함수여야 한다. 둘 다 없으면 `entry_not_function`이다.
-- 내장 확장: `BuiltinExtensionModule.extension`을 그대로 쓴다. import는 조립 루트가 이미 했다. Xeon 코드의 lint는 default export를 막으므로 내장 패키지는 named export만 쓴다(`xeon/AGENTS.md` 코드 규칙). F.extensions.spec §3.2의 "default export 형식" 주석과의 조정은 §10 미결 2다.
+- 내장 확장: `BuiltinExtensionModule.extension`을 그대로 쓴다. import는 조립 루트가 이미 했다. Fresnel 코드의 lint는 default export를 막으므로 내장 패키지는 named export만 쓴다(`xeon/AGENTS.md` 코드 규칙). F.extensions.spec §3.2의 "default export 형식" 주석과의 조정은 §10 미결 2다.
 - `entry`가 확장 루트 밖을 가리키는 경우는 `validateManifest`의 `entry_invalid`가 막는다. 로더는 import 직전에 `realpath` 결과가 확장 루트 안인지 다시 확인한다.
 
 #### 4.4.3 설치 위임과 오류 변환
@@ -779,9 +779,9 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 - [제안] M0·M1에는 핫 리로드를 두지 않는다. 확장 코드 변경은 호스트 재시작으로 반영한다.
 - M2 이후 개발용 `ExtensionLoader.reload(name)`를 둔다. 순서: `ExtHost.uninstall(name)`(scope 끄기 요청, 경계에서 정리, fiber 해제는 primitives가 한다, F.extensions.spec §4.5) → 로드 세대 증가 → 재import → 2~9단계 재실행.
-- 재import는 Bun 모듈 캐시를 피하려고 엔트리 URL에 `?xeon-gen=<generation>` 질의를 붙인다 [가정: Bun이 질의가 다른 같은 파일을 새 모듈로 평가한다]. 이전 세대 모듈은 메모리에 남는다. 개발용이라 이 누수를 받아들인다.
+- 재import는 Bun 모듈 캐시를 피하려고 엔트리 URL에 `?fresnel-gen=<generation>` 질의를 붙인다 [가정: Bun이 질의가 다른 같은 파일을 새 모듈로 평가한다]. 이전 세대 모듈은 메모리에 남는다. 개발용이라 이 누수를 받아들인다.
 - 격리 확장의 리로드는 자식 프로세스 재시작이다. 캐시 문제가 없다.
-- 파일 감시는 L0 파일 감시 서비스가 있을 때만 쓴다. 기본은 명령(`xeon ext reload <name>` [가정: 명령 이름은 L4.cli.spec])이다.
+- 파일 감시는 L0 파일 감시 서비스가 있을 때만 쓴다. 기본은 명령(`fresnel ext reload <name>` [가정: 명령 이름은 L4.cli.spec])이다.
 
 #### 4.4.5 제거 흐름 (M2)
 
@@ -800,7 +800,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 - [제안] 플러그인 번들은 `@fresnel/contracts`와 그 하위 경로(`/capabilities`, `/conversation`, `/extensions`, `/records`, `/services`, `/settings`, `/wire`), `@fresnel/group-sdk`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof CapabilityError`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 이 밖의 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
 - `@fresnel/contracts`와 하위 경로, `typebox`는 X가 자기 의존으로 직접 등록한다(`X_SDK_MODULES`). 조립 루트는 넘기지 않아도 된다. `@fresnel/group-sdk`은 L3 패키지라 X가 import할 수 없으므로 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. 조립 루트가 X 몫의 지정자를 다른 객체로 넘기면 `conflict`다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
 - 등록은 `Bun.plugin`이라 프로세스 전역이고 첫 import 뒤에는 바꿀 수 없다. 같은 지정자에 같은 객체를 다시 등록하면 아무 일도 하지 않고, 다른 객체를 등록하려 하면 `conflict`다. 이 오류는 외부 확장의 `entry_import_failed`로 보인다. Bun이 아닌 런타임에서는 `unavailable`이다.
-- 등록한 지정자는 같은 프로세스의 Xeon 패키지가 import해도 같은 객체를 받는다. 호스트가 넘긴 객체가 곧 호스트가 쓰는 모듈이므로 결과가 같다.
+- 등록한 지정자는 같은 프로세스의 Fresnel 패키지가 import해도 같은 객체를 받는다. 호스트가 넘긴 객체가 곧 호스트가 쓰는 모듈이므로 결과가 같다.
 
 #### 4.4.7 기본 플러그인 설치
 
@@ -901,7 +901,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 [제안] pi `trust-manager.ts`(246줄)와 `project-trust.ts`(97줄)를 포크한다(`_research/packages.md` §4.5 X-a 프로젝트 신뢰 행). 원본: `~/projects/_ref/pi-src/packages/coding-agent/src/core/trust-manager.ts`, `project-trust.ts`.
 
-| 원본 요소 | 원본 동작 | Xeon에서 바꿀 점 | 이유 |
+| 원본 요소 | 원본 동작 | Fresnel에서 바꿀 점 | 이유 |
 |---|---|---|---|
 | `import lockfile from "proper-lockfile"`, `acquireTrustLockSync`(138-168) | 동기 잠금, 20ms 바쁜 대기 10회 | 삭제. `TrustStoreBackend.update`가 잠금과 원자 교체를 맡는다 | 잠금 구현은 L0 소관이다(adr.0006 §6 세션 잠금 미결과 같은 문제). 바쁜 대기를 없앤다 |
 | `CONFIG_DIR_NAME`(`../config.ts`) | `.pi` | 상수 `.fresnel`. config 모듈을 import하지 않는다 | config.ts 결합 해체 |
@@ -912,7 +912,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 | 저장 위치 `~/.pi/agent/trust.json` | 사용자 영역 | `<userDir>/trust.json`(기본 `~/.fresnel/trust.json`) [가정: userDir은 L0.os] | `.fresnel` 사용자 영역 |
 | 파일 형식 `Record<path, boolean \| null>` | 값만 | `TrustFileSchema`(`version`, `verdict`, `decidedAt`, `via`) | 버전 관리와 감사 |
 | `readTrustFile`의 예외 | 손상이면 던짐 → 시작 실패 | `TrustLookup.kind: "corrupt"` → 불신 처리, 쓰기 거부(§4.7.5) | 손상 파일 하나로 엔진이 시작하지 못하는 일을 막는다. 덮어써서 기존 결정을 잃는 일도 막는다 |
-| `TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES`(30-39) | `.pi/` 아래 8개 | §4.7.2 목록 | Xeon 자원 이름 |
+| `TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES`(30-39) | `.pi/` 아래 8개 | §4.7.2 목록 | Fresnel 자원 이름 |
 | `hasTrustRequiringProjectResources`(186-208) | 불리언 | `findTrustRequiringResources`가 찾은 목록을 돌려준다 | 프롬프트와 진단에 보인다 |
 | `getProjectTrustOptions`(67-97) | 영어 라벨 5개 | `trustOptions`. 라벨은 L4가 현지화한다. 선택지는 §4.7.3 | 표시는 L4 소관 |
 | `resolveProjectTrusted`(`project-trust.ts` 47-97) | 판정 순서 | `resolveProjectTrust`. 순서는 같고 `thread.trust.before` 예외는 거부(F fail-closed) | F.extensions.spec §3.4 27행 |
@@ -1035,14 +1035,14 @@ flowchart LR
 
 - 전송: vscode-jsonrpc 9.0.3(MIT, 의존 0)을 stdio에 그대로 쓴다(`_research/packages.md` §2.5, §4.5). 연결은 `vscode-jsonrpc/node`의 `StreamMessageReader`, `StreamMessageWriter`로 만든다. 프로토콜과 outbox는 자체다. pi-protocol은 Chord 결합이라 쓰지 않는다(같은 표).
 - 자식 프로세스 기동·종료는 `IsolationProcessPort`(platform-process 서비스)로만 한다. ext-host는 `Bun.spawn`, `node:child_process`를 import하지 않는다(eng.dependency-rules.guide DR-07).
-- 자식 진입점은 ext-host 패키지의 `isolation/child-main.ts`다. 자식은 매니페스트와 엔트리 경로를 `xeon/iso.init`으로 받아 엔트리를 import하고 실행한다.
+- 자식 진입점은 ext-host 패키지의 `isolation/child-main.ts`다. 자식은 매니페스트와 엔트리 경로를 `fresnel/iso.init`으로 받아 엔트리를 import하고 실행한다.
 
 #### 4.9.2 프록시
 
 - [제안] 호스트 쪽 프록시 확장은 격리 확장 대신 scope를 만들고(프록시도 `ExtensionUnit`으로 `ExtHost.install`에 넘긴다), `init` 결과의 `usage.on` 중 매니페스트 `points`에 선언된 지점에만 핸들러를 등록한다. 선언 밖 지점의 등록 요청은 `validateUsage`로 거부한다(8단계와 같다).
-- 프록시 핸들러는 페이로드를 JSON으로 직렬화해 `xeon/iso.dispatch`를 보내고 결과를 F 스키마(`HookDecl.result`)로 검사한 뒤 돌려준다. 검사 실패는 핸들러 예외와 같다(F.extensions.spec §5 2번, 3번).
-- 리소스: 격리 확장이 등록한 도구는 프록시가 같은 이름으로 대신 등록한다. 실행은 `xeon/iso.tool.execute`로 자식에게 보낸다.
-- 능력 호출: 자식의 `capability(key)` 메서드 호출은 `xeon/iso.capability.call`로 호스트에 와서 실행된다. 매니페스트 `requires`·`optional` 밖의 능력은 거부한다.
+- 프록시 핸들러는 페이로드를 JSON으로 직렬화해 `fresnel/iso.dispatch`를 보내고 결과를 F 스키마(`HookDecl.result`)로 검사한 뒤 돌려준다. 검사 실패는 핸들러 예외와 같다(F.extensions.spec §5 2번, 3번).
+- 리소스: 격리 확장이 등록한 도구는 프록시가 같은 이름으로 대신 등록한다. 실행은 `fresnel/iso.tool.execute`로 자식에게 보낸다.
+- 능력 호출: 자식의 `capability(key)` 메서드 호출은 `fresnel/iso.capability.call`로 호스트에 와서 실행된다. 매니페스트 `requires`·`optional` 밖의 능력은 거부한다.
 
 #### 4.9.3 직렬화와 취소
 
@@ -1126,7 +1126,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 - `x.loading-trust.*` 키는 프로젝트 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
 - 안전 모드 키(`x.operations.safeMode.default`, `x.operations.safeMode.suggestAfter`)는 X.operations.spec 소유다. L4.settings-ui.spec §표가 `x.loading-trust.*`에 안전 모드를 넣은 표기는 정합성 단계에서 `x.operations.*`로 고친다 [제안].
-- L4 노출: 설정 화면 "플러그인과 그룹" 탭에 확장 목록(상태, 등급, 위치, 진단 수), 토글(`enabled`), 격리 선택(`isolation`), 신뢰 결정 목록(저장 파일 내용)을 둔다. CLI는 `xeon config`로 같은 키를 다룬다.
+- L4 노출: 설정 화면 "플러그인과 그룹" 탭에 확장 목록(상태, 등급, 위치, 진단 수), 토글(`enabled`), 격리 선택(`isolation`), 신뢰 결정 목록(저장 파일 내용)을 둔다. CLI는 `fresnel config`로 같은 키를 다룬다.
 
 ## 7. 확장 지점
 
@@ -1202,7 +1202,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 ## 10. 미결 사항
 
 1. (해소) [결정: review.decisions-2 U-14] 포트 타입(`LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`와 부속 타입, `IsolationProcessPort`, `IsolationSpawnSpec`, `IsolatedChild`)의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. X 순위 유지의 조건 2(architecture.layers.spec §4.3.3, X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다)를 따른다. 이 문서는 §3.2, §3.7, §3.8에서 F 이름을 다시 export만 하고 자기 정의를 두지 않는다.
-2. [미결] 엔트리 export 형태. F.extensions.spec §3.2는 `ExtensionEntry`를 default export로 적었고, Xeon lint는 default export를 막는다. [제안] 내장은 named `extension`, 외부는 `default` 또는 `extension`을 허용한다. F 주석 수정 요청.
+2. [미결] 엔트리 export 형태. F.extensions.spec §3.2는 `ExtensionEntry`를 default export로 적었고, Fresnel lint는 default export를 막는다. [제안] 내장은 named `extension`, 외부는 `default` 또는 `extension`을 허용한다. F 주석 수정 요청.
 3. [미결] F `validateManifest`의 `name_reserved` 판정이 매니페스트 `trust.level`에만 의존한다. [제안] F가 설치 위치를 인자로 받거나, 로더의 `trust_exceeds_source` 검사를 정본으로 둔다. F 수정 요청.
 4. [미결] `untrusted` 처리(§4.6.3). [제안] 로드하지 않음. 격리와 샌드박스를 함께 쓰는 경로가 생기면 격리 강제를 다시 검토한다.
 5. [결정: review.m3-design-inputs D-M3-31 행 3] 프로젝트 설정 파일의 키는 `ext.*`, `x.loading-trust.*` 밖의 것도 신뢰 뒤에만 적용한다(§4.7.4).

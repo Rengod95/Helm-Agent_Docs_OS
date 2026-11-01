@@ -19,7 +19,7 @@ afterAll(() => {
   for (const dir of made) rmSync(dir, { recursive: true, force: true });
 });
 
-/** 가짜 xeon 작업 트리를 만들고 check-layers를 돌려 종료코드와 표준 오류를 돌려준다 */
+/** 가짜 fresnel 작업 트리를 만들고 check-layers를 돌려 종료코드와 표준 오류를 돌려준다 */
 async function runCheckLayers(
   fixtureCase: string,
   packages: readonly PackageSpec[],
@@ -33,7 +33,7 @@ async function runCheckLayers(
     join(base, "docs/xeon/_routing/routes.yaml"),
     "layout:\n  L0:\n    domains: []\n  L1:\n    domains: []\n  L2:\n    domains: []\n",
   );
-  const root = join(base, "xeon");
+  const root = join(base, "fresnel");
   mkdirSync(join(root, "scripts"), { recursive: true });
   writeFileSync(join(root, "scripts/dependency-allowlist.json"), JSON.stringify(allowlist));
   for (const pkg of packages) {
@@ -48,7 +48,7 @@ async function runCheckLayers(
         type: "module",
         exports: { ".": "./src/index.ts" },
         dependencies: Object.fromEntries(pkg.deps.map((dep) => [dep, "workspace:*"])),
-        xeon: {
+        fresnel: {
           layer: "L3",
           domain: pkg.dir === "group-sdk" ? "group-sdk" : pkg.dir.slice("group-".length),
         },
@@ -56,7 +56,9 @@ async function runCheckLayers(
     );
     writeFileSync(
       join(dir, "tsconfig.json"),
-      JSON.stringify({ references: pkg.deps.map((dep) => ({ path: `../${dep.slice(6)}` })) }),
+      JSON.stringify({
+        references: pkg.deps.map((dep) => ({ path: `../${dep.slice("@fresnel/".length)}` })),
+      }),
     );
     writeFileSync(
       join(dir, "src/index.ts"),

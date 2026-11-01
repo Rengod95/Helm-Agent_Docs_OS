@@ -156,7 +156,7 @@ function writable(state: StoreState): KnowledgeFailure | undefined {
   if (state.blocked === undefined) return undefined;
   return failure(
     "drift_detected",
-    `the ${state.store} memory file was changed outside Xeon and cannot be read as entries (${state.blocked}); a copy was kept in the .bak folder`,
+    `the ${state.store} memory file was changed outside Fresnel and cannot be read as entries (${state.blocked}); a copy was kept in the .bak folder`,
     { detail: { store: state.store, issue: state.blocked } },
   );
 }

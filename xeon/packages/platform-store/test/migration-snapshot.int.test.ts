@@ -174,7 +174,7 @@ describe("concurrent snapshot of the same transition", () => {
     const input = { owner: "cap.knowledge", from: 1, to: 2, at: 1_700_000_000_000 };
     const config = {
       dir: backups,
-      dbFileName: "xeon.db",
+      dbFileName: "fresnel.db",
       keep: MIGRATION_SNAPSHOT_KEEP,
       posix: true,
     };
@@ -207,7 +207,7 @@ const failing: typeof snapshotBeforeMigration = () => ({
 describe("snapshot racing a peer process", () => {
   test("a failed snapshot is not fatal when a peer advanced the schema in the meantime", async () => {
     const dir = own(tempDir());
-    const path = dir.join("xeon.db");
+    const path = dir.join("fresnel.db");
     const clock = manualClock();
     const peerOpts = directOptions(path, {}, clock).options;
     const peer = own(await openStore(peerOpts).then(unwrap));
@@ -234,7 +234,7 @@ describe("snapshot racing a peer process", () => {
   test("a failed snapshot with no peer progress still stops the upgrade", async () => {
     const dir = own(tempDir());
     const clock = manualClock();
-    const { options } = directOptions(dir.join("xeon.db"), { takeSnapshot: failing }, clock);
+    const { options } = directOptions(dir.join("fresnel.db"), { takeSnapshot: failing }, clock);
     const store = own(await openStore(options).then(unwrap));
     expect(store.service.migrations.apply(set(1)).ok).toBe(true);
     expect(store.service.migrations.apply(set(2))).toEqual({

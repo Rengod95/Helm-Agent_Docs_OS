@@ -17,7 +17,7 @@ binds: [xeon/packages/cap-mcp/**]
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
 | M0 | 없음 | — |
-| M1 | 없음. 이번 실행(foundation-plan P4)에서는 패키지 스캐폴드(`package.json`, 빈 `src/index.ts`, `xeon` 필드)까지만 만든다 | `_research/foundation-plan.md` §5 P4 "L2 웹·MCP는 스캐폴드까지만", `product.scope.spec` §4.3 |
+| M1 | 없음. 이번 실행(foundation-plan P4)에서는 패키지 스캐폴드(`package.json`, 빈 `src/index.ts`, `fresnel` 필드)까지만 만든다 | `_research/foundation-plan.md` §5 P4 "L2 웹·MCP는 스캐폴드까지만", `product.scope.spec` §4.3 |
 | M2 | MCP 브리지(연결, 도구·프롬프트·리소스 노출, 재연결), 서버 정의(설정 키, `.mcp.json` 가져오기, 허용·차단·도구별 승인), 서버 주도 요청(MRTR → 승인 프로토콜 → 재시도), annotations 매핑, 서버 상태 저장 | `product.scope.spec` §4.3 M2 "`cap-mcp` 1차 구성요소", `_research/layer-plan-v2.json` L2-b 1차 |
 | M3 | 1차 추가 없음. M2 결과를 학습 그룹·서비스 모드와 함께 안정화한다(서비스 모드에서 stdio 서버 수명) | `product.scope.spec` §4.3 M3 |
 
@@ -29,13 +29,13 @@ M2 완료 기준에 `product.scope.spec` §4.4 M2 종료 조건 "테스트 MCP �
 |---|---|---|---|
 | MCP Tasks | 2차(`_research/layer-plan-v2.json` L2-b) | 자체 Tasks 어댑터(명시 스키마 요청 `tasks/get`, `tasks/update`, `tasks/cancel`), 백그라운드 완료 신호 연결 | Tasks 명세 본문 필드, `notifications/tasks` 존재 여부(`L2.mcp.spec` §10 미결 7), `tasks/update`가 명시 스키마 경로로 나가는지([가정], `L2.mcp.spec` §1.3) |
 | 변경 구독 | 2차 | `Client.listen`, 2025 `listChanged`, 재연결 뒤 재-listen, 단계 경계 반영 | 없음(SDK API 확인됨) |
-| MCP OAuth | 2차 | `XeonOAuthProvider`, 토큰 `fresnel.secrets` 저장, `iss` 검증, 콜백 수신 | L4 콜백 방식, CIMD 세부 |
+| MCP OAuth | 2차 | `FresnelOAuthProvider`, 토큰 `fresnel.secrets` 저장, `iss` 검증, 콜백 수신 | L4 콜백 방식, CIMD 세부 |
 
 ## 2. 패키지와 파일 배치
 
 ```
 xeon/packages/cap-mcp/
-  package.json          # "name": "@fresnel/cap-mcp", "xeon": { "layer": "L2", "domain": "mcp" }
+  package.json          # "name": "@fresnel/cap-mcp", "fresnel": { "layer": "L2", "domain": "mcp" }
   src/
     index.ts            # manifest, apply(ctx): 서비스 fresnel.mcp 등록, 세션 시작·종료 연결
     manifest.ts         # defineManifest({ name: "cap-mcp", layer: "L2", kind: "plugin",
@@ -65,7 +65,7 @@ xeon/packages/cap-mcp/
     subscriptions/      # 2차
       listen.ts
     oauth/              # 2차
-      provider.ts       # XeonOAuthProvider(OAuthClientProvider 구현)
+      provider.ts       # FresnelOAuthProvider(OAuthClientProvider 구현)
     testing/
       memory-transport.ts   # 인메모리 Transport 쌍(테스트와 다른 패키지 테스트용)
       stub-server.ts        # 테스트 MCP 서버 스텁
@@ -93,7 +93,7 @@ xeon/packages/cap-mcp/
 | MC7 | `cap_mcp_` 상태 저장: `client/state-store.ts`, `cap_mcp_servers` DDL을 `fresnel.store.scoped`에 등록, 상태 변경 때 갱신, 마스킹된 `lastError` | MC2, L0.store.plan(`fresnel.store.scoped`, 접두사 소유 검사) | S |
 | MC8 | (2차) Tasks 어댑터: `tasks/schemas.ts`(명시 스키마), `tasks/adapter.ts`(`CreateTaskResult` 판별, 폴링, `tasks/update`, `tasks/cancel`), 백그라운드 완료 신호 연결 | MC5, Tasks 명세 본문 확인, `tasks/get`·`tasks/update`·`tasks/cancel`의 명시 스키마 전송을 스텁 서버로 확인(`tasks/update`는 [가정], spec §1.3·§4.10), L1.agents.plan(백그라운드 완료 신호) | M |
 | MC9 | (2차) 변경 구독: `subscriptions/listen.ts`(2026 `listen`, 2025 `listChanged`), 재연결 뒤 재-listen, 단계 경계 반영 | MC4 | M |
-| MC10 | (2차) OAuth: `oauth/provider.ts`(`XeonOAuthProvider`), 토큰·클라이언트 정보 `fresnel.secrets` 저장, `finishAuth(code, iss)`, `iss` 검증, 콜백 수신 연결 | MC2, L0.secrets.plan, L4.desktop.plan·L4.cli.plan(브라우저 열기, 콜백) | L |
+| MC10 | (2차) OAuth: `oauth/provider.ts`(`FresnelOAuthProvider`), 토큰·클라이언트 정보 `fresnel.secrets` 저장, `finishAuth(code, iss)`, `iss` 검증, 콜백 수신 연결 | MC2, L0.secrets.plan, L4.desktop.plan·L4.cli.plan(브라우저 열기, 콜백) | L |
 
 - M2 범위는 MC1~MC7이다. 순서는 MC1 → (MC2 ∥ MC3) → MC4 → (MC5 ∥ MC6 ∥ MC7)이다. MC7은 MC2 뒤 언제든 할 수 있다.
 - MC5는 L1.tools.plan의 승인 프로토콜 작업(M2 "승인 프로토콜 통합", `product.scope.spec` §4.1 I9)과 같은 시기에 맞춘다. `L2.mcp.spec` §10 미결 2(책임 나눔)를 MC5 시작 전에 정한다.
@@ -267,7 +267,7 @@ M2 완료:
 
 - 파일 배치(§2)에 더한 것: `src/ports/`(`process.ts`, `secrets.ts`, `secret-service.ts`, `trust.ts`, `files.ts`, `store.ts`, `tools.ts`, `rules.ts`), `client/register.ts`, `client/schema-check.ts`, `servers/definitions.ts`, `elicitation/approval-adapter.ts`, `errors.ts`, `json.ts`, `order.ts`, `hash.ts`, `types.ts`. `manifest.ts`와 `apply(ctx)`는 만들지 않았다. 조립은 HOST.6이 `createMcp(deps)`를 불러 한다(m2-plan HOST.6).
 - SDK 경계: `testing/`도 SDK를 import한다(스텁 서버가 SDK의 인메모리 전송을 쓴다). 수용 기준 10번의 허용 목록에 `testing/`를 더했고 `boundary.test.ts`가 이 목록으로 검사한다. `oauth/`, `tasks/`는 2차라 아직 없다.
-- `.fresnel/mcp.json`도 읽는다(결정 D6). 우선순위는 설정 > `.fresnel/mcp.json` > `.mcp.json`이고 출처 표기는 각각 `settings:<범위>`, `mcpjson:xeon`, `mcpjson:project`다.
+- `.fresnel/mcp.json`도 읽는다(결정 D6). 우선순위는 설정 > `.fresnel/mcp.json` > `.mcp.json`이고 출처 표기는 각각 `settings:<범위>`, `mcpjson:fresnel`, `mcpjson:project`다.
 - 신뢰하지 않은 프로젝트의 `.mcp.json`은 읽지 않으므로 서버 이름을 알 수 없다. 그래서 `blocked(untrusted_project)` 서버로 나열하지 못하고 `LoaderDiagnostic`(`untrusted_project`)으로 알린다. project 범위 설정 정의는 목록에 `blocked(untrusted_project)`로 보인다.
 - 승인 규칙은 `McpRulesSink` 포트로 공급한다. `ToolService.registerRules`가 `core:` 출처만 받기 때문이다. 기계 이름을 모르는 도구(숨김, 아직 목록에 없음)의 도구별 규칙은 만들지 않는다. `resource.tool` 없이 만들면 서버 전체에 걸리기 때문이다.
 - 도구 기계 이름은 결정 전까지 서버가 광고한 이름 그대로다(`mcpToolName`). 두 서버가 같은 이름을 내면 서버 id 바이트 순으로 뒤쪽을 `name_conflict`로 숨기고, `reservedToolNames`에 든 내장 이름과 겹쳐도 같다.

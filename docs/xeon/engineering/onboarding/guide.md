@@ -43,7 +43,7 @@ just verify-full    # 캐시 없이 type-aware lint까지 전부. 마일스톤 �
 
 - `just verify`는 기기에서 한 번에 하나만 돕니다(`WS_GUARD_SLOTS=1`). 단계를 차례로 돌고 단계마다 메모리 2G, 시험은 패키지마다 1.5G가 상한입니다. 슬롯이 차 있으면 기다립니다(`eng.toolchain.guide` §3.1). 작업 중에는 `just check <패키지>`만 돌리고 `just verify`는 마지막 병합 단계에서 돌립니다.
 - 마지막 단계 `ws check`는 저장소 주인 기기의 dotfiles 도구입니다. `ws`가 없는 기기에서는 `verify`의 마지막 줄이 실패합니다. 이때는 `just _verify-steps`로 검사 단계만 돌리고, 작업 보고에 "ws check 미실행(환경)"을 적습니다. 코드를 고치지 않습니다(종료코드 2 규칙).
-- CI(`.github/workflows/xeon-ci.yml`)는 `ws check`를 뺀 같은 단계를 돕니다.
+- CI(`.github/workflows/fresnel-ci.yml`)는 `ws check`를 뺀 같은 단계를 돕니다.
 
 ### ON-03 시험은 패키지 하나씩 돌린다
 
@@ -82,7 +82,7 @@ just docs-route --task docs L1/loop
 
 ### ON-07 macOS 작업은 원격으로 한다
 
-- macOS가 필요한 확인(Seatbelt, 키체인, WKWebView, IME)은 `ws on mac -- just <레시피>`나 수동 CI job `xeon-macos.yml`로 합니다. 목록은 `review.macos-checklist`입니다.
+- macOS가 필요한 확인(Seatbelt, 키체인, WKWebView, IME)은 `ws on mac -- just <레시피>`나 수동 CI job `fresnel-macos.yml`로 합니다. 목록은 `review.macos-checklist`입니다.
 
 ## 3. 강제 수단
 

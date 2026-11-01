@@ -54,7 +54,7 @@ export function matchToolGlob(pattern: string, name: string): boolean {
 }
 
 const NONINTERACTIVE_MESSAGE =
-  "[xeon:noninteractive_ask_denied] This tool call needs approval, but nobody can answer in a non-interactive run.";
+  "[fresnel:noninteractive_ask_denied] This tool call needs approval, but nobody can answer in a non-interactive run.";
 
 function agentNameOf(caller: CallerId): string | null {
   return caller.startsWith("subagent:") ? caller.slice("subagent:".length) : null;
@@ -99,7 +99,7 @@ export function childDecision(
       reason: "rule",
       ruleId,
       tier: null,
-      message: `[xeon:denied_by_policy] Tool call "${call.tool}" is not in the tool list of this subagent definition.${hint}`,
+      message: `[fresnel:denied_by_policy] Tool call "${call.tool}" is not in the tool list of this subagent definition.${hint}`,
     });
   }
   if (parent.deny !== undefined && parent.deny.some((glob) => matchToolGlob(glob, call.tool))) {
@@ -108,7 +108,7 @@ export function childDecision(
       reason: "rule",
       ruleId: name === null ? "agent.tools.deny" : `agent.${name}.tools.deny`,
       tier: null,
-      message: `[xeon:denied_by_policy] Tool call "${call.tool}" is denied for this subagent.${hint}`,
+      message: `[fresnel:denied_by_policy] Tool call "${call.tool}" is denied for this subagent.${hint}`,
     });
   }
   if (merged.effect === "ask" && !call.interactive) {

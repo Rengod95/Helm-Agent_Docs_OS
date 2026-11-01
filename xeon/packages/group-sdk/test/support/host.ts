@@ -82,7 +82,7 @@ export async function serviceRig(
     ...(extra.onEnabled === undefined ? {} : { onEnabled: extra.onEnabled }),
   });
   await t.host.registerPlatform({
-    name: "xeon-groups",
+    name: "fresnel-groups",
     setup(ctx) {
       ctx.providePort(LeaseArbiterPortKey, service);
     },

@@ -115,7 +115,7 @@ describe("posix flock provider", () => {
     const root = own(tempDir());
     const broken = {
       dir: root.path,
-      libName: "libxeon-does-not-exist.so",
+      libName: "libfresnel-does-not-exist.so",
       errnoSymbol: "__errno_location",
       wouldBlockErrno: 11,
     } as const;

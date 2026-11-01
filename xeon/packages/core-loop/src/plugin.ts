@@ -62,7 +62,7 @@ const AGENTS_KEY: PortKey<AgentService> = { name: AgentServiceName };
 const APPROVALS_KEY: PortKey<ApprovalService> = { name: ApprovalServiceName };
 
 /** 기본 시스템 프롬프트. 조립 루트가 설정으로 덮어쓴다 */
-export const DEFAULT_BASE_PROMPT = "You are Xeon, a helpful coding assistant.";
+export const DEFAULT_BASE_PROMPT = "You are Fresnel, a helpful coding assistant.";
 
 export interface LoopPluginOptions {
   /** IdFactory 구현은 L0 platform-os에 있고 조립 루트가 넘긴다 */

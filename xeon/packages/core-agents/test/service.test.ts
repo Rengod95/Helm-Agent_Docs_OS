@@ -338,7 +338,7 @@ describe("cancellation and settling order", () => {
     await turn.settle();
     const settled = h.session.events.find((event) => event.kind === "agent.settled");
     expect(settled).toBeDefined();
-    expect(outcome.answer).toContain("[xeon:subagent_aborted]");
+    expect(outcome.answer).toContain("[fresnel:subagent_aborted]");
   });
 
   test("cancel aborts a running child and it settles aborted", async () => {

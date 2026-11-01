@@ -94,9 +94,9 @@ thread, turn, step, item 용어는 `F.conversation.spec`을 따른다. 이 문�
 
 | 배포 형태 | 전송 | 프레이밍 | 단계 |
 |---|---|---|---|
-| CLI(`xeon chat`) | in-process | 없음. 메시지 객체를 그대로 넘긴다 | M1 |
+| CLI(`fresnel chat`) | in-process | 없음. 메시지 객체를 그대로 넘긴다 | M1 |
 | 데스크톱(Tauri 2 + 엔진 사이드카) | stdio | JSON Lines(UTF-8, 메시지 하나당 한 줄, `\n` 구분) | M1(계약), 구현은 L4 plan |
-| 서비스(`xeon service`) | socket | Unix 도메인 소켓 위 JSON Lines | M2 이후 |
+| 서비스(`fresnel service`) | socket | Unix 도메인 소켓 위 JSON Lines | M2 이후 |
 
 ```ts
 // wire/transport.ts
@@ -198,7 +198,7 @@ export function createLineFramer(options?: { readonly maxFrameBytes?: number }):
 
 19 §3.3.1을 이식한다. 달라진 점과 그대로인 점을 한 표에 둔다.
 
-| 규칙 | 19 §3.3.1 | Xeon | 표지 |
+| 규칙 | 19 §3.3.1 | Fresnel | 표지 |
 |---|---|---|---|
 | `jsonrpc: "2.0"` 필수 | 같음 | 같음 | [제안] |
 | 배치(배열 메시지) | 거부, `-32600` 하나(`id: null`) | 같음. 받으면 `-32600` 하나(`id: null`)를 보내고 연결은 유지한다 | [제안] |
@@ -371,7 +371,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - `TrustStatus`는 `{ projectRoot, required, verdict: "allow"|"deny"|"undecided", via, resources, options }`다. `projectRoot`는 심볼릭 링크를 푼 경로, `resources`는 신뢰가 필요한 자원의 프로젝트 루트 기준 상대 경로, `via`는 판정의 출처(`override`·`notRequired`·`point`·`store`·`sessionMemory`·`default`·`prompt`·`headless`·`corruptStore`, `X.loading-trust`의 `TrustVia`와 같은 집합)다. `options`는 `{ choice, label, savedPath }`이고 `label`은 현지화 식별자(`trust-folder`, `trust-parent`, `trust-session`, `deny-folder`, `deny-session`)이며 `savedPath`는 결정을 저장하는 폴더(`session`은 null)다.
   - `trust.decide`의 `choice`가 그 폴더의 `options`에 없으면 `jsonrpc.invalidParams`(`path: "choice"`)다. `session`은 저장하지 않고 그 호스트 프로세스 동안만 유지한다. `workspace`가 절대 경로가 아니면 `jsonrpc.invalidParams`(`path: "workspace"`)이고, 결정을 저장하지 못하면(손상된 저장 파일, 쓰기 실패) `store.io`(`details.code: "trust_store"`)다. `trust.get`은 아무것도 바꾸지 않는다. 신뢰 필요 자원이 없는 폴더도 `trust.decide`로 미리 정할 수 있다.
   - 결정 뒤 호스트는 그 폴더의 project·local 설정 파일 층을 다시 읽고 `settings.invalidated`(§3.3.2)를 보낸다. 프로젝트 스킬은 다음 thread를 열 때, MCP 서버 정의는 다음 서버 로드 때 반영된다. 이미 열린 thread가 새 결정을 모두 받게 하려면 결정을 thread 열기 전에 한다.
-  - 저장 파일 `trust.json`은 두 클라이언트(CLI의 `xeon trust`, 데스크톱 카드)가 같은 호스트를 거쳐 쓴다. 프로세스 사이 쓰기 충돌은 L0.os의 `fileLock`이 막는다(`review.m2-plan` G1-10). wire는 이 잠금을 드러내지 않는다.
+  - 저장 파일 `trust.json`은 두 클라이언트(CLI의 `fresnel trust`, 데스크톱 카드)가 같은 호스트를 거쳐 쓴다. 프로세스 사이 쓰기 충돌은 L0.os의 `fileLock`이 막는다(`review.m2-plan` G1-10). wire는 이 잠금을 드러내지 않는다.
   - `thread.trust.before` 확장 지점은 이 메서드와 별개다. 확장이 결정을 내는 길이고 thread 없이 호스트 수준에서 발화한다(`F.extensions.spec` §7). M2에는 그 지점에 핸들러를 거는 확장이 없어 호스트는 발화하지 않고 저장소 판정만 쓴다.
 - [결정: m2c G1-02] `turn.resume`은 프로세스 종료로 끊긴 turn을 이어 실행하는 메서드다(`L1.loop.spec` §4.6 `LoopService.resume`, `L4.host-service.spec` §10 21번). `thread.list`가 `ThreadSummary.resumable`로 후보를 알리고(§3.3.1 아래 코드), 클라이언트가 사용자 확인 뒤 이 메서드를 부른다. 호스트는 자동 재개를 하지 않는다. 한 thread에 열린 turn은 하나라서 `turnId`를 받지 않는다.
   - 결과 세 모양은 `ResumeResult`(`services/loop.ts`)와 같아 변환이 없다. `resumed`는 이어 실행을 접수했다는 뜻이고 진행은 `events.subscribe`의 이벤트로 온다. `from`은 이어 시작한 단계다. 승인을 기다리던 turn은 `tools`로 이어지고 `approval.list`의 대기 승인이 다시 응답을 받는다.
@@ -490,7 +490,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 클라이언트 → 서버 | `$/cancelRequest` | `{ id: RpcId }` | M1 |
 | 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 같은 연결 위에서 다시 시작되어 이전 화면의 상태를 버린다(WebView 새로고침, `L4.desktop.spec` §4.5). 동작은 §4.1 5~7번 | M2 |
 
-[제안] 19의 `events` 알림은 이름 규칙의 예외였다. Xeon은 예외를 두지 않으려고 `events.batch`로 바꾼다. 브리프와 19가 말하는 "`events` 알림"은 이 `events.batch`다.
+[제안] 19의 `events` 알림은 이름 규칙의 예외였다. Fresnel은 예외를 두지 않으려고 `events.batch`로 바꾼다. 브리프와 19가 말하는 "`events` 알림"은 이 `events.batch`다.
 
 #### 3.3.3 레지스트리 타입
 
@@ -698,7 +698,7 @@ on commit(batch: seq 구간 (a-1, b]), 커밋 직후 같은 턴에서:
 
 - 3단계의 head 읽기와 구독 등록은 같은 이벤트 루프 턴에서 한다. bun:sqlite는 동기 API이고 커밋 방송도 같은 스레드에서 하므로 그 사이에 커밋이 끼어들 수 없다. [가정] L0.store가 커밋을 다른 스레드로 옮기지 않는다. 옮기면 등록과 방송을 직렬화하는 잠금이 필요하다.
 - 한도 기본값 [제안]: `maxReplayEvents` 100,000, `replayBatchMaxEvents` 500, `scanLimit` 10,000, 연결당 구독 16. 값은 L4 host 설정 키로 노출할 수 있고 그 키는 `L4.host-service.spec`이 소유한다.
-- `replay.outOfRange`를 받은 클라이언트의 복구 절차는 19 §3.5.5의 1·2단계(위치 버림, `from: "head"`로 재구독)만 이식한다. 뷰 스냅샷(`view.get`)은 Xeon 계약에 없다. [결정: m2 F.2] thread 상태 재조회는 `thread.read`가, 대기 승인 재조회는 `approval.list`가 맡는다(§3.4.6).
+- `replay.outOfRange`를 받은 클라이언트의 복구 절차는 19 §3.5.5의 1·2단계(위치 버림, `from: "head"`로 재구독)만 이식한다. 뷰 스냅샷(`view.get`)은 Fresnel 계약에 없다. [결정: m2 F.2] thread 상태 재조회는 `thread.read`가, 대기 승인 재조회는 `approval.list`가 맡는다(§3.4.6).
 
 #### 3.4.4 휘발 스트림
 
@@ -1072,10 +1072,10 @@ export const SettingDefWire = Obj({
 });
 ```
 
-- [결정: m2c G5-04] `SettingDef.stage`는 값을 읽는 코드가 있는지를 알린다. 선언만 하고 읽지 않는 키(2차·M3 기능의 키)가 `xeon config set`과 설정 화면에서 일반 키처럼 보이고 값을 바꿔도 아무 일도 일어나지 않는 문제를 막는다. 규칙은 넷이다.
+- [결정: m2c G5-04] `SettingDef.stage`는 값을 읽는 코드가 있는지를 알린다. 선언만 하고 읽지 않는 키(2차·M3 기능의 키)가 `fresnel config set`과 설정 화면에서 일반 키처럼 보이고 값을 바꿔도 아무 일도 일어나지 않는 문제를 막는다. 규칙은 넷이다.
   1. `reserved` 키는 `settings.list`에서 기본으로 빠진다. `includeReserved: true`를 주면 들어간다. `settings.get`은 지정한 키를 그대로 돌려준다.
   2. `reserved` 키는 `ui`를 가져도 화면에 그리지 않는다. 클라이언트는 `settings.list` 결과에 `stage: "reserved"`가 보이면 건너뛴다.
-  3. `reserved` 키에 쓰는 `settings.set`, `xeon config set`(`checkSettingWrite`)은 `settings.reserved`(3106)로 거부한다. 키·구현 단계·범위·잠금·값 순으로 검사해서 범위나 값이 틀려도 이 오류가 먼저다. `settings.reset`은 값을 지우는 일이라 막지 않는다.
+  3. `reserved` 키에 쓰는 `settings.set`, `fresnel config set`(`checkSettingWrite`)은 `settings.reserved`(3106)로 거부한다. 키·구현 단계·범위·잠금·값 순으로 검사해서 범위나 값이 틀려도 이 오류가 먼저다. `settings.reset`은 값을 지우는 일이라 막지 않는다.
   4. 파일에 이미 적힌 `reserved` 키 값은 읽히지만 쓰는 코드가 없다. 키를 `active`로 올리는 일은 읽는 코드를 넣는 커밋이 한다. `stage`는 `checkSettingDef` 규칙(D1~D9)을 바꾸지 않는다.
   - 소유 층이 어느 키를 `reserved`로 표시할지는 각 층의 몫이다(`review.m2-plan` G5-04). 이 변경은 필드와 거부 규칙만 정한다. 표시 대상 후보는 `l4.cli.theme`·`statusLine`·`keybindingsFile`, `l0.process.service.*`, `l0.process.lockFallback.default`, `l0.os.telemetry.*`, `l2.web.browse.*`·`research.*`다.
 
@@ -1300,7 +1300,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 |---|---|---|
 | 설정 화면(탭 12개) | `L4.settings-ui.spec` | `SettingDef.ui`, `range`, `secret`, `allowedScopes`, `EffectiveSetting` |
 | 설정 파일 JSON Schema | `L4.host-service.spec`(생성 명령) | `settingsJsonSchema` 출력 규약(§4.10) |
-| 명령 | `L4.cli.spec`(`xeon config get/set/reset/list`), wire `settings.*` | `checkSettingWrite`, `validateSettingValue`, `EffectiveSetting` |
+| 명령 | `L4.cli.spec`(`fresnel config get/set/reset/list`), wire `settings.*` | `checkSettingWrite`, `validateSettingValue`, `EffectiveSetting` |
 
 - 탭 [제안]: `SettingsTab`의 13개 값(M3-REQ-15가 `sandbox`를 더했다). `_research/settings.md` §4의 13개 탭 초안에서 "에이전트"를 "모델"에 합치고(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안의 모델 탭이 서브에이전트를 포함한다), "비밀"(같은 구성안)과 "외관"(층 밖 항목)을 따로 둔 결과다. 최종 배치는 `L4.settings-ui.spec`이 정하고 enum 변경은 F 버전 정책(부 버전)을 따른다.
 - 화면 공통 규칙(`_research/settings.md` §4)에서 F 데이터로 보장하는 것: 범위 배지(`EffectiveSetting.source.scope`), 세션 중 변경 가능 여부(`runtimeChange`, `allowedScopes`에 `session` 포함 여부), 관리 잠금(`locked`), 저장 파일 경로(`source.path`).
@@ -1328,10 +1328,10 @@ export declare function settingsJsonSchema(catalog: SettingCatalog, options: Set
 2. 파일 모양은 평평한 객체다. 키는 전체 설정 키(`"l1.loop.maxSteps"`)다. [제안] 중첩 객체 대신 평평한 키를 쓰면 병합 단위(키 하나)와 파일 모양이 같아진다.
 3. `properties[key]`는 `def.type`의 JSON Schema에 `range`를 합친 것이다(`minimum`, `maximum`, `enum`). 변환은 `F.capabilities.spec`의 `toJsonSchema(schema)`(TypeBox → JSON Schema 2020-12, `~` 접두 키 제거)를 쓴다.
 4. 그 범위가 `allowedScopes`에 없는 키는 `properties`에 넣지 않는다. 그래서 편집기 자동 완성과 검사가 범위 제한을 그대로 보인다.
-5. `additionalProperties: true`다. 모르는 키를 보존하기 위해서다(§4.8). 편집기 경고는 `x-xeon-unknownKeys: "warn"`로 표시한다.
+5. `additionalProperties: true`다. 모르는 키를 보존하기 위해서다(§4.8). 편집기 경고는 `x-fresnel-unknownKeys: "warn"`로 표시한다.
 6. `default`는 `def.default`가 있을 때만 싣는다. 비밀 키는 `default`가 없고 `pattern`이 `SecretRef`와 같다.
 7. `deprecated`가 있으면 JSON Schema `deprecated: true`와 `description`에 대체 키를 적는다.
-8. 확장 정보는 `x-xeon` 객체에 싣는다: `{ layer, runtimeChange, allowedScopes, secret, since, ui }`.
+8. 확장 정보는 `x-fresnel` 객체에 싣는다: `{ layer, runtimeChange, allowedScopes, secret, since, ui }`.
 9. 같은 카탈로그와 같은 옵션이면 출력은 바이트 단위로 같다(키 정렬). CI가 커밋본과 diff할 수 있게 하기 위해서다.
 
 10. [결정: M3-REQ-15] 전송용 정의에서도 같은 병합을 한다. `toValueJsonSchema(def: SettingDefWire): JsonObject`는 `def.type`에 `def.range`를 합친다(`settings/jsonschema.ts`). `effectiveSchemaJson`과 규칙이 같아 클라이언트 검사, 파일 검사, `settings.set` 검사가 같은 판정을 낸다.
@@ -1339,7 +1339,7 @@ export declare function settingsJsonSchema(catalog: SettingCatalog, options: Set
 
 ### 4.11 CLI 파서와 같은 검사
 
-- [제안] CLI `xeon config set <key> <raw>`는 `raw`를 먼저 JSON으로 해석하고, 실패하면 문자열로 본다. 해석한 값은 `checkSettingWrite`로 검사한다. 이 함수 안의 값 검사는 `validateSettingValue`이고, 이 함수는 `settingsJsonSchema`가 내는 스키마와 같은 TypeBox 스키마(`type` + `range`)로 `Value.Check`를 한다. 그래서 파일 검사, CLI 검사, wire `settings.set` 검사의 결과가 같다.
+- [제안] CLI `fresnel config set <key> <raw>`는 `raw`를 먼저 JSON으로 해석하고, 실패하면 문자열로 본다. 해석한 값은 `checkSettingWrite`로 검사한다. 이 함수 안의 값 검사는 `validateSettingValue`이고, 이 함수는 `settingsJsonSchema`가 내는 스키마와 같은 TypeBox 스키마(`type` + `range`)로 `Value.Check`를 한다. 그래서 파일 검사, CLI 검사, wire `settings.set` 검사의 결과가 같다.
 
 ## 5. 실패와 경계 사례
 

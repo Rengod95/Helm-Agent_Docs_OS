@@ -4832,7 +4832,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "xeon-desktop"
+name = "fresnel-desktop"
 version = "0.0.0"
 dependencies = [
  "block2",

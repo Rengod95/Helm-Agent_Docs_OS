@@ -21,7 +21,7 @@ const none: CancelScope = { abortSignal: undefined };
 const dirs: string[] = [];
 
 function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-exec-service-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-exec-service-"));
   dirs.push(dir);
   return dir;
 }

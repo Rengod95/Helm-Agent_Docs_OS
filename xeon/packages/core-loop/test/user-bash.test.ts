@@ -169,7 +169,7 @@ test("a command the tools service refused before running is reported as denied",
   h.tools.userShellResult = () =>
     shellRecord({
       isError: true,
-      content: [{ type: "text", text: '[xeon:denied_by_policy] Tool "bash" is denied.' }],
+      content: [{ type: "text", text: '[fresnel:denied_by_policy] Tool "bash" is denied.' }],
       details: { code: "not_executed" },
     });
   const outcome = await h.loop.runUserBash({

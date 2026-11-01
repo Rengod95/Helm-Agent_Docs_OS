@@ -214,7 +214,7 @@ test("a guard.output.before block withholds the answer and the reason is recorde
   await h.host.settled();
   await h.loop.admit({ threadId: h.threadId, content: "hi", via: "interactive" });
   await h.settle();
-  expect(assistantTexts(h)).toEqual(["[xeon:withheld_by_guard] not for display"]);
+  expect(assistantTexts(h)).toEqual(["[fresnel:withheld_by_guard] not for display"]);
 });
 
 test("a throwing guard.output.before handler also withholds the answer (fail closed)", async () => {
@@ -224,7 +224,7 @@ test("a throwing guard.output.before handler also withholds the answer (fail clo
   await h.host.settled();
   await h.loop.admit({ threadId: h.threadId, content: "hi", via: "interactive" });
   await h.settle();
-  expect(assistantTexts(h)).toEqual(["[xeon:withheld_by_guard] extension handler failed"]);
+  expect(assistantTexts(h)).toEqual(["[fresnel:withheld_by_guard] extension handler failed"]);
 });
 
 test("a step with tool calls is not an output: the guard only sees the final answer", async () => {

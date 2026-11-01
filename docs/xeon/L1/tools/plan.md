@@ -201,7 +201,7 @@ xeon/packages/core-tools/
 ## 6. 완료 기준
 
 - 위 단위 테스트가 패키지 단위 `bun test`로 통과한다(M1 범위 테스트는 M1에, 나머지는 해당 단계에).
-- M1 스모크(eng.testing.guide TS-01 `scenario`, 저장소 전체 1개): 모델 테이프로 `xeon chat` 한 턴에서 bash 호출 한 건이 `effect.intent`, `effect.exec`, `effect.result` 3단으로 기록된다. 스모크 설정은 사용자 범위 규칙으로 해당 bash 명령 패턴을 allow하거나 테이프에 승인 응답을 넣는다. 강제 종료 뒤 재개하면 같은 기록에서 이어진다.
+- M1 스모크(eng.testing.guide TS-01 `scenario`, 저장소 전체 1개): 모델 테이프로 `fresnel chat` 한 턴에서 bash 호출 한 건이 `effect.intent`, `effect.exec`, `effect.result` 3단으로 기록된다. 스모크 설정은 사용자 범위 규칙으로 해당 bash 명령 패턴을 allow하거나 테이프에 승인 응답을 넣는다. 강제 종료 뒤 재개하면 같은 기록에서 이어진다.
 - 출력 한도를 넘는 bash 출력이 스모크 테이프 하나에 들어 있고 blob과 미리보기로 기록된다.
 - `just verify`가 종료코드 0이다(oxfmt, oxlint type-aware, tsc -b, check-layers, depcruise, knip, 영향 범위 테스트).
 - check-layers: core-tools가 다른 `core-*`, `cap-*`, `group-*` 패키지와 `cordis`, `@earendil-works/*`를 import하지 않는다. contracts의 capabilities 소스도 `@earendil-works/pi-agent-core`를 import하지 않는다(DR-07, L1.tools.spec §9-21).

@@ -82,7 +82,7 @@ describe("macOS key provision", () => {
       SECURITY,
       "find-generic-password",
       "-s",
-      "xeon.age",
+      "fresnel.age",
       "-a",
       "default",
     ]);
@@ -91,7 +91,7 @@ describe("macOS key provision", () => {
       false,
     );
     const line = fake.commands()[0] ?? "";
-    expect(line.startsWith("add-generic-password -s xeon.age -a default ")).toBe(true);
+    expect(line.startsWith("add-generic-password -s fresnel.age -a default ")).toBe(true);
     // 보낸 stdin 버퍼는 쓰고 나서 0으로 덮인다
     expect(fake.stdins().every(allZero)).toBe(true);
     expect(Object.keys(made.value)).toEqual(["recipient"]);

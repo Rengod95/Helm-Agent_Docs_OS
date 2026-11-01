@@ -113,7 +113,7 @@ export function checkEnvelopeSize(envelope: EventEnvelope): Result<number, Envel
 
 `docs/design/09-event-store.md` §3.2 `EventEnvelope`(98-222행)의 필드를 다음처럼 처리한다.
 
-| 09 필드 | 처리 | Xeon 필드 | 사유 |
+| 09 필드 | 처리 | Fresnel 필드 | 사유 |
 |---|---|---|---|
 | `seq` | 가져옴 | `seq` | 전역 단조 무간격 재생 커서. 내구 이벤트만 |
 | `id` (`ev_`) | 가져옴, 접두 변경 | `id` (`evt_`) | 공통 ID 접두 기준표 |
@@ -126,9 +126,9 @@ export function checkEnvelopeSize(envelope: EventEnvelope): Result<number, Envel
 | `scope.runId` 등 | 대체 | `threadId`, `turnId`, `stepId` | 대화 계층으로 소속을 표현한다 |
 | (없음) | 추가 | `parentId`, `durable`, `n`, `afterSeq`, `detached` | 분기 트리(pi), 내구/휘발 구분, 큰 값 분리 |
 | `v` (envelope 버전) | 버림 [제안] | — | envelope 모양 변경은 DB 마이그레이션으로 처리한다(§3.7) |
-| `category` | 버림 | — | Helm 도메인 분류(domain, governance, kernel, measurement 등). Xeon은 kind 영역 접두로 충분하다 |
-| `plane` | 버림 | — | Helm 규범·인식 평면 개념. Xeon 코어에 없다 |
-| `authority` | 버림 | — | Helm 커널의 권한 근거 문법. Xeon은 커널 단일 쓰기 전제를 철회했다(결정 로그 2026-10-19) |
+| `category` | 버림 | — | Helm 도메인 분류(domain, governance, kernel, measurement 등). Fresnel은 kind 영역 접두로 충분하다 |
+| `plane` | 버림 | — | Helm 규범·인식 평면 개념. Fresnel 코어에 없다 |
+| `authority` | 버림 | — | Helm 커널의 권한 근거 문법. Fresnel은 커널 단일 쓰기 전제를 철회했다(결정 로그 2026-10-19) |
 | `actor`, `via` | 버림 [제안] | — | 확장 출처는 kind 접두로, 사용자 입력 출처는 item으로 표현한다. 필요하면 payload에 둔다 |
 | `subject`, `refs` | 버림 | — | Helm 레코드(N/E) 참조. 대화 계층 ID로 대체 |
 | `commandId` | 버림 | — | Helm 명령 모델 |
@@ -757,7 +757,7 @@ export const StepCheckpointSchema: Schema<StepCheckpoint>;
 
 - [제안] 체크포인트는 단계 경계마다 `step.completed`와 같은 커밋으로 쓴다. 이 커밋은 `synchronous=FULL`을 전제로 한다(`_research/foundation-plan.md` §2 DB 행). 저장 설정 자체는 `L0.store.spec`이 정한다.
 - [제안] 루프 상태 전부를 복사하지 않는다. drive 임대와 scope 상태는 해당 이벤트 id로 참조한다. 대화 내용은 `leafEventId`에서 가지를 거슬러 읽는다.
-- [제안] `next`가 pi durable `GenerationCheckpoint`의 `phase` 판별자에 해당한다(`durable/src/harness/generation.ts:53-90`). pi는 phase마다 레코드를 통째로 바꾸지만 Xeon은 단계 경계에만 쓰고 단계 안의 진행은 이벤트에서 복원한다.
+- [제안] `next`가 pi durable `GenerationCheckpoint`의 `phase` 판별자에 해당한다(`durable/src/harness/generation.ts:53-90`). pi는 phase마다 레코드를 통째로 바꾸지만 Fresnel은 단계 경계에만 쓰고 단계 안의 진행은 이벤트에서 복원한다.
 - `model`은 재개 후 첫 요청에 쓴다. pi durable `request` 체크포인트의 `model`, `thinkingLevel`과 같은 목적이다.
 
 ### 3.7 스키마 버전과 마이그레이션
@@ -1259,7 +1259,7 @@ export interface RecordCommitPort {
 1. [미결] 해시 체인: 09 §3.2.2의 `prevHash`/`hash` 체인을 유지할지. [제안] M0에서는 두지 않고, 필요하면 열 추가 마이그레이션으로 더한다. 개인 런타임에서 변조 탐지 요구가 확인되지 않았다.
 2. [미결] 휘발 이벤트 seq 부여 여부: 현재 [제안]은 seq 없음 + `n` + `afterSeq`다. 여러 클라이언트가 휘발 조각 순서를 seq 기준으로 맞춰야 하는 요구가 생기면 다시 본다.
 3. [결정: M2 마감 G5-03] ULID 단조성은 L0 `IdFactory` 구현이 지킨다(`F.conversation.spec` §10 미결 3과 같은 항목).
-4. [결정: review.m3-design-inputs D-M3-31 행 1] 닫음: `ReplayPolicy`는 `"safe" | "unsafe"`를 유지한다. 옛 질문: 재생 정책 이름 통일: `ReplayPolicy = "safe" | "unsafe"`(pi durable) 채택과 F `AgentTool.replay`(pi-agent-core에서 온 `"never" | "safe"`)의 `"never"` → `"unsafe"` 매핑을 확정할지(정의 위치는 `F.conversation.spec` §3.6). Xeon 도구 선언에서 `"never"`를 계속 허용할지.
+4. [결정: review.m3-design-inputs D-M3-31 행 1] 닫음: `ReplayPolicy`는 `"safe" | "unsafe"`를 유지한다. 옛 질문: 재생 정책 이름 통일: `ReplayPolicy = "safe" | "unsafe"`(pi durable) 채택과 F `AgentTool.replay`(pi-agent-core에서 온 `"never" | "safe"`)의 `"never"` → `"unsafe"` 매핑을 확정할지(정의 위치는 `F.conversation.spec` §3.6). Fresnel 도구 선언에서 `"never"`를 계속 허용할지.
 5. [미결] 등록 해제된 확장 kind를 투영 재생에서 건너뛸지, 시작을 거부할지.
 6. [미결] 효과 결과 코드 집합: `ok`, `error`, `interrupted`, `abandoned` 네 값으로 충분한지(`_research/notes/F-3.md` §8.3 미결 3).
 7. [미결] 모델 요청 재전송: 재개 시 `next: "request"` 체크포인트에서 요청을 다시 보내는 것을 기본으로 할지, 요청마다 멱등 키를 둘지(`_research/notes/F-3.md` §8.3 미결 2).

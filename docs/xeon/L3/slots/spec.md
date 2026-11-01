@@ -33,7 +33,7 @@ binds: []
 - `defineGroup`, `GroupApi<S>`, `GroupService`, `DriveArbiter`, `replayDrive`의 정의: `L3.group-sdk.spec`
 - 4연산 타입, 지점 표, 매니페스트 스키마, 검증 함수: `F.extensions.spec`
 - 확장 로딩, 신뢰 등급, 예약 키 `ext.<id>.enabled`·`ext.<id>.isolation`의 정의: `X.loading-trust.spec`
-- `xeon group new` 명령의 실행(인자 해석, 파일 쓰기, 출력): `L4.cli.spec`
+- `fresnel group new` 명령의 실행(인자 해석, 파일 쓰기, 출력): `L4.cli.spec`
 - Helm과 학습 그룹의 내부: `L3.helm.spec`, `L3.learning.spec`
 
 정식 예의 위치:
@@ -53,7 +53,7 @@ binds: []
 | 정식 예 | 이 문서가 정한 정책 플러그인 3종. 템플릿 검증용 fixture |
 | 그룹 템플릿 | 새 그룹 패키지의 최소 골격 파일 묶음. 종류는 drive, policy, observe |
 | 템플릿 색인 | 템플릿 종류별 파일 목록과 치환 자리를 적은 JSON(`templates/index.json`) |
-| 단계 경계 | Xeon step 종료 직후(도구 결과 커밋 뒤). 켜기·끄기와 임대 교대가 적용되는 시점이다(`F.extensions.spec` §4.5) [결정: review.decisions-2 U-01] |
+| 단계 경계 | Fresnel step 종료 직후(도구 결과 커밋 뒤). 켜기·끄기와 임대 교대가 적용되는 시점이다(`F.extensions.spec` §4.5) [결정: review.decisions-2 U-01] |
 
 ## 3. 인터페이스
 
@@ -263,7 +263,7 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
 - pi, Claude Code, Codex CLI에는 내장 콘텐츠 가드레일이 없다. 훅·확장 이벤트와 권한·샌드박스로 막는다. OpenAI Agents SDK는 가드레일 프레임워크를 둔다.
 - Agents SDK 가드레일 종류는 input, output, tool-input, tool-output 넷이다. 이 문서의 지점 셋은 input을 모델 요청 가드, tool-input을 도구 호출 가드, output을 출력 가드에 대응시킨다. tool-output은 도구 결과가 다음 모델 요청에 들어가므로 모델 요청 가드에서 본다.
 - 판정은 통과, 트립와이어, 불명 3값이다. 검사기 예외는 거부와 구분해 "불명"으로 둔다(item-catalog 123행).
-- 도구를 쓰는 에이전트는 선행 차단을 기본으로 한다(item-catalog 121행). Xeon의 on 디스패치는 순차 await이므로 가드 지점의 검사는 선행 차단이다.
+- 도구를 쓰는 에이전트는 선행 차단을 기본으로 한다(item-catalog 121행). Fresnel의 on 디스패치는 순차 await이므로 가드 지점의 검사는 선행 차단이다.
 
 | 항목 | 값 |
 |---|---|
@@ -337,7 +337,7 @@ export const guardrail: ExtensionEntry = ({ scope }) => {
 | `test/unit.test.ts` | ● | ● | ● | 핸들러·토글·설정 단위 테스트 |
 | `test/replay.test.ts` | ● | | | `replayDrive` 골격 |
 | `test/manifest.test.ts` | ● | ● | ● | `validateManifest` 통과 확인 |
-| `package.json` | ● | ● | ● | `name`, `exports`, `xeon` 필드 |
+| `package.json` | ● | ● | ● | `name`, `exports`, `fresnel` 필드 |
 | `tsconfig.json` | ● | ● | ● | `tsconfig.base.json` 확장 |
 | `README.md` | ● | ● | ● | 그룹의 의도, 판정 기준(3.1.1) 답, 설정 키 표 |
 
@@ -386,7 +386,7 @@ export const TemplateIndexSchema: TObject = Type.Object({
 #### 3.3.4 이름 규칙
 
 - [결정: review.decisions-2 U-18] 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이다. 밑줄은 쓰지 않는다. 테이블 접두는 이름의 하이픈을 밑줄로 바꾼 `x_<id>_`이고 지역 테이블 이름에 밑줄을 쓰지 않으므로 접두의 경계를 하나로 읽는다. 정본 상수는 `L3.group-sdk.spec` §3.2 `GROUP_NAME_PATTERN`이다.
-- 쓸 수 없는 이름: 예약 이름의 정본은 `L3.group-sdk.spec` §3.2 `RESERVED_GROUP_NAMES`다(`RESERVED_EXT_IDS`, `grp`·`x`·`xeon`, L2 도메인 이름, `auto`·`all`·`none`·`group`·`groups`·`kit`). 생성 명령(R2)과 `defineGroup`은 같은 상수로 거부한다. 설치된 확장 이름(`helm`, `learning` 포함)과 겹치는 이름은 설치 목록으로 거부한다(R2, `validateManifestSet`의 `name_conflict`). 이 경우는 상수에 넣지 않는다.
+- 쓸 수 없는 이름: 예약 이름의 정본은 `L3.group-sdk.spec` §3.2 `RESERVED_GROUP_NAMES`다(`RESERVED_EXT_IDS`, `grp`·`x`·`fresnel`, L2 도메인 이름, `auto`·`all`·`none`·`group`·`groups`·`kit`). 생성 명령(R2)과 `defineGroup`은 같은 상수로 거부한다. 설치된 확장 이름(`helm`, `learning` 포함)과 겹치는 이름은 설치 목록으로 거부한다(R2, `validateManifestSet`의 `name_conflict`). 이 경우는 상수에 넣지 않는다.
 - 패키지 이름은 저장소 안이면 `@fresnel/group-<id>`, 외부면 제한하지 않는다 [제안].
 - 그룹 이름에서 파생되는 이름: scope id `<id>`, 레코드 kind `grp.<id>.<영역>.<이름>`, 설정 키 `ext.<id>.<이름>`, 테이블 `x_<id의 하이픈을 밑줄로>_*`, 비공개 기록 kind `grp.<id>.*`(`recordPrivate`), 명령 `/<id>`(선택).
 
@@ -555,13 +555,13 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 }
 ```
 
-- `xeon` 필드는 저장소 안 그룹일 때 check-layers가 쓴다(`architecture.layers.spec` §3 규칙 3). 저장소 안에 넣으면 routes.yaml layout L3에 도메인을 더해야 `fresnel.domain` 검사를 통과한다. 이것은 문서 변경이고 코어 코드 변경은 아니다 [제안].
+- `fresnel` 필드는 저장소 안 그룹일 때 check-layers가 쓴다(`architecture.layers.spec` §3 규칙 3). 저장소 안에 넣으면 routes.yaml layout L3에 도메인을 더해야 `fresnel.domain` 검사를 통과한다. 이것은 문서 변경이고 코어 코드 변경은 아니다 [제안].
 
 - [결정: B4-GRP 구현] 생성 결과가 `bun test`를 통과하도록 골격을 다음과 같이 맞췄다. 자세한 목록은 `L3.slots.plan` §8이다. (1) 식별자에는 이름을 넣지 않는다(`stateSchema`, `settings`). 그룹 이름에는 하이픈이 올 수 있어 `__ID__State` 같은 식별자가 성립하지 않는다. (2) drive는 `loop.budget.turns === 0`으로 멈추지 않고 커밋된 단계 수로 멈춘다. 임대의 남은 예산은 임대마다 새로 정해지므로 재생 복원 뒤 임대 경계가 달라지고 이벤트열 비교가 깨진다. (3) `loop.turn`에는 커밋된 상태에서 정한 `requestId`를 준다(ADR-0015 §3.4). (4) 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 위 본문의 `tape`, `cutAt` 인자는 아직 없다.
 
 #### 3.3.6 생성 명령의 요구 인터페이스
 
-명령 `xeon group new <이름> [--drive|--policy]`의 실행은 `L4.cli.spec`이 소유한다. 이 문서는 요구만 정한다.
+명령 `fresnel group new <이름> [--drive|--policy]`의 실행은 `L4.cli.spec`이 소유한다. 이 문서는 요구만 정한다.
 
 | 요구 | 내용 |
 |---|---|
@@ -701,7 +701,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | `EXT_ID_PATTERN`, `RESERVED_EXT_IDS`, 접두 소유, slots의 컨텍스트 배치(C-2) | `eng.context-map.design` |
 | 신뢰 등급과 외부 그룹 로딩 | `X.loading-trust.spec` |
 | 핸들러 순서 tier | `X.primitives.spec` |
-| `xeon group new` 실행 | `L4.cli.spec` |
+| `fresnel group new` 실행 | `L4.cli.spec` |
 
 ## 9. 수용 기준
 
@@ -722,7 +722,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 - [미결] 정책 플러그인의 group/plugin 구분 기준의 최종 확정(4.2.1).
 - (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 지점 셋으로 바꿨다(ADR-0017, 3.2.4절, 4.2.4절). 모델 분류기 사용은 4.2.4 5번의 [제안]이다.
 - [미결] 외부 그룹의 신뢰 등급 값 집합과 다른 그룹 import를 X 로더가 거부할지(`X.loading-trust.spec`, `F.extensions.spec` §10).
-- [미결] 생성 명령 `xeon group new`의 소유 문서. 이 문서는 실행을 `L4.cli.spec`에 두고 요구 R1~R6만 정한다. 매니페스트 형식(`plugin.json` 또는 `manifest.ts`) 선택 옵션도 함께 정한다.
+- [미결] 생성 명령 `fresnel group new`의 소유 문서. 이 문서는 실행을 `L4.cli.spec`에 두고 요구 R1~R6만 정한다. 매니페스트 형식(`plugin.json` 또는 `manifest.ts`) 선택 옵션도 함께 정한다.
 - [결정: review.decisions-2 U-18] 새 그룹 이름 규칙: `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음). `eng.context-map.design` CM-07·C-6과 F `ExtensionName` 정정은 그 문서 쪽 변경이다.
 - [결정: review.decisions-2 T-21] 공통 모순 (1) 그룹 kind 접두는 공개·비공개 모두 `grp.<id>.*`다. 템플릿은 공개 레코드에 `g.record`, 비공개 기록에 `recordPrivate`를 쓴다(`L3.readme` §10.2).
 - [미결] 공통 모순 (2) on 핸들러 외부 효과 금지와 `delegate`의 `requestId` 멱등 예외. 템플릿은 핸들러에서 `delegate`를 쓰지 않는다.

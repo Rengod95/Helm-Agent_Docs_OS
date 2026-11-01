@@ -3,10 +3,10 @@
 # usage: s2-size.sh [출력 디렉터리]   (cwd 무관)
 set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-xeon="$(cd "$here/../../.." && pwd)"
+fresnel="$(cd "$here/../../.." && pwd)"
 out="${1:-$here/out/s2}"
 mkdir -p "$out"
-cd "$xeon"
+cd "$fresnel"
 
 echo 'console.log("hello")' >"$out/hello.ts"
 

@@ -36,7 +36,7 @@ xeon/packages/contracts/
     agent.ts                       # 에이전트 루프 타입 (스펙 §3.1.1, adr.0009). 타입만
     message-schema.ts              # Type.Unsafe 래핑 런타임 스키마 (스펙 §3.3)
     parts.ts                       # PartKind, PartRecord, PartDelta, assignPartIds, partIdAt
-    hierarchy.ts                   # 상태 enum, 전이표, canTransition, ItemRecord, XeonCustomMessage
+    hierarchy.ts                   # 상태 enum, 전이표, canTransition, ItemRecord, FresnelCustomMessage
     lifecycle.ts                   # LifecycleScope, 알림 유니온, payload 스키마, AgentEventMapper 타입
     tool-result.ts                 # ResultStatus, InputRequiredInfo, ToolResultRecord, 변환 함수, ReplayPolicy, toReplayPolicy
     index.ts
@@ -54,7 +54,7 @@ xeon/packages/contracts/
 
 - [제안] 스펙이 정한 파일 목록에 `message-schema.ts`를 더한다. `pi.ts`를 타입 전용으로 두어 값 import 검사를 파일 단위로 단순하게 하려는 선택이다.
 - `isolatedDeclarations`가 켜져 있다(`_research/foundation-plan.md` §2). 모든 export 상수·함수에 명시 타입 주석을 단다. 이 규칙은 모든 작업의 완료 조건에 들어간다.
-  - Xeon 소유 스키마: `export const PartRecordSchema: TObject<{ partId: TUnsafe<PartId>; ... }> = Type.Object({...})`, 타입은 `export type PartRecord = Static<typeof PartRecordSchema>`(스펙 §3 머리말, `_research/notes/eng-2.md` §3-4의 `TAddOptional`, `TUnion<[...]>`, `TLiteral<...>` 주석 형식).
+  - Fresnel 소유 스키마: `export const PartRecordSchema: TObject<{ partId: TUnsafe<PartId>; ... }> = Type.Object({...})`, 타입은 `export type PartRecord = Static<typeof PartRecordSchema>`(스펙 §3 머리말, `_research/notes/eng-2.md` §3-4의 `TAddOptional`, `TUnion<[...]>`, `TLiteral<...>` 주석 형식).
   - 브랜드 ID와 pi 래핑: `export const ThreadIdSchema: TUnsafe<ThreadId> = Type.Unsafe<ThreadId>(Type.String({...}))`.
   - 전이표 상수: `Readonly<Record<S, readonly S[]>>`.
 - `Brand`, `Result`, `Bug`는 `@fresnel/contracts` 루트 진입점의 것을 쓴다(`eng.typescript.guide` §1.2). 정의는 `src/base/`에 있고 루트 `src/index.ts`는 이 공용 기반 이름만 다시 export한다(`F.readme` §3). 루트 파일을 만드는 작업이 C1보다 먼저 끝나 있어야 한다. 끝나 있지 않으면 C1이 `src/base/`에 `Brand`만 먼저 둔다.
@@ -83,7 +83,7 @@ xeon/packages/contracts/
 | C2 | pi re-export와 버전 고정: `pi.ts`, `package.json` 의존성 `@earendil-works/pi-ai` 1.3.0 정확 고정(pi-agent-core는 C9에서 제거), typebox catalog 참조, 설치 뒤 `bun.lock`에 pi-ai integrity가 `_research/notes/F-2.md` §1 값과 같은지 확인 | — | S |
 | C3 | 런타임 스키마 래퍼: `message-schema.ts`의 `StopReasonSchema`, `UsageSchema`, 블록 4종 스키마, role별 메시지 스키마 4종, `MessageSchema`, `AgentMessageSchema`, `AssistantMessageEventSchema`. 첫 테스트로 `Value.Check`가 `Type.Unsafe` 감싼 객체를 검사하는지 확인 | C2 | M |
 | C4 | `PartRecord`: `PartKind`, `PartRecord`, `PartDelta`, `PartAssignment`, 스키마 3종, `assignPartIds`, `partIdAt` | C1, C3 | M |
-| C5 | 계층과 알림 유니온: `hierarchy.ts`(상태 enum, 전이표, `canTransition`, `ItemRecord`, `ToolCallItem`, `XeonCustomMessage`. 이전 판의 `CustomAgentMessages` 병합은 C9에서 제거), `lifecycle.ts`(알림 12종, payload 스키마 11종. `item.completed`는 카탈로그 kind가 아니라 기록 검증 스키마를 두지 않는다, 스펙 §3.5.3) | C1, C3, C4 | M |
+| C5 | 계층과 알림 유니온: `hierarchy.ts`(상태 enum, 전이표, `canTransition`, `ItemRecord`, `ToolCallItem`, `FresnelCustomMessage`. 이전 판의 `CustomAgentMessages` 병합은 C9에서 제거), `lifecycle.ts`(알림 12종, payload 스키마 11종. `item.completed`는 카탈로그 kind가 아니라 기록 검증 스키마를 두지 않는다, 스펙 §3.5.3) | C1, C3, C4 | M |
 | C6 | `AgentEvent` 대응 함수 시그니처: `AgentEventMapInit`, `AgentEventMapper`, `CreateAgentEventMapper` 타입만. 구현은 L1-b(`L1.loop.spec`) | C5 | S |
 | C7 | 도구 결과와 재생 정책: `ResultStatus`, `InputRequiredInfo`, `ToolResultRecord`, 스키마, `resultStatusOf`, `toToolResultRecord`, `ReplayPolicy`, `ReplayPolicySchema`, `toReplayPolicy`. records(R4)와 capabilities(P2)가 이 작업에 의존한다 | C2, C3 | S |
 | C8 | 인덱스와 exports: `index.ts`, `package.json` `./conversation`, pi 값 import 검사 테스트, 판별 값 목록 테스트 | C1~C7 | S |
@@ -118,7 +118,7 @@ xeon/packages/contracts/
 | `message-schema.test.ts` › 판별 | role을 `"assistant2"`로 바꾸면 실패한다. assistant에 `stopReason:"deferred"`는 통과, `"unknown"`은 실패한다 |
 | `message-schema.test.ts` › 선택 필드 관용 | 픽스처에 미지 필드를 더해도 통과한다 |
 | `pi-types.type-test.ts` | `expectTypeOf<import("@fresnel/contracts/conversation").Message>().toEqualTypeOf<import("@earendil-works/pi-ai").Message>()` 형식으로 pi-ai re-export 16종 항등. pi-ai `AssistantMessageEventStream` 클래스가 F 인터페이스에 대입된다. `bun test`에서 실행되고 `tsc -b`가 타입을 판정한다 |
-| `agent-types.type-test.ts` | `AgentMessage`가 `Message \| XeonCustomMessage`와 `Equal`이다. `AgentEvent["type"]`이 10종 목록과 같다. `AgentTool`·`AgentToolResult`·`AgentEvent`에 `any`가 없다(`IsAny` 검사) |
+| `agent-types.type-test.ts` | `AgentMessage`가 `Message \| FresnelCustomMessage`와 `Equal`이다. `AgentEvent["type"]`이 10종 목록과 같다. `AgentTool`·`AgentToolResult`·`AgentEvent`에 `any`가 없다(`IsAny` 검사) |
 | `no-pi-agent-core.test.ts` | `src/**/*.ts`와 `package.json`에 `@earendil-works/pi-agent-core` 문자열이 0건이다(타입 import 포함) |
 | `parts.test.ts` › 결정성 | 같은 입력으로 `assignPartIds`를 두 번 부를 때 두 번째 호출에 첫 결과를 `existing`으로 주면 같은 id, `issued:false`, 생성기 호출 0회 |
 | `parts.test.ts` › 재생 | `partIdAt(records, itemId, i)`가 반복 호출에서 같은 값, 없는 index는 `undefined` |

@@ -176,7 +176,7 @@ describe("per-source sandbox keys", () => {
       ["settings:project", true],
       ["settings:local", true],
       ["mcpjson:project", true],
-      ["mcpjson:xeon", true],
+      ["mcpjson:fresnel", true],
       ["ext:helm", true],
       ["something-new", true],
     ] as const) {

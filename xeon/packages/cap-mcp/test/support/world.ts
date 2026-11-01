@@ -205,7 +205,7 @@ export function buildWorld(options: WorldOptions): World {
     onServersChange: (payload) => {
       changes.push(payload);
     },
-    client: { name: "xeon-test", version: "0.0.0" },
+    client: { name: "fresnel-test", version: "0.0.0" },
     stdioGraceMs: 10,
     ...options.overrides,
   });

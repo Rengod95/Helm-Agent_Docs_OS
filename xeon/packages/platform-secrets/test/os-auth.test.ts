@@ -108,7 +108,7 @@ describe("macOS os-auth provider", () => {
     expect(promptText('a" & do shell script "rm -rf ~" & "')).toBe(
       "a & do shell script rm -rf ~ &",
     );
-    expect(promptText('\\"\n')).toBe("Xeon");
+    expect(promptText('\\"\n')).toBe("Fresnel");
     expect(promptText("x".repeat(500)).length).toBe(120);
   });
 

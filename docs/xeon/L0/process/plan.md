@@ -14,17 +14,17 @@ binds: [xeon/packages/platform-process/**]
 
 ## 1. 목표와 마일스톤 배치
 
-[결정] 공유 서비스 모드 `xeon service`는 제품 1차 범위다(`_research/foundation-plan.md §1` 결정 2, adr.0006 §1). 계획 v2 표가 '2차'로 적은 것은 이 결정으로 올라갔다. 구현은 M2 이후다(`L0.readme` §2.2). OS 서비스 등록은 2차다(review.decisions-2 S-01). 원격 사용은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
+[결정] 공유 서비스 모드 `fresnel service`는 제품 1차 범위다(`_research/foundation-plan.md §1` 결정 2, adr.0006 §1). 계획 v2 표가 '2차'로 적은 것은 이 결정으로 올라갔다. 구현은 M2 이후다(`L0.readme` §2.2). OS 서비스 등록은 2차다(review.decisions-2 S-01). 원격 사용은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
-| M1 | in-process 전송 쌍과 envelope 검사 연결, 백그라운드 프로세스 레지스트리, 종료 협조 골격(`ProcessShutdown`), `xeon chat` 단계 0(자식 엔진 없음, adr.0006 §3.5) | PR-01, PR-06, PR-07, PR-08 |
+| M1 | in-process 전송 쌍과 envelope 검사 연결, 백그라운드 프로세스 레지스트리, 종료 협조 골격(`ProcessShutdown`), `fresnel chat` 단계 0(자식 엔진 없음, adr.0006 §3.5) | PR-01, PR-06, PR-07, PR-08 |
 | M2 | 줄 단위 프레이밍과 stdio JSONL 전송, 전송 적합성 스위트(`F.wire-settings.spec` §9 A10), 자식 엔진 수명 임대(stdin EOF + `host.shutdown`), 잠금 실패 정책, 복구 표식 제시, X 포트 `ProcessPort.run`(외부 훅), MCP stdio 서버 포트 | PR-02~PR-05, PR-15, PR-16, PR-21, PR-23 |
 | M2 이후(제품 1차 범위) | 공유 서비스 모드: 등록 파일, `ensure`, 이중 기동 방지, 버전 불일치, 유휴 종료, 토큰 인증, 소켓 전송, 감독 | PR-09~PR-14 |
 | M3(제품 1차 범위) | 원격 사용: 로컬 서비스 소켓을 SSH 터널(Unix 소켓 전달)이나 사설망으로 연결해 같은 socket 전송·인증 규칙으로 접속 | PR-20 |
 | 2차 | launchd·systemd 등록, 내장 원격 전송(TLS + 토큰 WebSocket), Windows 전송 대안, `ProcessPort.spawn`(격리 확장 자식) | PR-17~PR-19, PR-22 |
 
-- M1 스모크(`xeon chat` 강제 종료 뒤 재개, `_research/foundation-plan.md §6`)는 in-process 전송(PR-01)을 쓴다. 강제 종료 뒤 재개 자체는 `L0.store.plan` ST-12·ST-13과 `L1.persistence.plan`이 맡는다.
+- M1 스모크(`fresnel chat` 강제 종료 뒤 재개, `_research/foundation-plan.md §6`)는 in-process 전송(PR-01)을 쓴다. 강제 종료 뒤 재개 자체는 `L0.store.plan` ST-12·ST-13과 `L1.persistence.plan`이 맡는다.
 - F 선행 조건: `L0.process.spec` §8.1 FR-P7(`ProcessService` 타입, `F.capabilities.plan` P9)과 `ProcessPort`(`F.extensions.plan` E10)는 M1 착수 조건이다. M1에서 `run`·`spawn`은 타입을 맞춘 거부 구현만 둔다. 매니페스트 `hooks`가 M1에 없기 때문이다(review.decisions-2 U-07). FR-P1(`host.shutdown`)은 PR-05, FR-P2(hello 토큰)와 FR-P3(`ServiceRegistration`)은 PR-09·PR-13 착수 조건이다. `LockBusy`는 `L0.store.spec` FR-S2에 기댄다(PR-15). `RecoveryMarker`는 `L1.persistence.spec` §8.3 FR-P1에 기댄다(PR-16).
 
 ## 2. 패키지와 파일 배치
@@ -169,7 +169,7 @@ xeon/packages/platform-process/
 | `idle shutdown requires all conditions` | `idle.test.ts` | 연결·live task·예약·유예 조합 다섯 행(spec §4.4.4 표), 시작 유예 동안 판정 없음 |
 | `approval wait counts as live` | `idle.test.ts` | 승인 대기 세션 1개면 유휴 아님 |
 | `token mismatch is rejected before hello` | `auth.test.ts`, `socket.int.test.ts` | 틀린 토큰의 `host.hello` 거부와 연결 종료, 상수 시간 비교 함수가 길이 다른 입력에도 거짓 |
-| `socket path length is checked` | `socket.int.test.ts` | 한도 초과 경로는 `path_too_long`. 소켓 상대 경로(`xeon.sock`, `d<8 hex>/xeon.sock`)가 `SOCKET_RELATIVE_PATH_MAX_BYTES`(24) 이하. 폴백 경로 계산은 이 패키지에 없다 |
+| `socket path length is checked` | `socket.int.test.ts` | 한도 초과 경로는 `path_too_long`. 소켓 상대 경로(`fresnel.sock`, `d<8 hex>/fresnel.sock`)가 `SOCKET_RELATIVE_PATH_MAX_BYTES`(24) 이하. 폴백 경로 계산은 이 패키지에 없다 |
 | `client stops when the service is lost` | `service-loss.int.test.ts` | 서비스 SIGKILL 뒤 클라이언트 정지 상태, 쓰기 미전송, 다음 `ensure`가 재개 후보 반환 |
 | `pid reuse is detected by fingerprint` | `registration.int.test.ts` | 등록 파일의 `pid`가 살아 있지만 `startedAt`이 다르면 `removeIfOwned`가 거짓, `ensure`는 접속 실패로 판정 |
 | `registry stops the whole process tree` | `registry.int.test.ts` | `fixtures/tree.ts`(자식 + 손자) 등록 뒤 `stopOwnedBy`로 모두 종료, graceful 무시 프로세스는 force로 종료, 상태 `killed` |
@@ -200,6 +200,6 @@ xeon/packages/platform-process/
 | 서비스 단일 장애점 | 서비스 크래시 때 모든 클라이언트 정지 | DB와 복구 표식이 남으므로 다음 `ensure`가 재개 후보를 보인다(체크리스트 8번). 클라이언트는 쓰기를 보내지 않고 정지한다 |
 | 버전 불일치 재기동 중 진행 작업 손실 | 사용자 작업 중단 | 한가할 때만 재기동한다. 바쁘면 경고 후 구버전에 접속한다 |
 | 이중 기동 경합의 비결정 재현 | 경합 버그가 CI에서 드물게만 보임 | 수동 시계, 소켓 경로·runtimeDir 주입, 기동 함수 주입으로 두 경합자의 순서를 테스트가 고정한다. stale 소켓 처리는 `service` 임대로 직렬화한다 |
-| 비협조 확장 코드가 종료를 막음 | 이벤트 루프 정지로 시한 타이머도 돌지 않음 | 프로세스 안에서는 막을 수 없다. 부모(데스크톱, `xeon service stop`)의 시한 뒤 SIGKILL만 정리한다(adr.0006 §4.2) |
+| 비협조 확장 코드가 종료를 막음 | 이벤트 루프 정지로 시한 타이머도 돌지 않음 | 프로세스 안에서는 막을 수 없다. 부모(데스크톱, `fresnel service stop`)의 시한 뒤 SIGKILL만 정리한다(adr.0006 §4.2) |
 | Bun의 `detached`·`unref`, `Bun.listen` unix 동작 차이(macOS 미실측) | 서비스가 부모와 함께 종료되거나 바인드 실패 | PR-10·PR-13에서 macOS CI job으로 확인한다. 실패하면 `node:net`·다른 spawn 옵션으로 바꾼다 |
 | 장수명 stdio 파이프의 버퍼링 | 대용량 이벤트 배치에서 지연 | 송신 백프레셔를 따른다. 문제가 확인되면 adr.0008 §6 미결대로 로컬 소켓 전환을 검토한다 |

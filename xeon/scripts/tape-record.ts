@@ -76,18 +76,18 @@ if (import.meta.main) {
     process.stdout.write(`${describePlan(plan)}\n`);
     process.exit(3);
   }
-  const xeonRoot = resolve(import.meta.dir, "..");
-  const entry = join(xeonRoot, RECORDER_ENTRY);
+  const fresnelRoot = resolve(import.meta.dir, "..");
+  const entry = join(fresnelRoot, RECORDER_ENTRY);
   if (!existsSync(entry)) {
     process.stderr.write(
-      `tape-record: ${relative(xeonRoot, entry)} does not exist yet. The recorder is L1C work (core-models): it takes <scenario> <out> and writes a tape with origin "recorded".\n`,
+      `tape-record: ${relative(fresnelRoot, entry)} does not exist yet. The recorder is L1C work (core-models): it takes <scenario> <out> and writes a tape with origin "recorded".\n`,
     );
     process.exit(1);
   }
   let code: number;
   try {
-    const child = Bun.spawn([process.execPath, entry, plan.scenario, join(xeonRoot, plan.out)], {
-      cwd: xeonRoot,
+    const child = Bun.spawn([process.execPath, entry, plan.scenario, join(fresnelRoot, plan.out)], {
+      cwd: fresnelRoot,
       stdout: "inherit",
       stderr: "inherit",
       stdin: "inherit",

@@ -12,7 +12,7 @@ import { formatOfPath } from "../src/providers/sops-keys.ts";
 
 // spec §4.8: 설정에 SOPS 파일이 없으면 사용자 기본 파일을 쓴다. 위치는 사용자 하나에 하나인 config 디렉터리 아래다.
 
-const CONFIG = "/home/u/.config/xeon";
+const CONFIG = "/home/u/.config/fresnel";
 
 describe("default SOPS file", () => {
   test("is env user at <config>/secrets/sops/user.yaml, a yaml file", () => {

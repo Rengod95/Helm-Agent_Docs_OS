@@ -1,4 +1,4 @@
-//! 엔진과 `xeon secret` 자식의 PATH 보강(L4.desktop.spec E7).
+//! 엔진과 `fresnel secret` 자식의 PATH 보강(L4.desktop.spec E7).
 //! Finder로 띄운 macOS 앱의 PATH는 `/usr/bin:/bin:/usr/sbin:/sbin`뿐이라 sops, age, rg를 찾지 못한다.
 //! 기존 항목과 순서는 그대로 두고, 없는 도구 디렉터리만 뒤에 붙인다.
 

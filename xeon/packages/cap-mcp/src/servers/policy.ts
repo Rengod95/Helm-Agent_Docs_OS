@@ -98,7 +98,7 @@ export interface RuleTool {
   readonly server: string;
   /** 서버가 광고한 원래 이름 */
   readonly name: string;
-  /** Xeon 기계 이름. 노출하지 않는 도구는 null */
+  /** Fresnel 기계 이름. 노출하지 않는 도구는 null */
   readonly machineName: string | null;
 }
 

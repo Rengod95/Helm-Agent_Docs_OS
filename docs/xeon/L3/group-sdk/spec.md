@@ -108,12 +108,12 @@ import type { GroupMetricsHandle } from "./metrics/types.ts";
 export const GROUP_NAME_PATTERN = "^[a-z][a-z0-9-]{1,31}$";
 /**
  * 그룹 이름 예약 목록의 정본. 네 묶음을 합친다.
- * RESERVED_EXT_IDS(eng.context-map §5.4), F.extensions.spec §4.7 name_reserved의 grp·x·xeon,
+ * RESERVED_EXT_IDS(eng.context-map §5.4), F.extensions.spec §4.7 name_reserved의 grp·x·fresnel,
  * L2 도메인 이름(_routing/routes.yaml layout L2), 그룹 명령·설정 값과 겹치는 이름.
  * 설치된 확장 이름과의 충돌은 이 상수에 넣지 않는다. validateManifestSet의 name_conflict로 거부한다.
  */
 export const RESERVED_GROUP_NAMES: readonly string[] = [
-  "core", "cap", "xh", "sys", "p", "ext", "x", "grp", "xeon",
+  "core", "cap", "xh", "sys", "p", "ext", "x", "grp", "fresnel",
   "workspace", "mcp", "web", "knowledge", "work", "dialog", "artifacts", "schedule",
   "auto", "all", "none", "group", "groups", "kit",
 ];
@@ -1232,7 +1232,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - 구동 그룹 선택 [결정: review.decisions-2 S-15]: group-sdk은 구동 그룹 키를 두지 않는다. 선택은 X 키 `x.primitives.activeDriveGroup`(`ScopeId | null`, 기본 `null`, 범위 user·project·session, `nextTurn`, 위젯 `select`)이고 정의는 X.primitives.spec §6이 소유한다. group-sdk은 이 값을 정책 입력으로 읽고(§3.5), `null`을 "auto"로 표시한다. 다른 그룹이 임대를 가지고 있으면 바뀐 값은 그 임대가 반납된 뒤 적용된다(§4.3 4번).
 - 그룹 켜기 키: 내장 그룹과 외부 그룹 모두 X 로더 예약 키 `ext.<이름>.enabled`다(예: `ext.helm.enabled`, `ext.learning.enabled`. F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3 규칙 1). X 로더만 이 키를 읽고, 그룹과 group-sdk은 이 키를 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
 - drive 임대 상한의 일반 기본값은 X 키 `x.primitives.driveDefaultLimits`, 천장은 `x.primitives.driveLimits`다(F.extensions.spec §6). 그룹별 요청 상한은 각 그룹 키(예: `l3.helm.driveLimits`)가 기본값을 덮어쓰고, 천장보다 클 수 없다(review.decisions-2 U-12).
-- 명령: `/group status|on <이름>|off <이름>|drive <이름|auto>`(§3.9). 설정 파일과 `xeon config` 명령은 F.wire-settings.spec §4.9 생성 규칙을 따른다.
+- 명령: `/group status|on <이름>|off <이름>|drive <이름|auto>`(§3.9). 설정 파일과 `fresnel config` 명령은 F.wire-settings.spec §4.9 생성 규칙을 따른다.
 
 ## 7. 확장 지점
 

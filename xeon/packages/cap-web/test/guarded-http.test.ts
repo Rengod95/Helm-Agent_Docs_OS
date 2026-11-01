@@ -72,11 +72,11 @@ function setup(
 describe("provider http", () => {
   test("a request to a manifest endpoint carries the substituted key", async () => {
     const { bound, transport } = setup({ key: "key-value-123" });
-    transport.route("https://api.vendor.example/v1/search?q=xeon", { body: "{}" });
+    transport.route("https://api.vendor.example/v1/search?q=fresnel", { body: "{}" });
     const outcome = await bound.request(
       {
         method: "GET",
-        url: "https://api.vendor.example/v1/search?q=xeon",
+        url: "https://api.vendor.example/v1/search?q=fresnel",
         headers: { Cookie: "a=b", Host: "evil", Accept: "application/json" },
       },
       SIGNAL,
@@ -284,7 +284,7 @@ describe("provider http", () => {
   test("searxng loopback endpoint exception is provider-only", async () => {
     const resolver = fakeResolver({ "public.example": [PUBLIC_IP] });
     const transport = fixtureTransport(
-      { "http://127.0.0.1:8888/search?q=xeon&format=json": { body: "{}" } },
+      { "http://127.0.0.1:8888/search?q=fresnel&format=json": { body: "{}" } },
       resolver,
     );
     const bound = createBoundProviderHttp(
@@ -293,7 +293,7 @@ describe("provider http", () => {
     );
     bound.bind(manifestOf({ name: "searxng", endpoints: [], auth: { kind: "none", secrets: [] } }));
     const allowed = await bound.request(
-      { method: "GET", url: "http://127.0.0.1:8888/search?q=xeon&format=json" },
+      { method: "GET", url: "http://127.0.0.1:8888/search?q=fresnel&format=json" },
       SIGNAL,
     );
     expect(allowed.ok).toBe(true);

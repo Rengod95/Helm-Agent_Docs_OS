@@ -1,6 +1,6 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaSound } from "../base/index.ts";
-import { XeonCustomMessageSchema } from "./hierarchy.ts";
+import { FresnelCustomMessageSchema } from "./hierarchy.ts";
 import {
   AssistantMessageSchema,
   ImageContentSchema,
@@ -14,7 +14,7 @@ import {
 import type { AgentMessage, AgentToolResult } from "./agent.ts";
 
 // 에이전트 타입(agent.ts)의 런타임 스키마. 메시지는 message-schema.ts의 pi 스키마(role 판별과 필수 최상위 필드, 열린 객체)에
-// Xeon 자신의 XeonCustomMessage 스키마(닫힌 객체, 모든 필드)를 더한 유니온이다. pi 쪽 얕음은 message-schema.ts가 안고 있다
+// Fresnel 자신의 FresnelCustomMessage 스키마(닫힌 객체, 모든 필드)를 더한 유니온이다. pi 쪽 얕음은 message-schema.ts가 안고 있다
 // (eng.typescript.guide TY-26 행 U2).
 // message-schema.ts는 agent.ts를 import하지 않는다(agent.ts → hierarchy.ts → message-schema.ts 순환을 막는다, DR-06).
 
@@ -25,10 +25,10 @@ const agentMessageShape = Type.Union([
   UserMessageSchema,
   AssistantMessageSchema,
   ToolResultMessageSchema,
-  XeonCustomMessageSchema,
+  FresnelCustomMessageSchema,
 ]);
 
-/** Message + XeonCustomMessage(role "custom"). */
+/** Message + FresnelCustomMessage(role "custom"). */
 export const AgentMessageSchema: TUnsafe<AgentMessage> = Type.Unsafe<AgentMessage>(
   agentMessageShape satisfies SchemaSound<AgentMessage, typeof agentMessageShape>,
 );

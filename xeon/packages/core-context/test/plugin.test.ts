@@ -51,7 +51,7 @@ test("manifest_is_a_valid_builtin_l1_plugin", () => {
   expect(manifest.points).toEqual([]);
 });
 
-test("plugin_provides_xeon_context_and_assembles_through_the_port", async () => {
+test("plugin_provides_fresnel_context_and_assembles_through_the_port", async () => {
   const host = await createTestHost({ without: ["records"] });
   const log = memoryLog();
   await withPorts(host, { session: true, models: true }, log);

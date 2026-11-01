@@ -2,7 +2,7 @@
 // 이름과 필드는 pi-agent-core 1.3.0 types.ts에서 출발했다(MIT, Copyright (c) 2025 Mario Zechner).
 // pi-agent-core는 import하지 않는다. `any`를 쓰지 않고 AgentMessage는 닫힌 유니온이다.
 import type { Static, TSchema } from "typebox";
-import type { XeonCustomMessage } from "./hierarchy.ts";
+import type { FresnelCustomMessage } from "./hierarchy.ts";
 import type {
   AssistantMessage,
   AssistantMessageEvent,
@@ -16,8 +16,8 @@ import type {
   Usage,
 } from "./pi.ts";
 
-/** 대화 기록에 들어가는 메시지. 닫힌 유니온이고 선언 병합은 없다. 확장 구분은 XeonCustomMessage.customType */
-export type AgentMessage = Message | XeonCustomMessage;
+/** 대화 기록에 들어가는 메시지. 닫힌 유니온이고 선언 병합은 없다. 확장 구분은 FresnelCustomMessage.customType */
+export type AgentMessage = Message | FresnelCustomMessage;
 
 /** 어시스턴트 메시지의 도구 호출 블록 하나 */
 export type AgentToolCall = Extract<AssistantMessage["content"][number], { type: "toolCall" }>;

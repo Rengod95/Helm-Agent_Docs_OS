@@ -250,7 +250,7 @@ test("unattended expire (default): the turn waits, records expiresAt, and is den
   expect(request?.expiresAt).toBe(NOW + 60_000);
   await time.advance(60_000);
   const out = await done;
-  expect(out.blocked).toContain("[xeon:approval_expired]");
+  expect(out.blocked).toContain("[fresnel:approval_expired]");
   expect(probe.calls).toEqual([]);
   expect(resolvedEvents(h).map((event) => event.resolvedBy)).toEqual(["expired"]);
 });

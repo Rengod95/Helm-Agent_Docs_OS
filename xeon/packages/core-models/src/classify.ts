@@ -9,7 +9,7 @@ import type { ModelErrorKind } from "@fresnel/contracts/services";
 // pi-ai가 재시도 불가로 보는 경우, 곧 재시도 불가 한도 패턴이 맞은 경우로 판정한다. 5~8번의 상태 코드·문구 구분은 spec 그대로 errorMessage에서 읽는다 [가정: pi-ai 오류 메시지가
 // 상태 코드나 오류 이름을 담는다].
 
-/** Xeon이 직접 만든 오류 종결 메시지의 접두 `<kind>: `. 파이프라인이 붙이고 classify가 읽는다 */
+/** Fresnel이 직접 만든 오류 종결 메시지의 접두 `<kind>: `. 파이프라인이 붙이고 classify가 읽는다 */
 const OWN_ERROR_KINDS: readonly ModelErrorKind[] = [
   "provider_unavailable",
   "secret_unresolved",

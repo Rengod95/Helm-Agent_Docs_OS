@@ -5,7 +5,7 @@ domain: release
 kind: plan
 status: draft
 depends_on: [L4.release.spec]
-binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflows/xeon-release.yml]
+binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflows/fresnel-release.yml]
 ---
 
 # L4 릴리즈 계획 (release)
@@ -26,8 +26,8 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 | `xeon/scripts/release-smoke.ts`, `release-smoke.sh` | 아카이브 검사와 실행 검사(X11). 셸 스크립트는 두 OS에서 같은 입력을 쓴다 |
 | `xeon/scripts/release-sign.sh` | macOS 서명과 공증. 비밀이 없으면 건너뛴다 |
 | `xeon/scripts/release.test.ts`, `workflow-pins.test.ts`, `release-smoke.test.ts` | 단위 시험과 X11 |
-| `.github/workflows/xeon-release.yml` | 릴리즈 스모크 두 OS, 서명 비밀 전달 |
-| `.github/workflows/xeon-macos.yml` | macOS job의 릴리즈 스모크 단계 |
+| `.github/workflows/fresnel-release.yml` | 릴리즈 스모크 두 OS, 서명 비밀 전달 |
+| `.github/workflows/fresnel-macos.yml` | macOS job의 릴리즈 스모크 단계 |
 | `xeon/justfile`, 루트 `justfile` | `release`, `release-smoke` 레시피 |
 | `xeon/apps/cli/src/group/fs-port.ts`, `runtime.ts` | 템플릿 탐색에 자원 디렉터리 단계를 더함 |
 | `xeon/apps/cli/test/group-templates-locate.test.ts` | 템플릿 탐색 순서 시험 |

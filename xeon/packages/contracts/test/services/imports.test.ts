@@ -58,7 +58,7 @@ describe("services imports", () => {
     }
   });
 
-  test("no cordis, platform-*, core-* or xeon package imports", () => {
+  test("no cordis, platform-*, core-* or fresnel package imports", () => {
     for (const file of FILES) {
       const source = readFileSync(join(DIR, file), "utf8");
       for (const { spec } of importLines(source)) {

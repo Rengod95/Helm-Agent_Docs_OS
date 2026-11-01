@@ -174,13 +174,13 @@ async function invokeCapability(
     if (request.kind === "invalid") {
       return stopped(
         "input_required_invalid",
-        `[xeon:input_required_invalid] ${spec.name} returned an input request this runtime cannot read: ${request.detail}.`,
+        `[fresnel:input_required_invalid] ${spec.name} returned an input request this runtime cannot read: ${request.detail}.`,
       );
     }
     if (round >= MAX_INPUT_ROUNDS) {
       return stopped(
         "input_required_loop",
-        `[xeon:input_required_loop] ${spec.name} kept asking for input after ${MAX_INPUT_ROUNDS} rounds.`,
+        `[fresnel:input_required_loop] ${spec.name} kept asking for input after ${MAX_INPUT_ROUNDS} rounds.`,
       );
     }
     if (request.kind === "mcp") {
@@ -205,7 +205,7 @@ async function invokeCapability(
     if (waited === "unknown") {
       return stopped(
         "approval_unknown",
-        `[xeon:approval_unknown] ${spec.name} is waiting for an approval that this runtime does not know.`,
+        `[fresnel:approval_unknown] ${spec.name} is waiting for an approval that this runtime does not know.`,
       );
     }
     return settleInput(await invoke.call(api, input, retry), round + 1, retry);
@@ -336,13 +336,13 @@ async function settleDirectInput(
     if (request.kind !== "mcp") {
       return stopped(
         "input_required_invalid",
-        `[xeon:input_required_invalid] ${tool.name} returned an input request this runtime cannot read.`,
+        `[fresnel:input_required_invalid] ${tool.name} returned an input request this runtime cannot read.`,
       );
     }
     if (round >= MAX_INPUT_ROUNDS) {
       return stopped(
         "input_required_loop",
-        `[xeon:input_required_loop] ${tool.name} kept asking for input after ${MAX_INPUT_ROUNDS} rounds.`,
+        `[fresnel:input_required_loop] ${tool.name} kept asking for input after ${MAX_INPUT_ROUNDS} rounds.`,
       );
     }
     const step = await answerMcpInput({

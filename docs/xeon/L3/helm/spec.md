@@ -116,7 +116,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 | 탐구 신호 | 탐구가 필요할 수 있다는 관찰. `stuck`, `repeat`, `newDomain` 셋 |
 | 대기 요청(pending) | 시작이 요청됐지만 아직 임대를 받지 못한 탐구. 상태 필드 `pending`에 둔다 |
 | 단계 경계 | F.conversation.spec §2의 정의. step이 끝나고 다음 step이 시작되기 전. 그룹 켜기·끄기와 임대 교체 시점이다 |
-| turn, step | F.conversation.spec §2. 지점 `boundary.step.after`는 Xeon step 끝, `boundary.settle.after`는 Xeon turn 끝에서 발화한다(F.extensions.spec §2) |
+| turn, step | F.conversation.spec §2. 지점 `boundary.step.after`는 Fresnel step 끝, `boundary.settle.after`는 Fresnel turn 끝에서 발화한다(F.extensions.spec §2) |
 | 효과 등급 | ADR-0015 §3.2의 분류. 코어 멱등(`loop.turn`, `loop.spawn`), 멱등 쓰기(`MethodDef.idempotent`), 읽기(`MethodDef.readOnly`), 선언 없음 |
 | 위험 등급(risk) | L1.tools.spec §2의 `read` < `write` < `exec`. 미선언은 `exec` |
 | 실패 값 | 예상 가능한 실패를 담는 `HelmFailure`(§3.12). `Result`의 오류 쪽에 싣는다(eng.typescript.guide TY-24) |
@@ -1282,7 +1282,7 @@ export interface HelmSettings {
 | `drive` | 임대 | | 단계 머신(§4.5) | `loop.turn`, `loop.spawn`, `post`, `commit`, `record`, 읽기 능력 호출, 멱등 쓰기 능력 호출(§4.11) |
 | `scope` | `helm` | | 상태 문서 `HelmState`, 켜기·끄기 | |
 
-- 지점 이름은 F.extensions.spec §3.4 표의 이름이다. 사용자 의사코드의 `request`, `tool.before`, `turn.end`는 쓰지 않는다. `request` 형성은 `input.agent.before`로 옮겼다. 시스템 프롬프트를 turn 시작 때 한 번 바꾸면 그 turn의 모든 step 요청에 같은 블록이 실리기 때문이다 [제안]. 관찰은 `boundary.step.after`(Xeon step 끝) 대신 `tool.execution.after`와 `boundary.settle.after`(둘 다 tap)를 쓴다. `boundary.step.after`는 chain이고 경계 엔트리를 다루는 지점이라 관찰 용도에 맞지 않는다. L3.slots.spec의 템플릿과 예(§3.1.5, §3.3.5)도 같은 권장안을 따른다.
+- 지점 이름은 F.extensions.spec §3.4 표의 이름이다. 사용자 의사코드의 `request`, `tool.before`, `turn.end`는 쓰지 않는다. `request` 형성은 `input.agent.before`로 옮겼다. 시스템 프롬프트를 turn 시작 때 한 번 바꾸면 그 turn의 모든 step 요청에 같은 블록이 실리기 때문이다 [제안]. 관찰은 `boundary.step.after`(Fresnel step 끝) 대신 `tool.execution.after`와 `boundary.settle.after`(둘 다 tap)를 쓴다. `boundary.step.after`는 chain이고 경계 엔트리를 다루는 지점이라 관찰 용도에 맞지 않는다. L3.slots.spec의 템플릿과 예(§3.1.5, §3.3.5)도 같은 권장안을 따른다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1293,7 +1293,7 @@ export interface HelmSettings {
 | 레코드 kind `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished`와 payload 스키마 | L4.settings-ui.spec·L4.cli.spec(상태 표시) |
 | 설정 키 `ext.helm.*` 4개 | L4.settings-ui.spec, F.wire-settings.spec 카탈로그 |
 | 명령 `/helm start\|stop\|status`, `HelmStatusView` | L4.cli.spec, L4.desktop.spec |
-| `customType` `grp.helm.notice.suggested`, `grp.helm.notice.status` | L4(표시), F.conversation.spec `XeonCustomMessage` |
+| `customType` `grp.helm.notice.suggested`, `grp.helm.notice.status` | L4(표시), F.conversation.spec `FresnelCustomMessage` |
 | 서브에이전트 정의 이름 `explorer` | L1.agents.spec |
 | `helmGroup`(GroupModule), 플러그인 산출물(`.fresnel-plugin/plugin.json`, 엔트리 번들) | X.loading-trust.spec 외부 확장 로더, L4 릴리즈(첫 실행 설치) |
 

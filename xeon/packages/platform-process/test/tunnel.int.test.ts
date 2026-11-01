@@ -68,7 +68,7 @@ describe("openTunnel", () => {
   test("a missing executable is spawn_failed ENOENT", async () => {
     const localSocket = join(scratch(), "t.sock");
     const opened = await openTunnel(
-      { command: "/nonexistent/xeon-tunnel", args: [], localSocket },
+      { command: "/nonexistent/fresnel-tunnel", args: [], localSocket },
       deps,
     );
     expect(opened).toEqual({ ok: false, error: { kind: "spawn_failed", code: "ENOENT" } });
@@ -95,7 +95,7 @@ describe("openTunnel", () => {
 describe("sshTunnelCommand", () => {
   const base = {
     target: "me@box.example",
-    remoteSocket: "/run/user/1000/xeon/xeon.sock",
+    remoteSocket: "/run/user/1000/fresnel/fresnel.sock",
     localSocket: "/tmp/xtun-1/s",
   };
 
@@ -120,7 +120,7 @@ describe("sshTunnelCommand", () => {
           "-i",
           "/home/me/.ssh/id",
           "-L",
-          "/tmp/xtun-1/s:/run/user/1000/xeon/xeon.sock",
+          "/tmp/xtun-1/s:/run/user/1000/fresnel/fresnel.sock",
           "--",
           "me@box.example",
         ],
@@ -138,7 +138,7 @@ describe("sshTunnelCommand", () => {
       ok: false,
       error: { kind: "invalid_path", field: "remoteSocket" },
     });
-    expect(sshTunnelCommand({ ...base, remoteSocket: "/a:b/xeon.sock" })).toEqual({
+    expect(sshTunnelCommand({ ...base, remoteSocket: "/a:b/fresnel.sock" })).toEqual({
       ok: false,
       error: { kind: "invalid_path", field: "remoteSocket" },
     });

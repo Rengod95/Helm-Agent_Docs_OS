@@ -41,7 +41,7 @@ const TEXT_SEPARATOR = "\n";
 function limitOriginal(bytes: Uint8Array): Uint8Array {
   if (bytes.length <= BLOB_ORIGINAL_MAX_BYTES) return bytes;
   const omitted = bytes.length - 2 * BLOB_HALF_BYTES;
-  const marker = utf8Bytes(`\n[xeon:omitted ${omitted} bytes]\n`);
+  const marker = utf8Bytes(`\n[fresnel:omitted ${omitted} bytes]\n`);
   const joined = new Uint8Array(2 * BLOB_HALF_BYTES + marker.length);
   joined.set(bytes.subarray(0, BLOB_HALF_BYTES), 0);
   joined.set(marker, BLOB_HALF_BYTES);
@@ -113,8 +113,8 @@ export function boundResult(
   const sizes = `${cut.outputLines} of ${cut.totalLines} lines (${deps.truncator.formatSize(cut.outputBytes)} of ${deps.truncator.formatSize(cut.totalBytes)})`;
   const notice =
     blobRef === null
-      ? `[xeon:output_truncated] Showing the first ${sizes}. The full output was not stored.`
-      : `[xeon:output_truncated] Showing the first ${sizes}. The full output is stored as blob sha256:${blobRef.sha256}.`;
+      ? `[fresnel:output_truncated] Showing the first ${sizes}. The full output was not stored.`
+      : `[fresnel:output_truncated] Showing the first ${sizes}. The full output is stored as blob sha256:${blobRef.sha256}.`;
   const truncation: JsonObject = {
     totalLines: cut.totalLines,
     totalBytes: cut.totalBytes,

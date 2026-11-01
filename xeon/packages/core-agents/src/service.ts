@@ -220,7 +220,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
   ): SpawnResult => ({
     childThreadId,
     status: "error",
-    answer: `[xeon:subagent_error] ${code}: ${message}`,
+    answer: `[fresnel:subagent_error] ${code}: ${message}`,
     requestId,
     report: null,
     usage: null,

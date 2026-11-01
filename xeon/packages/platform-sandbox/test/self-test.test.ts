@@ -87,7 +87,9 @@ describe("self-test", () => {
     // 실패한 시험 뒤에도 정리한다
     await runSelfTest(
       deps(dirs),
-      selfTestShell(new Set<SelfTestItemId>(["xeon_data_write_denied", "git_hooks_write_denied"])),
+      selfTestShell(
+        new Set<SelfTestItemId>(["fresnel_data_write_denied", "git_hooks_write_denied"]),
+      ),
       NO_CANCEL,
     );
     expect(existsSync(join(dirs.data, "selftest"))).toBe(false);

@@ -69,7 +69,7 @@ const group = defineSettings("l1.persistence", {
   "export.format": {
     type: Type.String({ maxLength: 16 }),
     default: "pi-jsonl",
-    range: { enum: ["pi-jsonl", "xeon-jsonl"] },
+    range: { enum: ["pi-jsonl", "fresnel-jsonl"] },
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "launch"],
     ui: { tab: "sessions", widget: "select", order: 140, label: "내보내기 기본 형식" },

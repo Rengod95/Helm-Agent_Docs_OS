@@ -64,7 +64,7 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 
 ## 3. 패키지 배치
 
-| 패키지 | 디렉터리 | `package.json` `xeon` 필드 | 진입점 | 테스트 서브패스 |
+| 패키지 | 디렉터리 | `package.json` `fresnel` 필드 | 진입점 | 테스트 서브패스 |
 |---|---|---|---|---|
 | `@fresnel/platform-exec` | `xeon/packages/platform-exec` | `{"layer": "L0", "domain": "exec"}` | `src/index.ts` | `./testing` |
 | `@fresnel/platform-sandbox` | `xeon/packages/platform-sandbox` | `{"layer": "L0", "domain": "sandbox"}` | `src/index.ts` | `./testing` |
@@ -216,7 +216,7 @@ L0가 정하지 않는 것:
 | 도구 권한 규칙, 승인 프로토콜과 승인 UI | `L1.tools.spec`, `L4.settings-ui.spec` |
 | 세션 이벤트, `seq` 발급, 투영, 재생·재개 규칙 | `L1.persistence.spec`, `F.records.spec`. L0 store는 DB 열기·PRAGMA·트랜잭션·임대·블롭 같은 일반 기능만 제공한다(`eng.context-map.design` §4.4 10번) |
 | 전송 계약 형식(JSON-RPC, 메서드 레지스트리, 커서) | `F.wire-settings.spec` |
-| 서비스 명령줄(`xeon service`, `xeon secret …`)과 설정 화면 | `L4.cli.spec`, `L4.host-service.spec`, `L4.settings-ui.spec` |
+| 서비스 명령줄(`fresnel service`, `fresnel secret …`)과 설정 화면 | `L4.cli.spec`, `L4.host-service.spec`, `L4.settings-ui.spec` |
 | 웹 fetch·검색, MCP 서버 연결과 도구 | `L2.web.spec`, `L2.mcp.spec` |
 | 모델 호출, 비밀 참조를 쓰는 provider 인증 | `L1.models.spec` |
 | 설정 파일 위치와 읽기 | L4. L0 os는 디렉터리 경로만 제공한다 |
@@ -241,7 +241,7 @@ L0가 정하지 않는 것:
 | [결정] DB는 `bun:sqlite`(WAL, 단계 경계 FULL). macOS는 FTS5 포함 SQLite를 지정한다 | `_research/foundation-plan.md` §2 DB 행 |
 | [결정] 비밀 기본값은 SOPS(age). 에이전트는 값을 모른 채 참조로 쓴다 | `_research/decisions-log.md` 2026-10-21 결정(2차), `_research/foundation-plan.md` §2 비밀 행 |
 | [결정] 샌드박스는 `@anthropic-ai/sandbox-runtime` | `_research/foundation-plan.md` §2 샌드박스 행 |
-| [결정] 공유 서비스 모드 `xeon service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차. 원격 사용은 1차(M3)이고 서비스 소켓을 SSH 터널·사설망으로 연결한다 [결정: review.decisions-2 U-11] | `_research/foundation-plan.md` §1 표 2번, adr.0006 |
+| [결정] 공유 서비스 모드 `fresnel service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차. 원격 사용은 1차(M3)이고 서비스 소켓을 SSH 터널·사설망으로 연결한다 [결정: review.decisions-2 U-11] | `_research/foundation-plan.md` §1 표 2번, adr.0006 |
 | [결정] DI는 Cordis 하나. L0는 ext-host `ExtHost.registerPlatform`으로 서비스를 등록한다(DR-14 예외, review.decisions-2 U-17) | `_research/decisions-log.md` 2026-10-21 결정(3차), adr.0002 |
 | [결정] Bun 1.4 런타임, 데스크톱은 Tauri 2 + `bun build --compile` 사이드카 | `_research/foundation-plan.md` §1 표 3번, §2 |
 

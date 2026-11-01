@@ -210,7 +210,7 @@ describe.skipIf(!real)("Linux Secret Service key command with the real sops (SC-
       await leaseEquals(provider, "dev/GITHUB_TOKEN", encode("linux-key-cmd-fake-value-10")),
     ).toBe(true);
     expect((await readFile(argsFile, "utf8")).trim()).toBe(
-      "lookup service xeon.age account default",
+      "lookup service fresnel.age account default",
     );
   });
 

@@ -7,7 +7,7 @@ import { createWorkerConvertRunner, directConvertRunner } from "../src/fetch/con
 const input: ConvertInput = {
   bytes: new Uint8Array(readFileSync(new URL("./fixtures/html/article.html", import.meta.url))),
   contentType: "text/html; charset=utf-8",
-  baseUrl: "https://blog.example/posts/xeon",
+  baseUrl: "https://blog.example/posts/fresnel",
   extractor: "readability",
 };
 

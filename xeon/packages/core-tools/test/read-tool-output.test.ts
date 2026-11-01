@@ -53,7 +53,7 @@ test("read_tool_output_pages_blob: offset and limit return that line range of th
   expect(page.blocked).toBeUndefined();
   const text = textOf(page.result);
   expect(text.split("\n")[0]).toBe(
-    `[xeon:output_page] Lines 101-103 of 600 of blob sha256:${sha}. Use offset 104 to continue.`,
+    `[fresnel:output_page] Lines 101-103 of 600 of blob sha256:${sha}. Use offset 104 to continue.`,
   );
   expect(text).toContain("line 101 ");
   expect(text).toContain("line 103 ");
@@ -67,7 +67,7 @@ test("read_tool_output_pages_blob: offset and limit return that line range of th
     args: { sha256: sha, offset: 599, limit: 10 },
   });
   expect(textOf(last.result).split("\n")[0]).toBe(
-    `[xeon:output_page] Lines 599-600 of 600 of blob sha256:${sha}.`,
+    `[fresnel:output_page] Lines 599-600 of 600 of blob sha256:${sha}.`,
   );
 });
 

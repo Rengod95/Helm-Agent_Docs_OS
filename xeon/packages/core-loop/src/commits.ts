@@ -13,7 +13,7 @@ import type {
   ThreadId,
   TurnCompletedPayload,
   TurnId,
-  XeonCustomMessage,
+  FresnelCustomMessage,
 } from "@fresnel/contracts/conversation";
 import type { CustomMessageDraft, PostContent, PostItem } from "@fresnel/contracts/extensions";
 import type {
@@ -91,7 +91,7 @@ export function placedMessageOf(
       record: { itemId, status: "completed", kind: "user", message, requestId },
     };
   }
-  const message: XeonCustomMessage = {
+  const message: FresnelCustomMessage = {
     role: "custom",
     customType: item.customType,
     content: contentOf(item.content),

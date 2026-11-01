@@ -139,7 +139,7 @@ xeon/packages/core-loop/
 포크 수행 규칙:
 
 1. 원본은 npm tarball을 풀어 `sourcesContent`에서 꺼내거나 `~/projects/_ref/pi-src`에서 읽는다. 어느 쪽도 실행하지 않는다. `_ref`에는 쓰지 않는다.
-2. `UPSTREAM.json`: `upstream: "https://github.com/earendil-works/pi"`, `package: "@earendil-works/pi-agent-core"`, `version: "1.3.0"`, `tarballSha1`, `license: "MIT"`, `copiedPaths`(원본 함수와 줄 범위 → Xeon 파일), `notCopied`, `modifications`(FRESNEL-PATCH id 목록).
+2. `UPSTREAM.json`: `upstream: "https://github.com/earendil-works/pi"`, `package: "@earendil-works/pi-agent-core"`, `version: "1.3.0"`, `tarballSha1`, `license: "MIT"`, `copiedPaths`(원본 함수와 줄 범위 → Fresnel 파일), `notCopied`, `modifications`(FRESNEL-PATCH id 목록).
 3. `LICENSE.pi`: pi 저장소 루트 `LICENSE` 원문. 배포물 서드파티 고지에도 넣는다(adr.0003 §3.4).
 4. 출처 주석과 `FRESNEL-PATCH` 표지는 adr.0009 §3.6 형식이다.
 
@@ -209,7 +209,7 @@ xeon/packages/core-loop/
 ## 6. 완료 기준
 
 - §5의 해당 마일스톤 테스트가 통과한다.
-- M1 스모크(`apps/cli` 시나리오 1개): 모델 테이프로 `xeon chat` 한 턴을 실행하고, 프로세스를 강제 종료한 뒤 재개하면 이벤트가 끊김 없이 이어진다(seq 무간격, 같은 turn의 `turn.completed` 하나). drive 그룹 토글이 단계 경계에서 적용된다(`_research/foundation-plan.md` §6).
+- M1 스모크(`apps/cli` 시나리오 1개): 모델 테이프로 `fresnel chat` 한 턴을 실행하고, 프로세스를 강제 종료한 뒤 재개하면 이벤트가 끊김 없이 이어진다(seq 무간격, 같은 turn의 `turn.completed` 하나). drive 그룹 토글이 단계 경계에서 적용된다(`_research/foundation-plan.md` §6).
 - `cd xeon && just verify` 종료코드 0. 종료코드 2면 코드를 고치지 않고 보고한다.
 - check-layers·dependency-cruiser에서 core-loop가 `@earendil-works/pi-agent-core`, `@earendil-works/pi-ai`, `cordis`, 다른 `@fresnel/core-*`를 import하지 않는다(테스트 파일의 `testing` 서브패스 제외, spec §9-10). 워크스페이스 `bun.lock`에 `@earendil-works/pi-agent-core`가 없다.
 - 이행 완료: `agent-wrapper.ts`, `pi-bridge.ts`가 없고, core-loop 소스에 `as unknown as`와 `typescript/no-unsafe-type-assertion` 예외 주석이 0건이다. `UPSTREAM.json`, `LICENSE.pi`, 출처 주석이 있다.

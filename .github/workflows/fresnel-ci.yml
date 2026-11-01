@@ -1,4 +1,4 @@
-name: Xeon CI
+name: Fresnel CI
 
 on:
   push:
@@ -7,17 +7,17 @@ on:
       - "docs/xeon/**"
       - "justfile"
       - "scripts/**"
-      - ".github/workflows/xeon-ci.yml"
+      - ".github/workflows/fresnel-ci.yml"
   pull_request:
     paths:
       - "xeon/**"
       - "docs/xeon/**"
       - "justfile"
       - "scripts/**"
-      - ".github/workflows/xeon-ci.yml"
+      - ".github/workflows/fresnel-ci.yml"
 
 concurrency:
-  group: xeon-ci-${{ github.ref }}
+  group: fresnel-ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

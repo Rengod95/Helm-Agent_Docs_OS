@@ -921,7 +921,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 - 확장 기여(`first`, `chain` 결과)는 커밋 전에 트랜잭션 밖에서 계산하고 결과만 커밋에 넣는다(`eng.transactions.design` §4.1, TX-01). 그래서 핸들러 예산은 DB 쓰기 잠금 시간에 들어가지 않는다. 늘어나는 것은 커밋 시점까지의 지연이다.
 - 커밋 지점별 최악 지연은 그 지점 핸들러 예산의 합이다. 예: `boundary.step.after`(C5·C6 앞)에 chain 핸들러가 3개면 최대 30초 늦게 커밋된다. `tool.call.before`(C3 앞)에 first 핸들러가 2개면 최대 60초다.
-- [제안] 한 지점의 핸들러 실행 시간 합이 1초를 넘으면 느린 지점 진단(운영 로그, `xeon doctor` 출력 후보)을 남긴다. 사용자 알림은 하지 않는다.
+- [제안] 한 지점의 핸들러 실행 시간 합이 1초를 넘으면 느린 지점 진단(운영 로그, `fresnel doctor` 출력 후보)을 남긴다. 사용자 알림은 하지 않는다.
 - 예산 초과로 커밋에 들어가는 값: first는 거부값, chain은 그때까지의 `current`다. 둘 다 결정적이므로 재생 규칙(`F.extensions.spec` §4.3)과 충돌하지 않는다.
 
 ### 4.3 실패 격리와 자동 끄기
@@ -974,12 +974,12 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - `emit`이 던지면 호출자에게 던지지 않고 `scope.handler_failed not emitted: <owner> <point> (<원인 메시지>)` 줄을 운영 로그에 남긴다.
 - 조립 루트(`apps/host`)가 이 구현을 `createOperationsPolicy`의 `notifier`로 넘긴다. `emit`은 열린 thread마다 휘발 이벤트를 보내고(`L4.host-service` HS-80), `log`는 운영 로그다. `notifier`를 생략한 조립(시험 등)은 `createLogNotifier`를 쓴다.
 - 자동 끄기가 적용되면 `scope.changed`(내구, `F.records.spec` §3.3)를 `status: "disabled"`로 남긴다. 사유는 payload의 `reason` 필드(`ScopeChangeReason`, `F.records.spec` §3.3)로 구분한다. 사유를 primitives에 넘기는 인자는 §10 미결 4의 남은 일이다.
-- 사용자 알림 문구 예: "확장 acme-notes가 연속 5번 실패해 꺼졌다. 다시 켜기: xeon ext enable acme-notes". 문구와 위치는 `L4.cli.spec`, `L4.settings-ui.spec`이 정한다.
+- 사용자 알림 문구 예: "확장 acme-notes가 연속 5번 실패해 꺼졌다. 다시 켜기: fresnel ext enable acme-notes". 문구와 위치는 `L4.cli.spec`, `L4.settings-ui.spec`이 정한다.
 - `disableNow`가 불리면 `OperationsNotifier.projectionFailed(key, cause, disabled)`를 보낸다. 끈 주체는 `disabled: true`로 한 번, 면제 주체는 실패마다 `disabled: false`로 보낸다. 운영 로그(`createLogNotifier`)는 이 둘을 모두 남긴다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이 알림도 휘발 이벤트 발신은 L4 조립이 연결한다.
 
 #### 4.3.5 다시 켜기
 
-- 사용자가 명령(`xeon ext enable <name>`과 대화 중 같은 이름의 슬래시 명령 [제안], X.primitives.spec §6의 명령 가정과 같은 이름, 소유 `L4.cli.spec`)이나 설정 화면 토글로 다시 켠다. `AutoDisabler.reenable`이 장부를 비우고 `requestEnable(…, "request")`를 부른다. `ScopeHandle.enable()`로 켜는 경로(`/group on`, 로더의 `settingChanged`)는 `AutoDisabler.clearLedger`로 장부만 비운다.
+- 사용자가 명령(`fresnel ext enable <name>`과 대화 중 같은 이름의 슬래시 명령 [제안], X.primitives.spec §6의 명령 가정과 같은 이름, 소유 `L4.cli.spec`)이나 설정 화면 토글로 다시 켠다. `AutoDisabler.reenable`이 장부를 비우고 `requestEnable(…, "request")`를 부른다. `ScopeHandle.enable()`로 켜는 경로(`/group on`, 로더의 `settingChanged`)는 `AutoDisabler.clearLedger`로 장부만 비운다.
 - 자동으로 다시 켜지 않는다. 재시작하면 장부가 비어 다시 실린다(§4.3.3).
 - 다시 켠 뒤 같은 기준으로 다시 꺼질 수 있다. 시간 간격 조건(쿨다운)은 두지 않는다 [제안].
 
@@ -1054,7 +1054,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 지우는 대상은 `xh_ext_tables`에 그 확장 이름으로 오른 테이블뿐이다. `LIKE 'x_…%'` 같은 접두 패턴 삭제는 하지 않는다. 확장 `a`를 지울 때 확장 `a-b`의 테이블이 지워지지 않게 하기 위해서다.
 - 목록 전달: `dropExtension(name, true)`는 소유 장부에서 그 확장 이름의 테이블 이름 목록을 읽어 `fresnel.store`의 `extensions.drop(name, tables)`(`L0.store.spec`)에 정확한 이름 목록으로 넘긴다. store는 목록의 모든 이름이 `name`의 소유인지 먼저 확인하고, 하나라도 아니면 아무것도 지우지 않고 `table_not_owned`를 돌려준다. 이때 `dropExtension`은 `ExtStorageError`로 바꾸어 돌려주고 소유 장부를 고치지 않는다. 성공하면 지운 테이블의 장부 행을 지운다.
 - 이벤트(`x.<name>.*`, `grp.<name>.*`)는 남긴다(`eng.context-map.design` §5.2 마지막 항목). 같은 확장을 다시 설치하면 투영 재생으로 테이블이 다시 만들어진다.
-- 사용자가 확인하지 않고 제거하면 테이블은 남고 투영기만 해제된다. 남은 테이블은 "주인 없는 확장 테이블"로 `xeon doctor` 진단에 나온다 [제안].
+- 사용자가 확인하지 않고 제거하면 테이블은 남고 투영기만 해제된다. 남은 테이블은 "주인 없는 확장 테이블"로 `fresnel doctor` 진단에 나온다 [제안].
 
 #### 4.4.8 scope 상태 문서와의 관계
 
@@ -1090,7 +1090,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 | 방법 | 이름 [제안] | 적용 |
 |---|---|---|
-| 시작 옵션 | `xeon --safe-mode`, `xeon chat --safe-mode` | 이번 시작 |
+| 시작 옵션 | `fresnel --safe-mode`, `fresnel chat --safe-mode` | 이번 시작 |
 | 환경 변수 | `FRESNEL_SAFE_MODE=1` | 이번 시작. 데스크톱 사이드카 재시작용 |
 | 설정 | `x.operations.safeMode.default`(§6) | 시작할 때마다. 관리·사용자 범위만 |
 | 명령 | `/safe-mode` | 실행 중 요청. 단계 경계에서 외부 확장과 L3 내장 그룹([제안], §4.6.2)을 끄고(`reason: "safe_mode"`) 외부 훅을 멈춘다. 이미 실린 모듈은 프로세스에 남으므로 화면에 "다시 시작 권장"을 보인다 |
@@ -1146,7 +1146,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 {
   "x.operations.hookDefs": [
     { "id": "no-rm-rf", "point": "tool.call.before", "tools": ["bash"], "command": ["./.fresnel/hooks/check-bash.sh"], "timeoutMs": 5000 },
-    { "id": "log-start", "point": "thread.start", "command": ["/usr/local/bin/xeon-log", "start"] }
+    { "id": "log-start", "point": "thread.start", "command": ["/usr/local/bin/fresnel-log", "start"] }
   ]
 }
 ```
@@ -1186,7 +1186,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
   | stdout 10,000자 초과 | 실패(`hook_output`) | 실패(`hook_output`) → 거부 | 실패(`hook_output`) → 패치 버림 |
 
 - 거부는 그 지점의 `FIRST_DENY` 형식으로 만든다. exit 2의 거부는 `reason`만 stderr 내용으로 바꾼다.
-- 주의 사항 [제안]: Claude Code에서 exit 1은 비차단 오류이고 PreToolUse 시간 초과도 기본은 비차단이다(`_research/refs/claude-code.md` hooks 종료 코드 항목, `D:hooks:880`). Xeon은 first 지점에서 0과 2 밖의 모든 비정상 종료를 거부로 환산한다(`F.extensions.spec` §4.1 fail-closed). 그래서 Claude Code용으로 쓴 훅 스크립트가 exit 1로 "경고만" 하던 경우 Xeon에서는 도구 호출이 막힌다. 이 차이를 사용자 문서와 `xeon doctor` 훅 점검에 적는다.
+- 주의 사항 [제안]: Claude Code에서 exit 1은 비차단 오류이고 PreToolUse 시간 초과도 기본은 비차단이다(`_research/refs/claude-code.md` hooks 종료 코드 항목, `D:hooks:880`). Fresnel은 first 지점에서 0과 2 밖의 모든 비정상 종료를 거부로 환산한다(`F.extensions.spec` §4.1 fail-closed). 그래서 Claude Code용으로 쓴 훅 스크립트가 exit 1로 "경고만" 하던 경우 Fresnel에서는 도구 호출이 막힌다. 이 차이를 사용자 문서와 `fresnel doctor` 훅 점검에 적는다.
 - 출력 상한: stdout과 stderr 각각 10,000자다(Claude Code와 같은 값). 넘는 부분은 읽지 않고 잘라낸다. stdout이 잘리면 위 표대로 실패다. stderr가 잘리는 것은 실패가 아니고 로그에 잘림 표시를 남긴다.
 
 #### 4.7.4 실행
@@ -1196,7 +1196,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 작업 폴더: `cwd: "project"`(기본)는 프로젝트 루트, `"home"`은 사용자 홈이다.
 - 예산: 훅 정의의 `timeoutMs`, 없으면 `x.operations.budget.hookMs`. 예산이 끝나면 signal을 abort하고 `ProcessService`가 프로세스 그룹을 종료한다(종료 방식은 `L0.process.spec`).
 - 같은 지점의 훅은 순서대로 하나씩 실행한다. 정렬은 §4.1의 정렬 키를 따른다.
-- 디스패처 등록 [제안]: primitives 레지스트리는 확장·scope 단위로 핸들러를 받는다. 그래서 operations는 설정 범위마다 내부 내장 확장 단위 하나(`xeon-hooks-managed`, `xeon-hooks-user`, `xeon-hooks-project`, `xeon-hooks-local`)를 만들어 `ExtHost.install`로 싣고, 그 scope에서 훅마다 on 핸들러 하나를 등록한다. 이 단위들은 모든 확장 뒤의 `loadIndex`를 받고, `TierTable`에는 §4.7.6 표의 tier로 들어간다. 실패 장부 키는 단위 이름이 아닌 `hook:<id>`이고, operations가 (단위, 등록 순번) → 훅 id 표로 바꾼다.
+- 디스패처 등록 [제안]: primitives 레지스트리는 확장·scope 단위로 핸들러를 받는다. 그래서 operations는 설정 범위마다 내부 내장 확장 단위 하나(`fresnel-hooks-managed`, `fresnel-hooks-user`, `fresnel-hooks-project`, `fresnel-hooks-local`)를 만들어 `ExtHost.install`로 싣고, 그 scope에서 훅마다 on 핸들러 하나를 등록한다. 이 단위들은 모든 확장 뒤의 `loadIndex`를 받고, `TierTable`에는 §4.7.6 표의 tier로 들어간다. 실패 장부 키는 단위 이름이 아닌 `hook:<id>`이고, operations가 (단위, 등록 순번) → 훅 id 표로 바꾼다.
 - 재생: 훅도 on 핸들러이므로 "다시 실행해도 되는 질의" 계약을 따른다(`F.extensions.spec` §4.3). 크래시 뒤 같은 페이로드로 다시 실행될 수 있다. 사용자 문서에 적는다.
 
 #### 4.7.5 환경 변수 정리
@@ -1204,7 +1204,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 자식 프로세스 환경은 비우고 다음만 넣는다(`hookEnv`).
   1. `BASE_ENV_ALLOW`의 이름 중 부모 환경에 있는 것
   2. 훅 정의 `env`의 이름 중 `x.operations.hookEnvAllow`(관리·사용자 범위)에도 있는 것
-  3. Xeon이 넣는 값: `FRESNEL_HOOK_ID`, `FRESNEL_HOOK_HOOK`, `FRESNEL_THREAD_ID`, `FRESNEL_PROJECT_DIR`
+  3. Fresnel이 넣는 값: `FRESNEL_HOOK_ID`, `FRESNEL_HOOK_HOOK`, `FRESNEL_THREAD_ID`, `FRESNEL_PROJECT_DIR`
 - 1·2의 이름이 `SECRET_ENV_PATTERN`에 맞으면 넘기지 않는다. 비밀 참조(`secret://`)는 풀지 않는다([결정] 에이전트는 값을 모른 채 참조로 사용, `_research/decisions-log.md` 2026-10-21 2차).
 - 프로젝트 범위 설정은 `x.operations.hookEnvAllow`를 바꿀 수 없다. 저장소에 든 설정이 비밀 변수를 꺼내지 못하게 하기 위해서다.
 
@@ -1274,7 +1274,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - `ui` 항목의 `label`과 `order`는 `L4.settings-ui.spec`이 정한다. 위젯은 boolean → `toggle`, integer·number → `number`다. 예산 키 단위는 `ms`다.
 - L4 노출:
   - 화면: 설정 화면 "플러그인과 그룹" 탭. 묶음은 "핸들러 시간 예산", "실패와 자동 끄기", "안전 모드", "외부 훅" 네 개 [제안]. 확장 목록에 실패 수, 자동 끄기 상태, 다시 켜기 버튼을 보인다.
-  - 명령: `xeon config get|set x.operations.…`(`L4.cli.spec`), `xeon ext list`, `xeon ext enable <name>`, `xeon ext disable <name>`(X.primitives.spec §6과 같은 이름), `/safe-mode`, `xeon --safe-mode`, `xeon --disable-ext <name>`, `xeon doctor`의 훅·확장 점검 [제안: 명령 이름은 `L4.cli.spec`이 확정].
+  - 명령: `fresnel config get|set x.operations.…`(`L4.cli.spec`), `fresnel ext list`, `fresnel ext enable <name>`, `fresnel ext disable <name>`(X.primitives.spec §6과 같은 이름), `/safe-mode`, `fresnel --safe-mode`, `fresnel --disable-ext <name>`, `fresnel doctor`의 훅·확장 점검 [제안: 명령 이름은 `L4.cli.spec`이 확정].
   - 파일: 범위별 설정 파일의 같은 키(`F.wire-settings.spec` §3.9, 경로는 `L4.host-service.spec`).
 - 확장 공통 키 `ext.<name>.enabled`, `ext.<name>.isolation`은 `X.loading-trust.spec`, `x.primitives.driveDefaultLimits`·`x.primitives.driveLimits`는 `X.primitives.spec` 소유다. 이 문서는 정의하지 않는다.
 

@@ -88,5 +88,5 @@ X11 scripts release-smoke.test.ts
 # Y15 apps/desktop <파일>
 # Track T-LED, T-RT1, T-RT2 (req-ledger.test.ts: no carry-over item unassigned)
 # Y16 scripts req-ledger.test.ts
-# Track T-PERF (scripts/desktop-bench.ts result and the size check)
+# Track T-PERF (scripts/desktop-benchmark.ts result and the size check)
 # Y17 scripts <파일>

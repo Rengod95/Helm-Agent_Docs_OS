@@ -366,7 +366,7 @@ describe("provider registry", () => {
     const world = await makeWebWorld({
       registrations: { list: () => [searchRegistration("web-a")] },
     });
-    const output = await world.search({ query: "xeon" });
+    const output = await world.search({ query: "fresnel" });
     expect(output.meta.provider).toBe("plugin:web-a");
     expect(output.sources[0]?.usage.cache).toBe("session");
   });

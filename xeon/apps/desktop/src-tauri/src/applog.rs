@@ -11,14 +11,14 @@ pub struct AppLog {
 }
 
 impl AppLog {
-    /// `dir/xeon-desktop.log`를 연다. 열지 못하면 표준 오류로 대신한다(로그 때문에 앱이 멈추지 않는다).
+    /// `dir/fresnel-desktop.log`를 연다. 열지 못하면 표준 오류로 대신한다(로그 때문에 앱이 멈추지 않는다).
     pub fn open(dir: Option<&Path>) -> Self {
         let file = dir.and_then(|dir| {
             fs::create_dir_all(dir).ok()?;
             OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(dir.join("xeon-desktop.log"))
+                .open(dir.join("fresnel-desktop.log"))
                 .ok()
         });
         Self {
@@ -31,9 +31,9 @@ impl AppLog {
             .chars()
             .map(|c| if c.is_control() && c != '\t' { ' ' } else { c })
             .collect();
-        // 같은 줄을 `log` 크레이트로도 낸다. 디버그 빌드의 로그 플러그인(main.rs `debug_log_plugin`)이 받아 xeon-desktop-debug.log에 쓴다.
+        // 같은 줄을 `log` 크레이트로도 낸다. 디버그 빌드의 로그 플러그인(main.rs `debug_log_plugin`)이 받아 fresnel-desktop-debug.log에 쓴다.
         // 등록된 logger가 없으면(릴리스 빌드) 매크로는 아무 일도 하지 않는다.
-        tauri_plugin_log::log::info!(target: "xeon_desktop", "{clean}");
+        tauri_plugin_log::log::info!(target: "fresnel_desktop", "{clean}");
         let text = format!("{} {clean}\n", rfc3339_utc(now_ms()));
         let mut guard = self.file.lock().unwrap_or_else(|e| e.into_inner());
         match guard.as_mut() {
@@ -93,7 +93,7 @@ mod tests {
             ours,
             [&(
                 Level::Info,
-                "xeon_desktop".to_owned(),
+                "fresnel_desktop".to_owned(),
                 "applog-marker: a\tb [31mc d".to_owned()
             )]
         );

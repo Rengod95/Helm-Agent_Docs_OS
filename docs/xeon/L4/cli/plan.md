@@ -17,12 +17,12 @@ binds: [xeon/apps/cli/**]
 | 마일스톤 | 목표 | 포함 |
 |---|---|---|
 | M0 | 없음. 현재 스캐폴드(`xeon/apps/cli`)를 유지한다 | M0 범위는 `contracts`, `ext-host`, `platform-store`, `platform-exec`다(`_research/foundation-plan.md` §5 P4). CLI 작업은 M1에 시작한다 |
-| M1 | 걸어 다니는 골격의 입구. 모델 테이프로 `xeon chat` 한 턴, 강제 종료 뒤 재개 | `main.ts` 명령 분기, `chat -p`(in-process), `--json`, `--continue`/`--resume`, 최소 대화형, `config get`, `config schema`(로컬 명령), `version`, 저장소 유일의 scenario 테스트, 바이너리 빌드와 측정 |
+| M1 | 걸어 다니는 골격의 입구. 모델 테이프로 `fresnel chat` 한 턴, 강제 종료 뒤 재개 | `main.ts` 명령 분기, `chat -p`(in-process), `--json`, `--continue`/`--resume`, 최소 대화형, `config get`, `config schema`(로컬 명령), `version`, 저장소 유일의 scenario 테스트, 바이너리 빌드와 측정 |
 | M2 | 세션·설정·비밀 관리와 승인 | `sessions`, `config set/reset/list`, `secret` 명령, `--set`, 슬래시 명령, 승인 프롬프트, `thread.locked` 프롬프트, `turn.interrupt` 연결, `host --stdio`(컴파일 바이너리 서브커맨드), `doctor`, TUI 채택 스파이크와 pi-tui 화면 |
 | M3 | 서비스 | `service start/status/stop/ensure/launch-mode/run`, (선택) TUI 설정 목록, `db export`(M3-REQ-63, M3b B3-DATA) |
 
 - [제안] M1 host 처리기는 다섯(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`)이다(`F.wire-settings.spec` §3.3.1의 [제안]. M1 범위는 `_research/foundation-plan.md` §5 P4). 그래서 M1 CLI는 이 다섯 메서드와 wire 없는 로컬 명령 `config schema`만 쓴다.
-- M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다.
+- M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다.
 - [제안] M1은 print 모드를 먼저 끝내고 대화형은 최소 renderer로 제한한다. 대화형 범위가 커져 M1이 밀리는 것을 막기 위해서다(§7).
 
 ## 2. 패키지와 파일 배치
@@ -84,7 +84,7 @@ xeon/apps/cli/
 | `test/smoke.test.ts` | 진입 모듈 로드 확인 | `parse-chat-flags` 등 단위 테스트로 바꾼다 | C1 |
 | `tsconfig.json` `references` | `[]` | `../../packages/contracts`, `../host` | C0 |
 | `bunfig.toml` | 없음 | L4 임계 0.5/0.5(`eng.testing.guide` TS-10) | C0 |
-| `dist/` | `tsc -b` 선언 출력(`dist/src/index.d.ts`, `dist/test/smoke.test.d.ts`) | 같은 디렉터리에 바이너리 `dist/<target>/xeon`도 둔다. 둘 다 커밋하지 않는다(`eng.toolchain.guide` TC-05) | C14 |
+| `dist/` | `tsc -b` 선언 출력(`dist/src/index.d.ts`, `dist/test/smoke.test.d.ts`) | 같은 디렉터리에 바이너리 `dist/<target>/fresnel`도 둔다. 둘 다 커밋하지 않는다(`eng.toolchain.guide` TC-05) | C14 |
 | `fresnel.domain` | `cli` | 같음 | — |
 
 - 이 문서 작성 중 코드는 고치지 않았다. 위 작업은 각 작업 id의 구현 단계에서 한다.
@@ -150,18 +150,18 @@ xeon/apps/cli/
 
 | 타깃 | 산출 위치 | 단계 |
 |---|---|---|
-| `bun-darwin-arm64` | `apps/cli/dist/darwin-arm64/xeon` | M1 |
-| `bun-darwin-x64` | `apps/cli/dist/darwin-x64/xeon` | M1 |
-| `bun-linux-x64` | `apps/cli/dist/linux-x64/xeon` | M1 |
-| `bun-linux-arm64` | `apps/cli/dist/linux-arm64/xeon` | M1 |
-| `bun-windows-x64` | `apps/cli/dist/windows-x64/xeon.exe` | 나중(Windows 네이티브는 나중, `_research/decisions-log.md` 2026-10-19) |
+| `bun-darwin-arm64` | `apps/cli/dist/darwin-arm64/fresnel` | M1 |
+| `bun-darwin-x64` | `apps/cli/dist/darwin-x64/fresnel` | M1 |
+| `bun-linux-x64` | `apps/cli/dist/linux-x64/fresnel` | M1 |
+| `bun-linux-arm64` | `apps/cli/dist/linux-arm64/fresnel` | M1 |
+| `bun-windows-x64` | `apps/cli/dist/windows-x64/fresnel.exe` | 나중(Windows 네이티브는 나중, `_research/decisions-log.md` 2026-10-19) |
 
-- 명령 [제안]: `bun build --compile --target=<타깃> --minify apps/cli/src/main.ts --outfile apps/cli/dist/<타깃 접미사>/xeon`. 레시피 이름은 `just build-cli [타깃]`으로 제안하고, justfile 변경은 툴체인 담당에 요청한다(TC-09).
+- 명령 [제안]: `bun build --compile --target=<타깃> --minify apps/cli/src/main.ts --outfile apps/cli/dist/<타깃 접미사>/fresnel`. 레시피 이름은 `just build-cli [타깃]`으로 제안하고, justfile 변경은 툴체인 담당에 요청한다(TC-09).
 - `--bytecode`: 시작 속도 개선 사례가 있다(`_research/stack-status.md` §7-C). C14에서 켠 것과 끈 것을 함께 측정하고, 오류 스택·소스맵과의 호환을 확인한 뒤 정한다 [미결]. 사이드카 빌드(`just desktop-sidecar host`, `--minify --bytecode`)는 CLI 진입 전체를 묶는다: 2026-10-24 WSL2 linux-x64 한 번의 측정으로 103.4 MiB(상한 500 MiB), 빌드 3.4초다(§4.5).
 - 최상위 await: `apps/cli/src` 안에는 없고 `test/no-top-level-await.test.ts`가 0열에서 시작하는 await 식을 막는다. `main.ts`는 `runFromProcess().catch(...)`로 부르고 `import.meta.main`일 때만 실행한다. CLI 바이너리는 `@fresnel/host`의 `main.ts`를 번들에 넣으므로, `--bytecode` 빌드는 `apps/host/src/main.ts`의 최상위 await 제거(m2-plan HOST.5)가 끝나야 통과한다.
 - 산출물은 커밋하지 않는다(`eng.toolchain.guide` TC-05). `apps/*/dist/`를 `.gitignore`가 덮는지 C14에서 확인한다.
 - 엔진 바이너리 이름과 진입(`apps/cli/src/main.ts`)은 [제안]이다. `L4.host-service.spec`이 다른 진입을 정하면 이 표를 고친다.
-- 측정(C14): 공식 크기 수치가 없다(`_research/stack-status.md` §7-C "still way too big"). 타깃별 바이너리 크기, `xeon version` 기동 시간(20회 중앙값), `xeon config get` 기동 시간과 시작 RSS를 잰다. 측정 스크립트는 `xeon/scripts/`에 두고 새 도구를 들이지 않는다(TC-04). 결과는 이 문서 §4.3에 표로 더한다.
+- 측정(C14): 공식 크기 수치가 없다(`_research/stack-status.md` §7-C "still way too big"). 타깃별 바이너리 크기, `fresnel version` 기동 시간(20회 중앙값), `fresnel config get` 기동 시간과 시작 RSS를 잰다. 측정 스크립트는 `xeon/scripts/`에 두고 새 도구를 들이지 않는다(TC-04). 결과는 이 문서 §4.3에 표로 더한다.
 
 ### 4.4 TUI 스파이크 결과 (C8, 2026-10-24)
 
@@ -250,7 +250,7 @@ xeon/apps/cli/
 | 비밀 오류 해결 줄 (m2r sec) | 구현: `provider_unavailable`, `key_unavailable`, `write_failed`의 해결 줄을 원인별로 나눴다(spec §4.7). 깨끗한 기기의 첫 `secret add`가 `not_registered`에 "sops와 age를 설치"를 보이던 문제를 고쳤다. `test/errors-wire.test.ts`, `test/secret-first-write.int.test.ts`(실제 호스트, 설정 없이 첫 `add`, 같은 홈의 두 클라이언트가 한 비밀을 봄) |
 
 - 호스트가 아직 구현하지 않은 메서드와의 호환: `thread.list`는 -32601이면 상태 파일로, `thread.open`·`turn.interrupt`·`approval.list`·`events.unsubscribe`는 `host.hello`의 `features`에 없으면 쓰지 않는다. HOST.2·HOST.4가 병합되기 전의 `xeon/foundation`에서도 `just verify`가 통과한다.
-- 컴파일 바이너리 확인(2026-10-24, WSL2 linux-x64, 한 번씩): `just desktop-sidecar host`가 만든 바이너리에 `host.hello`와 `settings.get`을 JSON Lines로 보내면 응답 둘이 305 ms 안에 오고(새 데이터 디렉터리의 첫 기동 포함), 응답을 받은 뒤 stdin을 닫으면 0으로 끝난다. `xeon version`은 0.036초, `xeon doctor`는 1.8초다(당시 구현의 SearXNG 후보 네 곳 병렬 탐침 포함, 지금은 자동 감지가 없다). `secret reveal`은 stdin이 TTY가 아니어서 2로 끝났다. 이 확인은 일회성 수동 실행이고, 같은 경로를 소스 진입으로 돌리는 `host-stdio.int.test.ts`와 번들을 만드는 `entry-bundle.test.ts`가 회귀를 막는다.
+- 컴파일 바이너리 확인(2026-10-24, WSL2 linux-x64, 한 번씩): `just desktop-sidecar host`가 만든 바이너리에 `host.hello`와 `settings.get`을 JSON Lines로 보내면 응답 둘이 305 ms 안에 오고(새 데이터 디렉터리의 첫 기동 포함), 응답을 받은 뒤 stdin을 닫으면 0으로 끝난다. `fresnel version`은 0.036초, `fresnel doctor`는 1.8초다(당시 구현의 SearXNG 후보 네 곳 병렬 탐침 포함, 지금은 자동 감지가 없다). `secret reveal`은 stdin이 TTY가 아니어서 2로 끝났다. 이 확인은 일회성 수동 실행이고, 같은 경로를 소스 진입으로 돌리는 `host-stdio.int.test.ts`와 번들을 만드는 `entry-bundle.test.ts`가 회귀를 막는다.
 
 ### 4.6 M2 마감 구현 기록 (T6, 2026-10-25)
 
@@ -261,7 +261,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | 오류 문구 | 구현: `secret.*` 전용 kind, `thread.closed`, `settings.reserved`, `store.corrupt`, 슬래시 명령 능력 오류(`cap.dialog.commands.*`). 시험은 값으로 비교한다 | `src/errors.ts`, `test/errors-wire.test.ts` |
 | 슬래시 명령 실행(G1-01) | 구현: 내장도 별칭도 아닌 이름을 `command.run`으로 보내 `done`(메시지·구조 값), `expanded`(turn으로 전송), `needs_confirmation`(`[y/N]` 뒤 `confirmShell`), `not_command`를 처리한다. `command.list`는 `/help`와 Tab 완성에 쓴다. `command.list`에는 연 세션의 `threadId`를 보내고(호스트가 프로젝트 명령을 그 세션의 작업 폴더 기준으로 읽는다) `/resume`으로 세션을 바꾸면 다시 읽는다. 가짜 호스트 시험은 `slash-commands.test.ts`, 실제 호스트 종단 시험은 `slash-commands-host.int.test.ts` | `src/slash.ts`, `src/tui/minimal.ts`, `test/slash-commands.test.ts` |
 | 끊긴 turn 이어 실행(G1-02) | 구현: 기존 세션을 연 대화형이 `thread.list`에서 요약을 찾아 `resumable`이 있으면 `[y/N]`을 묻고 `turn.resume`을 부른다. 결과 세 모양(`resumed`, `closed`, `nothing`)을 문구로 보이고 `resumed`는 turn이 끝날 때까지 기다린다. 가짜 호스트 시험은 `turn-resume.test.ts`, 실제 호스트 종단 시험은 `turn-resume-host.int.test.ts` | `src/commands/resume-turn.ts`, `src/threads.ts`, `src/commands/chat-session.ts`(`resumeTurn`), `test/turn-resume.test.ts` |
-| 프로젝트 신뢰(G1-03) | 구현: `xeon trust [status\|allow\|deny]`(`trust.get`, `trust.decide`)와 대화형 `chat` 시작 카드. `m2/fx-apps`의 `trust.pending`·`projectRoot` 가정은 버리고 F의 `trust.get { workspace }`와 `TrustStatus`로 다시 썼다(포트 `TrustClient`는 없앴다). 가짜 처리기 시험은 `trust.test.ts`, 실제 처리기(`trust.json` 쓰기)와의 종단 시험은 `trust-host.int.test.ts` | `src/commands/trust.ts`, `src/render/trust.ts`, `src/cli/command.ts`(`parseTrust`), `test/trust.test.ts` |
+| 프로젝트 신뢰(G1-03) | 구현: `fresnel trust [status\|allow\|deny]`(`trust.get`, `trust.decide`)와 대화형 `chat` 시작 카드. `m2/fx-apps`의 `trust.pending`·`projectRoot` 가정은 버리고 F의 `trust.get { workspace }`와 `TrustStatus`로 다시 썼다(포트 `TrustClient`는 없앴다). 가짜 처리기 시험은 `trust.test.ts`, 실제 처리기(`trust.json` 쓰기)와의 종단 시험은 `trust-host.int.test.ts` | `src/commands/trust.ts`, `src/render/trust.ts`, `src/cli/command.ts`(`parseTrust`), `test/trust.test.ts` |
 | 비밀 참조·시험 출력(G1-07) | 구현: `secret rm`이 `secret.references`로 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 지우기를 보내지 않는다. `secret test`는 `decryptable`, 길이, SHA-256 앞 8자를 보이고 복호화할 수 없으면 1이다(C9의 "`state`만 보인다"를 대체). 값은 어디에도 없다는 검사(`expectNoValue`)를 `test`에도 건다. 가짜 처리기 시험은 `secret.test.ts`, 실제 sops·age 저장소와의 종단 시험은 `secret-host.int.test.ts` | `src/commands/secret.ts`, `test/secret.test.ts`, `test/support/secrets.ts` |
 | 동의 표시(G2-10) | 구현: 도구 카드가 `command` 전체와 `secretEnv` 핸들(`Reflect.get` 없이 다시 씀), 요청 주체(`origin.caller`), 만료(`expiresAt`, `onExpire`)를 보인다. `approval.resolved`의 `requestedRemember`와 `remember`가 다르면(`always`→`thread`) 낮춰 적용했음을, `resolvedBy`가 `user`가 아니면 이유를 보인다. `approval.respond`의 `reason`에 따라 `answer_invalid`·`commit_failed`는 다시 묻고(3번까지) `already_resolved`·`unknown_approval`은 프롬프트를 닫는다. 요건의 정본(`L1.tools.spec`)과 `always` 숨김은 T4 소관이다 | `src/render/transcript.ts`, `src/render/text-sink.ts`, `src/render/approval.ts`, `src/commands/chat.ts`, `test/approval-consent.test.ts` |
 | 수동 컴팩션(G2-01) | 구현: `/compact [<지침>]`이 `thread.compact`를 보낸다. `compacted`는 요약 전 토큰 수, `skipped`는 이유 한 줄을 보인다. 확장 차단(3006), 요약 실패(3008), 진행 중 turn(3003), 닫힌 세션(3007), 취소는 두 줄 오류로 알리고 입력을 이어 받는다. 이름이 같은 엔진 명령보다 내장이 앞선다. `thread.compact`가 없는 호스트에는 보내지 않는다 | `src/slash.ts`, `src/errors.ts`, `test/slash-commands.test.ts`, `test/errors-wire.test.ts` |
@@ -273,7 +273,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 
 | 시험 파일 | 실제 호스트에서 확인한 것 | 가짜 호스트 시험에만 남은 것 |
 |---|---|---|
-| `slash-commands-host.int.test.ts` | `command.list { threadId }`의 id가 `command.run`의 id와 같다. `/help`에 `/plan`, `/tasks`가 보이고 `/tasks`, `/plan`의 출력이 호스트가 쓴 문구와 같다. 신뢰 전에는 프로젝트 명령 `/hello`가 없고 `xeon trust allow` 뒤에는 있으며 펼친 텍스트가 `turn.start`의 `input`이 된다. `/compact`가 긴 대화(테이프 모델 요약)를 요약하고 둘째 호출은 `last_entry_is_compaction`이다. 짧은 대화는 `nothing_to_summarize`다 | `needs_confirmation`(셸 주입), 확장 차단과 요약 실패 오류 문구 |
+| `slash-commands-host.int.test.ts` | `command.list { threadId }`의 id가 `command.run`의 id와 같다. `/help`에 `/plan`, `/tasks`가 보이고 `/tasks`, `/plan`의 출력이 호스트가 쓴 문구와 같다. 신뢰 전에는 프로젝트 명령 `/hello`가 없고 `fresnel trust allow` 뒤에는 있으며 펼친 텍스트가 `turn.start`의 `input`이 된다. `/compact`가 긴 대화(테이프 모델 요약)를 요약하고 둘째 호출은 `last_entry_is_compaction`이다. 짧은 대화는 `nothing_to_summarize`다 | `needs_confirmation`(셸 주입), 확장 차단과 요약 실패 오류 문구 |
 | `turn-resume-host.int.test.ts` | 승인을 기다리다 SIGKILL된 호스트의 저장소를 새 호스트가 열면 `thread.list`의 `resumable`로 묻고, y에서만 `turn.resume`이 한 번 가며 되살아난 승인에 답하면 turn이 끝난다. n이면 `turn.resume`이 가지 않는다. 새 세션은 묻지 않는다 | 결과 `closed`·`nothing`의 문구, `turn.resume` 실패 문구 |
 | `trust-host.int.test.ts` | 실제 `trust.get`의 카드와 `--json`, `trust allow --scope parent`가 `trust.json`(0600)에 남고 다음 실행의 판정이 `allow`(`store`)가 된다. 세션 범위 결정은 파일을 쓰지 않는다. 시작 카드는 `thread.create`보다 앞서고 번호로 고른 선택지를 보내며 두 번째 실행은 묻지 않는다. 엔터는 아무것도 저장하지 않는다. 자원이 없는 폴더는 stderr 한 줄이다 | 저장 실패(`store.io`)와 `trust.get` 실패 문구, print·JSON 모드 |
 | `secret-host.int.test.ts` | 실제 sops·age로 `secret add`, `ls`, `test`(길이와 해시 앞 8자), `rm`(참조 한 줄과 `[y/N]`), `rm --yes`를 한 저장소에서 잇는다. 값, base64, hex가 stdout·stderr·보낸 요청·홈 아래 모든 파일에 없다 | 설정 키와 활성 lease가 있는 참조 표시, `reveal`, 제공자·키 오류 종료 코드 |
@@ -316,7 +316,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | non-tty-disables-tui | `test/non-tty.test.ts` | unit | stdin 비TTY면 print 모드, stdout 비TTY면 출력에 0x1B가 없다. `NO_COLOR`, `TERM=dumb`이면 대화형에서도 색 없음 | M1 |
 | exit-code-for-lock-denied | `test/exit-codes.test.ts` | unit | `turn.start`가 `thread.locked`를 돌려주면 M1은 4. 그 밖의 kind와 `EngineStartError`가 spec §3.6·§4.10 표의 코드로 바뀐다(`catalogConflict`·`missingService`는 1, 나머지는 3). `runHostCommand`의 0·1·2는 그대로다 | M1 |
 | dev-wire-round-trip-passed | `test/engine-options.test.ts` | unit | 개발 빌드 조건(`FRESNEL_DEV=1` 또는 소스 실행)에서 `connectEngine`이 `startInProcessHost`에 `devChecks: true`를 넘기고, 컴파일 바이너리 조건에서 `false`를 넘긴다. 가짜 `@fresnel/host` 함수로 인자를 기록한다(spec AC11) | M1 |
-| usage-error-two-lines | `test/usage-error.test.ts` | unit | 사용법 오류 코드 각각에서 stderr 출력이 `xeon: …`와 `  해결: …` 두 줄이고 종료 코드가 2다(spec AC12, §4.10) | M1 |
+| usage-error-two-lines | `test/usage-error.test.ts` | unit | 사용법 오류 코드 각각에서 stderr 출력이 `fresnel: …`와 `  해결: …` 두 줄이고 종료 코드가 2다(spec AC12, §4.10) | M1 |
 | sigint-once-interrupts-turn | `test/signals.test.ts` | unit | 주입한 시계로 Ctrl+C 1회(turn 진행 중)는 M2에서 `turn.interrupt`를 한 번 보내고, 2초 안 2회는 종료 요청과 130, 3회는 강제 종료다. M1 설정에서는 1회가 종료 요청이다 | M1, M2 |
 | transcript-replay-from-cursor | `test/transcript.test.ts` | unit | 위치 k에서 시작한 `applyBatch`가 seq ≤ k 이벤트를 무시하고, `from` 불일치에 `gap`을 돌려주고, 같은 item의 `item.recorded`가 오면 진행 줄을 지운다. `afterSeq` 지연 조각이 위치 도달 뒤 적용된다 | M1 |
 | no-secret-in-output | `test/no-secret.int.test.ts` | int | 비밀 참조 1종을 쓰는 테이프 한 턴과(M1) `secret add/test/ls`(M2)에서 값과 base64·hex 형태가 stdout·stderr·임시 DB 파일·상태 파일에 없다(spec AC5) | M1, M2 |

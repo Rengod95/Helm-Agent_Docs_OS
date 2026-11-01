@@ -140,7 +140,7 @@ describe("search memo", () => {
     const base = {
       chain: ["searxng"],
       parallel: 1,
-      query: "xeon  agents",
+      query: "fresnel  agents",
       objective: undefined,
       recency: undefined,
       domains: { allow: [], deny: [] },
@@ -159,7 +159,7 @@ describe("search memo", () => {
     const base = {
       chain: ["searxng", "builtin-wrapper"],
       parallel: 1,
-      query: "xeon",
+      query: "fresnel",
       objective: undefined,
       recency: undefined,
       domains: { allow: ["a.example", "b.example"], deny: [] },
@@ -167,7 +167,7 @@ describe("search memo", () => {
       limitBucket: 10,
     } as const;
     const key = searchMemoKey(base);
-    expect(searchMemoKey({ ...base, query: "  xeon " })).toBe(key);
+    expect(searchMemoKey({ ...base, query: "  fresnel " })).toBe(key);
     expect(
       searchMemoKey({ ...base, domains: { allow: ["b.example", "a.example"], deny: [] } }),
     ).toBe(key);

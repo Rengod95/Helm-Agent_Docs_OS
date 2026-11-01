@@ -228,7 +228,7 @@ describe("guard.model.before (M3-REQ-109)", () => {
     });
     const message = await h.service.stream(h.request("hi")).result();
     expect(message.stopReason).toBe("error");
-    expect(message.errorMessage).toBe("[xeon:denied_by_guard] policy says no");
+    expect(message.errorMessage).toBe("[fresnel:denied_by_guard] policy says no");
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({ chained: true });
   });
@@ -243,7 +243,7 @@ describe("guard.model.before (M3-REQ-109)", () => {
     });
     const message = await h.service.stream(h.request("hi")).result();
     expect(message.stopReason).toBe("error");
-    expect(message.errorMessage).toBe("[xeon:denied_by_guard] extension handler failed");
+    expect(message.errorMessage).toBe("[fresnel:denied_by_guard] extension handler failed");
   });
 
   test("a guard without an opinion lets the chained payload through", async () => {

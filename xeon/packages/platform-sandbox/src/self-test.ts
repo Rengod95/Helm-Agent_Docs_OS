@@ -32,7 +32,7 @@ export interface SelfTestDeps {
 /** 자가 시험 항목 6개의 id. 보고의 순서다 */
 export const SELF_TEST_ITEM_IDS: readonly SelfTestItemId[] = [
   "protected_read_denied",
-  "xeon_data_write_denied",
+  "fresnel_data_write_denied",
   "network_denied",
   "workspace_write_allowed",
   "env_allowlist",
@@ -141,7 +141,9 @@ export async function runSelfTest(
   const items: SelfTestItem[] = [];
   try {
     await mkdir(deps.dirs.tmp, { recursive: true });
-    workspace = await realpath(await mkdtemp(posix.join(deps.dirs.tmp, "xeon-sandbox-selftest-")));
+    workspace = await realpath(
+      await mkdtemp(posix.join(deps.dirs.tmp, "fresnel-sandbox-selftest-")),
+    );
     await mkdir(probeDir, { recursive: true });
     const canary = `canary-${newCommandId(deps.random)}`;
     await writeFile(posix.join(probeDir, "canary"), canary);
@@ -162,12 +164,12 @@ export async function runSelfTest(
       ),
     );
 
-    // 2. Xeon 데이터 디렉터리 쓰기 거부
+    // 2. Fresnel 데이터 디렉터리 쓰기 거부
     const probeFile = posix.join(probeDir, "write-probe");
     const dataWrite = await run(wrapped, ["touch", probeFile], workspace, context);
     items.push(
       item(
-        "xeon_data_write_denied",
+        "fresnel_data_write_denied",
         denied(dataWrite) && !(await exists(probeFile)),
         describeOutcome(dataWrite),
       ),

@@ -209,7 +209,7 @@ export const ModelSelectPayloadSchema: TObject<{
   {
     binding: ModelBindingJsonSchema,
     previous: Nullable(ModelBindingJsonSchema),
-    /** pi의 "cycle"은 Xeon에 대응 기능이 없어 뺐다(L1.models.spec §7.2) */
+    /** pi의 "cycle"은 Fresnel에 대응 기능이 없어 뺐다(L1.models.spec §7.2) */
     source: Type.Union([
       Type.Literal("set"),
       Type.Literal("route"),

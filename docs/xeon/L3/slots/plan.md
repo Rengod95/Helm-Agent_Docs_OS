@@ -109,7 +109,7 @@ xeon/packages/group-sdk/
 | S-02 | 정식 예 3종 구현: `reviewgate`(검토 강제), `commitguard`(커밋 전 검증), `guardrail`(가드 지점 셋을 쓰는 예)과 테이프 3개 | S-01, F 가드 지점(ADR-0017, M3 F 작업), `group-sdk/testing`의 그룹 하네스(`L3.group-sdk.plan`) | 중 |
 | S-03 | 재생 테스트 골격: drive 템플릿을 생성해 `replayDrive`로 모든 커밋 지점에서 끊고 재개하는 테스트 | S-01, `replayDrive`(`L3.group-sdk.plan` 2차 재생 검사) | 소 |
 | S-04 | 매니페스트 검증 테스트: 세 템플릿 생성 결과가 `validateManifest`·`validateUsage`를 통과하고, 잘못된 이름·kind 조합이 거부되는지 확인 | S-01, F `validateManifest`(`F.extensions.plan`) | 소 |
-| S-05 | `xeon group new <이름> [--drive\|--policy]` 계약(요구 R1~R6, `templates/index.json` 형식)을 `L4.cli.spec`·`L4.cli.plan`에 전달하고 반영을 확인 | S-01, S-04 | 소 |
+| S-05 | `fresnel group new <이름> [--drive\|--policy]` 계약(요구 R1~R6, `templates/index.json` 형식)을 `L4.cli.spec`·`L4.cli.plan`에 전달하고 반영을 확인 | S-01, S-04 | 소 |
 | S-06 | (닫힘) 가드레일 보류 해제 조건. [결정: review.m3-design-inputs D-M3-30] 내장 검사 없이 fail-closed 가드 지점 셋을 둔다(ADR-0017). 남은 일은 S-02의 `guardrail` 예를 가드 지점으로 쓰는 것뿐이다 | 없음 | — |
 | S-07 | 교차 import 거부 테스트: 생성한 그룹에 `@fresnel/group-helm` import를 넣은 가짜 워크스페이스로 check-layers `DR-02` 실패 확인 | S-01, `check-layers.ts`의 허용 목록 구현(`eng.dependency-rules.guide` 4절) | 소 |
 | S-08 | 코어 diff 0 확인: 템플릿으로 만든 가짜 그룹을 워크스페이스에 더하는 변경에서 `packages/contracts`, `packages/ext-host` diff가 0인지 검사하는 스크립트 단계 | S-01, S-04 | 소 |
@@ -198,7 +198,7 @@ S-01 구현에서 바뀐 점은 다음과 같다. 골격의 계약은 `L3.slots.
 - 템플릿 `defaultEnabled`는 `false`다(§3.3.5). 시험은 켜는 요청을 낸 뒤 다음 경계까지 돌린다. 재생 시험은 켜진 그룹을 본다(범위 정의에 `defaultEnabled: true`만 더한 같은 그룹).
 - 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 하니스는 테스트 파일 안에 있다. 생성 그룹은 `@fresnel/group-sdk/testing`의 `replayDrive`만 import한다.
 - drive·observe의 `settings.ts`는 키가 없는 묶음이다. 키를 더하는 자리만 둔다.
-- 생성 `package.json`은 `name`, `version`, `private`, `type`, `exports`, `xeon`만 둔다. 의존 선언은 없다. 시험은 워크스페이스 해석에 기댄다. 생성 명령이 의존을 어떻게 적을지는 [미결](`L4.cli.spec`)이다.
+- 생성 `package.json`은 `name`, `version`, `private`, `type`, `exports`, `fresnel`만 둔다. 의존 선언은 없다. 시험은 워크스페이스 해석에 기댄다. 생성 명령이 의존을 어떻게 적을지는 [미결](`L4.cli.spec`)이다.
 
 시험 지원 파일은 `xeon/packages/group-sdk/test/support/`에 있다.
 

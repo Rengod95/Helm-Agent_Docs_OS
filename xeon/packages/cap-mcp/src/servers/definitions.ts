@@ -27,7 +27,7 @@ export interface LoadedDefinitions {
 }
 
 const MCP_JSON_FILES: readonly { readonly relative: string; readonly origin: McpJsonOrigin }[] = [
-  { relative: ".fresnel/mcp.json", origin: "xeon" },
+  { relative: ".fresnel/mcp.json", origin: "fresnel" },
   { relative: ".mcp.json", origin: "root" },
 ];
 
@@ -53,7 +53,7 @@ export async function loadDefinitions(
     const taken = new Set(servers.map((server) => server.id));
     await eachAsync(MCP_JSON_FILES, async (file) => {
       const path = join(root, file.relative);
-      const source = file.origin === "root" ? "mcpjson:project" : "mcpjson:xeon";
+      const source = file.origin === "root" ? "mcpjson:project" : "mcpjson:fresnel";
       if (!trusted) {
         if (await deps.files.exists(path)) {
           diagnostics.push({

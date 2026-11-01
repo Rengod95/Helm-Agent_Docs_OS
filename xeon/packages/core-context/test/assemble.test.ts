@@ -76,7 +76,7 @@ test("context_point_chain_replaces_messages", async () => {
   expect(texts(present(seen[0]))).toEqual(["question one", "answer one", "question two"]);
   // 핸들러가 낸 배열이 조립 결과를 바꾸고, 접두가 맨 앞에 되돌아온다
   expect(texts(result.messages)).toEqual([
-    "system:You are Xeon.",
+    "system:You are Fresnel.",
     "question two",
     "added by handler",
     "second handler",
@@ -99,7 +99,7 @@ test("context_point_handler_error_drops_only_that_patch", async () => {
     await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
   );
   expect(texts(result.messages)).toEqual([
-    "system:You are Xeon.",
+    "system:You are Fresnel.",
     "question one",
     "answer one",
     "question two",
@@ -112,7 +112,7 @@ test("context_point_without_handlers_keeps_messages_as_assembled", async () => {
     await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
   );
   expect(texts(result.messages)).toEqual([
-    "system:You are Xeon.",
+    "system:You are Fresnel.",
     "question one",
     "answer one",
     "question two",
@@ -191,7 +191,7 @@ test("compaction_head_replaces_earlier_items_with_the_summary", async () => {
   );
   const newPrefix: SystemMessage = {
     role: "system",
-    content: "You are Xeon (rebuilt).",
+    content: "You are Fresnel (rebuilt).",
     toolsAdded: [],
     timestamp: 70,
   };
@@ -201,7 +201,7 @@ test("compaction_head_replaces_earlier_items_with_the_summary", async () => {
   const rebuilt = assembleOptions(h.log.ids, { tools: [], sections: {} });
   const result = valueOf(await h.service.assemble(h.log.threadId, h.log.leaf(), rebuilt));
   const rendered = texts(result.messages);
-  expect(rendered[0]).toBe("system:You are Xeon (rebuilt).");
+  expect(rendered[0]).toBe("system:You are Fresnel (rebuilt).");
   expect(rendered[1]).toContain("<summary>\nsummary of one\n</summary>");
   expect(rendered.slice(2)).toEqual(["question two", "question three", "answer three"]);
   expect(rendered.join("|")).not.toContain("question one");
@@ -215,7 +215,7 @@ test("compaction_head_replaces_earlier_items_with_the_summary", async () => {
   );
   expect(original.compactionHead).toBeNull();
   expect(texts(original.messages)).toEqual([
-    "system:You are Xeon.",
+    "system:You are Fresnel.",
     "question one",
     "answer one",
     "question two",
@@ -247,7 +247,7 @@ test("invalid_compaction_head_is_ignored_with_a_log", async () => {
   );
   expect(result.compactionHead).toBeNull();
   expect(texts(result.messages)).toEqual([
-    "system:You are Xeon.",
+    "system:You are Fresnel.",
     "question one",
     "answer one",
     "question two",

@@ -11,7 +11,7 @@ import { fakeIpc, requestId } from "./fake-ipc.ts";
 const deps = {
   stdioTransport: createStdioTransport,
   connect: (t: Parameters<typeof createHostConnection>[0]) => createHostConnection(t),
-  client: { name: "xeon-desktop", version: "0.0.0" },
+  client: { name: "fresnel-desktop", version: "0.0.0" },
 };
 
 describe("relay streams", () => {
@@ -91,7 +91,7 @@ describe("openEngineConnection", () => {
           id: requestId(message),
           result: {
             protocolVersion: "0.1.0",
-            server: { name: "xeon", version: "9.9.9" },
+            server: { name: "fresnel", version: "9.9.9" },
             storeId: "sto_00000000000000000000000001",
             transport: "stdio",
             features: [],

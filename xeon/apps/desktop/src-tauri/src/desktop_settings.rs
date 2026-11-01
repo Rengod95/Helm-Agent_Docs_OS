@@ -177,7 +177,7 @@ mod tests {
 
     fn scratch_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
-            "xeon-desktop-settings-{name}-{}",
+            "fresnel-desktop-settings-{name}-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&dir);
@@ -360,7 +360,7 @@ mod tests {
     #[test]
     fn load_of_a_missing_directory_or_a_missing_file_is_silent() {
         let missing = std::env::temp_dir().join(format!(
-            "xeon-desktop-settings-missing-{}",
+            "fresnel-desktop-settings-missing-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&missing);

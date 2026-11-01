@@ -73,7 +73,7 @@ const MessagesSchema: TArray<typeof AgentMessageSchema> = Type.Array(AgentMessag
   maxItems: 100_000,
 });
 
-// ── #18 agent_start, #25 agent_end, #26 agent_settled (Xeon turn 경계) ────
+// ── #18 agent_start, #25 agent_end, #26 agent_settled (Fresnel turn 경계) ────
 
 export const AgentStartPayloadSchema: TObject<{
   turnId: typeof TurnIdSchema;
@@ -128,7 +128,7 @@ export const AgentSettledPayloadSchema: TObject<{
 );
 export type AgentSettledPayload = Static<typeof AgentSettledPayloadSchema>;
 
-// ── #19 turn_start (Xeon step 시작) ──────────────────────────────────────
+// ── #19 turn_start (Fresnel step 시작) ──────────────────────────────────────
 
 export const TurnStartPayloadSchema: TObject<{
   stepIndex: TInteger;
@@ -178,7 +178,7 @@ export const MessageEndPatchSchema: TObject<{ message: typeof AgentMessageSchema
 );
 export type MessageEndPatch = Static<typeof MessageEndPatchSchema>;
 
-// ── #23 turn_end (Xeon step 끝), #24 agent_before_settle (Xeon turn 정착 직전) ─
+// ── #23 turn_end (Fresnel step 끝), #24 agent_before_settle (Fresnel turn 정착 직전) ─
 
 export const BoundaryContextPreviewSchema: TObject<{
   contextMessages: typeof MessagesSchema;

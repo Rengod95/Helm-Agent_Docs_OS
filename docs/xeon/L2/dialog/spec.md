@@ -233,7 +233,7 @@ export const DialogAskKey = serviceKey(DialogAsk);
 - 질문 수 1~4개, 선택지 2~8개는 Claude Code AskUserQuestion의 범위(질문 1~4개)를 따르고 선택지 상한은 화면 폭을 고려한 [제안]이다.
 - `executionMode: "sequential"`: 같은 단계에서 질문 도구가 둘 나오면 순서대로 묻는다. Hermes는 질문 도구를 병렬 실행에서 뺀다(`_research/refs/hermes.md` L1d-7).
 - `hints.readOnly: true`: 질문은 환경을 바꾸지 않는다. L1.tools가 이 힌트로 계획 모드에서도 질문을 허용한다 [가정].
-- `ask_unavailable_headless`: `xeon -p` 같은 비대화형 실행에서는 답할 클라이언트가 없다. 이때 L1.tools가 승인 요청을 받지 않는다고 알려 주면(포트의 `interactive: false`) 즉시 이 오류를 낸다 [가정].
+- `ask_unavailable_headless`: `fresnel -p` 같은 비대화형 실행에서는 답할 클라이언트가 없다. 이때 L1.tools가 승인 요청을 받지 않는다고 알려 주면(포트의 `interactive: false`) 즉시 이 오류를 낸다 [가정].
   - [잠정: review.m2-plan DG.1] 호출 문맥(`CallContext`)에 대화형 여부가 없다. cap-dialog는 조립 루트가 넘기는 판정 함수 `interactive(context)`로 이 오류를 낸다(기본은 항상 대화형). 판정 함수가 없고 L1.tools가 비대화형 요청을 `approval.resolved{ deny, noninteractive }`로 끝내면 `ask`는 이를 `cancelled(dismissed)`로 읽는다. F `CallContext.interactive`가 들어갔으므로(m2 F.8) 조립 루트가 판정 함수를 넘기지 않아도 `ask`는 `options.context.interactive === false`이면 `ask_unavailable_headless`를 낼 수 있다. 판정 함수가 있으면 그것이 이긴다.
 
 ### 3.2 `dialog.commands`
@@ -798,7 +798,7 @@ args:
 $1에 대해 ${2:-quick} 수준으로 탐구하라. 참고 자료: !{git log --oneline -5}
 ```
 
-- `description`이 없으면 본문 첫 줄 앞 60자를 쓴다(pi 동작, 60자를 넘으면 `...`을 붙인다). `args`는 Xeon이 더한 필드다. 자동완성 정보이며 치환에는 영향이 없다. 선언이 `CommandArgSchema` 배열(최대 16개)에 맞지 않으면 그 필드만 무시하고 명령은 남긴다.
+- `description`이 없으면 본문 첫 줄 앞 60자를 쓴다(pi 동작, 60자를 넘으면 `...`을 붙인다). `args`는 Fresnel이 더한 필드다. 자동완성 정보이며 치환에는 영향이 없다. 선언이 `CommandArgSchema` 배열(최대 16개)에 맞지 않으면 그 필드만 무시하고 명령은 남긴다.
 - 파일 이름이 `COMMAND_NAME_PATTERN`에 맞지 않거나 셸 주입이 16개를 넘는 파일은 건너뛴다. 건너뛴 파일은 운영 로그 `dialog.command_file_skipped`(경로, 사유)에 남는다. 앞머리 YAML은 `Bun.YAML.parse`로 읽고, 앞머리가 매핑이 아니거나 해석되지 않으면 그 파일만 건너뛴다.
 - 디렉터리를 읽는 일은 호출마다 하되, 디렉터리 안 `.md` 파일의 이름·크기·수정 시각이 같으면 앞서 해석한 결과를 다시 쓴다.
 - 위치 [제안]: 사용자 `~/.fresnel/commands/*.md`, 프로젝트 `<프로젝트>/.fresnel/commands/*.md`(프로젝트는 대화의 작업 폴더이고 작업 폴더가 없는 대화에는 프로젝트 명령이 없다. 엔진 cwd로 대신하지 않는다. `L2.readme` §5.10, 신뢰한 프로젝트만. 아래 4.2.1a), 설정 `l2.dialog.commands.dirs`의 추가 디렉터리(`~/`는 홈, 상대 경로는 프로젝트 기준, 출처는 `user`이고 기본 사용자 디렉터리 뒤), 확장 매니페스트 `components.commands`(F.extensions.spec §3.1, 외부 확장 로더가 들어오는 M3에 붙인다). 디렉터리는 재귀하지 않는다. 기본 디렉터리 이름 `.fresnel`은 [가정]이고 L4.host-service.spec이 정한다. pi는 `prompts/`를 쓰지만 Claude Code 관례(`commands/`)를 따른다.
@@ -832,7 +832,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 #### 4.2.3 우선순위와 충돌
 
 - [제안] 같은 이름이 여러 출처에 있으면 `builtin` > `capability` > `project` > `user` > `extension` 순으로 앞의 것을 쓴다. 가려진 명령은 `list({ includeHidden: true })`에서 보이고 진단을 남긴다.
-- pi는 사용자(전역) 파일을 먼저 읽고 첫 일치를 쓰므로 사용자가 프로젝트보다 앞선다(`prompt-templates.ts` 238-304행). Xeon은 설정 우선순위(프로젝트가 사용자보다 앞섬, F.wire-settings.spec §4.7)와 맞추려고 순서를 바꾼다.
+- pi는 사용자(전역) 파일을 먼저 읽고 첫 일치를 쓰므로 사용자가 프로젝트보다 앞선다(`prompt-templates.ts` 238-304행). Fresnel은 설정 우선순위(프로젝트가 사용자보다 앞섬, F.wire-settings.spec §4.7)와 맞추려고 순서를 바꾼다.
 - `capability` 출처끼리 같은 이름을 등록하면 뒤 등록이 `command_name_taken`으로 거부된다. 그룹 명령은 `<그룹>:<이름>` 형식을 권한다.
 - 동작 명령(`registerAction`)은 `capability` 출처다. `L2.work.spec` §6.2의 `/goal`, `/plan`, `/tasks`가 여기에 들어간다.
 - `builtin` 출처는 클라이언트(L4)가 `declareBuiltin(명령 선언 목록)`으로 알린다(`dialog.commands` API 객체의 TS 메서드, 반환 함수로 해제). 이 패키지는 `builtin` 명령을 실행하지 않는다. `builtin`이 이긴 이름은 `expand`가 `matched: false`, `run`이 `not_command`를 돌려주고 실행은 클라이언트가 한다. 목록과 광고에는 보인다.

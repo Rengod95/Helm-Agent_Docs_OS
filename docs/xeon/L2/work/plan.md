@@ -16,8 +16,8 @@ binds: [xeon/packages/cap-work/**]
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
-| M0 | 없음. 패키지 골격(`package.json`의 `"xeon": {"layer": "L2", "domain": "work"}`)만 P0에서 만든다 | `_research/foundation-plan.md` §5 P0·P4 |
-| M1 | 없음. M1 걷는 골격(`xeon chat`)은 작업 관리를 쓰지 않는다 | `product.scope.spec` §4.3 M1 |
+| M0 | 없음. 패키지 골격(`package.json`의 `"fresnel": {"layer": "L2", "domain": "work"}`)만 P0에서 만든다 | `_research/foundation-plan.md` §5 P0·P4 |
+| M1 | 없음. M1 걷는 골격(`fresnel chat`)은 작업 관리를 쓰지 않는다 | `product.scope.spec` §4.3 M1 |
 | M2 | 작업 목록, 의존 간선, 계획 모드·계획 승인(승인 프로토콜 통합 포함). T1~T8 | `product.scope.spec` §4.1 I9, §4.3 M2, `_research/layer-plan-v2.json` L2-e 1차 |
 | M3 | 목표 지속(판정 모델 + 상한), 완료 보고. T9~T12 | `product.scope.spec` §4.1 I11, §4.3 M3 |
 | 보류 | 작업 보드(L4 칸반 보기), 외부 트래커(X 플러그인), 계획 외부 편집기 수정 | `_research/layer-plan-v2.json` L2-e 보류, `L2.work.spec` §4.2.6 |
@@ -37,7 +37,7 @@ xeon/packages/contracts/src/                     # F. 선행 작업(T1). F 작�
   records/owners.ts                              # "work." → "cap.work" 행 확인(이미 있으면 변경 없음)
 
 xeon/packages/cap-work/
-  package.json                                   # "xeon": {"layer":"L2","domain":"work"}, 외부 의존 없음
+  package.json                                   # "fresnel": {"layer":"L2","domain":"work"}, 외부 의존 없음
   src/
     index.ts                                     # manifest, apply(ctx): 서비스·투영기·피드 구독·지점 등록
     manifest.ts                                  # L2.work.spec §7.1

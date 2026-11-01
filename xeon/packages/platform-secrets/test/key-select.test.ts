@@ -58,7 +58,7 @@ describe("key provider selection (spec §3.7)", () => {
       ok: true,
       value: {
         SOPS_AGE_KEY_CMD:
-          "'/usr/bin/secret-tool' 'lookup' 'service' 'xeon.age' 'account' 'default'",
+          "'/usr/bin/secret-tool' 'lookup' 'service' 'fresnel.age' 'account' 'default'",
       },
     });
   });
@@ -96,7 +96,7 @@ describe("key provider selection (spec §3.7)", () => {
       ok: true,
       value: {
         SOPS_AGE_KEY_CMD:
-          "'/usr/bin/security' 'find-generic-password' '-s' 'xeon.age' '-a' 'default' '-w'",
+          "'/usr/bin/security' 'find-generic-password' '-s' 'fresnel.age' '-a' 'default' '-w'",
       },
     });
     const missing = await selectKeyProvider(

@@ -14,7 +14,7 @@ binds: [xeon/apps/cli/**, xeon/apps/desktop/**, xeon/apps/host/**]
 
 L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용자에게 배포하는 최상위 층이다(층 순위 6, `architecture.layers.spec` §4.1).
 
-- 제공: `xeon` CLI, 데스크톱 앱, `xeon service`, 설정 화면(`architecture.layers.spec` §4.4 L4 항목).
+- 제공: `fresnel` CLI, 데스크톱 앱, `fresnel service`, 설정 화면(`architecture.layers.spec` §4.4 L4 항목).
 - 요구: 호스트 계약과 설정 스키마(F5, `F.wire-settings.spec`), 모든 층의 플러그인(조립).
 - Cordis 서비스: 없다. 호스트(`apps/host`)가 ext-host를 거쳐 Cordis 루트 컨텍스트를 만든다(`architecture.layers.spec` §4.4, DR-11).
 - [결정] 엔진은 프로세스 정책을 포함하지 않는 라이브러리이고, 호스트 계약은 하나이며, 전송만 바꾼다(ADR-0006 §3.1~§3.3). UI(CLI, 데스크톱, 설정 화면)는 엔진 객체를 직접 다루지 않고 호스트 계약만 쓴다.
@@ -26,11 +26,11 @@ L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용
 
 | 도메인 | 한 줄 요약 | 코드 경로 | 문서 | 첫 마일스톤 |
 |---|---|---|---|---|
-| cli | `xeon` 명령 체계, 대화형·print·JSON 모드, TUI, 비밀·설정·세션·서비스 명령. 기본 in-process | `xeon/apps/cli/**` | `L4.cli.spec`, `L4.cli.plan` | M1 |
+| cli | `fresnel` 명령 체계, 대화형·print·JSON 모드, TUI, 비밀·설정·세션·서비스 명령. 기본 in-process | `xeon/apps/cli/**` | `L4.cli.spec`, `L4.cli.plan` | M1 |
 | desktop | Tauri 2 셸, Rust 바이트 릴레이, WebView TS UI, 엔진 사이드카 수명 | `xeon/apps/desktop/**` | `L4.desktop.spec`, `L4.desktop.plan` | M1(스캐폴드와 TS 쪽 stdio 적합성), 본체 M2 |
 | host-service | 엔진 조립 루트(`assemble`), 호스트 계약의 서버 쪽 처리기, 전송 3종, 서비스 모드 수명 | `xeon/apps/host/**` | `L4.host-service.spec`, `L4.host-service.plan` | M1 |
 | settings-ui | `SettingDefWire`·`EffectiveSetting`에서 12탭 화면을 만드는 view-model과 렌더러 | `xeon/apps/desktop/src/settings/**` | `L4.settings-ui.spec`, `L4.settings-ui.plan` | M2(얇은 화면), 전체 M3 |
-| release | 릴리즈 아카이브 구성, 자원 디렉터리, 번들 바이너리, 서명과 공증 단계, 스모크(X11) | `xeon/scripts/release*`, `.github/workflows/xeon-release.yml` | `L4.release.spec`, `L4.release.plan` | M3b(B5-REL) |
+| release | 릴리즈 아카이브 구성, 자원 디렉터리, 번들 바이너리, 서명과 공증 단계, 스모크(X11) | `xeon/scripts/release*`, `.github/workflows/fresnel-release.yml` | `L4.release.spec`, `L4.release.plan` | M3b(B5-REL) |
 
 - settings-ui의 코드 경로는 desktop의 binds(`xeon/apps/desktop/**`)에 포함된다. 그래서 `xeon/apps/desktop/src/settings/**`를 고치는 작업은 두 문서를 함께 받는다. 경계는 "화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop"이다(`L4.settings-ui.spec` §1.2).
 - 패키지 디렉터리 `apps/host`와 routes.yaml 도메인 `host-service`는 이름이 다르다(`architecture.layers.spec` §10 첫 항목, `L4.host-service.spec` §10 미결 18).
@@ -41,11 +41,11 @@ L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용
 
 | 마일스톤 | cli | desktop | host-service | settings-ui |
 |---|---|---|---|---|
-| M1 | `xeon chat` in-process(print 우선, 최소 대화형), `--json`, `--continue`/`--resume`, `config get`, `config schema`(로컬 명령), 저장소 유일의 scenario 테스트 | 스캐폴드, TS `StdioTransportFactory`·`HostConnection`이 엔진 프로세스에 대해 `WIRE_CONFORMANCE_CASES` 통과(Rust 툴체인 없음) | in-process 전송, 처리기 5개(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`), stdio 전송과 적합성 통과, `assemble` 최소형(테스트용 그룹 포함), `xeon config schema` | 없음 |
+| M1 | `fresnel chat` in-process(print 우선, 최소 대화형), `--json`, `--continue`/`--resume`, `config get`, `config schema`(로컬 명령), 저장소 유일의 scenario 테스트 | 스캐폴드, TS `StdioTransportFactory`·`HostConnection`이 엔진 프로세스에 대해 `WIRE_CONFORMANCE_CASES` 통과(Rust 툴체인 없음) | in-process 전송, 처리기 5개(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`), stdio 전송과 적합성 통과, `assemble` 최소형(테스트용 그룹 포함), `fresnel config schema` | 없음 |
 | M2 | `sessions`, `config set/reset/list`, 비밀 관리 명령(`secret *`, UC-6, 값 열람 `secret reveal` 포함), `doctor`(검색 provider 상태 포함), 승인·잠금 프롬프트, 컴파일 바이너리의 `host --stdio` 서브커맨드 | Tauri 데스크톱과 엔진 사이드카, 정상 종료 시 사이드카 없음, CLI와 메시지 열 동일 | 나머지 처리기(`thread.*`(`thread.rename` 포함), `turn.interrupt`, `turn.resume`, `events.unsubscribe`, `approval.respond`, `settings.set/reset/list`와 알림 `settings.invalidated`, `command.list/run`, `trust.get/decide`, `secret.references`, `host.status`), `thread.open` 잠금과 `thread.locked`, stdio 종료 절차, 첫 입력 제목, 외부 바이너리 점검(`Engine.diagnose`) | 얇은 화면(view-model, 일반 렌더러, 키 단위 편집기) |
 | M3 | `service start/status/stop/ensure/launch-mode/run` | 서비스 소켓 릴레이, OS 알림 | 서비스 모드 전부(등록 파일, `ensure`, 유휴 종료, 인증), 예약 틱, 알림 라우팅 | 12탭 전체, 전용 편집기, 비밀 탭(값 보기 포함), 레이트 리밋·계정 회전 항목, 첫 실행 권장 화면, 게이지 자리 |
 
-- M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다.
+- M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다.
 - `_research/foundation-plan.md` §1 결정 2의 "공유 서비스 모드를 1차로 올린다"에서 '1차'는 구성요소 단계(첫 사용 버전에 포함)를 뜻한다. 서비스 모드는 M3(첫 공개 릴리즈 후보)에 들어가므로 '1차' 표기와 어긋나지 않는다(`product.scope.spec` §4.5).
 - 원격 사용은 M3이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11](`L4.host-service.spec` §4.11).
 
@@ -53,18 +53,18 @@ L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용
 
 | 패키지 | 디렉터리 | `fresnel.domain` | 진입점 |
 |---|---|---|---|
-| `@fresnel/cli` | `xeon/apps/cli` | `cli` | `src/main.ts`(배포 바이너리 `xeon`의 진입 [제안]) |
+| `@fresnel/cli` | `xeon/apps/cli` | `cli` | `src/main.ts`(배포 바이너리 `fresnel`의 진입 [제안]) |
 | `@fresnel/host` | `xeon/apps/host` | `host` | `.`(조립, 호스트 시작, 서비스), `./client`(`createHostConnection`, `connectServiceTransport`) |
 | `@fresnel/desktop` | `xeon/apps/desktop` | `desktop` | WebView `src/main.ts`(M2). `src-tauri/`는 층 규칙 밖 |
 | (settings-ui) | `xeon/apps/desktop/src/settings` | 패키지 없음. `@fresnel/desktop` 안의 디렉터리 | - |
 
-엔진 바이너리 [제안]: 단일 `xeon`(`bun build --compile`)에 서브커맨드 `chat`, `host --stdio`(데스크톱 사이드카), `service start|status|stop|ensure|launch-mode|run`, `config`, `secret`을 둔다. 근거와 별도 사이드카안과의 비교는 `L4.host-service.spec` §3.2다. 다른 문서는 "엔진 바이너리"라고 쓰고 이 이름을 병기한다.
+엔진 바이너리 [제안]: 단일 `fresnel`(`bun build --compile`)에 서브커맨드 `chat`, `host --stdio`(데스크톱 사이드카), `service start|status|stop|ensure|launch-mode|run`, `config`, `secret`을 둔다. 근거와 별도 사이드카안과의 비교는 `L4.host-service.spec` §3.2다. 다른 문서는 "엔진 바이너리"라고 쓰고 이 이름을 병기한다.
 
 ### 3.1 배치 그림
 
 ```mermaid
 flowchart LR
-  subgraph CLI["xeon (CLI 프로세스)"]
+  subgraph CLI["fresnel (CLI 프로세스)"]
     cli["apps/cli"]
     hostlib["apps/host 라이브러리<br/>assemble + WireHandlers"]
     cli -->|"in-process"| hostlib
@@ -74,8 +74,8 @@ flowchart LR
     web["WebView TS UI<br/>+ settings-ui"]
     web <-->|"Tauri IPC 바이트"| shell
   end
-  sidecar["엔진 사이드카<br/>xeon host --stdio"]
-  svc["xeon service<br/>Unix 소켓"]
+  sidecar["엔진 사이드카<br/>fresnel host --stdio"]
+  svc["fresnel service<br/>Unix 소켓"]
   shell <-->|"stdio JSON Lines"| sidecar
   cli -.->|"socket (서비스 사용 시, M3)"| svc
   shell -.->|"socket 바이트 (서비스 사용 시, M3)"| svc
@@ -88,8 +88,8 @@ flowchart LR
 | `TransportKind` | 매체 | 소비자 | 서버 쪽 | 마일스톤 |
 |---|---|---|---|---|
 | `in-process` | 메모리 채널. 직렬화 없음(개발 빌드는 JSON 왕복 검사) | cli | CLI 프로세스 안의 `@fresnel/host` | M1 |
-| `stdio` | 자식 프로세스 stdin/stdout, JSON Lines | desktop(셸이 바이트 릴레이, WebView가 프레이밍) | 엔진 사이드카 `xeon host --stdio` | M1(계약·적합성), M2(사이드카) |
-| `socket` | Unix 도메인 소켓 위 JSON Lines | cli, desktop(셸 릴레이) | `xeon service` | M3 |
+| `stdio` | 자식 프로세스 stdin/stdout, JSON Lines | desktop(셸이 바이트 릴레이, WebView가 프레이밍) | 엔진 사이드카 `fresnel host --stdio` | M1(계약·적합성), M2(사이드카) |
+| `socket` | Unix 도메인 소켓 위 JSON Lines | cli, desktop(셸 릴레이) | `fresnel service` | M3 |
 
 ## 4. 이름 규칙과 공통 규칙
 
@@ -101,7 +101,7 @@ flowchart LR
 | 서비스 설정 | `l4.host-service.maxReplayEvents`, `maxSubscriptionsPerConnection`. `ui.tab`은 `execution`. 서비스 수명 키(`l0.process.service.enabled`, `l0.process.service.idleGraceMs`, `l0.process.service.startTimeoutMs`, `l0.process.shutdown.timeoutMs`, 단위 ms)는 L0.process가, 자동 재개 키(`l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`)는 L1.persistence가 소유하고 L4는 읽기만 한다. 같은 동작을 가리키는 키는 한 층만 정의한다 [결정: review.decisions-2 S-03] | `L4.host-service.spec` §6.1, `L0.process.spec` §6, `L1.persistence.spec` §6 |
 | 비밀 | 설정, `settings.get`·`EffectiveSetting`, JSON Schema 출력, 로그, 이벤트에는 해석한 비밀 값을 싣지 않고 `secret://<name>` 참조만 싣는다(F §4.9 비밀 값 비표시 규칙 1~4). [제안] L4는 값을 싣는 wire 메서드를 두지 않고 값 없는 `secret.*`(§8.1)만 쓴다. 셸 로그와 릴레이는 프레임 내용을 기록하지 않는다 | `F.wire-settings.spec` §4.9, `L0.secrets.spec` §8.3 R4, `L4.desktop.spec` E11 |
 | 승인 | [결정: review.decisions-2 U-02] `approval.requested`/`approval.resolved` 내구 이벤트 + `approval.respond` 메서드(A안). 서버 → 클라이언트 요청은 쓰지 않는다 | `F.wire-settings.spec` §4.6 |
-| 설정 변경 | 엔진 설정 쓰기는 `settings.set`(지우기는 `settings.reset`) 한 경로다. 검사는 `checkSettingWrite`이고 CLI `xeon config set`도 같은 메서드를 부른다 | `F.wire-settings.spec` §4.11 |
+| 설정 변경 | 엔진 설정 쓰기는 `settings.set`(지우기는 `settings.reset`) 한 경로다. 검사는 `checkSettingWrite`이고 CLI `fresnel config set`도 같은 메서드를 부른다 | `F.wire-settings.spec` §4.11 |
 | 경로 | 데이터·상태·런타임·로그 디렉터리와 소켓 경로는 `L0.os` 서비스가 정한다. 앱 코드에 OS 분기를 두지 않는다(DR-13) | `L0.os.spec` |
 | 프로세스 | spawn·신호·잠금은 `L0.process`를 거친다. 테스트의 자식 프로세스 spawn 예외는 `L4.desktop.plan` R10의 결정 하나를 host·cli·desktop 테스트가 함께 따른다 | `L0.process.spec`, DR-07 |
 | 호스트 규칙 번호 | `HS-NN`(연결·처리·소유), `SV-NN`(서비스 체크리스트 8항) | `L4.host-service.spec` §4 |
@@ -147,7 +147,7 @@ L4가 정하지 않는 것:
 | [결정] 첫 지원 OS는 macOS, Linux(WSL 포함). Windows 네이티브는 나중 | `_research/decisions-log.md` 2026-10-19 |
 | [결정] 프로세스는 엔진 라이브러리 + 단일 호스트 계약 + 전송 교체(CLI in-process, 데스크톱 자식 엔진) | `_research/decisions-log.md` 2026-10-21 계획 v2, ADR-0006 §3.1~§3.3 |
 | [결정] 예약·원격·알림을 범위에 넣고 데몬을 허용한다. 데스크톱은 메모리 우선 3플랫폼(Tauri 2) | `_research/decisions-log.md` 2026-10-21 결정(3차) |
-| [결정] 공유 서비스 모드 `xeon service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차 | `_research/foundation-plan.md` §1 결정 2, ADR-0006 §1 |
+| [결정] 공유 서비스 모드 `fresnel service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차 | `_research/foundation-plan.md` §1 결정 2, ADR-0006 §1 |
 | [결정] 데스크톱은 Tauri 2 + `bun build --compile` 엔진 사이드카, stdio JSON-RPC | `_research/foundation-plan.md` §1 결정 3, ADR-0008 §3 |
 | [결정] 단계가 바뀌어도 호스트 계약과 DB 스키마는 같다 | ADR-0006 §3.5 |
 | [결정] 단일 소유: 세션 id 키 잠금, 잠금 실패 시 위임·관찰·분기 | ADR-0006 §3.6 |
@@ -161,7 +161,7 @@ L4가 정하지 않는 것:
 | # | 항목 | 소유 문서 | 결정 필요 |
 |---|---|---|---|
 | 1 | 닫음: 조립 위치(DR-10)는 안 1로 결정(review.decisions-2 U-15). CLI 상태 파일 경로는 `@fresnel/host` `resolveHostStatePaths`가 준다(review.decisions-2 B-07) | `L4.host-service.spec` §3.1, §10-1, `L4.cli.spec` §10-1 | - |
-| 2 | 단일 바이너리 `xeon` 대 `apps/host` 단독 사이드카. 확정 뒤 `eng.toolchain.guide` TC-10과 `xeon/apps/desktop/README.md` 문구 수정 | `L4.host-service.spec` §3.2, §10-2·3, `L4.desktop.spec` §10-1, `L4.cli.spec` §10-1 | 사용자 확인 |
+| 2 | 단일 바이너리 `fresnel` 대 `apps/host` 단독 사이드카. 확정 뒤 `eng.toolchain.guide` TC-10과 `xeon/apps/desktop/README.md` 문구 수정 | `L4.host-service.spec` §3.2, §10-2·3, `L4.desktop.spec` §10-1, `L4.cli.spec` §10-1 | 사용자 확인 |
 | 3 | `createHostConnection`·`StdioTransportFactory` 구현의 위치. host는 `@fresnel/host/client`(desktop import는 DR-10 예외 추가), desktop은 F에 런타임 중립 구현 요청 | `L4.host-service.spec` §10-5, `L4.desktop.spec` §10-3 | 사용자 확인(DR-10 예외) 또는 F 변경 요청 |
 | 4 | TUI 선택(pi-tui 채택, 스택 표에 행 없음) | `L4.cli.spec` §10-6 | 사용자 확인 |
 | 5 | 닫음: 데스크톱 프런트엔드는 React 19 + Zustand 5(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`. `L4.settings-ui.spec` §10-16의 부품 형식과 `ui`·`visual` 시험 도입은 남는다 | `L4.desktop.spec` §10-11, `L4.settings-ui.spec` §10-16 | - |
@@ -180,7 +180,7 @@ L4가 정하지 않는 것:
 | 18 | `l4.desktop.*` 값의 저장 위치(데스크톱 로컬 파일 제안)와 관리 잠금 읽기 | `L4.desktop.spec` §10-6, `L4.settings-ui.spec` §10-18 | 작성자 결정 |
 | 19 | 닫음: F에 `./testing` 서브패스를 두지 않으므로(review.decisions-2 U-03) 적합성 실행기는 `apps/host/test/contract/`에 둔다 | `L4.host-service.spec` §10-16 | - |
 | 20 | 등록 파일 스키마 정본 위치(host-service 또는 L0.process) | `L4.host-service.spec` §10-7 | 작성자 결정 |
-| 21 | 닫음: `xeon service ensure --json` 출력 형식. `L4.desktop.spec` §4.8이 HS-38을 그대로 인용하고, 진입 판정은 `xeon service launch-mode --json`으로 맞췄다 | `L4.host-service.spec` §10-12, `L4.desktop.spec` §4.2, §4.8 | - |
+| 21 | 닫음: `fresnel service ensure --json` 출력 형식. `L4.desktop.spec` §4.8이 HS-38을 그대로 인용하고, 진입 판정은 `fresnel service launch-mode --json`으로 맞췄다 | `L4.host-service.spec` §10-12, `L4.desktop.spec` §4.2, §4.8 | - |
 | 22 | 닫음: `architecture.runtime-flow.design` §4.6 service 전송 표기는 로컬 소켓으로 고쳐졌다(review.consistency-1 S-16) | `L4.host-service.spec` §10-15 | - |
 | 23 | 패키지 도메인 이름 `host`와 routes 도메인 `host-service`의 불일치, 설정 화면 코드 위치 | `L4.host-service.spec` §10-18, `L4.settings-ui.spec` §10-11, `architecture.layers.spec` §10 | 작성자 결정 |
 | 24 | 릴리즈 형태(단일 파일, `native/` 사이드카 디렉터리), 사이드카 크기 상한, Windows 크래시 시 엔진 잔존 | `L4.cli.spec` §10-7, `L4.desktop.spec` §10-7, ADR-0008 §6 | 사용자 확인 |
@@ -208,13 +208,13 @@ L4가 정하지 않는 것:
 | # | 어긋남 | host-service의 정함 | 반영한 문서 |
 |---|---|---|---|
 | A | `L4.cli.spec` §3.3이 `EngineConnector`, `StdioHostRunner`, `ServiceControl` 이름을 조립 진입점에 요구한다 | 세 이름을 `@fresnel/host`에 두지 않는다. CLI가 `resolveLaunchMode`, `startInProcessHost`, `ensureService`, `connectServiceTransport`, `createHostConnection`, `runHostCommand`로 만든다(`L4.host-service.spec` §3.3.5) | `L4.cli.spec` §3.3, §10-1 |
-| B | `L4.cli.spec` §3.1이 `xeon config schema`를 M2, F 변경 요청(`settings.schema`)으로 둔다 | wire 메서드 없이 로컬 명령 `runHostCommand({ kind: "config-schema" })`로 M1에 둔다(`L4.host-service.spec` §6.2) | `L4.cli.spec` §3.1, §10-4 |
+| B | `L4.cli.spec` §3.1이 `fresnel config schema`를 M2, F 변경 요청(`settings.schema`)으로 둔다 | wire 메서드 없이 로컬 명령 `runHostCommand({ kind: "config-schema" })`로 M1에 둔다(`L4.host-service.spec` §6.2) | `L4.cli.spec` §3.1, §10-4 |
 | C | `L4.cli.spec` §4.3 [가정]: 기존 세션의 쓰기 소유를 `turn.start`가 얻는다 | 확정: `turn.start`의 암묵 획득(HS-28) | `L4.cli.spec` §4.3, §10-2 |
-| D | `L4.cli.spec` §3.1이 `xeon host --stdio`를 M2로 둔다. `L4.desktop.plan` D1은 M1에 엔진 프로세스를 띄워 적합성을 돌린다 | M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(H5). 컴파일 바이너리 서브커맨드는 M2 | `L4.cli.spec` §3.1, `L4.cli.plan` §1, `L4.host-service.plan` §1.2, `L4.desktop.plan` D1(실행 명령 명시) |
-| E | `L4.desktop.spec` §4.8이 `ensure` 명령 모양을 host-service에 맡긴다 | `xeon service ensure --json`(HS-38) | `L4.desktop.spec` §4.8 |
+| D | `L4.cli.spec` §3.1이 `fresnel host --stdio`를 M2로 둔다. `L4.desktop.plan` D1은 M1에 엔진 프로세스를 띄워 적합성을 돌린다 | M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(H5). 컴파일 바이너리 서브커맨드는 M2 | `L4.cli.spec` §3.1, `L4.cli.plan` §1, `L4.host-service.plan` §1.2, `L4.desktop.plan` D1(실행 명령 명시) |
+| E | `L4.desktop.spec` §4.8이 `ensure` 명령 모양을 host-service에 맡긴다 | `fresnel service ensure --json`(HS-38) | `L4.desktop.spec` §4.8 |
 | F | `L4.desktop.spec` §4.1 E5의 EOF 뒤 종료 시한 N(가정 5초) | `l0.process.shutdown.timeoutMs` 기본 3000ms(`L0.process.spec` §6) | `L4.desktop.spec` §4.1 |
 | G | `L4.settings-ui.spec` §10-14: 열린 프로젝트 없이 project·local 범위에 쓸 때의 오류 kind | 3103 `settings.scopeNotAllowed`, `details.reason: "workspaceRequired"` [제안] | `L4.settings-ui.spec` §4.4.4, §5, §10-14 |
-| H | `L4.desktop.spec` §4.2가 엔진 없이 서비스 사용 설정(`l0.process.service.enabled`)을 읽는 경로를 정하지 않았다 | `xeon service launch-mode --json`(`resolveLaunchMode`) [제안] | `L4.desktop.spec` §4.2, `L4.cli.spec` §3.1 |
+| H | `L4.desktop.spec` §4.2가 엔진 없이 서비스 사용 설정(`l0.process.service.enabled`)을 읽는 경로를 정하지 않았다 | `fresnel service launch-mode --json`(`resolveLaunchMode`) [제안] | `L4.desktop.spec` §4.2, `L4.cli.spec` §3.1 |
 | I | CLI와 host의 시작 거부 종료코드(`catalog`, `missingService`) | `runHostCommand` 0·1·2 그대로, 조립 결함은 1 | `L4.cli.spec` §3.3, §3.6, §4.10 |
 
 ### 8.1 비밀 메서드 이름표

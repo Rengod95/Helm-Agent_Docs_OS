@@ -73,7 +73,7 @@ describe("exportDatabase", () => {
   test("the export opens as a store with the same rows and blob bytes", async () => {
     const dir = own(tempDir());
     const clock = manualClock();
-    const source = join(dir.path, "src", "xeon.db");
+    const source = join(dir.path, "src", "fresnel.db");
     const [ref] = await seedStore(source, clock, [BYTES]);
     if (ref === undefined) throw new Error("no blob ref");
 
@@ -93,16 +93,16 @@ describe("exportDatabase", () => {
     expect(manifest).toEqual({
       format: 1,
       exportedAt: clock.now(),
-      sqliteFile: "xeon.sqlite",
+      sqliteFile: "fresnel.sqlite",
       blobCount: 1,
       missingBlobs: [],
     });
     expect(statSync(join(dir.path, "out")).mode & 0o777).toBe(0o700);
-    expect(statSync(join(dir.path, "out", "xeon.sqlite")).mode & 0o777).toBe(0o600);
+    expect(statSync(join(dir.path, "out", "fresnel.sqlite")).mode & 0o777).toBe(0o600);
     expect(statSync(blobPathOf(join(dir.path, "out"), ref)).mode & 0o777).toBe(0o600);
 
     const copy = await openTestStore({
-      path: join(dir.path, "out", "xeon.sqlite"),
+      path: join(dir.path, "out", "fresnel.sqlite"),
       clock,
       ids: fixedIdFactory(clock),
     });
@@ -120,7 +120,7 @@ describe("exportDatabase", () => {
   test("a database written by a newer engine can be exported", async () => {
     const dir = own(tempDir());
     const clock = manualClock();
-    const source = join(dir.path, "src", "xeon.db");
+    const source = join(dir.path, "src", "fresnel.db");
     await createEmpty(source);
     const newer = new Database(source);
     newer.run(
@@ -131,7 +131,7 @@ describe("exportDatabase", () => {
 
     const exported = exportDatabase({ dbPath: source, destDir: join(dir.path, "out"), clock });
     expect(exported.ok).toBe(true);
-    const copy = new Database(join(dir.path, "out", "xeon.sqlite"), { readonly: true });
+    const copy = new Database(join(dir.path, "out", "fresnel.sqlite"), { readonly: true });
     try {
       expect(
         copy.query("SELECT version FROM sys_migrations WHERE owner = 'sys' ORDER BY version").all(),
@@ -144,7 +144,7 @@ describe("exportDatabase", () => {
   test("a non-empty destination is refused and its content is untouched", async () => {
     const dir = own(tempDir());
     const clock = manualClock();
-    const source = join(dir.path, "src", "xeon.db");
+    const source = join(dir.path, "src", "fresnel.db");
     await createEmpty(source);
     const dest = join(dir.path, "out");
     mkdirSync(dest);
@@ -161,7 +161,7 @@ describe("exportDatabase", () => {
   test("a blob whose file is missing is listed in missingBlobs and the rest is copied", async () => {
     const dir = own(tempDir());
     const clock = manualClock();
-    const source = join(dir.path, "src", "xeon.db");
+    const source = join(dir.path, "src", "fresnel.db");
     const [kept, lost] = await seedStore(source, clock, [BYTES, OTHER]);
     if (kept === undefined || lost === undefined) throw new Error("no blob refs");
     rmSync(blobPathOf(join(dir.path, "src"), lost));

@@ -2,7 +2,7 @@ import type { SandboxNetworkPolicy, SandboxPolicy } from "@fresnel/contracts/ser
 import { toAbsolutePath, canonicalizePath, sortedUnique } from "./paths.ts";
 import type { SrtCommandConfig, SrtConfig } from "./srt.ts";
 
-// L0.sandbox.spec §3.2. Xeon 정책을 srt 설정으로 바꾸는 순수 함수들이다. 경로 정규화는 파일 시스템을 읽는다(realpath).
+// L0.sandbox.spec §3.2. Fresnel 정책을 srt 설정으로 바꾸는 순수 함수들이다. 경로 정규화는 파일 시스템을 읽는다(realpath).
 
 /** 보호 경로를 합친 뒤의 정책. 경로는 모두 정규 절대 경로이고 정렬·중복 제거되어 있다 */
 export interface EffectivePolicy {

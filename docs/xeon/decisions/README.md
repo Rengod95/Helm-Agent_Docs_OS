@@ -4,7 +4,7 @@ layer: adr
 domain: index
 kind: readme
 status: draft
-depends_on: [xeon.readme]
+depends_on: [fresnel.readme]
 binds: []
 ---
 
@@ -187,7 +187,7 @@ flowchart LR
 | 입출력 가드레일: 내장 검사 없음, fail-closed 지점 셋 제공(2026-10-26 개정, 옛 결정은 보류) | decisions-log 2026-10-21 계획 v2, 사용자 결정 2026-10-26(D-M3-30 행 1) | ADR-0017 §3.6, `L3.slots.spec` | 지점 결정은 ADR-0017에 담음 |
 | 예산은 pi 방식(기본 상한 없음). 추론 예산·라우팅·레이트 리밋·계정 회전은 L4 설정 화면에서 조작 | decisions-log 계획 v2, 2차 | `L1.models.spec`, `L4.settings-ui.spec`, `product.scope.spec`(I14) | 승격하지 않음 [결정: review.m3-design-inputs D-M3-31 행 6] |
 | 코드 위치는 `xeon/` 독립 워크스페이스, 문서는 `docs/xeon/` | decisions-log 3차, foundation-plan §1 코드 위치 행 | `eng.toolchain.guide`, `eng.dependency-rules.guide` | [미결] |
-| CI 파일 `.github/workflows/xeon-ci.yml` 추가 허용 | decisions-log 3차, foundation-plan §1 CI 행 | `eng.toolchain.guide` | [미결] |
+| CI 파일 `.github/workflows/fresnel-ci.yml` 추가 허용 | decisions-log 3차, foundation-plan §1 CI 행 | `eng.toolchain.guide` | [미결] |
 
 - [제안] 승격 기준: 결정이 두 층 이상의 코드 구조를 바꾸거나, 번복 비용이 패키지 하나를 넘을 때 ADR로 올린다. 승격은 사용자 확인 뒤에 한다. 2026-10-26 확인으로 SOPS 기본값(ADR-0019)과 승인 프로토콜 통합(ADR-0018)을 올렸고, 목표 판정과 예산 결정은 기준 밖이라 올리지 않았다(`review.m3-design-inputs` D-M3-31 행 6·7).
 

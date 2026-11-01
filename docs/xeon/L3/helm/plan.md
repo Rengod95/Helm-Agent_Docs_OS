@@ -40,7 +40,7 @@ M3 착수 조건(선행):
 ```
 xeon/packages/group-helm/
   package.json            # name @fresnel/group-helm, private, type module, exports "." → ./src/index.ts
-                          # "xeon": { "layer": "L3", "domain": "helm" }
+                          # "fresnel": { "layer": "L3", "domain": "helm" }
                           # dependencies: @fresnel/contracts, @fresnel/group-sdk (workspace:*), typebox (catalog:)
                           # devDependencies: @fresnel/ext-host, @fresnel/core-models, @fresnel/core-agents (testing 서브패스만)
   tsconfig.json           # references: contracts, group-sdk (+ 테스트용 ext-host, core-models, core-agents)

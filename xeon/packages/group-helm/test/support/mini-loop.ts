@@ -110,7 +110,9 @@ export function miniLoop(player: TapePlayer, answers: LensAnswers): MiniLoop {
     );
     const decision = outcome.decision;
     const text =
-      decision === undefined ? `${call.name} ok` : `[xeon:denied_by_extension] ${decision.reason}`;
+      decision === undefined
+        ? `${call.name} ok`
+        : `[fresnel:denied_by_extension] ${decision.reason}`;
     if (decision === undefined) log.executed.push(call.name);
     else log.denied.push({ tool: call.name, reason: decision.reason });
     log.results.push(text);

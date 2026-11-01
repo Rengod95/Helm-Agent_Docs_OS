@@ -1,11 +1,11 @@
-# Xeon 실제 명령. 루트 justfile이 `cd xeon && just <레시피>`로 부른다. 레시피는 10줄 이하, 길면 scripts/*.sh.
+# Fresnel 실제 명령. 루트 justfile이 `cd xeon && just <레시피>`로 부른다. 레시피는 10줄 이하, 길면 scripts/*.sh.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 bun := "mise exec -- bun"
 
 export TURBO_TELEMETRY_DISABLED := "1"
 # turbo 캐시는 모든 worktree가 함께 쓴다: 에이전트 worktree의 결과를 메인 체크아웃이 다시 쓴다 (scripts/test-capped.sh도 같은 기본값)
-export TURBO_CACHE_DIR := env("TURBO_CACHE_DIR", env("HOME") + "/.cache/xeon/turbo")
+export TURBO_CACHE_DIR := env("TURBO_CACHE_DIR", env("HOME") + "/.cache/fresnel/turbo")
 
 # 잠금 파일 기준으로 의존성 설치
 [group('setup')]
@@ -112,7 +112,7 @@ desktop-sidecar triple *flags:
 release-archive triple *flags:
     {{bun}} scripts/release.ts {{triple}} {{flags}}
 
-# 릴리즈 스모크(X11): 이 기기의 릴리즈를 빌드해 풀고 점검한다. 환경 변수 XEON_RELEASE_VERSION, XEON_RELEASE_OUT
+# 릴리즈 스모크(X11): 이 기기의 릴리즈를 빌드해 풀고 점검한다. 환경 변수 FRESNEL_RELEASE_VERSION, FRESNEL_RELEASE_OUT
 [group('local')]
 release-smoke:
     scripts/release-smoke.sh
@@ -142,13 +142,13 @@ desktop-test:
 tape-record scenario *flags:
     {{bun}} scripts/tape-record.ts {{scenario}} {{flags}}
 
-# 속도 기준선: 콜드 스타트(CLI, 사이드카). --first-token은 실제 모델 호출이라 --yes 없이는 종료코드 3 (scripts/bench.ts, ADR-0012)
+# 속도 기준선: 콜드 스타트(CLI, 사이드카). --first-token은 실제 모델 호출이라 --yes 없이는 종료코드 3 (scripts/benchmark.ts, ADR-0012)
 [group('local')]
-bench *flags:
-    bash ../scripts/guard.sh run -- {{bun}} scripts/bench.ts {{flags}}
+benchmark *flags:
+    bash ../scripts/guard.sh run -- {{bun}} scripts/benchmark.ts {{flags}}
 
-# 서버 측정 결과의 예산 판정: 예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패 (scripts/bench-gate.ts)
+# 서버 측정 결과의 예산 판정: 예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패 (scripts/benchmark-gate.ts)
 [group('local')]
-bench-gate *flags:
-    bash ../scripts/guard.sh run -- bash -c '{{bun}} scripts/bench-server.ts --json | {{bun}} scripts/bench-gate.ts {{flags}}'
+benchmark-gate *flags:
+    bash ../scripts/guard.sh run -- bash -c '{{bun}} scripts/benchmark-server.ts --json | {{bun}} scripts/benchmark-gate.ts {{flags}}'
 

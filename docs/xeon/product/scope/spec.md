@@ -130,7 +130,7 @@ E 번호는 이 표가 정본이다. `review.m2-plan`과 각 층 plan은 이 번
 
 | 번호 | 조건 | 마일스톤 | 확인 수단 |
 |---|---|---|---|
-| E0 | `just verify` 종료코드 0. CI가 같은 검사를 돌린다 | M2 | 저장소 루트 `just verify`, CI `xeon-ci.yml` |
+| E0 | `just verify` 종료코드 0. CI가 같은 검사를 돌린다 | M2 | 저장소 루트 `just verify`, CI `fresnel-ci.yml` |
 | E1 | Helm이 확산 단계일 때 쓰기 도구 호출을 거부하고, 렌즈 N개 탐구에서 서브에이전트 N개 결과 커밋 뒤 적용 턴을 한 번 실행한다(UC-2 수용 기준) | M3로 옮김 [결정: review.m2-plan §9 D-a] | `group-helm` 통합 시험 |
 | E2 | 같은 모델 테이프와 입력으로 CLI(in-process)와 데스크톱 사이드카(stdio)의 호스트 계약 메시지 열이 같다. 사이드카는 컴파일한 바이너리다 | M2 | host `transport-parity`, 데스크톱 e2e |
 | E3 | 앱을 정상 종료하면 사이드카 프로세스가 남지 않는다 | M2 | 데스크톱 e2e, `no-grandchild-left` |

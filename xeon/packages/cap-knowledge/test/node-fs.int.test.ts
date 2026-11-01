@@ -15,7 +15,7 @@ import { treeFrom } from "./support/helpers.ts";
 const dirs: string[] = [];
 
 function tmp(): string {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-knowledge-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-knowledge-"));
   dirs.push(dir);
   return dir;
 }

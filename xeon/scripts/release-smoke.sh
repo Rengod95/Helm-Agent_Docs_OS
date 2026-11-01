@@ -3,13 +3,13 @@
 # macOS arm64 job and `just release-smoke` run this one script with the same inputs (version, layout, checks).
 # On macOS the bundled sops, age and rg come from mise (pinned in release-bundle.json), so `mise use --global sops age ripgrep`
 # must have run. Without secrets the signing step skips.
-# env: XEON_RELEASE_VERSION (default 0.0.0-smoke), XEON_RELEASE_OUT (default dist/release-smoke)
+# env: FRESNEL_RELEASE_VERSION (default 0.0.0-smoke), FRESNEL_RELEASE_OUT (default dist/release-smoke)
 # exit: 0 ok, 1 a build or smoke check failed, 2 environment (mise or a bundled binary missing)
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-version="${XEON_RELEASE_VERSION:-0.0.0-smoke}"
-out="${XEON_RELEASE_OUT:-dist/release-smoke}"
+version="${FRESNEL_RELEASE_VERSION:-0.0.0-smoke}"
+out="${FRESNEL_RELEASE_OUT:-dist/release-smoke}"
 bun="mise exec -- bun"
 rm -rf "$out"
 mkdir -p "$out"
@@ -29,4 +29,4 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
 fi
 
 $bun scripts/release.ts host --version "$version" --out "$out" "${flags[@]}"
-$bun scripts/release-smoke.ts "$out"/xeon-"$version"-*.tar.gz
+$bun scripts/release-smoke.ts "$out"/fresnel-"$version"-*.tar.gz

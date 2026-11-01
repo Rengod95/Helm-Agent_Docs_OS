@@ -25,7 +25,7 @@ afterEach(() => {
 async function crashAt(
   point: string,
 ): Promise<{ readonly dbPath: string; readonly threadId: ThreadId }> {
-  const directory = mkdtempSync(join(tmpdir(), "xeon-persistence-"));
+  const directory = mkdtempSync(join(tmpdir(), "fresnel-persistence-"));
   directories.push(directory);
   const dbPath = join(directory, "session.db");
   const child = Bun.spawn([process.execPath, CHILD, dbPath, point], {

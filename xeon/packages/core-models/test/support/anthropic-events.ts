@@ -36,7 +36,7 @@ function resultEntry(hit: SearchHitInput, index: number): Record<string, unknown
 }
 
 export function searchEvents(input: SearchEventsInput = {}): unknown[] {
-  const query = input.query ?? "xeon";
+  const query = input.query ?? "fresnel";
   const half = Math.max(1, Math.floor(query.length / 2));
   const events: unknown[] = [
     {

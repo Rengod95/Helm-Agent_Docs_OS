@@ -311,7 +311,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 2. 컷 포인트: 뒤에서부터 토큰을 누적하다가 `keepRecentTokens` 이상이면 멈춘다. 컷은 그 위치 이후 첫 후보이고, 없으면 마지막 후보다. 토큰 0 항목은 건너뛴다(`:458-479`). 후보는 `user`, `assistant`, `custom` 항목이고 `toolResult`, `system`은 후보가 아니다(`:351-364`, `_research/notes/L1-3.md` §5.4).
 3. `thread.compact.before`(first)를 발화한다. 결정이 `cancel`이면 멈추고 `cancelled`를 돌려준다. 결정이 `compaction`(확장 요약)이면 4번을 건너뛰고 그 요약을 쓴다(`fromExtension` = 확장 이름).
 4. 요약: 이전 요약이 없으면 `SUMMARIZATION_PROMPT`, 있으면 `UPDATE_SUMMARIZATION_PROMPT`를 쓴다(`:507-579`, `:718`). 형식은 목표(Goal), 제약(Constraints & Preferences), 진행(Done·In Progress·Blocked), 결정(Key Decisions), 다음 단계(Next Steps), 핵심 맥락(Critical Context)이다. 시스템 프롬프트는 `utils.ts:161-163`의 `SUMMARIZATION_SYSTEM_PROMPT`다. 최대 토큰은 `min(floor(0.8 × reserveTokens), model.maxTokens)`(`:712-715`). 분할 턴이면 턴 앞부분을 `TURN_PREFIX_SUMMARIZATION_PROMPT`(`:942-955`)로 따로 요약하고 `floor(0.5 × reserveTokens)`를 쓴다. 두 요약은 `요약 + "---" + 턴 맥락`으로 합친다(`:1032`). 사용자 지침(`instructions`)과 설정 `l1.context.compactionInstructions`를 프롬프트 끝에 붙인다.
-5. 커밋: `fresnel.session`으로 한 커밋에 `thread.compacted{ summary, firstKeptEventId, tokensBefore, details, usage, fromExtension }`와 새 접두 system item(`item.recorded`, kind `system`, 정렬 전체 도구 목록)을 가지 끝에 덧붙인다. 원본 이벤트는 지우지 않는다. `details`에는 `{ xeon: { reason, stepId }, readFiles, modifiedFiles }`를 둔다 [제안]. `details`는 모델에 보내지 않는다(`F.records.spec` §3.3). 이 커밋은 별도 커밋 지점 C7이고 커밋 키는 `compact:<threadId>:<stepId>:<reason>`이다. 키의 `stepId`는 같은 커밋의 `details.xeon.stepId`이고 §4.7 3번 `second_overflow` 판정과 같은 값이다(`L1.persistence.spec` §4.2 C7). 단계 끝 커밋(C5)에 넣지 않는다.
+5. 커밋: `fresnel.session`으로 한 커밋에 `thread.compacted{ summary, firstKeptEventId, tokensBefore, details, usage, fromExtension }`와 새 접두 system item(`item.recorded`, kind `system`, 정렬 전체 도구 목록)을 가지 끝에 덧붙인다. 원본 이벤트는 지우지 않는다. `details`에는 `{ fresnel: { reason, stepId }, readFiles, modifiedFiles }`를 둔다 [제안]. `details`는 모델에 보내지 않는다(`F.records.spec` §3.3). 이 커밋은 별도 커밋 지점 C7이고 커밋 키는 `compact:<threadId>:<stepId>:<reason>`이다. 키의 `stepId`는 같은 커밋의 `details.fresnel.stepId`이고 §4.7 3번 `second_overflow` 판정과 같은 값이다(`L1.persistence.spec` §4.2 C7). 단계 끝 커밋(C5)에 넣지 않는다.
 6. 시점: 임계·수동 컴팩션은 단계 사이에서만 한다. 오버플로우 복구 컴팩션(§4.7)은 같은 단계의 재요청 전에 한다. 어느 경우든 C7 커밋 하나다. 임계 검사는 core-loop가 단계 시작 전에 `shouldCompact`로 한다. 수동 `/compact`가 단계 진행 중에 오면 다음 단계 경계까지 미룬다 [제안].
 7. 성공하면 `thread.compact.after`(tap)를, 실패하거나 중단되면 `thread.compact.failed`(tap)를 발화한다.
 7a. 요약 모델은 `fresnel.models.resolve("summary")`의 결과(역할 `summary`, 캐시 없음)이고 요약 응답 상한은 `min(0.8 × reserveTokens, 모델 maxTokens, 16,000)`이다. 상한 16,000 토큰은 `thread.compacted.summary`의 65,536자 한도 안에 들게 하려는 값이고, 그래도 넘으면 `summary_truncated`다 [구현: M2]. 확장이 준 요약(`thread.compact.before`의 `compaction`)이 같은 한도를 넘거나 `firstKeptEventId`가 가지 위에 없으면 `cancelled`로 돌려준다.
@@ -340,7 +340,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 - `shouldCompact`는 `contextTokens > contextWindow - reserveTokens`이면 참이다(pi `compaction.ts:267-269`, 비교는 `>`). `contextWindow`는 카탈로그의 `Model.contextWindow`(`AssembleOptions.contextWindow`, `ResolvedModel.model`)다.
 - `contextTokens`는 `fresnel.models.tokens.estimateContext(messages).tokens`다. 마지막 어시스턴트 사용량을 기준으로 그 뒤 메시지만 추정한다(pi-ai `estimateContextTokens`).
-- 기본값 `reserveTokens` 16,384, `keepRecentTokens` 20,000. pi 런타임 기본값의 원천은 `coding-agent/src/core/settings-defaults.ts:8-12`이고, `compaction.ts:126-130`의 `DEFAULT_COMPACTION_SETTINGS`는 공개 export와 테스트용이다(`_research/notes/L1-3.md` §7). Xeon은 설정 기본값 한 곳(`settings.ts`)에만 둔다.
+- 기본값 `reserveTokens` 16,384, `keepRecentTokens` 20,000. pi 런타임 기본값의 원천은 `coding-agent/src/core/settings-defaults.ts:8-12`이고, `compaction.ts:126-130`의 `DEFAULT_COMPACTION_SETTINGS`는 공개 export와 테스트용이다(`_research/notes/L1-3.md` §7). Fresnel은 설정 기본값 한 곳(`settings.ts`)에만 둔다.
 - `l1.context.autoCompact`가 거짓이면 항상 거짓이다.
 - `contextTokens`는 컴팩션 머리와 기록된 접두를 반영한 모델 컨텍스트(`effectiveMessages`: 접두, 요약, 남긴 원문)의 추정이다. volatile과 이번 단계 변경 덧붙이기는 넣지 않는다. 바인딩의 모델이 카탈로그에 없으면(`rebind` 실패) 검사하지 않고 `{ should: false, tokens: 0, threshold: 0 }`이다 [구현: M2].
 
@@ -348,7 +348,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 1. core-loop가 종결 메시지를 받으면 `fresnel.models.classify(message, contextWindow)`로 분류한다. 분류는 pi-ai `isContextOverflow`(`utils/overflow.ts:137`)를 쓴다.
 2. `context_overflow`면 core-loop가 `recoverOverflow(threadId, stepId, message, binding)`을 부른다.
-3. 같은 `stepId`로 이미 `reason: "overflow"` 컴팩션이 있으면 `fail(second_overflow)`다. 판정은 가지 위 `thread.compacted.details.xeon.stepId`로 하므로 재개 뒤에도 같다.
+3. 같은 `stepId`로 이미 `reason: "overflow"` 컴팩션이 있으면 `fail(second_overflow)`다. 판정은 가지 위 `thread.compacted.details.fresnel.stepId`로 하므로 재개 뒤에도 같다.
 4. 없으면 `compact({ reason: "overflow", stepId, willRetry: true })`를 한다. 성공하면 `retry`, 거부되면 `fail(compaction_cancelled)`, 실패하면 `fail(compaction_failed)`다.
 5. core-loop는 `retry`면 같은 단계의 요청을 한 번 다시 보낸다. 두 번째 오버플로우는 턴을 오류로 끝낸다(`L1.loop.spec`).
 6. M1에서는 2번 대신 `fail(disabled)`를 돌려준다. core-loop는 "컨텍스트 창을 넘었다"는 명확한 오류로 턴을 끝낸다. M2 마감부터 core-loop가 1~5번과 요청 전 `shouldCompact` 검사를 실제로 부른다(`L1.loop.spec` §4.2 규칙 2). 조립 루트가 `ids`와 `core.context` 생산자를 주지 않아 컴팩션이 꺼진 구성은 계속 `fail(disabled)`이고 `shouldCompact`만 참이어도 `compact`가 `skipped(disabled)`를 돌려준다.
@@ -429,7 +429,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 | `l1.context.reinjectRecentFiles` | integer 0~20 | `5` | M U P | nextTurn | number | 2차 |
 | `l1.context.cacheWarming` | `"off" \| "idle"` | `"off"` | M U | live | select | 2차 |
 
-- 명령: `/compact [지침]`(수동 컴팩션), `xeon config set l1.context.autoCompact false`.
+- 명령: `/compact [지침]`(수동 컴팩션), `fresnel config set l1.context.autoCompact false`.
 - 요약 모델은 `l1.models.routing.summary`(models 탭)다.
 
 ## 7. 확장 지점
@@ -526,7 +526,7 @@ export interface SessionCompactFailedPayload {
 
 1. F `@fresnel/contracts/services`: §3.1 `context.ts`(서비스 인터페이스, review.decisions-2 D-04). `eng.context-map.design` §5.3의 `ContextService`(conversation) 표기를 services로 고친다.
 2. `F.extensions.spec` §7.2: 페이로드를 §3.5 형식으로 확정한다. 컴팩션 지점 셋의 발화 주체는 §7에 반영됐다.
-3. `F.records.spec` §3.3: `CompactedPayload.details`에 코어 예약 키 `xeon`(`{ reason, stepId }`)을 허용한다고 적는다. 또는 `reason`, `stepId`를 별도 필드로 둔다.
+3. `F.records.spec` §3.3: `CompactedPayload.details`에 코어 예약 키 `fresnel`(`{ reason, stepId }`)을 허용한다고 적는다. 또는 `reason`, `stepId`를 별도 필드로 둔다.
 4. 이벤트 소유: `thread.compacted`, `thread.branch_summarized`의 생산자를 `core.context`로 둔다. `thread.` 영역의 나머지(`started`, `updated`, `closed`, `leaf_moved`)는 `core.persistence`다. `eng.context-map.design` §5.1의 `compaction.recorded`는 F 이름 `thread.compacted`로 고친다.
 
 ## 9. 수용 기준
@@ -548,7 +548,7 @@ export interface SessionCompactFailedPayload {
 2. (닫음) 컴팩션 지점 셋의 발화 주체는 `F.extensions.spec` §7이 context로 배정했다(§7.1).
 3. [미결] 턴 분할 요약 경로 유지 여부. pi 방식(턴 앞부분 별도 요약, 약 139줄)과 durable 방식(턴 중간 assistant 컷 허용, 분할 없음) 중 하나(`_research/notes/L1-3.md` §12 (a)). 이 문서는 pi 방식을 쓴다.
 4. [미결] pi 역할 `bashExecution`, `branchSummary`, `compactionSummary`의 F 대응. 이 문서는 `branchSummary`를 `thread.branch_summarized`, `compactionSummary`를 `thread.compacted`로 두고 `bashExecution`은 F에 대응이 없어 다루지 않는다(`_research/notes/L1-3.md` §12 (b)).
-5. [미결] `CompactedPayload.details.xeon` 예약 키와 별도 필드 중 무엇으로 오버플로우 단계를 기록할지(§8.3 3).
+5. [미결] `CompactedPayload.details.fresnel` 예약 키와 별도 필드 중 무엇으로 오버플로우 단계를 기록할지(§8.3 3).
 6. [미결] `turnId`가 null인 항목의 분할 턴 판정(`_research/notes/L1-3.md` §12 (h))과 `customType`별 컷 후보 여부(같은 절 (i)).
 7. [미결] 요약 호출 캐시 금지를 models 게이트웨이 규칙(역할별 기본 보존)으로 둘지, 컴팩션 호출 옵션으로 둘지. 이 문서는 두 곳 모두에 둔다(`L1.models.spec` §3.4 표, §3.2 `SummarizeDeps`).
 8. [미결] volatile 계층 원천 중 git 상태의 제공 층. 날짜, 작업 디렉터리, 플랫폼은 L1.loop이 `environment` 항목으로, `input.agent.before`가 더한 프롬프트는 같은 층이 `instructions` 항목으로 넘긴다(`L1.loop.spec` §4.2 규칙 1) [구현: M2 마감].

@@ -412,7 +412,7 @@ describe("McpProcessPort.spawn", () => {
   });
 
   test("registry close stops the whole process group, including a grandchild that ignores SIGTERM", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "xeon-mcp-"));
+    const dir = mkdtempSync(join(tmpdir(), "fresnel-mcp-"));
     const marker = join(dir, "pids.json");
     const { port, background } = open(undefined, {}, 50);
     const child = await started(

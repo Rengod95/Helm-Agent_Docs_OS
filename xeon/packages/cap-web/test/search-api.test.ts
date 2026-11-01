@@ -49,7 +49,7 @@ async function worldWith(
 describe("search service", () => {
   test("a search returns ranked results, sources and an untrusted meta", async () => {
     const { world, provider } = await worldWith();
-    const output = await world.search({ query: "xeon agents", limit: 2 });
+    const output = await world.search({ query: "fresnel agents", limit: 2 });
     expect(output.results.map((result) => [result.rank, result.sourceId])).toEqual([
       [1, "s1"],
       [2, "s2"],
@@ -67,7 +67,7 @@ describe("search service", () => {
     expect(output.meta.cost.basis).toBe("estimated");
     expect(provider.searches.length).toBe(1);
     expect(provider.searches[0]).toMatchObject({
-      terms: "xeon agents",
+      terms: "fresnel agents",
       limit: 10,
       content: "snippets",
       freshness: "cached-ok",
@@ -76,7 +76,7 @@ describe("search service", () => {
     const rendered = renderSearch(output).content[0];
     const text = rendered?.type === "text" ? rendered.text : "";
     expect(text.startsWith('<untrusted_web_content sources="s1 s2">')).toBe(true);
-    expect(text).toContain("[s1] xeon agents result 1");
+    expect(text).toContain("[s1] fresnel agents result 1");
   });
 
   test("the same url keeps its sN across calls of one session and numbers continue", async () => {

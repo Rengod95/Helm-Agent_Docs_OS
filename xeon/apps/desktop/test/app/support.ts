@@ -50,7 +50,7 @@ export function engineFake(
   const results: Readonly<Record<string, unknown>> = {
     "host.hello": {
       protocolVersion: "0.1.0",
-      server: { name: "xeon", version: "1.2.3" },
+      server: { name: "fresnel", version: "1.2.3" },
       storeId: STORE,
       transport: "stdio",
       features: [],

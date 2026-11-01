@@ -572,7 +572,7 @@ pub async fn engine_attach(
     })))
 }
 
-/// 엔진 stdin에 쓴다. 원시 바이트 본문과 헤더 `x-xeon-epoch`를 받는다. 세대가 다르면 아무것도 쓰지 않는다.
+/// 엔진 stdin에 쓴다. 원시 바이트 본문과 헤더 `x-fresnel-epoch`를 받는다. 세대가 다르면 아무것도 쓰지 않는다.
 #[tauri::command]
 pub async fn engine_write(
     relay: State<'_, Arc<Relay>>,
@@ -581,7 +581,7 @@ pub async fn engine_write(
 ) -> Result<(), CommandError> {
     let epoch = request
         .headers()
-        .get("x-xeon-epoch")
+        .get("x-fresnel-epoch")
         .and_then(|value| value.to_str().ok())
         .and_then(|text| text.parse::<u64>().ok())
         .ok_or(CommandError::BadRequest)?;

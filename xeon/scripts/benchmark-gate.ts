@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
-// Budget gate over server bench results (M3-29, eng.performance.guide section 4).
-//   bun scripts/bench-server.ts --json | bun scripts/bench-gate.ts [--strict]
-//   bun scripts/bench-gate.ts <results.json> [--strict]
-// Reads the JSON array printed by `bench-server.ts --json`. A metric over its budget fails (exit 1). A metric whose budget
+// Budget gate over server benchmark results (M3-29, eng.performance.guide section 4).
+//   bun scripts/benchmark-server.ts --json | bun scripts/benchmark-gate.ts [--strict]
+//   bun scripts/benchmark-gate.ts <results.json> [--strict]
+// Reads the JSON array printed by `benchmark-server.ts --json`. A metric over its budget fails (exit 1). A metric whose budget
 // is still waiting for the user decision passes unless --strict, which fails (exit 1) so a release gate cannot ship with an
 // unset budget. Informational metrics are never judged. Exit codes: 0 pass, 1 over budget (or waiting under --strict),
 // 2 the input is not a results array.
 import { parseArgs } from "node:util";
-import type { MetricResult } from "./bench-server.ts";
+import type { MetricResult } from "./benchmark-server.ts";
 
 export interface GateReport {
   readonly over: readonly string[];
@@ -76,12 +76,12 @@ if (import.meta.main) {
   try {
     parsed = JSON.parse(text);
   } catch (cause) {
-    process.stderr.write(`bench-gate: input is not JSON: ${String(cause)}\n`);
+    process.stderr.write(`benchmark-gate: input is not JSON: ${String(cause)}\n`);
     process.exit(2);
   }
   const results = readResults(parsed);
   if (results === undefined) {
-    process.stderr.write("bench-gate: input is not a bench-server --json results array\n");
+    process.stderr.write("benchmark-gate: input is not a benchmark-server --json results array\n");
     process.exit(2);
   }
   const report = gate(results, values.strict);

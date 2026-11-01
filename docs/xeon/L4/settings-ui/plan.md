@@ -30,7 +30,7 @@ binds: [xeon/packages/client/src/settings/**]
 - 일반 폼 렌더러(`views/SettingsShell`, `TabPage`, `Field`): 위젯 8종을 일반 부품으로 그린다.
 - advanced 탭 파일 편집기의 키 단위 형태(`FileEditor`, spec §4.2.3 M2 행).
 - 두 원천 합치기(spec §4.1.3): 엔진 `settings.*`와 데스크톱 로컬 저장소.
-- 결과: `settings.list`·`settings.get`·`settings.set`·`settings.reset`이 실제 호스트와 함께 도는 화면. secrets 탭은 `xeon secret add` 명령 안내만 보인다(M2 최소 설정 화면의 키 등록은 `L4.desktop.spec` §4.14.1이 이미 제공한다).
+- 결과: `settings.list`·`settings.get`·`settings.set`·`settings.reset`이 실제 호스트와 함께 도는 화면. secrets 탭은 `fresnel secret add` 명령 안내만 보인다(M2 최소 설정 화면의 키 등록은 `L4.desktop.spec` §4.14.1이 이미 제공한다).
 
 ### 1.4 M3: 화면 전체
 
@@ -176,7 +176,7 @@ M3:
 - 비밀 탭이 값 없이 동작한다. 목록·메타·정책·이력·삭제가 보이고, 값 입력·열람은 `openSecretFlow` 경로로만 일어나며, 그 사이 WebView DOM과 상태 직렬화와 앱 로그에 값이 없다(수동 확인 또는 미결 해소 뒤 `ui` 테스트).
 - 전용 편집기 5종(U10)이 각 키를 일반 렌더러와 같은 결과로 저장한다.
 - budgets·providers 탭에 게이지 자리와 문구가 보인다.
-- 도구와 웹 view-model(U14, `@fresnel/client/web`)의 값 비교 시험이 통과한다. 이 값은 `xeon doctor`와 M4 설정 화면이 그대로 쓴다(spec §3.6).
+- 도구와 웹 view-model(U14, `@fresnel/client/web`)의 값 비교 시험이 통과한다. 이 값은 `fresnel doctor`와 M4 설정 화면이 그대로 쓴다(spec §3.6).
 - U12 접근성 점검표의 항목이 모두 통과한다.
 - `product.scope.spec` §4.4 M3 조건 중 "스키마 키 집합과 화면 항목 집합이 같다"를 `every-def-in-exactly-one-tab`을 실제 카탈로그(`settings.list` 결과)로 돌려 확인한다.
 - `cd xeon && just verify` 종료코드 0.

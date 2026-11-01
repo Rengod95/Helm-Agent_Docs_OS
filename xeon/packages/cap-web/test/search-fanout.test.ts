@@ -82,9 +82,9 @@ describe("search fan-out", () => {
         searchCandidate(c, "plugin"),
       ]),
     });
-    const output = await world.search({ query: "xeon fan" });
-    expect(a.searches.map((request) => request.terms)).toEqual(["xeon fan"]);
-    expect(b.searches.map((request) => request.terms)).toEqual(["xeon fan"]);
+    const output = await world.search({ query: "fresnel fan" });
+    expect(a.searches.map((request) => request.terms)).toEqual(["fresnel fan"]);
+    expect(b.searches.map((request) => request.terms)).toEqual(["fresnel fan"]);
     expect(c.searches.length).toBe(0);
     expect(c.probes()).toBe(0);
     expect(urlsWithProviders(output)).toEqual([
@@ -125,7 +125,7 @@ describe("search fan-out", () => {
       settings: { search: { parallel: 2, order: ["plugin:web-cheap", "plugin:web-dear"] } },
       catalog: fakeCatalog([searchCandidate(cheap, "plugin"), searchCandidate(dear, "plugin")]),
     });
-    const output = await world.search({ query: "xeon cost" });
+    const output = await world.search({ query: "fresnel cost" });
     expect(output.meta.cost.basis).toBe("estimated");
     expect(output.meta.cost.usd).toBeCloseTo(0.03);
     expect(output.meta.cost.units.find((unit) => unit.name === "search")?.count).toBe(2);
@@ -149,7 +149,7 @@ describe("search fan-out", () => {
       settings: { search: { parallel: 2, order: ["plugin:web-flaky", "plugin:web-steady"] } },
       catalog: fakeCatalog([searchCandidate(flaky, "plugin"), searchCandidate(steady, "plugin")]),
     });
-    const output = await world.search({ query: "xeon one" });
+    const output = await world.search({ query: "fresnel one" });
     expect(output.meta.provider).toBe("plugin:web-steady");
     expect(output.meta.fallbacks).toEqual([
       { provider: "plugin:web-flaky", stage: "call", reason: "rate_limited" },
@@ -168,7 +168,7 @@ describe("search fan-out", () => {
       settings: { search: { parallel: 2, order: ["plugin:web-strict", "plugin:web-other"] } },
       catalog: fakeCatalog([searchCandidate(strict, "plugin"), searchCandidate(other, "plugin")]),
     });
-    const failure = await rejection(world.search({ query: "xeon two" }));
+    const failure = await rejection(world.search({ query: "fresnel two" }));
     expect(failure.data.code).toBe("invalid_input");
     expect(strict.searches.length).toBe(1);
   });
@@ -189,7 +189,7 @@ describe("search fan-out", () => {
         searchCandidate(wrapper, "builtin"),
       ]),
     });
-    const output = await world.search({ query: "xeon three" });
+    const output = await world.search({ query: "fresnel three" });
     expect(output.meta.provider).toBe("builtin-wrapper");
     expect(output.meta.fallbacks).toEqual([
       { provider: "plugin:web-down", stage: "probe", reason: "no-key" },
@@ -206,7 +206,7 @@ describe("search fan-out", () => {
       settings: { search: { parallel: 2, order: ["plugin:web-a", "plugin:web-b"] } },
       catalog: fakeCatalog([searchCandidate(a, "plugin"), searchCandidate(b, "plugin")]),
     });
-    const output = await world.search({ query: "xeon four", provider: "plugin:web-b" });
+    const output = await world.search({ query: "fresnel four", provider: "plugin:web-b" });
     expect(output.meta.selectedBy).toBe("call");
     expect(output.meta.provider).toBe("plugin:web-b");
     expect(a.searches.length).toBe(0);
@@ -221,7 +221,7 @@ describe("search fan-out", () => {
       settings: { search: { order: ["plugin:web-a", "plugin:web-b"] } },
       catalog: fakeCatalog([searchCandidate(a, "plugin"), searchCandidate(b, "plugin")]),
     });
-    const output = await world.search({ query: "xeon five" });
+    const output = await world.search({ query: "fresnel five" });
     expect(output.meta.provider).toBe("plugin:web-a");
     expect(a.searches.length).toBe(1);
     expect(b.searches.length).toBe(0);

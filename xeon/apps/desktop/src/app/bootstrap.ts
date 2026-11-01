@@ -42,7 +42,7 @@ export type App = {
   stop(): Promise<void>;
 };
 
-const CLIENT_NAME = "xeon-desktop";
+const CLIENT_NAME = "fresnel-desktop";
 
 export function createApp(env: AppEnv): App {
   const log = createWebViewLogger(200, env.logSink);

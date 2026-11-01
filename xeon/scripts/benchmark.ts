@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 // Speed baseline (ADR-0012, eng.performance.guide, M2 closing G2-04). Skeleton: measures what costs nothing and asks
 // before what calls a real model.
-//   bench [--runs <n>]                 cold start of `xeon version` (bun entry) and of the compiled sidecar, if built
-//   bench --first-token [--yes]        also time to the first stream.chunk of one real `xeon chat -p` turn
-//   bench --server                     also the server benches (bench-server.ts: index, lease, dispatch, store); judge them with bench-gate.ts
+//   benchmark [--runs <n>]                 cold start of `fresnel version` (bun entry) and of the compiled sidecar, if built
+//   benchmark --first-token [--yes]        also time to the first stream.chunk of one real `fresnel chat -p` turn
+//   benchmark --server                     also the server benches (benchmark-server.ts: index, lease, dispatch, store); judge them with benchmark-gate.ts
 // --first-token calls the configured model provider (cost, key). Without --yes it prints what it would do and exits 3
 // (decision D-e: one run before M2 closes, confirmed each time).
 // Exit codes: 0 measured, 1 bad arguments, 2 environment (bun or the CLI cannot start, the turn fails), 3 needs --yes.
@@ -53,7 +53,7 @@ export function judgeBudget(median: number, budget: number | undefined): BudgetV
   return median <= budget ? "within" : "over";
 }
 
-/** A line of `xeon chat -p --json` output that carries streamed model text. */
+/** A line of `fresnel chat -p --json` output that carries streamed model text. */
 export function isStreamChunk(line: string): boolean {
   return /"method"\s*:\s*"stream\.chunk"/.test(line);
 }
@@ -129,7 +129,7 @@ async function measureFirstToken(cliEntry: string, cwd: string): Promise<number 
     const code = await child.exited;
     if (at !== undefined) return at;
     return new Error(
-      `xeon chat exited with ${String(code)} before any stream.chunk (model key or provider settings)`,
+      `fresnel chat exited with ${String(code)} before any stream.chunk (model key or provider settings)`,
     );
   } catch (cause) {
     return cause instanceof Error ? cause : new Error(String(cause));
@@ -152,21 +152,25 @@ if (import.meta.main) {
     yes: values.yes,
   });
   if (!planned.ok) {
-    process.stderr.write(`bench: ${planned.error}\n`);
+    process.stderr.write(`benchmark: ${planned.error}\n`);
     process.exit(1);
   }
   const { plan } = planned;
   if (plan.firstToken === "ask") {
     process.stdout.write(
-      "bench --first-token runs one real `xeon chat -p` turn with the configured model provider and key. It costs one small model call.\nRun again with --yes to measure (decision D-e).\n",
+      "benchmark --first-token runs one real `fresnel chat -p` turn with the configured model provider and key. It costs one small model call.\nRun again with --yes to measure (decision D-e).\n",
     );
     process.exit(3);
   }
-  const xeonRoot = resolve(import.meta.dir, "..");
-  const cliEntry = join(xeonRoot, "apps", "cli", "src", "main.ts");
-  const cli = await sample([process.execPath, cliEntry, "version", "--json"], xeonRoot, plan.runs);
+  const fresnelRoot = resolve(import.meta.dir, "..");
+  const cliEntry = join(fresnelRoot, "apps", "cli", "src", "main.ts");
+  const cli = await sample(
+    [process.execPath, cliEntry, "version", "--json"],
+    fresnelRoot,
+    plan.runs,
+  );
   if (cli instanceof Error) {
-    process.stderr.write(`bench: ${cli.message}\n`);
+    process.stderr.write(`benchmark: ${cli.message}\n`);
     process.exit(2);
   }
   process.stdout.write(`${formatRow("cold_start_cli", cli)}\n`);
@@ -174,12 +178,12 @@ if (import.meta.main) {
   const triple = hostTriple(process.platform, process.arch);
   const sidecar = triple.ok
     ? join(
-        xeonRoot,
+        fresnelRoot,
         "apps",
         "desktop",
         "src-tauri",
         "binaries",
-        outputFileName("xeon", triple.value),
+        outputFileName("fresnel", triple.value),
       )
     : undefined;
   if (sidecar === undefined || !existsSync(sidecar)) {
@@ -187,18 +191,21 @@ if (import.meta.main) {
       `${formatRow("cold_start_sidecar", "skipped: no sidecar (just desktop-sidecar host)")}\n`,
     );
   } else {
-    const result = await sample([sidecar, "version", "--json"], xeonRoot, plan.runs);
+    const result = await sample([sidecar, "version", "--json"], fresnelRoot, plan.runs);
     process.stdout.write(
       `${formatRow("cold_start_sidecar", result instanceof Error ? `failed: ${result.message}` : result)}\n`,
     );
   }
 
   if (values.server) {
-    const server = Bun.spawn([process.execPath, join(xeonRoot, "scripts", "bench-server.ts")], {
-      cwd: xeonRoot,
-      stdout: "inherit",
-      stderr: "inherit",
-    });
+    const server = Bun.spawn(
+      [process.execPath, join(fresnelRoot, "scripts", "benchmark-server.ts")],
+      {
+        cwd: fresnelRoot,
+        stdout: "inherit",
+        stderr: "inherit",
+      },
+    );
     if ((await server.exited) !== 0) process.exit(2);
   }
 
@@ -210,7 +217,7 @@ if (import.meta.main) {
   }
   const token = await measureFirstToken(cliEntry, process.cwd());
   if (token instanceof Error) {
-    process.stderr.write(`bench: ${token.message}\n`);
+    process.stderr.write(`benchmark: ${token.message}\n`);
     process.exit(2);
   }
   const tokenStats = stats([token]);

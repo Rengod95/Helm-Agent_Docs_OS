@@ -1,4 +1,4 @@
-name: Xeon macOS
+name: Fresnel macOS
 
 # Manual macOS run (M2 closing G4-02, review.m2-plan section 8 D1, decision D-d: macOS first). It runs only when asked:
 # workflow_dispatch, or a pull request that carries the label ci:macos. Results go to docs/xeon/review/macos-checklist.md.
@@ -8,7 +8,7 @@ on:
     types: [labeled, synchronize]
 
 concurrency:
-  group: xeon-macos-${{ github.ref }}
+  group: fresnel-macos-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

@@ -5,7 +5,7 @@
 //   build-sidecar <triple|host> [--no-bytecode] [--version x.y.z] [--out-dir <dir>]
 // `--out-dir` writes the binary there instead of src-tauri/binaries. Release builds use it so a release version never lands on the
 // development sidecar (the e2e tests and ensure-sidecar reuse that one and expect "0.0.0").
-// `--version` defines the string constant XEON_BUILD_VERSION (bun build --define); CLI_VERSION and ENGINE_VERSION read it.
+// `--version` defines the string constant FRESNEL_BUILD_VERSION (bun build --define); CLI_VERSION and ENGINE_VERSION read it.
 //   build-sidecar --list
 // Decision (user, 2026-10-24): start-up and response speed come before binary size. The size cap only catches
 // regressions (500 MiB per triple), it is not a size target.
@@ -137,8 +137,8 @@ export function outputFileName(name: string, triple: string): string {
   return triple.includes("-windows-") ? `${name}-${triple}.exe` : `${name}-${triple}`;
 }
 
-/** The global the build defines (`--define`). `apps/cli` and `apps/host` read it as `typeof XEON_BUILD_VERSION`. */
-export const VERSION_DEFINE_NAME = "XEON_BUILD_VERSION";
+/** The global the build defines (`--define`). `apps/cli` and `apps/host` read it as `typeof FRESNEL_BUILD_VERSION`. */
+export const VERSION_DEFINE_NAME = "FRESNEL_BUILD_VERSION";
 
 /** Plain dotted version with an optional pre-release tail; the same rule as release.ts `isSafeVersion`. */
 export function isBuildVersion(version: string): boolean {
@@ -150,7 +150,7 @@ export interface CompileOptions {
   readonly outFile: string;
   readonly bunTarget: string;
   readonly bytecode: boolean;
-  /** Injected as the string constant `XEON_BUILD_VERSION`. Without it the binary reports "0.0.0". */
+  /** Injected as the string constant `FRESNEL_BUILD_VERSION`. Without it the binary reports "0.0.0". */
   readonly version?: string | undefined;
 }
 
@@ -352,8 +352,8 @@ if (import.meta.main) {
       list: { type: "boolean", default: false },
     },
   });
-  const xeonRoot = resolve(import.meta.dir, "..");
-  const desktopDir = join(xeonRoot, "apps", "desktop");
+  const fresnelRoot = resolve(import.meta.dir, "..");
+  const desktopDir = join(fresnelRoot, "apps", "desktop");
   const io = realIo();
 
   if (values.list) {
@@ -408,6 +408,6 @@ if (import.meta.main) {
   }
   const report = result.value;
   process.stdout.write(
-    `build-sidecar: ${report.triple} (${report.bunTarget}${report.bytecode ? ", bytecode" : ""}) -> ${relative(xeonRoot, report.outFile)}  ${formatMiB(report.bytes)} / ${formatMiB(report.maxBytes)}\n`,
+    `build-sidecar: ${report.triple} (${report.bunTarget}${report.bytecode ? ", bytecode" : ""}) -> ${relative(fresnelRoot, report.outFile)}  ${formatMiB(report.bytes)} / ${formatMiB(report.maxBytes)}\n`,
   );
 }

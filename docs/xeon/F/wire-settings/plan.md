@@ -27,12 +27,12 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 - 계층 병합 타입(`ScopeLayer`, `ScopeStack`, `SCOPE_PRECEDENCE`, `EffectiveSetting`, `SettingSource`)과 순수 함수 `resolveSetting`, `checkSettingWrite`, `validateSettingValue`.
 - `settingsJsonSchema`.
 
-### 1.2 M1: `xeon chat` 걸어 다니는 골격
+### 1.2 M1: `fresnel chat` 걸어 다니는 골격
 
 - F 쪽 추가 작업은 전송 적합성 케이스 목록(`WIRE_CONFORMANCE_CASES`)을 M1 메서드(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`)와 알림(`events.batch`, `stream.chunk`, `$/cancelRequest`)으로 채우는 것이다.
 - 소비자가 이 계약으로 구현하는 것(이 plan의 범위 밖):
   - `xeon/apps/host`(L4 엔진 진입점): in-process 전송 쌍과 M1 메서드 처리기. `L4.host-service.plan`.
-  - `xeon/apps/cli`: `HostConnection`으로 `xeon chat` 한 턴. `L4.cli.plan`.
+  - `xeon/apps/cli`: `HostConnection`으로 `fresnel chat` 한 턴. `L4.cli.plan`.
   - `xeon/apps/desktop`: stdio 전송. M1에서는 스캐폴드와 적합성 스위트 통과까지만. `L4.desktop.plan`.
   - 각 층 패키지: `defineSettings`로 자기 키 선언. 각 층 plan.
 
@@ -50,7 +50,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 | 소비자 | 경로 | 쓰는 것 | 시작 단계 |
 |---|---|---|---|
 | L4 엔진 진입점 | `xeon/apps/host` | `WireHandlers`, `Transport`, `checkEnvelope`, `WIRE_METHODS`, `WIRE_ERRORS`, `toEventWire`, `resolveSetting`, `checkSettingWrite` | M1 |
-| L4 CLI | `xeon/apps/cli` | `HostConnection`, 알림 타입, `checkSettingWrite`(`xeon config`) | M1 |
+| L4 CLI | `xeon/apps/cli` | `HostConnection`, 알림 타입, `checkSettingWrite`(`fresnel config`) | M1 |
 | L4 데스크톱 | `xeon/apps/desktop` | `HostConnection`, `StdioTransportFactory` 타입 | M1(스캐폴드) |
 | L4 설정 화면 | `xeon/packages/client/src/settings`(view-model), `xeon/apps/desktop/src/views`(렌더러) | `SettingDefWire`, `SettingsTab`, `EffectiveSetting` | M2 |
 | X 로더 | `xeon/packages/ext-host` | `settingsFromManifest`, `buildCatalog` | M1 |
@@ -120,7 +120,7 @@ xeon/packages/contracts/
 | W7 | `SettingDef` 계열 스키마와 `checkSettingDef`(규칙 D1~D8) | `settings/def.ts` | W3 | M | M0 |
 | W8 | `defineSettings`, 키 네임스페이스 검사, `buildCatalog`(D9, 중복, 침범), `settingsFromManifest` | `settings/define.ts` | W7, F.extensions.plan의 `ExtensionManifest.userConfig` | M | M0 |
 | W9 | 계층 병합: `SCOPE_PRECEDENCE`, `ScopeLayer`, `EffectiveSetting`, `resolveSetting`, `checkSettingWrite`, `validateSettingValue` | `settings/layers.ts`, `settings/effective.ts` | W7, W8 | M | M0 |
-| W10 | JSON Schema 출력 `settingsJsonSchema`(2020-12, 범위별 필터, `x-xeon`, 결정적 출력) | `settings/jsonschema.ts` | W7, W8, F.capabilities.plan의 `toJsonSchema` | M | M0 |
+| W10 | JSON Schema 출력 `settingsJsonSchema`(2020-12, 범위별 필터, `x-fresnel`, 결정적 출력) | `settings/jsonschema.ts` | W7, W8, F.capabilities.plan의 `toJsonSchema` | M | M0 |
 | W11 | 레지스트리: 메서드별 params/result 스키마, `WireMethodMap`, `WIRE_METHODS`, `WIRE_NOTIFICATIONS`, 타입 추론 테스트 | `wire/methods.ts` | W2~W6, W9(settings 메서드가 `EffectiveSetting`을 씀) | L | M0 |
 | W12 | 전송 인터페이스: `Transport`, `HostConnection`, `WireRequestContext`, `WireHandlers`, 팩토리 3종 타입 | `wire/transport.ts` | W11 | S | M0 |
 | W13 | `package.json` exports 두 개, 각 `index.ts`, wire→settings 단방향 import 검사 | `package.json`, `*/index.ts` | W1~W12 | S | M0 |
@@ -228,7 +228,7 @@ JSON Schema 검사 도구 [제안]: `jsonschema.test.ts`는 출력 JSON을 `Type
    - M1 완료: A7(적합성 케이스, W14), A9(문서 검사, W15), A10(적합성 실행기). A1·A2·A4·A7·A10의 실제 전송 통과는 `L4.host-service.plan`의 완료 기준이다.
 2. 문서 표와 코드 일치(M1): 스펙 §3.3.1 메서드 표, §3.3.2 알림 표, §3.5.2 오류 표의 이름·단계·code가 `WIRE_METHODS`, `WIRE_NOTIFICATIONS`, `WIRE_ERRORS`와 같다(W15). M0에서는 같은 대조를 리뷰 항목으로 확인한다.
 3. `cd xeon && just verify`가 종료코드 0이다. 여기에 `tsc -b`, oxlint(type-aware), oxfmt 검사, `scripts/check-layers.ts`, dependency-cruiser, knip, `bun test`가 포함된다.
-4. `contracts`가 다른 xeon 패키지를 import하지 않는다(check-layers). `wire-settings/settings/`가 `wire-settings/wire/`를 import하지 않는다.
+4. `contracts`가 다른 fresnel 패키지를 import하지 않는다(check-layers). `wire-settings/settings/`가 `wire-settings/wire/`를 import하지 않는다.
 5. `package.json` exports에 `./wire`, `./settings`가 있고 `F.readme`의 서브패스 표와 같다.
 6. `just docs-route --check --allow-missing`이 이 문서와 스펙의 `binds`, `depends_on`을 오류 없이 해석한다.
 

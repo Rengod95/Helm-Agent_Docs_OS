@@ -147,7 +147,7 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
     logger: recordingLogger(logs),
     settings: () => settings,
     sessionSources: fakeSessionSources(),
-    userAgent: "Xeon/0.1.0-test",
+    userAgent: "Fresnel/0.1.0-test",
     resolver,
     transport,
     convert: options.convert ?? directConvertRunner(),

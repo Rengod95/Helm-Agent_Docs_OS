@@ -42,19 +42,19 @@ async function read(deps: ReadDeps, call: RawCall): Promise<RawOutcome> {
   const { sha256, offset = 1 } = params.value;
   const found = await toolOutputBlob(deps.session, call.run.threadId, sha256);
   if (!found.ok) {
-    return errorOutcome(`[xeon:tools.read_failed] ${found.error.kind}`, {
+    return errorOutcome(`[fresnel:tools.read_failed] ${found.error.kind}`, {
       code: "tools.read_failed",
     });
   }
   if (found.value === undefined) {
-    return errorOutcome(`[xeon:output_not_found] No stored tool output has sha256 ${sha256}.`, {
+    return errorOutcome(`[fresnel:output_not_found] No stored tool output has sha256 ${sha256}.`, {
       code: "output_not_found",
     });
   }
   const blob = deps.store.readBlob(found.value);
   if (!blob.ok) {
     return errorOutcome(
-      `[xeon:output_unreadable] The stored output cannot be read (${blob.error.kind}).`,
+      `[fresnel:output_unreadable] The stored output cannot be read (${blob.error.kind}).`,
       {
         code: "output_unreadable",
       },
@@ -73,7 +73,7 @@ async function read(deps: ReadDeps, call: RawCall): Promise<RawOutcome> {
   const slice = lines.slice(offset - 1, offset - 1 + limit);
   const last = offset - 1 + slice.length;
   const more = last < lines.length ? ` Use offset ${last + 1} to continue.` : "";
-  const header = `[xeon:output_page] Lines ${offset}-${last} of ${lines.length} of blob sha256:${sha256}.${more}`;
+  const header = `[fresnel:output_page] Lines ${offset}-${last} of ${lines.length} of blob sha256:${sha256}.${more}`;
   return {
     result: {
       content: [{ type: "text", text: `${header}\n${slice.join("\n")}` }],

@@ -51,7 +51,7 @@ export interface WebRuntimeOptions {
   /** 호출 한 번이 읽는 유효 설정. threadId가 있으면 세션 범위를 포함한다 */
   readonly settings: (threadId: ThreadId | undefined) => WebSettings;
   readonly sessionSources: WebSessionSourcesPort;
-  /** UA 문자열. 기본 `Xeon/0.1.0` */
+  /** UA 문자열. 기본 `Fresnel/0.1.0` */
   readonly userAgent?: string;
   readonly resolver?: DnsResolver;
   readonly transport?: HttpTransport;
@@ -106,7 +106,7 @@ export interface WebRuntime {
 const EMPTY_SOURCE: RegistrationSource = { list: () => [] };
 
 export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
-  const userAgent = options.userAgent ?? "Xeon/0.1.0";
+  const userAgent = options.userAgent ?? "Fresnel/0.1.0";
   const resolver = options.resolver ?? createSystemResolver();
   const transport = options.transport ?? createHttpTransport({ resolver });
   const convert = options.convert ?? createWorkerConvertRunner();

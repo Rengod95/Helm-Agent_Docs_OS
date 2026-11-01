@@ -1,6 +1,6 @@
 # ext-host 포크 패치 기록
 
-`src/loading-trust/trust/`의 `store.ts`, `resources.ts`, `resolve.ts`는 pi coding-agent 1.1.0(MIT) `core/trust-manager.ts`와 `core/project-trust.ts`의 함수를 옮겨 Xeon 로더 포트(`LoaderFs`, `TrustStoreBackend`, `TrustPrompter`)에 맞게 바꾼 것이다(`X.loading-trust.spec` §4.7.1).
+`src/loading-trust/trust/`의 `store.ts`, `resources.ts`, `resolve.ts`는 pi coding-agent 1.1.0(MIT) `core/trust-manager.ts`와 `core/project-trust.ts`의 함수를 옮겨 Fresnel 로더 포트(`LoaderFs`, `TrustStoreBackend`, `TrustPrompter`)에 맞게 바꾼 것이다(`X.loading-trust.spec` §4.7.1).
 원본 패키지, 판, 커밋, 복사 범위는 `UPSTREAM.json`에 있다. 라이선스 원문은 `LICENSE.pi`다.
 세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// FRESNEL-PATCH: <id>` 표지. `test/loading-trust/fork-records.test.ts`가 이를 검사한다.
 원본 줄 번호는 pi 1.1.0 기준이다. 새 판은 따라가지 않는다.
@@ -20,7 +20,7 @@
 | `no-lockfile`             | `store.ts` (원본 `acquireTrustLockSync`, 138-177)                       | `proper-lockfile`과 바쁜 대기를 지운다. `TrustStoreBackend.update` 한 번으로 잠금과 원자 교체를 맡긴다                   | `trust-store.test.ts`     |
 | `options-localized`       | `store.ts` (원본 `getProjectTrustOptions`, 67-97)                       | 영어 라벨 문장 대신 식별자 라벨 다섯 개(`trust-folder` 등)와 F 타입 `TrustOption`을 돌려준다. 표시는 L4가 현지화한다     | `trust-store.test.ts`     |
 | `config-dir-constant`     | `resources.ts` (원본 `CONFIG_DIR_NAME`)                                 | `../config.ts` 결합을 끊고 상수 `.fresnel`을 둔다                                                                           | `trust-resources.test.ts` |
-| `resource-list`           | `resources.ts` (원본 `TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES`, 30-39) | pi의 여덟 항목을 Xeon 자원 이름 열두 항목(`.fresnel` 아래 열한 개와 루트 `.mcp.json`, `X.loading-trust.spec` §4.7.2)으로 바꾼다                                      | `trust-resources.test.ts` |
+| `resource-list`           | `resources.ts` (원본 `TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES`, 30-39) | pi의 여덟 항목을 Fresnel 자원 이름 열두 항목(`.fresnel` 아래 열한 개와 루트 `.mcp.json`, `X.loading-trust.spec` §4.7.2)으로 바꾼다                                      | `trust-resources.test.ts` |
 | `find-list`               | `resources.ts` (원본 `hasTrustRequiringProjectResources`, 186-208)      | 불리언을 찾은 자원의 목록으로 바꾼다. 프롬프트와 진단에 보인다. 상위 디렉터리의 `.agents/skills`는 상대 경로로 적는다    | `trust-resources.test.ts` |
 | `injected-fs-home`        | `resources.ts` (원본 `existsSync`, `homedir()`)                         | `LoaderFs.exists`와 `homeDir` 인자로 바꾼다. 사용자 홈의 `.agents/skills`는 제외한다                                     | `trust-resources.test.ts` |
 | `decision-order`          | `resolve.ts` (원본 `resolveProjectTrusted`, 47-97)                      | pi의 순서를 유지하고 세션 기억, 저장 파일 손상, 비대화형 불신을 더한다. 결과에 `via`, `resources`, `storeError`를 싣는다 | `trust-resolve.test.ts`   |

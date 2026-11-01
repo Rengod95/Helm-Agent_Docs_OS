@@ -39,7 +39,7 @@ impl Probe for AppProbe {
     fn state_dump(&self) -> Value {
         json!({
             "app": {
-                "name": "xeon-desktop",
+                "name": "fresnel-desktop",
                 "version": env!("CARGO_PKG_VERSION"),
                 "pid": std::process::id(),
                 "uptimeMs": u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX),

@@ -174,7 +174,7 @@ export interface DesktopIpc {
   restart(): Promise<Result<null, IpcError>>;
   detach(epoch: number): Promise<Result<null, IpcError>>;
   /**
-   * 모델 키를 등록한다. 셸이 번들된 사이드카를 `xeon secret <동작> <이름>`으로 실행하고 값을 그 stdin에 한 번 쓴다.
+   * 모델 키를 등록한다. 셸이 번들된 사이드카를 `fresnel secret <동작> <이름>`으로 실행하고 값을 그 stdin에 한 번 쓴다.
    * 값은 요청 본문 바이트로만 가고 이 함수가 돌아오기 전에 그 버퍼를 0으로 덮는다. `value`는 호출자가 덮는다.
    */
   registerSecret(
@@ -231,7 +231,7 @@ export function createTauriIpc(): DesktopIpc {
     },
     write: (epoch, chunk) =>
       call("engine_write", async () => {
-        await invoke("engine_write", chunk, { headers: { "x-xeon-epoch": String(epoch) } });
+        await invoke("engine_write", chunk, { headers: { "x-fresnel-epoch": String(epoch) } });
         return null;
       }),
     ack: (epoch, bytes) =>

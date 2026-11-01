@@ -1,9 +1,9 @@
 ---
-name: xeon-docs
-description: Xeon 문서(docs/xeon)를 쓰거나 고칠 때 쓴다. 디렉터리 규칙, 프런트매터, 문체, 라우팅을 따르게 한다.
+name: fresnel-docs
+description: Fresnel 문서(docs/xeon)를 쓰거나 고칠 때 쓴다. 디렉터리 규칙, 프런트매터, 문체, 라우팅을 따르게 한다.
 ---
 
-# Xeon 문서 작성
+# Fresnel 문서 작성
 
 1. `docs/xeon/README.md`, `docs/xeon/_templates/README.md`, `docs/xeon/_routing/README.md`를 읽는다.
 2. 경로는 `docs/xeon/<층>/<도메인>/<종류>.md`다. 층 개요는 `<층>/README.md`다.

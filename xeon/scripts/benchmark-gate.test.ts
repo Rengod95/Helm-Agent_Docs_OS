@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
-import { gate, readResults } from "./bench-gate.ts";
-import { parseBenchLine, resultOf, SERVER_BUDGET, stats } from "./bench-server.ts";
+import { gate, readResults } from "./benchmark-gate.ts";
+import { parseBenchLine, resultOf, SERVER_BUDGET, stats } from "./benchmark-server.ts";
 
 const mk = (metric: string, verdict: string) => ({ metric, unit: "ms", median: 1, verdict });
 
 const line = (metric: string, samples: number[]) =>
   parseBenchLine(JSON.stringify({ metric, unit: "ms", samples }));
 
-test("a bench line is parsed; log noise and malformed lines are not bench lines", () => {
+test("a benchmark line is parsed; log noise and malformed lines are not benchmark lines", () => {
   expect(parseBenchLine('{"metric":"a","unit":"ms","samples":[1,2]}')).toEqual({
     metric: "a",
     unit: "ms",
@@ -17,7 +17,7 @@ test("a bench line is parsed; log noise and malformed lines are not bench lines"
   });
   expect(parseBenchLine('{"metric":"b","unit":"chars","value":7,"note":"n"}')?.value).toBe(7);
   expect(parseBenchLine("warming up")).toBeUndefined();
-  expect(() => parseBenchLine('{"metric":')).toThrow("bench line is not JSON");
+  expect(() => parseBenchLine('{"metric":')).toThrow("benchmark line is not JSON");
   expect(parseBenchLine('{"metric":"a","unit":"ms"}')).toBeUndefined();
   expect(parseBenchLine('{"metric":"a","unit":"ms","samples":["x"]}')).toBeUndefined();
 });

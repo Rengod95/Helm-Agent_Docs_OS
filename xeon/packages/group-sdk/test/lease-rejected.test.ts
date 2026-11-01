@@ -109,7 +109,7 @@ async function rig() {
     report: () => {},
   });
   await t.host.registerPlatform({
-    name: "xeon-groups",
+    name: "fresnel-groups",
     setup(ctx) {
       ctx.providePort(LeaseArbiterPortKey, service);
       ctx.providePort(RecordCommitPortKey, records);
@@ -189,7 +189,7 @@ test("lease-rejected.a-group-without-a-feed-stays-waiting", async () => {
     report: () => {},
   });
   await t.host.registerPlatform({
-    name: "xeon-groups",
+    name: "fresnel-groups",
     setup(ctx) {
       ctx.providePort(LeaseArbiterPortKey, service);
     },

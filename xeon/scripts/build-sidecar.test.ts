@@ -23,7 +23,7 @@ import {
 const DESKTOP = "/work/apps/desktop";
 
 const CONFIG: SidecarConfig = {
-  name: "xeon",
+  name: "fresnel",
   args: ["host", "--stdio"],
   entry: "../cli/src/main.ts",
   maxSizeMiB: 500,
@@ -44,7 +44,7 @@ test("the committed sidecar.json parses and maps the five triples of the plan", 
   const parsed = parseSidecarConfig(realConfigText());
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) return;
-  expect(parsed.value.name).toBe("xeon");
+  expect(parsed.value.name).toBe("fresnel");
   expect(parsed.value.args).toEqual(["host", "--stdio"]);
   expect(parsed.value.maxSizeMiB).toBe(500);
   expect(parsed.value.targets).toEqual(CONFIG.targets);
@@ -75,9 +75,13 @@ test("every triple resolves to its bun target and an unknown one lists the known
 });
 
 test("output names follow the Tauri externalBin convention, .exe on Windows only", () => {
-  expect(outputFileName("xeon", "aarch64-apple-darwin")).toBe("xeon-aarch64-apple-darwin");
-  expect(outputFileName("xeon", "x86_64-unknown-linux-gnu")).toBe("xeon-x86_64-unknown-linux-gnu");
-  expect(outputFileName("xeon", "x86_64-pc-windows-msvc")).toBe("xeon-x86_64-pc-windows-msvc.exe");
+  expect(outputFileName("fresnel", "aarch64-apple-darwin")).toBe("fresnel-aarch64-apple-darwin");
+  expect(outputFileName("fresnel", "x86_64-unknown-linux-gnu")).toBe(
+    "fresnel-x86_64-unknown-linux-gnu",
+  );
+  expect(outputFileName("fresnel", "x86_64-pc-windows-msvc")).toBe(
+    "fresnel-x86_64-pc-windows-msvc.exe",
+  );
 });
 
 test("the host alias maps node platform and arch to a triple", () => {
@@ -92,7 +96,7 @@ test("the host alias maps node platform and arch to a triple", () => {
 });
 
 test("compile arguments carry --compile --minify --bytecode and the target; bytecode can be left out", () => {
-  const base = { entry: "/e/main.ts", outFile: "/o/xeon-x", bunTarget: "bun-linux-x64" };
+  const base = { entry: "/e/main.ts", outFile: "/o/fresnel-x", bunTarget: "bun-linux-x64" };
   expect(compileArgs({ ...base, bytecode: true })).toEqual([
     "build",
     "--compile",
@@ -101,7 +105,7 @@ test("compile arguments carry --compile --minify --bytecode and the target; byte
     "--target=bun-linux-x64",
     "/e/main.ts",
     "--outfile",
-    "/o/xeon-x",
+    "/o/fresnel-x",
   ]);
   expect(compileArgs({ ...base, bytecode: false })).not.toContain("--bytecode");
 });
@@ -161,7 +165,7 @@ test("a build runs bun with the mapped target and reports the size against the c
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.value.bunTarget).toBe("bun-darwin-arm64");
-  expect(result.value.outFile).toBe(`${DESKTOP}/src-tauri/binaries/xeon-aarch64-apple-darwin`);
+  expect(result.value.outFile).toBe(`${DESKTOP}/src-tauri/binaries/fresnel-aarch64-apple-darwin`);
   expect(result.value.bytes).toBe(102 * MIB);
   expect(result.value.maxBytes).toBe(500 * MIB);
   expect(calls.dirs).toEqual([`${DESKTOP}/src-tauri/binaries`]);
@@ -174,7 +178,7 @@ test("a build runs bun with the mapped target and reports the size against the c
     "--target=bun-darwin-arm64",
     "/work/apps/cli/src/main.ts",
     "--outfile",
-    `${DESKTOP}/src-tauri/binaries/xeon-aarch64-apple-darwin`,
+    `${DESKTOP}/src-tauri/binaries/fresnel-aarch64-apple-darwin`,
   ]);
 });
 
@@ -184,9 +188,9 @@ test("an out-dir request writes there and leaves the development sidecar path al
     { desktopDir: DESKTOP, triple: "x86_64-unknown-linux-gnu", bytecode: true, outDir: "/o/rel" },
     io,
   );
-  expect(result.ok && result.value.outFile).toBe("/o/rel/xeon-x86_64-unknown-linux-gnu");
+  expect(result.ok && result.value.outFile).toBe("/o/rel/fresnel-x86_64-unknown-linux-gnu");
   expect(calls.dirs).toEqual(["/o/rel"]);
-  expect(calls.args[0]?.at(-1)).toBe("/o/rel/xeon-x86_64-unknown-linux-gnu");
+  expect(calls.args[0]?.at(-1)).toBe("/o/rel/fresnel-x86_64-unknown-linux-gnu");
   expect(calls.args[0]?.join(" ")).not.toContain("src-tauri");
 });
 
@@ -196,7 +200,9 @@ test("the Windows build writes an .exe", async () => {
     { desktopDir: DESKTOP, triple: "x86_64-pc-windows-msvc", bytecode: true },
     io,
   );
-  expect(result.ok && result.value.outFile.endsWith("xeon-x86_64-pc-windows-msvc.exe")).toBe(true);
+  expect(result.ok && result.value.outFile.endsWith("fresnel-x86_64-pc-windows-msvc.exe")).toBe(
+    true,
+  );
 });
 
 function failure(result: Awaited<ReturnType<typeof buildSidecar>>): BuildError {
@@ -288,10 +294,10 @@ test("--no-bytecode leaves the flag out of the bun call", async () => {
   expect(calls.args[0]).toContain("--minify");
 });
 
-test("--version injects XEON_BUILD_VERSION as a --define string before the entry, and only when given", () => {
+test("--version injects FRESNEL_BUILD_VERSION as a --define string before the entry, and only when given", () => {
   const base = {
     entry: "/e/main.ts",
-    outFile: "/o/xeon-x",
+    outFile: "/o/fresnel-x",
     bunTarget: "bun-linux-x64",
     bytecode: false,
   };
@@ -301,10 +307,10 @@ test("--version injects XEON_BUILD_VERSION as a --define string before the entry
     "--minify",
     "--target=bun-linux-x64",
     "--define",
-    'XEON_BUILD_VERSION="1.2.3"',
+    'FRESNEL_BUILD_VERSION="1.2.3"',
     "/e/main.ts",
     "--outfile",
-    "/o/xeon-x",
+    "/o/fresnel-x",
   ]);
   expect(compileArgs(base)).not.toContain("--define");
   expect(compileArgs({ ...base, version: undefined })).not.toContain("--define");
@@ -328,7 +334,7 @@ test("the release version of a build request reaches the bun arguments, and no v
     versioned.io,
   );
   expect(built.ok).toBe(true);
-  expect(versioned.calls.args[0]).toContain('XEON_BUILD_VERSION="1.2.3"');
+  expect(versioned.calls.args[0]).toContain('FRESNEL_BUILD_VERSION="1.2.3"');
 
   const plain = fakeIo({ config: CONFIG_TEXT, size: MIB });
   await buildSidecar(
@@ -340,8 +346,8 @@ test("the release version of a build request reaches the bun arguments, and no v
 
 // 실제 컴파일 시험: 주입한 값이 바이너리 안 상수가 되고, 주입이 없으면 "0.0.0"이 된다. 소스 실행과 같은 `typeof` 모양이다
 const VERSION_FIXTURE = [
-  "declare const XEON_BUILD_VERSION: string | undefined;",
-  'const VERSION: string = typeof XEON_BUILD_VERSION === "string" ? XEON_BUILD_VERSION : "0.0.0";',
+  "declare const FRESNEL_BUILD_VERSION: string | undefined;",
+  'const VERSION: string = typeof FRESNEL_BUILD_VERSION === "string" ? FRESNEL_BUILD_VERSION : "0.0.0";',
   'process.stdout.write(VERSION + "\\n");',
 ].join("\n");
 
@@ -378,7 +384,7 @@ async function printedBy(path: string): Promise<string> {
 }
 
 test("a compiled binary carries the injected version, and reports 0.0.0 without one", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-version-bin-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-version-bin-"));
   try {
     writeFileSync(join(dir, "main.ts"), VERSION_FIXTURE);
     const injected = await compileFixture(dir, "with-version", "9.8.7");

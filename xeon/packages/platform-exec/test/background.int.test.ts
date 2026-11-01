@@ -21,7 +21,7 @@ const dirs: string[] = [];
 const handles: BackgroundExecHandle[] = [];
 
 function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-exec-bg-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-exec-bg-"));
   dirs.push(dir);
   return dir;
 }

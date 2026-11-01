@@ -57,7 +57,7 @@ const TEMPLATE = {
   method: "POST",
   url: "https://api.exa.test/search",
   headers: { "x-api-key": "secret://exa-api-key", accept: "application/json" },
-  body: '{"query":"xeon"}',
+  body: '{"query":"fresnel"}',
 } as const;
 
 describe("plugin provider header secrets", () => {
@@ -73,7 +73,7 @@ describe("plugin provider header secrets", () => {
     expect(service.providerLeaseCalls()).toBe(1);
     expect(sent.map((request) => request.headers["x-api-key"] === secret)).toEqual([true]);
     expect(sent[0]?.headers["accept"]).toBe("application/json");
-    expect(sent[0]?.body).toBe('{"query":"xeon"}');
+    expect(sent[0]?.body).toBe('{"query":"fresnel"}');
     // 쓴 뒤 lease는 남지 않는다
     expect(service.activeLeaseCount(HANDLE)).toBe(0);
   });

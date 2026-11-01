@@ -47,7 +47,7 @@ xeon/packages/core-context/
       summarize.ts             # SummarizeDeps 어댑터(fresnel.models summary 역할), 롤링 갱신, 턴 접두 요약 (C-5)
       compact.ts               # prepareCompaction, 지점 3개, thread.compacted + 새 접두 커밋 (C-7, C-9)
       branch-summary.ts        # summarizeBranch 초안 (C-7)
-    overflow.ts                # recoverOverflow, 단계당 1회 판정(details.xeon.stepId) (C-8)
+    overflow.ts                # recoverOverflow, 단계당 1회 판정(details.fresnel.stepId) (C-8)
     prune.ts                   # 2차: 도구 결과 선제 제거 (C-10)
     reinject.ts                # 2차: 최근 파일 재주입 (C-11). 블록 재주입은 branch.ts의 effectiveMessages가 한다
     settings.ts                # defineSettings("l1.context", …)
@@ -70,7 +70,7 @@ xeon/packages/core-context/
 | C-4 | 컷 포인트 포크와 타입 치환: `compaction.ts`의 `findValidCutPoints`, `findCutPoint`, `isCutPointMessage`, `estimateTokens` 사용부를 `CutCandidate`로 바꾼다. 턴 시작 판정은 `turnId` 비교. 토큰 추정은 `fresnel.models.tokens`로 주입 | C-0 | 중 | M2 |
 | C-5 | 요약 호출과 롤링 갱신: 프롬프트 상수 복사(`SUMMARIZATION_PROMPT`, `UPDATE_SUMMARIZATION_INSTRUCTIONS`, `UPDATE_SUMMARIZATION_PROMPT`, `TURN_PREFIX_SUMMARIZATION_PROMPT`, `SUMMARIZATION_SYSTEM_PROMPT`), `serializeConversation`(도구 결과 2000자 절단), `SummarizeDeps` 어댑터, 응답 검사(error·length·도구 호출) | C-4, `L1.models.plan` M-1 | 중 | M2 |
 | C-6 | 임계 계산: `shouldCompactTokens`(`>` 비교), 카탈로그 `contextWindow` 연결, 기본값 한 곳(`settings.ts`) | C-0 | 소 | M2 |
-| C-7 | `thread.compacted` 생성과 조립 반영: 한 커밋에 `thread.compacted` + 새 접두 system item, `details.xeon`, 조립 때 머리 적용, `summarizeBranch` 초안 | C-1, C-5 | 중 | M2 |
+| C-7 | `thread.compacted` 생성과 조립 반영: 한 커밋에 `thread.compacted` + 새 접두 system item, `details.fresnel`, 조립 때 머리 적용, `summarizeBranch` 초안 | C-1, C-5 | 중 | M2 |
 | C-8 | 오버플로우 복구: `recoverOverflow`, 같은 단계 판정, M1의 `fail(disabled)` 경로 | C-7, `L1.models.plan` M-1(`classify`) | 소 | M1(disabled 경로) → M2 |
 | C-9 | 지점 발화 6개: `context`(M1), `request.system.before`, `thread.compact.before`, `thread.compact.after`, `thread.compact.failed`, `request.cache.before`(선언과 발화 자리만, 실제 발화는 2차 워밍) | C-1, C-7, X 디스패치 | 중 | M1 → M2 |
 | C-10 | 도구 결과 선제 제거 | C-7 | 소 | 2차 |

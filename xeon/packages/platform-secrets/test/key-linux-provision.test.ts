@@ -76,9 +76,9 @@ describe("Linux Secret Service key provision", () => {
     expect(fake.requests[1]?.argv).toEqual([
       SECRET_TOOL,
       "store",
-      "--label=xeon age key",
+      "--label=fresnel age key",
       "service",
-      "xeon.age",
+      "fresnel.age",
       "account",
       "default",
     ]);

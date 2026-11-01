@@ -12,7 +12,7 @@ const platform = hostPlatform();
 const dirs: string[] = [];
 
 function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-exec-group-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-exec-group-"));
   dirs.push(dir);
   return dir;
 }

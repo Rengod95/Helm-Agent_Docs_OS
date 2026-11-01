@@ -5,7 +5,7 @@ import type { BlobError, BlobRef } from "@fresnel/contracts/records";
 import { Type } from "typebox";
 import { asJsonObject, stringOf } from "../json.ts";
 
-// L2.mcp.spec §4.5 5~6번. 서버 결과의 내용 블록을 Xeon 쪽 모양(McpContent)으로 바꾸고 크기 한도를 적용한다.
+// L2.mcp.spec §4.5 5~6번. 서버 결과의 내용 블록을 Fresnel 쪽 모양(McpContent)으로 바꾸고 크기 한도를 적용한다.
 // 입력은 어댑터가 JSON으로 옮긴 블록이라 SDK 타입을 보지 않는다.
 
 /** blob 저장 포트(`fresnel.store.putBlob`의 부분형). 없으면 이미지·바이너리는 지원하지 않는 내용으로 둔다 */

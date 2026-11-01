@@ -1,6 +1,6 @@
 // M3-new-18 (M3b B5-PERF). 컴팩션 뒤 최근 파일 재주입(recentFileMessages)이 요약 뒤에 싣는 토큰 비용과 계산 시간을 잰다.
-// 실행(xeon/에서): bash ../scripts/guard.sh run -- bun packages/core-context/test/bench/recent-files.bench.ts
-// 출력은 scripts/bench-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 bench-server.ts와 bench-gate.ts가 한다.
+// 실행(fresnel/에서): bash ../scripts/guard.sh run -- bun packages/core-context/test/benchmark/recent-files.benchmark.ts
+// 출력은 scripts/benchmark-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 benchmark-server.ts와 benchmark-gate.ts가 한다.
 // 토큰 값은 추정치다. core-models의 createTokenEstimator가 위임하는 pi-ai 1.3.0 estimateMessageTokens의 사용자 메시지 식을 옮겼다:
 // 본문 글자 수 / 3.5를 올림한 값(CHARS_PER_TOKEN). core-context는 core-models에 의존하지 않으므로 복제한다.
 // 출처: packages/core-models/node_modules/@earendil-works/pi-ai/dist/utils/estimate.js. 모델 토크나이저의 값이 아니다.
@@ -97,7 +97,7 @@ function share(part: number, whole: number): string {
 
 function sizeOf(index: number): number {
   const size = SIZES[index % SIZES.length];
-  if (size === undefined) throw new Bug("recent-files bench: the size table is empty");
+  if (size === undefined) throw new Bug("recent-files benchmark: the size table is empty");
   return size;
 }
 
@@ -111,7 +111,7 @@ function readsOf(count: number, chars: (index: number) => number): ReadSpec[] {
 
 /** 글자 수가 정확히 `chars`인 소스 같은 본문 */
 function bodyOf(path: string, chars: number): string {
-  const unit = `// ${path}: source line of the bench body\n`;
+  const unit = `// ${path}: source line of the benchmark body\n`;
   return unit.repeat(Math.ceil(chars / unit.length)).slice(0, chars);
 }
 
@@ -177,7 +177,9 @@ function branchOf(
   }
   while (items.length < total) items.push(filler(log, items.length));
   if (items.length !== total) {
-    throw new Bug(`recent-files bench: ${String(items.length)} items, ${String(total)} planned`);
+    throw new Bug(
+      `recent-files benchmark: ${String(items.length)} items, ${String(total)} planned`,
+    );
   }
   return { items, firstKeptIndex };
 }
@@ -196,7 +198,7 @@ function checkReinjected(
   const expected = reads.slice(reads.length - count);
   if (messages.length !== expected.length) {
     throw new Bug(
-      `recent-files bench: ${String(messages.length)} messages for ${String(count)} files`,
+      `recent-files benchmark: ${String(messages.length)} messages for ${String(count)} files`,
     );
   }
   messages.forEach((message, index) => {
@@ -205,7 +207,7 @@ function checkReinjected(
       read === undefined ||
       !textOf(message).startsWith(`[File re-injected after compaction: ${read.path}]\n`)
     ) {
-      throw new Bug(`recent-files bench: message ${String(index)} is not the expected file`);
+      throw new Bug(`recent-files benchmark: message ${String(index)} is not the expected file`);
     }
   });
 }
@@ -233,7 +235,7 @@ function timeCompute(branch: Branch): number[] {
     const elapsed = performance.now() - started;
     if (returned !== COUNT * COMPUTE_CALLS) {
       throw new Bug(
-        "recent-files bench: the compute branch returned a different count between runs",
+        "recent-files benchmark: the compute branch returned a different count between runs",
       );
     }
     if (run >= COMPUTE_WARMUPS) samples.push(elapsed / COMPUTE_CALLS);

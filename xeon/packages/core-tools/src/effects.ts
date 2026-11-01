@@ -223,7 +223,7 @@ const EVENT_FIELD_MAX_BYTES = 128 * 1024;
 /** details·structuredContent가 이벤트 상한을 넘기지 않게 한다. 모델용 content는 경계화가 따로 줄인다 */
 export function fitForEvent(value: JsonValue | null): JsonValue | null {
   const bytes = utf8Bytes(canonicalJson(value)).length;
-  return bytes <= EVENT_FIELD_MAX_BYTES ? value : { xeonOversize: bytes };
+  return bytes <= EVENT_FIELD_MAX_BYTES ? value : { fresnelOversize: bytes };
 }
 
 /** 인자의 정규화 JSON 해시(sha256 hex) */

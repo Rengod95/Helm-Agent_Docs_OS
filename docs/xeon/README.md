@@ -1,5 +1,5 @@
 ---
-id: xeon.readme
+id: fresnel.readme
 layer: meta
 domain: index
 kind: guide

@@ -1,7 +1,7 @@
 // M3-REQ-64(서버 측정 부분), M3-29, M3-new-18 (M3b B5-PERF). 저장소 커밋 한 건의 시간(store_commit_event), 활성 가지 item 1000개를
 // Reader로 읽는 시간(thread_read_1k_items), 이벤트 10000개의 투영기 재생성 시간(projector_rebuild_10k_events)을 잰다.
-// 실행(xeon/에서): bash ../scripts/guard.sh run -- bun packages/core-persistence/test/bench/store.bench.ts
-// 출력은 scripts/bench-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 bench-server.ts와 bench-gate.ts가 한다.
+// 실행(fresnel/에서): bash ../scripts/guard.sh run -- bun packages/core-persistence/test/benchmark/store.benchmark.ts
+// 출력은 scripts/benchmark-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 benchmark-server.ts와 benchmark-gate.ts가 한다.
 // DB는 tempDbPath가 만든 임시 디렉터리의 디스크 파일이다. fsync 비용을 재는 것이 목적이라 메모리 DB를 쓰지 않는다.
 // 쓰기 연결의 PRAGMA(synchronous=FULL, WAL)는 platform-store가 연다. 시작 때 쓰기 연결에서 값을 읽어 note에 싣는다.
 // 재지 않는 값: store_commit_event_sync_normal(쓰기 연결의 synchronous를 바꿀 길이 없다), process_start_fingerprint(platform-os 의존이 필요하다).
@@ -45,11 +45,11 @@ function ms(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
-/** bench-server.ts의 stats와 같은 순위 규칙(ceil(0.5·n)번째)으로 중앙값을 고른다 */
+/** benchmark-server.ts의 stats와 같은 순위 규칙(ceil(0.5·n)번째)으로 중앙값을 고른다 */
 function medianOf(samples: readonly number[]): number {
   const sorted = samples.toSorted((a, b) => a - b);
   const value = sorted[Math.min(sorted.length - 1, Math.ceil(0.5 * sorted.length) - 1)];
-  if (value === undefined) throw new Bug("store bench: median of an empty sample list");
+  if (value === undefined) throw new Bug("store benchmark: median of an empty sample list");
   return value;
 }
 
@@ -150,7 +150,7 @@ function writerPragmas(h: Harness): string {
     synchronous: tx.get("PRAGMA synchronous"),
     journal: tx.get("PRAGMA journal_mode"),
   }));
-  if (!read.ok) throw new Bug("store bench: the writer pragma read was refused");
+  if (!read.ok) throw new Bug("store benchmark: the writer pragma read was refused");
   const sync = read.value.synchronous?.["synchronous"] ?? "unknown";
   const journal = read.value.journal?.["journal_mode"] ?? "unknown";
   return `synchronous=${String(sync)} journal_mode=${String(journal)}`;
@@ -171,13 +171,13 @@ async function measureCommit(): Promise<void> {
       // 초안은 시간을 재기 전에 만든다. 잰 시간은 커밋 한 건(검증, 이벤트 기록, 투영, 요청 기록, 쓰기 트랜잭션)이다
       const drafts = [itemDraft(h, threadId, turn.turnId, userItem(h, `input ${String(run)}`))];
       const started = performance.now();
-      commitDrafts(h, threadId, `bench-commit-${String(run)}`, drafts);
+      commitDrafts(h, threadId, `benchmark-commit-${String(run)}`, drafts);
       const elapsed = performance.now() - started;
       if (run >= COMMIT_WARMUPS) samples.push(ms(elapsed));
     }
     const eventsAfter = countRows(h, "SELECT COUNT(*) AS n FROM events");
     if (eventsAfter - eventsBefore !== COMMIT_WARMUPS + COMMIT_RUNS) {
-      throw new Bug("store bench: a commit did not record exactly one event");
+      throw new Bug("store benchmark: a commit did not record exactly one event");
     }
     emit({
       metric: "store_commit_event",
@@ -216,7 +216,7 @@ async function measureRead(): Promise<void> {
       commitDrafts(
         h,
         threadId,
-        `bench-read-setup-${String(written)}`,
+        `benchmark-read-setup-${String(written)}`,
         itemDrafts(h, threadId, turn.turnId, written, count),
       );
       written += count;
@@ -226,7 +226,7 @@ async function measureRead(): Promise<void> {
       .get(threadId)?.n;
     if (projected !== READ_ITEMS) {
       throw new Bug(
-        `thread read bench: ${String(projected)} items projected, ${String(READ_ITEMS)} written`,
+        `thread read benchmark: ${String(projected)} items projected, ${String(READ_ITEMS)} written`,
       );
     }
     const samples: number[] = [];
@@ -237,7 +237,7 @@ async function measureRead(): Promise<void> {
       const elapsed = performance.now() - started;
       if (count !== READ_ITEMS) {
         throw new Bug(
-          `thread read bench: ${String(count)} items read, ${String(READ_ITEMS)} written`,
+          `thread read benchmark: ${String(count)} items read, ${String(READ_ITEMS)} written`,
         );
       }
       if (run >= READ_WARMUPS) samples.push(ms(elapsed));
@@ -269,14 +269,14 @@ async function measureRebuild(): Promise<void> {
       commitDrafts(
         h,
         threadId,
-        `bench-rebuild-setup-${String(total)}`,
+        `benchmark-rebuild-setup-${String(total)}`,
         itemDrafts(h, threadId, turn.turnId, total, count),
       );
       total += count;
     }
     const setupSeconds = (performance.now() - setupStarted) / 1000;
     if (countRows(h, "SELECT COUNT(*) AS n FROM events") !== REBUILD_EVENTS) {
-      throw new Bug("projector rebuild bench: the setup did not reach the event count");
+      throw new Bug("projector rebuild benchmark: the setup did not reach the event count");
     }
 
     // 재생성은 ensureProjectors가 부르는 rebuildProjector 그대로다: DROP, DDL, seq 순 재생, projector_state 갱신.
@@ -288,8 +288,10 @@ async function measureRebuild(): Promise<void> {
       const started = performance.now();
       const written = h.store.db.write((tx) => rebuildProjector(tx, core, catalog));
       const elapsed = performance.now() - started;
-      if (!written.ok) throw new Bug("projector rebuild bench: the write transaction was refused");
-      if (!written.value.ok) throw new Bug("projector rebuild bench: the rebuild stopped on a row");
+      if (!written.ok)
+        throw new Bug("projector rebuild benchmark: the write transaction was refused");
+      if (!written.value.ok)
+        throw new Bug("projector rebuild benchmark: the rebuild stopped on a row");
       if (run >= REBUILD_WARMUPS) samples.push(ms(elapsed));
     }
     const projectedItems = countRows(h, "SELECT COUNT(*) AS n FROM p_items");
@@ -299,7 +301,7 @@ async function measureRebuild(): Promise<void> {
     );
     if (projectedItems !== itemEvents) {
       throw new Bug(
-        `projector rebuild bench: ${String(projectedItems)} projected items, ${String(itemEvents)} item events`,
+        `projector rebuild benchmark: ${String(projectedItems)} projected items, ${String(itemEvents)} item events`,
       );
     }
 

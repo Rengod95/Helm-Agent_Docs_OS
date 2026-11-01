@@ -28,7 +28,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
 export interface SourceFile {
-  /** Path relative to the xeon root with forward slashes. */
+  /** Path relative to the fresnel root with forward slashes. */
   readonly path: string;
   readonly text: string;
 }

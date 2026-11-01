@@ -67,7 +67,7 @@ function osStub(clock: ReturnType<typeof manualClock>): OsService {
   };
 }
 
-test("the_loop_extension_provides_xeon_loop_through_the_host_ports", async () => {
+test("the_loop_extension_provides_fresnel_loop_through_the_host_ports", async () => {
   const clock = manualClock();
   const ids = fixedIdFactory(100);
   const fake = createFakeSession({ clock, ids });

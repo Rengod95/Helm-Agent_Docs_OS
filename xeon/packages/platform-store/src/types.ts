@@ -65,7 +65,7 @@ export interface OpenStoreOptions {
   readonly strictPrefix?: boolean;
   /**
    * 읽기 전용으로 연다(L0.store.spec §4.4). 파일을 만들지 않고, 마이그레이션·잠금·WAL 설정을 하지 않는다.
-   * 다른 Xeon 버전이 만든 DB(sys 버전이 코드보다 높음)도 연다. 그 사실은 `read_only` 경고로 남긴다.
+   * 다른 Fresnel 버전이 만든 DB(sys 버전이 코드보다 높음)도 연다. 그 사실은 `read_only` 경고로 남긴다.
    * 쓰기는 모두 `SQLITE_READONLY`로 거절한다. 생략하면 쓰기 열기다
    */
   readonly readOnly?: boolean;

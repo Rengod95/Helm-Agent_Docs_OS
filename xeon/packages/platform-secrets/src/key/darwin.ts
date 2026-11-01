@@ -11,7 +11,7 @@ import {
   type SopsKeyEnvName,
 } from "./provider.ts";
 
-// L0.secrets.spec §3.7 표, §4.7 7번. macOS Keychain: `security find-generic-password -s xeon.age -a default -w`.
+// L0.secrets.spec §3.7 표, §4.7 7번. macOS Keychain: `security find-generic-password -s fresnel.age -a default -w`.
 // 항목 존재·접근 승인 대화상자 확인은 macOS 실기(SC-19)다. provision은 `security -i`로 항목을 만든다.
 
 export interface DarwinKeyExec {
@@ -31,7 +31,7 @@ export interface DarwinKeyDeps {
 const TIMEOUT_MS = 60_000;
 /** `security`가 항목을 찾지 못했을 때의 종료 코드(errSecItemNotFound = -25300, 하위 8비트 44) */
 const EXIT_ITEM_NOT_FOUND = 44;
-const ITEM_LABEL = "xeon age key";
+const ITEM_LABEL = "fresnel age key";
 
 function keyStoreFailure(code: string): SecretError {
   return { kind: "write_failed", target: "key_store", path: "keychain", code };

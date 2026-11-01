@@ -119,7 +119,7 @@ describe("hook run", () => {
   });
 
   test("hook run stops the whole tree on abort and reports timedOut", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "xeon-hook-"));
+    const dir = mkdtempSync(join(tmpdir(), "fresnel-hook-"));
     const marker = join(dir, "pids.json");
     const controller = new AbortController();
     const running = makeRunner(300).run(

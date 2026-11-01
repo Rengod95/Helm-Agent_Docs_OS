@@ -281,7 +281,7 @@ describe("createSecretService with the SOPS provider", () => {
     const diag = await h.service.diagnose();
     expect(diag.hints.slice(0, 2)).toEqual([
       "just secret-add <키> [env]",
-      "xeon secret add <name>",
+      "fresnel secret add <name>",
     ]);
     expect(diag.sops).toEqual({ available: true, version: "3.13.3", reason: "ok" });
     expect(diag.key).toEqual({ source: "file", available: true, reason: "ok" });

@@ -103,7 +103,7 @@ xeon/plugins/provider-anthropic-oauth/
 | M-7 | 설정 정의: `defineSettings("l1.models", …)` §6 표 전체(2차 키는 정의만), D1~D9 검사 테스트 | M-0 | 소 | M1 (M1 키 셋) → M2 |
 | M-8 | 위장 래퍼 방안 A 스파이크: `_research/notes/L1-2.md` §5 S1~S6을 따른다. A2(Api id 유지, provider id `anthropic-oauth`)로 시작. 와이어 동등성 테스트(S5)를 통과하지 못하거나 `L1.models.spec` §4.11.2 전환 조건에 걸리면 방안 B 결정 기록을 남긴다 | M-4 | 대 | M2 별도 줄기 |
 | M-9 | 회귀 테스트 복사: pi-ai `test/anthropic-oauth.test.ts`(로그인·갱신, 7개), `anthropic-tool-name-normalization.test.ts`(실 API 왕복, 키 없으면 건너뜀, 4개). 복사본은 실행 전 내용을 검토한다. 두 파일은 요청 형태를 보증하지 않으므로 M-8의 동등성 테스트가 주 검증이다 | M-8 | 소 | M2 |
-| M-10 | 배포 제외 CI 검사: `xeon/scripts/check-release.ts`와 `.github/workflows/xeon-ci.yml`의 L1 job 항목(`L1.models.spec` §4.11.4 1~4). `just verify`에도 넣는다 | M-8 | 소 | M2 |
+| M-10 | 배포 제외 CI 검사: `xeon/scripts/check-release.ts`와 `.github/workflows/fresnel-ci.yml`의 L1 job 항목(`L1.models.spec` §4.11.4 1~4). `just verify`에도 넣는다 | M-8 | 소 | M2 |
 | M-11 | 나머지 지점 5개(`request.headers.before`, `request.provider.after`, `request.stream`, `request.model.after`, `request.thinking.after`), 비밀 헤더 가림, 바인딩 변경 감지 | M-1, M-2 | 중 | M2 |
 | M-12 | 구조화 출력 최소형: `completeStructured`, `validateToolArguments` 재시도 루프, 시도 상한 | M-1 | 소 | M3 |
 | M-13 | 레이트 리밋·계정 회전: 별도 설계 문서 먼저(§7 위험 4), `core_models_*` 테이블, 계정 선택, 대기·전환, M3 설정 화면 키(`accounts`, `rateLimit`) | M-6, 설계 문서 | 대 | M3 |

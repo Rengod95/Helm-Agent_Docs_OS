@@ -268,7 +268,7 @@ function toToolResult(
 
 function failureResult(server: string, tool: string, error: CapabilityError): McpToolResult {
   return {
-    content: [{ type: "text", text: `[xeon:${error.data.code}] ${error.data.message}` }],
+    content: [{ type: "text", text: `[fresnel:${error.data.code}] ${error.data.message}` }],
     details: { server, tool, code: error.data.code, retryable: error.data.retryable },
     isError: true,
     status: "complete",

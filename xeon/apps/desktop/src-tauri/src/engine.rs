@@ -31,7 +31,7 @@ use crate::relay::{
 use crate::time::{now_ms, rfc3339_utc};
 
 /// `xeon/apps/desktop/sidecar.json`의 `name`과 같아야 한다(test/sidecar-config.test.ts가 대조한다).
-pub const SIDECAR_NAME: &str = "xeon";
+pub const SIDECAR_NAME: &str = "fresnel";
 /// `sidecar.json`의 `args`와 같아야 한다.
 pub const SIDECAR_ARGS: [&str; 2] = ["host", "--stdio"];
 

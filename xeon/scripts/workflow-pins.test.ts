@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// M3-30 regression (review.m3-plan M3-30): every action a Xeon workflow uses is pinned to a 40-hex commit SHA with its version
+// M3-30 regression (review.m3-plan M3-30): every action a Fresnel workflow uses is pinned to a 40-hex commit SHA with its version
 // in a comment (`uses: owner/repo@<sha> # v<version>`). Also the signing step's skip path (L4.release.spec §4): without the six
 // Apple secrets release-sign.sh exits 0, says it skipped and never prints a value.
 
@@ -38,8 +38,8 @@ function unpinnedUses(text: string): string[] {
 
 const read = (name: string): string => readFileSync(join(WORKFLOWS, name), "utf8");
 
-test("every uses of every xeon-*.yml workflow is pinned to a 40-hex SHA with a version comment", () => {
-  const files = readdirSync(WORKFLOWS).filter((name) => /^xeon-.*\.yml$/.test(name));
+test("every uses of every fresnel-*.yml workflow is pinned to a 40-hex SHA with a version comment", () => {
+  const files = readdirSync(WORKFLOWS).filter((name) => /^fresnel-.*\.yml$/.test(name));
   const total = files.reduce(
     (count, name) =>
       count +
@@ -79,7 +79,7 @@ const signEnv = (extra: Readonly<Record<string, string>> = {}): Record<string, s
   return { ...env, ...extra };
 };
 
-const work = mkdtempSync(join(tmpdir(), "xeon-sign-skip-"));
+const work = mkdtempSync(join(tmpdir(), "fresnel-sign-skip-"));
 afterAll(() => {
   rmSync(work, { recursive: true, force: true });
 });

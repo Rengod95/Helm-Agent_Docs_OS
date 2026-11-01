@@ -4,7 +4,7 @@ layer: meta
 domain: routing
 kind: guide
 status: draft
-depends_on: [xeon.readme]
+depends_on: [fresnel.readme]
 binds: []
 ---
 

@@ -115,7 +115,7 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
       protectedPaths: () => protectedPaths,
     },
     sandbox,
-    tempDir: "/tmp/xeon",
+    tempDir: "/tmp/fresnel",
     clock: steppingClock(),
     settings:
       options.settings ??

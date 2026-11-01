@@ -265,7 +265,7 @@ xeon/packages/group-sdk/
 
 | 마일스톤 | 기준 |
 |---|---|
-| M1 | `cd xeon && just verify` 종료코드 0. 1~3번 `smoke.*` 테스트 통과. 저장소 스모크(`xeon chat` 테이프 한 턴 + 강제 종료 뒤 재개)에서 `smokeGroup`의 drive 켜기·끄기가 단계 경계에서 적용된다(`_research/foundation-plan.md` §6). `fresnel.domain`이 `group-sdk`이다 |
+| M1 | `cd xeon && just verify` 종료코드 0. 1~3번 `smoke.*` 테스트 통과. 저장소 스모크(`fresnel chat` 테이프 한 턴 + 강제 종료 뒤 재개)에서 `smokeGroup`의 drive 켜기·끄기가 단계 경계에서 적용된다(`_research/foundation-plan.md` §6). `fresnel.domain`이 `group-sdk`이다 |
 | M2 | `just verify` 종료코드 0. M2 표시 테스트 전부 통과. 허용 목록 두 항목이 있고 `group-helm`이 `@fresnel/group-sdk`만 import해 check-layers를 통과한다. `group-helm` 테스트가 `replayDrive`로 `ok: true`를 낸다 |
 | M3 이후 | `just verify` 종료코드 0. M3 표시 테스트 전부 통과. `grp.<그룹>.metrics.recorded` 기록이 `recordPrivate`로 쓰이고, `grp.<그룹>.state.committed`는 X가 쓴다 |
 

@@ -153,13 +153,13 @@ test("a line for several conditions parses, and only desktop lines need the side
 });
 
 test("the sidecar binary path follows the triple of the machine", () => {
-  expect(sidecarBinaryPath("xeon", "linux", "x64")).toBe(
-    "apps/desktop/src-tauri/binaries/xeon-x86_64-unknown-linux-gnu",
+  expect(sidecarBinaryPath("fresnel", "linux", "x64")).toBe(
+    "apps/desktop/src-tauri/binaries/fresnel-x86_64-unknown-linux-gnu",
   );
-  expect(sidecarBinaryPath("xeon", "darwin", "arm64")).toBe(
-    "apps/desktop/src-tauri/binaries/xeon-aarch64-apple-darwin",
+  expect(sidecarBinaryPath("fresnel", "darwin", "arm64")).toBe(
+    "apps/desktop/src-tauri/binaries/fresnel-aarch64-apple-darwin",
   );
-  expect(sidecarBinaryPath("xeon", "freebsd", "x64")).toBeUndefined();
+  expect(sidecarBinaryPath("fresnel", "freebsd", "x64")).toBeUndefined();
 });
 
 test("bun output gives pass, skip and fail counts; no pass line is undefined", () => {

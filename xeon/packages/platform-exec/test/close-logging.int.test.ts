@@ -66,7 +66,7 @@ describe("closeBestEffort", () => {
 
 describe("watch callback failures", () => {
   test("a throwing change callback is logged and watching continues", async () => {
-    const root = mkdtempSync(join(tmpdir(), "xeon-exec-watch-"));
+    const root = mkdtempSync(join(tmpdir(), "fresnel-exec-watch-"));
     dirs.push(root);
     const { logger, records } = recordingLogger();
     const env = new NodeExecutionEnv({

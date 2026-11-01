@@ -279,7 +279,7 @@ test("tool_call_hook_throw_denies: a throwing handler blocks the call and leaves
     name: "read",
     args: { path: "a" },
   });
-  expect(out.blocked).toBe("[xeon:denied_by_extension] extension handler failed");
+  expect(out.blocked).toBe("[fresnel:denied_by_extension] extension handler failed");
   expect(probe.calls).toEqual([]);
   expect(kindsOf(h)).toEqual(["item.recorded"]);
 });
@@ -295,7 +295,7 @@ test("a tool.call.before handler decision blocks with its own reason", async () 
     name: "read",
     args: { path: "a" },
   });
-  expect(out.blocked).toBe("[xeon:denied_by_extension] no reads today");
+  expect(out.blocked).toBe("[fresnel:denied_by_extension] no reads today");
 });
 
 test("a dispatcher exception is also a denial (fail closed)", async () => {

@@ -18,7 +18,7 @@ binds: [xeon/packages/cap-web/**]
 
 | 마일스톤 | 웹 범위 | 근거 |
 |---|---|---|
-| M0 | 없음. `cap-web` 스캐폴드(`package.json`의 `xeon` 필드, 빈 `src/index.ts`)는 이미 있다 | `_research/foundation-plan.md` §5 P4 M0 |
+| M0 | 없음. `cap-web` 스캐폴드(`package.json`의 `fresnel` 필드, 빈 `src/index.ts`)는 이미 있다 | `_research/foundation-plan.md` §5 P4 M0 |
 | M1 | 없음. 웹은 M1 걸어 다니는 골격 범위 밖이다 | `product.scope.spec` §4.3 M1, `_research/foundation-plan.md` §5 P4 "L2 웹·MCP는 스캐폴드까지만" |
 | M2 전반 | 공통 웹 계약(B2~B5), `web.fetch`(B6), `web.search` 단계 구성(B7~B9), 설정 키(B11) | `product.scope.spec` §4.1 I10, §4.4 M2 종료 조건 |
 | M3 초입 [결정] | `web.browse` playwright-core provider(B10) | 아래 1.2, review.m2-plan §8 D4 |
@@ -47,7 +47,7 @@ binds: [xeon/packages/cap-web/**]
 | 선택 엔진 플러그인(Stagehand, moli) | 보류 | — | `_research/layer-plan-v2.json` L2-c |
 | Lightpanda | 제외 | AGPL이라 배포판에서 뺀다 | 같음 |
 
-- 플러그인 패키지는 `xeon/plugins/web-<이름>/`에 둔다. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 각 패키지의 `package.json`은 `"xeon": { "layer": "L1", "domain": "web" }`이고 F(`@fresnel/contracts`), X, L0, 외부 패키지만 import한다. `cap-web`과 `core-*`는 import하지 않는다(DR-02, DR-09). 확장 매니페스트의 `layer: "plugin"`(`F.extensions.spec` `ExtensionLayerSchema`)은 매니페스트 값이고 패키지 순위와 별개다. [제안] `_routing/routes.yaml` `layout.plugins`에 `{ path: "xeon/plugins/web-*/**", docs: [L2.web.spec] }` 행을 더하도록 요청한다.
+- 플러그인 패키지는 `xeon/plugins/web-<이름>/`에 둔다. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 각 패키지의 `package.json`은 `"fresnel": { "layer": "L1", "domain": "web" }`이고 F(`@fresnel/contracts`), X, L0, 외부 패키지만 import한다. `cap-web`과 `core-*`는 import하지 않는다(DR-02, DR-09). 확장 매니페스트의 `layer: "plugin"`(`F.extensions.spec` `ExtensionLayerSchema`)은 매니페스트 값이고 패키지 순위와 별개다. [제안] `_routing/routes.yaml` `layout.plugins`에 `{ path: "xeon/plugins/web-*/**", docs: [L2.web.spec] }` 행을 더하도록 요청한다.
 - 플러그인은 배포판에 기본 포함하되 기본 꺼짐으로 둘지, 별도 설치로 둘지는 [미결]이다(§7 위험 표, `L2.web.spec` §10).
 
 ## 2. 패키지와 파일 배치
@@ -61,7 +61,7 @@ xeon/packages/contracts/src/capabilities/
   defs/web-provider.ts        # B1: WebProviderManifest, provider 인터페이스, GuardedHttp
 
 xeon/packages/cap-web/
-  package.json                # "xeon": { "layer": "L2", "domain": "web" }
+  package.json                # "fresnel": { "layer": "L2", "domain": "web" }
   src/
     index.ts                  # 엔트리: manifest, apply(ctx)
     manifest.ts               # provides: web.search, web.fetch, web.browse (research는 2차)

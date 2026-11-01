@@ -1,4 +1,4 @@
-# Xeon 문서 라우팅 표. 사람용 설명은 README.md.
+# Fresnel 문서 라우팅 표. 사람용 설명은 README.md.
 # 해석기: xeon/scripts/docs-route.ts (P3에서 구현).
 # 규칙: 작업 유형 묶음 + 코드 경로가 맞는 문서(binds) + 그 문서의 depends_on 한 단계.
 
@@ -24,7 +24,7 @@ by_task:
     - F.extensions.spec
   docs:               # 문서를 쓰거나 고치는 작업
     - fresnel.templates
-    - xeon.readme
+    - fresnel.readme
   review:             # 정합성 검토. 코드 리뷰는 implement와 함께 지정한다
     - architecture.layers.spec
     - eng.dependency-rules.guide
@@ -74,7 +74,7 @@ layout:
       release: "xeon/scripts/release*"
       # 도메인 밖의 릴리즈 경로 두 개(층 수준 하위 경로, L4.release.spec binds)
       release-bundle: "xeon/scripts/release-bundle.json"
-      release-workflow: ".github/workflows/xeon-release.yml"
+      release-workflow: ".github/workflows/fresnel-release.yml"
       # 데스크톱 화면 구성과 UX(M4). 화면 렌더러 경로이고 desktop binds 안에 들어간다
       desktop-ux: "xeon/apps/desktop/src/views/**"
   plugins:
@@ -131,7 +131,7 @@ layout:
       oxfmt-config: "xeon/.oxfmtrc.json"
       lefthook: "xeon/lefthook.yml"
       justfile: "xeon/justfile"
-      ci-workflow: ".github/workflows/xeon-ci.yml"
+      ci-workflow: ".github/workflows/fresnel-ci.yml"
       ts-sources: "xeon/**/*.ts"
       tsx-sources: "xeon/**/*.tsx"
       test-files: "xeon/**/*.test.ts"
@@ -179,7 +179,7 @@ manifest:
     - adr.0011   # MCP stdio 서버는 M2에서 샌드박스 없이 사용자 권한으로 실행
     - adr.0012   # 실행 속도를 앱 크기보다 우선
     - adr.0013   # post.when = next는 붙기만 하고 aside는 L1·CLI 입력 전용
-    - adr.0014   # 엔진 바이너리는 단일 xeon
+    - adr.0014   # 엔진 바이너리는 단일 fresnel
     - adr.0015   # 재실행되는 확장 코드의 효과 목록: 선언형 허용(C안)
     - adr.0016   # 다국어와 로케일: FormatJS, ICU, ko·en
     - adr.0017   # 확장 지점 개정: 자체 이름, collect, 실패 정책 표, 수명주기·가드레일 지점, pi 어댑터 없음

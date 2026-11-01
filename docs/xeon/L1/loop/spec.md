@@ -57,11 +57,11 @@ binds: [xeon/packages/core-loop/**]
 | 게이트 계속 | 정착 후보 단계에서 boundary 지점의 `continue`가 만든 추가 요청 |
 | 안전 경계 | 단계 경계. `stopAtSafeBoundary`가 멈추는 위치 |
 
-### 2.1 Xeon turn/step과 pi 이름
+### 2.1 Fresnel turn/step과 pi 이름
 
 `F.conversation.spec` §2.1, `F.extensions.spec` §2를 그대로 따른다. `AgentEvent` 변형 이름은 pi와 같게 두었다(adr.0009 §3.2).
 
-| Xeon | pi agent-core(참고) | 자체 루프 단계 | 지점 이름 |
+| Fresnel | pi agent-core(참고) | 자체 루프 단계 | 지점 이름 |
 |---|---|---|---|
 | turn 시작 | run 시작, `agent_start` | `runTurn` 시작 | `input.agent.before`(시작 전), `boundary.turn.before` |
 | step 시작 | `turn_start` | `openStep`(S1 뒤) | `boundary.step.before` |
@@ -368,7 +368,7 @@ export interface BoundAgentEventMapper extends AgentEventMapper {
 | T6 turn 끝 | 단계 반복이 끝나고 turn 노드의 소유 작업 정착 뒤 | `turn.completed{status, stepCount, usage, error}` | `turn:<turnId>:end` | 없음 |
 | 취소 의도 | `fresnel.tasks.abort`가 turn 노드의 `abortIntent`로 부른다 | `turn.abort_requested`(FR-T2) | `abort:<turnId>` | 없음 |
 
-- [결정] `boundary.step.after`(Xeon step 끝)에서 `step.completed`와 `checkpoint.step`을 한 커밋(FULL)에 넣는다(`F.conversation.spec` §3.5.4 `boundary.step.after` 행, `F.records.spec` §4.2 1항). T4가 그 커밋이고 같은 경계의 나머지 쓰기(boundary 엔트리, 배치)도 같은 커밋에 넣는다(TX-08).
+- [결정] `boundary.step.after`(Fresnel step 끝)에서 `step.completed`와 `checkpoint.step`을 한 커밋(FULL)에 넣는다(`F.conversation.spec` §3.5.4 `boundary.step.after` 행, `F.records.spec` §4.2 1항). T4가 그 커밋이고 같은 경계의 나머지 쓰기(boundary 엔트리, 배치)도 같은 커밋에 넣는다(TX-08).
 - [제안] T3에 `next: "tools"` 체크포인트를 함께 쓴다. `F.records.spec` §3.6은 체크포인트를 "단계 경계마다 `step.completed`와 같은 커밋"으로 적었다. 도구 단계에서 끊긴 재개(§4.5 `tools` 행)를 위해 T3에도 쓰도록 F 확인을 요청한다(FR-L3). T3 체크포인트의 `leafEventId`는 같은 커밋의 assistant `item.recorded`다.
 - [결정] 입력 item을 먼저 기록한 뒤 `turn.started`를 쓴다(`F.conversation.spec` §3.5.4 첫 행). T1 커밋 안에서 순서가 그렇다.
 - 사용자 입력이 유휴 thread에 들어오면 `input.queued`(L1.tasks) 커밋과 T1이 두 커밋이 된다. `eng.transactions.design` §4.1 C1은 한 커밋으로 적었다. 두 커밋 사이에 끊기면 입력은 queued로 남고 다음 turn 시작에서 배치되므로 결과는 같다 [제안]. 한 커밋으로 합칠지는 §10에 둔다.
@@ -639,9 +639,9 @@ runTurn(req: LoopTurnRequest):
 ### 4.11 입출력 가드레일
 
 - [결정: adr.0017 §3.6, M3-REQ-109] 가드 지점은 값을 바꾸지 못하고 차단만 하며(`GuardDecision`), 핸들러 예외와 디스패처 실패도 차단이다(fail-closed). 내장 검사는 없다. 차단 사유는 대화 기록에 남는다.
-  - `guard.model.before`: 모델 요청 직전, `request.provider.before` 체인이 끝난 최종 페이로드로 발화한다. 차단이면 요청을 보내지 않고 오류 응답(`stopReason: "error"`, `[xeon:denied_by_guard] <사유>`)으로 끝난다. 발화 위치는 core-models(`L1.models.spec` §4.3 5b)다.
-  - `guard.tool.before`: core-tools 파이프라인이 정책·승인 뒤, `effect.intent` 전에 발화한다(`L1.tools.spec` §4.2 5c2). 차단이면 도구를 실행하지 않고 `[xeon:denied_by_guard]` 결과를 모델에 돌려준다.
-  - `guard.output.before`: 도구 호출 없이 turn을 끝내는 어시스턴트 답을 `boundary.message.after` 체인 뒤, 표시와 기록 전에 `target: "display"`로 보인다(`loop/guard-output.ts`). 차단이면 텍스트 블록을 `[xeon:withheld_by_guard] <사유>` 한 줄로 바꾼 메시지가 표시되고 `item.recorded`로 남는다. 스트리밍 중 부분 출력(`message_update`)에는 걸지 않는다 [제안]: 이미 나간 조각은 막을 수 없고, 최종 답에서 막는다.
+  - `guard.model.before`: 모델 요청 직전, `request.provider.before` 체인이 끝난 최종 페이로드로 발화한다. 차단이면 요청을 보내지 않고 오류 응답(`stopReason: "error"`, `[fresnel:denied_by_guard] <사유>`)으로 끝난다. 발화 위치는 core-models(`L1.models.spec` §4.3 5b)다.
+  - `guard.tool.before`: core-tools 파이프라인이 정책·승인 뒤, `effect.intent` 전에 발화한다(`L1.tools.spec` §4.2 5c2). 차단이면 도구를 실행하지 않고 `[fresnel:denied_by_guard]` 결과를 모델에 돌려준다.
+  - `guard.output.before`: 도구 호출 없이 turn을 끝내는 어시스턴트 답을 `boundary.message.after` 체인 뒤, 표시와 기록 전에 `target: "display"`로 보인다(`loop/guard-output.ts`). 차단이면 텍스트 블록을 `[fresnel:withheld_by_guard] <사유>` 한 줄로 바꾼 메시지가 표시되고 `item.recorded`로 남는다. 스트리밍 중 부분 출력(`message_update`)에는 걸지 않는다 [제안]: 이미 나간 조각은 막을 수 없고, 최종 답에서 막는다.
   - `target: "execution"`(출력을 실행에 넘기는 경로)은 `guardExecution`이 발화한다 [결정: M3b B2-ART]. 산출물 적용 직전(L2 artifacts)에 L2가 부른다. 차단이면 `blocked`와 사유를 돌려주고, 핸들러 예외와 디스패치 실패도 `blocked`다(fail-closed). 호출자는 실행하지 않는다.
 - (보류 부분) 계획 v2 L1-b "입출력 가드레일"의 신뢰 경계 조건(신뢰할 수 없는 사용자를 받는 배포)은 정하지 않았다. 아래는 이전 초안이다.
 - [제안] 자리와 이름만 둔다. 가드레일은 플러그인으로 두고, 확장 이름 `guardrail`을 예약한다(X.loading-trust.spec 예약 이름 목록 요청). 차단 지점 후보는 `input`(chain, `handled`), `tool.call.before`(first, `block`), `boundary.message.after`(chain)다. core-loop는 이 플러그인을 위해 따로 바꾸는 것이 없다.
@@ -740,7 +740,7 @@ runChildTurn(req):
 
 - tap은 커밋 뒤에 실행한다. chain·first 결과는 커밋 전에 받아 커밋에 넣는다(`eng.transactions.design` §4.1 확장 기여).
 - `HandlerContext.signal`은 turn 범위 노드의 신호다.
-- `boundary.step.before`, `boundary.step.after`는 Xeon step 경계에서 발화한다(§2.1).
+- `boundary.step.before`, `boundary.step.after`는 Fresnel step 경계에서 발화한다(§2.1).
 - 재생: 커밋 전에 끊기면 같은 지점이 같은 페이로드로 다시 발화한다. 커밋된 결과(T3 메시지, T4 엔트리)가 있으면 다시 발화하지 않는다.
 - post: `post`의 큐 처리는 L1.tasks. loop는 배치만 소비한다(§4.4). drive: §4.8. scope: 토글 적용 시점은 단계 경계, 곧 T4 뒤이고 다음 단계의 `openStep`이 도구 광고를 다시 받는다(§4.2 규칙 3).
 

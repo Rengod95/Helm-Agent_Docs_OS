@@ -36,7 +36,7 @@ describe("meta writes (spec §3.2)", () => {
     expect(entry).toEqual({ kind: "ok", name: nameOf("github-token"), meta });
     const list = await metas.list();
     expect(list.map((e) => e.kind)).toEqual(["ok"]);
-    expect((await readFile(path, "utf8")).startsWith("# Xeon")).toBe(true);
+    expect((await readFile(path, "utf8")).startsWith("# Fresnel")).toBe(true);
     expect(serializeMeta(meta)).toBe(await readFile(path, "utf8"));
   });
 

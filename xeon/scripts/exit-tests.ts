@@ -182,27 +182,27 @@ async function runBunTest(
  * Builds the sidecar for this machine when it is missing, so the e2e tests never skip on a missing binary. Runs alone, before any
  * test line. undefined when the binary is there afterwards, otherwise the reason.
  */
-async function ensureSidecar(xeonRoot: string): Promise<string | undefined> {
-  const configFile = join(xeonRoot, SIDECAR_PACKAGE, "sidecar.json");
+async function ensureSidecar(fresnelRoot: string): Promise<string | undefined> {
+  const configFile = join(fresnelRoot, SIDECAR_PACKAGE, "sidecar.json");
   const config = parseSidecarConfig(existsSync(configFile) ? readFileSync(configFile, "utf8") : "");
   if (!config.ok) return `${configFile} is not a valid sidecar config`;
   const relative = sidecarBinaryPath(config.value.name, process.platform, process.arch);
   if (relative === undefined) return `no sidecar target for ${process.platform}/${process.arch}`;
-  if (existsSync(join(xeonRoot, relative))) return undefined;
+  if (existsSync(join(fresnelRoot, relative))) return undefined;
   process.stdout.write(
     `exit-tests: ${relative} is missing, building it (just desktop-sidecar host)\n`,
   );
   try {
     const child = Bun.spawn(
-      [process.execPath, join(xeonRoot, "scripts", "build-sidecar.ts"), "host"],
-      { cwd: xeonRoot, stdout: "inherit", stderr: "inherit" },
+      [process.execPath, join(fresnelRoot, "scripts", "build-sidecar.ts"), "host"],
+      { cwd: fresnelRoot, stdout: "inherit", stderr: "inherit" },
     );
     const code = await child.exited;
     if (code !== 0) return `build-sidecar exited ${String(code)}`;
   } catch (cause) {
     return cause instanceof Error ? cause.message : String(cause);
   }
-  return existsSync(join(xeonRoot, relative)) ? undefined : `${relative} was not produced`;
+  return existsSync(join(fresnelRoot, relative)) ? undefined : `${relative} was not produced`;
 }
 
 if (import.meta.main) {
@@ -210,9 +210,9 @@ if (import.meta.main) {
     args: Bun.argv.slice(2),
     options: { list: { type: "string" } },
   });
-  const xeonRoot = resolve(import.meta.dir, "..");
+  const fresnelRoot = resolve(import.meta.dir, "..");
   const listFile = resolve(values.list ?? join(import.meta.dir, "exit-tests.txt"));
-  const guard = resolve(xeonRoot, "..", "scripts", "guard.sh");
+  const guard = resolve(fresnelRoot, "..", "scripts", "guard.sh");
   if (!existsSync(guard)) {
     process.stderr.write(`exit-tests: ${guard} is missing (ws repo adopt copies it)\n`);
     process.exit(2);
@@ -223,7 +223,7 @@ if (import.meta.main) {
     process.exit(1);
   }
   if (needsSidecar(parsed.value)) {
-    const failure = await ensureSidecar(xeonRoot);
+    const failure = await ensureSidecar(fresnelRoot);
     if (failure !== undefined) {
       process.stderr.write(
         `exit-tests: the sidecar binary is missing and could not be built: ${failure}\n`,
@@ -232,7 +232,7 @@ if (import.meta.main) {
     }
   }
   const runOne = async (entry: ExitEntry): Promise<Verdict> => {
-    const packageDir = join(xeonRoot, entry.dir);
+    const packageDir = join(fresnelRoot, entry.dir);
     const matched = existsSync(packageDir) ? matchFiles(packageDir, entry.files) : [];
     let run: { exitCode: number; output: string } | undefined;
     if (matched.length > 0) {

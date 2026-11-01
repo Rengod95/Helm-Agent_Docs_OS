@@ -453,11 +453,14 @@ export function createPipeline(
       });
       const decision = outcome.decision;
       if (decision === undefined) return undefined;
-      return denied(`[xeon:denied_by_extension] ${decision.reason}`, decision.terminate === true);
+      return denied(
+        `[fresnel:denied_by_extension] ${decision.reason}`,
+        decision.terminate === true,
+      );
     } catch (error) {
       // 디스패처 자체의 실패도 거부다(fail-closed, L1.tools.spec §5 사례 3)
       warn("tools.tool_call_dispatch_failed", { toolCallId, message: messageOf(error) });
-      return denied(`[xeon:denied_by_extension] ${FIRST_DENY["tool.call.before"].reason}`);
+      return denied(`[fresnel:denied_by_extension] ${FIRST_DENY["tool.call.before"].reason}`);
     }
   }
 
@@ -475,10 +478,10 @@ export function createPipeline(
       });
       const decision = outcome.decision;
       if (decision === undefined) return undefined;
-      return denied(`[xeon:denied_by_guard] ${decision.reason}`);
+      return denied(`[fresnel:denied_by_guard] ${decision.reason}`);
     } catch (error) {
       warn("tools.guard_dispatch_failed", { toolCallId, message: messageOf(error) });
-      return denied(`[xeon:denied_by_guard] ${FIRST_DENY["guard.tool.before"].reason}`);
+      return denied(`[fresnel:denied_by_guard] ${FIRST_DENY["guard.tool.before"].reason}`);
     }
   }
 
@@ -525,7 +528,7 @@ export function createPipeline(
           );
     if (decision.effect === "deny") {
       return denied(
-        decision.message ?? `[xeon:denied_by_policy] Tool call "${entry.name}" is denied.`,
+        decision.message ?? `[fresnel:denied_by_policy] Tool call "${entry.name}" is denied.`,
       );
     }
     if (decision.effect === "allow") return undefined;
@@ -594,7 +597,7 @@ export function createPipeline(
     };
     const answered = await approvals.request(request, signal);
     if (!answered.ok) {
-      return denied(`[xeon:tools.commit_failed] ${describeFailure(answered.error)}`);
+      return denied(`[fresnel:tools.commit_failed] ${describeFailure(answered.error)}`);
     }
     const resolution = answered.value;
     if (resolution.decision === "allow") {
@@ -676,7 +679,7 @@ export function createPipeline(
       intentRequest(kit, { run, key: state.key, intent }),
     );
     if (!committed.ok) {
-      return denied(`[xeon:tools.commit_failed] ${describeFailure(committed.failure)}`);
+      return denied(`[fresnel:tools.commit_failed] ${describeFailure(committed.failure)}`);
     }
     if (!committed.result.replayed) {
       state.intent = { effectId: intent.effectId, itemId: intent.itemId };
@@ -685,11 +688,11 @@ export function createPipeline(
     // 같은 키의 의도가 이미 커밋되어 있었다. 저장된 효과의 id를 이어 쓴다
     const open = deps.session.query.openEffects(run.threadId);
     if (!open.ok) {
-      return denied(`[xeon:tools.commit_failed] session read failed: ${open.error.kind}`);
+      return denied(`[fresnel:tools.commit_failed] session read failed: ${open.error.kind}`);
     }
     const stored = open.value.find((effect) => effect.toolCallId === toolCallId);
     if (stored === undefined) {
-      return denied("[xeon:tools.commit_failed] the stored effect.intent is already settled");
+      return denied("[fresnel:tools.commit_failed] the stored effect.intent is already settled");
     }
     state.intent = { effectId: stored.effectId, itemId: intent.itemId };
     return undefined;
@@ -809,7 +812,7 @@ export function createPipeline(
 
     const entry = registry.get(call.name);
     if (entry === undefined) {
-      return settle(`[xeon:tool_unavailable] Tool ${call.name} is not available.`);
+      return settle(`[fresnel:tool_unavailable] Tool ${call.name} is not available.`);
     }
     const checked = validateToolArguments(entry.parameters, call);
     if (!checked.ok) return settle(checked.error.message);
@@ -846,7 +849,7 @@ export function createPipeline(
         throw error;
       }
       deps.logger?.error("tools.before_failed", { toolCallId: call.id, message: messageOf(error) });
-      verdict = denied("[xeon:tools.internal_error] The tool call could not be prepared.");
+      verdict = denied("[fresnel:tools.internal_error] The tool call could not be prepared.");
     }
     if (verdict !== undefined) {
       forget(state);
@@ -862,7 +865,7 @@ export function createPipeline(
 
     const argsPayload = inlineOrBlob(state.args);
     if (argsPayload === undefined) {
-      return denied("[xeon:tools.commit_failed] the tool arguments could not be stored");
+      return denied("[fresnel:tools.commit_failed] the tool arguments could not be stored");
     }
     const argsHash = await argsHashOf(state.args);
     const verdict = await decide(state, argsPayload, argsHash, signal);
@@ -872,7 +875,7 @@ export function createPipeline(
     const guardVerdict = await dispatchGuard(state, signal);
     if (guardVerdict !== undefined) return guardVerdict;
     // 의도를 쓰기 전에 중단을 확인한다. 의도가 있는 호출은 실행 전이라도 settleRejected가 효과 결과로 닫아야 한다
-    if (signal.aborted) return denied("[xeon:aborted] Operation aborted");
+    if (signal.aborted) return denied("[fresnel:aborted] Operation aborted");
     return commitIntent(state, argsPayload, argsHash);
   }
 
@@ -901,7 +904,7 @@ export function createPipeline(
     );
     if (!exec.ok) {
       return notExecuted(
-        `[xeon:tools.commit_failed] ${describeFailure(exec.failure)}`,
+        `[fresnel:tools.commit_failed] ${describeFailure(exec.failure)}`,
         "tools.commit_failed",
       );
     }
@@ -1176,7 +1179,7 @@ export function createPipeline(
     );
     if (!committed.ok) {
       // 결과를 커밋하지 못하면 메모리에만 두고 run을 멈춘다. 재개 때 의도와 실행 표시만 남은 효과가 된다(§5 사례 7)
-      const text = `[xeon:tools.commit_failed] ${describeFailure(committed.failure)}`;
+      const text = `[fresnel:tools.commit_failed] ${describeFailure(committed.failure)}`;
       forget(state);
       const failed: AgentToolResult = {
         content: [{ type: "text", text }],
@@ -1252,7 +1255,7 @@ export function createPipeline(
       const failed = await recordWithoutEffect(run, call, {
         state: "executed",
         result: rejectedResult(
-          "[xeon:tools.internal_error] The tool result could not be recorded.",
+          "[fresnel:tools.internal_error] The tool result could not be recorded.",
           true,
         ),
       });
@@ -1323,7 +1326,7 @@ export function createPipeline(
     try {
       if (args === undefined) {
         const lost = errorOutcome(
-          "[xeon:tools.args_unavailable] The stored arguments of this tool call cannot be read.",
+          "[fresnel:tools.args_unavailable] The stored arguments of this tool call cannot be read.",
           { code: "tools.args_unavailable" },
         );
         const finished = await finishCall(state, lost.result, true, {
@@ -1407,7 +1410,7 @@ export function createPipeline(
     const entry = registry.get(USER_SHELL_TOOL);
     if (entry === undefined) {
       return userShellFailure(
-        `[xeon:tool_unavailable] Tool ${USER_SHELL_TOOL} is not available.`,
+        `[fresnel:tool_unavailable] Tool ${USER_SHELL_TOOL} is not available.`,
         "tool_unavailable",
       );
     }

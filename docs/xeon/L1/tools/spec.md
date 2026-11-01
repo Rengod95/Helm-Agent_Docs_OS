@@ -661,7 +661,7 @@ export interface ToolsError { readonly kind: ToolsErrorCode; readonly message: s
 
 - `tools.intent_missing`은 버그로 보고 예외를 던진다(eng.typescript.guide TY-11). 등록 충돌은 `register`가 `ToolRegisterError { kind: "name_conflict", toolName }` 값으로 돌려준다. 나머지도 값으로 돌려준다.
 - 승인 요청 이벤트의 커밋 실패는 `ApprovalService.request`가 `ApprovalRequestError`(`store` | `rejected` | `key_reused`) 값으로 돌려준다. 파이프라인 안에서는 호출을 `tools.commit_failed`로 거부한다. 이벤트 읽기 실패(`restore`, `rerun`의 효과 상태 읽기)는 `ReadFailure` 값이다.
-- 모델에 보이는 거부·오류 문장은 영어로 둔다. 형식은 `"[xeon:<code>] <message>"`이고 F.capabilities.spec §4.2 규칙 5의 `"[<code>] <message>"`와 같은 꼴이다.
+- 모델에 보이는 거부·오류 문장은 영어로 둔다. 형식은 `"[fresnel:<code>] <message>"`이고 F.capabilities.spec §4.2 규칙 5의 `"[<code>] <message>"`와 같은 꼴이다.
 
 ### 3.9 이벤트
 
@@ -726,15 +726,15 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | # | 단계 | 위치 | 실패 처리 |
 |---|---|---|---|
 | 1 | `tool.execution.before` 발화(tap) | `prepare` 첫 단계 | 기록 후 계속 |
-| 2 | 도구 이름 해석 | `prepare`. 원본 agent-loop.ts:716-722 | 없으면 `[xeon:tool_unavailable]` 오류 결과(`settled`) |
+| 2 | 도구 이름 해석 | `prepare`. 원본 agent-loop.ts:716-722 | 없으면 `[fresnel:tool_unavailable]` 오류 결과(`settled`) |
 | 3 | 인자 준비 | 없다. 도구별 `prepareArguments`는 F `AgentTool`에서 뺐다(F.conversation.spec §3.1.1) | — |
 | 4 | 스키마 검증 `validateToolArguments` | `prepare`. core-tools `validate.ts`가 pi-ai 1.3.0 `validateToolArguments`의 TypeBox 경로(argumentsError 확인, 사본, 선택 null 제거, `Value.Convert`, 스키마 검사)를 옮겼다. TypeBox 표지가 없는 순수 JSON Schema(MCP)의 `coerceWithJsonSchema` 경로는 옮기지 않았다(M2 cap-mcp에서 더한다) | 예외 대신 `settled` 오류 결과로 모델에 돌아간다 |
 | 5a | `tool.call.before` 지점(first) | `prepare` | 핸들러 예외는 `FIRST_DENY.tool_call`로 거부(fail-closed). 디스패처 자체 예외도 거부 |
 | 5b | 정책 평가 `evaluatePolicy`. 자식 대화(`ceiling` 있음)는 §4.5 ceiling 단계 적용 | `prepare` | deny는 `settled` |
 | 5c | 승인 대기(ask일 때) | `prepare`. `ApprovalService.request` | deny·cancelled는 `settled` |
-| 5c2 | `guard.tool.before` 지점(first) [M3-REQ-109] | `prepare`. 정책·승인(비밀 사용 승인 포함)을 모두 통과한 호출만 온다. 의도를 쓰기 전이다 | 핸들러 `{ block: true, reason }`는 `settled`(`[xeon:denied_by_guard] <reason>`)이고 효과 이벤트가 없다. 핸들러·디스패처 예외도 거부(fail-closed, `FIRST_DENY["guard.tool.before"]`). 내장 검사는 없다. 페이로드는 5a와 같은 `ToolCallPayload`다 |
-| 5d | 중단 확인 | `prepare`. 의도를 쓰기 전에 turn 신호를 본다 | 중단이면 `settled`(`[xeon:aborted]`) |
-| 6 | `effect.intent` 커밋 | `prepare`의 끝 | 커밋 실패는 `settled`(`[xeon:tools.commit_failed] …`) |
+| 5c2 | `guard.tool.before` 지점(first) [M3-REQ-109] | `prepare`. 정책·승인(비밀 사용 승인 포함)을 모두 통과한 호출만 온다. 의도를 쓰기 전이다 | 핸들러 `{ block: true, reason }`는 `settled`(`[fresnel:denied_by_guard] <reason>`)이고 효과 이벤트가 없다. 핸들러·디스패처 예외도 거부(fail-closed, `FIRST_DENY["guard.tool.before"]`). 내장 검사는 없다. 페이로드는 5a와 같은 `ToolCallPayload`다 |
+| 5d | 중단 확인 | `prepare`. 의도를 쓰기 전에 turn 신호를 본다 | 중단이면 `settled`(`[fresnel:aborted]`) |
+| 6 | `effect.intent` 커밋 | `prepare`의 끝 | 커밋 실패는 `settled`(`[fresnel:tools.commit_failed] …`) |
 | 7a | tool 범위 노드 열기: `fresnel.tasks.find("turn", run.turnId)`로 turn 노드를 찾고 `openScope(turn, { kind: "tool", id: toolCallId })`(L1.tasks.spec §4.1) | `execute` 진입 | 의도가 없으면 `tools.intent_missing`(호출 순서 위반, Bug). turn 노드가 `aborting`이면 신호가 켜진 노드를 받고 중단 결과로 끝난다 |
 | 7b | 잠금 키 산출: 도구의 잠금 선언(`ToolSpec.locks`, L1.tasks.spec FR-T6)이 낸 경로마다 `fresnel.exec`의 `canonicalPath`로 정규 경로를 얻어 키 `${env.id}\0${realpath}`를 만든다. 없는 파일은 부모 정규 경로 + 이름이다. 읽기 도구(`hints.readOnly`)는 `shared`, 그 밖은 `exclusive`다 | 같은 자리 | 잠금 선언이 없으면 키 큐를 쓰지 않는다. 경로 해석 실패는 `invalid_input` 오류 결과다 [제안] |
 | 7c | 키 잠금 뒤 `tools` 풀 슬롯 획득: `fresnel.tasks.locks.run(keys, toolNode, () => limiter("tools").acquire(toolNode) …)`. 순서는 L1.tasks.spec §4.5 C3(키 먼저, 슬롯 나중)이다. 잠금 선언이 없는 호출도 슬롯은 얻는다. 실행이 끝나면 슬롯을 놓는다(M2 구현 완료) | 같은 자리 | 대기 중 취소는 `[aborted]` 중단 결과이고 `effect.exec` 전이므로 재개 판정은 `not_started`다 |
@@ -778,11 +778,11 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 - `label`, `executionMode`, `outputSchema`는 그대로 옮긴다. `hints`는 `ToolMeta.hints`로 보관하고 위험 등급 유도(§4.6)에 쓴다.
 - `input_required` 출력 변형 [결정: L1A.4]: 판별 필드는 `status: "input_required"`다(L2.dialog `ask`, L2.work `submit`, L2.mcp `callTool`의 출력 변형이 모두 이 필드를 쓴다). 어댑터는 메서드 출력을 렌더링하기 전에 이 변형을 본다.
   - `approvalId`가 있으면(도구가 자기 승인을 이미 올렸다. dialog, work) 어댑터는 그 승인의 해결을 기다린다. 해결이 기록되면 같은 입력, 같은 `requestId`로 메서드를 다시 부른다. 도구는 같은 `requestId`의 재호출에서 저장된 답으로 완료 결과를 낸다(L2.dialog.spec §4.1.2 6번). 대기하는 동안 호출의 `effect.intent`와 `effect.exec`는 커밋되어 있고 `effect.result`는 없다. 한 효과에 provider 호출이 여러 번 있는 셈이다.
-  - 대기는 호출 신호를 따른다. turn이 취소되면 그 승인을 `cancelled`로 닫고(§4.7 8번) 호출은 `[aborted]` 중단 결과가 된다. 승인이 이 프로세스의 메모리에 없으면 `[xeon:approval_unknown]` 오류 결과다.
-  - 같은 호출에서 `input_required`를 이어 받는 횟수는 8번까지다. 해결된 승인을 되풀이해 가리키는 도구가 무한히 도는 것을 막고, 넘으면 `[xeon:input_required_loop]` 오류 결과다.
+  - 대기는 호출 신호를 따른다. turn이 취소되면 그 승인을 `cancelled`로 닫고(§4.7 8번) 호출은 `[aborted]` 중단 결과가 된다. 승인이 이 프로세스의 메모리에 없으면 `[fresnel:approval_unknown]` 오류 결과다.
+  - 같은 호출에서 `input_required`를 이어 받는 횟수는 8번까지다. 해결된 승인을 되풀이해 가리키는 도구가 무한히 도는 것을 막고, 넘으면 `[fresnel:input_required_loop]` 오류 결과다.
   - `approvalId`가 없는 변형(L2.mcp의 `inputRequests`와 `requestState`)은 D5(a)대로 어댑터가 질문 승인으로 올린다 [결정: L1F]. 출력이 F `McpInputRequiredSchema`에 맞으면 `planMcpQuestionBody`로 질문 묶음을 만들고 kind `question` 승인을 비차단으로 연다(`ApprovalService.open`). 요청 키는 `mcp:<toolCallId 해시 32자>#r<round>`를 `requestKeyFor`로 줄인 값이라 라운드마다 다른 요청이고, 재시작 뒤 같은 라운드는 기록된 요청을 이어 받는다. 승인과 대기 체크포인트는 한 커밋이다(비대화형이면 요청과 거부 해결이 한 커밋). 해결이 오면 `decodeMcpAnswer`(답)나 `uniformMcpAnswer`(거부는 `decline`, 취소는 `cancel`)로 `inputResponses`를 만들고, 같은 입력과 같은 `requestId`로 메서드를 다시 부르며 `CallOptions.continuation = { round: 이전 라운드 + 1, inputResponses, requestState }`를 싣는다. 구현은 `src/mcp-input.ts`다.
-  - 질문이 4개를 넘거나, 사용자 답이 폼에 맞지 않거나(JSON 폼 파싱 실패 등), 승인 요청 커밋이 실패하면 호출은 `[xeon:input_questions_too_many]`, `[xeon:input_answer_invalid]`, `[xeon:input_request_failed]` 오류 결과로 끝난다. `approvalId`도 MCP 모양도 아닌 `status: "input_required"` 출력은 일반 결과로 흘려 보내지 않고 `[xeon:input_required_invalid]` 오류 결과다.
-  - `DirectToolRegistration`(동적 MCP 서버 도구)은 pi `AgentTool.execute` 시그니처에 연속 정보를 실을 자리가 없어, 선택 필드 `executeWithContinuation`으로 같은 길을 쓴다 [결정: 병합 HOST.6]. 이 필드가 있으면 어댑터는 `tool.execute` 대신 이것을 부른다. 결과가 `status: "input_required"`이면 `details.round`, `details.questions`와 `inputRequired`(`inputRequests`, `requestState`)를 `McpInputRequired`로 읽고, 위와 같은 질문 승인과 재호출(`continuation` 인자)을 한다. 읽을 수 없는 모양은 `[xeon:input_required_invalid]` 오류 결과이고 8라운드 상한도 같다. 구현은 `src/entries.ts`의 `settleDirectInput`과 `src/mcp-input.ts`의 `inputRequestOfResult`다. 필드가 없는 직접 등록 도구는 한 번만 부른다.
+  - 질문이 4개를 넘거나, 사용자 답이 폼에 맞지 않거나(JSON 폼 파싱 실패 등), 승인 요청 커밋이 실패하면 호출은 `[fresnel:input_questions_too_many]`, `[fresnel:input_answer_invalid]`, `[fresnel:input_request_failed]` 오류 결과로 끝난다. `approvalId`도 MCP 모양도 아닌 `status: "input_required"` 출력은 일반 결과로 흘려 보내지 않고 `[fresnel:input_required_invalid]` 오류 결과다.
+  - `DirectToolRegistration`(동적 MCP 서버 도구)은 pi `AgentTool.execute` 시그니처에 연속 정보를 실을 자리가 없어, 선택 필드 `executeWithContinuation`으로 같은 길을 쓴다 [결정: 병합 HOST.6]. 이 필드가 있으면 어댑터는 `tool.execute` 대신 이것을 부른다. 결과가 `status: "input_required"`이면 `details.round`, `details.questions`와 `inputRequired`(`inputRequests`, `requestState`)를 `McpInputRequired`로 읽고, 위와 같은 질문 승인과 재호출(`continuation` 인자)을 한다. 읽을 수 없는 모양은 `[fresnel:input_required_invalid]` 오류 결과이고 8라운드 상한도 같다. 구현은 `src/entries.ts`의 `settleDirectInput`과 `src/mcp-input.ts`의 `inputRequestOfResult`다. 필드가 없는 직접 등록 도구는 한 번만 부른다.
   - 재시작 뒤: 대기 체크포인트(`waiting: "approval"`)와 열린 효과가 남는다. `ask_user`, `submit_plan`은 `replay: "safe"`라 `decideEffectRecovery`가 `rerun`을 내고, `rerun`이 같은 경로로 도구를 다시 부르면 도구는 같은 `requestId`로 기존 승인을 이어 받는다.
 
 ### 4.4 효과 기록
@@ -867,14 +867,14 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 3. 대기: 메모리 대기 목록에 넣고 응답을 기다린다. 대기 중에 도는 프로세스는 없다(architecture.runtime-flow.design §4.5).
 4. 응답: `respond`가 kind별 규칙(§3.6 표)을 검사하고 `approval.resolved`를 커밋한다. 커밋 뒤 대기를 풀고 `thread.prompt.after`를 발화한다. 같은 `approvalId`의 두 번째 응답은 `applied: false`다.
 5. 결과 반영:
-   - tool: allow → 파이프라인 6단계로 간다. deny → `{ block: true, reason }`. 사유 문장은 `"[xeon:denied_by_user] The user denied this tool call."`에 feedback이 있으면 `" Feedback: <feedback>"`를 붙인다.
+   - tool: allow → 파이프라인 6단계로 간다. deny → `{ block: true, reason }`. 사유 문장은 `"[fresnel:denied_by_user] The user denied this tool call."`에 feedback이 있으면 `" Feedback: <feedback>"`를 붙인다.
    - plan: allow이고 `answer.mode`가 있으면 `ToolService.setMode(threadId, mode, "plan_approval")`을 부른다. 계획 도구의 결과 내용은 L2.work.spec이 정한다.
    - question: `QuestionAnswer`를 질문 도구에 돌려준다. 결과 문장은 L2.dialog.spec이 정한다.
 6. 기억 범위:
    - `once`: 이번 호출만.
    - `thread`: 같은 소유 트리 루트 대화가 끝날 때까지 같은 도구·같은 `ruleId`(규칙이 낸 ask) 또는 같은 도구(모드가 낸 ask)의 ask를 allow로 본다. 저장은 `approval.resolved` 이벤트 자체다. core-tools는 재개 때 이 이벤트에서 세션 허용 목록을 다시 만든다.
    - `always`: 파이프라인의 도구 승인은 제안하지 않는다(`remember`는 `["once", "thread"]`). 고르면 새 대화마다 같은 명령을 다시 묻는데 사용자는 항상 허용된 줄 알았기 때문이다(감사 L1-04) [결정: M2 마감 G2-10]. 영구 허용은 사용자 범위 규칙 `l1.tools.rules`의 allow 규칙을 쓴다. 2차 항상 허용 캐시(§4.11)가 들어오면 제안을 되살린다. 제안하지 않은 `always`를 클라이언트가 보내면 `answer_invalid`다. 능력 어댑터가 `always`를 제안하는 요청을 올리면(L2 `remember` 목록은 어댑터가 정한다) 2차 전까지 `thread`로 낮춰 적용하고 `approval.resolved`에 `remember: "thread"`와 `requestedRemember: "always"`를 함께 남긴다. 클라이언트는 이 둘이 다르면 낮춘 사실을 표시한다(아래 동의 표시 요건 6번).
-6b. 만료 [결정: M3-REQ-72, M3-06]: 요청의 `expiresAt`(epoch ms)과 `onExpire`는 `approval.requested`에 기록한다. 주입한 `Scheduler`(없으면 `setTimeout` 기반 대체 `systemScheduler`. 타이머가 없어 무인 turn이 영원히 기다리는 일을 막는다)가 `expiresAt`에 깨어 `expiresAt <= clock.now()`이면 `onExpire`대로 `approval.resolved`를 커밋한다: `deny`(기본) 또는 요청 kind가 받아들이는 `answer`(맞지 않으면 deny). 해결에는 `resolvedBy: "expired"`가 붙고 거부 사유 문장은 `[xeon:approval_expired] …`다. 타이머가 시계보다 일찍 깨면 다시 걸 뿐이다. 응답이 `expiresAt` 뒤에 오면 만료가 먼저라 `already_resolved`다. 재시작 때 `restore`와 같은 `requestKey`의 `open`은 기록된 `expiresAt`을 쓴다: 지난 요청은 바로 해결하고 남은 요청은 처음부터 다시 재지 않는다. 만료 커밋이 실패하거나 던지면 대기로 되돌리고 5초 뒤 다시 시도한다. 만료 시각이 지난 요청은 만료 커밋이 실패해 아직 대기여도 응답을 받지 않는다(`already_resolved`, 만료를 다시 시도한다).
+6b. 만료 [결정: M3-REQ-72, M3-06]: 요청의 `expiresAt`(epoch ms)과 `onExpire`는 `approval.requested`에 기록한다. 주입한 `Scheduler`(없으면 `setTimeout` 기반 대체 `systemScheduler`. 타이머가 없어 무인 turn이 영원히 기다리는 일을 막는다)가 `expiresAt`에 깨어 `expiresAt <= clock.now()`이면 `onExpire`대로 `approval.resolved`를 커밋한다: `deny`(기본) 또는 요청 kind가 받아들이는 `answer`(맞지 않으면 deny). 해결에는 `resolvedBy: "expired"`가 붙고 거부 사유 문장은 `[fresnel:approval_expired] …`다. 타이머가 시계보다 일찍 깨면 다시 걸 뿐이다. 응답이 `expiresAt` 뒤에 오면 만료가 먼저라 `already_resolved`다. 재시작 때 `restore`와 같은 `requestKey`의 `open`은 기록된 `expiresAt`을 쓴다: 지난 요청은 바로 해결하고 남은 요청은 처음부터 다시 재지 않는다. 만료 커밋이 실패하거나 던지면 대기로 되돌리고 5초 뒤 다시 시도한다. 만료 시각이 지난 요청은 만료 커밋이 실패해 아직 대기여도 응답을 받지 않는다(`already_resolved`, 만료를 다시 시도한다).
 6c. 무인 정책 [결정: D-M3-12, M3-REQ-73. 키 이름과 기본 제한 시간은 제안]: 사람이 답할 수 없는(`interactive: false`) **주 대화**(`caller: "main"`, `depth: 0`, 표면 대화가 자기 자신) turn의 승인은 설정 `l1.tools.unattended.approval`을 따른다. `expire`(기본)는 기다리다 `l1.tools.unattended.timeoutSeconds`(기본 3600 [제안])가 지나면 6b로 거부한다(요청에 `expiresAt`이 이미 있으면 그 값이 먼저다). `wait`는 만료 없이 기다린다. `deny`는 7번처럼 바로 거부한다. 정책 평가는 `wait`·`expire`일 때 ask를 거부로 바꾸지 않고 승인 요청으로 보낸다(`interactive` 입력 = `run.interactive || 기다리는 정책`). 서브에이전트 등 주 대화가 아닌 호출은 정책과 관계없이 7번대로 바로 거부한다. print 모드는 사용자 입력이라 대화형이므로 이 정책 밖이다(사전 허용 규칙 적용과 전체 자동 승인 플래그는 L4 몫, D-M3-14).
 7. 비대화형(무인 정책 `deny`이거나 주 대화가 아닌 호출): 정책이 낸 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 7단계). 정책을 지나지 않는 요청은 kind와 관계없이 사람이 없다: 정책이 허용한 뒤 파이프라인이 다시 묻는 비밀 사용 승인(§4.12)과 능력 서비스가 올리는 도구 승인(웹 도메인 승인 등)이 그렇다. 이 요청과 question·plan 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
 8. 취소: 턴 취소(eng.transactions.design §6.2)는 그 턴의 미해결 요청을 `resolvedBy: "cancelled"`로 닫는다. 대기 중이던 도구 호출은 의도가 없으므로 실행되지 않고, 루프는 `not_executed` 합성 결과로 닫는다.
@@ -911,12 +911,12 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 2. 대상: `tool.result` chain(§4.2 9단계)을 거친 최종 결과의 텍스트 파트다. 텍스트 파트를 `"\n"`으로 이어 한 문자열로 재고, 한도 안이면 그대로 둔다. 이미지 파트는 자르지 않는다. 큰 이미지 데이터는 F.records.spec §3.4의 문자열 분리 규칙으로 blob이 된다.
 3. 한도를 넘으면:
    - 원문 전체(이어 붙인 텍스트)를 UTF-8로 `fresnel.store.putBlob(bytes, "text/plain; charset=utf-8")`에 넣는다. 커밋 전, 트랜잭션 밖에서 한다(eng.transactions.design §4.2 `StoreService.putBlob`).
-   - 모델용 내용은 `truncateHead(full, limits).content` 한 파트와 안내 문장 한 파트다. 안내 문장: `"[xeon:output_truncated] Showing the first <outputLines> of <totalLines> lines (<formatSize(outputBytes)> of <formatSize(totalBytes)>). The full output is stored as blob sha256:<hex>."`
+   - 모델용 내용은 `truncateHead(full, limits).content` 한 파트와 안내 문장 한 파트다. 안내 문장: `"[fresnel:output_truncated] Showing the first <outputLines> of <totalLines> lines (<formatSize(outputBytes)> of <formatSize(totalBytes)>). The full output is stored as blob sha256:<hex>."`
    - `effect.result.blobRef`에 그 `BlobRef`를 넣는다. 이벤트에는 해시만 남는다(architecture.runtime-flow.design §5 "큰 도구 출력은 블롭 파일로 저장하고 이벤트에는 해시만").
    - `details`에 `{ truncation: { totalLines, totalBytes, outputLines, outputBytes, truncatedBy } }`를 더한다.
 4. 원문 상한 [제안]: blob 원문이 50 MiB를 넘으면 앞뒤 25 MiB씩만 저장하고 가운데 생략 표시를 둔다(`docs/design/13-tools-and-execution.md` §3.3.2 "전체 출력" 행 참고). 상한 값은 설정하지 않는다.
 5. `outputLimits: "self"` 도구: 스스로 경계화한 도구(예: L2.workspace의 bash가 durable `harness/output.ts` 방식으로 꼬리를 남기는 경우)는 이 단계를 건너뛴다. 그 도구가 낸 `blobRef`는 `details.blobRef`로 받아 `effect.result.blobRef`에 옮긴다.
-6. 모델이 원문을 다시 읽는 도구 [결정: L1A.5]: 내장 도구 `read_tool_output`(순서 키 `core.tools`, 항상 광고, risk `read`, `replay: "safe"`)다. 인자는 `sha256`(64자 hex), `offset`(1부터 시작하는 줄 번호, 기본 1), `limit`(줄 수, 기본 `l1.tools.output.maxLines`)다. 이 대화의 `effect.result.blobRef`로 기록된 해시만 읽는다. 인자 blob이나 다른 대화의 blob은 `[xeon:output_not_found]` 오류 결과다. 결과는 `[xeon:output_page] Lines <a>-<b> of <n> of blob sha256:<hex>.` 머리줄에 이어 읽을 `offset` 안내와 해당 줄들이다. 읽은 결과도 일반 도구 결과처럼 경계화 한도를 받는다. 형식이 틀린 해시는 인자 검증에서 막힌다.
+6. 모델이 원문을 다시 읽는 도구 [결정: L1A.5]: 내장 도구 `read_tool_output`(순서 키 `core.tools`, 항상 광고, risk `read`, `replay: "safe"`)다. 인자는 `sha256`(64자 hex), `offset`(1부터 시작하는 줄 번호, 기본 1), `limit`(줄 수, 기본 `l1.tools.output.maxLines`)다. 이 대화의 `effect.result.blobRef`로 기록된 해시만 읽는다. 인자 blob이나 다른 대화의 blob은 `[fresnel:output_not_found]` 오류 결과다. 결과는 `[fresnel:output_page] Lines <a>-<b> of <n> of blob sha256:<hex>.` 머리줄에 이어 읽을 `offset` 안내와 해당 줄들이다. 읽은 결과도 일반 도구 결과처럼 경계화 한도를 받는다. 형식이 틀린 해시는 인자 검증에서 막힌다.
 7. 꼬리 보존 미리보기(bash처럼 끝부분이 중요한 출력)는 durable 포크에 `truncateTail`이 없어 1차에 두지 않는다. 필요한 도구는 `"self"`로 스스로 처리한다. 공통 꼬리 모드를 둘지는 [미결](§10)이다.
 
 truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `platform-exec`에 둔다. core-tools와 L2.workspace의 read·bash 포크는 같은 함수를 F 서비스 `fresnel.exec`로 부른다. L1과 L2가 구현 패키지를 import하지 않으므로 사본이나 F 순수 함수가 필요 없다 [결정: review.decisions-2 D-08]. adr.0003 §3 표의 `D/src/truncate.ts` 행 위치를 `xeon/packages/platform-exec`로 고치는 일은 §8.4에 적는다.
@@ -955,8 +955,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 - M1 종료 조건의 비밀 항목(`product.scope.spec` §4.4 M1 행: SOPS 비밀 참조 1종을 쓰는 도구 호출에서 값이 이벤트 DB와 모델 요청 본문에 없다)은 위 표대로 나뉜다. L1.tools 몫은 승인·명령 패턴과 2계층 마스킹이다. 주입과 lease는 L0.exec·L0.secrets 몫이다. 세 몫을 한 번에 확인하는 것은 `apps/cli` M1 스모크 시나리오다(L1.tools.plan §6).
 - 비밀 사용 승인 [결정: L1A.4]: 5b 정책과 5c 승인 뒤, 의도 커밋 전에 한다. 도구 인자에 `secretEnv`(env 이름 → `secret://<name>`)가 있는 호출만 대상이다.
-  1. `secretEnv`의 값이 `secret://<name>` 형식이 아니면(`$VAR`, `{{secret:x}}` 같은 남의 구문 포함) `[xeon:invalid_secret_ref]` 거부다. 이 검사는 비밀 인자로 선언된 필드에만 한다(L0.secrets.spec §3.1). `command` 문자열이 없으면 묶을 명령이 없어 거부다.
-  2. 비밀마다 `fresnel.secrets.check`를 모드 `env`, 목적 `bash:<명령 이름>`, 대상 `{ kind: "command", argv0, commandLine }`, 행위자 `agent`, 증거 없이 부른다. 목적 문자열은 cap-workspace의 shell `run`이 lease에 넘기는 값과 같은 규칙이다. `check`가 오류이거나 `deny`면 `[xeon:secret_denied]` 거부다. secrets 서비스가 없으면 `[xeon:secret_unavailable]` 거부다.
+  1. `secretEnv`의 값이 `secret://<name>` 형식이 아니면(`$VAR`, `{{secret:x}}` 같은 남의 구문 포함) `[fresnel:invalid_secret_ref]` 거부다. 이 검사는 비밀 인자로 선언된 필드에만 한다(L0.secrets.spec §3.1). `command` 문자열이 없으면 묶을 명령이 없어 거부다.
+  2. 비밀마다 `fresnel.secrets.check`를 모드 `env`, 목적 `bash:<명령 이름>`, 대상 `{ kind: "command", argv0, commandLine }`, 행위자 `agent`, 증거 없이 부른다. 목적 문자열은 cap-workspace의 shell `run`이 lease에 넘기는 값과 같은 규칙이다. `check`가 오류이거나 `deny`면 `[fresnel:secret_denied]` 거부다. secrets 서비스가 없으면 `[fresnel:secret_unavailable]` 거부다.
   3. 하나라도 `needs_approval`이면 승인 증거(`ApprovalEvidence { approvalId, scope: "per-use", grantedAt, expiresAt: null }`)를 만든다. 이 호출의 정책 승인을 사용자가 방금 허용했으면(`resolvedBy: "user"`) 그 승인이 실행마다의 승인(U-19)이라 같은 `approvalId`를 증거로 쓴다. 규칙이나 모드가 허용했거나 `thread` 기억으로 건너뛴 호출은 사용자가 이 호출을 본 적이 없으므로 비밀 사용을 따로 묻는다: kind `tool`, 규칙 id `secret.use`, 제목에 비밀 참조, `remember: ["once"]`, `requestKey`는 `<toolCallId>:secret`을 `requestKeyFor`로 줄인 값이다. 거부·취소는 §4.7 5번과 같은 거부 문장이다.
   4. 증거는 호출 상태(`RawCall.secretApproval`)에 실리고, 어댑터가 `CallContext.approval`로 도구 구현에 전달한다(§8.3 F 요청 13). cap-workspace의 shell `run`이 이를 `SecretEnvRequest.ctx.approval`에 옮긴다. 증거가 없으면 `fresnel.exec`의 `withEnv`가 `approval_missing`으로 거부한다(fail-closed). `rerun`은 증거를 만들지 않는다.
 - [미결] lease를 부르는 쪽이 문서마다 다르다. L0.exec.spec §3.6은 `fresnel.exec`가 `secretEnv`마다 lease를 얻는다고 적었고, L0.secrets.spec §8.1 제공 표는 L1.tools가 `lease`를 쓴다고 적었다. 이 문서는 L0.exec 쪽을 따른다.
@@ -978,7 +978,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 ## 5. 실패와 경계 사례
 
-1. 모델이 광고하지 않은 도구를 부름(전역 deny로 뺀 도구 포함): `prepare` 2단계는 광고 목록을 다시 보지 않고 등록 표에서 이름을 찾는다. 등록되지 않은 이름이면 `[xeon:tool_unavailable]` 오류 결과(`settled`)다. 등록된 도구면 5a·5b를 지나므로 전역 deny 규칙이 그 호출을 거부한다.
+1. 모델이 광고하지 않은 도구를 부름(전역 deny로 뺀 도구 포함): `prepare` 2단계는 광고 목록을 다시 보지 않고 등록 표에서 이름을 찾는다. 등록되지 않은 이름이면 `[fresnel:tool_unavailable]` 오류 결과(`settled`)다. 등록된 도구면 5a·5b를 지나므로 전역 deny 규칙이 그 호출을 거부한다.
 2. 인자 검증 실패: 예외를 던지지 않고 `isError: true` 도구 결과로 모델에 돌아간다. 효과 이벤트는 없다. 루프는 계속된다(§4.2 4단계, core-tools `validate.ts`).
 3. `tool.call.before` 핸들러 예외 또는 결정 스키마 위반: `FIRST_DENY.tool_call`(`{ block: true, reason: "extension handler failed" }`)로 거부한다(F.extensions.spec §3.5, §5 사례 2). ext-host 디스패치 호출 자체가 실패해도 같은 거부로 본다(fail-closed).
 4. 정책 규칙의 정규식이 잘못됨: 적재 때 그 규칙만 빼고 진단을 남긴다. 평가는 나머지 규칙으로 한다. managed 규칙이 빠지면 설정 화면에 오류 배지를 보인다(L4.settings-ui.spec).
@@ -1123,7 +1123,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 28. `read_tool_output`은 이 대화의 도구 출력 blob을 줄 단위로 돌려준다. 모르는 해시와 도구 출력이 아닌 blob은 오류 결과다.
 29. `runUserShell`은 caller `main`, 대화형으로 평가해 ask를 승인 요청 없이 실행하고 deny는 실행 없이 거부한다. 효과 3단이 남고 toolResult item은 없다.
 30. `tools` 풀 슬롯이 1개이면 두 번째 호출은 첫 호출이 슬롯을 놓은 뒤 시작한다. 대기 중 turn을 취소하면 그 호출에 `effect.exec`가 없다. `suspendWhile` 동안 다른 호출이 슬롯을 쓸 수 있다.
-31. `approvalId`가 없는 `input_required`(MCP)는 질문 승인(kind `question`)이 되고, 답이 `continuation.inputResponses`로 돌아가 같은 `requestId`로 다시 불린다. `requestState`는 바이트 그대로 가고 라운드는 이전 라운드 + 1이다. 거부는 모든 입력 요청에 `decline`, 비대화형은 요청과 거부 해결이 한 커밋이며 `decline`이다. 질문 중 turn 취소는 승인을 `cancelled`로 닫고 서버를 다시 부르지 않는다. 라운드마다 다른 요청 키를 쓴다. 모양이 틀린 변형은 `[xeon:input_required_invalid]` 오류 결과다.
+31. `approvalId`가 없는 `input_required`(MCP)는 질문 승인(kind `question`)이 되고, 답이 `continuation.inputResponses`로 돌아가 같은 `requestId`로 다시 불린다. `requestState`는 바이트 그대로 가고 라운드는 이전 라운드 + 1이다. 거부는 모든 입력 요청에 `decline`, 비대화형은 요청과 거부 해결이 한 커밋이며 `decline`이다. 질문 중 turn 취소는 승인을 `cancelled`로 닫고 서버를 다시 부르지 않는다. 라운드마다 다른 요청 키를 쓴다. 모양이 틀린 변형은 `[fresnel:input_required_invalid]` 오류 결과다.
 32. `secretEnv` 호출의 승인 증거는 `CallContext.approval`로 도구 구현에 전달된다. 증거가 없거나 비대화형이면 필드가 없거나 `interactive: false`다.
 33. 해결된 요청이 `RESOLVED_KEPT`를 넘으면 가장 먼저 해결된 것이 메모리 표에서 빠지고 대기 중인 요청은 남는다. 빠진 요청의 `requestKey`로 다시 `open`하면 새 이벤트 없이 같은 `approvalId`와 저장된 해결을 돌려준다.
 34. 능력 도구(`CallOptions.context`)와 직접 등록 도구(`executeWithContinuation`의 `context`)는 같은 `caller`를 받는다: 주 대화는 `{ kind: "model", agent: "main" }`, 서브에이전트는 `{ kind: "model", agent: "subagent", agentName: <정의 이름> }`이고 `approvalCallerOf`가 각각 `main`, `subagent:<정의 이름>`을 낸다.
