@@ -1,5 +1,5 @@
 // 용어 원본의 타입과 읽기(ADR-0022 §3.1 4번, §3.6, i18n-term-lint 설계 §4). 내용은 `terms.json`이고 사람이 고치는 유일한 곳이다.
-// 한국어 문장은 코드가 아니라 데이터에 둔다(`xeon/hardcoded-korean`은 JSON 카탈로그를 스캔하지 않는다).
+// 한국어 문장은 코드가 아니라 데이터에 둔다(`fresnel/hardcoded-korean`은 JSON 카탈로그를 스캔하지 않는다).
 // 파생물은 `just terms gen`이 만든다: 카탈로그 `term.*` 키(locales/ko.json, en.json)와 선택적으로 목업 용어 파일.
 // 검사는 `just terms check`(T-01~T-05 원본 검사, C-01·02·03·06 카탈로그 검사, M-01 목업 파생물).
 // 지금은 0단계라 옛 이름 금지(`forbid`)는 적어 두기만 하고 아무것도 막지 않는다. 화면 라벨은 사용자가 검토 중이라 모두 `proposed`다.
