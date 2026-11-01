@@ -1,0 +1,8 @@
+/* 묶음 D 시안: 기존 페이지(p04·p07·p08·p09·p10·p11·p12·p14·p15)를 이 폴더에 복사해 빠진 상태를 더한다. 원래 폴더는 고치지 않는다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../_settings/";
+@source "../p05-helm/parts/";
+@source "../p07-schedules/parts/";
+@source "../d02-shell-life/parts/";

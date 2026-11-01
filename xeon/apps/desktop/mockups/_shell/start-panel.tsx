@@ -21,7 +21,8 @@ import {
   SidePanel,
   Tooltip,
 } from "@caustic/react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Menu, Skeleton } from "@caustic/react";
 import {
   nav as defaultNav,
   pluginPages as defaultPluginPages,
@@ -35,6 +36,7 @@ import {
 import {
   CalendarClock,
   Compass,
+  Ellipsis,
   Plug,
   FlaskConical,
   Inbox,
@@ -118,6 +120,18 @@ export interface ThreadListProps {
   trialsOpen?: boolean;
   /** "끝난 시험 지우기"(계획에 없음 4). 주면 페이지가 확인 대화 상자와 지우기를 맡는다. 없으면 셸이 목록에서만 숨긴다. */
   onClearTrials?: () => void;
+  // 묶음 D(대화 영역 빈칸, m4/pg-d). 모두 선택 항목이다. 주지 않으면 목록은 예전과 같다.
+  /** 대화 행 메뉴(§6.1: 이름 바꾸기, 분기, 요약, 닫기, 삭제, 내보내기). MenuItem들을 돌려준다. 주면 행에 "더 보기" 버튼이 생긴다. */
+  rowMenu?: ((t: Thread) => ReactNode) | undefined;
+  /** 처음부터 메뉴를 연 행 id(목업 스크린숏용). */
+  menuOpenId?: string | undefined;
+  /** 목록 상태(§6.1): 읽는 중이면 Skeleton 5행, 실패면 문장과 "다시 읽기". */
+  listState?: "loading" | "error" | undefined;
+  onRetry?: (() => void) | undefined;
+  /** 50개 뒤 "더 보기"(nextCursor). */
+  more?: { label: string; onMore: () => void; loading?: boolean } | undefined;
+  /** 오프라인: 목록은 남기고 흐리게. */
+  dimmed?: boolean | undefined;
 }
 
 export interface WorkbenchPanelProps {
@@ -411,6 +425,53 @@ function WorkbenchNavList({
   );
 }
 
+/** 대화 행 메뉴 버튼(묶음 D). caustic ListNavigationItem에 행 동작 자리가 없어(gap), 행 바로 뒤 높이 0인 li에 버튼을 겹친다.
+ *  hover·초점·고른 행·메뉴 열림일 때만 보인다(shell.css [data-row-menu]). 버튼 안에 버튼을 넣지 않는다(접근성). */
+function RowMenu({ t, list, current }: { t: Thread; list: ThreadListProps; current: boolean }) {
+  const [open, setOpen] = useState(list.menuOpenId === t.id);
+  if (list.rowMenu === undefined) return null;
+  const name = t.title === "" ? "제목 없음" : t.title;
+  return (
+    <li
+      data-row-menu=""
+      data-open={open ? "" : undefined}
+      data-current={current ? "" : undefined}
+      className="pointer-events-none relative -mt-control-sm flex h-control-sm list-none items-center justify-end pe-1"
+    >
+      <Menu
+        size="sm"
+        side="bottom"
+        align="end"
+        open={open}
+        onOpenChange={setOpen}
+        aria-label={`${name} 메뉴`}
+        trigger={
+          <IconButton
+            size="xs"
+            variant="ghost"
+            label={`${name} 메뉴`}
+            className="pointer-events-auto bg-control-raised shadow-[inset_0_0_0_1px_var(--cs-color-control-edge)]"
+          >
+            <Ellipsis />
+          </IconButton>
+        }
+      >
+        {list.rowMenu(t)}
+      </Menu>
+    </li>
+  );
+}
+
+function ListSkeleton() {
+  return (
+    <div aria-label="대화 목록 읽는 중" role="status" className="grid gap-1.5 px-2 pt-1">
+      {[70, 55, 82, 48, 64].map((w) => (
+        <Skeleton key={w} className="h-4" style={{ width: `${w}%` }} />
+      ))}
+    </div>
+  );
+}
+
 export function StartPanel({
   floating,
   activeNav,
@@ -543,7 +604,20 @@ export function StartPanel({
             </ListNavigationGroup>
           </ListNavigation>
 
-          {threads.length === 0 && list.draft !== true && (
+          {list.listState === "loading" && <ListSkeleton />}
+          {list.listState === "error" && (
+            <EmptyState
+              size="sm"
+              surface="none"
+              title="대화 목록을 읽지 못했어요"
+              actions={
+                <Button size="xs" tone="neutral" variant="outline" onClick={list.onRetry}>
+                  다시 읽기
+                </Button>
+              }
+            />
+          )}
+          {list.listState === undefined && threads.length === 0 && list.draft !== true && (
             <EmptyState
               size="sm"
               surface="none"
@@ -555,55 +629,85 @@ export function StartPanel({
               }
             />
           )}
-          <ListNavigation aria-label="대화 목록" kind="sessions" size="sm" as="div">
-            {list.draft === true && (
-              <ListNavigationGroup heading="새로 시작">
-                <ListNavigationItem current meta="작성 전">
-                  새 대화
-                </ListNavigationItem>
-              </ListNavigationGroup>
-            )}
-            {folders.map((folder) => (
-              <ListNavigationGroup
-                key={folder}
-                heading={
-                  <span className="font-mono text-mono-sm normal-case tracking-normal">
-                    {folder}
-                  </span>
-                }
-                addLabel={`${folder}에서 새 대화`}
-                onAdd={list.onNew}
-              >
-                {threads
-                  .filter((t) => t.folder === folder && t.trial === undefined)
-                  .map((t) => (
-                    <ListNavigationItem
-                      key={t.id}
-                      current={list.draft !== true && list.currentId === t.id}
-                      {...(t.status === "running" || t.status === "failed"
-                        ? { status: t.status }
-                        : {})}
-                      meta={threadMeta(t)}
-                      onSelect={() => list.onSelect(t.id)}
-                      className={
-                        t.title === ""
-                          ? "[&_[data-slot=list-navigation-label]]:italic [&_[data-slot=list-navigation-label]]:text-text-tertiary"
-                          : undefined
-                      }
-                    >
-                      {t.title === "" ? "제목 없음" : t.title}
-                    </ListNavigationItem>
-                  ))}
-                {threads.some((t) => t.folder === folder && t.trial !== undefined) && (
-                  <TrialFold
-                    items={threads.filter((t) => t.folder === folder && t.trial !== undefined)}
-                    list={list}
-                    onClear={clearTrials}
-                  />
-                )}
-              </ListNavigationGroup>
-            ))}
-          </ListNavigation>
+          {list.listState === undefined && (
+            <ListNavigation
+              aria-label="대화 목록"
+              kind="sessions"
+              size="sm"
+              as="div"
+              className={list.dimmed === true ? "opacity-60" : undefined}
+            >
+              {list.draft === true && (
+                <ListNavigationGroup heading="새로 시작">
+                  <ListNavigationItem current meta="작성 전">
+                    새 대화
+                  </ListNavigationItem>
+                </ListNavigationGroup>
+              )}
+              {folders.map((folder) => (
+                <ListNavigationGroup
+                  key={folder}
+                  heading={
+                    <span className="font-mono text-mono-sm normal-case tracking-normal">
+                      {folder}
+                    </span>
+                  }
+                  addLabel={`${folder}에서 새 대화`}
+                  onAdd={list.onNew}
+                >
+                  {threads
+                    .filter((t) => t.folder === folder && t.trial === undefined)
+                    .flatMap((t) => [
+                      <ListNavigationItem
+                        key={t.id}
+                        current={list.draft !== true && list.currentId === t.id}
+                        {...(t.status === "running" || t.status === "failed"
+                          ? { status: t.status }
+                          : {})}
+                        meta={threadMeta(t)}
+                        onSelect={() => list.onSelect(t.id)}
+                        className={
+                          t.title === ""
+                            ? "[&_[data-slot=list-navigation-label]]:italic [&_[data-slot=list-navigation-label]]:text-text-tertiary"
+                            : undefined
+                        }
+                      >
+                        {t.title === "" ? "제목 없음" : t.title}
+                      </ListNavigationItem>,
+                      ...(list.rowMenu !== undefined
+                        ? [
+                            <RowMenu
+                              key={`${t.id}-menu`}
+                              t={t}
+                              list={list}
+                              current={list.draft !== true && list.currentId === t.id}
+                            />,
+                          ]
+                        : []),
+                    ])}
+                  {threads.some((t) => t.folder === folder && t.trial !== undefined) && (
+                    <TrialFold
+                      items={threads.filter((t) => t.folder === folder && t.trial !== undefined)}
+                      list={list}
+                      onClear={clearTrials}
+                    />
+                  )}
+                </ListNavigationGroup>
+              ))}
+            </ListNavigation>
+          )}
+          {list.listState === undefined && list.more !== undefined && (
+            <Button
+              size="xs"
+              tone="neutral"
+              variant="ghost"
+              className="justify-self-start"
+              loading={list.more.loading === true}
+              onClick={list.more.onMore}
+            >
+              {list.more.label}
+            </Button>
+          )}
         </div>
       )}
     </SidePanel>

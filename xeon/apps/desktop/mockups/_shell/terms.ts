@@ -146,6 +146,18 @@ export const T = {
   leadRetake: "다시 받음", // 답한 뒤 진행권을 다시 쥠
   modeSteer: "끼어들기", // 실행 중 입력 전달 방식 steer(지금 턴에 끼움)
   modeFollowUp: "다음에", // 실행 중 입력 전달 방식 followUp(이번 턴 뒤에 보냄)
+
+  // 묶음 D(대화 영역 빈칸과 셸 수명, m4/pg-d). 병합 때 이 구역을 통째로 옮긴다.
+  resume: "이어서 실행", // turn.resume 후보(비정상 종료 표식, L4.desktop §4.7). 띠 버튼·목록 배지
+  fork: "분기", // thread.fork(대화 행 메뉴, 여기서 분기)
+  xHook: "X 훅", // X 층 훅(hooks.list). 결정 12: 안전 모드에서 싣지 않음
+  liveWork: "진행 중", // 상태 표시줄 host.status.liveTurns 칸(§6.3)
+  backgroundWork: "백그라운드 작업", // 진행 중 Popover 제목(계획에 없음 10): 대화·시험·예약·제작 대화
+  appUpdate: "앱 업데이트", // 앱 안 업데이트(L4.release §5, 계획에 없음 1)
+  exportThread: "대화 내보내기", // Markdown·JSON(계획에 없음 6)
+  wipeData: "데이터 지우기", // 모든 대화·설정·비밀 핸들을 지움(계획에 없음 6, O-06 변형)
+  osNotice: "OS 알림", // 앱 밖 알림(tauri-plugin-notification). 설정 탭 이름
+  trayIcon: "메뉴 막대 아이콘", // 트레이(macOS 메뉴 막대, Linux·Windows 알림 영역)
 } as const;
 
 export type TermKey = keyof typeof T;
