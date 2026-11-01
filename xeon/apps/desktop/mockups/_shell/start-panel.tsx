@@ -51,6 +51,7 @@ import {
   Settings,
   SquareStack,
   Target,
+  WandSparkles,
 } from "./icons";
 import { useShell, type Area, type WorkbenchContext } from "./state";
 import { T } from "./terms";
@@ -73,6 +74,7 @@ const NAV_ICONS = {
   // 플러그인 화면(기여 선언의 icon, ADR-0021 §3.3)
   "helm/inquiry": Compass,
   "review/queue": ListChecks,
+  "authoring/session": WandSparkles,
 } as const;
 function navIcon(id: string, active: boolean) {
   const I = NAV_ICONS[id as keyof typeof NAV_ICONS];
@@ -113,7 +115,7 @@ export interface ThreadListProps {
   items?: Thread[];
   /** "시험" 묶음을 처음부터 펼친다(지금 대화가 시험 대화면 늘 펼침). */
   trialsOpen?: boolean;
-  /** "끝난 시험 지우기"(계획에 없음 4). 없으면 셸이 목록에서만 숨긴다. */
+  /** "끝난 시험 지우기"(계획에 없음 4). 주면 페이지가 확인 대화 상자와 지우기를 맡는다. 없으면 셸이 목록에서만 숨긴다. */
   onClearTrials?: () => void;
 }
 
@@ -319,7 +321,7 @@ function TrialFold({
           {done.length > 0 && (
             <ListNavigationSubItem onClick={onClear}>
               <span className="text-text-tertiary">
-                끝난 {T.trial} {done.length}개 지우기
+                끝난 {T.trial} {done.length}개 지우기…
               </span>
             </ListNavigationSubItem>
           )}
@@ -425,9 +427,10 @@ export function StartPanel({
       rawList.onSelect(id);
     },
   };
+  // 페이지가 onClearTrials를 주면 확인과 지우기는 페이지가 맡는다(items로 돌려준다). 없으면 셸이 목록에서만 숨긴다.
   const clearTrials = () => {
-    setCleared(true);
-    rawList.onClearTrials?.();
+    if (rawList.onClearTrials !== undefined) rawList.onClearTrials();
+    else setCleared(true);
   };
   const folders = [...new Set(threads.map((t) => t.folder))];
   const wb = m.area === "workbench";

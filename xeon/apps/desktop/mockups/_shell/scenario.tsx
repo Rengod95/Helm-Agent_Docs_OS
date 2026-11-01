@@ -4,7 +4,7 @@
 // - ScenarioDock: ?dev=1일 때만 왼쪽 아래에 시나리오 고르기·다시 시작을 띄운다. 실제 앱에는 없다.
 // 네트워크는 쓰지 않는다. 모든 변화는 페이지 안 상태 기계가 만든다.
 import { Button, Select, SelectOption } from "@caustic/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 export interface ScenarioDef {
   id: string;
@@ -95,8 +95,14 @@ export function useTypewriter(
   return { shown: text.slice(0, n), done: n >= text.length };
 }
 
-/** ?dev=1일 때만 보이는 시나리오 막대(왼쪽 아래, 작게). */
-export function ScenarioDock({ scenarios }: { scenarios: readonly ScenarioDef[] }) {
+/** ?dev=1일 때만 보이는 시나리오 막대(왼쪽 아래, 작게). hint는 시나리오 중 "다음에 누를 것" 한 줄(목업 전용 안내). */
+export function ScenarioDock({
+  scenarios,
+  hint,
+}: {
+  scenarios: readonly ScenarioDef[];
+  hint?: ReactNode;
+}) {
   const current = useScenarioParam();
   if (!isDev() || scenarios.length === 0) return null;
   return (
@@ -123,6 +129,9 @@ export function ScenarioDock({ scenarios }: { scenarios: readonly ScenarioDef[] 
         <Button size="xs" variant="ghost" onClick={() => goScenario(current)}>
           다시 시작
         </Button>
+      )}
+      {current !== null && hint !== undefined && hint !== null && (
+        <span className="max-w-80 truncate px-1 text-text-secondary">{hint}</span>
       )}
     </div>
   );

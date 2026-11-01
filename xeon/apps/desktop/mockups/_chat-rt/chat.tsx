@@ -48,7 +48,7 @@ export function ChatHead({
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <h1 className="m-0 min-w-0 truncate font-ui text-ui-strong text-text-primary">{title}</h1>
           {marks}
-          <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary compact:hidden">
+          <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary max-compact:hidden">
             {folder}
           </span>
         </div>
@@ -274,7 +274,7 @@ export function ChatStage({
           role="log"
           aria-live="polite"
           aria-label="대화 기록"
-          className={`${READ_WIDTH} grid gap-4 pt-1 pb-3`}
+          className={`${READ_WIDTH} grid gap-4 pt-1 pb-3 [&>*]:min-w-0`}
         >
           {children}
         </div>

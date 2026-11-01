@@ -15,19 +15,36 @@ export interface MachineOptions<S, A> {
   prefill?: readonly A[];
   /** 동작 뒤 걸 타이머. after(ms, 동작)으로 다음 동작을 예약한다. */
   effect?: (a: A, next: S, after: After<A>) => void;
+  /** 처음에 마지막 prefill 동작의 effect를 건다(시나리오 &step=n에서 이어 놀기). */
+  kick?: boolean;
 }
 
-export function useMachine<S, A>({ init, reduce, prefill = [], effect }: MachineOptions<S, A>) {
+export function useMachine<S, A>({
+  init,
+  reduce,
+  prefill = [],
+  effect,
+  kick = false,
+}: MachineOptions<S, A>) {
   const [state, setState] = useState<S>(() => prefill.reduce(reduce, init));
   const ref = useRef(state);
   ref.current = state;
   const timers = useRef<number[]>([]);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // 시나리오를 &step=n에서 시작하면 마지막 동작의 지연 효과를 다시 걸어 이어서 놀 수 있게 한다.
+    // 정적 상태(?state=)와 &hold=1은 그 순간에 멈춘다(스크린숏용).
+    const last = prefill[prefill.length - 1];
+    if (kick && last !== undefined) {
+      effect?.(last, ref.current, (ms, b) => {
+        timers.current.push(window.setTimeout(() => dispatch(b), ms));
+      });
+    }
+    return () => {
       for (const t of timers.current) window.clearTimeout(t);
-    },
-    [],
-  );
+    };
+    // 처음 한 번만.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const dispatch = useCallback(
     (a: A) => {
       const next = reduce(ref.current, a);
@@ -59,7 +76,8 @@ export function usePrefill<A>(
   const step = useStepParam();
   if (sc !== null && scenarios[sc] !== undefined) {
     const all = scenarios[sc] ?? [];
-    return { script: sc, prefill: all.slice(0, step ?? 0), live: true };
+    const hold = new URLSearchParams(window.location.search).get("hold") === "1";
+    return { script: sc, prefill: all.slice(0, step ?? 0), live: !hold };
   }
   const all = scenarios[stateAt.script] ?? [];
   return { script: stateAt.script, prefill: all.slice(0, stateAt.n), live: false };

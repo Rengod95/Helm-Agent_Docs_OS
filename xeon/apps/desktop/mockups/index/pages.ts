@@ -50,4 +50,25 @@ export const pages: MockPage[] = [
   { id: "O-07", title: "새 대화", folder: "o07-new-thread", states: 5 },
   { id: "O-09", title: "바로 가기 키 도움말", folder: "o09-shortcuts", states: 4 },
   { id: "S-04", title: "토스트", folder: "s04-toast", states: 5 },
+  // 묶음 A(대화 영역 런타임, m4/pg-a)
+  {
+    id: "S-01·N-01·N-04",
+    title: "셸 내비 · 보기 기준 칸 · 시험 표지와 정리",
+    folder: "a00-nav-context",
+    states: 14,
+  },
+  { id: "N-02·N-03", title: "시험 대화(머리, 멈춤 띠)", folder: "a01-trial-chat", states: 10 },
+  {
+    id: "N-05~N-07·P-05",
+    title: "사람 확인 · 승인 출처 · 만료 · 진행권 충돌",
+    folder: "a02-human-gate",
+    states: 14,
+  },
+  {
+    id: "N-08~N-13",
+    title: "대화에서 제작(확인 다섯, 결과 카드, 제작 화면)",
+    folder: "a03-authoring",
+    states: 21,
+  },
+  { id: "N-14", title: "대화 영역 둘러보기", folder: "a04-chat-tour", states: 9 },
 ];

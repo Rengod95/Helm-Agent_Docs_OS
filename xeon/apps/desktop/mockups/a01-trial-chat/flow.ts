@@ -270,7 +270,7 @@ export function effect(a: A, n: S, after: After<A>) {
 const tick: A = { t: "tick" };
 export const SCRIPTS: Record<string, readonly A[]> = {
   // 시작 → 멈춤 → 경계 기다림 → 한 단계씩 → 이어서 → 끝 → 정리
-  "trial-flow": [
+  "trial-pause-resume": [
     { t: "send", text: PROMPT },
     tick,
     tick,

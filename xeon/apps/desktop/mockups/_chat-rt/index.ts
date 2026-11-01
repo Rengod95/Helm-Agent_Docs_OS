@@ -3,3 +3,5 @@
 export * from "./chat";
 export * from "./machine";
 export * from "./runtime-panel";
+export * from "./items";
+export * from "./thread-t1";

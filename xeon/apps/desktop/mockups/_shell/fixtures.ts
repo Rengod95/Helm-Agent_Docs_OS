@@ -75,6 +75,8 @@ export const threads: Thread[] = [
   { id: "t2", folder: "~/code/xeon", title: "테스트 정리", status: "idle", approvals: 1 },
   { id: "t3", folder: "~/code/xeon", title: "빌드 실패 분석", status: "idle", approvals: 0 },
   { id: "t4", folder: "~/code/xeon", title: "예약: 매일 정리", status: "failed", approvals: 0 },
+  // 제작 대화(batch A a03): 제작 확장으로 그룹을 만드는 대화.
+  { id: "ta", folder: "~/code/xeon", title: "아침 요약 그룹 만들기", status: "idle", approvals: 0 },
   {
     id: "t8",
     folder: "~/code/xeon",
@@ -82,6 +84,14 @@ export const threads: Thread[] = [
     status: "running",
     approvals: 0,
     trial: { state: "running", profile: "explore", target: "helm" },
+  },
+  {
+    id: "t10",
+    folder: "~/code/xeon",
+    title: "렌즈 3개와 비교",
+    status: "idle",
+    approvals: 0,
+    trial: { state: "paused", profile: "explore", target: "helm" },
   },
   {
     id: "t9",

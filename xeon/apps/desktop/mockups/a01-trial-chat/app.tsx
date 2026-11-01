@@ -37,7 +37,12 @@ import {
 } from "../_chat-rt";
 import { ToolRow } from "../p02-opus/parts/tool-row";
 import { effect, init, PROMPT, reduce, SCRIPTS, TOTAL, type A, type Item, type S } from "./flow";
-import { TrialBand, type BandAction } from "./parts/trial-band";
+import { TrialBand as FullBand, type BandAction } from "./parts/trial-band";
+
+function CompactBand(props: Parameters<typeof FullBand>[0]) {
+  const { meta: _meta, ...rest } = props;
+  return <FullBand {...rest} />;
+}
 
 export const STATES = [
   { id: "paused", label: "멈춤(단계 사이)" },
@@ -54,20 +59,20 @@ export const STATES = [
 export type StateId = (typeof STATES)[number]["id"];
 
 const AT: Record<StateId, { script: string; n: number }> = {
-  paused: { script: "trial-flow", n: 5 },
-  draft: { script: "trial-flow", n: 0 },
-  running: { script: "trial-flow", n: 3 },
-  pausing: { script: "trial-flow", n: 4 },
-  stepping: { script: "trial-flow", n: 6 },
+  paused: { script: "trial-pause-resume", n: 5 },
+  draft: { script: "trial-pause-resume", n: 0 },
+  running: { script: "trial-pause-resume", n: 3 },
+  pausing: { script: "trial-pause-resume", n: 4 },
+  stepping: { script: "trial-pause-resume", n: 6 },
   queued: { script: "trial-queue", n: 6 },
-  finished: { script: "trial-flow", n: 12 },
-  cleared: { script: "trial-flow", n: 13 },
+  finished: { script: "trial-pause-resume", n: 12 },
+  cleared: { script: "trial-pause-resume", n: 13 },
   disabled: { script: "trial-autodisable", n: 5 },
-  narrow: { script: "trial-flow", n: 5 },
+  narrow: { script: "trial-pause-resume", n: 5 },
 };
 
 const SCENARIOS = [
-  { id: "trial-flow", label: "시험: 시작→멈춤→한 단계→이어서→끝→정리" },
+  { id: "trial-pause-resume", label: "시험: 멈춤→한 단계→이어서→끝" },
   { id: "trial-queue", label: "시험: 멈춘 동안 입력은 큐로" },
   { id: "trial-autodisable", label: "실패: 대상 자동 꺼짐" },
 ];
@@ -226,6 +231,7 @@ export function App({ state }: { state: StateId }) {
     reduce,
     prefill: pre.prefill,
     effect,
+    kick: pre.live,
   });
   const [draft, setDraft] = useState(s.phase === "draft" ? PROMPT : "");
   const [current, setCurrent] = useState<string | null>(TRIAL_ID);
@@ -240,15 +246,23 @@ export function App({ state }: { state: StateId }) {
         }
       : t,
   );
-  const listed = s.phase === "cleared" ? items.filter((t) => t.trial?.state !== "done") : items;
+  const [othersCleared, setOthersCleared] = useState(false);
+  const listed = items.filter(
+    (t) => !(t.trial?.state === "done" && (othersCleared || s.phase === "cleared")),
+  );
+  // 띠의 "끝난 시험 지우기"는 이 시험까지, 목록 묶음의 것은 이미 끝난 다른 시험만(확인 대화 상자는 a00-nav-context).
   const clear = () => {
+    const n = items.filter((t) => t.trial?.state === "done").length;
     dispatch({ t: "clear" });
-    setCurrent(null);
-    toast({ title: `끝난 ${T.trialThread} 2개를 지웠어요`, tone: "neutral" });
+    if (s.phase === "finished") setCurrent(null);
+    setOthersCleared(true);
+    toast({ title: `끝난 ${T.trialThread} ${n}개를 지웠어요`, tone: "neutral" });
   };
 
   const band = (() => {
     const p = s.phase;
+    // 좁은 폭에서는 띠 메타를 빼고 상태 글과 동작만 남긴다(한 줄 유지).
+    const TrialBand = compact ? CompactBand : FullBand;
     const actions = (xs: BandAction[]) => xs;
     if (p === "draft" || p === "cleared") return undefined;
     if (p === "running")
@@ -393,7 +407,9 @@ export function App({ state }: { state: StateId }) {
               pausedInput ? "멈춘 동안 보낸 입력은 이어서 할 때 들어가요" : "메시지를 입력하세요"
             }
             {...(s.queued.length > 0
-              ? { note: `대기 중인 입력 ${s.queued.length}개 · 이어서 하면 보내요` }
+              ? {
+                  note: `대기 중인 입력 ${s.queued.length}개 · 이어서 하면 보내요 · “${s.queued[s.queued.length - 1] ?? ""}”`,
+                }
               : {})}
             onSubmit={(text) => {
               if (s.phase === "draft") dispatch({ t: "send", text });
