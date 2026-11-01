@@ -3,7 +3,7 @@ import {
   TurnCompletedPayloadSchema,
   TurnStartedPayloadSchema,
 } from "@fresnel/contracts/conversation";
-import type { ScopeId } from "@fresnel/contracts/extensions";
+import type { RegistrationId } from "@fresnel/contracts/extensions";
 import {
   LeaseAcquiredPayloadSchema,
   LeaseReleasedPayloadSchema,
@@ -34,7 +34,7 @@ interface MutableUsage {
 }
 
 interface OpenLease {
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly acquiredAt: number;
 }
 
@@ -47,12 +47,12 @@ interface OpenLease {
  */
 export function summarizeUsage(
   events: readonly DurableEventEnvelope[],
-): ReadonlyMap<ScopeId, ScopeUsage> {
-  const scopes = new Map<ScopeId, MutableUsage>();
+): ReadonlyMap<RegistrationId, ScopeUsage> {
+  const scopes = new Map<RegistrationId, MutableUsage>();
   const openLeases = new Map<string, OpenLease>();
-  const turnScopes = new Map<string, ScopeId>();
+  const turnScopes = new Map<string, RegistrationId>();
 
-  function scopeOf(scopeId: ScopeId): MutableUsage {
+  function scopeOf(scopeId: RegistrationId): MutableUsage {
     const found = scopes.get(scopeId);
     if (found !== undefined) return found;
     const created: MutableUsage = {

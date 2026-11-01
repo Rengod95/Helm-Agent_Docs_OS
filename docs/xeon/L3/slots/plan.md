@@ -55,19 +55,19 @@ xeon/packages/group-sdk/
       README.md
       test/manifest.test.ts
     drive/
-      .fresnel-plugin/plugin.json      # usesDrive: true, points: ["boundary.settle.after"]
+      .fresnel-plugin/plugin.json      # group 선언, plugins[0]: drives: true, hooks: ["boundary.settle.after"]
       src/index.ts                  # defineGroup + g.drive 골격
       src/state.ts
       src/settings.ts
       test/unit.test.ts
       test/replay.test.ts           # replayDrive 골격
     policy/
-      .fresnel-plugin/plugin.json      # usesDrive: false, points: ["tool.call.before"]
+      .fresnel-plugin/plugin.json      # group 선언, plugins[0]: drives: false, hooks: ["tool.call.before"]
       src/index.ts                  # tool.call.before first 골격(상태 없음)
       src/settings.ts
       test/unit.test.ts
     observe/
-      .fresnel-plugin/plugin.json      # usesDrive: false, points: ["boundary.settle.after"], recordKinds 1개
+      .fresnel-plugin/plugin.json      # group 선언, plugins[0]: drives: false, hooks: ["boundary.settle.after"], recordKinds 1개
       src/index.ts                  # boundary.settle.after tap + record 골격
       src/state.ts
       src/settings.ts
@@ -108,7 +108,7 @@ xeon/packages/group-sdk/
 | S-01 | 템플릿 3종 골격 추출. M1 테스트 그룹, Helm, 학습 그룹의 공통 골격을 `templates/{drive,policy,observe}`와 `common/`로 옮기고 `index.json`을 쓴다 | `L3.group-sdk.plan` M1 테스트 그룹, `L3.helm.plan` M2 구현, `L3.learning.plan` M3 구현 | 중 |
 | S-02 | 정식 예 3종 구현: `reviewgate`(검토 강제), `commitguard`(커밋 전 검증), `guardrail`(가드 지점 셋을 쓰는 예)과 테이프 3개 | S-01, F 가드 지점(ADR-0017, M3 F 작업), `group-sdk/testing`의 그룹 하네스(`L3.group-sdk.plan`) | 중 |
 | S-03 | 재생 테스트 골격: drive 템플릿을 생성해 `replayDrive`로 모든 커밋 지점에서 끊고 재개하는 테스트 | S-01, `replayDrive`(`L3.group-sdk.plan` 2차 재생 검사) | 소 |
-| S-04 | 매니페스트 검증 테스트: 세 템플릿 생성 결과가 `validateManifest`·`validateUsage`를 통과하고, 잘못된 이름·kind 조합이 거부되는지 확인 | S-01, F `validateManifest`(`F.extensions.plan`) | 소 |
+| S-04 | 매니페스트 검증 테스트: 세 템플릿 생성 결과가 `validateManifest`·`validateUsage`를 통과하고, 잘못된 이름·`group` 선언 조합이 거부되는지 확인 | S-01, F `validateManifest`(`F.extensions.plan`) | 소 |
 | S-05 | `fresnel group new <이름> [--drive\|--policy]` 계약(요구 R1~R6, `templates/index.json` 형식)을 `L4.cli.spec`·`L4.cli.plan`에 전달하고 반영을 확인 | S-01, S-04 | 소 |
 | S-06 | (닫힘) 가드레일 보류 해제 조건. [결정: review.m3-design-inputs D-M3-30] 내장 검사 없이 fail-closed 가드 지점 셋을 둔다(ADR-0017). 남은 일은 S-02의 `guardrail` 예를 가드 지점으로 쓰는 것뿐이다 | 없음 | — |
 | S-07 | 교차 import 거부 테스트: 생성한 그룹에 `@fresnel/group-helm` import를 넣은 가짜 워크스페이스로 check-layers `DR-02` 실패 확인 | S-01, `check-layers.ts`의 허용 목록 구현(`eng.dependency-rules.guide` 4절) | 소 |
@@ -133,7 +133,7 @@ xeon/packages/group-sdk/
 
 | 테스트 이름 | 확인할 동작 | 작업 |
 |---|---|---|
-| `template.drive-group-loads-and-toggles` | drive 템플릿으로 생성한 그룹이 로드되고, 켜면 다음 단계 경계 뒤 drive 함수가 호출되며, 끄면 다음 단계 경계 뒤 임대가 반납된다 | S-01 |
+| `template.drive-group-loads-and-toggles` | drive 템플릿으로 생성한 그룹이 로드되고, 켜면 다음 단계 경계 뒤 drive 함수가 호출되며, 끄면 다음 단계 경계 뒤 drive lock이 반납된다 | S-01 |
 | `template.policy-group-denies-via-first` | policy 템플릿 그룹이 `blockedTools`에 있는 도구의 `tool.call.before`을 거부하고, 사유가 도구 결과로 모델에 돌아간다 | S-01 |
 | `template.policy-exception-becomes-deny` | policy 그룹의 first 핸들러가 던지면 `FIRST_DENY.tool_call`로 거부되고 뒤 핸들러는 실행되지 않는다 | S-01 |
 | `template.policy-group-disable-stops-first-handler` | policy 템플릿 그룹이 `contracts`·`ext-host` 수정 없이 로드되고, `ext.<id>.enabled`를 거짓으로 바꾸면 다음 단계 경계 뒤 그 그룹의 `tool.call.before` 핸들러 호출 수가 0이며 `blockedTools`의 도구가 실행된다 | S-01 |
@@ -152,7 +152,7 @@ xeon/packages/group-sdk/
 | `template.name-check-rejects-bad-names` | `focus_lens`(밑줄)와 `core`(예약 이름)를 `checkGroupName`과 생성기가 거부하고, 거부된 생성은 파일을 쓰지 않는다. 비어 있지 않은 대상도 거부한다(R2, R3) | S-04 |
 | `template.generated-tests-pass` | 세 종류를 생성해 그 디렉터리에서 `bun test`를 돌리면 종료코드가 0이다(L3.slots.spec §4.3 2번). 한 번에 하나씩 돈다 | S-03 |
 | `policy.guardrail-unknown-follows-setting` | `guardrail`: 검사 함수 예외 시 `onUnknown: "deny"`면 거부, `"allow"`면 통과 | S-02 |
-| `policy.plugin-kind-rejects-drive` | `kind: "plugin"` 정책 매니페스트에 `usesDrive: true`면 `drive_requires_group` 오류 | S-04 |
+| `policy.plugin-kind-rejects-drive` | `group` 선언이 없는 정책 매니페스트에 `drives: true`면 정책 `x.primitives.driveRequiresGroup`이 참일 때 `drive_requires_group` 오류 | S-04 |
 
 ## 6. 완료 기준
 
@@ -193,8 +193,8 @@ xeon/packages/group-sdk/
 S-01 구현에서 바뀐 점은 다음과 같다. 골격의 계약은 `L3.slots.spec` §3.3.5에 같이 적었다.
 
 - 식별자에 이름을 넣지 않는다(`stateSchema`, `settings`). 하이픈이 식별자가 되지 못한다.
-- drive는 임대 예산 대신 커밋된 단계 수(`ROUNDS = 3`)로 멈춘다. 예산으로 멈추면 재생 복원 뒤 임대 경계가 달라져 `replayDrive` 비교가 깨진다. 시험으로 확인했다(절단 실행마다 첫 차이가 여섯 번째 이벤트에 났다).
-- `loop.turn`에 `requestId: "__ID__:round:<round>"`를 준다. 빼면 X가 임대 id로 만들어 재생마다 턴이 새로 난다(ADR-0015 §3.4).
+- drive는 drive lock 예산 대신 커밋된 단계 수(`ROUNDS = 3`)로 멈춘다. 예산으로 멈추면 재생 복원 뒤 drive lock 경계가 달라져 `replayDrive` 비교가 깨진다. 시험으로 확인했다(절단 실행마다 첫 차이가 여섯 번째 이벤트에 났다).
+- `loop.turn`에 `requestId: "__ID__:round:<round>"`를 준다. 빼면 X가 drive lock id로 만들어 재생마다 턴이 새로 난다(ADR-0015 §3.4).
 - 템플릿 `defaultEnabled`는 `false`다(§3.3.5). 시험은 켜는 요청을 낸 뒤 다음 경계까지 돌린다. 재생 시험은 켜진 그룹을 본다(범위 정의에 `defaultEnabled: true`만 더한 같은 그룹).
 - 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 하니스는 테스트 파일 안에 있다. 생성 그룹은 `@fresnel/group-sdk/testing`의 `replayDrive`만 import한다.
 - drive·observe의 `settings.ts`는 키가 없는 묶음이다. 키를 더하는 자리만 둔다.

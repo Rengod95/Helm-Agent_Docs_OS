@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
-import { defineManifest, LeaseArbiterPortKey } from "@fresnel/contracts/extensions";
+import { defineManifest, DriveLockArbiterPortKey } from "@fresnel/contracts/extensions";
 import { withDriveDefaults } from "@fresnel/ext-host";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { createGroupService, defineGroup, type GroupModule } from "@fresnel/group-sdk";
@@ -37,7 +37,7 @@ test("disable.at-step-boundary-releases-lease: the inquiry resumes from the same
       const target = holder.rig;
       if (target === undefined || !request.requestId.includes(":turn:diverge:")) return;
       // diverge turn 도중 끄기를 요청하고, 턴 안의 단계 경계가 그것을 적용한다
-      target.t.host.scope("helm")?.disable();
+      target.t.host.registration("helm")?.disable();
       await target.t.boundary(target.thread).stepEnd();
     },
   });
@@ -58,7 +58,7 @@ test("disable.at-step-boundary-releases-lease: the inquiry resumes from the same
   expect(rig.t.loop.spawns).toHaveLength(0);
   const inquiryId = stopped?.inquiryId;
   expect(inquiryId).not.toBeNull();
-  rig.t.host.scope("helm")?.enable();
+  rig.t.host.registration("helm")?.enable();
   await rig.drain(12);
   const finished = rig.records("grp.helm.inquiry.finished");
   expect(finished).toHaveLength(1);
@@ -74,16 +74,13 @@ test("coexist.learning-on-while-helm-holds-lease: another group's on handler and
   const holder: { rig?: Rig } = {};
   const learn = defineGroup({
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "learn-fake",
       version: "0.1.0",
-      layer: "L3",
-      kind: "group",
       entry: "./src/index.ts",
-      points: ["boundary.settle.after"],
-      usesPost: true,
-      usesDrive: false,
       trust: { level: "builtin" },
+      plugins: [{ layer: "L3", hooks: ["boundary.settle.after"], usesPost: true }],
+      group: {},
     }),
     setup(g) {
       g.on("boundary.settle.after", async (payload) => {
@@ -133,15 +130,13 @@ const COUNTER = {
 function holderGroup(): GroupModule {
   return defineGroup<{ readonly n: number }>({
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "other-drive",
       version: "0.1.0",
-      layer: "L3",
-      kind: "group",
       entry: "./src/index.ts",
-      points: [],
-      usesDrive: true,
       trust: { level: "builtin" },
+      plugins: [{ layer: "L3", hooks: [], drives: true }],
+      group: {},
     }),
     state: COUNTER,
     setup(g) {
@@ -158,9 +153,10 @@ async function waitingRig() {
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
       driveLimits: () => ({}),
-      activeDriveGroup: () => holder.read(null),
+      activeDriver: () => holder.read(null),
       capabilityProviders: () => ({}),
       leaseWaitLimit: () => 2,
+      driveRequiresGroup: () => true,
     },
   });
   const thread = t.newThread();
@@ -175,7 +171,7 @@ async function waitingRig() {
   await t.host.registerPlatform({
     name: "fresnel-groups",
     setup(ctx) {
-      ctx.providePort(LeaseArbiterPortKey, service);
+      ctx.providePort(DriveLockArbiterPortKey, service);
     },
   });
   await t.host.install({

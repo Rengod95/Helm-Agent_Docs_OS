@@ -199,7 +199,7 @@ test("delegate.a-throwing-service-becomes-delegate-failed", async () => {
 test("delegate.a-group-being-disabled-gets-group-disabling", async () => {
   const { t, thread, agents, g, spec } = await rig((th) => context("on", th));
   await t.host.openThread(thread);
-  t.host.scope("delegator")?.disable();
+  t.host.registration("delegator")?.disable();
   await t.boundary(thread).turnSettled();
   await t.settled();
   expect(await g.delegate(spec)).toEqual({
@@ -296,7 +296,7 @@ test("cancel-delegates.runs-from-on-dispose-and-aborts-the-groups-children", asy
   );
   await t.host.openThread(thread);
   await installOther(agents, thread, "disposer");
-  t.host.scope("disposer")?.disable();
+  t.host.registration("disposer")?.disable();
   await t.boundary(thread).turnSettled();
   await t.settled();
   expect(results).toEqual([{ ok: true, cancelled: true }]);
@@ -308,7 +308,7 @@ test("cancel-delegates.runs-from-on-dispose-and-aborts-the-groups-children", asy
 });
 
 function manifest(name: string): ReturnType<typeof groupManifestOf> {
-  return groupManifestOf({ name, points: ["lifecycle.agent.settled"] });
+  return groupManifestOf({ name, hooks: ["lifecycle.agent.settled"] });
 }
 
 test("agent-settled.reaches-only-the-owner-scope-with-the-delegation-result", async () => {

@@ -12,14 +12,18 @@ import {
 test("manifest.valid-and-off-by-default", () => {
   const checked = validateManifest(accountRotationManifest);
   expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
+  // 플러그인 그룹이다: group 선언과 id 없는 L3 루트 플러그인 하나. drive는 선언하지 않는다
+  expect(accountRotationManifest.group).toEqual({});
+  expect(accountRotationManifest.plugins.map((plugin) => [plugin.id, plugin.layer])).toEqual([
+    [undefined, "L3"],
+  ]);
+  expect(accountRotationManifest.plugins.map((plugin) => plugin.drives)).toEqual([undefined]);
+  expect(accountRotationManifest.plugins.map((plugin) => plugin.hooks)).toEqual([[]]);
   expect(accountRotationManifest).toMatchObject({
+    schemaVersion: 2,
     name: "account-rotation",
-    layer: "L3",
-    kind: "group",
     entry: "./dist/index.js",
     defaultEnabled: false,
-    usesDrive: false,
-    points: [],
     trust: { level: "user" },
   });
 });

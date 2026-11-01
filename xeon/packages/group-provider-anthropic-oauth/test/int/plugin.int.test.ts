@@ -44,11 +44,11 @@ test("plugin.json is the manifest as JSON and the bundle keeps the host SDK modu
   expect(bundle).not.toContain("@fresnel/ext-host");
 });
 
-// scope 상태 조회다(ext.scopes()에서 id가 정확히 provider-anthropic-oauth인 항목의 status)
+// scope 상태 조회다(ext.registrations()에서 id가 정확히 provider-anthropic-oauth인 항목의 status)
 const statusOf = (host: {
-  scopes(): readonly { id: string; status: string }[];
+  registrations(): readonly { id: string; status: string }[];
 }): string | undefined =>
-  host.scopes().find((info) => info.id === "provider-anthropic-oauth")?.status;
+  host.registrations().find((info) => info.id === "provider-anthropic-oauth")?.status;
 
 test("by default the loader leaves the plugin out, so no provider-anthropic-oauth scope is enabled", async () => {
   const t = await createTestHost();
@@ -87,10 +87,10 @@ test("with the user switch on, scope provider-anthropic-oauth is enabled and fol
   await t.host.openThread(thread);
   await t.settled();
   expect(statusOf(t.host)).toBe("enabled");
-  t.host.scope("provider-anthropic-oauth")?.disable();
+  t.host.registration("provider-anthropic-oauth")?.disable();
   await t.settled();
   expect(statusOf(t.host)).toBe("disabled");
-  t.host.scope("provider-anthropic-oauth")?.enable();
+  t.host.registration("provider-anthropic-oauth")?.enable();
   await t.settled();
   expect(statusOf(t.host)).toBe("enabled");
   await rig.loader.dispose();

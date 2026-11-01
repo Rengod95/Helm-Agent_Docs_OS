@@ -2,7 +2,8 @@ import type {
   ExtensionEntry,
   ExtensionManifest,
   ProviderResourceDef,
-  ScopeApi,
+  GroupDecl,
+  RegistrationApi,
   StateDecl,
   ToolResourceDef,
 } from "@fresnel/contracts/extensions";
@@ -23,9 +24,9 @@ import type { StateMigrations } from "./state.ts";
 // 그룹 정의 API의 타입 선언 모음. define-group.ts(검증·defineGroup)와 wrap.ts가 함께 import한다.
 // 함수가 없는 파일이라 두 파일 사이에 import 순환이 생기지 않는다.
 
+/** `group` 선언이 있고 L3 오케스트레이션 플러그인이 하나 이상 있는 매니페스트(검사는 isGroupManifest) */
 export type GroupManifest = ExtensionManifest & {
-  readonly kind: "group";
-  readonly layer: "L3";
+  readonly group: GroupDecl;
 };
 
 /** 설정 정의 묶음. 키는 이름 부분(F.wire-settings.spec §3.8.3 SettingDefInput) */
@@ -56,8 +57,8 @@ export interface GroupDef<S = never, D extends GroupSettingDefs = NoSettings> {
   readonly setup: (g: GroupApi<S, D>) => void | Promise<void>;
 }
 
-/** F ScopeApi<S>에 settings(), delegate(spec), metrics, 리소스 등록 두 연산을 더한 것 */
-export interface GroupApi<S, D extends GroupSettingDefs = NoSettings> extends ScopeApi<S> {
+/** F RegistrationApi<S>에 settings(), delegate(spec), metrics, 리소스 등록 두 연산을 더한 것 */
+export interface GroupApi<S, D extends GroupSettingDefs = NoSettings> extends RegistrationApi<S> {
   /** 마지막으로 읽은 이 그룹 설정의 유효 값. 동기, 순수 조회 */
   settings(): GroupSettingValues<D>;
   /** L1-g 백그라운드 위임 래퍼(§3.4). 소유는 이 scope, requestId 멱등. on 핸들러와 drive 함수에서 부를 수 있다 */
@@ -101,7 +102,7 @@ export interface GroupModuleSettings {
 }
 
 export type GroupDefIssueCode =
-  | "group_kind" // kind가 "group"이 아니거나 layer가 "L3"가 아님
+  | "group_missing_orchestration" // `group` 선언이 없거나 layer가 "L3"인 플러그인이 없음
   | "group_name" // GROUP_NAME_PATTERN 위반 또는 RESERVED_GROUP_NAMES
   | "settings_namespace" // 설정 namespace가 l3.<이름>(trust.level builtin) 또는 ext.<이름>이 아님
   | "state_version" // version이 1 이상의 정수가 아니거나, state가 없는데 migrations가 있음

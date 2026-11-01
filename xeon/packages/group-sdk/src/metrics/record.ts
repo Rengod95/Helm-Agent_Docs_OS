@@ -3,7 +3,7 @@ import {
   AgentSettledPayloadSchema,
   type GroupId,
   type RecordKind,
-  type ScopeApi,
+  type RegistrationApi,
 } from "@fresnel/contracts/extensions";
 import type { MetricsCounter } from "./counter.ts";
 import type { AfterRun } from "./handler.ts";
@@ -16,7 +16,7 @@ export const INSTRUMENTATION_KEY = "l3.group-sdk.instrumentation";
 const REMEMBERED_TURNS = 64;
 
 interface BoundaryRecordOptions {
-  readonly api: Pick<ScopeApi<never>, "recordPrivate">;
+  readonly api: Pick<RegistrationApi<never>, "recordPrivate">;
   readonly groupId: GroupId;
   readonly counter: MetricsCounter;
   /** 경계마다 부른다. 설정을 읽지 못하거나 값이 없으면 참이다 */

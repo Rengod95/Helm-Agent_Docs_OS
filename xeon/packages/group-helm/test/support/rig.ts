@@ -211,20 +211,16 @@ function providerUnit<Api>(
   loadIndex: number,
 ): ExtensionUnit {
   const manifest: ExtensionManifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name,
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./src/index.ts",
-    points: [],
-    usesDrive: false,
-    provides: [{ id: capability, version: "1.0.0" }],
+    plugins: [{ layer: "plugin", hooks: [], provides: [{ id: capability, version: "1.0.0" }] }],
   };
   return {
     manifest,
-    entry: ({ scope }) => {
-      scope(name, {}, (g) => {
+    entry: ({ register }) => {
+      register(name, {}, (g) => {
         hostOf(g).provide(key, service);
       });
     },

@@ -2,7 +2,7 @@ import { assertNever } from "@fresnel/contracts";
 import { toJsonSchema } from "@fresnel/contracts/capabilities";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type {
-  ExtensionManifest,
+  PluginDecl,
   RecordKind,
   RecordKindDecl,
   RecordSubject,
@@ -157,8 +157,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** 매니페스트 `recordKinds`의 형태: payload는 JSON Schema 문서다(F.extensions.spec §3.1) */
-export const learningManifestRecordKinds: NonNullable<ExtensionManifest["recordKinds"]> =
+/** 루트 플러그인 `recordKinds`의 형태: payload는 JSON Schema 문서다(F.extensions.spec §3.1) */
+export const learningManifestRecordKinds: NonNullable<PluginDecl["recordKinds"]> =
   learningRecordKindDecls.map((decl) => {
     const json = toJsonSchema(decl.payload);
     const payload: Record<string, unknown> = isPlainObject(json) ? json : {};

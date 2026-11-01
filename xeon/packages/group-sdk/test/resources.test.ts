@@ -52,15 +52,15 @@ test("resources.tool-and-command-released-on-disable", async () => {
   expect(t.host.resources.list("command").map((record) => record.name)).toEqual(["tooled"]);
 
   // 그룹을 끄면 도구 포트 등록과 명령 등록이 함께 풀린다
-  t.host.scope("tooled")?.disable();
+  t.host.registration("tooled")?.disable();
   await t.settled();
-  expect(t.host.scope("tooled")?.status).toBe("disabled");
+  expect(t.host.registration("tooled")?.status).toBe("disabled");
   expect(tools.size).toBe(0);
   expect(t.host.resources.list("tool")).toEqual([]);
   expect(t.host.resources.list("command")).toEqual([]);
 
   // 다시 켜면 setup이 다시 돌아 등록이 돌아온다
-  t.host.scope("tooled")?.enable();
+  t.host.registration("tooled")?.enable();
   await t.settled();
   expect([...tools.keys()]).toEqual(["tooled_probe"]);
   expect(t.host.resources.list("command")).toHaveLength(1);
@@ -101,14 +101,14 @@ test("resources.provider-released-on-disable", async () => {
   expect(t.host.resources.list("provider").map((record) => record.scopeId)).toEqual(["provided"]);
 
   // 그룹을 끄면 provider 등록이 풀린다
-  t.host.scope("provided")?.disable();
+  t.host.registration("provided")?.disable();
   await t.settled();
-  expect(t.host.scope("provided")?.status).toBe("disabled");
+  expect(t.host.registration("provided")?.status).toBe("disabled");
   expect(providers.size).toBe(0);
   expect(t.host.resources.list("provider")).toEqual([]);
 
   // 다시 켜면 setup이 다시 돌아 provider 등록이 돌아온다
-  t.host.scope("provided")?.enable();
+  t.host.registration("provided")?.enable();
   await t.settled();
   expect([...providers.keys()]).toEqual(["provided-model"]);
 });

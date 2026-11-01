@@ -315,27 +315,29 @@ export function fakeKnowledge(): FakeKnowledge {
   });
 
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "fake-knowledge",
     version: "0.1.0",
-    layer: "L2",
-    kind: "plugin",
     entry: "./src/index.ts",
-    points: [],
-    usesDrive: false,
-    provides: [
-      { id: "knowledge.skills", version: "1.0.0" },
-      { id: "knowledge.memory", version: "1.0.0" },
-      { id: "knowledge.search", version: "1.0.0" },
-      { id: "knowledge.ledger", version: "1.0.0" },
+    plugins: [
+      {
+        layer: "L2",
+        hooks: [],
+        provides: [
+          { id: "knowledge.skills", version: "1.0.0" },
+          { id: "knowledge.memory", version: "1.0.0" },
+          { id: "knowledge.search", version: "1.0.0" },
+          { id: "knowledge.ledger", version: "1.0.0" },
+        ],
+      },
     ],
     trust: { level: "builtin" },
   });
   const hit = (): void => {
     callCount += 1;
   };
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, {}, (g) => {
       const host = hostOf(g);
       host.provide(KnowledgeSkillsKey, counted(skillsApi, hit));
       host.provide(KnowledgeMemoryKey, counted(memoryApi, hit));

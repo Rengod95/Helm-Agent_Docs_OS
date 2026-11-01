@@ -18,7 +18,7 @@ export type HolderWriteError =
   | { readonly kind: "unwritable"; readonly key: string; readonly reason: HolderUnwritableReason };
 
 /**
- * 설정 `x.primitives.activeDriveGroup`의 읽기와 쓰기(L3.group-sdk.spec §3.8, §3.13 마지막 문단).
+ * 설정 `x.primitives.activeDriver`의 읽기와 쓰기(L3.group-sdk.spec §3.8, §3.13 마지막 문단).
  * 설정 서비스(F.wire-settings `EffectiveSetting`, `WriteCheck`)에 연결하는 일은 HOST 조립이 한다.
  * 그 전까지 시험은 `memoryDriveHolderSettings`(`@fresnel/group-sdk/testing`)를 쓴다.
  */

@@ -68,7 +68,7 @@ async function readTemplateIndex(): Promise<TemplateIndex> {
 
 /** 템플릿이 만든 그룹을 켠다. 켜는 요청은 다음 단계 경계에 적용되고, 그 뒤 settle한다 */
 async function switchOn(t: TestHost, thread: ThreadId, name: string): Promise<void> {
-  t.host.scope(name)?.enable();
+  t.host.registration(name)?.enable();
   await t.boundary(thread).stepEnd();
   await t.settled();
 }
@@ -80,10 +80,10 @@ async function switchOn(t: TestHost, thread: ThreadId, name: string): Promise<vo
 function enabledByDefault(module: GroupModule): GroupModule {
   return {
     ...module,
-    entry: ({ manifest, scope }) =>
+    entry: ({ manifest, register }) =>
       module.entry({
         manifest,
-        scope: (id, def, setup) => scope(id, { ...def, defaultEnabled: true }, setup),
+        register: (id, def, setup) => register(id, { ...def, defaultEnabled: true }, setup),
       }),
   };
 }
@@ -155,6 +155,9 @@ test("template.index-matches-files", async () => {
   );
   expect(unowned).toEqual([]);
   expect(index.templates.drive.files).toHaveLength(10);
+  expect(index.templates.drive.drives).toBe(true);
+  expect(index.templates.policy.drives).toBe(false);
+  expect(index.templates.observe.drives).toBe(false);
   expect(index.templates.policy.files).toHaveLength(8);
   expect(index.templates.observe.files).toHaveLength(9);
 });
@@ -195,19 +198,21 @@ test("template.name-check-rejects-bad-names", async () => {
 });
 
 test("template.manifest-passes-validateManifest", async () => {
+  const index = await readTemplateIndex();
   await eachAsync(TEMPLATE_KINDS, async (kind) => {
     await withGenerated(kind, "tpl-manifest", async (dir) => {
       const json = parseJson(await Bun.file(join(dir, ".fresnel-plugin/plugin.json")).text());
       expect(json.ok).toBe(true);
       const result = validateManifest(json.ok ? json.value : undefined);
       expect(result.issues.filter((found) => found.severity === "error")).toEqual([]);
-      expect(result.manifest).toMatchObject({
-        name: "tpl-manifest",
-        kind: "group",
-        layer: "L3",
-        usesDrive: kind === "drive",
-        defaultEnabled: false,
-      });
+      expect(result.manifest).toMatchObject({ name: "tpl-manifest", defaultEnabled: false });
+      // 그룹 템플릿은 group 선언과 L3 루트 플러그인 하나를 쓴다. drive는 drive 템플릿만 등록하고, 아니면 drives를 적지 않는다
+      expect(result.manifest?.group).toEqual({});
+      expect(result.manifest?.plugins.map((plugin) => plugin.layer)).toEqual(["L3"]);
+      const root = result.manifest?.plugins.find((plugin) => plugin.id === undefined);
+      expect(root?.drives).toBe(kind === "drive" ? true : undefined);
+      // 색인의 drives 표시는 생성되는 매니페스트의 루트 플러그인과 같아야 한다
+      expect(index.templates[kind].drives).toBe(root?.drives === true);
 
       // 실제 등록은 setup이 돌 때 호스트가 validateUsage로 대조한다. 템플릿은 꺼진 상태로 올라가 setup을 건너뛴다
       const module = await loadGeneratedGroup(join(dir, "src/index.ts"));
@@ -220,7 +225,7 @@ test("template.manifest-passes-validateManifest", async () => {
       const thread = t.newThread();
       await t.host.openThread(thread);
       await switchOn(t, thread, "tpl-manifest");
-      expect(t.host.scope("tpl-manifest")?.status).toBe("enabled");
+      expect(t.host.registration("tpl-manifest")?.status).toBe("enabled");
       expect(t.diagnostics).toEqual([]);
     });
     return undefined;
@@ -232,7 +237,7 @@ test("template.drive-group-loads-and-toggles", async () => {
     const module = await loadGeneratedGroup(join(dir, "src/index.ts"));
     const { t, thread, service } = await serviceRig([module]);
     // 로드: 템플릿 기본값은 꺼짐이라 임대도 drive 호출도 없다
-    expect(t.host.scope("tpl-drive")?.status).toBe("disabled");
+    expect(t.host.registration("tpl-drive")?.status).toBe("disabled");
     expect(t.host.leaseOf(thread)).toBeNull();
     expect(t.loop.turns).toHaveLength(0);
 
@@ -307,7 +312,7 @@ test("template.policy-exception-becomes-deny", async () => {
     });
     let laterCalls = 0;
     const later = defineGroup({
-      manifest: groupManifestOf({ name: "tpl-later", points: ["tool.call.before"] }),
+      manifest: groupManifestOf({ name: "tpl-later", hooks: ["tool.call.before"] }),
       setup(g) {
         g.on("tool.call.before", () => {
           laterCalls += 1;
@@ -346,13 +351,13 @@ test("template.policy-group-disable-stops-first-handler", async () => {
     expect((await callBefore(t, thread, "bash", "tc-on")).decision).toEqual(blockReason);
 
     // 끄기 요청은 다음 단계 경계에 적용된다. 적용 뒤에는 first 핸들러가 불리지 않아 도구가 통과한다
-    t.host.scope("tpl-policy")?.disable();
+    t.host.registration("tpl-policy")?.disable();
     await t.boundary(thread).stepEnd();
-    expect(t.host.scope("tpl-policy")?.status).toBe("disabled");
+    expect(t.host.registration("tpl-policy")?.status).toBe("disabled");
     expect((await callBefore(t, thread, "bash", "tc-off")).decision).toBeUndefined();
 
     await switchOn(t, thread, "tpl-policy");
-    expect(t.host.scope("tpl-policy")?.status).toBe("enabled");
+    expect(t.host.registration("tpl-policy")?.status).toBe("enabled");
     expect((await callBefore(t, thread, "bash", "tc-back")).decision).toEqual(blockReason);
   });
 });

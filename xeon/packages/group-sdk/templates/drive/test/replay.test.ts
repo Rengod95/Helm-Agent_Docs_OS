@@ -140,10 +140,10 @@ function replayHarness(): ReplayHarness {
 function enabledByDefault(target: GroupModule): GroupModule {
   return {
     ...target,
-    entry: ({ manifest, scope }) =>
+    entry: ({ manifest, register }) =>
       target.entry({
         manifest,
-        scope: (id, def, setup) => scope(id, { ...def, defaultEnabled: true }, setup),
+        register: (id, def, setup) => register(id, { ...def, defaultEnabled: true }, setup),
       }),
   };
 }

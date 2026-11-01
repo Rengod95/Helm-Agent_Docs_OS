@@ -96,7 +96,7 @@ const user: UserMessage = { role: "user", content: "hi", timestamp: 1_700_000_00
 async function helmRig() {
   const sink: { api?: GroupApi<never> } = {};
   const helm = defineGroup({
-    manifest: groupManifestOf({ name: "helm", points: ["boundary.message.after"], usesPost: true }),
+    manifest: groupManifestOf({ name: "helm", hooks: ["boundary.message.after"], usesPost: true }),
     setup(g) {
       sink.api = g;
       g.on("boundary.message.after", async () => {

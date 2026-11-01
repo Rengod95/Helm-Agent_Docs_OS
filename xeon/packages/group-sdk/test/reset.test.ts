@@ -15,7 +15,7 @@ const STRICT = Type.Object({ n: Type.Integer({ minimum: 10 }) });
 /** 경계마다 상태를 {n: 4}로 쓰는 그룹. 옛 판을 남긴다 */
 function writer(name: string): GroupModule {
   return defineGroup({
-    manifest: groupManifestOf({ name, points: ["boundary.settle.after"] }),
+    manifest: groupManifestOf({ name, hooks: ["boundary.settle.after"] }),
     state: { schema: LOOSE, initial: { n: 0 }, version: 1 },
     setup(g) {
       g.on("boundary.settle.after", async () => {
@@ -28,7 +28,7 @@ function writer(name: string): GroupModule {
 /** 저장 상태를 거부하고 선언 초기값을 쓰는 그룹. 핸들러가 본 상태를 모은다 */
 function strictGroup(name: string, seen: unknown[]): GroupModule {
   return defineGroup({
-    manifest: groupManifestOf({ name, points: ["boundary.settle.after"] }),
+    manifest: groupManifestOf({ name, hooks: ["boundary.settle.after"] }),
     state: { schema: STRICT, initial: { n: 10 }, version: 1 },
     setup(g) {
       g.on("boundary.settle.after", () => {

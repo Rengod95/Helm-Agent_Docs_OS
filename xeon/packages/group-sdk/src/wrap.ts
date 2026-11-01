@@ -7,7 +7,7 @@ import type {
   LoopHandle,
   PortKey,
   ProviderResourceDef,
-  ScopeApi,
+  RegistrationApi,
   SpawnSpec,
   StateDecl,
   ToolResourceDef,
@@ -18,7 +18,7 @@ import {
   hostOf,
   PrimitiveError,
   type CommandResourceDef,
-  type ScopeCallContext,
+  type RegistrationCallContext,
   type StateMigration,
 } from "@fresnel/ext-host";
 import {
@@ -38,6 +38,7 @@ import { defaultMetricsRegistry } from "./metrics/registry.ts";
 import { createBoundaryRecorder, INSTRUMENTATION_KEY } from "./metrics/record.ts";
 import type { GroupSettingsSource } from "./ports/settings.ts";
 import { checkPostItem, checkRecordKind, type RecordCheck } from "./records.ts";
+import { orchestrationOf } from "./util.ts";
 import { checkStateCommit, migrationChain, type StateMigrations } from "./state.ts";
 import type {
   GroupApi,
@@ -47,7 +48,7 @@ import type {
 } from "./types.ts";
 
 /** 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수)의 thread와 취소 신호. 원천은 X `hostOf(g).callContext()`다 */
-export type GroupCallContext = ScopeCallContext;
+export type GroupCallContext = RegistrationCallContext;
 
 /** wrap이 X의 hostOf를 통해 쓰는 연산. checkGroup 같은 도구가 대역으로 바꿀 수 있게 좁게 나눈다 */
 export interface GroupHostAccess {
@@ -63,12 +64,12 @@ export interface GroupHostAccess {
   callContext(): GroupCallContext | undefined;
 }
 
-export type HostAccessFactory<S> = (api: ScopeApi<S>) => GroupHostAccess;
+export type HostAccessFactory<S> = (api: RegistrationApi<S>) => GroupHostAccess;
 
 const PORT_ABSENT: ReadonlySet<string> = new Set(["port_unavailable", "service_reserved"]);
 
 /** ext-host가 만든 g에서 X 부가 API를 꺼낸다. setup 안에서만 쓴다 */
-export function realHostAccess<S>(api: ScopeApi<S>): GroupHostAccess {
+export function realHostAccess<S>(api: RegistrationApi<S>): GroupHostAccess {
   return {
     registerTool: (def) => {
       hostOf(api).registerTool(def);
@@ -90,7 +91,7 @@ export function realHostAccess<S>(api: ScopeApi<S>): GroupHostAccess {
 }
 
 /** 포트가 없거나 쓸 수 없는 확장이면 undefined. 그 밖의 오류는 버그라 다시 던진다 */
-function optionalPort<S, Api>(api: ScopeApi<S>, key: PortKey<Api>): Api | undefined {
+function optionalPort<S, Api>(api: RegistrationApi<S>, key: PortKey<Api>): Api | undefined {
   const found = attempt(() => hostOf(api).port(key));
   if (found.ok) return found.value;
   const cause = found.error.cause;
@@ -180,11 +181,11 @@ function ensure(check: RecordCheck, scopeId: string): void {
 }
 
 /**
- * F ScopeApi<S>를 GroupApi<S, D>로 감싼다(L3.group-sdk.spec §3.2). setup 안에서 한 번 부른다.
+ * F RegistrationApi<S>를 GroupApi<S, D>로 감싼다(L3.group-sdk.spec §3.2). setup 안에서 한 번 부른다.
  * 감싼 연산은 원래 연산을 그대로 부르고 메모리 계측(§4.9)만 더한다.
  */
 export function wrap<S, D extends GroupSettingDefs>(
-  api: ScopeApi<S>,
+  api: RegistrationApi<S>,
   def: WrapDef<S, D>,
   hostAccess: HostAccessFactory<S>,
 ): GroupApi<S, D> {
@@ -192,14 +193,15 @@ export function wrap<S, D extends GroupSettingDefs>(
   const counter = createMetricsCounter(def.manifest.name);
   defaultMetricsRegistry.register(def.manifest.name, counter.handle);
   // 경계 기록은 그룹 자신의 boundary.settle.after 핸들러가 끝난 뒤 그 호출 안에서 쓴다(§4.9). 설정을 읽지 못하면 켠 것으로 본다
-  const afterSettle = def.manifest.points.includes("boundary.settle.after")
-    ? createBoundaryRecorder({
-        api,
-        groupId: def.manifest.name,
-        counter,
-        enabled: () => access.settingsSource()?.value(INSTRUMENTATION_KEY) !== false,
-      })
-    : undefined;
+  const afterSettle =
+    orchestrationOf(def.manifest)?.hooks.includes("boundary.settle.after") === true
+      ? createBoundaryRecorder({
+          api,
+          groupId: def.manifest.name,
+          counter,
+          enabled: () => access.settingsSource()?.value(INSTRUMENTATION_KEY) !== false,
+        })
+      : undefined;
   /**
    * 위임 서비스(`fresnel.agents`). 포트 조회는 scope의 generation이 닫히면 거부되고 `onDispose`는 닫힌 뒤에 돌므로,
    * 처음 얻은 값을 기억해 `cancelDelegates`가 `onDispose` 안에서도 쓰게 한다(L3.group-sdk.spec §4.10)

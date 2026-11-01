@@ -9,7 +9,7 @@ const DONE_KIND = "grp.writer.note.done";
 
 const manifest = groupManifestOf({
   name: "writer",
-  points: ["boundary.settle.after"],
+  hooks: ["boundary.settle.after"],
   usesPost: true,
   recordKinds: [
     {

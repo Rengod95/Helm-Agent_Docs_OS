@@ -102,6 +102,6 @@ test("safe mode does not load Helm", async () => {
     startup: { safeMode: { active: true, source: "flag" }, disabled: [] },
   });
   expect(report.extensions.map((info) => [info.name, info.state])).toEqual([["helm", "disabled"]]);
-  expect(t.host.scope("helm")).toBeUndefined();
+  expect(t.host.registration("helm")).toBeUndefined();
   expect(t.host.resources.list("command")).toEqual([]);
 });

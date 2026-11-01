@@ -125,9 +125,9 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
     defineGroup<{ readonly n: number }>({
       manifest: groupManifestOf({
         name: "counted",
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         usesPost: true,
-        usesDrive: true,
+        drives: true,
       }),
       state: {
         schema: Type.Object({ n: Type.Integer({ minimum: 0 }) }),

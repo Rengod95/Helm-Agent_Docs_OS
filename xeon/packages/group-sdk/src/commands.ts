@@ -64,13 +64,13 @@ export interface CommandOutput {
 
 /** `/group status` 첫 줄이 읽는 구동 그룹 설정 값을 더 낸 서비스 */
 export interface GroupServiceWithSetting extends GroupService {
-  /** 설정 x.primitives.activeDriveGroup의 현재 유효 값 */
+  /** 설정 x.primitives.activeDriver의 현재 유효 값 */
   driveHolderSetting(): DriveHolderSetting;
 }
 
 /**
  * `/group reset`과 `resetState`의 오류(L3.group-sdk.spec §3.9). F 계약(`GroupError`)이 아니라 group-sdk이 정한다.
- * `group.resetFailed`의 `message`는 X `resetScopeState`가 돌려준 오류 kind다.
+ * `group.resetFailed`의 `message`는 X `resetRegistrationState`가 돌려준 오류 kind다.
  */
 export type GroupResetError =
   | { readonly kind: "group.unknown"; readonly id: string; readonly known: readonly string[] }
@@ -87,7 +87,7 @@ export interface GroupServiceWithUsage extends GroupServiceWithSetting {
   /** 현재 thread의 승격 집계(L3.group-sdk.spec §3.12). `/group status`의 후보 줄에 쓴다 */
   promotionReport(): Promise<PromotionReport>;
   /**
-   * 저장 상태 오류(`group.stateInvalid`)가 남은 그룹의 상태를 선언 초기값의 새 판으로 되돌린다(X `resetScopeState`, L3.group-sdk.spec §5 9번).
+   * 저장 상태 오류(`group.stateInvalid`)가 남은 그룹의 상태를 선언 초기값의 새 판으로 되돌린다(X `resetRegistrationState`, L3.group-sdk.spec §5 9번).
    * 그룹을 켜지 않는다. 성공하면 새 판 번호를 돌려준다.
    */
   resetState(id: string): Promise<Result<{ readonly rev: number }, GroupResetError>>;

@@ -44,13 +44,13 @@ export function memoryDriveHolderSettings(
     read: (_threadId: ThreadId | null) => current,
     write(holder, scope, threadId): Promise<Result<void, HolderWriteError>> {
       if (options.locked === true) {
-        return Promise.resolve(err({ kind: "locked", key: "x.primitives.activeDriveGroup" }));
+        return Promise.resolve(err({ kind: "locked", key: "x.primitives.activeDriver" }));
       }
       if (options.unwritable !== undefined) {
         return Promise.resolve(
           err({
             kind: "unwritable",
-            key: "x.primitives.activeDriveGroup",
+            key: "x.primitives.activeDriver",
             reason: options.unwritable,
           }),
         );

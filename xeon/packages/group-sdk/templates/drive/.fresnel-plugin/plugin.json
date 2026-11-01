@@ -1,13 +1,11 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "__ID__",
   "version": "__VERSION__",
   "displayName": "__TITLE__",
-  "layer": "L3",
-  "kind": "group",
   "entry": "./src/index.ts",
-  "points": ["boundary.settle.after"],
-  "usesDrive": true,
+  "plugins": [{ "layer": "L3", "hooks": ["boundary.settle.after"], "drives": true }],
+  "group": {},
   "defaultEnabled": false,
   "trust": { "level": "user" }
 }

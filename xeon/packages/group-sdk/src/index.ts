@@ -22,7 +22,7 @@ export {
 } from "./define-group.ts";
 export {
   defaultDriveArbiter,
-  leaseArbiterPort,
+  driveLockArbiterPort,
   type ArbiterDecision,
   type ArbiterInput,
   type ArbiterReason,

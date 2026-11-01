@@ -49,7 +49,7 @@ binds: [xeon/packages/plugin-builder/**]
 | `authoring.catalog-conformance` | `stable`·`preview` 항목마다 뼈대 → `validate` 오류 0 |
 | `authoring.scaffold-equals-group-new` | 그룹 세 종류의 생성 파일이 `fresnel group new`와 바이트 같음 |
 | `authoring.guard-blocks-outside-dir` | 세션 대화에서 대상 폴더 밖 `write` 거부, 세션 끝나면 허용 |
-| `authoring.package-requires-ask` | 확인 전 파일 쓰기 0, 대기 중 임대 반납(`lease.released { reason: "waiting" }`) |
+| `authoring.package-requires-ask` | 확인 전 파일 쓰기 0, 대기 중 drive lock 반납(`lease.released { reason: "waiting" }`) |
 | `authoring.replay-dev-only` | 배포 형태에서 `dev_mode_required` |
 | `authoring.view-mode-checks` | `card`에 `frame`이면 AU-005 오류, `frame.reason` 빈 문자열 오류, `project` + `frame` 경고 |
 | `authoring.blocked-kind-refused` | `x.hook` 시작 거부와 사유 |

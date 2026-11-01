@@ -93,7 +93,7 @@ export function failureOf(error: unknown, at: FailureSite): HelmFailure | undefi
   if (code === "state_conflict") return { kind: "state_conflict" };
   if (code === "state_too_large") return { kind: "state_too_large" };
   if (code === "storage_unavailable") return { kind: "storage" };
-  if (code === "scope_inactive") return { kind: "disabled" };
+  if (code === "registration_inactive") return { kind: "disabled" };
   if (code === "capability_unavailable" && at.capability !== undefined) {
     return { kind: "capability", capability: at.capability, code: "unavailable" };
   }

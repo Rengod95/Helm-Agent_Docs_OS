@@ -7,7 +7,7 @@ import { groupManifestOf } from "./support/manifests.ts";
 
 function driver(name: string, options: { readonly throws?: boolean } = {}): GroupModule {
   return defineGroup({
-    manifest: groupManifestOf({ name, usesDrive: true }),
+    manifest: groupManifestOf({ name, drives: true }),
     setup(g) {
       g.drive(async (loop) => {
         if (options.throws === true) throw new TypeError(`${name} drive failed`);
@@ -55,7 +55,7 @@ test("service.set-holder-reports-a-locked-setting-without-changing-it", async ()
   });
   expect(await locked.setDriveHolder("auto")).toEqual({
     ok: false,
-    error: { kind: "group.settingLocked", key: "x.primitives.activeDriveGroup" },
+    error: { kind: "group.settingLocked", key: "x.primitives.activeDriver" },
   });
   expect(locked.driveHolderSetting()).toBe("helm");
 });
@@ -86,7 +86,7 @@ test("service.set-holder-reports-each-unwritable-reason-apart-from-a-lock", asyn
   expect(results).toEqual(
     reasons.map((reason) => ({
       ok: false,
-      error: { kind: "group.settingUnwritable", key: "x.primitives.activeDriveGroup", reason },
+      error: { kind: "group.settingUnwritable", key: "x.primitives.activeDriver", reason },
     })),
   );
 });

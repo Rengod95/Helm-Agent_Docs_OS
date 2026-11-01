@@ -1,17 +1,17 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
-  LeaseArbiterPortKey,
-  type LeaseArbiterPort,
-  type LeaseCandidate,
-  type ScopeId,
+  DriveLockArbiterPortKey,
+  type DriveLockArbiterPort,
+  type DriveLockCandidate,
+  type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import { withDriveDefaults } from "@fresnel/ext-host";
 import { createTestHost, type TestHost, type TestHostOptions } from "@fresnel/ext-host/testing";
 import {
   defaultDriveArbiter,
   defineGroup,
-  leaseArbiterPort,
+  driveLockArbiterPort,
   type DriveCandidate,
   type GroupModule,
 } from "../src/index.ts";
@@ -78,12 +78,12 @@ test("arbiter.decide-is-deterministic", () => {
 });
 
 test("arbiter.port-maps-lease-candidates", async () => {
-  const offered: LeaseCandidate[] = [
+  const offered: DriveLockCandidate[] = [
     { scopeId: "a", extension: "a", loadIndex: 1, defaultEnabled: true, enabledAtSeq: 8 },
     { scopeId: "b", extension: "b", loadIndex: 0, defaultEnabled: true, enabledAtSeq: 3 },
   ];
   const seen: DriveCandidate[][] = [];
-  const port = leaseArbiterPort(
+  const port = driveLockArbiterPort(
     {
       decide(input) {
         seen.push([...input.candidates]);
@@ -99,7 +99,7 @@ test("arbiter.port-maps-lease-candidates", async () => {
     { scopeId: "b", groupId: "b", loadOrder: 0, requestSeq: 3 },
   ]);
   // requestSeq 조회를 바꿔 끼울 수 있다
-  const custom = leaseArbiterPort(defaultDriveArbiter, {
+  const custom = driveLockArbiterPort(defaultDriveArbiter, {
     holderSetting: () => null,
     requestSeq: () => null,
   });
@@ -111,24 +111,25 @@ test("arbiter.port-maps-lease-candidates", async () => {
 interface Rig {
   readonly t: TestHost;
   readonly calls: string[];
-  readonly asked: (readonly ScopeId[])[];
-  setHolder(holder: ScopeId | null): void;
+  readonly asked: (readonly RegistrationId[])[];
+  setHolder(holder: RegistrationId | null): void;
 }
 
 async function rig(): Promise<Rig> {
-  let holder: ScopeId | null = null;
+  let holder: RegistrationId | null = null;
   const source: NonNullable<TestHostOptions["settingsSource"]> = {
     driveDefaultLimits: () => withDriveDefaults({}),
     driveLimits: () => ({}),
-    activeDriveGroup: () => holder,
+    activeDriver: () => holder,
+    driveRequiresGroup: () => true,
     capabilityProviders: () => ({}),
   };
   const t = await createTestHost({ settingsSource: source });
-  const asked: (readonly ScopeId[])[] = [];
-  const port = leaseArbiterPort(defaultDriveArbiter, {
+  const asked: (readonly RegistrationId[])[] = [];
+  const port = driveLockArbiterPort(defaultDriveArbiter, {
     holderSetting: (_thread: ThreadId) => holder,
   });
-  const counting: LeaseArbiterPort = {
+  const counting: DriveLockArbiterPort = {
     choose(threadId, candidates) {
       asked.push(candidates.map((entry) => entry.scopeId));
       return port.choose(threadId, candidates);
@@ -137,7 +138,7 @@ async function rig(): Promise<Rig> {
   await t.host.registerPlatform({
     name: "test-groups",
     setup(ctx) {
-      ctx.providePort(LeaseArbiterPortKey, counting);
+      ctx.providePort(DriveLockArbiterPortKey, counting);
     },
   });
   return {
@@ -154,9 +155,9 @@ function driveGroup(name: string, calls: string[], throwOnDrive = false): GroupM
   return defineGroup({
     manifest: groupManifestOf({
       name,
-      points: ["tool.call.before"],
+      hooks: ["tool.call.before"],
       usesPost: true,
-      usesDrive: true,
+      drives: true,
     }),
     setup(g) {
       g.on("tool.call.before", (payload) =>
@@ -206,7 +207,7 @@ test("arbiter.waiting-group-keeps-on-handlers", async () => {
   // 대기 그룹 B의 drive 함수는 호출되지 않는다
   expect(r.calls.filter((name) => name === "grp-b")).toEqual([]);
   expect(r.calls).toContain("grp-a");
-  expect(r.t.host.scopes().find((scope) => scope.id === "grp-b")?.drive).toBe("registered");
+  expect(r.t.host.registrations().find((info) => info.id === "grp-b")?.drive).toBe("registered");
 
   // 그래도 B의 on 핸들러는 계속 동작한다
   const outcome = await r.t.host.dispatch(
@@ -228,7 +229,7 @@ test("arbiter.excludes-drive-error", async () => {
   expect(leasedScopes(r.t, thread, "lease.released")).toMatchObject([
     { scopeId: "grp-a", reason: "error" },
   ]);
-  expect(r.t.host.scopes().find((scope) => scope.id === "grp-a")?.drive).toBe("error");
+  expect(r.t.host.registrations().find((info) => info.id === "grp-a")?.drive).toBe("error");
   expect(r.asked.at(-1)).toEqual(["grp-b"]);
   expect(r.t.host.leaseOf(thread)).toMatchObject({ scopeId: "grp-b" });
 });

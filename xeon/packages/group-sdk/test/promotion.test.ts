@@ -333,7 +333,7 @@ test("promotion.gather-skips-a-thread-whose-read-fails-and-delegated-turns", asy
   });
   // 읽기가 실패하는 thread는 건너뛴다. 나머지 thread의 값은 그대로 모은다
   const view: PromotionHostView = {
-    scopes: () => t.host.scopes(),
+    registrations: () => t.host.registrations(),
     toolOwner: (name) => t.host.toolOwner(name),
     queryEvents: (threadId, query) =>
       threadId === failing

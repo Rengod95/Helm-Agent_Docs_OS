@@ -17,18 +17,25 @@ test("manifest.validates", async () => {
   expect(validateManifest(learningManifest).issues.filter((i) => i.severity === "error")).toEqual(
     [],
   );
-  expect(learningManifest.usesDrive).toBe(false);
-  expect(learningManifest.usesPost).toBe(false);
+  // 플러그인 그룹이다: group 선언과 id 없는 L3 루트 플러그인 하나. drive는 선언하지 않는다
+  expect(learningManifest.group).toEqual({});
+  expect(learningManifest.plugins.map((plugin) => [plugin.id, plugin.layer])).toEqual([
+    [undefined, "L3"],
+  ]);
+  expect(learningManifest.plugins.map((plugin) => plugin.drives)).toEqual([undefined]);
   expect(learningManifest.defaultEnabled).toBe(true);
   expect(learningManifest.trust).toEqual({ level: "builtin" });
-  expect(learningManifest.points).toEqual([
+  const root = learningManifest.plugins.find((plugin) => plugin.id === undefined);
+  if (root === undefined) throw new Error("learning has no root plugin");
+  expect(root.usesPost).toBe(false);
+  expect(root.hooks).toEqual([
     "boundary.turn.before",
     "boundary.step.after",
     "boundary.settle.after",
     "lifecycle.agent.settled",
   ]);
-  expect(learningManifest.readsRecordKinds).toEqual([]);
-  const kinds = learningManifest.recordKinds ?? [];
+  expect(root.readsRecordKinds).toEqual([]);
+  const kinds = root.recordKinds ?? [];
   expect(kinds).toHaveLength(8);
   for (const decl of kinds) {
     expect(decl.kind.startsWith("grp.learning.")).toBe(true);
@@ -39,7 +46,7 @@ test("manifest.validates", async () => {
   expect(rig.installIssues.filter((found) => found.severity === "error")).toEqual([]);
   // 지식 기능이 없는 호스트에서는 X가 setup 전에 거부한다(capability_unavailable). 선언과 무관한 사용 오류는 없다
   const bare = await checkGroup(group());
-  expect(bare.map((found) => found.code)).not.toContain("point_undeclared");
+  expect(bare.map((found) => found.code)).not.toContain("hook_undeclared");
   expect(bare.map((found) => found.code)).not.toContain("drive_undeclared");
   expect(bare.map((found) => found.code)).not.toContain("post_undeclared");
 });

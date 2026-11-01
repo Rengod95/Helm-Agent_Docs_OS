@@ -18,8 +18,8 @@ async function rig(name: string, kind: "on" | "drive") {
   const seen: { results: unknown[] } = { results: [] };
   const manifest =
     kind === "on"
-      ? groupManifestOf({ name, points: ["boundary.settle.after"] })
-      : groupManifestOf({ name, usesDrive: true });
+      ? groupManifestOf({ name, hooks: ["boundary.settle.after"] })
+      : groupManifestOf({ name, drives: true });
   const g = await installInjected(
     t,
     manifest,

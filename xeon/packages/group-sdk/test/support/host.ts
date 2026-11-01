@@ -1,5 +1,5 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { LeaseArbiterPortKey } from "@fresnel/contracts/extensions";
+import { DriveLockArbiterPortKey } from "@fresnel/contracts/extensions";
 import { withDriveDefaults } from "@fresnel/ext-host";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import {
@@ -65,7 +65,8 @@ export async function serviceRig(
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
       driveLimits: () => ({}),
-      activeDriveGroup: () => holder.read(null),
+      activeDriver: () => holder.read(null),
+      driveRequiresGroup: () => true,
       capabilityProviders: () => ({}),
     },
   });
@@ -84,7 +85,7 @@ export async function serviceRig(
   await t.host.registerPlatform({
     name: "fresnel-groups",
     setup(ctx) {
-      ctx.providePort(LeaseArbiterPortKey, service);
+      ctx.providePort(DriveLockArbiterPortKey, service);
     },
   });
   await installInOrder(t, modules);

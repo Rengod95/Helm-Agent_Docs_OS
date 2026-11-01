@@ -1,16 +1,16 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   GroupId,
-  LeaseArbiterPort,
-  LeaseCandidate,
-  ScopeId,
+  DriveLockArbiterPort,
+  DriveLockCandidate,
+  RegistrationId,
 } from "@fresnel/contracts/extensions";
 import type { DriveHolderSetting } from "@fresnel/contracts/services";
 
 export interface DriveCandidate {
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly groupId: GroupId;
-  /** LeaseCandidate.loadIndex. 0부터 */
+  /** DriveLockCandidate.loadIndex. 0부터 */
   readonly loadOrder: number;
   /** 그 thread 활성 가지의 마지막 scope.changed{status:"enabled"} 이벤트의 seq. 기록이 없으면 null */
   readonly requestSeq: number | null;
@@ -19,14 +19,14 @@ export interface DriveCandidate {
 export interface ArbiterInput {
   /** X가 넘긴 후보. 켜져 있고 drive를 등록했고 오류·idle 반납 대기가 아닌 그룹 */
   readonly candidates: readonly DriveCandidate[];
-  /** 설정 x.primitives.activeDriveGroup의 유효 값(thread 범위) */
+  /** 설정 x.primitives.activeDriver의 유효 값(thread 범위) */
   readonly holderSetting: DriveHolderSetting;
 }
 
 export type ArbiterReason =
   /** 설정 null(auto): 요청 순서로 부여 */
   | "first-request"
-  /** activeDriveGroup 지정 그룹 */
+  /** activeDriver 지정 그룹 */
   | "named"
   /** 지정 그룹이 후보가 아님. 아무도 받지 않음 */
   | "named-unavailable"
@@ -34,9 +34,9 @@ export type ArbiterReason =
 
 export interface ArbiterDecision {
   /** 임대를 받을 그룹. null이면 아무도 받지 않는다(사용자 입력이 루프를 소유) */
-  readonly holder: ScopeId | null;
+  readonly holder: RegistrationId | null;
   /** 받지 못한 후보. 요청 순서대로 */
-  readonly waiting: readonly ScopeId[];
+  readonly waiting: readonly RegistrationId[];
   readonly reason: ArbiterReason;
 }
 
@@ -91,17 +91,17 @@ export const defaultDriveArbiter: DriveArbiter = {
 };
 
 export interface LeaseArbiterPortDeps {
-  /** 설정 x.primitives.activeDriveGroup의 thread 범위 유효 값. 조립 루트가 설정 서비스에 연결한다 */
+  /** 설정 x.primitives.activeDriver의 thread 범위 유효 값. 조립 루트가 설정 서비스에 연결한다 */
   readonly holderSetting: (threadId: ThreadId) => DriveHolderSetting;
-  /** 후보의 요청 순번. 기본은 LeaseCandidate.enabledAtSeq */
-  readonly requestSeq?: (threadId: ThreadId, candidate: LeaseCandidate) => number | null;
+  /** 후보의 요청 순번. 기본은 DriveLockCandidate.enabledAtSeq */
+  readonly requestSeq?: (threadId: ThreadId, candidate: DriveLockCandidate) => number | null;
 }
 
-/** DriveArbiter를 X LeaseArbiterPort로 옮기는 어댑터. 설정 읽기와 requestSeq 조회만 더한다 */
-export function leaseArbiterPort(
+/** DriveArbiter를 X DriveLockArbiterPort로 옮기는 어댑터. 설정 읽기와 requestSeq 조회만 더한다 */
+export function driveLockArbiterPort(
   arbiter: DriveArbiter,
   deps: LeaseArbiterPortDeps,
-): LeaseArbiterPort {
+): DriveLockArbiterPort {
   return {
     choose(threadId, candidates) {
       const mapped: DriveCandidate[] = candidates.map((candidate) => ({

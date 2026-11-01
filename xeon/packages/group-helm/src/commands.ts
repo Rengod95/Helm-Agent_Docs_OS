@@ -69,7 +69,7 @@ type CommandApi = Pick<GroupApi<HelmState>, "state" | "commit">;
 
 /**
  * 명령 실행. 효과는 updateState뿐이다. 명령 처리기는 재실행되지 않으므로 ADR-0015 대상이 아니다.
- * 호출은 상태 문서에 닿는 문맥(on 핸들러)에서 한다: `ScopeApi.state`·`commit`은 on·drive 밖에서 쓸 수 없다
+ * 호출은 상태 문서에 닿는 문맥(on 핸들러)에서 한다: `RegistrationApi.state`·`commit`은 on·drive 밖에서 쓸 수 없다
  */
 export async function runHelmCommand(
   g: CommandApi,

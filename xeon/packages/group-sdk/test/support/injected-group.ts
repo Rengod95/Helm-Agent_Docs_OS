@@ -1,10 +1,10 @@
-import type { ExtensionEntry, ScopeApi } from "@fresnel/contracts/extensions";
+import type { ExtensionEntry, RegistrationApi } from "@fresnel/contracts/extensions";
 import type { TestHost } from "@fresnel/ext-host/testing";
 import type { GroupApi, GroupManifest } from "../../src/index.ts";
 import { realHostAccess, wrap, type GroupHostAccess } from "../../src/wrap.ts";
 
 /** 실제 hostOf 접근을 바탕으로 일부 연산만 바꾼다. delegate 시험이 L1 위임 서비스와 호출 문맥을 넣는 자리다 */
-export type AccessOverride = (api: ScopeApi<never>) => Partial<GroupHostAccess>;
+export type AccessOverride = (api: RegistrationApi<never>) => Partial<GroupHostAccess>;
 
 /**
  * defineGroup이 하는 일을 그대로 하되 hostAccess를 시험이 정한다. setup 안에서 받은 GroupApi는 sink에 담는다.
@@ -18,8 +18,8 @@ export async function installInjected(
   loadIndex = 0,
 ): Promise<GroupApi<never>> {
   const sink: { api?: GroupApi<never> } = {};
-  const entry: ExtensionEntry = ({ scope }) => {
-    scope(manifest.name, {}, (api: ScopeApi<never>) => {
+  const entry: ExtensionEntry = ({ register }) => {
+    register(manifest.name, {}, (api: RegistrationApi<never>) => {
       const wrapped = wrap(api, { manifest }, (target) => ({
         ...realHostAccess(target),
         ...override(api),

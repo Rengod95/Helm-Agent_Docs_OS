@@ -1,4 +1,4 @@
-import type { ExtensionEntry, ScopeApi } from "@fresnel/contracts/extensions";
+import type { ExtensionEntry, RegistrationApi } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { defineGroup, type GroupModule } from "../../src/index.ts";
 import { realHostAccess, wrap } from "../../src/wrap.ts";
@@ -12,7 +12,7 @@ const STEPS = 3;
 /** EV-09 좋은 예: drive가 상태 문서만 읽고 쓴다. 호출마다 마지막 커밋 상태에서 이어 간다 */
 export function goodDriveGroup(): GroupModule {
   return defineGroup<{ readonly n: number }>({
-    manifest: groupManifestOf({ name: "good-drive", usesDrive: true }),
+    manifest: groupManifestOf({ name: "good-drive", drives: true }),
     state: COUNTER,
     setup(g) {
       g.drive(async (loop, state) => {
@@ -28,7 +28,7 @@ export function goodDriveGroup(): GroupModule {
 export function badDriveGroup(): GroupModule {
   let calls = 0;
   return defineGroup<{ readonly n: number }>({
-    manifest: groupManifestOf({ name: "bad-drive", usesDrive: true }),
+    manifest: groupManifestOf({ name: "bad-drive", drives: true }),
     state: COUNTER,
     setup(g) {
       g.drive(async (loop) => {
@@ -44,7 +44,7 @@ export function badDriveGroup(): GroupModule {
 /** 커밋을 하지 않는 drive. 재생으로 확인할 것이 없다 */
 export function silentDriveGroup(): GroupModule {
   return defineGroup({
-    manifest: groupManifestOf({ name: "silent-drive", usesDrive: true }),
+    manifest: groupManifestOf({ name: "silent-drive", drives: true }),
     setup(g) {
       g.drive(async (loop) => {
         await loop.turn({ input: { kind: "user", content: "quiet" } });
@@ -66,9 +66,9 @@ function effectGroup(
   harness: CountingReplayHarness,
   keys: (state: number) => string,
 ): GroupModule {
-  const manifest = groupManifestOf({ name, usesDrive: true, usesPost: true });
-  const entry: ExtensionEntry = ({ scope }) => {
-    scope(name, { state: EFFECT_STATE }, (api: ScopeApi<{ readonly n: number }>) => {
+  const manifest = groupManifestOf({ name, drives: true, usesPost: true });
+  const entry: ExtensionEntry = ({ register }) => {
+    register(name, { state: EFFECT_STATE }, (api: RegistrationApi<{ readonly n: number }>) => {
       const g = wrap(api, { manifest, state: EFFECT_STATE }, (target) => ({
         ...realHostAccess(target),
         agents: () => harness.agents(),

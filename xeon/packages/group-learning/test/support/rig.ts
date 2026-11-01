@@ -268,12 +268,12 @@ export async function rigOn(
     control,
     installIssues,
     async disable() {
-      t.host.scope("learning")?.disable();
+      t.host.registration("learning")?.disable();
       await t.boundary(rigThread).turnSettled();
       await t.settled();
     },
     async enable() {
-      t.host.scope("learning")?.enable();
+      t.host.registration("learning")?.enable();
       await t.boundary(rigThread).turnSettled();
       await t.settled();
     },

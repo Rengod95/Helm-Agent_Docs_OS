@@ -30,7 +30,8 @@ export interface TemplateEntry {
   readonly description: string;
   /** templates/ 기준 상대 경로. 공통 파일은 "common/…" */
   readonly files: readonly string[];
-  readonly usesDrive: boolean;
+  /** 만든 그룹의 루트 플러그인이 drive를 등록하는가. 생성 매니페스트 루트 플러그인의 drives와 같아야 한다 */
+  readonly drives: boolean;
 }
 
 export interface TemplateIndex {
@@ -41,12 +42,12 @@ export interface TemplateIndex {
 const TemplateEntrySchema: TObject<{
   description: TString;
   files: TArray<TString>;
-  usesDrive: TBoolean;
+  drives: TBoolean;
 }> = Type.Object(
   {
     description: Type.String({ maxLength: 200 }),
     files: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
-    usesDrive: Type.Boolean(),
+    drives: Type.Boolean(),
   },
   { additionalProperties: false },
 );

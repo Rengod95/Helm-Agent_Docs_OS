@@ -43,7 +43,7 @@ test("status-line.examples", () => {
   expect(formatGroupStatusLine([helm({ drive: "error" }), group("learning")])).toBe(
     "그룹 helm[오류] learning",
   );
-  // 5. activeDriveGroup=review인데 review가 꺼짐
+  // 5. activeDriver=review인데 review가 꺼짐
   expect(
     formatGroupStatusLine([
       helm({ drive: "waiting" }),

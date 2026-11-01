@@ -3,11 +3,11 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   LoopPortKey,
   type GroupId,
-  type LeaseArbiterPort,
-  type ScopeId,
+  type DriveLockArbiterPort,
+  type RegistrationId,
   type Unsubscribe,
 } from "@fresnel/contracts/extensions";
-import { SessionFeedPortKey, type ExtHost, type ScopeInfo } from "@fresnel/ext-host";
+import { SessionFeedPortKey, type ExtHost, type RegistrationInfo } from "@fresnel/ext-host";
 import {
   GroupServiceName,
   type DriveHolderSetting,
@@ -20,7 +20,7 @@ import {
   type HolderReceipt,
   type ToggleReceipt,
 } from "@fresnel/contracts/services";
-import { defaultDriveArbiter, leaseArbiterPort, type DriveArbiter } from "./arbiter.ts";
+import { defaultDriveArbiter, driveLockArbiterPort, type DriveArbiter } from "./arbiter.ts";
 import type { GroupResetError, GroupServiceWithUsage } from "./commands.ts";
 import { gatherPromotionInput } from "./promotion/gather.ts";
 import { buildPromotionReport, type PromotionReport } from "./promotion/report.ts";
@@ -33,20 +33,21 @@ import type {
   HolderSettingScope,
   HolderWriteError,
 } from "./ports/holder.ts";
+import { orchestrationOf } from "./util.ts";
 
 export { GroupServiceName };
 
 /** 서비스가 ExtHost에서 읽는 부분. 시험에서는 테스트 호스트의 `host`를 그대로 넘긴다 */
 export type GroupHostView = Pick<
   ExtHost,
-  | "scopes"
-  | "scope"
+  | "registrations"
+  | "registration"
   | "leaseOf"
   | "onChange"
   | "ports"
   | "queryEvents"
   | "toolOwner"
-  | "resetScopeState"
+  | "resetRegistrationState"
 >;
 
 export interface GroupServiceDeps {
@@ -83,7 +84,7 @@ export interface GroupServiceDeps {
 /** 활성 thread 하나의 이벤트 집계. `refreshUsage`가 채운다 */
 interface UsageCache {
   readonly threadId: ThreadId;
-  readonly byScope: ReadonlyMap<ScopeId, ScopeUsage>;
+  readonly byScope: ReadonlyMap<RegistrationId, ScopeUsage>;
 }
 
 const STATE_INVALID_CODES: ReadonlySet<string> = new Set(["state_schema", "state_too_large"]);
@@ -93,7 +94,7 @@ const MIGRATION_CODES: ReadonlySet<string> = new Set([
   "state_future_version",
 ]);
 
-function errorOf(info: ScopeInfo): GroupError | null {
+function errorOf(info: RegistrationInfo): GroupError | null {
   if (info.lastError === undefined) return null;
   const { code, message } = info.lastError;
   if (info.drive === "error") return { kind: "group.driveThrew", message, atSeq: null };
@@ -104,10 +105,10 @@ function errorOf(info: ScopeInfo): GroupError | null {
 
 function driveRoleOf(
   entry: GroupCatalogEntry,
-  info: ScopeInfo | undefined,
+  info: RegistrationInfo | undefined,
   rejected: boolean,
 ): DriveRole {
-  if (!entry.manifest.usesDrive || info === undefined) return "none";
+  if (orchestrationOf(entry.manifest)?.drives !== true || info === undefined) return "none";
   if (info.status !== "enabled" && info.status !== "disabling") return "none";
   switch (info.drive) {
     case "holding":
@@ -119,12 +120,12 @@ function driveRoleOf(
     case "none":
       return "none";
     default:
-      return assertNever(info.drive, "ScopeInfo.drive");
+      return assertNever(info.drive, "RegistrationInfo.drive");
   }
 }
 
 /**
- * `fresnel.groups` 서비스 구현(L3.group-sdk.spec §3.8). X `LeaseArbiterPort.choose`와 그룹 목록·전환·구동 그룹 선택을 한 객체로 낸다.
+ * `fresnel.groups` 서비스 구현(L3.group-sdk.spec §3.8). X `DriveLockArbiterPort.choose`와 그룹 목록·전환·구동 그룹 선택을 한 객체로 낸다.
  * 상태는 `ExtHost.scopes()`·`leaseOf()`를 부를 때마다 새로 읽는다. 따로 쌓아 두는 사본이 없다.
  */
 /** 설정 쓰기 실패를 서비스 오류로 옮긴다. 관리 범위의 잠금만 `group.settingLocked`고 나머지는 이유를 그대로 싣는다 */
@@ -141,7 +142,7 @@ function groupErrorOf(error: HolderWriteError): GroupCommandError {
 
 export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsage {
   const arbiter = deps.arbiter ?? defaultDriveArbiter;
-  const port: LeaseArbiterPort = leaseArbiterPort(arbiter, {
+  const port: DriveLockArbiterPort = driveLockArbiterPort(arbiter, {
     holderSetting: (threadId) => deps.holder.read(threadId),
   });
   const listeners = new Set<(groups: readonly GroupStatus[]) => void>();
@@ -180,7 +181,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
   function statusOf(entry: GroupCatalogEntry): GroupStatus {
     attachFeed();
     const id = entry.manifest.name;
-    const info = deps.host.scopes().find((scope) => scope.id === id);
+    const info = deps.host.registrations().find((scope) => scope.id === id);
     const thread = deps.currentThread();
     const lease = thread === null ? null : deps.host.leaseOf(thread);
     const scope = info?.status ?? "disabled";
@@ -190,11 +191,11 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
       displayName: entry.manifest.displayName ?? id,
       scope,
       pendingToggle: scope === "enabling" ? "enable" : scope === "disabling" ? "disable" : null,
-      usesDrive: entry.manifest.usesDrive,
+      usesDrive: orchestrationOf(entry.manifest)?.drives === true,
       drive: driveRoleOf(entry, info, thread !== null && rejections.has(thread, id)),
       leaseId: lease !== null && lease.scopeId === id ? lease.leaseId : null,
       lastError: info === undefined ? null : errorOf(info),
-      recordKinds: (entry.manifest.recordKinds ?? []).map((decl) => decl.kind),
+      recordKinds: (orchestrationOf(entry.manifest)?.recordKinds ?? []).map((decl) => decl.kind),
       metrics: instrumented ? summaryOf(id, thread) : null,
     };
   }
@@ -252,7 +253,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
   }
 
   function toggle(id: string, enabled: boolean): GroupResult<ToggleReceipt> {
-    const handle = find(id) === undefined ? undefined : deps.host.scope(id);
+    const handle = find(id) === undefined ? undefined : deps.host.registration(id);
     if (handle === undefined) {
       return { ok: false, error: { kind: "group.unknown", id, known: knownIds() } };
     }
@@ -272,8 +273,8 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
   }
 
   /** 지정한 그룹이 X의 임대 후보인가: 켜져 있고 drive를 등록했고 오류 상태가 아니다 */
-  function isCandidate(scopeId: ScopeId): boolean {
-    const info = deps.host.scopes().find((scope) => scope.id === scopeId);
+  function isCandidate(scopeId: RegistrationId): boolean {
+    const info = deps.host.registrations().find((scope) => scope.id === scopeId);
     return info !== undefined && info.status === "enabled" && info.drive === "registered";
   }
 
@@ -308,7 +309,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
       }
       const thread = deps.currentThread();
       if (thread === null) return { ok: false, error: { kind: "group.noThread" } };
-      const reset = await deps.host.resetScopeState(thread, id);
+      const reset = await deps.host.resetRegistrationState(thread, id);
       if (reset.ok) {
         schedule();
         return { ok: true, value: reset.value };
@@ -344,7 +345,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
         if (entry === undefined) {
           return { ok: false, error: { kind: "group.unknown", id: next, known: knownIds() } };
         }
-        if (!entry.manifest.usesDrive) {
+        if (orchestrationOf(entry.manifest)?.drives !== true) {
           return { ok: false, error: { kind: "group.noDrive", id: entry.manifest.name } };
         }
       }

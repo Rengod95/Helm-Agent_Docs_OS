@@ -42,10 +42,10 @@ async function rigWith(values: Readonly<Record<string, unknown>>): Promise<{
     loadIndex: 0,
     builtin: false,
   });
-  t.host.scope("provider-anthropic-oauth")?.enable();
+  t.host.registration("provider-anthropic-oauth")?.enable();
   await t.host.openThread(t.newThread());
   await t.settled();
-  expect(t.host.scope("provider-anthropic-oauth")?.status).toBe("enabled");
+  expect(t.host.registration("provider-anthropic-oauth")?.status).toBe("enabled");
   return { t, registered };
 }
 
@@ -86,7 +86,7 @@ test("setup.registers-anthropic-oauth-once-and-releases-it-on-disable", async ()
   ]);
 
   // 그룹을 끄면 provider 등록이 풀린다
-  t.host.scope("provider-anthropic-oauth")?.disable();
+  t.host.registration("provider-anthropic-oauth")?.disable();
   await t.settled();
   expect(registered.size).toBe(0);
   expect(t.host.resources.list("provider")).toEqual([]);

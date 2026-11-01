@@ -20,7 +20,7 @@ test("coexist.helm-lease-held-fork-still-runs: the review starts while another g
   expect(rig.t.host.leaseOf(rig.thread)?.scopeId).toBe("fake-drive");
   // 학습 그룹은 drive를 부르지 않는다: 루프 turn은 늘지 않았고 임대 후보가 아니다
   expect(rig.t.loop.turns.length).toBe(turnsBefore);
-  expect(rig.module.manifest.usesDrive).toBe(false);
+  expect(rig.module.manifest.plugins.map((plugin) => plugin.drives)).toEqual([undefined]);
   drive.release();
   rig.control.waitSettled = true;
   await rig.t.settled();

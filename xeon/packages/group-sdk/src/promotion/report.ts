@@ -1,10 +1,10 @@
 import type { ToolName } from "@fresnel/contracts/capabilities";
-import type { GroupId, ScopeId } from "@fresnel/contracts/extensions";
+import type { GroupId, RegistrationId } from "@fresnel/contracts/extensions";
 
 /** 한 도구를 한 scope가 호출한 집계(L3.group-sdk.spec §3.12). 소유 그룹 밖의 scope만 든다 */
 export interface ToolConsumer {
   /** 호출이 일어난 turn을 시작한 쪽. 임대 holder scope, 또는 위임·spawn 자식을 만든 scope */
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly calls: number;
   readonly firstSeq: number;
   readonly lastSeq: number;
@@ -35,14 +35,14 @@ export interface PromotionInput {
   readonly toolOwners: ReadonlyMap<ToolName, GroupId>;
   /**
    * 도구 호출 하나마다 한 항목. `origin`은 그 호출의 turn을 시작한 scope이고, 사용자 입력 turn이면 `"user"`다.
-   * `"user"`는 `ScopeId`(string)와 같은 타입이라 유니온으로 따로 적지 않는다(lint no-redundant-type-constituents).
+   * `"user"`는 `RegistrationId`(string)와 같은 타입이라 유니온으로 따로 적지 않는다(lint no-redundant-type-constituents).
    * 호출 이벤트와 turn 시작 이벤트의 해석은 `gatherPromotionInput`이 맡는다.
    */
   readonly calls: readonly {
     readonly tool: ToolName;
     readonly seq: number;
     readonly threadId: string;
-    readonly origin: ScopeId;
+    readonly origin: RegistrationId;
   }[];
 }
 
@@ -50,7 +50,7 @@ export interface PromotionInput {
 const USER_ORIGIN = "user";
 
 interface Tally {
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   calls: number;
   firstSeq: number;
   lastSeq: number;
@@ -63,7 +63,7 @@ function compareText(left: string, right: string): number {
 
 /** 한 도구의 호출을 scope별로 센다. 소유 그룹 자신의 호출과 사용자 입력 호출은 소비자가 아니다 */
 function consumersOf(calls: PromotionInput["calls"], owner: GroupId): readonly ToolConsumer[] {
-  const tally = new Map<ScopeId, Tally>();
+  const tally = new Map<RegistrationId, Tally>();
   for (const call of calls) {
     if (call.origin === USER_ORIGIN || call.origin === owner) continue;
     const current = tally.get(call.origin);

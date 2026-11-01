@@ -132,7 +132,7 @@ test("uc2.write-deny-and-n-lenses", async () => {
   expect(player.remaining()).toBe(2);
 
   // (3) Helm을 끈 다음 turn에서는 같은 쓰기 호출이 실행된다
-  t.host.scope("helm")?.disable();
+  t.host.registration("helm")?.disable();
   await drainRounds(t, thread, 4, "idle");
   const toggles = t.records
     .events(thread)

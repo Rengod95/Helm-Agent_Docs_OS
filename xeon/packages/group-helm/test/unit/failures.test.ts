@@ -25,7 +25,7 @@ test("failureOf maps primitive errors to Helm failures", () => {
     ["state_conflict", { kind: "state_conflict" }],
     ["state_too_large", { kind: "state_too_large" }],
     ["storage_unavailable", { kind: "storage" }],
-    ["scope_inactive", { kind: "disabled" }],
+    ["registration_inactive", { kind: "disabled" }],
     ["record_invalid", undefined],
     ["post_undeclared", undefined],
     ["state_schema", undefined],

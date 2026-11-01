@@ -34,6 +34,10 @@ export async function checkGroup(
   module: GroupModule,
 ): Promise<readonly (GroupDefIssue | ManifestIssue)[]> {
   const issues: (GroupDefIssue | ManifestIssue)[] = [...validateManifest(module.manifest).issues];
+  const rootIndex = Math.max(
+    0,
+    module.manifest.plugins.findIndex((plugin) => plugin.id === undefined),
+  );
   const host = createExtHost({
     ids: counterIds(),
     now: () => 0,
@@ -41,7 +45,8 @@ export async function checkGroup(
     settings: {
       driveDefaultLimits: () => ({}),
       driveLimits: () => ({}),
-      activeDriveGroup: () => null,
+      activeDriver: () => null,
+      driveRequiresGroup: () => true,
       capabilityProviders: () => ({}),
     },
     report: () => {},
@@ -66,7 +71,7 @@ export async function checkGroup(
     for (const setup of installed.setups) {
       if (setup.status !== "failed") continue;
       issues.push(
-        usageIssueOf(setup.failure?.error) ?? {
+        usageIssueOf(setup.failure?.error, rootIndex) ?? {
           severity: "error",
           code: "setup_threw",
           path: `/scopes/${setup.scopeId}`,
@@ -82,19 +87,25 @@ export async function checkGroup(
 
 /** X는 선언하지 않은 등록을 그 자리에서 던진다. 던진 코드가 validateUsage 코드와 같으면 같은 이슈로 돌려준다 */
 const USAGE_PATHS: Readonly<Partial<Record<string, readonly [ManifestIssue["code"], string]>>> = {
-  point_undeclared: ["point_undeclared", "/points"],
-  post_undeclared: ["post_undeclared", "/usesPost"],
-  drive_undeclared: ["drive_undeclared", "/usesDrive"],
-  capability_undeclared: ["capability_undeclared", "/requires"],
-  record_kind_undeclared: ["record_kind_undeclared", "/recordKinds"],
-  read_kind_undeclared: ["read_kind_undeclared", "/readsRecordKinds"],
+  hook_undeclared: ["hook_undeclared", "hooks"],
+  post_undeclared: ["post_undeclared", "usesPost"],
+  drive_undeclared: ["drive_undeclared", "drives"],
+  capability_undeclared: ["capability_undeclared", "requires"],
+  record_kind_undeclared: ["record_kind_undeclared", "recordKinds"],
+  read_kind_undeclared: ["read_kind_undeclared", "readsRecordKinds"],
 };
 
-function usageIssueOf(error: unknown): ManifestIssue | undefined {
+/** `pluginIndex`는 그룹의 루트 플러그인 위치다. 경로는 `/plugins/<pluginIndex>/<필드>`다 */
+function usageIssueOf(error: unknown, pluginIndex: number): ManifestIssue | undefined {
   if (!(error instanceof PrimitiveError)) return undefined;
   const found = USAGE_PATHS[error.code];
   if (found === undefined) return undefined;
-  return { severity: "error", code: found[0], path: found[1], message: error.message };
+  return {
+    severity: "error",
+    code: found[0],
+    path: `/plugins/${pluginIndex}/${found[1]}`,
+    message: error.message,
+  };
 }
 
 function describe(error: unknown): string {

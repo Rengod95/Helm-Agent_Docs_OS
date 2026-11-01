@@ -1,7 +1,12 @@
 import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { WebSearch } from "@fresnel/contracts/capabilities";
-import { FIRST_DENY, validateManifest, validateUsage } from "@fresnel/contracts/extensions";
+import {
+  FIRST_DENY,
+  pluginsOf,
+  validateManifest,
+  validateUsage,
+} from "@fresnel/contracts/extensions";
 import { capabilityDefTable } from "@fresnel/ext-host";
 import { helmManifest } from "../../src/index.ts";
 import { HelmStateSchema, INITIAL_HELM_STATE, type HelmState } from "../../src/state.ts";
@@ -26,27 +31,64 @@ function noticeTexts(rig: Rig): readonly string[] {
   });
 }
 
+test("manifest.plugin-format: one root L3 plugin that drives, with the six hooks and no legacy fields", () => {
+  expect(helmManifest.schemaVersion).toBe(2);
+  expect(helmManifest.group).toEqual({});
+  expect(helmManifest.plugins).toHaveLength(1);
+  expect(helmManifest.plugins.map((plugin) => plugin.id)).toEqual([undefined]);
+  expect(helmManifest.plugins.map((plugin) => plugin.layer)).toEqual(["L3"]);
+  expect(helmManifest.plugins.map((plugin) => plugin.drives)).toEqual([true]);
+  expect(helmManifest.plugins.map((plugin) => plugin.hooks)).toEqual([
+    [
+      "input.agent.before",
+      "tool.call.before",
+      "tool.execution.after",
+      "boundary.settle.after",
+      "thread.start",
+      "lifecycle.lease.rejected",
+    ],
+  ]);
+  for (const legacy of [
+    "kind",
+    "points",
+    "usesDrive",
+    "layer",
+    "usesPost",
+    "requires",
+    "optional",
+    "recordKinds",
+    "readsRecordKinds",
+  ]) {
+    expect(Object.keys(helmManifest)).not.toContain(legacy);
+  }
+  expect(
+    validateManifest(helmManifest).issues.filter((issue) => issue.severity === "error"),
+  ).toEqual([]);
+});
+
 test("manifest.valid-and-usage-matches", async () => {
   expect(
     validateManifest(helmManifest).issues.filter((issue) => issue.severity === "error"),
   ).toEqual([]);
-  expect(helmManifest.points).toHaveLength(6);
-  expect(helmManifest.usesDrive).toBe(true);
-  expect(helmManifest.usesPost).toBe(true);
+  const root = pluginsOf(helmManifest).find((plugin) => plugin.root);
+  if (root === undefined) throw new Error("helm has no root plugin");
+  expect(root.decl.hooks).toHaveLength(6);
+  expect(root.decl.drives).toBe(true);
+  expect(root.decl.usesPost).toBe(true);
   const rig = await createRig();
-  const scope = rig.t.host.scopes().find((info) => info.id === "helm");
-  expect(scope?.status).toBe("enabled");
+  const info = rig.t.host.registrations().find((item) => item.id === "helm");
+  expect(info?.status).toBe("enabled");
   const usage = {
-    on: [...helmManifest.points],
+    on: [...root.decl.hooks],
     post: true,
     drive: true,
     capabilities: [],
-    recordKinds: helmManifest.recordKinds?.map((decl) => decl.kind) ?? [],
+    recordKinds: root.decl.recordKinds?.map((decl) => decl.kind) ?? [],
     readsRecordKinds: [],
   };
-  expect(validateUsage(helmManifest, usage).filter((issue) => issue.severity === "error")).toEqual(
-    [],
-  );
+  expect(
+    validateUsage(helmManifest, root, usage).filter((issue) => issue.severity === "error"),
+  ).toEqual([]);
   expect(rig.t.diagnostics.filter((diagnostic) => diagnostic.level === "error")).toEqual([]);
 });
 

@@ -9,7 +9,7 @@ import {
   type SchemaProof,
   type SchemaSound,
 } from "@fresnel/contracts";
-import type { ScopeApi } from "@fresnel/contracts/extensions";
+import type { RegistrationApi } from "@fresnel/contracts/extensions";
 import { Type, type TUnsafe } from "typebox";
 import { failureOf, type HelmFailure } from "./failures.ts";
 
@@ -291,7 +291,7 @@ export type StateWriteFailure = Extract<
 /** scope마다 하나인 직렬 큐. 같은 scope의 updateState가 앞선 커밋을 덮지 않게 한다 */
 const queues = new WeakMap<object, Promise<void>>();
 
-type StateApi = Pick<ScopeApi<HelmState>, "state" | "commit">;
+type StateApi = Pick<RegistrationApi<HelmState>, "state" | "commit">;
 
 async function commitFitted(
   g: StateApi,

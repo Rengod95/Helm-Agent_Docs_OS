@@ -15,16 +15,14 @@ export function driveStandIn(name: string): DriveStandIn {
   const gate = Promise.withResolvers<void>();
   const module = defineGroup({
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name,
       version: "0.1.0",
-      layer: "L3",
-      kind: "group",
       entry: "./src/index.ts",
-      points: [],
-      usesDrive: true,
       defaultEnabled: true,
       trust: { level: "builtin" },
+      plugins: [{ layer: "L3", hooks: [], drives: true }],
+      group: {},
     }),
     setup(g) {
       g.drive(async (loop) => {

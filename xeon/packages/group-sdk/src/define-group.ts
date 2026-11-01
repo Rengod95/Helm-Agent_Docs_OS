@@ -1,10 +1,12 @@
 import { Bug, err, ok, parse, type Result } from "@fresnel/contracts";
+import { orchestrationOf } from "./util.ts";
 import {
+  isGroupExtension,
   validateManifest,
   type ExtensionEntry,
   type ExtensionManifest,
   type ManifestIssue,
-  type ScopeDef,
+  type RegistrationDef,
 } from "@fresnel/contracts/extensions";
 import type { SettingDef, SettingGroup } from "@fresnel/contracts/settings";
 import { stateUpcasters } from "./state.ts";
@@ -94,12 +96,12 @@ export function checkGroupName(name: string): Result<string, GroupNameError> {
 }
 
 function isGroupManifest(manifest: ExtensionManifest): manifest is GroupManifest {
-  return manifest.kind === "group" && manifest.layer === "L3";
+  return isGroupExtension(manifest) && orchestrationOf(manifest) !== undefined;
 }
 
 /**
  * 매니페스트 값을 검증해 GroupManifest로 좁힌다. .fresnel-plugin/plugin.json을 JSON import로 읽은 외부 그룹이 쓴다.
- * F validateManifest 오류, kind·layer 불일치면 Bug를 던진다. 순수 함수
+ * F validateManifest 오류, `group` 선언이나 L3 플러그인이 없으면 Bug를 던진다. 순수 함수
  */
 export function groupManifest(value: unknown): GroupManifest {
   const result = validateManifest(value);
@@ -111,7 +113,7 @@ export function groupManifest(value: unknown): GroupManifest {
   }
   if (!isGroupManifest(result.manifest)) {
     throw new Bug(
-      `groupManifest: ${result.manifest.name} must be kind "group" and layer "L3" (group_kind)`,
+      `groupManifest: ${result.manifest.name} needs a group declaration and a root plugin with layer L3 (group_missing_orchestration)`,
     );
   }
   return result.manifest;
@@ -128,9 +130,13 @@ export function validateGroupDef(def: GroupDefShape): readonly (GroupDefIssue | 
   const found: (GroupDefIssue | ManifestIssue)[] = [...validateManifest(def.manifest).issues];
   const { manifest } = def;
 
-  if (manifest.kind !== "group" || manifest.layer !== "L3") {
+  if (!isGroupManifest(manifest)) {
     found.push(
-      issue("group_kind", "/manifest/kind", 'a group manifest needs kind "group" and layer "L3"'),
+      issue(
+        "group_missing_orchestration",
+        "/manifest/group",
+        'a group manifest needs a group declaration and a root plugin (no id) with layer "L3"',
+      ),
     );
   }
   if (!checkGroupName(manifest.name).ok) {
@@ -200,9 +206,11 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = NoSett
       `defineGroup(${def.manifest.name}): ${errors.map((found) => `${found.code} ${found.path}`).join("; ")}`,
     );
   }
-  const entry: ExtensionEntry = ({ scope }) => {
-    const scopeDef: ScopeDef<S> = def.state === undefined ? {} : { state: def.state };
-    scope(def.manifest.name, scopeDef, (api) => def.setup(wrap(api, def, realHostAccess)));
+  const entry: ExtensionEntry = ({ register }) => {
+    const registrationDef: RegistrationDef<S> = def.state === undefined ? {} : { state: def.state };
+    register(def.manifest.name, registrationDef, (api) =>
+      def.setup(wrap(api, def, realHostAccess)),
+    );
   };
   const version = def.state?.version ?? 0;
   return {

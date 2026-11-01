@@ -58,7 +58,7 @@ test("command.parse-grammar", () => {
 
 function driver(name: string): GroupModule {
   return defineGroup({
-    manifest: groupManifestOf({ name, usesDrive: true }),
+    manifest: groupManifestOf({ name, drives: true }),
     setup(g) {
       g.drive(async (loop) => {
         await loop.turn({ input: { kind: "user", content: name } });
@@ -159,7 +159,7 @@ test("command.drive-unknown-no-drive-locked-and-auto", async () => {
   });
   expect(await groupCommand(lockedService).run("drive helm")).toEqual({
     ok: false,
-    text: "x.primitives.activeDriveGroup은 상위 범위 설정이 잠가 바꿀 수 없다",
+    text: "x.primitives.activeDriver은 상위 범위 설정이 잠가 바꿀 수 없다",
     pending: false,
   });
 });
@@ -183,7 +183,7 @@ test("command.drive-reports-each-unwritable-reason", async () => {
             ok: false,
             error: {
               kind: "group.settingUnwritable",
-              key: "x.primitives.activeDriveGroup",
+              key: "x.primitives.activeDriver",
               reason,
             },
           }),
@@ -194,7 +194,7 @@ test("command.drive-reports-each-unwritable-reason", async () => {
   expect(outputs).toEqual(
     cases.map(([, text]) => ({
       ok: false,
-      text: `x.primitives.activeDriveGroup을 쓸 수 없다: ${text}`,
+      text: `x.primitives.activeDriver을 쓸 수 없다: ${text}`,
       pending: false,
     })),
   );

@@ -143,13 +143,13 @@ test("smoke.toggle-applies-at-step-boundary", async () => {
   // drive의 loop.turn이 진행 중이다
   expect(t.loop.turns).toHaveLength(1);
 
-  t.host.scope("smoke-group")?.disable();
+  t.host.registration("smoke-group")?.disable();
   // 요청만 기록되었고 경계 전에는 아직 켜져 있다
-  expect(t.host.scope("smoke-group")?.status).not.toBe("disabled");
+  expect(t.host.registration("smoke-group")?.status).not.toBe("disabled");
   const drafts = await t.boundary(thread).stepEnd();
   expect(drafts.map((draft) => draft.kind)).toEqual(["lease.released", "scope.changed"]);
   expect(drafts[0]?.payload).toMatchObject({ reason: "disabled" });
-  expect(t.host.scope("smoke-group")?.status).toBe("disabled");
+  expect(t.host.registration("smoke-group")?.status).toBe("disabled");
 
   // 진행 중이던 turn은 끊기지 않고 정착한다
   expect(t.loop.turns[0]?.signal.aborted).toBe(false);

@@ -2,13 +2,13 @@ import { parse } from "@fresnel/contracts";
 import type { ToolName } from "@fresnel/contracts/capabilities";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import { TurnStartedPayloadSchema } from "@fresnel/contracts/conversation";
-import type { GroupId, ScopeId } from "@fresnel/contracts/extensions";
+import type { GroupId, RegistrationId } from "@fresnel/contracts/extensions";
 import { EffectIntentSchema } from "@fresnel/contracts/records";
 import type { ExtHost } from "@fresnel/ext-host";
 import type { PromotionInput } from "./report.ts";
 
 /** 승격 집계가 ExtHost에서 읽는 부분. 서비스의 `GroupHostView`가 이 부분을 포함한다 */
-export type PromotionHostView = Pick<ExtHost, "scopes" | "queryEvents" | "toolOwner">;
+export type PromotionHostView = Pick<ExtHost, "registrations" | "queryEvents" | "toolOwner">;
 
 type PromotionCall = PromotionInput["calls"][number];
 
@@ -16,7 +16,7 @@ type PromotionCall = PromotionInput["calls"][number];
  * turn 시작 이벤트의 출처. drive turn은 임대한 scope id다. scopeId가 null이고 출처가 사용자 입력(`user`, 또는 옛 기록에 없음)이면 `"user"`다.
  * 위임·예약·원격·기타 turn은 호출을 만든 scope를 이벤트에서 알 수 없어 `null`로 두고 집계에서 뺀다(L3.group-sdk.spec §10).
  */
-function turnOriginOf(payload: unknown): ScopeId | null {
+function turnOriginOf(payload: unknown): RegistrationId | null {
   const checked = parse(TurnStartedPayloadSchema, payload);
   if (!checked.ok) return null;
   if (checked.value.scopeId !== null) return checked.value.scopeId;
@@ -26,7 +26,7 @@ function turnOriginOf(payload: unknown): ScopeId | null {
 /** 도구를 설치된 그룹이 등록했을 때만 그 그룹을 돌려준다. 그룹 scope id는 그룹 이름이다 */
 function owningGroup(
   host: PromotionHostView,
-  installed: ReadonlySet<ScopeId>,
+  installed: ReadonlySet<RegistrationId>,
   tool: ToolName,
 ): GroupId | undefined {
   const record = host.toolOwner(tool);
@@ -44,7 +44,9 @@ export async function gatherPromotionInput(
   host: PromotionHostView,
   threadIds: readonly ThreadId[],
 ): Promise<PromotionInput> {
-  const installed: ReadonlySet<ScopeId> = new Set(host.scopes().map((scope) => scope.id));
+  const installed: ReadonlySet<RegistrationId> = new Set(
+    host.registrations().map((info) => info.id),
+  );
   const reads = await Promise.all(
     threadIds.map(async (threadId) => ({
       threadId,
@@ -56,7 +58,7 @@ export async function gatherPromotionInput(
   const calls: PromotionCall[] = [];
   for (const { threadId, turns, intents } of reads) {
     if (!turns.ok || !intents.ok) continue;
-    const origins = new Map<TurnId, ScopeId>();
+    const origins = new Map<TurnId, RegistrationId>();
     for (const event of turns.value) {
       if (event.turnId === null) continue;
       const origin = turnOriginOf(event.payload);

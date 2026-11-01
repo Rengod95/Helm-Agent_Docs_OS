@@ -4,6 +4,7 @@ import {
   type PostItem,
   type RecordKind,
 } from "@fresnel/contracts/extensions";
+import { orchestrationOf } from "./util.ts";
 
 const KIND_REGEX = new RegExp(RECORD_KIND_PATTERN);
 
@@ -27,7 +28,7 @@ function ownPrefix(manifest: KindOwner): string {
  * 다른 그룹 접두나 kind 형식 위반은 `record_invalid`, 자기 접두인데 매니페스트 recordKinds에 없으면 `record_kind_undeclared`다.
  */
 export function checkRecordKind(
-  manifest: Pick<ExtensionManifest, "name" | "recordKinds">,
+  manifest: Pick<ExtensionManifest, "name" | "plugins">,
   kind: RecordKind,
 ): RecordCheck {
   if (!kind.startsWith(ownPrefix(manifest)) || !KIND_REGEX.test(kind)) {
@@ -37,7 +38,7 @@ export function checkRecordKind(
       message: `record kind ${kind} is not under ${ownPrefix(manifest)}`,
     };
   }
-  if (manifest.recordKinds?.some((decl) => decl.kind === kind) !== true) {
+  if (orchestrationOf(manifest)?.recordKinds?.some((decl) => decl.kind === kind) !== true) {
     return {
       ok: false,
       code: "record_kind_undeclared",
@@ -66,12 +67,12 @@ export function checkPostItem(manifest: KindOwner, item: PostItem): RecordCheck 
  * 코어 kind는 지점 페이로드로 넘어가는 것이라 항상 참이다.
  */
 export function kindVisibleTo(
-  manifest: Pick<ExtensionManifest, "name" | "readsRecordKinds">,
+  manifest: Pick<ExtensionManifest, "name" | "plugins">,
   kind: string,
 ): boolean {
   if (!kind.startsWith("grp.") && !kind.startsWith("x.")) return true;
   if (kind.startsWith(ownPrefix(manifest))) return true;
-  return (manifest.readsRecordKinds ?? []).some((declared) =>
+  return (orchestrationOf(manifest)?.readsRecordKinds ?? []).some((declared) =>
     declared.endsWith("*") ? kind.startsWith(declared.slice(0, -1)) : declared === kind,
   );
 }

@@ -59,7 +59,7 @@ test("state.check-commit-covers-schema-size-and-unchanged", () => {
 
 function countingGroup(name: string, seen: number[]): GroupModule {
   return defineGroup({
-    manifest: groupManifestOf({ name, points: ["boundary.settle.after"] }),
+    manifest: groupManifestOf({ name, hooks: ["boundary.settle.after"] }),
     state: counterDecl,
     setup(g) {
       g.on("boundary.settle.after", async (_payload, ctx) => {
@@ -94,7 +94,7 @@ test("state.restore-on-branch", async () => {
 
 const driven = (name: string, sink: number[]): GroupModule =>
   defineGroup({
-    manifest: groupManifestOf({ name, usesDrive: true }),
+    manifest: groupManifestOf({ name, drives: true }),
     state: counterDecl,
     setup(g) {
       g.drive(async (loop, state) => {
@@ -146,7 +146,7 @@ test("state.rejects-oversize-and-skips-unchanged", async () => {
   await install(
     t,
     defineGroup({
-      manifest: groupManifestOf({ name: "big-state", points: ["boundary.settle.after"] }),
+      manifest: groupManifestOf({ name: "big-state", hooks: ["boundary.settle.after"] }),
       state: {
         schema: Type.Object({ s: Type.String({ pattern: "^[a-z]*$" }) }),
         initial: { s: "" },
@@ -181,7 +181,7 @@ test("state.migration-upgrades-a-lower-stored-version", async () => {
 
   const V2Schema = Type.Object({ n: Type.Integer({ minimum: 0 }), label: Type.String() });
   const v2 = defineGroup({
-    manifest: groupManifestOf({ name: "migrating", points: ["boundary.settle.after"] }),
+    manifest: groupManifestOf({ name: "migrating", hooks: ["boundary.settle.after"] }),
     state: { schema: V2Schema, initial: { n: 0, label: "" }, version: 2 },
     migrations: {
       1: (previous) => {

@@ -44,12 +44,12 @@ function boundaryHandler(g: GroupApi<never>): void {
 /** 게시를 올리는 그룹. 경계와 도구 호출 지점을 선언한다 */
 function poster(
   name: string,
-  points: ("boundary.settle.after" | "tool.call.before")[],
+  hooks: ("boundary.settle.after" | "tool.call.before")[],
   sink: { api?: GroupApi<never> },
   extra?: (g: GroupApi<never>) => void,
 ) {
   return defineGroup({
-    manifest: groupManifestOf({ name, points, usesPost: true }),
+    manifest: groupManifestOf({ name, hooks, usesPost: true }),
     setup(g) {
       sink.api = g;
       g.on("tool.call.before", async (payload) => {

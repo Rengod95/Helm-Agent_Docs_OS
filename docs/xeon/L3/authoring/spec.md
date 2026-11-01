@@ -47,7 +47,7 @@ binds: [xeon/packages/plugin-builder/**]
 |---|---|
 | 제작 확장 | 이 문서의 L3 그룹 `authoring`. 사용자 화면에서는 "제작"이라 부릅니다 |
 | 제작 세션 | 플러그인 하나를 만드는 동안의 상태(대상 폴더, 종류, 구성 초안, 검사 결과, 시험 기록). 대화 하나에 묶입니다 |
-| 종류(kind) | 만들 수 있는 플러그인 모양 하나. 예: 플러그인 그룹 drive, 정책 플러그인, L2 provider, 선언형 화면, 프레임 화면 |
+| 종류(kind) | 만들 수 있는 플러그인 모양 하나. 예: 플러그인 그룹 drive, 정책 플러그인, L2 provider, 선언형 화면, 프레임 화면. 확장 수준의 구분은 `group` 선언 유무로 한다. wire `ext.kinds`는 `single-plugin`과 `plugin-group`을 돌려주며 스키마는 T-F가 정한다 [미결] |
 | 종류 카탈로그 | 종류 항목의 목록과 각 항목의 템플릿, 필수 검사, 보안 메모, 지원 범위 |
 | 구성 초안 | 매니페스트 `composition`(`L4.desktop-ux.spec` §10.3 X-16)과 같은 모양의 블록 목록. 구성기와 제작 확장이 같은 형식을 씁니다 |
 | 제작 검사 | `AU-NNN` 번호를 가진 검사 규칙. F 검사 함수 결과에 제작 전용 규칙을 더합니다 |
@@ -57,13 +57,13 @@ binds: [xeon/packages/plugin-builder/**]
 
 ### 3.1 형태
 
-[제안] 제작 확장은 내장 L3 그룹입니다.
+[제안] 제작 확장은 내장 L3 플러그인 그룹입니다.
 
 | 항목 | 값 |
 |---|---|
 | 이름 | `authoring`(예약 이름과 겹치지 않음, `RESERVED_GROUP_NAMES`) |
 | 패키지 | `xeon/packages/plugin-builder` |
-| 층과 종류 | `layer: "L3"`, `kind: "group"` |
+| 층과 선언 | 루트 플러그인 `plugins[0].layer: "L3"`, `group: {}` 선언(플러그인 그룹) |
 | 신뢰 | `builtin`(앱에 듦). 학습 그룹과 같은 배포 방식 |
 | 기본 켜짐 | 꺼짐. LightCraft 구성의 "새 그룹", 슬래시 명령 `/author`, 모델 도구 첫 사용 안내로 켭니다 |
 | drive | 씀. 제작 세션 단계 머신(§4.1)을 drive로 돌립니다. 사람 확인은 drive 원시 `loop.ask`(X-17)를 씁니다 |
@@ -127,7 +127,7 @@ interface KindEntry {
   readonly requires: { readonly contracts: string; readonly bridge?: string; readonly widgets?: string };  // SemVer 범위
   readonly template?: string;                  // 템플릿 폴더. group.* 는 group-sdk/templates 를 가리킴
   readonly checks: readonly string[];          // AU-NNN 목록
-  readonly decisions: readonly string[];       // 에이전트가 정해야 할 것(예 "views.mode", "usesDrive")
+  readonly decisions: readonly string[];       // 에이전트가 정해야 할 것(예 "views.mode", "drives")
   readonly security: readonly string[];        // 보안 메모 키(예 "frame.reason", "trust.project.noFrame")
   readonly blockedReason?: string;             // status = blocked 일 때
 }
@@ -157,7 +157,7 @@ M4 첫 카탈로그 [제안]:
 |---|---|---|
 | AU-001 | 이름 규칙과 예약 이름, 설치된 이름과의 충돌 | 오류 |
 | AU-002 | 요청 신뢰 등급이 `builtin`이면 거부(외부 제작물은 `user`나 `project`) | 오류 |
-| AU-003 | `composition`이 매니페스트 `points`, `usesDrive`, `usesPost`, `requires`, `optional`과 맞음 | 오류 |
+| AU-003 | `composition`이 매니페스트 `plugins[]`의 `hooks`, `drives`, `usesPost`, `requires`, `optional`과 맞음 | 오류 |
 | AU-004 | drive 블록 둘(`drive_duplicate`), on 핸들러의 기능 호출(`on_capability_call`), 필수 기능의 제공자 없음(`capability_missing`) | 오류, 오류, 경고 |
 | AU-005 | 화면: `frame`은 `page`·`well`만, `frame.reason` 있음, `widgets`·`bridge` 범위가 지금 앱과 맞음 | 오류 |
 | AU-006 | 화면: 요청 등급 `project`인데 `frame` 사용 | 경고(설치 환경의 `x.views.allowProjectFrames`에 따름) |
@@ -189,7 +189,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | replay | 개발 모드면 `replayDrive`. 배포 앱은 건너뛰고 "개발 모드에서 확인 필요" 표시 | 없음 |
 | package | 묶음 만들기, 사용자 위치 연결 | 묶기 전, 연결 전(`loop.ask`) |
 
-- 사람 확인을 기다리는 동안 drive 임대를 반납합니다(X-17, `L4.desktop-ux.spec` §12.4 C-8). 답이 오면 다시 후보가 되어 같은 단계에서 이어 갑니다.
+- 사람 확인을 기다리는 동안 drive lock을 반납합니다(X-17, `L4.desktop-ux.spec` §12.4 C-8). 답이 오면 다시 후보가 되어 같은 단계에서 이어 갑니다.
 - 단계와 상관없이 사용자는 `/author stop`으로 세션을 멈출 수 있습니다. 만든 파일은 지우지 않습니다.
 
 ### 4.2 쓰기 범위 가드
@@ -230,7 +230,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | 시험 대화에서 대상이 자동 꺼짐 | 시험을 멈추고 실패 장부를 세션에 붙임. 고친 뒤 `ext.reenable`(W-21)로 다시 시험 |
 | 카탈로그 항목이 `blocked` | `authoring_start` 거부와 `blockedReason` |
 | 엔진 재시작 | 세션 상태는 그룹 상태 문서에 있어 `thread.start`에서 복원. 진행 중 시험 대화는 그대로 남음 |
-| 안전 모드 | 제작 확장은 내장 L3 그룹이라 빠짐. `fresnel group new`와 `fresnel author scaffold`(모델 없음)는 동작 |
+| 안전 모드 | 제작 확장은 내장 L3 플러그인 그룹이라 빠짐. `fresnel group new`와 `fresnel author scaffold`(모델 없음)는 동작 |
 
 ## 6. 설정 노출
 
@@ -267,7 +267,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - A-1. 카탈로그의 `stable`·`preview` 항목마다 뼈대를 만들면 `validate`가 오류 0으로 통과합니다(카탈로그 적합성 시험).
 - A-2. `group.drive`·`group.policy`·`group.observe`로 만든 파일이 `fresnel group new`의 결과와 같고 `core-diff-check`에서 보호 경로 변경 0줄입니다.
 - A-3. 제작 세션 대화에서 대상 폴더 밖 쓰기 도구 호출이 거부됩니다.
-- A-4. `authoring_package`와 `authoring_install`은 사람 확인 없이는 파일을 쓰지 않고, 확인을 기다리는 동안 그 대화의 drive 임대가 반납된 상태입니다.
+- A-4. `authoring_package`와 `authoring_install`은 사람 확인 없이는 파일을 쓰지 않고, 확인을 기다리는 동안 그 대화의 drive lock이 반납된 상태입니다.
 - A-5. 배포 앱 형태에서 `authoring_replay`가 `dev_mode_required`를 돌려줍니다.
 - A-6. 화면 기여가 있는 시험 플러그인 하나(선언형 `well` + 프레임 `page`)를 만들면 AU-005가 통과하고, 프레임 금지 설정에서 `fallback`이 그려집니다.
 - A-7. F 지점 하나의 이름을 바꾸는 가짜 변경에서 카탈로그 적합성 시험이 실패합니다.

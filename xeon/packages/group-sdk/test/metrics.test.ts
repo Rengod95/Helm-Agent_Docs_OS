@@ -156,7 +156,7 @@ test("metrics.on-counts-a-defined-first-return-as-a-denial", async () => {
   await install(
     t,
     defineGroup({
-      manifest: groupManifestOf({ name: "denier", points: ["tool.call.before"] }),
+      manifest: groupManifestOf({ name: "denier", hooks: ["tool.call.before"] }),
       setup(g) {
         g.on("tool.call.before", (payload) =>
           payload.toolName === "write" ? { block: true, reason: "no writes" } : undefined,
@@ -207,7 +207,7 @@ test("metrics.on-counts-a-defined-chain-return-as-a-patch", async () => {
   await install(
     t,
     defineGroup({
-      manifest: groupManifestOf({ name: "patcher", points: ["boundary.message.after"] }),
+      manifest: groupManifestOf({ name: "patcher", hooks: ["boundary.message.after"] }),
       setup(g) {
         g.on("boundary.message.after", (payload) =>
           payload.message.role === "user" ? { message: payload.message } : undefined,
@@ -239,7 +239,7 @@ test("metrics.on-counts-a-thrown-handler-and-the-host-reports-it", async () => {
   await install(
     t,
     defineGroup({
-      manifest: groupManifestOf({ name: "thrower", points: ["boundary.settle.after"] }),
+      manifest: groupManifestOf({ name: "thrower", hooks: ["boundary.settle.after"] }),
       setup(g) {
         g.on("boundary.settle.after", () => {
           throw new Error("settle failed");

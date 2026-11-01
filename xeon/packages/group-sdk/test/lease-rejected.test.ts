@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { LeaseArbiterPortKey, RecordCommitPortKey } from "@fresnel/contracts/extensions";
+import { DriveLockArbiterPortKey, RecordCommitPortKey } from "@fresnel/contracts/extensions";
 import type {
   CommitListener,
   DurableEventDraft,
@@ -26,7 +26,7 @@ const COUNTER = {
 /** 호출마다 상태를 올려 효과를 내므로 idle로 반납되지 않는 drive 그룹 */
 function stableGroup(name: string): GroupModule {
   return defineGroup<{ readonly n: number }>({
-    manifest: groupManifestOf({ name, usesDrive: true }),
+    manifest: groupManifestOf({ name, drives: true }),
     state: COUNTER,
     setup(g) {
       g.drive(async (_loop, state) => {
@@ -92,7 +92,8 @@ async function rig() {
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
       driveLimits: () => ({}),
-      activeDriveGroup: () => holder.read(null),
+      activeDriver: () => holder.read(null),
+      driveRequiresGroup: () => true,
       capabilityProviders: () => ({}),
       leaseWaitLimit: () => 1,
     },
@@ -111,7 +112,7 @@ async function rig() {
   await t.host.registerPlatform({
     name: "fresnel-groups",
     setup(ctx) {
-      ctx.providePort(LeaseArbiterPortKey, service);
+      ctx.providePort(DriveLockArbiterPortKey, service);
       ctx.providePort(RecordCommitPortKey, records);
       ctx.providePort(SessionFeedPortKey, feed.feed);
     },
@@ -174,7 +175,8 @@ test("lease-rejected.a-group-without-a-feed-stays-waiting", async () => {
     settingsSource: {
       driveDefaultLimits: () => withDriveDefaults({}),
       driveLimits: () => ({}),
-      activeDriveGroup: () => holder.read(null),
+      activeDriver: () => holder.read(null),
+      driveRequiresGroup: () => true,
       capabilityProviders: () => ({}),
       leaseWaitLimit: () => 1,
     },
@@ -191,7 +193,7 @@ test("lease-rejected.a-group-without-a-feed-stays-waiting", async () => {
   await t.host.registerPlatform({
     name: "fresnel-groups",
     setup(ctx) {
-      ctx.providePort(LeaseArbiterPortKey, service);
+      ctx.providePort(DriveLockArbiterPortKey, service);
     },
   });
   await install(t, stableGroup("nf-a"), 0);

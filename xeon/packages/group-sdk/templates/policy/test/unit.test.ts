@@ -24,7 +24,7 @@ test("__ID__.denies-a-blocked-tool-and-passes-the-others", async () => {
   await t.host.openThread(thread);
   await t.settled();
   // 템플릿 그룹은 꺼진 상태로 올라간다. 켜는 요청은 다음 경계에 적용된다
-  t.host.scope(group.manifest.name)?.enable();
+  t.host.registration(group.manifest.name)?.enable();
   await t.boundary(thread).stepEnd();
 
   const blocked = await t.host.dispatch(

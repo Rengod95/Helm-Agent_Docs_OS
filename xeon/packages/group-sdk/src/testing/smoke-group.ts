@@ -9,19 +9,23 @@ import type { GroupApi, GroupManifest, GroupModule } from "../types.ts";
  * M2(G-16)부터 defineGroup으로 만든다.
  */
 export const SMOKE_GROUP_MANIFEST: GroupManifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "smoke-group",
   version: "0.1.0",
   displayName: "Smoke group",
   description:
     "M1 walking-skeleton test group. Uses on(tool.call.before, boundary.step.after), post and drive.",
   defaultEnabled: true,
-  layer: "L3",
-  kind: "group",
   entry: "./src/testing/smoke-group.ts",
-  points: ["tool.call.before", "boundary.step.after"],
-  usesPost: true,
-  usesDrive: true,
+  plugins: [
+    {
+      layer: "L3",
+      hooks: ["tool.call.before", "boundary.step.after"],
+      usesPost: true,
+      drives: true,
+    },
+  ],
+  group: {},
   trust: { level: "builtin" },
 });
 
