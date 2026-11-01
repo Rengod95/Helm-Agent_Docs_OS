@@ -133,8 +133,8 @@ describe("statfs provider (실제 파일 시스템)", () => {
     const signal = new AbortController().signal;
     const root = await provider.probe("/", signal);
     expect(root.ok).toBe(true);
-    expect(await provider.probe("/no/such/path/xeon-test", signal)).toEqual(
-      err({ kind: "not_found", path: "/no/such/path/xeon-test" }),
+    expect(await provider.probe("/no/such/path/fresnel-test", signal)).toEqual(
+      err({ kind: "not_found", path: "/no/such/path/fresnel-test" }),
     );
   });
 });

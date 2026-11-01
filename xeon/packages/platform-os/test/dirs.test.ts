@@ -18,7 +18,7 @@ function input(overrides: Partial<DirsInput> & Pick<DirsInput, "info">): DirsInp
     home: "/home/u",
     systemTmp: "/tmp",
     uid: 1000,
-    resourceDir: "/opt/xeon/resources",
+    resourceDir: "/opt/fresnel/resources",
     ...overrides,
   };
 }
@@ -43,13 +43,13 @@ describe("resolveDirs: 3플랫폼 × 환경 변수 조합", () => {
     );
     expect(dirs).toEqual({
       home: "/Users/u",
-      data: "/Users/u/Library/Application Support/xeon",
-      config: "/Users/u/Library/Application Support/xeon/config",
-      cache: "/Users/u/Library/Caches/xeon",
-      state: "/Users/u/Library/Application Support/xeon/state",
-      runtime: "/var/folders/ab/T/xeon",
-      resource: "/opt/xeon/resources",
-      tmp: "/var/folders/ab/T/xeon-501",
+      data: "/Users/u/Library/Application Support/fresnel",
+      config: "/Users/u/Library/Application Support/fresnel/config",
+      cache: "/Users/u/Library/Caches/fresnel",
+      state: "/Users/u/Library/Application Support/fresnel/state",
+      runtime: "/var/folders/ab/T/fresnel",
+      resource: "/opt/fresnel/resources",
+      tmp: "/var/folders/ab/T/fresnel-501",
     });
   });
 
@@ -57,20 +57,20 @@ describe("resolveDirs: 3플랫폼 × 환경 변수 조합", () => {
     const dirs = value(
       resolveDirs(input({ info: DARWIN, home: "/Users/u", systemTmp: "/tmp", uid: 501 })),
     );
-    expect(dirs.runtime).toBe("/tmp/xeon");
+    expect(dirs.runtime).toBe("/tmp/fresnel");
   });
 
   test("Linux: XDG 변수 없음", () => {
     const dirs = value(resolveDirs(input({ info: LINUX })));
     expect(dirs).toEqual({
       home: "/home/u",
-      data: "/home/u/.local/share/xeon",
-      config: "/home/u/.config/xeon",
-      cache: "/home/u/.cache/xeon",
-      state: "/home/u/.local/state/xeon",
-      runtime: "/tmp/xeon-1000",
-      resource: "/opt/xeon/resources",
-      tmp: "/tmp/xeon-1000",
+      data: "/home/u/.local/share/fresnel",
+      config: "/home/u/.config/fresnel",
+      cache: "/home/u/.cache/fresnel",
+      state: "/home/u/.local/state/fresnel",
+      runtime: "/tmp/fresnel-1000",
+      resource: "/opt/fresnel/resources",
+      tmp: "/tmp/fresnel-1000",
     });
   });
 
@@ -89,11 +89,11 @@ describe("resolveDirs: 3플랫폼 × 환경 변수 조합", () => {
         }),
       ),
     );
-    expect(dirs.data).toBe("/data/xeon");
-    expect(dirs.config).toBe("/conf/xeon");
-    expect(dirs.cache).toBe("/cache/xeon");
-    expect(dirs.state).toBe("/state/xeon");
-    expect(dirs.runtime).toBe("/run/user/1000/xeon");
+    expect(dirs.data).toBe("/data/fresnel");
+    expect(dirs.config).toBe("/conf/fresnel");
+    expect(dirs.cache).toBe("/cache/fresnel");
+    expect(dirs.state).toBe("/state/fresnel");
+    expect(dirs.runtime).toBe("/run/user/1000/fresnel");
   });
 
   test("Linux: 상대 경로 XDG 변수는 무시하고 기본값을 쓴다", () => {
@@ -109,14 +109,14 @@ describe("resolveDirs: 3플랫폼 × 환경 변수 조합", () => {
         }),
       ),
     );
-    expect(dirs.data).toBe("/home/u/.local/share/xeon");
-    expect(dirs.config).toBe("/home/u/.config/xeon");
-    expect(dirs.runtime).toBe("/tmp/xeon-1000");
+    expect(dirs.data).toBe("/home/u/.local/share/fresnel");
+    expect(dirs.config).toBe("/home/u/.config/fresnel");
+    expect(dirs.runtime).toBe("/tmp/fresnel-1000");
   });
 
-  test("Linux: XDG_RUNTIME_DIR 없음 → /tmp/xeon-<uid>", () => {
+  test("Linux: XDG_RUNTIME_DIR 없음 → /tmp/fresnel-<uid>", () => {
     const dirs = value(resolveDirs(input({ info: LINUX, uid: 4242 })));
-    expect(dirs.runtime).toBe("/tmp/xeon-4242");
+    expect(dirs.runtime).toBe("/tmp/fresnel-4242");
   });
 
   test("Windows: 변수 있음", () => {
@@ -132,19 +132,19 @@ describe("resolveDirs: 3플랫폼 × 환경 변수 조합", () => {
             APPDATA: "C:\\Users\\u\\AppData\\Roaming",
             TEMP: "C:\\Users\\u\\AppData\\Local\\Temp",
           }),
-          resourceDir: "C:\\Program Files\\Xeon\\resources",
+          resourceDir: "C:\\Program Files\\Fresnel\\resources",
         }),
       ),
     );
     expect(dirs).toEqual({
       home: "C:\\Users\\u",
-      data: "C:\\Users\\u\\AppData\\Local\\xeon\\data",
-      config: "C:\\Users\\u\\AppData\\Roaming\\xeon",
-      cache: "C:\\Users\\u\\AppData\\Local\\xeon\\cache",
-      state: "C:\\Users\\u\\AppData\\Local\\xeon\\state",
-      runtime: "C:\\Users\\u\\AppData\\Local\\xeon\\run",
-      resource: "C:\\Program Files\\Xeon\\resources",
-      tmp: "C:\\Users\\u\\AppData\\Local\\Temp\\xeon",
+      data: "C:\\Users\\u\\AppData\\Local\\fresnel\\data",
+      config: "C:\\Users\\u\\AppData\\Roaming\\fresnel",
+      cache: "C:\\Users\\u\\AppData\\Local\\fresnel\\cache",
+      state: "C:\\Users\\u\\AppData\\Local\\fresnel\\state",
+      runtime: "C:\\Users\\u\\AppData\\Local\\fresnel\\run",
+      resource: "C:\\Program Files\\Fresnel\\resources",
+      tmp: "C:\\Users\\u\\AppData\\Local\\Temp\\fresnel",
     });
   });
 
@@ -182,13 +182,13 @@ describe("resolveDirs: 3플랫폼 × 환경 변수 조합", () => {
   });
 });
 
-describe("resolveDirs: XEON_HOME", () => {
-  test("XEON_HOME 우선: 관리 설정과 OS 기본보다 앞서고 resource·tmp는 그대로", () => {
+describe("resolveDirs: FRESNEL_HOME", () => {
+  test("FRESNEL_HOME 우선: 관리 설정과 OS 기본보다 앞서고 resource·tmp는 그대로", () => {
     const withBoth = value(
       resolveDirs(
         input({
           info: LINUX,
-          env: env({ XEON_HOME: "/x/home", XDG_DATA_HOME: "/data" }),
+          env: env({ FRESNEL_HOME: "/x/home", XDG_DATA_HOME: "/data" }),
           managedOverride: "/managed",
         }),
       ),
@@ -200,8 +200,8 @@ describe("resolveDirs: XEON_HOME", () => {
       cache: "/x/home/cache",
       state: "/x/home/state",
       runtime: "/x/home/run",
-      resource: "/opt/xeon/resources",
-      tmp: "/tmp/xeon-1000",
+      resource: "/opt/fresnel/resources",
+      tmp: "/tmp/fresnel-1000",
     });
   });
 
@@ -215,8 +215,8 @@ describe("resolveDirs: XEON_HOME", () => {
     expect(dirs.runtime).toBe("/managed/run");
   });
 
-  test("XEON_HOME 상대 경로 거부", () => {
-    expect(resolveDirs(input({ info: LINUX, env: env({ XEON_HOME: "rel/dir" }) }))).toEqual({
+  test("FRESNEL_HOME 상대 경로 거부", () => {
+    expect(resolveDirs(input({ info: LINUX, env: env({ FRESNEL_HOME: "rel/dir" }) }))).toEqual({
       ok: false,
       error: { kind: "not_absolute", dir: "data", path: "rel/dir" },
     });
@@ -228,16 +228,16 @@ describe("resolveDirs: XEON_HOME", () => {
     expect(!result.ok && result.error.kind).toBe("not_absolute");
   });
 
-  test("빈 XEON_HOME은 없는 것으로 본다", () => {
-    const dirs = value(resolveDirs(input({ info: LINUX, env: env({ XEON_HOME: "" }) })));
-    expect(dirs.data).toBe("/home/u/.local/share/xeon");
+  test("빈 FRESNEL_HOME은 없는 것으로 본다", () => {
+    const dirs = value(resolveDirs(input({ info: LINUX, env: env({ FRESNEL_HOME: "" }) })));
+    expect(dirs.data).toBe("/home/u/.local/share/fresnel");
   });
 
-  test("XEON_HOME 아래 run이 길면 OS 기본 runtime으로 내려간다", () => {
+  test("FRESNEL_HOME 아래 run이 길면 OS 기본 runtime으로 내려간다", () => {
     const long = `/${"a".repeat(90)}`;
-    const dirs = value(resolveDirs(input({ info: LINUX, env: env({ XEON_HOME: long }) })));
+    const dirs = value(resolveDirs(input({ info: LINUX, env: env({ FRESNEL_HOME: long }) })));
     expect(dirs.data).toBe(`${long}/data`);
-    expect(dirs.runtime).toBe("/tmp/xeon-1000");
+    expect(dirs.runtime).toBe("/tmp/fresnel-1000");
   });
 });
 
@@ -245,7 +245,7 @@ describe("resolveDirs: WSL", () => {
   test("/mnt/* 아래 data는 data_dir_on_drvfs", () => {
     expect(resolveDirs(input({ info: WSL, env: env({ XDG_DATA_HOME: "/mnt/c/x" }) }))).toEqual({
       ok: false,
-      error: { kind: "data_dir_on_drvfs", dir: "data", path: "/mnt/c/x/xeon" },
+      error: { kind: "data_dir_on_drvfs", dir: "data", path: "/mnt/c/x/fresnel" },
     });
   });
 
@@ -261,8 +261,8 @@ describe("resolveDirs: WSL", () => {
     }
   });
 
-  test("XEON_HOME이 /mnt 아래여도 거부한다", () => {
-    const result = resolveDirs(input({ info: WSL, env: env({ XEON_HOME: "/mnt/c/xeon" }) }));
+  test("FRESNEL_HOME이 /mnt 아래여도 거부한다", () => {
+    const result = resolveDirs(input({ info: WSL, env: env({ FRESNEL_HOME: "/mnt/c/fresnel" }) }));
     expect(!result.ok && result.error.kind).toBe("data_dir_on_drvfs");
   });
 
@@ -270,9 +270,9 @@ describe("resolveDirs: WSL", () => {
     const dirs = value(
       resolveDirs(input({ info: WSL, env: env({ XDG_CONFIG_HOME: "/mnt/c/conf" }) })),
     );
-    expect(dirs.config).toBe("/mnt/c/conf/xeon");
+    expect(dirs.config).toBe("/mnt/c/conf/fresnel");
     expect(dirsWarnings(WSL, dirs)).toEqual([
-      { kind: "config_on_drvfs", path: "/mnt/c/conf/xeon" },
+      { kind: "config_on_drvfs", path: "/mnt/c/conf/fresnel" },
     ]);
   });
 
@@ -280,13 +280,13 @@ describe("resolveDirs: WSL", () => {
     const dirs = value(
       resolveDirs(input({ info: LINUX, env: env({ XDG_DATA_HOME: "/mnt/data" }) })),
     );
-    expect(dirs.data).toBe("/mnt/data/xeon");
+    expect(dirs.data).toBe("/mnt/data/fresnel");
     expect(dirsWarnings(LINUX, dirs)).toEqual([]);
   });
 });
 
 describe("resolveDirs: runtime 길이 규칙", () => {
-  test("긴 $TMPDIR(macOS)에서 /tmp/xeon-<uid>로 내려간다", () => {
+  test("긴 $TMPDIR(macOS)에서 /tmp/fresnel-<uid>로 내려간다", () => {
     const longTmp = `/var/folders/${"x".repeat(80)}/T`;
     const dirs = value(
       resolveDirs(
@@ -299,33 +299,33 @@ describe("resolveDirs: runtime 길이 규칙", () => {
         }),
       ),
     );
-    expect(dirs.runtime).toBe("/tmp/xeon-501");
+    expect(dirs.runtime).toBe("/tmp/fresnel-501");
   });
 
-  test("긴 XDG_RUNTIME_DIR(Linux)에서 /tmp/xeon-<uid>로 내려간다", () => {
+  test("긴 XDG_RUNTIME_DIR(Linux)에서 /tmp/fresnel-<uid>로 내려간다", () => {
     const dirs = value(
       resolveDirs(input({ info: LINUX, env: env({ XDG_RUNTIME_DIR: `/${"r".repeat(95)}` }) })),
     );
-    expect(dirs.runtime).toBe("/tmp/xeon-1000");
+    expect(dirs.runtime).toBe("/tmp/fresnel-1000");
   });
 
   test("경계: 경로 바이트 + 24가 한계와 같으면 통과, 1 넘으면 내려간다 (Linux 104)", () => {
-    // "/xeon" = 5바이트. 접두 경로 길이 L이면 runtime = L + 5, 합 = L + 29
-    const fits = "/" + "a".repeat(104 - 29 - 1); // runtime 바이트 = 75 + 5 = 80 → 104
+    // "/fresnel" = 8바이트. 접두 경로 길이 L이면 runtime = L + 8, 합 = L + 32
+    const fits = "/" + "a".repeat(104 - 32 - 1); // runtime 바이트 = 72 + 8 = 80 → 104
     const tooLong = fits + "a";
     expect(
       value(resolveDirs(input({ info: LINUX, env: env({ XDG_RUNTIME_DIR: fits }) }))).runtime,
-    ).toBe(`${fits}/xeon`);
+    ).toBe(`${fits}/fresnel`);
     expect(
       value(resolveDirs(input({ info: LINUX, env: env({ XDG_RUNTIME_DIR: tooLong }) }))).runtime,
-    ).toBe("/tmp/xeon-1000");
+    ).toBe("/tmp/fresnel-1000");
   });
 
   test("UTF-8 바이트 수로 센다", () => {
     // 한글 한 글자는 3바이트
     const korean = `/${"가".repeat(30)}`;
     const dirs = value(resolveDirs(input({ info: LINUX, env: env({ XDG_RUNTIME_DIR: korean }) })));
-    expect(dirs.runtime).toBe("/tmp/xeon-1000");
+    expect(dirs.runtime).toBe("/tmp/fresnel-1000");
   });
 
   test("대체 후보도 길면 runtime_path_too_long", () => {

@@ -118,7 +118,7 @@ function cellText(value: unknown): string {
 /** 실제 bun:sqlite 파일로 저장소를 연다. 닫을 때 직접 만든 임시 디렉터리를 지운다 */
 export async function openTestStore(options: TestStoreOptions): Promise<TestStore> {
   const ownedDir = options.path === undefined ? mkdtempSync(join(tmpdir(), "xeon-store-")) : null;
-  const path = options.path ?? join(ownedDir ?? "", "xeon.db");
+  const path = options.path ?? join(ownedDir ?? "", "fresnel.db");
   const opened = await openStore({
     dbPath: path,
     env: testEnvironment(options.env),

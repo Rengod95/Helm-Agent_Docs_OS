@@ -19,9 +19,9 @@ export interface DirsInput {
   readonly uid: number | undefined;
   /** L4가 플러그인 설정으로 넘긴다 */
   readonly resourceDir: string;
-  /** runtime 대체 후보 /tmp/xeon-<uid>의 /tmp. 기본 "/tmp". 길이 규칙의 마지막 후보를 시험하려고 둔다 */
+  /** runtime 대체 후보 /tmp/fresnel-<uid>의 /tmp. 기본 "/tmp". 길이 규칙의 마지막 후보를 시험하려고 둔다 */
   readonly sharedTmp?: string;
-  /** 설정 키 l0.os.dirs.override(관리 범위) 값. XEON_HOME보다 낮고 OS 기본값보다 높다 */
+  /** 설정 키 l0.os.dirs.override(관리 범위) 값. FRESNEL_HOME보다 낮고 OS 기본값보다 높다 */
   readonly managedOverride?: string;
 }
 
@@ -65,7 +65,7 @@ export function resolveDirs(input: DirsInput): Result<OsDirs, DirsError> {
   const base = info.platform === "win32" ? win32Base(input) : unixBase(input);
   if (!base.ok) return base;
 
-  const overrideRoot = nonEmpty(input.env.get("XEON_HOME")) ?? nonEmpty(input.managedOverride);
+  const overrideRoot = nonEmpty(input.env.get("FRESNEL_HOME")) ?? nonEmpty(input.managedOverride);
   let { data, config, cache, state } = base.value;
   let candidates = base.value.runtimeCandidates;
   if (overrideRoot !== undefined) {
@@ -110,7 +110,7 @@ export function resolveDirs(input: DirsInput): Result<OsDirs, DirsError> {
 
 function unixBase(input: DirsInput): Result<BaseDirs, DirsError> {
   const { info, env, home, systemTmp, uid } = input;
-  // 소유자 번호가 없으면 /tmp/xeon-<uid>와 tmp 경로를 정할 수 없다. Unix에서는 생기지 않는 값이다
+  // 소유자 번호가 없으면 /tmp/fresnel-<uid>와 tmp 경로를 정할 수 없다. Unix에서는 생기지 않는 값이다
   if (uid === undefined) return err({ kind: "env_missing", name: "uid" });
   const fallbackRuntime = posix.join(input.sharedTmp ?? "/tmp", productUidDirName(uid));
   const tmp = posix.join(systemTmp, productUidDirName(uid));

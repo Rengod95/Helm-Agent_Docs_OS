@@ -18,14 +18,14 @@ const SECRET_NAME_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
- * HOME, XDG_*, TMPDIR, XEON_HOME을 임시 디렉터리로 바꾸고 *_API_KEY, ANTHROPIC_*, OPENAI_*, SOPS_AGE_KEY*,
+ * HOME, XDG_*, TMPDIR, FRESNEL_HOME을 임시 디렉터리로 바꾸고 *_API_KEY, ANTHROPIC_*, OPENAI_*, SOPS_AGE_KEY*,
  * SSH_AUTH_SOCK을 지운 채 fn을 실행한 뒤(예외가 나도) 원래 값으로 되돌린다. 프로세스 전역 process.env를
  * 바꾸므로 같은 파일 안에서 병렬로 돌리지 않는다.
  * 주의: Bun의 os.homedir()는 처음 부른 값을 기억해 HOME 변경을 따라가지 않는다. 격리된 HOME이 필요한 코드는
  * os.homedir() 대신 이 함수가 넘기는 env.home을 입력으로 받아야 한다.
  */
 export async function withIsolatedEnv<T>(fn: (env: IsolatedEnv) => Promise<T>): Promise<T> {
-  const dir = await tempDir("xeon-env-");
+  const dir = await tempDir("fresnel-env-");
   const vars: Record<string, string> = {
     HOME: dir.join("home"),
     XDG_CONFIG_HOME: dir.join("xdg", "config"),
@@ -34,7 +34,7 @@ export async function withIsolatedEnv<T>(fn: (env: IsolatedEnv) => Promise<T>): 
     XDG_STATE_HOME: dir.join("xdg", "state"),
     XDG_RUNTIME_DIR: dir.join("xdg", "run"),
     TMPDIR: dir.join("tmp"),
-    XEON_HOME: dir.join("xeon"),
+    FRESNEL_HOME: dir.join("fresnel"),
   };
   const cleared = Object.keys(process.env).filter((name) =>
     SECRET_NAME_PATTERNS.some((pattern) => pattern.test(name)),

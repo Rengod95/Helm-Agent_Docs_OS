@@ -130,7 +130,7 @@ function openSource(dbPath: string): Result<SqliteConnection, ExportError> {
   return openReadOnly(dbPath);
 }
 
-/** 원본의 표지를 본다. Xeon 표지가 아니면 다른 앱의 DB(foreign_database)다. 표지 0과 스키마 없음은 빈 파일이다 */
+/** 원본의 표지를 본다. Fresnel 표지가 아니면 다른 앱의 DB(foreign_database)다. 표지 0과 스키마 없음은 빈 파일이다 */
 function checkIdentity(db: SqliteConnection): Result<void, ExportError> {
   const identity = attemptIo(() => readIdentity(db), sourceFailureOf);
   if (!identity.ok) return identity;

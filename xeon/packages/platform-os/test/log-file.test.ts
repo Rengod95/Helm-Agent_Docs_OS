@@ -35,7 +35,7 @@ test("a write failure is reported with the errno code and does not throw", async
   const codes: string[] = [];
   // /proc 아래에는 디렉터리를 만들 수 없어 mkdir과 append가 실패한다
   const sink = createRotatingFileSink({
-    dir: "/proc/xeon-no-such/logs",
+    dir: "/proc/fresnel-no-such/logs",
     onError: (code) => codes.push(code),
   });
   sink("x");

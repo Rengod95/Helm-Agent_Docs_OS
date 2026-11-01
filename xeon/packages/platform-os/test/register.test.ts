@@ -32,7 +32,11 @@ describe("ExtHost.registerPlatform", () => {
     const host = newHost();
     await host.registerPlatform(
       platformOsPlugin(
-        { resourceDir: "/opt/xeon/resources", logSink: (l) => lines.push(l), logRedact: (l) => l },
+        {
+          resourceDir: "/opt/fresnel/resources",
+          logSink: (l) => lines.push(l),
+          logRedact: (l) => l,
+        },
         fakeRuntime(),
       ),
     );

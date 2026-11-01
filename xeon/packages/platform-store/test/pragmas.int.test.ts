@@ -38,7 +38,7 @@ describe("connection pragmas", () => {
     expect(pragma(store, "foreign_keys", "write")).toBe(1);
     expect(pragma(store, "trusted_schema", "write")).toBe(0);
     expect(pragma(store, "temp_store", "write")).toBe(2);
-    expect(pragma(store, "application_id", "write")).toBe(1480937294);
+    expect(pragma(store, "application_id", "write")).toBe(1179799116);
     expect(pragma(store, "user_version", "write")).toBe(3);
   });
 
@@ -97,6 +97,38 @@ describe("connection pragmas", () => {
     const opened = await openStore(options);
     expect(opened).toEqual({ ok: false, error: { kind: "foreign_database", applicationId: 42 } });
     expect(sha256Hex(readFileSync(path))).toBe(before);
+  });
+
+  test("a database stamped with the old product marker is foreign and is not converted", async () => {
+    const dir = own(tempDir());
+    const path = dir.join("old.db");
+    const old = new Database(path, { create: true });
+    old.run("PRAGMA application_id = 1480937294");
+    old.run("CREATE TABLE other (a)");
+    old.close();
+    const before = sha256Hex(readFileSync(path));
+    const { options } = directOptions(path);
+    const opened = await openStore(options);
+    expect(opened).toEqual({
+      ok: false,
+      error: { kind: "foreign_database", applicationId: 1480937294 },
+    });
+    expect(sha256Hex(readFileSync(path))).toBe(before);
+  });
+
+  test("a new file is stamped with the new marker and reopened", async () => {
+    const dir = own(tempDir());
+    const path = dir.join("fresh.db");
+    const { options } = directOptions(path);
+    const first = await openStore(options);
+    expect(first.ok).toBe(true);
+    if (first.ok) await first.value.close();
+    const check = new Database(path, { readonly: true });
+    expect(check.query("PRAGMA application_id").get()).toEqual({ application_id: 1179799116 });
+    check.close();
+    const again = await openStore(options);
+    expect(again.ok).toBe(true);
+    if (again.ok) await again.value.close();
   });
 
   test("a database with tables but application_id 0 is foreign", async () => {

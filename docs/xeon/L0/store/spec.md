@@ -552,7 +552,7 @@ export interface LockProvider {
 | `wal_autocheckpoint` | `1000` | 페이지 1000개(기본 4 KiB면 약 4 MiB)마다 자동 체크포인트. SQLite 기본값과 같은 값을 명시해 고정한다 |
 | `journal_size_limit` | `67108864`(64 MiB) | 체크포인트 뒤 남는 WAL 파일 크기 상한. 기본값 -1(무제한)이면 한 번 커진 WAL이 줄지 않는다(SQLite `pragma.html`) |
 | `trusted_schema` | `OFF` | SQLite가 모든 연결에 권장한다. 스키마에 든 함수·가상 테이블을 신뢰하지 않으므로 조작된 DB 파일의 영향을 줄인다 |
-| `application_id` | `1480937294`(0x58454F4E 'XEON') | 새 파일에서만 설정한다. 기존 파일은 조회값을 대조하고 0이 아닌 다른 값이면 `foreign_database`. 0이면서 `sqlite_schema`가 비어 있으면 새 파일로 본다 |
+| `application_id` | `1179799116`(0x46524E4C 'FRNL') | 새 파일에서만 설정한다. 기존 파일은 조회값을 대조하고 0이 아닌 다른 값이면 `foreign_database`다. 옛 값 `1480937294`('FRESNEL')도 다른 값이므로 열리지 않고 변환하지 않는다. 개발 기기의 옛 DB는 일회성 이전 스크립트(`xeon/scripts/migrate-dev-machine.ts`)가 표식을 바꾼다. 0이면서 `sqlite_schema`가 비어 있으면 새 파일로 본다 |
 | `fullfsync` | macOS에서 `ON` [제안], 그 밖은 설정하지 않음 | 아래 macOS 항목 |
 
 읽기 연결:
@@ -740,7 +740,7 @@ macOS `fullfsync` [제안]:
   9. `ok(BlobRef{ type: "blob", sha256, size, mediaType })`.
 - 이벤트 커밋 전에 블롭 쓰기가 끝나야 한다. 이벤트 envelope 256 KiB 초과 값은 블롭으로 옮긴다(EV-04, `F.records.spec` §3.4 규칙 3·4). 필드별 분리 기준(EV-04의 16 KiB 제안)과 분리 실행은 `L1.persistence.spec` 몫이다. adr.0004 §6 미결 "블롭 분리 임계 크기와 해시 함수" 중 해시 함수는 이 문서가 SHA-256으로 정한다 [제안].
 - `readBlob(ref)`: 파일이 없으면 `blob_missing`. 크기가 `ref.size`와 다르면 `blob_corrupt{size}`. 해시 재검증은 테스트·디버그 빌드에서만 하고 다르면 `blob_corrupt{hash}` [제안].
-- 읽기 실패 정책: store는 오류만 돌려준다. 컨텍스트 조립(L1 context)이 `[xeon:blob_missing sha256:<hex>]` 같은 자리 문장으로 바꿔 모델에 보내고 재생은 멈추지 않는다 [제안, `L1.context.spec` 확인 필요].
+- 읽기 실패 정책: store는 오류만 돌려준다. 컨텍스트 조립(L1 context)이 `[fresnel:blob_missing sha256:<hex>]` 같은 자리 문장으로 바꿔 모델에 보내고 재생은 멈추지 않는다 [제안, `L1.context.spec` 확인 필요].
 
 GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙만 차용, `_research/packages.md §2.3`):
 
@@ -759,13 +759,13 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 `exportDatabase({ dbPath, destDir, clock })`는 DB 한 벌을 다른 디렉터리로 내보냅니다. 동기 함수이고, 예상 가능한 실패는 `ExportError` 값으로 돌려줍니다. 다른 프로세스가 쓰고 있는 DB와 더 높은 버전이 만든 DB도 내보냅니다.
 
 - 연결: 원본은 `readonly`로만 엽니다. 마이그레이션, 임대, WAL 설정, `PRAGMA user_version` 쓰기를 하지 않습니다. `query_only`는 걸지 않습니다. `VACUUM INTO`가 그 설정에서 `SQLITE_READONLY`로 거절되기 때문입니다(bun 1.4.3 실측).
-- 표지: `application_id`가 `1480937294`여야 합니다. 표지가 0이고 스키마도 없는 파일은 `not_a_database`, 그 밖의 다른 표지는 `foreign_database`입니다.
+- 표지: `application_id`가 `1179799116`여야 합니다. 표지가 0이고 스키마도 없는 파일은 `not_a_database`, 그 밖의 다른 표지는 `foreign_database`입니다.
 - 대상: `destDir`이 없으면 0700으로 만듭니다. 부모 디렉터리는 만들지 않습니다. 있으면 비어 있어야 합니다. 비어 있지 않으면 `dest_not_empty`이고 아무것도 쓰지 않습니다 [결정: 오케스트레이터 기본값].
 - 배치:
 
 | 경로 | 내용 | 모드 |
 |---|---|---|
-| `<destDir>/xeon.sqlite` | `VACUUM INTO`로 만든 복사본. WAL 내용을 포함하고 저널 모드는 delete다 | 0600 |
+| `<destDir>/fresnel.sqlite` | `VACUUM INTO`로 만든 복사본. WAL 내용을 포함하고 저널 모드는 delete다 | 0600 |
 | `<destDir>/blobs/<ab>/<rest>` | `sys_blobs`의 행마다 원본 `<db 디렉터리>/blobs/<ab>/<rest>`를 복사한 것 | 디렉터리 0700, 파일 0600 |
 | `<destDir>/manifest.json` | 아래 manifest | 0600 |
 
@@ -774,7 +774,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - manifest:
 
 ```json
-{ "format": 1, "exportedAt": 1767571200000, "sqliteFile": "xeon.sqlite", "blobCount": 1, "missingBlobs": [] }
+{ "format": 1, "exportedAt": 1767571200000, "sqliteFile": "fresnel.sqlite", "blobCount": 1, "missingBlobs": [] }
 ```
 
   `format`은 디렉터리 구조의 버전이다. `exportedAt`은 `clock.now()`(epoch ms)다. `missingBlobs`에 든 값은 sha256 문자열이다.
@@ -783,7 +783,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 
 | kind | 뜻 |
 |---|---|
-| `foreign_database`(`applicationId`) | Xeon 표지가 아닌 SQLite 파일 |
+| `foreign_database`(`applicationId`) | Fresnel 표지가 아닌 SQLite 파일 |
 | `not_a_database` | 파일이 없거나 SQLite 파일이 아니다. 빈 파일도 여기 든다 |
 | `dest_not_empty` | 대상이 있고 비어 있지 않다. 아무것도 바꾸지 않는다 |
 | `busy` | `SQLITE_BUSY`, `SQLITE_LOCKED` |
@@ -796,11 +796,11 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 
 ### 4.11 읽기 전용 열기 [결정: M3-REQ-63]
 
-`openStore({ readOnly: true })`는 DB를 읽기 전용으로 엽니다. 다른 Xeon 버전이 만든 DB를 확인하는 경로이고, 쓰기는 모두 거절합니다.
+`openStore({ readOnly: true })`는 DB를 읽기 전용으로 엽니다. 다른 Fresnel 버전이 만든 DB를 확인하는 경로이고, 쓰기는 모두 거절합니다.
 
 - 파일과 디렉터리를 만들지 않습니다. 없는 파일은 `io`(`SQLITE_CANTOPEN`)입니다.
 - 쓰기 연결과 읽기 연결을 모두 `readonly`로 엽니다. 두 연결에 `query_only`를 겁니다. WAL 설정, 표지 기록, sys 스키마 생성, 마이그레이션, 체크포인트, 잠금 디렉터리 생성을 하지 않습니다. 잠금 제공자는 `none`이며 `lock_provider_none` 경고를 남기지 않습니다.
-- 표지: `application_id`가 Xeon이 아니면 `foreign_database`입니다(0도 포함합니다). sys 표(`sys_migrations`, `sys_meta`)가 없으면 `corrupt`(`code: "SYS_SCHEMA_MISSING"`), `store_id`가 없으면 `corrupt`(`code: "STORE_ID_MISSING"`)입니다 [결정: 오케스트레이터 기본값].
+- 표지: `application_id`가 Fresnel이 아니면 `foreign_database`입니다(0도 포함합니다). sys 표(`sys_migrations`, `sys_meta`)가 없으면 `corrupt`(`code: "SYS_SCHEMA_MISSING"`), `store_id`가 없으면 `corrupt`(`code: "STORE_ID_MISSING"`)입니다 [결정: 오케스트레이터 기본값].
 - 버전: sys 행의 최대 버전이 `SYS_MIGRATION_SET`의 버전보다 높으면 열기는 성공하고 `warnings`에 `{ kind: "read_only", reason: "future_version", owner: "sys", dbVersion, codeVersion }`을 남깁니다. 같거나 낮으면 경고가 없습니다. 열기 시점에 코드 버전을 아는 owner는 sys뿐이므로 경고도 sys에 대해서만 냅니다. 다른 owner의 미래 버전은 소비자의 `migrations.apply`가 `migration_future_version`으로 알립니다.
 - 쓰기 거절: 아래 경로는 파일을 건드리기 전에 거절합니다. DB 파일과 블롭 파일은 바뀌지 않습니다.
 
@@ -820,7 +820,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 
 | 경우 | 동작 |
 |---|---|
-| 다른 Xeon 버전이 만든 DB, sys 버전이 코드보다 높음 | 기본 열기는 `migration_future_version`이다. `readOnly: true`로 열면 성공하고 `warnings`에 `read_only`(`future_version`)를 남긴다(§4.11). 내보내기는 버전과 상관없이 된다(§4.10) |
+| 다른 Fresnel 버전이 만든 DB, sys 버전이 코드보다 높음 | 기본 열기는 `migration_future_version`이다. `readOnly: true`로 열면 성공하고 `warnings`에 `read_only`(`future_version`)를 남긴다(§4.11). 내보내기는 버전과 상관없이 된다(§4.10) |
 | 읽기 전용 열기에서 쓰기 호출 | `SQLITE_READONLY` 오류 값. DB 파일과 블롭 파일은 바뀌지 않는다(§4.11) |
 | 내보내기 대상이 비어 있지 않음 | `dest_not_empty`. 대상의 내용은 바뀌지 않는다(§4.10) |
 | 내보내기 중 블롭 파일이 없음 | `missingBlobs`에 적고 나머지는 복사한다(§4.10) |
@@ -930,7 +930,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 
 ## 9. 수용 기준
 
-1. 쓰기 연결의 `PRAGMA journal_mode` 조회값은 `wal`, `synchronous`는 2, `busy_timeout`은 설정값(기본 5000), `foreign_keys`는 1, `trusted_schema`는 0, `application_id`는 1480937294다. 읽기 연결의 `query_only`는 1이다.
+1. 쓰기 연결의 `PRAGMA journal_mode` 조회값은 `wal`, `synchronous`는 2, `busy_timeout`은 설정값(기본 5000), `foreign_keys`는 1, `trusted_schema`는 0, `application_id`는 1179799116이다. 읽기 연결의 `query_only`는 1이다.
 2. 존재하지 않는 경로로 `readonly` 연결을 여는 코드 경로가 없다(열기 전 존재 검사). `fileMustExist` 옵션 문자열이 패키지 소스에 없다.
 3. 크래시 모사: `FaultInjector`의 10지점(`eng.transactions.design` §4.2) 각각에서 예외를 던지면, 커밋 전 9지점은 모든 테이블 행 수와 행 해시가 주입 전과 같고 `after_commit`은 모든 행이 남는다. `PRAGMA integrity_check`가 `ok`다.
 4. 자식 프로세스 두 개가 같은 `session:<threadId>`를 동시에 `acquire`하면 정확히 하나가 `ok`, 다른 하나가 `LockBusy`다.
@@ -948,7 +948,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 16. `extensions.register("Helm")`, `register("ext")`, `register("a_b")`는 `ext_id_invalid`다. `register("acme-notes")`의 `tablePrefix`는 `x_acme_notes_`다. 확장 `ab`(`x_ab_cd`)와 `ab-cd`(`x_ab_cd_ef`)를 둘 다 등록한 뒤 `drop("ab", ["x_ab_cd"])`는 `x_ab_cd`만 지우고 `x_ab_cd_ef`와 `events` 행 수는 그대로다. `drop("ab", ["x_ab_cd_ef"])`는 `table_not_owned`이고 아무것도 지우지 않는다.
 17. `bun:sqlite` import가 `platform-store` 밖에 없다(DR-07 검사).
 18. X의 확장 저장 영역 계약 시나리오(`ext-storage.contract.ts`)가 이 패키지의 실제 bun:sqlite 팩토리로 통과한다. 장애 주입 롤백 시나리오(`after_ext_projection:<n>`)에서 확장 테이블 행 해시가 바뀌지 않는다 [결정: review.decisions-2 D-05]. X 테스트는 L0를 import하지 않으므로 bun:sqlite 실행은 이 스위트만 맡는다.
-19. `exportDatabase`로 낸 `xeon.sqlite`를 `openStore`로 열면 행과 블롭 바이트가 원본과 같다. 미래 버전 DB도 내보내진다. 비어 있지 않은 대상은 `dest_not_empty`이고 내용이 그대로다. 파일이 없는 블롭은 `missingBlobs`에 든다(`test/export.int.test.ts`).
+19. `exportDatabase`로 낸 `fresnel.sqlite`를 `openStore`로 열면 행과 블롭 바이트가 원본과 같다. 미래 버전 DB도 내보내진다. 비어 있지 않은 대상은 `dest_not_empty`이고 내용이 그대로다. 파일이 없는 블롭은 `missingBlobs`에 든다(`test/export.int.test.ts`).
 20. `readOnly: true`로 미래 버전 DB를 열면 성공하고 `warnings`는 `read_only`(`future_version`) 하나다. 쓰기 경로(`root`, `scoped`, `putBlob`, `pinBlob`, `unpinBlob`, `gcBlobs`, `leases.acquire`, `migrations.apply`)는 모두 거절 값을 돌려주고 DB 파일의 SHA-256이 그대로다(`test/open-readonly.int.test.ts`).
 
 ## 10. 미결 사항

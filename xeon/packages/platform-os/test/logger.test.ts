@@ -41,12 +41,12 @@ describe("logger", () => {
       sink: (line) => lines.push(line),
       level: "debug",
       redact: (line) => line,
-      baseFields: { app: "xeon", who: "base" },
+      baseFields: { app: "fresnel", who: "base" },
     });
     const child = logger.child({ component: "store", who: "child" });
     child.info("commit.done", { n: 2, who: "call" });
     expect(lines).toEqual([
-      '{"ts":1767571200000,"level":"info","event":"commit.done","app":"xeon","who":"call","component":"store","n":2}',
+      '{"ts":1767571200000,"level":"info","event":"commit.done","app":"fresnel","who":"call","component":"store","n":2}',
     ]);
   });
 

@@ -83,7 +83,7 @@ PRAGMA temp_store = MEMORY;
 PRAGMA wal_autocheckpoint = 1000;
 PRAGMA journal_size_limit = 67108864;
 PRAGMA trusted_schema = OFF;
-PRAGMA application_id = 1480937294;  -- 0x58454F4E 'XEON'. 새 파일에서만 설정, 이후 대조
+PRAGMA application_id = 1179799116;  -- 0x46524E4C 'FRNL'. 새 파일에서만 설정, 이후 대조
 ```
 
 - [제안] 쓰기 연결은 `synchronous`를 바꾸지 않고 FULL로 둔다. adr.0004는 단계 경계 FULL의 구현 방식(연결 단위 전환 대 단계 경계 직후 체크포인트)을 `L0.store.spec`에 넘겼고, `L0.store.spec` §4.3이 이 "항상 FULL" 권고를 채택했다. 단계 경계가 아닌 커밋(효과 커밋, 임대 하트비트, 입력 수락)도 FULL이다. 커밋마다 모드를 바꾸면 바꾸는 코드에 오류가 생길 자리가 늘고, 효과 의도가 디스크에 없으면 외부 효과를 낸 뒤 흔적이 없을 수 있다.

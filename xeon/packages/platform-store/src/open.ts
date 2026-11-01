@@ -187,7 +187,7 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
     // 다른 프로세스가 같은 순간 초기화하고 있을 수 있으므로 첫 읽기 전에 대기 시간부터 건다
     write.run(`PRAGMA busy_timeout = ${options.settings.busyTimeoutMs}`);
     const { applicationId, hasSchema } = readIdentity(write);
-    // 읽기 전용은 빈 파일을 초기화할 수 없으므로 표지가 Xeon이 아니면 모두 다른 파일이다
+    // 읽기 전용은 빈 파일을 초기화할 수 없으므로 표지가 Fresnel이 아니면 모두 다른 파일이다
     const foreign = readOnly
       ? applicationId !== APPLICATION_ID
       : (applicationId !== 0 && applicationId !== APPLICATION_ID) ||

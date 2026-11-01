@@ -97,6 +97,17 @@ test("W renames words but protects repository paths, the branch and the work fol
   );
 });
 
+test("W leaves the tokens that other categories own", () => {
+  expect(
+    apply(
+      "W",
+      'import "@xeon/contracts"; ctx.get("xeon.session"); // xeon-disable-next-line xeon/no-class\nXEON_HOME .xeon/ and Xeon',
+    ),
+  ).toBe(
+    'import "@xeon/contracts"; ctx.get("xeon.session"); // xeon-disable-next-line xeon/no-class\nXEON_HOME .xeon/ and Fresnel',
+  );
+});
+
 test("X renames the measurement word and not workbench", () => {
   const file = "xeon/scripts/bench.ts";
   expect(

@@ -17,13 +17,13 @@ async function makeDirs(): Promise<OsDirs> {
   const root = temp.path;
   return {
     home: `${root}/home`,
-    data: `${root}/state-root/data/xeon`,
-    config: `${root}/state-root/config/xeon`,
-    cache: `${root}/state-root/cache/xeon`,
-    state: `${root}/state-root/state/xeon`,
-    runtime: `${root}/run/xeon`,
+    data: `${root}/state-root/data/fresnel`,
+    config: `${root}/state-root/config/fresnel`,
+    cache: `${root}/state-root/cache/fresnel`,
+    state: `${root}/state-root/state/fresnel`,
+    runtime: `${root}/run/fresnel`,
     resource: `${root}/resource`,
-    tmp: `${root}/tmp/xeon-1`,
+    tmp: `${root}/tmp/fresnel-1`,
   };
 }
 

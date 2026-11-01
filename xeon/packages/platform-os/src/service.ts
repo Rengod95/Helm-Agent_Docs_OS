@@ -52,7 +52,7 @@ export interface PlatformOsConfig {
    * (조립 루트가 `() => settings.get("l0.os.log.level")`를 넘긴다).
    */
   readonly logLevel?: LogLevelSource;
-  /** 설정 l0.os.dirs.override(관리 범위). XEON_HOME보다 낮고 OS 기본보다 높다 */
+  /** 설정 l0.os.dirs.override(관리 범위). FRESNEL_HOME보다 낮고 OS 기본보다 높다 */
   readonly dirsOverride?: string;
   /** 소스 실행에서 번들 바이너리 경로를 주는 수단. 없으면 `@vscode/ripgrep`이 주는 rg를 쓴다(목록 파일이 있으면 그쪽이 먼저다) */
   readonly bundledSource?: BundledSource;

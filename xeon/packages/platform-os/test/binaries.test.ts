@@ -69,7 +69,7 @@ function harness(opts: {
     runs,
     deps: {
       info: opts.info ?? LINUX,
-      resourceDir: opts.resourceDir ?? "/opt/xeon/resources",
+      resourceDir: opts.resourceDir ?? "/opt/fresnel/resources",
       pathEnv: opts.pathEnv,
       fs: opts.fs,
       run,
@@ -140,7 +140,7 @@ describe("resolveBinary: 번들 > 시스템", () => {
         version: "14.1.0",
       },
     ]);
-    const resource = "/opt/xeon/resources";
+    const resource = "/opt/fresnel/resources";
     const { deps, runs } = harness({
       fs: fakeFs({
         executables: [`${resource}/bin/rg`, "/usr/bin/rg"],
@@ -168,7 +168,7 @@ describe("resolveBinary: 번들 > 시스템", () => {
   });
 
   test("해시 불일치 거부: integrity_mismatch, 실행 함수 호출 0회, 시스템 rg로 대체하지 않음", async () => {
-    const resource = "/opt/xeon/resources";
+    const resource = "/opt/fresnel/resources";
     const lock = lockFile([
       {
         name: "rg",
@@ -200,7 +200,7 @@ describe("resolveBinary: 번들 > 시스템", () => {
   });
 
   test("목록 항목이 있어도 플랫폼이 다르면 건너뛴다", async () => {
-    const resource = "/opt/xeon/resources";
+    const resource = "/opt/fresnel/resources";
     const lock = lockFile([
       {
         name: "rg",
@@ -224,7 +224,7 @@ describe("resolveBinary: 번들 > 시스템", () => {
   });
 
   test("목록의 경로가 resource 밖으로 나가면 extract_failed", async () => {
-    const resource = "/opt/xeon/resources";
+    const resource = "/opt/fresnel/resources";
     const lock = lockFile([
       {
         name: "rg",
@@ -245,7 +245,7 @@ describe("resolveBinary: 번들 > 시스템", () => {
   });
 
   test("깨진 목록 파일과 번들 파일 없음은 extract_failed", async () => {
-    const resource = "/opt/xeon/resources";
+    const resource = "/opt/fresnel/resources";
     const broken = harness({
       fs: fakeFs({ files: { [`${resource}/binaries.lock.json`]: "{" } }),
       pathEnv: "",

@@ -3,8 +3,8 @@ import { err, ok, type Result } from "@xeon/contracts";
 import { classifySqliteCode } from "./db.ts";
 import { columnInt, toSqlRow } from "./rows.ts";
 
-/** 'XEON'(0x58454F4E). 새 파일에서만 쓰고 이후 대조한다 */
-export const APPLICATION_ID = 1480937294;
+/** 'FRNL'(0x46524E4C). 새 파일에서만 쓰고 이후 대조한다. 옛 값(1480937294, 'XEON')은 받지 않는다 */
+export const APPLICATION_ID = 1179799116;
 const JOURNAL_SIZE_LIMIT = 67_108_864;
 const WAL_AUTOCHECKPOINT = 1000;
 

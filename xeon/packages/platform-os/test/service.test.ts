@@ -15,7 +15,7 @@ const signal = new AbortController().signal;
 
 function config(lines: string[], extra: Partial<PlatformOsConfig> = {}): PlatformOsConfig {
   return {
-    resourceDir: "/opt/xeon/resources",
+    resourceDir: "/opt/fresnel/resources",
     logSink: (line) => lines.push(line),
     logRedact: (line) => line,
     ...extra,
@@ -56,22 +56,25 @@ function fakeContext(): FakeContext {
 describe("resolveOsDirs", () => {
   test("같은 규칙으로 위치만 정하고 아무것도 만들지 않는다", () => {
     const dirFs = fakeDirFs();
-    const resolved = resolveOsDirs({ resourceDir: "/opt/xeon/resources" }, fakeRuntime({ dirFs }));
+    const resolved = resolveOsDirs(
+      { resourceDir: "/opt/fresnel/resources" },
+      fakeRuntime({ dirFs }),
+    );
     expect(resolved.ok).toBe(true);
     if (!resolved.ok) throw new Bug("unreachable");
-    expect(resolved.value.state).toBe("/home/u/.local/state/xeon");
-    expect(resolved.value.resource).toBe("/opt/xeon/resources");
+    expect(resolved.value.state).toBe("/home/u/.local/state/fresnel");
+    expect(resolved.value.resource).toBe("/opt/fresnel/resources");
     expect(dirFs.made).toEqual([]);
   });
 
   test("관리 범위 덮어쓰기와 지원 밖 플랫폼 오류는 서비스 시작과 같다", () => {
     const root = resolveOsDirs(
-      { resourceDir: "/opt/xeon/resources", dirsOverride: "/srv/xeon" },
+      { resourceDir: "/opt/fresnel/resources", dirsOverride: "/srv/fresnel" },
       fakeRuntime(),
     );
-    expect(root.ok && root.value.state).toBe("/srv/xeon/state");
+    expect(root.ok && root.value.state).toBe("/srv/fresnel/state");
     const unsupported = resolveOsDirs(
-      { resourceDir: "/opt/xeon/resources" },
+      { resourceDir: "/opt/fresnel/resources" },
       fakeRuntime({
         probe: {
           platform: "freebsd",
@@ -100,11 +103,11 @@ describe("createOsService", () => {
       isWsl: false,
       release: "6.1.0",
     });
-    expect(service.dirs.data).toBe("/home/u/.local/share/xeon");
-    expect(service.dirs.resource).toBe("/opt/xeon/resources");
+    expect(service.dirs.data).toBe("/home/u/.local/share/fresnel");
+    expect(service.dirs.resource).toBe("/opt/fresnel/resources");
     expect(service.machineId).toBe("0123456789abcdef");
     expect(service.userId).toBe(1000);
-    // runtime과 tmp가 같은 경로(/tmp/xeon-1000)면 한 번만 만든다
+    // runtime과 tmp가 같은 경로(/tmp/fresnel-1000)면 한 번만 만든다
     expect(dirFs.made).toEqual([
       service.dirs.data,
       service.dirs.config,
@@ -180,21 +183,21 @@ describe("createOsService", () => {
     expect(dirFs.made).toEqual([]);
   });
 
-  test("XEON_HOME이 상대 경로이면 실패한다(조용히 기본값으로 바꾸지 않는다)", async () => {
+  test("FRESNEL_HOME이 상대 경로이면 실패한다(조용히 기본값으로 바꾸지 않는다)", async () => {
     const dirFs = fakeDirFs();
     const result = await createOsService(
       config([]),
-      fakeRuntime({ dirFs, env: envOf({ PATH: "/usr/bin", XEON_HOME: "rel" }) }),
+      fakeRuntime({ dirFs, env: envOf({ PATH: "/usr/bin", FRESNEL_HOME: "rel" }) }),
     );
     expect(result).toEqual(err({ kind: "not_absolute", dir: "data", path: "rel" }));
     expect(dirFs.made).toEqual([]);
   });
 
-  test("dirsOverride(관리 설정)는 OS 기본보다 앞서고 XEON_HOME보다 뒤다", async () => {
+  test("dirsOverride(관리 설정)는 OS 기본보다 앞서고 FRESNEL_HOME보다 뒤다", async () => {
     const managed = await createOsService(config([], { dirsOverride: "/managed" }), fakeRuntime());
     const both = await createOsService(
       config([], { dirsOverride: "/managed" }),
-      fakeRuntime({ env: envOf({ PATH: "/usr/bin", XEON_HOME: "/envhome" }) }),
+      fakeRuntime({ env: envOf({ PATH: "/usr/bin", FRESNEL_HOME: "/envhome" }) }),
     );
     expect(managed.ok && managed.value.service.dirs.data).toBe("/managed/data");
     expect(both.ok && both.value.service.dirs.data).toBe("/envhome/data");
@@ -311,7 +314,7 @@ describe("createOsService", () => {
     );
     const missing = await service.resolveBinary("bwrap", {}, signal);
     expect(!missing.ok && missing.error.kind).toBe("not_found");
-    const kind = await service.fsKind("/no/such/xeon-test-path", signal);
+    const kind = await service.fsKind("/no/such/fresnel-test-path", signal);
     expect(kind.ok || kind.error.kind === "not_found").toBe(true);
     await started.value.dispose();
   });
@@ -333,7 +336,7 @@ describe("createOsService", () => {
       err({ kind: "outside_app_dirs", path: "/x" }),
     );
     expect(service.telemetry.enabled).toBe(false);
-    expect(service.telemetry.tracer("xeon.l0.os")).toBeDefined();
+    expect(service.telemetry.tracer("fresnel.l0.os")).toBeDefined();
     await none.value.dispose();
     await started.value.dispose();
   });
@@ -404,7 +407,7 @@ describe("platformOsPlugin", () => {
 const posix = process.platform === "win32" ? test.skip : test;
 
 describe("OsService (실제 OS, 격리된 환경)", () => {
-  posix("XEON_HOME 아래에 0700 디렉터리를 만들고 서비스 값을 돌려준다", async () => {
+  posix("FRESNEL_HOME 아래에 0700 디렉터리를 만들고 서비스 값을 돌려준다", async () => {
     await withIsolatedEnv(async (env) => {
       const lines: string[] = [];
       const started = await createOsService(
@@ -415,7 +418,7 @@ describe("OsService (실제 OS, 격리된 환경)", () => {
       if (!started.ok) throw new Bug(`start failed: ${started.error.kind}`);
       const { service } = started.value;
       expect(service.dirs.home).toBe(env.home);
-      expect(service.dirs.data).toBe(`${env.vars["XEON_HOME"]}/data`);
+      expect(service.dirs.data).toBe(`${env.vars["FRESNEL_HOME"]}/data`);
       const dirs = [service.dirs.data, service.dirs.config, service.dirs.cache, service.dirs.state];
       const stats = await Promise.all(dirs.map((dir) => stat(dir)));
       expect(stats.map((st) => st.mode & 0o777)).toEqual(dirs.map(() => 0o700));
@@ -434,9 +437,9 @@ describe("OsService (실제 OS, 격리된 환경)", () => {
     });
   });
 
-  posix("거부되는 입력(상대 경로 XEON_HOME)은 실패한다", async () => {
+  posix("거부되는 입력(상대 경로 FRESNEL_HOME)은 실패한다", async () => {
     await withIsolatedEnv(async (env) => {
-      process.env["XEON_HOME"] = "relative/path";
+      process.env["FRESNEL_HOME"] = "relative/path";
       const result = await createOsService(
         { resourceDir: env.home, logSink: () => {}, logRedact: (line) => line },
         { ...readOsRuntime(), home: env.home },

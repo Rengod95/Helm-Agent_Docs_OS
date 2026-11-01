@@ -13,7 +13,7 @@ const ISOLATED = [
   "XDG_STATE_HOME",
   "XDG_RUNTIME_DIR",
   "TMPDIR",
-  "XEON_HOME",
+  "FRESNEL_HOME",
 ] as const;
 const SECRETS: Readonly<Record<string, string>> = {
   OPENAI_API_KEY: "sk-test",
@@ -87,13 +87,13 @@ describe("withIsolatedEnv", () => {
   });
 
   test("원래 없던 변수는 끝난 뒤에도 없다", async () => {
-    const saved = process.env["XEON_HOME"];
-    Reflect.deleteProperty(process.env, "XEON_HOME");
+    const saved = process.env["FRESNEL_HOME"];
+    Reflect.deleteProperty(process.env, "FRESNEL_HOME");
     try {
       await withIsolatedEnv(() => Promise.resolve());
-      expect(process.env["XEON_HOME"]).toBeUndefined();
+      expect(process.env["FRESNEL_HOME"]).toBeUndefined();
     } finally {
-      if (saved !== undefined) process.env["XEON_HOME"] = saved;
+      if (saved !== undefined) process.env["FRESNEL_HOME"] = saved;
     }
   });
 });
@@ -108,8 +108,8 @@ describe("tempDir", () => {
   });
 
   test("접두와 join과 asyncDispose", async () => {
-    const dir = await tempDir("xeon-prefix-");
-    expect(dir.path).toContain("xeon-prefix-");
+    const dir = await tempDir("fresnel-prefix-");
+    expect(dir.path).toContain("fresnel-prefix-");
     expect(dir.join("a", "b")).toBe(`${dir.path}/a/b`);
     await dir[Symbol.asyncDispose]();
     expect(await exists(dir.path)).toBe(false);

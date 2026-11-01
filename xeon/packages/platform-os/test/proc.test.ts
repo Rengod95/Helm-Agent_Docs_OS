@@ -31,7 +31,7 @@ describe("createRunCommand (실제 자식 프로세스)", () => {
   });
 
   posix("없는 실행 파일은 spawn_failed(ENOENT)", async () => {
-    const out = await run(["/no/such/binary-xeon"], { signal: new AbortController().signal });
+    const out = await run(["/no/such/binary-fresnel"], { signal: new AbortController().signal });
     expect(out).toEqual(err({ kind: "spawn_failed", code: "ENOENT" }));
   });
 
@@ -78,7 +78,7 @@ describe("createRunCommandSync", () => {
   });
 
   posix("없는 실행 파일은 spawn_failed", () => {
-    const out = runSync(["/no/such/binary-xeon"]);
+    const out = runSync(["/no/such/binary-fresnel"]);
     expect(!out.ok && out.error.kind).toBe("spawn_failed");
   });
 });

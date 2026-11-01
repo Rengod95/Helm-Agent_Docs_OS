@@ -172,7 +172,7 @@ describe("OsServiceHandle.checkBinaries", () => {
   test("서비스의 resolveBinary를 거쳐 이 OS의 표를 점검한다", async () => {
     const started = await createOsService(
       {
-        resourceDir: "/opt/xeon/resources",
+        resourceDir: "/opt/fresnel/resources",
         logSink: () => {},
         logRedact: (line) => line,
         // 소스 실행의 @vscode/ripgrep 연결을 끄고 번들이 없는 환경을 만든다

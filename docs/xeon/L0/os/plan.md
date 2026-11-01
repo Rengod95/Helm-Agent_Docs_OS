@@ -30,7 +30,7 @@ binds: [xeon/packages/platform-os/**]
 
 ```
 xeon/packages/platform-os/
-  package.json              # exports ".", "./testing". xeon.layer "L0", domain "os"
+  package.json              # exports ".", "./testing". fresnel.layer "L0", domain "os"
   tsconfig.json
   binaries.lock.json        # 빌드 때 생성(OS-12). 소스 실행에서는 없다
   src/
@@ -87,7 +87,7 @@ xeon/packages/platform-os/
     "exports": { ".": "./src/index.ts", "./testing": "./src/testing/index.ts" },
     "dependencies": { "@xeon/contracts": "workspace:*", "@xeon/ext-host": "workspace:*", "@vscode/ripgrep": "catalog:" },
     "optionalDependencies": { "@parcel/watcher": "catalog:" },
-    "xeon": { "layer": "L0", "domain": "os" }
+    "fresnel": { "layer": "L0", "domain": "os" }
   }
   ```
 
@@ -99,13 +99,13 @@ xeon/packages/platform-os/
 |---|---|---|---|---|
 | OS-01 | `select.ts`: `PlatformProbe`, `readPlatformProbe`, `detectPlatform`(WSL 판정 포함), `selectProviders` 골격. `OsInfo` | F `OsInfo`·`PlatformError` | S | M0 |
 | OS-02 | `dirs.ts`: `resolveDirs`(3플랫폼 표, XDG 규칙, runtime 길이 규칙, WSL `/mnt/*` 거부), `ensureDirs`(0700 생성, 소유자·권한 검사) | OS-01 | M | M0 |
-| OS-03 | `XEON_HOME` 재정의와 `l0.os.dirs.override` 반영(우선순위 `XEON_HOME` > 관리 설정 > OS 기본) | OS-02 | S | M0 |
+| OS-03 | `FRESNEL_HOME` 재정의와 `l0.os.dirs.override` 반영(우선순위 `FRESNEL_HOME` > 관리 설정 > OS 기본) | OS-02 | S | M0 |
 | OS-04 | `fs-kind.ts`: `classifyFs`(순수, 분류 표), Linux statfs provider, macOS `mount` 출력 파서 | OS-01 | M | M0 |
 | OS-05 | `time/`: `systemClock`, `systemScheduler`(정수 핸들 표), `systemRandom`(`crypto.getRandomValues` 53비트) | F `Clock`·`Scheduler`·`RandomSource` | S | M0 |
 | OS-06 | 계약 테스트: 같은 Clock·Scheduler 계약 묶음을 운영 구현과 `manualClock`에 돌린다 | OS-05, 이 패키지 `test/`의 `manualClock` | S | M0 |
 | OS-07 | `logger.ts`: `createJsonLinesLogger`(레벨, 필드 합치기, `child`, `setLevel`). 레벨은 값 또는 읽기 함수(`LogLevelSource`)로 받아 `l0.os.log.level` live 변경을 반영한다 | OS-05, F `Logger` | M | M0 |
 | OS-08 | 로그 마스킹 훅 인터페이스: `LogRedact` 필수 인자, 예외 시 `log.redact_failed` 처리, 조립 루트 연결 예시 | OS-07 | S | M0 |
-| OS-09 | `testing/`: `tempDir`, `withIsolatedEnv`(TS-03 변수 목록 + `XEON_HOME`), `exports "./testing"` | OS-02 | S | M0 |
+| OS-09 | `testing/`: `tempDir`, `withIsolatedEnv`(TS-03 변수 목록 + `FRESNEL_HOME`), `exports "./testing"` | OS-02 | S | M0 |
 | OS-10 | `service.ts`, `index.ts`: `OsService` 조립, `platformOsPlugin` 등록, 시작 순서와 `dispose` 순서(`L0.os.spec` §4) | OS-01~OS-09, ext-host `registerPlatform` | M | M1 |
 | OS-11 | `binaries/resolve.ts`, `rg.ts`: `resolveBinary` 우선순위(번들 > 시스템), PATH 탐색, `--version` 파싱(`security`·`secret-tool`은 버전 확인 생략), 동시 호출 합치기, `@vscode/ripgrep` 연동 | OS-02, OS-10 | M | M1 |
 | OS-12 | 번들 추출 실측과 `extract.ts`: `bun build --compile` 단일 바이너리에서 rg를 내장·추출·해시 검사·실행. `binaries.lock.json` 생성: 생성 함수 `generateBinariesLock`(`lock.ts`)는 M2 PLT.4에서 구현했고, 사이드카 빌드 스크립트(DESK.3)가 부른다. 추출·실측은 M2 이후 | OS-11 | M | M2 이후 |
@@ -151,10 +151,10 @@ xeon/packages/platform-os/
 | `select.test.ts` | `detectPlatform: WSL 판정` | `WSL_DISTRO_NAME` 있음, `/proc/version`에 `microsoft` 있음이 각각 `isWsl: true`. 일반 Linux는 false |
 | `select.test.ts` | `detectPlatform: 지원 밖 값` | `freebsd`는 `unsupported_platform`, `ia32`는 `unsupported_arch` |
 | `dirs.test.ts` | `resolveDirs: 3플랫폼 × 환경 변수 조합` | XDG 변수 있음·없음·상대 경로, `XDG_RUNTIME_DIR` 없음, Windows 변수 있음·없음에서 `L0.os.spec` §3.2 표 값 |
-| `dirs.test.ts` | `resolveDirs: XEON_HOME 우선` | `XEON_HOME`이 관리 설정 값과 OS 기본보다 우선하고 resource·tmp는 그대로 |
-| `dirs.test.ts` | `resolveDirs: XEON_HOME 상대 경로 거부` | `not_absolute` |
+| `dirs.test.ts` | `resolveDirs: FRESNEL_HOME 우선` | `FRESNEL_HOME`이 관리 설정 값과 OS 기본보다 우선하고 resource·tmp는 그대로 |
+| `dirs.test.ts` | `resolveDirs: FRESNEL_HOME 상대 경로 거부` | `not_absolute` |
 | `dirs.test.ts` | `resolveDirs: WSL에서 /mnt/* 거부` | `XDG_DATA_HOME=/mnt/c/x`인 WSL probe에서 `data_dir_on_drvfs` |
-| `dirs.test.ts` | `resolveDirs: runtime 길이 규칙` | 긴 `$TMPDIR`에서 `/tmp/xeon-<uid>`로 내려가고, 둘 다 길면 `runtime_path_too_long` |
+| `dirs.test.ts` | `resolveDirs: runtime 길이 규칙` | 긴 `$TMPDIR`에서 `/tmp/fresnel-<uid>`로 내려가고, 둘 다 길면 `runtime_path_too_long` |
 | `dirs.int.test.ts` | `ensureDirs: 0700 생성` | `tempDir` 아래에 만든 디렉터리 모드가 `0o700`(macOS·Linux) |
 | `dirs.int.test.ts` | `ensureDirs: 권한·소유 검사` | 0755 기존 디렉터리는 `permission_too_open`. 소유 uid 불일치는 주입된 stat으로 `not_owned` |
 | `fs-kind.test.ts` | `classifyFs: Linux f_type 표` | ext4·tmpfs → local, NFS·CIFS·SMB2 → network, WSL 9p·`/mnt/c` → drvfs, FUSE → unknown(주입된 statfs 결과) |
@@ -183,7 +183,7 @@ xeon/packages/platform-os/
 | `telemetry.test.ts` | `telemetry: 기본 꺼짐` | 기본 설정에서 `enabled: false`, 무동작 Tracer, SDK 동적 import 호출 0회 |
 | `telemetry.test.ts` | `telemetry: 속성 규칙` | 허용 목록 밖 속성(본문, 인자)은 버리고 문자열 속성에 `redact` 적용 |
 | `select-scan.test.ts` | `OS 분기 표현은 select.ts에만` | `src/**`에서 `process.platform`, `os.platform(`, `WSL_DISTRO_NAME`, `/proc/version` 문자열이 `select.ts` 밖에 0건 |
-| `testing.test.ts` | `withIsolatedEnv: 변수 격리와 복원` | 실행 중 `HOME`·`XDG_*`·`TMPDIR`·`XEON_HOME`이 임시 경로, 지정 변수는 없음. 끝난 뒤(예외 포함) 원래 값 |
+| `testing.test.ts` | `withIsolatedEnv: 변수 격리와 복원` | 실행 중 `HOME`·`XDG_*`·`TMPDIR`·`FRESNEL_HOME`이 임시 경로, 지정 변수는 없음. 끝난 뒤(예외 포함) 원래 값 |
 | `testing.test.ts` | `tempDir: 두 번 지우기` | `remove()`를 두 번 불러도 오류가 없다 |
 | `identity.test.ts` | `processStartFingerprint: 같은 pid는 같은 값, 없는 pid는 null` | 자기 pid 두 번 호출 값이 같고, 끝난 자식 pid는 `ok(null)`. Linux `/proc` 지문 변환은 주입한 파일 내용으로 확인 |
 
@@ -196,7 +196,7 @@ xeon/packages/platform-os/
 2. M0: `platform-store`, `platform-exec`와 L1 패키지 테스트가 `@xeon/platform-os/testing`의 `tempDir`로 임시 디렉터리를 만들고, 자기 패키지에 임시 디렉터리 코드를 따로 두지 않는다.
 3. M0: `Date.now`, `Math.random`, `performance.now` 직접 호출 금지 lint(oxlint `no-restricted-properties`, 스캔 `xeon/no-ambient-time`)가 `packages/platform-os` 밖에서 0건이다.
 4. M0: `time.contract.test.ts`가 운영 구현과 `manualClock`에서 모두 통과한다.
-5. M1: 조립 루트가 `platformOsPlugin`을 등록하고, `xeon chat` 스모크에서 sandbox가 `resolveBinary("rg")`로 받은 경로를 쓴다.
+5. M1: 조립 루트가 `platformOsPlugin`을 등록하고, `fresnel chat` 스모크에서 sandbox가 `resolveBinary("rg")`로 받은 경로를 쓴다.
 6. `L0.os.spec` §9 수용 기준 1~10에 대응하는 테스트가 있고 통과한다(2차 항목은 해당 마일스톤에서).
 7. `just check-layers`가 platform-os에서 위반 0건이다.
 
@@ -209,6 +209,6 @@ xeon/packages/platform-os/
 | 번들 바이너리 추출 위치에 쓰기 권한이 없음, Windows 백신이 추출 파일을 잠그거나 오탐 | `extract_failed`로 보고하고 시스템 바이너리 안내. 추출 위치를 `cache`로 고정하고 해시 이름 디렉터리를 쓴다 | OS-12에서 읽기 전용 cache 픽스처로 오류 값 확인, OS-17에서 Windows 러너 실측 |
 | `bun build --compile`의 파일 내장이 실행 파일 추출을 지원하지 않음 | 사이드카 옆에 rg를 별도 파일로 배포(Tauri `externalBin`)하고 `resource`에서 찾는다 | OS-12 실측 결과를 이 표에 기록 |
 | Linux 알림 데몬 부재(WSL, 헤드리스) | 무음 + 진단 한 번. 작업 흐름은 알림 실패로 멈추지 않는다 | `notify.test.ts` `notify-send 없음` 테스트 |
-| 디렉터리 규칙이 사용자의 기존 설정 위치와 충돌(마이그레이션 필요 여부 [미결]) | 첫 실행에서 다른 후보 위치(`~/.config/xeon` 등)에 파일이 있으면 경고 로그로 알리고 옮기지 않는다 [제안] | OS-02에서 후보 위치 표를 테스트로 고정, 사용자 결정 뒤 마이그레이션 작업 추가 |
+| 디렉터리 규칙이 사용자의 기존 설정 위치와 충돌(마이그레이션 필요 여부 [미결]) | 첫 실행에서 다른 후보 위치(`~/.config/fresnel` 등)에 파일이 있으면 경고 로그로 알리고 옮기지 않는다 [제안] | OS-02에서 후보 위치 표를 테스트로 고정, 사용자 결정 뒤 마이그레이션 작업 추가 |
 | 시계 대역(`manualClock`)과 운영 구현의 계약 불일치(음수 지연, 같은 시각 만기 순서) | 계약 테스트 묶음 하나를 두 구현에 돌린다 | OS-06 `time.contract.test.ts` |
 | macOS `mount` 출력 형식이 버전마다 다름 | 파서가 모르는 줄은 건너뛰고 `unknown`으로 판정 | OS-04에서 macOS 14·15 출력 픽스처 [가정: 실제 출력 수집 필요] |

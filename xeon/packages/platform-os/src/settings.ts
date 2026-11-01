@@ -3,7 +3,7 @@ import { defineSettings, type SettingDef } from "@xeon/contracts/settings";
 
 // L0.os.spec §6. 모두 layer L0, since 0.1.0이다. 알림 키(l0.os.notify.*)는 두지 않는다: 정본은 l2.dialog.notify.*이다.
 // dirs.override는 관리 범위만 받는다: 사용자 설정 파일이 config 디렉터리 안에 있어 사용자 범위에서 읽으면 순환한다.
-// 환경 변수 XEON_HOME이 같은 역할을 하며 dirs.ts가 XEON_HOME을 먼저 본다.
+// 환경 변수 FRESNEL_HOME이 같은 역할을 하며 dirs.ts가 FRESNEL_HOME을 먼저 본다.
 
 const group = defineSettings("l0.os", {
   "telemetry.enabled": {

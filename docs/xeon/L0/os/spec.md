@@ -48,7 +48,7 @@ binds: [xeon/packages/platform-os/**]
 | 번들 바이너리 | 앱과 함께 배포되는 실행 파일(예: `@vscode/ripgrep` 플랫폼 패키지의 `rg`) |
 | 시스템 바이너리 | 사용자가 OS에 설치한 실행 파일(`PATH`에서 찾는다) |
 | drvfs | WSL에서 Windows 드라이브를 마운트한 파일 시스템(`/mnt/c` 등). WSL2에서는 9p 프로토콜이다 |
-| 앱 파일 | Xeon이 `OsDirs` 아래에 두는 설정·스킬·플러그인 파일. 작업 공간 파일과 구분한다 |
+| 앱 파일 | Fresnel이 `OsDirs` 아래에 두는 설정·스킬·플러그인 파일. 작업 공간 파일과 구분한다 |
 
 ## 3. 인터페이스
 
@@ -179,21 +179,21 @@ export function ensureDirs(dirs: OsDirs, fs: DirFs, signal: AbortSignal): Promis
 
 | 디렉터리 | macOS | Linux(WSL2 포함) | Windows |
 |---|---|---|---|
-| data | `~/Library/Application Support/xeon` | `${XDG_DATA_HOME:-~/.local/share}/xeon` | `%LOCALAPPDATA%\xeon\data` |
-| config | `~/Library/Application Support/xeon/config` | `${XDG_CONFIG_HOME:-~/.config}/xeon` | `%APPDATA%\xeon` |
-| cache | `~/Library/Caches/xeon` | `${XDG_CACHE_HOME:-~/.cache}/xeon` | `%LOCALAPPDATA%\xeon\cache` |
-| state | `~/Library/Application Support/xeon/state` | `${XDG_STATE_HOME:-~/.local/state}/xeon` | `%LOCALAPPDATA%\xeon\state` |
-| runtime | `$TMPDIR/xeon`. 아래 길이 규칙을 넘으면 `/tmp/xeon-<uid>` | `$XDG_RUNTIME_DIR/xeon`. 변수가 없으면 `/tmp/xeon-<uid>` | `%LOCALAPPDATA%\xeon\run`(등록 파일만. 소켓 대안은 `L0.process.spec`) |
+| data | `~/Library/Application Support/fresnel` | `${XDG_DATA_HOME:-~/.local/share}/fresnel` | `%LOCALAPPDATA%\fresnel\data` |
+| config | `~/Library/Application Support/fresnel/config` | `${XDG_CONFIG_HOME:-~/.config}/fresnel` | `%APPDATA%\fresnel` |
+| cache | `~/Library/Caches/fresnel` | `${XDG_CACHE_HOME:-~/.cache}/fresnel` | `%LOCALAPPDATA%\fresnel\cache` |
+| state | `~/Library/Application Support/fresnel/state` | `${XDG_STATE_HOME:-~/.local/state}/fresnel` | `%LOCALAPPDATA%\fresnel\state` |
+| runtime | `$TMPDIR/fresnel`. 아래 길이 규칙을 넘으면 `/tmp/fresnel-<uid>` | `$XDG_RUNTIME_DIR/fresnel`. 변수가 없으면 `/tmp/fresnel-<uid>` | `%LOCALAPPDATA%\fresnel\run`(등록 파일만. 소켓 대안은 `L0.process.spec`) |
 | home | `home` | `home` | `home`(`%USERPROFILE%`) |
 | resource | `resourceDir` | `resourceDir` | `resourceDir` |
-| tmp | `<systemTmp>/xeon-<uid>` | `<systemTmp>/xeon-<uid>` | `%TEMP%\xeon` |
+| tmp | `<systemTmp>/fresnel-<uid>` | `<systemTmp>/fresnel-<uid>` | `%TEMP%\fresnel` |
 
-- `XEON_HOME` 재정의 [제안]: 환경 변수 `XEON_HOME`이 있으면 data=`$XEON_HOME/data`, config=`$XEON_HOME/config`, cache=`$XEON_HOME/cache`, state=`$XEON_HOME/state`, runtime=`$XEON_HOME/run`이다. runtime이 길이 규칙을 넘으면 그 OS의 기본 runtime을 쓴다. resource와 tmp는 바꾸지 않는다. `XEON_HOME`은 절대 경로여야 한다(`not_absolute`). 설정 키 `l0.os.dirs.override`는 같은 값을 관리 범위에서 주는 수단이다(6절). 둘 다 있으면 `XEON_HOME`이 이긴다.
-- macOS config [제안]: Apple 관례의 `~/Library/Preferences`는 plist용이라 쓰지 않는다. CLI 사용자가 `~/.config/xeon`을 기대할 수 있다는 점은 미결 5다.
+- `FRESNEL_HOME` 재정의 [제안]: 환경 변수 `FRESNEL_HOME`이 있으면 data=`$FRESNEL_HOME/data`, config=`$FRESNEL_HOME/config`, cache=`$FRESNEL_HOME/cache`, state=`$FRESNEL_HOME/state`, runtime=`$FRESNEL_HOME/run`이다. runtime이 길이 규칙을 넘으면 그 OS의 기본 runtime을 쓴다. resource와 tmp는 바꾸지 않는다. `FRESNEL_HOME`은 절대 경로여야 한다(`not_absolute`). 설정 키 `l0.os.dirs.override`는 같은 값을 관리 범위에서 주는 수단이다(6절). 둘 다 있으면 `FRESNEL_HOME`이 이긴다.
+- macOS config [제안]: Apple 관례의 `~/Library/Preferences`는 plist용이라 쓰지 않는다. CLI 사용자가 `~/.config/fresnel`을 기대할 수 있다는 점은 미결 5다.
 - XDG 변수가 상대 경로이면 XDG 규격대로 무시하고 기본값을 쓴다.
-- 권한 [제안]: `ensureDirs`는 data, config, cache, state, runtime, tmp를 `0o700`으로 만든다. 이미 있으면 소유자가 현재 uid인지(`not_owned`), 그룹·기타 권한 비트가 없는지(`permission_too_open`) 확인한다. `/tmp/xeon-<uid>`처럼 공유 위치 아래 디렉터리는 두 검사를 반드시 한다. Windows는 권한 비트를 검사하지 않는다(5절).
+- 권한 [제안]: `ensureDirs`는 data, config, cache, state, runtime, tmp를 `0o700`으로 만든다. 이미 있으면 소유자가 현재 uid인지(`not_owned`), 그룹·기타 권한 비트가 없는지(`permission_too_open`) 확인한다. `/tmp/fresnel-<uid>`처럼 공유 위치 아래 디렉터리는 두 검사를 반드시 한다. Windows는 권한 비트를 검사하지 않는다(5절).
 - runtime 길이 규칙: process 문서의 요구를 받는다. Unix 소켓 경로 `sun_path` 한계는 macOS 104바이트, Linux 108바이트다 [가정: 플랫폼 헤더 값]. [제안] `runtime` 경로의 UTF-8 바이트 수에 소켓 파일 이름 여유 24바이트를 더한 값이 macOS 100, Linux 104를 넘으면 다음 후보로 내려가고, 마지막 후보도 넘으면 `runtime_path_too_long`이다. 소켓 상대 경로 상한 24바이트는 `L0.process.spec` §4.4.1의 `SOCKET_RELATIVE_PATH_MAX_BYTES`다.
-- runtime 경로와 폴백(`/tmp/xeon-<uid>`)은 이 절에서만 정한다. `L0.process.spec`은 `OsDirs.runtime`을 그대로 쓰고 경로를 다시 계산하지 않는다.
+- runtime 경로와 폴백(`/tmp/fresnel-<uid>`)은 이 절에서만 정한다. `L0.process.spec`은 `OsDirs.runtime`을 그대로 쓰고 경로를 다시 계산하지 않는다.
 - WSL [제안]: WSL은 Linux로 다룬다. 해석한 data, state, cache, runtime이 `/mnt/` 아래이면 `data_dir_on_drvfs`로 거부한다. SQLite WAL과 `flock` 동작을 drvfs에서 확인하지 못했기 때문이다(`_research/notes/L0-2.md`). config는 `/mnt/` 아래여도 허용하되 경고 로그를 남긴다.
 
 ### 3.3 파일 시스템 종류
@@ -340,7 +340,7 @@ export interface TempDir {
 }
 export function tempDir(prefix?: string): Promise<TempDir>;
 
-/** HOME, XDG_*, TMPDIR, XEON_HOME을 임시 디렉터리로 바꾸고
+/** HOME, XDG_*, TMPDIR, FRESNEL_HOME을 임시 디렉터리로 바꾸고
  *  *_API_KEY, ANTHROPIC_*, OPENAI_*, SOPS_AGE_KEY*, SSH_AUTH_SOCK을 지운 채 fn을 실행한 뒤 되돌린다 */
 export function withIsolatedEnv<T>(fn: (env: IsolatedEnv) => Promise<T>): Promise<T>;
 export interface IsolatedEnv {
@@ -349,7 +349,7 @@ export interface IsolatedEnv {
 }
 ```
 
-- `withIsolatedEnv`가 지우는 변수 목록은 `eng.testing.guide` TS-03 표가 정본이다. `XEON_HOME`을 더한 것은 이 문서의 추가다 [제안].
+- `withIsolatedEnv`가 지우는 변수 목록은 `eng.testing.guide` TS-03 표가 정본이다. `FRESNEL_HOME`을 더한 것은 이 문서의 추가다 [제안].
 - `withIsolatedEnv`는 프로세스 전역 `process.env`를 바꾸므로 같은 파일 안에서 병렬로 돌리지 않는다. `bun test`의 파일 단위 실행을 전제로 한다 [가정].
 
 ### 3.6 외부 바이너리 (1차)
@@ -460,7 +460,7 @@ export function buildNotifyCommand(info: OsInfo, n: OsNotification): readonly st
 | provider | 수단 [가정, 구현 수단은 `L0.os.plan`에서 확정] | 없을 때 |
 |---|---|---|
 | `darwin` | `osascript -e 'display notification … with title …'`. 문자열은 AppleScript 이스케이프 후 인자로 넘기고 셸을 거치지 않는다 | 해당 없음(OS 내장) |
-| `linux` | `notify-send --app-name=Xeon <title> <body>` | 무음. 첫 실패 때 진단 로그 한 번(`notify.unavailable`) |
+| `linux` | `notify-send --app-name=Fresnel <title> <body>` | 무음. 첫 실패 때 진단 로그 한 번(`notify.unavailable`) |
 | `win32` | PowerShell 토스트(`-NoProfile`, 인자는 `-EncodedCommand`로 전달) | 무음 + 진단 한 번 |
 | `none` | 무동작 | — |
 | `desktop-tauri` | 데스크톱 앱에서는 엔진이 사이드카라 Tauri API를 직접 부를 수 없다. L4 host가 wire 알림으로 UI에 넘기고 UI가 Tauri 알림을 띄운다. 이 provider는 L4가 구현해 플러그인 설정으로 주입한다 | — |
@@ -544,7 +544,7 @@ export interface OsTelemetry {
 
 - 기본 꺼짐(`l0.os.telemetry.enabled = false`). 켜면 `@opentelemetry/sdk-trace-node` 2.12.0의 트레이서 provider를 만들고 `pi-telemetry` 1.3.0 어댑터로 pi-ai의 `pi.ai.request` 스팬을 함께 받는다(`_research/packages.md` §4.2 L0-f).
 - 내보내기 대상(`l0.os.telemetry.exporter`): `file`은 `state/telemetry/spans-<날짜>.jsonl`에 OTLP JSON 한 줄씩, `otlp-http`는 `l0.os.telemetry.endpoint`로 보낸다.
-- 스팬 이름 규칙 [제안]: `xeon.<층 소문자>.<도메인>.<동작>`. 예: `xeon.l1.loop.step`, `xeon.l1.tools.call`, `xeon.l0.store.commit`. pi-ai 스팬은 원래 이름을 유지한다.
+- 스팬 이름 규칙 [제안]: `fresnel.<층 소문자>.<도메인>.<동작>`. 예: `fresnel.l1.loop.step`, `fresnel.l1.tools.call`, `fresnel.l0.store.commit`. pi-ai 스팬은 원래 이름을 유지한다.
 - 속성 규칙 [제안]: 속성에는 id(`threadId`, `turnId`, `stepId`), 도구 이름, 모델 id, 토큰 수, 지연 시간만 싣는다. 비밀 값, 비밀 참조 해석 결과, 프롬프트·응답 본문, 도구 인자·출력 원문은 싣지 않는다. 내보내기 직전에 문자열 속성 값에 `redact`를 적용한다.
 - SDK는 켜질 때만 동적 import로 지연 로드한다. 꺼져 있을 때 SDK 모듈을 로드하지 않는다.
 - [가정] `@opentelemetry/sdk-trace-node`가 Bun에서 동작한다. `AsyncLocalStorage` 기반 컨텍스트 전파가 Bun에서 Node와 같게 동작하는지는 실측이 필요하다.
@@ -575,7 +575,7 @@ export interface OsService {
   readonly time: OsTime;
   /** 기계 식별자. 같은 기계 판정용(LeaseHolder.host). 서비스 수명 동안 바뀌지 않는다 */
   readonly machineId: string;
-  /** POSIX uid. Windows는 null. /tmp/xeon-<uid>, 소켓 디렉터리 소유자 검사에 쓴다 */
+  /** POSIX uid. Windows는 null. /tmp/fresnel-<uid>, 소켓 디렉터리 소유자 검사에 쓴다 */
   readonly userId: number | null;
   /** pid 프로세스의 시작 시각(epoch ms). 그 pid의 프로세스가 없으면 ok(null). 동기다(store 임대 판정이 동기 경로다) */
   processStartFingerprint(pid: number): Result<number | null, FingerprintError>;
@@ -643,7 +643,7 @@ export interface FileLock {
 
 ### 3.12 제품 이름 상수
 
-제품 이름에 묶인 값은 `src/product.ts`의 `PRODUCT` 한 곳에서만 읽는다 [결정: review.m3-design-inputs D-M3-24 b, M3-REQ-54]. M3 값은 `name: "xeon"`, `displayName: "Xeon"`, `settingsFileName: "settings.json"`이다. 앱 디렉터리 이름(`dirs.ts`의 3플랫폼 표와 `<tmp>/<name>-<uid>`), 알림 앱 이름이 이 상수를 쓴다. 사용자 대행 UA는 `productUserAgent(version)`(`xeon/<version>`)이다. M4 개명은 이 파일만 바꾼다. 서버 이름처럼 F가 정하는 값은 F의 몫이고 한 곳으로 모을지는 개명 작업 전에 정한다 [미결 14].
+제품 이름에 묶인 값은 `src/product.ts`의 `PRODUCT` 한 곳에서만 읽는다 [결정: review.m3-design-inputs D-M3-24 b, M3-REQ-54]. 값은 `name: "fresnel"`, `displayName: "Fresnel"`, `settingsFileName: "settings.json"`, `dbFileName: "fresnel.db"`이다(제품 이름 Fresnel, ADR-0022). 옛 이름 `xeon`의 디렉터리와 DB는 읽지 않고, 개발 기기는 일회성 이전 스크립트(`xeon/scripts/migrate-dev-machine.ts`)가 옮긴다. 앱 디렉터리 이름(`dirs.ts`의 3플랫폼 표와 `<tmp>/<name>-<uid>`), 알림 앱 이름이 이 상수를 쓴다. 사용자 대행 UA는 `productUserAgent(version)`(`fresnel/<version>`)이다. 개명은 이 파일만 바꾼다. 서버 이름처럼 F가 정하는 값은 F의 몫이고 한 곳으로 모을지는 개명 작업 전에 정한다 [미결 14].
 
 ### 3.13 워크트리 연산
 
@@ -676,7 +676,7 @@ export interface WorktreeOps {
 ## 4. 동작 규칙
 
 1. 시작 순서: 플랫폼 판별 → 디렉터리 해석 → 디렉터리 생성·검사 → 로거 생성 → 서비스 등록. 바이너리 해석, 알림 provider 확인, 감시, 텔레메트리 SDK 로드는 처음 쓸 때 한다(지연).
-2. `dirs`는 서비스 수명 동안 바뀌지 않는다. `XEON_HOME`과 `l0.os.dirs.override`의 변경은 재시작 뒤 반영한다.
+2. `dirs`는 서비스 수명 동안 바뀌지 않는다. `FRESNEL_HOME`과 `l0.os.dirs.override`의 변경은 재시작 뒤 반영한다.
 3. 모든 비동기 메서드는 마지막 인자 `signal`을 받고 자식 프로세스와 파일 I/O에 넘긴다. 중단되면 `{ kind: "cancelled" }`를 돌려준다(TY-22).
 4. `resolveBinary`는 같은 이름에 대한 동시 호출을 하나로 합친다(진행 중 Promise 공유). 번들 추출은 임시 파일에 쓴 뒤 같은 디렉터리 안에서 이름을 바꿔 원자적으로 둔다.
 5. 알림 provider가 `none`이거나 감시·텔레메트리가 꺼져 있을 때는 OS 자원(자식 프로세스, 감시 핸들, SDK 모듈)을 만들지 않는다. 알림 자식 프로세스는 `notify`가 불릴 때만 만든다.
@@ -689,9 +689,9 @@ export interface WorktreeOps {
 |---|---|
 | `process.platform`이 `freebsd` 등 | `unsupported_platform`. 서비스 등록 실패 |
 | `HOME`(Windows는 `LOCALAPPDATA`·`APPDATA`)이 비어 있음 | `env_missing`. 서비스 등록 실패 |
-| `XEON_HOME`이 상대 경로 | `not_absolute`. 서비스 등록 실패. 조용히 기본값으로 바꾸지 않는다 |
-| WSL에서 data가 `/mnt/c/...`로 해석됨 | `data_dir_on_drvfs`. 서비스 등록 실패. 안내 문구에 `XEON_HOME`을 Linux 경로로 두라고 적는다 |
-| `/tmp/xeon-<uid>`가 다른 사용자 소유 | `not_owned`. 서비스 등록 실패(소켓 가로채기 방지) |
+| `FRESNEL_HOME`이 상대 경로 | `not_absolute`. 서비스 등록 실패. 조용히 기본값으로 바꾸지 않는다 |
+| WSL에서 data가 `/mnt/c/...`로 해석됨 | `data_dir_on_drvfs`. 서비스 등록 실패. 안내 문구에 `FRESNEL_HOME`을 Linux 경로로 두라고 적는다 |
+| `/tmp/fresnel-<uid>`가 다른 사용자 소유 | `not_owned`. 서비스 등록 실패(소켓 가로채기 방지) |
 | 기존 디렉터리가 0755 | `permission_too_open`. [제안] 자동으로 고치지 않고 실패한다. 수정 명령은 L4 `doctor`가 안내한다 |
 | runtime 경로가 길이 규칙을 넘고 대체 후보도 넘음 | `runtime_path_too_long` |
 | statfs가 지원되지 않는 파일 시스템 | `fsKind`가 `unknown` |
@@ -711,7 +711,7 @@ export interface WorktreeOps {
 | 항목 | macOS | Linux / WSL2 | Windows |
 |---|---|---|---|
 | 디렉터리 규칙 | `~/Library/Application Support`, `~/Library/Caches` | XDG Base Directory | `%APPDATA%`(roaming, 설정), `%LOCALAPPDATA%`(기기, 데이터·캐시) |
-| runtime 디렉터리 | `$TMPDIR`가 사용자별 디렉터리라 쓸 수 있다. 소켓 경로 한계 104바이트 | `$XDG_RUNTIME_DIR`. WSL에서 systemd가 꺼져 있으면 없을 수 있어 `/tmp/xeon-<uid>`로 대체 [가정] | Unix 소켓 대신 named pipe 등 대안. 디렉터리는 등록 파일만 둔다 |
+| runtime 디렉터리 | `$TMPDIR`가 사용자별 디렉터리라 쓸 수 있다. 소켓 경로 한계 104바이트 | `$XDG_RUNTIME_DIR`. WSL에서 systemd가 꺼져 있으면 없을 수 있어 `/tmp/fresnel-<uid>`로 대체 [가정] | Unix 소켓 대신 named pipe 등 대안. 디렉터리는 등록 파일만 둔다 |
 | 알림 수단 | `osascript` display notification. 알림 권한은 터미널 앱 단위로 OS가 관리한다 [가정] | `notify-send`(libnotify). 헤드리스·WSL에는 대개 없다 | PowerShell 토스트 [가정]. Windows 네이티브 보강 때 확인 |
 | 감시 백엔드 | FSEvents | inotify. 사용자당 감시 수 한도 `fs.inotify.max_user_watches`(배포판·커널마다 다름) [가정] | ReadDirectoryChangesW |
 | 바이너리 확장자·경로 | 확장자 없음, `/` 구분, `PATH` `:` 구분 | macOS와 같음 | `.exe`, `\` 구분, `PATH` `;` 구분, `PATHEXT` |
@@ -730,7 +730,7 @@ export interface WorktreeOps {
 | `l0.os.telemetry.enabled` | boolean | `false` | — | restart | managed, user | advanced / toggle | 아니오 | 화면, 파일, 명령 |
 | `l0.os.telemetry.exporter` | string | `"file"` | enum `file`, `otlp-http` | restart | managed, user | advanced / select | 아니오 | 화면, 파일 |
 | `l0.os.telemetry.endpoint` | string | `"http://localhost:4318/v1/traces"` | — | restart | managed, user | advanced / text | 아니오 | 화면, 파일 |
-| `l0.os.dirs.override` | string | 없음 | 절대 경로 | restart | managed | 화면에 두지 않음 | 아니오 | 파일(관리 설정)만. 환경 변수 `XEON_HOME`이 같은 역할을 한다 |
+| `l0.os.dirs.override` | string | 없음 | 절대 경로 | restart | managed | 화면에 두지 않음 | 아니오 | 파일(관리 설정)만. 환경 변수 `FRESNEL_HOME`이 같은 역할을 한다 |
 | `l0.os.log.level` | string | `"info"` | enum `debug`, `info`, `warn`, `error` | live | managed, user, local, session | advanced / select | 아니오 | 화면, 파일, 명령 |
 
 - 알림 켜기·종류 키는 이 표에 두지 않는다. 정본은 `L2.dialog.spec` §6의 `l2.dialog.notify.*`이고 기본값과 탭도 그 표를 따른다 [결정: review.decisions-2 S-04].
@@ -777,8 +777,8 @@ F에 요청:
 
 ## 9. 수용 기준
 
-1. `resolveDirs` 단위 테스트가 macOS·Linux·Windows 세 플랫폼과 환경 변수 조합(XDG 변수 있음·없음·상대 경로, `XEON_HOME` 있음, `XDG_RUNTIME_DIR` 없음)에서 3.2절 표와 같은 경로를 돌려준다. 환경 값은 `EnvReader`로 주입하고 실제 OS를 바꾸지 않는다.
-2. `XEON_HOME`이 있으면 data·config·cache·state·runtime이 그 아래로 바뀌고 resource·tmp는 그대로다.
+1. `resolveDirs` 단위 테스트가 macOS·Linux·Windows 세 플랫폼과 환경 변수 조합(XDG 변수 있음·없음·상대 경로, `FRESNEL_HOME` 있음, `XDG_RUNTIME_DIR` 없음)에서 3.2절 표와 같은 경로를 돌려준다. 환경 값은 `EnvReader`로 주입하고 실제 OS를 바꾸지 않는다.
+2. `FRESNEL_HOME`이 있으면 data·config·cache·state·runtime이 그 아래로 바뀌고 resource·tmp는 그대로다.
 3. WSL probe(`isWsl: true`)에서 data가 `/mnt/c/...`로 해석되면 `data_dir_on_drvfs`를 돌려준다.
 4. `ensureDirs`가 새로 만든 디렉터리의 권한이 macOS·Linux에서 `0o700`이고, 0755인 기존 디렉터리에는 `permission_too_open`을 돌려준다.
 5. 같은 Clock·Scheduler 계약 테스트 묶음이 `systemClock`·`systemScheduler`와 `manualClock`에서 모두 통과한다(취소, 만기 순서, 음수·NaN 지연, 모르는 핸들 취소).
@@ -796,7 +796,7 @@ F에 요청:
 2. [미결] 파일 감시 책임 경계. 작업 공간 = exec(`ExecutionEnv.watch`), 앱 설정·스킬·플러그인 디렉터리 = os(`FileWatcher`). 계획 v2의 "ExecutionEnv.watch를 쓰고 없으면 @parcel/watcher" 문장과 다르므로 사용자 확인이 필요하다. `L0.exec.spec`과 같은 문장으로 맞춘다.
 3. [미결] `sops`, `age`, `bwrap`, `socat`의 번들 정책. 번들하면 설치가 쉬워지고 배포 크기와 라이선스 고지, 보안 갱신 책임이 늘어난다. 정해지기 전에는 시스템 바이너리를 요구한다.
 4. [결정: M3-REQ-50] WSL 알림에서 Windows 토스트 상호운용은 쓰지 않는다(§3.7). 이전 논점: WSL 알림에서 Windows 토스트 상호운용(`powershell.exe`)을 쓸지.
-5. [미결] 디렉터리 규칙과 사용자의 기존 설정 위치 충돌. macOS config를 `~/Library/Application Support/xeon/config`로 둘지 `~/.config/xeon`으로 둘지, 위치를 바꿀 때 마이그레이션을 둘지.
+5. [미결] 디렉터리 규칙과 사용자의 기존 설정 위치 충돌. macOS config를 `~/Library/Application Support/fresnel/config`로 둘지 `~/.config/fresnel`으로 둘지, 위치를 바꿀 때 마이그레이션을 둘지.
 6. [미결] 단조 시계를 F 계약에 더할지(`performance.now` 대응). 현재는 `Clock.now()` 차이로 경과 시간을 잰다.
 7. [미결] `time`(시계·타이머·난수)을 `OsService` 필드로 둘지 별도 서비스 이름으로 나눌지. 나누면 `eng.context-map.design` §5.3에 행이 늘어난다.
 8. [미결] provider id 규칙(`L0.readme` §9 미결 1). 이 문서는 권고안 `os.os.<슬롯>/<구현 id>`를 쓴다.

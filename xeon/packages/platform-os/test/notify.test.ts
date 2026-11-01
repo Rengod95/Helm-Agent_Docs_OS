@@ -49,7 +49,7 @@ afterEach(async () => {
 test("linux argv sets the app name and guards option-like text with --", () => {
   expect(buildNotifyCommand(LINUX, { ...NOTE, title: "-rf" })).toEqual([
     "notify-send",
-    "--app-name=Xeon",
+    "--app-name=Fresnel",
     "--",
     "-rf",
     "3 tests passed",
@@ -130,7 +130,7 @@ test("a fake notify-send receives exactly the argv values", async () => {
   );
   expect(sent).toEqual(ok(undefined));
   expect((await Bun.file(out).text()).split("\n")).toEqual([
-    "--app-name=Xeon",
+    "--app-name=Fresnel",
     "--",
     "Approve?",
     "run `ls` in /tmp",

@@ -110,10 +110,17 @@ export const PROTECTED: readonly RegExp[] = [
 const PH_OPEN = "";
 const PH_CLOSE = "";
 
+/** 일반 단어 치환은 다른 묶음이 맡은 말(@xeon, xeon.<svc>, xeon/<rule>, XEON_, .xeon 등)도 건드리지 않는다. 묶음 순서와 상관없이 쓸 수 있다 */
+function otherCategoryPatterns(): RegExp[] {
+  return CATEGORIES.filter((c) => c.id !== "W" && c.id !== "X").flatMap((c) =>
+    c.rules.map((r) => r.pattern),
+  );
+}
+
 function protect(text: string): { text: string; stash: string[] } {
   const stash: string[] = [];
   let out = text;
-  for (const pattern of PROTECTED) {
+  for (const pattern of [...PROTECTED, ...otherCategoryPatterns()]) {
     out = out.replace(pattern, (m) => {
       stash.push(m);
       return `${PH_OPEN}${String(stash.length - 1)}${PH_CLOSE}`;

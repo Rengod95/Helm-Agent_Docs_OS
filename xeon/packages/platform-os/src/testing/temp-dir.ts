@@ -12,7 +12,7 @@ export interface TempDir {
 }
 
 /** 임시 디렉터리(소유자만 접근, 0700)를 만든다. macOS의 심볼릭 링크 경로는 실제 경로로 푼다 */
-export async function tempDir(prefix: string = "xeon-test-"): Promise<TempDir> {
+export async function tempDir(prefix: string = "fresnel-test-"): Promise<TempDir> {
   const base = await realpath(tmpdir());
   const path = await mkdtemp(join(base, prefix));
   const remove = async (): Promise<void> => {

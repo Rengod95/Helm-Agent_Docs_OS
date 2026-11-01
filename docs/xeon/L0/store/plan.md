@@ -23,7 +23,7 @@ binds: [xeon/packages/platform-store/**]
 | M2 | 마이그레이션 전 스냅샷 | ST-24 |
 | M2 이후 | 블롭 GC, 청크 마이그레이션, Windows `LockProvider`, macOS 동봉 SQLite 배포 경로, 운영 빌드 접두사 검사 확대 판단 | ST-18~ST-22 |
 
-- M1 스모크(`xeon chat` 강제 종료 뒤 재개, `_research/foundation-plan.md §6`)는 ST-12(임대)와 ST-13(복구 표식)이 끝나야 돈다.
+- M1 스모크(`fresnel chat` 강제 종료 뒤 재개, `_research/foundation-plan.md §6`)는 ST-12(임대)와 ST-13(복구 표식)이 끝나야 돈다.
 - `L1.persistence.plan`의 `SessionWriter.commit`은 ST-04·ST-09에 기댄다. 두 작업을 M0 앞쪽에 둔다.
 - 세션 잠금을 M0에 두는 근거: `_research/foundation-plan.md` §5 P4 M0 범위가 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·세션 잠금)다. 블롭과 복구 표식은 그 목록에 없고 M1 스모크(강제 종료 뒤 재개)가 쓰므로 M1에 둔다 [제안].
 - F 선행 조건: `L0.store.spec` §8.1 FR-S1(`sql.ts`, `store-db.ts`), FR-S2(`lease.ts`), FR-S4(`migrations.ts`)는 M0 착수 조건이다. FR-S3은 철회되었다(복구 표식은 `L1.persistence.spec` §4.8.1의 `p_threads` 열, `L0.store.spec` §4.8). 반영 전에는 같은 타입을 이 패키지에 임시로 두지 않는다. 이 타입은 L1 persistence·L0 process가 import하는 공유 타입이라 `L0.readme` §3의 임시 타입 규칙(패키지 안에서만 쓰는 shim)이 적용되지 않는다.
@@ -32,7 +32,7 @@ binds: [xeon/packages/platform-store/**]
 
 ```
 xeon/packages/platform-store/
-  package.json                 # exports ".", "./testing". xeon.layer L0, domain store
+  package.json                 # exports ".", "./testing". fresnel.layer L0, domain store
   bunfig.toml                  # [test] preload, coverageThreshold (eng.testing.guide TS-10)
   src/
     index.ts                   # openStore, storePlugin, 공개 타입 재수출
@@ -137,7 +137,7 @@ xeon/packages/platform-store/
 
 | 테스트 | 파일 | 확인할 동작 |
 |---|---|---|
-| `pragmas are applied on the write connection` | `pragmas.int.test.ts` | 임시 파일 DB에서 `journal_mode`=`wal`, `synchronous`=2, `busy_timeout`=5000, `foreign_keys`=1, `trusted_schema`=0, `temp_store`=2, `application_id`=1480937294 |
+| `pragmas are applied on the write connection` | `pragmas.int.test.ts` | 임시 파일 DB에서 `journal_mode`=`wal`, `synchronous`=2, `busy_timeout`=5000, `foreign_keys`=1, `trusted_schema`=0, `temp_store`=2, `application_id`=1179799116 |
 | `read connection is query_only` | `pragmas.int.test.ts` | 읽기 연결의 `query_only`=1, 쓰기 문장이 `SQLITE_READONLY` 계열 오류 |
 | `open checks file existence without fileMustExist` | `pragmas.int.test.ts` | 없는 파일이면 새로 만들고 0600. 소스에 `fileMustExist` 문자열이 없음(정적 검사) |
 | `foreign application_id is rejected` | `pragmas.int.test.ts` | `application_id`를 다른 값으로 둔 파일은 `foreign_database`이고 파일이 바뀌지 않음 |

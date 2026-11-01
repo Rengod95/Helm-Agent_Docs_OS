@@ -125,13 +125,13 @@ function fakeGit(porcelain: string): RunCommand {
 
 test("create fails with git_failed when the new path is not in the worktree list", async () => {
   const run = fakeGit(
-    ["worktree /xeon-test/main", "HEAD aaa", "branch refs/heads/main", ""].join("\n"),
+    ["worktree /fresnel-test/main", "HEAD aaa", "branch refs/heads/main", ""].join("\n"),
   );
   const ops = createWorktreeOps({ run });
   expect(
     await ops.create(
-      "/xeon-test/main",
-      { path: "/xeon-test/wt-new", branch: "b" },
+      "/fresnel-test/main",
+      { path: "/fresnel-test/wt-new", branch: "b" },
       new AbortController().signal,
     ),
   ).toEqual(err({ kind: "git_failed", exitCode: 0, output: "worktree not listed after add" }));
@@ -145,7 +145,7 @@ test("create matches the listed path after realpath, not the last listed entry",
   await symlink(real, link);
   const run = fakeGit(
     [
-      "worktree /xeon-test/main",
+      "worktree /fresnel-test/main",
       "HEAD aaa",
       "branch refs/heads/main",
       "",
@@ -153,7 +153,7 @@ test("create matches the listed path after realpath, not the last listed entry",
       "HEAD bbb",
       "branch refs/heads/b",
       "",
-      "worktree /xeon-test/other",
+      "worktree /fresnel-test/other",
       "HEAD ccc",
       "detached",
       "",
@@ -161,7 +161,7 @@ test("create matches the listed path after realpath, not the last listed entry",
   );
   const ops = createWorktreeOps({ run });
   const created = await ops.create(
-    "/xeon-test/main",
+    "/fresnel-test/main",
     { path: link, branch: "b" },
     new AbortController().signal,
   );
