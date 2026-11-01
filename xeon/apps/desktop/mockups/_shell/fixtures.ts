@@ -1,6 +1,7 @@
 // 공용 셸 고정 데이터: 대화 목록, 주 내비, 받은 요청(승인·제안·알림), 상태 표시줄, 팔레트.
 // 스펙 §8.2 "고정 데이터"를 그대로 옮겼다(값을 바꾸지 않는다). 타입만 덧붙였다. 페이지 고유 데이터는 각 목업 폴더에 둔다.
 // 내비 라벨은 용어 모듈(T)에서 가져온다.
+import { L } from "./i18n";
 import { T } from "./terms";
 
 export type ThreadStatus = "running" | "idle" | "failed" | "locked" | "resumable";
@@ -243,7 +244,9 @@ export const EXT: Record<string, string> = {
 };
 /** 확장 id → 표시 이름(없으면 id). */
 export function extName(id: string): string {
-  return EXT[id] ?? id;
+  const n = EXT[id];
+  // 묶음 E(N-49): 영어 화면이면 표시 이름도 사전에서(매니페스트 displayName의 locale 값 자리).
+  return n === undefined ? id : L(n);
 }
 /** 표시 이름에 조사를 붙인다. 영문 표시 이름(Helm 등)은 읽는 소리 기준 받침으로 고른다. */
 const EXT_FINAL = new Set(["helm"]);

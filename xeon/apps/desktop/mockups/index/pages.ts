@@ -90,4 +90,30 @@ export const pages: MockPage[] = [
     folder: "d03-page-states",
     states: 37,
   },
+  // 묶음 E(가로 품질, m4/pg-e)
+  {
+    id: "N-49·N-50",
+    title: "화면 언어(영어 ?lang=en)와 접근성",
+    folder: "e01-locale-a11y",
+    states: 13,
+  },
+  { id: "O-09", title: "바로 가기 키 · 키 바꾸기 · 웹 키 표", folder: "e02-shortcuts", states: 11 },
+  {
+    id: "N-57",
+    title: "프로필 관리(baseRev 충돌, profile.changed)",
+    folder: "e03-profiles",
+    states: 12,
+  },
+  {
+    id: "N-47·N-48",
+    title: "작업대 여섯 상태 빈칸과 찾기·거르기 결과 없음",
+    folder: "e04-workbench-states",
+    states: 17,
+  },
+  {
+    id: "N-59·N-60",
+    title: "웹 연결 · 좁은 폭(390·700) · 원격 대상 작업대",
+    folder: "e05-web-narrow",
+    states: 22,
+  },
 ];

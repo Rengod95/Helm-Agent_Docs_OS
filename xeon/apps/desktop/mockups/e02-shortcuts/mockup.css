@@ -1,0 +1,8 @@
+/* 묶음 E 시안: caustic 스타일 + 공용 셸 CSS + 묶음 A 공용 부품 + 설정 틀. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../_chat-rt/";
+@source "../_settings/";
+@source "../p02-opus/parts/";
+@source "../o07-new-thread/";

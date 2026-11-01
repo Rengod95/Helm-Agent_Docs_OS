@@ -2,6 +2,7 @@
 import { extJ, extName, status } from "./fixtures";
 import { TokenBar, type StatusCell } from "./parts/status-bar";
 import type { Layout } from "./state";
+import { L, L2 } from "./i18n";
 import { T, josa } from "./terms";
 
 export interface StatusOptions {
@@ -40,20 +41,23 @@ export interface StatusOptions {
 
 /** 상태 표시줄 칸(S-03). compact 폭에서는 연결과 승인만 남는다. */
 export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end: StatusCell[] } {
-  const openInbox = { label: "받은 요청 열기", onSelect: () => m.openEnd("inbox") };
+  const openInbox = { label: L("받은 요청 열기"), onSelect: () => m.openEnd("inbox") };
   const link: StatusCell = m.link ?? {
     id: "link",
-    text: status.link,
+    text: L(status.link),
     dot: "success",
-    title: "연결",
-    description: "엔진과 실시간으로 연결되어 있어요.",
+    title: T.connection,
+    description: L("엔진과 실시간으로 연결되어 있어요."),
   };
   const approvalsCell: StatusCell = {
     id: "approvals",
-    text: `승인 ${m.pendingApprovals}`,
-    label: `승인 대기 ${m.pendingApprovals}개`,
-    title: "승인 대기",
-    description: `답을 기다리는 승인이 ${m.pendingApprovals}개 있어요.`,
+    text: `${L("승인")} ${m.pendingApprovals}`,
+    label: `${L("승인 대기")} ${m.pendingApprovals}`,
+    title: L("승인 대기"),
+    description: L2(
+      `답을 기다리는 승인이 ${m.pendingApprovals}개 있어요.`,
+      `${m.pendingApprovals} approvals are waiting for an answer.`,
+    ),
     action: openInbox,
   };
   // DP-27: 값이 0인 개수 칸(승인, 알림, 확장 실패)은 숨긴다. 연결·엔진·모델 칸은 늘 보인다.
@@ -74,7 +78,7 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
               rt.waiting !== undefined
                 ? `${extName(rt.waiting)} 확인 기다림`
                 : rt.drive === null
-                  ? `${T.drive} 없음`
+                  ? `${T.drive} ${L("없음")}`
                   : `${T.drive} ${extName(rt.drive)}`,
             label:
               rt.waiting !== undefined
@@ -95,12 +99,12 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
             ? [
                 {
                   id: "ext-failures",
-                  text: `확장 실패 ${rt.extFailures}`,
-                  label: `확장 실패 ${rt.extFailures}개`,
+                  text: `${L("확장 실패")} ${rt.extFailures}`,
+                  label: `${L("확장 실패")} ${rt.extFailures}`,
                   dot: "warning",
-                  title: "확장 실패",
+                  title: L("확장 실패"),
                   description: `핸들러가 실패한 확장이 ${rt.extFailures}개 있어요.`,
-                  action: { label: "런타임 보기", onSelect: rt.onOpen },
+                  action: { label: `${T.runtime} 보기`, onSelect: rt.onOpen },
                 } satisfies StatusCell,
               ]
             : []),
@@ -110,16 +114,16 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
     start: [
       m.target ?? {
         id: "target",
-        text: status.target,
-        title: "대상",
-        description: "이 창은 이 컴퓨터의 로컬 사이드카 엔진에 붙어 있어요.",
+        text: L(status.target),
+        title: L("대상"),
+        description: L("이 창은 이 컴퓨터의 로컬 사이드카 엔진에 붙어 있어요."),
       },
       m.engine ?? {
         id: "engine",
-        text: status.engine,
+        text: L(status.engine),
         dot: "success",
-        title: "엔진",
-        description: "엔진이 실행 중이에요.",
+        title: T.engine,
+        description: L("엔진이 실행 중이에요."),
       },
       link,
       ...(m.startExtra ?? []),
@@ -129,26 +133,26 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
       {
         id: "model",
         text: status.model,
-        title: "모델",
-        description: "이 대화의 기본 모델이에요. 누르면 모델을 바꿀 수 있어요.",
+        title: L("모델"),
+        description: L("이 대화의 기본 모델이에요. 누르면 모델을 바꿀 수 있어요."),
       },
       {
         id: "tokens",
         text: "41k",
         label: "문맥 41k 토큰 사용, 40%",
         trailing: <TokenBar ratio={status.tokens.ratio} />,
-        title: "문맥 사용량",
-        description: "문맥 창의 40%(41,000 토큰)를 썼어요.",
+        title: L("문맥 사용량"),
+        description: L("문맥 창의 40%(41,000 토큰)를 썼어요."),
       },
       ...(thread
         ? ([
             {
               id: "goal",
-              text: `목표 ${status.goal}`,
-              label: "목표 3개 중 2개 이룸",
-              title: "목표",
-              description: "목표 3개 중 2개를 이뤘어요.",
-              action: { label: "작업 탭 열기", onSelect: () => m.openEnd("work") },
+              text: `${L("목표")} ${status.goal}`,
+              label: L("목표 3개 중 2개 이룸"),
+              title: L("목표"),
+              description: L("목표 3개 중 2개를 이뤘어요."),
+              action: { label: L("작업 탭 열기"), onSelect: () => m.openEnd("work") },
             },
             ...(rt === undefined
               ? [
@@ -169,10 +173,10 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
       ...approvals,
       {
         id: "notices",
-        text: `알림 ${status.notices}`,
-        label: `알림 ${status.notices}개`,
-        title: "알림",
-        description: "새 알림이 3개 있어요. 예약 실패 1개가 있어요.",
+        text: `${L("알림")} ${status.notices}`,
+        label: `${L("알림")} ${status.notices}`,
+        title: L("알림"),
+        description: L("새 알림이 3개 있어요. 예약 실패 1개가 있어요."),
         action: openInbox,
       },
     ],

@@ -27,6 +27,7 @@ export { ToolApprovalCard, type Decision, type ToolApprovalCardProps } from "./p
 export * from "./fixtures";
 export * from "./workbench-fixtures";
 export { T, josa, type TermKey } from "./terms";
+export { L, L2, LANG, switchLang, type Lang } from "./i18n";
 export {
   goScenario,
   isDev,

@@ -58,6 +58,7 @@ import {
   WandSparkles,
 } from "./icons";
 import { useShell, type Area, type WorkbenchContext } from "./state";
+import { L, LANG } from "./i18n";
 import { T } from "./terms";
 import { profiles } from "./workbench-fixtures";
 
@@ -93,18 +94,20 @@ function threadMeta(t: Thread) {
     return (
       <span className="inline-flex items-center gap-1">
         <Lock aria-hidden className="size-icon-xs" />
-        잠김
+        {L("잠김")}
       </span>
     );
   if (t.status === "resumable")
     return (
       <span className="inline-flex items-center gap-1">
         <RotateCcw aria-hidden className="size-icon-xs" />
-        이어서 실행
+        {T.resume}
       </span>
     );
   // 실패는 앞의 상태 점이 이미 말한다. 승인 수는 색 없는 글자 하나로 둔다(강조는 항목마다 하나).
-  if (t.approvals > 0 && t.status !== "failed") return `승인 ${t.approvals}`;
+  // 묶음 E(N-49): 행 meta는 짧게. 영어는 "Approvals 1"이 제목을 반 넘게 밀어 숫자 먼저 짧은 말로.
+  if (t.approvals > 0 && t.status !== "failed")
+    return LANG === "en" ? `${t.approvals} to approve` : `승인 ${t.approvals}`;
   return undefined;
 }
 
@@ -160,23 +163,23 @@ function AreaSwitch() {
   const m = useShell();
   return (
     <SegmentedControl
-      aria-label="영역"
+      aria-label={L("영역")}
       size="sm"
       value={m.area}
       onValueChange={(v) => m.setArea(v as Area)}
       className="w-full [&>[data-slot=segmented-control-item]]:flex-1 [&_[data-state=checked]]:font-semibold"
     >
-      <SegmentedControlItem value="chat">대화</SegmentedControlItem>
-      <SegmentedControlItem value="workbench">작업대</SegmentedControlItem>
+      <SegmentedControlItem value="chat">{T.thread}</SegmentedControlItem>
+      <SegmentedControlItem value="workbench">{T.workbench}</SegmentedControlItem>
     </SegmentedControl>
   );
 }
 
 const TRIAL_WORD = {
-  running: "실행 중",
-  pausing: "멈추는 중",
-  paused: "멈춤",
-  done: "끝남",
+  running: L("실행 중"),
+  pausing: L("멈추는 중"),
+  paused: L("멈춤"),
+  done: L("끝남"),
 } as const;
 
 /** 보기 기준 값 <-> Select 값("all", "thread:t1", "profile:explore", "trial:t8"). */
@@ -189,9 +192,10 @@ function encodeContext(c: WorkbenchContext): string {
 /** 보기 기준의 이름(머리 "보기 기준 <이름>"에도 쓴다). */
 export function contextName(c: WorkbenchContext): string {
   if (c.kind === "all") return T.contextAll;
-  if (c.kind === "profile") return profiles.find((p) => p.id === c.profileId)?.title ?? c.profileId;
+  if (c.kind === "profile")
+    return L(profiles.find((p) => p.id === c.profileId)?.title ?? c.profileId);
   const t = defaultThreads.find((x) => x.id === c.threadId);
-  return t === undefined ? c.threadId : t.title === "" ? "제목 없음" : t.title;
+  return t === undefined ? c.threadId : t.title === "" ? L("제목 없음") : L(t.title);
 }
 
 /** 보기 기준 칸(§4.9.3, 결정 C-3·11): 전체·대화·프로필·시험 네 묶음. 대화 기준은 기본으로 대화 영역의 열린 대화를 따라가고,
@@ -227,8 +231,8 @@ function ContextPicker({ onGoToThread }: { onGoToThread?: ((id: string) => void)
           {plain.map((t) => (
             <SelectOption key={t.id} value={`thread:${t.id}`}>
               {c.kind === "thread" && c.threadId === t.id
-                ? `${T.contextThread} · ${t.title}`
-                : t.title}
+                ? `${T.contextThread} · ${L(t.title)}`
+                : L(t.title)}
             </SelectOption>
           ))}
         </SelectGroup>
@@ -237,8 +241,8 @@ function ContextPicker({ onGoToThread }: { onGoToThread?: ((id: string) => void)
           {profiles.map((p) => (
             <SelectOption key={p.id} value={`profile:${p.id}`}>
               {c.kind === "profile" && c.profileId === p.id
-                ? `${T.contextProfile} · ${p.title}`
-                : p.title}
+                ? `${T.contextProfile} · ${L(p.title)}`
+                : L(p.title)}
             </SelectOption>
           ))}
         </SelectGroup>
@@ -247,8 +251,8 @@ function ContextPicker({ onGoToThread }: { onGoToThread?: ((id: string) => void)
           {trials.map((t) => (
             <SelectOption key={t.id} value={`trial:${t.id}`}>
               {c.kind === "trial" && c.threadId === t.id
-                ? `${T.contextTrial} · ${t.title}`
-                : t.title}
+                ? `${T.contextTrial} · ${L(t.title)}`
+                : L(t.title)}
             </SelectOption>
           ))}
         </SelectGroup>
@@ -322,7 +326,7 @@ function TrialFold({
               onClick={() => list.onSelect(t.id)}
             >
               <span className="flex min-w-0 items-baseline gap-1.5">
-                <span className="min-w-0 truncate">{t.title}</span>
+                <span className="min-w-0 truncate">{L(t.title)}</span>
                 {t.trial !== undefined && (
                   <span
                     className={`ms-auto shrink-0 text-ui-xs ${
@@ -340,7 +344,7 @@ function TrialFold({
           {done.length > 0 && (
             <ListNavigationSubItem onClick={onClear}>
               <span className="text-text-tertiary">
-                끝난 {T.trial} {done.length}개 지우기…
+                {L("끝난 시험 지우기…").replace("시험", T.trial)} {done.length}
               </span>
             </ListNavigationSubItem>
           )}
@@ -366,7 +370,7 @@ function WorkbenchNavList({
   const exts = [...new Set(pages.map((p) => p.ext))];
   return (
     <div className="grid gap-2 px-1.5 pb-2">
-      <ListNavigation aria-label="작업대 내비게이션" kind="navigation" size="sm">
+      <ListNavigation aria-label={L("작업대 내비게이션")} kind="navigation" size="sm">
         <ListNavigationGroup>
           {items.map((n) => (
             <ListNavigationItem
@@ -374,7 +378,7 @@ function WorkbenchNavList({
               icon={navIcon(n.id, n.id === activeNav)}
               className={n.id === activeNav ? ACTIVE_LABEL : undefined}
               aria-label={`${n.label}${n.badgeLabel !== undefined ? `, ${n.badgeLabel}` : ""}${
-                n.id === activeNav ? ", 지금 화면" : ""
+                n.id === activeNav ? `, ${L("지금 화면")}` : ""
               }`}
               count={
                 n.badge === undefined ? undefined : (
@@ -391,8 +395,8 @@ function WorkbenchNavList({
         </ListNavigationGroup>
       </ListNavigation>
       {/* 켜진 확장의 page 기여. 확장별로 묶되 묶음 제목 대신 행 meta에 확장 이름(mono, DP-39)을 둔다: 기여가 확장당 1~4개라 제목 줄이 행보다 많아진다. */}
-      <ListNavigation aria-label="플러그인 화면" kind="navigation" size="sm" as="div">
-        <ListNavigationGroup heading="플러그인 화면">
+      <ListNavigation aria-label={T.pluginView} kind="navigation" size="sm" as="div">
+        <ListNavigationGroup heading={T.pluginView}>
           {exts.flatMap((ext) =>
             pages
               .filter((p) => p.ext === ext)
@@ -411,12 +415,12 @@ function WorkbenchNavList({
                   }`}
                   meta={
                     <span className="font-mono text-mono-sm">
-                      {p.disabled === true ? "꺼짐" : p.ext}
+                      {p.disabled === true ? L("꺼짐") : p.ext}
                     </span>
                   }
                   onSelect={() => onNavSelect?.(p.id)}
                 >
-                  {p.label}
+                  {L(p.label)}
                 </ListNavigationItem>
               )),
           )}
@@ -431,7 +435,7 @@ function WorkbenchNavList({
 function RowMenu({ t, list, current }: { t: Thread; list: ThreadListProps; current: boolean }) {
   const [open, setOpen] = useState(list.menuOpenId === t.id);
   if (list.rowMenu === undefined) return null;
-  const name = t.title === "" ? "제목 없음" : t.title;
+  const name = t.title === "" ? L("제목 없음") : t.title;
   return (
     <li
       data-row-menu=""
@@ -445,12 +449,12 @@ function RowMenu({ t, list, current }: { t: Thread; list: ThreadListProps; curre
         align="end"
         open={open}
         onOpenChange={setOpen}
-        aria-label={`${name} 메뉴`}
+        aria-label={`${name} ${L("메뉴")}`}
         trigger={
           <IconButton
             size="xs"
             variant="ghost"
-            label={`${name} 메뉴`}
+            label={`${name} ${L("메뉴")}`}
             className="pointer-events-auto bg-control-raised shadow-[inset_0_0_0_1px_var(--cs-color-control-edge)]"
           >
             <Ellipsis />
@@ -505,7 +509,7 @@ export function StartPanel({
     <SidePanel
       side="start"
       preset="inspector"
-      label={wb ? "작업대 이동" : "대화와 이동"}
+      label={wb ? L("작업대 이동") : L("대화와 이동")}
       scrollLabel={wb ? "작업대 내비게이션과 플러그인 화면" : "주 내비게이션과 대화 목록"}
       resizable
       resizeLabel="대화 목록 폭"
@@ -527,8 +531,8 @@ export function StartPanel({
               variant="soft"
               readOnly
               prefix={<Search />}
-              placeholder="찾기"
-              aria-label="명령 또는 대화 찾기"
+              placeholder={L("찾기")}
+              aria-label={L("명령 또는 대화 찾기")}
               aria-haspopup="dialog"
               onClick={() => m.setPaletteOpen(true)}
               onKeyDown={(e) => {
@@ -543,7 +547,7 @@ export function StartPanel({
             <IconButton
               size="sm"
               variant="ghost"
-              label="사이드바 닫기"
+              label={L("사이드바 닫기")}
               onClick={() => m.setStartOpen(false)}
             >
               <PanelLeft />
@@ -559,7 +563,7 @@ export function StartPanel({
             {/* 설정 화면(P-09~P-13)에서는 주 내비 항목처럼 굵기와 selected 아이콘으로 지금 화면을 보인다. */}
             <ListNavigationItem
               icon={activeNav === "settings" ? <Settings emphasis="selected" /> : <Settings />}
-              aria-label={activeNav === "settings" ? "설정, 지금 화면" : "설정"}
+              aria-label={activeNav === "settings" ? `${L("설정")}, ${L("지금 화면")}` : L("설정")}
               className={
                 activeNav === "settings"
                   ? "[&_[data-slot=list-navigation-label]]:font-semibold [&_[data-slot=list-navigation-label]]:text-text-primary"
@@ -567,7 +571,7 @@ export function StartPanel({
               }
               onSelect={() => onNavSelect?.("settings")}
             >
-              설정
+              {L("설정")}
             </ListNavigationItem>
           </ListNavigationGroup>
         </ListNavigation>
@@ -577,7 +581,7 @@ export function StartPanel({
         <WorkbenchNavList activeNav={activeNav} onNavSelect={onNavSelect} workbench={workbench} />
       ) : (
         <div className="grid gap-2 px-1.5 pb-2">
-          <ListNavigation aria-label="주 내비게이션" kind="navigation" size="sm">
+          <ListNavigation aria-label={L("주 내비게이션")} kind="navigation" size="sm">
             <ListNavigationGroup>
               {nav.map((n) => (
                 <ListNavigationItem
@@ -610,10 +614,10 @@ export function StartPanel({
             <EmptyState
               size="sm"
               surface="none"
-              title="대화 목록을 읽지 못했어요"
+              title={L("대화 목록을 읽지 못했어요")}
               actions={
                 <Button size="xs" tone="neutral" variant="outline" onClick={list.onRetry}>
-                  다시 읽기
+                  {L("다시 읽기")}
                 </Button>
               }
             />
@@ -622,26 +626,26 @@ export function StartPanel({
             <EmptyState
               size="sm"
               surface="none"
-              title="아직 대화가 없어요"
+              title={L("아직 대화가 없어요")}
               actions={
                 <Button size="xs" tone="neutral" variant="outline" onClick={list.onNew}>
-                  새 대화
+                  {L("새 대화")}
                 </Button>
               }
             />
           )}
           {list.listState === undefined && (
             <ListNavigation
-              aria-label="대화 목록"
+              aria-label={L("대화 목록")}
               kind="sessions"
               size="sm"
               as="div"
               className={list.dimmed === true ? "opacity-60" : undefined}
             >
               {list.draft === true && (
-                <ListNavigationGroup heading="새로 시작">
-                  <ListNavigationItem current meta="작성 전">
-                    새 대화
+                <ListNavigationGroup heading={L("새로 시작")}>
+                  <ListNavigationItem current meta={L("작성 전")}>
+                    {L("새 대화")}
                   </ListNavigationItem>
                 </ListNavigationGroup>
               )}
@@ -653,7 +657,7 @@ export function StartPanel({
                       {folder}
                     </span>
                   }
-                  addLabel={`${folder}에서 새 대화`}
+                  addLabel={`${L("새 대화")} · ${folder}`}
                   onAdd={list.onNew}
                 >
                   {threads
@@ -673,7 +677,7 @@ export function StartPanel({
                             : undefined
                         }
                       >
-                        {t.title === "" ? "제목 없음" : t.title}
+                        {t.title === "" ? L("제목 없음") : L(t.title)}
                       </ListNavigationItem>,
                       ...(list.rowMenu !== undefined
                         ? [

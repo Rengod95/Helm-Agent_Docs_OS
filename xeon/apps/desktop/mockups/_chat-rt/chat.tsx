@@ -6,7 +6,7 @@
 // - ChatStage: 머리 + 스크롤 트랜스크립트(바닥 따라감) + 띠 + 입력창. 가운데는 투명(DP-01), 읽기 폭 46rem.
 import { Button, Card, Composer, IconButton, Message, ScrollArea } from "@caustic/react";
 import { useEffect, useRef, type ReactNode } from "react";
-import { Layers, PanelLeft, T, ToneIcon, useShell, useTypewriter } from "../_shell";
+import { L, Layers, PanelLeft, T, ToneIcon, useShell, useTypewriter } from "../_shell";
 import { StreamingText } from "../p02-opus/parts/streaming-text";
 
 export const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
@@ -37,7 +37,7 @@ export function ChatHead({
           <IconButton
             size="sm"
             variant="ghost"
-            label="사이드바 열기"
+            label={L("사이드바 열기")}
             aria-expanded={false}
             onClick={() => m.setStartOpen(true)}
             className="-ms-1.5"
@@ -59,7 +59,7 @@ export function ChatHead({
           type="button"
           data-tour="runtime-line"
           onClick={() => m.openEnd("runtime")}
-          aria-label={runtimeLabel ?? "런타임 탭 열기"}
+          aria-label={runtimeLabel ?? L("런타임 탭 열기")}
           className="-mt-1.5 flex min-w-0 max-w-full items-center gap-1.5 justify-self-start rounded-sm text-ui-dense text-text-secondary outline-none hover:text-text-primary focus-visible:focus-ring"
         >
           <Layers
@@ -197,7 +197,7 @@ export function Streamed({ text, live, meta }: { text: string; live: boolean; me
 }
 
 export function ChatComposer({
-  placeholder = "메시지를 입력하세요",
+  placeholder = L("메시지를 입력하세요"),
   running,
   disabled = false,
   value,
@@ -223,16 +223,16 @@ export function ChatComposer({
         value={value}
         onValueChange={onValueChange}
         rows={2}
-        inputLabel="메시지"
-        sendLabel="보내기"
-        stopLabel="중단"
-        attachLabel="맥락 더하기"
-        modeLabel="실행 중 보낸 입력"
+        inputLabel={L("메시지")}
+        sendLabel={L("보내기")}
+        stopLabel={L("중단")}
+        attachLabel={L("맥락 더하기")}
+        modeLabel={L("실행 중 보낸 입력")}
         modes={[T.modeSteer, T.modeFollowUp]}
         defaultMode={T.modeSteer}
         modelLabel="sonnet-5-5"
         usage={41}
-        usageLabel={(p) => `문맥 ${p}% 사용`}
+        usageLabel={(p) => `${L("문맥")} ${p}%`}
         placeholder={placeholder}
         running={running}
         disabled={disabled}

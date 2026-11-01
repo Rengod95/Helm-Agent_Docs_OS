@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { Lock, PanelLeft } from "./icons";
 import { contextName } from "./start-panel";
 import { useShell } from "./state";
+import { L } from "./i18n";
 import { T } from "./terms";
 
 /** 작업대 가운데 읽기 폭. 표가 있어 대화(46rem)보다 넓다. 좌우 여백은 한 번만(DP-07). */
@@ -53,7 +54,7 @@ export function WorkbenchHead({
           <IconButton
             size="sm"
             variant="ghost"
-            label="사이드바 열기"
+            label={L("사이드바 열기")}
             aria-expanded={false}
             onClick={() => m.setStartOpen(true)}
             className="-ms-1.5"

@@ -3,8 +3,11 @@
 // 규칙: 페이지는 아래 단어를 문자열로 직접 쓰지 않는다. 문장 안에서는 템플릿 문자열로 끼운다(`${T.lead}을 넘겼어요`).
 // 조사는 받침에 따라 바뀌므로, 문장에 끼우는 말은 josa()를 쓴다.
 // 기계 id(지점 이름, 확장 id, 이벤트 kind)는 용어가 아니라 mono로 옆에 두는 값이라 여기 두지 않는다(DP-39).
+// 묶음 E: 영어 값은 terms.en.ts(T_EN). 키를 더하면 거기에도 더한다(빠지면 타입 오류).
+import { LANG } from "./i18n";
+import { T_EN } from "./terms.en";
 
-export const T = {
+const T_KO = {
   // 층(F/X/L0~L4). 층 코드는 mono로 따로 쓴다.
   layer: "층",
   layerF: "공통 규약",
@@ -158,9 +161,29 @@ export const T = {
   wipeData: "데이터 지우기", // 모든 대화·설정·비밀 핸들을 지움(계획에 없음 6, O-06 변형)
   osNotice: "OS 알림", // 앱 밖 알림(tauri-plugin-notification). 설정 탭 이름
   trayIcon: "메뉴 막대 아이콘", // 트레이(macOS 메뉴 막대, Linux·Windows 알림 영역)
+
+  // 묶음 E(가로 품질, m4/pg-e). 병합 때 이 구역을 통째로 옮긴다.
+  uiLanguage: "화면 언어", // ui.locale(ko·en). 영어 스모크(N-49, Y15)
+  keybinding: "바로 가기 키", // O-09 제목·설정 행
+  rebind: "키 바꾸기", // l4.desktop.appearance.keybindings(계획에 없음 11)
+  keyConflict: "겹치는 키", // 다른 동작이나 브라우저가 이미 쓰는 키
+  focusOrder: "초점 순서", // 키보드만 경로(N-50): 영역 바꾸기 → 보기 기준 칸 → 가운데 → well → 상태 표시줄
+  reducedMotion: "움직임 줄이기", // prefers-reduced-motion
+  highContrast: "고대비", // forced-colors·prefers-contrast
+  profileManage: "프로필 관리", // N-57 목록·만들기·이름 바꾸기·복제·지우기
+  editedElsewhere: "다른 곳에서 바뀜", // baseRev 충돌(다른 창·웹·앱이 먼저 저장)
+  webClient: "웹", // 브라우저로 붙는 클라이언트(계획에 없음 7)
+  serviceAddress: "서비스 주소", // 웹 첫 화면
+  accessToken: "접속 토큰", // 웹 첫 화면 인증
+  readOnly: "읽기 전용", // 좁은 폭 작업대(계획에 없음 8)
+  remoteTarget: "원격 대상", // 원격 엔진에 붙은 작업대(N-60)
+  copyPath: "경로 복사", // 원격에서 "폴더 열기"·"파일 열기" 대신
 } as const;
 
-export type TermKey = keyof typeof T;
+export type TermKey = keyof typeof T_KO;
+
+/** 화면 언어(?lang=en, 목업 전용)에 따라 한국어나 영어 용어 묶음. 영어 묶음은 모든 키를 가져야 한다(terms.en.ts 타입이 강제). */
+export const T: { readonly [K in TermKey]: string } = LANG === "en" ? T_EN : T_KO;
 
 /** 받침 여부로 조사를 고른다: josa("진행권", "을", "를") → "진행권을". 영문·숫자로 끝나면 둘째를 쓴다. */
 export function josa(word: string, withFinal: string, withoutFinal: string): string {

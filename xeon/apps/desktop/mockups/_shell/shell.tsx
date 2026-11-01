@@ -37,6 +37,9 @@ export interface ShellProps {
   palette?: PaletteGroup[];
   /** 페이지의 대화 상자가 열려 있으면 Esc를 셸이 쓰지 않는다. */
   modalOpen?: boolean;
+  /** 묶음 E(N-48): 팔레트 처음 입력값과 결과 없음 줄(스크린숏·결과 없음 상태용). 없으면 예전과 같다. */
+  paletteQuery?: string | undefined;
+  paletteEmpty?: ReactNode;
   /** 가운데 내용. 투명 면 위에 그린다(카드로 감싸지 않는다, DP-01). */
   children: ReactNode;
 }
@@ -89,6 +92,8 @@ export function Shell({
   modalOpen = false,
   nav,
   palette,
+  paletteQuery,
+  paletteEmpty,
   children,
 }: ShellProps) {
   const m = useShell();
@@ -142,7 +147,12 @@ export function Shell({
           <StatusBar start={status.start} end={status.end} />
         </div>
       </div>
-      <Palette onRun={onPaletteRun} groups={palette} />
+      <Palette
+        onRun={onPaletteRun}
+        groups={palette}
+        query={paletteQuery}
+        emptyMessage={paletteEmpty}
+      />
     </>
   );
 }

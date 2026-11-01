@@ -9,6 +9,7 @@ import {
 } from "@caustic/react";
 import { palette, type PaletteItem } from "./fixtures";
 import { LayoutGrid, Layers, MessageSquare, Play, Settings, SlashSquare } from "./icons";
+import { L } from "./i18n";
 import { useShell } from "./state";
 
 const GROUP_ICON: Record<string, React.ReactNode> = {
@@ -29,12 +30,12 @@ export interface PaletteGroup {
 
 const toGroups = (src: PaletteGroup[]): ComboboxGroupData[] =>
   src.map((g) => ({
-    label: g.group,
+    label: L(g.group),
     options: g.items.map((item) => {
       const it = typeof item === "string" ? { label: item } : item;
       return {
         value: `${g.group}:${it.label}`,
-        label: it.label,
+        label: L(it.label),
         leading: GROUP_ICON[g.group],
         ...(it.hint !== undefined
           ? {
@@ -42,7 +43,7 @@ const toGroups = (src: PaletteGroup[]): ComboboxGroupData[] =>
                 g.group === "설정" ? (
                   <span className="font-mono text-mono-sm">{it.hint}</span>
                 ) : (
-                  it.hint
+                  L(it.hint)
                 ),
             }
           : {}),
@@ -55,7 +56,13 @@ const defaultGroups = toGroups(palette);
 export function Palette({
   onRun,
   groups: custom,
+  query,
+  emptyMessage,
 }: {
+  /** 묶음 E(N-48): 처음 입력값(결과 없음 상태 스크린숏용). */
+  query?: string | undefined;
+  /** 묶음 E(N-48): 결과 없음 줄을 바꿀 때(찾은 말과 다음 동작). 없으면 "맞는 항목이 없어요". */
+  emptyMessage?: React.ReactNode;
   onRun?: ((group: string, label: string) => void) | undefined;
   /** 페이지가 준 묶음. 없으면 공용 고정 데이터. 아이콘은 묶음 이름(대화·명령·슬래시 명령·설정·그룹·화면)을 따른다. */
   groups?: PaletteGroup[] | undefined;
@@ -79,12 +86,13 @@ export function Palette({
           inline
           open
           autoFocus
-          aria-label="명령 또는 대화 찾기"
-          listLabel="결과"
-          placeholder="명령 또는 대화 찾기"
+          aria-label={L("명령 또는 대화 찾기")}
+          listLabel={L("결과")}
+          placeholder={L("명령 또는 대화 찾기")}
           groups={groups}
-          emptyMessage="맞는 항목이 없어요"
-          resultsLabel={(n) => `결과 ${n}개`}
+          emptyMessage={emptyMessage ?? L("맞는 항목이 없어요")}
+          resultsLabel={(n) => `${L("결과")} ${n}`}
+          {...(query !== undefined ? { defaultInputValue: query } : {})}
           onValueChange={run}
         />
       </div>
