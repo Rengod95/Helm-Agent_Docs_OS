@@ -5,6 +5,7 @@
 // 지금은 0단계라 옛 이름 금지(`forbid`)는 적어 두기만 하고 아무것도 막지 않는다. 화면 라벨은 사용자가 검토 중이라 모두 `proposed`다.
 import { parse, type ParseError, type Result } from "@fresnel/contracts";
 import { Type } from "typebox";
+import docOnlyRaw from "./terms.doc-only.json";
 import raw from "./terms.json";
 
 const LocalizedSchema = Type.Object({ ko: Type.String(), en: Type.String() });
@@ -35,9 +36,16 @@ const TermDeclSchema = Type.Object({
   ),
   /** 화면에 mono로 함께 보일 수 있는 기계 이름(코드·wire·설정 id) */
   ids: Type.Optional(StringsSchema),
-  /** 금지 별칭. 0단계에서는 적어 두기만 한다 */
+  /** 금지 별칭. 문서·카탈로그 문장에서 `just terms check`가 대조한다 */
   forbid: Type.Optional(
-    Type.Object({ ui: Type.Optional(StringsSchema), docs: Type.Optional(StringsSchema) }),
+    Type.Object({
+      ui: Type.Optional(StringsSchema),
+      docs: Type.Optional(StringsSchema),
+      /** 문서의 일부 폴더에서만 금지하는 별칭(같은 말이 다른 폴더에서는 정식 뜻으로 쓰일 때) */
+      docsIn: Type.Optional(
+        Type.Array(Type.Object({ word: Type.String(), under: Type.Array(Type.String()) })),
+      ),
+    }),
   ),
   /** 같은 화면 라벨을 일부러 나눠 쓰는 다른 개념의 키. 양쪽이 서로를 적어야 T-01을 통과한다 */
   sharesLabelWith: Type.Optional(StringsSchema),
@@ -58,7 +66,11 @@ export interface TermDecl {
   readonly help?: Localized;
   readonly surfaces: readonly ("chat" | "workbench" | "settings" | "none")[];
   readonly ids?: readonly string[];
-  readonly forbid?: { readonly ui?: readonly string[]; readonly docs?: readonly string[] };
+  readonly forbid?: {
+    readonly ui?: readonly string[];
+    readonly docs?: readonly string[];
+    readonly docsIn?: readonly { readonly word: string; readonly under: readonly string[] }[];
+  };
   readonly sharesLabelWith?: readonly string[];
   readonly sources: readonly string[];
   readonly status: "proposed" | "decided";
@@ -81,4 +93,9 @@ export function defineTerms(
 /** 이 패키지가 싣는 원본(`terms.json`)을 검사해 읽는다 */
 export function loadShippedTerms(): Result<Readonly<Record<string, TermDecl>>, ParseError> {
   return loadTerms(raw);
+}
+
+/** 문서 전용 용어(spec §2 용어표에만 있고 화면에 나오지 않는 말) 목록을 읽는다. D-01이 원본과 함께 본다 */
+export function loadShippedDocOnly(): Result<readonly string[], ParseError> {
+  return parse(StringsSchema, docOnlyRaw);
 }
