@@ -1,0 +1,75 @@
+/* Xeon 런타임 일러스트 토큰. SVG 안에는 색 값이 없고 이 변수만 쓴다.
+   - 색상은 caustic 정체 색(iris, coral, mint)을 종이색에 낮은 비율로 섞은 파스텔이다.
+   - 밝음/어두움: 문서 테마(:root[data-theme])를 따르고, [data-art-theme]으로 부분만 바꿀 수 있다.
+   - 선 굵기는 렌더 크기와 무관하게 약 1.4px(vector-effect). */
+
+.xart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.xart :is(path, line, ellipse, circle, rect, polygon, polyline) {
+  vector-effect: non-scaling-stroke;
+}
+
+:root,
+[data-art-theme="light"] {
+  --art-ink-base: oklch(0.36 0.012 285);
+  --art-paper-base: oklch(0.995 0.002 285);
+  --art-stroke: var(--art-ink-base);
+  --art-stroke-soft: color-mix(in oklab, var(--art-ink-base) 55%, var(--art-paper-base));
+  --art-hi: color-mix(in oklab, var(--cs-color-identity-iris) 70%, var(--art-ink-base));
+  --art-paper: var(--art-paper-base);
+  --art-shade: oklch(0.955 0.006 285);
+  /* lilac → peach → mint → mist */
+  --art-g1: color-mix(in oklab, var(--cs-color-identity-iris) 30%, var(--art-paper-base));
+  --art-g2: color-mix(in oklab, var(--cs-color-identity-coral) 30%, var(--art-paper-base));
+  --art-g3: color-mix(in oklab, var(--cs-color-identity-mint) 26%, var(--art-paper-base));
+  --art-g4: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--cs-color-identity-iris) 50%, var(--cs-color-identity-mint)) 26%,
+    var(--art-paper-base)
+  );
+  --art-bg: oklch(0.982 0.003 285);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --art-ink-base: oklch(0.84 0.01 285);
+    --art-paper-base: oklch(0.255 0.008 285);
+    --art-stroke: var(--art-ink-base);
+    --art-stroke-soft: color-mix(in oklab, var(--art-ink-base) 50%, var(--art-paper-base));
+    --art-hi: color-mix(in oklab, var(--cs-color-identity-iris) 75%, white);
+    --art-paper: var(--art-paper-base);
+    --art-shade: oklch(0.215 0.008 285);
+    --art-g1: color-mix(in oklab, var(--cs-color-identity-iris) 38%, var(--art-paper-base));
+    --art-g2: color-mix(in oklab, var(--cs-color-identity-coral) 32%, var(--art-paper-base));
+    --art-g3: color-mix(in oklab, var(--cs-color-identity-mint) 26%, var(--art-paper-base));
+    --art-g4: color-mix(
+      in oklab,
+      color-mix(in oklab, var(--cs-color-identity-iris) 50%, var(--cs-color-identity-mint)) 30%,
+      var(--art-paper-base)
+    );
+    --art-bg: oklch(0.185 0.006 285);
+  }
+}
+
+:root[data-theme="dark"],
+[data-art-theme="dark"] {
+  --art-ink-base: oklch(0.84 0.01 285);
+  --art-paper-base: oklch(0.255 0.008 285);
+  --art-stroke: var(--art-ink-base);
+  --art-stroke-soft: color-mix(in oklab, var(--art-ink-base) 50%, var(--art-paper-base));
+  --art-hi: color-mix(in oklab, var(--cs-color-identity-iris) 75%, white);
+  --art-paper: var(--art-paper-base);
+  --art-shade: oklch(0.215 0.008 285);
+  --art-g1: color-mix(in oklab, var(--cs-color-identity-iris) 38%, var(--art-paper-base));
+  --art-g2: color-mix(in oklab, var(--cs-color-identity-coral) 32%, var(--art-paper-base));
+  --art-g3: color-mix(in oklab, var(--cs-color-identity-mint) 26%, var(--art-paper-base));
+  --art-g4: color-mix(
+    in oklab,
+    color-mix(in oklab, var(--cs-color-identity-iris) 50%, var(--cs-color-identity-mint)) 30%,
+    var(--art-paper-base)
+  );
+  --art-bg: oklch(0.185 0.006 285);
+}

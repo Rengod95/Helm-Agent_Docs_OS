@@ -160,4 +160,43 @@ export const pages: MockPage[] = [
     folder: "e05-web-narrow",
     states: 22,
   },
+  {
+    id: "P-16 캔버스",
+    title: "런타임 캔버스: 층 띠·블록·연결, 맥락 분리, 턴 재생, 검사기",
+    folder: "wb-canvas",
+    states: 13,
+  },
+  {
+    id: "P-21·P-22",
+    title: "블록 구성기: 그룹 쌓기, 흐름, 프로필 쌓기, 시험, 코드",
+    folder: "wb-compose",
+    states: 8,
+  },
+  {
+    id: "캔버스 v2 · B",
+    title:
+      "정교한 노드 편집기: 나눔 지도, 그룹 하위 캔버스, 구성(놓기·연결), 단계 머신·시험, 층 × 지점 열지도, 맥락 차이",
+    folder: "wb-v2b",
+    states: 14,
+  },
+  {
+    id: "P-16·P-21 v2 A",
+    title:
+      "런타임 지도·구성기 v2 A: 층 건물·루프 소켓, 줌 3단계, 구조 살펴보기, 맥락 테두리, 층×지점 표, Helm 부품·흐름·시험·프로필",
+    folder: "wb-v2a",
+    states: 13,
+  },
+  {
+    id: "캔버스 v3",
+    title:
+      "작업대 캔버스 v3: 턴 흐름 그림, 층마다 내장·내 것·더하기, 관계 렌즈 포커스, 플러그인 상세(블록·흐름), 보는 대상·프리셋, 층×지점 표",
+    folder: "wb-v3",
+    states: 12,
+  },
+  {
+    id: "일러스트",
+    title: "런타임 일러스트 세트: X 수명 고리, 층 쌓기, 개념 그림 8, 빈 상태 3 (밝음·어두움)",
+    folder: "_art-preview",
+    states: 1,
+  },
 ];
