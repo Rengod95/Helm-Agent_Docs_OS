@@ -1,6 +1,6 @@
 // 시험 대화 상태 기계(목업 전용). spec §6.30, §6.26, 결정 캔버스 9(멈춤은 다음 단계 사이에서 실제로 멈추고 진행권을 쥔 채 둠),
 // W-48(멈춤·이어서·한 단계씩), X-19, 계획에 없음 4(시험 대화 정리).
-import { T, josa } from "../_shell";
+import { EXT, T, josa } from "../_shell";
 import type { After } from "../_chat-rt";
 
 export type TrialPhase =
@@ -56,7 +56,7 @@ const STEP_ITEMS: Item[][] = [
   [
     {
       k: "row",
-      text: `helm이 ${josa(T.lead, "을", "를")} 받았어요 · ${T.inquiry} 시작`,
+      text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요 · ${T.inquiry} 시작`,
       source: "grp:helm",
     },
     {
@@ -145,7 +145,7 @@ export function reduce(s: S, a: A): S {
           ...settle(s.items),
           {
             k: "row",
-            text: `${T.stepBoundary}에서 멈췄어요 · ${T.step} ${s.steps}/${TOTAL} · ${T.lead} helm 유지`,
+            text: `${T.stepBoundary}에서 멈췄어요 · ${T.step} ${s.steps}/${TOTAL} · ${T.lead} ${EXT.helm} 유지`,
             source: "core",
             icon: "pause",
           },
@@ -188,7 +188,7 @@ export function reduce(s: S, a: A): S {
           ...settle(s.items),
           {
             k: "row",
-            text: `helm이 ${josa(T.lead, "을", "를")} 놓았어요 · ${T.trial} 끝 · ${T.step} ${TOTAL} · 실패 0`,
+            text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 놓았어요 · ${T.trial} 끝 · ${T.step} ${TOTAL} · 실패 0`,
             source: "grp:helm",
             icon: "flask",
             tone: "success",
@@ -210,7 +210,7 @@ export function reduce(s: S, a: A): S {
           ...settle(s.items),
           {
             k: "row",
-            text: `helm이 ${T.autoDisabled} · boundary.settle.after 연속 실패 5 · ${T.trial} 멈춤`,
+            text: `${EXT.helm}이 ${T.autoDisabled} · boundary.settle.after 연속 실패 5 · ${T.trial} 멈춤`,
             source: "core",
             icon: "danger",
             tone: "danger",
@@ -227,7 +227,7 @@ export function reduce(s: S, a: A): S {
             ...s.items,
             {
               k: "row",
-              text: `helm을 다시 켰어요 · 이 ${T.trialThread}에만`,
+              text: `${EXT.helm}을 다시 켰어요 · 이 ${T.trialThread}에만`,
               source: "core",
               icon: "play",
             },

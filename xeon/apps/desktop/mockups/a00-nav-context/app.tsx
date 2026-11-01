@@ -107,7 +107,7 @@ export function App({ state }: { state: StateId }) {
       toast({ title: `끝난 ${T.trialThread} 1개를 지웠어요`, tone: "neutral" });
     if (state === "cleanup-partial")
       toast({
-        title: `review 다시 켜기 확인은 남겼어요`,
+        title: `리뷰 다시 켜기 확인은 남겼어요`,
         description: "다른 창에서 열려 있어요. 그 창을 닫고 다시 지워 주세요.",
         tone: "warning",
       });
@@ -151,7 +151,7 @@ export function App({ state }: { state: StateId }) {
     if (gone.includes(current)) setCurrent("t1");
     if (busy)
       toast({
-        title: `review 다시 켜기 확인은 남겼어요`,
+        title: `리뷰 다시 켜기 확인은 남겼어요`,
         description: "다른 창에서 열려 있어요. 그 창을 닫고 다시 지워 주세요.",
         tone: "warning",
       });

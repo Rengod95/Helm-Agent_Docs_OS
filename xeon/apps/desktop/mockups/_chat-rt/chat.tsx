@@ -6,7 +6,7 @@
 // - ChatStage: 머리 + 스크롤 트랜스크립트(바닥 따라감) + 띠 + 입력창. 가운데는 투명(DP-01), 읽기 폭 46rem.
 import { Button, Card, Composer, IconButton, Message, ScrollArea } from "@caustic/react";
 import { useEffect, useRef, type ReactNode } from "react";
-import { Layers, PanelLeft, ToneIcon, useShell, useTypewriter } from "../_shell";
+import { Layers, PanelLeft, T, ToneIcon, useShell, useTypewriter } from "../_shell";
 import { StreamingText } from "../p02-opus/parts/streaming-text";
 
 export const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
@@ -228,8 +228,8 @@ export function ChatComposer({
         stopLabel="중단"
         attachLabel="맥락 더하기"
         modeLabel="실행 중 보낸 입력"
-        modes={["steer", "followUp"]}
-        defaultMode="steer"
+        modes={[T.modeSteer, T.modeFollowUp]}
+        defaultMode={T.modeSteer}
         modelLabel="sonnet-5-5"
         usage={41}
         usageLabel={(p) => `문맥 ${p}% 사용`}

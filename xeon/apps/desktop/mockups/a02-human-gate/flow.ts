@@ -1,7 +1,7 @@
 // 사람 확인 관문·승인 출처·진행권 충돌 상태 기계(목업 전용).
 // spec §6.30(사람 확인 관문), X-17(loop.ask, 기다리는 동안 진행권 반납), 결정 캔버스 8, 결정 7(자식 승인 출처),
 // §6.7 expiresAt(만료 뒤 자동 거부·자동 답), 계획에 없음 3(진행권 충돌은 고르는 창 없이 "이 그룹 먼저"), §4.9.8(P-05 정리).
-import { T, josa } from "../_shell";
+import { EXT, T, josa } from "../_shell";
 import type { After, ChatItem } from "../_chat-rt";
 
 export type Gate = "none" | "asking" | "answered" | "denied" | "expired";
@@ -91,7 +91,7 @@ export function reduce(s: S, a: A): S {
           ...s.items,
           {
             k: "row",
-            text: `helm이 ${GATE_O} 기다려요 · ${T.lead} ${T.leadReturn}`,
+            text: `${EXT.helm}이 ${GATE_O} 기다려요 · ${T.lead} ${T.leadReturn}`,
             source: "grp:helm",
             icon: "ask",
           },
@@ -115,7 +115,7 @@ export function reduce(s: S, a: A): S {
           ...s.items,
           {
             k: "row",
-            text: `답했어요 · helm이 ${LEAD_O} ${T.leadRetake}`,
+            text: `답했어요 · ${EXT.helm}이 ${LEAD_O} ${T.leadRetake}`,
             source: "grp:helm",
             icon: "lease",
           },
@@ -133,7 +133,7 @@ export function reduce(s: S, a: A): S {
           ...s.items,
           {
             k: "row",
-            text: `질문을 거부했어요 · helm이 ${LEAD_O} ${T.leadRetake} · 적용 없이 ${T.finding}만 남겨요`,
+            text: `질문을 거부했어요 · ${EXT.helm}이 ${LEAD_O} ${T.leadRetake} · 적용 없이 ${T.finding}만 남겨요`,
             source: "grp:helm",
             icon: "lease",
           },
@@ -177,7 +177,7 @@ export function reduce(s: S, a: A): S {
           ...s.items,
           {
             k: "row",
-            text: `helm이 기본 답으로 이어서 진행해요 · ${T.lead} ${T.leadRetake}`,
+            text: `${EXT.helm}이 기본 답으로 이어서 진행해요 · ${T.lead} ${T.leadRetake}`,
             source: "grp:helm",
             icon: "lease",
           },
@@ -242,7 +242,7 @@ export function reduce(s: S, a: A): S {
           },
           {
             k: "row",
-            text: `${T.lens} 실패 사례가 거부를 받고 읽기만으로 이어가요 · helm 계속 ${T.drive}`,
+            text: `${T.lens} 실패 사례가 거부를 받고 읽기만으로 이어가요 · ${EXT.helm} 계속 ${T.drive}`,
             source: "grp:helm",
             icon: "play",
           },
@@ -257,7 +257,7 @@ export function reduce(s: S, a: A): S {
           ...s.items,
           {
             k: "row",
-            text: `review가 다음 ${T.stepBoundary}에서 먼저 ${josa(T.lead, "을", "를")} 받아요 · 이 ${T.thread}에만`,
+            text: `${EXT.review}가 다음 ${T.stepBoundary}에서 먼저 ${josa(T.lead, "을", "를")} 받아요 · 이 ${T.thread}에만`,
             source: "core",
             icon: "lease",
           },
@@ -273,7 +273,7 @@ export function reduce(s: S, a: A): S {
           ...s.items,
           {
             k: "row",
-            text: `helm이 ${LEAD_O} 놓았어요 · review가 받았어요 · helm은 ${T.leadQueue}`,
+            text: `${EXT.helm}이 ${LEAD_O} 놓았어요 · ${EXT.review}가 받았어요 · ${EXT.helm}은 ${T.leadQueue}`,
             source: "core",
             icon: "lease",
           },
@@ -288,7 +288,7 @@ export function reduce(s: S, a: A): S {
           ...s.items,
           {
             k: "row",
-            text: `review가 더는 기다리지 않아요 · 차례를 거뒀어요 · helm이 계속 ${T.drive}`,
+            text: `${EXT.review}가 더는 기다리지 않아요 · 차례를 거뒀어요 · ${EXT.helm}이 계속 ${T.drive}`,
             source: "grp:review",
             icon: "warn",
             tone: "warning",

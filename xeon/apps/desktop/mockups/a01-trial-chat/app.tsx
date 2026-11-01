@@ -4,6 +4,7 @@
 import { Badge, EmptyState, Message, Toaster, toast } from "@caustic/react";
 import { useState } from "react";
 import {
+  EXT,
   ArrowRightToLine,
   chatRightTabs,
   CircleAlert,
@@ -164,7 +165,8 @@ function runtimeData(s: S): RuntimeData {
           {T.trial} · {word}
         </Badge>
         <span>
-          {T.profile} {PROFILE} · 대상 <span className="font-mono text-mono-sm">helm</span>
+          {T.profile} {PROFILE} · 대상 {EXT.helm}{" "}
+          <span className="font-mono text-mono-sm">helm</span>
         </span>
       </div>
     ),
@@ -197,7 +199,7 @@ function runtimeData(s: S): RuntimeData {
             {
               at: "14:31",
               turn: 6,
-              text: `helm이 ${josa(T.lead, "을", "를")} 놓았어요 · ${T.trial} 끝`,
+              text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 놓았어요 · ${T.trial} 끝`,
             },
           ]
         : []),
@@ -205,12 +207,18 @@ function runtimeData(s: S): RuntimeData {
         ? [{ at: "14:26", turn: 3, text: `${T.step} 3만 진행 · 다시 멈춤` }]
         : []),
       ...(s.items.some((i) => i.k === "row" && i.icon === "pause")
-        ? [{ at: "14:25", turn: 2, text: `${T.stepBoundary} 2에서 멈춤 · ${T.lead} helm 유지` }]
+        ? [
+            {
+              at: "14:25",
+              turn: 2,
+              text: `${T.stepBoundary} 2에서 멈춤 · ${T.lead} ${EXT.helm} 유지`,
+            },
+          ]
         : []),
       ...(disabled
-        ? [{ at: "14:26", turn: 3, text: `helm ${T.autoDisabled} · ${T.trial} 멈춤` }]
+        ? [{ at: "14:26", turn: 3, text: `${EXT.helm} ${T.autoDisabled} · ${T.trial} 멈춤` }]
         : []),
-      { at: "14:22", turn: 1, text: `helm이 ${josa(T.lead, "을", "를")} 받았어요` },
+      { at: "14:22", turn: 1, text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요` },
       { at: "14:22", turn: 1, text: `${T.profile} ${PROFILE} 적용 · 이 ${T.trialThread}에만` },
     ],
     ...(disabled
@@ -288,7 +296,7 @@ export function App({ state }: { state: StateId }) {
         <TrialBand
           icon={<Pause />}
           text={`${T.stepBoundary}에서 멈춤`}
-          meta={`${T.step} ${s.steps}/${TOTAL} · ${T.lead} helm 유지`}
+          meta={`${T.step} ${s.steps}/${TOTAL} · ${T.lead} ${EXT.helm} 유지`}
           actions={actions([
             { label: `한 ${T.step}씩`, onClick: () => dispatch({ t: "stepOnce" }) },
             { label: "이어서", onClick: () => dispatch({ t: "resume" }), primary: true },
@@ -309,7 +317,7 @@ export function App({ state }: { state: StateId }) {
         <TrialBand
           tone="danger"
           icon={<CircleAlert />}
-          text={`helm이 ${T.autoDisabled}이라 ${T.trial}을 멈췄어요`}
+          text={`${EXT.helm}이 ${T.autoDisabled}이라 ${T.trial}을 멈췄어요`}
           meta="연속 실패 5"
           actions={actions([
             {
@@ -349,11 +357,12 @@ export function App({ state }: { state: StateId }) {
     const p = s.phase;
     if (p === "draft") return `${T.lead} 없음 · ${T.trial} 준비 · 확장 3`;
     if (p === "paused")
-      return `${T.stepBoundary}에서 멈춤 · ${T.lead} helm 유지 · ${T.step} ${s.steps}/${TOTAL}`;
-    if (p === "pausing") return `helm ${T.drive} · 이번 ${josa(T.step, "이", "가")} 끝나면 멈춰요`;
-    if (p === "disabled") return `${T.trial} 멈춤 · helm ${T.autoDisabled} · 실패 1`;
+      return `${T.stepBoundary}에서 멈춤 · ${T.lead} ${EXT.helm} 유지 · ${T.step} ${s.steps}/${TOTAL}`;
+    if (p === "pausing")
+      return `${EXT.helm} ${T.drive} · 이번 ${josa(T.step, "이", "가")} 끝나면 멈춰요`;
+    if (p === "disabled") return `${T.trial} 멈춤 · ${EXT.helm} ${T.autoDisabled} · 실패 1`;
     if (p === "finished") return `${T.lead} 없음 · ${T.trial} 끝 · ${T.step} ${TOTAL}`;
-    return `helm ${T.drive} · ${T.inquiry} ${T.step} ${Math.max(1, s.steps)}/${TOTAL} · 확장 3`;
+    return `${EXT.helm} ${T.drive} · ${T.inquiry} ${T.step} ${Math.max(1, s.steps)}/${TOTAL} · 확장 3`;
   })();
 
   const marks = (
@@ -363,7 +372,8 @@ export function App({ state }: { state: StateId }) {
       </Badge>
       {!compact && (
         <span className="min-w-0 shrink truncate text-ui-sm text-text-tertiary">
-          {T.profile} {PROFILE} · 대상 <span className="font-mono text-mono-sm">helm</span>
+          {T.profile} {PROFILE} · 대상 {EXT.helm}{" "}
+          <span className="font-mono text-mono-sm">helm</span>
         </span>
       )}
     </>
@@ -422,7 +432,7 @@ export function App({ state }: { state: StateId }) {
       >
         {s.phase === "draft" && (
           <RuntimeRow icon={<FlaskConical emphasis="muted" />} source="core">
-            {`${T.trialThread}를 만들었어요 · ${T.profile} ${PROFILE} · 대상 helm을 이 ${T.thread}에서만 켰어요`}
+            {`${T.trialThread}를 만들었어요 · ${T.profile} ${PROFILE} · 대상 ${EXT.helm}을 이 ${T.thread}에서만 켰어요`}
           </RuntimeRow>
         )}
         {s.items.map((it, i) => (

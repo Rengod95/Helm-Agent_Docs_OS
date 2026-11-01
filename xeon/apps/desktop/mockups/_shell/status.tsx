@@ -1,5 +1,5 @@
 // 상태 표시줄 기본 칸. 페이지는 defaultStatusCells로 만들고 필요한 칸만 바꾼다.
-import { status } from "./fixtures";
+import { extJ, extName, status } from "./fixtures";
 import { TokenBar, type StatusCell } from "./parts/status-bar";
 import type { Layout } from "./state";
 import { T, josa } from "./terms";
@@ -57,23 +57,23 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
             id: "drive",
             text:
               rt.waiting !== undefined
-                ? `${rt.waiting} 확인 기다림`
+                ? `${extName(rt.waiting)} 확인 기다림`
                 : rt.drive === null
                   ? `${T.drive} 없음`
-                  : `${T.drive} ${rt.drive}`,
+                  : `${T.drive} ${extName(rt.drive)}`,
             label:
               rt.waiting !== undefined
-                ? `${rt.waiting}이 ${T.humanGate}을 기다려요, ${T.lead} 반납`
+                ? `${extJ(rt.waiting, "이", "가")} ${T.humanGate}을 기다려요, ${T.lead} 반납`
                 : rt.drive === null
                   ? `${josa(T.lead, "을", "를")} 쥔 ${T.group} 없음`
-                  : `${T.lead} 보유 ${rt.drive}`,
+                  : `${T.lead} 보유 ${extName(rt.drive)}`,
             title: T.lead,
             description:
               rt.waiting !== undefined
-                ? `${rt.waiting}이 답을 기다리는 동안 ${josa(T.lead, "을", "를")} 놓았어요. 답하면 다시 받아요.`
+                ? `${extJ(rt.waiting, "이", "가")} 답을 기다리는 동안 ${josa(T.lead, "을", "를")} 놓았어요. 답하면 다시 받아요.`
                 : rt.drive === null
                   ? `지금 ${josa(T.turn, "을", "를")} 구동하는 ${T.group}이 없어요. ${T.baseAgent}가 그대로 돌아요.`
-                  : `${rt.drive}가 ${josa(T.lead, "을", "를")} 쥐고 있어요. ${rt.detail ?? `${T.turn} 1/4 · spawn 3/8`}.`,
+                  : `${extJ(rt.drive, "이", "가")} ${josa(T.lead, "을", "를")} 쥐고 있어요. ${rt.detail ?? `${T.turn} 1/4 · spawn 3/8`}.`,
             action: { label: `${T.runtime} 보기`, onSelect: rt.onOpen },
           },
           ...(rt.extFailures > 0

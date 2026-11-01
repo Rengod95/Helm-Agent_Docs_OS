@@ -35,7 +35,7 @@ const ALL: Row[] = [
   { layer: "L3", id: "review", name: "리뷰", state: T.autoDisabled, tone: "danger" },
   { layer: "L3", id: "authoring", name: "제작", state: "꺼짐" },
   { layer: "L2", id: "web-exa", name: "웹 검색(Exa)", state: "켜짐" },
-  { layer: "plugin", id: "acme-notes", name: "Acme 노트", state: "켜짐 · 실패 2", tone: "warning" },
+  { layer: T.plugin, id: "acme-notes", name: "Acme 노트", state: "켜짐 · 실패 2", tone: "warning" },
   { layer: "X", id: "audit-log", name: "감사 기록 훅", state: "켜짐" },
 ];
 
@@ -48,7 +48,7 @@ function rowsFor(c: WorkbenchContext): Row[] {
         { layer: "L3", id: "learning", name: "학습", state: "켜짐" },
         { layer: "L3", id: "review", name: "리뷰", state: T.autoDisabled, tone: "danger" },
         { layer: "L2", id: "web-exa", name: "웹 검색(Exa)", state: "켜짐" },
-        { layer: "plugin", id: "acme-notes", name: "Acme 노트", state: "실패 2", tone: "warning" },
+        { layer: T.plugin, id: "acme-notes", name: "Acme 노트", state: "실패 2", tone: "warning" },
         { layer: "X", id: "audit-log", name: "감사 기록 훅", state: "켜짐" },
       ];
     return [
@@ -129,7 +129,7 @@ export function ContextView({ title }: { title: string }) {
       <div className={`${WB_WIDTH} grid gap-3 pt-3 pb-6`}>
         {failed.length > 0 && c.kind !== "profile" && (
           <Alert tone="danger" size="sm">
-            {`${failed.map((f) => f.id).join(", ")}: 연속 실패 5로 ${T.autoDisabled}. 다시 켜기 전까지 ${
+            {`${failed.map((f) => f.name).join(", ")}: 연속 실패 5로 ${T.autoDisabled}. 다시 켜기 전까지 ${
               c.kind === "all" ? "모든 대화" : `이 ${T.thread}`
             }에서 빠져요.`}
           </Alert>

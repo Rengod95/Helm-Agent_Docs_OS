@@ -3,7 +3,16 @@
 //       · 전환 기록(단계 사이마다) · 실패 · "작업대에서 보기". well 안이라 카드·테두리 없이 간격으로만 묶는다(DP-10, DP-20).
 import { Badge, Button, Progress } from "@caustic/react";
 import { useState, type ReactNode } from "react";
-import { ChevronRight, CircleAlert, T, ToneIcon, TriangleAlert, josa, useShell } from "../_shell";
+import {
+  ChevronRight,
+  CircleAlert,
+  extName,
+  T,
+  ToneIcon,
+  TriangleAlert,
+  josa,
+  useShell,
+} from "../_shell";
 
 export interface QueueRow {
   group: string;
@@ -71,7 +80,7 @@ function GroupLine({ g }: { g: GroupRow }) {
         <button
           type="button"
           aria-expanded={open}
-          aria-label={`${g.name} ${T.extensionPoint} ${g.points.length}개 ${open ? "접기" : "펼치기"}`}
+          aria-label={`${extName(g.name)} ${T.extensionPoint} ${g.points.length}개 ${open ? "접기" : "펼치기"}`}
           onClick={() => setOpen(!open)}
           className="inline-grid size-5 place-items-center rounded-sm text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
         >
@@ -82,7 +91,8 @@ function GroupLine({ g }: { g: GroupRow }) {
         </button>
         <span className="font-mono text-mono-sm text-text-tertiary">{g.layer}</span>
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-text-primary">{g.name}</span>
+          <span className="truncate text-text-primary">{extName(g.name)}</span>
+          <span className="truncate font-mono text-mono-sm text-text-tertiary">{g.name}</span>
           <span className="truncate text-ui-xs text-text-tertiary">
             {T.extensionPoint} {g.points.length}
           </span>
@@ -133,7 +143,7 @@ export function RuntimePanel({
         {data.trial}
         {data.holder !== null ? (
           <div className="flex items-baseline gap-2 text-ui-dense">
-            <span className="font-medium text-text-primary">{data.holder}</span>
+            <span className="font-medium text-text-primary">{extName(data.holder)}</span>
             <span className="text-text-secondary">
               보유{data.phase !== undefined ? ` · ${data.phase}` : ""}
             </span>
@@ -149,7 +159,8 @@ export function RuntimePanel({
               {T.humanGate}
             </Badge>
             <span className="min-w-0 text-text-secondary">
-              <span className="text-text-primary">{data.gate.group}</span> · {data.gate.text}
+              <span className="text-text-primary">{extName(data.gate.group)}</span> ·{" "}
+              {data.gate.text}
             </span>
           </div>
         )}
@@ -180,7 +191,7 @@ export function RuntimePanel({
                   {q.state === "waiting" ? `${i + 1}번째` : "거부"}
                 </span>
                 <span className="min-w-0 truncate">
-                  <span className="text-text-primary">{q.group}</span>{" "}
+                  <span className="text-text-primary">{extName(q.group)}</span>{" "}
                   <span className="text-text-secondary">· {q.note}</span>
                 </span>
                 {q.state === "waiting" && onFirst !== undefined && (
@@ -236,7 +247,7 @@ export function RuntimePanel({
                 <ToneIcon tone={f.tone}>
                   {f.tone === "danger" ? <CircleAlert /> : <TriangleAlert />}
                 </ToneIcon>
-                <span className="text-text-primary">{f.name}</span>
+                <span className="text-text-primary">{extName(f.name)}</span>
                 <span className="min-w-0 truncate text-ui-xs text-text-secondary">{f.text}</span>
               </li>
             ))}

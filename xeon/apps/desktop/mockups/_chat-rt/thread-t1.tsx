@@ -1,6 +1,6 @@
 // batch A 공용 고정 데이터: 대화 t1 "캐시 무효화 조사"의 앞부분(p02-opus 트랜스크립트와 같은 사실)과 런타임 탭 기본값.
 // a00·a02·a04가 이 위에 자기 상태를 더한다.
-import { josa, T } from "../_shell";
+import { EXT, josa, T } from "../_shell";
 import type { ChatItem } from "./items";
 import { baseGroups, type RuntimeData } from "./runtime-panel";
 
@@ -19,7 +19,7 @@ export const t1Base: ChatItem[] = [
   },
   {
     k: "row",
-    text: `helm이 ${josa(T.lead, "을", "를")} 받았어요 · ${T.inquiry} 시작 · ${T.lens} 3`,
+    text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요 · ${T.inquiry} 시작 · ${T.lens} 3`,
     source: "grp:helm",
     icon: "lease",
   },
@@ -41,12 +41,12 @@ export function t1Runtime(over: Partial<RuntimeData> = {}): RuntimeData {
     groups: baseGroups,
     switches: [
       { at: "14:03", turn: 2, text: `${T.lens} 3개 띄움 · spawn 3/8` },
-      { at: "14:02", turn: 1, text: `helm이 ${josa(T.lead, "을", "를")} 받았어요` },
-      { at: "14:01", turn: 1, text: "review 켜짐 · 다음 단계 사이에 적용" },
+      { at: "14:02", turn: 1, text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요` },
+      { at: "14:01", turn: 1, text: `${EXT.review} 켜짐 · 다음 ${T.stepBoundary}에 적용` },
     ],
     ...over,
   };
 }
 
 /** 대화 머리 런타임 줄 기본(보유 · 단계 · 켜진 확장 수). */
-export const t1RuntimeLine = `helm ${T.drive} · ${T.inquiry} 수렴 · ${T.extension} 4`;
+export const t1RuntimeLine = `${EXT.helm} ${T.drive} · ${T.inquiry} 수렴 · ${T.extension} 4`;

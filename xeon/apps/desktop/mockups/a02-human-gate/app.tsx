@@ -4,6 +4,7 @@
 import { AgentRequest, Toaster, toast } from "@caustic/react";
 import { useEffect, useState } from "react";
 import {
+  EXT,
   approvals,
   chatRightTabs,
   Compass,
@@ -151,7 +152,7 @@ export function App({ state }: { state: StateId }) {
   useEffect(() => {
     if (s.inboxAsk && s.open === "t2")
       toast({
-        title: `질문 필요: helm, ${T1_TITLE}`,
+        title: `질문 필요: ${EXT.helm}, ${T1_TITLE}`,
         description: `${T.humanGate}을 기다리는 동안 ${T.lead}을 놓았어요.`,
         tone: "neutral",
         actionLabel: "열기",
@@ -181,12 +182,12 @@ export function App({ state }: { state: StateId }) {
           ];
 
   const runtimeLine = waiting
-    ? `helm ${T.humanGate} 기다림 · ${T.lead} ${T.leadReturn}`
+    ? `${EXT.helm} ${T.humanGate} 기다림 · ${T.lead} ${T.leadReturn}`
     : s.holder === "review"
-      ? `review ${T.drive} · 변경 확인 · ${T.extension} 4`
+      ? `${EXT.review} ${T.drive} · 변경 확인 · ${T.extension} 4`
       : s.first === "requested"
-        ? `helm ${T.drive} · 다음 ${T.stepBoundary}에 review로`
-        : `helm ${T.drive} · ${T.inquiry} 수렴 · ${T.extension} 4`;
+        ? `${EXT.helm} ${T.drive} · 다음 ${T.stepBoundary}에 review로`
+        : `${EXT.helm} ${T.drive} · ${T.inquiry} 수렴 · ${T.extension} 4`;
 
   const askCard =
     s.gate === "expired" ? (
@@ -265,19 +266,25 @@ export function App({ state }: { state: StateId }) {
         queue,
         switches: [
           ...(s.first === "switched"
-            ? [{ at: "14:08", turn: 3, text: `helm → review · 이 ${T.group} 먼저` }]
+            ? [{ at: "14:08", turn: 3, text: `${EXT.helm} → ${EXT.review} · 이 ${T.group} 먼저` }]
             : []),
           ...(s.gate === "answered" || s.gate === "expired" || s.gate === "denied"
             ? [
                 {
                   at: s.gate === "expired" ? "14:21" : "14:07",
                   turn: 3,
-                  text: `helm ${T.lead} ${T.leadRetake} · ${s.gate === "expired" ? "자동 답" : s.gate === "denied" ? "거부" : "답함"}`,
+                  text: `${EXT.helm} ${T.lead} ${T.leadRetake} · ${s.gate === "expired" ? "자동 답" : s.gate === "denied" ? "거부" : "답함"}`,
                 },
               ]
             : []),
           ...(s.gate !== "none"
-            ? [{ at: "14:06", turn: 3, text: `helm ${T.lead} ${T.leadReturn} · ${T.humanGate}` }]
+            ? [
+                {
+                  at: "14:06",
+                  turn: 3,
+                  text: `${EXT.helm} ${T.lead} ${T.leadReturn} · ${T.humanGate}`,
+                },
+              ]
             : []),
           ...t1Runtime().switches,
         ],
@@ -349,7 +356,9 @@ export function App({ state }: { state: StateId }) {
                 onValueChange={setDraft}
                 running={!waiting}
                 {...(waiting
-                  ? { note: `helm이 답을 기다려요. 보낸 메시지는 답이 아니라 다음 입력이 돼요.` }
+                  ? {
+                      note: `${EXT.helm}이 답을 기다려요. 보낸 메시지는 답이 아니라 다음 입력이 돼요.`,
+                    }
                   : {})}
                 onSubmit={() => setDraft("")}
               />
@@ -372,7 +381,7 @@ export function App({ state }: { state: StateId }) {
       {s.osNotice && state !== "other-inbox" && (
         <OsNotice
           title={`Xeon · ${T1_TITLE}`}
-          body={`helm이 ${josa(T.humanGate, "을", "를")} 기다려요: ${ASK.questions[0]?.text ?? ""}`}
+          body={`${EXT.helm}이 ${josa(T.humanGate, "을", "를")} 기다려요: ${ASK.questions[0]?.text ?? ""}`}
           onOpen={() => dispatch({ t: "jump" })}
           onClose={() => dispatch({ t: "dismissOs" })}
         />

@@ -96,13 +96,13 @@ export const threads: Thread[] = [
   {
     id: "t9",
     folder: "~/code/xeon",
-    title: "review 다시 켜기 확인",
+    title: "리뷰 다시 켜기 확인",
     status: "idle",
     approvals: 0,
     trial: { state: "done", profile: "review-trial", target: "review" },
   },
   { id: "t5", folder: "~/notes", title: "주간 회고", status: "idle", approvals: 0 },
-  { id: "t6", folder: "~/notes", title: "CLI 세션", status: "locked", approvals: 0 },
+  { id: "t6", folder: "~/notes", title: "원격 세션 · build-box", status: "locked", approvals: 0 },
   { id: "t7", folder: "~/notes", title: "", status: "resumable", approvals: 0 },
 ];
 export const nav: NavEntry[] = [
@@ -148,7 +148,7 @@ export interface PluginPageEntry {
 }
 export const pluginPages: PluginPageEntry[] = [
   { id: "helm/inquiry", ext: "helm", label: "Helm 탐구" },
-  { id: "review/queue", ext: "review", label: "review 대기열", disabled: true },
+  { id: "review/queue", ext: "review", label: "리뷰 대기열", disabled: true },
 ];
 export const approvals: { a1: ToolApproval; a2: QuestionApproval } = {
   a1: {
@@ -229,3 +229,28 @@ export const palette: { group: string; items: PaletteItem[] }[] = [
   },
   { group: "설정", items: [{ label: "기본 모델", hint: "l1.models.default" }] },
 ];
+
+/** 확장 표시 이름(결정 13: 문장에는 표시 이름, id는 id 열·힌트에만 회색 mono). 매니페스트 displayName 자리. */
+export const EXT: Record<string, string> = {
+  helm: "Helm",
+  learning: "학습",
+  review: "리뷰",
+  authoring: T.authoring,
+  "web-exa": "웹 검색(Exa)",
+  work: "작업 관리",
+  "acme-notes": "Acme 노트",
+  "audit-log": "감사 기록 훅",
+};
+/** 확장 id → 표시 이름(없으면 id). */
+export function extName(id: string): string {
+  return EXT[id] ?? id;
+}
+/** 표시 이름에 조사를 붙인다. 영문 표시 이름(Helm 등)은 읽는 소리 기준 받침으로 고른다. */
+const EXT_FINAL = new Set(["helm"]);
+export function extJ(id: string, withFinal: string, withoutFinal: string): string {
+  const n = extName(id);
+  const last = n.charCodeAt(n.length - 1);
+  if (last >= 0xac00 && last <= 0xd7a3)
+    return n + ((last - 0xac00) % 28 === 0 ? withoutFinal : withFinal);
+  return n + (EXT_FINAL.has(id) ? withFinal : withoutFinal);
+}

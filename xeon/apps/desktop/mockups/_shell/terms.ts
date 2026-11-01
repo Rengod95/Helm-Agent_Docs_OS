@@ -144,6 +144,8 @@ export const T = {
   viewMode: "화면 방식", // 선언형(viewDeclarative)·프레임(viewFrame) 중 에이전트가 고른 것(결정 1)
   leadReturn: "반납", // 사람 확인을 기다리며 진행권을 놓음(X-17). 문장: "진행권 반납"
   leadRetake: "다시 받음", // 답한 뒤 진행권을 다시 쥠
+  modeSteer: "끼어들기", // 실행 중 입력 전달 방식 steer(지금 턴에 끼움)
+  modeFollowUp: "다음에", // 실행 중 입력 전달 방식 followUp(이번 턴 뒤에 보냄)
 } as const;
 
 export type TermKey = keyof typeof T;

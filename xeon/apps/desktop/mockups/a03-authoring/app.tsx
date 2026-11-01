@@ -5,6 +5,7 @@
 import { Badge, Toaster, toast } from "@caustic/react";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import {
+  EXT,
   chatRightTabs,
   defaultStatusCells,
   inbox,
@@ -298,7 +299,13 @@ export function App({ state }: { state: StateId }) {
         ],
         switches: [
           ...(s.linked
-            ? [{ at: "14:21", turn: 2, text: `authoring이 ${josa(T.lead, "을", "를")} 놓았어요` }]
+            ? [
+                {
+                  at: "14:21",
+                  turn: 2,
+                  text: `${EXT.authoring}이 ${josa(T.lead, "을", "를")} 놓았어요`,
+                },
+              ]
             : []),
           ...(s.items.some((i) => i.k === "row" && i.tone === "danger" && i.icon === "danger")
             ? [
@@ -310,7 +317,13 @@ export function App({ state }: { state: StateId }) {
               ]
             : []),
           ...(s.stage !== "idle" && s.ext === "on"
-            ? [{ at: "14:11", turn: 1, text: `authoring이 ${josa(T.lead, "을", "를")} 받았어요` }]
+            ? [
+                {
+                  at: "14:11",
+                  turn: 1,
+                  text: `${EXT.authoring}이 ${josa(T.lead, "을", "를")} 받았어요`,
+                },
+              ]
             : []),
         ],
       }}

@@ -19,6 +19,7 @@ import {
   SelectHeading,
   SelectOption,
   SidePanel,
+  Tooltip,
 } from "@caustic/react";
 import { useState } from "react";
 import {
@@ -238,20 +239,23 @@ function ContextPicker({ onGoToThread }: { onGoToThread?: ((id: string) => void)
         </SelectGroup>
       </Select>
       {c.kind === "thread" && (
-        // DP-30: 입력란 옆 버튼은 입력란과 같은 높이(Select xs = control-md). 고정이면 selected 굵기(DP-17c).
-        <IconButton
-          size="md"
-          variant="ghost"
-          label={
-            c.pinned
-              ? `${T.pin}됨, 누르면 ${T.unpin}: 열린 대화를 다시 따라가요`
-              : `${T.contextFollow}: 열린 대화를 따라가요. 누르면 이 대화로 ${T.pin}`
-          }
-          aria-pressed={c.pinned}
-          onClick={() => m.setContext({ ...c, pinned: !c.pinned })}
-        >
-          {c.pinned ? <Lock emphasis="selected" /> : <LockOpen emphasis="muted" />}
-        </IconButton>
+        // DP-30: 입력란 옆 버튼은 입력란과 같은 높이(Select xs = control-md). 고정이면 selected 굵기(DP-17c)와 옅은 바탕 하나.
+        // 토글 모양(aria-pressed)은 caustic이 잉크 면으로 칠해 조용한 칸 옆에서 너무 세다: 상태는 라벨과 툴팁으로 말한다.
+        <Tooltip content={c.pinned ? T.unpin : `${T.thread}가 바뀌어도 ${T.pin}`}>
+          <IconButton
+            size="md"
+            variant="ghost"
+            label={
+              c.pinned
+                ? `${T.pin}됨. 누르면 ${T.unpin}: 열린 ${T.thread}를 다시 따라가요`
+                : `${T.contextFollow}: 열린 ${T.thread}를 따라가요. 누르면 이 ${T.thread}로 ${T.pin}`
+            }
+            className={c.pinned ? "bg-fill-hover text-text-primary" : undefined}
+            onClick={() => m.setContext({ ...c, pinned: !c.pinned })}
+          >
+            {c.pinned ? <Lock emphasis="selected" /> : <LockOpen emphasis="muted" />}
+          </IconButton>
+        </Tooltip>
       )}
       {(c.kind === "thread" || c.kind === "trial") && (
         <IconButton

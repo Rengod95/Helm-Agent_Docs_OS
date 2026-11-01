@@ -1,7 +1,7 @@
 // 대화에서 제작(authoring) 상태 기계(목업 전용). L3.authoring.spec §4.1(단계 intent→compose→scaffold→validate⇄fix→trial→(replay)→package),
 // §4.2(쓰기 범위 가드), §5(실패), 결정 1(화면 방식은 에이전트가 고름), 결정 4·10(replay는 개발 모드만, 자동 replay 없음),
 // 결정 캔버스 8(사람 확인 = drive 원시 loop.ask, 기다리는 동안 진행권 반납). 확인 카드 다섯: 종류·이름, 고치기 한도, 시험 비용, 묶기 전, 연결 전.
-import { T, josa } from "../_shell";
+import { EXT, T, josa } from "../_shell";
 import type { After, ChatItem } from "../_chat-rt";
 
 export type Stage =
@@ -100,8 +100,9 @@ const row = (
   source = SRC,
 ): ChatItem => ({ k: "row", text, source, icon, ...(tone !== undefined ? { tone } : {}) });
 
-const waitRow = row(`authoring이 ${GATE_O} 기다려요 · ${T.lead} ${T.leadReturn}`, "ask");
-const retakeRow = (what: string) => row(`${what} · authoring이 ${LEAD_O} ${T.leadRetake}`, "lease");
+const waitRow = row(`${EXT.authoring}이 ${GATE_O} 기다려요 · ${T.lead} ${T.leadReturn}`, "ask");
+const retakeRow = (what: string) =>
+  row(`${what} · ${EXT.authoring}이 ${LEAD_O} ${T.leadRetake}`, "lease");
 
 export const init = (script: string): S => ({
   script,
@@ -155,7 +156,7 @@ export function reduce(s: S, a: A): S {
     case "intent":
       return add(
         { ...s, stage: "intent" },
-        row(`authoring이 ${LEAD_O} 받았어요 · ${T.stageIntent}`, "lease"),
+        row(`${EXT.authoring}이 ${LEAD_O} 받았어요 · ${T.stageIntent}`, "lease"),
         {
           k: "agent",
           live: true,
@@ -329,7 +330,7 @@ export function reduce(s: S, a: A): S {
           undefined,
           "core",
         ),
-        row(`authoring이 ${LEAD_O} 놓았어요 · 제작 끝`, "lease"),
+        row(`${EXT.authoring}이 ${LEAD_O} 놓았어요 · 제작 끝`, "lease"),
       );
     case "linkNo":
       return add(
