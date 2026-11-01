@@ -2,6 +2,7 @@
 // §3.8 지식 소비, §3.4 레코드, §6 설정)을 그대로 옮겼다. lens-review는 사용자가 Helm을 복제해 고치는 새 그룹(wb2 시안과 같은 이름).
 // 블록 = 그룹 안 코드 한 덩어리(지점 핸들러, drive, 레코드 쓰기)를 확장 지점과 연산(on·post·drive·scope)으로 묶은 설계 단위다.
 // 런타임에는 블록이 없다: 매니페스트(points, optional, recordKinds)와 setup 코드로 풀린다(SPEC.md "런타임 표현 간극").
+import sampleImports from "./sample-imports.txt?raw";
 
 export type Op = "on" | "post" | "drive" | "scope" | "record";
 export type SlotKind =
@@ -546,10 +547,11 @@ export const scaffoldFiles = [
 
 /** 코드 줄과 블록. 줄 번호는 1부터. 블록 id가 있으면 그 블록에서 나온 줄 */
 export const codeIndex: { text: string; block?: string }[] = [
-  { text: 'import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-kit";' },
-  { text: 'import manifestJson from "../.xeon-plugin/plugin.json" with { type: "json" };' },
-  { text: 'import { lensReviewState, initialState, type State } from "./state.ts";' },
-  { text: 'import { lensReviewSettings } from "./settings.ts";' },
+  // 예시 코드의 import 줄은 sample-imports.txt에 둔다(문자열 안 import 문을 층 검사가 실제 import로 읽지 않게)
+  ...sampleImports
+    .trimEnd()
+    .split("\n")
+    .map((text) => ({ text })),
   { text: "" },
   { text: "const group: GroupModule = defineGroup<State>({", block: "scope" },
   { text: "  manifest: groupManifest(manifestJson),", block: "scope" },
