@@ -93,6 +93,7 @@ binds: []
 | 0018 | 승인 프로토콜 하나 | [ADR-0018-approval-protocol.md](ADR-0018-approval-protocol.md) | accepted | 도구 승인, 계획 승인, 사용자 질문, 검토 승인(`review`)을 L1-d 승인 서비스 하나로. 만료와 무인 정책도 같은 규칙 | decisions-log 3차, 사용자 결정 2026-10-26(D-M3-31 행 7) | L1(tools), L2(dialog, work, artifacts), L4 |
 | 0019 | 비밀 기본 저장소 SOPS(age) | [ADR-0019-sops-default.md](ADR-0019-sops-default.md) | accepted | SOPS(age) 기본, `secret://` 참조 사용, 기본 파일 `<config>/secrets/sops/user.yaml`(env `user`, 첫 add 때 생성) | decisions-log 2차, 사용자 결정 2026-10-26(D-M3-31 행 6) | F, L0(secrets), L4 |
 | 0020 | L4 공유 클라이언트 패키지 | [ADR-0020-client-package.md](ADR-0020-client-package.md) | accepted | `packages/client`(`@xeon/client`, L4, F에만 의존)에 연결 코드·설정 view-model·공유 표시 로직. F는 순수 계약. 예외 `DR-10/cli-client`, `DR-10/desktop-client` | 사용자 결정 2026-10-26(D-M3-26) | F(wire-settings), L4(cli, desktop, settings-ui) |
+| 0022 | 플러그인 그룹 모델과 도메인 용어 | [ADR-0022-plugin-group-and-terms.md](ADR-0022-plugin-group-and-terms.md) | draft(proposed) | 이름 두 단계(id·표시 이름)와 선택적 통일. Thread → Run → Step → Item, 지점 → Hook(fold 이름 유지), Driver·drive lock, Process lock, Scheduler leader, Capability·Provider, Test run, Trace, Plugin UI·Placement, Native UI·Plugin App, Plugin Builder, Group SDK·Stages, 작업대 → Bench. Plugin Group·Registration·drive 넓히기는 사용자 확인 대기 | 사용자 결정 2026-11-01((2)·(3)·(4)), `_notes/domain-terms-review-2.md` §13 | F, X, L0~L4, 문서 전체 |
 
 - 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다. 0009는 2026-10-22에, 0010은 2026-10-24에, 0011~0014는 2026-10-25에, 0015~0020은 2026-10-26에 더했다. 0011~0014는 plan 표에만 있던 결정을 옮긴 것이다(마일스톤 재점검 G3-03, `review.m2-plan` §9).
 - 0005~0008의 핵심 결정 열은 조정자가 전달한 요약이다. 정확한 문구는 각 ADR이 기준이다.
@@ -123,6 +124,7 @@ flowchart LR
   A18["0018 승인 프로토콜"]
   A19["0019 SOPS 기본값"]
   A20["0020 packages/client"]
+  A22["0022 플러그인 그룹·용어<br/>proposed"]
 
   A1 --> A2
   A2 --> A7
@@ -158,6 +160,8 @@ flowchart LR
   A1 --> A19
   A6 --> A20
   A8 --> A20
+  A7 --> A22
+  A17 --> A22
 ```
 
 - 0001 → 0008: 사이드카는 `bun build --compile`로 만든다.

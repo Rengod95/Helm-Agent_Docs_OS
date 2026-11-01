@@ -187,4 +187,5 @@ manifest:
     - adr.0019   # 비밀 기본 저장소 SOPS(age)
     - adr.0020   # L4 공유 클라이언트 패키지 packages/client
     - adr.0021   # 플러그인 화면 기여: 선언형 모드와 격리 프레임 모드(화면마다 선언)
+    - adr.0022   # 플러그인 그룹 모델과 도메인 용어 정리(proposed, §3.2 사용자 확인 대기)
   layers: "각 층마다 <층>.readme 1개 + 도메인마다 spec, plan (layout.domains 참조)"
