@@ -1,21 +1,21 @@
 import type { ThreadId } from "../conversation/index.ts";
 import type {
   GroupId,
-  LeaseArbiterPort,
-  LeaseId,
+  DriveLockArbiterPort,
+  DriveLockId,
   RecordKind,
-  ScopeId,
-  ScopeStatus,
+  RegistrationId,
+  RegistrationStatus,
   Unsubscribe,
 } from "../extensions/index.ts";
 
-// L3.group-sdk.spec §3.8. 구현은 group-sdk이다. GroupService는 X 포트 LeaseArbiterPort(F.extensions.spec §3.2.1)를 확장하고
+// L3.group-sdk.spec §3.8. 구현은 group-sdk이다. GroupService는 X 포트 DriveLockArbiterPort(F.extensions.spec §3.2.1)를 확장하고
 // X가 그 포트로 주입받는다. settings를 import하지 않으므로 설정 범위는 SettingScope와 같은 모양의 리터럴 유니언으로 적는다.
 
 export const GroupServiceName = "fresnel.groups" as const;
 
-/** 설정 x.primitives.activeDriveGroup의 유효 값. null은 auto(요청 순서)다 */
-export type DriveHolderSetting = ScopeId | null;
+/** 설정 x.primitives.activeDriver의 유효 값. null은 auto(요청 순서)다 */
+export type DriveHolderSetting = RegistrationId | null;
 
 /** F.wire-settings의 SettingScope와 서로 대입 가능해야 한다 */
 type HolderSettingScope = "managed" | "user" | "project" | "local" | "launch";
@@ -46,13 +46,13 @@ export interface GroupError {
 export interface GroupStatus {
   readonly id: GroupId;
   readonly displayName: string;
-  readonly scope: ScopeStatus;
+  readonly scope: RegistrationStatus;
   /** scope가 enabling이면 "enable", disabling이면 "disable" */
   readonly pendingToggle: "enable" | "disable" | null;
   readonly usesDrive: boolean;
   /** drive를 쓰지 않거나 꺼져 있으면 "none" */
   readonly drive: DriveRole;
-  readonly leaseId: LeaseId | null;
+  readonly leaseId: DriveLockId | null;
   readonly lastError: GroupError | null;
   /** 매니페스트 recordKinds의 kind 목록 */
   readonly recordKinds: readonly RecordKind[];
@@ -90,7 +90,7 @@ export type GroupResult<T> =
 
 export interface ToggleReceipt {
   readonly id: GroupId;
-  readonly status: ScopeStatus;
+  readonly status: RegistrationStatus;
   /** 실행 중인 turn이 있으면 nextStepBoundary. 유휴 시점 적용은 X.primitives.spec [가정] */
   readonly appliesAt: "nextStepBoundary" | "now";
 }
@@ -106,16 +106,16 @@ export interface HolderReceipt {
   readonly appliesAt: "nextStepBoundary" | "now" | "afterLeaseRelease";
 }
 
-/** fresnel.groups 서비스. X LeaseArbiterPort(choose)를 확장한다 */
-export interface GroupService extends LeaseArbiterPort {
+/** fresnel.groups 서비스. X DriveLockArbiterPort(choose)를 확장한다 */
+export interface GroupService extends DriveLockArbiterPort {
   /** 설치된 모든 그룹. 정렬: holder, 켜진 그룹(로드 순서), 꺼진 그룹(이름순) */
   list(): readonly GroupStatus[];
   status(id: string): GroupResult<GroupStatus>;
-  /** ScopeHandle.enable() 요청만 기록. 이미 켜져 있으면 그대로 ok */
+  /** RegistrationHandle.enable() 요청만 기록. 이미 켜져 있으면 그대로 ok */
   enable(id: string): GroupResult<ToggleReceipt>;
   disable(id: string): GroupResult<ToggleReceipt>;
   /**
-   * 설정 x.primitives.activeDriveGroup을 쓴다. holder "auto"는 null로 쓴다. scope 기본값 "session".
+   * 설정 x.primitives.activeDriver을 쓴다. holder "auto"는 null로 쓴다. scope 기본값 "launch".
    * 이름을 지정하면 X가 다음 경계에서 현재 임대를 회수한다. 지정한 그룹이 후보가 아니면 현재 임대를 유지한다.
    * "auto"(null)로 바꿔도 회수하지 않는다(L3.group-sdk.spec §3.8, X.primitives.spec P-22). 진행 중인 loop.turn은 끊지 않는다
    */

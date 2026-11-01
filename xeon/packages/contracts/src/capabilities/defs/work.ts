@@ -857,7 +857,7 @@ export type GoalJudgeSpec =
     }
   | {
       kind: "delegated";
-      /** 판정을 넣을 주체의 scope id(F.extensions.spec ScopeId). 예: "<그룹 이름>" */
+      /** 판정을 넣을 주체의 scope id(F.extensions.spec RegistrationId). 예: "<그룹 이름>" */
       owner: string;
       /** 턴이 끝난 뒤 판정을 기다리는 시간. 생략하면 설정 l2.work.goal.delegatedTimeoutSec */
       timeoutSec?: number;

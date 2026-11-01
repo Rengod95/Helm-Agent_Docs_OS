@@ -3,13 +3,13 @@ import type { Unsubscribe } from "../records/index.ts";
 import type { DriveFn, DriveOptions } from "./drive.ts";
 import type { HookName, HookSignatures, TapSig, FirstSig, ChainSig, CollectSig } from "./hooks.ts";
 import type { PostItem, PostOptions, PostReceipt } from "./post.ts";
-import type { ScopeId } from "./scope-id.ts";
+import type { RegistrationId } from "./registration-id.ts";
 
 export type { Unsubscribe };
 
 export interface HandlerContext<S> {
-  readonly scopeId: ScopeId;
-  /** 디스패치 시작 시점에 마지막으로 커밋된 scope 상태 */
+  readonly scopeId: RegistrationId;
+  /** 디스패치 시작 시점에 마지막으로 커밋된 Registration 상태 */
   readonly state: Readonly<S>;
   readonly threadId: ThreadId;
   readonly signal: AbortSignal;

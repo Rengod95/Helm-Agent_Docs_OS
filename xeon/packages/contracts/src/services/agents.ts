@@ -3,11 +3,11 @@ import type { SchemaProof } from "../base/index.ts";
 import type { EventId, ItemId, StepId, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type { LeaseToken } from "../records/index.ts";
 import type {
-  LeaseId,
+  DriveLockId,
   PortKey,
   PostWhen,
   RecordKind,
-  ScopeId,
+  RegistrationId,
   SpawnOutcome,
   SpawnSpec,
 } from "../extensions/index.ts";
@@ -99,11 +99,11 @@ export type SpawnOwner =
   | {
       readonly kind: "drive";
       readonly turnId: TurnId | null;
-      readonly scopeId: ScopeId;
-      readonly leaseId: LeaseId;
+      readonly scopeId: RegistrationId;
+      readonly leaseId: DriveLockId;
     }
   /** 그룹 위임(GroupApi.delegate) */
-  | { readonly kind: "scope"; readonly scopeId: ScopeId };
+  | { readonly kind: "scope"; readonly scopeId: RegistrationId };
 
 export interface SpawnOrigin {
   readonly parentThreadId: ThreadId;
@@ -214,7 +214,7 @@ export type CancelTarget =
    * 주체 단위 취소: 이 scope(그룹)가 소유한 진행 중 위임을 모두 취소한다. 그룹을 끌 때 쓴다 [결정: review.m3-design-inputs D-M3-04 b].
    * 취소된 자식도 `agent.settled { status: "aborted" }`를 남긴다 [제안: M3-REQ-11, REQ-LN-06]
    */
-  | { readonly ownerScopeId: ScopeId };
+  | { readonly ownerScopeId: RegistrationId };
 
 export type AgentsErrorCode =
   | "agents.unknown_definition"

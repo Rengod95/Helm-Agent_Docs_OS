@@ -1,6 +1,6 @@
 import type { ItemId, ThreadId, TurnId } from "../conversation/index.ts";
 import type { PostItem } from "./post.ts";
-import type { LeaseId, ScopeId } from "./scope-id.ts";
+import type { DriveLockId, RegistrationId } from "./registration-id.ts";
 
 export interface DriveLimits {
   readonly maxTurns?: number;
@@ -14,7 +14,7 @@ export interface DriveOptions {
 }
 
 /** 남은 예산. null은 상한 없음 */
-export interface LeaseBudget {
+export interface DriveLockBudget {
   readonly turns: number | null;
   readonly spawns: number | null;
   readonly tokens: number | null;
@@ -58,7 +58,7 @@ export interface SpawnOutcome {
 export interface LoopHandle {
   turn(input: TurnInput): Promise<TurnOutcome>;
   spawn(spec: SpawnSpec): Promise<SpawnOutcome>;
-  readonly budget: LeaseBudget;
+  readonly budget: DriveLockBudget;
   /** 임대가 회수되면 중단 신호가 켜진다 */
   readonly signal: AbortSignal;
 }
@@ -66,9 +66,9 @@ export interface LoopHandle {
 /** 경계마다 마지막 커밋 상태로 다시 호출된다(F.extensions.spec §4.6) */
 export type DriveFn<S> = (loop: LoopHandle, state: Readonly<S>) => Promise<void>;
 
-export interface DriveLease {
-  readonly leaseId: LeaseId;
-  readonly scopeId: ScopeId;
+export interface DriveLock {
+  readonly leaseId: DriveLockId;
+  readonly scopeId: RegistrationId;
   readonly limits: DriveLimits;
   readonly status: "active" | "releasing" | "released";
 }

@@ -7,11 +7,13 @@ import {
   CapabilityRequirementSchema,
   EXTENSION_NAME_PATTERN,
   ExtensionManifestSchema,
+  PluginDeclSchema,
   defineManifest,
   validateManifest,
   validateUsage,
+  type ExtensionManifest,
 } from "../../src/extensions/index.ts";
-import { codesOf, groupJson, pluginJson } from "./helpers.ts";
+import { codesOf, groupJson, pluginAt, pluginJson } from "./helpers.ts";
 
 const smokeGroup: unknown = JSON.parse(
   readFileSync(join(import.meta.dir, "fixtures/smoke-group.manifest.json"), "utf8"),
@@ -22,21 +24,28 @@ describe("ExtensionManifest", () => {
     const result = validateManifest(pluginJson());
     expect(result.issues).toEqual([]);
     expect(result.manifest?.name).toBe("acme-notes");
+    expect(result.manifest?.plugins).toEqual([{ layer: "plugin", hooks: [] }]);
   });
 
-  test.each(["schemaVersion", "name", "version", "layer", "kind", "entry", "points", "usesDrive"])(
-    "required fields: %s missing is a schema error",
+  test.each(["schemaVersion", "name", "version", "entry", "plugins"])(
+    "required top-level field: %s missing is a schema error",
     (field) => {
       const input = pluginJson();
       delete input[field];
       const result = validateManifest(input);
       expect(result.manifest).toBeUndefined();
-      expect(result.issues.some((i) => i.severity === "error")).toBe(true);
-      if (field === "schemaVersion" || field === "points") {
-        expect(codesOf(result.issues)).toContain("schema");
-      }
+      expect(codesOf(result.issues)).toEqual(["schema"]);
     },
   );
+
+  test("layer and hooks are required inside each plugin", () => {
+    const noLayer = validateManifest(pluginJson({ plugins: [{ hooks: [] }] }));
+    expect(noLayer.manifest).toBeUndefined();
+    expect(codesOf(noLayer.issues)).toEqual(["schema"]);
+    const noHooks = validateManifest(pluginJson({ plugins: [{ layer: "plugin" }] }));
+    expect(noHooks.manifest).toBeUndefined();
+    expect(codesOf(noHooks.issues)).toEqual(["schema"]);
+  });
 
   test("a non-object input is a schema error", () => {
     expect(codesOf(validateManifest([]).issues)).toEqual(["schema"]);
@@ -47,10 +56,12 @@ describe("ExtensionManifest", () => {
     expect(codesOf(validateManifest(pluginJson({ version: "1.0" })).issues)).toContain(
       "version_invalid",
     );
-    const ok = validateManifest(pluginJson({ requires: [{ id: "web.search", range: "^1.2.0" }] }));
+    const ok = validateManifest(
+      pluginJson({}, { requires: [{ id: "web.search", range: "^1.2.0" }] }),
+    );
     expect(ok.issues).toEqual([]);
     for (const range of ["1.x", "^1 || ^2"]) {
-      const bad = validateManifest(pluginJson({ requires: [{ id: "web.search", range }] }));
+      const bad = validateManifest(pluginJson({}, { requires: [{ id: "web.search", range }] }));
       expect(codesOf(bad.issues)).toEqual(["range_invalid"]);
     }
   });
@@ -72,14 +83,10 @@ describe("ExtensionManifest", () => {
 
   test("capability schema shared", () => {
     expect(CapabilityRequirementSchema.properties.id).toBe(CapabilityIdSchema);
-    // TypeBox는 Optional·Array로 감싸며 하위 스키마를 복사하므로 매니페스트 필드 안에서는 같은 참조가 아니라 같은 구조다
+    // TypeBox는 Optional·Array로 감싸며 하위 스키마를 복사하므로 플러그인 필드 안에서는 같은 참조가 아니라 같은 구조다
     // (F.extensions.spec §9 8의 "동일 참조"는 CapabilityRequirementSchema까지만 성립한다)
-    expect(ExtensionManifestSchema.properties.requires.items.properties.id).toEqual(
-      CapabilityIdSchema,
-    );
-    expect(ExtensionManifestSchema.properties.provides.items.properties.id).toEqual(
-      CapabilityIdSchema,
-    );
+    expect(PluginDeclSchema.properties.requires.items.properties.id).toEqual(CapabilityIdSchema);
+    expect(PluginDeclSchema.properties.provides.items.properties.id).toEqual(CapabilityIdSchema);
     expect(CapabilityProvisionSchema.properties.id).toBe(CapabilityIdSchema);
     expect(CapabilityProvisionSchema.properties.version).toBe(SemVerSchema);
     expect(ExtensionManifestSchema.properties.version).toBe(SemVerSchema);
@@ -99,13 +106,14 @@ describe("ExtensionManifest", () => {
   test("smoke group fixture valid", () => {
     const result = validateManifest(smokeGroup);
     expect(result.issues).toEqual([]);
-    expect(result.manifest?.kind).toBe("group");
+    expect(result.manifest?.group).toEqual({});
+    expect(result.manifest?.plugins.map((plugin) => plugin.layer)).toEqual(["L3"]);
   });
 
   test("smoke group usage matches its declaration", () => {
     const manifest = validateManifest(smokeGroup).manifest;
     if (manifest === undefined) throw new Error("fixture must be valid");
-    const issues = validateUsage(manifest, {
+    const issues = validateUsage(manifest, pluginAt(manifest, 0), {
       on: ["tool.call.before", "boundary.step.after"],
       post: true,
       drive: true,
@@ -117,23 +125,21 @@ describe("ExtensionManifest", () => {
   });
 
   test("defineManifest is the identity", () => {
-    const manifest = defineManifest({
-      schemaVersion: 1,
+    const literal: ExtensionManifest = {
+      schemaVersion: 2,
       name: "acme-notes",
       version: "1.0.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./src/index.ts",
-      points: ["tool.call.before"],
-      usesDrive: false,
-    });
-    expect(validateManifest(manifest).issues).toEqual([]);
-    expect(manifest.points).toEqual(["tool.call.before"]);
+      plugins: [{ layer: "plugin", hooks: ["tool.call.before"] }],
+    };
+    expect(defineManifest(literal)).toBe(literal);
+    expect(validateManifest(literal).issues).toEqual([]);
+    expect(literal.plugins).toEqual([{ layer: "plugin", hooks: ["tool.call.before"] }]);
   });
 
-  test("an unknown point name is point_unknown", () => {
-    expect(codesOf(validateManifest(pluginJson({ points: ["tool.before"] })).issues)).toEqual([
-      "point_unknown",
+  test("an unknown hook name is hook_unknown", () => {
+    expect(codesOf(validateManifest(pluginJson({}, { hooks: ["tool.before"] })).issues)).toEqual([
+      "hook_unknown",
     ]);
   });
 

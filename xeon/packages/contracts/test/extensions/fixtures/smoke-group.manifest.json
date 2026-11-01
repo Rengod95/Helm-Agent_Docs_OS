@@ -1,28 +1,38 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "smoke-group",
   "version": "0.1.0",
   "displayName": "Smoke group",
   "description": "M1 walking-skeleton smoke group. Uses on(tool.call.before, boundary.step.after), post and drive.",
   "defaultEnabled": true,
-  "layer": "L3",
-  "kind": "group",
   "entry": "./src/index.ts",
-  "points": ["tool.call.before", "boundary.step.after"],
-  "usesPost": true,
-  "usesDrive": true,
-  "recordKinds": [
+  "plugins": [
     {
-      "kind": "grp.smoke-group.note.recorded",
-      "version": 1,
-      "description": "A note the smoke group leaves for other groups.",
-      "payload": {
-        "type": "object",
-        "properties": { "text": { "type": "string" } },
-        "required": ["text"],
-        "additionalProperties": false
-      }
+      "layer": "L3",
+      "hooks": ["tool.call.before", "boundary.step.after"],
+      "usesPost": true,
+      "drives": true,
+      "recordKinds": [
+        {
+          "kind": "grp.smoke-group.note.recorded",
+          "version": 1,
+          "description": "A note the smoke group leaves for other groups.",
+          "payload": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": ["text"],
+            "additionalProperties": false
+          }
+        }
+      ]
     }
   ],
-  "trust": { "level": "builtin" }
+  "group": {},
+  "trust": {
+    "level": "builtin"
+  }
 }

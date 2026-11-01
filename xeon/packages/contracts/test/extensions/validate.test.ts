@@ -7,7 +7,7 @@ import {
   type ExtensionUsage,
 } from "../../src/extensions/index.ts";
 import { RESERVED_SOURCE_KEYS } from "../../src/records/index.ts";
-import { codesOf, groupJson, pluginJson, validManifest } from "./helpers.ts";
+import { codesOf, groupJson, pluginAt, pluginJson, validManifest } from "./helpers.ts";
 
 const noUsage: ExtensionUsage = {
   on: [],
@@ -19,115 +19,142 @@ const noUsage: ExtensionUsage = {
 };
 
 describe("validateUsage", () => {
-  test("undeclared point", () => {
-    const manifest = validManifest(pluginJson({ points: ["tool.call.before"] }));
-    const issues = validateUsage(manifest, {
+  test("undeclared hook", () => {
+    const manifest = validManifest(pluginJson({}, { hooks: ["tool.call.before"] }));
+    const issues = validateUsage(manifest, pluginAt(manifest, 0), {
       ...noUsage,
       on: ["tool.call.before", "boundary.step.after"],
     });
-    expect(issues).toHaveLength(1);
-    expect(issues[0]?.code).toBe("point_undeclared");
-    expect(issues[0]?.severity).toBe("error");
+    expect(issues.map((i) => [i.code, i.severity, i.path])).toEqual([
+      ["hook_undeclared", "error", "/plugins/0/hooks"],
+    ]);
   });
 
-  test("unused point is a warning", () => {
+  test("unused hook is a warning", () => {
     const manifest = validManifest(
-      pluginJson({ points: ["tool.call.before", "boundary.step.after"] }),
+      pluginJson({}, { hooks: ["tool.call.before", "boundary.step.after"] }),
     );
-    const issues = validateUsage(manifest, { ...noUsage, on: ["tool.call.before"] });
+    const issues = validateUsage(manifest, pluginAt(manifest, 0), {
+      ...noUsage,
+      on: ["tool.call.before"],
+    });
     expect(issues.map((i) => [i.code, i.severity, i.path])).toEqual([
-      ["point_unused", "warning", "/points/1"],
+      ["hook_unused", "warning", "/plugins/0/hooks/1"],
     ]);
   });
 
   test("undeclared capability", () => {
     const manifest = validManifest(
-      pluginJson({
-        requires: [{ id: "web.search", range: "^1.0.0" }],
-        optional: [{ id: "web.fetch", range: "^1.0.0" }],
-      }),
+      pluginJson(
+        {},
+        {
+          requires: [{ id: "web.search", range: "^1.0.0" }],
+          optional: [{ id: "web.fetch", range: "^1.0.0" }],
+        },
+      ),
     );
-    const ok = validateUsage(manifest, { ...noUsage, capabilities: ["web.search", "web.fetch"] });
+    const plugin = pluginAt(manifest, 0);
+    const ok = validateUsage(manifest, plugin, {
+      ...noUsage,
+      capabilities: ["web.search", "web.fetch"],
+    });
     expect(ok).toEqual([]);
-    const bad = validateUsage(manifest, { ...noUsage, capabilities: ["knowledge.memory"] });
-    expect(codesOf(bad)).toEqual(["capability_undeclared"]);
+    const bad = validateUsage(manifest, plugin, { ...noUsage, capabilities: ["knowledge.memory"] });
+    expect(bad.map((i) => [i.code, i.path])).toEqual([
+      ["capability_undeclared", "/plugins/0/requires"],
+    ]);
   });
 
   test("post and drive need their declarations", () => {
     const manifest = validManifest(groupJson());
-    expect(codesOf(validateUsage(manifest, { ...noUsage, post: true }))).toEqual([
-      "post_undeclared",
-    ]);
-    expect(codesOf(validateUsage(manifest, { ...noUsage, drive: true }))).toEqual([
-      "drive_undeclared",
-    ]);
-    const declared = validManifest(groupJson({ usesPost: true, usesDrive: true }));
-    expect(validateUsage(declared, { ...noUsage, post: true, drive: true })).toEqual([]);
+    const plugin = pluginAt(manifest, 0);
+    expect(
+      validateUsage(manifest, plugin, { ...noUsage, post: true }).map((i) => [i.code, i.path]),
+    ).toEqual([["post_undeclared", "/plugins/0/usesPost"]]);
+    expect(
+      validateUsage(manifest, plugin, { ...noUsage, drive: true }).map((i) => [i.code, i.path]),
+    ).toEqual([["drive_undeclared", "/plugins/0/drives"]]);
+    const declared = validManifest(groupJson({}, { usesPost: true, drives: true }));
+    expect(
+      validateUsage(declared, pluginAt(declared, 0), { ...noUsage, post: true, drive: true }),
+    ).toEqual([]);
   });
 
   test("record kinds must be declared", () => {
     const manifest = validManifest(
-      groupJson({
-        recordKinds: [
-          {
-            kind: "grp.learning.skill.proposed",
-            version: 1,
-            description: "d",
-            payload: { type: "object" },
-          },
-        ],
-      }),
+      groupJson(
+        {},
+        {
+          recordKinds: [
+            {
+              kind: "grp.learning.skill.proposed",
+              version: 1,
+              description: "d",
+              payload: { type: "object" },
+            },
+          ],
+        },
+      ),
     );
+    const plugin = pluginAt(manifest, 0);
     expect(
-      validateUsage(manifest, { ...noUsage, recordKinds: ["grp.learning.skill.proposed"] }),
+      validateUsage(manifest, plugin, { ...noUsage, recordKinds: ["grp.learning.skill.proposed"] }),
     ).toEqual([]);
     expect(
-      codesOf(validateUsage(manifest, { ...noUsage, recordKinds: ["grp.learning.skill.saved"] })),
-    ).toEqual(["record_kind_undeclared"]);
+      validateUsage(manifest, plugin, {
+        ...noUsage,
+        recordKinds: ["grp.learning.skill.saved"],
+      }).map((i) => [i.code, i.path]),
+    ).toEqual([["record_kind_undeclared", "/plugins/0/recordKinds"]]);
   });
 
   test("reads are covered by exact kinds and prefix patterns", () => {
     const manifest = validManifest(
-      groupJson({ readsRecordKinds: ["grp.helm.*", "grp.web.page.fetched"] }),
+      groupJson({}, { readsRecordKinds: ["grp.helm.*", "grp.web.page.fetched"] }),
     );
-    const ok = validateUsage(manifest, {
+    const plugin = pluginAt(manifest, 0);
+    const ok = validateUsage(manifest, plugin, {
       ...noUsage,
       readsRecordKinds: ["grp.helm.item.tagged", "grp.helm.item.*", "grp.web.page.fetched"],
     });
     expect(ok).toEqual([]);
-    const bad = validateUsage(manifest, {
+    const bad = validateUsage(manifest, plugin, {
       ...noUsage,
       readsRecordKinds: ["grp.web.page.opened", "grp.other.*", "grp.web.*"],
     });
-    expect(codesOf(bad)).toEqual([
-      "read_kind_undeclared",
-      "read_kind_undeclared",
-      "read_kind_undeclared",
+    expect(bad.map((i) => [i.code, i.path])).toEqual([
+      ["read_kind_undeclared", "/plugins/0/readsRecordKinds"],
+      ["read_kind_undeclared", "/plugins/0/readsRecordKinds"],
+      ["read_kind_undeclared", "/plugins/0/readsRecordKinds"],
     ]);
   });
 
   test("own records are read without a declaration", () => {
     const manifest = validManifest(groupJson());
     expect(
-      validateUsage(manifest, { ...noUsage, readsRecordKinds: ["grp.learning.skill.proposed"] }),
+      validateUsage(manifest, pluginAt(manifest, 0), {
+        ...noUsage,
+        readsRecordKinds: ["grp.learning.skill.proposed"],
+      }),
     ).toEqual([]);
   });
 });
 
 describe("validateManifest rules", () => {
-  test("drive rules", () => {
-    const plugin = validateManifest(pluginJson({ usesDrive: true }));
-    expect(codesOf(plugin.issues)).toEqual(["drive_requires_group"]);
-    expect(validateManifest(groupJson({ usesDrive: true })).issues).toEqual([]);
+  test("drives is a plugin field, accepted without a group at the schema level", () => {
+    expect(validateManifest(pluginJson({}, { drives: true })).issues).toEqual([]);
+    expect(validateManifest(groupJson({}, { drives: true })).issues).toEqual([]);
   });
 
-  test("layer kind", () => {
-    expect(codesOf(validateManifest(groupJson({ layer: "L2" })).issues)).toEqual([
-      "layer_kind_mismatch",
-    ]);
-    expect(codesOf(validateManifest(pluginJson({ layer: "L3" })).issues)).toEqual([
-      "layer_kind_mismatch",
-    ]);
+  test("usesDrive is a legacy field and is rejected", () => {
+    const result = validateManifest(pluginJson({ usesDrive: true }));
+    expect(codesOf(result.issues)).toEqual(["legacy_field"]);
+    expect(result.manifest).toBeUndefined();
+  });
+
+  test("a group is not tied to one layer (layer_kind_mismatch is no longer raised)", () => {
+    expect(validateManifest(groupJson({}, { layer: "L2" })).issues).toEqual([]);
+    expect(validateManifest(pluginJson({}, { layer: "L3" })).issues).toEqual([]);
   });
 
   test("reserved names", () => {
@@ -157,47 +184,58 @@ describe("validateManifest rules", () => {
     expect(isEntryInsideRoot("")).toBe(false);
   });
 
-  test("point duplicate", () => {
+  test("hook duplicate", () => {
     const result = validateManifest(
-      pluginJson({ points: ["tool.call.before", "tool.call.before"] }),
+      pluginJson({}, { hooks: ["tool.call.before", "tool.call.before"] }),
     );
-    expect(codesOf(result.issues)).toEqual(["point_duplicate"]);
-    expect(result.issues[0]?.path).toBe("/points/1");
+    expect(codesOf(result.issues)).toEqual(["hook_duplicate"]);
+    expect(result.issues[0]?.path).toBe("/plugins/0/hooks/1");
   });
 
   test("provides reserved", () => {
-    const result = validateManifest(pluginJson({ provides: [{ id: "core.x", version: "1.0.0" }] }));
+    const result = validateManifest(
+      pluginJson({}, { provides: [{ id: "core.x", version: "1.0.0" }] }),
+    );
     expect(codesOf(result.issues)).toEqual(["provides_reserved"]);
+    expect(result.issues[0]?.path).toBe("/plugins/0/provides/0/id");
     expect(
-      validateManifest(pluginJson({ provides: [{ id: "web.search", version: "1.0.0" }] })).issues,
+      validateManifest(pluginJson({}, { provides: [{ id: "web.search", version: "1.0.0" }] }))
+        .issues,
     ).toEqual([]);
   });
 
   test("capability duplicates and overlap", () => {
     const dup = validateManifest(
-      pluginJson({
-        requires: [
-          { id: "web.search", range: "^1.0.0" },
-          { id: "web.search", range: "^1.1.0" },
-        ],
-      }),
+      pluginJson(
+        {},
+        {
+          requires: [
+            { id: "web.search", range: "^1.0.0" },
+            { id: "web.search", range: "^1.1.0" },
+          ],
+        },
+      ),
     );
     expect(codesOf(dup.issues)).toEqual(["capability_duplicate"]);
     const both = validateManifest(
-      pluginJson({
-        requires: [{ id: "web.search", range: "^1.0.0" }],
-        optional: [{ id: "web.search", range: "^1.0.0" }],
-      }),
+      pluginJson(
+        {},
+        {
+          requires: [{ id: "web.search", range: "^1.0.0" }],
+          optional: [{ id: "web.search", range: "^1.0.0" }],
+        },
+      ),
     );
     expect(codesOf(both.issues)).toEqual(["capability_both"]);
-    const badId = validateManifest(pluginJson({ requires: [{ id: "Web", range: "^1.0.0" }] }));
+    const badId = validateManifest(pluginJson({}, { requires: [{ id: "Web", range: "^1.0.0" }] }));
     expect(codesOf(badId.issues)).toContain("capability_invalid");
   });
 
   test("record kind duplicate", () => {
     const decl = { kind: "grp.learning.skill.proposed", version: 1, description: "d", payload: {} };
-    const result = validateManifest(groupJson({ recordKinds: [decl, decl] }));
+    const result = validateManifest(groupJson({}, { recordKinds: [decl, decl] }));
     expect(codesOf(result.issues)).toEqual(["record_kind_duplicate"]);
+    expect(result.issues[0]?.path).toBe("/plugins/0/recordKinds/1/kind");
   });
 
   test("user config invalid", () => {
@@ -235,31 +273,46 @@ describe("validateManifestSet", () => {
   });
 
   test("drive conflict", () => {
-    const helm = validManifest(groupJson({ name: "helm", usesDrive: true }));
-    const other = validManifest(groupJson({ name: "other", usesDrive: true }));
+    const helm = validManifest(groupJson({ name: "helm" }, { drives: true }));
+    const other = validManifest(groupJson({ name: "other" }, { drives: true }));
     const issues = validateManifestSet([helm, other]);
-    expect(issues).toHaveLength(1);
-    expect(issues[0]?.code).toBe("drive_conflict");
-    expect(issues[0]?.severity).toBe("warning");
+    expect(issues.map((i) => [i.code, i.severity, i.path])).toEqual([
+      ["drive_conflict", "warning", "helm/plugins/0/drives"],
+    ]);
+    expect(issues[0]?.message).toContain("helm, other");
 
     const disabled = validManifest(
-      groupJson({ name: "other", usesDrive: true, defaultEnabled: false }),
+      groupJson({ name: "other", defaultEnabled: false }, { drives: true }),
     );
     expect(validateManifestSet([helm, disabled])).toEqual([]);
     const learning = validManifest(groupJson({ name: "learning" }));
     expect(validateManifestSet([helm, learning])).toEqual([]);
   });
 
+  test("a non-root driver is off by default and does not conflict", () => {
+    const helm = validManifest(groupJson({ name: "helm" }, { drives: true }));
+    const sync = validManifest(
+      groupJson({
+        name: "other",
+        plugins: [
+          { layer: "L3", hooks: [] },
+          { id: "sync", layer: "L3", hooks: [], drives: true },
+        ],
+      }),
+    );
+    expect(validateManifestSet([helm, sync])).toEqual([]);
+  });
+
   test("capability unprovided", () => {
     const needs = validManifest(
-      pluginJson({ name: "needs", requires: [{ id: "web.search", range: "^1.0.0" }] }),
+      pluginJson({ name: "needs" }, { requires: [{ id: "web.search", range: "^1.0.0" }] }),
     );
     const issues = validateManifestSet([needs]);
     expect(codesOf(issues)).toEqual(["capability_unprovided"]);
     expect(issues[0]?.severity).toBe("warning");
-    expect(issues[0]?.path).toBe("needs/requires/0");
+    expect(issues[0]?.path).toBe("needs/plugins/0/requires/0");
     const provider = validManifest(
-      pluginJson({ name: "provider", provides: [{ id: "web.search", version: "1.0.0" }] }),
+      pluginJson({ name: "provider" }, { provides: [{ id: "web.search", version: "1.0.0" }] }),
     );
     expect(validateManifestSet([needs, provider])).toEqual([]);
   });

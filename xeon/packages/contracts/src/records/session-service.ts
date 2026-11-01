@@ -381,8 +381,8 @@ export interface SessionSettingsStore {
 
 // ── X 기록 포트 (X.primitives.spec §3.6) ──────────────────────────────────
 // 정본은 F.records.spec §3.9 블록이다. records는 extensions보다 낮아(F.readme §3)
-// ScopeId·LeaseId·DriveLimits·RecordQuery·GroupRecord를 import하지 않고 같은 모양을 적는다.
-// 이름 대응: scopeId ↔ ScopeId, leaseId ↔ LeaseId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery,
+// RegistrationId·DriveLockId·DriveLimits·RecordQuery·GroupRecord를 import하지 않고 같은 모양을 적는다.
+// 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery,
 // ExtRecordRow ↔ GroupRecord, reader ↔ ExtensionName.
 
 export interface ExtCommitRequest {
@@ -396,7 +396,7 @@ export interface ExtCommitRequest {
   readonly fingerprintSource?: JsonValue;
   /**
    * 기록 초안의 공개 범위 [결정(잠정): review.decisions-2 T-21]. 생략하면 "public".
-   * "private"는 ScopeApi.recordPrivate만 쓴다
+   * "private"는 RegistrationApi.recordPrivate만 쓴다
    */
   readonly visibility?: "public" | "private";
 }

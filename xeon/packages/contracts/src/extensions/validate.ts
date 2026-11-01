@@ -11,13 +11,21 @@ import {
   type RecordKind,
   type RecordKindDecl,
 } from "./group-record.ts";
-import { ExtensionManifestSchema, type ExtensionManifest } from "./manifest.ts";
+import {
+  ExtensionManifestSchema,
+  MANIFEST_SCHEMA_VERSION,
+  extensionPrefix,
+  pluginDefaultEnabled,
+  pluginsOf,
+  type ExtensionManifest,
+  type PluginEntry,
+} from "./manifest.ts";
 import type { HookName } from "./hooks.ts";
 
 export interface ManifestIssue {
   readonly severity: "error" | "warning";
   readonly code: ManifestIssueCode;
-  /** JSON Pointer. 집합 검사면 확장 이름 접두. 예: "acme-notes/points/2" */
+  /** JSON Pointer. 집합 검사면 확장 이름 접두. 예: "acme-notes/plugins/0/hooks/2" */
   readonly path: string;
   readonly message: string;
 }
@@ -26,14 +34,20 @@ export type ManifestIssueCode =
   // validateManifest
   | "schema"
   | "unknown_key"
+  | "schema_version_unsupported"
+  | "legacy_field"
   | "name_invalid"
   | "name_reserved"
   | "version_invalid"
-  | "layer_kind_mismatch"
-  | "drive_requires_group"
   | "entry_invalid"
-  | "point_unknown"
-  | "point_duplicate"
+  | "plugin_id_invalid"
+  | "plugin_id_duplicate"
+  | "plugin_root_ambiguous"
+  | "layer_mixed_external"
+  | "group_member_unknown"
+  | "group_member_duplicate"
+  | "hook_unknown"
+  | "hook_duplicate"
   | "capability_invalid"
   | "range_invalid"
   | "capability_duplicate"
@@ -46,13 +60,17 @@ export type ManifestIssueCode =
   | "isolation_invalid"
   | "trust_invalid"
   // validateUsage
-  | "point_undeclared"
-  | "point_unused"
+  | "hook_undeclared"
+  | "hook_unused"
   | "post_undeclared"
   | "drive_undeclared"
   | "capability_undeclared"
   | "record_kind_undeclared"
   | "read_kind_undeclared"
+  // X 설치 시점(PrimitiveError)과 로더 진단. 정책 설정과 엔트리 실행 결과가 정하므로 정적 검사로 보지 못한다
+  | "drive_requires_group"
+  | "plugin_not_registered"
+  | "registration_unknown_plugin"
   // validateManifestSet
   | "name_conflict"
   | "drive_conflict"
@@ -89,6 +107,23 @@ export const RESERVED_EXTENSION_NAMES: readonly string[] = [
   "schedule",
 ];
 
+/** 스키마 1의 최상위 이름. 스키마 2에서는 `plugins[]` 안으로 옮겼거나 없어졌다 */
+const LEGACY_FIELDS: readonly string[] = [
+  "kind",
+  "points",
+  "usesDrive",
+  "views",
+  // `plugins[]` 항목으로 옮긴 필드. 최상위에 두면 조용히 지워져 선언이 사라지므로 거부한다
+  "layer",
+  "hooks",
+  "usesPost",
+  "requires",
+  "optional",
+  "provides",
+  "recordKinds",
+  "readsRecordKinds",
+];
+
 function isReservedSourceKey(name: string): boolean {
   return RESERVED_SOURCE_KEYS.some((key) => key === name);
 }
@@ -106,18 +141,15 @@ function isPlainObject(value: unknown): value is Readonly<Record<string, unknown
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** 스키마 위반 경로를 이슈 코드로 바꾼다(F.extensions.spec §4.7). 표에 없는 경로는 schema다 */
-function codeForSchemaPath(path: string): ManifestIssueCode {
-  const segments = path.split("/");
-  const top = segments[1] ?? "";
+/** `/plugins/<i>/<field>/...`의 field 이하 마디로 플러그인 항목 필드의 코드를 고른다 */
+function codeForPluginPath(segments: readonly string[]): ManifestIssueCode {
+  const field = segments[3] ?? "";
   const last = segments[segments.length - 1] ?? "";
-  switch (top) {
-    case "name":
-      return "name_invalid";
-    case "version":
-      return "version_invalid";
-    case "points":
-      return segments.length > 2 ? "point_unknown" : "schema";
+  switch (field) {
+    case "id":
+      return "plugin_id_invalid";
+    case "hooks":
+      return segments.length > 4 ? "hook_unknown" : "schema";
     case "requires":
     case "optional":
       return last === "id" ? "capability_invalid" : last === "range" ? "range_invalid" : "schema";
@@ -130,7 +162,28 @@ function codeForSchemaPath(path: string): ManifestIssueCode {
     case "recordKinds":
       return last === "kind" ? "record_kind_prefix" : "schema";
     case "readsRecordKinds":
-      return segments.length > 2 ? "read_kind_invalid" : "schema";
+      return segments.length > 4 ? "read_kind_invalid" : "schema";
+    // fresnel-disable-next-line fresnel/switch-default-never -- 검증 경로의 마디는 스키마가 정하는 열린 문자열이다. 모르는 마디는 일반 schema 코드로 돌려준다 (eng.typescript.guide TY-14)
+    default:
+      return "schema";
+  }
+}
+
+/** 스키마 위반 경로를 이슈 코드로 바꾼다(F.extensions.spec §4.7). 표에 없는 경로는 schema다 */
+function codeForSchemaPath(path: string): ManifestIssueCode {
+  const segments = path.split("/");
+  const top = segments[1] ?? "";
+  switch (top) {
+    case "schemaVersion":
+      return "schema_version_unsupported";
+    case "name":
+      return "name_invalid";
+    case "version":
+      return "version_invalid";
+    case "plugins":
+      return codeForPluginPath(segments);
+    case "group":
+      return segments[2] === "members" && segments.length > 3 ? "plugin_id_invalid" : "schema";
     case "userConfig":
       return "user_config_invalid";
     case "isolation":
@@ -160,8 +213,8 @@ export function isEntryInsideRoot(entry: string): boolean {
   return true;
 }
 
-function ownPrefix(manifest: Pick<ExtensionManifest, "kind" | "name">): string {
-  return `${manifest.kind === "group" ? "grp" : "x"}.${manifest.name}.`;
+function ownPrefix(manifest: Pick<ExtensionManifest, "group" | "name">): string {
+  return `${extensionPrefix(manifest)}.${manifest.name}.`;
 }
 
 function duplicatesIn(
@@ -196,134 +249,122 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
     );
   }
 
-  if ((manifest.kind === "group") !== (manifest.layer === "L3")) {
-    issues.push(
-      issue(
-        "error",
-        "layer_kind_mismatch",
-        "/layer",
-        `kind "${manifest.kind}" does not match layer "${manifest.layer}" (group <-> L3)`,
-      ),
-    );
-  }
-
-  if (manifest.usesDrive && manifest.kind !== "group") {
-    issues.push(
-      issue("error", "drive_requires_group", "/usesDrive", "only a group may set usesDrive: true"),
-    );
-  }
-
   if (!isEntryInsideRoot(manifest.entry)) {
     issues.push(
       issue("error", "entry_invalid", "/entry", "entry must be a relative path inside the root"),
     );
   }
 
-  for (const { index, id } of duplicatesIn(manifest.points)) {
-    issues.push(
-      issue("error", "point_duplicate", `/points/${index}`, `point "${id}" is listed twice`),
-    );
-  }
+  issues.push(...checkPluginList(manifest));
 
-  const requires = manifest.requires ?? [];
-  const optional = manifest.optional ?? [];
-  const provides = manifest.provides ?? [];
-  for (const [list, entries] of [
-    ["requires", requires],
-    ["optional", optional],
-  ] as const) {
-    entries.forEach((entry, index) => {
-      if (!isSemVerRange(entry.range)) {
+  const prefix = ownPrefix(manifest);
+  manifest.plugins.forEach((plugin, pluginIndex) => {
+    const base = `/plugins/${pluginIndex}`;
+    for (const { index, id } of duplicatesIn(plugin.hooks)) {
+      issues.push(
+        issue("error", "hook_duplicate", `${base}/hooks/${index}`, `hook "${id}" is listed twice`),
+      );
+    }
+
+    const requires = plugin.requires ?? [];
+    const optional = plugin.optional ?? [];
+    const provides = plugin.provides ?? [];
+    for (const [list, entries] of [
+      ["requires", requires],
+      ["optional", optional],
+    ] as const) {
+      entries.forEach((entry, index) => {
+        if (!isSemVerRange(entry.range)) {
+          issues.push(
+            issue(
+              "error",
+              "range_invalid",
+              `${base}/${list}/${index}/range`,
+              `"${entry.range}" is not an accepted version range`,
+            ),
+          );
+        }
+      });
+    }
+    for (const [list, ids] of [
+      ["requires", requires.map((e) => e.id)],
+      ["optional", optional.map((e) => e.id)],
+      ["provides", provides.map((e) => e.id)],
+    ] as const) {
+      for (const { index, id } of duplicatesIn(ids)) {
         issues.push(
           issue(
             "error",
-            "range_invalid",
-            `/${list}/${index}/range`,
-            `"${entry.range}" is not an accepted version range`,
+            "capability_duplicate",
+            `${base}/${list}/${index}`,
+            `capability "${id}" is listed twice`,
+          ),
+        );
+      }
+    }
+    const required = new Set(requires.map((e) => e.id));
+    optional.forEach((entry, index) => {
+      if (required.has(entry.id)) {
+        issues.push(
+          issue(
+            "error",
+            "capability_both",
+            `${base}/optional/${index}`,
+            `capability "${entry.id}" is in both requires and optional`,
           ),
         );
       }
     });
-  }
-  for (const [list, ids] of [
-    ["requires", requires.map((e) => e.id)],
-    ["optional", optional.map((e) => e.id)],
-    ["provides", provides.map((e) => e.id)],
-  ] as const) {
-    for (const { index, id } of duplicatesIn(ids)) {
-      issues.push(
-        issue(
-          "error",
-          "capability_duplicate",
-          `/${list}/${index}`,
-          `capability "${id}" is listed twice`,
-        ),
-      );
-    }
-  }
-  const required = new Set(requires.map((e) => e.id));
-  optional.forEach((entry, index) => {
-    if (required.has(entry.id)) {
-      issues.push(
-        issue(
-          "error",
-          "capability_both",
-          `/optional/${index}`,
-          `capability "${entry.id}" is in both requires and optional`,
-        ),
-      );
-    }
-  });
-  provides.forEach((entry, index) => {
-    const first = entry.id.split(".")[0] ?? "";
-    if (RESERVED_CAPABILITY_PREFIXES.includes(first)) {
-      issues.push(
-        issue(
-          "error",
-          "provides_reserved",
-          `/provides/${index}/id`,
-          `capability "${entry.id}" uses the reserved prefix "${first}"`,
-        ),
-      );
-    }
-  });
+    provides.forEach((entry, index) => {
+      const first = entry.id.split(".")[0] ?? "";
+      if (RESERVED_CAPABILITY_PREFIXES.includes(first)) {
+        issues.push(
+          issue(
+            "error",
+            "provides_reserved",
+            `${base}/provides/${index}/id`,
+            `capability "${entry.id}" uses the reserved prefix "${first}"`,
+          ),
+        );
+      }
+    });
 
-  const kinds = manifest.recordKinds ?? [];
-  kinds.forEach((decl, index) => {
-    if (!isRecordKindOf(decl.kind, manifest)) {
+    const kinds = plugin.recordKinds ?? [];
+    kinds.forEach((decl, index) => {
+      if (!isRecordKindOf(decl.kind, manifest)) {
+        issues.push(
+          issue(
+            "error",
+            "record_kind_prefix",
+            `${base}/recordKinds/${index}/kind`,
+            `record kind "${decl.kind}" must start with "${prefix}"`,
+          ),
+        );
+      }
+    });
+    for (const { index, id } of duplicatesIn(kinds.map((decl) => decl.kind))) {
       issues.push(
         issue(
           "error",
-          "record_kind_prefix",
-          `/recordKinds/${index}/kind`,
-          `record kind "${decl.kind}" must start with "${ownPrefix(manifest)}"`,
+          "record_kind_duplicate",
+          `${base}/recordKinds/${index}/kind`,
+          `record kind "${id}" is declared twice`,
         ),
       );
     }
-  });
-  for (const { index, id } of duplicatesIn(kinds.map((decl) => decl.kind))) {
-    issues.push(
-      issue(
-        "error",
-        "record_kind_duplicate",
-        `/recordKinds/${index}/kind`,
-        `record kind "${id}" is declared twice`,
-      ),
-    );
-  }
 
-  const prefix = ownPrefix(manifest);
-  (manifest.readsRecordKinds ?? []).forEach((pattern, index) => {
-    if (pattern.startsWith(prefix)) {
-      issues.push(
-        issue(
-          "error",
-          "read_kind_invalid",
-          `/readsRecordKinds/${index}`,
-          `"${pattern}" points at the extension's own records, which are read without a declaration`,
-        ),
-      );
-    }
+    (plugin.readsRecordKinds ?? []).forEach((pattern, index) => {
+      if (pattern.startsWith(prefix)) {
+        issues.push(
+          issue(
+            "error",
+            "read_kind_invalid",
+            `${base}/readsRecordKinds/${index}`,
+            `"${pattern}" points at the extension's own records, which are read without a declaration`,
+          ),
+        );
+      }
+    });
   });
 
   for (const [key, entry] of Object.entries(manifest.userConfig ?? {})) {
@@ -342,13 +383,115 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   return issues;
 }
 
+/** 플러그인 id, 루트, 층 섞임, 그룹 구성원 검사 */
+function checkPluginList(manifest: ExtensionManifest): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  const named: string[] = [];
+  const namedAt: number[] = [];
+  const roots: number[] = [];
+  manifest.plugins.forEach((plugin, index) => {
+    if (plugin.id === undefined) {
+      roots.push(index);
+    } else {
+      named.push(plugin.id);
+      namedAt.push(index);
+    }
+  });
+  for (const { index, id } of duplicatesIn(named)) {
+    const at = namedAt[index] ?? index;
+    issues.push(
+      issue("error", "plugin_id_duplicate", `/plugins/${at}/id`, `plugin id "${id}" is used twice`),
+    );
+  }
+  for (const index of roots.slice(1)) {
+    issues.push(
+      issue(
+        "error",
+        "plugin_root_ambiguous",
+        `/plugins/${index}`,
+        "only one plugin may omit id (the root plugin)",
+      ),
+    );
+  }
+
+  const [firstPlugin] = manifest.plugins;
+  if (firstPlugin !== undefined) {
+    const external = firstPlugin.layer === "plugin";
+    const mixedAt = manifest.plugins.findIndex(
+      (plugin) => (plugin.layer === "plugin") !== external,
+    );
+    if (mixedAt >= 0) {
+      issues.push(
+        issue(
+          "error",
+          "layer_mixed_external",
+          `/plugins/${mixedAt}/layer`,
+          'layer "plugin" cannot be mixed with L1~L3 in one extension',
+        ),
+      );
+    }
+  }
+
+  const ids = new Set(named);
+  const members = manifest.group?.members ?? [];
+  members.forEach((id, index) => {
+    if (!ids.has(id)) {
+      issues.push(
+        issue(
+          "error",
+          "group_member_unknown",
+          `/group/members/${index}`,
+          `group member "${id}" is not a declared plugin id`,
+        ),
+      );
+    }
+  });
+  for (const { index, id } of duplicatesIn(members)) {
+    issues.push(
+      issue(
+        "error",
+        "group_member_duplicate",
+        `/group/members/${index}`,
+        `group member "${id}" is listed twice`,
+      ),
+    );
+  }
+
+  return issues;
+}
+
 /** 매니페스트 하나. 입력은 JSON 파싱 결과 그대로. 순수 함수 */
 export function validateManifest(input: unknown): ManifestResult {
   if (!isPlainObject(input)) {
     return { issues: [issue("error", "schema", "", "manifest must be an object")] };
   }
-  const known = new Set(Object.keys(ExtensionManifestSchema.properties));
   const issues: ManifestIssue[] = [];
+  // 옛 형식은 읽지 않는다. 스키마 2에서 뜻이 바뀐 이름은 조용히 지우지 않고 거부한다
+  for (const key of LEGACY_FIELDS) {
+    if (key in input) {
+      issues.push(
+        issue(
+          "error",
+          "legacy_field",
+          `/${key}`,
+          `top-level "${key}" is not part of the plugin format (schemaVersion ${MANIFEST_SCHEMA_VERSION}); move the manifest to plugins[]`,
+        ),
+      );
+    }
+  }
+  if (input.schemaVersion !== undefined && input.schemaVersion !== MANIFEST_SCHEMA_VERSION) {
+    issues.push(
+      issue(
+        "error",
+        "schema_version_unsupported",
+        "/schemaVersion",
+        `schemaVersion must be ${MANIFEST_SCHEMA_VERSION}; move the manifest to the plugin format (plugins[])`,
+      ),
+    );
+  }
+  if (issues.length > 0) return { issues };
+
+  const known = new Set(Object.keys(ExtensionManifestSchema.properties));
   const stripped: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
     if (known.has(key)) {
@@ -394,54 +537,62 @@ function coversRead(declared: string, used: string): boolean {
   return declared === used;
 }
 
-/** 선언과 실제 등록을 대조한다. X가 setup 직후와 등록 호출마다 쓴다. 순수 함수 */
+/** 선언과 실제 등록을 대조한다. X가 setup 직후와 등록 호출마다 쓴다. `plugin`은 이 Registration의 플러그인 항목이다. 순수 함수 */
 export function validateUsage(
   manifest: ExtensionManifest,
+  plugin: PluginEntry,
   usage: ExtensionUsage,
 ): readonly ManifestIssue[] {
   const issues: ManifestIssue[] = [];
+  const base = `/plugins/${plugin.index}`;
+  const decl = plugin.decl;
 
-  const declaredHooks = new Set<string>(manifest.points);
-  for (const point of new Set(usage.on)) {
-    if (!declaredHooks.has(point)) {
+  const declaredHooks = new Set<string>(decl.hooks);
+  for (const hook of new Set(usage.on)) {
+    if (!declaredHooks.has(hook)) {
       issues.push(
         issue(
           "error",
-          "point_undeclared",
-          "/points",
-          `on("${point}") is not listed in the manifest points`,
+          "hook_undeclared",
+          `${base}/hooks`,
+          `on("${hook}") is not listed in the plugin hooks`,
         ),
       );
     }
   }
   const usedHooks = new Set<string>(usage.on);
-  manifest.points.forEach((point, index) => {
-    if (!usedHooks.has(point)) {
+  decl.hooks.forEach((hook, index) => {
+    if (!usedHooks.has(hook)) {
       issues.push(
         issue(
           "warning",
-          "point_unused",
-          `/points/${index}`,
-          `point "${point}" is declared but never used`,
+          "hook_unused",
+          `${base}/hooks/${index}`,
+          `hook "${hook}" is declared but never used`,
         ),
       );
     }
   });
 
-  if (usage.post && manifest.usesPost !== true) {
+  if (usage.post && decl.usesPost !== true) {
     issues.push(
-      issue("error", "post_undeclared", "/usesPost", "post was used but usesPost is not true"),
+      issue(
+        "error",
+        "post_undeclared",
+        `${base}/usesPost`,
+        "post was used but usesPost is not true",
+      ),
     );
   }
-  if (usage.drive && !manifest.usesDrive) {
+  if (usage.drive && decl.drives !== true) {
     issues.push(
-      issue("error", "drive_undeclared", "/usesDrive", "drive was used but usesDrive is not true"),
+      issue("error", "drive_undeclared", `${base}/drives`, "drive was used but drives is not true"),
     );
   }
 
   const declaredCapabilities = new Set<string>([
-    ...(manifest.requires ?? []).map((e) => e.id),
-    ...(manifest.optional ?? []).map((e) => e.id),
+    ...(decl.requires ?? []).map((e) => e.id),
+    ...(decl.optional ?? []).map((e) => e.id),
   ]);
   for (const id of new Set(usage.capabilities)) {
     if (!declaredCapabilities.has(id)) {
@@ -449,21 +600,21 @@ export function validateUsage(
         issue(
           "error",
           "capability_undeclared",
-          "/requires",
+          `${base}/requires`,
           `capability("${id}") is not in requires or optional`,
         ),
       );
     }
   }
 
-  const declaredKinds = new Set<string>((manifest.recordKinds ?? []).map((decl) => decl.kind));
+  const declaredKinds = new Set<string>((decl.recordKinds ?? []).map((kind) => kind.kind));
   for (const kind of new Set(usage.recordKinds)) {
     if (!declaredKinds.has(kind)) {
       issues.push(
         issue(
           "error",
           "record_kind_undeclared",
-          "/recordKinds",
+          `${base}/recordKinds`,
           `record kind "${kind}" is not declared`,
         ),
       );
@@ -471,7 +622,7 @@ export function validateUsage(
   }
 
   const prefix = ownPrefix(manifest);
-  const declaredReads = manifest.readsRecordKinds ?? [];
+  const declaredReads = decl.readsRecordKinds ?? [];
   for (const used of new Set(usage.readsRecordKinds)) {
     if (used.startsWith(prefix)) continue;
     if (!declaredReads.some((declared) => coversRead(declared, used))) {
@@ -479,7 +630,7 @@ export function validateUsage(
         issue(
           "error",
           "read_kind_undeclared",
-          "/readsRecordKinds",
+          `${base}/readsRecordKinds`,
           `read of "${used}" is not declared`,
         ),
       );
@@ -510,8 +661,10 @@ export function validateManifestSet(
     names.add(manifest.name);
   }
 
-  const drivers = manifests.filter(
-    (m) => m.kind === "group" && m.usesDrive && m.defaultEnabled !== false,
+  const drivers = manifests.flatMap((manifest) =>
+    pluginsOf(manifest)
+      .filter((entry) => entry.decl.drives === true && pluginDefaultEnabled(manifest, entry))
+      .map((entry) => ({ manifest, entry })),
   );
   const [firstDriver] = drivers;
   if (drivers.length >= 2 && firstDriver !== undefined) {
@@ -519,25 +672,31 @@ export function validateManifestSet(
       issue(
         "warning",
         "drive_conflict",
-        `${firstDriver.name}/usesDrive`,
-        `groups ${drivers.map((m) => m.name).join(", ")} all use drive and are enabled by default; only one gets the lease`,
+        `${firstDriver.manifest.name}/plugins/${firstDriver.entry.index}/drives`,
+        `registrations ${drivers.map((d) => d.entry.registrationId).join(", ")} all drive and are enabled by default; only one gets the drive lock`,
       ),
     );
   }
 
-  const provided = new Set<string>(manifests.flatMap((m) => (m.provides ?? []).map((p) => p.id)));
+  const provided = new Set<string>(
+    manifests.flatMap((m) =>
+      m.plugins.flatMap((plugin) => (plugin.provides ?? []).map((p) => p.id)),
+    ),
+  );
   for (const manifest of manifests) {
-    (manifest.requires ?? []).forEach((entry, index) => {
-      if (!provided.has(entry.id)) {
-        issues.push(
-          issue(
-            "warning",
-            "capability_unprovided",
-            `${manifest.name}/requires/${index}`,
-            `no installed extension provides "${entry.id}"`,
-          ),
-        );
-      }
+    manifest.plugins.forEach((plugin, pluginIndex) => {
+      (plugin.requires ?? []).forEach((entry, index) => {
+        if (!provided.has(entry.id)) {
+          issues.push(
+            issue(
+              "warning",
+              "capability_unprovided",
+              `${manifest.name}/plugins/${pluginIndex}/requires/${index}`,
+              `no installed extension provides "${entry.id}"`,
+            ),
+          );
+        }
+      });
     });
   }
 

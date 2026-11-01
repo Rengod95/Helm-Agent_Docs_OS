@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { serviceKey, type ApiOf, type ServiceKey } from "../../src/capabilities/index.ts";
-import type { ScopeApi } from "../../src/extensions/index.ts";
+import type { RegistrationApi } from "../../src/extensions/index.ts";
 import type { Equal, Expect } from "../types/expect.ts";
 import { WebSearch, WebSearchKey } from "./fixtures/web-search.ts";
 
@@ -19,8 +19,8 @@ test("ApiOf recovers the API type carried by the key", () => {
   expect([same, search]).toEqual([true, true]);
 });
 
-test("ScopeApi has capability but no provide (X hostOf(g).provide owns registration)", () => {
-  type Keys = keyof ScopeApi<unknown>;
+test("RegistrationApi has capability but no provide (X hostOf(g).provide owns registration)", () => {
+  type Keys = keyof RegistrationApi<unknown>;
   const hasCapability: Expect<Equal<"capability" extends Keys ? true : false, true>> = true;
   const hasNoProvide: Expect<Equal<"provide" extends Keys ? true : false, false>> = true;
   expect([hasCapability, hasNoProvide]).toEqual([true, true]);

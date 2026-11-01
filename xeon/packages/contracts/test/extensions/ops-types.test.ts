@@ -10,7 +10,7 @@ import type {
   Handler,
   HandlerContext,
   LoopHandle,
-  ScopeApi,
+  RegistrationApi,
   ToolCallDecision,
   ToolCallPayload,
   TurnEndPayload,
@@ -97,7 +97,7 @@ export function rightReturnsAreAccepted(g: ExtensionOps<unknown>): void {
 
 /** capability(key)의 반환 타입은 키가 실은 API다 */
 export function capabilityIsTypedByKey(
-  g: ScopeApi<unknown>,
+  g: RegistrationApi<unknown>,
   key: typeof WebSearchKey,
 ): ApiOf<typeof WebSearchKey> {
   // @ts-expect-error -- 키가 실은 API와 다른 타입 인자는 거부된다 (F.extensions.plan 5 ops.type-test)

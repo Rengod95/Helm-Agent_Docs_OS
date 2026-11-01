@@ -331,9 +331,9 @@ export interface PartRecordedPayload { part: PartRecord }
 
 // src/records/catalog/extension-ops.ts
 // 필드의 정본은 F.extensions.spec이다. records는 extensions보다 낮은 순위라(F.readme §3) 타입을 import하지 않고
-// 같은 모양을 적는다. 이름 대응: scopeId ↔ ScopeId(§3.2 scope.ts), leaseId ↔ LeaseId, limits ↔ DriveLimits, when ↔ PostWhen.
+// 같은 모양을 적는다. 이름 대응: scopeId ↔ RegistrationId(§3.2 registration-id.ts), leaseId ↔ DriveLockId, limits ↔ DriveLimits, when ↔ PostWhen.
 export interface ScopeChangedPayload {
-  scopeId: string;                // F.extensions.spec ScopeId. "<확장 이름>" 또는 "<확장 이름>/<하위 이름>"
+  scopeId: string;                // F.extensions.spec RegistrationId. "<확장 이름>" 또는 "<확장 이름>/<플러그인 id>"
   status: "enabled" | "disabled"; // 적용된 상태. enable()/disable() 요청이 단계 경계에서 적용될 때 쓴다(F.extensions.spec §4.5)
   /** 적용 사유. 없으면 "request". 값 정본은 X.operations.spec ScopeChangeReason */
   reason?: "request" | "auto_disable" | "safe_mode" | "startup_disable";
@@ -347,9 +347,9 @@ export interface ScopeHandlerFailedPayload {
   consecutive: number;            // 같은 owner의 연속 실패 수, 정수 ≥ 1
 }
 export interface LeaseAcquiredPayload {
-  leaseId: string;                // F.extensions.spec DriveLease.leaseId
+  leaseId: string;                // F.extensions.spec DriveLock.leaseId
   scopeId: string;                // 임대를 받은 그룹의 scope
-  limits: { maxTurns?: number; maxSpawns?: number; maxTokens?: number };   // DriveLease.limits(DriveLimits)
+  limits: { maxTurns?: number; maxSpawns?: number; maxTokens?: number };   // DriveLock.limits(DriveLimits)
   /**
    * 임대 차수. 그 scope의 활성 가지 위 직전 lease.acquired 개수 + 1, 1부터(X.primitives.spec §4.4.1). 같은 임대의 이어짐을 판정하는 근거다.
    * 선택이라 version을 올리지 않는다. 없으면(옛 기록) 활성 가지 위 개수로 다시 센다 [결정: M3-REQ-08]
@@ -1036,9 +1036,9 @@ export interface SessionService {
 
 // src/records/session-service.ts (계속) — X 기록 포트
 // 정본은 이 블록이다. X.primitives.spec §3.6의 블록을 옮겼다. records는 extensions보다 낮아(F.readme §3)
-// ScopeId·LeaseId·DriveLimits·RecordQuery·GroupRecord를 import하지 않고 같은 모양을 적는다(§3.3 extension-ops.ts와 같은 방식).
+// RegistrationId·DriveLockId·DriveLimits·RecordQuery·GroupRecord를 import하지 않고 같은 모양을 적는다(§3.3 extension-ops.ts와 같은 방식).
 // ExtensionName도 import하지 않는다. queryRecords의 reader는 같은 모양(string)으로 적는다.
-// 이름 대응: scopeId ↔ ScopeId, leaseId ↔ LeaseId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery, ExtRecordRow ↔ GroupRecord, reader ↔ ExtensionName.
+// 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, ExtRecordQuery ↔ RecordQuery, ExtRecordRow ↔ GroupRecord, reader ↔ ExtensionName.
 export interface ExtCommitRequest {
   readonly threadId: ThreadId;
   /** SessionWriter 멱등 키. 같은 키의 두 번째 커밋은 기록된 결과를 돌려준다. 형식은 COMMIT_KEY_PATTERN */
@@ -1050,7 +1050,7 @@ export interface ExtCommitRequest {
   readonly fingerprintSource?: JsonValue;
   /**
    * 기록 초안의 공개 범위 [결정: review.decisions-2 T-21]. 생략하면 "public".
-   * "private"는 ScopeApi.recordPrivate(F.extensions.spec §3.2, X.primitives.spec §4.6.5)만 쓴다
+   * "private"는 RegistrationApi.recordPrivate(F.extensions.spec §3.2, X.primitives.spec §4.6.5)만 쓴다
    */
   readonly visibility?: "public" | "private";
 }
@@ -1227,7 +1227,7 @@ export interface RecordCommitPort {
 | `F.conversation.spec` | 요구: ID, `ItemRecord`, `PartRecord`, 수명주기 payload 스키마, `ToolResultRecord`, `ResultStatus`, `ReplayPolicy`·`toReplayPolicy` |
 | `F.extensions.spec` | 제공: `EventKindRegistry`, 확장 kind 형식. 요구: `extId`·`groupId` 형식, 확장 테이블 접두 규칙 |
 | `F.wire-settings.spec` | 제공: `EventEnvelope`. 요구: 와이어 변환(시각, redaction), `settings.changed`의 key·scope 값 집합(`SettingKey`, `SettingScope`) |
-| `F.extensions.spec` | 요구: scope·lease·post payload 필드의 정본(§3.2 `ScopeId`·`DriveLease`·`PostOptions`, §4.4~§4.6). 변경되면 §3.3 `extension-ops.ts`를 같은 변경에서 고친다 |
+| `F.extensions.spec` | 요구: scope·lease·post payload 필드의 정본(§3.2 `RegistrationId`·`DriveLock`·`PostOptions`, §4.4~§4.6). 변경되면 §3.3 `extension-ops.ts`를 같은 변경에서 고친다 |
 | `X.primitives.spec` | 요구: scope·lease·post 기록 시점(디스패치, 임대 중재, 토글 적용)의 구현 |
 | `L0.store.spec` (L0-e) | 제공: §3.9 `StoreDb`·`SqlTx`·`StoreService` 등과 §3.7 `ChunkMigration`(FR-S1·FR-S5 반영). 요구: 테이블, seq 발급, FULL 커밋, blob 저장, `ChunkMigration` 실행, FR-S2~S4 필드 블록, `SessionStore` SQLite 어댑터(2차) |
 | `L1.persistence.spec` (L1-f) | 제공: §3.9 `CommitRequest`·`SessionService`·`Projector` 등(FR-P1), §3.8 `AppendBatch.requestId`·`durability` 삭제(FR-P2), `thread.resumed`(FR-P3). 요구: 재개 절차, `decideEffectRecovery` 사용, 투영 재생성, §3.9 표의 나머지 필드 블록 |

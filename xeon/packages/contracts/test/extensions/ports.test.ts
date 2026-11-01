@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  LeaseArbiterPortKey,
+  DriveLockArbiterPortKey,
   LoopPortKey,
   InputQueuePortKey,
   McpPortKey,
@@ -10,8 +10,8 @@ import {
   RecordCommitPortKey,
   ScopedStorePortKey,
   ToolsPortKey,
-  type LeaseArbiterPort,
-  type LeaseCandidate,
+  type DriveLockArbiterPort,
+  type DriveLockCandidate,
   type PortKey,
 } from "../../src/extensions/index.ts";
 import { ThreadIdSchema } from "../../src/conversation/index.ts";
@@ -29,7 +29,7 @@ const KEYS: ReadonlyArray<
   ["ProjectorRegistryPortKey", ProjectorRegistryPortKey, "fresnel.session", "projectors"],
   ["ScopedStorePortKey", ScopedStorePortKey, "fresnel.store", undefined],
   ["ProcessPortKey", ProcessPortKey, "fresnel.process", undefined],
-  ["LeaseArbiterPortKey", LeaseArbiterPortKey, "fresnel.groups", undefined],
+  ["DriveLockArbiterPortKey", DriveLockArbiterPortKey, "fresnel.groups", undefined],
   ["ToolsPortKey", ToolsPortKey, "fresnel.tools", undefined],
   ["ModelsPortKey", ModelsPortKey, "fresnel.models", undefined],
   ["McpPortKey", McpPortKey, "fresnel.mcp", undefined],
@@ -63,7 +63,7 @@ describe("port keys", () => {
   });
 });
 
-const candidate = (scopeId: string, enabledAtSeq: number | null): LeaseCandidate => ({
+const candidate = (scopeId: string, enabledAtSeq: number | null): DriveLockCandidate => ({
   scopeId,
   extension: scopeId,
   loadIndex: 0,
@@ -71,9 +71,9 @@ const candidate = (scopeId: string, enabledAtSeq: number | null): LeaseCandidate
   enabledAtSeq,
 });
 
-describe("LeaseCandidate", () => {
+describe("DriveLockCandidate", () => {
   test("enabledAtSeq is a seq or null and an arbiter can order by it", () => {
-    const arbiter: LeaseArbiterPort = {
+    const arbiter: DriveLockArbiterPort = {
       choose: (_threadId, candidates) =>
         candidates.toSorted(
           (a, b) =>

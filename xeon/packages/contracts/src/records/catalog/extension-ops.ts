@@ -19,7 +19,7 @@ import {
 } from "../../conversation/index.ts";
 
 // 필드의 정본은 F.extensions.spec이다. records는 extensions보다 낮은 순위라(F.readme §3) 타입을 import하지 않고
-// 같은 모양을 적는다. 이름 대응: scopeId ↔ ScopeId, leaseId ↔ LeaseId, limits ↔ DriveLimits, when ↔ PostWhen.
+// 같은 모양을 적는다. 이름 대응: scopeId ↔ RegistrationId, leaseId ↔ DriveLockId, limits ↔ DriveLimits, when ↔ PostWhen.
 
 const scopeId = (): TString => Type.String({ minLength: 1, maxLength: 96 });
 const leaseId = (): TString => Type.String({ minLength: 1, maxLength: 128 });
@@ -39,7 +39,7 @@ export const ScopeChangedPayloadSchema: TObject<{
   >;
 }> = Type.Object(
   {
-    /** F.extensions.spec ScopeId. "<확장 이름>" 또는 "<확장 이름>/<하위 이름>" */
+    /** F.extensions.spec RegistrationId. "<확장 이름>" 또는 "<확장 이름>/<하위 이름>" */
     scopeId: scopeId(),
     /** 적용된 상태. enable()/disable() 요청이 단계 경계에서 적용될 때 쓴다 */
     status: Type.Union([Type.Literal("enabled"), Type.Literal("disabled")]),
@@ -100,11 +100,11 @@ export const LeaseAcquiredPayloadSchema: TObject<{
   leaseEpoch: TOptional<TInteger>;
 }> = Type.Object(
   {
-    /** F.extensions.spec DriveLease.leaseId */
+    /** F.extensions.spec DriveLock.leaseId */
     leaseId: leaseId(),
     /** 임대를 받은 그룹의 scope */
     scopeId: scopeId(),
-    /** DriveLease.limits(DriveLimits) */
+    /** DriveLock.limits(DriveLimits) */
     limits: DriveLimitsJsonSchema,
     /**
      * 임대 차수. 그 scope의 활성 가지 위 직전 `lease.acquired` 개수 + 1, 1부터 센다(X.primitives.spec §4.4.1).
@@ -169,7 +169,7 @@ export const LeaseRejectedPayloadSchema: TObject<{
 );
 export type LeaseRejectedPayload = Static<typeof LeaseRejectedPayloadSchema>;
 
-/** ScopeApi.post 호출의 영수증. 큐 항목 사실은 같은 커밋의 input.queued가 적는다 */
+/** RegistrationApi.post 호출의 영수증. 큐 항목 사실은 같은 커밋의 input.queued가 적는다 */
 export const PostAcceptedPayloadSchema: TObject<{
   requestId: TString;
   scopeId: TString;

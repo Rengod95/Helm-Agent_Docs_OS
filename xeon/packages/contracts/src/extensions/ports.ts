@@ -12,7 +12,7 @@ import type {
 import type { SpawnOutcome, SpawnSpec, TurnOutcome } from "./drive.ts";
 import type { ExtensionName } from "./name.ts";
 import type { PostItem, PostWhen } from "./post.ts";
-import type { LeaseId, ScopeId } from "./scope-id.ts";
+import type { DriveLockId, RegistrationId } from "./registration-id.ts";
 
 // 호스트 포트와 로더 포트의 정본이다(F.extensions.spec §3.2.1, review.decisions-2 U-14·D-04).
 // X(ext-host)는 이 이름을 import type으로 가져와 다시 export하고 자기 정의를 두지 않는다.
@@ -39,8 +39,8 @@ export interface PortLookup {
 
 export interface LoopTurnRequest {
   readonly threadId: ThreadId;
-  readonly scopeId: ScopeId;
-  readonly leaseId: LeaseId;
+  readonly scopeId: RegistrationId;
+  readonly leaseId: DriveLockId;
   /** 펜싱 값. 포트는 현재 임대 차수보다 작은 값의 요청을 거부한다 */
   readonly leaseEpoch: number;
   /** (scopeId, requestId) 쌍이 thread 안에서 멱등 키다 */
@@ -59,8 +59,8 @@ export interface LoopTurnResult {
 
 export interface LoopSpawnRequest {
   readonly threadId: ThreadId;
-  readonly scopeId: ScopeId;
-  readonly leaseId: LeaseId;
+  readonly scopeId: RegistrationId;
+  readonly leaseId: DriveLockId;
   readonly leaseEpoch: number;
   readonly requestId: string;
   readonly spec: SpawnSpec;
@@ -87,7 +87,7 @@ export const LoopPortKey: PortKey<LoopPort> = { name: "fresnel.loop" };
 
 export interface EnqueueRequest {
   readonly threadId: ThreadId;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   /** PostOptions.requestId 그대로. (scopeId, requestId) 쌍이 thread 안 멱등 키다 */
   readonly requestId: string;
   readonly when: PostWhen;
@@ -202,8 +202,8 @@ export const ProcessPortKey: PortKey<ProcessPort> = { name: "fresnel.process" };
 
 // ── 임대 정책 (서비스 fresnel.groups, 제공 group-sdk, 선택) ─────────────────
 
-export interface LeaseCandidate {
-  readonly scopeId: ScopeId;
+export interface DriveLockCandidate {
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
   readonly loadIndex: number;
   readonly defaultEnabled: boolean;
@@ -211,11 +211,11 @@ export interface LeaseCandidate {
   readonly enabledAtSeq: number | null;
 }
 
-export interface LeaseArbiterPort {
+export interface DriveLockArbiterPort {
   /** 후보 중 하나를 고른다. null이면 아무에게도 주지 않는다 */
-  choose(threadId: ThreadId, candidates: readonly LeaseCandidate[]): ScopeId | null;
+  choose(threadId: ThreadId, candidates: readonly DriveLockCandidate[]): RegistrationId | null;
 }
-export const LeaseArbiterPortKey: PortKey<LeaseArbiterPort> = { name: "fresnel.groups" };
+export const DriveLockArbiterPortKey: PortKey<DriveLockArbiterPort> = { name: "fresnel.groups" };
 
 // ── 리소스 등록 (X.primitives.spec §3.9, §4.8) ───────────────────────────
 
@@ -257,15 +257,15 @@ export interface ToolRegisterError {
 
 /** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 표는 그대로다 */
 export interface ToolsPort {
-  register(owner: ScopeId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError>;
+  register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError>;
 }
 /** ModelService(fresnel.models)가 포함하는 등록 부분형 */
 export interface ModelsPort {
-  registerProvider(owner: ScopeId, name: string, config: ProviderResourceDef): Unsubscribe;
+  registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe;
 }
 /** McpService(fresnel.mcp)가 포함하는 등록 부분형 */
 export interface McpPort {
-  registerServer(owner: ScopeId, name: string, config: McpServerResourceDef): Unsubscribe;
+  registerServer(owner: RegistrationId, name: string, config: McpServerResourceDef): Unsubscribe;
 }
 export const ToolsPortKey: PortKey<ToolsPort> = { name: "fresnel.tools" };
 export const ModelsPortKey: PortKey<ModelsPort> = { name: "fresnel.models" };

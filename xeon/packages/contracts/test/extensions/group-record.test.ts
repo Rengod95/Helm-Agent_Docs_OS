@@ -20,24 +20,27 @@ function decl(kind: string): Record<string, unknown> {
 
 describe("record kinds", () => {
   test("prefix violation rejected", () => {
-    const foreign = validateManifest(groupJson({ recordKinds: [decl("grp.helm.item.tagged")] }));
+    const foreign = validateManifest(
+      groupJson({}, { recordKinds: [decl("grp.helm.item.tagged")] }),
+    );
     expect(codesOf(foreign.issues)).toEqual(["record_kind_prefix"]);
     const pluginUsingGroupPrefix = validateManifest(
-      pluginJson({ recordKinds: [decl("grp.acme-notes.note.synced")] }),
+      pluginJson({}, { recordKinds: [decl("grp.acme-notes.note.synced")] }),
     );
     expect(codesOf(pluginUsingGroupPrefix.issues)).toEqual(["record_kind_prefix"]);
     const threeSegments = validateManifest(
-      groupJson({ recordKinds: [decl("grp.learning.proposed")] }),
+      groupJson({}, { recordKinds: [decl("grp.learning.proposed")] }),
     );
     expect(codesOf(threeSegments.issues)).toContain("record_kind_prefix");
   });
 
   test("own prefix accepted", () => {
     expect(
-      validateManifest(groupJson({ recordKinds: [decl("grp.learning.skill.proposed")] })).issues,
+      validateManifest(groupJson({}, { recordKinds: [decl("grp.learning.skill.proposed")] }))
+        .issues,
     ).toEqual([]);
     expect(
-      validateManifest(pluginJson({ recordKinds: [decl("x.acme-notes.note.synced")] })).issues,
+      validateManifest(pluginJson({}, { recordKinds: [decl("x.acme-notes.note.synced")] })).issues,
     ).toEqual([]);
   });
 
@@ -58,22 +61,22 @@ describe("record kinds", () => {
     for (const bad of ["grp.*", "grp.learning", "item.*", "grp.learning.skill.*.x", "GRP.a.*"]) {
       expect(pattern.test(bad)).toBe(false);
     }
-    const bad = validateManifest(groupJson({ readsRecordKinds: ["grp.*"] }));
+    const bad = validateManifest(groupJson({}, { readsRecordKinds: ["grp.*"] }));
     expect(codesOf(bad.issues)).toEqual(["read_kind_invalid"]);
-    const ok = validateManifest(groupJson({ readsRecordKinds: ["grp.helm.*"] }));
+    const ok = validateManifest(groupJson({}, { readsRecordKinds: ["grp.helm.*"] }));
     expect(ok.issues).toEqual([]);
   });
 
   test("read own prefix rejected", () => {
-    const own = validateManifest(groupJson({ readsRecordKinds: ["grp.learning.*"] }));
+    const own = validateManifest(groupJson({}, { readsRecordKinds: ["grp.learning.*"] }));
     expect(codesOf(own.issues)).toEqual(["read_kind_invalid"]);
-    const ownKind = validateManifest(groupJson({ readsRecordKinds: ["grp.learning.skill.*"] }));
+    const ownKind = validateManifest(groupJson({}, { readsRecordKinds: ["grp.learning.skill.*"] }));
     expect(codesOf(ownKind.issues)).toEqual(["read_kind_invalid"]);
   });
 
   test("isRecordKindOf", () => {
-    const group = { kind: "group", name: "learning" } as const;
-    const plugin = { kind: "plugin", name: "acme-notes" } as const;
+    const group = { name: "learning", group: {} };
+    const plugin = { name: "acme-notes" };
     expect(isRecordKindOf("grp.learning.skill.proposed", group)).toBe(true);
     expect(isRecordKindOf("grp.helm.skill.proposed", group)).toBe(false);
     expect(isRecordKindOf("x.learning.skill.proposed", group)).toBe(false);

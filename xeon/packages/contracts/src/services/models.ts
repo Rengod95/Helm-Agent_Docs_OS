@@ -23,7 +23,7 @@ import type {
   ModelsPort,
   PortKey,
   ProviderResourceDef,
-  ScopeId,
+  RegistrationId,
   Unsubscribe,
 } from "../extensions/index.ts";
 
@@ -189,7 +189,7 @@ export interface RoleOverrides {
   /** 호출자가 직접 지정한 참조. 서브에이전트 정의 파일의 model 필드(L1.agents) */
   readonly ref?: ModelRefString;
   /** 그룹 덮어쓰기 조회 키. 호출을 일으킨 scope */
-  readonly scopeId?: ScopeId;
+  readonly scopeId?: RegistrationId;
   /** 레벨만 덮어쓴다. ref의 접미보다 우선한다 */
   readonly thinkingLevel?: ModelThinkingLevel;
 }
@@ -223,7 +223,7 @@ export interface ModelCallContext {
   readonly stepId: StepId | null;
   readonly role: ModelRole;
   /** 사용량을 귀속할 scope. 그룹이 일으킨 호출이면 그 scope */
-  readonly scopeId?: ScopeId;
+  readonly scopeId?: RegistrationId;
   readonly signal?: AbortSignal;
 }
 
@@ -299,7 +299,7 @@ export interface UsageRecord {
   readonly turnId: TurnId | null;
   readonly stepId: StepId | null;
   readonly role: ModelRole;
-  readonly scopeId: ScopeId | null;
+  readonly scopeId: RegistrationId | null;
   readonly provider: string;
   readonly modelId: string;
   /** pi-ai Usage 그대로. cost는 calculateCost 결과 */
@@ -329,7 +329,7 @@ export interface UsageScope {
   readonly threadId: ThreadId;
   readonly turnId?: TurnId;
   readonly role?: ModelRole;
-  readonly scopeId?: ScopeId;
+  readonly scopeId?: RegistrationId;
 }
 
 /** 프로세스 메모리의 합산기. 내구 기록의 원천은 어시스턴트 item.recorded의 message.usage와 turn.completed다 */
@@ -578,12 +578,16 @@ export interface ModelService extends ModelsPort {
    */
   providerTarget(providerId: string): ProviderTarget | null;
   /** provider 등록. 플러그인은 F provider 인터페이스(ProviderDef)로 이 메서드를 부른다 */
-  addProvider(owner: ScopeId, name: string, def: ProviderDef): Result<Unsubscribe, ModelError>;
+  addProvider(
+    owner: RegistrationId,
+    name: string,
+    def: ProviderDef,
+  ): Result<Unsubscribe, ModelError>;
   /**
    * X ModelsPort 등록(확장 hostOf(g).registerProvider). config를 ProviderConfigDefSchema로 검사해 addProvider와 같은 경로로 등록한다.
    * 실패하면 ModelError 값을 던진다(포트 경로는 Result를 돌려주지 않는다)
    */
-  registerProvider(owner: ScopeId, name: string, config: ProviderResourceDef): Unsubscribe;
+  registerProvider(owner: RegistrationId, name: string, config: ProviderResourceDef): Unsubscribe;
 
   readonly usage: UsageMeter;
   /** pi-ai 토큰 추정 위임. core-context는 pi-ai를 직접 import하지 않는다 */

@@ -1,7 +1,7 @@
 import { test } from "bun:test";
 import type {
   InputQueuePort,
-  LeaseArbiterPort,
+  DriveLockArbiterPort,
   LoopPort,
   McpPort,
   ModelsPort,
@@ -49,7 +49,7 @@ export type ProcessServiceIsProcessPort = Expect<Assignable<ProcessService, Proc
 export type ToolServiceIsToolsPort = Expect<Assignable<ToolService, ToolsPort>>;
 export type ModelServiceIsModelsPort = Expect<Assignable<ModelService, ModelsPort>>;
 export type McpServiceIsMcpPort = Expect<Assignable<McpService, McpPort>>;
-export type GroupServiceIsLeaseArbiter = Expect<Assignable<GroupService, LeaseArbiterPort>>;
+export type GroupServiceIsLeaseArbiter = Expect<Assignable<GroupService, DriveLockArbiterPort>>;
 
 /** records의 서비스는 포트를 그대로 만족한다 */
 export type StoreServiceIsScopedStore = Expect<Assignable<StoreService, ScopedStorePort>>;

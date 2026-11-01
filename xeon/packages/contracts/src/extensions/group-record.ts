@@ -104,12 +104,12 @@ export const RecordKindDeclJsonSchema: TObject<{
   { additionalProperties: false },
 );
 
-/** kind가 owner의 접두(그룹 grp.<name>., 플러그인 x.<name>.)에 속하는 올바른 레코드 kind인가 */
+/** kind가 owner의 접두(플러그인 그룹 grp.<name>., 그 밖의 확장 x.<name>.)에 속하는 올바른 레코드 kind인가. `group` 선언이 있으면 플러그인 그룹이다 */
 export function isRecordKindOf(
   kind: string,
-  owner: { readonly kind: "group" | "plugin"; readonly name: string },
+  owner: { readonly name: string; readonly group?: object | undefined },
 ): boolean {
-  const prefix = `${owner.kind === "group" ? "grp" : "x"}.${owner.name}.`;
+  const prefix = `${owner.group !== undefined ? "grp" : "x"}.${owner.name}.`;
   return kind.startsWith(prefix) && RECORD_KIND_REGEX.test(kind);
 }
 
