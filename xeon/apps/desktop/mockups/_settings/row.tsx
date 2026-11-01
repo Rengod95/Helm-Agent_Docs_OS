@@ -4,7 +4,7 @@
 // 줄 사이는 간격만(DP-03), 좌우 여백 없음(DP-07). 배지는 화면 낭독기에 문장으로 읽힌다("사용자 범위, 즉시 적용").
 import { Badge, Field } from "@caustic/react";
 import { useId, type ReactNode } from "react";
-import { Check, Lock } from "../_shell";
+import { Check, L, Lock } from "../_shell";
 
 export type Scope = "default" | "user" | "project" | "thread" | "managed";
 export type Apply = "now" | "nextTurn" | "restart" | "boundary";
@@ -31,7 +31,7 @@ export function ScopeBadge({ scope }: { scope: Scope }) {
       variant="soft"
       icon={scope === "managed" ? <Lock /> : undefined}
     >
-      {SCOPE[scope]}
+      {L(SCOPE[scope])}
     </Badge>
   );
 }
@@ -40,10 +40,10 @@ export function ApplyMark({ apply }: { apply: Apply }) {
   if (apply === "restart")
     return (
       <Badge size="sm" tone="warning">
-        {APPLY.restart}
+        {L(APPLY.restart)}
       </Badge>
     );
-  return <span className="text-ui-sm text-text-tertiary">{APPLY[apply]}</span>;
+  return <span className="text-ui-sm text-text-tertiary">{L(APPLY[apply])}</span>;
 }
 
 export function SavedMark() {

@@ -3,6 +3,7 @@
 // 상자로 감싸지 않고 패널 바탕 위 행만 둔다. hover는 fill-hover, 모서리는 lg.
 import type { Notice } from "../fixtures";
 import { CircleAlert, CircleCheck, Sparkles } from "../icons";
+import { L } from "../i18n";
 
 const KIND = {
   error: { icon: <CircleAlert />, tone: "text-danger-graphic", word: "오류" },
@@ -38,7 +39,7 @@ export function NoticeList({ notices }: { notices: Notice[] }) {
                     {k.word}
                     {unread ? ", 안 읽음" : ""}:{" "}
                   </span>
-                  <span>{n.title}</span>
+                  <span>{L(n.title)}</span>
                 </span>
                 {n.body !== undefined && (
                   <span className="truncate font-mono text-mono-sm text-text-secondary">
@@ -47,7 +48,7 @@ export function NoticeList({ notices }: { notices: Notice[] }) {
                 )}
               </span>
               <span className="shrink-0 whitespace-nowrap text-ui-xs tabular-nums text-text-tertiary">
-                {n.at}
+                {L(n.at)}
               </span>
             </button>
           </li>

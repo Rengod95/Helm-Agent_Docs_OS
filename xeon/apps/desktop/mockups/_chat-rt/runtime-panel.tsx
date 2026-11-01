@@ -4,6 +4,8 @@
 import { Badge, Button, Progress } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import {
+  L,
+  L2,
   ChevronRight,
   CircleAlert,
   extName,
@@ -103,7 +105,7 @@ function GroupLine({ g }: { g: GroupRow }) {
               {g.tone === "danger" ? <CircleAlert /> : <TriangleAlert />}
             </ToneIcon>
           )}
-          {g.state}
+          {L(g.state)}
         </span>
       </div>
       {open && (
@@ -145,12 +147,16 @@ export function RuntimePanel({
           <div className="flex items-baseline gap-2 text-ui-dense">
             <span className="font-medium text-text-primary">{extName(data.holder)}</span>
             <span className="text-text-secondary">
-              보유{data.phase !== undefined ? ` · ${data.phase}` : ""}
+              {L2("보유", "holds")}
+              {data.phase !== undefined ? ` · ${data.phase}` : ""}
             </span>
           </div>
         ) : (
           <p className="m-0 text-ui-dense text-text-secondary">
-            지금 {josa(T.lead, "을", "를")} 쥔 {T.group}이 없어요
+            {L2(
+              `지금 ${josa(T.lead, "을", "를")} 쥔 ${T.group}이 없어요`,
+              `No group holds the ${T.lead.toLowerCase()} now`,
+            )}
           </p>
         )}
         {data.gate != null && (
@@ -177,7 +183,11 @@ export function RuntimePanel({
               ratio={data.gauges.spawns[0] / data.gauges.spawns[1]}
               text={data.gauges.spawns.join(" / ")}
             />
-            <Gauge label="토큰" ratio={data.gauges.tokenRatio} text={data.gauges.tokens} />
+            <Gauge
+              label={L2("토큰", "Tokens")}
+              ratio={data.gauges.tokenRatio}
+              text={data.gauges.tokens}
+            />
           </div>
         )}
         {data.queue.length > 0 && (
@@ -188,7 +198,7 @@ export function RuntimePanel({
                 className="grid min-h-6 grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-2"
               >
                 <span className="text-ui-xs text-text-tertiary">
-                  {q.state === "waiting" ? `${i + 1}번째` : "거부"}
+                  {q.state === "waiting" ? L2(`${i + 1}번째`, `#${i + 1}`) : L2("거부", "rejected")}
                 </span>
                 <span className="min-w-0 truncate">
                   <span className="text-text-primary">{extName(q.group)}</span>{" "}
@@ -203,7 +213,9 @@ export function RuntimePanel({
                     data-tour="group-first"
                     onClick={() => onFirst(q.group)}
                   >
-                    {q.first === true ? "다음에 먼저" : `이 ${T.group} 먼저`}
+                    {q.first === true
+                      ? L2("다음에 먼저", "First next")
+                      : L2(`이 ${T.group} 먼저`, `This ${T.group.toLowerCase()} first`)}
                   </Button>
                 )}
               </li>
@@ -212,8 +224,11 @@ export function RuntimePanel({
         )}
       </section>
       <section aria-label={`켜진 ${T.group}과 ${T.extension}`} className="grid gap-0.5">
-        <H end={`${data.groups.length}개`}>
-          켜진 {T.group}과 {T.extension}
+        <H end={L2(`${data.groups.length}개`, `${data.groups.length}`)}>
+          {L2(
+            `켜진 ${T.group}과 ${T.extension}`,
+            `${T.group}s and ${T.extension.toLowerCase()} on`,
+          )}
         </H>
         <ul className="m-0 grid list-none gap-0.5 p-0">
           {data.groups.map((g) => (
@@ -222,7 +237,9 @@ export function RuntimePanel({
         </ul>
       </section>
       <section aria-label="전환 기록" className="grid gap-0.5">
-        <H end={`${T.stepBoundary}마다`}>전환 기록</H>
+        <H end={L2(`${T.stepBoundary}마다`, `${T.stepBoundary}`)}>
+          {L2("전환 기록", "Switch log")}
+        </H>
         <ol className="m-0 grid list-none gap-1 p-0">
           {data.switches.map((s, i) => (
             <li
@@ -240,7 +257,7 @@ export function RuntimePanel({
       </section>
       {data.failures !== undefined && data.failures.length > 0 && (
         <section aria-label="실패" className="grid gap-1">
-          <H>실패</H>
+          <H>{L("실패")}</H>
           <ul className="m-0 grid list-none gap-1 p-0 text-ui-dense">
             {data.failures.map((f) => (
               <li key={f.name} className="flex items-center gap-1.5">
@@ -262,7 +279,7 @@ export function RuntimePanel({
           data-tour="to-workbench"
           onClick={goWorkbench}
         >
-          {T.workbench}에서 보기
+          {L2(`${T.workbench}에서 보기`, `View in ${T.workbench.toLowerCase()}`)}
         </Button>
       </div>
     </div>

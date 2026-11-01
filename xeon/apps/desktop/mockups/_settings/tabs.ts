@@ -1,3 +1,5 @@
+import { L } from "../_shell/i18n";
+
 // 설정 탭 13개(TAB_SPECS 순서, permissions와 sandbox 분리, 스펙 §6.13). P-10~P-13은 이 중 한 탭이다.
 export const TABS = [
   { id: "overview", label: "개요" },
@@ -17,7 +19,8 @@ export const TABS = [
 
 export type TabId = (typeof TABS)[number]["id"];
 
-export const tabLabel = (id: TabId): string => TABS.find((t) => t.id === id)?.label ?? id;
+// 묶음 E(N-49): 영어 화면(?lang=en)이면 셸 사전(L)으로 바꾼다. 한국어 화면은 그대로.
+export const tabLabel = (id: TabId): string => L(TABS.find((t) => t.id === id)?.label ?? id);
 
 /** 전용 화면이 따로 있는 탭과 그 목업 폴더. 같은 빌드 루트(mock-build/pages/<폴더>)에서 열면 탭을 눌러 옆 시안으로 옮긴다. */
 export const TAB_PAGES: Partial<Record<TabId, string>> = {

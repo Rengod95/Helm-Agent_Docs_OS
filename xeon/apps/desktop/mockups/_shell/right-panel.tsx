@@ -31,7 +31,9 @@ import {
 } from "./icons";
 import { RuntimeLog } from "./parts/runtime-log";
 import { ThreadTail } from "./parts/thread-tail";
+import { L } from "./i18n";
 import { useShell } from "./state";
+import { T } from "./terms";
 
 export interface RightTab {
   id: string;
@@ -69,21 +71,21 @@ export function chatRightTabs(opts: {
   const tabs: RightTab[] = [
     {
       id: "inbox",
-      label: "받은 요청",
+      label: T.inbox,
       icon: <Inbox />,
       badge: opts.inboxBadge,
       content: opts.inbox,
     },
     {
       id: "runtime",
-      label: "런타임",
+      label: T.runtime,
       icon: <Layers />,
       badge:
         opts.runtimeBadge !== undefined && opts.runtimeBadge > 0 ? opts.runtimeBadge : undefined,
       content: opts.runtime,
     },
-    { id: "work", label: "작업", icon: <ListChecks />, content: opts.work },
-    ...(opts.plugins ?? [{ id: "helm/panel", label: "탐구", icon: <Compass />, ext: "helm" }]),
+    { id: "work", label: L("작업"), icon: <ListChecks />, content: opts.work },
+    ...(opts.plugins ?? [{ id: "helm/panel", label: T.inquiry, icon: <Compass />, ext: "helm" }]),
   ];
   return opts.only === undefined ? tabs : tabs.filter((t) => opts.only?.includes(t.id));
 }
@@ -101,15 +103,15 @@ export function workbenchRightTabs(opts: {
   return [
     {
       id: "inbox",
-      label: "받은 요청",
+      label: T.inbox,
       icon: <Inbox />,
       badge: opts.inboxBadge,
       content: opts.inbox,
     },
-    { id: "log", label: "기록", icon: <History />, content: opts.log ?? <RuntimeLog /> },
+    { id: "log", label: L("기록"), icon: <History />, content: opts.log ?? <RuntimeLog /> },
     {
       id: "thread",
-      label: "대화",
+      label: T.thread,
       icon: <MessageSquare />,
       content: opts.thread ?? <ThreadTail onGoToThread={opts.onGoToThread} />,
     },
@@ -127,13 +129,13 @@ export function standardRightTabs(opts: {
   const tabs: RightTab[] = [
     {
       id: "inbox",
-      label: "받은 요청",
+      label: T.inbox,
       icon: <Inbox />,
       badge: opts.inboxBadge,
       content: opts.inbox,
     },
-    { id: "helm", label: "탐구", icon: <Compass />, content: opts.helm },
-    { id: "work", label: "작업", icon: <ListChecks />, content: opts.work },
+    { id: "helm", label: T.inquiry, icon: <Compass />, content: opts.helm },
+    { id: "work", label: L("작업"), icon: <ListChecks />, content: opts.work },
   ];
   return opts.only === undefined ? tabs : tabs.filter((t) => opts.only?.includes(t.id));
 }
@@ -153,7 +155,7 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
   const overlay = m.layout !== "wide";
   const open = m.endOpen;
   return (
-    <aside aria-label="맥락 패널" className="relative flex flex-none items-start gap-1.5">
+    <aside aria-label={L("맥락 패널")} className="relative flex flex-none items-start gap-1.5">
       {open && (
         <Card
           variant="well"
@@ -204,7 +206,7 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
             <IconButton
               size="xs"
               variant="ghost"
-              label="맥락 패널 접기"
+              label={L("맥락 패널 접기")}
               onClick={() => m.setEndOpen(false)}
             >
               <X />
@@ -218,7 +220,7 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
                     size="sm"
                     surface="none"
                     icon={current.icon}
-                    title="셸 목업에서는 비어 있어요"
+                    title={L("셸 목업에서는 비어 있어요")}
                   />
                 )}
               </div>
@@ -226,7 +228,7 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
           </CardPanel>
         </Card>
       )}
-      <FloatingBar label="맥락 패널" orientation="vertical" size="sm" shadow="2">
+      <FloatingBar label={L("맥락 패널")} orientation="vertical" size="sm" shadow="2">
         {barTabs.map((t) => (
           <FloatingBarItem
             key={t.id}

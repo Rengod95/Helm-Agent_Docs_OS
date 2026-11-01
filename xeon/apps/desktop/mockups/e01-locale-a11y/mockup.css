@@ -1,0 +1,75 @@
+/* 묶음 E 시안: caustic 스타일 + 공용 셸 CSS + 묶음 A 공용 부품 + 설정 틀. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../_chat-rt/";
+@source "../_settings/";
+@source "../p02-opus/parts/";
+
+/* N-50(목업 전용): 프로그램 초점도 고리가 보이게(스크린숏). 실제 앱은 :focus-visible만. */
+[data-sim-focus] {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--cs-color-focus-offset),
+    0 0 0 3px var(--cs-color-focus-ring) !important;
+}
+
+/* 앱 설정 "움직임 줄이기 켬": caustic은 prefers-reduced-motion 미디어 쿼리만 있어 앱 설정으로 켤 고리가 없다(caustic 빈틈).
+   제안: caustic base.css에 [data-motion="reduce"] 선택자를 미디어 쿼리와 같은 규칙으로 더한다. */
+[data-motion="reduce"] *,
+[data-motion="reduce"] *::before,
+[data-motion="reduce"] *::after {
+  animation-duration: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0s !important;
+}
+
+/* 강제 색(Windows 고대비 검정) 흉내. 실제 forced-colors는 배경을 Canvas로, 글·선을 CanvasText로 바꾸고 box-shadow를 지운다.
+   헤드리스 크롬에서 켤 수 없어 같은 효과를 색 고정으로 흉내 낸다(Canvas #000, CanvasText #fff, Highlight #1aebff). */
+[data-sim-forced] body,
+[data-sim-forced] #root * {
+  background-color: #000 !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  border-color: #fff !important;
+  box-shadow: none !important;
+  background-image: none !important;
+  text-shadow: none !important;
+}
+[data-sim-forced] [role="region"][aria-label="목업 전용 상태 전환"],
+[data-sim-forced] [role="region"][aria-label="목업 전용 상태 전환"] * {
+  background-color: var(--cs-color-bg-inset) !important;
+  color: var(--cs-color-text-tertiary) !important;
+}
+/* 고친 규칙(제안: caustic @media (forced-colors: active) 묶음). */
+[data-sim-forced="fixed"] [data-slot="side-panel"],
+[data-sim-forced="fixed"] [data-slot="card"],
+[data-sim-forced="fixed"] [data-slot="floating-bar"],
+[data-sim-forced="fixed"] [data-slot="composer"],
+[data-sim-forced="fixed"] [data-slot="agent-request"],
+[data-sim-forced="fixed"] [data-slot="tool-call"] {
+  outline: 1px solid #fff !important;
+  outline-offset: -1px;
+}
+[data-sim-forced="fixed"] [data-sim-focus],
+[data-sim-forced="fixed"] :focus-visible {
+  outline: 2px solid #1aebff !important;
+  outline-offset: 2px !important;
+}
+[data-sim-forced="fixed"] #root [aria-current="page"],
+[data-sim-forced="fixed"] #root [data-slot="segmented-control-item"][data-state="checked"],
+[data-sim-forced="fixed"] #root [data-slot="switch"][data-state="checked"] {
+  background-color: #1aebff !important;
+}
+[data-sim-forced="fixed"] #root [aria-current="page"] *,
+[data-sim-forced="fixed"] #root [data-slot="segmented-control-item"][data-state="checked"] *,
+[data-sim-forced="fixed"] #root [aria-current="page"],
+[data-sim-forced="fixed"] #root [data-slot="segmented-control-item"][data-state="checked"] {
+  color: #000 !important;
+  -webkit-text-fill-color: #000 !important;
+  background-color: #1aebff !important;
+}
+[data-sim-forced="fixed"] #root [class*="-graphic"].rounded-full {
+  background-color: #fff !important;
+}
+@source "../e04-workbench-states/parts/";

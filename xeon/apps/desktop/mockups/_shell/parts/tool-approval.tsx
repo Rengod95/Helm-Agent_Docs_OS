@@ -3,6 +3,7 @@
 import { AgentRequest, Badge, ListDescription, ListDescriptionRow } from "@caustic/react";
 import type { KeyboardEvent } from "react";
 import type { ToolApproval } from "../fixtures";
+import { L, L2 } from "../i18n";
 
 /** 승인 카드 상태. once는 allowed가 되었다가 1초 뒤 gone. */
 export type Decision = "pending" | "allowed" | "always" | "denied" | "answered" | "gone";
@@ -31,10 +32,10 @@ export function ToolApprovalCard({
   if (decision !== "pending") {
     const title =
       decision === "denied"
-        ? "거부했어요"
+        ? L("거부했어요")
         : decision === "always"
-          ? "이 대화에서 항상 허용"
-          : "허용했어요";
+          ? L("이 대화에서 항상 허용")
+          : L("허용했어요");
     return (
       <AgentRequest
         kind="permission"
@@ -69,7 +70,7 @@ export function ToolApprovalCard({
         kind="permission"
         title={
           <>
-            <span className="sr-only">도구 승인: </span>
+            <span className="sr-only">{L("도구 승인")}: </span>
             <span className="font-mono">{approval.tool}</span>
           </>
         }
@@ -86,9 +87,9 @@ export function ToolApprovalCard({
             : "shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] outline-none focus-visible:focus-ring"
         }
         actions={[
-          { id: "deny", label: "거부", tone: "danger" },
-          { id: "always", label: "이 대화에서 항상", tone: "secondary" },
-          { id: "once", label: "허용", tone: "primary" },
+          { id: "deny", label: L("거부"), tone: "danger" },
+          { id: "always", label: L("이 대화에서 항상"), tone: "secondary" },
+          { id: "once", label: L("허용"), tone: "primary" },
         ]}
         onAction={(id) => onDecide(ACTION_TO_DECISION[id as keyof typeof ACTION_TO_DECISION])}
       >
@@ -100,16 +101,16 @@ export function ToolApprovalCard({
           // 카드가 이미 좌우 여백을 준다: 행의 좌우 여백은 0(DP-07). 이름표 열은 가장 긴 이름표(timeoutSeconds) 폭만큼.
           className="rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
         >
-          <ListDescriptionRow term="명령" mono>
+          <ListDescriptionRow term={L2("명령", "Command")} mono>
             <span className="whitespace-pre-wrap break-all">{approval.command}</span>
           </ListDescriptionRow>
-          <ListDescriptionRow term="위험도">
+          <ListDescriptionRow term={L("위험도")}>
             <Badge size="xs" tone="warning">
               {approval.risk}
             </Badge>
           </ListDescriptionRow>
           {approval.secrets.map((sec) => (
-            <ListDescriptionRow key={sec.env} term="비밀" mono>
+            <ListDescriptionRow key={sec.env} term={L2("비밀", "Secret")} mono>
               <span className="break-all">
                 {sec.env} ← {sec.ref}
               </span>

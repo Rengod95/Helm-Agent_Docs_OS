@@ -2,6 +2,7 @@
 // URL ?state=<id>&theme=light|dark. 상태를 바꾸면 페이지 상태를 처음부터 다시 만든다(key).
 import { Select, SelectOption } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
+import { LANG, switchLang, type Lang } from "./i18n";
 
 export type Theme = "light" | "dark";
 export interface MockStateDef<S extends string> {
@@ -22,6 +23,8 @@ function DevSwitcher<S extends string>({
   onState: (s: S) => void;
   onTheme: (t: Theme) => void;
 }) {
+  const q = new URLSearchParams(window.location.search);
+  const showLang = q.has("lang") || q.get("dev") === "1";
   return (
     <div
       role="region"
@@ -42,6 +45,20 @@ function DevSwitcher<S extends string>({
               {s.label}
             </SelectOption>
           ))}
+        </Select>
+      )}
+      {/* 묶음 E(N-49): 화면 언어(목업 전용 ?lang=en). 바꾸면 다시 읽는다(T와 셸 문구가 모듈을 읽을 때 정해진다).
+          다른 페이지 띠가 바뀌지 않게 ?lang이나 ?dev=1이 있을 때만 보인다. */}
+      {showLang && (
+        <Select
+          size="xs"
+          aria-label="화면 언어"
+          value={LANG}
+          onValueChange={(v) => switchLang(v as Lang)}
+          className="w-24"
+        >
+          <SelectOption value="ko">한국어</SelectOption>
+          <SelectOption value="en">English</SelectOption>
         </Select>
       )}
       <Select

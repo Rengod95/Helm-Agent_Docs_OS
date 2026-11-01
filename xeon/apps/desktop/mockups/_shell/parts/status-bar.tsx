@@ -4,6 +4,7 @@
 // 접근성: 띠 전체가 role="status" 하나이고, 개수 칸은 "승인 대기 2개"처럼 문장 라벨을 단다.
 import { Button, Popover, PopoverDescription, PopoverTitle, Progress } from "@caustic/react";
 import type { ReactNode } from "react";
+import { L } from "../i18n";
 
 type Dot = "success" | "warning" | "danger" | "neutral";
 const dotClass: Record<Dot, string> = {
@@ -41,7 +42,21 @@ export interface StatusCell {
   wide?: boolean | undefined;
 }
 
+// 묶음 E(N-49 긴 라벨 규칙): 띠가 모자라면 칸을 통째로 자르지 않고 글을 말줄임한다. 개수 칸(승인, 알림, 확장 실패, 진행 중)과
+// 점이 있는 칸(연결·엔진 상태)은 줄이지 않고, 나머지(대상·모델·진행권)가 먼저 줄어든다. 자리가 넉넉하면 예전과 똑같다.
+const KEEP = new Set([
+  "approvals",
+  "notices",
+  "ext-failures",
+  "live",
+  "link",
+  "engine",
+  "tokens",
+  "goal",
+]);
+
 function Cell({ cell }: { cell: StatusCell }) {
+  const keep = KEEP.has(cell.id) || cell.inline !== undefined;
   return (
     <Popover
       side="top"
@@ -53,7 +68,8 @@ function Cell({ cell }: { cell: StatusCell }) {
           size="xs"
           variant="ghost"
           aria-label={cell.label}
-          className="h-6 gap-1.5 px-1.5 text-ui-xs font-normal text-text-secondary"
+          title={keep || typeof cell.text !== "string" ? undefined : cell.text}
+          className={`h-6 min-w-0 max-w-full gap-1.5 px-1.5 text-ui-xs font-normal text-text-secondary ${keep ? "" : "[&>[data-cell-text]]:truncate"}`}
         >
           {cell.dot !== undefined && (
             <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${dotClass[cell.dot]}`} />
@@ -63,7 +79,9 @@ function Cell({ cell }: { cell: StatusCell }) {
               {cell.icon}
             </span>
           )}
-          <span className="whitespace-nowrap tabular-nums">{cell.text}</span>
+          <span data-cell-text="" className="min-w-0 whitespace-nowrap tabular-nums">
+            {cell.text}
+          </span>
           {cell.trailing}
         </Button>
       }
@@ -123,7 +141,10 @@ export interface StatusBarProps {
 export function StatusBar({ start, end }: StatusBarProps) {
   const row = (cells: StatusCell[]) =>
     cells.map((c, i) => (
-      <span key={c.id} className="flex items-center">
+      <span
+        key={c.id}
+        className={`flex min-w-0 items-center ${KEEP.has(c.id) || c.inline !== undefined ? "shrink-0" : "min-w-12 shrink"}`}
+      >
         {i > 0 && <Sep />}
         <Cell cell={c} />
         <InlineActions cell={c} />
@@ -132,13 +153,13 @@ export function StatusBar({ start, end }: StatusBarProps) {
   return (
     <div
       role="status"
-      aria-label="상태 표시줄"
+      aria-label={L("상태 표시줄")}
       data-slot="status-bar"
       className="flex h-7 flex-none items-center gap-2 overflow-hidden px-2 font-ui text-ui-xs text-text-secondary"
     >
-      <div className="flex min-w-0 items-center">{row(start)}</div>
+      <div className="flex min-w-0 shrink items-center">{row(start)}</div>
       <span aria-hidden className="flex-1" />
-      <div className="flex min-w-0 items-center">{row(end)}</div>
+      <div className="flex min-w-0 shrink items-center">{row(end)}</div>
     </div>
   );
 }

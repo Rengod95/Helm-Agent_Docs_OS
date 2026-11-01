@@ -24,6 +24,7 @@ import {
   useShell,
   type RightTab,
   type StatusCell,
+  L,
 } from "../_shell";
 import { TABS, tabLabel, type TabId } from "./tabs";
 
@@ -80,7 +81,7 @@ function TabColumn({
           <IconButton
             size="sm"
             variant="ghost"
-            label="사이드바 열기"
+            label={L("사이드바 열기")}
             aria-expanded={false}
             onClick={() => m.setStartOpen(true)}
           >
@@ -91,7 +92,7 @@ function TabColumn({
           size="xs"
           variant="soft"
           prefix={<Search />}
-          placeholder="키 찾기"
+          placeholder={L("키 찾기")}
           aria-label="설정 키 찾기"
           defaultValue={query}
           containerClassName="min-w-0 flex-1"
@@ -115,7 +116,7 @@ function TabColumn({
                   }
                   onSelect={() => onTabSelect(t.id)}
                 >
-                  {t.label}
+                  {tabLabel(t.id)}
                 </ListNavigationItem>
               );
             })}
@@ -181,7 +182,7 @@ export function SettingsFrame({
                   <IconButton
                     size="sm"
                     variant="ghost"
-                    label="사이드바 열기"
+                    label={L("사이드바 열기")}
                     aria-expanded={false}
                     onClick={() => m.setStartOpen(true)}
                     className="-ms-1.5"
@@ -199,7 +200,7 @@ export function SettingsFrame({
                 >
                   {TABS.map((t) => (
                     <SelectOption key={t.id} value={t.id}>
-                      {t.label}
+                      {tabLabel(t.id)}
                     </SelectOption>
                   ))}
                 </Select>
