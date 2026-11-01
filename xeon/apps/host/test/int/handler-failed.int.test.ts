@@ -16,8 +16,8 @@ const realTest = gate.blocker === undefined ? test : test.skip;
 
 const EXTENSION = "handler-failer";
 
-const extension: ExtensionEntry = ({ manifest: loaded, scope }) => {
-  scope(loaded.name, {}, (g) => {
+const extension: ExtensionEntry = ({ manifest: loaded, register }) => {
+  register(loaded.name, {}, (g) => {
     g.on("thread.info.after", () => {
       throw new Error("probe failed on purpose");
     });
@@ -26,14 +26,11 @@ const extension: ExtensionEntry = ({ manifest: loaded, scope }) => {
 
 function failingExtension(): HostPluginModule {
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: EXTENSION,
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./index.ts",
-    points: ["thread.info.after"],
-    usesDrive: false,
+    plugins: [{ layer: "plugin", hooks: ["thread.info.after"] }],
     trust: { level: "builtin" },
   });
   return { manifest, extension };

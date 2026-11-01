@@ -25,7 +25,12 @@ import {
   type McpProcessPort,
   type McpRulesSink,
 } from "@fresnel/cap-mcp";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
+import {
+  hostOf,
+  PrimitiveError,
+  type ExtensionUnit,
+  type RegistrationHostApi,
+} from "@fresnel/ext-host";
 import { messageOf } from "../util.ts";
 import { createHostMcpStart } from "./mcp-start.ts";
 import { createLoaderFs, type ProjectTrust } from "./trust.ts";
@@ -66,7 +71,7 @@ const STDIO_GRACE_MS = 2000;
 
 const MCP_HOOKS = ["boundary.step.before"] as const;
 
-function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
+function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | undefined {
   try {
     return host.port(key);
   } catch (caught) {
@@ -77,18 +82,20 @@ function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefin
 
 function manifestOf(): ReturnType<typeof defineManifest> {
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "cap-mcp",
     version: "0.1.0",
     displayName: "MCP client",
     description: "Connects MCP servers and exposes their tools, prompts and resources (L2).",
     defaultEnabled: true,
-    layer: "L2",
-    kind: "plugin",
     entry: "./src/index.ts",
-    provides: [{ id: McpClient.id, version: McpClient.version }],
-    points: [...MCP_HOOKS],
-    usesDrive: false,
+    plugins: [
+      {
+        layer: "L2",
+        hooks: [...MCP_HOOKS],
+        provides: [{ id: McpClient.id, version: McpClient.version }],
+      },
+    ],
     trust: { level: "builtin" },
   });
 }
@@ -96,8 +103,8 @@ function manifestOf(): ReturnType<typeof defineManifest> {
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
   const manifest = manifestOf();
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const os = host.port(OsPortKey);
       const store = host.port(StoreServicePortKey);

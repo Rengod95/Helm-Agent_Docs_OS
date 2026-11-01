@@ -75,8 +75,8 @@ test("the real templates/index.json parses and lists 10, 8 and 9 files for drive
   expect(parsed.value.templates.drive.files).toHaveLength(10);
   expect(parsed.value.templates.policy.files).toHaveLength(8);
   expect(parsed.value.templates.observe.files).toHaveLength(9);
-  expect(parsed.value.templates.drive.usesDrive).toBe(true);
-  expect(parsed.value.templates.policy.usesDrive).toBe(false);
+  expect(parsed.value.templates.drive.drives).toBe(true);
+  expect(parsed.value.templates.policy.drives).toBe(false);
 });
 
 test("parseTemplateIndex refuses another schemaVersion and text that is not JSON", () => {

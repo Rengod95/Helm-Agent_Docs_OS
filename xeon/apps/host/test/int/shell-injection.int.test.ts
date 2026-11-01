@@ -35,19 +35,21 @@ interface Captured {
 
 function captureModule(into: Captured) {
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "shell-injection-capture",
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./index.ts",
-    requires: [{ id: DialogCommands.id, range: `^${DialogCommands.version}` }],
-    points: [],
-    usesDrive: false,
+    plugins: [
+      {
+        layer: "plugin",
+        hooks: [],
+        requires: [{ id: DialogCommands.id, range: `^${DialogCommands.version}` }],
+      },
+    ],
     trust: { level: "builtin" },
   });
-  const extension: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, {}, (g) => {
+  const extension: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, {}, (g) => {
       into.commands = g.capability(DialogCommandsKey);
       into.session = hostOf(g).port(SessionPortKey);
     });

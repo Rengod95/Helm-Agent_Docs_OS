@@ -98,7 +98,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | SC-18 | 플러그인 적용: 켜기, 대화 범위, 신뢰 | `X.loading-trust.spec` §4.6, `L3.group-sdk.spec` §3.8 |
 | SC-19 | 시험 실행: replay, 테이프, 시험 대화 | `L3.group-sdk.spec` §3.10, `just benchmark --server` |
 | SC-20 | 평가와 측정: 지표, 비용, 핸들러 시간, 승격 보고, 코어 변경 검사 | `L3.group-sdk.spec` §3.12, `X.operations.spec` §4.2, `scripts/core-diff-check.ts` |
-| SC-21 | 묶기: 그룹 구성과 프로필 | `L3.slots.spec`, `x.primitives.activeDriveGroup` |
+| SC-21 | 묶기: 그룹 구성과 프로필 | `L3.slots.spec`, `x.primitives.activeDriver` |
 | SC-22 | 제어: 켜기·끄기, 안전 모드, 자동 끄기 복구, 버전과 되돌리기 | `X.operations.spec` §4.3, §4.6 |
 | SC-23 | 플러그인 화면 쓰기(Helm 탐구 전체 화면) | ADR-0021 §3.9 |
 
@@ -309,12 +309,12 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 누가: 만든 그룹의 동작을 정하는 사용자
 - 목표: 어느 지점에 거는지, drive 임대 상한, 설정 항목을 보고 고칩니다.
 - 단계
-  1. 확장 상세(P-17) "연결 지점" 탭에서 매니페스트 `points`마다 fold, 예산 등급과 기본 예산(`DEFAULT_BUDGETS_MS`), tier를 봅니다.
-  2. "임대와 상한" 탭에서 `usesDrive`, 상한(`ext.<이름>.driveLimits` 또는 `x.primitives.driveDefaultLimits`), 최근 임대 기록을 봅니다.
+  1. 확장 상세(P-17) "연결 지점" 탭에서 매니페스트 `plugins[].hooks`마다 fold, 예산 등급과 기본 예산(`DEFAULT_BUDGETS_MS`), tier를 봅니다.
+  2. "임대와 상한" 탭에서 `drives`, 상한(`ext.<이름>.driveLimits` 또는 `x.primitives.driveDefaultLimits`), 최근 임대 기록을 봅니다.
   3. "설정" 탭에서 `userConfig`와 `defineSettings`로 선언한 항목을 P-09와 같은 부품으로 고칩니다.
   4. 지점이나 매니페스트를 바꾸는 일은 편집기에서 합니다. 저장하면 핫 리로드(`X.loading-trust.spec` §4.4.4)로 다시 실리고 정적 검사 결과(`ManifestIssue`, `scanDriveSource`)가 탭 위에 보입니다.
 - 거치는 화면: P-17, P-09
-- 성공 기준: 화면의 지점 목록이 매니페스트 `points`와 같고, 설정 항목 집합이 스키마 키 집합과 같습니다(X10).
+- 성공 기준: 화면의 지점 목록이 매니페스트 `plugins[].hooks`와 같고, 설정 항목 집합이 스키마 키 집합과 같습니다(X10).
 
 ### SC-18 플러그인 적용: 켜기, 대화 범위, 신뢰
 
@@ -323,7 +323,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - 단계
   1. 확장 목록(P-13)이나 상세(P-17)에서 켭니다. 범위를 고릅니다: 사용자(모든 대화), 프로젝트, 이 대화만(`session`). 값은 `ext.<이름>.enabled`이고 적용은 다음 단계 경계입니다.
   2. 처음 켜는 `user`·`project` 위치 확장은 신뢰 확인(O-10)에 매니페스트 요청 등급, 설치 위치 상한, 쓰는 연산(on, post, drive, 저장)을 보입니다. `project` 위치는 프로젝트 신뢰(O-04)가 `allow`일 때만 켤 수 있습니다.
-  3. drive 그룹이면 drive 그룹 고르기(`x.primitives.activeDriveGroup`)를 함께 보입니다.
+  3. drive를 등록한 플러그인이 있으면 주도 플러그인 고르기(`x.primitives.activeDriver`)를 함께 보입니다.
 - 거치는 화면: P-13, P-17, O-10, O-04
 - 성공 기준: 상태가 `enabling` → `enabled`로 바뀌는 것이 "다음 단계 경계에 적용" 배지와 함께 보입니다. 신뢰가 부족하면 진단(`trust_denied`, `trust_undecided`)이 그대로 보입니다.
 
@@ -699,7 +699,7 @@ Fresnel 데스크톱
 | 구역 | 항목 | 출처 |
 |---|---|---|
 | drive 임대 | 보유 그룹, 상한 사용량(턴, spawn, 토큰), 대기열(대기 그룹과 순서, 거부된 그룹) | `group.list` `[gap:W-24]`의 `GroupStatus.drive`(`holder`, `waiting`, `rejected`), `lease.acquired`·`lease.released`·`lease.rejected` |
-| 켜진 그룹과 확장 | 층, 이름, 상태(켜짐, 켜는 중, 끄는 중, 자동 꺼짐), 쓰는 지점 수와 펼치면 지점 목록 | `ext.list` `[gap:W-15]`, 매니페스트 `points`, `GroupStatus.pendingToggle` |
+| 켜진 그룹과 확장 | 층, 이름, 상태(켜짐, 켜는 중, 끄는 중, 자동 꺼짐), 쓰는 지점 수와 펼치면 지점 목록 | `ext.list` `[gap:W-15]`, 매니페스트 `plugins[].hooks`, `GroupStatus.pendingToggle` |
 | 전환 기록 | 단계 경계마다의 임대 교대, 켜기·끄기 적용(시각, 턴, 사유) 최근 20개 | `lease.*`, `scope.changed` 이벤트 |
 | 실패 | 확장별 `scope.handler_failed` 묶음(지점, 연속 수) | 이벤트 |
 
@@ -1841,7 +1841,8 @@ compact 폭(720 이하)과 사이드바 시트:
 | 항목 | 출처 |
 |---|---|
 | 그룹·확장 목록(이름, 패키지, 켜짐, drive 사용, 외부 여부, 신뢰) | 켜짐은 설정 키 `ext.<id>.enabled`, 나머지 메타는 `[gap:W-15]` |
-| drive 그룹 | `x.primitives.activeDriveGroup`(빈 값 = 자동) |
+| 주도 플러그인 | `x.primitives.activeDriver`(빈 값 = 자동) |
+| drive는 플러그인 그룹만 | `x.primitives.driveRequiresGroup`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
 | 그룹 설정 | `ext.helm.*`, `l3.learning.*`, `ext.account-rotation.acknowledgeRisk` 필드(`buildSettingsView` plugins 탭) |
 | 안전 모드 | `host.status.safeMode` |
 | 핸들러 실패 | `scope.handler_failed` 이벤트(휘발, 내구) |
@@ -2005,7 +2006,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 층 띠는 위에서 아래로 L3, L2, L1, L0, X, F입니다. 위층이 아래층에 기대어 쌓이는 순서입니다. L2 띠 끝에 외부 plugin 칸(`layer: "plugin"`)을 둡니다. L3 띠 아래에 group-sdk 레일(라이브러리라 고를 수 없음)을 둡니다.
 - X 띠 첫 줄은 지점 레일입니다. 훅 종류 일곱 칸(input 3, request 9, guard 3, tool 5, boundary 9, thread 15, lifecycle 2, 합 46)에서 이 맥락에 핸들러가 걸린 지점만 이름, fold, 건 확장 수를 보입니다. 둘째 줄은 post 큐, drive 임대, scope, 운영, X 훅 블록입니다. F 띠는 계약 칸이고 읽기 전용입니다.
 - 블록 하나는 확장 하나입니다. 내용: 표시 이름과 mono id(DP-39), 둘째 줄(등급·버전, 제공 기능, 또는 "drive 보유 · 턴 1/4"), 상태 면(자동 꺼짐, 실패 수, drive 보유). 이 맥락에서 꺼진 블록은 윤곽만 그립니다.
-- 포트: 받는 기능(`requires` 꽉 참, `optional` 빔), 연산 on·post·drive. 매니페스트 `points`, `usesPost`, `usesDrive`, `requires`, `optional`이 있는 것만 그립니다.
+- 포트: 받는 기능(`requires` 꽉 참, `optional` 빔), 연산 on·post·drive. 매니페스트 `plugins[]`의 `hooks`, `usesPost`, `drives`, `requires`, `optional`이 있는 것만 그립니다.
 - 엣지 종류: 기능(L2 `provides` → 받는 포트, optional 구분), 제공자 없음(받는 포트 → 끝 표시), on(블록 → 지점 레일), post(블록 → post 큐), drive(블록 → drive 임대, 보유 중이면 흐름 표시), provider 등록(예: web-exa → web), 발화(loop → 지점 레일). 엣지는 tone 색이 아니라 선 모양으로 구분합니다(DP-48).
 - 그룹 구성 선언이 있으면(`composition`, X-16) 그룹 블록을 펼쳐 슬롯 조각을 보일 수 있습니다. 선언이 없는 그룹은 블록 하나와 "구성 정보 없음"으로 보입니다 [결정: 2026-10-31 사용자, §12.4 C-7].
 - 캔버스는 운영만 합니다. 엣지를 끌어 잇거나 블록을 그룹에 넣는 편집은 없습니다. 검사기의 "구성기에서 열기"가 P-21로 갑니다.
@@ -2029,7 +2030,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 구역:
   - 머리: 표시 이름 + mono id, 층·종류·등급·버전·상태, 동작 둘(맥락에 따라 "이 대화에서 끄기"·"다시 켜기"·"프로필에서 끄기", "확장 상세" → P-17). 면제 tier는 끄기 잠금. 그룹이면 "구성기에서 열기".
   - 연결 지점 n: 지점, fold, p95/예산, 예산 대비 막대(50% warning, 100% danger), 실패 수.
-  - drive 임대(`usesDrive`만): 역할(보유·차수, 대기와 대기 계수, 후보 아님), 턴·spawn·토큰 사용량.
+  - drive 임대(`drives`만): 역할(보유·차수, 대기와 대기 계수, 후보 아님), 턴·spawn·토큰 사용량.
   - 기능: provides, requires·optional과 묶인 제공자(`← web`). 없으면 "없음 · 저하 동작" 또는 "없음 · 켜지지 못함".
   - 설정 바인딩: 행마다 설정 제목, 값 + mono 키, 이긴 범위와 그 값을 쓴 쪽(session · 이 대화, user · 프로필 탐구 중심, 기본값)(`settings.explain`, W-45). 끝 행 "<맥락>에서 덮어쓰기". 기본값 행은 풀기 잠금.
   - 구성(그룹만): `composition`의 슬롯 조각. 선언이 없으면 "구성 정보 없음".
@@ -2118,7 +2119,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 캔버스 라운드에서 찾은 §14.5 고정 데이터의 오류입니다. 구현 고정 데이터(`packages/client/src/workbench` 시험)는 고친 값을 씁니다.
 
 - 대기열: work는 L2 plugin이라 drive를 쓰지 못하고(`F.extensions.spec` §2, §4.6), review는 자동 꺼짐이라 임대 후보가 아닙니다(`X.primitives.spec` §4.4.1 4번). 둘째 drive 그룹 `plan-first`(user, drive)를 대기열에 둡니다.
-- 임대 교대: 반납 주체는 core가 아니라 임대를 가진 scope입니다. "plan-first가 턴 6 끝에 상한(4/4)으로 반납 → 사용자가 helm 제안 카드에서 탐구 시작 → `x.primitives.activeDriveGroup = helm`(session) → 턴 7 첫 단계 경계에서 helm 임대"입니다.
+- 임대 교대: 반납 주체는 core가 아니라 drive lock을 가진 Registration입니다. "plan-first가 턴 6 끝에 상한(4/4)으로 반납 → 사용자가 helm 제안 카드에서 탐구 시작 → `x.primitives.activeDriver = helm`(session) → 턴 7 첫 단계 경계에서 helm 임대"입니다.
 - acme-notes `tool.call.before` 실패는 first·closed 지점이라 예외가 거부로 처리됩니다. 런타임 행과 기록 문구는 "예외 → 거부로 처리"입니다.
 - helm의 `knowledge.search`는 제공자가 없습니다. knowledge 블록은 `knowledge.skills`·`memory`만 제공합니다.
 - 프로필 "조용히"는 `disable: [helm, plan-first]`를 가집니다.
@@ -2156,19 +2157,21 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 |---|---|
 | 이름, 표시 이름, 층, 종류, 버전, 설치 위치, 유효 등급, tier, 상태(`ScopeStatus`), 진단, 자동 꺼짐 여부, 안전 모드 제외 사유 | `ext.list` `[gap:W-15]` |
 | 켜짐 값과 범위 | `settings.get { keys: ["ext.<이름>.enabled"] }` |
-| drive 그룹 | `x.primitives.activeDriveGroup`(빈 값 = 자동) |
+| 주도 플러그인 | `x.primitives.activeDriver`(빈 값 = 자동) |
+| drive는 플러그인 그룹만 | `x.primitives.driveRequiresGroup`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
 | 실패 수 | `scope.handler_failed` 이벤트 묶음, 장부 `[gap:W-22]` |
 
 | 기능 | wire |
 |---|---|
 | 켜기·끄기(범위 고르기) | `settings.set { key: "ext.<이름>.enabled", scope }`. 이 대화만은 `scope: "launch"` |
 | 다시 켜기(자동 꺼짐) | `ext.reenable { name }` `[gap:W-21]` |
-| drive 그룹 바꾸기 | `settings.set { key: "x.primitives.activeDriveGroup" }` |
+| 주도 플러그인 바꾸기 | `settings.set { key: "x.primitives.activeDriver" }` |
+| drive는 플러그인 그룹만 바꾸기 | `settings.set { key: "x.primitives.driveRequiresGroup" }`. 끄기 전에 위 문장을 보인다 |
 | 새 그룹, 가져오기 | P-21 "새 그룹", 설치 `[gap:W-32]` |
 
 - 설정 시안 반영 [결정: 오케스트레이터 기본값]: 설정 시안(`m4/pages-settings`의 `p13-plugins`)이 P-13을 런타임 화면으로 다시 그렸습니다. 그 내용은 LightCraft에 이렇게 나눠 둡니다. P-13은 LightCraft의 최상위 내비 "확장"이고, 시안이 제안한 최상위 "그룹/런타임" 내비는 LightCraft 영역 자체가 맡습니다.
   - P-13에 둡니다: 층별 묶음(L3 그룹은 내장·사용자·프로젝트로, L2·L1·L0 플러그인), 행마다 쓰는 연산 수(on, post, drive, scope), "다음 단계 경계에 적용" 대기 표시, 자동 꺼짐과 "다시 켜기", 프로젝트 그룹의 "신뢰 필요", L0 "항상 켜짐", managed 위치 잠김, 필요한 기능이 없어 켜지지 못한 "기능 대기"(`requires` 미충족, `X.loading-trust.spec` §4.8), 행 메뉴 "다시 읽기"(`[gap:W-38]`), 머리 "새 그룹"(P-21 구성기로 감, 대화 상자로 두지 않음).
-  - 런타임 탭(§4.9.8)과 맥락이 대화 하나인 P-16에 둡니다: 시안의 "이 대화" 구역(켜진 그룹, drive 임대 보유와 epoch·턴·spawn·렌즈, `x.primitives.activeDriveGroup` 고르기). P-13 머리에는 맥락이 대화 하나일 때 한 줄 요약과 런타임 탭 링크만 둡니다(DP-23).
+  - 런타임 탭(§4.9.8)과 맥락이 대화 하나인 P-16에 둡니다: 시안의 "이 대화" 구역(켜진 그룹, drive 임대 보유와 epoch·턴·spawn·렌즈, `x.primitives.activeDriver` 고르기). P-13 머리에는 맥락이 대화 하나일 때 한 줄 요약과 런타임 탭 링크만 둡니다(DP-23).
   - P-17 기록 탭과 LightCraft 오른쪽 "기록" 탭에 둡니다: `scope.handler_failed` 기록.
   - 데이터: 메타·지점·등급 `[gap:W-15]`, 대화별 켜진 그룹과 임대 읽기 모델 `[gap:W-24]`, 다시 읽기 `[gap:W-38]`.
 - 상태: 빈(사용자 확장 없음 "그룹을 만들려면 [새 그룹]"), 읽는 중 `Skeleton` 행, 오류 저장 실패 `FieldError`, 오프라인 잠금, 권한 필요(안전 모드에서 외부 확장 행은 "안전 모드라 빠짐", `project` 위치는 "프로젝트 신뢰 필요"), 긴 내용(가상 목록 `[gap:C-04]`, 거르기 유지).
@@ -2206,8 +2209,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 탭 | 항목 | 출처 |
 |---|---|---|
 | 개요 | 설명, 저자, 설치 위치, `provides`·`requires`·`optional`과 바인딩 상태, `recordKinds`, `components`, 진단 | `ext.get { name }` `[gap:W-20]` |
-| 연결 지점 | 지점, fold, 예산 등급과 값, tier, p50·p95·최대, 실패 수 | 매니페스트 `points`, `DEFAULT_BUDGETS_MS`와 `x.operations.budget.*`, 시간 `[gap:W-23]` |
-| 임대와 상한 | `usesDrive`, 상한 설정, 최근 임대(시작, 끝, 사유, 사용 턴·spawn·토큰) | `settings.get`, `lease.*` 이벤트 |
+| 연결 지점 | 지점, fold, 예산 등급과 값, tier, p50·p95·최대, 실패 수 | 매니페스트 `plugins[].hooks`, `DEFAULT_BUDGETS_MS`와 `x.operations.budget.*`, 시간 `[gap:W-23]` |
+| 임대와 상한 | `drives`, 상한 설정, 최근 임대(시작, 끝, 사유, 사용 턴·spawn·토큰) | `settings.get`, `lease.*` 이벤트 |
 | 설정 | 확장 설정 필드 | `settings.list` → `buildSettingsView`(plugins 탭에서 이 확장 키만) |
 | 측정 | `GroupMetrics` | `group.metrics { id, threadId? }` `[gap:W-25]`. 임시로 `/group status` 결과 |
 | 기록 | `scope.handler_failed`, `scope.changed`, 로더 진단, 운영 로그 줄 | 이벤트 구독, 진단 `[gap:W-20]` |
@@ -2393,7 +2396,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 [결정: 2026-10-31 사용자] 구성과 만들기를 "구성" 하나로 합칩니다. 새 그룹은 이 화면의 "새 그룹" 동작입니다(§12.4 C-6). 구성기는 그룹 구조를 편집하는 유일한 화면입니다(C-2). 이 절은 구성기 제안(`mockups/wb-compose/SPEC.md`, 브랜치 `m4/compose`)을 합친 것이고, 시각 언어는 캔버스 2차 시안 뒤에 정합니다.
 
-- 구성기는 설계 모델입니다. 런타임에는 블록이 없고, 블록은 매니페스트(`points`, `optional`, `requires`, `recordKinds`, `usesDrive`, `usesPost`, `composition`)와 `setup(g)` 코드로 풀립니다.
+- 구성기는 설계 모델입니다. 런타임에는 블록이 없고, 블록은 매니페스트(`plugins[].hooks`, `optional`, `requires`, `recordKinds`, `drives`, `usesPost`, `composition`)와 `setup(g)` 코드로 풀립니다.
 - 설치된 그룹(Helm 등)의 구성은 매니페스트 `composition`에서 읽은 읽기 전용 보기입니다. 작성자가 선언하지 않은 그룹은 블록 하나 "구성 정보 없음"으로 보입니다 [결정: 2026-10-31 사용자, C-7]. 훅 이름으로 추정하지 않습니다.
 - 고치려면 "복제해서 고치기"로 새 그룹(예: `lens-review`)을 만듭니다. 구성기는 남의 설치본 코드를 다시 쓰지 않습니다.
 - 화면 머리 오른쪽 `SegmentedControl`이 보기 넷을 바꿉니다: 그룹 · 흐름 · 프로필 · 코드. 머리 왼쪽은 고른 그룹(설치 그룹 목록, 작성 중 초안 목록)과 "새 그룹"입니다. 블록 팔레트("블록")와 고른 블록의 상세("속성")는 오른쪽 well 탭입니다(받은 요청 다음, 기록·대화 앞).
@@ -2408,7 +2411,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 검사(인라인): 블록 마지막 줄에 문장과 검사 코드(mono). 실패 블록은 invalid 상태, 관련 선은 invalid 선. 캔버스 바로 위에 `Alert tone="danger"` 하나로 개수와 막힌 동작(DP-28). 검사는 `ext.validateComposition`(W-47)이 하고 제작 확장 AU-003·AU-004와 같은 규칙입니다.
   - `drive_duplicate`: drive 블록이 둘. "drive는 그룹마다 하나예요. 단계 머신에 상태로 합쳐요"
   - `on_capability_call`: on 핸들러 블록이 기능 포트에 이어짐(ADR-0015). first 훅이면 예외가 거부가 됩니다
-  - `capability_missing`: `requires` 기능에 이 맥락의 provider가 없음. scope가 켜지지 않습니다(`X.primitives.spec` §3.7 규칙 5)
+  - `capability_missing`: `requires` 기능에 이 맥락의 provider가 없음. Registration이 켜지지 않습니다(`X.primitives.spec` §3.7 규칙 5)
   - 경고 `maxLenses > maxSpawns`: 렌즈 일부가 skipped가 됩니다(`L3.helm.spec` §6)
 - "새 그룹"(빈 구성기): 그룹 머리(이름 입력, 이름 규칙 한 줄)와 놓을 곳, 시작점(Helm 복제, 제작 확장 종류 카탈로그의 종류). provider 열은 흐리게 보여 이 맥락에서 쓸 수 있는 기능을 미리 알립니다.
 - 블록 쌓는 순서는 같은 지점 안 등록 순번만 뜻합니다. 놓을 때 이 사실을 한 줄로 알립니다.
@@ -2428,7 +2431,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 층마다 띠 하나(X 외부 훅, L3 플러그인 그룹, plugin, L2 기능, L1 코어). 띠 안 블록마다 켜기·끄기·그대로(`SegmentedControl` xs). "그대로"는 enable·disable 어디에도 넣지 않습니다. core tier는 잠금 표시만.
 - 블록 줄에 "지금 <상태> → <바뀔 상태>"를 보입니다. 지금 상태는 맥락 칸의 대화(또는 전체) 기준입니다.
-- drive 임대 칸: `x.primitives.activeDriveGroup`은 한 그룹 또는 자동입니다. 바꾸면 적용 뒤 다음 경계에 지금 임대를 회수합니다(`L3.group-sdk.spec` §3.5).
+- drive 임대 칸: `x.primitives.activeDriver`은 한 Registration(플러그인) 또는 자동입니다. 바꾸면 적용 뒤 다음 경계에 지금 임대를 회수합니다(`L3.group-sdk.spec` §3.5).
 - first·chain 훅 순서는 (tier, loadIndex, 등록 순번)으로 정해지고 런타임에 순서 입력이 없습니다. 그래서 보기만 하고 "런타임에 순서 입력 없음" 배지를 답니다(DP-56).
 - 오른쪽 "실효 스택": 맥락 대화의 지금 값과 프로필을 합친 결과(바뀌는 확장, drive, 덮어쓰는 설정, 켜지는 지점 수)이고 `profile.preview`(W-44)의 결과입니다.
 - 동작: 이 대화에 적용(`profile.apply { id, threadId }`, W-46. 엔진이 원자적으로 쓰고 하나라도 실패하면 모두 되돌림), 새 시험 대화로(`thread.create { trial: true, profileId }`), 저장(`profile.put`).
@@ -3000,7 +3003,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | X-14 | 시험 대화 표지(`ThreadSummary.trial`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 기본값은 제외 [제안] |
 | X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), `x.operations.trace.turnsPerThread`(기본 8) [제안] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 대화마다 작은 버퍼] |
 | X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
-| X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 임대를 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 scope를 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |
+| X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 임대를 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 Registration을 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |
 | X-18 | 프로필 타입(`Profile`)과 호스트 저장소, `profile.*` 메서드 | `F.wire-settings.spec` §3.3·§3.9, `L4.host-service.spec` | 없음 [결정: 2026-10-31 사용자] |
 | X-19 | 시험 대화 단계 경계 멈춤: 멈춤 표지가 있으면 다음 `step_end` 경계 뒤 새 turn과 drive 재호출을 열지 않음. 임대 유지, 사용자 입력은 큐에만 | `X.primitives.spec` §4.4.3, `L1.loop.spec` | 없음 [결정: 2026-10-31 사용자] |
 | X-20 | 안전 모드에서 X 훅을 싣지 않음 | `X.operations.spec` §4.7 | 외부 훅 M4 [결정: 2026-10-31 사용자] |
@@ -3302,10 +3305,10 @@ Fresnel 데스크톱 앱의 두 번째 1급 영역 "작업대"(런타임 LightCr
 
 ```ts
 export const extensions = [
-  { name: "helm", layer: "L3", kind: "group", trust: "user", tier: "user", version: "0.1.0", status: "enabled", drive: "holder", failures: 0 },
-  { name: "learning", layer: "L3", kind: "group", trust: "builtin", tier: "builtin", version: "0.4.0", status: "enabled", drive: "none", failures: 0 },
+  { name: "helm", layer: "L3", kind: "plugin-group", trust: "user", tier: "user", version: "0.1.0", status: "enabled", drive: "holder", failures: 0 },
+  { name: "learning", layer: "L3", kind: "plugin-group", trust: "builtin", tier: "builtin", version: "0.4.0", status: "enabled", drive: "none", failures: 0 },
   // 자동 꺼진 그룹은 drive 대기열에 들어가지 않습니다. 대기는 work가 맡습니다
-  { name: "review", layer: "L3", kind: "group", trust: "user", tier: "user", version: "0.2.1", status: "auto_disabled", drive: "none", failures: 5 },
+  { name: "review", layer: "L3", kind: "plugin-group", trust: "user", tier: "user", version: "0.2.1", status: "auto_disabled", drive: "none", failures: 5 },
   { name: "work", layer: "L2", kind: "plugin", trust: "builtin", tier: "builtin", version: "0.4.0", status: "enabled", drive: "waiting", failures: 0 },
   { name: "web-exa", layer: "L2", kind: "plugin", trust: "user", tier: "user", version: "1.0.3", status: "enabled", drive: "none", failures: 0 },
   { name: "acme-notes", layer: "plugin", kind: "plugin", trust: "project", tier: "project", version: "0.0.9", status: "enabled", drive: "none", failures: 2 },

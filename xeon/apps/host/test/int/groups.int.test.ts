@@ -3,15 +3,17 @@ import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { defineManifest, type PortKey } from "@fresnel/contracts/extensions";
 import { GroupServiceName, type GroupService } from "@fresnel/contracts/services";
-import { hostOf } from "@fresnel/ext-host";
+import { ExtHostPortKey, hostOf, type ExtHost } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { GroupSettingsSourceKey, type GroupSettingsSource } from "@fresnel/group-sdk";
+import { AssembleError, assemble } from "../../src/assemble.ts";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import type { HostPluginModule } from "../../src/types.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { testGroup } from "../fixtures/test-group.ts";
+import { writeUserSettings } from "../fixtures/user-settings.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // HOST.6 group-sdk (int): 조립 루트가 그룹 서비스를 X의 임대 중재 포트(fresnel.groups)로 내고, 서비스가 보는 그룹 목록·구동 그룹 설정·그룹 설정 읽기를
@@ -20,7 +22,7 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 
-const HOLDER_KEY = "x.primitives.activeDriveGroup";
+const HOLDER_KEY = "x.primitives.activeDriver";
 const GROUP_SERVICE_KEY: PortKey<GroupService> = { name: GroupServiceName };
 
 interface Captured {
@@ -32,21 +34,18 @@ interface Captured {
 function portProbe(captured: Captured): HostPluginModule {
   return {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "port-probe",
       version: "0.1.0",
       displayName: "Port probe",
       description: "Captures the group service ports for a test.",
       defaultEnabled: true,
-      layer: "plugin",
-      kind: "plugin",
       entry: "./src/index.ts",
-      points: [],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: [] }],
       trust: { level: "builtin" },
     }),
-    extension: ({ scope }) => {
-      scope("port-probe", {}, (g) => {
+    extension: ({ register }) => {
+      register("port-probe", {}, (g) => {
         const host = hostOf(g);
         captured.service = host.port(GROUP_SERVICE_KEY);
         captured.settings = host.port(GroupSettingsSourceKey);
@@ -81,11 +80,11 @@ realTest(
     const written = await service.setDriveHolder(groupId);
     expect(written.ok).toBe(true);
     const got = await connection.request("settings.get", {
-      keys: ["x.primitives.activeDriveGroup"],
+      keys: ["x.primitives.activeDriver"],
       threadId: created.threadId,
     });
     expect(got.settings[0]).toMatchObject({ value: groupId, source: { scope: "launch" } });
-    expect(settings.value("x.primitives.activeDriveGroup")).toBeNull();
+    expect(settings.value("x.primitives.activeDriver")).toBeNull();
 
     // 알 수 없는 그룹은 오류 값이다
     const unknown = await service.setDriveHolder("nope");
@@ -198,6 +197,81 @@ realTest(
       error: { kind: "group.settingUnwritable", key: HOLDER_KEY, reason: "storage" },
     });
     await started.close();
+    home.dispose();
+  },
+  30_000,
+);
+
+// X.primitives `x.primitives.driveRequiresGroup`(기본 켜짐): 플러그인 그룹이 아닌 플러그인은 drive를 등록하지 못한다.
+// 끄면 그룹이 아닌 플러그인도 drive를 등록한다. 설정은 등록 시점(조립 때)에 읽는다
+function plainDriverModule(captured: { ext: ExtHost | undefined }): HostPluginModule {
+  return {
+    manifest: defineManifest({
+      schemaVersion: 2,
+      name: "drive-plain",
+      version: "0.1.0",
+      displayName: "Plain driver",
+      description: "Declares drive without being a plugin group.",
+      defaultEnabled: true,
+      entry: "./src/index.ts",
+      plugins: [{ layer: "plugin", hooks: [], drives: true }],
+      trust: { level: "builtin" },
+    }),
+    extension: ({ register }) => {
+      register("drive-plain", {}, (g) => {
+        captured.ext = hostOf(g).port(ExtHostPortKey);
+        g.drive(async () => {});
+      });
+    },
+  };
+}
+
+realTest(
+  "drive policy: by default a plugin that is not a group cannot register drive, so its setup fails and assembly stops",
+  async () => {
+    const home = useEngineHome();
+    const captured: { ext: ExtHost | undefined } = { ext: undefined };
+    const caught = await assemble({
+      mode: "in-process",
+      defaultGroups: false,
+      extraPlugins: [plainDriverModule(captured)],
+    }).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    expect(caught).toBeInstanceOf(AssembleError);
+    if (!(caught instanceof AssembleError)) throw new Error("expected an AssembleError");
+    expect(caught.issues).toEqual([
+      {
+        code: "plugin",
+        plugin: "drive-plain",
+        message:
+          "setup of drive-plain failed: x.primitives.driveRequiresGroup is on and this plugin is not a member of a plugin group",
+      },
+    ]);
+    home.dispose();
+  },
+  30_000,
+);
+
+realTest(
+  "drive policy: with x.primitives.driveRequiresGroup set to false the same plugin registers and stays enabled",
+  async () => {
+    const home = useEngineHome();
+    writeUserSettings(home, { "x.primitives.driveRequiresGroup": false });
+    const captured: { ext: ExtHost | undefined } = { ext: undefined };
+    const host = await startInProcessHost({
+      devChecks: true,
+      defaultGroups: false,
+      extraPlugins: [plainDriverModule(captured)],
+    });
+    const connection = createHostConnection(host.client);
+    await connection.request("host.hello", HELLO_PARAMS);
+    expect(captured.ext?.registrations().find((info) => info.id === "drive-plain")).toMatchObject({
+      id: "drive-plain",
+      status: "enabled",
+    });
+    await host.close();
     home.dispose();
   },
   30_000,

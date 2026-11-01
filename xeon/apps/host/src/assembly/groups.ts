@@ -2,8 +2,10 @@ import { assertNever, Bug, err, ok, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
   defineManifest,
-  LeaseArbiterPortKey,
+  DriveLockArbiterPortKey,
+  isGroupExtension,
   type ExtensionEntry,
+  type ExtensionManifest,
 } from "@fresnel/contracts/extensions";
 import {
   checkSettingWrite,
@@ -24,14 +26,14 @@ import type { SettingsStorePort, SettingsWriteFailure } from "../types.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 
 // m2-plan HOST.6, L3.group-sdk.plan §8. group-sdk은 서비스 팩토리(`createGroupService`)만 내놓고 확장 단위가 없다. 이 파일이 서비스를 올려
-// X의 임대 중재 포트(`fresnel.groups`, LeaseArbiterPort)로 낸다. 서비스가 받는 포트 셋을 실제 구현으로 잇는다:
+// X의 임대 중재 포트(`fresnel.groups`, DriveLockArbiterPort)로 낸다. 서비스가 받는 포트 셋을 실제 구현으로 잇는다:
 // - 그룹 목록(GroupCatalogPort): 설치한 단위 가운데 L3 매니페스트
-// - 구동 그룹 설정(DriveHolderSettingsPort): `x.primitives.activeDriveGroup`을 설정 엔진과 설정 저장소로 읽고 쓴다
+// - 구동 그룹 설정(DriveHolderSettingsPort): `x.primitives.activeDriver`을 설정 엔진과 설정 저장소로 읽고 쓴다
 // - 그룹 설정 읽기(GroupSettingsSource, `fresnel.settings`): 설정 엔진의 유효 값
 // `/group` 명령은 등록하지 않는다: 명령 처리기가 출력을 돌려줄 길(F `CommandResourceDef`는 void)이 아직 없다.
 // 조립 루트 코드(DR-14 예외 2).
 
-const HOLDER_KEY = "x.primitives.activeDriveGroup";
+const HOLDER_KEY = "x.primitives.activeDriver";
 
 export interface HostGroupsOptions {
   readonly ext: ExtHost;
@@ -157,25 +159,33 @@ export function holderSettings(options: HostGroupsOptions): DriveHolderSettingsP
   };
 }
 
-/** 내장 확장 단위. `fresnel.groups`(LeaseArbiterPort)와 `fresnel.settings`(GroupSettingsSource) 포트를 낸다. 그룹보다 먼저 싣는다 */
+/**
+ * 그룹 카탈로그에 올릴 매니페스트인가. `group` 선언이 있고 id 없는 루트 플러그인이 L3다.
+ * group-sdk의 defineGroup이 그룹을 알아보는 기준(orchestrationOf)과 같다. 옛 형식의 `layer === "L3"`를 대신한다
+ */
+export function isGroupCatalogManifest(manifest: ExtensionManifest): boolean {
+  return (
+    isGroupExtension(manifest) &&
+    manifest.plugins.some((plugin) => plugin.id === undefined && plugin.layer === "L3")
+  );
+}
+
+/** 내장 확장 단위. `fresnel.groups`(DriveLockArbiterPort)와 `fresnel.settings`(GroupSettingsSource) 포트를 낸다. 그룹보다 먼저 싣는다 */
 export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "host-groups",
     version: "0.1.0",
     displayName: "Group service",
     description:
       "Provides the group service as the lease arbiter and the group settings port (host assembly).",
     defaultEnabled: true,
-    layer: "plugin",
-    kind: "plugin",
     entry: "./src/index.ts",
-    points: [],
-    usesDrive: false,
+    plugins: [{ layer: "plugin", hooks: [] }],
     trust: { level: "builtin" },
   });
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const instrumentation = (): boolean =>
         options.settings.value("l3.group-sdk.instrumentation") !== false;
@@ -188,7 +198,7 @@ export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
         instrumentation,
         ...(options.onEnabled === undefined ? {} : { onEnabled: options.onEnabled }),
       });
-      host.providePort(LeaseArbiterPortKey, service);
+      host.providePort(DriveLockArbiterPortKey, service);
       host.providePort(GroupSettingsSourceKey, {
         value: (key) => options.settings.value(key),
       });

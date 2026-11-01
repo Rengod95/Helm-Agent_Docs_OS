@@ -219,14 +219,11 @@ describe("real engine", () => {
 
   realTest("assemble reports a plugin that fails to install as AssembleError plugin", async () => {
     const manifest = defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "broken-plugin",
       version: "0.1.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./src/index.ts",
-      points: [],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: [] }],
       trust: { level: "builtin" },
     });
     const caught = await assemble({

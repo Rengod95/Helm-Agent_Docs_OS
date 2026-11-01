@@ -133,28 +133,30 @@ export function dialogBridgePlugin(
   loadIndex: number,
 ): ExtensionUnit {
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: DIALOG_BRIDGE_NAME,
     version: "0.1.0",
     displayName: "Dialog bridge",
     description:
       "Registers the ask_user tool and hands the command action registry to cap-work (host assembly).",
     defaultEnabled: true,
-    layer: "L2",
-    kind: "plugin",
     entry: "./src/index.ts",
-    requires: [
-      { id: DialogCommands.id, range: `^${DialogCommands.version}` },
-      { id: DialogStatus.id, range: `^${DialogStatus.version}` },
-      { id: DialogAttachments.id, range: `^${DialogAttachments.version}` },
-      { id: DialogNotify.id, range: `^${DialogNotify.version}` },
+    plugins: [
+      {
+        layer: "L2",
+        hooks: [],
+        requires: [
+          { id: DialogCommands.id, range: `^${DialogCommands.version}` },
+          { id: DialogStatus.id, range: `^${DialogStatus.version}` },
+          { id: DialogAttachments.id, range: `^${DialogAttachments.version}` },
+          { id: DialogNotify.id, range: `^${DialogNotify.version}` },
+        ],
+      },
     ],
-    points: [],
-    usesDrive: false,
     trust: { level: "builtin" },
   });
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const tools = host.port(ToolServicePortKey);
       const logger = host.port(OsPortKey).logger("dialog");

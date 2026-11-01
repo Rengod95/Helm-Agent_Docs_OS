@@ -38,14 +38,12 @@ const logger: Logger = {
 
 function manifest(version: string, name: string): string {
   return JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name,
     version,
-    layer: "L3",
-    kind: "group",
     entry: "./dist/index.js",
-    points: [],
-    usesDrive: false,
+    group: {},
+    plugins: [{ layer: "L3", hooks: [] }],
   });
 }
 

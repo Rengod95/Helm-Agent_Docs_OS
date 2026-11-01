@@ -271,7 +271,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.ids,
           settings: toolsSource(settings),
           logger: deps.logger.child({ component: "core-tools" }),
-          // 이 기능들의 도구를 부르려면 core-tools가 매니페스트 optional로 선언해야 한다(ScopeHostApi.capability)
+          // 이 기능들의 도구를 부르려면 core-tools가 매니페스트 optional로 선언해야 한다(RegistrationHostApi.capability)
           capabilities: L2_TOOL_CAPABILITIES,
           loadIndex,
         }),
@@ -455,8 +455,8 @@ export function installFailureOf(result: InstallResult): InstallFailure | undefi
   if (result.entryError !== undefined) {
     return { plugin: result.name, message: `entry threw: ${messageOf(result.entryError)}` };
   }
-  if (result.scopes.length === 0) {
-    return { plugin: result.name, message: "the extension defined no scope" };
+  if (result.registrations.length === 0) {
+    return { plugin: result.name, message: "the extension registered no plugin" };
   }
   for (const setup of result.setups) {
     if (setup.status === "failed") {

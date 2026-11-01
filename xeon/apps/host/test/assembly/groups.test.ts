@@ -47,10 +47,10 @@ test("a scope the setting does not allow is an invalid_value request error; only
   const port = portOver(ok(undefined));
   expect(await port.write("grp", "local", THREAD)).toEqual({
     ok: false,
-    error: { kind: "unwritable", key: "x.primitives.activeDriveGroup", reason: "invalid_value" },
+    error: { kind: "unwritable", key: "x.primitives.activeDriver", reason: "invalid_value" },
   });
   expect(await port.write("grp", "managed", null)).toEqual({
     ok: false,
-    error: { kind: "locked", key: "x.primitives.activeDriveGroup" },
+    error: { kind: "locked", key: "x.primitives.activeDriver" },
   });
 });

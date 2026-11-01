@@ -28,22 +28,19 @@ function projectExtension(workspace: string, name: string, marker: string): void
   writeFileSync(
     join(root, ".fresnel-plugin", "plugin.json"),
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name,
       version: "1.0.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./src/index.ts",
-      points: ["boundary.settle.after"],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: ["boundary.settle.after"] }],
     }),
   );
   writeFileSync(
     join(root, "src", "index.ts"),
     `import { writeFileSync } from "node:fs";
-export const extension = ({ scope }) => {
+export const extension = ({ register }) => {
   writeFileSync(${JSON.stringify(marker)}, "loaded");
-  scope(${JSON.stringify(name)}, {}, (g) => {
+  register(${JSON.stringify(name)}, {}, (g) => {
     g.on("boundary.settle.after", () => {});
   });
 };

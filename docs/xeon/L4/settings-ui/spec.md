@@ -556,7 +556,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `permissions` | 권한과 샌드박스 | L1-d 승인·권한 규칙(소유 문서 `L1.tools.spec`, `l1.tools.*`), L0-c `l0.secrets.approval.*`(시크릿 승인 기본 정책, 쓰기 허용 호스트), L0-b `l0.sandbox.*`(켜기·끄기, 쓰기 경로, 허용 도메인, 프록시) | 규칙 편집기, 목록 편집기(M3) | 없음 |
 | `sessions` | 세션과 컨텍스트 | L1-e `l1.context.*`(자동 컴팩션, 임계), L1-f `l1.persistence.*`(보관 기간, 내보내기, 자동 재개), L2-d `l2.knowledge.*`(메모리) | 토글과 폼. 삭제성 동작은 확인 단계 | 없음 |
 | `tools` | 도구와 웹 | L2 `l2.mcp.*`, `l2.web.*`, `l2.workspace.*`, `l2.knowledge.*`(스킬), `l2.dialog.*` 중 질문·명령·첨부 키, 그 밖의 `l2.*` | 목록 토글, 선택 | 없음 |
-| `plugins` | 플러그인과 그룹 | X `x.loading-trust.*`(신뢰, 격리), `x.operations.*`(핸들러 시한, 자동 끄기, 안전 모드), `x.primitives.driveDefaultLimits`(drive 기본 상한, review.decisions-2 U-12), `x.primitives.driveLimits`(천장), `x.primitives.activeDriveGroup`(구동 그룹 선택, review.decisions-2 S-15), `x.primitives.capabilityProviders`, 그룹 켜기 키 `ext.<id>.enabled`, L3 `l3.group-sdk.*`, `l3.helm.*`, `l3.learning.*`, 확장 `ext.<id>.*`(userConfig에서 온 키는 `plugins` 고정, `F.wire-settings.spec` §3.8.3) | 목록 토글과 그룹별 묶음 | 없음 |
+| `plugins` | 플러그인과 그룹 | X `x.loading-trust.*`(신뢰, 격리), `x.operations.*`(핸들러 시한, 자동 끄기, 안전 모드), `x.primitives.driveDefaultLimits`(drive 기본 상한, review.decisions-2 U-12), `x.primitives.driveLimits`(천장), `x.primitives.activeDriver`(주도 플러그인 선택, review.decisions-2 S-15), `x.primitives.driveRequiresGroup`(drive는 플러그인 그룹만, 기본 켜짐), `x.primitives.capabilityProviders`, 그룹 켜기 키 `ext.<id>.enabled`, L3 `l3.group-sdk.*`, `l3.helm.*`, `l3.learning.*`, 확장 `ext.<id>.*`(userConfig에서 온 키는 `plugins` 고정, `F.wire-settings.spec` §3.8.3) | 목록 토글과 그룹별 묶음 | 없음 |
 | `execution` | 실행과 서비스 | L1-a `l1.tasks.*`(동시 상한, 큐 기본 모드), L0-d `l0.process.*`, L2 `l2.dialog.notify.*`(알림 켜기와 종류. L0.os는 전달 수단만 소유한다, review.decisions-2 S-04), `l0.exec.*`(셸), `l2.schedule.*`, `l4.host-service.*`(재전송·구독 한도). 공유 서비스 모드 토글은 `l0.process.service.enabled`이고 L0-d 행에 포함된다, `l4.desktop.engine.restartLimit`(desktop 원천) | 토글과 폼 | 없음 |
 | `appearance` | 외관 | `l4.desktop.appearance.*`(테마, 글꼴, 글자 크기, 키 바인딩), `l4.desktop.window.*`(desktop 원천, §4.1.3), `l4.cli.*`(TUI 표시, 엔진 원천), `l2.dialog.status.segments`, `l2.dialog.styles.active` | 선택, 토글. 미리보기는 desktop이 정한다 | 없음 |
 | `advanced` | 고급 | `ui.tab: "advanced"` 정의(캐시 TTL, 샘플링, 재시도 `l1.models.retry`, `l4.desktop.engine.shutdownGraceMs` 등) + `ui`가 없는 모든 키(파일 편집기) | 폼 + 파일 편집기(§4.2.3) | 없음 |
@@ -1026,7 +1026,7 @@ sequenceDiagram
 - 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다. L4 앱 코드라 확장 호스트에 참여하지 않는다.
 - 확장(외부 플러그인 그룹 포함)의 설정은 `ExtensionManifest.userConfig` → `settingsFromManifest` → 카탈로그 → `settings.list` 경로로 들어오고, `ui.tab`이 `plugins`로 고정된다(`F.wire-settings.spec` §3.8.3 규칙 1). 설정 화면은 이 정의를 다른 정의와 같은 규칙으로 그린다.
 - L3 기본 그룹(Helm, 학습 그룹)의 키는 `l3.helm.*`, `l3.learning.*`이다(같은 절 규칙 3). 그룹 켜기·끄기 키는 X 로더 예약 키 `ext.<name>.enabled` 하나다(내장 그룹도 `ext.helm.enabled`, `ext.learning.enabled`) [결정: review.decisions-2 K-04]. 범위는 X 정의(managed~session), `runtimeChange`는 `live`이고 적용은 다음 단계 경계다(`X.loading-trust.spec` §6). 설정 화면은 이 키를 일반 토글로 그리고, 실행 중이면 "다음 단계 경계에 적용" 배지를 보인다.
-- drive 보유 그룹 선택은 X 키 `x.primitives.activeDriveGroup`(`select`, 후보는 drive를 등록한 scope, 빈 값은 "자동") 하나다 [결정: review.decisions-2 S-15]. group-sdk은 별도 키를 두지 않는다(`L3.group-sdk.spec` §6).
+- 주도 플러그인 선택은 X 키 `x.primitives.activeDriver`(`select`, 후보는 drive를 등록한 Registration, 빈 값은 "자동") 하나다 [결정: review.decisions-2 S-15]. 같은 탭의 `x.primitives.driveRequiresGroup`(boolean, 기본 켜짐)은 "drive는 플러그인 그룹만" 토글이다. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. group-sdk은 별도 키를 두지 않는다(`L3.group-sdk.spec` §6).
 - [제안] 확장이 설정 화면에 자기 화면 부품(맞춤 패널)을 넣는 것은 M3 범위에 두지 않는다(§10 미결 13).
 
 ## 8. 다른 문서와의 인터페이스
@@ -1063,7 +1063,7 @@ sequenceDiagram
 - AC13. `model/**` 파일은 DOM 전역과 `views/**`를 참조하지 않고 `bun test`로 돈다.
 - AC14. `l4.desktop.*` 정의는 로컬 저장소로, 나머지 정의는 `settings.*` 메서드로 읽고 쓴다. 엔진 연결이 없을 때도 desktop 원천 항목의 쓰기가 성공한다.
 - AC15. 키 플러그인이 없고 `l2.web.search.searxng.url`이 비어 있는 fixture로 첫 실행 권장 화면 view-model을 만들면 provider 상태 행, SearXNG 주소 입력란, Exa·Brave 권장 항목 셋이 있고, 어느 항목에도 시크릿 값 필드가 없다(§4.10).
-- AC16. 테스트 카탈로그 fixture에서 `x.primitives.activeDriveGroup`과 `ext.helm.enabled`는 plugins 탭, `l1.agents.judge.maxRuns`는 models 탭, `l2.dialog.notify.os`는 execution 탭, `l0.secrets.approval.default`는 permissions 탭에 나타난다(§4.1.1, 소유 층 `ui.tab`).
+- AC16. 테스트 카탈로그 fixture에서 `x.primitives.activeDriver`, `x.primitives.driveRequiresGroup`과 `ext.helm.enabled`는 plugins 탭, `l1.agents.judge.maxRuns`는 models 탭, `l2.dialog.notify.os`는 execution 탭, `l0.secrets.approval.default`는 permissions 탭에 나타난다(§4.1.1, 소유 층 `ui.tab`).
 - AC17. `web.providers` 결과 fixture로 `toolsWebViewOf`를 만들면 검색과 브라우즈 행은 `autoRank` 순서이고, 설정이 provider를 고정하면 그 행만 `current`다. `orderUpdateOf`는 보이지 않는 id와 중복 id를 값으로 거부한다. 추천 키 플러그인 상태는 없음, 키 없음, 준비됨, 그 밖의 사유 넷을 낸다(§3.6, §4.11, `test/web/tools-web.test.ts`).
 
 ## 10. 미결 사항

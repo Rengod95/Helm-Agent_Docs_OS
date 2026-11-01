@@ -151,23 +151,25 @@ export function proposalsBridgePlugin(
   loadIndex: number,
 ): ExtensionUnit {
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: BRIDGE_NAME,
     version: "0.1.0",
     displayName: "Proposals bridge",
     description:
       "Hands the knowledge proposal queue adapter to the proposal.list and proposal.decide handlers (host assembly).",
     defaultEnabled: true,
-    layer: "L2",
-    kind: "plugin",
     entry: "./src/index.ts",
-    requires: [{ id: KnowledgeLedger.id, range: `^${KnowledgeLedger.version}` }],
-    points: [],
-    usesDrive: false,
+    plugins: [
+      {
+        layer: "L2",
+        hooks: [],
+        requires: [{ id: KnowledgeLedger.id, range: `^${KnowledgeLedger.version}` }],
+      },
+    ],
     trust: { level: "builtin" },
   });
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       holder.current = createKnowledgeProposalWire(g.capability(KnowledgeLedgerKey));
       g.onDispose(() => {
         holder.current = undefined;

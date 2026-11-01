@@ -25,7 +25,7 @@ const INDEX = JSON.stringify({
         "drive/src/index.ts",
         "drive/test/unit.test.ts",
       ],
-      usesDrive: true,
+      drives: true,
     },
     policy: {
       description: "정책 그룹",
@@ -35,7 +35,7 @@ const INDEX = JSON.stringify({
         "policy/.fresnel-plugin/plugin.json",
         "policy/src/index.ts",
       ],
-      usesDrive: false,
+      drives: false,
     },
     observe: {
       description: "관찰 그룹",
@@ -46,59 +46,58 @@ const INDEX = JSON.stringify({
         "observe/src/__ID__.ts",
         "observe/test/unit.test.ts",
       ],
-      usesDrive: false,
+      drives: false,
     },
   },
 });
 
 const OBSERVE_MANIFEST = `{
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "__ID__",
   "version": "__VERSION__",
   "displayName": "__TITLE__",
-  "layer": "L3",
-  "kind": "group",
   "entry": "./src/index.ts",
-  "points": ["boundary.settle.after"],
-  "usesDrive": false,
-  "defaultEnabled": false,
-  "recordKinds": [
+  "plugins": [
     {
-      "kind": "grp.__ID__.turn.counted",
-      "version": 1,
-      "description": "턴이 정착할 때마다 세는 계수 기록",
-      "payload": {}
+      "layer": "L3",
+      "hooks": ["boundary.settle.after"],
+      "recordKinds": [
+        {
+          "kind": "grp.__ID__.turn.counted",
+          "version": 1,
+          "description": "턴이 정착할 때마다 세는 계수 기록",
+          "payload": {}
+        }
+      ]
     }
   ],
+  "group": {},
+  "defaultEnabled": false,
   "trust": { "level": "user" }
 }
 `;
 
 const DRIVE_MANIFEST = `{
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "__ID__",
   "version": "__VERSION__",
   "displayName": "__TITLE__",
-  "layer": "L3",
-  "kind": "group",
   "entry": "./src/index.ts",
-  "points": ["boundary.settle.after"],
-  "usesDrive": true,
+  "plugins": [{ "layer": "L3", "hooks": ["boundary.settle.after"], "drives": true }],
+  "group": {},
   "defaultEnabled": false,
   "trust": { "level": "user" }
 }
 `;
 
 const POLICY_MANIFEST = `{
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "__ID__",
   "version": "__VERSION__",
   "displayName": "__TITLE__",
-  "layer": "L3",
-  "kind": "group",
   "entry": "./src/index.ts",
-  "points": ["tool.call.before"],
-  "usesDrive": false,
+  "plugins": [{ "layer": "L3", "hooks": ["tool.call.before"] }],
+  "group": {},
   "defaultEnabled": false,
   "trust": { "level": "user" }
 }
@@ -188,24 +187,27 @@ test("the generated plugin.json text is exact for a fixed name and version", asy
   const fake = templatesFake();
   await harness(fake).run(["group", "new", "focus-lens"]);
   expect(fake.files.get("/work/project/focus-lens/.fresnel-plugin/plugin.json")).toBe(`{
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "focus-lens",
   "version": "0.1.0",
   "displayName": "focus-lens",
-  "layer": "L3",
-  "kind": "group",
   "entry": "./src/index.ts",
-  "points": ["boundary.settle.after"],
-  "usesDrive": false,
-  "defaultEnabled": false,
-  "recordKinds": [
+  "plugins": [
     {
-      "kind": "grp.focus-lens.turn.counted",
-      "version": 1,
-      "description": "턴이 정착할 때마다 세는 계수 기록",
-      "payload": {}
+      "layer": "L3",
+      "hooks": ["boundary.settle.after"],
+      "recordKinds": [
+        {
+          "kind": "grp.focus-lens.turn.counted",
+          "version": 1,
+          "description": "턴이 정착할 때마다 세는 계수 기록",
+          "payload": {}
+        }
+      ]
     }
   ],
+  "group": {},
+  "defaultEnabled": false,
   "trust": { "level": "user" }
 }
 `);
@@ -294,14 +296,14 @@ test("--dir sets the target folder, relative to the working folder", async () =>
 
 test("a manifest that fails validateManifest leaves no files behind and exits as a usage error (R4)", async () => {
   const broken = OBSERVE_MANIFEST.replace(
-    `"points": ["boundary.settle.after"]`,
-    `"points": ["no.such.point"]`,
+    `"hooks": ["boundary.settle.after"]`,
+    `"hooks": ["no.such.point"]`,
   );
   const fake = templatesFake({ "observe/.fresnel-plugin/plugin.json": broken });
   const h = harness(fake);
   expect(await h.run(["group", "new", "focus-lens"])).toBe(EXIT.usage);
   expect(h.stderrText().split("\n")[0]).toMatch(
-    /^fresnel: 생성한 \.fresnel-plugin\/plugin\.json이 검사를 통과하지 못했다: \/points\/0 /,
+    /^fresnel: 생성한 \.fresnel-plugin\/plugin\.json이 검사를 통과하지 못했다: \/plugins\/0\/hooks\/0 /,
   );
   expect(fake.files.size).toBe(0);
   expect(fake.dirs.size).toBe(0);

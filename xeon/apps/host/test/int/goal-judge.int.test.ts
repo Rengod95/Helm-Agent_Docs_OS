@@ -34,8 +34,8 @@ const MAIN_MODEL = "tape-1";
 const JUDGE_MODEL = "tape-judge";
 
 /** 목표 설정 확장 본체. thread 이름이 정해진 값이 되면 `work.goals.set`을 부른다 */
-const goalExtension: ExtensionEntry = ({ manifest: loaded, scope }) => {
-  scope(loaded.name, {}, (g) => {
+const goalExtension: ExtensionEntry = ({ manifest: loaded, register }) => {
+  register(loaded.name, {}, (g) => {
     g.on("thread.info.after", async ({ threadId, name }) => {
       if (name !== SET_GOAL_ON_RENAME) return;
       await g
@@ -48,15 +48,17 @@ const goalExtension: ExtensionEntry = ({ manifest: loaded, scope }) => {
 /** 목표 설정 확장의 모듈. 확장이 쓰는 기능(`work.goals`)을 `requires`에 적는다 */
 function goalProbe(): HostPluginModule {
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "goal-probe",
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./index.ts",
-    points: ["thread.info.after"],
-    requires: [{ id: "work.goals", range: "^1.0.0" }],
-    usesDrive: false,
+    plugins: [
+      {
+        layer: "plugin",
+        hooks: ["thread.info.after"],
+        requires: [{ id: "work.goals", range: "^1.0.0" }],
+      },
+    ],
     trust: { level: "builtin" },
   });
   return { manifest, extension: goalExtension };

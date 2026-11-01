@@ -54,18 +54,15 @@ interface Captured {
 /** 엔진이 올린 서비스를 시험 쪽으로 꺼내는 확장 */
 function captureModule(into: { current: Captured | undefined }) {
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "agent-slot-capture",
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./index.ts",
-    points: [],
-    usesDrive: false,
+    plugins: [{ layer: "plugin", hooks: [] }],
     trust: { level: "builtin" },
   });
-  const extension: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, {}, (g) => {
+  const extension: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, {}, (g) => {
       const host = hostOf(g);
       into.current = {
         ext: host.port(ExtHostPortKey),

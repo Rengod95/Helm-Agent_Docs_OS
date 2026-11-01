@@ -32,13 +32,13 @@ import { StoreIdSchema } from "@fresnel/contracts/wire";
 import {
   createExtHost,
   createOperationsPolicy,
-  createScopeControl,
+  createRegistrationControl,
   createVolatileNotifier,
-  scopeToggleSourceOf,
+  registrationToggleSourceOf,
   type ExtHost,
   type ExtensionLoader,
   type ExtensionUnit,
-  type ScopeControl,
+  type RegistrationControl,
 } from "@fresnel/ext-host";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { createExecPlatformModule, detectExecPlatform } from "@fresnel/platform-exec";
@@ -71,6 +71,7 @@ import {
   scheduleUnit,
   unitOfModule,
 } from "./assembly/extensions.ts";
+import { isGroupCatalogManifest } from "./assembly/groups.ts";
 import {
   createLearningWiring,
   learningLoaded,
@@ -350,7 +351,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const redact: { current: (line: string) => string } = { current: (line) => line };
   const late: {
     host: ExtHost | undefined;
-    scopes: ScopeControl | undefined;
+    scopes: RegistrationControl | undefined;
     logger: Logger | undefined;
     /** 4단계에서 채운다. 그 전의 확장 실패 알림은 발신하지 못하고 운영 로그에 남는다 */
     session: SessionService | undefined;
@@ -360,7 +361,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     registered: false,
   };
 
-  const scopeControl: ScopeControl = {
+  const scopeControl: RegistrationControl = {
     requestDisable: (scopeId, reason) => {
       late.scopes?.requestDisable(scopeId, reason);
     },
@@ -420,7 +421,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     },
   });
   late.host = ext;
-  late.scopes = createScopeControl(scopeToggleSourceOf(ext));
+  late.scopes = createRegistrationControl(registrationToggleSourceOf(ext));
 
   let portsHandle: PortsHandle | undefined;
   let shutdownCoordinator: ProcessShutdown | undefined;
@@ -719,9 +720,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           heldThreads: () => portsHandle?.heldThreads() ?? [],
           entries: () => [
             ...unitList.units
-              .filter((unit) => unit.manifest.layer === "L3")
+              .filter((unit) => isGroupCatalogManifest(unit.manifest))
               .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
-            ...externalGroups.filter((entry) => entry.manifest.layer === "L3"),
+            ...externalGroups.filter((entry) => isGroupCatalogManifest(entry.manifest)),
           ],
         },
         // 엔진 포트는 서비스가 모두 올라온 뒤에 만든다. 자식 thread는 그 뒤에 생기므로 그때는 채워져 있다

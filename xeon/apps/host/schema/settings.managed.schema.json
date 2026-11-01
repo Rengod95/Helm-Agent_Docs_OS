@@ -6070,6 +6070,27 @@
           "widget": "table"
         }
       }
+    },
+    "x.primitives.driveRequiresGroup": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "켜 두면 플러그인 그룹의 구성원만 drive를 등록합니다. 끄면 그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다. Registration을 다시 켜거나 확장을 다시 불러올 때 적용합니다.",
+          "label": "drive는 플러그인 그룹만",
+          "order": 112,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
     }
   },
   "type": "object",

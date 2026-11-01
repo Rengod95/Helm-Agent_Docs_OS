@@ -1001,7 +1001,7 @@ $ echo $?
 - CLI는 on·post·drive·scope 지점을 선언하지 않는다. 훅은 엔진 안에 있고 CLI는 호스트 계약만 쓴다(adr.0006 §3.2).
 - 확장과의 관계:
   - 확장이 사용자에게 보일 내용은 `custom` item(`display: true`)으로 오고, CLI는 텍스트로 그린다(§4.5).
-  - drive 임대(`lease.acquired`/`lease.released`)와 scope 변경(`scope.changed`)은 상태 줄에 활성 그룹 이름으로 보일 수 있다 [제안]. 트랜스크립트에는 그리지 않는다.
+  - drive lock(`lease.acquired`/`lease.released`)과 Registration 변경(`scope.changed`)은 상태 줄에 주도 플러그인 이름으로 보일 수 있다 [제안]. 트랜스크립트에는 그리지 않는다.
   - 확장 설정 키(`ext.<id>.*`)는 `fresnel config`와 `/set`에서 코어 키와 같은 규칙으로 다룬다.
   - pi의 `ctx.ui.custom`(TUI 컴포넌트를 돌려주는 확장 UI)은 두지 않는다. 원격·데스크톱으로 옮길 수 없기 때문이다(`_research/refs/pi.md` 415행).
 

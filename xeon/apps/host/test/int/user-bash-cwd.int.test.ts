@@ -36,18 +36,15 @@ interface Captured {
 // 명령을 실행하지 않도록 지점에서 거부하고 페이로드만 모은다
 function observerModule(into: Captured) {
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "user-bash-cwd-observer",
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./index.ts",
-    points: ["input.bash.before"],
-    usesDrive: false,
+    plugins: [{ layer: "plugin", hooks: ["input.bash.before"] }],
     trust: { level: "builtin" },
   });
-  const extension: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, {}, (g) => {
+  const extension: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, {}, (g) => {
       into.loop = hostOf(g).port(LoopServicePortKey);
       g.on("input.bash.before", (payload) => {
         into.payloads.push(payload);

@@ -56,21 +56,26 @@ interface Probe {
 const probeKey: ServiceKey<Probe> = { capability: "demo.probe", version: "1.0.0" };
 
 function manifestOf(name: string, kind: "plugin" | "group") {
+  const isGroup = kind === "group";
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name,
     version: "0.1.0",
     displayName: name,
     description: "capability guard test",
     defaultEnabled: true,
-    layer: kind === "group" ? "L3" : "plugin",
-    kind,
     entry: "./src/index.ts",
-    points: [],
-    usesDrive: kind === "group",
-    ...(name === "cg-provider"
-      ? { provides: [{ id: "demo.probe", version: "1.0.0" }] }
-      : { requires: [{ id: "demo.probe", range: "^1.0.0" }] }),
+    ...(isGroup ? { group: {} } : {}),
+    plugins: [
+      {
+        layer: isGroup ? "L3" : "plugin",
+        hooks: [],
+        ...(isGroup ? { drives: true } : {}),
+        ...(name === "cg-provider"
+          ? { provides: [{ id: "demo.probe", version: "1.0.0" }] }
+          : { requires: [{ id: "demo.probe", range: "^1.0.0" }] }),
+      },
+    ],
     trust: { level: "builtin" },
   });
 }
@@ -82,8 +87,8 @@ realTest(
     const calls: string[] = [];
     const provider: HostPluginModule = {
       manifest: manifestOf("cg-provider", "plugin"),
-      extension: ({ scope }) => {
-        scope("cg-provider", {}, (g) => {
+      extension: ({ register }) => {
+        register("cg-provider", {}, (g) => {
           hostOf(g).provide(probeKey, {
             peek: () => {
               calls.push("peek");
@@ -104,8 +109,8 @@ realTest(
     const outcome = Promise.withResolvers<Record<string, string>>();
     const group: HostPluginModule = {
       manifest: manifestOf("cg-group", "group"),
-      extension: ({ scope }) => {
-        scope("cg-group", {}, (g) => {
+      extension: ({ register }) => {
+        register("cg-group", {}, (g) => {
           g.drive(async () => {
             const probe = g.capability(probeKey);
             const attempts: [string, () => Promise<string>][] = [

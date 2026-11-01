@@ -74,25 +74,23 @@ export function spawnGroup(count: number): {
     committed: committed.promise,
   };
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: SPAWN_GROUP_NAME,
     version: "0.1.0",
     displayName: "Spawn group",
     description: "Test group whose drive spawns child agents with loop.spawn.",
     defaultEnabled: true,
-    layer: "L3",
-    kind: "group",
     entry: "./src/index.ts",
-    points: [],
-    usesDrive: true,
+    group: {},
+    plugins: [{ layer: "L3", hooks: [], drives: true }],
     trust: { level: "builtin" },
   });
   return {
     probe,
     module: {
       manifest,
-      extension: ({ scope }) => {
-        scope(
+      extension: ({ register }) => {
+        register(
           SPAWN_GROUP_NAME,
           { state: { schema: StateSchema, initial: INITIAL_STATE, version: 1 } },
           (g) => {
@@ -130,21 +128,18 @@ export function spawnGroup(count: number): {
 export function loopPortProbe(captured: { port: LoopPort | undefined }): HostPluginModule {
   return {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "loop-port-probe",
       version: "0.1.0",
       displayName: "Loop port probe",
       description: "Captures fresnel.loop for a test.",
       defaultEnabled: true,
-      layer: "plugin",
-      kind: "plugin",
       entry: "./src/index.ts",
-      points: [],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: [] }],
       trust: { level: "builtin" },
     }),
-    extension: ({ scope }) => {
-      scope("loop-port-probe", {}, (g) => {
+    extension: ({ register }) => {
+      register("loop-port-probe", {}, (g) => {
         captured.port = hostOf(g).port(LoopPortKey);
       });
     },

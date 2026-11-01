@@ -52,14 +52,14 @@ test("x.primitives.* are read into the primitives source: default caps, no ceili
     maxTokens: 400000,
   });
   expect(defaults.driveLimits(THREAD)).toEqual({});
-  expect(defaults.activeDriveGroup(THREAD)).toBeNull();
+  expect(defaults.activeDriver(THREAD)).toBeNull();
   expect(defaults.capabilityProviders()).toEqual({});
 
   const set = primitivesSource(
     await engineWith({
       "x.primitives.driveDefaultLimits": { maxTurns: 6 },
       "x.primitives.driveLimits": { maxTurns: 3, maxSpawns: 0 },
-      "x.primitives.activeDriveGroup": "smoke-group",
+      "x.primitives.activeDriver": "smoke-group",
       "x.primitives.capabilityProviders": { "web.search": "web-exa" },
     }),
   );
@@ -70,8 +70,34 @@ test("x.primitives.* are read into the primitives source: default caps, no ceili
     maxTokens: 400000,
   });
   expect(set.driveLimits(THREAD)).toEqual({ maxTurns: 3, maxSpawns: 0 });
-  expect(set.activeDriveGroup(THREAD)).toBe("smoke-group");
+  expect(set.activeDriver(THREAD)).toBe("smoke-group");
   expect(set.capabilityProviders()).toEqual({ "web.search": "web-exa" });
+});
+
+// X.primitives.spec: 기본값 true는 "플러그인 그룹만 drive를 등록한다"이다. 끄면 그룹이 아닌 플러그인도 drive를 등록한다
+test("x.primitives.driveRequiresGroup defaults to true, reads false when the user turns it off, and stays true for other values", async () => {
+  expect(primitivesSource(await engineWith({})).driveRequiresGroup()).toBe(true);
+  expect(
+    primitivesSource(
+      await engineWith({ "x.primitives.driveRequiresGroup": true }),
+    ).driveRequiresGroup(),
+  ).toBe(true);
+  expect(
+    primitivesSource(
+      await engineWith({ "x.primitives.driveRequiresGroup": false }),
+    ).driveRequiresGroup(),
+  ).toBe(false);
+  // 불리언이 아닌 값은 엔진이 기본값으로 바꾼다. 어느 쪽이든 가장 안전한 true다
+  expect(
+    primitivesSource(
+      await engineWith({ "x.primitives.driveRequiresGroup": "no" }),
+    ).driveRequiresGroup(),
+  ).toBe(true);
+  expect(
+    primitivesSource(
+      await engineWith({ "x.primitives.driveRequiresGroup": 0 }),
+    ).driveRequiresGroup(),
+  ).toBe(true);
 });
 
 test("the drive limits are read for the thread, so a session scope value applies to its lease", async () => {

@@ -87,9 +87,13 @@ export function primitivesSource(settings: SettingsEngine): ExtHostDeps["setting
     driveLimits(threadId): DriveLimits {
       return driveLimitsOf(settings.value("x.primitives.driveLimits", threadId));
     },
-    activeDriveGroup(threadId) {
-      const value = settings.value("x.primitives.activeDriveGroup", threadId);
+    activeDriver(threadId) {
+      const value = settings.value("x.primitives.activeDriver", threadId);
       return typeof value === "string" ? value : null;
+    },
+    // 기본값은 true(그룹만). 값이 불리언이 아니면 가장 안전한 쪽(true)으로 둔다
+    driveRequiresGroup() {
+      return settings.value("x.primitives.driveRequiresGroup") !== false;
     },
     capabilityProviders() {
       const value = settings.value("x.primitives.capabilityProviders");

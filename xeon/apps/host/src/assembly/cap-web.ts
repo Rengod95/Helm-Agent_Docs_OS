@@ -1,4 +1,4 @@
-import { err, ok, parse } from "@fresnel/contracts";
+import { Bug, err, ok, parse } from "@fresnel/contracts";
 import {
   McpClient,
   McpClientKey,
@@ -15,7 +15,7 @@ import {
   defineManifest,
   type ExtensionEntry,
   type PortKey,
-  type ScopeApi,
+  type RegistrationApi,
 } from "@fresnel/contracts/extensions";
 import type { SessionService } from "@fresnel/contracts/records";
 import {
@@ -49,7 +49,7 @@ import {
   webProviderRegistrationOf,
   type ExtensionUnit,
   type ResourceRegistry,
-  type ScopeHostApi,
+  type RegistrationHostApi,
 } from "@fresnel/ext-host";
 import { Type } from "typebox";
 import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
@@ -96,7 +96,7 @@ export interface HostWebOptions {
 }
 
 /** 아직 제공되지 않은 포트는 undefined. 그 밖의 오류는 그대로 던진다 */
-function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
+function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | undefined {
   try {
     return host.port(key);
   } catch (caught) {
@@ -107,7 +107,7 @@ function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefin
 
 /** 아직 제공되지 않은 기능 공급자는 undefined. 매니페스트 `optional`로 선언한 기능에만 부른다 */
 function optionalCapability<Api>(
-  scope: Pick<ScopeApi<unknown>, "capability">,
+  scope: Pick<RegistrationApi<unknown>, "capability">,
   key: ServiceKey<Api>,
 ): Api | undefined {
   try {
@@ -199,14 +199,22 @@ const WEB_HOOKS = ["input.user.before", "thread.shutdown"] as const;
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
   const base = webManifest();
+  const [root] = base.plugins;
+  // webManifest는 루트 플러그인(L2) 하나를 낸다. 없으면 조립이 잘못된 것이다
+  if (root === undefined) throw new Bug("webManifest must declare its root plugin");
   const manifest = defineManifest({
     ...base,
-    // 브라우저 MCP 서버(`playwright`)는 cap-mcp의 `mcp.client`로 부른다. 없으면 브라우저 후보가 빠진다
-    optional: [{ id: McpClient.id, range: `^${McpClient.version}` }],
-    points: [...WEB_HOOKS],
+    plugins: [
+      {
+        ...root,
+        // 브라우저 MCP 서버(`playwright`)는 cap-mcp의 `mcp.client`로 부른다. 없으면 브라우저 후보가 빠진다
+        optional: [{ id: McpClient.id, range: `^${McpClient.version}` }],
+        hooks: [...WEB_HOOKS],
+      },
+    ],
   });
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const os = host.port(OsPortKey);
       const store = host.port(StoreServicePortKey);

@@ -84,19 +84,16 @@ const SecretShellDef = defineCapability({
 });
 
 const secretToolManifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "secret-env-test-tool",
   version: "0.1.0",
-  layer: "plugin",
-  kind: "plugin",
   entry: "./index.ts",
-  points: [],
-  usesDrive: false,
+  plugins: [{ layer: "plugin", hooks: [] }],
   trust: { level: "builtin" },
 });
 
-const secretToolEntry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-  scope(loaded.name, {}, (g) => {
+const secretToolEntry: ExtensionEntry = ({ manifest: loaded, register }) => {
+  register(loaded.name, {}, (g) => {
     const registered = hostOf(g)
       .port(ToolServicePortKey)
       .register({

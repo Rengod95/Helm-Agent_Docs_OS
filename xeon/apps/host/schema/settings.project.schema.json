@@ -4090,11 +4090,11 @@
         }
       }
     },
-    "x.primitives.activeDriveGroup": {
+    "x.primitives.activeDriver": {
       "anyOf": [
         {
           "maxLength": 65,
-          "pattern": "^[a-z][a-z0-9-]{1,31}(/[a-z][a-z0-9-]{0,31})?$",
+          "pattern": "^[a-z][a-z0-9-]{1,31}(/[a-z][a-z0-9-]{1,31})?$",
           "type": "string"
         },
         {
@@ -4113,8 +4113,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "drive를 쓰는 그룹이 둘 이상일 때 임대를 받을 그룹의 scope id.",
-          "label": "구동 그룹",
+          "help": "drive를 쓰는 Registration이 둘 이상일 때 drive lock을 받을 Registration id.",
+          "label": "주도 플러그인",
           "order": 110,
           "tab": "plugins",
           "widget": "text"

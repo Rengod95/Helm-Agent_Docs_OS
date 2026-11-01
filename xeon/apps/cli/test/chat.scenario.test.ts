@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { parse, parseJson } from "@fresnel/contracts";
 import type { TurnId } from "@fresnel/contracts/conversation";
-import type { ExtensionEntry, ScopeHandle } from "@fresnel/contracts/extensions";
+import type { ExtensionEntry, RegistrationHandle } from "@fresnel/contracts/extensions";
 import {
   checkEnvelope,
   EventsBatchParamsSchema,
@@ -267,12 +267,12 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
   // 테스트 그룹(group-sdk). 시험이 덧붙인 도구 호출 지점 처리기가 자기 scope를 끄도록 요청한다
   // (단계 안에서 요청하고, 적용은 단계 경계여야 한다)
   const group = smokeGroup({ followUps: 0, driveTurns: 1 });
-  const hold: { handle: ScopeHandle | undefined } = { handle: undefined };
+  const hold: { handle: RegistrationHandle | undefined } = { handle: undefined };
   const entry: ExtensionEntry = (host) =>
     group.entry({
       manifest: host.manifest,
-      scope: (id, def, setup) => {
-        const handle = host.scope(id, def, async (g) => {
+      register: (id, def, setup) => {
+        const handle = host.register(id, def, async (g) => {
           await setup(g);
           g.on("tool.call.before", () => {
             hold.handle?.disable();

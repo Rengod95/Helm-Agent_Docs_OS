@@ -88,9 +88,9 @@ test("group new refuses a name that clashes with an installed extension, in Engl
   const index = JSON.stringify({
     schemaVersion: 1,
     templates: {
-      observe: { description: "d", files: ["common/package.json"], usesDrive: false },
-      drive: { description: "d", files: ["common/package.json"], usesDrive: true },
-      policy: { description: "d", files: ["common/package.json"], usesDrive: false },
+      observe: { description: "d", files: ["common/package.json"], drives: false },
+      drive: { description: "d", files: ["common/package.json"], drives: true },
+      policy: { description: "d", files: ["common/package.json"], drives: false },
     },
   });
   const fake = createMemoryGroupFs({ index, installed: ["helm"] });
