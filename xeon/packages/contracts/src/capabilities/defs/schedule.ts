@@ -68,13 +68,13 @@ const RemoteTriggerSchema: TObject<{ kind: TLiteral<"remote"> }> = Type.Object(
 );
 
 const LoopTriggerSchema: TObject<{
-  kind: TLiteral<"loop">;
+  kind: TLiteral<"repeat">;
   intervalSeconds: TInteger;
   maxIterations: TInteger;
   expiresAtMs: TInteger;
 }> = Type.Object(
   {
-    kind: Type.Literal("loop"),
+    kind: Type.Literal("repeat"),
     intervalSeconds: Type.Integer({ minimum: 0, maximum: 31536000 }),
     maxIterations: Type.Integer({ minimum: 1, maximum: 10000 }),
     expiresAtMs: Type.Integer({ minimum: 1 }),
@@ -160,14 +160,14 @@ const TriggerKindSchema: TUnion<
     TLiteral<"at">,
     TLiteral<"file_watch">,
     TLiteral<"remote">,
-    TLiteral<"loop">,
+    TLiteral<"repeat">,
   ]
 > = Type.Union([
   Type.Literal("interval"),
   Type.Literal("at"),
   Type.Literal("file_watch"),
   Type.Literal("remote"),
-  Type.Literal("loop"),
+  Type.Literal("repeat"),
 ]);
 
 const RunStatusSchema: TUnion<

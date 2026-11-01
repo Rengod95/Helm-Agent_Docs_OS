@@ -297,10 +297,10 @@ export const WIRE_ERRORS: {
     details: Type.Object(
       {
         point: Type.Union([
-          Type.Literal("session.fork.before"),
-          Type.Literal("session.tree.before"),
-          Type.Literal("session.switch.before"),
-          Type.Literal("session.compact.before"),
+          Type.Literal("thread.fork.before"),
+          Type.Literal("thread.tree.before"),
+          Type.Literal("thread.switch.before"),
+          Type.Literal("thread.compact.before"),
         ]),
         reason: Type.Union([Type.String({ maxLength: 512 }), Type.Null()]),
       },

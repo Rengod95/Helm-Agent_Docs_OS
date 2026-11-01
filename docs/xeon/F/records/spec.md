@@ -230,6 +230,18 @@ export interface EventKindRegistry {
 6. `_` 접두 열거형 값 예약 같은 열거형 확장 규칙은 M2 이후 `F.extensions.spec`이 정한다.
 7. `parseEventKind`는 병합된 카탈로그(§3.3.2)에 있는 영역만 `core` 또는 `domain`으로 본다. 그 영역의 미등록 이름과 `ReservedDomainArea`는 `reserved_area`다.
 
+#### 3.2.1 코드 이름과 저장 이름 [결정: 2026-11-01 사용자, adr.0022 §3.1 3번]
+
+저장 문자열은 바꾸지 않습니다. 코드 타입 이름과 저장 이름이 다른 곳은 아래와 같습니다.
+
+| 개념(코드 이름) | 저장 이름(이벤트 kind, id, 테이블) | 비고 |
+|---|---|---|
+| Turn(`TurnId`, `TurnStatus`) | `turn.*` 이벤트, id 접두 `trn_` | 이름도 그대로입니다. 모델 호출 1번은 Step입니다 |
+| 등록 변경(`ScopeChangedPayload` 등, Registration 이름은 §3.2 트랙에서 정합니다) | `scope.changed`, `scope.handler_failed` | 저장 이름 유지 |
+| drive lock(`DriveLock*`, 이름은 §3.2 트랙에서 정합니다) | `lease.acquired`, `lease.released`, `lease.rejected` | 저장 이름 유지 |
+| Process lock | 테이블 `sys_leases` | 저장 이름 유지. 코드 타입 이름은 L0가 정합니다 |
+| 설정 범위 `launch`(`SettingScope`) | `settings.changed`의 `scope` 값 | 값은 이름을 바꾼 `"launch"`입니다. 옛 값 `"session"`으로 쓴 이벤트는 읽지 않습니다(옛 이름 읽기 없음, 개발 기기 DB는 이전 스크립트 대상이 아닙니다) |
+
 ### 3.3 이벤트 카탈로그
 
 ```ts
@@ -329,7 +341,7 @@ export interface ScopeChangedPayload {
 /** 휘발. 확장 핸들러 실패 하나마다 보낸다(X.operations.spec §4.3.4) */
 export interface ScopeHandlerFailedPayload {
   owner: string;                  // X.operations.spec HandlerOwnerKey: "ext:<이름>" | "hook:<이름>"
-  point: string;                  // F.extensions.spec PointName
+  point: string;                  // F.extensions.spec HookName
   result: string;                 // 실패 분류. 값 집합은 X.operations.spec §4.3
   message: string;
   consecutive: number;            // 같은 owner의 연속 실패 수, 정수 ≥ 1
@@ -524,13 +536,13 @@ export interface AgentJudgedPayload {
 }
 
 // src/records/catalog/secret.ts   (L0.secrets.spec §3.9. 값, 값의 일부, 값의 해시를 싣지 않는다)
-type SecretUseModeJson = "env" | "sentinel" | "runtime-http" | "browser-input";
+type InjectionModeJson = "env" | "sentinel" | "runtime-http" | "browser-input";
 export interface SecretUsedPayload {
-  handle: string; mode: SecretUseModeJson; toolCallId: string | null;
+  handle: string; mode: InjectionModeJson; toolCallId: string | null;
   host: string | null; commandHash: string | null; leaseId: string; at: number;
 }
 export interface SecretDeniedPayload {
-  handle: string; mode: SecretUseModeJson; reason: string;   // 값 집합은 L0.secrets.spec SecretDenyReason
+  handle: string; mode: InjectionModeJson; reason: string;   // 값 집합은 L0.secrets.spec SecretDenyReason
   purpose: string; toolCallId: string | null; at: number;
 }
 export interface SecretApprovedPayload {

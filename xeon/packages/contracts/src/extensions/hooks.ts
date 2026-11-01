@@ -28,7 +28,7 @@ import {
   type ProviderPayloadValue,
   type ProviderStreamPayload,
   type ThinkingLevelSelectPayload,
-} from "./points/request.ts";
+} from "./hooks/request.ts";
 import {
   BeforeAgentStartPatchSchema,
   BeforeAgentStartPayloadSchema,
@@ -44,7 +44,7 @@ import {
   type InputValue,
   type UserBashDecision,
   type UserBashPayload,
-} from "./points/input.ts";
+} from "./hooks/input.ts";
 import {
   ToolCallDecisionSchema,
   ToolCallPayloadSchema,
@@ -61,7 +61,7 @@ import {
   type ToolResultPatch,
   type ToolResultPayload,
   type ToolResultValue,
-} from "./points/tool.ts";
+} from "./hooks/tool.ts";
 import {
   AgentBeforeSettlePayloadSchema,
   AgentEndPayloadSchema,
@@ -87,7 +87,7 @@ import {
   type MessageUpdatePayload,
   type TurnEndPayload,
   type TurnStartPayload,
-} from "./points/boundary.ts";
+} from "./hooks/boundary.ts";
 import {
   McpServersChangePayloadSchema,
   ProjectTrustDecisionSchema,
@@ -130,7 +130,7 @@ import {
   type SessionStartPayload,
   type SessionTreePayload,
   type UIPromptPayload,
-} from "./points/session.ts";
+} from "./hooks/thread.ts";
 import {
   AgentSettledEventPayloadSchema,
   LeaseRejectedPayloadSchema,
@@ -142,27 +142,20 @@ import {
   GuardOutputPayloadSchema,
   type GuardDecision,
   type GuardOutputPayload,
-} from "./points/guard.ts";
+} from "./hooks/guard.ts";
 import { assertNever } from "../base/index.ts";
 
-export * from "./points/input.ts";
-export * from "./points/request.ts";
-export * from "./points/tool.ts";
-export * from "./points/boundary.ts";
-export * from "./points/session.ts";
-export * from "./points/guard.ts";
+export * from "./hooks/input.ts";
+export * from "./hooks/request.ts";
+export * from "./hooks/tool.ts";
+export * from "./hooks/boundary.ts";
+export * from "./hooks/thread.ts";
+export * from "./hooks/guard.ts";
 
 // ── 기본 타입 ────────────────────────────────────────────────────────────
 
 export type Fold = "tap" | "first" | "chain" | "collect";
-export type PointKind =
-  | "input"
-  | "request"
-  | "tool"
-  | "boundary"
-  | "session"
-  | "lifecycle"
-  | "guard";
+export type HookKind = "input" | "request" | "tool" | "boundary" | "thread" | "lifecycle" | "guard";
 
 export interface TapSig<P> {
   readonly fold: "tap";
@@ -192,7 +185,7 @@ export interface CollectSig<P, V, C> {
 }
 
 /** 지점 이름 → 정적 시그니처. F.extensions.spec §3.4 표와 같은 46행 */
-export interface PointSignatures {
+export interface HookSignatures {
   "input.user.before": ChainSig<InputPayload, InputValue, InputPatch>;
   "input.bash.before": FirstSig<UserBashPayload, UserBashDecision>;
   "input.agent.before": CollectSig<
@@ -231,21 +224,21 @@ export interface PointSignatures {
   "boundary.settle.before": ChainSig<AgentBeforeSettlePayload, BoundaryValue, BoundaryPatch>;
   "boundary.turn.after": TapSig<AgentEndPayload>;
   "boundary.settle.after": TapSig<AgentSettledPayload>;
-  "session.trust.before": FirstSig<ProjectTrustPayload, ProjectTrustDecision>;
-  "session.resources": CollectSig<ResourcesDiscoverPayload, ResourcesValue, ResourcesPatch>;
-  "session.mcp.after": TapSig<McpServersChangePayload>;
-  "session.start": TapSig<SessionStartPayload>;
-  "session.info.after": TapSig<SessionInfoChangedPayload>;
-  "session.switch.before": FirstSig<SessionBeforeSwitchPayload, SessionCancelDecision>;
-  "session.fork.before": FirstSig<SessionBeforeForkPayload, SessionBeforeForkDecision>;
-  "session.compact.before": FirstSig<SessionBeforeCompactPayload, SessionBeforeCompactDecision>;
-  "session.compact.after": TapSig<SessionCompactPayload>;
-  "session.compact.failed": TapSig<SessionCompactFailedPayload>;
-  "session.tree.before": FirstSig<SessionBeforeTreePayload, SessionBeforeTreeDecision>;
-  "session.tree.after": TapSig<SessionTreePayload>;
-  "session.shutdown": TapSig<SessionShutdownPayload>;
-  "session.prompt.before": TapSig<UIPromptPayload>;
-  "session.prompt.after": TapSig<UIPromptPayload>;
+  "thread.trust.before": FirstSig<ProjectTrustPayload, ProjectTrustDecision>;
+  "thread.resources": CollectSig<ResourcesDiscoverPayload, ResourcesValue, ResourcesPatch>;
+  "thread.mcp.after": TapSig<McpServersChangePayload>;
+  "thread.start": TapSig<SessionStartPayload>;
+  "thread.info.after": TapSig<SessionInfoChangedPayload>;
+  "thread.switch.before": FirstSig<SessionBeforeSwitchPayload, SessionCancelDecision>;
+  "thread.fork.before": FirstSig<SessionBeforeForkPayload, SessionBeforeForkDecision>;
+  "thread.compact.before": FirstSig<SessionBeforeCompactPayload, SessionBeforeCompactDecision>;
+  "thread.compact.after": TapSig<SessionCompactPayload>;
+  "thread.compact.failed": TapSig<SessionCompactFailedPayload>;
+  "thread.tree.before": FirstSig<SessionBeforeTreePayload, SessionBeforeTreeDecision>;
+  "thread.tree.after": TapSig<SessionTreePayload>;
+  "thread.shutdown": TapSig<SessionShutdownPayload>;
+  "thread.prompt.before": TapSig<UIPromptPayload>;
+  "thread.prompt.after": TapSig<UIPromptPayload>;
   "guard.model.before": FirstSig<BeforeProviderRequestPayload, GuardDecision>;
   "guard.tool.before": FirstSig<ToolCallPayload, GuardDecision>;
   "guard.output.before": FirstSig<GuardOutputPayload, GuardDecision>;
@@ -253,22 +246,22 @@ export interface PointSignatures {
   "lifecycle.lease.rejected": TapSig<LeaseRejectedPayload>;
 }
 
-export type PointName = keyof PointSignatures;
-export type FirstPointName = {
-  [N in PointName]: PointSignatures[N]["fold"] extends "first" ? N : never;
-}[PointName];
-export type ChainPointName = {
-  [N in PointName]: PointSignatures[N]["fold"] extends "chain" ? N : never;
-}[PointName];
-export type CollectPointName = {
-  [N in PointName]: PointSignatures[N]["fold"] extends "collect" ? N : never;
-}[PointName];
-export type TapPointName = {
-  [N in PointName]: PointSignatures[N]["fold"] extends "tap" ? N : never;
-}[PointName];
+export type HookName = keyof HookSignatures;
+export type FirstHookName = {
+  [N in HookName]: HookSignatures[N]["fold"] extends "first" ? N : never;
+}[HookName];
+export type ChainHookName = {
+  [N in HookName]: HookSignatures[N]["fold"] extends "chain" ? N : never;
+}[HookName];
+export type CollectHookName = {
+  [N in HookName]: HookSignatures[N]["fold"] extends "collect" ? N : never;
+}[HookName];
+export type TapHookName = {
+  [N in HookName]: HookSignatures[N]["fold"] extends "tap" ? N : never;
+}[HookName];
 
 /** §3.4 표 순서(번호 1~46)의 지점 이름 */
-export const POINT_NAMES: readonly PointName[] = [
+export const HOOK_NAMES: readonly HookName[] = [
   "input.user.before",
   "input.bash.before",
   "input.agent.before",
@@ -295,21 +288,21 @@ export const POINT_NAMES: readonly PointName[] = [
   "boundary.settle.before",
   "boundary.turn.after",
   "boundary.settle.after",
-  "session.trust.before",
-  "session.resources",
-  "session.mcp.after",
-  "session.start",
-  "session.info.after",
-  "session.switch.before",
-  "session.fork.before",
-  "session.compact.before",
-  "session.compact.after",
-  "session.compact.failed",
-  "session.tree.before",
-  "session.tree.after",
-  "session.shutdown",
-  "session.prompt.before",
-  "session.prompt.after",
+  "thread.trust.before",
+  "thread.resources",
+  "thread.mcp.after",
+  "thread.start",
+  "thread.info.after",
+  "thread.switch.before",
+  "thread.fork.before",
+  "thread.compact.before",
+  "thread.compact.after",
+  "thread.compact.failed",
+  "thread.tree.before",
+  "thread.tree.after",
+  "thread.shutdown",
+  "thread.prompt.before",
+  "thread.prompt.after",
   "guard.model.before",
   "guard.tool.before",
   "guard.output.before",
@@ -317,9 +310,9 @@ export const POINT_NAMES: readonly PointName[] = [
   "lifecycle.lease.rejected",
 ];
 
-/** POINTS 키의 문자열 열거 */
-export const PointNameSchema: TUnsafe<PointName> = Type.Unsafe<PointName>(
-  Type.String({ enum: POINT_NAMES, minLength: 1, maxLength: 48 }),
+/** HOOKS 키의 문자열 열거 */
+export const HookNameSchema: TUnsafe<HookName> = Type.Unsafe<HookName>(
+  Type.String({ enum: HOOK_NAMES, minLength: 1, maxLength: 48 }),
 );
 
 /**
@@ -334,8 +327,8 @@ export type FoldFailure<F extends Fold> = F extends "tap" | "collect"
     ? "closed" | "open"
     : "skip";
 
-/** 지점이 fold 기본값과 다른 실패 정책을 가진 지점(사유는 POINTS 선언 주석) */
-export type FailOpenFirstPointName = "session.compact.before";
+/** 지점이 fold 기본값과 다른 실패 정책을 가진 지점(사유는 HOOKS 선언 주석) */
+export type FailOpenFirstHookName = "thread.compact.before";
 
 export interface PiSource {
   /** 옛 pi 이벤트명. 지점 이름과 다르다(지점 이름은 `name`) */
@@ -347,12 +340,12 @@ export interface PiSource {
   readonly piFold: "tap" | "tap-mutate" | "first" | "chain" | "collect";
 }
 
-export interface PointDecl<N extends PointName = PointName> {
+export interface HookDecl<N extends HookName = HookName> {
   readonly name: N;
-  readonly kind: PointKind;
-  readonly fold: PointSignatures[N]["fold"];
+  readonly kind: HookKind;
+  readonly fold: HookSignatures[N]["fold"];
   /** 핸들러 실패 정책. fold 기본값과 다르면 선언에 사유 주석을 단다 */
-  readonly failure: FoldFailure<PointSignatures[N]["fold"]>;
+  readonly failure: FoldFailure<HookSignatures[N]["fold"]>;
   /** tap만 detached 허용. detached는 디스패처가 완료를 기다리지 않는다 */
   readonly dispatch: "await" | "detached";
   readonly payload: TSchema;
@@ -362,7 +355,7 @@ export interface PointDecl<N extends PointName = PointName> {
   readonly finalize?: "boundary";
   /**
    * 참이면 thread 없이 호스트 수준에서 발화하는 지점이다(§7). 페이로드에 threadId가 없고 발화 문맥에도 thread가 없다.
-   * 지금은 `session.trust.before`뿐이다(thread를 만들기 전에 폴더 신뢰를 판정한다).
+   * 지금은 `thread.trust.before`뿐이다(thread를 만들기 전에 폴더 신뢰를 판정한다).
    */
   readonly threadless?: true;
   /** M1 스모크에서 페이로드를 정확화한 지점 */
@@ -377,9 +370,9 @@ function pi(event: string, def: string, emit: string, piFold: PiSource["piFold"]
 
 /**
  * 지점 선언 표. 46행 모두 fold, kind, payload, failure를 가진다. pi 출처는 pi에서 온 41행만 가진다.
- * 이 표와 F.extensions.spec §3.4 표가 일치하는지는 test/extensions/points.doc.test.ts가 대조한다.
+ * 이 표와 F.extensions.spec §3.4 표가 일치하는지는 test/extensions/hooks.doc.test.ts가 대조한다.
  */
-export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
+export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
   "input.user.before": {
     name: "input.user.before",
     kind: "input",
@@ -675,9 +668,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: true,
     pi: pi("agent_settled", "types.ts:1005", "runner.ts:1089 emit", "tap"),
   },
-  "session.trust.before": {
-    name: "session.trust.before",
-    kind: "session",
+  "thread.trust.before": {
+    name: "thread.trust.before",
+    kind: "thread",
     fold: "first",
     failure: "closed",
     dispatch: "await",
@@ -687,9 +680,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("project_trust", "types.ts:686/693", "runner.ts:295 emitProjectTrustEvent", "first"),
   },
-  "session.resources": {
-    name: "session.resources",
-    kind: "session",
+  "thread.resources": {
+    name: "thread.resources",
+    kind: "thread",
     fold: "collect",
     failure: "open",
     dispatch: "await",
@@ -703,9 +696,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "collect",
     ),
   },
-  "session.mcp.after": {
-    name: "session.mcp.after",
-    kind: "session",
+  "thread.mcp.after": {
+    name: "thread.mcp.after",
+    kind: "thread",
     fold: "tap",
     failure: "open",
     dispatch: "detached",
@@ -713,9 +706,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("mcp_servers_change", "types.ts:730", "runner.ts:459 emit (대기 안 함)", "tap"),
   },
-  "session.start": {
-    name: "session.start",
-    kind: "session",
+  "thread.start": {
+    name: "thread.start",
+    kind: "thread",
     fold: "tap",
     failure: "open",
     dispatch: "await",
@@ -723,9 +716,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: true,
     pi: pi("session_start", "types.ts:741", "runner.ts:1089 emit", "tap"),
   },
-  "session.info.after": {
-    name: "session.info.after",
-    kind: "session",
+  "thread.info.after": {
+    name: "thread.info.after",
+    kind: "thread",
     fold: "tap",
     failure: "open",
     dispatch: "detached",
@@ -733,9 +726,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("session_info_changed", "types.ts:750", "runner.ts:1089 emit (대기 안 함)", "tap"),
   },
-  "session.switch.before": {
-    name: "session.switch.before",
-    kind: "session",
+  "thread.switch.before": {
+    name: "thread.switch.before",
+    kind: "thread",
     fold: "first",
     failure: "closed",
     dispatch: "await",
@@ -749,9 +742,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "first",
     ),
   },
-  "session.fork.before": {
-    name: "session.fork.before",
-    kind: "session",
+  "thread.fork.before": {
+    name: "thread.fork.before",
+    kind: "thread",
     fold: "first",
     failure: "closed",
     dispatch: "await",
@@ -760,9 +753,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("session_before_fork", "types.ts:764/1478", "runner.ts:1089 emit", "first"),
   },
-  "session.compact.before": {
-    name: "session.compact.before",
-    kind: "session",
+  "thread.compact.before": {
+    name: "thread.compact.before",
+    kind: "thread",
     fold: "first",
     // fail-open 예외(adr.0017 §3.4.3). 컨텍스트가 넘친 상태에서 핸들러 예외가 컴팩션을 막으면 대화를 이어 갈 수 없다.
     // 예외를 낸 핸들러는 결정 없음으로 보고 다음 핸들러로 간다
@@ -773,9 +766,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("session_before_compact", "types.ts:771/1483", "runner.ts:1089 emit", "first"),
   },
-  "session.compact.after": {
-    name: "session.compact.after",
-    kind: "session",
+  "thread.compact.after": {
+    name: "thread.compact.after",
+    kind: "thread",
     fold: "tap",
     failure: "open",
     dispatch: "await",
@@ -783,9 +776,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("session_compact", "types.ts:784", "runner.ts:1089 emit", "tap"),
   },
-  "session.compact.failed": {
-    name: "session.compact.failed",
-    kind: "session",
+  "thread.compact.failed": {
+    name: "thread.compact.failed",
+    kind: "thread",
     fold: "tap",
     failure: "open",
     dispatch: "await",
@@ -793,9 +786,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("session_compact_failed", "types.ts:795", "runner.ts:1089 emit", "tap"),
   },
-  "session.tree.before": {
-    name: "session.tree.before",
-    kind: "session",
+  "thread.tree.before": {
+    name: "thread.tree.before",
+    kind: "thread",
     fold: "first",
     failure: "closed",
     dispatch: "await",
@@ -804,9 +797,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("session_before_tree", "types.ts:833/1488", "runner.ts:1089 emit", "first"),
   },
-  "session.tree.after": {
-    name: "session.tree.after",
-    kind: "session",
+  "thread.tree.after": {
+    name: "thread.tree.after",
+    kind: "thread",
     fold: "tap",
     failure: "open",
     dispatch: "await",
@@ -814,9 +807,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: false,
     pi: pi("session_tree", "types.ts:840", "runner.ts:1089 emit", "tap"),
   },
-  "session.shutdown": {
-    name: "session.shutdown",
-    kind: "session",
+  "thread.shutdown": {
+    name: "thread.shutdown",
+    kind: "thread",
     fold: "tap",
     failure: "open",
     dispatch: "await",
@@ -824,9 +817,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     m1: true,
     pi: pi("session_shutdown", "types.ts:810", "runner.ts:258 emitSessionShutdownEvent", "tap"),
   },
-  "session.prompt.before": {
-    name: "session.prompt.before",
-    kind: "session",
+  "thread.prompt.before": {
+    name: "thread.prompt.before",
+    kind: "thread",
     fold: "tap",
     failure: "open",
     dispatch: "detached",
@@ -839,9 +832,9 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
       "tap",
     ),
   },
-  "session.prompt.after": {
-    name: "session.prompt.after",
-    kind: "session",
+  "thread.prompt.after": {
+    name: "thread.prompt.after",
+    kind: "thread",
     fold: "tap",
     failure: "open",
     dispatch: "detached",
@@ -900,7 +893,7 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
 };
 
 /** guard 지점 셋(adr.0017 §3.6). 키는 발화 시점의 대상이다 */
-export const GUARD_POINTS: {
+export const GUARD_HOOKS: {
   readonly request: "guard.model.before";
   readonly tool: "guard.tool.before";
   readonly output: "guard.output.before";
@@ -914,27 +907,27 @@ export const GUARD_POINTS: {
  * lifecycle 지점과 내구 이벤트 kind의 대응. 디스패치 키는 이벤트 id이고, 레코드 kind에서 지점 이름으로 가는 길은 이 표 하나다.
  * 이름이 다른 이유: kind는 내구 이벤트의 이름 공간(`<영역>.<이름>`)이고 지점 이름은 `<종류>.<대상>.<시점>` 규칙을 따른다
  */
-export const LIFECYCLE_POINTS: {
+export const LIFECYCLE_HOOKS: {
   readonly "agent.settled": "lifecycle.agent.settled";
   readonly "lease.rejected": "lifecycle.lease.rejected";
 } = {
   "agent.settled": "lifecycle.agent.settled",
   "lease.rejected": "lifecycle.lease.rejected",
 };
-export type LifecycleEventKind = keyof typeof LIFECYCLE_POINTS;
+export type LifecycleEventKind = keyof typeof LIFECYCLE_HOOKS;
 
 const DENY_REASON = "extension handler failed";
 
-/** fail-closed first 지점의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open 지점(FailOpenFirstPointName)은 거부값이 없다 */
+/** fail-closed first 지점의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open 지점(FailOpenFirstHookName)은 거부값이 없다 */
 export const FIRST_DENY: {
-  readonly [N in Exclude<FirstPointName, FailOpenFirstPointName>]: PointSignatures[N]["decision"];
+  readonly [N in Exclude<FirstHookName, FailOpenFirstHookName>]: HookSignatures[N]["decision"];
 } = {
   "input.bash.before": { type: "deny", reason: DENY_REASON },
   "tool.call.before": { block: true, reason: DENY_REASON, terminate: false },
-  "session.trust.before": { trusted: "no" },
-  "session.switch.before": { cancel: true, reason: DENY_REASON },
-  "session.fork.before": { cancel: true, reason: DENY_REASON },
-  "session.tree.before": { cancel: true, reason: DENY_REASON },
+  "thread.trust.before": { trusted: "no" },
+  "thread.switch.before": { cancel: true, reason: DENY_REASON },
+  "thread.fork.before": { cancel: true, reason: DENY_REASON },
+  "thread.tree.before": { cancel: true, reason: DENY_REASON },
   "guard.model.before": { block: true, reason: DENY_REASON },
   "guard.tool.before": { block: true, reason: DENY_REASON },
   "guard.output.before": { block: true, reason: DENY_REASON },
@@ -945,9 +938,9 @@ export const FIRST_DENY: {
 /** 병합이 패치를 거부했다(예: message_end의 role 불일치). 디스패처는 그 핸들러의 패치만 버리고 계속한다 */
 export class ChainMergeError extends Error {
   override readonly name: string = "ChainMergeError";
-  readonly point: ChainPointName;
+  readonly point: ChainHookName;
 
-  constructor(point: ChainPointName, message: string) {
+  constructor(point: ChainHookName, message: string) {
     super(message);
     this.point = point;
   }
@@ -1042,10 +1035,7 @@ const boundaryRule: ChainRule<BoundaryValue, BoundaryPatch> = {
 };
 
 export const CHAIN_RULES: {
-  readonly [N in ChainPointName]: ChainRule<
-    PointSignatures[N]["value"],
-    PointSignatures[N]["patch"]
-  >;
+  readonly [N in ChainHookName]: ChainRule<HookSignatures[N]["value"], HookSignatures[N]["patch"]>;
 } = {
   "input.user.before": inputRule,
   "request.context.before": replaceMessagesRule,
@@ -1108,11 +1098,11 @@ const resourcesRule: CollectRule<ResourcesValue, ResourcesPatch> = {
 };
 
 export const COLLECT_RULES: {
-  readonly [N in CollectPointName]: CollectRule<
-    PointSignatures[N]["value"],
-    PointSignatures[N]["contribution"]
+  readonly [N in CollectHookName]: CollectRule<
+    HookSignatures[N]["value"],
+    HookSignatures[N]["contribution"]
   >;
 } = {
   "input.agent.before": beforeAgentStartRule,
-  "session.resources": resourcesRule,
+  "thread.resources": resourcesRule,
 };

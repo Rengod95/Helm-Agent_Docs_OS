@@ -193,7 +193,7 @@ describe("schedule.entries schemas", () => {
       { kind: "at", atMs: 1_790_000_000_000 },
       { kind: "file_watch", paths: ["/tmp/a.txt"], debounceMs: 500 },
       { kind: "remote" },
-      { kind: "loop", intervalSeconds: 0, maxIterations: 3, expiresAtMs: 1_790_000_000_000 },
+      { kind: "repeat", intervalSeconds: 0, maxIterations: 3, expiresAtMs: 1_790_000_000_000 },
     ];
     for (const trigger of triggers)
       expect(parse(ScheduleTriggerSchema, trigger)).toEqual({
@@ -215,8 +215,8 @@ describe("schedule.entries schemas", () => {
       { kind: "interval", everySeconds: 1.5 },
       { kind: "file_watch", paths: [], debounceMs: 0 },
       { kind: "file_watch", paths: ["/a"], debounceMs: 3600001 },
-      { kind: "loop", intervalSeconds: 0, maxIterations: 0, expiresAtMs: 1 },
-      { kind: "loop", intervalSeconds: 0, maxIterations: 1, expiresAtMs: 0 },
+      { kind: "repeat", intervalSeconds: 0, maxIterations: 0, expiresAtMs: 1 },
+      { kind: "repeat", intervalSeconds: 0, maxIterations: 1, expiresAtMs: 0 },
       { kind: "cron", expr: "0 9 * * *" },
     ];
     for (const trigger of bad) expect(parse(ScheduleTriggerSchema, trigger).ok).toBe(false);

@@ -13,7 +13,7 @@ import {
 import { CapabilityIdSchema, SemVerRangeSchema, SemVerSchema } from "../capabilities/index.ts";
 import { RECORD_KIND_READ_PATTERN, RecordKindDeclJsonSchema } from "./group-record.ts";
 import { ExtensionNameSchema } from "./name.ts";
-import { PointNameSchema } from "./points.ts";
+import { HookNameSchema } from "./hooks.ts";
 
 export { EXTENSION_NAME_PATTERN, ExtensionNameSchema, type ExtensionName } from "./name.ts";
 
@@ -144,7 +144,7 @@ export const ExtensionManifestSchema: TObject<{
   requires: TOptional<TArray<typeof CapabilityRequirementSchema>>;
   optional: TOptional<TArray<typeof CapabilityRequirementSchema>>;
   provides: TOptional<TArray<typeof CapabilityProvisionSchema>>;
-  points: TArray<typeof PointNameSchema>;
+  points: TArray<typeof HookNameSchema>;
   usesPost: TOptional<TBoolean>;
   usesDrive: TBoolean;
   recordKinds: TOptional<TArray<typeof RecordKindDeclJsonSchema>>;
@@ -178,7 +178,7 @@ export const ExtensionManifestSchema: TObject<{
     optional: Type.Optional(Type.Array(CapabilityRequirementSchema, { maxItems: 128 })),
     provides: Type.Optional(Type.Array(CapabilityProvisionSchema, { maxItems: 128 })),
     /** on을 거는 지점 목록. 정적 선언. 빈 배열 허용 */
-    points: Type.Array(PointNameSchema, { maxItems: 64 }),
+    points: Type.Array(HookNameSchema, { maxItems: 64 }),
     usesPost: Type.Optional(Type.Boolean()),
     usesDrive: Type.Boolean(),
     /** 이 확장이 쓰는 레코드 종류 */

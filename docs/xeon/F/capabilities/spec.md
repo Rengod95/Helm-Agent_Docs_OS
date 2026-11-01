@@ -669,13 +669,13 @@ export function findForeignSecretSyntax(text: string): readonly SecretRefError[]
 // secrets.ts (계속). import는 앞 블록과 같다
 
 // ── 메타 (L0.secrets.spec §3.2) ─────────────────────────────────────
-export const SecretUseModeSchema: TSchema = Type.Union([
+export const InjectionModeSchema: TSchema = Type.Union([
   Type.Literal("env"),            // 사용 모드 M1. 마일스톤 M1: bash 도구 env 주입, 실행마다 승인(review.decisions-2 U-19)
   Type.Literal("sentinel"),       // 사용 모드 M2. 구현은 후속
   Type.Literal("runtime-http"),   // 사용 모드 M3. 마일스톤 M1: 모델 provider 키를 core-models의 프로세스 안 HTTP 클라이언트에 lease(L0.secrets.spec §4.3)
   Type.Literal("browser-input"),  // 사용 모드 M4. 마일스톤 M2
 ]);
-export type SecretUseMode = "env" | "sentinel" | "runtime-http" | "browser-input";
+export type InjectionMode = "env" | "sentinel" | "runtime-http" | "browser-input";
 
 /** 1차 내장은 sops. op·bws·keychain은 2차 플러그인 */
 export const SecretProviderIdSchema: TSchema = Type.Union([
@@ -689,14 +689,14 @@ export const SecretScopeSchema: TSchema = Type.Union([Type.Literal("user"), Type
 export type SecretScope = "user" | `project:${string}`;
 
 export const SecretUsePolicySchema: TSchema = Type.Object({
-  modes: Type.Array(SecretUseModeSchema, { uniqueItems: true }),        // 빈 배열 = 사용 불가
+  modes: Type.Array(InjectionModeSchema, { uniqueItems: true }),        // 빈 배열 = 사용 불가
   tools: Type.Array(Type.String({ minLength: 1, maxLength: 128 })),     // "http.request", "bash:gh", "web.search"
   hosts: Type.Array(Type.String({ minLength: 1, maxLength: 253 })),     // runtime-http, sentinel. "api.github.com", "*.example.com"
   origins: Type.Optional(Type.Array(Type.String({ pattern: "^https://[^/]+$" }))),     // browser-input
   commands: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 256 }))),  // env에서만. "gh api *"
 }, { additionalProperties: false });
 export interface SecretUsePolicy {
-  readonly modes: readonly SecretUseMode[];
+  readonly modes: readonly InjectionMode[];
   readonly tools: readonly string[];
   readonly hosts: readonly string[];
   readonly origins?: readonly string[];
@@ -744,10 +744,10 @@ export type ReauthMethod = "os-auth" | "passphrase" | "tty-confirm";
 
 /** 값, 값의 일부, 값의 해시를 싣지 않는다. commandHash는 명령줄 문자열의 SHA-256 hex 앞 16자 */
 export type SecretAuditRecord =
-  | { readonly type: "secret.used"; readonly handle: SecretHandle; readonly mode: SecretUseMode; readonly toolCallId: string | null;
+  | { readonly type: "secret.used"; readonly handle: SecretHandle; readonly mode: InjectionMode; readonly toolCallId: string | null;
       readonly threadId: string | null; readonly host: string | null; readonly commandHash: string | null;
       readonly decision: "allow"; readonly leaseId: string; readonly at: number }
-  | { readonly type: "secret.denied"; readonly handle: SecretHandle; readonly mode: SecretUseMode; readonly reason: SecretDenyReason;
+  | { readonly type: "secret.denied"; readonly handle: SecretHandle; readonly mode: InjectionMode; readonly reason: SecretDenyReason;
       readonly purpose: string; readonly toolCallId: string | null; readonly threadId: string | null; readonly at: number }
   | { readonly type: "secret.approved"; readonly handle: SecretHandle; readonly scope: "per-session" | "per-use";
       readonly approvalId: string; readonly expiresAt: number | null; readonly threadId: string | null; readonly at: number }
@@ -840,14 +840,14 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 | `services/store.ts` | `StoreServicePortKey`만 둔다. `StoreService`는 records가 소유한다(규칙 9). `../extensions`, `../records`를 import type으로 가져온다 | `L0.store.spec` §8 |
 | `services/os.ts` | `OsPlatform`, `OsArch`, `OsInfo`, `OsDirs`, `FsKind` 등 `L0.os.spec` §3이 `src/services/os.ts`로 표시한 이름과 알림 타입 `NotifyKind`, `OsNotification`, `NotifyError`(아래 블록) | `L0.os.spec` §3.1~§3.3, §3.7 |
 | `services/process.ts` | `ProcessService`, `BackgroundRegistry`와 관련 타입, `ShutdownCoordinator`, `ShutdownReason` | `L0.process.spec` §3.1(그 문서 FR-P7) |
-| `services/secrets.ts` | `SecretService`, `SecretServiceName`, `UseCtx`, `SecretUseTarget`, `ApprovalEvidence`(`capabilities`의 `SecretApprovalEvidence` 별칭), `SecretValueView`, `SecretLease`, `SecretProviderCapabilities`, `ProviderEntry`, `SecretProvider`, `RegisterKnownError`, `Redactor`, `SecretStatus`, `SecretListing`, `UseDecision`, `ApprovalPrompt`, `HttpTemplate`, `ConcreteHttpRequest`, `HttpResponseLike`, `SecretDiagnostics`, `SecretError`, `KeyProviderIdPublic`. 값 타입과 참조 형식(`SecretName`, `SecretHandle`, `SecretRefError`, `SecretUseMode`, `SecretProviderId`, `SecretMeta`, `SecretDenyReason`, `RedactionHit`, `SecretAuditRecord`)은 `../capabilities`에서 가져온다(§3.10) | `L0.secrets.spec` §3.3~§3.6, §3.10 |
+| `services/secrets.ts` | `SecretService`, `SecretServiceName`, `UseCtx`, `SecretUseTarget`, `ApprovalEvidence`(`capabilities`의 `SecretApprovalEvidence` 별칭), `SecretValueView`, `SecretLease`, `SecretProviderCapabilities`, `ProviderEntry`, `SecretProvider`, `RegisterKnownError`, `Redactor`, `SecretStatus`, `SecretListing`, `UseDecision`, `ApprovalPrompt`, `HttpTemplate`, `ConcreteHttpRequest`, `HttpResponseLike`, `SecretDiagnostics`, `SecretError`, `KeyProviderIdPublic`. 값 타입과 참조 형식(`SecretName`, `SecretHandle`, `SecretRefError`, `InjectionMode`, `SecretProviderId`, `SecretMeta`, `SecretDenyReason`, `RedactionHit`, `SecretAuditRecord`)은 `../capabilities`에서 가져온다(§3.10) | `L0.secrets.spec` §3.3~§3.6, §3.10 |
 | `services/secret-admin.ts` | `SecretAdminService`, `SecretAdminServiceName`, `SecretValueSource`, `HumanReauth`(`method: ReauthMethod`), `SecretMetaPatch`, `SecretTestResult`, `SecretReferenceReport`. in-process 값 전달 통로 `SecretOutOfBandPort`, `SecretEntryOffer`, `SecretRevealOffer`, `SecretEntryAction`(wire `secret.beginEntry`·`secret.beginReveal`이 값 없이 시작만 알리고 CLI가 입력·열람 수단을 wire 밖으로 맡긴다, `F.wire-settings.spec` §3.3.1). `secrets.ts`를 import한다 | `L0.secrets.spec` §3.8, `L4.cli.spec` §4.7 |
 | `services/tools.ts` | `ToolService`, `ToolServiceName`, 도구 메타(`ToolRisk`, `ToolClass`는 `capabilities/tool-meta.ts`가 정의하고 다시 내보낸다, `ToolMeta`, `ToolPolicyMeta`), 정책 값 타입(`PolicyRule`, `TieredRule`, `PolicyInput`, `PolicyDecision`, `PolicyCeiling`, `PolicyRuleSchema`, `CallerId`, `PermissionMode`), `ToolRunContext`, `ToolRunDrafts`(`ToolRunContext.drafts`: 소유 컨텍스트가 낙인한 toolResult 초안과 승인 대기 체크포인트 초안을 만드는 생성기), 광고 타입. 정책 평가 함수(`evaluatePolicy`, `ruleMatches`, `validateRules`)는 core-tools가 구현하고 F에는 두지 않는다. 도구 인자를 이벤트에 그대로 싣는 한도(192 KiB, 넘으면 blob)는 core-tools 상수다. F는 `ToolApprovalBody.args`가 `BlobRef`를 받을 수 있게만 한다 [결정: open-issues V-08] | `L1.tools.spec` §3 |
 | `services/policy.ts` | `PolicyEvaluator`(평가기 함수 모양), `ChildPolicyView`, `stricter`, `matchToolGlob`, `childDecision`. 자식 대화의 권한 상한을 계산하는 순수 함수다. 평가기를 인자로 받으므로 core-tools와 core-agents가 서로를 import하지 않고 쓴다 [결정: m2-plan F.4, L1.tools·L1.agents F 요청 9] | `L1.tools.spec` §4.5, `L1.agents.spec` §4.3 |
 | `services/approvals.ts` | `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`과 비차단 `open`·`wait`·`get`, `OpenedApproval`, `ApprovalWaitFailure`, `respond`의 결과 `ApprovalApplyOutcome`과 이유 `ApprovalNotAppliedReason`·`APPROVAL_NOT_APPLIED_REASONS` [결정: m2c G1-09]). 만료: `ApprovalRequestInput.expiresAt`·`onExpire`(`ApprovalOnExpire`), `ApprovalResolvedBy`의 `expired`, `L2ApprovalRequest`의 같은 이름 필드, `L2ApprovalSnapshot.resolution.resolvedBy` [결정: m2c G1-11], `ApprovalServiceName`, 호출자 `ApprovalCaller`와 변환 함수 `approvalCallerOf` [결정: m2c G1-09], 승인 값 타입(`ApprovalKind`은 `tool`, `plan`, `question`, `review`, `ApprovalBody`의 `review` 변형과 `ReviewBody`, `ReviewFileSummary` [결정: adr.0018, M3-REQ-09], `ApprovalRequest`, `ApprovalResolution`, `ApprovalRequestError`, `QuestionAnswer`, `PlanAnswer`, `DenyAnswer` 등. 질문 항목에 선택 필드 `header`, 선택지에 `recommended`) [결정: m2 F.8]. L2 공통 승인 포트 `L2ApprovalsPort`와 `L2ApprovalKind`, `L2ApprovalSnapshot`, `L2ApprovalRequest`, `L2ApprovalRespondInput`(`respond`의 결과도 `ApprovalApplyOutcome`), `L2_APPROVAL_REQUEST_ID_MAX`(48. services는 records를 값으로 import하지 않아 `records/commit.ts`의 `APPROVAL_REQUEST_KEY_MAX`와 같은 값을 거울로 두고 시험이 지킨다. 키 변환은 `requestKeyFor` 하나다 [결정: 통합 검토 L6]). 실패는 `Result` 오류 값이다. cap-*가 `ApprovalService`를 이 모양으로 감싼다 [결정: m2-plan F.4, L2.readme §5.7] | `L1.tools.spec` §3.6, `L2.readme` §5.7 |
 | `services/agents.ts` | `AgentService`, `AgentServiceName`, `AgentServicePortKey`. `SpawnRequest` 등 값 타입의 위치는 `L1.agents.spec` §8.3 8번을 따른다. M3a 추가 [결정: M3-REQ-10, 11]: `SpawnOrigin.parentToken?`(부모 쓰기 임대 토큰), `DelegateRequest.report?`(선택. 없으면 보고 입력 없이 `agent.settled`만 남고 D-M3-03 a), `CancelTarget`의 `{ ownerScopeId }` 변형(그룹 끄기 때 주체 단위 취소, D-M3-04 b [제안]). 완료 통지 수단은 새로 두지 않고 기존 `agent.settled` 레코드, `lifecycle.agent.settled` 지점, `AgentService.status`로 한다. 취소는 `AgentService.cancel(target)`이고 (부모, requestId) 변형이 `cancel(requestId)`에 해당한다. `services/loop.ts`: `ChildTurnRequest.tools.deny?`·`denyHint?` | `L1.agents.spec` §3.3 |
 | `services/mcp.ts` | `McpService`, `McpServiceName`. `McpClient` 능력 정의는 `capabilities/defs/mcp.ts`(§3.9)에 두고 이 파일이 import한다 | `L2.mcp.spec` §3.2 |
-| `services/groups.ts` | `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`(`group.settingUnwritable`과 이유 집합 `GroupSettingUnwritableReason` 포함), `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`. `GroupId`·`ScopeId`·`ScopeStatus`·`LeaseId`·`RecordKind`·`Unsubscribe`·`LeaseArbiterPort`는 `../extensions`에서 가져온다. settings를 import하지 않으므로 `setDriveHolder`의 `scope` 옵션과 `HolderReceipt.scope`는 `SettingScope`와 같은 모양(`"managed" \| "user" \| "project" \| "local" \| "session"`)으로 적는다 | `L3.group-kit.spec` §3.8 |
+| `services/groups.ts` | `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`(`group.settingUnwritable`과 이유 집합 `GroupSettingUnwritableReason` 포함), `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`. `GroupId`·`ScopeId`·`ScopeStatus`·`LeaseId`·`RecordKind`·`Unsubscribe`·`LeaseArbiterPort`는 `../extensions`에서 가져온다. settings를 import하지 않으므로 `setDriveHolder`의 `scope` 옵션과 `HolderReceipt.scope`는 `SettingScope`와 같은 모양(`"managed" \| "user" \| "project" \| "local" \| "launch"`)으로 적는다 | `L3.group-kit.spec` §3.8 |
 
 ```ts
 // src/services/names.ts
@@ -1069,7 +1069,7 @@ export type NotifyError =
 | `toolOrderKey`, `orderTools`, `toolsetFingerprint`, `diffToolsets`, `ToolWire` | L1.context.spec, L1.models.spec |
 | `CallOptions.context`, `CallContext`, `CallerInfo` | L1.tools.spec, X.primitives.spec, L2 spec(`L2.readme` §5.8) |
 | `SecretRef`, `SecretName`, `SecretNameSchema`, `SECRET_REF_PATTERN`, `SECRET_NAME_PATTERN`, `SecretRefError`, `parseSecretRef`, `secretRef`, `findForeignSecretSyntax` | F.wire-settings.spec §3.8.1, L0.secrets.spec, L4.settings-ui.spec |
-| `SecretHandle`, `SecretUseMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretMeta`, `SecretUsePolicy`, `SecretDenyReason`, `RedactionHit`, `RedactionLayer`, `ReauthMethod`, `SecretAuditRecord`와 스키마 | L0.secrets.spec, L1.tools.spec, L2.workspace.spec, L4.settings-ui.spec |
+| `SecretHandle`, `InjectionMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretMeta`, `SecretUsePolicy`, `SecretDenyReason`, `RedactionHit`, `RedactionLayer`, `ReauthMethod`, `SecretAuditRecord`와 스키마 | L0.secrets.spec, L1.tools.spec, L2.workspace.spec, L4.settings-ui.spec |
 | `@xeon/contracts/services`의 서비스 인터페이스와 `SERVICE_NAMES`(§3.12) | 구현: L0 `platform-*`, L1 `core-*`, L2 `cap-mcp`(`McpService`), L3 `group-kit`(`GroupService`). 소비: X, L1~L4 |
 | `SecretService`, `SecretAdminService`와 부속 타입(`services/secrets.ts`, `services/secret-admin.ts`) | 구현: L0.secrets.spec. 소비: L0.exec.spec(`UseCtx`), L1.tools.spec, L1.models.spec, L2.web.spec, L2.mcp.spec, L4 |
 | `ProviderId`, `ProviderSelectionMeta`, `orderProviderCandidates` 등 | L2 spec(`L2.readme` §5.2) |

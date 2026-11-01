@@ -5,9 +5,9 @@ import type { SettingKey, SettingScope } from "./def.ts";
  * 관리는 잠금으로서 맨 위, 세션은 Claude Code의 플래그 자리, 나머지는 layer-plan의 덮어쓰기 순서다.
  * [미결] 관리 범위가 잠금 전용인지 관리 기본값도 두는지는 사용자 확인 대상이다. 바뀌면 이 줄과 테스트만 고친다.
  */
-export const SCOPE_PRECEDENCE: readonly ["managed", "session", "local", "project", "user"] = [
+export const SCOPE_PRECEDENCE: readonly ["managed", "launch", "local", "project", "user"] = [
   "managed",
-  "session",
+  "launch",
   "local",
   "project",
   "user",

@@ -18,7 +18,7 @@ export const GroupServiceName = "xeon.groups" as const;
 export type DriveHolderSetting = ScopeId | null;
 
 /** F.wire-settings의 SettingScope와 서로 대입 가능해야 한다 */
-type HolderSettingScope = "managed" | "user" | "project" | "local" | "session";
+type HolderSettingScope = "managed" | "user" | "project" | "local" | "launch";
 
 /** GroupStatus.metrics. group-kit GroupMetrics(L3.group-kit.spec §3.12)의 부분 필드와 같은 모양이다 */
 export interface GroupMetricsSummary {

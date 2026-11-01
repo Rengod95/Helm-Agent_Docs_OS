@@ -302,7 +302,7 @@ export type LifecycleError =
     }
   | {
       readonly kind: "cancelled_by_extension";
-      readonly point: "session.fork.before" | "session.tree.before" | "session.switch.before";
+      readonly point: "thread.fork.before" | "thread.tree.before" | "thread.switch.before";
       readonly reason: string | null;
     };
 
@@ -349,11 +349,11 @@ export interface ThreadLifecycle {
 // ── 세션 범위 설정 (L1.persistence.spec §6.2) ─────────────────────────────
 
 /**
- * settings의 ScopeLayer와 같은 모양(scope: "session"). records는 settings보다 낮은 순위라(F.readme §3)
+ * settings의 ScopeLayer와 같은 모양(scope: "launch"). records는 settings보다 낮은 순위라(F.readme §3)
  * import하지 않고 같은 모양을 적는다. SettingKey는 문자열이다.
  */
 export interface SessionSettingsLayer {
-  readonly scope: "session";
+  readonly scope: "launch";
   readonly values: ReadonlyMap<string, unknown>;
 }
 

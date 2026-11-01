@@ -37,14 +37,14 @@ export const SettingScopeSchema: TUnion<
     TLiteral<"user">,
     TLiteral<"project">,
     TLiteral<"local">,
-    TLiteral<"session">,
+    TLiteral<"launch">,
   ]
 > = Type.Union([
   Type.Literal("managed"),
   Type.Literal("user"),
   Type.Literal("project"),
   Type.Literal("local"),
-  Type.Literal("session"),
+  Type.Literal("launch"),
 ]);
 export type SettingScope = Static<typeof SettingScopeSchema>;
 
@@ -392,8 +392,8 @@ export function checkSettingDef(def: SettingDef): readonly SettingDefIssue[] {
   if (new Set(def.allowedScopes).size !== def.allowedScopes.length) {
     add("D7", "allowedScopes has duplicates");
   }
-  if (def.runtimeChange === "restart" && def.allowedScopes.includes("session")) {
-    add("D7", 'a "restart" setting cannot be allowed in the session scope');
+  if (def.runtimeChange === "restart" && def.allowedScopes.includes("launch")) {
+    add("D7", 'a "restart" setting cannot be allowed in the launch scope');
   }
 
   // D8

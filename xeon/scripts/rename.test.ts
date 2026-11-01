@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { CATEGORIES, renamePath, transform, type Category } from "./rename.ts";
+import { CATEGORIES, hookIdentifier, renamePath, transform, type Category } from "./rename.ts";
 
 function category(id: string): Category {
   const found = CATEGORIES.find((c) => c.id === id);
@@ -122,4 +122,89 @@ test("transform reports the replacement count and sample lines", () => {
   const result = transform("a\n@xeon/a\n@xeon/b\n", category("A"), "xeon/packages/x/src/a.ts");
   expect(result.count).toBe(2);
   expect(result.samples[0]).toEqual({ line: 2, before: "@xeon/a", after: "@fresnel/a" });
+});
+
+test("T1 renames hook identifiers and keeps other meanings of Point", () => {
+  expect(
+    [
+      "PointName",
+      "POINTS",
+      "POINT_NAMES",
+      "SessionPoints",
+      "createSessionPoints",
+      "NO_SESSION_POINTS",
+      "PointNameSchema",
+    ].map(hookIdentifier),
+  ).toEqual([
+    "HookName",
+    "HOOKS",
+    "HOOK_NAMES",
+    "ThreadHooks",
+    "createThreadHooks",
+    "NO_THREAD_HOOKS",
+    "HookNameSchema",
+  ]);
+  for (const kept of [
+    "codePointAt",
+    "Pointer",
+    "FaultPoint",
+    "findCutPoint",
+    "mountPoint",
+    "STEP_CHECKPOINT_SCHEMA_VERSION",
+    "PlacementPoint",
+  ]) {
+    expect(hookIdentifier(kept)).toBe(kept);
+  }
+  expect(apply("T1", "const p: PointName = POINTS[x]; // codePointAt")).toBe(
+    "const p: HookName = HOOKS[x]; // codePointAt",
+  );
+});
+
+test("T2 renames the 15 session.* hook names in quotes and leaves other session.* strings", () => {
+  expect(
+    apply(
+      "T2",
+      'on("session.start"); `session.compact.before`; "session.release"; session.start()',
+    ),
+  ).toBe('on("thread.start"); `thread.compact.before`; "session.release"; session.start()');
+  expect(apply("T2", 'kind: "session",', "xeon/packages/contracts/src/extensions/points.ts")).toBe(
+    'kind: "thread",',
+  );
+  expect(
+    apply(
+      "T2",
+      'type K = "folder" | "parent" | "session";',
+      "xeon/packages/contracts/src/extensions/ports.ts",
+    ),
+  ).toBe('type K = "folder" | "parent" | "session";');
+  expect(
+    renamePath("xeon/packages/contracts/src/extensions/points/session.ts", category("T2")),
+  ).toBe("xeon/packages/contracts/src/extensions/hooks/thread.ts");
+  expect(renamePath("xeon/packages/contracts/src/extensions/points.ts", category("T2"))).toBe(
+    "xeon/packages/contracts/src/extensions/hooks.ts",
+  );
+});
+
+test("T3 renames the settings scope and not other session values", () => {
+  expect(
+    apply(
+      "T3",
+      'allowedScopes: ["managed", "user", "project", "local", "session"], scope: "session", kind === "session", retention: "session"',
+    ),
+  ).toBe(
+    'allowedScopes: ["managed", "user", "project", "local", "launch"], scope: "launch", kind === "session", retention: "session"',
+  );
+  expect(apply("T3", 'Type.Literal("local"),\n  Type.Literal("session"),\n]);')).toBe(
+    'Type.Literal("local"),\n  Type.Literal("launch"),\n]);',
+  );
+});
+
+test("T4 and T5 rename the injection mode type and the schedule kind", () => {
+  expect(apply("T4", "SecretUseModeSchema, SecretUsePolicy, SecretUseMode")).toBe(
+    "InjectionModeSchema, SecretUsePolicy, InjectionMode",
+  );
+  expect(
+    apply("T5", 'kind: "loop", other: "loop"', "xeon/packages/cap-schedule/src/engine.ts"),
+  ).toBe('kind: "repeat", other: "repeat"');
+  expect(apply("T5", 'kind: "loop"', "xeon/packages/core-loop/src/a.ts")).toBe('kind: "loop"');
 });

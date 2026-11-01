@@ -17,7 +17,7 @@ import { EventIdSchema, type EventId } from "../../conversation/index.ts";
 // capabilities의 SecretAuditRecord와 필드 이름이 같아야 한다. records는 capabilities를 import하지 않으므로
 // 같은 모양을 적고, 일치는 test/records/secret-alignment.test.ts가 확인한다.
 
-const SecretUseModeJson: TUnion<
+const InjectionModeJson: TUnion<
   [TLiteral<"env">, TLiteral<"sentinel">, TLiteral<"runtime-http">, TLiteral<"browser-input">]
 > = Type.Union([
   Type.Literal("env"),
@@ -32,7 +32,7 @@ const at = (): TInteger => Type.Integer({ minimum: 0 });
 
 export const SecretUsedPayloadSchema: TObject<{
   handle: TString;
-  mode: typeof SecretUseModeJson;
+  mode: typeof InjectionModeJson;
   toolCallId: TUnion<[TString, TNull]>;
   host: TUnion<[TString, TNull]>;
   commandHash: TUnion<[TString, TNull]>;
@@ -41,7 +41,7 @@ export const SecretUsedPayloadSchema: TObject<{
 }> = Type.Object(
   {
     handle: handle(),
-    mode: SecretUseModeJson,
+    mode: InjectionModeJson,
     toolCallId: Nullable(Type.String({ minLength: 1, maxLength: 256 })),
     host: Nullable(Type.String({ minLength: 1, maxLength: 253 })),
     /** 명령줄 문자열의 SHA-256 hex 앞 16자 */
@@ -55,7 +55,7 @@ export type SecretUsedPayload = Static<typeof SecretUsedPayloadSchema>;
 
 export const SecretDeniedPayloadSchema: TObject<{
   handle: TString;
-  mode: typeof SecretUseModeJson;
+  mode: typeof InjectionModeJson;
   reason: TString;
   purpose: TString;
   toolCallId: TUnion<[TString, TNull]>;
@@ -63,7 +63,7 @@ export const SecretDeniedPayloadSchema: TObject<{
 }> = Type.Object(
   {
     handle: handle(),
-    mode: SecretUseModeJson,
+    mode: InjectionModeJson,
     /** 값 집합은 L0.secrets.spec SecretDenyReason */
     reason: Type.String({ minLength: 1, maxLength: 64 }),
     purpose: Type.String({ maxLength: 500 }),

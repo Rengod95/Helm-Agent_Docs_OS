@@ -49,12 +49,12 @@ export type TurnEndReturn = Expect<
 
 /** tap 지점: 반환값이 없다 */
 export type SessionStartReturn = Expect<
-  Equal<ReturnType<Handler<"session.start">>, void | Promise<void>>
+  Equal<ReturnType<Handler<"thread.start">>, void | Promise<void>>
 >;
 
 /** 상태 타입은 ctx.state로 흐른다 */
 export type StateFlows = Expect<
-  Equal<Parameters<Handler<"session.start", { n: number }>>[1]["state"], Readonly<{ n: number }>>
+  Equal<Parameters<Handler<"thread.start", { n: number }>>[1]["state"], Readonly<{ n: number }>>
 >;
 
 /** collect 지점: 핸들러는 payload와 ctx만 받고 기여(또는 undefined)를 반환한다. current는 없다 */
@@ -74,7 +74,7 @@ export type CollectReturn = Expect<
 /** 잘못된 반환은 컴파일 오류다 */
 export function wrongReturnsAreRejected(g: ExtensionOps<unknown>): void {
   // @ts-expect-error -- tap 핸들러는 값을 반환할 수 없다 (F.extensions.spec §9 5)
-  g.on("session.start", () => ({ block: true, reason: "x" }));
+  g.on("thread.start", () => ({ block: true, reason: "x" }));
   // @ts-expect-error -- first 핸들러는 패치가 아니라 결정을 반환한다 (F.extensions.spec §9 5)
   g.on("tool.call.before", () => ({ continue: true }));
   // @ts-expect-error -- 지점 이름은 표의 46개뿐이다 (F.extensions.spec §4.10)
@@ -92,7 +92,7 @@ export function rightReturnsAreAccepted(g: ExtensionOps<unknown>): void {
     entries: current.entries,
     continue: false,
   }));
-  g.on("session.start", async () => {});
+  g.on("thread.start", async () => {});
 }
 
 /** capability(key)의 반환 타입은 키가 실은 API다 */

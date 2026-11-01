@@ -12,7 +12,7 @@ import {
   type RecordKindDecl,
 } from "./group-record.ts";
 import { ExtensionManifestSchema, type ExtensionManifest } from "./manifest.ts";
-import type { PointName } from "./points.ts";
+import type { HookName } from "./hooks.ts";
 
 export interface ManifestIssue {
   readonly severity: "error" | "warning";
@@ -380,7 +380,7 @@ export function validateManifest(input: unknown): ManifestResult {
 
 /** setup 동안 실제로 한 등록 */
 export interface ExtensionUsage {
-  readonly on: readonly PointName[];
+  readonly on: readonly HookName[];
   readonly post: boolean;
   readonly drive: boolean;
   readonly capabilities: readonly CapabilityId[];
@@ -401,9 +401,9 @@ export function validateUsage(
 ): readonly ManifestIssue[] {
   const issues: ManifestIssue[] = [];
 
-  const declaredPoints = new Set<string>(manifest.points);
+  const declaredHooks = new Set<string>(manifest.points);
   for (const point of new Set(usage.on)) {
-    if (!declaredPoints.has(point)) {
+    if (!declaredHooks.has(point)) {
       issues.push(
         issue(
           "error",
@@ -414,9 +414,9 @@ export function validateUsage(
       );
     }
   }
-  const usedPoints = new Set<string>(usage.on);
+  const usedHooks = new Set<string>(usage.on);
   manifest.points.forEach((point, index) => {
-    if (!usedPoints.has(point)) {
+    if (!usedHooks.has(point)) {
       issues.push(
         issue(
           "warning",

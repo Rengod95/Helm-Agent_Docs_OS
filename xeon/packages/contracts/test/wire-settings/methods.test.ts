@@ -82,7 +82,7 @@ describe("WIRE_METHODS", () => {
     const { params } = WIRE_NOTIFICATIONS["settings.invalidated"];
     const valid = { keys: ["l1.loop.maxSteps"], scopes: ["user", "project"], threadId: null };
     expect(parse(params, valid).ok).toBe(true);
-    expect(parse(params, { keys: [], scopes: ["session"], threadId: THREAD }).ok).toBe(true);
+    expect(parse(params, { keys: [], scopes: ["launch"], threadId: THREAD }).ok).toBe(true);
     // 값 필드와 알 수 없는 범위, 빈 범위 목록, 중복 범위는 거부한다
     expect(parse(params, { ...valid, value: 1 }).ok).toBe(false);
     expect(parse(params, { ...valid, scopes: ["global"] }).ok).toBe(false);
@@ -188,10 +188,10 @@ describe("M2 method schemas are written out", () => {
     expect(parse(set, { key: "l1.loop.maxSteps", value: null, scope: "user" }).ok).toBe(true);
     expect(parse(set, { key: "l1.loop.maxSteps", value: 1, scope: "everywhere" }).ok).toBe(false);
     const reset = WIRE_METHODS["settings.reset"].params;
-    expect(parse(reset, { key: "l1.loop.maxSteps", scope: "session", threadId: THREAD }).ok).toBe(
+    expect(parse(reset, { key: "l1.loop.maxSteps", scope: "launch", threadId: THREAD }).ok).toBe(
       true,
     );
-    expect(parse(reset, { key: "l1.loop.maxSteps", scope: "session", value: 1 }).ok).toBe(false);
+    expect(parse(reset, { key: "l1.loop.maxSteps", scope: "launch", value: 1 }).ok).toBe(false);
   });
 
   test("thread.close and thread.delete share params and have an empty result", () => {

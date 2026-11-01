@@ -28,7 +28,7 @@ describe("SENSITIVE_ENV_PATTERNS", () => {
       "OP_SERVICE_ACCOUNT_TOKEN",
       "BWS_ACCESS_TOKEN",
       "BW_SESSION",
-      "XEON_SECRET_X",
+      "FRESNEL_SECRET_X",
       "GITHUB_TOKEN",
       "STRIPE_API_KEY",
       "AWS_ACCESS_KEY_ID",

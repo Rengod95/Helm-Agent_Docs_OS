@@ -149,7 +149,7 @@ export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<st
       inputId: EVENT2,
       itemId: null,
     },
-    "settings.changed": { key: "l1.loop.maxSteps", scope: "session", value: 10 },
+    "settings.changed": { key: "l1.loop.maxSteps", scope: "launch", value: 10 },
     "approval.requested": {
       origin: {
         threadId: THREAD,

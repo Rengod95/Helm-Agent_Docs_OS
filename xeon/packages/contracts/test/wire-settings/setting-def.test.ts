@@ -101,7 +101,7 @@ describe("checkSettingDef", () => {
     expect(rules(checkSettingDef(intDef({ allowedScopes: ["user", "user"] })))).toContain("D7");
     expect(
       rules(
-        checkSettingDef(intDef({ runtimeChange: "restart", allowedScopes: ["user", "session"] })),
+        checkSettingDef(intDef({ runtimeChange: "restart", allowedScopes: ["user", "launch"] })),
       ),
     ).toContain("D7");
     expect(checkSettingDef(intDef({ runtimeChange: "restart", allowedScopes: ["user"] }))).toEqual(
@@ -156,7 +156,7 @@ describe("keys and scopes", () => {
   });
 
   test("five scopes", () => {
-    for (const scope of ["managed", "user", "project", "local", "session"]) {
+    for (const scope of ["managed", "user", "project", "local", "launch"]) {
       expect(parse(SettingScopeSchema, scope).ok).toBe(true);
     }
     expect(parse(SettingScopeSchema, "default").ok).toBe(false);
@@ -168,7 +168,7 @@ describe("settings.changed alignment with records", () => {
     const entry = CORE_EVENT_CATALOG.find((e) => e.kind === "settings.changed");
     expect(entry).toBeDefined();
     if (entry === undefined) return;
-    for (const scope of ["managed", "user", "project", "local", "session"]) {
+    for (const scope of ["managed", "user", "project", "local", "launch"]) {
       expect(parse(entry.payload, { key: intDef().key, scope, value: 5 }).ok).toBe(true);
     }
     expect(parse(SettingKeySchema, intDef().key).ok).toBe(true);

@@ -20,7 +20,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
   2. 주입받은 발급기를 부르는 함수: 발급기를 인자로 받고 그 밖의 상태를 쓰지 않는다. 예: `assignPartIds(input, ids)`가 `ids.next("prt")`를 부른다(`F.conversation.spec` §3.4). 발급기 구현(`IdFactory`의 시계·난수)은 F 밖에 있다.
   3. Web Crypto 해시: `globalThis.crypto.subtle`의 SHA-256만 쓴다. 같은 입력에 같은 값을 내므로 순수 함수로 본다. 비동기라 `Promise`를 돌려준다. 예: `toolsetFingerprint`(`F.capabilities.spec` §3.8). 그 밖의 전역 API는 쓰지 않는다.
   4. 오류 클래스와 선언 함수: 오류를 나타내는 `Error` 하위 클래스(`CapabilityError`, `WireError`, `SettingDefError`, 루트의 `Bug`)와, 선언을 받아 그대로 또는 정규화해 돌려주는 `define*` 함수(`defineCapability`, `defineManifest`, `defineSettings`). `define*`는 규칙 위반이면 오류 클래스를 던질 수 있다(`defineSettings` → `SettingDefError`, `F.wire-settings.spec` §3.8.3). 호출 결함과 선언 결함은 `Result` 대신 예외로 알린다(`eng.typescript.guide` TY-11).
-  5. 데이터 상수: 케이스 표나 선언 표 같은 값만 있는 상수. 예: `POINTS`, `CORE_EVENT_CATALOG`, `WIRE_METHODS`, `WIRE_CONFORMANCE_CASES`. 케이스를 돌리는 실행기 틀은 `src/`가 아닌 `test/`에 둔다(`F.wire-settings.plan` W14).
+  5. 데이터 상수: 케이스 표나 선언 표 같은 값만 있는 상수. 예: `HOOKS`, `CORE_EVENT_CATALOG`, `WIRE_METHODS`, `WIRE_CONFORMANCE_CASES`. 케이스를 돌리는 실행기 틀은 `src/`가 아닌 `test/`에 둔다(`F.wire-settings.plan` W14).
 - 발급(`IdFactory`·`LocalIdFactory` 구현), 저장, 전송, 로딩은 F 밖에서 구현한다. `createIdFactory(clock, random)` 같은 발급기 구현과 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 시계·난수를 쓰므로 위 다섯 예외에 들지 않는다. 운영 구현은 `platform-os`에 두고, 테스트 대역은 쓰는 패키지마다 자기 `test/` 안에 둔다 [결정: review.decisions-2 U-03](§8 10번).
 - 층 순위는 F → X → L0 → L1 → L2 → L3 → L4이고 F가 가장 낮다(`_research/foundation-plan.md` §3). 그래서 `@xeon/contracts`는 다른 xeon 패키지를 import하지 않는다. `scripts/check-layers.ts`가 `package.json`의 `xeon.layer = "F"`로 이를 검사한다.
 - 허용하는 외부 의존:
@@ -155,7 +155,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | `CallOptions`, `CallContext`, `SecretRef`, `SecretName`, `SecretRefError`, `parseSecretRef`, `ProviderSelectionMeta`, `orderProviderCandidates` | 호출 문맥·비밀 참조·provider 선택 | capabilities |
 | `SemVer`, `SemVerSchema` | 버전 문자열 | capabilities |
 | `ExtensionManifest`, `ExtensionManifestSchema`, `ExtensionName`, `defineManifest`, `validateManifest` | 확장 매니페스트 | extensions |
-| `POINTS`, `PointName`, `PointDecl`, `Handler`, `FIRST_DENY`, `CHAIN_RULES` | 지점 선언 표와 fold 규칙 | extensions |
+| `HOOKS`, `HookName`, `HookDecl`, `Handler`, `FIRST_DENY`, `CHAIN_RULES` | 지점 선언 표와 fold 규칙 | extensions |
 | `ExtensionOps`, `DriveLease`, `ScopeApi`, `PostItem` | 4연산 타입 | extensions |
 | `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `HookProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `RecordCommitPort`(재노출) | X 호스트 포트와 로더 포트(`ports.ts`, `F.extensions.spec` §3.2.1) | extensions |
 | `GroupRecord`, `RecordKind`, `RecordKindDecl` | 그룹 간 레코드 | extensions |
@@ -264,13 +264,13 @@ F가 정하지 않는 것:
 | G1-01 | `command.list`, `command.run`, `command.list`의 선택 params `threadId` | `F.wire-settings.spec` §3.3.1 |
 | G2-07 | `host.status`의 선택 params `includeBinaries`와 결과 `binaries`(외부 바이너리 점검) | `F.wire-settings.spec` §3.3.1 |
 | G1-02 | `turn.resume` | `F.wire-settings.spec` §3.3.1 |
-| G1-03 | `trust.get`, `trust.decide`, `session.trust.before`의 `threadless` 표시 | `F.wire-settings.spec` §3.3.1, `F.extensions.spec` §3.4, §7 |
+| G1-03 | `trust.get`, `trust.decide`, `thread.trust.before`의 `threadless` 표시 | `F.wire-settings.spec` §3.3.1, `F.extensions.spec` §3.4, §7 |
 | G1-07 | `secret.references`, `secret.test` 결과 확장, `secret.*` 오류 kind 3201~3212, `thread.closed` 3007 | `F.wire-settings.spec` §3.3.1, §3.5.2 |
 | G1-09 | 승인 origin 필드별 공급 규칙, `ApprovalCaller`와 `approvalCallerOf`, `CallerInfo.agentName`, 직접 등록 도구의 호출 문맥, `approval.respond` 결과의 `reason` | `F.records.spec` §3.3.1, `F.capabilities.spec` §3.2, §3.12, `F.wire-settings.spec` §3.3.1 |
 | G1-11 | 승인 만료 계약 필드 `expiresAt`, `onExpire`, 해결자 `expired`(구현은 M3) | `F.records.spec` §3.3.1, `F.capabilities.spec` §3.12 |
 | G2-11 | `thread.read`의 fork 연속성 규칙(`before`·`limit`은 이미 있었다) | `F.wire-settings.spec` §3.4.6 |
 | G2-12 | `thread.rename` | `F.wire-settings.spec` §3.3.1 |
-| G2-01 | `thread.compact`, `thread.compactFailed` 3008, `thread.cancelledByExtension`의 `session.compact.before` | `F.wire-settings.spec` §3.3.1, §3.5.2 |
+| G2-01 | `thread.compact`, `thread.compactFailed` 3008, `thread.cancelledByExtension`의 `thread.compact.before` | `F.wire-settings.spec` §3.3.1, §3.5.2 |
 | G5-04 | `SettingDef.stage`, `settings.reserved` 3106, `settings.list`의 `includeReserved` | `F.wire-settings.spec` §3.8.2 |
 | G2-06 | 저장소 열기 실패 분류(`future_version`, `corrupt`, `migration_failed`, `unavailable`), `store.corrupt` 5007 | `F.records.spec` §3.7, `F.wire-settings.spec` §3.5.2 |
 

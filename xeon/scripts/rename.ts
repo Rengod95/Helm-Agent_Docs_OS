@@ -13,7 +13,7 @@
 // 제외: 외부 코드(xeon/vendor, xeon/external), 연구 기록(docs/xeon/_research), ADR-0022 원문, 이 스크립트와 시험, 이전 스크립트.
 // 지금은 바꾸지 않는 것: 저장소 경로 `xeon/…`, `docs/xeon`, 브랜치 `xeon/foundation`, 작업 폴더 `xeon-wt`(디렉터리 이동은 M4 마감 뒤).
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 export interface Rule {
@@ -21,6 +21,8 @@ export interface Rule {
   readonly replace: string | ((substring: string, ...groups: string[]) => string);
   /** 이 경로 접두(저장소 루트 기준)에만 적용. 생략하면 묶음 범위 전체 */
   readonly only?: readonly string[];
+  /** 이 경로 접두에는 적용하지 않는다(목업은 목업 트랙 몫) */
+  readonly skip?: readonly string[];
 }
 
 export interface Category {
@@ -142,6 +144,77 @@ const simple = (from: string, to: string): Rule => ({
   replace: to,
 });
 
+/** 훅 식별자 묶음: 이름에 Point/POINT가 든 식별자 가운데 훅 지점 쪽만 Hook으로 바꾼다. 아래 목록은 다른 뜻(코드 포인트, 포인터, 결함 지점, 자르기 지점 등)이다 */
+const POINT_KEEP = new RegExp(
+  [
+    "[Cc]odePoint",
+    "CODE_POINT",
+    "Pointer",
+    "POINTER",
+    "FaultPoint",
+    "FAULT_POINT",
+    "failPoint",
+    "hitPoint",
+    "CutPoint",
+    "cutPoint",
+    "cutCodePoint",
+    "[Cc]heckPoint",
+    "CHECKPOINT",
+    "SAVEPOINT",
+    "BREAKPOINT",
+    "mountPoint",
+    "commitPoint",
+    "PlacementPoint",
+    "ForkPoint",
+    "extensionPoint",
+    "activePoint",
+    "PointStat",
+    "PointRow",
+    "PointRail",
+    "PointsTable",
+    "PointsTab",
+    "PointUse",
+    "PointPort",
+    "POINT_PORTS",
+    "POINT_STATS",
+    "POINT_RAIL",
+    "helmPoints",
+    "PointCall",
+  ].join("|"),
+);
+
+export function hookIdentifier(name: string): string {
+  if (!/(?:Point|POINT)/.test(name) || POINT_KEEP.test(name)) return name;
+  return name
+    .replace(/Points/g, "Hooks")
+    .replace(/Point/g, "Hook")
+    .replace(/POINTS/g, "HOOKS")
+    .replace(/POINT/g, "HOOK")
+    .replace(/Session/g, "Thread")
+    .replace(/SESSION/g, "THREAD");
+}
+
+/** 훅 이름 `session.*`(F의 훅 표 15개)와 같은 이름의 문자열·문서 표기 */
+export const THREAD_HOOK_TAILS = [
+  "trust\\.before",
+  "resources",
+  "mcp\\.after",
+  "start",
+  "info\\.after",
+  "switch\\.before",
+  "fork\\.before",
+  "compact\\.before",
+  "compact\\.after",
+  "compact\\.failed",
+  "tree\\.before",
+  "tree\\.after",
+  "shutdown",
+  "prompt\\.before",
+  "prompt\\.after",
+] as const;
+
+const NO_MOCKUPS = ["xeon/apps/desktop/mockups/"] as const;
+
 export const CATEGORIES: readonly Category[] = [
   {
     id: "A",
@@ -232,6 +305,190 @@ export const CATEGORIES: readonly Category[] = [
       simple("(?<![A-Za-z])XEON(?![A-Z])", "FRESNEL"),
       simple("(?<=[a-z])Xeon", "Fresnel"),
       simple("(?<=[a-z])xeon(?![a-z])", "fresnel"),
+    ],
+  },
+  {
+    id: "T1",
+    title:
+      "훅 식별자 Point* → Hook* (PointName → HookName, POINTS → HOOKS, SessionPoints → ThreadHooks 등). 다른 뜻의 Point는 건드리지 않는다",
+    rules: [
+      {
+        pattern: /(?<![A-Za-z0-9_])[A-Za-z0-9_]*(?:Point|POINT)[A-Za-z0-9_]*/g,
+        replace: (matched) => hookIdentifier(matched),
+        skip: NO_MOCKUPS,
+      },
+    ],
+  },
+  {
+    id: "T2",
+    title:
+      '훅 이름 session.* → thread.* (15개)와 훅 종류 "session" → "thread"(contracts 훅 정의 안)',
+    rules: [
+      {
+        pattern: new RegExp(`(?<=["'\`])session\\.(${THREAD_HOOK_TAILS.join("|")})(?=["'\`])`, "g"),
+        replace: "thread.$1",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /(?<=\bkind: |\| )"session"/g,
+        replace: '"thread"',
+        only: ["xeon/packages/contracts/src/extensions/points.ts"],
+      },
+      // 훅 종류 목록과 집계
+      {
+        pattern: /(boundary\|)session(\|lifecycle)/g,
+        replace: "$1thread$2",
+        only: ["xeon/packages/contracts/test/"],
+      },
+      {
+        pattern: /^(\s*)session: 15,/gm,
+        replace: "$1thread: 15,",
+        only: ["xeon/packages/contracts/test/"],
+      },
+      {
+        pattern: /"boundary" \| "session" \| "lifecycle"/g,
+        replace: '"boundary" | "thread" | "lifecycle"',
+        only: ["docs/xeon/"],
+      },
+      {
+        pattern: /`boundary`, `session`, `lifecycle`/g,
+        replace: "`boundary`, `thread`, `lifecycle`",
+        only: ["docs/xeon/"],
+      },
+      {
+        pattern: /(\| `thread\.[a-z.]+` \| )session( \|)/g,
+        replace: "$1thread$2",
+        only: ["docs/xeon/"],
+      },
+      {
+        pattern: /boundary 9, session 15,/g,
+        replace: "boundary 9, thread 15,",
+        only: ["docs/xeon/"],
+      },
+      {
+        pattern: /kind가 `session`이지만/g,
+        replace: "kind가 `thread`이지만",
+        only: ["docs/xeon/"],
+      },
+      {
+        pattern: /^\| session \| L1\.persistence\.spec/gm,
+        replace: "| thread | L1.persistence.spec",
+        only: ["docs/xeon/"],
+      },
+      { pattern: /session 지점 15종/g, replace: "thread 지점 15종", only: ["docs/xeon/"] },
+      // 파일 이동(extensions/points → extensions/hooks, points/session.ts → hooks/thread.ts)을 따라가는 경로 문자열
+      {
+        pattern: /points\/session\.ts/g,
+        replace: "hooks/thread.ts",
+        only: ["xeon/packages/contracts/", "docs/xeon/"],
+      },
+      {
+        pattern: /extensions\/points(?=[./\s`)"'*]|$)/g,
+        replace: "extensions/hooks",
+        only: ["xeon/packages/contracts/", "docs/xeon/"],
+      },
+      {
+        pattern: /(?<=["'])\.\/points(?=\.ts|\/)/g,
+        replace: "./hooks",
+        only: ["xeon/packages/contracts/src/extensions/"],
+      },
+      {
+        pattern: /(?<=["'])\.\.\/points(?=\.ts|\/)/g,
+        replace: "../hooks",
+        only: ["xeon/packages/contracts/src/extensions/hooks/"],
+      },
+      { pattern: /(?<![A-Za-z0-9_/-])points\.ts/g, replace: "hooks.ts", only: ["docs/xeon/F/"] },
+      {
+        pattern: /(?<![A-Za-z0-9_-])points\/(tool|input|request|boundary|guard)\.ts/g,
+        replace: "hooks/$1.ts",
+        only: ["docs/xeon/F/"],
+      },
+      {
+        pattern: /(?<![A-Za-z0-9_-])points(\.doc)?\.test\.ts/g,
+        replace: "hooks$1.test.ts",
+        only: ["xeon/packages/contracts/", "docs/xeon/"],
+      },
+    ],
+    pathRules: [
+      {
+        pattern: /^xeon\/packages\/contracts\/src\/extensions\/points\/session\.ts$/,
+        replace: "xeon/packages/contracts/src/extensions/hooks/thread.ts",
+      },
+      {
+        pattern: /^xeon\/packages\/contracts\/src\/extensions\/points(\/|\.ts$)/,
+        replace: "xeon/packages/contracts/src/extensions/hooks$1",
+      },
+      {
+        pattern: /^xeon\/packages\/contracts\/test\/extensions\/points(\.|\/)/,
+        replace: "xeon/packages/contracts/test/extensions/hooks$1",
+      },
+    ],
+  },
+  {
+    id: "T3",
+    title: '설정 범위 "session" → "launch" (범위 이름이 나란히 적힌 줄, scope 비교·대입)',
+    rules: [
+      // 범위 이름 바로 옆에 있는 "session"만: 앞에 범위 이름이 오거나 뒤에 범위 이름이 오는 목록·유니온
+      {
+        pattern: /(?<="(?:managed|user|project|local)"(?:, | \| ))"session"/g,
+        replace: '"launch"',
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /"session"(?=(?:, | \| )"(?:managed|user|project|local)")/g,
+        replace: '"launch"',
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /\bscope(: ?| === | !== | == | != )"session"/g,
+        replace: (_m, op) => `scope${op}"launch"`,
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /Exclude<SettingScope, "session">/g,
+        replace: 'Exclude<SettingScope, "launch">',
+        skip: NO_MOCKUPS,
+      },
+      // 줄을 나눠 적은 범위 목록: local 다음 줄의 "session", managed 다음 줄의 "session"
+      {
+        pattern: /(Type\.Literal\("local"\),\n\s*)Type\.Literal\("session"\)/g,
+        replace: '$1Type.Literal("launch")',
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /(TLiteral<"local">,\n\s*)TLiteral<"session">/g,
+        replace: '$1TLiteral<"launch">',
+        skip: NO_MOCKUPS,
+      },
+      { pattern: /("managed",\n\s*)"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
+      { pattern: /\bscopes: \["session"/g, replace: 'scopes: ["launch"', skip: NO_MOCKUPS },
+      { pattern: /(\blayer\()"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
+      { pattern: /(\bKEY, )"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
+      {
+        pattern: /allowedScopes\.includes\("session"\)/g,
+        replace: 'allowedScopes.includes("launch")',
+        skip: NO_MOCKUPS,
+      },
+    ],
+  },
+  {
+    id: "T4",
+    title: "SecretUseMode → InjectionMode",
+    rules: [simple("(?<![A-Za-z0-9_])SecretUseMode", "InjectionMode")],
+  },
+  {
+    id: "T5",
+    title: '예약 종류 TriggerSpec kind "loop" → "repeat" (예약 정의 파일 안)',
+    rules: [
+      {
+        pattern: /"loop"/g,
+        replace: '"repeat"',
+        only: [
+          "xeon/packages/contracts/src/capabilities/defs/schedule.ts",
+          "xeon/packages/contracts/test/capabilities/schedule-defs.test.ts",
+          "xeon/packages/cap-schedule/",
+        ],
+      },
     ],
   },
   {
@@ -356,6 +613,7 @@ export function transform(
   let count = 0;
   for (const rule of category.rules) {
     if (rule.only !== undefined && !rule.only.some((prefix) => file.startsWith(prefix))) continue;
+    if (rule.skip?.some((prefix) => file.startsWith(prefix)) === true) continue;
     working = working.replace(rule.pattern, (...args: unknown[]) => {
       count += 1;
       const matched = String(args[0]);
@@ -475,7 +733,8 @@ export function run(options: RunOptions): RunResult {
   }
   if (options.apply) {
     for (const rename of renames) {
-      const result = spawnSync("git", ["mv", "-k", rename.from, rename.to], { cwd: options.root });
+      mkdirSync(dirname(join(options.root, rename.to)), { recursive: true });
+      const result = spawnSync("git", ["mv", rename.from, rename.to], { cwd: options.root });
       if (result.status !== 0)
         throw new Error(`git mv ${rename.from} failed: ${result.stderr.toString()}`);
     }

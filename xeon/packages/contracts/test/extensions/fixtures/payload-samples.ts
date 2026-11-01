@@ -122,18 +122,18 @@ export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
     hasFinalAnswer: true,
     lastItemId: ITEM,
   },
-  "session.trust.before": { cwd: "/work" },
-  "session.resources": { cwd: "/work", reason: "startup" },
-  "session.mcp.after": {
+  "thread.trust.before": { cwd: "/work" },
+  "thread.resources": { cwd: "/work", reason: "startup" },
+  "thread.mcp.after": {
     servers: [{ id: "fs", status: "connected" }],
     toolsAdded: ["fs__read"],
     toolsRemoved: [],
   },
-  "session.start": { reason: "startup", threadId: THREAD },
-  "session.info.after": { threadId: THREAD, name: null },
-  "session.switch.before": { reason: "new" },
-  "session.fork.before": { threadId: THREAD, itemId: ITEM, position: "at" },
-  "session.compact.before": {
+  "thread.start": { reason: "startup", threadId: THREAD },
+  "thread.info.after": { threadId: THREAD, name: null },
+  "thread.switch.before": { reason: "new" },
+  "thread.fork.before": { threadId: THREAD, itemId: ITEM, position: "at" },
+  "thread.compact.before": {
     threadId: THREAD,
     reason: "threshold",
     willRetry: false,
@@ -146,7 +146,7 @@ export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
     },
     instructions: null,
   },
-  "session.compact.after": {
+  "thread.compact.after": {
     threadId: THREAD,
     eventId: EVENT2,
     reason: "manual",
@@ -154,8 +154,8 @@ export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
     fromExtension: null,
     tokensBefore: 1000,
   },
-  "session.compact.failed": { threadId: THREAD, reason: "overflow", errorMessage: null },
-  "session.tree.before": {
+  "thread.compact.failed": { threadId: THREAD, reason: "overflow", errorMessage: null },
+  "thread.tree.before": {
     threadId: THREAD,
     targetEventId: EVENT,
     oldLeafEventId: EVENT2,
@@ -163,15 +163,15 @@ export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
     entriesToSummarize: 3,
     userWantsSummary: true,
   },
-  "session.tree.after": {
+  "thread.tree.after": {
     threadId: THREAD,
     newLeafEventId: EVENT,
     oldLeafEventId: null,
     fromExtension: null,
   },
-  "session.shutdown": { reason: "quit" },
-  "session.prompt.before": { reason: "ui_prompt", kind: "confirm", title: "ok?" },
-  "session.prompt.after": { reason: "ui_prompt", kind: "confirm" },
+  "thread.shutdown": { reason: "quit" },
+  "thread.prompt.before": { reason: "ui_prompt", kind: "confirm", title: "ok?" },
+  "thread.prompt.after": { reason: "ui_prompt", kind: "confirm" },
   "guard.model.before": {
     provider: "anthropic",
     modelId: "claude-x",
@@ -201,15 +201,15 @@ export const RESULT_SAMPLES: Readonly<Record<string, unknown>> = {
   "boundary.message.after": { message: assistantStop },
   "boundary.step.after": { continue: true },
   "boundary.settle.before": { entries: [], continue: false },
-  "session.trust.before": { trusted: "yes", remember: true },
-  "session.resources": { skillPaths: ["/skills"] },
-  "session.switch.before": { cancel: true, reason: "busy" },
-  "session.fork.before": { cancel: false },
-  "session.compact.before": {
+  "thread.trust.before": { trusted: "yes", remember: true },
+  "thread.resources": { skillPaths: ["/skills"] },
+  "thread.switch.before": { cancel: true, reason: "busy" },
+  "thread.fork.before": { cancel: false },
+  "thread.compact.before": {
     cancel: false,
     compaction: { summary: "s", firstKeptEventId: EVENT, details: null },
   },
-  "session.tree.before": { cancel: false, label: "branch" },
+  "thread.tree.before": { cancel: false, label: "branch" },
   "guard.model.before": { block: true, reason: "blocked" },
   "guard.tool.before": { block: true, reason: "blocked" },
   "guard.output.before": { block: true, reason: "blocked" },

@@ -191,7 +191,7 @@ describe("COLLECT_RULES", () => {
   });
 
   test("session.resources appends paths in registration order", () => {
-    const merged = COLLECT_RULES["session.resources"].merge(
+    const merged = COLLECT_RULES["thread.resources"].merge(
       { skillPaths: ["/a"], promptPaths: [], themePaths: [] },
       [{ skillPaths: ["/b"] }, { promptPaths: ["/p"], themePaths: ["/t"] }, { skillPaths: ["/c"] }],
     );

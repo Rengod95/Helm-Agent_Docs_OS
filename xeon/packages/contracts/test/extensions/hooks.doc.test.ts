@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { POINT_NAMES, POINTS } from "../../src/extensions/index.ts";
+import { HOOK_NAMES, HOOKS } from "../../src/extensions/index.ts";
 
-// F.extensions.spec §3.4 표와 POINTS를 대조한다(F.extensions.plan E9, 완료 기준 2).
+// F.extensions.spec §3.4 표와 HOOKS를 대조한다(F.extensions.plan E9, 완료 기준 2).
 // xeon/scripts의 검사 스크립트가 생기면 그쪽이 just verify에서 같은 일을 한다.
 // 문서가 보이지 않는 곳(패키지만 복사된 경우)에서는 건너뛴다.
 const SPEC = join(import.meta.dir, "../../../../../docs/xeon/F/extensions/spec.md");
@@ -44,13 +44,13 @@ function docRows(text: string): DocRow[] {
 }
 
 describe("points doc table", () => {
-  test.skipIf(!existsSync(SPEC))("name, kind, fold, failure, M1 and pi source match POINTS", () => {
+  test.skipIf(!existsSync(SPEC))("name, kind, fold, failure, M1 and pi source match HOOKS", () => {
     const rows = docRows(readFileSync(SPEC, "utf8"));
     expect(rows).toHaveLength(46);
     expect(rows.map((row) => row.n)).toEqual(Array.from({ length: 46 }, (_, i) => i + 1));
-    expect(rows.map((row) => row.name)).toEqual([...POINT_NAMES]);
+    expect(rows.map((row) => row.name)).toEqual([...HOOK_NAMES]);
     for (const row of rows) {
-      const code = POINT_NAMES.map((name) => POINTS[name]).find((decl) => decl.name === row.name);
+      const code = HOOK_NAMES.map((name) => HOOKS[name]).find((decl) => decl.name === row.name);
       if (code === undefined) throw new Error(`no code row for ${row.name}`);
       expect({ name: row.name, kind: row.kind }).toEqual({ name: row.name, kind: code.kind });
       expect({ name: row.name, fold: row.fold }).toEqual({ name: row.name, fold: code.fold });

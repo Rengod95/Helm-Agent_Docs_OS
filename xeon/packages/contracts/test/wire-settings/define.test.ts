@@ -14,7 +14,7 @@ const loopSettings = defineSettings("l1.loop", {
     default: 0,
     range: { min: 0, max: 10_000 },
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     ui: {
       tab: "budgets",
       widget: "number",

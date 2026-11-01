@@ -65,7 +65,7 @@ describe("settings.readFile and settings.writeFile", () => {
     expect(parse(write.params, { scope: "user", text: "{}", baseSha256: "xyz" }).ok).toBe(false);
     expect(parse(write.params, { scope: "user", text: "{}" }).ok).toBe(false);
     expect(parse(WIRE_METHODS["settings.readFile"].params, { scope: "managed" }).ok).toBe(true);
-    expect(parse(WIRE_METHODS["settings.readFile"].params, { scope: "session" }).ok).toBe(false);
+    expect(parse(WIRE_METHODS["settings.readFile"].params, { scope: "launch" }).ok).toBe(false);
   });
 
   test("file errors carry scope and issues", () => {

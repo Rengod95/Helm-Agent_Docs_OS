@@ -17,7 +17,7 @@ const choice: SettingDef = intDef({
   type: Type.String(),
   default: "medium",
   range: { enum: ["off", "low", "medium", "high"] },
-  allowedScopes: ["managed", "user", "session"],
+  allowedScopes: ["managed", "user", "launch"],
   ui: { tab: "models", widget: "select", order: 2, label: "추론 수준" },
   runtimeChange: "live",
 });

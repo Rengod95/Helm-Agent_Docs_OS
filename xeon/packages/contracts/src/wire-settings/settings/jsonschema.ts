@@ -5,7 +5,7 @@ import { effectiveSchemaJson } from "./validate-value.ts";
 
 export interface SettingsJsonSchemaOptions {
   /** 파일이 있는 범위 */
-  readonly scope: Exclude<SettingScope, "session">;
+  readonly scope: Exclude<SettingScope, "launch">;
   /** 기본 true(경고 표시용) */
   readonly includeDeprecated?: boolean;
 }

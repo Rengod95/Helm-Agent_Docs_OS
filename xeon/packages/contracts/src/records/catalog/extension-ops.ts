@@ -68,7 +68,7 @@ export const ScopeHandlerFailedPayloadSchema: TObject<{
   {
     /** X.operations.spec HandlerOwnerKey: "ext:<이름>" | "hook:<이름>" */
     owner: Type.String({ minLength: 1, maxLength: 96 }),
-    /** F.extensions.spec PointName */
+    /** F.extensions.spec HookName */
     point: Type.String({ minLength: 1, maxLength: 64 }),
     /** 실패 분류. 값 집합은 X.operations.spec §4.3 */
     result: Type.String({ minLength: 1, maxLength: 64 }),

@@ -9,7 +9,7 @@ import type {
   SecretApprovalEvidence,
   SecretProviderId,
   SecretRefError,
-  SecretUseMode,
+  InjectionMode,
 } from "../capabilities/index.ts";
 import type { LocalId } from "../conversation/index.ts";
 import type { PortKey } from "../extensions/index.ts";
@@ -37,7 +37,7 @@ export type SecretUseTarget =
 export type ApprovalEvidence = SecretApprovalEvidence;
 
 export interface UseCtx {
-  readonly mode: SecretUseMode;
+  readonly mode: InjectionMode;
   /** 도구 이름 또는 서비스 메서드. "http.request", "bash:gh", "web.search", "model.provider:anthropic" */
   readonly purpose: string;
   readonly target: SecretUseTarget;
@@ -61,7 +61,7 @@ export interface SecretLease {
   /** "sls_<ULID>". F.conversation.spec §3.2.1 LocalIdPrefix */
   readonly leaseId: LocalId<"sls">;
   readonly handle: SecretHandle;
-  readonly mode: SecretUseMode;
+  readonly mode: InjectionMode;
   readonly expiresAt: number;
   readonly usesLeft: number;
   /** 값 사용. 매번 만료·횟수·폐기·대상을 다시 검사한다(검사와 사용 사이 간극 방지) */

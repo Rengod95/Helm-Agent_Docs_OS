@@ -133,7 +133,7 @@ export function findForeignSecretSyntax(text: string): readonly SecretRefError[]
 
 // ── 메타 (L0.secrets.spec §3.2) ─────────────────────────────────────────
 
-export const SecretUseModeSchema: TUnion<
+export const InjectionModeSchema: TUnion<
   [TLiteral<"env">, TLiteral<"sentinel">, TLiteral<"runtime-http">, TLiteral<"browser-input">]
 > = Type.Union([
   // 주석의 "사용 모드 Mn"은 모드 번호이고 "마일스톤 Mn"은 구현 시기다(F.capabilities.spec §3.10, L0.secrets.spec §4.3)
@@ -143,7 +143,7 @@ export const SecretUseModeSchema: TUnion<
   Type.Literal("runtime-http"),
   Type.Literal("browser-input"), // 사용 모드 M4. 마일스톤 M2
 ]);
-export type SecretUseMode = Static<typeof SecretUseModeSchema>;
+export type InjectionMode = Static<typeof InjectionModeSchema>;
 
 /** 1차 내장은 sops. op·bws·keychain은 2차 플러그인 */
 export const SecretProviderIdSchema: TUnion<
@@ -167,7 +167,7 @@ export const SecretScopeSchema: TUnsafe<SecretScope> = Type.Unsafe<SecretScope>(
 );
 
 export const SecretUsePolicySchema: TObject<{
-  modes: TArray<typeof SecretUseModeSchema>;
+  modes: TArray<typeof InjectionModeSchema>;
   tools: TArray<TString>;
   hosts: TArray<TString>;
   origins: TAddOptional<TArray<TString>>;
@@ -175,7 +175,7 @@ export const SecretUsePolicySchema: TObject<{
 }> = Type.Object(
   {
     /** 빈 배열 = 사용 불가 */
-    modes: Type.Array(SecretUseModeSchema, { uniqueItems: true, maxItems: 4 }),
+    modes: Type.Array(InjectionModeSchema, { uniqueItems: true, maxItems: 4 }),
     /** "http.request", "bash:gh", "web.search" */
     tools: Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { maxItems: 256 }),
     /** runtime-http, sentinel. "api.github.com", "*.example.com" */
@@ -192,7 +192,7 @@ export const SecretUsePolicySchema: TObject<{
   { additionalProperties: false },
 );
 export interface SecretUsePolicy {
-  readonly modes: readonly SecretUseMode[];
+  readonly modes: readonly InjectionMode[];
   readonly tools: readonly string[];
   readonly hosts: readonly string[];
   readonly origins?: readonly string[];
@@ -299,7 +299,7 @@ export type SecretAuditRecord =
   | {
       readonly type: "secret.used";
       readonly handle: SecretHandle;
-      readonly mode: SecretUseMode;
+      readonly mode: InjectionMode;
       readonly toolCallId: string | null;
       readonly threadId: string | null;
       readonly host: string | null;
@@ -311,7 +311,7 @@ export type SecretAuditRecord =
   | {
       readonly type: "secret.denied";
       readonly handle: SecretHandle;
-      readonly mode: SecretUseMode;
+      readonly mode: InjectionMode;
       readonly reason: SecretDenyReason;
       readonly purpose: string;
       readonly toolCallId: string | null;

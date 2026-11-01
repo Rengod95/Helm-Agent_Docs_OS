@@ -53,7 +53,7 @@ const KEY = intDef().key;
 
 describe("precedence (S5)", () => {
   test("the table is managed > session > local > project > user", () => {
-    expect(SCOPE_PRECEDENCE).toEqual(["managed", "session", "local", "project", "user"]);
+    expect(SCOPE_PRECEDENCE).toEqual(["managed", "launch", "local", "project", "user"]);
   });
 
   test("session wins, shadowed lists local, project, user in order", () => {
@@ -61,10 +61,10 @@ describe("precedence (S5)", () => {
       layer("user", KEY, 1, "/u"),
       layer("project", KEY, 2, "/p"),
       layer("local", KEY, 3, "/l"),
-      layer("session", KEY, 4),
+      layer("launch", KEY, 4),
     ]);
     expect(setting.value).toBe(4);
-    expect(setting.source).toEqual({ scope: "session" });
+    expect(setting.source).toEqual({ scope: "launch" });
     expect(setting.shadowed).toEqual([
       { scope: "local", path: "/l" },
       { scope: "project", path: "/p" },
@@ -97,7 +97,7 @@ describe("precedence (S5)", () => {
       ),
       default: { turns: 4, spawns: 8 },
       runtimeChange: "live",
-      allowedScopes: ["managed", "user", "project", "local", "session"],
+      allowedScopes: ["managed", "user", "project", "local", "launch"],
       since: "0.1.0",
     };
     const { setting } = resolveSetting(def, [
@@ -113,12 +113,12 @@ describe("managed locks (S4)", () => {
     const { setting } = resolveSetting(intDef(), [
       layer("managed", KEY, 7, "/etc/xeon/managed.json"),
       layer("user", KEY, 1),
-      layer("session", KEY, 2),
+      layer("launch", KEY, 2),
     ]);
     expect(setting.value).toBe(7);
     expect(setting.locked).toBe(true);
     expect(setting.source).toEqual({ scope: "managed", path: "/etc/xeon/managed.json" });
-    expect(setting.shadowed).toEqual([{ scope: "session" }, { scope: "user" }]);
+    expect(setting.shadowed).toEqual([{ scope: "launch" }, { scope: "user" }]);
   });
 
   test("writes to other scopes are settings.locked, writes to managed itself are not", () => {
@@ -138,7 +138,7 @@ describe("managed locks (S4)", () => {
 describe("scopes (S3)", () => {
   test("session writes are settings.scopeNotAllowed when the key forbids session", () => {
     const def = intDef({ allowedScopes: ["managed", "user"] });
-    const result = checkSettingWrite(catalogOf(def), [], KEY, "session", 3);
+    const result = checkSettingWrite(catalogOf(def), [], KEY, "launch", 3);
     expect(result).toMatchObject({ ok: false, kind: "settings.scopeNotAllowed" });
   });
 
@@ -183,7 +183,7 @@ describe("invalid values", () => {
     const def = intDef({ stage: "reserved", allowedScopes: ["managed", "user"] });
     const catalog = catalogOf(def);
     // 범위와 값이 모두 틀려도 reserved가 먼저다: 키가 아직 일을 하지 않는다는 사실이 가장 중요한 알림이다
-    expect(checkSettingWrite(catalog, [], KEY, "session", "not a number")).toEqual({
+    expect(checkSettingWrite(catalog, [], KEY, "launch", "not a number")).toEqual({
       ok: false,
       kind: "settings.reserved",
       details: { key: KEY },

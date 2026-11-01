@@ -92,7 +92,7 @@ export const SENSITIVE_ENV_PATTERNS: readonly string[] = [
   "OPENAI_*",
   "GEMINI_*",
   "OPENROUTER_*",
-  "XEON_*",
+  "FRESNEL_*",
   "SSH_AUTH_SOCK",
   "DBUS_SESSION_BUS_ADDRESS",
   "XDG_RUNTIME_DIR",

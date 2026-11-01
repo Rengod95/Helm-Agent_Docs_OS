@@ -169,7 +169,7 @@ describe("new payload rejections", () => {
   });
 
   test("SettingsChanged accepts all five scopes", () => {
-    for (const scope of ["managed", "user", "project", "local", "session"]) {
+    for (const scope of ["managed", "user", "project", "local", "launch"]) {
       expect(
         parse(SettingsChangedPayloadSchema, { key: "l1.loop.maxSteps", scope, value: null }).ok,
       ).toBe(true);

@@ -2,7 +2,7 @@ export * from "./name.ts";
 export * from "./scope-id.ts";
 export * from "./post.ts";
 export * from "./group-record.ts";
-export * from "./points.ts";
+export * from "./hooks.ts";
 export * from "./drive.ts";
 export * from "./ops.ts";
 export * from "./scope.ts";
