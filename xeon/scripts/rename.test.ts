@@ -50,10 +50,8 @@ test("F renames the exemption comment", () => {
 
 test("G renames environment variables and the fork marker", () => {
   expect(
-    apply("G", "process.env.XEON_HOME ?? XEON_REMOTE_TOKEN // XEON-PATCH: p1 __XEON_CHECKS__"),
-  ).toBe(
-    "process.env.FRESNEL_HOME ?? FRESNEL_REMOTE_TOKEN // FRESNEL-PATCH: p1 __FRESNEL_CHECKS__",
-  );
+    apply("G", "export XEON_HOME=1; XEON_REMOTE_TOKEN // XEON-PATCH: p1 __XEON_CHECKS__"),
+  ).toBe("export FRESNEL_HOME=1; FRESNEL_REMOTE_TOKEN // FRESNEL-PATCH: p1 __FRESNEL_CHECKS__");
 });
 
 test("H and I rename project and plugin folders", () => {
