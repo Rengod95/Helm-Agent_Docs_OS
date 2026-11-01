@@ -60,7 +60,7 @@ test("doctor prints the engine checks and the three search provider lines (AC14)
     "검색 provider",
     "  검색 provider: auto → Built-in search (model provider) (builtin-wrapper)",
     "  SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>",
-    "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)",
+    "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)",
     "웹 provider",
   ]);
   expect(h.closed()).toBe(true);
@@ -102,7 +102,7 @@ test("a configured SearXNG address is the only one probed; the provider line com
   expect(h.stdoutText()).toContain("검색 provider: auto → SearXNG (searxng)");
   expect(h.stdoutText()).toContain("SearXNG: 설정한 주소가 응답한다 http://search.local:9000");
   expect(h.stdoutText()).toContain(
-    "  [ok]   searxng  사용자 설정 · 검색 · 순위 1 · 현재 · 사용할 수 있다",
+    "  [ok]   searxng  사용자 설정 · 검색 · 순위 1 · 현재 · 사용할 수 있어요",
   );
 });
 
@@ -146,7 +146,7 @@ test("an explicit provider is shown as pinned and current", async () => {
     "  검색 provider: builtin-wrapper (l2.web.search.provider로 고정)",
   );
   expect(h.stdoutText()).toContain(
-    "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 고정 · 사용할 수 있다",
+    "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 고정 · 사용할 수 있어요",
   );
 });
 

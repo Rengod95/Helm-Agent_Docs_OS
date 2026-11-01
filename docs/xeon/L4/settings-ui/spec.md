@@ -554,7 +554,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `providers` | 계정과 제공자 | L1-c `l1.models.*` 중 제공자 연결, `l1.models.accounts`(계정 풀, 우선순위, 예약 %, 계정 회전, M3), 확장 제공자 `ext.<id>.*` 중 키 참조 | 목록·표 편집기, 키는 `secret` 위젯(참조만) | 있음(자리만, §4.7) |
 | `secrets` | 시크릿 | L0-c `l0.secrets.*` 중 `ui.tab: "secrets"`인 키(제공자 기본값 등) + 시크릿 관리 패널(§4.6) | 폼 + `SecretsTab` 전용 패널 | 없음 |
 | `permissions` | 권한과 샌드박스 | L1-d 승인·권한 규칙(소유 문서 `L1.tools.spec`, `l1.tools.*`), L0-c `l0.secrets.approval.*`(시크릿 승인 기본 정책, 쓰기 허용 호스트), L0-b `l0.sandbox.*`(켜기·끄기, 쓰기 경로, 허용 도메인, 프록시) | 규칙 편집기, 목록 편집기(M3) | 없음 |
-| `sessions` | 세션과 컨텍스트 | L1-e `l1.context.*`(자동 컴팩션, 임계), L1-f `l1.persistence.*`(보관 기간, 내보내기, 자동 재개), L2-d `l2.knowledge.*`(메모리) | 토글과 폼. 삭제성 동작은 확인 단계 | 없음 |
+| `sessions` | 대화와 컨텍스트 | L1-e `l1.context.*`(자동 컴팩션, 임계), L1-f `l1.persistence.*`(보관 기간, 내보내기, 자동 재개), L2-d `l2.knowledge.*`(메모리) | 토글과 폼. 삭제성 동작은 확인 단계 | 없음 |
 | `tools` | 도구와 웹 | L2 `l2.mcp.*`, `l2.web.*`, `l2.workspace.*`, `l2.knowledge.*`(스킬), `l2.dialog.*` 중 질문·명령·첨부 키, 그 밖의 `l2.*` | 목록 토글, 선택 | 없음 |
 | `plugins` | 플러그인과 그룹 | X `x.loading-trust.*`(신뢰, 격리), `x.operations.*`(핸들러 시한, 자동 끄기, 안전 모드), `x.primitives.driveDefaultLimits`(drive 기본 상한, review.decisions-2 U-12), `x.primitives.driveLimits`(천장), `x.primitives.activeDriveGroup`(구동 그룹 선택, review.decisions-2 S-15), `x.primitives.capabilityProviders`, 그룹 켜기 키 `ext.<id>.enabled`, L3 `l3.group-sdk.*`, `l3.helm.*`, `l3.learning.*`, 확장 `ext.<id>.*`(userConfig에서 온 키는 `plugins` 고정, `F.wire-settings.spec` §3.8.3) | 목록 토글과 그룹별 묶음 | 없음 |
 | `execution` | 실행과 서비스 | L1-a `l1.tasks.*`(동시 상한, 큐 기본 모드), L0-d `l0.process.*`, L2 `l2.dialog.notify.*`(알림 켜기와 종류. L0.os는 전달 수단만 소유한다, review.decisions-2 S-04), `l0.exec.*`(셸), `l2.schedule.*`, `l4.host-service.*`(재전송·구독 한도). 공유 서비스 모드 토글은 `l0.process.service.enabled`이고 L0-d 행에 포함된다, `l4.desktop.engine.restartLimit`(desktop 원천) | 토글과 폼 | 없음 |
@@ -578,7 +578,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `providers` | 3. 계정과 제공자 | 계정과 provider | 사용량 게이지 자리 |
 | `secrets` | 없음(3번 안의 "키는 등록 전용") | 시크릿 | 8탭안에서 가져옴 |
 | `permissions` | 4. 권한 + 5. 샌드박스와 네트워크 | 권한과 샌드박스 | 8탭안 묶음을 따름 |
-| `sessions` | 6. 세션과 컨텍스트 | 세션과 컨텍스트 | |
+| `sessions` | 6. 대화와 컨텍스트 | 대화와 컨텍스트 | |
 | `tools` | 7. 도구와 확장 | 도구와 웹 | 라벨은 8탭안의 것 |
 | `plugins` | 8. 플러그인과 신뢰 + 11. 그룹 | 플러그인과 그룹 | 8탭안 묶음을 따름 |
 | `execution` | 10. 실행과 알림 | 실행과 서비스 | 라벨은 8탭안의 것 |
@@ -970,19 +970,19 @@ sequenceDiagram
 
 | 상태 | note |
 |---|---|
-| 쓸 수 있음 | 사용할 수 있다 |
-| `no-key`, `plugin:web-exa` | 키가 없다 — 해결: fresnel secret add exa-api-key |
-| `no-key`, `plugin:web-brave` | 키가 없다 — 해결: fresnel secret add brave-api-key |
-| `no-key`, 그 밖의 provider | 키가 없다 — 해결: 키 플러그인 설정에서 키를 등록한다 |
-| `unreachable` | 응답이 없다 |
-| `json-disabled` | JSON 응답이 꺼져 있다 |
-| `org-disabled` | 조직 설정에서 막혀 있다 |
-| `unsupported-model` | 현재 모델에서 쓸 수 없다 |
+| 쓸 수 있음 | 사용할 수 있어요 |
+| `no-key`, `plugin:web-exa` | 키가 없어요 — 해결: fresnel secret add exa-api-key |
+| `no-key`, `plugin:web-brave` | 키가 없어요 — 해결: fresnel secret add brave-api-key |
+| `no-key`, 그 밖의 provider | 키가 없어요 — 해결: 키 플러그인 설정에서 키를 등록해 주세요 |
+| `unreachable` | 응답이 없어요 |
+| `json-disabled` | JSON 응답이 꺼져 있어요 |
+| `org-disabled` | 조직 설정에서 막혀 있어요 |
+| `unsupported-model` | 현재 모델에서는 쓸 수 없어요 |
 | 그 밖의 사유 | 사유 코드 그대로 |
 
 - [제안] 세 사유(`json-disabled`, `org-disabled`, `unsupported-model`)의 한국어 문구는 이 문서가 정한다. wire에는 문구가 없다. 소스에서는 `client.web.note.*` 메시지 id로 두고, 같은 id의 영어 문구를 `packages/client`의 en 카탈로그에 함께 둔다(ADR-0016).
 - 추천 키 플러그인(`recommendations`): [결정: ADR-0005 §3.1 ④, review.m3-design-inputs D-M3-23] Exa(`plugin:web-exa`, 시크릿 이름 `exa-api-key`)와 Brave(`plugin:web-brave`, `brave-api-key`) 둘이다. Parallel과 Jina는 넣지 않는다. 상태는 다음과 같다.
-  - 행이 없으면 `not-installed`이고 hint는 "플러그인을 설치한다"다.
+  - 행이 없으면 `not-installed`이고 hint는 "플러그인을 설치해 주세요"다.
   - `no-key`면 `needs-key`이고 hint는 `fresnel secret add <시크릿 이름>`이다.
   - 쓸 수 있으면 `ready`이고 hint는 빈 문자열이다.
   - 그 밖의 사유면 `unavailable`이고 hint는 사유 코드다 [미결: §10 20].

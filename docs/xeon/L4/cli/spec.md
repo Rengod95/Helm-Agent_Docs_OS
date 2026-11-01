@@ -683,7 +683,7 @@ export interface GroupTemplatesPort {
 - 줄 2: 설정한 SearXNG 주소의 상태. 자동 감지는 없다 [결정: m2c H1, `L2.web.spec` §4.8.3]. 주소(`l2.web.search.searxng.url`)가 비어 있으면 어디에도 요청하지 않고 "주소를 설정하지 않았다"와 `fresnel config set l2.web.search.searxng.url <주소>`를 보인다. 주소가 있으면 그 주소 하나만 탐침해 응답함, JSON 형식 꺼짐, 응답 없음 중 하나를 보인다. 응답이 없으면 검색이 내장 래퍼로 내려간다는 말을 덧붙인다.
 - 줄 3: 키 플러그인 권장. Exa와 Brave(`plugin:web-exa`, `plugin:web-brave`, `L2.web.spec` §4.8)의 상태에서 만든다. 둘 다 쓸 수 있으면 `키 플러그인: Exa, Brave 모두 쓸 수 있다`다. 아니면 `권장 키 플러그인: ` 뒤에 쓸 수 없는 항목을 쉼표로 잇는다. 항목은 `<표시>(<상태> — <해결>)`이다 [결정: 오케스트레이터 기본값: 해결 문구를 항목 괄호 안에 둔다].
   - `needs-key`: `Exa(키 필요 — fresnel secret add exa-api-key)`처럼 등록 명령 `fresnel secret add <시크릿 이름>`을 보인다.
-  - `not-installed`(행이 없다): `Brave(설치 필요 — 플러그인을 설치한다)`.
+  - `not-installed`(행이 없다): `Brave(설치 필요 — 플러그인을 설치해 주세요)`.
   - `unavailable`: `Brave(사용 불가 — <사유 코드>)`.
   - 웹 provider 목록을 읽지 못했으면 `키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)`다.
 - 값은 키 이름과 참조 문자열만 보인다. 시크릿 값은 없다.
@@ -705,7 +705,7 @@ export interface GroupTemplatesPort {
   진단
     [ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다
     [ok]   상태 디렉터리: <경로>
-    [ok]   시크릿 저장소: 사용할 수 있다 (등록 0개)
+    [ok]   시크릿 저장소: 사용할 수 있어요 (등록 0개)
     [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 시크릿 저장소
     [경고] 외부 바이너리 bwrap: 없다 (선택) — 명령을 샌드박스 없이 실행하지 못한다
            해결: bubblewrap 패키지를 설치한다
@@ -714,12 +714,12 @@ export interface GroupTemplatesPort {
   검색 provider
     검색 provider: auto → Built-in search (model provider) (builtin-wrapper)
     SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>
-    권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)
+    권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)
   웹 provider
-    [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있다
-    [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 키가 없다 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기
-    [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있다
-    [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있다
+    [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있어요
+    [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 키가 없어요 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기
+    [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있어요
+    [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있어요
   ```
 
   엔진을 열지 못하면 첫 항목이 `[실패] 엔진을 열 수 없다: <message>`와 해결 줄이 되고 종료 코드는 `EngineStartError` 표(§4.10)를 따른다. 터미널 항목과 검색 세 줄은 엔진 없이도 낸다. 이때 줄 1과 줄 3은 `알 수 없다`다. `--json`은 같은 내용을 `{ version, checks, binaries, search, web }` 문서 하나로 쓴다. `binaries`는 호스트가 준 `HostBinaryReport` 그대로이고 점검 결과가 없으면 `null`이다. `web`은 view-model `ToolsWebView`(검색, 브라우즈, 가져오기 섹션, 키 플러그인 권장, 첫 사용 고지가 남은 id)이고 웹 provider 목록을 읽지 못했으면 `null`이다. `web`의 행에는 view-model이 200자에서 자른 `detail`이 들어 있지만 텍스트 출력에는 없다.

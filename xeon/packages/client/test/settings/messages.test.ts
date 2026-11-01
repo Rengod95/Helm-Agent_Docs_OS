@@ -73,7 +73,7 @@ describe("settings sentences follow the locale", () => {
       "The key could not be saved (exit code 3).",
     );
     expect(inLocale("ko", () => keyErrorText({ kind: "rejected", exitCode: 3, detail: "" }))).toBe(
-      "키를 저장하지 못했습니다 (종료 코드 3).",
+      "키를 저장하지 못했어요 (종료 코드 3).",
     );
     expect(
       inLocale("en", () => keyErrorText({ kind: "rejected", exitCode: null, detail: "" })),

@@ -105,7 +105,7 @@ describe("submitKey", () => {
     const outcome = await submitKey(registrar, NAME, "set", input.field);
     expect(outcome).toEqual({
       kind: "failed",
-      text: "키를 저장하지 못했습니다. 시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
+      text: "키를 저장하지 못했어요. 시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
     });
     expect(input.shown()).toBe("");
     expect(wiped(seen.bytes)).toBe(true);
@@ -136,7 +136,7 @@ describe("keyErrorText", () => {
     const texts = kinds.map(keyErrorText);
     expect(new Set(texts).size).toBe(kinds.length);
     expect(keyErrorText({ kind: "rejected", exitCode: 3, detail: "" })).toBe(
-      "키를 저장하지 못했습니다 (종료 코드 3).",
+      "키를 저장하지 못했어요 (종료 코드 3).",
     );
   });
 });

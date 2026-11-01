@@ -200,7 +200,7 @@ fresnel doctor (fresnel 0.0.0)
 진단
   [ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다
   [ok]   상태 디렉터리: <경로>
-  [ok]   시크릿 저장소: 사용할 수 있다 (등록 0개)
+  [ok]   시크릿 저장소: 사용할 수 있어요 (등록 0개)
   [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 시크릿 저장소
   [경고] 외부 바이너리 bwrap: 없다 (선택) — 명령을 샌드박스 없이 실행하지 못한다
          해결: bubblewrap 패키지를 설치한다
@@ -209,7 +209,7 @@ fresnel doctor (fresnel 0.0.0)
 검색 provider
   검색 provider: auto → Built-in search (model provider) (builtin-wrapper)
   SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>
-  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)
+  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)
 웹 provider
   ...
 ```

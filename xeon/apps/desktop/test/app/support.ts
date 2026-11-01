@@ -73,7 +73,7 @@ export function engineFake(
     onWrite: (message, f) => {
       const method = methodOf(message);
       methods.push(method);
-      if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없다
+      if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없어요
       params.push({ method, params: paramsOf(message) });
       const failure = extra.errors?.[method];
       if (failure !== undefined) {

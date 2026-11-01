@@ -130,7 +130,7 @@ test("the host label and help keys exist in both catalogs, and the English fallb
   expect(en[perConnection?.labelKey ?? ""]).toBe(perConnection?.label);
   expect(ko["settings.l4.hostService.maxReplayEvents.label"]).toBe("구독 재전송 최대 이벤트 수");
   expect(ko["settings.l4.hostService.maxReplayEvents.help"]).toBe(
-    "구독 한 번에 다시 보낼 수 있는 이벤트 수. 넘으면 새 위치에서 다시 구독해야 한다",
+    "구독 한 번에 다시 보낼 수 있는 이벤트 수예요. 넘으면 새 위치에서 다시 구독해야 해요.",
   );
   expect(ko["settings.l4.hostService.maxSubscriptionsPerConnection.label"]).toBe(
     "연결당 구독 한도",

@@ -55,12 +55,12 @@ test("(a) default: the builtin wrapper is current, Exa needs a key and Brave is 
     "검색 provider",
     "  검색 provider: auto → Built-in search (model provider) (builtin-wrapper)",
     SEARXNG_UNSET,
-    "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)",
+    "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)",
     "웹 provider",
-    "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있다",
-    "  [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 키가 없다 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기",
-    "  [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있다",
-    "  [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있다",
+    "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있어요",
+    "  [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 키가 없어요 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기",
+    "  [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있어요",
+    "  [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있어요",
   ]);
 });
 
@@ -104,9 +104,9 @@ test("(b) Exa and Brave both ready, the user order puts Exa first: auto goes to 
     SEARXNG_UNSET,
     "  키 플러그인: Exa, Brave 모두 쓸 수 있다",
     "웹 provider",
-    "  [ok]   plugin:web-exa  플러그인 · 검색 · 순위 1 · 현재 · 사용할 수 있다 · 가격표 오래됨(2026-10-01)",
-    "  [ok]   plugin:web-brave  플러그인 · 검색 · 순위 2 · 사용할 수 있다 · 첫 사용 고지 대기",
-    "  [ok]   builtin-wrapper  내장 · 검색 · 순위 3 · 사용할 수 있다",
+    "  [ok]   plugin:web-exa  플러그인 · 검색 · 순위 1 · 현재 · 사용할 수 있어요 · 가격표 오래됨(2026-10-01)",
+    "  [ok]   plugin:web-brave  플러그인 · 검색 · 순위 2 · 사용할 수 있어요 · 첫 사용 고지 대기",
+    "  [ok]   builtin-wrapper  내장 · 검색 · 순위 3 · 사용할 수 있어요",
   ]);
 });
 
@@ -169,7 +169,7 @@ test("--json carries the view-model as web next to search, with the rows and rec
           providerId: "plugin:web-brave",
           secretName: "brave-api-key",
           state: "not-installed",
-          hint: "플러그인을 설치한다",
+          hint: "플러그인을 설치해 주세요",
         },
       ],
     },
@@ -199,7 +199,7 @@ test("the detail text of a provider is never printed (only the short note is)", 
   });
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   const text = h.stdoutText();
-  expect(text).toContain("  [경고] playwright-mcp  플러그인 · 브라우저 · 순위 1 · 응답이 없다");
+  expect(text).toContain("  [경고] playwright-mcp  플러그인 · 브라우저 · 순위 1 · 응답이 없어요");
   expect(text).not.toContain("x".repeat(10));
 });
 
@@ -210,10 +210,10 @@ test("a fixed provider that cannot be used says why on the search line and marks
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   const lines = blockOf(h.stdoutText());
   expect(lines[1]).toBe(
-    "  검색 provider: plugin:web-exa (l2.web.search.provider로 고정) — 키가 없다 — 해결: fresnel secret add exa-api-key",
+    "  검색 provider: plugin:web-exa (l2.web.search.provider로 고정) — 키가 없어요 — 해결: fresnel secret add exa-api-key",
   );
   expect(lines).toContain(
-    "  [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 현재 · 고정 · 키가 없다 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기",
+    "  [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 현재 · 고정 · 키가 없어요 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기",
   );
 });
 
@@ -233,7 +233,7 @@ test("auto with no usable search provider says so, and the recommendation lists 
   const lines = blockOf(h.stdoutText());
   expect(lines[1]).toBe("  검색 provider: auto → 쓸 수 있는 provider가 없다");
   expect(lines[3]).toBe(
-    "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)",
+    "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)",
   );
 });
 
@@ -261,7 +261,7 @@ test("an empty provider list prints the search lines as no usable provider and a
     "검색 provider",
     "  검색 provider: auto → 쓸 수 있는 provider가 없다",
     SEARXNG_UNSET,
-    "  권장 키 플러그인: Exa(설치 필요 — 플러그인을 설치한다), Brave(설치 필요 — 플러그인을 설치한다)",
+    "  권장 키 플러그인: Exa(설치 필요 — 플러그인을 설치해 주세요), Brave(설치 필요 — 플러그인을 설치해 주세요)",
     "웹 provider",
     "  provider가 없다",
   ]);
@@ -275,8 +275,8 @@ test("the browse and fetch rows keep their own sections after the search rows", 
   const lines = blockOf(h.stdoutText());
   expect(lines.slice(4)).toEqual([
     "웹 provider",
-    "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있다",
-    "  [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있다",
-    "  [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있다",
+    "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있어요",
+    "  [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있어요",
+    "  [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있어요",
   ]);
 });

@@ -192,7 +192,7 @@ describe("rotation state of the view", () => {
 
   test("the risk notice names the terms risk in Korean", () => {
     expect(rotationRiskNotice()).toBe(
-      "이 플러그인은 한 provider의 여러 계정(API 키 계정과 구독 계정)을 돌려 가며 요청을 보냅니다. 구독 계정을 이렇게 쓰면 provider 이용 약관에 어긋날 수 있고 계정이 제한되거나 정지될 수 있습니다. 켜면 그 위험을 사용자가 집니다.",
+      "이 플러그인은 한 제공자의 여러 계정(API 키 계정과 구독 계정)을 돌려 가며 요청을 보내요. 구독 계정을 이렇게 쓰면 제공자 이용 약관에 어긋날 수 있고 계정이 제한되거나 정지될 수 있어요. 켜면 그 위험을 사용자가 져요.",
     );
   });
 });

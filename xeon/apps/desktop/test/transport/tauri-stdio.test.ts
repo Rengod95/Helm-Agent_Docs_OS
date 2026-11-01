@@ -85,7 +85,7 @@ describe("openEngineConnection", () => {
   test("sends host.hello with client.kind desktop and returns the server answer", async () => {
     const fake = fakeIpc({
       onWrite: (message, f) => {
-        if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없다
+        if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없어요
         f.emitLine({
           jsonrpc: "2.0",
           id: requestId(message),
@@ -115,7 +115,7 @@ describe("openEngineConnection", () => {
   test("a hello error becomes a hello OpenError with the wire code", async () => {
     const fake = fakeIpc({
       onWrite: (message, f) => {
-        if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없다
+        if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없어요
         f.emitLine({
           jsonrpc: "2.0",
           id: requestId(message),

@@ -34,7 +34,7 @@ export type WebToolRow = {
   readonly reason: string | null;
   /** 탐침 상세를 200자에서 자른 값. `note`에는 넣지 않는다 */
   readonly detail: string | null;
-  /** 한 줄 문구. "사용할 수 있다" | "키가 없다 — 해결: …" | 그 밖의 사유 */
+  /** 한 줄 문구. "사용할 수 있어요" | "키가 없어요 — 해결: …" | 그 밖의 사유 */
   readonly note: string;
   /** 자동 선택 순서(wire `autoRank`). 웹 fetch 행은 null */
   readonly rank: number | null;
