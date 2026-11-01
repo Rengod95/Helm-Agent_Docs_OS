@@ -100,7 +100,7 @@ xeon/packages/cap-work/
 | T7 | 계획 산출물 등록(`artifacts.registry` 선택 의존, 제출 시점): 사용 가능 확인, 첫 판 `register`·다음 판 `update`(requestId `plan:<planId>:<planVersion>`), 실패 시 `artifact: null` | T6, L2.artifacts 정의 | S | M2(산출물 기능이 없으면 비활성 경로만 테스트) |
 | T8 | 설정 키 6개(`settings.ts`), 명령 등록(`dialog.commands` 선택 의존, §6.2) | T3, T6, L2.dialog D5 | S | M2(명령은 W-10 확정 뒤) |
 | T9 | 목표 저장과 상태 머신: `set`/`status`/`clear`, `continuation` 필드, `work.goal_set`·`work.goal_settled`, 투영(`cap_work_goals`, `cap_work_judgments`) | T3, T8 | M | M3(완료: M3a A4) |
-| T10 | 판정자와 증거: `GoalEvidence` 수집(정착 지점 컨텍스트와 투영 읽기), `fresnel.agents.judge` 호출과 `JudgeOutcome` 대응, `delegated` 판정자와 `judge` 메서드(대기 시간 제한은 제외, spec §4.3.5) | T9, L1.agents `judge` | L | M3(완료: M3a A4) |
+| T10 | 판정자와 증거: `GoalEvidence` 수집(정착 훅 컨텍스트와 투영 읽기), `fresnel.agents.judge` 호출과 `JudgeOutcome` 대응, `delegated` 판정자와 `judge` 메서드(대기 시간 제한은 제외, spec §4.3.5) | T9, L1.agents `judge` | L | M3(완료: M3a A4) |
 | T11 | 완료 게이트: `boundary.settle.before` chain 핸들러(`goalGateDecision`), 판정 커밋(키 `work:goal:<goalId>:judge:<run>`), 상한·종결, 판정 실패 stop, 지시·안내 custom 항목, 재개 시 같은 판정 순번 한 번만 기록. `turn.completed` 러너와 `post`는 쓰지 않는다(M3-new-02) | T10 | L | M3(완료: M3a A4) |
 | T12 | 완료 보고 스키마와 생성: `reports.build`, 목표 종결 커밋에 `work.report_built` 포함, 사용량·시간 합계, 남은 항목. 산출물 합집합은 `L2.artifacts` 범위 조회가 생길 때 더한다 | T11 | M | M3(완료: M3a A4) |
 
@@ -149,7 +149,7 @@ xeon/packages/cap-work/
 | `test/plans-mode.test.ts` | 승인 전 실행 단계 진입 금지 | `requireApproval = true`에서 승인 전 `exitMode`는 `plan_not_approved`이고 `restore` 호출이 없다. 승인 뒤 `exitOnApprove`면 `restore` 한 번 |
 | `test/plans-resume.fault.test.ts` | 승인 대기 중 재시작 복원 | `work.plan_submitted` 커밋 직후 강제 종료(고장 주입) → 재개 시 같은 키로 승인 요청이 한 번만 있다. 대기 중 재시작 뒤 응답하면 `submit` 재호출이 `decided`를 한 번 낸다 |
 | `test/plans-artifact.test.ts` | 산출물 선택 의존 | 기능이 없으면 `artifact: null`, 등록 실패여도 제출은 성공. 등록 requestId가 `plan:<planId>:<planVersion>`이고, 등록 뒤 커밋 전 종료 후 재시도해도 등록 호출의 결과가 같다(가짜 registry의 멱등) |
-| `test/goals-service.int.test.ts` | `set`·`status`·`clear`·`judge`, 보고 | 실제 SQLite와 세션 위에서 목표 기본값과 판정 상한 값, `goal_active`와 `replace`(종결 보고가 같은 커밋), `clear`의 보고와 `goal_closed`, 같은 `requestId`는 처음 결과와 같은 거부를 되풀이하고 이벤트를 쓰지 않음, 위임 판정(`goal_not_delegated`, 소유자만, `goal_turn_stale`, 같은 턴은 첫 판정, `met`·`limit_reached` 종결과 보고), `reports.build`(턴 사용량 합계, 남은 작업, 알 수 없는 대상) |
+| `test/goals-service.int.test.ts` | `set`·`status`·`clear`·`judge`, 보고 | 실제 SQLite와 대화 위에서 목표 기본값과 판정 상한 값, `goal_active`와 `replace`(종결 보고가 같은 커밋), `clear`의 보고와 `goal_closed`, 같은 `requestId`는 처음 결과와 같은 거부를 되풀이하고 이벤트를 쓰지 않음, 위임 판정(`goal_not_delegated`, 소유자만, `goal_turn_stale`, 같은 턴은 첫 판정, `met`·`limit_reached` 종결과 보고), `reports.build`(턴 사용량 합계, 남은 작업, 알 수 없는 대상) |
 | `test/goals-gate.test.ts` | 완료 게이트 | 가짜 `fresnel.agents.judge`로 `boundary.settle.before` 핸들러를 직접 부른다. `not_met`·`undecidable`은 지시 항목과 `continue: true`, 증거(최종 텍스트, 도구 호출, 작업, 직전 판정), `met`은 종결과 보고, `capped`는 판정 기록 없이 `limit_reached`와 안내 항목, 마지막 허용 실행의 미충족은 바로 종결, 판정 실패(`failed`, 던짐, `fresnel.agents` 없음)는 `judge_failed`와 stop, 중단·오류 turn·위임 목표·판정 중 해제는 끼어들지 않음, 단계 id가 없으면 엔트리 없이 결정만, 같은 답이 다시 오면 이벤트가 늘지 않음 |
 | `test/idempotency.conformance.test.ts` | 기능 적합성 | ADR-0015 §3.6, M3-REQ-88·89. 멱등 쓰기 아홉 개(`tasks.create`·`update`·`link`·`write`, `plans.submit`, `goals.set`·`clear`·`judge`, `reports.build`)를 같은 `requestId`로 저장소를 닫았다 다시 열고 두 번 부른다. 결과가 같고 이벤트 수와 `cap_work_` 표가 그대로다. 분류 값이 spec 표와 같고, 계획 결정(`approve`·`reject`·`revise`)은 `requestId`를 기억하지 않아 같은 키의 반복이 `plan_closed`임을 고정한다 |
 | `test/defs.contract.test.ts` | 정의 검증 | 네 정의의 `validateCapability` 이슈 0건(W-3 확정 전에는 `tools: []` 관련 이슈만 허용 목록), `validateCapabilitySet`에서 도구 이름 충돌 없음 |
@@ -220,7 +220,7 @@ M3:
 - 서비스 쓰기 경계의 오류 변환은 `src/errors.ts`, 규칙 거부 값은 `src/tasks/failure.ts`다. `src/service.ts` 조립은 `src/tasks/service.ts`에 있고 `src/plugin.ts`가 조립 루트다.
 - 포트 파일은 `src/ports/session.ts` 하나다. `fresnel.session`의 부분(`commit`, `feed`, `projectors`)과 `cap_work_*` 읽기 핸들(`fresnel.store`의 `scoped("cap.work")`)을 이름 붙여 둔다. `PermissionModePort`, `ApprovalsPort`, `JudgePort`는 해당 작업(WK.2·WK.3, T10)이 추가한다.
 
-시험은 `test/`에 있다. 실제 SQLite(`@fresnel/platform-store/testing`) 위에 `core-persistence`의 세션 서비스를 올려 쓰고, 저장소를 배열로 흉내 내지 않는다.
+시험은 `test/`에 있다. 실제 SQLite(`@fresnel/platform-store/testing`) 위에 `core-persistence`의 대화 서비스를 올려 쓰고, 저장소를 배열로 흉내 내지 않는다.
 
 | 파일 | 확인하는 것(§5 대응) |
 |---|---|
@@ -243,8 +243,8 @@ M3:
 | 항목 | 상태 | 위치 |
 |---|---|---|
 | T4 계획 상태, `work.plan_submitted`·`work.plan_withdrawn` 커밋, 투영 `cap_work_plans`(승인 요청·해결 반영), `versions` | 완료 | `src/plans/service.ts`, `src/plans/model.ts`, `src/plans/decision.ts`, `src/projection/projector.ts` |
-| T5 `enterMode`·`exitMode`, `requireApproval` 검사, 대기 버전 철회 | 완료(F `ToolService.mode`·`setMode` 위. 시험은 core-tools의 실제 `ToolService`가 세션 설정 이벤트를 쓴다) | `src/ports/permission-mode.ts`, `src/plans/service.ts` |
-| T5 권한 모드 추적(직전 모드, 진입 시점) | 완료(세션 범위 `settings.changed`에서 투영) | `src/projection/projector.ts` |
+| T5 `enterMode`·`exitMode`, `requireApproval` 검사, 대기 버전 철회 | 완료(F `ToolService.mode`·`setMode` 위. 시험은 core-tools의 실제 `ToolService`가 대화 설정 이벤트를 쓴다) | `src/ports/permission-mode.ts`, `src/plans/service.ts` |
+| T5 권한 모드 추적(직전 모드, 진입 시점) | 완료(대화 범위 `settings.changed`에서 투영) | `src/projection/projector.ts` |
 
 ### 8.3 WK.3 (T6, T7, T8): 계획 제출·승인, 산출물, 설정·명령
 
@@ -255,7 +255,7 @@ M3:
 | T8 설정 키 여섯 개 | 완료 | 없음 |
 | T8 명령 `/plan`, `/tasks` | 부분: 등록 함수와 시험 완료 | `dialog.commands` 선택 의존 확정(W-10) 뒤 매니페스트 `optional`로 연결. `/goal`은 M3 |
 
-대역은 `@fresnel/cap-work/testing`에 `createFakeArtifacts`(산출물 등록)만 둔다. 승인과 권한 모드는 대역이 없다: 시험은 core-tools의 `testing` 서브패스 `realTools`로 실제 `ToolService`·`ApprovalService`를 같은 실제 세션 위에 세우고(`test/support/l1.ts`가 요청 목록, 호출 기록, 요청 커밋 장애 주입의 관찰 창을 더한다), 플러그인이 기본으로 만드는 `planApprovalsOver`·`toolsPermissionMode`를 그대로 쓴다.
+대역은 `@fresnel/cap-work/testing`에 `createFakeArtifacts`(산출물 등록)만 둔다. 승인과 권한 모드는 대역이 없다: 시험은 core-tools의 `testing` 서브패스 `realTools`로 실제 `ToolService`·`ApprovalService`를 같은 실제 대화 위에 세우고(`test/support/l1.ts`가 요청 목록, 호출 기록, 요청 커밋 장애 주입의 관찰 창을 더한다), 플러그인이 기본으로 만드는 `planApprovalsOver`·`toolsPermissionMode`를 그대로 쓴다.
 
 시험 추가분:
 

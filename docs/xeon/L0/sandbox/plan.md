@@ -212,5 +212,5 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | srt 프록시와 secrets sentinel 모드(후속) 접점 충돌 | 후속에 프록시 두 개(srt 프록시, sentinel 프록시)가 겹침 | M1은 네트워크 전부 차단이라 충돌 없음. SB-13·SB-16에서 srt `mitmProxy`(외부 Unix 소켓)로 sentinel 프록시를 연결하는 안과 `parentProxy` 체이닝 안을 비교 | SB-13·SB-16 설계 검토, `L0.secrets.plan` SC-20과 함께 |
 | 보호 경로 과다로 정상 작업이 막힘(자격 파일 읽기 거부로 `gh`, 사설 레지스트리 `npm` 인증 실패, 네트워크 전부 차단으로 패키지 설치 실패) | 사용성 저하, 사용자가 샌드박스를 끔 | 거부 사유를 위반 기록과 stderr 주석으로 보이고, 시크릿 env 주입(`secretEnv`)과 2차 네트워크 정책으로 대체 경로를 둔다. 기본값 조정은 spec §10 [미결] 1·7 | M1 스모크와 사용 기록에서 `credentials`·`network` 위반 빈도 확인 |
 | srt 0.0.x 무고지 설정 변경 | 업그레이드 때 정책이 조용히 약해짐 | 정확 고정, 4절 점검 항목, `srt-config.contract.test.ts` | 업그레이드 PR마다 계약 시험과 int 시험 통과 |
-| srt 싱글턴(프로세스당 네트워크 정책 하나) | 공유 서비스 모드에서 세션별 네트워크 정책 불가 | 1차는 네트워크 전부 차단이라 영향 없음. 2차에 세션별 정책이 필요하면 엔진 프로세스를 나눈다(`_research/notes/L0-1.md` §8) | SB-13 설계 검토 |
-| 병렬 명령에서 `cleanupAfterCommand`가 다른 명령의 마운트 지점에 영향 [가정] | 실행 중 명령의 격리가 깨짐 | 래핑 실패 때는 부르지 않는다. 정상 종료 뒤 호출이 안전한지 SB-01에서 병렬 2개로 확인 | `srt-spike.int.test.ts`에 병렬 사례 추가 |
+| srt 싱글턴(프로세스당 네트워크 정책 하나) | 공유 서비스 모드에서 대화별 네트워크 정책 불가 | 1차는 네트워크 전부 차단이라 영향 없음. 2차에 대화별 정책이 필요하면 엔진 프로세스를 나눈다(`_research/notes/L0-1.md` §8) | SB-13 설계 검토 |
+| 병렬 명령에서 `cleanupAfterCommand`가 다른 명령의 마운트 위치에 영향 [가정] | 실행 중 명령의 격리가 깨짐 | 래핑 실패 때는 부르지 않는다. 정상 종료 뒤 호출이 안전한지 SB-01에서 병렬 2개로 확인 | `srt-spike.int.test.ts`에 병렬 사례 추가 |

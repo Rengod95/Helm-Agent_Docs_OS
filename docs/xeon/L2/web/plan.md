@@ -143,15 +143,15 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
 | B1 | F `defs/web.ts`, `defs/web-provider.ts` 추가. 4개 기능 정의(`WebSearch`, `WebFetch`, `WebBrowse`, `WebResearch`)와 ServiceKey, 서비스 묶음 `WebService`·`WebServiceName`·`WEB_CAPABILITIES`(spec §3.9), 공통 스키마, provider 인터페이스. `validateCapability` 이슈 0건 테스트. F `provider.ts`(L2.readme §5.2)가 없으면 같은 변경에서 만든다 | F.capabilities.plan의 `defineCapability`·`validateCapability` | M | M2 |
-| B2 | 공통 계약: `Source`/`Passage`/`Cost`/`WebCallMeta` 조립, URL 정규화, 세션별 `sN` 할당기, `wrapUntrusted`, 렌더러, `redactForPersistence` | B1 | M | M2 |
+| B2 | 공통 계약: `Source`/`Passage`/`Cost`/`WebCallMeta` 조립, URL 정규화, 대화별 `sN` 할당기, `wrapUntrusted`, 렌더러, `redactForPersistence` | B1 | M | M2 |
 | B3 | 도메인 정책(문법, 범위 합집합, deny>ask>allow, 승인 요청), SSRF(URL 검사, IP 범위, 메타데이터, 리다이렉트 재검사), robots.txt, `GuardedHttp`(guarded-fetch 연결, endpoints, 시크릿 헤더 치환), "나온 URL" 집합. guarded-fetch 0.1.6 소스를 읽어 연결 시점 재검증과 검증 IP 다이얼 여부를 확인하고, 없으면 request-filtering-agent로 바꾼다 | B2 | L | M2 |
 | B4 | 캐시 3계층: single-flight, 메모리 검색 메모(LRU 500, TTL), 디스크 fetch 캐시(`cap_web_fetch_cache`, `cap_web_raw`, 마이그레이션), cachePolicy별 저장 규칙, 크기 상한 정리, session rawRef 정리 | B2, L0.store.plan의 `scoped`·`putBlob` | M | M2 |
-| B5 | 비용 계측: reported/estimated/free, `cap_web_usage`, 월 무료 한도 경고, 가격표 asOf 90일 검사(`just web-pricing` 레시피, `just verify`에서 경고만), 세션당 호출 상한 | B2, B4(테이블) | M | M2 |
+| B5 | 비용 계측: reported/estimated/free, `cap_web_usage`, 월 무료 한도 경고, 가격표 asOf 90일 검사(`just web-pricing` 레시피, `just verify`에서 경고만), 대화당 호출 상한 | B2, B4(테이블) | M | M2 |
 | B6 | fetch 파이프라인: 협상 Markdown, 변환 모듈(readability+linkedom+turndown, defuddle), Worker, 승격(플러그인 후보, 브라우저는 B10 뒤 연결), 저장, 절단, rawRef 재조회, `urls` 일괄. WEB-R16 lint override와 check-layers 패턴 | B3, B4, B5 | L | M2 |
 | B7 | search provider 레지스트리와 선택 체인: X 후보 조회, `orderProviderCandidates`, 탐침 캐시, fallback 기록, 명시 선택 규칙, 쿼리 지시어 파서와 후처리 필터, `relaxed`, `decideModelSearchTool` | B3, B4, B5, X.primitives.plan의 후보 등록 API | M | M2 |
 | B8 | 설정한 SearXNG provider: 설정 주소 하나, `format=json` 탐침, 403 → `json-disabled`, 결과 정규화, endpoint 예외. 자동 감지 없음(H1) | B7 | S | M2 |
 | B9 | 내장 검색 래퍼: `HostedSearchPort` 사용, `pause_turn` 재요청 루프(상한 3), 결과 정규화(`encrypted_content` 제외), `unsupported-model`·`org-disabled` 탐침, 비용 계산, 모델 테이프 테스트. `normalizeHostedSearch` | B7, L1.models.plan의 `HostedSearchPort` | M | M2 |
-| B10 | browse playwright provider: 세션 관리와 상한, 필터 프록시, 이동 재검사, 사람 확인, 기본 비활성 동작, ref 부여, `code` 출력. Bun 호환 스모크(launch → goto → ariaSnapshot → close, connectOverCDP)와 Node 24 자식 우회(`runtime: node`). fetch 승격의 브라우저 경로 연결 | B3, B5, B6, L0.process.plan의 자식 프로세스 API | L | M3 초입 (결정 D4) |
+| B10 | browse playwright provider: 대화 관리와 상한, 필터 프록시, 이동 재검사, 사람 확인, 기본 비활성 동작, ref 부여, `code` 출력. Bun 호환 스모크(launch → goto → ariaSnapshot → close, connectOverCDP)와 Node 24 자식 우회(`runtime: node`). fetch 승격의 브라우저 경로 연결 | B3, B5, B6, L0.process.plan의 자식 프로세스 API | L | M3 초입 (결정 D4) |
 | B11 | 설정 키 `l2.web.*` 전체(`L2.web.spec` §6), 도메인 목록 범위 합집합 읽기, `checkSettingDef` 통과 테스트 | B1 | S | M2 |
 | B12 | agent-browser provider(2차): 바이너리 경로 설정, `--json`·`--session`·`--allowed-domains` 호출, delta 스냅샷 적용, ref 맵, 응답 TypeBox 정규화, 버전 고정 픽스처 | B10 | M | 2차 |
 | B13 | web.research(2차): native 루프(`fresnel.agents`), 예산, 인용 검증 패스, 상태 머신, `run`/`start`/`get`/`cancel`, `web.research_progress` 휘발 이벤트 | B6, B7, B9, L1.agents.plan | L | 2차 |
@@ -211,7 +211,7 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 | `test/domain-policy.test.ts` | `deny ask allow precedence` | 같은 호스트에 세 규칙이 있으면 deny |
 | 같음 | `lower scope cannot lift deny` | 사용자 deny + 프로젝트 allow → deny |
 | 같음 | `wildcard dot boundary` | `*.example.com`이 `example.com`, `badexample.com`, `example.com.evil.net`에 맞지 않음. `example.*` 패턴은 거부 |
-| 같음 | `ask without session denies` | 세션 없는 확장 호출의 ask → `denied` |
+| 같음 | `ask without session denies` | 대화 없는 확장 호출의 ask → `denied` |
 | `test/fetch-pipeline.test.ts` | `negotiated markdown path` | `Content-Type: text/markdown` 픽스처 → 변환 호출 0, `method: "negotiated-md"` |
 | 같음 | `html readability path` | HTML 픽스처 → `method: "readability"`, 숨은 요소·주석 제거 |
 | 같음 | `empty body promotes` | 빈 SPA 픽스처 + 가짜 fetch 플러그인 → `method: "provider:plugin:web-fake"`. 플러그인이 없으면 `empty_content` 경고 |
@@ -232,13 +232,13 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 | 같음 | `pricing asOf stale warning` | 수동 시계 asOf+91일 → `pricing_stale` 경고, +89일은 없음 |
 | 같음 | `free allowance warnings` | 월 사용량 80%, 100%에서 각 경고, 월이 바뀌면 초기화(UTC) |
 | 같음 | `session call limits` | 101번째 search, 301번째 fetch → `session_limit`. `urls` 3개는 3으로 셈 |
-| `test/source-ids.test.ts` | `source ids are session unique` | 두 호출의 같은 URL은 같은 `sN`, 다른 URL은 이어지는 번호. 세션 이벤트 픽스처로 재시작 뒤 다음 번호를 이어감 |
+| `test/source-ids.test.ts` | `source ids are session unique` | 두 호출의 같은 URL은 같은 `sN`, 다른 URL은 이어지는 번호. 대화 이벤트 픽스처로 재시작 뒤 다음 번호를 이어감 |
 | `test/redact.test.ts` | `redact none passages` | `usage.cache = "none"` Source의 발췌·답변만 비우고 URL·제목 유지 |
 | `test/model-tool.test.ts` | `decide model search tool` | (설정, 체인 결과, hosted 지원) 조합 표 → `hosted`/`function`/`off` |
 | `test/browse-policy.test.ts` | `navigate policy and post-redirect recheck` | 가짜 브라우저 핸들: 금지 호스트 navigate `denied`, `navigations`에 금지 URL이 생기면 페이지 비우고 `denied` |
 | 같음 | `disabled actions` | `evaluate`, `upload` → `action_disabled` |
 | 같음 | `confirmation vocabulary` | "결제", "Place order", 다른 origin 폼 제출 → 승인 요청, 거부면 `confirmation_denied` |
-| 같음 | `session budget` | 동작 201번째 → `session_budget`, 세션 닫힘 |
+| 같음 | `session budget` | 동작 201번째 → `session_budget`, 대화 닫힘 |
 | `test/settings.test.ts` | `web settings pass checkSettingDef` | `l2.web.*` 전체가 D1~D9 통과, 키 집합이 `L2.web.spec` §6 표와 같음 |
 
 `int` 태그(`*.int.test.ts`, 패키지 안, 기본 `just verify` 포함 여부는 아래):
@@ -299,11 +299,11 @@ WEB.1~WEB.5는 브랜치 `m2/web`에서, WEB.6은 브랜치 `m2/webkn`에서 구
 
 | m2-plan ID | plan ID | 상태 | 내용과 시험 |
 |---|---|---|---|
-| WEB.1 | B2 | 구현 | `contract/url.ts`(정규화), `source-ids.ts`(세션별 `sN` 표, 이벤트 읽기 포트로 재시작 뒤 이어서 할당), `meta.ts`(`WebCallMeta` 조립), `redact.ts`(`redactForPersistence`). `renderSearch` 등 렌더러는 F `defs/web.ts`가 이미 가지고 있어 `contract/render.ts`를 따로 만들지 않았다. `url.test.ts`, `source-ids.test.ts`, `redact.test.ts`, `meta.test.ts`, `defs.test.ts` |
+| WEB.1 | B2 | 구현 | `contract/url.ts`(정규화), `source-ids.ts`(대화별 `sN` 표, 이벤트 읽기 포트로 재시작 뒤 이어서 할당), `meta.ts`(`WebCallMeta` 조립), `redact.ts`(`redactForPersistence`). `renderSearch` 등 렌더러는 F `defs/web.ts`가 이미 가지고 있어 `contract/render.ts`를 따로 만들지 않았다. `url.test.ts`, `source-ids.test.ts`, `redact.test.ts`, `meta.test.ts`, `defs.test.ts` |
 | WEB.1 | B11 | 구현 | `settings.ts`가 `l2.web.*` 37개 키 전체를 선언한다(1차 `since: "0.1.0"`, 조사 키 `0.2.0` [가정]). 도메인 목록 세 키는 모든 범위의 값을 합쳐 읽는다. `settings.test.ts` |
 | WEB.2 | B3 | 구현 | `policy/address.ts`(IP 파싱·분류), `ssrf.ts`(URL 검사, 주소 판정), `domain.ts`, `access.ts`(§4.1 3~4단계: 시크릿 값, 도메인, 대화에 나온 URL, 승인), `content-http.ts`(리다이렉트 hop 재검사), `robots.ts`, `seen-urls.ts`, `guarded-http.ts`(provider용 `GuardedHttp`), `transport/http-transport.ts`(guarded-fetch 연결), `transport/system-resolver.ts`, `ask-adapter.ts`. `address.test.ts`, `ssrf.test.ts`, `domain-policy.test.ts`, `access-unseen.test.ts`, `robots.test.ts`, `guarded-http.test.ts`, `ask-adapter.test.ts` |
-| WEB.3 | B4 | 구현 | `cache/single-flight.ts`(결과 타입마다 인스턴스, 앞선 호출자가 취소하면 뒤 호출자가 다시 시작), `search-memo.ts`(LRU 500 + TTL, limit 버킷, 메모 키), `fetch-cache.ts`(`cap_web_fetch_cache`, `cap_web_raw`, 크기 상한 정리, 사라진 세션의 원문 정리), `migrations.ts`(TS 상수. `.sql` 파일 대신 `MigrationSet`을 쓴다). `cache.test.ts`, `fetch-cache.int.test.ts`(실제 SQLite 임시 파일) |
-| WEB.3 | B5 | 구현 | `cost/pricing.ts`(내장 가격표, asOf 90일 점검), `meter.ts`(reported·estimated·free 계산, 월 무료 한도 경고, `cap_web_usage` 누적), `limits.ts`(세션당 호출 상한), `pricing-cli.ts`. `just web-pricing`을 구현했다(출력만 하고 종료코드 0). `cost.test.ts` |
+| WEB.3 | B4 | 구현 | `cache/single-flight.ts`(결과 타입마다 인스턴스, 앞선 호출자가 취소하면 뒤 호출자가 다시 시작), `search-memo.ts`(LRU 500 + TTL, limit 버킷, 메모 키), `fetch-cache.ts`(`cap_web_fetch_cache`, `cap_web_raw`, 크기 상한 정리, 사라진 대화의 원문 정리), `migrations.ts`(TS 상수. `.sql` 파일 대신 `MigrationSet`을 쓴다). `cache.test.ts`, `fetch-cache.int.test.ts`(실제 SQLite 임시 파일) |
+| WEB.3 | B5 | 구현 | `cost/pricing.ts`(내장 가격표, asOf 90일 점검), `meter.ts`(reported·estimated·free 계산, 월 무료 한도 경고, `cap_web_usage` 누적), `limits.ts`(대화당 호출 상한), `pricing-cli.ts`. `just web-pricing`을 구현했다(출력만 하고 종료코드 0). `cost.test.ts` |
 | WEB.4 | B6 | 구현 | `fetch/convert/`(WEB-R16 영역: `convert.ts`, `sanitize.ts`, `readability.ts`, `defuddle.ts`, `turndown.ts`), `convert-worker.ts`(네트워크 전역을 지운 뒤 변환 모듈을 동적 import), `convert-runner.ts`(Worker 실행기와 직접 실행기), `local-provider.ts`, `promote.ts`(플러그인 후보 승격. 브라우저 승격은 비워 둠), `raw-read.ts`, `truncate.ts`, `robots-gate.ts`, `pipeline.ts`. `convert.test.ts`, `convert-worker.test.ts`, `fetch-pipeline.test.ts`, `fetch-cache-behavior.test.ts`. WEB-R16 확인(plan §6 4번): `convert/`에 `fetch(` 호출과 `node:http` import를 넣으면 `just check-layers`와 `just lint`가 각각 실패하는 것을 확인하고 되돌렸다 |
 | WEB.5 | B7 | 구현 | `search/chain.ts`(`planChain`, `runChain`: 탐침, fallback 기록, 명시 선택 규칙), `probe-cache.ts`(성공 5분, 실패 30초), `query.ts`(지시어 파서, 후처리 필터, `relaxed`), `model-tool.ts`(`decideModelSearchTool`), `registry.ts`(플러그인 등록을 provider로 만들고 내장 후보와 함께 `WebProviderCatalog`로 냄), `search-api.ts`(검색 서비스: 마스킹, 상한, 메모, single-flight, 정규화, 비용), `service.ts`와 `runtime.ts`(포트를 받아 `WebService` 조립), `manifest.ts`. `chain.test.ts`, `availability.test.ts`, `query.test.ts`, `model-tool.test.ts`, `registry.test.ts`, `search-api.test.ts` |
 
@@ -349,8 +349,8 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 - `defuddle`은 동기 `parse()`만 쓴다. 이 패키지의 비동기 추출기(YouTube, Bilibili)는 제3자 API를 부르므로 WEB-R16과 맞지 않아 쓰지 않는다.
 - tsconfig `lib`에 `dom`을 더했다(`cap-web`만). `@mozilla/readability`와 `linkedom`의 타입이 `Document`, `Node`를 전역으로 참조한다.
 - `GuardedHttp.request`는 거부할 때 `WebHttpError`를 던진다. 인터페이스가 Promise 거부로 정해져 있어서이고, 앞단 안쪽 호출은 같은 로직의 `Result` 판(`BoundProviderHttp.request`)을 쓴다.
-- 시크릿 값 판정(`Redactor.containsKnown`), 사용자 승인(`L2ApprovalsPort`), 세션 이벤트 읽기, provider 후보 조회는 `cap-web/src/ports/*.ts`의 좁은 포트로 받는다. 실제 연결은 HOST 트랙의 조립이 한다(m2-plan §3 6번).
-- 검색 메모는 provider 단계 결과(`Shaped`)를 담고 호출마다 세션 번호와 메타를 붙인다. 메모에서 꺼낸 호출은 비용 `free`, `fallbacks` 빈 배열이다. 첫 후보가 응답했을 때만 메모에 넣는다(§4.3.2). 명시 선택은 후보가 하나라서 항상 첫 후보다.
+- 시크릿 값 판정(`Redactor.containsKnown`), 사용자 승인(`L2ApprovalsPort`), 대화 이벤트 읽기, provider 후보 조회는 `cap-web/src/ports/*.ts`의 좁은 포트로 받는다. 실제 연결은 HOST 트랙의 조립이 한다(m2-plan §3 6번).
+- 검색 메모는 provider 단계 결과(`Shaped`)를 담고 호출마다 대화 번호와 메타를 붙인다. 메모에서 꺼낸 호출은 비용 `free`, `fallbacks` 빈 배열이다. 첫 후보가 응답했을 때만 메모에 넣는다(§4.3.2). 명시 선택은 후보가 하나라서 항상 첫 후보다.
 - `timeout`을 auto 체인의 fallback 대상 오류에 넣었다(스펙 §4.8.2는 `unavailable`, `rate_limited`, `upstream_error` 셋). 스펙에 [제안]으로 적었다.
 - 가격표에 단가가 없거나 모두 0이면 `basis: "free"`다. SearXNG 매니페스트는 `units: {}`로 이 규칙을 쓴다(`PricingTable`에 `free` 표지가 없어서다).
 - `recency`는 day 1, week 7, month 30, year 365일 전을 하한으로 삼아 후처리한다 [제안].
@@ -360,7 +360,7 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 | 대상 | 요청 | 근거 |
 |---|---|---|
 | X 레인 | 기능별 provider 후보를 등록·조회하는 API. 플러그인 엔트리가 `WebProviderRegistration` 목록을 넘기고 `cap-web`이 `RegistrationSource.list()`로 읽는 모양이면 된다. X.2 리소스 레지스트리(`tool`, `provider`, `mcp_server`)에는 웹 provider 종류가 없다 | `X.primitives.spec` [가정], 이 plan §8.3 |
-| HOST.6 | `createWebRuntime`에 실제 포트를 연결한다: `fresnel.store`(`WebStorePort`), `L2ApprovalsPort`(`createAskAdapter`), `fresnel.session` 이벤트 읽기(`WebSessionSourcesPort`: `tool.settled`의 `structuredContent.sources`), `Redactor.containsKnown`(`OutboundSecretGuard`), 설정 층(`readWebSettings`), `input.user.before`·`thread.shutdown`·`boundary.step.before` 지점 구독(`SeenUrls.noteText`, 브라우저·원문 정리, `decideModelSearchTool`) | m2-plan HOST.6, 스펙 §7 |
+| HOST.6 | `createWebRuntime`에 실제 포트를 연결한다: `fresnel.store`(`WebStorePort`), `L2ApprovalsPort`(`createAskAdapter`), `fresnel.session` 이벤트 읽기(`WebSessionSourcesPort`: `tool.settled`의 `structuredContent.sources`), `Redactor.containsKnown`(`OutboundSecretGuard`), 설정 층(`readWebSettings`), `input.user.before`·`thread.shutdown`·`boundary.step.before` 훅 구독(`SeenUrls.noteText`, 브라우저·원문 정리, `decideModelSearchTool`) | m2-plan HOST.6, 스펙 §7 |
 | L1.tools | `redactForPersistence`를 `tool.settled` 영속 사본에 적용하는 경로. 이 패키지는 순수 함수만 낸다 | 스펙 §4.3.4, §8 요구 표 |
 | L0.secrets | `HeaderSecretSender`(플러그인 provider 헤더 시크릿을 전송 직전에만 치환하는 통로). 값을 돌려주는 `valueOf` 포트는 없앴다. 구현은 L0 `createPluginHttp`·`withHttp`를 감싸는 조립 쪽 어댑터이며 L4 후속 유닛에서 잇는다 | 스펙 §3.6.1, `L0.secrets.spec` §3.6 |
 | F 레인 | 없음. `defs/web.ts`, `web-provider.ts`는 그대로 썼다. 다만 `WebFetchPage.status`가 100~599만 받아, 일괄 호출에서 실패한 URL의 페이지는 합성 상태 값을 쓴다(스펙 §4.9.1) | 스펙 §4.9.1 |

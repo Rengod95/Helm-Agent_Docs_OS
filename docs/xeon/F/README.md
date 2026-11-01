@@ -12,7 +12,7 @@ binds: [xeon/packages/contracts/**]
 
 ## 1. 목적
 
-F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 확장, 호스트 계약, 설정의 타입과 스키마와 규약을 한 패키지 `@fresnel/contracts`에 둔다. 다른 층 문서와 코드는 이름을 F 문서에서 가져온다(`_templates/README.md` 문체 규칙 마지막 항목).
+F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 확장, Runtime API, 설정의 타입과 스키마와 규약을 한 패키지 `@fresnel/contracts`에 둔다. 다른 층 문서와 코드는 이름을 F 문서에서 가져온다(`_templates/README.md` 문체 규칙 마지막 항목).
 
 - F에는 타입, TypeBox 스키마, 상수, 규약만 있다. 런타임 로직은 두지 않는다.
 - 런타임 로직 예외 [제안]: 아래 다섯 종류는 F에 둘 수 있다. 공통 조건은 셋이다. 입출력, 시계, 난수, 전역 가변 상태를 쓰지 않는다. 여러 층이 같은 규칙을 써야 해서 F보다 위에 두면 같은 층끼리 import가 생긴다. 함수 하나가 한 규칙만 계산한다.
@@ -39,7 +39,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 
 | records | 이벤트 envelope(내구/휘발), kind 이름 규칙과 코어 카탈로그, blob 분리, 효과 3단과 복구 규칙, 단계 체크포인트, 업캐스터·마이그레이션 | F2 기록 계약 | `@fresnel/contracts/records` | `F.records.spec`, `F.records.plan` | 포함(`SessionStore`는 2차) |
 | capabilities | 기능 정의(서비스 메서드 + 모델 도구 쌍), `ServiceKey`, 도구 이름·제목, 결정적 도구 순서, 기능 오류, 정적 검증 | F3 기능 계약 | `@fresnel/contracts/capabilities` | `F.capabilities.spec`, `F.capabilities.plan` | 포함(내장 기능 정의는 M1부터) |
 | extensions | 확장 매니페스트, 훅 선언 표(on fold, post, drive, scope), 그룹 레코드 형식(kind 접두, `GroupRecord`, 종류 등록), 열거형 확장 예약 | F4 확장 계약 | `@fresnel/contracts/extensions` | `F.extensions.spec`, `F.extensions.plan` | 포함(열거형 확장 예약은 2차) |
-| wire-settings | 호스트 계약(JSON-RPC, 메서드 레지스트리, seq 커서, 오류, 전송 인터페이스, 버전 정책)과 설정 스키마 단일 원천(`SettingDef`, 범위 우선순위, JSON Schema 출력) | F5 연결·설정 계약 | `@fresnel/contracts/wire`, `@fresnel/contracts/settings` | `F.wire-settings.spec`, `F.wire-settings.plan` | 포함(오류 구간, `_meta`, 소켓 전송은 M2) |
+| wire-settings | Runtime API(JSON-RPC, 메서드 레지스트리, seq 커서, 오류, 전송 인터페이스, 버전 정책)과 설정 스키마 단일 원천(`SettingDef`, 범위 우선순위, JSON Schema 출력) | F5 연결·설정 계약 | `@fresnel/contracts/wire`, `@fresnel/contracts/settings` | `F.wire-settings.spec`, `F.wire-settings.plan` | 포함(오류 구간, `_meta`, 소켓 전송은 M2) |
 
 - 서비스 인터페이스 서브패스 `@fresnel/contracts/services`는 도메인을 새로 만들지 않는다. L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수를 모으는 서브패스이고 정의는 `F.capabilities.spec` §3.12가 정한다 [결정: review.decisions-2 D-04]. 층 사이 협력은 이 인터페이스로만 한다(DR-02, DR-14, CM-05).
 
@@ -123,13 +123,13 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 
 
 | Fresnel | 뜻 | pi 대응 |
 |---|---|---|
-| thread | 대화 하나. 분기 트리 포함 | 세션 파일 하나 |
+| thread | 대화 하나. 분기 트리 포함 | `session` 파일 하나 |
 | turn | 사용자 입력 하나에 대한 작업 전체 | run(`boundary.turn.before`~`boundary.turn.after`) |
 | step | 모델 응답 1회와 그 도구 결과 묶음. 체크포인트 단위 | turn(`boundary.step.before`~`boundary.step.after`) |
 | item | 입출력 단위(메시지, 도구 호출, 도구 결과) | message, tool_execution |
 | part | 어시스턴트 메시지 블록 하나의 id 레코드 | `contentIndex` |
 
-[결정: review.decisions-2 U-01] pi turn = Fresnel step이다. 훅 이름은 pi 이름을 그대로 쓰므로 `boundary.step.before` 지점은 Fresnel step 경계에서 발화한다. 켜기·끄기와 drive 임대 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
+[결정: review.decisions-2 U-01] pi turn = Fresnel step이다. 훅 이름은 pi 이름을 그대로 쓰므로 `boundary.step.before` 훅은 Fresnel step 경계에서 발화한다. 켜기·끄기와 drive 락 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
 
 ### 4.2 대표 타입
 
@@ -179,7 +179,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 
 | L1 `core-persistence` | records, settings | `upcastEvent`, 재개 규칙, `resolveSetting` |
 | L1 `core-context`, `core-models` | capabilities, conversation | `orderTools`, `toolsetFingerprint`, `Message` |
 | L2 `cap-*` | capabilities | `CapabilityDef`, `defineCapability`, `CapabilityError` |
-| L3 `group-sdk`, `group-helm`, `group-learning` | extensions, capabilities, records | 매니페스트, 지점, `ServiceKey`, `grp.*` kind |
+| L3 `group-sdk`, `group-helm`, `group-learning` | extensions, capabilities, records | 매니페스트, 훅, `ServiceKey`, `grp.*` kind |
 | L4 `apps/host`, `apps/cli`, `apps/desktop` | wire, settings | `HostConnection`, `WireHandlers`, `WIRE_METHODS`, `EventWire`, `checkSettingWrite` |
 | L4 설정 화면 | settings | `SettingDefWire`, `SettingsTab`, `EffectiveSetting` |
 | L0·L1 서비스 구현과 소비(L1~L4 `core-*`, `cap-*`, `group-*`, `apps/*`) | services | 서비스 인터페이스와 서비스 이름 상수(`F.capabilities.spec` §3.12). 구현 패키지는 인터페이스를 구현하고, 소비 쪽은 구현 패키지를 import하지 않고 이 인터페이스로 주입받는다 |
@@ -212,20 +212,20 @@ F가 정하지 않는 것:
 |---|---|
 | [결정] pi-ai provider와 타입은 그대로 쓰고 부족분만 포크한다. F는 pi 타입을 재노출만 한다 | `_research/decisions-log.md` 2026-10-21 결정(2차), `_research/foundation-plan.md` §2 모델·루프 행 |
 | [결정] 스키마는 TypeBox 하나로 쓰고 JSON Schema와 TS 타입의 단일 원천으로 삼는다 | `_research/foundation-plan.md` §2 스키마 행, `_research/layer-plan-v2.json` F3 도구 스키마 |
-| [결정] 세션 저장은 C안이다. SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정(2차) |
-| [결정] 훅은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다 | `_research/decisions-log.md` 2026-10-21 계획 v2 |
+| [결정] 대화 저장은 C안이다. SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정(2차) |
+| [결정] 훅은 on(fold tap/first/chain), post, drive(배타 drive 락), scope 4연산이다 | `_research/decisions-log.md` 2026-10-21 계획 v2 |
 | [결정] DI는 Cordis 하나다. F는 Cordis를 import하지 않는다 | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 1번 |
-| [결정] 호스트 계약은 하나이고 전송만 바꾼다(CLI in-process, 데스크톱 stdio) | `_research/foundation-plan.md` §1 3번, `_research/decisions-log.md` 2026-10-21 계획 v2 |
+| [결정] Runtime API는 하나이고 전송만 바꾼다(CLI in-process, 데스크톱 stdio) | `_research/foundation-plan.md` §1 3번, `_research/decisions-log.md` 2026-10-21 계획 v2 |
 | [결정] 모든 설정은 F5 스키마 하나에서 화면·파일·명령을 만든다 | `_research/layer-plan-v2-notes.md` 층 사이 규칙 6 |
 
 ## 8. 미결 사항
 
 하위 spec의 미결 가운데 층 전체에 걸리는 것만 모은다. 세부와 선택지는 각 spec의 "미결 사항" 절에 있다.
 
-1. [결정: review.decisions-2 U-01] 용어: pi turn = Fresnel step, pi run = Fresnel turn(`F.conversation.spec` §10 1번). scope 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(`F.extensions.spec` §4.5). 사용자 확인 대상이다.
-2. [미결] boundary fold: `F.extensions.spec`은 fold 3종을 유지하고 chain 교체 + `finalize` 표지로 표현하자고 제안한다. 4번째 fold(collect)나 지점별 예외 표를 둘지 결정이 필요하다(`F.extensions.spec` §4.1, §10, `_research/notes/F-1.md` §3).
+1. [결정: review.decisions-2 U-01] 용어: pi turn = Fresnel step, pi run = Fresnel turn(`F.conversation.spec` §10 1번). scope 켜기·끄기와 drive 락 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(`F.extensions.spec` §4.5). 사용자 확인 대상이다.
+2. [미결] boundary fold: `F.extensions.spec`은 fold 3종을 유지하고 chain 교체 + `finalize` 표지로 표현하자고 제안한다. 4번째 fold(collect)나 훅별 예외 표를 둘지 결정이 필요하다(`F.extensions.spec` §4.1, §10, `_research/notes/F-1.md` §3).
 3. [결정: review.m3-design-inputs A-01] Cordis 선언 병합은 하지 않는다. F는 `ServiceKey<Api>`만 두고(A안), `provide`는 X `hostOf(g).provide`다(`F.capabilities.spec` §3.5).
-4. [미결] 설정 우선순위 표: 관리 > 세션 > 로컬 > 프로젝트 > 사용자 > 기본값 제안과 관리 기본값 여부(`F.wire-settings.spec` §4.7).
+4. [미결] 설정 우선순위 표: 관리 > `launch` > 로컬 > 프로젝트 > 사용자 > 기본값 제안과 관리 기본값 여부(`F.wire-settings.spec` §4.7).
 5. [결정: review.decisions-2 U-02] 승인 요청 방향은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`)이다(`F.wire-settings.spec` §4.6). `F.records.spec` §3.3.1 코어 카탈로그의 승인 kind가 이 결정을 따른다. 사용자 확인 대상이다.
 6. [미결] 재생 정책 이름: `safe|unsafe`와 F `AgentTool.replay`의 `never|safe` 통일(`F.records.spec` §10 미결 4). 정의 위치는 `F.conversation.spec` §3.6이다.
 7. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 고정한 판과 같다.
@@ -260,7 +260,7 @@ F가 정하지 않는 것:
 
 | 항목 | 처리한 요청 | 위치 |
 |---|---|---|
-| G1-08 | U-04 호스트 계약 요청 판정표, 서버 알림 `settings.invalidated` | `F.wire-settings.spec` §3.3.2, §3.3.4 |
+| G1-08 | U-04 Runtime API 요청 판정표, 서버 알림 `settings.invalidated` | `F.wire-settings.spec` §3.3.2, §3.3.4 |
 | G1-01 | `command.list`, `command.run`, `command.list`의 선택 params `threadId` | `F.wire-settings.spec` §3.3.1 |
 | G2-07 | `host.status`의 선택 params `includeBinaries`와 결과 `binaries`(외부 바이너리 점검) | `F.wire-settings.spec` §3.3.1 |
 | G1-02 | `turn.resume` | `F.wire-settings.spec` §3.3.1 |

@@ -321,7 +321,7 @@ bun build --compile --target=bun-darwin-arm64 apps/cli/src/main.ts --outfile app
 - 검사 실패의 처리: 개발 환경 검사(`just status`, 테스트 준비)에서 FTS5가 없으면 종료코드 2(환경 문제)로 끝낸다 [제안]. 운영 시작에서의 처리(시작 거부 또는 검색 기능 비활성)는 `L0.store.spec`이 정한다 [미결].
 - Linux x64의 번들 SQLite 3.53.4는 FTS5를 포함한다(실측). macOS의 dylib 경로와 FTS5 포함 여부는 확인하지 않았다 [가정].
 
-이유: macOS의 Bun은 Apple 시스템 SQLite를 쓰고, 그 빌드의 FTS5 포함 여부가 보장되지 않는다(`_research/stack-status.md §7-D`). 세션 검색(L2 knowledge)이 FTS5에 기댄다.
+이유: macOS의 Bun은 Apple 시스템 SQLite를 쓰고, 그 빌드의 FTS5 포함 여부가 보장되지 않는다(`_research/stack-status.md §7-D`). 대화 검색(L2 knowledge)이 FTS5에 기댄다.
 
 좋은 예:
 
@@ -381,7 +381,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 
 [제안] `_research/foundation-plan.md §5` P3의 순서를 따른다. 루트 `justfile`의 `verify`가 아래 단계를 차례로 부르고, 한 단계라도 실패하면 거기서 멈춘다. 끝에 `ws check`가 붙는다.
 
-- 단계 0~8은 `_verify-steps`(`xeon/scripts/verify-steps.sh`)로 묶인다. `just verify`는 `WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps`로 기기의 검증 슬롯을 하나 잡고(기기에서 helm 검증은 한 번에 하나, 나머지는 기다린다), 단계를 차례로 돌되 단계마다 `WS_GUARD_ACTIVE`를 풀고 `scripts/guard.sh run`으로 따로 scope를 만든다(상한 `FRESNEL_VERIFY_STEP_MAX`, 기본 2G, 시간 제한 없음). 시험 단계(`just test`)는 감싸지 않는다. `test-capped.sh`가 패키지마다 `guard.sh run` 1.5G를 건다. 처음 실패한 단계에서 멈추고 그 종료코드를 낸다. 모든 scope는 공용 예산 `ws-dev.slice` 안에 있다. 병렬 작업 중에는 저장소 전체 검사(`just verify`, `just lint`, `just typecheck`)를 돌리지 않고 `just check <패키지>`(패키지 하나의 lint, typecheck, test, 각 1.5G)만 돌린다. systemd 사용자 세션이 없는 기기(macOS, CI)에서는 한 줄 알리고 상한 없이 돈다.
+- 단계 0~8은 `_verify-steps`(`xeon/scripts/verify-steps.sh`)로 묶인다. `just verify`는 `WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps`로 기기의 검증 슬롯을 하나 잡고(기기에서 helm 검증은 한 번에 하나, 나머지는 기다린다), 단계를 차례로 돌되 단계마다 `WS_GUARD_ACTIVE`를 풀고 `scripts/guard.sh run`으로 따로 scope를 만든다(상한 `FRESNEL_VERIFY_STEP_MAX`, 기본 2G, 시간 제한 없음). 시험 단계(`just test`)는 감싸지 않는다. `test-capped.sh`가 패키지마다 `guard.sh run` 1.5G를 건다. 처음 실패한 단계에서 멈추고 그 종료코드를 낸다. 모든 scope는 공용 예산 `ws-dev.slice` 안에 있다. 병렬 작업 중에는 저장소 전체 검사(`just verify`, `just lint`, `just typecheck`)를 돌리지 않고 `just check <패키지>`(패키지 하나의 lint, typecheck, test, 각 1.5G)만 돌린다. systemd 사용자 "세션"이 없는 기기(macOS, CI)에서는 한 줄 알리고 상한 없이 돈다.
 - 시험 캐시(turbo): 패키지의 시험 해시는 그 패키지의 추적 파일 전부(`$TURBO_DEFAULT$`, 시험 고정물 포함)와 `transit` 작업을 거쳐 올라오는 의존 패키지의 해시(시험 파일은 제외)로 정해진다. 의존 패키지의 소스가 바뀌면 의존하는 쪽의 시험이 다시 돌고, 시험 파일만 바뀌면 그 패키지만 다시 돈다. turbo가 보지 못하는 입력은 `xeon/turbo.json`의 `test.inputs`(`bun.lock`, `bunfig.toml`, `mise.toml`, `tsconfig.base.json`, 시험 래퍼, `guard.sh`)와 패키지별 `turbo.json`(읽는 문서: contracts는 `docs/xeon/F/`, ext-host는 `X/`, group-helm은 `L3/helm/`, desktop은 `L4/desktop/spec.md`, group-sdk은 `scripts/check-layers.ts`)에 적는다. 시험이 새 바깥 파일을 읽게 되면 그 패키지의 `turbo.json`에 입력을 더한다. 환경(bwrap, sops, rg 같은 기기 도구)은 해시에 없다. 도구를 바꾼 뒤에는 `TURBO_FORCE=true just test`로 한 번 새로 돌린다.
 - desktop의 사이드카 e2e는 gitignored 바이너리를 쓴다. desktop 시험 해시는 `@fresnel/cli#transit`에 의존해 바이너리의 소스(cli와 cli가 쓰는 모든 패키지)를 따라간다. 시험을 돌릴 때 `scripts/ensure-sidecar.sh`가 그 소스의 해시를 바이너리 옆 `.sources.sha256`과 견주어, 다르거나 바이너리가 없으면 `just desktop-sidecar host`로 다시 만든다. 낡은 바이너리로 시험이 거짓 실패하지 않는다.
 - turbo 캐시는 `~/.cache/fresnel/turbo`(`TURBO_CACHE_DIR`)에 두고 모든 worktree가 함께 쓴다. 에이전트 worktree에서 통과한 패키지는 메인 체크아웃에서 재생된다. 같은 기기의 apps/host와 core-persistence는 함께 돌지 않게 `test-pkg.sh`가 `~/.cache/fresnel/heavy.lock`을 잡는다.

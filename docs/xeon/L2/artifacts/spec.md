@@ -8,7 +8,7 @@ depends_on: [F.capabilities.spec, F.records.spec, L0.store.spec, L1.persistence.
 binds: [xeon/packages/cap-artifacts/**]
 ---
 
-# L2 산출물과 세션 (artifacts)
+# L2 산출물과 대화 (artifacts)
 
 패키지: `@fresnel/cap-artifacts`. 서비스 이름: `fresnel.artifacts`(`ArtifactService`). 기능 ID: `artifacts.registry`, `artifacts.reviews`, `artifacts.sessions`. 이벤트 접두사: `artifact.`(단수). 테이블 접두사: `cap_artifacts_`.
 
@@ -16,15 +16,15 @@ binds: [xeon/packages/cap-artifacts/**]
 
 ## 1. 목적과 범위
 
-계획 v2 하위 층 L2-g "산출물과 세션"(`_research/layer-plan-v2.json` L2-g)을 구현하는 기능 셋을 정한다. 대화 중에 생긴 결과물을 찾을 수 있게 등록하고, 파일 변경을 hunk 단위로 승인·거절하며, 세션 자체의 제목·라벨·이전·내보내기를 다룬다.
+계획 v2 하위 층 L2-g "산출물과 세션"(`_research/layer-plan-v2.json` L2-g)을 구현하는 기능 셋을 정한다. 대화 중에 생긴 결과물을 찾을 수 있게 등록하고, 파일 변경을 hunk 단위로 승인·거절하며, 대화 자체의 제목·라벨·이전·내보내기를 다룬다.
 
 정하는 것:
 
 - 기능 정의 3개의 TypeBox 완성형(§3.2~§3.4). 정의 파일은 F `xeon/packages/contracts/src/capabilities/defs/artifacts.ts`에 둔다(`F.capabilities.spec` §3.9 정의 위치 [제안]).
-- 산출물 레지스트리: 종류(kind), blob 참조, 버전, 출처 세션·턴, 미리보기 메타(§4.1).
+- 산출물 레지스트리: 종류(kind), blob 참조, 버전, 출처 대화·턴, 미리보기 메타(§4.1).
 - 리뷰와 diff 승인: hunk 분할, hunk 단위 승인·거절, 줄 코멘트, 코멘트를 에이전트 입력으로 되돌리는 규칙(§4.2).
-- 세션 제목·라벨 메타와 메타 검색(§4.3). 자동 제목 생성의 트리거와 모델 용도.
-- 세션 핸드오프의 데이터 형식(2차, §4.4)과 Markdown·HTML 내보내기(2차, §4.5).
+- 대화 제목·라벨 메타와 메타 검색(§4.3). 자동 제목 생성의 트리거와 모델 용도.
+- 대화 핸드오프의 데이터 형식(2차, §4.4)과 Markdown·HTML 내보내기(2차, §4.5).
 - `artifact.*` 이벤트 카탈로그와 `cap_artifacts_` 투영 테이블(§3.6, §3.7). 형식은 `eng.events.design` §4.4·§5.1이고 필드 이름은 `F.records.spec` §3.3 `CatalogEntry`를 따른다.
 - 설정 키 `l2.artifacts.*`(§6).
 
@@ -34,8 +34,8 @@ binds: [xeon/packages/cap-artifacts/**]
 - 챕터와 목차(C5): 헤딩 이벤트에서 파생하는 L4 기능이다(`_research/l2e.md` §3.3 C5 "API: 없음(헤딩 이벤트에서 파생)"). 이 기능은 C5용 API와 이벤트를 두지 않는다. L4가 `item.recorded`의 어시스턴트 텍스트에서 헤딩을 뽑는다. 산출물 본문(문서 kind)의 목차가 필요하면 L4가 `get`으로 본문을 받아 같은 방법으로 만든다.
 - 되감기와 체크포인트(B3): `L1.persistence.spec` 소유다(`_research/l2e.md` §2 B3 "소유는 L1-f"). 이 층은 리뷰의 근거로 체크포인트 파일 상태를 읽고, 거절 적용 후보 하나로 L1 복원 호출을 쓸 수 있을 뿐이다(§4.2.5).
 - JSONL 내보내기: `L1.persistence.spec` 소유다(`_research/l2e.md` §2 C2 "세션 JSONL 내보내기 (L1-f)").
-- 세션 제목 이벤트: `L1.persistence.spec` 소유다(`eng.context-map.design` §4.4 4행). 이 층은 `fresnel.session`의 제목 변경 API를 부르기만 한다(§4.3).
-- 세션 본문 전문 검색(FTS): `knowledge.search` 소유다(`eng.context-map.design` §4.1 knowledge 행 "세션 검색 FTS"). 이 층의 `search`는 제목·라벨 메타 검색만 한다(§4.3.3).
+- 대화 제목 이벤트: `L1.persistence.spec` 소유다(`eng.context-map.design` §4.4 4행). 이 층은 `fresnel.session`의 제목 변경 API를 부르기만 한다(§4.3).
+- 대화 본문 전문 검색(FTS): `knowledge.search` 소유다(`eng.context-map.design` §4.1 knowledge 행 "세션 검색 FTS"). 이 층의 `search`는 제목·라벨 메타 검색만 한다(§4.3.3).
 - 공유 링크: 보류(§4.6).
 
 ### 1.1 소유 경계표
@@ -45,32 +45,32 @@ binds: [xeon/packages/cap-artifacts/**]
 | 이 층이 소유하는 것 | 호출만 하는 것 (소유자) | 다른 층이 소유하는 것 |
 |---|---|---|
 | 산출물 레코드(kind, 제목, 버전, 출처, 메타)와 `artifact.registered`·`artifact.updated`·`artifact.archived` | blob 쓰기·읽기 `fresnel.store` blob API (`L0.store.spec`, `sys_blobs`) | blob 저장 위치, fsync 순서, 정리(`L0.store.spec`) |
-| 산출물 kind 목록과 미리보기 메타 스키마 | 세션 커밋 `fresnel.session` `SessionWriter.commit` (`L1.persistence.spec`, TX-07) | 미리보기 렌더링과 화면(L4) |
+| 산출물 kind 목록과 미리보기 메타 스키마 | 대화 커밋 `fresnel.session` `SessionWriter.commit` (`L1.persistence.spec`, TX-07) | 미리보기 렌더링과 화면(L4) |
 | 리뷰 상태(hunk 분할, 결정, 코멘트, 라운드)와 `artifact.review_*` 이벤트 | 승인 요청 `fresnel.approvals` (`L1.tools.spec`) | 승인 프로토콜과 `approval.*` 이벤트(L1.tools) |
 | diff 정규화와 hunk ID 규칙 | workspace 도구 결과 `details`의 diff (`L2.workspace.spec`) | 파일 쓰기 도구와 그 결과 형식(L2.workspace) |
 | 코멘트를 에이전트 입력으로 만드는 규칙과 멱등 키 | 입력 큐 `fresnel.tasks` post (`L1.tasks.spec`) | 입력 큐, 전달 모드, `input.*` 이벤트(L1.tasks) |
 | 거절 hunk의 역패치 계산 | 파일 되돌림 `workspace.files` 또는 L1 복원 ([미결] §4.2.5) | 체크포인트와 되감기, 파일 상태 복원(L1.persistence) |
-| 세션 라벨과 `artifact.session_labeled` | 제목 변경 `fresnel.session` retitle (`L1.persistence.spec`) | 제목 이벤트(`session.retitled`)와 `thread.info.after` 지점 디스패치(L1·X) |
+| 대화 라벨과 `artifact.session_labeled` | 제목 변경 `fresnel.session` retitle (`L1.persistence.spec`) | 제목 이벤트(`session.retitled`)와 `thread.info.after` 훅 디스패치(L1·X) |
 | 자동 제목 생성 시점과 프롬프트 | 소형 모델 호출 `fresnel.models` 용도 라우팅 (`L1.models.spec`) | 모델 라우팅과 용도 이름(L1.models) |
-| 메타 목록·검색(제목, 라벨, 산출물 수) | 없음 | 세션 본문 전문 검색(`knowledge.search`) |
-| 핸드오프 패키지 형식(2차) | 세션 생성 `fresnel.session`, 입력 post `fresnel.tasks` | 컴팩션 요약 생성(`L1.context.spec`) |
+| 메타 목록·검색(제목, 라벨, 산출물 수) | 없음 | 대화 본문 전문 검색(`knowledge.search`) |
+| 핸드오프 패키지 형식(2차) | 대화 생성 `fresnel.session`, 입력 post `fresnel.tasks` | 컴팩션 요약 생성(`L1.context.spec`) |
 | Markdown·HTML 렌더러와 내보내기 필터(2차) | 이벤트 읽기 `fresnel.session` 피드 | JSONL 내보내기(L1.persistence) |
 
 ## 2. 용어
 
 | 용어 | 뜻 |
 |---|---|
-| 산출물 (artifact) | 세션에서 만들어져 이름과 종류를 붙여 등록한 결과물. 본문은 blob 하나다 |
+| 산출물 (artifact) | 대화에서 만들어져 이름과 종류를 붙여 등록한 결과물. 본문은 blob 하나다 |
 | kind | 산출물 종류. 미리보기 방식을 고르는 열쇠다. 내장 7종과 확장 접두 종류가 있다(§3.1) |
 | 버전 (version) | 산출물 본문·제목·메타의 판 번호. 등록이 1이고 갱신마다 1씩 늘어난다 |
-| 출처 (origin) | 산출물을 만든 세션(`threadId`), 턴(`turnId`), 도구 호출(`toolCallId`), 생산자 |
+| 출처 (origin) | 산출물을 만든 대화(`threadId`), 턴(`turnId`), 도구 호출(`toolCallId`), 생산자 |
 | 리뷰 (review) | 파일 변경 묶음 하나에 대한 승인 절차. 변경 묶음은 `changeset` 산출물로 함께 등록한다 |
 | hunk | 통합 diff(unified diff)의 `@@` 블록 하나 |
 | 라운드 (round) | 리뷰 결정과 코멘트를 에이전트에게 한 번 전달하는 단위. 제출(submit)마다 1씩 늘어난다 |
 | 역패치 | 거절한 hunk의 변경을 되돌리는 패치. hunk의 old/new를 바꾼 것이다 |
-| 핸드오프 (handoff) | 한 세션의 요약·계획·산출물 참조를 묶어 새 세션의 시작 입력으로 넘기는 일 |
-| 세션 | `F.conversation.spec`의 thread. ID 타입은 `ThreadId`다. 이 문서의 "세션"은 모두 thread다 |
-| `CallContext` | 서비스 호출을 일으킨 세션·턴·도구 호출·호출자 정보. L2 공통 F 변경 요청이다(§3.5, `L2.readme` §5.8) |
+| 핸드오프 (handoff) | 한 대화의 요약·계획·산출물 참조를 묶어 새 대화의 시작 입력으로 넘기는 일 |
+| 대화 | `F.conversation.spec`의 thread. ID 타입은 `ThreadId`다. 이 문서의 "세션"은 모두 thread다 |
+| `CallContext` | 서비스 호출을 일으킨 대화·턴·도구 호출·호출자 정보. L2 공통 F 변경 요청이다(§3.5, `L2.readme` §5.8) |
 
 ## 3. 인터페이스
 
@@ -375,7 +375,7 @@ export const ArtifactsRegistry = defineCapability({
 export const ArtifactsRegistryKey = serviceKey(ArtifactsRegistry);
 ```
 
-- `replay: "safe"`의 근거: `register`·`update`·`archive`는 커밋할 때 `CallOptions.requestId`를 세션 커밋의 멱등 키로 쓴다(§4.1.3). 같은 키로 다시 부르면 저장된 결과가 돌아오고 이벤트가 늘지 않는다(`eng.transactions.design` §4.7 결과 저장 규칙). 도구 경로의 `requestId`는 `toolCallId`에서 결정적으로 만들어지므로(`F.capabilities.spec` §4.2 규칙 3) 재실행이 효과를 두 번 내지 않는다. 그룹 코드가 `requestId` 없이 부르면 멱등이 보장되지 않는다. 그 경우 provider는 `requestId`를 `art:<새 ULID>`로 만들고 경고 로그를 남긴다 [제안].
+- `replay: "safe"`의 근거: `register`·`update`·`archive`는 커밋할 때 `CallOptions.requestId`를 대화 커밋의 멱등 키로 쓴다(§4.1.3). 같은 키로 다시 부르면 저장된 결과가 돌아오고 이벤트가 늘지 않는다(`eng.transactions.design` §4.7 결과 저장 규칙). 도구 경로의 `requestId`는 `toolCallId`에서 결정적으로 만들어지므로(`F.capabilities.spec` §4.2 규칙 3) 재실행이 효과를 두 번 내지 않는다. 그룹 코드가 `requestId` 없이 부르면 멱등이 보장되지 않는다. 그 경우 provider는 `requestId`를 `art:<새 ULID>`로 만들고 경고 로그를 남긴다 [제안].
 - `artifact_update` 도구의 `meta`는 `summary`만 바꾼다. 도구 경로에서 `toInput`은 `meta`를 `{ summary }`로 통째로 바꾸므로 기존 `tags`·`sources`가 사라진다. [제안] provider는 도구 경로(`producer: "model"` 또는 `CallContext.toolCallId`가 있는 호출)의 `meta`를 기존 메타와 `summary` 필드만 병합한다. 서비스 경로는 §3.2 주석대로 전체 교체다.
 - `artifact_create`의 `kind`는 텍스트로 만들 수 있는 4종으로 줄였다. `changeset`은 리뷰가, `file`·`image`는 서비스 경로가 등록한다.
 
@@ -822,10 +822,10 @@ export const ArtifactsSessionsKey = serviceKey(ArtifactsSessions);
 
 ### 3.5 `CallContext`
 
-[제안] 도구 경로의 `toInput`은 순수 함수라 현재 세션 ID를 알 수 없다. 그런데 `register`, `open`, `setMeta`, `handoff`는 대상 세션이 필요하다. 이 문서는 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`(`threadId`, `turnId`, `toolCallId`, `caller: CallerInfo`)를 쓴다(`L2.readme` §5.8).
+[제안] 도구 경로의 `toInput`은 순수 함수라 현재 대화 ID를 알 수 없다. 그런데 `register`, `open`, `setMeta`, `handoff`는 대상 대화가 필요하다. 이 문서는 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`(`threadId`, `turnId`, `toolCallId`, `caller: CallerInfo`)를 쓴다(`L2.readme` §5.8).
 
 - 해석 규칙(`L2.readme` §5.8과 같다): 입력의 `threadId`가 있으면 그것을 쓴다. 없으면 `options.context.threadId`를 쓴다. 둘 다 없으면 `invalid_input`이다.
-- 입력 `threadId`와 `context.threadId`가 다르면 입력을 따르되, 도구 경로(`context.toolCallId`가 있음)에서는 다른 세션을 대상으로 할 수 없다. 이 경우 `denied`다 [제안]. 모델이 다른 세션의 산출물을 만들거나 제목을 바꾸지 못하게 하려는 것이다.
+- 입력 `threadId`와 `context.threadId`가 다르면 입력을 따르되, 도구 경로(`context.toolCallId`가 있음)에서는 다른 대화를 대상으로 할 수 없다. 이 경우 `denied`다 [제안]. 모델이 다른 대화의 산출물을 만들거나 제목을 바꾸지 못하게 하려는 것이다.
 - 호출한 확장 이름은 `context.caller.extension`이다. 도구 경로면 `context.caller.kind`가 `"model"`이다.
 
 ### 3.6 이벤트 카탈로그 (`artifact.*`)
@@ -845,8 +845,8 @@ export const ArtifactsSessionsKey = serviceKey(ArtifactsSessions);
 | `artifact.review_submitted` | 예 | `ReviewSubmittedPayloadSchema` | 라운드 확정과 전달 키 기록 | 1차 |
 | `artifact.review_closed` | 예 | `ReviewClosedPayloadSchema` | `close` | 1차 |
 | `artifact.session_labeled` | 예 | `SessionLabeledPayloadSchema` | `setMeta`의 라벨 변경 | 1차 |
-| `artifact.handoff_sent` | 예 | `HandoffSentPayloadSchema` | 원본 세션에 기록 | 2차 |
-| `artifact.handoff_received` | 예 | `HandoffReceivedPayloadSchema` | 새 세션에 기록 | 2차 |
+| `artifact.handoff_sent` | 예 | `HandoffSentPayloadSchema` | 원본 대화에 기록 | 2차 |
+| `artifact.handoff_received` | 예 | `HandoffReceivedPayloadSchema` | 새 대화에 기록 | 2차 |
 <!-- catalog:artifact:end -->
 
 ```ts
@@ -940,7 +940,7 @@ export interface HandoffReceivedPayload {
 
 ### 3.7 투영 (`cap.artifacts`)
 
-[제안] 투영기 이름은 `cap.artifacts`, 버전 1이다(`eng.events.design` §5.1 규칙 5). 관심 type은 `artifact.*` 전부와 세션 메타를 복사하기 위한 L1 이벤트(세션 생성, 제목 이벤트, 세션 닫힘)다. 투영기는 다른 컨텍스트의 이벤트를 읽을 수 있고 다른 컨텍스트의 테이블은 읽지 않는다(`eng.events.design` §5.1 규칙 6). 그래서 세션 제목을 `p_sessions`에서 조인하지 않고 제목 이벤트에서 자기 테이블로 복사한다.
+[제안] 투영기 이름은 `cap.artifacts`, 버전 1이다(`eng.events.design` §5.1 규칙 5). 관심 type은 `artifact.*` 전부와 대화 메타를 복사하기 위한 L1 이벤트(대화 생성, 제목 이벤트, 대화 닫힘)다. 투영기는 다른 컨텍스트의 이벤트를 읽을 수 있고 다른 컨텍스트의 테이블은 읽지 않는다(`eng.events.design` §5.1 규칙 6). 그래서 대화 제목을 `p_sessions`에서 조인하지 않고 제목 이벤트에서 자기 테이블로 복사한다.
 
 ```sql
 CREATE TABLE cap_artifacts_items (
@@ -1035,9 +1035,9 @@ CREATE TABLE cap_artifacts_labels (
 |---|---|---|
 | `cap_artifacts_items`, `cap_artifacts_versions` | `artifact.registered`, `artifact.updated`, `artifact.archived` | 예 |
 | `cap_artifacts_reviews`, `cap_artifacts_review_hunks`, `cap_artifacts_review_comments` | `artifact.review_*` | 예 |
-| `cap_artifacts_sessions`, `cap_artifacts_labels` | L1 세션 생성·제목·닫힘 이벤트, `artifact.session_labeled`, `artifact.registered`(개수), `artifact.handoff_received` | 예 |
+| `cap_artifacts_sessions`, `cap_artifacts_labels` | L1 대화 생성·제목·닫힘 이벤트, `artifact.session_labeled`, `artifact.registered`(개수), `artifact.handoff_received` | 예 |
 
-- 모든 테이블이 `session_id` 열을 두므로 세션 삭제 때 session-core가 이 투영기의 `ddl`에 선언된 테이블에서 그 세션 행을 지운다(`eng.context-map.design` §5.2 둘째 항목).
+- 모든 테이블이 `session_id` 열을 두므로 대화 삭제 때 session-core가 이 투영기의 `ddl`에 선언된 테이블에서 그 대화 행을 지운다(`eng.context-map.design` §5.2 둘째 항목).
 - 투영은 순수 함수다. 시각은 envelope의 `recordedAt`만 쓴다(`eng.events.design` EV-06). `artifact_count`는 `artifact.registered`마다 1 늘리고 보관해도 줄이지 않는다.
 - 목록 커서는 `(updated_at, artifact_id)` 쌍을 base64url로 묶은 불투명 문자열이다. 재생성 뒤에도 같은 값이 나오므로 커서가 유지된다.
 
@@ -1114,7 +1114,7 @@ export const ARTIFACTS_CAPABILITIES = [ArtifactsRegistry, ArtifactsReviews, Arti
 
 #### 4.1.2 등록 순서
 
-1. 입력을 검사한다. 대상 세션은 §3.5 규칙으로 정한다.
+1. 입력을 검사한다. 대상 대화는 §3.5 규칙으로 정한다.
 2. 본문을 blob으로 만든다. `inline`은 UTF-8로 인코딩해 `BlobApi.put`, `file`은 `fresnel.exec`의 `ExecutionEnv`로 읽어 `put`, `blob`은 `get`으로 존재와 크기를 확인한다. 크기가 `l2.artifacts.maxContentBytes`를 넘으면 `content_too_large`다.
 3. `fresnel.session.commit`으로 `artifact.registered` 하나를 커밋한다. `requestId`는 §4.1.3이다. 상한(`l2.artifacts.maxPerSession`) 검사는 커밋의 `build` 단계에서 자기 투영 테이블을 읽어 한다 [가정: L1.persistence가 build 안의 읽기를 허용]. 넘으면 커밋을 거부하고 `artifact_limit_reached`다.
 4. 커밋 결과(`replayed` 포함)로 `ArtifactSummary`를 투영 테이블에서 읽어 돌려준다.
@@ -1137,8 +1137,8 @@ export const ARTIFACTS_CAPABILITIES = [ArtifactsRegistry, ArtifactsReviews, Arti
 #### 4.1.4 보관과 한도
 
 - `archive`는 상태만 바꾼다. 이벤트와 blob은 지우지 않는다. 이벤트 원장은 불변이기 때문이다(`eng.events.design` EV-01).
-- 보관 기한(`l2.artifacts.retentionDays`)이 0보다 크면, 세션을 열 때 기한이 지난 `active` 산출물을 `artifact.archived { reason: "retention" }`으로 보관한다. 판정 시각은 provider가 주입받은 `Clock`으로 커밋 전에 계산한다(TX-06).
-- 보관된 산출물의 blob을 실제로 지우는 일은 L0.store blob 정리(참조 계산)에 맡긴다. 이벤트가 blob을 참조하는 한 지워지지 않는다. 그래서 보관은 디스크 공간을 줄이지 않는다. 공간 회수는 세션 삭제나 L1.persistence의 정리 기능이 한다 [가정].
+- 보관 기한(`l2.artifacts.retentionDays`)이 0보다 크면, 대화를 열 때 기한이 지난 `active` 산출물을 `artifact.archived { reason: "retention" }`으로 보관한다. 판정 시각은 provider가 주입받은 `Clock`으로 커밋 전에 계산한다(TX-06).
+- 보관된 산출물의 blob을 실제로 지우는 일은 L0.store blob 정리(참조 계산)에 맡긴다. 이벤트가 blob을 참조하는 한 지워지지 않는다. 그래서 보관은 디스크 공간을 줄이지 않는다. 공간 회수는 대화 삭제나 L1.persistence의 정리 기능이 한다 [가정].
 - 메타 JSON은 16 KiB 이하다. 넘으면 `invalid_input`이다.
 
 #### 4.1.5 `work.plans`의 계획 등록 경로
@@ -1167,10 +1167,10 @@ await registry.register(
 #### 4.1.6 M3b 구현 결정 [결정: 오케스트레이터 기본값]
 
 - 상한, 버전 충돌, 보관 검사는 커밋 `build` 안에서 거부 계획으로 한다. 같은 `requestId`의 재시도는 저장된 결과를 받으므로 거부된 재시도도 새 이벤트를 만들지 않는다.
-- 상한은 세션의 `artifact.registered` 수로 센다. 보관된 산출물도 센다. 보관은 이벤트와 blob을 지우지 않기 때문이다.
-- 목록은 `threadId`를 생략하면 모든 세션을 본다. 기본 상태는 `active`이고 정렬은 최근 갱신(`updatedAt`) 순, 같은 시각이면 `artifactId` 순이다. 커서는 오프셋 문자열이다.
+- 상한은 대화의 `artifact.registered` 수로 센다. 보관된 산출물도 센다. 보관은 이벤트와 blob을 지우지 않기 때문이다.
+- 목록은 `threadId`를 생략하면 모든 대화를 본다. 기본 상태는 `active`이고 정렬은 최근 갱신(`updatedAt`) 순, 같은 시각이면 `artifactId` 순이다. 커서는 오프셋 문자열이다.
 - `updatedAt`은 마지막 `artifact.updated`의 `recordedAt`이다. 보관은 갱신이 아니므로 바꾸지 않는다.
-- 도구 경로의 갱신은 호출한 세션의 산출물에만 한다. 다른 세션이면 `denied`다(§5 6번을 갱신에도 적용한다).
+- 도구 경로의 갱신은 호출한 대화의 산출물에만 한다. 다른 대화이면 `denied`다(§5 6번을 갱신에도 적용한다).
 - 줄 수는 끝의 줄바꿈을 세지 않는다. 빈 본문은 0줄이다. CSV의 `rows`는 머리 줄을 포함한다. 이 계산은 근사다.
 - `file` 본문은 `file_unreadable`로 거부한다. 파일 읽기 경로(`fresnel.exec`)는 아직 없다 [미결].
 - 저장소 실패는 `unavailable`이다. 잠깐 막힌 경우(`busy`)만 `retryable`이다.
@@ -1283,7 +1283,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 #### 4.2.7 자동 리뷰 요청
 
-- 설정 `l2.artifacts.reviews.autoRequest`가 `"turnEnd"`이면 provider는 `boundary.settle.after` 지점(F.extensions.spec #26, tap)에서 그 턴에 workspace 쓰기 도구 결과가 있었는지 보고 `open({ changes: { type: "turn", turnId }, requestApproval: true })`를 부른다. `requestId`는 `review:auto:<turnId>`다.
+- 설정 `l2.artifacts.reviews.autoRequest`가 `"turnEnd"`이면 provider는 `boundary.settle.after` 훅(F.extensions.spec #26, tap)에서 그 턴에 workspace 쓰기 도구 결과가 있었는지 보고 `open({ changes: { type: "turn", turnId }, requestApproval: true })`를 부른다. `requestId`는 `review:auto:<turnId>`다.
 - 기본값은 `"off"`다. 매 턴 리뷰 요청은 사용 흐름을 끊기 때문이다.
 
 #### 4.2.8 M3b 구현 결정 [결정: 오케스트레이터 기본값]
@@ -1301,7 +1301,7 @@ export const ReviewAnswerSchema = Type.Object({
 - 재시작 때 해결됐으나 반영하지 못한 승인은 다시 처리하지 않는다 [미결].
 - 검토 승인에 `allow`로 답하면 L1.tools의 응답 검사(`validateResponse`, 허용 결정은 `answer`·`deny`뿐)가 `decision_not_allowed`로 거부한다. 응답이 해결로 기록되지 않으므로 이 기능은 `allow`를 받지 않는다 [결정: L1.tools.spec §3.6].
 
-### 4.3 세션 제목과 메타
+### 4.3 대화 제목과 메타
 
 #### 4.3.1 제목
 
@@ -1311,7 +1311,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 #### 4.3.2 자동 제목
 
-- 트리거: 세션의 첫 turn이 정착할 때(`boundary.settle.after`, #26, `dispatch: detached` 핸들러) 세션 제목이 없고 `l2.artifacts.autoTitle.enabled`가 참이면 만든다. 이후 턴에서는 만들지 않는다 [제안]. 제목이 붙은 세션의 주제가 바뀌어도 사용자가 고치기 전에는 그대로 둔다.
+- 트리거: 대화의 첫 turn이 정착할 때(`boundary.settle.after`, #26, `dispatch: detached` 핸들러) 대화 제목이 없고 `l2.artifacts.autoTitle.enabled`가 참이면 만든다. 이후 턴에서는 만들지 않는다 [제안]. 제목이 붙은 대화의 주제가 바뀌어도 사용자가 고치기 전에는 그대로 둔다.
 - 모델: `fresnel.models`에 용도(purpose) `l2.artifacts.autoTitle.purpose`(기본 `"title"`)로 요청한다. 용도 이름에서 실제 모델로 가는 라우팅은 `L1.models.spec`이 정한다(opencode의 요청 종류 `title`, `_research/refs/opencode.md` 169행). 입력은 첫 사용자 메시지 앞 2,000자와 첫 어시스턴트 텍스트 앞 1,000자다. 도구 결과와 첨부는 넣지 않는다.
 - 출력 처리: 한 줄, 60자 이하로 자르고, 앞뒤 따옴표와 마침표를 지운다. 비면 제목을 붙이지 않는다.
 - 기록: `retitle({ title, source: "auto", onlyIfUntitled: true }, { requestId: "retitle:auto:<turnId>" })`. `onlyIfUntitled`는 모델 호출 중에 사용자가 이름을 붙였을 때 덮어쓰지 않게 하려는 조건이다 [가정: L1.persistence가 이 조건을 커밋 안에서 검사].
@@ -1321,39 +1321,39 @@ export const ReviewAnswerSchema = Type.Object({
 #### 4.3.3 라벨과 메타 검색
 
 - 라벨은 이 기능이 소유한다. `setMeta.labels`의 `set`·`add`·`remove`를 적용한 결과 전체를 `artifact.session_labeled { labels }`로 커밋한다. 라벨은 NFC로 정규화하고 앞뒤 공백을 지운다. 32개가 상한이다.
-- `search`는 제목과 라벨만 본다. 비교는 NFC 정규화 뒤 대소문자 무시 부분 문자열(SQLite `instr(lower(...))`, ASCII 범위만 소문자화)이다. FTS를 쓰지 않는다. 그래서 `knowledge.search`의 세션 본문 색인과 겹치지 않는다.
-- 경계 [제안]: 대화 내용으로 세션을 찾는 기능은 `knowledge.search`다. L4 세션 목록 화면이 두 결과를 함께 보여 줄 수 있지만, artifacts는 knowledge를 호출하지 않는다(`L2.readme` §6에 이 간선이 없다). knowledge도 라벨을 색인하지 않는다.
+- `search`는 제목과 라벨만 본다. 비교는 NFC 정규화 뒤 대소문자 무시 부분 문자열(SQLite `instr(lower(...))`, ASCII 범위만 소문자화)이다. FTS를 쓰지 않는다. 그래서 `knowledge.search`의 대화 본문 색인과 겹치지 않는다.
+- 경계 [제안]: 대화 내용으로 대화를 찾는 기능은 `knowledge.search`다. L4 대화 목록 화면이 두 결과를 함께 보여 줄 수 있지만, artifacts는 knowledge를 호출하지 않는다(`L2.readme` §6에 이 간선이 없다). knowledge도 라벨을 색인하지 않는다.
 
-#### 4.3.4 `thread.info.after` 지점과의 관계
+#### 4.3.4 `thread.info.after` 훅과의 관계
 
-- `thread.info.after`(F.extensions.spec #31, session, tap, `dispatch: detached`)는 세션 정보(이름 등)가 바뀐 뒤 확장에게 알리는 관찰 지점이다. pi에서는 세션 이름 변경 뒤 발사된다(`types.ts:750`).
-- [제안] 이 지점의 디스패치는 제목 이벤트를 쓴 L1(session-core가 커밋한 뒤 X가 디스패치)이 한다. artifacts는 이 지점을 발사하지 않는다. 자동 제목이든 `session_rename`이든 같은 L1 경로를 타므로 지점이 한 번만 발사된다.
-- artifacts는 이 지점에 핸들러를 달지 않는다. 투영이 제목 이벤트를 직접 읽기 때문이다. 지점 핸들러로 상태를 만들면 재생 때 다시 실행되지 않는다(`eng.events.design` EV-08).
-- 라벨 변경은 이 지점을 발사하지 않는다 [제안]. `SessionInfoChangedPayload`에 라벨을 넣을지는 §10 미결 7이다.
+- `thread.info.after`(F.extensions.spec #31, session, tap, `dispatch: detached`)는 대화 정보(이름 등)가 바뀐 뒤 확장에게 알리는 관찰 훅이다. pi에서는 대화 이름 변경 뒤 발사된다(`types.ts:750`).
+- [제안] 이 훅의 디스패치는 제목 이벤트를 쓴 L1(session-core가 커밋한 뒤 X가 디스패치)이 한다. artifacts는 이 훅을 발사하지 않는다. 자동 제목이든 `session_rename`이든 같은 L1 경로를 타므로 훅이 한 번만 발사된다.
+- artifacts는 이 훅에 핸들러를 달지 않는다. 투영이 제목 이벤트를 직접 읽기 때문이다. 훅 핸들러로 상태를 만들면 재생 때 다시 실행되지 않는다(`eng.events.design` EV-08).
+- 라벨 변경은 이 훅을 발사하지 않는다 [제안]. `SessionInfoChangedPayload`에 라벨을 넣을지는 §10 미결 7이다.
 
 #### 4.3.5 M3b 구현 결정 [결정: 오케스트레이터 기본값]
 
-- 라벨은 `artifact.session_labeled` 이벤트를 접어 얻는다. 같은 세션의 마지막 유효 이벤트가 이긴다. 투영 테이블은 두지 않는다. 목록과 찾기는 `artifact.registered`와 `artifact.session_labeled`를 한 번 읽어 모든 세션의 라벨과 산출물 수를 함께 접는다.
+- 라벨은 `artifact.session_labeled` 이벤트를 접어 얻는다. 같은 대화의 마지막 유효 이벤트가 이긴다. 투영 테이블은 두지 않는다. 목록과 찾기는 `artifact.registered`와 `artifact.session_labeled`를 한 번 읽어 모든 대화의 라벨과 산출물 수를 함께 접는다.
 - `setMeta`에서 `labels.set`은 `add`·`remove`와 함께 받지 않는다(`invalid_input`). 라벨이 바뀌지 않으면 이벤트를 쓰지 않는다. 같은 `requestId`의 재시도는 처음 요청의 변경을 지문으로 맞춰 새 이벤트를 만들지 않는다.
 - 제목은 `threads.setTitle(threadId, title, "retitle:<requestId>")`로만 쓴다. 이 기능은 `thread.updated`를 직접 커밋하지 않는다.
 - 제목 출처 [미결]: 제목 이벤트에 출처가 없어(§10 미결 2) 목록과 찾기는 제목이 있으면 `titleSource`를 `"user"`로 보인다. `setMeta` 응답만 호출 경로로 `"model"`(도구 경로)을 준다. 출처를 저장할 자리는 §10 미결 2에서 정한다.
 - 자동 제목(§4.3.2)과 보관 정리(`retentionDays`)는 구현하지 않는다 [미결]. 핸드오프와 내보내기는 2차다(§4.4, §4.5).
-- 목록은 닫히지 않은 세션만 본다(`threads.list`의 기본값). 정렬 시각이 같으면 `threadId` 오름차순이다. `threads.list`는 읽기가 실패하면 빈 쪽을 돌려주므로 목록도 비어 보일 수 있다 [미결].
+- 목록은 닫히지 않은 대화만 본다(`threads.list`의 기본값). 정렬 시각이 같으면 `threadId` 오름차순이다. `threads.list`는 읽기가 실패하면 빈 쪽을 돌려주므로 목록도 비어 보일 수 있다 [미결].
 - 찾기는 NFC 정규화 뒤 ASCII 대문자만 소문자로 바꾸고 부분 문자열로 비교한다(§4.3.3).
 
-### 4.4 세션 핸드오프 (2차)
+### 4.4 대화 핸드오프 (2차)
 
-1. 원본 세션을 정한다(§3.5). 원본의 현재 leaf 이벤트 id를 읽는다.
+1. 원본 대화를 정한다(§3.5). 원본의 현재 leaf 이벤트 id를 읽는다.
 2. 요약을 정한다.
    - 원본에 컴팩션 요약(`thread.compacted`, 또는 `eng.events.design`의 `compaction.recorded`)이 있고, 그 뒤 구간이 `l2.artifacts.handoff.reuseCompactionMaxTurns`(기본 3턴) 이하면 요약을 그대로 쓰고(`origin: "compaction"`), 뒤 구간이 있으면 그 구간만 소형 모델로 요약해 덧붙인다(`compaction+tail`).
    - 그 밖에는 `fresnel.models` 용도 `l2.artifacts.handoff.purpose`(기본 `"compaction"`)로 새로 요약한다(`generated`). 요약 프롬프트는 L1.context의 컴팩션 프롬프트를 재사용하지 않는다. 핸드오프 요약은 "다음 세션이 이어서 할 일" 중심이라 목적이 다르다 [제안].
    - 컴팩션 요약 재사용 근거: omp `/handoff`는 요약을 만든 뒤 컴팩션하고 Zed는 "요약으로 새 스레드"다(`_research/l2e.md` §3.3 C3). 재사용하면 모델 호출 한 번을 아낀다.
 3. 산출물 참조를 고른다. 기본은 원본의 `active` 산출물 전부(최대 128개, 최근 갱신 순)이고 각 최신 버전을 고정한다. 계획은 kind `plan` 산출물로 들어간다. artifacts는 work를 호출하지 않는다.
 4. `HandoffPackage`를 만들어 blob으로 쓴다.
-5. `fresnel.session.create`로 새 세션을 만든다. `requestId = handoff:<handoffId>:create`.
-6. 새 세션에 `artifact.handoff_received`를, 원본 세션에 `artifact.handoff_sent`를 커밋한다. 두 세션은 커밋이 따로다. 원본 쪽 기록이 빠져도 새 세션 쪽 기록이 원본 링크(`fromThreadId`, `fromLeafEventId`)를 갖는다.
-7. 새 세션에 `post({ kind: "user", content: 렌더한 패키지 }, { when: "next", requestId: "handoff:<handoffId>:input" })`. 렌더 형식은 요약, 산출물 목록(ID·제목·kind), 지시 순이다. 산출물 본문은 넣지 않는다. 모델은 필요할 때 `artifacts.registry.get`을 쓰지 않고 L4가 보여 준다. 모델용 산출물 읽기 도구는 두지 않는다 [제안: 필요해지면 `artifact_read` 도구를 추가].
-- 원본 세션은 바뀌지 않는다. 핸드오프는 분기(fork)와 다르다. 새 세션은 원본의 이벤트를 복사하지 않는다.
+5. `fresnel.session.create`로 새 대화를 만든다. `requestId = handoff:<handoffId>:create`.
+6. 새 대화에 `artifact.handoff_received`를, 원본 대화에 `artifact.handoff_sent`를 커밋한다. 두 대화는 커밋이 따로다. 원본 쪽 기록이 빠져도 새 대화 쪽 기록이 원본 링크(`fromThreadId`, `fromLeafEventId`)를 갖는다.
+7. 새 대화에 `post({ kind: "user", content: 렌더한 패키지 }, { when: "next", requestId: "handoff:<handoffId>:input" })`. 렌더 형식은 요약, 산출물 목록(ID·제목·kind), 지시 순이다. 산출물 본문은 넣지 않는다. 모델은 필요할 때 `artifacts.registry.get`을 쓰지 않고 L4가 보여 준다. 모델용 산출물 읽기 도구는 두지 않는다 [제안: 필요해지면 `artifact_read` 도구를 추가].
+- 원본 대화는 바뀌지 않는다. 핸드오프는 분기(fork)와 다르다. 새 대화는 원본의 이벤트를 복사하지 않는다.
 - 다른 기기·메신저로의 핸드오프(Hermes `/handoff`)는 상주 수준 2이고 범위 밖이다(`_research/l2e.md` §6 C3).
 
 ### 4.5 내보내기 (2차)
@@ -1369,7 +1369,7 @@ export const ReviewAnswerSchema = Type.Object({
 #### 4.5.2 결과 위치
 
 - `destination` 기본은 `blob`이다. blob ref를 돌려주고 L4가 저장 대화 상자로 파일을 쓴다. `file`이면 `ExecutionEnv`로 그 경로에 쓴다. 경로는 작업 공간 안이어야 한다.
-- 내보내기 결과를 산출물로 등록하지 않는다 [제안]. 내보내기는 세션 밖으로 가져가는 사본이라 세션 목록에 남길 이유가 적다.
+- 내보내기 결과를 산출물로 등록하지 않는다 [제안]. 내보내기는 대화 밖으로 가져가는 사본이라 대화 목록에 남길 이유가 적다.
 
 #### 4.5.3 웹 출처 캐시 정책 전파
 
@@ -1378,7 +1378,7 @@ export const ReviewAnswerSchema = Type.Object({
 | `cache` 값 | 내보내기에서 |
 |---|---|
 | `none` | 본문(발췌, 페이지 텍스트)을 넣지 않는다. 제목과 URL만 인용으로 남기고 `[본문 생략: 출처 약관]` 표시를 둔다. 수용 기준 5 |
-| `session` | 본문을 넣지 않는다 [제안]. 세션 안에서만 쓸 수 있는 값을 세션 밖 파일로 옮기는 일이기 때문이다. 확정은 §10 미결 8 |
+| `session` | 본문을 넣지 않는다 [제안]. 대화 안에서만 쓸 수 있는 값을 대화 밖 파일로 옮기는 일이기 때문이다. 확정은 §10 미결 8 |
 | `persist` | 그대로 넣는다 |
 
 - 적용 대상 1: web 도구 결과. `tool.settled`의 구조화 결과에 `sources[].usage.cache`가 있으면 그 결과의 passages를 위 표로 거른다 [가정: L2.web.spec의 결과 모양].
@@ -1399,7 +1399,7 @@ export const ReviewAnswerSchema = Type.Object({
 | 3 | 같은 `requestId`로 다른 내용 등록 | 커밋이 `key_reused`(`eng.transactions.design` §4.7)를 돌려준다. provider는 `internal`로 바꾸고 운영 로그에 남긴다 |
 | 4 | `update`의 `baseVersion`이 낡음 | `version_conflict`, `detail.latestVersion`. 도구 결과로 모델이 최신 버전을 다시 받는다 |
 | 5 | `file` 본문 경로가 작업 공간 밖이거나 보호 경로 | `denied`(L0.sandbox 판정). `file_unreadable`과 구별한다 |
-| 6 | 도구 경로에서 다른 세션 지정 | `denied`(§3.5) |
+| 6 | 도구 경로에서 다른 대화 지정 | `denied`(§3.5) |
 | 7 | diff 해석 실패 | `diff_unparsable`, `detail.line` |
 | 8 | 리뷰 열린 뒤 파일이 다시 바뀜 | 거절 적용 확인(§4.2.5 규칙 2)에서 `conflict`. 다른 hunk에는 영향이 없다 |
 | 9 | 같은 파일에 거절 hunk 둘, 하나만 충돌 | 그 파일 전체를 쓰지 않고 두 hunk 모두 `conflict`(§4.2.5 규칙 1) |
@@ -1409,7 +1409,7 @@ export const ReviewAnswerSchema = Type.Object({
 | 13 | 자동 제목 모델 호출 실패 | 건너뛴다. 오류를 사용자에게 보이지 않는다 |
 | 14 | 사용자가 이름을 붙이는 사이 자동 제목 도착 | `onlyIfUntitled`로 자동 제목이 적용되지 않는다 |
 | 15 | 투영 테이블 손상·버전 변경 | 열 때 `cap.artifacts` 투영기만 재생성한다(`eng.events.design` §5.4). 목록이 같다(수용 기준 1) |
-| 16 | 핸드오프 중 새 세션 생성 뒤 종료 | 재시도에서 `handoff:<handoffId>:create` 키로 같은 세션을 돌려받는다 [가정: L1.persistence create의 requestId 멱등]. 같은 `handoffId`를 쓰려면 호출자가 재시도 때 같은 `requestId`를 줘야 하고, `handoffId`는 `requestId`에서 결정적으로 만든다 |
+| 16 | 핸드오프 중 새 대화 생성 뒤 종료 | 재시도에서 `handoff:<handoffId>:create` 키로 같은 대화를 돌려받는다 [가정: L1.persistence create의 requestId 멱등]. 같은 `handoffId`를 쓰려면 호출자가 재시도 때 같은 `requestId`를 줘야 하고, `handoffId`는 `requestId`에서 결정적으로 만든다 |
 | 17 | 산출물이 상한에 도달 | `artifact_limit_reached`. 자동 보관은 하지 않는다 |
 | 18 | 확장 kind의 렌더러가 L4에 없음 | L4가 `mediaType` 기본 미리보기를 쓴다. 이 층은 처리하지 않는다 |
 
@@ -1442,7 +1442,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 ## 7. 훅
 
-| 지점 / 연산 | 이 기능의 쓰임 |
+| 훅 / 연산 | 이 기능의 쓰임 |
 |---|---|
 | `boundary.settle.after` (#26, tap) | 자동 제목(§4.3.2)과 자동 리뷰 요청(§4.2.7)의 트리거. 핸들러는 `dispatch: detached`로 등록하고 모델 호출은 커밋 밖에서 한다 |
 | `thread.info.after` (#31, tap) | 발사하지 않고 핸들러도 달지 않는다(§4.3.4) |
@@ -1461,10 +1461,10 @@ export const ReviewAnswerSchema = Type.Object({
 |---|---|
 | `ArtifactsRegistry`, `ArtifactsRegistryKey`, `ArtifactSummary`, `ArtifactKind` | `L2.work.spec`(계획 등록, optional), `L3.helm.spec`, `L4.desktop.spec`(산출물 패널) |
 | `ArtifactsReviews`, `ArtifactsReviewsKey`, `ReviewView`, `ReviewAnswerSchema` | `L4.desktop.spec`, `L4.cli.spec`(리뷰 화면), `L1.tools.spec`(승인 kind 요청), `L2.schedule.spec`(원격 승인 중계) |
-| `ArtifactsSessions`, `ArtifactsSessionsKey`, `HandoffPackage` | `L4.cli.spec`·`L4.desktop.spec`(세션 목록, `/rename`, `/export`, `/handoff`) |
+| `ArtifactsSessions`, `ArtifactsSessionsKey`, `HandoffPackage` | `L4.cli.spec`·`L4.desktop.spec`(대화 목록, `/rename`, `/export`, `/handoff`) |
 | `ArtifactService`, `ArtifactServiceName`, `ARTIFACTS_CAPABILITIES`(§3.9) | `L2.readme` §5.6, `X.primitives.spec` |
 | `ARTIFACT_EVENT_CATALOG`와 payload 타입 | `F.records.spec`(카탈로그 병합), `eng.events.design` §4.4(분류표 참조) |
-| 투영기 `cap.artifacts`와 `cap_artifacts_*` DDL | `L1.persistence.spec`(투영기 등록, 세션 삭제) |
+| 투영기 `cap.artifacts`와 `cap_artifacts_*` DDL | `L1.persistence.spec`(투영기 등록, 대화 삭제) |
 | 설정 그룹 `l2.artifacts` | `L4.settings-ui.spec` |
 
 요구:
@@ -1475,10 +1475,10 @@ export const ReviewAnswerSchema = Type.Object({
 | `CallOptions.context`(`CallContext`) | `F.capabilities.spec` §3.2 (§3.5, `L2.readme` §5.8) |
 | `BlobRef`, `BlobRefSchema`, `CatalogEntry`, kind 이름 규칙, `CoreArea`에 `artifact` 추가 | `F.records.spec` |
 | `ThreadIdSchema`, `TurnIdSchema`, `CheckpointIdSchema`, `ULID_PATTERN`, `LocalIdPrefix`(`art`·`rvw`·`cmt`·`hof`), `LocalIdFactory` | `F.conversation.spec` §3.2.1 |
-| `PostItem`, `PostOptions`, `PostReceipt`, `PostWhen`, 지점 #26·#31 | `F.extensions.spec` |
+| `PostItem`, `PostOptions`, `PostReceipt`, `PostWhen`, 훅 #26·#31 | `F.extensions.spec` |
 | `SettingDef`, `defineSettings` | `F.wire-settings.spec` |
 | blob API, `sys_blobs` | `L0.store.spec` |
-| `SessionWriter.commit`, 제목 변경 API, 세션 생성, 이벤트 읽기, 체크포인트 파일 상태, 복원 | `L1.persistence.spec` |
+| `SessionWriter.commit`, 제목 변경 API, 대화 생성, 이벤트 읽기, 체크포인트 파일 상태, 복원 | `L1.persistence.spec` |
 | 입력 post | `L1.tasks.spec` |
 | 승인 요청과 `approval.resolved`, `review` kind, 공통 승인 포트 모양 | `L1.tools.spec`, `L2.readme` §5.7 |
 | 용도 라우팅(`title`, `compaction`) | `L1.models.spec` |
@@ -1489,11 +1489,11 @@ export const ReviewAnswerSchema = Type.Object({
 
 ## 9. 수용 기준
 
-1. 한 세션에 산출물 3개를 등록하고 그중 하나를 2회 갱신, 하나를 보관한 뒤, `cap.artifacts` 투영 테이블을 모두 지우고 이벤트 재생으로 다시 만들면 `list({ status: "all" })` 결과(항목, 순서, 버전, 커서)가 재생 전과 같다. `expectProjectionsRebuildable`(`eng.events.design` §5.4)도 통과한다.
+1. 한 대화에 산출물 3개를 등록하고 그중 하나를 2회 갱신, 하나를 보관한 뒤, `cap.artifacts` 투영 테이블을 모두 지우고 이벤트 재생으로 다시 만들면 `list({ status: "all" })` 결과(항목, 순서, 버전, 커서)가 재생 전과 같다. `expectProjectionsRebuildable`(`eng.events.design` §5.4)도 통과한다.
 2. `setMeta({ title })`과 `session_rename` 도구 호출이 끝난 뒤 events 테이블에 L1 소유 제목 이벤트가 정확히 하나씩 있고, `producer`가 `cap.artifacts`인 이벤트 중 제목을 담은 것은 없다. `cap.artifacts` 생산자로 제목 이벤트 kind를 커밋하려 하면 접두사 소유 검사가 거부한다.
 3. 한 파일에 hunk 3개(f0h0, f0h1, f0h2)가 있는 리뷰에서 f0h1만 거절하고 제출하면, 파일 내용은 f0h1의 old 줄로 돌아가고 f0h0·f0h2의 new 줄은 그대로다. 다른 파일은 바뀌지 않는다. `artifact.review_applied`의 `outcomes`에 f0h1만 `reverted`로 있다.
 4. 같은 리뷰 라운드에 `submit`을 두 번 부르면(첫 호출 뒤 `review_submitted` 커밋 전에 실패를 주입한 경우 포함) `fresnel.tasks.post`가 받은 `requestId`가 둘 다 `review:<reviewId>:r<round>`이고, 입력 큐에 들어간 항목은 하나다(두 번째 `PostReceipt.duplicate`가 참).
-5. `cache: "none"`인 Source의 발췌가 담긴 web 도구 결과와 `meta.sources`에 `cache: "none"`이 있는 산출물을 가진 세션을 내보내면, 출력에 그 발췌 텍스트와 산출물 본문이 없고 URL·제목은 있으며 `omitted.sourceBodies`와 `omitted.artifacts`가 1 이상이다.
+5. `cache: "none"`인 Source의 발췌가 담긴 web 도구 결과와 `meta.sources`에 `cache: "none"`이 있는 산출물을 가진 대화를 내보내면, 출력에 그 발췌 텍스트와 산출물 본문이 없고 URL·제목은 있으며 `omitted.sourceBodies`와 `omitted.artifacts`가 1 이상이다.
 6. `ArtifactsRegistry`, `ArtifactsReviews`, `ArtifactsSessions` 세 정의 각각에 `validateCapability`를 돌리면 이슈가 0건이고(경고 포함), 세 정의와 다른 L2 정의를 함께 넣은 `validateCapabilitySet`에 `tool_name_conflict`가 없다.
 
 ## 10. 미결 사항

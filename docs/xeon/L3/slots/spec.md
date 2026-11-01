@@ -25,7 +25,7 @@ binds: []
 정하는 것:
 
 - 새 사상을 그룹으로 만들지 판정하는 기준, 그룹 추가 체크리스트, 외부 그룹의 공존·신뢰·설정 규칙(3.1절, 4.1절)
-- 정책 플러그인의 구조 규칙과 정식 예 3종: 검토 강제(`reviewgate`), 커밋 전 검증(`commitguard`), 가드레일 지점 예(`guardrail`)(3.2절, 4.2절)
+- 정책 플러그인의 구조 규칙과 정식 예 3종: 검토 강제(`reviewgate`), 커밋 전 검증(`commitguard`), 가드레일 훅 예(`guardrail`)(3.2절, 4.2절)
 - 그룹 템플릿의 파일 목록, 종류 3개(drive, policy, observe)와 골격 코드, 이름 규칙, 템플릿 색인 형식, 생성 명령의 요구 인터페이스(3.3절, 4.3절)
 
 다루지 않는 것:
@@ -39,13 +39,13 @@ binds: []
 정식 예의 위치:
 
 - [제안] 정책 예 3종은 제품 기능이 아니다. 템플릿과 `group-sdk`의 정책 경로를 검증하는 테스트 fixture다. 기본 배포에 넣지 않고 `group-sdk`의 `testing` 서브패스 아래에 둔다(`L3.slots.plan` §2).
-- [결정: review.m3-design-inputs D-M3-30] 코어에 내장 콘텐츠 검사는 두지 않는다. 대신 F·X가 fail-closed 가드레일 지점 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 둔다(ADR-0017). 검사는 이 지점에 붙는 플러그인이 한다. 이 문서의 `guardrail`은 그 지점을 쓰는 예다.
+- [결정: review.m3-design-inputs D-M3-30] 코어에 내장 콘텐츠 검사는 두지 않는다. 대신 F·X가 fail-closed 가드레일 훅 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 둔다(ADR-0017). 검사는 이 훅에 붙는 플러그인이 한다. 이 문서의 `guardrail`은 그 훅을 쓰는 예다.
 
 ## 2. 용어
 
 | 용어 | 뜻 |
 |---|---|
-| 플러그인 그룹 | `kind: "group"`, `layer: "L3"`인 확장. scope 하나로 지점 핸들러, post, drive, 상태를 묶어 켜고 끈다(`F.extensions.spec` §2) |
+| 플러그인 그룹 | `kind: "group"`, `layer: "L3"`인 확장. scope 하나로 훅 핸들러, post, drive, 상태를 묶어 켜고 끈다(`F.extensions.spec` §2) |
 | 제2의 플러그인 그룹 | Helm, 학습 그룹 밖에 사용자가 추가하는 플러그인 그룹 |
 | 외부 그룹 | 저장소의 `xeon/packages` 밖에서 설치되는 그룹. 설정 네임스페이스는 `ext.<id>.`다 |
 | 정책 플러그인 | drive 없이 `on`과 `post`만 쓰는 작은 확장. 상태·레코드·토글 필요에 따라 `kind: "group"` 또는 `kind: "plugin"`이다(4.2절) |
@@ -53,7 +53,7 @@ binds: []
 | 정식 예 | 이 문서가 정한 정책 플러그인 3종. 템플릿 검증용 fixture |
 | 그룹 템플릿 | 새 그룹 패키지의 최소 골격 파일 묶음. 종류는 drive, policy, observe |
 | 템플릿 색인 | 템플릿 종류별 파일 목록과 치환 자리를 적은 JSON(`templates/index.json`) |
-| 단계 경계 | Fresnel step 종료 직후(도구 결과 커밋 뒤). 켜기·끄기와 임대 교대가 적용되는 시점이다(`F.extensions.spec` §4.5) [결정: review.decisions-2 U-01] |
+| 단계 경계 | Fresnel step 종료 직후(도구 결과 커밋 뒤). 켜기·끄기와 drive 락 교대가 적용되는 시점이다(`F.extensions.spec` §4.5) [결정: review.decisions-2 U-01] |
 
 ## 3. 인터페이스
 
@@ -85,14 +85,14 @@ binds: []
 | C4 | 쓰는 레코드 kind를 `recordKinds`에 `RecordKindDecl`로 선언한다. 형식은 `grp.<id>.<영역>.<이름>`이다. 읽는 kind는 `readsRecordKinds`에 둔다 | `validateManifest`(`record_kind_prefix`), `validateUsage`(`record_kind_undeclared`, `read_kind_undeclared`) |
 | C5 | 설정 키는 `ext.<id>.<이름>`만 쓴다. `enabled`, `isolation`은 선언하지 않는다(X 로더 예약) | `buildCatalog`(`foreignNamespace`, `duplicateKey`) |
 | C6 | 단위 테스트: 각 핸들러의 결정·패치, 켜기·끄기, 설정 기본값 | `bun test` |
-| C7 | 재생 테스트: drive 그룹이면 `replayDrive`로 모든 커밋 지점에서 끊고 재개한다 | `replayDrive`(`L3.group-sdk.spec`) |
+| C7 | 재생 테스트: drive 그룹이면 `replayDrive`로 모든 커밋 시점에서 끊고 재개한다 | `replayDrive`(`L3.group-sdk.spec`) |
 | C8 | 다른 그룹 패키지를 import하지 않는다. 기능은 `requires`·`optional`과 `g.capability(ServiceKey)`로 쓴다 | check-layers `DR-02`, `validateUsage`(`capability_undeclared`) |
 | C9 | `contracts`, `ext-host`, `platform-*`, `core-*`를 수정하지 않는다 | 변경 diff 검사(`product.vision.spec` S1) |
 
 #### 3.1.3 공존 규칙
 
-- [결정] drive 임대는 한 번에 그룹 하나만 가진다. on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4).
-- [제안] drive 그룹이 둘 이상 켜지면 임대는 `DriveArbiter`(`L3.group-sdk.spec`)의 정책과 `x.primitives.activeDriveGroup` 설정에 따라 한 그룹에 간다. 임대를 받지 못한 그룹은 대기하고, 그동안 on 핸들러와 post는 동작한다. 대기와 거부 가운데 기본 동작의 확정은 `L3.group-sdk.spec`의 [미결]을 따른다.
+- [결정] drive 락은 한 번에 그룹 하나만 가진다. on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4).
+- [제안] drive 그룹이 둘 이상 켜지면 drive 락은 `DriveArbiter`(`L3.group-sdk.spec`)의 정책과 `x.primitives.activeDriveGroup` 설정에 따라 한 그룹에 간다. drive 락을 받지 못한 그룹은 대기하고, 그동안 on 핸들러와 post는 동작한다. 대기와 거부 가운데 기본 동작의 확정은 `L3.group-sdk.spec`의 [미결]을 따른다.
 - [결정] 그룹 사이 통신은 F4 스키마가 있는 레코드로만 한다(`F.extensions.spec` §4.8). 다른 그룹의 비공개 상태와 기록(`x_<id>_*` 테이블, `grp.<id>.state.committed`, `recordPrivate`로 쓴 `grp.<id>.*`)은 읽지 않는다.
 - 핸들러 실행 순서(tier)는 `X.primitives.spec`이 정한다. 새 그룹은 순서에 기대는 동작을 만들지 않는다 [제안]. 예: first 훅에서 다른 그룹보다 먼저 결정해야 동작하는 정책.
 
@@ -104,7 +104,7 @@ binds: []
 
 #### 3.1.5 제2의 Helm 예시
 
-[제안] 가상 그룹 `focuslens`는 긴 작업 중 목표에서 벗어난 탐색을 줄이는 사상이다. `input.agent.before`(collect)로 현재 목표 요약을 시스템 프롬프트 끝에 더하고, `tool.execution.after`(tap)로 목표와 무관한 도구 사용 횟수를 메모리에 세어 `boundary.settle.after`(tap)에서 turn당 한 번 상태에 커밋하며(L3.helm.spec §4.3, §7과 같은 관찰 권장안), 그 수가 `ext.focuslens.driftLimit`를 넘으면 `post`(`when: "next"`)로 목표 재확인 입력을 한 번 넣는다. drive는 쓰지 않으므로 policy 템플릿에서 시작하고, Helm이 켜져 있어도 임대 경쟁 없이 함께 동작한다. 레코드 `grp.focuslens.drift.detected`를 공개하면 Helm은 `readsRecordKinds`로 읽을 수 있다. 이 변경은 `group-focuslens` 패키지(또는 외부 디렉터리) 하나만 더하고 코어 diff는 0이다.
+[제안] 가상 그룹 `focuslens`는 긴 작업 중 목표에서 벗어난 탐색을 줄이는 사상이다. `input.agent.before`(collect)로 현재 목표 요약을 시스템 프롬프트 끝에 더하고, `tool.execution.after`(tap)로 목표와 무관한 도구 사용 횟수를 메모리에 세어 `boundary.settle.after`(tap)에서 turn당 한 번 상태에 커밋하며(L3.helm.spec §4.3, §7과 같은 관찰 권장안), 그 수가 `ext.focuslens.driftLimit`를 넘으면 `post`(`when: "next"`)로 목표 재확인 입력을 한 번 넣는다. drive는 쓰지 않으므로 policy 템플릿에서 시작하고, Helm이 켜져 있어도 drive 락 경쟁 없이 함께 동작한다. 레코드 `grp.focuslens.drift.detected`를 공개하면 Helm은 `readsRecordKinds`로 읽을 수 있다. 이 변경은 `group-focuslens` 패키지(또는 외부 디렉터리) 하나만 더하고 코어 diff는 0이다.
 
 ### 3.2 정책 플러그인
 
@@ -117,10 +117,10 @@ binds: []
 | P1 | 매니페스트 `usesDrive: false`. `drive`를 호출하지 않는다 |
 | P2 | 상태는 선택이다. 상태가 있으면 `kind: "group"`으로 둔다(4.2.1) |
 | P3 | 쓰는 연산은 `on`과 `post`다. 레코드 공개가 필요하면 `record`를 더한다 |
-| P4 | 지점 fold별 용도: tap은 관찰, first는 차단, chain은 형성(`F.extensions.spec` §2, `_research/layer-plan-v2-notes.md` 훅 절) |
+| P4 | 훅 fold별 용도: tap은 관찰, first는 차단, chain은 형성(`F.extensions.spec` §2, `_research/layer-plan-v2-notes.md` 훅 절) |
 | P5 | 훅 종류 5종(input, request, tool, boundary, session) 모두 쓸 수 있다. 정식 예는 input, tool, boundary 훅을 쓴다 |
 | P6 | 핸들러는 다시 실행해도 되는 질의다. 외부 효과는 `post`(멱등 키 필수), `commit`, `record`로만 낸다(`F.extensions.spec` §4.3) |
-| P7 | first 핸들러의 예외는 그 지점의 거부값(`FIRST_DENY`)이 된다. 정책은 의도하지 않은 거부를 막으려면 예외를 안에서 잡고 결정으로 바꾼다 |
+| P7 | first 핸들러의 예외는 그 훅의 거부값(`FIRST_DENY`)이 된다. 정책은 의도하지 않은 거부를 막으려면 예외를 안에서 잡고 결정으로 바꾼다 |
 
 #### 3.2.2 정식 예 1: 검토 강제 (`reviewgate`)
 
@@ -129,7 +129,7 @@ binds: []
 | 항목 | 값 |
 |---|---|
 | 매니페스트 | `name: "reviewgate"`, `kind: "group"`, `layer: "L3"`, `usesDrive: false`, `usesPost: true`, `points: ["tool.result", "boundary.settle.before", "boundary.settle.after"]` |
-| 지점과 fold | `tool.result`(chain, 패치 없음: 쓰기 도구 결과 관찰 후 상태 커밋), `boundary.settle.before`(chain: `{ continue: true }` 패치), `boundary.settle.after`(tap: 상태 초기화 커밋) |
+| 훅과 fold | `tool.result`(chain, 패치 없음: 쓰기 도구 결과 관찰 후 상태 커밋), `boundary.settle.before`(chain: `{ continue: true }` 패치), `boundary.settle.after`(tap: 상태 초기화 커밋) |
 | post | `kind: "context"`, `customType: "grp.reviewgate.review.requested"`, `when: "steer"`, `requestId: "reviewgate:<turnId>"` |
 | 실패 정책 | chain 예외는 그 핸들러의 패치만 버린다(skip). 그 턴은 검토 없이 정착한다. tap 예외는 기록 후 계속한다 |
 | 설정 키 | `ext.reviewgate.writeTools`(문자열 목록, 기본 `["write", "edit"]`), `ext.reviewgate.prompt`(문자열), `ext.reviewgate.mode`(`"continue"`\|`"followUp"`, 기본 `"continue"`) |
@@ -196,7 +196,7 @@ export const reviewgate: GroupModule = defineGroup<ReviewState>({
 | 항목 | 값 |
 |---|---|
 | 매니페스트 | `name: "commitguard"`, `kind: "group"`, `layer: "L3"`, `usesDrive: false`, `points: ["tool.call.before", "tool.result"]` |
-| 지점과 fold | `tool.call.before`(first: 커밋 호출 거부), `tool.result`(chain, 패치 없음: 검증 성공과 쓰기 관찰 후 상태 커밋) |
+| 훅과 fold | `tool.call.before`(first: 커밋 호출 거부), `tool.result`(chain, 패치 없음: 검증 성공과 쓰기 관찰 후 상태 커밋) |
 | post | 쓰지 않는다. 거부 사유는 `ToolCallDecision.reason`으로 모델에 돌아간다 |
 | 실패 정책 | first 예외는 거부(`FIRST_DENY.tool_call`, fail-closed). 그래서 판정 함수가 던지면 커밋은 막힌다. chain 예외는 그 관찰만 버린다(검증 성공을 놓치면 다음 커밋도 거부된다. 안전한 쪽으로 실패한다) |
 | 설정 키 | `ext.commitguard.verifyCommand`(문자열, 기본 `"just verify"`), `ext.commitguard.commitPattern`(정규식 문자열, 기본 `"^\\s*git\\s+commit\\b"`), `ext.commitguard.invalidateOn`(문자열 목록, 기본 `["write", "edit"]`) |
@@ -245,32 +245,32 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
 - 한계 [가정]: `bash`로 파일을 바꾸는 경우는 `invalidateOn`에 잡히지 않는다. fixture는 이 한계를 테스트로 고정하지 않는다. 실제 정책으로 쓰려면 작업 트리 지문을 상태에 두는 방식이 필요하다.
 - 상태가 필요하므로 `kind: "group"`이다(4.2.1).
 
-#### 3.2.4 정식 예 3: 가드레일 지점 예 (`guardrail`)
+#### 3.2.4 정식 예 3: 가드레일 훅 예 (`guardrail`)
 
-[결정: review.m3-design-inputs D-M3-30] 입출력 가드레일은 내장 검사 없이 지점만 둔다. 지점 셋의 이름, fold, 실패 정책은 ADR-0017과 `F.extensions.spec` §3.4가 정한다. 이 절은 그 지점을 쓰는 플러그인의 설계 골격과 fixture 수준 동작만 정한다.
+[결정: review.m3-design-inputs D-M3-30] 입출력 가드레일은 내장 검사 없이 훅만 둔다. 훅 셋의 이름, fold, 실패 정책은 ADR-0017과 `F.extensions.spec` §3.4가 정한다. 이 절은 그 훅을 쓰는 플러그인의 설계 골격과 fixture 수준 동작만 정한다.
 
-| 가드레일 지점 | 시점 | fold | 실패 |
+| 가드레일 훅 | 시점 | fold | 실패 |
 |---|---|---|---|
-| 모델 요청 가드 | provider 요청을 보내기 직전. 다른 `request` 지점의 패치가 모두 적용된 최종 요청을 받는다 | first(차단 결정) | fail-closed |
-| 도구 호출 가드 | 도구 실행 직전. `tool.call.before` 지점의 결정 뒤 실행이 남은 호출만 받는다 [제안] | first(차단 결정) | fail-closed |
+| 모델 요청 가드 | provider 요청을 보내기 직전. 다른 `request` 훅의 패치가 모두 적용된 최종 요청을 받는다 | first(차단 결정) | fail-closed |
+| 도구 호출 가드 | 도구 실행 직전. `tool.call.before` 훅의 결정 뒤 실행이 남은 호출만 받는다 [제안] | first(차단 결정) | fail-closed |
 | 출력 가드 | 모델 출력이 사용자에게 표시되거나 다른 실행 경로(명령, 산출물 적용)로 넘어가기 직전 | first(차단 결정) | fail-closed |
 
 - 훅 이름은 ADR-0017의 자체 이름 규칙으로 M3 F 첫 작업이 정한다. 아래 코드는 F 상수 `GUARD_HOOKS`(`request`, `tool`, `output`) [제안]로 이름을 가리킨다.
-- 가드 지점의 결정은 차단 하나다(`{ block: true, reason }`). 값을 바꾸지 않는다. 핸들러 예외와 결정 스키마 위반은 차단으로 처리한다.
+- 가드 훅의 결정은 차단 하나다(`{ block: true, reason }`). 값을 바꾸지 않는다. 핸들러 예외와 결정 스키마 위반은 차단으로 처리한다.
 
 참고한 사실과 판정 모델(`_research/item-catalog.md` 121~123행, `_research/ext-points.md` §4.5):
 
 - pi, Claude Code, Codex CLI에는 내장 콘텐츠 가드레일이 없다. 훅·확장 이벤트와 권한·샌드박스로 막는다. OpenAI Agents SDK는 가드레일 프레임워크를 둔다.
-- Agents SDK 가드레일 종류는 input, output, tool-input, tool-output 넷이다. 이 문서의 지점 셋은 input을 모델 요청 가드, tool-input을 도구 호출 가드, output을 출력 가드에 대응시킨다. tool-output은 도구 결과가 다음 모델 요청에 들어가므로 모델 요청 가드에서 본다.
+- Agents SDK 가드레일 종류는 input, output, tool-input, tool-output 넷이다. 이 문서의 훅 셋은 input을 모델 요청 가드, tool-input을 도구 호출 가드, output을 출력 가드에 대응시킨다. tool-output은 도구 결과가 다음 모델 요청에 들어가므로 모델 요청 가드에서 본다.
 - 판정은 통과, 트립와이어, 불명 3값이다. 검사기 예외는 거부와 구분해 "불명"으로 둔다(item-catalog 123행).
-- 도구를 쓰는 에이전트는 선행 차단을 기본으로 한다(item-catalog 121행). Fresnel의 on 디스패치는 순차 await이므로 가드 지점의 검사는 선행 차단이다.
+- 도구를 쓰는 에이전트는 선행 차단을 기본으로 한다(item-catalog 121행). Fresnel의 on 디스패치는 순차 await이므로 가드 훅의 검사는 선행 차단이다.
 
 | 항목 | 값 |
 |---|---|
-| 매니페스트 | `name: "guardrail"`, `kind: "plugin"`, `layer: "plugin"`, `usesDrive: false`, `usesPost: true`, `points`: 가드 지점 셋 |
-| 지점과 fold | 세 가드 지점 모두 first. 트립와이어면 차단 |
+| 매니페스트 | `name: "guardrail"`, `kind: "plugin"`, `layer: "plugin"`, `usesDrive: false`, `usesPost: true`, `points`: 가드 훅 셋 |
+| 훅과 fold | 세 가드 훅 모두 first. 트립와이어면 차단 |
 | post | 모델 요청 차단 때 `kind: "context"`, `customType: "x.guardrail.request.blocked"`, `when: "next"`, `requestId: "guardrail:request:<요청 해시>"`로 차단 사유를 알린다 [제안] |
-| 실패 정책 | 검사 함수 예외는 핸들러 안에서 `unknown` 판정으로 바꾼다. `unknown`의 처리는 `ext.guardrail.onUnknown`(기본 `"deny"`)이다. 핸들러 자체가 던지면 지점 규칙대로 차단이다 |
+| 실패 정책 | 검사 함수 예외는 핸들러 안에서 `unknown` 판정으로 바꾼다. `unknown`의 처리는 `ext.guardrail.onUnknown`(기본 `"deny"`)이다. 핸들러 자체가 던지면 훅 규칙대로 차단이다 |
 | 설정 키 | `ext.guardrail.patterns`(정규식 문자열 목록), `ext.guardrail.onUnknown`(`"deny"`\|`"allow"`, 기본 `"deny"`), `ext.guardrail.checkRequest`, `ext.guardrail.checkTool`, `ext.guardrail.checkOutput`(불리언, 기본 `true`) |
 | 수용 기준 | 패턴에 걸린 모델 요청은 보내지 않는다. 패턴에 걸린 도구 호출은 실행되지 않는다. 패턴에 걸린 출력은 표시·실행되지 않는다. 검사 함수 예외 시 `onUnknown: "deny"`이면 차단, `"allow"`이면 통과한다 |
 
@@ -518,7 +518,7 @@ export const __ID__Settings: SettingGroup<"ext.__ID__", { blockedTools: SettingD
 ```
 
 - drive 템플릿은 `"usesDrive": true`, `"points": ["boundary.settle.after"]`, observe 템플릿은 `"points": ["boundary.settle.after"]`, `"recordKinds"`에 `grp.__ID__.turn.counted` 선언을 둔다.
-- 관찰 지점 권장안 [제안]: 관찰은 tap 훅(`boundary.settle.after`, 도구 단위가 필요하면 `tool.execution.after`)에서 하고 상태 커밋은 turn당 한 번(`boundary.settle.after`)으로 둔다. `boundary.step.after`는 chain이고 경계 엔트리를 다루는 지점이라 관찰 자리로 쓰지 않는다(`L3.helm.spec` §7, `L3.group-sdk.spec` §4.5 4번).
+- 관찰 훅 권장안 [제안]: 관찰은 tap 훅(`boundary.settle.after`, 도구 단위가 필요하면 `tool.execution.after`)에서 하고 상태 커밋은 turn당 한 번(`boundary.settle.after`)으로 둔다. `boundary.step.after`는 chain이고 경계 엔트리를 다루는 훅이라 관찰 자리로 쓰지 않는다(`L3.helm.spec` §7, `L3.group-sdk.spec` §4.5 4번).
 - `plugin.json` JSON import에는 템플릿 `tsconfig.json`의 `resolveJsonModule`이 필요하다 [가정: `tsconfig.base.json`이 켜 두지 않으면 템플릿 쪽에서 켠다].
 - [제안] 템플릿의 `defaultEnabled`는 `false`다. 새 그룹은 사용자가 켜기 전에는 루프에 영향을 주지 않는다.
 
@@ -540,7 +540,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 });
 ```
 
-- `replayDrive`의 입력(`ReplayDriveOptions`: `group`, `tape`, `cutAt` 등)과 결과(`ReplayDriveReport`: `commits`, `baselineDigest`, `cuts`, `ok`)는 `L3.group-sdk.spec` §3.10이 정한다. 모든 커밋 지점에서 끊고 재개했을 때 정규화 이벤트열이 끊지 않은 실행과 같으면 `ok`가 참이다. 테이프 도우미 `t`, `tape`는 `eng.testing.guide` TS-04의 이름이다.
+- `replayDrive`의 입력(`ReplayDriveOptions`: `group`, `tape`, `cutAt` 등)과 결과(`ReplayDriveReport`: `commits`, `baselineDigest`, `cuts`, `ok`)는 `L3.group-sdk.spec` §3.10이 정한다. 모든 커밋 시점에서 끊고 재개했을 때 정규화 이벤트열이 끊지 않은 실행과 같으면 `ok`가 참이다. 테이프 도우미 `t`, `tape`는 `eng.testing.guide` TS-04의 이름이다.
 
 `package.json`:
 
@@ -557,7 +557,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 - `fresnel` 필드는 저장소 안 그룹일 때 check-layers가 쓴다(`architecture.layers.spec` §3 규칙 3). 저장소 안에 넣으면 routes.yaml layout L3에 도메인을 더해야 `fresnel.domain` 검사를 통과한다. 이것은 문서 변경이고 코어 코드 변경은 아니다 [제안].
 
-- [결정: B4-GRP 구현] 생성 결과가 `bun test`를 통과하도록 골격을 다음과 같이 맞췄다. 자세한 목록은 `L3.slots.plan` §8이다. (1) 식별자에는 이름을 넣지 않는다(`stateSchema`, `settings`). 그룹 이름에는 하이픈이 올 수 있어 `__ID__State` 같은 식별자가 성립하지 않는다. (2) drive는 `loop.budget.turns === 0`으로 멈추지 않고 커밋된 단계 수로 멈춘다. 임대의 남은 예산은 임대마다 새로 정해지므로 재생 복원 뒤 임대 경계가 달라지고 이벤트열 비교가 깨진다. (3) `loop.turn`에는 커밋된 상태에서 정한 `requestId`를 준다(ADR-0015 §3.4). (4) 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 위 본문의 `tape`, `cutAt` 인자는 아직 없다.
+- [결정: B4-GRP 구현] 생성 결과가 `bun test`를 통과하도록 골격을 다음과 같이 맞췄다. 자세한 목록은 `L3.slots.plan` §8이다. (1) 식별자에는 이름을 넣지 않는다(`stateSchema`, `settings`). 그룹 이름에는 하이픈이 올 수 있어 `__ID__State` 같은 식별자가 성립하지 않는다. (2) drive는 `loop.budget.turns === 0`으로 멈추지 않고 커밋된 단계 수로 멈춘다. drive 락의 남은 예산은 drive 락마다 새로 정해지므로 재생 복원 뒤 drive 락 경계가 달라지고 이벤트열 비교가 깨진다. (3) `loop.turn`에는 커밋된 상태에서 정한 `requestId`를 준다(ADR-0015 §3.4). (4) 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 위 본문의 `tape`, `cutAt` 인자는 아직 없다.
 
 #### 3.3.6 생성 명령의 요구 인터페이스
 
@@ -581,7 +581,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 - 새 그룹은 3.1.2 체크리스트 C1~C9를 모두 통과해야 기본 그룹과 같은 경로로 로드된다.
 - [결정] 켜기·끄기는 단계 경계에서 적용되고 정리는 Cordis dispose로 실행된다(`F.extensions.spec` §4.5). 새 그룹도 예외가 없다.
-- 새 그룹의 drive 등록만으로 임대가 생기지 않는다(`F.extensions.spec` §4.6). 임대는 `DriveArbiter`와 `x.primitives.activeDriveGroup`으로 정해진다.
+- 새 그룹의 drive 등록만으로 drive 락이 생기지 않는다(`F.extensions.spec` §4.6). drive 락은 `DriveArbiter`와 `x.primitives.activeDriveGroup`으로 정해진다.
 - 새 그룹을 제거하면 그 그룹의 `x_<id>_*` 테이블은 DROP되고 `grp.<id>.*` 이벤트(상태 이벤트, 비공개 기록, 공개 레코드)는 이벤트 로그에 남는다(`eng.context-map.design` §5.2). 다른 그룹의 `readRecords`는 기존 레코드를 계속 읽는다(`F.extensions.spec` §5 8).
 
 ### 4.2 정책 플러그인
@@ -616,13 +616,13 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 #### 4.2.4 guardrail 동작
 
-1. 각 가드 지점에서 대상 텍스트를 검사 함수에 넘기고 판정 3값을 얻는다. 예외는 `unknown`으로 바꾼다.
+1. 각 가드 훅에서 대상 텍스트를 검사 함수에 넘기고 판정 3값을 얻는다. 예외는 `unknown`으로 바꾼다.
 2. `tripwire`, 또는 `unknown`이면서 `onUnknown: "deny"`인 경우 차단한다. 모델 요청은 보내지 않고, 도구 호출은 실행하지 않고, 출력은 표시·실행하지 않는다.
-3. 검사는 순차 await 디스패치 안에서 실행되므로 선행 차단이다. 병렬 모드(Agents SDK `runInParallel`)는 두지 않는다 [제안]. 병렬 실행은 지점 필드로 새어 나오는 설정이라 4연산 단순화 결정과 맞지 않기 때문이다(`_research/ext-points.md` §4.5 시사점).
-4. 가드 지점은 fail-closed다 [결정: review.m3-design-inputs D-M3-30, adr.0017]. 핸들러 예외나 시간 초과는 차단으로 처리한다.
+3. 검사는 순차 await 디스패치 안에서 실행되므로 선행 차단이다. 병렬 모드(Agents SDK `runInParallel`)는 두지 않는다 [제안]. 병렬 실행은 훅 필드로 새어 나오는 설정이라 4연산 단순화 결정과 맞지 않기 때문이다(`_research/ext-points.md` §4.5 시사점).
+4. 가드 훅은 fail-closed다 [결정: review.m3-design-inputs D-M3-30, adr.0017]. 핸들러 예외나 시간 초과는 차단으로 처리한다.
 5. 모델 분류기를 가드 핸들러에서 부를 수 있다. 핸들러는 재실행될 수 있으므로 같은 입력에 같은 판정을 내도록 판정 결과를 입력 해시로 기억해 두는 방식을 권한다 [제안].
 
-기본 경로 비용: 가드 지점에 핸들러가 없으면 비용이 없다. 플러그인을 켜면 모델 요청, 도구 호출, 출력마다 검사 함수가 실행된다. 패턴 검사는 텍스트 길이에 비례한다. 모델 분류기를 쓰면 지점마다 모델 호출이 더해진다.
+기본 경로 비용: 가드 훅에 핸들러가 없으면 비용이 없다. 플러그인을 켜면 모델 요청, 도구 호출, 출력마다 검사 함수가 실행된다. 패턴 검사는 텍스트 길이에 비례한다. 모델 분류기를 쓰면 훅마다 모델 호출이 더해진다.
 
 ### 4.3 템플릿 생성 규칙
 
@@ -668,16 +668,16 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 ## 7. 훅
 
-| 구성요소 | on (지점, fold) | post | drive | scope |
+| 구성요소 | on (훅, fold) | post | drive | scope |
 |---|---|---|---|---|
 | drive 템플릿 | `boundary.settle.after`(tap, 관찰 자리) | 선택 | 씀 | 상태 있음 |
 | policy 템플릿 | `tool.call.before`(first) | 선택 | 안 씀 | 상태 없음(생략 가능, `L3.group-sdk.spec` §3.2) |
 | observe 템플릿 | `boundary.settle.after`(tap) | 안 씀 | 안 씀 | 상태 있음, 레코드 씀 |
 | reviewgate | `tool.result`(chain), `boundary.settle.before`(chain), `boundary.settle.after`(tap) | 씀 | 안 씀 | 상태 있음 |
 | commitguard | `tool.call.before`(first), `tool.result`(chain) | 안 씀 | 안 씀 | 상태 있음 |
-| guardrail | 가드 지점 셋(first, fail-closed) | 씀 | 안 씀 | 상태 없음(plugin) |
+| guardrail | 가드 훅 셋(first, fail-closed) | 씀 | 안 씀 | 상태 없음(plugin) |
 
-- 훅 이름과 fold는 `F.extensions.spec` §3.4 표를 따른다. 정식 예가 쓰는 지점은 `boundary.settle.after`를 빼면 모두 M1 정확화 지점이다(`input.user.before`, `tool.call.before`, `tool.result`, `boundary.settle.before`; `boundary.settle.after`도 M1 ●). `guardrail`이 쓰는 가드 지점 셋은 M3 F 작업이 더한다(ADR-0017).
+- 훅 이름과 fold는 `F.extensions.spec` §3.4 표를 따른다. 정식 예가 쓰는 훅은 `boundary.settle.after`를 빼면 모두 M1 정확화 훅이다(`input.user.before`, `tool.call.before`, `tool.result`, `boundary.settle.before`; `boundary.settle.after`도 M1 ●). `guardrail`이 쓰는 가드 훅 셋은 M3 F 작업이 더한다(ADR-0017).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -706,7 +706,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 ## 9. 수용 기준
 
 1. policy 템플릿으로 만든 그룹이 `contracts`·`ext-host` 수정 없이 로드되고, `ext.<id>.enabled`로 켜고 끌 수 있다. 끈 다음 단계 경계 뒤에는 그 그룹의 first 핸들러가 호출되지 않는다.
-2. drive 템플릿으로 만든 그룹의 `test/replay.test.ts`가 통과한다. 모든 커밋 지점에서 끊고 재개한 효과 열이 끊지 않은 실행과 같다.
+2. drive 템플릿으로 만든 그룹의 `test/replay.test.ts`가 통과한다. 모든 커밋 시점에서 끊고 재개한 효과 열이 끊지 않은 실행과 같다.
 3. 세 템플릿이 만든 매니페스트가 모두 `validateManifest`를 오류 없이 통과한다.
 4. 정식 예 3종이 테이프 시나리오(fixture 수준)로 동작한다.
    - reviewgate: 쓰기 도구를 쓴 턴에서 검토 post가 정확히 한 번 들어가고, 같은 `requestId`의 두 번째 post는 `duplicate: true`다.
@@ -720,7 +720,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 - [결정: 오케스트레이터 기본값] 템플릿 파일 위치는 `xeon/packages/group-sdk/templates/`다(3.3.1). `eng.context-map.design` C-2의 문서 쪽 반영은 그 문서의 몫이다.
 - [미결] 정책 플러그인의 group/plugin 구분 기준의 최종 확정(4.2.1).
-- (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 지점 셋으로 바꿨다(ADR-0017, 3.2.4절, 4.2.4절). 모델 분류기 사용은 4.2.4 5번의 [제안]이다.
+- (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 훅 셋으로 바꿨다(ADR-0017, 3.2.4절, 4.2.4절). 모델 분류기 사용은 4.2.4 5번의 [제안]이다.
 - [미결] 외부 그룹의 신뢰 등급 값 집합과 다른 그룹 import를 X 로더가 거부할지(`X.loading-trust.spec`, `F.extensions.spec` §10).
 - [미결] 생성 명령 `fresnel group new`의 소유 문서. 이 문서는 실행을 `L4.cli.spec`에 두고 요구 R1~R6만 정한다. 매니페스트 형식(`plugin.json` 또는 `manifest.ts`) 선택 옵션도 함께 정한다.
 - [결정: review.decisions-2 U-18] 새 그룹 이름 규칙: `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음). `eng.context-map.design` CM-07·C-6과 F `ExtensionName` 정정은 그 문서 쪽 변경이다.

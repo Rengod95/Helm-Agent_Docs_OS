@@ -28,8 +28,8 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 | L0-a | exec | `platform-exec` | `fresnel.exec`(`ExecService`, `ExecutionEnv` 확장) | pi durable `/env` 포크. 파일·셸 연산의 실행 위치(로컬, Docker 어댑터)를 추상화한다 | M0. Docker 어댑터는 M2 이후, 작업 트리 격리는 2차, SSH 원격 워크스페이스는 보류 | [spec](exec/spec.md), [plan](exec/plan.md) |
 | L0-b | sandbox | `platform-sandbox` | `fresnel.sandbox`(`SandboxService`) | `@anthropic-ai/sandbox-runtime`(srt)로 셸 명령을 Seatbelt·bubblewrap 안에서 실행한다 | M1(OS 샌드박스, 보호 경로). 네트워크 정책·권한 프로필은 2차 | [spec](sandbox/spec.md), [plan](sandbox/plan.md) |
 | L0-c | secrets | `platform-secrets` | `fresnel.secrets`(`SecretService`) | SOPS + age. 에이전트는 `secret://<name>` 참조만 다루고 값은 실행 직전 부모 프로세스에서 풀린다 | M1(SOPS 참조 1종, lease, 에이전트 env 모드 M1(bash, 실행마다 승인)과 사용 모드 M3, 마스킹 계층 2·4·5). 관리 서비스 `fresnel.secretAdmin`, 값 열람 CLI, M4는 M2. sentinel은 후속 | [spec](secrets/spec.md), [plan](secrets/plan.md) |
-| L0-d | process | `platform-process` | `fresnel.process`(`ProcessService`) | 엔진 전송, 자식 엔진 수명 임대, 백그라운드 프로세스 레지스트리, 공유 서비스 모드 | M1(in-process, 백그라운드 레지스트리). stdio 전송·자식 수명 임대는 M2, 공유 서비스 모드는 제품 1차 범위이고 구현은 M2 이후. 원격 사용(서비스 소켓을 SSH 터널·사설망으로 연결)은 M3. OS 서비스 등록과 내장 TLS 원격 전송은 2차 | [spec](process/spec.md), [plan](process/plan.md) |
-| L0-e | store | `platform-store` | `fresnel.store`(`StoreService`) | `bun:sqlite` 단일 DB(WAL, 단계 경계 FULL), 세션 소유 잠금, 블롭 저장소 | M0(세션 잠금 포함). 블롭은 M1 | [spec](store/spec.md), [plan](store/plan.md) |
+| L0-d | process | `platform-process` | `fresnel.process`(`ProcessService`) | 엔진 전송, 자식 엔진 수명 프로세스 락, 백그라운드 프로세스 레지스트리, 공유 서비스 모드 | M1(in-process, 백그라운드 레지스트리). stdio 전송·자식 수명 프로세스 락은 M2, 공유 서비스 모드는 제품 1차 범위이고 구현은 M2 이후. 원격 사용(서비스 소켓을 SSH 터널·사설망으로 연결)은 M3. OS 서비스 등록과 내장 TLS 원격 전송은 2차 | [spec](process/spec.md), [plan](process/plan.md) |
+| L0-e | store | `platform-store` | `fresnel.store`(`StoreService`) | `bun:sqlite` 단일 DB(WAL, 단계 경계 FULL), 대화 소유 잠금, 블롭 저장소 | M0(대화 잠금 포함). 블롭은 M1 | [spec](store/spec.md), [plan](store/plan.md) |
 | L0-f | os | `platform-os` | `fresnel.os`(`OsService`) | 플랫폼 정보, 디렉터리, 시각·타이머·난수, 로거, 외부 바이너리, 알림·파일 감시·텔레메트리 | M0(경로·시각·ID 발급기 등 기반). 바이너리 해석은 1차(M1). 알림 전달 수단은 1차(M3). 감시·텔레메트리는 2차(M2 이후) | [spec](os/spec.md), [plan](os/plan.md) |
 
 - 서비스 이름과 인터페이스 이름은 `eng.context-map.design` §5.3과 `F.capabilities.spec` §3.12 표가 정본이다. exec의 F 인터페이스는 `ExecService`(`ExecutionEnv` 확장, `withCwd`·`startBackground` 추가)이고, process의 `ProcessService`는 X 포트 `ProcessPort`를 확장한다(`F.extensions.spec` §3.2.1) [결정: review.decisions-2 D-04].
@@ -53,14 +53,14 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 
 | 도메인 | M0 | M1 | M2 이후(제품 1차 범위) | 2차·후속·보류 |
 |---|---|---|---|---|
-| exec | 포크 5파일·적합성(Linux), CancelScope·Result·오류 클래스 정리, 플랫폼 provider(darwin·linux), 포크 기록 | env 허용 목록 빌더, `fresnel.exec` 서비스 등록, sandbox 데코레이터 접점 시험, `fakeExec`·`memoryFs`, macOS 적합성, 시크릿 주입 지점 `secretEnv`(U-19) | 백그라운드 실행 `startBackground`, Docker 어댑터, Windows provider 보강 | 작업 트리 격리(2차), SSH 원격 워크스페이스(보류) |
+| exec | 포크 5파일·적합성(Linux), CancelScope·Result·오류 클래스 정리, 플랫폼 provider(darwin·linux), 포크 기록 | env 허용 목록 빌더, `fresnel.exec` 서비스 등록, sandbox 데코레이터 접점 시험, `fakeExec`·`memoryFs`, macOS 적합성, 시크릿 주입 훅 `secretEnv`(U-19) | 백그라운드 실행 `startBackground`, Docker 어댑터, Windows provider 보강 | 작업 트리 격리(2차), SSH 원격 워크스페이스(보류) |
 | sandbox | SB-01 스파이크만(M0 끝) | srt 래핑, 상태 탐지, 보호 경로, 자동 허용 판정, 자가 시험, `onUnavailable`, 위반 기록, `fakeSandbox` | — | 네트워크 정책(2차, M2 이후), 권한 프로필·오프라인 검증(2차), Windows 재평가, 프록시 훅(후속, sentinel 모드) |
 | secrets | 코드 없음(F 타입 선행) | SOPS 제공자(목록·lease), 메타 읽기, lease, 에이전트 env 모드 `withEnv`(사용 모드 M1), 사용 모드 M3(`withHttp`), `Redactor` 규칙 1~3, 마스킹 계층 2·4·5, sops 호출 env 필터, 감사 훅, 키 획득(Linux·파일 폴백), `diagnose`, `protectedPaths`, `memorySecrets` | 관리 서비스 `fresnel.secretAdmin`(값 열람 `reveal` 포함, CLI M2·데스크톱 화면 M3), 사용 모드 M4, 마스킹 5계층 전체, 키체인 3 OS 실기, 감사 파일 | sentinel 모드(후속), 1Password·Bitwarden·키체인 값 제공자 플러그인 |
-| process | — | in-process 전송, 백그라운드 레지스트리, 종료 협조 골격, `fresnel.process` 등록 | stdio 전송과 적합성 스위트, 자식 엔진 수명 임대, 잠금 실패 정책, 복구 표식 제시, `ProcessPort.run`(외부 훅)(M2). 공유 서비스 모드(M2 이후). 원격 사용(SSH 터널·사설망, M3) | OS 서비스 등록, 내장 TLS 원격 전송, Windows 전송 대안, `ProcessPort.spawn`(격리 확장 자식)(2차) |
-| store | 연결·PRAGMA, FTS5 프로브, 트랜잭션, 접두사 검사, sys v1·v2, 마이그레이션 실행기, 세션 잠금(flock + epoch), `openTestStore` | 블롭(sys v3), 확장 접두사 테이블, 장애 주입 시험, fullfsync 측정 | 블롭 GC, 청크 마이그레이션, Windows `LockProvider`, macOS 동봉 SQLite | — |
+| process | — | in-process 전송, 백그라운드 레지스트리, 종료 협조 골격, `fresnel.process` 등록 | stdio 전송과 적합성 스위트, 자식 엔진 수명 프로세스 락, 잠금 실패 정책, 복구 표식 제시, `ProcessPort.run`(외부 훅)(M2). 공유 서비스 모드(M2 이후). 원격 사용(SSH 터널·사설망, M3) | OS 서비스 등록, 내장 TLS 원격 전송, Windows 전송 대안, `ProcessPort.spawn`(격리 확장 자식)(2차) |
+| store | 연결·PRAGMA, FTS5 프로브, 트랜잭션, 접두사 검사, sys v1·v2, 마이그레이션 실행기, 대화 잠금(flock + epoch), `openTestStore` | 블롭(sys v3), 확장 접두사 테이블, 장애 주입 시험, fullfsync 측정 | 블롭 GC, 청크 마이그레이션, Windows `LockProvider`, macOS 동봉 SQLite | — |
 | os | `OsInfo`, `OsDirs`, `fsKind`, `Clock`·`Scheduler`·`RandomSource`, `Logger`, `createIdFactory`·`createLocalIdFactory`, 프로세스 지문·`machineId`·`userId`, `tempDir`·`withIsolatedEnv` | 바이너리 해석(rg, security, secret-tool), 서비스 등록 | 알림 전달 수단(M3), 파일 감시, 텔레메트리, 번들 추출 실측 | Windows 보강 |
 
-[결정] M0 범위에 `platform-store`, `platform-exec`가 들어가고 M1에 sandbox(bash), SOPS 시크릿 참조 1종이 들어간다(`_research/foundation-plan.md` §5 P4). os 기반을 M0에 두는 것은 store·exec 테스트가 `tempDir`과 시계 구현을 쓰기 때문이다 [제안]. 세션 잠금은 foundation-plan M0 목록(`platform-store` 행)에 있으므로 store M0에 둔다. M1의 SOPS 시크릿 참조 1종은 에이전트 env 모드(bash 도구, 실행마다 승인. exec `secretEnv`, secrets `withEnv`)로 검증한다 [결정: review.decisions-2 U-19].
+[결정] M0 범위에 `platform-store`, `platform-exec`가 들어가고 M1에 sandbox(bash), SOPS 시크릿 참조 1종이 들어간다(`_research/foundation-plan.md` §5 P4). os 기반을 M0에 두는 것은 store·exec 테스트가 `tempDir`과 시계 구현을 쓰기 때문이다 [제안]. 대화 잠금은 foundation-plan M0 목록(`platform-store` 행)에 있으므로 store M0에 둔다. M1의 SOPS 시크릿 참조 1종은 에이전트 env 모드(bash 도구, 실행마다 승인. exec `secretEnv`, secrets `withEnv`)로 검증한다 [결정: review.decisions-2 U-19].
 
 ## 3. 패키지 배치
 
@@ -87,9 +87,9 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 |---|---|
 | 인터페이스 | 도메인마다 `<Domain>Provider` 꼴의 내부 계약을 둔다. 이 계약은 패키지 안에만 있고 F에 두지 않는다. F에 두는 것은 소비자가 쓰는 서비스 인터페이스(`OsService` 등)다. provider는 서비스 구현이 OS별 부분을 호출하는 내부 경계다 |
 | 구현 파일 | `src/providers/{darwin,linux,win32}.ts` 또는 기능 디렉터리 아래 같은 이름의 파일(`key/`, `lock/`, `registrar/`, `notify/`, `watch/`. 예: `lock/posix.ts`, `registrar/launchd.ts`, `none.ts`). secrets의 `providers/`는 값 제공자(sops) 디렉터리이고 이 표의 OS provider 규칙 밖이다. WSL은 별도 파일 없이 linux provider가 `OsInfo.isWsl` 플래그로 변종 동작을 고른다. 배포 환경에 따라 바뀌는 구현은 OS 이름 대신 환경 id를 쓴다(예: `desktop-tauri`). 환경별 구현은 L4가 플러그인 설정으로 넘긴다 |
-| 선택 지점 | `src/select.ts` 한 곳. `process.platform`, `process.arch`, `os.platform()`, WSL 판정(`WSL_DISTRO_NAME`, `/proc/version`)을 읽는 코드는 이 파일에만 둔다. provider 파일(`src/providers/*` 포함)도 이 값을 읽지 않고 `select.ts`가 고른 결과로만 쓰인다 |
+| 선택 위치 | `src/select.ts` 한 곳. `process.platform`, `process.arch`, `os.platform()`, WSL 판정(`WSL_DISTRO_NAME`, `/proc/version`)을 읽는 코드는 이 파일에만 둔다. provider 파일(`src/providers/*` 포함)도 이 값을 읽지 않고 `select.ts`가 고른 결과로만 쓰인다 |
 | WSL 판정 | 기준은 `L0.os.spec` §3.1 하나다: `platform === "linux"`이고 `WSL_DISTRO_NAME`이 비어 있지 않거나 `/proc/version`에 `microsoft` 또는 `WSL`(대소문자 무시)이 있으면 WSL이다. exec·secrets·store도 이 기준을 쓴다. 예외: sandbox는 그 위에서 WSL1(`/proc/version`에 `Microsoft`가 있고 `WSL2`가 없음)과 WSL2를 나눈다(`L0.sandbox.spec` §3.5) |
-| 지원 밖 OS | `select.ts`는 throw하지 않고 값으로 돌려준다(`eng.dependency-rules.guide` DR-13 좋은 예). 그 뒤 동작은 도메인마다 다르다. os·exec: `Result`의 `unsupported_platform`(os는 `unsupported_arch`도)을 받으면 서비스를 등록하지 않고 등록 실패로 알린다(`L0.os.spec` §3.10, `L0.exec.spec` §5.1). os가 등록되지 않으면 나머지 L0도 시작하지 않는다. sandbox: `SandboxProvider`(`kind: "none"`)를 돌려주고 서비스는 등록된 채 `status()`가 `unsupported_os`, 실행은 `onUnavailable` 정책을 따른다(`L0.sandbox.spec` §3.5, §4.5). store: `LockProvider` `none`으로 DB 임대만 쓴다. process: `OsServiceRegistrar` `none`이 `unsupported`를 돌려준다. secrets: win32 동작은 [미결](`L0.secrets.spec` §10 7번). 어느 경우에도 프로세스를 죽이지 않는다 |
+| 지원 밖 OS | `select.ts`는 throw하지 않고 값으로 돌려준다(`eng.dependency-rules.guide` DR-13 좋은 예). 그 뒤 동작은 도메인마다 다르다. os·exec: `Result`의 `unsupported_platform`(os는 `unsupported_arch`도)을 받으면 서비스를 등록하지 않고 등록 실패로 알린다(`L0.os.spec` §3.10, `L0.exec.spec` §5.1). os가 등록되지 않으면 나머지 L0도 시작하지 않는다. sandbox: `SandboxProvider`(`kind: "none"`)를 돌려주고 서비스는 등록된 채 `status()`가 `unsupported_os`, 실행은 `onUnavailable` 정책을 따른다(`L0.sandbox.spec` §3.5, §4.5). store: `LockProvider` `none`으로 DB 프로세스 락만 쓴다. process: `OsServiceRegistrar` `none`이 `unsupported`를 돌려준다. secrets: win32 동작은 [미결](`L0.secrets.spec` §10 7번). 어느 경우에도 프로세스를 죽이지 않는다 |
 | 허용 위치 | OS 분기 표현은 `packages/platform-*/src/**` 안에서만 허용한다(DR-13). 패키지 안에서도 `select.ts` 밖에 두지 않는 것은 이 문서의 추가 규칙이다 [제안] |
 | 소비자 | OS 분기를 하지 않는다. OS 차이가 결과에 드러나야 하면 서비스가 기능 질의(예: `OsService.info`, `SandboxService`의 사용 가능 여부)를 제공한다 |
 
@@ -179,7 +179,7 @@ provider id [미결]: 계획 v2는 "os.* provider"라고만 적었고 provider i
 | `platform-execution`(L0 exec·sandbox·process) | | | ○ | | ○(process `leases`) [제안] | ○ [제안] |
 | `platform-secrets`, `platform-store`(L0) | | | | | | ○ [제안] |
 
-- L0 안의 소비(마지막 두 행)는 Cordis 서비스 주입으로 한다. `platform-execution`의 `fresnel.secrets` 소비는 context-map에 있고, L0 패키지들의 `fresnel.os` 소비(경로, `fsKind`, 바이너리 경로, 시계, 프로세스 지문), sandbox의 `fresnel.secrets.protectedPaths()`, process의 `fresnel.store` 임대는 context-map (d)열에 아직 없다. 추가를 요청한다(9절 미결 9).
+- L0 안의 소비(마지막 두 행)는 Cordis 서비스 주입으로 한다. `platform-execution`의 `fresnel.secrets` 소비는 context-map에 있고, L0 패키지들의 `fresnel.os` 소비(경로, `fsKind`, 바이너리 경로, 시계, 프로세스 지문), sandbox의 `fresnel.secrets.protectedPaths()`, process의 `fresnel.store` 프로세스 락은 context-map (d)열에 아직 없다. 추가를 요청한다(9절 미결 9).
 - L4 `apps/cli`·`apps/desktop`이 쓰는 process 함수(`ensureService` 등)는 `apps/host` 경유이고(`L0.process.spec` §3.2), sandbox 상태 문구(`describeSandboxStatus`)는 F 순수 함수다(`L0.sandbox.spec` §3.1). 그래서 L4 클라이언트 행은 표에 두지 않는다.
 - `host`는 조립 루트라 서비스를 주입받는 대신 L0 등록 단위를 직접 import해 `ExtHost.registerPlatform`으로 등록한다(DR-14 예외 2). 표의 ○는 런타임에 쓰는 서비스다.
 
@@ -214,14 +214,14 @@ L0가 정하지 않는 것:
 | 대상 | 정하는 곳 |
 |---|---|
 | 도구 권한 규칙, 승인 프로토콜과 승인 UI | `L1.tools.spec`, `L4.settings-ui.spec` |
-| 세션 이벤트, `seq` 발급, 투영, 재생·재개 규칙 | `L1.persistence.spec`, `F.records.spec`. L0 store는 DB 열기·PRAGMA·트랜잭션·임대·블롭 같은 일반 기능만 제공한다(`eng.context-map.design` §4.4 10번) |
+| 대화 이벤트, `seq` 발급, 투영, 재생·재개 규칙 | `L1.persistence.spec`, `F.records.spec`. L0 store는 DB 열기·PRAGMA·트랜잭션·프로세스 락·블롭 같은 일반 기능만 제공한다(`eng.context-map.design` §4.4 10번) |
 | 전송 계약 형식(JSON-RPC, 메서드 레지스트리, 커서) | `F.wire-settings.spec` |
 | 서비스 명령줄(`fresnel service`, `fresnel secret …`)과 설정 화면 | `L4.cli.spec`, `L4.host-service.spec`, `L4.settings-ui.spec` |
 | 웹 fetch·검색, MCP 서버 연결과 도구 | `L2.web.spec`, `L2.mcp.spec` |
 | 모델 호출, 시크릿 참조를 쓰는 provider 인증 | `L1.models.spec` |
 | 설정 파일 위치와 읽기 | L4. L0 os는 디렉터리 경로만 제공한다 |
 
-이벤트 type 규칙 [제안: `eng.context-map.design` §4.1 (b)열]: `platform-*`는 이벤트 type 접두사를 소유하지 않고 내구 이벤트를 쓰지 않는다. L0 동작의 결과를 기록해야 하면 그 동작을 부른 상위 컨텍스트가 자기 접두사로 쓴다(예: 도구 실행 결과는 `tool.`). 시크릿 사용 감사(`_research/layer-plan-v2.json` L0-c "사용 감사 이벤트")도 이 규칙을 따른다. `platform-secrets`는 `onAudit`로 레코드만 내고, 세션 이벤트 `secret.used`, `secret.denied`, `secret.approved`, `secret.masked`는 tool-runtime(`core.tools`)이 기록한다(`F.records.spec` §3.3.1, `L0.secrets.spec` §3.9). 관리 레코드(`created`, `rotated`, `revealed` 등)는 세션 이벤트가 아니다.
+이벤트 type 규칙 [제안: `eng.context-map.design` §4.1 (b)열]: `platform-*`는 이벤트 type 접두사를 소유하지 않고 내구 이벤트를 쓰지 않는다. L0 동작의 결과를 기록해야 하면 그 동작을 부른 상위 컨텍스트가 자기 접두사로 쓴다(예: 도구 실행 결과는 `tool.`). 시크릿 사용 감사(`_research/layer-plan-v2.json` L0-c "사용 감사 이벤트")도 이 규칙을 따른다. `platform-secrets`는 `onAudit`로 레코드만 내고, 대화 이벤트 `secret.used`, `secret.denied`, `secret.approved`, `secret.masked`는 tool-runtime(`core.tools`)이 기록한다(`F.records.spec` §3.3.1, `L0.secrets.spec` §3.9). 관리 레코드(`created`, `rotated`, `revealed` 등)는 대화 이벤트가 아니다.
 
 변경 규칙:
 
@@ -237,7 +237,7 @@ L0가 정하지 않는 것:
 | [결정] 첫 지원 OS는 macOS, Linux(WSL 포함). Windows 네이티브는 나중 | `_research/decisions-log.md` 2026-10-19 |
 | [결정] 층 순위 F → X → L0 → L1 → L2 → L3 → L4, 같은 층 import 금지 | `_research/foundation-plan.md` §3 |
 | [결정] pi durable은 env·tools·images·truncate만 Chord 제거 포크하고, `CancelScope`로 치환한다 | `_research/decisions-log.md` 2026-10-21 결정(3차), adr.0003 |
-| [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블(`x_<확장 id의 하이픈을 밑줄로>_`). 세션 쓰기 소유는 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱 [결정: review.decisions-2 U-09, U-18] | `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0004 |
+| [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블(`x_<확장 id의 하이픈을 밑줄로>_`). 대화 쓰기 소유는 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱 [결정: review.decisions-2 U-09, U-18] | `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0004 |
 | [결정] DB는 `bun:sqlite`(WAL, 단계 경계 FULL). macOS는 FTS5 포함 SQLite를 지정한다 | `_research/foundation-plan.md` §2 DB 행 |
 | [결정] 시크릿 기본값은 SOPS(age). 에이전트는 값을 모른 채 참조로 쓴다 | `_research/decisions-log.md` 2026-10-21 결정(2차), `_research/foundation-plan.md` §2 시크릿 행 |
 | [결정] 샌드박스는 `@anthropic-ai/sandbox-runtime` | `_research/foundation-plan.md` §2 샌드박스 행 |
@@ -264,10 +264,10 @@ L0가 정하지 않는 것:
 2. [결정: review.decisions-2 D-04] F에 L0 서비스 인터페이스를 두는 서브패스는 `@fresnel/contracts/services`다(2절). `StoreService`는 `F.records.spec` §3.9에 그대로 둔다. `eng.context-map.design` §5.3 표는 L0 서비스 위치를 "(services)"로 적는다.
 3. [결정: review.decisions-2 U-03] `Clock`·`Scheduler`·`RandomSource`·`Logger`는 인터페이스만 F 루트 base에 두고, 운영 구현과 `createIdFactory`·`createLocalIdFactory`는 `platform-os`에 둔다. `@fresnel/contracts/testing` 서브패스는 두지 않고 테스트 대역은 쓰는 패키지의 `test/` 안에 둔다(3.3절).
 4. [결정: review.decisions-2 D-04] `CancelScope`는 F `services/exec.ts`에 둔다(`F.capabilities.spec` §3.12 파일별 이름 표, `L0.exec.spec` §3.2). `eng.typescript.guide` §1.2·TY-22 문구 정정과 `abortSignal`의 `undefined` 허용 여부는 `L0.exec.spec` 미결 1로 남는다.
-5. [결정: review.decisions-2 U-09] 세션 쓰기 소유 판정은 OS 잠금(`bun:ffi` `flock` 사이드카 파일, 세션 id 키) + `sys_leases.epoch` 펜싱이다. `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. adr.0004 §3.4와 adr.0006은 이에 맞게 개정한다(decisions 문서 담당). Windows 수단과 Bun FFI experimental 경고 원문 확인은 `L0.store.spec` 미결 S-5·S-10으로 남는다.
+5. [결정: review.decisions-2 U-09] 대화 쓰기 소유 판정은 OS 잠금(`bun:ffi` `flock` 사이드카 파일, 대화 id 키) + `sys_leases.epoch` 펜싱이다. `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. adr.0004 §3.4와 adr.0006은 이에 맞게 개정한다(decisions 문서 담당). Windows 수단과 Bun FFI experimental 경고 원문 확인은 `L0.store.spec` 미결 S-5·S-10으로 남는다.
 6. [미결] 전송 구현의 층 배치. F.readme §6은 "전송 구현"을 L4가 정한다고 적었고, 계획 v2 L0-d는 "엔진 라이브러리와 전송"(in-process, stdio JSONL)을 L0 process 구성요소로 둔다. 두 문서 중 하나를 고친다.
-7. 닫음. 감사 이벤트 소유자는 (a)안(tool-runtime 발행)이다(`F.records.spec` §3.3.1, `L0.secrets.spec` §3.9). 세션 밖 관리 레코드 저장 위치만 `L0.secrets.spec` 미결 1로 남는다.
+7. 닫음. 감사 이벤트 소유자는 (a)안(tool-runtime 발행)이다(`F.records.spec` §3.3.1, `L0.secrets.spec` §3.9). 대화 밖 관리 레코드 저장 위치만 `L0.secrets.spec` 미결 1로 남는다.
 8. [결정: review.decisions-2 U-17] DR-07 표에 `platform-os`의 `@vscode/ripgrep`, `@parcel/watcher`, OTel SDK, `pi-telemetry`, `Bun.spawn`(알림 명령, 시스템 바이너리 버전 확인)과 `platform-store`의 `bun:ffi` 행이 있다(`eng.dependency-rules.guide` DR-07, 3.2절).
-9. [미결] 서비스 소비 관계의 context-map 반영. (1) exec·sandbox·process·secrets·store가 `fresnel.os`(경로, `fsKind`, 바이너리 경로, 시계, 프로세스 지문)를 주입받는 관계, sandbox의 `fresnel.secrets`(`protectedPaths`), process의 `fresnel.store`(임대)를 `eng.context-map.design` §4.1 (d)열에 더해야 한다. `platform-os`가 쓰는 서비스는 없다. (2) §5.3 소비 열에 `fresnel.sandbox` → workspace(이미 있음), `fresnel.process` → tool-runtime·run-engine·session-core, `fresnel.secrets` → run-engine, `fresnel.store` → tool-runtime·run-engine을 더한다(5절 표).
+9. [미결] 서비스 소비 관계의 context-map 반영. (1) exec·sandbox·process·secrets·store가 `fresnel.os`(경로, `fsKind`, 바이너리 경로, 시계, 프로세스 지문)를 주입받는 관계, sandbox의 `fresnel.secrets`(`protectedPaths`), process의 `fresnel.store`(프로세스 락)를 `eng.context-map.design` §4.1 (d)열에 더해야 한다. `platform-os`가 쓰는 서비스는 없다. (2) §5.3 소비 열에 `fresnel.sandbox` → workspace(이미 있음), `fresnel.process` → tool-runtime·run-engine·session-core, `fresnel.secrets` → run-engine, `fresnel.store` → tool-runtime·run-engine을 더한다(5절 표).
 10. [결정: review.decisions-2 D-04] `fresnel.secretAdmin` 서비스(`L0.secrets.spec` §3.8, §10 8번)는 `fresnel.<도메인>` 이름 규칙의 예외로 둔다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 행이 있다.
 11. [결정: review.decisions-2 U-19] 마일스톤 M1의 시크릿 경로는 에이전트 env 모드(bash 도구, 실행마다 승인)다. exec `secretEnv`와 secrets `withEnv`를 M1에 둔다(`L0.exec.spec` §3.6, `L0.secrets.spec` §3.6). `L2.workspace.spec` §3.3, `product.scope.spec` §4.4 M1 행과 같은 배치다.

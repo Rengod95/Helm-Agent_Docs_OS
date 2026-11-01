@@ -17,14 +17,14 @@ binds: [xeon/packages/core-persistence/**]
 ### 1.1 정하는 것
 
 - Cordis 서비스 `fresnel.session` 하나의 API(`SessionService`)와 `core-persistence` 내부 구조
-- 세션 쓰기의 단일 커밋 경로(`SessionService.commit`, 내부 구현 `SessionWriter`)와 F `SessionStore`(2차)와의 대응
+- 대화 쓰기의 단일 커밋 경로(`SessionService.commit`, 내부 구현 `SessionWriter`)와 F `SessionStore`(2차)와의 대응
 - 소유 테이블(`events`, `requests`, `step_checkpoints`, `projector_state`, `consumer_cursors`, `p_*` 등)의 DDL과 의미
 - 코어 투영기 `core`, 확장 투영기의 같은 커밋 참여(`ProjectionTx` 소유 검사), 투영 재생성과 불일치 검출
-- 원자 커밋, 멱등(`requests` + 지문), 커밋 뒤 방출, 장애 주입 지점
+- 원자 커밋, 멱등(`requests` + 지문), 커밋 뒤 방출, 장애 주입 위치
 - 결과 불명 효과의 판정 호출, 합성 결과 저장, 재실행 횟수 상한
 - 열 때 복구와 재개 절차(복구 표식, 체크포인트, 열린 효과, 승인 대기, 입력 큐), 잠금 실패 때의 동작
 - 분기와 수명주기 API(`thread.list/create/open/close/delete/fork/revert`의 L1 몫), 제목 변경
-- 세션 범위 설정 값의 기록, `l1.persistence.*` 설정 키
+- launch 범위 설정 값의 기록, `l1.persistence.*` 설정 키
 - 훅 7개(`thread.start`, `thread.info.after`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`, `thread.tree.after`, `thread.shutdown`)의 발화 시점
 - 2차: 리플레이 커서, 되감기(파일 스냅샷 복원), JSONL 내보내기
 
@@ -34,8 +34,8 @@ binds: [xeon/packages/core-persistence/**]
 |---|---|
 | 레코드 형태(envelope, kind 카탈로그, `BlobRef`, `StepCheckpoint`, 효과 3단, `decideEffectRecovery`, 업캐스터 계약) | `F.records.spec` |
 | DB 파일 위치, 연결, PRAGMA, WAL, `BEGIN IMMEDIATE` 래퍼 `StoreDb`, blob 파일 쓰기·읽기·GC 실행, `sys_*` 테이블, `StoreId` | `L0.store.spec` |
-| 세션 id 키 OS 잠금의 구현(flock 등), 프로세스 사망 시 해제 | `L0.process.spec` |
-| 루프 상태 리듀서(`reduceLoopState`), 커밋 지점의 내용, 진행 중 스트림 처리 | `L1.loop.spec` |
+| 대화 id 키 OS 잠금의 구현(flock 등), 프로세스 사망 시 해제 | `L0.process.spec` |
+| 루프 상태 리듀서(`reduceLoopState`), 커밋 시점의 내용, 진행 중 스트림 처리 | `L1.loop.spec` |
 | 입력 큐 선택 규칙, 취소 전파, `isCancelledByOwner` | `L1.tasks.spec` |
 | 효과 3단 기록 시점, 재실행 실행(`ToolService.rerun`), 승인 프로토콜과 `ApprovalService.restore` | `L1.tools.spec` |
 | 컨텍스트 조립, `thread.compacted` 해석, 떠난 가지 요약 생성 | `L1.context.spec` |
@@ -44,10 +44,10 @@ binds: [xeon/packages/core-persistence/**]
 
 ### 1.3 근거
 
-- [결정] 세션 저장은 C안이다. SQLite 이벤트 소싱과 투영, DB 하나, 확장 접두사 테이블이다(`_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004 §3.1).
+- [결정] 대화 저장은 C안이다. SQLite 이벤트 소싱과 투영, DB 하나, 확장 접두사 테이블이다(`_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004 §3.1).
 - [결정] 단계 경계 커밋은 `synchronous=FULL`이다(adr.0004 §3.2 5번, `_research/foundation-plan.md` §2 DB 행).
-- [결정] 쓰기 소유자는 세션마다 하나이고 세션 id 키 OS 잠금으로 판정한다. 잠금을 얻지 못하면 위임·관찰·분기 중 하나로 동작한다(adr.0006 §3.6 1~3번).
-- [결정: review.decisions-2 U-09] 커밋 트랜잭션 안의 소유 확인(펜싱)은 L0.store 임대 행 `sys_leases`의 epoch로 한다(`L0.store.spec` §3.1 `LeaseService.holds`, `eng.transactions.design` TX-10). OS 잠금은 생존 판정과 빠른 인수에 쓰고, 트랜잭션 안에서 확인할 수 없으므로 펜싱에는 쓰지 않는다. 별도 소유 테이블은 두지 않고 `sys_leases` 행이 소유 표시를 겸한다. adr.0004 §3.4와 adr.0006을 이에 맞게 개정한다.
+- [결정] 쓰기 소유자는 대화마다 하나이고 대화 id 키 OS 잠금으로 판정한다. 잠금을 얻지 못하면 위임·관찰·분기 중 하나로 동작한다(adr.0006 §3.6 1~3번).
+- [결정: review.decisions-2 U-09] 커밋 트랜잭션 안의 소유 확인(펜싱)은 L0.store 프로세스 락 행 `sys_leases`의 epoch로 한다(`L0.store.spec` §3.1 `LeaseService.holds`, `eng.transactions.design` TX-10). OS 잠금은 생존 판정과 빠른 인수에 쓰고, 트랜잭션 안에서 확인할 수 없으므로 펜싱에는 쓰지 않는다. 별도 소유 테이블은 두지 않고 `sys_leases` 행이 소유 표시를 겸한다. adr.0004 §3.4와 adr.0006을 이에 맞게 개정한다.
 - [결정] 결과 없는 의도는 저장된 정책과 현재 선언이 모두 `safe`일 때만 다시 실행한다(adr.0004 §3.2 3번, adr.0006 §3.6 6번).
 - [결정] 코드 포크 없이 자체 구현한다. pi durable은 설계 근거로만 인용한다(`_research/foundation-plan.md` §1 결정 1, adr.0003).
 - 줄 범위 근거(durable `~/projects/_ref/pi-src/packages/durable/docs/spec.md`, `_research/durable-and-search-facts.md` A-6): 결과 불명 1917-1927·2082-2108, requestId 2288-2301, 재생 3136-3170(3162-3163), 승인 대기 1898-1915, 소유 트리 1972-2200, 훅 표 2636-2660.
@@ -381,7 +381,7 @@ export interface SessionService {
 
 - [결정: review.decisions-2 D-04] `ext`를 하위 객체로 두는 이유: X `RecordCommitPort.commit(ExtCommitRequest): Promise<ExtCommitResult>`와 `SessionService.commit(CommitRequest)`의 이름이 겹친다. 같은 서비스 객체가 두 모양을 함께 만족할 수 없다. X는 `fresnel.session`에서 `ext`를 `PortKey.member`로 꺼내 쓴다(`F.extensions.spec` §3.2.1 `RecordCommitPortKey`). `F.records.spec` §3.9도 `SessionService`의 `ext` 속성이 `RecordCommitPort`라고 정했다. `RecordCommitPort` 타입은 F `F.records.spec` §3.9 `session-service.ts`에 있고 `F.extensions.spec` §3.2.1이 다시 export한다.
 - `ext.commit`은 `ExtCommitRequest.drafts`를 `ext.<name>` 또는 `xh` 생산자로 낙인한 뒤 `commit`을 부른다. `expectStateRev`는 `build` 안에서 `view.scopeStateRev`와 비교해 다르면 `rejected("state_conflict")`이고 X 쪽 결과는 `{ status: "rejected", code: "state_conflict" }`다. `ownership_lost`는 `code: "lease_lost"`로 바꾼다(X 이름 유지).
-- `ext.loadThread`는 X 소유 투영 `x_<name의 '-'를 '_'로>_state`를 읽지 않는다. 켜진 scope, 끈 scope(`disabled`), scope 전이 횟수(`scopeTransitions`), 켜진 scope의 마지막 켜짐 seq(`enabledAtSeq`), 열린 임대, 임대 차수, 상태 판을 모두 활성 가지(현재 leaf에서 `parentId`를 따라 올라간 사슬) 위 이벤트로 계산한다(`X.primitives.spec` §4.6.1 활성 가지 규칙). 상태 판은 `x|grp.<name>.state.committed` 이벤트를 `query.latestEvent(…, { onActiveBranch: true })`로 찾는다 [제안]. 이벤트 순서로 갱신되는 투영(`p_scopes` 같은 것)은 버려진 가지의 값을 담을 수 있어 두지 않는다(§3.10). X 소유 테이블을 core-persistence가 읽지 않기 위해서다(CM-02). 구현은 `ext-queries.ts`다: 활성 가지 사슬을 한 번 훑어 `scope.changed`, `lease.*`, `*.state.committed`를 seq 순으로 접는다. 열린 임대의 `used`는 임대를 받은 뒤 같은 scope가 시작한 turn 수(`turn.started.scopeId`), 그 임대가 소유한 drive spawn 수(`agent.spawned.owner.leaseId`), 그 turn의 `turn.completed.usage.totalTokens`와 그 spawn의 `agent.settled.usage.totalTokens` 합이다.
+- `ext.loadThread`는 X 소유 투영 `x_<name의 '-'를 '_'로>_state`를 읽지 않는다. 켜진 scope, 끈 scope(`disabled`), scope 전이 횟수(`scopeTransitions`), 켜진 scope의 마지막 켜짐 seq(`enabledAtSeq`), 열린 drive 락, drive 락 차수, 상태 판을 모두 활성 가지(현재 leaf에서 `parentId`를 따라 올라간 사슬) 위 이벤트로 계산한다(`X.primitives.spec` §4.6.1 활성 가지 규칙). 상태 판은 `x|grp.<name>.state.committed` 이벤트를 `query.latestEvent(…, { onActiveBranch: true })`로 찾는다 [제안]. 이벤트 순서로 갱신되는 투영(`p_scopes` 같은 것)은 버려진 가지의 값을 담을 수 있어 두지 않는다(§3.10). X 소유 테이블을 core-persistence가 읽지 않기 위해서다(CM-02). 구현은 `ext-queries.ts`다: 활성 가지 사슬을 한 번 훑어 `scope.changed`, `lease.*`, `*.state.committed`를 seq 순으로 접는다. 열린 drive 락의 `used`는 drive 락을 받은 뒤 같은 scope가 시작한 turn 수(`turn.started.scopeId`), 그 drive 락이 소유한 drive spawn 수(`agent.spawned.owner.leaseId`), 그 turn의 `turn.completed.usage.totalTokens`와 그 spawn의 `agent.settled.usage.totalTokens` 합이다.
 - 확장 kind 등록 [결정: L1B.1]. `EventKindRegistry`(F)의 구현은 X 몫이지만 지금까지 아무도 `register`를 부르지 않는다. 그래서 `ext.commit`은 등록부에 없는 확장 kind(`x.*`, `grp.*`)를 "열린 kind"로 프로세스 안에서 올린다(`KindCatalog.openExtension`). 열린 kind의 payload 검사는 X가 커밋 앞에서 이미 했다는 전제다(공개 기록은 매니페스트 `recordKinds` 스키마, 상태 문서는 `StateDecl.schema`, 비공개 기록은 쓰는 확장의 몫, `X.primitives.spec` §4.6.5). 저장소가 확인하는 것은 kind 형식, 생산자 이름(`ext.<kind의 둘째 마디>`), 버전 정수, 크기, `*.state.committed`의 모양(`scopeId`, `rev`, `prevEventId`, `version`, `doc`)이다. 등록부에 항목이 있으면 그 스키마와 버전이 우선한다. 다시 시작하면 열린 kind는 비어 있고, 읽기 경로(`readFrom`, `readBranch`, `subscribe`)는 등록되지 않은 확장 kind를 업캐스트 없이 그대로 통과시킨다(§4.12). 코어 kind 가운데 `ext.commit`이 낼 수 있는 것은 생산자 `xh`가 소유한 `scope.changed`, `lease.acquired`, `lease.released`뿐이다. 그 밖의 코어 kind는 `invalid`다.
 - `ext.commit` 결과 변환표 [제안]. `SessionService.commit` 결과와 오류를 X `ExtCommitResult`로 바꾼다(`X.primitives.spec` §4.6.1 "저장소 결과 변환"):
 
@@ -519,7 +519,7 @@ export interface ItemPages { branchItemRecords(request: ItemPageRequest): Promis
 
 - 활성 가지에서 `before` item 바로 앞(없으면 가장 새 item)부터 `limit`개를 오래된 것부터 돌려준다. `p_items`의 seq로 거르고 쪽에 든 item의 이벤트만 읽어 `detached` 본문을 blob에서 되돌린다. 가지 전체의 이벤트를 읽지 않는다.
 - `headSeq`는 `items`를 고른 읽기 트랜잭션과 같은 트랜잭션에서 잰 저장소 head다(F.wire-settings.spec §3.4.6 1항).
-- `hasMore`는 `limit+1`개를 읽어 판정하므로 남은 수가 `limit`과 같아도 거짓이다. fork thread는 출처의 fork 지점까지 이어서 돌려준다(§4.10.3).
+- `hasMore`는 `limit+1`개를 읽어 판정하므로 남은 수가 `limit`과 같아도 거짓이다. fork thread는 출처의 fork 시점까지 이어서 돌려준다(§4.10.3).
 - 오류: 없는 thread는 `thread_not_found`, 어느 thread에도 없는 `before`와 다른 thread의 item은 `item_not_found`, 이 thread의 item인데 현재 가지에 없으면 `not_on_branch`다.
 - 응답 크기 예산(프레임 한도)에 맞춰 줄이는 일은 호출자(L4 host)가 한다. 줄이면 `hasMore`를 참으로 둔다.
 
@@ -560,7 +560,7 @@ export interface EventFeed {
 
 ### 3.6 쓰기 소유와 열기
 
-쓰기 소유 증표는 L0.store의 `LeaseToken`(`resource = "thread:<threadId>"`, `holderId`, `epoch`)이다 [제안]. 호스트가 세션 임대를 얻어(`L4.host-service.spec` `SessionLockPort` → L0.process OS 잠금 + `fresnel.store.leases.acquire`) 토큰을 넘긴다. core-persistence는 열린 thread마다 토큰을 보관하고 커밋 트랜잭션 안에서 `fresnel.store.leases.holds(tx, token)`로 `sys_leases` 행을 새로 읽어 epoch를 대조한다(TX-10). 메모리의 잠금 핸들 확인으로는 임대를 인수당한 뒤 늦게 깬 이전 소유자의 쓰기를 막지 못하기 때문이다. 소유 표시(`kind`, `pid`, `host`, `heartbeatAt`)는 `leases.inspect(resource)`의 `LeaseOwnerInfo`에서 읽는다. 별도 소유 표시 테이블을 두지 않는다(`L0.store.spec` §3.3 `sys_leases.kind`).
+쓰기 소유 증표는 L0.store의 `LeaseToken`(`resource = "thread:<threadId>"`, `holderId`, `epoch`)이다 [제안]. 호스트가 대화 프로세스 락을 얻어(`L4.host-service.spec` `SessionLockPort` → L0.process OS 잠금 + `fresnel.store.leases.acquire`) 토큰을 넘긴다. core-persistence는 열린 thread마다 토큰을 보관하고 커밋 트랜잭션 안에서 `fresnel.store.leases.holds(tx, token)`로 `sys_leases` 행을 새로 읽어 epoch를 대조한다(TX-10). 메모리의 잠금 핸들 확인으로는 프로세스 락을 인수당한 뒤 늦게 깬 이전 소유자의 쓰기를 막지 못하기 때문이다. 소유 표시(`kind`, `pid`, `host`, `heartbeatAt`)는 `leases.inspect(resource)`의 `LeaseOwnerInfo`에서 읽는다. 별도 소유 표시 테이블을 두지 않는다(`L0.store.spec` §3.3 `sys_leases.kind`).
 
 ```ts
 // xeon/packages/contracts/src/records/session-service.ts (계속)
@@ -871,7 +871,7 @@ CREATE TABLE thread_creation_keys (
 | `step_checkpoints` | `thread_id` | `checkpoint_id`, `seq`, `turn_id`, `step_index`, `next`, `schema_version`, `record` | `checkpoint.step` |
 | `p_agents` | `child_thread_id` | `thread_id`(부모), `request_id`, `owner_kind`, `owner_turn_id`, `owner_tool_call_id`, `background`, `depth`, `agent`, `spawned_seq`, `settled_seq`, `settled_status`, `settled_event_id`. 색인 `(thread_id, request_id)` 유일, `(thread_id, owner_turn_id)` 부분 색인(정착하지 않은 행) | `agent.spawned`, `agent.settled`. F가 `agent.*`를 받지 않으면 `thread.started.spawnedBy`에서 투영한다(§10 8번) |
 
-- `p_scopes`와 `p_settings`는 만들지 않는다 [결정: L1B.1, L1B.2]. session 범위 값(`settings.changed`)도 같은 이유로 활성 가지 이벤트에서 읽는다(§6.2). 켜짐·임대·상태 판은 활성 가지 이벤트로 계산하므로(§3.3 `ext.loadThread`) 이벤트 순서로 쌓이는 테이블이 버려진 가지의 값을 담을 일이 없다. `TxView.scopeStateRev`·`scopeLeaseEpoch`도 같은 계산이다.
+- `p_scopes`와 `p_settings`는 만들지 않는다 [결정: L1B.1, L1B.2]. launch 범위 값(`settings.changed`)도 같은 이유로 활성 가지 이벤트에서 읽는다(§6.2). 켜짐·drive 락·상태 판은 활성 가지 이벤트로 계산하므로(§3.3 `ext.loadThread`) 이벤트 순서로 쌓이는 테이블이 버려진 가지의 값을 담을 일이 없다. `TxView.scopeStateRev`·`scopeLeaseEpoch`도 같은 계산이다.
 - 모든 투영 테이블은 `thread_id` 열을 둔다. thread 삭제 때 소유 투영기의 `tables`에서 그 thread 행을 함께 지운다(`eng.context-map.design` §5.2 [제안]).
 - `p_items`·`p_parts`는 모든 가지의 행을 갖는다. 활성 가지 조회는 `query.branchItems`가 `leaf_event_id`에서 `parent_event_id`를 따라 거른다(`eng.events.design` §6).
 - `p_inputs`의 열 이름은 `L1.tasks.spec` §3.6 `InputQueuedPayload`를 따른다. `L1.tasks.spec`이 투영 열을 바꾸면 이 표를 같은 변경에서 고친다.
@@ -907,7 +907,7 @@ export interface RewindPlan {
 
 ### 4.1 커밋 순서
 
-[제안] `eng.transactions.design` §4.3·§4.4 순서를 F 이름과 L0.store 임대 토큰으로 옮긴다.
+[제안] `eng.transactions.design` §4.3·§4.4 순서를 F 이름과 L0.store 프로세스 락 토큰으로 옮긴다.
 
 | # | 단계 | 실패 처리 | FaultPoint |
 |---|---|---|---|
@@ -931,11 +931,11 @@ export interface RewindPlan {
 - 크기 검사: `checkEnvelopeSize`가 `err`면 `store.event_too_large`다. 큰 값은 0단계에서 분리했어야 한다(§4.11). 커밋 경로에서 예상 실패로 돌려주지 않는다.
 - 중첩: `commit` 안(`build`, 투영기, 구독자)에서 `commit`을 다시 부르면 `store.nested_write`다(TX-09, 미결 T-2).
 
-### 4.2 커밋 지점
+### 4.2 커밋 시점
 
 [제안] `eng.transactions.design` §4.1 C1~C6과 `L1.tools.spec` §3.9를 F 이름으로 합친 표다. 행 하나가 커밋 하나다. 커밋 내용의 정본은 각 소유 spec이다.
 
-| 지점 | 커밋 내용(F kind) | 커밋 키 | 체크포인트 | 소유 문서 |
+| 시점 | 커밋 내용(F kind) | 커밋 키 | 체크포인트 | 소유 문서 |
 |---|---|---|---|---|
 | C1 입력 수락 | `input.queued` | `in:<sourceKey>:<requestId>` | 아니오 | `L1.tasks.spec` §4.7 |
 | C2 turn 시작 | `turn.started`, `input.placed`, user `item.recorded`, 확장 기여 | `turn:<turnId>:start` | 아니오 [제안] | `L1.loop.spec` |
@@ -951,13 +951,13 @@ export interface RewindPlan {
 | X1 취소 의도 | `turn.abort_requested` | `abort:<turnId>` | 아니오 | `L1.tasks.spec` §4.2 |
 | C7 컴팩션 | `thread.compacted` + 새 접두 system `item.recorded` | `compact:<threadId>:<stepId>:<reason>` | 아니오 | `L1.context.spec` §4.6 5번 |
 
-- [제안] 컴팩션은 별도 커밋 지점 C7이다. 임계·수동 컴팩션(단계 사이)과 오버플로우 복구 컴팩션(단계 중간, 같은 단계 재요청 전, `L1.context.spec` §4.7)이 같은 지점을 쓴다. C5 `build` 안에 넣지 않는 이유는 오버플로우 복구가 단계 끝 전에 일어나 C5에 합칠 수 없고, 두 경로를 한 방식으로 두어야 크래시 뒤 상태가 하나로 정해지기 때문이다(§4.14). 키의 `stepId`는 같은 커밋의 `thread.compacted.details.fresnel.stepId`이고 `L1.context.spec`의 `second_overflow` 판정과 같은 값이다. `stepId`가 없는 수동 컴팩션(유휴 thread)은 그 자리에 직전 leaf 이벤트 id를 쓴다. C7은 체크포인트를 쓰지 않는다. 이름을 K1로 두지 않은 이유는 K1~K6이 §4.14의 종료 훅 이름이기 때문이다.
+- [제안] 컴팩션은 별도 커밋 시점 C7이다. 임계·수동 컴팩션(단계 사이)과 오버플로우 복구 컴팩션(단계 중간, 같은 단계 재요청 전, `L1.context.spec` §4.7)이 같은 시점을 쓴다. C5 `build` 안에 넣지 않는 이유는 오버플로우 복구가 단계 끝 전에 일어나 C5에 합칠 수 없고, 두 경로를 한 방식으로 두어야 크래시 뒤 상태가 하나로 정해지기 때문이다(§4.14). 키의 `stepId`는 같은 커밋의 `thread.compacted.details.fresnel.stepId`이고 `L1.context.spec`의 `second_overflow` 판정과 같은 값이다. `stepId`가 없는 수동 컴팩션(유휴 thread)은 그 자리에 직전 leaf 이벤트 id를 쓴다. C7은 체크포인트를 쓰지 않는다. 이름을 K1로 두지 않은 이유는 K1~K6이 §4.14의 종료 시점 이름이기 때문이다.
 - [제안] 체크포인트는 단계 경계(C5)와 승인 대기(A1)에만 쓴다. `F.records.spec` §3.6은 "단계 경계마다 `step.completed`와 같은 커밋"으로 정했고, A1은 단계 중간이므로 `step.completed` 없이 체크포인트를 쓴다. 그래서 A1은 §4.1 8단계의 `store.checkpoint_without_step` 검사에서 예외다(`next: "await_input"`이고 `pendingToolCalls`에 `waiting: "approval"`이 있을 때. `next: "tools"`는 C3의 도구 단계 체크포인트라 이 예외가 아니다, review.open-issues D-06). 이 예외를 F에 적도록 요청한다(FR-P4).
 - C2에 체크포인트를 두지 않는 이유: turn 시작 직후 크래시는 마지막 체크포인트(이전 turn의 C5, 없으면 없음)와 그 뒤 이벤트로 복원된다. `next: "request"`는 리듀서가 `turn.started` 뒤 이벤트에서 얻는다.
 - 도구별 커밋(E1 의도, E2 실행 시작, E3 결과)은 ADR-0004 §3.2 3번의 보충이다. 단계당 커밋 수는 `3 + 3n`이다 [결정: review.decisions-2 U-10].
 - 모든 커밋은 FULL이다(§4.3). 그래서 커밋 수가 그대로 fsync 수다. 한 단계의 fsync 수는 `1(S1) + 1(C3) + 3 × 도구 수 + 1(C5)` = `3 + 3 × 도구 수`다. turn마다 C2와 C6이 하나씩 더해지고, C2b는 `input.agent.before`가 메시지를 더할 때만, C1은 유휴 thread의 입력일 때 하나 더 있다. 취소 의도(X1), 승인 요청(A1), 컴팩션(C7)은 일어날 때만 더한다. 측정 항목은 `L1.persistence.plan` §6이다.
 
-훅 이름 대응표 [제안]. 이 문서의 C·S·E·A·X 이름을 L1 커밋 지점의 공통 이름으로 쓰고, 다른 문서의 이름은 아래처럼 읽는다. `eng.transactions.design` §4.1의 C4(도구 정착)는 도구별 E1~E3로 나눴으므로 쓰지 않는다.
+훅 이름 대응표 [제안]. 이 문서의 C·S·E·A·X 이름을 L1 커밋 시점의 공통 이름으로 쓰고, 다른 문서의 이름은 아래처럼 읽는다. `eng.transactions.design` §4.1의 C4(도구 정착)는 도구별 E1~E3로 나눴으므로 쓰지 않는다.
 
 | 이 문서 | `L1.loop.spec` §3.5 | `L1.tools.spec` §3.9 | `L1.tasks.spec` | `eng.transactions.design` §4.1 |
 |---|---|---|---|---|
@@ -980,7 +980,7 @@ export interface RewindPlan {
 3. [제안] pi durable의 `synchronous = NORMAL`(`durable/src/storage/sqlite/node.ts:191`)은 쓰지 않는다. 전원 장애 때 최신 커밋을 잃을 수 있다(`_research/refs/pi-durable.md` §3.8 (1)).
 4. 커밋 단위는 완성된 파트다(`_research/layer-plan-v2.json` L1-f "커밋 단위와 내구성"). 토큰 델타는 휘발이고 저장하지 않는다(adr.0004 §3.2 6번).
 5. [제안] 부분 스트림: 사용자 취소나 provider 오류로 스트림이 끝나면 루프는 그때까지 완성된 파트로 assistant `item.recorded`를 C3에 커밋한다. `message.stopReason`은 `"aborted"`(취소) 또는 `"error"`이고 item `status`는 `interrupted` 또는 `failed`다. 컨텍스트 조립은 이 item을 다음 요청에서 뺀다(`L1.context.spec`). pi durable과 같다(`_research/refs/pi-durable.md` §3.8 (4) "커밋된 부분 응답 → aborted assistant entry", spec S:3574, 3790). 크래시(K1)에는 부분 스트림이 저장되지 않고 같은 단계 요청을 다시 보낸다.
-6. 커밋 전 어느 지점에서 실패해도 `events`, `p_*`, `step_checkpoints`, `x_*`, `cap_*`, `requests`, `event_seq`에 변화가 남지 않는다(`eng.transactions.design` §4.6 표).
+6. 커밋 전 어느 시점에서 실패해도 `events`, `p_*`, `step_checkpoints`, `x_*`, `cap_*`, `requests`, `event_seq`에 변화가 남지 않는다(`eng.transactions.design` §4.6 표).
 
 ### 4.4 멱등
 
@@ -1013,7 +1013,7 @@ export interface RewindPlan {
 - `ProjectionTx` 소유 검사(테스트·디버그 빌드): 문장에서 `INSERT INTO`, `REPLACE INTO`, `UPDATE`, `DELETE FROM`, `FROM`, `JOIN`, `CREATE`, `DROP` 뒤 식별자를 뽑아 그 투영기의 `tables`와 대조한다. 밖이면 `Bug("store.prefix_not_owned")`를 던지고 커밋 전체가 롤백된다. `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, `sqlite_` 이름과 여러 문장은 항상 거부한다. 운영 빌드에서는 검사를 끈다. X의 `checkStatement`(`X.operations.spec` §4.4.6)와 겹치는 방어 검사다. `eng.events.design` §5.1 끝 항목이 이 검사의 정의를 이 문서와 `L0.store.spec`에 맡겼다.
 - 투영기 예외 처리 [결정: 오케스트레이터 기본값, M3-REQ-36]:
   - `core` 투영기 예외는 코드 결함입니다. 커밋을 롤백하고 Bug(`store.projection_failed`)를 다시 던집니다. 정지와 재시도는 하지 않습니다.
-  - `ext.*`·`cap.*` 투영기 예외는 세션을 멈추지 않습니다. 커밋 경로는 다음 순서로 처리합니다.
+  - `ext.*`·`cap.*` 투영기 예외는 대화를 멈추지 않습니다. 커밋 경로는 다음 순서로 처리합니다.
     1. 트랜잭션 전체를 롤백합니다. 어느 투영기의 행도 남지 않습니다.
     2. 그 투영기를 정지합니다(`ProjectorController.suspend`). 정지 목록에 넣고 `session.projector_suspended`를 Logger에 남깁니다. 투영기 이름과 실패 메시지를 싣습니다.
     3. `projectors.onFailure` 등록자에게 실패마다 한 번 알립니다. 롤백이 끝난 뒤, 재시도 앞입니다. X는 이 알림으로 자동 끄기 판정만 합니다(`X.operations.spec` §5 6번).
@@ -1074,13 +1074,13 @@ export interface RewindPlan {
 2. [제안] 재실행 횟수는 `effect.exec` 건수로 센다. 첫 실행이 `effect.exec` 1건이고 재실행마다 1건이 더 붙는다. 재실행 수 = `max(0, execCount - 1)`이다. `MAX_REPLAY_ATTEMPTS`(2)에 이르면 다음 판정은 `outcome_unknown` 합성이다. 별도 kind(`tool.replay_started`)를 두지 않는다. `L1.tools.spec` §10 [미결] "재실행 시도 횟수 기록 방식"에 대한 이 문서의 답이다.
 3. 재실행의 `effect.exec` 커밋 키는 `tool:<toolCallId>:exec:<attempt>`다(attempt는 1부터). 첫 실행 키 `tool:<toolCallId>:exec`와 달라야 재실행 표시가 `replayed`로 사라지지 않는다. `ToolRunContext`에 attempt를 넘기도록 `L1.tools.spec`에 요청한다(§8.4).
 4. 재실행 결과의 `effect.result` 커밋 키는 처음과 같은 `tool:<toolCallId>:result`다. 그래서 효과마다 종결 기록은 하나다(`eng.transactions.design` §5.1 불변식 2).
-5. 재생 때 `tool.call.before` 지점을 다시 실행하지 않는다. 의도가 커밋된 호출은 저장된 최종 인자로만 실행한다(durable spec 3162-3163 "Recovery does not rerun `beforeTool` and passes the same stored arguments", `architecture.runtime-flow.design` §4.2 "재생 시 도구 지점" 행).
+5. 재생 때 `tool.call.before` 훅을 다시 실행하지 않는다. 의도가 커밋된 호출은 저장된 최종 인자로만 실행한다(durable spec 3162-3163 "Recovery does not rerun `beforeTool` and passes the same stored arguments", `architecture.runtime-flow.design` §4.2 "재생 시 도구 지점" 행).
 6. `safe` 재실행이어도 외부 효과의 멱등성은 도구 몫이다(`F.records.spec` §3.5, durable spec 2936-2940).
 
 #### 4.7.4 의도 없는 도구 호출
 
 - assistant item에 toolCall이 있고 그 `toolCallId`의 `effect.intent`가 없으면 효과는 일어나지 않았다(TX-02: 의도 없이 실행하지 않는다). 승인 대기 중이었거나, 정책 판정 전이었거나, 의도 커밋 직전에 끝난 호출이다.
-- `recover`는 이 호출들을 `ResumePlan.pendingToolCalls`에 넣는다. 재개 실행자(core-loop)는 `runTurn({ kind: "tools" })`로 들어가 `fresnel.tools`의 `prepare`·`execute` 단계 계약으로 정상 파이프라인을 다시 지난다(L1.tools.spec §3.3, adr.0009). 이때 `tool.call.before` 지점과 정책은 다시 실행된다. 의도 전이므로 다시 실행해도 된다(`F.extensions.spec` §4.3 재생 계약, durable spec 2636-2660 "a crash before the consuming commit may rerun them").
+- `recover`는 이 호출들을 `ResumePlan.pendingToolCalls`에 넣는다. 재개 실행자(core-loop)는 `runTurn({ kind: "tools" })`로 들어가 `fresnel.tools`의 `prepare`·`execute` 단계 계약으로 정상 파이프라인을 다시 지난다(L1.tools.spec §3.3, adr.0009). 이때 `tool.call.before` 훅과 정책은 다시 실행된다. 의도 전이므로 다시 실행해도 된다(`F.extensions.spec` §4.3 재생 계약, durable spec 2636-2660 "a crash before the consuming commit may rerun them").
 
 ### 4.8 재개 절차
 
@@ -1090,7 +1090,7 @@ export interface RewindPlan {
 
 | # | 단계 | 하는 쪽 | core-persistence가 쓰는 것 | 근거 |
 |---|---|---|---|---|
-| 1 | 세션 임대 획득: OS 잠금 + `sys_leases` 행(`thread:<threadId>`), 결과는 `LeaseToken`. 실패하면 4.9 | L4 host(`SessionLockPort`) → L0.process, L0.store `leases.acquire` | 없음 | adr.0006 §3.6 1·3번, `L0.store.spec` §3.1 |
+| 1 | 대화 프로세스 락 획득: OS 잠금 + `sys_leases` 행(`thread:<threadId>`), 결과는 `LeaseToken`. 실패하면 4.9 | L4 host(`SessionLockPort`) → L0.process, L0.store `leases.acquire` | 없음 | adr.0006 §3.6 1·3번, `L0.store.spec` §3.1 |
 | 2 | 쓰기 열기: 토큰 확인(`leases.holds`), 버전 검사(§4.12), 투영 재생성(§4.5.3) | `openForWrite(threadId, token)` | 재생성한 투영 테이블 | adr.0006 §3.6 4번(소유 표시는 `sys_leases`, §3.6) |
 | 3 | 복구 표식 확인: `p_threads.open_turn_id`, `running_since`, `resume_attempts` | `openForWrite`가 `OpenReport.marker`로 돌려준다 | 없음 | adr.0006 §3.6 5번 |
 | 4 | 마지막 `checkpoint.step`에서 복원: `loadCheckpoint` + `leafEventId` 뒤 활성 가지 이벤트 | `recover`가 읽고, 루프 상태 재구성(`reduceLoopState`)은 core-loop | 없음 | `F.records.spec` §4.5 1번, `eng.events.design` §7.2 |
@@ -1136,7 +1136,7 @@ export interface RewindPlan {
 
 - wire 오류는 `thread.locked`(3002, `details: { ownerKind, options }`)다(`F.wire-settings.spec` §3.5.2). `ownerKind`는 `leases.inspect("thread:<threadId>")`의 `LeaseOwnerInfo.kind`이고 틀릴 수 있다.
 - 하트비트는 L0.store `leases.keepAlive`가 `l0.store.heartbeatMs`(기본 5초)마다 한다(`L0.store.spec` §4). 이 문서는 별도 주기를 두지 않는다. `L4.host-service.spec` HS-29가 이 문서에 맡긴 주기는 L0.store 설정을 가리키도록 요청한다(§8.4).
-- 펜싱은 `sys_leases` epoch다(§3.6, §4.1 2단계) [결정: review.decisions-2 U-09]. 임대를 인수당한 이전 소유자(OS 잠금이 없는 후퇴안에서 멈췄다 깨어난 프로세스 등)가 늦게 커밋하면 `leases.holds`가 거짓이라 `ownership_lost`이고 행 변화가 없다(`L0.store.spec` §5 "늦게 깨어난 이전 소유자의 커밋" 행). adr.0004 §3.4는 이 방식으로 개정한다.
+- 펜싱은 `sys_leases` epoch다(§3.6, §4.1 2단계) [결정: review.decisions-2 U-09]. 프로세스 락을 인수당한 이전 소유자(OS 잠금이 없는 후퇴안에서 멈췄다 깨어난 프로세스 등)가 늦게 커밋하면 `leases.holds`가 거짓이라 `ownership_lost`이고 행 변화가 없다(`L0.store.spec` §5 "늦게 깨어난 이전 소유자의 커밋" 행). adr.0004 §3.4는 이 방식으로 개정한다.
 
 ### 4.10 분기와 수명주기
 
@@ -1147,7 +1147,7 @@ export interface RewindPlan {
 - 자식 생성과 부모 연결 [결정: L1B.3]. F `ThreadCreateInput`에는 다른 thread의 초안(부모의 `agent.spawned`)을 같은 커밋에 싣는 자리가 없다. 그래서 두 커밋으로 나눈다: (1) 호출자가 `threads.create({ threadId, creationKey: <부모와 자식 requestId에서 만든 키>, inheritOwnerFrom })`로 자식을 만든다. `creationKey`가 같으면 재시도가 같은 자식을 돌려주므로(`replayed: true`) 중복 자식이 생기지 않는다. (2) 부모 대화에 `agent.spawned`를 커밋한다(커밋 안에서 `TxView.agentByRequestId`로 같은 requestId를 먼저 본다). 두 커밋 사이에 죽으면 `p_agents` 행이 없는 자식이 남지만, 재시도가 같은 `creationKey`로 같은 자식을 찾아 (2)를 이어 한다. 한 커밋으로 합치려면 F `ThreadCreateInput`(또는 `ThreadLifecycle`)에 부모 초안을 받는 자리를 더해야 한다 [미결: F 요청]. 같은 (부모, 자식 requestId)의 두 번째 `agent.spawned`가 걸러지지 않고 커밋되면 `p_agents`의 유일 색인이 투영 실패로 커밋 전체를 되돌린다.
 - 자식 연결은 이력이다 [결정: L1B.3]. 자식 thread를 `remove`해도 부모의 `agent.spawned`·`p_agents` 행은 남는다(재생성이 같은 행을 다시 만들기 때문이다). 소비자는 죽은 자식의 `thread_not_found`를 처리해야 한다. 부모를 `remove`하면 그 부모의 연결 행은 함께 지워진다.
 - `ResumePlan.openChildren`은 열린 turn이 소유한(`owner_turn_id`) 정착하지 않은 자식이다. scope 소유와 소유 turn이 없는 백그라운드 자식은 포함하지 않는다. 열린 turn에 취소 의도가 있으면 비어 있다(§4.8.1 5단계).
-- 자식 thread 생성 [제안]: `inheritOwnerFrom`이 있으면 core-persistence가 그 토큰의 holder(같은 엔진 인스턴스)로 `fresnel.store.leases.acquire("thread:<threadId>", holder)`를 부른 뒤 `thread.started` 커밋을 한다. 새 id라 임대 경합이 없다. 커밋이 실패하면 임대를 반납한다. 얻은 토큰은 `ThreadCreated.token`으로 돌려주고 보관해 이후 그 thread의 커밋 소유 확인에 쓴다. 하트비트(`leases.keepAlive`)도 core-persistence가 걸고, 잃으면(`onLost`) 부모와 같은 처리(그 thread의 메모리 작업 취소)를 호출자에게 알린다. 정착 때 반납은 `release(threadId, …)`다. 재개 때 자식 소유는 `openForWrite(child, token)`으로 다시 얻는다(`L1.agents.spec` §4.1, §4.5). 같은 holder가 엔진 인스턴스마다 하나이므로 holder 값은 조립 루트가 core-persistence에 넘긴다 [가정: 조립 루트 배선은 `L4.host-service.spec`이 정한다].
+- 자식 thread 생성 [제안]: `inheritOwnerFrom`이 있으면 core-persistence가 그 토큰의 holder(같은 엔진 인스턴스)로 `fresnel.store.leases.acquire("thread:<threadId>", holder)`를 부른 뒤 `thread.started` 커밋을 한다. 새 id라 프로세스 락 경합이 없다. 커밋이 실패하면 프로세스 락을 반납한다. 얻은 토큰은 `ThreadCreated.token`으로 돌려주고 보관해 이후 그 thread의 커밋 소유 확인에 쓴다. 하트비트(`leases.keepAlive`)도 core-persistence가 걸고, 잃으면(`onLost`) 부모와 같은 처리(그 thread의 메모리 작업 취소)를 호출자에게 알린다. 정착 때 반납은 `release(threadId, …)`다. 재개 때 자식 소유는 `openForWrite(child, token)`으로 다시 얻는다(`L1.agents.spec` §4.1, §4.5). 같은 holder가 엔진 인스턴스마다 하나이므로 holder 값은 조립 루트가 core-persistence에 넘긴다 [가정: 조립 루트 배선은 `L4.host-service.spec`이 정한다].
 - `workspace`: `ThreadCreateInput.workspace`는 `thread.started.workspace`(F가 선택 필드로 더했다, FR-P5 반영)에 실려 `p_threads.workspace`로 투영된다. 없으면 null이고 필드를 쓰지 않는다. 멱등 지문에는 workspace가 있을 때만 넣어, 필드가 없던 때의 같은 키 재시도가 `key_reused`가 되지 않게 한다. 투영 규칙이 바뀌어 `CORE_PROJECTOR_VERSION`을 올렸고 다음 열기에서 core가 다시 만들어진다.
 - 생성 뒤 `session_start{ reason: "new" }`를 발화한다(재전송이면 발화하지 않는다). `openForWrite`는 읽기 전용이 아닐 때 `session_start{ reason: "startup" }`을, 복구 표식이 남은 thread면 `resume`을 발화한다. 훅 발화는 모두 `ThreadHooks`(`points.ts`)를 거치고, tap은 기다리지 않는다(`detach`, 실패는 Logger). `reload`는 엔진 재적재를 아는 호스트의 몫이다.
 - 오류 통로가 없는 `list`는 읽기 실패(busy, io, 손상 행)를 Logger에 남기고 빈 쪽을 돌려준다 [제안: F `ThreadLifecycle.list`를 `Result`로 바꾸는 요청]. 커서는 `<updatedAt>:<threadId>` 불투명 문자열이고 해석할 수 없으면 빈 쪽이다.
@@ -1165,7 +1165,7 @@ export interface RewindPlan {
 - `fork(threadId, at, newThreadId)`: `at`이 있으면 `query.itemEvent(threadId, at)`, 없으면 현재 leaf를 출처 이벤트로 쓴다. 출처가 활성 가지에 없으면 `invalid_target{not_on_branch}`, item이 없으면 `item_not_found`다. `thread.fork.before`의 `itemId`는 `at`, 없으면 활성 가지의 마지막 item이다(`position: "at"`). 쓰기 소유자가 아니어도(관찰 열기) 새 thread를 만들 수 있다. 새 thread에는 출처의 제목과 workspace를 옮긴다. 새 thread의 소유 잠금은 호출한 호스트가 얻는다.
 - 커밋 전 `thread.fork.before`(first)를 발화하고, 거부면 `cancelled_by_extension`이다.
 - 새 thread의 첫 이벤트 `thread.started { title, forkedFrom: { threadId, eventId } }`를 커밋한다. 출처 이벤트를 복사하지 않는다. 컨텍스트 조립은 출처 thread의 `eventId`까지 활성 사슬을 앞에 잇는다(`eng.events.design` §6) [제안]. pi durable `session/forks.ts`(97줄)는 대화 문서를 fork 시점(`asOf`)과 현재(`current`) 정책으로 복사한다. Fresnel의 문서 대응물은 scope 상태 이벤트이므로, 새 thread의 scope 상태는 X가 출처 thread의 `x|grp.<name>.state.committed`를 `at` 시점으로 읽어 새 thread에 다시 커밋한다 [가정: X.primitives.spec이 정한다].
-- fork 연속성 [결정: m2c G2-11]: 새 thread의 첫 이벤트 `thread.started`의 `parentId`는 출처 이벤트(`forkedFrom.eventId`)다. 활성 가지는 leaf에서 `parentId`를 따라 올라간 사슬이므로 fork thread의 `readBranch`, `query.branchItems`, `branchItemRecords`가 출처 thread의 fork 지점까지의 이벤트와 item을 같은 `itemId`로 잇는다. 출처가 다시 fork이면 사슬을 거슬러 올라간다. 이벤트를 복사하지 않고, 출처에 fork 뒤에 쓰인 이벤트는 사슬에 없다. 이벤트 읽기(`readFrom`/`subscribe`)와 `query.thread`, `p_items`는 이 thread의 것만 다룬다. 출처 쪽 item은 이 thread에서 `itemEvent`로 찾을 수 없어(`p_items`가 thread별이다) 되감기·fork·`moveLeaf`의 대상이 아니다. 출처 thread를 지우려면 fork가 없어야 한다(`has_forks`).
+- fork 연속성 [결정: m2c G2-11]: 새 thread의 첫 이벤트 `thread.started`의 `parentId`는 출처 이벤트(`forkedFrom.eventId`)다. 활성 가지는 leaf에서 `parentId`를 따라 올라간 사슬이므로 fork thread의 `readBranch`, `query.branchItems`, `branchItemRecords`가 출처 thread의 fork 시점까지의 이벤트와 item을 같은 `itemId`로 잇는다. 출처가 다시 fork이면 사슬을 거슬러 올라간다. 이벤트를 복사하지 않고, 출처에 fork 뒤에 쓰인 이벤트는 사슬에 없다. 이벤트 읽기(`readFrom`/`subscribe`)와 `query.thread`, `p_items`는 이 thread의 것만 다룬다. 출처 쪽 item은 이 thread에서 `itemEvent`로 찾을 수 없어(`p_items`가 thread별이다) 되감기·fork·`moveLeaf`의 대상이 아니다. 출처 thread를 지우려면 fork가 없어야 한다(`has_forks`).
 - 커밋 뒤 `session_start{ reason: "fork", previousThreadId: threadId }`를 새 thread에 발화한다.
 
 #### 4.10.4 revert
@@ -1178,7 +1178,7 @@ export interface RewindPlan {
 #### 4.10.5 close, delete, 제목
 
 - `close`: `thread.closed { reason }`을 커밋한다. 커밋 키는 `thread:<id>:close`, 지문은 이유와 무관해 두 번째 호출은 처음 결과를 돌려준다(이벤트 1개). 쓰기 소유자만 부르고(`not_owner`), 열린 turn이 있으면 `turn_running`이다. 이후 그 thread의 커밋은 `build`의 `view.threadStatus === "closed"` 검사로 생산 spec이 거부한다(`reject("thread_closed")`). wire `thread.close`는 연결의 열기 기록을 지우는 일이라 이 API와 다르다(`L4.host-service.spec` §3.4). thread 종결을 wire로 노출할지는 [미결]이다.
-- `remove`: 쓰기 소유자만 한다. 한 트랜잭션에서 `thread_delete_guard`에 행을 넣고, `events`, `requests`, 모든 투영기 테이블의 그 thread 행, 그 thread를 가리키는 `thread_creation_keys` 행을 지우고, 표지 행을 지운다. 세션 임대 행은 L0.store 소유라 지우지 않고 `release`로 반납한다. `consumer_cursors`는 건드리지 않는다. 다른 thread의 `forked_from_thread`가 이 thread면 `has_forks`로 거부한다 [제안]. 지운 seq는 다시 쓰지 않는다(`event_seq`). 지운 뒤 커밋 뒤 방출은 없다. 화면 갱신은 wire `thread.delete` 응답으로 한다.
+- `remove`: 쓰기 소유자만 한다. 한 트랜잭션에서 `thread_delete_guard`에 행을 넣고, `events`, `requests`, 모든 투영기 테이블의 그 thread 행, 그 thread를 가리키는 `thread_creation_keys` 행을 지우고, 표지 행을 지운다. 대화 프로세스 락 행은 L0.store 소유라 지우지 않고 `release`로 반납한다. `consumer_cursors`는 건드리지 않는다. 다른 thread의 `forked_from_thread`가 이 thread면 `has_forks`로 거부한다 [제안]. 지운 seq는 다시 쓰지 않는다(`event_seq`). 지운 뒤 커밋 뒤 방출은 없다. 화면 갱신은 wire `thread.delete` 응답으로 한다.
 - `setTitle`: 커밋 키는 `title:<commitKeyPart(requestKey)>`다. 같은 키로 다른 제목을 내면 `key_reused{requestKey}` 값이다. L2 artifacts가 `fresnel.session`의 이 API를 부르고, 이벤트 `thread.updated { title }`은 core-persistence가 쓴다(`eng.context-map.design` §4.4 4번). 커밋 뒤 `thread.info.after`(tap, detached)를 발화한다.
 
 #### 4.10.6 자동 제목 [결정: 오케스트레이터 기본값, M3-REQ-83]
@@ -1263,8 +1263,8 @@ export interface RewindPlan {
 
 #### 4.13.3 JSONL 내보내기
 
-- [결정] 세션을 JSONL로 내보내는 명령을 둔다(adr.0004 §3.2 7번). 명령 이름은 `L4.cli.spec`이 정한다.
-- [제안] 기본 형식 `pi-jsonl`은 pi 세션 JSONL v3(`coding-agent/src/core/session-manager.ts:41` `CURRENT_SESSION_VERSION = 3`)과 호환을 목표로 한다. 대응:
+- [결정] 대화를 JSONL로 내보내는 명령을 둔다(adr.0004 §3.2 7번). 명령 이름은 `L4.cli.spec`이 정한다.
+- [제안] 기본 형식 `pi-jsonl`은 pi "세션" JSONL v3(`coding-agent/src/core/session-manager.ts:41` `CURRENT_SESSION_VERSION = 3`)과 호환을 목표로 한다. 대응:
 
 | Fresnel | pi 엔트리(`session-manager.ts:43-195`) |
 |---|---|
@@ -1283,11 +1283,11 @@ export interface RewindPlan {
 - 내보내기 전 민감 정보 경고 확인 단계를 둔다(`_research/settings.md` §2.8). 시크릿은 기록 규칙상 참조만 있다(`F.records.spec` §3.3).
 - 가져오기(`/import`, pi JSONL → Fresnel thread) 지원 여부는 [미결]이다.
 
-### 4.14 종료 지점과 재시작 불변식
+### 4.14 종료 시점과 재시작 불변식
 
 `eng.transactions.design` §5.4의 K1~K6을 F 이름으로 옮긴다. 각 행은 `L1.persistence.plan`의 장애 주입 테스트 하나다.
 
-| 종료 지점 | 재시작 뒤 저장 상태 | `recover` 결과 | 성립해야 하는 불변식 |
+| 종료 시점 | 재시작 뒤 저장 상태 | `recover` 결과 | 성립해야 하는 불변식 |
 |---|---|---|---|
 | K1 스트리밍 중(C3 전) | 이 단계의 assistant item 없음 | 효과 없음, `next: "request"` | 부분 스트림 행 없음. 같은 단계 요청을 다시 보낸다 |
 | K2 E1 뒤, E2 전 | intent만 | safe·safe면 `reruns`, 아니면 `not_started` 합성 | 효과마다 `effect.result` 0 또는 1. 합성은 `synthesized: true`, `status: "abandoned"` |
@@ -1303,7 +1303,7 @@ export interface RewindPlan {
 |---|---|
 | `busy`(busy_timeout 초과) | `err({ kind: "busy" })`. 쓰기 없음. 같은 `CommitRequest`로 재시도(TX-05) |
 | `disk_full` | `err({ kind: "disk_full" })`. 쓰기 없음 |
-| 커밋 중 임대를 잃음(`leases.holds(tx, token)` 거짓) | 롤백, `ownership_lost`. 호출자는 그 thread의 메모리 작업을 취소한다 |
+| 커밋 중 프로세스 락을 잃음(`leases.holds(tx, token)` 거짓) | 롤백, `ownership_lost`. 호출자는 그 thread의 메모리 작업을 취소한다 |
 | 같은 `creationKey`로 `threads.create`를 다시 부름 | 쓰기 없음. 처음 thread로 `replayed: true` |
 | 관찰로 연 thread에 커밋 | `read_only{observer}` |
 | 같은 키, 다른 지문 | `key_reused`. 운영 로그 |
@@ -1345,7 +1345,7 @@ export interface RewindPlan {
 - 자동 재개 키는 `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts` 둘만 둔다. L0.process·L4.host-service는 자기 자동 재개 키를 두지 않고 이 두 키를 읽는다 [결정: review.decisions-2 S-03].
 - 화면: `sessions` 탭 "대화와 컨텍스트". 명령: `fresnel config get/set/reset l1.persistence.<이름>`(`L4.cli.spec`). 파일: 사용자·관리 설정 파일.
 
-### 6.2 세션 범위 값과 설정 파일
+### 6.2 launch 범위 값과 설정 파일
 
 ```ts
 // xeon/packages/contracts/src/records/session-service.ts (계속)  [제안: FR-P1]
@@ -1366,18 +1366,18 @@ export type SessionSettingsError =
   | { readonly kind: "key_reused"; readonly requestKey: string };
 ```
 
-- session 범위 값은 `settings.changed{scope:"launch"}` 이벤트로 남고, `layer(threadId)`가 활성 가지 위 이벤트를 seq 순으로 접어 돌려준다. 분기·되감기·재개를 따라간다. 이벤트 순서로 쌓는 투영 테이블(`p_settings`)은 버려진 가지의 값을 담을 수 있어 두지 않는다 [결정: L1B.2]. 도구 호출마다 읽으므로 thread별 캐시를 두고(leaf가 앞으로만 나아갔으면 새 이벤트만 접고, 되감기·가지 이동이면 처음부터 다시 접는다) thread를 지우면 버린다.
+- launch 범위 값은 `settings.changed{scope:"launch"}` 이벤트로 남고, `layer(threadId)`가 활성 가지 위 이벤트를 seq 순으로 접어 돌려준다. 분기·되감기·재개를 따라간다. 이벤트 순서로 쌓는 투영 테이블(`p_settings`)은 버려진 가지의 값을 담을 수 있어 두지 않는다 [결정: L1B.2]. 도구 호출마다 읽으므로 thread별 캐시를 두고(leaf가 앞으로만 나아갔으면 새 이벤트만 접고, 되감기·가지 이동이면 처음부터 다시 접는다) thread를 지우면 버린다.
 - `set`·`reset`의 커밋 키는 `settings:<commitKeyPart(requestKey)>`다. 공백이나 비ASCII 문자, 긴 키도 해시로 줄여 커밋 키 형식에 맞춘다. 같은 키에 다른 값을 내면 `{ kind: "key_reused", requestKey }` 오류 값이다 [결정: L1F]. 아무 행도 쓰지 않고 운영 로그에 남긴다. 호출마다 새 키를 만드는 호출자(core-tools `setMode`)에게는 일어나지 않으므로 그 자리에서는 불변 조건 위반(`Bug`)으로 다루고, wire에서 받은 키를 넘기는 호출자는 값으로 처리한다. 같은 키·같은 값은 기록된 결과를 그대로 돌려준다. 쓰기 소유자가 아니면 `ownership_lost`다. `layer`는 오류 통로가 없다(F 계약): 읽을 수 없으면 비어 있는 층을 돌려주고 Logger에 남긴다 [제안: F에 `Result` 요청].
-- [제안] 설정 파일 범위(`managed`, `user`, `project`, `local`)의 파일 위치, 읽기, 감시, 쓰기, 병합 실행은 `L4.host-service.spec`이 소유한다. `F.wire-settings.spec` §1.2는 이 일을 `L1.persistence.spec`과 `L4.host-service.spec`에 [가정]으로 넘겼다. session-core 컨텍스트는 `fresnel.store`만 부르므로(§4.8.2) 파일 시스템과 OS 디렉터리(L0.os)를 쓸 수 없다. 그래서 이 문서는 session 범위만 맡는다. 프로젝트 설정의 신뢰 전 적용 제외 규칙(`X.loading-trust.spec` §4.7.4)과 파일 이름(`.fresnel/settings.json`, `.fresnel/settings.local.json`)도 파일 범위 소유자의 일이다. `L4.host-service.spec`의 `SettingsStorePort` 대응([가정])과 `X.loading-trust.spec`의 기대를 바꾸는 요청이므로 [미결]로 둔다(§10).
-- [결정: review.m3-lower-requirements M3-REQ-82, 오케스트레이터 기본값] `settings.json` 쓰기는 프로세스 사이 잠금 안에서 한다. 파일 범위의 쓰기는 위 [제안]대로 호스트(`SettingsStorePort`)가 하므로 잠금도 호스트가 `OsService.fileLock`(`L0.os.spec` §3.11)으로 건다. 잠금 파일은 `<설정 파일 경로>.lock`이고 읽고-고치고-쓰기 전체가 잠금 안에서 일어난다. 이 패키지의 session 범위는 내구 이벤트라 파일 잠금이 필요 없다. 파일 외부 변경 통지(M3-REQ-49, `OsService.watch`)도 같은 이유로 호스트가 받는다. 이 패키지는 파일 이름을 해석하지 않는다(§6.2 위 제안과 같다). 요구 상태는 호스트 구현과 시험(`L4.host-service.spec` HS-98)으로 확인한다.
+- [제안] 설정 파일 범위(`managed`, `user`, `project`, `local`)의 파일 위치, 읽기, 감시, 쓰기, 병합 실행은 `L4.host-service.spec`이 소유한다. `F.wire-settings.spec` §1.2는 이 일을 `L1.persistence.spec`과 `L4.host-service.spec`에 [가정]으로 넘겼다. session-core 컨텍스트는 `fresnel.store`만 부르므로(§4.8.2) 파일 시스템과 OS 디렉터리(L0.os)를 쓸 수 없다. 그래서 이 문서는 launch 범위만 맡는다. 프로젝트 설정의 신뢰 전 적용 제외 규칙(`X.loading-trust.spec` §4.7.4)과 파일 이름(`.fresnel/settings.json`, `.fresnel/settings.local.json`)도 파일 범위 소유자의 일이다. `L4.host-service.spec`의 `SettingsStorePort` 대응([가정])과 `X.loading-trust.spec`의 기대를 바꾸는 요청이므로 [미결]로 둔다(§10).
+- [결정: review.m3-lower-requirements M3-REQ-82, 오케스트레이터 기본값] `settings.json` 쓰기는 프로세스 사이 잠금 안에서 한다. 파일 범위의 쓰기는 위 [제안]대로 호스트(`SettingsStorePort`)가 하므로 잠금도 호스트가 `OsService.fileLock`(`L0.os.spec` §3.11)으로 건다. 잠금 파일은 `<설정 파일 경로>.lock`이고 읽고-고치고-쓰기 전체가 잠금 안에서 일어난다. 이 패키지의 launch 범위는 내구 이벤트라 파일 잠금이 필요 없다. 파일 외부 변경 통지(M3-REQ-49, `OsService.watch`)도 같은 이유로 호스트가 받는다. 이 패키지는 파일 이름을 해석하지 않는다(§6.2 위 제안과 같다). 요구 상태는 호스트 구현과 시험(`L4.host-service.spec` HS-98)으로 확인한다.
 
 ## 7. 훅
 
-### 7.1 발화 지점
+### 7.1 발화하는 훅
 
-이 문서가 발화하는 지점은 7개다(`L1.readme` §6 소유표). 페이로드·반환·fold·실패 규칙은 `F.extensions.spec` §3.4 표와 §3.5가 정본이고, 아래는 인용과 발화 시점만 적는다.
+이 문서가 발화하는 훅은 7개다(`L1.readme` §6 소유표). 페이로드·반환·fold·실패 규칙은 `F.extensions.spec` §3.4 표와 §3.5가 정본이고, 아래는 인용과 발화 시점만 적는다.
 
-| # | 지점 | fold(F 표) | 발화 시점 | 결정의 처리 |
+| # | 훅 | fold(F 표) | 발화 시점 | 결정의 처리 |
 |---|---|---|---|---|
 | 30 | `thread.start` | tap | `create`(`new`), `openForWrite`(`startup`, 재개 후보면 `resume`), `fork` 새 thread(`fork`), 엔진 재적재(`reload`). 커밋과 복구 뒤 | 기록 후 계속 |
 | 31 | `thread.info.after` | tap(detached) | `setTitle` 커밋 뒤 | 기다리지 않음 |
@@ -1394,9 +1394,9 @@ export type SessionSettingsError =
 
 ### 7.2 on, post, drive, scope와의 관계
 
-- on: 위 7개 지점을 발화한다. on 실행 자체는 기록하지 않는다(`F.records.spec` §7).
+- on: 위 7개 훅을 발화한다. on 실행 자체는 기록하지 않는다(`F.records.spec` §7).
 - post: 확장 post의 기록은 `input.queued` 하나다(`post.accepted` retire, review.decisions-2 U-05). core-persistence는 커밋 경로와 커밋 키 멱등만 제공한다.
-- drive: 임대 획득·반납(`lease.acquired`, `lease.released`)은 X가 `ext.commit`으로 커밋한다. 재개 때 열린 임대는 `ext.loadThread`의 `openLease`로 X에 넘긴다. drive 함수 재호출은 X가 한다(`F.extensions.spec` §4.6).
+- drive: drive 락 획득·반납(`lease.acquired`, `lease.released`)은 X가 `ext.commit`으로 커밋한다. 재개 때 열린 drive 락은 `ext.loadThread`의 `openLease`로 X에 넘긴다. drive 함수 재호출은 X가 한다(`F.extensions.spec` §4.6).
 - scope: `scope.changed`와 상태 판(`x|grp.<name>.state.committed`)은 X가 커밋하고, 접두 테이블 투영은 §4.5.2로 같은 커밋에 들어간다.
 - [결정] Helm과 학습 그룹은 L3 기본 그룹이다. 학습 그룹은 drive를 쓰지 않는다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)", `eng.context-map.design` §3 규칙 4). 두 그룹의 비공개 상태는 각각 `x_helm_*`, `x_learning_*`에 있고 이 문서의 등록 검사로 서로의 테이블을 쓰지 못한다.
 
@@ -1422,10 +1422,10 @@ export type SessionSettingsError =
 |---|---|
 | `DurableEventEnvelope`, `DurableEventDraft`, `VolatileEventEnvelope`, `CORE_EVENT_CATALOG`, `EventKindRegistry`, `parseEventKind`, `checkEnvelopeSize`, `BlobRef`, `DetachedField`, `StepCheckpoint`, `EffectIntent/Exec/Result`, `decideEffectRecovery`, `OUTCOME_UNKNOWN_TEXT`, `NOT_STARTED_TEXT`, `upcastEvent`, `UpcasterRegistry`, `ChunkMigration` | F.records.spec |
 | `ThreadId` 등 ID, `IdFactory`, `ThreadStartedPayload`, 수명주기 payload, `ItemRecord`, `PartRecord`, `ReplayPolicy`, `toReplayPolicy` | F.conversation.spec §3.2, §3.5, §3.6 |
-| 훅 선언(`HOOKS`, session 지점 페이로드), `ExtensionName` | F.extensions.spec §3.1, §3.4, §3.5 |
+| 훅 선언(`HOOKS`, session 훅 페이로드), `ExtensionName` | F.extensions.spec §3.1, §3.4, §3.5 |
 | `defineSettings`, `ScopeLayer`, `checkSettingWrite`, `resolveSetting`, wire 오류 표 | F.wire-settings.spec §3.5, §3.8, §3.9 |
 | `StoreDb`(`write`, `read`), `StoreService.putBlob/readBlob`, 마이그레이션 실행, FULL 연결 | L0.store.spec(`fresnel.store`) |
-| 세션 id 키 OS 잠금 | L0.process.spec(호스트 경유) |
+| 대화 id 키 OS 잠금 | L0.process.spec(호스트 경유) |
 | `LeaseService`(`acquire`, `holds`, `keepAlive`, `release`, `inspect`), `LeaseToken`, `LeaseHolder`, `LeaseOwnerInfo` | L0.store.spec §3.1(F records `lease.ts`, FR-S2) |
 | `reduceLoopState`, 재개 실행 | L1.loop.spec |
 | `isCancelledByOwner`, 입력 큐 payload | L1.tasks.spec §3.6, §4.8 |
@@ -1464,22 +1464,22 @@ export type SessionSettingsError =
 - `architecture.runtime-flow.design` §4.1: "복구 표식 running_since 커밋"을 C2 `turn.started` 커밋에 포함된 것으로 고친다.
 - adr.0004 §3.4, adr.0006 §3.6 4번: 쓰기 소유 판정을 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱으로 고치고, 별도 소유 테이블 없이 `sys_leases` 행이 소유 표시를 겸하게 한다 [결정: review.decisions-2 U-09].
 - `L4.host-service.spec` HS-29: 하트비트 주기를 L0.store `l0.store.heartbeatMs`로 가리킨다. `openForWrite`에 `LeaseToken`을 넘긴다.
-- `L2.schedule.spec` §4: 세션 생성 멱등은 `threads.create`의 `creationKey`로 한다. 고아 세션 정리는 `creationKey` 조회로 끝낸다.
+- `L2.schedule.spec` §4: 대화 생성 멱등은 `threads.create`의 `creationKey`로 한다. 고아 대화 정리는 `creationKey` 조회로 끝낸다.
 
 ## 9. 수용 기준
 
-1. `FaultPoint` 10종 각각에서 예외를 던지면, 커밋 전 지점(`after_begin`~`before_commit`)은 `events`, `event_seq`, `requests`, `step_checkpoints`, `p_*`, `x_*`, `cap_*`의 행 수와 기본 키 정렬 행 해시가 시도 전과 같다. `after_commit`은 모든 행이 남고 방출은 없다.
+1. `FaultPoint` 10종 각각에서 예외를 던지면, 커밋 전 시점(`after_begin`~`before_commit`)은 `events`, `event_seq`, `requests`, `step_checkpoints`, `p_*`, `x_*`, `cap_*`의 행 수와 기본 키 정렬 행 해시가 시도 전과 같다. `after_commit`은 모든 행이 남고 방출은 없다.
 2. 장애 주입 뒤 같은 `CommitRequest`로 다시 커밋하면 첫 시도가 성공했을 때와 같은 `events` 행(정규화 envelope 해시)이 나온다.
 3. 같은 `requestId`·같은 지문으로 두 번 커밋하면 두 번째는 `replayed: true`이고 `eventIds`, `firstSeq`, `lastSeq`가 첫 번째와 같고 `events` 행 수는 늘지 않는다.
 4. 같은 `requestId`·다른 지문은 `key_reused`이고 아무 행도 늘지 않는다.
 5. `build`가 `reject`를 돌려준 키로 다시 커밋하면 같은 거부가 `replayed: true`로 나오고 `build`는 다시 불리지 않는다.
-6. K1~K6 각 종료 지점에서 자식 프로세스를 SIGKILL하고 같은 DB로 다시 열어 `recover`하면 §4.14 표의 불변식이 성립한다. 모든 경우에 효과마다 `effect.result`는 0 또는 1건이고 새 이벤트의 seq는 종료 전 최대 seq + 1이다.
+6. K1~K6 각 종료 시점에서 자식 프로세스를 SIGKILL하고 같은 DB로 다시 열어 `recover`하면 §4.14 표의 불변식이 성립한다. 모든 경우에 효과마다 `effect.result`는 0 또는 1건이고 새 이벤트의 seq는 종료 전 최대 seq + 1이다.
 7. `replay: "unsafe"` 효과가 intent+exec 상태로 끝나면 `recover`는 `effect.result{status:"interrupted", synthesized:true}`와 `isError: true` toolResult item 한 커밋을 쓰고, 그 내용은 `OUTCOME_UNKNOWN_TEXT`다. intent만 있으면 `abandoned`와 `NOT_STARTED_TEXT`다.
 8. 저장된 정책과 현재 선언이 모두 `safe`인 효과는 `reruns`에 나온다. 재실행 중 다시 SIGKILL을 두 번 반복하면 세 번째 `recover`는 재실행 없이 `outcome_unknown`으로 닫는다(`MAX_REPLAY_ATTEMPTS` 2). 저장 정책이 `unsafe`이고 현재 선언이 `safe`면 재실행하지 않는다.
-9. 재개 경로 전체에서 `tool.call.before` 지점 핸들러 호출 횟수는 의도가 커밋된 호출에 대해 0이다.
+9. 재개 경로 전체에서 `tool.call.before` 훅 핸들러 호출 횟수는 의도가 커밋된 호출에 대해 0이다.
 10. 투영 테이블(`p_*`, `step_checkpoints`, 등록된 `x_*`)을 모두 지우고 재생성하면 지우기 전과 기본 키 정렬 행 해시가 같다(`expectProjectionsRebuildable`).
 11. `ext.a` 투영기가 `x_b_t`를 `tables`에 넣어 등록하면 `table_not_owned`다. `ext.a` 투영기의 `apply`가 `x_b_t`에 쓰는 문장을 내면(디버그 빌드) 그 문장은 실행되지 않고, `ext.a`는 정지되고, 커밋은 `ext.a`를 뺀 채 `committed`로 끝납니다(`store.prefix_not_owned`는 `onFailure` 알림에 실립니다). 확장 `a`의 테이블 쓰기는 같은 커밋의 코어 이벤트와 함께 커밋되거나 함께 사라진다.
-12. 한 thread의 세션 임대를 쥔 프로세스가 있을 때 두 번째 프로세스는 잠금을 얻지 못하고, `openForRead`로 관찰 열기(커밋은 `read_only{observer}`)나 `threads.fork`로 새 thread 생성 중 하나로 동작한다. 서비스 등록 파일이 있으면 위임 선택지가 함께 나온다(호스트 테스트).
+12. 한 thread의 대화 프로세스 락을 쥔 프로세스가 있을 때 두 번째 프로세스는 잠금을 얻지 못하고, `openForRead`로 관찰 열기(커밋은 `read_only{observer}`)나 `threads.fork`로 새 thread 생성 중 하나로 동작한다. 서비스 등록 파일이 있으면 위임 선택지가 함께 나온다(호스트 테스트).
 13. 승인 대기(A1 커밋) 중 SIGKILL 뒤 재개하면 `ResumePlan.pendingApprovals`에 같은 `approvalId` 하나가 있고 새 `approval.requested`가 생기지 않는다.
 14. `input.queued` 두 건을 커밋하고 SIGKILL한 뒤 다시 열면 `ResumePlan.queuedInputs`가 같은 두 건을 같은 seq 순서로 돌려준다.
 15. `turn.abort_requested`가 커밋된 turn은 `recover` 뒤 `reruns`가 비어 있고 `autoResume.reason`이 `abort_requested`다.
@@ -1491,8 +1491,8 @@ export type SessionSettingsError =
 21. `events`에 UPDATE를 시도하면 트리거가 막는다. `threads.remove` 밖의 DELETE도 막는다.
 22. 자식 생성(`threads.create`의 `creationKey` + 부모 `agent.spawned`, §4.10.1) 뒤 SIGKILL하고 다시 열면 `TxView.agentByRequestId(부모, requestId)`가 그 자식을 돌려주고, 자식이 정착하지 않았으면 `ResumePlan.openChildren`에 있다. `agent.settled` 뒤에는 `openChildren`에 없다.
 23. 한 단계(도구 n개)의 커밋 수는 `3 + 3n`이다(§4.2 fsync 식). 모델 테이프 스모크의 커밋 기록으로 확인한다.
-24. 프로세스 A의 임대를 B가 인수한 뒤(epoch 증가) A의 토큰으로 커밋하면 `ownership_lost`이고 `events` 행이 늘지 않는다.
-25. fork thread의 `query.branchItems`와 `readBranch`는 출처 thread의 fork 지점까지의 item을 같은 `itemId`로 먼저 돌려주고 fork가 쓴 item이 뒤따른다. 출처에 fork 뒤 쓴 item은 들어오지 않는다. fork의 fork도 같다. `readFrom({ threadId })`는 fork thread의 이벤트만 돌려준다.
+24. 프로세스 A의 프로세스 락을 B가 인수한 뒤(epoch 증가) A의 토큰으로 커밋하면 `ownership_lost`이고 `events` 행이 늘지 않는다.
+25. fork thread의 `query.branchItems`와 `readBranch`는 출처 thread의 fork 시점까지의 item을 같은 `itemId`로 먼저 돌려주고 fork가 쓴 item이 뒤따른다. 출처에 fork 뒤 쓴 item은 들어오지 않는다. fork의 fork도 같다. `readFrom({ threadId })`는 fork thread의 이벤트만 돌려준다.
 26. `branchItemRecords`의 쪽을 `before`로 이어 붙이면 `readBranch`로 읽은 활성 가지의 item 전체와 같다. 쪽에 든 item의 blob만 읽는다. 없는 thread, 없는 item, 현재 가지에 없는 item은 이유가 다른 오류다.
 25. 같은 `creationKey`로 서로 다른 `threadId`를 주어 `threads.create`를 두 번 부르면 `thread.started`는 하나이고 두 번째 결과는 `replayed: true`, 첫 `threadId`다.
 26. `turn.started{scopeId: s, requestId: r}`가 커밋된 뒤 `TxView.turnByRequestId(thread, s, r)`가 그 turn을 돌려주고, `scopeId` null인 turn과 섞이지 않는다.
@@ -1517,7 +1517,7 @@ export type SessionSettingsError =
 13. [미결] JSONL 가져오기(pi JSONL → Fresnel thread) 지원 여부(§4.13.3).
 14. (닫음) `ext` 하위 객체 방식(§3.3). `F.extensions.spec` §3.2.1 `PortKey.member`로 `fresnel.session`의 `ext`를 꺼낸다. `RecordCommitPort` 타입 위치는 F(`F.records.spec` §3.9 `session-service.ts`, `F.extensions.spec` §3.2.1이 다시 export)다.
 15. [미결] 청크 재생성으로 바꾸는 기준 이벤트 수(10만 건 [가정])와 재생성 중 쓰기 거부가 사용자에게 주는 지연.
-16. (닫음, M3-REQ-36) [결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영기 예외 뒤 복구는 저장소가 투영기를 정지하고 같은 계획으로 커밋을 다시 내는 방식입니다(§4.5.2). X는 알림으로 자동 끄기 판정만 합니다(`X.operations.spec` §10 미결 6 해소). 세션을 읽기 전용으로 여는 방식은 채택하지 않습니다.
+16. (닫음, M3-REQ-36) [결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영기 예외 뒤 복구는 저장소가 투영기를 정지하고 같은 계획으로 커밋을 다시 내는 방식입니다(§4.5.2). X는 알림으로 자동 끄기 판정만 합니다(`X.operations.spec` §10 미결 6 해소). 대화를 읽기 전용으로 여는 방식은 채택하지 않습니다.
 17. [미결] 승인 대기 커밋(A1)의 체크포인트 예외(FR-P4)를 F가 받지 않으면, 승인 대기를 단계 경계로 볼지(`step.completed{status}` 확장) 다시 정해야 한다.
 18. [부분 해소: m2c G2-11] `thread.read`용 쪽 질의는 `branchItemRecords`(§3.4)로 구현했다. `approval.list`용 질의(미해결 `approval.requested`를 seq와 함께 돌려주는 질의)는 아직 없다. 조립 루트는 `readBranch`·`readFrom`·`query.pendingApprovals`와 `feed.headSeq()`를 같은 동기 구간에서 불러 쓰고, `approval.list`는 대화의 이벤트를 처음부터 훑는다. 긴 대화에서 문제가 되면 (b)를 같은 방식으로 더한다.
 19. [미결] `cap.*` 기능 투영기 예외에도 확장과 같은 격리(정지와 재시도)를 적용할지 여부입니다. 코드는 코어가 아닌 투영기를 같은 경로로 다룹니다. 결정 문구(M3-REQ-36)는 확장 투영기만 말하므로 기능 투영기를 다루는 L2 투영 도메인 문서와 맞춥니다.

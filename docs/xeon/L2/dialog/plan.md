@@ -98,12 +98,12 @@ xeon/packages/cap-dialog/
 | D2 | `ask` 도구와 `fresnel.approvals` 연결: `ApprovalsPort`(kind `question`), 요청 멱등 재시도, `input_required` 매핑(`InputRequiredInfo` 값), 출력 대응표(L2.dialog.spec §4.1.1), `wait: true` 메모리 대기 | D1, L1.tools 승인 프로토콜 | L | M2 |
 | D3 | 답 검증과 시간 제한 정책: 만료 시각·만료 결과 전달, 추천 기본 답, 취소·무응답 처리, 비대화형 실행 오류 | D2 | M | M2 |
 | D4 | pi `prompt-templates.ts`·`slash-commands.ts` 포크와 치환: `upstream/pi/` 이식, 파일 읽기 포트화, 앞머리 `args` 필드, 출처 우선순위 변경, pi 테스트 포크 | D1 | M | M2 |
-| D5 | 명령 등록 API와 클라이언트 선언 스키마: `register`, `list`, `expand`, `run`, `registerAction`, 셸 주입 확인 게이트와 실행(포트), `input.user.before` 지점 핸들러, 명령 목록 광고 | D4, L1.tools 사용자 셸 실행 API | L | M2 |
+| D5 | 명령 등록 API와 클라이언트 선언 스키마: `register`, `list`, `expand`, `run`, `registerAction`, 셸 주입 확인 게이트와 실행(포트), `input.user.before` 훅 핸들러, 명령 목록 광고 | D4, L1.tools 사용자 셸 실행 API | L | M2 |
 | D6 | 상태 세그먼트 API와 휘발 이벤트: `setItem`, `clearItem`, `list`, `dialog.status` 발행(100 ms 묶음), 내장 세그먼트 셋 | D1, L1.loop 피드(`turn.*`) | M | M2 |
 | D7 | 첨부 `add`와 blob 등록: 원천별 처리 표, `workspace.images` 연결과 `unavailable` 시 원본 경로, 크기 한도, 입력 파트 생성 | D1, L2.workspace `workspace.images` 최소형 | M | M2 |
 | D8 | 설정 키 13개(`settings.ts`)와 각 기능의 설정 읽기 | D2, D5, D6, D7 | S | M2 |
 | D9 | (2차) `aside.ask`: 활성 가지 스냅숏 읽기, 별도 모델 호출(L1.models 용도), 본류 무기록 | D1, L1.models | M | 2차 |
-| D10 | (2차) `styles.register`/`select`: 세션 범위 설정 쓰기, 다음 턴 시작에 적용, 시스템 프롬프트 조각 | D1, D8, L1.context | M | 2차 |
+| D10 | (2차) `styles.register`/`select`: 대화 범위 설정 쓰기, 다음 턴 시작에 적용, 시스템 프롬프트 조각 | D1, D8, L1.context | M | 2차 |
 | D11 | `notify` 분류: `classifyNotice`, `emit`(`dialog.notified`), `list`(당겨 읽기), `NoticeFeed`, OS 알림 묶음 | D1, D8, L0.os 알림 API | M | M3 (emit·list·구독과 묶음, OS 전달 완료. 클라이언트로의 전달은 apps/host 단위) |
 
 순서: D1 → (D2, D4, D6, D7 병행) → D3 → D5 → D8 → D11 → (2차) D9, D10.
@@ -149,7 +149,7 @@ xeon/packages/cap-dialog/
 | `test/ask-wait.test.ts` | 메모리 대기 | `wait: true`가 응답 시 완료 출력을 돌려주고, `signal` 취소 시 `aborted` 오류를 내며 승인 요청은 남는다 |
 | `test/upstream/prompt-templates.test.ts` | 인자 치환($1, $@, $ARGUMENTS) 표 | pi 치환 테스트 전부와 §4.2.2 표 여섯 표기, 재귀 치환 없음, `$0` 빈 문자열 |
 | `test/commands-priority.test.ts` | 명령 우선순위 | 다섯 출처에 같은 이름이 있으면 `builtin`이 쓰이고 나머지는 `includeHidden`에서만 보인다. 프로젝트 > 사용자. `capability` 중복 등록은 `command_name_taken`. 신뢰하지 않은 프로젝트 폴더는 `.fresnel/commands`와 상대 경로 디렉터리를 읽지 않고 사용자·절대 경로 디렉터리는 그대로다(G1-03) |
-| `test/commands-shell.test.ts` | 셸 주입 확인 게이트 | `!{…}` 포함 템플릿을 `confirmShell` 없이 `run`하면 셸 포트 호출 0회와 `needs_confirmation`. 확인 뒤 순서대로 실행·치환. 설정 `off`면 `command_shell_disabled`. `input` 지점 핸들러는 셸 포함 템플릿을 치환하지 않는다 |
+| `test/commands-shell.test.ts` | 셸 주입 확인 게이트 | `!{…}` 포함 템플릿을 `confirmShell` 없이 `run`하면 셸 포트 호출 0회와 `needs_confirmation`. 확인 뒤 순서대로 실행·치환. 설정 `off`면 `command_shell_disabled`. `input` 훅 핸들러는 셸 포함 템플릿을 치환하지 않는다 |
 | `test/commands-action.test.ts` | 동작 명령 | `registerAction` 처리기가 인자와 `requestId`를 받는다. `args` 선언 위반은 `command_args_invalid`. 해제 함수 뒤 `not_command` |
 | `test/commands-loader.test.ts` | 명령 파일 읽기 | 앞머리 없음·`description` 없음(첫 줄 60자)·YAML 오류(그 파일만 건너뜀, 진단)·`args` 필드 |
 | `test/status-volatile.test.ts` | 상태 이벤트 휘발성 | `setItem` 뒤 `dialog.status` 휘발 이벤트가 피드로 나가고 `openTestStore`의 `events` 행 수가 늘지 않는다. 재생성 결과에 없다. `list`가 현재 스냅숏을 돌려준다. 100 ms 안 변경 셋은 이벤트 하나 |
@@ -196,7 +196,7 @@ M3:
 | 승인 프로토콜 인터페이스가 L1.tools 작성 중이라 바뀜 | `src/ports/approvals.ts` 한 곳에 격리한다. 테스트는 가짜 서비스로만 돌린다. 요청 멱등과 재시도 규칙은 D2 시작 전에 L1.tools 작성자와 합의한다(`L2.work.plan` §7과 같은 합의) |
 | 클라이언트 명령 선언 형식이 F.wire-settings와 어긋남 | 닫음(m2c G1-01). `CommandInfoSchema`가 wire 메서드 `command.list`의 결과 원소로 그대로 쓰인다(D-2). 첨부·상태줄·알림의 wire 메서드는 아직 없다 |
 | 알림 소유 경계 미결(`L2.readme` §10 미결 15, 제안은 `dialog.notify`가 OS 알림과 푸시를 모두 소유) | M2에는 알림을 넣지 않는다. D11은 `classifyNotice`와 당겨 읽기만 먼저 만들고, 전달 경로는 D-6 결정 뒤 붙인다 |
-| 셸 주입이 사용자 모르게 실행됨 | `run`의 확인 게이트를 기본으로 두고 `input.user.before` 지점 경로는 셸 템플릿을 치환하지 않는다. 실행은 L1.tools의 일반 권한·샌드박스를 거친다 |
+| 셸 주입이 사용자 모르게 실행됨 | `run`의 확인 게이트를 기본으로 두고 `input.user.before` 훅 경로는 셸 템플릿을 치환하지 않는다. 실행은 L1.tools의 일반 권한·샌드박스를 거친다 |
 | pi 포크와 원본의 차이가 커짐 | 치환 함수(`parseCommandArgs`, `substituteArgs`)는 손대지 않고 pi 테스트를 그대로 옮겨 회귀를 잡는다. 바꾼 점은 `PATCHES.md`에 모은다 |
 | Bun 내장 YAML이 없거나 동작이 다름 | D4 첫 단계에서 확인하고, 안 되면 키 셋 한정 파서로 바꾼다. 외부 `yaml` 패키지는 쓰지 않는다 |
 | 첨부 이미지가 이벤트 크기를 키움 | 입력 기록 때 records 문자열 분리 규칙으로 blob 자리표시가 되고, 같은 해시는 한 번만 저장된다. 테스트로 envelope 크기를 확인한다 |
@@ -209,7 +209,7 @@ M3:
 |---|---|---|
 | D1 | F 쪽 완료 | `defs/dialog.ts`, `records/catalog/dialog.ts`가 F.2·F.3에서 들어왔다. `defs.contract.test.ts`, `catalog.contract.test.ts`가 확인한다 |
 | D2·D3 (DG.1) | 부분 | `ask`와 승인 연결, 출력 대응, 메모리 대기, 답 검증은 끝났고 core-tools의 실제 `ApprovalService` 위에서 시험한다(`questionApprovalsOver`). 시간 제한은 프로세스 안 타이머의 잠정 구현이다(spec §4.1.3). 비대화형 오류는 `CallContext.interactive`로 낸다 |
-| D4·D5 (DG.2) | 부분 | 포크, 등록·목록·치환·실행, 동작 명령, 셸 확인 게이트, `input.user.before` 지점, 광고는 끝났다. 셸 포트의 기본 구현 `shellPortOver`(`LoopService.runUserBash` 위)를 만들었고, 실제 `ToolService.runUserShell`과 cap-workspace의 셸 서비스 위에서 시험한다. core-loop의 `runUserBash`는 아직 오류 값을 돌려줘서 loop 한 겹은 시험용 얇은 껍데기다 |
+| D4·D5 (DG.2) | 부분 | 포크, 등록·목록·치환·실행, 동작 명령, 셸 확인 게이트, `input.user.before` 훅, 광고는 끝났다. 셸 포트의 기본 구현 `shellPortOver`(`LoopService.runUserBash` 위)를 만들었고, 실제 `ToolService.runUserShell`과 cap-workspace의 셸 서비스 위에서 시험한다. core-loop의 `runUserBash`는 아직 오류 값을 돌려줘서 loop 한 겹은 시험용 얇은 껍데기다 |
 | D6 (DG.3) | 완료 | 상태 세그먼트, 100 ms 묶음, 휘발 발행, 내장 세그먼트 셋. 피드 따라잡기 정책은 [미결] |
 | D7 (DG.3) | 완료 | 첨부 `add`와 `workspace.images` 연결, 원본 직접 등록 대체 경로 |
 | D8 (DG.3) | 완료 | 설정 키 13개. 읽는 기능이 M2에 있는 것은 `ask.timeoutSec`, `commands.*`, `status.segments`, `attachments.maxBytes`다 |
@@ -222,10 +222,10 @@ M3:
 - `ports/`는 `approvals.ts`(`ApprovalsPortFactory`), `shell.ts`, `files.ts`(첨부 원천), `command-files.ts`(명령 파일과 `CommandRoots`), `images.ts`, `blobs.ts`, `session.ts`(피드 구독과 상태 발행), `timers.ts`로 나눈다. M3 알림은 `os.ts`를 두지 않는다. OS 전달(`notify/os-delivery.ts`)은 `Pick<OsService, "notify">`와 `Redactor`를 직접 받고, 플러그인이 `fresnel.os`와 `fresnel.secrets`를 포트로 받는다.
 - `session-adapter.ts`가 `fresnel.session`을 `session.ts`의 두 포트로 감싼다. `plugin.ts`가 포트를 모아 `DialogDeps`를 만든다.
 - `ask/`에 `keys.ts`(요청 키 줄이기), `mapping.ts`(`AskQuestion`·`AskAnswer`와 `QuestionBody`·`QuestionAnswer`), `expiry.ts`(잠정 시간 제한)를 더했다. `commands/`에 `action-args.ts`를 더했다.
-- 지점 핸들러는 `input.user.before`, `tool.execution.before`, `tool.execution.after`, `input.agent.before`이다. 알림용 지점은 없다.
+- 훅 핸들러는 `input.user.before`, `tool.execution.before`, `tool.execution.after`, `input.agent.before`이다. 알림용 훅은 없다.
 - M3 `notify/`는 `classify.ts`, `service.ts`, `os-delivery.ts`를 둔다. 길이 자르기 `clip`은 `util.ts`에 두고 분류와 OS 전달이 같이 쓴다. 구독 묶음과 `NoticeFeed`는 `service.ts`에 있고 `feed.ts`는 만들지 않았다. 알림 포트는 `ports/notices.ts`다(`session.ts`는 바꾸지 않았다). `sessionNoticePort`가 `session-adapter.ts`에서 `fresnel.session`의 `commit`과 `feed`를 감싼다. `read`는 `{events, scannedTo}`를 돌려준다. 훑은 마지막 seq가 `nextSeq`의 근거라서 §3과 다르다.
 
-테스트 대응(§5)은 파일 이름이 같다. 추가로 `plugin.test.ts`(실제 ExtHost에 올려 기능, 지점, 구독 정리 확인. 프로젝트 신뢰가 없거나 판정이 실패하면 프로젝트 명령 0개와 경고 한 번, 신뢰는 대화의 작업 폴더로 묻고 작업 폴더가 없는 대화는 엔진 cwd로 내려가지 않음: G1-03, G2-02), `session-adapter.test.ts`(휘발 봉투), `status-core.test.ts`, `settings.test.ts`, `fork-records.test.ts`를 두었다. `ask-restart.fault.test.ts`는 같은 이벤트 로그 위에 새 `ApprovalService`(메모리 대기 목록이 빈 것)와 새 ask 서비스를 세우는 것으로 재시작을 흉내 낸다. 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`)과 SIGKILL 재개는 통합 단계(HOST.4)에서 확인한다.
+테스트 대응(§5)은 파일 이름이 같다. 추가로 `plugin.test.ts`(실제 ExtHost에 올려 기능, 훅, 구독 정리 확인. 프로젝트 신뢰가 없거나 판정이 실패하면 프로젝트 명령 0개와 경고 한 번, 신뢰는 대화의 작업 폴더로 묻고 작업 폴더가 없는 대화는 엔진 cwd로 내려가지 않음: G1-03, G2-02), `session-adapter.test.ts`(휘발 봉투), `status-core.test.ts`, `settings.test.ts`, `fork-records.test.ts`를 두었다. `ask-restart.fault.test.ts`는 같은 이벤트 로그 위에 새 `ApprovalService`(메모리 대기 목록이 빈 것)와 새 ask 서비스를 세우는 것으로 재시작을 흉내 낸다. 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`)과 SIGKILL 재개는 통합 단계(HOST.4)에서 확인한다.
 
 통합 단계(HOST.6)에서 실제 구현으로 바꿀 포트:
 

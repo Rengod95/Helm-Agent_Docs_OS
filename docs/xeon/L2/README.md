@@ -33,7 +33,7 @@ L2는 F3 기능 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provi
 | L2-d | 지식과 기억 (저장소) | knowledge | cap-knowledge | knowledge.skills, knowledge.memory, knowledge.search, knowledge.ledger | fresnel.knowledge | knowledge.(예약) | cap_knowledge_ | M2 | `L2.knowledge.spec`, `L2.knowledge.plan` |
 | L2-e | 작업 관리 | work | cap-work | work.tasks, work.plans, work.goals, work.reports | fresnel.work | work. | cap_work_ | M2(tasks, plans), M3(goals, reports)[^work] | `L2.work.spec`, `L2.work.plan` |
 | L2-f | 사용자 대화 | dialog | cap-dialog | dialog.ask, dialog.commands, dialog.status, dialog.attachments, dialog.aside, dialog.styles, dialog.notify | fresnel.dialog | dialog.(휘발 status) | 없음 | M2(ask, commands, status, attachments), M3(notify)[^dialog] | `L2.dialog.spec`, `L2.dialog.plan` |
-| L2-g | 산출물과 세션 | artifacts | cap-artifacts | artifacts.registry, artifacts.reviews, artifacts.sessions | fresnel.artifacts | artifact.(단수 주의) | cap_artifacts_ | M3(정의·카탈로그만 M2)[^art] | `L2.artifacts.spec`, `L2.artifacts.plan` |
+| L2-g | 산출물과 대화 | artifacts | cap-artifacts | artifacts.registry, artifacts.reviews, artifacts.sessions | fresnel.artifacts | artifact.(단수 주의) | cap_artifacts_ | M3(정의·카탈로그만 M2)[^art] | `L2.artifacts.spec`, `L2.artifacts.plan` |
 | L2-h | 예약과 백그라운드 | schedule | cap-schedule | schedule.loops, schedule.jobs, schedule.sessions, schedule.timers, schedule.remote | fresnel.schedule | schedule. | cap_schedule_ | M3(정의·카탈로그만 M2)[^sch] | `L2.schedule.spec`, `L2.schedule.plan` |
 
 - 이름 대응: 계획 v2의 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳이 셋이다. L2-a "작업 도구" = `workspace`, L2-e "작업 관리" = `work`, L2-g "산출물과 세션" = `artifacts`. 코드, 서비스 이름, 이벤트·테이블 접두사, 설정 키는 layout 이름을 쓴다(`eng.context-map.design` §4.5, 미결 C-1).
@@ -49,8 +49,8 @@ L2는 F3 기능 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provi
 [^web]: JSON은 web.search·web.fetch·web.browse·공통 웹 계약 1차, agent-browser provider·web.research 2차, 선택 엔진 플러그인 보류다. 무료 검색 기본값 단계 구성은 M2다(`product.scope.spec` §4.1 I10, ADR-0005). [제안] `web.browse`의 playwright-core provider는 M2 종료 조건에 들지 않으므로 M2 후반에 시작해 늦어도 M3 초입에 끝낸다(`L2.web.plan` §1.1~1.2). 이 시점은 §10 미결 17이다.
 [^work]: JSON은 작업 목록·계획 승인 1차, 목표 지속·완료 보고 2차, 작업 보드 보류다. 목표 판정은 3차 결정(별도 판정 모델 + 실행 횟수 상한)으로 범위에 들어와 M3다(`product.scope.spec` §4.1 I11). [제안] `work.reports`는 목표 종결 커밋이 완료 보고를 함께 만들어야 하므로 `work.goals`와 같이 M3에 둔다(`L2.work.spec` §1, `L2.work.plan` §1). JSON의 2차 표기와 다른 이 배치는 §10 미결 17이다.
 [^dialog]: JSON은 질문 도구·슬래시 명령·진행 표시·첨부 1차, 곁가지 질문·출력 스타일 2차, 음성 입력 보류다. `dialog.notify`(사용자 알림)는 3차 결정이 범위에 넣었으므로 M3다(`product.scope.spec` §4.1 I13). `dialog.aside`, `dialog.styles`는 2차다.
-[^art]: JSON은 산출물 등록·리뷰와 diff 승인·세션 제목과 메타 1차, 세션 핸드오프·내보내기 2차다. M3는 `product.scope.spec` §4.3 "나머지 1차 구성요소(`cap-artifacts` 등)"다. F 정의와 이벤트 카탈로그(`L2.artifacts.plan` A1)는 `cap-work`와 Helm이 정의를 참조해 컴파일되어야 하므로 M2에 둔다.
-[^sch]: JSON은 루프·백그라운드 모니터·다중 세션 2차, 예약 실행·원격 제어 보류다. 3차 결정(예약·원격·알림 범위 포함, 데몬 허용)이 JSON 표기를 덮어써 1차로 본다(`product.scope.spec` §4.1 I4 해설, I13). 그래서 M3다. 루프는 서비스 모드가 필요 없지만 `cap-schedule` 묶음으로 함께 만든다(`product.scope.spec` §4.5). F 정의와 이벤트 카탈로그(`L2.schedule.plan` H1)는 M2에 둔다.
+[^art]: JSON은 산출물 등록·리뷰와 diff 승인·대화 제목과 메타 1차, 대화 핸드오프·내보내기 2차다. M3는 `product.scope.spec` §4.3 "나머지 1차 구성요소(`cap-artifacts` 등)"다. F 정의와 이벤트 카탈로그(`L2.artifacts.plan` A1)는 `cap-work`와 Helm이 정의를 참조해 컴파일되어야 하므로 M2에 둔다.
+[^sch]: JSON은 루프·백그라운드 모니터·다중 대화 2차, 예약 실행·원격 제어 보류다. 3차 결정(예약·원격·알림 범위 포함, 데몬 허용)이 JSON 표기를 덮어써 1차로 본다(`product.scope.spec` §4.1 I4 해설, I13). 그래서 M3다. 루프는 서비스 모드가 필요 없지만 `cap-schedule` 묶음으로 함께 만든다(`product.scope.spec` §4.5). F 정의와 이벤트 카탈로그(`L2.schedule.plan` H1)는 M2에 둔다.
 
 ## 3. 패키지 배치
 
@@ -87,7 +87,7 @@ cap-<domain>/
 
 - 기능 정의의 내용(메서드·도구·스키마·고유 오류 코드). 정의 데이터의 저장 위치는 F다.
 - provider 구현과 provider 선택 체인(§5.2). `F.readme` §6 "기능 provider 구현과 선택" 행이 이 층을 가리킨다.
-- 각 도메인의 세션 투영(`cap.<도메인>` 투영기, `cap_<도메인>_` 테이블)과 세션 밖 상태.
+- 각 도메인의 대화 투영(`cap.<도메인>` 투영기, `cap_<도메인>_` 테이블)과 대화 밖 상태.
 - `l2.<domain>.*` 설정 키 선언(§7).
 
 ### 4.2 L2가 소유하지 않는 것
@@ -95,14 +95,14 @@ cap-<domain>/
 | 대상 | 정하는 곳 |
 |---|---|
 | 권한 모드, 권한 규칙, 승인 프로토콜(`fresnel.approvals`, `approval.*` 이벤트), 도구 실행 파이프라인, 도구 노출 켜기·끄기, 결과 경계화 | `L1.tools.spec` |
-| 되감기, 체크포인트, 파일 복원, 세션 쓰기(`SessionWriter.commit`), `consumer_cursors` 테이블 | `L1.persistence.spec`, `eng.transactions.design` |
+| 되감기, 체크포인트, 파일 복원, 대화 쓰기(`SessionWriter.commit`), `consumer_cursors` 테이블 | `L1.persistence.spec`, `eng.transactions.design` |
 | 프로세스 레지스트리, 샌드박스, 격리, 실행 환경(`ExecutionEnv`), 시크릿 저장과 주입, blob 저장 | `L0.process.spec`, `L0.sandbox.spec`, `L0.exec.spec`, `L0.secrets.spec`, `L0.store.spec` |
 | 서브에이전트 실행, 백그라운드 위임 | `L1.agents.spec` |
-| 학습 정책(언제, 무엇을 배울지), 탐구 정책(단계, drive 임대 사용) | L3 그룹 문서(`L3.readme`) |
+| 학습 정책(언제, 무엇을 배울지), 탐구 정책(단계, drive 락 사용) | L3 그룹 문서(`L3.readme`) |
 | 확장 로딩, 신뢰, provider 등록 API, 4연산 실행 | `X.loading-trust.spec`, `X.primitives.spec` |
 | 화면, 명령 표면, 설정 파일 위치 | `L4.settings-ui.spec`, `L4.cli.spec`, `L4.desktop.spec`, `L4.host-service.spec` |
 
-- L2는 drive를 쓰지 않는다. drive 임대는 L3 그룹만 갖는다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `fresnel.tasks` 경유 입력으로 한다(각 spec).
+- L2는 drive를 쓰지 않는다. drive 락은 L3 그룹만 갖는다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `fresnel.tasks` 경유 입력으로 한다(각 spec).
 - [제안] 한 스레드에서 다음 턴을 투입하는 L2 주체는 하나다. 목표(`work.goals`)를 가진 루프(`schedule.loops`의 `goalId`)에서는 루프가 반복마다 다음 턴을 투입하고 `work.goals`는 판정만 기록하며 post하지 않는다. 이를 위해 목표는 `continuation` 값을 갖는다. `"self"`(기본)면 `work.goals`가 미충족 판정 뒤 post하고, `"external"`이면 판정만 기록한다. `schedule.loops.start`는 `goalId`의 목표가 `continuation: "external"`이 아니면 `invalid_input`(`detail.reason: "goal_continuation_self"`)으로 거부한다. 루프와 목표를 함께 거는 호출자(L4 명령, 그룹)는 `work.goals.set({ continuation: "external" })` 뒤 `schedule.loops.start({ goalId })`를 부른다(`L2.work.spec` §4.3.5, `L2.schedule.spec` §4.1.4). 확정은 §10 미결 18이다.
 - L3 그룹 이름은 이 층 문서에 쓰지 않는다. L2 설정의 기본값은 일반 이름으로 두고, 특정 그룹이 필요한 값은 L3가 설정으로 채운다 [결정: review.decisions-2 D-11].
 
@@ -150,14 +150,14 @@ cap-<domain>/
 
 | 상태 종류 | 쓰는 경로 | 저장 위치 | 근거 |
 |---|---|---|---|
-| 세션에 속한 상태(작업 목록, 산출물 색인 등) | 도메인 이벤트(`<접두사>.*`)를 세션 커밋에 넣고, `cap.<도메인>` 투영기가 투영한다 | `cap_<도메인>_` 테이블. `session_id` 열을 둔다 | `eng.context-map.design` §5.2 |
-| 세션 밖 상태(MCP 서버 상태, fetch 캐시, 스킬 색인, 타이머) | `fresnel.store.scoped`(자기 접두사 범위 핸들) | `cap_<도메인>_` 테이블 | `eng.context-map.design` §5.2 |
-| 같은 DB 이벤트의 비동기 소비(세션 검색 FTS 색인 등) | 자기 테이블 쓰기와 커서 갱신을 한 트랜잭션에 넣는다 | `consumer_cursors` 행(`consumer` = `cap.<도메인>.<이름>`) | `eng.transactions.design` §7 |
+| 대화에 속한 상태(작업 목록, 산출물 색인 등) | 도메인 이벤트(`<접두사>.*`)를 대화 커밋에 넣고, `cap.<도메인>` 투영기가 투영한다 | `cap_<도메인>_` 테이블. `session_id` 열을 둔다 | `eng.context-map.design` §5.2 |
+| 대화 밖 상태(MCP 서버 상태, fetch 캐시, 스킬 색인, 타이머) | `fresnel.store.scoped`(자기 접두사 범위 핸들) | `cap_<도메인>_` 테이블 | `eng.context-map.design` §5.2 |
+| 같은 DB 이벤트의 비동기 소비(대화 검색 FTS 색인 등) | 자기 테이블 쓰기와 커서 갱신을 한 트랜잭션에 넣는다 | `consumer_cursors` 행(`consumer` = `cap.<도메인>.<이름>`) | `eng.transactions.design` §7 |
 | 큰 바이너리(이미지, 첨부) | L0 blob API | `sys_blobs` + blob 파일, 참조는 `BlobRef` | `F.records.spec` §3.4, `eng.context-map.design` §5.2 |
 
 - 다른 컨텍스트의 테이블을 직접 읽지 않는다. 필요한 데이터는 서비스 API나 이벤트 구독으로 받는다(`eng.context-map.design` CM-02).
-- 세션 투영 테이블은 재생으로 다시 만들 수 있어야 한다. 세션 밖 상태 테이블은 재생 대상이 아니다(`eng.context-map.design` §5.2 마지막 열).
-- 세션 쓰기는 `SessionWriter.commit` 한 경로로만 한다(`eng.transactions.design` TX-07). 트랜잭션 안에서 네트워크·모델 호출을 하지 않는다(TX-01).
+- 대화 투영 테이블은 재생으로 다시 만들 수 있어야 한다. 대화 밖 상태 테이블은 재생 대상이 아니다(`eng.context-map.design` §5.2 마지막 열).
+- 대화 쓰기는 `SessionWriter.commit` 한 경로로만 한다(`eng.transactions.design` TX-07). 트랜잭션 안에서 네트워크·모델 호출을 하지 않는다(TX-01).
 
 ### 5.5 오류 (e)
 
@@ -240,12 +240,12 @@ export interface ApprovalsPort {
 
 ### 5.8 호출 문맥 (`CallOptions.context`)
 
-여러 L2 서비스가 대상 세션(`work`, `dialog`, `artifacts`, `schedule`), 턴(`artifacts.reviews`), 도구 호출 여부(`artifacts`), 호출 주체(`web`의 세션 상한·정책, `knowledge`의 행위자, `work.goals.judge`의 호출자 확인)를 알아야 한다. 도구 경로의 `toInput`은 순수 함수라 이 값을 입력에 넣을 수 없다.
+여러 L2 서비스가 대상 대화(`work`, `dialog`, `artifacts`, `schedule`), 턴(`artifacts.reviews`), 도구 호출 여부(`artifacts`), 호출 주체(`web`의 대화 상한·정책, `knowledge`의 행위자, `work.goals.judge`의 호출자 확인)를 알아야 한다. 도구 경로의 `toInput`은 순수 함수라 이 값을 입력에 넣을 수 없다.
 
 호출 문맥은 `F.capabilities.spec` §3.2의 `CallOptions.context: CallContext`(`threadId`, `turnId`, `toolCallId`, `caller: CallerInfo`)가 정본이다. 여섯 도메인 spec(`L2.work.spec`, `L2.dialog.spec`, `L2.artifacts.spec`, `L2.schedule.spec`, `L2.web.spec`, `L2.knowledge.spec`)은 이 타입을 인용한다. `CallerInfo`는 `kind`(`model` | `extension` | `host`), `agent`(`main` | `subagent` | `background`), `extension`, `afterUntrusted`를 갖는다. `context`는 L1.tools 어댑터(도구 경로)와 X의 capability 래퍼(그룹·확장 경로)가 덮어써서 채우고 consumer가 직접 채우지 않는다.
 
 - `context`가 없으면 provider는 `{ caller: { kind: "host" } }`로 본다.
-- 대상 세션 해석: 메서드 입력에 `threadId`가 있으면 그것을 쓰고, 없으면 `context.threadId`를 쓴다. 둘 다 없으면 `invalid_input`이다. 도구 경로(`context.toolCallId`가 있음)에서 입력 `threadId`가 `context.threadId`와 다르면 `denied`다. 모델이 다른 세션을 대상으로 삼지 못하게 하려는 것이다.
+- 대상 대화 해석: 메서드 입력에 `threadId`가 있으면 그것을 쓰고, 없으면 `context.threadId`를 쓴다. 둘 다 없으면 `invalid_input`이다. 도구 경로(`context.toolCallId`가 있음)에서 입력 `threadId`가 `context.threadId`와 다르면 `denied`다. 모델이 다른 대화를 대상으로 삼지 못하게 하려는 것이다.
 - 도메인 spec에서 `caller.kind`처럼 짧게 쓴 것은 `CallOptions.context.caller.kind`다.
 
 ### 5.9 이벤트 카탈로그 형식
@@ -308,7 +308,7 @@ flowchart LR
 - 각 spec의 "설정 노출" 절은 다음 열로 표를 쓴다: 키, 타입, 기본값, range, runtimeChange, allowedScopes, ui.tab, secret. L4 노출(화면, 파일, 명령)이나 단위 같은 설명이 필요하면 마지막에 "비고" 열 하나를 더할 수 있다.
 - 표 값 표기 [제안]: allowedScopes는 범위 이름 전체를 쉼표로 늘어놓는다(`managed, user, project, local, launch`). 약어를 쓰지 않는다. secret은 `true`/`false`다. range는 수 범위면 `min <최소>, max <최대>`(한쪽만 있으면 그쪽만), 열거형이면 `enum <값>, <값>`, 없으면 `—`다.
 - `since` [제안]: 첫 사용 버전(M3 종료)까지 만드는 L2 키는 모두 `since: "0.1.0"`이다. 그 뒤에 더하는 키만 더한 버전을 적는다.
-- 범위 제한 규칙 [제안]: project 범위 값은 저장소에 들어 있는 파일이라 저장소를 여는 것만으로 적용된다. 그래서 보안 경계를 넓히는 키는 allowedScopes에 `project`를 넣지 않는다. 해당하는 키는 실행 파일·바이너리 경로, 사설망·루프백 접근 같은 네트워크 방어 해제, 검색어·내용을 보내는 외부 호스트 주소, 원격 기능 켜기, 브라우저 JS 실행·파일 업로드·로그인 프로필 사용, 쓰기 승인·스캔 끄기다(`L2.workspace.spec` §6 `grep.rgPath`, `L2.web.spec` §6, `L2.schedule.spec` §4.5.3, `L2.knowledge.spec` §6). 프로젝트가 정의하는 실행 대상(MCP stdio 서버)은 `project` 범위를 허용하되 프로젝트가 신뢰된 상태(`thread.trust.before` 지점, `F.extensions.spec` §3.4)에서만 적용한다(`L2.mcp.spec` §6).
+- 범위 제한 규칙 [제안]: project 범위 값은 저장소에 들어 있는 파일이라 저장소를 여는 것만으로 적용된다. 그래서 보안 경계를 넓히는 키는 allowedScopes에 `project`를 넣지 않는다. 해당하는 키는 실행 파일·바이너리 경로, 사설망·루프백 접근 같은 네트워크 방어 해제, 검색어·내용을 보내는 외부 호스트 주소, 원격 기능 켜기, 브라우저 JS 실행·파일 업로드·로그인 프로필 사용, 쓰기 승인·스캔 끄기다(`L2.workspace.spec` §6 `grep.rgPath`, `L2.web.spec` §6, `L2.schedule.spec` §4.5.3, `L2.knowledge.spec` §6). 프로젝트가 정의하는 실행 대상(MCP stdio 서버)은 `project` 범위를 허용하되 프로젝트가 신뢰된 상태(`thread.trust.before` 훅, `F.extensions.spec` §3.4)에서만 적용한다(`L2.mcp.spec` §6).
 
 ### 7.2 L4 탭
 
@@ -321,7 +321,7 @@ flowchart LR
 | `budgets` | 비용과 반복 횟수 정책. work는 이 탭에 키를 두지 않는다. 판정 상한 키는 `l1.agents.judge.maxRuns` 하나이고 L1.agents 소유다 [결정: review.decisions-2 S-06] |
 | `providers` | provider 플러그인 우선순위(`pluginOrder`)의 표시. 플러그인 자체 설정은 `plugins` 탭 |
 | `secrets` | L2 키가 참조하는 `secret://` 이름의 표시(예: `l2.schedule.remote.tokenRef`). 값 관리는 L0.secrets 소관 |
-| `sessions` | 세션 제목·메타, 핸드오프, 내보내기, 산출물 한도(artifacts), 메모리·세션 검색(knowledge) |
+| `sessions` | 대화 제목·메타, 핸드오프, 내보내기, 산출물 한도(artifacts), 메모리·대화 검색(knowledge) |
 | `execution` | 루프·예약·백그라운드 작업·원격(schedule), 알림(dialog.notify) |
 | `permissions` | 계획 모드 승인 키 두 개(`l2.work.plans.requireApproval`, `l2.work.plans.exitOnApprove`). 권한 모드 전환과 연결된 키라 이 탭에 둔다. 그 밖의 도구 승인 규칙은 L1.tools 키다. MCP 도구별 승인 모드처럼 L2가 기본값을 공급하는 키는 `tools` 탭에 두고 L1.tools 규칙 키 형식(`mcp__<서버>`)을 맞춘다 |
 | `appearance` | 상태줄 세그먼트와 출력 스타일(`l2.dialog.status.segments`, `l2.dialog.styles.active`) |
@@ -331,7 +331,7 @@ flowchart LR
 
 ## 8. 상주 수준
 
-`_research/l2e.md` §6의 기준을 L2 기능에 적용한다 [제안]. 0은 요청 처리 중 메모리만 쓴다. 1은 앱(세션 프로세스)이 살아 있어야 한다. 2는 앱을 닫아도 독립 프로세스가 살아 있어야 하므로 공유 서비스 모드(`fresnel service`, ADR-0006)가 필요하다.
+`_research/l2e.md` §6의 기준을 L2 기능에 적용한다 [제안]. 0은 요청 처리 중 메모리만 쓴다. 1은 앱(대화를 여는 프로세스)이 살아 있어야 한다. 2는 앱을 닫아도 독립 프로세스가 살아 있어야 하므로 공유 서비스 모드(`fresnel service`, ADR-0006)가 필요하다.
 
 | 수준 | 기능 | 이유 |
 |---|---|---|
@@ -354,7 +354,7 @@ flowchart LR
 | [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나 | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 5번 |
 | [결정] 예약·원격·알림 범위 포함(데몬 허용) | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 2번 |
 | [결정] pi durable tools·images·truncate는 Chord 제거 포크 | ADR-0003 §3.1 |
-| [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정(2차), ADR-0004 |
+| [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정(2차), ADR-0004 |
 | [결정] 학습 정책은 L3, 저장은 L2-d | `_research/decisions-log.md` 2026-10-21 계획 v2 |
 
 ## 10. 미결 사항

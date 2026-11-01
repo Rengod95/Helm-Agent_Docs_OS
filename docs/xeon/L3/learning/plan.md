@@ -20,7 +20,7 @@ binds: [xeon/packages/group-learning/**]
 | 마일스톤 | 학습 그룹 작업 | 선행 조건(다른 층) |
 |---|---|---|
 | M0 | 없음. 패키지 골격(`export {};`)만 있다 | F 계약 골격, check-layers |
-| M1 | 없음 | F.extensions 지점 타입, X `on`·`post`·`scope` 구현, 이벤트 저장 |
+| M1 | 없음 | F.extensions 훅 타입, X `on`·`post`·`scope` 구현, 이벤트 저장 |
 | M2 | 없음. group-sdk M2 완료가 선행 조건이다 | L3.group-sdk.plan M2(`defineGroup`, `GroupApi`, 도구·명령 등록 `registerTool`·`registerCommand`(G-22)), L2.knowledge.plan(읽기 기능) |
 | M3 | 1차 구성요소 전부(LR-01~LR-18, LR-23~LR-28). UC-3 스모크 | M3-new-01(ADR-0015 구현), spec §8.1 REQ-LN-01~11, L1.agents.plan 백그라운드 위임(M3-new-02), L2.knowledge.plan 쓰기·원장·스캔 API, L4.settings-ui.plan 설정 화면, L4 승인 화면 계약 |
 | M4 이후(2차) | 큐레이터, 학습 이력, 스크립트 제안(LR-19~LR-22) | L2-h 예약(큐레이터 트리거를 예약으로 정할 때), L2-d 백업 API |
@@ -99,7 +99,7 @@ xeon/packages/group-learning/
 | LR-13 | 피드백 제안: `feedback.ts`의 `kind: "feedback"` 검사, `target` 규칙, 메모리 `user` 영역 적용 연결 | LR-06, LR-10 | S |
 | LR-14 | 레코드 발행: `records.ts` 8종 스키마와 `recordKinds` 선언, 전이마다 레코드 쓰기 | LR-09 | S |
 | LR-15 | 명령: `g.registerCommand("learning", …)`로 `/learning queue` 하위 명령 6종(`approve --scope` 포함), `/learning review [--cancel]`, `--json` 출력(`ProposalView`, `DecisionResult`). 진입 때 `sweepQueue` | LR-09, LR-10, LR-28, group-sdk `registerCommand`(G-22), REQ-LN-03, L4 승인 화면 계약 | M |
-| LR-16 | 공존 확인: Helm 임대 중 동작, `drive` 호출 0 계측 | LR-05, group-sdk `DriveArbiter` | S |
+| LR-16 | 공존 확인: Helm drive 락 중 동작, `drive` 호출 0 계측 | LR-05, group-sdk `DriveArbiter` | S |
 | LR-17 | 사용량 계측: 검토별 입력·출력 토큰을 `x_learning_reviews`와 `GroupMetrics`에 남김 | LR-05, L1.agents 사용량 부모 귀속 | S |
 | LR-18 | UC-3 테이프 통합 테스트와 M3 코어 diff 0 확인 | LR-01~LR-17, LR-23~LR-28 | M |
 | LR-19 | (2차) 큐레이터 결정적 단계: 유휴 판정, 14일 stale, 30일 archive 후보, 고정·참조·사용자 생성 스킬 제외, archive도 대기열 | LR-09, L2-d 사용 기록과 "에이전트 생성" 표시, spec §10 미결 6 | M |
@@ -108,7 +108,7 @@ xeon/packages/group-learning/
 | LR-22 | (2차) 스크립트 제안: 반복 명령 묶음 탐지(최소 반복 3회 [가정]), `kind: "script"` 후보 | LR-06, LR-10 | M |
 | LR-23 | 완료 구독: `agent.settled` 구독 핸들러, `reviewFinishOutcome`, `fork.finished`·`review.finished` 기록, `settledReviewId` 커밋과 `inFlightReviewId` 비우기(§4.3 선후 경합). 구독이 없을 때 명령 진입의 `g.delegateStatus` 대체 경로 | LR-05, REQ-LN-02·07·08 | M |
 | LR-24 | 그룹 끄기 취소: `onDispose`의 `g.cancelDelegates`와 `inFlightReviewId` 커밋(REQ-X-12 [가정]), 커밋하지 못하는 구성에서는 다시 켠 뒤 `inFlightReviewId` 정리 [결정: review.m3-design-inputs D-M3-04] | LR-23, REQ-LN-06·08 | S |
-| LR-25 | ADR-0015 재생 시험: 모든 커밋 지점에서 끊고 재개, 핸들러 2회 실행, 위임·기록·커밋 계수 1(spec §9 17·18·19) | LR-05, LR-23, group-sdk `replayDrive` 효과 계수(G-20 확장), M3-new-01 | M |
+| LR-25 | ADR-0015 재생 시험: 모든 커밋 시점에서 끊고 재개, 핸들러 2회 실행, 위임·기록·커밋 계수 1(spec §9 17·18·19) | LR-05, LR-23, group-sdk `replayDrive` 효과 계수(G-20 확장), M3-new-01 | M |
 | LR-26 | 범위 선택과 신뢰 표지: `Proposal.scope`, `approve --scope`, `KnowledgeChange.scope`, `afterUntrusted` 기록과 화면 필드 [결정: review.m3-design-inputs D-M3-09] | LR-09, LR-10, REQ-LN-01·09·10 | S |
 | LR-27 | 충돌 처리: `name_exists` 거부, 유사 스킬 `conflictsWith`(옛 LR-12 충돌 표시를 대신한다. LR-12 번호는 비워 둔다) | LR-06 | S |
 | LR-28 | Result 종류: `results.ts`의 `DecisionResult`, `ApplyTransition`, `QueueSweep`, `LearningError`와 분류 순수 함수 | LR-01 | S |
@@ -146,7 +146,7 @@ xeon/packages/group-learning/
 
 | 테스트 이름 | 확인할 동작 | 작업 |
 |---|---|---|
-| `manifest.validates` | `validateManifest` 오류 0, `usesDrive: false`, 지점 4개, 레코드 8종 접두 `grp.learning.` | LR-01 |
+| `manifest.validates` | `validateManifest` 오류 0, `usesDrive: false`, 훅 4개, 레코드 8종 접두 `grp.learning.` | LR-01 |
 | `settings.defs-valid` | 12개 키가 `checkSettingDef`를 통과하고 기본값이 spec §6.1과 같다 | LR-02 |
 | `settings.read-failure-fails-closed` | 설정 읽기 실패 시 `g.delegate`와 `apply` 호출 0 | LR-02 |
 | `triggers.counts-user-turns` | 사용자 turn 10회째 `boundary.settle.after`에서 `review/user_turns` | LR-03, LR-04 |
@@ -172,8 +172,8 @@ xeon/packages/group-learning/
 | `queue.revert-uses-ledger` | `revert` → `rollback(ledgerId)` 1회, 성공 시 `reverted`, `hash_mismatch` 시 `applied/rollback_refused` | LR-10 |
 | `queue.sweep-on-command-entry` | 결정 처리 도중 적용 전에 프로세스를 끊고 다시 띄운 뒤 아무 `/learning` 명령 진입 때 `approved` 미적용 행을 같은 `idempotencyKey`로 재적용하고(가짜 L2-d 원장 행 1개) 만료 행을 `expired`로 바꾼다. on 핸들러에서는 정리하지 않는다 | LR-09 |
 | `queue.projection-rebuild-equal` | 이벤트에서 투영을 다시 만들면 같은 행. `diff`가 16 KiB를 넘는 제안을 만들고 프로세스를 재시작해 재생해도 `x_learning_proposals`의 `diff`가 원문과 같고 승인된 제안의 재적용·만료 판정 결과가 재시작 전과 같다 | LR-08 |
-| `feedback.frustration-signal-creates-proposal` | 좌절 표현이 있는 테이프 세션 → `kind: "feedback"` 후보 1개와 `grp.learning.feedback.proposed` | LR-13 |
-| `coexist.helm-lease-held-fork-still-runs` | 테스트 drive 그룹이 임대를 가진 상태에서 임계 도달 → 포크 시작, 학습 그룹 `drive` 호출 0 | LR-16 |
+| `feedback.frustration-signal-creates-proposal` | 좌절 표현이 있는 테이프 대화 → `kind: "feedback"` 후보 1개와 `grp.learning.feedback.proposed` | LR-13 |
+| `coexist.helm-lease-held-fork-still-runs` | 테스트 drive 그룹이 drive 락을 가진 상태에서 임계 도달 → 포크 시작, 학습 그룹 `drive` 호출 0 | LR-16 |
 | `records.schema-valid` | 8종 예시 payload가 스키마를 통과하고 `validateGroupRecord`를 통과한다 | LR-14 |
 | `commands.queue-json-matches-view` | `/learning queue --json` 출력이 `ProposalView[]` 스키마를 따른다 | LR-15 |
 | `triggers.in-flight-blocks-second-review` | `inFlightReviewId`가 있는 동안 임계 도달 → `skip/in_flight`, `g.delegate` 0회. 종료 기록 뒤 다음 turn에 1회 | LR-04, LR-23 |
@@ -186,7 +186,7 @@ xeon/packages/group-learning/
 | `settled.status-fallback-on-command` | 구독 없는 구성에서 `/learning queue` 진입 → `delegateStatus` 조회로 종료 기록 | LR-23 |
 | `dispose.cancels-in-flight-review` | 검토 중 그룹 끄기 → `cancelDelegates` 1회, 자식 `agent.settled{ aborted }` | LR-24 |
 | `dispose.clears-inflight-id-after-cancel` | 그룹 끄기 뒤 다시 켜면 `inFlightReviewId`가 null이고 명령을 부르지 않아도 다음 임계에서 검토가 시작된다. `onDispose`에서 커밋하지 못하는 구성이면 첫 명령 진입의 대체 조회로 비워진다 | LR-24 |
-| `replay.agent-settled-twice-one-delegate` | ADR-0015: 모든 커밋 지점에서 끊고 재개, `boundary.settle.after` 2회 실행 → 위임 1, `fork.started` 1, 상태 반영 1 | LR-25 |
+| `replay.agent-settled-twice-one-delegate` | ADR-0015: 모든 커밋 시점에서 끊고 재개, `boundary.settle.after` 2회 실행 → 위임 1, `fork.started` 1, 상태 반영 1 | LR-25 |
 | `replay.no-capability-calls-in-handlers` | on 핸들러·구독 핸들러 실행 중 `g.capability` 호출 0 | LR-25 |
 | `scope.tool-proposals-are-user-scope` | `learning_propose`로 만든 스킬 후보의 `scope`는 `user` | LR-26 |
 | `scope.approve-project-scope` | `approve --scope project` → 적용 어댑터 `scope: "project"`. 메모리 후보 → `learning.scopeNotAllowed` | LR-26 |
@@ -200,7 +200,7 @@ xeon/packages/group-learning/
 
 - 이름: `group-learning/test/uc3.int.test.ts`의 `uc3.threshold-review-queue-and-helm-coexist`.
 - 구성: 실제 SQLite 임시 파일, X·group-sdk 실구현, L1-g·L2-d 가짜, 테스트용 drive 그룹(Helm 대역), 테이프 `test/tapes/uc3-review.tape.jsonl`(주 대화 10 turn + 검토 포크 응답).
-- 확인: (1) 임계를 넘는 세션에서 포크가 백그라운드로 1회 실행되고 후보가 대기열에 들어가며, 승인 전 스킬 디렉터리와 메모리 파일 해시가 같다. (2) drive 그룹이 임대를 가진 동안에도 (1)이 성립한다. (3) 승인 뒤에만 L2-d `apply`가 불린다.
+- 확인: (1) 임계를 넘는 대화에서 포크가 백그라운드로 1회 실행되고 후보가 대기열에 들어가며, 승인 전 스킬 디렉터리와 메모리 파일 해시가 같다. (2) drive 그룹이 drive 락을 가진 동안에도 (1)이 성립한다. (3) 승인 뒤에만 L2-d `apply`가 불린다.
 - [제안] 계층(L-IN-19): `eng.testing.guide` TS-01은 `scenario` 계층을 저장소 전체에 1개(`apps/cli` 스모크)로 제한한다. 이 테스트는 패키지 안 `int` 계층으로 둔다. 실제 SQLite와 X·group-sdk 실구현을 쓰므로 UC-3 검증에 충분하고, 저장소 전체 스모크 수 제한을 바꾸지 않는다.
 - 추가 확인(M3 설계 개정): (4) 검토 결과가 부모 대화의 모델 입력에 없다([결정: review.m3-design-inputs D-M3-03]). (5) 검토 도중 프로세스를 끊고 재개해도 자식 대화는 1개다(ADR-0015).
 
@@ -211,7 +211,7 @@ xeon/packages/group-learning/
    | 수용 기준(spec §9) | 테스트 |
    |---|---|
    | 1 UC-3 임계·포크 1회·승인 전 불변 | `uc3.threshold-review-queue-and-helm-coexist`, `triggers.counts-user-turns` |
-   | 2 Helm 임대 중 동작 | `uc3.threshold-review-queue-and-helm-coexist`, `coexist.helm-lease-held-fork-still-runs` |
+   | 2 Helm drive 락 중 동작 | `uc3.threshold-review-queue-and-helm-coexist`, `coexist.helm-lease-held-fork-still-runs` |
    | 3 임계 미만 포크 0 | `triggers.counts-user-turns`(경계 9회 사례), `triggers.counts-tool-iterations-per-step` |
    | 4 승인 전 파일 불변 | `queue.pending-does-not-touch-files` |
    | 5 같은 epoch 포크 중복 0 | `fork.requestid-dedup-after-restart` |
@@ -241,7 +241,7 @@ xeon/packages/group-learning/
 
 2. M3 검증(`product.scope.spec` 4.4 M3, 5절): 학습 그룹을 추가하는 변경에서 `xeon/packages/contracts/**`, `xeon/packages/ext-host/**`, `xeon/packages/platform-*/**`, `xeon/packages/core-*/**` 경로의 diff가 0이다. 확인 방법은 그 변경 묶음에 대한 `git diff --stat <기준>..HEAD -- <경로들>` 결과가 비어 있는 것이다. 같은 검사를 `xeon/scripts/core-diff-check.ts <기준 커밋>`이 한다(`bun scripts/core-diff-check.ts <기준>`, 종료코드 0 통과, 1 위반, 2 환경 문제). 필요한 F·X·L1 변경은 학습 그룹 변경보다 앞선 별도 변경으로 끝나 있어야 한다.
 3. 학습 그룹이 쓰는 연산(`on`, `scope`, `recordPrivate`, `record`, group-sdk `delegate`)이 통합 테스트에서 호출된다(`product.scope.spec` 4.4 M3, `product.vision.spec` S1). `post`는 쓰지 않는다(spec §7, `usesPost: false`).
-4. 승인 전 파일 불변 검증: 통합 테스트가 가짜 L2-d 저장소의 스킬 디렉터리와 메모리 파일 해시를 세션 전, 후보 생성 뒤, 거절 뒤에 비교하고 모두 같다.
+4. 승인 전 파일 불변 검증: 통합 테스트가 가짜 L2-d 저장소의 스킬 디렉터리와 메모리 파일 해시를 대화 전, 후보 생성 뒤, 거절 뒤에 비교하고 모두 같다.
 5. `just verify`가 종료코드 0이다. `just check-layers`와 `just depcruise`가 `group-learning`의 import를 허용 목록 안으로 확인한다.
 6. 2차 작업(LR-19~LR-22)은 M3 완료 기준에 넣지 않는다.
 
@@ -251,8 +251,8 @@ xeon/packages/group-learning/
 |---|---|---|
 | 검토 포크 비용 | Hermes 기준 검토 한 번에 약 3만 토큰이다(`hermes.md` §3.10.1 (가) 5, turn_finalizer.py:780). 사용자 10 turn마다 돌면 누적 비용이 크다 | 임계와 토큰 예산을 설정으로 노출한다. 예약·원격 turn은 세지 않는다. 검토별 사용량을 `x_learning_reviews`와 `GroupMetrics`로 계측해 설정 화면에 보인다(LR-17). 캐시 접두 공유는 L1.agents가 지원할 때만 기대한다 |
 | 학습 품질을 재는 장치 부재 | Hermes에도 스킬 품질 평가가 없다(`hermes.md` §3.10.1 (바) 셋째 항목, §4.3 둘째 항목) | 1차는 승인율·거절 사유·되돌림 수를 계측만 한다. 평가 루프(테이프 녹화 기반 품질 평가)는 2차 과제로 둔다. 검토 지시에 "Be ACTIVE" 편향 문구를 넣지 않는다 |
-| 프롬프트 주입의 영속화 | 도구 결과나 웹 페이지의 지시문이 교훈이라는 이름으로 스킬 본문에 들어가 이후 세션에 실린다(`hermes.md` §3.10.1 (바) 둘째 항목) | 검토 지시의 DATA 방어(spec §4.4 요구 5), 사전 스캔과 L2-d 적용 스캔 두 번, 승인 기본 켬 |
-| L1 위임 구현 지연 | 계약은 정해졌다(L1.agents.spec §3.2 `DelegateRequest`, §3.3 `AgentService.delegate`, L3.group-sdk.spec §3.4 `DelegateSpec`). core-agents `delegate`는 아직 스텁이다(M3-new-02). `fork: { at: "event" }`는 L1에서 거부되므로 `item` 지점으로 바꿨다 | LR-01~LR-04, LR-08~LR-14, LR-26~LR-28은 위임 없이 진행한다. LR-05·LR-23은 group-sdk `testing`의 가짜 `delegate`와 가짜 `agent.settled` 공급으로 먼저 만들고, L1.agents 구현 뒤 계약 테스트를 더한다 |
+| 프롬프트 주입의 영속화 | 도구 결과나 웹 페이지의 지시문이 교훈이라는 이름으로 스킬 본문에 들어가 이후 대화에 실린다(`hermes.md` §3.10.1 (바) 둘째 항목) | 검토 지시의 DATA 방어(spec §4.4 요구 5), 사전 스캔과 L2-d 적용 스캔 두 번, 승인 기본 켬 |
+| L1 위임 구현 지연 | 계약은 정해졌다(L1.agents.spec §3.2 `DelegateRequest`, §3.3 `AgentService.delegate`, L3.group-sdk.spec §3.4 `DelegateSpec`). core-agents `delegate`는 아직 스텁이다(M3-new-02). `fork: { at: "event" }`는 L1에서 거부되므로 `item` 위치로 바꿨다 | LR-01~LR-04, LR-08~LR-14, LR-26~LR-28은 위임 없이 진행한다. LR-05·LR-23은 group-sdk `testing`의 가짜 `delegate`와 가짜 `agent.settled` 공급으로 먼저 만들고, L1.agents 구현 뒤 계약 테스트를 더한다 |
 | 승인 피로 | 후보가 많으면 사용자가 대기열을 보지 않게 된다 | 대기열 만료(`l3.learning.queue.expiryDays`, 기본 30일) [제안], 검토당 후보 상한 8개(spec §3.5) |
 | L2-d 쓰기 API 미확정 | 보관·적용·스캔·원장의 메서드 구분 근거가 없다(`_research/notes/L3-3.md` §4.1) | `apply.ts`를 어댑터 하나로 모아 L2.knowledge 확정 뒤 이 파일만 바꾼다 |
 | 하위 층 요구 미반영 | REQ-LN-01(`AgentSettledPayload` 필드)과 REQ-LN-02(`agent.settled` 구독)가 없으면 검토가 시작되지 않거나 한 번만 돈다(spec §5 사례 15·17) | F·X·L1 계약 트랙(M3 설계 단계)에서 먼저 반영한다. 반영 전에는 LR-04의 임시 규칙과 LR-23의 명령 진입 대체 경로로 시험만 한다 |
@@ -280,12 +280,12 @@ xeon/packages/group-learning/
 | LR-13 | 완료 | 피드백 후보(`user/work-style`)와 메모리 `user` 영역 적용. `feedback.test.ts` |
 | LR-14 | 완료 | 공개 레코드 8종 선언과 `proposed`·`review.finished`·`approved`·`rejected`·`applied` 기록. `records.test.ts` |
 | LR-15 | 완료 | `commands.ts`. 승인·수정은 `--revision` 필수. 결과는 `report(report, invocationId)` 콜백으로 낸다(spec §6.2). `commands.test.ts`, `ambient.test.ts` |
-| LR-16 | 완료 | `coexist.test.ts`: drive 임대를 쥔 대역 아래에서 포크가 돈다. 루프 turn이 늘지 않는다 |
+| LR-16 | 완료 | `coexist.test.ts`: drive 락을 쥔 대역 아래에서 포크가 돈다. 루프 turn이 늘지 않는다 |
 | LR-17 | 연결됨 (B4-GRP) | 검토 행과 `fork.finished`, `review.finished`에 토큰을 남기고, 검토 종료 때 `g.metrics.addUsage`로 계측에 더한다. 프로세스 안에서 같은 검토는 한 번만 더한다(`countedReviews`). 규칙과 시험은 spec §10 17 |
 | LR-18 | 완료 | `uc3.int.test.ts`(X2, 이벤트를 접은 읽기 면). 실제 SQLite 경로는 `apps/host/test/int/proposals.int.test.ts`다: 모델 테이프가 `learning_propose`를 부르고 승인 전 파일 불변, 승인 뒤 스킬 파일 생성을 확인한다. 코어 diff 0은 `core-diff-check.ts` |
 | LR-23 | 완료 | 구독 핸들러, `reviewFinishOutcome`. `settled.test.ts` |
 | LR-24 | 완료 | `onDispose`가 `g.cancelDelegates`를 부른다. `onDispose`에는 ambient가 없어 끝난 검토의 표지는 `boundary.settle.after`의 2시간 규칙이나 `/learning` 진입의 `delegateStatus`가 비운다. group-sdk이 `onDispose`에서 `cancelDelegates`가 동작하게 고쳤다. `dispose.test.ts` |
-| LR-25 | 완료 | `replay.test.ts`: `replayDrive`의 효과 계수, 모든 상태 커밋 지점에서 끊고 재발화. 하니스는 `test/support/replay-harness.ts` |
+| LR-25 | 완료 | `replay.test.ts`: `replayDrive`의 효과 계수, 모든 상태 커밋 시점에서 끊고 재발화. 하니스는 `test/support/replay-harness.ts` |
 | LR-26 | 완료 | 범위 선택(`approve --scope`), `scopeNotAllowed`, `ctx.caller.afterUntrusted` 기록. `ambient.test.ts` |
 | LR-27 | 완료 | `name_exists`, `conflictsWith` |
 | LR-28 | 완료 | `results.ts`(`learning.noConversation`을 더했다) |

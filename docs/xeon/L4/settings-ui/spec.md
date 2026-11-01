@@ -10,7 +10,7 @@ binds: [xeon/packages/client/src/settings/**]
 
 # L4 설정 화면 (settings-ui)
 
-이 문서는 데스크톱 앱의 설정 화면을 정한다. 설정 화면은 F5 설정 스키마(`SettingDefWire`, `EffectiveSetting`)를 호스트 계약으로 받아 탭과 항목을 만들고, 값 쓰기를 `settings.set`·`settings.reset`으로 보낸다.
+이 문서는 데스크톱 앱의 설정 화면을 정한다. 설정 화면은 F5 설정 스키마(`SettingDefWire`, `EffectiveSetting`)를 Runtime API로 받아 탭과 항목을 만들고, 값 쓰기를 `settings.set`·`settings.reset`으로 보낸다.
 
 - [결정] 모든 설정은 F5 설정 스키마 하나에서 L4 화면, 설정 파일, 명령을 함께 만든다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 6, `F.wire-settings.spec` §4.9).
 - [결정] 추론 예산, 라우팅, 레이트 리밋, 계정 회전은 L4 클라이언트 설정 화면에서 조작할 수 있어야 한다(`_research/decisions-log.md` 2026-10-21 결정(2차)). 마일스톤은 M3다(`product.scope.spec` I14). 레이트 리밋·계정 회전 설정을 2차로 미루지 않고 M3 화면에 넣는다 [결정: review.decisions-2 U-21].
@@ -183,7 +183,7 @@ export type BadgeScope = SettingScope | "default";
 
 export interface ScopeBadge {
   readonly scope: BadgeScope;
-  readonly text: string;            // "관리", "사용자", "프로젝트", "로컬", "세션", "기본값"
+  readonly text: string;            // "관리", "사용자", "프로젝트", "로컬", "대화", "기본값"
   readonly tone: BadgeScope;        // 렌더러가 색 토큰으로 바꾼다(§4.3.1)
 }
 
@@ -670,7 +670,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | 표시 | F 필드 | 규칙 |
 |---|---|---|
 | 범위 배지 | `EffectiveSetting.source.scope` | §4.3.1 |
-| 세션 중 변경 | `EffectiveSetting.runtimeChange`, `pendingUntil` | §4.3.2 |
+| 대화 중 변경 | `EffectiveSetting.runtimeChange`, `pendingUntil` | §4.3.2 |
 | 관리 잠금 | `EffectiveSetting.locked`, `source.path` | §4.3.3 |
 | 가려진 값 | `EffectiveSetting.shadowed` | §4.3.4 |
 | 저장 파일 경로 | `EffectiveSetting.source.path` | §4.3.5 |
@@ -688,7 +688,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `user` | 사용자 | `--badge-user`(파랑 계열) | 없음 |
 | `project` | 프로젝트 | `--badge-project`(초록 계열) | 없음 |
 | `local` | 로컬 | `--badge-local`(보라 계열) | 없음 |
-| `session` | 세션 | `--badge-session`(주황 계열) | 없음 |
+| `session` | 대화 | `--badge-session`(주황 계열) | 없음 |
 | `default` | 기본값 | `--badge-default`(회색) | 없음 |
 
 - 색 값은 desktop 테마가 정한다. 배지 글자와 배경의 대비는 4.5:1 이상이다.
@@ -701,7 +701,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `nextTurn` | 다음 턴부터 | "다음 턴부터 적용돼요" |
 | `restart` | 재시작 필요 | "재시작해야 적용돼요". 화면 위 재시작 띠에 개수를 더한다(§4.4.5) |
 
-- 세션 중 변경 가능 여부는 `runtimeChange`와 `allowedScopes`에 `session`이 있는지로 보인다(`F.wire-settings.spec` §4.9 둘째 항목).
+- 대화 중 변경 가능 여부는 `runtimeChange`와 `allowedScopes`에 `session`이 있는지로 보인다(`F.wire-settings.spec` §4.9 둘째 항목).
 
 #### 4.3.3 잠금
 
@@ -827,7 +827,7 @@ sequenceDiagram
 
 #### 4.5.2 범위의 빈틈
 
-- `settings.changed`는 세션 동작에 영향을 주는 변경만 기록하는 thread 내구 이벤트다(`F.records.spec` §3.3 표 "세션 범위 설정 변경", 같은 절 [제안]). `EventWire.threadId`는 null이 될 수 없다. 그래서 CLI가 `fresnel config set`으로 user·project 파일을 바꾸거나 사용자가 파일을 직접 고친 변경은 이 이벤트로 오지 않을 수 있다.
+- `settings.changed`는 대화 동작에 영향을 주는 변경만 기록하는 thread 내구 이벤트다(`F.records.spec` §3.3 표 "대화 범위 설정 변경", 같은 절 [제안]). `EventWire.threadId`는 null이 될 수 없다. 그래서 CLI가 `fresnel config set`으로 user·project 파일을 바꾸거나 사용자가 파일을 직접 고친 변경은 이 이벤트로 오지 않을 수 있다.
 - [제안] F 변경 요청: 서버 알림 `settings.invalidated`(params `{ keys: SettingKey[], scopes: SettingScope[], threadId: ThreadId | null }`, 값 없음)를 `ServerNotificationMap`에 더한다. 호스트는 모든 범위의 쓰기와 파일 감시 결과에 이 알림을 보낸다. 값이 없으므로 시크릿이 실릴 수 없다(§10 미결 1).
 - 알림이 생기기 전 [제안]: 설정 화면이 다시 보일 때(창 포커스, 탭 전환) 전체 `settings.get`을 한 번 부른다. 이 동작은 알림이 생긴 뒤에도 남겨 둔다.
 - 어긋남이 있으면 `L4.host-service.spec`의 정의를 따른다(`L4.readme` §8 어긋남 표 머리말).
@@ -873,10 +873,10 @@ sequenceDiagram
 | 메타 편집 | 설명, 범위, 만료, 호스트. 값 교체는 별도 "회전" 동작 | 없음 |
 | 사용 이력 | 감사 로그(`secret.used`, `secret.denied`, `secret.approved`) 목록, 도구·호스트·결정 필터 | 없음 |
 | 정책 편집 | 허용 도구, 호스트, 모드, 승인. 기본은 거부 | 없음 |
-| 삭제 | 참조하는 정책과 세션, 그리고 이 화면이 아는 설정 키 참조(§4.6.1 3번 목록)를 보인 뒤 확인. 사용 중이면 거부 | 없음 |
+| 삭제 | 참조하는 정책과 대화, 그리고 이 화면이 아는 설정 키 참조(§4.6.1 3번 목록)를 보인 뒤 확인. 사용 중이면 거부 | 없음 |
 
 - 값 보기 view-model [결정: M3-REQ-17, M3b B3-SET]: `@fresnel/client/settings`의 `createSecretReveal({ port, scheduler, visibleMs? })`가 상태를 `hidden` → `reauth` → `revealed` | `failed`로 옮긴다. `reveal(name)`은 셸 포트 `SecretRevealPort.reveal(name)`을 부르고(재인증은 포트가 한다), 성공이면 `revealed`, 실패면 `failed`에 이유(`reauth_denied`, `reauth_expired`, `unavailable`, `not_started`, `not_found`, `failed`)만 싣는다. 값은 `revealed` 상태의 `RevealedValue` 안에만 있고(`read()`는 사본, `toJSON()`은 가려진 표시) 숨기기·시한(`REVEAL_VISIBLE_MS`, 기본 30초)·다른 이름 열기·실패 때 0으로 덮어 지운다. 재인증이 진행 중이면 두 번째 `reveal`은 무시한다. 포트가 던지면 값 없이 `failed`다. wire만 쓰는 연결의 어댑터 `revealViaWire`는 `secret.beginReveal`을 불러 호스트가 값을 자기 창에 보이게 하고(`started: true`), 이 view-model은 `revealed`에 값 없음(`value: null`)을 둔다. `started: false`는 `not_started`다(재인증 미완료와 열람 수단 없음을 wire가 가르지 않는다). 시험은 X8이다(`test/settings/x8.test.ts`).
-- 설정 키 참조 목록은 화면이 이미 가진 `EffectiveSetting`에서 계산한다(값이 `secret://<이름>`인 키). 정책·세션 참조는 L0.secrets가 돌려줘야 한다.
+- 설정 키 참조 목록은 화면이 이미 가진 `EffectiveSetting`에서 계산한다(값이 `secret://<이름>`인 키). 정책·대화 참조는 L0.secrets가 돌려줘야 한다.
 
 #### 4.6.4 값 입력과 열람 경로 비교
 
@@ -1023,7 +1023,7 @@ sequenceDiagram
 
 ## 7. 훅
 
-- 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다. L4 앱 코드라 확장 호스트에 참여하지 않는다.
+- 이 도메인은 on·post·drive·scope 훅을 선언하지 않는다. L4 앱 코드라 확장 호스트에 참여하지 않는다.
 - 확장(외부 플러그인 그룹 포함)의 설정은 `ExtensionManifest.userConfig` → `settingsFromManifest` → 카탈로그 → `settings.list` 경로로 들어오고, `ui.tab`이 `plugins`로 고정된다(`F.wire-settings.spec` §3.8.3 규칙 1). 설정 화면은 이 정의를 다른 정의와 같은 규칙으로 그린다.
 - L3 기본 그룹(Helm, 학습 그룹)의 키는 `l3.helm.*`, `l3.learning.*`이다(같은 절 규칙 3). 그룹 켜기·끄기 키는 X 로더 예약 키 `ext.<name>.enabled` 하나다(내장 그룹도 `ext.helm.enabled`, `ext.learning.enabled`) [결정: review.decisions-2 K-04]. 범위는 X 정의(managed~session), `runtimeChange`는 `live`이고 적용은 다음 단계 경계다(`X.loading-trust.spec` §6). 설정 화면은 이 키를 일반 토글로 그리고, 실행 중이면 "다음 단계 경계에 적용" 배지를 보인다.
 - drive 보유 그룹 선택은 X 키 `x.primitives.activeDriveGroup`(`select`, 후보는 drive를 등록한 scope, 빈 값은 "자동") 하나다 [결정: review.decisions-2 S-15]. group-sdk은 별도 키를 두지 않는다(`L3.group-sdk.spec` §6).

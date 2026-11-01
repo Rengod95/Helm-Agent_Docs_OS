@@ -16,7 +16,7 @@ binds: [xeon/packages/contracts/src/records/**]
 
 ### 1.1 정하는 것
 
-[결정] 세션 저장은 C안이다. SQLite 이벤트 소싱과 투영을 쓰고, DB는 하나이며, 확장 기록은 접두사 테이블에 둔다(`_research/decisions-log.md` 2026-10-21 결정 2차). 이 문서는 그 저장 방식의 기록 계약을 정한다.
+[결정] 대화 저장은 C안이다. SQLite 이벤트 소싱과 투영을 쓰고, DB는 하나이며, 확장 기록은 접두사 테이블에 둔다(`_research/decisions-log.md` 2026-10-21 결정 2차). 이 문서는 그 저장 방식의 기록 계약을 정한다.
 
 - 이벤트 envelope(`EventEnvelope`)와 내구/휘발 구분
 - 이벤트 종류 이름 규칙(`EventKind`)과 코어 카탈로그, 내장 L2 도메인의 소유 카탈로그(§3.3.2)
@@ -24,7 +24,7 @@ binds: [xeon/packages/contracts/src/records/**]
 - 효과 이벤트 3단(`effect.intent`/`exec`/`result`)과 재생 정책(`ReplayPolicy`), 결과 불명 복구 규칙
 - 단계 체크포인트 레코드(`StepCheckpoint`)
 - 스키마 버전, 업캐스터, 투영 재생성, 청크 마이그레이션 계약
-- 세션 저장소 인터페이스(`SessionStore`, 2차)
+- 대화 저장소 인터페이스(`SessionStore`, 2차)
 - 저장·투영 포트 타입(`StoreDb`, `SqlTx`, `StoreService`, `CommitRequest`, `SessionService`, `Projector` 등, §3.9)
 - 분기와 비파괴 컴팩션
 
@@ -286,11 +286,11 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `checkpoint.step` | 예 | `StepCheckpointSchema` | 단계 체크포인트(§3.6) |
 | `scope.changed` | 예 | `ScopeChangedPayloadSchema` | scope 켜기·끄기 적용 |
 | `scope.handler_failed` | 아니오 | `ScopeHandlerFailedPayloadSchema` | 확장 핸들러 실패 알림(`X.operations.spec` §4.3.4) |
-| `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | drive 배타 임대 획득 |
-| `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 임대 해제 |
-| `lease.rejected` | 예 | `LeaseRejectedPayloadSchema` | drive 임대 요청이 대기 상한 뒤 거부됨(`{ groupId, reason, requestSeq }`). 수명주기 지점 `lifecycle.lease.rejected`의 페이로드 [결정: adr.0017, `review.m3-lower-requirements` M3-REQ-99] |
+| `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | 배타 drive 락 획득 |
+| `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 락 해제 |
+| `lease.rejected` | 예 | `LeaseRejectedPayloadSchema` | drive 락 요청이 대기 상한 뒤 거부됨(`{ groupId, reason, requestSeq }`). 수명주기 훅 `lifecycle.lease.rejected`의 페이로드 [결정: adr.0017, `review.m3-lower-requirements` M3-REQ-99] |
 | `post.accepted` | 예 | `PostAcceptedPayloadSchema` | retired(`retired: true`, [결정: review.decisions-2 U-05]). 새로 쓰지 않는다. M1 개발 DB에 남은 행을 읽을 때만 스키마를 쓴다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`)다 |
-| `settings.changed` | 예 | `SettingsChangedPayloadSchema` | 세션 범위 설정 변경 |
+| `settings.changed` | 예 | `SettingsChangedPayloadSchema` | 대화 범위 설정 변경 |
 | `approval.requested` | 예 | `ApprovalRequestedPayloadSchema` | 승인 요청. `body.kind`는 `tool` \| `question` \| `plan`. 승인 id = 이 이벤트 id |
 | `approval.resolved` | 예 | `ApprovalResolvedPayloadSchema` | 승인 응답 결과 |
 | `input.queued` | 예 | `InputQueuedPayloadSchema` | 입력 큐 등록. 입력 id = 이 이벤트 id |
@@ -384,7 +384,7 @@ export interface PostAcceptedPayload {
 export interface SettingsChangedPayload { key: string; scope: string; value: JsonValue | null }
 ```
 
-- [제안] `settings.changed`는 세션 동작에 영향을 주는 변경(예: 모델, 추론 수준)만 기록한다. 시크릿 값은 기록하지 않고 참조만 기록한다(결정 로그 2차 "에이전트는 값을 모른 채 참조로 사용").
+- [제안] `settings.changed`는 대화 동작에 영향을 주는 변경(예: 모델, 추론 수준)만 기록한다. 시크릿 값은 기록하지 않고 참조만 기록한다(결정 로그 2차 "에이전트는 값을 모른 채 참조로 사용").
 
 #### 3.3.1 L0·L1·X 요청으로 더한 코어 kind
 
@@ -579,7 +579,7 @@ export interface ToolUntrustedReadPayload {
   - 같은 호출에서 L1.tools가 올린 요청과 L2 어댑터가 올린 요청은 이 규칙으로 같은 값이 된다. E5(M2 종료 조건)의 "같은 승인 요청 레코드"는 `turnId`, `stepId`, `toolCallId`, `caller` 값이 같다는 뜻이다. 키 이름만 같은 것은 통과가 아니다.
   - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·그룹 코드가 기능을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
 
-- [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 세션 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 세션 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
+- [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 대화 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 대화 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
 - [결정: 오케스트레이터 기본값] `tool.sandbox_bypassed`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다(`L0.sandbox.spec` §10 2번). 명령과 출력을 싣지 않으며 같은 호출은 `toolCallId`로 잇는다.
 - [제안] `tool.untrusted_read`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다. 턴 안에서 웹·MCP 도구 결과를 읽었음을 적어, 재시작 뒤에도 같은 턴의 `afterUntrusted`가 이어지게 한다(`L1.tools.spec` §4.3). 결과 본문은 싣지 않는다.
 - [결정: review.decisions-2 U-05] `post.accepted`는 retire한다. 카탈로그 항목은 `retired: true`로 남기고(§3.2 규칙 5) 새로 쓰지 않는다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나이고, 대화에 배치된 item은 `input.placed`가 적는다. 멱등 판정은 커밋 키 `in:<sourceKey>:<requestId>`(`eng.transactions.design` §4.8)와 `TxView.inputByRequestId`가 한다.
@@ -703,7 +703,7 @@ export const NOT_STARTED_TEXT: string;
 
 기록 순서 [제안]:
 
-1. `effect.intent`: `tool.call.before` 지점(first, 인자 변경 불가. `F.extensions.spec` §3.4 #13)을 통과한 뒤 L1.tools가 검증·정규화한 최종 인자로 실행 전에 커밋한다. 인자 변경 경로(`F.extensions.spec` §10 후보 b·c)를 채택하면 이 문장을 그 경로를 거친 인자로 고친다.
+1. `effect.intent`: `tool.call.before` 훅(first, 인자 변경 불가. `F.extensions.spec` §3.4 #13)을 통과한 뒤 L1.tools가 검증·정규화한 최종 인자로 실행 전에 커밋한다. 인자 변경 경로(`F.extensions.spec` §10 후보 b·c)를 채택하면 이 문장을 그 경로를 거친 인자로 고친다.
 2. `effect.exec`: 실행 직전에 커밋한다. `intent`와 같은 커밋에 넣어도 된다. 둘을 나누면 "실행 시작 전 중단"과 "실행 중 중단"을 구분할 수 있다.
 3. `effect.result`: 결과 toolResult `item.recorded`와 같은 커밋에 쓴다(pi durable `harness/tool.ts:588-630`, `_research/notes/F-3.md` §7).
 
@@ -756,7 +756,7 @@ export const StepCheckpointSchema: Schema<StepCheckpoint>;
 ```
 
 - [제안] 체크포인트는 단계 경계마다 `step.completed`와 같은 커밋으로 쓴다. 이 커밋은 `synchronous=FULL`을 전제로 한다(`_research/foundation-plan.md` §2 DB 행). 저장 설정 자체는 `L0.store.spec`이 정한다.
-- [제안] 루프 상태 전부를 복사하지 않는다. drive 임대와 scope 상태는 해당 이벤트 id로 참조한다. 대화 내용은 `leafEventId`에서 가지를 거슬러 읽는다.
+- [제안] 루프 상태 전부를 복사하지 않는다. drive 락과 scope 상태는 해당 이벤트 id로 참조한다. 대화 내용은 `leafEventId`에서 가지를 거슬러 읽는다.
 - [제안] `next`가 pi durable `GenerationCheckpoint`의 `phase` 판별자에 해당한다(`durable/src/harness/generation.ts:53-90`). pi는 phase마다 레코드를 통째로 바꾸지만 Fresnel은 단계 경계에만 쓰고 단계 안의 진행은 이벤트에서 복원한다.
 - `model`은 재개 후 첫 요청에 쓴다. pi durable `request` 체크포인트의 `model`, `thinkingLevel`과 같은 목적이다.
 
@@ -817,7 +817,7 @@ export interface ChunkMigration<C extends JsonValue> {
    - 호스트는 `AssembleError`의 store 이유를 이 분류로 나눠 클라이언트에 알린다. 실행 중에 만난 `row_invalid`는 wire `store.corrupt`(5007, `F.wire-settings.spec` §3.5.2)로 알린다. 이전에는 `store.io`의 `details.code: "row_invalid"`로 옮겼다.
    - 마이그레이션 전 스냅샷(`VACUUM INTO`)의 보관 수와 복구 절차는 L0.store와 운영 문서가 정한다. 내보내기와 복구 런북은 M3다.
 
-### 3.8 세션 저장소 인터페이스 (2차)
+### 3.8 대화 저장소 인터페이스 (2차)
 
 ```ts
 // src/records/store.ts
@@ -1185,7 +1185,7 @@ export interface RecordCommitPort {
 
 ### 4.6 분기와 컴팩션
 
-1. [제안] 내구 이벤트의 `parentId`는 쓰기 시점 thread의 leaf다. 한 배치 안에서는 앞 이벤트가 뒤 이벤트의 부모다. pi 세션 트리(`coding-agent/src/core/session-manager.ts` SessionEntryBase `id`/`parentId`)와 같은 의미다.
+1. [제안] 내구 이벤트의 `parentId`는 쓰기 시점 thread의 leaf다. 한 배치 안에서는 앞 이벤트가 뒤 이벤트의 부모다. pi "세션" 트리(`coding-agent/src/core/session-manager.ts` SessionEntryBase `id`/`parentId`)와 같은 의미다.
 2. leaf는 마지막에 쓴 내구 이벤트다. `thread.leaf_moved`가 있으면 그 `leafEventId`가 leaf다.
 3. 분기: 이전 이벤트로 leaf를 옮긴다(`thread.leaf_moved{reason:"branch"}`). 이후 쓰기는 그 이벤트를 부모로 삼아 새 가지가 된다. 기존 가지는 지우지 않는다.
 4. 비파괴 컴팩션: `thread.compacted`를 가지 끝에 덧붙인다. 원문 이벤트는 그대로 두고, 모델 컨텍스트 조립 때 `firstKeptEventId` 앞 내용을 `summary`로 대체한다. pi `CompactionEntry{summary, firstKeptEntryId, tokensBefore, details, fromHook}`와 같은 모양이다. 컨텍스트 조립 규칙은 `L1.context.spec`(L1-e)이 정한다.
@@ -1217,7 +1217,7 @@ export interface RecordCommitPort {
 ## 7. 훅
 
 - 확장과 플러그인 그룹은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
-- X의 네 연산 중 scope, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool.result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool.call.before` 지점은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
+- X의 네 연산 중 scope, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool.result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool.call.before` 훅은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
 - 그룹 간 레코드 형식은 `F.extensions.spec`이 정한다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -1228,7 +1228,7 @@ export interface RecordCommitPort {
 | `F.extensions.spec` | 제공: `EventKindRegistry`, 확장 kind 형식. 요구: `extId`·`groupId` 형식, 확장 테이블 접두 규칙 |
 | `F.wire-settings.spec` | 제공: `EventEnvelope`. 요구: 와이어 변환(시각, redaction), `settings.changed`의 key·scope 값 집합(`SettingKey`, `SettingScope`) |
 | `F.extensions.spec` | 요구: scope·lease·post payload 필드의 정본(§3.2 `ScopeId`·`DriveLease`·`PostOptions`, §4.4~§4.6). 변경되면 §3.3 `extension-ops.ts`를 같은 변경에서 고친다 |
-| `X.primitives.spec` | 요구: scope·lease·post 기록 시점(디스패치, 임대 중재, 토글 적용)의 구현 |
+| `X.primitives.spec` | 요구: scope·lease·post 기록 시점(디스패치, drive 락 중재, 토글 적용)의 구현 |
 | `L0.store.spec` (L0-e) | 제공: §3.9 `StoreDb`·`SqlTx`·`StoreService` 등과 §3.7 `ChunkMigration`(FR-S1·FR-S5 반영). 요구: 테이블, seq 발급, FULL 커밋, blob 저장, `ChunkMigration` 실행, FR-S2~S4 필드 블록, `SessionStore` SQLite 어댑터(2차) |
 | `L1.persistence.spec` (L1-f) | 제공: §3.9 `CommitRequest`·`SessionService`·`Projector` 등(FR-P1), §3.8 `AppendBatch.requestId`·`durability` 삭제(FR-P2), `thread.resumed`(FR-P3). 요구: 재개 절차, `decideEffectRecovery` 사용, 투영 재생성, §3.9 표의 나머지 필드 블록 |
 | `L1.tools.spec`, `L1.tasks.spec`, `L1.agents.spec`, `L0.secrets.spec`, `X.operations.spec` | 제공: §3.3.1 kind와 payload. 요구: 하위 모양의 필드 뜻 |

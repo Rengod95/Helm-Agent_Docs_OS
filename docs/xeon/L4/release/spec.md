@@ -66,7 +66,7 @@ fresnel-<버전>-<triple>/
 
 ### 3.2 자원 디렉터리 탐색과 소비처
 
-자원 디렉터리는 실행 파일이 든 폴더입니다(`dirname(process.execPath)`). `xeon/apps/host/src/state-paths.ts`의 `hostResourceDir()`와 `xeon/apps/cli/src/runtime.ts`가 같은 값을 씁니다. 자원 디렉터리는 읽기 전용입니다. 설정과 상태는 `OsDirs`가 정한 다른 폴더에 두므로(`L0.os.spec` §3.2), 자원 디렉터리를 새 것으로 바꿔도 설정과 세션은 남습니다.
+자원 디렉터리는 실행 파일이 든 폴더입니다(`dirname(process.execPath)`). `xeon/apps/host/src/state-paths.ts`의 `hostResourceDir()`와 `xeon/apps/cli/src/runtime.ts`가 같은 값을 씁니다. 자원 디렉터리는 읽기 전용입니다. 설정과 상태는 `OsDirs`가 정한 다른 폴더에 두므로(`L0.os.spec` §3.2), 자원 디렉터리를 새 것으로 바꿔도 설정과 대화는 남습니다.
 
 | 소비처 | 자원 디렉터리 안의 위치 | 찾지 못할 때 | 코드 |
 |---|---|---|---|

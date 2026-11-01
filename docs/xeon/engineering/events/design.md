@@ -10,7 +10,7 @@ binds: [xeon/packages/contracts/src/records/**, xeon/packages/platform-store/**,
 
 # 이벤트 설계
 
-세션 기록의 단위인 이벤트를 다룬다. envelope 필드, 이벤트 kind 이름 규칙, 코어 카탈로그, `BlobRef`, 효과 3단과 복구 결정표의 정본은 `F.records.spec`이다(같은 문서 §3.1.2 정본 표). 이 문서는 그 계약 위에서 필드를 채우는 쪽, `seq` 순서와 구독, 내구 이벤트와 휘발 이벤트의 운용, 투영, 재생, 스키마 버전 운용을 정한다. 쓰기 트랜잭션의 단계, 커밋 키(`requestId`) 멱등, 결과 불명, outbox는 `eng.transactions.design`이 정본이다. 어느 컨텍스트가 어느 kind 접두와 테이블을 소유하는지는 `eng.context-map.design`이 정본이다.
+대화 기록의 단위인 이벤트를 다룬다. envelope 필드, 이벤트 kind 이름 규칙, 코어 카탈로그, `BlobRef`, 효과 3단과 복구 결정표의 정본은 `F.records.spec`이다(같은 문서 §3.1.2 정본 표). 이 문서는 그 계약 위에서 필드를 채우는 쪽, `seq` 순서와 구독, 내구 이벤트와 휘발 이벤트의 운용, 투영, 재생, 스키마 버전 운용을 정한다. 쓰기 트랜잭션의 단계, 커밋 키(`requestId`) 멱등, 결과 불명, outbox는 `eng.transactions.design`이 정본이다. 어느 컨텍스트가 어느 kind 접두와 테이블을 소유하는지는 `eng.context-map.design`이 정본이다.
 
 이 문서는 구속 문서다. 마지막 절 "구현 작업자 규칙"(EV-NN)은 `xeon/packages/contracts/src/records/**`, `platform-store`, `core-persistence`, `ext-host`의 모든 구현에 적용된다. 이름(kind, 필드, ID, 테이블)은 F 문서와 `L1.persistence.spec` §2.1 이름 대응표를 따른다.
 
@@ -18,19 +18,19 @@ binds: [xeon/packages/contracts/src/records/**, xeon/packages/platform-store/**,
 
 ## 1. 문제
 
-Fresnel 세션 저장소는 세 가지 일을 한다(`_research/session-storage.md` 서두).
+Fresnel 대화 저장소는 세 가지 일을 한다(`_research/session-storage.md` 서두).
 
 1. 모델에 보낼 대화 이력을 다시 조립하는 원천이다.
 2. 크래시나 재시작 뒤 이어서 실행하는 근거다.
-3. 학습 그룹, 세션 검색, UI가 과거 대화를 읽는 자료다.
+3. 학습 그룹, 대화 검색, UI가 과거 대화를 읽는 자료다.
 
 이 세 가지를 한 저장 형식으로 처리하려면 다음 질문에 답해야 한다.
 
 - 무엇을 원본으로 저장하고 무엇을 파생물로 두는가.
 - 스트리밍 토큰처럼 빈도가 높은 흐름을 저장하는가.
-- 여러 구독자(UI, 학습 그룹, 세션 검색 색인)가 같은 순서로 같은 기록을 받는 방법은 무엇인가.
+- 여러 구독자(UI, 학습 그룹, 대화 검색 색인)가 같은 순서로 같은 기록을 받는 방법은 무엇인가.
 - 재시작 뒤 상태를 다시 만들 때 도구 실행 같은 외부 효과를 다시 일으키지 않는 방법은 무엇인가.
-- 확장(L3 그룹, 사용자 플러그인)이 세션에 자기 기록을 남길 때 코어 기록과 섞이지 않게 하는 방법은 무엇인가.
+- 확장(L3 그룹, 사용자 플러그인)이 대화에 자기 기록을 남길 때 코어 기록과 섞이지 않게 하는 방법은 무엇인가.
 - 이벤트 모양이 버전마다 바뀔 때 옛 기록을 읽는 방법은 무엇인가.
 
 ## 2. 선택지 비교
@@ -50,7 +50,7 @@ Fresnel 세션 저장소는 세 가지 일을 한다(`_research/session-storage.
 
 ## 3. 선택과 근거
 
-[결정] 세션 저장은 C안이다. SQLite 이벤트 소싱과 투영, 단일 DB 파일, 확장 접두사 테이블을 쓴다(`_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004).
+[결정] 대화 저장은 C안이다. SQLite 이벤트 소싱과 투영, 단일 DB 파일, 확장 접두사 테이블을 쓴다(`_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004).
 
 [결정] DB 드라이버는 bun:sqlite이고 WAL을 쓴다(`_research/foundation-plan.md §2` DB 행).
 
@@ -187,7 +187,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 
 | kind | 구분 | 소유 컨텍스트(생산자 id) | 주요 payload | 소비자 |
 |---|---|---|---|---|
-| `thread.started` | 내구 | session-core (`core.persistence`) | 제목, 분기 원본 `forkedFrom { threadId, eventId } \| null` | 투영, UI, 세션 검색 색인 |
+| `thread.started` | 내구 | session-core (`core.persistence`) | 제목, 분기 원본 `forkedFrom { threadId, eventId } \| null` | 투영, UI, 대화 검색 색인 |
 | `thread.updated` | 내구 | session-core | 제목·상태 변경 | 투영, UI |
 | `thread.closed` | 내구 | session-core | 종료 사유 | 투영, UI |
 | `thread.leaf_moved` | 내구 | session-core | `{ leafEventId, reason: "branch" \| "rewind" \| "restore" }` | 투영, 재개 |
@@ -201,7 +201,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 | `step.completed` | 내구 | run-engine (`core.loop`) | 종결 상태, `stopReason`, assistant·toolResult item id | 투영, 재개 |
 | `item.started` | 휘발 | run-engine (`core.loop`) | item id, 종류, 도구 호출 id | UI |
 | `item.updated` | 휘발 | run-engine (`core.loop`), 도구 진행은 tool-runtime이 발신 | 파트 델타, 파트 완성, 도구 진행 | UI |
-| `item.recorded` | 내구 | run-engine (`core.loop`) | `{ item: ItemRecord }` | 투영(item), 컨텍스트 조립, 세션 검색 색인 |
+| `item.recorded` | 내구 | run-engine (`core.loop`) | `{ item: ItemRecord }` | 투영(item), 컨텍스트 조립, 대화 검색 색인 |
 | `part.recorded` | 내구 | run-engine (`core.loop`) | `{ part: PartRecord }` | 투영(파트), 컨텍스트 조립 |
 | `effect.intent` | 내구 | tool-runtime (`core.tools`) | `effectId`, `toolCallId`, 도구 이름, 실행 인자(모델이 낸 인자. `tool.call.before`은 인자를 바꾸지 않는다, review.decisions-2 U-06), `replay`(safe·unsafe) | 투영(효과), 재개 |
 | `effect.exec` | 내구 | tool-runtime (`core.tools`) | `effectId`, `startedAt` | 투영, 재개(실행 시작 여부, 재실행 수) |
@@ -216,7 +216,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 - `turn.completed.status`는 `completed`, `interrupted`, `failed` 세 값이다(`F.conversation.spec` §3.5.3 `TurnCompletedPayload`). 승인 대기는 turn을 닫지 않는다. turn은 열린 상태(`TurnStatus` `waiting`)로 남고 `checkpoint.step`의 `pendingToolCalls[].waiting: "approval"`로 표시한다(`L1.persistence.spec` §4.2 A1). 그래서 복구 표식이 남고 재개 대상이 된다.
 - `effect.intent.replay` 값은 `safe`, `unsafe`다. F `AgentTool.replay?: "never" | "safe"`(pi-agent-core `pi-src/packages/agent/src/types.ts:489-490`에서 온 필드)는 `toReplayPolicy`가 `never → unsafe`로 바꾼다(`F.conversation.spec` §3.6).
 - toolResult `item.recorded`는 `effect.result`와 한 커밋(E3)에 들어간다. 커밋은 tool-runtime이 내고, item 초안은 루프의 생산자 핸들로 만든다(`L1.tools.spec` `ToolRunContext.drafts`).
-- `drive` 임대 차수(`leaseEpoch`)는 `LeaseAcquiredPayload`에 필드가 없다. X는 thread 이벤트에서 scope별 `lease.acquired` 개수로 다시 계산한다(`X.primitives.spec` §4.4.1 7번). payload에 더할지는 그 문서의 [미결]이다.
+- `drive` 락 차수(`leaseEpoch`)는 `LeaseAcquiredPayload`에 필드가 없다. X는 thread 이벤트에서 scope별 `lease.acquired` 개수로 다시 계산한다(`X.primitives.spec` §4.4.1 7번). payload에 더할지는 그 문서의 [미결]이다.
 - L1이 쓰는 다음 kind는 F 코어 카탈로그에 있다(`F.records.spec` §3.3): `input.queued`·`input.placed`·`input.withdrawn`(`core.tasks`, `L1.tasks.spec`), `turn.abort_requested`(`core.loop`), `approval.requested`·`approval.resolved`(`core.tools`, `L1.tools.spec` §8.3. 승인 방식은 [결정: review.decisions-2 U-02] A안), `agent.spawned`·`agent.settled`·`agent.judged`(`core.agents`, `L1.agents.spec` §8.3), `thread.resumed`(`core.persistence`, `L1.persistence.spec`). `post.accepted`는 retire했다([결정: review.decisions-2 U-05]). 확장 post도 `input.queued`(`source.type: "extension"`)로 남는다. payload 정본은 F다.
 - L2 기능의 이벤트(`work.*`, `artifact.*`, `schedule.*`, `dialog.*`)와 확장 이벤트(`x.<extId>.*`, `grp.<groupId>.*`)는 각 소유 spec과 확장 매니페스트가 카탈로그를 둔다. 확장 kind는 `EventKindRegistry`로 등록한다(`F.records.spec` §3.2). 접두 소유는 `eng.context-map.design` 5.1절이다.
 - thread 메타(제목)는 session-core만 쓴다. L2 artifacts가 자동 제목을 만들면 session-core 서비스 API(`threads.setTitle`)로 요청하고, 이벤트는 session-core가 쓴다.
@@ -331,7 +331,7 @@ export interface Projector {
 | `p_inputs` | 내구 입력 큐: 상태(queued·placed·withdrawn), 모드 | `input.*` |
 | `p_approvals` | 승인 대기 | `approval.*` |
 | `p_agents` | 자식 thread 연결과 소유자 | `agent.*` |
-| `p_scopes` | 확장 scope 켜짐 상태와 drive 임대 | `scope.changed`, `lease.*` |
+| `p_scopes` | 확장 scope 켜짐 상태와 drive 락 | `scope.changed`, `lease.*` |
 | `p_settings` | thread 범위 설정 값 | `settings.changed` |
 | `p_blob_refs` | thread가 참조하는 blob 해시 | `detached`가 있는 이벤트, `BlobRef` 필드가 있는 `effect.*` |
 | `step_checkpoints` | thread별 마지막 단계 체크포인트 | `checkpoint.step` |
@@ -362,7 +362,7 @@ flowchart TD
 ```
 
 - 한 이벤트에 대해 코어 투영기를 먼저 적용하고 cap·ext 투영기를 그 뒤에 적용한다. cap·ext 투영기 사이 순서는 등록 순서이고, 서로의 테이블을 읽지 않으므로 순서가 결과에 영향을 주지 않는다.
-- 비동기 소비자(세션 검색 FTS 색인 등)는 이 순서도 밖이다. 커밋 뒤 `consumer_cursors`의 `seq`부터 읽어 자기 테이블을 채운다(`eng.transactions.design` 7절).
+- 비동기 소비자(대화 검색 FTS 색인 등)는 이 순서도 밖이다. 커밋 뒤 `consumer_cursors`의 `seq`부터 읽어 자기 테이블을 채운다(`eng.transactions.design` 7절).
 
 ### 5.4 재생성과 불일치 검출
 
@@ -395,7 +395,7 @@ rebuild(projector P):                         // thread 열기 전, 또는 관�
 [제안] `parentId`로 한 thread 안 가지를 표현한다(pi·oh-my-pi의 JSONL 트리와 같은 모양, `_research/session-storage.md` B안). 규칙의 정본은 `F.records.spec` §4.6이다.
 
 - 보통 이벤트의 `parentId`는 저장소가 채우는 현재 leaf 이벤트 id다. 한 커밋 안에서는 앞 이벤트가 뒤 이벤트의 부모다. 새 이벤트가 커밋되면 그 이벤트가 새 leaf가 된다.
-- 되감기와 가지 이동은 `thread.leaf_moved { leafEventId, reason }` 이벤트 하나로 한다. 이 이벤트의 `parentId`는 그때의 현재 leaf이고, 커밋 뒤 leaf는 payload의 `leafEventId`다(`L1.persistence.spec` §4.1). 다음 쓰기는 `leafEventId`를 부모로 삼아 새 가지가 된다. 되감은 지점 뒤의 이벤트는 지우지 않는다. 다른 가지로 남는다.
+- 되감기와 가지 이동은 `thread.leaf_moved { leafEventId, reason }` 이벤트 하나로 한다. 이 이벤트의 `parentId`는 그때의 현재 leaf이고, 커밋 뒤 leaf는 payload의 `leafEventId`다(`L1.persistence.spec` §4.1). 다음 쓰기는 `leafEventId`를 부모로 삼아 새 가지가 된다. 되감은 시점 뒤의 이벤트는 지우지 않는다. 다른 가지로 남는다.
 - 활성 가지 = leaf에서 `parentId`를 따라 올라간 사슬이다. 컨텍스트 조립(L1 context)과 item 투영의 "현재 대화" 조회(`query.branchItems`)는 이 사슬만 쓴다. 투영은 모든 가지의 행을 갖고, 조회가 사슬로 거른다.
 - `seq`는 가지와 무관하게 DB 전체에서 계속 단조 증가한다. 구독자는 가지를 몰라도 `seq`로 모든 이벤트를 받는다.
 - 다른 thread로 분기(fork)는 새 thread를 만들고 첫 이벤트 `thread.started`에 포크 출처 `forkedFrom { threadId, eventId }`를 둔다. 새 thread는 출처 이벤트를 복사하지 않는다. 컨텍스트 조립은 출처 thread의 `eventId`까지 활성 사슬을 앞에 잇는다. 포크가 참조하는 thread는 지울 수 없다(삭제 요청은 `has_forks`로 거부한다, `L1.persistence.spec` §3.8) [제안].
@@ -423,8 +423,8 @@ flowchart LR
 
 1. 재생은 도구를 다시 실행하지 않는다. 종결된 효과는 기록된 `effect.result`로 상태만 재구성한다.
 2. 재개(새 쓰기 소유자가 thread를 열어 실행을 잇는 일) 때에만 열린 효과(`effect.intent`가 있고 `effect.result`가 없는 효과)에 재생 정책을 적용한다. 결정표의 정본은 `F.records.spec` §3.5 `decideEffectRecovery`이고, 재실행 상한을 더한 판정은 `L1.persistence.spec` §3.7 `decideOpenEffect`다. 기록 규칙은 `eng.transactions.design` 5절이다.
-3. `on` 핸들러(fold `tap`, `first`, `chain`)는 재실행해도 되는 질의여야 한다. 이 절과 EV-08의 훅 이름(`tool.call.before`, `boundary.step.after`)은 `F.extensions.spec` §3.4 표의 이름이다(adr.0017). 재생 때 과거 이벤트에 대해 핸들러를 다시 부르지 않는다. 특히 재개 때 열린 효과를 다시 실행해도 `tool.call.before`류(`first` 지점)를 다시 부르지 않고 `effect.intent`에 저장된 최종 인자를 쓴다(durable `spec.md` 2636-2660 훅 표의 "a crash before the consuming commit may rerun them", 3136-3170의 "Recovery does not rerun `beforeTool`"). 크래시가 소비 커밋 전에 났다면 그 지점은 아직 커밋되지 않았으므로 정상 경로로 핸들러가 다시 불린다. 의도 없는 toolCall이 재개 때 정상 파이프라인을 다시 지나는 경우가 이것이다(`L1.persistence.spec` §4.7.4). 그래서 핸들러는 재실행 가능한 질의여야 한다.
-4. `drive` 함수는 마지막으로 커밋된 scope 상태로 다시 호출할 수 있어야 한다(`_research/ext-points.md §5` 안 1, 재생·토글 보장). 재개 때 ext-host는 열린 임대(`lease.acquired` 뒤 `lease.released`가 없음)가 있는 scope의 drive 함수를 다음 경계에서 그 상태로 다시 부른다(`X.primitives.spec` §4.4.3). 클로저 지역 변수에 둔 상태는 잃는다(EV-09).
+3. `on` 핸들러(fold `tap`, `first`, `chain`)는 재실행해도 되는 질의여야 한다. 이 절과 EV-08의 훅 이름(`tool.call.before`, `boundary.step.after`)은 `F.extensions.spec` §3.4 표의 이름이다(adr.0017). 재생 때 과거 이벤트에 대해 핸들러를 다시 부르지 않는다. 특히 재개 때 열린 효과를 다시 실행해도 `tool.call.before`류(`first` 훅)를 다시 부르지 않고 `effect.intent`에 저장된 최종 인자를 쓴다(durable `spec.md` 2636-2660 훅 표의 "a crash before the consuming commit may rerun them", 3136-3170의 "Recovery does not rerun `beforeTool`"). 크래시가 소비 커밋 전에 났다면 그 훅은 아직 커밋되지 않았으므로 정상 경로로 핸들러가 다시 불린다. 의도 없는 toolCall이 재개 때 정상 파이프라인을 다시 지나는 경우가 이것이다(`L1.persistence.spec` §4.7.4). 그래서 핸들러는 재실행 가능한 질의여야 한다.
+4. `drive` 함수는 마지막으로 커밋된 scope 상태로 다시 호출할 수 있어야 한다(`_research/ext-points.md §5` 안 1, 재생·토글 보장). 재개 때 ext-host는 열린 drive 락(`lease.acquired` 뒤 `lease.released`가 없음)가 있는 scope의 drive 함수를 다음 경계에서 그 상태로 다시 부른다(`X.primitives.spec` §4.4.3). 클로저 지역 변수에 둔 상태는 잃는다(EV-09).
 5. `post`는 (scopeId, requestId)로 멱등이다(`X.primitives.spec` `InputQueuePort`). 재개 뒤 같은 `post`가 다시 와도 입력이 두 번 들어가지 않는다.
 6. 확장 투영기가 없는(제거된) 확장의 이벤트는 재생 때 코어 투영기가 건너뛴다. 그 확장의 `x_*` 테이블은 갱신되지 않는다. 확장을 다시 설치하면 그 투영기만 재생성한다.
 
@@ -504,7 +504,7 @@ export function upcastEvent(event: DurableEventEnvelope, registry: UpcasterRegis
 
 ## 9. 결과로 생기는 제약
 
-- 모든 세션 상태 변경은 내구 이벤트로 남는다. 투영 테이블에 직접 쓰는 코드는 투영기뿐이다.
+- 모든 대화 상태 변경은 내구 이벤트로 남는다. 투영 테이블에 직접 쓰는 코드는 투영기뿐이다.
 - 투영기와 `reduceLoopState`는 I/O를 하지 않으므로, 투영에 필요한 값(파일 해시, 현재 시각)은 생산자가 이벤트 payload에 넣는다.
 - 큰 도구 출력은 blob으로 가므로 컨텍스트 조립은 blob 읽기를 거친다. blob 읽기는 L0 store 서비스가 한다.
 - 확장 상태는 확장 이벤트(`x.<name>.state.committed`, `grp.<name>.state.committed`, `X.primitives.spec` §4.6.1)와 확장 투영으로만 남는다. 그래서 확장 상태도 분기·되감기·재개를 따라간다(층 구성 계획 v2 L3-a "그룹 상태 레코드: 재개와 분기를 따라갑니다").
@@ -736,7 +736,7 @@ g.on("tool.call.before", async (call) => {
 
 이유: 재개 때 drive 함수는 마지막으로 커밋된 scope 상태로 다시 불린다. 클로저 지역 변수에 둔 진행 정보는 재시작 때 사라지고 같은 단계를 처음부터 반복한다.
 
-강제: 리뷰. `L3.group-sdk.spec`의 drive 재생 테스트 도우미(커밋 지점마다 프로세스를 끊고 재호출해 같은 이벤트 열이 나오는지)를 그룹 테스트에서 쓴다.
+강제: 리뷰. `L3.group-sdk.spec`의 drive 재생 테스트 도우미(커밋 시점마다 프로세스를 끊고 재호출해 같은 이벤트 열이 나오는지)를 그룹 테스트에서 쓴다.
 
 좋은 예:
 
@@ -783,10 +783,10 @@ session.emitVolatile({ durable: false, kind: "item.updated", threadId, turnId, n
 ## 11. 수용 기준
 
 1. 투영 테이블(`p_*`, `step_checkpoints`, `cap_*`·`x_*` 중 투영기 소유 테이블)을 모두 지우고 `rebuild`를 실행하면, 지우기 전과 기본 키 정렬 행 해시가 같다(`expectProjectionsRebuildable`). 단계 체크포인트는 `checkpoint.step` 이벤트로 커밋되고 `step_checkpoints`는 그 투영이다.
-2. 커밋 사이 아무 지점에서 프로세스를 강제 종료한 뒤 다시 열어 쓰면, 새 이벤트의 `seq`는 종료 전 DB 전체의 마지막 커밋 `seq` + 1이다. 빈칸과 중복이 없고, 지운 thread의 seq도 다시 쓰지 않는다.
+2. 커밋 사이 아무 시점에서 프로세스를 강제 종료한 뒤 다시 열어 쓰면, 새 이벤트의 `seq`는 종료 전 DB 전체의 마지막 커밋 `seq` + 1이다. 빈칸과 중복이 없고, 지운 thread의 seq도 다시 쓰지 않는다.
 3. 한 응답을 스트리밍하는 동안 휘발 이벤트를 1,000건 내보내도 `events` 행 수는 그 응답의 assistant `item.recorded`와 `part.recorded`만큼만 늘어난다.
 4. 휘발 이벤트를 모두 버린 클라이언트와 모두 받은 클라이언트의 최종 화면 상태(item·효과 결과)가 같다.
-5. `thread.leaf_moved{reason:"rewind"}` 뒤 활성 가지 조회는 되감은 지점 뒤의 item을 포함하지 않고, 이전 가지의 이벤트는 `readFrom`으로 계속 읽힌다.
+5. `thread.leaf_moved{reason:"rewind"}` 뒤 활성 가지 조회는 되감은 시점 뒤의 item을 포함하지 않고, 이전 가지의 이벤트는 `readFrom`으로 계속 읽힌다.
 6. 카탈로그에 없는 코어 kind 행이 있는 DB를 열면 쓰기 모드로 열리지 않는다. 설치되지 않은 확장의 kind만 있으면 쓰기 모드로 열린다.
 7. 재개 시 종결된 효과는 다시 실행되지 않는다(도구 가짜의 호출 횟수 0). `turn.abort_requested`가 커밋된 turn의 열린 효과는 `safe`여도 다시 실행되지 않는다(도구 가짜의 호출 횟수 0).
 8. seq가 정해진 이벤트를 넣는 가져오기 경로에서 같은 `seq`에 다른 바이트를 쓰려 하면 `replay_diverged`로 실패한다.
@@ -795,7 +795,7 @@ session.emitVolatile({ durable: false, kind: "item.updated", threadId, turnId, n
 ## 12. 미결 사항
 
 - [미결 E-1] 휘발 이벤트 부분 출력의 크래시 복구용 scratch 보존(09 §3.5 `volatile_scratch`)을 둘지. 두면 `outcome_unknown` 합성 결과에 마지막 출력 조각을 붙일 수 있으나, 운영 테이블 하나와 1초 주기 쓰기가 늘어난다.
-- [미결 E-2] JSONL 내보내기 형식. pi 세션 JSONL과 호환할지(packages.md §4.3 L1-f "JSONL 내보내기: pi 세션 JSONL 형식(호환 목표)"), envelope을 그대로 줄마다 쓸지.
+- [미결 E-2] JSONL 내보내기 형식. pi `session` JSONL과 호환할지(packages.md §4.3 L1-f "JSONL 내보내기: pi 세션 JSONL 형식(호환 목표)"), envelope을 그대로 줄마다 쓸지.
 - [미결 E-3] 해시 체인·HMAC 도입 여부. 기존 09 §3.10은 데몬 단일 쓰기와 감사 요구를 전제한다. Fresnel 범위에서 필요한지, 필요하면 저장 열로 더할지 정한다(`F.records.spec` §10 미결 1).
 - 이전 판의 미결 E-5(F 카탈로그 추가 요청 kind의 수용)는 닫았다. `F.records.spec` §3.3에 들어갔다(4.4절).
-- 이전 판의 미결 E-4(세션 사이 커서 `pos`)는 닫았다. `seq`가 DB 전역 단조이므로 `pos`를 따로 두지 않는다(`F.records.spec` §4.1, `L1.persistence.spec` §2.1).
+- 이전 판의 미결 E-4(대화 사이 커서 `pos`)는 닫았다. `seq`가 DB 전역 단조이므로 `pos`를 따로 두지 않는다(`F.records.spec` §4.1, `L1.persistence.spec` §2.1).

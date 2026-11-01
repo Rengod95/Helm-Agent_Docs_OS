@@ -16,13 +16,13 @@ binds: [xeon/packages/platform-process/**]
 
 ### 1.1 정하는 것
 
-[결정] 엔진은 프로세스 정책을 갖지 않는 라이브러리이고, 호스트 계약은 하나이며, 전송만 바꾼다(adr.0006 §3.1~§3.3, `F.wire-settings.spec` §3.1). 이 패키지는 그 결정 아래에서 다음 여덟 가지를 정의한다.
+[결정] 엔진은 프로세스 정책을 갖지 않는 라이브러리이고, Runtime API는 하나이며, 전송만 바꾼다(adr.0006 §3.1~§3.3, `F.wire-settings.spec` §3.1). 이 패키지는 그 결정 아래에서 다음 여덟 가지를 정의한다.
 
 1. 전송 구현: `F.wire-settings.spec` §3.1의 `Transport` 세 종류(in-process, stdio, socket)
-2. 자식 엔진 수명 임대: stdin EOF와 `shutdown` 요청, 종료 시한
+2. 자식 엔진 수명 프로세스 락: stdin EOF와 `shutdown` 요청, 종료 시한
 3. 백그라운드 프로세스 레지스트리: 장시간 셸 작업과 MCP 서버의 id·상태·소유, 종료 정리
 4. 공유 서비스 모드의 L0 쪽 라이브러리: 등록 파일, `ensure`, 이중 기동 방지, 유휴 종료 판정, 토큰 인증, 감독
-5. 세션 잠금 실패 때 동작 정책 `LockFallbackPolicy`
+5. 대화 잠금 실패 때 동작 정책 `LockFallbackPolicy`
 6. 복구 표식 기반 '이어서 실행' 제시 정책
 7. OS 서비스 등록 provider(2차)
 8. X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1) 구현: 외부 훅 실행 `run`(포트는 M2, 외부 훅 소비자는 M4 [결정: 2026-10-28 사용자])과 격리 확장 자식 기동 `spawn`(2차). `ProcessService`가 이 포트를 확장한다(§3.1, §4.8)
@@ -36,7 +36,7 @@ binds: [xeon/packages/platform-process/**]
 | `fresnel service start\|status\|stop\|install\|uninstall` 명령줄, 호스트 조립(엔진 열기, 처리기 표, 전송 연결) | `L4.host-service.spec` |
 | 엔진 진입점(`Runtime.open`) 구현 | [미결 P-5] 권고는 `L4.host-service.spec`(§3.2) |
 | JSON-RPC envelope 검사, 메서드 레지스트리, `HostConnection` | `F.wire-settings.spec` §3.2~§3.5. 이 패키지는 그 함수를 호출만 한다 |
-| 세션 소유 잠금 구현(OS 잠금, `sys_leases`) | `L0.store.spec` §4.7 |
+| 대화 소유 잠금 구현(OS 잠금, `sys_leases`) | `L0.store.spec` §4.7 |
 | 복구 표식(`p_threads`의 `running_since`·`resume_attempts`)과 재개 커밋(`thread.resumed`) | `L1.persistence.spec` §2·§4.8 |
 | 결과 불명 도구 호출의 재실행 판정(`replay: safe`) | `L1.persistence.spec`, `eng.transactions.design` §5 |
 | 데스크톱 쪽 사이드카 spawn(Rust) | `L4.desktop.spec`, adr.0008 §3.3 |
@@ -67,12 +67,12 @@ binds: [xeon/packages/platform-process/**]
 | 엔진 | Cordis 호스트 + 루프 + SQLite. 프로세스 정책을 갖지 않는 라이브러리 |
 | 호스트 | 엔진을 소유하고 계약의 서버 쪽을 맡는 코드(`apps/host`) |
 | 자식 엔진 | 데스크톱이 사이드카로 띄운 엔진 프로세스(`fresnel host --stdio`) |
-| 수명 임대 | 부모가 쥔 stdin 파이프. 부모가 어떻게 끝나도 OS가 쓰기 끝을 닫아 자식이 EOF를 읽는다 |
+| 수명 프로세스 락 | 부모가 쥔 stdin 파이프. 부모가 어떻게 끝나도 OS가 쓰기 끝을 닫아 자식이 EOF를 읽는다 |
 | 서비스 | `fresnel service`로 뜬 공유 엔진 프로세스. 여러 클라이언트가 socket 전송으로 접속한다 |
 | 등록 파일 | 서비스의 소켓 경로·pid·버전·토큰을 담은 JSON 파일(0600) |
 | `ensure` | 클라이언트가 서비스를 찾거나 기동하는 절차 |
-| live task | 진행 중 턴, 실행 중 도구, 승인 대기 세션, 활성 drive 임대 |
-| 안전 경계 | 다음 커밋 지점 직전(`eng.transactions.design` §4.1). 진행 중 모델 스트리밍은 버리고 그 단계를 재개 때 다시 보낸다 |
+| live task | 진행 중 턴, 실행 중 도구, 승인 대기 대화, 활성 drive 락 |
+| 안전 경계 | 다음 커밋 시점 직전(`eng.transactions.design` §4.1). 진행 중 모델 스트리밍은 버리고 그 단계를 재개 때 다시 보낸다 |
 | 프로세스 지문 | pid와 프로세스 시작 시각의 쌍. pid 재사용을 구분한다 |
 
 ## 3. 인터페이스
@@ -523,9 +523,9 @@ socket(`listenSocket`, `connectSocket`):
 - 리스너는 소켓 파일을 0600으로 만든다. `listen` 호출 안에서 바인드가 동기로 일어나는 동안만 프로세스 umask를 0177로 좁히고 바로 원래 값으로 되돌린다. 그래서 파일은 만들어지는 순간부터 0600이고 chmod 전의 틈이 없다. 바인드 뒤 0600 chmod는 그대로 둔다. 동기 구간에는 JS 실행이 멈춰 있으므로 같은 프로세스의 다른 파일 생성에 영향이 없다 [가정: Bun의 `node:net` 호환 계층이 바인드를 `listen` 안에서 동기로 한다. 실측 전]. 부모 디렉터리는 0700이어야 한다.
 - 원격 사용(1차, M3)은 이 소켓을 SSH 터널(Unix 소켓 전달)이나 사설망으로 연결한다(§4.4.8). 원격 클라이언트도 같은 socket 전송과 인증 규칙(§4.4.5)을 쓴다. 내장 TCP·WebSocket 원격 전송은 2차다 [결정: review.decisions-2 U-11].
 
-### 4.2 자식 엔진 수명 임대
+### 4.2 자식 엔진 수명 프로세스 락
 
-[결정] 데스크톱이 엔진 사이드카를 띄우고 stdin EOF를 임대 해제 신호로 쓴다(adr.0008 §3.3, adr.0006 §3.7 6번, opencode `standalone.ts:23-27`).
+[결정] 데스크톱이 엔진 사이드카를 띄우고 stdin EOF를 프로세스 락 해제 신호로 쓴다(adr.0008 §3.3, adr.0006 §3.7 6번, opencode `standalone.ts:23-27`).
 
 1. 자식 엔진(`fresnel host --stdio`)은 시작 때 `watchChildLease`를 건다. stdin은 stdio 전송이 읽는 스트림 하나뿐이라(reader를 둘 붙일 수 없다) 감시는 전송의 `onClose`(`eof` 또는 `error`)를 듣는다.
 2. 종료 요청은 두 경로로 온다.
@@ -533,7 +533,7 @@ socket(`listenSocket`, `connectSocket`):
    - stdin EOF: 데스크톱이 비정상 종료해도 OS가 파이프 쓰기 끝을 닫는다.
 3. 어느 경로든 `ProcessShutdown.request(reason)`을 부른다. 처리 순서:
    1. `signal`을 중단한다. 루프(L1)는 안전 경계에서 이 신호를 보고 새 단계를 시작하지 않는다. 진행 중 스트리밍은 버린다(재개 때 같은 단계를 다시 보낸다, `eng.transactions.design` §5.4 K1).
-   2. 참여자(`onShutdown`)를 등록 역순으로 부른다. `core-persistence`는 마지막 체크포인트와 임대 반납을, 백그라운드 레지스트리는 `stopAll`을 한다.
+   2. 참여자(`onShutdown`)를 등록 역순으로 부른다. `core-persistence`는 마지막 체크포인트와 프로세스 락 반납을, 백그라운드 레지스트리는 `stopAll`을 한다.
    3. 모두 끝나면 종료코드 0으로 끝낸다. 복구 표식은 지우지 않는다(`L1.persistence.spec` §4.8.1, 열린 turn이 남는다). 다음 실행이 '이어서 실행' 후보로 보인다.
    4. 시한(`l0.process.shutdown.timeoutMs`, 기본 3000 [제안], opencode 3초 선례)을 넘으면 남은 참여자를 기다리지 않고 종료코드 1로 끝낸다.
 4. 비협조 확장 코드가 이벤트 루프를 막으면 시한 타이머도 돌지 않는다. 이 경우는 부모(데스크톱)의 SIGKILL만 정리할 수 있다(adr.0006 §4.2, durable `spec.md:5096`).
@@ -545,10 +545,10 @@ socket(`listenSocket`, `connectSocket`):
 - 장시간 셸 작업(`run_in_background`류 도구), MCP 서버 자식 프로세스, 예약 실행이 띄운 프로세스를 메모리에 등록한다. DB 테이블은 두지 않는다(`eng.context-map.design` §4.1 platform-execution "레지스트리는 메모리").
 - 종료 정리의 실제 kill: 이 문서는 L0끼리 import하지 않는 규칙(DR-02)을 지키기 위해 등록자가 `pid`와 `BackgroundStopper`를 넘기는 방식을 쓴다 [제안]. 등록자가 쓰는 실행 수단은 `fresnel.exec`의 `ExecService.startBackground`(`L0.exec.spec` §3.9)다. 이 호출은 종료를 기다리지 않고 `pid`, `stop("graceful" | "force")`, `exited`를 가진 `BackgroundExecHandle`을 돌려주고, 그 모양이 `BackgroundStopper`와 같아 L1 tools, L2 mcp가 그대로 넘긴다. 종료까지 기다리는 `Shell.exec`와 `withCwd` 파생 env의 `cleanup`(pid 없음, SIGKILL만)으로는 이 계약을 채울 수 없어서 exec에 별도 계약을 두었다. 레지스트리는 kill 수단을 갖지 않고 순서와 시한만 관리한다. 등록자가 정지 수단을 갖지 못하는 경우를 위해 자체 프로세스 트리 종료 provider(`posix`: `process.kill(-pgid)`, `win32`: `taskkill /T /F`)를 둘지가 [미결 P-4]의 남은 부분이다.
 - `stop(id)`: 상태를 `stopping`으로 바꾸고 `stopper.stop("graceful")`, `graceMs`(기본 2000 [제안]) 안에 `exited`가 이행하지 않으면 `stopper.stop("force")`. 결과 상태는 `exited`(스스로 끝남) 또는 `killed`.
-- `stopOwnedBy(threadId)`: 세션 닫기, 임대 상실(`L0.store.spec` §4.7.3 `keepAlive` onLost)에서 부른다.
+- `stopOwnedBy(threadId)`: 대화 닫기, 프로세스 락 상실(`L0.store.spec` §4.7.3 `keepAlive` onLost)에서 부른다.
 - 종료 협조 참여자로 자신을 등록해 `ProcessShutdown` 때 모든 항목을 병렬로 `stop`한다.
 - 프로세스가 먼저 끝나면 `exited` 이행으로 상태를 갱신한다. 등록 정보는 끝난 뒤 10분 [제안] 동안 `list`에 남기고 지운다.
-- 서비스 모드에서는 서비스 프로세스의 레지스트리 하나가 모든 클라이언트 세션의 작업을 가진다. 클라이언트 연결이 끊겨도 정지하지 않는다(작업 지속이 서비스 모드의 목적이다).
+- 서비스 모드에서는 서비스 프로세스의 레지스트리 하나가 모든 클라이언트 대화의 작업을 가진다. 클라이언트 연결이 끊겨도 정지하지 않는다(작업 지속이 서비스 모드의 목적이다).
 
 ### 4.4 공유 서비스 모드
 
@@ -589,14 +589,14 @@ ensureService():
 
 1. 서비스 프로세스는 시작하자마자 `listenSocket(path)`를 시도한다.
 2. `address_in_use`면 `connect(path)`로 상대를 확인한다. 접속되면 진 쪽이다. 등록 파일을 건드리지 않고 종료코드 0으로 끝난다.
-3. `refused`·`not_found`(이전 서비스가 죽고 소켓 파일이 남음)면 stale 소켓이다. 지우기 전에 활성화 잠금(`ActivationLock`)을 얻는다. 잠금을 얻은 쪽만 한 번 더 접속을 확인한 뒤 소켓 파일을 unlink하고 다시 바인드한다. 잠금을 못 얻으면 다른 경합자가 처리 중이므로 진 쪽으로 끝난다. 판정과 unlink 사이의 경쟁(`_research/notes/L0-2.md §2.4`)을 이 잠금으로 막는다. [결정: 오케스트레이터 기본값] 이 패키지는 다른 `platform-*`를 import하지 못하므로(DR-02) 잠금 수단은 조립 루트가 L0.os의 `fileLock.withLock`(`<runtimeDir>/service.activation`, `timeoutMs` 0)으로 만들어 넘긴다. 원안의 `fresnel.store` 임대 대신이다.
+3. `refused`·`not_found`(이전 서비스가 죽고 소켓 파일이 남음)면 stale 소켓이다. 지우기 전에 활성화 잠금(`ActivationLock`)을 얻는다. 잠금을 얻은 쪽만 한 번 더 접속을 확인한 뒤 소켓 파일을 unlink하고 다시 바인드한다. 잠금을 못 얻으면 다른 경합자가 처리 중이므로 진 쪽으로 끝난다. 판정과 unlink 사이의 경쟁(`_research/notes/L0-2.md §2.4`)을 이 잠금으로 막는다. [결정: 오케스트레이터 기본값] 이 패키지는 다른 `platform-*`를 import하지 못하므로(DR-02) 잠금 수단은 조립 루트가 L0.os의 `fileLock.withLock`(`<runtimeDir>/service.activation`, `timeoutMs` 0)으로 만들어 넘긴다. 원안의 `fresnel.store` 프로세스 락 대신이다.
 4. 바인드에 이긴 서비스만 엔진을 열고 등록 파일을 쓴다. 등록 파일 쓰기 전에 들어온 클라이언트 접속은 대기열에 두고 엔진이 열린 뒤 `host.hello`를 처리한다 [제안]. 바인드 직후 접속한 클라이언트가 오류 없이 이어지게 하기 위해서다.
 5. 서비스는 종료 때 `removeIfOwned(pid, startedAt)`로 자기 등록 파일만 지운다.
 
 #### 4.4.4 유휴 종료
 
 - 조건: 연결 0 + live task 0 + 대기 예약 0이 `idleGraceMs`(기본 60000 [제안]) 동안 이어질 때만 종료한다(adr.0006 §3.7 4번). 시작 직후 `startupGraceMs`(10000, pi 선례) 동안은 판정하지 않는다. 시작 유예 안에서 한가해졌으면 유예가 끝난 시각부터 `idleGraceMs`를 센다(종료 예정 시각 = max(지금, 시작 + startupGraceMs) + idleGraceMs). 한가함이 이어지는 동안 같은 입력으로 `update`를 다시 불러도 예정 시각은 밀리지 않는다.
-- 승인 대기 세션은 live로 센다 [제안](adr.0006 §6 미결, Claude Code 선례 `CC/agent-view.md:819`). 사용자가 나중에 승인하러 돌아왔을 때 서비스가 떠 있어야 바로 이어지기 때문이다.
+- 승인 대기 대화는 live로 센다 [제안](adr.0006 §6 미결, Claude Code 선례 `CC/agent-view.md:819`). 사용자가 나중에 승인하러 돌아왔을 때 서비스가 떠 있어야 바로 이어지기 때문이다.
 - 대기 예약이 하나라도 있으면 종료하지 않는다. 예약 틱은 서비스 프로세스 안에서 돈다(adr.0006 §3.5). 대기 예약 수는 L2 schedule이 채운다. 그 트랙이 오기 전에는 조립 루트가 0을 넘긴다 [결정: 오케스트레이터 기본값, M3b B1-SVC].
 - 판정기는 상태 없이 입력 표본만 받는다. 입력이 바뀔 때마다 타이머를 다시 건다. 시계는 주입한다(수동 시계로 시험, TS-03).
 - 타이머가 울릴 때 판정기에 `sample`(선택 옵션)이 주어졌으면 입력을 다시 읽는다. 한가하지 않으면 종료하지 않고 타이머를 비운 채 `idleShutdownAt`을 `null`로 되돌린다. 다음 `update`가 한가함을 알리면 다시 건다. 마지막 `update` 뒤에 연결이 붙었는데 알림이 늦은 틈에 서비스를 끝내지 않으려는 안전망이다.
@@ -632,11 +632,11 @@ ensureService():
 | 1 | 등록 파일 | `write` 뒤 파일 모드가 0600이다. 스키마에 없는 필드 `{"future":1}`가 든 파일을 읽고 다시 쓰면 그 필드가 남는다. 모드가 0644인 파일은 `insecure_mode`로 읽기를 거부한다 |
 | 2 | 기동 경합 | 같은 runtimeDir에서 `ensureService`를 동시에 두 번 부르면 살아 남는 서비스 프로세스가 하나이고, 두 호출 모두 같은 `pid`의 등록 정보로 `connected`를 받는다 |
 | 3 | 버전 불일치 | 한가한 구버전 서비스에 `ensure`하면 구버전이 종료되고 새 버전이 뜬다. live task가 있는 구버전에는 `version_mismatch_busy`로 접속하고 구버전이 계속 돈다 |
-| 4 | 유휴 종료 | §4.4.4 표의 다섯 행이 수동 시계 테스트에서 그대로 성립한다. 승인 대기 세션 1개만 있으면 종료하지 않는다 |
+| 4 | 유휴 종료 | §4.4.4 표의 다섯 행이 수동 시계 테스트에서 그대로 성립한다. 승인 대기 대화 1개만 있으면 종료하지 않는다 |
 | 5 | 인증 | 토큰이 틀린 `host.hello`는 거부되고 연결이 닫힌다. hello 전 `turn.start`는 1001이다. 소켓 파일 모드가 0600이다 |
 | 6 | 부모-자식 수명 | stdio 자식 엔진의 부모를 SIGKILL하면 자식이 `shutdown.timeoutMs` + 1초 안에 끝난다. `ensure`로 띄운 서비스는 띄운 CLI가 끝나도 살아 있다 |
 | 7 | 종료 협조 | `host.shutdown` 요청에 서비스가 참여자를 모두 부른 뒤 응답하고 종료한다. 참여자가 시한을 넘기면 종료코드 1로 끝난다 |
-| 8 | 단일 장애점 | 서비스를 SIGKILL하면 접속 중 클라이언트는 정지 상태가 되고 쓰기를 보내지 않는다. 다음 `ensure`가 새 서비스를 띄우고 복구 표식(`RecoveryMarker`)이 남은 세션을 재개 후보로 돌려준다 |
+| 8 | 단일 장애점 | 서비스를 SIGKILL하면 접속 중 클라이언트는 정지 상태가 되고 쓰기를 보내지 않는다. 다음 `ensure`가 새 서비스를 띄우고 복구 표식(`RecoveryMarker`)이 남은 대화를 재개 후보로 돌려준다 |
 
 #### 4.4.8 소켓 터널
 
@@ -651,7 +651,7 @@ ensureService():
 2. 실행하지 못하면 `spawn_failed`(errno 코드)다.
 3. 준비는 `localSocket` 파일이 존재하는 것으로 본다. `pollMs`(기본 25ms) 간격으로 되풀이해 보고, 파일이 생기면 `SocketTunnel`을 돌려준다.
 4. 파일이 생기기 전에 프로세스가 끝나면 `exited`(종료 코드, 신호, stderr 꼬리)다. `readyTimeoutMs`(기본 15000ms)를 넘으면 `timeout`이다. 두 경우 모두 프로세스를 정리하고 오류 값으로 돌려준다.
-- 파일이 생겼다고 원격 소켓에 연결된다는 뜻은 아니다. 원격 경로가 틀리면 호출자의 첫 접속(`host.hello`)이 실패한다 [가정: OpenSSH가 `-L` 로컬 수신 지점을 원격 연결 전에 만들 수 있다. 실측 전].
+- 파일이 생겼다고 원격 소켓에 연결된다는 뜻은 아니다. 원격 경로가 틀리면 호출자의 첫 접속(`host.hello`)이 실패한다 [가정: OpenSSH가 `-L` 로컬 수신 끝점을 원격 연결 전에 만들 수 있다. 실측 전].
 
 **정리 (`close`)**
 
@@ -689,7 +689,7 @@ ssh -N -T -o ExitOnForwardFailure=yes -o BatchMode=yes -o ServerAliveInterval=15
 
 ### 4.5 잠금 실패 동작 정책
 
-- 세션 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱이다(`L0.store.spec` §4.7.1과 같은 문장) [결정: review.decisions-2 U-09]. ADR-0004 §3.4와 ADR-0006은 이에 맞게 개정한다.
+- 대화 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱이다(`L0.store.spec` §4.7.1과 같은 문장) [결정: review.decisions-2 U-09]. ADR-0004 §3.4와 ADR-0006은 이에 맞게 개정한다.
 - store는 `LockBusy{ owner }` 정보만 돌려주고, 위임·관찰·분기 선택은 이 패키지의 `LockFallbackPolicy`가 정한다.
 - `decide(context)` 규칙 [제안]:
   1. `requested`가 있으면 그 선택을 `act`로 돌려준다. 단 `delegate`인데 `serviceOwnsSession`이 거짓이면 `ask`로 바꾼다.
@@ -699,19 +699,19 @@ ssh -N -T -o ExitOnForwardFailure=yes -o BatchMode=yes -o ServerAliveInterval=15
 - 세 선택의 동작(실행은 L4·L1):
   - 위임: 서비스 전송으로 소유자에게 입력을 보낸다(`turn.start`를 서비스가 처리).
   - 관찰: `thread.open { mode: "observe" }`, 읽기 전용으로 DB를 따라간다(`eng.events.design` §4.6).
-  - 분기: `thread.fork`로 현재 시점에서 `parentId`를 가진 새 세션을 만들어 연다.
+  - 분기: `thread.fork`로 현재 시점에서 `parentId`를 가진 새 대화를 만들어 연다.
 - wire 오류 `thread.locked`(3002)의 `details.options`는 이 결정의 선택지 목록과 같다. `ownerKind`는 `LockBusy.owner?.kind`다.
 - 소유 표시: 별도 소유 테이블을 두지 않고 `sys_leases` 행이 표시를 겸한다(`kind` 열: cli|app|service) [결정: review.decisions-2 U-09]. 소유 판정은 OS 잠금과 epoch가 하고 `kind`·`pid`·`host`는 표시용이며, 표시 정보가 틀려도 안전하다(`L0.store.spec` §3.3과 같은 문장).
 
 ### 4.6 복구 표식 제시('이어서 실행')
 
-- 세션 목록을 열 때와 서비스 시작 때 호스트(L4)가 `fresnel.session`의 `query.thread(threadId).marker`(`ThreadSummaryRow.marker`, `L1.persistence.spec` §3.4)가 `null`이 아닌 thread를 모아 `ResumeCandidate[]`로 넘기고, `buildResumeOffers`가 후보를 만든다. 이 패키지는 DB를 직접 읽지 않는다. `runningSince`·`resumeAttempts`는 `RecoveryMarker`의 값을 그대로 옮긴다.
+- 대화 목록을 열 때와 서비스 시작 때 호스트(L4)가 `fresnel.session`의 `query.thread(threadId).marker`(`ThreadSummaryRow.marker`, `L1.persistence.spec` §3.4)가 `null`이 아닌 thread를 모아 `ResumeCandidate[]`로 넘기고, `buildResumeOffers`가 후보를 만든다. 이 패키지는 DB를 직접 읽지 않는다. `runningSince`·`resumeAttempts`는 `RecoveryMarker`의 값을 그대로 옮긴다.
 - `action` 판정 [제안]:
   - `resumeAttempts >= maxAttempts` → `exhausted`. 자동 재개하지 않고 사용자에게 "재개가 반복해서 실패했다"를 보인다.
   - `serviceMode && autoResumeEnabled` → `auto_resume`.
   - 그 밖 → `offer`.
 - 자동 재개 설정은 `l1.persistence.autoResume`(기본 꺼짐)과 `l1.persistence.maxResumeAttempts` 둘이고 L1.persistence가 소유한다. 이 패키지는 설정 키를 두지 않고 호스트가 읽은 값을 `ResumePolicyInput`으로 받는다 [결정: review.decisions-2 S-03]. 자동 재개는 서비스 모드에서만 켠다(adr.0006 §3.6 5번). CLI·데스크톱 단독 모드에서는 설정이 켜져 있어도 `offer`다. 사용자가 없는 동안 비용과 부작용이 나는 일을 서비스 모드로 한정하기 위해서다.
-- 다른 프로세스가 그 세션 임대를 쥐고 있으면(`heldBy`) 후보에 표시만 하고 재개 버튼 대신 §4.5 선택지를 보인다. 이 후보는 자동 재개 조건을 채워도 `offer`로 내리고, 시도 횟수 상한(`exhausted`)은 그대로 둔다.
+- 다른 프로세스가 그 대화의 프로세스 락을 쥐고 있으면(`heldBy`) 후보에 표시만 하고 재개 버튼 대신 §4.5 선택지를 보인다. 이 후보는 자동 재개 조건을 채워도 `offer`로 내리고, 시도 횟수 상한(`exhausted`)은 그대로 둔다.
 - 재개 실행은 L1(`L1.persistence.spec` 재개 절차, `eng.events.design` §7.2)이 한다. 재개 시작 때 `thread.resumed`를 커밋하고, 투영 `p_threads.resume_attempts`가 그 커밋에서 오른다(`L1.persistence.spec` §4.8.1).
 - 경계: 결과 불명 도구 호출은 자동 재실행하지 않고, 저장된 정책과 현재 선언이 모두 `replay: safe`인 도구만 재실행한다(adr.0006 §3.6 6번). 이 판정은 L1 몫이고 이 패키지는 관여하지 않는다.
 
@@ -796,8 +796,8 @@ L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스�
 | Unix 소켓 경로 길이 | `sun_path` 104바이트 | 108바이트 | AF_UNIX 지원(Windows 10 1803 이후) [가정], 경로 108바이트 [가정] |
 | 서비스 전송 | Unix 소켓 | Unix 소켓. WSL은 리눅스 쪽 경로(`/mnt/*` 금지) | 대안 비교표 아래, [미결 P-6] |
 | 협조 종료 신호 | SIGTERM | SIGTERM | SIGTERM이 협조 종료로 전달되지 않는다. 전송 메시지 `host.shutdown`이 유일한 협조 경로 |
-| 자식 분리 | `detached` + `unref`(새 세션) | 같음 | `detached`는 새 콘솔 창을 만들 수 있다. `windowsHide: true` 필수 [가정] |
-| 사이드카 정리 | stdin EOF 임대 | 같음 | 같음. Tauri의 job 핸들 정리는 확인되지 않았다(adr.0008 §4.2) |
+| 자식 분리 | `detached` + `unref`(새 대화) | 같음 | `detached`는 새 콘솔 창을 만들 수 있다. `windowsHide: true` 필수 [가정] |
+| 사이드카 정리 | stdin EOF 프로세스 락 | 같음 | 같음. Tauri의 job 핸들 정리는 확인되지 않았다(adr.0008 §4.2) |
 | 프로세스 지문 | `sysctl kern.proc.pid`의 시작 시각 또는 `ps -o lstart=` [가정] | `/proc/<pid>/stat` 22번째 필드(부팅 뒤 클록 틱) + `/proc/sys/kernel/random/boot_id` | `GetProcessTimes` 생성 시각 [가정] |
 | OS 서비스 등록 | launchd 사용자 에이전트 | systemd 사용자 유닛. WSL은 systemd 켜짐 여부에 따른다 | 미정(작업 스케줄러 또는 Windows 서비스) |
 | 프로세스 트리 종료 | 프로세스 그룹 kill | 같음 | `taskkill /T` 또는 job 객체 [가정] |
@@ -830,9 +830,9 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 ## 7. 훅
 
-- 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다.
+- 이 도메인은 on·post·drive·scope 훅을 선언하지 않는다.
 - 확장은 `fresnel.process`의 `shutdown.onShutdown`으로 종료 협조에 참여할 수 있다. 시한 안에 끝나지 않는 참여자는 기다리지 않는다.
-- 확장이 장시간 프로세스를 띄우면 `background.register`로 등록해야 세션 닫기와 종료에서 정리된다. 확장은 `node:child_process`를 직접 쓸 수 없고 `fresnel.exec`를 거친다(DR-07).
+- 확장이 장시간 프로세스를 띄우면 `background.register`로 등록해야 대화 닫기와 종료에서 정리된다. 확장은 `node:child_process`를 직접 쓸 수 없고 `fresnel.exec`를 거친다(DR-07).
 - X는 `ProcessPortKey`로 이 서비스를 `ProcessPort`로 받아 외부 훅(`run`)과 격리 자식(`spawn`)을 실행한다(§4.8). 확장 코드는 이 포트를 직접 받지 않는다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -884,9 +884,9 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 1. `ensureService`를 같은 runtimeDir에서 동시에 두 번 부르면 서비스 프로세스는 하나만 남고, 두 결과가 같은 `pid`를 가리킨다.
 2. stdio 자식 엔진을 띄운 부모를 `kill -9`하면 자식이 `shutdown.timeoutMs` + 1초 안에 종료하고 남은 프로세스가 없다.
 3. 등록 파일은 0600으로 쓰이고, 모르는 필드를 보존하며, 쓰기 중 프로세스를 죽여도 이전 내용이나 새 내용 중 하나가 온전하다(임시 파일 + rename).
-4. 유휴 종료 판정기가 §4.4.4 표의 다섯 조합을 수동 시계에서 그대로 낸다. 승인 대기 세션을 live로 센다.
+4. 유휴 종료 판정기가 §4.4.4 표의 다섯 조합을 수동 시계에서 그대로 낸다. 승인 대기 대화를 live로 센다.
 5. 토큰이 다른 `host.hello`는 거부되고 연결이 닫힌다.
-6. `LockFallbackPolicy.decide`가 위임(서비스 소유), 관찰, 분기 각각의 입력에서 §4.5 규칙대로 결정하고, 세 선택 각각에 대해 L4 통합에서 `turn.start` 전달, 읽기 전용 열기, `parentId` 있는 새 세션이 확인된다.
+6. `LockFallbackPolicy.decide`가 위임(서비스 소유), 관찰, 분기 각각의 입력에서 §4.5 규칙대로 결정하고, 세 선택 각각에 대해 L4 통합에서 `turn.start` 전달, 읽기 전용 열기, `parentId` 있는 새 대화가 확인된다.
 7. 같은 전송 적합성 케이스(`F.wire-settings.spec` §9 A10)를 in-process와 stdio가 같은 결과로 통과한다.
 8. 1 MiB + 1바이트 프레임은 버려지고 `-32600`이 오며, 다음 프레임은 정상 처리된다. 프레임이 여러 청크로 나뉘거나 한 청크에 여러 프레임이 와도 같은 메시지열이 나온다.
 9. `host.shutdown` 요청 뒤 참여자가 시한을 넘기면 종료코드 1, 시한 안이면 0이다. 복구 표식은 지워지지 않는다.
@@ -908,14 +908,14 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 ## 10. 미결 사항
 
-- [결정: review.decisions-2 U-09] P-1. 세션 소유 판정은 OS 잠금 + `sys_leases` epoch 펜싱이다. adr.0004 §3.4 개정 대상이다. `L0.store.spec` S-1과 같은 항목이다.
+- [결정: review.decisions-2 U-09] P-1. 대화 소유 판정은 OS 잠금 + `sys_leases` epoch 펜싱이다. adr.0004 §3.4 개정 대상이다. `L0.store.spec` S-1과 같은 항목이다.
 - [결정: review.decisions-2 U-09] P-2. adr.0006 §3.6 규칙 4의 `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. `L0.store.spec` S-2와 같은 항목이다.
 - [미결 P-3] 전송 구현 배치: L0 구현 + L4 조립(권고) 또는 L4 구현(`F.readme` §6).
 - [미결 P-4] 백그라운드 프로세스 종료 수단. 권고는 `fresnel.exec`의 `startBackground`(`L0.exec.spec` §3.9) 핸들을 등록자가 `BackgroundStopper`로 넘기는 방식이다. stdin 파이프가 필요한 MCP stdio 서버(`L0.exec.spec` §10 9번)는 §4.9에서 이 패키지가 `select.ts`의 provider(`signalTree`)로 직접 띄우고 등록한다. 남은 것은 그 밖의 등록자다.
 - [미결 P-5] 엔진 진입점 `Runtime.open(dbPath)`의 시그니처와 소유. 권고는 L4 `apps/host`가 소유하고 `openRuntime({ dbPath, transport, … }): Promise<Result<Runtime, RuntimeOpenError>>` 모양이다. F에 둘지 함께 정한다.
 - [미결 P-6] Windows 서비스 전송(AF_UNIX, named pipe, loopback TCP + 토큰). §5.1 비교표.
 - [미결 P-7] 자동 재개 기본값(adr.0006 §6). 키 소유는 `L1.persistence.spec`이고 기본값 판단도 그 문서 미결 4로 옮겼다. 이 문서의 권고는 꺼짐, 서비스 모드에서만 켤 수 있음이다.
-- [결정: review.m3-design-inputs D-M3-13 행 2] P-8. 승인 대기 세션은 유휴 판정에서 live다.
+- [결정: review.m3-design-inputs D-M3-13 행 2] P-8. 승인 대기 대화는 유휴 판정에서 live다.
 - [결정: review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
 - [결정: review.m3-design-inputs D-M3-16] P-10. Unix 소켓은 파일 권한으로 막고 TCP로 열 때만 토큰을 요구한다(§4.4.5). `host.hello`의 `auth` 필드와 `host.authFailed` 오류는 F에 반영되었다.
 - [미결 P-11] Windows에서 `.cmd` 셔임(`npx.cmd` 등)으로 stdio MCP 서버를 띄우는 방법. 셸 없이 실행할 수 없어 `cross-spawn` 같은 해석이 필요하다. 1차 지원 OS(macOS, Linux, WSL)에는 해당이 없다.

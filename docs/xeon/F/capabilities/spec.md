@@ -105,7 +105,7 @@ export const ToolNameSchema: TString = Type.String({ pattern: TOOL_NAME_WIRE_PAT
 export function isCapabilityId(value: string): value is CapabilityId;
 ```
 
-- [제안] `CapabilityId`는 브랜드 없이 템플릿 리터럴 타입으로 둔다. 정의는 리터럴로 작성되므로 브랜드를 두면 정의마다 단언이 필요해진다. 런타임 형식은 `validateCapability`와 `isCapabilityId`가 정규식으로 검사한다. [가정] eng.domain-types.guide의 브랜드 규칙은 런타임 발급 ID(세션, 아이템 등)에 적용되고, 작성자가 선언하는 이름에는 리터럴 타입을 허용한다고 본다. 배치 1·engineering 문서 완료 뒤 대조한다.
+- [제안] `CapabilityId`는 브랜드 없이 템플릿 리터럴 타입으로 둔다. 정의는 리터럴로 작성되므로 브랜드를 두면 정의마다 단언이 필요해진다. 런타임 형식은 `validateCapability`와 `isCapabilityId`가 정규식으로 검사한다. [가정] eng.domain-types.guide의 브랜드 규칙은 런타임 발급 ID(대화, 아이템 등)에 적용되고, 작성자가 선언하는 이름에는 리터럴 타입을 허용한다고 본다. 배치 1·engineering 문서 완료 뒤 대조한다.
 - [제안] 네임스페이스 규칙:
   - 첫 세그먼트가 L2 도메인 이름(`workspace`, `mcp`, `web`, `knowledge`, `work`, `dialog`, `artifacts`, `schedule`)인 ID는 내장 기능 전용이다(`_routing/routes.yaml` layout L2).
   - `core`, `ext`, `grp`, `x`로 시작하는 ID는 예약한다.
@@ -208,7 +208,7 @@ export type CapabilityApi<D extends AnyCapabilityDef> = {
 - [결정: m2c G1-09] 직접 등록 도구(`DirectToolRegistration`)의 `executeWithContinuation`은 기능 도구와 같은 `CallContext`를 받는다. 호출 인자에 `threadId`(항상 있다)와 `context`가 들어간다. pi `AgentTool.execute` 시그니처는 바꾸지 않으므로 이 문맥은 `executeWithContinuation`을 가진 도구(MCP 서버 도구)에만 간다. 승인 origin과 대화 범위 설정을 쓰는 직접 등록 도구는 이 경로를 쓴다.
 
 - [제안] 서비스 메서드는 입력 객체 하나를 받는다. 위치 인자(`search(query, opts)`)는 쓰지 않는다. 모델 도구의 파라미터가 JSON 객체 하나이므로 메서드 입력도 객체 하나로 두면 도구를 얇은 어댑터로 유지할 수 있다(§4.2). 예시의 `search(query, opts)`는 `search({ query, ...opts })`로 표현한다.
-- [제안] `CallOptions.context`는 `L2.readme` §5.8의 요청을 받은 것이다. `context`가 없으면 provider는 `{ caller: { kind: "host" } }`로 본다. 대상 세션 해석: 메서드 입력에 `threadId`가 있으면 그것을, 없으면 `context.threadId`를 쓰고 둘 다 없으면 `invalid_input`이다. 도구 경로(`context.toolCallId`가 있음)에서 입력 `threadId`가 `context.threadId`와 다르면 `denied`다.
+- [제안] `CallOptions.context`는 `L2.readme` §5.8의 요청을 받은 것이다. `context`가 없으면 provider는 `{ caller: { kind: "host" } }`로 본다. 대상 대화 해석: 메서드 입력에 `threadId`가 있으면 그것을, 없으면 `context.threadId`를 쓰고 둘 다 없으면 `invalid_input`이다. 도구 경로(`context.toolCallId`가 있음)에서 입력 `threadId`가 `context.threadId`와 다르면 `denied`다.
 - [결정: m2 F.8] `CallContext.approval`은 `L1.tools.spec` §8.3 F 요청 13이다. 타입은 `SecretApprovalEvidence`(`capabilities/secrets.ts`, §3.10)이고 `services/secrets.ts`의 `ApprovalEvidence`와 같은 타입이다(별칭). `capabilities`가 `services`보다 낮아 정본을 낮은 쪽에 두었다. `L2.knowledge`의 `ApprovalEvidence`(`defs/knowledge.ts`)는 다른 타입이다. 시크릿을 쓰는 도구 구현(cap-workspace shell `run`)은 `secretEnv` 요청을 만들 때 `SecretEnvRequest.ctx.approval`에 이 값을 그대로 옮기고, 없으면 null이다(`fresnel.secrets`가 `approval_missing`으로 거부한다).
 - [결정: m2 F.8] `CallContext.interactive`는 비대화형 실행에서 사람에게 묻는 기능(`dialog.ask`)이 `ask_unavailable_headless`를 내는 근거다(`L2.dialog.spec` §4.1.2). 그룹·확장 경로와 호스트 호출처럼 값이 없으면 대화형으로 본다.
 - [결정: m2 F.8] `CallOptions.continuation`은 `L1.tools.spec` §8.3 F 요청 12(결정 D5 (a))다. 기능 메서드가 `status: "input_required"`로 돌아오고 승인 `approvalId`가 없으면(MCP `McpInputRequired`), L1.tools가 `questions`를 kind `question` 승인으로 올리고 사용자 답을 `inputResponses`로 옮긴 뒤 같은 `requestId`로 `continuation`을 붙여 다시 부른다. 옮기는 규칙은 순수 함수 `planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`(`defs/mcp-questions.ts`, §3.9)다. 입력의 `continuation`(`CallToolInputValue.continuation`)은 그룹 코드가 직접 부르는 경로에서 계속 쓴다.
@@ -299,7 +299,7 @@ export interface OrderedTool extends ToolRef {
 ```
 
 - 기계 이름과 표시 제목의 분리는 pi 형태를 그대로 쓴다. pi-ai `Tool.name`(`~/projects/_ref/pi-src/packages/ai/src/types.ts:749-754`)과 F `AgentTool.label`(출처는 pi-agent-core `AgentTool.label`, `~/projects/_ref/pi-src/packages/agent/src/types.ts:466-469`)이다. 계획 v2는 이 항목을 2차로 두었지만 pi에 이미 있으므로 M0에 같이 넣는다(F.capabilities.plan).
-- [결정: m3a F] `ToolRisk`, `ToolClass`, `CallerId`와 스키마 `ToolRiskSchema`, `CallerIdSchema`, `ToolHintsSchema`는 `capabilities/tool-meta.ts`가 정의한다. 도구 지점 페이로드(`extensions`)가 같은 값을 싣는데 `services`가 `extensions`보다 위층이라서다. `services/tools.ts`는 `CallerId`, `ToolClass`, `ToolRisk`를 다시 내보내므로 import 경로는 그대로 쓸 수 있다.
+- [결정: m3a F] `ToolRisk`, `ToolClass`, `CallerId`와 스키마 `ToolRiskSchema`, `CallerIdSchema`, `ToolHintsSchema`는 `capabilities/tool-meta.ts`가 정의한다. 도구 훅 페이로드(`extensions`)가 같은 값을 싣는데 `services`가 `extensions`보다 위층이라서다. `services/tools.ts`는 `CallerId`, `ToolClass`, `ToolRisk`를 다시 내보내므로 import 경로는 그대로 쓸 수 있다.
 - [제안: L1.tasks.spec FR-T6, M3-REQ-04] `ToolSpec.locks`는 호출 인자에서 잠글 경로와 접근 방식(`read`, `write`)을 낸다. 키 산출(`${env.id}\0${realpath}`)과 대기는 L1.tools가 한다(`L1.tools.spec` §4.2 7b). 잠금 선언이 없으면 키 큐를 쓰지 않는다. core-tools의 `LockDecl.mode`(`shared`, `exclusive`)는 이 선언으로 바꿀 때 `read` → `shared`, `write` → `exclusive`로 옮긴다.
 - `ToolSpec`은 `execute`를 갖지 않는다. 실행 함수는 L1.tools가 `ToolSpec`과 provider 서비스로부터 만든다(§4.2). 그래서 `ToolSpec`은 F `AgentTool`의 상위 형식이 아니다. core-tools는 `ToolSpec`을 `AgentTool`로 바꾸지 않고 내부 도구 항목(`ToolEntry`, `entries.ts`)으로 바꾼다. 필드 대응은 다음과 같다.
 
@@ -621,7 +621,7 @@ export const WebSearchKey = serviceKey(WebSearch);   // ServiceKey<{ search(inpu
 ```
 
 - 위 코드는 읽기 쉽도록 export 상수의 타입 주석을 생략했다. 생략은 이 예시에만 해당한다. `isolatedDeclarations`는 `xeon/tsconfig.base.json`에서 contracts 전체에 켜져 있으므로(`_research/foundation-plan.md` §2 언어 행) 실제 정의 파일은 export 상수마다 명시 타입 주석을 단다(`_research/notes/eng-2.md` §8).
-- 모델 경로: 모델이 `web_search`를 호출하면 L1.tools가 `tool.call.before` 지점(F.extensions.spec, fold first)을 거쳐 `search(params, { signal, requestId })`를 호출한다. 결과는 `renderSearch`로 바꾸고 `tool.result` 지점(fold chain)을 거쳐 모델에게 돌아간다.
+- 모델 경로: 모델이 `web_search`를 호출하면 L1.tools가 `tool.call.before` 훅(F.extensions.spec, fold first)을 거쳐 `search(params, { signal, requestId })`를 호출한다. 결과는 `renderSearch`로 바꾸고 `tool.result` 훅(fold chain)을 거쳐 모델에게 돌아간다.
 - 그룹 경로: L3 그룹(예: Helm)은 매니페스트 `requires`에 `{ id: "web.search", range: "^1.0.0" }`을 선언한다. 그룹 코드는 `g.capability(WebSearchKey)`로 API를 얻고, 모델 턴 밖(예: `drive` 함수 안의 병렬 탐색 준비, 경계 처리)에서 `await web.search({ query })`를 호출한다. 이 호출은 tool 훅을 거치지 않는다. 서비스 호출 정책은 X와 L1.tools가 정한다.
 - 정의 파일의 위치 [제안, 확정]: 내장 L2 기능의 정의는 F의 `xeon/packages/contracts/src/capabilities/defs/<domain>.ts`에 둔다. 층 사이 규칙 2에 따라 L3가 provider 패키지(`cap-web`)를 import하지 않고 정의를 쓸 수 있어야 하기 때문이다. `L2.readme` §3·§5.1과 L2 plan의 첫 작업이 이 경로를 전제하므로 대안(각 cap 패키지가 구현 없는 `def` 서브패스를 export)은 쓰지 않는다. 정의의 내용은 각 `L2.<domain>.spec`이 정하고, F에는 데이터만 둔다. 외부 플러그인의 기능 정의는 구현과 분리된 정의 전용 모듈로 배포한다 [제안].
 
@@ -759,7 +759,7 @@ export type SecretAuditRecord =
 ```
 
 - [결정] 시크릿 참조 형식은 `secret://<name>`이다(`_research/secrets.md` §6.1, `_research/decisions-log.md` 2026-10-21 2차).
-- [결정: review.decisions-2 U-08] 값 타입의 정본은 위 블록이다. `SecretMeta`·`SecretUsePolicy`는 TS 인터페이스와 스키마(`*Schema`)를 함께 두고, 두 모양이 같은지 타입 테스트로 확인한다(§9). 세션 이벤트로 남는 감사 레코드 네 종류(`used`, `denied`, `approved`, `masked`)는 `F.records.spec` §3.3.1 `secret.*` payload가 정본이고, `SecretAuditRecord`의 같은 `type` 변형과 필드가 같아야 한다. 관리 레코드(`created`·`updated`·`deleted`·`rotated`·`revealed`)는 세션 이벤트가 아니다.
+- [결정: review.decisions-2 U-08] 값 타입의 정본은 위 블록이다. `SecretMeta`·`SecretUsePolicy`는 TS 인터페이스와 스키마(`*Schema`)를 함께 두고, 두 모양이 같은지 타입 테스트로 확인한다(§9). 대화 이벤트로 남는 감사 레코드 네 종류(`used`, `denied`, `approved`, `masked`)는 `F.records.spec` §3.3.1 `secret.*` payload가 정본이고, `SecretAuditRecord`의 같은 `type` 변형과 필드가 같아야 한다. 관리 레코드(`created`·`updated`·`deleted`·`rotated`·`revealed`)는 대화 이벤트가 아니다.
 - 서비스 인터페이스(`SecretService`, `SecretProvider`, `Redactor`, `UseCtx`, `SecretLease`, `SecretError` 등)와 관리 서비스(`SecretAdminService`)는 이 파일에 두지 않고 `@fresnel/contracts/services`의 `services/secrets.ts`, `services/secret-admin.ts`에 둔다(§3.12 표). `Redactor` 구현, SOPS 래퍼, `KeyProvider`는 `platform-secrets` 내부다.
 
 ### 3.11 provider 선택 공통 타입 (`provider.ts`)
@@ -845,7 +845,7 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 | `services/tools.ts` | `ToolService`, `ToolServiceName`, 도구 메타(`ToolRisk`, `ToolClass`는 `capabilities/tool-meta.ts`가 정의하고 다시 내보낸다, `ToolMeta`, `ToolPolicyMeta`), 정책 값 타입(`PolicyRule`, `TieredRule`, `PolicyInput`, `PolicyDecision`, `PolicyCeiling`, `PolicyRuleSchema`, `CallerId`, `PermissionMode`), `ToolRunContext`, `ToolRunDrafts`(`ToolRunContext.drafts`: 소유 컨텍스트가 낙인한 toolResult 초안과 승인 대기 체크포인트 초안을 만드는 생성기), 광고 타입. 정책 평가 함수(`evaluatePolicy`, `ruleMatches`, `validateRules`)는 core-tools가 구현하고 F에는 두지 않는다. 도구 인자를 이벤트에 그대로 싣는 한도(192 KiB, 넘으면 blob)는 core-tools 상수다. F는 `ToolApprovalBody.args`가 `BlobRef`를 받을 수 있게만 한다 [결정: open-issues V-08] | `L1.tools.spec` §3 |
 | `services/policy.ts` | `PolicyEvaluator`(평가기 함수 모양), `ChildPolicyView`, `stricter`, `matchToolGlob`, `childDecision`. 자식 대화의 권한 상한을 계산하는 순수 함수다. 평가기를 인자로 받으므로 core-tools와 core-agents가 서로를 import하지 않고 쓴다 [결정: m2-plan F.4, L1.tools·L1.agents F 요청 9] | `L1.tools.spec` §4.5, `L1.agents.spec` §4.3 |
 | `services/approvals.ts` | `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`과 비차단 `open`·`wait`·`get`, `OpenedApproval`, `ApprovalWaitFailure`, `respond`의 결과 `ApprovalApplyOutcome`과 이유 `ApprovalNotAppliedReason`·`APPROVAL_NOT_APPLIED_REASONS` [결정: m2c G1-09]). 만료: `ApprovalRequestInput.expiresAt`·`onExpire`(`ApprovalOnExpire`), `ApprovalResolvedBy`의 `expired`, `L2ApprovalRequest`의 같은 이름 필드, `L2ApprovalSnapshot.resolution.resolvedBy` [결정: m2c G1-11], `ApprovalServiceName`, 호출자 `ApprovalCaller`와 변환 함수 `approvalCallerOf` [결정: m2c G1-09], 승인 값 타입(`ApprovalKind`은 `tool`, `plan`, `question`, `review`, `ApprovalBody`의 `review` 변형과 `ReviewBody`, `ReviewFileSummary` [결정: adr.0018, M3-REQ-09], `ApprovalRequest`, `ApprovalResolution`, `ApprovalRequestError`, `QuestionAnswer`, `PlanAnswer`, `DenyAnswer` 등. 질문 항목에 선택 필드 `header`, 선택지에 `recommended`) [결정: m2 F.8]. L2 공통 승인 포트 `L2ApprovalsPort`와 `L2ApprovalKind`, `L2ApprovalSnapshot`, `L2ApprovalRequest`, `L2ApprovalRespondInput`(`respond`의 결과도 `ApprovalApplyOutcome`), `L2_APPROVAL_REQUEST_ID_MAX`(48. services는 records를 값으로 import하지 않아 `records/commit.ts`의 `APPROVAL_REQUEST_KEY_MAX`와 같은 값을 거울로 두고 시험이 지킨다. 키 변환은 `requestKeyFor` 하나다 [결정: 통합 검토 L6]). 실패는 `Result` 오류 값이다. cap-*가 `ApprovalService`를 이 모양으로 감싼다 [결정: m2-plan F.4, L2.readme §5.7] | `L1.tools.spec` §3.6, `L2.readme` §5.7 |
-| `services/agents.ts` | `AgentService`, `AgentServiceName`, `AgentServicePortKey`. `SpawnRequest` 등 값 타입의 위치는 `L1.agents.spec` §8.3 8번을 따른다. M3a 추가 [결정: M3-REQ-10, 11]: `SpawnOrigin.parentToken?`(부모 쓰기 임대 토큰), `DelegateRequest.report?`(선택. 없으면 보고 입력 없이 `agent.settled`만 남고 D-M3-03 a), `CancelTarget`의 `{ ownerScopeId }` 변형(그룹 끄기 때 주체 단위 취소, D-M3-04 b [제안]). 완료 통지 수단은 새로 두지 않고 기존 `agent.settled` 레코드, `lifecycle.agent.settled` 지점, `AgentService.status`로 한다. 취소는 `AgentService.cancel(target)`이고 (부모, requestId) 변형이 `cancel(requestId)`에 해당한다. `services/loop.ts`: `ChildTurnRequest.tools.deny?`·`denyHint?` | `L1.agents.spec` §3.3 |
+| `services/agents.ts` | `AgentService`, `AgentServiceName`, `AgentServicePortKey`. `SpawnRequest` 등 값 타입의 위치는 `L1.agents.spec` §8.3 8번을 따른다. M3a 추가 [결정: M3-REQ-10, 11]: `SpawnOrigin.parentToken?`(부모 쓰기 프로세스 락 토큰), `DelegateRequest.report?`(선택. 없으면 보고 입력 없이 `agent.settled`만 남고 D-M3-03 a), `CancelTarget`의 `{ ownerScopeId }` 변형(그룹 끄기 때 주체 단위 취소, D-M3-04 b [제안]). 완료 통지 수단은 새로 두지 않고 기존 `agent.settled` 레코드, `lifecycle.agent.settled` 훅, `AgentService.status`로 한다. 취소는 `AgentService.cancel(target)`이고 (부모, requestId) 변형이 `cancel(requestId)`에 해당한다. `services/loop.ts`: `ChildTurnRequest.tools.deny?`·`denyHint?` | `L1.agents.spec` §3.3 |
 | `services/mcp.ts` | `McpService`, `McpServiceName`. `McpClient` 기능 정의는 `capabilities/defs/mcp.ts`(§3.9)에 두고 이 파일이 import한다 | `L2.mcp.spec` §3.2 |
 | `services/groups.ts` | `GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`(`group.settingUnwritable`과 이유 집합 `GroupSettingUnwritableReason` 포함), `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`. `GroupId`·`ScopeId`·`ScopeStatus`·`LeaseId`·`RecordKind`·`Unsubscribe`·`LeaseArbiterPort`는 `../extensions`에서 가져온다. settings를 import하지 않으므로 `setDriveHolder`의 `scope` 옵션과 `HolderReceipt.scope`는 `SettingScope`와 같은 모양(`"managed" \| "user" \| "project" \| "local" \| "launch"`)으로 적는다 | `L3.group-sdk.spec` §3.8 |
 
@@ -1050,8 +1050,8 @@ export type NotifyError =
 
 ## 7. 훅
 
-- 이 문서는 지점을 새로 정의하지 않는다.
-- 기능의 모델 도구 호출은 F.extensions.spec의 tool 훅을 지난다. 호출 전 `tool.call.before`(fold first), 결과 후 `tool.result`(fold chain), 관찰용 `tool.execution.before`, `tool.execution.update`, `tool.execution.after`(fold tap)다. 두 지점의 페이로드에는 `capability?: { id: CapabilityId; method: string }`가 실려서 핸들러가 도구 이름 대신 기능으로 대상을 고를 수 있다(F.extensions.spec §3.5).
+- 이 문서는 훅을 새로 정의하지 않는다.
+- 기능의 모델 도구 호출은 F.extensions.spec의 tool 훅을 지난다. 호출 전 `tool.call.before`(fold first), 결과 후 `tool.result`(fold chain), 관찰용 `tool.execution.before`, `tool.execution.update`, `tool.execution.after`(fold tap)다. 두 훅의 페이로드에는 `capability?: { id: CapabilityId; method: string }`가 실려서 핸들러가 도구 이름 대신 기능으로 대상을 고를 수 있다(F.extensions.spec §3.5).
 - 그룹 코드가 서비스를 직접 호출하는 경로(§3.9 그룹 경로)는 tool 훅을 지나지 않는다.
 - 확장이 기능을 쓰려면 매니페스트 `requires`나 `optional`에 선언해야 한다. 선언하지 않은 기능의 `capability(key)` 호출은 `validateUsage` 오류다(F.extensions.spec §4.7).
 

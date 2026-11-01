@@ -112,9 +112,9 @@ xeon/packages/cap-mcp/
 - SDK의 stdio 전송(`./stdio` 서브패스, `cross-spawn`)은 쓰지 않는다(`L2.mcp.spec` §4.3). 의존 목록에서 빠지지는 않는다.
 - Bun 호환: SDK engines는 Node >=20이다. Bun 1.4에서 `eventsource`, `jose`, `cross-spawn`이 로드되는지는 [가정]이고 MC2 첫 테스트(인메모리 연결)에서 확인한다.
 
-zod4와 TypeBox 공존: 경계 변환 지점 [제안]:
+zod4와 TypeBox 공존: 경계 변환 위치 [제안]:
 
-| 지점 | 들어오는 것(SDK, zod 추론 타입) | 나가는 것(F, TypeBox) | 파일 |
+| 위치 | 들어오는 것(SDK, zod 추론 타입) | 나가는 것(F, TypeBox) | 파일 |
 |---|---|---|---|
 | 도구 목록 | `Tool`(`name`, `title`, `inputSchema`, `annotations`) | `McpToolInfo`. `inputSchema`는 JSON 데이터로 복사(zod 객체 아님) | `adapter.ts` |
 | 도구 결과 | `CallToolResult` 또는 `InputRequiredResult` | `CallToolOutput` 두 변형 | `adapter.ts` → `client/content.ts` |
@@ -162,7 +162,7 @@ zod4와 TypeBox 공존: 경계 변환 지점 [제안]:
 | `test/stdio-serve.test.ts` | `a request line on stdin is answered on stdout…` | 스텁 서버를 줄바꿈 JSON-RPC로 서빙한다(host의 실제 자식 프로세스 시험이 쓰는 함수) |
 | `test/tool-service.test.ts` | `exposes tools at next step boundary` | core-tools 내장 확장의 실제 `ToolService`에 `createToolServiceRegistrar`로 등록한다. 연결만으로는 `advertise` 결과가 그대로이고 `applyBoundary` 뒤 `add`, `echo`가 광고된다. 메타는 순서 키 `mcp.stub`, `mcpServer: "stub"`, 위험 등급 `read`(E6, spec §9-1) |
 | | `a denied tool never reaches the advertised set, and a dropped server leaves it at the next boundary` | `tools.deny` 도구는 광고되지 않고, 서버가 내려가면 다음 경계에서 광고 목록에서 빠진다 |
-| | `a direct call reads the settings of the thread it runs in` | 동적 도구 호출이 `executeWithContinuation`의 `threadId`로 그 대화의 세션 층 설정(`l2.mcp.result.maxBytes`)을 읽는다 |
+| | `a direct call reads the settings of the thread it runs in` | 동적 도구 호출이 `executeWithContinuation`의 `threadId`로 그 대화 층 설정(`l2.mcp.result.maxBytes`)을 읽는다 |
 | | `a call goes through prepare and execute and the text is wrapped as untrusted` | 실제 `prepare`와 `execute`를 지난 결과 텍스트가 `<untrusted_mcp_content>`로 감싸진다 |
 | | (할 일) `an input_required result of a dynamic tool raises a kind question approval …` | `test.todo`. F의 `AgentToolResult.status`와 core-tools 어댑터 연결이 들어온 뒤 켠다 |
 | `test/reconnect.test.ts` | `crash removes tools then restores` | 스텁 연결 끊기 → 다음 경계 `diffToolsets.removed`에 서버 도구 전부, 재연결 → `added`(spec §9-3) |
@@ -207,7 +207,7 @@ M2 완료:
 | 위험 | 영향 | 대응 |
 |---|---|---|
 | SDK 2.x API가 바뀌거나 rc 성격의 동작 변화 | 어댑터가 깨진다 | 2.3.1 정확 고정, lockfile integrity 확인. SDK 사용을 `adapter.ts`·`transport/`·`oauth/`·`tasks/schemas.ts`에만 두어 바꿀 곳을 좁힌다. 업그레이드는 `_research/notes/L2-1.md` 방식(선언 파일·소스맵 대조)으로 차이를 본 뒤 한다 |
-| zod4와 TypeBox 이중 스키마 | 같은 데이터에 두 검증이 다르게 동작하거나 번들이 커진다 | 경계 변환 지점(§4 표) 밖에서 zod를 쓰지 않는다. `inputSchema`는 JSON 데이터로만 다룬다. `sdk types stay inside adapter` 테스트로 고정 |
+| zod4와 TypeBox 이중 스키마 | 같은 데이터에 두 검증이 다르게 동작하거나 번들이 커진다 | 경계 변환 위치(§4 표) 밖에서 zod를 쓰지 않는다. `inputSchema`는 JSON 데이터로만 다룬다. `sdk types stay inside adapter` 테스트로 고정 |
 | SDK가 Node 전제(engines Node >=20)라 Bun에서 일부 동작이 다름 | 연결·전송 실패 | MC2 첫 작업으로 인메모리 연결과 HTTP 전송을 Bun에서 확인한다. 문제가 stdio에만 있으면 자체 `ProcessStdioTransport`라 영향이 없다 |
 | SDK `Transport` 인터페이스 모양을 잘못 가정 | `ProcessStdioTransport` 재작성 | MC2 시작 때 `dist/index.d.mts` 선언으로 확인하고 문서(spec §4.3 [가정])를 고친다 |
 | stdio 서버의 샌드박스 적용 범위 미결 | 사용자가 등록한 명령이 사용자 권한으로 돈다 | 기본은 사용자 권한 실행이고 서버 정의 추가는 사용자의 명시 행위다. `.mcp.json`은 프로젝트 신뢰 뒤에만 읽는다. 샌드박스 적용은 `L2.mcp.spec` §10 미결 5로 결정한다 |
@@ -288,5 +288,5 @@ M2 완료:
 | F 레인 | `McpQuestion`에 선택 필드 `warnings`(시크릿 필드 경고를 문장 붙이기 대신 구조로) | spec §4.6 10번 |
 | L0 PLT | 닫음(m2c T3, `L0.process.spec` §4.9). `McpProcessPort`의 구현: stdin·stdout·stderr 스트림을 주고, `secret://` env를 실행 직전에 주입하고, `BackgroundRegistry`에 owner kind `mcp`, ref 서버 id로 등록하고, 종료는 stdin 닫기 → SIGTERM → SIGKILL이다. F `ProcessPort.spawn`은 격리 확장용 진입점이고 `ExecService.startBackground`는 스트림을 주지 않는다 | spec §4.3, `src/ports/process.ts` |
 | L1A | L2가 확장 티어 권한 규칙을 공급하는 API(지금 `registerRules`는 `core:<도메인>` 출처만 받는다). `PolicyRule`은 `resource.mcpServer`와 `resource.tool`을 쓰는 모양으로 이미 맞춰 두었다 | spec §4.4, `src/ports/rules.ts` |
-| HOST.6 | `createMcp(deps)` 연결: `createToolServiceRegistrar(toolService)`, `createSecretServiceHeaders(secretService)`, `createProjectTrust`(X `resolveProjectTrust` 입력), `McpStorePort`(`fresnel.store`), 설정 층, `reservedToolNames`(내장 도구 이름), `onServersChange`(`thread.mcp.after` 지점). 세션 시작에 `load`, 단계를 여는 `boundary.step.before`마다 `reload(signal, { threadId })`(지문이 바뀌었을 때만 서버를 맞춤)와 `applyBoundary`, 종료에 `shutdown`. 프로젝트 루트는 `McpDeps.workspaceOf`(대화의 작업 폴더, `L2.readme` §5.10)로 넘기고 stdio 포트는 조립 루트가 `process`로 넘긴다. 기능 바인딩 `cap:mcp.client`와 `fresnel.mcp`는 `runtime.service`로 등록한다. 매니페스트·`apply`는 이 단계에서 만든다 | m2-plan HOST.6, spec §3.2 |
+| HOST.6 | `createMcp(deps)` 연결: `createToolServiceRegistrar(toolService)`, `createSecretServiceHeaders(secretService)`, `createProjectTrust`(X `resolveProjectTrust` 입력), `McpStorePort`(`fresnel.store`), 설정 층, `reservedToolNames`(내장 도구 이름), `onServersChange`(`thread.mcp.after` 훅). 대화 시작에 `load`, 단계를 여는 `boundary.step.before`마다 `reload(signal, { threadId })`(지문이 바뀌었을 때만 서버를 맞춤)와 `applyBoundary`, 종료에 `shutdown`. 프로젝트 루트는 `McpDeps.workspaceOf`(대화의 작업 폴더, `L2.readme` §5.10)로 넘기고 stdio 포트는 조립 루트가 `process`로 넘긴다. 기능 바인딩 `cap:mcp.client`와 `fresnel.mcp`는 `runtime.service`로 등록한다. 매니페스트·`apply`는 이 단계에서 만든다 | m2-plan HOST.6, spec §3.2 |
 | 통합 단계 | `xeon/bun.lock`에 `@modelcontextprotocol/client` 2.3.1과 그 의존까지 패키지 12개 항목이 더해졌다(다른 트랙의 lock 변경과 병합할 때 `bun install`로 다시 만든다) | m2-plan §3 규칙 2 |

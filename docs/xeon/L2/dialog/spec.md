@@ -60,7 +60,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 | 상태 세그먼트 | 상태줄의 항목 하나. `id`와 짧은 텍스트 |
 | 첨부 (attachment) | 입력에 붙이는 이미지, 파일, URL |
 | 곁가지 질문 (aside) | 사용자가 여는 별도 대화. 본류 컨텍스트를 읽기만 한다 |
-| 출력 스타일 (style) | 세션 단위로 바꾸는 시스템 프롬프트 조각 |
+| 출력 스타일 (style) | 대화 단위로 바꾸는 시스템 프롬프트 조각 |
 | 알림 (notice) | 사용자 주의가 필요한 상태를 분류한 신호 |
 
 다른 문서의 이름: `ThreadId`, `TurnId`, `ResultStatus`, `InputRequiredInfo`, `TextContent`, `ImageContent`, `JsonValue`(F.conversation.spec), `defineCapability`, `serviceKey`, `CapabilityApi`, `CallOptions`, `ToolContent`(F.capabilities.spec), `ApprovalId`(eng.domain-types.guide DT-06), `BlobRef`, `VolatileEvent`(eng.events.design §4.1, §4.3), `SettingDef`(F.wire-settings.spec §3.8.2).
@@ -697,7 +697,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | `dialog.status.clearItem` | 선언 없음 | unsafe | 같음 |
 | `dialog.status.list` | readOnly | safe | 스냅숏 조회 |
 | `dialog.styles.register` | 선언 없음 | unsafe | 메모리 등록부를 바꾼다. 공급자는 2차 |
-| `dialog.styles.select` | 선언 없음 | unsafe | 세션 설정을 쓴다. `requestId` 멱등이 없다. 공급자는 2차 |
+| `dialog.styles.select` | 선언 없음 | unsafe | 대화 설정을 쓴다. `requestId` 멱등이 없다. 공급자는 2차 |
 
 ## 4. 동작 규칙
 
@@ -759,7 +759,7 @@ sequenceDiagram
   - 모든 질문에 추천 항목이 있을 때만 자동 답을 만든다. 일부 질문만 추천이 있으면 나머지 답을 지어내야 하므로 만들지 않는다 [제안].
   - 정본 설계에서 만료 시각은 요청 커밋 시각 + 제한이다. 프로세스가 없던 동안 시각이 지났으면 다음 실행 때 L1.tools가 해결하고 cap-dialog는 타이머를 갖지 않는다.
 - 취소: 사용자가 대화상자를 닫으면 클라이언트가 `decision: "deny"`로 응답한다(`cancelled(dismissed)`). 턴을 끊으면 L1이 승인 요청을 취소하고 도구 호출은 중단 결과가 된다(F.capabilities.spec §3.6 `aborted`). 이때는 재시도가 없다.
-- 무응답(시간 제한 0): 내구 대기가 계속된다. 세션을 닫았다가 다시 열어도 질문이 남아 있다(architecture.runtime-flow.design §4.5). 대기 중에 도는 프로세스는 없다.
+- 무응답(시간 제한 0): 내구 대기가 계속된다. 대화를 닫았다가 다시 열어도 질문이 남아 있다(architecture.runtime-flow.design §4.5). 대기 중에 도는 프로세스는 없다.
 
 #### 4.1.4 서비스 API의 대기: 내구 대기와 메모리 대기
 
@@ -810,7 +810,7 @@ $1에 대해 ${2:-quick} 수준으로 탐구하라. 참고 자료: !{git log --o
 - 신뢰 여부는 조립 루트가 `resolveProjectTrust`의 `trusted`로 넘기는 `DialogPluginOptions.projectTrust`로 정한다. 대화의 작업 폴더를 인자로 묻는다. 옵션이 없거나 거짓이거나 실패하면 신뢰하지 않은 것이다(fail-closed).
 - 신뢰하지 않은 프로젝트에서는 `<프로젝트>/.fresnel/commands`와 설정 `l2.dialog.commands.dirs`의 상대 경로 디렉터리(프로젝트 기준이라 저장소 안의 파일이다)를 읽지 않는다. 사용자 디렉터리와 절대 경로 디렉터리는 영향이 없다.
 - 싣지 못한 `.fresnel/commands`가 실제로 있으면 운영 로그 `dialog.project_commands_untrusted`(프로젝트 폴더, 사유 `not_trusted`·`trust_check_failed`)에 프로젝트 폴더마다 한 번 남긴다. 명령 목록 출력에는 진단 필드가 없다. 사용자에게 보이는 안내는 신뢰 카드(`trust.get`·`trust.decide`)가 맡는다.
-- 판정은 호출마다 한다(입력 지점, 목록, 확장, 광고). 결정이 바뀌면 다음 호출부터 적용된다.
+- 판정은 호출마다 한다(입력 훅, 목록, 확장, 광고). 결정이 바뀌면 다음 호출부터 적용된다.
 
 #### 4.2.2 인자 치환
 
@@ -851,12 +851,12 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
   - 명령마다 멱등 키 `<호출 requestId>:sh<순번>`을 넘긴다. 셸 실행과 동작 명령에는 `CallOptions.context.threadId`와 `requestId`가 필요하다. 없으면 `invalid_input`이다.
 - 셸 주입 문법 `!{…}`와 실행 전 확인은 Gemini CLI 사용자 명령을 참고했다(`_research/l2e.md` §3.4 D5). 중괄호 짝 맞추기는 Gemini 규칙처럼 중첩을 센다 [가정].
 - 설정 `l2.dialog.commands.shellInjection`이 `off`이면 셸 주입이 있는 템플릿은 확인 단계에 가기 전에 `command_shell_disabled`다. 셸 포트가 조립되지 않았으면 `unavailable`(`detail.reason: "shell_missing"`)이다.
-- 클라이언트가 `/`로 시작하는 입력을 `run`을 거치지 않고 `turn.start`로 보내면, cap-dialog의 `input.user.before` 지점 핸들러(chain)가 템플릿 명령만 치환한다(셸 주입이 없는 것만). 동작 명령과 셸 주입 명령은 이 경로에서 치환하지 않고 그대로 둔다. on 핸들러는 효과를 내지 않아야 하기 때문이다(F.extensions.spec §4.3).
+- 클라이언트가 `/`로 시작하는 입력을 `run`을 거치지 않고 `turn.start`로 보내면, cap-dialog의 `input.user.before` 훅 핸들러(chain)가 템플릿 명령만 치환한다(셸 주입이 없는 것만). 동작 명령과 셸 주입 명령은 이 경로에서 치환하지 않고 그대로 둔다. on 핸들러는 효과를 내지 않아야 하기 때문이다(F.extensions.spec §4.3).
 
 #### 4.2.5 모델에 대한 광고
 
 - 모델은 명령을 호출하지 않는다. 도구가 없다.
-- [제안] 설정 `l2.dialog.commands.advertise`가 참이면 명령 이름과 설명 목록(이름 바이트 순, 최대 50개)을 시스템 프롬프트 조각으로 붙인다. 모델이 사용자에게 명령을 권할 수 있게 하려는 것이다. 목록이 바뀔 때만 조각이 바뀌므로 프롬프트 캐시 접두는 명령 추가·제거 때만 바뀐다. [결정: review.m2-plan DG.2] M2는 `input.agent.before` 지점의 `systemPrompt` 교체 패치로 현재 시스템 프롬프트 뒤에 붙인다. 조각을 붙이는 전용 API가 L1.context.spec에 생기면 그쪽으로 옮긴다.
+- [제안] 설정 `l2.dialog.commands.advertise`가 참이면 명령 이름과 설명 목록(이름 바이트 순, 최대 50개)을 시스템 프롬프트 조각으로 붙인다. 모델이 사용자에게 명령을 권할 수 있게 하려는 것이다. 목록이 바뀔 때만 조각이 바뀌므로 프롬프트 캐시 접두는 명령 추가·제거 때만 바뀐다. [결정: review.m2-plan DG.2] M2는 `input.agent.before` 훅의 `systemPrompt` 교체 패치로 현재 시스템 프롬프트 뒤에 붙인다. 조각을 붙이는 전용 API가 L1.context.spec에 생기면 그쪽으로 옮긴다.
 
 #### 4.2.6 클라이언트 선언
 
@@ -874,8 +874,8 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | id | 내용 | 갱신 계기 |
 |---|---|---|
 | `core.turn` | 대기, 실행 중(단계 n), 승인 대기, 질문 대기 | `turn.started`, 휘발 `turn.progress`, `approval.requested`/`resolved`, `turn.completed` |
-| `core.tools` | 실행 중인 도구 이름(최대 3개) | `tool.execution.before`/`tool.execution.after` 지점(tap) |
-| `core.usage` | 이 세션 누적 토큰과 비용 | `turn.completed.usage` |
+| `core.tools` | 실행 중인 도구 이름(최대 3개) | `tool.execution.before`/`tool.execution.after` 훅(tap) |
+| `core.usage` | 이 대화 누적 토큰과 비용 | `turn.completed.usage` |
 
 - 그룹 상태 세그먼트: 그룹은 `"<자기 이름>.<이름>"` 형식 id로 `setItem`을 부른다(예: `<그룹 이름>.phase`에 "2/3단계"). 다른 소유자의 id를 쓰는 것을 막을 호출자 확인 수단은 §10 D-4다.
 - 표시 순서는 `order`, 같으면 id 바이트 순이다. 설정 `l2.dialog.status.segments`는 표시할 id 목록이다. `"*"`로 끝나는 항목은 접두 일치다(예: `"<그룹 이름>.*"`). 항목 `"*"` 하나는 앞 항목이 고르지 않은 모든 세그먼트다. 같은 id는 한 번만 표시한다.
@@ -883,11 +883,11 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - [결정: review.m2-plan DG.3] 구현 규칙:
   - 설정 `status.segments`가 고른 세그먼트만 `list`와 이벤트에 나온다. 둘이 같은 목록을 쓰므로 재접속한 클라이언트가 이벤트와 같은 화면을 그린다. 이벤트는 앞 32개만 싣고, `list`는 선택된 전체를 돌려준다.
   - 스레드마다 세그먼트는 256개까지다. 새 id가 넘으면 `invalid_input`이다.
-  - 내장 세그먼트는 내구 이벤트 피드(`turn.started`, `turn.completed`, `approval.requested`, `approval.resolved`)와 `tool.execution.before`·`tool.execution.after` 지점에서 계산한다. `core.turn`은 이벤트를 하나라도 본 스레드에서 보인다. `core.usage`는 `turn.completed.usage`의 `totalTokens`와 `cost.total`을 누적한다. 같은 `seq`의 이벤트는 한 번만 센다.
+  - 내장 세그먼트는 내구 이벤트 피드(`turn.started`, `turn.completed`, `approval.requested`, `approval.resolved`)와 `tool.execution.before`·`tool.execution.after` 훅에서 계산한다. `core.turn`은 이벤트를 하나라도 본 스레드에서 보인다. `core.usage`는 `turn.completed.usage`의 `totalTokens`와 `cost.total`을 누적한다. 같은 `seq`의 이벤트는 한 번만 센다.
   - 피드 구독은 구독한 뒤 커밋되는 이벤트만 받는다. 재시작 전 누적 사용량은 따라잡지 않는다 [미결: 재시작 뒤 `core.usage` 복원 정책].
   - 세그먼트 id 소유자 확인(D-4)은 아직 하지 않는다. `setItem`은 어떤 id든 받는다.
 - 재생 대상이 아니다. 재접속한 클라이언트는 `list`로 다시 그린다. 상태줄 정보는 정본이 아니므로 놓쳐도 내구 이벤트만으로 같은 최종 화면을 만들 수 있어야 한다는 규칙(eng.events.design EV-10)을 어기지 않는다.
-- F.extensions.spec의 `thread.prompt.before`, `thread.prompt.after` 지점(41종 표 40·41번)과의 구분: 두 지점은 확장 UI 대화상자가 열리고 닫히는 것을 관찰하는 tap 훅이다. `dialog.status`는 표시 항목을 등록하는 서비스 API다. 질문 도구의 대기는 `approval.*` 이벤트로 드러나며 `ui_prompt_*`를 발화하지 않는다 [제안]. L1이 승인 대기에 `ui_prompt_*`를 발화할지는 L1.tools.spec이 정한다.
+- F.extensions.spec의 `thread.prompt.before`, `thread.prompt.after` 훅(41종 표 40·41번)과의 구분: 두 훅은 확장 UI 대화상자가 열리고 닫히는 것을 관찰하는 tap 훅이다. `dialog.status`는 표시 항목을 등록하는 서비스 API다. 질문 도구의 대기는 `approval.*` 이벤트로 드러나며 `ui_prompt_*`를 발화하지 않는다 [제안]. L1이 승인 대기에 `ui_prompt_*`를 발화할지는 L1.tools.spec이 정한다.
 
 ### 4.5 첨부
 
@@ -921,13 +921,13 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 
 - 사용자가 `/btw <질문>` 같은 명령이나 화면 버튼으로 연다. 모델은 열 수 없다.
 - 본류의 활성 가지를 호출 시점에 스냅숏으로 읽고, 별도 모델 호출(L1.models 용도 `aside` [가정])로 답한다. 본류에 이벤트를 쓰지 않는다. 답과 사용량은 메서드 반환값으로만 남는다.
-- L1.tasks의 전달 모드 `aside`와 다르다. 전달 모드 `aside`는 입력 큐에 들어간 사용자 입력을 본류 세션 안에서 처리하는 방식이고(정의는 L1.tasks.spec), `dialog.aside`는 본류 밖의 별도 대화다.
-- [미결] 곁가지 대화의 기록 위치(기록 없음, 자식 스레드, 별도 세션)와 사용량 집계(§10 D-5).
+- L1.tasks의 전달 모드 `aside`와 다르다. 전달 모드 `aside`는 입력 큐에 들어간 사용자 입력을 본류 대화 안에서 처리하는 방식이고(정의는 L1.tasks.spec), `dialog.aside`는 본류 밖의 별도 대화다.
+- [미결] 곁가지 대화의 기록 위치(기록 없음, 자식 스레드, 별도 대화)와 사용량 집계(§10 D-5).
 
 출력 스타일:
 
 - 스타일은 시스템 프롬프트 조각이다. 기본 스타일 `default`는 빈 조각이다.
-- `select`는 세션 범위 설정 `l2.dialog.styles.active`를 쓴다(F.wire-settings.spec §3.8.1 `session` 범위). 그래서 재개 때 선택이 복원된다. 기록은 `settings.changed`(F.records.spec §3.3)다.
+- `select`는 대화 범위 설정 `l2.dialog.styles.active`를 쓴다(F.wire-settings.spec §3.8.1 `session` 범위). 그래서 재개 때 선택이 복원된다. 기록은 `settings.changed`(F.records.spec §3.3)다.
 - [제안] 적용 시점은 다음 턴 시작이다. 턴 시작은 단계 경계의 하나다 [결정: review.decisions-2 U-01]. 턴 중간의 단계 경계에서 시스템 프롬프트를 바꾸면 그 턴의 프롬프트 캐시 접두가 깨지기 때문에 턴 시작까지 미룬다. 출력 `appliesAt: "next_turn"`이 이 규칙을 알린다.
 - 등록은 코드(`register`)와 파일(`~/.fresnel/styles/*.md`, 2차)이다.
 
@@ -994,7 +994,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 2. 답이 스키마를 어긴 채 기록됨(구버전 클라이언트): §4.1.2 5번. `cancelled(dismissed)`로 끝내고 운영 로그에 남긴다.
 3. 같은 `requestId`로 다른 질문을 보냄: L1.tools의 승인 요청 멱등이 `key_reused`를 낸다 [가정]. 호출자 버그로 `internal`.
 4. 비대화형 실행에서 질문: `ask_unavailable_headless`.
-5. 서브에이전트가 질문: [제안] 서브에이전트의 질문은 부모 세션의 승인 표면으로 올라간다(Claude Code 백그라운드 권한 프롬프트가 메인 세션에 표면화되는 방식, `_research/refs/claude-code.md` 204행). 서브에이전트에 질문 도구를 줄지는 L1.agents.spec이 정한다. Hermes는 주지 않는다(`_research/refs/hermes.md` L1g-2).
+5. 서브에이전트가 질문: [제안] 서브에이전트의 질문은 부모 대화의 승인 표면으로 올라간다(Claude Code 백그라운드 권한 프롬프트가 메인 대화에 표면화되는 방식, `_research/refs/claude-code.md` 204행). 서브에이전트에 질문 도구를 줄지는 L1.agents.spec이 정한다. Hermes는 주지 않는다(`_research/refs/hermes.md` L1g-2).
 6. 명령 파일 앞머리 YAML 오류: 그 파일만 건너뛰고 진단을 남긴다(pi 동작).
 7. 셸 주입 실행 중 사용자가 거부(도구 승인 거부): 그 자리를 `[셸 거부]`로 치환하고 계속하지 않는다. `run`은 `CapabilityError(denied)`를 낸다.
 8. 상태줄 세그먼트 32개 초과: 뒤 항목은 휘발 이벤트에서 빠지고 `list`에는 남는다.
@@ -1052,15 +1052,15 @@ export const manifest = defineManifest({
 });
 ```
 
-| 지점 | fold | 쓰임 |
+| 훅 | fold | 쓰임 |
 |---|---|---|
 | `input.user.before` | chain | `/`로 시작하는 입력의 템플릿 명령 치환(셸 주입 없는 것만, §4.2.4). 질의와 치환만 한다 |
 | `tool.execution.before`, `tool.execution.after` | tap | 상태줄 `core.tools` 갱신 |
-| `input.agent.before` | collect | 명령 목록 광고와 출력 스타일 조각(시스템 프롬프트 조각 API가 이 지점이 아니면 L1.context 경로로 옮긴다 [가정]). cap-dialog는 `payload.systemPrompt` 뒤에 조각을 붙여 돌려준다. [결정: 2026-10-28 오케스트레이터] collect에서 핸들러는 원본 payload만 보고 `systemPrompt`는 마지막으로 정의한 값이 이기므로, `systemPrompt`를 기여하는 핸들러는 하나만 둔다. 두 번째 기여자가 생기면 그때 다시 본다. |
+| `input.agent.before` | collect | 명령 목록 광고와 출력 스타일 조각(시스템 프롬프트 조각 API가 이 훅이 아니면 L1.context 경로로 옮긴다 [가정]). cap-dialog는 `payload.systemPrompt` 뒤에 조각을 붙여 돌려준다. [결정: 2026-10-28 오케스트레이터] collect에서 핸들러는 원본 payload만 보고 `systemPrompt`는 마지막으로 정의한 값이 이기므로, `systemPrompt`를 기여하는 핸들러는 하나만 둔다. 두 번째 기여자가 생기면 그때 다시 본다. |
 
 - post와 drive를 쓰지 않는다.
 - 내구 피드 구독(`fresnel.session`)은 `turn.*`, `approval.*`, `work.*`, `agent.*`, `schedule.*`, `dialog.*` 접두를 받는다(M3b D11, `sessionFeed`의 접두 목록). 상태줄은 `turn.*`, `approval.*`로 `core.turn`을 계산하고, 알림 분류는 §4.7.1의 원인 종류로 계산한다. 구독자는 `seq`로 중복을 거른다(EV-05).
-- `ask_user`는 `tool.call.before`(first), `tool.result`(chain) 지점을 지난다(F.capabilities.spec §7).
+- `ask_user`는 `tool.call.before`(first), `tool.result`(chain) 훅을 지난다(F.capabilities.spec §7).
 
 ## 8. 다른 문서와의 인터페이스
 

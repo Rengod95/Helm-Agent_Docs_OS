@@ -14,7 +14,7 @@ binds: [xeon/packages/contracts/src/records/**]
 
 ## 1. 목표와 마일스톤 배치
 
-[결정] M0 범위에 `contracts`(F 전 도메인의 TypeBox 타입)와 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·세션 잠금)가 함께 들어간다(`_research/foundation-plan.md` §5 P4 M0 범위). platform-store가 이 문서의 envelope, 카탈로그, 체크포인트를 구현하므로 records는 platform-store 착수 전에 끝낸다.
+[결정] M0 범위에 `contracts`(F 전 도메인의 TypeBox 타입)와 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·대화 잠금)가 함께 들어간다(`_research/foundation-plan.md` §5 P4 M0 범위). platform-store가 이 문서의 envelope, 카탈로그, 체크포인트를 구현하므로 records는 platform-store 착수 전에 끝낸다.
 
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
@@ -98,7 +98,7 @@ xeon/packages/contracts/test/records/catalog-doc.test.ts  # 스펙 §3.3 표와 
 |---|---|---|---|
 | opencode 이벤트 저장 | 표 모양만 차용, import·복사 없음 | `core/src/event/sql.ts`(event, event_sequence 표), `schema/src/event.ts` | Effect·drizzle 결합이라 가져올 수 없다(`_research/packages.md` §2.4, §4.1 F2). seq 테이블과 id·version 열 구성만 참고 |
 | pi durable | 아이디어만 차용, 코드 포크 없음 | `~/projects/_ref/pi-src/packages/durable/src/{types.ts,entries.ts,tasks.ts}`, `harness/generation.ts:53-90`, `harness/tool.ts:156-196,588-630`, `testing/storage-conformance.ts` | documents/entries 분리, 의도→결과 커밋 순서, `replay` 재실행 조건, 적합성 스위트 방식. [결정] pi durable은 그대로 쓰지 않는다(`_research/foundation-plan.md` §1 #1) |
-| pi coding-agent 세션 트리 | 의미만 차용 | `coding-agent/src/core/session-manager.ts:60-125` | `parentId`/leaf, `CompactionEntry`, `BranchSummaryEntry` 모양 |
+| pi coding-agent "세션" 트리 | 의미만 차용 | `coding-agent/src/core/session-manager.ts:60-125` | `parentId`/leaf, `CompactionEntry`, `BranchSummaryEntry` 모양 |
 | 기존 설계 09 | 인용만 | `docs/design/09-event-store.md` §3.2(98-222행), §3.3, §3.5, §3.13 | 필드 대조표(스펙 §3.1.1)로 가져올 것과 버릴 것을 정했다 |
 | `typebox` | 그대로 | catalog 1.3.27 | `F.conversation.plan` §4와 같다 |
 

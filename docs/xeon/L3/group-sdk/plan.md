@@ -29,13 +29,13 @@ binds: [xeon/packages/group-sdk/**]
 | defineGroup과 정적 검증 | `defineGroup`, `groupManifest`, `validateGroupDef`, `checkGroup` | | ● | |
 | GroupApi 래퍼 | `GroupApi.settings()`, `metrics.snapshot()`(메모리), `registerTool`, `registerCommand` | | ● | 계측 이벤트 |
 | delegate 래퍼 | `GroupApi.delegate`, `DelegateSpec` | | 타입만, 호출 시 `group.delegateUnavailable` | ● |
-| drive 임대 중재 정책 | `DriveArbiter`, `defaultDriveArbiter`, `leaseArbiterPort` | | ● | |
+| drive 락 중재 정책 | `DriveArbiter`, `defaultDriveArbiter`, `leaseArbiterPort` | | ● | |
 | 그룹 상태 레코드 어댑터 | `checkStateCommit`, `stateUpcasters`, 투영 행 모양 | | ● | |
 | 그룹 간 통신 검사 | 레코드 래퍼, kind 접두 필터 함수 | | ● | |
 | GroupService | `GroupService`, `GroupServiceName`(`fresnel.groups`), `GroupStatus` | | ● | |
 | 전환 명령·상태줄 | `parseGroupCommand`, `runGroupCommand`, `groupCommand`, `formatGroupStatusLine` | | ● | |
 | 설정 | `l3.group-sdk.instrumentation`, `.statusLine`. 구동 그룹 선택은 X 키 `x.primitives.activeDriveGroup`을 읽는다(review.decisions-2 S-15) | | ● | |
-| 재생 하니스 | `replayDrive` | | 최소형(every-commit, 그룹 하나) | 지점 목록, 입력 시작 |
+| 재생 하니스 | `replayDrive` | | 최소형(every-commit, 그룹 하나) | 절단 시점 목록, 입력 시작 |
 | 재생 규율 정적 검사 | `scanDriveSource` | | | ● |
 | 승격 보고 | `PromotionReport`, `buildPromotionReport` | | | ● |
 | 계측 | `GroupMetrics`, `grp.<그룹>.metrics.recorded`(`recordPrivate`) | | 메모리 집계 | 이벤트 집계, 단계 경계 기록(M3b, G-17 완료) |
@@ -162,10 +162,10 @@ xeon/packages/group-sdk/
 | G-14 | `delegate.ts` 입력 검사(M2) + L1-g 서비스 호출, 보고 post 키 파생, 멱등 처리(M3) | G-05, L1.agents.spec 위임 서비스 키 [가정] | M | M2(검사)/M3(호출) |
 | G-15 | `testing/replay/replay-drive.ts` 최소형: every-commit 절단, `ReplayHarness`(L3.group-sdk.spec §3.10)로 받은 digest 비교. 하니스는 그룹 테스트 파일이 테스트 호스트·테이프·정규화 함수로 만든다(review.decisions-2 U-03, U-17) | G-05, G-09, `@fresnel/ext-host/testing` 재시작 지원 [가정], `@fresnel/core-models/testing` 테이프(테스트 파일에서만 import) | L | M2 |
 | G-16 | `smokeGroup`을 `defineGroup`으로 옮기고 M1 스모크가 그대로 통과하는지 확인 | G-04, G-05, G-01 | S | M2 |
-| G-17 | `metrics/record.ts`: 단계 경계 증가분 기록 `grp.<그룹>.metrics.recorded`(`recordPrivate`), 토큰·비용·임대 시간 계산 (완료, §10) | G-05, X `ScopeApi.recordPrivate`(review.decisions-2 T-21) | M | M3 |
+| G-17 | `metrics/record.ts`: 단계 경계 증가분 기록 `grp.<그룹>.metrics.recorded`(`recordPrivate`), 토큰·비용·drive 락 시간 계산 (완료, §10) | G-05, X `ScopeApi.recordPrivate`(review.decisions-2 T-21) | M | M3 |
 | G-18 | `promotion/report.ts`: `buildPromotionReport`, `/group status` 부가 줄 (완료, §11) | G-17, X `events()`·`toolOwner()` [가정] | M | M3 |
 | G-19 | `scan/`: `scanDriveSource`(`@swc/core` `parseSync`), SD-01~SD-10(SD-07~09 메시지는 ADR-0015 §3.2를 가리킨다), DR-07 `MODULE_OWNERS` 행 추가 | G-04, `eng.dependency-rules.guide` 표 변경 승인 | M | M3 |
-| G-20 | `replayDrive` 확장: 지점 목록 지정, 사용자 입력 시작, 실패 보고에 첫 차이 이벤트 표시, 효과 계수(ADR-0015 §3.6: 끊기 직전의 drive·on 핸들러를 두 번 실행하고 가짜 포트의 `EffectCounts`가 기준과 같은지 확인, 실패는 `effects-doubled`) | G-15, ADR-0015 | M | M3 |
+| G-20 | `replayDrive` 확장: 절단 시점 목록 지정, 사용자 입력 시작, 실패 보고에 첫 차이 이벤트 표시, 효과 계수(ADR-0015 §3.6: 끊기 직전의 drive·on 핸들러를 두 번 실행하고 가짜 포트의 `EffectCounts`가 기준과 같은지 확인, 실패는 `effects-doubled`) | G-15, ADR-0015 | M | M3 |
 | G-21 | 통신 검사 샘플: `test/fixtures/cross-group-import`로 check-layers DR-02 실패를 확인하는 테스트 | G-03, `check-layers.ts` fixture 입력 지원(eng.toolchain) | S | M2 |
 | G-22 | 리소스 등록 래퍼: `GroupApi.registerTool`, `registerCommand`를 X `hostOf(g)`로 전달. 그룹을 끄면 해제되는지 테스트 | G-05, X `hostOf`·`ResourceRegistry`(X.primitives.spec §3.8, §3.9) | S | M2 |
 | G-23 | `groupManifest`(plugin.json 값 검증·좁히기)와 상태 없는 그룹(`state` 생략) 지원, `state_version` 검사 확장 | G-04 | S | M2 |
@@ -175,14 +175,14 @@ xeon/packages/group-sdk/
 | G-27 | (L3.slots S-04 대응) `test/slots/templates.test.ts`: 세 템플릿 생성 결과의 `validateManifest`·`validateUsage`, 로드·토글 확인 | G-24 | S | 2차 |
 | G-28 | `GroupApi.delegateStatus`(읽기, ADR-0015 §3.2 `g.delegateStatus` 행)와 `cancelDelegates`(그룹 끄기 때 진행 중 위임 취소, 재실행되는 코드에서 호출 금지). L1.agents 취소·조회 API가 선행이다 | G-14, M3 요구 M3-REQ-11, M3-REQ-65 | M | M3 |
 | G-29 | `DelegateSpec.report`를 선택 필드로 바꾸고 `report`가 없으면 보고 post를 만들지 않는다([결정: review.m3-design-inputs D-M3-03]) | G-14 | S | M3 |
-| G-30 | `GroupStatus.drive`에 `"rejected"` 값을 더해 임대 대기 상한 초과 거부를 보인다(`/group status`, `GroupService.onChange`). F `services/groups.ts` 변경이 선행이다 | G-12, G-07, M3 요구 M3-REQ-99 | S | M3 |
+| G-30 | `GroupStatus.drive`에 `"rejected"` 값을 더해 drive 락 대기 상한 초과 거부를 보인다(`/group status`, `GroupService.onChange`). F `services/groups.ts` 변경이 선행이다 | G-12, G-07, M3 요구 M3-REQ-99 | S | M3 |
 
 선행 작업 정리:
 
 - F.extensions.plan: `ScopeApi`, `DriveFn`, `LoopHandle`, `GroupRecord`, `RecordKindDecl`, `validateManifest`, `validateUsage`, `validateManifestSet`, `isRecordKindOf`(M0).
 - F.wire-settings.plan: `defineSettings`, `SettingGroup`, `SettingDefInput`, `EffectiveSetting`, `WriteCheck`.
 - F.records.plan: `Upcaster`, `lease.*`, `scope.changed` 카탈로그, `StepCheckpoint.leaseRefs`.
-- X.primitives.plan: 임대 부여·반납(X.primitives.spec §4.4), 정책 포트 `LeaseArbiterPort`(§3.6), 토글 API(`ScopeHandle`), `ExtHost.scopes()`, `hostOf` 리소스 등록(§3.8). [가정] 요청 4개(L3.group-sdk.spec §3.13), 테스트 호스트와 재시작 시뮬레이션.
+- X.primitives.plan: drive 락 부여·반납(X.primitives.spec §4.4), 정책 포트 `LeaseArbiterPort`(§3.6), 토글 API(`ScopeHandle`), `ExtHost.scopes()`, `hostOf` 리소스 등록(§3.8). [가정] 요청 4개(L3.group-sdk.spec §3.13), 테스트 호스트와 재시작 시뮬레이션.
 - Cordis는 ext-host 뒤에 숨긴다. group-sdk은 `cordis`, `@cordisjs/*`를 import하지 않는다(ADR-0002 4번, DR-11).
 
 ## 4. 채택 코드
@@ -206,21 +206,21 @@ xeon/packages/group-sdk/
 | `smoke.uses-on-post-drive-in-one-turn` | `smokeGroup`이 한 턴에서 `tool.call.before`·`boundary.step.after` 핸들러, `post`, drive 함수를 모두 호출한다 | M1 |
 | `smoke.manifest-passes-validation` | `smokeGroup` 매니페스트가 `validateManifest`, 실제 등록이 `validateUsage`를 오류 없이 통과한다 | M1 |
 | `smoke.toggle-applies-at-step-boundary` | 실행 중 끄기 요청이 다음 단계 경계에서 적용되고 그 전 단계의 핸들러는 계속 불린다 | M1 |
-| `define-group.rejects-usage-without-manifest-point` | 매니페스트에 없는 지점에 `on`을 건 그룹에서 `checkGroup`이 `point_undeclared`를 돌려준다 | M2 |
+| `define-group.rejects-usage-without-manifest-point` | 매니페스트에 없는 훅에 `on`을 건 그룹에서 `checkGroup`이 `point_undeclared`를 돌려준다 | M2 |
 | `define-group.rejects-reserved-name` | `name: "auto"`, `"core"`, `"web"`(L2 도메인 이름), `"focus_lens"`(밑줄), `"-abc"`에 `group_name`. 하이픈 이름 `"web-exa"`는 통과한다(review.decisions-2 U-18). `RESERVED_GROUP_NAMES`가 L3.readme §4와 L3.slots.spec §3.3.4가 가리키는 정본이다 | M2 |
 | `define-group.accepts-stateless-group` | `state` 없이 `on`만 쓰는 정의가 오류 없이 `GroupModule`(`stateVersion: 0`)을 만들고, `migrations`만 있으면 `state_version` | M2 |
 | `define-group.group-manifest-from-json` | `groupManifest`가 템플릿 `plugin.json` 값을 통과시키고 `kind: "plugin"` 값에는 `Bug`를 던진다 | M2 |
 | `resources.tool-and-command-released-on-disable` | `registerTool`·`registerCommand`로 등록한 리소스가 그룹을 끄면 해제된다(가짜 `ExtHost.resources`) | M2 |
 | `define-group.rejects-wrong-settings-namespace` | 내장 그룹이 `ext.<이름>`, 외부 그룹이 `l3.<이름>`을 쓰면 `settings_namespace` | M2 |
 | `define-group.throws-bug-on-invalid` | 오류가 있는 정의에서 `defineGroup`이 `Bug`를 던지고 메시지에 모든 code가 있다 | M2 |
-| `arbiter.auto-keeps-holder` | A가 임대를 가진 동안 새 그룹 C가 켜져도 X가 `choose`를 부르지 않고 holder는 A다(테스트 호스트) | M2 |
+| `arbiter.auto-keeps-holder` | A가 drive 락을 가진 동안 새 그룹 C가 켜져도 X가 `choose`를 부르지 않고 holder는 A다(테스트 호스트) | M2 |
 | `arbiter.auto-first-request-wins` | `requestSeq` 최소 그룹이 받고, 동률이나 null은 `loadOrder`로 깬다 | M2 |
 | `arbiter.named-holder-only` | `x.primitives.activeDriveGroup` = B면 `decide`는 B만 고른다. B가 후보가 아니면 null | M2 |
 | `arbiter.port-maps-lease-candidates` | `leaseArbiterPort`가 `LeaseCandidate.loadIndex`를 `loadOrder`로 옮기고 `decide`의 `holder`를 `choose` 결과로 돌려준다 | M2 |
 | `arbiter.named-unavailable-grants-none` | 지정 그룹이 후보가 아니면 `holder: null`, 모두 `waiting` | M2 |
 | `arbiter.excludes-drive-error` | drive 예외로 오류 표시된 그룹은 X가 후보에 넣지 않고 `GroupStatus.drive`가 `"error"`다(테스트 호스트) | M2 |
 | `arbiter.waiting-group-keeps-on-handlers` | 대기 그룹의 drive 함수 호출은 0이고 `tool.call.before` 핸들러와 `post`는 계속 동작한다(테스트 호스트) | M2 |
-| `arbiter.named-swap-revokes-at-the-next-boundary` | A가 임대를 가진 동안 `x.primitives.activeDriveGroup`을 B로 바꾸면 임대는 그 경계까지 유지되고, 다음 경계에서 `lease.released{revoked}` 뒤 B가 `lease.acquired`를 받는다. 끊긴 step이 없다. B가 후보가 아니면 유지된다(X.primitives.spec §4.4.1 5번) | M2 |
+| `arbiter.named-swap-revokes-at-the-next-boundary` | A가 drive 락을 가진 동안 `x.primitives.activeDriveGroup`을 B로 바꾸면 drive 락은 그 경계까지 유지되고, 다음 경계에서 `lease.released{revoked}` 뒤 B가 `lease.acquired`를 받는다. 끊긴 step이 없다. B가 후보가 아니면 유지된다(X.primitives.spec §4.4.1 5번) | M2 |
 | `state.restore-on-branch` | v1·v2 커밋 뒤 v1 직후로 분기하면 `state()`가 v1이다 | M2 |
 | `state.restore-on-resume` | 재시작 뒤 drive 함수 인자가 마지막 커밋 상태다 | M2 |
 | `state.rejects-oversize-and-skips-unchanged` | 64 KiB 초과 커밋 거부, 같은 값 커밋은 이벤트를 쓰지 않는다 | M2 |
@@ -235,9 +235,9 @@ xeon/packages/group-sdk/
 | `command.group-off-applies-at-step-boundary` | 실행 중 `/group off helm`의 출력이 `pending: true`이고 문구 "다음 단계 경계에 적용한다"를 담는다 | M2 |
 | `status-line.examples` | 스펙 §3.9 예 표 다섯 입력의 출력이 그대로다. 폭 초과 때 `+N` | M2 |
 | `settings.no-drive-holder-key` | `l3.group-sdk` 묶음에 키가 `instrumentation`, `statusLine` 둘뿐이고 `checkSettingDef`를 통과한다. 구동 그룹 선택 키는 X 키를 읽는다 | M2 |
-| `replay.cut-at-every-commit-yields-same-events` | EV-09 좋은 예 그룹에서 모든 절단 지점의 digest가 기준과 같다 | M2 |
+| `replay.cut-at-every-commit-yields-same-events` | EV-09 좋은 예 그룹에서 모든 절단 시점의 digest가 기준과 같다 | M2 |
 | `replay.detects-closure-state` | EV-09 나쁜 예 그룹에서 `ok: false`이고 `firstDiff`가 채워진다 | M2 |
-| `replay.effects-counted-once-per-cut` | 모든 절단 지점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, post)가 기준 실행과 같다. [결정: 오케스트레이터 기본값] `capabilityWrite`는 뺐다. 기능 쓰기 계수는 X 테스트(`replay-effects.test.ts`)가 다룬다 | M3 |
+| `replay.effects-counted-once-per-cut` | 모든 절단 시점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, post)가 기준 실행과 같다. [결정: 오케스트레이터 기본값] `capabilityWrite`는 뺐다. 기능 쓰기 계수는 X 테스트(`replay-effects.test.ts`)가 다룬다 | M3 |
 | `replay.detects-doubled-effect` | 같은 `requestId`를 쓰지 않고 효과를 두 번 내는 나쁜 그룹에서 `ok: false`, `failure: "effects-doubled"`이다 | M3 |
 | `replay.every-run-uses-the-baseline-thread-id` | 기준 실행과 모든 절단 실행이 같은 thread id를 쓴다(`threadMismatches`). 이벤트열 비교는 ID를 지우므로 따로 본다 | M3 |
 | `replay.thread-check-reports-a-run-on-another-thread` | 세 번째 실행의 thread만 바꾸면 검사가 번호 2를 돌려준다(검사가 물린다) | M3 |
@@ -257,7 +257,7 @@ xeon/packages/group-sdk/
 | `scan.warns-closure-reassignment` | drive 밖 `let`을 drive 안에서 재할당하면 SD-10 경고 | M3 |
 | `metrics.disabled-writes-nothing` | instrumentation false면 계측 이벤트 0개, `GroupStatus.metrics` null | M3 |
 | `metrics.counts-deny-and-patch` | first 거부 2회, chain 패치 3회가 `denies: 2`, `chainPatches: 3`으로 집계된다 | M3 |
-| `promotion.second-consumer-is-candidate` | 그룹 A 도구를 B 임대 turn이 호출하면 후보, 사용자 turn 호출은 `userCalls`만 | M3 |
+| `promotion.second-consumer-is-candidate` | 그룹 A 도구를 B가 drive 락을 쥔 turn이 호출하면 후보, 사용자 turn 호출은 `userCalls`만 | M3 |
 
 ## 6. 완료 기준
 
@@ -329,7 +329,7 @@ M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`
 |---|---|---|
 | G-14 | 완료 | `GroupApi.delegate(spec, options?)`가 `fresnel.agents` 포트의 `AgentService.delegate`를 부른다. `owner`는 `{ kind: "scope", scopeId }`, `ownerRequestId`는 `requestId`다. 멱등은 L1이 보장한다. on 핸들러와 drive 함수에서는 X `hostOf(g).callContext()`의 thread와 신호를 쓰고, 명령 처리기와 도구 `execute`는 `options`로 넘긴다(spec §3.13 요청 6). 결과는 `lifecycle.agent.settled`로 소유 scope에만 온다. 시험 대역 `fakeAgents` |
 | G-19 | 완료 | `scanDriveSource`와 SD-00(구문 오류, [제안])·SD-01~SD-10. `group-sdk/package.json`에 `@swc/core` 의존을 더했다. DR-07 `MODULE_OWNERS` 표 행 추가는 승인 대기([미결]) |
-| G-20 | 일부 완료 | 효과 계수(`EffectCounts`, `ReplayHarness.run`의 `effects`, `expectEffects`, `effects-doubled`, `effects-mismatch`). 지점 목록 지정, 사용자 입력 시작, 첫 차이 이벤트 표시는 남았다 |
+| G-20 | 일부 완료 | 효과 계수(`EffectCounts`, `ReplayHarness.run`의 `effects`, `expectEffects`, `effects-doubled`, `effects-mismatch`). 절단 시점 목록 지정, 사용자 입력 시작, 첫 차이 이벤트 표시는 남았다 |
 | G-22 | 완료(M2) | `registerTool`·`registerCommand`는 M2에 끝났다. 학습 그룹의 `learning_propose` 등록(LR-06)은 이 연산을 그대로 쓴다. M3a에서 바꾼 것이 없다 |
 | G-28 | 완료 | `GroupApi.delegateStatus`, `cancelDelegates`(`CancelTarget { ownerScopeId }`). 반환은 값이다(spec §10). 재실행 문맥 거부는 X `callContext`로 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`) |
 | G-29 | 완료 | `DelegateSpec.report`는 선택이고 없으면 L1 요청에도 싣지 않는다 |

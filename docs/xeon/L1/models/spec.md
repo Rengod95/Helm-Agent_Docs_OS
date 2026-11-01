@@ -21,7 +21,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, 
 - 역할 표의 역할 목록, 해석 순서, 모델 참조 문자열 형식 `provider/modelId[:thinkingLevel]`.
 - 추론 레벨과 레벨별 토큰 예산, 단계 체크포인트(`StepCheckpoint.model`) 고정 규칙.
 - 시크릿 참조(`secret://`)를 요청 직전에만 해석하는 규칙.
-- 발화 지점 6개: `request.provider.before`, `request.headers.before`, `request.provider.after`, `request.stream`, `request.model.after`, `request.thinking.after`.
+- 발화 훅 6개: `request.provider.before`, `request.headers.before`, `request.provider.after`, `request.stream`, `request.model.after`, `request.thinking.after`.
 - M3: 레이트 리밋과 계정 회전(설정은 M3 설정 화면, review.decisions-2 U-21). 2차: 폴백 체인, 구조화 출력.
 - 위장 provider 플러그인의 분리 방식(방안 A 우선, 방안 B 전환 조건), 배포 제외 검사, 위험 고지.
 - 설정 키 `l1.models.*`.
@@ -49,7 +49,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, 
 | 바인딩(`ModelBinding`) | 해석 결과의 고정 부분. 역할, provider, modelId, 추론 레벨. `StepCheckpoint.model`에 저장하는 값과 같은 필드를 가진다 |
 | 해석(resolve) | 역할과 덮어쓰기 값, 설정, 카탈로그로 바인딩을 계산하는 순수 계산 |
 | 다시 묶기(rebind) | 체크포인트에 고정된 바인딩을 역할 표를 거치지 않고 다시 쓰는 것 |
-| 캐시 정책 객체(`CachePolicy`) | 캐시 보존 기간, 세션 키, 표식 위치 우선순위, 표식 상한을 묶은 값. `L1.context.spec`과 같은 이름으로 쓴다 |
+| 캐시 정책 객체(`CachePolicy`) | 캐시 보존 기간, 대화 키, 표식 위치 우선순위, 표식 상한을 묶은 값. `L1.context.spec`과 같은 이름으로 쓴다 |
 | 캐시 표식(`CacheMarks`) | `CachePolicy`에 따라 조립된 메시지 배열에서 표식을 둘 위치. `L1.context.spec`이 계산하고 이 서비스가 요청에 적용한다 |
 | 계정(account) | 같은 provider의 자격 증명 하나. 2차 계정 풀의 원소 |
 | 위장 provider | Anthropic 구독 OAuth 토큰으로 Claude Code 클라이언트 요청 모양을 흉내 내는 경로. `plugins/provider-anthropic-oauth` |
@@ -70,7 +70,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, 
 | 추론 | `reasoning?: ThinkingLevel`, `thinkingBudgets`(pi-ai `SimpleStreamOptions`. core-loop 자체 루프는 단계 바인딩으로 받아 그대로 넘긴다), `clampThinkingLevel` | `types.ts:372-376`, `models.ts:1235`, agent `agent.ts:137` | 레벨별 토큰 설정, 체크포인트 고정(§4.2) |
 | 토큰 추정, 오버플로우 감지 | `estimateMessageTokens`, `estimateContextTokens`, `calculateContextTokens`, `isContextOverflow` | `utils/estimate.ts`, `utils/overflow.ts:137` | `L1.context.spec`에 서비스로 위임(§3.3) |
 | 인자 검증 | `validateToolArguments` | `utils/validation.ts:317` | 2차 구조화 출력 재시도 루프(§4.10) |
-| 요청 변형 훅 | `onPayload`, `onResponse`, `onProviderStreamEvent`, `ModelsRequestTransforms.transformHeaders` | `types.ts:178`, `182`, `219-223`, `models.ts:112-115` | 지점 디스패치(§7) |
+| 요청 변형 훅 | `onPayload`, `onResponse`, `onProviderStreamEvent`, `ModelsRequestTransforms.transformHeaders` | `types.ts:178`, `182`, `219-223`, `models.ts:112-115` | 훅 디스패치(§7) |
 | 자격 증명 | `CredentialStore`(provider당 1건), `Models.getAuth` | `auth/types.ts:65-94`, `auth/resolve.ts:19-25` | 시크릿 다리(§3.9) |
 
 포크 판정 목록 [제안]. 판정 기준은 "공개 API와 훅으로 표현되는가"다. 표현되면 포크하지 않는다.
@@ -457,7 +457,7 @@ export function secretBackedCredentialStore(refs: ProviderCredentialRefs, secret
 ```
 
 - 해석 시점: pi-ai `Models.getAuth`가 요청마다 `CredentialStore.read(providerId)`를 부른다(`auth/types.ts:65-70`). 이 함수 안에서만 `fresnel.secrets`로 값을 얻고, 값은 반환 객체 안에만 있다. 캐시하지 않는다 [제안](`_research/secrets.md` §6.2 "실행 직전 해석").
-- 값은 요청 헤더로만 나간다. `ModelCallRequest`, `ResolvedModel`, 이벤트, 로그, 지점 페이로드에 싣지 않는다(§7.2 헤더 가림).
+- 값은 요청 헤더로만 나간다. `ModelCallRequest`, `ResolvedModel`, 이벤트, 로그, 훅 페이로드에 싣지 않는다(§7.2 헤더 가림).
 - 사용 모드: `runtime-http`(`L0.secrets.spec` §4.3 M3)로 `lease`한다. purpose는 `model.provider:<id>`, `target`은 provider 기본 URL의 호스트다. 마일스톤 M1부터 이 모드를 쓴다. 값은 프로세스 안 HTTP 클라이언트에만 있고 모델 컨텍스트, 이벤트, DB에 들어가지 않는다(review.decisions-2 U-19 보충). bash 도구의 시크릿 주입은 `env` 모드 그대로다.
 - 사용 정책의 근원 [결정: M2 Mac 실기]: 새로 등록한 시크릿의 사용 정책은 비어 있어(`L4.host-service.spec` HS-45) 위 `lease`는 `denied`다. 시크릿을 provider에 연결하는 사람의 행위(사용자 범위 `l1.models.providers`의 `apiKeyRef` 쓰기. 데스크톱 "provider에 연결"과 `fresnel config set`은 모두 `settings.set`이다)가 이 호출 하나만 허용하는 정책을 시크릿 메타에 더한다. 허용은 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [providerTarget(<id>)의 호스트]`뿐이다. `env` 모드, 도구, 다른 호스트는 열지 않는다. 호스트 쪽 규칙은 `L4.host-service.spec` HS-45 [결정: M2 Mac 실기]다. `providerTarget`은 이 호스트 값을 호출과 같은 규칙으로 구하기 위한 조회다.
 - `modify`, `delete`는 `ModelsError("auth")`를 던진다. 키 등록과 삭제는 시크릿 관리 경로(`just secret-add`, 설정 화면 secrets 탭)로만 한다.
@@ -530,7 +530,7 @@ export function setup(g: ScopeApi<unknown>): void;
 - 종료 사유: `message_delta`의 `stop_reason`을 `end_turn`, `pause_turn`, `max_tokens`, `refusal`로 옮기고 그 밖의 값은 `end_turn`이다. 종료 사유를 받았으면 `refusal`처럼 pi-ai가 오류로 끝낸 경우도 정상 응답이다.
 - 이어 요청: `pause_turn`이면 직전 응답의 content 블록 전체(`encrypted_content` 포함)를 JSON으로 직렬화해 `hs1:<base64url>` 문자열로 `continuation`에 담는다. 호출자는 읽거나 저장하지 않는다. 다음 요청의 `continuation`은 페이로드 `messages` 끝에 assistant 메시지로 되돌려 보낸다. 해석할 수 없는 문자열은 `upstream`(`status: null`)이고 요청을 보내지 않는다.
 - 오류(`HostedSearchError`): 신호가 중단됐으면 `cancelled`. HTTP 400이고 메시지에 web search와 organization·admin·disabled·not enabled 계열 단어가 함께 있으면 `org_disabled` [가정: 오류 문구는 실제 응답으로 확인하지 못했다]. 429나 도구 결과의 `too_many_requests`는 `rate_limited`(`retryAfterMs: null`). provider·모델 없음은 `unsupported_model`. 그 밖은 `upstream`이고 `status`는 메시지에서 읽은 HTTP 상태, `message`는 시크릿 마스킹을 거친 문자열이다. 결과가 없고 도구 결과가 `web_search_tool_result_error`면 `upstream`이다.
-- thread에 속하지 않는 호출이다. 요청 지점(`request.provider.before` 등)과 `request.model.after`는 발화하지 않는다. 사용량은 예약 thread id(`HOSTED_SEARCH_THREAD`)에 역할 `search`로 쌓인다.
+- thread에 속하지 않는 호출이다. 요청 훅(`request.provider.before` 등)과 `request.model.after`는 발화하지 않는다. 사용량은 예약 thread id(`HOSTED_SEARCH_THREAD`)에 역할 `search`로 쌓인다.
 - 시험: 어댑터 원시 이벤트를 테이프 차례의 `rawEvents`로 재생한다(`@fresnel/core-models/testing`의 테이프 provider). 네트워크 호출은 없다.
 - 범위 밖: 이 포트는 대화 기록에 남지 않는 단일 턴 요청이다. 메인 모델의 일반 턴 요청에 서버 도구를 넣는 일(`L2.web.spec` §4.8.1 A안)은 M2에 구현하지 않았다. 사유는 §10 12번이다.
 
@@ -580,7 +580,7 @@ export function resolveRole(input: {
 - 토큰 예산: 레벨이 `off`가 아니면 `table.thinkingBudgets[level]`. 호출 때 pi-ai `thinkingBudgets`로 넘기는 것은 `minimal`~`high` 네 키뿐이다(§3.1 포크 판정).
 - 그룹 덮어쓰기가 꺼진 scope의 값인지는 서비스 의존 `scopeEnabled(scopeId)`로 판정한다. 플러그인은 `ext.scopes()`의 상태가 `enabled`인 scope만 켜진 것으로 연결한다. 의존이 없으면 모든 scope가 켜진 것으로 본다 [구현: M2].
 - `rebind`는 카탈로그 부재 외에 허용·차단 목록에 걸린 고정 모델도 `model_denied`로 거부한다. 고정 레벨은 clamp하지 않는다 [구현: M2].
-- 설정 스냅샷은 호출 시점의 유효 값(`F.wire-settings.spec` §3.9 `resolveSetting`)이다. 범위 우선순위(관리 > 세션 > 로컬 > 프로젝트 > 사용자)는 설정 계층이 처리하므로 이 순서에는 넣지 않는다. 세션 중 `/model` 변경은 `l1.models.default`의 세션 범위 값이다.
+- 설정 스냅샷은 호출 시점의 유효 값(`F.wire-settings.spec` §3.9 `resolveSetting`)이다. 범위 우선순위(관리 > launch > 로컬 > 프로젝트 > 사용자)는 설정 계층이 처리하므로 이 순서에는 넣지 않는다. 대화 중 `/model` 변경은 `l1.models.default`의 launch 범위 값이다.
 
 ### 4.2 추론 레벨과 체크포인트 고정
 
@@ -609,7 +609,7 @@ export function resolveRole(input: {
 | 9 | 원시 스트림 이벤트: `request.stream` 디스패치(지원하는 어댑터만) | `onProviderStreamEvent` |
 | 10 | 종결 이벤트(`done` 또는 `error`): `UsageRecord` 기록 | 스트림 래퍼 |
 
-- 5번 `onPayload`는 1.3.0에서 재시도 때 다시 불린다(`_research/notes/L1-2.md` §3.9). 캐시 표식 적용과 지점 디스패치는 같은 입력에 같은 결과를 내야 한다. on 핸들러 재실행 계약(`F.extensions.spec` §4.3)과 같은 조건이다.
+- 5번 `onPayload`는 1.3.0에서 재시도 때 다시 불린다(`_research/notes/L1-2.md` §3.9). 캐시 표식 적용과 훅 디스패치는 같은 입력에 같은 결과를 내야 한다. on 핸들러 재실행 계약(`F.extensions.spec` §4.3)과 같은 조건이다.
 - 모델 요청 자체는 의도 커밋을 두지 않는다. 직전 단계 체크포인트가 그 역할을 한다(`architecture.runtime-flow.design` §4.1).
 
 ### 4.4 사용량 집계
@@ -617,7 +617,7 @@ export function resolveRole(input: {
 1. 스트림 래퍼는 종결 이벤트 `done`의 `message.usage`, `error`의 `error.usage`를 읽는다. 중단(`aborted`)과 오류 응답도 pi-ai가 `usage`를 채우므로 같은 방식으로 기록한다(`_research/packages.md` §4.3 L1-c 비용·토큰 계측 행).
 2. 비용은 pi-ai `calculateCost(model, usage)`(`models.ts:1200`)로 계산한 값이 이미 `usage.cost`에 있다. 단가가 모두 0이면 비용은 0으로 합산하고 `UsageTotals`에는 그대로 둔다.
 3. 종결 이벤트 없이 스트림이 끊기면(프로세스 종료 제외) 래퍼가 `aborted: true`, 0 사용량으로 기록한다.
-4. 합산 단위는 `UsageScope`(thread, turn, role, scope)다. 그룹이 일으킨 호출은 `scopeId`별로 따로 합산한다. drive 임대 상한(`maxTokens`, `F.extensions.spec` §3.2 `DriveLimits`)은 X가 이 합계를 읽어 판정한다 [가정: X.primitives.spec].
+4. 합산 단위는 `UsageScope`(thread, turn, role, scope)다. 그룹이 일으킨 호출은 `scopeId`별로 따로 합산한다. drive 락 상한(`maxTokens`, `F.extensions.spec` §3.2 `DriveLimits`)은 X가 이 합계를 읽어 판정한다 [가정: X.primitives.spec].
 
 ### 4.5 재시도
 
@@ -646,7 +646,7 @@ export function resolveRole(input: {
 - 계정 선택: 우선순위 오름차순으로, 창 사용량이 `100 - reservePct` 퍼센트 아래이고 대기 중이 아닌 첫 계정을 고른다. 고른 계정의 참조를 요청 직전 해석해 `AuthResolutionOverrides.apiKey`로 넣는다.
 - 요청 간격: 같은 계정의 직전 요청 시각에서 `minIntervalMs`가 지나기 전에는 요청을 보내지 않고 대기 상태로 둔다. 대기는 `signal`로 취소된다.
 - 한도 오류: `rate_limited`는 `retryAfterMs`만큼 그 계정을 대기 상태로 두고 `onLimit`에 따라 대기하거나 다른 계정으로 바꾼다. `quota_exhausted`는 재시도 불가로 분류하고 그 계정을 창이 끝날 때까지 뺀다.
-- 상태 저장: `core_models_accounts`(계정 메타, 참조만), `core_models_usage_windows`(계정·창별 합계), `core_models_cooldowns`(대기 종료 시각)를 `fresnel.store.scoped("core_models_")`로 쓴다(`eng.context-map.design` §5.2). 세션 투영이 아니므로 재생으로 다시 만들지 않는다.
+- 상태 저장: `core_models_accounts`(계정 메타, 참조만), `core_models_usage_windows`(계정·창별 합계), `core_models_cooldowns`(대기 종료 시각)를 `fresnel.store.scoped("core_models_")`로 쓴다(`eng.context-map.design` §5.2). 대화 투영이 아니므로 재생으로 다시 만들지 않는다.
 - 읽기 자료: omp `usage-limit.ts`, `credential-pin.ts`. AgentSession에 결합된 구현이라 코드를 가져오지 않는다(`_research/packages.md` §4.3 L1-c 레이트 리밋 행).
 - 단계: M3다. 설정(`l1.models.accounts`, `l1.models.rateLimit`)은 M3 설정 화면에서 조작한다 [결정: review.decisions-2 U-21].
 - 구현(M3b B2-MDL): `core-models/src/accounts.ts`(풀 상태기계), `rotation.ts`(호출 하나를 계정 위에서 돌림), `pipeline.ts`(회전 분기). 규칙은 아래와 같다.
@@ -710,7 +710,7 @@ export function resolveRole(input: {
 |---|---|
 | 래퍼 provider | `ProviderStreams`(`types.ts:311`)를 구현한다. `stream`은 원본 `stream`(export, 1.1.0 `:571`)을 `options.client`와 `onPayload`를 넣어 부른다 |
 | `streamSimple` | 원본에 위임하지 않는다. 원본은 `buildBaseOptions`가 `client`를 버려 판별식이 다시 평가된다(`_research/notes/L1-2.md` §3.7). reasoning 매핑(약 50줄)을 복제하고 공개 도우미 `adjustMaxTokensForThinking`, `clampMaxTokensToContext`를 쓴다 |
-| `options.client` 주입 | `new Anthropic({ apiKey: null, authToken, defaultHeaders, fetch })`. client 경로는 `options.headers`, `options.fetch`, 세션 헤더를 무시하므로 래퍼가 직접 병합한다(`_research/notes/L1-2.md` §3.2 표) |
+| `options.client` 주입 | `new Anthropic({ apiKey: null, authToken, defaultHeaders, fetch })`. client 경로는 `options.headers`, `options.fetch`, "세션" 헤더를 무시하므로 래퍼가 직접 병합한다(`_research/notes/L1-2.md` §3.2 표) |
 | `onPayload` 치환 | 8곳 표의 6·7·8. 같은 입력에 같은 출력을 내는 순수 함수다. 1.3.0은 재시도 때 다시 부른다 |
 | 응답 역치환 | 8곳 표의 3 |
 | Api id와 provider id | 두 갈래가 있다. A1은 새 Api id를 `registerApiProvider`로 전역 등록한다. A2는 Api id `anthropic-messages`를 그대로 두고 `createProvider({ id: "anthropic-oauth", api: { "anthropic-messages": wrapper } })`로 provider id만 나눈다. [제안] A2. A1은 managed effort 이력(`1456-1460`, `1524`)과 compat 스키마 키(`providers/compat-schema.ts:594`)를 잃는다(`_research/notes/L1-2.md` §3.8). [미결 M-2] 최종 선택은 M-8 스파이크 결과로 정한다 |
@@ -771,7 +771,7 @@ export function resolveRole(input: {
 
 ## 6. 설정 노출
 
-키 문법과 `SettingDef` 규칙은 `F.wire-settings.spec` §3.8이다. 탭 배치는 `L4.settings-ui.spec` §4.1.1 표를 따른다. 모든 키의 `layer`는 `"L1"`이다. 범위 약어: M 관리, U 사용자, P 프로젝트, Lo 로컬, S 세션.
+키 문법과 `SettingDef` 규칙은 `F.wire-settings.spec` §3.8이다. 탭 배치는 `L4.settings-ui.spec` §4.1.1 표를 따른다. 모든 키의 `layer`는 `"L1"`이다. 범위 약어: M 관리, U 사용자, P 프로젝트, Lo 로컬, S launch.
 
 | 키 | 타입 | 기본값 | 범위 | 변경 적용 | 탭 / 위젯 | 단계 |
 |---|---|---|---|---|---|---|
@@ -797,18 +797,18 @@ export function resolveRole(input: {
 
 - 시크릿 값은 저장하지 않는다. `apiKeyRef`, `AccountDef.credential`은 `SecretRef` 문자열 패턴(`^secret://[a-z][a-z0-9-]{1,63}$`)을 지난 참조다. 참조 자체는 시크릿이 아니므로 `secret: true`(D2, D3) 대상이 아니다 [제안].
 - `routing.*`를 역할마다 키 하나로 나눈 이유는 범위별 덮어쓰기를 역할 단위로 하기 위해서다. `groupRouting`은 scopeId에 하이픈이 들어갈 수 있어 키 이름 마디(`[a-z][A-Za-z0-9]*`)로 쓸 수 없으므로 표 값 하나로 둔다.
-- 명령: `fresnel config set l1.models.default anthropic/claude-sonnet-4-6:high`, 대화 중 `/model`(세션 범위 쓰기), `/thinking <레벨>`(세션 범위 `l1.models.thinkingLevel`).
+- 명령: `fresnel config set l1.models.default anthropic/claude-sonnet-4-6:high`, 대화 중 `/model`(launch 범위 쓰기), `/thinking <레벨>`(launch 범위 `l1.models.thinkingLevel`).
 - 위장 플러그인 키: `ext.provider-anthropic-oauth.enabled`(X 예약, 기본 false), `ext.provider-anthropic-oauth.acknowledgeRisk`(userConfig), `ext.provider-anthropic-oauth.credential`(userConfig, `sensitive: true` → 참조). 탭은 plugins.
 
 ## 7. 훅
 
-### 7.1 발화하는 지점
+### 7.1 발화하는 훅
 
 fold와 페이로드는 `F.extensions.spec` §3.4~§3.5를 인용만 한다. 이 문서는 발화 위치와 페이로드 필드 제안만 둔다.
 
-| 지점 | kind | fold | 발화 위치 | pi-ai 연결점 | 비고 |
+| 훅 | kind | fold | 발화 위치 | pi-ai 연결점 | 비고 |
 |---|---|---|---|---|---|
-| `request.provider.before` | request | chain | §4.3 5번 | `onPayload` | M1 지점. 페이로드 `{ payload }`(F §3.5). 패치는 교체 |
+| `request.provider.before` | request | chain | §4.3 5번 | `onPayload` | M1 훅. 페이로드 `{ payload }`(F §3.5). 패치는 교체 |
 | `request.headers.before` | request | chain | §4.3 6번 | `transformHeaders` | 헤더 패치(null은 삭제) |
 | `request.provider.after` | request | tap | §4.3 8번 | `onResponse` | |
 | `request.stream` | request | tap | §4.3 9번 | `onProviderStreamEvent` | 지원하는 어댑터만 |
@@ -824,7 +824,7 @@ fold와 페이로드는 `F.extensions.spec` §3.4~§3.5를 인용만 한다. 이
 
 ### 7.2 페이로드 필드 제안 (F 요청)
 
-M1 밖 지점은 `F.extensions.spec` §3.3의 형태 규칙(pi 필드 이름 유지, pi 고유 타입은 F 타입으로)으로 아래를 제안한다.
+M1 밖 훅은 `F.extensions.spec` §3.3의 형태 규칙(pi 필드 이름 유지, pi 고유 타입은 F 타입으로)으로 아래를 제안한다.
 
 ```ts
 export interface BeforeProviderHeadersPayload {
@@ -860,7 +860,7 @@ export interface ThinkingLevelSelectPayload {
 
 ### 7.4 drive와의 관계
 
-- drive 임대의 토큰 상한은 `UsageMeter.totals({ threadId, scopeId })`로 판정한다 [가정: X.primitives.spec이 이 값을 읽는다].
+- drive 락의 토큰 상한은 `UsageMeter.totals({ threadId, scopeId })`로 판정한다 [가정: X.primitives.spec이 이 값을 읽는다].
 - drive 함수가 `loop.spawn`으로 서브에이전트를 열 때 그룹 덮어쓰기가 적용되도록 core-agents가 `RoleOverrides.scopeId`를 넘긴다(`L1.agents.spec`).
 
 ## 8. 다른 문서와의 인터페이스
@@ -886,7 +886,7 @@ export interface ThinkingLevelSelectPayload {
 | 훅 선언(`HOOKS`), 페이로드 타입, `ScopeId` | `F.extensions.spec` |
 | `SettingDef`, `defineSettings`, `SecretRef`, `resolveSetting` | `F.wire-settings.spec` §3.8~§3.9 |
 | `fresnel.secrets`(`SecretService`): 참조 해석, 마스킹 | `L0.secrets.spec` [가정: 메서드 이름] |
-| `fresnel.ext`: 지점 디스패치 | `X.primitives.spec` |
+| `fresnel.ext`: 훅 디스패치 | `X.primitives.spec` |
 | `fresnel.store.scoped("core_models_")`(2차) | `L0.store.spec` |
 | 유효 설정 읽기 경로 | [가정] X 또는 `L1.persistence.spec`의 `SettingsStorePort`. 서비스 이름 미정 |
 
@@ -895,7 +895,7 @@ export interface ThinkingLevelSelectPayload {
 1. (반영됨) `F.capabilities.spec`: §3.2의 값 타입(역할, 참조, 바인딩, `resolveRole`, `CachePolicy`)과 §3.3 `ModelService`, 서비스 이름 상수를 `@fresnel/contracts/services`의 `services/models.ts`에 둔다(review.decisions-2 D-04, F.capabilities §3.12 규칙 3). pi-ai `Model`, `Api`, `Context`, `Provider`, `CacheRetention`, `ThinkingBudgets`, `AssistantMessageEventStream`, `SimpleStreamOptions`를 타입 전용으로 재노출한다. `StreamFn`은 F가 소비 계약으로 정의한다(adr.0009 §3.2). `F.conversation.spec` §3.1은 `Context`를 "L1-c 몫"으로 남겼으나, 서비스 인터페이스가 F에 있으므로 타입 재노출은 F에 있어야 한다.
 2. `F.extensions.spec`: §7.2 페이로드 필드. `BeforeProviderRequestPayload`에 `provider`, `modelId`, `role` 추가.
 3. (철회) `X.primitives.spec` `ProviderResourceDef`를 `ProviderDef`로 바꾸는 요청은 거둔다. 포트 경로는 JSON `kind: "config"`만 받고, `kind: "runtime"`은 `addProvider`로 받는다(§3.7).
-4. `eng.context-map.design` §4.1: `model-gateway`의 (d) 쓰는 서비스에 `fresnel.ext`(지점 디스패치)를 더한다.
+4. `eng.context-map.design` §4.1: `model-gateway`의 (d) 쓰는 서비스에 `fresnel.ext`(훅 디스패치)를 더한다.
 5. `eng.dependency-rules.guide`: DR-07, DR-09 수정(§3.11, review.decisions-2 U-16).
 
 ## 9. 수용 기준
@@ -905,7 +905,7 @@ export interface ThinkingLevelSelectPayload {
 3. `overrides.scopeId = "helm"`이고 `groupRouting.helm.review`가 있으면 그 값이 `routing.review`보다 먼저 쓰인다. `overrides.ref`는 그룹 덮어쓰기보다 먼저 쓰인다.
 4. `parseModelRef("bedrock/anthropic.claude-x-v1:0")`의 modelId는 `anthropic.claude-x-v1:0`이고 레벨은 null이다. `parseModelRef("anthropic/claude-x:high")`의 레벨은 `high`다.
 5. 테이프가 `error`(`reason: "aborted"`, `afterContent` 있음)를 낸 호출의 사용량이 `UsageMeter.totals`에 더해지고 `abortedCalls`가 1 늘어난다.
-6. 요청 로그, 지점 페이로드(`request.headers.before`, `request.provider.after`), 이벤트 DB, 오류 메시지 어디에도 `secret://`를 해석한 값이 나타나지 않는다. 테스트는 알려진 가짜 키 문자열을 모든 출력에서 찾는다.
+6. 요청 로그, 훅 페이로드(`request.headers.before`, `request.provider.after`), 이벤트 DB, 오류 메시지 어디에도 `secret://`를 해석한 값이 나타나지 않는다. 테스트는 알려진 가짜 키 문자열을 모든 출력에서 찾는다.
 7. 단계 시작 바인딩의 `{ provider, modelId, thinkingLevel }`이 같은 단계 `checkpoint.step`의 `model`과 같다. 재개 뒤 첫 요청은 그 사이 `l1.models.default`를 바꿔도 체크포인트 값을 쓴다.
 8. 기본 `anthropic` provider에 `sk-ant-oat`로 시작하는 가짜 키를 주면 요청이 나가지 않고 `oauth_token_on_default_provider`가 된다.
 9. `plugins/provider-anthropic-oauth` 디렉터리를 지운 작업 트리에서 core-models 테스트가 모두 통과한다.

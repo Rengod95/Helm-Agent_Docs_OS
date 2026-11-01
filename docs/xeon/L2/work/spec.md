@@ -67,7 +67,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 - `ApprovalId`, `ApprovalIdSchema`, `Brand`, `REQUEST_ID_PATTERN`, `deriveRequestId`: eng.domain-types.guide DT-06, eng.typescript.guide §1.2
 - `CatalogEntry`, `CoreArea`: F.records.spec §3.2·§3.3(`L2.readme` §5.9). `Projector`, `ProjectionTx`, `BlobRef`, `TYPE_PREFIX_OWNERS`: eng.events.design §4.1, §5.1
 - `PostItem`, `PostOptions`, `ScopeId`: F.extensions.spec §3.2
-- 스레드와 세션: F.conversation.spec은 `ThreadId`를, eng.events.design은 `SessionId`를 쓴다. 이 문서는 서비스 API에 `ThreadId`를 쓰고 투영 테이블 열은 `session_id`로 둔다(eng.context-map.design §5.2). [가정] 두 ID는 같은 단위를 가리킨다.
+- 스레드와 대화: F.conversation.spec은 `ThreadId`를, eng.events.design은 `SessionId`를 쓴다. 이 문서는 서비스 API에 `ThreadId`를 쓰고 투영 테이블 열은 `session_id`로 둔다(eng.context-map.design §5.2). [가정] 두 ID는 같은 단위를 가리킨다.
 
 ## 3. 인터페이스
 
@@ -868,7 +868,7 @@ CREATE TABLE cap_work_meta (
 | `approval.requested`(kind `plan`) | `body.plan.planRef`(`plan:<planId>:<version>`)가 가리키는 행에 `approval_id` 기록(`origin.threadId`의 행) |
 | `approval.resolved` | `approval_id`가 일치하고 `submitted`인 행이 있으면 결정에 따라 `status`, `feedback`, `decided_seq` 갱신(§4.2.3 대응표). 없으면 무시 |
 | `work.plan_withdrawn` | 해당 행 `withdrawn`(`submitted`일 때만) |
-| `settings.changed`(권한 모드, 세션 범위) | `mode` 갱신. 값이 `plan`이고 직전 값이 `plan`이 아니면 `mode_before_plan = 직전 값(없으면 default)`, `plan_entered_seq = 이 이벤트의 seq`. 값이 `plan`이 아니면 `plan_entered_seq = NULL` |
+| `settings.changed`(권한 모드, `launch` 범위) | `mode` 갱신. 값이 `plan`이고 직전 값이 `plan`이 아니면 `mode_before_plan = 직전 값(없으면 default)`, `plan_entered_seq = 이 이벤트의 seq`. 값이 `plan`이 아니면 `plan_entered_seq = NULL` |
 | `work.goal_set` | 목표 행 추가 |
 | `work.goal_judged` | 판정 행 추가, 목표 JSON의 `judgments`, `lastVerdict` 갱신 |
 | `work.goal_settled` | 목표 `status`, `settled_seq` |
@@ -880,7 +880,7 @@ CREATE TABLE cap_work_meta (
 - [결정: WK.1] 간선 행의 읽기 순서는 삽입 순서(`rowid`)다. `blockedBy` 배열의 순서가 재생성 뒤에도 같다.
 - [결정: WK.3 통합] 작업 의존 간선 테이블 이름은 `cap_work_edges`다. 투영기 등록부(F.records.spec §3.4)가 접두 뒤 지역 이름에 밑줄을 허용하지 않아 `cap_work_task_edges`를 바꿨다. 투영 대역이 이 검사를 하지 않아 실제 등록부로 바꾸기 전에는 드러나지 않았다.
 - 투영기 `cap.work` 버전 3은 `cap_work_tasks`, `cap_work_edges`, `cap_work_plans`, `cap_work_meta`와 목표·보고의 `cap_work_goals`, `cap_work_judgments`, `cap_work_reports`를 만든다(버전 1은 작업 셋, 버전 2는 계획 추가, 버전 3은 목표·보고 추가).
-- [결정: WK.2] 권한 모드 추적은 `settings.changed`가 세션 범위에서 나온 변경만 본다. 파일 설정(사용자·프로젝트 범위)이 정한 모드는 이벤트가 없으므로 `mode_before_plan`은 세션 범위 이력의 직전 값이고, 그런 이력이 없으면 default다. 이 프로세스가 직접 계획 모드에 넣은 스레드는 메모리에 실제 직전 모드를 두고 우선한다(재시작 뒤에는 투영 값). L1.tools가 직전 모드를 이벤트로 남기면 이 한계가 사라진다(§10 W-16).
+- [결정: WK.2] 권한 모드 추적은 `settings.changed`가 `launch` 범위에서 나온 변경만 본다. 파일 설정(사용자·프로젝트 범위)이 정한 모드는 이벤트가 없으므로 `mode_before_plan`은 `launch` 범위 이력의 직전 값이고, 그런 이력이 없으면 default다. 이 프로세스가 직접 계획 모드에 넣은 스레드는 메모리에 실제 직전 모드를 두고 우선한다(재시작 뒤에는 투영 값). L1.tools가 직전 모드를 이벤트로 남기면 이 한계가 사라진다(§10 W-16).
 - `approval.resolved` payload의 결정 필드 이름은 L1.tools.spec이 정한다. 투영기는 F에 있는 그 payload 스키마만 import한다(§10 W-2).
 
 ### 3.9 효과 분류 [결정: M3-REQ-88]
@@ -959,7 +959,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 #### 4.1.6 방치 알림
 
 - [제안] 설정 `l2.work.tasks.reminderTurns`가 N(> 0)이면, `pending`이나 `in_progress` 작업이 있고 마지막 작업 변경 뒤 완료된 턴이 N개 이상일 때 다음 턴 시작에 알림 문장을 컨텍스트에 더한다. omp `todo_reminder` 이벤트와 같은 목적이다(`_research/refs/oh-my-pi.md` 확장 이벤트 표).
-- 구현은 `input.agent.before` 지점(collect) 핸들러다. 핸들러는 투영을 읽는 질의만 하고 이벤트를 쓰지 않는다(F.extensions.spec §4.3). 패치는 확장 메시지 추가(`BeforeAgentStartPatch`의 message 병합)다. `customType`은 `x.cap-work.tasks.reminder`, `display: false`다.
+- 구현은 `input.agent.before` 훅(collect) 핸들러다. 핸들러는 투영을 읽는 질의만 하고 이벤트를 쓰지 않는다(F.extensions.spec §4.3). 패치는 확장 메시지 추가(`BeforeAgentStartPatch`의 message 병합)다. `customType`은 `x.cap-work.tasks.reminder`, `display: false`다.
 - 기본값은 0(끔)이다. 알림 문장은 프롬프트 캐시 접두 뒤에 붙으므로 캐시를 깨지 않는다 [가정: L1.context가 확장 메시지를 대화 끝에 둔다].
 
 ### 4.2 계획 모드와 승인
@@ -1131,17 +1131,17 @@ stateDiagram-v2
 - 스레드마다 활성 목표는 하나다. 활성 목표가 있는데 `set`을 부르면 `goal_active`다. `replace: true`면 이전 목표를 `cleared`로 끝내고 새 목표를 같은 커밋에 건다.
 - `set` 시점에 `judge` 생략값은 `{ kind: "model" }`, `continuation` 생략값은 `"self"`다. 값은 `work.goal_set`에 기록한다.
 - 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다(L1.agents 소유, 기본 3, `(threadId, goalRef)`마다) [결정: review.decisions-2 S-06]. 이 기능은 상한 키를 따로 두지 않고 목표별 상한 인자도 받지 않는다. `goalRef`는 `goalId`다. `Goal.maxRuns`는 목표 설정 시점의 값을 표시용으로 기록한 것이다.
-- [결정: M3-new-02, D-M3-15] 판정 계기: 완료 게이트다. cap-work는 `boundary.settle.before` chain 핸들러를 하나 건다(L1.loop.spec §4.9). turn이 정착하려 할 때(`outcome: "completed"`) 활성 목표가 있고 판정자가 `model`이면 이 핸들러가 판정한다. 사용자가 끊은 turn(`aborted`)과 실패한 turn(`error`)은 판정하지 않는다 [제안: 계속할 수 없는 단계의 판정은 상한만 소모한다]. `delegated` 목표는 이 지점이 판정하지 않고 `work.goals.judge`로 판정이 들어온다. 이전 설계의 `turn.completed` 피드 구독 러너는 쓰지 않는다.
+- [결정: M3-new-02, D-M3-15] 판정 계기: 완료 게이트다. cap-work는 `boundary.settle.before` chain 핸들러를 하나 건다(L1.loop.spec §4.9). turn이 정착하려 할 때(`outcome: "completed"`) 활성 목표가 있고 판정자가 `model`이면 이 핸들러가 판정한다. 사용자가 끊은 turn(`aborted`)과 실패한 turn(`error`)은 판정하지 않는다 [제안: 계속할 수 없는 단계의 판정은 상한만 소모한다]. `delegated` 목표는 이 훅이 판정하지 않고 `work.goals.judge`로 판정이 들어온다. 이전 설계의 `turn.completed` 피드 구독 러너는 쓰지 않는다.
 - 판정 순서(핸들러 안):
   1. 활성 목표를 투영에서 읽는다. 없으면 아무것도 하지 않는다.
-  2. 증거를 모은다(§4.3.3 `GoalEvidence`). 정착 지점의 컨텍스트 미리보기에서 이번 turn의 최종 텍스트와 도구 호출을, 투영에서 작업 목록과 직전 판정을 읽는다.
+  2. 증거를 모은다(§4.3.3 `GoalEvidence`). 정착 훅의 컨텍스트 미리보기에서 이번 turn의 최종 텍스트와 도구 호출을, 투영에서 작업 목록과 직전 판정을 읽는다.
   3. `fresnel.agents.judge(JudgeInput)`를 부른다(커밋 밖). L1.agents가 상한을 세고 `agent.judged`를 자기 커밋으로 남긴다. 결과 `JudgeOutcome`을 `goalGateDecision`(L1.agents.spec §4.8)으로 옮긴다.
   4. 결과를 목표 쪽 이벤트로 자기 커밋에 남긴다. 커밋 키는 `work:goal:<goalId>:judge:<run>`(판정), `work:goal:<goalId>:settle:capped`, `work:goal:<goalId>:settle:failed`다. 판정을 기록하는 동안 목표가 지워졌거나 끝났으면 기록하지 않고 게이트는 끼어들지 않는다.
      - `judged`·`recorded`(`met`) → `work.goal_judged`, `work.goal_settled(met)`, `work.report_built`. turn은 정착한다.
      - `judged`·`recorded`(`not_met`·`undecidable`) → `work.goal_judged`(`n` = `record.run`). `n`이 그 시점의 `l1.agents.judge.maxRuns` 이상이면 `work.goal_settled(limit_reached)`와 `work.report_built`를 같은 커밋에 더하고 turn을 끝낸다. 아니면 목표는 활성으로 남고 한 단계 더 돈다.
      - `capped` → 판정 기록 없이 `work.goal_settled(limit_reached)`와 `work.report_built`. turn을 끝낸다.
      - `failed` → `work.goal_settled(judge_failed)`와 `work.report_built`. 판정 없이 계속 돌지 않고 turn을 끝낸다(§4.3.6).
-  5. 한 단계 더 돌 때는 지시 문장을 custom 항목(`customType: "x.cap-work.goal.continue"`, `display: true`)으로 `BoundaryPatch.entries`에 싣고 `continue: true`를 돌려준다. turn을 끝낼 때(상한, 판정 실패)는 사유 문장을 `x.cap-work.goal.notice` custom 항목으로 싣고 `continue: false`를 돌려준다. 단계 id를 모르면(`boundary.step.after`가 먼저 발화하지 않은 경우) 지시는 싣지 않고 계속만 하며 끝내는 안내는 `stepId: null`인 turn 수준 항목으로 남긴다 [제안]. 정착 지점의 payload에는 단계 id가 없어 엔트리의 범위 필드를 맞추려고 `boundary.step.after`에서 마지막 단계 id를 기억한다(같은 단계 안에서 `boundary.step.after`가 먼저 발화한다).
+  5. 한 단계 더 돌 때는 지시 문장을 custom 항목(`customType: "x.cap-work.goal.continue"`, `display: true`)으로 `BoundaryPatch.entries`에 싣고 `continue: true`를 돌려준다. turn을 끝낼 때(상한, 판정 실패)는 사유 문장을 `x.cap-work.goal.notice` custom 항목으로 싣고 `continue: false`를 돌려준다. 단계 id를 모르면(`boundary.step.after`가 먼저 발화하지 않은 경우) 지시는 싣지 않고 계속만 하며 끝내는 안내는 `stepId: null`인 turn 수준 항목으로 남긴다 [제안]. 정착 훅의 payload에는 단계 id가 없어 엔트리의 범위 필드를 맞추려고 `boundary.step.after`에서 마지막 단계 id를 기억한다(같은 단계 안에서 `boundary.step.after`가 먼저 발화한다).
 - 판정을 기다리지 않는 한 단계가 지나면 같은 turn 안에서 다시 정착 후보가 되고 판정은 `n`을 늘리며 반복한다. 한 turn의 계속 횟수는 게이트 상한(`l1.loop.gate.maxContinues`)이 따로 막고, 판정 횟수는 `l1.agents.judge.maxRuns`가 막는다.
 - 판정 실행 중에 사용자 입력으로 새 turn이 시작되는 경우는 없다. 판정은 turn 정착 전에 끝나는 한 호출이다. 이전 설계의 "다음 턴 시작(post)"은 쓰지 않는다. 한 단계 더 도는 것이 다음 턴을 대신한다.
 - 알려진 한계 [제안]: 정착 직전에 판정하므로 목표 종결 보고의 `resources.agent`에는 마지막 turn의 사용량이 들지 않는다(그 turn의 `turn.completed`가 아직 없다). 필요하면 마지막 turn은 `work.reports.build({ subject: { kind: "turn" } })`로 따로 만든다.
@@ -1190,7 +1190,7 @@ export interface JudgePort {
 - `judge: { kind: "delegated", owner }` 목표는 판정 모델을 부르지 않는다. 턴이 끝나면 cap-work는 판정 대기 상태가 되고, `owner` 주체가 `work.goals.judge({ goalId, turnId, verdict })`를 부르면 그 값을 판정으로 기록한다.
 - `judge` 호출 검사: 목표가 `active`이고 `delegated`여야 한다(`goal_not_delegated`). `turnId`는 판정 대기 중인 턴이어야 한다(`goal_turn_stale`). 같은 턴의 판정이 이미 있으면 기존 판정을 돌려준다(멱등).
 - 대기 시간이 `timeoutSec`(생략하면 `l2.work.goal.delegatedTimeoutSec`)을 넘으면 판정 실패(`failure.code = "timeout"`)로 기록한다.
-- delegated 판정자(L3 그룹의 기준 검사기 등)는 `boundary.settle.after` 지점 핸들러에서 `goals.status`로 대기 상태를 확인하고 `judge`를 부른다. 이 호출에는 `requestId`를 넘긴다. on 핸들러의 외부 효과 금지(F.extensions.spec §4.3)와의 관계는 그 L3 문서가 정한다.
+- delegated 판정자(L3 그룹의 기준 검사기 등)는 `boundary.settle.after` 훅 핸들러에서 `goals.status`로 대기 상태를 확인하고 `judge`를 부른다. 이 호출에는 `requestId`를 넘긴다. on 핸들러의 외부 효과 금지(F.extensions.spec §4.3)와의 관계는 그 L3 문서가 정한다.
 - 그룹이 판정자를 바꾸는 방법은 목표를 걸 때 `judge`를 지정하는 것뿐이다. 판정자 교체는 `set({ replace: true, judge })`다.
 - `owner` 확인: 다른 주체가 `judge`를 부르는 것을 막으려면 호출자 식별이 필요하다. [제안] `CallOptions.context.caller.extension`(`F.capabilities.spec` §3.2, `L2.readme` §5.8)이 `owner`와 같을 때만 받고, 다르면 `denied`다(§10 W-6).
 
@@ -1222,7 +1222,7 @@ export interface JudgePort {
 
 ### 4.5 재개
 
-세션을 다시 열 때(`thread.start` 지점) cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
+대화를 다시 열 때(`thread.start` 훅) cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
 
 | 상황 | 동작 |
 |---|---|
@@ -1280,7 +1280,7 @@ export interface JudgePort {
 
 | 명령 | 인자 | 호출 |
 |---|---|---|
-| `/goal <조건>` | 조건 문장 | `goals.set({ condition })`. 판정 상한은 `l1.agents.judge.maxRuns`를 바꾼다(세션 범위 가능) |
+| `/goal <조건>` | 조건 문장 | `goals.set({ condition })`. 판정 상한은 `l1.agents.judge.maxRuns`를 바꾼다(`launch` 범위 가능) |
 | `/goal status` | 없음 | `goals.status({})` |
 | `/goal clear` | 없음 | `goals.clear({})` |
 | `/plan` | 없음 | `plans.enterMode({})` |
@@ -1321,12 +1321,12 @@ export const manifest = defineManifest({
 - `input.agent.before`(collect): 방치 알림 메시지 추가(§4.1.6). 질의만 한다.
 - `boundary.step.after`(chain): 정착 직전 단계 id를 기억한다. 값을 바꾸지 않는다(§4.3.2 5번).
 - `boundary.settle.before`(chain): 완료 게이트. 활성 모델 판정자 목표를 판정하고 한 단계 더 돌지 turn을 끝낼지 정한다(§4.3.2).
-- drive: 쓰지 않는다. L2는 drive 임대를 갖지 않는다(`L2.readme` §4.2).
+- drive: 쓰지 않는다. L2는 drive 락을 갖지 않는다(`L2.readme` §4.2).
 - 피드 구독: 승인 해결 뒤 모드 복원(`approval.resolved`)은 `fresnel.session`의 내구 피드 구독으로 받는다. 훅은 쓰지 않는다(eng.events.design §4.6 `SessionFeed.subscribe`). 구독자는 `seq`로 중복을 거른다(EV-05).
 
-### 7.2 도구 지점
+### 7.2 도구 훅
 
-- `task_write`, `enter_plan_mode`, `exit_plan_mode`, `submit_plan`은 일반 도구처럼 `tool.call.before`(first), `tool.result`(chain) 지점을 지난다(F.capabilities.spec §7). 페이로드의 `capability` 필드로 `work.tasks` 등을 고를 수 있다.
+- `task_write`, `enter_plan_mode`, `exit_plan_mode`, `submit_plan`은 일반 도구처럼 `tool.call.before`(first), `tool.result`(chain) 훅을 지난다(F.capabilities.spec §7). 페이로드의 `capability` 필드로 `work.tasks` 등을 고를 수 있다.
 
 ### 7.3 L3와의 관계
 

@@ -22,8 +22,8 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
   - 이벤트 종류, 내구·휘발 구분, 재생 규칙은 `eng.events.design`(`../events/design.md`)이, 원자성과 트랜잭션 경계는 `eng.transactions.design`(`../transactions/design.md`)이 정한다. AP-S의 저장 항목은 그 설계를 어기는 모양이다.
   - 도구 설정과 버전 고정은 `eng.toolchain.guide`(`../toolchain/guide.md`), 테스트 작성법은 `eng.testing.guide`(`../testing/guide.md`)가 정한다.
 - 규칙이 서로 다르게 읽히면 위 문서들의 규칙이 이 문서보다 앞선다. 이 문서의 예제는 그 규칙의 사례다.
-- 예제의 훅 이름(`tool.call.before`, `tool.result`, `boundary.step.after` 등)은 `F.extensions.spec` §3.4 표의 이름이다. 지점 목록은 `F.extensions.spec`이 확정한다(ADR-0007 §3.3).
-- 예제의 `Result`, `ok`, `err`, 브랜드 타입, `Clock`, `IdFactory`, `RandomSource`는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06의 이름이다. 이벤트 kind와 envelope 필드(`DurableEventEnvelope`, `kind`, `version`, `payload`, `recordedAt`)는 `F.records.spec`과 `eng.events.design`, 세션 쓰기 경로(`SessionService.commit`, `CommitRequest`)는 `eng.transactions.design`과 `L1.persistence.spec` §3.2~§3.3, 서비스 이름은 `eng.context-map.design` 5.3절의 이름이다.
+- 예제의 훅 이름(`tool.call.before`, `tool.result`, `boundary.step.after` 등)은 `F.extensions.spec` §3.4 표의 이름이다. 훅 목록은 `F.extensions.spec`이 확정한다(ADR-0007 §3.3).
+- 예제의 `Result`, `ok`, `err`, 브랜드 타입, `Clock`, `IdFactory`, `RandomSource`는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06의 이름이다. 이벤트 kind와 envelope 필드(`DurableEventEnvelope`, `kind`, `version`, `payload`, `recordedAt`)는 `F.records.spec`과 `eng.events.design`, 대화 쓰기 경로(`SessionService.commit`, `CommitRequest`)는 `eng.transactions.design`과 `L1.persistence.spec` §3.2~§3.3, 서비스 이름은 `eng.context-map.design` 5.3절의 이름이다.
 
 ## 2. 안티패턴
 
@@ -53,7 +53,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 | [AP-C-09](#ap-c-09) | L0·L1에서 console이나 로거 직접 생성 | BP-12 | oxlint `no-console`, `no-restricted-imports` |
 | [AP-C-10](#ap-c-10) | 단언을 다른 모양으로 감춘 typed programming 안티패턴 | BP-01, BP-04 | oxlint `no-unnecessary-type-parameters`, `ban-ts-comment`, 리뷰 질문 |
 | [AP-C-11](#ap-c-11) | 예상 가능한 실패를 `Bug`로 던짐 | BP-04 | 검사 스크립트 [제안], 리뷰 질문 |
-| [AP-S-01](#ap-s-01) | fsync 없는 JSONL 세션 쓰기 | BP-08 | `no-restricted-imports`, 리뷰 질문 |
+| [AP-S-01](#ap-s-01) | fsync 없는 JSONL 대화 쓰기 | BP-08 | `no-restricted-imports`, 리뷰 질문 |
 | [AP-S-02](#ap-s-02) | 토큰마다 이벤트 저장 | BP-08 | 단위 테스트, 리뷰 질문 |
 | [AP-S-03](#ap-s-03) | 확장별 DB 파일로 원자성 상실 | BP-08 | `no-restricted-imports`, 리뷰 질문 |
 | [AP-S-04](#ap-s-04) | provider 위장 경로 본체 혼입 | BP-09 | 검사 스크립트 [제안], 배포 매니페스트 |
@@ -191,7 +191,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 증상: CLI가 시작하면서 고정 주소의 서버에 연결을 시도하고, 연결이 없으면 실패한다. 또는 엔진 코드가 `/srv/...` 같은 서버 경로, 상주 프로세스 존재, 단일 사용자 홈서버를 전제한다.
 - 왜 문제인가:
   - [결정] 사용자가 "나만 쓰는 로컬 홈서버 전제"에 이견을 밝혔다(`_research/decisions-log.md` 2026-10-19).
-  - [결정] 프로세스 구조는 엔진 라이브러리 + 단일 호스트 계약 + 전송 교체다. CLI는 in-process로 돌고, 데스크톱은 자식 엔진을 쓴다. 데몬은 `fresnel service`(자동 기동, 유휴 종료)이고 예약·원격·알림 범위에서만 쓴다(`_research/foundation-plan.md §1` 2번, `_research/decisions-log.md` 계획 v2·3차, ADR-0006).
+  - [결정] 프로세스 구조는 엔진 라이브러리 + 단일 Runtime API + 전송 교체다. CLI는 in-process로 돌고, 데스크톱은 자식 엔진을 쓴다. 데몬은 `fresnel service`(자동 기동, 유휴 종료)이고 예약·원격·알림 범위에서만 쓴다(`_research/foundation-plan.md §1` 2번, `_research/decisions-log.md` 계획 v2·3차, ADR-0006).
   - M1 스모크는 데몬 없이 `fresnel chat` 한 턴과 강제 종료 후 재개를 확인한다(`_research/foundation-plan.md §6`).
 - 나쁜 예:
 
@@ -247,7 +247,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 <a id="ap-a-07"></a>
 #### AP-A-07 확장의 상태 변경 우회 경로
 
-- 증상: 그룹이나 플러그인이 `platform-store`를 직접 열어 세션 이벤트를 쓰거나, 루프 객체의 내부 배열에 메시지를 push하거나, 다른 그룹의 상태 레코드를 바꾼다.
+- 증상: 그룹이나 플러그인이 `platform-store`를 직접 열어 대화 이벤트를 쓰거나, 루프 객체의 내부 배열에 메시지를 push하거나, 다른 그룹의 상태 레코드를 바꾼다.
 - 왜 문제인가:
   - [결정] 확장이 루프에 개입하는 연산은 `on`, `post`, `drive`, `scope` 넷뿐이다. `drive`의 효과도 `loop.turn`, `loop.spawn`, `post`로만 낸다(ADR-0007 §3.1).
   - 우회 경로로 쓴 기록은 `requestId` 멱등, 단계 경계 토글, 재생 규칙을 거치지 않는다. 재개 때 같은 입력이 두 번 들어가거나, 꺼진 그룹이 상태를 계속 바꾼다.
@@ -313,7 +313,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 
 - 증상: 관찰이나 차단만 하면 되는 그룹이 `drive`를 잡는다. 학습 그룹이 `drive`를 쓴다. `drive` 함수가 진행 상태를 클로저 지역 변수에 두어, 재개 때 처음부터 다시 돈다.
 - 왜 문제인가:
-  - [결정] `drive`는 배타 임대이고 한 번에 그룹 하나만 가진다. 학습 그룹은 `drive`를 쓰지 않고 Helm과 함께 켤 수 있어야 한다(`_research/decisions-log.md` 계획 v2, ADR-0007 §3.6).
+  - [결정] `drive`는 배타 락이고 한 번에 그룹 하나만 가진다. 학습 그룹은 `drive`를 쓰지 않고 Helm과 함께 켤 수 있어야 한다(`_research/decisions-log.md` 계획 v2, ADR-0007 §3.6).
   - [제안] `drive` 함수는 마지막으로 커밋된 scope 상태로 다시 호출되어도 같은 진행을 내야 한다. 상태는 scope 상태 레코드에만 둔다(`_research/ext-points.md §5` 안 1 "재생·토글 보장", §6 판단 근거). 클로저에 둔 상태는 재개 때 사라지고, 이 위반은 타입으로 막지 못한다.
 - 나쁜 예:
 
@@ -388,7 +388,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 증상: 함수 본문 전체를 `try { ... } catch {}`로 감싸고 빈 catch나 `console.log`로 끝낸다. 실패가 기본값으로 바뀌어 호출자가 실패를 알 수 없다.
 - 왜 문제인가:
   - 저장소 오류를 삼키면 커밋 여부를 모른 채 다음 단계로 간다. 재개 규칙은 "결과 불명"을 기록하고 `requestId`로 다시 제출하는 것이다(`_research/notes/F-3.md §6`, durable spec 4826-4834).
-  - 훅의 실패 정책은 fold가 정한다. `tap`은 기록 후 계속, `first`는 거부, `chain`은 그 핸들러만 건너뛴다(ADR-0007 §3.2). 핸들러 안에서 오류를 삼키면 `first` 지점의 fail-closed가 fail-open으로 바뀐다.
+  - 훅의 실패 정책은 fold가 정한다. `tap`은 기록 후 계속, `first`는 거부, `chain`은 그 핸들러만 건너뛴다(ADR-0007 §3.2). 핸들러 안에서 오류를 삼키면 `first` 훅의 fail-closed가 fail-open으로 바뀐다.
 - 나쁜 예:
 
   ```ts
@@ -454,7 +454,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 증상: 모듈 최상위의 `let`, 모듈 수준 `Map` 캐시, `getInstance()` 싱글턴, `export let`로 상태를 공유한다.
 - 왜 문제인가:
   - 그룹을 단계 경계에서 끄고 켜면 정리는 Cordis dispose로 실행된다(ADR-0007 §3.6). 모듈 전역 상태는 dispose 대상이 아니어서 끈 뒤에도 남는다.
-  - CLI in-process와 서비스 모드는 한 프로세스에 세션 여러 개를 둘 수 있다(ADR-0006). 전역 상태는 세션 사이에 섞인다.
+  - CLI in-process와 서비스 모드는 한 프로세스에 대화 여러 개를 둘 수 있다(ADR-0006). 전역 상태는 대화 사이에 섞인다.
   - 테스트 파일 사이에도 상태가 샌다. `mock.module`이 기본 실행에서 파일 사이로 누수되는 것과 같은 종류의 문제다(`_research/notes/eng-3.md` 2번).
   - pi-agent-core 포크에서 `setDefaultStreamFn` 같은 전역 상태를 없앤 선례가 있다(`docs/design/12-runtime-engine.md §3.4.1` F-5).
 - 나쁜 예:
@@ -623,7 +623,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 증상: `as`를 직접 쓰지 않고 같은 효과를 내는 코드를 쓴다.
   - 반환 타입에만 나오는 타입 매개변수: `function getState<T>(key: string): T`, `call<R>(method): Promise<R>`.
   - 판별자 하나만 보고 전체 모양을 약속하는 손 타입 가드: `(v: unknown): v is ToolCall => v.type === "toolCall"`.
-  - `Function`, `Object`, `{}` 타입으로 받고 호출 지점에서 다시 단언.
+  - `Function`, `Object`, `{}` 타입으로 받고 호출 시점에서 다시 단언.
   - 빈 컨테이너를 단언으로 초기화: `{} as Record<K, V>`, `[] as Item[]`.
   - `Object.keys(o) as (keyof T)[]`, `JSON.parse(x) as T`.
   - 운영 코드의 `@ts-expect-error`로 타입 오류 한 줄을 넘기기.
@@ -661,7 +661,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 
 - 증상: I/O 오류, `SQLITE_BUSY`, 디스크 가득 참, 읽기 전용 파일 시스템, 취소, 찾지 못함, 검증 실패, lease·잠금 상실, 시간 초과를 `throw new Bug("store.io: ...")`처럼 `Bug`로 던진다. 하위 함수가 `Result`로 돌려준 실패를 상위에서 `Bug`로 바꾼다. 실패 종류를 `kind` 대신 `Bug` 메시지 문자열 접두어로 표시한다.
 - 왜 문제인가:
-  - `Bug`는 코드를 고쳐야 사라지는 상태를 뜻한다(`eng.typescript.guide` TY-24). 운영 중 정상적으로 생기는 실패를 `Bug`로 던지면 호출자가 재시도, 세션 정지, 사용자 안내 중 하나를 고를 수 없다.
+  - `Bug`는 코드를 고쳐야 사라지는 상태를 뜻한다(`eng.typescript.guide` TY-24). 운영 중 정상적으로 생기는 실패를 `Bug`로 던지면 호출자가 재시도, 대화 정지, 사용자 안내 중 하나를 고를 수 없다.
   - 메시지 문자열은 판별자가 아니므로 호출자가 `switch`와 `assertNever`로 처리할 수 없다(TY-12, TY-13).
   - 훅 fold에서 던진 예외는 거부로 환산되고(ADR-0007 §3.2), 저장소 실패가 런타임 전체 실패로 번진다(AP-S-06).
 - 나쁜 예:
@@ -690,13 +690,13 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 ### 2.4 스택 (AP-S)
 
 <a id="ap-s-01"></a>
-#### AP-S-01 fsync 없는 JSONL 세션 쓰기
+#### AP-S-01 fsync 없는 JSONL 대화 쓰기
 
-- 증상: 세션이나 확장 기록을 `appendFile`로 JSONL에 한 줄씩 덧붙인다. 읽을 때 파싱되지 않는 마지막 줄을 조용히 버린다.
+- 증상: 대화나 확장 기록을 `appendFile`로 JSONL에 한 줄씩 덧붙인다. 읽을 때 파싱되지 않는 마지막 줄을 조용히 버린다.
 - 왜 문제인가:
   - 조사한 pi, oh-my-pi, Claude Code 모두 fsync를 호출하지 않고, pi는 잘린 줄을 경고 없이 버린다(`_research/session-storage.md` 방식별 장단점, `_research/ref-synthesis.md` "피할 것").
   - JSONL은 커밋 단위가 줄 하나라 도구 의도·확장 기록·작업 상태를 함께 커밋할 수 없다.
-  - [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB다. 단계 경계 커밋은 `synchronous=FULL`이다(ADR-0004 §3.1, §3.2 규칙 5).
+  - [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB다. 단계 경계 커밋은 `synchronous=FULL`이다(ADR-0004 §3.1, §3.2 규칙 5).
   - JSONL은 내보내기 명령으로만 쓴다(ADR-0004 §3.2 규칙 7).
 - 나쁜 예:
 
@@ -752,7 +752,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 <a id="ap-s-03"></a>
 #### AP-S-03 확장별 DB 파일로 원자성 상실
 
-- 증상: 확장이나 그룹마다 `new Database("helm.sqlite")`처럼 별도 SQLite 파일을 만들고, 세션 기록과 그룹 기록을 따로 커밋하거나 `ATTACH`로 묶는다.
+- 증상: 확장이나 그룹마다 `new Database("helm.sqlite")`처럼 별도 SQLite 파일을 만들고, 대화 기록과 그룹 기록을 따로 커밋하거나 `ATTACH`로 묶는다.
 - 왜 문제인가:
   - WAL 모드에서는 `ATTACH`로 묶어도 파일 하나하나의 원자성만 보장하고 여러 파일에 걸친 원자성은 보장하지 않는다(`_research/session-storage.md` "놓치기 쉬운 제약").
   - [결정] DB 파일은 하나이고 확장 기록은 확장 접두사 테이블에 둔다. outbox는 별도 프로세스로 격리한 확장에만 쓴다(ADR-0004 §3.1, §3.3).
@@ -836,7 +836,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
 - 증상: SQLite 쓰기 오류(`SQLITE_BUSY`, 디스크 가득 참)가 나면 `process.exit(1)`을 부르거나, 잡히지 않은 예외나 `Bug`로 던져 런타임이 내려간다([AP-C-11](#ap-c-11)).
 - 왜 문제인가:
   - 저장소 오류가 나면 런타임 전체를 종료하는 구조(pi durable)는 피할 사례다(`_research/ref-synthesis.md` "피할 것").
-  - 서비스 모드는 세션 여러 개와 예약 작업을 함께 돌린다(ADR-0006). 한 세션의 쓰기 실패가 다른 세션을 끝내면 안 된다.
+  - 서비스 모드는 대화 여러 개와 예약 작업을 함께 돌린다(ADR-0006). 한 대화의 쓰기 실패가 다른 대화를 끝내면 안 된다.
   - bun:sqlite 오류는 `SQLiteError`(code, errno)로 온다. 기본 `busy_timeout`이 0이라 5000을 명시해야 한다(`_research/notes/eng-3.md` 1번). 일시적 실패는 재시도할 수 있다.
 - 나쁜 예:
 
@@ -859,7 +859,7 @@ Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 �
   }
   ```
 
-- 감지 방법: 리뷰 질문: "`process.exit`가 L4 진입점(`apps/*`) 밖에 있는가?" `packages/**`에서 `process.exit` 호출을 찾는 검사 스크립트 [제안]. 저장소 실패 주입 단위 테스트로 다른 세션이 계속 도는지 확인한다.
+- 감지 방법: 리뷰 질문: "`process.exit`가 L4 진입점(`apps/*`) 밖에 있는가?" `packages/**`에서 `process.exit` 호출을 찾는 검사 스크립트 [제안]. 저장소 실패 주입 단위 테스트로 다른 대화가 계속 도는지 확인한다.
 
 <a id="ap-s-07"></a>
 #### AP-S-07 Vitest 도입
@@ -1027,7 +1027,7 @@ TS 7.0에는 안정 programmatic API가 없으므로(`_research/notes/eng-1.md �
 | 트랜잭션 콜백 안에 `await`가 있는가? | AP-C-06 |
 | 이 테스트는 시간이 아닌 어떤 사건을 기다리는가? | AP-C-07 |
 | 로그 필드나 오류 문자열에 lease 값이 들어갈 수 있는가? | AP-C-08 |
-| 세션·확장 기록을 SQLite 밖 파일에 쓰는가? | AP-S-01 |
+| 대화·확장 기록을 SQLite 밖 파일에 쓰는가? | AP-S-01 |
 | 스트림 루프 안에 저장 호출이 있는가? | AP-S-02 |
 | 새 `.sqlite` 파일 경로가 생기는가? | AP-S-03 |
 | provider 코드가 `plugins/` 아래에 있는가? | AP-S-04 |

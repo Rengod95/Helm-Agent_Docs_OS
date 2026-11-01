@@ -22,7 +22,7 @@ binds: [xeon/packages/core-agents/**]
 | M1 | core-agents 코드 없음. 걸어 다니는 골격 범위 밖이다. 단, contracts M1에서 `LoopHandle.spawn`, `SpawnSpec`, `SpawnOutcome` 타입 자리를 확보한다(F.extensions.spec §3.2, 이미 F에 있음). M1 테스트 그룹의 drive는 `loop.spawn`을 부르지 않는다. [제안] X가 `fresnel.agents`가 없을 때 `spawn`을 `{ status: "error", answer: "agents.unavailable" }`로 돌려주는지만 확인한다 | `_research/foundation-plan.md` §5 P4 M1 범위, `product.scope.spec` §4.3 M1 행 |
 | M2 | 자식 대화 생성과 부모 연결, 포그라운드 `spawn`(모델 도구 `agent`, drive `loop.spawn`), 권한 상한과 차단 목록, 깊이·동시 상한, 결과 반환(길이 상한, 모방 검사, 격리 블록), requestId 파생과 재개 중복 방지, 확장 정의(매니페스트 `components.agents`)와 코드 등록 `define` | product.scope.spec M2 종료 조건 "렌즈 N개 탐구에서 서브에이전트 N개 결과 커밋 뒤 적용 턴을 한 번 실행"(UC-2) |
 | M3 | 백그라운드 위임(`delegate`, 완료 보고 post, 직접 취소), 목표 판정(`judge`, 상한, `agent.judged`) | product.scope.spec M3 종료 조건 UC-3, "목표 판정이 실행 횟수 상한에서 멈춘다" |
-| 2차(M3 이후) | 프로젝트·사용자 디렉터리 정의 파일 로더와 위치 우선순위, 새 스레드 handoff, 판정 B안(제한된 자식 세션) 검토 | `_research/layer-plan-v2.json` L1-g 2차 행 |
+| 2차(M3 이후) | 프로젝트·사용자 디렉터리 정의 파일 로더와 위치 우선순위, 새 스레드 handoff, 판정 B안(제한된 자식 대화) 검토 | `_research/layer-plan-v2.json` L1-g 2차 행 |
 
 - [제안] 확장 정의 읽기를 M2로 당긴다. Helm이 M2에 `explorer` 정의를 매니페스트로 싣기 때문이다(L1.agents.spec §4.9). 파서는 40줄 포크라 비용이 작다.
 - M2의 Helm 탐구는 포그라운드 `loop.spawn`을 병렬로 부른다(L3.helm.spec §4.5). 백그라운드 경로는 M3에 들어오므로 M2 테스트는 포그라운드만 다룬다.
@@ -70,7 +70,7 @@ xeon/packages/core-agents/
 | AG-4 | 차단 목록: `subagent.no-spawn`(minDepth = maxDepth), `no-user-interaction`, `no-shared-write`, `no-external-send`를 `ToolService.registerRules("core:agents", …)`(L1.tools.plan TL-3)로 default 티어 deny 등록, `maxDepth` 변경 시 같은 출처로 다시 등록 | AG-3 | S | M2 |
 | AG-5 | 결과 길이 제한과 모방 검사: 최종 보고 추출, `resultMaxChars` 절단, flag 5종 검사, 격리 블록과 이스케이프, 경고 문장 | — | S | M2 |
 | AG-6 | requestId 파생과 재개 중복 방지: `<ownerRequestId>:spawn:<n>`, 64자 해시, 커밋 안 조회(`TxView.agentByRequestId`, L1.persistence.plan PS-23)로 기존 자식 재사용(정착·진행·끊김 세 경우), 재개 때 `ResumePlan.openChildren` 처리 | AG-1 | M | M2 |
-| AG-7 | 백그라운드 위임과 inbox 합성 입력: `delegate` 접수, 경계 소유 노드, 정착 뒤 `PostItem{ kind: "context" }` post(`<requestId>:report`), 직접 취소, 세션 `{ background: true }` 취소 연결 | AG-2, AG-6 | M | M3 |
+| AG-7 | 백그라운드 위임과 inbox 합성 입력: `delegate` 접수, 경계 소유 노드, 정착 뒤 `PostItem{ kind: "context" }` post(`<requestId>:report`), 직접 취소, 대화 `{ background: true }` 취소 연결 | AG-2, AG-6 | M | M3 |
 | AG-8 | 판정 호출과 횟수 상한: `fresnel.models` 역할 `judge` 단발 호출, 구조화 출력 검증, `(threadId, goalRef)` 실행 수 집계, `capped`·`recorded`·`failed`, 응답 직후 `agent.judged` 자기 커밋 | AG-0 | M | M3 |
 | AG-9 | 정의 파일 로더: frontmatter 포크, `AgentDefinitionSchema` 검증, 매니페스트 `components.agents` 읽기(M2), 디렉터리 탐색과 우선순위(2차), 진단 | — | S(M2) + M(2차) | M2, 2차 |
 | AG-10 | 서비스·도구·설정 등록: `plugin.ts`, 내장 도구 `agent`(`fresnel.tools` 등록, classes `["spawn"]`, replay safe), `settings.ts`(키 4개) | AG-3, AG-4 | S | M2 |
@@ -106,21 +106,21 @@ xeon/packages/core-agents/
 | AG-11 | 완료 | `gate.ts`(루트별 `maxConcurrent`), 전체 풀 `limiter("subagents")`. `tools` 슬롯 `suspendWhile`(C2)은 `agent` 도구가 `ToolService.suspendWhile` 안에서 `spawn`을 기다려 해소(M2 검토 3). `l1.tasks.limits.tools = 1`에서 `agent` 호출의 자식이 도구를 부르는 통합 시험 `agent_waits_for_child_without_holding_the_tools_slot`이 실제 엔진(SQLite 저장소, 실제 풀·파이프라인·`runChildTurn`, 모델만 테이프)에서 통과한다. `suspendWhile`을 빼면 같은 시험이 교착으로 시간 초과가 되는 것을 확인했다 [L1F] |
 | AG-12 | 완료 | `testing/index.ts`(`spawnRecorder`, `settleAll`, `fakeChildLoop`) |
 
-시험 대역(`test/support/`의 세션, 태스크, 도구)은 DR-02 때문에 이 패키지 안에 따로 있다.
+시험 대역(`test/support/`의 대화, 태스크, 도구)은 DR-02 때문에 이 패키지 안에 따로 있다.
 
 ## 4. 채택 코드
 
 | 대상 | 방식 | 버전·원본 | 바꿀 점 |
 |---|---|---|---|
 | `@earendil-works/pi-agent-core` | 의존하지 않음(adr.0009) | 1.3.0. 판정 원문은 `Agent` 클래스(`agent/src/agent.ts:188`)를 자식마다 생성 | 어느 패키지도 pi-agent-core를 import하지 않는다(DR-07). L1.loop.spec §3.2가 `Agent` 클래스 대신 turn마다 자체 루프 `runTurn`을 쓰므로 자식도 같은 루프로 돈다(L1.agents.spec §4.1 5번, [미결]) |
-| pi `utils/frontmatter.ts` | 포크 | `~/projects/_ref/pi-src/packages/coding-agent/src/utils/frontmatter.ts`, pi 커밋 `cdaf6c2`, 40줄 | (1) `import { stripBom } from "./text.ts"`를 지우고 BOM 제거를 파일 안 한 줄로 옮긴다(`text.ts:7`의 `stripBom`). 원본은 pi 세션 타입에 결합되어 있지 않다. 결합은 이 import 하나뿐이다. (2) `yaml.parse` 예외를 잡아 `Result`로 돌려준다(eng.typescript.guide TY-11). (3) 반환 타입의 `frontmatter`를 `unknown`으로 두고 `AgentDefinitionSchema`로 검증한다. (4) `stripFrontmatter`는 쓰지 않으면 지운다(knip) |
+| pi `utils/frontmatter.ts` | 포크 | `~/projects/_ref/pi-src/packages/coding-agent/src/utils/frontmatter.ts`, pi 커밋 `cdaf6c2`, 40줄 | (1) `import { stripBom } from "./text.ts"`를 지우고 BOM 제거를 파일 안 한 줄로 옮긴다(`text.ts:7`의 `stripBom`). 원본은 pi의 "세션" 타입에 결합되어 있지 않다. 결합은 이 import 하나뿐이다. (2) `yaml.parse` 예외를 잡아 `Result`로 돌려준다(eng.typescript.guide TY-11). (3) 반환 타입의 `frontmatter`를 `unknown`으로 두고 `AgentDefinitionSchema`로 검증한다. (4) `stripFrontmatter`는 쓰지 않으면 지운다(knip) |
 | `yaml` | 그대로(정확 고정) | 2.9.0(pi coding-agent `package.json`과 같은 값) | 없음 |
 | typebox | 그대로 | catalog 값 | 없음 |
 
 검토용 읽기 자료(코드는 가져오지 않는다):
 
 - opencode `session/subagent-job.ts`, `subagent-completion.ts`: 포그라운드·백그라운드 Job과 완료 알림 흐름(`_research/refs/opencode.md` 64·124행, `_research/packages.md` §4.3 L1-g "백그라운드 위임"). 확인할 점: 완료 알림의 중복 방지, 부모 인터럽트 시 자식 처리.
-- omp task 도구(`task/executor.ts`, `task/spawn-policy.ts`, `structured-subagent.ts`): 같은 스레드 자식 세션, `spawns` 제한, 깊이 한도, 자식 승인 모드(`_research/refs/oh-my-pi.md` 209-219행). 확인할 점: omp는 자식 승인 모드를 yolo로 고정하고 부모의 task 승인을 경계로 본다. Fresnel은 자식 ask를 부모 사용자에게 올리므로 다르다.
+- omp task 도구(`task/executor.ts`, `task/spawn-policy.ts`, `structured-subagent.ts`): 같은 스레드 자식 "세션", `spawns` 제한, 깊이 한도, 자식 승인 모드(`_research/refs/oh-my-pi.md` 209-219행). 확인할 점: omp는 자식 승인 모드를 yolo로 고정하고 부모의 task 승인을 경계로 본다. Fresnel은 자식 ask를 부모 사용자에게 올리므로 다르다.
 - pi durable `test/examples/22-subagent-foreground.ts`, `23-subagent-background.ts`, `vacation.ts:60-133`: 소유 대화와 reporter task의 requestId 파생(`_research/refs/pi-durable.md` §3.9).
 
 ## 5. 단위 테스트 목록
@@ -156,7 +156,7 @@ xeon/packages/core-agents/
 
 - 위 단위 테스트가 패키지 단위 `bun test`로 통과한다(단계별 범위).
 - M2: UC-2 수용 기준(서브에이전트 N개 결과 커밋 뒤 적용 턴 1회)을 통합 테스트로 확인할 수 있는 훅을 제공한다. `@fresnel/core-agents/testing`의 `spawnRecorder`가 `agent.spawned`·`agent.settled`의 seq를 기록하고, `settleAll(parentThreadId, requestIds)`가 N개 정착을 기다린다. L3.helm.plan의 통합 테스트가 "N개 `agent.settled` seq < 적용 turn의 `turn.started` seq, 적용 turn 1회"를 이 훅으로 검사한다.
-- M3: UC-3 경로(학습 그룹 `g.delegate` → `delegate` → 보고 post)가 Helm drive 임대 중에도 동작하는 테스트가 L3.learning.plan 쪽에 있고 이 패키지의 훅으로 돈다.
+- M3: UC-3 경로(학습 그룹 `g.delegate` → `delegate` → 보고 post)가 Helm drive 락 중에도 동작하는 테스트가 L3.learning.plan 쪽에 있고 이 패키지의 훅으로 돈다.
 - `just verify`가 종료코드 0이다.
 - check-layers: core-agents가 다른 `core-*`, `cap-*`, `group-*` 패키지와 `cordis`를 import하지 않는다.
 

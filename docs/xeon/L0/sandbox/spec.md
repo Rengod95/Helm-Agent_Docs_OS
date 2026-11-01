@@ -262,7 +262,7 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 
 | 경로 | 일치 | 접근 거부 | 이유 코드 | 18 §3.11.5 대응 |
 |---|---|---|---|---|
-| `<fresnelData>/` 전체(단일 DB, WAL, blob) | prefix | 읽기·쓰기 | `fresnel_data` | `/srv/volumes/**` 대체. bash로 DB·blob을 직접 고치는 우회 쓰기(13 §3.5.1 W-3)와 다른 세션 내용 읽기를 막는다 |
+| `<fresnelData>/` 전체(단일 DB, WAL, blob) | prefix | 읽기·쓰기 | `fresnel_data` | `/srv/volumes/**` 대체. bash로 DB·blob을 직접 고치는 우회 쓰기(13 §3.5.1 W-3)와 다른 대화 내용 읽기를 막는다 |
 | `<fresnelConfig>/` 전체 | prefix | 쓰기 | `fresnel_config` | `~/.config/helm/**` 대체. 다음 시작 때 설정·플러그인으로 코드가 실행된다 |
 | `<fresnelConfig>/secrets/` 전체(메타 파일, 감사 파일, 파일 폴백 age 키 기본 위치 `<fresnelConfig>/secrets/age/keys.txt`) | prefix | 읽기·쓰기 | `secret_key` | 새 행. `<fresnelConfig>/` 행은 쓰기만 막으므로 시크릿 파일의 읽기를 따로 막는다(`L0.secrets.spec` §3.2·§4.7) |
 | `SecretService.protectedPaths()`가 돌려주는 절대 경로(설정한 SOPS 파일, `l0.secrets.ageKey.filePath`로 바꾼 파일 폴백 age 키) | exact | 읽기·쓰기 | `secret_key` | SOPS 원본 행 대체. 등록 API를 두지 않고 sandbox가 상태 탐지 때와 `l0.secrets.*` 변경 뒤에 이 목록을 다시 읽는다 [제안] |
@@ -352,7 +352,7 @@ export function selectSandboxProvider(input: {
 4. 명령이 argv 배열이면 POSIX 작은따옴표 규칙으로 이어 셸 문자열 하나로 만든다(srt 입력이 문자열이다).
 5. 호출마다 128비트 무작위 `commandId`를 만든다(`crypto.getRandomValues`). 위반 귀속 키이고 명령 문자열 앞 100자 비교의 교차 귀속을 피한다(`_research/notes/L0-1.md` §5, srt `WrapWithSandboxOptions.commandId` 주석).
 6. `wrapWithSandboxArgv(command, "bash", customConfig, context.abortSignal, options.cwd, { commandId })`로 `{ argv, env }`를 얻는다. `customConfig`는 3.2절 변환 결과의 파일 정책이다. `binShell`에 `"bash"`를 넘기는 것은 [가정]이다(셸 경로 해석 방식 미확인).
-7. 래핑이 throw하면 `err(ExecutionError("sandbox_failed", <오류 이름과 code만>))`. 이때 `cleanupAfterCommand()`를 부르지 않는다. 실행 중인 다른 샌드박스의 마운트 지점을 지우기 때문이다(`_research/notes/L0-1.md` §8 생명주기).
+7. 래핑이 throw하면 `err(ExecutionError("sandbox_failed", <오류 이름과 code만>))`. 이때 `cleanupAfterCommand()`를 부르지 않는다. 실행 중인 다른 샌드박스의 마운트 경로를 지우기 때문이다(`_research/notes/L0-1.md` §8 생명주기).
 8. `shell.exec(argv, { ...options, env: { ...options.env, ...srtEnv } }, context)`. `srtEnv`는 srt가 돌려준 `env`에서 부모 `process.env`와 값이 같은 항목을 뺀 차이다 [가정: 반환 `env`가 전체 env인지 추가분인지 미확인. 전체라면 차이 계산이 필요하고, 차이로 하면 exec의 허용 목록 규칙을 지킨다].
 9. 결과가 나오면(성공, 실패 모두) `getViolationsForCommand(commandId)`로 위반을 모아 `SandboxViolation[]`로 바꾸고(같은 `operation`·`target`은 합쳐 `count`), 최대 50개만 싣는다. 그 뒤 `cleanupAfterCommand()`를 부른다.
 10. 성공 결과에 `sandbox: { sandboxed: true, level: "srt", violations, violationsTruncated }`를 붙인다. 실패(`ExecutionError`)에는 붙이지 않는다.
@@ -377,7 +377,7 @@ export function selectSandboxProvider(input: {
 
 ### 4.4 자가 시험
 
-`docs/design/18-security.md` §3.11.4를 옮긴다. 시작 때, `l0.sandbox.selfTestIntervalMin`마다, doctor 실행 때 돈다. 호출자는 조립 지점(apps/host)이고 `Shell`은 `fresnel.exec`의 것이다(8.3절). 시험용 쓰기 루트는 새 임시 디렉터리 하나다.
+`docs/design/18-security.md` §3.11.4를 옮긴다. 시작 때, `l0.sandbox.selfTestIntervalMin`마다, doctor 실행 때 돈다. 호출자는 조립 위치(apps/host)이고 `Shell`은 `fresnel.exec`의 것이다(8.3절). 시험용 쓰기 루트는 새 임시 디렉터리 하나다.
 
 호출 경로 [결정: m2 마감 G1-12]: 조립 루트가 `SandboxServiceHandle.startSelfTests(shell)`을 한 번 부른다. 이 메서드가 시작 직후 `selfTest`를 한 번 돌리고, 끝날 때마다 `l0.sandbox.selfTestIntervalMin`분 뒤로 다음 실행을 `fresnel.os`의 `Scheduler`에 건다(0이면 시작 때 한 번뿐이다). 실행은 겹치지 않고, 간격은 한 실행이 끝날 때마다 설정 함수에서 다시 읽는다. 돌려주는 `SelfTestSchedule`은 `first`(첫 실행의 `Result<SelfTestReport, SelfTestRunError>`)와 `stop()`을 가진다. 항목 실패는 보고서 값(`passed: false`)이고 `status()`의 `lastSelfTest`와 `available`에 반영된다. 시험 자체가 던지면(`crashed`) 로그 `sandbox.self_test_crashed`만 남기고 반복은 계속한다. 서비스 `dispose()`가 모든 반복을 멈춘다. doctor는 `selfTest`를 직접 부른다.
 
@@ -451,7 +451,7 @@ export function selectSandboxProvider(input: {
 |---|---|
 | 래핑 중 srt 오류(`LinuxSandboxProfileError` 등) | `sandbox_failed`. 메시지에는 오류 이름과 `.code`만. `cleanupAfterCommand` 부르지 않음 |
 | 실행 중 새로 생긴 `.env` 파일 | 덮지 못한다(basename 전개는 실행 전에만). L2 파일 도구 검사는 실행 뒤에도 적용된다. 위험으로 남긴다 |
-| Linux에서 존재하지 않는 거부 경로 | srt가 마운트 지점을 만들고 `cleanupAfterCommand`가 지운다(`_research/notes/L0-1.md` §8) |
+| Linux에서 존재하지 않는 거부 경로 | srt가 마운트 경로를 만들고 `cleanupAfterCommand`가 지운다(`_research/notes/L0-1.md` §8) |
 | 병렬 명령 | 같은 프로세스의 srt 싱글턴을 공유한다. 파일 정책은 명령마다 다르다. 네트워크 정책은 프로세스에 하나다 |
 | 취소 | `context.abortSignal`을 srt 래핑과 아래 `exec` 모두에 넘긴다. 프로세스 정리는 exec(`L0.exec.spec` B-17) |
 | 쓰기 루트가 없음(빈 목록) | 샌드박스 안 쓰기 전부 거부. `autoAllow`는 조건을 만족할 수 있다 |
@@ -498,7 +498,7 @@ export function selectSandboxProvider(input: {
 
 ## 7. 훅
 
-- `fresnel.sandbox`는 `on` 지점을 선언하지 않는다. 도구 실행 지점(`tool.call.before` first, `tool.result` chain)은 L1이 선언하고(`F.extensions.spec`), 자동 허용 판정 결과를 쓰는 곳도 L1이다.
+- `fresnel.sandbox`는 `on` 훅을 선언하지 않는다. 도구 실행 훅(`tool.call.before` first, `tool.result` chain)은 L1이 선언하고(`F.extensions.spec`), 자동 허용 판정 결과를 쓰는 곳도 L1이다.
 - `post`, `drive`와 관계없다.
 - 확장(플러그인)이 정책을 완화하는 경로는 없다. 확장은 `scope`로 `SandboxServiceName`을 주입받아 `status()`, `protectedPaths()`, `autoAllow()`를 읽을 수 있다. `wrapShell`을 직접 써서 자기 프로세스를 감쌀 수 있다 [제안].
 
@@ -530,7 +530,7 @@ export function selectSandboxProvider(input: {
 | `fresnel.exec`(`L0.exec.spec`) | `SENSITIVE_ENV_PATTERNS`를 F에 두는 것(자가 시험 `env_allowlist`), `Shell` 데코레이션 성질(§3.7) |
 | `L1.tools.spec` | (1) 셸 도구 실행 경로에서 `wrapShell`로 감싼 `Shell`을 쓰는 조립. (2) `onUnavailable` 표(4.5절)의 도구 광고·승인 처리. (3) `autoAllow` 판정의 적용. (4) 파일 도구가 `protectedPaths()`와 `matchProtectedPath`로 realpath 검사(18 R-12). (5) 격리 없이 실행한 호출의 기록(이벤트 소유 [미결]) |
 | `L2.workspace.spec` | §4.3 6번 보호 경로 검사에 `matchProtectedPath` 사용. 쓰기 루트를 `defaultPolicy` 입력과 같은 값으로 쓰기 |
-| `L4.host-service.spec`, apps/host | 시작 때와 `l0.sandbox.selfTestIntervalMin`마다 `selfTest(<fresnel.exec Shell>, …)` 호출. exec·sandbox 조립 지점 |
+| `L4.host-service.spec`, apps/host | 시작 때와 `l0.sandbox.selfTestIntervalMin`마다 `selfTest(<fresnel.exec Shell>, …)` 호출. exec·sandbox 조립 위치 |
 | `L4.cli.spec` | doctor 출력에 `describeSandboxStatus`, `missing_dependency`는 종료 코드 2 계열 |
 | `L2.mcp.spec` | MCP stdio 서버를 샌드박스에 넣을지 협의(10절 3번) |
 
@@ -565,4 +565,4 @@ export function selectSandboxProvider(input: {
 8. [미결] `SettingsTab`의 `"sandbox"` 추가(F 변경).
 9. [미결] 프록시 훅(후속, sentinel 모드). `L0.secrets.spec` §4.3 M2 sentinel 설계는 자식 HTTPS가 `fresnel.sandbox` 프록시를 지나고 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 요구한다. 이 문서는 아직 그 훅을 정하지 않았다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안을 `L0.sandbox.plan` SB-16에서 비교하고 TLS 종단(`L0.secrets.spec` §10 6번)과 함께 정한다.
 10. [미결] `wrapArgv`의 위반 수집. 장수 프로세스는 위반 줄을 언제 모을지 정해야 한다(종료 때 한 번, 주기적으로 등). 1차는 모으지 않고, `SandboxedArgv`에도 위반 필드가 없다(4.9절).
-11. [미결] `cleanupAfterCommand`의 전역 범위. srt 상태는 프로세스 전역이고, 이 함수는 실행 중인 다른 샌드박스가 쓰는 마운트 지점을 지울 수 있다(`_research/notes/L0-1.md` §8). `wrapArgv`의 `cleanup`은 호출 횟수만 한 번으로 막는다. 여러 장수 프로세스의 정리 시점을 어떻게 정할지 정해야 한다(4.9절).
+11. [미결] `cleanupAfterCommand`의 전역 범위. srt 상태는 프로세스 전역이고, 이 함수는 실행 중인 다른 샌드박스가 쓰는 마운트 경로를 지울 수 있다(`_research/notes/L0-1.md` §8). `wrapArgv`의 `cleanup`은 호출 횟수만 한 번으로 막는다. 여러 장수 프로세스의 정리 시점을 어떻게 정할지 정해야 한다(4.9절).

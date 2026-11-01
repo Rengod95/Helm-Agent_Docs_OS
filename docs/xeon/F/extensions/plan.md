@@ -16,11 +16,11 @@ binds: [xeon/packages/contracts/src/extensions/**]
 
 | 마일스톤 | 범위 | 소비자 |
 |---|---|---|
-| M0 | 훅 종류 7·fold 4 타입, `HookSignatures`·`HookDecl`·`HOOKS` 46행 전체(M3 개정, adr.0017), `FIRST_DENY`, `CHAIN_RULES`, M1 지점(스펙 §3.4 M1 열 ●: `input.user.before`, `request.context.before`, `request.provider.before`, `tool.call.before`, `tool.result`, `boundary.step.before`, `boundary.step.after`, `boundary.settle.before`, `boundary.settle.after`, `thread.start`, `thread.shutdown`)의 페이로드·결정·패치 정확화, 4연산 타입(`ExtensionOps`, `Handler`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`), `ExtensionManifest`, `validateManifest`, `validateUsage`, `validateManifestSet`, `GroupRecord`·`RecordKindDecl`과 `grp.`/`x.` 접두 검증, 문서 표 대조 검사 | X ext-host 최소형(on/post/drive/scope), L1 core-loop·core-tools의 훅 발화 |
+| M0 | 훅 종류 7·fold 4 타입, `HookSignatures`·`HookDecl`·`HOOKS` 46행 전체(M3 개정, adr.0017), `FIRST_DENY`, `CHAIN_RULES`, M1 훅(스펙 §3.4 M1 열 ●: `input.user.before`, `request.context.before`, `request.provider.before`, `tool.call.before`, `tool.result`, `boundary.step.before`, `boundary.step.after`, `boundary.settle.before`, `boundary.settle.after`, `thread.start`, `thread.shutdown`)의 페이로드·결정·패치 정확화, 4연산 타입(`ExtensionOps`, `Handler`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`), `ExtensionManifest`, `validateManifest`, `validateUsage`, `validateManifestSet`, `GroupRecord`·`RecordKindDecl`과 `grp.`/`x.` 접두 검증, 문서 표 대조 검사 | X ext-host 최소형(on/post/drive/scope), L1 core-loop·core-tools의 훅 발화 |
 | M1 | 걷는 골격 스모크: 테스트용 그룹이 이 타입으로 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓴다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 이 그룹의 매니페스트는 `validateManifest`와 `validateUsage`를 통과해야 한다. 스모크에서 드러난 페이로드 누락을 반영한다 | X, L1, L3 테스트 그룹 |
-| M2 이후 | M1 밖 지점의 페이로드 중 `Type.Unknown()`으로 둔 필드 정확화(F.records의 투영 타입, 컴팩션 타입이 정해진 뒤), 열거형 확장 예약(파트·이벤트 종류 접두, 선언 병합 규칙), 격리 필드(`isolation: "process"`)의 와이어 직렬화 요구 반영, 미결 사항 결정 반영 | X.loading-trust(격리), L3 전체 |
+| M2 이후 | M1 밖 훅의 페이로드 중 `Type.Unknown()`으로 둔 필드 정확화(F.records의 투영 타입, 컴팩션 타입이 정해진 뒤), 열거형 확장 예약(파트·이벤트 종류 접두, 선언 병합 규칙), 격리 필드(`isolation: "process"`)의 와이어 직렬화 요구 반영, 미결 사항 결정 반영 | X.loading-trust(격리), L3 전체 |
 
-- M0에서 나머지 30개 지점은 같은 PR에서 표만 채운다. `HookDecl`의 모든 필드를 채우되 페이로드 스키마의 pi 고유 하위 타입은 `Type.Unknown()`으로 둘 수 있다(스펙 §3.3 페이로드 형태 규칙).
+- M0에서 나머지 30개 훅은 같은 PR에서 표만 채운다. `HookDecl`의 모든 필드를 채우되 페이로드 스키마의 pi 고유 하위 타입은 `Type.Unknown()`으로 둘 수 있다(스펙 §3.3 페이로드 형태 규칙).
 
 ## 2. 패키지와 파일 배치
 
@@ -65,9 +65,9 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | id | 내용 | 선행 | 규모 |
 |---|---|---|---|
 | E1 | `hooks.ts` 기본 타입: `Fold`, `HookKind`, `TapSig`·`FirstSig`·`ChainSig`, `OnError`, `FoldOnError`, `PiSource`, `HookDecl`, `FirstHookName`, `ChainHookName` | F.capabilities.plan P1 | S |
-| E2 | `points/<kind>.ts` 페이로드 스키마: pi 이벤트 인터페이스에서 `type`을 빼고 필드 이름을 유지한다. M1 지점 11개는 스펙 §3.5 형태로 정확화하고, 나머지는 pi 고유 하위 타입을 `Type.Unknown()`으로 둔다. ID 필드는 F.conversation의 브랜드 ID를 쓴다 | E1, F.records.plan R1(`DurableEventDraft`)·R2(`EventKind`), F.conversation.plan C1(`ThreadId` 등 ID)·C2(메시지 재노출) | L |
+| E2 | `points/<kind>.ts` 페이로드 스키마: pi 이벤트 인터페이스에서 `type`을 빼고 필드 이름을 유지한다. M1 훅 11개는 스펙 §3.5 형태로 정확화하고, 나머지는 pi 고유 하위 타입을 `Type.Unknown()`으로 둔다. ID 필드는 F.conversation의 브랜드 ID를 쓴다 | E1, F.records.plan R1(`DurableEventDraft`)·R2(`EventKind`), F.conversation.plan C1(`ThreadId` 등 ID)·C2(메시지 재노출) | L |
 | E3 | 반환 타입: first 결정(`ToolCallDecision`의 deny 형태, `UserBashDecision`, `ProjectTrustDecision`, `SessionCancelDecision` 등), chain 값·패치(`InputPatch`, `ContextPatch`, `HeadersPatch`, `ToolResultPatch`, `BoundaryValue`·`BoundaryPatch`(entries + continue), `ResourcesPatch` 등)와 각 스키마 | E2 | M |
-| E4 | pi 이벤트 → 지점 매핑 표 코드화: `HookSignatures` 46행, `HOOKS` 46행(kind, fold, failure, dispatch, payload, result, finalize, m1, pi 출처), `FIRST_DENY` 9행, `CHAIN_RULES` 10행(merge, stop), `COLLECT_RULES` 2행(merge). `HookNameSchema` | E1, E2, E3 | M |
+| E4 | pi 이벤트 → 훅 매핑 표 코드화: `HookSignatures` 46행, `HOOKS` 46행(kind, fold, failure, dispatch, payload, result, finalize, m1, pi 출처), `FIRST_DENY` 9행, `CHAIN_RULES` 10행(merge, stop), `COLLECT_RULES` 2행(merge). `HookNameSchema` | E1, E2, E3 | M |
 | E5 | `ops.ts`: `HandlerContext`, `Handler`(fold별 조건부 타입), `PostItem`, `PostOptions`, `PostReceipt`, `ExtensionOps` | E4, F.conversation.plan C2(`TextContent`, `ImageContent`, `JsonValue`). `requestId`는 `string`이다(스펙 §2) | S |
 | E6 | `drive.ts`와 `scope.ts`: `DriveFn`, `LoopHandle`, `LeaseBudget`, `DriveLease`, `DriveLimits`, `TurnInput`·`TurnOutcome`, `SpawnSpec`·`SpawnOutcome`, `ScopeDef`, `StateDecl`, `ScopeApi`(`capability(key)`, `recordPrivate(kind, payload)` 포함. `recordPrivate`는 review.decisions-2 T-21), `ScopeHandle`, `ScopeFn`, `ExtensionEntry` | E5, F.capabilities.plan P3(`ServiceKey`) | M |
 | E7 | `manifest.ts`: `ExtensionManifestSchema`와 하위 스키마, `defineManifest`. Claude Code `plugin.json` 메타 필드 + Fresnel 필드 | E4, E8, F.capabilities.plan P1 | M |
@@ -75,7 +75,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | E10 | `ports.ts`: 스펙 §3.2.1 블록을 그대로 코드로 옮긴다. `PortKey`(`member` 포함), `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort`, `HookRunSpec`, `HookRawRun`), `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입·키, 로더 포트(`LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`와 부속 타입), `RecordCommitPort` 재노출. 스펙 §9 12~14의 값·타입 테스트를 둔다. 정본은 F다. X 문서(`X.primitives.spec` §3.6, `X.loading-trust.spec`, `X.operations.spec`)와 ext-host는 자기 정의를 두지 않고 이 이름을 `import type`으로 가져와 다시 export한다 | E5, F.records.plan R12(`RecordCommitPort`, `ProjectorRegistry`, `StoreService`) | M |
 | E9 | `validate.ts`: `validateManifest`(알 수 없는 키 제거 포함), `validateUsage`, `validateManifestSet`(`drive_conflict`), `validateGroupRecord`. 문서 표와 코드 `HOOKS` 일치 검사 스크립트(`check-points-doc.ts`): 스펙 §3.4 표에서 `` | <n> | `<이름>` | <kind> | <fold> | `` 행을 읽어 이름·kind·fold·M1 표시를 `HOOKS`와 비교한다 | E4, E7, E8 | M |
 
-- E2가 가장 크다. M1 지점부터 끝내고 E4로 넘긴 뒤 나머지 30개 페이로드를 채우는 순서로 나눌 수 있다.
+- E2가 가장 크다. M1 훅부터 끝내고 E4로 넘긴 뒤 나머지 30개 페이로드를 채우는 순서로 나눌 수 있다.
 - 합성 규칙 형식은 pi durable 훅 표(`~/projects/_ref/pi-src/packages/durable/docs/spec.md` 2636-2660)처럼 "훅 이름 → 합성 → 실패"를 한 표로 둔다. `HOOKS`와 `CHAIN_RULES`가 그 표의 코드형이다.
 
 ## 4. 채택 코드
@@ -117,7 +117,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | | `capability schema shared` | `requires[].id` 스키마가 `CapabilityIdSchema`와 같은 참조 |
 | | `name pattern` | `acme-notes`는 통과, 밑줄(`acme_notes`), 대문자, 33자 이름은 `schema` 오류(`EXTENSION_NAME_PATTERN` `^[a-z][a-z0-9-]{1,31}$`, review.decisions-2 U-18) |
 | | `smoke group fixture valid` | `fixtures/smoke-group.manifest.json`이 이슈 0건 |
-| `validate.test.ts` | `undeclared point` | 사용 기록의 `on`에 선언 밖 지점이 있으면 `point_undeclared` |
+| `validate.test.ts` | `undeclared point` | 사용 기록의 `on`에 선언 밖 훅이 있으면 `point_undeclared` |
 | | `undeclared capability` | `capability(key)` 대상이 `requires`·`optional`에 없으면 `capability_undeclared` |
 | | `drive rules` | plugin의 `usesDrive: true`는 `drive_requires_group`, 선언 없이 `drive`를 쓰면 `drive_undeclared` |
 | | `drive conflict` | 기본 활성 drive 그룹 둘이면 `drive_conflict` 경고, 하나가 `defaultEnabled: false`면 경고 없음 |
@@ -151,7 +151,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 4. `@fresnel/contracts/extensions` 서브패스로 공개 이름 전부를 import할 수 있다.
 5. 정합성 검사 입력으로 다음 교차 확인 항목을 남긴다(P2 검토자용).
    - X.primitives.plan이 `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `DriveFn`, `LoopHandle`, `ScopeApi`, `ScopeFn`을 `@fresnel/contracts/extensions`에서 import하고 다시 정의하지 않는지.
-   - L1 각 plan이 지점을 발화할 때 `HOOKS`의 이름을 문자열 상수로 쓰지 않고 `HookName` 타입으로 쓰는지.
+   - L1 각 plan이 훅을 발화할 때 `HOOKS`의 이름을 문자열 상수로 쓰지 않고 `HookName` 타입으로 쓰는지.
    - `CapabilityIdSchema`가 F.capabilities와 같은 객체인지.
    - `DurableEventDraft`, `EventKind`, `ExtensionEventKind`, ID 브랜드(`ThreadId` 등), `AgentMessage` 재노출을 F.records.spec, F.conversation.spec의 위치에서 import하고 다시 정의하지 않는지.
    - L3.helm.spec과 L3.learning.spec의 매니페스트가 `usesDrive`(Helm 참, 학습 거짓)를 쓰고, `recordKinds`를 자기 접두로만 선언하며, 다른 그룹의 비공개 기록을 읽는 선언이 없는지(스펙 §4.8).
@@ -164,5 +164,5 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | boundary fold가 chain 교체로 부족해 4번째 fold가 필요해짐 | `Fold`, `Handler`, `HOOKS` 구조가 바뀌어 X·L1 코드가 함께 바뀐다 | `CHAIN_RULES`와 `finalize` 표지로 pi 합성을 모두 표현할 수 있음을 `chain-rules.test.ts`로 고정한다. 사용자 결정이 바뀌면 `Fold`에 값을 추가하는 하위 호환 변경으로 처리할 수 있게 `Handler`를 조건부 타입 한 곳에 둔다 |
 | drive 재생 규율을 타입으로 막지 못함 | 클로저 상태를 쓰는 drive 함수가 재개 뒤 다르게 동작한다 | `loop.turn`·`loop.spawn` 기본 `requestId`를 결정적으로 정해 중복 실행을 막고, 결정성 lint는 L3.group-sdk에 요청한다. 스펙 §4.6에 규율을 명시한다 |
 | 훅 이름 표기 불일치(snake_case 대 점 표기) | 문서·코드·조사 자료 사이에서 이름이 달라 검색과 대조가 실패한다 | 정본을 pi snake_case로 두고 `HookName` 타입 밖의 문자열은 컴파일 오류가 되게 한다. 별칭 허용 여부는 [미결]로 사용자 확인 |
-| first fail-closed가 `session_before_*`에서 과도함 | 결함 있는 확장 하나가 세션 전환·컴팩션을 계속 막는다 | 거부값을 `FIRST_DENY`에 지점별로 두어 결정이 바뀌면 값만 바꾸도록 한다. 반복 거부 기록은 X.operations의 안전 모드 근거로 넘긴다 |
+| first fail-closed가 `session_before_*`에서 과도함 | 결함 있는 확장 하나가 대화 전환·컴팩션을 계속 막는다 | 거부값을 `FIRST_DENY`에 훅별로 두어 결정이 바뀌면 값만 바꾸도록 한다. 반복 거부 기록은 X.operations의 안전 모드 근거로 넘긴다 |
 | F.records·F.conversation 이름(`DurableEventDraft`, `ExtensionEventKind`, ID 브랜드) 변경 | E2·E8의 import가 깨진다 | 이름은 두 spec에서 확정했다. 바뀌면 두 spec을 먼저 고치고 import만 바꾼다. 해당 필드를 `points/*.ts` 안의 타입 별칭 한 곳으로 모은다 |

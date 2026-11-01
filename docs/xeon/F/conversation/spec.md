@@ -37,18 +37,18 @@ binds: [xeon/packages/contracts/src/conversation/**]
 
 | 용어 | 뜻 | pi 대응 |
 |---|---|---|
-| thread | 대화 하나. 분기 트리를 포함한다. 현재 가지는 leaf 포인터로 정한다 | 세션 파일 하나 |
+| thread | 대화 하나. 분기 트리를 포함한다. 현재 가지는 leaf 포인터로 정한다 | 대화 파일 하나 |
 | turn | 사용자 입력 하나(또는 예약·원격 입력 하나)에 대한 한 번의 작업. 첫 모델 호출부터 루프 종료까지다 | `agent_start` ~ `agent_end` |
 | step | 모델 응답 1회와 그 응답이 부른 도구 결과 묶음. 체크포인트 단위다 | `turn_start` ~ `turn_end` |
 | item | 입출력 단위. 사용자 메시지, 어시스턴트 메시지, 시스템 메시지, 도구 호출, 도구 결과, 확장 커스텀 메시지 | `message_start` ~ `message_end`, `tool_execution_start` ~ `tool_execution_end` |
 | part | 어시스턴트 메시지 `content` 배열의 블록 하나(text, thinking, toolCall)에 Fresnel이 붙인 id 레코드 | `contentIndex` |
-| 단계 경계 | step이 끝나고 다음 step이 시작되기 전 시점(step 종료 직후, 도구 결과 커밋 뒤). 체크포인트 커밋, drive 임대 교대, scope 켜기·끄기 적용 시점이다 [결정: review.decisions-2 U-01] | `turn_end` 직후 |
+| 단계 경계 | step이 끝나고 다음 step이 시작되기 전 시점(step 종료 직후, 도구 결과 커밋 뒤). 체크포인트 커밋, drive 락 교대, scope 켜기·끄기 적용 시점이다 [결정: review.decisions-2 U-01] | `turn_end` 직후 |
 
 ### 2.1 turn과 step 용어 충돌 [결정: review.decisions-2 U-01]
 
 - pi의 turn은 Fresnel의 step이다. pi의 run(`agent_start`~`agent_end`)이 Fresnel의 turn이다.
-- 훅 이름은 pi 이벤트 이름을 그대로 쓴다(`F.extensions.spec`의 훅 선언 표). 그래서 `turn_start`·`turn_end` 지점은 Fresnel의 step 경계에서 발화한다. 훅 이름과 Fresnel 계층 이름이 다르다는 점을 훅 선언 표의 설명 열에 적는다.
-- `_research/foundation-plan.md` §6 M1 스모크가 정한 drive 그룹 켜기·끄기의 적용 시점은 단계 경계다. 턴은 여러 단계로 이어질 수 있어 턴이 끝날 때까지 기다리면 긴 턴에서 토글이 늦게 적용된다. 단계 경계는 커밋된 상태만 보이는 가장 이른 안전 지점이고, 턴의 끝은 그 부분집합이다. 모든 문서는 적용 시점을 "단계 경계"로 쓴다.
+- 훅 이름은 pi 이벤트 이름을 그대로 쓴다(`F.extensions.spec`의 훅 선언 표). 그래서 `turn_start`·`turn_end` 훅은 Fresnel의 step 경계에서 발화한다. 훅 이름과 Fresnel 계층 이름이 다르다는 점을 훅 선언 표의 설명 열에 적는다.
+- `_research/foundation-plan.md` §6 M1 스모크가 정한 drive 그룹 켜기·끄기의 적용 시점은 단계 경계다. 턴은 여러 단계로 이어질 수 있어 턴이 끝날 때까지 기다리면 긴 턴에서 토글이 늦게 적용된다. 단계 경계는 커밋된 상태만 보이는 가장 이른 안전 시점이고, 턴의 끝은 그 부분집합이다. 모든 문서는 적용 시점을 "단계 경계"로 쓴다.
 - 이 매핑은 `review.decisions-2` U-01의 결정이다(2026-10-22 사용자 확인). 번복하면 이 절과 §10 1번을 고친다.
 
 ## 3. 인터페이스
@@ -585,7 +585,7 @@ export const ItemUpdatedPayloadSchema: Schema<ItemUpdatedPayload>;
 |---|---|---|---|
 | (입력 접수, pi 이전) | `item.started`/`item.completed`(user), `turn.started` | `item.recorded`, `turn.started` | 입력 item은 turn 시작 전에 기록한다. `requestId` 멱등 |
 | `agent_start` | `turn.updated{status:"running"}` | — | turn.started는 입력 접수 때 이미 냈다 |
-| `turn_start` | `step.started` | `step.started` | 지점 `turn_start`도 여기서 발화(§2.1) |
+| `turn_start` | `step.started` | `step.started` | 훅 `turn_start`도 여기서 발화(§2.1) |
 | `message_start`(assistant) | `item.started{kind:"assistant"}`, `step.updated{status:"requesting"}` | — | |
 | `message_update` + `text_start`·`thinking_start`·`toolcall_start` | `item.updated{part_delta, phase:"start"}` | — | 여기서 `PartId` 발급 |
 | `message_update` + `*_delta` | `item.updated{part_delta, phase:"delta"}` | — | 휘발 |
@@ -597,7 +597,7 @@ export const ItemUpdatedPayloadSchema: Schema<ItemUpdatedPayload>;
 | `tool_execution_update` | `item.updated{tool_progress}` | — | 휘발 |
 | `tool_execution_end` | `item.completed{ToolCallItem}` | `effect.result` | |
 | `message_start`·`message_end`(toolResult) | `item.started`, `item.completed{kind:"toolResult"}` | `item.recorded` | `effect.result`와 같은 커밋 |
-| `turn_end` | `step.completed` | `step.completed`, `checkpoint.step` (같은 커밋, FULL) | 단계 경계. 지점 `turn_end` 발화 |
+| `turn_end` | `step.completed` | `step.completed`, `checkpoint.step` (같은 커밋, FULL) | 단계 경계. 훅 `turn_end` 발화 |
 | `agent_end` | `turn.completed` | `turn.completed` | 상태는 마지막 어시스턴트 `stopReason`으로 정한다(아래) |
 
 `turn.completed.status` 결정 [제안]:
@@ -729,8 +729,8 @@ export * from "./tool-result.ts";
 
 ## 7. 훅
 
-- 지점 `turn_start`, `turn_end`, `message_start`, `message_update`, `message_end`, `tool_execution_*`은 pi 이벤트 이름을 그대로 쓴다. 선언(fold 종류, 페이로드 타입)은 `F.extensions.spec`의 훅 선언 표가 정한다. 페이로드 타입은 이 문서의 `AgentEvent`(§3.1.1) 변형과 알림 타입을 참조한다.
-- `turn_start`·`turn_end` 지점은 Fresnel step 경계에서 발화한다(§2.1).
+- 훅 `turn_start`, `turn_end`, `message_start`, `message_update`, `message_end`, `tool_execution_*`은 pi 이벤트 이름을 그대로 쓴다. 선언(fold 종류, 페이로드 타입)은 `F.extensions.spec`의 훅 선언 표가 정한다. 페이로드 타입은 이 문서의 `AgentEvent`(§3.1.1) 변형과 알림 타입을 참조한다.
+- `turn_start`·`turn_end` 훅은 Fresnel step 경계에서 발화한다(§2.1).
 - 확장은 `FresnelCustomMessage.customType`으로 구분한다. `AgentMessage`는 닫힌 유니온이고 선언 병합은 없다(§3.1.1, adr.0009).
 - post로 들어온 내용이 대화에 남을 때는 `custom` item으로 기록된다. post 수용 기록은 `F.records.spec`의 `input.queued`(`source.type: "extension"`)다(`post.accepted` retire, review.decisions-2 U-05).
 
@@ -764,7 +764,7 @@ export * from "./tool-result.ts";
 
 ## 10. 미결 사항
 
-1. [결정: review.decisions-2 U-01] 용어: pi turn = Fresnel step, pi run = Fresnel turn이다. 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§2.1). 사용자 확인 대상이다.
+1. [결정: review.decisions-2 U-01] 용어: pi turn = Fresnel step, pi run = Fresnel turn이다. 켜기·끄기와 drive 락 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§2.1). 사용자 확인 대상이다.
 2. [결정: M3-REQ-20] 런타임 스키마 방식: `Type.Unsafe` 래핑을 유지하되 객체를 깊게 검사한다(§3.3). 모든 객체가 열려 있어 pi가 선택 필드를 더해도 옛 기록이 통과한다. pi를 올릴 때는 이 파일의 스키마를 함께 고친다.
 3. [결정: M2 마감 G5-03] ULID 단조성은 L0 `createIdFactory`·`createLocalIdFactory`(`L0.os.spec` §3.4, `platform-os/src/ids.ts`)가 지킨다. 같은 밀리초이거나 시계가 뒤로 가면 직전 시각을 유지하고 난수 부분을 1 올리며, 80비트가 넘치면 시각을 1ms 올린다. L1 래퍼는 두지 않는다. `platform-os/test/ids.test.ts`가 연속 발급의 사전순 증가를 확인한다.
 4. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 고정한 판과 같아 한 사본만 설치한다.

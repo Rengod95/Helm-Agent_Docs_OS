@@ -18,7 +18,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 
 근거:
 
-- [결정] 훅은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다(`_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3).
+- [결정] 훅은 on(fold tap/first/chain), post, drive(배타 drive 락), scope 4연산이다(`_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3).
 - [결정] DI는 Cordis 하나다. `cordis`를 import하는 패키지는 `ext-host` 하나다(adr.0002 §3, eng.dependency-rules.guide DR-11). vendored Cordis에는 `@cordisjs/plugin-loader`가 없다(`xeon/vendor/cordis/UPSTREAM.json` `notCopied`). 설정 파일 기반 로딩은 ext-host가 직접 구현한다(adr.0002 §4.2).
 - [결정] 확장 프로세스 격리는 사용자가 확장마다 켜는 2차 선택 기능이고 기본값은 꺼짐이다(`_research/layer-plan-v2-notes.md` "확장 프로세스 격리는 기본값이 아니어도 된다", `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0006 §4.2).
 - 층 구성 계획 v2 X-a 행: 확장 로딩(그대로, Cordis), 기능 선언 정적 검증(설계), 프로젝트 신뢰(포크, pi `trust-manager.ts`·`project-trust.ts`), 프로세스 격리(자체, vscode-jsonrpc 9.0.3)(`_research/packages.md` §4.5, §2.5).
@@ -33,12 +33,12 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 - 신뢰 등급 4값의 뜻과 허용 연산 표, 프로젝트 신뢰 판정과 저장
 - 프로세스 격리(2차)의 전송, 프록시, 직렬화, 수명, 기록 경로
 - SDK 가상 모듈(`@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
-- `thread.trust.before`, `thread.resources` 지점의 발화 시점(F.extensions.spec §7)
+- `thread.trust.before`, `thread.resources` 훅의 발화 시점(F.extensions.spec §7)
 
 다루지 않는 것:
 
-- 매니페스트 스키마, 지점 46행, fold 규칙, 정적 검사 함수(`validateManifest`, `validateUsage`, `validateManifestSet`)와 `ManifestIssueCode`: F.extensions.spec이 정본이다. 이 문서는 이름으로 인용한다.
-- 4연산 실행, 디스패처, post 큐, drive 임대 중재, scope 토글·상태, 리소스 등록 API, 설정 키 `x.primitives.*`: X.primitives.spec.
+- 매니페스트 스키마, 훅 46행, fold 규칙, 정적 검사 함수(`validateManifest`, `validateUsage`, `validateManifestSet`)와 `ManifestIssueCode`: F.extensions.spec이 정본이다. 이 문서는 이름으로 인용한다.
+- 4연산 실행, 디스패처, post 큐, drive 락 중재, scope 토글·상태, 리소스 등록 API, 설정 키 `x.primitives.*`: X.primitives.spec.
 - tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(접두 테이블 API), 이름 충돌 규칙, 안전 모드, 외부 훅 프로토콜(M4로 옮김 [결정: 2026-10-28 사용자]), 설정 키 `x.operations.*`: X.operations.spec. tier와 시간 예산은 operations 소유로 본다 [제안]. F.extensions.spec §1·§4.2의 primitives 표기는 정합성 단계에서 고친다.
 - 설정 파일 경로와 읽기, 유효 값 계산: F.wire-settings.spec과 L1.persistence.spec. 이 문서는 키 정의와 신뢰 전 적용 제외 규칙만 둔다.
 - 자식 프로세스 기동·종료의 OS 구현: L0.process.spec.
@@ -56,7 +56,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 진단 레코드 | 로드 중 생긴 문제 하나를 적은 `LoadDiagnostic` 값 |
 | 내장 필수 확장 | `essential: true`로 등록된 내장 확장. 이 확장의 실패는 시작 실패다 |
 | 격리 확장 | `ext.<name>.isolation`이 `process`인 확장. 자식 프로세스에서 실행된다 |
-| 프록시 | 격리 확장 대신 호스트 프로세스에서 지점 핸들러와 리소스를 등록하는 대리 객체 |
+| 프록시 | 격리 확장 대신 호스트 프로세스에서 훅 핸들러와 리소스를 등록하는 대리 객체 |
 | SDK 가상 모듈 | 플러그인 번들이 import하는 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`를 호스트가 쓰는 모듈 객체로 돌려주는 등록(§4.4.6) |
 | 기본 플러그인 | 릴리즈에 들어 있고 첫 실행 때 사용자 확장 위치에 복사되는 외부 확장 형식의 플러그인(Helm, §4.4.7) |
 
@@ -708,7 +708,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 - 5a단계의 안전 모드 판정은 `assignTier`로 tier를 구한 뒤 `startupFilter`(X.operations.spec §3.6)를 부른다. 안전 모드에서는 `user`·`project` tier(기본 플러그인 Helm 포함)와 L3 내장 그룹이 `disabled`(`safe_mode`)이고, `--disable-ext`로 지정한 이름은 `disabled`(`disabled_flag`)다. 빠진 외부 확장은 매니페스트만 읽고 엔트리는 import하지 않는다. 안전 모드에서는 프로젝트 위치를 탐색하지도, 프로젝트 신뢰를 묻지도 않는다(`LoadReport.projectTrust`는 null이고 진단 `safe_mode` 하나가 남는다).
 - 같은 이름이 여러 위치에 있을 때 위치가 다르면 낮은 순위의 것만 `rejected`이고, 같은 위치 안이면 둘 다 `rejected`다(§4.2.2).
 - 3단계는 두 번 실행한다. 첫 번째는 프로젝트 신뢰 전 집합(내장, 관리, 사용자), 두 번째는 프로젝트 후보를 더한 집합이다. 두 번째에서 새로 생긴 오류는 프로젝트 확장만 `rejected`로 만든다.
-- `drive_conflict`, `capability_unprovided` 경고는 진단만 남긴다. 실행 중 임대는 X.primitives가 하나만 준다.
+- `drive_conflict`, `capability_unprovided` 경고는 진단만 남긴다. 실행 중 drive 락은 X.primitives가 하나만 준다.
 - 7단계에서 scope setup이 던지거나 시간 예산을 넘으면 primitives가 그 scope의 fiber를 해제해 setup 동안의 등록(on, drive, 리소스, onDispose)을 모두 되돌린다(X.primitives.spec §4.5.3).  시간 예산 값은 X.operations.spec의 `x.operations.budget.setupMs`이고, `ExtHostDeps.setupBudgetMs`로 primitives에 들어간다.
 - 7·8단계에서 실패한 확장은 로더가 `ExtHost.uninstall`과 `policy.forget`을 불러 남은 정의와 tier 표 항목을 지운다.
 - 8단계의 `point_undeclared`, `post_undeclared`, `drive_undeclared`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`는 오류다. 7단계처럼 등록이 되돌려진 상태이고 `error`로 둔다. `point_unused`는 경고다(`usage_warning`).
@@ -832,9 +832,9 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 | `ext.<name>.enabled` | `boolean` | 매니페스트 `defaultEnabled`, 없으면 `true` | `managed`, `user`, `project`, `local`, `session` | `live` | 모든 확장 |
 | `ext.<name>.isolation` | `"none" \| "process"` | 매니페스트 `isolation`, 없으면 `"none"` | `managed`, `user` | `restart` | 내장이 아닌 확장 |
 
-- `enabled`의 세션 중 변경: 가능하다. 값이 바뀌면 로더는 바로 요청을 기록하고, 실제 켜짐·꺼짐은 다음 단계 경계에서 적용된다(F.extensions.spec §4.5). 거짓이었다가 참이 된 확장이 아직 로드되지 않았으면 `ensureLoaded`로 5a~9단계를 실행한 뒤 경계에서 켠다. 참에서 거짓이 되면 scope 끄기만 하고 모듈은 남긴다.
+- `enabled`의 대화 중 변경: 가능하다. 값이 바뀌면 로더는 바로 요청을 기록하고, 실제 켜짐·꺼짐은 다음 단계 경계에서 적용된다(F.extensions.spec §4.5). 거짓이었다가 참이 된 확장이 아직 로드되지 않았으면 `ensureLoaded`로 5a~9단계를 실행한 뒤 경계에서 켠다. 참에서 거짓이 되면 scope 끄기만 하고 모듈은 남긴다.
 - `enabled`가 거짓이면 엔트리를 import하지 않고 실행하지 않는다(5a단계 `disabled`). 내장 확장은 모듈이 이미 import되어 있지만 엔트리를 부르지 않는다.
-- `isolation`의 세션 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 프로젝트 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 매니페스트 `isolation`은 요청이고 실제 값은 이 설정이 정한다(F.extensions.spec §6).
+- `isolation`의 대화 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 프로젝트 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 매니페스트 `isolation`은 요청이고 실제 값은 이 설정이 정한다(F.extensions.spec §6).
 - 내장 확장에는 `isolation` 키를 만들지 않는다. 내장 확장의 격리는 금지다(§4.6).
 - 예약 키의 `layer`는 매니페스트 `layer`를 따른다. `plugin`이면 `L2`로 본다(F.wire-settings.spec §3.8.3 [가정]을 따른다).
 - `ui`: 두 키 모두 `tab: "plugins"`. `enabled`는 `toggle`, `isolation`은 `select`다.
@@ -863,7 +863,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 #### 4.6.2 등급 × 허용 연산 표
 
-| 등급 | 로드 | `on`(일반 지점) | `on`(`thread.trust.before`) | `post` | `drive` | 리소스 등록 | 저장(접두 테이블) | 격리 |
+| 등급 | 로드 | `on`(일반 훅) | `on`(`thread.trust.before`) | `post` | `drive` | 리소스 등록 | 저장(접두 테이블) | 격리 |
 |---|---|---|---|---|---|---|---|---|
 | `builtin` | 예 | 예 | 예 | 예 | 예 | 예 | prefix | forbidden |
 | `user` | 예 | 예 | 예 | 예 | 예 | 예 | prefix | optional |
@@ -903,7 +903,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 | 원본 요소 | 원본 동작 | Fresnel에서 바꿀 점 | 이유 |
 |---|---|---|---|
-| `import lockfile from "proper-lockfile"`, `acquireTrustLockSync`(138-168) | 동기 잠금, 20ms 바쁜 대기 10회 | 삭제. `TrustStoreBackend.update`가 잠금과 원자 교체를 맡는다 | 잠금 구현은 L0 소관이다(adr.0006 §6 세션 잠금 미결과 같은 문제). 바쁜 대기를 없앤다 |
+| `import lockfile from "proper-lockfile"`, `acquireTrustLockSync`(138-168) | 동기 잠금, 20ms 바쁜 대기 10회 | 삭제. `TrustStoreBackend.update`가 잠금과 원자 교체를 맡는다 | 잠금 구현은 L0 소관이다(adr.0006 §6 대화 잠금 미결과 같은 문제). 바쁜 대기를 없앤다 |
 | `CONFIG_DIR_NAME`(`../config.ts`) | `.pi` | 상수 `.fresnel`. config 모듈을 import하지 않는다 | config.ts 결합 해체 |
 | `homedir()`, `process.env.HOME` | 직접 읽기 | `LoaderPaths.homeDir` 주입 | 테스트와 OS 차이를 L0로 넘긴다 |
 | `existsSync`, `readFileSync`, `writeFileSync`, `mkdirSync` | 동기 fs | `LoaderFs`, `TrustStoreBackend` 비동기 포트 | X는 L0를 import하지 않는다(architecture.layers.spec §4.3.3) |
@@ -945,8 +945,8 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 1. `trustOverride`가 있으면 그 값(`via: "override"`). 저장하지 않는다.
 2. 신뢰 필요 자원이 없으면 `trusted: true`(`via: "notRequired"`).
-3. 이번 호스트 프로세스의 세션 기억(`sessionMemory`)에 결정이 있으면 그 값(`via: "sessionMemory"`).
-4. `thread.trust.before` 지점을 발화한다. 첫 결정이 `yes`나 `no`면 그 값(`via: "point"`). `remember: true`면 저장한다. 핸들러 예외는 `FIRST_DENY.project_trust`(불신)다(F.extensions.spec §3.4 27행). 결정이 없으면 다음으로 간다.
+3. 이번 호스트 프로세스의 "세션" 기억(`sessionMemory`)에 결정이 있으면 그 값(`via: "sessionMemory"`).
+4. `thread.trust.before` 훅을 발화한다. 첫 결정이 `yes`나 `no`면 그 값(`via: "point"`). `remember: true`면 저장한다. 핸들러 예외는 `FIRST_DENY.project_trust`(불신)다(F.extensions.spec §3.4 27행). 결정이 없으면 다음으로 간다.
 5. 저장소 조회. `found`면 그 값(`via: "store"`). `corrupt`면 §4.7.5.
 6. `x.loading-trust.defaultProjectTrust`가 `always`면 신뢰, `never`면 불신(`via: "default"`).
 7. `mode`가 `headless`이거나 `TrustPrompter`가 없으면 불신(`via: "headless"`, 결정 `undecided`). 저장하지 않는다.
@@ -956,9 +956,9 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 |---|---|---|
 | 이 폴더를 신뢰 | `{ kind: "folder", verdict: "allow" }` | 프로젝트 루트 `allow` |
 | 상위 폴더를 신뢰 | `{ kind: "parent", verdict: "allow" }` | 상위 폴더 `allow`, 프로젝트 루트 항목 삭제 |
-| 이번 세션만 신뢰 | `{ kind: "session", verdict: "allow" }` | 없음. `sessionMemory`에 둔다 |
+| 이번 "세션"만 신뢰 | `{ kind: "session", verdict: "allow" }` | 없음. `sessionMemory`에 둔다 |
 | 이 폴더를 신뢰하지 않음 | `{ kind: "folder", verdict: "deny" }` | 프로젝트 루트 `deny` |
-| 이번 세션만 신뢰하지 않음 | `{ kind: "session", verdict: "deny" }` | 없음. `sessionMemory`에 둔다 |
+| 이번 "세션"만 신뢰하지 않음 | `{ kind: "session", verdict: "deny" }` | 없음. `sessionMemory`에 둔다 |
 
 - 결정 3값: 저장소와 결과는 `allow`, `deny`, `undecided`를 쓴다. `undecided`는 저장되지 않는다.
 - "이번 세션만"의 "세션"은 호스트 프로세스 수명이다 [제안]. 서비스 모드(adr.0006)에서는 서비스 프로세스가 끝날 때까지 유지된다. thread 단위로 좁힐지는 §10 미결 7.
@@ -1003,7 +1003,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 1. 단위: 프로젝트 루트(정규화한 경로) 하나다. 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 적재가 중단되거나 실패하면 그 루트를 기억하지 않아 다음 호출이 다시 싣는다. 서비스 프로세스 안의 확장 이름은 하나뿐이라(§4.2.2) 먼저 실린 프로젝트의 확장이 이름을 쥐고, 다른 프로젝트의 같은 이름은 `name_conflict`로 거부된다. 서비스를 다시 띄우면 처음부터 다시 정한다.
 2. 시점: thread를 만들거나 여는 작업 폴더에 대해 호스트가 부른다. 신뢰가 아직 정해지지 않은 폴더는 아무것도 싣지 않고(`trust_undecided`) 결정은 기억하지 않는다. 결정이 나온 뒤 다음 호출이 싣는다.
-3. 프롬프트를 받을 클라이언트: 그 폴더를 연 연결이다. thread가 없는 시점이므로 `thread.trust.before` 지점(thread 필요)은 이 경로에서 발화하지 않는다. 호스트는 wire `trust.get`(선택지)과 `trust.decide`(결정)를 쓰고 `approval.requested`와 같은 A안 모양(F wire, review.decisions-2 U-02)이다. `trust.decide`가 `allow`를 반환하면 호스트가 그 결과를 `trustOverride`로 `loadProject`에 넘긴다. 로더에 직접 프롬프트를 연결하는 구현(`LoadProjectOptions.prompter`)도 같은 규칙을 따르되 그 호출의 `prompter`로만 간다.
+3. 프롬프트를 받을 클라이언트: 그 폴더를 연 연결이다. thread가 없는 시점이므로 `thread.trust.before` 훅(thread 필요)은 이 경로에서 발화하지 않는다. 호스트는 wire `trust.get`(선택지)과 `trust.decide`(결정)를 쓰고 `approval.requested`와 같은 A안 모양(F wire, review.decisions-2 U-02)이다. `trust.decide`가 `allow`를 반환하면 호스트가 그 결과를 `trustOverride`로 `loadProject`에 넘긴다. 로더에 직접 프롬프트를 연결하는 구현(`LoadProjectOptions.prompter`)도 같은 규칙을 따르되 그 호출의 `prompter`로만 간다.
 4. "이번 세션만" 결정은 서비스 프로세스 수명 동안 유지한다(§10 7번).
 5. 안전 모드이면 판정하지 않고 `safe_mode` 진단만 남긴다.
 6. 프로젝트 확장이 선언한 설정 그룹(`ext.<name>`)은 시작 때 만든 카탈로그에 없다. 서비스 모드에서 프로젝트 확장의 설정 키는 카탈로그에 추가되지 않는다 [미결].
@@ -1039,7 +1039,7 @@ flowchart LR
 
 #### 4.9.2 프록시
 
-- [제안] 호스트 쪽 프록시 확장은 격리 확장 대신 scope를 만들고(프록시도 `ExtensionUnit`으로 `ExtHost.install`에 넘긴다), `init` 결과의 `usage.on` 중 매니페스트 `points`에 선언된 지점에만 핸들러를 등록한다. 선언 밖 지점의 등록 요청은 `validateUsage`로 거부한다(8단계와 같다).
+- [제안] 호스트 쪽 프록시 확장은 격리 확장 대신 scope를 만들고(프록시도 `ExtensionUnit`으로 `ExtHost.install`에 넘긴다), `init` 결과의 `usage.on` 중 매니페스트 `points`에 선언된 훅에만 핸들러를 등록한다. 선언 밖 훅의 등록 요청은 `validateUsage`로 거부한다(8단계와 같다).
 - 프록시 핸들러는 페이로드를 JSON으로 직렬화해 `fresnel/iso.dispatch`를 보내고 결과를 F 스키마(`HookDecl.result`)로 검사한 뒤 돌려준다. 검사 실패는 핸들러 예외와 같다(F.extensions.spec §5 2번, 3번).
 - 리소스: 격리 확장이 등록한 도구는 프록시가 같은 이름으로 대신 등록한다. 실행은 `fresnel/iso.tool.execute`로 자식에게 보낸다.
 - 기능 호출: 자식의 `capability(key)` 메서드 호출은 `fresnel/iso.capability.call`로 호스트에 와서 실행된다. 매니페스트 `requires`·`optional` 밖의 기능은 거부한다.
@@ -1048,14 +1048,14 @@ flowchart LR
 
 - 페이로드, 현재값, 결정, 패치, scope 상태는 JSON으로 왕복할 수 있어야 한다. `undefined`는 `null`로 보내고 받는 쪽에서 `undefined`로 되돌린다(결정 없음).
 - `HandlerContext.signal`은 직렬화하지 않는다. 디스패처가 신호를 중단하면 프록시는 vscode-jsonrpc 취소(`$/cancelRequest`)를 보낸다. 자식 런타임은 받은 취소로 자기 `AbortController`를 중단해 핸들러의 `ctx.signal`에 전한다.
-- 시간 예산: 프록시 핸들러의 시간 예산은 X.operations.spec이 정한 지점별 예산과 같다. 예산을 넘으면 디스패처는 그 핸들러를 예외로 처리한다. 그래서 first 훅이면 `FIRST_DENY`, chain이면 그 패치 생략, tap이면 기록 후 계속이다(F.extensions.spec §4.1). 프록시는 동시에 취소를 보내고, `killGraceMs` 안에 자식이 응답하지 않으면 자식을 `SIGKILL`로 끝낸다.
+- 시간 예산: 프록시 핸들러의 시간 예산은 X.operations.spec이 정한 훅별 예산과 같다. 예산을 넘으면 디스패처는 그 핸들러를 예외로 처리한다. 그래서 first 훅이면 `FIRST_DENY`, chain이면 그 패치 생략, tap이면 기록 후 계속이다(F.extensions.spec §4.1). 프록시는 동시에 취소를 보내고, `killGraceMs` 안에 자식이 응답하지 않으면 자식을 `SIGKILL`로 끝낸다.
 - 비협조적인 확장 코드를 강제로 멈출 수 있는 경로는 프로세스 경계뿐이다(adr.0007 §4.2, adr.0006 §4.2). 같은 프로세스 확장의 시간 초과는 결과를 버릴 뿐 실행 중인 코드를 멈추지 못한다.
 
-#### 4.9.4 격리 가능 지점
+#### 4.9.4 격리 가능 훅
 
-- [제안] 지점 N이 격리 가능하려면 `HOOKS[N].payload`와 `HOOKS[N].result`가 JSON 왕복 가능한 스키마여야 한다. `isolatableHooks()`는 스키마를 훑어 `Type.Unknown()`, 함수, `Uint8Array`, `AbortSignal`을 포함한 지점을 뺀다.
-- [제안] 위 계산과 별개로 고빈도 휘발 지점 `request.stream`, `boundary.message.update`, `tool.execution.update`는 격리 불가로 둔다. 스트림 조각마다 프로세스 왕복을 하면 지연이 커지기 때문이다.
-- 격리 확장의 `points`에 격리 불가 지점이 있으면 `error`(`isolation_point_unsupported`)다. 같은 프로세스로 몰래 바꾸지 않는다. 사용자가 격리를 요청했기 때문이다.
+- [제안] 훅 N이 격리 가능하려면 `HOOKS[N].payload`와 `HOOKS[N].result`가 JSON 왕복 가능한 스키마여야 한다. `isolatableHooks()`는 스키마를 훑어 `Type.Unknown()`, 함수, `Uint8Array`, `AbortSignal`을 포함한 훅을 뺀다.
+- [제안] 위 계산과 별개로 고빈도 휘발 훅 `request.stream`, `boundary.message.update`, `tool.execution.update`는 격리 불가로 둔다. 스트림 조각마다 프로세스 왕복을 하면 지연이 커지기 때문이다.
+- 격리 확장의 `points`에 격리 불가 훅이 있으면 `error`(`isolation_point_unsupported`)다. 같은 프로세스로 몰래 바꾸지 않는다. 사용자가 격리를 요청했기 때문이다.
 - M1 이후 페이로드가 정확화되면(F.extensions.plan M2) 목록이 바뀐다. 목록은 코드가 계산하고 문서는 규칙만 둔다.
 
 #### 4.9.5 drive
@@ -1065,10 +1065,10 @@ flowchart LR
 
 #### 4.9.6 기록 경로와 접근 경계
 
-- 격리 프로세스는 세션 DB를 열지 않는다. 자식 환경 변수에 DB 경로와 시크릿을 넣지 않는다. `IsolationSpawnSpec.env`는 허용 목록(`PATH`, `HOME`, `LANG`, `FRESNEL_EXT_NAME`, `FRESNEL_EXT_DATA`)으로만 만든다 [제안].
+- 격리 프로세스는 대화 DB를 열지 않는다. 자식 환경 변수에 DB 경로와 시크릿을 넣지 않는다. `IsolationSpawnSpec.env`는 허용 목록(`PATH`, `HOME`, `LANG`, `FRESNEL_EXT_NAME`, `FRESNEL_EXT_DATA`)으로만 만든다 [제안].
 - 격리 확장의 `post`, `commit`, `record`는 RPC로 호스트에 오고, 호스트 쪽 대리인(`OutboxAgent`)이 그 확장의 scope로 실행한다(eng.transactions.design §7 "격리 확장이 세션에 결과를 돌려줄 때는 호스트 쪽 대리인이 그 확장의 `requestId`로 `post`나 확장 이벤트 커밋을 한다").
 - `post`의 `requestId`는 자식이 만든 값을 그대로 쓴다. 같은 키의 재전송은 `duplicate: true`가 된다(F.extensions.spec §4.4). 자식 재시작 뒤 같은 핸들러가 같은 키로 다시 post해도 한 번만 들어간다.
-- 격리 확장이 자기 데이터를 오래 보관하려면 `FRESNEL_EXT_DATA` 디렉터리의 자기 파일을 쓴다. 세션 이벤트를 읽어 자기 파일에 반영하는 경우의 커서 규칙은 eng.transactions.design §7 "신뢰 등급 2·3 확장이 별도 프로세스이고 자기 DB 파일을 쓸 때" 행을 따른다. 접두 테이블 API와 그 접근 차단 장치는 X.operations.spec이 소유한다. 이 문서는 격리 확장에 DB 핸들을 주지 않는다는 경계만 정한다.
+- 격리 확장이 자기 데이터를 오래 보관하려면 `FRESNEL_EXT_DATA` 디렉터리의 자기 파일을 쓴다. 대화 이벤트를 읽어 자기 파일에 반영하는 경우의 커서 규칙은 eng.transactions.design §7 "신뢰 등급 2·3 확장이 별도 프로세스이고 자기 DB 파일을 쓸 때" 행을 따른다. 접두 테이블 API와 그 접근 차단 장치는 X.operations.spec이 소유한다. 이 문서는 격리 확장에 DB 핸들을 주지 않는다는 경계만 정한다.
 
 #### 4.9.7 비정상 종료와 재시작
 
@@ -1087,8 +1087,8 @@ flowchart LR
 | 사례 | 처리 |
 |---|---|
 | `plugin.json`이 JSON이 아님 | `rejected`(`manifest_parse`). 다른 확장은 계속 |
-| 매니페스트의 `points`에 없는 지점에 scope setup 중 `on` | primitives가 `PrimitiveError("point_undeclared")`로 setup을 끝내고 등록을 되돌린다 → `usage_invalid`(issues에 `point_undeclared`), `error`(F.extensions.spec §5 1번, §4.4.3 표) |
-| 활성 뒤 핸들러 안에서 선언 밖 지점에 `on` | 그 호출만 `PrimitiveError("point_undeclared")`로 거부, primitives 진단(`ExtHostDeps.report`). 확장은 계속 |
+| 매니페스트의 `points`에 없는 훅에 scope setup 중 `on` | primitives가 `PrimitiveError("point_undeclared")`로 setup을 끝내고 등록을 되돌린다 → `usage_invalid`(issues에 `point_undeclared`), `error`(F.extensions.spec §5 1번, §4.4.3 표) |
+| 활성 뒤 핸들러 안에서 선언 밖 훅에 `on` | 그 호출만 `PrimitiveError("point_undeclared")`로 거부, primitives 진단(`ExtHostDeps.report`). 확장은 계속 |
 | 엔트리 본문이 throw | `error`(`entry_threw`). 등록 없음. 다른 확장과 시작은 계속 |
 | scope setup이 throw | `error`(`setup_threw`). 등록 되돌림. 다른 확장과 시작은 계속 |
 | scope setup 본문에서 `post`·`state()` 호출 | `PrimitiveError("no_thread")` → `error`(`setup_action`) |
@@ -1130,7 +1130,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 ## 7. 훅
 
-| 지점 | 이 문서의 역할 | 발화 시점 |
+| 훅 | 이 문서의 역할 | 발화 시점 |
 |---|---|---|
 | `thread.trust.before`(session, first) | 발화한다 | 프로젝트 신뢰 판정 4번(§4.7.3). 내장·관리·사용자 확장 활성화 뒤, 프로젝트 탐색 전. 판정 한 번에 한 번 |
 | `thread.resources`(session, chain) | 발화한다 | `loadAll` 끝(모든 단계 뒤) `reason: "startup"`, `reload` 끝 `reason: "reload"`. 로더 수명에 맞춘다 [제안]. 프로젝트 불신이면 프로젝트 확장의 핸들러는 없다 |
@@ -1178,7 +1178,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 3. `essential: true` 내장 확장의 엔트리가 throw하면 `loadAll`이 `LoadAbortError`를 던지고 진단에 `essential_failed`가 있다.
 4. 프로젝트 신뢰 판정 전에는 프로젝트 확장의 엔트리 모듈이 import되지 않는다(가짜 `LoaderFs`와 import 기록기로 확인). `thread.trust.before` 핸들러가 `no`를 돌려주면 끝까지 import되지 않는다.
 5. `mode: "headless"`, 저장 결정 없음, `defaultProjectTrust: "ask"`이면 프로젝트 확장이 로드되지 않고 `ProjectTrustResult.via`가 `headless`, 진단 코드가 `trust_undecided`다.
-6. `ext.<name>.enabled`의 유효 값이 `false`인 확장은 엔트리가 한 번도 호출되지 않고 상태가 `disabled`다. 세션 범위에서 `true`로 바꾸면 `ensureLoaded`가 엔트리를 한 번 부른다.
+6. `ext.<name>.enabled`의 유효 값이 `false`인 확장은 엔트리가 한 번도 호출되지 않고 상태가 `disabled`다. 대화 범위에서 `true`로 바꾸면 `ensureLoaded`가 엔트리를 한 번 부른다.
 7. 격리 확장 프록시의 `tool.call.before` 핸들러가 시간 예산을 넘기면 결정은 `FIRST_DENY.tool_call`이고 자식에게 취소가 전송된다(가짜 `IsolationProcessPort`).
 8. (삭제) pi 어댑터는 두지 않는다.
 9. `requires: [{ id: "web.search", range: "^1.0.0" }]`인 확장은 provider가 없으면 엔트리가 실행되지 않고 진단 `capability_missing`에 기능 ID가 있다.

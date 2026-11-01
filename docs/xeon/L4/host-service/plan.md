@@ -22,7 +22,7 @@ binds: [xeon/apps/host/**]
 - 선행 조건 목록:
   - `@fresnel/contracts/wire`, `@fresnel/contracts/settings`의 M0 범위(`F.wire-settings.plan` §1.1).
   - `ext-host`의 루트 컨텍스트 생성과 플러그인 등록 API(`X.loading-trust.plan`).
-  - `platform-store`의 `headSeq`, 구간 읽기, 커밋 후 알림, 세션 잠금(`L0.store.plan`).
+  - `platform-store`의 `headSeq`, 구간 읽기, 커밋 후 알림, 대화 잠금(`L0.store.plan`).
 
 ### 1.2 M1: `fresnel chat` 걸어 다니는 골격
 
@@ -37,7 +37,7 @@ binds: [xeon/apps/host/**]
 ### 1.3 M2: 데스크톱 사이드카와 나머지 처리기
 
 - 나머지 처리기: `thread.open`/`close`/`list`/`fork`/`revert`/`delete`, `turn.interrupt`, `events.unsubscribe`, `approval.respond`, `settings.set`/`reset`/`list`, `host.status`.
-- `thread.open` 잠금과 `thread.locked` 대안, 임대 토큰(`LeaseToken`) 전달과 `sys_leases` 소유 표시 읽기.
+- `thread.open` 잠금과 `thread.locked` 대안, 프로세스 락 토큰(`LeaseToken`) 전달과 `sys_leases` 소유 표시 읽기.
 - stdio 호스트의 종료 절차(HS-31~HS-34)와 컴파일 바이너리 spike(H15). 데스크톱 사이드카(`L4.desktop.plan`)가 이 경로를 쓴다.
 - 전송 동등성 테스트(AH-01)를 같은 모델 테이프로 확정한다(`product.scope.spec` §4.4 M2 조건).
 
@@ -147,7 +147,7 @@ xeon/apps/host/
 | H1 | 조립 위치 결정 반영([결정: review.decisions-2 U-15]). 허용 목록 `DR-10/cli-host`, `eng.dependency-rules.guide` DR-10·DR-14 문구, `architecture.layers.spec` §3.2 L4 부분을 같은 커밋에서 고친다. `check-layers.ts`가 허용 목록을 읽도록 고치는 작업은 툴체인 작업자 몫(`eng.dependency-rules.guide` §5 현재 상태와의 차이) | review.decisions-2 U-15 | S | M1 |
 | H2 | `assemble` 최소형. 루트 컨텍스트, M1 플러그인 등록, 포트 어댑터, 서비스 확인, `Engine.close` 역순 정리, `AssembleError`. `package.json`·`tsconfig.json`·`bunfig.toml` 정비 | M0 전부, `X.loading-trust.plan`의 루트 생성 API | M | M1 |
 | H3 | in-process 전송 쌍과 `createHostConnection`(`./client`). 순서 보장, `devChecks` JSON 왕복, 요청 id `r1`… , 시한, `signal` → `$/cancelRequest` | `F.wire-settings.plan` W12 | S | M1 |
-| H4 | 연결 허브와 처리기 M1 5개. 상태 기계(HS-01~HS-05), 처리 순서와 예외 정제(HS-06~HS-09), 취소(HS-21~HS-22), `notImplemented`, `thread.create`의 소유 획득과 `turn.start`의 암묵 획득(HS-28, M1 `--continue` 재개에 필요). 구독은 H7에서 채우고 여기서는 `from: "head"`만 | H2, H3, M0 `platform-store` 세션 잠금 | M | M1 |
+| H4 | 연결 허브와 처리기 M1 5개. 상태 기계(HS-01~HS-05), 처리 순서와 예외 정제(HS-06~HS-09), 취소(HS-21~HS-22), `notImplemented`, `thread.create`의 소유 획득과 `turn.start`의 암묵 획득(HS-28, M1 `--continue` 재개에 필요). 구독은 H7에서 채우고 여기서는 `from: "head"`만 | H2, H3, M0 `platform-store` 대화 잠금 | M | M1 |
 | H5 | stdio 전송 연결. JSON Lines 프레이밍, 1 MiB 한도, EOF → `onClose`, `startStdioHost`, `runHostCommand({ kind: "host-stdio" })`, `main.ts` 개발 진입 | H4 | M | M1 |
 | H6 | 적합성 러너. `WIRE_CONFORMANCE_CASES`를 in-process와 stdio(같은 프로세스 안 스트림 쌍)에 돌리는 `contract` 테스트. F에 `./testing` 서브패스를 두지 않으므로 `test/contract/conformance-runner.ts`에 둔다(spec §10 16번, review.decisions-2 U-03) | H5, `F.wire-settings.plan` W14 | S | M1 |
 | H7 | 구독 재전송. HS-10~HS-16(관찰 폴링 제외), `stream.chunk` HS-17~HS-19, `toEventWire` redact 연결 | H4, `L0.store.plan` 읽기 API | M | M1 |
@@ -161,7 +161,7 @@ xeon/apps/host/
 | H10 | 서비스 등록과 `ensure`: `registration.ts`(SV-01), `listenServiceSocket`과 활성화 잠금(SV-02), `ensureService`(SV-03), `connectServiceTransport`, `startService` 시작 순서(§4.9.1), detached 자기 실행(SV-06) | H15, H19, `L0.process.plan` detached spawn·활성화 잠금 | L | M3 |
 | H11 | 유휴 종료: L0 `createIdleMonitor`(M3b B1-SVC 구현됨, 시험 `test/int/service-idle.int.test.ts`), `host.status.idleShutdownAt`, 종료 협조(SV-04, SV-07), `service stop`의 SIGTERM → SIGKILL | H10 | M | M3 |
 | H12 | 인증: 소켓 디렉터리 0700·파일 0600 생성과 시작 시 검사(SV-05). TCP 토큰은 `host.hello`의 `auth.token`(M3b B1-SVC 구현됨, `test/int/service-lifecycle.int.test.ts`) | H10 | S | M3 |
-| H13 | 예약 틱: 서비스 시작·종료에 틱 연결, `scheduler` 실행권, in-process·stdio에서 `l0.process.service.enabled=false`일 때만 틱(HS-39~HS-41) | H11, `L2.schedule.plan` 틱 API | S | M3 |
+| H13 | 예약 틱: 서비스 시작·종료에 틱 연결, `scheduler` 자원(Scheduler leader), in-process·stdio에서 `l0.process.service.enabled=false`일 때만 틱(HS-39~HS-41) | H11, `L2.schedule.plan` 틱 API | S | M3 |
 | H14 | 알림: 연결 유무에 따른 라우팅(HS-42), `UserNotifyPort` 어댑터 | H13, `L0.os.plan` 알림 | S | M3 |
 | H21 | 상태 디렉터리 API `resolveHostStatePaths`(spec §3.3.6): `OsDirs.state` 아래 `cli/state.json`, 0700 디렉터리 생성, 오류 값 `HostStatePathError`, 테스트 덮어쓰기 인자. CLI `connectEngine`이 이 값으로 `paths.cliStateFile`을 채우고 `FRESNEL_CLI_STATE_FILE`은 덮어쓰기로만 쓴다(review.decisions-2 B-07) | H2 | S | M1 |
 | H20 | 클라이언트 전송 선택: `resolveLaunchMode`(HS-37), `fresnel service ensure --json`(HS-38), `fresnel service launch-mode --json`(spec §3.2, 데스크톱 셸의 진입 판정) | H10 | S | M3 |
@@ -186,16 +186,16 @@ xeon/apps/host/
 
 | 원본 | 가져오는 것 | 바꿀 점 |
 |---|---|---|
-| pi `PX/server.ts:145-190`(`activateServer`), `:154, 200`(`acquireServerActivation`) | 클라이언트가 서버를 찾고 없으면 기동하는 흐름, 활성화 경합 처리 | coordinator·server·worker 세 겹을 쓰지 않고 서비스 한 겹으로 한다(ADR-0006 §5 단계 1.5 탈락). 세션 attach 라우팅 없음 |
+| pi `PX/server.ts:145-190`(`activateServer`), `:154, 200`(`acquireServerActivation`) | 클라이언트가 서버를 찾고 없으면 기동하는 흐름, 활성화 경합 처리 | coordinator·server·worker 세 겹을 쓰지 않고 서비스 한 겹으로 한다(ADR-0006 §5 단계 1.5 탈락). 대화 attach 라우팅 없음 |
 | pi `PX/server.ts:244-245`, `:296-320` | 연결 0 + 작업 0이면 1초 뒤 퇴장, 시작 후 10초 유예 | 대기 예약 0과 승인 대기 조건을 더한다. 퇴장 유예는 설정 키 `l0.process.service.idleGraceMs`(L0.process 소유, 기본 60000ms). 시작 유예 10초는 그대로 |
 | pi `PX/process.ts:40-70` | `detached` + `unref` 분리 기동 | spawn은 L0.process 경유. stdio는 로그 파일로 돌린다 |
-| pi `PX/session-worker.ts:183-305, 560-594` | 퇴장 조건 "수요 0 + 보류 0 + Harness 비활성 + attach 0", live task가 있으면 유지 | 세션별 워커 대신 서비스 프로세스 하나가 모든 세션의 live 작업을 센다(`ActivityPort`). 열 때 바로 `resume()`하지 않고 `l1.persistence.autoResume` 설정을 따른다 |
-| pi `PX/session-worker.ts:517-522` | 세션 잠금 stale·갱신 수치(2초, 1초) | 잠금 구현은 L0.process 소관. 수치를 가져오지 않는다 |
-| opencode `OC/packages/cli/src/services/standalone.ts:23-27` | stdin EOF를 소유 임대 종료로 보는 규칙 | EOF에서 바로 끝내지 않고 안전 경계 체크포인트 뒤 종료(HS-31) |
+| pi `PX/session-worker.ts:183-305, 560-594` | 퇴장 조건 "수요 0 + 보류 0 + Harness 비활성 + attach 0", live task가 있으면 유지 | 대화별 워커 대신 서비스 프로세스 하나가 모든 대화의 live 작업을 센다(`ActivityPort`). 열 때 바로 `resume()`하지 않고 `l1.persistence.autoResume` 설정을 따른다 |
+| pi `PX/session-worker.ts:517-522` | 대화 잠금 stale·갱신 수치(2초, 1초) | 잠금 구현은 L0.process 소관. 수치를 가져오지 않는다 |
+| opencode `OC/packages/cli/src/services/standalone.ts:23-27` | stdin EOF를 소유 프로세스 락 종료로 보는 규칙 | EOF에서 바로 끝내지 않고 안전 경계 체크포인트 뒤 종료(HS-31) |
 | opencode `OC/packages/desktop/src/main/service/background-service.ts:49-52` | 고정 주소 선점으로 두 번째 contender가 물러나는 규칙. 포트 0 금지 이유 | TCP 포트 대신 고정 Unix 소켓 경로. 낡은 소켓 파일 처리에 활성화 잠금을 더한다(SV-02) |
 | opencode `OC/packages/client/src/service.ts:9-57`, `OC/packages/cli/src/services/server-connection.ts:27-47` | 등록 파일을 읽고 없거나 버전이 다르면 spawn하는 `resolve` 흐름 | 버전이 달라도 작업 중이면 재기동하지 않고 경고(SV-03, Claude Code 방식) |
 | Claude Code `CC/agent-view.md:848` `roster.json` 규칙 | 0600, 모르는 필드 보존 | 임시 파일 생성 시점 0600 + rename(SV-01) |
-| Claude Code `CC/agent-view.md:819` | 권한 프롬프트에서 멈춘 세션을 실행 중으로 보는 규칙 | 승인 대기 세션을 live로 센다([제안], spec §10 미결 6) |
+| Claude Code `CC/agent-view.md:819` | 권한 프롬프트에서 멈춘 대화를 실행 중으로 보는 규칙 | 승인 대기 대화를 live로 센다([제안], spec §10 미결 6) |
 | Codex app-server(`_research/process.md` §2.2) | 연결마다 `initialize` 선행, 비루프백은 토큰 인증 | `host.hello`. 원격은 로컬 소켓 터널(U-11), 내장 토큰 전송은 2차 |
 | `docs/design/19-client-protocol.md` §3.5.4 | 재전송 알고리즘(F wire §3.4.3이 이식) | 데몬 대신 호스트가 실행. 저장소 읽기는 `EventFeedPort` |
 
@@ -213,7 +213,7 @@ spec SV-01~SV-08에 대응한다. [제안] 항목마다 테스트를 하나 이�
 | SV-01 | `registration-unknown-field-preserved` | unit | 같음 | `{..., futureField: 1}`이 있는 파일에 다시 쓰면 `futureField`가 남고, `readRegistration`이 `ok`를 돌려준다 |
 | SV-02 | `bind-race-loser-connects` | int | `test/int/bind-race.int.test.ts` | `service run` 자식 두 개를 동시에 띄우면 하나만 등록 파일을 쓰고 다른 하나는 종료코드 0이다. 이어서 부른 `ensureService`가 `connected`이고 hello가 성공한다. 낡은 소켓 파일을 미리 둔 경우도 같다 |
 | SV-03 | `version-mismatch-idle-restart` | int | `test/int/version-mismatch.int.test.ts` | 등록 버전이 다른 한가한 서비스에 `ensureService`를 부르면 `restarted`이고 새 등록 파일의 pid가 다르다. live turn이 있는 서비스면 `versionWarning`이고 pid가 그대로다 |
-| SV-04 | `idle-exit-requires-no-conn-no-task-no-schedule` | unit | `test/service/lifetime.test.ts` | 판정은 L0 `createIdleMonitor`가 한다(`platform-process/test/service-idle.test.ts`). 이 파일의 시험은 `int/service-idle.int.test.ts`: 승인 대기 세션이 있으면 종료하지 않고, 연결 0·live 0·대기 예약 0이면 유예 뒤 종료한다. 대기 타이머가 있으면 연결이 0이어도 종료하지 않고, 모두 떠난 뒤 타이머 실행이 기록을 남긴 다음에만 유예를 센다(`int/service-schedule.int.test.ts`) |
+| SV-04 | `idle-exit-requires-no-conn-no-task-no-schedule` | unit | `test/service/lifetime.test.ts` | 판정은 L0 `createIdleMonitor`가 한다(`platform-process/test/service-idle.test.ts`). 이 파일의 시험은 `int/service-idle.int.test.ts`: 승인 대기 대화가 있으면 종료하지 않고, 연결 0·live 0·대기 예약 0이면 유예 뒤 종료한다. 대기 타이머가 있으면 연결이 0이어도 종료하지 않고, 모두 떠난 뒤 타이머 실행이 기록을 남긴 다음에만 유예를 센다(`int/service-schedule.int.test.ts`) |
 | SV-04 | `approval-waiting-counts-live` | unit | 같음 | `waitingApprovals: 1`, 나머지 0이면 `countApprovalAsLive: true`에서 `{ idle: false, reason: "approvals" }`, `false`에서 `idle: true`다 |
 | SV-05 | `socket-perm-owner-only` | int | `test/int/socket-auth.int.test.ts` | 서비스 시작 뒤 소켓 디렉터리 모드 0700, 소켓 파일 0600이다. 디렉터리 권한이 넓으면 시작이 거부된다 |
 | SV-06 | `stdio-eof-checkpoint-exit` | int | `test/int/stdio-eof.int.test.ts` | 모델 테이프로 turn을 진행 중인 `host --stdio` 자식의 stdin을 닫으면 체크포인트 이벤트가 커밋되고 종료코드 0으로 끝난다. 다시 열면 복구 표식이 없다 |
@@ -275,7 +275,7 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 | `bun build --compile` 바이너리에서 Unix 소켓 서버, stdin EOF 감지, `process.execPath` 값이 확인되지 않았다(`_research/notes/L4-1.md` §7) | 사이드카와 서비스가 컴파일 바이너리에서만 실패한다 | H15 spike를 H19·H10 전에 둔다. 실패하면 대체 경로(예: Node `net` 호환 API, 별도 진입 스크립트)를 spec §5 표에 더한다 |
 | 단일 바이너리 self-exec 경로 | 개발 실행(`bun main.ts`)과 컴파일 실행의 인자 모양이 달라 `ensure`가 엉뚱한 명령을 실행한다 | 자기 실행 명령을 한 함수에 두고 두 경우를 `int` 테스트로 확인한다. 컴파일 판별 규칙은 H15 결과로 고정한다 |
 | 조립 코드 순환 의존 | `assemble.ts`가 모든 패키지를 import하므로, 아래 층이 실수로 `@fresnel/host`를 import하면 순환이 생긴다 | DR-01(상향 import 금지)과 depcruise `DR-06-no-circular`가 막는다. 처리기와 `connection.ts`는 포트만 쓰게 해 `assemble.ts` 밖으로 패키지 import가 퍼지지 않게 한다 |
-| 세션 잠금 구현은 OS 잠금 + `sys_leases.epoch` 펜싱으로 결정했다(review.decisions-2 U-09, 2026-10-22 확인). flock은 멈춘 소유자를 깨어나거나 죽을 때까지 잠근다(알려진 한계) | 번복되면 `thread.open`과 크래시 직후 동작이 바뀐다 | `SessionLockPort` 뒤로 숨긴다. M2 H9는 L0.process·L0.store가 제공하는 수단으로 구현하고, 결정이 바뀌면 어댑터만 바꾼다. `thread-locked-alternatives`는 수단과 무관하게 같은 결과를 확인한다 |
+| 대화 잠금 구현은 OS 잠금 + `sys_leases.epoch` 펜싱으로 결정했다(review.decisions-2 U-09, 2026-10-22 확인). flock은 멈춘 소유자를 깨어나거나 죽을 때까지 잠근다(알려진 한계) | 번복되면 `thread.open`과 크래시 직후 동작이 바뀐다 | `SessionLockPort` 뒤로 숨긴다. M2 H9는 L0.process·L0.store가 제공하는 수단으로 구현하고, 결정이 바뀌면 어댑터만 바꾼다. `thread-locked-alternatives`는 수단과 무관하게 같은 결과를 확인한다 |
 | M1과 M3 사이 F 계약 변경(`shutdown`, 재개 후보, 인증 토큰, 확장 메서드) | 처리기 표와 적합성 케이스가 바뀐다 | F 생성물(TS 타입, JSON Schema)의 재생성 diff를 CI가 검사한다(ADR-0006 §3.2). F 변경은 부 버전 정책을 따르고, 호스트는 `notImplemented`로 새 메서드를 먼저 받아 둔다 |
 | 서비스 단일 장애점 | 서비스가 죽으면 연결된 모든 클라이언트가 멈춘다 | SV-08. 복구 표식과 다음 `ensure`의 재기동으로 피해를 줄인다. 재접속 정책은 CLI·데스크톱 spec |
 | 컴파일 바이너리 크기(Bun 런타임 포함, 수치 미확인) | 데스크톱 번들이 커진다 | 단일 바이너리로 런타임 1벌만 둔다. 크기 상한은 `L4.desktop.plan`이 측정 뒤 정한다(ADR-0008 §6) |
@@ -292,7 +292,7 @@ HOST.1·HOST.3·HOST.5는 브랜치 `m2/host`에서 했다. 다른 트랙(L1A.4 
 | m2-plan ID | plan ID | 상태 | 내용과 시험 |
 |---|---|---|---|
 | HOST.1 | H9 | 구현 | `thread.open { write \| observe }`, 쓰기 소유 획득의 단일 경로(`claimWrite`: `thread.create`, `turn.start`, `thread.open`이 같이 쓴다), 같은 thread의 동시 획득 합치기, 쓰기·관찰 연결 기록(`writeThreads`, `observedThreads`), 서비스 모드의 잠금 해제 판정(`releaseUnused`, HS-27). 관찰 폴링(HS-16, `handlers/observe.ts`)과 다른 프로세스 커밋 구간 메우기(`fillGap`). `test/handlers/thread-open.test.ts`, `test/assembly/ports.test.ts`(동시 획득), `test/int/thread-locked.int.test.ts`(`thread-locked-alternatives`, `observe-poll-follows-commits`: 같은 저장소를 연 호스트 둘이 실제 OS 잠금과 `sys_leases` 위에서 다툰다) |
-| HOST.1 | H9 `LeaseToken` 전달 | 구현(M1 어댑터에 있었음) | `SessionLockPort.tryAcquire`가 임대 토큰으로 `openForWrite`를 열고 `keepAlive` 실패를 `onLeaseLost`로 처리한다. 이번 작업은 토큰 전달 경로의 동시 획득 합치기와 `release(threadId)`를 더했다 |
+| HOST.1 | H9 `LeaseToken` 전달 | 구현(M1 어댑터에 있었음) | `SessionLockPort.tryAcquire`가 프로세스 락 토큰으로 `openForWrite`를 열고 `keepAlive` 실패를 `onLeaseLost`로 처리한다. 이번 작업은 토큰 전달 경로의 동시 획득 합치기와 `release(threadId)`를 더했다 |
 | HOST.1 | H9 `delegate` 대안 | 보류 | 서비스 모드(M3)가 없어 `options`는 `["observe", "fork"]`다(HS-25) |
 | HOST.3 | H22(신규) | 구현 | `secret.list·meta·remove·test·beginEntry·beginReveal`, `EnginePorts.secrets`, `InProcessHost.secretOutOfBand`, 기본 메타, 설정 키 참조 조회(`settingKeysFor`). `test/handlers/secret.test.ts`, `test/assembly/secrets.test.ts`, `test/engine.test.ts`(실제 `platform-secrets` 관리 서비스) |
 | HOST.5 | H15 | 구현(Linux x64) | spec §3.2.1에 결과를 적었다. macOS arm64는 미확인이다 |
@@ -353,7 +353,7 @@ HOST.6에서 실제 엔진에 올리자 드러난 오류와 처리:
 - core-agents: `agentsPlugin`에 `loop` 감싸개 선택 옵션을 더했다(자식 thread 열기). L1B가 같은 일을 플러그인 안에서 하면 옵션을 지운다.
 - L1A: core-tools에 정식 `L2ApprovalsPort` 팩토리가 생기면 `assembly/l2-approvals.ts`를 지운다. 동적 도구에 호출 연속 정보를 싣는 경로는 병합 때 닫았다(§8.7).
 
-### 8.7 병합 연결 (xeon/foundation 통합)
+### 8.7 병합 연결 (`xeon/foundation` 통합)
 
 m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결을 한 커밋씩 닫았다.
 
@@ -378,7 +378,7 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | HOST.11 | G1-08, G5-04 | 구현 | `settings.invalidated`: 설정 엔진이 `SettingsChange`를 내고(설정 저장소의 쓰기, 신뢰 결정) 연결 허브가 hello를 마친 연결 전체에 보낸다. `settings.list`는 `stage: "reserved"` 키를 기본으로 뺀다(`includeReserved`로 연다). `test/handlers/settings.test.ts`(예약 키, 알림 대상), `test/int/settings-invalidated.int.test.ts`(실제 엔진의 user·session·reset·신뢰 결정) |
 | HOST.12 | G1-07 | 구현 | `SecretError`를 `secret.*` 전용 kind 3201~3212로 옮기고(입력 오류만 -32602) `secret.references`를 `SecretAdminService.references`에 잇는다. `secret.test`는 이미 확장된 결과를 싣는다. `test/secrets/wire.test.ts`(열두 변형의 kind·code·details와 stderr·경로 비노출), `test/handlers/secret.test.ts` |
 | HOST.13 | G1-01, G1-02, G2-12 | 구현 | `command.list`(선택 `threadId`는 서비스 입력이 아니라 호출 문맥으로)·`command.run`(`CommandPort`, `assembly/commands.ts`, 브리지 확장이 `dialog.commands` API를 `CommandRegistryHolder.api`에 채움), `turn.resume`(쓰기 소유 암묵 획득 뒤 `LoopService.resume`), `thread.rename`(`ThreadPort.rename`)과 첫 입력 80자 자동 제목(`title.ts`). 후보 `m2/fx-host`에는 이 처리기들이 없었다(새 foundation의 wire 계약 위에서 새로 썼다). `test/assembly/commands.test.ts`(호출자 `host`, 호출마다 새 요청 키), `test/handlers/command.test.ts`, `test/handlers/turn-resume.test.ts`, `test/handlers/thread-rename.test.ts`, `test/title.test.ts`, `test/int/command.int.test.ts`(실제 cap-work `/plan`·`/tasks`, `command.list`의 `threadId`로 thread 작업 폴더의 프로젝트 명령), `test/int/title.int.test.ts`, `test/int/approval-restart.int.test.ts`(SIGKILL 뒤 `turn.resume`) |
-| HOST.14 | G1-12, G4-05 (E4, H1) | 구현 | `hostedSearch`(`fresnel.models`)를 cap-web에 넘기고 설정이 바뀌면 탐침 기억을 지우며 `thread.shutdown`에서 세션 원문을 정리한다(spec HS-75). `m2/fx-host`의 cap-web 조립에서 `modelTool` 판정(`boundary.step.before`)과 `headerSecrets`는 가져오지 않았다(이유는 HS-75). `test/int/cap-web.int.test.ts`: SearXNG 주소가 없으면 내장 래퍼만 쓰고 떠 있는 SearXNG를 부르지 않는다, 주소를 설정하면 SearXNG를 쓰고 설정을 바꾸면 실패 탐침 기억이 풀린다, 대역 없이도 엔진의 hosted 검색이 체인에 오른다 |
+| HOST.14 | G1-12, G4-05 (E4, H1) | 구현 | `hostedSearch`(`fresnel.models`)를 cap-web에 넘기고 설정이 바뀌면 탐침 기억을 지우며 `thread.shutdown`에서 대화 원문을 정리한다(spec HS-75). `m2/fx-host`의 cap-web 조립에서 `modelTool` 판정(`boundary.step.before`)과 `headerSecrets`는 가져오지 않았다(이유는 HS-75). `test/int/cap-web.int.test.ts`: SearXNG 주소가 없으면 내장 래퍼만 쓰고 떠 있는 SearXNG를 부르지 않는다, 주소를 설정하면 SearXNG를 쓰고 설정을 바꾸면 실패 탐침 기억이 풀린다, 대역 없이도 엔진의 hosted 검색이 체인에 오른다 |
 | HOST.15 | G1-04 (E6) | 구현 | `createHostMcpProcessPort`가 L0의 `createMcpProcessPort`를 만들어 cap-mcp에 넘긴다(레지스트리는 `fresnel.process`의 것). `m2/fx-mcp`의 `06158d2` 가운데 host 부분을 다시 썼고 cap-mcp의 `reload`·`boundary.step.before` 단계 경계(`21cfa68`)는 T5 몫이라 가져오지 않았다. `test/assembly/mcp-process.test.ts`(포트 없음, `mcp` owner 등록, 시크릿 env는 `secret_denied`), `test/int/cap-mcp-stdio.int.test.ts`(자식으로 뜬 stdio 서버의 도구를 모델이 부르고 엔진을 닫으면 프로세스가 남지 않는다), `xeon/scripts/exit-tests.txt`의 E6 줄에 더했다 |
 | HOST.16 | G2-02 | 구현 | 작업 폴더 규칙 HS-76: `thread.create`가 `workspace`를 정규 절대 경로(심볼릭 링크를 푼, 있는 폴더)로 저장하고 `thread.list` 필터도 같은 형태로 견준다. 신뢰 저장소의 키와 같은 형태다. 조립 루트가 `threadWorkspaceOf`를 L2에 잇는다: cap-mcp(`McpDeps.workspaceOf`, `boundary.step.before`의 `reload`, 엔진 기본 루트 없음), cap-knowledge(`workspaceOf`), cap-dialog(`workspaceOf`, `projectTrust`로 `.fresnel/commands` 신뢰 게이트). `test/assembly/workspace.test.ts`, `test/int/workspace.int.test.ts`, `test/int/cap-mcp-workspace.int.test.ts`(엔진 작업 디렉터리의 `.mcp.json`은 읽지 않고 대화 폴더의 것을 신뢰한 뒤 읽는다), `test/int/cap-knowledge.int.test.ts`(작업 폴더 없는 대화에는 프로젝트 스킬이 없다), `test/int/command.int.test.ts`(프로젝트 명령 파일은 신뢰 뒤에만) |
 | HOST.17 | G2-11 (통합 검토 M4) | 구현 | `thread.read`가 L1.persistence의 `branchItemRecords`(`itemPagesOf`)로 쪽에 든 item만 읽고 호스트는 응답 크기 예산만 맞춘다(spec HS-49). fork한 thread는 출처의 item을 이어 읽는다. `m2/fx-host` `3574d76`의 thread-read 쪽 되돌리기는 이 질의로 대신했다. `test/assembly/thread-read.test.ts`(질의에 넘긴 `before`·`limit`, head, 예산 초과, 거절 전달), `test/int/lifecycle.int.test.ts`(fork thread가 출처 item을 쪽 단위로 읽는다) |
@@ -396,7 +396,7 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | 작업 | 상태 | 내용과 시험 |
 |---|---|---|
 | M3-18 | 구현 | `proposal.list`·`proposal.decide` 처리기(`handlers/proposal.ts`)와 포트(`assembly/proposals.ts`, `EnginePorts.proposals`). 학습 대기열과 L2 대기열을 한 목록으로 합치고 결정을 출처로 보낸다(spec HS-79). `test/assembly/proposals.test.ts`(합치기 순서, 상태 필터, 커서 쪽 읽기, 읽지 못하는 출처, 결정 경로와 오류 표), `test/handlers/proposal.test.ts`(params 위반은 -32602, 결정 실패는 오류 값) |
-| 학습 그룹 조립 | 구현 | `assembly/learning.ts`(내장 그룹 단위, 브리지 확장 `host-proposals-bridge`, 안전 모드·`defaultGroups` 판정, 투영기 등록 `registerLearningProjection`, 읽기 면 자리 `slotReader`, `/learning` 명령 실행기 `createLearningRunner`). `AssembleOptions.safeMode`를 더했다. 투영기가 대기열 행을 만들므로 SQLite 저장소와 `learningStore` 옵션은 없앴다. 설정 그룹 `l3.learning`을 카탈로그와 `schema/`에 더했다. `test/assembly/learning.test.ts`(명령 실행기, 읽기 면 자리), `test/int/proposals.int.test.ts`(실제 SQLite 세션 DB와 cap-knowledge 위에서 모델 테이프가 `learning_propose`를 부르면 투영된 대기열에 후보가 서고, 승인 전에는 스킬 파일이 없고, 승인이 `/learning` 명령을 거쳐 스킬 파일을 만든다. 안전 모드와 `defaultGroups: false`는 싣지 않는다) |
+| 학습 그룹 조립 | 구현 | `assembly/learning.ts`(내장 그룹 단위, 브리지 확장 `host-proposals-bridge`, 안전 모드·`defaultGroups` 판정, 투영기 등록 `registerLearningProjection`, 읽기 면 자리 `slotReader`, `/learning` 명령 실행기 `createLearningRunner`). `AssembleOptions.safeMode`를 더했다. 투영기가 대기열 행을 만들므로 SQLite 저장소와 `learningStore` 옵션은 없앴다. 설정 그룹 `l3.learning`을 카탈로그와 `schema/`에 더했다. `test/assembly/learning.test.ts`(명령 실행기, 읽기 면 자리), `test/int/proposals.int.test.ts`(실제 SQLite 대화 DB와 cap-knowledge 위에서 모델 테이프가 `learning_propose`를 부르면 투영된 대기열에 후보가 서고, 승인 전에는 스킬 파일이 없고, 승인이 `/learning` 명령을 거쳐 스킬 파일을 만든다. 안전 모드와 `defaultGroups: false`는 싣지 않는다) |
 | M3-REQ-104 | 구현 | `knowledgePlugin`에 `trustedEvidenceSources: ["learning.queue"]`(학습 그룹을 싣는 구성에서만). `test/int/proposals.int.test.ts` |
 
 남은 것: 안전 모드를 켜는 입구(CLI 인자, 설정)는 이 단계에 없다. `AssembleOptions.safeMode`만 있다 [미결].
@@ -409,7 +409,7 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | M3-REQ-96 헤더 시크릿 | 구현 | `createWebHeaderSecrets`(`assembly/web-header-secrets.ts`)가 `createPluginHttp`로 `withHttp`를 부른다. 목적 `web.search`(HS-91 (2)). HOST.14의 "headerSecrets는 가져오지 않았다"(HS-75)는 이 행으로 대체한다. `test/assembly/web-header-secrets.test.ts`(값은 전송 인자에만, 템플릿과 오류에는 없다, 미설정과 참조 아님은 `unset`, 나머지는 `unavailable`) |
 | M3-REQ-96 브라우저 MCP | 구현 | `createBrowserMcpPort`(`assembly/web-browser-mcp.ts`)가 `mcp.client`를 `BrowserMcpPort`로 맞춘다. 서버 `playwright`(HS-91 (3)). `test/assembly/web-browser-mcp.test.ts`(연결 여부, 텍스트와 이미지 조립, isError, input_required, 호출 실패, 중단) |
 | M3-REQ-96 브라우저 도구 | 구현 | `WebBrowse`를 기능 공급자로 내고 네 도구를 등록한다(열기·조작·닫기 `write`, 읽기 `read`, HS-91 (4)). `L2_TOOL_CAPABILITIES`에 더한다(HS-60). 매니페스트 `provides`에 `web.browse`를 더한다 |
-| 세션 종료 | 구현 | `onWebSessionShutdown`이 `closeThread`를 기다리고 원문을 정리한다(HS-91 (5)). `test/assembly/cap-web-bridge.test.ts` |
+| 대화 종료 | 구현 | `onWebSessionShutdown`이 `closeThread`를 기다리고 원문을 정리한다(HS-91 (5)). `test/assembly/cap-web-bridge.test.ts` |
 | `web.providers` | 구현 | 처리기 `handlers/web.ts`, 포트 `EnginePorts.web`(`assembly/web-providers.ts`, holder가 런타임을 잇는다). 처리기 표에 행을 더했다(spec §3.4, HS-91 (6)). `test/handlers/web.test.ts`, `test/assembly/web-providers.test.ts`, `test/int/web-providers.int.test.ts`(실제 엔진, 내장 래퍼 행과 기본 설정) |
 | 시험 조정 | 구현 | `test/int/compact-reinject.int.test.ts`의 창을 12000에서 13000토큰으로 올렸다. 브라우즈 도구 정의 네 개가 요청에 더해져 두 turn 만에 임계를 넘었다. 두 turn은 임계 아래, 셋째 turn 요청 전에 넘는 예산은 그대로다 |
 
@@ -427,7 +427,7 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | M3-REQ-52 진단 상한 | 구현 | `assembly/diagnostics.ts`(`createExtDiagnosticSink`, 상한 256). `test/assembly/diagnostics.test.ts`(300개를 넣으면 최신 256개, 버린 수 44) |
 | 저장소 경고 `read_only` | 구현 | `logStoreWarning`이 `store.warning`으로 남긴다(typecheck를 막던 누락 분기) |
 
-남은 것: 블롭 GC는 서비스 모드에서만 돈다. `scheduler` 임대가 생기기 전까지 그렇다 [미결 §10 36]. 자동 제목의 임시 판정은 이 프로세스가 본 첫 입력에 기댄다 [미결 §10 47]. 테이프 시험에는 자격 증명 참조가 없어 긍정 경로의 실제 엔진 시험은 없다 [미결 §10 48]. 블롭 GC를 켜기 전에 소비자 고정 목록을 닫는다 [미결 §10 49].
+남은 것: 블롭 GC는 서비스 모드에서만 돈다. Scheduler leader가 생기기 전까지 그렇다 [미결 §10 36]. 자동 제목의 임시 판정은 이 프로세스가 본 첫 입력에 기댄다 [미결 §10 47]. 테이프 시험에는 자격 증명 참조가 없어 긍정 경로의 실제 엔진 시험은 없다 [미결 §10 48]. 블롭 GC를 켜기 전에 소비자 고정 목록을 닫는다 [미결 §10 49].
 
 ## 13. M3b 구현 기록 (B3-SEC의 P-15 몫)
 
