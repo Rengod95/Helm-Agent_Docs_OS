@@ -1,0 +1,835 @@
+{
+  "thread": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Thread",
+      "en": "Thread"
+    },
+    "ui": {
+      "ko": "대화",
+      "en": "Conversation"
+    },
+    "surfaces": ["chat", "workbench"],
+    "ids": ["thread", "ThreadId"],
+    "forbid": {
+      "ui": ["세션"],
+      "docs": ["세션"]
+    },
+    "sources": ["adr.0022", "F.conversation.spec"],
+    "status": "proposed"
+  },
+  "turn": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Turn",
+      "en": "Turn"
+    },
+    "ui": {
+      "ko": "턴",
+      "en": "Turn"
+    },
+    "surfaces": ["chat", "workbench"],
+    "ids": ["TurnId", "turn.start", "loop.turn", "boundary.turn.*", "trace.turn"],
+    "sources": ["adr.0022", "F.conversation.spec"],
+    "status": "proposed"
+  },
+  "step": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Step",
+      "en": "Step"
+    },
+    "ui": {
+      "ko": "단계",
+      "en": "Step"
+    },
+    "surfaces": ["chat", "workbench"],
+    "ids": ["StepId", "boundary.step.*"],
+    "sources": ["adr.0022", "F.conversation.spec"],
+    "status": "proposed"
+  },
+  "stepBoundary": {
+    "kind": "state",
+    "doc": {
+      "ko": "Step boundary",
+      "en": "Step boundary"
+    },
+    "ui": {
+      "ko": "단계가 끝나면",
+      "en": "After this step"
+    },
+    "surfaces": ["chat", "workbench"],
+    "sources": ["adr.0022", "L1.loop.spec"],
+    "status": "proposed"
+  },
+  "item": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Item",
+      "en": "Item"
+    },
+    "ui": {
+      "ko": "항목",
+      "en": "Item"
+    },
+    "surfaces": ["chat"],
+    "ids": ["ItemKind"],
+    "sources": ["adr.0022", "F.conversation.spec"],
+    "status": "proposed"
+  },
+  "launchScope": {
+    "kind": "concept",
+    "doc": {
+      "ko": "launch(이번 실행)",
+      "en": "launch"
+    },
+    "ui": {
+      "ko": "이번 실행",
+      "en": "This launch"
+    },
+    "surfaces": ["settings"],
+    "ids": ["SettingScope", "launch"],
+    "sources": ["adr.0022", "F.wire-settings.spec"],
+    "status": "proposed"
+  },
+  "hook": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Hook(런타임 생애주기 훅)",
+      "en": "Hook"
+    },
+    "ui": {
+      "ko": "훅",
+      "en": "Hook"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["HookName", "HookDecl", "HookKind", "HOOKS", "HOOK_NAMES"],
+    "forbid": {
+      "ui": ["지점", "연결 지점", "소켓"],
+      "docs": ["지점"]
+    },
+    "sources": ["adr.0022", "F.extensions.spec"],
+    "status": "proposed"
+  },
+  "hookHandler": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Hook handler",
+      "en": "Hook handler"
+    },
+    "ui": {
+      "ko": "핸들러",
+      "en": "Handler"
+    },
+    "surfaces": ["workbench"],
+    "sources": ["adr.0022", "F.extensions.spec"],
+    "status": "proposed"
+  },
+  "fold": {
+    "kind": "concept",
+    "doc": {
+      "ko": "fold",
+      "en": "fold"
+    },
+    "ui": {
+      "ko": "보기·막기·고치기·모으기",
+      "en": "Observe·Block·Modify·Collect"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["tap", "first", "chain", "collect"],
+    "sources": ["adr.0022", "F.extensions.spec"],
+    "status": "proposed"
+  },
+  "post": {
+    "kind": "operation",
+    "doc": {
+      "ko": "post",
+      "en": "post"
+    },
+    "ui": {
+      "ko": "입력 넣기: 바로·끝난 뒤·다음 요청에",
+      "en": "Post: Now·After·Next request"
+    },
+    "surfaces": ["chat", "workbench"],
+    "ids": ["steer", "followUp", "next"],
+    "sources": ["adr.0022", "adr.0013"],
+    "status": "proposed"
+  },
+  "extension": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Extension",
+      "en": "Extension"
+    },
+    "ui": {
+      "ko": "확장",
+      "en": "Extension"
+    },
+    "surfaces": ["settings", "workbench"],
+    "ids": ["ExtensionManifest"],
+    "sources": ["adr.0022", "F.extensions.spec"],
+    "status": "proposed"
+  },
+  "plugin": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Plugin",
+      "en": "Plugin"
+    },
+    "ui": {
+      "ko": "플러그인",
+      "en": "Plugin"
+    },
+    "surfaces": ["settings", "workbench"],
+    "sources": ["adr.0022", "F.extensions.spec"],
+    "status": "proposed"
+  },
+  "pluginGroup": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Plugin Group",
+      "en": "Plugin Group"
+    },
+    "ui": {
+      "ko": "플러그인 그룹",
+      "en": "Plugin group"
+    },
+    "surfaces": ["settings", "workbench"],
+    "forbid": {
+      "ui": ["의도 그룹"],
+      "docs": ["의도 그룹"]
+    },
+    "sources": ["adr.0022", "F.extensions.spec"],
+    "status": "proposed"
+  },
+  "profile": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Profile",
+      "en": "Profile"
+    },
+    "ui": {
+      "ko": "프로필",
+      "en": "Profile"
+    },
+    "surfaces": ["settings", "workbench"],
+    "ids": ["Profile"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "trust": {
+    "kind": "state",
+    "doc": {
+      "ko": "Trust",
+      "en": "Trust"
+    },
+    "ui": {
+      "ko": "신뢰",
+      "en": "Trust"
+    },
+    "surfaces": ["chat", "settings"],
+    "sources": ["adr.0022", "X.loading-trust.spec"],
+    "status": "proposed"
+  },
+  "displayName": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Display name",
+      "en": "Display name"
+    },
+    "ui": {
+      "ko": "디스플레이 네임",
+      "en": "Display name"
+    },
+    "surfaces": ["settings", "workbench"],
+    "ids": ["displayName"],
+    "sources": ["adr.0022", "F.extensions.spec"],
+    "status": "proposed"
+  },
+  "driver": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Driver / drive lock",
+      "en": "Driver"
+    },
+    "ui": {
+      "ko": "주도",
+      "en": "Lead"
+    },
+    "surfaces": ["chat", "workbench"],
+    "ids": ["drive", "lease.acquired", "lease.released", "lease.rejected"],
+    "forbid": {
+      "ui": ["임대", "진행권"],
+      "docs": ["임대", "진행권"]
+    },
+    "sources": ["adr.0022", "X.primitives.spec"],
+    "status": "proposed"
+  },
+  "driveLimits": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Drive limits",
+      "en": "Drive limits"
+    },
+    "ui": {
+      "ko": "주도 한도",
+      "en": "Lead limits"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["driveLimits", "driveDefaultLimits"],
+    "sources": ["adr.0022", "X.primitives.spec"],
+    "status": "proposed"
+  },
+  "processLock": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Process lock",
+      "en": "Process lock"
+    },
+    "ui": null,
+    "surfaces": ["none"],
+    "ids": ["sys_leases"],
+    "forbid": {
+      "docs": ["임대"]
+    },
+    "sources": ["adr.0022", "L0.process.spec"],
+    "status": "proposed"
+  },
+  "schedulerLeader": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Scheduler leader",
+      "en": "Scheduler leader"
+    },
+    "ui": null,
+    "surfaces": ["none"],
+    "forbid": {
+      "docs": ["실행권"]
+    },
+    "sources": ["adr.0022", "L2.schedule.spec"],
+    "status": "proposed"
+  },
+  "question": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Question",
+      "en": "Question"
+    },
+    "ui": {
+      "ko": "질문",
+      "en": "Question"
+    },
+    "surfaces": ["chat"],
+    "ids": ["loop.ask", "question"],
+    "sources": ["adr.0022", "adr.0018"],
+    "status": "proposed"
+  },
+  "testRun": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Test run",
+      "en": "Test run"
+    },
+    "ui": {
+      "ko": "테스트",
+      "en": "Test"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["trial", "testRun"],
+    "forbid": {
+      "docs": ["시험 대화"]
+    },
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "trace": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Trace",
+      "en": "Trace"
+    },
+    "ui": {
+      "ko": "트레이스",
+      "en": "Trace"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["trace.turn"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "replayTest": {
+    "kind": "operation",
+    "doc": {
+      "ko": "Replay test",
+      "en": "Replay test"
+    },
+    "ui": {
+      "ko": "재실행 검사",
+      "en": "Replay test"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["replayDrive"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "pluginUi": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Plugin UI",
+      "en": "Plugin UI"
+    },
+    "ui": {
+      "ko": "플러그인 UI",
+      "en": "Plugin UI"
+    },
+    "surfaces": ["settings", "workbench"],
+    "ids": ["views", "ui", "ViewContribution", "UiContribution"],
+    "sources": ["adr.0022", "adr.0021"],
+    "status": "proposed"
+  },
+  "placement": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Placement",
+      "en": "Placement"
+    },
+    "ui": {
+      "ko": "전체 화면·옆 패널·대화 카드·상태 표시줄·명령·설정",
+      "en": "Page·Side panel·Card·Status bar·Command·Settings"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["page", "well", "card", "status", "command", "settings"],
+    "sources": ["adr.0022", "adr.0021"],
+    "status": "proposed"
+  },
+  "nativeUi": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Native UI",
+      "en": "Native UI"
+    },
+    "ui": {
+      "ko": "기본 UI",
+      "en": "Native UI"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["declarative", "native", "ViewNode"],
+    "sources": ["adr.0022", "adr.0021"],
+    "status": "proposed"
+  },
+  "pluginApp": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Plugin App",
+      "en": "Plugin App"
+    },
+    "ui": {
+      "ko": "플러그인 앱",
+      "en": "Plugin app"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["frame", "app", "FrameDecl", "AppDecl"],
+    "sources": ["adr.0022", "adr.0021"],
+    "status": "proposed"
+  },
+  "pluginBuilder": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Plugin Builder",
+      "en": "Plugin Builder"
+    },
+    "ui": {
+      "ko": "플러그인 빌더",
+      "en": "Plugin Builder"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["group-authoring", "plugin-builder"],
+    "forbid": {
+      "docs": ["제작 확장"]
+    },
+    "sources": ["adr.0022", "L3.authoring.spec"],
+    "status": "proposed"
+  },
+  "groupSdk": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Group SDK",
+      "en": "Group SDK"
+    },
+    "ui": {
+      "ko": "그룹 SDK",
+      "en": "Group SDK"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["group-kit", "group-sdk", "defineGroup"],
+    "sources": ["adr.0022", "L3.group-kit.spec"],
+    "status": "proposed"
+  },
+  "stages": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Stages",
+      "en": "Stages"
+    },
+    "ui": {
+      "ko": "단계 자리: 트리거·펼치기·모으기·적용",
+      "en": "Trigger·Fan-out·Fan-in·Apply"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["trigger", "fanOut", "fanIn", "apply"],
+    "sources": ["adr.0022", "L3.group-kit.spec"],
+    "status": "proposed"
+  },
+  "capability": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Capability",
+      "en": "Capability"
+    },
+    "ui": {
+      "ko": "기능",
+      "en": "Capability"
+    },
+    "surfaces": ["settings", "workbench"],
+    "ids": ["CapabilityId"],
+    "forbid": {
+      "docs": ["능력"]
+    },
+    "sharesLabelWith": ["layerCapabilities"],
+    "sources": ["adr.0022", "F.extensions.spec"],
+    "status": "proposed"
+  },
+  "provider": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Provider",
+      "en": "Provider"
+    },
+    "ui": {
+      "ko": "제공자",
+      "en": "Provider"
+    },
+    "surfaces": ["settings", "workbench"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "schedule": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Schedule(once / recurring)",
+      "en": "Schedule"
+    },
+    "ui": {
+      "ko": "예약: 한 번·반복",
+      "en": "Schedule: Once·Recurring"
+    },
+    "surfaces": ["chat", "settings", "workbench"],
+    "ids": ["once", "repeat", "TriggerSpec"],
+    "forbid": {
+      "ui": ["루프", "타이머"],
+      "docs": ["루프", "timer"]
+    },
+    "sources": ["adr.0022", "L2.schedule.spec"],
+    "status": "proposed"
+  },
+  "secret": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Secret",
+      "en": "Secret"
+    },
+    "ui": {
+      "ko": "시크릿",
+      "en": "Secret"
+    },
+    "surfaces": ["chat", "settings"],
+    "forbid": {
+      "ui": ["비밀"],
+      "docs": ["비밀"]
+    },
+    "sources": ["adr.0022", "L0.secrets.spec"],
+    "status": "proposed"
+  },
+  "secretRef": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Secret ref",
+      "en": "Secret ref"
+    },
+    "ui": {
+      "ko": "시크릿 참조",
+      "en": "Secret ref"
+    },
+    "surfaces": ["settings"],
+    "ids": ["secret://"],
+    "sources": ["adr.0022", "L0.secrets.spec"],
+    "status": "proposed"
+  },
+  "secretRegistry": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Secret registry",
+      "en": "Secret registry"
+    },
+    "ui": {
+      "ko": "시크릿 목록",
+      "en": "Secret registry"
+    },
+    "surfaces": ["settings"],
+    "sources": ["adr.0022", "L0.secrets.spec"],
+    "status": "proposed"
+  },
+  "injectionMode": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Injection mode",
+      "en": "Injection mode"
+    },
+    "ui": {
+      "ko": "주입 방식",
+      "en": "Injection mode"
+    },
+    "surfaces": ["settings"],
+    "ids": ["InjectionMode"],
+    "sources": ["adr.0022", "L0.secrets.spec"],
+    "status": "proposed"
+  },
+  "inputQueue": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Input Queue",
+      "en": "Input Queue"
+    },
+    "ui": {
+      "ko": "대기 중인 메시지",
+      "en": "Queued messages"
+    },
+    "surfaces": ["chat"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "taskQueue": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Task Queue",
+      "en": "Task Queue"
+    },
+    "ui": {
+      "ko": "작업 큐",
+      "en": "Tasks"
+    },
+    "surfaces": ["chat", "workbench"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "runtimeServer": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Runtime Server",
+      "en": "Runtime Server"
+    },
+    "ui": {
+      "ko": "런타임 서버",
+      "en": "Runtime server"
+    },
+    "surfaces": ["settings", "workbench"],
+    "ids": ["apps/host", "host.*"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "runtimeApi": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Runtime API",
+      "en": "Runtime API"
+    },
+    "ui": null,
+    "surfaces": ["none"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "backgroundService": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Background service",
+      "en": "Background service"
+    },
+    "ui": {
+      "ko": "이 컴퓨터(백그라운드)",
+      "en": "This computer (background)"
+    },
+    "surfaces": ["settings"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "embedded": {
+    "kind": "concept",
+    "doc": {
+      "ko": "Embedded",
+      "en": "Embedded"
+    },
+    "ui": {
+      "ko": "이 컴퓨터(앱 안)",
+      "en": "This computer (in app)"
+    },
+    "surfaces": ["settings"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "layerSystem": {
+    "kind": "layer",
+    "doc": {
+      "ko": "System",
+      "en": "System"
+    },
+    "ui": {
+      "ko": "시스템",
+      "en": "System"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["L0"],
+    "sources": ["adr.0022", "architecture.layers.spec"],
+    "status": "proposed"
+  },
+  "layerAgentCore": {
+    "kind": "layer",
+    "doc": {
+      "ko": "Agent Core",
+      "en": "Agent Core"
+    },
+    "ui": {
+      "ko": "에이전트 코어",
+      "en": "Agent Core"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["L1"],
+    "sources": ["adr.0022", "architecture.layers.spec"],
+    "status": "proposed"
+  },
+  "layerCapabilities": {
+    "kind": "layer",
+    "doc": {
+      "ko": "Capabilities",
+      "en": "Capabilities"
+    },
+    "ui": {
+      "ko": "기능",
+      "en": "Capabilities"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["L2"],
+    "sharesLabelWith": ["capability"],
+    "sources": ["adr.0022", "architecture.layers.spec"],
+    "status": "proposed"
+  },
+  "layerOrchestration": {
+    "kind": "layer",
+    "doc": {
+      "ko": "Orchestration",
+      "en": "Orchestration"
+    },
+    "ui": {
+      "ko": "오케스트레이션",
+      "en": "Orchestration"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["L3"],
+    "forbid": {
+      "docs": ["의도 그룹"]
+    },
+    "sources": ["adr.0022", "architecture.layers.spec"],
+    "status": "proposed"
+  },
+  "layerApps": {
+    "kind": "layer",
+    "doc": {
+      "ko": "Apps",
+      "en": "Apps"
+    },
+    "ui": {
+      "ko": "앱",
+      "en": "Apps"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["L4"],
+    "sources": ["adr.0022", "architecture.layers.spec"],
+    "status": "proposed"
+  },
+  "layerContracts": {
+    "kind": "layer",
+    "doc": {
+      "ko": "Contracts",
+      "en": "Contracts"
+    },
+    "ui": {
+      "ko": "계약",
+      "en": "Contracts"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["F"],
+    "sources": ["adr.0022", "architecture.layers.spec"],
+    "status": "proposed"
+  },
+  "layerExtensionRuntime": {
+    "kind": "layer",
+    "doc": {
+      "ko": "Extension Runtime",
+      "en": "Extension Runtime"
+    },
+    "ui": {
+      "ko": "확장 런타임",
+      "en": "Extension Runtime"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["X"],
+    "sources": ["adr.0022", "architecture.layers.spec"],
+    "status": "proposed"
+  },
+  "product": {
+    "kind": "product",
+    "doc": {
+      "ko": "Fresnel",
+      "en": "Fresnel"
+    },
+    "ui": {
+      "ko": "프레넬",
+      "en": "Fresnel"
+    },
+    "surfaces": ["chat", "settings", "workbench"],
+    "forbid": {
+      "docs": ["Xeon"]
+    },
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "workbench": {
+    "kind": "surface",
+    "doc": {
+      "ko": "LightCraft",
+      "en": "LightCraft"
+    },
+    "ui": {
+      "ko": "크래프트",
+      "en": "LightCraft"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["workbench"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  },
+  "benchmark": {
+    "kind": "operation",
+    "doc": {
+      "ko": "Benchmark",
+      "en": "Benchmark"
+    },
+    "ui": {
+      "ko": "성능 측정",
+      "en": "Benchmark"
+    },
+    "surfaces": ["workbench"],
+    "ids": ["benchmark"],
+    "sources": ["adr.0022"],
+    "status": "proposed"
+  }
+}

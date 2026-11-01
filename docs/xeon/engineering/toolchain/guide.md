@@ -400,6 +400,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | 3 | 타입 | `just typecheck` | `tsc -b scripts` + 패키지별 `tsc -b`(turbo, `dependsOn: ["^typecheck"]`) | `파일(행,열): error TSnnnn`이 나온다. 참조 순환 오류는 DR-06, 해석 실패는 DR-04·DR-05 | 60초(첫 실행), 15초(증분) | 1 |
 | 4 | 층 | `just check-layers` | `bun scripts/check-layers.ts` | `파일:행 DR-NN 설명`. 규칙 ID의 좋은 예를 따른다 | 3초 | 1: 위반, 2: 파일을 읽을 수 없음 |
 | 4a | TS 규칙 | `just check-ts-rules` | `bun scripts/check-ts-rules.ts` | `파일:행 xeon/규칙 설명`. 단언은 허용 목록 위치로 옮기거나 `attempt` 같은 도구로 바꾸고, `Bug`는 오류 값으로 바꾼다(`eng.typescript.guide` 3.2절) | 2초 | 1: 위반, 2: 소스 트리를 읽을 수 없음 |
+| 4b | 용어 | `just terms check` | `bun scripts/terms.ts check` | `FAIL <규칙> <위치>: <무엇이> → <할 일>`. 원본 `packages/client/src/i18n/terms.json`을 고친 뒤 `just terms gen`으로 카탈로그 `term.*` 키를 다시 만든다. 0단계 규칙은 T-01~T-05(원본), C-01·02·03·06(카탈로그), M-01(목업 파생물이 있을 때)이다 | 1초 | 1: 위반, 2: 원본·카탈로그를 읽을 수 없음 |
 | 5 | 경계 | `just depcruise` | `depcruise packages apps plugins --config .dependency-cruiser.cjs` | 규칙 이름 `DR-NN-...`과 `from → to` 경로가 나온다 | 20초 | 1 |
 | 6 | 미사용 | `just knip` | `knip` | 미사용 파일·export·의존 목록. 지우거나 `knip.json`의 `entry`가 빠졌는지 본다 | 20초 | 1 |
 | 7 | 문서 | `just docs-route --check --allow-missing` | `bun scripts/docs-route.ts --check --allow-missing` | `문서경로: 오류`. 프런트매터, `depends_on`, `binds`를 고친다 | 3초 | 1 |
@@ -447,7 +448,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | job | 내용 | 로컬 재현 |
 |---|---|---|
 | `layer` (matrix root, F, X, L0, L1, L2, L3, L4) | `just setup` 뒤 `just ci-layer <층> <main이 아니면 true>`. `scripts/ci-layer.sh`가 층의 패키지 디렉터리로 `turbo run lint typecheck test --filter=<dir>`를 만든다. `true`이면 `--affected`를 더한다. `root`는 `xeon/scripts`의 `lint:root`, `typecheck:root`, `just test scripts`다. L0 job은 bubblewrap과 socat을 설치하고 unprivileged user namespace 제한을 끈다 | `just ci-layer L1`, `just ci-layer root` |
-| `hygiene` | `fmt-check`, `check-layers`, `check-ts-rules`, `depcruise`, `knip` | 같은 레시피 |
+| `hygiene` | `fmt-check`, `check-layers`, `check-ts-rules`, `terms check`, `depcruise`, `knip` | 같은 레시피 |
 | `exit-tests` | bubblewrap, socat, sops 3.13.3, age 1.3.2를 설치하고 `just exit-tests`. `xeon/scripts/exit-tests.txt`의 종료 조건 시험을 한 줄씩 돌려, 파일이 없거나 시험이 하나라도 건너뛰어지거나 실패하면 1로 끝나고 건너뛴 수를 출력한다 | `just exit-tests` |
 | `docs` | `docs-route --check --allow-missing` | 같은 레시피 |
 

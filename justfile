@@ -76,6 +76,11 @@ knip:
 docs-route +args:
     cd xeon && just docs-route {{args}}
 
+# 용어 검사 0단계: gen은 원본(packages/client/src/i18n/terms.ts)에서 카탈로그 term.* 키를 만들고(--mockups는 목업 파생물도), check는 T·C·M 규칙을 검사한다 (xeon/scripts/terms.ts)
+[group('local')]
+terms mode *flags:
+    cd xeon && just terms {{mode}} {{flags}}
+
 # 요구 장부 검사: M3-REQ 행마다 상태(M3a, M3b:<트랙 id>, M4), 이월 표마다 트랙 id, 상태별 개수 (xeon/scripts/req-ledger.ts)
 [group('local')]
 req-ledger:
@@ -108,7 +113,7 @@ verify-full:
     WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps full
     ws check
 
-# verify 단계 묶음: setup, 가벼운 검사(fmt-check check-layers check-ts-rules docs-route knip, 같이), lint typecheck depcruise test를 차례로, 단계마다 guard.sh run scope 하나. mode fast|full. 처음 실패에서 멈추고 종료코드를 그대로 낸다 (xeon/scripts/verify-steps.sh)
+# verify 단계 묶음: setup, 가벼운 검사(fmt-check check-layers check-ts-rules docs-route terms knip, 같이), lint typecheck depcruise test를 차례로, 단계마다 guard.sh run scope 하나. mode fast|full. 처음 실패에서 멈추고 종료코드를 그대로 낸다 (xeon/scripts/verify-steps.sh)
 [private]
 _verify-steps mode="fast":
     bash xeon/scripts/verify-steps.sh {{mode}}

@@ -276,6 +276,11 @@ const EXCLUDED_PREFIXES = [
   "xeon/scripts/rename.test.ts",
   "xeon/scripts/migrate-dev-machine.ts",
   "xeon/scripts/migrate-dev-machine.test.ts",
+  // 용어 원본: 옛 이름 금지 목록과 코드 id가 옛 말 그대로 적혀 있어야 한다
+  "xeon/packages/client/src/i18n/terms.ts",
+  "xeon/packages/client/src/i18n/terms.json",
+  "xeon/scripts/terms.ts",
+  "xeon/scripts/terms.test.ts",
 ];
 
 /** 파일 단위 예외: 이 묶음에서 건드리는 예외 파일(외부 코드의 package.json은 패키지 이름이므로 A만) */

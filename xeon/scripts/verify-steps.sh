@@ -3,7 +3,7 @@
 # verify takes the machine slot (WS_GUARD_SLOTS=1: one helm verify at a time) and calls this script inside it; the slot's
 # scope only holds this light orchestrator, so every step gets its own memory cap and a failed step ends only itself.
 # A step that fails stops the run and its exit code is this script's exit code (1 fix, 2 environment, 3 human confirm).
-# The light checks (fmt-check, check-layers, check-ts-rules, docs-route, knip) run side by side, each in its own scope; their output
+# The light checks (fmt-check, check-layers, check-ts-rules, docs-route, terms, knip) run side by side, each in its own scope; their output
 # is printed step by step when all of them are done. If some fail, the first failed one in the list below gives the exit code
 # and every failed one is named. The heavy steps (lint, typecheck, depcruise) and test run alone, one after the other.
 # The `test` step is not wrapped: test-capped.sh already runs every package under guard.sh run (1.5G each).
@@ -27,8 +27,8 @@ case "$mode" in
 esac
 
 step_max="${XEON_VERIFY_STEP_MAX:-2G}"
-steps=(setup fmt-check check-layers check-ts-rules "docs-route --check" knip lint typecheck depcruise test)
-light=(fmt-check check-layers check-ts-rules "docs-route --check" knip)
+steps=(setup fmt-check check-layers check-ts-rules "docs-route --check" "terms check" knip lint typecheck depcruise test)
+light=(fmt-check check-layers check-ts-rules "docs-route --check" "terms check" knip)
 
 # runs inside each step's scope: the step, then the scope's peak memory (cgroup v2 memory.peak) on stderr when readable
 step_cmd='just "$@"; status=$?; f="/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)/memory.peak"
