@@ -1204,6 +1204,21 @@ F.extensions.spec §4.5와 L3.readme가 위임한 항목이다.
 - 시작 적용으로 켜진 scope의 `scope.changed`는 install 시점에 커밋하지 않는다. thread를 열 때(`openThread`) 이미 세대가 열린 scope를 그 thread의 켜짐 집합에 올리고(`seedThread`), `ExtThreadSnapshot.enabled`와 켜짐 집합이 다를 때만 첫 경계 기여에 넣는다. 같으면 아무것도 쓰지 않는다(`review.open-issues` N-01). 이미 열린 thread가 있는 상태에서 설치하면 그 thread들을 같은 방식으로 바로 켠다.
 - setup 실패 원인은 `RegistrationSetupOutcome.failure`로 돌려준다. 로더는 이것을 진단 코드로 옮긴다(X.loading-trust.spec §4.4.3 표).
 
+#### 4.5.7 덮어쓰기 결과를 Registration의 thread별 켜짐 상태로 옮기는 규칙 [미결: 사용자 확인 대기]
+
+ADR-0022 §3.3 5번의 제안입니다. 사용자가 확인하기 전에는 구현하지 않고, 아래 4.5.2의 지금 규칙(전체 기본값과 thread별 요청)이 그대로 적용됩니다. 지금 코드의 사실: `ext.<name>.enabled`는 허용 범위가 `managed, user, project, local, launch`이고, 한 thread만의 요청은 `registrationToggleSourceOf(host).request(id, enabled, reason, threadId)`가 launch 범위로 기록하며, `RegistrationHandle.enable()`·`disable()`은 전체 기본값을 바꾸고 모든 thread의 별도 요청을 지웁니다(§4.5.2).
+
+1. **세 층과 설정 범위의 대응.** 전역 = `user` 범위 값(기본 프로필이 쓴 값 포함). 프로젝트 = `project`·`local` 범위 값(그 thread의 작업 폴더가 속한 프로젝트). 대화 = 그 thread만의 요청. 코드에서는 `ThreadToggle`이라 부릅니다(새 범위 이름 `launch`와 혼동하지 않으려는 이름입니다) [제안]. `managed`는 모든 층 위에서 잠급니다(지금 규칙 그대로).
+2. **해석.** `enabledOf(thread, registration) = managed ?? threadToggle ?? project ?? user ?? default`. `default`는 §4.5.1 3번의 초기 켜기 요청입니다. 가장 구체적인 층이 이깁니다.
+3. **적용 시점.** thread를 열 때(`seedThread`) 위 식으로 켜짐 집합을 계산합니다. 열린 thread에서 user·project 값이 바뀌면 그 thread에 `threadToggle`이 없는 Registration만 다음 단계 경계에서 다시 계산해 적용합니다. `threadToggle`이 있으면 바뀌지 않습니다. `RegistrationHandle.enable()`·`disable()`은 지금처럼 모든 `threadToggle`을 지우되, 지우기는 "사용자 요청으로 온 전체 켜기"에서만 일어나고 설정 파일 변경은 `threadToggle`을 지우지 않습니다 [제안: 지금 코드가 같은지 구현 때 확인].
+4. **프로필.** `profile.apply`는 적용 층을 인자로 받습니다. `layer: "user" | "project" | "thread"`(기본은 크래프트 맥락 칸 값: 전체 → user, 대화·프로필·테스트 → thread). 프로필의 `enable`·`disable` 목록은 그 층의 값으로 기록하고 `settings`는 같은 층 범위로 씁니다. 프로젝트 층 쓰기에는 프로젝트 신뢰가 필요합니다.
+5. **출처 배지.** `ext.list`와 `ext.get` 행에 optional `enabledSource: "managed" | "thread" | "project" | "user" | "default"`를 더합니다(T-F 스키마). 화면은 "전역 / 프로젝트 / 이 대화" 배지로 보이고 `managed`와 `default`는 숨기거나 "기본"으로 둡니다.
+6. **저장.** 새 저장 형식은 필요 없습니다. 이미 있는 `scope.changed` 이벤트가 thread별 결과 상태를 남기고, "대화 층 값이 있는지"는 thread 스냅샷의 요청 기록(`threadToggle` 목록)으로 압니다. 이벤트만으로 판별이 안 되면 `scope.changed` payload에 optional `source` 필드를 더하는 것을 고려합니다(저장 문자열 이름은 안 바꿈) [미결: 구현 때 확인].
+7. **`profile.preview`.** 같은 식으로 계산한 결과와 지금 결과의 차이를 출처와 함께 돌려줍니다.
+8. **끄기 시 정리.** 어느 thread도 쓰지 않으면 정리를 실행한다는 규칙(§4.5.3)은 그대로입니다.
+
+사용자 확인이 필요한 점: (a) 프로젝트 층을 `project`와 `local` 둘 다로 보는지, (b) 설정 파일 변경이 `threadToggle`을 지우지 않는 것이 맞는지, (c) 프로필 적용의 기본 층이 맥락 칸 값을 따르는지.
+
 ### 4.6 상태 문서, 기록, 레코드
 
 #### 4.6.1 상태 문서와 커밋
