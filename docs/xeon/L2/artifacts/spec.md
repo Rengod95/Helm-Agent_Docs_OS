@@ -50,7 +50,7 @@ binds: [xeon/packages/cap-artifacts/**]
 | diff 정규화와 hunk ID 규칙 | workspace 도구 결과 `details`의 diff (`L2.workspace.spec`) | 파일 쓰기 도구와 그 결과 형식(L2.workspace) |
 | 코멘트를 에이전트 입력으로 만드는 규칙과 멱등 키 | 입력 큐 `xeon.tasks` post (`L1.tasks.spec`) | 입력 큐, 전달 모드, `input.*` 이벤트(L1.tasks) |
 | 거절 hunk의 역패치 계산 | 파일 되돌림 `workspace.files` 또는 L1 복원 ([미결] §4.2.5) | 체크포인트와 되감기, 파일 상태 복원(L1.persistence) |
-| 세션 라벨과 `artifact.session_labeled` | 제목 변경 `xeon.session` retitle (`L1.persistence.spec`) | 제목 이벤트(`session.retitled`)와 `session.info.after` 지점 디스패치(L1·X) |
+| 세션 라벨과 `artifact.session_labeled` | 제목 변경 `xeon.session` retitle (`L1.persistence.spec`) | 제목 이벤트(`session.retitled`)와 `thread.info.after` 지점 디스패치(L1·X) |
 | 자동 제목 생성 시점과 프롬프트 | 소형 모델 호출 `xeon.models` 용도 라우팅 (`L1.models.spec`) | 모델 라우팅과 용도 이름(L1.models) |
 | 메타 목록·검색(제목, 라벨, 산출물 수) | 없음 | 세션 본문 전문 검색(`knowledge.search`) |
 | 핸드오프 패키지 형식(2차) | 세션 생성 `xeon.session`, 입력 post `xeon.tasks` | 컴팩션 요약 생성(`L1.context.spec`) |
@@ -1324,9 +1324,9 @@ export const ReviewAnswerSchema = Type.Object({
 - `search`는 제목과 라벨만 본다. 비교는 NFC 정규화 뒤 대소문자 무시 부분 문자열(SQLite `instr(lower(...))`, ASCII 범위만 소문자화)이다. FTS를 쓰지 않는다. 그래서 `knowledge.search`의 세션 본문 색인과 겹치지 않는다.
 - 경계 [제안]: 대화 내용으로 세션을 찾는 기능은 `knowledge.search`다. L4 세션 목록 화면이 두 결과를 함께 보여 줄 수 있지만, artifacts는 knowledge를 호출하지 않는다(`L2.readme` §6에 이 간선이 없다). knowledge도 라벨을 색인하지 않는다.
 
-#### 4.3.4 `session.info.after` 지점과의 관계
+#### 4.3.4 `thread.info.after` 지점과의 관계
 
-- `session.info.after`(F.extensions.spec #31, session, tap, `dispatch: detached`)는 세션 정보(이름 등)가 바뀐 뒤 확장에게 알리는 관찰 지점이다. pi에서는 세션 이름 변경 뒤 발사된다(`types.ts:750`).
+- `thread.info.after`(F.extensions.spec #31, session, tap, `dispatch: detached`)는 세션 정보(이름 등)가 바뀐 뒤 확장에게 알리는 관찰 지점이다. pi에서는 세션 이름 변경 뒤 발사된다(`types.ts:750`).
 - [제안] 이 지점의 디스패치는 제목 이벤트를 쓴 L1(session-core가 커밋한 뒤 X가 디스패치)이 한다. artifacts는 이 지점을 발사하지 않는다. 자동 제목이든 `session_rename`이든 같은 L1 경로를 타므로 지점이 한 번만 발사된다.
 - artifacts는 이 지점에 핸들러를 달지 않는다. 투영이 제목 이벤트를 직접 읽기 때문이다. 지점 핸들러로 상태를 만들면 재생 때 다시 실행되지 않는다(`eng.events.design` EV-08).
 - 라벨 변경은 이 지점을 발사하지 않는다 [제안]. `SessionInfoChangedPayload`에 라벨을 넣을지는 §10 미결 7이다.
@@ -1422,14 +1422,14 @@ export const ReviewAnswerSchema = Type.Object({
 | `l2.artifacts.maxPerSession` | integer | 500 | min 1, max 10000 | live | managed, user, project, local | sessions | false | 화면 |
 | `l2.artifacts.maxContentBytes` | integer | 26214400 | min 1024, max 268435456 | live | managed, user, project, local | sessions | false | 화면. 단위 바이트(25 MiB) |
 | `l2.artifacts.retentionDays` | integer | 0 | min 0, max 3650 | nextTurn | managed, user, project, local | sessions | false | 화면. 0은 무기한 |
-| `l2.artifacts.autoTitle.enabled` | boolean | true | — | live | managed, user, project, local, session | sessions | false | 화면, 명령 |
+| `l2.artifacts.autoTitle.enabled` | boolean | true | — | live | managed, user, project, local, launch | sessions | false | 화면, 명령 |
 | `l2.artifacts.autoTitle.purpose` | string | `"title"` | — | nextTurn | managed, user, project, local | models | false | 화면. 값은 L1.models 용도 이름 [가정] |
-| `l2.artifacts.reviews.autoRequest` | string | `"off"` | enum `off`, `turnEnd` | nextTurn | managed, user, project, local, session | tools | false | 화면 |
-| `l2.artifacts.reviews.deliverAs` | string | `"followUp"` | enum `steer`, `followUp`, `next` | live | managed, user, project, local, session | tools | false | 화면 |
+| `l2.artifacts.reviews.autoRequest` | string | `"off"` | enum `off`, `turnEnd` | nextTurn | managed, user, project, local, launch | tools | false | 화면 |
+| `l2.artifacts.reviews.deliverAs` | string | `"followUp"` | enum `steer`, `followUp`, `next` | live | managed, user, project, local, launch | tools | false | 화면 |
 | `l2.artifacts.reviews.fuzzLines` | integer | 3 | min 0, max 20 | live | managed, user, project, local | advanced | false | 파일만 |
-| `l2.artifacts.tools.reviewRequest` | boolean | true | — | nextTurn | managed, user, project, local, session | tools | false | 화면. 도구 노출 |
-| `l2.artifacts.tools.sessionRename` | boolean | false | — | nextTurn | managed, user, project, local, session | tools | false | 화면. 도구 노출 |
-| `l2.artifacts.tools.handoff` | boolean | false | — | nextTurn | managed, user, project, local, session | tools | false | 화면. 2차 |
+| `l2.artifacts.tools.reviewRequest` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. 도구 노출 |
+| `l2.artifacts.tools.sessionRename` | boolean | false | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. 도구 노출 |
+| `l2.artifacts.tools.handoff` | boolean | false | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. 2차 |
 | `l2.artifacts.handoff.purpose` | string | `"compaction"` | — | nextTurn | managed, user, project, local | models | false | 화면. 2차 |
 | `l2.artifacts.handoff.reuseCompactionMaxTurns` | integer | 3 | min 0, max 50 | live | managed, user, project, local | advanced | false | 파일만. 2차 |
 | `l2.artifacts.export.defaultFormat` | string | `"markdown"` | enum `markdown`, `html` | live | managed, user, project, local | sessions | false | 화면, 명령. 2차 |
@@ -1445,7 +1445,7 @@ export const ReviewAnswerSchema = Type.Object({
 | 지점 / 연산 | 이 능력의 쓰임 |
 |---|---|
 | `boundary.settle.after` (#26, tap) | 자동 제목(§4.3.2)과 자동 리뷰 요청(§4.2.7)의 트리거. 핸들러는 `dispatch: detached`로 등록하고 모델 호출은 커밋 밖에서 한다 |
-| `session.info.after` (#31, tap) | 발사하지 않고 핸들러도 달지 않는다(§4.3.4) |
+| `thread.info.after` (#31, tap) | 발사하지 않고 핸들러도 달지 않는다(§4.3.4) |
 | `tool.call.before` / `tool.result` (#13, #14) | 이 능력의 도구도 지난다. 이 능력이 핸들러를 달지는 않는다 |
 | post | 직접 쓰지 않고 `xeon.tasks.post`를 쓴다(코멘트 전달 §4.2.6, 핸드오프 입력 §4.4). 멱등 키 규칙은 `F.extensions.spec` §4.4와 같다 |
 | drive | 쓰지 않는다. L2는 drive를 쓰지 않는다(`L2.readme` §4.2) |

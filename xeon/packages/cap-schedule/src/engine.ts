@@ -47,7 +47,7 @@ function firstDueOf(input: CreateInput, now: number): number | null {
       return now + input.trigger.everySeconds * 1000;
     case "at":
       return input.trigger.atMs;
-    case "loop":
+    case "repeat":
       return now;
     case "file_watch":
     case "remote":
@@ -200,7 +200,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     );
     if (running) return "overlap";
     if (
-      entry.trigger.kind !== "loop" &&
+      entry.trigger.kind !== "repeat" &&
       entry.lastStartedAt !== null &&
       now - entry.lastStartedAt < policy.minIntervalMs
     ) {
@@ -258,7 +258,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       entry.id,
       {
         lastStartedAt: now,
-        iterations: entry.trigger.kind === "loop" ? entry.iterations + 1 : entry.iterations,
+        iterations: entry.trigger.kind === "repeat" ? entry.iterations + 1 : entry.iterations,
       },
       base,
     );
@@ -296,7 +296,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       const failed: RunRecord = { ...run, status: "failed", endedAt: now, reason: "start_failed" };
       const next = withRun(failed);
       await commit(
-        entry.trigger.kind === "loop" ? withEntry(entry.id, stopPatch("run_failed"), next) : next,
+        entry.trigger.kind === "repeat" ? withEntry(entry.id, stopPatch("run_failed"), next) : next,
       );
       return failed;
     }
@@ -328,7 +328,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     };
     let next = withRun(ended);
     const entry = entryOf(run.scheduleId);
-    if (entry !== undefined && entry.trigger.kind === "loop" && entry.enabled) {
+    if (entry !== undefined && entry.trigger.kind === "repeat" && entry.enabled) {
       const trigger = entry.trigger;
       if (outcome !== "completed") {
         next = withEntry(
@@ -375,14 +375,14 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     }
     if (plan.fire === null) {
       // 너무 오래된 루프 반복은 따라잡지 않고 멈춘다
-      await commit(kind === "loop" ? withEntry(entry.id, stopPatch("expired"), base) : base);
+      await commit(kind === "repeat" ? withEntry(entry.id, stopPatch("expired"), base) : base);
       return;
     }
     const blocked = gateOf(entry, now);
     if (blocked !== null) {
       const withSkip = withRun(skippedRun(entry, kind, plan.fire.dueAt, now, blocked, 1), base);
       await commit(
-        kind === "loop" ? withEntry(entry.id, stopPatch("run_failed"), withSkip) : withSkip,
+        kind === "repeat" ? withEntry(entry.id, stopPatch("run_failed"), withSkip) : withSkip,
       );
       return;
     }
@@ -451,7 +451,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
           : { kind: "invalid_trigger", reason: "debounce_invalid" };
       case "remote":
         return null;
-      case "loop":
+      case "repeat":
         if (!Number.isFinite(trigger.intervalSeconds) || trigger.intervalSeconds < 0) {
           return { kind: "invalid_trigger", reason: "loop_interval_invalid" };
         }
@@ -563,7 +563,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
             recovered,
           );
           const entry = recovered.entries.find((candidate) => candidate.id === run.scheduleId);
-          if (entry !== undefined && entry.trigger.kind === "loop" && entry.enabled) {
+          if (entry !== undefined && entry.trigger.kind === "repeat" && entry.enabled) {
             recovered = withEntry(entry.id, stopPatch("host_exit"), recovered);
           }
         }
@@ -590,7 +590,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       const waiting = state.entries.filter(
         (entry) =>
           entry.enabled &&
-          ((entry.nextDueAt !== null && entry.trigger.kind !== "loop") ||
+          ((entry.nextDueAt !== null && entry.trigger.kind !== "repeat") ||
             entry.trigger.kind === "file_watch"),
       ).length;
       const active = state.runs.filter(
@@ -600,7 +600,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     },
 
     liveSchedulerTasks: () =>
-      state.entries.filter((entry) => entry.enabled && entry.trigger.kind === "loop").length,
+      state.entries.filter((entry) => entry.enabled && entry.trigger.kind === "repeat").length,
 
     onChange(listener) {
       listeners.add(listener);

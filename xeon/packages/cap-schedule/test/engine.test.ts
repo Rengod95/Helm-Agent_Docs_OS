@@ -164,7 +164,7 @@ test("a loop reruns after each settle until max iterations, counts as a live tas
   const h = await started(createHarness());
   const entry = await created(h.service, {
     trigger: {
-      kind: "loop",
+      kind: "repeat",
       intervalSeconds: 60,
       maxIterations: 2,
       expiresAtMs: h.clock.now + HOUR,
@@ -180,14 +180,14 @@ test("a loop reruns after each settle until max iterations, counts as a live tas
   await settleAll(h);
   expect(h.service.list()[0]?.nextDueAt).toBe(h.clock.now + 60 * SECOND);
   expect(h.service.liveSchedulerTasks()).toBe(1);
-  expect(entry.trigger.kind).toBe("loop");
+  expect(entry.trigger.kind).toBe("repeat");
 });
 
 test("a loop stops with max_iterations after its last iteration and with expired when the next one would pass the expiry", async () => {
   const h = await started(createHarness());
   await created(h.service, {
     trigger: {
-      kind: "loop",
+      kind: "repeat",
       intervalSeconds: 60,
       maxIterations: 2,
       expiresAtMs: h.clock.now + HOUR,
@@ -212,7 +212,7 @@ test("a loop stops with max_iterations after its last iteration and with expired
   const e = await started(createHarness());
   await created(e.service, {
     trigger: {
-      kind: "loop",
+      kind: "repeat",
       intervalSeconds: 600,
       maxIterations: 10,
       expiresAtMs: e.clock.now + 5 * MINUTE,
@@ -229,7 +229,7 @@ test("a loop stops when its run is aborted or fails to start", async () => {
   const h = await started(createHarness());
   await created(h.service, {
     trigger: {
-      kind: "loop",
+      kind: "repeat",
       intervalSeconds: 0,
       maxIterations: 5,
       expiresAtMs: h.clock.now + HOUR,
@@ -295,7 +295,7 @@ test("persistence: entries and runs survive a restart; claimed runs restart with
 
   // claim만 저장되고 죽은 경우
   const claimedStore = new MemoryStore({
-    version: 1,
+    version: 2,
     entries: store.saved.entries,
     runs: [
       {
@@ -319,7 +319,7 @@ test("a loop that was running at restart is stopped with host_exit and not resta
   const first = await started(createHarness({ store }));
   await created(first.service, {
     trigger: {
-      kind: "loop",
+      kind: "repeat",
       intervalSeconds: 60,
       maxIterations: 5,
       expiresAtMs: first.clock.now + HOUR,

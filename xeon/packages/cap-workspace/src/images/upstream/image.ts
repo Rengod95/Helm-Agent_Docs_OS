@@ -1,7 +1,7 @@
-// XEON-PATCH: P11
+// FRESNEL-PATCH: P11
 import { repeatAsync } from "@xeon/contracts";
 
-// XEON-PATCH: P11
+// FRESNEL-PATCH: P11
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 /** Bytes every check except the APNG chunk walk needs: BMP reads up to offset 29. */
 const HEADER_BYTES = 32;
@@ -37,7 +37,7 @@ async function isAnimatedPngOf(source: ByteSource): Promise<boolean> {
     return block.subarray(offset - blockStart, offset - blockStart + length);
   };
   let offset = PNG_SIGNATURE.length;
-  // XEON-PATCH: P11
+  // FRESNEL-PATCH: P11
   return await repeatAsync<boolean>(async () => {
     if (offset + 8 > source.size) return { value: false };
     const chunkHeader = await bytesAt(offset, 8);

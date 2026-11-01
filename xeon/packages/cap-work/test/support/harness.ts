@@ -154,7 +154,7 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
   });
   let counter = 0;
   const adopt = (threadId: ThreadId): ThreadId => {
-    const token = store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
+    const token = store.leases.acquire(`thread:${threadId}`, TEST_HOLDER_A);
     if (!token.ok) throw new Bug("harness: lease failed", { cause: token.error });
     const opened = session.openForWrite(threadId, token.value);
     if (!opened.ok) throw new Bug("harness: open failed", { cause: opened.error });

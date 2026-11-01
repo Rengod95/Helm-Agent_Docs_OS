@@ -473,7 +473,7 @@ export const CATEGORIES: readonly Category[] = [
         only: ["docs/xeon/"],
       },
       {
-        pattern: /(?<=allowedScopes\)(?:\.not)?\.toContain\()"session"/g,
+        pattern: /(?<=[sS]copes(?:\([^()]*\))?\)?(?:\.not)?\.toContain\()"session"/g,
         replace: '"launch"',
         skip: NO_MOCKUPS,
       },

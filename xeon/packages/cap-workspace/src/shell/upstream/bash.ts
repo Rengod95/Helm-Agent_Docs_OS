@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "@xeon/contracts";
-// XEON-PATCH: P1
+// FRESNEL-PATCH: P1
 import type {
   CancelScope as Context,
   ExecutionError,
@@ -9,15 +9,15 @@ import type {
   ShellOutputWindow,
 } from "@xeon/contracts/services";
 import { WorkspaceFailure } from "../../errors.ts";
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 import { OutputBuffer, PROGRESS_BYTES_PER_SECOND } from "../../upstream/output.ts";
 
 const MAX_TIMEOUT_SECONDS = 2_147_483_647 / 1000;
-// XEON-PATCH: P6
+// FRESNEL-PATCH: P6
 /** 원본은 `ToolExecutionApi.outputWindow`가 이 간격을 정했다(`HarnessOptions.progress.outputIntervalMs` 기본값) */
 const OUTPUT_INTERVAL_MS = 100;
 
-// XEON-PATCH: P6
+// FRESNEL-PATCH: P6
 /**
  * 원본 `createBashTool`/`runCommand`에서 도구 껍데기(`defineTool`, `ToolExecutionApi`, `commandPrefix`, `prepare`,
  * PowerShell)를 걷어 낸 본문이다. 출력은 `api.output()`/`retainedOutput()` 대신 같은 `OutputBuffer`(꼬리 보관)가 받고,
@@ -52,7 +52,7 @@ export interface BashFailure {
   readonly fullOutputPath?: string;
 }
 
-// XEON-PATCH: P6
+// FRESNEL-PATCH: P6
 function validateTimeout(timeout: number | undefined): void {
   if (timeout === undefined) return;
   if (!Number.isFinite(timeout) || timeout <= 0) {

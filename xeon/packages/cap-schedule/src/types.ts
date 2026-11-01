@@ -21,7 +21,7 @@ export type TriggerSpec =
   | { readonly kind: "remote" }
   /** 루프: 실행이 정착한 뒤 `intervalSeconds` 뒤에 같은 프롬프트를 다시 실행. 상한 둘이 필수 */
   | {
-      readonly kind: "loop";
+      readonly kind: "repeat";
       readonly intervalSeconds: number;
       readonly maxIterations: number;
       readonly expiresAtMs: number;
@@ -80,13 +80,13 @@ export interface RunRecord {
 }
 
 export interface ScheduleState {
-  readonly version: 1;
+  readonly version: 2;
   readonly entries: readonly ScheduleEntry[];
   /** 오래된 것부터. `maxRunRecords`를 넘으면 앞에서 버린다 */
   readonly runs: readonly RunRecord[];
 }
 
-export const EMPTY_STATE: ScheduleState = { version: 1, entries: [], runs: [] };
+export const EMPTY_STATE: ScheduleState = { version: 2, entries: [], runs: [] };
 
 export interface SchedulePolicy {
   /** 기한 뒤 이 시간 안에 처리하면 제때 실행이다(spec 4.4.4 lateGraceSeconds 기본 120) */

@@ -99,7 +99,7 @@ describe("settings", () => {
   test("scopes follow the precedence and invalid values are skipped", () => {
     const stack: ScopeStack = [
       layer("user", { "l2.workspace.read.maxLines": 100, "l2.workspace.list.maxEntries": 20 }),
-      layer("session", { "l2.workspace.read.maxLines": 50 }),
+      layer("launch", { "l2.workspace.read.maxLines": 50 }),
       // 범위 밖 값(최솟값 1 미만)은 건너뛰고 아래 층 값이 이긴다
       layer("project", { "l2.workspace.list.maxEntries": 0, "l2.workspace.shell.maxBytes": 3 }),
     ];

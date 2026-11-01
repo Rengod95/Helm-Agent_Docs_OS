@@ -177,7 +177,7 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
         listener?.stop();
       });
       // 스레드를 다시 열 때 승인 요청이 빠진 판을 다시 요청하고 모드 복원을 마무리한다(spec §4.5)
-      g.on("session.start", async (payload) => {
+      g.on("thread.start", async (payload) => {
         const resumed = await attemptAsync(() => plans.resume(payload.threadId));
         if (!resumed.ok) logger.error("work.plans.resume_failed", { thread: payload.threadId });
       });

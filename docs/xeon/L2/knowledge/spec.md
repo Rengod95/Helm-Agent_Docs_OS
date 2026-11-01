@@ -947,7 +947,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 #### 4.2.4 지연 로딩
 
 - `list`와 인덱스는 이름·설명·범위·해시만 담는다. 본문은 `view`를 부를 때 파일에서 읽는다.
-- `list`는 색인(DB)만 읽는다. 스킬 루트를 다시 훑는 일은 시작 시 재색인, `skills.reindex`, `view`의 해시 불일치 처리가 맡는다. 엔진이 도는 동안 바깥에서 새로 둔 스킬은 이 셋 중 하나나 새 세션의 `session.start`(§7)가 재색인할 때까지 `list`에 나타나지 않는다.
+- `list`는 색인(DB)만 읽는다. 스킬 루트를 다시 훑는 일은 시작 시 재색인, `skills.reindex`, `view`의 해시 불일치 처리가 맡는다. 엔진이 도는 동안 바깥에서 새로 둔 스킬은 이 셋 중 하나나 새 세션의 `thread.start`(§7)가 재색인할 때까지 `list`에 나타나지 않는다.
 - `view`는 매번 파일을 읽고 트리 해시를 다시 계산한다. 색인의 해시와 다르면 바깥 편집으로 보고 §4.3.5의 스킬 쪽 처리(원장 `external` 기록, 색인 갱신)를 한 뒤 결과를 돌려준다.
 - 지원 파일의 상대 경로는 스킬 디렉터리 기준이다. `view({ name, file })`로 읽는다. 모델 렌더링은 "상대 경로는 skill_view의 file로 읽는다"는 안내를 본문 앞에 붙인다(pi `formatSkillsForPrompt`의 상대 경로 안내를 우리 도구로 바꾼 것).
 
@@ -967,7 +967,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 예산: `l2.knowledge.skills.indexBudgetChars`(기본 8,000자 [가정]). 항목 설명은 `l2.knowledge.skills.indexDescriptionChars`(기본 160자 [가정])에서 자르고 끝에 `…`을 붙인다. Hermes는 60자, Claude Code는 1,536자 상한이다(`_research/refs/hermes.md` §3.10.1 (라)·(바), `_research/item-catalog.md` L2 스킬 행). 기본값은 측정 뒤 정한다.
 - 예산을 넘으면 범위 순(프로젝트 → 사용자 → 확장 → 경로), 같은 범위 안에서는 이름 바이트 순으로 넣을 수 있는 만큼만 넣고 남은 개수를 적는다. 순서가 결정적이어야 같은 스킬 집합이 같은 블록을 만든다(프롬프트 캐시).
 - 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). 연결은 `turn-context.ts`가 한다(KN.5). `input.agent.before`에서 세션의 첫 turn이면 인덱스 블록과 메모리 스냅샷(§4.3.4)을 이어 붙여 `customType: "knowledge.context"`, `display: false`인 기록 메시지 하나로 더한다. 시스템 프롬프트는 건드리지 않는다. 더한 메시지가 세션 기록에 남는다는 것은 [가정]이다.
-- 첫 turn은 세션별 상태가 없는 turn이다. `session.start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다. 컴팩션이 일어나면 이 가정이 깨질 수 있어 접힌 블록은 L1이 다시 놓는다(§4.2.8).
+- 첫 turn은 세션별 상태가 없는 turn이다. `thread.start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다. 컴팩션이 일어나면 이 가정이 깨질 수 있어 접힌 블록은 L1이 다시 놓는다(§4.2.8).
 - 블록과 인덱스 스냅샷은 같은 시점의 색인에서 만든다. 스킬을 끄면(`l2.knowledge.skills.enabled`) 블록은 비고, 메모리를 끄면 스냅샷이 빈다. 둘 다 비면 메시지를 더하지 않는다.
 - 이 블록을 어디에 두는지(시스템 프롬프트 영역, 첫 turn 메시지)는 `L1.context.spec`이 정한다. [제안] 메모리 스냅샷(§4.3.4)과 같은 첫 turn 기록 메시지로 넣는다. 기록 메시지면 재개 때 같은 내용이 다시 쓰여 결정적이다.
 
@@ -983,18 +983,18 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 본문만 바뀐 변경은 알리지 않는다. 모델은 다음 `view`에서 새 본문을 읽는다.
 - 구현은 `input.agent.before`에서 현재 `indexVersion`을 상태의 버전과 비교한다. 같으면 아무것도 하지 않는다. 다르면 이름과 잘린 설명을 비교해(`skills/delta.ts`의 `diffIndex`) 추가·변경·삭제를 정하고, 상태를 현재로 올린 뒤 비어 있지 않을 때만 메모를 더한다. 모델 호출 여부가 바뀌어 목록에 나타나거나 사라지는 스킬은 추가·삭제로 센다. 같은 이름의 범위가 바뀌어도 설명이 같으면 알리지 않는다.
 - 메모는 `customType: "knowledge.index-delta"`, `display: false` 메시지 하나다. 목록은 이름 바이트 순이고 한 줄에 10개까지, 넘으면 `외 N개`로 줄인다. 추가한 스킬 옆 설명은 60자(코드 포인트)에서 `…`로 자른다. 예산을 넘어 첫 블록에 싣지 못한 스킬도 인덱스에 있으면 추가로 알린다.
-- 상태는 `session.shutdown`에서 지운다. 지운 세션의 다음 turn은 첫 turn으로 본다. 종료 후크 없이 사라진 세션의 항목은 프로세스가 끝날 때까지 남는다(항목 하나는 스킬 수만큼의 문자열이다).
+- 상태는 `thread.shutdown`에서 지운다. 지운 세션의 다음 turn은 첫 turn으로 본다. 종료 후크 없이 사라진 세션의 항목은 프로세스가 끝날 때까지 남는다(항목 하나는 스킬 수만큼의 문자열이다).
 
-#### 4.2.7 `session.resources` 지점과의 관계
+#### 4.2.7 `thread.resources` 지점과의 관계
 
-- `F.extensions.spec` §3.4 #28 `session.resources`(session, chain)는 확장이 스킬·프롬프트 같은 리소스 경로를 더하는 지점이다. pi에서 확장이 스킬 경로를 더하는 경로다.
+- `F.extensions.spec` §3.4 #28 `thread.resources`(session, chain)는 확장이 스킬·프롬프트 같은 리소스 경로를 더하는 지점이다. pi에서 확장이 스킬 경로를 더하는 경로다.
 - 이 능력은 그 지점을 정의하지 않고 결과만 쓴다. 지점의 합성 결과(확장 이름과 함께 추가된 스킬 경로)를 확장 제공 루트로 받아 읽기 전용 스킬로 싣는다 [가정: X가 합성 결과를 세션 시작 때 `cap-knowledge`에 넘기는 API를 `X.loading-trust.spec`이 정한다].
 - 확장 제공 스킬의 쓰기는 `read_only_scope`로 거부한다. 확장을 지우면 그 루트가 빠지고 다음 재색인 때 색인에서 빠진다.
 
 #### 4.2.8 컴팩션 뒤 재주입
 
 - 컴팩션(`L1.context.spec` §4.6)은 앞쪽 기록을 요약으로 바꾸므로, 첫 turn에 넣은 `knowledge.context` 메시지(스킬 인덱스 블록과 메모리 스냅샷)가 요약에 접히면 모델 입력에서 빠진다. 이 메시지를 다시 놓는 일은 L1.context가 한다. 조립이 접힌 범위의 `knowledge.context`와 `knowledge.index-delta` custom item을 요약 바로 뒤에 가지 순서대로 다시 놓는다(`L1.context.spec` §4.9a, 두 층이 customType 문자열을 약속한다). 이 패키지는 컴팩션을 구독하지 않고 세션별 상태를 그대로 둔다 [결정: M2 마감 재검토 결함 2].
-- 이유. 이 패키지가 `session.compact.after`에서 상태를 비워 다음 turn에 전체 블록을 새로 넣으면, L1이 다시 놓은 옛 블록과 새 블록이 한 요청에 모두 들어가 스킬 색인과 메모리가 두 번 보인다(실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`가 요청 본문을 세어 확인했다). L1의 재주입은 가지에서 매번 같은 값으로 만들어 재개와 프로세스 재시작 뒤에도 같은 바이트이지만, 이 패키지의 세션별 상태는 메모리에만 있어 재시작 뒤에는 컴팩션 사실을 알 수 없다.
+- 이유. 이 패키지가 `thread.compact.after`에서 상태를 비워 다음 turn에 전체 블록을 새로 넣으면, L1이 다시 놓은 옛 블록과 새 블록이 한 요청에 모두 들어가 스킬 색인과 메모리가 두 번 보인다(실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`가 요청 본문을 세어 확인했다). L1의 재주입은 가지에서 매번 같은 값으로 만들어 재개와 프로세스 재시작 뒤에도 같은 바이트이지만, 이 패키지의 세션별 상태는 메모리에만 있어 재시작 뒤에는 컴팩션 사실을 알 수 없다.
 - 결과. 컴팩션 뒤 모델이 보는 블록은 첫 turn의 스냅샷 그대로다. 그 뒤 인덱스가 바뀌면 §4.2.6대로 델타 메모 하나만 더한다. 메모리 스냅샷은 세션 동안 고정이다(§4.3.4). 컴팩션이 보존 구간에 블록을 남기면 그 자리에 한 번만 나온다.
 - 허용 목록이 다르면 어긋난다. 호스트가 L1의 `reinjectCustomTypes`를 빈 배열로 두면 컴팩션 뒤 블록이 모델 입력에서 사라진다. 이 패키지는 보충하지 않는다.
 - 최근 읽은 파일과 호출된 스킬 본문의 재주입은 `L1.context.spec` §4.10 2차 항목(C-11)이고 이 패키지의 일이 아니다. 컴팩션 호출 배선(`/compact`, 자동 컴팩션)도 L1 쪽이다.
@@ -1320,20 +1320,20 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret |
 |---|---|---|---|---|---|---|---|
-| `l2.knowledge.skills.enabled` | boolean | `true` | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.knowledge.skills.enabled` | boolean | `true` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.knowledge.skills.projectSkills` | boolean | `true` | — | restart | managed, user | tools | false |
 | `l2.knowledge.skills.paths` | string[](절대 경로) | `[]` | — | restart | managed, user | tools | false |
 | `l2.knowledge.skills.indexBudgetChars` | integer | `8000` | min 1000, max 50000 | nextTurn | managed, user, project, local | tools | false |
 | `l2.knowledge.skills.indexDescriptionChars` | integer | `160` | min 40, max 1024 | nextTurn | managed, user, project, local | tools | false |
-| `l2.knowledge.memory.enabled` | boolean | `true` | — | nextTurn | managed, user, project, local, session | sessions | false |
+| `l2.knowledge.memory.enabled` | boolean | `true` | — | nextTurn | managed, user, project, local, launch | sessions | false |
 | `l2.knowledge.memory.userLimitChars` | integer | `1375` | min 200, max 20000 | nextTurn | managed, user | sessions | false |
 | `l2.knowledge.memory.envLimitChars` | integer | `2200` | min 200, max 20000 | nextTurn | managed, user | sessions | false |
 | `l2.knowledge.write.approval` | boolean | `true` | — | live | managed, user | tools | false |
 | `l2.knowledge.write.scan` | boolean | `true` | — | live | managed, user | tools | false |
 | `l2.knowledge.write.proposalExpiryDays` | integer | `14` | min 1, max 365 | live | managed, user | tools | false |
 | `l2.knowledge.write.trustedEvidenceSources` | string[] | `[]` | — | restart | managed, user | advanced | false |
-| `l2.knowledge.search.enabled` | boolean | `true` | — | nextTurn | managed, user, project, local, session | sessions | false |
-| `l2.knowledge.search.defaultScope` | string | `"all"` | enum all, project | nextTurn | managed, user, project, local, session | sessions | false |
+| `l2.knowledge.search.enabled` | boolean | `true` | — | nextTurn | managed, user, project, local, launch | sessions | false |
+| `l2.knowledge.search.defaultScope` | string | `"all"` | enum all, project | nextTurn | managed, user, project, local, launch | sessions | false |
 | `l2.knowledge.search.includeHiddenDefault` | boolean | `false` | — | nextTurn | managed, user | sessions | false |
 | `l2.knowledge.search.likeScanLimit` | integer | `20000` | min 1000, max 1000000 | live | managed, user | advanced | false |
 
@@ -1350,10 +1350,10 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 | 지점 | fold | 쓰임 |
 |---|---|---|
-| `session.start`(#30) | tap | 세션별 상태(마지막 인덱스 스냅샷) 초기화. `startup` 말고는 스킬 루트를 다시 훑어 바깥 편집을 반영한다(전체 재색인이며 mtime 검사는 하지 않는다) |
+| `thread.start`(#30) | tap | 세션별 상태(마지막 인덱스 스냅샷) 초기화. `startup` 말고는 스킬 루트를 다시 훑어 바깥 편집을 반영한다(전체 재색인이며 mtime 검사는 하지 않는다) |
 | `input.agent.before`(#3) | collect | 세션 첫 turn: 메모리 스냅샷 + 스킬 인덱스 블록을 메시지로 더한다. 이후 turn: 인덱스가 바뀌었으면 델타 메모를 더한다(§4.2.6). `input.agent.before`의 message는 collect 병합(추가)이다(`F.extensions.spec` §4.1) [가정: 더한 메시지가 세션 기록에 남는다] |
-| `session.resources`(#28) | chain | 패치를 돌려주지 않는다. 합성 결과의 스킬 경로를 받는 방법은 X가 정한다(§4.2.7) |
-| `session.shutdown`(#39) | tap | 세션별 메모리 상태 정리 |
+| `thread.resources`(#28) | chain | 패치를 돌려주지 않는다. 합성 결과의 스킬 경로를 받는 방법은 X가 정한다(§4.2.7) |
+| `thread.shutdown`(#39) | tap | 세션별 메모리 상태 정리 |
 
 - 모델 도구 경로는 tool 지점(`tool.call.before` first, `tool.result` chain)을 지난다. 페이로드 `capability` 필드(`{ id: "knowledge.skills", method: "manage" }`)로 L3 그룹이 특정 단계의 쓰기를 막거나 스킬 쓰기 사건을 셀 수 있다.
 - 그룹 코드의 서비스 호출은 tool 지점을 지나지 않는다. 그래서 게이트·검사·원장은 서비스 안에서 적용한다.
@@ -1395,7 +1395,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 프로세스 사이 파일 락 | `L0.os.spec` | 없음. 임대와 해시 재확인으로 대신한다(§4.3.3, §10 미결 18) |
 | `SkillFilePathSchema`를 점으로 시작하거나 끝나는 마디를 거부하도록 좁히기, `isSkillFilePath`도 같은 규칙 | `F.capabilities.spec` §3.9 | 요청(KN.1, §3.1) |
 | 마스킹 등록부 판정(값 노출 없음) | `L0.secrets.spec`(`Redactor.containsKnown`) | 있음. `xeon.secrets`가 없으면 이 판정만 건너뛴다 |
-| `session.resources` 합성 결과 전달 | `X.loading-trust.spec` | [가정] |
+| `thread.resources` 합성 결과 전달 | `X.loading-trust.spec` | [가정] |
 | `Clock`, `IdFactory`, `LocalIdFactory`, `localIdPattern` | `F.readme`(주입 인터페이스, 구현은 `platform-os`), `F.conversation.spec` §3.2.1 | 있음 |
 
 ## 9. 수용 기준

@@ -25,12 +25,7 @@ export function workManifest(): ExtensionManifest {
       { id: WorkGoals.id, version: WorkGoals.version },
       { id: WorkReports.id, version: WorkReports.version },
     ],
-    points: [
-      "input.agent.before",
-      "session.start",
-      "boundary.step.after",
-      "boundary.settle.before",
-    ],
+    points: ["input.agent.before", "thread.start", "boundary.step.after", "boundary.settle.before"],
     usesDrive: false,
     trust: { level: "builtin" },
   });

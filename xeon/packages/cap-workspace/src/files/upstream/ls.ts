@@ -1,15 +1,15 @@
-// XEON-PATCH: P7
+// FRESNEL-PATCH: P7
 import type { CancelScope as Context, ExecutionEnv, FileKind } from "@xeon/contracts/services";
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 import { getOrThrow } from "../../upstream/get-or-throw.ts";
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 import { utf8ByteLength } from "../../upstream/output.ts";
 
-// XEON-PATCH: P7
+// FRESNEL-PATCH: P7
 /** 목록 출력의 바이트 한도(50KB). 원본은 truncate.ts의 상수를 썼다. 절단 함수는 platform-exec로 옮겼고 이 상수만 남긴다 */
 const DEFAULT_MAX_BYTES: number = 50 * 1024;
 
-// XEON-PATCH: P7
+// FRESNEL-PATCH: P7
 /**
  * 원본 `createLsToolDefinition`의 본문에서 도구 껍데기(`ToolDefinition`, 렌더러, `LsOperations`)를 걷어 냈다.
  * 파일 접근은 모두 `ExecutionEnv`(`listDir`)이고, 정렬은 코드 단위가 아니라 UTF-8 바이트 순이다(`localeCompare` 제거).
@@ -31,7 +31,7 @@ export interface ListResult {
 
 const encoder = new TextEncoder();
 
-// XEON-PATCH: P7
+// FRESNEL-PATCH: P7
 /** UTF-8 바이트 순 비교 */
 function compareBytes(left: Uint8Array, right: Uint8Array): number {
   const common = Math.min(left.length, right.length);
@@ -47,7 +47,7 @@ function displayName(entry: ListedEntry): string {
   return entry.kind === "directory" ? `${entry.name}/` : entry.name;
 }
 
-// XEON-PATCH: P7
+// FRESNEL-PATCH: P7
 export async function listDirectory(
   env: Pick<ExecutionEnv, "listDir">,
   absolutePath: string,

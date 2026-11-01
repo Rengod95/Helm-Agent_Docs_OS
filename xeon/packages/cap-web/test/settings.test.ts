@@ -78,7 +78,7 @@ describe("web settings", () => {
       "browse.allowFileUpload",
     ]) {
       expect(scopes(name)).not.toContain("project");
-      expect(scopes(name)).not.toContain("session");
+      expect(scopes(name)).not.toContain("launch");
       expect(scopes(name)).toContain("local");
     }
     // 저장소 설정이 허용 목록을 넓히거나 "대화에 없던 URL" 확인을 끄지 못한다. 막는 쪽(ask, deny)에는 더할 수 있다
@@ -112,7 +112,7 @@ describe("web settings", () => {
   test("scalar keys take the highest scope and skip invalid values", () => {
     const stack: ScopeStack = [
       layer("user", { "l2.web.fetch.maxChars": 20000, "l2.web.limits.searchPerSession": 10 }),
-      layer("session", { "l2.web.fetch.maxChars": 30000 }),
+      layer("launch", { "l2.web.fetch.maxChars": 30000 }),
       // 범위 밖 값은 건너뛰고 아래 층 값이 이긴다
       layer("local", { "l2.web.limits.searchPerSession": 999999999 }),
       // project가 허용하지 않는 키는 무시한다
@@ -144,7 +144,7 @@ describe("web settings", () => {
         // 저장소가 허용 목록을 넓히려는 시도는 무시한다
         "l2.web.policy.allow": ["evil.test"],
       }),
-      layer("session", { "l2.web.policy.ask": ["c.test"] }),
+      layer("launch", { "l2.web.policy.ask": ["c.test"] }),
       // 형식이 틀린 패턴 하나가 있으면 그 범위 값 전체를 건너뛴다
       layer("local", { "l2.web.policy.deny": ["example.*"] }),
     ];

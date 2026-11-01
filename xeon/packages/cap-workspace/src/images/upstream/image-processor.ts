@@ -1,4 +1,4 @@
-// XEON-PATCH: P12
+// FRESNEL-PATCH: P12
 /** Formats every provider takes inline; others, such as BMP, need converting. */
 export const INLINE_IMAGE_TYPES: ReadonlySet<string> = new Set([
   "image/png",

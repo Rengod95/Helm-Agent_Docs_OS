@@ -1,4 +1,4 @@
-// XEON-PATCH: P7
+// FRESNEL-PATCH: P7
 /**
  * pi `test/prompt-templates.test.ts`의 포크. 인자 분리와 치환 사례(`substituteArgs`, `parseCommandArgs`)는 그대로 옮겼다.
  * 파일 시스템을 쓰는 로드 테스트와 `expandPromptTemplate` 테스트는 메모리 파일 원천과 `parseCommandLine` 위로 다시 썼다.

@@ -50,8 +50,8 @@ describe("mcp settings", () => {
     expect(scopes("allowedServers")).toEqual(["managed", "user"]);
     expect(scopes("managedOnly")).toEqual(["managed"]);
     expect(scopes("deniedServers")).toEqual(["managed", "user", "project"]);
-    expect(scopes("servers")).not.toContain("session");
-    expect(scopes("callTimeoutMs")).toContain("session");
+    expect(scopes("servers")).not.toContain("launch");
+    expect(scopes("callTimeoutMs")).toContain("launch");
     expect(byKey.get("l2.mcp.managedOnly")?.runtimeChange).toBe("restart");
     expect(byKey.get("l2.mcp.versionNegotiation")?.runtimeChange).toBe("restart");
     expect(byKey.get("l2.mcp.servers")?.ui?.widget).toBe("table");
@@ -77,7 +77,7 @@ describe("mcp settings", () => {
   test("scalar keys take the highest scope and skip invalid values", () => {
     const settings = readMcpSettings([
       layer("user", { "l2.mcp.callTimeoutMs": 5000, "l2.mcp.approvalMode": "auto" }),
-      layer("session", { "l2.mcp.callTimeoutMs": 7000 }),
+      layer("launch", { "l2.mcp.callTimeoutMs": 7000 }),
       layer("local", { "l2.mcp.result.maxBytes": 5 }),
       // project가 허용하지 않는 키는 무시한다
       layer("project", { "l2.mcp.sandbox.userSource": true, "l2.mcp.managedOnly": true }),
@@ -112,7 +112,7 @@ describe("mcp settings", () => {
           fine: stdio("f"),
         },
       }),
-      layer("session", { "l2.mcp.servers": { ignored: stdio("s") } }),
+      layer("launch", { "l2.mcp.servers": { ignored: stdio("s") } }),
     ]);
     const summary = Object.fromEntries(
       read.servers.map((server) => [

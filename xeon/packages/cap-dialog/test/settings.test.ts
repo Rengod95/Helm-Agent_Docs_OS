@@ -60,7 +60,7 @@ describe("설정 키 13개", () => {
       default: 0,
       range: { min: 0, max: 86400 },
       runtimeChange: "nextTurn",
-      allowedScopes: ["user", "project", "local", "session"],
+      allowedScopes: ["user", "project", "local", "launch"],
     });
     expect(get("l2.dialog.commands.dirs")).toMatchObject({
       default: [],
@@ -102,7 +102,7 @@ describe("설정 키 13개", () => {
         "l2.dialog.commands.shellInjection": "off",
         "l2.dialog.commands.dirs": ["~/a"],
       }),
-      layer("session", { "l2.dialog.ask.timeoutSec": 5 }),
+      layer("launch", { "l2.dialog.ask.timeoutSec": 5 }),
       // 범위 밖과 모르는 enum 값은 건너뛴다
       layer("project", {
         "l2.dialog.attachments.maxBytes": 10,

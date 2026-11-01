@@ -42,7 +42,7 @@ const workSettings: SettingGroup<
     type: Type.Boolean(),
     default: true,
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     ui: {
       tab: "permissions",
       widget: "toggle",
@@ -56,7 +56,7 @@ const workSettings: SettingGroup<
     type: Type.Boolean(),
     default: true,
     runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "local", "session"],
+    allowedScopes: ["user", "project", "local", "launch"],
     ui: {
       tab: "permissions",
       widget: "toggle",
@@ -69,7 +69,7 @@ const workSettings: SettingGroup<
     type: Type.Boolean(),
     default: false,
     runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "local", "session"],
+    allowedScopes: ["user", "project", "local", "launch"],
     ui: {
       tab: "tools",
       widget: "toggle",
@@ -84,7 +84,7 @@ const workSettings: SettingGroup<
     default: 0,
     range: { min: 0, max: 50 },
     runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "local", "session"],
+    allowedScopes: ["user", "project", "local", "launch"],
     ui: {
       tab: "tools",
       widget: "number",

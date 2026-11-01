@@ -11,7 +11,7 @@ import {
 // reviews.fuzzLines, export.*, handoff.*는 읽는 코드가 없어 선언하지 않는다 [미결 §6].
 
 const LOCAL_SCOPES = ["managed", "user", "project", "local"] as const;
-const ALL_SCOPES = ["managed", "user", "project", "local", "session"] as const;
+const ALL_SCOPES = ["managed", "user", "project", "local", "launch"] as const;
 
 const artifactsSettings = defineSettings("l2.artifacts", {
   maxPerSession: {

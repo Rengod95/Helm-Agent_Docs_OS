@@ -9,7 +9,7 @@ import {
 // L2.knowledge.spec §6. 키 문법 `l2.knowledge.<이름>`. 쓰기 승인·스캔·증거 출처 키와 `skills.paths`는 관리·사용자 범위만
 // 허용한다. 저장소에 커밋되는 프로젝트 파일로 승인을 끄거나 스킬 경로를 더하는 길을 막기 위해서다.
 
-const FILE_AND_SESSION = ["managed", "user", "project", "local", "session"] as const;
+const FILE_AND_SESSION = ["managed", "user", "project", "local", "launch"] as const;
 const FILE_ONLY = ["managed", "user", "project", "local"] as const;
 const OWNER_ONLY = ["managed", "user"] as const;
 

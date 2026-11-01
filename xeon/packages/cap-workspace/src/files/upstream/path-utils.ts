@@ -1,20 +1,20 @@
-// XEON-PATCH: P10
+// FRESNEL-PATCH: P10
 import { eachAsync } from "@xeon/contracts";
-// XEON-PATCH: P1
+// FRESNEL-PATCH: P1
 import type { CancelScope as Context, ExecutionEnv } from "@xeon/contracts/services";
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 import { getOrThrow } from "../../upstream/get-or-throw.ts";
 
 const UNICODE_SPACES = /[  -   　]/g;
 const NARROW_NO_BREAK_SPACE = " ";
 
-// XEON-PATCH: P8
+// FRESNEL-PATCH: P8
 export function normalizeToolPath(path: string): string {
   const normalized = path.replace(UNICODE_SPACES, " ");
   return normalized.startsWith("@") ? normalized.slice(1) : normalized;
 }
 
-// XEON-PATCH: P8
+// FRESNEL-PATCH: P8
 type PathEnv = Pick<ExecutionEnv, "absolutePath" | "exists">;
 
 export async function resolveToolPath(
@@ -39,7 +39,7 @@ export async function resolveReadToolPath(
     resolved.normalize("NFD").replace(/'/g, "’"),
   ];
 
-  // XEON-PATCH: P10
+  // FRESNEL-PATCH: P10
   const found = await eachAsync(new Set(variants), async (variant) =>
     getOrThrow(await env.exists(variant, context)) ? { value: variant } : undefined,
   );

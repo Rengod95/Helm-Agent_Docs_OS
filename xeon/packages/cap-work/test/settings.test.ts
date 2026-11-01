@@ -37,7 +37,7 @@ describe("settings", () => {
     expect(byKey.get("l2.work.plans.requireApproval")?.ui?.tab).toBe("permissions");
     expect(byKey.get("l2.work.plans.exitOnApprove")?.allowedScopes).not.toContain("managed");
     expect(byKey.get("l2.work.tasks.autoStart")?.ui?.tab).toBe("tools");
-    expect(byKey.get("l2.work.goal.delegatedTimeoutSec")?.allowedScopes).not.toContain("session");
+    expect(byKey.get("l2.work.goal.delegatedTimeoutSec")?.allowedScopes).not.toContain("launch");
   });
 
   test("defaults match the spec table", () => {
@@ -89,12 +89,10 @@ describe("settings", () => {
   test("a session layer overrides the user layer for allowed keys only", () => {
     const set = readWorkSettings([
       layer("user", { "l2.work.tasks.reminderTurns": 5 }),
-      layer("session", { "l2.work.tasks.reminderTurns": 1 }),
+      layer("launch", { "l2.work.tasks.reminderTurns": 1 }),
     ]);
     expect(set.tasks.reminderTurns).toBe(1);
-    const refused = readWorkSettings([
-      layer("session", { "l2.work.goal.delegatedTimeoutSec": 10 }),
-    ]);
+    const refused = readWorkSettings([layer("launch", { "l2.work.goal.delegatedTimeoutSec": 10 })]);
     expect(refused.goal.delegatedTimeoutSec).toBe(300);
   });
 });

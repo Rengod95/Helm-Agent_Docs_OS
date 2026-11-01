@@ -109,7 +109,7 @@ export function createSessionKit(options: {
         ...(opts.workspace === undefined ? {} : { workspace: opts.workspace }),
       });
       if (!made.ok) throw new Bug("sessions: thread create failed", { cause: made.error });
-      const token = store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
+      const token = store.leases.acquire(`thread:${threadId}`, TEST_HOLDER_A);
       if (!token.ok) throw new Bug("sessions: lease failed", { cause: token.error });
       const opened = session.openForWrite(threadId, token.value);
       if (!opened.ok) throw new Bug("sessions: open failed", { cause: opened.error });

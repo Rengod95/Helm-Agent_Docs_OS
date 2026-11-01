@@ -108,7 +108,7 @@ function snapshotOf(
 
 export interface BrowseController {
   readonly api: CapabilityApi<typeof WebBrowse>;
-  /** 대화 세션이 끝날 때(`session.shutdown`) 그 세션이 연 브라우저 세션을 닫는다(§4.10.1) */
+  /** 대화 세션이 끝날 때(`thread.shutdown`) 그 세션이 연 브라우저 세션을 닫는다(§4.10.1) */
   closeThread(threadId: ThreadId | undefined): Promise<void>;
   /** 프로세스가 끝날 때 모든 브라우저 세션을 닫는다 */
   closeAll(): Promise<void>;

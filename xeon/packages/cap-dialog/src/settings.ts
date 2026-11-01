@@ -11,7 +11,7 @@ import {
 
 const FILE_SCOPES = ["managed", "user", "project", "local"] as const;
 const USER_PROJECT = ["user", "project", "local"] as const;
-const USER_PROJECT_SESSION = ["user", "project", "local", "session"] as const;
+const USER_PROJECT_SESSION = ["user", "project", "local", "launch"] as const;
 
 const SHELL_INJECTION_MODES = ["confirm", "off"] as const;
 

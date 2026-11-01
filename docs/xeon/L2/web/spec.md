@@ -1472,7 +1472,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
   - 동작 수 `l2.web.browse.maxActions`(기본 200)
   - 비용 `l2.web.browse.maxUsd`(기본 0.5달러). 로컬 provider는 0달러지만 클라우드 provider 플러그인을 위해 둔다.
 - 대화 세션 하나가 동시에 여는 브라우저 세션은 `l2.web.browse.maxSessions`(기본 3)까지다.
-- 대화 세션이 끝나면(`session.shutdown` 지점, tap) 그 세션이 연 브라우저 세션을 닫는다.
+- 대화 세션이 끝나면(`thread.shutdown` 지점, tap) 그 세션이 연 브라우저 세션을 닫는다.
 
 #### 4.10.2 이동 정책과 필터 프록시
 
@@ -1671,44 +1671,44 @@ stateDiagram-v2
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret |
 |---|---|---|---|---|---|---|---|
-| `l2.web.search.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.search.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.search.order` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.search.parallel` | integer | `1` | min 1, max 4 | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.search.searxng.url` | string(URL 또는 빈 문자열) | `""` | — | nextTurn | managed, user, local | tools | false |
-| `l2.web.search.wrapper.model` | string(`"auto"` 또는 모델 ID) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.search.wrapper.maxContinuations` | integer | `3` | min 0, max 10 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.search.modelTool` | string | `"auto"` | enum auto, hosted, function, off | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.search.wrapper.model` | string(`"auto"` 또는 모델 ID) | `"auto"` | — | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.search.wrapper.maxContinuations` | integer | `3` | min 0, max 10 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.search.modelTool` | string | `"auto"` | enum auto, hosted, function, off | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.fetch.extractor` | string | `"readability"` | enum readability, defuddle | nextTurn | managed, user, project, local | tools | false |
-| `l2.web.fetch.maxChars` | integer | `15000` | min 2000, max 500000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.fetch.timeoutSeconds` | integer | `30` | min 1, max 120 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.fetch.promote` | string | `"auto"` | enum auto, never | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.fetch.maxChars` | integer | `15000` | min 2000, max 500000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.fetch.timeoutSeconds` | integer | `30` | min 1, max 120 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.fetch.promote` | string | `"auto"` | enum auto, never | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.fetch.pluginOrder` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
-| `l2.web.policy.allow` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, local, session | tools | false |
-| `l2.web.policy.ask` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.policy.deny` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.policy.allow` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, local, launch | tools | false |
+| `l2.web.policy.ask` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.policy.deny` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.policy.allowPrivateNetwork` | boolean | `false` | — | nextTurn | managed, user, local | tools | false |
-| `l2.web.policy.unseenUrl` | string | `"ask"` | enum ask, allow, deny | nextTurn | managed, user, local, session | tools | false |
+| `l2.web.policy.unseenUrl` | string | `"ask"` | enum ask, allow, deny | nextTurn | managed, user, local, launch | tools | false |
 | `l2.web.policy.robots` | string | `"never"` | enum auto, always, never | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.cache.searchTtlMinutes` | integer | `20` | min 0, max 1440 | live | managed, user, project, local | tools | false |
 | `l2.web.cache.fetchTtlMinutes` | integer | `15` | min 0, max 1440 | live | managed, user, project, local | tools | false |
 | `l2.web.cache.maxMegabytes` | integer | `256` | min 16, max 8192 | live | managed, user | tools | false |
-| `l2.web.limits.searchPerSession` | integer | `100` | min 0, max 100000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.limits.fetchPerSession` | integer | `300` | min 0, max 100000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.browse.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.limits.searchPerSession` | integer | `100` | min 0, max 100000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.limits.fetchPerSession` | integer | `300` | min 0, max 100000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.browse.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.browse.order` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
-| `l2.web.browse.headless` | boolean | `true` | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.browse.headless` | boolean | `true` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.browse.runtime` | string | `"auto"` | enum auto, bun, node | restart | managed, user | tools | false |
 | `l2.web.browse.executablePath` | string | `""` | — | restart | managed, user, local | tools | false |
-| `l2.web.browse.maxMinutes` | integer | `30` | min 1, max 480 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.browse.maxActions` | integer | `200` | min 1, max 10000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.browse.maxUsd` | number | `0.5` | min 0, max 100 | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.browse.maxMinutes` | integer | `30` | min 1, max 480 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.browse.maxActions` | integer | `200` | min 1, max 10000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.browse.maxUsd` | number | `0.5` | min 0, max 100 | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.browse.maxSessions` | integer | `3` | min 1, max 16 | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.browse.allowNamedProfiles` | boolean | `false` | — | nextTurn | managed, user | tools | false |
 | `l2.web.browse.allowJavascriptExec` | boolean | `false` | — | nextTurn | managed, user, local | tools | false |
 | `l2.web.browse.allowFileUpload` | boolean | `false` | — | nextTurn | managed, user, local | tools | false |
-| `l2.web.research.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.research.maxBudgetUsd` | number | `5` | min 0.01, max 100 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.web.research.keepUnverified` | boolean | `false` | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.research.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.research.maxBudgetUsd` | number | `5` | min 0.01, max 100 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.web.research.keepUnverified` | boolean | `false` | — | nextTurn | managed, user, project, local, launch | tools | false |
 
 - 플러그인 키는 `ext.<확장 이름>.*`이다. 예: `ext.web-exa.apiKey`(string, `secret://` 참조, `secret: true`, 기본값 없음, ui.tab `plugins`)(`F.wire-settings.spec` §3.8.3). L2 키에는 비밀이 없다.
 - `l2.web.search.provider`, `l2.web.browse.provider`, `order`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `xeon.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
@@ -1730,7 +1730,7 @@ export const webSettings = defineSettings("l2.web", {
     type: Type.String({ minLength: 1, maxLength: 70 }),
     default: "auto",
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     ui: { tab: "tools", widget: "text", order: 100, label: "검색 provider", help: "auto 또는 provider ID" },
     since: "0.1.0",
   },
@@ -1739,7 +1739,7 @@ export const webSettings = defineSettings("l2.web", {
     default: 3,
     range: { min: 0, max: 10 },
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     ui: { tab: "tools", widget: "number", order: 130, label: "래퍼 pause_turn 재요청 상한" },
     since: "0.1.0",
   },
@@ -1748,7 +1748,7 @@ export const webSettings = defineSettings("l2.web", {
     default: "auto",
     range: { enum: ["auto", "hosted", "function", "off"] },
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     ui: { tab: "tools", widget: "select", order: 140, label: "모델용 검색 도구" },
     since: "0.1.0",
   },
@@ -1776,7 +1776,7 @@ export const webSettings = defineSettings("l2.web", {
 - 그룹 코드의 서비스 호출(`g.capability(WebSearchKey).search(...)`)은 tool 지점을 지나지 않는다. 그래서 정책·상한·untrusted 표식은 앞단 서비스 안에서 적용한다(§4.1). 도구 어댑터에만 두면 그룹 경로가 빠진다.
 - `cap-web`이 거는 지점(구독만, 결과를 바꾸지 않음):
   - `input.user.before`(#1, chain): 사용자 입력에서 URL을 뽑아 "나온 URL" 집합에 넣는다. 패치를 돌려주지 않는다(§4.6.6).
-  - `session.shutdown`(#39, tap): 그 세션의 브라우저 세션을 닫고 `retention='session'` rawRef를 정리 대상으로 표시한다.
+  - `thread.shutdown`(#39, tap): 그 세션의 브라우저 세션을 닫고 `retention='session'` rawRef를 정리 대상으로 표시한다.
   - `boundary.step.before`(#19, tap): `l2.web.search.modelTool = auto` 판정을 세션 첫 턴에 한 번 계산해 고정한다(§4.8.1).
 - drive와의 관계: L2는 drive를 쓰지 않는다(`L2.readme` §4). L3 그룹 `drive` 함수 안의 `web.search` 호출은 일반 서비스 호출이다.
 - post: 쓰지 않는다. `web.research`의 완료 알림을 대화에 넣는 경로는 2차 설계 때 정한다.

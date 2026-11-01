@@ -2,11 +2,11 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-// L2.knowledge.plan §4.1 포크 기록(adr.0003 §3.4). PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 XEON-PATCH 표지 id
+// L2.knowledge.plan §4.1 포크 기록(adr.0003 §3.4). PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 FRESNEL-PATCH 표지 id
 // 집합이 같아야 한다.
 
 const PACKAGE = join(import.meta.dir, "..");
-const MARKER = /\/\/ XEON-PATCH: (KN-\d+)\b/g;
+const MARKER = /\/\/ FRESNEL-PATCH: (KN-\d+)\b/g;
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {

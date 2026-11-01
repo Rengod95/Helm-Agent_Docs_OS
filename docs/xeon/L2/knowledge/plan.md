@@ -53,7 +53,7 @@ xeon/packages/contracts/src/capabilities/defs/knowledge.ts   # K1: 4개 정의, 
 xeon/packages/cap-knowledge/
   package.json            # "xeon": { "layer": "L2", "domain": "knowledge" }
   UPSTREAM.json           # pi skills.ts 포크 출처(ADR-0003 §3.4)
-  PATCHES.md              # XEON-PATCH 목록
+  PATCHES.md              # FRESNEL-PATCH 목록
   LICENSE.pi              # pi MIT 고지
   src/
     index.ts              # 엔트리: manifest, apply(ctx)
@@ -65,7 +65,7 @@ xeon/packages/cap-knowledge/
       port.ts             #   KnowledgeFs: read, list, stat, writeAtomic, rename, remove, lock
       node-fs.ts          #   운영 구현(node:fs/promises + xeon.os 파일 락)
     upstream/
-      skills.ts           # K2: pi core/skills.ts 포크(XEON-PATCH 표지)
+      skills.ts           # K2: pi core/skills.ts 포크(FRESNEL-PATCH 표지)
     skills/               # K2, K3, K11
       roots.ts            #   스킬 루트 해석(L0.os 경로, resources_discover 결과, 설정 경로)
       index.ts            #   색인 갱신, 트리 해시, 재색인
@@ -127,7 +127,7 @@ xeon/packages/cap-knowledge/
 | K8 | FTS5 trigram 프로브, 투영기 `cap.knowledge`(세션 목록, 세 테이블 DDL), 소비자 `cap.knowledge.fts`(pos 커서, 배치 500, `event_id` 멱등, 커서와 행 같은 트랜잭션, blob 자리표시 해석, NFC), 프로브 실패 시 비활성 | K1, L1.persistence.plan의 투영기 등록·전역 피드·`consumer_cursors` | L |
 | K9 | 검색 질의 `query`(토큰화, MATCH/LIKE 분기, bm25·최신순, 종류 순 결합, 스니펫, scope, includeHidden), `scroll`, `read`, `list`, 스킬·메모리 docs FTS 재구성 | K2, K4, K8 | M |
 | K10 | 설정 키 `l2.knowledge.*`(`L2.knowledge.spec` §6), 범위 제한(승인·스캔·경로는 managed, user), `checkSettingDef` 통과 테스트 | K1 | S |
-| K11 | 인덱스 델타 알림: 세션별 마지막 `indexVersion`, `input.agent.before` 핸들러의 델타 메모, `session.start`·`session.shutdown` 정리 | K2, K3 | S |
+| K11 | 인덱스 델타 알림: 세션별 마지막 `indexVersion`, `input.agent.before` 핸들러의 델타 메모, `thread.start`·`thread.shutdown` 정리 | K2, K3 | S |
 
 순서: K1 → (K2, K5, K7, K10) → K6 → (K3, K4) → K8 → K9 → K11. 쓰기 도구 광고는 K3·K4 완료 시점에 켠다(그 전 커밋에서는 `tools` 배열에 정의가 있어도 `cap-knowledge` 매니페스트가 그 능력의 도구 노출을 끈 상태로 둔다 [가정: 능력 단위 도구 노출 끄기는 `L1.tools.spec`]).
 
@@ -246,18 +246,18 @@ xeon/packages/cap-knowledge/
 
 ### 3.5 구현 기록: KN.5 (K11)
 
-`m2/webkn` 브랜치의 구현이다. 확장 지점 세 개(`session.start`, `input.agent.before`, `session.shutdown`)를 매니페스트 `points`에 올렸다.
+`m2/webkn` 브랜치의 구현이다. 확장 지점 세 개(`thread.start`, `input.agent.before`, `thread.shutdown`)를 매니페스트 `points`에 올렸다.
 
 | 작업 | 상태 | 구현 위치와 범위 |
 |---|---|---|
 | K11 델타 | 완료 | `skills/delta.ts`(`diffIndex`, `formatIndexDelta`; 순수), `SkillsRuntime.indexSnapshot`(모델에게 보이는 스킬의 이름 → 잘린 설명과 `indexVersion`), `turn-context.ts`(세션별 상태, 첫 turn 메시지, 델타 메모) |
 | 첫 turn 연결 | 완료 | 인덱스 블록(K2)과 메모리 스냅샷(K4)을 `customType: "knowledge.context"` 기록 메시지 하나로 더한다. 시스템 프롬프트는 바꾸지 않는다 |
-| 후크 | 완료 | `plugin.ts`가 세 지점에 거는 핸들러가 `turn-context.ts`를 부른다. `startup` 말고 시작하는 세션은 `session.start`에서 스킬 루트를 다시 훑는다 |
+| 후크 | 완료 | `plugin.ts`가 세 지점에 거는 핸들러가 `turn-context.ts`를 부른다. `startup` 말고 시작하는 세션은 `thread.start`에서 스킬 루트를 다시 훑는다 |
 
 계획 §2 배치와 다른 점:
 
 - 델타 계산은 `skills/delta.ts`에, 후크 연결과 세션 상태는 `turn-context.ts`에 두었다. 순수 계산과 상태를 나누려는 배치다.
-- `session.start`의 mtime 검사는 하지 않고 전체 재색인을 한다. 재색인 비용(스킬 수에 비례)은 측정 전이라 [가정]이다.
+- `thread.start`의 mtime 검사는 하지 않고 전체 재색인을 한다. 재색인 비용(스킬 수에 비례)은 측정 전이라 [가정]이다.
 - 상태는 프로세스 메모리에만 있다. 재시작 뒤 이어받은 세션은 현재 인덱스를 기준으로 시작한다(spec §4.2.6).
 - `L1.context`가 같은 블록을 시스템 프롬프트 쪽에 넣기로 정하면 이 메시지는 `HOST.6` 조립에서 끈다. 두 곳에 들어가지 않게 하는 일은 `L1.context.spec`과 조립이 맡는다.
 
@@ -266,7 +266,7 @@ xeon/packages/cap-knowledge/
 | 파일 | 내용 |
 |---|---|
 | `delta.test.ts` | 비교와 문장(정렬, 10개 상한, 60자 설명), 첫 turn 메시지, `index delta next turn`(추가·변경·삭제가 다음 turn 메모 하나, 같은 변경은 한 번만), 본문만 바꾼 변경은 메모 없음, 모델 호출 여부 전환, 세션 독립과 `shutdown`, 재개한 세션, `startup` 말고는 재색인, 스킬·메모리를 끄면 메시지 없음 |
-| `plugin.test.ts` | 후크 경로: `session.start` → 첫 turn 블록 → 변경 뒤 델타 → `session.shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `points`. `session.compact.after`를 보내도 다음 turn이 전체 블록을 다시 넣지 않고, 그 사이 바뀐 인덱스는 델타 하나로만 온다(M2 마감 재검토 결함 2, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
+| `plugin.test.ts` | 후크 경로: `thread.start` → 첫 turn 블록 → 변경 뒤 델타 → `thread.shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `points`. `thread.compact.after`를 보내도 다음 turn이 전체 블록을 다시 넣지 않고, 그 사이 바뀐 인덱스는 델타 하나로만 온다(M2 마감 재검토 결함 2, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
 
 ## 4. 채택 코드
 
@@ -280,7 +280,7 @@ xeon/packages/cap-knowledge/
 | 포크 위치 | `xeon/packages/cap-knowledge/src/upstream/skills.ts` |
 | 그대로 두는 부분 | 탐색 규칙(`loadSkillsFromDirInternal`: SKILL.md 루트에서 멈춤, 점·`node_modules` 건너뜀, 심볼릭 링크 추적), `validateName`, `validateDescription`, 실제 경로 중복 제거, 이름 충돌 진단, `escapeXml` |
 
-바꿀 점(`XEON-PATCH` 표지, `PATCHES.md`에 같은 id로 기록):
+바꿀 점(`FRESNEL-PATCH` 표지, `PATCHES.md`에 같은 id로 기록):
 
 | 패치 id | 원본 결합 | 바꾸는 방식 |
 |---|---|---|

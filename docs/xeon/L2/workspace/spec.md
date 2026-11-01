@@ -715,16 +715,16 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret |
 |---|---|---|---|---|---|---|---|
-| `l2.workspace.read.maxLines` | integer | 2000 | min 1, max 100000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.workspace.read.maxBytes` | integer | 51200 | min 1024, max 10485760 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.workspace.shell.maxLines` | integer | 2000 | min 1, max 100000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.workspace.shell.maxBytes` | integer | 51200 | min 1024, max 10485760 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.workspace.shell.defaultTimeoutSec` | integer | 0 | min 0, max 86400 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.workspace.grep.maxMatches` | integer | 100 | min 1, max 10000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.workspace.grep.maxLineLength` | integer | 500 | min 80, max 10000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.workspace.find.maxResults` | integer | 1000 | min 1, max 100000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.workspace.list.maxEntries` | integer | 500 | min 1, max 10000 | nextTurn | managed, user, project, local, session | tools | false |
-| `l2.workspace.edit.fuzzy` | boolean | true | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.workspace.read.maxLines` | integer | 2000 | min 1, max 100000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.workspace.read.maxBytes` | integer | 51200 | min 1024, max 10485760 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.workspace.shell.maxLines` | integer | 2000 | min 1, max 100000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.workspace.shell.maxBytes` | integer | 51200 | min 1024, max 10485760 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.workspace.shell.defaultTimeoutSec` | integer | 0 | min 0, max 86400 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.workspace.grep.maxMatches` | integer | 100 | min 1, max 10000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.workspace.grep.maxLineLength` | integer | 500 | min 80, max 10000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.workspace.find.maxResults` | integer | 1000 | min 1, max 100000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.workspace.list.maxEntries` | integer | 500 | min 1, max 10000 | nextTurn | managed, user, project, local, launch | tools | false |
+| `l2.workspace.edit.fuzzy` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.workspace.images.maxWidth` | integer | 2000 | min 64, max 16384 | nextTurn | managed, user, project, local | tools | false |
 | `l2.workspace.images.maxHeight` | integer | 2000 | min 64, max 16384 | nextTurn | managed, user, project, local | tools | false |
 | `l2.workspace.images.maxBytes` | integer | 4718592 | min 1024, max 52428800 | nextTurn | managed, user, project, local | tools | false |

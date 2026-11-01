@@ -4,7 +4,7 @@ import type { FsEntry, KnowledgeFs } from "../fs/port.ts";
 import { utf8DecodeStrict } from "../hash.ts";
 
 // pi `packages/coding-agent/src/core/skills.ts`(커밋 cdaf6c2, MIT)의 포크다. 탐색 규칙, 이름·설명 검증, 이름 충돌 진단은
-// 원본 그대로이고 바꾼 줄에는 `XEON-PATCH` 표지와 패치 id를 단다. 패치 목록은 PATCHES.md, 근거는 L2.knowledge.plan §4.1이다.
+// 원본 그대로이고 바꾼 줄에는 `FRESNEL-PATCH` 표지와 패치 id를 단다. 패치 목록은 PATCHES.md, 근거는 L2.knowledge.plan §4.1이다.
 
 /** Max name length per spec */
 const MAX_NAME_LENGTH = 64;
@@ -18,10 +18,10 @@ const MAX_FRONTMATTER_DEPTH = 64;
 /** 디렉터리 재귀 깊이 상한(심볼릭 링크 순환 말고도 병적으로 깊은 트리를 막는다) */
 const MAX_DISCOVERY_DEPTH = 16;
 
-// XEON-PATCH: KN-05
+// FRESNEL-PATCH: KN-05
 type SkillSourceScope = "project" | "user" | "extension" | "path";
 
-// XEON-PATCH: KN-05
+// FRESNEL-PATCH: KN-05
 export interface SkillSource {
   readonly scope: SkillSourceScope;
   /** 이 스킬을 찾은 스킬 루트(디렉터리 또는 `paths`로 준 파일) */
@@ -30,7 +30,7 @@ export interface SkillSource {
   readonly extension?: string;
 }
 
-// XEON-PATCH: KN-05
+// FRESNEL-PATCH: KN-05
 export interface SkillDiagnostic {
   readonly type: "warning" | "collision";
   readonly message: string;
@@ -44,10 +44,10 @@ export interface Skill {
   description: string;
   filePath: string;
   baseDir: string;
-  // XEON-PATCH: KN-05
+  // FRESNEL-PATCH: KN-05
   /** dir: `SKILL.md`를 가진 디렉터리. file: 루트 바로 아래의 단일 `.md` 파일 */
   layout: "dir" | "file";
-  // XEON-PATCH: KN-05
+  // FRESNEL-PATCH: KN-05
   source: SkillSource;
   disableModelInvocation: boolean;
 }
@@ -57,7 +57,7 @@ export interface LoadSkillsResult {
   diagnostics: SkillDiagnostic[];
 }
 
-// XEON-PATCH: KN-01
+// FRESNEL-PATCH: KN-01
 /** 스킬 루트 넷. 경로는 `skills/roots.ts`가 `xeon.os`와 설정에서 만든다 */
 export interface SkillRoots {
   readonly project?: string;
@@ -66,7 +66,7 @@ export interface SkillRoots {
   readonly paths: readonly string[];
 }
 
-// XEON-PATCH: KN-02
+// FRESNEL-PATCH: KN-02
 export type FrontmatterError =
   | { readonly kind: "frontmatter_yaml"; readonly message: string }
   | { readonly kind: "frontmatter_not_object" }
@@ -77,16 +77,16 @@ export interface ParsedFrontmatter {
   readonly body: string;
 }
 
-// XEON-PATCH: KN-02
+// FRESNEL-PATCH: KN-02
 const normalizeNewlines = (value: string): string =>
   value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-// XEON-PATCH: KN-02
+// FRESNEL-PATCH: KN-02
 const BOM = String.fromCodePoint(0xfeff);
 
 const stripBom = (value: string): string => (value.startsWith(BOM) ? value.slice(1) : value);
 
-// XEON-PATCH: KN-02
+// FRESNEL-PATCH: KN-02
 const extractFrontmatter = (content: string): { yamlString: string | null; body: string } => {
   const normalized = normalizeNewlines(stripBom(content));
 
@@ -105,12 +105,12 @@ const extractFrontmatter = (content: string): { yamlString: string | null; body:
   };
 };
 
-// XEON-PATCH: KN-02
+// FRESNEL-PATCH: KN-02
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// XEON-PATCH: KN-02
+// FRESNEL-PATCH: KN-02
 /** YAML 별칭은 순환 객체를 만들 수 있다. 순환이거나 너무 깊으면 참이다. 방문을 끝낸 노드는 다시 보지 않는다 */
 function containsCycle(
   value: unknown,
@@ -129,7 +129,7 @@ function containsCycle(
   return cyclic;
 }
 
-// XEON-PATCH: KN-02
+// FRESNEL-PATCH: KN-02
 export const parseFrontmatter = (content: string): Result<ParsedFrontmatter, FrontmatterError> => {
   const { yamlString, body } = extractFrontmatter(content);
   if (!yamlString) {
@@ -191,19 +191,19 @@ function validateDescription(description: unknown): string[] {
   return errors;
 }
 
-// XEON-PATCH: KN-04
+// FRESNEL-PATCH: KN-04
 // pi의 `.gitignore` 계열 규칙(`ignore` 패키지, `addIgnoreRules`, `prefixIgnorePattern`)은 옮기지 않았다. 스킬 루트에는 무시 규칙을 적용하지 않는다.
 
-// XEON-PATCH: KN-06
+// FRESNEL-PATCH: KN-06
 // pi의 `formatSkillsForPrompt`와 `escapeXml`은 옮기지 않았다. 인덱스 블록은 `skills/prompt-block.ts`가 만든다(예산, `skill_view` 안내, `<location>` 없음).
 
-// XEON-PATCH: KN-03
+// FRESNEL-PATCH: KN-03
 /** 탐색 한 번이 공유하는 파일 포트. 동기 fs 호출이 모두 이 포트의 비동기 호출로 바뀌었다 */
 interface DiscoveryContext {
   readonly fs: KnowledgeFs;
 }
 
-// XEON-PATCH: KN-03
+// FRESNEL-PATCH: KN-03
 /** 심볼릭 링크는 가리키는 종류로 본다. 깨진 링크는 undefined */
 async function resolvedKind(
   ctx: DiscoveryContext,
@@ -223,7 +223,7 @@ async function resolvedKind(
  * - otherwise, load direct .md children in the root
  * - recurse into subdirectories to find SKILL.md
  */
-// XEON-PATCH: KN-03
+// FRESNEL-PATCH: KN-03
 export async function loadSkillsFromDir(
   fs: KnowledgeFs,
   dir: string,
@@ -234,13 +234,13 @@ export async function loadSkillsFromDir(
   return loadSkillsFromDirInternal(ctx, dir, source, true, new Set(real.ok ? [real.value] : []), 0);
 }
 
-// XEON-PATCH: KN-03
+// FRESNEL-PATCH: KN-03
 async function loadSkillsFromDirInternal(
   ctx: DiscoveryContext,
   dir: string,
   source: SkillSource,
   includeRootFiles: boolean,
-  // XEON-PATCH: KN-09
+  // FRESNEL-PATCH: KN-09
   ancestors: ReadonlySet<string>,
   depth: number,
 ): Promise<LoadSkillsResult> {
@@ -274,7 +274,7 @@ async function loadSkillsFromDirInternal(
     }
   }
 
-  // XEON-PATCH: KN-08
+  // FRESNEL-PATCH: KN-08
   // 항목마다 병렬로 처리하되 결과는 항목 순서(이름 바이트 순)로 이어 붙인다. 순서가 실행 순서에 달리지 않는다
   const parts = await Promise.all(
     entries.map(async (entry): Promise<LoadSkillsResult> => {
@@ -298,7 +298,7 @@ async function loadSkillsFromDirInternal(
       }
 
       if (kind === "directory") {
-        // XEON-PATCH: KN-09
+        // FRESNEL-PATCH: KN-09
         if (depth >= MAX_DISCOVERY_DEPTH) {
           return {
             skills: [],
@@ -339,7 +339,7 @@ async function loadSkillsFromDirInternal(
   return { skills, diagnostics };
 }
 
-// XEON-PATCH: KN-03
+// FRESNEL-PATCH: KN-03
 async function loadSkillFromFile(
   ctx: DiscoveryContext,
   filePath: string,
@@ -354,7 +354,7 @@ async function loadSkillFromFile(
     diagnostics.push({ type: "warning", message, path: filePath });
     return { skill: null, diagnostics };
   }
-  // XEON-PATCH: KN-03
+  // FRESNEL-PATCH: KN-03
   const rawContent = utf8DecodeStrict(read.value);
   if (rawContent === undefined) {
     diagnostics.push({ type: "warning", message: "skill file is not valid UTF-8", path: filePath });
@@ -420,7 +420,7 @@ async function loadSkillFromFile(
   };
 }
 
-// XEON-PATCH: KN-03
+// FRESNEL-PATCH: KN-03
 async function canonicalize(fs: KnowledgeFs, path: string): Promise<string> {
   const real = await fs.realpath(path);
   return real.ok ? real.value : path;
@@ -430,7 +430,7 @@ async function canonicalize(fs: KnowledgeFs, path: string): Promise<string> {
  * Load skills from all configured locations.
  * Returns skills and any validation diagnostics.
  */
-// XEON-PATCH: KN-01
+// FRESNEL-PATCH: KN-01
 export async function loadSkills(fs: KnowledgeFs, roots: SkillRoots): Promise<LoadSkillsResult> {
   const skillMap = new Map<string, Skill>();
   const realPathSet = new Set<string>();
@@ -461,7 +461,7 @@ export async function loadSkills(fs: KnowledgeFs, roots: SkillRoots): Promise<Lo
     });
   }
 
-  // XEON-PATCH: KN-07
+  // FRESNEL-PATCH: KN-07
   // 프로젝트 → 사용자 → 확장 제공 → 설정 경로 순이다(pi는 사용자 → 프로젝트). 앞 루트가 이름 충돌에서 이긴다
   const sources: { readonly dir: string; readonly source: SkillSource }[] = [];
   if (roots.project !== undefined) {
@@ -495,7 +495,7 @@ export async function loadSkills(fs: KnowledgeFs, roots: SkillRoots): Promise<Lo
   };
 }
 
-// XEON-PATCH: KN-01
+// FRESNEL-PATCH: KN-01
 /** 설정 경로(`l2.knowledge.skills.paths`) 하나: 디렉터리 또는 `.md` 파일 */
 async function loadSkillPath(fs: KnowledgeFs, rawPath: string): Promise<LoadSkillsResult> {
   const skills: Skill[] = [];

@@ -1222,7 +1222,7 @@ export interface JudgePort {
 
 ### 4.5 재개
 
-세션을 다시 열 때(`session.start` 지점) cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
+세션을 다시 열 때(`thread.start` 지점) cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
 
 | 상황 | 동작 |
 |---|---|
@@ -1264,10 +1264,10 @@ export interface JudgePort {
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret | 비고(L4) |
 |---|---|---|---|---|---|---|---|---|
 | `l2.work.goal.delegatedTimeoutSec` | integer | 300 | min 1, max 3600 | nextTurn | user, project, local | advanced | false | 파일 |
-| `l2.work.plans.requireApproval` | boolean | true | — | nextTurn | managed, user, project, local, session | permissions | false | 화면, 파일 |
-| `l2.work.plans.exitOnApprove` | boolean | true | — | nextTurn | user, project, local, session | permissions | false | 화면, 파일 |
-| `l2.work.tasks.autoStart` | boolean | false | — | nextTurn | user, project, local, session | tools | false | 화면, 파일 |
-| `l2.work.tasks.reminderTurns` | integer | 0(끔) | min 0, max 50 | nextTurn | user, project, local, session | tools | false | 화면, 파일 |
+| `l2.work.plans.requireApproval` | boolean | true | — | nextTurn | managed, user, project, local, launch | permissions | false | 화면, 파일 |
+| `l2.work.plans.exitOnApprove` | boolean | true | — | nextTurn | user, project, local, launch | permissions | false | 화면, 파일 |
+| `l2.work.tasks.autoStart` | boolean | false | — | nextTurn | user, project, local, launch | tools | false | 화면, 파일 |
+| `l2.work.tasks.reminderTurns` | integer | 0(끔) | min 0, max 50 | nextTurn | user, project, local, launch | tools | false | 화면, 파일 |
 
 - 판정 상한과 판정 모델 역할은 이 능력의 키가 아니다. 상한은 `l1.agents.judge.maxRuns`(L1.agents.spec §6, `ui.tab` `models`), 역할 라우팅은 `l1.models.routing.judge`(L1.models.spec)다 [결정: review.decisions-2 S-06].
 - `requireApproval`을 `managed`에서 잠그면 조직이 계획 승인을 강제할 수 있다.
@@ -1313,7 +1313,7 @@ export const manifest = defineManifest({
     { id: "artifacts.registry", range: "^1.0.0" },
     { id: "dialog.commands", range: "^1.0.0" },   // §6.2, [미결] W-10
   ],
-  points: ["input.agent.before", "session.start", "boundary.step.after", "boundary.settle.before"],
+  points: ["input.agent.before", "thread.start", "boundary.step.after", "boundary.settle.before"],
   usesDrive: false,
 });
 ```

@@ -1,7 +1,7 @@
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 import type { ShellOutputSkip } from "@xeon/contracts/services";
 
-// XEON-PATCH: P3
+// FRESNEL-PATCH: P3
 /** UTF-8 byte length. The output buffer and the read/ls bounds count bytes the same way. */
 export function utf8ByteLength(content: string): number {
   return Buffer.byteLength(content, "utf8");
@@ -31,7 +31,7 @@ export type OutputSlice = {
 
 const NEWLINE = 0x0a;
 
-// XEON-PATCH: P10
+// FRESNEL-PATCH: P10
 /** C0 controls except tab and newline, and the interlinear annotation marks U+FFF9..U+FFFB. */
 function isInvalidOutputUnit(unit: number): boolean {
   return unit <= 0x08 || (unit >= 0x0b && unit <= 0x1f) || (unit >= 0xfff9 && unit <= 0xfffb);
@@ -42,7 +42,7 @@ const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
 /** Remove control characters that break display and transcripts; tabs and newlines stay. */
 export function sanitizeOutput(text: string): string {
-  // XEON-PATCH: P10
+  // FRESNEL-PATCH: P10
   let kept = "";
   for (let index = 0; index < text.length; index++) {
     if (!isInvalidOutputUnit(text.charCodeAt(index))) kept += text.charAt(index);
@@ -223,7 +223,7 @@ export class OutputBuffer {
     // Drop leading chunks while the rest still holds more than a window: more than `maxBytes` bytes or `maxLines`
     // newlines, plus one, so the window's line start can still be found. Each chunk is dropped once.
     while (this.#chunks.length > 1) {
-      // XEON-PATCH: P4
+      // FRESNEL-PATCH: P4
       const first = this.#chunks[0];
       if (first === undefined) break;
       const bytesAfter = this.#storedBytes - first.bytes;
@@ -239,7 +239,7 @@ export class OutputBuffer {
 
   /** Retained, sanitized output and what the limits dropped from the whole stream. */
   snapshot(): BoundedOutput {
-    // XEON-PATCH: P4
+    // FRESNEL-PATCH: P4
     const stored = this.#chunks.map((chunk) => chunk.text).join("");
     const kept = boundOutput(stored, this.#limits);
     const storedLines = lineTotal(this.#storedNewlines, stored === "" || stored.endsWith("\n"));
@@ -287,7 +287,7 @@ function tailMargin(text: string, limits: OutputLimits): string {
 }
 
 /** Lines of text with `newlines` newlines; a final unterminated line counts. */
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 function lineTotal(newlines: number, terminated: boolean): number {
   return newlines + (terminated ? 0 : 1);
 }
@@ -299,5 +299,5 @@ function countNewlines(text: string): number {
 }
 
 /** Each progress commit also buys a pause proportional to what it wrote. */
-// XEON-PATCH: P9
+// FRESNEL-PATCH: P9
 export const PROGRESS_BYTES_PER_SECOND: number = 100 * 1024;

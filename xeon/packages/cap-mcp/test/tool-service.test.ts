@@ -272,9 +272,7 @@ describe("MCP tools in the real ToolService", () => {
     let base: ScopeStack = [];
     const source = {
       layers: (threadId: string | undefined): ScopeStack =>
-        threadId === thread
-          ? [...base, layer("session", { "l2.mcp.result.maxBytes": 1024 })]
-          : base,
+        threadId === thread ? [...base, layer("launch", { "l2.mcp.result.maxBytes": 1024 })] : base,
     };
     const world = buildWorld({
       servers: {

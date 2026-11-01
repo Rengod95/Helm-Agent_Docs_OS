@@ -1,7 +1,7 @@
 # cap-workspace 포크 패치 기록
 
 `src/**/upstream/`과 `src/upstream/`은 pi의 포크다(durable 도구 5개와 출력 한도 함수, 이미지 형식 판별 2개, 편집 일치 함수 1개(`edit-diff`), coding-agent `ls`). 원본 저장소, 커밋, 복사 경로, 파일별 sha256은 `UPSTREAM.json`에 있다.
-세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// XEON-PATCH: <id>` 표지.
+세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// FRESNEL-PATCH: <id>` 표지.
 `test/fork-records.test.ts`가 이를 검사한다. 근거 문서는 `L2.workspace.plan` §2, `adr.0003` §3.4다.
 고친 줄 위에 표지를 단다. 줄 번호는 원본(커밋 `cdaf6c2`, `packages/durable/` 또는 `packages/coding-agent/`) 기준이다.
 
@@ -58,7 +58,7 @@ L2.workspace.spec §4.4의 결정대로 외부 라이브러리를 쓰지 않는�
 
 ## 린트 예외 주석
 
-포크 코드에는 `oxlint-disable` 주석을 두지 않는다. `eng.typescript.guide` §1은 업스트림 병합 비용을 억제 주석의 사유로 인정하지 않는다. 린트가 걸리는 줄은 P10처럼 고쳐 쓰고 `XEON-PATCH` 표지를 단다.
+포크 코드에는 `oxlint-disable` 주석을 두지 않는다. `eng.typescript.guide` §1은 업스트림 병합 비용을 억제 주석의 사유로 인정하지 않는다. 린트가 걸리는 줄은 P10처럼 고쳐 쓰고 `FRESNEL-PATCH` 표지를 단다.
 고칠 수 없는 줄이 생기면 주석으로 넘기지 말고 `[미결] TY-NN <파일:줄> <이유>`로 `review.open-issues`에 적는다. 업스트림을 갱신하면 새 원본에서 같은 린트 오류가 다시 생기므로 `bun run lint` 출력에 맞춰 P10을 다시 적용한다.
 
 ## 확인 기록

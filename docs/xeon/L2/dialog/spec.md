@@ -887,7 +887,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
   - 피드 구독은 구독한 뒤 커밋되는 이벤트만 받는다. 재시작 전 누적 사용량은 따라잡지 않는다 [미결: 재시작 뒤 `core.usage` 복원 정책].
   - 세그먼트 id 소유자 확인(D-4)은 아직 하지 않는다. `setItem`은 어떤 id든 받는다.
 - 재생 대상이 아니다. 재접속한 클라이언트는 `list`로 다시 그린다. 상태줄 정보는 정본이 아니므로 놓쳐도 내구 이벤트만으로 같은 최종 화면을 만들 수 있어야 한다는 규칙(eng.events.design EV-10)을 어기지 않는다.
-- F.extensions.spec의 `session.prompt.before`, `session.prompt.after` 지점(41종 표 40·41번)과의 구분: 두 지점은 확장 UI 대화상자가 열리고 닫히는 것을 관찰하는 tap 지점이다. `dialog.status`는 표시 항목을 등록하는 서비스 API다. 질문 도구의 대기는 `approval.*` 이벤트로 드러나며 `ui_prompt_*`를 발화하지 않는다 [제안]. L1이 승인 대기에 `ui_prompt_*`를 발화할지는 L1.tools.spec이 정한다.
+- F.extensions.spec의 `thread.prompt.before`, `thread.prompt.after` 지점(41종 표 40·41번)과의 구분: 두 지점은 확장 UI 대화상자가 열리고 닫히는 것을 관찰하는 tap 지점이다. `dialog.status`는 표시 항목을 등록하는 서비스 API다. 질문 도구의 대기는 `approval.*` 이벤트로 드러나며 `ui_prompt_*`를 발화하지 않는다 [제안]. L1이 승인 대기에 `ui_prompt_*`를 발화할지는 L1.tools.spec이 정한다.
 
 ### 4.5 첨부
 
@@ -1007,13 +1007,13 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret | 비고(L4: 화면/파일/명령) |
 |---|---|---|---|---|---|---|---|---|
-| `l2.dialog.ask.timeoutSec` | integer | 0(제한 없음) | min 0, max 86400 | nextTurn | user, project, local, session | tools | false | 화면, 파일 |
+| `l2.dialog.ask.timeoutSec` | integer | 0(제한 없음) | min 0, max 86400 | nextTurn | user, project, local, launch | tools | false | 화면, 파일 |
 | `l2.dialog.commands.dirs` | string[] | `[]` | — | nextTurn | user, project, local | tools | false | 파일(명령 본문은 파일), 화면(목록) |
-| `l2.dialog.commands.advertise` | boolean | true | — | nextTurn | user, project, local, session | tools | false | 화면, 파일 |
+| `l2.dialog.commands.advertise` | boolean | true | — | nextTurn | user, project, local, launch | tools | false | 화면, 파일 |
 | `l2.dialog.commands.shellInjection` | string | `"confirm"` | enum `confirm`, `off` | nextTurn | managed, user, project, local | tools | false | 화면, 파일 |
 | `l2.dialog.status.segments` | string[] | `["core.turn", "core.tools", "core.usage", "*"]` | — | live | user, project, local | appearance | false | 화면 |
 | `l2.dialog.attachments.maxBytes` | integer | 20971520 | min 1024, max 104857600 | nextTurn | managed, user, project, local | tools | false | 파일 |
-| `l2.dialog.styles.active` | string | `"default"` | — | nextTurn | user, project, local, session | appearance | false | 화면, 명령(`/style`) |
+| `l2.dialog.styles.active` | string | `"default"` | — | nextTurn | user, project, local, launch | appearance | false | 화면, 명령(`/style`) |
 | `l2.dialog.notify.os` | boolean | true | — | live | user | execution | false | 화면 |
 | `l2.dialog.notify.completed` | boolean | true | — | live | user, project, local | execution | false | 화면 |
 | `l2.dialog.notify.approvalWaiting` | boolean | true | — | live | user, project, local | execution | false | 화면 |

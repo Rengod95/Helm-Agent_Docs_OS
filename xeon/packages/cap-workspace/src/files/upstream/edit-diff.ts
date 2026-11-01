@@ -2,11 +2,11 @@
  * Shared diff computation utilities for the edit and similar tools.
  */
 
-// XEON-PATCH: P13
+// FRESNEL-PATCH: P13
 // 원본의 `import * as Diff from "diff"`, `generateUnifiedPatch`, `generateDiffString`은 뺐다. 새 의존을 더하지 않고, diff 생성은 `src/files/diff.ts`가 한다.
 
-// XEON-PATCH: P14
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P14
+// FRESNEL-PATCH: P15
 import { Bug, err, ok, type Result } from "@xeon/contracts";
 
 export function detectLineEnding(content: string): "\r\n" | "\n" {
@@ -25,7 +25,7 @@ export function restoreLineEndings(text: string, ending: "\r\n" | "\n"): string 
   return ending === "\r\n" ? text.replace(/\n/g, "\r\n") : text;
 }
 
-// XEON-PATCH: P18
+// FRESNEL-PATCH: P18
 /**
  * Normalize text for fuzzy matching. Applies progressive transformations:
  * - Strip trailing whitespace from each line
@@ -83,8 +83,8 @@ function getLineSpans(content: string): LineSpan[] {
   });
 }
 
-// XEON-PATCH: P15
-// XEON-PATCH: P17
+// FRESNEL-PATCH: P15
+// FRESNEL-PATCH: P17
 /** 줄 번호로 줄을 얻는다. 범위 밖이면 호출한 쪽의 불변 조건이 깨진 것이다. */
 function lineAt(lines: LineSpan[], index: number): LineSpan {
   const line = lines[index];
@@ -98,20 +98,20 @@ function getReplacementLineRange(lines: LineSpan[], replacement: TextReplacement
   const replacementStart = replacement.matchIndex;
   const replacementEnd = replacement.matchIndex + replacement.matchLength;
 
-  // XEON-PATCH: P17
+  // FRESNEL-PATCH: P17
   const startLine = lines.findIndex(
     (line) => replacementStart >= line.start && replacementStart < line.end,
   );
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   if (startLine === -1) {
     throw new Bug("Replacement range is outside the base content.");
   }
 
-  // XEON-PATCH: P17
+  // FRESNEL-PATCH: P17
   const endLine = lines.findIndex(
     (line, index) => index >= startLine && line.end >= replacementEnd,
   );
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   if (endLine === -1) {
     throw new Bug("Replacement range is outside the base content.");
   }
@@ -119,7 +119,7 @@ function getReplacementLineRange(lines: LineSpan[], replacement: TextReplacement
   return { startLine, endLine: endLine + 1 };
 }
 
-// XEON-PATCH: P17
+// FRESNEL-PATCH: P17
 function applyReplacements(content: string, replacements: TextReplacement[], offset = 0): string {
   let result = content;
   for (const replacement of replacements.toReversed()) {
@@ -132,7 +132,7 @@ function applyReplacements(content: string, replacements: TextReplacement[], off
   return result;
 }
 
-// XEON-PATCH: P18
+// FRESNEL-PATCH: P18
 /**
  * Apply replacements matched against `baseContent` to `originalContent` while
  * preserving unchanged line blocks from the original.
@@ -150,7 +150,7 @@ function applyReplacementsPreservingUnchangedLines(
 ): string {
   const originalLines = splitLinesWithEndings(originalContent);
   const baseLines = getLineSpans(baseContent);
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   if (originalLines.length !== baseLines.length) {
     throw new Bug(
       "Cannot preserve unchanged lines because the base content has a different line count.",
@@ -158,11 +158,11 @@ function applyReplacementsPreservingUnchangedLines(
   }
 
   const groups: Array<{ startLine: number; endLine: number; replacements: TextReplacement[] }> = [];
-  // XEON-PATCH: P17
+  // FRESNEL-PATCH: P17
   const sortedReplacements = replacements.toSorted((a, b) => a.matchIndex - b.matchIndex);
   for (const replacement of sortedReplacements) {
     const range = getReplacementLineRange(baseLines, replacement);
-    // XEON-PATCH: P17
+    // FRESNEL-PATCH: P17
     const current = groups.at(-1);
     if (current && range.startLine < current.endLine) {
       current.endLine = Math.max(current.endLine, range.endLine);
@@ -177,9 +177,9 @@ function applyReplacementsPreservingUnchangedLines(
   for (const group of groups) {
     result += originalLines.slice(originalLineIndex, group.startLine).join("");
 
-    // XEON-PATCH: P17
+    // FRESNEL-PATCH: P17
     const groupStartOffset = lineAt(baseLines, group.startLine).start;
-    // XEON-PATCH: P17
+    // FRESNEL-PATCH: P17
     const groupEndOffset = lineAt(baseLines, group.endLine - 1).end;
     result += applyReplacements(
       baseContent.slice(groupStartOffset, groupEndOffset),
@@ -193,7 +193,7 @@ function applyReplacementsPreservingUnchangedLines(
   return result;
 }
 
-// XEON-PATCH: P18
+// FRESNEL-PATCH: P18
 interface FuzzyMatchResult {
   /** Whether a match was found */
   found: boolean;
@@ -215,7 +215,7 @@ export interface Edit {
   newText: string;
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 /** 적용 결과. `matchMode`는 모든 편집이 정확 일치로 찾아졌는지(`exact`) 퍼지 공간을 썼는지(`fuzzy`)다. */
 export interface AppliedEdits {
   baseContent: string;
@@ -223,7 +223,7 @@ export interface AppliedEdits {
   matchMode: "exact" | "fuzzy";
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 /**
  * 편집 실패 값. `kind`로 나눈다. 메시지 문구는 원본 오류 문구를 따르되 경로 조각은 뺐다(함수가 경로를 받지 않는다).
  * `editIndex`는 실패를 일으킨 편집의 번호다. `no_change`와 `overlap`은 각각 0과 앞 편집 번호를 쓴다.
@@ -238,7 +238,7 @@ export type EditFailure = {
   readonly fuzzyDisabled?: true;
 };
 
-// XEON-PATCH: P16
+// FRESNEL-PATCH: P16
 /**
  * Find oldText in content, trying exact match first, then fuzzy match.
  * When fuzzy matching is used, the returned contentForReplacement is the
@@ -258,7 +258,7 @@ function fuzzyFindText(content: string, oldText: string, fuzzy: boolean): FuzzyM
     };
   }
 
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   // E17: 설정이 꺼지면 퍼지 공간을 만들지 않고 정확 일치 실패로 끝낸다
   if (!fuzzy) {
     return {
@@ -304,9 +304,9 @@ export function stripBom(content: string): { bom: string; text: string } {
     : { bom: "", text: content };
 }
 
-// XEON-PATCH: P16
+// FRESNEL-PATCH: P16
 function countOccurrences(content: string, oldText: string, fuzzy: boolean): number {
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   // E17: 정확 일치만 쓸 때는 정확 공간에서 세야 찾은 자리와 같은 공간이다
   if (!fuzzy) {
     return content.split(oldText).length - 1;
@@ -316,7 +316,7 @@ function countOccurrences(content: string, oldText: string, fuzzy: boolean): num
   return fuzzyContent.split(fuzzyOldText).length - 1;
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 function emptyOldTextFailure(editIndex: number, totalEdits: number): EditFailure {
   return {
     kind: "empty_old_text",
@@ -329,7 +329,7 @@ function emptyOldTextFailure(editIndex: number, totalEdits: number): EditFailure
   };
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 function notFoundFailure(
   editIndex: number,
   totalEdits: number,
@@ -345,7 +345,7 @@ function notFoundFailure(
   return { kind: "not_found", message, editIndex, totalEdits };
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 function ambiguousFailure(editIndex: number, totalEdits: number, occurrences: number): EditFailure {
   const message =
     totalEdits === 1
@@ -354,7 +354,7 @@ function ambiguousFailure(editIndex: number, totalEdits: number, occurrences: nu
   return { kind: "ambiguous", message, editIndex, totalEdits, occurrences };
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 function overlapFailure(earlier: number, later: number, totalEdits: number): EditFailure {
   return {
     kind: "overlap",
@@ -364,7 +364,7 @@ function overlapFailure(earlier: number, later: number, totalEdits: number): Edi
   };
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 function noChangeFailure(totalEdits: number): EditFailure {
   return {
     kind: "no_change",
@@ -377,7 +377,7 @@ function noChangeFailure(totalEdits: number): EditFailure {
   };
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 /**
  * Apply one or more exact-text replacements to LF-normalized content.
  *
@@ -432,7 +432,7 @@ export function applyEdits(
     });
   }
 
-  // XEON-PATCH: P17
+  // FRESNEL-PATCH: P17
   const sortedEdits = matchedEdits.toSorted((a, b) => a.matchIndex - b.matchIndex);
   for (const [index, previous] of sortedEdits.entries()) {
     const current = sortedEdits[index + 1];

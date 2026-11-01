@@ -1227,7 +1227,7 @@ export const SCHEDULE_CAPABILITIES = [ScheduleLoops, ScheduleJobs, ScheduleSessi
 
 - 루프·웨이크업·감시의 대기는 프로세스 메모리의 타이머다. 그래서 세션을 실행하던 프로세스가 끝나면 멈춘다. 서비스 모드가 꺼진 상태에서 앱이나 CLI를 닫으면 루프가 멈춘다는 뜻이다. `start`는 서비스 모드가 꺼져 있을 때 결과의 사용자 표시용 문구로 이 점을 알린다(L4가 표시).
 - 서비스 모드에서는 세션의 쓰기 소유자가 서비스다(ADR-0006 §3.6). 클라이언트가 모두 끊겨도 서비스가 루프를 계속 돌린다. 이 동안 서비스는 `liveSchedulerTasks() > 0`이므로 유휴 종료하지 않는다(§3.9) [제안: ActivitySnapshot.liveTasks에 루프를 포함].
-- 재시작 정리: 세션을 연 프로세스는 `session.start`(#30) 때 투영에 `running`인 루프와 `pending` 웨이크업·`active` 감시가 있고 자기 메모리에 해당 타이머가 없으면 `schedule.loop_stopped { reason: "host_exit" }`, `wakeup_cancelled { reason: "host_exit" }`, `watch_stopped { reason: "host_exit" }`를 커밋한다. 자동으로 다시 시작하지 않는다 [제안]. ADR-0006 §3.6 5번의 자동 재개 기본값 꺼짐과 맞춘다. L4가 "루프를 다시 시작" 제안을 보여 줄 수 있다.
+- 재시작 정리: 세션을 연 프로세스는 `thread.start`(#30) 때 투영에 `running`인 루프와 `pending` 웨이크업·`active` 감시가 있고 자기 메모리에 해당 타이머가 없으면 `schedule.loop_stopped { reason: "host_exit" }`, `wakeup_cancelled { reason: "host_exit" }`, `watch_stopped { reason: "host_exit" }`를 커밋한다. 자동으로 다시 시작하지 않는다 [제안]. ADR-0006 §3.6 5번의 자동 재개 기본값 꺼짐과 맞춘다. L4가 "루프를 다시 시작" 제안을 보여 줄 수 있다.
 
 ### 4.2 백그라운드 작업 모니터
 
@@ -1386,8 +1386,9 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `at` | 지정한 시각 한 번 | 지난 시각은 `at_in_past`. 실행하거나 건너뛴 뒤 꺼진다 |
 | `file_watch` | 기한 없음. 경로가 바뀐 뒤 디바운스가 지나면 다음 틱에서 실행 | 틱 주기보다 짧은 디바운스는 틱 주기로 처리된다. 감시자가 이 프로세스에 있으므로 대기 예약 수에 센다 |
 | `remote` | 기한 없음. `fire` 호출 때만 | 대기 예약 수에 세지 않는다 |
-| `loop` | 실행이 정착한 뒤 간격 뒤에 다시 실행 | `maxIterations`와 `expiresAtMs`가 필수다. 대기 예약이 아니라 live task로 센다(`liveSchedulerTasks`, M3-10) |
+| `repeat` | 실행이 정착한 뒤 간격 뒤에 다시 실행(옛 이름 `loop`, ADR-0022 §3.6) | `maxIterations`와 `expiresAtMs`가 필수다. 대기 예약이 아니라 live task로 센다(`liveSchedulerTasks`, M3-10) |
 
+- 상태 파일(`<dirs.state>/schedule/state.json`)은 `version: 2`다. `version: 1` 파일은 읽을 때 `upgradeScheduleState`(`packages/cap-schedule/src/migrate.ts`)가 `trigger.kind`와 run의 `firedBy`의 `loop`를 `repeat`로 바꿔 한 번 올린다. 저장은 항상 `version: 2`다 [결정: 2026-11-01 사용자, 저장된 예약 정의는 이전 단계 하나를 둔다].
 - 모든 실행은 세션 종류 `cron`의 새 세션이고, 입력 출처는 `{ type: "schedule" }`이라 비대화(`interactive: false`)다. 승인은 `l1.tools.unattended.*`를 따르고 명령은 `l0.exec.unattendedTimeoutMs` 상한을 받는다(M3-16).
 - 놓친 기한은 `once`로 1회만 따라잡는다. 가장 늦은 기한이 제때(120초 안)면 그것만 실행하고, 놓쳤으면 24시간 안일 때만 `missed`로 하나를 실행한다. 나머지는 요약 한 건(`skippedCount`)으로 `skipped` 기록한다. 최소 간격 300초와 시간당 실행 상한(20)은 `file_watch`·`remote` 포함 모든 트리거에 적용하고 루프의 반복 사이에는 최소 간격을 따로 두지 않는다.
 - 같은 항목의 이전 실행이 `claimed`·`started`이면 새 기한은 `overlap`으로 건너뛴다.
@@ -1462,7 +1463,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret | 비고 |
 |---|---|---|---|---|---|---|---|---|
-| `l2.schedule.loops.maxIterations` | integer | 50 | min 1, max 1000 | live | managed, user, project, local, session | execution | false | 화면 |
+| `l2.schedule.loops.maxIterations` | integer | 50 | min 1, max 1000 | live | managed, user, project, local, launch | execution | false | 화면 |
 | `l2.schedule.loops.maxLifetimeHours` | integer | 168 | min 1, max 720 | live | managed, user, project, local | execution | false | 화면. 루프 만료 기본·상한 |
 | `l2.schedule.loops.minIntervalSeconds` | integer | 0 | min 0, max 3600 | live | managed, user, project, local | advanced | false | 파일만 |
 | `l2.schedule.loops.shellTimeoutSeconds` | integer | 60 | min 1, max 600 | live | managed, user, project, local | advanced | false | 파일만 |
@@ -1483,10 +1484,10 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `l2.schedule.remote.enabled` | boolean | false | — | restart | managed, user | execution | false | 화면, 명령(`xeon service remote on`) |
 | `l2.schedule.remote.allowRespond` | boolean | true | — | live | managed, user | execution | false | 화면 |
 | `l2.schedule.remote.tokenRef` | string(`SecretRef`) | 없음 | — | restart | managed, user | secrets | true | 화면(비밀 탭). 값은 `secret://<name>` |
-| `l2.schedule.tools.timers` | boolean | true | — | nextTurn | managed, user, project, local, session | tools | false | 화면. `schedule_*` 도구 노출 |
-| `l2.schedule.tools.wakeup` | boolean | true | — | nextTurn | managed, user, project, local, session | tools | false | 화면. `schedule_wakeup`, `loop_done` |
-| `l2.schedule.tools.jobs` | boolean | false | — | nextTurn | managed, user, project, local, session | tools | false | 화면. `job_*`, `monitor_start` |
-| `l2.schedule.tools.worktree` | boolean | false | — | nextTurn | managed, user, project, local, session | tools | false | 화면. `worktree_*` |
+| `l2.schedule.tools.timers` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_*` 도구 노출 |
+| `l2.schedule.tools.wakeup` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_wakeup`, `loop_done` |
+| `l2.schedule.tools.jobs` | boolean | false | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `job_*`, `monitor_start` |
+| `l2.schedule.tools.worktree` | boolean | false | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `worktree_*` |
 
 - 안전 상한(`l2.schedule.timers.maxRunsPerHour`, `l2.schedule.timers.minIntervalSeconds`, `l2.schedule.timers.maxActive`, `l2.schedule.loops.maxIterations`, `l2.schedule.loops.maxLifetimeHours`)은 pi 방식(기본 상한 없음)의 예외다. 사용자 입력 없이 실행되는 경로라 상한이 없으면 무한 실행된다 [결정: review.decisions-2 U-22].
 - 타이머·원격 키의 `allowedScopes`를 `managed`, `user`로 좁힌 이유: 예약과 원격은 기기 단위 기능이고, 저장소를 받는 것만으로 예약 폭주나 원격 접속이 켜지지 않게 하려는 것이다.
@@ -1499,8 +1500,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | 지점 / 연산 | 이 능력의 쓰임 |
 |---|---|
 | `boundary.settle.after` (#26, tap) | 루프 반복 경계, 웨이크업 투입 시점, 예약 실행 결과(§4.1.1, §4.1.3, §4.4.5). `dispatch: detached` |
-| `session.start` (#30, tap) | 재시작 정리(§4.1.5) |
-| `session.shutdown` (#39, tap) | 이 세션의 메모리 타이머를 지운다. 이벤트는 쓰지 않는다(다음 열기 때 정리) |
+| `thread.start` (#30, tap) | 재시작 정리(§4.1.5) |
+| `thread.shutdown` (#39, tap) | 이 세션의 메모리 타이머를 지운다. 이벤트는 쓰지 않는다(다음 열기 때 정리) |
 | post | `xeon.tasks.post`로 반복·웨이크업·감시·예약 입력을 넣는다. 키 형식 `loop:`, `wake:`, `watch:`, `timer:` |
 | drive | 쓰지 않는다. 다음 턴 시작은 post로만 한다(`L2.readme` §4.2) |
 | scope | 능력이 꺼지면 도구가 다음 단계 경계에서 빠진다. 도는 루프는 멈추지 않는다 [제안]. 끄려면 `stop`을 쓴다 |

@@ -1,7 +1,7 @@
 import type { CancelScope, FileError } from "@xeon/contracts/services";
 import type { CommandFiles } from "../../ports/command-files.ts";
 
-// XEON-PATCH: P1
+// FRESNEL-PATCH: P1
 /** 파일 하나를 읽거나 해석하지 못했다는 경고. pi의 `ResourceDiagnostic`에 해당한다 */
 export interface CommandDiagnostic {
   readonly type: "warning";
@@ -9,7 +9,7 @@ export interface CommandDiagnostic {
   readonly path: string;
 }
 
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 /** 명령 파일 하나. pi의 `PromptTemplate`에서 출처 정보를 빼고 앞머리 `args`의 원본을 더했다 */
 export interface PromptTemplate {
   readonly name: string;
@@ -31,7 +31,7 @@ export function parseCommandArgs(argsString: string): string[] {
   let current = "";
   let inQuote: string | null = null;
 
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   for (const char of argsString) {
     if (inQuote) {
       if (char === inQuote) {
@@ -76,7 +76,7 @@ export function substituteArgs(content: string, args: string[]): string {
 
   return content.replace(
     /\$\{(\d+|ARGUMENTS|@):-([^}]*)\}|\$\{@:(\d+)(?::(\d+))?\}|\$(ARGUMENTS|@|\d+)/g,
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     (
       _match: string,
       defaultTarget: string | undefined,
@@ -115,7 +115,7 @@ export function substituteArgs(content: string, args: string[]): string {
   );
 }
 
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 const stripBom = (value: string): string => (value.startsWith("﻿") ? value.slice(1) : value);
 
 const normalizeNewlines = (value: string): string =>
@@ -139,7 +139,7 @@ const extractFrontmatter = (content: string): { yamlString: string | null; body:
   };
 };
 
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 /** 앞머리(YAML)와 본문을 나눈다. YAML이 매핑이 아니거나 해석되지 않으면 던진다 */
 function parseFrontmatter(content: string): {
   frontmatter: Readonly<Record<string, unknown>>;
@@ -157,7 +157,7 @@ function parseFrontmatter(content: string): {
   return { frontmatter: Object.fromEntries(Object.entries(parsed)), body };
 }
 
-// XEON-PATCH: P1
+// FRESNEL-PATCH: P1
 function loadTemplateFromContent(
   filePath: string,
   rawContent: string,
@@ -195,7 +195,7 @@ function loadTemplateFromContent(
       description,
       ...(argumentHint && { argumentHint }),
       content: body,
-      // XEON-PATCH: P5
+      // FRESNEL-PATCH: P5
       rawArgs: frontmatter["args"],
       filePath,
     },
@@ -212,7 +212,7 @@ function warning(path: string, error: FileError): CommandDiagnostic {
   return { type: "warning", message: error.message, path };
 }
 
-// XEON-PATCH: P1
+// FRESNEL-PATCH: P1
 /**
  * Scan a directory for .md files (non-recursive) and load them as prompt templates.
  * 디렉터리가 없으면 빈 결과다. 파일 하나가 읽히지 않거나 해석되지 않으면 그 파일만 건너뛰고 진단을 남긴다.
@@ -257,7 +257,7 @@ export async function loadTemplatesFromDir(
   return { templates, diagnostics };
 }
 
-// XEON-PATCH: P6
+// FRESNEL-PATCH: P6
 /**
  * 입력이 `/이름 인자` 모양이면 이름과 인자 문자열을 돌려준다. pi의 `expandPromptTemplate`가 쓰던 구문 분해만 남겼다.
  * 템플릿 고르기(출처 우선순위)와 치환은 호출자가 한다.

@@ -21,7 +21,7 @@ import type { LoaderDiagnostic, ServerDefinition } from "./types.ts";
 // L2.mcp.spec §6. 키 문법은 `l2.mcp.<이름>`이고 열다섯 개다(sampling은 지원하지 않아 없다, M3-REQ-97).
 // 서버 정의 안의 비밀은 secret:// 참조만 저장하므로 secret 열은 모두 거짓이다.
 
-const ALL = ["managed", "user", "project", "local", "session"] as const;
+const ALL = ["managed", "user", "project", "local", "launch"] as const;
 const NO_SESSION = ["managed", "user", "project", "local"] as const;
 const MANAGED_USER_PROJECT = ["managed", "user", "project"] as const;
 const MANAGED_USER = ["managed", "user"] as const;

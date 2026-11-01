@@ -1,6 +1,6 @@
-// XEON-PATCH: P10
+// FRESNEL-PATCH: P10
 import { repeatAsync } from "@xeon/contracts";
-// XEON-PATCH: P1
+// FRESNEL-PATCH: P1
 import type {
   BinaryReader,
   CancelScope as Context,
@@ -8,21 +8,21 @@ import type {
   ExecutionEnv,
   FileInfo,
 } from "@xeon/contracts/services";
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 import { getOrThrow } from "../../upstream/get-or-throw.ts";
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 import { characterEnd, utf8ByteLength } from "../../upstream/output.ts";
 import { WorkspaceFailure } from "../../errors.ts";
 import { rangeDecoder, startsWithBom } from "./decode.ts";
 
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 /** 한도. 원본은 상수 DEFAULT_MAX_LINES·DEFAULT_MAX_BYTES를 썼고 여기서는 설정 l2.workspace.read.*를 호출마다 받는다. */
 export interface ReadLimits {
   readonly maxLines: number;
   readonly maxBytes: number;
 }
 
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 /** 읽은 구간. 도구 결과(`ReadOutput`)로 바꾸는 일은 `truncate/paging.ts`가 한다. */
 export interface ReadSlice {
   /** 보여 줄 텍스트. 첫 줄이 바이트 한도를 넘으면 그 줄의 앞부분 */
@@ -39,14 +39,14 @@ export interface ReadSlice {
   readonly firstLineCut: boolean;
 }
 
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 export type ReadFileOutcome =
   | { readonly kind: "text"; readonly slice: ReadSlice }
   | { readonly kind: "binary" }
   | { readonly kind: "beyond_end"; readonly fileLines: number };
 
 const READ_CHUNK = 64 * 1024;
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 /** 파일 앞 8KB에 NUL 바이트가 있으면 바이너리로 본다(L2.workspace.spec §5 2번) */
 const BINARY_PROBE_BYTES = 8 * 1024;
 const NEWLINE = 0x0a;
@@ -67,7 +67,7 @@ async function readHead(
   let text = "";
   let newlines = 0;
   let position = skipBom && start === 0 ? 3 : start;
-  // XEON-PATCH: P10
+  // FRESNEL-PATCH: P10
   const early = await repeatAsync<string | undefined>(async () => {
     if (position >= end) return { value: undefined };
     const length = Math.min(READ_CHUNK, end - position);
@@ -86,7 +86,7 @@ async function readHead(
   return early ?? text + decoder.decode();
 }
 
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 /**
  * 파일을 열어 텍스트 구간을 읽는다. 원본 `createReadTool`의 `execute`에서 도구 껍데기(`defineTool`, `requireEnv`,
  * 이미지 분기)를 걷어 낸 본문이다. 이미지는 M2(`workspace.images`)에서 더한다. `offset`·`limit`은 1 이상의 정수다.
@@ -104,7 +104,7 @@ export async function readFileText(
     // A concurrent writer can change the file between the scan and the reads. Appending (a growing log) leaves
     // the scanned text as it was. Otherwise the file is read again once.
     let attempt = 0;
-    // XEON-PATCH: P10
+    // FRESNEL-PATCH: P10
     return await repeatAsync<ReadFileOutcome>(async () => {
       const before = getOrThrow(await reader.info(context));
       const result = await readText(env, reader, before, offset, limit, limits, context);
@@ -137,7 +137,7 @@ async function readText(
   limits: ReadLimits,
   context: Context,
 ): Promise<ReadFileOutcome> {
-  // XEON-PATCH: P5
+  // FRESNEL-PATCH: P5
   const probe = getOrThrow(await reader.read(0, Math.min(info.size, BINARY_PROBE_BYTES), context));
   if (probe.includes(0)) return { kind: "binary" };
 
@@ -155,11 +155,11 @@ async function readText(
     ),
   );
   const totalFileLines = scan.newlines + 1;
-  // XEON-PATCH: P5
+  // FRESNEL-PATCH: P5
   const lastByte =
     info.size === 0 ? undefined : getOrThrow(await reader.read(info.size - 1, 1, context))[0];
   const fileLines = info.size === 0 ? 0 : totalFileLines - (lastByte === NEWLINE ? 1 : 0);
-  // XEON-PATCH: P5
+  // FRESNEL-PATCH: P5
   if (startLine >= Math.max(fileLines, 1)) return { kind: "beyond_end", fileLines };
 
   const selectedLineCount =

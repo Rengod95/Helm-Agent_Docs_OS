@@ -183,11 +183,7 @@ describe("manifest", () => {
     ]);
     const unit = knowledgePlugin({ settings: { layers: () => [] }, ids: fixedLocalIds() });
     expect(unit.builtin).toBe(true);
-    expect(unit.manifest.points).toEqual([
-      "session.start",
-      "input.agent.before",
-      "session.shutdown",
-    ]);
+    expect(unit.manifest.points).toEqual(["thread.start", "input.agent.before", "thread.shutdown"]);
   });
 });
 
@@ -385,7 +381,7 @@ describe("turn hooks", () => {
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
-      "session.start",
+      "thread.start",
       { reason: "new", threadId: thread },
       { threadId: thread, dispatchKey: "start" },
     );
@@ -407,7 +403,7 @@ describe("turn hooks", () => {
     expect(third[0]?.content).toBe("스킬 인덱스 변경: 추가 rollback(Roll back.)");
 
     await t.host.dispatch(
-      "session.shutdown",
+      "thread.shutdown",
       { reason: "quit" },
       { threadId: thread, dispatchKey: "stop" },
     );
@@ -422,7 +418,7 @@ describe("compaction", () => {
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
-      "session.start",
+      "thread.start",
       { reason: "new", threadId: thread },
       { threadId: thread, dispatchKey: "start" },
     );
@@ -437,7 +433,7 @@ describe("compaction", () => {
     putSkill(fs, USER_SKILLS, "rollback", { description: "Roll back." });
     await apis.skills?.reindex({});
     await t.host.dispatch(
-      "session.compact.after",
+      "thread.compact.after",
       {
         threadId: thread,
         eventId: t.ids.next("evt"),
@@ -461,13 +457,13 @@ describe("compaction", () => {
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
-      "session.start",
+      "thread.start",
       { reason: "new", threadId: thread },
       { threadId: thread, dispatchKey: "start" },
     );
     await agentStart(t, thread, "turn-1");
     await t.host.dispatch(
-      "session.compact.after",
+      "thread.compact.after",
       {
         threadId: thread,
         eventId: t.ids.next("evt"),
@@ -497,7 +493,7 @@ describe("the thread workspace is the project folder", () => {
     if (workspace !== undefined) WORKSPACES.set(thread, workspace);
     await t.host.openThread(thread);
     await t.host.dispatch(
-      "session.start",
+      "thread.start",
       { reason: "new", threadId: thread },
       { threadId: thread, dispatchKey: `start-${thread}` },
     );

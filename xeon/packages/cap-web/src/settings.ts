@@ -14,11 +14,11 @@ import {
 // L2.web.spec §6. 키 문법은 `l2.web.<이름>`이다. 표 전체를 선언한다(L2.web.plan B11). 읽는 쪽은 이 파일의
 // `readWebSettings`이고, 브라우저·조사 키(browse.*, research.*)는 그 기능이 들어오는 트랙이 읽는다.
 
-const ALL_SCOPES = ["managed", "user", "project", "local", "session"] as const;
+const ALL_SCOPES = ["managed", "user", "project", "local", "launch"] as const;
 const NO_SESSION = ["managed", "user", "project", "local"] as const;
 const NO_PROJECT = ["managed", "user", "local"] as const;
 /** project만 뺀 범위. 저장소 설정이 방어를 푸는 키(허용 목록, 대화에 없던 URL)가 쓴다. 저장소는 `ask`·`deny`에는 더할 수 있다 */
-const NO_PROJECT_KEEP_SESSION = ["managed", "user", "local", "session"] as const;
+const NO_PROJECT_KEEP_SESSION = ["managed", "user", "local", "launch"] as const;
 const USER_ONLY = ["managed", "user"] as const;
 
 /** 도메인 패턴: `example.com`, `*.example.com`, `*`. 끝이 `*`인 패턴(`example.*`)은 거부한다(§4.5.1) */

@@ -44,13 +44,13 @@ describe("settings", () => {
 
     const deliver = byKey.get("l2.artifacts.reviews.deliverAs");
     expect(deliver?.runtimeChange).toBe("live");
-    expect(deliver?.allowedScopes).toEqual(["managed", "user", "project", "local", "session"]);
+    expect(deliver?.allowedScopes).toEqual(["managed", "user", "project", "local", "launch"]);
     expect(deliver?.range).toEqual({ enum: ["steer", "followUp", "next"] });
     expect(deliver?.ui?.tab).toBe("tools");
 
     for (const key of ["l2.artifacts.tools.reviewRequest", "l2.artifacts.tools.sessionRename"]) {
       expect(byKey.get(key)?.runtimeChange).toBe("nextTurn");
-      expect(byKey.get(key)?.allowedScopes).toContain("session");
+      expect(byKey.get(key)?.allowedScopes).toContain("launch");
       expect(byKey.get(key)?.ui?.tab).toBe("tools");
     }
   });
@@ -100,7 +100,7 @@ describe("settings", () => {
   test("a session layer may set the review and tool keys but not the limits", () => {
     const set = readArtifactsSettings([
       layer("user", { "l2.artifacts.maxPerSession": 40 }),
-      layer("session", {
+      layer("launch", {
         "l2.artifacts.maxPerSession": 3,
         "l2.artifacts.reviews.deliverAs": "steer",
         "l2.artifacts.tools.reviewRequest": false,

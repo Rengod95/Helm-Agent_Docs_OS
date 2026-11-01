@@ -1,7 +1,7 @@
 # cap-knowledge 포크 패치 기록
 
 `src/upstream/skills.ts`는 pi `packages/coding-agent/src/core/skills.ts`의 포크다. 원본 저장소, 커밋, 복사 경로, 파일별 sha256은 `UPSTREAM.json`에 있다.
-세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// XEON-PATCH: <id>` 표지.
+세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// FRESNEL-PATCH: <id>` 표지.
 `test/fork-records.test.ts`가 이를 검사한다. 근거 문서는 `L2.knowledge.plan` §4.1, `adr.0003` §3.4다.
 고친 줄 위에 표지를 단다. 줄 번호는 원본(커밋 `cdaf6c2`) 기준이다. 뺀 코드(KN-04, KN-06)는 뺀 자리에 표지를 단다.
 
@@ -31,7 +31,7 @@
 
 ## 린트 예외 주석
 
-포크 코드에는 `oxlint-disable` 주석을 두지 않는다. `eng.typescript.guide` §1은 업스트림 병합 비용을 억제 주석의 사유로 인정하지 않는다. 린트가 걸리는 줄은 KN-08처럼 고쳐 쓰고 `XEON-PATCH` 표지를 단다.
+포크 코드에는 `oxlint-disable` 주석을 두지 않는다. `eng.typescript.guide` §1은 업스트림 병합 비용을 억제 주석의 사유로 인정하지 않는다. 린트가 걸리는 줄은 KN-08처럼 고쳐 쓰고 `FRESNEL-PATCH` 표지를 단다.
 
 ## 확인 기록
 

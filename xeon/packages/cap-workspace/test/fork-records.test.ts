@@ -3,10 +3,10 @@ import { join, relative } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 // L2.workspace.plan §4 Chord 값 import 0건 확인과 ADR-0003 §3.4 포크 기록.
-// PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 XEON-PATCH 표지 id 집합이 같아야 한다.
+// PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 FRESNEL-PATCH 표지 id 집합이 같아야 한다.
 
 const PACKAGE = join(import.meta.dir, "..");
-const MARKER = /\/\/ XEON-PATCH: (P\d+)\b/g;
+const MARKER = /\/\/ FRESNEL-PATCH: (P\d+)\b/g;
 const FORBIDDEN_IMPORT =
   /from ['"][^'"]*(chord|pi-durable)|import\(['"][^'"]*(chord|pi-durable)|require\(['"][^'"]*(chord|pi-durable)/;
 

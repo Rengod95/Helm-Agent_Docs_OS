@@ -243,7 +243,7 @@ function applyApprovalResolved(tx: ProjectionTx, event: DurableEventEnvelope): v
  */
 function applySettingsChanged(tx: ProjectionTx, event: DurableEventEnvelope): void {
   const change = payloadOf(SettingsChangedPayloadSchema, event);
-  if (change.key !== PERMISSION_MODE_KEY || change.scope !== "session") return;
+  if (change.key !== PERMISSION_MODE_KEY || change.scope !== "launch") return;
   if (typeof change.value !== "string") return;
   const row = tx.get(`SELECT mode FROM cap_work_meta WHERE session_id = ?`, [event.threadId]);
   const previous = typeof row?.["mode"] === "string" ? row["mode"] : "default";

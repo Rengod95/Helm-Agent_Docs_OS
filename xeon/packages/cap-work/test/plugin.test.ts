@@ -182,7 +182,7 @@ describe("manifest", () => {
     ]);
     expect(checked.manifest?.points).toEqual([
       "input.agent.before",
-      "session.start",
+      "thread.start",
       "boundary.step.after",
       "boundary.settle.before",
     ]);
@@ -326,7 +326,7 @@ describe("work.plans through the plugin", () => {
     );
     expect(approvals.requests).toHaveLength(0);
     await t.host.dispatch(
-      "session.start",
+      "thread.start",
       { reason: "resume", threadId: opened.threadId },
       { threadId: opened.threadId, dispatchKey: "start-1" },
     );
