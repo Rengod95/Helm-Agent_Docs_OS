@@ -1,7 +1,7 @@
 // P-09 설정 보탬 행 상태 기계(목업 전용): 프레임 행과 "묻지 않기" 목록(N-27, 계획에 없음 13), 계측 행(N-28, 결정 캔버스 5),
 // 언어 행(N-29), 개발 모드 행(N-30), settings slot(N-25).
 import type { After } from "../_chat-rt";
-import { extJ, T } from "../_shell";
+import { extName, josa, T } from "../_shell";
 
 export type Tab = "plugins" | "appearance";
 export type Locale = "auto" | "ko" | "en";
@@ -104,7 +104,7 @@ export function reduce(s: S, a: A): S {
           s,
           `다시 물어요`,
           x !== undefined
-            ? `${extJ(x.ext, "이", "가")} "${x.action}"을 하려 하면 확인 줄을 띄워요`
+            ? `${extName(x.ext)} · ${x.action}: 다시 ${josa(T.frameConfirm, "을", "를")} 띄워요`
             : undefined,
           "neutral",
         ),
@@ -122,8 +122,8 @@ export function reduce(s: S, a: A): S {
           : {
               note: note(
                 s,
-                `${T.instrumentation}을 껐어요`,
-                `${T.turnReplay}가 잠겼어요. 이미 남은 기록은 지웠어요.`,
+                `${josa(T.instrumentation, "을", "를")} 껐어요`,
+                `${josa(T.turnReplay, "이", "가")} 잠겼어요. 이미 남은 기록은 지웠어요.`,
                 "neutral",
                 "c01-trials",
               ),

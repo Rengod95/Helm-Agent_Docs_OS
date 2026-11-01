@@ -28,6 +28,7 @@ import {
   useShell,
   WB_WIDTH,
   WorkbenchHead,
+  josa,
 } from "../_shell";
 import { useMachine, usePrefill } from "../_chat-rt";
 import { goFolder, WbFrame } from "../_wb-c/frame";
@@ -131,7 +132,7 @@ const META: Record<string, Meta> = {
 const TAB_LABEL: Record<Tab, string> = {
   overview: T.overview,
   points: T.extensionPoint,
-  lease: `${T.lead}과 상한`,
+  lease: `${josa(T.lead, "과", "와")} 상한`,
   settings: "설정",
   metrics: T.metrics,
   log: "기록",
@@ -181,14 +182,15 @@ export function App({ state }: { state: StateId }) {
   const hint = (() => {
     if (!pre.live) return undefined;
     if (pre.script.startsWith("revert")) {
-      if (s.revert === "closed" && s.result === null) return `이력에서 "${T.revert}"를 누르세요`;
+      if (s.revert === "closed" && s.result === null)
+        return `이력에서 "${T.revert}" 단추를 누르세요`;
       if (s.revert === "confirm")
-        return `"${pre.script === "revert-no-migration" ? T.clearAndRevert : T.revert}"를 누르세요`;
+        return `"${pre.script === "revert-no-migration" ? T.clearAndRevert : T.revert}" 단추를 누르세요`;
       if (busy) return "진행을 지켜보세요";
       return "끝났어요";
     }
     if (pre.script === "views-reenable")
-      return s.reenabled ? "끝났어요" : `"${T.viewReenable}"를 누르세요`;
+      return s.reenabled ? "끝났어요" : `"${T.viewReenable}" 단추를 누르세요`;
     return undefined;
   })();
 
@@ -245,7 +247,7 @@ export function App({ state }: { state: StateId }) {
                 </span>
                 <span className="max-compact:hidden">
                   <DotText tone={safe ? "neutral" : meta.status.tone}>
-                    {safe ? `${T.safeMode}라 빠짐` : meta.status.text}
+                    {safe ? `${josa(T.safeMode, "이라", "라")} 빠짐` : meta.status.text}
                   </DotText>
                 </span>
               </span>

@@ -13,6 +13,7 @@ import {
   workbenchNav,
   workbenchRightTabs,
   type StatusCell,
+  josa,
 } from "../_shell";
 
 /** 작업대 내비 id → 묶음 C 시안 폴더(목업 전용 이동). */
@@ -48,8 +49,8 @@ export function devModeCell(d: DevModeInfo): StatusCell[] {
       title: d.remote !== undefined ? `${d.remote}의 ${T.devMode}` : T.devMode,
       description:
         d.remote !== undefined
-          ? `원격 컴퓨터 ${d.remote}가 ${T.devMode}라 ${T.replay}·${T.bench}·${T.coreDiff}를 돌릴 수 있어요. 바꾸려면 그 컴퓨터의 설정에서 바꿔요.`
-          : `${T.repoPath} ${d.repo ?? "~/code/xeon"} · ${T.replay}·${T.bench}·${T.coreDiff}를 돌릴 수 있어요.`,
+          ? `원격 컴퓨터 ${josa(d.remote, "이", "가")} ${josa(T.devMode, "이라", "라")} ${T.replay}·${T.bench}·${josa(T.coreDiff, "을", "를")} 돌릴 수 있어요. 바꾸려면 그 컴퓨터의 설정에서 바꿔요.`
+          : `${T.repoPath} ${d.repo ?? "~/code/xeon"} · ${T.replay}·${T.bench}·${josa(T.coreDiff, "을", "를")} 돌릴 수 있어요.`,
       ...(d.onOff !== undefined && d.remote === undefined
         ? { action: { label: `${T.devMode} 끄기`, onSelect: d.onOff } }
         : {}),

@@ -85,16 +85,7 @@ export const SCENARIOS = [
 ];
 
 /** 상세가 주인공인 상태: 처음에 상세로 스크롤한다(1280×800에서 상세가 표 아래로 밀리므로). */
-const DETAIL_STATES: StateId[] = [
-  "stopped",
-  "trace-off",
-  "dev",
-  "dev-rerun",
-  "running",
-  "past-locked",
-  "lock-tooltip",
-  "web",
-];
+const DETAIL_STATES: StateId[] = ["dev", "dev-rerun", "past-locked", "lock-tooltip", "web"];
 
 /** 정적 상태에서도 토스트를 보일 상태(나머지는 시나리오가 살아 있을 때만). */
 const TOAST_STATES: StateId[] = ["running"];
@@ -287,7 +278,7 @@ export function App({ state }: { state: StateId }) {
   const scenario = useScenarioParam();
   const follow = scenario !== null || DETAIL_STATES.includes(state);
   useEffect(() => {
-    if (!follow) return undefined;
+    if (!follow || s.runs.find((r) => r.id === s.sel)?.kind === "trial") return undefined;
     // 가운데 스크롤 열만 옮긴다(scrollIntoView는 창 전체까지 밀어 올린다).
     const id = window.setTimeout(() => {
       const el = detailRef.current;
@@ -327,7 +318,7 @@ export function App({ state }: { state: StateId }) {
         return s.previewFail
           ? `미리 보기가 실패해 시작이 잠겼어요`
           : sc === "trial-new-fail"
-            ? `${T.profile}을 "review 시험"으로 바꿔 보세요`
+            ? `${josa(T.profile, "을", "를")} "review 시험"으로 바꿔 보세요`
             : `"시작"을 누르세요`;
       if (s.sheet === "confirm") return `"토큰 쓰고 시작"을 누르세요`;
       return "기다리세요";
@@ -378,6 +369,40 @@ export function App({ state }: { state: StateId }) {
     </>
   );
 
+  // 고른 행 상세는 그 행이 속한 구역 바로 아래에 둔다(시험 대화면 위 구역 아래, 지난 결과면 아래 구역 아래).
+  const detailBlock =
+    run === undefined ? null : (
+      <section ref={detailRef} aria-label="고른 시험 상세" className="grid scroll-mt-2 gap-2 pt-1">
+        {run.kind === "trial" ? (
+          <TrialDetail
+            run={run}
+            traceOff={s.traceOff}
+            onPause={() => dispatch({ t: "pause" })}
+            onStep={() => dispatch({ t: "stepOnce" })}
+            onResume={() => dispatch({ t: "resume" })}
+            onTraceSettings={() => goFolder("c04-settings-rows", "state=trace")}
+          />
+        ) : run.kind === "replay" ? (
+          <ReplayDetail
+            run={run}
+            dev={s.dev}
+            web={s.web}
+            tip={s.tip}
+            rerun={s.rerun}
+            onRerun={() => dispatch({ t: "rerun" })}
+            onLockedClick={() => dispatch({ t: "tip", on: !s.tip })}
+            onDevMode={() => dispatch({ t: "openDev" })}
+            onCopy={() => {
+              void navigator.clipboard?.writeText("{}").catch(() => undefined);
+              dispatch({ t: "copyJson" });
+            }}
+          />
+        ) : (
+          <OtherDetail run={run} dev={s.dev} />
+        )}
+      </section>
+    );
+
   return (
     <>
       <WbFrame
@@ -399,7 +424,7 @@ export function App({ state }: { state: StateId }) {
                 size="sm"
                 icon={<FlaskConical />}
                 title="아직 돌린 시험이 없어요"
-                description={`${T.profile}을 적용한 ${T.trialThread}에서 확장을 시험해요.`}
+                description={`${josa(T.profile, "을", "를")} 적용한 ${T.trialThread}에서 확장을 시험해요.`}
                 actions={
                   <Button
                     size="sm"
@@ -438,6 +463,7 @@ export function App({ state }: { state: StateId }) {
                   />
                 )}
               </section>
+              {run?.kind === "trial" && detailBlock}
               <section className="grid gap-1">
                 <SectionTitle
                   end={devHeadEnd}
@@ -459,41 +485,7 @@ export function App({ state }: { state: StateId }) {
                   />
                 )}
               </section>
-              {run !== undefined && (
-                <section
-                  ref={detailRef}
-                  aria-label="고른 시험 상세"
-                  className="grid scroll-mt-2 gap-2 pt-1"
-                >
-                  {run.kind === "trial" ? (
-                    <TrialDetail
-                      run={run}
-                      traceOff={s.traceOff}
-                      onPause={() => dispatch({ t: "pause" })}
-                      onStep={() => dispatch({ t: "stepOnce" })}
-                      onResume={() => dispatch({ t: "resume" })}
-                      onTraceSettings={() => goFolder("c04-settings-rows", "state=trace")}
-                    />
-                  ) : run.kind === "replay" ? (
-                    <ReplayDetail
-                      run={run}
-                      dev={s.dev}
-                      web={s.web}
-                      tip={s.tip}
-                      rerun={s.rerun}
-                      onRerun={() => dispatch({ t: "rerun" })}
-                      onLockedClick={() => dispatch({ t: "tip", on: !s.tip })}
-                      onDevMode={() => dispatch({ t: "openDev" })}
-                      onCopy={() => {
-                        void navigator.clipboard?.writeText("{}").catch(() => undefined);
-                        dispatch({ t: "copyJson" });
-                      }}
-                    />
-                  ) : (
-                    <OtherDetail run={run} dev={s.dev} />
-                  )}
-                </section>
-              )}
+              {run !== undefined && run.kind !== "trial" && detailBlock}
             </div>
           )}
         </div>

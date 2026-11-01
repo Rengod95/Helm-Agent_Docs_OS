@@ -231,7 +231,7 @@ export function reduce(s: S, a: A): S {
         rows: set(s, a.id, { state: on ? "off" : "on" }),
         note: note(
           s,
-          `${T.profile}을 고쳤어요`,
+          `${josa(T.profile, "을", "를")} 고쳤어요`,
           `탐구 중심 · ${extName(a.id)} ${on ? "끔" : "켬"}`,
           "neutral",
         ),

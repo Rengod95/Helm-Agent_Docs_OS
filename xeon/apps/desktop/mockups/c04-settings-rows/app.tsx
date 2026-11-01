@@ -21,6 +21,7 @@ import {
   ScenarioDock,
   T,
   useShell,
+  josa,
 } from "../_shell";
 import { useMachine, usePrefill } from "../_chat-rt";
 import { SettingsFrame } from "../_settings/frame";
@@ -130,26 +131,26 @@ export function App({ state }: { state: StateId }) {
     switch (pre.script) {
       case "settings-frames":
         return s.frames
-          ? `"${T.viewFrame} 허용"을 끄세요`
+          ? `${T.framesSetting} 스위치를 끄세요`
           : s.skips.length === 3
-            ? `목록에서 "${T.askAgain}"를 누르세요`
+            ? `목록에서 "${T.askAgain}" 단추를 누르세요`
             : "끝났어요";
       case "settings-frames-fail":
         return s.projectFramesError
           ? "관리 정책이 거부했어요"
-          : `"${T.trustProject} 확장의 ${T.viewFrame}"을 켜세요`;
+          : `${T.projectFramesSetting} 스위치를 켜세요`;
       case "trace-off":
-        return s.trace ? `"${T.instrumentation}"을 끄세요` : `토스트의 "${T.trials} 보기"`;
+        return s.trace ? `"${T.instrumentation}" 스위치를 끄세요` : `토스트의 "${T.trials} 보기"`;
       case "trace-off-fail":
         return s.traceError
           ? "저장이 거부돼 켜짐으로 돌아갔어요"
-          : `"${T.instrumentation}"을 끄세요`;
+          : `"${T.instrumentation}" 스위치를 끄세요`;
       case "locale-switch":
       case "locale-auto-fallback":
         return s.tab !== "appearance"
           ? `"외관" 탭`
           : s.locale === "ko"
-            ? `${T.uiLocale}를 바꾸세요`
+            ? `${josa(T.uiLocale, "을", "를")} 바꾸세요`
             : "끝났어요";
       default:
         return undefined;
@@ -160,7 +161,7 @@ export function App({ state }: { state: StateId }) {
     <>
       <SettingSection title={T.pluginView}>
         <SettingRow
-          label={`${T.viewFrame} 허용`}
+          label={T.framesSetting}
           k="x.views.frames"
           scope="user"
           apply="now"
@@ -173,13 +174,13 @@ export function App({ state }: { state: StateId }) {
         >
           <Switch
             size="sm"
-            aria-label={`${T.viewFrame} 허용`}
+            aria-label={T.framesSetting}
             checked={s.frames}
             onCheckedChange={(on) => dispatch({ t: "frames", on })}
           />
         </SettingRow>
         <SettingRow
-          label={`${T.trustProject} 확장의 ${T.viewFrame}`}
+          label={T.projectFramesSetting}
           k="x.views.allowProjectFrames"
           scope="user"
           apply="now"
@@ -192,7 +193,7 @@ export function App({ state }: { state: StateId }) {
           <span className="inline-flex items-center gap-2">
             <Switch
               size="sm"
-              aria-label={`${T.trustProject} 확장의 ${T.viewFrame}`}
+              aria-label={T.projectFramesSetting}
               checked={s.projectFrames}
               disabled={!s.frames || s.saving === "projectFrames"}
               onCheckedChange={(on) => dispatch({ t: "projectFrames", on })}
@@ -210,7 +211,7 @@ export function App({ state }: { state: StateId }) {
             <span className="text-ui-sm text-text-tertiary">{s.skips.length}개</span>
           </div>
           {s.skips.length === 0 ? (
-            <p className="m-0 text-ui-sm text-text-tertiary">{`${T.viewFrame}의 동작은 모두 확인 줄을 띄워요.`}</p>
+            <p className="m-0 text-ui-sm text-text-tertiary">{`${T.viewFrame}의 동작은 모두 ${josa(T.frameConfirm, "을", "를")} 띄워요.`}</p>
           ) : (
             <ul className="m-0 grid max-w-[36rem] list-none gap-0.5 p-0">
               {s.skips.map((k) => (
@@ -264,7 +265,7 @@ export function App({ state }: { state: StateId }) {
               : {
                   hint: s.trace
                     ? `${T.turn}마다 핸들러 시간과 결과를 메모리에만 남겨 ${T.turnReplay}에 써요.`
-                    : `꺼져 있어요. ${T.trials}·구성기의 ${T.turnReplay}가 잠겨요.`,
+                    : `꺼져 있어요. ${T.trials}·구성기의 ${josa(T.turnReplay, "이", "가")} 잠겨요.`,
                 })}
           >
             <span className="inline-flex items-center gap-2">
@@ -323,8 +324,8 @@ export function App({ state }: { state: StateId }) {
             saved={s.saved === "devMode"}
             hint={
               web
-                ? `원격 컴퓨터 build-box의 ${T.devMode}를 따라요. 바꾸려면 그 컴퓨터의 설정에서 바꿔요.`
-                : `${T.replay}, ${T.bench}, ${T.coreDiff}를 ${T.repoPath}의 시험 도구로 돌려요.`
+                ? `원격 컴퓨터 build-box의 ${josa(T.devMode, "을", "를")} 따라요. 바꾸려면 그 컴퓨터의 설정에서 바꿔요.`
+                : `${T.replay}, ${T.bench}, ${josa(T.coreDiff, "을", "를")} ${T.repoPath}의 시험 도구로 돌려요.`
             }
           >
             <Switch

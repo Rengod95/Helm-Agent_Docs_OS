@@ -175,6 +175,10 @@ export const T = {
   askSkip: "묻지 않기", // 프레임 동작 확인 줄의 "이 화면에서 묻지 않기"
   askAgain: "다시 묻기",
   uiLocale: "표시 언어", // l4.ui.locale
+  // 묶음 B와 같은 키·값(정본은 B). 병합 때 B 구역과 겹치면 이 셋을 지운다.
+  framesSetting: "자체 코드 화면 허용", // x.views.frames
+  projectFramesSetting: "프로젝트 확장의 자체 코드 화면", // x.views.allowProjectFrames
+  frameConfirm: "동작 확인", // 프레임 call 확인 줄(셸이 띄움)
 } as const;
 
 export type TermKey = keyof typeof T;
@@ -185,5 +189,7 @@ export function josa(word: string, withFinal: string, withoutFinal: string): str
   if (last >= 0xac00 && last <= 0xd7a3) {
     return word + ((last - 0xac00) % 28 === 0 ? withoutFinal : withFinal);
   }
+  const ch = word.charAt(word.length - 1);
+  if (ch >= "0" && ch <= "9") return word + ("013678".includes(ch) ? withFinal : withoutFinal);
   return word + withoutFinal;
 }

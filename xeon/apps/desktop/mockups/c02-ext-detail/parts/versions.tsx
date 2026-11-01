@@ -24,6 +24,7 @@ import {
   LoaderCircle,
   RotateCcw,
   T,
+  josa,
 } from "../../_shell";
 import { ACME_DIR, SOURCE_LABEL, type VersionEntry } from "../../_wb-c/data";
 import { GridTable, type GridColumn } from "../../_wb-c/grid-table";
@@ -123,7 +124,7 @@ export function VersionsFull({
       )}
       {result === "cleared" && (
         <Alert tone="neutral" layout="inline" size="sm">
-          {`${cur?.version ?? ""}로 되돌리며 저장 데이터를 비웠어요. 이번 단계가 끝나면 켜져요.`}
+          {`${josa(cur?.version ?? "", "으로", "로")} 되돌리며 저장 데이터를 비웠어요. 이번 단계가 끝나면 켜져요.`}
         </Alert>
       )}
       <section className="grid gap-1">
@@ -170,7 +171,7 @@ export function VersionsFull({
         )}
       </section>
       <p className="m-0 text-ui-xs text-text-tertiary">
-        {`${T.revert}는 끄고, 파일을 바꾸고, 이번 단계가 끝나면 다시 켜요. 실패하면 지금 파일로 돌려요.`}
+        {`${josa(T.revert, "은", "는")} 끄고, 파일을 바꾸고, 이번 단계가 끝나면 다시 켜요. 실패하면 지금 파일로 돌려요.`}
       </p>
     </div>
   );
@@ -202,12 +203,12 @@ export function VersionsFallback({ ext, web }: { ext: "learning" | "acme-notes";
       </ListDescription>
       <p className="m-0 inline-flex items-center gap-1.5 text-ui-sm text-text-secondary">
         <History aria-hidden emphasis="muted" className="size-icon-sm" />
-        {`이 엔진은 ${T.installHistory}을 남기지 않아요.`}
+        {`이 엔진은 ${josa(T.installHistory, "을", "를")} 남기지 않아요.`}
       </p>
       <div className="flex flex-wrap gap-1.5">
         {builtin ? (
           <Button size="sm" tone="neutral" variant="outline" iconStart={<RotateCcw />}>
-            {`${T.bundledVersion}으로 ${T.revert}`}
+            {`${josa(T.bundledVersion, "으로", "로")} ${T.revert}`}
           </Button>
         ) : web ? (
           <Button size="sm" tone="neutral" variant="outline" iconStart={<Copy />}>
@@ -222,8 +223,8 @@ export function VersionsFallback({ ext, web }: { ext: "learning" | "acme-notes";
       {!builtin && (
         <p className="m-0 text-ui-xs text-text-tertiary">
           {web
-            ? `사용자가 만든 확장은 ${T.revert}가 없어요. 원격 컴퓨터 build-box의 폴더라 여기서 열 수 없어요.`
-            : `사용자가 만든 확장은 ${T.revert}가 없어요. 폴더에서 이전 파일로 바꾼 뒤 다시 읽어요.`}
+            ? `사용자가 만든 확장은 ${josa(T.revert, "이", "가")} 없어요. 원격 컴퓨터 build-box의 폴더라 여기서 열 수 없어요.`
+            : `사용자가 만든 확장은 ${josa(T.revert, "이", "가")} 없어요. 폴더에서 이전 파일로 바꾼 뒤 다시 읽어요.`}
         </p>
       )}
     </div>
@@ -239,7 +240,9 @@ const STEPS: {
   {
     id: "migrate",
     label: (c, to) =>
-      c ? "저장 데이터 비우기" : `${T.stateSchema} 3 → ${SCHEMA[to] ?? ""}로 ${T.migration}`,
+      c
+        ? "저장 데이터 비우기"
+        : `${T.stateSchema} 3 → ${josa(String(SCHEMA[to] ?? ""), "으로", "로")} ${T.migration}`,
   },
   { id: "enable", label: () => "이번 단계가 끝나면 켜기" },
 ];
@@ -307,15 +310,15 @@ export function RevertDialog({
         step === "rollback"
           ? "원래대로 돌리는 중"
           : running
-            ? `${extJ(ext, "을", "를")} ${to}로 되돌리는 중`
-            : `${extJ(ext, "을", "를")} ${to}로 되돌릴까요?`
+            ? `${extJ(ext, "을", "를")} ${josa(to, "으로", "로")} 되돌리는 중`
+            : `${extJ(ext, "을", "를")} ${josa(to, "으로", "로")} 되돌릴까요?`
       }
       description={
         running
           ? step === "rollback"
             ? `${T.migration}에 실패해 ${from} 파일로 돌리는 중이에요.`
             : "되돌리는 중이에요. 창을 닫아도 계속돼요."
-          : `${extJ(ext, "을", "를")} 끄고 파일을 바꾼 뒤, 이번 단계가 끝나면 다시 켜요. 진행 중인 ${T.inquiry}은 멈춰요.`
+          : `${extJ(ext, "을", "를")} 끄고 파일을 바꾼 뒤, 이번 단계가 끝나면 다시 켜요. 진행 중인 ${josa(T.inquiry, "은", "는")} 멈춰요.`
       }
       footer={
         running ? (
@@ -385,7 +388,7 @@ export function RevertDialog({
             </ListDescriptionRow>
             <ListDescriptionRow term={T.migration}>
               {clear ? (
-                <span className="text-text-primary">{`${fs} → ${ts}로 내리는 ${T.migration}이 없어요`}</span>
+                <span className="text-text-primary">{`${fs} → ${josa(String(ts), "으로", "로")} 내리는 ${josa(T.migration, "이", "가")} 없어요`}</span>
               ) : (
                 <span>
                   {`${fs} → ${ts} 있음 `}
@@ -396,7 +399,7 @@ export function RevertDialog({
           </ListDescription>
           {clear && (
             <Alert tone="warning" layout="inline" size="sm">
-              {`저장 데이터(${T.inquiry} 기록 12건, ${T.finding} 31건)를 비우거나, 데이터를 남기고 코드만 되돌릴 수 있어요. 코드만 되돌리면 ${to}는 빈 상태로 시작하고, 비운 데이터는 되살릴 수 없어요.`}
+              {`저장 데이터(${T.inquiry} 기록 12건, ${T.finding} 31건)를 비우거나, 데이터를 남기고 코드만 되돌릴 수 있어요. 코드만 되돌리면 ${josa(to, "은", "는")} 빈 상태로 시작하고, 비운 데이터는 되살릴 수 없어요.`}
             </Alert>
           )}
         </div>

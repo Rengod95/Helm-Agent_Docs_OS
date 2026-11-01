@@ -378,7 +378,7 @@ export function HooksTab({ safe }: { safe: boolean }) {
     <div className="grid max-w-[44rem] gap-3">
       {safe && (
         <Alert tone="warning" layout="inline" size="sm">
-          {`${T.safeMode}라 X ${josa(T.hook, "을", "를")} 싣지 않았어요. ${T.safeMode}를 끄고 다시 시작하면 실려요.`}
+          {`${josa(T.safeMode, "이라", "라")} X ${josa(T.hook, "을", "를")} 싣지 않았어요. ${josa(T.safeMode, "을", "를")} 끄고 다시 시작하면 실려요.`}
         </Alert>
       )}
       <ListDescription variant="ghost" size="xs" aria-label={T.hook} className={LD}>

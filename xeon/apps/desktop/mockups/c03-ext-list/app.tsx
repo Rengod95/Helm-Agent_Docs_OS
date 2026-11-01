@@ -36,6 +36,7 @@ import {
   WB_WIDTH,
   WorkbenchHead,
   profiles,
+  josa,
 } from "../_shell";
 import { useMachine, usePrefill } from "../_chat-rt";
 import { goFolder, WbFrame } from "../_wb-c/frame";
@@ -104,14 +105,15 @@ const GRID =
 type Mode = "scope" | "profile" | "trial";
 
 function StatusCell({ r, safe, changed = false }: { r: Row; safe: boolean; changed?: boolean }) {
-  if (safe && r.external) return <DotText tone="neutral">{`${T.safeMode}라 빠짐`}</DotText>;
+  if (safe && r.external)
+    return <DotText tone="neutral">{`${josa(T.safeMode, "이라", "라")} 빠짐`}</DotText>;
   if (changed)
     return (
       <span className="inline-flex min-w-0 items-center gap-1.5">
         <DotText tone={r.state === "on" ? "success" : "neutral"}>
           {r.state === "on" ? "켜짐" : "꺼짐"}
         </DotText>
-        <span className="truncate text-ui-xs text-text-tertiary">{`${T.profile}이 바꿈`}</span>
+        <span className="truncate text-ui-xs text-text-tertiary">{`${josa(T.profile, "이", "가")} 바꿈`}</span>
       </span>
     );
   switch (r.state) {
@@ -261,7 +263,7 @@ export function App({ state }: { state: StateId }) {
   const hint = (() => {
     if (!pre.live) return undefined;
     if (pre.script === "enable-scope") {
-      if (s.picking !== null) return `"${SCOPE_WORD.session}"을 고르고 "켜기"`;
+      if (s.picking !== null) return `"${SCOPE_WORD.session}" 고르고 "켜기"`;
       const r = s.rows.find((x) => x.id === "acme-notes");
       if (r?.state === "pending") return "이번 단계가 끝나길 기다려요";
       if (r?.state === "on") return "끝났어요";
@@ -463,14 +465,14 @@ export function App({ state }: { state: StateId }) {
                 </span>
                 <span className="text-ui-xs text-text-tertiary">
                   {mode === "profile"
-                    ? `스위치를 바꾸면 이 ${T.profile}을 고쳐요. 보이는 값은 적용했다면의 모습이에요.`
+                    ? `스위치를 바꾸면 이 ${josa(T.profile, "을", "를")} 고쳐요. 보이는 값은 적용했다면의 모습이에요.`
                     : `스위치를 바꾸면 이 ${T.trialThread}에만 저장해요(session). ${T.atBoundary}.`}
                 </span>
               </div>
             )}
             {safe && (
               <Alert tone="warning" layout="inline" size="sm">
-                {`${T.safeMode}예요. 내장 확장만 싣고 사용자·프로젝트 확장과 X ${T.hook}는 싣지 않았어요.`}
+                {`${T.safeMode}예요. 내장 확장만 싣고 사용자·프로젝트 확장과 X ${josa(T.hook, "은", "는")} 싣지 않았어요.`}
               </Alert>
             )}
             {!safe && (auto.length > 0 || capwait.length > 0) && (

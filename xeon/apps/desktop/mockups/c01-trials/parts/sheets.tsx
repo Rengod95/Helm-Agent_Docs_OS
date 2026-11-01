@@ -30,6 +30,7 @@ import {
   T,
   Terminal,
   TriangleAlert,
+  josa,
 } from "../../_shell";
 import { DevLock, ExtName, Mono } from "../../_wb-c/parts";
 import { goFolder } from "../../_wb-c/frame";
@@ -61,7 +62,9 @@ function KindRow({
           <span className="truncate text-ui-xs text-text-tertiary">{hint}</span>
         </span>
         {locked && (
-          <DevLock reason={`배포 앱이라 잠겨 있어요. ${T.devMode}를 켜면 고를 수 있어요.`} />
+          <DevLock
+            reason={`배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 고를 수 있어요.`}
+          />
         )}
       </span>
     </RadioGroupItem>
@@ -110,7 +113,7 @@ export function NewTrialSheet({
     footer = (
       <>
         <p role="alert" className="m-0 min-w-0 flex-1 text-ui-sm text-text-primary">
-          모델 토큰을 써서 {T.trialThread}를 시작할까요?{" "}
+          모델 토큰을 써서 {josa(T.trialThread, "을", "를")} 시작할까요?{" "}
           <span className="text-text-tertiary">예상 40k · 약 $0.12</span>
         </p>
         <Button size="sm" tone="neutral" variant="ghost" onClick={onBack}>
@@ -173,7 +176,7 @@ export function NewTrialSheet({
             <KindRow
               value="trial"
               title={T.trialThread}
-              hint={`${T.profile}을 적용한 새 ${T.thread}에서 대상을 돌려요`}
+              hint={`${josa(T.profile, "을", "를")} 적용한 새 ${T.thread}에서 대상을 돌려요`}
               locked={false}
               selected={kind === "trial"}
             />
@@ -203,7 +206,7 @@ export function NewTrialSheet({
 
         {kind === "trial" && (
           <>
-            <Field label="대상" hint={`${T.lead}을 쓰는 ${T.group}`}>
+            <Field label="대상" hint={`${josa(T.lead, "을", "를")} 쓰는 ${T.group}`}>
               <Select size="xs" defaultValue="helm" className={W}>
                 {["helm", "review", "authoring"].map((id) => (
                   <SelectOption key={id} value={id}>
@@ -238,8 +241,8 @@ export function NewTrialSheet({
                   </Button>
                 }
               >
-                <b>{`${T.profile}을 미리 보지 못했어요.`}</b>{" "}
-                {`${extName("review")}가 ${T.autoDisabled}이라 켤 수 없어요. 다시 켜거나 다른 ${T.profile}을 골라요.`}{" "}
+                <b>{`${josa(T.profile, "을", "를")} 미리 보지 못했어요.`}</b>{" "}
+                {`${josa(extName("review"), "이", "가")} ${josa(T.autoDisabled, "이라", "라")} 켤 수 없어요. 다시 켜거나 다른 ${josa(T.profile, "을", "를")} 골라요.`}{" "}
                 <Mono>profile.preview · ext_auto_disabled</Mono>
               </Alert>
             ) : (
@@ -351,7 +354,7 @@ export function DevModeDialog({
       onOpenChange={(o: boolean) => (!o && !checking ? onClose() : undefined)}
       icon={<Terminal />}
       title={`${T.devMode} 켜기`}
-      description={`저장소의 시험 도구로 ${T.replay}, ${T.bench}, ${T.coreDiff}를 돌려요. 모델 토큰은 쓰지 않아요.`}
+      description={`저장소의 시험 도구로 ${T.replay}, ${T.bench}, ${josa(T.coreDiff, "을", "를")} 돌려요. 모델 토큰은 쓰지 않아요.`}
       footer={
         <>
           <DialogClose asChild>

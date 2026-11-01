@@ -1,7 +1,7 @@
 // P-17 확장 상세 상태 기계(목업 전용). 버전 탭과 되돌리기(spec §6.24.1, O-11 §6.31, 결정 6), 설정 탭 값 출처(N-32),
 // 화면 탭(N-33), 기록 탭 진단 위치(N-34), X 훅(N-36, 결정 12).
 import type { After } from "../_chat-rt";
-import { extJ } from "../_shell";
+import { extJ, josa } from "../_shell";
 import { helmHistory, type VersionEntry } from "../_wb-c/data";
 
 export type Tab =
@@ -113,7 +113,7 @@ export function reduce(s: S, a: A): S {
         history: s.history.map((v) => ({ ...v, current: v.version === s.target })),
         note: note(
           s,
-          `${extJ(s.ext, "을", "를")} ${s.target}로 되돌렸어요`,
+          `${extJ(s.ext, "을", "를")} ${josa(s.target, "으로", "로")} 되돌렸어요`,
           cleared
             ? "저장 데이터를 비웠어요 · 이번 단계가 끝나면 켜져요"
             : s.mode === "code"
@@ -133,7 +133,7 @@ export function reduce(s: S, a: A): S {
         note: note(
           s,
           "되돌리지 못했어요",
-          `${current(s)}로 돌려 놨어요 · 저장 데이터는 그대로예요`,
+          `${josa(current(s), "으로", "로")} 돌려 놨어요 · 저장 데이터는 그대로예요`,
           "danger",
         ),
       };

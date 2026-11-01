@@ -154,7 +154,7 @@ export function TrialDetail({
           <Band
             icon={<CircleAlert />}
             tone="danger"
-            text={`${extJ(run.target, "이", "가")} ${T.autoDisabled}이라 ${josa(T.trial, "을", "를")} 멈췄어요`}
+            text={`${extJ(run.target, "이", "가")} ${josa(T.autoDisabled, "이라", "라")} ${josa(T.trial, "을", "를")} 멈췄어요`}
             meta={`${T.step} ${step}/${total} · 연속 실패 5`}
           >
             <Button
@@ -340,8 +340,8 @@ export function ReplayDetail({
     </div>
   );
   const lockReason = web
-    ? `원격 컴퓨터 build-box가 배포 형태라 잠겨 있어요. 그 컴퓨터에서 ${T.devMode}를 켜야 해요.`
-    : `배포 앱이라 잠겨 있어요. ${T.devMode}를 켜면 ${T.repoPath}의 시험 도구로 돌려요.`;
+    ? `원격 컴퓨터 build-box가 배포 형태라 잠겨 있어요. 그 컴퓨터에서 ${josa(T.devMode, "을", "를")} 켜야 해요.`
+    : `배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 ${T.repoPath}의 시험 도구로 돌려요.`;
 
   if (!dev)
     return (
@@ -544,7 +544,9 @@ export function OtherDetail({ run, dev }: { run: Run; dev: boolean }) {
       {!dev && <ReadOnlyNote>{`${T.pastResult} · 읽기 전용`}</ReadOnlyNote>}
       {!dev && (
         <div>
-          <DevLock reason={`배포 앱이라 잠겨 있어요. ${T.devMode}를 켜면 다시 돌릴 수 있어요.`} />
+          <DevLock
+            reason={`배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 다시 돌릴 수 있어요.`}
+          />
         </div>
       )}
     </div>
