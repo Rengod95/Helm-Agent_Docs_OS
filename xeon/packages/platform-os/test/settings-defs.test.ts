@@ -44,7 +44,7 @@ describe("l0.os settings", () => {
   test("dirs.override is managed-only and not shown in the UI; log.level accepts session", () => {
     expect(defOf("l0.os.dirs.override").allowedScopes).toEqual(["managed"]);
     expect(defOf("l0.os.dirs.override").ui).toBeUndefined();
-    expect(defOf("l0.os.log.level").allowedScopes).toContain("session");
+    expect(defOf("l0.os.log.level").allowedScopes).toContain("launch");
     expect(defOf("l0.os.telemetry.enabled").allowedScopes).not.toContain("project");
   });
 

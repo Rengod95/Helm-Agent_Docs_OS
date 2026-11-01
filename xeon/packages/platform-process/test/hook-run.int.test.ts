@@ -37,7 +37,7 @@ function spec(overrides: Partial<HookRunSpec> & { readonly args: readonly string
   return {
     argv: [process.execPath, CHILD, ...args],
     cwd: import.meta.dir,
-    env: { XEON_FROM_SPEC: "1" },
+    env: { FRESNEL_FROM_SPEC: "1" },
     stdin: "",
     maxStdoutChars: 10_000,
     maxStderrChars: 10_000,
@@ -57,7 +57,7 @@ describe("hook run", () => {
     const run = await makeRunner().run(spec({ args: ["env"] }));
     const names = jsonOf(run.stdout);
     expect(Array.isArray(names)).toBe(true);
-    expect(names).toContain("XEON_FROM_SPEC");
+    expect(names).toContain("FRESNEL_FROM_SPEC");
     expect(names).not.toContain("PATH");
     expect(names).not.toContain("HOME");
     expect(run.exitCode).toBe(0);

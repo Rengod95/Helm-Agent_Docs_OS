@@ -56,7 +56,7 @@ binds: [xeon/packages/platform-store/**]
 | 루트 핸들 | 모든 테이블에 쓸 수 있는 `StoreDb`. 조립 루트(`apps/host`)가 `core-persistence`에만 넘긴다 |
 | 범위 핸들 | `scoped(owner)`가 돌려준 `StoreDb`. 그 소유자의 테이블만 쓴다 |
 | 소유자(owner) | 테이블 묶음의 소유 컨텍스트 id(`core.persistence`, `cap.knowledge`, `ext.helm` 등). §3.5 |
-| 자원(resource) | 임대 대상 이름. `session:<threadId>`, `scheduler`, `service` |
+| 자원(resource) | 임대 대상 이름. `thread:<threadId>`, `scheduler`, `service` |
 | 임대(lease) | `sys_leases` 행 하나. 소유자 정보와 epoch를 담는다 |
 | epoch | 자원의 소유자가 바뀔 때마다 1 오르는 정수. 펜싱 토큰이다 |
 | OS 잠금 | 자원 키 사이드카 파일의 `flock`(macOS·Linux). 프로세스가 죽으면 커널이 푼다 |
@@ -154,7 +154,7 @@ export interface StoreService {
 import type { Result } from "../base/index.ts";
 import type { SqlTx } from "./sql.ts";
 
-/** "session:<threadId>" | "scheduler" | "service" */
+/** "thread:<threadId>" | "scheduler" | "service" */
 export type LeaseResource = string;
 export const LEASE_RESOURCE_PATTERN: string = "^(session:thr_[0-7][0-9A-HJKMNP-TV-Z]{25}|scheduler|service)$";
 
@@ -423,7 +423,7 @@ CREATE TABLE sys_prefixes (
 
 -- sys v2
 CREATE TABLE sys_leases (
-  resource     TEXT PRIMARY KEY,        -- 'session:<threadId>' | 'scheduler' | 'service'
+  resource     TEXT PRIMARY KEY,        -- 'thread:<threadId>' | 'scheduler' | 'service'
   holder_id    TEXT NOT NULL,
   epoch        INTEGER NOT NULL CHECK (epoch >= 1),
   kind         TEXT NOT NULL CHECK (kind IN ('cli', 'app', 'service')),
@@ -628,7 +628,7 @@ macOS `fullfsync` [제안]:
 
 | 빌드 | 검사 | 방법 |
 |---|---|---|
-| 테스트·디버그(`XEON_STORE_STRICT=1` 또는 `NODE_ENV !== "production"`) | 범위 핸들의 모든 문장이 소유 테이블만 읽고 쓰는지 | 문장을 처음 볼 때 `EXPLAIN <sql>`을 실행해 `OpenRead`·`OpenWrite`의 `p2`(루트 페이지)를 `sqlite_schema.rootpage`에 대조하고 `tbl_name`을 얻는다. 소유 밖 이름이면 `Bug(store.prefix_not_owned)`. 결과는 SQL 문자열별로 캐시하고 `PRAGMA schema_version`이 바뀌면 루트 페이지 표를 다시 읽는다. 루트 페이지 1(`sqlite_schema`) 읽기는 허용한다 |
+| 테스트·디버그(`FRESNEL_STORE_STRICT=1` 또는 `NODE_ENV !== "production"`) | 범위 핸들의 모든 문장이 소유 테이블만 읽고 쓰는지 | 문장을 처음 볼 때 `EXPLAIN <sql>`을 실행해 `OpenRead`·`OpenWrite`의 `p2`(루트 페이지)를 `sqlite_schema.rootpage`에 대조하고 `tbl_name`을 얻는다. 소유 밖 이름이면 `Bug(store.prefix_not_owned)`. 결과는 SQL 문자열별로 캐시하고 `PRAGMA schema_version`이 바뀌면 루트 페이지 표를 다시 읽는다. 루트 페이지 1(`sqlite_schema`) 읽기는 허용한다 |
 | 운영 | DDL 문장만 | 문장 앞머리가 `CREATE`·`DROP`·`ALTER`·`ATTACH`·`DETACH`·`PRAGMA`면 대상 이름을 어휘 분석으로 뽑아 소유를 확인한다. `ATTACH`·`DETACH`와 쓰기 `PRAGMA`는 범위 핸들에서 항상 Bug |
 
 - 비용 근거: `EXPLAIN`은 문장마다 한 번 더 준비(prepare)하고 결과 행을 훑는다. 캐시로 같은 문장은 한 번만 하지만 동적 SQL이 많으면 비용이 남는다. 운영 빌드에 켤지는 ST-07 측정(문장 1만 개, 캐시 적중률) 뒤 정한다 [미결 S-8]. 가상 테이블(FTS5)의 그림자 테이블 접근은 `VOpen`/`VFilter` 안에서 일어나 `EXPLAIN`의 `OpenRead`로 보이지 않는다 [가정]. 가상 테이블 자체 이름은 `VOpen`의 대상 테이블로 확인한다 [가정: 실측 필요].
@@ -933,7 +933,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 1. 쓰기 연결의 `PRAGMA journal_mode` 조회값은 `wal`, `synchronous`는 2, `busy_timeout`은 설정값(기본 5000), `foreign_keys`는 1, `trusted_schema`는 0, `application_id`는 1179799116이다. 읽기 연결의 `query_only`는 1이다.
 2. 존재하지 않는 경로로 `readonly` 연결을 여는 코드 경로가 없다(열기 전 존재 검사). `fileMustExist` 옵션 문자열이 패키지 소스에 없다.
 3. 크래시 모사: `FaultInjector`의 10지점(`eng.transactions.design` §4.2) 각각에서 예외를 던지면, 커밋 전 9지점은 모든 테이블 행 수와 행 해시가 주입 전과 같고 `after_commit`은 모든 행이 남는다. `PRAGMA integrity_check`가 `ok`다.
-4. 자식 프로세스 두 개가 같은 `session:<threadId>`를 동시에 `acquire`하면 정확히 하나가 `ok`, 다른 하나가 `LockBusy`다.
+4. 자식 프로세스 두 개가 같은 `thread:<threadId>`를 동시에 `acquire`하면 정확히 하나가 `ok`, 다른 하나가 `LockBusy`다.
 5. 소유 프로세스를 SIGKILL한 뒤 다른 프로세스의 `acquire`는 `leaseTtlMs`를 기다리지 않고 성공하고 epoch가 1 오른다(posix provider).
 6. 인수당한 이전 소유자의 토큰으로 `write` 안에서 `holds`를 부르면 거짓이다. 그 토큰의 `renew`는 `lease_lost`다.
 7. `release` 뒤 다시 `acquire`하면 epoch가 이전 값보다 크다.

@@ -70,7 +70,7 @@ describe("buildChildEnv", () => {
       "GITHUB_TOKEN",
       "SOPS_AGE_KEY",
       "node_options",
-      "XEON_SECRET_X",
+      "FRESNEL_SECRET_X",
     ]) {
       const built = build({ requested: { [name]: "v" } });
       expect(built).toEqual({ ok: false, error: { kind: "env_denied", names: [name] } });

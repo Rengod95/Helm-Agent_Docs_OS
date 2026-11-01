@@ -826,7 +826,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 - 자동 재개 키는 이 표에 두지 않는다. `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`(`L1.persistence.spec` §6)가 정본이다 [결정: review.decisions-2 S-03].
 - `startupGraceMs`(10000)는 설정으로 열지 않는다 [제안].
-- `l0.process.service.remote`는 원격 서비스 주소다. 빈 값이면 지금처럼 로컬 서비스나 프로세스 안 엔진에 붙는다. 값이 있으면 CLI 대화와 데스크톱 사이드카가 그 주소에 붙는다. 값은 `unix:/절대/경로`, `tcp://host:port`, `ssh://[user@]host[:port]/절대/원격/소켓/경로` 가운데 하나다. 해석은 `@xeon/client`가 한다. `ssh://` 값은 §4.4.8의 `sshTunnelCommand` 입력이 된다. `tcp://` 값의 토큰은 환경 변수 `XEON_REMOTE_TOKEN`에서만 읽고 설정 파일에는 두지 않는다 [제안]. 비루프백 `tcp://`의 허용 여부는 [미결 P-13]이다.
+- `l0.process.service.remote`는 원격 서비스 주소다. 빈 값이면 지금처럼 로컬 서비스나 프로세스 안 엔진에 붙는다. 값이 있으면 CLI 대화와 데스크톱 사이드카가 그 주소에 붙는다. 값은 `unix:/절대/경로`, `tcp://host:port`, `ssh://[user@]host[:port]/절대/원격/소켓/경로` 가운데 하나다. 해석은 `@xeon/client`가 한다. `ssh://` 값은 §4.4.8의 `sshTunnelCommand` 입력이 된다. `tcp://` 값의 토큰은 환경 변수 `FRESNEL_REMOTE_TOKEN`에서만 읽고 설정 파일에는 두지 않는다 [제안]. 비루프백 `tcp://`의 허용 여부는 [미결 P-13]이다.
 
 ## 7. 확장 지점
 
@@ -896,7 +896,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 13. `platform-process`가 다른 `@xeon/platform-*` 패키지를 import하지 않는다(DR-02).
 14. `ProcessService` 구현 객체가 `ProcessPort`에 대입된다(타입 테스트). `run`은 없는 실행 파일에 대해 거부하지 않고 `spawnError`를 채운 `HookRawRun`을 돌려주고, `maxStdoutChars`보다 긴 출력은 잘리고 `stdoutTruncated: true`이며, `signal` 중단 뒤 프로세스 트리가 남지 않고 `timedOut: true`다(실제 자식 프로세스).
 15. `run`에 넘긴 `env`에 없는 부모 env 변수(예: 시험 부모의 `PATH`, `HOME`)가 훅 프로세스 env에 없다.
-16. `McpProcessPort.spawn`(실제 자식 프로세스, `mcp-spawn.int.test.ts`): 줄 단위 JSON이 양방향으로 오가고, 레지스트리에 `owner.kind: "mcp"`로 등록되며, 자식 env에 부모의 제공자 키(`ANTHROPIC_*`, `XEON_*`)가 없고 `secretEnv` 값만 더해진다. 기동 실패는 `spawn_failed`(`ENOENT`), 비밀 실패는 `secret_missing`·`secret_denied`로 돌아오며 이미 연 lease는 모두 닫힌다. 종료 직전에 쓴 출력을 읽는다.
+16. `McpProcessPort.spawn`(실제 자식 프로세스, `mcp-spawn.int.test.ts`): 줄 단위 JSON이 양방향으로 오가고, 레지스트리에 `owner.kind: "mcp"`로 등록되며, 자식 env에 부모의 제공자 키(`ANTHROPIC_*`, `FRESNEL_*`)가 없고 `secretEnv` 값만 더해진다. 기동 실패는 `spawn_failed`(`ENOENT`), 비밀 실패는 `secret_missing`·`secret_denied`로 돌아오며 이미 연 lease는 모두 닫힌다. 종료 직전에 쓴 출력을 읽는다.
 17. MCP 서버 정지 순서: stdin 닫힘과 SIGTERM을 모두 무시하는 서버에 `background.stop`을 하면 서버가 받은 사건 순서가 `stdin-closed`, `sigterm`이고 마지막에 `SIGKILL`로 끝난다. stdin을 닫으면 끝나는 서버는 신호 없이 `exited`가 된다. 레지스트리를 닫으면 자식과 SIGTERM을 무시하는 손자가 모두 사라진다.
 18. `l0.process.service.remote`는 기본값이 빈 문자열이고, 범위가 `managed`·`user`이며, 재시작 때 반영되고, `execution` 탭 텍스트 항목(순서 15)이다(`settings.test.ts`).
 19. 유휴 타이머가 울릴 때 입력이 바뀌었으면 종료하지 않고 `idleShutdownAt`이 `null`이 된다. 다음 `update`가 한가함을 알리면 다시 걸리고, 유예가 지나면 종료한다(`service-idle.test.ts`).

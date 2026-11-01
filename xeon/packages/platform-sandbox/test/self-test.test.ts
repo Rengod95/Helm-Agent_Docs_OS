@@ -186,7 +186,7 @@ describe("sensitive env names", () => {
       "MY_API_KEY",
       "SOPS_AGE_KEY_FILE",
       "AWS_REGION",
-      "XEON_HOME",
+      "FRESNEL_HOME",
       "SSH_AUTH_SOCK",
       "NODE_OPTIONS",
     ]) {

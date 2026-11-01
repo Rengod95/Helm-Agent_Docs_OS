@@ -472,6 +472,11 @@ export const CATEGORIES: readonly Category[] = [
         replace: "launch",
         only: ["docs/xeon/"],
       },
+      {
+        pattern: /(?<=allowedScopes\)(?:\.not)?\.toContain\()"session"/g,
+        replace: '"launch"',
+        skip: NO_MOCKUPS,
+      },
       { pattern: /\bscopes: \["session"/g, replace: 'scopes: ["launch"', skip: NO_MOCKUPS },
       { pattern: /(\blayer\()"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
       { pattern: /(\bKEY, )"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
@@ -507,10 +512,11 @@ export const CATEGORIES: readonly Category[] = [
     title: "프로세스 락 키 session:<threadId> → thread:<threadId>",
     rules: [
       {
-        pattern: /`session:\$\{(?=[A-Za-z0-9_.]*(?:[tT]hreadId|childId|ghost))/g,
+        pattern: /`session:\$\{(?=[A-Za-z0-9_.]*(?:[tT]hreadId|childId|ghost|THREAD))/g,
         replace: "`thread:${",
         skip: NO_MOCKUPS,
       },
+      { pattern: /(?<=["'`])session:(?=thr_|not-a-thread)/g, replace: "thread:", skip: NO_MOCKUPS },
       {
         pattern:
           /(?<![A-Za-z0-9_])session:<(threadId|childId|child|id|childThreadId|parentThreadId)>/g,

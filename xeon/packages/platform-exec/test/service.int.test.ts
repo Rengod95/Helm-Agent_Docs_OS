@@ -150,7 +150,7 @@ describe("child env", () => {
       OP_SERVICE_ACCOUNT_TOKEN: "t",
       BWS_ACCESS_TOKEN: "t",
       BW_SESSION: "t",
-      XEON_SECRET_X: "t",
+      FRESNEL_SECRET_X: "t",
     };
     const service = create(
       root,

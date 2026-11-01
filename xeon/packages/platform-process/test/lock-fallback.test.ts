@@ -20,7 +20,7 @@ const OWNER: LeaseOwnerInfo = {
 
 const BUSY: LockBusy = {
   kind: "lock_busy",
-  resource: "session:thr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  resource: "thread:thr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
   reason: "os_lock_held",
   owner: OWNER,
 };

@@ -10,7 +10,7 @@ import { own, releaseOwned } from "./support/own.ts";
 afterEach(releaseOwned);
 
 const THREAD = "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ";
-const SESSION = `session:${THREAD}`;
+const SESSION = `thread:${THREAD}`;
 const CHILD = join(import.meta.dir, "fixtures", "lease-child.ts");
 
 async function ask(child: Child, line: string): Promise<ChildReply> {

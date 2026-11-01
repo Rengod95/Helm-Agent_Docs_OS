@@ -254,7 +254,7 @@ describe("McpProcessPort.spawn with sandbox:true (P-15)", () => {
     const sandbox = fakeSandbox(
       ok({
         argv: [process.execPath, WRAP_CHILD, "sandbox-stub"],
-        env: { SANDBOX_PROXY: "from-wrapper", XEON_SANDBOX_MARK: "1" },
+        env: { SANDBOX_PROXY: "from-wrapper", FRESNEL_SANDBOX_MARK: "1" },
         sandboxed: true,
       }),
     );
@@ -273,7 +273,7 @@ describe("McpProcessPort.spawn with sandbox:true (P-15)", () => {
     const report = wrapperReportOf(parsed.ok ? parsed.value : undefined);
     expect(report.argv).toEqual(["sandbox-stub"]);
     expect(report.env["SANDBOX_PROXY"]).toBe("from-wrapper");
-    expect(report.env["XEON_SANDBOX_MARK"]).toBe("1");
+    expect(report.env["FRESNEL_SANDBOX_MARK"]).toBe("1");
     expect(report.env["PLAIN"]).toBe("kept");
     expect(background.list({ kind: "mcp" })).toHaveLength(1);
 

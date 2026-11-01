@@ -1,15 +1,15 @@
-// XEON-PATCH: P1
-// XEON-PATCH: P6
+// FRESNEL-PATCH: P1
+// FRESNEL-PATCH: P6
 import type { CancelScope as Context, ExecutionError, FileError } from "@xeon/contracts/services";
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 import { attempt, attemptAsync, type Logger, type Result } from "@xeon/contracts";
 
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 export { err, ok } from "@xeon/contracts";
-// XEON-PATCH: P2
+// FRESNEL-PATCH: P2
 export type { Result };
 
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 export function getOrThrow<TValue, TError extends Error>(result: Result<TValue, TError>): TValue {
   if (!result.ok) throw result.error;
   return result.value;
@@ -18,12 +18,12 @@ export function getOrThrow<TValue, TError extends Error>(result: Result<TValue, 
 export function toError(error: unknown): Error {
   if (error instanceof Error) return error;
   if (typeof error === "string") return new Error(error);
-  // XEON-PATCH: P14
+  // FRESNEL-PATCH: P14
   const serialized = attempt(() => JSON.stringify(error));
   return new Error(serialized.ok ? serialized.value : String(error));
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 /** 던질 수 있는 비동기 조회 하나를 값으로 받는다. 실패하면 undefined(대상이 없거나 읽을 수 없다) */
 export async function valueOrUndefined<TValue>(
   call: () => PromiseLike<TValue>,
@@ -32,8 +32,8 @@ export async function valueOrUndefined<TValue>(
   return result.ok ? result.value : undefined;
 }
 
-// XEON-PATCH: P14
-// XEON-PATCH: P16
+// FRESNEL-PATCH: P14
+// FRESNEL-PATCH: P16
 /** 정리 단계의 close. 실패해도 원래 결과를 가리지 않도록 값으로 받고, 원인은 Logger에 남긴다(Logger가 없으면 버린다) */
 export async function closeBestEffort(
   handle: { close(): Promise<void> } | undefined,
@@ -46,7 +46,7 @@ export async function closeBestEffort(
 
 export type FileKind = "file" | "directory" | "symlink";
 
-// XEON-PATCH: P6
+// FRESNEL-PATCH: P6
 export { ExecutionError, FileError } from "@xeon/contracts/services";
 export interface FileInfo {
   name: string;

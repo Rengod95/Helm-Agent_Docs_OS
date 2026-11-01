@@ -168,7 +168,7 @@ xeon/packages/platform-store/
 | `flock is released on SIGKILL` | `lock-posix.int.test.ts` | 자식(`fixtures/holder.ts`)이 쥔 잠금을 SIGKILL 뒤 즉시 획득 |
 | `lock fd is close-on-exec` | `lock-posix.int.test.ts` | Linux `/proc/self/fdinfo` flags에 O_CLOEXEC |
 | `lock files are never deleted` | `lock-posix.int.test.ts` | 반납 뒤 키 파일이 남고 디렉터리 모드 0700 |
-| `two processes own one session` | `lease-two-process.int.test.ts` | 서로 다른 두 프로세스가 같은 `session:<threadId>`를 경합하면 소유자는 하나. 소유자 SIGKILL 뒤 다른 쪽이 즉시 인수. 멈춰 둔(SIGSTOP) 이전 소유자를 깨워 커밋하게 하면 `lease_lost`이고 행 변화 없음 |
+| `two processes own one session` | `lease-two-process.int.test.ts` | 서로 다른 두 프로세스가 같은 `thread:<threadId>`를 경합하면 소유자는 하나. 소유자 SIGKILL 뒤 다른 쪽이 즉시 인수. 멈춰 둔(SIGSTOP) 이전 소유자를 깨워 커밋하게 하면 `lease_lost`이고 행 변화 없음 |
 | `same blob is written once` | `blob.int.test.ts` | 같은 바이트 두 번 `putBlob`: 파일 mtime 불변, `last_put_at` 갱신 |
 | `putBlob inside a transaction is a bug` | `blob.int.test.ts` | `write` 콜백 안 호출이 `Bug(store.nested_write)` |
 | `missing blob is reported` | `blob.int.test.ts` | 파일 삭제 뒤 `readBlob`이 `blob_missing`, 크기 변조는 `blob_corrupt{size}` |

@@ -101,9 +101,9 @@ import {
 
 ```ts
 import {
-  SecretUseModeSchema, SecretProviderIdSchema, SecretApprovalSchema, SecretScopeSchema,
+  InjectionModeSchema, SecretProviderIdSchema, SecretApprovalSchema, SecretScopeSchema,
   SecretUsePolicySchema, SecretMetaSchema,
-  type SecretUseMode, type SecretProviderId, type SecretApproval, type SecretScope,
+  type InjectionMode, type SecretProviderId, type SecretApproval, type SecretScope,
   type SecretUsePolicy, type SecretMeta,
 } from "@xeon/contracts/capabilities";
 ```
@@ -132,7 +132,7 @@ export interface ApprovalEvidence {
 }
 
 export interface UseCtx {
-  readonly mode: SecretUseMode;
+  readonly mode: InjectionMode;
   readonly purpose: string;               // 도구 이름 또는 서비스 메서드. "http.request", "bash:gh", "web.search", "model.provider:anthropic"
   readonly target: SecretUseTarget;
   readonly actor: "agent" | "runtime" | "human";
@@ -152,7 +152,7 @@ export interface SecretValueView {
 export interface SecretLease {
   readonly leaseId: LocalId<"sls">;       // "sls_<ULID>". F.conversation.spec §3.2.1 LocalIdPrefix
   readonly handle: SecretHandle;
-  readonly mode: SecretUseMode;
+  readonly mode: InjectionMode;
   readonly expiresAt: number;
   readonly usesLeft: number;
   /** 값 사용. 매번 만료·횟수·폐기·대상을 다시 검사한다(검사와 사용 사이 간극 방지) */
@@ -547,7 +547,7 @@ M4 규칙:
 
 M2 설계(후속 구현):
 
-1. 도구 자식 env에는 `XEON_SECRET_<NAME>=xeon-sentinel-<무작위 32 hex>` 같은 sentinel만 넣는다. sentinel은 lease 하나에 하나다.
+1. 도구 자식 env에는 `FRESNEL_SECRET_<NAME>=xeon-sentinel-<무작위 32 hex>` 같은 sentinel만 넣는다. sentinel은 lease 하나에 하나다.
 2. 자식의 HTTPS는 `xeon.sandbox`의 프록시를 지나고, 프록시가 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾼다. 허용 호스트 밖으로 가는 요청에 sentinel이 있으면 요청을 막고 `secret.denied`(`host_mismatch`)를 낸다.
 3. [미결] TLS 종단 방식은 sandbox-runtime 프록시 조사 결과에 의존한다. `@anthropic-ai/sandbox-runtime` 0.0.81(조사한 판. catalog 고정은 0.0.79, review.decisions-2 U-24. 0.0.79에도 같은 선택지가 있는지 후속에서 확인한다)은 `tlsTerminate`(실험, Bun 1.4 이상)와 `mitmProxy`(외부 Unix 소켓)를 서로 배타적으로 제공하고, `SandboxManager`가 프로세스당 정책 하나인 싱글턴이다(`_research/notes/L0-1.md`). 어느 쪽을 쓸지, 자식 프로세스에 CA를 어떻게 신뢰시킬지는 후속에서 정한다.
 4. 요구: `xeon.sandbox`의 프록시 훅(후속, `L0.sandbox.spec` §10 9번, `L0.sandbox.plan` SB-16). 8.2절에 적는다.
@@ -571,7 +571,7 @@ M2 설계(후속 구현):
 
 ### 4.5 자식 env 필터
 
-1. 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`, `L0.exec.spec` §3.5) 하나다. 이 서비스는 별도 목록(`childEnvPolicy`)을 두지 않는다 [제안]. `L0.exec.spec`은 도구 자식 프로세스 env를 만들 때 이 상수에 맞는 이름을 모두 지운다. 그래서 부모 env에 우연히 있던 `SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `XEON_SECRET_*`(상수의 `XEON_*`), 제공자 토큰(`*_TOKEN`)이 `xeon.secrets` 유무와 관계없이 도구로 넘어가지 않는다.
+1. 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`, `L0.exec.spec` §3.5) 하나다. 이 서비스는 별도 목록(`childEnvPolicy`)을 두지 않는다 [제안]. `L0.exec.spec`은 도구 자식 프로세스 env를 만들 때 이 상수에 맞는 이름을 모두 지운다. 그래서 부모 env에 우연히 있던 `SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_SECRET_*`(상수의 `FRESNEL_*`), 제공자 토큰(`*_TOKEN`)이 `xeon.secrets` 유무와 관계없이 도구로 넘어가지 않는다.
 2. `platform-secrets`가 sops를 부를 때도 같은 상수로 거른 env에 `KeyProvider.sopsKeyEnv()`의 변수 하나만 더한다.
 3. 거부 목록은 허용 목록 기반 env 구성(`L0.exec.spec` §3.5)을 대신하지 않는다. 허용 목록 위에 거는 거부 목록이다.
 4. 비밀 제공자가 새 env 이름을 쓰게 되면(2차 플러그인 제공자 등) `SENSITIVE_ENV_PATTERNS`에 패턴을 더하는 F 변경으로 반영한다. 이 문서에는 따로 목록을 두지 않는다.
@@ -774,17 +774,17 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 
 | 요청 | 위치 | 내용 |
 |---|---|---|
-| R1 | `@xeon/contracts/capabilities` `secrets.ts` | 반영되었다. `F.capabilities.spec` §3.10에 참조 형식(`SECRET_REF_PATTERN`, `SECRET_NAME_PATTERN`, `SecretRef`, `SecretNameSchema`, `SecretName`, `SecretHandle`, `SecretRefError`), 순수 함수(`parseSecretRef`, `secretRef`, `findForeignSecretSyntax`), 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretUseMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretAuditRecord`, `SecretDenyReason`, `RedactionLayer`, `RedactionHit`, `ReauthMethod`)이 있다 [결정: review.decisions-2 U-08]. 이 문서 §3.1, §3.2, §3.5, §3.9는 그 이름을 인용한다 |
+| R1 | `@xeon/contracts/capabilities` `secrets.ts` | 반영되었다. `F.capabilities.spec` §3.10에 참조 형식(`SECRET_REF_PATTERN`, `SECRET_NAME_PATTERN`, `SecretRef`, `SecretNameSchema`, `SecretName`, `SecretHandle`, `SecretRefError`), 순수 함수(`parseSecretRef`, `secretRef`, `findForeignSecretSyntax`), 값 타입(`SecretMeta`, `SecretUsePolicy`, `InjectionMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretAuditRecord`, `SecretDenyReason`, `RedactionLayer`, `RedactionHit`, `ReauthMethod`)이 있다 [결정: review.decisions-2 U-08]. 이 문서 §3.1, §3.2, §3.5, §3.9는 그 이름을 인용한다 |
 | R1-a | `@xeon/contracts/services` `services/secrets.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretService` 행(`xeon.secrets`)이 있고, 파일별 이름 표의 `services/secrets.ts` 행에 `SecretServiceName`, `UseCtx`, `SecretUseTarget`, `ApprovalEvidence`, `SecretValueView`, `SecretLease`, `SecretProvider`, `ProviderEntry`, `Redactor`, `SecretError` 등이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.3~§3.6, §3.10 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9) |
 | R2 | `@xeon/contracts/services` `services/secret-admin.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretAdminService` 행(`xeon.secretAdmin`)이 있고 `SERVICE_NAMES`에 들었다. `eng.context-map.design` §5.3 표에도 행이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.8 블록을 옮겨 확정한다 |
 | R3 | `F.records.spec` §3.3.1 | 반영되었다. `CoreArea`에 `secret`, `CoreEventKind`에 `secret.used`, `secret.denied`, `secret.approved`, `secret.masked`가 있고 생산자는 `core.tools`다. 관리 레코드는 세션 이벤트로 넣지 않는다 |
 | R4 | `F.wire-settings.spec` 메서드 표 | 값 없는 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(값 입력은 호스트 쪽 OS 창, `L4.settings-ui.spec` §4.6.4 C안). 값을 싣는 메서드는 요청하지 않는다 |
 | R5 | `eng.dependency-rules.guide` DR-07 | 플러그인 제공자가 `op`, `bws` 바이너리를 부를 때의 소유 행(2차) |
-| R6 | `F.capabilities.spec` §3.10 `SecretUseModeSchema` | 반영되었다. 값 옆 주석이 사용 모드 번호(M1~M4)와 마일스톤을 함께 적는다. 이전 주석 `// M3`은 사용 모드 번호였는데 마일스톤으로 읽혀 `runtime-http`가 마일스톤 M3 기능처럼 보였다. `runtime-http`는 마일스톤 M1부터 모델 provider 키에 쓴다(§4.3 표) |
+| R6 | `F.capabilities.spec` §3.10 `InjectionModeSchema` | 반영되었다. 값 옆 주석이 사용 모드 번호(M1~M4)와 마일스톤을 함께 적는다. 이전 주석 `// M3`은 사용 모드 번호였는데 마일스톤으로 읽혀 `runtime-http`가 마일스톤 M3 기능처럼 보였다. `runtime-http`는 마일스톤 M1부터 모델 provider 키에 쓴다(§4.3 표) |
 
 ## 9. 수용 기준
 
-1. 도구 자식 env: F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`)가 `SOPS_AGE_KEY_CMD`, `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY`, `AGE_X`, `OP_SERVICE_ACCOUNT_TOKEN`, `BWS_ACCESS_TOKEN`, `BW_SESSION`, `XEON_SECRET_X`에 모두 맞는다. 부모 env에 이 이름들을 넣고 `L0.exec`로 띄운 도구 자식 프로세스의 env를 덤프하면 그중 어느 것도 없다(실제 자식 프로세스, `L0.secrets.plan` SC-15). 이 패키지가 sops를 부를 때의 env에도 없다.
+1. 도구 자식 env: F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`)가 `SOPS_AGE_KEY_CMD`, `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY`, `AGE_X`, `OP_SERVICE_ACCOUNT_TOKEN`, `BWS_ACCESS_TOKEN`, `BW_SESSION`, `FRESNEL_SECRET_X`에 모두 맞는다. 부모 env에 이 이름들을 넣고 `L0.exec`로 띄운 도구 자식 프로세스의 env를 덤프하면 그중 어느 것도 없다(실제 자식 프로세스, `L0.secrets.plan` SC-15). 이 패키지가 sops를 부를 때의 env에도 없다.
 2. 호스트 바인딩: `use.hosts: ["api.example.test"]`인 비밀로 `withHttp`를 `https://other.example.test`에 부르면 `denied`(`host_mismatch`)가 돌아오고, `send`와 제공자 `lease`가 한 번도 불리지 않으며, `secret.denied` 레코드가 정확히 하나 나온다.
 3. 값 비노출(5계층 각각): 가짜 값 `S`(무작위 24바이트)를 `memorySecrets`에 넣고 각 계층 입력에 `S`, base64(`S`), base64url(`S`), URL 인코딩(`S`), hex(`S`), JSON 이스케이프(`S`), Basic 인증 형태 base64(`"user:" + S`)를 넣으면 계층 출력에 어느 형태도 남지 않는다. 계층 다섯 개를 테스트 다섯 개로 따로 확인한다.
 4. 감사 기록·오류·직렬화: `SecretLease`를 `JSON.stringify`, `Bun.inspect`, 템플릿 문자열, `Error` cause에 넣은 결과와 모든 `SecretAuditRecord`, 모든 `SecretError`에 `S`와 변형이 없다. 감사 레코드에 `S`의 SHA-256 hex의 어떤 16자 이상 부분 문자열도 없다.

@@ -731,7 +731,7 @@ export interface WorktreeOps {
 | `l0.os.telemetry.exporter` | string | `"file"` | enum `file`, `otlp-http` | restart | managed, user | advanced / select | 아니오 | 화면, 파일 |
 | `l0.os.telemetry.endpoint` | string | `"http://localhost:4318/v1/traces"` | — | restart | managed, user | advanced / text | 아니오 | 화면, 파일 |
 | `l0.os.dirs.override` | string | 없음 | 절대 경로 | restart | managed | 화면에 두지 않음 | 아니오 | 파일(관리 설정)만. 환경 변수 `FRESNEL_HOME`이 같은 역할을 한다 |
-| `l0.os.log.level` | string | `"info"` | enum `debug`, `info`, `warn`, `error` | live | managed, user, local, session | advanced / select | 아니오 | 화면, 파일, 명령 |
+| `l0.os.log.level` | string | `"info"` | enum `debug`, `info`, `warn`, `error` | live | managed, user, local, launch | advanced / select | 아니오 | 화면, 파일, 명령 |
 
 - 알림 켜기·종류 키는 이 표에 두지 않는다. 정본은 `L2.dialog.spec` §6의 `l2.dialog.notify.*`이고 기본값과 탭도 그 표를 따른다 [결정: review.decisions-2 S-04].
 - `dirs.override`: 사용자 설정 파일은 `config` 디렉터리 안에 있으므로 사용자 범위에서 이 값을 읽을 수 없다(순환). 그래서 관리 범위만 허용한다 [제안]. 관리 설정 파일 위치는 L4가 정한다.

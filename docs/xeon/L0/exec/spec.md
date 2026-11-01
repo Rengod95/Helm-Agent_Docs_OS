@@ -53,7 +53,7 @@ binds: [xeon/packages/platform-exec/**]
 |---|---|
 | `ExecutionEnv` | 파일 연산(`FileSystem`)과 명령 실행(`Shell`)을 합친 인터페이스. 원본 `D/src/env/index.ts:324` |
 | 포크 원본 | `~/projects/_ref/pi-src/packages/durable/src/`(이하 `D/src/`), 저장소 `https://github.com/earendil-works/pi`, 커밋 `cdaf6c227d4718a72b59ccd02152c9614df44cfc`(약칭 `cdaf6c2`), 패키지 버전 1.1.0. 줄 번호는 이 사본 기준이다 [가정: adr.0003 §3.2] |
-| 포크 코드 | `platform-exec/src/upstream/` 아래에 복사한 원본 파일. 바꾼 줄에는 `// XEON-PATCH: <id>`를 단다 |
+| 포크 코드 | `platform-exec/src/upstream/` 아래에 복사한 원본 파일. 바꾼 줄에는 `// FRESNEL-PATCH: <id>`를 단다 |
 | 연결 코드 | `src/upstream/` 밖에 Xeon이 새로 쓴 코드. 서비스 등록, env 빌더, 비밀 주입, provider |
 | `CancelScope` | 취소 신호 하나만 담는 객체 `{ readonly abortSignal }`. Chord `Context`(`chord/src/types.ts:15-16`)와 같은 모양이다 |
 | spill | 명령 출력이 임계(바이트 또는 줄)를 넘으면 전체 원출력을 임시 파일에 쓰는 동작 |
@@ -298,7 +298,7 @@ export const ExecServiceName = "xeon.exec" as const;
 - `UPSTREAM.json`: `upstream`(`https://github.com/earendil-works/pi`), `commit`(`cdaf6c227d4718a72b59ccd02152c9614df44cfc`), `version`(`1.1.0`), `license`(`MIT`), `copiedPaths`(원본 → 포크 경로 표, 3.3.1절), `notCopied`(`tools/`, `images/`, `harness/`, `session/`, `storage/`, `testing/storage-*`), `modifications`(패치 id 목록).
 - `PATCHES.md`: 아래 패치 표와 같은 열(패치 id, 파일:줄, 이유, 확인 테스트).
 - `LICENSE.pi`: pi 저장소 루트 `LICENSE`(MIT, "Copyright (c) 2025 Mario Zechner") 원문 사본.
-- 패치 표지: 고친 줄 바로 위에 `// XEON-PATCH: <id>`. 세 기록(UPSTREAM.json `modifications`, PATCHES.md 행, 표지)의 id 집합이 같아야 한다(`L0.exec.plan` EX-11 검사).
+- 패치 표지: 고친 줄 바로 위에 `// FRESNEL-PATCH: <id>`. 세 기록(UPSTREAM.json `modifications`, PATCHES.md 행, 표지)의 id 집합이 같아야 한다(`L0.exec.plan` EX-11 검사).
 
 #### 3.3.3 패치 표
 
@@ -314,7 +314,7 @@ export const ExecServiceName = "xeon.exec" as const;
 | P6 | `env/index.ts:34-74` | `FileError`, `ExecutionError` 클래스와 코드 유니온 선언을 지우고 F에서 다시 export한다 | F 계약(3.1절)과 포크가 같은 클래스를 써야 `instanceof`(`node.ts:119`, `node-watch.ts:271`)와 L2 도구 본문의 판정이 한 클래스로 맞는다 [제안] | 타입체크, `instanceof` 경로 시험(`env-node.int.test.ts`) |
 
 - 원본 인터페이스 선언(`index.ts:76-324`)은 지우지 않는다. 업스트림 diff를 작게 두기 위해서다. 대신 계약 시험 `test/exec-contract.contract.test.ts`가 포크 선언과 F 선언이 서로 대입 가능함을 타입 수준에서 확인한다 [제안].
-- 포크 코드에는 린트 억제 주석을 두지 않는다. 린트가 걸리는 줄은 고쳐 쓰고 `XEON-PATCH: P15` 표지를 단다(`eng.typescript.guide` §1 "포크 코드", `PATCHES.md` P15). 아래는 규칙과 다르지만 억제 주석 없이 남는 설계 차이다:
+- 포크 코드에는 린트 억제 주석을 두지 않는다. 린트가 걸리는 줄은 고쳐 쓰고 `FRESNEL-PATCH: P15` 표지를 단다(`eng.typescript.guide` §1 "포크 코드", `PATCHES.md` P15). 아래는 규칙과 다르지만 억제 주석 없이 남는 설계 차이다:
 
 | 규칙 | 위치 | 이유 |
 |---|---|---|
@@ -429,9 +429,9 @@ export function buildChildEnv(input: {
 |---|---|
 | `pass` | `PATH`, `HOME`, `USER`, `LOGNAME`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `TMPDIR`, `SHELL` |
 | `fixed` | `TERM=dumb`, `NO_COLOR=1`, `CI=1`. `LANG`이 부모에 없으면 `LANG=C.UTF-8` |
-| `deny` | `*_TOKEN`, `*_KEY`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY`, `SOPS_*`, `SOPS_AGE_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `AWS_*`, `ANTHROPIC_*`, `OPENAI_*`, `GEMINI_*`, `OPENROUTER_*`, `XEON_*`, `SSH_AUTH_SOCK`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `WSL_INTEROP`, `WSL_DISTRO_NAME`, `NODE_OPTIONS`, `BUN_OPTIONS` |
+| `deny` | `*_TOKEN`, `*_KEY`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY`, `SOPS_*`, `SOPS_AGE_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `AWS_*`, `ANTHROPIC_*`, `OPENAI_*`, `GEMINI_*`, `OPENROUTER_*`, `FRESNEL_*`, `SSH_AUTH_SOCK`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `WSL_INTEROP`, `WSL_DISTRO_NAME`, `NODE_OPTIONS`, `BUN_OPTIONS` |
 
-- [제안] 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`의 `services/exec.ts`, `F.capabilities.spec` §3.12) 하나다. 위 `deny` 행이 그 값이고 `BASE_ENV_POLICY.deny`는 이 상수를 그대로 쓴다. `L0.sandbox.spec`의 자가 시험(env 허용 목록 항목)과 `L0.secrets.spec` §4.5(sops 호출 env)도 같은 상수를 쓴다. secrets 서비스에는 별도 거부 목록(`childEnvPolicy`)을 두지 않으므로 `xeon.exec`는 `xeon.secrets`가 없어도 같은 목록으로 동작한다. 비밀 제공자 변수(`SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `XEON_*` 아래 `XEON_SECRET_*`)가 모두 이 목록에 들어 있다.
+- [제안] 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`의 `services/exec.ts`, `F.capabilities.spec` §3.12) 하나다. 위 `deny` 행이 그 값이고 `BASE_ENV_POLICY.deny`는 이 상수를 그대로 쓴다. `L0.sandbox.spec`의 자가 시험(env 허용 목록 항목)과 `L0.secrets.spec` §4.5(sops 호출 env)도 같은 상수를 쓴다. secrets 서비스에는 별도 거부 목록(`childEnvPolicy`)을 두지 않으므로 `xeon.exec`는 `xeon.secrets`가 없어도 같은 목록으로 동작한다. 비밀 제공자 변수(`SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_*` 아래 `FRESNEL_SECRET_*`)가 모두 이 목록에 들어 있다.
 
 규칙:
 
@@ -724,7 +724,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 5. (M1) `secretEnv: { refs: { GH_TOKEN: "secret://gh" }, ctx }` 호출에서 자식은 값을 받는다(`printenv GH_TOKEN`의 종료 코드 0). 값을 출력하지 않는 명령으로 실행했을 때 그 호출의 `ShellExecResult`, `ExecutionError` 메시지, 연결 코드의 로그 기록에 값 문자열이 나타나지 않는다. 호출이 끝난 뒤 가짜 `xeon.secrets`의 lease 폐기 횟수가 획득 횟수와 같다(성공, 실패, 취소, 시간 초과 4경우).
 6. `select.ts`에 `platform: "freebsd"`를 주면 `err({ kind: "unsupported_platform", platform: "freebsd" })`이다.
 7. `platform-exec/src`에서 `process.platform`을 읽는 줄이 `src/select.ts` 밖에 0건이다(`src/upstream/**`, `src/providers/*` 포함). provider 파일은 `select.ts`가 고른 결과로만 쓰인다(`L0.readme` §3.1). 검사 스크립트가 이를 확인한다.
-8. 포크 5파일과 테스트의 변경점이 `PATCHES.md`, `UPSTREAM.json` `modifications`, `// XEON-PATCH:` 표지 셋에서 같은 id 집합이다.
+8. 포크 5파일과 테스트의 변경점이 `PATCHES.md`, `UPSTREAM.json` `modifications`, `// FRESNEL-PATCH:` 표지 셋에서 같은 id 집합이다.
 9. chord 패키지가 설치되지 않은 상태에서 `tsc -b`가 통과하고 `platform-exec`의 `src`·`test`에 chord import가 0건이다.
 10. Windows provider 단위 시험에서 `killProcessTree`는 `taskkill.exe /F /T /PID <pid>`를 만들고, `noFollow`는 `lstat_precheck`, `detachedSpawn`은 거짓이다. Windows 네이티브 적합성은 5.2절 표에 적은 사례만 통과 대상이다.
 11. 포크 선언(`src/upstream/env/index.ts`)과 F 선언(`exec.ts`)이 서로 대입 가능하다(`exec-contract.contract.test.ts`의 타입 수준 검사).

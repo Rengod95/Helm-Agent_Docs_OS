@@ -42,7 +42,7 @@ const group = defineSettings("l0.os", {
     default: "info",
     range: { enum: ["debug", "info", "warn", "error"] },
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "local", "session"],
+    allowedScopes: ["managed", "user", "local", "launch"],
     ui: { tab: "advanced", widget: "select", order: 130, label: "로그 수준" },
     since: "0.1.0",
   },

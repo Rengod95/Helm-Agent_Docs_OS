@@ -49,7 +49,7 @@ describe("l0.secrets settings", () => {
 
   test("project, local and session scopes are not allowed", () => {
     for (const def of SECRETS_SETTING_DEFS) {
-      for (const scope of ["project", "local", "session"] as const) {
+      for (const scope of ["project", "local", "launch"] as const) {
         expect(def.allowedScopes).not.toContain(scope);
       }
     }

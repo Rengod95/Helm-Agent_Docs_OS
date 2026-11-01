@@ -173,10 +173,10 @@ describe("core owner table", () => {
 });
 
 describe("isStrictBuild", () => {
-  test("is on unless production, and XEON_STORE_STRICT forces it on", () => {
+  test("is on unless production, and FRESNEL_STORE_STRICT forces it on", () => {
     expect(isStrictBuild({})).toBe(true);
     expect(isStrictBuild({ NODE_ENV: "test" })).toBe(true);
     expect(isStrictBuild({ NODE_ENV: "production" })).toBe(false);
-    expect(isStrictBuild({ NODE_ENV: "production", XEON_STORE_STRICT: "1" })).toBe(true);
+    expect(isStrictBuild({ NODE_ENV: "production", FRESNEL_STORE_STRICT: "1" })).toBe(true);
   });
 });

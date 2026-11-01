@@ -1,5 +1,5 @@
 import { rangeDecoder, startsWithBom } from "./decode.ts";
-// XEON-PATCH: P9
+// FRESNEL-PATCH: P9
 import type { LineScan } from "@xeon/contracts/services";
 
 const NEWLINE = 0x0a;
@@ -33,7 +33,7 @@ export class LineScanner {
   #bom = false;
 
   /** `startLine` and `endLine` must be non-negative integers with `endLine > startLine`; `endLine` absent: to the end. */
-  // XEON-PATCH: P8
+  // FRESNEL-PATCH: P8
   constructor(startLine: number, endLine: number = Number.POSITIVE_INFINITY) {
     if (!Number.isSafeInteger(startLine) || startLine < 0 || !(endLine > startLine)) {
       throw new RangeError("Invalid line range");
@@ -46,7 +46,7 @@ export class LineScanner {
   }
 
   push(chunk: Uint8Array): void {
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     let rest = chunk;
     if (this.#head !== undefined) {
       const take = Math.min(3 - this.#head.length, chunk.length);
@@ -142,7 +142,7 @@ export class LineScanner {
   /** Feed `chunk[from, to)`, which starts at file offset `base`, to the decoders of the ranges still open. */
   #feed(chunk: Uint8Array, base: number, fromOffset: number, to: number): void {
     // Decoding the whole file drops a leading byte-order mark.
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     const from = this.#bom && base + fromOffset < 3 ? Math.min(to, 3 - base) : fromOffset;
     if (to <= from) return;
     const bytes = chunk.subarray(from, to);

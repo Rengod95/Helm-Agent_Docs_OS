@@ -17,7 +17,7 @@ import {
 // (L0.sandbox.plan SB-18, 마감 G4-01). 각 거부 시험은 같은 명령을 감싸지 않은 Shell로 돌려 "격리가 없으면 성공한다"는 대조를 함께 둔다.
 //
 // 필수 바이너리(Linux: bwrap, socat, rg / macOS: rg)가 없을 때:
-//   - XEON_REQUIRE_SANDBOX=1 이거나 CI이면 종료 코드 2(환경 문제)로 끝난다. 조용히 건너뛰지 않는다.
+//   - FRESNEL_REQUIRE_SANDBOX=1 이거나 CI이면 종료 코드 2(환경 문제)로 끝난다. 조용히 건너뛰지 않는다.
 //   - 그 밖의 기기에서는 건너뛰고 stderr에 이유를 한 줄 남긴다.
 
 const environment = readSandboxEnvironment();

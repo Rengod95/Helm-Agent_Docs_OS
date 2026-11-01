@@ -56,13 +56,13 @@ describe("createRunCommand (실제 자식 프로세스)", () => {
   });
 
   posix("부모의 비밀 환경 변수를 자식에게 넘기지 않는다", async () => {
-    process.env["XEON_TEST_SECRET_VALUE"] = "do-not-leak";
+    process.env["FRESNEL_TEST_SECRET_VALUE"] = "do-not-leak";
     try {
       const out = await run(["env"], { signal: new AbortController().signal });
       expect(out.ok && out.value.stdout).not.toContain("do-not-leak");
       expect(out.ok && out.value.stdout).toContain("LC_ALL=C");
     } finally {
-      Reflect.deleteProperty(process.env, "XEON_TEST_SECRET_VALUE");
+      Reflect.deleteProperty(process.env, "FRESNEL_TEST_SECRET_VALUE");
     }
   });
 });

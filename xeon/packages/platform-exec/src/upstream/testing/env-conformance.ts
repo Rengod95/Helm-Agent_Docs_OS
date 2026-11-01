@@ -1,6 +1,6 @@
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 import { eachAsync, repeatAsync } from "@xeon/contracts";
-// XEON-PATCH: P1
+// FRESNEL-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 import {
   type ExecutionEnv,
@@ -15,7 +15,7 @@ import {
 } from "../env/index.ts";
 import type { EnvConformanceCase, EnvConformanceOptions } from "./types.ts";
 
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 const context: Context = { abortSignal: undefined };
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -25,7 +25,7 @@ type EnvTest = (env: ExecutionEnv) => Promise<void>;
 function abortedContext(): Context {
   const controller = new AbortController();
   controller.abort();
-  // XEON-PATCH: P5
+  // FRESNEL-PATCH: P5
   return { abortSignal: controller.signal };
 }
 
@@ -41,7 +41,7 @@ async function readAll(
   const reader = getOrThrow(await env.openDirReader(path, context));
   const pages: FileInfo[][] = [];
   try {
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     return await repeatAsync<{ pages: FileInfo[][]; done: boolean }>(async () => {
       if (pages.length >= 1000) return { value: { pages, done: false } };
       const next = getOrThrow(await reader.next(maxEntries, context));
@@ -86,7 +86,7 @@ async function watching(
         const from = changes.length;
         await change();
         const deadline = Date.now() + 3000;
-        // XEON-PATCH: P15
+        // FRESNEL-PATCH: P15
         await repeatAsync<undefined>(async () => {
           if (changes.slice(from).some((entry) => covers(entry, target)))
             return { value: undefined };
@@ -105,7 +105,7 @@ async function watching(
   }
 }
 
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 async function execCollect(
   env: ExecutionEnv,
   command: string | readonly string[],
@@ -129,7 +129,7 @@ async function execCollect(
   return { result, ...output };
 }
 
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 /** Runs `fn` for each item in order, one at a time. */
 async function inOrder<T>(items: Iterable<T>, fn: (item: T) => Promise<void>): Promise<void> {
   await eachAsync(items, async (item) => {
@@ -138,7 +138,7 @@ async function inOrder<T>(items: Iterable<T>, fn: (item: T) => Promise<void>): P
   });
 }
 
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 function isWatchMode(mode: string): boolean {
   return mode === "native" || mode === "polling";
 }
@@ -202,7 +202,7 @@ export function createEnvConformance(
         ];
         const range = (from: number, to: number) =>
           new TextDecoder("utf-8", { ignoreBOM: from > 0 }).decode(bytes.subarray(from, to));
-        // XEON-PATCH: P15
+        // FRESNEL-PATCH: P15
         await inOrder(ranges, async ([startLine, endLine]) => {
           const scan = getOrThrow(
             await reader.scanLines(
@@ -265,7 +265,7 @@ export function createEnvConformance(
 
     createCase("directory reader pages every entry exactly once", async (env) => {
       const names = ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"];
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       await inOrder(names, async (name) => {
         getOrThrow(await env.writeFile(name, name, context));
       });
@@ -304,19 +304,19 @@ export function createEnvConformance(
 
     createCase("directory reader skips entries removed during enumeration", async (env) => {
       getOrThrow(await env.createDir("dir", undefined, context));
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       await inOrder(["x", "y", "z"], async (name) => {
         getOrThrow(await env.writeFile(`dir/${name}`, name, context));
       });
       const reader = getOrThrow(await env.openDirReader("dir", context));
       try {
-        // XEON-PATCH: P15
+        // FRESNEL-PATCH: P15
         await inOrder(["x", "y", "z"], async (name) => {
           getOrThrow(await env.remove(`dir/${name}`, undefined, context));
         });
         const entries: FileInfo[] = [];
         let pagesRead = 0;
-        // XEON-PATCH: P15
+        // FRESNEL-PATCH: P15
         await repeatAsync<undefined>(async () => {
           if (pagesRead >= 10) return { value: undefined };
           pagesRead += 1;
@@ -556,7 +556,7 @@ export function createEnvConformance(
       const timedOut = await env.exec([...shell, "sleep 2"], { timeout: 0.1 }, context);
       assert.strictEqual(errorCode(timedOut), "timeout");
       const controller = new AbortController();
-      // XEON-PATCH: P5
+      // FRESNEL-PATCH: P5
       const running = env.exec([...shell, "sleep 2"], undefined, {
         abortSignal: controller.signal,
       });

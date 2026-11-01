@@ -1,4 +1,4 @@
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 import { describe, expect, it } from "bun:test";
 import { StreamDecoder } from "../../src/upstream/env/decode.ts";
 import { LineScanner } from "../../src/upstream/env/line-scan.ts";
@@ -92,13 +92,13 @@ describe("LineScanner", () => {
       expect(decode(scan.start, scan.end), message).toBe(selected.join("\n"));
       expect(scan.selectedBytes, message).toBe(utf8(selected.join("\n")));
       if (startLine < lines.length) {
-        // XEON-PATCH: P8
+        // FRESNEL-PATCH: P8
         expect(decode(scan.start, scan.firstLineEnd), message).toBe(lines[startLine] ?? "");
         expect(scan.firstLineBytes, message).toBe(utf8(lines[startLine]!));
         const lastLine = Math.min(endLine ?? lines.length, lines.length) - 1;
         const lastEnd =
           lastLine + 1 < lines.length ? file.indexOf(0x0a, scan.lastLineStart) : file.length;
-        // XEON-PATCH: P8
+        // FRESNEL-PATCH: P8
         expect(decode(scan.lastLineStart, lastEnd), message).toBe(lines[lastLine] ?? "");
       } else {
         expect(scan, message).toMatchObject({

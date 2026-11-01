@@ -18,11 +18,11 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { homedir, constants as osConstants, tmpdir } from "node:os";
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 import { basename, isAbsolute, join, resolve as resolveAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-// XEON-PATCH: P14
-// XEON-PATCH: P16
+// FRESNEL-PATCH: P14
+// FRESNEL-PATCH: P16
 import {
   attempt,
   attemptAsync,
@@ -31,9 +31,9 @@ import {
   repeatAsync,
   type Logger,
 } from "@xeon/contracts";
-// XEON-PATCH: P1
+// FRESNEL-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
-// XEON-PATCH: P3
+// FRESNEL-PATCH: P3
 import type { ExecPlatformProvider, ShellConfig } from "../../provider.ts";
 import { StreamDecoder } from "./decode.ts";
 import {
@@ -88,20 +88,20 @@ function resolveTimeoutMs(timeout: number | undefined): Result<number | undefine
   return ok(timeoutMs);
 }
 
-// XEON-PATCH: P3
-// XEON-PATCH: P17
+// FRESNEL-PATCH: P3
+// FRESNEL-PATCH: P17
 export function resolvePath(cwd: string, path: string, platform: ExecPlatformProvider): string {
   let normalized = path;
   if (normalized === "~") {
     normalized = homedir();
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
   } else if (
     normalized.startsWith("~/") ||
     (platform.backslashTilde && normalized.startsWith("~\\"))
   ) {
     normalized = join(homedir(), normalized.slice(2));
   } else if (normalized.startsWith("file://")) {
-    // XEON-PATCH: P14
+    // FRESNEL-PATCH: P14
     const filePath = attempt(() => fileURLToPath(normalized));
     // Keep malformed URLs as ordinary paths so filesystem methods preserve their non-throwing contract.
     if (filePath.ok) normalized = filePath.value;
@@ -152,7 +152,7 @@ function toFileError(error: unknown, fallbackPath?: string): FileError {
   const path = typeof nodeError?.path === "string" ? nodeError.path : fallbackPath;
   if (nodeError) {
     const message = nodeError.message;
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     switch (nodeError.code ?? "") {
       case "ABORT_ERR":
         return new FileError("aborted", message, path, cause);
@@ -176,7 +176,7 @@ function toFileError(error: unknown, fallbackPath?: string): FileError {
   return new FileError("unknown", cause.message, path, cause);
 }
 
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 function abortResult(
   signal: AbortSignal | undefined,
   path?: string,
@@ -185,7 +185,7 @@ function abortResult(
 }
 
 async function pathExists(path: string): Promise<boolean> {
-  // XEON-PATCH: P14
+  // FRESNEL-PATCH: P14
   return (await attemptAsync(() => access(path, constants.F_OK))).ok;
 }
 
@@ -193,12 +193,12 @@ async function runCommand(
   command: string,
   args: string[],
   timeoutMs: number,
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   platform: ExecPlatformProvider,
 ): Promise<{ stdout: string; status: number | null }> {
   return await new Promise((resolve) => {
     let stdout = "";
-    // XEON-PATCH: P14
+    // FRESNEL-PATCH: P14
     const spawned = attempt(() =>
       spawn(command, args, {
         stdio: ["ignore", "pipe", "ignore"],
@@ -211,7 +211,7 @@ async function runCommand(
     }
     const child: ReturnType<typeof spawn> = spawned.value;
     const timeout = setTimeout(() => {
-      // XEON-PATCH: P3
+      // FRESNEL-PATCH: P3
       if (child.pid) platform.killProcessTree(child.pid);
     }, timeoutMs);
     child.stdout?.setEncoding("utf8");
@@ -229,49 +229,49 @@ async function runCommand(
   });
 }
 
-// XEON-PATCH: P3
+// FRESNEL-PATCH: P3
 async function findBashOnPath(platform: ExecPlatformProvider): Promise<string | null> {
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   const [lookupCommand, ...lookupArgs] = platform.bashLookup;
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   const result = await runCommand(lookupCommand, lookupArgs, 5000, platform);
   if (result.status !== 0 || !result.stdout) return null;
   const firstMatch = result.stdout.trim().split(/\r?\n/)[0];
   return firstMatch && (await pathExists(firstMatch)) ? firstMatch : null;
 }
 
-// XEON-PATCH: P3
-// XEON-PATCH: P17
+// FRESNEL-PATCH: P3
+// FRESNEL-PATCH: P17
 export async function getShellConfig(
   customShellPath: string | undefined,
   platform: ExecPlatformProvider,
 ): Promise<Result<ShellConfig, ExecutionError>> {
   if (customShellPath) {
     if (await pathExists(customShellPath)) {
-      // XEON-PATCH: P3
+      // FRESNEL-PATCH: P3
       return ok(platform.bashConfig(customShellPath));
     }
     return err(
       new ExecutionError("shell_unavailable", `Custom shell path not found: ${customShellPath}`),
     );
   }
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   const candidates = platform.shellCandidates();
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   const found = await eachAsync(candidates, async (candidate) =>
     (await pathExists(candidate)) ? { value: candidate } : undefined,
   );
   if (found !== undefined) {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     return ok(platform.bashConfig(found.value));
   }
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   const bashOnPath = await findBashOnPath(platform);
   if (bashOnPath) {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     return ok(platform.bashConfig(bashOnPath));
   }
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   if (platform.fallbackShell !== undefined) return ok(platform.fallbackShell);
   return err(
     new ExecutionError(
@@ -298,12 +298,12 @@ function getShellEnv(
   };
 }
 
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 function signalNumber(signal: NodeJS.Signals): number | undefined {
   return osConstants.signals[signal];
 }
 
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 function waitForStreamFinish(stream: WriteStream): Promise<void> {
   return new Promise<void>((resolve) => {
     stream.once("error", () => resolve());
@@ -316,7 +316,7 @@ function waitForChildProcess(
   child: ChildProcess,
   spillIsDraining: () => boolean,
 ): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   return new Promise((resolve, reject) => {
     let settled = false;
     let exited = false;
@@ -404,10 +404,10 @@ class NodeTextLineReader implements TextLineReader {
   private buffered = "";
   private ended = false;
   private closed = false;
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   private readonly logger: Logger | undefined;
 
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   constructor(file: Awaited<ReturnType<typeof openFile>>, path: string, logger?: Logger) {
     this.file = file;
     this.path = path;
@@ -420,7 +420,7 @@ class NodeTextLineReader implements TextLineReader {
     if (this.closed) return err(new FileError("invalid", "Text line reader is closed", this.path));
 
     try {
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       return await repeatAsync<Result<TextLine | undefined, FileError>>(async () => {
         const newline = this.buffered.indexOf("\n");
         if (newline !== -1) {
@@ -475,10 +475,10 @@ class NodeBinaryReader implements BinaryReader {
   private readonly file: FileHandle;
   private readonly path: string;
   private closed = false;
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   private readonly logger: Logger | undefined;
 
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   constructor(file: FileHandle, path: string, logger?: Logger) {
     this.file = file;
     this.path = path;
@@ -517,7 +517,7 @@ class NodeBinaryReader implements BinaryReader {
     const chunks: Uint8Array[] = [];
     let total = 0;
     try {
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       const interrupted = await repeatAsync<Result<never, FileError> | undefined>(async () => {
         if (total >= length) return { value: undefined };
         const chunk = new Uint8Array(Math.min(length - total, BINARY_READ_CHUNK));
@@ -533,7 +533,7 @@ class NodeBinaryReader implements BinaryReader {
     } catch (error) {
       return err(toFileError(error, this.path));
     }
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     const [onlyChunk] = chunks;
     if (onlyChunk !== undefined && chunks.length === 1) return ok(onlyChunk);
     const bytes = new Uint8Array(total);
@@ -552,14 +552,14 @@ class NodeBinaryReader implements BinaryReader {
     const aborted = abortResult(context.abortSignal, this.path);
     if (aborted) return aborted;
     if (this.closed) return closedResult("Binary reader", this.path);
-    // XEON-PATCH: P14
+    // FRESNEL-PATCH: P14
     const created = attempt(() => new LineScanner(options.startLine, options.endLine));
     if (!created.ok) return err(new FileError("invalid", "Invalid line range", this.path));
     const scanner = created.value;
     const chunk = new Uint8Array(64 * 1024);
     let position = 0;
     try {
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       return await repeatAsync<Result<LineScan, FileError>>(async () => {
         const { bytesRead } = await this.file.read(chunk, 0, chunk.length, position);
         const afterReadAbort = abortResult(context.abortSignal, this.path);
@@ -586,10 +586,10 @@ class NodeDirReader implements DirReader {
   private readonly path: string;
   private done = false;
   private closed = false;
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   private readonly logger: Logger | undefined;
 
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   constructor(dir: Dir, path: string, logger?: Logger) {
     this.dir = dir;
     this.path = path;
@@ -608,7 +608,7 @@ class NodeDirReader implements DirReader {
     }
     const entries: FileInfo[] = [];
     try {
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       const interrupted = await repeatAsync<Result<never, FileError> | undefined>(async () => {
         if (this.done || entries.length >= maxEntries) return { value: undefined };
         const entry = await this.dir.read();
@@ -653,45 +653,45 @@ export class NodeExecutionEnv implements ExecutionEnv {
   /** Every local environment sees the same files. */
   readonly id: string = "node:local";
   cwd: string;
-  // XEON-PATCH: P8
+  // FRESNEL-PATCH: P8
   private shellPath: string | undefined;
-  // XEON-PATCH: P8
+  // FRESNEL-PATCH: P8
   private shellEnv: NodeJS.ProcessEnv | undefined;
   private watchOptions: NodeWatchOptions;
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   private platform: ExecPlatformProvider;
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   private logger: Logger | undefined;
-  // XEON-PATCH: P19
+  // FRESNEL-PATCH: P19
   private tempRoot: string | undefined;
   private activeChildPids = new Set<number>();
 
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   constructor(options: {
     cwd: string;
     platform: ExecPlatformProvider;
     shellPath?: string;
     shellEnv?: NodeJS.ProcessEnv;
     watch?: Omit<NodeWatchOptions, "platform" | "logger">;
-    // XEON-PATCH: P16
+    // FRESNEL-PATCH: P16
     logger?: Logger;
-    // XEON-PATCH: P19
+    // FRESNEL-PATCH: P19
     tempRoot?: string;
   }) {
     this.cwd = options.cwd;
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     this.platform = options.platform;
     this.shellPath = options.shellPath;
     this.shellEnv = options.shellEnv;
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     this.watchOptions = {
       ...options.watch,
       platform: options.platform,
       ...(options.logger === undefined ? {} : { logger: options.logger }),
     };
-    // XEON-PATCH: P16
+    // FRESNEL-PATCH: P16
     this.logger = options.logger;
-    // XEON-PATCH: P19
+    // FRESNEL-PATCH: P19
     this.tempRoot = options.tempRoot;
   }
 
@@ -705,7 +705,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     try {
       const watcher = await NodeFileWatcher.open(
         targets,
-        // XEON-PATCH: P3
+        // FRESNEL-PATCH: P3
         (path) => resolvePath(this.cwd, path, this.platform),
         onChange,
         this.watchOptions,
@@ -721,13 +721,13 @@ export class NodeExecutionEnv implements ExecutionEnv {
     }
   }
 
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   absolutePath(path: string, _context: Context): Promise<Result<string, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     return Promise.resolve(ok(resolvePath(this.cwd, path, this.platform)));
   }
 
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   joinPath(parts: string[], _context: Context): Promise<Result<string, FileError>> {
     return Promise.resolve(ok(join(...parts)));
   }
@@ -743,14 +743,14 @@ export class NodeExecutionEnv implements ExecutionEnv {
     if (!timeoutMsResult.ok) return err(timeoutMsResult.error);
     const timeoutMs = timeoutMsResult.value;
 
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const cwd = options?.cwd ? resolvePath(this.cwd, options.cwd, this.platform) : this.cwd;
     // A string runs through the shell; an argv array runs its program directly, without shell parsing.
     let program: string;
     let args: readonly string[];
     let stdinCommand: string | undefined;
     if (typeof command === "string") {
-      // XEON-PATCH: P3
+      // FRESNEL-PATCH: P3
       const shellConfig = await getShellConfig(this.shellPath, this.platform);
       if (!shellConfig.ok) return shellConfig;
       const commandFromStdin = shellConfig.value.commandTransport === "stdin";
@@ -777,7 +777,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       );
     }
 
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     return await new Promise((resolve) => {
       let settled = false;
       let timedOut = false;
@@ -793,7 +793,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       let spillBackpressured = false;
 
       const onAbort = () => {
-        // XEON-PATCH: P3
+        // FRESNEL-PATCH: P3
         if (child?.pid) this.platform.killProcessTree(child.pid);
       };
       const failCallback = (error: unknown) => {
@@ -893,14 +893,14 @@ export class NodeExecutionEnv implements ExecutionEnv {
         await spillStart;
         const stream = spillStream;
         if (stream === undefined || spillError !== undefined || stream.destroyed) return;
-        // XEON-PATCH: P15
+        // FRESNEL-PATCH: P15
         await waitForStreamFinish(stream);
       };
 
       try {
         child = spawn(program, args, {
           cwd,
-          // XEON-PATCH: P3
+          // FRESNEL-PATCH: P3
           detached: this.platform.detachedSpawn,
           env: getShellEnv(this.shellEnv, options?.env, options?.inheritEnv),
           stdio: [stdinCommand === undefined ? "ignore" : "pipe", "pipe", "pipe"],
@@ -917,7 +917,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
         return;
       }
 
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       const armTimeout = (): void => {
         if (timeoutMs === undefined) return;
         timeoutId = setTimeout(() => {
@@ -960,7 +960,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       child.stdout?.on("data", feed("stdout", stdoutDecoder));
       child.stderr?.on("data", feed("stderr", stderrDecoder));
 
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       const onChildExit = async ({
         code,
         signal: exitSignal,
@@ -995,7 +995,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
         const exitCode = code ?? (exitSignal ? 128 + (signalNumber(exitSignal) ?? 0) : 1);
         settle(ok({ exitCode, ...(spillPath === undefined ? {} : { spillPath }) }));
       };
-      // XEON-PATCH: P18
+      // FRESNEL-PATCH: P18
       detach(
         waitForChildProcess(
           child,
@@ -1021,7 +1021,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     path: string,
     context: Context,
   ): Promise<Result<TextLineReader, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
@@ -1039,7 +1039,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   }
 
   async readTextFile(path: string, context: Context): Promise<Result<string, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
     const aborted = abortResult(signal, resolved);
@@ -1062,7 +1062,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     const lines: string[] = [];
     const maxLines = options?.maxLines;
     try {
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       const failed = await repeatAsync<Result<never, FileError> | undefined>(async () => {
         if (maxLines !== undefined && lines.length >= maxLines) return { value: undefined };
         const line = await opened.value.readLine(context);
@@ -1078,7 +1078,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   }
 
   async readBinaryFile(path: string, context: Context): Promise<Result<Uint8Array, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
     const aborted = abortResult(signal, resolved);
@@ -1095,7 +1095,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     options: { noFollow?: boolean } | undefined,
     context: Context,
   ): Promise<Result<BinaryReader, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
@@ -1103,7 +1103,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     let file: FileHandle | undefined;
     try {
       let flags = constants.O_RDONLY;
-      // XEON-PATCH: P3
+      // FRESNEL-PATCH: P3
       if (this.platform.noFollow === "lstat_precheck") {
         // Windows has no O_NOFOLLOW; check the final component before opening (not race-free).
         if (noFollow && (await lstat(resolved)).isSymbolicLink())
@@ -1148,7 +1148,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     content: string | Uint8Array,
     context: Context,
   ): Promise<Result<void, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
     const aborted = abortResult(signal, resolved);
@@ -1169,7 +1169,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     content: string | Uint8Array,
     context: Context,
   ): Promise<Result<void, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
     const aborted = abortResult(signal, resolved);
@@ -1191,7 +1191,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     size: number,
     context: Context,
   ): Promise<Result<void, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
     const aborted = abortResult(signal, resolved);
@@ -1215,7 +1215,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   }
 
   async flushFile(path: string, context: Context): Promise<Result<void, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
     const aborted = abortResult(signal, resolved);
@@ -1241,9 +1241,9 @@ export class NodeExecutionEnv implements ExecutionEnv {
     destinationPath: string,
     context: Context,
   ): Promise<Result<void, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const source = resolvePath(this.cwd, sourcePath, this.platform);
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const destination = resolvePath(this.cwd, destinationPath, this.platform);
     const aborted = abortResult(context.abortSignal, destination);
     if (aborted) return aborted;
@@ -1256,7 +1256,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   }
 
   async fileInfo(path: string, context: Context): Promise<Result<FileInfo, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
@@ -1268,7 +1268,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   }
 
   async listDir(path: string, context: Context): Promise<Result<FileInfo[], FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
     const aborted = abortResult(signal, resolved);
@@ -1276,7 +1276,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     try {
       const entries = await readdir(resolved, { withFileTypes: true });
       const infos: FileInfo[] = [];
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       const failure = await eachAsync(entries, async (entry) => {
         const loopAbort = abortResult(signal, resolved);
         if (loopAbort) return { value: loopAbort };
@@ -1297,7 +1297,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   }
 
   async openDirReader(path: string, context: Context): Promise<Result<DirReader, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
@@ -1315,7 +1315,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   }
 
   async canonicalPath(path: string, context: Context): Promise<Result<string, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
@@ -1338,7 +1338,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     options: { recursive?: boolean } | undefined,
     context: Context,
   ): Promise<Result<void, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
@@ -1355,7 +1355,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     options: { recursive?: boolean; force?: boolean } | undefined,
     context: Context,
   ): Promise<Result<void, FileError>> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
@@ -1377,9 +1377,9 @@ export class NodeExecutionEnv implements ExecutionEnv {
     const aborted = abortResult(context.abortSignal);
     if (aborted) return aborted;
     try {
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       const dirPrefix = prefix ?? "tmp-";
-      // XEON-PATCH: P19
+      // FRESNEL-PATCH: P19
       if (this.tempRoot !== undefined) {
         await mkdir(this.tempRoot, { recursive: true, mode: 0o700 });
       }
@@ -1400,7 +1400,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       `${options?.prefix ?? ""}${randomUUID()}${options?.suffix ?? ""}`,
     );
     try {
-      // XEON-PATCH: P19
+      // FRESNEL-PATCH: P19
       await writeFile(filePath, "", { mode: 0o600 });
       return ok(filePath);
     } catch (error) {
@@ -1408,9 +1408,9 @@ export class NodeExecutionEnv implements ExecutionEnv {
     }
   }
 
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   cleanup(_context: Context): Promise<void> {
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     for (const pid of this.activeChildPids) this.platform.killProcessTree(pid);
     this.activeChildPids.clear();
     return Promise.resolve();

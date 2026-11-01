@@ -60,7 +60,7 @@ async function openFixture(
   applyTables(store.service, "ext.probe", [
     "CREATE TABLE x_probe_items (seq INTEGER PRIMARY KEY) STRICT",
   ]);
-  const token = store.service.leases.acquire(`session:${THREAD}`, {
+  const token = store.service.leases.acquire(`thread:${THREAD}`, {
     holderId: "holder-1",
     kind: "cli",
     pid: process.pid,

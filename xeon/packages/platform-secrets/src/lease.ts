@@ -1,5 +1,5 @@
 import { err, ok, type Clock, type Result, type Scheduler } from "@xeon/contracts";
-import type { SecretDenyReason, SecretHandle, SecretUseMode } from "@xeon/contracts/capabilities";
+import type { SecretDenyReason, SecretHandle, InjectionMode } from "@xeon/contracts/capabilities";
 import type { LocalId } from "@xeon/contracts/conversation";
 import type { SecretError, SecretLease, SecretValueView } from "@xeon/contracts/services";
 import { deniedError } from "./errors.ts";
@@ -13,7 +13,7 @@ const DECODER = new TextDecoder("utf-8");
 export interface LeaseOptions {
   readonly id: LocalId<"sls">;
   readonly handle: SecretHandle;
-  readonly mode: SecretUseMode;
+  readonly mode: InjectionMode;
   /** 소유권이 넘어온다. dispose에서 0으로 덮인다 */
   readonly value: Uint8Array;
   readonly ttlSeconds: number;

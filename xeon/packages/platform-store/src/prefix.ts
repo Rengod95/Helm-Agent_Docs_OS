@@ -464,6 +464,6 @@ export function createStatementGuard(options: GuardOptions): StatementGuard {
 
 /** 테스트·디버그 빌드 판정. 운영 빌드는 DDL 어휘 검사만 한다(L0.store.spec §4.5) */
 export function isStrictBuild(env: Readonly<Record<string, string | undefined>>): boolean {
-  if (env["XEON_STORE_STRICT"] === "1") return true;
+  if (env["FRESNEL_STORE_STRICT"] === "1") return true;
   return env["NODE_ENV"] !== "production";
 }

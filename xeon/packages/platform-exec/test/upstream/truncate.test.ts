@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { formatSize, truncateHead, truncateHeadOf } from "../../src/upstream/truncate.ts";
 
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 // 원본 test/env-truncate.test.ts의 포팅(vitest -> bun:test). Buffer 없는 런타임 시험은 P10으로 대체 계산을 지워 뺐다.
 // truncateHeadOf 시험은 L2 cap-workspace의 사본에서 옮겨 왔다(review.decisions-2 B-04).
 

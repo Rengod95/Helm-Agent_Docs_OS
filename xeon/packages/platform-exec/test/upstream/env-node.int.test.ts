@@ -3,14 +3,14 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { access, chmod, type FileHandle, open, realpath, symlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 import { attempt, attemptAsync, repeatAsync } from "@xeon/contracts";
 import { pathToFileURL } from "node:url";
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 import type { CancelScope } from "@xeon/contracts/services";
-// XEON-PATCH: P3
+// FRESNEL-PATCH: P3
 import { createWin32Provider } from "../../src/providers/win32.ts";
 import {
   FileError,
@@ -22,9 +22,9 @@ import { NodeExecutionEnv } from "../../src/upstream/env/node.ts";
 import { errnoCodeOf } from "../support/errno.ts";
 import { hostPlatform } from "../support/platform.ts";
 
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 const BACKGROUND_CONTEXT: CancelScope = { abortSignal: undefined };
-// XEON-PATCH: P3
+// FRESNEL-PATCH: P3
 const platform = hostPlatform();
 
 const tempDirs: string[] = [];
@@ -44,13 +44,13 @@ function createTempDir(): string {
  */
 async function removeTempDir(dir: string): Promise<void> {
   let attempt = 0;
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   await repeatAsync<undefined>(async () => {
     try {
       rmSync(dir, { recursive: true, force: true });
       return { value: undefined };
     } catch (error) {
-      // XEON-PATCH: P14
+      // FRESNEL-PATCH: P14
       const code = errnoCodeOf(error);
       if (attempt >= 80 || (code !== "EBUSY" && code !== "EPERM" && code !== "ENOTEMPTY"))
         throw error;
@@ -64,11 +64,11 @@ async function removeTempDir(dir: string): Promise<void> {
 function abortedContext() {
   const controller = new AbortController();
   controller.abort();
-  // XEON-PATCH: P5
+  // FRESNEL-PATCH: P5
   return { abortSignal: controller.signal };
 }
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 function isFileHandle(value: unknown): value is FileHandle {
   return (
     typeof value === "object" &&
@@ -83,7 +83,7 @@ function isFileHandle(value: unknown): value is FileHandle {
 async function fileHandlePrototype(path: string): Promise<FileHandle> {
   const handle = await open(path, "r");
   await handle.close();
-  // XEON-PATCH: P14
+  // FRESNEL-PATCH: P14
   const prototype: unknown = Object.getPrototypeOf(handle);
   if (!isFileHandle(prototype)) throw new Error("FileHandle prototype has no read and close");
   return prototype;
@@ -91,7 +91,7 @@ async function fileHandlePrototype(path: string): Promise<FileHandle> {
 
 async function waitFor(condition: () => Promise<boolean>, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   await repeatAsync<undefined>(async () => {
     if (await condition()) return { value: undefined };
     if (Date.now() > deadline) throw new Error(`Condition not met within ${timeoutMs}ms`);
@@ -106,7 +106,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void)
       onTimeout?.();
       reject(new Error(`Timed out after ${ms}ms`));
     }, ms);
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     promise.finally(() => clearTimeout(timeoutId)).then(resolve, reject);
   });
 }
@@ -153,7 +153,7 @@ function cleanupDetachedChild(pidFile: string): void {
   if (!existsSync(pidFile)) return;
   const pid = Number.parseInt(readFileSync(pidFile, "utf8").trim(), 10);
   if (!Number.isFinite(pid) || pid <= 0) return;
-  // XEON-PATCH: P14
+  // FRESNEL-PATCH: P14
   attempt(() => execFileSync("taskkill", ["/F", "/T", "/PID", String(pid)], { stdio: "ignore" }));
 }
 
@@ -170,19 +170,19 @@ class FailingSpillExecutionEnv extends NodeExecutionEnv {
 }
 
 afterEach(async () => {
-  // XEON-PATCH: P4
+  // FRESNEL-PATCH: P4
   mock.restore();
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   await Promise.all(
     chmodRestorePaths.splice(0).map(async (path) => {
-      // XEON-PATCH: P14
+      // FRESNEL-PATCH: P14
       await attemptAsync(async () => {
         await access(path);
         await chmod(path, 0o700);
       });
     }),
   );
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   await Promise.all(tempDirs.splice(0).map((dir) => removeTempDir(dir)));
 }, 15_000);
 
@@ -378,9 +378,9 @@ describe("NodeExecutionEnv filesystem", () => {
     const env = new NodeExecutionEnv({ platform, cwd: root });
     const tempDir = getOrThrow(await env.createTempDir("node-env-test-", BACKGROUND_CONTEXT));
     tempDirs.push(tempDir);
-    // XEON-PATCH: P4
+    // FRESNEL-PATCH: P4
     // Bun's access() resolves with null where Node resolves with undefined.
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     expect((await attemptAsync(() => access(tempDir))).ok).toBe(true);
     const tempFile = getOrThrow(
       await env.createTempFile({ prefix: "prefix-", suffix: ".txt" }, BACKGROUND_CONTEXT),
@@ -473,7 +473,7 @@ describe("NodeExecutionEnv filesystem", () => {
     const env = new NodeExecutionEnv({ platform, cwd: root });
     getOrThrow(await env.writeFile("file.txt", "hello", BACKGROUND_CONTEXT));
     const sizes = [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1];
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     const truncations = await Promise.all(
       sizes.map((size) => env.truncateFile("file.txt", size, BACKGROUND_CONTEXT)),
     );
@@ -517,7 +517,7 @@ describe("NodeExecutionEnv filesystem", () => {
     const env = new NodeExecutionEnv({ platform, cwd: root });
     getOrThrow(await env.writeFile("file.txt", "durable", BACKGROUND_CONTEXT));
     const prototype = await fileHandlePrototype(join(root, "file.txt"));
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     const handle: unknown = prototype;
     const originalSync: unknown =
       typeof handle === "object" && handle !== null && "sync" in handle ? handle.sync : undefined;
@@ -559,7 +559,7 @@ describe("NodeExecutionEnv text line reader", () => {
     const reader = getOrThrow(await env.openTextLineReader("lines.txt", BACKGROUND_CONTEXT));
     try {
       const lines: TextLine[] = [];
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       await repeatAsync<undefined>(async () => {
         const line = getOrThrow(await reader.readLine(BACKGROUND_CONTEXT));
         if (line === undefined) return { value: undefined };
@@ -625,14 +625,14 @@ describe("NodeExecutionEnv text line reader", () => {
     const env = new NodeExecutionEnv({ platform, cwd: root });
     getOrThrow(await env.writeFile("lines.txt", "one\ntwo\n", BACKGROUND_CONTEXT));
     const prototype = await fileHandlePrototype(join(root, "lines.txt"));
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     const handle: unknown = prototype;
     const read: unknown =
       typeof handle === "object" && handle !== null && "read" in handle ? handle.read : undefined;
     if (typeof read !== "function") throw new Error("FileHandle prototype has no read");
     const started = Promise.withResolvers<void>();
     const gate = Promise.withResolvers<void>();
-    // XEON-PATCH: P14
+    // FRESNEL-PATCH: P14
     // spyOn은 FileHandle.read의 오버로드 전체 타입을 요구한다. 첫 호출만 붙잡는 대체 구현을 직접 끼우고 끝나면 되돌린다
     let armed = true;
     Object.defineProperty(prototype, "read", {
@@ -737,7 +737,7 @@ describe("NodeExecutionEnv shell", () => {
       const collected = await collectShellOutput(
         env,
         `printf '%s:%s|%s|%s' "\${PI_SESSION_FILE+x}" "\${PI_SESSION_FILE-}" "$PI_CODING_AGENT" "$PI_NODE_ENV_PRESERVED_TEST"`,
-        // XEON-PATCH: P8
+        // FRESNEL-PATCH: P8
         overrides === undefined ? undefined : { env: overrides },
         BACKGROUND_CONTEXT,
       );
@@ -793,7 +793,7 @@ describe("NodeExecutionEnv shell", () => {
       process.chdir(root);
       process.env.PATH = `${root}${delimiter}${originalPath ?? ""}`;
 
-      // XEON-PATCH: P3
+      // FRESNEL-PATCH: P3
       const wslEnv = new NodeExecutionEnv({
         platform: createWin32Provider({ env: process.env }),
         cwd: root,
@@ -927,7 +927,7 @@ describe("NodeExecutionEnv shell", () => {
     const root = createTempDir();
     const env = new NodeExecutionEnv({ platform, cwd: root });
     const timeouts = [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 2_147_484];
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     const results = await Promise.all(
       timeouts.map((timeout) => env.exec("touch spawned", { timeout }, BACKGROUND_CONTEXT)),
     );
@@ -1000,7 +1000,7 @@ describe("NodeExecutionEnv shell", () => {
       const root = createTempDir();
       const pidFile = join(root, "shell.pid");
       const controller = new AbortController();
-      // XEON-PATCH: P3
+      // FRESNEL-PATCH: P3
       const env = new NodeExecutionEnv({
         platform: createWin32Provider({ env: { SystemRoot: "/definitely/missing/windows" } }),
         cwd: root,
@@ -1015,7 +1015,7 @@ describe("NodeExecutionEnv shell", () => {
           { abortSignal: controller.signal },
         );
         let pidChecks = 0;
-        // XEON-PATCH: P15
+        // FRESNEL-PATCH: P15
         await repeatAsync<undefined>(async () => {
           if (pidChecks >= 100 || existsSync(pidFile)) return { value: undefined };
           pidChecks += 1;
@@ -1036,7 +1036,7 @@ describe("NodeExecutionEnv shell", () => {
           pid = Number.parseInt(readFileSync(pidFile, "utf8"), 10);
         }
         if (pid !== undefined && Number.isFinite(pid)) {
-          // XEON-PATCH: P14
+          // FRESNEL-PATCH: P14
           const target = pid;
           attempt(() => process.kill(target, "SIGKILL"));
         }
@@ -1087,9 +1087,9 @@ describe("NodeExecutionEnv shell", () => {
       { timeout: 0.3, spill: { afterBytes: 10, afterLines: 10 } },
       BACKGROUND_CONTEXT,
     );
-    // XEON-PATCH: P4
+    // FRESNEL-PATCH: P4
     // Bun's toMatchObject replaces a property matched by an asymmetric matcher on the received object, so read the path first.
-    // XEON-PATCH: P14
+    // FRESNEL-PATCH: P14
     if (result.ok || result.error.spillPath === undefined)
       throw new Error("expected a timeout with a spill");
     const spillPath = result.error.spillPath;

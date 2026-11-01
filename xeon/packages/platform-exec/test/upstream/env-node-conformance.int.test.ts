@@ -2,11 +2,11 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 import { afterEach, describe, expect, it } from "bun:test";
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 import { repeatAsync } from "@xeon/contracts";
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 import type { CancelScope } from "@xeon/contracts/services";
 import { registerExecConformance } from "../../src/testing/conformance.ts";
 import { getOrThrow, type WatchChange } from "../../src/upstream/env/index.ts";
@@ -16,9 +16,9 @@ import { hostPlatform } from "../support/platform.ts";
 
 const windows = process.platform === "win32";
 const gitBash = join(process.env.ProgramFiles ?? "C:\\Program Files", "Git", "bin", "bash.exe");
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 const context: CancelScope = { abortSignal: undefined };
-// XEON-PATCH: P3
+// FRESNEL-PATCH: P3
 const platform = hostPlatform();
 
 /**
@@ -28,13 +28,13 @@ const platform = hostPlatform();
  */
 async function removeTempDir(dir: string): Promise<void> {
   let attempt = 0;
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   await repeatAsync<undefined>(async () => {
     try {
       rmSync(dir, { recursive: true, force: true });
       return { value: undefined };
     } catch (error) {
-      // XEON-PATCH: P14
+      // FRESNEL-PATCH: P14
       const code = errnoCodeOf(error);
       if (attempt >= 80 || (code !== "EBUSY" && code !== "EPERM" && code !== "ENOTEMPTY"))
         throw error;
@@ -99,7 +99,7 @@ describe("NodeExecutionEnv watch limits", () => {
       );
       getOrThrow(await env.createDir("tree/d", undefined, context));
       const deadline = Date.now() + 3000;
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       await repeatAsync<undefined>(async () => {
         if (changes.some((change) => "error" in change) || Date.now() >= deadline) {
           return { value: undefined };
@@ -123,7 +123,7 @@ describe("NodeExecutionEnv readers", () => {
     return dir;
   };
   afterEach(async () => {
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     await Promise.all(dirs.splice(0).map((dir) => removeTempDir(dir)));
   }, 15_000);
 

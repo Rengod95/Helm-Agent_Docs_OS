@@ -163,7 +163,7 @@ xeon/packages/platform-secrets/
 | | `does not apply entropy check to tool output` | UUID·git 해시가 그대로 남는다 |
 | | `registerKnown rejects short values` | 7바이트 → `value_too_short`, 같은 비밀의 `env` lease → `mode_not_allowed` |
 | `redactor.prop.test.ts` | `no registered value survives mask` | 고정 시드 무작위 값과 무작위 앞뒤 문맥에서 원문과 변형이 남지 않는다 |
-| `env-filter.test.ts` | `strips SOPS_AGE_ and provider tokens` | sops 호출 env에서 `SOPS_AGE_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `XEON_SECRET_*` 제거. 거른 기준이 F `SENSITIVE_ENV_PATTERNS`와 같은 값 |
+| `env-filter.test.ts` | `strips SOPS_AGE_ and provider tokens` | sops 호출 env에서 `SOPS_AGE_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_SECRET_*` 제거. 거른 기준이 F `SENSITIVE_ENV_PATTERNS`와 같은 값 |
 | | `sops env carries exactly one key variable` | sops 호출 env에 키 변수가 하나뿐 |
 | `platform-exec/test/service.int.test.ts`(`L0.exec.plan` §5) | `child env drops secret provider variables` | SC-15. 부모 env에 spec §9 1번 이름들을 넣고 실제 `xeon.exec`로 `env`를 실행하면 출력에 그 이름이 없다. L0 패키지끼리 import하지 않으므로(DR-02) 시험은 exec 패키지에 두고, 이 패키지는 이름 목록(spec §9 1번)만 정한다 |
 | `protected-paths.test.ts` | `protected paths list secret files without values` | SC-21. 설정한 SOPS 파일, `<config>/secrets/`, 파일 폴백 키 경로가 절대 경로로 나오고 값·파일 내용이 없다 |

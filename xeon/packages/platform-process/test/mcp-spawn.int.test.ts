@@ -213,7 +213,7 @@ describe("McpProcessPort.spawn", () => {
       PATH: process.env["PATH"],
       HOME: "/home/test",
       ANTHROPIC_API_KEY: "parent-provider-key",
-      XEON_INTERNAL: "1",
+      FRESNEL_INTERNAL: "1",
       UNLISTED: "x",
     });
     const child = await started(
@@ -226,7 +226,7 @@ describe("McpProcessPort.spawn", () => {
     expect(env["GITHUB_TOKEN"]).toBe(SECRET_VALUE);
     expect(env["HOME"]).toBe("/home/test");
     expect(env["ANTHROPIC_API_KEY"]).toBeUndefined();
-    expect(env["XEON_INTERNAL"]).toBeUndefined();
+    expect(env["FRESNEL_INTERNAL"]).toBeUndefined();
     expect(env["UNLISTED"]).toBeUndefined();
     // lease는 spawn이 끝나면 닫힌다. 정책 맥락은 서버 id와 명령줄을 싣는다
     expect(secrets.disposed()).toBe(1);

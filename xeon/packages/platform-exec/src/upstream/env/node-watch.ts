@@ -2,12 +2,12 @@ import { createHash } from "node:crypto";
 import { type FSWatcher, watch as fsWatch, type Stats } from "node:fs";
 import { lstat, readdir, readFile, stat, statfs } from "node:fs/promises";
 import { dirname, relative, sep } from "node:path";
-// XEON-PATCH: P14
-// XEON-PATCH: P16
+// FRESNEL-PATCH: P14
+// FRESNEL-PATCH: P16
 import { attempt, detach, eachAsync, repeatAsync, type Logger } from "@xeon/contracts";
-// XEON-PATCH: P1
+// FRESNEL-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
-// XEON-PATCH: P3
+// FRESNEL-PATCH: P3
 import type { ExecPlatformProvider } from "../../provider.ts";
 import {
   FileError,
@@ -28,10 +28,10 @@ export interface NodeWatchOptions {
   pollIntervalMs?: number;
   /** Most directories one watcher covers; default 10,000. */
   maxDirectories?: number;
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   /** Which operating system's watching rules apply. */
   platform: ExecPlatformProvider;
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   /** Receives the failures that watching survives: a throwing change callback. */
   logger?: Logger;
 }
@@ -159,9 +159,9 @@ export class NodeFileWatcher implements FileWatcher {
   readonly #onChange: (change: WatchChange) => void;
   readonly #pollIntervalMs: number;
   readonly #maxDirectories: number;
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   readonly #platform: ExecPlatformProvider;
-  // XEON-PATCH: P16
+  // FRESNEL-PATCH: P16
   readonly #logger: Logger | undefined;
   readonly #watchers = new Map<string, Installed>();
   readonly #events = new Set<string>();
@@ -184,9 +184,9 @@ export class NodeFileWatcher implements FileWatcher {
     this.#mode = mode;
     this.#pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_MS;
     this.#maxDirectories = options.maxDirectories ?? DEFAULT_MAX_DIRECTORIES;
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     this.#platform = options.platform;
-    // XEON-PATCH: P16
+    // FRESNEL-PATCH: P16
     this.#logger = options.logger;
   }
 
@@ -207,7 +207,7 @@ export class NodeFileWatcher implements FileWatcher {
     // every watched directory open: watching would break renames of their parents, so Windows polls.
     const mode =
       options.mode ??
-      // XEON-PATCH: P3
+      // FRESNEL-PATCH: P3
       (options.platform.forcePollingWatch ||
       (await anyUnreliable(
         resolved.map((target) => target.path),
@@ -249,8 +249,8 @@ export class NodeFileWatcher implements FileWatcher {
 
   #deliver(change: WatchChange): void {
     if (this.#closed) return;
-    // XEON-PATCH: P14
-    // XEON-PATCH: P16
+    // FRESNEL-PATCH: P14
+    // FRESNEL-PATCH: P16
     // A throwing callback must not stop watching. The failure is received as a value and logged.
     const delivered = attempt(() => this.#onChange(change));
     if (!delivered.ok) {
@@ -267,7 +267,7 @@ export class NodeFileWatcher implements FileWatcher {
     if (this.#closed || this.#mode !== "polling") return;
     this.#timer = setTimeout(() => {
       this.#timer = undefined;
-      // XEON-PATCH: P18
+      // FRESNEL-PATCH: P18
       detach(
         this.#flush().finally(() => this.#schedulePoll()),
         (cause) => this.#logFlushFailure(cause),
@@ -279,7 +279,7 @@ export class NodeFileWatcher implements FileWatcher {
     if (this.#closed || this.#timer !== undefined) return;
     this.#timer = setTimeout(() => {
       this.#timer = undefined;
-      // XEON-PATCH: P18
+      // FRESNEL-PATCH: P18
       detach(this.#flush(), (cause) => this.#logFlushFailure(cause));
     }, DEBOUNCE_MS);
   }
@@ -289,12 +289,12 @@ export class NodeFileWatcher implements FileWatcher {
     clearTimeout(this.#settleTimer);
     this.#settleTimer = setTimeout(() => {
       this.#settleTimer = undefined;
-      // XEON-PATCH: P18
+      // FRESNEL-PATCH: P18
       detach(this.#flush(), (cause) => this.#logFlushFailure(cause));
     }, FSEVENTS_SETTLE_MS);
   }
 
-  // XEON-PATCH: P18
+  // FRESNEL-PATCH: P18
   #logFlushFailure(cause: unknown): void {
     this.#logger?.error("exec.watch_flush_failed", {
       error: cause instanceof Error ? cause.message : "non_error_thrown",
@@ -308,7 +308,7 @@ export class NodeFileWatcher implements FileWatcher {
     }
     this.#running = (async () => {
       try {
-        // XEON-PATCH: P15
+        // FRESNEL-PATCH: P15
         await repeatAsync(async () => {
           const events = this.#takeEvents();
           const changed = await this.#sync(true);
@@ -331,7 +331,7 @@ export class NodeFileWatcher implements FileWatcher {
     return this.#running;
   }
 
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   /** Start a flush round: events seen so far belong to it, and anything arriving later marks the watcher dirty again. */
   #takeEvents(): string[] {
     this.#dirty = false;
@@ -340,7 +340,7 @@ export class NodeFileWatcher implements FileWatcher {
     return events;
   }
 
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   /** The closed flag as it is now; it may change while a scan awaits. */
   #isClosed(): boolean {
     return this.#closed;
@@ -349,10 +349,10 @@ export class NodeFileWatcher implements FileWatcher {
   /** Rescan, report differences, and install watchers for new directories, rescanning until none are new. */
   async #sync(report: boolean): Promise<Set<string>> {
     const changed = new Set<string>();
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     let reporting = report;
     let round = 0;
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     await repeatAsync(async () => {
       if (round >= 10 || this.#isClosed()) return { value: undefined };
       round += 1;
@@ -363,7 +363,7 @@ export class NodeFileWatcher implements FileWatcher {
       if (reporting) for (const path of this.#diff(this.#snapshot, next)) changed.add(path);
       this.#snapshot = next;
       if (this.#mode === "polling" || !this.#reconcileWatchers(scan)) return { value: undefined };
-      // XEON-PATCH: P3
+      // FRESNEL-PATCH: P3
       if (this.#platform.fsEventsSettleRescan) this.#scheduleSettle();
       // Something written into a new directory before its watcher existed shows up in the next round.
       reporting = true;
@@ -440,7 +440,7 @@ export class NodeFileWatcher implements FileWatcher {
           return;
         throw error;
       }
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       await eachAsync(names, async (name) => {
         if (excluded(target, name)) return undefined;
         const path = `${directory.endsWith(sep) ? directory : directory + sep}${name}`;
@@ -460,9 +460,9 @@ export class NodeFileWatcher implements FileWatcher {
         return undefined;
       });
     };
-    // XEON-PATCH: P15
+    // FRESNEL-PATCH: P15
     await eachAsync(this.#targets.entries(), async ([index, target]) => {
-      // XEON-PATCH: P15
+      // FRESNEL-PATCH: P15
       await eachAsync(ancestorsOf(target.path), async (ancestor) => {
         if (snapshot.has(ancestor)) return undefined;
         const stats = await valueOrUndefined(() => lstat(ancestor));
@@ -500,7 +500,7 @@ export class NodeFileWatcher implements FileWatcher {
   #reconcileWatchers({ snapshot, linkedFiles }: Scan): boolean {
     const wanted = new Map<string, boolean>();
     for (const path of linkedFiles) wanted.set(path, false);
-    // XEON-PATCH: P3
+    // FRESNEL-PATCH: P3
     const perDirectory = this.#platform.perDirectoryWatchers;
     for (const target of this.#targets) {
       for (const ancestor of ancestorsOf(target.path)) {
@@ -537,7 +537,7 @@ export class NodeFileWatcher implements FileWatcher {
       if (this.#watchers.has(path) || entry === undefined) continue;
       const linked = linkedFiles.has(path);
       try {
-        // XEON-PATCH: P15
+        // FRESNEL-PATCH: P15
         const watcher = fsWatch(path, { recursive, persistent: false }, (_event, filename) =>
           linked ? this.#onLinkedFileEvent(path) : this.#onEvent(path, filename ?? undefined),
         );
@@ -609,14 +609,14 @@ export class NodeFileWatcher implements FileWatcher {
 }
 
 /** Whether any path, or its nearest existing ancestor, is on a file system that does not report remote changes. */
-// XEON-PATCH: P3
+// FRESNEL-PATCH: P3
 async function anyUnreliable(
   paths: readonly string[],
   platform: ExecPlatformProvider,
 ): Promise<boolean> {
-  // XEON-PATCH: P3
+  // FRESNEL-PATCH: P3
   if (!platform.statfsUnreliableCheck) return false;
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   const unreliable = await eachAsync(paths, async (path) => {
     // The nearest existing ancestor decides: the first candidate that can be queried.
     const nearest = await eachAsync([path, ...ancestorsOf(path)], async (candidate) => {

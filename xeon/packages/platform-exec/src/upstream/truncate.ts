@@ -8,15 +8,15 @@
  * Never returns partial lines. Tool output streams are bounded by `src/harness/output.ts` instead.
  */
 
-// XEON-PATCH: P13
+// FRESNEL-PATCH: P13
 import type { TruncationOptions, TruncationResult } from "@xeon/contracts/services";
 
-// XEON-PATCH: P12
+// FRESNEL-PATCH: P12
 const DEFAULT_MAX_LINES: number = 2000;
-// XEON-PATCH: P12
+// FRESNEL-PATCH: P12
 const DEFAULT_MAX_BYTES: number = 50 * 1024; // 50KB
 
-// XEON-PATCH: P10
+// FRESNEL-PATCH: P10
 function utf8ByteLength(content: string): number {
   return Buffer.byteLength(content, "utf8");
 }
@@ -91,7 +91,7 @@ export function truncateHeadOf(
   }
 
   // Check if first line alone exceeds byte limit
-  // XEON-PATCH: P11
+  // FRESNEL-PATCH: P11
   const firstLineBytes = utf8ByteLength(lines[0] ?? "");
   if (firstLineBytes > maxBytes) {
     return {
@@ -115,7 +115,7 @@ export function truncateHeadOf(
   let truncatedBy: "lines" | "bytes" = "lines";
 
   for (let i = 0; i < lines.length && i < maxLines; i++) {
-    // XEON-PATCH: P11
+    // FRESNEL-PATCH: P11
     const line = lines[i] ?? "";
     const lineBytes = utf8ByteLength(line) + (i > 0 ? 1 : 0); // +1 for newline
 

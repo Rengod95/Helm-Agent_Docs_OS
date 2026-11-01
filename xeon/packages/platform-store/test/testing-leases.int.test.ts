@@ -7,7 +7,7 @@ import { own, releaseOwned } from "./support/own.ts";
 
 afterEach(releaseOwned);
 
-const SESSION = "session:thr_01HZZZZZZZZZZZZZZZZZZZZZZZ";
+const SESSION = "thread:thr_01HZZZZZZZZZZZZZZZZZZZZZZZ";
 
 async function open() {
   const clock = manualClock();

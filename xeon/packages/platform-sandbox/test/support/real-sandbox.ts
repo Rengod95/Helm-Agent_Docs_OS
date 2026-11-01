@@ -61,11 +61,11 @@ export function readSandboxEnvironment(): SandboxEnvironment {
 export const ENVIRONMENT_EXIT_CODE = 2;
 
 /**
- * 필수 바이너리가 없을 때의 동작을 정한다. `XEON_REQUIRE_SANDBOX=1` 또는 CI에서는 시험을 건너뛰지 않고
+ * 필수 바이너리가 없을 때의 동작을 정한다. `FRESNEL_REQUIRE_SANDBOX=1` 또는 CI에서는 시험을 건너뛰지 않고
  * 종료 코드 2로 끝낸다(조용히 건너뛰면 M1 종료 조건의 근거가 사라진다). 그 밖의 기기에서는 건너뛰고 이유를 한 줄 알린다.
  */
 export function shouldFailOnMissing(env: Readonly<Record<string, string | undefined>>): boolean {
-  return env["XEON_REQUIRE_SANDBOX"] === "1" || env["CI"] === "true";
+  return env["FRESNEL_REQUIRE_SANDBOX"] === "1" || env["CI"] === "true";
 }
 
 export function missingMessage(environment: SandboxEnvironment): string {

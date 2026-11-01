@@ -1,7 +1,7 @@
 # platform-exec 포크 패치 기록
 
 `src/upstream/`과 `test/upstream/`은 pi durable env의 포크다. 원본 저장소, 커밋, 복사 경로, 파일별 sha256은 `UPSTREAM.json`에 있다.
-세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// XEON-PATCH: <id>` 표지.
+세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// FRESNEL-PATCH: <id>` 표지.
 `test/fork-records.test.ts`가 이를 검사한다. 근거 문서는 `L0.exec.spec` §3.3, `L0.exec.plan` §4, `adr.0003` §3.4다.
 고친 줄 위에 표지를 단다. 줄 번호는 원본(커밋 `cdaf6c2`, `packages/durable/`) 기준이다.
 
@@ -43,7 +43,7 @@ EX-01의 '첫 커밋은 복사만 담는다' 규칙은 지키지 못했다. 이 
 
 ## 린트 예외 주석
 
-포크 코드에는 `oxlint-disable` 주석을 두지 않는다. `eng.typescript.guide` §1은 업스트림 병합 비용을 억제 주석의 사유로 인정하지 않는다. 린트가 걸리는 줄은 P15처럼 고쳐 쓰고 `XEON-PATCH` 표지를 단다.
+포크 코드에는 `oxlint-disable` 주석을 두지 않는다. `eng.typescript.guide` §1은 업스트림 병합 비용을 억제 주석의 사유로 인정하지 않는다. 린트가 걸리는 줄은 P15처럼 고쳐 쓰고 `FRESNEL-PATCH` 표지를 단다.
 고칠 수 없는 줄이 생기면 주석으로 넘기지 말고 `[미결] TY-NN <파일:줄> <이유>`로 `review.open-issues`에 적는다. `just check-ts-rules`의 `xeon/directive-format`이 "업스트림 모양"·"포크 모양"을 이유로 든 억제 주석을 실패시킨다.
 업스트림을 갱신하면 새 원본에서 같은 린트 오류가 다시 생긴다. `bun run lint` 출력에 맞춰 P15를 다시 적용한다.
 

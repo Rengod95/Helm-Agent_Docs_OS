@@ -1,6 +1,6 @@
 import type { StorageConformanceAssertions } from "./types.ts";
 
-// XEON-PATCH: P14
+// FRESNEL-PATCH: P14
 export type ExpectLike = (actual: unknown, message?: string) => ExpectResult;
 
 type ExpectResult = {

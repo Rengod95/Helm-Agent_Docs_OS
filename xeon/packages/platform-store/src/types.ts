@@ -56,7 +56,7 @@ export interface OpenStoreOptions {
   /** 테스트 전용. 마이그레이션 전 스냅샷 수단을 대신한다 */
   readonly takeSnapshot?: typeof snapshotBeforeMigration;
   readonly loadCustomSqlite?: (path: string) => unknown;
-  /** 범위 핸들의 EXPLAIN 대조를 강제로 켜거나 끈다. 생략하면 XEON_STORE_STRICT와 NODE_ENV로 정한다 */
+  /** 범위 핸들의 EXPLAIN 대조를 강제로 켜거나 끈다. 생략하면 FRESNEL_STORE_STRICT와 NODE_ENV로 정한다 */
   readonly strictPrefix?: boolean;
   /**
    * 읽기 전용으로 연다(L0.store.spec §4.4). 파일을 만들지 않고, 마이그레이션·잠금·WAL 설정을 하지 않는다.

@@ -127,7 +127,7 @@ provider id [미결]: 계획 v2는 "os.* provider"라고만 적었고 provider i
 | `@opentelemetry/api` 1.10.0 | F는 `import type`만, 값 import는 `platform-os` | F.readme §1, `F.wire-settings.spec` §3.6 | 있음 |
 | `bun:ffi` | `platform-store`(`flock`) | `_research/notes/L0-2.md` | 있음 |
 
-- 포크 코드는 포크를 소비하는 패키지의 `src/upstream/` 아래에 두고 `UPSTREAM.json`, `PATCHES.md`, `// XEON-PATCH:` 표지를 맞춘다(adr.0003). L0에서 포크를 두는 패키지는 `platform-exec` 하나다.
+- 포크 코드는 포크를 소비하는 패키지의 `src/upstream/` 아래에 두고 `UPSTREAM.json`, `PATCHES.md`, `// FRESNEL-PATCH:` 표지를 맞춘다(adr.0003). L0에서 포크를 두는 패키지는 `platform-exec` 하나다.
 
 ### 3.3 테스트 서브패스
 

@@ -2,27 +2,27 @@ import * as Fs from "node:fs";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 import { afterAll, afterEach, describe, expect, it, mock } from "bun:test";
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 import type { CancelScope } from "@xeon/contracts/services";
 import { getOrThrow } from "../../src/upstream/env/index.ts";
 import { NodeExecutionEnv } from "../../src/upstream/env/node.ts";
 import { hostPlatform } from "../support/platform.ts";
 
-// XEON-PATCH: P5
+// FRESNEL-PATCH: P5
 const BACKGROUND_CONTEXT: CancelScope = { abortSignal: undefined };
-// XEON-PATCH: P3
+// FRESNEL-PATCH: P3
 const platform = hostPlatform();
 // Longer than the shell's post-exit stdio grace period plus the descendant's delayed write.
 const SPILL_WRITE_DELAY_MS = 600;
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 const spill = { rejectedWrites: 0 };
 
 // Make the spill stream deterministically slow and immediately backpressured.
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 const actual: typeof Fs = { ...Fs };
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P15
 /** Delays a stream's internal write hook. Node documents `_write`/`_writev` as the hooks a stream implementation provides. */
 function delayHook(stream: Fs.WriteStream, name: "_write" | "_writev"): void {
   const original: unknown = stream[name];
@@ -36,8 +36,8 @@ function delayHook(stream: Fs.WriteStream, name: "_write" | "_writev"): void {
   });
 }
 
-// XEON-PATCH: P4
-// XEON-PATCH: P15
+// FRESNEL-PATCH: P4
+// FRESNEL-PATCH: P15
 await mock.module("node:fs", () => {
   return {
     ...actual,
@@ -52,7 +52,7 @@ await mock.module("node:fs", () => {
       delayHook(stream, "_write");
       delayHook(stream, "_writev");
       const write = stream.write.bind(stream);
-      // XEON-PATCH: P14
+      // FRESNEL-PATCH: P14
       Object.defineProperty(stream, "write", {
         value: (...args: Parameters<Fs.WriteStream["write"]>): boolean => {
           const accepted: unknown = Reflect.apply(write, stream, args);
@@ -65,9 +65,9 @@ await mock.module("node:fs", () => {
   };
 });
 
-// XEON-PATCH: P4
+// FRESNEL-PATCH: P4
 afterAll(async () => {
-  // XEON-PATCH: P15
+  // FRESNEL-PATCH: P15
   await mock.module("node:fs", () => actual);
 });
 

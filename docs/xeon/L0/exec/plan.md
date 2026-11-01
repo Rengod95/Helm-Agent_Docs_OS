@@ -35,7 +35,7 @@ xeon/packages/platform-exec/
   LICENSE.pi                   # pi MIT LICENSE 원문
   src/
     index.ts                   # 공개 export: createExecService, ExecPlatformProvider 타입, LineScanner 등 재export
-    upstream/                  # 포크 코드만. 고친 줄에 // XEON-PATCH: <id>
+    upstream/                  # 포크 코드만. 고친 줄에 // FRESNEL-PATCH: <id>
       env/index.ts
       env/node.ts
       env/node-watch.ts
@@ -115,7 +115,7 @@ export function fakeExec(
 | EX-08 | P5 Chord 값 import 치환: 테스트 3파일과 `env-conformance.ts`의 `BACKGROUND_CONTEXT`·`withAbortSignal`을 직접 객체로 | EX-03, EX-07 | S |
 | EX-09 | 적합성 스위트 이식: `src/testing/conformance.ts`의 `registerExecConformance(name, withEnv, options)`가 `bun:test`의 `describe/it/expect`로 원본 `registerEnvConformance`를 부른다. Linux CI 통과 | EX-06, EX-08 | M |
 | EX-10 | Bun 동작 스파이크(시험 1개): `process-group.int.test.ts`가 Bun 1.4.3에서 `spawn(detached: true)` + `process.kill(-pid, "SIGKILL")`로 손자 프로세스까지 끝나는지 확인. 실패하면 위험 표 R-1 대응으로 전환 | EX-06 | S |
-| EX-11 | 포크 기록 검사: `fork-records.test.ts`가 `PATCHES.md` 표의 id, `UPSTREAM.json` `modifications`, 소스의 `XEON-PATCH:` 표지 id 집합이 같은지 확인 | EX-03~EX-08 | S |
+| EX-11 | 포크 기록 검사: `fork-records.test.ts`가 `PATCHES.md` 표의 id, `UPSTREAM.json` `modifications`, 소스의 `FRESNEL-PATCH:` 표지 id 집합이 같은지 확인 | EX-03~EX-08 | S |
 | EX-12 | env 빌더: `env-builder.ts`(`BASE_ENV_POLICY`, `buildChildEnv`), provider의 `envAllowlistExtra` 연결, 연결 코드가 포크 `exec`에 항상 `inheritEnv: false`를 넘기도록 | EX-06 | M |
 | EX-13 | secrets 주입 지점: `secret-env.ts`. `xeon.secrets` 주입(없으면 `secret_unavailable`), `withEnv`로 lease 획득·`finally` 폐기, `SecretEnvRequest.ctx`에 `mode`·`target` 채우기, 오류 메시지에 참조 이름만 | EX-12, `L0.secrets.plan` SC-22(`withEnv`) | M |
 | EX-14 | 서비스 조립: `service.ts`(`createExecService`, `withCwd`, 기본 timeout·spill 적용, dispose 시 `cleanup`). ext-host API로 `ExecServiceName` 등록. `settings.ts`의 `defineSettings("l0.exec", …)` 4키 | EX-12, `X.primitives.plan` 등록 API | M |
@@ -162,7 +162,7 @@ export function fakeExec(
 
 1. `UPSTREAM.json`의 `commit`과 새 커밋 사이 `git diff <old> <new> -- packages/durable/src/env packages/durable/src/testing packages/durable/test/env-*`를 본다.
 2. 변경이 있는 파일마다 원본 새 판을 `src/upstream/`에 덮어쓴다.
-3. `PATCHES.md` 순서대로 P1~P6을 다시 적용하고 `// XEON-PATCH:` 표지를 다시 단다. 새 `process.platform` 분기가 생겼으면 P3에 줄을 더한다.
+3. `PATCHES.md` 순서대로 P1~P6을 다시 적용하고 `// FRESNEL-PATCH:` 표지를 다시 단다. 새 `process.platform` 분기가 생겼으면 P3에 줄을 더한다.
 4. `UPSTREAM.json`의 `commit`, `version`, `modifications`를 갱신한다.
 5. `just verify`와 적합성 스위트를 돌린다. `fork-records.test.ts`와 `no-platform-branch.test.ts`가 통과해야 한다.
 6. 갱신 주기는 `L0.exec.spec` §10 [미결] 3을 따른다.
@@ -191,7 +191,7 @@ export function fakeExec(
 | env request with a denied name fails before spawn | `env-builder.test.ts`, `service.int.test.ts` | `AWS_SECRET_ACCESS_KEY` 요청이 `env_denied`, 자식 없음 |
 | inheritEnv false never copies parent | `env-builder.test.ts` | `inherit: false`이면 `pass` 이름도 없음 |
 | child env never equals parent env | `service.int.test.ts` | 실제 `env` 출력 이름 집합 ⊆ 허용 목록 ∪ 요청 ∪ 셸 자체 변수(`PWD`, `SHLVL`, `_`) |
-| child env drops secret provider variables | `service.int.test.ts` | 부모 env의 `L0.secrets.spec` §9 1번 이름(`SOPS_AGE_KEY_CMD`, `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY`, `AGE_X`, `OP_SERVICE_ACCOUNT_TOKEN`, `BWS_ACCESS_TOKEN`, `BW_SESSION`, `XEON_SECRET_X`)이 실제 자식 `env` 출력에 없다(`L0.secrets.plan` SC-15) |
+| child env drops secret provider variables | `service.int.test.ts` | 부모 env의 `L0.secrets.spec` §9 1번 이름(`SOPS_AGE_KEY_CMD`, `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY`, `AGE_X`, `OP_SERVICE_ACCOUNT_TOKEN`, `BWS_ACCESS_TOKEN`, `BW_SESSION`, `FRESNEL_SECRET_X`)이 실제 자식 `env` 출력에 없다(`L0.secrets.plan` SC-15) |
 | secretEnv lease is disposed after use | `secret-env.test.ts` | 성공, 실패, 취소, 시간 초과 4경우 모두 폐기 횟수 = 획득 횟수 |
 | secretEnv failure disposes acquired leases | `secret-env.test.ts` | 두 번째 lease 실패 시 첫 lease 폐기, `secret_unavailable`, 자식 없음 |
 | secret value never appears in results or logs | `secret-env.test.ts` | 값을 출력하지 않는 명령에서 `ShellExecResult`, 오류 메시지, 기록된 로그 줄에 값 문자열 0회 |
@@ -212,7 +212,7 @@ export function fakeExec(
 - M0:
   - `cd xeon && just verify`가 종료코드 0이다.
   - `just check-layers`가 `platform-exec`를 `L0`로 인식하고 위반 0건이다(`package.json` `"xeon": {"layer": "L0", "domain": "exec"}`).
-  - 포크 5파일과 테스트의 변경점이 `PATCHES.md`, `UPSTREAM.json` `modifications`, `// XEON-PATCH:` 표지 셋에서 일치한다(`fork-records.test.ts`).
+  - 포크 5파일과 테스트의 변경점이 `PATCHES.md`, `UPSTREAM.json` `modifications`, `// FRESNEL-PATCH:` 표지 셋에서 일치한다(`fork-records.test.ts`).
   - 적합성 스위트 24개 사례가 Linux CI에서 통과한다.
   - EX-10 스파이크 결과(통과 또는 대응 전환)를 `PATCHES.md` 끝 "확인 기록"에 남긴다.
 - M1:

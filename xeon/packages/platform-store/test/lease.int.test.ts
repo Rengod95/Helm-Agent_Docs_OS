@@ -12,7 +12,7 @@ import { own, releaseOwned } from "./support/own.ts";
 afterEach(releaseOwned);
 
 const THREAD = "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ";
-const SESSION = `session:${THREAD}`;
+const SESSION = `thread:${THREAD}`;
 
 function holder(id: string, overrides: Partial<LeaseHolder> = {}): LeaseHolder {
   return { holderId: id, kind: "cli", pid: 4242, startedAt: 111, host: "host-a", ...overrides };
@@ -86,7 +86,7 @@ describe("lease acquire", () => {
   test("invalid resources are bugs", async () => {
     const fixture = own(await open());
     const { store } = fixture;
-    expect(() => store.service.leases.acquire("session:not-a-thread", holder("h1"))).toThrow(
+    expect(() => store.service.leases.acquire("thread:not-a-thread", holder("h1"))).toThrow(
       "store.lease_resource_invalid",
     );
     expect(store.service.leases.acquire("scheduler", holder("h1")).ok).toBe(true);

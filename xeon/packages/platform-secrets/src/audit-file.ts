@@ -13,7 +13,7 @@ import {
 } from "@xeon/contracts";
 import {
   SecretHandleSchema,
-  SecretUseModeSchema,
+  InjectionModeSchema,
   type SecretAuditRecord,
 } from "@xeon/contracts/capabilities";
 import { Type } from "typebox";
@@ -97,7 +97,7 @@ const AuditRecordSchema = Type.Union([
     {
       type: Type.Literal("secret.used"),
       handle: SecretHandleSchema,
-      mode: SecretUseModeSchema,
+      mode: InjectionModeSchema,
       toolCallId: NullableString,
       threadId: NullableString,
       host: NullableString,
@@ -112,7 +112,7 @@ const AuditRecordSchema = Type.Union([
     {
       type: Type.Literal("secret.denied"),
       handle: SecretHandleSchema,
-      mode: SecretUseModeSchema,
+      mode: InjectionModeSchema,
       reason: DenyReasonSchema,
       purpose: Type.String(),
       toolCallId: NullableString,

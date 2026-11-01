@@ -2,10 +2,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-// L0.exec.plan EX-11. PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 XEON-PATCH 표지 id 집합이 같아야 한다.
+// L0.exec.plan EX-11. PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 FRESNEL-PATCH 표지 id 집합이 같아야 한다.
 
 const PACKAGE = join(import.meta.dir, "..");
-const MARKER = /\/\/ XEON-PATCH: (P\d+)\b/g;
+const MARKER = /\/\/ FRESNEL-PATCH: (P\d+)\b/g;
 const CHORD_IMPORT = /from ['"][^'"]*chord|import\(['"][^'"]*chord|require\(['"][^'"]*chord/;
 
 function walk(dir: string): string[] {

@@ -7,7 +7,7 @@ import type {
   SecretAuditRecord,
   SecretDenyReason,
   SecretHandle,
-  SecretUseMode,
+  InjectionMode,
 } from "@xeon/contracts/capabilities";
 import type { ApprovalEvidence, UseCtx } from "@xeon/contracts/services";
 
@@ -91,7 +91,7 @@ export function usedRecord(args: {
 
 export function deniedRecord(args: {
   readonly handle: SecretHandle;
-  readonly mode: SecretUseMode;
+  readonly mode: InjectionMode;
   readonly reason: SecretDenyReason;
   readonly ctx: Pick<UseCtx, "purpose" | "toolCallId" | "threadId">;
   readonly at: number;
