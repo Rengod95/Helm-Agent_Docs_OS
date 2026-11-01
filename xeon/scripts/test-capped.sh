@@ -7,7 +7,7 @@
 # xeon/scripts itself (`bun test scripts`) is cheap and reads the docs and CI files, so it always runs, uncached, one scope.
 # `just verify` does not wrap the test step (xeon/scripts/verify-steps.sh): WS_GUARD_ACTIVE must be unset when this script is called.
 # usage: test-capped.sh [package-dir ...]   (default: scripts and all packages with a "test" script)
-# env: XEON_TEST_TIMEOUT_SEC (default 300) seconds per target; WS_GUARD_RUN_MAX (default 1500M) memory cap per target;
+# env: XEON_TEST_CONCURRENCY packages at a time (default 2, 6 on macOS); XEON_TEST_TIMEOUT_SEC (default 300) seconds per target; WS_GUARD_RUN_MAX (default 1500M) memory cap per target;
 #      TURBO_FORCE=true runs every package (no cache read); TURBO_CACHE_DIR cache location
 #      (see ../scripts/guard.sh for the other WS_GUARD_* knobs).
 # The summary line counts the tests bun reported as skipped, so a skip in CI is visible (just exit-tests fails on it). The count
@@ -19,6 +19,9 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 root="$PWD"
 guard="$root/../scripts/guard.sh"
 timeout_sec="${XEON_TEST_TIMEOUT_SEC:-300}"
+concurrency=2
+if [[ "$(uname -s)" == "Darwin" ]]; then concurrency=6; fi
+concurrency="${XEON_TEST_CONCURRENCY:-$concurrency}"
 export TURBO_TELEMETRY_DISABLED=1
 export TURBO_CACHE_DIR="${TURBO_CACHE_DIR:-$HOME/.cache/xeon/turbo}"
 
@@ -63,7 +66,7 @@ if [[ ${#filters[@]} -gt 0 ]]; then
   echo "== packages (turbo, cache $TURBO_CACHE_DIR)"
   status=0
   started=$SECONDS
-  mise exec -- bun run turbo run test "${filters[@]}" --concurrency=2 --continue --log-prefix=task --output-logs=full 2>&1 | tee "$log" || status=$?
+  mise exec -- bun run turbo run test "${filters[@]}" --concurrency="$concurrency" --continue --log-prefix=task --output-logs=full 2>&1 | tee "$log" || status=$?
   hit="$(grep -cE '^[^ ]+:test: cache hit' "$log" || true)"
   miss="$(grep -cE '^[^ ]+:test: cache (miss|bypass)' "$log" || true)"
   echo "test-capped: packages: $hit cached, $miss ran, $((SECONDS - started))s" >&2
