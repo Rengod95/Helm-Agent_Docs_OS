@@ -72,6 +72,16 @@ export const T = {
   pluginView: "플러그인 화면",
   viewDeclarative: "기본 부품 화면", // 선언형 모드
   viewFrame: "자체 코드 화면", // 프레임 모드
+  viewFallback: "대체 화면", // 프레임 금지 때 그리는 fallback 트리
+  framesSetting: "자체 코드 화면 허용", // x.views.frames
+  projectFramesSetting: "프로젝트 확장의 자체 코드 화면", // x.views.allowProjectFrames
+  frameConfirm: "동작 확인", // 프레임 call 확인 줄(셸이 띄움)
+  projectTrust: "프로젝트 신뢰", // O-04 폴더 신뢰(확장 신뢰 수준과 다름)
+  trustConfirm: "확장 신뢰 확인", // O-10
+  installFolder: "폴더", // 설치 출처: 확장 폴더
+  installBundle: "묶음 파일", // 설치 출처: 패키징한 확장 파일
+  installUserDir: "사용자 확장 위치", // install source user(<userDir>/extensions)
+  extStorage: "확장 저장 데이터", // 확장 접두 테이블(상태 문서)
 
   // 맥락·프로필·시험
   context: "보기 기준", // 작업대 맥락 칸
