@@ -196,7 +196,7 @@ describe("definition loader", () => {
       trusted: true,
     });
     await startWorld(world);
-    expect(files.reads.toSorted()).toEqual([`${ROOT}/.mcp.json`, `${ROOT}/.fresnel/mcp.json`]);
+    expect(files.reads.toSorted()).toEqual([`${ROOT}/.fresnel/mcp.json`, `${ROOT}/.mcp.json`]);
     const listed = await world.runtime.service.client.listServers({});
     const bySource = Object.fromEntries(
       listed.servers.map((server) => [server.server, server.source]),
