@@ -92,6 +92,8 @@ export interface StatusDecl {
   text: string;
   tone: "neutral" | "success" | "warning" | "danger";
   title: string;
+  /** Popover 첫 줄에 쓰는 자세한 글(없으면 text) */
+  detail?: string;
 }
 
 export const STATUS: StatusDecl[] = [
@@ -107,7 +109,9 @@ export const STATUS: StatusDecl[] = [
     id: "review/pending",
     ext: "review",
     display: "검토",
-    text: "검토 대기 12건 · 가장 오래된 요청 3일 전",
+    // 칸 글은 24자 안(ADR-0021 §3.2). 자세한 글은 Popover에만.
+    text: "검토 대기 12건",
+    detail: "검토 대기 12건 · 가장 오래된 요청 3일 전",
     tone: "warning",
     title: "대기열",
   },

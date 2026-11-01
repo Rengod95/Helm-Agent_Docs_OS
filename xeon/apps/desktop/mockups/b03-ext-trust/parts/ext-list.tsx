@@ -77,13 +77,22 @@ export function ExtList({
           </span>
           <span role="cell" className="flex justify-end">
             {e.update !== undefined && e.state === "on" && (
-              <Button size="xs" tone="neutral" variant="outline" onClick={() => onUpdate(e.name)}>
-                {e.update} 업데이트…
-              </Button>
+              // 단추 글은 짧게, 대상 버전은 툴팁과 접근 이름으로(동작 단추에 말줄임을 두지 않는다).
+              <Tooltip content={`${e.version} → ${e.update}`}>
+                <Button
+                  size="xs"
+                  tone="neutral"
+                  variant="outline"
+                  aria-label={`${josa(e.update, "으로", "로")} 업데이트`}
+                  onClick={() => onUpdate(e.name)}
+                >
+                  업데이트
+                </Button>
+              </Tooltip>
             )}
             {e.state === "trust_undecided" && (
               <Button size="xs" tone="neutral" variant="outline" onClick={() => onEnable(e.name)}>
-                켜기…
+                켜기
               </Button>
             )}
           </span>

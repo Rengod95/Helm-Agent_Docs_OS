@@ -143,11 +143,14 @@ export const T = {
 
 export type TermKey = keyof typeof T;
 
-/** 받침 여부로 조사를 고른다: josa("진행권", "을", "를") → "진행권을". 영문·숫자로 끝나면 둘째를 쓴다. */
+/** 받침 여부로 조사를 고른다: josa("진행권", "을", "를") → "진행권을". 숫자는 한자어 읽기로 본다
+ *  (0 영, 1 일, 3 삼, 6 육, 7 칠, 8 팔은 받침 있음: "0.4.0이"). 영문으로 끝나면 둘째를 쓴다. */
 export function josa(word: string, withFinal: string, withoutFinal: string): string {
   const last = word.charCodeAt(word.length - 1);
   if (last >= 0xac00 && last <= 0xd7a3) {
     return word + ((last - 0xac00) % 28 === 0 ? withoutFinal : withFinal);
   }
+  const ch = word.charAt(word.length - 1);
+  if (ch >= "0" && ch <= "9") return word + ("013678".includes(ch) ? withFinal : withoutFinal);
   return word + withoutFinal;
 }

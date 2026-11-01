@@ -200,7 +200,11 @@ export function RecheckDialog({
           </ListDescriptionRow>
         ))}
         <ListDescriptionRow term="그대로인 것">
-          <span className="whitespace-normal text-text-tertiary">{d.same.join(" · ")}</span>
+          <span className="grid text-text-tertiary">
+            {d.same.map((x) => (
+              <span key={x}>{x}</span>
+            ))}
+          </span>
         </ListDescriptionRow>
       </ListDescription>
     </Dialog>

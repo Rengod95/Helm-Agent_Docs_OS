@@ -234,7 +234,7 @@ export function App({ state }: { state: StateId }) {
           icon: d.ext === "helm" ? <Compass /> : <Eye />,
           ...(d.tone !== "neutral" ? { dot: d.tone } : {}),
           title: `${d.display} · ${d.title}`,
-          description: d.text,
+          description: d.detail ?? d.text,
           content: (
             <div className="grid gap-1.5">
               <ListDescription variant="ghost" size="xs" aria-label={d.title} className={LD}>
