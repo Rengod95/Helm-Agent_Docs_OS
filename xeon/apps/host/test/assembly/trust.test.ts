@@ -165,7 +165,7 @@ test("the default policy always is trusted without a decision", async () => {
   });
 });
 
-// G1-10: CLI의 `xeon trust`와 데스크톱 카드는 각자의 호스트 프로세스로 같은 trust.json에 쓴다. 서비스가 다른 두 신뢰 저장소가
+// G1-10: CLI의 `fresnel trust`와 데스크톱 카드는 각자의 호스트 프로세스로 같은 trust.json에 쓴다. 서비스가 다른 두 신뢰 저장소가
 // 동시에 결정을 저장해도 어느 쪽 결정도 잃지 않는다(잠금이 없으면 나중 쓰기가 앞 쓰기를 덮는다).
 test("two hosts deciding at the same time lose no decision", async () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "xh-trust-two-")));

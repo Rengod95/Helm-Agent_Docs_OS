@@ -109,9 +109,9 @@ realTest(
   async () => {
     const home = useEngineHome();
     const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-cmd-")));
-    mkdirSync(join(workspace, ".xeon", "commands"), { recursive: true });
+    mkdirSync(join(workspace, ".fresnel", "commands"), { recursive: true });
     writeFileSync(
-      join(workspace, ".xeon", "commands", "hello.md"),
+      join(workspace, ".fresnel", "commands", "hello.md"),
       "---\ndescription: greet\n---\nHello $ARGUMENTS\n",
     );
     const host = await startInProcessHost({ devChecks: true, defaultGroups: false });
@@ -145,9 +145,9 @@ realTest(
   async () => {
     const home = useEngineHome();
     const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-cmdlist-")));
-    mkdirSync(join(workspace, ".xeon", "commands"), { recursive: true });
+    mkdirSync(join(workspace, ".fresnel", "commands"), { recursive: true });
     writeFileSync(
-      join(workspace, ".xeon", "commands", "hello.md"),
+      join(workspace, ".fresnel", "commands", "hello.md"),
       "---\ndescription: greet\n---\nHello $ARGUMENTS\n",
     );
     const host = await startInProcessHost({ devChecks: true, defaultGroups: false });

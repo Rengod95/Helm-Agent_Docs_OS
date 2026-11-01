@@ -151,10 +151,10 @@ describe("session scope", () => {
       const set = await fx.connection.request("settings.set", {
         key: KEY,
         value: 11,
-        scope: "session",
+        scope: "launch",
         threadId: created.threadId,
       });
-      expect(set.setting).toMatchObject({ value: 11, source: { scope: "session" } });
+      expect(set.setting).toMatchObject({ value: 11, source: { scope: "launch" } });
       const got = await fx.connection.request("settings.get", {
         keys: [KEY],
         threadId: created.threadId,
@@ -169,7 +169,7 @@ describe("session scope", () => {
       expect(otherGot.settings[0]).toMatchObject({ source: { scope: "default" } });
       const reset = await fx.connection.request("settings.reset", {
         key: KEY,
-        scope: "session",
+        scope: "launch",
         threadId: created.threadId,
       });
       expect(reset.setting).toMatchObject({ source: { scope: "default" } });
@@ -180,7 +180,7 @@ describe("session scope", () => {
   realTest("needs a thread id and the write ownership", async () => {
     const fx = await start();
     const missing = await wireErrorOf(
-      fx.connection.request("settings.set", { key: KEY, value: 11, scope: "session" }),
+      fx.connection.request("settings.set", { key: KEY, value: 11, scope: "launch" }),
     );
     expect(missing.code).toBe(-32602);
     const created = await fx.connection.request("thread.create", {});
@@ -189,7 +189,7 @@ describe("session scope", () => {
     const still = await fx.connection.request("settings.set", {
       key: KEY,
       value: 12,
-      scope: "session",
+      scope: "launch",
       threadId: created.threadId,
     });
     expect(still.setting).toMatchObject({ value: 12 });
@@ -230,7 +230,7 @@ describe("project and local scope", () => {
   });
 
   realTest(
-    "a trusted workspace gets .xeon/settings.json and settings.local.json, and local wins",
+    "a trusted workspace gets .fresnel/settings.json and settings.local.json, and local wins",
     async () => {
       const fx = await start({ "x.loading-trust.defaultProjectTrust": "always" });
       const created = await fx.connection.request("thread.create", { workspace: fx.workspace });
@@ -242,7 +242,7 @@ describe("project and local scope", () => {
       });
       expect(project.setting).toMatchObject({
         value: 5,
-        source: { scope: "project", path: join(fx.workspace, ".xeon", "settings.json") },
+        source: { scope: "project", path: join(fx.workspace, ".fresnel", "settings.json") },
       });
       const local = await fx.connection.request("settings.set", {
         key: KEY,
@@ -255,8 +255,10 @@ describe("project and local scope", () => {
         source: { scope: "local" },
         shadowed: [{ scope: "project" }],
       });
-      expect(fileValues(join(fx.workspace, ".xeon", "settings.json"))).toEqual({ [KEY]: 5 });
-      expect(fileValues(join(fx.workspace, ".xeon", "settings.local.json"))).toEqual({ [KEY]: 6 });
+      expect(fileValues(join(fx.workspace, ".fresnel", "settings.json"))).toEqual({ [KEY]: 5 });
+      expect(fileValues(join(fx.workspace, ".fresnel", "settings.local.json"))).toEqual({
+        [KEY]: 6,
+      });
       // 다른 작업 폴더의 thread에는 적용되지 않는다
       const elsewhere = await fx.connection.request("thread.create", {});
       const got = await fx.connection.request("settings.get", {
@@ -272,9 +274,9 @@ describe("project and local scope", () => {
     "project files written by hand apply when the workspace is trusted and are ignored when it is not",
     async () => {
       const trusted = await start({ "x.loading-trust.defaultProjectTrust": "always" });
-      mkdirSync(join(trusted.workspace, ".xeon"));
+      mkdirSync(join(trusted.workspace, ".fresnel"));
       writeFileSync(
-        join(trusted.workspace, ".xeon", "settings.json"),
+        join(trusted.workspace, ".fresnel", "settings.json"),
         JSON.stringify({ [KEY]: 8 }),
       );
       const created = await trusted.connection.request("thread.create", {
@@ -288,9 +290,9 @@ describe("project and local scope", () => {
       await trusted.close();
 
       const untrusted = await start();
-      mkdirSync(join(untrusted.workspace, ".xeon"));
+      mkdirSync(join(untrusted.workspace, ".fresnel"));
       writeFileSync(
-        join(untrusted.workspace, ".xeon", "settings.json"),
+        join(untrusted.workspace, ".fresnel", "settings.json"),
         JSON.stringify({ [KEY]: 8 }),
       );
       const second = await untrusted.connection.request("thread.create", {

@@ -483,7 +483,7 @@ export type AgentJudgedPayload = JudgeRecord;
 ### 4.9 서브에이전트 정의 (정의 파일 로더는 2차)
 
 - 형식: 마크다운 파일. 프런트매터 `name`, `description`, `tools`(glob 목록), `model`(모델 역할 이름), `permissions`(`mode`, `rules`), 본문은 `prompt`다(`_research/item-catalog.md` L1-g "서브에이전트 정의 파일", Claude Code·omp·opencode 공통 형태).
-- 위치 우선순위: 프로젝트 > 사용자 > 확장 > 내장 [제안]. 같은 이름은 앞쪽이 이긴다. 결정 문구 "프로젝트 > 사용자 > 내장"에 확장(매니페스트 `components.agents`, F.extensions.spec §3.1)을 사용자와 내장 사이에 넣었다. [가정] 프로젝트와 사용자 디렉터리 경로(예: `.xeon/agents/*.md`, 사용자 설정 디렉터리의 `agents/*.md`)는 L0.os.spec이 정한다.
+- 위치 우선순위: 프로젝트 > 사용자 > 확장 > 내장 [제안]. 같은 이름은 앞쪽이 이긴다. 결정 문구 "프로젝트 > 사용자 > 내장"에 확장(매니페스트 `components.agents`, F.extensions.spec §3.1)을 사용자와 내장 사이에 넣었다. [가정] 프로젝트와 사용자 디렉터리 경로(예: `.fresnel/agents/*.md`, 사용자 설정 디렉터리의 `agents/*.md`)는 L0.os.spec이 정한다.
 - `model` 필드는 L1.models.spec 라우팅 기준으로 해석한다. 값이 `ModelRole`(`main`, `review`, `summary`, `subagent`, `judge`, `search`) 중 하나면 그 역할로 고르고, 그 밖의 값은 `subagent` 역할의 `RoleOverrides.ref`(모델 참조 문자열)로 넘긴다(L1.models.spec 역할 표 `subagent` 행). 참조 해석에 실패하면 정의 적재 진단을 남기고 `subagent` 역할 기본값을 쓴다 [제안].
 - 파서: pi `coding-agent/src/utils/frontmatter.ts`(40줄) 포크 + `yaml` 2.9. 검증은 `AgentDefinitionSchema`(TypeBox)로 한다. 잘못된 파일은 그 정의만 빼고 진단으로 남긴다.
 - 마일스톤 조정 [제안]: Helm은 M2에 `explorer` 정의를 매니페스트 `components.agents`로 싣는다(L3.helm.spec §3, 129행). 그래서 확장 경로의 정의 읽기와 코드 등록(`define`)은 M2에 둔다. 프로젝트·사용자 디렉터리 탐색과 우선순위 덮어쓰기는 2차다.

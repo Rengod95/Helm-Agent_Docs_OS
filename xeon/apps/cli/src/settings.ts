@@ -48,7 +48,7 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     default: "system",
     range: { enum: ["system", "dark", "light"] },
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "local", "session"],
+    allowedScopes: ["managed", "user", "local", "launch"],
     ui: {
       tab: "appearance",
       widget: "select",
@@ -102,7 +102,7 @@ export const cliSettings: SettingGroup<"l4.cli", CliSettingInputs> = defineSetti
     default: "text",
     range: { enum: ["text", "json"] },
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     ui: {
       tab: "appearance",
       widget: "select",

@@ -37,7 +37,7 @@ function harnessOf(extra: Parameters<typeof createLoaderHarness>[0] = {}): Promi
 const signal = new AbortController().signal;
 
 test("on_demand loadAll neither judges nor loads the project of cwd", async () => {
-  await writePlugin(join(projectA, ".xeon", "extensions"), "proj-a", { name: "proj-a" });
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "proj-a", { name: "proj-a" });
   const harness = await harnessOf();
   const report = await harness.loader.loadAll(
     harness.options([], { cwd: projectA, trustOverride: true, projects: "on_demand" }),
@@ -48,7 +48,7 @@ test("on_demand loadAll neither judges nor loads the project of cwd", async () =
 });
 
 test("loadProject loads a trusted project once and reports alreadyLoaded the second time", async () => {
-  await writePlugin(join(projectA, ".xeon", "extensions"), "proj-a", { name: "proj-a" });
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "proj-a", { name: "proj-a" });
   const harness = await harnessOf();
   await harness.loader.loadAll(harness.options([], { cwd: "/", projects: "on_demand" }));
   const first = await harness.loader.loadProject({
@@ -74,8 +74,8 @@ test("loadProject loads a trusted project once and reports alreadyLoaded the sec
 });
 
 test("each workspace is judged on its own: the trusted one loads and the denied one does not", async () => {
-  await writePlugin(join(projectA, ".xeon", "extensions"), "proj-a", { name: "proj-a" });
-  await writePlugin(join(projectB, ".xeon", "extensions"), "proj-b", { name: "proj-b" });
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "proj-a", { name: "proj-a" });
+  await writePlugin(join(projectB, ".fresnel", "extensions"), "proj-b", { name: "proj-b" });
   const harness = await harnessOf();
   await harness.loader.loadAll(harness.options([], { cwd: "/", projects: "on_demand" }));
   const allowed = await harness.loader.loadProject({
@@ -98,7 +98,7 @@ test("each workspace is judged on its own: the trusted one loads and the denied 
 });
 
 test("an undecided project is judged again on the next call and loads after the decision", async () => {
-  await writePlugin(join(projectA, ".xeon", "extensions"), "proj-a", { name: "proj-a" });
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "proj-a", { name: "proj-a" });
   const harness = await harnessOf();
   await harness.loader.loadAll(harness.options([], { cwd: "/", projects: "on_demand" }));
   const undecided = await harness.loader.loadProject({
@@ -118,7 +118,7 @@ test("an undecided project is judged again on the next call and loads after the 
 });
 
 test("the prompt of a call goes to the prompter passed for that call", async () => {
-  await writePlugin(join(projectA, ".xeon", "extensions"), "proj-a", { name: "proj-a" });
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "proj-a", { name: "proj-a" });
   const asked: string[] = [];
   const harness = await harnessOf();
   await harness.loader.loadAll(harness.options([], { cwd: "/", projects: "on_demand" }));
@@ -140,8 +140,8 @@ test("the prompt of a call goes to the prompter passed for that call", async () 
 });
 
 test("a same-named extension from a second project is rejected with name_conflict", async () => {
-  await writePlugin(join(projectA, ".xeon", "extensions"), "shared", { name: "shared" });
-  await writePlugin(join(projectB, ".xeon", "extensions"), "shared", { name: "shared" });
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "shared", { name: "shared" });
+  await writePlugin(join(projectB, ".fresnel", "extensions"), "shared", { name: "shared" });
   const harness = await harnessOf();
   await harness.loader.loadAll(harness.options([], { cwd: "/", projects: "on_demand" }));
   await harness.loader.loadProject({
@@ -161,7 +161,7 @@ test("a same-named extension from a second project is rejected with name_conflic
 });
 
 test("safe mode makes loadProject a no-op with a safe_mode diagnostic", async () => {
-  await writePlugin(join(projectA, ".xeon", "extensions"), "proj-a", { name: "proj-a" });
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "proj-a", { name: "proj-a" });
   const harness = await harnessOf();
   await harness.loader.loadAll(
     harness.options([], {
@@ -182,7 +182,7 @@ test("safe mode makes loadProject a no-op with a safe_mode diagnostic", async ()
 });
 
 test("a load that is cancelled midway is not remembered and the next call loads the project", async () => {
-  await writePlugin(join(projectA, ".xeon", "extensions"), "proj-a", { name: "proj-a" });
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "proj-a", { name: "proj-a" });
   const controller = new AbortController();
   const harness = await harnessOf({
     loader: {
@@ -190,7 +190,7 @@ test("a load that is cancelled midway is not remembered and the next call loads 
         ...realLoaderFs,
         // 프로젝트 확장 위치를 훑을 때 중단한다
         listDir: (path) => {
-          if (path.endsWith(join(".xeon", "extensions"))) controller.abort();
+          if (path.endsWith(join(".fresnel", "extensions"))) controller.abort();
           return realLoaderFs.listDir(path);
         },
       },

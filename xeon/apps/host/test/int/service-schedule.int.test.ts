@@ -178,7 +178,7 @@ describe("service schedule", () => {
         await eventually(() => handle.idleShutdownAt() !== null);
         time.advance(GRACE_MS);
         expect(await handle.exited).toEqual({ code: 0, reason: "idle" });
-        expect(existsSync(join(runtime.dir, "xeon.sock"))).toBe(false);
+        expect(existsSync(join(runtime.dir, "fresnel.sock"))).toBe(false);
       } finally {
         await handle.shutdown("stop");
         runtime.dispose();

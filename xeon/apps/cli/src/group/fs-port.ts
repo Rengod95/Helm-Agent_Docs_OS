@@ -5,7 +5,7 @@ import { t } from "@xeon/client/i18n";
 import { attemptAsync, err, ok, parseJson, type Result } from "@xeon/contracts";
 import type { GroupIoError, GroupTargetState, GroupTemplatesPort } from "../io.ts";
 
-// L4.cli.spec §3.8. `xeon group new`의 실제 파일 작업. 시험(group-new-core-diff.test.ts)도 이 구현을 쓴다.
+// L4.cli.spec §3.8. `fresnel group new`의 실제 파일 작업. 시험(group-new-core-diff.test.ts)도 이 구현을 쓴다.
 // 템플릿 위치와 사용자 설정 폴더는 runtime.ts가 넘긴다. 이 파일은 프로세스 환경을 읽지 않는다.
 
 export interface GroupFsOptions {
@@ -18,7 +18,7 @@ export interface GroupFsOptions {
 }
 
 /**
- * 템플릿 디렉터리를 찾는다: 환경 변수 XEON_GROUP_TEMPLATES_DIR, 릴리즈의 자원 디렉터리(`<resourceDir>/group-sdk/templates`),
+ * 템플릿 디렉터리를 찾는다: 환경 변수 FRESNEL_GROUP_TEMPLATES_DIR, 릴리즈의 자원 디렉터리(`<resourceDir>/group-sdk/templates`),
  * 없으면 `from`에서 위로 올라가며 packages/group-sdk/templates를 찾는다(소스 실행)
  */
 export function locateGroupTemplates(
@@ -26,7 +26,7 @@ export function locateGroupTemplates(
   from: string,
   resourceDir?: string,
 ): string | null {
-  const override = env["XEON_GROUP_TEMPLATES_DIR"];
+  const override = env["FRESNEL_GROUP_TEMPLATES_DIR"];
   if (override !== undefined && override !== "") return override;
   if (resourceDir !== undefined) {
     const bundled = join(resourceDir, "group-sdk", "templates");
@@ -80,7 +80,7 @@ async function manifestNameOf(manifestPath: string): Promise<Result<string | nul
   return ok(name);
 }
 
-/** 한 extensions 폴더 아래 `<이름>/.xeon-plugin/plugin.json`의 이름들. 폴더가 없으면 빈 목록이다 */
+/** 한 extensions 폴더 아래 `<이름>/.fresnel-plugin/plugin.json`의 이름들. 폴더가 없으면 빈 목록이다 */
 async function namesIn(extensionsDir: string): Promise<Result<readonly string[], GroupIoError>> {
   const entries = await io(extensionsDir, () => readdir(extensionsDir, { withFileTypes: true }));
   if (!entries.ok) return entries.error.missing ? ok([]) : entries;
@@ -88,7 +88,7 @@ async function namesIn(extensionsDir: string): Promise<Result<readonly string[],
     entries.value
       .filter((entry) => entry.isDirectory())
       .map((entry) =>
-        manifestNameOf(join(extensionsDir, entry.name, ".xeon-plugin", "plugin.json")),
+        manifestNameOf(join(extensionsDir, entry.name, ".fresnel-plugin", "plugin.json")),
       ),
   );
   const names: string[] = [];
@@ -129,7 +129,7 @@ export function createGroupTemplatesFs(options: GroupFsOptions): GroupTemplatesP
     async installedExtensionNames(workspace) {
       const configDir = options.userConfigDir();
       const userDirs = configDir === null ? [] : [join(configDir, "extensions")];
-      const dirs = [...userDirs, join(workspace, ".xeon", "extensions")];
+      const dirs = [...userDirs, join(workspace, ".fresnel", "extensions")];
       const perDir = await Promise.all(dirs.map((dir) => namesIn(dir)));
       const found: string[] = [...options.builtinNames];
       for (const names of perDir) {

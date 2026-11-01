@@ -37,7 +37,7 @@ async function until(condition: () => boolean, timeoutMs: number): Promise<boole
 realTest(
   "a configured stdio server is spawned, its tool is callable, and no process is left after close",
   async () => {
-    const dir = mkdtempSync(join(tmpdir(), "xeon-mcp-stdio-"));
+    const dir = mkdtempSync(join(tmpdir(), "fresnel-mcp-stdio-"));
     const pidFile = join(dir, "server.pid");
     const listedFile = join(dir, "listed");
     const home = useEngineHome();

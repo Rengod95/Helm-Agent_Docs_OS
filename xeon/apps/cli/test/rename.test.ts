@@ -117,7 +117,7 @@ test("renaming a missing session is a readable error with exit 1", async () => {
   const host = titled();
   const h = harness(host.handlers);
   expect(await h.run(["sessions", "rename", threadId(9), "제목"])).toBe(EXIT.error);
-  expect(h.stderrText()).toContain(`xeon: 세션 ${threadId(9)}이(가) 없다`);
+  expect(h.stderrText()).toContain(`fresnel: 세션 ${threadId(9)}이(가) 없다`);
 });
 
 test("a host without thread.rename says it does not handle the request", async () => {

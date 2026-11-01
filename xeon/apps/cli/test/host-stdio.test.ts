@@ -61,7 +61,7 @@ test("the contract stream is the byte stdout: nothing human-readable goes to std
 test("a host that refuses to start exits 1 and explains on stderr only", async () => {
   const h = harness({ code: 1, reason: "startup", message: "store is locked" });
   expect(await h.run(["host", "--stdio"])).toBe(EXIT.error);
-  expect(h.stderrText()).toBe("xeon: store is locked\n");
+  expect(h.stderrText()).toBe("fresnel: store is locked\n");
   expect(h.stdoutText()).toBe("");
   expect(h.stdoutBytes).toEqual([]);
 });
@@ -87,7 +87,7 @@ test("a development build passes the wire round trip check down, a compiled one 
 
 // 원격 주소가 있으면 엔진을 열지 않고 원격 서비스에 중계한다(HS-89)
 
-const REMOTE: ServiceEndpoint = { kind: "unix", path: "/run/xeon/service.sock" };
+const REMOTE: ServiceEndpoint = { kind: "unix", path: "/run/fresnel/service.sock" };
 
 test("a remote address relays stdin and stdout to the remote service and never starts the host", async () => {
   const flags: unknown[] = [];
@@ -108,8 +108,10 @@ test("a remote address relays stdin and stdout to the remote service and never s
     },
   });
   harnesses.push(h);
-  expect(await h.run(["--remote", "unix:/run/xeon/service.sock", "host", "--stdio"])).toBe(EXIT.ok);
-  expect(flags).toEqual([{ flag: "unix:/run/xeon/service.sock", env: {} }]);
+  expect(await h.run(["--remote", "unix:/run/fresnel/service.sock", "host", "--stdio"])).toBe(
+    EXIT.ok,
+  );
+  expect(flags).toEqual([{ flag: "unix:/run/fresnel/service.sock", env: {} }]);
   expect(bridged).toHaveLength(1);
   expect(bridged[0]?.endpoint).toEqual(REMOTE);
   expect(bridged[0]?.readable).toBeInstanceOf(ReadableStream);
@@ -129,7 +131,7 @@ test("a remote that closes exits 1 with a two-line explanation on stderr", async
   harnesses.push(h);
   expect(await h.run(["host", "--stdio"])).toBe(EXIT.error);
   expect(h.stderrText()).toBe(
-    "xeon: 원격 서비스 연결이 끊겼다\n  해결: xeon service status로 원격 서비스를 확인하고 다시 실행한다\n",
+    "fresnel: 원격 서비스 연결이 끊겼다\n  해결: fresnel service status로 원격 서비스를 확인하고 다시 실행한다\n",
   );
   expect(h.stdoutText()).toBe("");
 });
@@ -142,13 +144,13 @@ test("a connect failure to the remote exits with the start error's code and expl
       Promise.resolve<BridgeExit>({
         code: 1,
         reason: "connect_failed",
-        error: { kind: "not_found", path: "/run/xeon/service.sock" },
+        error: { kind: "not_found", path: "/run/fresnel/service.sock" },
       }),
   });
   harnesses.push(h);
   expect(await h.run(["host", "--stdio"])).toBe(EXIT.environment);
   expect(h.stderrText()).toBe(
-    "xeon: 서비스 소켓이 없다\n  해결: 원격 서비스가 켜져 있고 주소가 맞는지 확인한다\n",
+    "fresnel: 서비스 소켓이 없다\n  해결: 원격 서비스가 켜져 있고 주소가 맞는지 확인한다\n",
   );
   expect(h.stdoutText()).toBe("");
 });
@@ -164,7 +166,7 @@ test("bridge diagnostics go to stderr after the relay ends, never to stdout", as
   });
   harnesses.push(h);
   expect(await h.run(["host", "--stdio"])).toBe(EXIT.ok);
-  expect(h.stderrText()).toBe("xeon: dropped an invalid client frame\n");
+  expect(h.stderrText()).toBe("fresnel: dropped an invalid client frame\n");
   expect(h.stdoutBytes).toEqual([]);
 });
 

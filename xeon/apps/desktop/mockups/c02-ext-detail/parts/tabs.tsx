@@ -53,8 +53,8 @@ const SCOPE_WORD: Record<SourceScope, string> = {
 };
 const SCOPE_PATH: Record<SourceScope, string> = {
   default: "매니페스트 settings",
-  user: "~/.xeon/settings.json",
-  project: "~/code/xeon/.xeon/settings.json",
+  user: "~/.fresnel/settings.json",
+  project: "~/code/xeon/.fresnel/settings.json",
   profile: "profiles.json · explore",
   trial: "session · t8",
   managed: "/etc/xeon/managed.json",
@@ -386,7 +386,9 @@ export function HooksTab({ safe }: { safe: boolean }) {
         <ListDescriptionRow term="명령">
           <Mono dim={false}>{h.command}</Mono>
         </ListDescriptionRow>
-        <ListDescriptionRow term="범위">프로젝트 · ~/code/xeon/.xeon/hooks.json</ListDescriptionRow>
+        <ListDescriptionRow term="범위">
+          프로젝트 · ~/code/xeon/.fresnel/hooks.json
+        </ListDescriptionRow>
         <ListDescriptionRow term="시간">
           {safe ? (
             <span className="text-text-tertiary">실리지 않음</span>
@@ -435,8 +437,8 @@ export function OverviewTab({ ext }: { ext: string }) {
           {ext === "acme-notes"
             ? ACME_DIR
             : ext === "helm"
-              ? "~/.xeon/extensions/helm"
-              : "~/code/xeon/.xeon/hooks.json"}
+              ? "~/.fresnel/extensions/helm"
+              : "~/code/xeon/.fresnel/hooks.json"}
         </Mono>
       </ListDescriptionRow>
       <ListDescriptionRow term="이 시안 밖">

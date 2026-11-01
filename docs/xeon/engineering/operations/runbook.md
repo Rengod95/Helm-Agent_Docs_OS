@@ -140,7 +140,7 @@ resource와 tmp는 바뀌지 않습니다.
 | runtime | `xeon.sock` | 서비스 소켓 |
 | runtime | `service.activation` | 서비스 기동 잠금 |
 
-프로젝트 설정은 작업 폴더의 `.xeon/settings.json`(project)과 `.xeon/settings.local.json`(local)에 있습니다(`apps/host/src/assembly/settings-store.ts`).
+프로젝트 설정은 작업 폴더의 `.fresnel/settings.json`(project)과 `.fresnel/settings.local.json`(local)에 있습니다(`apps/host/src/assembly/settings-store.ts`).
 
 `OsDirs`에는 `log` 항목이 없습니다. 로그는 `state` 아래 `logs/` 폴더입니다(`L0.os.spec` §3.2의 `state` 설명, `apps/host/src/assemble.ts`).
 

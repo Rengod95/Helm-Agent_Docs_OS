@@ -39,7 +39,7 @@ test("a missing session id names the command and the form to use", () => {
   expect(usageOf(["sessions", "show"])).toEqual({
     code: "missingArgument",
     message: "sessions show needs a session id",
-    fix: "xeon sessions show <id>",
+    fix: "fresnel sessions show <id>",
   });
 });
 
@@ -47,7 +47,7 @@ test("an unknown command points to the command list", () => {
   expect(usageOf(["frobnicate"])).toEqual({
     code: "unknownCommand",
     message: "Unknown command: frobnicate",
-    fix: "Check the command list with xeon --help",
+    fix: "Check the command list with fresnel --help",
   });
 });
 
@@ -63,7 +63,7 @@ test("a config set without a value shows the full syntax", () => {
   expect(usageOf(["config", "set", "l4.cli.theme"])).toEqual({
     code: "missingArgument",
     message: "config set needs a key and a value",
-    fix: "xeon config set <key> <value> [--scope user|project|local]",
+    fix: "fresnel config set <key> <value> [--scope user|project|local]",
   });
 });
 
@@ -80,7 +80,7 @@ test("a schedule without a trigger shows the schedule syntax", () => {
     code: "missingArgument",
     message:
       "No schedule trigger was given (choose one of --every, --at, --remote, --watch, or --loop)",
-    fix: "xeon schedule add <prompt> (--every <seconds> | --at <time> | --remote | --watch <path>[,<path>…] | --loop <seconds> --max-iterations <n> --expires-in <seconds>) [--title <title>] [--workspace <folder>] [--disabled]",
+    fix: "fresnel schedule add <prompt> (--every <seconds> | --at <time> | --remote | --watch <path>[,<path>…] | --loop <seconds> --max-iterations <n> --expires-in <seconds>) [--title <title>] [--workspace <folder>] [--disabled]",
   });
 });
 
@@ -96,7 +96,7 @@ test("a secret command without a name asks for one", () => {
   expect(usageOf(["secret", "rm"])).toEqual({
     code: "missingArgument",
     message: "secret rm needs a name",
-    fix: "xeon secret rm <name>",
+    fix: "fresnel secret rm <name>",
   });
 });
 
@@ -110,9 +110,9 @@ test("a positional argument to version is refused in English", () => {
 
 test("the help overview is English", async () => {
   expect(await textOf((write) => runHelp(null, write))).toBe(
-    `xeon: interactive agent runtime
+    `fresnel: interactive agent runtime
 
-Usage: xeon [common flags] [command] [arguments]
+Usage: fresnel [common flags] [command] [arguments]
 
 Commands
   chat                      Interactive mode (default). Switches to print mode when the terminal is not interactive
@@ -143,7 +143,7 @@ Commands
                             Send a trust decision. When trusted, .mcp.json, project skills, and project commands are read
   db export <folder> [--json] Export the storage files read-only, without the engine. The engine may be running
   schedule add <prompt…> (--every <seconds> | --at <time> | --remote | --watch <path>[,…] | --loop <seconds> …)
-                            Create a schedule. If service mode is off, it is only saved and does not run. See xeon help schedule
+                            Create a schedule. If service mode is off, it is only saved and does not run. See fresnel help schedule
   schedule list [--all] [--json]
   schedule cancel <id>      Turn a schedule off
   schedule run <id>         Run a remote schedule once, now
@@ -172,18 +172,18 @@ Exit codes
 
 test("a help topic is English", async () => {
   expect(await textOf((write) => runHelp("db", write))).toBe(
-    `Usage: xeon db export <folder> [--json]
+    `Usage: fresnel db export <folder> [--json]
 
   <folder>      Folder to export to. It is created if it is missing. If it exists, it must be empty. A relative path is based on the working folder (-C)
   --json        Write the export result (destDir, exportedAt, blobCount, missingBlobs) as JSON
 
-  Creates <folder>/xeon.sqlite, <folder>/blobs/, and <folder>/manifest.json. The engine is not started.
+  Creates <folder>/fresnel.sqlite, <folder>/blobs/, and <folder>/manifest.json. The engine is not started.
 `,
   );
 });
 
 test("the version lines are English", async () => {
   expect(await textOf((write) => runVersion("text", { cli: "0.0.0", bun: "1.4.3" }, write))).toBe(
-    `xeon 0.0.0\nContract ${WIRE_PROTOCOL_VERSION}\nBun 1.4.3\n`,
+    `fresnel 0.0.0\nContract ${WIRE_PROTOCOL_VERSION}\nBun 1.4.3\n`,
   );
 });

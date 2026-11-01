@@ -6,7 +6,7 @@ import { ensureHostService, type ServiceCommand } from "./ensure.ts";
 import { resolveLaunchMode } from "./launch-mode.ts";
 import { startService } from "./lifetime.ts";
 
-// L4.host-service.spec §3.2 표. `xeon service start|status|stop|ensure|launch-mode|run`의 본체. 종료코드: 0 성공, 1 실패(시작 거부, 서비스 없음 등).
+// L4.host-service.spec §3.2 표. `fresnel service start|status|stop|ensure|launch-mode|run`의 본체. 종료코드: 0 성공, 1 실패(시작 거부, 서비스 없음 등).
 
 type ServiceHostCommand = Extract<
   HostCommand,
@@ -127,7 +127,7 @@ export async function runServiceCommand(
         if (outcome.kind === "version_mismatch_busy") {
           await write(
             io.stderr,
-            `the running service is version ${registration.version} and is busy; run "xeon service stop" to replace it\n`,
+            `the running service is version ${registration.version} and is busy; run "fresnel service stop" to replace it\n`,
           );
         }
       }

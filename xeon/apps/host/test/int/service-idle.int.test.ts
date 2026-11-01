@@ -119,7 +119,7 @@ describe("service idle shutdown", () => {
         const exit = await handle.exited;
         expect(exit).toEqual({ code: 0, reason: "idle" });
         expect(existsSync(runtime.dir + "/service.json")).toBe(false);
-        expect(existsSync(runtime.dir + "/xeon.sock")).toBe(false);
+        expect(existsSync(runtime.dir + "/fresnel.sock")).toBe(false);
       } finally {
         await handle.shutdown("stop");
         runtime.dispose();
@@ -161,7 +161,7 @@ describe("service idle shutdown", () => {
         // 대기 예약 1: 연결이 없어도 종료하지 않는다
         expect(handle.idleShutdownAt()).toBeNull();
         time.advance(GRACE_MS * 2);
-        expect(existsSync(runtime.dir + "/xeon.sock")).toBe(true);
+        expect(existsSync(runtime.dir + "/fresnel.sock")).toBe(true);
 
         // 예약이 사라지면 유예가 시작되고, 유예 안의 새 연결이 타이머를 취소한다
         pending.value = 0;
@@ -171,7 +171,7 @@ describe("service idle shutdown", () => {
         const client = await connectedClient({ kind: "unix", path: handle.registration.socket });
         expect(handle.idleShutdownAt()).toBeNull();
         time.advance(GRACE_MS * 2);
-        expect(existsSync(runtime.dir + "/xeon.sock")).toBe(true);
+        expect(existsSync(runtime.dir + "/fresnel.sock")).toBe(true);
         await client.close();
         await eventually(() => handle.idleShutdownAt() !== null);
         time.advance(GRACE_MS);

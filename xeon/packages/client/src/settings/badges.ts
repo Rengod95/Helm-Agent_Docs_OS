@@ -24,7 +24,7 @@ const SCOPE_TEXT_ID: Readonly<Record<BadgeScope, MessageId>> = {
   user: "client.settings.scope.user",
   project: "client.settings.scope.project",
   local: "client.settings.scope.local",
-  session: "client.settings.scope.session",
+  launch: "client.settings.scope.launch",
   default: "client.settings.scope.default",
 };
 
@@ -40,7 +40,7 @@ const PENDING_TEXT_ID: Readonly<Record<"nextTurn" | "restart", MessageId>> = {
 };
 
 /** 기본 쓰기 범위의 우선순위(§4.3.6 규칙 4) */
-const DEFAULT_SCOPE_ORDER: readonly WritableScope[] = ["user", "project", "local", "session"];
+const DEFAULT_SCOPE_ORDER: readonly WritableScope[] = ["user", "project", "local", "launch"];
 
 export function scopeBadge(source: SettingSource): ScopeBadge {
   return { scope: source.scope, text: t(SCOPE_TEXT_ID[source.scope]), tone: source.scope };
@@ -116,7 +116,7 @@ export function writableScopes(
   if (setting?.locked === true) return [];
   return def.allowedScopes
     .filter(isWritableScope)
-    .filter((scope) => scope !== "session" || hasThread);
+    .filter((scope) => scope !== "launch" || hasThread);
 }
 
 /** 기본 쓰기 범위: user, 없으면 project, local, session 순의 첫 값. 후보가 없으면 null */

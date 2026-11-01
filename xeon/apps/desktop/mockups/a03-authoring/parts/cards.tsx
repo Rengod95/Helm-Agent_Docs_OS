@@ -277,7 +277,7 @@ export function LinkCard({
         kind="permission"
         status={state === "done" ? "allowed" : "denied"}
         title={state === "done" ? `${T.installLink}했어요` : `${T.installLink}하지 않았어요`}
-        subtitle={`~/.xeon/extensions/${NAME} · ${SRC}`}
+        subtitle={`~/.fresnel/extensions/${NAME} · ${SRC}`}
       />
     );
   return (
@@ -300,7 +300,7 @@ export function LinkCard({
         className={LD}
       >
         <ListDescriptionRow term="위치" mono>
-          ~/.xeon/extensions/{NAME}
+          ~/.fresnel/extensions/{NAME}
         </ListDescriptionRow>
         <ListDescriptionRow term={T.trust}>
           {T.trustUser} · 켤 때 {T.trust} 확인을 한 번 더 받아요

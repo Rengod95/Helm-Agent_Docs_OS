@@ -115,7 +115,7 @@ export function WipeDialog({
             </ListDescriptionRow>
             <ListDescriptionRow term="지워요">{T.profile} 3개 · 기록과 측정</ListDescriptionRow>
             <ListDescriptionRow term="남아요">
-              프로젝트 폴더의 .xeon 설정 · 관리 설정
+              프로젝트 폴더의 .fresnel 설정 · 관리 설정
             </ListDescriptionRow>
             <ListDescriptionRow term="남아요">원격 대상(build-box)의 대화</ListDescriptionRow>
           </ListDescription>

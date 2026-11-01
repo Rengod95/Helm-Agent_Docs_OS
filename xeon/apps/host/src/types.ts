@@ -131,7 +131,7 @@ export interface AssembleOptions {
    */
   readonly schedule?: ScheduleOverrides;
   /**
-   * 기본 플러그인 번들 뿌리(`<뿌리>/<이름>/.xeon-plugin/plugin.json`). 생략하면 실행 파일 옆 `default-plugins/`다.
+   * 기본 플러그인 번들 뿌리(`<뿌리>/<이름>/.fresnel-plugin/plugin.json`). 생략하면 실행 파일 옆 `default-plugins/`다.
    * 개발 실행과 시험이 번들 위치를 바꿀 때 쓴다
    */
   readonly defaultPluginsDir?: string;
@@ -505,7 +505,7 @@ export type LockOutcome =
 export interface SessionLockPort {
   tryAcquire(threadId: ThreadId, kind: OwnerKind): Promise<LockOutcome>;
   holds(threadId: ThreadId): boolean;
-  /** 쥔 잠금을 놓는다(`session.shutdown` 발화, 임대 반납). 쥐고 있지 않으면 아무 일도 하지 않는다 */
+  /** 쥔 잠금을 놓는다(`thread.shutdown` 발화, 임대 반납). 쥐고 있지 않으면 아무 일도 하지 않는다 */
   release(threadId: ThreadId): Promise<void>;
 }
 

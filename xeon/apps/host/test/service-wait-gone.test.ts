@@ -49,7 +49,7 @@ function storeReading(read: () => ServiceRegistration): RegistrationStore {
 async function liveSocket(): Promise<string> {
   const runtime = scratchRuntimeDir();
   dirs.push(runtime);
-  const path = join(runtime.dir, "xeon.sock");
+  const path = join(runtime.dir, "fresnel.sock");
   const listened = await listenSocket({ kind: "unix", path });
   if (!listened.ok) throw new Error("cannot listen");
   listeners.push(listened.value);

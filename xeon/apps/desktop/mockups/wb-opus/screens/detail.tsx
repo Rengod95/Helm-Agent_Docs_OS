@@ -88,8 +88,8 @@ function OverviewTab({ name }: { name: string }) {
           : "변경을 단계마다 검토하고 위험한 편집을 막아요."}
       </ListDescriptionRow>
       <ListDescriptionRow term="저자">xeon</ListDescriptionRow>
-      <ListDescriptionRow term="설치 위치" mono copyValue={`~/.xeon/extensions/${name}`}>
-        ~/.xeon/extensions/{name}
+      <ListDescriptionRow term="설치 위치" mono copyValue={`~/.fresnel/extensions/${name}`}>
+        ~/.fresnel/extensions/{name}
       </ListDescriptionRow>
       <ListDescriptionRow term="등급">user · 요청 user</ListDescriptionRow>
       <ListDescriptionRow term="연산">on · post · drive · scope</ListDescriptionRow>

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { parseArgv, type TerminalFacts, type UsageError } from "../src/cli/command.ts";
 
-// M3b B1-SCH2: `xeon schedule add|list|cancel|run`의 인자 파서. 값은 파싱한 모양으로 비교하고, 사용법 오류는 코드와 해결 문구로 비교한다.
+// M3b B1-SCH2: `fresnel schedule add|list|cancel|run`의 인자 파서. 값은 파싱한 모양으로 비교하고, 사용법 오류는 코드와 해결 문구로 비교한다.
 
 const TTY: TerminalFacts = { stdinIsTty: true, stdoutIsTty: true };
 
@@ -16,7 +16,7 @@ function usageOf(argv: readonly string[]): UsageError {
   return parsed.error;
 }
 
-const ADD_USAGE = "xeon schedule add <프롬프트>";
+const ADD_USAGE = "fresnel schedule add <프롬프트>";
 
 test("add with --every parses the seconds, joins the prompt words, and defaults the rest", () => {
   expect(command(["schedule", "add", "--every", "300", "요약", "해줘"])).toEqual({
@@ -50,8 +50,8 @@ test("add with --remote is the trigger, and a global --remote before the word is
     prompt: "프롬프트",
     trigger: { kind: "remote" },
   });
-  const parsed = parseArgv(["--remote", "unix:/run/xeon.sock", "schedule", "list"], TTY, {});
-  expect(parsed.ok && parsed.value.global.remote).toBe("unix:/run/xeon.sock");
+  const parsed = parseArgv(["--remote", "unix:/run/fresnel.sock", "schedule", "list"], TTY, {});
+  expect(parsed.ok && parsed.value.global.remote).toBe("unix:/run/fresnel.sock");
   expect(parsed.ok && parsed.value.command).toEqual({
     kind: "schedule.list",
     all: false,
@@ -91,7 +91,7 @@ test("add with --loop needs --max-iterations and --expires-in and keeps them as 
   ).toMatchObject({
     kind: "schedule.add",
     prompt: "반복",
-    trigger: { kind: "loop", intervalSeconds: 60, maxIterations: 5, expiresInSeconds: 3600 },
+    trigger: { kind: "repeat", intervalSeconds: 60, maxIterations: 5, expiresInSeconds: 3600 },
   });
   expect(
     command([
@@ -106,7 +106,7 @@ test("add with --loop needs --max-iterations and --expires-in and keeps them as 
       "반복",
     ]),
   ).toMatchObject({
-    trigger: { kind: "loop", intervalSeconds: 0, maxIterations: 10000, expiresInSeconds: 1 },
+    trigger: { kind: "repeat", intervalSeconds: 0, maxIterations: 10000, expiresInSeconds: 1 },
   });
 });
 
@@ -202,7 +202,7 @@ test("--loop needs both caps, --max-iterations and --expires-in belong to --loop
   expect(missing.code).toBe("missingArgument");
   expect(missing.message).toBe("--loop에는 --max-iterations와 --expires-in이 필요하다");
   expect(missing.fix).toBe(
-    "xeon schedule add <프롬프트> --loop <초> --max-iterations <n> --expires-in <초>",
+    "fresnel schedule add <프롬프트> --loop <초> --max-iterations <n> --expires-in <초>",
   );
   expect(usageOf(["schedule", "add", "요약", "--loop", "60", "--max-iterations", "5"]).code).toBe(
     "missingArgument",
@@ -295,7 +295,7 @@ test("list parses --all and --json and rejects positional words", () => {
   });
   const extra = usageOf(["schedule", "list", "x"]);
   expect(extra.code).toBe("unexpectedArgument");
-  expect(extra.fix).toBe("xeon schedule list [--all] [--json]");
+  expect(extra.fix).toBe("fresnel schedule list [--all] [--json]");
   expect(command(["schedule", "list", "--bogus"])).toBe("unknownFlag");
 });
 
@@ -312,7 +312,7 @@ test("cancel and run take exactly one schedule id", () => {
   expect(usageOf(["schedule", "run"]).message).toBe("schedule run에는 예약 id가 필요하다");
   expect(usageOf(["schedule", "cancel", "nope"]).code).toBe("invalidScheduleId");
   expect(usageOf(["schedule", "cancel", "nope"]).fix).toBe(
-    "xeon schedule list --all로 sch_로 시작하는 id를 확인한다",
+    "fresnel schedule list --all로 sch_로 시작하는 id를 확인한다",
   );
   expect(command(["schedule", "cancel", "sch_a", "sch_b"])).toBe("unexpectedArgument");
 });

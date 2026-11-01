@@ -45,7 +45,7 @@ export function def(key: string, overrides: Partial<SettingDefWire> = {}): Setti
     type: { type: "string" },
     runtimeChange: "live",
     layer: "L4",
-    allowedScopes: ["user", "project", "local", "session"],
+    allowedScopes: ["user", "project", "local", "launch"],
     since: "0.1.0",
     ...overrides,
   };
@@ -114,7 +114,7 @@ export function fakeSettings(
           threadId: params["threadId"],
         });
         values.set(definition.key, params["value"]);
-        return { setting: settingOf(definition, scope === "session" ? "session" : "user") };
+        return { setting: settingOf(definition, scope === "launch" ? "launch" : "user") };
       },
       "settings.reset": (params) => {
         const definition = known(params["key"]);

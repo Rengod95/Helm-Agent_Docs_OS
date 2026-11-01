@@ -136,7 +136,7 @@ xeon/packages/client/test/web/
 | `scope-badge-from-source` | `source.scope` 6값(5범위 + default)이 각각 정해진 글자와 tone을 낸다 | `test/badges.test.ts` |
 | `locked-disables-edit` | `locked: true`이면 `editable: false`, `writableScopes: []`, `canReset: false`이고 `planWrite`가 `blocked`(locked)를 돌려준다 | `test/badges.test.ts`, `test/write-flow.test.ts` |
 | `shadowed-shown` | `shadowed` 원소가 우선순위 순서 그대로 `ShadowedVM`이 되고 값 필드가 없다 | `test/badges.test.ts` |
-| `writable-scopes-from-allowedScopes` | 후보는 `allowedScopes`에서 managed를 뺀 부분집합이고, thread가 없으면 session이 없고, 기본은 user(없으면 project, local, session 순) | `test/badges.test.ts` |
+| `writable-scopes-from-allowedScopes` | 후보는 `allowedScopes`에서 managed를 뺀 부분집합이고, thread가 없으면 session이 없고, 기본은 user(없으면 project, local, launch 순) | `test/badges.test.ts` |
 | `runtimeChange-pending-badge` | `runtimeChange` 3값의 배지 글자, `pendingUntil`이 있을 때 대기 문구, `restart` 대기 개수가 재시작 띠 개수와 같다 | `test/badges.test.ts` |
 | `secret-never-holds-value` | secret 정의에 참조 아닌 문자열(예: `sk-test-…`)을 `draftEdited`로 넣은 뒤 `JSON.stringify(state)`, `buildSettingsView` 결과, `toFieldError` 결과, 테스트용 로거 기록에 그 문자열이 없다 | `test/state.test.ts` |
 | `set-error-code-to-field-message` | `data.kind` 5종, `settings.scopeNotAllowed`의 `details.reason: "workspaceRequired"`, 연결 오류가 spec §4.4.4 표의 `FieldError.kind`·`followUp`으로 바뀌고 서버 `message` 문자열이 결과에 없다 | `test/write-flow.test.ts` |

@@ -36,7 +36,7 @@ test("every usage error is two lines (what, fix) and exits 2 (AC12)", async () =
       expect(code).toBe(EXIT.usage);
       const lines = h.stderrText().split("\n");
       expect(lines).toHaveLength(3);
-      expect(lines[0]).toMatch(/^xeon: .+/);
+      expect(lines[0]).toMatch(/^fresnel: .+/);
       expect(lines[1]).toMatch(/^ {2}해결: .+/);
       expect(lines[2]).toBe("");
       expect(h.stdoutText()).toBe("");

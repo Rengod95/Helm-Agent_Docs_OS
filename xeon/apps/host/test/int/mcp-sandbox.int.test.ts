@@ -34,7 +34,7 @@ import { partial } from "../fixtures/unsafe.ts";
 // 실제로 막힌다. 같은 서버를 샌드박스 없이 띄우면 셋 다 된다(대조). 조립 루트의 `createHostMcpProcessPort`를 그대로 쓴다.
 // srt는 프로세스 전역 싱글턴이라 시험마다 서비스를 하나 만들고 끝에 `dispose()`한다.
 // 필수 바이너리(bwrap, socat, rg)가 없거나 서비스 상태가 쓸 수 없으면 건너뛰고 stderr에 한 줄 남긴다.
-// XEON_REQUIRE_SANDBOX=1 또는 CI이면 건너뛰지 않고 종료 코드 2(환경 문제)로 끝난다(sandbox-network.int.test.ts와 같다).
+// FRESNEL_REQUIRE_SANDBOX=1 또는 CI이면 건너뛰지 않고 종료 코드 2(환경 문제)로 끝난다(sandbox-network.int.test.ts와 같다).
 
 const PROBE = join(import.meta.dir, "..", "fixtures", "mcp-sandbox-probe.ts");
 const REQUIRED_BINARIES = ["bwrap", "socat", "rg"] as const;
@@ -115,7 +115,7 @@ async function createService(
 
 /** 임시 디렉터리와 서비스를 만든다. 차단 도메인으로 루프백을 넣어 프록시 거부를 본다 */
 async function openBox(): Promise<Box> {
-  const root = realpathSync(mkdtempSync(join(DISK_TMP, "xeon-mcp-sandbox-")));
+  const root = realpathSync(mkdtempSync(join(DISK_TMP, "fresnel-mcp-sandbox-")));
   const dirs = {
     home: join(root, "home"),
     data: join(root, "data"),
@@ -173,7 +173,7 @@ async function sandboxRunnable(): Promise<{ readonly runnable: boolean; readonly
 const environment = await sandboxRunnable();
 const runnable = environment.runnable;
 if (!runnable) {
-  if (Bun.env["XEON_REQUIRE_SANDBOX"] === "1" || Bun.env["CI"] === "true") {
+  if (Bun.env["FRESNEL_REQUIRE_SANDBOX"] === "1" || Bun.env["CI"] === "true") {
     process.stderr.write(`ENV mcp-sandbox.int: ${environment.reason}\n`);
     process.exit(ENVIRONMENT_EXIT_CODE);
   }

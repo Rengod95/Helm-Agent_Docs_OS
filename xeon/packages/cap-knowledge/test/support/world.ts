@@ -21,7 +21,7 @@ const DATA_DIR = "/data";
 const PROJECT_DIR = "/proj";
 export const MEMORY_DIR = "/data/memory";
 export const USER_SKILLS = "/data/skills";
-export const PROJECT_SKILLS = "/proj/.xeon/skills";
+export const PROJECT_SKILLS = "/proj/.fresnel/skills";
 
 interface LogLine {
   readonly level: string;

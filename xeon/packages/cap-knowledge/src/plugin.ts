@@ -67,7 +67,7 @@ export interface KnowledgePluginOptions {
   }[];
   /**
    * 프로젝트 디렉터리가 신뢰되었는가(X.loading-trust `resolveProjectTrust`의 `trusted`). 조립 루트가 신뢰 저장소와
-   * 프롬프터를 묶어 넘긴다. 없거나 거짓이거나 거부되면 프로젝트 스킬(`.xeon/skills`)을 싣지 않는다(fail-closed)
+   * 프롬프터를 묶어 넘긴다. 없거나 거짓이거나 거부되면 프로젝트 스킬(`.fresnel/skills`)을 싣지 않는다(fail-closed)
    */
   readonly projectTrust?: (projectDir: string) => Promise<boolean>;
   /**

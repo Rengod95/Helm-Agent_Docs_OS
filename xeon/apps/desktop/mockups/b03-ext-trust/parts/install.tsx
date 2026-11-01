@@ -106,7 +106,7 @@ export function InstallDialog({
               <span className="grid">
                 <span>{T.installFolder}</span>
                 <span className="text-ui-xs text-text-tertiary">
-                  <span className="font-mono text-mono-sm">.xeon-plugin/plugin.json</span>이 있는{" "}
+                  <span className="font-mono text-mono-sm">.fresnel-plugin/plugin.json</span>이 있는{" "}
                   {T.installFolder}
                   {web ? " · 웹에서는 원격 컴퓨터 경로로" : ""}
                 </span>

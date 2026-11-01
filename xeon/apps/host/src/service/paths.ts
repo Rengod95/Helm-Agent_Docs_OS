@@ -4,7 +4,7 @@ import { attempt, err, ok, type Result } from "@xeon/contracts";
 import { resolveOsDirs } from "@xeon/platform-os";
 import { hostResourceDir } from "../state-paths.ts";
 
-// L4.host-service.spec §3.5, SV-05. 서비스 파일의 위치: `<runtimeDir>/service.json`, `<runtimeDir>/xeon.sock`.
+// L4.host-service.spec §3.5, SV-05. 서비스 파일의 위치: `<runtimeDir>/service.json`, `<runtimeDir>/fresnel.sock`.
 // runtimeDir의 경로 값과 길이 폴백은 L0.os가 정한다(`resolveOsDirs`). 이 모듈은 디렉터리를 만들고(0700) 소유자와 권한을 확인한다.
 // 다른 사용자가 만들었거나 그룹·기타에 열린 디렉터리는 쓰지 않는다. 권한을 대신 좁히지 않는다.
 
@@ -24,7 +24,7 @@ function servicePathsIn(runtimeDir: string): ServicePaths {
   return {
     runtimeDir,
     registrationPath: join(runtimeDir, "service.json"),
-    socketPath: join(runtimeDir, "xeon.sock"),
+    socketPath: join(runtimeDir, "fresnel.sock"),
     activationLockPath: join(runtimeDir, "service.activation"),
   };
 }

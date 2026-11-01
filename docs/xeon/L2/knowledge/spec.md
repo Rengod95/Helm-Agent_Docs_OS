@@ -334,7 +334,7 @@ export const KnowledgeSkillsKey = serviceKey(KnowledgeSkills);
 
 - [결정: M3-REQ-88] 쓰기 메서드(`create`·`edit`·`patch`·`writeFile`·`remove`·`manage`, 메모리 쓰기, `ledger.rollback`)는 `replay: "safe"`와 `idempotent: true`를 선언한다. 같은 `requestId`의 두 번째 호출은 원장(`request_id`)과 대기열이 저장한 첫 결과를 돌려주므로(§4.4.5) 재실행되는 코드(on 핸들러, drive)가 불러도 효과가 한 번이다. 결과 불명인 모델 도구 호출을 다시 실행하면 승인 요청이 다시 뜰 수 있어 도구 `skill_manage`·`memory_manage`의 `replay`는 `"unsafe"`로 둔다(도구가 메서드보다 좁아도 된다). `decide`와 `reindex`는 `requestId` 멱등이 없어 선언 없음(`replay: "unsafe"`)이다.
 - `manage`는 다른 쓰기 메서드와 같은 경로로 보내는 분배기다. 모델 도구가 메서드 하나에 대응해야 하므로(`F.capabilities.spec` §4.2) 둔다. `action`별 필수 필드 검사(예: `patch`는 `baseHash`, `edits`)는 런타임에서 하고 실패하면 `invalid_input`이다.
-- `skill_manage`의 `scope`는 모델 파라미터에 없다. 모델 쓰기는 `user` 범위로 간다. 프로젝트 스킬(`.xeon/skills`)은 사용자나 확장(증거 있음)만 쓴다 [제안]. 저장소에 커밋되는 파일을 에이전트가 승인 없이 바꾸지 않게 하기 위해서다.
+- `skill_manage`의 `scope`는 모델 파라미터에 없다. 모델 쓰기는 `user` 범위로 간다. 프로젝트 스킬(`.fresnel/skills`)은 사용자나 확장(증거 있음)만 쓴다 [제안]. 저장소에 커밋되는 파일을 에이전트가 승인 없이 바꾸지 않게 하기 위해서다.
 
 ### 3.3 `knowledge.memory`
 
@@ -883,7 +883,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | 대상 | 경로 |
 |---|---|
 | 사용자 스킬 | `<사용자 데이터>/skills/<이름>/SKILL.md` |
-| 프로젝트 스킬 | `<프로젝트>/.xeon/skills/<이름>/SKILL.md` |
+| 프로젝트 스킬 | `<프로젝트>/.fresnel/skills/<이름>/SKILL.md` |
 | 보관함 | 같은 루트의 `.archive/<이름>-<UTC 시각>/` |
 | 사용자 정보 메모리 | `<사용자 데이터>/memory/USER.md` |
 | 환경 사실 메모리 | `<사용자 데이터>/memory/MEMORY.md` |
@@ -901,7 +901,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 루트 순서는 프로젝트 → 사용자 → 확장 제공 → 설정 경로(`l2.knowledge.skills.paths`)다 [제안]. 같은 이름이 두 루트에 있으면 앞 루트가 이기고 진단(`collision`)을 남긴다. pi는 사용자 → 프로젝트 순이지만, 프로젝트 규약이 사용자 일반 절차보다 구체적이라 앞에 둔다.
 - `.gitignore` 계열 무시 규칙은 1차에 적용하지 않는다 [제안]. 포크 원본의 `ignore` 패키지 결합을 풀기 위해서다(§10 미결 10).
 - 확장 제공 루트와 설정 경로 루트의 스킬은 읽기 전용(`extension`, `path` 범위)이다.
-- 프로젝트 루트(`.xeon/skills`)는 프로젝트가 신뢰된 뒤에만 싣는다 [결정: M2 검토 4]. 저장소가 낸 스킬의 설명이 첫 turn 인덱스에 들어가고 `skill_view`가 본문을 돌려주므로, 신뢰하지 않은 저장소를 열기만 해도 모델 지시문을 쓸 수 있기 때문이다(`X.loading-trust.spec` §4.7.2 표가 `.xeon/skills`를 신뢰 필요 자원으로 든다). 신뢰 여부는 조립 루트가 `resolveProjectTrust`의 `trusted`로 넘기고(`projectTrust` 옵션), 없거나 거짓이거나 실패하면 싣지 않는다. 싣지 못한 `.xeon/skills`가 있으면 `skill_list`의 진단(`warning`)에 남긴다.
+- 프로젝트 루트(`.fresnel/skills`)는 프로젝트가 신뢰된 뒤에만 싣는다 [결정: M2 검토 4]. 저장소가 낸 스킬의 설명이 첫 turn 인덱스에 들어가고 `skill_view`가 본문을 돌려주므로, 신뢰하지 않은 저장소를 열기만 해도 모델 지시문을 쓸 수 있기 때문이다(`X.loading-trust.spec` §4.7.2 표가 `.fresnel/skills`를 신뢰 필요 자원으로 든다). 신뢰 여부는 조립 루트가 `resolveProjectTrust`의 `trusted`로 넘기고(`projectTrust` 옵션), 없거나 거짓이거나 실패하면 싣지 않는다. 싣지 못한 `.fresnel/skills`가 있으면 `skill_list`의 진단(`warning`)에 남긴다.
 - 구현(KN.1, 포크 패치 KN-01~KN-09, `cap-knowledge/PATCHES.md`):
   - 파일 접근은 `KnowledgeFs` 비동기 포트로 한다. 같은 디렉터리의 항목은 이름 바이트 순으로 처리해 같은 스킬 집합이 같은 순서와 같은 인덱스 블록을 만든다.
   - 설정 경로(`l2.knowledge.skills.paths`)는 절대 경로만 받는다. 상대 경로는 경고 진단이다. 디렉터리나 `.md` 파일을 줄 수 있다.
@@ -1338,7 +1338,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `l2.knowledge.search.likeScanLimit` | integer | `20000` | min 1000, max 1000000 | live | managed, user | advanced | false |
 
 - 쓰기 승인·스캔·증거 출처 키는 관리·사용자 범위만 허용한다. 프로젝트 파일(저장소에 커밋되는 설정)로 승인을 끄는 경로를 막기 위해서다.
-- `l2.knowledge.skills.paths`도 같은 이유로 프로젝트 범위를 허용하지 않는다. 프로젝트 스킬은 `.xeon/skills` 한 곳이고 `projectSkills`로 끈다.
+- `l2.knowledge.skills.paths`도 같은 이유로 프로젝트 범위를 허용하지 않는다. 프로젝트 스킬은 `.fresnel/skills` 한 곳이고 `projectSkills`로 끈다.
 - 탭 배치: 스킬과 쓰기 정책은 `tools`, 메모리와 세션 검색은 `sessions`다(`L4.settings-ui.spec` 탭 표 "sessions: L2-d `l2.knowledge.*`(메모리)", "tools: `l2.knowledge.*`(스킬)").
 - 화면 기능(L4): 메모리 열람·편집·삭제(행위자 `user` 쓰기), 스킬 목록 켜기·끄기와 인덱스 예산 표시, 제안 대기열 결정, 원장 열람과 되돌리기, 드리프트 상태와 "현재 파일 받아들이기". 화면 구현은 `L4.settings-ui.spec`, `L4.desktop.spec`이 정한다.
 - 공유 메모리 저장소는 보류다(`_research/packages.md` §4.4 L2-d). 키를 두지 않는다.
@@ -1428,7 +1428,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 10. [미결] 스킬 루트에 `.gitignore` 계열 무시 규칙을 적용할지. 적용하면 `ignore` 7.0.8 의존을 다시 들인다(§4.2.1).
 11. [미결] 2글자 질의 LIKE 경로의 탐색 범위(`likeScanLimit`)와 성능 목표(`_research/notes/L2-3.md` §5).
 12. [미결] L3 학습 정책의 `kind: "script"(반복 작업 스크립트) 저장 위치. 2차(§3.9).
-13. [미결] 프로젝트 스킬(`.xeon/skills`)에 대한 에이전트 쓰기 허용. 제안은 모델 도구 경로에서 금지다(§3.2).
+13. [미결] 프로젝트 스킬(`.fresnel/skills`)에 대한 에이전트 쓰기 허용. 제안은 모델 도구 경로에서 금지다(§3.2).
 14. [미결] 고정 이전에 쓴 원장 행과 제안 행의 블롭. 이 변경 전 행에는 `pinBlob`이 없다. 채우는 방법(재고정 작업)과 재색인 `external` 행의 고정 실패를 되돌리는 방법을 정하기 전에는 `l0.store.blobGcEnabled`를 켜지 않는다(`L0.store` §3.4 opt-in 목록).
 14. [미결] 되감긴 가지의 메시지를 세션 검색에서 숨길지(§4.8.1).
 15. [가정] macOS 시스템 SQLite의 FTS5·trigram 포함(`_research/notes/L2-3.md` §2.2). 사용자 Mac에서 `pragma compile_options` 확인이 필요하다.

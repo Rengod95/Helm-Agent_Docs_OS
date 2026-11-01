@@ -97,7 +97,7 @@ async function manifestOf(
   loadIndex: number,
 ): Promise<{ readonly manifest: ExtensionManifest; readonly loadIndex: number } | undefined> {
   const text = await attemptAsync(() =>
-    deps.fs.readText(join(deps.userDir, "extensions", name, ".xeon-plugin", "plugin.json")),
+    deps.fs.readText(join(deps.userDir, "extensions", name, ".fresnel-plugin", "plugin.json")),
   );
   if (!text.ok || text.value === null) return undefined;
   const checked = validateManifest(safeJson(text.value));

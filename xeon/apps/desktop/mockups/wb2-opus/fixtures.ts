@@ -387,7 +387,7 @@ export const templates = [
 
 /** drive 템플릿이 만드는 파일 10개. `packages/group-kit/templates/index.json`의 drive 목록 그대로(경로의 common/·drive/ 접두는 뗌). */
 export const driveFiles = [
-  { path: ".xeon-plugin/plugin.json", note: "매니페스트" },
+  { path: ".fresnel-plugin/plugin.json", note: "매니페스트" },
   { path: "src/index.ts", note: "defineGroup, drive 함수" },
   { path: "src/state.ts", note: "상태 스키마" },
   { path: "src/settings.ts", note: "defineSettings" },

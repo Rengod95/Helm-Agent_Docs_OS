@@ -62,19 +62,19 @@ const targets: Target[] = [
     id: "service",
     name: "이 컴퓨터 · 서비스",
     kind: "service",
-    address: "unix:/home/me/.xeon/run/service.sock",
+    address: "unix:/home/me/.fresnel/run/service.sock",
   },
   {
     id: "build-box",
     name: "build-box",
     kind: "remote",
-    address: "ssh://me@build-box/home/me/.xeon/run/service.sock",
+    address: "ssh://me@build-box/home/me/.fresnel/run/service.sock",
   },
   {
     id: "mac-mini",
     name: "mac-mini",
     kind: "remote",
-    address: "ssh://me@mac-mini:2222/Users/me/.xeon/run/service.sock",
+    address: "ssh://me@mac-mini:2222/Users/me/.fresnel/run/service.sock",
   },
 ];
 

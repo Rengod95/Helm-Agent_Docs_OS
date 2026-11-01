@@ -43,6 +43,7 @@ import {
 import type { ScheduleService } from "@xeon/cap-schedule";
 import { createExecPlatformModule, detectExecPlatform } from "@xeon/platform-exec";
 import {
+  PRODUCT,
   createIdFactory,
   createLocalIdFactory,
   readOsRuntime,
@@ -144,15 +145,15 @@ export type {
 } from "./types.ts";
 export { buildEngineCatalog, coreSettingGroups } from "./assembly/catalog.ts";
 
-/** 릴리즈 빌드가 `bun build --define XEON_BUILD_VERSION="x.y.z"`로 넣는 값(scripts/build-sidecar.ts). 소스 실행에는 없다 */
-declare const XEON_BUILD_VERSION: string | undefined;
+/** 릴리즈 빌드가 `bun build --define FRESNEL_BUILD_VERSION="x.y.z"`로 넣는 값(scripts/build-sidecar.ts). 소스 실행에는 없다 */
+declare const FRESNEL_BUILD_VERSION: string | undefined;
 
 /** 엔진 빌드 버전. 등록 파일 version과 host.hello server.version이 같은 값을 쓴다. 주입이 없으면 "0.0.0"이다(L4.release.spec §8.1) */
 export const ENGINE_VERSION: string =
-  typeof XEON_BUILD_VERSION === "string" ? XEON_BUILD_VERSION : "0.0.0";
+  typeof FRESNEL_BUILD_VERSION === "string" ? FRESNEL_BUILD_VERSION : "0.0.0";
 
-/** 세션 DB 파일 이름. 문서가 이름을 정하지 않아 호스트가 정했다 [미결] */
-const DB_FILE_NAME = "xeon.db";
+/** DB 파일 이름. 제품 이름에 묶인 값이라 platform-os의 PRODUCT에서 온다(L0.os.spec §3.12) */
+const DB_FILE_NAME = PRODUCT.dbFileName;
 
 /** 조립 결함. 선언 결함은 Result 대신 예외로 알린다(eng.typescript.guide TY-11) */
 export class AssembleError extends Error {

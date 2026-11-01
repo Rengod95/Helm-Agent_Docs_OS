@@ -41,7 +41,7 @@ import {
   type CommandContext,
 } from "./context.ts";
 
-// L4.cli.spec §4.1~§4.6. `xeon chat`: print 모드(-p), JSON 모드(--json), 최소 대화형. 엔진은 in-process다(M1).
+// L4.cli.spec §4.1~§4.6. `fresnel chat`: print 모드(-p), JSON 모드(--json), 최소 대화형. 엔진은 in-process다(M1).
 
 /** turn 하나의 끝 상태를 종료 코드로 바꾼다(§3.6) */
 export function exitCodeOfTurn(end: TurnEnd): ExitCode {
@@ -335,7 +335,7 @@ async function chatWork(
                 const reopened = await openWith({ kind: "resume", threadId: previous.threadId });
                 return reopened.ok ? err(next.error) : reopened;
               }
-              await io.stdout(t("cli.chat.switchedSession", { threadId: next.value.threadId }));
+              await io.stdout(t("cli.chat.switchedThread", { threadId: next.value.threadId }));
               await Promise.race([next.value.caughtUp(), wiring.exit.requested]);
               await offerResume(next.value, exitAbort.signal);
               return ok(undefined);
@@ -356,7 +356,7 @@ async function chatWork(
   }
 }
 
-/** `xeon chat`을 실행하고 종료 코드를 돌려준다 */
+/** `fresnel chat`을 실행하고 종료 코드를 돌려준다 */
 export async function runChat(ctx: CommandContext, command: ChatCommand): Promise<ExitCode> {
   const { io, deps } = ctx;
   const interactive = command.mode === "interactive";

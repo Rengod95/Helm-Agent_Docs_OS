@@ -55,7 +55,7 @@ function triggerText(trigger: ScheduleTrigger): string {
       });
     case "remote":
       return t("cli.schedule.trigger.remote");
-    case "loop":
+    case "repeat":
       return t("cli.schedule.trigger.loop", {
         seconds: trigger.intervalSeconds,
         max: trigger.maxIterations,
@@ -81,9 +81,9 @@ function wireTriggerOf(arg: ScheduleTriggerArg, root: string, clock: Clock): Sch
         paths: arg.paths.map((path) => resolve(root, path)),
         debounceMs: arg.debounceMs,
       };
-    case "loop":
+    case "repeat":
       return {
-        kind: "loop",
+        kind: "repeat",
         intervalSeconds: arg.intervalSeconds,
         maxIterations: arg.maxIterations,
         expiresAtMs: clock.now() + arg.expiresInSeconds * 1000,
@@ -260,7 +260,7 @@ async function runFire(
   return EXIT.ok;
 }
 
-/** `xeon schedule`을 실행하고 종료 코드를 돌려준다 */
+/** `fresnel schedule`을 실행하고 종료 코드를 돌려준다 */
 export async function runSchedule(
   ctx: CommandContext,
   command: ScheduleCommand,

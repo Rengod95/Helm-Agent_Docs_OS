@@ -8,7 +8,7 @@ import { invalidRemoteError, serviceConnectErrorOf } from "../engine.ts";
 import { cliSettingGroups } from "../settings.ts";
 import { printFailure, type CommandContext } from "./context.ts";
 
-// L4.cli.spec §3.1 `xeon host --stdio`, plan C16. 컴파일 바이너리의 내부 진입이다. 데스크톱 사이드카가 쓴다.
+// L4.cli.spec §3.1 `fresnel host --stdio`, plan C16. 컴파일 바이너리의 내부 진입이다. 데스크톱 사이드카가 쓴다.
 // stdin/stdout은 JSON Lines 계약 전용이다: 사람용 출력은 stderr로만 보낸다(§4.1 3번).
 // l4.cli.* 설정 그룹을 카탈로그에 넣으려고 runHostCommand 대신 같은 일을 하는 startStdioHost를 부른다(§3.3 표).
 // 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 원격 서비스에 중계한다(HS-89).
@@ -31,7 +31,7 @@ export async function runHostStdio(ctx: CommandContext): Promise<ExitCode> {
     writable: io.stdoutStream,
     assemble: { settingGroups: cliSettingGroups, devChecks: deps.devWireRoundTrip },
   });
-  if (exit.message !== undefined) await io.stderr(`xeon: ${exit.message}\n`);
+  if (exit.message !== undefined) await io.stderr(`fresnel: ${exit.message}\n`);
   return exit.code === 0 ? EXIT.ok : EXIT.error;
 }
 
@@ -52,7 +52,7 @@ async function bridgeToRemote(
     },
   });
   if (diagnostics.length > 0) {
-    await io.stderr(diagnostics.map((line) => `xeon: ${line}\n`).join(""));
+    await io.stderr(diagnostics.map((line) => `fresnel: ${line}\n`).join(""));
   }
   switch (exit.reason) {
     case "stdin_closed":

@@ -26,7 +26,7 @@ export interface ExtensionCandidate {
   readonly source: InstallSource;
   /** 확장 루트 절대 경로(심볼릭 링크를 푼 경로). 내장은 null */
   readonly root: string | null;
-  /** `.xeon-plugin/plugin.json` 절대 경로. 내장은 null */
+  /** `.fresnel-plugin/plugin.json` 절대 경로. 내장은 null */
   readonly manifestPath: string | null;
   /** 내장만 */
   readonly builtin: BuiltinExtensionModule | null;
@@ -55,10 +55,10 @@ export function orderKeyOfBuiltin(manifest: ExtensionManifest): OrderKey {
 }
 
 /** 외부 확장의 매니페스트 위치. 확장 루트 기준 상대 경로다 */
-export const MANIFEST_RELATIVE_PATH: string = join(".xeon-plugin", "plugin.json");
+export const MANIFEST_RELATIVE_PATH: string = join(".fresnel-plugin", "plugin.json");
 
 /** 프로젝트 확장 디렉터리. 프로젝트 루트 기준 상대 경로다(X.loading-trust.spec §4.2.1) */
-const PROJECT_EXTENSIONS_DIR: string = join(".xeon", "extensions");
+const PROJECT_EXTENSIONS_DIR: string = join(".fresnel", "extensions");
 
 export interface ExternalLocation {
   readonly source: Exclude<InstallSource, "builtin">;
@@ -103,7 +103,7 @@ function discoverWarning(source: InstallSource, message: string, path: string): 
 }
 
 /**
- * 외부 확장 탐색(X.loading-trust.spec §4.2.1). 위치마다 `<dir>/<이름>/.xeon-plugin/plugin.json`이 있는 디렉터리를
+ * 외부 확장 탐색(X.loading-trust.spec §4.2.1). 위치마다 `<dir>/<이름>/.fresnel-plugin/plugin.json`이 있는 디렉터리를
  * 후보로 만든다. 깊이는 한 단계다. 매니페스트가 없는 디렉터리는 `manifest_missing` 경고만 남기고 건너뛴다.
  * 심볼릭 링크는 `realpath`로 풀고 같은 실제 경로는 한 번만 후보가 된다. 매니페스트 내용은 읽지 않는다.
  * 결과는 위치 순서, 이름의 코드 포인트 순이라 파일 시스템 나열 순서와 무관하다
@@ -130,7 +130,7 @@ export async function discoverExternal(
       return "continue";
     }
     const root = resolved.value;
-    // 저장소가 담은 프로젝트 확장은 심볼릭 링크로 `.xeon/extensions` 밖을 가리킬 수 없다
+    // 저장소가 담은 프로젝트 확장은 심볼릭 링크로 `.fresnel/extensions` 밖을 가리킬 수 없다
     if (base !== null && !root.startsWith(base.endsWith(sep) ? base : `${base}${sep}`)) {
       diagnostics.push(discoverWarning(source, `${declared} resolves outside ${base}`, declared));
       return "continue";

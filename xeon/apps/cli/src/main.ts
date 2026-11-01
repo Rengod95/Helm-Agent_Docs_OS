@@ -128,7 +128,7 @@ async function runFromProcess(): Promise<never> {
 if (import.meta.main) {
   runFromProcess().catch((caught: unknown) => {
     const text = caught instanceof Error ? (caught.stack ?? caught.message) : String(caught);
-    process.stderr.write(`xeon: ${t("cli.errors.internal.message")}\n${text}\n`);
+    process.stderr.write(`fresnel: ${t("cli.errors.internal.message")}\n${text}\n`);
     process.exit(EXIT.error);
   });
 }

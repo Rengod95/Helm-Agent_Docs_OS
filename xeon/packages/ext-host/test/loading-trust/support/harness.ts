@@ -28,7 +28,11 @@ const EMPTY_FS: LoaderFs = {
   realpath: (path) => Promise.resolve(path),
 };
 
-const PATHS: LoaderPaths = { userDir: "/home/test/.xeon", managedDir: null, homeDir: "/home/test" };
+const PATHS: LoaderPaths = {
+  userDir: "/home/test/.fresnel",
+  managedDir: null,
+  homeDir: "/home/test",
+};
 
 const TRUST_BACKEND: TrustStoreBackend = {
   read: () => Promise.resolve({ ok: true, text: null }),

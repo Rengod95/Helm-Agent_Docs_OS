@@ -141,7 +141,7 @@ test("closing the engine disposes the sandbox service once, which stops the self
 });
 
 test("a failing self test is logged as a warning that names the failed items and no output", async () => {
-  const registered = await register(ok(reportOf(["xeon_data_write_denied", "network_denied"])));
+  const registered = await register(ok(reportOf(["fresnel_data_write_denied", "network_denied"])));
   await registered.settled();
   expect(registered.lines.filter((line) => line.event === "sandbox.self_test")).toEqual([
     {
@@ -149,7 +149,7 @@ test("a failing self test is logged as a warning that names the failed items and
       event: "sandbox.self_test",
       fields: {
         passed: false,
-        failed: ["xeon_data_write_denied", "network_denied"],
+        failed: ["fresnel_data_write_denied", "network_denied"],
         durationMs: 7,
       },
     },

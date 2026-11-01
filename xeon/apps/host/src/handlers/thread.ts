@@ -152,7 +152,7 @@ export function createThreadRevertHandler(engine: Engine): WireHandler<"thread.r
 }
 
 /**
- * 제목을 바꾼다(G2-12, HS-73). 쓰기 소유자만 바꿀 수 있어 `thread.delete`처럼 열지 않고 바꾸는 클라이언트(`xeon sessions rename`)를 위해
+ * 제목을 바꾼다(G2-12, HS-73). 쓰기 소유자만 바꿀 수 있어 `thread.delete`처럼 열지 않고 바꾸는 클라이언트(`fresnel sessions rename`)를 위해
  * 소유를 쥐지 않았으면 한 번 얻어 본다. 얻지 못하면 3002다. 이 호출이 얻은 잠금은 바꾼 뒤 놓되, 그동안 다른 연결이 소유를 이어받았으면
  * 놓지 않는다(`withWriteOwner`). 결과 `position`은 제목 변경 이벤트를 반영한 저장소 위치다
  */
@@ -173,7 +173,7 @@ export function createThreadRenameHandler(
 }
 
 /**
- * 쓰기 소유자만 지울 수 있다. `xeon sessions rm`처럼 thread를 열지 않고 지우는 클라이언트를 위해 소유를 쥐지 않았으면 한 번 얻어 본다
+ * 쓰기 소유자만 지울 수 있다. `fresnel sessions rm`처럼 thread를 열지 않고 지우는 클라이언트를 위해 소유를 쥐지 않았으면 한 번 얻어 본다
  * (HS-28 암묵 획득과 같은 규칙. 표(§3.4)가 "잠금을 얻을 수 없으면 거부"라고 적었다). 얻지 못하면 3002다.
  * 지우지 못했으면 이 호출이 얻은 잠금은 놓되, 그동안 다른 연결이 소유를 이어받았으면 놓지 않는다(`withWriteOwner`).
  */
@@ -245,7 +245,7 @@ function contextFailure(error: ContextError, where: string): WireError | Bug {
 /**
  * 대화를 지금 요약한다(G2-01, HS-77). `turn.start`처럼 쓰기 소유를 암묵 획득하고(HS-28), 열린 turn이 있으면 3003이다.
  * 컨텍스트 서비스가 이유 `manual`로 요약하고 `thread.compacted`를 커밋한다. 요약할 것이 없거나 컴팩션이 꺼져 있으면 오류가 아니라
- * `skipped`다. 확장이 막으면 3006(`session.compact.before`), 요약이나 커밋이 실패하면 3008이다
+ * `skipped`다. 확장이 막으면 3006(`thread.compact.before`), 요약이나 커밋이 실패하면 3008이다
  */
 export function createThreadCompactHandler(
   engine: Engine,
@@ -279,7 +279,7 @@ export function createThreadCompactHandler(
         return { status: "skipped", why: outcome.why };
       case "cancelled":
         throw wireError("thread.cancelledByExtension", {
-          details: { point: "session.compact.before", reason: outcome.reason.slice(0, 512) },
+          details: { point: "thread.compact.before", reason: outcome.reason.slice(0, 512) },
         });
       default:
         return assertNever(outcome, "CompactOutcome");

@@ -1,5 +1,5 @@
 // 계정 회전 플러그인 산출물을 만든다(B2-MDL, group-helm의 build-plugin과 같은 모양이다).
-//   <outDir>/.xeon-plugin/plugin.json   accountRotationManifest를 JSON으로 옮긴 것(엔트리는 ./dist/index.js)
+//   <outDir>/.fresnel-plugin/plugin.json   accountRotationManifest를 JSON으로 옮긴 것(엔트리는 ./dist/index.js)
 //   <outDir>/dist/index.js              엔트리 번들. 호스트가 같은 인스턴스를 주는 모듈(@xeon/contracts, @xeon/group-sdk, typebox)은 외부 import로 둔다
 // 사용: bun scripts/build-plugin.ts [outDir]   (기본 dist-plugin)
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -48,7 +48,7 @@ export async function buildAccountRotationPlugin(
 ): Promise<Result<PluginBuild, PluginBuildError>> {
   const prepared = await attemptAsync(async () => {
     await rm(outDir, { recursive: true, force: true });
-    await mkdir(join(outDir, ".xeon-plugin"), { recursive: true });
+    await mkdir(join(outDir, ".fresnel-plugin"), { recursive: true });
     await mkdir(join(outDir, "dist"), { recursive: true });
   });
   if (!prepared.ok) return err({ kind: "io", cause: prepared.error.cause });
@@ -66,7 +66,7 @@ export async function buildAccountRotationPlugin(
   const written = await attemptAsync(async () => {
     const text = await Bun.file(join(outDir, "dist", "index.js")).text();
     await writeFile(
-      join(outDir, ".xeon-plugin", "plugin.json"),
+      join(outDir, ".fresnel-plugin", "plugin.json"),
       `${JSON.stringify(accountRotationManifest, null, 2)}\n`,
     );
     return externalsOf(text);

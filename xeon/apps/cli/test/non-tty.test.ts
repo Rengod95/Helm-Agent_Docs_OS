@@ -45,7 +45,7 @@ test("a non-tty stdin runs print mode and never opens the interactive screen (AC
   expect(await h.run(["chat"])).toBe(0);
   const turn = h.server().requests.find((request) => request.method === "turn.start");
   expect(turn?.params).toMatchObject({ input: "from a pipe" });
-  expect(h.stdoutText()).not.toContain("xeon chat —");
+  expect(h.stdoutText()).not.toContain("fresnel chat —");
 });
 
 async function stderrOfFailedTurn(

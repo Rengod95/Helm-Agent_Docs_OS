@@ -34,7 +34,7 @@ function status(overrides: Partial<TrustStatus> = {}): TrustStatus {
     required: true,
     verdict: "undecided",
     via: "headless",
-    resources: [".mcp.json", ".xeon/commands"],
+    resources: [".mcp.json", ".fresnel/commands"],
     options: OPTIONS,
     ...overrides,
   };
@@ -103,7 +103,7 @@ function harness(handlers: FakeHandlers, replies: readonly Reply[] = []) {
 }
 
 const CARD = `프로젝트: /work/project
-불러오려는 자원: .mcp.json, .xeon/commands
+불러오려는 자원: .mcp.json, .fresnel/commands
 판정: 아직 정하지 않음 (신뢰하지 않은 것으로 다룬다) - 묻는 화면이 없어 정하지 못했다
 신뢰하면 이 자원의 지시문, 명령, MCP 서버가 사용자 권한으로 쓰인다. 신뢰하지 않으면 읽지 않는다
   1) 이 폴더를 신뢰한다 (저장: /work/project)
@@ -147,7 +147,7 @@ test("trust commands parse: status, allow and deny with a scope", () => {
   expect(parse(["trust", "maybe"])).toBe("unknownCommand");
 });
 
-test("xeon trust shows the card for this workspace and asks trust.get with the workspace", async () => {
+test("fresnel trust shows the card for this workspace and asks trust.get with the workspace", async () => {
   const trust = fakeTrust(status());
   const { h } = harness(trust.handlers);
   expect(await h.run(["trust"])).toBe(EXIT.ok);
@@ -156,7 +156,7 @@ test("xeon trust shows the card for this workspace and asks trust.get with the w
   expect(trust.decided).toEqual([]);
 });
 
-test("xeon trust --json prints the TrustStatus as is", async () => {
+test("fresnel trust --json prints the TrustStatus as is", async () => {
   const trust = fakeTrust(status());
   const { h } = harness(trust.handlers);
   expect(await h.run(["trust", "--json"])).toBe(EXIT.ok);
@@ -173,7 +173,7 @@ test("a workspace with nothing to trust says so on stderr", async () => {
   expect(h.stderrText()).toBe("/work/project: 신뢰가 필요한 프로젝트 자원이 없다\n");
 });
 
-test("xeon trust allow --scope parent sends exactly that choice for this workspace", async () => {
+test("fresnel trust allow --scope parent sends exactly that choice for this workspace", async () => {
   const trust = fakeTrust(status());
   const { h } = harness(trust.handlers);
   expect(await h.run(["trust", "allow", "--scope", "parent"])).toBe(EXIT.ok);
@@ -188,11 +188,11 @@ test("a scope the host did not offer is a usage error and nothing is sent", asyn
   const { h } = harness(trust.handlers);
   expect(await h.run(["trust", "deny", "--scope", "session"])).toBe(EXIT.usage);
   expect(trust.decided).toEqual([]);
-  expect(h.stderrText()).toContain("xeon: 이 폴더에는 session 범위의 deny 선택지가 없다");
+  expect(h.stderrText()).toContain("fresnel: 이 폴더에는 session 범위의 deny 선택지가 없다");
   expect(h.stderrText()).toContain("이 폴더를 신뢰한다 (저장: /work/project)");
 });
 
-test("a host without trust methods is an environment problem for xeon trust", async () => {
+test("a host without trust methods is an environment problem for fresnel trust", async () => {
   const { h } = harness({});
   expect(await h.run(["trust"])).toBe(EXIT.environment);
   expect(h.stderrText()).toContain("연결한 host가 프로젝트 신뢰 결정을 아직 지원하지 않는다");
@@ -259,7 +259,7 @@ test("a failed trust.get or trust.decide never blocks the chat and keeps the pro
   });
   const b = harness(unsaved.handlers, ["1"]);
   expect(await b.h.run(["chat"])).toBe(EXIT.ok);
-  expect(b.h.stderrText()).toContain("xeon: 프로젝트 신뢰 결정을 저장하지 못했다");
+  expect(b.h.stderrText()).toContain("fresnel: 프로젝트 신뢰 결정을 저장하지 못했다");
   expect(b.h.stderrText()).toContain("이 프로젝트는 신뢰하지 않은 채로 연다");
   expect(b.h.methods()).toContain("thread.create");
 });
@@ -269,7 +269,7 @@ test("print mode notes an undecided trust on stderr without asking; json mode do
   const text = harness(trust.handlers);
   expect(await text.h.run(["chat", "-p", "hello"])).toBe(EXIT.ok);
   expect(text.h.stderrText()).toBe(
-    "프로젝트 신뢰가 정해지지 않아 .mcp.json, .xeon/commands을(를) 읽지 않는다 (xeon trust로 정한다)\n",
+    "프로젝트 신뢰가 정해지지 않아 .mcp.json, .fresnel/commands을(를) 읽지 않는다 (fresnel trust로 정한다)\n",
   );
   expect(text.input.prompts).toEqual([]);
   expect(trust.decided).toEqual([]);

@@ -98,7 +98,7 @@ function isGroupManifest(manifest: ExtensionManifest): manifest is GroupManifest
 }
 
 /**
- * 매니페스트 값을 검증해 GroupManifest로 좁힌다. .xeon-plugin/plugin.json을 JSON import로 읽은 외부 그룹이 쓴다.
+ * 매니페스트 값을 검증해 GroupManifest로 좁힌다. .fresnel-plugin/plugin.json을 JSON import로 읽은 외부 그룹이 쓴다.
  * F validateManifest 오류, kind·layer 불일치면 Bug를 던진다. 순수 함수
  */
 export function groupManifest(value: unknown): GroupManifest {

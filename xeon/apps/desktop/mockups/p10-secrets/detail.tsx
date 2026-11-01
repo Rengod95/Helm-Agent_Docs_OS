@@ -174,7 +174,7 @@ export function SecretDetail({
           )}
         </ListDescriptionRow>
         <ListDescriptionRow term="보관" mono>
-          sops · ~/.xeon/secrets.enc.yaml
+          sops · ~/.fresnel/secrets.enc.yaml
         </ListDescriptionRow>
       </ListDescription>
       {reveal === "reauth_denied" && (

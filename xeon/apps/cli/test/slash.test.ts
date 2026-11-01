@@ -82,13 +82,13 @@ function session(replies: readonly Reply[], extra: Parameters<typeof createHarne
   const settings = fakeSettings(
     [
       def("l4.cli.theme", {
-        allowedScopes: ["user", "session"],
+        allowedScopes: ["user", "launch"],
         default: "system",
         range: { enum: ["system", "dark", "light"] },
       }),
       def("l1.models.default", {
         layer: "L1",
-        allowedScopes: ["user", "session"],
+        allowedScopes: ["user", "launch"],
         default: "auto",
         range: { enum: ["auto", "tape/tape-1"] },
       }),
@@ -139,10 +139,10 @@ test("/set writes the session scope of the current thread and prints the effecti
   expect(s.settings.writes[0]).toMatchObject({
     key: "l4.cli.theme",
     value: "dark",
-    scope: "session",
+    scope: "launch",
   });
   expect(typeof s.settings.writes[0]?.threadId).toBe("string");
-  expect(s.h.stdoutText()).toContain('l4.cli.theme = "dark"  (session)');
+  expect(s.h.stdoutText()).toContain('l4.cli.theme = "dark"  (launch)');
 });
 
 test("/set on a key that has no session scope shows the host's scope error and keeps the session", async () => {
@@ -160,7 +160,7 @@ test("/model without a value shows the current value and the choices; with a val
   expect(s.settings.writes[0]).toMatchObject({
     key: "l1.models.default",
     value: "tape/tape-1",
-    scope: "session",
+    scope: "launch",
   });
 });
 

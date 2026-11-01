@@ -42,7 +42,7 @@ test("host-hello-gating: requests before hello are 1001, a second hello is 1002,
   expect((await wireErrorOf(connection.request("settings.get", {}))).code).toBe(1001);
 
   const hello = await connection.request("host.hello", HELLO_PARAMS);
-  expect(hello.server.name).toBe("xeon");
+  expect(hello.server.name).toBe("fresnel");
   expect(hello.transport).toBe("in-process");
   const duplicate = await wireErrorOf(connection.request("host.hello", HELLO_PARAMS));
   expect(duplicate.code).toBe(1002);

@@ -145,7 +145,7 @@ describe("scopes (S3)", () => {
   test("a scope-limited key found in a project file is ignored with an issue", () => {
     const def = intDef({ allowedScopes: ["managed", "user"] });
     const { setting, issues } = resolveSetting(def, [
-      layer("project", KEY, 99, "/repo/.xeon/settings.json"),
+      layer("project", KEY, 99, "/repo/.fresnel/settings.json"),
       layer("user", KEY, 5),
     ]);
     expect(setting.value).toBe(5);

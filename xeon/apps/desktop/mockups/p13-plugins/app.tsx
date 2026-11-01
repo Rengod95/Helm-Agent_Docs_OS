@@ -254,8 +254,8 @@ function NewGroupDialog({
         </Field>
         <Field label="위치" group>
           <RadioGroup defaultValue="project" orientation="horizontal" className="gap-5">
-            <RadioGroupItem value="user">사용자 · ~/.xeon/groups</RadioGroupItem>
-            <RadioGroupItem value="project">프로젝트 · .xeon/groups</RadioGroupItem>
+            <RadioGroupItem value="user">사용자 · ~/.fresnel/groups</RadioGroupItem>
+            <RadioGroupItem value="project">프로젝트 · .fresnel/groups</RadioGroupItem>
           </RadioGroup>
         </Field>
         <ol className="m-0 grid list-none gap-2 p-0 text-ui text-text-secondary">

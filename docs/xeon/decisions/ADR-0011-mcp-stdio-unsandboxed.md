@@ -23,7 +23,7 @@ binds: [xeon/packages/cap-mcp/**, xeon/packages/platform-process/**]
 - stdio MCP 서버는 Xeon이 띄우는 자식 프로세스입니다. 서버 정의의 `command`, `args`, `env`가 실행할 프로그램을 정합니다(`L2.mcp.spec` §4.2·§4.3).
 - 서버 정의는 두 곳에서 옵니다.
   - 사용자 설정 `l2.mcp.servers`: 사용자가 직접 씁니다.
-  - 프로젝트 파일 `.mcp.json`, `.xeon/mcp.json`: 저장소를 받으면 같이 옵니다. 신뢰하지 않은 저장소의 파일은 임의 명령 실행과 같습니다(`architecture.security.spec` §4 T-03).
+  - 프로젝트 파일 `.mcp.json`, `.fresnel/mcp.json`: 저장소를 받으면 같이 옵니다. 신뢰하지 않은 저장소의 파일은 임의 명령 실행과 같습니다(`architecture.security.spec` §4 T-03).
 - L0 샌드박스(`xeon.sandbox`, srt 0.0.79)는 `bash` 도구를 감쌉니다. Linux는 bubblewrap과 socat, macOS는 Seatbelt를 씁니다(`L0.sandbox.spec` §3.5).
 - 2026-10-25 기준으로 샌드박스 실제 시험(int)이 없습니다. 개발 기기에는 socat이 없고 CI에는 bwrap이 설치되지 않았습니다(마일스톤 재점검 G4-01). 샌드박스 네트워크 정책은 M3입니다(`review.m3-plan`).
 - MCP 서버는 대부분 네트워크와 홈 디렉터리 설정 파일을 씁니다. 쓰기 경로와 네트워크 허용 목록을 서버마다 정하는 설계가 아직 없습니다.
@@ -32,7 +32,7 @@ binds: [xeon/packages/cap-mcp/**, xeon/packages/platform-process/**]
 ## 3. 결정
 
 1. [결정] M2의 stdio MCP 서버는 샌드박스 없이 Xeon 엔진과 같은 OS 사용자 권한으로 실행합니다.
-2. [결정] 프로젝트 정의(`.mcp.json`, `.xeon/mcp.json`)는 프로젝트 신뢰가 `allow`일 때만 읽습니다. 신뢰가 없으면 서버 정의를 읽지 않고 진단만 남깁니다(`X.loading-trust.spec` §4.7.2). 사용자 설정의 정의는 신뢰 판정 없이 읽습니다.
+2. [결정] 프로젝트 정의(`.mcp.json`, `.fresnel/mcp.json`)는 프로젝트 신뢰가 `allow`일 때만 읽습니다. 신뢰가 없으면 서버 정의를 읽지 않고 진단만 남깁니다(`X.loading-trust.spec` §4.7.2). 사용자 설정의 정의는 신뢰 판정 없이 읽습니다.
 3. [결정] M2는 `env`에 `secret://` 참조가 있는 stdio 서버를 띄우지 않습니다. 그 서버만 건너뛰고 진단을 남깁니다. 진단 이름은 `L2.mcp.spec`이 정합니다 [제안]. 다른 서버는 영향을 받지 않습니다.
 4. [제안] 서버 정의 `env`·`headers`의 평문 값은 계속 거부합니다(`L2.mcp.spec` §10 미결 4). 3번과 합치면 M2의 stdio 서버는 비밀 없는 서버뿐입니다. HTTP 서버의 `headers` 비밀 참조는 `GuardedHttp` 주입 경로라서 이 결정의 범위 밖입니다.
 5. [제안] 자식 프로세스 기동과 종료는 `McpProcessPort`(L0.process)가 맡습니다. 종료 순서(stdin 닫기, 신호, 유예, 강제 종료)는 `L0.process.spec`이 정합니다. cap-mcp는 `Bun.spawn`을 직접 부르지 않습니다(`eng.dependency-rules.guide` DR-07).

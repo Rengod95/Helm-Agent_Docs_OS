@@ -29,8 +29,8 @@ realTest(
   async () => {
     const home = useEngineHome();
     const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-inv-")));
-    mkdirSync(join(workspace, ".xeon"));
-    writeFileSync(join(workspace, ".xeon", "settings.json"), JSON.stringify({ [KEY]: 8 }));
+    mkdirSync(join(workspace, ".fresnel"));
+    writeFileSync(join(workspace, ".fresnel", "settings.json"), JSON.stringify({ [KEY]: 8 }));
     const host = await startInProcessHost({ devChecks: true, defaultGroups: false });
     const connection = createHostConnection(host.client);
     await connection.request("host.hello", HELLO_PARAMS);
@@ -45,7 +45,7 @@ realTest(
     await connection.request("settings.set", {
       key: KEY,
       value: 6,
-      scope: "session",
+      scope: "launch",
       threadId: created.threadId,
     });
     await until(() => seen.length === 2);
@@ -59,7 +59,7 @@ realTest(
 
     expect(seen).toEqual([
       { keys: [KEY], scopes: ["user"], threadId: null },
-      { keys: [KEY], scopes: ["session"], threadId: created.threadId },
+      { keys: [KEY], scopes: ["launch"], threadId: created.threadId },
       { keys: [KEY], scopes: ["user"], threadId: null },
       { keys: [], scopes: ["project", "local"], threadId: null },
     ]);

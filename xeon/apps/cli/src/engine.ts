@@ -64,7 +64,7 @@ export interface EngineConnectOptions {
   readonly safeMode?: boolean;
   /** "auto"면 서비스 사용 설정을 엔진 없이 읽어 정한다. 서비스 모드(M3)가 없는 동안 "auto"는 in-process다 */
   readonly preference: ConnectPreference;
-  readonly client: { readonly name: "xeon-cli"; readonly version: string };
+  readonly client: { readonly name: "fresnel-cli"; readonly version: string };
   /** AssembleOptions.settingGroups로 넘긴다(§6) */
   readonly settingGroups: readonly SettingGroup<
     SettingNamespace,
@@ -76,11 +76,11 @@ export interface EngineConnectOptions {
   readonly observe?: (message: JsonRpcMessage) => void;
   /** `--remote`로 받은 주소 원문(전역 플래그). 없으면 생략한다. "auto"일 때만 본다(HS-87) */
   readonly remote?: string;
-  /** 프로세스 환경 변수(CliIo.env). 원격 접속 토큰 XEON_REMOTE_TOKEN을 읽는 데 쓴다 */
+  /** 프로세스 환경 변수(CliIo.env). 원격 접속 토큰 FRESNEL_REMOTE_TOKEN을 읽는 데 쓴다 */
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly assemble?: EngineAssembleOverrides;
   /**
-   * 테스트 격리용 CLI 상태 파일 덮어쓰기(환경 변수 XEON_CLI_STATE_FILE). 경로 계산(OS 분기)은 CLI가 하지 않는다(DR-13).
+   * 테스트 격리용 CLI 상태 파일 덮어쓰기(환경 변수 FRESNEL_CLI_STATE_FILE). 경로 계산(OS 분기)은 CLI가 하지 않는다(DR-13).
    * 없으면 `@xeon/host`의 `resolveHostStatePaths()`가 정한 `<OsDirs.state>/cli/state.json`을 쓴다 [결정: review.decisions-2 B-07]
    */
   readonly stateFile?: string | null;

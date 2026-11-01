@@ -361,7 +361,7 @@ export const acmeLog: LogRow[] = [
   },
   { at: "13:58:40", kind: "x.reload", text: "다시 읽음 · 0.0.9 · 지점 3" },
 ];
-export const ACME_DIR = "~/code/xeon/.xeon/extensions/acme-notes";
+export const ACME_DIR = "~/code/xeon/.fresnel/extensions/acme-notes";
 
 // ── X 훅(hooks.list, W-36) ─────────────────────────────────────
 

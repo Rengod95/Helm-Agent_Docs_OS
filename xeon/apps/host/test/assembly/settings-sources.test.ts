@@ -79,7 +79,7 @@ test("the drive limits are read for the thread, so a session scope value applies
   const other = fixedIdFactory(5).next("thr");
   settings.bindSession({
     layer: (threadId) => ({
-      scope: "session",
+      scope: "launch",
       values:
         threadId === THREAD
           ? new Map<string, unknown>([
@@ -211,7 +211,7 @@ test("l1.loop.repeat.actionError from a session scope applies to that thread onl
   const settings = await engineWith({ "l1.loop.repeat.actionError": 9 });
   settings.bindSession({
     layer: (threadId) => ({
-      scope: "session",
+      scope: "launch",
       values:
         threadId === THREAD
           ? new Map<string, unknown>([["l1.loop.repeat.actionError", 2]])
@@ -240,7 +240,7 @@ test("the judge cap is read for the judged thread, so a session scope value appl
   const settings = await engineWith({ "l1.agents.judge.maxRuns": 2 });
   settings.bindSession({
     layer: (threadId) => ({
-      scope: "session",
+      scope: "launch",
       values:
         threadId === THREAD
           ? new Map<string, unknown>([["l1.agents.judge.maxRuns", 4]])
@@ -379,6 +379,6 @@ test("spill retention defaults to 0 (keep everything) and the spill cap defaults
 });
 
 test("the exec spill folder is under the state directory, never the OS temp folder", async () => {
-  const options = execOptionsOf(await engineWith({}), "/work", "/home/u/.local/state/xeon");
-  expect(options.tempDir).toBe("/home/u/.local/state/xeon/spill");
+  const options = execOptionsOf(await engineWith({}), "/work", "/home/u/.local/state/fresnel");
+  expect(options.tempDir).toBe("/home/u/.local/state/fresnel/spill");
 });

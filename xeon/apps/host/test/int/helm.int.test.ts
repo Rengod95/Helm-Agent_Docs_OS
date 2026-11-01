@@ -93,7 +93,7 @@ realTest(
     await connection.request("events.subscribe", { from: "head" });
     // 첫 실행 설치: 사용자 확장 위치와 호스트 상태의 표지
     expect(
-      existsSync(join(home.root, "config", "extensions", "helm", ".xeon-plugin", "plugin.json")),
+      existsSync(join(home.root, "config", "extensions", "helm", ".fresnel-plugin", "plugin.json")),
     ).toBe(true);
     expect(existsSync(join(home.root, "state", DEFAULT_PLUGINS_MARKER_FILE))).toBe(true);
     const created = await connection.request("thread.create", {});

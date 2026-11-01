@@ -25,7 +25,7 @@ const realTest = gate.blocker === undefined ? test : test.skip;
 
 const SERVER = join(import.meta.dir, "..", "fixtures", "mcp-stdio-server.ts");
 const REF = "secret://github-token";
-const SECRET_VALUE = "xeon-fake-token-mcp-9c41e7a0b2d35f68";
+const SECRET_VALUE = "fresnel-fake-token-mcp-9c41e7a0b2d35f68";
 const parsed = parseSecretRef(REF);
 if (!parsed.ok) throw new Error("fixture secret reference is invalid");
 const SECRET_NAME = parsed.value.name;
@@ -78,7 +78,7 @@ const main = (label: string, response: ReturnType<typeof text> | ReturnType<type
 realTest(
   "a secret-env server starts after one approval, and a changed definition asks again",
   async () => {
-    const dir = mkdtempSync(join(tmpdir(), "xeon-mcp-secret-"));
+    const dir = mkdtempSync(join(tmpdir(), "fresnel-mcp-secret-"));
     const pidFile = join(dir, "server.pid");
     const listedFile = join(dir, "listed");
     const home = useEngineHome();

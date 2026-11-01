@@ -42,7 +42,7 @@ export type DefaultPluginOutcome =
   | { readonly name: string; readonly action: "failed"; readonly message: string };
 
 export interface DefaultPluginDeps {
-  /** 번들 뿌리. 아래 `<name>/.xeon-plugin/plugin.json`이 있어야 한다 */
+  /** 번들 뿌리. 아래 `<name>/.fresnel-plugin/plugin.json`이 있어야 한다 */
   readonly bundleDir: string;
   /** `<userDir>/extensions` 뿌리. 설치 대상은 그 아래 `<name>/`이다 */
   readonly extensionsDir: string;

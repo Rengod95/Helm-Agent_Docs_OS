@@ -287,7 +287,7 @@ xeon: 예약 상태 파일을 읽거나 쓰지 못했다
    xeon config set <키> <값> --scope user
    ```
 
-   `project`와 `local`은 `--scope project`, `--scope local`로 씁니다. 파일은 작업 폴더의 `.xeon/settings.json`과 `.xeon/settings.local.json`입니다. 신뢰하지 않은 작업 폴더의 프로젝트 설정은 읽기 전용입니다(`apps/host/src/assembly/settings-store.ts`). 작업 폴더를 CLI에서 어떻게 정하는지는 확인하지 못했습니다 [미결 8].
+   `project`와 `local`은 `--scope project`, `--scope local`로 씁니다. 파일은 작업 폴더의 `.fresnel/settings.json`과 `.fresnel/settings.local.json`입니다. 신뢰하지 않은 작업 폴더의 프로젝트 설정은 읽기 전용입니다(`apps/host/src/assembly/settings-store.ts`). 작업 폴더를 CLI에서 어떻게 정하는지는 확인하지 못했습니다 [미결 8].
 3. 다시 확인합니다.
 
    ```

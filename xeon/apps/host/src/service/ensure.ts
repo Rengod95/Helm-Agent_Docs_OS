@@ -63,7 +63,7 @@ export interface EnsuredService {
 }
 
 const DEFAULT_REPLACE_WAIT_MS = 5000;
-const CLIENT_NAME = "xeon-ensure";
+const CLIENT_NAME = "fresnel-ensure";
 
 /** 소켓에 접속해 hello와 status를 한 번 왕복한다. 연결은 닫고 돌려준다 */
 async function probeService(

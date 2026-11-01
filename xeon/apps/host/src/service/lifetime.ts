@@ -31,7 +31,7 @@ import { autoResumeThreads } from "./auto-resume.ts";
 import { hostResourceDir } from "../state-paths.ts";
 import { resolveServicePaths } from "./paths.ts";
 
-// L4.host-service.spec §4.9 서비스 모드, SV-01·SV-02·SV-04·SV-05·SV-07. `xeon service run`/`xeon host --service`의 본체.
+// L4.host-service.spec §4.9 서비스 모드, SV-01·SV-02·SV-04·SV-05·SV-07. `fresnel service run`/`fresnel host --service`의 본체.
 // 순서: 소켓 선점(이중 기동 방지) → 엔진 조립(mode "service") → 연결 허브에 리스너 연결 → 등록 파일 기록 → 유휴 감시.
 // 종료 길은 셋이고 모두 같은 절차를 밟는다: 유휴 유예 경과, SIGTERM, wire `host.shutdown`.
 

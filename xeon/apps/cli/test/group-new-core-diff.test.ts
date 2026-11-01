@@ -47,8 +47,8 @@ function freshRepo(): { readonly repo: string; readonly base: string } {
   const repo = mkdtempSync(join(tmpdir(), "xgrp-core-diff-"));
   repos.push(repo);
   git(repo, ["init", "-q"]);
-  git(repo, ["config", "user.name", "xeon test"]);
-  git(repo, ["config", "user.email", "xeon-test@example.invalid"]);
+  git(repo, ["config", "user.name", "fresnel test"]);
+  git(repo, ["config", "user.email", "fresnel-test@example.invalid"]);
   git(repo, ["config", "commit.gpgsign", "false"]);
   for (const readme of PROTECTED_READMES) {
     mkdirSync(join(repo, dirname(readme)), { recursive: true });

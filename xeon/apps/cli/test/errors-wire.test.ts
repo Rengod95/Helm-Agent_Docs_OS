@@ -8,12 +8,12 @@ import { EXIT } from "../src/exit-codes.ts";
 test("dedicated secret.* kinds map to the same phrases as the legacy internal details", () => {
   expect(failureOfWire(wireError("secret.notFound", { details: { where: "meta" } }))).toEqual({
     message: "그 이름의 비밀이 없다",
-    fix: "xeon secret ls로 이름을 확인하거나 xeon secret add <이름>으로 만든다",
+    fix: "fresnel secret ls로 이름을 확인하거나 fresnel secret add <이름>으로 만든다",
     code: EXIT.error,
   });
   expect(failureOfWire(wireError("secret.inUse", { details: { activeLeases: 2 } }))).toEqual({
     message: "사용 중인 비밀이라 지울 수 없다 (활성 lease 2개)",
-    fix: "사용이 끝난 뒤 다시 지운다. 값만 바꾸려면 xeon secret rotate <이름>을 쓴다",
+    fix: "사용이 끝난 뒤 다시 지운다. 값만 바꾸려면 fresnel secret rotate <이름>을 쓴다",
     code: EXIT.error,
   });
   expect(
@@ -24,7 +24,7 @@ test("dedicated secret.* kinds map to the same phrases as the legacy internal de
     ),
   ).toEqual({
     message: "비밀 제공자(sops)를 쓸 수 없다 (binary_missing)",
-    fix: "sops와 age를 설치하고 xeon doctor로 확인한다",
+    fix: "sops와 age를 설치하고 fresnel doctor로 확인한다",
     code: EXIT.environment,
   });
   expect(
@@ -53,14 +53,14 @@ test("the legacy internal details.secret path still works", () => {
 test("thread.closed, settings.reserved and store.corrupt have their own phrases", () => {
   expect(failureOfWire(wireError("thread.closed", { details: { threadId: "thr_1" } }))).toEqual({
     message: "닫힌 세션이라 쓸 수 없다: thr_1",
-    fix: "xeon sessions fork로 분기하거나 새 세션을 연다",
+    fix: "fresnel sessions fork로 분기하거나 새 세션을 연다",
     code: EXIT.error,
   });
   expect(
     failureOfWire(wireError("settings.reserved", { details: { key: "l1.loop.future" } })),
   ).toEqual({
     message: "아직 읽는 코드가 없는 예약 키다: l1.loop.future",
-    fix: "xeon config list로 쓸 수 있는 키를 확인한다",
+    fix: "fresnel config list로 쓸 수 있는 키를 확인한다",
     code: EXIT.usage,
   });
   const corrupt = failureOfWire(
@@ -88,7 +88,7 @@ test("slash command failures come as capability errors and map to Korean phrases
   });
   expect(failureOfWire(capabilityError("command_shell_disabled", {}))).toEqual({
     message: "셸 주입이 설정에서 꺼져 있어 이 명령을 실행하지 않는다",
-    fix: "l2.dialog.commands.shellInjection 설정을 확인한다 (xeon config get)",
+    fix: "l2.dialog.commands.shellInjection 설정을 확인한다 (fresnel config get)",
     code: EXIT.error,
   });
   const other = failureOfWire(capabilityError("unavailable", {}));
@@ -99,18 +99,18 @@ test("compaction kinds have their own phrases and the exit code 1", () => {
   expect(
     failureOfWire(
       wireError("thread.cancelledByExtension", {
-        details: { point: "session.compact.before", reason: null },
+        details: { point: "thread.compact.before", reason: null },
       }),
     ),
   ).toEqual({
     message: "확장이 컴팩션 작업을 막았다",
-    fix: "확장의 설정을 확인한다 (xeon config get)",
+    fix: "확장의 설정을 확인한다 (fresnel config get)",
     code: EXIT.error,
   });
   expect(
     failureOfWire(
       wireError("thread.cancelledByExtension", {
-        details: { point: "session.fork.before", reason: "분기 금지" },
+        details: { point: "thread.fork.before", reason: "분기 금지" },
       }),
     ).message,
   ).toBe("확장이 분기 작업을 막았다: 분기 금지");
@@ -118,7 +118,7 @@ test("compaction kinds have their own phrases and the exit code 1", () => {
     failureOfWire(wireError("thread.compactFailed", { details: { reason: "commit_failed" } })),
   ).toEqual({
     message: "대화를 요약하지 못했다 (commit_failed)",
-    fix: "잠시 뒤 다시 /compact를 실행한다. 반복되면 xeon doctor를 실행하고 보고한다",
+    fix: "잠시 뒤 다시 /compact를 실행한다. 반복되면 fresnel doctor를 실행하고 보고한다",
     code: EXIT.error,
   });
   expect(failureOfWire(wireError("request.cancelled"))).toEqual({
@@ -149,7 +149,7 @@ test("a too old sops asks for an upgrade; a missing one still asks for an instal
       details: { provider: "sops", reason: "version_too_old" },
     }),
   );
-  expect(old.fix).toBe("sops를 3.10.0 이상(권장 3.12.0 이상)으로 올리고 xeon doctor로 확인한다");
+  expect(old.fix).toBe("sops를 3.10.0 이상(권장 3.12.0 이상)으로 올리고 fresnel doctor로 확인한다");
 });
 
 test("a file key that is not confirmed yet tells the user which setting to save", () => {
@@ -158,7 +158,7 @@ test("a file key that is not confirmed yet tells the user which setting to save"
   );
   expect(failure).toEqual({
     message: "복호화 키를 아직 쓸 수 없다 (OS 키 저장소가 없어 파일 키가 필요하다)",
-    fix: "키를 디스크 파일에 두는 것을 확인했다면 xeon config set l0.secrets.ageKey.source file로 저장하고 다시 실행한다",
+    fix: "키를 디스크 파일에 두는 것을 확인했다면 fresnel config set l0.secrets.ageKey.source file로 저장하고 다시 실행한다",
     code: EXIT.environment,
   });
   // 키 항목이 없는 경우
@@ -177,18 +177,18 @@ const sopsFile = (code: string) =>
 test("write failures name what could not be prepared and why", () => {
   expect(sopsFile("sops_encrypt_failed")).toEqual({
     message: "기본 비밀 파일을 준비하지 못했다 (sops_encrypt_failed)",
-    fix: "sops가 파일을 암호화하지 못했다. sops 버전을 확인하고 xeon doctor로 진단한다",
+    fix: "sops가 파일을 암호화하지 못했다. sops 버전을 확인하고 fresnel doctor로 진단한다",
     code: EXIT.environment,
   });
   expect(sopsFile("recipient_unknown").fix).toContain("l0.secrets.sops.files");
   expect(sopsFile("unsupported_format").fix).toContain(".yaml");
   expect(sopsFile("lock_timeout").fix).toBe(
-    "다른 xeon이 같은 비밀 파일에 쓰고 있다. 끝난 뒤 다시 실행한다",
+    "다른 fresnel이 같은 비밀 파일에 쓰고 있다. 끝난 뒤 다시 실행한다",
   );
   // OS 오류 코드는 권한과 디스크를 보게 한다
   expect(sopsFile("EACCES")).toEqual({
     message: "기본 비밀 파일을 준비하지 못했다 (EACCES)",
-    fix: "xeon 설정 디렉터리의 secrets/sops 폴더 권한과 디스크 상태를 확인한다",
+    fix: "fresnel 설정 디렉터리의 secrets/sops 폴더 권한과 디스크 상태를 확인한다",
     code: EXIT.environment,
   });
   const store = failureOfWire(

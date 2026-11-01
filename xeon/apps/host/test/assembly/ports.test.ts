@@ -90,7 +90,7 @@ interface Harness {
   readonly schedule: { pending: number; loops: number; readonly listeners: Set<() => void> };
 }
 
-const TOKEN: LeaseToken = { resource: `session:${THREAD}`, holderId: "h", epoch: 4 };
+const TOKEN: LeaseToken = { resource: `thread:${THREAD}`, holderId: "h", epoch: 4 };
 
 function owner(kind: LeaseOwnerInfo["kind"]): LeaseOwnerInfo {
   return {
@@ -581,7 +581,7 @@ describe("locks", () => {
     expect(outcome.ok).toBe(true);
     // 열 때 복구는 도구의 현재 재실행 정책을 본다(HS 4.1 7단계)
     expect(h.calls).toEqual([
-      `lease.acquire:session:${THREAD}:app`,
+      `lease.acquire:thread:${THREAD}:app`,
       `session.recover:${THREAD}:stdio:unsafe`,
       "ext.openThread",
       `approvals.restore:${THREAD}`,
@@ -700,7 +700,7 @@ describe("locks", () => {
     const { ports } = createEnginePorts(h.deps);
     expect(String(await rejectionOf(ports.locks.tryAcquire(THREAD, "cli")))).toContain("boom");
     expect(h.calls).toEqual([
-      `lease.acquire:session:${THREAD}:cli`,
+      `lease.acquire:thread:${THREAD}:cli`,
       `session.recover:${THREAD}:stdio:unsafe`,
       "ext.openThread",
       "keepAlive.dispose",
@@ -720,7 +720,7 @@ describe("locks", () => {
     expect(thrown.data.kind).toBe("store.busy");
     expect(thrown.message).toContain("approvals.restore failed");
     expect(h.calls).toEqual([
-      `lease.acquire:session:${THREAD}:cli`,
+      `lease.acquire:thread:${THREAD}:cli`,
       `session.recover:${THREAD}:stdio:unsafe`,
       "ext.openThread",
       `approvals.restore:${THREAD}`,

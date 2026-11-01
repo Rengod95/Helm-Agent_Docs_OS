@@ -32,7 +32,7 @@ binds: [xeon/packages/platform-exec/**]
 | 장시간 백그라운드 프로세스 레지스트리, 엔진 프로세스 수명 | `L0.process.spec`. 레지스트리에 넘길 pid와 정지 수단은 이 문서의 `startBackground`(3.9절)가 만든다 |
 | 비밀 해석(lease), 마스킹, 사용 감사 | `L0.secrets.spec` |
 | 사용자 디렉터리 질의, `Clock`·`Scheduler`·`RandomSource` 구현 | `L0.os.spec` |
-| 앱 설정·스킬·플러그인 디렉터리 감시 | `L0.os.spec` §3.8. 파일 감시 책임 경계: 작업 공간 파일 감시는 `xeon.exec`의 `ExecutionEnv.watch`가 맡고, 앱 설정·스킬·플러그인 디렉터리 감시는 `xeon.os`의 `FileWatcher`가 맡는다. 판정은 경로 기준이다. `OsDirs`(config, data, state) 아래 경로는 os, 작업 공간 루트 아래 경로(프로젝트 안 `.xeon/` 포함)는 exec다 [미결: `L0.os.spec` 10절 2번과 같은 문장] |
+| 앱 설정·스킬·플러그인 디렉터리 감시 | `L0.os.spec` §3.8. 파일 감시 책임 경계: 작업 공간 파일 감시는 `xeon.exec`의 `ExecutionEnv.watch`가 맡고, 앱 설정·스킬·플러그인 디렉터리 감시는 `xeon.os`의 `FileWatcher`가 맡는다. 판정은 경로 기준이다. `OsDirs`(config, data, state) 아래 경로는 os, 작업 공간 루트 아래 경로(프로젝트 안 `.fresnel/` 포함)는 exec다 [미결: `L0.os.spec` 10절 2번과 같은 문장] |
 | 도구 승인, 권한 모드, 명령 패턴 규칙 | `L1.tools.spec` |
 
 범위와 단계:

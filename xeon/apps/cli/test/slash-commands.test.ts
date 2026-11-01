@@ -37,7 +37,7 @@ const REVIEW: CommandListResult["commands"][number] = {
   args: [],
   kind: "template",
   source: "project",
-  origin: ".xeon/commands/review.md",
+  origin: ".fresnel/commands/review.md",
   hasShell: true,
 };
 
@@ -175,7 +175,9 @@ test("command failures are mapped to two-line phrases and the session goes on", 
     },
   });
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
-  expect(s.h.stderrText()).toContain("xeon: 명령 인자가 선언에 맞지 않다: mode must be on or off");
+  expect(s.h.stderrText()).toContain(
+    "fresnel: 명령 인자가 선언에 맞지 않다: mode must be on or off",
+  );
   expect(s.h.stderrText()).toContain("  해결: /help로 명령의 사용법을 확인한다");
   expect(s.h.methods()).toContain("turn.start");
 });
@@ -315,23 +317,27 @@ test("compaction failures are two-line phrases and the session goes on", async (
   const failures: readonly [ReturnType<typeof wireError>, string, string][] = [
     [
       wireError("thread.cancelledByExtension", {
-        details: { point: "session.compact.before", reason: "요약 금지 구간" },
+        details: { point: "thread.compact.before", reason: "요약 금지 구간" },
       }),
-      "xeon: 확장이 컴팩션 작업을 막았다: 요약 금지 구간",
-      "  해결: 확장의 설정을 확인한다 (xeon config get)",
+      "fresnel: 확장이 컴팩션 작업을 막았다: 요약 금지 구간",
+      "  해결: 확장의 설정을 확인한다 (fresnel config get)",
     ],
     [
       wireError("thread.compactFailed", { details: { reason: "summary_failed" } }),
-      "xeon: 대화를 요약하지 못했다 (summary_failed)",
-      "  해결: 잠시 뒤 다시 /compact를 실행한다. 반복되면 xeon doctor를 실행하고 보고한다",
+      "fresnel: 대화를 요약하지 못했다 (summary_failed)",
+      "  해결: 잠시 뒤 다시 /compact를 실행한다. 반복되면 fresnel doctor를 실행하고 보고한다",
     ],
-    [wireError("turn.busy"), "xeon: 진행 중인 turn이 있다", "  해결: 끝난 뒤 다시 보낸다"],
+    [wireError("turn.busy"), "fresnel: 진행 중인 turn이 있다", "  해결: 끝난 뒤 다시 보낸다"],
     [
       wireError("thread.closed", { details: { threadId: "thr_1" } }),
-      "xeon: 닫힌 세션이라 쓸 수 없다: thr_1",
-      "  해결: xeon sessions fork로 분기하거나 새 세션을 연다",
+      "fresnel: 닫힌 세션이라 쓸 수 없다: thr_1",
+      "  해결: fresnel sessions fork로 분기하거나 새 세션을 연다",
     ],
-    [wireError("request.cancelled"), "xeon: 요청이 취소되었다", "  해결: 필요하면 다시 실행한다"],
+    [
+      wireError("request.cancelled"),
+      "fresnel: 요청이 취소되었다",
+      "  해결: 필요하면 다시 실행한다",
+    ],
   ];
   for (const [error, first, second] of failures) {
     const s = chat(["/compact", "hello"], {
@@ -351,7 +357,7 @@ test("a host without thread.compact never gets the call", async () => {
   const s = chat(["/compact"], {});
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
   expect(s.h.methods()).not.toContain("thread.compact");
-  expect(s.h.stderrText()).toContain("xeon: 이 엔진은 수동 컴팩션을 처리하지 않는다");
+  expect(s.h.stderrText()).toContain("fresnel: 이 엔진은 수동 컴팩션을 처리하지 않는다");
 });
 
 test("/compact is built in: it wins over an engine command with the same name and shows in /help and completion", async () => {

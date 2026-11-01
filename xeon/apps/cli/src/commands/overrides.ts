@@ -7,7 +7,7 @@ import { failureOfCaught, failureOfWire, type Failure } from "../errors.ts";
 import { EXIT } from "../exit-codes.ts";
 import { interpretRaw } from "../settings-input.ts";
 
-// L4.cli.spec §4.8 `--set key=value`. 대상 세션이 정해진 뒤 첫 turn.start 전에 settings.set { scope: "session", threadId }를
+// L4.cli.spec §4.8 `--set key=value`. 대상 세션이 정해진 뒤 첫 turn.start 전에 settings.set { scope: "launch", threadId }를
 // 순서대로 부른다. 하나라도 실패하면 turn을 시작하지 않는다(사용법 오류 2).
 
 /** 덮어쓰기를 차례로 적용한다. 앞 항목이 끝나야 다음을 보낸다: 순서가 의미다 */
@@ -22,7 +22,7 @@ export async function applyOverrides(
       await connection.request("settings.set", {
         key: override.key,
         value: interpretRaw(override.raw),
-        scope: "session",
+        scope: "launch",
         threadId,
       });
     } catch (caught) {

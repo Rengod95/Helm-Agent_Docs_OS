@@ -261,7 +261,7 @@ L2 도메인의 내구·휘발 이벤트 카탈로그 형식은 `F.records.spec`
 
 ### 5.10 프로젝트 자원의 기준 폴더
 
-- [결정: m2c G2-02] 프로젝트 자원(`.mcp.json`, `.xeon/mcp.json`, `.xeon/skills/`, `.xeon/commands/`, 프로젝트·로컬 설정 층)은 호출이 속한 대화의 작업 폴더(`thread.workspace`)를 기준으로 읽는다. 엔진 프로세스의 cwd로 대신하지 않는다. 데스크톱 사이드카의 cwd는 홈이라 사용자가 고른 폴더의 자원이 읽히지 않기 때문이다.
+- [결정: m2c G2-02] 프로젝트 자원(`.mcp.json`, `.fresnel/mcp.json`, `.fresnel/skills/`, `.fresnel/commands/`, 프로젝트·로컬 설정 층)은 호출이 속한 대화의 작업 폴더(`thread.workspace`)를 기준으로 읽는다. 엔진 프로세스의 cwd로 대신하지 않는다. 데스크톱 사이드카의 cwd는 홈이라 사용자가 고른 폴더의 자원이 읽히지 않기 때문이다.
 - 공급: 조립 루트가 `(threadId) => string | undefined`(그 대화의 작업 폴더, 없으면 `undefined`)를 각 `cap-*`에 넘긴다. 이 함수는 `L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값을 낸다. `cap-*` 패키지끼리 import하지 않으므로 같은 모양의 옵션을 각자 둔다: `cap-mcp`의 `McpDeps.workspaceOf`, `cap-knowledge`의 `KnowledgePluginOptions.workspaceOf`, `cap-dialog`의 `CommandRoots.projectRoot(threadId)`. `cap-workspace`는 처음부터 대화의 작업 폴더를 쓴다.
 - 작업 폴더가 없는 대화와 모르는 thread에는 프로젝트 자원이 없다. 엔진 cwd로 내려가지 않는다. 대화를 지정하지 않는 읽기(엔진을 열 때의 첫 읽기)만 조립 루트가 넘긴 기본 루트를 쓴다.
 - 프로젝트 신뢰(`X.loading-trust.spec` §4.7)도 같은 폴더로 묻는다. 신뢰하지 않은 폴더의 프로젝트 자원은 읽지 않는다(fail-closed).

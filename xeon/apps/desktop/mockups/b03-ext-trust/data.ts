@@ -98,7 +98,7 @@ export const graphLens: Manifest = {
   ],
   views: 3,
   source: "~/Downloads/graph-lens/",
-  dest: "~/.xeon/extensions/graph-lens/",
+  dest: "~/.fresnel/extensions/graph-lens/",
 };
 
 /** 프로젝트 위치 확장(폴더 신뢰가 먼저) */
@@ -114,8 +114,8 @@ export const acmeManifest: Manifest = {
   points: ["tool.call.before"],
   frames: [],
   views: 1,
-  source: "~/code/xeon/.xeon/extensions/acme-notes/",
-  dest: "~/code/xeon/.xeon/extensions/acme-notes/",
+  source: "~/code/xeon/.fresnel/extensions/acme-notes/",
+  dest: "~/code/xeon/.fresnel/extensions/acme-notes/",
 };
 
 export type CheckState = "wait" | "run" | "ok" | "warn" | "fail";
@@ -129,7 +129,7 @@ export interface Check {
 
 /** 가져오기 검사(로더 파이프라인 앞 단계와 같은 검사, X.loading-trust §4.3) */
 export const CHECKS: Check[] = [
-  { id: "manifest", label: `${T.manifest} 읽기`, ok: ".xeon-plugin/plugin.json · 형식 맞음" },
+  { id: "manifest", label: `${T.manifest} 읽기`, ok: ".fresnel-plugin/plugin.json · 형식 맞음" },
   {
     id: "name",
     label: "이름 겹침",

@@ -103,7 +103,7 @@ export function ModelsTab({ state }: { state: State }) {
             <ShadowedScopes
               defaultOpen={state === "S1"}
               disabled={off}
-              rows={[{ scope: "사용자", value: "high", path: "~/.xeon/settings.json" }]}
+              rows={[{ scope: "사용자", value: "high", path: "~/.fresnel/settings.json" }]}
             />
           }
         >

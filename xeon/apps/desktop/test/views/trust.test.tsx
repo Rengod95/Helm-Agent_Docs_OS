@@ -37,7 +37,7 @@ function status(patch: Partial<TrustStatus>): TrustStatus {
     required: true,
     verdict: "undecided",
     via: "default",
-    resources: [".mcp.json", ".xeon/skills"],
+    resources: [".mcp.json", ".fresnel/skills"],
     options: OPTIONS,
     ...patch,
   };
@@ -49,7 +49,7 @@ describe("trustCardOf", () => {
     expect(card).toEqual({
       projectRoot: "/work/repo",
       state: "undecided",
-      resources: [".mcp.json", ".xeon/skills"],
+      resources: [".mcp.json", ".fresnel/skills"],
       buttons: [
         { choice: O_FOLDER.choice, text: "이 폴더 신뢰", savedPath: "/work/repo", primary: true },
         { choice: O_PARENT.choice, text: "상위 폴더 전체 신뢰", savedPath: "/work", primary: true },
@@ -86,7 +86,7 @@ describe("TrustCardBody", () => {
     const out = renderToString(<TrustCardBody card={card} sending="idle" onDecide={() => {}} />);
     expect(out).toContain("/work/repo");
     expect(out).toContain(".mcp.json");
-    expect(out).toContain(".xeon/skills");
+    expect(out).toContain(".fresnel/skills");
     expect(out).toContain("이 폴더 신뢰");
     expect(out).toContain("이번 실행 동안만 신뢰");
     expect(out).toContain('title="/work"');

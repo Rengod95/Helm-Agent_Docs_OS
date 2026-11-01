@@ -9,8 +9,8 @@ import type { PromptIo } from "../render/approval.ts";
 import { askTrust, describeTrust, optionText } from "../render/trust.ts";
 import { printFailure, withEngine, type CommandContext } from "./context.ts";
 
-// L4.cli.spec §3.1 trust, §4.11 "프로젝트 신뢰". `xeon trust`는 이 작업 폴더의 신뢰 상태를 보이고(trust.get),
-// `xeon trust allow|deny`는 선택지 하나를 host에 보낸다(trust.decide). 저장 파일(trust.json)의 잠금은 host가 맡는다.
+// L4.cli.spec §3.1 trust, §4.11 "프로젝트 신뢰". `fresnel trust`는 이 작업 폴더의 신뢰 상태를 보이고(trust.get),
+// `fresnel trust allow|deny`는 선택지 하나를 host에 보낸다(trust.decide). 저장 파일(trust.json)의 잠금은 host가 맡는다.
 // 신뢰는 `.mcp.json`, 프로젝트 스킬, 프로젝트 슬래시 명령, 프로젝트 설정을 읽을지 정한다. 대화형 chat도 시작할 때 같은 카드를 묻는다.
 
 /** 호스트가 신뢰 결정을 모를 때의 실패. 문장은 쓸 때 현재 로케일로 만든다 */
@@ -83,7 +83,7 @@ async function runSet(
   return EXIT.ok;
 }
 
-/** `xeon trust`를 실행하고 종료 코드를 돌려준다 */
+/** `fresnel trust`를 실행하고 종료 코드를 돌려준다 */
 export async function runTrust(ctx: CommandContext, command: TrustCommand): Promise<ExitCode> {
   return withEngine(ctx, (handle) => {
     switch (command.kind) {

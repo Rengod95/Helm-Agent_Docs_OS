@@ -28,7 +28,7 @@ test("secret ls with nothing registered says so and names the add command", asyn
   });
   harnesses.push(h);
   expect(await h.run(["secret", "ls"])).toBe(EXIT.ok);
-  expect(h.stderrText()).toBe("No secrets are registered (xeon secret add <name>)\n");
+  expect(h.stderrText()).toBe("No secrets are registered (fresnel secret add <name>)\n");
 });
 
 test("trust against a host without trust methods gives the two-line failure in English", async () => {
@@ -36,7 +36,7 @@ test("trust against a host without trust methods gives the two-line failure in E
   harnesses.push(h);
   expect(await h.run(["trust"])).toBe(EXIT.environment);
   expect(h.stderrText()).toBe(
-    "xeon: The connected host does not support project trust decisions yet\n  Fix: Update the host, or edit the trust file (trust.json) by hand\n",
+    "fresnel: The connected host does not support project trust decisions yet\n  Fix: Update the host, or edit the trust file (trust.json) by hand\n",
   );
 });
 
@@ -45,7 +45,7 @@ test("db export without a data directory names the environment fix", async () =>
   harnesses.push(h);
   expect(await h.run(["db", "export", "out"])).toBe(EXIT.environment);
   expect(h.stderrText()).toBe(
-    "xeon: Could not determine the data directory location\n  Fix: Check HOME (USERPROFILE on Windows) and the XEON_HOME setting\n",
+    "fresnel: Could not determine the data directory location\n  Fix: Check HOME (USERPROFILE on Windows) and the FRESNEL_HOME setting\n",
   );
 });
 
@@ -72,7 +72,7 @@ test("doctor's search lines name the missing engine answer in English", async ()
   expect(await describeSearch({ searxngUrl: "" }, probes, undefined, true)).toEqual({
     provider: "Search provider: unknown (the engine did not return the provider list)",
     searxng:
-      "SearXNG: no address is set (it is not detected automatically) — to set one: xeon config set l2.web.search.searxng.url <address>",
+      "SearXNG: no address is set (it is not detected automatically) — to set one: fresnel config set l2.web.search.searxng.url <address>",
     recommended: "Key plugins: unknown (the engine did not return the provider list)",
     assumedDefaults: true,
   });

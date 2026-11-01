@@ -61,7 +61,7 @@ export interface HarnessOptions {
   readonly stdin?: string;
   /** 대화형 입력 대본. 끝나면 EOF(null)다 */
   readonly lines?: readonly string[];
-  /** false면 XEON_CLI_STATE_FILE 덮어쓰기를 주지 않아 호스트가 정한 기본 위치를 쓴다 */
+  /** false면 FRESNEL_CLI_STATE_FILE 덮어쓰기를 주지 않아 호스트가 정한 기본 위치를 쓴다 */
   readonly stateFile?: boolean;
   /** resolveHostStatePaths 가짜를 바꾼다(상태 디렉터리 오류 시험) */
   readonly resolveStatePaths?: HostApi["resolveHostStatePaths"];

@@ -183,7 +183,7 @@ export function harness(options: HarnessOptions = {}): Harness {
     shell,
     commandFiles,
     commandRoots: {
-      userDir: "/home/user/.xeon/commands",
+      userDir: "/home/user/.fresnel/commands",
       home: "/home/user",
       projectRoot: options.projectRoot ?? (() => "/work"),
       projectTrusted: options.projectTrusted ?? (() => Promise.resolve(true)),

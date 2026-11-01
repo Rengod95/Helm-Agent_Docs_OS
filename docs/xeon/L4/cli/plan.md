@@ -269,7 +269,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 
 #### 실제 호스트 종단 시험 (M2 마감 병합 뒤)
 
-가짜 호스트 시험(`test/support/fake-server.ts`)은 CLI가 보낸 요청과 받은 값의 처리를 빠르게 확인하고, 아래 시험은 같은 흐름을 실제 `@xeon/host`와 모델 테이프로 다시 확인한다. 공통 도구는 `test/support/real-host.ts`다. `connectEngine`이 실제 호스트를 같은 프로세스에 세우고, 입출력은 `harness.ts`의 가짜 `CliIo`를 그대로 쓰며, 보낸 요청은 `observe` 탭으로 모은다(`RealCli.sent`). 엔진 홈(`XEON_HOME`)은 시험마다 임시 디렉터리다. 승인을 기다리다 죽는 호스트는 실제 자식 프로세스(`test/fixtures/scenario-host.ts`, `test/support/stdio-child.ts`)로 띄워 SIGKILL한다.
+가짜 호스트 시험(`test/support/fake-server.ts`)은 CLI가 보낸 요청과 받은 값의 처리를 빠르게 확인하고, 아래 시험은 같은 흐름을 실제 `@xeon/host`와 모델 테이프로 다시 확인한다. 공통 도구는 `test/support/real-host.ts`다. `connectEngine`이 실제 호스트를 같은 프로세스에 세우고, 입출력은 `harness.ts`의 가짜 `CliIo`를 그대로 쓰며, 보낸 요청은 `observe` 탭으로 모은다(`RealCli.sent`). 엔진 홈(`FRESNEL_HOME`)은 시험마다 임시 디렉터리다. 승인을 기다리다 죽는 호스트는 실제 자식 프로세스(`test/fixtures/scenario-host.ts`, `test/support/stdio-child.ts`)로 띄워 SIGKILL한다.
 
 | 시험 파일 | 실제 호스트에서 확인한 것 | 가짜 호스트 시험에만 남은 것 |
 |---|---|---|
@@ -315,7 +315,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | json-mode-equals-host-messages | `test/json-mode.int.test.ts` | int | 테이프 모델 조립으로 `chat -p --json`을 in-process로 돌리면 stdout 줄 열이 `observe` 탭이 받은 메시지 열과 같다(spec AC4) | M1 |
 | non-tty-disables-tui | `test/non-tty.test.ts` | unit | stdin 비TTY면 print 모드, stdout 비TTY면 출력에 0x1B가 없다. `NO_COLOR`, `TERM=dumb`이면 대화형에서도 색 없음 | M1 |
 | exit-code-for-lock-denied | `test/exit-codes.test.ts` | unit | `turn.start`가 `thread.locked`를 돌려주면 M1은 4. 그 밖의 kind와 `EngineStartError`가 spec §3.6·§4.10 표의 코드로 바뀐다(`catalogConflict`·`missingService`는 1, 나머지는 3). `runHostCommand`의 0·1·2는 그대로다 | M1 |
-| dev-wire-round-trip-passed | `test/engine-options.test.ts` | unit | 개발 빌드 조건(`XEON_DEV=1` 또는 소스 실행)에서 `connectEngine`이 `startInProcessHost`에 `devChecks: true`를 넘기고, 컴파일 바이너리 조건에서 `false`를 넘긴다. 가짜 `@xeon/host` 함수로 인자를 기록한다(spec AC11) | M1 |
+| dev-wire-round-trip-passed | `test/engine-options.test.ts` | unit | 개발 빌드 조건(`FRESNEL_DEV=1` 또는 소스 실행)에서 `connectEngine`이 `startInProcessHost`에 `devChecks: true`를 넘기고, 컴파일 바이너리 조건에서 `false`를 넘긴다. 가짜 `@xeon/host` 함수로 인자를 기록한다(spec AC11) | M1 |
 | usage-error-two-lines | `test/usage-error.test.ts` | unit | 사용법 오류 코드 각각에서 stderr 출력이 `xeon: …`와 `  해결: …` 두 줄이고 종료 코드가 2다(spec AC12, §4.10) | M1 |
 | sigint-once-interrupts-turn | `test/signals.test.ts` | unit | 주입한 시계로 Ctrl+C 1회(turn 진행 중)는 M2에서 `turn.interrupt`를 한 번 보내고, 2초 안 2회는 종료 요청과 130, 3회는 강제 종료다. M1 설정에서는 1회가 종료 요청이다 | M1, M2 |
 | transcript-replay-from-cursor | `test/transcript.test.ts` | unit | 위치 k에서 시작한 `applyBatch`가 seq ≤ k 이벤트를 무시하고, `from` 불일치에 `gap`을 돌려주고, 같은 item의 `item.recorded`가 오면 진행 줄을 지운다. `afterSeq` 지연 조각이 위치 도달 뒤 적용된다 | M1 |

@@ -25,10 +25,10 @@ describe("scope badge", () => {
       tone: "project",
     });
     expect(scopeBadge({ scope: "local" })).toEqual({ scope: "local", text: "로컬", tone: "local" });
-    expect(scopeBadge({ scope: "session" })).toEqual({
-      scope: "session",
-      text: "세션",
-      tone: "session",
+    expect(scopeBadge({ scope: "launch" })).toEqual({
+      scope: "launch",
+      text: "이번 실행",
+      tone: "launch",
     });
     expect(scopeBadge({ scope: "default" })).toEqual({
       scope: "default",
@@ -81,12 +81,12 @@ describe("lock info", () => {
     const locked = effectiveOf("l1.models.x", 1, {
       locked: true,
       lockReason: "managed_file",
-      source: { scope: "managed", path: "/etc/xeon/managed.json" },
+      source: { scope: "managed", path: "/etc/fresnel/managed.json" },
     });
     expect(lockInfo(locked)).toEqual({
       reason: "managed_file",
-      path: "/etc/xeon/managed.json",
-      text: "관리 정책으로 잠겨 있어요 정책 파일: /etc/xeon/managed.json",
+      path: "/etc/fresnel/managed.json",
+      text: "관리 정책으로 잠겨 있어요 정책 파일: /etc/fresnel/managed.json",
     });
   });
 
@@ -171,7 +171,7 @@ describe("writable scopes (4.3.6)", () => {
   const def = wireDef({ key: "l1.models.x", type: { type: "string" } });
 
   test("managed is never a candidate", () => {
-    expect(writableScopes(def, undefined, true)).toEqual(["user", "project", "local", "session"]);
+    expect(writableScopes(def, undefined, true)).toEqual(["user", "project", "local", "launch"]);
   });
 
   test("a locked setting has no candidates", () => {
@@ -195,10 +195,10 @@ describe("writable scopes (4.3.6)", () => {
 
 describe("default write scope", () => {
   test("user first, then project, local, session", () => {
-    expect(defaultWriteScope(["project", "local", "session", "user"])).toBe("user");
-    expect(defaultWriteScope(["session", "local", "project"])).toBe("project");
-    expect(defaultWriteScope(["session", "local"])).toBe("local");
-    expect(defaultWriteScope(["session"])).toBe("session");
+    expect(defaultWriteScope(["project", "local", "launch", "user"])).toBe("user");
+    expect(defaultWriteScope(["launch", "local", "project"])).toBe("project");
+    expect(defaultWriteScope(["launch", "local"])).toBe("local");
+    expect(defaultWriteScope(["launch"])).toBe("launch");
   });
 
   test("no candidates gives null", () => {

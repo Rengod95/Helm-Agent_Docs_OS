@@ -51,13 +51,13 @@ function isMessage(value: unknown): value is Message {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-const TIMEOUT_ENV = "XEON_E2E_TIMEOUT_MS";
+const TIMEOUT_ENV = "FRESNEL_E2E_TIMEOUT_MS";
 const DEFAULT_TIMEOUT_MS = 60_000;
 // setTimeout은 2^31 - 1 ms를 넘는 지연을 1 ms로 줄여 실행하므로 그보다 큰 값은 쓰지 않는다
 const MAX_TIMER_MS = 2_147_483_647;
 
 /**
- * 요청·대기·종료 한 번의 상한(ms)을 정한다. 명시한 값이 가장 우선이고, 없으면 `XEON_E2E_TIMEOUT_MS`가 양의 정수일 때 그 값이다.
+ * 요청·대기·종료 한 번의 상한(ms)을 정한다. 명시한 값이 가장 우선이고, 없으면 `FRESNEL_E2E_TIMEOUT_MS`가 양의 정수일 때 그 값이다.
  * 없거나, 0·음수·정수가 아니거나, 타이머 상한을 넘으면 기본값 60000이다. 기본값은 부하가 걸린 기기에서 컴파일 사이드카를 처음 띄우는 시간을 본 것이다.
  */
 export function resolveTimeoutMs(
@@ -80,8 +80,8 @@ export async function startEngine(
   const home = newHome();
   const timeoutMs = resolveTimeoutMs(options.timeoutMs, process.env);
   const proc = Bun.spawn([...command], {
-    // XEON_DEV는 비운다: 소스 진입은 스스로 개발 검사를 켜고 컴파일 바이너리는 켜지 않는다. 차이가 wire에 나오지 않아야 한다
-    env: { ...process.env, XEON_HOME: home, XEON_DEV: "" },
+    // FRESNEL_DEV는 비운다: 소스 진입은 스스로 개발 검사를 켜고 컴파일 바이너리는 켜지 않는다. 차이가 wire에 나오지 않아야 한다
+    env: { ...process.env, FRESNEL_HOME: home, FRESNEL_DEV: "" },
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",
@@ -192,13 +192,13 @@ export async function startEngine(
 export { HELLO };
 
 /**
- * 엔진 홈(`XEON_HOME`)을 환경에 가진 프로세스가 남아 있는가. 종료한 사이드카의 손자(셸 도구, MCP 서버)가 남았는지 본다.
+ * 엔진 홈(`FRESNEL_HOME`)을 환경에 가진 프로세스가 남아 있는가. 종료한 사이드카의 손자(셸 도구, MCP 서버)가 남았는지 본다.
  * Linux의 /proc을 읽는다. 다른 OS에서는 null(확인하지 못함)이다.
  */
 export function processesWithHome(home: string): number[] | null {
   const listed = attempt(() => readdirSync("/proc"));
   if (!listed.ok) return null;
-  const needle = `XEON_HOME=${home}`;
+  const needle = `FRESNEL_HOME=${home}`;
   const found: number[] = [];
   for (const entry of listed.value) {
     if (!/^\d+$/.test(entry)) continue;

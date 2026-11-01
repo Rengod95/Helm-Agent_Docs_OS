@@ -5,9 +5,9 @@ import { parseServiceEndpoint } from "../src/endpoint.ts";
 
 describe("parseServiceEndpoint", () => {
   test("unix: and a bare absolute path", () => {
-    expect(parseServiceEndpoint("unix:/run/user/1000/xeon/xeon.sock")).toEqual({
+    expect(parseServiceEndpoint("unix:/run/user/1000/fresnel/fresnel.sock")).toEqual({
       ok: true,
-      value: { kind: "unix", path: "/run/user/1000/xeon/xeon.sock" },
+      value: { kind: "unix", path: "/run/user/1000/fresnel/fresnel.sock" },
     });
     expect(parseServiceEndpoint("  /tmp/x.sock ")).toEqual({
       ok: true,
@@ -31,18 +31,20 @@ describe("parseServiceEndpoint", () => {
   });
 
   test("ssh with and without user and port; the remote socket is the path", () => {
-    expect(parseServiceEndpoint("ssh://me@box.example:2222/run/user/1000/xeon/xeon.sock")).toEqual({
+    expect(
+      parseServiceEndpoint("ssh://me@box.example:2222/run/user/1000/fresnel/fresnel.sock"),
+    ).toEqual({
       ok: true,
       value: {
         kind: "ssh",
         target: "me@box.example",
-        remoteSocket: "/run/user/1000/xeon/xeon.sock",
+        remoteSocket: "/run/user/1000/fresnel/fresnel.sock",
         port: 2222,
       },
     });
-    expect(parseServiceEndpoint("ssh://box/home/me/xeon.sock")).toEqual({
+    expect(parseServiceEndpoint("ssh://box/home/me/fresnel.sock")).toEqual({
       ok: true,
-      value: { kind: "ssh", target: "box", remoteSocket: "/home/me/xeon.sock" },
+      value: { kind: "ssh", target: "box", remoteSocket: "/home/me/fresnel.sock" },
     });
   });
 

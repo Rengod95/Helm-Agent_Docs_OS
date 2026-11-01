@@ -64,7 +64,7 @@ import type { WebStatusHolder } from "./web-providers.ts";
 // `xeon.models`의 hosted 검색(내장 검색 래퍼, E4), 설정 층. `web.search`의 기본 provider는 내장 검색 래퍼다: 이 조립이 `hostedSearch`를
 // 넘기지 않으면 래퍼가 후보에 들지 않아 설정한 provider가 없을 때 검색할 곳이 없다(M2 마감 G1-12, H1). SearXNG와 키 API는 사용자가 설정했을 때만
 // 체인에 든다(ADR-0005 개정, L2.web.spec §4.8).
-// 지점 구독(결과를 바꾸지 않는 tap): `input.user.before`(나온 URL), `session.shutdown`(닫힌 세션의 보관 원문 정리와 브라우저 세션 닫기).
+// 지점 구독(결과를 바꾸지 않는 tap): `input.user.before`(나온 URL), `thread.shutdown`(닫힌 세션의 보관 원문 정리와 브라우저 세션 닫기).
 // 설정이 바뀌면 탐침 기억을 지운다: SearXNG를 새로 띄우거나 주소를 바꾼 뒤 실패 탐침의 30초를 기다리지 않게 한다.
 // M3b(B2-WEB): 플러그인 provider 등록(`registrations`, `web_provider` 기록)과 헤더 비밀(`headerSecrets`), 브라우저 MCP(`browserMcp`,
 // `playwright` 서버), 브라우저 도구(`web_browse_*`)를 잇는다. `browseConfirm`은 아직 잇지 않아 확인이 필요한 브라우저 동작은 거부된다 [미결].
@@ -82,7 +82,7 @@ export interface HostWebOptions {
   readonly hostedSearch?: HostedSearchPort;
   /** 설정이 바뀔 때마다 부른다. 돌려주는 함수로 구독을 푼다 */
   readonly onSettingsChange: (listener: () => void) => () => void;
-  /** 이 엔진이 지금 쓰기 소유를 쥔 thread. `session.shutdown`에서 살아 있는 세션을 가린다 */
+  /** 이 엔진이 지금 쓰기 소유를 쥔 thread. `thread.shutdown`에서 살아 있는 세션을 가린다 */
   readonly heldThreads: () => readonly string[];
   /**
    * 등록 기록을 읽는 자리(`ExtHost.resources`). 플러그인 provider는 `web_provider` 기록으로 남고 cap-web이 여기서 읽는다(M3-REQ-37)
@@ -139,7 +139,7 @@ export function webRegistrationSource(
 }
 
 /**
- * `session.shutdown`(tap). 닫히는 대화가 연 브라우저 세션을 닫고(L2.web.spec §4.10.1), 닫힌 대화가 남긴 session 보관 원문을 지운다.
+ * `thread.shutdown`(tap). 닫히는 대화가 연 브라우저 세션을 닫고(L2.web.spec §4.10.1), 닫힌 대화가 남긴 session 보관 원문을 지운다.
  * `heldThreads`는 이 엔진이 지금 쓰기 소유를 쥔 thread다(살아 있는 세션)
  */
 export async function onWebSessionShutdown(
@@ -194,7 +194,7 @@ function sessionSourcesOf(session: Pick<SessionService, "readBranch">): WebSessi
   };
 }
 
-const WEB_POINTS = ["input.user.before", "session.shutdown"] as const;
+const WEB_HOOKS = ["input.user.before", "thread.shutdown"] as const;
 
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
@@ -203,7 +203,7 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
     ...base,
     // 브라우저 MCP 서버(`playwright`)는 cap-mcp의 `mcp.client`로 부른다. 없으면 브라우저 후보가 빠진다
     optional: [{ id: McpClient.id, range: `^${McpClient.version}` }],
-    points: [...WEB_POINTS],
+    points: [...WEB_HOOKS],
   });
   const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
     scope(loaded.name, { defaultEnabled: true }, (g) => {
@@ -292,7 +292,7 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
 
       // 대화 세션이 끝나면 그 세션이 연 브라우저 세션을 닫는다(L2.web.spec §4.10.1). 닫힌 세션이 남긴 session 보관 원문도 지운다.
       // 살아 있는 세션은 이 엔진이 지금 쓰기 소유를 쥔 thread다
-      g.on("session.shutdown", (_payload, ctx) =>
+      g.on("thread.shutdown", (_payload, ctx) =>
         onWebSessionShutdown(runtime, options.heldThreads(), ctx.threadId),
       );
       // 설정이 바뀌면 탐침 기억(성공 5분, 실패 30초)을 지운다

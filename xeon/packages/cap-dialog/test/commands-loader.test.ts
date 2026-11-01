@@ -3,7 +3,7 @@ import { createCommandsService } from "../src/commands/service.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";
 import { memoryCommandFiles } from "./support/memory-command-files.ts";
 
-const PROJECT = "/work/.xeon/commands";
+const PROJECT = "/work/.fresnel/commands";
 
 function setup(files: Record<string, string>) {
   const commandFiles = memoryCommandFiles(files);

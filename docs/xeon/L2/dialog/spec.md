@@ -801,15 +801,15 @@ $1에 대해 ${2:-quick} 수준으로 탐구하라. 참고 자료: !{git log --o
 - `description`이 없으면 본문 첫 줄 앞 60자를 쓴다(pi 동작, 60자를 넘으면 `...`을 붙인다). `args`는 Xeon이 더한 필드다. 자동완성 정보이며 치환에는 영향이 없다. 선언이 `CommandArgSchema` 배열(최대 16개)에 맞지 않으면 그 필드만 무시하고 명령은 남긴다.
 - 파일 이름이 `COMMAND_NAME_PATTERN`에 맞지 않거나 셸 주입이 16개를 넘는 파일은 건너뛴다. 건너뛴 파일은 운영 로그 `dialog.command_file_skipped`(경로, 사유)에 남는다. 앞머리 YAML은 `Bun.YAML.parse`로 읽고, 앞머리가 매핑이 아니거나 해석되지 않으면 그 파일만 건너뛴다.
 - 디렉터리를 읽는 일은 호출마다 하되, 디렉터리 안 `.md` 파일의 이름·크기·수정 시각이 같으면 앞서 해석한 결과를 다시 쓴다.
-- 위치 [제안]: 사용자 `~/.xeon/commands/*.md`, 프로젝트 `<프로젝트>/.xeon/commands/*.md`(프로젝트는 대화의 작업 폴더이고 작업 폴더가 없는 대화에는 프로젝트 명령이 없다. 엔진 cwd로 대신하지 않는다. `L2.readme` §5.10, 신뢰한 프로젝트만. 아래 4.2.1a), 설정 `l2.dialog.commands.dirs`의 추가 디렉터리(`~/`는 홈, 상대 경로는 프로젝트 기준, 출처는 `user`이고 기본 사용자 디렉터리 뒤), 확장 매니페스트 `components.commands`(F.extensions.spec §3.1, 외부 확장 로더가 들어오는 M3에 붙인다). 디렉터리는 재귀하지 않는다. 기본 디렉터리 이름 `.xeon`은 [가정]이고 L4.host-service.spec이 정한다. pi는 `prompts/`를 쓰지만 Claude Code 관례(`commands/`)를 따른다.
+- 위치 [제안]: 사용자 `~/.fresnel/commands/*.md`, 프로젝트 `<프로젝트>/.fresnel/commands/*.md`(프로젝트는 대화의 작업 폴더이고 작업 폴더가 없는 대화에는 프로젝트 명령이 없다. 엔진 cwd로 대신하지 않는다. `L2.readme` §5.10, 신뢰한 프로젝트만. 아래 4.2.1a), 설정 `l2.dialog.commands.dirs`의 추가 디렉터리(`~/`는 홈, 상대 경로는 프로젝트 기준, 출처는 `user`이고 기본 사용자 디렉터리 뒤), 확장 매니페스트 `components.commands`(F.extensions.spec §3.1, 외부 확장 로더가 들어오는 M3에 붙인다). 디렉터리는 재귀하지 않는다. 기본 디렉터리 이름 `.fresnel`은 [가정]이고 L4.host-service.spec이 정한다. pi는 `prompts/`를 쓰지만 Claude Code 관례(`commands/`)를 따른다.
 - 이름에 `:`을 한 번 쓸 수 있다(예: `review:start`). 하위 디렉터리 이름 공간은 2차다.
 
 #### 4.2.1a 프로젝트 신뢰
 
-- [결정: m2c G1-03] 프로젝트의 `.xeon/commands`는 프로젝트가 신뢰된 뒤에만 읽는다. 명령 파일은 모델에게 가는 프롬프트 본문이고 셸 주입(`!{…}`)을 담을 수 있어서, 신뢰하지 않은 저장소를 여는 것만으로 모델 지시문과 셸 명령 후보를 쓸 수 있게 되기 때문이다. `X.loading-trust.spec` §4.7.2 표가 `.xeon/commands/`를 신뢰 필요 자원으로 든다.
+- [결정: m2c G1-03] 프로젝트의 `.fresnel/commands`는 프로젝트가 신뢰된 뒤에만 읽는다. 명령 파일은 모델에게 가는 프롬프트 본문이고 셸 주입(`!{…}`)을 담을 수 있어서, 신뢰하지 않은 저장소를 여는 것만으로 모델 지시문과 셸 명령 후보를 쓸 수 있게 되기 때문이다. `X.loading-trust.spec` §4.7.2 표가 `.fresnel/commands/`를 신뢰 필요 자원으로 든다.
 - 신뢰 여부는 조립 루트가 `resolveProjectTrust`의 `trusted`로 넘기는 `DialogPluginOptions.projectTrust`로 정한다. 대화의 작업 폴더를 인자로 묻는다. 옵션이 없거나 거짓이거나 실패하면 신뢰하지 않은 것이다(fail-closed).
-- 신뢰하지 않은 프로젝트에서는 `<프로젝트>/.xeon/commands`와 설정 `l2.dialog.commands.dirs`의 상대 경로 디렉터리(프로젝트 기준이라 저장소 안의 파일이다)를 읽지 않는다. 사용자 디렉터리와 절대 경로 디렉터리는 영향이 없다.
-- 싣지 못한 `.xeon/commands`가 실제로 있으면 운영 로그 `dialog.project_commands_untrusted`(프로젝트 폴더, 사유 `not_trusted`·`trust_check_failed`)에 프로젝트 폴더마다 한 번 남긴다. 명령 목록 출력에는 진단 필드가 없다. 사용자에게 보이는 안내는 신뢰 카드(`trust.get`·`trust.decide`)가 맡는다.
+- 신뢰하지 않은 프로젝트에서는 `<프로젝트>/.fresnel/commands`와 설정 `l2.dialog.commands.dirs`의 상대 경로 디렉터리(프로젝트 기준이라 저장소 안의 파일이다)를 읽지 않는다. 사용자 디렉터리와 절대 경로 디렉터리는 영향이 없다.
+- 싣지 못한 `.fresnel/commands`가 실제로 있으면 운영 로그 `dialog.project_commands_untrusted`(프로젝트 폴더, 사유 `not_trusted`·`trust_check_failed`)에 프로젝트 폴더마다 한 번 남긴다. 명령 목록 출력에는 진단 필드가 없다. 사용자에게 보이는 안내는 신뢰 카드(`trust.get`·`trust.decide`)가 맡는다.
 - 판정은 호출마다 한다(입력 지점, 목록, 확장, 광고). 결정이 바뀌면 다음 호출부터 적용된다.
 
 #### 4.2.2 인자 치환
@@ -929,7 +929,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - 스타일은 시스템 프롬프트 조각이다. 기본 스타일 `default`는 빈 조각이다.
 - `select`는 세션 범위 설정 `l2.dialog.styles.active`를 쓴다(F.wire-settings.spec §3.8.1 `session` 범위). 그래서 재개 때 선택이 복원된다. 기록은 `settings.changed`(F.records.spec §3.3)다.
 - [제안] 적용 시점은 다음 턴 시작이다. 턴 시작은 단계 경계의 하나다 [결정: review.decisions-2 U-01]. 턴 중간의 단계 경계에서 시스템 프롬프트를 바꾸면 그 턴의 프롬프트 캐시 접두가 깨지기 때문에 턴 시작까지 미룬다. 출력 `appliesAt: "next_turn"`이 이 규칙을 알린다.
-- 등록은 코드(`register`)와 파일(`~/.xeon/styles/*.md`, 2차)이다.
+- 등록은 코드(`register`)와 파일(`~/.fresnel/styles/*.md`, 2차)이다.
 
 ### 4.7 알림
 
@@ -1113,7 +1113,7 @@ export const manifest = defineManifest({
 - D-5 [미결] 곁가지 질문의 기록 위치와 사용량 집계(2차).
 - D-6 [일부 닫힘, M3b B1-NTF H4] 알림 소유 경계. 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 창이 앞에 있을 때 알림을 생략하는 조건의 위치(클라이언트 대 엔진)도 함께 정한다. [결정 2026-10-26, review.m3-design-inputs D-M3-17] 기본은 호스트가 창 상태와 관계없이 알림을 보내고 화면에 띄울지는 클라이언트가 정한다. [구현: M3b B1-NTF H4] 호스트는 창 상태를 보지 않는다. 알림마다 종류별 설정 `l2.dialog.notify.<kind>`가 켜져 있으면 연결된 클라이언트 모두에 `notify.delivered`로 보내고(`L4.host-service.spec` HS-82), 창이 앞에 있을 때 화면에 띄울지 생략할지는 클라이언트가 정한다. OS 토스트 설정 `l2.dialog.notify.os`는 이 호스트 경로가 보지 않는다. 남은 것 [미결]: 모바일 푸시 채널을 `dialog.notify`가 맡는 확정(`L2.readme` §10 미결 15).
 - D-7 [미결] 명령 우선순위(`builtin` > `capability` > `project` > `user` > `extension`)와 pi 순서(사용자 우선)의 차이.
-- D-8 [미결] 명령 파일 기본 디렉터리 이름(`.xeon/commands`)과 사용자 설정 디렉터리 위치. L4.host-service.spec과 정한다. M2는 사용자 `<홈>/.xeon/commands`, 프로젝트 `<작업 폴더>/.xeon/commands`로 구현했고 `CommandRoots` 포트 한 곳에서 바꾼다.
+- D-8 [미결] 명령 파일 기본 디렉터리 이름(`.fresnel/commands`)과 사용자 설정 디렉터리 위치. L4.host-service.spec과 정한다. M2는 사용자 `<홈>/.fresnel/commands`, 프로젝트 `<작업 폴더>/.fresnel/commands`로 구현했고 `CommandRoots` 포트 한 곳에서 바꾼다.
 - D-9 [미결] `dialog.attachments`의 `workspace.images` 의존 종류. `L2.readme` §6은 `requires`, 브리프는 "없으면 원본"이다. 이 문서는 정의 `requires`를 두고 호출 시 `unavailable`이면 원본으로 계속한다.
 - D-10 [미결] 테이블 접두사 예약(`cap_dialog_`). 공통 규약은 "없음"이고 eng.context-map.design은 "예약"이다(`L2.readme` §10 미결 6). 이 문서의 M2·M3 범위는 테이블이 필요 없다.
 - D-11 [결정: review.decisions-2 S-04] 알림 마일스톤. 알림은 1차(M3)다. 켜기 기본값·종류 목록·탭은 이 문서가 정하고 L0.os는 전달 수단만 소유한다.

@@ -61,7 +61,7 @@ function unwritable(reason: HolderUnwritableReason): HolderWriteError {
 
 /** 이 범위의 쓰기가 thread를 필요로 하는가(settings.set과 같다: session은 thread, project·local은 thread의 작업 폴더) */
 function needsThread(scope: SettingScope): boolean {
-  return scope === "session" || scope === "project" || scope === "local";
+  return scope === "launch" || scope === "project" || scope === "local";
 }
 
 /** 설정 쓰기 실패를 구동 그룹 쓰기 오류로 옮긴다. 관리 범위가 잠근 것만 `locked`이고 나머지는 이유를 가려서 알린다. `key_reused`는 호출 결함이라 던진다 */

@@ -98,7 +98,7 @@ test("service ensure reports a spawn failure as a json value and exits 1", async
   try {
     const captured = captureIo();
     const code = await runHostCommand(
-      { kind: "service-ensure", start: { command: "/nonexistent/xeon", args: [] } },
+      { kind: "service-ensure", start: { command: "/nonexistent/fresnel", args: [] } },
       captured.io,
     );
     expect(code).toBe(1);
@@ -135,7 +135,7 @@ test("parseHostArgv rejects what it does not know", () => {
   expect(parseHostArgv(["host"]).ok).toBe(false);
   expect(parseHostArgv(["host", "--stdio", "extra"]).ok).toBe(false);
   expect(parseHostArgv(["config", "schema"]).ok).toBe(false);
-  expect(parseHostArgv(["config", "schema", "--scope", "session"]).ok).toBe(false);
+  expect(parseHostArgv(["config", "schema", "--scope", "launch"]).ok).toBe(false);
   expect(parseHostArgv(["config", "schema", "--scope", "user", "--wat"]).ok).toBe(false);
   expect(parseHostArgv(["config", "schema", "--scope", "user", "--out"]).ok).toBe(false);
   expect(parseHostArgv(["service", "bogus"]).ok).toBe(false);

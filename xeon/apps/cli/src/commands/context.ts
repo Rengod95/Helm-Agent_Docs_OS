@@ -58,7 +58,7 @@ export async function connectOrReportQuiet(
     preference: "auto",
     ...(ctx.global.remote === null ? {} : { remote: ctx.global.remote }),
     env: ctx.io.env,
-    client: { name: "xeon-cli", version: CLI_VERSION },
+    client: { name: "fresnel-cli", version: CLI_VERSION },
     settingGroups: cliSettingGroups,
     devWireRoundTrip: ctx.deps.devWireRoundTrip,
     ...(observe === undefined ? {} : { observe }),

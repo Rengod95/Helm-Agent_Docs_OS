@@ -1,5 +1,5 @@
 import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-sdk";
-import manifestJson from "../.xeon-plugin/plugin.json" with { type: "json" };
+import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { settings } from "./settings.ts";
 
 // 상태가 없는 정책 그룹이다. state를 두지 않는다.

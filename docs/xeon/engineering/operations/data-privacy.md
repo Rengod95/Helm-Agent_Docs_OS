@@ -53,7 +53,7 @@ Xeon은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3.2�
 | `telemetry/spans-<날짜>.jsonl` | state | 텔레메트리 exporter가 `file`일 때만 씁니다. 기본은 꺼져 있습니다 | L0.os.spec §3.9 |
 | `service.json` | runtime | 서비스 등록 파일(`0600`). 토큰 필드가 있습니다 | L4.host-service.spec §3.5, platform-process/src/service/registration.ts |
 | `xeon.sock` | runtime | 서비스 소켓 | L4.host-service.spec §3.5 |
-| `<작업 폴더>/.xeon/settings.json`, `.xeon/settings.local.json` | 작업 폴더 | 프로젝트 공유 설정과 개인 설정. 프로젝트 파일이므로 버전 관리에 들어갈 수 있습니다. `local`은 버전 관리 제외가 의도입니다 | X.loading-trust.spec §4.7.2, F.wire-settings.spec §4.7 |
+| `<작업 폴더>/.fresnel/settings.json`, `.fresnel/settings.local.json` | 작업 폴더 | 프로젝트 공유 설정과 개인 설정. 프로젝트 파일이므로 버전 관리에 들어갈 수 있습니다. `local`은 버전 관리 제외가 의도입니다 | X.loading-trust.spec §4.7.2, F.wire-settings.spec §4.7 |
 
 ### 1.3 대화와 실행 기록
 
@@ -132,7 +132,7 @@ Xeon은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3.2�
 ## 5. 신뢰와 프로젝트 파일 읽기
 
 - 프로젝트 폴더는 판정 전에 신뢰 판정을 받습니다. 판정 전에는 프로젝트 확장을 불러오지 않고, `.mcp.json`, 스킬, 설정을 읽지 않습니다(architecture.security.spec T-03).
-- 신뢰가 필요한 자원은 `.xeon/extensions/`, `.xeon/settings.json`, `.xeon/settings.local.json`, `.xeon/mcp.json`, `.mcp.json`, `.xeon/hooks/`, `.xeon/skills/`, `.xeon/commands/`, `.xeon/prompts/`, `.xeon/agents/`, `.xeon/SYSTEM.md`, `.xeon/APPEND_SYSTEM.md`, `.agents/skills/`입니다(X.loading-trust.spec §4.7.2).
+- 신뢰가 필요한 자원은 `.fresnel/extensions/`, `.fresnel/settings.json`, `.fresnel/settings.local.json`, `.fresnel/mcp.json`, `.mcp.json`, `.fresnel/hooks/`, `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/`, `.fresnel/SYSTEM.md`, `.fresnel/APPEND_SYSTEM.md`, `.agents/skills/`입니다(X.loading-trust.spec §4.7.2).
 - `AGENTS.md`와 `CLAUDE.md`는 신뢰와 관계없이 읽힙니다. 이 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않습니다. 그래도 신뢰되지 않은 입력으로 취급합니다(X.loading-trust.spec §4.7.2, architecture.security.spec §5).
 - 판정 순서는 다음과 같습니다. 재정의 값, 자원 없음, 이번 세션 기억, 세션 신뢰 지점, 저장된 결정, 기본 설정 `x.loading-trust.defaultProjectTrust`(기본 `ask`), 헤드리스 불신, 프롬프트입니다(X.loading-trust.spec §4.7.3).
 - 헤드리스 실행(print, JSON)에서는 프롬프트를 띄우지 않고 불신으로 처리합니다. 이때 결정을 저장하지 않습니다(X.loading-trust.spec §4.7.3 7번).

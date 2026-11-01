@@ -19,7 +19,7 @@ afterEach(() => {
 const VALUE = "Zq7-very-secret-0123456789-abcdef!";
 const TTY = { stdinIsTty: true, stdoutIsTty: true, columns: 100 } as const;
 
-/** 값을 놓을 SOPS 파일과 age 키 파일 위치. 홈 안의 secrets 폴더를 쓴다(홈은 XEON_HOME 임시 디렉터리다) */
+/** 값을 놓을 SOPS 파일과 age 키 파일 위치. 홈 안의 secrets 폴더를 쓴다(홈은 FRESNEL_HOME 임시 디렉터리다) */
 function sopsSettings(): Readonly<Record<string, unknown>> {
   const dir = mkdtempSync(join(tmpdir(), "xcli-sops-"));
   tmpDirs.push(dir);
@@ -175,6 +175,6 @@ test("secret rm --yes removes without asking and a name that does not exist is a
 
   cli.harness.stderr.length = 0;
   expect(await cli.harness.run(["secret", "rm", "api-key", "--yes"])).toBe(EXIT.error);
-  expect(cli.harness.stderrText()).toContain("xeon: 그 이름의 비밀이 없다");
+  expect(cli.harness.stderrText()).toContain("fresnel: 그 이름의 비밀이 없다");
   expectNoValue(cli);
 }, 120_000);

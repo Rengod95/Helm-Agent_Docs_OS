@@ -11,7 +11,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -40,7 +40,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -83,7 +83,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -107,7 +107,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -132,7 +132,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -157,7 +157,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -307,7 +307,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -407,7 +407,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -455,7 +455,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -503,7 +503,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -552,7 +552,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -578,7 +578,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -605,7 +605,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -632,7 +632,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -658,7 +658,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -682,7 +682,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -769,7 +769,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -999,7 +999,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -1031,7 +1031,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -1063,7 +1063,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -1095,7 +1095,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -1127,7 +1127,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -1230,7 +1230,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -1255,7 +1255,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -1281,7 +1281,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -1307,7 +1307,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -1335,7 +1335,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -1362,7 +1362,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -1468,7 +1468,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -1659,7 +1659,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "live",
@@ -1688,7 +1688,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -1714,7 +1714,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L1",
         "runtimeChange": "nextTurn",
@@ -1794,7 +1794,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "live",
@@ -1817,7 +1817,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -1841,7 +1841,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -1865,7 +1865,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -1914,7 +1914,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2131,7 +2131,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2154,7 +2154,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2181,7 +2181,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2204,7 +2204,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2227,7 +2227,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2305,7 +2305,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2330,7 +2330,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2452,7 +2452,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2694,7 +2694,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2719,7 +2719,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2745,7 +2745,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2795,7 +2795,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2850,7 +2850,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -2952,7 +2952,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3008,7 +3008,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3033,7 +3033,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3059,7 +3059,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3086,7 +3086,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3117,7 +3117,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3146,7 +3146,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3197,7 +3197,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3222,7 +3222,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3248,7 +3248,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3278,7 +3278,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3358,7 +3358,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3384,7 +3384,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3409,7 +3409,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3456,7 +3456,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3479,7 +3479,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3502,7 +3502,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3527,7 +3527,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3552,7 +3552,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3578,7 +3578,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3604,7 +3604,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3630,7 +3630,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3731,7 +3731,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3757,7 +3757,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3783,7 +3783,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3809,7 +3809,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3836,7 +3836,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3862,7 +3862,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L2",
         "runtimeChange": "nextTurn",
@@ -3886,7 +3886,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -3909,7 +3909,7 @@
           "user",
           "project",
           "local",
-          "session"
+          "launch"
         ],
         "layer": "L3",
         "runtimeChange": "live",
@@ -4051,7 +4051,7 @@
         "allowedScopes": [
           "user",
           "project",
-          "session"
+          "launch"
         ],
         "layer": "L3",
         "runtimeChange": "nextTurn",
@@ -4075,7 +4075,7 @@
         "allowedScopes": [
           "user",
           "project",
-          "session"
+          "launch"
         ],
         "layer": "L3",
         "runtimeChange": "nextTurn",
@@ -4106,7 +4106,7 @@
         "allowedScopes": [
           "user",
           "project",
-          "session"
+          "launch"
         ],
         "layer": "X",
         "runtimeChange": "nextTurn",
@@ -4174,7 +4174,7 @@
           "managed",
           "user",
           "project",
-          "session"
+          "launch"
         ],
         "layer": "X",
         "runtimeChange": "nextTurn",
@@ -4212,7 +4212,7 @@
           "managed",
           "user",
           "project",
-          "session"
+          "launch"
         ],
         "layer": "X",
         "runtimeChange": "nextTurn",
@@ -4235,7 +4235,7 @@
         "allowedScopes": [
           "user",
           "project",
-          "session"
+          "launch"
         ],
         "layer": "X",
         "runtimeChange": "nextTurn",

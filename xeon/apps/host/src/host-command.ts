@@ -6,7 +6,7 @@ import type { AssembleOptions } from "./types.ts";
 
 export type HostCommand =
   | { readonly kind: "host-stdio" }
-  /** 서비스 본체를 전경에서 실행한다(`xeon service run`, `xeon host --service`). 시작 거부는 종료코드 1, 이미 떠 있으면 0 */
+  /** 서비스 본체를 전경에서 실행한다(`fresnel service run`, `fresnel host --service`). 시작 거부는 종료코드 1, 이미 떠 있으면 0 */
   | {
       readonly kind: "service-run";
       readonly safeMode: boolean;

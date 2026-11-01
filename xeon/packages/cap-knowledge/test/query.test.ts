@@ -458,7 +458,7 @@ describe("skill and memory search", () => {
 
   test("a shadowed skill does not appear twice", async () => {
     const world = await createWorld({ sessions: true });
-    putSkill(world.fs, "/proj/.xeon/skills", "same-name", {
+    putSkill(world.fs, "/proj/.fresnel/skills", "same-name", {
       description: "project version with cabbage",
     });
     putSkill(world.fs, USER_SKILLS, "same-name", { description: "user version with cabbage" });

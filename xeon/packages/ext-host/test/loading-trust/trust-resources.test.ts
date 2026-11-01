@@ -9,8 +9,8 @@ import { memoryFs } from "./support/trust-fakes.ts";
 const HOME = "/home/test";
 
 test("bare dir needs no trust", async () => {
-  // 빈 .xeon 디렉터리와 컨텍스트 파일은 신뢰를 요구하지 않는다
-  const fs = memoryFs(["/work/proj/.xeon", "/work/proj/AGENTS.md", "/work/proj/CLAUDE.md"]);
+  // 빈 .fresnel 디렉터리와 컨텍스트 파일은 신뢰를 요구하지 않는다
+  const fs = memoryFs(["/work/proj/.fresnel", "/work/proj/AGENTS.md", "/work/proj/CLAUDE.md"]);
   expect(await findTrustRequiringResources(fs, "/work/proj", HOME)).toEqual([]);
 });
 
@@ -20,8 +20,10 @@ test("each trust-requiring resource is found with its relative path", async () =
   expect(await findTrustRequiringResources(fs, "/work/proj", HOME)).toEqual([
     ...TRUST_REQUIRING_PROJECT_RESOURCES,
   ]);
-  const one = memoryFs(["/work/proj/.xeon/extensions"]);
-  expect(await findTrustRequiringResources(one, "/work/proj", HOME)).toEqual([".xeon/extensions"]);
+  const one = memoryFs(["/work/proj/.fresnel/extensions"]);
+  expect(await findTrustRequiringResources(one, "/work/proj", HOME)).toEqual([
+    ".fresnel/extensions",
+  ]);
 });
 
 test("shared skills are found in the project root and its ancestors, never in the user's home", async () => {
@@ -47,24 +49,24 @@ test("shared skills are found in the project root and its ancestors, never in th
 test("only existence is checked, file contents are never read", async () => {
   let reads = 0;
   const fs = {
-    ...memoryFs(["/work/proj/.xeon/mcp.json"]),
+    ...memoryFs(["/work/proj/.fresnel/mcp.json"]),
     readText: () => {
       reads += 1;
       return Promise.resolve(null);
     },
   };
-  expect(await findTrustRequiringResources(fs, "/work/proj", HOME)).toEqual([".xeon/mcp.json"]);
+  expect(await findTrustRequiringResources(fs, "/work/proj", HOME)).toEqual([".fresnel/mcp.json"]);
   expect(reads).toBe(0);
 });
 
-test("a project .xeon/commands alone requires trust", async () => {
+test("a project .fresnel/commands alone requires trust", async () => {
   // 명령 파일은 모델에게 가는 프롬프트 본문이고 셸 주입을 담을 수 있다(L2.dialog.spec 4.2.1a). 이 폴더만 있어도 판정이 필요하다
-  const fs = memoryFs(["/work/proj/.xeon/commands"]);
-  expect(await findTrustRequiringResources(fs, "/work/proj", HOME)).toEqual([".xeon/commands"]);
+  const fs = memoryFs(["/work/proj/.fresnel/commands"]);
+  expect(await findTrustRequiringResources(fs, "/work/proj", HOME)).toEqual([".fresnel/commands"]);
 });
 
 test("a project-root .mcp.json alone requires trust", async () => {
-  // 루트 .mcp.json은 stdio 서버 실행 명령을 담는다. .xeon 없이 이 파일만 있어도 신뢰 판정이 필요하다
+  // 루트 .mcp.json은 stdio 서버 실행 명령을 담는다. .fresnel 없이 이 파일만 있어도 신뢰 판정이 필요하다
   const fs = memoryFs(["/work/proj/.mcp.json"]);
   expect(await findTrustRequiringResources(fs, "/work/proj", HOME)).toEqual([".mcp.json"]);
 });
@@ -75,6 +77,6 @@ test("docs: the resource list matches the spec table", async () => {
   const documented = rows
     .flatMap((cells) => [...(cells[0] ?? "").matchAll(/`([^`]+)`/g)].map((match) => match[1] ?? ""))
     .map((path) => path.replace(/\/$/, ""))
-    .filter((path) => path.startsWith(".xeon/") || path === ".mcp.json");
+    .filter((path) => path.startsWith(".fresnel/") || path === ".mcp.json");
   expect(documented.toSorted()).toEqual([...TRUST_REQUIRING_PROJECT_RESOURCES].toSorted());
 });

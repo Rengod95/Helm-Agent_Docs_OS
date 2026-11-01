@@ -11,7 +11,7 @@ export interface RootsInput {
   /** `l2.knowledge.skills.projectSkills` */
   readonly projectSkills: boolean;
   /**
-   * 프로젝트가 신뢰되었는가. 신뢰 전에는 프로젝트 스킬 루트를 싣지 않는다: 저장소가 낸 `.xeon/skills/*`의 설명이 첫 turn 인덱스에
+   * 프로젝트가 신뢰되었는가. 신뢰 전에는 프로젝트 스킬 루트를 싣지 않는다: 저장소가 낸 `.fresnel/skills/*`의 설명이 첫 turn 인덱스에
    * 들어가고 `skill_view`가 본문을 돌려주면 신뢰하지 않은 저장소가 모델 지시문을 쓰게 된다(X.loading-trust.spec §4.7.2 표)
    */
   readonly projectTrusted: boolean;
@@ -25,9 +25,9 @@ function userSkillsDir(dataDir: string): string {
   return join(dataDir, "skills");
 }
 
-/** 프로젝트 스킬 디렉터리. `X.loading-trust`의 신뢰 필요 자원 `.xeon/skills`와 같은 위치다 */
+/** 프로젝트 스킬 디렉터리. `X.loading-trust`의 신뢰 필요 자원 `.fresnel/skills`와 같은 위치다 */
 export function projectSkillsDir(projectDir: string): string {
-  return join(projectDir, ".xeon", "skills");
+  return join(projectDir, ".fresnel", "skills");
 }
 
 export function resolveSkillRoots(input: RootsInput): SkillRoots {

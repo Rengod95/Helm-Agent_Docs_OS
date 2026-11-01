@@ -886,7 +886,7 @@ const COMMAND_LIST_MAX = 512;
 
 /**
  * `dialog.commands.list`의 입력에 `threadId`를 더한 모양이다(F.capabilities.spec §3.9 dialog). `prefix`는 이름 앞부분이고 `/`는 붙이지 않는다.
- * `threadId`를 주면 프로젝트 명령(`.xeon/commands`)을 그 thread의 작업 폴더 기준으로 읽는다. 생략하면 thread 문맥 없이 읽는다
+ * `threadId`를 주면 프로젝트 명령(`.fresnel/commands`)을 그 thread의 작업 폴더 기준으로 읽는다. 생략하면 thread 문맥 없이 읽는다
  * (작업 폴더가 없는 thread나 아직 thread를 만들기 전의 목록). 없는 thread는 `thread.notFound`다.
  */
 export const CommandListParamsSchema: TObject<{

@@ -25,22 +25,22 @@ const PAGE_SIZE = 200;
 
 function flagsOf(thread: ThreadSummary): string {
   const flags: string[] = [];
-  if (thread.resumable !== null) flags.push(t("cli.sessions.flag.resumable"));
+  if (thread.resumable !== null) flags.push(t("cli.threads.flag.resumable"));
   if (thread.pendingApprovals > 0) {
-    flags.push(t("cli.sessions.flag.pendingApprovals", { count: thread.pendingApprovals }));
+    flags.push(t("cli.threads.flag.pendingApprovals", { count: thread.pendingApprovals }));
   }
   if (thread.queuedInputs > 0) {
-    flags.push(t("cli.sessions.flag.queuedInputs", { count: thread.queuedInputs }));
+    flags.push(t("cli.threads.flag.queuedInputs", { count: thread.queuedInputs }));
   }
   if (thread.forkedFrom !== null) {
-    flags.push(t("cli.sessions.flag.forkedFrom", { threadId: thread.forkedFrom.threadId }));
+    flags.push(t("cli.threads.flag.forkedFrom", { threadId: thread.forkedFrom.threadId }));
   }
   return flags.length === 0 ? "" : `  [${flags.join(", ")}]`;
 }
 
 /** 목록 한 줄: id, 마지막 이벤트 시각, 상태, 제목 */
 function formatThreadLine(thread: ThreadSummary): string {
-  const title = thread.title ?? t("cli.sessions.untitled");
+  const title = thread.title ?? t("cli.threads.untitled");
   return `${thread.threadId}  ${thread.updatedAt}  ${thread.status}  ${title}${flagsOf(thread)}`;
 }
 
@@ -80,7 +80,7 @@ async function runLs(
     if (command.output === "json") {
       await ctx.io.stdout(`${JSON.stringify(threads, null, 2)}\n`);
     } else if (threads.length === 0) {
-      await ctx.io.stderr(command.all ? t("cli.sessions.none") : t("cli.sessions.noneInWorkspace"));
+      await ctx.io.stderr(command.all ? t("cli.threads.none") : t("cli.threads.noneInWorkspace"));
     } else {
       await ctx.io.stdout(`${threads.map(formatThreadLine).join("\n")}\n`);
     }
@@ -123,7 +123,7 @@ async function readThread(
   const apply = (batch: EventsBatchParams): void => {
     const applied = applyBatch(state.transcript, batch, state.storeId, { width });
     if (!applied.ok) {
-      state.gap = t("cli.sessions.gap", {
+      state.gap = t("cli.threads.gap", {
         expected: applied.error.expectedFrom,
         got: applied.error.got,
       });
@@ -170,7 +170,7 @@ async function readThread(
   if (state.gap !== null) {
     return err({
       message: state.gap,
-      fix: t("cli.errors.sessions.gap.fix"),
+      fix: t("cli.errors.threads.gap.fix"),
       code: EXIT.error,
     });
   }
@@ -238,19 +238,19 @@ async function runRm(
       await ctx.io.stderr(
         renderFailure({
           message: t("cli.secret.rm.noTerminal.message"),
-          fix: "xeon sessions rm <id> --yes",
+          fix: "fresnel sessions rm <id> --yes",
         }),
       );
       return EXIT.usage;
     }
-    if (!(await confirmed(ctx, t("cli.sessions.rm.confirm", { threadId: command.threadId })))) {
+    if (!(await confirmed(ctx, t("cli.threads.rm.confirm", { threadId: command.threadId })))) {
       await ctx.io.stderr(t("cli.secret.rm.kept"));
       return EXIT.error;
     }
   }
   return withEngine(ctx, async (handle) => {
     await handle.connection.request("thread.delete", { threadId: command.threadId });
-    await ctx.io.stdout(t("cli.sessions.rm.done", { threadId: command.threadId }));
+    await ctx.io.stdout(t("cli.threads.rm.done", { threadId: command.threadId }));
     return EXIT.ok;
   });
 }
@@ -265,7 +265,7 @@ async function runRename(
       title: command.title,
     });
     await ctx.io.stdout(
-      t("cli.sessions.rename.done", { threadId: command.threadId, title: command.title }),
+      t("cli.threads.rename.done", { threadId: command.threadId, title: command.title }),
     );
     return EXIT.ok;
   });

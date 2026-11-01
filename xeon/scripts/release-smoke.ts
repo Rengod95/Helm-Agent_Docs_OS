@@ -54,8 +54,8 @@ export function requiredPaths(triple: string): readonly string[] {
   const common = [
     triple.includes("-windows-") ? "xeon.exe" : "xeon",
     "group-sdk/templates/index.json",
-    "default-plugins/helm/.xeon-plugin/plugin.json",
-    "default-plugins/account-rotation/.xeon-plugin/plugin.json",
+    "default-plugins/helm/.fresnel-plugin/plugin.json",
+    "default-plugins/account-rotation/.fresnel-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",
     "SHA256SUMS",
   ];

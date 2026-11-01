@@ -81,7 +81,7 @@ const scratchDirs: string[] = [];
 
 /** 시험마다 임시 디렉터리를 하나 쓴다. 끝나면 지운다 */
 function scratch(): string {
-  const dir = mkdtempSync(join(tmpdir(), "xeon-mcp-process-"));
+  const dir = mkdtempSync(join(tmpdir(), "fresnel-mcp-process-"));
   scratchDirs.push(dir);
   return dir;
 }

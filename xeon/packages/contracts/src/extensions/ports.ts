@@ -290,7 +290,7 @@ export interface LoaderFs {
 
 /** 설치 위치의 OS별 경로. 값은 L0.os가 정한다 */
 export interface LoaderPaths {
-  /** 예: ~/.xeon */
+  /** 예: ~/.fresnel */
   readonly userDir: string;
   /** 관리 정책 디렉터리. 없으면 null */
   readonly managedDir: string | null;

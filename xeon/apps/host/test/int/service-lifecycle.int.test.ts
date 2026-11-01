@@ -53,7 +53,7 @@ async function started(options: ServiceOptions): Promise<ServiceHandle> {
   return result.handle;
 }
 
-const NO_SPAWN = { command: "/nonexistent/xeon-must-not-spawn", args: [] };
+const NO_SPAWN = { command: "/nonexistent/fresnel-must-not-spawn", args: [] };
 
 describe("service files and double start", () => {
   realTest(
@@ -69,7 +69,7 @@ describe("service files and double start", () => {
         expect(stored).toMatchObject({
           schemaVersion: 1,
           pid: process.pid,
-          socket: join(runtime.dir, "xeon.sock"),
+          socket: join(runtime.dir, "fresnel.sock"),
         });
         expect(registration.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
 
@@ -261,7 +261,7 @@ describe("stopping and modes", () => {
         expect(stopped).toEqual({ ok: true, value: { kind: "stopped" } });
         expect(await handle.exited).toEqual({ code: 0, reason: "stop" });
         expect(existsSync(join(runtime.dir, "service.json"))).toBe(false);
-        expect(existsSync(join(runtime.dir, "xeon.sock"))).toBe(false);
+        expect(existsSync(join(runtime.dir, "fresnel.sock"))).toBe(false);
         // 다시 정지를 요청하면 떠 있는 서비스가 없다
         expect(await stopHostService({ runtimeDir: runtime.dir })).toEqual({
           ok: true,

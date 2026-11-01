@@ -167,9 +167,9 @@ describe("remote use through a tunnel (X5)", () => {
     async () => {
       const tunnels = createSshTunnelPort({
         readyTimeoutMs: 2000,
-        buildCommand: () => ok({ command: "/nonexistent/xeon-tunnel", args: [] }),
+        buildCommand: () => ok({ command: "/nonexistent/fresnel-tunnel", args: [] }),
       });
-      const endpoint = parseServiceEndpoint("ssh://fake-box/run/xeon.sock");
+      const endpoint = parseServiceEndpoint("ssh://fake-box/run/fresnel.sock");
       if (!endpoint.ok) throw new Error("bad endpoint");
       expect(await connectServiceTransport(endpoint.value, { tunnel: tunnels })).toEqual(
         err({ kind: "tunnel_failed", failure: { kind: "spawn_failed", detail: "ENOENT" } }),

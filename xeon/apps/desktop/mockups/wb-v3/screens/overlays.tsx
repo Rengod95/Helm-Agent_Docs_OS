@@ -276,7 +276,7 @@ export function AddL1Sheet() {
         <Source
           icon={<FolderOpen />}
           title="폴더에서"
-          line=".xeon-plugin/plugin.json 이 있는 폴더"
+          line=".fresnel-plugin/plugin.json 이 있는 폴더"
         />
         <Source
           icon={<SquareStack />}

@@ -293,7 +293,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         held.add(threadId);
         return Promise.resolve({
           ok: true,
-          token: { resource: `session:${threadId}`, holderId: "fake", epoch: 1 },
+          token: { resource: `thread:${threadId}`, holderId: "fake", epoch: 1 },
           release() {
             held.delete(threadId);
             return Promise.resolve();

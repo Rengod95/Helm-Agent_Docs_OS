@@ -4,18 +4,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveHostStatePaths } from "../src/state-paths.ts";
 
-// L4.host-service.spec §3.3.6 (review.decisions-2 B-07). XEON_HOME으로 OsDirs를 격리 디렉터리로 돌린다.
+// L4.host-service.spec §3.3.6 (review.decisions-2 B-07). FRESNEL_HOME으로 OsDirs를 격리 디렉터리로 돌린다.
 
 let scratch = "";
 let savedHome: string | undefined;
 beforeEach(() => {
-  scratch = mkdtempSync(join(tmpdir(), "xeon-state-paths-"));
-  savedHome = process.env["XEON_HOME"];
-  process.env["XEON_HOME"] = scratch;
+  scratch = mkdtempSync(join(tmpdir(), "fresnel-state-paths-"));
+  savedHome = process.env["FRESNEL_HOME"];
+  process.env["FRESNEL_HOME"] = scratch;
 });
 afterEach(() => {
-  if (savedHome === undefined) delete process.env["XEON_HOME"];
-  else process.env["XEON_HOME"] = savedHome;
+  if (savedHome === undefined) delete process.env["FRESNEL_HOME"];
+  else process.env["FRESNEL_HOME"] = savedHome;
   rmSync(scratch, { recursive: true, force: true });
 });
 
@@ -51,8 +51,8 @@ test("a directory that cannot be created is a permission error value, not a thro
   }
 });
 
-test("a relative XEON_HOME is a dirs_unavailable error value", async () => {
-  process.env["XEON_HOME"] = "relative/dir";
+test("a relative FRESNEL_HOME is a dirs_unavailable error value", async () => {
+  process.env["FRESNEL_HOME"] = "relative/dir";
   const result = await resolveHostStatePaths();
   expect(result.ok).toBe(false);
   if (!result.ok) {

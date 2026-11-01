@@ -58,13 +58,13 @@ describe("settings sentences follow the locale", () => {
     const locked = effectiveOf("l1.models.x", 1, {
       locked: true,
       lockReason: "managed_file",
-      source: { scope: "managed", path: "/etc/xeon/managed.json" },
+      source: { scope: "managed", path: "/etc/fresnel/managed.json" },
     });
     expect(inLocale("en", () => lockInfo(locked)?.text)).toBe(
-      "Locked by managed policy. Policy file: /etc/xeon/managed.json",
+      "Locked by managed policy. Policy file: /etc/fresnel/managed.json",
     );
     expect(inLocale("ko", () => lockInfo(locked)?.text)).toBe(
-      "관리 정책으로 잠겨 있어요 정책 파일: /etc/xeon/managed.json",
+      "관리 정책으로 잠겨 있어요 정책 파일: /etc/fresnel/managed.json",
     );
   });
 

@@ -73,7 +73,7 @@ realTest(
     const previousCwd = process.cwd();
     const child = Bun.spawn([process.execPath, CRASH_HOST], {
       cwd: workspace,
-      env: { ...process.env, XEON_HOME: home.root },
+      env: { ...process.env, FRESNEL_HOME: home.root },
       stdin: "pipe",
       stdout: "pipe",
       stderr: "pipe",

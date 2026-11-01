@@ -33,7 +33,7 @@ function viaText(via: TrustVia): string {
     case "notRequired":
       return t("cli.render.trust.via.notRequired");
     case "point":
-      return t("cli.render.trust.via.point");
+      return t("cli.render.trust.via.hook");
     case "store":
       return t("cli.render.trust.via.store");
     case "sessionMemory":
@@ -64,7 +64,7 @@ function verdictText(verdict: TrustStatus["verdict"]): string {
   }
 }
 
-/** 신뢰 상태와 선택지를 번호와 함께 보이는 글. `xeon trust`와 시작 카드가 같이 쓴다 */
+/** 신뢰 상태와 선택지를 번호와 함께 보이는 글. `fresnel trust`와 시작 카드가 같이 쓴다 */
 export function describeTrust(status: TrustStatus): string {
   const lines = [t("cli.render.trust.project", { root: status.projectRoot })];
   if (status.resources.length > 0) {

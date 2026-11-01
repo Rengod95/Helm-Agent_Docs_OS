@@ -51,7 +51,11 @@ test("settings-get-resolves: the layers decide the value, the source and the sha
   const host = createFakeHost({
     layers: [
       { scope: "managed", values: new Map([[key, 8]]) },
-      { scope: "user", values: new Map([[key, 32]]), path: "/home/u/.config/xeon/settings.json" },
+      {
+        scope: "user",
+        values: new Map([[key, 32]]),
+        path: "/home/u/.config/fresnel/settings.json",
+      },
     ],
   });
   const { connection } = host.connect();
@@ -63,7 +67,7 @@ test("settings-get-resolves: the layers decide the value, the source and the sha
     value: 8,
     source: { scope: "managed" },
     locked: true,
-    shadowed: [{ scope: "user", path: "/home/u/.config/xeon/settings.json" }],
+    shadowed: [{ scope: "user", path: "/home/u/.config/fresnel/settings.json" }],
   });
   await connection.close();
 });
@@ -274,7 +278,7 @@ test("settings.set without a thread for the session scope is invalid params; for
   const { connection } = host.connect();
   await connection.request("host.hello", HELLO_PARAMS);
   const session = await wireErrorOf(
-    connection.request("settings.set", { key: "l1.loop.maxSteps", value: 3, scope: "session" }),
+    connection.request("settings.set", { key: "l1.loop.maxSteps", value: 3, scope: "launch" }),
   );
   expect(session.code).toBe(-32602);
   const project = await wireErrorOf(
@@ -304,7 +308,7 @@ test("settings.set with a thread prepares the project layers first and rejects a
   await connection.request("settings.set", {
     key: "l1.loop.maxSteps",
     value: 3,
-    scope: "session",
+    scope: "launch",
     threadId: known,
   });
   expect(prepared).toEqual([known]);
@@ -433,13 +437,13 @@ test("a settings change reaches every ready connection as settings.invalidated w
     seen.push({ who: "notReady", params });
   });
   const thread = host.fake.seedThread();
-  host.fake.emitSettingsChange({ keys: [REPLAY], scopes: ["session"], threadId: thread });
+  host.fake.emitSettingsChange({ keys: [REPLAY], scopes: ["launch"], threadId: thread });
   host.fake.emitSettingsChange({ keys: [], scopes: ["project", "local"], threadId: null });
   await settleUntil(() => seen.length >= 4);
   await flushMicrotasks();
   expect(seen).toEqual([
-    { who: "first", params: { keys: [REPLAY], scopes: ["session"], threadId: thread } },
-    { who: "second", params: { keys: [REPLAY], scopes: ["session"], threadId: thread } },
+    { who: "first", params: { keys: [REPLAY], scopes: ["launch"], threadId: thread } },
+    { who: "second", params: { keys: [REPLAY], scopes: ["launch"], threadId: thread } },
     { who: "first", params: { keys: [], scopes: ["project", "local"], threadId: null } },
     { who: "second", params: { keys: [], scopes: ["project", "local"], threadId: null } },
   ]);

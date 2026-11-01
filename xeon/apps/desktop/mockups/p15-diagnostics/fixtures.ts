@@ -158,7 +158,7 @@ export const plugins: PluginRow[] = [
     id: "grp.cache-debug",
     hooks: "on · post",
     version: "0.1.0",
-    source: "~/code/xeon/.xeon/groups",
+    source: "~/code/xeon/.fresnel/groups",
     trust: "이 폴더",
     state: "auto-off",
     note: "post 실패 3회",

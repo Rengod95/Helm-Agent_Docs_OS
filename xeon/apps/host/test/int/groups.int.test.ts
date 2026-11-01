@@ -84,7 +84,7 @@ realTest(
       keys: ["x.primitives.activeDriveGroup"],
       threadId: created.threadId,
     });
-    expect(got.settings[0]).toMatchObject({ value: groupId, source: { scope: "session" } });
+    expect(got.settings[0]).toMatchObject({ value: groupId, source: { scope: "launch" } });
     expect(settings.value("x.primitives.activeDriveGroup")).toBeNull();
 
     // 알 수 없는 그룹은 오류 값이다
@@ -156,7 +156,7 @@ realTest(
       keys: [HOLDER_KEY],
       threadId: older.threadId,
     });
-    expect(read.settings[0]).toMatchObject({ value: groupId, source: { scope: "session" } });
+    expect(read.settings[0]).toMatchObject({ value: groupId, source: { scope: "launch" } });
     const untouched = await connection.request("settings.get", {
       keys: [HOLDER_KEY],
       threadId: newer.threadId,

@@ -78,7 +78,7 @@ test("the session scope is added for a thread once the session store is bound", 
   const settings = engineOver();
   const threadId = fixedIdFactory().next("thr");
   const store: SessionSettingsStore = {
-    layer: () => ({ scope: "session", values: new Map([["l1.loop.maxSteps", 3]]) }),
+    layer: () => ({ scope: "launch", values: new Map([["l1.loop.maxSteps", 3]]) }),
     set: () => {
       throw new Bug("not used");
     },
@@ -89,7 +89,7 @@ test("the session scope is added for a thread once the session store is bound", 
   expect(settings.layers(threadId)).toHaveLength(1);
   settings.bindSession(store);
   expect(settings.layers(undefined)).toHaveLength(1);
-  expect(settings.layers(threadId).map((layer) => layer.scope)).toEqual(["user", "session"]);
+  expect(settings.layers(threadId).map((layer) => layer.scope)).toEqual(["user", "launch"]);
   expect(settings.value("l1.loop.maxSteps", threadId)).toBe(3);
   expect(settings.value("l1.loop.maxSteps")).toBe(0);
 });

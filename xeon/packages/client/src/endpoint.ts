@@ -4,7 +4,7 @@ import { err, ok, type Result } from "@xeon/contracts";
 // (Node API는 `./socket`에 있다). 문자열은 설정 키 `l0.process.service.remote`와 CLI 플래그 `--remote`가 같은 문법으로 쓴다.
 //
 //   unix:/abs/path                          로컬 서비스 Unix 소켓(절대 경로만 `/abs/path`로 써도 된다)
-//   tcp://host:port                         사설망 TCP. 토큰이 필요하다(환경 변수 XEON_REMOTE_TOKEN). 호스트는 이름, IPv4, [IPv6]
+//   tcp://host:port                         사설망 TCP. 토큰이 필요하다(환경 변수 FRESNEL_REMOTE_TOKEN). 호스트는 이름, IPv4, [IPv6]
 //   ssh://[user@]host[:port]/abs/socket     SSH 터널로 원격 서비스 Unix 소켓에 접속
 
 export type ServiceEndpoint =

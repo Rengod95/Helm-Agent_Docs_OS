@@ -515,7 +515,7 @@ describe("M2 method schemas are written out", () => {
       required: true,
       verdict: "undecided",
       via: "headless",
-      resources: [".mcp.json", ".xeon/settings.json"],
+      resources: [".mcp.json", ".fresnel/settings.json"],
       options: [
         {
           choice: { kind: "folder", verdict: "allow" },

@@ -2,7 +2,7 @@ import { Type } from "typebox";
 import { t } from "@xeon/client/i18n";
 import { err, ok, parse, parseJson, type Result } from "@xeon/contracts";
 
-// L3.slots.spec §3.3.3(템플릿 색인, 치환 자리), §3.3.4(이름 규칙), §3.3.6 R1·R2. `xeon group new`가 쓰는 순수 규칙이다.
+// L3.slots.spec §3.3.3(템플릿 색인, 치환 자리), §3.3.4(이름 규칙), §3.3.6 R1·R2. `fresnel group new`가 쓰는 순수 규칙이다.
 // L4는 group-sdk을 import하지 않는다(DR-14). 그래서 이름 상수와 색인 스키마를 여기 복사해 둔다.
 // test/group-rules.test.ts가 group-sdk 소스 텍스트와 비교해 두 목록이 갈라지면 실패한다.
 
@@ -21,7 +21,7 @@ export const RESERVED_GROUP_NAMES: readonly string[] = [
   "ext",
   "x",
   "grp",
-  "xeon",
+  "fresnel",
   "workspace",
   "mcp",
   "web",

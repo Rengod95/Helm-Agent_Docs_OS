@@ -14,7 +14,7 @@ export type KeyRegisterError =
   | { readonly kind: "too-large" }
   | { readonly kind: "busy" }
   | { readonly kind: "timeout" }
-  /** 사이드카의 `xeon secret`이 0이 아닌 코드로 끝났다. `detail`은 그 출력의 앞부분이다(값이 있으면 비어 있다) */
+  /** 사이드카의 `fresnel secret`이 0이 아닌 코드로 끝났다. `detail`은 그 출력의 앞부분이다(값이 있으면 비어 있다) */
   | { readonly kind: "rejected"; readonly exitCode: number | null; readonly detail: string }
   | { readonly kind: "failed" };
 

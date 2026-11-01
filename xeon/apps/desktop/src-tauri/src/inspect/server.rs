@@ -19,7 +19,7 @@ pub const MAX_CONNECTIONS: usize = 4;
 /// macOS의 소켓 경로 상한은 104바이트(NUL 포함)다.
 const MAX_SOCKET_PATH_BYTES: usize = 100;
 
-/// 소켓 파일의 기본 위치. 환경 변수 `XEON_DESKTOP_INSPECT_SOCKET`이 있으면 그 경로를 쓴다.
+/// 소켓 파일의 기본 위치. 환경 변수 `FRESNEL_DESKTOP_INSPECT_SOCKET`이 있으면 그 경로를 쓴다.
 pub fn socket_path(log_dir: &Path, override_path: Option<String>) -> PathBuf {
     match override_path {
         Some(path) if !path.is_empty() => PathBuf::from(path),
@@ -41,7 +41,7 @@ pub fn serve(runtime: &Handle, path: PathBuf, probe: Arc<dyn Probe>, log: Arc<Ap
 }
 
 /// 소켓이 놓일 폴더를 준비한다. 앱이 만든 폴더만 0700으로 둔다. 이미 있는 폴더는 권한을 바꾸지 않는다.
-/// `XEON_DESKTOP_INSPECT_SOCKET`이 `/tmp/x.sock`을 가리켜도 `/tmp` 같은 공용 폴더의 권한을 건드리지 않게 하려는 것이다.
+/// `FRESNEL_DESKTOP_INSPECT_SOCKET`이 `/tmp/x.sock`을 가리켜도 `/tmp` 같은 공용 폴더의 권한을 건드리지 않게 하려는 것이다.
 /// 이미 있는 폴더는 앱 사용자 소유이고 다른 사용자(other)가 쓸 수 없을 때만 받는다. 아니면 `PermissionDenied`다.
 /// 그룹 쓰기는 막지 않는다. 사용자별 그룹과 umask 002 환경에서 만든 로그 폴더가 0775이기 때문이다. 소켓 파일은 0600이다.
 fn prepare_socket_dir(dir: &Path) -> io::Result<()> {

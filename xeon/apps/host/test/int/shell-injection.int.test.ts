@@ -22,7 +22,7 @@ import { writeUserSettings } from "../fixtures/user-settings.ts";
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 const home = useEngineHome();
-const workspace = mkdtempSync(join(tmpdir(), "xeon-shell-injection-"));
+const workspace = mkdtempSync(join(tmpdir(), "fresnel-shell-injection-"));
 afterAll(() => {
   home.dispose();
   rmSync(workspace, { recursive: true, force: true });
@@ -58,14 +58,14 @@ function captureModule(into: Captured) {
 realTest(
   "a slash command with a shell injection runs the command through runUserBash and substitutes its output",
   async () => {
-    // 프로젝트 명령(.xeon/commands)은 프로젝트를 신뢰한 뒤에만 읽는다(G1-03). 이 시험은 셸 주입 경로를 본다
+    // 프로젝트 명령(.fresnel/commands)은 프로젝트를 신뢰한 뒤에만 읽는다(G1-03). 이 시험은 셸 주입 경로를 본다
     writeUserSettings(home, {
       "l0.sandbox.enabled": false,
       "x.loading-trust.defaultProjectTrust": "always",
     });
-    mkdirSync(join(workspace, ".xeon", "commands"), { recursive: true });
+    mkdirSync(join(workspace, ".fresnel", "commands"), { recursive: true });
     writeFileSync(
-      join(workspace, ".xeon", "commands", "probe.md"),
+      join(workspace, ".fresnel", "commands", "probe.md"),
       "---\ndescription: probe\n---\noutput: !{echo hello-from-shell}\n",
     );
     const captured: Captured = { commands: undefined, session: undefined };

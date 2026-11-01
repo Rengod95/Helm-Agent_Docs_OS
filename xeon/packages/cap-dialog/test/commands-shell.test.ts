@@ -9,7 +9,7 @@ import { memoryCommandFiles } from "./support/memory-command-files.ts";
 import { realUserBash } from "./support/user-bash.ts";
 import { shellPortOver } from "../src/ports/shell.ts";
 
-const PROJECT = "/work/.xeon/commands";
+const PROJECT = "/work/.fresnel/commands";
 
 async function rejection(promise: Promise<unknown>): Promise<CapabilityError> {
   try {

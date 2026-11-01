@@ -19,7 +19,7 @@ import type { FileLock, FileLockError } from "@xeon/platform-os";
 // X.loading-trust.spec §4.7. 프로젝트 신뢰 판정을 조립 루트에서 이어 붙인다: 저장 파일(`<config>/trust.json`), 파일 시스템 포트,
 // 판정 호출. 엔진은 프롬프트를 띄우지 않는다(`headless`): 결정이 없는 프로젝트는 `undecided`(불신)이고, 사람의 결정은 클라이언트가
 // wire `trust.get`·`trust.decide`(F wire §3.3.1)로 보낸다. `decide`가 `resolveProjectTrust`의 프롬프트 단계(§4.7.3 8번)와 같은 규칙으로
-// 저장 파일이나 세션 기억에 쓴다. 저장 파일은 CLI의 `xeon trust`와 데스크톱 카드가 각자의 호스트로 쓰므로 호스트 프로세스 사이의 쓰기가
+// 저장 파일이나 세션 기억에 쓴다. 저장 파일은 CLI의 `fresnel trust`와 데스크톱 카드가 각자의 호스트로 쓰므로 호스트 프로세스 사이의 쓰기가
 // 겹친다: 읽고-고치고-쓰기는 L0.os의 파일 잠금(`fileLock.updateText`) 안에서 한다(G1-10). 조립 루트 코드(DR-14 예외 2).
 
 type DefaultProjectTrust = "ask" | "always" | "never";

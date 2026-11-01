@@ -7,7 +7,7 @@ import type { LoaderDiagnostic, ServerDefinition } from "../types.ts";
 import { parseMcpJson, type McpJsonOrigin } from "./loader.ts";
 
 // L2.mcp.spec §4.2. 설정과 `.mcp.json`을 합쳐 서버 정의 목록을 만든다(확장 등록 서버는 service가 더한다).
-// `.mcp.json`(루트)과 `.xeon/mcp.json`은 프로젝트가 신뢰된 뒤에만 읽는다(결정 D6).
+// `.mcp.json`(루트)과 `.fresnel/mcp.json`은 프로젝트가 신뢰된 뒤에만 읽는다(결정 D6).
 
 export interface DefinitionsDeps {
   readonly layers: ScopeStack;
@@ -27,7 +27,7 @@ export interface LoadedDefinitions {
 }
 
 const MCP_JSON_FILES: readonly { readonly relative: string; readonly origin: McpJsonOrigin }[] = [
-  { relative: ".xeon/mcp.json", origin: "xeon" },
+  { relative: ".fresnel/mcp.json", origin: "xeon" },
   { relative: ".mcp.json", origin: "root" },
 ];
 

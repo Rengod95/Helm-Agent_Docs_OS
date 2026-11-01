@@ -75,7 +75,7 @@ test("config set parses a key, a value and the file scope", () => {
 });
 
 test("config set refuses the session and managed scopes", () => {
-  expect(parsed(["config", "set", "l4.cli.theme", "dark", "--scope", "session"])).toMatchObject({
+  expect(parsed(["config", "set", "l4.cli.theme", "dark", "--scope", "launch"])).toMatchObject({
     ok: false,
     error: { code: "conflictingFlags" },
   });
@@ -107,7 +107,7 @@ test("config schema needs a scope from the four file scopes", () => {
     ok: false,
     error: { code: "missingArgument" },
   });
-  expect(parsed(["config", "schema", "--scope", "session"])).toMatchObject({
+  expect(parsed(["config", "schema", "--scope", "launch"])).toMatchObject({
     ok: false,
     error: { code: "unexpectedArgument" },
   });

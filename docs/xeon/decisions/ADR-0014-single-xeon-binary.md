@@ -28,7 +28,7 @@ binds: [xeon/apps/cli/**, xeon/apps/desktop/**, xeon/apps/host/**]
 
 1. [결정] 배포하는 엔진 실행 파일은 `xeon` 하나입니다. 서브커맨드 `chat`, `host --stdio`, `config`, `secret`, `doctor`, `version`을 둡니다. M3에 `service …`를 더합니다(`L4.readme` §3 엔진 바이너리 항목).
 2. [결정] 데스크톱 사이드카는 이 바이너리를 `host --stdio` 인자로 띄웁니다. Tauri `externalBin`은 `binaries/xeon`이고 파일 이름은 `xeon-<triple>`입니다(`src-tauri/tauri.conf.json`).
-3. [제안] 제품 이름이 정해지면 바이너리 이름, 상태 디렉터리(`.xeon`), 설정 키 접두는 한 번에 바꿉니다. 그 전에는 `xeon`을 고정합니다.
+3. [제안] 제품 이름이 정해지면 바이너리 이름, 상태 디렉터리(`.fresnel`), 설정 키 접두는 한 번에 바꿉니다. 그 전에는 `xeon`을 고정합니다.
 
 ## 4. 결과
 

@@ -62,7 +62,7 @@ test("config set errors from the host become the §4.10 sentences and codes", as
   const { h } = harness();
   expect(await h.run(["config", "set", "l1.loop.nothing", "1"])).toBe(EXIT.usage);
   expect(h.stderrText()).toContain("등록되지 않은 설정 키: l1.loop.nothing");
-  expect(h.stderrText()).toContain("xeon config list");
+  expect(h.stderrText()).toContain("fresnel config list");
 
   const scoped = harness();
   expect(await scoped.h.run(["config", "set", "l1.loop.flag", "true", "--scope", "local"])).toBe(
@@ -88,7 +88,7 @@ test("config list prints every definition with its value, scopes and range; --pr
   const text = h.stdoutText();
   expect(text).toContain("l1.loop.maxSteps = 80");
   expect(text).toContain("범위: 1..200");
-  expect(text).toContain("쓸 수 있는 범위: user, project, local, session");
+  expect(text).toContain("쓸 수 있는 범위: user, project, local, launch");
   expect(text).toContain("l1.loop.flag = false");
   expect(text).not.toContain("l4.cli.theme");
 });

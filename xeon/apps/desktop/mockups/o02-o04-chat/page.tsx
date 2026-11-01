@@ -131,7 +131,7 @@ function TrustCard() {
           cache-debug, release
         </ListDescriptionRow>
         <ListDescriptionRow term="설정" mono>
-          .xeon/settings.json · 키 3
+          .fresnel/settings.json · 키 3
         </ListDescriptionRow>
       </ListDescription>
     </AgentRequest>

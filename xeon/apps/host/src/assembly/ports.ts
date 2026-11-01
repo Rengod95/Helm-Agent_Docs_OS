@@ -405,7 +405,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   /**
    * 지운 thread의 임대를 거둔다. `session.threads.remove`는 호스트가 준 토큰을 반납하지 않는다(호스트가 반납한다, L1.persistence ownership).
-   * 이벤트가 없으므로 `session.shutdown`은 발화하지 않고 확장의 thread 상태만 닫는다
+   * 이벤트가 없으므로 `thread.shutdown`은 발화하지 않고 확장의 thread 상태만 닫는다
    */
   async function dropHeldThread(threadId: ThreadId): Promise<void> {
     const lease = held.get(threadId);
@@ -476,7 +476,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     await settings.prepare(threadId);
     // 서비스 모드: 이 thread의 작업 폴더가 신뢰되어 있으면 그 프로젝트의 확장을 싣는다(결정이 없으면 클라이언트가 trust.decide로 정한 뒤 싣는다)
     await deps.projectExtensions.ensure(deps.workspaceOf(threadId), deps.signal);
-    const acquired = store.leases.acquire(`session:${threadId}`, { ...deps.holder, kind });
+    const acquired = store.leases.acquire(`thread:${threadId}`, { ...deps.holder, kind });
     if (!acquired.ok) {
       const error = acquired.error;
       if (error.kind === "lock_busy") return { ok: false, ownerKind: error.owner?.kind ?? null };

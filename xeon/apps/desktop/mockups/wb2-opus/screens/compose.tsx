@@ -158,7 +158,7 @@ function ProfileEditor({ profile }: { profile: Profile }) {
               <li className="flex flex-wrap gap-x-2">
                 <span className="font-mono text-mono-sm">ext.review.enabled</span>
                 <span className="text-text-secondary">
-                  정책 파일이 잠갔어요 · ~/.xeon/policy.json
+                  정책 파일이 잠갔어요 · ~/.fresnel/policy.json
                 </span>
               </li>
               <li className="flex flex-wrap gap-x-2">

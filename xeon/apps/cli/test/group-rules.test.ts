@@ -93,7 +93,7 @@ test("template paths are safe relative paths and map to target paths without the
   expect(isSafeRelativePath("a\\b")).toBe(false);
   expect(isSafeRelativePath("a//b")).toBe(false);
   expect(targetPathOf("common/test/manifest.test.ts")).toBe("test/manifest.test.ts");
-  expect(targetPathOf("drive/.xeon-plugin/plugin.json")).toBe(".xeon-plugin/plugin.json");
+  expect(targetPathOf("drive/.fresnel-plugin/plugin.json")).toBe(".fresnel-plugin/plugin.json");
   expect(targetPathOf("drive")).toBe(null);
 });
 

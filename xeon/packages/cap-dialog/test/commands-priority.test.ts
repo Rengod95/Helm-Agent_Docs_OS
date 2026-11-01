@@ -4,8 +4,8 @@ import { createCommandsService } from "../src/commands/service.ts";
 import { memoryCommandFiles } from "./support/memory-command-files.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";
 
-const PROJECT = "/work/.xeon/commands";
-const USER = "/home/user/.xeon/commands";
+const PROJECT = "/work/.fresnel/commands";
+const USER = "/home/user/.fresnel/commands";
 
 async function rejection(promise: Promise<unknown>): Promise<CapabilityError> {
   try {

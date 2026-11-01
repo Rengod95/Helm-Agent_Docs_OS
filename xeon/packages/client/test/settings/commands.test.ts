@@ -38,7 +38,7 @@ const LIST: CommandListResult = {
       args: [],
       kind: "template",
       source: "project",
-      origin: ".xeon/commands/review.md",
+      origin: ".fresnel/commands/review.md",
       hasShell: true,
     },
   ],

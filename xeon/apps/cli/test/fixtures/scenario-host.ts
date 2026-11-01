@@ -4,10 +4,10 @@ import { modelsOf } from "../support/real-host.ts";
 
 // L4.cli.plan §5.2: 실제 프로세스로 도는 호스트 진입(`host --stdio`와 같은 startStdioHost)에 모델 테이프만 넣는다. 시험 파일이다(DR-08).
 // 모델은 승인이 필요한 bash 호출을 한 번 내고 그 뒤 답이 없다: 시험이 승인 대기 중에 SIGKILL로 죽인다.
-// 환경 변수 XEON_SCENARIO_COMMAND가 bash 명령이다.
+// 환경 변수 FRESNEL_SCENARIO_COMMAND가 bash 명령이다.
 
 async function main(): Promise<number> {
-  const command = process.env["XEON_SCENARIO_COMMAND"] ?? "echo approved-by-user";
+  const command = process.env["FRESNEL_SCENARIO_COMMAND"] ?? "echo approved-by-user";
   const out = new WritableStream<Uint8Array>({
     write(chunk) {
       process.stdout.write(chunk);

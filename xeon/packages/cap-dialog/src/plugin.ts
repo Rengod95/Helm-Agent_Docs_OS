@@ -50,7 +50,7 @@ export interface DialogPluginOptions {
   readonly interactive?: (context: CallContext) => boolean;
   /**
    * 프로젝트 폴더가 신뢰되었는가(X.loading-trust `resolveProjectTrust`의 `trusted`). 조립 루트가 신뢰 저장소와 프롬프터를 묶어
-   * 넘긴다. 없거나 거짓이거나 실패하면 프로젝트의 `.xeon/commands`를 읽지 않는다(fail-closed, 결정 D6)
+   * 넘긴다. 없거나 거짓이거나 실패하면 프로젝트의 `.fresnel/commands`를 읽지 않는다(fail-closed, 결정 D6)
    */
   readonly projectTrust?: (projectDir: string) => Promise<boolean>;
   /**
@@ -111,7 +111,7 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
         shell,
         commandFiles: exec,
         commandRoots: {
-          userDir: `${os.dirs.home}/.xeon/commands`,
+          userDir: `${os.dirs.home}/.fresnel/commands`,
           home: os.dirs.home,
           projectRoot: (threadId) => {
             if (threadId === undefined) return null;

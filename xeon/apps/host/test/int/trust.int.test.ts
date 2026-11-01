@@ -36,8 +36,8 @@ realTest(
   async () => {
     const home = useEngineHome();
     const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-ws-")));
-    mkdirSync(join(workspace, ".xeon"));
-    writeFileSync(join(workspace, ".xeon", "settings.json"), JSON.stringify({ [KEY]: 8 }));
+    mkdirSync(join(workspace, ".fresnel"));
+    writeFileSync(join(workspace, ".fresnel", "settings.json"), JSON.stringify({ [KEY]: 8 }));
 
     const first = await startInProcessHost({ devChecks: true, defaultGroups: false });
     const connection = createHostConnection(first.client);
@@ -50,7 +50,7 @@ realTest(
       verdict: "undecided",
       via: "headless",
     });
-    expect(asked.resources).toContain(".xeon/settings.json");
+    expect(asked.resources).toContain(".fresnel/settings.json");
     expect(asked.options.map((option) => option.label)).toEqual([
       "trust-folder",
       "trust-parent",

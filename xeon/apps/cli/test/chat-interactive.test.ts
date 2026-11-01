@@ -55,7 +55,7 @@ function blockedReadLine(): (prompt: string, signal: AbortSignal) => Promise<str
 test("a line becomes a turn: the user line, the answer, then the next prompt", async () => {
   const h = harness({ lines: ["hello", "/quit"], server: { onTurn: answer("world") } });
   expect(await h.run(["chat"])).toBe(0);
-  expect(h.stdoutText()).toContain("xeon chat — 세션 thr_");
+  expect(h.stdoutText()).toContain("fresnel chat — 세션 thr_");
   // 방금 친 줄은 터미널이 보여 주므로 user 이벤트로 되풀이하지 않는다
   expect(h.stdoutText()).not.toContain("> hello");
   expect(h.stdoutText()).toContain("world\n");
@@ -162,7 +162,7 @@ test("ctrl+c at an empty prompt hints once and a second one within 2s exits 0", 
   const h = harness({ readLine: blockedReadLine() });
   const running = h.run(["chat"]);
   await waitFor(() => h.methods().includes("thread.create"));
-  await waitFor(() => h.stdoutText().includes("xeon chat —"));
+  await waitFor(() => h.stdoutText().includes("fresnel chat —"));
   h.signal("SIGINT");
   await waitFor(() => h.stdoutText().includes("한 번 더 누르면 끝낸다"));
   h.clock.advance(500);

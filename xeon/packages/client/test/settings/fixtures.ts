@@ -7,7 +7,7 @@ const SCOPES_ALL: SettingDefWire["allowedScopes"] = [
   "user",
   "project",
   "local",
-  "session",
+  "launch",
 ];
 
 /** 기본값이 채워진 와이어 정의. 시험마다 필요한 필드만 바꾼다 */
@@ -32,7 +32,7 @@ export function effectiveOf(
   return {
     key,
     value,
-    source: { scope: "user", path: "/home/user/.xeon/settings.json" },
+    source: { scope: "user", path: "/home/user/.fresnel/settings.json" },
     locked: false,
     shadowed: [],
     runtimeChange: "live",

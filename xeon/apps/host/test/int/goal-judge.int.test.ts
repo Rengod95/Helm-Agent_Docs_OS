@@ -25,7 +25,7 @@ const MAX_RUNS = 3;
 /** 파일 범위 값. 세션 값을 읽지 못하는 agentsSource는 이 값에서 세 번째 판정을 capped로 막아 판정이 두 번에 그친다 */
 const FILE_MAX_RUNS = 2;
 const GOAL_CONDITION = "The report section is written and checked against the sources.";
-/** thread 이름을 이 값으로 바꾸면 시험용 확장이 목표를 건다(`session.info.after`) */
+/** thread 이름을 이 값으로 바꾸면 시험용 확장이 목표를 건다(`thread.info.after`) */
 const SET_GOAL_ON_RENAME = "목표를 건다";
 /** 알림 묶음 창(1초, cap-dialog NOTICE_COALESCE_MS)을 넘겨 기다린다. 묶이지 않은 두 번째 알림이 있으면 이 사이에 온다 */
 const COALESCE_WINDOW_PASS_MS = 1500;
@@ -36,7 +36,7 @@ const JUDGE_MODEL = "tape-judge";
 /** 목표 설정 확장 본체. thread 이름이 정해진 값이 되면 `work.goals.set`을 부른다 */
 const goalExtension: ExtensionEntry = ({ manifest: loaded, scope }) => {
   scope(loaded.name, {}, (g) => {
-    g.on("session.info.after", async ({ threadId, name }) => {
+    g.on("thread.info.after", async ({ threadId, name }) => {
       if (name !== SET_GOAL_ON_RENAME) return;
       await g
         .capability(WorkGoalsKey)
@@ -54,7 +54,7 @@ function goalProbe(): HostPluginModule {
     layer: "plugin",
     kind: "plugin",
     entry: "./index.ts",
-    points: ["session.info.after"],
+    points: ["thread.info.after"],
     requires: [{ id: "work.goals", range: "^1.0.0" }],
     usesDrive: false,
     trust: { level: "builtin" },
@@ -202,7 +202,7 @@ realTest(
     await first.request("settings.set", {
       key: "l1.agents.judge.maxRuns",
       value: MAX_RUNS,
-      scope: "session",
+      scope: "launch",
       threadId: created.threadId,
     });
     await first.request("thread.rename", {

@@ -46,7 +46,7 @@ export interface CliIo {
 /** doctor가 쓰는 바깥 세계 조회. 실제 값은 runtime.ts, 시험은 가짜를 넣는다 */
 export interface DoctorProbes {
   /**
-   * SearXNG 탐침(L2.web.spec §4.8.3): `GET <base>/search?q=xeon&format=json&pageno=1`, 제한 시간 1.5초, 응답 64 KiB 상한.
+   * SearXNG 탐침(L2.web.spec §4.8.3): `GET <base>/search?q=fresnel&format=json&pageno=1`, 제한 시간 1.5초, 응답 64 KiB 상한.
    * 200이고 JSON에 results 배열과 query 문자열이 있으면 ok, 403이면 json-disabled, 그 밖에는 unreachable
    */
   probeSearxng(
@@ -67,7 +67,7 @@ export interface GroupIoError {
 export type GroupTargetState = "absent" | "empty" | "occupied";
 
 /**
- * `xeon group new`가 읽고 쓰는 파일 작업(L4.cli.spec §3.8, L3.slots.spec §3.3.6 R3). 템플릿 코드는 실행하지 않는다(R5).
+ * `fresnel group new`가 읽고 쓰는 파일 작업(L4.cli.spec §3.8, L3.slots.spec §3.3.6 R3). 템플릿 코드는 실행하지 않는다(R5).
  * 실제 값은 group/fs-port.ts(runtime.ts가 조립한다), 시험은 메모리 가짜를 넣는다.
  */
 export interface GroupTemplatesPort {
@@ -76,7 +76,7 @@ export interface GroupTemplatesPort {
   /** templates/ 기준 상대 경로의 파일 바이트 */
   readTemplateFile(rel: string): Promise<Result<Uint8Array, GroupIoError>>;
   /**
-   * 설치된 확장 이름(사용자 확장 폴더와 작업 폴더의 `.xeon/extensions`, 기본 그룹 이름 포함). 같은 이름을 쓸 수 없다(R2).
+   * 설치된 확장 이름(사용자 확장 폴더와 작업 폴더의 `.fresnel/extensions`, 기본 그룹 이름 포함). 같은 이름을 쓸 수 없다(R2).
    * 매니페스트가 없는 폴더는 건너뛰고, 있는데 읽지 못하면 실패다
    */
   installedExtensionNames(workspace: string): Promise<Result<readonly string[], GroupIoError>>;
@@ -112,13 +112,13 @@ export interface CliDeps {
   /** stdin/stdout을 원격 서비스에 중계한다(HS-89). 실제 값은 @xeon/host의 bridgeStdioToService */
   readonly bridgeStdio: (options: BridgeOptions) => Promise<BridgeExit>;
   readonly probes: DoctorProbes;
-  /** `xeon group new`의 파일 작업. 실제 값은 group/fs-port.ts, 시험은 메모리 가짜 */
+  /** `fresnel group new`의 파일 작업. 실제 값은 group/fs-port.ts, 시험은 메모리 가짜 */
   readonly groupTemplates: GroupTemplatesPort;
   /** Ctrl+C 2회 판정(§4.6) */
   readonly clock: Clock;
   /** 개발 빌드면 참(§4.3). 컴파일 바이너리는 거짓 */
   readonly devWireRoundTrip: boolean;
-  /** `xeon version`이 보이는 Bun 버전 */
+  /** `fresnel version`이 보이는 Bun 버전 */
   readonly bunVersion: string;
   /**
    * 저장소 내보내기(`db export`, L4.cli.spec §4.13). 실제 값은 @xeon/platform-store의 exportDatabase다.

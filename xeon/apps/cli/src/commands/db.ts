@@ -5,14 +5,14 @@ import { failureOfExport, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import { printFailure, type CommandContext } from "./context.ts";
 
-// L4.cli.spec §4.13. `xeon db export <폴더>`는 엔진을 띄우지 않고 저장소 파일을 `exportDatabase`로 내보낸다.
+// L4.cli.spec §4.13. `fresnel db export <폴더>`는 엔진을 띄우지 않고 저장소 파일을 `exportDatabase`로 내보낸다.
 // 원본은 읽기 전용으로만 열므로 엔진이 떠 있어도 된다. 위치는 데이터 디렉터리(OsDirs.data)의 저장소 파일이다.
 
 /**
  * 저장소 파일 이름. 호스트가 같은 이름으로 연다(apps/host/src/assemble.ts의 DB_FILE_NAME).
  * 호스트가 이 이름을 내보내지 않아 여기 한 번 더 적는다 [미결: 호스트 공개 API로 옮기면 이 상수를 지운다]
  */
-const DB_FILE_NAME = "xeon.db";
+const DB_FILE_NAME = "fresnel.db";
 
 /** 누락 블롭 경고를 목록으로 보이는 최대 줄 수. 넘으면 나머지는 개수 한 줄로 센다 */
 const MISSING_LIST_CAP = 10;

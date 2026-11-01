@@ -47,7 +47,7 @@ export async function startHost(
       if (slot.hub === undefined) throw new Bug("connection hub is used before it is created");
       return slot.hub;
     },
-    { serverName: "xeon", serverVersion: ENGINE_VERSION, pid: process.pid },
+    { serverName: "fresnel", serverVersion: ENGINE_VERSION, pid: process.pid },
     lifecycle,
   );
   const hub = createConnectionHub(engine, handlers);

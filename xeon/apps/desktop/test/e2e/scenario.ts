@@ -159,11 +159,11 @@ function threadIdOf(reply: Message): string {
 /**
  * 같은 요청열을 보내고 정규화한 응답과 이벤트열을 모은다. 종료는 호출자가 한다.
  * 데스크톱이 보내는 값을 그대로 쓴다: `thread.create { workspace }`(작업 폴더), `trust.get`/`trust.decide`(신뢰 카드),
- * `command.list { threadId }`. 작업 폴더는 홈 아래의 프로젝트 폴더이고 신뢰가 필요한 자원(`.xeon/skills`)을 하나 갖는다.
+ * `command.list { threadId }`. 작업 폴더는 홈 아래의 프로젝트 폴더이고 신뢰가 필요한 자원(`.fresnel/skills`)을 하나 갖는다.
  */
 export async function runScenario(engine: EngineProcess): Promise<ScenarioRun> {
   const project = join(engine.home, "project");
-  mkdirSync(join(project, ".xeon", "skills"), { recursive: true });
+  mkdirSync(join(project, ".fresnel", "skills"), { recursive: true });
   const normalize = normalizer([engine.home, realpathSync(engine.home)]);
   const responses: unknown[] = [];
   const ask = async (method: string, params: unknown): Promise<Message> => {

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { parseJson } from "@xeon/contracts";
 import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
 
-// 컴파일 바이너리가 사이드카로 도는 모양과 같다: `xeon host --stdio`를 실제 프로세스로 띄우고 JSON Lines로 말한다
+// 컴파일 바이너리가 사이드카로 도는 모양과 같다: `fresnel host --stdio`를 실제 프로세스로 띄우고 JSON Lines로 말한다
 // (L4.cli.plan C16, m2-plan CLI.4). stdout은 계약 전용이어야 하고, stdin EOF로 정상 종료(0)해야 한다.
 // 컴파일 자체는 build-sidecar 레시피가 한다. 여기서는 소스 진입을 실제 프로세스로 돌린다.
 
@@ -41,7 +41,7 @@ function frame(id: string, method: string, params: unknown): string {
 test("host --stdio answers host.hello and settings.get over JSON Lines, then exits 0 on stdin EOF", async () => {
   const home = newHome();
   const proc = Bun.spawn([process.execPath, MAIN, "host", "--stdio"], {
-    env: { ...process.env, XEON_HOME: home, XEON_DEV: "1" },
+    env: { ...process.env, FRESNEL_HOME: home, FRESNEL_DEV: "1" },
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",

@@ -282,7 +282,7 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 | D3 | M2 데스크톱 서명 수준 | (b) M2는 ad hoc 서명입니다. Developer ID 서명과 공증은 M3 릴리즈 후보로 옮깁니다 | §2.2, L4.desktop.plan D10·§6 |
 | D4 | `web.browse`(B10) 배치 | M3 초입입니다 | §2.2, L2.web.plan B10 |
 | D5 | MCP `input_required`의 책임 나눔 | (a) L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출합니다 | MCP.4, L2.mcp.spec §10 |
-| D6 | MCP stdio 서버 샌드박스 | M2는 사용자 권한으로 실행합니다. `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽습니다. 샌드박스는 bwrap 시험 환경이 생긴 뒤 정합니다 | L2.mcp.spec §10, ADR-0011 |
+| D6 | MCP stdio 서버 샌드박스 | M2는 사용자 권한으로 실행합니다. `.mcp.json`(루트와 `.fresnel/mcp.json`)은 프로젝트 신뢰 뒤에만 읽습니다. 샌드박스는 bwrap 시험 환경이 생긴 뒤 정합니다 | L2.mcp.spec §10, ADR-0011 |
 | D7 | `post.when = next`와 `aside` | B안(붙기만 하고 스스로 시작하지 않음) + 1안(aside는 L1·CLI 전용)입니다. F `PostWhen` 변경은 없습니다 | L1B.5, L1.tasks.spec §4.9, ADR-0013 |
 | D8 | Cordis provider 재시작 뒤 scope 재적용 시점 | (b) 재적용 요청을 기록하고 다음 단계 경계에 적용합니다. X.3에서 구현했습니다 | X.3, open-issues N-02 |
 | D9 | X 외부 확장 탐색·로더·훅·안전 모드(X.5) | M3입니다. 프로젝트 신뢰(X.4)만 M2에 둡니다 | §2.2, X.5, X.loading-trust.plan |
@@ -333,7 +333,7 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 | T2 HOST | 병합 | 24361c0(G1-12 조립)~0230af1, 55c8e63, 병합 차수 h2의 c12cf80, 9dda5ba, 326a949, c1afe1d | fixed: 신뢰, 명령, 재개, 제목, 설정 알림, 비밀 참조, 작업 폴더, 쪽 질의, 바이너리 점검, 수동 컴팩션, `hostedSearch` 조립, stdio MCP, `unknown_approval`. missing: G1-12 `scope.handler_failed` 발신. `L4.host-service.spec` §10 33번과 `review.m3-plan` M3-22가 추적합니다. 남은 `[미결]`: 수동 컴팩션과 `thread.revert` 겹침(`L4.host-service.spec` §10 32번). 수동 컴팩션과 `turn.start` 겹침은 닫혔습니다(31번) |
 | T3 PLT | 병합 | 89ced1e(G1-04)~54ca52c(G4-01) | fixed: G1-04, G1-10, G2-05, G2-06, G2-07, G1-12 `selfTest`·`log.level`. partial: G4-01은 `sandbox.int.test.ts`가 환경이 없으면 `describe.skip`이라 `exit-tests`의 건너뜀 0 검사에 기댑니다. macOS Seatbelt는 실기에서 실제 srt 시험 8건이 한 번 통과했고 CI는 미실행입니다(`review.macos-checklist` M-03). macOS 실측 수정 브랜치 `m2c/mac`(`1a1ac35`~`3aae85e`, 5커밋)은 아직 병합하지 않았습니다 |
 | T4 L1 | 병합 | 3c38739(G2-03)~4c38310(G2-11), 67dc4b4, 병합 차수 h2의 9b0300b | fixed: G2-03, G2-01 임계·오버플로와 수동 컴팩션, G2-11, G1-09, G2-10. partial: 자동 컴팩션 뒤 대화가 이어지는 시험은 루프 수준 가짜 컨텍스트뿐이고, 실제 엔진에서 작은 창으로 이어지는 host 시험이 없습니다. 재검토 결함 2(컴팩션 뒤 스킬 색인과 메모리 블록이 두 번 들어갈 가능성, PLAUSIBLE)를 두 층을 합친 시험으로 확인해야 합니다 |
-| T5 L2 | 병합 | 2358033(G1-09)~be3b46f(L2 문서), f5d9f30 | fixed: H1 자동 감지 제거, `.xeon/commands` 신뢰 게이트, `McpRuntime.reload`와 작업 폴더 기준 루트, cap-knowledge 컴팩션 재주입, G4-05. partial: 공개 모드 SSRF 방어가 Bun에서 실제 DNS로 도는지 미확인(FK-11). 재검토 결함 4: 모델용 호스티드 검색(`decideModelSearchTool`)이 시험에서만 불리고 L1.models 요청에 연결되지 않았습니다(E4 `web.search`와 별개) |
+| T5 L2 | 병합 | 2358033(G1-09)~be3b46f(L2 문서), f5d9f30 | fixed: H1 자동 감지 제거, `.fresnel/commands` 신뢰 게이트, `McpRuntime.reload`와 작업 폴더 기준 루트, cap-knowledge 컴팩션 재주입, G4-05. partial: 공개 모드 SSRF 방어가 Bun에서 실제 DNS로 도는지 미확인(FK-11). 재검토 결함 4: 모델용 호스티드 검색(`decideModelSearchTool`)이 시험에서만 불리고 L1.models 요청에 연결되지 않았습니다(E4 `web.search`와 별개) |
 | T6 CLI | 병합 | 5c30343(G1-07)~2816bb7(종단 시험), 병합 수정 4e5b338, 75170ca, b3afbca | fixed. 남은 일: CLI는 `settings.invalidated`를 구독하지 않습니다. `L4.cli.spec` §10 15번(승인 카드가 재개 질문보다 먼저 보임)은 `[미결]`입니다 |
 | T7 DESK | 병합 | 6e60969(카드)~efeaf98(작업 폴더), 병합 수정 5cf7d83, dbef8b2 | fixed: 설정 화면, 첫 실행 안내, 바이너리 점검 표시, 승인·신뢰 카드, `thread.locked` 대화 상자, 작업 폴더, `untilScopesCommitted`, 원격 점검 Phase 1. partial: single-instance는 Rust 코드만 있고 두 프로세스로 확인하지 않았습니다(M-13). `snapshot_macos.rs`는 미실행입니다(M-10). 사이드카 e2e에 `turn`이 없고, 컴파일 바이너리는 로컬 빌드에만 있습니다(§11 메모). `L4.desktop.spec` §10 15번(`secret.beginEntry` `started: true` 미확인), 17번(작업 폴더를 경로로 입력)은 `[미결]`입니다 |
 | Z 문서·검증 | 병합 | 8aac424(위협 모델)~9613673(온보딩), aa12722, d6184b1, 44d09c7, 1071f1a | fixed: D-a~D-e·H1 기록, ADR-0011~0014, 위협 모델, `review.m3-plan`, 미결 추적표, `review.fake-only`, 온보딩, justfile v2와 `guard.sh`, CI `exit-tests` 작업, `xeon-macos.yml`, `just tape-record`, `just bench`. partial: G5-02(이 표, 2026-10-26 갱신), G5-03(재검토 결함 6의 새 어긋남, 2026-10-26 문서 수정으로 일부 닫음), G4-02(`review.macos-checklist` 일부 채움), G2-04(`first_token` 미측정). missing: D11 측정과 `just bench --first-token` 실행 기록. 테이프 녹화는 `bef8c87`에서 했습니다. `just bench` 기준선과 `--first-token`은 2026-10-27에 쟀습니다(§11) |
@@ -347,7 +347,7 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 | 트랙 | 상태 | 병합 | M2 마감에서 처리한 것(재점검 번호, 맡은 트랙) |
 |---|---|---|---|
 | F 계약 | 병합 | 13c7241(F.1)~d828512(F.7), 9f69590(F.8) | G1-01, G1-02, G1-03, G1-07, G1-08, G1-09, G1-11 계약 필드, G2-06, G2-11, G2-12, G5-04 `stage`(T1) |
-| X 확장 호스트 | 병합(X.5는 M3, D9) | 93dad8d(X.1)~8efd085(X.4) | G1-03 `.xeon/commands` 신뢰 자원 표(T5) |
+| X 확장 호스트 | 병합(X.5는 M3, D9) | 93dad8d(X.1)~8efd085(X.4) | G1-03 `.fresnel/commands` 신뢰 자원 표(T5) |
 | SEC L0 비밀 | 병합 | 9f045f9(SEC.1~5) | 없음. `os-auth`·키체인 macOS 확인(G4-02)은 미실행입니다(`review.macos-checklist` M-05) |
 | PLT L0 | 병합 | 4a8215c(PLT.1)~4c75c7a(PLT.4) | G1-04 `McpProcessPort`, G1-10 `fileLock`, G2-05 spill 위치, G2-06 스냅샷, G2-07 외부 바이너리 점검, G4-01 샌드박스 int 시험, G1-12 `selfTest`(T3) |
 | L1A 도구·승인·루프 | 병합 | 6d2bf72(L1A.1)~45016bb(L1A.7) | G1-09 origin 정리, G2-03 systemPrompt 반영 결함, G2-10 동의 표시(T4) |

@@ -219,7 +219,7 @@ async function setSession(ctx: SlashContext, key: string, raw: string): Promise<
     const result = await ctx.connection.request("settings.set", {
       key,
       value: interpretRaw(raw),
-      scope: "session",
+      scope: "launch",
       threadId: ctx.threadId(),
     });
     await ctx.io.stdout(`${describeSetting(result.setting)}\n`);
@@ -249,7 +249,7 @@ async function showAlias(ctx: SlashContext, alias: SlashAlias): Promise<SlashOut
 }
 
 function summaryLine(index: number, thread: ThreadSummary): string {
-  const title = thread.title ?? t("cli.sessions.untitled");
+  const title = thread.title ?? t("cli.threads.untitled");
   return `  ${String(index + 1)}) ${thread.threadId}  ${thread.updatedAt}  ${title}`;
 }
 
@@ -262,7 +262,7 @@ async function resume(ctx: SlashContext, target: string | null): Promise<SlashOu
     let chosen: string | null = target;
     if (chosen === null) {
       if (listed.threads.length === 0) {
-        await ctx.io.stdout(`${t("cli.errors.chat.noSession.message")}\n`);
+        await ctx.io.stdout(`${t("cli.errors.chat.noThread.message")}\n`);
         return "continue";
       }
       await ctx.io.stdout(
@@ -420,7 +420,7 @@ async function runEngineCommand(
 }
 
 /**
- * 엔진 명령 목록을 읽는다. `threadId`를 보내 호스트가 프로젝트 명령(`.xeon/commands`)을 그 세션의 작업 폴더 기준으로 읽게 한다
+ * 엔진 명령 목록을 읽는다. `threadId`를 보내 호스트가 프로젝트 명령(`.fresnel/commands`)을 그 세션의 작업 폴더 기준으로 읽게 한다
  * (G1-01). 읽지 못하거나 호스트가 모르면 빈 목록이다(내장 명령은 그대로 동작한다)
  */
 export async function loadEngineCommands(

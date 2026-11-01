@@ -75,7 +75,7 @@ function writeFailure(
 ): WireError | Bug {
   switch (failure.kind) {
     case "thread_required":
-      return failure.scope === "session"
+      return failure.scope === "launch"
         ? wireError("jsonrpc.invalidParams", {
             details: {
               issues: [{ path: "threadId", message: "threadId is required for the session scope" }],

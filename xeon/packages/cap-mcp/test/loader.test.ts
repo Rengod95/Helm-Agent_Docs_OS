@@ -152,7 +152,7 @@ describe("definition loader", () => {
     const { world, files, trust } = projectWorld({
       files: {
         [`${ROOT}/.mcp.json`]: mcpJson({ proj: { command: "x" } }),
-        [`${ROOT}/.xeon/mcp.json`]: mcpJson({ other: { command: "y" } }),
+        [`${ROOT}/.fresnel/mcp.json`]: mcpJson({ other: { command: "y" } }),
       },
       trusted: false,
       extra: [
@@ -188,12 +188,15 @@ describe("definition loader", () => {
     const { world, files } = projectWorld({
       files: {
         [`${ROOT}/.mcp.json`]: mcpJson({ proj: { command: "root" } }),
-        [`${ROOT}/.xeon/mcp.json`]: mcpJson({ proj: { command: "xeon" }, other: { command: "o" } }),
+        [`${ROOT}/.fresnel/mcp.json`]: mcpJson({
+          proj: { command: "xeon" },
+          other: { command: "o" },
+        }),
       },
       trusted: true,
     });
     await startWorld(world);
-    expect(files.reads.toSorted()).toEqual([`${ROOT}/.mcp.json`, `${ROOT}/.xeon/mcp.json`]);
+    expect(files.reads.toSorted()).toEqual([`${ROOT}/.mcp.json`, `${ROOT}/.fresnel/mcp.json`]);
     const listed = await world.runtime.service.client.listServers({});
     const bySource = Object.fromEntries(
       listed.servers.map((server) => [server.server, server.source]),

@@ -20,8 +20,8 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 const home = useEngineHome();
-const alpha = mkdtempSync(join(tmpdir(), "xeon-user-bash-alpha-"));
-const beta = mkdtempSync(join(tmpdir(), "xeon-user-bash-beta-"));
+const alpha = mkdtempSync(join(tmpdir(), "fresnel-user-bash-alpha-"));
+const beta = mkdtempSync(join(tmpdir(), "fresnel-user-bash-beta-"));
 afterAll(() => {
   home.dispose();
   rmSync(alpha, { recursive: true, force: true });

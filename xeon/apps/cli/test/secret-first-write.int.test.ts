@@ -4,7 +4,7 @@ import { afterEach, expect, test } from "bun:test";
 import { EXIT } from "../src/exit-codes.ts";
 import { createRealCli, type RealCli } from "./support/real-host.ts";
 
-// M2 첫 실행(M-12): 깨끗한 기기에서 설정 없이 `xeon secret add`가 된다. 실제 호스트, 실제 sops와 age, 임시 XEON_HOME이다.
+// M2 첫 실행(M-12): 깨끗한 기기에서 설정 없이 `fresnel secret add`가 된다. 실제 호스트, 실제 sops와 age, 임시 FRESNEL_HOME이다.
 // 사용자가 SOPS 파일도 age 키도 준비하지 않는다(설정은 파일 키 폴백 확인 하나뿐이다: 이 기기는 Secret Service가 없다).
 // 같은 홈 위에 클라이언트 둘(CLI와 데스크톱 사이드카 자리)이 따로 뜨면 한 비밀 저장소를 본다. 값은 시험이 만든 가짜다.
 

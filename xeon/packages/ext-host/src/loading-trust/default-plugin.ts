@@ -29,7 +29,7 @@ export interface PluginInstallFs {
 
 export interface DefaultPluginInstallInput {
   readonly fs: PluginInstallFs;
-  /** 릴리즈에 든 기본 플러그인 디렉터리. `.xeon-plugin/plugin.json`이 있어야 한다 */
+  /** 릴리즈에 든 기본 플러그인 디렉터리. `.fresnel-plugin/plugin.json`이 있어야 한다 */
   readonly source: string;
   /** `<userDir>/extensions/<name>/` */
   readonly destination: string;

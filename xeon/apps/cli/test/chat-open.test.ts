@@ -182,8 +182,8 @@ test("a locked session whose host offers no options at all exits 4", async () =>
 
 test("--set applies each override to the session scope, in order, before the first turn", async () => {
   const settings = fakeSettings([
-    def("l4.cli.theme", { allowedScopes: ["user", "session"] }),
-    def("l4.cli.outputMode", { allowedScopes: ["user", "session"], default: "text" }),
+    def("l4.cli.theme", { allowedScopes: ["user", "launch"] }),
+    def("l4.cli.outputMode", { allowedScopes: ["user", "launch"], default: "text" }),
   ]);
   const h = createHarness({
     env: { NO_COLOR: "1" },
@@ -202,8 +202,8 @@ test("--set applies each override to the session scope, in order, before the fir
     ]),
   ).toBe(EXIT.ok);
   expect(settings.writes.map((w) => [w.key, w.value, w.scope])).toEqual([
-    ["l4.cli.theme", "dark", "session"],
-    ["l4.cli.outputMode", "text", "session"],
+    ["l4.cli.theme", "dark", "launch"],
+    ["l4.cli.outputMode", "text", "launch"],
   ]);
   expect(settings.writes.every((w) => typeof w.threadId === "string")).toBe(true);
   const order = h.methods();

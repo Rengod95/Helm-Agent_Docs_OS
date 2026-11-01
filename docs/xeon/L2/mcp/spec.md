@@ -131,7 +131,7 @@ export type McpServerDef = Static<typeof McpServerDefSchema>;
 - 서버 정의는 설정 키 `l2.mcp.servers`(서버 id → `McpServerDef`)에 둔다. F5 설정 스키마 하나에서 화면·파일·명령이 나오도록 하기 위해서다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 6).
 - `env`와 `headers`의 값은 `secret://` 참조이거나 평문 문자열이다(최대 8192자). 스키마는 값을 문자열로만 본다. 참조 형식 검사와 비밀 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 거부는 `cap-mcp`가 정의를 읽을 때 한다 [결정: review.m3-design-inputs D-M3-19].
 - `sandbox`는 서버별 샌드박스 설정이다. 없으면 출처별 기본값(프로젝트 출처 켬, 사용자 출처 끔)을 쓰고, 있으면 기본값보다 우선한다. 적용 대상은 stdio 서버이며 http·sse 정의의 값은 쓰지 않는다 [결정: review.m3-design-inputs D-M3-19].
-- `.mcp.json` 호환 [제안]: 프로젝트 루트의 `.mcp.json`과 `.xeon/mcp.json`(`{ "mcpServers": { "<이름>": { "command", "args", "env", "url", "type", "headers" } } }`, Claude Code 형식, `_research/settings.md` §2.10 MCP 서버 정의 행)을 읽기 전용으로 가져온다. 변환 규칙은 §4.2다. 사용자 범위 파일 위치는 L4가 정하는 설정 디렉터리 규칙을 따른다 [가정].
+- `.mcp.json` 호환 [제안]: 프로젝트 루트의 `.mcp.json`과 `.fresnel/mcp.json`(`{ "mcpServers": { "<이름>": { "command", "args", "env", "url", "type", "headers" } } }`, Claude Code 형식, `_research/settings.md` §2.10 MCP 서버 정의 행)을 읽기 전용으로 가져온다. 변환 규칙은 §4.2다. 사용자 범위 파일 위치는 L4가 정하는 설정 디렉터리 규칙을 따른다 [가정].
 
 ### 3.2 능력 정의 `mcp.client`
 
@@ -525,11 +525,11 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 ### 4.2 서버 정의 로딩
 
 1. 설정 `l2.mcp.servers`의 유효 값(관리 > … > 사용자 범위 병합, `F.wire-settings.spec` §4.7)을 읽는다.
-2. `l2.mcp.importMcpJson`이 참이고 프로젝트가 신뢰된 상태면(`thread.trust.before` 지점, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 프로젝트 루트 `.mcp.json`과 `.xeon/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6]. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다.
+2. `l2.mcp.importMcpJson`이 참이고 프로젝트가 신뢰된 상태면(`thread.trust.before` 지점, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 프로젝트 루트 `.mcp.json`과 `.fresnel/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6]. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다.
    - 이름 변환: 소문자로 바꾸고 `[a-z0-9-]` 밖 문자를 `-`로 바꾸고 32자로 자른다. 결과가 형식에 맞지 않거나 1번 목록의 id와 겹치면 그 항목을 건너뛰고 진단을 남긴다.
    - `type` 생략 + `command` 있음 → `stdio`, `type: "http"`·`"streamable-http"` → `http`, `type: "sse"` → `sse`.
    - [결정: M3-REQ-97] `env`·`headers` 값은 `secret://` 참조이거나 평문이다. 평문은 허용하되 이름이 비밀처럼 보이면 그 서버를 건너뛰고 `plaintext_secret` 진단(값 없음)을 남긴다. 이름은 `_`·`-`·대소문자 경계로 낱말을 나눠 `KEY`, `APIKEY`, `TOKEN`, `SECRET`(S), `PASSWORD`, `PASSWD`, `PWD`, `CREDENTIAL`(S), `AUTH`, `AUTHORIZATION`, `COOKIE`, `BEARER` 중 하나가 있으면 비밀 이름이다(`MAX_TOKENS`, `KEYBOARD`는 아니다). `secret://`로 시작하는데 참조 형식이 아닌 값은 `invalid_definition`이다(오타가 평문으로 나가지 않게 한다). 같은 검사를 설정 `l2.mcp.servers`와 `registerServer`에도 한다.
-   - 출처는 루트 `.mcp.json`이 `mcpjson:project`, `.xeon/mcp.json`이 `mcpjson:xeon`이다. 같은 id가 있으면 설정이 이기고, 두 파일 사이에서는 `.xeon/mcp.json`이 이긴다.
+   - 출처는 루트 `.mcp.json`이 `mcpjson:project`, `.fresnel/mcp.json`이 `mcpjson:xeon`이다. 같은 id가 있으면 설정이 이기고, 두 파일 사이에서는 `.fresnel/mcp.json`이 이긴다.
    - 확장이 `registerServer`로 등록한 서버(§3.2 `xeon.mcp` 등록)를 더한다. 출처는 `ext:<확장 이름>`이고, 설정·`.mcp.json`의 id와 겹치는 등록은 등록 시점에 거부되었으므로 여기서 다시 겹치지 않는다.
 3. 허용·차단(§4.4)을 적용해 `blocked` 서버를 표시한다.
 4. 변경 반영: 설정이나 `.mcp.json`이 바뀌면 다음 단계 경계에서 차이(추가·삭제·변경된 서버)만 연결·해제한다. 정의가 바뀐 서버는 다시 연결한다.
@@ -768,7 +768,7 @@ sequenceDiagram
 2. [결정: review.m2-plan §8 D5] `input_required` 흐름의 책임 나눔(§4.6)은 L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출하는 (a)안이다. `cap-mcp`는 `askWithApprovals`(`L2ApprovalsPort`)로 같은 질문을 올리는 경로도 갖고 있어 그룹 코드가 쓴다. F 요청 12(`L1.tools.spec` §8.3)의 F 쪽은 닫혔다(m2 F.8): `CallOptions.continuation`(`CallContinuation`)과 질문 옮기기 규칙(F `defs/mcp-questions.ts`의 `planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`)이다. cap-mcp의 `callTool`·`getPrompt`·`readResource`는 `options.continuation`을 입력의 `continuation`보다 먼저 읽는다. core-tools 어댑터 연결과 동적 도구 경로(`AgentTool.execute`에 연속 정보 자리가 없음)는 [미결]이다.
 3. [미결] 서버 주도 요청의 승인 기록을 `cap_mcp_`에 둘지. 제안은 두지 않는 것이다.
 4. [결정: review.m3-design-inputs D-M3-19 행 3] 서버 정의 `env`·`headers`에 평문 값을 허용하되, 비밀 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 키의 평문은 거부한다. 명시 답이 없어 권고를 적용했다 [가정]. 구현했다(§4.2).
-5. [결정: review.m2-plan §8 D6] M2는 stdio 서버를 사용자 권한으로 실행하고 `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽는다. 샌드박스 적용 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.
+5. [결정: review.m2-plan §8 D6] M2는 stdio 서버를 사용자 권한으로 실행하고 `.mcp.json`(루트와 `.fresnel/mcp.json`)은 프로젝트 신뢰 뒤에만 읽는다. 샌드박스 적용 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.
 6. [결정: review.m3-design-inputs D-M3-19 행 4, 구현 M3-REQ-97] sampling은 지원하지 않는다. 설정 키 `l2.mcp.sampling`을 지웠다. 이전 기록: sampling은
 7. [미결] Tasks 명세 본문의 필드와 `notifications/tasks` 존재 여부(`_research/notes/L2-1.md` §4.5, §10). 확인 전에는 Tasks 어댑터를 구현하지 않는다.
 8. [미결] `_research/packages.md` §4.4 L2-b "MCP Tasks: 그대로" 판정을 "자체 어댑터(명시 스키마 요청)"로 고칠지. 이 문서는 고친 판정을 따른다.

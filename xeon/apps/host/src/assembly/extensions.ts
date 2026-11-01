@@ -138,7 +138,7 @@ export interface ExtensionDeps {
   readonly buildModels?: ModelsExtensionOptions["buildModels"];
 }
 
-/** 내장 확장 모듈(manifest + extension 엔트리) → ExtHost.install 단위. 내장이라 xeon.* 포트를 쓸 수 있다 */
+/** 내장 확장 모듈(manifest + extension 엔트리) → ExtHost.install 단위. 내장이라 fresnel.* 포트를 쓸 수 있다 */
 export function unitOfModule(module: BuiltinExtensionModule, loadIndex: number): ExtensionUnit {
   return { manifest: module.manifest, entry: module.extension, loadIndex, builtin: true };
 }
@@ -336,7 +336,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.ids,
           // 호출 문맥이 사람이 없다고 밝힌 호출(백그라운드, 비대화형 서브에이전트)에는 묻지 않는다. 생략은 대화형이다
           interactive: (context) => context.interactive !== false,
-          // 프로젝트 명령(.xeon/commands)은 신뢰한 프로젝트에서만 읽는다(G1-03, 결정 D6). 폴더는 대화의 작업 폴더다(HS-76)
+          // 프로젝트 명령(.fresnel/commands)은 신뢰한 프로젝트에서만 읽는다(G1-03, 결정 D6). 폴더는 대화의 작업 폴더다(HS-76)
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           workspaceOf: workspaceOfId,
           loadIndex,
@@ -403,7 +403,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
         knowledgePlugin({
           settings: layersSource(settings),
           ids: deps.localIds,
-          // 프로젝트 스킬(.xeon/skills)은 신뢰한 프로젝트에서만 싣는다(결정 D6, X.loading-trust §4.7)
+          // 프로젝트 스킬(.fresnel/skills)은 신뢰한 프로젝트에서만 싣는다(결정 D6, X.loading-trust §4.7)
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           // 프로젝트 폴더는 그 대화의 작업 폴더다. 작업 폴더가 없는 대화에는 프로젝트 스킬이 없다(HS-76)
           workspaceOf: workspaceOfId,

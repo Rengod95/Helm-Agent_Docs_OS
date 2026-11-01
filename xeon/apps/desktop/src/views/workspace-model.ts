@@ -1,5 +1,5 @@
 // 새 대화의 작업 폴더 입력(G2-02, L4.desktop.spec §4.16). 사이드카의 작업 디렉터리는 홈이라 폴더를 정하지 않으면
-// 프로젝트 자원(`.mcp.json`, `.xeon/skills`)과 신뢰 판정이 홈 기준이 된다. 그래서 대화를 만들 때 폴더를 `thread.create`의 `workspace`로 보낸다.
+// 프로젝트 자원(`.mcp.json`, `.fresnel/skills`)과 신뢰 판정이 홈 기준이 된다. 그래서 대화를 만들 때 폴더를 `thread.create`의 `workspace`로 보낸다.
 // 호스트가 절대 경로이고 있는 폴더인지 확인해 정규 경로로 저장한다(L4.host-service.spec HS-76). 여기서는 보내기 전에 알 수 있는 것만 본다.
 
 import { t } from "@xeon/client/i18n";

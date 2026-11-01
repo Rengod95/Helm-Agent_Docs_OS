@@ -328,8 +328,8 @@ test("requiredPaths asks for the lock and the bundled binaries only on macOS", (
   const common = [
     "xeon",
     "group-sdk/templates/index.json",
-    "default-plugins/helm/.xeon-plugin/plugin.json",
-    "default-plugins/account-rotation/.xeon-plugin/plugin.json",
+    "default-plugins/helm/.fresnel-plugin/plugin.json",
+    "default-plugins/account-rotation/.fresnel-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",
     "SHA256SUMS",
   ];

@@ -9,7 +9,7 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 // M3-REQ-35(HS-92) (int): 확장 핸들러가 던지면 그 thread를 연 연결이 `scope.handler_failed` 휘발 이벤트를 `stream.chunk`로 받는다.
-// 실패는 thread의 이름 바꾸기가 낸 `session.info.after` 지점에서 난다. 이 지점은 분리(detached)라 실패가 호출 뒤에 알려진다.
+// 실패는 thread의 이름 바꾸기가 낸 `thread.info.after` 지점에서 난다. 이 지점은 분리(detached)라 실패가 호출 뒤에 알려진다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -18,7 +18,7 @@ const EXTENSION = "handler-failer";
 
 const extension: ExtensionEntry = ({ manifest: loaded, scope }) => {
   scope(loaded.name, {}, (g) => {
-    g.on("session.info.after", () => {
+    g.on("thread.info.after", () => {
       throw new Error("probe failed on purpose");
     });
   });
@@ -32,7 +32,7 @@ function failingExtension(): HostPluginModule {
     layer: "plugin",
     kind: "plugin",
     entry: "./index.ts",
-    points: ["session.info.after"],
+    points: ["thread.info.after"],
     usesDrive: false,
     trust: { level: "builtin" },
   });
@@ -69,7 +69,7 @@ realTest(
     });
     expect(event.payload).toEqual({
       owner: `ext:${EXTENSION}`,
-      point: "session.info.after",
+      point: "thread.info.after",
       result: "threw",
       message: "probe failed on purpose",
       consecutive: 1,

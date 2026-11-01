@@ -90,5 +90,5 @@ test("/rename without a title never reaches the host, and renaming a missing ses
   const missing = "thr_00000000000000000000000009";
   cli.harness.stderr.length = 0;
   expect(await cli.harness.run(["sessions", "rename", missing, "제목"])).toBe(EXIT.error);
-  expect(cli.harness.stderrText()).toContain(`xeon: 세션 ${missing}이(가) 없다`);
+  expect(cli.harness.stderrText()).toContain(`fresnel: 세션 ${missing}이(가) 없다`);
 }, 60_000);

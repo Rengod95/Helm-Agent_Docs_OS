@@ -454,7 +454,7 @@ function formatDoctor(
   search: SearchStatus,
   web: ToolsWebView | undefined,
 ): string {
-  const lines = [`xeon doctor (xeon ${version})`, t("cli.doctor.section.checks")];
+  const lines = [`fresnel doctor (fresnel ${version})`, t("cli.doctor.section.checks")];
   for (const check of checks) {
     lines.push(`  ${markOf(check.status)} ${check.message}`);
     if (check.fix !== undefined) lines.push(`         ${t("cli.errors.fixLabel")} ${check.fix}`);

@@ -8,7 +8,7 @@ import { createFileScheduleStore } from "../../src/assembly/schedule-store.ts";
 // 예약 저장소(L4.host-service.spec §4.17). 파일 하나에 상태를 쓰고, 없으면 빈 상태, 손상되면 값으로 실패한다.
 
 const STATE: ScheduleState = {
-  version: 1,
+  version: 2,
   entries: [
     {
       id: "sch_01ARZ3NDEKTSV4RRFFQ69G5FAV",
@@ -26,7 +26,7 @@ const STATE: ScheduleState = {
     },
     {
       id: "sch_01ARZ3NDEKTSV4RRFFQ69G5FAW",
-      trigger: { kind: "loop", intervalSeconds: 300, maxIterations: 3, expiresAtMs: 9_000_000 },
+      trigger: { kind: "repeat", intervalSeconds: 300, maxIterations: 3, expiresAtMs: 9_000_000 },
       prompt: "빌드 상태를 확인한다",
       workspace: null,
       title: "빌드 확인",
@@ -79,6 +79,22 @@ describe("the schedule store", () => {
     expect(await store.load()).toEqual({ ok: true, value: STATE });
   });
 
+  test("a version 1 file with loop entries is upgraded to repeat on load", async () => {
+    mkdirSync(dir, { recursive: true });
+    const old = {
+      version: 1,
+      entries: STATE.entries.map((entry) =>
+        entry.trigger.kind === "repeat"
+          ? { ...entry, trigger: { ...entry.trigger, kind: "loop" } }
+          : entry,
+      ),
+      runs: STATE.runs,
+    };
+    writeFileSync(file, JSON.stringify(old));
+    const store = createFileScheduleStore(dir);
+    expect(await store.load()).toEqual({ ok: true, value: STATE });
+  });
+
   test("a missing file loads as the empty state", async () => {
     const store = createFileScheduleStore(dir);
     expect(await store.load()).toEqual({ ok: true, value: EMPTY_STATE });
@@ -93,7 +109,7 @@ describe("the schedule store", () => {
 
   test("a file with another shape is a store_failed value and names the field", async () => {
     mkdirSync(dir, { recursive: true });
-    writeFileSync(file, JSON.stringify({ version: 2, entries: [], runs: [] }));
+    writeFileSync(file, JSON.stringify({ version: 3, entries: [], runs: [] }));
     const store = createFileScheduleStore(dir);
     const loaded = await store.load();
     expect(loaded).toMatchObject({ ok: false, error: { kind: "store_failed" } });

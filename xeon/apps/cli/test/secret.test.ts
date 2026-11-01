@@ -325,7 +325,7 @@ test("secret rm with an active lease explains it and never asks or removes", asy
     { "api-key": { settingKeys: [], activeLeases: 2, sessions: [] } },
   );
   expect(await s.h.run(["secret", "rm", "api-key"])).toBe(EXIT.error);
-  expect(s.h.stderrText()).toContain("xeon: 사용 중인 비밀이라 지울 수 없다 (활성 lease 2개)");
+  expect(s.h.stderrText()).toContain("fresnel: 사용 중인 비밀이라 지울 수 없다 (활성 lease 2개)");
   expect(asked).toEqual([]);
   expect(s.h.server().requests.some((r) => r.method === "secret.remove")).toBe(false);
 });

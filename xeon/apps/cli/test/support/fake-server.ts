@@ -211,7 +211,7 @@ export function startFakeServer(
         }
         return {
           protocolVersion: WIRE_PROTOCOL_VERSION,
-          server: { name: "xeon", version: "0.0.0" },
+          server: { name: "fresnel", version: "0.0.0" },
           storeId: options.storeId,
           transport: transport.kind,
           features: advertised().map((name) => ({ name, status: "active", since: "0.1.0" })),

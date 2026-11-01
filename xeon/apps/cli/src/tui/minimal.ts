@@ -110,7 +110,7 @@ async function sessionKeysOf(connection: HostConnection): Promise<readonly strin
   const listed = await attemptAsync(() => connection.request("settings.list", {}));
   if (!listed.ok) return [];
   return listed.value.defs
-    .filter((def) => def.allowedScopes.includes("session"))
+    .filter((def) => def.allowedScopes.includes("launch"))
     .map((def) => def.key);
 }
 

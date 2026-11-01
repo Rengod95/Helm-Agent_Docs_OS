@@ -286,7 +286,7 @@ export interface PolicyRule {
 /** 평가기에 넣는 규칙. 티어와 출처는 core-tools가 붙인다 */
 export interface TieredRule extends PolicyRule {
   readonly tier: PolicyTier;
-  /** 예: "settings:managed", "settings:project:/repo/.xeon/settings.json", "ext:helm", "core:agents" */
+  /** 예: "settings:managed", "settings:project:/repo/.fresnel/settings.json", "ext:helm", "core:agents" */
   readonly source: string;
 }
 

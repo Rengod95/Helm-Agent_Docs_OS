@@ -44,11 +44,11 @@ export type RemoteResolution =
     };
 
 /** TCP 접속 토큰을 읽는 환경 변수. 설정 파일이나 argv에는 토큰을 두지 않는다 [결정: 오케스트레이터 기본값] */
-export const REMOTE_TOKEN_ENV = "XEON_REMOTE_TOKEN";
+export const REMOTE_TOKEN_ENV = "FRESNEL_REMOTE_TOKEN";
 
 /**
  * 원격 서비스 주소를 정한다. 우선순위는 `--remote` 플래그, 사용자 설정 `l0.process.service.remote`다(HS-37과 같이 엔진 없이 설정 파일만 읽는다).
- * tcp 주소의 토큰은 환경 변수 XEON_REMOTE_TOKEN에서 가져온다. 설정값이 빈 문자열이면 원격을 쓰지 않는다
+ * tcp 주소의 토큰은 환경 변수 FRESNEL_REMOTE_TOKEN에서 가져온다. 설정값이 빈 문자열이면 원격을 쓰지 않는다
  */
 export async function resolveRemoteEndpoint(options: {
   readonly flag?: string;

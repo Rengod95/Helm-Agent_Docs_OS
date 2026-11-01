@@ -17,7 +17,7 @@ export const uiSettings: SettingGroup<"l4.ui", UiSettingInputs> = defineSettings
     default: "auto",
     range: { enum: ["auto", "ko", "en"] },
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "local", "session"],
+    allowedScopes: ["managed", "user", "local", "launch"],
     ui: {
       tab: "appearance",
       widget: "select",

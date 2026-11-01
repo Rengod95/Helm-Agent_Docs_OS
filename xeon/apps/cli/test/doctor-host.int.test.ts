@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { EXIT } from "../src/exit-codes.ts";
 import { createRealCli, type RealCli } from "./support/real-host.ts";
 
-// G2-07, H1: 실제 호스트 위의 `xeon doctor`. test/doctor.test.ts의 가짜 host.status·settings.get 대신 실제 처리기가 외부 바이너리를 점검하고
+// G2-07, H1: 실제 호스트 위의 `fresnel doctor`. test/doctor.test.ts의 가짜 host.status·settings.get 대신 실제 처리기가 외부 바이너리를 점검하고
 // 실제 설정 카탈로그가 검색 설정을 알려 준다. 이 기기에 어떤 바이너리가 있는지에 상관없이 성립하는 관계만 확인한다.
 
 const clis: RealCli[] = [];

@@ -17,11 +17,11 @@ function harness(options: Parameters<typeof createHarness>[0] = {}): Harness {
   return created;
 }
 
-test("a source run or XEON_DEV=1 turns the dev wire checks on; a compiled binary turns them off (AC11)", () => {
+test("a source run or FRESNEL_DEV=1 turns the dev wire checks on; a compiled binary turns them off (AC11)", () => {
   expect(devWireRoundTripOf({}, "/home/user/xeon/apps/cli/src/main.ts")).toBe(true);
-  expect(devWireRoundTripOf({ XEON_DEV: "1" }, "/$bunfs/root/xeon")).toBe(true);
-  expect(devWireRoundTripOf({}, "/$bunfs/root/xeon")).toBe(false);
-  expect(devWireRoundTripOf({ XEON_DEV: "0" }, "/$bunfs/root/xeon")).toBe(false);
+  expect(devWireRoundTripOf({ FRESNEL_DEV: "1" }, "/$bunfs/root/fresnel")).toBe(true);
+  expect(devWireRoundTripOf({}, "/$bunfs/root/fresnel")).toBe(false);
+  expect(devWireRoundTripOf({ FRESNEL_DEV: "0" }, "/$bunfs/root/fresnel")).toBe(false);
 });
 
 test("connectEngine hands devChecks and the l4.cli settings group to startInProcessHost", async () => {
@@ -38,7 +38,7 @@ test("connectEngine hands devChecks and the l4.cli settings group to startInProc
 test("--remote reaches connectEngine as the raw flag, with the environment and the auto preference", async () => {
   const seen: EngineConnectOptions[] = [];
   const h = harness({
-    env: { XEON_REMOTE_TOKEN: "tok-from-env" },
+    env: { FRESNEL_REMOTE_TOKEN: "tok-from-env" },
     connect: (options) => {
       seen.push(options);
       return Promise.resolve(err({ kind: "serviceUnreachable", message: "m", fix: "f" }));
@@ -46,7 +46,7 @@ test("--remote reaches connectEngine as the raw flag, with the environment and t
   });
   expect(await h.run(["--remote", "tcp://box:7000", "chat", "-p", "x"])).toBe(EXIT.environment);
   expect(seen[0]).toMatchObject({ remote: "tcp://box:7000", preference: "auto" });
-  expect(seen[0]?.env).toEqual({ XEON_REMOTE_TOKEN: "tok-from-env" });
+  expect(seen[0]?.env).toEqual({ FRESNEL_REMOTE_TOKEN: "tok-from-env" });
   expect(await h.run(["chat", "-p", "x"])).toBe(EXIT.environment);
   expect(seen[1]).not.toHaveProperty("remote");
 });
@@ -71,7 +71,7 @@ test("l4.cli.* settings are valid definitions with four keys on the appearance t
     expect(def.key.startsWith("l4.cli.")).toBe(true);
   }
   expect(cliSettings.defs.keybindingsFile.runtimeChange).toBe("restart");
-  expect(cliSettings.defs.keybindingsFile.allowedScopes).not.toContain("session");
+  expect(cliSettings.defs.keybindingsFile.allowedScopes).not.toContain("launch");
   expect(cliSettings.defs.outputMode.default).toBe("text");
   expect(cliSettings.defs.statusLine.default).toEqual(["model", "cwd", "session"]);
 });

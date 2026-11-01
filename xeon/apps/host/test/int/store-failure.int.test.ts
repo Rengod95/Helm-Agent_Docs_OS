@@ -11,7 +11,7 @@ import { useEngineHome } from "../fixtures/engine-home.ts";
 async function createDatabase(home: ReturnType<typeof useEngineHome>): Promise<string> {
   const engine = await assemble({ mode: "in-process" });
   await engine.close();
-  const path = join(home.dataDir, "xeon.db");
+  const path = join(home.dataDir, "fresnel.db");
   expect(existsSync(path)).toBe(true);
   return path;
 }

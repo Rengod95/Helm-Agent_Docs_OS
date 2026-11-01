@@ -31,7 +31,7 @@ export function spawnStdioChild(options: {
 }): StdioChild {
   const proc = Bun.spawn([process.execPath, options.entry], {
     cwd: options.cwd,
-    env: { ...process.env, XEON_HOME: options.home, ...options.env },
+    env: { ...process.env, FRESNEL_HOME: options.home, ...options.env },
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",
@@ -97,5 +97,5 @@ export function spawnStdioChild(options: {
 
 export const HELLO: Readonly<Record<string, unknown>> = {
   protocolVersion: WIRE_PROTOCOL_VERSION,
-  client: { name: "xeon-cli-scenario", version: "0.0.0", kind: "other" },
+  client: { name: "fresnel-cli-scenario", version: "0.0.0", kind: "other" },
 };

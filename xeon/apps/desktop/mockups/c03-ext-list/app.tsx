@@ -174,8 +174,8 @@ function ScopePicker({
           },
         ]
       : []),
-    { v: "project", title: SCOPE_WORD.project, hint: "~/code/xeon/.xeon/settings.json" },
-    { v: "user", title: SCOPE_WORD.user, hint: "모든 프로젝트 · ~/.xeon/settings.json" },
+    { v: "project", title: SCOPE_WORD.project, hint: "~/code/xeon/.fresnel/settings.json" },
+    { v: "user", title: SCOPE_WORD.user, hint: "모든 프로젝트 · ~/.fresnel/settings.json" },
   ];
   return (
     <Popover

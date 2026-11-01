@@ -35,7 +35,7 @@ import {
 
 // M1 걸어 다니는 골격의 스모크(foundation-plan §6, L4.cli.plan §5.2). 저장소에서 유일한 scenario다(eng.testing.guide TS-01).
 // 모델은 테이프다. 엔진은 가짜가 아니라 실제 조립(@xeon/host)이다.
-//   1. xeon chat 한 턴이 read 도구를 쓰고 끝난다(실제 자식 프로세스).
+//   1. fresnel chat 한 턴이 read 도구를 쓰고 끝난다(실제 자식 프로세스).
 //   2. 실행 중 SIGKILL 뒤 --continue로 다시 열면 같은 thread에서 이벤트가 이어진다(실제 자식 프로세스).
 //   3. 테스트 그룹의 scope 토글은 단계 경계에서 적용되고, drive가 turn을 만든다(같은 프로세스 안 엔진).
 //   4. --set l4.ui.locale=en이면 글 모드 턴의 문장이 영어가 되고, 없으면 같은 테이프가 한국어로 나온다(실제 자식 프로세스).
@@ -85,9 +85,9 @@ function spawnChat(home: ScenarioHome, tapeName: string, args: readonly string[]
     cwd: home.work,
     env: {
       ...process.env,
-      XEON_HOME: home.root,
-      XEON_CLI_STATE_FILE: home.stateFile,
-      XEON_SCENARIO_TAPE: `${TAPES_DIR}/${tapeName}.tape.jsonl`,
+      FRESNEL_HOME: home.root,
+      FRESNEL_CLI_STATE_FILE: home.stateFile,
+      FRESNEL_SCENARIO_TAPE: `${TAPES_DIR}/${tapeName}.tape.jsonl`,
     },
     stdin: "ignore",
     stdout: "pipe",
@@ -132,9 +132,9 @@ async function runTextChat(
     cwd: home.work,
     env: {
       ...process.env,
-      XEON_HOME: home.root,
-      XEON_CLI_STATE_FILE: home.stateFile,
-      XEON_SCENARIO_TAPE: `${TAPES_DIR}/${tapeName}.tape.jsonl`,
+      FRESNEL_HOME: home.root,
+      FRESNEL_CLI_STATE_FILE: home.stateFile,
+      FRESNEL_SCENARIO_TAPE: `${TAPES_DIR}/${tapeName}.tape.jsonl`,
       // 호스트 로케일이 결과를 바꾸지 못하게 OS 단서를 ko로 고정한다. 영어가 되는 것은 --set 뿐이어야 한다
       LANG: "ko_KR.UTF-8",
       LC_ALL: "ko_KR.UTF-8",
@@ -225,9 +225,9 @@ test("scenario-2: after SIGKILL, --continue resumes the same thread and the even
 test("scenario-3: a scope toggle applies at the step boundary and the group's drive makes a turn", async () => {
   const home = newHome();
   // 엔진은 시작할 때의 작업 폴더를 읽기·쓰기 root로 잡는다(cap-workspace M1). 시험이 끝나면 되돌린다
-  const previousHome = process.env["XEON_HOME"];
+  const previousHome = process.env["FRESNEL_HOME"];
   const previousCwd = process.cwd();
-  process.env["XEON_HOME"] = home.root;
+  process.env["FRESNEL_HOME"] = home.root;
   process.chdir(home.work);
   const fake = tapeProvider(
     tapePlayer(
@@ -297,7 +297,7 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
     });
     await connection.request("host.hello", {
       protocolVersion: WIRE_PROTOCOL_VERSION,
-      client: { name: "xeon-cli-scenario", version: "0.0.0", kind: "other" },
+      client: { name: "fresnel-cli-scenario", version: "0.0.0", kind: "other" },
     });
     const created = await connection.request("thread.create", { workspace: home.work });
     await connection.request("events.subscribe", {
@@ -374,8 +374,8 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
   } finally {
     await host.close();
     process.chdir(previousCwd);
-    if (previousHome === undefined) delete process.env["XEON_HOME"];
-    else process.env["XEON_HOME"] = previousHome;
+    if (previousHome === undefined) delete process.env["FRESNEL_HOME"];
+    else process.env["FRESNEL_HOME"] = previousHome;
   }
 }, 60_000);
 

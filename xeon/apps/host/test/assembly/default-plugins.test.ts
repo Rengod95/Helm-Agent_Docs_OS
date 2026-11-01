@@ -51,10 +51,10 @@ function manifest(version: string, name: string): string {
 
 function writeBundle(version: string, name = "helm"): void {
   const dir = join(bundleDir, name);
-  mkdirSync(join(dir, ".xeon-plugin"), { recursive: true });
+  mkdirSync(join(dir, ".fresnel-plugin"), { recursive: true });
   mkdirSync(join(dir, "dist"), { recursive: true });
   mkdirSync(join(dir, "agents"), { recursive: true });
-  writeFileSync(join(dir, ".xeon-plugin", "plugin.json"), manifest(version, name));
+  writeFileSync(join(dir, ".fresnel-plugin", "plugin.json"), manifest(version, name));
   writeFileSync(join(dir, "dist", "index.js"), `export const version = "${version}";\n`);
   writeFileSync(
     join(dir, "agents", "explorer.md"),
@@ -138,7 +138,7 @@ test("a user edited copy with a higher version is kept", async () => {
   writeBundle("0.1.0");
   await install();
   writeFileSync(
-    join(extensionsDir, "helm", ".xeon-plugin", "plugin.json"),
+    join(extensionsDir, "helm", ".fresnel-plugin", "plugin.json"),
     manifest("0.3.0", "helm"),
   );
   expect(await install()).toEqual([{ name: "helm", action: "kept", version: "0.1.0" }]);
@@ -160,8 +160,8 @@ test("a corrupt marker warns and is treated as empty; an existing install is onl
 });
 
 test("a bundle without a valid manifest is a failed install that leaves nothing behind", async () => {
-  mkdirSync(join(bundleDir, "helm", ".xeon-plugin"), { recursive: true });
-  writeFileSync(join(bundleDir, "helm", ".xeon-plugin", "plugin.json"), "{}");
+  mkdirSync(join(bundleDir, "helm", ".fresnel-plugin"), { recursive: true });
+  writeFileSync(join(bundleDir, "helm", ".fresnel-plugin", "plugin.json"), "{}");
   const outcomes = await install();
   expect(outcomes).toHaveLength(1);
   expect(outcomes[0]).toMatchObject({ name: "helm", action: "failed" });
@@ -177,9 +177,9 @@ test("the default list is helm and account-rotation, and account-rotation instal
     { name: "helm", action: "no_bundle" },
     { name: "account-rotation", action: "installed", version: "0.1.0" },
   ]);
-  expect(existsSync(join(extensionsDir, "account-rotation", ".xeon-plugin", "plugin.json"))).toBe(
-    true,
-  );
+  expect(
+    existsSync(join(extensionsDir, "account-rotation", ".fresnel-plugin", "plugin.json")),
+  ).toBe(true);
   expect(markerOf()).toEqual({ schemaVersion: 1, installed: { "account-rotation": "0.1.0" } });
 });
 

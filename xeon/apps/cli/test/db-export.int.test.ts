@@ -43,7 +43,7 @@ test("db export round trip: rows and blob bytes written by a store come back fro
   dirs.push(root);
   const dataDir = join(root, "data");
   mkdirSync(dataDir, { recursive: true });
-  const dbPath = join(dataDir, "xeon.db");
+  const dbPath = join(dataDir, "fresnel.db");
   const dest = join(root, "out");
   // 엔진 없이 실행한다: 가짜 호스트 없이 runCli가 실제 exportDatabase를 부른다. 시계는 하네스의 것을 쓴다
   const h = createHarness({
@@ -82,7 +82,7 @@ test("db export round trip: rows and blob bytes written by a store come back fro
   expect(manifest).toEqual({
     format: 1,
     exportedAt: clock.now(),
-    sqliteFile: "xeon.sqlite",
+    sqliteFile: "fresnel.sqlite",
     blobCount: 1,
     missingBlobs: [],
   });
@@ -90,7 +90,7 @@ test("db export round trip: rows and blob bytes written by a store come back fro
   expect(new TextDecoder().decode(onDisk)).toBe(new TextDecoder().decode(BLOB));
 
   const reopened = await openStore({
-    dbPath: join(dest, "xeon.sqlite"),
+    dbPath: join(dest, "fresnel.sqlite"),
     env: storeEnv(),
     clock,
     scheduler: systemScheduler(),

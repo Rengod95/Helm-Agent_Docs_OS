@@ -46,7 +46,7 @@ test("an invalid remote address is a usage error, exit 2 (HS-87)", () => {
 test("a start error prints its message and fix on two lines and exits with its code", async () => {
   const environment = harness({ connect: failing("fts5Missing") });
   expect(await environment.run(["chat", "-p", "x"])).toBe(EXIT.environment);
-  expect(environment.stderrText()).toBe("xeon: fts5Missing message\n  해결: fts5Missing fix\n");
+  expect(environment.stderrText()).toBe("fresnel: fts5Missing message\n  해결: fts5Missing fix\n");
 
   const broken = harness({ connect: failing("catalogConflict") });
   expect(await broken.run(["config", "get"])).toBe(EXIT.error);

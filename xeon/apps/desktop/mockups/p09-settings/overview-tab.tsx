@@ -10,7 +10,7 @@ const DIAG = [
     tone: "warning",
     text: "프로젝트 파일에 모르는 키가 있어요",
     key: "l2.web.legacyProxy",
-    where: "~/code/xeon/.xeon/settings.json",
+    where: "~/code/xeon/.fresnel/settings.json",
   },
   {
     tone: "info",
@@ -22,7 +22,7 @@ const DIAG = [
     tone: "danger",
     text: "값이 스키마와 달라 기본값을 써요",
     key: "l1.context.compactAt",
-    where: "~/.xeon/settings.json · 120",
+    where: "~/.fresnel/settings.json · 120",
   },
 ] as const;
 
@@ -31,11 +31,11 @@ export function OverviewTab() {
     <>
       <SettingSection title="설정 파일">
         <ListDescription variant="ghost" size="xs" aria-label="설정 파일" className={ld}>
-          <ListDescriptionRow term="사용자" mono copyValue="~/.xeon/settings.json">
-            ~/.xeon/settings.json
+          <ListDescriptionRow term="사용자" mono copyValue="~/.fresnel/settings.json">
+            ~/.fresnel/settings.json
           </ListDescriptionRow>
-          <ListDescriptionRow term="프로젝트" mono copyValue="~/code/xeon/.xeon/settings.json">
-            ~/code/xeon/.xeon/settings.json
+          <ListDescriptionRow term="프로젝트" mono copyValue="~/code/xeon/.fresnel/settings.json">
+            ~/code/xeon/.fresnel/settings.json
           </ListDescriptionRow>
           <ListDescriptionRow term="관리 정책" mono>
             /etc/xeon/managed.json

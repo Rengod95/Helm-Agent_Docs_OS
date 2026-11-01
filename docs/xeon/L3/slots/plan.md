@@ -55,19 +55,19 @@ xeon/packages/group-sdk/
       README.md
       test/manifest.test.ts
     drive/
-      .xeon-plugin/plugin.json      # usesDrive: true, points: ["boundary.settle.after"]
+      .fresnel-plugin/plugin.json      # usesDrive: true, points: ["boundary.settle.after"]
       src/index.ts                  # defineGroup + g.drive 골격
       src/state.ts
       src/settings.ts
       test/unit.test.ts
       test/replay.test.ts           # replayDrive 골격
     policy/
-      .xeon-plugin/plugin.json      # usesDrive: false, points: ["tool.call.before"]
+      .fresnel-plugin/plugin.json      # usesDrive: false, points: ["tool.call.before"]
       src/index.ts                  # tool.call.before first 골격(상태 없음)
       src/settings.ts
       test/unit.test.ts
     observe/
-      .xeon-plugin/plugin.json      # usesDrive: false, points: ["boundary.settle.after"], recordKinds 1개
+      .fresnel-plugin/plugin.json      # usesDrive: false, points: ["boundary.settle.after"], recordKinds 1개
       src/index.ts                  # boundary.settle.after tap + record 골격
       src/state.ts
       src/settings.ts

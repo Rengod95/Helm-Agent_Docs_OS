@@ -130,7 +130,7 @@ test("safe mode keeps L1 and L2 built-ins and drops L3 built-in groups", async (
 });
 
 test("safe mode does not discover project extensions or ask for project trust", async () => {
-  await writePlugin(join(project, ".xeon", "extensions"), "proj", { name: "proj" });
+  await writePlugin(join(project, ".fresnel", "extensions"), "proj", { name: "proj" });
   const harness = await harnessOf();
   const report = await harness.loader.loadAll(
     loadOptions(harness, {
@@ -159,9 +159,12 @@ test("--disable-ext skips only the named extension", async () => {
 
 test("bad manifests give diagnostics and the host continues", async () => {
   await writePlugin(userExtensions, "good", { name: "good" });
-  await putFile(join(userExtensions, "broken-json", ".xeon-plugin", "plugin.json"), "{ not json");
   await putFile(
-    join(userExtensions, "bad-schema", ".xeon-plugin", "plugin.json"),
+    join(userExtensions, "broken-json", ".fresnel-plugin", "plugin.json"),
+    "{ not json",
+  );
+  await putFile(
+    join(userExtensions, "bad-schema", ".fresnel-plugin", "plugin.json"),
     JSON.stringify({ schemaVersion: 1, name: "BAD NAME" }),
   );
   await mkdir(join(userExtensions, "no-manifest"), { recursive: true });
@@ -225,8 +228,10 @@ test("a user extension cannot ask for the builtin trust level", async () => {
 test("built-in names win over user extensions and user wins over project", async () => {
   await writePlugin(userExtensions, "dup", { name: "dup" });
   await writePlugin(userExtensions, "clash", { name: "clash" });
-  await writePlugin(join(project, ".xeon", "extensions"), "clash", { name: "clash" });
-  await writePlugin(join(project, ".xeon", "extensions"), "only-project", { name: "only-project" });
+  await writePlugin(join(project, ".fresnel", "extensions"), "clash", { name: "clash" });
+  await writePlugin(join(project, ".fresnel", "extensions"), "only-project", {
+    name: "only-project",
+  });
   const harness = await harnessOf();
   const report = await harness.loader.loadAll(
     harness.options([moduleOf({ name: "dup" })], { cwd: project, trustOverride: true }),
@@ -247,7 +252,7 @@ test("built-in names win over user extensions and user wins over project", async
 });
 
 test("project extensions need project trust", async () => {
-  await writePlugin(join(project, ".xeon", "extensions"), "proj", { name: "proj" });
+  await writePlugin(join(project, ".fresnel", "extensions"), "proj", { name: "proj" });
 
   const denied = await harnessOf();
   const deniedReport = await denied.loader.loadAll(loadOptions(denied, { trustOverride: false }));
@@ -335,11 +340,11 @@ test("an entry that resolves into a sibling directory sharing the root prefix is
   expect(codesOf(report.diagnostics, "plug")).toEqual(["entry_import_failed"]);
 });
 
-test("a project extension directory that links outside .xeon/extensions is not discovered", async () => {
+test("a project extension directory that links outside .fresnel/extensions is not discovered", async () => {
   const outside = join(temp.dir, "elsewhere");
   await writePlugin(outside, "linked", { name: "linked" });
-  await mkdir(join(project, ".xeon", "extensions"), { recursive: true });
-  await symlink(join(outside, "linked"), join(project, ".xeon", "extensions", "linked"));
+  await mkdir(join(project, ".fresnel", "extensions"), { recursive: true });
+  await symlink(join(outside, "linked"), join(project, ".fresnel", "extensions", "linked"));
   const harness = await harnessOf();
   const report = await harness.loader.loadAll(loadOptions(harness, { trustOverride: true }));
   expect(report.extensions).toEqual([]);

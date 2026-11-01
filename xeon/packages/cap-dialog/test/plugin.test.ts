@@ -130,8 +130,8 @@ async function boot(
   const timers = manualTimers();
   const lines: LogLine[] = [];
   const commandFiles = memoryCommandFiles({
-    "/work/.xeon/commands/hello.md": "---\ndescription: 인사\n---\n안녕 $1",
-    "/work/.xeon/commands/shell.md": "x !{echo hi}",
+    "/work/.fresnel/commands/hello.md": "---\ndescription: 인사\n---\n안녕 $1",
+    "/work/.fresnel/commands/shell.md": "x !{echo hi}",
     ...options.extraCommands,
   });
   const files = memoryFiles();
@@ -348,7 +348,7 @@ describe("plugin", () => {
     expect(listed?.commands.map((command) => command.name)).toEqual(["hello", "shell"]);
   });
 
-  test("프로젝트 신뢰가 없으면 .xeon/commands를 읽지 않고 한 번 경고한다 (G1-03)", async () => {
+  test("프로젝트 신뢰가 없으면 .fresnel/commands를 읽지 않고 한 번 경고한다 (G1-03)", async () => {
     const { t, lines } = await boot({ trust: () => Promise.resolve(false) });
     const { apis, unit } = consumer();
     await t.host.install(unit);
@@ -383,7 +383,7 @@ describe("plugin", () => {
         asked.push(dir);
         return Promise.resolve(true);
       },
-      extraCommands: { "/other/.xeon/commands/elsewhere.md": "다른 폴더 명령" },
+      extraCommands: { "/other/.fresnel/commands/elsewhere.md": "다른 폴더 명령" },
     });
     const { apis, unit } = consumer();
     await t.host.install(unit);

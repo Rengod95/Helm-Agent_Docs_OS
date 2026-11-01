@@ -209,7 +209,7 @@ fn start_inspect(app: &tauri::AppHandle, relay: &Arc<Relay>, log: &Arc<AppLog>) 
         log.line("debug inspect did not start: no log directory");
         return;
     };
-    let path = inspect::socket_path(&log_dir, std::env::var("XEON_DESKTOP_INSPECT_SOCKET").ok());
+    let path = inspect::socket_path(&log_dir, std::env::var("FRESNEL_DESKTOP_INSPECT_SOCKET").ok());
     let probe = Arc::new(inspect::AppProbe {
         app: app.clone(),
         relay: relay.clone(),

@@ -7,7 +7,7 @@ import type { UsageError } from "./cli/command.ts";
 import { EXIT, type ExitCode } from "./exit-codes.ts";
 import type { EngineStartError, EngineStartErrorKind } from "./engine.ts";
 
-// L4.cli.spec §4.10. 모든 오류 출력은 두 줄이다: `xeon: <무엇이 잘못됐다>`와 `  해결: <한 줄>`.
+// L4.cli.spec §4.10. 모든 오류 출력은 두 줄이다: `fresnel: <무엇이 잘못됐다>`와 `  해결: <한 줄>`.
 // wire message(영어 개발자용)를 그대로 쓰지 않고 kind와 details로 만든다(F wire §3.5.1). 값은 싣지 않는다.
 // 문장은 카탈로그 id를 호출할 때 `t()`로 만든다(ADR-0016). 로케일이 바뀐 뒤에도 현재 로케일로 나온다.
 
@@ -18,7 +18,7 @@ export interface Failure {
 }
 
 export function renderFailure(failure: Pick<Failure, "message" | "fix">): string {
-  return `xeon: ${failure.message}\n  ${t("cli.errors.fixLabel")} ${failure.fix}\n`;
+  return `fresnel: ${failure.message}\n  ${t("cli.errors.fixLabel")} ${failure.fix}\n`;
 }
 
 export function failureOfUsage(error: UsageError): Failure {
@@ -57,17 +57,17 @@ function detailText(error: WireError, key: string): string | undefined {
 }
 
 /** 확장이 막을 수 있는 지점(`thread.cancelledByExtension`의 point)을 사람이 읽는 말로 바꾼다. 모르는 값은 그대로 보인다 */
-const POINT_LABEL_ID: ReadonlyMap<string, MessageId> = new Map<string, MessageId>([
-  ["session.compact.before", "cli.errors.point.compact"],
-  ["session.fork.before", "cli.errors.point.fork"],
-  ["session.tree.before", "cli.errors.point.tree"],
-  ["session.switch.before", "cli.errors.point.switch"],
+const HOOK_LABEL_ID: ReadonlyMap<string, MessageId> = new Map<string, MessageId>([
+  ["thread.compact.before", "cli.errors.hook.compact"],
+  ["thread.fork.before", "cli.errors.hook.fork"],
+  ["thread.tree.before", "cli.errors.hook.tree"],
+  ["thread.switch.before", "cli.errors.hook.switch"],
 ]);
 
 function pointText(point: string | undefined): string {
-  if (point === undefined) return t("cli.errors.point.none");
-  const id = POINT_LABEL_ID.get(point);
-  return id === undefined ? t("cli.errors.point.other", { name: point }) : t(id);
+  if (point === undefined) return t("cli.errors.hook.none");
+  const id = HOOK_LABEL_ID.get(point);
+  return id === undefined ? t("cli.errors.hook.other", { name: point }) : t(id);
 }
 
 function firstIssueText(error: WireError): string | undefined {

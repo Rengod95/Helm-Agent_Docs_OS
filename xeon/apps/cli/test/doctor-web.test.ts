@@ -14,7 +14,7 @@ import {
   WRAPPER,
 } from "./support/web-providers.ts";
 
-// X9(M3-12, M3-REQ-96): `xeon doctor`의 "검색 provider"와 "웹 provider" 블록이 `web.providers`의 view-model 값을 그대로 옮기는지 본다.
+// X9(M3-12, M3-REQ-96): `fresnel doctor`의 "검색 provider"와 "웹 provider" 블록이 `web.providers`의 view-model 값을 그대로 옮기는지 본다.
 // 블록 전체를 줄 단위 값으로 비교한다. 상세 문구(detail)와 비밀 값은 출력에 없어야 한다.
 
 const harnesses: Harness[] = [];
@@ -46,7 +46,7 @@ function blockOf(text: string): string[] {
 }
 
 const SEARXNG_UNSET =
-  "  SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: xeon config set l2.web.search.searxng.url <주소>";
+  "  SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>";
 
 test("(a) default: the builtin wrapper is current, Exa needs a key and Brave is not installed", async () => {
   const h = harness({ "web.providers": () => DEFAULT_RESULT });
@@ -55,10 +55,10 @@ test("(a) default: the builtin wrapper is current, Exa needs a key and Brave is 
     "검색 provider",
     "  검색 provider: auto → Built-in search (model provider) (builtin-wrapper)",
     SEARXNG_UNSET,
-    "  권장 키 플러그인: Exa(키 필요 — xeon secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)",
+    "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)",
     "웹 provider",
     "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있다",
-    "  [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 키가 없다 — 해결: xeon secret add exa-api-key · 첫 사용 고지 대기",
+    "  [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 키가 없다 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기",
     "  [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있다",
     "  [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있다",
   ]);
@@ -162,7 +162,7 @@ test("--json carries the view-model as web next to search, with the rows and rec
           providerId: "plugin:web-exa",
           secretName: "exa-api-key",
           state: "needs-key",
-          hint: "xeon secret add exa-api-key",
+          hint: "fresnel secret add exa-api-key",
         },
         {
           label: "Brave",
@@ -210,10 +210,10 @@ test("a fixed provider that cannot be used says why on the search line and marks
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   const lines = blockOf(h.stdoutText());
   expect(lines[1]).toBe(
-    "  검색 provider: plugin:web-exa (l2.web.search.provider로 고정) — 키가 없다 — 해결: xeon secret add exa-api-key",
+    "  검색 provider: plugin:web-exa (l2.web.search.provider로 고정) — 키가 없다 — 해결: fresnel secret add exa-api-key",
   );
   expect(lines).toContain(
-    "  [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 현재 · 고정 · 키가 없다 — 해결: xeon secret add exa-api-key · 첫 사용 고지 대기",
+    "  [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 현재 · 고정 · 키가 없다 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기",
   );
 });
 
@@ -233,7 +233,7 @@ test("auto with no usable search provider says so, and the recommendation lists 
   const lines = blockOf(h.stdoutText());
   expect(lines[1]).toBe("  검색 provider: auto → 쓸 수 있는 provider가 없다");
   expect(lines[3]).toBe(
-    "  권장 키 플러그인: Exa(키 필요 — xeon secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)",
+    "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)",
   );
 });
 

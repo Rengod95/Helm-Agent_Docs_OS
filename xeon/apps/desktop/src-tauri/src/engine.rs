@@ -772,8 +772,8 @@ impl TauriLauncher {
 
     #[cfg(debug_assertions)]
     pub(crate) fn dev_override() -> Option<(OsString, Vec<OsString>)> {
-        let bin = std::env::var_os("XEON_DESKTOP_ENGINE_BIN").filter(|v| !v.is_empty())?;
-        let args = std::env::var("XEON_DESKTOP_ENGINE_ARGS")
+        let bin = std::env::var_os("FRESNEL_DESKTOP_ENGINE_BIN").filter(|v| !v.is_empty())?;
+        let args = std::env::var("FRESNEL_DESKTOP_ENGINE_ARGS")
             .map(|text| text.split_whitespace().map(OsString::from).collect())
             .unwrap_or_default();
         Some((bin, args))

@@ -130,7 +130,7 @@ test("a turn.resume failure is shown as a two-line phrase", async () => {
     },
   });
   expect(await s.h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
-  expect(s.h.stderrText()).toContain(`xeon: 닫힌 세션이라 쓸 수 없다: ${T1}`);
+  expect(s.h.stderrText()).toContain(`fresnel: 닫힌 세션이라 쓸 수 없다: ${T1}`);
 });
 
 test("a session without the resumable mark never asks", async () => {

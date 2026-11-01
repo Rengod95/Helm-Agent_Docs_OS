@@ -181,13 +181,13 @@ describe("field facts", () => {
       ui: { tab: "models", widget: "text", order: 1, label: "검토" },
     });
     const setting = effectiveOf("l1.models.review", "p/m", {
-      source: { scope: "project", path: "/work/.xeon/settings.json" },
-      shadowed: [{ scope: "user", path: "/home/user/.xeon/settings.json" }],
+      source: { scope: "project", path: "/work/.fresnel/settings.json" },
+      shadowed: [{ scope: "user", path: "/home/user/.fresnel/settings.json" }],
     });
     const field = fieldOf(viewOf([def], valuesOf(setting)), "l1.models.review");
     expect(field?.scope).toEqual({ scope: "project", text: "프로젝트", tone: "project" });
-    expect(field?.filePath).toBe("/work/.xeon/settings.json");
-    expect(field?.shadowed).toEqual([{ scope: "user", path: "/home/user/.xeon/settings.json" }]);
+    expect(field?.filePath).toBe("/work/.fresnel/settings.json");
+    expect(field?.shadowed).toEqual([{ scope: "user", path: "/home/user/.fresnel/settings.json" }]);
     expect(field?.selectedScope).toBe("user");
     expect(field?.canReset).toBe(true);
     expect(field?.editable).toBe(true);
@@ -208,10 +208,12 @@ describe("field facts", () => {
     const setting = effectiveOf("l1.models.review", "p/m", {
       locked: true,
       lockReason: "managed_file",
-      source: { scope: "managed", path: "/etc/xeon/managed.json" },
+      source: { scope: "managed", path: "/etc/fresnel/managed.json" },
     });
     const field = fieldOf(viewOf([def], valuesOf(setting)), "l1.models.review");
-    expect(field?.lock?.text).toBe("관리 정책으로 잠겨 있어요 정책 파일: /etc/xeon/managed.json");
+    expect(field?.lock?.text).toBe(
+      "관리 정책으로 잠겨 있어요 정책 파일: /etc/fresnel/managed.json",
+    );
     expect(field?.writableScopes).toEqual([]);
     expect(field?.selectedScope).toBeNull();
     expect(field?.editable).toBe(false);
@@ -330,12 +332,12 @@ describe("overview and restart banner", () => {
         effectiveOf("l1.models.a", "x"),
         effectiveOf("l1.models.c", "y", {
           locked: true,
-          source: { scope: "managed", path: "/etc/xeon/m.json" },
+          source: { scope: "managed", path: "/etc/fresnel/m.json" },
           runtimeChange: "restart",
           pendingUntil: "restart",
         }),
         effectiveOf("l1.models.d", "z", {
-          source: { scope: "project", path: "/p/.xeon/settings.json" },
+          source: { scope: "project", path: "/p/.fresnel/settings.json" },
           runtimeChange: "nextTurn",
           pendingUntil: "nextTurn",
         }),
@@ -347,7 +349,7 @@ describe("overview and restart banner", () => {
       user: 2,
       project: 1,
       local: 0,
-      session: 0,
+      launch: 0,
       default: 1,
     });
     expect(view.overview.locked).toEqual(["l1.models.c"]);

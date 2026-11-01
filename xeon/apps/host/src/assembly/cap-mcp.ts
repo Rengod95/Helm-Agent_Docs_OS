@@ -39,7 +39,7 @@ import { createLoaderFs, type ProjectTrust } from "./trust.ts";
 //   cap-mcp는 L0를 import하지 않는다. 비밀 env를 쓰는 stdio 서버는 정의 해시마다 한 번 기동 승인을 받는다(`mcp-start.ts`, M3-05).
 //
 // 아직 없는 것:
-// - `session.mcp.after` 발화: 지점 발화에는 thread가 필요한데 서버 변화는 thread에 속하지 않는다.
+// - `thread.mcp.after` 발화: 지점 발화에는 thread가 필요한데 서버 변화는 thread에 속하지 않는다.
 // 조립 루트 코드(DR-14 예외 2).
 
 export interface HostMcpOptions {
@@ -64,7 +64,7 @@ export interface HostMcpOptions {
 /** stdio 서버 종료 유예(SIGTERM 뒤 SIGKILL 전) */
 const STDIO_GRACE_MS = 2000;
 
-const MCP_POINTS = ["boundary.step.before"] as const;
+const MCP_HOOKS = ["boundary.step.before"] as const;
 
 function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
   try {
@@ -87,7 +87,7 @@ function manifestOf(): ReturnType<typeof defineManifest> {
     kind: "plugin",
     entry: "./src/index.ts",
     provides: [{ id: McpClient.id, version: McpClient.version }],
-    points: [...MCP_POINTS],
+    points: [...MCP_HOOKS],
     usesDrive: false,
     trust: { level: "builtin" },
   });
@@ -159,7 +159,7 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
         store,
         reservedToolNames: options.reservedToolNames,
         onServersChange: undefined,
-        client: { name: "xeon", version: options.version },
+        client: { name: "fresnel", version: options.version },
         stdioGraceMs: STDIO_GRACE_MS,
       });
       host.providePort(McpPortKey, runtime.service);

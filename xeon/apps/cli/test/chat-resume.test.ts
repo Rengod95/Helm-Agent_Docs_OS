@@ -86,13 +86,13 @@ test("--continue without a state entry exits 1 with a hint", async () => {
   const h = harness();
   expect(await h.run(["chat", "--continue", "-p", "x"])).toBe(EXIT.error);
   expect(h.stderrText()).toBe(
-    "xeon: 이어 열 세션이 없다\n  해결: xeon chat으로 새 세션을 시작한다\n",
+    "fresnel: 이어 열 세션이 없다\n  해결: fresnel chat으로 새 세션을 시작한다\n",
   );
   expect(h.closed()).toBe(true);
 });
 
 // review.decisions-2 B-07: 환경 변수 덮어쓰기가 없어도 호스트가 정한 상태 파일 위치로 --continue가 동작한다
-test("without the XEON_CLI_STATE_FILE override the state file lives at the host-provided default and --continue works", async () => {
+test("without the FRESNEL_CLI_STATE_FILE override the state file lives at the host-provided default and --continue works", async () => {
   const h = harness({ stateFile: false, server: { onTurn: answer("first") } });
   expect(await h.run(["chat", "-p", "q"])).toBe(0);
   expect(readState(h.defaultStateFile)).toMatchObject({ version: 1 });

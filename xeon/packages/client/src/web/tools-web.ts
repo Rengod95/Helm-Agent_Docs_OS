@@ -196,7 +196,7 @@ function recommendationOf(
   }
   if (row.status.kind === "ok") return { ...key, state: "ready", hint: "" };
   if (row.status.reason === "no-key") {
-    return { ...key, state: "needs-key", hint: `xeon secret add ${key.secretName}` };
+    return { ...key, state: "needs-key", hint: `fresnel secret add ${key.secretName}` };
   }
   return { ...key, state: "unavailable", hint: row.status.reason };
 }

@@ -197,7 +197,7 @@ test("template.name-check-rejects-bad-names", async () => {
 test("template.manifest-passes-validateManifest", async () => {
   await eachAsync(TEMPLATE_KINDS, async (kind) => {
     await withGenerated(kind, "tpl-manifest", async (dir) => {
-      const json = parseJson(await Bun.file(join(dir, ".xeon-plugin/plugin.json")).text());
+      const json = parseJson(await Bun.file(join(dir, ".fresnel-plugin/plugin.json")).text());
       expect(json.ok).toBe(true);
       const result = validateManifest(json.ok ? json.value : undefined);
       expect(result.issues.filter((found) => found.severity === "error")).toEqual([]);

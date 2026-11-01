@@ -428,7 +428,7 @@ async function lastThreadOf(
   if (listed.ok) {
     const first = listed.value.threads[0];
     if (first === undefined) {
-      return err(fail(t("cli.errors.chat.noSession.message"), t("cli.errors.chat.noSession.fix")));
+      return err(fail(t("cli.errors.chat.noThread.message"), t("cli.errors.chat.noThread.fix")));
     }
     return ok(first.threadId);
   }
@@ -439,9 +439,9 @@ async function lastThreadOf(
     return err(
       fail(
         loaded.kind === "discarded"
-          ? t("cli.errors.chat.noSessionDiscarded.message", { reason: loaded.reason })
-          : t("cli.errors.chat.noSession.message"),
-        t("cli.errors.chat.noSession.fix"),
+          ? t("cli.errors.chat.noThreadDiscarded.message", { reason: loaded.reason })
+          : t("cli.errors.chat.noThread.message"),
+        t("cli.errors.chat.noThread.fix"),
       ),
     );
   }

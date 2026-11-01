@@ -97,8 +97,8 @@ test("the core groups build one catalog with the keys of every package that decl
     "ext-host",
     "group-account-rotation",
     "group-helm",
-    "group-sdk",
     "group-learning",
+    "group-sdk",
     "host",
     "platform-exec",
     "platform-os",
@@ -258,13 +258,17 @@ test("a store warning is logged by kind with its safe fields, and a migration sn
     child: () => logger,
   };
   const warnings: readonly StoreWarning[] = [
-    { kind: "migration_snapshot", path: "/b/xeon.v2.db", owner: "sys", from: 2, to: 3 },
+    { kind: "migration_snapshot", path: "/b/fresnel.v2.db", owner: "sys", from: 2, to: 3 },
     { kind: "snapshot_prune_failed", path: "/b/old.db", code: "EACCES" },
     { kind: "fts5_missing" },
   ];
   for (const warning of warnings) logStoreWarning(logger, warning);
   expect(lines).toEqual([
-    ["info", "store.migration_snapshot", { path: "/b/xeon.v2.db", owner: "sys", from: 2, to: 3 }],
+    [
+      "info",
+      "store.migration_snapshot",
+      { path: "/b/fresnel.v2.db", owner: "sys", from: 2, to: 3 },
+    ],
     ["warn", "store.snapshot_prune_failed", { path: "/b/old.db", code: "EACCES" }],
     ["warn", "store.warning", { kind: "fts5_missing" }],
   ]);

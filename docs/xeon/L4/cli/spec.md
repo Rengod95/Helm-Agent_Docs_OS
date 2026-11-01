@@ -124,7 +124,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `-h`, `--help` | 도움말 |
 | `--no-color` | 색 끄기. `NO_COLOR` 환경 변수가 있어도 같다 |
 | `-C <dir>` | 작업 폴더 지정. 없으면 현재 폴더 [제안] |
-| `--remote <주소>` | 원격 서비스 주소(HS-87). 문법은 `unix:/abs`, `tcp://host:port`, `ssh://[user@]host[:port]/abs/socket`이다. 있으면 설정 `l0.process.service.remote`보다 우선한다. 문법이 틀리면 로컬로 가지 않고 사용 오류(2, `invalidRemote`)다. 빈 값은 사용 오류다. tcp 토큰은 환경 변수 `XEON_REMOTE_TOKEN`에서 읽고 argv와 설정 파일에 두지 않는다. 엔진을 쓰는 명령과 `host --stdio`가 본다 [제안] |
+| `--remote <주소>` | 원격 서비스 주소(HS-87). 문법은 `unix:/abs`, `tcp://host:port`, `ssh://[user@]host[:port]/abs/socket`이다. 있으면 설정 `l0.process.service.remote`보다 우선한다. 문법이 틀리면 로컬로 가지 않고 사용 오류(2, `invalidRemote`)다. 빈 값은 사용 오류다. tcp 토큰은 환경 변수 `FRESNEL_REMOTE_TOKEN`에서 읽고 argv와 설정 파일에 두지 않는다. 엔진을 쓰는 명령과 `host --stdio`가 본다 [제안] |
 
 ### 3.2 인자 파서와 명령 모델
 
@@ -278,7 +278,7 @@ export interface EngineConnectOptions {
   readonly devWireRoundTrip: boolean;                           // AssembleOptions.devChecks로 넘긴다(F wire §3.1)
   readonly observe?: (message: JsonRpcMessage) => void;         // CLI가 Transport를 감싸 send·onMessage를 탭한다(JSON 모드)
   readonly remote?: string;                                     // --remote 원문. "auto"일 때만 본다(HS-87)
-  readonly env: Readonly<Record<string, string | undefined>>;   // 원격 토큰 XEON_REMOTE_TOKEN을 읽는다
+  readonly env: Readonly<Record<string, string | undefined>>;   // 원격 토큰 FRESNEL_REMOTE_TOKEN을 읽는다
 }
 
 export type EngineStartErrorKind =
@@ -313,7 +313,7 @@ export declare const connectEngine: ConnectEngine;
 - `observe`는 `HostConnection` 안쪽의 클라이언트 전송에 붙는 탭이다. 호스트는 관여하지 않는다. CLI는 이 탭으로 JSON 모드 출력을 만들고, 엔진 객체를 만지지 않는다.
 - 연결 대상(`preference` "auto", HS-87·HS-88): ① `resolveRemoteEndpoint({ flag: --remote, env })`가 `remote`면 `attachToService({ kind: "endpoint", endpoint })`로 붙는다. ② `invalid`면 엔진을 열지 않고 `invalidRemote`로 끝난다. 플래그 값은 문구에 보이고, 설정 값과 `@`가 든 값은 보이지 않는다. ③ 주소가 없으면 `resolveLaunchMode()`가 `"service"`일 때 `attachToService({ kind: "local" })`로 붙고, 아니면 in-process다. `"service"`는 주소를 보지 않고 로컬 서비스에 붙고, `"in-process"`는 어떤 설정도 보지 않는다.
 - 서비스 접속의 `EngineHandle`: `secretOutOfBand`는 `null`이다. 값 입력은 §4.7이 정한 대로 서비스 쪽 입력 창으로 받는 설계지만 이 구현은 그 창을 만들지 않는다. 그래서 서비스 접속의 `xeon secret add`는 두 줄 오류로 끝난다(§10 22번). `shutdown`은 연결만 닫고 `"clean"`을 돌려준다. 서비스와 진행 중 turn은 계속된다(HS-88). 시계와 `newRequestId`는 CLI의 운영 값(`@xeon/platform-os`)이다. 엔진이 CLI 밖에 있기 때문이다 [제안].
-- `AttachError`의 문구(§4.10 표 `serviceUnreachable`·`protocolUnsupported`): `ensure_failed`는 해결 `xeon service status`다. `connect_failed`는 `not_found`·`refused`에 "원격 서비스가 켜져 있고 주소가 맞는지 확인한다", `permission`에 소켓 파일과 폴더의 소유자·권한, `tunnel_unavailable`에 재설치, `tunnel_failed`에 ssh 출력의 첫 줄과 "ssh 키나 ssh-agent로 암호 없이 접속되는지 확인한다", `io`에 `xeon service status`다. `hello_failed`는 `auth_failed`에 `XEON_REMOTE_TOKEN`을 서버 토큰과 맞추라는 해결(토큰 값은 싣지 않는다), `protocol_unsupported`에 `protocolUnsupported`, `timeout`·`closed`에 `xeon service status`다.
+- `AttachError`의 문구(§4.10 표 `serviceUnreachable`·`protocolUnsupported`): `ensure_failed`는 해결 `xeon service status`다. `connect_failed`는 `not_found`·`refused`에 "원격 서비스가 켜져 있고 주소가 맞는지 확인한다", `permission`에 소켓 파일과 폴더의 소유자·권한, `tunnel_unavailable`에 재설치, `tunnel_failed`에 ssh 출력의 첫 줄과 "ssh 키나 ssh-agent로 암호 없이 접속되는지 확인한다", `io`에 `xeon service status`다. `hello_failed`는 `auth_failed`에 `FRESNEL_REMOTE_TOKEN`을 서버 토큰과 맞추라는 해결(토큰 값은 싣지 않는다), `protocol_unsupported`에 `protocolUnsupported`, `timeout`·`closed`에 `xeon service status`다.
 - `settingGroups`: [제안] CLI 설정(§6)은 엔진 바이너리의 진입(`apps/cli/src/main.ts`)이 in-process 연결, `host --stdio`, 서비스 기동 세 경우 모두 조립에 넘긴다. 엔진 바이너리가 하나이므로(§2) 서비스 프로세스의 카탈로그에도 `l4.cli.*`가 들어간다.
 - 오류 대응: `AssembleError.issues[].code`가 `store`면 `message`로 `fts5Missing`·`dataDirPermission`·`storeUnavailable`을 고른다 [가정: `L0.store.spec` 오류 모양을 따른다]. `catalog`는 `catalogConflict`, `missingService`는 `missingService`다. 종료 코드는 §4.10 표다.
 
@@ -503,14 +503,14 @@ export interface GroupTemplatesPort {
 
 - [spec에 더한 형식] 실패할 수 있는 호출은 `Result`를 돌려준다(`eng.typescript.guide` TY-11). 시험 가짜는 `test/support/group-fs.ts`다. `targetState`는 `isEmptyDir` 대신 세 상태를 준다. 그래야 실패할 때 처음부터 없던 폴더만 지우고 빈 폴더는 남긴다.
 - [결정: 오케스트레이터 기본값] 이름 규칙은 `src/group/rules.ts`가 가진다. `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`, 색인 스키마는 `group-sdk`의 값을 옮겨 적은 복사본이다(DR-14). `test/group-rules.test.ts`가 `group-sdk/src/define-group.ts` 텍스트와 비교해 목록이 갈라지면 실패한다.
-- 검사 순서. 파서가 플래그 충돌(R1)과 이름 형식, 예약 이름(R2 앞부분)을 본다. 명령은 색인을 읽고 설치된 확장 이름과 겹치는지 본다(R2). 대상 폴더가 비어 있는지 본다(R3). 템플릿을 메모리에서 읽고 치환한 뒤에 쓴다. 쓴 뒤 `.xeon-plugin/plugin.json`을 F `validateManifest`로 검사한다(R4). 오류가 있으면 쓴 것을 지운다. 처음부터 있던 빈 폴더는 지우지 않는다.
+- 검사 순서. 파서가 플래그 충돌(R1)과 이름 형식, 예약 이름(R2 앞부분)을 본다. 명령은 색인을 읽고 설치된 확장 이름과 겹치는지 본다(R2). 대상 폴더가 비어 있는지 본다(R3). 템플릿을 메모리에서 읽고 치환한 뒤에 쓴다. 쓴 뒤 `.fresnel-plugin/plugin.json`을 F `validateManifest`로 검사한다(R4). 오류가 있으면 쓴 것을 지운다. 처음부터 있던 빈 폴더는 지우지 않는다.
 - [결정: 오케스트레이터 기본값] R4 실패는 사용법 오류(2)다. 실패의 원인은 템플릿 결함이지만 명령이 생성 결과를 거부한 것이라 환경 문제(3)로 두지 않았다. 템플릿 위치와 색인, 파일 읽기와 쓰기 실패는 3이다.
 - 치환 자리. `__ID__`는 이름, `__TITLE__`은 이름(표시 이름 옵션은 두지 않는다), `__VERSION__`은 `0.1.0`이다. 파일 내용과 경로에 모두 적용한다. 치환 뒤 경로는 템플릿 묶음 이름(`common`, 종류 이름) 한 마디를 뗀 상대 경로다.
 - 대상 폴더. `--dir`이 없으면 작업 폴더 아래 `<이름>`이다. `--dir`이 상대 경로면 작업 폴더 기준이다. 빈 값은 사용법 오류다.
-- 설치된 확장 이름. 사용자 설정 폴더(`<OsDirs.config>/extensions/*`)와 작업 폴더(`.xeon/extensions/*`)의 `.xeon-plugin/plugin.json` `name`을 모은다. 작업 폴더의 확장은 신뢰 여부와 관계없이 센다(보수적). 폴더 없이 설치된 기본 그룹 `helm`, `learning`, `account-rotation`은 `runtime.ts`에 옮겨 적었다([미결] §10 28번). `<OsDirs.config>`는 `@xeon/platform-os`의 `resolveOsDirs`로 구한다. 같은 함수를 호스트가 쓴다. 매니페스트가 없는 폴더는 건너뛴다. 있는데 읽지 못하면 환경 문제다.
-- 템플릿 위치. 환경 변수 `XEON_GROUP_TEMPLATES_DIR`가 있으면 그 폴더를 쓴다. 없으면 자원 디렉터리(실행 파일이 든 폴더)의 `group-sdk/templates/`를 본다. 릴리즈 아카이브가 여기에 템플릿을 싣는다(`L4.release.spec` §3.1). 그다음 실행 파일의 소스 위치에서 위로 올라가며 `packages/group-sdk/templates`를 찾는다([결정: 오케스트레이터 기본값]). 셋 모두 없으면 3으로 끝난다.
+- 설치된 확장 이름. 사용자 설정 폴더(`<OsDirs.config>/extensions/*`)와 작업 폴더(`.fresnel/extensions/*`)의 `.fresnel-plugin/plugin.json` `name`을 모은다. 작업 폴더의 확장은 신뢰 여부와 관계없이 센다(보수적). 폴더 없이 설치된 기본 그룹 `helm`, `learning`, `account-rotation`은 `runtime.ts`에 옮겨 적었다([미결] §10 28번). `<OsDirs.config>`는 `@xeon/platform-os`의 `resolveOsDirs`로 구한다. 같은 함수를 호스트가 쓴다. 매니페스트가 없는 폴더는 건너뛴다. 있는데 읽지 못하면 환경 문제다.
+- 템플릿 위치. 환경 변수 `FRESNEL_GROUP_TEMPLATES_DIR`가 있으면 그 폴더를 쓴다. 없으면 자원 디렉터리(실행 파일이 든 폴더)의 `group-sdk/templates/`를 본다. 릴리즈 아카이브가 여기에 템플릿을 싣는다(`L4.release.spec` §3.1). 그다음 실행 파일의 소스 위치에서 위로 올라가며 `packages/group-sdk/templates`를 찾는다([결정: 오케스트레이터 기본값]). 셋 모두 없으면 3으로 끝난다.
 - R5. 템플릿 코드는 실행하지 않는다. 명령은 파일을 읽고 치환해 쓸 뿐이다. 의존은 설치하지 않고 `bun install`과 `bun test`를 안내한다. 생성 `package.json`에는 의존을 적지 않는다([미결] §10 30번).
-- 옵션을 더하지 않는다. 저장소 안 그룹의 `src/manifest.ts` 형식(`L3.slots.spec` §3.3.2)은 만들지 않고 외부 형식 `.xeon-plugin/plugin.json`만 쓴다.
+- 옵션을 더하지 않는다. 저장소 안 그룹의 `src/manifest.ts` 형식(`L3.slots.spec` §3.3.2)은 만들지 않고 외부 형식 `.fresnel-plugin/plugin.json`만 쓴다.
 - 출력. 텍스트는 만든 파일 목록과 다음 단계를 쓴다. `--json`은 `{ name, template, dir, files }` 한 개를 쓴다.
 - 시험. `test/group-new.test.ts`는 메모리 가짜로 플래그, 이름, 치환, 정확한 매니페스트 텍스트, 충돌, 비어 있지 않은 폴더, R4 되돌리기, 쓰기 실패 되돌리기, 색인 없음을 본다. `test/group-new-core-diff.test.ts`(`group-new.output-passes-core-diff-check-with-zero-lines`)는 실제 파일 시스템과 실제 `templates/`로 만든 세 그룹을 임시 저장소에 커밋하고, `scripts/core-diff-check.ts`가 보호 경로를 0줄로 보고하는지 본다. 같은 시험에서 `ext-host` README를 바꾸면 그 경로를 보고하는지도 본다.
 
@@ -543,8 +543,8 @@ export interface GroupTemplatesPort {
 
 - [결정] CLI 기본 전송은 in-process다(adr.0006 §3.3, `F.wire-settings.spec` §3.1 표).
 - [결정] 서비스 사용 설정이 켜져 있으면 시작할 때 `ensure`를 부르고 socket 전송으로 접속한다. 꺼져 있으면 in-process다(adr.0006 §3.4). [제안] `preference: "auto"`이면 `connectEngine`이 `resolveLaunchMode()`로 `l0.process.service.enabled`를 엔진 없이 읽어 정한다(`L4.host-service.spec` HS-37). 키는 `L0.process.spec` §6이 소유한다.
-- [제안] 원격 주소(`--remote` 또는 설정 `l0.process.service.remote`)가 있으면 서비스 사용 설정보다 먼저 그 주소로 붙는다(HS-87, HS-88). 원격 접속 토큰은 환경 변수 `XEON_REMOTE_TOKEN`에서 읽는다. 주소 문법이 틀리면 엔진을 열지 않고 `invalidRemote`(2)로 끝난다.
-- [제안] 개발 빌드(`process.env.XEON_DEV === "1"` 또는 `bun run`으로 소스 실행)는 `devWireRoundTrip: true`를 넘긴다. in-process에서 비직렬화 값이 섞이지 않게 하는 검사다(F wire §3.1 마지막 항목). 컴파일 바이너리는 끈다.
+- [제안] 원격 주소(`--remote` 또는 설정 `l0.process.service.remote`)가 있으면 서비스 사용 설정보다 먼저 그 주소로 붙는다(HS-87, HS-88). 원격 접속 토큰은 환경 변수 `FRESNEL_REMOTE_TOKEN`에서 읽는다. 주소 문법이 틀리면 엔진을 열지 않고 `invalidRemote`(2)로 끝난다.
+- [제안] 개발 빌드(`process.env.FRESNEL_DEV === "1"` 또는 `bun run`으로 소스 실행)는 `devWireRoundTrip: true`를 넘긴다. in-process에서 비직렬화 값이 섞이지 않게 하는 검사다(F wire §3.1 마지막 항목). 컴파일 바이너리는 끈다.
 - 연결 뒤 순서:
   1. `host.hello`(`connectEngine`이 보낸다, `L4.host-service.spec` §3.3.5). `storeId`를 기억한다.
   2. 대상 세션 결정(§4.4).
@@ -740,7 +740,7 @@ export interface GroupTemplatesPort {
 
   ```text
   l1.loop.maxSteps = 50
-    source: project (/repo/.xeon/settings.json)
+    source: project (/repo/.fresnel/settings.json)
     shadowed: user (~/.config/xeon/settings.json)
     pending: nextTurn
   l1.models.default = "provider/model"  [locked: managed]
@@ -748,7 +748,7 @@ export interface GroupTemplatesPort {
 
   `--json`이면 `EffectiveSetting[]`를 그대로 한 JSON 문서로 쓴다. 텍스트와 JSON 모두 `settings.get` 결과의 `source`를 그대로 옮긴다(F wire §4.7 5번).
 - `config set`의 `--scope session`은 받지 않는다. 세션 범위는 `--set`과 `/set`만 쓴다.
-- `--set key=value`(M2): 대상 세션이 정해진 뒤 첫 `turn.start` 전에 `settings.set { key, value, scope: "session", threadId }`를 순서대로 부른다. 하나라도 실패하면 turn을 시작하지 않고 2로 끝낸다.
+- `--set key=value`(M2): 대상 세션이 정해진 뒤 첫 `turn.start` 전에 `settings.set { key, value, scope: "launch", threadId }`를 순서대로 부른다. 하나라도 실패하면 turn을 시작하지 않고 2로 끝낸다.
 
 ### 4.9 화면(TUI)
 
@@ -788,7 +788,7 @@ export interface GroupTemplatesPort {
 
 ### 4.10 오류 문구
 
-모든 오류 출력은 두 줄이다: `xeon: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016). 인자 오류 문구(`cli.usage.*`, `parseArgv`가 돌려주는 `UsageError`), 도움말 본문(`cli.help.*`), `config list`의 정의 줄(`cli.config.*`), `version`과 `--set`의 문장도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 예약(`schedule`)·세션(`sessions`)·그룹 만들기(`group new`)·대화(`chat`)의 문장, 슬래시 명령의 도움말과 문구도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다(`cli.schedule.*`, `cli.sessions.*`, `cli.group.*`, `cli.chat.*`, `cli.slash.*`, `cli.usage.slash.*`). 렌더링 문장(`cli.render.approval.*`, `cli.render.lock.*`, `cli.render.notices.*`, `cli.render.textSink.*`, `cli.render.tools.*`, `cli.render.transcript.*`, `cli.render.trust.*`)과 최소 TUI 문장(`cli.tui.minimal.*`)도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 그 밖의 명령과 상태 문장(`cli.doctor.*`, `cli.secret.*`, `cli.trust.*`, `cli.db.*`, `cli.state.*`, `cli.host.*`, `cli.threads.*`, `cli.overrides.*`)도 카탈로그 id입니다.
+모든 오류 출력은 두 줄이다: `xeon: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016). 인자 오류 문구(`cli.usage.*`, `parseArgv`가 돌려주는 `UsageError`), 도움말 본문(`cli.help.*`), `config list`의 정의 줄(`cli.config.*`), `version`과 `--set`의 문장도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 예약(`schedule`)·세션(`sessions`)·그룹 만들기(`group new`)·대화(`chat`)의 문장, 슬래시 명령의 도움말과 문구도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다(`cli.schedule.*`, `cli.threads.*`, `cli.group.*`, `cli.chat.*`, `cli.slash.*`, `cli.usage.slash.*`). 렌더링 문장(`cli.render.approval.*`, `cli.render.lock.*`, `cli.render.notices.*`, `cli.render.textSink.*`, `cli.render.tools.*`, `cli.render.transcript.*`, `cli.render.trust.*`)과 최소 TUI 문장(`cli.tui.minimal.*`)도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 그 밖의 명령과 상태 문장(`cli.doctor.*`, `cli.secret.*`, `cli.trust.*`, `cli.db.*`, `cli.state.*`, `cli.host.*`, `cli.threads.*`, `cli.overrides.*`)도 카탈로그 id입니다.
 
 | kind | 문구 요지 | 해결 한 줄 | 종료 코드 |
 |---|---|---|---|
@@ -816,12 +816,12 @@ export interface GroupTemplatesPort {
 | `EngineStartError`(`serviceUnreachable`) | 서비스에 접속하지 못했다(소켓 없음, 거부, 권한, ssh 터널 실패, 토큰 불일치, 응답 없음). 원인별 문구는 §3.3 | 원인별 한 줄(§3.3) | 3 |
 | `EngineStartError`(그 밖의 kind) | `message` | `fix` | 3 |
 | `db export`, `dest_not_empty` | 내보낼 폴더가 비어 있지 않다. 아무것도 바꾸지 않았다 | 비어 있거나 없는 폴더를 지정한다 | 2 |
-| `db export`, `foreign_database` | Xeon 데이터베이스가 아니다(`application_id`) | `XEON_HOME`으로 데이터 디렉터리를 확인하고 `xeon.db`가 다른 프로그램의 파일이면 옮긴다 | 3 |
-| `db export`, `not_a_database` | 데이터베이스 파일이 없거나 SQLite 파일이 아니다 | `xeon chat`을 한 번 실행해 데이터베이스를 만든 뒤 다시 실행한다. 위치는 `XEON_HOME`으로 바꾼다 | 3 |
+| `db export`, `foreign_database` | Xeon 데이터베이스가 아니다(`application_id`) | `FRESNEL_HOME`으로 데이터 디렉터리를 확인하고 `xeon.db`가 다른 프로그램의 파일이면 옮긴다 | 3 |
+| `db export`, `not_a_database` | 데이터베이스 파일이 없거나 SQLite 파일이 아니다 | `xeon chat`을 한 번 실행해 데이터베이스를 만든 뒤 다시 실행한다. 위치는 `FRESNEL_HOME`으로 바꾼다 | 3 |
 | `db export`, `busy` | 데이터베이스가 다른 쓰기로 바쁘다 | 잠시 뒤 다시 실행한다 | 3 |
 | `db export`, `disk_full` | 저장 공간이 가득 찼다 | 디스크 공간을 비우고 다시 실행한다 | 3 |
 | `db export`, `io`(`code`) | 내보내기 중 입출력 오류가 났다(`code`) | 대상 폴더와 데이터 디렉터리의 권한과 디스크 상태를 확인한다 | 3 |
-| 데이터 디렉터리 위치를 정하지 못함(`db export`) | 데이터 디렉터리 위치를 정하지 못했다 | HOME(Windows는 USERPROFILE)과 XEON_HOME 설정을 확인한다 | 3 |
+| 데이터 디렉터리 위치를 정하지 못함(`db export`) | 데이터 디렉터리 위치를 정하지 못했다 | HOME(Windows는 USERPROFILE)과 FRESNEL_HOME 설정을 확인한다 | 3 |
 
 ### 4.11 승인 요청과 잠금 프롬프트
 
@@ -869,7 +869,7 @@ export interface GroupTemplatesPort {
 ### 4.12 슬래시 명령
 
 - 슬래시 명령은 설정 정의에서 만든다 [제안].
-  - `/set <key> <value>`: `settings.list` 결과 중 `allowedScopes`에 `session`이 있는 키만 자동 완성에 넣는다. 실행은 `settings.set { scope: "session", threadId }`.
+  - `/set <key> <value>`: `settings.list` 결과 중 `allowedScopes`에 `session`이 있는 키만 자동 완성에 넣는다. 실행은 `settings.set { scope: "launch", threadId }`.
   - `/model [<값>]`: 모델 선택 키의 별칭이다. 값이 없으면 그 키의 `range.enum`으로 목록을 보인다. 키 이름은 `L1.models.spec`이 정한다 [가정: 아직 이름이 정해지지 않았다].
   - `/resume [<번호|id>]`: `thread.list`로 이 작업 폴더의 목록을 보이고 고른 세션으로 바꾼다(M2). 바꿀 때 이전 세션의 구독을 해제하고(`events.unsubscribe`) 새 세션을 같은 연결에서 연다. 잠금이면 §4.11의 프롬프트가 뜬다. 바꾸지 못하면 이전 세션을 다시 연다.
   - `/rename <제목>`: 지금 세션의 제목을 `thread.rename { threadId, title }`로 바꾼다 [결정: m2c G2-12]. 제목이 비었거나 200자를 넘으면 보내지 않고 사용법을 알린다.
@@ -886,7 +886,7 @@ export interface GroupTemplatesPort {
     - 결과 `needs_confirmation`은 셸 주입이 있는 템플릿이다. 실행할 셸 명령을 보이고 `[y/N]`로 묻는다. `y`면 `confirmShell: true`로 한 번 더 부르고, 그 밖의 입력은 "실행하지 않았다"를 알리고 끝낸다.
     - 결과 `not_command`는 모르는 슬래시 명령으로 처리한다.
     - 실패는 능력 오류(`cap.dialog.commands.*`)와 `thread.notFound`로 온다. 문구는 §4.10 표다.
-    - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 `command.list { threadId }`로 읽는다 [결정: m2c G1-01]. 호스트가 프로젝트 명령(`.xeon/commands`)을 그 세션의 작업 폴더 기준으로 읽게 하려는 것이다. 대화형을 시작할 때 한 번 읽고, `/resume`으로 세션을 바꾸면 새 세션의 id로 다시 읽는다.
+    - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 `command.list { threadId }`로 읽는다 [결정: m2c G1-01]. 호스트가 프로젝트 명령(`.fresnel/commands`)을 그 세션의 작업 폴더 기준으로 읽게 하려는 것이다. 대화형을 시작할 때 한 번 읽고, `/resume`으로 세션을 바꾸면 새 세션의 id로 다시 읽는다.
     - `host.hello`의 `features`에 `command.run`이 없는 호스트에서는 부르지 않고 모르는 명령으로 처리한다.
 - 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다. 현재 별칭은 `/model` → `l1.models.default` 하나다.
 - Tab 완성: `/set ` 뒤는 session 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
@@ -897,7 +897,7 @@ export interface GroupTemplatesPort {
 
 `xeon db export <폴더>`는 저장소 파일을 `<폴더>`에 내보냅니다. 엔진을 띄우지 않고, 내보내기는 `L0.store.spec` §4.10의 `exportDatabase`가 합니다. 복구와 보관에 쓰는 명령입니다.
 
-- 원본: 데이터 디렉터리(`OsDirs.data`)의 `xeon.db`입니다. 위치는 호스트와 같은 `resolveOsDirs`가 정하므로 `XEON_HOME`이 적용됩니다. 엔진이 이 파일을 열고 있어도 됩니다. 원본은 읽기 전용으로만 열고 아무것도 쓰지 않습니다.
+- 원본: 데이터 디렉터리(`OsDirs.data`)의 `xeon.db`입니다. 위치는 호스트와 같은 `resolveOsDirs`가 정하므로 `FRESNEL_HOME`이 적용됩니다. 엔진이 이 파일을 열고 있어도 됩니다. 원본은 읽기 전용으로만 열고 아무것도 쓰지 않습니다.
 - 대상: `<폴더>`가 없으면 만듭니다. 있으면 비어 있어야 합니다. 비어 있지 않으면 `dest_not_empty`로 끝나고(종료 코드 2) 아무것도 바꾸지 않습니다. 상대 경로는 작업 폴더(`-C`, 없으면 현재 폴더) 기준입니다.
 - 사람용 출력(stdout): `exported <N> blobs to <절대 경로>` 한 줄입니다.
 - 누락 블롭: `missingBlobs`의 sha256마다 stderr에 `경고: 블롭 파일이 없어 빠졌다: <sha256>` 한 줄을 씁니다. 열 줄을 넘으면 앞의 열 줄만 쓰고, `경고: 나머지 <M>개도 빠졌다 (전체 <K>개, manifest.json의 missingBlobs)` 한 줄로 개수를 알립니다. 누락 블롭이 있어도 내보내기는 성공이고 종료 코드는 0입니다. 사본에는 복사된 블롭만 있습니다.
@@ -984,10 +984,10 @@ $ echo $?
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret |
 |---|---|---|---|---|---|---|---|
-| `l4.cli.theme` | `Type.String()` | `"system"` | `enum: ["system", "dark", "light"]` | `live` | managed, user, local, session | appearance(select) | 아니오 |
+| `l4.cli.theme` | `Type.String()` | `"system"` | `enum: ["system", "dark", "light"]` | `live` | managed, user, local, launch | appearance(select) | 아니오 |
 | `l4.cli.statusLine` | `Type.Array(Type.Union([Type.Literal("model"), Type.Literal("thinking"), Type.Literal("tokens"), Type.Literal("cost"), Type.Literal("cwd"), Type.Literal("session"), Type.Literal("transport")]), { uniqueItems: true, maxItems: 7 })` | `["model", "cwd", "session"]` | 없음 | `live` | managed, user, local | appearance(list) | 아니오 |
 | `l4.cli.keybindingsFile` | `Type.Union([Type.String({ minLength: 1, maxLength: 4096 }), Type.Null()])` | `null`(기본 위치) | 없음 | `restart` | managed, user | appearance(text) | 아니오 |
-| `l4.cli.outputMode` | `Type.String()` | `"text"` | `enum: ["text", "json"]` | `live` | managed, user, project, local, session | appearance(select) | 아니오 |
+| `l4.cli.outputMode` | `Type.String()` | `"text"` | `enum: ["text", "json"]` | `live` | managed, user, project, local, launch | appearance(select) | 아니오 |
 
 - [제안] 네 키 모두 탭은 `appearance`다. 표시 설정의 소유자가 L4이기 때문이다(F wire §3.8.1 마지막 항목, `_research/settings.md` §2.13).
 - `l4.cli.outputMode`는 print 모드의 기본 출력이다. `--json` 플래그가 이 값보다 앞선다. 대화형에는 적용하지 않는다.
@@ -1057,7 +1057,7 @@ $ echo $?
 
 ## 10. 미결 사항
 
-1. [결정: review.decisions-2 U-15] `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1). 남은 [미결]: 엔진 바이너리 이름 `xeon`([제안], 같은 문서 §10 미결 2). `EngineHandle.paths.cliStateFile`의 원천은 정했다 [결정: review.decisions-2 B-07]: `@xeon/host`의 `resolveHostStatePaths()`가 L0.os `OsDirs.state` 아래 `cli/state.json`을 돌려준다(`L4.host-service.spec` §3.3.6). CLI는 경로를 계산하지 않는다(DR-13). 환경 변수 `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남는다.
+1. [결정: review.decisions-2 U-15] `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1). 남은 [미결]: 엔진 바이너리 이름 `xeon`([제안], 같은 문서 §10 미결 2). `EngineHandle.paths.cliStateFile`의 원천은 정했다 [결정: review.decisions-2 B-07]: `@xeon/host`의 `resolveHostStatePaths()`가 L0.os `OsDirs.state` 아래 `cli/state.json`을 돌려준다(`L4.host-service.spec` §3.3.6). CLI는 경로를 계산하지 않는다(DR-13). 환경 변수 `FRESNEL_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남는다.
 2. [미결] M1 중단의 wire 지원. `turn.interrupt`가 M2라서 M1의 Ctrl+C 1회가 종료 요청이다(§4.6). M1에 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기는 F 변경 요청이 필요하다. 기존 세션의 쓰기 소유를 `turn.start`가 얻는 동작은 `L4.host-service.spec` HS-28로 확정되어 이 항목에서 닫았다(§4.3).
 3. [미결] 비밀 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `xeon secret reveal`로 정했다 [결정: review.decisions-2 U-20]. F의 `secret.beginReveal`과 in-process 값 전달 통로(`InProcessHost.secretOutOfBand`)는 구현되어 CLI가 쓴다(§4.7). 남은 것: `secret run -- <cmd>`를 둘지.
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.

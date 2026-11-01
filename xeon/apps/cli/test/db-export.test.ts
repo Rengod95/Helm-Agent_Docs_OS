@@ -6,7 +6,7 @@ import { EXIT, type ExitCode } from "../src/exit-codes.ts";
 import type { CliDeps } from "../src/io.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 
-// M3-REQ-63: `xeon db export <폴더>`. 파서, 명령 실행(가짜 exportDatabase), 오류 문구와 종료 코드.
+// M3-REQ-63: `fresnel db export <폴더>`. 파서, 명령 실행(가짜 exportDatabase), 오류 문구와 종료 코드.
 // 실제 저장소 왕복은 db-export.int.test.ts다.
 
 const harnesses: Harness[] = [];
@@ -15,8 +15,8 @@ afterEach(() => {
 });
 
 const TTY: TerminalFacts = { stdinIsTty: true, stdoutIsTty: true };
-const DATA_DIR = "/state/xeon-data";
-const DB_PATH = "/state/xeon-data/xeon.db";
+const DATA_DIR = "/state/fresnel-data";
+const DB_PATH = "/state/fresnel-data/fresnel.db";
 
 function parse(argv: readonly string[]): unknown {
   const parsed = parseArgv(argv, TTY, {});
@@ -56,7 +56,7 @@ test("the usage error of a missing destination is two lines: what and the fix", 
     error: {
       code: "missingArgument",
       message: "db export에는 내보낼 폴더가 필요하다",
-      fix: "xeon db export <폴더>",
+      fix: "fresnel db export <폴더>",
     },
   });
 });
@@ -171,40 +171,40 @@ const FAILURES: readonly {
     error: { kind: "dest_not_empty" },
     code: 2,
     stderr:
-      "xeon: 내보낼 폴더가 비어 있지 않다 (아무것도 바꾸지 않았다)\n  해결: 비어 있거나 없는 폴더를 지정한다\n",
+      "fresnel: 내보낼 폴더가 비어 있지 않다 (아무것도 바꾸지 않았다)\n  해결: 비어 있거나 없는 폴더를 지정한다\n",
   },
   {
     name: "foreign_database",
     error: { kind: "foreign_database", applicationId: 1234 },
     code: 3,
     stderr:
-      "xeon: Xeon 데이터베이스가 아니다 (application_id 1234)\n  해결: XEON_HOME으로 데이터 디렉터리를 확인한다. xeon.db가 다른 프로그램의 파일이면 옮긴다\n",
+      "fresnel: Fresnel 데이터베이스가 아니다 (application_id 1234)\n  해결: FRESNEL_HOME으로 데이터 디렉터리를 확인한다. fresnel.db가 다른 프로그램의 파일이면 옮긴다\n",
   },
   {
     name: "not_a_database",
     error: { kind: "not_a_database" },
     code: 3,
     stderr:
-      "xeon: 데이터베이스 파일이 없거나 SQLite 파일이 아니다\n  해결: xeon chat을 한 번 실행해 데이터베이스를 만든 뒤 다시 실행한다. 위치는 XEON_HOME으로 바꾼다\n",
+      "fresnel: 데이터베이스 파일이 없거나 SQLite 파일이 아니다\n  해결: fresnel chat을 한 번 실행해 데이터베이스를 만든 뒤 다시 실행한다. 위치는 FRESNEL_HOME으로 바꾼다\n",
   },
   {
     name: "busy",
     error: { kind: "busy" },
     code: 3,
-    stderr: "xeon: 데이터베이스가 다른 쓰기로 바쁘다\n  해결: 잠시 뒤 다시 실행한다\n",
+    stderr: "fresnel: 데이터베이스가 다른 쓰기로 바쁘다\n  해결: 잠시 뒤 다시 실행한다\n",
   },
   {
     name: "disk_full",
     error: { kind: "disk_full" },
     code: 3,
-    stderr: "xeon: 저장 공간이 가득 찼다\n  해결: 디스크 공간을 비우고 다시 실행한다\n",
+    stderr: "fresnel: 저장 공간이 가득 찼다\n  해결: 디스크 공간을 비우고 다시 실행한다\n",
   },
   {
     name: "io",
     error: { kind: "io", code: "EACCES" },
     code: 3,
     stderr:
-      "xeon: 내보내기 중 입출력 오류가 났다 (EACCES)\n  해결: 대상 폴더와 데이터 디렉터리의 권한과 디스크 상태를 확인한다\n",
+      "fresnel: 내보내기 중 입출력 오류가 났다 (EACCES)\n  해결: 대상 폴더와 데이터 디렉터리의 권한과 디스크 상태를 확인한다\n",
   },
 ];
 
@@ -222,7 +222,7 @@ test("a data directory that cannot be decided is an environment failure before a
   const { h, calls } = harness(ok(REPORT), { dataDir: null });
   expect(await h.run(["db", "export", "out"])).toBe(EXIT.environment);
   expect(h.stderrText()).toBe(
-    "xeon: 데이터 디렉터리 위치를 정하지 못했다\n  해결: HOME(Windows는 USERPROFILE)과 XEON_HOME 설정을 확인한다\n",
+    "fresnel: 데이터 디렉터리 위치를 정하지 못했다\n  해결: HOME(Windows는 USERPROFILE)과 FRESNEL_HOME 설정을 확인한다\n",
   );
   expect(calls).toEqual([]);
 });
@@ -231,7 +231,7 @@ test("a missing destination exits 2 before the export runs", async () => {
   const { h, calls } = harness(ok(REPORT));
   expect(await h.run(["db", "export"])).toBe(EXIT.usage);
   expect(h.stderrText()).toBe(
-    "xeon: db export에는 내보낼 폴더가 필요하다\n  해결: xeon db export <폴더>\n",
+    "fresnel: db export에는 내보낼 폴더가 필요하다\n  해결: fresnel db export <폴더>\n",
   );
   expect(calls).toEqual([]);
 });

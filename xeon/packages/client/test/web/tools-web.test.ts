@@ -96,7 +96,7 @@ const EXA_ROW: WebToolRow = {
   ok: false,
   reason: "no-key",
   detail: null,
-  note: "키가 없다 — 해결: xeon secret add exa-api-key",
+  note: "키가 없다 — 해결: fresnel secret add exa-api-key",
   rank: 1,
   current: false,
   pinned: false,
@@ -148,7 +148,7 @@ const DEFAULT_VIEW: ToolsWebView = {
       providerId: "plugin:web-exa",
       secretName: "exa-api-key",
       state: "needs-key",
-      hint: "xeon secret add exa-api-key",
+      hint: "fresnel secret add exa-api-key",
     },
     {
       label: "Brave",
@@ -372,7 +372,7 @@ describe("toolsWebViewOf", () => {
             ok: false,
             reason: "no-key",
             detail: null,
-            note: "키가 없다 — 해결: xeon secret add brave-api-key",
+            note: "키가 없다 — 해결: fresnel secret add brave-api-key",
             rank: 3,
             current: false,
             pinned: false,
@@ -394,7 +394,7 @@ describe("toolsWebViewOf", () => {
           providerId: "plugin:web-brave",
           secretName: "brave-api-key",
           state: "needs-key",
-          hint: "xeon secret add brave-api-key",
+          hint: "fresnel secret add brave-api-key",
         },
       ],
       noticesPending: ["plugin:acme-search", "plugin:web-exa"],
@@ -572,13 +572,13 @@ describe("notes and hints follow the locale", () => {
       };
       const view = toolsWebViewOf(result);
       expect(view.search.rows.map((row) => row.note)).toEqual([
-        "No key. Fix: run xeon secret add exa-api-key",
+        "No key. Fix: run fresnel secret add exa-api-key",
         "Ready to use",
         "No response",
         "No key. Fix: add a key in the key plugin settings",
       ]);
       expect(view.recommendations.map((recommendation) => recommendation.hint)).toEqual([
-        "xeon secret add exa-api-key",
+        "fresnel secret add exa-api-key",
         "Install the plugin",
       ]);
     } finally {

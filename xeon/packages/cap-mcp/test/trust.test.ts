@@ -61,7 +61,7 @@ describe("project trust (decision D6)", () => {
 
   test("the session.trust.before point can allow it", async () => {
     const trust = trustFor({
-      files: [`${ROOT}/.xeon/mcp.json`],
+      files: [`${ROOT}/.fresnel/mcp.json`],
       emit: () => Promise.resolve({ trusted: "yes" }),
     });
     expect(await trust.isTrusted(ROOT, signal)).toBe(true);

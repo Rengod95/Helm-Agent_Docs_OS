@@ -343,7 +343,7 @@ D2(Tauri 프로젝트), D3(빌드 스크립트), D4(`engine.rs`), D5(`relay.rs`)
 
 - `just desktop-test`: `cargo test`(54개). 사이드카 바이너리 없이 `TAURI_CONFIG`로 `externalBin`을 비워 컴파일한다. cargo는 `mise exec -- cargo`(`xeon/mise.toml`의 Rust 1.99.1)로 부르고 실패하면 종료코드 2다. `just verify`에는 들어 있지 않다.
 - `just desktop-sidecar <triple|host> [--no-bytecode]`로 사이드카를 만든 뒤 `just desktop-run`(cargo run)과 `just desktop-build`(cargo build --release)를 쓴다. 설치 파일 번들(`cargo tauri build`)은 `@tauri-apps/cli` 의존 추가(잠금 파일 변경, 종료코드 3 절차)가 필요해서 D10으로 미뤘다.
-- 디버그 빌드에서만 `XEON_DESKTOP_ENGINE_BIN`, `XEON_DESKTOP_ENGINE_ARGS`로 사이드카 대신 다른 실행 파일을 엔진으로 띄운다(가짜 엔진 시험용). 릴리스 빌드에는 이 경로가 없다.
+- 디버그 빌드에서만 `FRESNEL_DESKTOP_ENGINE_BIN`, `FRESNEL_DESKTOP_ENGINE_ARGS`로 사이드카 대신 다른 실행 파일을 엔진으로 띄운다(가짜 엔진 시험용). 릴리스 빌드에는 이 경로가 없다.
 - 실제 앱 확인(WSLg, 디버그, S1 가짜 엔진): 페이지에서 `engine_attach`, 오래된 세대의 `engine_write` 거부(`epoch-stale`), 8 KB 프레임 4,000개(32.25 MB)를 손실·순서 어긋남 0으로 수신, SIGTERM 뒤 약 0.5초에 앱·엔진·손자가 모두 종료. EOF를 무시하는 엔진은 SIGTERM 뒤 7.04초(`shutdownGraceMs`)에 그룹 SIGKILL로 정리됐다. macOS와 Windows는 확인하지 못했다.
 
 구현하면서 spec과 달라진 점(spec에 반영함):
@@ -365,11 +365,11 @@ D6(UI 셸)과 D7(승인 대기열)의 구현 결과다. 상태 설계는 `L4.des
 | 연결 수명 | `src/app/session.ts` | 셸 상태가 `running`이면 attach → hello → `startLink`, 내려가면 닫고 올라오면 새 attach로 다시 연다. 연결 시도 실패는 UI 스토어 `connectError`에 고정 코드로 남기고 사용자가 "다시 연결"을 고를 때까지 쉰다 |
 | 명령 | `src/app/commands.ts`, `src/views/commands.ts` | `selectThread`, `createThread`, `sendTurn`(입력마다 `requestId`, 실패하면 같은 값으로 재시도), `interrupt`, `respondApproval`, 목록·대화 다시 읽기, 엔진 다시 시작, 진단 복사. 거울을 바꾸지 않는다(FS-02) |
 | 화면 | `src/views/` | 스레드 목록, 트랜스크립트(`virtual-list.tsx` 가상 스크롤: 마운트된 행만 `ResizeObserver`로 재고, 바닥에 붙어 있을 때만 따라 내려감), 입력창(한글 조합 중 Enter는 보내지 않음), 승인 대기열, 상태 표시줄 |
-| 번들 | `index.html`, `src/main.tsx`, `src/styles.css`, `just desktop-ui` | `bun build index.html --outdir src-tauri/ui`. 릴리스 0.74 MB(minify), 개발 1.75 MB. `__XEON_CHECKS__`를 `--define`으로 넣어 개발 빌드에서만 불변식 단계를 켠다(design 14절 6번). `src-tauri/ui/`는 산출물이라 추적하지 않는다(자리 표시 파일 삭제, `cargo.sh`가 test·check 때 빈 자리 표시를 둔다) |
+| 번들 | `index.html`, `src/main.tsx`, `src/styles.css`, `just desktop-ui` | `bun build index.html --outdir src-tauri/ui`. 릴리스 0.74 MB(minify), 개발 1.75 MB. `__FRESNEL_CHECKS__`를 `--define`으로 넣어 개발 빌드에서만 불변식 단계를 켠다(design 14절 6번). `src-tauri/ui/`는 산출물이라 추적하지 않는다(자리 표시 파일 삭제, `cargo.sh`가 test·check 때 빈 자리 표시를 둔다) |
 
 시험(`just test apps/desktop`, 103개, DOM 없음): reducer·단계·스토어·링크·선택자(design 13절 표), 전송(`ipc`, `json-lines`, `tauri-stdio`: 가짜 `DesktopIpc`), `thread.read` 스냅샷 포트, 그리고 `test/app/app.test.ts`가 가짜 셸과 가짜 엔진으로 attach → hello → 구독 → 목록 → 스냅샷 → `turn.start` → 엔진 재기동 → 재연결을 끝까지 돌린다.
 
-실제 창 확인(WSLg, 디버그, 가짜 엔진 `XEON_DESKTOP_ENGINE_BIN`): WebKitGTK 창에서 연결됨, 목록 읽기, 승인 복원(`approval.list`), 대화 열기(`thread.read`), 입력 → 토큰 스트리밍 → 확정, 승인 응답 → 대기열에서 사라짐, 새 대화 만들기가 끝까지 동작했다. CSP 위반은 없었다. 마우스·키보드 입력은 DOM 이벤트로 흉내 냈고 한글 IME 조합은 확인하지 못했다. macOS와 Windows는 확인하지 못했다.
+실제 창 확인(WSLg, 디버그, 가짜 엔진 `FRESNEL_DESKTOP_ENGINE_BIN`): WebKitGTK 창에서 연결됨, 목록 읽기, 승인 복원(`approval.list`), 대화 열기(`thread.read`), 입력 → 토큰 스트리밍 → 확정, 승인 응답 → 대기열에서 사라짐, 새 대화 만들기가 끝까지 동작했다. CSP 위반은 없었다. 마우스·키보드 입력은 DOM 이벤트로 흉내 냈고 한글 IME 조합은 확인하지 못했다. macOS와 Windows는 확인하지 못했다.
 
 M2 마감 반영(T7 DESK, TS만): 도구 승인 카드가 명령, 인자, 비밀 핸들을 보이고(`src/views/approval-form.ts`), 질문 카드가 선택지와 `allowFreeText`를 따르며 `QuestionAnswer`를 만든다. 실패 표시는 `approval.respond`의 `reason`·`detail`로 `failed`, `invalid`, `closed`, `unapplied`로 나뉜다(`src/app/approval-outcome.ts`). 프로젝트 신뢰 카드(`src/views/trust.tsx`, `trust-model.ts`)는 `trust.get`·`trust.decide`를 부른다. `thread.locked`는 `src/app/command-error.ts`가 대안을 읽고 `src/views/locked-dialog.tsx`가 묻는다(G2-09). 시험은 `test/views/*`(서버 렌더와 순수 로직)와 `test/app/locked-trust.test.ts`(가짜 셸과 가짜 엔진)다. `trust.get`·`trust.decide`는 실제 host와 맞춘 종단 시험이 있다(`test/e2e/sidecar.e2e.test.ts`, 아래 재실행 기록). `thread.open observe`는 다른 프로세스가 쓰기 소유를 쥔 상태가 필요해 종단 시험이 없고 가짜 셸 시험만 있다.
 
@@ -391,7 +391,7 @@ M2 마감 반영(T7 DESK, Rust 셸과 사이드카 e2e, G2-09·G4-03·원격 점
 | 릴리스 점검 | `test/inspect-guard.test.ts` | 소스 수준 cfg 보장. 산출물 확인 목록은 spec §4.15. `cargo check --release`는 경고 없이 통과했다 |
 | e2e 틀 | `test/e2e/harness.ts`, `scenario.ts`, `sidecar.e2e.test.ts` | stdio JSON-RPC로 엔진 프로세스를 모는 도구. 소스 진입(`bun apps/cli/src/main.ts host --stdio`)과 컴파일 사이드카(`xeon-<triple> host --stdio`)에 같은 요청열(hello, 구독, thread.create/list/read, settings.get, approval.list, secret.list, trust.get, command.list, host.status. 재실행에서 작업 폴더가 있는 thread.create, trust.decide, command.list { threadId }, settings.set, secret.beginEntry를 더했다)을 보내 정규화한 응답과 이벤트열이 같은지, `host.shutdown` 또는 stdin EOF만으로 종료코드 0과 홈을 쥔 프로세스 0개인지 본다 |
 
-순서 경합(G4-03): thread를 연 직후 기본 켜짐 scope의 `scope.changed` 묶음이 다음 유휴 경계의 한 커밋으로 남고, 뒤따르는 입력과의 앞뒤는 시간에 달려 있다. 이전 도구는 60 ms를 기다려 이 경합을 가렸다. `untilScopesCommitted`가 시간 대신 조건을 기다린다: 구독으로 첫 `scope.changed`가 도착할 때까지 기다리고(커밋은 원자적이라 첫 이벤트가 오면 묶음 전체가 와 있다) seq가 이어지는지 확인한다. 시간 대기는 없고, 상한은 실패 메시지에 경과 시간과 stderr를 싣는 용도다. 상한의 기본값은 60초이고 환경 변수 `XEON_E2E_TIMEOUT_MS`(양의 정수)로 바꾼다. 부하가 걸린 기기에서 한 시험이 20초 상한에 걸려 실패해서 올렸다(`resolveTimeoutMs`, `test/e2e/harness.test.ts`). 이 방식으로 소스 진입 두 번 실행의 응답·이벤트열이 같음을 시험한다.
+순서 경합(G4-03): thread를 연 직후 기본 켜짐 scope의 `scope.changed` 묶음이 다음 유휴 경계의 한 커밋으로 남고, 뒤따르는 입력과의 앞뒤는 시간에 달려 있다. 이전 도구는 60 ms를 기다려 이 경합을 가렸다. `untilScopesCommitted`가 시간 대신 조건을 기다린다: 구독으로 첫 `scope.changed`가 도착할 때까지 기다리고(커밋은 원자적이라 첫 이벤트가 오면 묶음 전체가 와 있다) seq가 이어지는지 확인한다. 시간 대기는 없고, 상한은 실패 메시지에 경과 시간과 stderr를 싣는 용도다. 상한의 기본값은 60초이고 환경 변수 `FRESNEL_E2E_TIMEOUT_MS`(양의 정수)로 바꾼다. 부하가 걸린 기기에서 한 시험이 20초 상한에 걸려 실패해서 올렸다(`resolveTimeoutMs`, `test/e2e/harness.test.ts`). 이 방식으로 소스 진입 두 번 실행의 응답·이벤트열이 같음을 시험한다.
 
 시험 결과(`just test apps/desktop`): 사이드카를 빌드하지 않았을 때 171 통과, 건너뜀 3(바이너리 시험). `just desktop-sidecar host`를 한 번 돌려 `xeon-x86_64-unknown-linux-gnu`(109.8 MiB)를 만든 뒤 174 통과, 건너뜀 0이다. 즉 Linux 컴파일 바이너리가 소스 진입과 같은 응답·이벤트열을 내고 EOF와 `host.shutdown`으로 종료코드 0, 잔존 프로세스 0이다. 그때 foundation에는 `trust.get`, `command.list` 처리기가 없어 두 쪽이 같은 `jsonrpc.methodNotFound`(-32601)를 내는 것만 견줬다. turn은 모델 테이프를 컴파일 바이너리에 넣을 길이 없어 e2e에 없다(메시지 열 동등은 `apps/host`의 transport-parity 시험이 맡는다). macOS와 Windows 바이너리는 확인하지 못했다.
 
@@ -399,8 +399,8 @@ M2 마감 반영(T7 DESK, 실제 host와 맞춘 재실행, G4-03): wave 1~2가 �
 
 - 정규화(`normalizer`)가 엔진 홈과 그 정규 경로로 시작하는 경로를 `<home>`으로 바꾼다. 이제 `trust.get`의 `projectRoot`와 `thread.list`의 `workspace`가 실행마다 다른 임시 폴더를 담아서, 이것이 없으면 소스 진입 두 번 실행의 비교가 실패한다.
 - `untilScopesCommitted`가 thread 수를 받는다. thread마다 `scope.changed`가 한 커밋으로 이어지는지 확인하고, 두 번째 thread의 커밋이 도착할 때까지 시간이 아니라 조건으로 기다린다.
-- 요청열이 데스크톱이 보내는 값을 그대로 쓴다. 홈 아래 프로젝트 폴더(`.xeon/skills` 하나 포함)로 `thread.create { workspace }`, 상대 경로와 없는 폴더(둘 다 `-32602`), `trust.get`·`trust.decide`(선택지 `trust-folder`)·`trust.get`, `command.list { threadId }`, `settings.set`(기본 모델) 뒤 `settings.invalidated`, `settings.get`, `secret.beginEntry`.
-- 값 시험(소스 진입): 홈은 신뢰 자원이 없어 `required: false`·`allow`·`notRequired`, 프로젝트는 `required: true`·`undecided`·자원 `[".xeon/skills"]`이고 `trust-folder`의 `savedPath`가 대화의 `workspace`와 같다. 결정 뒤는 `allow`·`via: store`다. 명령 목록은 `plan`, `tasks`다. 신뢰 결정은 `keys`가 빈 `settings.invalidated`(범위 project·local)를, 기본 모델 저장은 `l1.models.default` 알림(범위 user)을 낸다. 둘 다 화면의 재읽기 조건에 맞는다. `secret.beginEntry`는 `started: false`다.
+- 요청열이 데스크톱이 보내는 값을 그대로 쓴다. 홈 아래 프로젝트 폴더(`.fresnel/skills` 하나 포함)로 `thread.create { workspace }`, 상대 경로와 없는 폴더(둘 다 `-32602`), `trust.get`·`trust.decide`(선택지 `trust-folder`)·`trust.get`, `command.list { threadId }`, `settings.set`(기본 모델) 뒤 `settings.invalidated`, `settings.get`, `secret.beginEntry`.
+- 값 시험(소스 진입): 홈은 신뢰 자원이 없어 `required: false`·`allow`·`notRequired`, 프로젝트는 `required: true`·`undecided`·자원 `[".fresnel/skills"]`이고 `trust-folder`의 `savedPath`가 대화의 `workspace`와 같다. 결정 뒤는 `allow`·`via: store`다. 명령 목록은 `plan`, `tasks`다. 신뢰 결정은 `keys`가 빈 `settings.invalidated`(범위 project·local)를, 기본 모델 저장은 `l1.models.default` 알림(범위 user)을 낸다. 둘 다 화면의 재읽기 조건에 맞는다. `secret.beginEntry`는 `started: false`다.
 - 컴파일 사이드카는 같은 정규화 응답·이벤트열·알림을 내고, `host.status { includeBinaries: true }`의 도구 목록(이름, 구분, 쓰는 곳, 영향)이 소스 진입과 같으며 경로가 없다. 상태(버전, bundled/system)는 기기에 달려 있어 견주지 않고, `ready`와 `blocking`이 필수 도구의 사용 가능 여부와 맞는지는 소스 진입에서 값으로 본다.
 - 결과: `just check apps/desktop` 통과, 건너뜀 0. `thread.open observe`와 `secret.beginEntry started: true`는 종단 시험이 없다.
 
@@ -575,7 +575,7 @@ M2 첫 실행 반영(M-12, 키 등록): 깨끗한 Mac에는 `xeon` 명령이 없
 - [미결] Windows code signing 인증서 종류(OV, Azure Artifact Signing)와 비용.
 - [결정: review.decisions-2 B-06] D1의 `Bun.spawn`은 DR-07 테스트 한정 행과 허용 목록 `DR-07/desktop-test-spawn`으로 푼다.
 - [결정] `xeon/scripts/build-sidecar.ts`는 `scripts/`에 둔다(`m2-plan` DESK 소유 목록). 이 문서 `binds` 밖이라 `eng.toolchain.guide`와 함께 확인할 항목으로 남는다.
-- [미결] 컴파일 사이드카의 한 턴 비교(E2): 바이너리에 모델 테이프를 넣는 길이 없고 운영 진입에 시험 전용 관문을 두지 않기로 했다. `XEON_SCENARIO_TAPE`는 시험 진입(`apps/cli/test/fixtures/scenario-main.ts`)만 읽는다. 지금은 `turn`을 포함한 in-process 대 stdio 쌍(`apps/host` `transport-parity`)과 바이너리의 턴 없는 요청열 비교(`test/e2e/sidecar.e2e.test.ts`)로 나눠 확인한다(`review.m2-plan` §5). 바이너리 한 턴이 필요해지면 테이프를 받는 시험용 빌드 방식을 정해야 한다.
+- [미결] 컴파일 사이드카의 한 턴 비교(E2): 바이너리에 모델 테이프를 넣는 길이 없고 운영 진입에 시험 전용 관문을 두지 않기로 했다. `FRESNEL_SCENARIO_TAPE`는 시험 진입(`apps/cli/test/fixtures/scenario-main.ts`)만 읽는다. 지금은 `turn`을 포함한 in-process 대 stdio 쌍(`apps/host` `transport-parity`)과 바이너리의 턴 없는 요청열 비교(`test/e2e/sidecar.e2e.test.ts`)로 나눠 확인한다(`review.m2-plan` §5). 바이너리 한 턴이 필요해지면 테이프를 받는 시험용 빌드 방식을 정해야 한다.
 - [미결] Intel macOS, arm64 Linux CI 러너 확보.
 - [미결] 자동 업데이트 채택(M3 이후).
 - [미결] 상태 관리 라이브러리(`L4.desktop.spec` §10 미결 11). 프레임워크는 React 19 [결정: review.m2-plan §8 D2].

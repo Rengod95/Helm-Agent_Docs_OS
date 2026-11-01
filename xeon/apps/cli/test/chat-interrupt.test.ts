@@ -138,7 +138,7 @@ test("ctrl+c with no turn running only hints, then the second press exits 0", as
   });
   harnesses.push(h);
   const done = h.run(["chat"]);
-  await waitFor(() => h.stdoutText().includes("xeon chat"));
+  await waitFor(() => h.stdoutText().includes("fresnel chat"));
   h.signal("SIGINT");
   await waitFor(() => h.stdoutText().includes("한 번 더 누르면 끝낸다"));
   h.signal("SIGINT");

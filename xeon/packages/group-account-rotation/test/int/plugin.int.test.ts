@@ -26,7 +26,7 @@ afterAll(async () => {
 });
 
 test("plugin.json is the manifest as JSON and the bundle keeps the host SDK modules external", async () => {
-  const text = await Bun.file(join(built.outDir, ".xeon-plugin", "plugin.json")).text();
+  const text = await Bun.file(join(built.outDir, ".fresnel-plugin", "plugin.json")).text();
   const parsed = parseJson(text);
   const expected = parseJson(JSON.stringify(accountRotationManifest));
   expect(parsed.ok && expected.ok).toBe(true);

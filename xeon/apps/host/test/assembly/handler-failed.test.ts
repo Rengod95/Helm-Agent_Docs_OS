@@ -14,7 +14,7 @@ const B: ThreadId = threads.next("thr");
 
 const PAYLOAD: ScopeHandlerFailedPayload = {
   owner: "ext:acme-notes",
-  point: "session.start",
+  point: "thread.start",
   result: "threw",
   message: "boom",
   consecutive: 1,
@@ -94,7 +94,7 @@ test("with no open thread nothing is sent and one log line says why", () => {
   emit(PAYLOAD);
   expect(sent).toEqual([]);
   expect(lines).toEqual([
-    "scope.handler_failed not emitted: no open thread (ext:acme-notes session.start)",
+    "scope.handler_failed not emitted: no open thread (ext:acme-notes thread.start)",
   ]);
 });
 

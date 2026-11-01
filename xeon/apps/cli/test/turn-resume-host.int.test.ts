@@ -30,7 +30,7 @@ async function killedWhileAsking(
     entry: ENTRY,
     home: owner.home.root,
     cwd: owner.home.work,
-    env: { XEON_SCENARIO_COMMAND: command },
+    env: { FRESNEL_SCENARIO_COMMAND: command },
   });
   children.push(child);
   await child.request("host.hello", HELLO);
@@ -96,7 +96,7 @@ test("y at both questions asks the restored approval, then calls turn.resume onc
     },
   ]);
   expect(out).toContain("finished.");
-  expect(cli.harness.stderrText()).not.toContain("xeon:");
+  expect(cli.harness.stderrText()).not.toContain("fresnel:");
 }, 90_000);
 
 test("n at the resume question never calls turn.resume and leaves the turn resumable", async () => {

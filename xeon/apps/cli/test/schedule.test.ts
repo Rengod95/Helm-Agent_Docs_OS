@@ -3,7 +3,7 @@ import { EXIT, type ExitCode } from "../src/exit-codes.ts";
 import type { FakeHandlers } from "./support/fake-server.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 
-// M3b B1-SCH2: `xeon schedule`의 명령 실행. 가짜 호스트가 schedule.create·list·cancel·fire를 받아 돌려주는 값으로 문구와 종료 코드를 확인한다.
+// M3b B1-SCH2: `fresnel schedule`의 명령 실행. 가짜 호스트가 schedule.create·list·cancel·fire를 받아 돌려주는 값으로 문구와 종료 코드를 확인한다.
 // 보낸 params는 서버가 받은 요청 목록(`requests`)으로 본다. 실제 처리기와의 종단 시험은 schedule-host.int.test.ts가 한다.
 
 const harnesses: Harness[] = [];
@@ -128,7 +128,7 @@ test("add --loop turns the expires-in seconds into expiresAtMs from the clock", 
   expect(createdSent(h)).toEqual([
     {
       trigger: {
-        kind: "loop",
+        kind: "repeat",
         intervalSeconds: 60,
         maxIterations: 5,
         expiresAtMs: 1767574800000,
@@ -173,7 +173,7 @@ test("a host outside service mode saves the entry and the warning goes to stderr
   expect(await h.run(["schedule", "add", "--every", "300", "요약"])).toBe(EXIT.ok);
   expect(h.stdoutText()).toBe("예약했다: sch_1  간격 300초  다음 실행 2026-01-05T00:05:00.000Z\n");
   expect(h.stderrText()).toBe(
-    "경고: 서비스 모드가 꺼져 있어 이 예약은 실행되지 않는다. xeon service start로 서비스를 띄운 뒤에 실행된다\n",
+    "경고: 서비스 모드가 꺼져 있어 이 예약은 실행되지 않는다. fresnel service start로 서비스를 띄운 뒤에 실행된다\n",
   );
 });
 
@@ -186,34 +186,34 @@ const CREATE_ERRORS: readonly {
   {
     kind: "interval_too_short",
     error: { kind: "interval_too_short", minSeconds: 300 },
-    stderr: "xeon: 간격이 최소값(300초)보다 짧다\n  해결: --every를 300 이상으로 쓴다\n",
+    stderr: "fresnel: 간격이 최소값(300초)보다 짧다\n  해결: --every를 300 이상으로 쓴다\n",
     code: EXIT.error,
   },
   {
     kind: "at_in_past",
     error: { kind: "at_in_past" },
-    stderr: "xeon: 시각이 이미 지났다\n  해결: --at에 앞으로의 시각을 쓴다\n",
+    stderr: "fresnel: 시각이 이미 지났다\n  해결: --at에 앞으로의 시각을 쓴다\n",
     code: EXIT.error,
   },
   {
     kind: "invalid_trigger",
     error: { kind: "invalid_trigger", reason: "watch paths" },
     stderr:
-      "xeon: 트리거 값이 엔진 규칙에 맞지 않다 (watch paths)\n  해결: xeon help schedule로 트리거 규칙을 확인한다\n",
+      "fresnel: 트리거 값이 엔진 규칙에 맞지 않다 (watch paths)\n  해결: fresnel help schedule로 트리거 규칙을 확인한다\n",
     code: EXIT.error,
   },
   {
     kind: "limit_reached",
     error: { kind: "limit_reached", max: 50 },
     stderr:
-      "xeon: 켜진 예약이 상한(50개)이라 더 만들 수 없다\n  해결: xeon schedule list로 예약을 보고 필요 없는 것은 xeon schedule cancel <id>로 끈다\n",
+      "fresnel: 켜진 예약이 상한(50개)이라 더 만들 수 없다\n  해결: fresnel schedule list로 예약을 보고 필요 없는 것은 fresnel schedule cancel <id>로 끈다\n",
     code: EXIT.error,
   },
   {
     kind: "store_failed",
     error: { kind: "store_failed", message: "EACCES /secret/path" },
     stderr:
-      "xeon: 예약 상태 파일을 읽거나 쓰지 못했다\n  해결: 상태 디렉터리의 schedule/state.json을 고치거나 지운다. 지우면 예약이 모두 사라진다\n",
+      "fresnel: 예약 상태 파일을 읽거나 쓰지 못했다\n  해결: 상태 디렉터리의 schedule/state.json을 고치거나 지운다. 지우면 예약이 모두 사라진다\n",
     code: EXIT.environment,
   },
 ];
@@ -374,7 +374,7 @@ test("cancel prints the id it turned off, and a missing id is a failure", async 
   const missing = await h.run(["schedule", "cancel", "sch_zz9"]);
   expect(missing).toBe(EXIT.error);
   expect(h.stderrText()).toBe(
-    "xeon: 그런 예약이 없다\n  해결: xeon schedule list --all로 id를 확인한다\n",
+    "fresnel: 그런 예약이 없다\n  해결: fresnel schedule list --all로 id를 확인한다\n",
   );
 });
 
@@ -410,13 +410,13 @@ test("run prints the run id and status of a remote entry; other kinds are refuse
   expect(await h.run(["schedule", "run", "sch_a1"])).toBe(EXIT.error);
   expect(h.stdoutText()).toBe("");
   expect(h.stderrText()).toBe(
-    "xeon: 원격 트리거 예약만 지금 실행할 수 있다\n  해결: 간격·시각 예약은 기한이 되면 실행된다. 원격 예약은 xeon schedule add --remote로 만든다\n",
+    "fresnel: 원격 트리거 예약만 지금 실행할 수 있다\n  해결: 간격·시각 예약은 기한이 되면 실행된다. 원격 예약은 fresnel schedule add --remote로 만든다\n",
   );
 
   h.stderr.length = 0;
   expect(await h.run(["schedule", "run", "sch_d1"])).toBe(EXIT.error);
   expect(h.stderrText()).toBe(
-    "xeon: 꺼진 예약이라 실행하지 않는다\n  해결: xeon schedule add로 새 예약을 만든다\n",
+    "fresnel: 꺼진 예약이라 실행하지 않는다\n  해결: fresnel schedule add로 새 예약을 만든다\n",
   );
 });
 
@@ -433,7 +433,7 @@ test("a host without the schedule methods is an environment problem for every sc
     EXIT.environment,
   ]);
   expect(h.stderrText()).toBe(
-    "xeon: 연결한 host가 예약 명령을 아직 지원하지 않는다\n  해결: host를 갱신한다 (xeon version으로 버전을 확인한다)\n".repeat(
+    "fresnel: 연결한 host가 예약 명령을 아직 지원하지 않는다\n  해결: host를 갱신한다 (fresnel version으로 버전을 확인한다)\n".repeat(
       4,
     ),
   );
@@ -444,7 +444,7 @@ test("a usage error prints the usage line and sends nothing", async () => {
   const h = harness({ "schedule.create": createdWith(null) });
   expect(await h.run(["schedule", "add", "요약"])).toBe(EXIT.usage);
   expect(h.stderrText()).toBe(
-    "xeon: 예약 트리거가 없다 (--every, --at, --remote, --watch, --loop 가운데 하나)\n  해결: xeon schedule add <프롬프트> (--every <초> | --at <시각> | --remote | --watch <경로>[,<경로>…] | --loop <초> --max-iterations <n> --expires-in <초>) [--title <제목>] [--workspace <폴더>] [--disabled]\n",
+    "fresnel: 예약 트리거가 없다 (--every, --at, --remote, --watch, --loop 가운데 하나)\n  해결: fresnel schedule add <프롬프트> (--every <초> | --at <시각> | --remote | --watch <경로>[,<경로>…] | --loop <초> --max-iterations <n> --expires-in <초>) [--title <제목>] [--workspace <폴더>] [--disabled]\n",
   );
   // 사용법 오류는 엔진에 연결하기 전에 끝난다
   expect(h.methods()).toEqual([]);

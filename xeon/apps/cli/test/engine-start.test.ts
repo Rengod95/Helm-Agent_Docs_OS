@@ -34,7 +34,7 @@ import { createTransportPair } from "./support/memory-transport.ts";
 const OPTIONS: EngineConnectOptions = {
   workspace: "/work",
   preference: "auto",
-  client: { name: "xeon-cli", version: "0.0.0" },
+  client: { name: "fresnel-cli", version: "0.0.0" },
   settingGroups: cliSettingGroups,
   devWireRoundTrip: false,
   env: {},
@@ -102,7 +102,7 @@ function serviceAttach(record: Calls, failure?: AttachError): HostApi["attachToS
     const connection: HostConnection = createHostConnection(transport);
     const hello = await connection.request("host.hello", {
       protocolVersion: WIRE_PROTOCOL_VERSION,
-      client: { name: "xeon-cli", version: "0.0.0", kind: "cli" },
+      client: { name: "fresnel-cli", version: "0.0.0", kind: "cli" },
     });
     const attachment: ServiceAttachment = {
       connection,
@@ -114,7 +114,7 @@ function serviceAttach(record: Calls, failure?: AttachError): HostApi["attachToS
 }
 
 const TOKEN = "tok-4242-secret";
-const TOKEN_ENV = { XEON_REMOTE_TOKEN: TOKEN };
+const TOKEN_ENV = { FRESNEL_REMOTE_TOKEN: TOKEN };
 
 function started(
   close: () => Promise<"clean" | "deadline"> = () => Promise.resolve("clean"),
@@ -430,7 +430,7 @@ test("auto with a remote address attaches to that endpoint and never asks the se
   const endpoint: ServiceEndpoint = {
     kind: "ssh",
     target: "me@box",
-    remoteSocket: "/run/xeon.sock",
+    remoteSocket: "/run/fresnel.sock",
   };
   const launch = { asked: 0 };
   const connect = createConnectEngine(
@@ -444,7 +444,7 @@ test("auto with a remote address attaches to that endpoint and never asks the se
       attachToService: serviceAttach(calls),
     }),
   );
-  const result = await connect({ ...OPTIONS, remote: "ssh://me@box/run/xeon.sock" });
+  const result = await connect({ ...OPTIONS, remote: "ssh://me@box/run/fresnel.sock" });
   expect(calls.targets).toEqual([{ kind: "endpoint", endpoint }]);
   expect(calls.starts).toBe(0);
   expect(launch.asked).toBe(0);
@@ -461,9 +461,9 @@ test("--remote reaches the resolver as the flag, and the environment reaches it 
       },
     }),
   );
-  await connect({ ...OPTIONS, remote: "ssh://box/run/xeon.sock", env: TOKEN_ENV });
+  await connect({ ...OPTIONS, remote: "ssh://box/run/fresnel.sock", env: TOKEN_ENV });
   await connect({ ...OPTIONS, env: {} });
-  expect(calls.remoteOptions[0]).toEqual({ flag: "ssh://box/run/xeon.sock", env: TOKEN_ENV });
+  expect(calls.remoteOptions[0]).toEqual({ flag: "ssh://box/run/fresnel.sock", env: TOKEN_ENV });
   expect(calls.remoteOptions[1]).not.toHaveProperty("flag");
 });
 
@@ -629,11 +629,11 @@ test("a tunnel port that was not supplied says to reinstall, and an ensure failu
   expect(ensure).toEqual({
     kind: "serviceUnreachable",
     message: "이 기기의 서비스를 띄우지 못했다 (start_timeout)",
-    fix: "xeon service status로 서비스 상태를 확인한다",
+    fix: "fresnel service status로 서비스 상태를 확인한다",
   });
 });
 
-test("an auth failure names XEON_REMOTE_TOKEN and the status check, and the token value never reaches the error", async () => {
+test("an auth failure names FRESNEL_REMOTE_TOKEN and the status check, and the token value never reaches the error", async () => {
   const calls = newCalls();
   const connect = createConnectEngine(
     api(NO_HOST, undefined, {
@@ -652,8 +652,8 @@ test("an auth failure names XEON_REMOTE_TOKEN and the status check, and the toke
   const result = await connect({ ...OPTIONS, remote: "tcp://box:7000", env: TOKEN_ENV });
   if (result.ok) throw new Error("expected a start error");
   expect(result.error.kind).toBe("serviceUnreachable");
-  expect(result.error.fix).toContain("XEON_REMOTE_TOKEN");
-  expect(result.error.fix).toContain("xeon service status");
+  expect(result.error.fix).toContain("FRESNEL_REMOTE_TOKEN");
+  expect(result.error.fix).toContain("fresnel service status");
   expect(JSON.stringify(result)).not.toContain(TOKEN);
 });
 

@@ -3,7 +3,7 @@ import { attemptAsync, type Logger } from "@xeon/contracts";
 import type { OsService } from "@xeon/contracts/services";
 import { messageOf } from "../util.ts";
 
-// M3-REQ-49(M3-new-08). 사용자 설정 파일을 L0.os의 `watch`로 지켜보다가 다른 프로세스(CLI의 `xeon config set`, 다른 호스트, 사람이 연 편집기)가
+// M3-REQ-49(M3-new-08). 사용자 설정 파일을 L0.os의 `watch`로 지켜보다가 다른 프로세스(CLI의 `fresnel config set`, 다른 호스트, 사람이 연 편집기)가
 // 바꾸면 메모리 층을 다시 읽고 `settings.invalidated`를 보낸다. 감시는 설정 디렉터리 하나를 열고, 그 안에서 설정 파일의 변경만 본다.
 // 우리 자신의 쓰기도 변경으로 오지만 다시 읽은 값이 메모리와 같으면 알리지 않는다(`refreshUserFile`이 값 차이로 정한다). 조립 루트 코드(DR-14 예외 2).
 

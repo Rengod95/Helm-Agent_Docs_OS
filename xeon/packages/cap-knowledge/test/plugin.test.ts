@@ -480,8 +480,8 @@ describe("compaction", () => {
 
 const workspaceSkills = (fs: MemoryFs): void => {
   putSkill(fs, USER_SKILLS, "deploy", { description: "Deploy steps." });
-  putSkill(fs, "/ws-a/.xeon/skills", "alpha", { description: "Only in workspace A." });
-  putSkill(fs, "/ws-b/.xeon/skills", "beta", { description: "Only in workspace B." });
+  putSkill(fs, "/ws-a/.fresnel/skills", "alpha", { description: "Only in workspace A." });
+  putSkill(fs, "/ws-b/.fresnel/skills", "beta", { description: "Only in workspace B." });
   putSkill(fs, PROJECT_SKILLS, "engine-cwd-skill", { description: "In the engine cwd." });
 };
 
@@ -612,9 +612,9 @@ describe("the thread workspace is the project folder", () => {
       { context: { threadId: b, caller: { kind: "host" } } },
     );
     expect(written?.status).toBe("applied");
-    expect(fs.has("/ws-b/.xeon/skills/gamma/SKILL.md")).toBe(true);
-    expect(fs.has("/ws-a/.xeon/skills/gamma/SKILL.md")).toBe(false);
-    expect(fs.has("/proj/.xeon/skills/gamma/SKILL.md")).toBe(false);
+    expect(fs.has("/ws-b/.fresnel/skills/gamma/SKILL.md")).toBe(true);
+    expect(fs.has("/ws-a/.fresnel/skills/gamma/SKILL.md")).toBe(false);
+    expect(fs.has("/proj/.fresnel/skills/gamma/SKILL.md")).toBe(false);
   });
 
   test("an untrusted workspace contributes nothing and its skills are not read", async () => {

@@ -121,7 +121,7 @@ export const RESERVED_GROUP_NAMES: readonly string[] = [
 export type GroupManifest = ExtensionManifest & { readonly kind: "group"; readonly layer: "L3" };
 
 /**
- * 매니페스트 값을 검증해 GroupManifest로 좁힌다. .xeon-plugin/plugin.json을 JSON import로 읽은 외부 그룹이 쓴다.
+ * 매니페스트 값을 검증해 GroupManifest로 좁힌다. .fresnel-plugin/plugin.json을 JSON import로 읽은 외부 그룹이 쓴다.
  * F validateManifest 오류, kind·layer 불일치면 Bug를 던진다. 순수 함수
  */
 export function groupManifest(value: unknown): GroupManifest;
@@ -192,7 +192,7 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = Record
 
 - `entry`가 하는 일 [제안]: `host.scope(manifest.name, { state: def.state, defaultEnabled: manifest.defaultEnabled }, (api) => def.setup(wrap(api)))`를 한 번 부른다. `def.state`가 없으면 `state` 키를 넘기지 않는다. `wrap`은 F `ScopeApi`를 `GroupApi`로 감싼다. 감싼 `on`, `post`, `drive`, `commit`, `record`는 원래 연산을 그대로 부르고 계측 집계(§4.9)만 더한다. 그룹의 주 scope id는 매니페스트 `name`이다(F.extensions.spec §3.2 아래 규칙). 그룹 이름은 매니페스트에서만 온다. `GroupDef`에 별도 `id` 필드는 없다.
 - 상태 없는 그룹 [제안]: `state`를 생략할 수 있다. 상태 없이 `on`, `post`, `record`만 쓰는 정책 그룹(L3.slots.spec §3.2, policy 템플릿)을 위해서다. 생략하면 `migrations`를 둘 수 없고(`state_migration_missing`이 아닌 `state_version` 오류), `g.state()`·`g.commit()`은 X가 `state_undeclared`로 거부한다.
-- 매니페스트 전달 [제안]: 저장소 안 그룹은 `defineManifest` 상수를 `manifest`에 넘긴다. `.xeon-plugin/plugin.json`만 가진 외부 그룹은 JSON import(`import manifestJson from "../.xeon-plugin/plugin.json" with { type: "json" }`)로 읽고 `groupManifest(manifestJson)`을 넘긴다. X 로더도 같은 파일을 읽으므로 두 값은 같다. 같은지는 X 로더가 `validateManifestSet` 전에 비교한다 [가정: X.loading-trust.spec].
+- 매니페스트 전달 [제안]: 저장소 안 그룹은 `defineManifest` 상수를 `manifest`에 넘긴다. `.fresnel-plugin/plugin.json`만 가진 외부 그룹은 JSON import(`import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" }`)로 읽고 `groupManifest(manifestJson)`을 넘긴다. X 로더도 같은 파일을 읽으므로 두 값은 같다. 같은지는 X 로더가 `validateManifestSet` 전에 비교한다 [가정: X.loading-trust.spec].
 - 리소스 등록 [제안]: `registerTool`, `registerCommand`, `registerProvider`는 X `hostOf(g)`(X.primitives.spec §3.8, §4.8)의 같은 이름 연산을 그대로 부른다. 그룹 패키지는 `@xeon/ext-host`를 import하지 않으므로(§3.1, DR-14) group-sdk이 이 세 연산을 `GroupApi`로 옮긴다. `registerProvider`의 `config`는 `ProviderResourceDef`(JSON)다. 그 밖의 `hostOf` 연산(`registerShortcut`, `registerFlag`, `registerMessageRenderer` 등)은 그룹 요구가 생기면 같은 방식으로 더한다.
 - `settings()` [M2]: 값은 X의 `hostOf(g).settingValue(key)`로 호출 때마다 읽는다. 이 메서드는 포트 `GroupSettingsSourceKey`(서비스 이름 `xeon.settings`, 조립 루트가 설정 서비스에 연결하는 자리)를 거친다. 내장 그룹은 모든 키를, 신뢰 `user`인 외부 그룹은 자기 `ext.<id>.*` 키만 읽는다(X.primitives.spec §3.8). 값이 없거나 스키마를 통과하지 못하면 정의의 `default`다. 포트가 없으면 기본값만 돌려준다. "마지막 단계 경계의 스냅샷"은 설정 서비스가 맡는다(thread별 값은 X.primitives.spec §3.2의 `PrimitivesSettingsSource`처럼 thread를 받는 읽기가 필요하며 [미결]). 기본값도 없고 값도 없는 비밀 설정은 `Bug`다.
 - `commit` 래퍼 [M2]: `checkStateCommit`이 스키마·64 KiB·동일 값을 먼저 검사한다. 위반이면 X와 같은 `PrimitiveError`(`state_schema`, `state_too_large`)를 던지고, 같은 값이면 X를 부르지 않고 현재 값을 돌려준다. `record`·`post`는 `checkRecordKind`·`checkPostItem`으로 자기 `grp.<이름>.` 접두를 먼저 검사한다(다른 접두는 `record_invalid`, 선언 없는 자기 접두 kind는 `record_kind_undeclared`).

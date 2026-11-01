@@ -405,7 +405,7 @@ describe("commands, status, attachments and notify schemas", () => {
       args: [{ name: "file", required: true, rest: true }],
       kind: "template",
       source: "project",
-      origin: ".xeon/commands/review.md",
+      origin: ".fresnel/commands/review.md",
       hasShell: false,
     };
     expect(parse(CommandInfoSchema, info).ok).toBe(true);

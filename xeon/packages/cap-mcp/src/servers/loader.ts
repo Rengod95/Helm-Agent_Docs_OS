@@ -9,7 +9,7 @@ import { asJsonObject } from "../json.ts";
 import { checkDefinitionValues } from "./values.ts";
 import type { LoaderDiagnostic, ServerDefinition } from "../types.ts";
 
-// L2.mcp.spec §4.2. 설정 `l2.mcp.servers`와 프로젝트 `.mcp.json`(루트)·`.xeon/mcp.json`을 합친다.
+// L2.mcp.spec §4.2. 설정 `l2.mcp.servers`와 프로젝트 `.mcp.json`(루트)·`.fresnel/mcp.json`을 합친다.
 // 파일은 프로젝트 신뢰가 확인된 뒤에만 읽는다(결정 D6). 이 파일은 읽기를 하지 않고 이미 읽은 텍스트를 받는다.
 
 const ID_REGEX = new RegExp(MCP_SERVER_ID_PATTERN);

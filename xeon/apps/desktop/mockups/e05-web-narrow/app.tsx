@@ -382,8 +382,8 @@ function RemoteWorkbench({ s, go, view }: { s: S; go: (a: A) => void; view: "ext
               </div>
               <Alert tone="neutral" size="sm">
                 {L2(
-                  "프레임 파일은 build-box에 있어요(build-box:~/.xeon/extensions/acme-notes/view/index.html). 서비스가 격리된 주소로 보내 주고, 이 컴퓨터에는 저장하지 않아요. 파일을 고치려면 그 컴퓨터에서 열어요.",
-                  "The frame files live on build-box (build-box:~/.xeon/extensions/acme-notes/view/index.html). The service serves them from an isolated origin; nothing is saved here. Edit them on that computer.",
+                  "프레임 파일은 build-box에 있어요(build-box:~/.fresnel/extensions/acme-notes/view/index.html). 서비스가 격리된 주소로 보내 주고, 이 컴퓨터에는 저장하지 않아요. 파일을 고치려면 그 컴퓨터에서 열어요.",
+                  "The frame files live on build-box (build-box:~/.fresnel/extensions/acme-notes/view/index.html). The service serves them from an isolated origin; nothing is saved here. Edit them on that computer.",
                 )}
               </Alert>
               <div className="flex gap-1.5">

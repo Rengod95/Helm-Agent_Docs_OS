@@ -18,7 +18,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 |---|---|---|
 | M0 | 내장 패키지 `manifest` 상수 로딩, `validateManifest`·`validateManifestSet`·`validateUsage` 연결, 같은 프로세스 로딩(`ExtHost.install` 위임, `InstallResult` → 진단 변환), tier 등록(`policy.admit`), 실패 격리(한 확장 실패가 시작을 막지 않음, 내장 필수 예외), 로드 순서, 진단 레코드, 신뢰 등급 상수(`TRUST_MATRIX`) | L4.host-service 조립 3단계, X.primitives(`ExtHost.install`) |
 | M1 | 걷는 골격 연결: 테스트용 그룹 하나를 로드해 `xeon chat`에서 on/post/drive가 돈다(`_research/foundation-plan.md` §5 P4 M1). 예약 키 `ext.<name>.enabled` 반영(5a단계, `ensureLoaded`), `settingsFromManifest`·`buildCatalog` 연결과 `foreignNamespace` 거부, 능력 요구 충족(6단계, 연쇄 실패) | L4.host-service 조립 5단계, 테스트 그룹 |
-| M2 이후 | 외부 확장 탐색(`.xeon-plugin/plugin.json`, 관리·사용자·프로젝트 위치), 프로젝트 신뢰 포크(pi `trust-manager.ts`·`project-trust.ts`)와 `thread.trust.before` 발화, 제거 흐름(확인 2단계), 안전 모드·`--disable-ext`(5a단계), SDK 가상 모듈, 기본 플러그인 설치, 프로세스 격리(2차), 핫 리로드(개발용) | L4.cli·L4.desktop(신뢰 프롬프트), L0.os(파일·경로 포트), L0.process(격리) |
+| M2 이후 | 외부 확장 탐색(`.fresnel-plugin/plugin.json`, 관리·사용자·프로젝트 위치), 프로젝트 신뢰 포크(pi `trust-manager.ts`·`project-trust.ts`)와 `thread.trust.before` 발화, 제거 흐름(확인 2단계), 안전 모드·`--disable-ext`(5a단계), SDK 가상 모듈, 기본 플러그인 설치, 프로세스 격리(2차), 핫 리로드(개발용) | L4.cli·L4.desktop(신뢰 프롬프트), L0.os(파일·경로 포트), L0.process(격리) |
 
 - [제안] 신뢰 판정은 프로젝트 확장이 처음 생기는 시점(M2)에 맞춘다. M0·M1에는 내장 확장만 있으므로 판정 대상이 없다. 다만 `TRUST_MATRIX`와 `TrustLevel`은 M0에 두어 X.primitives가 연산 허용 검사에 쓸 수 있게 한다.
 - [결정: review.m2-plan §8 D9] M2에는 프로젝트 신뢰(L-15~L-17, review.m2-plan X.4)만 둔다. 외부 확장 탐색·로더·시작 순서 통합·제거 흐름·안전 모드(L-13, L-14, L-18, L-28, L-29, review.m2-plan X.5)는 M3로 옮긴다. pi 어댑터(L-19~L-21)는 만들지 않는다(adr.0017 §3.7).
@@ -66,8 +66,8 @@ xeon/packages/ext-host/
     integration/project-trust.int.test.ts
     fixtures/
       builtin/                     # 내장 모듈 가짜(정상, throw, 선언 밖 on, 필수)
-      ext-root/                    # .xeon-plugin/plugin.json 가진 외부 확장 디렉터리 여러 개
-      project/.xeon/extensions/    # 프로젝트 확장(import 기록기 내장)
+      ext-root/                    # .fresnel-plugin/plugin.json 가진 외부 확장 디렉터리 여러 개
+      project/.fresnel/extensions/    # 프로젝트 확장(import 기록기 내장)
       trust/                       # 정상·손상·버전 없는(v0) 형식 trust.json
 ```
 
@@ -93,7 +93,7 @@ xeon/packages/ext-host/
 | L-10 | 5a단계: `ext.<name>.enabled` 유효 값 확인(거짓이면 엔트리 미실행 `disabled`), 필수 userConfig(`config_required`). 실행 중 값 변경 구독 → `ensureLoaded` 또는 scope 끄기 요청. 안전 모드·`--disable-ext`는 L-29(M2) | L-09, P-09(scope 켜기·끄기), L1.persistence 설정 변경 통지 [가정] | M | M1 |
 | L-11 | 6단계: 능력 요구 충족 판정(매니페스트 `provides` + 코어 능력 레지스트리, 범위 비교), 9단계 뒤 provider 실패 연쇄(`capability_provider_failed`) | L-07, F.capabilities.plan(범위 비교 함수), P-17(능력 바인딩) | M | M1 |
 | L-12 | 걷는 골격 연결: 조립 루트(L4 host)의 `extraPlugins`로 테스트 그룹 모듈을 넘겨 로드, `host.status`용 진단 노출. 이 문서 binds 밖 파일 변경은 L4.host-service.plan 작업자와 조율 | L-08, L-10, L-11, L4.host-service.plan | S | M1 |
-| L-13 | `discover.ts` 외부 부분: 관리·사용자·`x.loading-trust.paths` 위치의 `.xeon-plugin/plugin.json` 한 단계 탐색, 심볼릭 링크 정규화, 위치 우선순위와 `name_conflict`, `manifest_missing`·`manifest_parse` | L-05, L0.os 포트 구현 [가정] | M | M3 (결정 D9) |
+| L-13 | `discover.ts` 외부 부분: 관리·사용자·`x.loading-trust.paths` 위치의 `.fresnel-plugin/plugin.json` 한 단계 탐색, 심볼릭 링크 정규화, 위치 우선순위와 `name_conflict`, `manifest_missing`·`manifest_parse` | L-05, L0.os 포트 구현 [가정] | M | M3 (결정 D9) |
 | L-14 | `entry-loader.ts` 외부 경로: 엔트리 절대 경로 계산, `realpath`가 확장 루트 안인지 확인, `import()`(L-01 결과 방식), `default`·`extension` export 판별, `ExtensionUnit`으로 `install`(L-06 경로) | L-01, L-06, L-13 | M | M3 (결정 D9) |
 | L-15 | `trust/store.ts` 포크: `ProjectTrustStore`(`lookup`, `setMany`), `TrustFileSchema`, 손상 → `corrupt`, 손상 시 쓰기 거부, pi 형식(v0) 읽기 변환, `trustOptions` | L-02 | M | M2 |
 | L-16 | `trust/resources.ts` 포크: `TRUST_REQUIRING_PROJECT_RESOURCES`, `findTrustRequiringResources`(상위 `.agents/skills` 탐색, 홈 제외) | L-13 | S | M2 |
@@ -131,7 +131,7 @@ xeon/packages/ext-host/
 포크에서 바꿀 점(스펙 §4.7.1 표의 구현 목록):
 
 1. `proper-lockfile` import와 `acquireTrustLockSync`·`withTrustFileLock`(138-177) 삭제. `TrustStoreBackend.update` 한 번으로 읽기-수정-쓰기를 한다.
-2. `../config.ts`의 `CONFIG_DIR_NAME` → 로컬 상수 `FRESNEL_DIR = ".xeon"`. `APP_NAME` 문자열 프롬프트(`formatProjectTrustPrompt`) 삭제(표시는 L4).
+2. `../config.ts`의 `CONFIG_DIR_NAME` → 로컬 상수 `FRESNEL_DIR = ".fresnel"`. `APP_NAME` 문자열 프롬프트(`formatProjectTrustPrompt`) 삭제(표시는 L4).
 3. `node:fs` 동기 함수 → `LoaderFs`(`exists`, `realpath`)와 `TrustStoreBackend`(`read`, `update`) 비동기 호출. 함수 시그니처가 모두 `async`가 된다.
 4. `node:os` `homedir()`·`process.env.HOME` → `LoaderPaths.homeDir` 주입.
 5. `../utils/paths.ts`(`canonicalizePath`, `resolvePath`) → 생성자 인자 `normalize`. `../utils/text.ts`(`stripBom`) → 로컬 함수.
@@ -189,7 +189,7 @@ xeon/packages/ext-host/
 | | `override wins` | `trustOverride: false`면 저장소에 allow가 있어도 불신 | §4.7.3-1 |
 | `remove.test.ts` | `remove previews then drops` | `previewRemoval`은 변화 없음, `remove`는 `uninstall` → `forget` → `dropExtension(true)` 순서, `dropTables: false`면 테이블 남음, 내장 확장 제거 거부 | §9-21 |
 | `pipeline.test.ts`(시작 옵션) | `safe mode and disable flag skip entry` | `startup.disabled`의 외부 확장은 import 0회, 내장 확장은 install 0회, 진단 `disabled_flag`·`safe_mode` | §9-22 |
-| `trust-resources.test.ts` | `bare dir needs no trust` | 빈 `.xeon`은 판정 불필요, `.xeon/extensions/` 있으면 필요, 홈의 `.agents/skills`는 제외 | §4.7.2 |
+| `trust-resources.test.ts` | `bare dir needs no trust` | 빈 `.fresnel`은 판정 불필요, `.fresnel/extensions/` 있으면 필요, 홈의 `.agents/skills`는 제외 | §4.7.2 |
 | `external-loader.int.test.ts` | `a user extension loads and its on handler fires` | 임시 사용자 디렉터리의 플러그인이 `user` 등급으로 로드되고 핸들러가 호출된다. `@xeon/contracts`·`typebox`·`@xeon/group-sdk`은 호스트와 같은 값이다 | §9-17 |
 | | `safe mode skips user extensions` | 안전 모드에서 사용자 확장은 import되지 않고 `disabled`(`safe_mode`)다. L3 내장은 빠지고 L1·L2 내장은 남는다. 프로젝트는 탐색하지 않는다 | §9-23 |
 | | `bad manifests give diagnostics` | JSON 아님, 스키마 위반, 파일 없음이 진단만 남기고 다른 확장은 로드된다 | §9-24 |
@@ -215,7 +215,7 @@ xeon/packages/ext-host/
 
 | 파일 | 테스트 | 확인할 동작 |
 |---|---|---|
-| `integration/project-trust.int.test.ts` | `project extension not executed before trust` | 임시 디렉터리에 프로젝트(`.xeon/extensions/probe/`, 엔트리가 모듈 최상위에서 표식 파일을 쓰는 확장)를 만들고, 실제 파일 시스템 `LoaderFs`와 메모리 `TrustStoreBackend`로 `loadAll`(headless)을 실행한다. 표식 파일이 생기지 않고 `probe`는 `rejected`(`trust_undecided`)다. 같은 설정에 `trustOverride: true`로 다시 실행하면 표식 파일이 한 번 생긴다. 모델 테이프와 네트워크는 쓰지 않는다 |
+| `integration/project-trust.int.test.ts` | `project extension not executed before trust` | 임시 디렉터리에 프로젝트(`.fresnel/extensions/probe/`, 엔트리가 모듈 최상위에서 표식 파일을 쓰는 확장)를 만들고, 실제 파일 시스템 `LoaderFs`와 메모리 `TrustStoreBackend`로 `loadAll`(headless)을 실행한다. 표식 파일이 생기지 않고 `probe`는 `rejected`(`trust_undecided`)다. 같은 설정에 `trustOverride: true`로 다시 실행하면 표식 파일이 한 번 생긴다. 모델 테이프와 네트워크는 쓰지 않는다 |
 
 ## 6. 완료 기준
 

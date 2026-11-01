@@ -15,12 +15,12 @@ afterEach(() => {
 
 const TTY = { stdinIsTty: true, stdoutIsTty: true, columns: 100 } as const;
 
-/** 신뢰할 자원(.xeon/commands)이 있는 작업 폴더 */
+/** 신뢰할 자원(.fresnel/commands)이 있는 작업 폴더 */
 function withResources(lines: readonly string[] = [], answers: readonly string[] = []): RealCli {
   const input = scriptedInput([...lines, "/quit"]);
   const cli = createRealCli({
     models: answeringModels("trust-host", answers),
-    files: { ".xeon/commands/hello.md": "Hello\n" },
+    files: { ".fresnel/commands/hello.md": "Hello\n" },
     harness: { terminal: TTY, readLine: (prompt, signal) => input.readLine(prompt, signal) },
   });
   clis.push(cli);
@@ -31,12 +31,12 @@ function trustFile(cli: RealCli): string {
   return join(cli.home.root, "config", "trust.json");
 }
 
-test("xeon trust shows the real card, and --json is the host's TrustStatus for this workspace", async () => {
+test("fresnel trust shows the real card, and --json is the host's TrustStatus for this workspace", async () => {
   const cli = withResources();
   expect(await cli.harness.run(["trust"])).toBe(EXIT.ok);
   const card = cli.harness.stdoutText();
   expect(card).toContain(`프로젝트: ${cli.home.work}\n`);
-  expect(card).toContain("불러오려는 자원: .xeon/commands\n");
+  expect(card).toContain("불러오려는 자원: .fresnel/commands\n");
   expect(card).toContain("판정: 아직 정하지 않음");
   expect(card).toContain(`  1) 이 폴더를 신뢰한다 (저장: ${cli.home.work})\n`);
   expect(cli.sent("trust.get")).toEqual([
@@ -51,7 +51,7 @@ test("xeon trust shows the real card, and --json is the host's TrustStatus for t
     projectRoot: cli.home.work,
     required: true,
     verdict: "undecided",
-    resources: [".xeon/commands"],
+    resources: [".fresnel/commands"],
     options: [
       { choice: { kind: "folder", verdict: "allow" }, savedPath: cli.home.work },
       { choice: { kind: "parent", verdict: "allow" } },
@@ -62,7 +62,7 @@ test("xeon trust shows the real card, and --json is the host's TrustStatus for t
   });
 }, 60_000);
 
-test("xeon trust allow writes trust.json with the owner-only mode and the next run reads it back", async () => {
+test("fresnel trust allow writes trust.json with the owner-only mode and the next run reads it back", async () => {
   const cli = withResources();
   expect(await cli.harness.run(["trust", "allow", "--scope", "parent"])).toBe(EXIT.ok);
   expect(cli.sent("trust.decide")).toEqual([

@@ -25,7 +25,7 @@ export function FileTab() {
           <SegmentedControlItem value="project">프로젝트</SegmentedControlItem>
         </SegmentedControl>
         <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
-          ~/.xeon/settings.json
+          ~/.fresnel/settings.json
         </span>
       </div>
       <Alert

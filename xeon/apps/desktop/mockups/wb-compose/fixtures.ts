@@ -526,7 +526,7 @@ export const chainOrder = [
 
 export const scaffoldFiles = [
   {
-    path: ".xeon-plugin/plugin.json",
+    path: ".fresnel-plugin/plugin.json",
     from: ["scope", "signal", "lens", "guard", "consume", "record", "restore"],
     state: "changed",
   },

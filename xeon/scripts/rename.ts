@@ -102,6 +102,9 @@ export const PROTECTED: readonly RegExp[] = [
   /docs\/xeon(?![A-Za-z0-9_-])/g,
   /xeon-wt/g,
   /(?<=\bcd )xeon(?![A-Za-z0-9_-])/g,
+  // 경로를 이어 붙이는 인자: join(root, "xeon", "packages"), join("docs", "xeon") (디렉터리 이동 전까지 그대로)
+  /"xeon"(?=,\s*"(?:packages|apps|plugins|scripts|vendor|external|justfile|package\.json|tsconfig|turbo\.json|knip\.json|bun\.lock|mise\.toml)")/g,
+  /(?<="docs",\s*)"xeon"/g,
   // 사용자 데이터 경로 `.config/xeon/…`, `/tmp/xeon/…` 등은 보호하지 않는다. 저장소 경로만 보호한다
   new RegExp(
     `(?<![A-Za-z0-9_@.$-])(?<!config/)(?<!share/)(?<!state/)(?<!cache/)(?<!Support/)(?<!Caches/)(?<!tmp/)(?<!TMPDIR/)(?<!XDG_RUNTIME_DIR/)(?<!/etc/)(?<!/opt/)(?<!/home/u/)xeon\\/(?!(?:${RULE_ALT})(?![A-Za-z0-9_-]))(?=${REPO_PATH_TAIL})`,
@@ -536,6 +539,54 @@ export const CATEGORIES: readonly Category[] = [
       { pattern: new RegExp("groupKit", "g"), replace: "groupSdk", skip: NO_MOCKUPS },
     ],
     pathRules: [{ pattern: /(?<![A-Za-z0-9])group-kit/g, replace: "group-sdk" }],
+  },
+  {
+    id: "K",
+    title:
+      "i18n 키 이름 session → threads, point → hook (cli.sessions.*, cli.errors.point.* 등). 신뢰 선택지(trustSession 등)와 설정 탭 sessions는 그대로",
+    rules: [
+      { pattern: /(?<=["'`.])cli\.sessions\./g, replace: "cli.threads.", skip: NO_MOCKUPS },
+      {
+        pattern: /(?<=["'`.])cli\.errors\.sessions\./g,
+        replace: "cli.errors.threads.",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /(?<=["'`.])cli\.usage\.sessions\./g,
+        replace: "cli.usage.threads.",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /(?<=["'`.])cli\.usage\.sessionId\./g,
+        replace: "cli.usage.threadId.",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /(?<=["'`.])cli\.chat\.switchedSession(?![A-Za-z])/g,
+        replace: "cli.chat.switchedThread",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /(?<=["'`.])cli\.errors\.chat\.noSession(?=[A-Za-z]*(["'`.]))/g,
+        replace: "cli.errors.chat.noThread",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /(?<=["'`.])cli\.secret\.references\.sessionsMore(?![A-Za-z])/g,
+        replace: "cli.secret.references.threadsMore",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /(?<=["'`.])cli\.errors\.point\./g,
+        replace: "cli.errors.hook.",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: /(?<=["'`.])cli\.render\.trust\.via\.point(?![A-Za-z])/g,
+        replace: "cli.render.trust.via.hook",
+        skip: NO_MOCKUPS,
+      },
+    ],
   },
   {
     id: "T6",

@@ -147,7 +147,7 @@ test("thread.locked on turn.start exits 4 with the two-line message", async () =
   });
   expect(await h.run(["chat", "-p", "hello"])).toBe(EXIT.lockDenied);
   expect(h.stderrText()).toBe(
-    "xeon: 다른 프로세스(service)가 이 세션을 쓰고 있다\n  해결: 끝날 때까지 두거나 새 세션을 연다\n",
+    "fresnel: 다른 프로세스(service)가 이 세션을 쓰고 있다\n  해결: 끝날 때까지 두거나 새 세션을 연다\n",
   );
   expect(h.closed()).toBe(true);
 });
@@ -308,7 +308,7 @@ test("an engine connection that drops mid-turn ends the run with 1 and says so",
   await h.server().closeFromServer();
   expect(await running).toBe(EXIT.error);
   expect(h.stderrText()).toBe(
-    "xeon: 엔진 연결이 끊겼다\n  해결: xeon service status로 엔진 상태를 확인한다\n",
+    "fresnel: 엔진 연결이 끊겼다\n  해결: fresnel service status로 엔진 상태를 확인한다\n",
   );
 });
 

@@ -58,7 +58,7 @@ function ofDefs(
 }
 
 /**
- * 외부 확장과 앱 설정을 뺀, 코어 패키지가 선언한 설정 그룹. `xeon config schema --core-only`와 schema/ 커밋본의 원천이다.
+ * 외부 확장과 앱 설정을 뺀, 코어 패키지가 선언한 설정 그룹. `fresnel config schema --core-only`와 schema/ 커밋본의 원천이다.
  * 선언을 아직 내놓지 않은 패키지의 키는 없다.
  */
 export function coreSettingGroups(): readonly CatalogGroupInput[] {

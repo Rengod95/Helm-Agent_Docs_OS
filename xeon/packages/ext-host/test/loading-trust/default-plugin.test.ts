@@ -21,7 +21,7 @@ afterEach(async () => {
 
 async function writeBundle(version: string, marker: string): Promise<void> {
   await putFile(
-    join(source, ".xeon-plugin", "plugin.json"),
+    join(source, ".fresnel-plugin", "plugin.json"),
     JSON.stringify({
       schemaVersion: 1,
       name: "helm",
@@ -74,7 +74,7 @@ test("a higher bundled version replaces the install and drops removed files", as
     value: { action: "replaced", version: "1.1.0", previousVersion: "1.0.0" },
   });
   expect(await read(join(destination, "dist", "index.js"))).toBe("v2");
-  const manifest = await read(join(destination, ".xeon-plugin", "plugin.json"));
+  const manifest = await read(join(destination, ".fresnel-plugin", "plugin.json"));
   expect(manifest).toContain('"version":"1.1.0"');
 });
 
@@ -82,7 +82,7 @@ test("a newer install is not downgraded", async () => {
   await writeBundle("1.0.0", "bundled");
   await installDefaultPlugin({ fs: realInstallFs, source, destination });
   await putFile(
-    join(destination, ".xeon-plugin", "plugin.json"),
+    join(destination, ".fresnel-plugin", "plugin.json"),
     JSON.stringify({
       schemaVersion: 1,
       name: "helm",
@@ -103,7 +103,7 @@ test("a newer install is not downgraded", async () => {
 
 test("an install with an unreadable manifest is replaced", async () => {
   await writeBundle("1.0.0", "v1");
-  await putFile(join(destination, ".xeon-plugin", "plugin.json"), "{ broken");
+  await putFile(join(destination, ".fresnel-plugin", "plugin.json"), "{ broken");
   await putFile(join(destination, "stale.txt"), "stale");
   const result = await installDefaultPlugin({ fs: realInstallFs, source, destination });
   expect(result).toEqual({ ok: true, value: { action: "replaced", version: "1.0.0" } });

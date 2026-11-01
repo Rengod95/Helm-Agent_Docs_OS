@@ -97,7 +97,7 @@ describe("what the desktop asks, answered by the real host (T7)", () => {
     expect(pick(project, "result", "projectRoot")).toBe("<home>/project");
     expect(pick(project, "result", "required")).toBe(true);
     expect(pick(project, "result", "verdict")).toBe("undecided");
-    expect(pick(project, "result", "resources")).toEqual([".xeon/skills"]);
+    expect(pick(project, "result", "resources")).toEqual([".fresnel/skills"]);
     const options = pick(project, "result", "options");
     if (!Array.isArray(options)) throw new Error("trust.get gave no options");
     const folder = options.find((o: unknown) => pick(o, "label") === "trust-folder");

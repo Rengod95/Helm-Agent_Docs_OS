@@ -53,7 +53,7 @@ function writeMcpJson(dir: string, name: string, pidFile: string, listedFile: st
 realTest(
   "the .mcp.json of the thread's own folder is read after the folder is trusted, not the one in the engine's working directory",
   async () => {
-    const base = realpathSync(mkdtempSync(join(tmpdir(), "xeon-mcp-ws-")));
+    const base = realpathSync(mkdtempSync(join(tmpdir(), "fresnel-mcp-ws-")));
     const engineCwd = join(base, "engine-cwd");
     const projectDir = join(base, "project");
     mkdirSync(engineCwd);

@@ -501,7 +501,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 알림 | 받은 요청 안 "알림" 구역, 토스트 | `notify.list { afterSeq }`, 알림 `notify.delivered` | 알림 행을 누르면 원인 대화나 화면으로 |
 | 연결·서비스 상태 | 상태 표시줄 왼쪽 | 셸 IPC 엔진 상태(`EngineState`), 연결 상태 기계, `host.status` | 실패 시 "다시 연결", "엔진 다시 시작", "진단 복사" |
 | 원격 대상 | 제목 띠 경로 첫 항목, 상태 표시줄 첫 칸 | 데스크톱 설정 `l0.process.service.remote` [가정], `host.hello` 결과 `transport` | 누르면 대상 팝오버(P-08 요약과 "대상 바꾸기") |
-| 모델 | 상태 표시줄, 입력창 모델 칸 | `settings.get { keys: ["l1.models.default"], threadId }` | 누르면 모델 고르기 `Combobox mode="popup"`. 대화 범위 저장은 `settings.set { scope: "session" }` |
+| 모델 | 상태 표시줄, 입력창 모델 칸 | `settings.get { keys: ["l1.models.default"], threadId }` | 누르면 모델 고르기 `Combobox mode="popup"`. 대화 범위 저장은 `settings.set { scope: "launch" }` |
 | 사용량 | 상태 표시줄 게이지 | `usage.get { threadId }` | 누르면 `Popover`에 게이지 목록 |
 | 목표 | 상태 표시줄 칩 "목표 2/3"(판정 횟수/최대, DP-25) | `[gap:W-05]` | 누르면 `Popover`(첫 줄 "판정 2/3"), 거기서 끝 영역 작업 탭 |
 | Helm 단계 | 상태 표시줄 칩 | `[gap:W-04]` | 누르면 끝 영역 탐구 탭 |
@@ -1061,7 +1061,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 중단 | `turn.interrupt { threadId }` |
 | 이어서 실행 | `turn.resume { threadId }` → resumed, closed, nothing |
 | 첨부 | `attachments.add { threadId, source }`, 끌어 놓기와 붙여넣기 |
-| 모델 바꾸기(이 대화) | `settings.set { key: "l1.models.default", scope: "session", threadId }` |
+| 모델 바꾸기(이 대화) | `settings.set { key: "l1.models.default", scope: "launch", threadId }` |
 | 승인 응답 | `approval.respond { approvalId, decision, answer?, remember? }`, 결과 `approvalFailureOf` |
 | 신뢰 결정 | `trust.decide { workspace, choice }` |
 | 관찰·분기 | `thread.open { mode: "observe" }`, `thread.fork { threadId }` (O-01) |
@@ -1823,7 +1823,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │  테스트 정리   승인1 │ 권한                 │   리뷰 기준 사용자 턴 [10] 도구 [10]             │
 │  빌드 실패 분석      │ 샌드박스             │   승인 필요 [켜짐]  스캔 [켜짐]                  │
 │  예약: 매일 정리   ! │ 세션과 컨텍스트      │ 계정 회전  group-account-rotation         [꺼짐] │
-│ ~/notes          [+] │ 도구와 웹            │ review  ~/.xeon/groups/review             [꺼짐] │
+│ ~/notes          [+] │ 도구와 웹            │ review  ~/.fresnel/groups/review             [꺼짐] │
 │  주간 회고           │>플러그인과 그룹      │   외부 확장 | 신뢰 필요                          │
 │  CLI 세션       잠김 │ 실행과 서비스        │                                                  │
 │                      │ 외관                 │ 핸들러 실패 1: helm tool.call.before             │
@@ -2003,7 +2003,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 #### 6.22.2 캔버스: 층 띠, 블록, 포트, 엣지
 
 - 층 띠는 위에서 아래로 L3, L2, L1, L0, X, F입니다. 위층이 아래층에 기대어 쌓이는 순서입니다. L2 띠 끝에 외부 plugin 칸(`layer: "plugin"`)을 둡니다. L3 띠 아래에 group-sdk 레일(라이브러리라 고를 수 없음)을 둡니다.
-- X 띠 첫 줄은 지점 레일입니다. 지점 종류 일곱 칸(input 3, request 9, guard 3, tool 5, boundary 9, session 15, lifecycle 2, 합 46)에서 이 맥락에 핸들러가 걸린 지점만 이름, fold, 건 확장 수를 보입니다. 둘째 줄은 post 큐, drive 임대, scope, 운영, X 훅 블록입니다. F 띠는 계약 칸이고 읽기 전용입니다.
+- X 띠 첫 줄은 지점 레일입니다. 지점 종류 일곱 칸(input 3, request 9, guard 3, tool 5, boundary 9, thread 15, lifecycle 2, 합 46)에서 이 맥락에 핸들러가 걸린 지점만 이름, fold, 건 확장 수를 보입니다. 둘째 줄은 post 큐, drive 임대, scope, 운영, X 훅 블록입니다. F 띠는 계약 칸이고 읽기 전용입니다.
 - 블록 하나는 확장 하나입니다. 내용: 표시 이름과 mono id(DP-39), 둘째 줄(등급·버전, 제공 능력, 또는 "drive 보유 · 턴 1/4"), 상태 면(자동 꺼짐, 실패 수, drive 보유). 이 맥락에서 꺼진 블록은 윤곽만 그립니다.
 - 포트: 받는 능력(`requires` 꽉 참, `optional` 빔), 연산 on·post·drive. 매니페스트 `points`, `usesPost`, `usesDrive`, `requires`, `optional`이 있는 것만 그립니다.
 - 엣지 종류: 능력(L2 `provides` → 받는 포트, optional 구분), 제공자 없음(받는 포트 → 끝 표시), on(블록 → 지점 레일), post(블록 → post 큐), drive(블록 → drive 임대, 보유 중이면 흐름 표시), provider 등록(예: web-exa → web), 발화(loop → 지점 레일). 엣지는 tone 색이 아니라 선 모양으로 구분합니다(DP-48).
@@ -2067,8 +2067,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 비교 `Select` | 차이 그리기 |
 | "턴 재생" | 재생 막대 |
 | Alert·검사기 "다시 켜기" | `ext.reenable`(W-21) → "다음 단계 경계에 적용" 토스트 |
-| 검사기 "이 대화에서 끄기" | `settings.set { key: "ext.<이름>.enabled", scope: "session", threadId }` |
-| 검사기 "<맥락>에서 덮어쓰기" | 대화·시험: `settings.set { scope: "session" }`. 프로필: `profile.put`(W-46) |
+| 검사기 "이 대화에서 끄기" | `settings.set { key: "ext.<이름>.enabled", scope: "launch", threadId }` |
+| 검사기 "<맥락>에서 덮어쓰기" | 대화·시험: `settings.set { scope: "launch" }`. 프로필: `profile.put`(W-46) |
 
 - 블록은 버튼이고 `aria-label`에 이름, id, 층, 상태, 실패 수를 씁니다. 캔버스는 `role="application"` + `aria-roledescription="캔버스"`이고, 엣지와 띠 이름은 `aria-hidden`입니다. 같은 정보는 목록과 검사기에 글로 있습니다.
 - 움직임(흐름, 교대 표시)은 `prefers-reduced-motion`에서 멈춥니다.
@@ -2103,7 +2103,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 능력 엣지의 실제 바인딩 | `ext.bindings { threadId? }` | `[gap:W-40]` |
 | 맥락별 켜짐·대기 | `group.list`(`GroupStatus.scope`, `pendingToggle`, `drive`) | `[gap:W-24]` |
 | 임대(보유, 차수, 사용량, 후보별 대기 계수) | `group.lease { threadId }`, `lease.*` 이벤트 | `[gap:W-42]` |
-| 지점 레일 | F `POINTS` 상수 | 정적(앱이 contracts를 읽음) |
+| 지점 레일 | F `HOOKS` 상수 | 정적(앱이 contracts를 읽음) |
 | 턴 재생 | `trace.turn { threadId, turnId }` | `[gap:W-43]`, X-15 |
 | 프로필 맥락 | `profile.preview { id }` | `[gap:W-44]` |
 | 시험 맥락 | `thread.list`의 시험 표지 | `[gap:W-34]` |
@@ -2161,7 +2161,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 기능 | wire |
 |---|---|
-| 켜기·끄기(범위 고르기) | `settings.set { key: "ext.<이름>.enabled", scope }`. 이 대화만은 `scope: "session"` |
+| 켜기·끄기(범위 고르기) | `settings.set { key: "ext.<이름>.enabled", scope }`. 이 대화만은 `scope: "launch"` |
 | 다시 켜기(자동 꺼짐) | `ext.reenable { name }` `[gap:W-21]` |
 | drive 그룹 바꾸기 | `settings.set { key: "x.primitives.activeDriveGroup" }` |
 | 새 그룹, 가져오기 | P-21 "새 그룹", 설치 `[gap:W-32]` |
@@ -2340,7 +2340,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 기능 | wire |
 |---|---|
 | 새 시험(O-12) | `ext.test.run { kind, target, options }`과 진행 이벤트 `[gap:W-29]` |
-| 시험 대화 만들기 | `thread.create { workspace?, trial: true }` + 프로필 적용 `settings.set { scope: "session" }` `[gap:W-34]` |
+| 시험 대화 만들기 | `thread.create { workspace?, trial: true }` + 프로필 적용 `settings.set { scope: "launch" }` `[gap:W-34]` |
 | 이벤트 비교 열기 | 두 이벤트열을 나란히(`[gap:C-20]`) |
 | 다시 실행 | 같은 인자로 `ext.test.run` |
 
@@ -2471,7 +2471,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 항목 | 출처 |
 |---|---|
 | 설치 그룹의 블록 | 매니페스트 `composition` → `ext.get` `[gap:W-20]`, X-16 |
-| 지점 fold·실패 규칙 | F `POINTS` 상수(클라이언트) |
+| 지점 fold·실패 규칙 | F `HOOKS` 상수(클라이언트) |
 | 맥락의 provider | `ext.list` + `ext.bindings` `[gap:W-15]` `[gap:W-40]` |
 | 단계 머신 노드·전이 | `composition.phases` X-16 |
 | 구성 검사 | `ext.validateComposition` `[gap:W-47]` |
@@ -3082,7 +3082,7 @@ export const palette = [
 | 23 | 이 문서 도메인과 작업대를 `L4/README.md`에 더하는 일, ADR-0021을 `decisions/README.md` 색인에 더하는 일. README는 이번 작업에서 고치지 않았습니다 | 오케스트레이터 |
 | 24 | 앱을 켤 때 누르는 키로 안전 모드에 들어가는 길(셸 쪽 확인 필요) | 사용자, `L4.desktop.spec` |
 | 25 | 닫음 [결정: 2026-10-31 사용자] M4는 요청 단위만, 자식 승인은 출처 표시. 옛 문장: 승인 기억을 그룹 단위로 둘지("이 그룹에서 항상"). 지금 기억 값은 `request.remember`가 주는 것뿐입니다(D-12). 자식 에이전트가 낸 승인을 부모 그룹 기억으로 묶을지도 함께 정합니다 | 사용자, adr.0018, `L1.tools.spec` |
-| 26 | 프로젝트 안 그룹·훅(`.xeon/` 아래 L3 그룹)의 신뢰 카드 표기. 이 문서는 카드의 "불러오려는 자원"에 `groups/<이름> (on·post·drive)`처럼 쓰는 연산을 함께 보이는 것을 기본값으로 둡니다(D-23). 신뢰한 폴더의 그룹도 `project` tier라 자동 끄기 대상입니다(`X.operations.spec` §4.3.3, 면제는 guard·core뿐) | `X.loading-trust.spec` §4.7.2 |
+| 26 | 프로젝트 안 그룹·훅(`.fresnel/` 아래 L3 그룹)의 신뢰 카드 표기. 이 문서는 카드의 "불러오려는 자원"에 `groups/<이름> (on·post·drive)`처럼 쓰는 연산을 함께 보이는 것을 기본값으로 둡니다(D-23). 신뢰한 폴더의 그룹도 `project` tier라 자동 끄기 대상입니다(`X.operations.spec` §4.3.3, 면제는 guard·core뿐) | `X.loading-trust.spec` §4.7.2 |
 | 27 | 프레임 모드 설정 키(`x.views.frames`, `x.views.allowProjectFrames`)의 소유 문서와, 프레임 `call` 확인 줄을 끌 수 있는 범위 | 사용자, ADR-0021 §6 9번 |
 | 28 | 프로필 저장 파일(`profiles.json`)의 위치와, 프로젝트 범위 프로필(저장소에 커밋되는 프로필)을 둘지 | 사용자, `F.wire-settings.spec`, `L4.host-service.spec` |
 | 29 | 턴 재생 버퍼 크기 기본값(대화마다 8턴)과 계측 비용 기준(얼마를 넘으면 기본을 끌지) | 사용자, X-15, T-PERF 결과 |
@@ -3324,7 +3324,7 @@ export const helmPoints = [
   { point: "tool.call.before", fold: "first", budgetMs: 30000, p50: 3, p95: 9, failures: 0 },
   { point: "tool.execution.after", fold: "tap", budgetMs: 5000, p50: 1, p95: 4, failures: 0 },
   { point: "boundary.settle.after", fold: "tap", budgetMs: 5000, p50: 20, p95: 1200, failures: 1 },
-  { point: "session.start", fold: "tap", budgetMs: 5000, p50: 8, p95: 8, failures: 0 },
+  { point: "thread.start", fold: "tap", budgetMs: 5000, p50: 8, p95: 8, failures: 0 },
   { point: "lifecycle.lease.rejected", fold: "tap", budgetMs: 5000, p50: null, p95: null, failures: 0 },
 ];
 export const lease = { holder: "helm", turns: [1, 4], spawns: [3, 8], tokens: [120000, 400000], queue: [{ group: "work", state: "waiting" }] };

@@ -127,7 +127,7 @@ export interface ExtensionCandidate {
   readonly source: InstallSource;
   /** 확장 루트 절대 경로(심볼릭 링크를 푼 경로). 내장은 null */
   readonly root: string | null;
-  /** `.xeon-plugin/plugin.json` 절대 경로. 내장은 null */
+  /** `.fresnel-plugin/plugin.json` 절대 경로. 내장은 null */
   readonly manifestPath: string | null;
   /** 내장만 */
   readonly builtin: BuiltinExtensionModule | null;
@@ -663,15 +663,15 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 | 설치 위치 | 경로 [가정: 기준 디렉터리는 L0.os가 정한다] | 매니페스트 | 등급 상한 |
 |---|---|---|---|
 | `builtin` | 조립 루트가 넘기는 `BuiltinExtensionModule[]` | 모듈의 `manifest` 상수 | `builtin` |
-| `managed` | `<managedDir>/extensions/<dir>/` | `.xeon-plugin/plugin.json` | `user` |
-| `user` | `<userDir>/extensions/<dir>/`, `x.loading-trust.paths`의 각 경로(`extensions/`와 같은 모양의 디렉터리, 그 아래 한 단계가 확장 하나) [제안] | `.xeon-plugin/plugin.json` | `user` |
-| `project` | `<projectRoot>/.xeon/extensions/<dir>/` | `.xeon-plugin/plugin.json` | `project` |
+| `managed` | `<managedDir>/extensions/<dir>/` | `.fresnel-plugin/plugin.json` | `user` |
+| `user` | `<userDir>/extensions/<dir>/`, `x.loading-trust.paths`의 각 경로(`extensions/`와 같은 모양의 디렉터리, 그 아래 한 단계가 확장 하나) [제안] | `.fresnel-plugin/plugin.json` | `user` |
+| `project` | `<projectRoot>/.fresnel/extensions/<dir>/` | `.fresnel-plugin/plugin.json` | `project` |
 
-- 외부 확장의 매니페스트는 확장 루트의 `.xeon-plugin/plugin.json`이다(F.extensions.spec §3.1, Claude Code `.claude-plugin/plugin.json` 레이아웃, `_research/refs/claude-code.md` 96-99행).
+- 외부 확장의 매니페스트는 확장 루트의 `.fresnel-plugin/plugin.json`이다(F.extensions.spec §3.1, Claude Code `.claude-plugin/plugin.json` 레이아웃, `_research/refs/claude-code.md` 96-99행).
 - 내장 패키지는 엔트리 모듈이 `manifest` 상수와 `extension` 엔트리를 named export한다. 로더는 같은 `validateManifest`로 검사한다. 내장 매니페스트도 JSON 파싱 결과와 같은 검사를 받는다.
-- 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.xeon-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다.
+- 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.fresnel-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다.
 - 매니페스트 파일이 없는 디렉터리는 `manifest_missing` 경고만 남기고 건너뛴다. Claude Code의 "매니페스트 없이 표준 레이아웃 자동 탐색"(`_research/refs/claude-code.md` 96행)은 채택하지 않는다 [제안]. 엔트리와 지점 선언이 없으면 정적 검사를 할 수 없기 때문이다.
-- 심볼릭 링크는 `realpath`로 풀고, 같은 실제 경로는 한 번만 후보로 둔다. 점으로 시작하는 디렉터리는 확장이 아니므로 건너뛴다. 프로젝트 위치의 확장이 `.xeon/extensions` 밖으로 풀리면 후보로 두지 않고 경고(`manifest_missing`)만 남긴다. 저장소가 심볼릭 링크로 밖의 코드를 끌어오지 못하게 하기 위해서다.
+- 심볼릭 링크는 `realpath`로 풀고, 같은 실제 경로는 한 번만 후보로 둔다. 점으로 시작하는 디렉터리는 확장이 아니므로 건너뛴다. 프로젝트 위치의 확장이 `.fresnel/extensions` 밖으로 풀리면 후보로 두지 않고 경고(`manifest_missing`)만 남긴다. 저장소가 심볼릭 링크로 밖의 코드를 끌어오지 못하게 하기 위해서다.
 
 #### 4.2.2 우선순위와 이름 충돌
 
@@ -805,7 +805,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 #### 4.4.7 기본 플러그인 설치
 
 - [제안] 릴리즈에 든 기본 플러그인(Helm, D-M3-01 c)은 `installDefaultPlugin`이 사용자 확장 위치 `<userDir>/extensions/<name>/`에 복사한다. 조립 루트가 `loadAll` 전에 부른다. 설치 위치가 `user`라 신뢰 상한이 `user`이고 안전 모드에서 실리지 않는다(M3-REQ-29, M3-REQ-110).
-- 규칙은 설치본 매니페스트(`.xeon-plugin/plugin.json`)의 `version`과 번들 매니페스트의 `version` 비교다.
+- 규칙은 설치본 매니페스트(`.fresnel-plugin/plugin.json`)의 `version`과 번들 매니페스트의 `version` 비교다.
 
 | 설치본 | 동작 |
 |---|---|
@@ -904,12 +904,12 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 | 원본 요소 | 원본 동작 | Xeon에서 바꿀 점 | 이유 |
 |---|---|---|---|
 | `import lockfile from "proper-lockfile"`, `acquireTrustLockSync`(138-168) | 동기 잠금, 20ms 바쁜 대기 10회 | 삭제. `TrustStoreBackend.update`가 잠금과 원자 교체를 맡는다 | 잠금 구현은 L0 소관이다(adr.0006 §6 세션 잠금 미결과 같은 문제). 바쁜 대기를 없앤다 |
-| `CONFIG_DIR_NAME`(`../config.ts`) | `.pi` | 상수 `.xeon`. config 모듈을 import하지 않는다 | config.ts 결합 해체 |
+| `CONFIG_DIR_NAME`(`../config.ts`) | `.pi` | 상수 `.fresnel`. config 모듈을 import하지 않는다 | config.ts 결합 해체 |
 | `homedir()`, `process.env.HOME` | 직접 읽기 | `LoaderPaths.homeDir` 주입 | 테스트와 OS 차이를 L0로 넘긴다 |
 | `existsSync`, `readFileSync`, `writeFileSync`, `mkdirSync` | 동기 fs | `LoaderFs`, `TrustStoreBackend` 비동기 포트 | X는 L0를 import하지 않는다(architecture.layers.spec §4.3.3) |
 | `canonicalizePath`, `resolvePath`(`../utils/paths.ts`) | 경로 정규화 | 생성자에 받는 `normalize`(=`LoaderFs.realpath` 기반) | 유틸 결합 해체 |
 | `stripBom`(`../utils/text.ts`) | BOM 제거 | 같은 기능의 로컬 함수 3줄 | 유틸 결합 해체 |
-| 저장 위치 `~/.pi/agent/trust.json` | 사용자 영역 | `<userDir>/trust.json`(기본 `~/.xeon/trust.json`) [가정: userDir은 L0.os] | `.xeon` 사용자 영역 |
+| 저장 위치 `~/.pi/agent/trust.json` | 사용자 영역 | `<userDir>/trust.json`(기본 `~/.fresnel/trust.json`) [가정: userDir은 L0.os] | `.fresnel` 사용자 영역 |
 | 파일 형식 `Record<path, boolean \| null>` | 값만 | `TrustFileSchema`(`version`, `verdict`, `decidedAt`, `via`) | 버전 관리와 감사 |
 | `readTrustFile`의 예외 | 손상이면 던짐 → 시작 실패 | `TrustLookup.kind: "corrupt"` → 불신 처리, 쓰기 거부(§4.7.5) | 손상 파일 하나로 엔진이 시작하지 못하는 일을 막는다. 덮어써서 기존 결정을 잃는 일도 막는다 |
 | `TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES`(30-39) | `.pi/` 아래 8개 | §4.7.2 목록 | Xeon 자원 이름 |
@@ -928,15 +928,15 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 | 경로(프로젝트 루트 기준) | 대상 |
 |---|---|
-| `.xeon/extensions/` | 프로젝트 확장 |
-| `.xeon/settings.json`, `.xeon/settings.local.json` [가정: 파일 이름은 L1.persistence.spec] | 프로젝트·로컬 설정 |
-| `.xeon/mcp.json`, `.mcp.json` | 프로젝트 MCP 서버(`.mcp.json`은 프로젝트 루트의 Claude Code 형식 파일, L2.mcp.spec §4.2) |
-| `.xeon/hooks/` [가정: 외부 훅 위치는 X.operations.spec, M4] | 외부 훅 |
-| `.xeon/skills/`, `.xeon/commands/`, `.xeon/prompts/`, `.xeon/agents/` | 프로젝트 자원. `.xeon/commands/`는 `L2.dialog` 슬래시 명령 파일이다(셸 주입을 담을 수 있다. `L2.dialog.spec` §4.2.1a) |
-| `.xeon/SYSTEM.md`, `.xeon/APPEND_SYSTEM.md` | 시스템 프롬프트 파일 |
+| `.fresnel/extensions/` | 프로젝트 확장 |
+| `.fresnel/settings.json`, `.fresnel/settings.local.json` [가정: 파일 이름은 L1.persistence.spec] | 프로젝트·로컬 설정 |
+| `.fresnel/mcp.json`, `.mcp.json` | 프로젝트 MCP 서버(`.mcp.json`은 프로젝트 루트의 Claude Code 형식 파일, L2.mcp.spec §4.2) |
+| `.fresnel/hooks/` [가정: 외부 훅 위치는 X.operations.spec, M4] | 외부 훅 |
+| `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/` | 프로젝트 자원. `.fresnel/commands/`는 `L2.dialog` 슬래시 명령 파일이다(셸 주입을 담을 수 있다. `L2.dialog.spec` §4.2.1a) |
+| `.fresnel/SYSTEM.md`, `.fresnel/APPEND_SYSTEM.md` | 시스템 프롬프트 파일 |
 | `.agents/skills/`(프로젝트 루트와 상위 디렉터리, 사용자 홈의 것은 제외) | pi와 같은 공유 스킬 위치(`trust-manager.ts:186-208`) |
 
-- 빈 `.xeon` 디렉터리는 신뢰를 요구하지 않는다(pi `docs/security.md` "A bare `.pi` directory does not require project trust").
+- 빈 `.fresnel` 디렉터리는 신뢰를 요구하지 않는다(pi `docs/security.md` "A bare `.pi` directory does not require project trust").
 - `AGENTS.md`, `CLAUDE.md` 같은 컨텍스트 파일은 이 목록에 없다. pi처럼 신뢰와 무관하게 읽힌다. 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않는다. 그래도 신뢰되지 않은 입력으로 본다(pi `docs/security.md` 프로젝트 신뢰 절).
 
 #### 4.7.3 판정 순서와 선택지
@@ -984,7 +984,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 | 프로젝트 확장 | 매니페스트 읽기, import, 엔트리 실행을 하지 않는다. 판정 전에는 매니페스트 JSON도 파싱하지 않는다 | 이 문서 |
 | 프로젝트 훅(외부 훅 프로토콜, M4) | 실행하지 않는다 | X.operations.spec |
 | 프로젝트·로컬 설정 파일의 `ext.*` 키와 `x.loading-trust.*` 키 | 유효 값 계산에서 뺀다. 파일에서 지우지 않는다 | 이 문서(규칙), L1.persistence.spec(적용) |
-| 프로젝트 MCP 서버(`.xeon/mcp.json`, `.mcp.json`) | 기동하지 않는다 | L2.mcp.spec |
+| 프로젝트 MCP 서버(`.fresnel/mcp.json`, `.mcp.json`) | 기동하지 않는다 | L2.mcp.spec |
 | 프로젝트 스킬·프롬프트·에이전트·시스템 프롬프트 파일 | 자원 목록에 넣지 않는다 | L2.knowledge.spec, L1.context.spec |
 
 - 불신(`deny`, `undecided`)이면 위 표의 대상은 이 실행 동안 계속 제외된다. 프로젝트 후보는 `rejected`(`trust_denied` 또는 `trust_undecided`)로 진단에 남는다. 탐색은 존재 확인만 한 상태이므로 후보 이름은 디렉터리 이름으로 적는다.
@@ -1080,7 +1080,7 @@ flowchart LR
 
 ### 4.10 pi 확장 호환 (두지 않음)
 
-[결정: review.m3-design-inputs D-M3-11 c, adr.0017 §3.7] pi 확장 어댑터, pi 가상 모듈, 설정 `x.loading-trust.piCompat`, pi 확장 디렉터리, `pi_*` 진단 코드는 없다. 외부 확장은 자체 확장 API(`.xeon-plugin/plugin.json` 매니페스트와 `ExtensionEntry`)로만 싣는다. 가상 모듈 등록 수단은 SDK 모듈 세 개를 플러그인 번들에 주는 용도뿐이다(§4.4.6).
+[결정: review.m3-design-inputs D-M3-11 c, adr.0017 §3.7] pi 확장 어댑터, pi 가상 모듈, 설정 `x.loading-trust.piCompat`, pi 확장 디렉터리, `pi_*` 진단 코드는 없다. 외부 확장은 자체 확장 API(`.fresnel-plugin/plugin.json` 매니페스트와 `ExtensionEntry`)로만 싣는다. 가상 모듈 등록 수단은 SDK 모듈 세 개를 플러그인 번들에 주는 용도뿐이다(§4.4.6).
 
 ## 5. 실패와 경계 사례
 
@@ -1099,7 +1099,7 @@ flowchart LR
 | 매니페스트 디렉터리에 `plugin.json`이 없음 | 진단 `manifest_missing`(경고)만 남기고 건너뛴다 |
 | `entry`가 가리키는 파일이 없음, 함수 export가 없음, import 중 예외, 확장 루트 밖으로 풀림 | `error`(각각 `entry_not_found`, `entry_not_function`, `entry_import_failed`). 다른 확장은 계속 |
 | 취소 신호가 설치 중에 켜짐 | `ExtHost.install`이 엔트리를 기다리지 않고 끝내고 `loadAll`은 `LoadAbortError`를 던진다 |
-| 비대화형 실행, 프로젝트에 `.xeon/extensions/` 있음, 저장 결정 없음 | 불신. 프로젝트 확장은 import되지 않고 `rejected`(`trust_undecided`) |
+| 비대화형 실행, 프로젝트에 `.fresnel/extensions/` 있음, 저장 결정 없음 | 불신. 프로젝트 확장은 import되지 않고 `rejected`(`trust_undecided`) |
 | `thread.trust.before` 핸들러가 throw | `FIRST_DENY.project_trust`(불신). 저장하지 않는다 |
 | 신뢰 저장 파일 손상 | 불신(`corruptStore`), 프롬프트 없음, 쓰기 거부, 진단 |
 | 프롬프트 중 사용자가 창을 닫음 | 불신(`undecided`), 저장 없음 |
@@ -1189,7 +1189,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 14. 이 문서 §4.6.2 표의 각 행·열과 `TRUST_MATRIX` 상수가 같다(문서 대조 테스트).
 15. 외부 확장 매니페스트의 `trust.level: "builtin"`은 `trust_exceeds_source`로 거부된다.
 16. 외부 확장의 `entry`가 없는 파일이거나 함수 export가 없거나 import 중 던지면 그 확장만 `error`(`entry_not_found`, `entry_not_function`, `entry_import_failed`)이고 다른 확장의 로드는 계속된다.
-17. 사용자 위치의 외부 확장은 `<userDir>/extensions/<이름>/.xeon-plugin/plugin.json`에서 발견되어 `user` 등급, `user` tier로 로드되고 `on` 핸들러가 호출된다. 플러그인이 import한 `@xeon/contracts`, `typebox`, `@xeon/group-sdk`은 호스트가 넘긴 값과 같다.
+17. 사용자 위치의 외부 확장은 `<userDir>/extensions/<이름>/.fresnel-plugin/plugin.json`에서 발견되어 `user` 등급, `user` tier로 로드되고 `on` 핸들러가 호출된다. 플러그인이 import한 `@xeon/contracts`, `typebox`, `@xeon/group-sdk`은 호스트가 넘긴 값과 같다.
 18. 격리 자식이 `restartWindowSec` 안에 `maxRestarts + 1`번 끝나면 상태가 `error`(`isolation_restart_limit`)다.
 19. 로더는 Cordis를 import하지 않는다. 확장 엔트리는 `ExtHost.install`로만 실행되고(가짜 `ExtHost`의 호출 기록으로 확인), scope setup 본문의 `post`는 `setup_action`, 엔트리 본문 예외는 `entry_threw`가 된다.
 20. `policy.admit`이 `TierError`를 내면 그 확장은 install되지 않고 진단이 `tier_rejected`다.

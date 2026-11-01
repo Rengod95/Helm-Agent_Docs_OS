@@ -108,7 +108,7 @@ xeon/packages/cap-knowledge/
 
 - 세션 투영·색인 테이블 셋(`cap_knowledge_sessions`, `cap_knowledge_session_docs`, `cap_knowledge_session_fts`)의 DDL은 마이그레이션 파일에 두지 않고 투영기 `cap.knowledge`의 `ddl`에 둔다. 투영 재생성 규칙(`eng.events.design` §5.1 규칙 4)을 따르기 위해서다.
 - 세션 밖 상태 테이블의 마이그레이션 위치와 적용 방식은 `L0.store.plan`을 따른다 [가정: `cap-*` 패키지의 `migrations/`를 접두사별로 적용한다].
-- 정본 파일 경로(사용자 데이터 디렉터리, 프로젝트 `.xeon/skills`)는 코드에 상수로 두지 않고 `xeon.os`의 경로 API에서 받는다(`L0.os.spec`, `eng.dependency-rules.guide` DR-13).
+- 정본 파일 경로(사용자 데이터 디렉터리, 프로젝트 `.fresnel/skills`)는 코드에 상수로 두지 않고 `xeon.os`의 경로 API에서 받는다(`L0.os.spec`, `eng.dependency-rules.guide` DR-13).
 - `cap-knowledge`는 `bun:sqlite`를 import하지 않는다. SQL은 `xeon.store.scoped("cap_knowledge_")` 핸들로만 실행한다(DR-07).
 
 ## 3. 작업 분해

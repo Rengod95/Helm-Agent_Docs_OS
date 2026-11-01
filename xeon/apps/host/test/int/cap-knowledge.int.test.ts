@@ -11,7 +11,7 @@ import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// HOST.6 cap-knowledge (int): skill_view가 도구로 광고되고 사용자 스킬을 읽는다. 프로젝트 스킬(.xeon/skills)은 프로젝트를 신뢰한 경우에만 싣는다
+// HOST.6 cap-knowledge (int): skill_view가 도구로 광고되고 사용자 스킬을 읽는다. 프로젝트 스킬(.fresnel/skills)은 프로젝트를 신뢰한 경우에만 싣는다
 // (결정 D6, 조립 루트가 projectTrust 옵션을 X의 resolveProjectTrust에 이은 것을 시험한다). 프로젝트 폴더는 대화의 작업 폴더다(G2-02, HS-76):
 // 엔진의 작업 디렉터리에 있는 스킬은 대화의 폴더가 아니면 싣지 않는다.
 
@@ -71,7 +71,7 @@ async function viewSkill(options: {
 
 /** 작업 폴더에 프로젝트 스킬 하나를 둔다 */
 function prepareProjectSkill({ workspace }: { readonly workspace: string }): void {
-  const dir = join(workspace, ".xeon", "skills", "proj-demo");
+  const dir = join(workspace, ".fresnel", "skills", "proj-demo");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "SKILL.md"), skillFile("proj-demo", "project skill body marker"));
 }

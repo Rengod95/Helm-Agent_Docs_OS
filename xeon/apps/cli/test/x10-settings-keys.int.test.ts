@@ -14,8 +14,8 @@ import { EXIT } from "../src/exit-codes.ts";
 import { createRealCli, type RealCli } from "./support/real-host.ts";
 
 // X10 (review.m3b-plan §1.1): 설정 화면 항목·설정 파일 키·설정 명령이 같은 F5 스키마에서 나온다. 화면은 M4라 view-model로 확인한다.
-// 실제 호스트의 카탈로그 하나에서 세 집합을 만들어 견준다: (1) 설정 파일 스키마의 키(`xeon config schema`가 쓰는 경로),
-// (2) `xeon config list --deprecated`가 보이는 키, (3) 설정 화면 view-model의 항목(탭 항목 + 파일 전용 항목). 셋은 같아야 한다.
+// 실제 호스트의 카탈로그 하나에서 세 집합을 만들어 견준다: (1) 설정 파일 스키마의 키(`fresnel config schema`가 쓰는 경로),
+// (2) `fresnel config list --deprecated`가 보이는 키, (3) 설정 화면 view-model의 항목(탭 항목 + 파일 전용 항목). 셋은 같아야 한다.
 // 읽는 코드가 없는 `reserved` 키는 목록과 화면에서 빠지므로 세 집합 모두에 없다.
 
 const clis: RealCli[] = [];
@@ -29,7 +29,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** `xeon config schema --scope <범위> --out <파일>`이 쓴 설정 파일 스키마의 키 */
+/** `fresnel config schema --scope <범위> --out <파일>`이 쓴 설정 파일 스키마의 키 */
 async function schemaKeys(
   cli: RealCli,
   scope: "managed" | "user" | "project" | "local",
@@ -66,7 +66,7 @@ test("X10: the settings file schema keys, the config list keys and the settings 
     for (const key of await schemaKeys(cli, scope)) fileKeys.add(key);
   }
   const sessionOnly = listed
-    .filter((row) => row.def.allowedScopes.every((scope) => scope === "session"))
+    .filter((row) => row.def.allowedScopes.every((scope) => scope === "launch"))
     .map((row) => row.def.key);
   // 읽는 코드가 없는 reserved 키는 파일 스키마에는 있지만 목록과 화면에서는 빠진다
   const extras = [...fileKeys].filter((key) => !listKeys.includes(key)).toSorted();

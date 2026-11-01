@@ -14,7 +14,7 @@ import type { CliDeps, CliIo, CliSignal, DoctorProbes } from "./io.ts";
  * 테스트 격리용 상태 파일 덮어쓰기. 운영 경로는 @xeon/host의 resolveHostStatePaths()가 정한 `<OsDirs.state>/cli/state.json`이고
  * 이 변수가 없을 때 그 경로를 쓴다 [결정: review.decisions-2 B-07]
  */
-const STATE_FILE_ENV = "XEON_CLI_STATE_FILE";
+const STATE_FILE_ENV = "FRESNEL_CLI_STATE_FILE";
 
 /** 터미널이 아니면 isTTY는 false가 아니라 undefined다 */
 function isTty(stream: { readonly isTTY?: boolean | undefined }): boolean {
@@ -247,7 +247,7 @@ async function probeSearxng(
   signal: AbortSignal,
 ): Promise<"ok" | "json-disabled" | "unreachable"> {
   const attempted = await attemptAsync(async () => {
-    const response = await fetch(`${baseUrl}/search?q=xeon&format=json&pageno=1`, {
+    const response = await fetch(`${baseUrl}/search?q=fresnel&format=json&pageno=1`, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(SEARXNG_PROBE_TIMEOUT_MS)]),
       redirect: "manual",
     });
@@ -272,7 +272,7 @@ const REAL_PROBES: DoctorProbes = { probeSearxng };
 
 /**
  * 폴더 없이 설치된 기본 그룹 이름(apps/host의 assembly/catalog.ts가 올린다). CLI는 host 조립 코드를 import하지 않으므로
- * 여기 옮겨 적는다. 목록이 어긋나면 `xeon group new`가 기본 그룹과 겹치는 이름을 거르지 못한다 [미결: L4.cli.spec §10]
+ * 여기 옮겨 적는다. 목록이 어긋나면 `fresnel group new`가 기본 그룹과 겹치는 이름을 거르지 못한다 [미결: L4.cli.spec §10]
  */
 const BUILTIN_GROUP_NAMES: readonly string[] = ["helm", "learning", "account-rotation"];
 
@@ -322,7 +322,7 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
       const { exportDatabase } = await import("@xeon/platform-store");
       return exportDatabase(options);
     },
-    // 데이터 디렉터리는 호스트와 같은 resolveOsDirs가 정한다(XEON_HOME 포함). 자원 디렉터리는 데이터 위치와 무관하고
+    // 데이터 디렉터리는 호스트와 같은 resolveOsDirs가 정한다(FRESNEL_HOME 포함). 자원 디렉터리는 데이터 위치와 무관하고
     // resolveOsDirs가 절대 경로를 요구해 실행 파일 옆을 넘긴다(@xeon/host의 hostResourceDir과 같은 값)
     resolveDataDir: () => {
       const dirs = resolveOsDirs({ resourceDir: dirname(process.execPath) });

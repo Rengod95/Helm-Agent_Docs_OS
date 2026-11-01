@@ -16,12 +16,12 @@ import { EXIT, type ExitCode } from "../exit-codes.ts";
 import type { GroupIoError, GroupTemplatesPort } from "../io.ts";
 import { printFailure, type CommandContext } from "./context.ts";
 
-// L4.cli.spec §3.1 `xeon group new`, §3.8. L3.slots.spec §3.3.6 요구 R1~R6.
+// L4.cli.spec §3.1 `fresnel group new`, §3.8. L3.slots.spec §3.3.6 요구 R1~R6.
 // 순서: 색인 읽기 → 설치된 이름과 겹침 검사(R2) → 대상 폴더 검사(R3) → 템플릿 읽기와 치환(메모리) → 쓰기 →
 // 매니페스트 검사(R4, 실패하면 쓴 것을 지운다) → 안내(R5). 템플릿 코드는 실행하지 않는다(R5).
 
 /** 외부 그룹의 매니페스트 위치(L3.slots.spec §3.3.2) */
-const MANIFEST_PATH = ".xeon-plugin/plugin.json";
+const MANIFEST_PATH = ".fresnel-plugin/plugin.json";
 
 interface PlannedFile {
   /** 대상 폴더 기준 상대 경로(치환 끝난 값) */
@@ -197,7 +197,7 @@ async function printCreated(
   await ctx.io.stdout(`${lines.join("\n")}\n`);
 }
 
-/** `xeon group new` 본체. 실패는 두 줄 오류로 쓰고 종료 코드를 돌려준다 */
+/** `fresnel group new` 본체. 실패는 두 줄 오류로 쓰고 종료 코드를 돌려준다 */
 export async function runGroup(ctx: CommandContext, command: GroupNewCommand): Promise<ExitCode> {
   const created = await createGroup(ctx, command);
   if (!created.ok) {

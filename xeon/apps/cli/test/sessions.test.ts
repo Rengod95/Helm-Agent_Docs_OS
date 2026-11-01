@@ -114,7 +114,7 @@ test("sessions show on an unknown id exits 1 with the not-found message", async 
   const h = harness();
   expect(await h.run(["sessions", "show", T2])).toBe(EXIT.error);
   expect(h.stderrText()).toContain(`세션 ${T2}이(가) 없다`);
-  expect(h.stderrText()).toContain("xeon sessions ls");
+  expect(h.stderrText()).toContain("fresnel sessions ls");
 });
 
 test("sessions fork prints the new id and passes --at", async () => {

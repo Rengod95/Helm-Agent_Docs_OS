@@ -123,7 +123,7 @@ binds: []
 | D3 데스크톱 서명 | L4.desktop.plan D10 | M2는 ad hoc 서명, Developer ID 서명과 공증은 M3 릴리즈 후보입니다 | 결정됨 |
 | D4 `web.browse` | L2.web.plan B10 | M3 초입으로 옮겼습니다 | 결정됨 |
 | D5 MCP `input_required` | L2.mcp.spec §10 미결 2 | L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출합니다 | 결정됨 |
-| D6 MCP stdio 서버 실행 권한 | E-02(bwrap 없음), L2.mcp.spec §10 미결 5 | M2는 사용자 권한 실행입니다. `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽습니다. 샌드박스는 bwrap 시험 환경이 생긴 뒤 정합니다 | 일부 결정(샌드박스 열림) |
+| D6 MCP stdio 서버 실행 권한 | E-02(bwrap 없음), L2.mcp.spec §10 미결 5 | M2는 사용자 권한 실행입니다. `.mcp.json`(루트와 `.fresnel/mcp.json`)은 프로젝트 신뢰 뒤에만 읽습니다. 샌드박스는 bwrap 시험 환경이 생긴 뒤 정합니다 | 일부 결정(샌드박스 열림) |
 | D7 `post.when = next`와 `aside` | L1.tasks.spec §4.9, FR-T4 | B안 + 1안입니다. F `PostWhen`은 바꾸지 않고 FR-T4는 철회합니다 | 결정됨 |
 | D8 Cordis 재시작 재적용 시점 | N-02 | (b) 다음 단계 경계에 적용합니다. X.3에서 구현했습니다 | 결정됨, 해결(8981bc8) |
 | D9 X 외부 확장 탐색·로더·훅·안전 모드 | V-09, X.loading-trust.plan L-13·L-14·L-18·L-28·L-29 | M3로 옮겼습니다. 프로젝트 신뢰(X.4)만 M2입니다. V-09(host의 X 로더 사용)도 M3에서 봅니다 | 결정됨 |

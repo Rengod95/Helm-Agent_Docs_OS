@@ -30,7 +30,7 @@ import type { EventCollector } from "../fixtures/wire-client.ts";
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 
-const KEY_VALUE = "xeon-fake-anthropic-key-0123456789abcdef";
+const KEY_VALUE = "fresnel-fake-anthropic-key-0123456789abcdef";
 const REPLY = "pong from the fake provider";
 const MODEL = "anthropic/claude-sonnet-5-5";
 
@@ -45,7 +45,7 @@ const refParsed = parseSecretRef(`secret://${KEY_NAME}`);
 if (!refParsed.ok) throw new Error("the fixture reference is invalid");
 const KEY_HANDLE: SecretHandle = refParsed.value.handle;
 
-/** 데스크톱 "모델 키"가 쓰는 길: 셸이 `xeon secret add`를 돌리고 값은 stdin으로. 호스트에서는 값 입력 수단을 맡기고 `secret.beginEntry`다 */
+/** 데스크톱 "모델 키"가 쓰는 길: 셸이 `fresnel secret add`를 돌리고 값은 stdin으로. 호스트에서는 값 입력 수단을 맡기고 `secret.beginEntry`다 */
 function sourceOf(text: string) {
   return {
     read() {
@@ -337,7 +337,7 @@ realTest(
     s.host.secretOutOfBand.offerEntry({
       name: nameOf("exa-key"),
       action: "add",
-      source: sourceOf("xeon-fake-exa-key-0123456789"),
+      source: sourceOf("fresnel-fake-exa-key-0123456789"),
     });
     await s.connection.request("secret.beginEntry", { name: nameOf("exa-key"), action: "add" });
     const after = await s.connection.request("secret.list", { meta: true });

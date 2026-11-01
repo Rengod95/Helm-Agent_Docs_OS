@@ -40,7 +40,7 @@ if (!parsedRef.ok) throw new Error("the fixture secret reference is invalid");
 const SECRET_NAME: SecretName = parsedRef.value.name;
 export const SECRET_REF: SecretHandle = parsedRef.value.handle;
 /** 와이어, 이벤트, 도구 결과 어디에도 나오면 안 되는 가짜 값 */
-export const SECRET_VALUE = "xeon-fake-token-7f3a91c2d4e85b60";
+export const SECRET_VALUE = "fresnel-fake-token-7f3a91c2d4e85b60";
 /** env에 값이 들어왔을 때만 표지를 내는 명령. 값은 출력하지 않는다 */
 const SECRET_COMMAND = "printenv GH_TOKEN >/dev/null && echo secret-env-present";
 

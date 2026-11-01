@@ -70,7 +70,7 @@ function stateWithSpill(): {
   readonly old: string;
   readonly fresh: string;
 } {
-  const state = mkdtempSync(join(tmpdir(), "xeon-data-ops-"));
+  const state = mkdtempSync(join(tmpdir(), "fresnel-data-ops-"));
   cleanups.push(async () => {
     rmSync(state, { recursive: true, force: true });
   });

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { attemptAsync, err, ok, parse, parseJson, type Result } from "@xeon/contracts";
 import {
   EMPTY_STATE,
+  upgradeScheduleState,
   type ScheduleState,
   type ScheduleStore,
   type StoreFailure,
@@ -30,7 +31,7 @@ const TriggerSchema = Type.Union([
   }),
   Type.Object({ kind: Type.Literal("remote") }),
   Type.Object({
-    kind: Type.Literal("loop"),
+    kind: Type.Literal("repeat"),
     intervalSeconds: Type.Number(),
     maxIterations: Type.Number(),
     expiresAtMs: Type.Number(),
@@ -69,7 +70,7 @@ const RunSchema = Type.Object({
     Type.Literal("at"),
     Type.Literal("file_watch"),
     Type.Literal("remote"),
-    Type.Literal("loop"),
+    Type.Literal("repeat"),
   ]),
   dueAt: Type.Number(),
   claimedAt: Type.Number(),
@@ -108,7 +109,7 @@ const RunSchema = Type.Object({
 });
 
 const ScheduleStateSchema = Type.Object({
-  version: Type.Literal(1),
+  version: Type.Literal(2),
   entries: Type.Array(EntrySchema),
   runs: Type.Array(RunSchema),
 });
@@ -141,7 +142,8 @@ export function createFileScheduleStore(dir: string): ScheduleStore {
       }
       const json = parseJson(read.value);
       if (!json.ok) return failure("state file is not JSON");
-      const parsed = parse(ScheduleStateSchema, json.value);
+      // version 1 파일(예약 종류 "loop")은 읽을 때 한 번 version 2로 올린다(L2.schedule.spec §4.4.9)
+      const parsed = parse(ScheduleStateSchema, upgradeScheduleState(json.value));
       if (!parsed.ok) {
         const paths = parsed.error.issues
           .slice(0, 3)

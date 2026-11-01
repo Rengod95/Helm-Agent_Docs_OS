@@ -83,7 +83,7 @@ export type ConfigCommand =
       readonly coreOnly: boolean;
     };
 
-/** `xeon group new <이름> [--drive|--policy] [--dir <폴더>] [--json]`(L3.slots.spec §3.3.6, L4.cli.spec §3.1) */
+/** `fresnel group new <이름> [--drive|--policy] [--dir <폴더>] [--json]`(L3.slots.spec §3.3.6, L4.cli.spec §3.1) */
 export interface GroupNewCommand {
   readonly kind: "group.new";
   readonly name: string;
@@ -118,7 +118,7 @@ export type ScheduleTriggerArg =
       readonly debounceMs: number;
     }
   | {
-      readonly kind: "loop";
+      readonly kind: "repeat";
       readonly intervalSeconds: number;
       readonly maxIterations: number;
       readonly expiresInSeconds: number;
@@ -496,7 +496,7 @@ function fileScopeOf(text: string | null): Result<FileScope, UsageError> {
   if (text === null) return ok("user");
   const found = FILE_SCOPES.find((scope) => scope === text);
   if (found !== undefined) return ok(found);
-  if (text === "session" || text === "managed") {
+  if (text === "launch" || text === "managed") {
     return err(
       usage(
         "conflictingFlags",
@@ -751,7 +751,7 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
           usage(
             "missingArgument",
             t("cli.usage.config.schemaScopeMissing.message"),
-            "xeon config schema --scope managed|user|project|local",
+            "fresnel config schema --scope managed|user|project|local",
           ),
         );
       }
@@ -796,7 +796,7 @@ const TRUST_SCOPES: readonly TrustScope[] = ["folder", "parent", "session"];
 
 function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustCommand, UsageError> {
   const [action, ...tail] = rest;
-  // `xeon trust --json`처럼 동작 이름 없이 플래그부터 오면 status다
+  // `fresnel trust --json`처럼 동작 이름 없이 플래그부터 오면 status다
   const bare = action?.startsWith("-") === true;
   if (action === undefined || action === "status" || bare) {
     const scanned = scanArgs(acc, bare ? rest : tail, { "--json": { value: "none" } });
@@ -828,7 +828,7 @@ function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustComman
       usage(
         "unexpectedArgument",
         t("cli.usage.noPositional.message", { command: `trust ${action}` }),
-        `xeon trust ${action} [--scope folder|parent|session]`,
+        `fresnel trust ${action} [--scope folder|parent|session]`,
       ),
     );
   }
@@ -966,7 +966,7 @@ function triggerOf(flags: Scanned, flag: TriggerFlag): Result<ScheduleTriggerArg
       if (expiresInSeconds === null) {
         return err(badNumber("--expires-in", 1, SCHEDULE_MAX_SECONDS));
       }
-      return ok({ kind: "loop", intervalSeconds, maxIterations, expiresInSeconds });
+      return ok({ kind: "repeat", intervalSeconds, maxIterations, expiresInSeconds });
     }
     default:
       return assertNever(flag, "TriggerFlag");
@@ -1064,7 +1064,7 @@ function parseScheduleList(
       usage(
         "unexpectedArgument",
         t("cli.usage.noPositional.message", { command: "schedule list" }),
-        "xeon schedule list [--all] [--json]",
+        "fresnel schedule list [--all] [--json]",
       ),
     );
   }
@@ -1089,7 +1089,7 @@ function scheduleIdArg(
       usage(
         "missingArgument",
         t("cli.usage.schedule.idMissing.message", { command: `schedule ${action}` }),
-        `xeon schedule ${action} <id>`,
+        `fresnel schedule ${action} <id>`,
       ),
     );
   }
@@ -1173,7 +1173,7 @@ function parseSessions(
           usage(
             "unexpectedArgument",
             t("cli.usage.noPositional.message", { command: "sessions ls" }),
-            t("cli.usage.sessions.ls.positional.fix"),
+            t("cli.usage.threads.ls.positional.fix"),
           ),
         );
       }
@@ -1183,8 +1183,8 @@ function parseSessions(
         return err(
           usage(
             "unexpectedArgument",
-            t("cli.usage.sessions.limit.message"),
-            t("cli.usage.sessions.limit.fix"),
+            t("cli.usage.threads.limit.message"),
+            t("cli.usage.threads.limit.fix"),
           ),
         );
       }
@@ -1203,8 +1203,8 @@ function parseSessions(
         return err(
           usage(
             "missingArgument",
-            t("cli.usage.sessionId.missing.message", { command: "sessions show" }),
-            "xeon sessions show <id>",
+            t("cli.usage.threadId.missing.message", { command: "sessions show" }),
+            "fresnel sessions show <id>",
           ),
         );
       }
@@ -1233,8 +1233,8 @@ function parseSessions(
         return err(
           usage(
             "missingArgument",
-            t("cli.usage.sessionId.missing.message", { command: "sessions fork" }),
-            t("cli.usage.sessions.forkSyntax"),
+            t("cli.usage.threadId.missing.message", { command: "sessions fork" }),
+            t("cli.usage.threads.forkSyntax"),
           ),
         );
       }
@@ -1266,8 +1266,8 @@ function parseSessions(
         return err(
           usage(
             "missingArgument",
-            t("cli.usage.sessionId.missing.message", { command: "sessions rm" }),
-            "xeon sessions rm <id> [--yes]",
+            t("cli.usage.threadId.missing.message", { command: "sessions rm" }),
+            "fresnel sessions rm <id> [--yes]",
           ),
         );
       }
@@ -1296,8 +1296,8 @@ function parseSessions(
         return err(
           usage(
             "missingArgument",
-            t("cli.usage.sessions.renameMissing.message"),
-            t("cli.usage.sessions.renameSyntax"),
+            t("cli.usage.threads.renameMissing.message"),
+            t("cli.usage.threads.renameSyntax"),
           ),
         );
       }
@@ -1311,7 +1311,7 @@ function parseSessions(
           usage(
             title.length === 0 ? "missingArgument" : "unexpectedArgument",
             `sessions rename: ${problem}`,
-            t("cli.usage.sessions.renameSyntax"),
+            t("cli.usage.threads.renameSyntax"),
           ),
         );
       }
@@ -1695,13 +1695,13 @@ function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostComma
       usage(
         "unexpectedArgument",
         t("cli.usage.noPositional.message", { command: "host" }),
-        "xeon host --stdio",
+        "fresnel host --stdio",
       ),
     );
   }
   if (!has(scanned.value, "--stdio")) {
     return err(
-      usage("missingArgument", t("cli.usage.host.stdioMissing.message"), "xeon host --stdio"),
+      usage("missingArgument", t("cli.usage.host.stdioMissing.message"), "fresnel host --stdio"),
     );
   }
   return ok({ kind: "host", stdio: true });

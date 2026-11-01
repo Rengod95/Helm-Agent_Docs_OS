@@ -18,7 +18,7 @@ import {
 
 const HOME = "/home/test";
 const ROOT = "/work/proj";
-const NEEDS_TRUST = [`${ROOT}/.xeon/extensions`];
+const NEEDS_TRUST = [`${ROOT}/.fresnel/extensions`];
 
 type Decision = Awaited<ReturnType<ResolveProjectTrustInput["emitProjectTrust"]>>;
 
@@ -117,7 +117,7 @@ test("override wins and is never saved", async () => {
 });
 
 test("no trust-requiring resource needs no decision", async () => {
-  const h = harness({ files: [`${ROOT}/.xeon`], store: stored({ [ROOT]: "deny" }) });
+  const h = harness({ files: [`${ROOT}/.fresnel`], store: stored({ [ROOT]: "deny" }) });
   const result = await resolveProjectTrust(h.input);
   expect(result).toMatchObject({
     required: false,
@@ -187,7 +187,7 @@ test("prompt choices save the documented updates", async () => {
   expect(folder.prompts[0]).toMatchObject({
     projectRoot: ROOT,
     parent: "/work",
-    resources: [".xeon/extensions"],
+    resources: [".fresnel/extensions"],
   });
   expect(folder.prompts[0]?.options).toHaveLength(5);
 

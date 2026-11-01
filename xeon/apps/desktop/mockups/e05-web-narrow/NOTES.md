@@ -18,7 +18,7 @@
 ## 원격 대상 작업대(N-60)
 - 상태 표시줄 대상 칸 "원격 대상 · build-box". 화면 머리 meta "build-box", 둘째 줄 "바꾸기 권한 없음".
 - 확장 켜기·끄기는 원격 서비스의 권한(`ext.manage`)이 필요합니다. 읽기 토큰이면 표 위 neutral inline 문장 하나로 미리 말하고, 그래도 누르면 build-box에 묻고 거부되면 danger Alert(DP-28) "켜기를 build-box가 거부했어요 · 권한 없음(ext.manage)…"과 "권한 안내 복사". 스위치는 그대로.
-- 프레임 화면 파일은 원격에 있습니다(`build-box:~/.xeon/extensions/acme-notes/view/index.html`). 서비스가 격리된 주소로 보내 주고 이 컴퓨터에 저장하지 않는다는 한 문장(P-17 화면 탭).
+- 프레임 화면 파일은 원격에 있습니다(`build-box:~/.fresnel/extensions/acme-notes/view/index.html`). 서비스가 격리된 주소로 보내 주고 이 컴퓨터에 저장하지 않는다는 한 문장(P-17 화면 탭).
 - "폴더 열기"·"파일 열기"는 이 컴퓨터의 OS 동작이라 원격에서는 "경로 복사"로 바꾸고, 원래 항목은 이유를 단 채 잠급니다(행 메뉴, 화면 탭).
 
 ## caustic 부품

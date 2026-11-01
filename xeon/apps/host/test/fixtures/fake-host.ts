@@ -54,7 +54,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       if (slot.hub === undefined) throw new Error("hub is not ready");
       return slot.hub;
     },
-    { serverName: "xeon", serverVersion: "0.0.0-test", pid: 1 },
+    { serverName: "fresnel", serverVersion: "0.0.0-test", pid: 1 },
     options.lifecycle,
   );
   const handlers = options.override === undefined ? base : options.override(base);

@@ -319,7 +319,7 @@ function TabBody({ tab, mode }: { tab: string; mode: TabMode }) {
         )}
       </ListDescriptionRow>
       <ListDescriptionRow term={L2("설치 위치", "Location")} mono>
-        {mode === "loading" ? <Skeleton className="h-4 w-48" /> : "~/.xeon/extensions/helm"}
+        {mode === "loading" ? <Skeleton className="h-4 w-48" /> : "~/.fresnel/extensions/helm"}
       </ListDescriptionRow>
     </ListDescription>
   );

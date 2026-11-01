@@ -30,7 +30,7 @@ export const NO_PROVIDER_LINKS: ProviderLinker = {
 
 export const FAKE_SECRETS_CONFIG: SecretsConfig = {
   ...DEFAULT_SECRETS_CONFIG,
-  sops: { files: [{ env: "dev", path: "/etc/xeon/dev.sops.json" }], binary: null },
+  sops: { files: [{ env: "dev", path: "/etc/fresnel/dev.sops.json" }], binary: null },
 };
 
 interface FakeSecretRecord {

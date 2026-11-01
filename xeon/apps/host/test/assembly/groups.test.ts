@@ -32,7 +32,7 @@ function portOver(written: Result<void, SettingsWriteFailure>): DriveHolderSetti
 
 test("a store that reports key_reused is a Bug carrying the failure, not an unwritable storage reason", async () => {
   const port = portOver(err({ kind: "key_reused", requestKey: "k1" }));
-  const outcome = port.write("grp", "session", THREAD).then(
+  const outcome = port.write("grp", "launch", THREAD).then(
     () => undefined,
     (thrown: unknown) => thrown,
   );

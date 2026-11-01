@@ -143,7 +143,7 @@ pub fn entry_args(request: &EntryRequest<'_>) -> Vec<OsString> {
     ]
 }
 
-/// 개발 빌드의 엔진 덮어쓰기(`XEON_DESKTOP_ENGINE_ARGS`)가 `... host --stdio`로 끝나면 그 앞부분에 `secret ...`을 이어 쓴다.
+/// 개발 빌드의 엔진 덮어쓰기(`FRESNEL_DESKTOP_ENGINE_ARGS`)가 `... host --stdio`로 끝나면 그 앞부분에 `secret ...`을 이어 쓴다.
 /// 그 모양이 아니면 덮어쓰지 않고 사이드카를 쓴다.
 pub fn override_prefix(args: &[OsString]) -> Option<Vec<OsString>> {
     let host = OsString::from(SIDECAR_ARGS[0]);

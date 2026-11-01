@@ -20,13 +20,13 @@ afterAll(() => {
   rmSync(base, { recursive: true, force: true });
 });
 
-/** 엔트리가 실행되면 `marker`에 파일을 쓰는 프로젝트 확장을 `<workspace>/.xeon/extensions/<name>/`에 만든다 */
+/** 엔트리가 실행되면 `marker`에 파일을 쓰는 프로젝트 확장을 `<workspace>/.fresnel/extensions/<name>/`에 만든다 */
 function projectExtension(workspace: string, name: string, marker: string): void {
-  const root = join(workspace, ".xeon", "extensions", name);
-  mkdirSync(join(root, ".xeon-plugin"), { recursive: true });
+  const root = join(workspace, ".fresnel", "extensions", name);
+  mkdirSync(join(root, ".fresnel-plugin"), { recursive: true });
   mkdirSync(join(root, "src"), { recursive: true });
   writeFileSync(
-    join(root, ".xeon-plugin", "plugin.json"),
+    join(root, ".fresnel-plugin", "plugin.json"),
     JSON.stringify({
       schemaVersion: 1,
       name,

@@ -26,7 +26,7 @@ export interface HostLifecycle {
 }
 
 export interface HostInfo {
-  readonly serverName: "xeon";
+  readonly serverName: "fresnel";
   /** 엔진 빌드 버전. 등록 파일 version과 같은 값 */
   readonly serverVersion: string;
   readonly pid: number;

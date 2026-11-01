@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 const WARNING =
-  "경고: 서비스 모드가 꺼져 있어 이 예약은 실행되지 않는다. xeon service start로 서비스를 띄운 뒤에 실행된다\n";
+  "경고: 서비스 모드가 꺼져 있어 이 예약은 실행되지 않는다. fresnel service start로 서비스를 띄운 뒤에 실행된다\n";
 
 function start(): RealCli {
   const cli = createRealCli({
@@ -103,10 +103,10 @@ test("add --at, add --remote, list, cancel and run agree with the real host", as
   expect(await step(cli, ["schedule", "run", atId])).toBe(EXIT.error);
   expect(out(cli)).toBe("");
   expect(cli.harness.stderrText()).toBe(
-    "xeon: 원격 트리거 예약만 지금 실행할 수 있다\n  해결: 간격·시각 예약은 기한이 되면 실행된다. 원격 예약은 xeon schedule add --remote로 만든다\n",
+    "fresnel: 원격 트리거 예약만 지금 실행할 수 있다\n  해결: 간격·시각 예약은 기한이 되면 실행된다. 원격 예약은 fresnel schedule add --remote로 만든다\n",
   );
   expect(await step(cli, ["schedule", "run", "sch_nosuchentry"])).toBe(EXIT.error);
   expect(cli.harness.stderrText()).toBe(
-    "xeon: 그런 예약이 없다\n  해결: xeon schedule list --all로 id를 확인한다\n",
+    "fresnel: 그런 예약이 없다\n  해결: fresnel schedule list --all로 id를 확인한다\n",
   );
 }, 60_000);

@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { locateGroupTemplates } from "../src/group/fs-port.ts";
 
-// Template location for `xeon group new` (L4.cli.spec §3.8, B5-REL §3.2): the env override first, then the release resource
+// Template location for `fresnel group new` (L4.cli.spec §3.8, B5-REL §3.2): the env override first, then the release resource
 // directory (`<resourceDir>/group-sdk/templates`, the compiled binary has no source checkout), then the source checkout
 // (walk up from `from`). The end-to-end run of the compiled binary is X11 (scripts/release-smoke.test.ts).
 
-const root = mkdtempSync(join(tmpdir(), "xeon-locate-"));
+const root = mkdtempSync(join(tmpdir(), "fresnel-locate-"));
 afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
@@ -28,22 +28,24 @@ function templatesAt(dir: string, ...rel: string[]): string {
   return folder;
 }
 
-test("XEON_GROUP_TEMPLATES_DIR wins over both the resource directory and the source checkout", () => {
+test("FRESNEL_GROUP_TEMPLATES_DIR wins over both the resource directory and the source checkout", () => {
   const resource = dirAt("env-wins", "resource");
   templatesAt(resource, "group-sdk", "templates");
   const source = dirAt("env-wins", "source");
   templatesAt(source, "packages", "group-sdk", "templates");
   expect(
-    locateGroupTemplates({ XEON_GROUP_TEMPLATES_DIR: "/custom/templates" }, source, resource),
+    locateGroupTemplates({ FRESNEL_GROUP_TEMPLATES_DIR: "/custom/templates" }, source, resource),
   ).toEqual("/custom/templates");
 });
 
-test("an empty XEON_GROUP_TEMPLATES_DIR is no override and the resource directory is used", () => {
+test("an empty FRESNEL_GROUP_TEMPLATES_DIR is no override and the resource directory is used", () => {
   const resource = dirAt("empty-env", "resource");
   const bundled = templatesAt(resource, "group-sdk", "templates");
   const source = dirAt("empty-env", "source");
   templatesAt(source, "packages", "group-sdk", "templates");
-  expect(locateGroupTemplates({ XEON_GROUP_TEMPLATES_DIR: "" }, source, resource)).toEqual(bundled);
+  expect(locateGroupTemplates({ FRESNEL_GROUP_TEMPLATES_DIR: "" }, source, resource)).toEqual(
+    bundled,
+  );
 });
 
 test("a resource directory with group-sdk/templates/index.json is found with no env override", () => {

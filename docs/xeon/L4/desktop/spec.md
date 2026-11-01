@@ -577,7 +577,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `xeon` 명령이 설치되어 있지 않
 - 한 번에 하나만 등록한다. 진행 중에 또 오면 `busy`다.
 - 자식의 인자와 환경 변수에 값이 없다. 셸 로그(`applog`)에는 `secret entry <동작> <이름>: <결과 종류>`만 쓴다. 요청 구조체의 `Debug` 출력에는 값 길이만 있다.
 - `secret rotate`는 CLI가 비TTY를 거부하므로(`L4.cli.spec` §4.7) 이 경로는 `add`와 `set`만 쓴다.
-- 개발 빌드에서 `XEON_DESKTOP_ENGINE_BIN`과 `XEON_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다.
+- 개발 빌드에서 `FRESNEL_DESKTOP_ENGINE_BIN`과 `FRESNEL_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다.
 - 사이드카를 띄우지 못하면(`unavailable`) 화면은 기존 터미널 명령 안내로 돌아간다.
 
 약점(받아들인 것):
@@ -596,7 +596,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | 로그 파일 | `tauri-plugin-log`의 `LogDir` 대상(`xeon-desktop-debug.log`)과 표준 출력. 수준 info, 파일 하나, 2 MB에서 새로 시작(`KeepOne`). 들어가는 줄은 셸 로그(`applog.rs`)와 같은 줄이고, 시작할 때 `xeon-desktop <버전> started` 한 줄이 먼저 온다 | `main.rs` `debug_log_plugin`, `applog.rs` `AppLog::line` |
 | 상태 덤프 | 줄 단위 JSON-RPC 2.0 `state.dump`: 앱 이름·버전·pid·가동 시간, 엔진 상태(IPC 상태 채널과 같은 직렬화), 릴레이 세대, 메인 창 크기·가시·포커스·최소화, 로그 폴더. 대화 내용과 비밀 값은 싣지 않는다 | `src-tauri/src/inspect/mod.rs`, `probe.rs` |
 | 뷰포트 스냅샷 | `viewport.snapshot`: WKWebView가 보이는 영역을 PNG로 `<LogDir>/snapshots/viewport-<ms>.png`에 저장하고 `{ path, bytes, mime }`을 돌려준다. 이미지 바이트는 응답에 없다. macOS만 되고 그 밖은 오류(-32000)다 | `inspect/snapshot_macos.rs` |
-| 듣는 곳 | Unix 도메인 소켓 하나(기본 `<LogDir>/inspect.sock`, 환경 변수 `XEON_DESKTOP_INSPECT_SOCKET`으로 바꾼다). 소켓 파일 0600. 소켓 폴더는 없으면 앱이 0700으로 만들고(위쪽 폴더는 기본 권한), 이미 있으면 권한을 바꾸지 않는다. 이미 있는 폴더는 앱 사용자 소유이고 other 쓰기가 없을 때만 쓰며, `/tmp` 같은 공용 폴더는 `PermissionDenied`로 거절하고 소켓을 열지 않는다(M2 마감 재검토 11). 동시 접속 4개, 요청 줄 16 KiB 상한. 모르는 메서드는 -32601이고 읽기 전용이다 | `inspect/server.rs` |
+| 듣는 곳 | Unix 도메인 소켓 하나(기본 `<LogDir>/inspect.sock`, 환경 변수 `FRESNEL_DESKTOP_INSPECT_SOCKET`으로 바꾼다). 소켓 파일 0600. 소켓 폴더는 없으면 앱이 0700으로 만들고(위쪽 폴더는 기본 권한), 이미 있으면 권한을 바꾸지 않는다. 이미 있는 폴더는 앱 사용자 소유이고 other 쓰기가 없을 때만 쓰며, `/tmp` 같은 공용 폴더는 `PermissionDenied`로 거절하고 소켓을 열지 않는다(M2 마감 재검토 11). 동시 접속 4개, 요청 줄 16 KiB 상한. 모르는 메서드는 -32601이고 읽기 전용이다 | `inspect/server.rs` |
 
 - 모두 `cfg(debug_assertions)` 아래다. `mod inspect;`와 로그 플러그인 등록, `start_inspect` 호출이 디버그 빌드에만 컴파일된다. `Relay::state`·`current_epoch`도 디버그와 시험에서만 열린다.
 - 릴리스 확인(릴리스 후보마다, 사람이 한다):
@@ -610,7 +610,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 ### 4.16 새 대화의 작업 폴더 [결정: M2 마감 G2-02]
 
-사이드카의 작업 디렉터리는 사용자 홈이다. 대화에 작업 폴더가 없으면 프로젝트 자원(`.mcp.json`, `.xeon/skills`, `.xeon/commands`)과 신뢰 판정이 홈 기준이 되므로, 데스크톱은 대화를 만들 때 폴더를 `thread.create`의 `workspace`로 보낸다.
+사이드카의 작업 디렉터리는 사용자 홈이다. 대화에 작업 폴더가 없으면 프로젝트 자원(`.mcp.json`, `.fresnel/skills`, `.fresnel/commands`)과 신뢰 판정이 홈 기준이 되므로, 데스크톱은 대화를 만들 때 폴더를 `thread.create`의 `workspace`로 보낸다.
 
 - 스레드 목록 위에 "작업 폴더 (선택)" 입력란을 둔다(`src/views/thread-list.tsx`). 후보는 목록에 있는 대화의 `workspace` 중 서로 다른 값 최대 8개다(목록 순서, `selectRecentWorkspaces`). 새 대화를 만든 뒤에도 입력란은 그대로 두어 같은 프로젝트에서 대화를 이어서 여는 일이 쉽다.
 - 보내기 전 검사는 `src/views/workspace-model.ts`가 한다. 앞뒤 공백을 지우고, 빈 값은 `workspace`를 생략한다(작업 폴더 없는 대화). 값이 있으면 절대 경로(POSIX `/…`, 드라이브 `C:\…`·`C:/…`, UNC `\\…`)여야 하고 4096자를 넘지 않아야 한다. 아니면 안내 문구를 보이고 "새 대화"를 막는다. `~`와 상대 경로는 호스트가 풀지 않으므로 보내지 않는다.

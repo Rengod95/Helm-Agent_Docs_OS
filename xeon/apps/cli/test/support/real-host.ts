@@ -15,7 +15,7 @@ import { createHarness, type Harness, type HarnessOptions } from "./harness.ts";
 import { createScenarioHome, realTapeClock, type ScenarioHome } from "./scenario.ts";
 
 // 실제 호스트 위의 CLI 시험 도구(L4.cli.plan §5.2). 가짜 서버 대신 `connectEngine`이 실제 @xeon/host를 같은 프로세스에 세우고,
-// 모델은 테이프다. 엔진 홈(XEON_HOME)은 임시 디렉터리 하나이고 작업 폴더는 그 안의 work다. 입출력은 harness의 가짜 CliIo를 그대로 쓴다.
+// 모델은 테이프다. 엔진 홈(FRESNEL_HOME)은 임시 디렉터리 하나이고 작업 폴더는 그 안의 work다. 입출력은 harness의 가짜 CliIo를 그대로 쓴다.
 
 /** 테이프 한 단계(`tape()`가 받는 모양) */
 export type TapeStep = Omit<ModelTapeTurn, "kind" | "n">;
@@ -97,8 +97,8 @@ export function createRealCli(options: RealCliOptions = {}): RealCli {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, text);
   }
-  const previousHome = process.env["XEON_HOME"];
-  process.env["XEON_HOME"] = home.root;
+  const previousHome = process.env["FRESNEL_HOME"];
+  process.env["FRESNEL_HOME"] = home.root;
   const messages: JsonRpcMessage[] = [];
   const harness = createHarness({
     env: { NO_COLOR: "1" },
@@ -128,8 +128,8 @@ export function createRealCli(options: RealCliOptions = {}): RealCli {
         .filter((request) => method === undefined || request.method === method),
     dispose() {
       harness.dispose();
-      if (previousHome === undefined) delete process.env["XEON_HOME"];
-      else process.env["XEON_HOME"] = previousHome;
+      if (previousHome === undefined) delete process.env["FRESNEL_HOME"];
+      else process.env["FRESNEL_HOME"] = previousHome;
       if (options.home === undefined) home.dispose();
     },
   };

@@ -329,7 +329,7 @@ export const guardrail: ExtensionEntry = ({ scope }) => {
 
 | 파일 | drive | policy | observe | 내용 |
 |---|---|---|---|---|
-| `.xeon-plugin/plugin.json` | ● | ● | ● | 외부 그룹 매니페스트(`ExtensionManifest`). 외부 그룹의 기본 형식 |
+| `.fresnel-plugin/plugin.json` | ● | ● | ● | 외부 그룹 매니페스트(`ExtensionManifest`). 외부 그룹의 기본 형식 |
 | `src/manifest.ts` | 선택 | 선택 | 선택 | 저장소 안 그룹이면 `defineManifest`로 쓴다. `plugin.json`과 둘 중 하나만 둔다 |
 | `src/index.ts` | ● | ● | ● | `defineGroup` 골격. default export는 `GroupModule` |
 | `src/state.ts` | ● | 선택 | ● | 상태 스키마, 초기값, `version` |
@@ -341,7 +341,7 @@ export const guardrail: ExtensionEntry = ({ scope }) => {
 | `tsconfig.json` | ● | ● | ● | `tsconfig.base.json` 확장 |
 | `README.md` | ● | ● | ● | 그룹의 의도, 판정 기준(3.1.1) 답, 설정 키 표 |
 
-- [제안] 매니페스트 형식: 템플릿은 외부 그룹을 기본 대상으로 하므로 `.xeon-plugin/plugin.json`을 만든다(`F.extensions.spec` §3.1 파일 위치). 저장소 안에 기본 그룹으로 넣는 경우만 `src/manifest.ts`로 바꾼다. 이 선택을 생성 명령의 옵션으로 둘지는 `L4.cli.spec`이 정한다.
+- [제안] 매니페스트 형식: 템플릿은 외부 그룹을 기본 대상으로 하므로 `.fresnel-plugin/plugin.json`을 만든다(`F.extensions.spec` §3.1 파일 위치). 저장소 안에 기본 그룹으로 넣는 경우만 `src/manifest.ts`로 바꾼다. 이 선택을 생성 명령의 옵션으로 둘지는 `L4.cli.spec`이 정한다.
 
 #### 3.3.3 템플릿 색인과 치환 자리
 
@@ -392,13 +392,13 @@ export const TemplateIndexSchema: TObject = Type.Object({
 
 #### 3.3.5 템플릿 골격 코드
 
-매니페스트 전달 [제안]: 템플릿은 외부 그룹이 기본 대상이라 매니페스트가 `.xeon-plugin/plugin.json`에만 있다. `src/index.ts`는 이 파일을 JSON import로 읽어 `groupManifest`(`L3.group-sdk.spec` §3.2)로 검증·좁힌 값을 `defineGroup`의 `manifest`에 넘긴다. 저장소 안 그룹으로 바꿀 때는 `src/manifest.ts`의 `defineManifest` 상수를 넘긴다(3.3.2).
+매니페스트 전달 [제안]: 템플릿은 외부 그룹이 기본 대상이라 매니페스트가 `.fresnel-plugin/plugin.json`에만 있다. `src/index.ts`는 이 파일을 JSON import로 읽어 `groupManifest`(`L3.group-sdk.spec` §3.2)로 검증·좁힌 값을 `defineGroup`의 `manifest`에 넘긴다. 저장소 안 그룹으로 바꿀 때는 `src/manifest.ts`의 `defineManifest` 상수를 넘긴다(3.3.2).
 
 drive 템플릿 `src/index.ts`:
 
 ```ts
 import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-sdk";
-import manifestJson from "../.xeon-plugin/plugin.json" with { type: "json" };
+import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { __ID__State, initialState, type State } from "./state.ts";
 import { __ID__Settings } from "./settings.ts";
 
@@ -441,7 +441,7 @@ policy 템플릿 `src/index.ts`(상태 없는 그룹. `state`를 생략한다, `
 
 ```ts
 import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-sdk";
-import manifestJson from "../.xeon-plugin/plugin.json" with { type: "json" };
+import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { __ID__Settings } from "./settings.ts";
 
 const group: GroupModule = defineGroup({
@@ -462,7 +462,7 @@ observe 템플릿 `src/index.ts`:
 
 ```ts
 import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-sdk";
-import manifestJson from "../.xeon-plugin/plugin.json" with { type: "json" };
+import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
 import { __ID__State, initialState, type State } from "./state.ts";
 import { __ID__Settings } from "./settings.ts";
 
@@ -499,7 +499,7 @@ export const __ID__Settings: SettingGroup<"ext.__ID__", { blockedTools: SettingD
 });
 ```
 
-공통 `.xeon-plugin/plugin.json`(policy 예):
+공통 `.fresnel-plugin/plugin.json`(policy 예):
 
 ```json
 {

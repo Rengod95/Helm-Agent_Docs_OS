@@ -220,7 +220,7 @@ describe("ssh", () => {
   const endpoint = {
     kind: "ssh",
     target: "me@box",
-    remoteSocket: "/run/xeon.sock",
+    remoteSocket: "/run/fresnel.sock",
     port: 2222,
   } as const;
 
@@ -236,7 +236,7 @@ describe("ssh", () => {
     const tunnel = fakeTunnel(path);
     const transport = must(await connectServiceTransport(endpoint, { tunnel: tunnel.port }));
     expect(tunnel.requests).toEqual([
-      { target: "me@box", remoteSocket: "/run/xeon.sock", port: 2222 },
+      { target: "me@box", remoteSocket: "/run/fresnel.sock", port: 2222 },
     ]);
     const answer = reply(transport);
     await transport.send(HELLO);

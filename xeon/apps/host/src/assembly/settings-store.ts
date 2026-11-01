@@ -30,7 +30,7 @@ import { replaceFileAtomically, type ProjectTrust } from "./trust.ts";
 
 // L4.host-service.spec §3.3.2 SettingsStorePort. 설정 파일 범위의 쓰기와 project·local 파일 읽기는 호스트 소유다
 // (L1.persistence.spec §6.2 마지막 [제안]). user는 `<config>/settings.json`, project·local은 신뢰한 작업 폴더의
-// `.xeon/settings.json`·`.xeon/settings.local.json`, session은 `settings.changed` 커밋이다. 조립 루트 코드(DR-14 예외 2).
+// `.fresnel/settings.json`·`.fresnel/settings.local.json`, session은 `settings.changed` 커밋이다. 조립 루트 코드(DR-14 예외 2).
 // 파일을 바꾸는 읽고-고치고-쓰기는 모두 L0.os의 파일 잠금(`<path>.lock`) 안에서 한다(M3-REQ-82, HS-98): 호스트 둘이 같은 파일을
 // 동시에 고쳐도 앞 쓰기를 덮지 않는다. 읽기만 하는 쪽은 잠금을 쓰지 않는다(쓰기가 임시 파일을 바꿔 넣으므로 옛 파일이나 새 파일 하나를 본다).
 
@@ -134,7 +134,7 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
     engine.notifyChanged({
       keys: [key],
       scopes: [scope],
-      threadId: scope === "session" && threadId !== undefined ? threadId : null,
+      threadId: scope === "launch" && threadId !== undefined ? threadId : null,
     });
   }
 
@@ -219,12 +219,12 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
       return err({ kind: "untrusted_project", workspace: workspace.value });
     }
     const file = scope === "project" ? "settings.json" : "settings.local.json";
-    return ok({ workspace: workspace.value, path: join(workspace.value, ".xeon", file) });
+    return ok({ workspace: workspace.value, path: join(workspace.value, ".fresnel", file) });
   }
 
   async function reloadWorkspace(workspace: string): Promise<void> {
-    const projectPath = join(workspace, ".xeon", "settings.json");
-    const localPath = join(workspace, ".xeon", "settings.local.json");
+    const projectPath = join(workspace, ".fresnel", "settings.json");
+    const localPath = join(workspace, ".fresnel", "settings.local.json");
     const [project, local] = await Promise.all([
       readSettingsFile(projectPath),
       readSettingsFile(localPath),
@@ -252,7 +252,7 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
         engine.setUserValue(key, value);
         return ok(undefined);
       }
-      case "session": {
+      case "launch": {
         if (threadId === undefined) return err({ kind: "thread_required", scope });
         const exists = session.query.thread(threadId);
         if (!exists.ok) return exists;
@@ -298,7 +298,7 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
         if (workspace.value === undefined) return ok({ path: null, readOnly: true });
         const file = scope === "project" ? "settings.json" : "settings.local.json";
         const trusted = await projectTarget(scope, threadId);
-        return ok({ path: join(workspace.value, ".xeon", file), readOnly: !trusted.ok });
+        return ok({ path: join(workspace.value, ".fresnel", file), readOnly: !trusted.ok });
       }
       default:
         return assertNever(scope, "SettingsFileScope");

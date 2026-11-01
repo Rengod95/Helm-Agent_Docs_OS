@@ -21,7 +21,7 @@ function harness(options: Parameters<typeof createHarness>[0] = {}): Harness {
 test("version prints the CLI, contract and Bun versions without connecting", async () => {
   const h = harness();
   expect(await h.run(["version"])).toBe(0);
-  expect(h.stdoutText()).toBe(`xeon 0.0.0\n계약 ${WIRE_PROTOCOL_VERSION}\nBun 1.4.3\n`);
+  expect(h.stdoutText()).toBe(`fresnel 0.0.0\n계약 ${WIRE_PROTOCOL_VERSION}\nBun 1.4.3\n`);
   expect(h.methods()).toEqual([]);
 });
 
@@ -67,7 +67,7 @@ test("help lists the commands that exist and marks the ones that come later", as
 test("help <topic> shows the topic and falls back to the overview", async () => {
   const chat = harness();
   await chat.run(["chat", "--help"]);
-  expect(chat.stdoutText()).toContain("사용법: xeon chat");
+  expect(chat.stdoutText()).toContain("사용법: fresnel chat");
   const other = harness();
   await other.run(["help", "nothing"]);
   expect(other.stdoutText()).toContain("명령");

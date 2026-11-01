@@ -34,7 +34,7 @@ describe("settings.readFile and settings.writeFile", () => {
     expect(parsed(read.params, params)).toEqual(params);
     const result = {
       scope: "project",
-      path: "/work/.xeon/settings.json",
+      path: "/work/.fresnel/settings.json",
       exists: true,
       readOnly: false,
       text: '{"l1.loop.maxSteps":3}',
@@ -55,7 +55,7 @@ describe("settings.readFile and settings.writeFile", () => {
     const write = WIRE_METHODS["settings.writeFile"];
     const wParams = { scope: "user", text: "{}", baseSha256: null };
     expect(parsed(write.params, wParams)).toEqual(wParams);
-    const wResult = { path: "/home/u/.xeon/settings.json", sha256: SHA, unknownKeys: [] };
+    const wResult = { path: "/home/u/.fresnel/settings.json", sha256: SHA, unknownKeys: [] };
     expect(parsed(write.result, wResult)).toEqual(wResult);
   });
 

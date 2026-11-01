@@ -53,9 +53,9 @@ test("the text output shows path, shadowed scopes, pending and the locked tag (Â
     {
       key: "l1.loop.maxSteps",
       value: 50,
-      source: { scope: "project", path: "/repo/.xeon/settings.json" },
+      source: { scope: "project", path: "/repo/.fresnel/settings.json" },
       locked: false,
-      shadowed: [{ scope: "user", path: "~/.config/xeon/settings.json" }],
+      shadowed: [{ scope: "user", path: "~/.config/fresnel/settings.json" }],
       runtimeChange: "nextTurn",
       pendingUntil: "nextTurn",
       deprecated: false,
@@ -74,8 +74,8 @@ test("the text output shows path, shadowed scopes, pending and the locked tag (Â
   expect(formatSettings(settings)).toBe(
     [
       "l1.loop.maxSteps = 50",
-      "  source: project (/repo/.xeon/settings.json)",
-      "  shadowed: user (~/.config/xeon/settings.json)",
+      "  source: project (/repo/.fresnel/settings.json)",
+      "  shadowed: user (~/.config/fresnel/settings.json)",
       "  pending: nextTurn",
       'l1.models.default = "provider/model"  [locked: managed, deprecated]',
       "  source: managed",

@@ -171,7 +171,7 @@ export type ExtensionManifest = Static<typeof ExtensionManifestSchema>;
 export function defineManifest<const M extends ExtensionManifest>(manifest: M): M;
 ```
 
-- 파일 위치 [제안]: 외부 확장은 `.xeon-plugin/plugin.json`에 둔다(Claude Code `.claude-plugin/plugin.json` 레이아웃). 내장 패키지(`core-*`, `cap-*`, `group-*`)는 엔트리 모듈이 `manifest` 상수를 export하고 X가 같은 스키마로 검사한다. 탐색 규칙은 X.loading-trust.spec이 정한다.
+- 파일 위치 [제안]: 외부 확장은 `.fresnel-plugin/plugin.json`에 둔다(Claude Code `.claude-plugin/plugin.json` 레이아웃). 내장 패키지(`core-*`, `cap-*`, `group-*`)는 엔트리 모듈이 `manifest` 상수를 export하고 X가 같은 스키마로 검사한다. 탐색 규칙은 X.loading-trust.spec이 정한다.
 - 알 수 없는 최상위 키는 지우고 경고한다. `userConfig` 항목과 `components` 안의 알 수 없는 키는 오류다(Claude Code 규칙, `_research/refs/claude-code.md` 99행).
 - Claude Code의 `dependencies`(확장 사이 직접 의존)는 채택하지 않는다 [제안]. 그룹끼리 직접 참조하지 않는다는 층 사이 규칙 3 때문이다. 확장 사이 의존은 능력 요구(`requires`, `optional`)와 레코드 종류(`readsRecordKinds`)로만 표현한다.
 - `layer`의 `plugin`은 층 패키지가 아닌 외부 플러그인을 뜻한다. 외부 플러그인은 L2 능력 provider, 관찰·형성 핸들러, 도구 등록을 할 수 있다.
@@ -618,7 +618,7 @@ export interface LoaderFs {
 }
 /** 설치 위치의 OS별 경로. 값은 L0.os가 정한다 */
 export interface LoaderPaths {
-  /** 예: ~/.xeon */
+  /** 예: ~/.fresnel */
   readonly userDir: string;
   /** 관리 정책 디렉터리. 없으면 null */
   readonly managedDir: string | null;

@@ -8,7 +8,7 @@ import type { GroupManifest } from "@xeon/group-sdk";
 export const DISGUISE_RISK_NOTICE: string =
   "이 플러그인은 Claude 구독 OAuth 토큰으로 Claude Code 클라이언트와 같은 모양의 요청을 보냅니다. Anthropic 이용 약관에 어긋날 수 있고 계정이 제한되거나 정지될 수 있습니다. 공개 배포판에는 들어 있지 않으며, 켜면 그 위험을 사용자가 집니다.";
 
-/** 플러그인 산출물(`.xeon-plugin/plugin.json`)이 옮겨 쓰는 매니페스트 상수. 기본 꺼짐이고 엔트리는 번들(dist)을 가리킨다 */
+/** 플러그인 산출물(`.fresnel-plugin/plugin.json`)이 옮겨 쓰는 매니페스트 상수. 기본 꺼짐이고 엔트리는 번들(dist)을 가리킨다 */
 export const providerAnthropicOauthManifest: GroupManifest = defineManifest({
   schemaVersion: 1,
   name: "provider-anthropic-oauth",

@@ -64,7 +64,7 @@ test("a project command file runs only after the folder is trusted, and a templa
   const { cli, script } = start(
     {
       models: answeringModels("slash-project", ["안녕 Ada"]),
-      files: { ".xeon/commands/hello.md": "---\ndescription: greet\n---\nHello $ARGUMENTS\n" },
+      files: { ".fresnel/commands/hello.md": "---\ndescription: greet\n---\nHello $ARGUMENTS\n" },
     },
     ["", "/hello Ada"],
   );

@@ -32,7 +32,7 @@ const NOW = 1_000;
 /** 쓰기 전 `claim`만 남은 상태. 시작을 기록하기 전에 프로세스가 죽은 것과 같다 */
 function claimedState(): ScheduleState {
   return {
-    version: 1,
+    version: 2,
     entries: [
       {
         id: SCHEDULE_ID,
@@ -97,7 +97,7 @@ function sharedSession(): SharedSession {
   const log: DurableEventEnvelope[] = [];
   const subscribers = new Set<(batch: CommitBatch) => void>();
   const failing = { head: false, read: false };
-  const token: LeaseToken = { resource: "session:thr", holderId: "h", epoch: 1 };
+  const token: LeaseToken = { resource: "thread:thr", holderId: "h", epoch: 1 };
   return {
     created,
     threads: partial<ThreadPort>({

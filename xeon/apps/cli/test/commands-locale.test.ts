@@ -40,7 +40,7 @@ test("schedule add refused for a short interval names the minimum in English", a
   harnesses.push(h);
   expect(await h.run(["schedule", "add", "--every", "60", "요약"])).toBe(EXIT.error);
   expect(h.stderrText()).toBe(
-    "xeon: The interval is shorter than the minimum (300s)\n  Fix: Use --every with 300 or more\n",
+    "fresnel: The interval is shorter than the minimum (300s)\n  Fix: Use --every with 300 or more\n",
   );
 });
 
@@ -102,7 +102,7 @@ test("group new refuses a name that clashes with an installed extension, in Engl
   harnesses.push(h);
   expect(await h.run(["group", "new", "helm"])).toBe(EXIT.usage);
   expect(h.stderrText()).toBe(
-    'xeon: "helm" overlaps with an installed extension name\n  Fix: Choose another name\n',
+    'fresnel: "helm" overlaps with an installed extension name\n  Fix: Choose another name\n',
   );
 });
 
@@ -118,7 +118,7 @@ test("a failed print turn with --json names the error and the fix in English", a
   harnesses.push(h);
   expect(await h.run(["chat", "-p", "x", "--json"])).toBe(EXIT.error);
   expect(h.stderrText()).toBe(
-    "xeon: The turn failed: boom\n  Fix: Run without --json to see the reason in readable output\n",
+    "fresnel: The turn failed: boom\n  Fix: Run without --json to see the reason in readable output\n",
   );
 });
 

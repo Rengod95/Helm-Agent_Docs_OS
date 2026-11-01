@@ -19,7 +19,7 @@ import { requestServiceShutdown, waitServiceGone } from "./ensure.ts";
 import { resolveServicePaths, type ServicePathError } from "./paths.ts";
 import { systemTime } from "./time.ts";
 
-// L4.host-service.spec §3.2 `xeon service status`·`stop`, SV-07. 엔진을 열지 않고 등록 파일과 소켓으로 서비스를 조회하고 내린다.
+// L4.host-service.spec §3.2 `fresnel service status`·`stop`, SV-07. 엔진을 열지 않고 등록 파일과 소켓으로 서비스를 조회하고 내린다.
 
 export interface ServiceControlOptions {
   readonly runtimeDir?: string;
@@ -90,7 +90,7 @@ export async function serviceStatus(
   if (!transport.ok) return ok({ running: false, reason: "unreachable" });
   const connection = createHostConnection(transport.value);
   try {
-    const hello = await helloService(connection, { clientName: "xeon-status" });
+    const hello = await helloService(connection, { clientName: "fresnel-status" });
     if (!hello.ok) return ok({ running: false, reason: "unreachable" });
     const status = await attemptAsync(() =>
       connection.request("host.status", {}, { timeoutMs: 3000 }),

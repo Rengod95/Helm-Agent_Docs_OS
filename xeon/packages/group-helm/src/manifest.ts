@@ -9,7 +9,7 @@ function jsonSchemaOf(schema: TSchema): Record<string, unknown> {
   return out;
 }
 
-/** 플러그인 산출물(`.xeon-plugin/plugin.json`)이 옮겨 쓰는 매니페스트 상수. 엔트리 경로는 번들(dist)을 가리킨다 */
+/** 플러그인 산출물(`.fresnel-plugin/plugin.json`)이 옮겨 쓰는 매니페스트 상수. 엔트리 경로는 번들(dist)을 가리킨다 */
 export const helmManifest: GroupManifest = defineManifest({
   schemaVersion: 1,
   name: "helm",

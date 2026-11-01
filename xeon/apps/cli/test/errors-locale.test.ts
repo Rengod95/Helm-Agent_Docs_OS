@@ -20,25 +20,25 @@ afterEach(() => {
 });
 
 test("the failure block says Fix: and keeps the two-line shape", () => {
-  expect(renderFailure({ message: "m", fix: "f" })).toBe("xeon: m\n  Fix: f\n");
+  expect(renderFailure({ message: "m", fix: "f" })).toBe("fresnel: m\n  Fix: f\n");
 });
 
 test("a missing session renders both lines in English", () => {
   const failure = failureOfWire(wireError("thread.notFound", { details: { threadId: "thr_1" } }));
   expect(failure).toEqual({
     message: "Session thr_1 does not exist",
-    fix: "Check the session id with xeon sessions ls",
+    fix: "Check the session id with fresnel sessions ls",
     code: EXIT.error,
   });
   expect(renderFailure(failure)).toBe(
-    "xeon: Session thr_1 does not exist\n  Fix: Check the session id with xeon sessions ls\n",
+    "fresnel: Session thr_1 does not exist\n  Fix: Check the session id with fresnel sessions ls\n",
   );
 });
 
 test("a secret in use keeps the lease count and names the rotate command", () => {
   expect(failureOfWire(wireError("secret.inUse", { details: { activeLeases: 2 } }))).toEqual({
     message: "The secret is in use and cannot be removed (active leases: 2)",
-    fix: "Remove it after use ends. To change only the value, use xeon secret rotate <name>",
+    fix: "Remove it after use ends. To change only the value, use fresnel secret rotate <name>",
     code: EXIT.error,
   });
 });
@@ -61,7 +61,7 @@ test("an extension block names the operation, with or without a reason", () => {
   expect(
     failureOfWire(
       wireError("thread.cancelledByExtension", {
-        details: { point: "session.compact.before", reason: "quota exceeded" },
+        details: { point: "thread.compact.before", reason: "quota exceeded" },
       }),
     ).message,
   ).toBe("An extension blocked the compaction operation: quota exceeded");
@@ -77,7 +77,7 @@ test("an extension block names the operation, with or without a reason", () => {
 test("an internal error shows the trace id, and an unknown kind keeps the generic line", () => {
   expect(failureOfWire(wireError("internal", { traceId: "trace-1" }))).toEqual({
     message: "Internal error (traceId trace-1)",
-    fix: "Run xeon doctor and report the traceId",
+    fix: "Run fresnel doctor and report the traceId",
     code: EXIT.error,
   });
   const future = new WireError(-32000, "future", { kind: "future.thing", retryable: false });
@@ -95,7 +95,7 @@ test("an export into a folder that is not empty is a usage error", () => {
     code: EXIT.usage,
   });
   expect(failureOfExport({ kind: "foreign_database", applicationId: 1234 }).message).toBe(
-    "This is not a Xeon database (application_id 1234)",
+    "This is not a Fresnel database (application_id 1234)",
   );
 });
 

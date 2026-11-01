@@ -12,13 +12,13 @@ import {
 
 describe("resolveTimeoutMs", () => {
   test("an explicit option wins over the environment", () => {
-    expect(resolveTimeoutMs(200, { XEON_E2E_TIMEOUT_MS: "90000" })).toBe(200);
+    expect(resolveTimeoutMs(200, { FRESNEL_E2E_TIMEOUT_MS: "90000" })).toBe(200);
     expect(resolveTimeoutMs(200, {})).toBe(200);
   });
 
-  test("without an option, a positive integer in XEON_E2E_TIMEOUT_MS is used", () => {
-    expect(resolveTimeoutMs(undefined, { XEON_E2E_TIMEOUT_MS: "90000" })).toBe(90_000);
-    expect(resolveTimeoutMs(undefined, { XEON_E2E_TIMEOUT_MS: " 1500 " })).toBe(1500);
+  test("without an option, a positive integer in FRESNEL_E2E_TIMEOUT_MS is used", () => {
+    expect(resolveTimeoutMs(undefined, { FRESNEL_E2E_TIMEOUT_MS: "90000" })).toBe(90_000);
+    expect(resolveTimeoutMs(undefined, { FRESNEL_E2E_TIMEOUT_MS: " 1500 " })).toBe(1500);
   });
 
   test("without an option or a variable, the default is 60000", () => {
@@ -26,8 +26,8 @@ describe("resolveTimeoutMs", () => {
   });
 
   for (const raw of ["0", "-5", "abc", "", "1.5", "1e3", "99999999999"]) {
-    test(`an invalid XEON_E2E_TIMEOUT_MS (${JSON.stringify(raw)}) falls back to 60000`, () => {
-      expect(resolveTimeoutMs(undefined, { XEON_E2E_TIMEOUT_MS: raw })).toBe(60_000);
+    test(`an invalid FRESNEL_E2E_TIMEOUT_MS (${JSON.stringify(raw)}) falls back to 60000`, () => {
+      expect(resolveTimeoutMs(undefined, { FRESNEL_E2E_TIMEOUT_MS: raw })).toBe(60_000);
     });
   }
 });

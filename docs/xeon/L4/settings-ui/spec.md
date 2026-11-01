@@ -360,7 +360,7 @@ export declare function lockInfo(setting: EffectiveSetting): LockInfo | null;
 export declare function deprecatedInfo(def: SettingDefWire, catalog: ReadonlyMap<SettingKey, SettingDefWire>): DeprecatedVM | null;
 /** allowedScopes에서 managed를 빼고, 잠겼으면 빈 배열, thread가 없으면 session을 뺀다. */
 export declare function writableScopes(def: SettingDefWire, setting: EffectiveSetting | undefined, hasThread: boolean): readonly WritableScope[];
-/** user가 있으면 user, 없으면 project, local, session 순으로 첫 값. 비어 있으면 null. */
+/** user가 있으면 user, 없으면 project, local, launch 순으로 첫 값. 비어 있으면 null. */
 export declare function defaultWriteScope(scopes: readonly WritableScope[]): WritableScope | null;
 ```
 
@@ -723,7 +723,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 1. 후보는 `allowedScopes`에서 `managed`를 뺀 값이다. 화면은 managed에 쓰지 않는다.
 2. 잠겼으면 후보가 없다.
 3. `currentThreadId()`가 null이면 `session`을 뺀다. `settings.set`의 session 쓰기에는 `threadId`가 필요하기 때문이다.
-4. 기본 선택은 `user`다. user가 후보에 없으면 project, local, session 순으로 첫 값이다.
+4. 기본 선택은 `user`다. user가 후보에 없으면 project, local, launch 순으로 첫 값이다.
 5. `session`은 범위 선택 목록에 넣지 않고 "이번 대화에만 적용" 확인란으로 보인다. 켜면 쓰기 범위가 session이 되고 `threadId`를 함께 보낸다.
 6. 후보가 하나도 없으면 항목은 읽기 전용이고 "이 화면에서는 바꿀 수 없어요"를 보인다.
 7. 범위 밖 범위는 선택지에 나타나지 않는다. 서버가 `settings.scopeNotAllowed`를 돌려주면 §4.4.4대로 처리한다.

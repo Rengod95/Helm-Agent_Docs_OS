@@ -29,7 +29,7 @@ function recommendation(
     state,
     hint:
       state === "needs-key"
-        ? `xeon secret add ${label === "Exa" ? "exa-api-key" : "brave-api-key"}`
+        ? `fresnel secret add ${label === "Exa" ? "exa-api-key" : "brave-api-key"}`
         : "",
   };
 }

@@ -225,7 +225,7 @@ function overviewOf(placed: readonly Placed[]): OverviewVM {
     user: 0,
     project: 0,
     local: 0,
-    session: 0,
+    launch: 0,
     default: 0,
   };
   const locked: SettingKey[] = [];

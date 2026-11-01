@@ -15,7 +15,7 @@ import type { SettingsChange } from "../types.ts";
 // - managed: 위치가 OS별 관리 정책 파일이라 정해지지 않았다(F wire §3.9). M1은 읽지 않는다.
 // - project·local: 신뢰 판정(X.loading-trust §4.7.4)이 구현되기 전에는 프로젝트 파일을 적용하지 않는다. pi 방식이다.
 // 파일 형식은 평평한 객체이고 키는 전체 설정 키다(settingsJsonSchema의 파일 모양).
-// project·local은 신뢰한 작업 폴더의 `.xeon/settings.json`, `.xeon/settings.local.json`이다(X.loading-trust.spec §4.7.2).
+// project·local은 신뢰한 작업 폴더의 `.fresnel/settings.json`, `.fresnel/settings.local.json`이다(X.loading-trust.spec §4.7.2).
 // layers가 동기라서 신뢰 판정과 파일 읽기는 설정 저장소(settings-store.ts)가 먼저 하고 결과를 `setWorkspaceFiles`로 넣는다.
 
 /** 신뢰한 작업 폴더의 project·local 설정 파일 내용. 파일이 없으면 빈 맵이다 */

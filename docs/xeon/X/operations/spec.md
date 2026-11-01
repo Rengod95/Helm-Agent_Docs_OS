@@ -1145,7 +1145,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 ```json
 {
   "x.operations.hookDefs": [
-    { "id": "no-rm-rf", "point": "tool.call.before", "tools": ["bash"], "command": ["./.xeon/hooks/check-bash.sh"], "timeoutMs": 5000 },
+    { "id": "no-rm-rf", "point": "tool.call.before", "tools": ["bash"], "command": ["./.fresnel/hooks/check-bash.sh"], "timeoutMs": 5000 },
     { "id": "log-start", "point": "thread.start", "command": ["/usr/local/bin/xeon-log", "start"] }
   ]
 }
@@ -1362,7 +1362,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 2. [결정: review.decisions-2 U-07] F 매니페스트 필드 `storage`·`hooks`는 M1에 넣지 않는다. M1은 필드 없이 동작한다(테이블 선언의 정본은 코드의 `defineTables`). M2 이후 다시 요청할 후보는 다음과 같다(`F.extensions.spec` §3.1).
    - 확장 전용 테이블 선언: `storage?: { tables: string[] }`(지역 이름 목록). 설치 전 검토, 제거 확인 화면, `validateUsage` 대조(`storage_undeclared`)에 쓴다.
    - 확장이 함께 내는 외부 훅: `hooks?: HookDef[]`(2차).
-   - M2 전에 설치 전 검토가 필요하면 확장 루트의 `.xeon-plugin/operations.json`에 같은 내용을 두고 X가 읽는다 [제안].
+   - M2 전에 설치 전 검토가 필요하면 확장 루트의 `.fresnel-plugin/operations.json`에 같은 내용을 두고 X가 읽는다 [제안].
 3. 이름 정리(해소).
    - extId 형식: [결정: review.decisions-2 U-18] `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두 `x_<하이픈을 밑줄로>_`(§4.4.2). `F.extensions.spec` `EXTENSION_NAME_PATTERN`, `eng.context-map.design` §5.2·CM-07, `eng.domain-types.guide` DT-08, `eng.events.design` §4.5, `L0.store.spec`, adr.0004 §3.3이 모두 이 정규식과 `x_` 접두로 고쳐졌다. `L3.readme`의 그룹 이름 제안(`^[a-z][a-z0-9]{1,31}$`)은 부분 집합이라 충돌하지 않는다.
    - 확장 kind 접두: `x.`/`grp.`(`F.records.spec` §3.2). 옛 밑줄 접두 표기는 쓰지 않는다([결정: review.decisions-2 T-21]). scope 상태 커밋 kind 이름은 `X.primitives.spec`이 정한다.

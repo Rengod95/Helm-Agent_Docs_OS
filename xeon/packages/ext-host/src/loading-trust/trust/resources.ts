@@ -6,15 +6,15 @@ import type { LoaderFs } from "@xeon/contracts/extensions";
 
 // FRESNEL-PATCH: config-dir-constant
 /** 프로젝트 설정 디렉터리 이름. pi는 `../config.ts`의 `CONFIG_DIR_NAME`(`.pi`)을 읽었다 */
-const FRESNEL_DIR = ".xeon";
+const FRESNEL_DIR = ".fresnel";
 
 // FRESNEL-PATCH: resource-list
 /** 프로젝트 루트의 Claude Code 형식 MCP 정의. stdio 서버의 실행 명령을 담으므로 신뢰 판정 전에는 읽지 않는다(L2.mcp.spec §4.2) */
 const PROJECT_MCP_JSON = ".mcp.json";
 
 /**
- * 프로젝트 루트에 있으면 신뢰 판정이 필요한 자원(X.loading-trust.spec §4.7.2 표). 프로젝트 루트 기준 상대 경로다. `.mcp.json`은 `.xeon` 밖의 유일한 항목이다.
- * 빈 `.xeon` 디렉터리는 신뢰를 요구하지 않는다. `AGENTS.md` 같은 컨텍스트 파일은 목록에 없다
+ * 프로젝트 루트에 있으면 신뢰 판정이 필요한 자원(X.loading-trust.spec §4.7.2 표). 프로젝트 루트 기준 상대 경로다. `.mcp.json`은 `.fresnel` 밖의 유일한 항목이다.
+ * 빈 `.fresnel` 디렉터리는 신뢰를 요구하지 않는다. `AGENTS.md` 같은 컨텍스트 파일은 목록에 없다
  */
 export const TRUST_REQUIRING_PROJECT_RESOURCES: readonly string[] = [
   PROJECT_MCP_JSON,

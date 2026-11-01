@@ -402,7 +402,7 @@ function referencesLine(name: string, found: SecretReferencesResult): string {
     shown.length === 0
       ? t("cli.secret.none")
       : more > 0
-        ? t("cli.secret.references.sessionsMore", { shown: shown.join(", "), more: String(more) })
+        ? t("cli.secret.references.threadsMore", { shown: shown.join(", "), more: String(more) })
         : shown.join(", ");
   return t("cli.secret.references.line", {
     name,

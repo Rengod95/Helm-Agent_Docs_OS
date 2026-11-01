@@ -82,7 +82,7 @@ export async function writePlugin(
     usesDrive: false,
     ...(files.trustLevel === undefined ? {} : { trust: { level: files.trustLevel } }),
   };
-  await putFile(join(root, ".xeon-plugin", "plugin.json"), JSON.stringify(manifest, null, 2));
+  await putFile(join(root, ".fresnel-plugin", "plugin.json"), JSON.stringify(manifest, null, 2));
   await putFile(join(root, "src", "index.ts"), files.entry ?? defaultEntry(files.name));
   return root;
 }

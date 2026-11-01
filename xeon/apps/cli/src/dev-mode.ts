@@ -4,13 +4,13 @@
 const COMPILED_MAIN_PREFIX = "/$bunfs/";
 
 /**
- * 개발 빌드(`XEON_DEV=1` 또는 소스 실행)면 참이다(§4.3). in-process에서 비직렬화 값이 섞이지 않게 하는 JSON 왕복 검사를 켠다.
+ * 개발 빌드(`FRESNEL_DEV=1` 또는 소스 실행)면 참이다(§4.3). in-process에서 비직렬화 값이 섞이지 않게 하는 JSON 왕복 검사를 켠다.
  * 컴파일 바이너리는 끈다. 순수 함수
  */
 export function devWireRoundTripOf(
   env: Readonly<Record<string, string | undefined>>,
   mainPath: string,
 ): boolean {
-  if (env["XEON_DEV"] === "1") return true;
+  if (env["FRESNEL_DEV"] === "1") return true;
   return !mainPath.startsWith(COMPILED_MAIN_PREFIX);
 }
