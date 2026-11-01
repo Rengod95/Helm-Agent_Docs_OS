@@ -62,7 +62,7 @@ export function chatRightTabs(opts: {
   /** 런타임 탭 배지: 이 대화의 확장 실패 수(0이면 숨김, DP-27). */
   runtimeBadge?: number;
   work?: ReactNode;
-  /** 플러그인 well 탭. 없으면 Helm 탐구(helm/panel) 하나. 막대 칸은 6개까지 [제안] — 시안은 넘치는 경우를 그리지 않는다. */
+  /** 플러그인 well 탭. 없으면 Helm 탐구(helm/panel) 하나. 막대 칸은 MAX_PLUGIN_TABS(6)까지, 넘치면 "더 보기" 메뉴. */
   plugins?: RightTab[];
   only?: string[];
 }): RightTab[] {

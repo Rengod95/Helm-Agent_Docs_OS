@@ -74,8 +74,10 @@ export function ViewHead({
       title={view.title}
       meta={
         <span className="inline-flex min-w-0 items-center gap-2">
-          <span className="truncate font-mono text-mono-sm">
-            {ext.name} · {trustLabel[ext.trust]} · {ext.version}
+          {/* 결정 13: 표시 이름 + 회색 mono id. 셸이 그리므로 플러그인이 바꿀 수 없다(T-16). */}
+          <span className="truncate">
+            {ext.display} <span className="font-mono text-mono-sm">{ext.name}</span> ·{" "}
+            {trustLabel[ext.trust]} · <span className="tabular-nums">{ext.version}</span>
           </span>
           {ext.trust === "project" && (
             <Badge size="sm" tone="warning">

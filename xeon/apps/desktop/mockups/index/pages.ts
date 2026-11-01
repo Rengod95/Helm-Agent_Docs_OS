@@ -50,4 +50,23 @@ export const pages: MockPage[] = [
   { id: "O-07", title: "새 대화", folder: "o07-new-thread", states: 5 },
   { id: "O-09", title: "바로 가기 키 도움말", folder: "o09-shortcuts", states: 4 },
   { id: "S-04", title: "토스트", folder: "s04-toast", states: 5 },
+  // 묶음 B(플러그인 화면과 신뢰)
+  {
+    id: "B01 · P-18",
+    title: "플러그인 화면 호스트: 자체 코드 화면, 막힘, 남은 상태",
+    folder: "b01-plugin-frame",
+    states: 22,
+  },
+  {
+    id: "B02",
+    title: "대화 영역 플러그인 기여: 옆 패널, 카드, 상태 칸, 명령",
+    folder: "b02-plugin-slots",
+    states: 9,
+  },
+  {
+    id: "B03 · O-10",
+    title: "확장 가져오기, 신뢰 확인, 다시 확인, 지우기",
+    folder: "b03-ext-trust",
+    states: 13,
+  },
 ];

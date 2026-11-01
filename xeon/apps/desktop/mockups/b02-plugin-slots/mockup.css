@@ -1,0 +1,7 @@
+/* B02 대화 영역의 플러그인 기여: caustic 스타일 + 공용 셸 CSS. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../b01-plugin-frame/parts/";
+@source "../wb-opus/parts/";
+@source "../wb-opus/screens/";

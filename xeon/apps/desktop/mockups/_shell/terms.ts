@@ -72,16 +72,6 @@ export const T = {
   pluginView: "플러그인 화면",
   viewDeclarative: "기본 부품 화면", // 선언형 모드
   viewFrame: "자체 코드 화면", // 프레임 모드
-  viewFallback: "대체 화면", // 프레임 금지 때 그리는 fallback 트리
-  framesSetting: "자체 코드 화면 허용", // x.views.frames
-  projectFramesSetting: "프로젝트 확장의 자체 코드 화면", // x.views.allowProjectFrames
-  frameConfirm: "동작 확인", // 프레임 call 확인 줄(셸이 띄움)
-  projectTrust: "프로젝트 신뢰", // O-04 폴더 신뢰(확장 신뢰 수준과 다름)
-  trustConfirm: "확장 신뢰 확인", // O-10
-  installFolder: "폴더", // 설치 출처: 확장 폴더
-  installBundle: "묶음 파일", // 설치 출처: 패키징한 확장 파일
-  installUserDir: "사용자 확장 위치", // install source user(<userDir>/extensions)
-  extStorage: "확장 저장 데이터", // 확장 접두 테이블(상태 문서)
 
   // 맥락·프로필·시험
   context: "보기 기준", // 작업대 맥락 칸
@@ -129,6 +119,26 @@ export const T = {
   approvalPlan: "계획",
   approvalQuestion: "질문",
   approvalReview: "변경 검토",
+  // 묶음 B(플러그인 화면과 신뢰, m4/pg-b). 병합 때 이 구역을 통째로 옮긴다.
+  viewFallback: "대체 화면", // 프레임 금지 때 그리는 fallback 트리
+  framesSetting: "자체 코드 화면 허용", // x.views.frames
+  projectFramesSetting: "프로젝트 확장의 자체 코드 화면", // x.views.allowProjectFrames
+  frameConfirm: "동작 확인", // 프레임 call 확인 줄(셸이 띄움)
+  projectTrust: "프로젝트 신뢰", // O-04 폴더 신뢰(확장 신뢰 수준과 다름)
+  trustConfirm: "확장 신뢰 확인", // O-10
+  installFolder: "폴더", // 설치 출처: 확장 폴더
+  installBundle: "묶음 파일", // 설치 출처: 패키징한 확장 파일
+  installUserDir: "사용자 확장 위치", // install source user(<userDir>/extensions)
+  extStorage: "확장 저장 데이터", // 확장 접두 테이블(상태 문서)
+  slotOverflow: "더 보기", // 오른쪽 막대 플러그인 탭이 6개를 넘을 때 메뉴
+  trustRequested: "요청한 신뢰 수준", // 매니페스트 trust.level
+  trustEffective: "실제 신뢰 수준", // 유효 등급 = min(위치 상한, 요청)
+  trustCeiling: "위치 상한", // 설치 위치가 정하는 상한(SOURCE_TRUST)
+  trustRecheck: "신뢰 다시 확인", // 업데이트·권한 변경 뒤 O-10 차이 모드
+  install: "가져오기", // 확장 설치(P-13 머리 단추)
+  uninstall: "지우기", // 확장 제거
+  installCheck: "검사", // 가져오기 전 매니페스트·파일 검사
+  nextStage: "다음 단계", // M4 밖 기능 안내 표지(URL 설치 등)
 } as const;
 
 export type TermKey = keyof typeof T;

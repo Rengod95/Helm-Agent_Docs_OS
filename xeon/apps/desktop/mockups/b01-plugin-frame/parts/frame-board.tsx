@@ -194,3 +194,68 @@ export function FrameBoard({
     </div>
   );
 }
+
+/** acme-notes/map 프레임 안 문서 흉내: 노트를 자유 배치한 지도(프로젝트 확장). 셸은 이 안을 모른다. */
+const NOTES = [
+  { id: "n1", x: 90, y: 70, title: "TTL 경계", size: 3 },
+  { id: "n2", x: 260, y: 130, title: "만료 비교 단위", size: 4 },
+  { id: "n3", x: 420, y: 60, title: "무효화 이벤트", size: 2 },
+  { id: "n4", x: 560, y: 170, title: "캐시 키 해시", size: 2 },
+  { id: "n5", x: 170, y: 220, title: "재현 시험", size: 3 },
+];
+const LINKS: [string, string][] = [
+  ["n1", "n2"],
+  ["n2", "n3"],
+  ["n2", "n5"],
+  ["n3", "n4"],
+];
+
+export function FrameMap() {
+  const at = (id: string) => NOTES.find((n) => n.id === id);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2 p-4">
+      <div className="flex items-baseline gap-3">
+        <span className="text-ui-sm font-semibold text-text-primary">노트 5개</span>
+        <span className="text-ui-xs text-text-tertiary">끌어서 옮기면 저장돼요</span>
+      </div>
+      <svg viewBox="0 0 680 280" role="img" aria-label="노트 지도" className="w-full max-w-[52rem]">
+        {LINKS.map(([a, b]) => {
+          const p = at(a);
+          const q = at(b);
+          if (p === undefined || q === undefined) return null;
+          return (
+            <line
+              key={`${a}-${b}`}
+              x1={p.x}
+              y1={p.y}
+              x2={q.x}
+              y2={q.y}
+              stroke="var(--cs-color-border-strong)"
+              strokeDasharray="3 4"
+            />
+          );
+        })}
+        {NOTES.map((n) => (
+          <g key={n.id}>
+            <circle
+              cx={n.x}
+              cy={n.y}
+              r={10 + n.size * 4}
+              fill="var(--cs-color-agent-soft)"
+              stroke="var(--cs-color-border-default)"
+            />
+            <text
+              x={n.x}
+              y={n.y + 10 + n.size * 4 + 14}
+              textAnchor="middle"
+              fontSize={12}
+              fill="var(--cs-color-text-secondary)"
+            >
+              {n.title}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}

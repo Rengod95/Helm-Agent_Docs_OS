@@ -125,6 +125,9 @@ export function FramesSettingDialog({
   project = false,
   projectOn = false,
   onToggleProject,
+  locked = false,
+  projectTrust = "allow",
+  onTrustFolder,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -134,6 +137,11 @@ export function FramesSettingDialog({
   project?: boolean;
   projectOn?: boolean;
   onToggleProject?: (v: boolean) => void;
+  /** 보안 확인(e2e) 전 빌드: 설정을 켤 수 없다(ADR-0021 §3.6.2 3번). */
+  locked?: boolean;
+  /** 이 폴더의 프로젝트 신뢰(O-04). allow가 아니면 프로젝트 확장이 실리지 않아 둘째 행이 잠긴다. */
+  projectTrust?: "allow" | "undecided";
+  onTrustFolder?: () => void;
 }) {
   return (
     <Dialog
@@ -161,12 +169,15 @@ export function FramesSettingDialog({
           <span className="text-ui-sm font-medium text-text-primary">{T.framesSetting}</span>
           <Switch
             size="sm"
-            checked={on}
+            checked={on && !locked}
+            disabled={locked}
             onCheckedChange={onToggle}
             className="row-span-2 self-center"
           />
           <span className="text-ui-xs text-text-tertiary">
-            확장이 낸 HTML·JS를 격리된 상자에서 돌려요. 끄면 {T.viewFallback}이나 자리표시로 보여요.{" "}
+            {locked
+              ? "이 앱 버전은 격리 보안 확인을 마치기 전이라 켤 수 없어요. 확인을 마친 업데이트부터 켜져요. "
+              : `확장이 낸 HTML·JS를 격리된 상자에서 돌려요. 끄면 ${T.viewFallback}이나 자리표시로 보여요. `}
             <span className="font-mono text-mono-sm">x.views.frames</span>
           </span>
         </label>
@@ -178,7 +189,7 @@ export function FramesSettingDialog({
             <Switch
               size="sm"
               checked={projectOn}
-              disabled={!on}
+              disabled={!on || locked || projectTrust !== "allow"}
               onCheckedChange={(v) => onToggleProject?.(v)}
               className="row-span-2 self-center"
             />
@@ -187,9 +198,33 @@ export function FramesSettingDialog({
               없어요. <span className="font-mono text-mono-sm">x.views.allowProjectFrames</span>
             </span>
           </label>
-        ) : (
+        ) : null}
+        {project && (
+          // N-26 동의 조건 두 줄: 폴더 신뢰(O-04 allow)가 먼저, 그다음 사용자 범위 설정. 둘 다 있어야 프레임이 뜬다.
+          <ListDescription variant="ghost" size="xs" aria-label="켜는 조건" className={LIST_DESC}>
+            <ListDescriptionRow term={T.projectTrust}>
+              {projectTrust === "allow" ? (
+                <span>
+                  허용함{" "}
+                  <span className="font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  아직 정하지 않았어요
+                  <Button size="xs" tone="neutral" variant="outline" onClick={onTrustFolder}>
+                    이 폴더 신뢰…
+                  </Button>
+                </span>
+              )}
+            </ListDescriptionRow>
+            <ListDescriptionRow term="저장 범위">
+              사용자 설정 · 이 기기의 모든 프로젝트
+            </ListDescriptionRow>
+          </ListDescription>
+        )}
+        {!project && (
           <p className="m-0 text-ui-xs text-text-tertiary">
-            {T.trustProject} {T.extension}은 이 설정과 따로{" "}
+            {T.trustProject} {josa(T.extension, "은", "는")} 이 설정과 따로{" "}
             {josa(T.projectFramesSetting, "을", "를")} 켜야 해요.
           </p>
         )}

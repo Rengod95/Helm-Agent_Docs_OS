@@ -42,7 +42,7 @@ export interface PluginExt {
 
 export const taskflow: PluginExt = {
   name: "taskflow",
-  display: "작업 흐름판",
+  display: "작업 흐름",
   layer: "L3",
   kind: "group",
   trust: "user",

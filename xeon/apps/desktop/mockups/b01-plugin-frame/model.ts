@@ -10,6 +10,7 @@ export type FrameMode =
   | "liveness"
   | "bridge"
   | "reshown"
+  | "disabled"
   | "blocked-setting"
   | "blocked-project"
   | "blocked-build"
@@ -38,6 +39,10 @@ export interface PS {
   /** 생존 확인(5초 ping) 무응답 수. 2면 내린다 */
   pingMissed: number;
   inboxOpen: boolean;
+  /** 확인 줄에서 거절한 직후(화면은 오류 응답을 받음) */
+  denied: boolean;
+  /** 이 폴더의 프로젝트 신뢰(O-04). allow여야 프로젝트 확장이 실린다 */
+  projectTrust: "allow" | "undecided";
 }
 
 export const BASE: PS = {
@@ -58,6 +63,8 @@ export const BASE: PS = {
   fails: 0,
   pingMissed: 0,
   inboxOpen: false,
+  denied: false,
+  projectTrust: "allow",
 };
 
 export const moveTask = (tasks: Task[], id: string): Task[] =>
@@ -72,11 +79,14 @@ export const STATES = [
   { id: "F6", label: "F6 응답 없음" },
   { id: "F7", label: "F7 다리 버전 불일치" },
   { id: "F8", label: "F8 다시 띄움" },
+  { id: "F9", label: "F9 자체 코드 화면 꺼짐" },
   { id: "B1", label: "B1 막힘: 설정, 대체 화면" },
   { id: "B2", label: "B2 막힘: 설정, 대체 없음" },
   { id: "B3", label: "B3 막힘: 프로젝트 확장" },
   { id: "B4", label: "B4 막힘: 앱 버전" },
   { id: "B5", label: "B5 웹" },
+  { id: "B6", label: "B6 프로젝트 확장 화면 켜는 길" },
+  { id: "B7", label: "B7 프로젝트 확장 화면 켜짐" },
   { id: "D1", label: "D1 기본 부품: 읽는 중" },
   { id: "D2", label: "D2 기본 부품: 오프라인" },
   { id: "D3", label: "D3 기본 부품: 화면 꺼짐" },
@@ -97,11 +107,14 @@ export const PRESET: Record<StateId, Partial<PS>> = {
   F6: { frame: "liveness", fails: 1 },
   F7: { frame: "bridge" },
   F8: { frame: "reshown" },
+  F9: { frame: "disabled", fails: 5 },
   B1: { frame: "blocked-setting", framesOn: false },
   B2: { view: "acme-notes/map", frame: "blocked-setting", framesOn: false },
   B3: { view: "acme-notes/map", frame: "blocked-project" },
   B4: { frame: "blocked-build" },
   B5: { frame: "blocked-web", web: true },
+  B6: { view: "acme-notes/map", frame: "blocked-project", setting: true },
+  B7: { view: "acme-notes/map", frame: "ready", projectFramesOn: true },
   D1: { view: "helm/inquiry", helm: "loading" },
   D2: { view: "helm/inquiry", helm: "offline" },
   D3: { view: "helm/inquiry", helm: "view_disabled", fails: 5 },
@@ -110,61 +123,77 @@ export const PRESET: Record<StateId, Partial<PS>> = {
   D6: { view: "helm/inquiry", helm: "safe" },
 };
 
-// 시나리오(?scenario=). phase마다 첫 값. 그 뒤는 누름과 타이머(app.tsx)가 옮긴다.
-export type FramePhase =
-  | "loading"
-  | "ready"
-  | "confirm"
-  | "moved"
-  | "approval"
-  | "dispatched"
-  | "link";
-export type LivePhase = "ready" | "lost" | "reloading" | "back";
-export type BlockedPhase = "fallback" | "setting" | "loading" | "ready";
-export type HelmPhase = "loading" | "active" | "offline" | "disabled";
-
+// 시나리오(?scenario=). phase마다 첫 값(&step=n이면 n번째 phase에서 시작). 그 뒤는 누름과 타이머(app.tsx)가 옮긴다.
 export const FLOWS = {
-  frame: {
-    id: "frame",
-    label: "a. 자체 코드 화면에서 동작 확인",
-    phases: ["loading", "ready", "confirm", "moved", "approval", "dispatched", "link"],
-  } satisfies FlowDef<FramePhase>,
-  liveness: {
-    id: "liveness",
-    label: "a′. 응답 없음 → 다시 불러오기",
-    phases: ["ready", "lost", "reloading", "back"],
-  } satisfies FlowDef<LivePhase>,
-  blocked: {
-    id: "blocked",
-    label: "b. 막힘 → 대체 화면 → 설정 켜기",
-    phases: ["fallback", "setting", "loading", "ready"],
-  } satisfies FlowDef<BlockedPhase>,
-  helm: {
-    id: "helm",
+  "frame-open": {
+    id: "frame-open",
+    label: "자체 코드 화면 열기 → 동작 확인",
+    phases: ["loading", "ready", "confirm", "moved", "denied"],
+  },
+  "frame-approval-link": {
+    id: "frame-approval-link",
+    label: "승인 카드와 외부 링크",
+    phases: ["ready", "approval", "dispatched", "refused", "link"],
+  },
+  "frame-dies": {
+    id: "frame-dies",
+    label: "응답 없음 → 다시 불러오기 → 꺼짐",
+    phases: ["ready", "lost", "reloading", "disabled", "reenabled"],
+  },
+  "frame-blocked-fallback": {
+    id: "frame-blocked-fallback",
+    label: "막힘 → 대체 화면 → 설정 켜기",
+    phases: ["fallback", "setting", "loading", "build-locked"],
+  },
+  "project-frame": {
+    id: "project-frame",
+    label: "프로젝트 확장 화면 켜기",
+    phases: ["blocked", "dialog", "loaded", "trust-needed"],
+  },
+  "declarative-states": {
+    id: "declarative-states",
     label: "기본 부품 화면: 오프라인 → 화면 꺼짐",
     phases: ["loading", "active", "offline", "disabled"],
-  } satisfies FlowDef<HelmPhase>,
-};
+  },
+} satisfies Record<string, FlowDef<string>>;
 export type FlowId = keyof typeof FLOWS;
 
 export const PHASE_PRESET: Record<string, Partial<PS>> = {
-  "frame:loading": { frame: "loading" },
-  "frame:ready": {},
-  "frame:confirm": { confirm: "t13" },
-  "frame:moved": { tasks: moved, focus: "t13" },
-  "frame:approval": { tasks: moved, dispatch: "waiting", approval: "pending", inboxOpen: true },
-  "frame:dispatched": { tasks: moved, dispatch: "done", approval: "allowed" },
-  "frame:link": { tasks: moved, dispatch: "done", approval: "allowed", link: true },
-  "liveness:ready": {},
-  "liveness:lost": { frame: "liveness", fails: 1 },
-  "liveness:reloading": { frame: "loading", fails: 1 },
-  "liveness:back": { fails: 1 },
-  "blocked:fallback": { frame: "blocked-setting", framesOn: false },
-  "blocked:setting": { frame: "blocked-setting", framesOn: false, setting: true },
-  "blocked:loading": { frame: "loading", setting: false },
-  "blocked:ready": {},
-  "helm:loading": { view: "helm/inquiry", helm: "loading" },
-  "helm:active": { view: "helm/inquiry" },
-  "helm:offline": { view: "helm/inquiry", helm: "offline" },
-  "helm:disabled": { view: "helm/inquiry", helm: "view_disabled", fails: 5 },
+  "frame-open:loading": { frame: "loading" },
+  "frame-open:ready": {},
+  "frame-open:confirm": { confirm: "t13" },
+  "frame-open:moved": { tasks: moved, focus: "t13" },
+  "frame-open:denied": { denied: true },
+  "frame-approval-link:ready": {},
+  "frame-approval-link:approval": {
+    tasks: moved,
+    dispatch: "waiting",
+    approval: "pending",
+    inboxOpen: true,
+  },
+  "frame-approval-link:dispatched": { tasks: moved, dispatch: "done", approval: "allowed" },
+  "frame-approval-link:refused": { tasks: moved, dispatch: "denied", approval: "denied" },
+  "frame-approval-link:link": { tasks: moved, dispatch: "done", approval: "allowed", link: true },
+  "frame-dies:ready": { fails: 3 },
+  "frame-dies:lost": { frame: "liveness", fails: 4 },
+  "frame-dies:reloading": { frame: "loading", fails: 4 },
+  "frame-dies:disabled": { frame: "disabled", fails: 5 },
+  "frame-dies:reenabled": { frame: "loading", fails: 0 },
+  "frame-blocked-fallback:fallback": { frame: "blocked-setting", framesOn: false },
+  "frame-blocked-fallback:setting": { frame: "blocked-setting", framesOn: false, setting: true },
+  "frame-blocked-fallback:loading": { frame: "loading" },
+  "frame-blocked-fallback:build-locked": { frame: "blocked-build", setting: true },
+  "project-frame:blocked": { view: "acme-notes/map", frame: "blocked-project" },
+  "project-frame:dialog": { view: "acme-notes/map", frame: "blocked-project", setting: true },
+  "project-frame:loaded": { view: "acme-notes/map", frame: "ready", projectFramesOn: true },
+  "project-frame:trust-needed": {
+    view: "acme-notes/map",
+    frame: "blocked-project",
+    setting: true,
+    projectTrust: "undecided",
+  },
+  "declarative-states:loading": { view: "helm/inquiry", helm: "loading" },
+  "declarative-states:active": { view: "helm/inquiry" },
+  "declarative-states:offline": { view: "helm/inquiry", helm: "offline" },
+  "declarative-states:disabled": { view: "helm/inquiry", helm: "view_disabled", fails: 5 },
 };

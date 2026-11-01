@@ -1,0 +1,4 @@
+/* B03 확장 가져오기와 신뢰: caustic 스타일 + 공용 셸 CSS. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";

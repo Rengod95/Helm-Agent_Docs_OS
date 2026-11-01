@@ -34,7 +34,7 @@ import {
   type ViewId,
 } from "./model";
 import { BoardFallback, HelmTree } from "./parts/declarative";
-import { FrameBoard } from "./parts/frame-board";
+import { FrameBoard, FrameMap } from "./parts/frame-board";
 import {
   ConfirmRow,
   FRAME_WIDTH,
@@ -123,28 +123,40 @@ export function App({ state }: { state: StateId }) {
   const tlHelm = useTimeline();
   const lastFrameView = useRef(s.view);
 
-  // 자체 코드 화면: ready를 받으면 그린다(목업은 1.4초).
+  // 자체 코드 화면: ready를 받으면 그린다(목업은 1.4초). 프레임 모드 화면이면 어느 것이든.
   useEffect(() => {
-    if (!live || s.view !== "taskflow/board") return;
+    if (!live || s.view === "helm/inquiry" || s.view === "web-exa/none") return;
     if (s.frame === "loading" || s.frame === "reshown")
       tlFrame.start([{ after: 1400, run: () => setS((x) => ({ ...x, frame: "ready" })) }]);
   }, [live, s.view, s.frame, tlFrame]);
 
-  // 시나리오 a′: 생존 확인 무응답 1번(늦음 한 줄) → 2번(내림, 장부 1).
+  // 시나리오 frame-dies: 장부에 실패 3이 있는 화면. 생존 확인 무응답 1번(늦음 한 줄) → 2번(내림, 장부 +1).
+  // 다시 불러와도 또 멈추면 5번째에서 이 화면만 꺼진다(view_disabled). "다시 켜기"는 장부를 비워 안정적으로 뜬다.
   useEffect(() => {
-    if (scenarioId !== "liveness" || s.frame !== "ready" || s.fails > 0) return;
+    if (scenarioId !== "frame-dies" || s.frame !== "ready" || s.fails < 3) return;
     tlPing.start([
       { after: 2500, run: () => setS((x) => ({ ...x, pingMissed: 1 })) },
       {
-        after: 5000,
-        run: () => setS((x) => ({ ...x, pingMissed: 0, frame: "liveness", fails: 1 })),
+        after: 4000,
+        run: () =>
+          setS((x) => {
+            const fails = x.fails + 1;
+            if (fails >= 5) {
+              toast({
+                title: `${taskflow.views[0]?.title ?? ""} 화면을 껐어요`,
+                description: `연속 5번 실패했어요. ${josa(T.extension, "은", "는")} 그대로 켜져 있어요.`,
+              });
+              return { ...x, pingMissed: 0, frame: "disabled", fails };
+            }
+            return { ...x, pingMissed: 0, frame: "liveness", fails };
+          }),
       },
     ]);
   }, [scenarioId, s.frame, s.fails, tlPing]);
 
-  // 시나리오 helm: 읽는 중 → 그림 → 오프라인 → 다시 연결 → 연속 실패 5번 → 화면 꺼짐.
+  // 시나리오 declarative-states: 읽는 중 → 그림 → 오프라인 → 다시 연결 → 연속 실패 5번 → 화면 꺼짐.
   useEffect(() => {
-    if (scenarioId !== "helm") return;
+    if (scenarioId !== "declarative-states") return;
     if (s.helm === "loading")
       tlHelm.start([{ after: 1200, run: () => setS((x) => ({ ...x, helm: "active" })) }]);
     if (s.helm === "active" && s.fails === 0 && flow.index <= 1)
@@ -173,20 +185,23 @@ export function App({ state }: { state: StateId }) {
 
   const { ext, view } = viewOf(s.view);
 
+  // 화면 바꾸기. 숨은 프레임은 내리고 다시 보이면 새로 띄운다(§3.7). 막힘 사유는 화면마다 다시 계산한다.
+  const frameFor = (id: ViewId): PS["frame"] => {
+    if (s.web) return "blocked-web";
+    if (s.frame === "blocked-build") return "blocked-build";
+    if (!s.framesOn) return "blocked-setting";
+    if (id === "acme-notes/map") return s.projectFramesOn ? "loading" : "blocked-project";
+    return lastFrameView.current === id ? "reshown" : "loading";
+  };
   const go = (id: ViewId) => {
     if (id === s.view) return;
-    // 숨은 프레임은 내린다(§3.7). 다시 보이면 새로 띄운다.
-    const leaving = s.view === "taskflow/board" && s.frame === "ready";
-    lastFrameView.current = id;
-    set({
-      view: id,
-      ...(id === "taskflow/board" && s.frame === "ready" ? { frame: "reshown" as const } : {}),
-      ...(leaving ? { frame: "reshown" as const } : {}),
-      confirm: null,
-    });
+    if (EXT_OF[s.view].views.find((v) => v.id === s.view)?.mode === "frame")
+      lastFrameView.current = s.view;
+    set({ view: id, frame: frameFor(id), confirm: null, denied: false, pingMissed: 0 });
   };
 
   const onMove = (id: string) => {
+    if (s.denied) set({ denied: false });
     if (s.dontAsk) {
       set({ tasks: moveTask(s.tasks, id), focus: id });
       toast({ title: "작업을 옮겼어요", description: `${id} · 이 화면에서는 묻지 않아요` });
@@ -194,8 +209,10 @@ export function App({ state }: { state: StateId }) {
   };
   const onAllow = () => {
     if (s.confirm === null) return;
-    set({ tasks: moveTask(s.tasks, s.confirm), focus: s.confirm, confirm: null });
+    set({ tasks: moveTask(s.tasks, s.confirm), focus: s.confirm, confirm: null, denied: false });
   };
+  // 실패 갈래: 거절하면 셸이 프레임에 오류 응답({ ok: false, error: "user_denied" })을 돌려주고 판은 그대로다.
+  const onDeny = () => set({ confirm: null, denied: true });
   const onDispatch = () => {
     set({ dispatch: "waiting", approval: "pending" });
     if (flowDef !== null) shell.openEnd("inbox");
@@ -219,7 +236,7 @@ export function App({ state }: { state: StateId }) {
   const reason = BLOCK_REASON[s.frame];
 
   const frameCenter = () => {
-    if (s.view === "acme-notes/map" || (blocked && view.fallback === undefined)) {
+    if (blocked && view.fallback === undefined) {
       return (
         <div className={`${FRAME_WIDTH} grid flex-1 place-items-center`}>
           <EmptyState
@@ -271,7 +288,14 @@ export function App({ state }: { state: StateId }) {
               {reason?.line} · {josa(T.viewFallback, "으로", "로")} 보여요
             </ShellLine>
             <section role="region" aria-label={`${ext.display} ${T.viewFallback}`}>
-              <BoardFallback tasks={s.tasks} onMove={onMove} />
+              {/* 대체 화면은 기본 부품 트리라 렌더러가 누름을 안다 → 확인 줄 없이 바로 call(ADR-0021 §3.4). */}
+              <BoardFallback
+                tasks={s.tasks}
+                onMove={(id) => {
+                  set({ tasks: moveTask(s.tasks, id), focus: id });
+                  toast({ title: "작업을 옮겼어요", description: `${id} · ext.taskflow.move` });
+                }}
+              />
             </section>
           </div>
         </div>
@@ -287,7 +311,7 @@ export function App({ state }: { state: StateId }) {
             dontAsk={s.dontAsk}
             onDontAsk={(v) => set({ dontAsk: v })}
             onAllow={onAllow}
-            onDeny={() => set({ confirm: null })}
+            onDeny={onDeny}
           />
         )}
         {s.approval === "pending" && (
@@ -305,6 +329,11 @@ export function App({ state }: { state: StateId }) {
             }
           >
             {josa(ext.display, "이", "가")} 승인을 기다려요 · 승인은 앱 카드로만 받아요
+          </ShellLine>
+        )}
+        {s.denied && (
+          <ShellLine icon={<Shield emphasis="muted" />}>
+            거절했어요 · {josa(ext.display, "은", "는")} 오류 응답을 받고 판을 그대로 둬요
           </ShellLine>
         )}
         {s.pingMissed > 0 && s.frame === "ready" && (
@@ -333,6 +362,28 @@ export function App({ state }: { state: StateId }) {
                 </Button>
               }
             />
+          ) : s.frame === "disabled" ? (
+            <FramePlaceholder
+              icon={<TriangleAlert />}
+              title="이 화면이 연속 실패해 꺼졌어요"
+              description={`${josa(ext.display, "은", "는")} 그대로 켜져 있어요. 이 화면만 껐어요.`}
+              diag="생존 확인 무응답 · 연속 실패 5/5"
+              actions={
+                <>
+                  <Button
+                    size="xs"
+                    tone="neutral"
+                    variant="outline"
+                    onClick={() => set({ frame: "loading", fails: 0 })}
+                  >
+                    다시 켜기
+                  </Button>
+                  <Button size="xs" tone="neutral" variant="ghost">
+                    확장 상세 열기
+                  </Button>
+                </>
+              }
+            />
           ) : s.frame === "liveness" ? (
             <FramePlaceholder
               icon={<TriangleAlert />}
@@ -351,6 +402,8 @@ export function App({ state }: { state: StateId }) {
                 </Button>
               }
             />
+          ) : s.view === "acme-notes/map" ? (
+            <FrameMap />
           ) : (
             <FrameBoard
               tasks={s.tasks}
@@ -491,7 +544,7 @@ export function App({ state }: { state: StateId }) {
         workbench={{
           nav: workbenchNav,
           pages: [
-            { id: "taskflow/board", ext: "taskflow", label: taskflow.display },
+            { id: "taskflow/board", ext: "taskflow", label: taskflow.views[0]?.title ?? "" },
             { id: "helm/inquiry", ext: "helm", label: "Helm 탐구", disabled: safe },
             { id: "acme-notes/map", ext: "acme-notes", label: "노트 지도" },
           ],
@@ -561,8 +614,17 @@ export function App({ state }: { state: StateId }) {
         open={s.setting}
         onOpenChange={(o) => set({ setting: o })}
         on={s.framesOn}
+        locked={s.frame === "blocked-build"}
         project={s.view === "acme-notes/map"}
         projectOn={s.projectFramesOn}
+        projectTrust={s.projectTrust}
+        onTrustFolder={() => {
+          set({ projectTrust: "allow" });
+          toast({
+            title: "이 폴더를 신뢰했어요",
+            description: "~/code/xeon · 프로젝트 확장을 실어요",
+          });
+        }}
         onToggle={(v) => {
           set({
             framesOn: v,
@@ -572,12 +634,14 @@ export function App({ state }: { state: StateId }) {
             window.setTimeout(() => set({ setting: false }), 500);
         }}
         onToggleProject={(v) => {
-          set({ projectFramesOn: v });
-          if (v)
+          set({ projectFramesOn: v, ...(v ? { frame: "loading" as const } : {}) });
+          if (v) {
+            window.setTimeout(() => set({ setting: false }), 500);
             toast({
-              title: `${T.projectFramesSetting}을 켰어요`,
-              description: "사용자 설정에 저장했어요. 노트 지도는 다음에 열 때 띄워요.",
+              title: `${josa(T.projectFramesSetting, "을", "를")} 켰어요`,
+              description: "사용자 설정에 저장했어요.",
             });
+          }
         }}
       />
       <ScenarioDock scenarios={Object.values(FLOWS)} />
