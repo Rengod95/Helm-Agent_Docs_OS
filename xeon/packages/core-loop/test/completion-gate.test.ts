@@ -20,21 +20,18 @@ const done = (value: string): ScriptedResponse => ({
 
 /** 지점 하나가 매번 continue: true를 돌려주는 확장 */
 function continuing(point: "boundary.settle.before" | "boundary.step.after"): ExtensionUnit {
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       g.on(point, () => ({ continue: true }));
     });
   };
   return {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: `always-continue-${point.replaceAll("_", "-")}`,
       version: "0.1.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./index.ts",
-      points: [point],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: [point] }],
     }),
     entry,
     loadIndex: 2,

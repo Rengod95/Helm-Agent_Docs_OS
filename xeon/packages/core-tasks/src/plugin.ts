@@ -12,17 +12,14 @@ import type { TasksSettingsSource } from "./settings-source.ts";
 
 /** core-tasks의 확장 매니페스트. 내장 L1 패키지라 builtin 신뢰이고 지점도 drive도 쓰지 않는다 */
 export const TASKS_MANIFEST: ExtensionManifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "core-tasks",
   version: "0.1.0",
   displayName: "Task engine",
   description: "Scope tree, cancellation, keyed queue and the durable input queue (fresnel.tasks).",
   defaultEnabled: true,
-  layer: "L1",
-  kind: "plugin",
   entry: "./src/index.ts",
-  points: [],
-  usesDrive: false,
+  plugins: [{ layer: "L1", hooks: [] }],
   trust: { level: "builtin" },
 });
 
@@ -38,8 +35,8 @@ export interface TasksPluginDeps {
  * 범위 해제(dispose)는 close() 하나로 잇는다: 신호만 보내고 의도는 쓰지 않는다(§4.1 4번)
  */
 export function createTasksEntry(deps: TasksPluginDeps): ExtensionEntry {
-  return ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  return ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       const host = hostOf(g);
       const session = host.port(SessionPortKey);
       const service = createTaskService({

@@ -19,17 +19,19 @@ import type { ContextSettingsSource } from "./settings.ts";
 // 서비스 전체 모양의 포트 키(ContextPortKey, ModelServicePortKey, SessionPortKey, OsPortKey)는 F `services`가 내보낸다.
 
 export const manifest: ExtensionManifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "core-context",
   version: "0.0.0",
   displayName: "Context",
   description: "Context assembly, compaction and overflow recovery (fresnel.context)",
-  layer: "L1",
-  kind: "plugin",
   entry: "./src/index.ts",
-  // 이 확장은 지점을 발화만 하고 핸들러를 달지 않는다
-  points: [],
-  usesDrive: false,
+  plugins: [
+    {
+      layer: "L1",
+      // 이 확장은 지점을 발화만 하고 핸들러를 달지 않는다
+      hooks: [],
+    },
+  ],
 });
 
 export interface ContextExtensionOptions {
@@ -44,8 +46,8 @@ export function createContextExtension(
 ): BuiltinExtensionModule {
   // 생산자 핸들은 한 번만 받을 수 있다(store.producer_claimed). scope가 다시 켜져도 처음 받은 것을 쓴다
   let producer: ProducerHandle | undefined;
-  const entry: ExtensionEntry = ({ scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ register }) => {
+    register(manifest.name, {}, (g) => {
       const host = hostOf(g);
       const ext = host.port(ExtHostPortKey);
       const os = ext.ports.get(OsPortKey);

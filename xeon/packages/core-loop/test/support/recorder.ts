@@ -32,24 +32,26 @@ export function createRecorder(fake: FakeSession, name = "recorder"): Recorder {
     sightings.push({ point, lastKind: events.at(-1)?.kind ?? "", eventCount: events.length });
   };
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name,
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./index.ts",
-    points: [
-      ...TAP_HOOKS,
-      "input.user.before",
-      "input.agent.before",
-      "boundary.message.after",
-      "boundary.step.after",
-      "boundary.settle.before",
+    plugins: [
+      {
+        layer: "plugin",
+        hooks: [
+          ...TAP_HOOKS,
+          "input.user.before",
+          "input.agent.before",
+          "boundary.message.after",
+          "boundary.step.after",
+          "boundary.settle.before",
+        ],
+      },
     ],
-    usesDrive: false,
   });
-  const entry: ExtensionEntry = ({ manifest: own, scope }) => {
-    scope(own.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest: own, register }) => {
+    register(own.name, {}, (g) => {
       for (const point of TAP_HOOKS) {
         g.on(point, () => {
           see(point);

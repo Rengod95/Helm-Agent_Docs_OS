@@ -43,17 +43,14 @@ export interface SessionPluginOptions {
 
 export function sessionManifest(): ExtensionManifest {
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: SESSION_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Session persistence",
     description: "Event log, projections, step checkpoints and recovery for threads (L1).",
     defaultEnabled: true,
-    layer: "L1",
-    kind: "plugin",
     entry: "./src/index.ts",
-    points: [],
-    usesDrive: false,
+    plugins: [{ layer: "L1", hooks: [] }],
     trust: { level: "builtin" },
   });
 }
@@ -64,8 +61,8 @@ export function sessionManifest(): ExtensionManifest {
  */
 export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {
   const manifest = sessionManifest();
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const store = host.port(StoreServicePortKey);
       const created = createSessionService({

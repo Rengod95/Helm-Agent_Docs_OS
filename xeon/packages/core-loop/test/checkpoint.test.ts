@@ -145,8 +145,8 @@ function boundaryGroup(
     turnId: TurnId | null,
   ) => readonly DurableEventDraft[],
 ): ExtensionUnit {
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       g.on("boundary.step.after", (payload, current, ctx) => ({
         entries: [...current.entries, ...entries(payload.stepId, ctx.threadId, null)],
       }));
@@ -154,14 +154,11 @@ function boundaryGroup(
   };
   return {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "boundary-writer",
       version: "0.1.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./index.ts",
-      points: ["boundary.step.after"],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: ["boundary.step.after"] }],
     }),
     entry,
     loadIndex: 3,

@@ -14,17 +14,14 @@ type Mode = "pass" | "block" | "throw";
 
 function guardUnit(mode: Mode, seen: GuardOutputPayload[]): ExtensionUnit {
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "execution-guard",
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./index.ts",
-    points: ["guard.output.before"],
-    usesDrive: false,
+    plugins: [{ layer: "plugin", hooks: ["guard.output.before"] }],
   });
-  const entry: ExtensionEntry = ({ manifest: own, scope }) => {
-    scope(own.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest: own, register }) => {
+    register(own.name, {}, (g) => {
       g.on("guard.output.before", (payload) => {
         seen.push(payload);
         if (mode === "throw") throw new Error("guard exploded");

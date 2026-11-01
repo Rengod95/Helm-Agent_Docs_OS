@@ -13,29 +13,33 @@ export const TEST_GROUP_ID = "test-group";
 export const TEST_NOTE_KIND = "grp.test-group.note.recorded";
 
 const TEST_GROUP_MANIFEST: ExtensionManifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: TEST_GROUP_ID,
   version: "0.1.0",
-  layer: "L3",
-  kind: "group",
   entry: "./index.ts",
   defaultEnabled: false,
-  points: ["boundary.step.after"],
-  usesPost: true,
-  usesDrive: true,
-  recordKinds: [
+  plugins: [
     {
-      kind: TEST_NOTE_KIND,
-      version: 1,
-      description: "A note the test group leaves at each step boundary.",
-      payload: {
-        type: "object",
-        properties: { text: { type: "string" } },
-        required: ["text"],
-        additionalProperties: false,
-      },
+      layer: "L3",
+      hooks: ["boundary.step.after"],
+      usesPost: true,
+      drives: true,
+      recordKinds: [
+        {
+          kind: TEST_NOTE_KIND,
+          version: 1,
+          description: "A note the test group leaves at each step boundary.",
+          payload: {
+            type: "object",
+            properties: { text: { type: "string" } },
+            required: ["text"],
+            additionalProperties: false,
+          },
+        },
+      ],
     },
   ],
+  group: {},
   trust: { level: "builtin" },
 });
 
@@ -62,8 +66,8 @@ export function createTestGroup(options: TestGroupOptions): {
   const probe: TestGroupProbe = { turnEnds: [], driveCalls: 0 };
   const flags = { posted: false };
   const driveTurns = options.driveTurns ?? 0;
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(
       manifest.name,
       { state: { schema: StateSchema, initial: { count: 0 }, version: 1 } },
       (g) => {

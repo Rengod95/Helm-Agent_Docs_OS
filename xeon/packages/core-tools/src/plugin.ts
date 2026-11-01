@@ -71,18 +71,14 @@ export function toolsManifest(extra: readonly AnyCapabilityDef[] = []): Extensio
     optional.push(requirementOf(def));
   }
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: TOOLS_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Tool runtime",
     description: "Tool advertising, policy, approvals, effect records and result bounding (L1).",
     defaultEnabled: true,
-    layer: "L1",
-    kind: "plugin",
     entry: "./src/index.ts",
-    optional,
-    points: [],
-    usesDrive: false,
+    plugins: [{ layer: "L1", hooks: [], optional }],
     trust: { level: "builtin" },
   });
 }
@@ -103,8 +99,8 @@ export function configReader(
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
   const manifest = toolsManifest(options.capabilities);
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const session = host.port(SessionPortKey);
       const store = host.port(StoreServicePortKey);

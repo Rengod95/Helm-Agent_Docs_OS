@@ -20,15 +20,12 @@ const FakeSessionKey: PortKey<MemorySession> = { name: "fresnel.session" };
 const TaskServiceKey: PortKey<TaskService> = { name: TaskServiceName };
 
 const POSTER_MANIFEST: ExtensionManifest = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "poster",
   version: "0.1.0",
-  layer: "L3",
-  kind: "group",
   entry: "./src/index.ts",
-  points: ["boundary.settle.after"],
-  usesPost: true,
-  usesDrive: false,
+  plugins: [{ layer: "L3", hooks: ["boundary.settle.after"], usesPost: true }],
+  group: {},
 };
 
 async function setup() {
@@ -54,7 +51,10 @@ async function setup() {
 test("the manifest passes manifest validation", () => {
   const result = validateManifest(TASKS_MANIFEST);
   expect(result.issues.filter((issue) => issue.severity === "error")).toEqual([]);
-  expect(TASKS_MANIFEST).toMatchObject({ name: "core-tasks", layer: "L1", kind: "plugin" });
+  expect(TASKS_MANIFEST).toMatchObject({
+    name: "core-tasks",
+    plugins: [{ layer: "L1", hooks: [] }],
+  });
 });
 
 test("installing the plugin provides fresnel.tasks through the ext-host plugin API", async () => {
@@ -92,8 +92,8 @@ test("an extension post goes through ext-host into a single input.queued", async
   const { t, session, unit } = await setup();
   await t.host.install(unit);
   const receipts: PostReceipt[] = [];
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       g.on("boundary.settle.after", async () => {
         receipts.push(
           await g.post(

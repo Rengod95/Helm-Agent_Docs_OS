@@ -112,8 +112,8 @@ test("the_waiting_checkpoint_never_records_a_placeholder_model", async () => {
   expect(checkpoint.ok && checkpoint.value.model.modelId).not.toBe("");
 });
 
-const promptEntry: ExtensionEntry = ({ manifest, scope }) => {
-  scope(manifest.name, {}, (g) => {
+const promptEntry: ExtensionEntry = ({ manifest, register }) => {
+  register(manifest.name, {}, (g) => {
     g.on("input.agent.before", () => ({
       message: {
         customType: "grp.prompt-group.note.recorded",
@@ -128,14 +128,11 @@ const promptEntry: ExtensionEntry = ({ manifest, scope }) => {
 function promptGroup(): ExtensionUnit {
   return {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "prompt-group",
       version: "0.1.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./index.ts",
-      points: ["input.agent.before"],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: ["input.agent.before"] }],
     }),
     entry: promptEntry,
     loadIndex: 4,

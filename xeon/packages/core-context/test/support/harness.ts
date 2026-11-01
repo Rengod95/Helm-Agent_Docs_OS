@@ -1,4 +1,9 @@
-import type { ExtensionManifest, Handler, HookName, ScopeApi } from "@fresnel/contracts/extensions";
+import type {
+  ExtensionManifest,
+  Handler,
+  HookName,
+  RegistrationApi,
+} from "@fresnel/contracts/extensions";
 import type { Logger, LogFields } from "@fresnel/contracts";
 import type { ProducerHandle } from "@fresnel/contracts/records";
 import type { ContextService } from "@fresnel/contracts/services";
@@ -96,14 +101,11 @@ function manifestOf(
   points: readonly HookName[] = ["request.context.before"],
 ): ExtensionManifest {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name,
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./src/index.ts",
-    points: [...points],
-    usesDrive: false,
+    plugins: [{ layer: "plugin", hooks: [...points] }],
   };
 }
 
@@ -113,12 +115,12 @@ export async function installHandlers(
   name: string,
   loadIndex: number,
   points: readonly HookName[],
-  register: (g: ScopeApi<unknown>) => void,
+  register: (g: RegistrationApi<unknown>) => void,
 ): Promise<void> {
   const unit: ExtensionUnit = {
     manifest: manifestOf(name, points),
-    entry: ({ scope }) => {
-      scope(name, {}, (g) => {
+    entry: (host) => {
+      host.register(name, {}, (g) => {
         register(g);
       });
     },
@@ -138,8 +140,8 @@ export async function installContextHandler(
   const manifest = manifestOf(name);
   const unit: ExtensionUnit = {
     manifest,
-    entry: ({ scope }) => {
-      scope(name, {}, (g) => {
+    entry: ({ register }) => {
+      register(name, {}, (g) => {
         g.on("request.context.before", handler);
       });
     },

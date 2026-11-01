@@ -14,21 +14,18 @@ import { countKind, kindsOf } from "./support/inspect.ts";
 // LP12 user_bash: `!명령` 입력의 진입점 `runUserBash`(L1.loop.spec §3.1)
 
 function guard(decision: UserBashDecision): ExtensionUnit {
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       g.on("input.bash.before", () => decision);
     });
   };
   return {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "user-bash-guard",
       version: "0.1.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./index.ts",
-      points: ["input.bash.before"],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: ["input.bash.before"] }],
     }),
     entry,
     loadIndex: 2,
@@ -38,8 +35,8 @@ function guard(decision: UserBashDecision): ExtensionUnit {
 
 // 결정 없이 payload만 보는 관찰자: 다음 핸들러(없으면 셸 실행)로 넘어간다
 function observer(seen: UserBashPayload[]): ExtensionUnit {
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       g.on("input.bash.before", (payload) => {
         seen.push(payload);
         return undefined;
@@ -48,14 +45,11 @@ function observer(seen: UserBashPayload[]): ExtensionUnit {
   };
   return {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "user-bash-observer",
       version: "0.1.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./index.ts",
-      points: ["input.bash.before"],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: ["input.bash.before"] }],
     }),
     entry,
     loadIndex: 2,

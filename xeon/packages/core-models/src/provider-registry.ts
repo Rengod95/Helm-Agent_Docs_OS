@@ -11,7 +11,7 @@ import { mistralConversationsApi } from "@earendil-works/pi-ai/api/mistral-conve
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
 import { err, ok, parse, type Result } from "@fresnel/contracts";
-import type { ScopeId, Unsubscribe } from "@fresnel/contracts/extensions";
+import type { RegistrationId, Unsubscribe } from "@fresnel/contracts/extensions";
 import {
   ProviderConfigDefSchema,
   type ModelError,
@@ -59,9 +59,13 @@ export interface ProviderOverlay {
 }
 
 export interface ProviderRegistry {
-  addProvider(owner: ScopeId, name: string, def: ProviderDef): Result<Unsubscribe, ModelError>;
+  addProvider(
+    owner: RegistrationId,
+    name: string,
+    def: ProviderDef,
+  ): Result<Unsubscribe, ModelError>;
   /** 포트 경로. config는 JSON이다. 실패하면 ModelRegistrationError를 던진다 */
-  registerProvider(owner: ScopeId, name: string, config: unknown): Unsubscribe;
+  registerProvider(owner: RegistrationId, name: string, config: unknown): Unsubscribe;
   /** 등록부가 아는 provider의 자격 증명 참조. 없으면 null */
   credentialRef(providerId: string): SecretRefString | null;
   /** 등록부로 들어온 provider id 전체 */
@@ -78,7 +82,7 @@ export interface ProviderRegistryDeps {
 const PROVIDER_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 interface Entry {
-  readonly owner: ScopeId;
+  readonly owner: RegistrationId;
   readonly credential: SecretRefString | null;
   readonly overlay: ProviderOverlay | undefined;
   /** 내장 provider에 기본값만 덮어쓴 항목이면 참. 해제할 때 provider를 지우지 않는다 */
@@ -145,7 +149,7 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): ProviderRegi
   }
 
   function addConfig(
-    owner: ScopeId,
+    owner: RegistrationId,
     name: string,
     def: ProviderConfigDef,
   ): Result<Unsubscribe, ModelError> {
@@ -225,7 +229,7 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): ProviderRegi
   }
 
   function addRuntime(
-    owner: ScopeId,
+    owner: RegistrationId,
     name: string,
     def: Extract<ProviderDef, { kind: "runtime" }>,
   ): Result<Unsubscribe, ModelError> {
@@ -250,7 +254,7 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): ProviderRegi
   }
 
   function addProvider(
-    owner: ScopeId,
+    owner: RegistrationId,
     name: string,
     def: ProviderDef,
   ): Result<Unsubscribe, ModelError> {

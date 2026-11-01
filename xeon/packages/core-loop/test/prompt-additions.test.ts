@@ -22,8 +22,8 @@ const done: ScriptedResponse = {
 /** turn마다 다른 안내를 기본 프롬프트 뒤에 붙이는 핸들러. `next`가 돌려줄 문자열을 호출 순서대로 쓴다 */
 function advertiser(outputs: readonly (string | ((base: string) => string))[]): ExtensionUnit {
   let call = 0;
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       g.on("input.agent.before", (payload) => {
         const output = outputs[Math.min(call, outputs.length - 1)];
         call += 1;
@@ -34,14 +34,11 @@ function advertiser(outputs: readonly (string | ((base: string) => string))[]): 
   };
   return {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "advertiser",
       version: "0.1.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./index.ts",
-      points: ["input.agent.before"],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: ["input.agent.before"] }],
     }),
     entry,
     loadIndex: 4,

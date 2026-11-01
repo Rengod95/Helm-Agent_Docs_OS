@@ -60,7 +60,7 @@ test("scope_toggles_apply_at_the_step_boundary_not_mid_step", async () => {
         name: "read",
         run: () => {
           // 단계 0 안에서 켜기를 요청한다. 적용은 그 단계의 경계다
-          state.h?.host.host.scope(TEST_GROUP_ID)?.enable();
+          state.h?.host.host.registration(TEST_GROUP_ID)?.enable();
           return Promise.resolve({ text: "A" });
         },
       },
@@ -68,7 +68,7 @@ test("scope_toggles_apply_at_the_step_boundary_not_mid_step", async () => {
         name: "ls",
         run: () => {
           // 단계 1 안에서 끄기를 요청한다
-          state.h?.host.host.scope(TEST_GROUP_ID)?.disable();
+          state.h?.host.host.registration(TEST_GROUP_ID)?.disable();
           return Promise.resolve({ text: "B" });
         },
       },
@@ -118,7 +118,7 @@ test("drive_group_gets_a_lease_at_a_boundary_and_runs_a_turn_after_the_user_turn
         name: "read",
         run: () => {
           // 단계 0 안에서 그룹을 켠다. 켜기와 drive 임대는 그 단계의 경계에서 적용된다
-          state.h?.host.host.scope(TEST_GROUP_ID)?.enable();
+          state.h?.host.host.registration(TEST_GROUP_ID)?.enable();
           return Promise.resolve({ text: "A" });
         },
       },

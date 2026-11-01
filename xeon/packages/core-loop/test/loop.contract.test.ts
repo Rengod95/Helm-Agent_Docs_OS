@@ -147,14 +147,11 @@ test("core_loop_imports_no_other_core_package_and_no_cordis", async () => {
 function inputGroup(handler: Parameters<typeof makeEntry>[0]): ExtensionUnit {
   return {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "input-filter",
       version: "0.1.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./index.ts",
-      points: ["input.user.before"],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: ["input.user.before"] }],
     }),
     entry: makeEntry(handler),
     loadIndex: 1,
@@ -167,8 +164,8 @@ function makeEntry(
     text: string,
   ) => { action: "handled" } | { action: "transform"; text: string } | undefined,
 ): ExtensionEntry {
-  return ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  return ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       g.on("input.user.before", (payload) => handler(payload.text));
     });
   };

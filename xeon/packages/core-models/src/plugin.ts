@@ -36,17 +36,14 @@ const SecretServicePortKey: PortKey<SecretService> = { name: SecretServiceName }
 const OsServicePortKey: PortKey<OsService> = { name: OsServiceName };
 
 export const manifest: ExtensionManifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "core-models",
   version: "0.1.0",
   displayName: "Model gateway",
   description: "fresnel.models: pi-ai provider calls, role resolution, usage metering.",
   defaultEnabled: true,
-  layer: "L1",
-  kind: "plugin",
   entry: "./src/index.ts",
-  points: [],
-  usesDrive: false,
+  plugins: [{ layer: "L1", hooks: [] }],
   trust: { level: "builtin" },
 });
 
@@ -174,8 +171,8 @@ function tapOptions(input: HookInput): {
 export function createModelsExtension(
   options: ModelsExtensionOptions = {},
 ): BuiltinExtensionModule {
-  const entry: ExtensionEntry = ({ manifest: own, scope }) => {
-    scope(own.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest: own, register }) => {
+    register(own.name, {}, (g) => {
       const host = hostOf(g);
       const secrets = host.port(SecretServicePortKey);
       const ext = host.port(ExtHostPortKey);
@@ -197,11 +194,13 @@ export function createModelsExtension(
           ...schedulerOf(),
           // 계정 회전은 account-rotation 플러그인이 켜져 있을 때만 쓴다(기본 꺼짐, L1.models.spec §4.8)
           rotationEnabled: () =>
-            ext.scopes().some((info) => info.id === ROTATION_PLUGIN && info.status === "enabled"),
+            ext
+              .registrations()
+              .some((info) => info.id === ROTATION_PLUGIN && info.status === "enabled"),
           dispatcher: dispatcherOf(ext),
           // 꺼진 그룹의 groupRouting 값은 쓰지 않는다(L1.models.spec §5)
           scopeEnabled: (scopeId) =>
-            ext.scopes().some((info) => info.id === scopeId && info.status === "enabled"),
+            ext.registrations().some((info) => info.id === scopeId && info.status === "enabled"),
         }),
       );
     });

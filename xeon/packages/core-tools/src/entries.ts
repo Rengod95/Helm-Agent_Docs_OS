@@ -17,7 +17,7 @@ import type {
   JsonValue,
   TextContent,
 } from "@fresnel/contracts/conversation";
-import type { ScopeId, ToolResourceDef } from "@fresnel/contracts/extensions";
+import type { RegistrationId, ToolResourceDef } from "@fresnel/contracts/extensions";
 import type {
   CallerId,
   CapabilityToolsRegistration,
@@ -410,7 +410,7 @@ function resourceResult(value: unknown): RawToolResult | undefined {
  * ToolsPort 등록(L1.tools.spec §3.3 register(owner, def) 변환 규칙). 위험 등급은 `def.risk`, 없으면 `def.hints`, 그것도 없으면 exec다.
  * 선언의 신뢰는 등록 경로의 X(ext-host)가 확인한다: builtin이 아닌 확장의 낮은 선언은 여기까지 오지 않는다. 정책·노출은 유도 규칙을 따른다
  */
-export function resourceEntry(owner: ScopeId, def: ToolResourceDef): ToolEntry {
+export function resourceEntry(owner: RegistrationId, def: ToolResourceDef): ToolEntry {
   const extension = owner.split("/")[0] ?? owner;
   return {
     name: def.name,

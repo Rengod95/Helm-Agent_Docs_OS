@@ -46,9 +46,8 @@ test("manifest_is_a_valid_builtin_l1_plugin", () => {
   const checked = validateManifest(manifest);
   expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
   expect(checked.manifest).toEqual(manifest);
-  expect(manifest.layer).toBe("L1");
+  expect(manifest.plugins).toEqual([{ layer: "L1", hooks: [] }]);
   expect(manifest.name).toBe("core-context");
-  expect(manifest.points).toEqual([]);
 });
 
 test("plugin_provides_fresnel_context_and_assembles_through_the_port", async () => {

@@ -1,7 +1,11 @@
 // core-tools의 ToolService 부분 대역(DR-02). 규칙 등록, 도구 등록, 권한 모드만 기록한다.
 import { ok, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@fresnel/contracts/extensions";
+import type {
+  RegistrationId,
+  ToolRegisterError,
+  ToolResourceDef,
+} from "@fresnel/contracts/extensions";
 import type {
   DirectToolRegistration,
   PermissionMode,
@@ -32,9 +36,12 @@ export function fakeTools(): FakeTools {
   const suspensions: { readonly threadId: ThreadId; readonly toolCallId: string }[] = [];
   let suspendedNow = 0;
   function register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
-  function register(owner: ScopeId, def: ToolResourceDef): Result<Unregister, ToolRegisterError>;
   function register(
-    first: ToolRegistration | ScopeId,
+    owner: RegistrationId,
+    def: ToolResourceDef,
+  ): Result<Unregister, ToolRegisterError>;
+  function register(
+    first: ToolRegistration | RegistrationId,
     _def?: ToolResourceDef,
   ): Result<Unregister, ToolRegisterError> {
     if (typeof first === "string") return ok(() => {});

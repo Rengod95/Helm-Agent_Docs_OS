@@ -16,7 +16,7 @@ import type {
   JsonValue,
   ThreadId,
 } from "@fresnel/contracts/conversation";
-import type { ExtensionManifest, ScopeSetup } from "@fresnel/contracts/extensions";
+import type { ExtensionManifest, HookName, RegistrationSetup } from "@fresnel/contracts/extensions";
 import type { ScopeLayer, ScopeStack } from "@fresnel/contracts/settings";
 import type {
   CallerId,
@@ -93,24 +93,21 @@ let unitCounter = 0;
 export async function installHandlers(
   harness: Harness,
   name: string,
-  points: ExtensionManifest["points"],
-  setup: ScopeSetup<unknown>,
+  points: readonly HookName[],
+  setup: RegistrationSetup<unknown>,
 ): Promise<void> {
   unitCounter += 1;
   const manifest: ExtensionManifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name,
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./src/index.ts",
-    points,
-    usesDrive: false,
+    plugins: [{ layer: "plugin", hooks: [...points] }],
   };
   const unit: ExtensionUnit = {
     manifest,
-    entry: ({ scope }) => {
-      scope(name, {}, setup);
+    entry: ({ register }) => {
+      register(name, {}, setup);
     },
     loadIndex: unitCounter,
     builtin: true,

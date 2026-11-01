@@ -44,17 +44,14 @@ export interface AgentsPluginOptions {
 
 export function agentsManifest(): ExtensionManifest {
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: AGENTS_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Subagents",
     description: "Child conversations, permission ceilings and result guarding (fresnel.agents).",
     defaultEnabled: true,
-    layer: "L1",
-    kind: "plugin",
     entry: "./src/index.ts",
-    points: [],
-    usesDrive: false,
+    plugins: [{ layer: "L1", hooks: [] }],
     trust: { level: "builtin" },
   });
 }
@@ -62,8 +59,8 @@ export function agentsManifest(): ExtensionManifest {
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다. fresnel.session·tasks·tools·store 포트를 먼저 등록해 두어야 한다 */
 export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
   const manifest = agentsManifest();
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const resolveLoop = (): AgentsLoop => host.port(LoopServicePortKey);
       const session = host.port(SessionPortKey);

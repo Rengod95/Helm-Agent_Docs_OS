@@ -1,6 +1,10 @@
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ToolName } from "@fresnel/contracts/capabilities";
-import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@fresnel/contracts/extensions";
+import type {
+  RegistrationId,
+  ToolRegisterError,
+  ToolResourceDef,
+} from "@fresnel/contracts/extensions";
 import type {
   ModeChangeResult,
   ToolMeta,
@@ -85,7 +89,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
   };
 
   function register(
-    first: ToolRegistration | ScopeId,
+    first: ToolRegistration | RegistrationId,
     def?: ToolResourceDef,
   ): Result<Unregister, ToolRegisterError> {
     if (typeof first === "string") {

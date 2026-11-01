@@ -31,19 +31,17 @@ const SETTINGS: ModelsSettings = {
 };
 
 const PATCHER = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "payload-patcher",
   version: "0.1.0",
-  layer: "L3",
-  kind: "group",
   entry: "./src/index.ts",
-  points: ["request.provider.before"],
-  usesDrive: false,
+  plugins: [{ layer: "L3", hooks: ["request.provider.before"] }],
+  group: {},
   trust: { level: "builtin" },
 });
 
-const patcherEntry: ExtensionEntry = ({ manifest: own, scope }) => {
-  scope(own.name, {}, (g) => {
+const patcherEntry: ExtensionEntry = ({ manifest: own, register }) => {
+  register(own.name, {}, (g) => {
     g.on("request.provider.before", (payload) => ({
       payload: { patched: true, was: payload.payload },
     }));
@@ -53,8 +51,7 @@ const patcherEntry: ExtensionEntry = ({ manifest: own, scope }) => {
 describe("core-models builtin extension", () => {
   test("the default export is a valid manifest and entry", () => {
     expect(manifest.name).toBe("core-models");
-    expect(manifest.layer).toBe("L1");
-    expect(manifest.points).toEqual([]);
+    expect(manifest.plugins).toEqual([{ layer: "L1", hooks: [] }]);
     expect(typeof extension).toBe("function");
   });
 
@@ -192,26 +189,29 @@ describe("core-models builtin extension", () => {
     });
     const seen: string[] = [];
     const spyManifest = defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "point-spy",
       version: "0.1.0",
-      layer: "L3",
-      kind: "group",
       entry: "./src/index.ts",
-      points: [
-        "request.headers.before",
-        "request.provider.after",
-        "request.stream",
-        "request.model.after",
-        "request.thinking.after",
+      plugins: [
+        {
+          layer: "L3",
+          hooks: [
+            "request.headers.before",
+            "request.provider.after",
+            "request.stream",
+            "request.model.after",
+            "request.thinking.after",
+          ],
+        },
       ],
-      usesDrive: false,
+      group: {},
       trust: { level: "builtin" },
     });
     await th.host.install({
       manifest: spyManifest,
-      entry: ({ manifest: own, scope }) => {
-        scope(own.name, {}, (g) => {
+      entry: ({ manifest: own, register }) => {
+        register(own.name, {}, (g) => {
           g.on("request.headers.before", (payload) => {
             seen.push(`headers:${Object.keys(payload.headers).join(",")}`);
             return { set: { "x-spy": "1" } };
@@ -328,18 +328,16 @@ describe("core-models builtin extension", () => {
     let mode: "block" | "throw" = "block";
     await th.host.install({
       manifest: defineManifest({
-        schemaVersion: 1,
+        schemaVersion: 2,
         name: "model-guard",
         version: "0.1.0",
-        layer: "L3",
-        kind: "group",
         entry: "./src/index.ts",
-        points: ["guard.model.before"],
-        usesDrive: false,
+        plugins: [{ layer: "L3", hooks: ["guard.model.before"] }],
+        group: {},
         trust: { level: "builtin" },
       }),
-      entry: ({ manifest: own, scope }) => {
-        scope(own.name, {}, (g) => {
+      entry: ({ manifest: own, register }) => {
+        register(own.name, {}, (g) => {
           g.on("guard.model.before", (payload) => {
             seen.push(payload.payload);
             if (mode === "throw") throw new Error("guard exploded");

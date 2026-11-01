@@ -28,8 +28,8 @@ function driveGroup(
   limits: { maxTurns?: number; maxTokens?: number },
 ): { unit: ExtensionUnit; probe: DriveProbe } {
   const probe: DriveProbe = { outcomes: [], errors: [], tokensLeft: [] };
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       g.drive(
         async (loop) => {
           const turnAt = async (index: number): Promise<void> => {
@@ -55,14 +55,12 @@ function driveGroup(
   return {
     unit: {
       manifest: defineManifest({
-        schemaVersion: 1,
+        schemaVersion: 2,
         name,
         version: "0.1.0",
-        layer: "L3",
-        kind: "group",
         entry: "./index.ts",
-        points: [],
-        usesDrive: true,
+        plugins: [{ layer: "L3", hooks: [], drives: true }],
+        group: {},
         trust: { level: "builtin" },
       }),
       entry,
@@ -93,7 +91,7 @@ test("drive_budget_stops_at_turns_cap: the third loop.turn of a lease with 2 tur
   expect(countKind(h.fake.events(h.threadId), "turn.started")).toBe(2);
   expect(h.models.requests).toHaveLength(2);
   // 임대를 쥔 채 남지 않는다
-  expect(h.host.host.scopes()[0]?.drive).not.toBe("holding");
+  expect(h.host.host.registrations()[0]?.drive).not.toBe("holding");
 });
 
 test("the token budget is reported after each turn and never cuts the running turn", async () => {

@@ -36,18 +36,15 @@ import type { HostMode, LoopDeps } from "./types.ts";
 export const LOOP_EXTENSION_NAME = "core-loop";
 
 export const LOOP_MANIFEST: ExtensionManifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: LOOP_EXTENSION_NAME,
   version: "0.1.0",
   displayName: "Agent loop",
   description:
     "L1 agent loop: runs the own agent loop (adr.0009), commits step boundaries, fires extension points.",
   defaultEnabled: true,
-  layer: "L1",
-  kind: "plugin",
   entry: "./src/index.ts",
-  points: [],
-  usesDrive: false,
+  plugins: [{ layer: "L1", hooks: [] }],
   trust: { level: "builtin" },
 });
 
@@ -79,8 +76,8 @@ export interface LoopPluginOptions {
 
 /** 조립 루트(`apps/host`)가 `ExtHost.install`에 넘기는 내장 확장 단위 */
 export function loopExtensionUnit(options: LoopPluginOptions): ExtensionUnit {
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       const host = hostOf(g);
       const os = host.port(OS_KEY);
       const ext = host.port(ExtHostPortKey);

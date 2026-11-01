@@ -81,8 +81,8 @@ test("the manifest passes validateManifest and the unit is a builtin L1 plugin",
   const checked = validateManifest(toolsManifest());
   expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
   expect(checked.manifest?.name).toBe(TOOLS_EXTENSION_NAME);
-  expect(checked.manifest?.layer).toBe("L1");
-  expect(checked.manifest?.optional?.map((entry) => entry.id)).toEqual([
+  expect(checked.manifest?.plugins.map((plugin) => plugin.layer)).toEqual(["L1"]);
+  expect(checked.manifest?.plugins[0]?.optional?.map((entry) => entry.id)).toEqual([
     "workspace.files",
     "workspace.shell",
     "workspace.images",
@@ -93,7 +93,7 @@ test("the manifest passes validateManifest and the unit is a builtin L1 plugin",
     settings: { layers: () => [] },
   });
   expect(unit.builtin).toBe(true);
-  expect(unit.manifest.points).toEqual([]);
+  expect(unit.manifest.plugins.map((plugin) => plugin.hooks)).toEqual([[]]);
 });
 
 test("installing provides fresnel.tools and fresnel.approvals ports and runs a call end to end", async () => {

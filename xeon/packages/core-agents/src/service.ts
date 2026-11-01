@@ -34,7 +34,7 @@ import {
   type SpawnResult,
   type TaskScope,
 } from "@fresnel/contracts/services";
-import type { RecordKind, ScopeId } from "@fresnel/contracts/extensions";
+import type { RecordKind, RegistrationId } from "@fresnel/contracts/extensions";
 import { ceilingOf, childMode } from "./permission-ceiling.ts";
 import { AGENTS_RULE_SOURCE, definitionRules, subagentRules } from "./denylist.ts";
 import { createDefinitionRegistry } from "./definitions/registry.ts";
@@ -707,7 +707,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
    * 재시작으로 끊겨 이 프로세스의 live 표에 없지만 정착 기록이 없는 위임 가운데 그 scope가 소유한 것을 aborted로 정착한다
    * (`cancel({ ownerScopeId })`가 재시작 뒤에도 저장된 자식에 닿게 한다, L1.agents.spec §4.7). 정착 수를 돌려준다
    */
-  const settleStoredOwnedBy = (ownerScopeId: ScopeId, reason: string): number => {
+  const settleStoredOwnedBy = (ownerScopeId: RegistrationId, reason: string): number => {
     let settledCount = 0;
     let cursor: string | undefined;
     do {

@@ -51,17 +51,14 @@ function watcher(mode: GuardMode): { unit: ExtensionUnit; seen: Seen } {
     "guard.output.before",
   ];
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "origin-watch",
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./index.ts",
-    points,
-    usesDrive: false,
+    plugins: [{ layer: "plugin", hooks: points }],
   });
-  const entry: ExtensionEntry = ({ manifest: own, scope }) => {
-    scope(own.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest: own, register }) => {
+    register(own.name, {}, (g) => {
       g.on("boundary.turn.before", (payload) => {
         seen.starts.push(payload);
       });
@@ -247,17 +244,14 @@ test("a turn aborted while the output guard runs ends aborted and the answer is 
   const scope = h.tasks.service.openScope(h.tasks.service.root, { kind: "subagent", id: threadId });
   const controller = new AbortController();
   const manifest = defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: "abort-guard",
     version: "0.1.0",
-    layer: "plugin",
-    kind: "plugin",
     entry: "./index.ts",
-    points: ["guard.output.before"],
-    usesDrive: false,
+    plugins: [{ layer: "plugin", hooks: ["guard.output.before"] }],
   });
-  const entry: ExtensionEntry = ({ manifest: own, scope: group }) => {
-    group(own.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest: own, register }) => {
+    register(own.name, {}, (g) => {
       g.on("guard.output.before", () => {
         controller.abort();
         return undefined;
