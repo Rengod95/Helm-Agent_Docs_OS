@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import { DEFAULT_AUTO_DISABLE, type AutoDisablePolicy } from "./auto-disable.ts";
 import { DEFAULT_BUDGETS_MS, type BudgetTable } from "./budget.ts";
 
-const BUDGET_SCOPES = ["managed", "user", "local", "session"] as const;
+const BUDGET_SCOPES = ["managed", "user", "local", "launch"] as const;
 const STARTUP_BUDGET_SCOPES = ["managed", "user", "local"] as const;
 /** 안전 모드 키는 저장소 설정이 복구용 시작을 막거나 바꾸지 못하게 managed·user만 받는다 */
 const SAFE_MODE_SCOPES = ["managed", "user"] as const;

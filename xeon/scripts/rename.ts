@@ -461,6 +461,17 @@ export const CATEGORIES: readonly Category[] = [
         skip: NO_MOCKUPS,
       },
       { pattern: /("managed",\n\s*)"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
+      // 문서 표의 따옴표 없는 범위 목록: managed, user, local, session
+      {
+        pattern: /(?<=\b(?:managed|user|project|local), )session(?![A-Za-z0-9_])/g,
+        replace: "launch",
+        only: ["docs/xeon/"],
+      },
+      {
+        pattern: /(?<![A-Za-z0-9_])session(?=, (?:managed|user|project|local)\b)/g,
+        replace: "launch",
+        only: ["docs/xeon/"],
+      },
       { pattern: /\bscopes: \["session"/g, replace: 'scopes: ["launch"', skip: NO_MOCKUPS },
       { pattern: /(\blayer\()"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
       { pattern: /(\bKEY, )"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },

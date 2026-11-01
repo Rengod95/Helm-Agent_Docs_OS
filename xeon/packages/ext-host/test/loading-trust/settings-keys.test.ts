@@ -142,7 +142,7 @@ test("settings: reserved defs shape", () => {
     key: "ext.set-shape.enabled",
     default: false,
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     layer: "L2",
   });
   expect(isolation).toMatchObject({

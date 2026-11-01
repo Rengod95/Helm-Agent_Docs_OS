@@ -2,7 +2,7 @@
 
 `src/loading-trust/trust/`의 `store.ts`, `resources.ts`, `resolve.ts`는 pi coding-agent 1.1.0(MIT) `core/trust-manager.ts`와 `core/project-trust.ts`의 함수를 옮겨 Xeon 로더 포트(`LoaderFs`, `TrustStoreBackend`, `TrustPrompter`)에 맞게 바꾼 것이다(`X.loading-trust.spec` §4.7.1).
 원본 패키지, 판, 커밋, 복사 범위는 `UPSTREAM.json`에 있다. 라이선스 원문은 `LICENSE.pi`다.
-세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// XEON-PATCH: <id>` 표지. `test/loading-trust/fork-records.test.ts`가 이를 검사한다.
+세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// FRESNEL-PATCH: <id>` 표지. `test/loading-trust/fork-records.test.ts`가 이를 검사한다.
 원본 줄 번호는 pi 1.1.0 기준이다. 새 판은 따라가지 않는다.
 
 ## 패치 표

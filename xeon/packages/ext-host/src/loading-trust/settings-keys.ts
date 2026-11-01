@@ -25,7 +25,7 @@ export function reservedExtensionSettings(
     type: Type.Boolean(),
     default: manifest.defaultEnabled ?? true,
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     ui: {
       tab: "plugins",
       widget: "toggle",

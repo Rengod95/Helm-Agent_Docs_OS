@@ -18,7 +18,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 |---|---|---|
 | M0 | 내장 패키지 `manifest` 상수 로딩, `validateManifest`·`validateManifestSet`·`validateUsage` 연결, 같은 프로세스 로딩(`ExtHost.install` 위임, `InstallResult` → 진단 변환), tier 등록(`policy.admit`), 실패 격리(한 확장 실패가 시작을 막지 않음, 내장 필수 예외), 로드 순서, 진단 레코드, 신뢰 등급 상수(`TRUST_MATRIX`) | L4.host-service 조립 3단계, X.primitives(`ExtHost.install`) |
 | M1 | 걷는 골격 연결: 테스트용 그룹 하나를 로드해 `xeon chat`에서 on/post/drive가 돈다(`_research/foundation-plan.md` §5 P4 M1). 예약 키 `ext.<name>.enabled` 반영(5a단계, `ensureLoaded`), `settingsFromManifest`·`buildCatalog` 연결과 `foreignNamespace` 거부, 능력 요구 충족(6단계, 연쇄 실패) | L4.host-service 조립 5단계, 테스트 그룹 |
-| M2 이후 | 외부 확장 탐색(`.xeon-plugin/plugin.json`, 관리·사용자·프로젝트 위치), 프로젝트 신뢰 포크(pi `trust-manager.ts`·`project-trust.ts`)와 `session.trust.before` 발화, 제거 흐름(확인 2단계), 안전 모드·`--disable-ext`(5a단계), SDK 가상 모듈, 기본 플러그인 설치, 프로세스 격리(2차), 핫 리로드(개발용) | L4.cli·L4.desktop(신뢰 프롬프트), L0.os(파일·경로 포트), L0.process(격리) |
+| M2 이후 | 외부 확장 탐색(`.xeon-plugin/plugin.json`, 관리·사용자·프로젝트 위치), 프로젝트 신뢰 포크(pi `trust-manager.ts`·`project-trust.ts`)와 `thread.trust.before` 발화, 제거 흐름(확인 2단계), 안전 모드·`--disable-ext`(5a단계), SDK 가상 모듈, 기본 플러그인 설치, 프로세스 격리(2차), 핫 리로드(개발용) | L4.cli·L4.desktop(신뢰 프롬프트), L0.os(파일·경로 포트), L0.process(격리) |
 
 - [제안] 신뢰 판정은 프로젝트 확장이 처음 생기는 시점(M2)에 맞춘다. M0·M1에는 내장 확장만 있으므로 판정 대상이 없다. 다만 `TRUST_MATRIX`와 `TrustLevel`은 M0에 두어 X.primitives가 연산 허용 검사에 쓸 수 있게 한다.
 - [결정: review.m2-plan §8 D9] M2에는 프로젝트 신뢰(L-15~L-17, review.m2-plan X.4)만 둔다. 외부 확장 탐색·로더·시작 순서 통합·제거 흐름·안전 모드(L-13, L-14, L-18, L-28, L-29, review.m2-plan X.5)는 M3로 옮긴다. pi 어댑터(L-19~L-21)는 만들지 않는다(adr.0017 §3.7).
@@ -53,7 +53,7 @@ xeon/packages/ext-host/
       resources.ts                 # (포크) TRUST_REQUIRING_PROJECT_RESOURCES, findTrustRequiringResources
     isolation/
       rpc.ts                       # IsoMethods, Iso*Params/Result 스키마, 연결 생성(vscode-jsonrpc)
-      proxy.ts                     # 프록시 확장, isolatablePoints, 취소·시간 예산·재시작 정책
+      proxy.ts                     # 프록시 확장, isolatableHooks, 취소·시간 예산·재시작 정책
       outbox-agent.ts              # OutboxAgent: 격리 확장의 post/commit/record 대리
       child-main.ts                # 자식 프로세스 진입점(엔트리 실행, scope 스텁)
     virtual-modules.ts             # SDK_MODULE_SPECIFIERS, SdkModules, registerSdkModules(Bun.plugin 등록)
@@ -97,13 +97,13 @@ xeon/packages/ext-host/
 | L-14 | `entry-loader.ts` 외부 경로: 엔트리 절대 경로 계산, `realpath`가 확장 루트 안인지 확인, `import()`(L-01 결과 방식), `default`·`extension` export 판별, `ExtensionUnit`으로 `install`(L-06 경로) | L-01, L-06, L-13 | M | M3 (결정 D9) |
 | L-15 | `trust/store.ts` 포크: `ProjectTrustStore`(`lookup`, `setMany`), `TrustFileSchema`, 손상 → `corrupt`, 손상 시 쓰기 거부, pi 형식(v0) 읽기 변환, `trustOptions` | L-02 | M | M2 |
 | L-16 | `trust/resources.ts` 포크: `TRUST_REQUIRING_PROJECT_RESOURCES`, `findTrustRequiringResources`(상위 `.agents/skills` 탐색, 홈 제외) | L-13 | S | M2 |
-| L-17 | `trust/resolve.ts` 포크: 판정 순서 1~8, `session.trust.before` 발화(디스패처 래퍼, 예외 → 불신), `sessionMemory`, headless 불신, 프롬프트 결과 저장 | L-15, L-16, P-06(디스패처) | M | M2 |
-| L-18 | 시작 순서 통합: 1차 집합(내장·관리·사용자) → 신뢰 판정 → 프로젝트 탐색과 2차 집합 검사 → `session.resources` 발화. 프로젝트 확장 신뢰 전 미import 보장, 신뢰 전 적용 제외 규칙을 설정 계층 쪽에 넘기는 훅 [가정: L1.persistence API] | L-13, L-14, L-17 | M | M3 (결정 D9) |
+| L-17 | `trust/resolve.ts` 포크: 판정 순서 1~8, `thread.trust.before` 발화(디스패처 래퍼, 예외 → 불신), `sessionMemory`, headless 불신, 프롬프트 결과 저장 | L-15, L-16, P-06(디스패처) | M | M2 |
+| L-18 | 시작 순서 통합: 1차 집합(내장·관리·사용자) → 신뢰 판정 → 프로젝트 탐색과 2차 집합 검사 → `thread.resources` 발화. 프로젝트 확장 신뢰 전 미import 보장, 신뢰 전 적용 제외 규칙을 설정 계층 쪽에 넘기는 훅 [가정: L1.persistence API] | L-13, L-14, L-17 | M | M3 (결정 D9) |
 | L-19~L-21 | (삭제) pi 어댑터, pi 가상 모듈, 호환 보고는 만들지 않는다 [결정: adr.0017 §3.7]. SDK 가상 모듈은 `virtual-modules.ts`가 맡는다 | - | - | - |
 | L-30 | `virtual-modules.ts`: `registerSdkModules`(`Bun.plugin`, 멱등, 충돌 거부), `LoaderDeps.sdkModules` 연결 | L-14 | S | M3a |
 | L-31 | `default-plugin.ts`: `installDefaultPlugin`(첫 실행 복사, 버전 비교 교체, 임시 디렉터리 후 이동) | L-14 | S | M3a |
 | L-22 | `isolation/rpc.ts`·`child-main.ts`: vscode-jsonrpc 연결(`StreamMessageReader`/`Writer`), `IsoMethods`, 스키마 검사, `init` 왕복, 자식 쪽 scope 스텁과 취소 전달 | L-14, P-30(`ProcessPortKey`), L0.process 포트 구현 [가정] | L | M2(2차) |
-| L-23 | `isolation/proxy.ts`: 선언 지점에만 프록시 핸들러 등록, 디스패치 직렬화, 결과 스키마 검사, 시간 예산 초과 → 예외(fold 규칙), 취소 → `killGraceMs` 뒤 `SIGKILL`, `isolatablePoints`, 격리 불가 지점·drive 거부, 도구 프록시 | L-22, P-06(디스패처), O-05(시간 예산) | L | M2(2차) |
+| L-23 | `isolation/proxy.ts`: 선언 지점에만 프록시 핸들러 등록, 디스패치 직렬화, 결과 스키마 검사, 시간 예산 초과 → 예외(fold 규칙), 취소 → `killGraceMs` 뒤 `SIGKILL`, `isolatableHooks`, 격리 불가 지점·drive 거부, 도구 프록시 | L-22, P-06(디스패처), O-05(시간 예산) | L | M2(2차) |
 | L-24 | `isolation/outbox-agent.ts`: 자식의 `post`·`commit`·`record`를 확장 scope로 실행, 자식 `requestId` 그대로 사용 | L-22, P-09(ScopeRuntime), P-12(상태 커밋) | M | M2(2차) |
 | L-25 | 격리 수명: 비정상 종료 감지, 재시작 정책(`maxRestarts`, `restartWindowSec`, 지수 대기), 한도 초과 → `error` + scope 끄기 요청, `dispose`와 서비스 모드 유휴 종료 경로 | L-23 | M | M2(2차) |
 | L-26 | 핫 리로드(개발용): `reload(name)`, 세대 증가, 질의 접미 재import, 격리 확장은 재시작 | L-14, L-25 | M | M2 이후 |
@@ -131,7 +131,7 @@ xeon/packages/ext-host/
 포크에서 바꿀 점(스펙 §4.7.1 표의 구현 목록):
 
 1. `proper-lockfile` import와 `acquireTrustLockSync`·`withTrustFileLock`(138-177) 삭제. `TrustStoreBackend.update` 한 번으로 읽기-수정-쓰기를 한다.
-2. `../config.ts`의 `CONFIG_DIR_NAME` → 로컬 상수 `XEON_DIR = ".xeon"`. `APP_NAME` 문자열 프롬프트(`formatProjectTrustPrompt`) 삭제(표시는 L4).
+2. `../config.ts`의 `CONFIG_DIR_NAME` → 로컬 상수 `FRESNEL_DIR = ".xeon"`. `APP_NAME` 문자열 프롬프트(`formatProjectTrustPrompt`) 삭제(표시는 L4).
 3. `node:fs` 동기 함수 → `LoaderFs`(`exists`, `realpath`)와 `TrustStoreBackend`(`read`, `update`) 비동기 호출. 함수 시그니처가 모두 `async`가 된다.
 4. `node:os` `homedir()`·`process.env.HOME` → `LoaderPaths.homeDir` 주입.
 5. `../utils/paths.ts`(`canonicalizePath`, `resolvePath`) → 생성자 인자 `normalize`. `../utils/text.ts`(`stripBom`) → 로컬 함수.
@@ -183,7 +183,7 @@ xeon/packages/ext-host/
 | | `pi v0 format migrates` | `{ "/a": true }` 파일을 allow로 읽고 다음 쓰기에서 `version: 1` | §4.7.5 |
 | | `parent choice updates` | 상위 폴더 선택 → 상위 allow 저장, 프로젝트 루트 항목 삭제 | §4.7.3 |
 | `trust-resolve.test.ts` | `headless untrusted by default` | headless, 저장 없음, `ask` → 불신, `via: "headless"`, 프롬프트 호출 0, 저장 0 | §9-5 |
-| | `point exception denies` | `session.trust.before` 핸들러 throw → 불신, 저장 0 | §4.7.3-4 |
+| | `point exception denies` | `thread.trust.before` 핸들러 throw → 불신, 저장 0 | §4.7.3-4 |
 | | `point remember saves` | 핸들러 `{ trusted: "yes", remember: true }` → 신뢰, 저장 `via: "point"` | §4.7.3-4 |
 | | `session only not persisted` | "이번 세션만 신뢰" → 신뢰, 저장 0, 같은 로더의 두 번째 판정은 `sessionMemory` | §4.7.3 |
 | | `override wins` | `trustOverride: false`면 저장소에 allow가 있어도 불신 | §4.7.3-1 |
@@ -237,7 +237,7 @@ xeon/packages/ext-host/
 |---|---|---|
 | pi `trust-manager.ts`의 설정·잠금 결합이 예상보다 깊다 | 포크가 커지고 pi 갱신을 따라가기 어렵다 | 결합 지점은 import 8줄(proper-lockfile, config, utils 2개, runner, types, settings 2개)로 확인했다(스펙 §4.7.1). 포크는 공개 함수 단위로 옮기고, 동작 비교 테스트(`trust-store`, `trust-resolve`)를 pi 동작 기준으로 먼저 쓴다. 결합이 더 나오면 해당 함수는 포크하지 않고 새로 쓴다 |
 | Bun에서 TS 엔트리 동적 import와 캐시 무효화(핫 리로드) | 컴파일 바이너리에서 외부 확장을 못 불러오거나 리로드가 이전 모듈을 쓴다 | L-01 스파이크를 M0 첫 작업으로 둔다. A안 불가면 B안(jiti)으로 바꾼다. 핫 리로드는 개발용(M2 이후)으로 한정하고, 실패하면 "호스트 재시작" 안내로 대체한다. 격리 확장은 프로세스 재시작이라 영향이 없다 |
-| JSON 직렬화가 안 되는 페이로드가 지점에 있다 | 격리 확장이 일부 지점을 쓸 수 없거나 직렬화 오류가 실행 중에 난다 | `isolatablePoints()`를 `POINTS` 스키마에서 계산해 로드 시점(격리 확장 검사)에 거부한다. 고빈도 휘발 지점 3개는 고정 제외. F.extensions.plan M2의 페이로드 정확화 때 목록을 다시 계산하는 테스트를 둔다 |
+| JSON 직렬화가 안 되는 페이로드가 지점에 있다 | 격리 확장이 일부 지점을 쓸 수 없거나 직렬화 오류가 실행 중에 난다 | `isolatableHooks()`를 `HOOKS` 스키마에서 계산해 로드 시점(격리 확장 검사)에 거부한다. 고빈도 휘발 지점 3개는 고정 제외. F.extensions.plan M2의 페이로드 정확화 때 목록을 다시 계산하는 테스트를 둔다 |
 | 격리 프로세스 수명이 서비스 모드와 충돌 | 유휴 종료가 자식 프로세스를 남기거나, 자식이 남아 있어 유휴 판정이 계속 거짓이 된다 | 자식 기동·종료는 platform-process 서비스로만 한다. `dispose`는 `xeon/iso.dispose` → 유예 → `SIGKILL` 순서를 지킨다. 격리 자식은 유휴 판정의 live 작업으로 세지 않는다 [제안]. adr.0006 §3.7 체크리스트 작업자와 판정 규칙을 맞춘다 |
 | `Bun.plugin` 가상 모듈이 프로세스 전역이다 | 같은 지정자에 다른 객체를 등록하면 먼저 import한 모듈과 어긋난다 | `registerSdkModules`가 같은 객체의 재등록만 허용하고 다른 객체는 `conflict`로 거부한다. 호스트가 넘긴 객체가 호스트가 쓰는 모듈이므로 인스턴스가 같다. Bun 1.4.3에서 확인했다(스펙 §4.4.1) |
 | X.primitives의 `ExtHost.install`(P-13)이나 X.operations의 `admit`(O-03)이 늦는다 | M0의 L-06, L-07이 막힌다 | 스펙 §4.4.3 표를 기준으로 가짜 `ExtHost`·가짜 정책으로 구현을 끝낸다. 연결은 두 산출물이 나온 뒤 한다 |
@@ -249,7 +249,7 @@ xeon/packages/ext-host/
 |---|---|---|
 | L-15 | 완료 | `trust/store.ts` 포크: `ProjectTrustStore`(`canonical`, `lookup`, `setMany`)와 팩토리 `createProjectTrustStore`(클래스 없음, TY-16), 손상 → `corrupt`(쓰기 거부, `Result`로 돌려줌), pi 형식(v0) 읽기·다음 쓰기에서 버전 1, `trustOptions`(식별자 라벨 5개). `trust-store.test.ts` |
 | L-16 | 완료 | `trust/resources.ts` 포크: `TRUST_REQUIRING_PROJECT_RESOURCES`(스펙 §4.7.2 표와 대조 시험), `findTrustRequiringResources`(상위 `.agents/skills`는 상대 경로, 홈 제외, 존재만 확인). L-13(외부 탐색)에는 의존하지 않고 `LoaderFs`만 쓴다. `trust-resources.test.ts` |
-| L-17 | 완료 | `trust/resolve.ts` 포크: 판정 순서 1~8, `session.trust.before` 발화(발화가 던지면 불신), `sessionMemory`, 비대화형 불신, 손상 저장소 무프롬프트, 프롬프트 결과 저장, 저장 실패는 `storeError`. `trust-resolve.test.ts` |
-| 포크 기록 | 완료 | `LICENSE.pi`, `UPSTREAM.json`, `PATCHES.md`, 소스의 `// XEON-PATCH` 표지가 일치한다(`fork-records.test.ts`) |
-| L-18 | 보류 | 시작 순서 통합(신뢰 판정 뒤 프로젝트 탐색, `session.resources`)은 결정 D9(X.5)에 따라 M3다. M2에서 MCP·프로젝트 스킬은 `resolveProjectTrust`와 `findTrustRequiringResources`를 직접 부른다(`@xeon/ext-host` 공개 이름) |
+| L-17 | 완료 | `trust/resolve.ts` 포크: 판정 순서 1~8, `thread.trust.before` 발화(발화가 던지면 불신), `sessionMemory`, 비대화형 불신, 손상 저장소 무프롬프트, 프롬프트 결과 저장, 저장 실패는 `storeError`. `trust-resolve.test.ts` |
+| 포크 기록 | 완료 | `LICENSE.pi`, `UPSTREAM.json`, `PATCHES.md`, 소스의 `// FRESNEL-PATCH` 표지가 일치한다(`fork-records.test.ts`) |
+| L-18 | 보류 | 시작 순서 통합(신뢰 판정 뒤 프로젝트 탐색, `thread.resources`)은 결정 D9(X.5)에 따라 M3다. M2에서 MCP·프로젝트 스킬은 `resolveProjectTrust`와 `findTrustRequiringResources`를 직접 부른다(`@xeon/ext-host` 공개 이름) |
 | `project-trust.int.test.ts` | 보류 | 통합 시험은 L-18과 함께 한다 |

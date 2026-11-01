@@ -2,11 +2,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 
-// X.loading-trust.spec §4.7.1. PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 XEON-PATCH 표지 id 집합이 같고,
+// X.loading-trust.spec §4.7.1. PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 FRESNEL-PATCH 표지 id 집합이 같고,
 // pi에서 옮긴 파일의 머리에 출처 주석이 있다.
 
 const PACKAGE = join(import.meta.dir, "..", "..");
-const MARKER = /\/\/ XEON-PATCH: ([a-z0-9-]+)\b/g;
+const MARKER = /\/\/ FRESNEL-PATCH: ([a-z0-9-]+)\b/g;
 const FORKED: ReadonlySet<string> = new Set(["store.ts", "resources.ts", "resolve.ts"]);
 
 function forkedSources(): readonly { readonly file: string; readonly text: string }[] {

@@ -100,8 +100,8 @@ const policyOf = (point: HandlerFailure["point"]) =>
 test("failure: records read the failure policy of the point declaration", () => {
   expect(policyOf("tool.call.before")).toBe("closed");
   expect(policyOf("guard.output.before")).toBe("closed");
-  expect(policyOf("session.compact.before")).toBe("open");
-  expect(policyOf("session.resources")).toBe("open");
+  expect(policyOf("thread.compact.before")).toBe("open");
+  expect(policyOf("thread.resources")).toBe("open");
   expect(policyOf("lifecycle.agent.settled")).toBe("open");
   expect(policyOf("tool.result")).toBe("skip");
 });

@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { FIRST_DENY, POINTS } from "@xeon/contracts/extensions";
+import { FIRST_DENY, HOOKS } from "@xeon/contracts/extensions";
 import {
   awaitUser,
   budgetClassOf,
   budgetMsFrom,
   DEFAULT_BUDGETS_MS,
   runWithBudget,
-  STREAM_TAP_POINTS,
+  STREAM_TAP_HOOKS,
 } from "../../src/operations/index.ts";
 import { fakeTimers, flushMicrotasks } from "../../src/testing/index.ts";
 import { makeUnit } from "../primitives/fixtures/support.ts";
@@ -18,7 +18,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   return Promise.withResolvers<T>();
 }
 
-function entry(point: keyof typeof POINTS) {
+function entry(point: keyof typeof HOOKS) {
   return {
     point,
     scopeId: "x-ext",
@@ -212,24 +212,24 @@ test("budget: shutdown and stream classes", () => {
     setup: 10_000,
     hook: 30_000,
   });
-  expect(budgetClassOf(POINTS["session.shutdown"])).toBe("shutdown");
-  expect(budgetClassOf(POINTS["boundary.message.update"])).toBe("streamTap");
-  expect(budgetClassOf(POINTS["boundary.settle.after"])).toBe("tap");
-  expect(budgetClassOf(POINTS["tool.call.before"])).toBe("first");
-  expect(budgetClassOf(POINTS["boundary.step.after"])).toBe("chain");
+  expect(budgetClassOf(HOOKS["thread.shutdown"])).toBe("shutdown");
+  expect(budgetClassOf(HOOKS["boundary.message.update"])).toBe("streamTap");
+  expect(budgetClassOf(HOOKS["boundary.settle.after"])).toBe("tap");
+  expect(budgetClassOf(HOOKS["tool.call.before"])).toBe("first");
+  expect(budgetClassOf(HOOKS["boundary.step.after"])).toBe("chain");
   // collect는 값을 만드는 지점이라 chain 예산을 쓴다. guard는 first, lifecycle은 tap이다
-  expect(budgetClassOf(POINTS["input.agent.before"])).toBe("chain");
-  expect(budgetClassOf(POINTS["guard.model.before"])).toBe("first");
-  expect(budgetClassOf(POINTS["lifecycle.agent.settled"])).toBe("tap");
+  expect(budgetClassOf(HOOKS["input.agent.before"])).toBe("chain");
+  expect(budgetClassOf(HOOKS["guard.model.before"])).toBe("first");
+  expect(budgetClassOf(HOOKS["lifecycle.agent.settled"])).toBe("tap");
   // detached tap도 예산을 받는다
-  expect(budgetClassOf(POINTS["request.thinking.after"])).toBe("tap");
-  expect(STREAM_TAP_POINTS).toEqual([
+  expect(budgetClassOf(HOOKS["request.thinking.after"])).toBe("tap");
+  expect(STREAM_TAP_HOOKS).toEqual([
     "boundary.message.update",
     "request.stream",
     "tool.execution.update",
   ]);
   const budgetOf = budgetMsFrom(() => DEFAULT_BUDGETS_MS);
-  expect(budgetOf(entry("session.shutdown"))).toBe(2_000);
+  expect(budgetOf(entry("thread.shutdown"))).toBe(2_000);
   expect(budgetOf(entry("tool.call.before"))).toBe(30_000);
 });
 
@@ -239,12 +239,12 @@ test("budget: session.shutdown handler is cut at 2000ms", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "bud-shutdown", points: ["session.shutdown"] }, (g) => {
-      g.on("session.shutdown", () => new Promise<void>(() => {}));
+    makeUnit({ name: "bud-shutdown", points: ["thread.shutdown"] }, (g) => {
+      g.on("thread.shutdown", () => new Promise<void>(() => {}));
     }),
   );
   const pending = t.host.dispatch(
-    "session.shutdown",
+    "thread.shutdown",
     { reason: "quit" },
     { threadId: thread, dispatchKey: "k" },
   );

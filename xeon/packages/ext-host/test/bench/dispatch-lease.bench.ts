@@ -53,7 +53,7 @@ const RUNS = 30;
  */
 const TURNS_PER_BATCH = 48;
 const DISPATCHES_PER_BATCH = 200;
-const TAP_POINT = "boundary.settle.after";
+const TAP_HOOK = "boundary.settle.after";
 
 // ── 1. 임대: 턴마다 드라이브 임대를 받고 반납하는 비용 ─────────────────────────
 
@@ -158,8 +158,8 @@ async function measureLease(): Promise<void> {
 /** 디스패치 배치 하나의 핸들러 하나당 평균 시간(ms). budgeted가 참이면 OperationsPolicy(기본 예산) 경로다 */
 async function dispatchBatch(budgeted: boolean): Promise<number> {
   let handled = 0;
-  const unit = makeUnit({ name: "bench-tap", points: [TAP_POINT] }, (g) => {
-    g.on(TAP_POINT, () => {
+  const unit = makeUnit({ name: "bench-tap", points: [TAP_HOOK] }, (g) => {
+    g.on(TAP_HOOK, () => {
       handled += 1;
     });
   });
@@ -185,7 +185,7 @@ async function dispatchBatch(budgeted: boolean): Promise<number> {
   const started = performance.now();
   await eachInOrder(range(DISPATCHES_PER_BATCH), async (index) => {
     const outcome = await t.host.dispatch(
-      TAP_POINT,
+      TAP_HOOK,
       { turnId, aborted: false },
       { threadId: thread, dispatchKey: `bench-${String(index)}` },
     );

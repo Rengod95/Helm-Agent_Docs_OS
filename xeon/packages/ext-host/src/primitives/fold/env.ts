@@ -1,4 +1,4 @@
-import type { PointName } from "@xeon/contracts/extensions";
+import type { HookName } from "@xeon/contracts/extensions";
 import type { HandlerFailure, HandlerFailureReason, HandlerRef } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";
 
@@ -10,7 +10,7 @@ export type RunResult =
 
 /** fold 알고리즘이 디스패처에서 받는 도구 묶음 */
 export interface FoldEnv {
-  readonly point: PointName;
+  readonly point: HookName;
   /** 참이면 chain 패치 스키마도 검사한다 */
   readonly strict: boolean;
   runOne(entry: HandlerEntry, args: readonly unknown[]): Promise<RunResult>;

@@ -35,7 +35,7 @@ xeon/packages/ext-host/
     tier.ts              # Tier, TIERS, TierSchema, HandlerOwner, ownerKey, HandlerOrigin, HandlerOrderKey,
                          # TierOfFn, orderKeyOf, compareOrderKey, TierInput, TierError, TierTable,
                          # createTierTable, tierOfFrom, GUARD_EXTENSIONS, assignTier
-    budget.ts            # BudgetClass, BudgetTable, DEFAULT_BUDGETS_MS, STREAM_TAP_POINTS, budgetClassOf,
+    budget.ts            # BudgetClass, BudgetTable, DEFAULT_BUDGETS_MS, STREAM_TAP_HOOKS, budgetClassOf,
                          # budgetMsFrom, BudgetGate, BudgetOutcome, BudgetDeps, runWithBudget, awaitUser
     failure.ts           # FailureKind, HandlerResultKind, HandlerOutcomeRecord, fromHandlerFailure,
                          # FailureStats, FailureLedger, createFailureLedger
@@ -54,7 +54,7 @@ xeon/packages/ext-host/
     safe-mode.ts         # M3a. SafeModeSource, StartupOptions, LoadCandidate, SkipReason, startupFilter,
                          # allowedInSafeMode, shouldSuggestSafeMode
     hooks/
-      config.ts          # M2. HOOK_ID_PATTERN, HOOK_POINTS, HookPointName, HookDefSchema, HookDef,
+      config.ts          # M2. HOOK_ID_PATTERN, HOOK_HOOKS, HookHookName, HookDefSchema, HookDef,
                          # HookDefListSchema, HookSource, LoadedHook, loadHooks
       protocol.ts        # M2. HOOK_SCHEMA_VERSION, 상한 상수, HookInput, HookOutputSchema,
                          # HookVerdict, interpretHookRun, F HookRawRun 재export
@@ -87,10 +87,10 @@ xeon/packages/ext-host/
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
 | O-01 | `settings-keys.ts`에 1차 예산 키 6개(`setupMs` 포함) 선언(`defineSettings("x.operations", …)`), `index.ts` 골격, `package.json` exports 확인 | F.wire-settings.plan(`defineSettings`, `SettingDef`) | S | M0 |
-| O-02 | `tier.ts`: `TIERS`, `TierSchema`, `orderKeyOf`, `compareOrderKey`, `ownerKey`, `assignTier`, `TierTable`, `tierOfFrom`, `GUARD_EXTENSIONS` | F.extensions.plan(`PointDecl`, `ExtensionName`, `ExtensionManifest`), L-02(`TrustLevel`, `InstallSource`) | S | M0 |
+| O-02 | `tier.ts`: `TIERS`, `TierSchema`, `orderKeyOf`, `compareOrderKey`, `ownerKey`, `assignTier`, `TierTable`, `tierOfFrom`, `GUARD_EXTENSIONS` | F.extensions.plan(`HookDecl`, `ExtensionName`, `ExtensionManifest`), L-02(`TrustLevel`, `InstallSource`) | S | M0 |
 | O-03 | `createOperationsPolicy`(`tierOf`, `budgetMs`, `onHandlerFailure`, `admit`, `forget`, `setupBudgetMs`)를 `ExtHostDeps.policy`·`setupBudgetMs`로 연결. 로더 6a단계(설치 전) `admit` 호출은 L-06이 한다. 정렬이 `(tierOf, loadIndex, seq)`인지 확인하는 통합 테스트(P-20과 같은 시나리오) | P-04(핸들러 레지스트리), P-06(`DispatchPolicy`), L-03(로드 순서), O-02 | M | M0 |
 | O-04 | `budget.ts`: `runWithBudget`(`now`·`setTimer` 주입, pause 깊이, TimeoutError abort, 늦은 결과 버림, outer abort), `awaitUser` | O-02 | M | M0 |
-| O-05 | `budgetClassOf`, `budgetMsFrom`, `STREAM_TAP_POINTS`, `DEFAULT_BUDGETS_MS`, `OperationsSettingsSource.budgets()`로 유효 예산 읽기(`live`). `OperationsPolicy.setupBudgetMs`로 scope setup 예산(`ExtHostDeps.setupBudgetMs`)에 `setup` 값 제공 | O-01, O-04 | S | M0 |
+| O-05 | `budgetClassOf`, `budgetMsFrom`, `STREAM_TAP_HOOKS`, `DEFAULT_BUDGETS_MS`, `OperationsSettingsSource.budgets()`로 유효 예산 읽기(`live`). `OperationsPolicy.setupBudgetMs`로 scope setup 예산(`ExtHostDeps.setupBudgetMs`)에 `setup` 값 제공 | O-01, O-04 | S | M0 |
 | O-06 | `OperationsPolicy.run` 구현(`DispatchPolicy.run`, X.primitives.spec §3.4): 디스패처가 이 함수로 핸들러를 실행하고, 결과(`timeout`, `threw`, `aborted`)를 fold 규칙(tap 기록, first `FIRST_DENY`, chain 패치 버림)에 넘기는지 확인. drive 경로는 `budgetMs: null` | P-06(fold 엔진, `run` 호출), P-11(drive 실행기), O-05 | M | M0 |
 | O-07 | UI 포트 래핑: primitives가 핸들러에 주는 UI 포트·승인 대기를 `awaitUser`로 감싼다. signal 합치기(`AbortSignal.any`). [결정: review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않으므로 M2에 둔다 | X.primitives.plan(UI 포트, 스펙 §10 미결 5), O-04 | S | M2 |
 | O-08 | `failure.ts`: `fromHandlerFailure`, `FailureLedger`(연속 수, 창, aborted·`value_from_tap` 제외), `onHandlerFailure`·`onHandlerSettled` 구현 | O-06 | M | M0 |
@@ -107,7 +107,7 @@ xeon/packages/ext-host/
 | O-19 | `ExtHostDeps.resourcePolicy` 연결, 집합 판정 메서드 추가를 primitives와 합의(스펙 §10 미결 17). 어댑터 등록 매핑 확인은 삭제합니다(adr.0017 §3.7, D-M3-11 c) | O-18 | M | M2 |
 | O-20 | `safe-mode.ts`: `startupFilter`, `allowedInSafeMode`, `shouldSuggestSafeMode`. `OperationsPolicy.startupFilter`(후보별 `assignTier` 뒤 `startupFilter`), `StartupHealthStore` 포트(호스트가 시작 상태 파일을 연결할 때 정의합니다. 2026-10-28 미사용 export 정리), 2차 안전 모드 키 2개. 로더 5a단계 연결은 L-29 | L-08(로더), L4.host-service.plan(시작 상태 파일, `--safe-mode`·`--disable-ext` 파싱), O-02 | M | M2 |
 | O-21 | `hooks/config.ts`: `HookDefSchema`, 범위별 목록 병합, tier 부여, 프로젝트 신뢰 조건, 2차 훅 키 3개 | L-17(프로젝트 신뢰), F.wire-settings.plan(배열 키 병합, 스펙 §10 미결 13), O-02 | M | M4 |
-| O-22 | `hooks/protocol.ts`: `HookInput` 직렬화, `HookOutputSchema`, `interpretHookRun`(스펙 §4.7.3 표 전체) | F.extensions.plan(`POINTS[point].result` 스키마), O-21 | M | M4 |
+| O-22 | `hooks/protocol.ts`: `HookInput` 직렬화, `HookOutputSchema`, `interpretHookRun`(스펙 §4.7.3 표 전체) | F.extensions.plan(`HOOKS[point].result` 스키마), O-21 | M | M4 |
 | O-23 | `hooks/run.ts`: `hookEnv`, `HookProcessPort`(`ProcessPortKey`로 조회)로 실행, 출력 상한, 예산, 결과를 `HandlerOutcomeRecord`로 보고 | P-30(`ProcessPortKey`), L0.process.plan(`ProcessService` 실행 메서드, 프로세스 그룹 종료), O-22, O-08 | M | M4 |
 | O-24 | 외부 훅 등록: 범위별 내부 내장 확장 단위(`xeon-hooks-<범위>`)를 `ExtHost.install`로 싣고 훅마다 on 핸들러 하나를 등록(모든 확장 뒤 loadIndex, `TierTable`에 범위별 tier), (단위, 순번) → 훅 id 표, 자동 끄기의 훅 끄기 연결 | P-13(`install`), O-03, O-10, O-23 | M | M4 |
 | O-25 | `ExtStorageAdmin`(`tablesOf`, `dropExtension` 2단계 확인)과 제거 흐름 연결(`LoaderDeps.storageAdmin`) | L-28(제거 흐름), L4.settings-ui.plan(확인 화면), O-14 | M | M2 |
@@ -142,7 +142,7 @@ xeon/packages/ext-host/
 | 7 | `budget: pause/resume excludes user wait` | 20s 실행 + 60s 대기 + 20s 실행은 통과, 대기 없는 40s는 초과 | §9-7 |
 | 8 | `budget: nested pause counts depth` | pause 두 번, resume 한 번이면 여전히 멈춤. 두 번째 resume에서 다시 잼 | §4.2.3 |
 | 9 | `budget: late result is discarded` | 초과 뒤 반환값·예외가 결과와 장부에 영향 없음, 타이머가 남지 않음(`ManualClock` 대기 타이머 0) | §9-8 |
-| 10 | `budget: shutdown and stream classes` | `session.shutdown` 2,000ms, `boundary.message.update` 1,000ms, detached tap도 예산 적용 | §9-9, §4.2.2 |
+| 10 | `budget: shutdown and stream classes` | `thread.shutdown` 2,000ms, `boundary.message.update` 1,000ms, detached tap도 예산 적용 | §9-9, §4.2.2 |
 | 11 | `budget: drive has no time budget` | `budgetMs: null`이면 600,000ms 진행에도 abort 없음 | §9-10 |
 | 12 | `budget: outer abort is aborted not failure` | outer abort → `aborted`, 장부 연속 수 변화 없음 | §9-14 |
 | 13 | `failure: classification table` | threw, timeout, result_invalid, aborted, ok 분류와 연속 수·창 갱신 | §4.3.1~§4.3.2 |

@@ -1,5 +1,5 @@
 import { assertNever } from "@xeon/contracts";
-import { POINTS, type PointDecl, type PointName } from "@xeon/contracts/extensions";
+import { HOOKS, type HookDecl, type HookName } from "@xeon/contracts/extensions";
 import type {
   HandlerEntryInfo,
   HandlerGate,
@@ -22,14 +22,14 @@ export const DEFAULT_BUDGETS_MS: BudgetTable = {
 };
 
 /** 고빈도 관찰 지점. streamTap 예산을 쓴다 */
-export const STREAM_TAP_POINTS: readonly PointName[] = [
+export const STREAM_TAP_HOOKS: readonly HookName[] = [
   "boundary.message.update",
   "request.stream",
   "tool.execution.update",
 ];
 
 /** 순수 함수. setup(값은 OperationsPolicy.setupBudgetMs)과 외부 훅은 이 함수를 쓰지 않는다 */
-export function budgetClassOf(point: PointDecl): Exclude<BudgetClass, "setup" | "hook"> {
+export function budgetClassOf(point: HookDecl): Exclude<BudgetClass, "setup" | "hook"> {
   switch (point.fold) {
     case "first":
       return "first";
@@ -38,10 +38,10 @@ export function budgetClassOf(point: PointDecl): Exclude<BudgetClass, "setup" | 
       // collect도 값을 만드는 지점이라 chain 예산을 쓴다(adr.0017)
       return "chain";
     case "tap":
-      if (point.name === "session.shutdown") return "shutdown";
-      return STREAM_TAP_POINTS.includes(point.name) ? "streamTap" : "tap";
+      if (point.name === "thread.shutdown") return "shutdown";
+      return STREAM_TAP_HOOKS.includes(point.name) ? "streamTap" : "tap";
     default:
-      return assertNever(point.fold, "PointDecl.fold");
+      return assertNever(point.fold, "HookDecl.fold");
   }
 }
 
@@ -49,7 +49,7 @@ export function budgetClassOf(point: PointDecl): Exclude<BudgetClass, "setup" | 
 export function budgetMsFrom(
   budgets: () => BudgetTable,
 ): (entry: HandlerEntryInfo) => number | null {
-  return (entry) => budgets()[budgetClassOf(POINTS[entry.point])];
+  return (entry) => budgets()[budgetClassOf(HOOKS[entry.point])];
 }
 
 /** 핸들러가 사용자 응답을 기다리는 동안 예산 시계를 멈춘다. 중첩 호출을 센다 */

@@ -6,7 +6,7 @@ import type {
   DriveOptions,
   ExtensionManifest,
   ExtensionName,
-  PointName,
+  HookName,
   PortLookup,
   RecordKind,
   ScopeApi,
@@ -77,7 +77,7 @@ export interface BoundarySignal {
 
 /** setup 동안 실제로 한 등록(validateUsage 입력) */
 export interface UsageRecorder {
-  readonly on: Set<PointName>;
+  readonly on: Set<HookName>;
   post: boolean;
   drive: boolean;
   readonly capabilities: Set<CapabilityId>;

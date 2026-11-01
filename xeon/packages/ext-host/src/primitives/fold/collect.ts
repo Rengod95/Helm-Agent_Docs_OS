@@ -1,5 +1,5 @@
 import { attempt, parse } from "@xeon/contracts";
-import { POINTS, type CollectPointName } from "@xeon/contracts/extensions";
+import { HOOKS, type CollectHookName } from "@xeon/contracts/extensions";
 import { collectRuleOf } from "../../erase.ts";
 import type { CollectOutcome, HandlerFailure, HandlerRef } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";
@@ -18,13 +18,13 @@ export interface CollectOptions {
  */
 export async function foldCollect(
   env: FoldEnv,
-  point: CollectPointName,
+  point: CollectHookName,
   entries: readonly HandlerEntry[],
   payload: unknown,
   options: CollectOptions,
 ): Promise<CollectOutcome<unknown>> {
   const rule = collectRuleOf(point);
-  const schema = POINTS[point].result;
+  const schema = HOOKS[point].result;
   const check = env.strict;
   const contributions: { readonly entry: HandlerEntry; readonly value: unknown }[] = [];
   const failures: HandlerFailure[] = [];

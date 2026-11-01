@@ -4,8 +4,8 @@ import type {
   CollectSig,
   ExtensionName,
   FirstSig,
-  PointName,
-  PointSignatures,
+  HookName,
+  HookSignatures,
   ScopeId,
   TapSig,
 } from "@xeon/contracts/extensions";
@@ -15,7 +15,7 @@ export type { HandlerEntryInfo } from "./registry.ts";
 
 // ── 디스패치 타입 (X.primitives.spec §3.3) ────────────────────────────────
 
-export type PayloadOf<N extends PointName> = PointSignatures[N]["payload"];
+export type PayloadOf<N extends HookName> = HookSignatures[N]["payload"];
 
 interface DispatchOptionsBase {
   readonly threadId: ThreadId;
@@ -27,15 +27,15 @@ interface DispatchOptionsBase {
   readonly onlyScope?: ScopeId;
 }
 
-export type DispatchOptions<N extends PointName> =
-  PointSignatures[N] extends ChainSig<infer _P, infer V, infer _X>
+export type DispatchOptions<N extends HookName> =
+  HookSignatures[N] extends ChainSig<infer _P, infer V, infer _X>
     ? DispatchOptionsBase & {
         /** chain 초기값. 지점이 만든다 */
         readonly initial: V;
-        /** POINTS[N].finalize가 "boundary"면 필수. 모든 핸들러 뒤 L1이 최종 값을 검증·보정한다 */
+        /** HOOKS[N].finalize가 "boundary"면 필수. 모든 핸들러 뒤 L1이 최종 값을 검증·보정한다 */
         readonly finalize?: (value: V) => V;
       }
-    : PointSignatures[N] extends CollectSig<infer _P, infer V, infer _C>
+    : HookSignatures[N] extends CollectSig<infer _P, infer V, infer _C>
       ? DispatchOptionsBase & {
           /** collect 초기값. 지점이 만들고 모은 기여가 이 값에 한 번 병합된다 */
           readonly initial: V;
@@ -63,7 +63,7 @@ export type HandlerFailureReason =
   | "value_from_tap";
 
 export interface HandlerFailure {
-  readonly point: PointName;
+  readonly point: HookName;
   readonly handler: HandlerRef;
   readonly reason: HandlerFailureReason;
   readonly error?: unknown;
@@ -106,14 +106,14 @@ export interface CollectOutcome<V> {
   readonly failures: readonly HandlerFailure[];
 }
 
-export type DispatchOutcome<N extends PointName> =
-  PointSignatures[N] extends TapSig<infer _P>
+export type DispatchOutcome<N extends HookName> =
+  HookSignatures[N] extends TapSig<infer _P>
     ? TapOutcome
-    : PointSignatures[N] extends FirstSig<infer _P, infer D>
+    : HookSignatures[N] extends FirstSig<infer _P, infer D>
       ? FirstOutcome<D>
-      : PointSignatures[N] extends ChainSig<infer _P, infer V, infer _X>
+      : HookSignatures[N] extends ChainSig<infer _P, infer V, infer _X>
         ? ChainOutcome<V>
-        : PointSignatures[N] extends CollectSig<infer _P, infer V, infer _C>
+        : HookSignatures[N] extends CollectSig<infer _P, infer V, infer _C>
           ? CollectOutcome<V>
           : never;
 

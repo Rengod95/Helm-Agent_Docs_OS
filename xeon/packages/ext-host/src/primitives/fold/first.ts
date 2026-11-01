@@ -1,36 +1,36 @@
 import { parse } from "@xeon/contracts";
 import {
   FIRST_DENY,
-  POINTS,
-  type FailOpenFirstPointName,
-  type FirstPointName,
+  HOOKS,
+  type FailOpenFirstHookName,
+  type FirstHookName,
 } from "@xeon/contracts/extensions";
 import type { FirstOutcome, HandlerFailure } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";
 import { eachInOrder } from "../sequence.ts";
 import type { FoldEnv } from "./env.ts";
 
-type ClosedFirstPointName = Exclude<FirstPointName, FailOpenFirstPointName>;
+type ClosedFirstHookName = Exclude<FirstHookName, FailOpenFirstHookName>;
 
 /** 지점 선언의 failure가 closed인 first 지점. FIRST_DENY 항목이 있는 지점이다 */
-function isClosed(point: FirstPointName): point is ClosedFirstPointName {
-  return POINTS[point].failure === "closed";
+function isClosed(point: FirstHookName): point is ClosedFirstHookName {
+  return HOOKS[point].failure === "closed";
 }
 
 /**
  * first: 순차 await. failure가 closed인 지점은 예외·시간 초과·중단·스키마 위반을 FIRST_DENY로 바꾸고 멈춘다.
- * failure가 open인 지점(`session.compact.before`)은 그 핸들러를 결정 없음으로 보고 기록한 뒤 다음 핸들러로 간다.
- * undefined는 결정 없음, 그 밖의 값은 PointDecl.result 스키마를 통과해야 결정이다.
+ * failure가 open인 지점(`thread.compact.before`)은 그 핸들러를 결정 없음으로 보고 기록한 뒤 다음 핸들러로 간다.
+ * undefined는 결정 없음, 그 밖의 값은 HookDecl.result 스키마를 통과해야 결정이다.
  * 0, "", null, false도 스키마 위반이라 거부로 바뀐다(Cordis bail 함정 회귀 방지, X.primitives.spec §4.3)
  */
 export async function foldFirst(
   env: FoldEnv,
-  point: FirstPointName,
+  point: FirstHookName,
   entries: readonly HandlerEntry[],
   payload: unknown,
 ): Promise<FirstOutcome<unknown>> {
   const failures: HandlerFailure[] = [];
-  const schema = POINTS[point].result;
+  const schema = HOOKS[point].result;
   let outcome: FirstOutcome<unknown> = {
     fold: "first",
     decision: undefined,

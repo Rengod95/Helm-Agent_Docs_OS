@@ -2,13 +2,13 @@ import type { ThreadId } from "@xeon/contracts/conversation";
 import type {
   ExtensionManifest,
   ExtensionName,
-  PointName,
+  HookName,
   ScopeId,
 } from "@xeon/contracts/extensions";
 
 /** 정책이 보는 핸들러 항목의 읽기 전용 모습(X.primitives.spec §3.4) */
 export interface HandlerEntryInfo {
-  readonly point: PointName;
+  readonly point: HookName;
   readonly scopeId: ScopeId;
   readonly extension: ExtensionName;
   readonly layer: ExtensionManifest["layer"];
@@ -40,13 +40,13 @@ export interface HandlerRegistry {
    * 디스패치 시작 때 부른다. 세대가 열리고 그 thread에서 켜진 scope의 항목만 복사해 고정한다.
    * 디스패치 도중의 add·remove·세대 변화는 이 배열에 반영되지 않는다.
    */
-  snapshot(point: PointName, threadId: ThreadId): readonly HandlerEntry[];
+  snapshot(point: HookName, threadId: ThreadId): readonly HandlerEntry[];
   /** 항목 수. 테스트와 진단용 */
-  size(point?: PointName): number;
+  size(point?: HookName): number;
 }
 
 export function createHandlerRegistry(): HandlerRegistry {
-  const byPoint = new Map<PointName, HandlerEntry[]>();
+  const byHook = new Map<HookName, HandlerEntry[]>();
   let seq = 0;
   return {
     nextSeq() {
@@ -54,27 +54,27 @@ export function createHandlerRegistry(): HandlerRegistry {
       return seq;
     },
     add(entry) {
-      const list = byPoint.get(entry.point) ?? [];
+      const list = byHook.get(entry.point) ?? [];
       list.push(entry);
-      byPoint.set(entry.point, list);
+      byHook.set(entry.point, list);
       let removed = false;
       return () => {
         if (removed) return;
         removed = true;
-        const current = byPoint.get(entry.point);
+        const current = byHook.get(entry.point);
         if (current === undefined) return;
         const index = current.indexOf(entry);
         if (index >= 0) current.splice(index, 1);
-        if (current.length === 0) byPoint.delete(entry.point);
+        if (current.length === 0) byHook.delete(entry.point);
       };
     },
     snapshot(point, threadId) {
-      return (byPoint.get(point) ?? []).filter((entry) => entry.isOpen(threadId));
+      return (byHook.get(point) ?? []).filter((entry) => entry.isOpen(threadId));
     },
     size(point) {
-      if (point !== undefined) return byPoint.get(point)?.length ?? 0;
+      if (point !== undefined) return byHook.get(point)?.length ?? 0;
       let total = 0;
-      for (const list of byPoint.values()) total += list.length;
+      for (const list of byHook.values()) total += list.length;
       return total;
     },
   };

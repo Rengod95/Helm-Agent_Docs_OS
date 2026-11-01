@@ -8,7 +8,7 @@ import type {
   ExtensionManifest,
   ExtensionName,
   ManifestIssue,
-  PointName,
+  HookName,
   PortKey,
   PortLookup,
   ScopeHandle,
@@ -182,7 +182,7 @@ export interface ExtHost {
   scope(id: ScopeId): ScopeHandle | undefined;
   scopes(): readonly ScopeInfo[];
   /** L1이 지점을 발화할 때 부른다 */
-  dispatch<N extends PointName>(
+  dispatch<N extends HookName>(
     point: N,
     payload: PayloadOf<N>,
     options: DispatchOptions<N>,
@@ -190,7 +190,7 @@ export interface ExtHost {
   /** L1 루프가 단계 경계와 유휴 진입 때 부른다 */
   readonly boundary: BoundaryHooks;
   /**
-   * 이벤트가 커밋된 뒤 부른다. kind가 `LIFECYCLE_POINTS`에 있으면 수명주기 지점(`lifecycle.agent.settled`,
+   * 이벤트가 커밋된 뒤 부른다. kind가 `LIFECYCLE_HOOKS`에 있으면 수명주기 지점(`lifecycle.agent.settled`,
    * `lifecycle.lease.rejected`)을 디스패치한다. X가 낸 경계 기여(`lease.rejected`)는 `boundary.settle`이 직접 알리므로
    * L1이 자기 커밋(위임 정착 `agent.settled`)을 알릴 때 쓴다. 끝나기를 기다린다
    */

@@ -8,7 +8,7 @@ import type {
   ProviderResourceDef,
   ToolResourceDef,
   Handler,
-  PointName,
+  HookName,
   PortKey,
   PostItem,
   PostOptions,
@@ -67,7 +67,7 @@ export interface ScopeCallContext {
   readonly threadId: ThreadId;
   readonly signal: AbortSignal;
   /** on일 때 실행 중인 지점 */
-  readonly point?: PointName;
+  readonly point?: HookName;
 }
 
 /** setup이 받은 g에 붙는 부가 API(X.primitives.spec §3.8) */
@@ -236,7 +236,7 @@ export function createScopeApi(
 
   const api: ScopeApi<AnyState> = {
     id: record.id,
-    on<N extends PointName>(point: N, handler: Handler<N>): Unsubscribe {
+    on<N extends HookName>(point: N, handler: Handler<N>): Unsubscribe {
       assertOpen(record, generation);
       if (!manifest.points.includes(point)) {
         throw new PrimitiveError(

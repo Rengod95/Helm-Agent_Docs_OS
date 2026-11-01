@@ -1,11 +1,11 @@
 import { assertNever, Bug, parse } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
-  POINTS,
-  type ChainPointName,
-  type CollectPointName,
-  type FirstPointName,
-  type PointName,
+  HOOKS,
+  type ChainHookName,
+  type CollectHookName,
+  type FirstHookName,
+  type HookName,
   type ScopeId,
 } from "@xeon/contracts/extensions";
 import { eraseDispatchOptions, restoreOutcome } from "../erase.ts";
@@ -67,7 +67,7 @@ export interface DispatcherDeps {
 
 export interface Dispatcher {
   dispatch(
-    point: PointName,
+    point: HookName,
     payload: unknown,
     options: AnyDispatchOptions,
   ): Promise<AnyDispatchOutcome>;
@@ -76,16 +76,16 @@ export interface Dispatcher {
 const NOOP_GATE: HandlerGate = { pause: () => {}, resume: () => {} };
 const NOOP = (): void => {};
 
-function isFirstPoint(point: PointName): point is FirstPointName {
-  return POINTS[point].fold === "first";
+function isFirstHook(point: HookName): point is FirstHookName {
+  return HOOKS[point].fold === "first";
 }
 
-function isChainPoint(point: PointName): point is ChainPointName {
-  return POINTS[point].fold === "chain";
+function isChainHook(point: HookName): point is ChainHookName {
+  return HOOKS[point].fold === "chain";
 }
 
-function isCollectPoint(point: PointName): point is CollectPointName {
-  return POINTS[point].fold === "collect";
+function isCollectHook(point: HookName): point is CollectHookName {
+  return HOOKS[point].fold === "collect";
 }
 
 function failureOf(
@@ -222,7 +222,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
     });
   }
 
-  function makeEnv(point: PointName, options: AnyDispatchOptions): FoldEnv {
+  function makeEnv(point: HookName, options: AnyDispatchOptions): FoldEnv {
     async function runOne(entry: HandlerEntry, args: readonly unknown[]): Promise<RunResult> {
       const info = infoOf(entry);
       const outer = combineSignals(options.signal, entry.signal);
@@ -295,7 +295,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
 
   return {
     async dispatch(point, payload, options) {
-      const decl = POINTS[point];
+      const decl = HOOKS[point];
       if (deps.strict) {
         const checked = parse(decl.payload, payload);
         if (!checked.ok) {
@@ -341,26 +341,26 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         case "tap":
           return foldTap(env, entries, payload);
         case "first":
-          if (!isFirstPoint(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
+          if (!isFirstHook(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
           return foldFirst(env, point, entries, payload);
         case "chain":
-          if (!isChainPoint(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
+          if (!isChainHook(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
           return foldChain(env, point, entries, payload, {
             initial: options.initial,
             finalize: options.finalize,
           });
         case "collect":
-          if (!isCollectPoint(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
+          if (!isCollectHook(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
           return foldCollect(env, point, entries, payload, { initial: options.initial });
         default:
-          return assertNever(fold, "PointDecl.fold");
+          return assertNever(fold, "HookDecl.fold");
       }
     },
   };
 }
 
 /** 지점 이름이 N인 타입 있는 호출로 좁힌다. 타입은 지점 표가 보장하고 런타임 값은 그대로다 */
-export function typedDispatch<N extends PointName>(
+export function typedDispatch<N extends HookName>(
   dispatcher: Dispatcher,
   point: N,
   payload: PayloadOf<N>,

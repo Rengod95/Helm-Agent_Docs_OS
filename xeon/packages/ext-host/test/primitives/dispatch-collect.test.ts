@@ -69,19 +69,19 @@ test("collect: every handler gets the original payload and no current, contribut
 test("collect is fail-open: a throwing handler loses only its contribution", async () => {
   const { t, thread } = await setup();
   await t.host.install(
-    makeUnit({ name: "col-throw", points: ["session.resources"], loadIndex: 0 }, (g) => {
-      g.on("session.resources", () => {
+    makeUnit({ name: "col-throw", points: ["thread.resources"], loadIndex: 0 }, (g) => {
+      g.on("thread.resources", () => {
         throw new Error("boom");
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "col-ok", points: ["session.resources"], loadIndex: 1 }, (g) => {
-      g.on("session.resources", () => ({ skillPaths: ["/s"] }));
+    makeUnit({ name: "col-ok", points: ["thread.resources"], loadIndex: 1 }, (g) => {
+      g.on("thread.resources", () => ({ skillPaths: ["/s"] }));
     }),
   );
   const outcome = await t.host.dispatch(
-    "session.resources",
+    "thread.resources",
     { cwd: "/work", reason: "startup" },
     {
       threadId: thread,
@@ -117,18 +117,18 @@ test("session.compact.before is fail-open: a throwing handler is skipped and the
   const { t, thread } = await setup();
   const payload = compactPayload(thread, t.ids.next("evt"));
   await t.host.install(
-    makeUnit({ name: "cmp-throw", points: ["session.compact.before"], loadIndex: 0 }, (g) => {
-      g.on("session.compact.before", () => {
+    makeUnit({ name: "cmp-throw", points: ["thread.compact.before"], loadIndex: 0 }, (g) => {
+      g.on("thread.compact.before", () => {
         throw new Error("boom");
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "cmp-cancel", points: ["session.compact.before"], loadIndex: 1 }, (g) => {
-      g.on("session.compact.before", () => ({ cancel: true, reason: "later" }));
+    makeUnit({ name: "cmp-cancel", points: ["thread.compact.before"], loadIndex: 1 }, (g) => {
+      g.on("thread.compact.before", () => ({ cancel: true, reason: "later" }));
     }),
   );
-  const outcome = await t.host.dispatch("session.compact.before", payload, {
+  const outcome = await t.host.dispatch("thread.compact.before", payload, {
     threadId: thread,
     dispatchKey: "k",
   });
@@ -140,14 +140,14 @@ test("session.compact.before is fail-open: a throwing handler is skipped and the
 test("session.compact.before with only a throwing handler gives no decision, never a deny", async () => {
   const { t, thread } = await setup();
   await t.host.install(
-    makeUnit({ name: "cmp-only", points: ["session.compact.before"], loadIndex: 0 }, (g) => {
-      g.on("session.compact.before", () => {
+    makeUnit({ name: "cmp-only", points: ["thread.compact.before"], loadIndex: 0 }, (g) => {
+      g.on("thread.compact.before", () => {
         throw new Error("boom");
       });
     }),
   );
   const outcome = await t.host.dispatch(
-    "session.compact.before",
+    "thread.compact.before",
     compactPayload(thread, t.ids.next("evt")),
     { threadId: thread, dispatchKey: "k" },
   );

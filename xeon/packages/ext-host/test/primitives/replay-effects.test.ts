@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { isCapabilityError, type CallOptions, type ServiceKey } from "@xeon/contracts/capabilities";
 import type { ThreadId } from "@xeon/contracts/conversation";
-import type { PointName } from "@xeon/contracts/extensions";
+import type { HookName } from "@xeon/contracts/extensions";
 import { hostOf } from "../../src/primitives/index.ts";
 import { makeDraft } from "../../src/primitives/drafts.ts";
 import { createTestHost, fixedIdFactory, memoryRecordStore } from "../../src/testing/index.ts";
@@ -71,7 +71,7 @@ async function setup() {
 }
 
 function fire(t: Awaited<ReturnType<typeof createTestHost>>, thread: ThreadId, key: string) {
-  const point: PointName = "boundary.settle.after";
+  const point: HookName = "boundary.settle.after";
   return t.host.dispatch(
     point,
     { turnId: t.ids.next("trn"), aborted: false },

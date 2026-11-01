@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { PointName, ScopeId } from "@xeon/contracts/extensions";
+import type { HookName, ScopeId } from "@xeon/contracts/extensions";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { HandlerGate } from "./dispatch-types.ts";
 
@@ -21,7 +21,7 @@ export interface Ambient {
   readonly threadId: ThreadId;
   readonly scopeId: ScopeId;
   /** 핸들러 안이면 실행 중인 지점, drive 안이면 null */
-  readonly point: PointName | null;
+  readonly point: HookName | null;
   /** 핸들러 안이면 디스패치 키, drive 안이면 null */
   readonly dispatchKey: string | null;
   /** 핸들러 안 멱등 키 카운터 */

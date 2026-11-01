@@ -82,7 +82,7 @@ import type { Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { DurableEventEnvelope, EventKind } from "@xeon/contracts/records";
 import type {
-  ExtensionManifest, ExtensionName, Fold, PointDecl, PointName, PointSignatures, ScopeApi, ScopeId,
+  ExtensionManifest, ExtensionName, Fold, HookDecl, HookName, HookSignatures, ScopeApi, ScopeId,
 } from "@xeon/contracts/extensions";
 // 호스트 포트는 F가 정본이다(F.extensions.spec §3.2.1 ports.ts). 이 문서는 정의하지 않는다
 import type {
@@ -190,11 +190,11 @@ export const DEFAULT_BUDGETS_MS: BudgetTable;
 // = { first: 30_000, chain: 10_000, tap: 5_000, streamTap: 1_000, shutdown: 2_000, setup: 10_000, hook: 30_000 }
 
 /** 고빈도 관찰 지점. streamTap 예산을 쓴다 */
-export const STREAM_TAP_POINTS: readonly PointName[];
+export const STREAM_TAP_HOOKS: readonly HookName[];
 // = ["boundary.message.update", "request.stream", "tool.execution.update"]
 
 /** 순수 함수. setup(X.primitives.spec §4.5.3, 값은 OperationsPolicy.setupBudgetMs)과 외부 훅은 이 함수를 쓰지 않는다 */
-export function budgetClassOf(point: PointDecl): Exclude<BudgetClass, "setup" | "hook">;
+export function budgetClassOf(point: HookDecl): Exclude<BudgetClass, "setup" | "hook">;
 
 /** DispatchPolicy.budgetMs 구현. 지점 등급과 유효 설정 값으로 정한다 */
 export function budgetMsFrom(budgets: () => BudgetTable): (entry: HandlerEntryInfo) => number | null;
@@ -248,9 +248,9 @@ export function fromHandlerFailure(failure: HandlerFailure, tier: Tier, at: numb
 export interface HandlerOutcomeRecord {
   readonly owner: HandlerOwner;
   readonly tier: Tier;
-  readonly point: PointName;
+  readonly point: HookName;
   readonly fold: Fold;
-  /** 그 지점 선언의 실패 정책. `POINTS[point].failure`를 읽는다(F.extensions.spec §3.3, adr.0017) */
+  /** 그 지점 선언의 실패 정책. `HOOKS[point].failure`를 읽는다(F.extensions.spec §3.3, adr.0017) */
   readonly failure: FailurePolicy;
   readonly result: HandlerResultKind;
   /** 멈춘 시간을 뺀 실행 시간 */
@@ -261,7 +261,7 @@ export interface HandlerOutcomeRecord {
   readonly message?: string;
 }
 
-/** F.extensions.spec FailurePolicy(`closed`, `open`, `skip`)를 쓴다. 재정의하지 않고 POINTS[point].failure를 읽는다 */
+/** F.extensions.spec FailurePolicy(`closed`, `open`, `skip`)를 쓴다. 재정의하지 않고 HOOKS[point].failure를 읽는다 */
 
 export interface FailureStats {
   readonly consecutive: number;
@@ -627,15 +627,15 @@ export function shouldSuggestSafeMode(consecutiveFailures: number, threshold: nu
 export const HOOK_ID_PATTERN = "^[a-z][a-z0-9-]{1,63}$";
 
 /** 외부 훅이 참여할 수 있는 지점 */
-export const HOOK_POINTS: readonly [
+export const HOOK_HOOKS: readonly [
   "input.user.before", "input.bash.before", "tool.call.before", "tool.result",
-  "session.start", "session.compact.before", "boundary.settle.after", "session.shutdown",
+  "thread.start", "thread.compact.before", "boundary.settle.after", "thread.shutdown",
 ];
-export type HookPointName = (typeof HOOK_POINTS)[number];
+export type HookHookName = (typeof HOOK_HOOKS)[number];
 
 export const HookDefSchema = Type.Object({
   id: Type.String({ pattern: HOOK_ID_PATTERN }),
-  point: Type.Union(/* HOOK_POINTS의 Literal */),
+  point: Type.Union(/* HOOK_HOOKS의 Literal */),
   /** 도구 지점(tool_call, tool_result)에서만. 정확 일치 목록. 생략하면 모든 도구 */
   tools: Type.Optional(Type.Array(Type.String({ pattern: "^[a-zA-Z0-9_-]{1,64}$" }), { minItems: 1, maxItems: 64 })),
   /** argv. 셸을 거치지 않고 실행한다. 첫 원소는 실행 파일 */
@@ -668,21 +668,21 @@ export const HOOK_STDERR_MAX_CHARS = 10_000;
 export const HOOK_EXIT_DENY = 2;
 
 /** stdin으로 보내는 한 줄 JSON */
-export interface HookInput<N extends HookPointName = HookPointName> {
+export interface HookInput<N extends HookHookName = HookHookName> {
   readonly schemaVersion: typeof HOOK_SCHEMA_VERSION;
   readonly hookId: HookId;
   readonly point: N;
-  readonly fold: PointSignatures[N]["fold"];
+  readonly fold: HookSignatures[N]["fold"];
   readonly threadId: ThreadId;
   readonly cwd: string;
-  readonly payload: PointSignatures[N]["payload"];
+  readonly payload: HookSignatures[N]["payload"];
   /** chain 지점에서만. 앞 핸들러까지 누적된 값 */
-  readonly current?: PointSignatures[N] extends { readonly value: infer V } ? V : never;
+  readonly current?: HookSignatures[N] extends { readonly value: infer V } ? V : never;
 }
 
 /** stdout JSON. 빈 출력은 {}와 같다 */
 export const HookOutputSchema = Type.Object({
-  /** first 지점. 지점의 결정 스키마(POINTS[point].result)로 다시 검사한다 */
+  /** first 지점. 지점의 결정 스키마(HOOKS[point].result)로 다시 검사한다 */
   decision: Type.Optional(Type.Unknown()),
   /** chain 지점. 지점의 패치 스키마로 다시 검사한다 */
   patch: Type.Optional(Type.Unknown()),
@@ -702,7 +702,7 @@ export type HookVerdict =
   | { readonly kind: "failure"; readonly failure: Extract<FailureKind, `hook_${string}` | "timeout" | "result_invalid">; readonly detail: string };
 
 /** 순수 함수. §4.7.3 종료 코드 표를 구현한다 */
-export function interpretHookRun(point: PointDecl, run: HookRawRun): HookVerdict;
+export function interpretHookRun(point: HookDecl, run: HookRawRun): HookVerdict;
 ```
 
 ```ts
@@ -724,7 +724,7 @@ export function hookEnv(
   parent: Readonly<Record<string, string | undefined>>,
   def: HookDef,
   extraAllow: readonly string[],
-  injected: { readonly hookId: HookId; readonly point: HookPointName; readonly threadId: ThreadId; readonly projectDir: string },
+  injected: { readonly hookId: HookId; readonly point: HookHookName; readonly threadId: ThreadId; readonly projectDir: string },
 ): Readonly<Record<string, string>>;
 ```
 
@@ -831,9 +831,9 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 예 1 (`first`, `tool.call.before`): `guard`의 권한 핸들러, `user` 확장 A, `builtin`의 Helm이 모두 `tool.call.before`에 걸려 있다. 권한 핸들러가 `{ block: true, reason: "denied by rule" }`을 내면 A와 Helm은 실행되지 않는다. 권한 핸들러가 `undefined`를 내고 A가 거부를 내면 Helm은 실행되지 않는다. `ToolCallDecision`에는 허용 변형이 없으므로(`F.extensions.spec` §3.5) 안쪽 확장이 바깥의 거부를 허용으로 바꾸는 경로가 없다.
 
-예 2 (`first`, `session.trust.before`): 결정에 "신뢰함"이 있는 지점이다. 사용자 확장이 가드보다 바깥에 있으면 그 확장의 "신뢰함"이 가드를 건너뛴다. 그래서 가드는 가장 바깥 tier여야 한다.
+예 2 (`first`, `thread.trust.before`): 결정에 "신뢰함"이 있는 지점이다. 사용자 확장이 가드보다 바깥에 있으면 그 확장의 "신뢰함"이 가드를 건너뛴다. 그래서 가드는 가장 바깥 tier여야 한다.
 
-예 3 (`chain`, `input.agent.before`): `guard`가 시스템 프롬프트에 안전 문구를 더하고, `user` 확장이 시스템 프롬프트를 교체하면 안전 문구는 사라진다. chain은 안쪽 핸들러가 값을 고칠 수 있는 fold다. 그래서 [제안] 보안 불변식은 chain 지점에 두지 않는다. 보안 판정은 first 지점(`tool.call.before`, `input.bash.before`, `session.trust.before`, `session_before_*`)과 L1의 최종 검증(`F.extensions.spec` §4.1 `finalize`, `L1.tools.spec`의 권한 판정)에 둔다. 가드 tier의 chain 핸들러는 기본값 제공 용도로만 쓴다.
+예 3 (`chain`, `input.agent.before`): `guard`가 시스템 프롬프트에 안전 문구를 더하고, `user` 확장이 시스템 프롬프트를 교체하면 안전 문구는 사라진다. chain은 안쪽 핸들러가 값을 고칠 수 있는 fold다. 그래서 [제안] 보안 불변식은 chain 지점에 두지 않는다. 보안 판정은 first 지점(`tool.call.before`, `input.bash.before`, `thread.trust.before`, `session_before_*`)과 L1의 최종 검증(`F.extensions.spec` §4.1 `finalize`, `L1.tools.spec`의 권한 판정)에 둔다. 가드 tier의 chain 핸들러는 기본값 제공 용도로만 쓴다.
 
 예 4 (`chain`, `tool.result`): `user` 확장 A가 `content`를 요약으로 바꾸고, `builtin`의 학습 그룹이 `details`만 바꾼다. `CHAIN_RULES.tool_result`는 필드별 병합이라 두 변경이 모두 남는다. 순서가 바뀌어도 결과가 같다.
 
@@ -869,7 +869,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 | 출처 | 기본 예산 | UI 대기 | 초과 시 | 근거 |
 |---|---|---|---|---|
-| omp | 모든 핸들러 30초, `session.shutdown` 2초 | 대화상자·승인 동안 정지(`HandlerTimeoutBudget` pause/resume) | `tool.call.before`은 차단, 나머지는 건너뜀 | omp `runner.ts:133-200`(상수, `handlerTimeoutForEvent`, `createHandlerUIContext`), `:300-375`(`raceHandlerWithTimeout`), `_research/refs/oh-my-pi.md` 125·274행 |
+| omp | 모든 핸들러 30초, `thread.shutdown` 2초 | 대화상자·승인 동안 정지(`HandlerTimeoutBudget` pause/resume) | `tool.call.before`은 차단, 나머지는 건너뜀 | omp `runner.ts:133-200`(상수, `handlerTimeoutForEvent`, `createHandlerUIContext`), `:300-375`(`raceHandlerWithTimeout`), `_research/refs/oh-my-pi.md` 125·274행 |
 | Claude Code mods | 핸들러 10초(`prompt.edit` 50ms), `.catch` 1초 | `$.ui.ask` 대기 미산입 | 건너뜀(fail-open), `.catch`로 fail-closed 선택 | `_research/refs/claude-code.md` mods "실패 격리" 항목 |
 | Claude Code 설정 훅 | command 600초(일부 30초·10초), SessionEnd 1.5초 | 해당 없음 | 비차단(`onFailure:"block"`으로 차단 선택) | `_research/refs/claude-code.md` hooks 항목 |
 | Hermes | 핫패스 훅과 `pre_tool_call` 30초 | 확인 안 함 | `pre_tool_call`은 차단, 나머지 건너뜀 | `_research/refs/hermes.md` 304행 |
@@ -884,8 +884,8 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `first` | fold가 `first`인 지점 10개(guard 3개 포함) | 30,000 | 정책 판정이 외부 정책 파일이나 판정 모델을 볼 수 있다. omp·Hermes와 같은 값 |
 | `chain` | fold가 `chain`인 지점 10개와 `collect`인 지점 2개 | 10,000 | 모델 요청마다(`request.context.before`, `request.provider.before`) 또는 커밋 직전(`boundary.step.after`, `boundary.settle.before`)에 실행되어 지연이 사용자에게 바로 보인다. Claude Code mods와 같은 값 |
 | `tap` | `await` tap 중 아래 둘을 뺀 것 | 5,000 | 결과가 없으므로 기다릴 이유가 적다 |
-| `streamTap` | `STREAM_TAP_POINTS` 3개 | 1,000 | 토큰·진행 조각마다 실행된다 |
-| `shutdown` | `session.shutdown` | 2,000 | 종료를 붙잡지 않는다(omp issue #2600 주석) |
+| `streamTap` | `STREAM_TAP_HOOKS` 3개 | 1,000 | 토큰·진행 조각마다 실행된다 |
+| `shutdown` | `thread.shutdown` | 2,000 | 종료를 붙잡지 않는다(omp issue #2600 주석) |
 | `setup` | 엔트리 본문과 scope setup 실행(`ExtHost.install`, X.primitives.spec §4.5.3, §4.5.6) | 10,000 | 시작 시간을 붙잡지 않는다. 넘으면 primitives가 그 scope의 fiber를 해제해 등록을 되돌리고, 로더가 `setup_timeout` 진단을 남긴다(X.loading-trust.spec §4.4.3) |
 | `hook` | 외부 훅(§4.7) | 30,000 | 프로세스 시작 비용을 포함한다. 훅 정의의 `timeoutMs`가 우선한다(최대 600,000) |
 
@@ -907,7 +907,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 2. 디스패처는 그 핸들러의 완료를 대기하지 않고 다음 핸들러로 진행한다. 늦게 온 반환값과 예외는 버린다.
 3. fold별 처리는 `F.extensions.spec` §4.1 세 줄을 그대로 적용한다. 예산 초과는 예외와 같다.
    - `tap`: 기록하고 계속한다.
-   - `first`: `FIRST_DENY[point]`를 결정으로 쓴다. 예: `tool.call.before`은 `{ block: true, reason: "extension handler failed", terminate: false }`. `session.trust.before`는 불신, `session_before_*`는 취소다.
+   - `first`: `FIRST_DENY[point]`를 결정으로 쓴다. 예: `tool.call.before`은 `{ block: true, reason: "extension handler failed", terminate: false }`. `thread.trust.before`는 불신, `session_before_*`는 취소다.
    - `chain`: 그 핸들러의 패치를 버리고 `current`를 다음 핸들러에 넘긴다.
 4. 실패 장부에 `timeout`으로 기록한다(§4.3).
 
@@ -1091,7 +1091,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | 방법 | 이름 [제안] | 적용 |
 |---|---|---|
 | 시작 옵션 | `xeon --safe-mode`, `xeon chat --safe-mode` | 이번 시작 |
-| 환경 변수 | `XEON_SAFE_MODE=1` | 이번 시작. 데스크톱 사이드카 재시작용 |
+| 환경 변수 | `FRESNEL_SAFE_MODE=1` | 이번 시작. 데스크톱 사이드카 재시작용 |
 | 설정 | `x.operations.safeMode.default`(§6) | 시작할 때마다. 관리·사용자 범위만 |
 | 명령 | `/safe-mode` | 실행 중 요청. 단계 경계에서 외부 확장과 L3 내장 그룹([제안], §4.6.2)을 끄고(`reason: "safe_mode"`) 외부 훅을 멈춘다. 이미 실린 모듈은 프로세스에 남으므로 화면에 "다시 시작 권장"을 보인다 |
 
@@ -1146,14 +1146,14 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 {
   "x.operations.hookDefs": [
     { "id": "no-rm-rf", "point": "tool.call.before", "tools": ["bash"], "command": ["./.xeon/hooks/check-bash.sh"], "timeoutMs": 5000 },
-    { "id": "log-start", "point": "session.start", "command": ["/usr/local/bin/xeon-log", "start"] }
+    { "id": "log-start", "point": "thread.start", "command": ["/usr/local/bin/xeon-log", "start"] }
   ]
 }
 ```
 
 #### 4.7.2 매칭
 
-- 지점: `HOOK_POINTS` 8개만 허용한다. 고빈도 지점(스트림 tap), 모델 요청 직전 chain(`request.context.before`, `request.provider.before`), boundary chain(`boundary.step.after` 등, 확장 kind 초안이 필요함)은 외부 프로세스 비용과 형식 때문에 뺀다.
+- 지점: `HOOK_HOOKS` 8개만 허용한다. 고빈도 지점(스트림 tap), 모델 요청 직전 chain(`request.context.before`, `request.provider.before`), boundary chain(`boundary.step.after` 등, 확장 kind 초안이 필요함)은 외부 프로세스 비용과 형식 때문에 뺀다.
 
   | 지점 | fold | Claude Code 대응 |
   |---|---|---|
@@ -1161,17 +1161,17 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
   | `input.bash.before` | first | (없음) |
   | `tool.call.before` | first | PreToolUse |
   | `tool.result` | chain | PostToolUse |
-  | `session.start` | tap | SessionStart |
-  | `session.compact.before` | first | PreCompact |
+  | `thread.start` | tap | SessionStart |
+  | `thread.compact.before` | first | PreCompact |
   | `boundary.settle.after` | tap | Stop(차단 불가) |
-  | `session.shutdown` | tap | SessionEnd |
+  | `thread.shutdown` | tap | SessionEnd |
 
 - 도구 필터: `tools`는 도구 이름 정확 일치 목록이다. 정규식은 받지 않는다 [제안]. Claude Code 매처는 정규식을 받지만 "강한 차단은 권한 시스템으로 하라"고 경고한다(`_research/refs/claude-code.md` hooks 매처 항목).
 
 #### 4.7.3 입력, 출력, 종료 코드
 
 - 입력: stdin에 `HookInput` JSON 한 줄과 개행을 쓰고 닫는다. `schemaVersion`은 `"xeon.hook.v1"`이다(Hermes `hermes.observer.v1` 방식, `_research/item-catalog.md` X절 훅 페이로드 스키마 버전 행). payload 형식이 바뀌면 이 값을 올린다.
-- 출력: stdout 전체를 JSON 하나로 읽는다. 빈 출력은 `{}`다. first 지점은 `decision`, chain 지점은 `patch`만 읽고, 지점의 결정·패치 스키마(`POINTS[point].result`)로 검사한다. tap 지점은 stdout을 읽지 않는다.
+- 출력: stdout 전체를 JSON 하나로 읽는다. 빈 출력은 `{}`다. first 지점은 `decision`, chain 지점은 `patch`만 읽고, 지점의 결정·패치 스키마(`HOOKS[point].result`)로 검사한다. tap 지점은 stdout을 읽지 않는다.
 - 종료 코드(`interpretHookRun`):
 
   | 결과 | tap | first | chain |
@@ -1204,7 +1204,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 자식 프로세스 환경은 비우고 다음만 넣는다(`hookEnv`).
   1. `BASE_ENV_ALLOW`의 이름 중 부모 환경에 있는 것
   2. 훅 정의 `env`의 이름 중 `x.operations.hookEnvAllow`(관리·사용자 범위)에도 있는 것
-  3. Xeon이 넣는 값: `XEON_HOOK_ID`, `XEON_HOOK_POINT`, `XEON_THREAD_ID`, `XEON_PROJECT_DIR`
+  3. Xeon이 넣는 값: `FRESNEL_HOOK_ID`, `FRESNEL_HOOK_HOOK`, `FRESNEL_THREAD_ID`, `FRESNEL_PROJECT_DIR`
 - 1·2의 이름이 `SECRET_ENV_PATTERN`에 맞으면 넘기지 않는다. 비밀 참조(`secret://`)는 풀지 않는다([결정] 에이전트는 값을 모른 채 참조로 사용, `_research/decisions-log.md` 2026-10-21 2차).
 - 프로젝트 범위 설정은 `x.operations.hookEnvAllow`를 바꿀 수 없다. 저장소에 든 설정이 비밀 변수를 꺼내지 못하게 하기 위해서다.
 
@@ -1226,7 +1226,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | 수명 | 디스패치마다 프로세스 하나 | 세션 동안 상주 |
 | 통신 | stdin JSON 한 번, stdout JSON 한 번, 종료 코드 | JSON-RPC(stdio) |
 | 쓸 수 있는 연산 | on 하나(허용 지점 8개) | on, post, drive, scope 전체 |
-| 상태 | 없음 | 정본은 세션 DB의 이벤트(`x.<name>.state.committed` 등). `commit`·`record`·`post`는 호스트 대리인(`OutboxAgent`)을 거쳐 세션 커밋 경로로 들어간다. 확장은 개인 보관소(`XEON_EXT_DATA`)에 자기 사본과 마지막 처리 `seq` 커서만 둔다 |
+| 상태 | 없음 | 정본은 세션 DB의 이벤트(`x.<name>.state.committed` 등). `commit`·`record`·`post`는 호스트 대리인(`OutboxAgent`)을 거쳐 세션 커밋 경로로 들어간다. 확장은 개인 보관소(`FRESNEL_EXT_DATA`)에 자기 사본과 마지막 처리 `seq` 커서만 둔다 |
 | 이벤트 kind·저장 영역 | 없음 | 자기 접두 kind. 확장 전용 테이블은 쓰지 않고(`defineTables`는 `isolated`), 읽기는 대리인이 `readsRecordKinds`로 거른 이벤트를 `seq` 순서로 받는다 |
 | 실패 단위 | 훅 id | 확장 이름 |
 
@@ -1253,10 +1253,10 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | 단계 |
 |---|---|---|---|---|---|---|---|
-| `x.operations.budget.firstMs` | integer | 30000 | 100~600000 | live | managed, user, local, session | plugins | 1차 |
-| `x.operations.budget.chainMs` | integer | 10000 | 100~600000 | live | managed, user, local, session | plugins | 1차 |
-| `x.operations.budget.tapMs` | integer | 5000 | 100~600000 | live | managed, user, local, session | plugins | 1차 |
-| `x.operations.budget.streamTapMs` | integer | 1000 | 50~60000 | live | managed, user, local, session | plugins | 1차 |
+| `x.operations.budget.firstMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 1차 |
+| `x.operations.budget.chainMs` | integer | 10000 | 100~600000 | live | managed, user, local, launch | plugins | 1차 |
+| `x.operations.budget.tapMs` | integer | 5000 | 100~600000 | live | managed, user, local, launch | plugins | 1차 |
+| `x.operations.budget.streamTapMs` | integer | 1000 | 50~60000 | live | managed, user, local, launch | plugins | 1차 |
 | `x.operations.budget.shutdownMs` | integer | 2000 | 100~30000 | live | managed, user, local | plugins | 1차 |
 | `x.operations.budget.setupMs` | integer | 10000 | 100~600000 | restart | managed, user, local | plugins | 1차 |
 | `x.operations.autoDisable.enabled` | boolean | true | | live | managed, user, local | plugins | 1차 |
@@ -1266,7 +1266,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.autoDisable.failureRate` | number | 0.5 | 0.05~1 | live | managed, user, local | plugins | 1차 |
 | `x.operations.safeMode.default` | boolean | false | | restart | managed, user | plugins | 1차 |
 | `x.operations.safeMode.suggestAfter` | integer | 3 | 1~100 | restart | managed, user | plugins | 1차 |
-| `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, session | plugins | 2차 |
+| `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 2차 |
 | `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins(widget `table`) | 2차 |
 | `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins(widget `list`) | 2차 |
 
@@ -1308,7 +1308,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 | 이름 | 출처 |
 |---|---|
-| `PointName`, `PointDecl`, `POINTS`, `FIRST_DENY`, `CHAIN_RULES`, `Fold`, `ExtensionName`, `ExtensionManifest`, `ScopeId`, `HandlerContext` | F.extensions.spec |
+| `HookName`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `Fold`, `ExtensionName`, `ExtensionManifest`, `ScopeId`, `HandlerContext` | F.extensions.spec |
 | `PortLookup`, `ProjectorRegistryPort`(`register`, `onFailure`), `ScopedStorePort`(`scoped(owner)`), `HookProcessPort`, `HookRunSpec`, `HookRawRun`과 키 | F.extensions.spec §3.2.1 `ports.ts` |
 | `Projector`, `ProjectorRegistry`, `StoreService` | F.records.spec §3.9 |
 | `DurableEventEnvelope`, `EventKind`, `parseEventKind`, `ScopeChangedPayload` | F.records.spec |
@@ -1333,7 +1333,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 6. `chain` 지점 핸들러가 예산을 넘으면 그 패치만 버려지고 다음 핸들러는 이전 `current`를 받는다.
 7. 핸들러가 `hostOf(g).awaitUser`로 60,000ms 동안 대화상자를 기다리고 그 앞뒤로 20,000ms씩 실행하면(`first`, 예산 30,000ms) 예산 초과가 아니다. 대기 없이 같은 40,000ms를 실행하면 예산 초과다.
 8. 예산 초과 뒤 핸들러가 값을 반환해도 결정·패치에 반영되지 않는다.
-9. `session.shutdown` 핸들러는 2,000ms에서 끊긴다.
+9. `thread.shutdown` 핸들러는 2,000ms에서 끊긴다.
 10. drive 함수는 가짜 시계로 600,000ms가 지나도 시간 예산으로 abort되지 않는다.
 11. 한 확장의 핸들러가 연속 5번 실패하면 끄기 요청이 기록되고, 다음 단계 경계에서 `scope.changed{status:"disabled"}`가 커밋된다. 요청과 경계 사이에 실행 중인 디스패치는 끊기지 않는다.
 12. `guard`, `core` tier 확장은 실패가 기준을 넘어도 자동으로 꺼지지 않는다.
@@ -1381,7 +1381,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 12. 안전 모드 키 위치(해소). `L4.settings-ui.spec` "plugins" 탭 행이 안전 모드를 `x.operations.*` 아래로 적어 이 문서의 `x.operations.safeMode.*`와 같다.
 13. [미결] 외부 훅 목록의 범위 병합 규칙(이어 붙이기)이 `F.wire-settings.spec` §4.7 우선순위(높은 범위가 값을 덮어씀)와 다르다. 배열 키의 병합 규칙을 F에 둘지, 이 키만 예외로 둘지.
 14. [미결] 기본 예산 값(30초·10초·5초·1초·2초)과 자동 끄기 기준(연속 5회, 창 50회 중 10회 이상이고 50% 이상)은 실측 전 값이다. M1 스모크와 pi 예제 확장 이식 뒤 조정한다.
-15. [결정: adr.0017] 실패 정책은 지점 선언이 정한다. `session_before_*`, `session.trust.before`, 가드레일 지점은 fail-closed이고 `session.compact.before`만 fail-open 예외다 [제안]. §4.2.4의 예산 초과 처리와 §4.7.3 표의 first 열은 지점 선언의 실패 정책 값을 따르게 고친다(`review.m3-lower-requirements` M3-REQ-108).
+15. [결정: adr.0017] 실패 정책은 지점 선언이 정한다. `session_before_*`, `thread.trust.before`, 가드레일 지점은 fail-closed이고 `thread.compact.before`만 fail-open 예외다 [제안]. §4.2.4의 예산 초과 처리와 §4.7.3 표의 first 열은 지점 선언의 실패 정책 값을 따르게 고친다(`review.m3-lower-requirements` M3-REQ-108).
 16. (해소) X.primitives.spec `DispatchPolicy`(§3.4)에 선택 메서드 `onHandlerSettled(entry, activeMs)`와 `run(entry, work, outer)`를 넣었다 [제안]. 이 문서의 `DispatchPolicyExtension`은 지웠고 `OperationsPolicy`가 두 메서드를 구현한다(§3.8, §4.2.3, §4.3.2).
 17. (해소, M2 O-19) `ResourcePolicy.exposeAll`(집합 판정)을 X.primitives.spec §3.9에 더했고 `createResourcePolicy`가 구현한다(§4.5).
 18. (해소) setup 시간 예산 키는 `x.operations.budget.setupMs`다. X.loading-trust.spec §4.3.1도 같은 이름을 쓴다. 값은 `OperationsPolicy.setupBudgetMs` → `ExtHostDeps.setupBudgetMs` 경로로 primitives의 scope setup에 걸린다.

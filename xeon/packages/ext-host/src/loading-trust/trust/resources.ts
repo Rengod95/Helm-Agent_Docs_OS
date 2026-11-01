@@ -4,11 +4,11 @@
 import { dirname, join } from "node:path";
 import type { LoaderFs } from "@xeon/contracts/extensions";
 
-// XEON-PATCH: config-dir-constant
+// FRESNEL-PATCH: config-dir-constant
 /** 프로젝트 설정 디렉터리 이름. pi는 `../config.ts`의 `CONFIG_DIR_NAME`(`.pi`)을 읽었다 */
-const XEON_DIR = ".xeon";
+const FRESNEL_DIR = ".xeon";
 
-// XEON-PATCH: resource-list
+// FRESNEL-PATCH: resource-list
 /** 프로젝트 루트의 Claude Code 형식 MCP 정의. stdio 서버의 실행 명령을 담으므로 신뢰 판정 전에는 읽지 않는다(L2.mcp.spec §4.2) */
 const PROJECT_MCP_JSON = ".mcp.json";
 
@@ -18,17 +18,17 @@ const PROJECT_MCP_JSON = ".mcp.json";
  */
 export const TRUST_REQUIRING_PROJECT_RESOURCES: readonly string[] = [
   PROJECT_MCP_JSON,
-  `${XEON_DIR}/extensions`,
-  `${XEON_DIR}/settings.json`,
-  `${XEON_DIR}/settings.local.json`,
-  `${XEON_DIR}/mcp.json`,
-  `${XEON_DIR}/hooks`,
-  `${XEON_DIR}/skills`,
-  `${XEON_DIR}/commands`,
-  `${XEON_DIR}/prompts`,
-  `${XEON_DIR}/agents`,
-  `${XEON_DIR}/SYSTEM.md`,
-  `${XEON_DIR}/APPEND_SYSTEM.md`,
+  `${FRESNEL_DIR}/extensions`,
+  `${FRESNEL_DIR}/settings.json`,
+  `${FRESNEL_DIR}/settings.local.json`,
+  `${FRESNEL_DIR}/mcp.json`,
+  `${FRESNEL_DIR}/hooks`,
+  `${FRESNEL_DIR}/skills`,
+  `${FRESNEL_DIR}/commands`,
+  `${FRESNEL_DIR}/prompts`,
+  `${FRESNEL_DIR}/agents`,
+  `${FRESNEL_DIR}/SYSTEM.md`,
+  `${FRESNEL_DIR}/APPEND_SYSTEM.md`,
 ];
 
 /** 프로젝트 루트와 그 상위 디렉터리의 공유 스킬 위치(pi와 같다) */
@@ -39,13 +39,13 @@ const SHARED_SKILLS = ".agents/skills";
  * 파일이 있는지만 확인하고 내용은 읽지 않는다. 사용자 홈의 `.agents/skills`는 사용자 자원이라 제외한다(홈이 프로젝트 루트여도 같다).
  * `.agents/skills`가 상위 디렉터리에 있으면 `../.agents/skills`처럼 프로젝트 루트 기준 상대 경로로 적는다
  */
-// XEON-PATCH: find-list
+// FRESNEL-PATCH: find-list
 export async function findTrustRequiringResources(
   fs: LoaderFs,
   projectRoot: string,
   homeDir: string,
 ): Promise<readonly string[]> {
-  // XEON-PATCH: injected-fs-home
+  // FRESNEL-PATCH: injected-fs-home
   const found = new Set<string>();
   const checks = TRUST_REQUIRING_PROJECT_RESOURCES.map(async (relative) =>
     (await fs.exists(join(projectRoot, relative))) ? relative : undefined,

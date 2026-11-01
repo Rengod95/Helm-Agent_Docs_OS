@@ -49,7 +49,7 @@ export const primitivesSettings: SettingGroup<
     type: DriveLimitsSchema,
     default: DEFAULT_DRIVE_LIMITS,
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "session"],
+    allowedScopes: ["managed", "user", "project", "launch"],
     ui: {
       tab: "plugins",
       widget: "table",
@@ -63,7 +63,7 @@ export const primitivesSettings: SettingGroup<
     type: DriveLimitsSchema,
     default: {},
     runtimeChange: "nextTurn",
-    allowedScopes: ["managed", "user", "project", "session"],
+    allowedScopes: ["managed", "user", "project", "launch"],
     ui: {
       tab: "plugins",
       widget: "table",
@@ -77,7 +77,7 @@ export const primitivesSettings: SettingGroup<
     type: Type.Union([Type.String({ pattern: SCOPE_ID_PATTERN, maxLength: 65 }), Type.Null()]),
     default: null,
     runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "session"],
+    allowedScopes: ["user", "project", "launch"],
     ui: {
       tab: "plugins",
       widget: "text",
@@ -91,7 +91,7 @@ export const primitivesSettings: SettingGroup<
     type: Type.Integer({ minimum: 1 }),
     default: DEFAULT_LEASE_WAIT_LIMIT,
     runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "session"],
+    allowedScopes: ["user", "project", "launch"],
     ui: {
       tab: "plugins",
       widget: "number",

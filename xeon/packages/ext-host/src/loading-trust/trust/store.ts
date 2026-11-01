@@ -11,11 +11,11 @@ import type {
 } from "@xeon/contracts/extensions";
 import { Type, type Static } from "typebox";
 
-// XEON-PATCH: verdict-type
+// FRESNEL-PATCH: verdict-type
 /** 결정 3값. `undecided`는 저장하지 않는다(X.loading-trust.spec §4.7.3) */
 export type TrustVerdict = "allow" | "deny" | "undecided";
 
-// XEON-PATCH: trust-file-schema
+// FRESNEL-PATCH: trust-file-schema
 /** 저장 파일 형식. pi trust.json(`Record<path, boolean | null>`)에 버전과 출처를 더했다 */
 const TrustFileSchema = Type.Object({
   version: Type.Literal(1),
@@ -38,7 +38,7 @@ export type TrustLookup =
   | { readonly kind: "none" }
   | { readonly kind: "corrupt"; readonly reason: string };
 
-// XEON-PATCH: store-errors
+// FRESNEL-PATCH: store-errors
 /**
  * `setMany`의 실패. 손상된 파일에는 쓰지 않아 기존 결정을 잃지 않는다(`corrupt`).
  * 백엔드 쓰기 실패는 `io`다. pi는 두 경우 모두 던졌다
@@ -59,7 +59,7 @@ class CorruptDuringUpdate extends Error {
 
 const BOM = "﻿";
 
-// XEON-PATCH: strip-bom-local
+// FRESNEL-PATCH: strip-bom-local
 function stripBom(text: string): string {
   return text.startsWith(BOM) ? text.slice(1) : text;
 }
@@ -72,7 +72,7 @@ function isPlainObject(value: unknown): value is Readonly<Record<string, unknown
  * 저장 파일 본문을 읽는다. 파일이 없으면 빈 항목이다. 버전 없는 형식(`Record<path, boolean | null>`, 버전 0)은
  * 손상으로 보지 않고 같은 의미로 변환한다(`allow`/`deny`, `null`은 건너뜀)
  */
-// XEON-PATCH: corrupt-as-value
+// FRESNEL-PATCH: corrupt-as-value
 function readEntries(text: string | null, migratedAt: string): Result<TrustEntries, string> {
   if (text === null) return ok({});
   const json = parseJson(stripBom(text));
@@ -88,7 +88,7 @@ function readEntries(text: string | null, migratedAt: string): Result<TrustEntri
   return ok(checked.value.entries);
 }
 
-// XEON-PATCH: pi-v0-format
+// FRESNEL-PATCH: pi-v0-format
 function readUnversionedFormat(
   data: Readonly<Record<string, unknown>>,
   migratedAt: string,
@@ -129,7 +129,7 @@ export interface ProjectTrustStore {
   setMany(updates: readonly TrustUpdate[]): Promise<Result<void, TrustStoreError>>;
 }
 
-// XEON-PATCH: injected-normalize
+// FRESNEL-PATCH: injected-normalize
 /** normalize는 심볼릭 링크를 푼 정규 경로를 돌려준다(`LoaderFs.realpath` 기반). 클록은 `decidedAt`에 쓴다 */
 export function createProjectTrustStore(
   backend: TrustStoreBackend,
@@ -139,7 +139,7 @@ export function createProjectTrustStore(
   return {
     canonical: (path) => normalize(path),
 
-    // XEON-PATCH: async-backend
+    // FRESNEL-PATCH: async-backend
     async lookup(cwd) {
       const read = await backend.read();
       if (!read.ok) return { kind: "corrupt", reason: read.reason };
@@ -155,7 +155,7 @@ export function createProjectTrustStore(
       }
     },
 
-    // XEON-PATCH: no-lockfile
+    // FRESNEL-PATCH: no-lockfile
     async setMany(updates) {
       // 경로 정규화는 잠금 밖에서 먼저 한다(비동기 포트이고 잠금 안 콜백은 동기 함수여야 한다)
       const normalized = await Promise.all(
@@ -190,7 +190,7 @@ export function createProjectTrustStore(
 const folder = (verdict: "allow" | "deny"): TrustChoice => ({ kind: "folder", verdict });
 const session = (verdict: "allow" | "deny"): TrustChoice => ({ kind: "session", verdict });
 
-// XEON-PATCH: options-localized
+// FRESNEL-PATCH: options-localized
 /**
  * pi `getProjectTrustOptions` 포크. 선택지 다섯 개와 저장할 갱신을 돌려준다(X.loading-trust.spec §4.7.3 표).
  * `label`은 L4가 현지화할 식별자이고 표시 문구는 담지 않는다. 상위 폴더(`parent`)가 없으면 그 선택지를 뺀다.

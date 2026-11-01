@@ -219,7 +219,7 @@ export interface LoaderDeps {
    * `@xeon/contracts`와 하위 경로, `typebox`는 X가 등록하므로 넘기지 않아도 된다. `@xeon/group-kit`은 L3라 X가 import할 수 없어 조립 루트가 넘긴다(M3-REQ-110)
    */
   readonly sdkModules?: SdkModules;
-  /** `session.trust.before` 발화(X.loading-trust.spec §4.7.3 4번). 없으면 결정 없음으로 본다 */
+  /** `thread.trust.before` 발화(X.loading-trust.spec §4.7.3 4번). 없으면 결정 없음으로 본다 */
   readonly emitProjectTrust?: (
     cwd: string,
     signal: AbortSignal,

@@ -83,10 +83,10 @@ function sameChoice(a: TrustChoice, b: TrustChoice): boolean {
 
 /**
  * 프로젝트 신뢰를 정한다(X.loading-trust.spec §4.7.3). 순서는 pi `resolveProjectTrusted`와 같고 세션 기억(3번),
- * 저장 파일 손상(5번), 비대화형 불신(7번)을 더했다. `session.trust.before` 핸들러 예외는 불신이다(F fail-closed).
+ * 저장 파일 손상(5번), 비대화형 불신(7번)을 더했다. `thread.trust.before` 핸들러 예외는 불신이다(F fail-closed).
  * 불신은 `deny`(명시)와 `undecided`(결정 없음, 저장하지 않음)로 나눈다
  */
-// XEON-PATCH: decision-order
+// FRESNEL-PATCH: decision-order
 export async function resolveProjectTrust(
   input: ResolveProjectTrustInput,
 ): Promise<ProjectTrustResult> {
@@ -106,7 +106,7 @@ export async function resolveProjectTrust(
   if (remembered !== undefined) return outcome(base, remembered, "sessionMemory");
 
   // 4. project_trust 지점. 발화 자체가 던져도 불신이다
-  // XEON-PATCH: point-fail-closed
+  // FRESNEL-PATCH: point-fail-closed
   const emitted = await attemptAsync(() => input.emitProjectTrust(projectRoot, input.signal));
   if (!emitted.ok) return outcome(base, "deny", "point");
   const decision = emitted.value;
@@ -127,13 +127,13 @@ export async function resolveProjectTrust(
   if (input.defaultProjectTrust === "always") return outcome(base, "allow", "default");
   if (input.defaultProjectTrust === "never") return outcome(base, "deny", "default");
 
-  // XEON-PATCH: corrupt-store-no-prompt
+  // FRESNEL-PATCH: corrupt-store-no-prompt
   if (looked.kind === "corrupt") {
     return outcome(base, "undecided", "corruptStore", { kind: "corrupt", reason: looked.reason });
   }
 
   // 7. 프롬프트를 띄울 수 없다
-  // XEON-PATCH: prompter-port
+  // FRESNEL-PATCH: prompter-port
   const prompter = input.prompter;
   if (input.mode === "headless" || prompter === undefined) {
     return outcome(base, "undecided", "headless");

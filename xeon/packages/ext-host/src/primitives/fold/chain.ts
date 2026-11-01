@@ -1,5 +1,5 @@
 import { parse } from "@xeon/contracts";
-import { POINTS, type ChainPointName, type PointName } from "@xeon/contracts/extensions";
+import { HOOKS, type ChainHookName, type HookName } from "@xeon/contracts/extensions";
 import { chainRuleOf } from "../../erase.ts";
 import type { ChainOutcome, HandlerFailure, HandlerRef } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";
@@ -10,7 +10,7 @@ import type { FoldEnv } from "./env.ts";
  * strict가 아니어도 패치 스키마를 검사하는 지점. merge가 예외 없이 잘못된 값을 만들 수 있는 교체형이다
  * (X.primitives.spec §4.2 chain 아래 [제안], M1에서 지점별 확정)
  */
-const ALWAYS_CHECKED: ReadonlySet<PointName> = new Set([
+const ALWAYS_CHECKED: ReadonlySet<HookName> = new Set([
   "request.context.before",
   "request.system.before",
   "request.provider.before",
@@ -28,13 +28,13 @@ export interface ChainOptions {
  */
 export async function foldChain(
   env: FoldEnv,
-  point: ChainPointName,
+  point: ChainHookName,
   entries: readonly HandlerEntry[],
   payload: unknown,
   options: ChainOptions,
 ): Promise<ChainOutcome<unknown>> {
   const rule = chainRuleOf(point);
-  const schema = POINTS[point].result;
+  const schema = HOOKS[point].result;
   const check = env.strict || ALWAYS_CHECKED.has(point);
   let value = options.initial;
   const applied: HandlerRef[] = [];

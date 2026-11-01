@@ -1,7 +1,7 @@
 import { assertNever, parse } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
-  LIFECYCLE_POINTS,
+  LIFECYCLE_HOOKS,
   type LifecycleEventKind,
   type PortKey,
   type ScopeId,
@@ -32,14 +32,14 @@ export interface Lifecycle {
   attach(): void;
   detach(): void;
   /**
-   * 커밋된 이벤트 가운데 `LIFECYCLE_POINTS`에 있는 kind의 수명주기 지점을 디스패치한다(ADR-0017 §3.6, M3-REQ-102·108).
+   * 커밋된 이벤트 가운데 `LIFECYCLE_HOOKS`에 있는 kind의 수명주기 지점을 디스패치한다(ADR-0017 §3.6, M3-REQ-102·108).
    * 디스패치 키는 이벤트 id다. 지점을 발화하는 쪽은 반드시 커밋 뒤에 부른다. 끝나기를 기다린다
    */
   afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
 }
 
 function isLifecycleKind(kind: string): kind is LifecycleEventKind {
-  return Object.keys(LIFECYCLE_POINTS).includes(kind);
+  return Object.keys(LIFECYCLE_HOOKS).includes(kind);
 }
 
 /** `agent.settled`의 위임 주체가 scope나 drive이면 그 scope의 핸들러만 받는다 [제안: 소유 scope 거르기는 X, F.extensions.spec 지점 45행] */
@@ -85,7 +85,7 @@ export function createLifecycle(core: HostCore): Lifecycle {
   async function dispatchOne(threadId: ThreadId, event: CommittedEvent): Promise<void> {
     if (!isLifecycleKind(event.kind)) return;
     if (!firstTime(event.id)) return;
-    const point = LIFECYCLE_POINTS[event.kind];
+    const point = LIFECYCLE_HOOKS[event.kind];
     switch (point) {
       case "lifecycle.agent.settled": {
         const payload = parse(AgentSettledEventPayloadSchema, event.payload);
@@ -122,7 +122,7 @@ export function createLifecycle(core: HostCore): Lifecycle {
         return;
       }
       default:
-        return assertNever(point, "LIFECYCLE_POINTS");
+        return assertNever(point, "LIFECYCLE_HOOKS");
     }
   }
   function hold(threadId: ThreadId, list: readonly CommittedEvent[]): void {

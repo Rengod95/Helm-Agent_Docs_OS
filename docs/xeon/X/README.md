@@ -125,7 +125,7 @@ X가 정하지 않는 것:
 1. [미결] tier와 핸들러 시간 예산의 소유는 `F.extensions.spec` §1·§4.2에서 operations로 고쳐졌다(`X.primitives.spec` §1, `X.operations.spec` §1.1). 예산 초과 처리는 `X.operations.spec` §4.2.4가 정한다. 남은 일은 `L3.readme` 표의 옛 소유 표기다(`X.operations.spec` §10 미결 1).
 2. [미결] `post.when = next`의 의미. 조사(`_research/notes/X-1.md`)는 pi `nextTurn`이 요청을 시작하지 않음을 확인했다. [제안] 시작하지 않는다. 유휴 시작 값 `start` 추가 여부도 함께 정한다(`X.primitives.spec` §4.7, adr.0007 §6).
 3. [미결] fold 3종의 충분성. boundary의 "엔트리 추가 + 계속"을 chain 교체 + `finalize`로 표현할지, 4번째 fold를 둘지(`F.extensions.spec` §4.1, adr.0007 §6).
-4. [미결] first fail-closed의 예외. pi는 `session_before_*`와 `session.trust.before`에서 fail-open이다. 이 결정은 operations의 예산 초과 처리와 외부 훅 종료 코드 표의 first 열에도 걸린다(`F.extensions.spec` §10, `X.operations.spec` §10 미결 15).
+4. [미결] first fail-closed의 예외. pi는 `session_before_*`와 `thread.trust.before`에서 fail-open이다. 이 결정은 operations의 예산 초과 처리와 외부 훅 종료 코드 표의 first 열에도 걸린다(`F.extensions.spec` §10, `X.operations.spec` §10 미결 15).
 5. [미결] 비협조적 확장 코드의 한계. 같은 프로세스에서는 시간 예산과 임대 회수가 코드 실행을 멈추지 못한다. 자동 끄기와 격리(2차)로 보완하는 범위를 받아들일지, 그룹별 격리를 1차로 올릴지(adr.0007 §6, `X.operations.spec` §5 1번).
 6. [미결] 그룹 간 이벤트 격리. Cordis 일반 `emit`의 전역 전달을 그룹 접두 필터로 막을지(`X.primitives.spec` §4.9, adr.0007 §6).
 7. [결정: review.decisions-2 U-06] `tool.call.before` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 chain 지점을 따로 더한다. pi 호환은 두지 않는다(adr.0017 §3.7).

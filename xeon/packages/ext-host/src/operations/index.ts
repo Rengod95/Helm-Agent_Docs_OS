@@ -1,7 +1,7 @@
 // operations 도메인의 모든 export(패키지 내부용 포함). 루트(src/index.ts)는 공개 이름만 다시 내보낸다.
 import { err, ok, type Result } from "@xeon/contracts";
 import {
-  POINTS,
+  HOOKS,
   type ExtensionManifest,
   type ExtensionName,
   type PortLookup,
@@ -66,7 +66,7 @@ export {
   budgetMsFrom,
   DEFAULT_BUDGETS_MS,
   runWithBudget,
-  STREAM_TAP_POINTS,
+  STREAM_TAP_HOOKS,
 } from "./budget.ts";
 export {
   createResourcePolicy,
@@ -228,8 +228,8 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
         owner: { type: "extension", name: entry.extension, scopeId: entry.scopeId },
         tier: tierFor(entry.extension),
         point: entry.point,
-        fold: POINTS[entry.point].fold,
-        failure: POINTS[entry.point].failure,
+        fold: HOOKS[entry.point].fold,
+        failure: HOOKS[entry.point].failure,
         result: "ok",
         activeMs,
         at: deps.now(),

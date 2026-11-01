@@ -64,7 +64,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 
 ```ts
 import type {
-  PointName, PointSignatures, PointDecl, TapSig, FirstSig, ChainSig, FirstPointName, ChainPointName,
+  HookName, HookSignatures, HookDecl, TapSig, FirstSig, ChainSig, FirstHookName, ChainHookName,
   Handler, HandlerContext, ExtensionOps, PostItem, PostOptions, PostReceipt, PostWhen,
   DriveFn, DriveOptions, DriveLimits, LeaseBudget, LoopHandle, DriveLease, LeaseId, TurnInput, TurnOutcome,
   SpawnSpec, SpawnOutcome, ScopeId, ScopeDef, ScopeApi, ScopeSetup, ScopeStatus, ScopeHandle, ScopeFn,
@@ -252,10 +252,10 @@ export interface ExtHost {
   scope(id: ScopeId): ScopeHandle | undefined;
   scopes(): readonly ScopeInfo[];
   /** L1이 지점을 발화할 때 부른다(§4.1) */
-  dispatch<N extends PointName>(point: N, payload: PayloadOf<N>, options: DispatchOptions<N>): Promise<DispatchOutcome<N>>;
+  dispatch<N extends HookName>(point: N, payload: PayloadOf<N>, options: DispatchOptions<N>): Promise<DispatchOutcome<N>>;
   /** L1 루프가 단계 경계와 유휴 진입 때 부른다(§3.5) */
   readonly boundary: BoundaryHooks;
-  /** 이벤트가 커밋된 뒤 부른다. kind가 `LIFECYCLE_POINTS`에 있으면 수명주기 지점을 디스패치한다(§4.11). 끝나기를 기다린다 */
+  /** 이벤트가 커밋된 뒤 부른다. kind가 `LIFECYCLE_HOOKS`에 있으면 수명주기 지점을 디스패치한다(§4.11). 끝나기를 기다린다 */
   afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
   /** thread를 열 때(새로 만들거나 재개할 때) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
   /** `options.child`가 참이면 서브에이전트 자식 대화다. 확장은 켜지만 drive 임대는 받지 않는다(§4.4.1 3a) */
@@ -317,9 +317,9 @@ export interface ExtChange {
 
 ```ts
 // primitives/dispatch.ts
-export type PayloadOf<N extends PointName> = PointSignatures[N]["payload"];
-type DecisionOf<N extends FirstPointName> = PointSignatures[N]["decision"];
-type ValueOf<N extends ChainPointName> = PointSignatures[N]["value"];
+export type PayloadOf<N extends HookName> = HookSignatures[N]["payload"];
+type DecisionOf<N extends FirstHookName> = HookSignatures[N]["decision"];
+type ValueOf<N extends ChainHookName> = HookSignatures[N]["value"];
 
 interface DispatchOptionsBase {
   readonly threadId: ThreadId;
@@ -329,12 +329,12 @@ interface DispatchOptionsBase {
   readonly signal?: AbortSignal;
 }
 
-export type DispatchOptions<N extends PointName> =
-  PointSignatures[N] extends ChainSig<infer _P, infer V, infer _X>
+export type DispatchOptions<N extends HookName> =
+  HookSignatures[N] extends ChainSig<infer _P, infer V, infer _X>
     ? DispatchOptionsBase & {
         /** chain 초기값. 지점이 만든다 */
         readonly initial: V;
-        /** POINTS[N].finalize가 "boundary"면 필수. 모든 핸들러 뒤 L1이 최종 값을 검증·보정한다 */
+        /** HOOKS[N].finalize가 "boundary"면 필수. 모든 핸들러 뒤 L1이 최종 값을 검증·보정한다 */
         readonly finalize?: (value: V) => V;
       }
     : DispatchOptionsBase;
@@ -349,12 +349,12 @@ export interface HandlerRef {
 export type HandlerFailureReason =
   | "threw"            // 예외 또는 거부된 Promise
   | "timeout"          // DispatchPolicy.budgetMs 초과
-  | "result_invalid"   // first 결정·chain 패치가 PointDecl.result 스키마 위반
+  | "result_invalid"   // first 결정·chain 패치가 HookDecl.result 스키마 위반
   | "merge_rejected"   // CHAIN_RULES[N].merge가 예외
   | "value_from_tap";  // tap 핸들러가 undefined 아닌 값을 반환(기록만, 동작 영향 없음)
 
 export interface HandlerFailure {
-  readonly point: PointName;
+  readonly point: HookName;
   readonly handler: HandlerRef;
   readonly reason: HandlerFailureReason;
   readonly error?: unknown;
@@ -397,11 +397,11 @@ export interface CollectOutcome<V> {
   readonly failures: readonly HandlerFailure[];
 }
 
-export type DispatchOutcome<N extends PointName> =
-  PointSignatures[N] extends TapSig<infer _P> ? TapOutcome
-  : PointSignatures[N] extends FirstSig<infer _P, infer D> ? FirstOutcome<D>
-  : PointSignatures[N] extends ChainSig<infer _P, infer V, infer _X> ? ChainOutcome<V>
-  : PointSignatures[N] extends CollectSig<infer _P, infer V, infer _C> ? CollectOutcome<V>
+export type DispatchOutcome<N extends HookName> =
+  HookSignatures[N] extends TapSig<infer _P> ? TapOutcome
+  : HookSignatures[N] extends FirstSig<infer _P, infer D> ? FirstOutcome<D>
+  : HookSignatures[N] extends ChainSig<infer _P, infer V, infer _X> ? ChainOutcome<V>
+  : HookSignatures[N] extends CollectSig<infer _P, infer V, infer _C> ? CollectOutcome<V>
   : never;
 ```
 
@@ -410,7 +410,7 @@ export type DispatchOutcome<N extends PointName> =
 ```ts
 // primitives/dispatch.ts
 export interface HandlerEntryInfo {
-  readonly point: PointName;
+  readonly point: HookName;
   readonly scopeId: ScopeId;
   readonly extension: ExtensionName;
   readonly layer: ExtensionManifest["layer"];
@@ -602,7 +602,7 @@ export interface ScopeCallContext {
   readonly threadId: ThreadId;
   readonly signal: AbortSignal;
   /** on일 때 실행 중인 지점 */
-  readonly point?: PointName;
+  readonly point?: HookName;
 }
 
 export interface ScopeHostApi<S = unknown> {
@@ -830,7 +830,7 @@ Cordis는 두 가지에만 쓴다.
 
 ```text
 dispatch(point, payload, options):
-  decl = POINTS[point]
+  decl = HOOKS[point]
   if strict: Value.Check(decl.payload, payload) 실패 → throw new Bug("dispatch.payload_invalid: …")   // L1 결함
              payload = deepFreeze(payload)
   entries = sortByPolicy(registry.snapshot(point, options.threadId))
@@ -905,8 +905,8 @@ first(entries, payload):
   return { decision: undefined, decidedBy: null, substituted: false, failures }
 ```
 
-- 결정으로 인정하는 값은 `undefined`가 아니고 `PointDecl.result` 스키마를 통과하는 값뿐이다. F의 first 결정 타입은 모두 객체 형태(예: `ToolCallDecision = { block: true, reason, terminate? }`)다. 그래서 Cordis `bail`처럼 `0`, `''`, `NaN`을 결정으로 받는 일이 없다. 이 값들은 스키마 위반이므로 F.extensions.spec §5 2번대로 거부값으로 바뀐다.
-- 결정 스키마 검사는 `strict`와 관계없이 항상 한다. first는 보안 지점(`tool.call.before`, `input.bash.before`, `session.trust.before`, guard 지점 셋)이라 비용보다 정확성이 우선이다 [제안].
+- 결정으로 인정하는 값은 `undefined`가 아니고 `HookDecl.result` 스키마를 통과하는 값뿐이다. F의 first 결정 타입은 모두 객체 형태(예: `ToolCallDecision = { block: true, reason, terminate? }`)다. 그래서 Cordis `bail`처럼 `0`, `''`, `NaN`을 결정으로 받는 일이 없다. 이 값들은 스키마 위반이므로 F.extensions.spec §5 2번대로 거부값으로 바뀐다.
+- 결정 스키마 검사는 `strict`와 관계없이 항상 한다. first는 보안 지점(`tool.call.before`, `input.bash.before`, `thread.trust.before`, guard 지점 셋)이라 비용보다 정확성이 우선이다 [제안].
 - guard 지점(`guard.model.before`, `guard.tool.before`, `guard.output.before`)은 `failure: "closed"`인 first다. 핸들러 예외·시간 초과·스키마 위반은 `FIRST_DENY`의 차단 결정(`{ block: true, reason }`)이 된다. 핸들러가 없으면 결정 없음이고 통과다. 발화 시점은 L1이 정한다(같은 대상의 일반 지점이 끝난 뒤, M3-REQ-109). 내장 검사는 두지 않는다 [결정: adr.0017 §3.6].
 
 chain:
@@ -950,12 +950,12 @@ collect(entries, payload, options):
 ```
 
 - 기여를 모으는 동안 핸들러는 서로의 결과를 보지 못한다. 병합은 모든 핸들러가 끝난 뒤 한 번이고 순수 함수다. 기여가 없으면 `initial`이 그대로 값이다.
-- 지점은 `input.agent.before`와 `session.resources` 둘이다. 두 지점의 `COLLECT_RULES`는 `input.agent.before`가 message를 등록 순서대로 더하고 `systemPrompt`는 마지막으로 정의한 값을 쓰며, `session.resources`가 경로를 등록 순서대로 더한다(F.extensions.spec §4.1).
+- 지점은 `input.agent.before`와 `thread.resources` 둘이다. 두 지점의 `COLLECT_RULES`는 `input.agent.before`가 message를 등록 순서대로 더하고 `systemPrompt`는 마지막으로 정의한 값을 쓰며, `thread.resources`가 경로를 등록 순서대로 더한다(F.extensions.spec §4.1).
 - 시간 예산은 chain 등급을 쓴다(X.operations.spec §4.2.2). 스키마 검사는 `strict`일 때만 한다. 병합이 예외 없이 잘못된 값을 만드는 지점은 없다.
 
 lifecycle [결정: adr.0017]:
 
-- lifecycle 지점(`lifecycle.agent.settled`, `lifecycle.lease.rejected`)은 `failure: "open"`인 tap이다. 디스패치 키는 내구 이벤트 id다(`dispatchKey`). 내구 kind에서 지점 이름은 F의 `LIFECYCLE_POINTS` 표 하나로 찾는다. 핸들러는 재실행되는 코드라 ADR-0015 표를 따른다. 발화 위치(커밋 뒤)는 L1이 정한다(M3-REQ-109).
+- lifecycle 지점(`lifecycle.agent.settled`, `lifecycle.lease.rejected`)은 `failure: "open"`인 tap이다. 디스패치 키는 내구 이벤트 id다(`dispatchKey`). 내구 kind에서 지점 이름은 F의 `LIFECYCLE_HOOKS` 표 하나로 찾는다. 핸들러는 재실행되는 코드라 ADR-0015 표를 따른다. 발화 위치(커밋 뒤)는 L1이 정한다(M3-REQ-109).
 - 위임 주체가 그 scope인 이벤트만 넘기는 필터는 발화하는 쪽이 `dispatch`에 해당 scope의 핸들러만 남기는 방식으로 정한다 [미결]. 이 계층의 디스패처는 지점 이름과 payload만 받는다.
 
 
@@ -1424,7 +1424,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 
 ### 4.11 수명주기 지점 디스패치
 
-[결정: ADR-0017 §3.6, M3-REQ-102·108] 내구 이벤트 `agent.settled`와 `lease.rejected`가 커밋되면 대응 지점 `lifecycle.agent.settled`, `lifecycle.lease.rejected`를 디스패치한다. 이벤트 kind에서 지점 이름으로 가는 길은 F `LIFECYCLE_POINTS` 하나이고 X는 다른 표를 두지 않는다. 디스패치 키는 이벤트 id다.
+[결정: ADR-0017 §3.6, M3-REQ-102·108] 내구 이벤트 `agent.settled`와 `lease.rejected`가 커밋되면 대응 지점 `lifecycle.agent.settled`, `lifecycle.lease.rejected`를 디스패치한다. 이벤트 kind에서 지점 이름으로 가는 길은 F `LIFECYCLE_HOOKS` 하나이고 X는 다른 표를 두지 않는다. 디스패치 키는 이벤트 id다.
 
 - 피드의 `onCommit`은 저장소 커밋 안에서 동기로 불려 X의 상태 캐시와 임대 갱신보다 앞서므로, 호스트는 한 번 매크로태스크를 넘긴 뒤 발화한다. 핸들러가 읽는 `ctx.state`는 커밋 뒤 판이다.
 - 입구는 두 곳이고 모두 커밋 뒤다. 첫째, X가 낸 경계 기여(`lease.rejected`)는 `boundary.settle(committed)`가 `lifecycle.afterCommit`으로 알린다. 커밋 실패(`failed`)와 prepare 시점에는 발화하지 않는다. 둘째, 다른 층이 커밋하는 `agent.settled`(core-agents가 core-persistence로 씀)는 서비스 `xeon.session`의 `feed.onCommit`(F `EventFeed`, 포트 키 `SessionFeedPortKey`)으로 본다. 호스트는 `openThread`에서 피드가 제공되어 있으면 한 번 구독한다. thread가 닫혀 있는 동안 피드로 온 이벤트는 메모리에 쌓아 두었다가(전체 1024개 상한, 넘으면 오래된 것부터 버리고 진단) 그 thread를 열 때 발화한다. 쌓아 둔 이벤트는 프로세스 재시작을 넘기지 못한다 [미결: 피드 `subscribe(afterSeq)` 커서로 따라잡을지]. 같은 이벤트가 두 입구로 오면 한 번만 발화한다(이벤트 id 기억 4096개).
@@ -1464,10 +1464,10 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 
 | 키 | 타입 | 기본값 | 범위 | 변경 적용 | L4 노출 |
 |---|---|---|---|---|---|
-| `x.primitives.driveDefaultLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | managed, user, project, session | `nextTurn`. 다음 임대 부여부터 | 설정 화면 "플러그인과 그룹" 탭의 "drive 기본 상한"(숫자 칸 세 개) |
-| `x.primitives.driveLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{}`(천장 없음) | managed, user, project, session | `nextTurn`. 다음 임대 부여부터 | 같은 탭의 "drive 상한 천장"(숫자 칸 세 개) |
-| `x.primitives.activeDriveGroup` | `ScopeId \| null` | `null` | user, project, session | `nextTurn`. 다른 후보 그룹을 가리키면 현재 임대를 다음 경계에서 `revoked`로 반납하고 이어서 부여(§4.4.1 5번) | 같은 탭 "구동 그룹" 선택. 후보 목록은 `ExtHost.scopes()`의 drive 등록 scope |
-| `x.primitives.leaseWaitLimit` [제안] | 정수≥1 | `8` | user, project, session | `nextTurn` | 같은 탭 "임대 대기 상한" 숫자 칸. 단위는 `turn_settled`·`idle` 경계 수(§4.4.1 8번) |
+| `x.primitives.driveDefaultLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | managed, user, project, launch | `nextTurn`. 다음 임대 부여부터 | 설정 화면 "플러그인과 그룹" 탭의 "drive 기본 상한"(숫자 칸 세 개) |
+| `x.primitives.driveLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{}`(천장 없음) | managed, user, project, launch | `nextTurn`. 다음 임대 부여부터 | 같은 탭의 "drive 상한 천장"(숫자 칸 세 개) |
+| `x.primitives.activeDriveGroup` | `ScopeId \| null` | `null` | user, project, launch | `nextTurn`. 다른 후보 그룹을 가리키면 현재 임대를 다음 경계에서 `revoked`로 반납하고 이어서 부여(§4.4.1 5번) | 같은 탭 "구동 그룹" 선택. 후보 목록은 `ExtHost.scopes()`의 drive 등록 scope |
+| `x.primitives.leaseWaitLimit` [제안] | 정수≥1 | `8` | user, project, launch | `nextTurn` | 같은 탭 "임대 대기 상한" 숫자 칸. 단위는 `turn_settled`·`idle` 경계 수(§4.4.1 8번) |
 | `x.primitives.capabilityProviders` | `Record<CapabilityId, ExtensionName>` | `{}` | user, project | `restart` | 같은 탭 "능력 공급자" 표 |
 
 - `driveDefaultLimits`·`driveLimits`의 `ui.tab`은 `plugins`, `ui.widget`은 `table`이다. `activeDriveGroup`은 `select`, `capabilityProviders`는 `table`이다 [제안]. 두 상한 키는 F 설정 정의(`defineSettings`)의 `allowedScopes`·`ui` 메타데이터를 다른 키와 같은 방식으로 갖는다.
@@ -1499,7 +1499,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 |---|---|
 | `createExtHost`, `ExtHost`, `ExtHostDeps`, `ExtensionUnit`, `InstallResult`, `ScopeSetupOutcome` | X.loading-trust.spec(검증 뒤 `install`, 결과의 진단 변환, 제거 때 `uninstall`), L4.host-service.spec(조립 루트) |
 | `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext` | L0 플랫폼 패키지 문서, L4.host-service.spec(조립 루트) |
-| `ExtHost.dispatch`, `DispatchOptions`, `DispatchOutcome`, `BoundaryHooks` | L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec, L2.mcp.spec(`session.mcp.after`) |
+| `ExtHost.dispatch`, `DispatchOptions`, `DispatchOutcome`, `BoundaryHooks` | L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec, L2.mcp.spec(`thread.mcp.after`) |
 | `DispatchPolicy`(`onHandlerSettled`, `run` 포함), `HandlerGate`, `HandlerRunOutcome`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord` | X.operations.spec |
 | `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 키(F 이름 재export, 정의는 F.extensions.spec §3.2.1), `ExtHostPortKey` | L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-kit.spec, X.operations.spec(`ExtHost.ports`로 조회) |
 | `hostOf`, `ScopeHostApi` | L1·L2 내장 확장, L3.group-kit.spec, X.loading-trust.spec(외부 확장 로더) |
@@ -1511,7 +1511,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 
 | 이름 | 출처 |
 |---|---|
-| `PointName`, `PointSignatures`, `POINTS`, `PointDecl`, `FIRST_DENY`, `CHAIN_RULES`, `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `LeaseBudget`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ScopeFn`, `ExtensionEntry`, `GroupRecord`, `validateManifest`, `validateUsage`, `validateManifestSet`, `validateGroupRecord` | F.extensions.spec |
+| `HookName`, `HookSignatures`, `HOOKS`, `HookDecl`, `FIRST_DENY`, `CHAIN_RULES`, `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `LeaseBudget`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ScopeFn`, `ExtensionEntry`, `GroupRecord`, `validateManifest`, `validateUsage`, `validateManifestSet`, `validateGroupRecord` | F.extensions.spec |
 | `CapabilityId`, `ServiceKey`, `ApiOf` | F.capabilities.spec |
 | `DurableEventDraft`, `EventId`, `ENVELOPE_MAX_BYTES`, `Projector`, `StoreDb`, 코어 kind `scope.changed`·`lease.acquired`·`lease.released`·`input.queued`·`thread.leaf_moved`와 payload, leaf·`parentId` 분기 트리 | F.records.spec |
 | 호스트 포트와 키(`PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `IsolationProcessPort`, `HookProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `*PortKey`), 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`) | F.extensions.spec §3.2.1 `ports.ts` |
@@ -1575,7 +1575,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 41. (M2, X.2) 포트가 없으면 `port_unavailable`, 같은 scope의 같은 이름은 `resource_conflict`, 형식 위반은 `resource_name_invalid`다. 정책이 없을 때 다른 scope의 같은 이름도 `resource_conflict`다. 정책의 `rename`·`replace`·`reject`가 각각 그대로 반영된다.
 42. (M2, X.2) `exposeAll` 정책에서 외부 확장 둘이 같은 도구 이름을 등록하면 설치 순서와 관계없이 둘 다 정식 이름으로 노출되고, 한쪽을 끄면 남은 쪽이 짧은 이름으로 도구 포트에 다시 등록된다. 내장이 나중에 같은 이름을 등록하면 먼저 등록된 외부 도구가 정식 이름으로 바뀐다.
 43. (M2, X.2) 핸들러가 `hostOf(g).awaitUser`로 감싼 대기는 핸들러 시간 예산에 들어가지 않고, 감싸지 않은 같은 대기는 시간 초과다. `wait`가 받는 신호는 핸들러 신호와 호출자 신호를 합친 것이다.
-44. (M2, X.3) detached 지점(`session.info.after` 등)에 디스패치하면 핸들러를 기다리지 않고 `detached: true`를 돌려주고, 핸들러는 그 뒤 등록 순서로 실행된다. 늦은 예외는 `policy.onHandlerFailure`로만 보고되고 결과의 `failures`는 비어 있다. 예산을 넘기면 `timeout`이다. thread를 닫으면 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행되지 않으며 실패로 세지 않는다.
+44. (M2, X.3) detached 지점(`thread.info.after` 등)에 디스패치하면 핸들러를 기다리지 않고 `detached: true`를 돌려주고, 핸들러는 그 뒤 등록 순서로 실행된다. 늦은 예외는 `policy.onHandlerFailure`로만 보고되고 결과의 `failures`는 비어 있다. 예산을 넘기면 `timeout`이다. thread를 닫으면 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행되지 않으며 실패로 세지 않는다.
 45. (M2, X.3, M3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 그룹 사이 격리는 kind 접두 필터(자기 접두, `readsRecordKinds`)다. 이벤트 버스는 없다(§4.9).
 54. (M3b, B2-WEB, M3-REQ-37) `hostOf(g).registerWebProvider({ capability: "web.search", create })`는 `ExtHost.resources`에 kind `web_provider`, 이름 `web.search`로 기록되고, `webProviderRegistrationOf`가 같은 등록 객체를 돌려준다. 한 scope가 같은 능력을 두 번 등록하면 `resource_conflict`이고, `web.search`와 `web.fetch`는 한 scope에 함께 등록된다. 다른 확장이 같은 능력을 등록하면 둘 다 남는다(§3.9.1). scope를 끄면 기록이 사라지고 구독자가 `removed`를 받는다. 다른 종류의 기록이나 `create`가 없는 등록 값은 `webProviderRegistrationOf`가 `undefined`를 돌려준다.
 

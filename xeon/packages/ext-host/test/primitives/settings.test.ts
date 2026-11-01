@@ -29,7 +29,7 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
     primitivesSettings.defs.driveDefaultLimits,
     primitivesSettings.defs.driveLimits,
   ]) {
-    expect(def.allowedScopes).toEqual(["managed", "user", "project", "session"]);
+    expect(def.allowedScopes).toEqual(["managed", "user", "project", "launch"]);
     expect(def.ui?.widget).toBe("table");
   }
   expect(primitivesSettings.defs.leaseWaitLimit.default).toBe(8);

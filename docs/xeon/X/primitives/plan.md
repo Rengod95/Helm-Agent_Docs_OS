@@ -79,16 +79,16 @@ xeon/packages/ext-host/
 
 ## 3. 작업 분해
 
-선행 작업 중 F.extensions.plan의 E1~E9(M0)는 `@xeon/contracts/extensions`의 타입, `POINTS`, `FIRST_DENY`, `CHAIN_RULES`, `validateManifest`·`validateUsage`·`validateManifestSet`·`validateGroupRecord`를 낸다. 이 계획은 그 산출을 import만 한다.
+선행 작업 중 F.extensions.plan의 E1~E9(M0)는 `@xeon/contracts/extensions`의 타입, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `validateManifest`·`validateUsage`·`validateManifestSet`·`validateGroupRecord`를 낸다. 이 계획은 그 산출을 import만 한다.
 
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
 | P-01 | 패키지 준비: 의존 선언(`@xeon/contracts`, `@xeon/vendor-cordis`, `typebox`), `tsconfig.json` references, `exports`에 `./testing`, `src/primitives/index.ts`·`src/testing/index.ts` 골격 | F.extensions.plan E5·E6 | S | M0 |
 | P-02 | `errors.ts`, `ports.ts`(F 포트·키 재export와 `ExtHostPortKey`), `services.ts`의 이름 함수 3개 | P-01, F.extensions.plan E10(`ports.ts`) | S | M0 |
 | P-03 | `testing/ports.ts`, `testing/timers.ts`: 인메모리 `LoopPort`(turn 결과 표, `(scopeId, requestId)` 멱등, `whenIdle` 잠금), `InputQueuePort`(멱등 표), `RecordCommitPort`(이벤트 배열, `expectStateRev`, `loadThread`), 가짜 타이머 | P-02 | M | M0 |
-| P-04 | `registry.ts`: 항목, 등록 순번, `add`·`remove`(멱등), `snapshot(point, threadId)`, 세대 필터, 정렬 캐시(레지스트리 버전) | P-01, F E4(`PointName`) | M | M0 |
+| P-04 | `registry.ts`: 항목, 등록 순번, `add`·`remove`(멱등), `snapshot(point, threadId)`, 세대 필터, 정렬 캐시(레지스트리 버전) | P-01, F E4(`HookName`) | M | M0 |
 | P-05 | `ambient.ts`: `withAmbient`, `ambient()`, 맥락 없음 판정. `ambient.contract.test.ts`로 Bun 1.4의 await 경계 유지 확인 | P-01 | S | M0 |
-| P-06 | `dispatch.ts`, `fold/tap.ts`·`first.ts`·`chain.ts`: `runOne`(동기 예외·거부 통일, 시간 예산, `AbortController` 연결, `policy.run`이 있으면 위임, `aborted`는 보고 없이 fold 실패 처리, 성공 시 `onHandlerSettled`), `HandlerGate`·`HandlerRunOutcome`, 정렬 `(tier, loadIndex, seq)`, first의 결정 스키마 검사와 `FIRST_DENY` 대체, chain의 merge 거부 skip·`stop`·`finalize`(누락은 `Bug`), `strict` 모드 페이로드 검사·동결, `DEFAULT_DISPATCH_POLICY` | P-04, P-05, F E4(`POINTS`, `FIRST_DENY`, `CHAIN_RULES`) | L | M0 |
+| P-06 | `dispatch.ts`, `fold/tap.ts`·`first.ts`·`chain.ts`: `runOne`(동기 예외·거부 통일, 시간 예산, `AbortController` 연결, `policy.run`이 있으면 위임, `aborted`는 보고 없이 fold 실패 처리, 성공 시 `onHandlerSettled`), `HandlerGate`·`HandlerRunOutcome`, 정렬 `(tier, loadIndex, seq)`, first의 결정 스키마 검사와 `FIRST_DENY` 대체, chain의 merge 거부 skip·`stop`·`finalize`(누락은 `Bug`), `strict` 모드 페이로드 검사·동결, `DEFAULT_DISPATCH_POLICY` | P-04, P-05, F E4(`HOOKS`, `FIRST_DENY`, `CHAIN_RULES`) | L | M0 |
 | P-07 | `cordis-bridge.ts`: 루트 `Context` 생성, scope 세대마다 `ctx.plugin`으로 fiber 생성, `effect` 래퍼(해제기 멱등), `onDispose` 묶음 effect(역순 순차), `provide` disposer 타입 교정과 await, 포트별 inject 플러그인(ACTIVE에서 참조 설정, 해제에서 비움), 루트 dispose. `cordis.contract.test.ts` | P-02 | M | M0 |
 | P-08 | `post.ts`: `PostQueue.post(scope, item, options)`, `usesPost` 검사(`validateUsage`), `requestId` 길이 검사, `InputQueuePort.enqueue` 위임, `PostReceipt` | P-03, P-05, F E9 | S | M0 |
 | P-09 | `scope.ts`, `boundary.ts`: `ScopeFn` 구현(정의, id 검사), 상태기계 4상태(마지막 요청 우선), 켜기 적용(fiber 생성 → setup → `validateUsage` → `scope.changed` 초안 → `settle`에서 세대 열기), 끄기 적용(세대 닫기 → 임대 반납 초안 → `scope.changed` 초안 → `settle`에서 abort와 `fiber.dispose()`), `settle(failed)` 되돌리기, 유휴 적용(`LoopPort.whenIdle`), 세대 가드, `ScopeInfo` | P-04, P-07 | L | M0 |
@@ -212,7 +212,7 @@ xeon/packages/ext-host/
 2. X.primitives.spec §9 수용 기준 1~26이 §5의 테스트 이름과 대응되고(표의 "수용 n" 표기), M2 항목(11, 18의 도구 부분)을 뺀 나머지가 M1까지 통과한다.
 3. `just verify`가 종료코드 0이다. 특히 `check-layers`와 `depcruise`가 통과한다. `@xeon/ext-host`가 `platform-*`, `core-*`, `cap-*`, `group-*`, `apps/*`를 import하지 않는다(F와 vendor만).
 4. `@xeon/vendor-cordis` import가 `src/primitives/cordis-bridge.ts` 한 파일에만 있다(grep 0건 확인. 다른 도메인 파일 포함).
-5. F 타입을 재정의하지 않는다. `Handler`, `PointDecl`, `POINTS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ExtensionEntry`, `validate*`는 `@xeon/contracts/extensions`에서 import한다. 같은 이름의 `interface`·`type`·`const` 선언이 ext-host 안에 0건이다(F.extensions.plan §6 5번 교차 확인 항목).
+5. F 타입을 재정의하지 않는다. `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ExtensionEntry`, `validate*`는 `@xeon/contracts/extensions`에서 import한다. 같은 이름의 `interface`·`type`·`const` 선언이 ext-host 안에 0건이다(F.extensions.plan §6 5번 교차 확인 항목).
 6. 문서-코드 이름 대조: X.primitives.spec §3.1 표(primitives·loading-trust·operations 행 전체)의 공개 이름 전부가 `src/index.ts`에서 export되고, 표에 없는 이름은 export되지 않는다(테스트 `host.test.ts`의 `public surface` 항목이 `Object.keys(await import("@xeon/ext-host"))` 값 이름과 타입 전용 이름 목록을 대조한다 [제안]). 마일스톤 중간에는 아직 만들지 않은 loading-trust·operations 이름을 대조 목록에서 빼고, 그 작업(L-*, O-*)이 끝날 때 더한다. 최종 목록은 §3.1 표와 같아야 한다.
 7. M1: 모델 테이프 스모크에서 스모크 그룹을 turn 중에 끄면 다음 단계 경계에서 `scope.changed { disabled }`와 `lease.released { disabled }`가 커밋되고, 진행 중인 turn은 정착까지 진행한다(`_research/foundation-plan.md` §6).
 
