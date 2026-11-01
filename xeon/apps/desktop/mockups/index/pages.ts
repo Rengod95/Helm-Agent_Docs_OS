@@ -71,4 +71,29 @@ export const pages: MockPage[] = [
     states: 21,
   },
   { id: "N-14", title: "대화 영역 둘러보기", folder: "a04-chat-tour", states: 9 },
+  // 묶음 C(작업대 시험·버전·설정, m4/pg-c)
+  {
+    id: "P-19·O-12·N-30",
+    title: "시험 실행 다시 그리기 · 새 시험 · 개발 모드",
+    folder: "c01-trials",
+    states: 18,
+  },
+  {
+    id: "P-17·O-11·N-31~N-34·N-36",
+    title: "확장 상세: 버전·되돌리기·설정 값 출처·화면·기록·X 훅",
+    folder: "c02-ext-detail",
+    states: 18,
+  },
+  {
+    id: "P-13·N-35·N-36",
+    title: "확장 목록: 켜는 범위·대기·X 훅",
+    folder: "c03-ext-list",
+    states: 12,
+  },
+  {
+    id: "P-09·N-25·N-27~N-30",
+    title: "설정 보탬: 프레임·묻지 않기·계측·언어·개발 모드",
+    folder: "c04-settings-rows",
+    states: 13,
+  },
 ];

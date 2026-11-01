@@ -146,6 +146,35 @@ export const T = {
   leadRetake: "다시 받음", // 답한 뒤 진행권을 다시 쥠
   modeSteer: "끼어들기", // 실행 중 입력 전달 방식 steer(지금 턴에 끼움)
   modeFollowUp: "다음에", // 실행 중 입력 전달 방식 followUp(이번 턴 뒤에 보냄)
+
+  // 묶음 C(작업대 시험·버전·설정, m4/pg-c). 병합 때 이 구역을 통째로 옮긴다.
+  repoPath: "저장소 경로", // 개발 모드를 켜려면 필요한 xeon 저장소 위치(authoring §6)
+  replayReport: "검사 보고", // ReplayDriveReport(결정 9)
+  cutStrip: "절단 띠", // replay 커밋 지점마다 한 칸
+  firstDiff: "첫 차이", // ReplayDriveReport.firstDiff
+  boundaryLog: "단계 사이 기록", // 시험 대화 상세의 경계 기록
+  stepOnce: "한 단계씩", // 다음 단계 사이까지만 진행
+  pastResult: "지난 결과", // 배포 앱에서 읽기 전용으로 남는 결과
+  installHistory: "설치 이력", // 버전 탭 전체 단계(X-8)
+  bundledVersion: "앱에 든 버전", // 버전 탭 대체 단계(기본 플러그인의 번들 버전)
+  stateSchema: "저장 형식", // 확장 상태 스키마 버전
+  migration: "형식 변환", // 상태 마이그레이션 훅
+  clearAndRevert: "저장 데이터를 비우고 되돌리기", // 내려가는 형식 변환이 없을 때(결정 6)
+  codeOnlyRevert: "코드만 되돌리기", // 형식 변환이 없을 때 대안: 저장 데이터는 남기고 코드만(2026-11-01 결정)
+  valueSource: "값 출처", // 설정 탭: 이긴 범위·프로필·시험
+  writeTarget: "저장 위치", // 맥락이 프로필·시험일 때 쓰기 대상
+  viewLedger: "화면 실패 기록", // 클라이언트 화면 장부(view_disabled 5번)
+  viewReenable: "화면 다시 켜기",
+  hook: "훅", // X 훅(외부 훅). 층 열은 mono "X"
+  hookEvent: "훅 이벤트", // hooks.list의 이벤트 이름
+  enableScope: "켜는 범위", // 사용자·프로젝트·이 대화
+  atBoundary: "이번 단계가 끝나면 적용", // "다음 단계 경계에 적용" 대기 배지(문장형)
+  capabilityWait: "필요한 기능 기다림", // requires 미충족(능력 대기)
+  editProfile: "프로필 고치기", // 맥락이 프로필일 때 켜기·끄기의 뜻
+  trialOnly: "이 시험에만", // 맥락이 시험일 때 켜기·끄기의 뜻(session 범위)
+  askSkip: "묻지 않기", // 프레임 동작 확인 줄의 "이 화면에서 묻지 않기"
+  askAgain: "다시 묻기",
+  uiLocale: "표시 언어", // l4.ui.locale
 } as const;
 
 export type TermKey = keyof typeof T;
