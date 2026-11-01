@@ -40,7 +40,7 @@ binds: [xeon/packages/core-agents/**]
 - 한 대화의 turn·step 실행, Agent 인스턴스 구성(훅 설치, 체크포인트): L1.loop.spec.
 - 도구 실행, 정책 평가, 승인 요청: L1.tools.spec.
 - 목표의 저장(L2.work.spec)과 완료 게이트에서 판정 결과를 쓰는 일(L1.loop.spec).
-- 그룹 쪽 위임 래퍼(`GroupApi.delegate`): L3.group-kit.spec. drive의 `loop.spawn` 중재: X.primitives.spec.
+- 그룹 쪽 위임 래퍼(`GroupApi.delegate`): L3.group-sdk.spec. drive의 `loop.spawn` 중재: X.primitives.spec.
 - 모델 선택과 역할 라우팅: L1.models.spec.
 
 ## 2. 용어
@@ -203,7 +203,7 @@ export const AGENT_REPORT_TYPE = "agent.report" as const;
 - F 대응: `SpawnSpec{ agent, task, requestId?, background? }`와 `SpawnOutcome{ childThreadId, status, answer? }`(F.extensions.spec §3.2)는 그대로 쓴다. `SpawnRequest`, `SpawnResult`는 선택 필드를 더한 확장형이다. `SpawnOutcome.answer`에는 `report.text`를 넣는다.
 - `LoopHandle.spawn(spec)`(drive): X가 `AgentService.spawn(spec, origin)`으로 넘긴다. `origin.owner`는 `{ kind: "drive" }`, `ownerRequestId`는 X가 정한 `spec.requestId ?? "${leaseId}:${순번}"`이다(F.extensions.spec §4.6).
 - `spec.background: true`인 `LoopHandle.spawn`은 `delegate`와 같은 경로를 쓰고 바로 `{ childThreadId, status: "running" }`을 돌려준다. F `SpawnOutcome.status`에 `"running"`이 없어 추가를 요청한다(§8.3 F 요청 2).
-- `DelegateRequest`는 L3.group-kit.spec §3.4 `DelegateSpec`(`agent`, `task`, `requestId`, `report`, `toolPolicy.deny`, `forkFrom`)을 받는다. 대응: `toolPolicy` → `tools`, `forkFrom: ItemId` → `fork: { at: "item", itemId }`. 학습 그룹의 `snapshot{ threadId, upToEventId }`(L3.learning.spec §3)는 `fork: { at: "event", eventId: upToEventId }`이고, 학습 그룹의 `allowTools`·`enforceAtDispatch`는 `tools.allow`·`tools.keepParentList`다.
+- `DelegateRequest`는 L3.group-sdk.spec §3.4 `DelegateSpec`(`agent`, `task`, `requestId`, `report`, `toolPolicy.deny`, `forkFrom`)을 받는다. 대응: `toolPolicy` → `tools`, `forkFrom: ItemId` → `fork: { at: "item", itemId }`. 학습 그룹의 `snapshot{ threadId, upToEventId }`(L3.learning.spec §3)는 `fork: { at: "event", eventId: upToEventId }`이고, 학습 그룹의 `allowTools`·`enforceAtDispatch`는 `tools.allow`·`tools.keepParentList`다.
 
 ### 3.3 `AgentService` (`services/agents.ts`)
 
@@ -364,7 +364,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | 모델 도구 `agent`(포그라운드) | 도구 어댑터 → `spawn` | 도구 결과 `content` = `report.text`, `structuredContent` = `{ childThreadId, status, truncated, flags }` |
 | 모델 도구 `agent`(`background: true`) | 도구 어댑터 → `delegate` | 도구 결과 = 접수 문장과 `childThreadId`. 완료 보고는 나중에 inbox로 |
 | drive `loop.spawn` | X → `spawn` | `SpawnOutcome`(answer = `report.text`) |
-| 그룹 `GroupApi.delegate` | group-kit → `delegate` | `DelegateReceipt`. 완료 보고는 그룹이 정한 `customType`으로 inbox에 |
+| 그룹 `GroupApi.delegate` | group-sdk → `delegate` | `DelegateReceipt`. 완료 보고는 그룹이 정한 `customType`으로 inbox에 |
 
 ### 4.3 권한 상한
 
@@ -452,7 +452,7 @@ export type AgentJudgedPayload = JudgeRecord;
 [제안] 핸들을 즉시 돌려주고 완료 결과는 합성 입력으로 부모 inbox에 넣는다. drive 임대 없이 그룹도 쓴다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "백그라운드 위임", F.extensions.spec §4.6).
 
 1. 접수: `delegate`는 §4.1 1~4를 하고 자식 turn을 풀에 넣은 뒤 `DelegateReceipt{ status: "accepted" }`를 돌려준다. 같은 requestId면 `"duplicate"`와 기존 `childThreadId`다.
-2. 완료 보고: 자식이 정착하면 `agent.settled`와 보고 입력 `input.queued`를 부모 대화의 한 커밋에 쓴다 [제안]. 단일 DB이고 부모 thread도 같은 엔진 인스턴스가 쓰기 소유하므로 한 트랜잭션에 넣을 수 있다(spawn 커밋과 같은 방식). 두 커밋으로 나누면 그 사이 크래시 뒤 `agent.settled`만 남고, §4.5 재개 규칙상 자식을 다시 돌리지 않으므로 보고가 영영 들어가지 않는다. 보고 초안은 `agent.settled` 커밋의 `build` 안에서 `xeon.tasks.inputs.draftQueued(view, draft)`로 만든다(`L1.tasks.spec` §3.6). `InputDraft{ mode: report.when, item: { kind: "context", customType: report.customType, content: report.text, display: report.display, details: { childThreadId, requestId, status, flags } }, requestId: "<requestId>:report", source: { type: "delegation", childThreadId } }`. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(L3.group-kit.spec §3.4).
+2. 완료 보고: 자식이 정착하면 `agent.settled`와 보고 입력 `input.queued`를 부모 대화의 한 커밋에 쓴다 [제안]. 단일 DB이고 부모 thread도 같은 엔진 인스턴스가 쓰기 소유하므로 한 트랜잭션에 넣을 수 있다(spawn 커밋과 같은 방식). 두 커밋으로 나누면 그 사이 크래시 뒤 `agent.settled`만 남고, §4.5 재개 규칙상 자식을 다시 돌리지 않으므로 보고가 영영 들어가지 않는다. 보고 초안은 `agent.settled` 커밋의 `build` 안에서 `xeon.tasks.inputs.draftQueued(view, draft)`로 만든다(`L1.tasks.spec` §3.6). `InputDraft{ mode: report.when, item: { kind: "context", customType: report.customType, content: report.text, display: report.display, details: { childThreadId, requestId, status, flags } }, requestId: "<requestId>:report", source: { type: "delegation", childThreadId } }`. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(L3.group-sdk.spec §3.4).
    - 모델 도구 `agent`의 `background: true` 경로는 `customType: AGENT_REPORT_TYPE`(`"agent.report"`), `display: true`, `when: "followUp"`다. 코어 customType은 F 형식(`x.`·`grp.` 접두)에 없으므로 코어 예약 값 허용을 요청한다(§8.3 F 요청 6).
    - eng.transactions.design §4.8 표의 `deleg:<childSessionId>:done` 키는 이 문서의 `<requestId>:report`로 바꾸도록 요청한다(§8.4). 그룹이 정한 requestId와 연결되어야 재개 중복을 막을 수 있기 때문이다.
 3. 소유 경계: 백그라운드 자식은 소유 경계다. 부모 turn 취소와 부모 대화의 보통 취소는 경계를 넘지 않는다(durable spec 1972-2030 "a background task is a boundary", eng.transactions.design §6.1). 부모 turn은 백그라운드 자식을 기다리지 않고 정착한다.
@@ -524,7 +524,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 - core-agents는 지점을 소유하지 않는다(`L1.readme` §6 소유표).
 - 자식 대화 안의 지점(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 그룹 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
-- drive와의 관계: `LoopHandle.spawn`이 이 서비스의 `spawn`이다. `LeaseBudget.spawns`(F.extensions.spec §3.2) 집계는 X가 한다. 백그라운드 위임은 drive 임대 상한에 들어가지 않는다(L3.group-kit.spec §3.4).
+- drive와의 관계: `LoopHandle.spawn`이 이 서비스의 `spawn`이다. `LeaseBudget.spawns`(F.extensions.spec §3.2) 집계는 X가 한다. 백그라운드 위임은 drive 임대 상한에 들어가지 않는다(L3.group-sdk.spec §3.4).
 - post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `xeon.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`, `origin: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 확장 post 경로를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
 - scope와의 관계: 확장이 비활성화되면 그 확장이 등록한 정의는 빠진다. 이미 실행 중인 자식은 끝까지 실행된다.
 
@@ -534,7 +534,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `xeon.agents` / `AgentService`, `SpawnRequest`, `SpawnResult`, `DelegateRequest`, `DelegateReceipt`, `ChildStatus` | X.primitives.spec(`loop.spawn`), L3.group-kit.spec(`delegate`), L3.helm.spec, L3.learning.spec |
+| `xeon.agents` / `AgentService`, `SpawnRequest`, `SpawnResult`, `DelegateRequest`, `DelegateReceipt`, `ChildStatus` | X.primitives.spec(`loop.spawn`), L3.group-sdk.spec(`delegate`), L3.helm.spec, L3.learning.spec |
 | `judge`, `JudgeInput`, `JudgeOutcome`, `JudgeRecord` | L1.loop.spec(완료 게이트), L2.work.spec |
 | `AgentDefinition`, `AgentDefinitionSchema`, 정의 파일 형식 | L3.helm.spec(`explorer`), L3.learning.spec(`learning-review`), L4.settings-ui.spec |
 | 자식 차단 규칙 id(`subagent.*`, `registerRules("core:agents")`로 등록), `childDecision` | L1.tools.spec |
@@ -569,7 +569,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 - L1.loop.spec §3.1: `LoopService.runChildTurn(request: ChildTurnRequest)` 추가(§4.1 5번). 자식 thread의 turn을 주 대화와 같은 래퍼로 돌리되 시스템 프롬프트, 모델, `ToolRunContext` 값(caller, depth, ceiling, surfaceThreadId)을 요청에서 받는다. 반영됨: L1.loop.spec §3.1, §4.13.
 - eng.transactions.design §4.8 표: `agent.spawned` 키 `spawn:<toolCallId>`를 `<ownerRequestId>:spawn:<n>` 파생 규칙으로, 백그라운드 완료 키 `deleg:<childSessionId>:done`을 `<requestId>:report`로 고친다. `childSessionId`는 F 이름 `childThreadId`로 바꾼다. §7 표에 "백그라운드 위임 완료 보고 | outbox 불필요(`agent.settled`와 같은 커밋)" 행을 더한다.
-- L3.group-kit.spec §3.4: `DelegateSpec` → `DelegateRequest` 필드 대응(§3.2 끝)을 반영하고 [가정] "`g.capability(AgentsDelegateKey)`"를 "X가 주입한 `xeon.agents` 서비스"로 고친다. `xeon.agents`는 능력 정의가 없는 코어 서비스이므로 `capability()` 경로를 쓰지 않는다(L3.learning.spec 96행과 같은 판단).
+- L3.group-sdk.spec §3.4: `DelegateSpec` → `DelegateRequest` 필드 대응(§3.2 끝)을 반영하고 [가정] "`g.capability(AgentsDelegateKey)`"를 "X가 주입한 `xeon.agents` 서비스"로 고친다. `xeon.agents`는 능력 정의가 없는 코어 서비스이므로 `capability()` 경로를 쓰지 않는다(L3.learning.spec 96행과 같은 판단).
 - L2 spec 전체: 도구 등록에 부류 표지(`classes`)를 선언한다. 질문·계획 도구는 `user_interaction`, 메모리·스킬 쓰기는 `shared_state_write`, 외부 메시지 발신은 `external_send`.
 
 ## 9. 수용 기준

@@ -1339,7 +1339,7 @@ export const manifest = defineManifest({
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `WorkTasks`, `WorkPlans`, `WorkGoals`, `WorkReports`, 각 `*Key`, `WorkService`, `WorkServiceName` | L3 그룹 문서, L3.group-kit.spec, L2.schedule.spec, L4 |
+| `WorkTasks`, `WorkPlans`, `WorkGoals`, `WorkReports`, 각 `*Key`, `WorkService`, `WorkServiceName` | L3 그룹 문서, L3.group-sdk.spec, L2.schedule.spec, L4 |
 | `WorkTaskId`, `PlanId`, `GoalId`, `ReportId`와 스키마, `WorkTask`, `WorkTaskView`, `PlanVersion`, `Goal`, `GoalJudgment`, `GoalVerdict`, `GoalJudgeSpec`, `WorkReport`, `ArtifactRef`(work 쪽 사본) | L3, L4, L2.dialog.spec(알림), L2.schedule.spec |
 | `PlanApprovalSubject`, `PlanApprovalAnswer` | L1.tools.spec(kind `plan`의 대상), L4 승인 화면 |
 | `work.*` 이벤트 10종(`WORK_EVENT_CATALOG`) | eng.events.design 카탈로그, L4, L3 그룹, L2.dialog.spec(알림) |

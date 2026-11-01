@@ -5,7 +5,7 @@ import {
   KnowledgeSearchKey,
   KnowledgeSkillsKey,
 } from "@xeon/contracts/capabilities";
-import { defineGroup, type GroupModule } from "@xeon/group-kit";
+import { defineGroup, type GroupModule } from "@xeon/group-sdk";
 import {
   createReviewControls,
   registerSettledWatch,

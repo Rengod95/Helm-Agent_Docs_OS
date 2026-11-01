@@ -16,7 +16,7 @@
     "@xeon/client": "workspace:*",
     "@xeon/contracts": "workspace:*",
     "@xeon/core-models": "workspace:*",
-    "@xeon/group-kit": "workspace:*",
+    "@xeon/group-sdk": "workspace:*",
     "@xeon/host": "workspace:*",
     "@xeon/platform-os": "workspace:*",
     "@xeon/platform-store": "workspace:*",

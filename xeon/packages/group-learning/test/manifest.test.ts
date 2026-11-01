@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { parse } from "@xeon/contracts";
 import { RECORD_KIND_PATTERN, validateManifest } from "@xeon/contracts/extensions";
 import { buildCatalog } from "@xeon/contracts/settings";
-import { checkGroup } from "@xeon/group-kit/testing";
+import { checkGroup } from "@xeon/group-sdk/testing";
 import { createLearningGroup, learningManifest, learningSettings } from "../src/index.ts";
 import { readLearningSettings } from "../src/settings.ts";
 import { manualClock } from "./support/clock.ts";

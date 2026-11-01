@@ -4,7 +4,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { TrustChoice } from "@xeon/contracts/extensions";
 import type { LoaderPaths } from "../../src/loading-trust/index.ts";
-import { fakeGroupKit, SDK, writePlugin } from "./support/plugin-fixture.ts";
+import { fakeGroupSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { createLoaderHarness, type LoaderHarness } from "./support/harness.ts";
 import { makeTempDir, realLoaderFs } from "./support/real-fs.ts";
 
@@ -20,7 +20,7 @@ beforeEach(async () => {
   projectB = join(temp.dir, "b");
   await mkdir(projectA, { recursive: true });
   await mkdir(projectB, { recursive: true });
-  fakeGroupKit.seen.length = 0;
+  fakeGroupSdk.seen.length = 0;
 });
 
 afterEach(async () => {

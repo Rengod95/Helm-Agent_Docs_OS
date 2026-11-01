@@ -155,14 +155,14 @@ import { resolveModel } from "@xeon/core-models";     // DR-02: 같은 L1
 import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
 ```
 
-- [결정: review.decisions-2 U-15] `group-kit`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-kit` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-kit` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/group-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 그룹과 `group-kit`의 나머지 경로는 위반이다. `group-kit`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
+- [결정: review.decisions-2 U-15] `group-sdk`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-sdk` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-sdk` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/group-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 그룹과 `group-sdk`의 나머지 경로는 위반이다. `group-sdk`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
 
 ### DR-03 모든 패키지는 `package.json`에 `"xeon": {"layer", "domain"}`을 두고, 값은 위치와 맞아야 한다
 
 [결정] `_research/foundation-plan.md §3`: `check-layers.ts`와 dependency-cruiser가 이 값으로 위반을 거부한다.
 
 - `layer`는 `F`, `X`, `L0`, `L1`, `L2`, `L3`, `L4` 중 하나다. 디렉터리에서 나온 층(1.1 표)과 같아야 한다.
-- `domain`은 `_routing/routes.yaml`의 `layout.<층>.domains`에 있는 이름이어야 한다. 디렉터리 이름의 접두사를 뺀 값과 같다. 예: `packages/core-loop` → `"domain": "loop"`. 예외: `packages/group-kit`은 `"domain": "group-kit"`이다(M3-35, L3.group-kit.spec §10 공통 모순 3). [제안] `plugins/*`는 디렉터리 이름 전체를 쓴다(`"domain": "provider-anthropic-oauth"`). `check-layers.ts`의 DR-03 검사가 `domain`을 보고, L0~L2는 routes 목록과도 맞춘다.
+- `domain`은 `_routing/routes.yaml`의 `layout.<층>.domains`에 있는 이름이어야 한다. 디렉터리 이름의 접두사를 뺀 값과 같다. 예: `packages/core-loop` → `"domain": "loop"`. 예외: `packages/group-sdk`은 `"domain": "group-sdk"`이다(M3-35, L3.group-sdk.spec §10 공통 모순 3). [제안] `plugins/*`는 디렉터리 이름 전체를 쓴다(`"domain": "provider-anthropic-oauth"`). `check-layers.ts`의 DR-03 검사가 `domain`을 보고, L0~L2는 routes 목록과도 맞춘다.
 - `vendor/*`는 `xeon` 필드를 두지 않는다.
 
 이유: 층 판정의 근거가 디렉터리 이름 하나뿐이면, 새 패키지를 잘못된 위치에 만들었을 때 아무 검사도 실패하지 않는다. 선언과 위치가 서로 확인하게 하면 둘 중 하나가 틀렸을 때 바로 드러난다. `domain`은 문서 라우팅(`docs-route`)이 코드 경로에서 문서를 고를 때 쓰는 이름과 같다.
@@ -300,7 +300,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `guarded-fetch`, `defuddle`, `turndown`, `@mozilla/readability`, `linkedom` | `cap-web` | packages.md §4.4 L2-c web.fetch, `L2.web.spec` §4.9.3(변환 모듈이 쓰는 라이브러리). `fetch/convert/**`는 WEB-R16이 추가로 제한한다 |
 | `age-encryption` | `platform-secrets` | `L0.secrets.plan` SC-13(파일 폴백 키 생성) |
 | `cordis`, `@cordisjs/*`, `vendor/cordis` | `ext-host` | DR-11 |
-| `@swc/core` | `group-kit`의 `src/testing/**`(`./testing` 하위 경로, `scanDriveSource`)와 dependency-cruiser 파서. group-kit의 다른 운영 소스는 import하지 않고, 사이드카·데스크톱·플러그인 번들에 넣지 않는다(번들 확인은 M3-27) | `L3.group-kit.plan` §2(G-19, H-14·H-18 drive 정적 검사) [결정: 2026-10-28 사용자 승인] |
+| `@swc/core` | `group-sdk`의 `src/testing/**`(`./testing` 하위 경로, `scanDriveSource`)와 dependency-cruiser 파서. group-sdk의 다른 운영 소스는 import하지 않고, 사이드카·데스크톱·플러그인 번들에 넣지 않는다(번들 확인은 M3-27) | `L3.group-sdk.plan` §2(G-19, H-14·H-18 drive 정적 검사) [결정: 2026-10-28 사용자 승인] |
 | `@tauri-apps/*` | `apps/desktop` | foundation-plan §2 데스크톱 행 |
 | `react`, `react-dom`, `zustand` | `apps/desktop`. 앱 안 import 위치는 `eng.frontend-state.guide` FS-06이 더 좁힌다 | adr.0010 §3.3 [결정: 2026-10-24 사용자 지시] |
 | `@caustic/react`, `@caustic/tokens` | `apps/desktop`. 원본은 git submodule `xeon/external/caustic`(github.com/Rengod95/caustic, private, `main` 추적)이고 루트 워크스페이스가 두 패키지만 싣는다. caustic 내부 의존(Radix, lucide-react 등)은 caustic이 고르고 Xeon 패키지가 직접 import하지 않는다. 갱신은 Dependabot `gitsubmodule`이 PR로 올리고 CI 통과 뒤 자동 병합한다. 수동 갱신은 `just caustic-update` | [결정: 2026-10-29 사용자 지시] 데스크톱 디자인 시스템·컴포넌트는 caustic |
@@ -557,7 +557,7 @@ const dir = process.platform === "darwin"
   2. 조립 루트 `apps/host`는 플러그인을 등록하려고 모든 패키지를 import한다. `apps/cli`는 엔진 조립 코드를 `apps/host`에서 가져온다(DR-10, 허용 목록 `DR-10/cli-host`).
   3. 테스트 파일(DR-08의 정의: `src/**/*.test.ts`, `test/**`)만 다른 컨텍스트 패키지의 `testing` 서브패스를 import한다. 공용 가짜가 L0 인터페이스 구현이기 때문이다(`eng.testing.guide` TS-05, TS-07). 패키지의 `src/testing/**` 소스는 이 예외에 들지 않는다.
   4. X 위의 패키지(L0~L4, `plugins/*`)는 `@xeon/ext-host`를 import할 수 있다. 쓸 수 있는 것은 서비스 등록·주입 API(`ExtHost.registerPlatform`, `PlatformModule`, `hostOf`, 포트 제공 등 `X.primitives.spec` §3.2가 공개한 이름)뿐이다. 확장 지점 디스패치와 4연산은 F 타입(DR-12)으로 쓴다.
-  5. 4절 허용 목록의 `DR-02/group-kit` 항목은 DR-14도 허용한 것으로 본다.
+  5. 4절 허용 목록의 `DR-02/group-sdk` 항목은 DR-14도 허용한 것으로 본다.
 
 이유:
 
@@ -700,7 +700,7 @@ export interface SourcePattern {
 import { Type, type Static } from "typebox";
 
 export const AllowEntry = Type.Object({
-  /** "<규칙ID>/<이름>" 꼴. 예: "DR-02/group-kit", "TS-05/<모듈 이름>" */
+  /** "<규칙ID>/<이름>" 꼴. 예: "DR-02/group-sdk", "TS-05/<모듈 이름>" */
   id: Type.String({ pattern: "^(?:DR|TS)-\\d{2}/[a-z0-9-]+$" }),
   rule: Type.String({ pattern: "^(?:DR|TS)-\\d{2}$" }),
   /** 예외가 적용되는 import 쪽 패키지 디렉터리. 끝에 `*`가 붙으면 `packages/group-*`처럼 가족 패턴이다(마지막 이름 한 단계) */
@@ -722,12 +722,12 @@ export const AllowList = Type.Array(AllowEntry);
 ```json
 [
   {
-    "id": "DR-02/group-kit",
+    "id": "DR-02/group-sdk",
     "rule": "DR-02",
     "from": "packages/group-*",
-    "to": "@xeon/group-kit",
+    "to": "@xeon/group-sdk",
     "entries": [".", "./testing"],
-    "reason": "Every L3 group uses the shared group definition helpers of group-kit through its entries \".\" and \"./testing\" only (review.decisions-2 U-15).",
+    "reason": "Every L3 group uses the shared group definition helpers of group-sdk through its entries \".\" and \"./testing\" only (review.decisions-2 U-15).",
     "approvedBy": "review.decisions-2"
   },
   {
@@ -812,5 +812,5 @@ export const AllowList = Type.Array(AllowEntry);
 - [결정: review.decisions-2 U-14] X를 L0 아래(순위 1)에 두는 순위는 유지한다. 1.1절의 세 조건을 지킨다.
 - [미결] oxlint에 `no-restricted-paths`가 없을 때의 보완 방식. 현재는 `check-layers.ts` 정규식 스캔 + dependency-cruiser 경로 규칙이다. 파서 교체(별도 패키지 또는 `Bun.Transpiler`) 여부를 구현 단계에서 정한다(`_research/notes/eng-1.md §7`).
 - [미결] 타입 전용 순환(`import type` 순환)의 허용 여부. oxlint 기본값은 허용, depcruise 현재 설정은 금지다.
-- [결정: review.decisions-2 U-15] `group-kit`은 L3 안의 공용 기반으로 두고 허용 목록 `DR-02/group-kit`(`from`은 `packages/group-*`)로 허용한다. 엔진 조립 코드는 `apps/host`에 두고 `apps/cli` → `apps/host`를 `DR-10/cli-host`로 허용한다.
+- [결정: review.decisions-2 U-15] `group-sdk`은 L3 안의 공용 기반으로 두고 허용 목록 `DR-02/group-sdk`(`from`은 `packages/group-*`)로 허용한다. 엔진 조립 코드는 `apps/host`에 두고 `apps/cli` → `apps/host`를 `DR-10/cli-host`로 허용한다.
 - [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위이고 `core-*`를 import하지 않는다. 같은 층 예외는 두지 않는다(DR-09).

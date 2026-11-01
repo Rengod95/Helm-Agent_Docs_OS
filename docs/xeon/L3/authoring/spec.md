@@ -4,8 +4,8 @@ layer: L3
 domain: authoring
 kind: spec
 status: draft
-depends_on: [L3.group-kit.spec, L3.slots.spec, F.extensions.spec, F.wire-settings.spec, X.loading-trust.spec, X.primitives.spec, X.operations.spec, adr.0018, adr.0021, L4.desktop-ux.spec, architecture.security.spec]
-binds: [xeon/packages/group-authoring/**]
+depends_on: [L3.group-sdk.spec, L3.slots.spec, F.extensions.spec, F.wire-settings.spec, X.loading-trust.spec, X.primitives.spec, X.operations.spec, adr.0018, adr.0021, L4.desktop-ux.spec, architecture.security.spec]
+binds: [xeon/packages/plugin-builder/**]
 ---
 
 # L3 플러그인 제작 확장 (authoring)
@@ -29,7 +29,7 @@ binds: [xeon/packages/group-authoring/**]
 ### 1.2 다루지 않는 것
 
 - 매니페스트 스키마, `validateManifest`·`validateUsage`·`validateComposition` 함수의 정의: `F.extensions.spec`
-- `defineGroup`, `replayDrive`, `scanDriveSource`: `L3.group-kit.spec`
+- `defineGroup`, `replayDrive`, `scanDriveSource`: `L3.group-sdk.spec`
 - 기존 그룹 템플릿 세 종류의 파일 내용: `L3.slots.spec` §3.3. 이 문서는 그 템플릿을 카탈로그의 첫 항목으로 씁니다.
 - 화면(구성기, 시험 실행)의 모양: `L4.desktop-ux.spec` §6.26, §6.28
 - `xeon group new` 명령: `L4.cli.spec`. 제작 확장이 생기면 이 명령은 같은 서비스를 부르는 얇은 진입점이 됩니다(§4.5).
@@ -62,12 +62,12 @@ binds: [xeon/packages/group-authoring/**]
 | 항목 | 값 |
 |---|---|
 | 이름 | `authoring`(예약 이름과 겹치지 않음, `RESERVED_GROUP_NAMES`) |
-| 패키지 | `xeon/packages/group-authoring` |
+| 패키지 | `xeon/packages/plugin-builder` |
 | 층과 종류 | `layer: "L3"`, `kind: "group"` |
 | 신뢰 | `builtin`(앱에 듦). 학습 그룹과 같은 배포 방식 |
 | 기본 켜짐 | 꺼짐. 작업대 구성의 "새 그룹", 슬래시 명령 `/author`, 모델 도구 첫 사용 안내로 켭니다 |
 | drive | 씀. 제작 세션 단계 머신(§4.1)을 drive로 돌립니다. 사람 확인은 drive 원시 `loop.ask`(X-17)를 씁니다 |
-| 지점 | `tool.call.before`(first, 쓰기 범위 가드), `session.start`(tap, 세션 복원) |
+| 지점 | `tool.call.before`(first, 쓰기 범위 가드), `thread.start`(tap, 세션 복원) |
 | 화면 기여 | 선언형 `page` "제작"(세션 단계, 검사, 시험 결과), `well` "제작"(요약), `card` `authoring/result`(검사·시험 결과), `command` 둘 |
 | 구성요소 | 스킬 `authoring-guide`(종류 고르기, 모드 고르기, 보안 규칙), 명령 `/author` |
 
@@ -108,7 +108,7 @@ interface DevkitService {
 }
 ```
 
-- `validate`는 F `validateManifest`, `validateUsage`, `validateComposition`, group-kit `scanDriveSource`, ADR-0021 화면 규칙, 카탈로그 항목의 필수 검사를 차례로 돌린 결과입니다.
+- `validate`는 F `validateManifest`, `validateUsage`, `validateComposition`, group-sdk `scanDriveSource`, ADR-0021 화면 규칙, 카탈로그 항목의 필수 검사를 차례로 돌린 결과입니다.
 - `trial`은 시험 대화를 만듭니다(`thread.create { trial: true }`, W-34). 시험 대화는 대상 확장을 `session` 범위로 켜고, 학습 그룹 리뷰에서 빠지며(X-14), 단계 경계 멈춤(W-48)을 쓸 수 있습니다.
 - `pack`은 확장 폴더를 설치 가능한 묶음(폴더 사본 또는 tar)으로 만들고 파일 목록과 SHA-256을 돌려줍니다. 원본 폴더 밖 파일, 비밀처럼 보이는 파일(`.env`, 키 파일 이름 패턴)을 넣지 않습니다.
 
@@ -125,7 +125,7 @@ interface KindEntry {
   readonly status: "stable" | "preview" | "blocked" | "deprecated";
   readonly since: string;                      // 카탈로그 버전
   readonly requires: { readonly contracts: string; readonly bridge?: string; readonly widgets?: string };  // SemVer 범위
-  readonly template?: string;                  // 템플릿 폴더. group.* 는 group-kit/templates 를 가리킴
+  readonly template?: string;                  // 템플릿 폴더. group.* 는 group-sdk/templates 를 가리킴
   readonly checks: readonly string[];          // AU-NNN 목록
   readonly decisions: readonly string[];       // 에이전트가 정해야 할 것(예 "views.mode", "usesDrive")
   readonly security: readonly string[];        // 보안 메모 키(예 "frame.reason", "trust.project.noFrame")
@@ -137,7 +137,7 @@ M4 첫 카탈로그 [제안]:
 
 | 종류 id | 층 | 상태 | 템플릿 | 비고 |
 |---|---|---|---|---|
-| `group.drive` | L3 | stable | `group-kit/templates` drive | 구성 초안의 단계 선언(`composition.phases`)을 채움 |
+| `group.drive` | L3 | stable | `group-sdk/templates` drive | 구성 초안의 단계 선언(`composition.phases`)을 채움 |
 | `group.policy` | L3 | stable | policy | |
 | `group.observe` | L3 | stable | observe | |
 | `view.declarative` | 화면 | stable | 화면 트리 뼈대 | 다른 종류에 덧붙는 종류 |
@@ -165,7 +165,7 @@ M4 첫 카탈로그 [제안]:
 | AU-008 | 화면: 위젯 카탈로그로 그릴 수 있는 모양을 프레임으로 냄(트리 후보가 있음) | 정보 |
 | AU-009 | 비밀: 설정에 비밀처럼 보이는 키가 `secret: true` 없이 있음, 소스에 비밀 리터럴 패턴 | 오류 |
 | AU-010 | 사람 확인이 필요한 단계(외부 쓰기, 비용)에 `loop.ask` 또는 `approval: true`가 없음 | 경고 |
-| AU-011 | 상태 스키마 `version`과 마이그레이션 훅(`L3.group-kit.spec` §4.7) | 경고 |
+| AU-011 | 상태 스키마 `version`과 마이그레이션 훅(`L3.group-sdk.spec` §4.7) | 경고 |
 | AU-012 | 재생 규율: `scanDriveSource` 위반 | 오류 |
 
 ## 4. 동작 규칙
@@ -209,7 +209,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 [결정: 2026-10-31 사용자] 템플릿 묶음은 고정하지 않고 구현·보안 변경에 맞춰 갱신합니다. 갱신 규칙 [제안]:
 
 1. 카탈로그는 제작 확장 패키지와 같은 버전으로 배포합니다. `catalogVersion`이 화면 머리와 `authoring_kinds` 결과에 보입니다.
-2. 적합성 시험: 카탈로그 시험은 모든 항목을 실제로 뼈대로 만들고 `validate`를 통과하는지 봅니다. F 지점 표(`POINTS`), 매니페스트 스키마, 위젯 카탈로그, 다리 버전이 바뀌어 항목이 깨지면 시험이 실패합니다. F·X·L4 트랙은 이 시험을 끝 시험에 넣습니다.
+2. 적합성 시험: 카탈로그 시험은 모든 항목을 실제로 뼈대로 만들고 `validate`를 통과하는지 봅니다. F 지점 표(`HOOKS`), 매니페스트 스키마, 위젯 카탈로그, 다리 버전이 바뀌어 항목이 깨지면 시험이 실패합니다. F·X·L4 트랙은 이 시험을 끝 시험에 넣습니다.
 3. 보안 항목이 들어오면(`architecture.security.spec` §4의 새 T 행, X 등급 규칙 변경) 같은 커밋에서 `AU-NNN` 규칙이나 항목의 `security` 메모를 더합니다. 검토 담당은 T 행마다 대응 AU 규칙이 있는지 확인합니다.
 4. 지원 범위가 바뀐 항목은 상태를 `preview` → `stable`, `stable` → `deprecated`로 옮기고 `since`를 갱신합니다. 지우지 않습니다.
 5. 사용자 로컬 카탈로그: `~/.xeon/authoring/kinds/*.json`(경로는 `L0.os.spec` 데이터 폴더 규칙) [제안]. 에이전트가 새 모양을 만들면 여기에 `status: "preview"`, `origin: "local"` 항목을 더할 수 있습니다. 로컬 항목은 내장 항목을 가리지 못하고, 같은 id면 내장이 이깁니다.
@@ -229,16 +229,16 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | 배포 앱에서 replay 요청 | `dev_mode_required`. 세션에 "개발 모드 확인 필요" 표시 |
 | 시험 대화에서 대상이 자동 꺼짐 | 시험을 멈추고 실패 장부를 세션에 붙임. 고친 뒤 `ext.reenable`(W-21)로 다시 시험 |
 | 카탈로그 항목이 `blocked` | `authoring_start` 거부와 `blockedReason` |
-| 엔진 재시작 | 세션 상태는 그룹 상태 문서에 있어 `session.start`에서 복원. 진행 중 시험 대화는 그대로 남음 |
+| 엔진 재시작 | 세션 상태는 그룹 상태 문서에 있어 `thread.start`에서 복원. 진행 중 시험 대화는 그대로 남음 |
 | 안전 모드 | 제작 확장은 내장 L3 그룹이라 빠짐. `xeon group new`와 `xeon author scaffold`(모델 없음)는 동작 |
 
 ## 6. 설정 노출
 
 | 키 | 기본 | 범위 | 뜻 |
 |---|---|---|---|
-| `l3.authoring.enabled` | `false` | user, project, session | 제작 확장 켜기(일반 `ext.<id>.enabled` 규칙과 같음) [제안] |
+| `l3.authoring.enabled` | `false` | user, project, launch | 제작 확장 켜기(일반 `ext.<id>.enabled` 규칙과 같음) [제안] |
 | `l3.authoring.devMode` | 앱 형태에 따름 | managed, user | 개발 모드 동작(replay, bench) 허용. 배포 앱에서는 저장소 경로가 있어야 켜짐 |
-| `l3.authoring.fixLoopLimit` | `3` | user, session | 같은 검사 오류가 남는 고치기 반복 한도 |
+| `l3.authoring.fixLoopLimit` | `3` | user, launch | 같은 검사 오류가 남는 고치기 반복 한도 |
 | `l3.authoring.localCatalog` | `true` | user | 사용자 로컬 카탈로그 읽기 |
 
 ## 7. 확장 지점
@@ -246,7 +246,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | 지점 | fold | 쓰임 |
 |---|---|---|
 | `tool.call.before` | first | 쓰기 범위 가드(§4.2) |
-| `session.start` | tap | 세션 복원 |
+| `thread.start` | tap | 세션 복원 |
 | drive | | 제작 세션 단계 머신. 사람 확인은 `loop.ask`(X-17) |
 
 ## 8. 다른 문서와의 인터페이스
@@ -255,7 +255,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 |---|---|
 | `F.extensions.spec` | 요구: `composition` 필드와 `validateComposition`(X-16), `views` 두 모드(ADR-0021), 서비스 `xeon.devkit` 계약 |
 | `X.primitives.spec` | 요구: `loop.ask`와 반납 사유 `waiting`(X-17), 시험 대화 단계 경계 멈춤(X-19) |
-| `L3.group-kit.spec` | 받음: `defineGroup`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineGroup({ composition })` 채움 |
+| `L3.group-sdk.spec` | 받음: `defineGroup`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineGroup({ composition })` 채움 |
 | `L3.slots.spec` | 받음: 템플릿 세 종류와 이름 규칙. 카탈로그 첫 항목 |
 | `L4.desktop-ux.spec` | 제공: 구성기 "새 그룹"의 실행 흐름, 시험 실행의 제작 시험. 요구: W-27~W-29, W-34, W-47~W-49 |
 | `L4.cli.spec` | 제공: `xeon group new`가 부를 서비스 |

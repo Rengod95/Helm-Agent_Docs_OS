@@ -12,7 +12,7 @@ import * as typebox from "typebox";
 /**
  * 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 하는 SDK 가상 모듈의 지정자(X.loading-trust.spec §4.4.6).
  * `@xeon/contracts`와 그 하위 경로(번들이 `CapabilityError`·`Result` 같은 값을 하위 경로에서 import한다), `typebox`는 X가 직접 등록하고
- * `@xeon/group-kit`은 L3라 조립 루트가 넘긴다
+ * `@xeon/group-sdk`은 L3라 조립 루트가 넘긴다
  */
 export const SDK_MODULE_SPECIFIERS: readonly string[] = [
   "@xeon/contracts",
@@ -23,7 +23,7 @@ export const SDK_MODULE_SPECIFIERS: readonly string[] = [
   "@xeon/contracts/services",
   "@xeon/contracts/settings",
   "@xeon/contracts/wire",
-  "@xeon/group-kit",
+  "@xeon/group-sdk",
   "typebox",
 ];
 

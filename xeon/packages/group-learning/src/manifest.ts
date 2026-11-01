@@ -1,5 +1,5 @@
 import { defineManifest } from "@xeon/contracts/extensions";
-import { groupManifest, type GroupManifest } from "@xeon/group-kit";
+import { groupManifest, type GroupManifest } from "@xeon/group-sdk";
 import { learningManifestRecordKinds } from "./records.ts";
 
 // L3.learning.spec §3.1 매니페스트. 내장 그룹, 기본 켬 [결정: D-M3-02]. drive와 post를 쓰지 않는다.

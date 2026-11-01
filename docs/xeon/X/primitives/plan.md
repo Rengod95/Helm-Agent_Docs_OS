@@ -221,7 +221,7 @@ xeon/packages/ext-host/
 | 위험 | 영향 | 대응 |
 |---|---|---|
 | Cordis rc API 변경(판본 교체 때 `plugin`, `effect`, `provide`, inject, fiber 상태가 바뀜) | `cordis-bridge.ts`와 scope 수명이 깨진다 | Cordis import를 한 파일로 모았다. `cordis.contract.test.ts`가 의존하는 동작을 고정한다. 판본 교체는 adr.0002 §6 제안 절차(재복사 → `UPSTREAM.json` 기록 → contract 테스트 → 대조표 재확인)를 따른다 |
-| async drive 함수의 재생 규율 위반(클로저 지역 변수에 진행 상태) | 재개 뒤 같은 단계를 반복하거나 다르게 동작한다 | 타입으로 막지 못한다. 기본 requestId를 상태 판에 묶어 이미 커밋된 turn이 다시 실행되지 않게 한다. 결정성 lint와 재생 검사 도구(`replayDrive`)는 L3.group-kit.plan에 요청한다(eng.events.design EV-09) |
+| async drive 함수의 재생 규율 위반(클로저 지역 변수에 진행 상태) | 재개 뒤 같은 단계를 반복하거나 다르게 동작한다 | 타입으로 막지 못한다. 기본 requestId를 상태 판에 묶어 이미 커밋된 turn이 다시 실행되지 않게 한다. 결정성 lint와 재생 검사 도구(`replayDrive`)는 L3.group-sdk.plan에 요청한다(eng.events.design EV-09) |
 | 비협조적 확장(오래 걸리는 핸들러, 반납 신호를 무시하는 drive) | 디스패치 지연, 포트 밖 효과 | 시간 예산 초과 시 결과를 버리고 다음으로 진행한다. 예산 값과 반복 실패 자동 끄기는 X.operations, 격리는 X.loading-trust(2차)다. 한계는 spec §4.4.5에 적었다 |
 | 경계 정의가 L1.loop 구현과 어긋남(`step_end`·`turn_settled`·`idle` 호출 시점, `whenIdle` 의미, `finalize` 호출) | 토글이 늦거나 turn 중간에 적용된다 | `runPortContract`(P-19)를 L1 구현의 테스트에서 돌리게 한다. M1 스모크가 경계 적용을 끝단에서 확인한다 |
 | `post.when = next` 의미 미확정 | L1 큐 구현이 바뀐다 | X는 `when` 값을 포트로 넘기기만 하므로 X 코드는 영향이 작다. 큐 위치 결정은 L1.tasks 쪽 변경이다. 결정 전에는 spec §4.7 [제안](시작하지 않음)으로 테스트를 둔다 |
@@ -240,8 +240,8 @@ xeon/packages/ext-host/
 | P-23 | 완료 | `hostOf(g).migrateState`, 버전 비교, 새 판 커밋(`mig:` 키), `state_future_version` 거부. thread에서 켤 때 준비한다. `migration.test.ts` |
 | P-27 | 완료 | `capabilityProviders` 선택, major 불일치 제외 진단, `capability_ambiguous`. `services.test.ts` |
 | P-28 | 완료 | thread별 켜짐 집합·요청, 세대 공유와 마지막 thread에서 해제, thread별 임대. 재시작을 넘는 전이 횟수와 끈 scope 복원은 `ExtThreadSnapshot.scopeTransitions`·`disabled`로 해소(spec §10). `thread-scope.test.ts` |
-| group-kit 요청 2·3·4 | 완료 | `ExtHost.leaseOf`, `ExtHost.onChange`, `TestHost.restart` |
-| group-kit 요청 1 | 완료 | `LeaseCandidate.enabledAtSeq`(F `ports.ts`)와 `ExtThreadSnapshot.enabledAtSeq`. ext-host는 열 때 스냅샷에서, 켠 경계를 커밋한 뒤 `loadThread`에서 채운다. `lease.test.ts` |
+| group-sdk 요청 2·3·4 | 완료 | `ExtHost.leaseOf`, `ExtHost.onChange`, `TestHost.restart` |
+| group-sdk 요청 1 | 완료 | `LeaseCandidate.enabledAtSeq`(F `ports.ts`)와 `ExtThreadSnapshot.enabledAtSeq`. ext-host는 열 때 스냅샷에서, 켠 경계를 커밋한 뒤 `loadThread`에서 채운다. `lease.test.ts` |
 | N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`의 `Result`화(`ExtRowError`). 다른 패키지 호출처는 없다 |
 | P-24 | 완료 | `resources.ts`: `ResourceRegistry`(`list`·`subscribe`·`setFlag`), `ResourcePolicy` 결합(쌍 판정 + 집합 판정 `exposeAll`), 도구·provider·MCP 포트 위임, 명령·단축키·플래그·렌더러 보관, effect 자동 해제, `hostOf(g).register*`·`getFlag`. `resources.test.ts` |
 | P-25 | 완료 | detached tap은 완료를 기다리지 않고 `detached: true`를 돌려준다. 핸들러는 그 뒤 순서대로 실행되고 실패는 정책·진단으로만 보고된다. 예산은 받고 thread가 닫히면 중단·폐기한다. `dispatch-detached.test.ts` |

@@ -599,7 +599,7 @@ runTurn(req: LoopTurnRequest):
 
 - 조회와 T1이 한 트랜잭션이므로 크래시가 조회와 커밋 사이에 끼지 않는다. T1의 커밋 키 `turn:<turnId>:start`는 호출마다 새 `turnId`를 쓰므로 `requests` 표가 재호출을 잡지 못한다. 멱등은 위 `build` 안 조회가 맡는다(`L1.persistence.spec` §3.2 `TxView.turnByRequestId`).
 - 2단계 때문에 재호출된 drive 함수가 같은 순서로 같은 `loop.turn`을 부르면 이미 끝난 turn은 다시 실행되지 않는다(`F.extensions.spec` §4.6 재생 규율).
-- 멱등 판정은 신원 `(scopeId, requestId)`로만 한다 [제안]. 커밋 지문에도 신원만 넣고 입력 내용은 넣지 않는다(`L1.tasks.spec` §4.7과 같은 원칙). 같은 신원인데 입력이 다르면 `turn_exists`로 기록된 turn을 그대로 돌려주고 진단 로그에 불일치를 남긴다. drive 재생 규율 위반이므로 L3.group-kit.spec의 재생 테스트 도우미가 잡는다.
+- 멱등 판정은 신원 `(scopeId, requestId)`로만 한다 [제안]. 커밋 지문에도 신원만 넣고 입력 내용은 넣지 않는다(`L1.tasks.spec` §4.7과 같은 원칙). 같은 신원인데 입력이 다르면 `turn_exists`로 기록된 turn을 그대로 돌려주고 진단 로그에 불일치를 남긴다. drive 재생 규율 위반이므로 L3.group-sdk.spec의 재생 테스트 도우미가 잡는다.
 - 펜싱: `leaseEpoch`는 `p_scopes.lease_epoch`와 같은 트랜잭션에서 대조한다. 임대가 다른 차수로 넘어간 뒤 늦게 도착한 요청은 turn을 열지 않는다.
 
 `spawn(req: LoopSpawnRequest)`는 `xeon.agents`의 포그라운드 `spawn`에 위임한다(`L1.agents.spec` §4.2). 요청은 이렇게 옮긴다.

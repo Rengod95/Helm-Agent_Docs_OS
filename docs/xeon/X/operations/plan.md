@@ -19,7 +19,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 | 마일스톤 | 범위 | 스펙 절 | 소비자 |
 |---|---|---|---|
 | M0 | tier 정렬 키(`TIERS`, `orderKeyOf`, `compareOrderKey`, `assignTier`, `TierTable`)와 `DispatchPolicy.tierOf`·`budgetMs`·`onHandlerFailure`·`onHandlerSettled`·`run` 연결(X.primitives.spec §3.4). 핸들러 시간 예산(`runWithBudget`, `BudgetGate`, `awaitUser`, `budgetClassOf`, `DEFAULT_BUDGETS_MS`)과 UI 대기 제외. 예산 초과·예외의 fold별 처리(tap 기록, first `FIRST_DENY`, chain 패치 버림)를 primitives 디스패처에 연결. 확장 단위 실패 집계(`FailureLedger`)와 `HandlerOutcomeRecord` 기록. 1차 설정 키 중 예산 키 | §3.1~§3.3, §4.1~§4.2, §4.3.1~§4.3.2, §6 | X.primitives 디스패처, L1 지점 발화 |
-| M1 | `ExtStorage` 최소형: 접두 테이블 정의·DDL, 확장 투영으로 코어 커밋과 같은 트랜잭션 쓰기, 읽기, 소유 장부 `xh_ext_tables`. 테스트 그룹이 이를 사용한다. 자동 끄기(`judgeAutoDisable`, `AutoDisabler`, `ScopeControl` 연결)와 알림. 자동 끄기 설정 키 | §3.3~§3.4, §4.3.3~§4.3.5, §4.4.1~§4.4.5, §4.4.8 | M1 스모크 테스트 그룹, L3 group-kit |
+| M1 | `ExtStorage` 최소형: 접두 테이블 정의·DDL, 확장 투영으로 코어 커밋과 같은 트랜잭션 쓰기, 읽기, 소유 장부 `xh_ext_tables`. 테스트 그룹이 이를 사용한다. 자동 끄기(`judgeAutoDisable`, `AutoDisabler`, `ScopeControl` 연결)와 알림. 자동 끄기 설정 키 | §3.3~§3.4, §4.3.3~§4.3.5, §4.4.1~§4.4.5, §4.4.8 | M1 스모크 테스트 그룹, L3 group-sdk |
 | M2 이후 | 이름 충돌 네임스페이스(`resolveNames`). 안전 모드와 `--disable-ext`, 연속 시작 실패 제안. 외부 훅 프로토콜(설정, 실행, 해석, 환경 정리)은 M4로 옮겼다 [결정: 2026-10-28 사용자]. 접두 밖 접근 차단 강화(`checkStatement` 상시화 검토, authorizer 조사), `ExtQuery` 범위 조건. 확장 테이블 삭제(`ExtStorageAdmin`). 보존 테이블과 열 추가 마이그레이션(스펙 §10 미결 8 결정 뒤) | §3.5~§3.7, §4.4.6~§4.4.7, §4.5~§4.7 | X.loading-trust(제거, 로더), L4 host·cli·settings-ui |
 
 - M0에서 F.records의 휘발 kind `scope.handler_failed` 추가(스펙 §10 미결 4)가 아직이면 알림은 운영 로그로만 남기고, kind가 생기면 같은 `OperationsNotifier` 구현을 바꾼다.

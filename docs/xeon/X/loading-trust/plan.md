@@ -190,7 +190,7 @@ xeon/packages/ext-host/
 | `remove.test.ts` | `remove previews then drops` | `previewRemoval`은 변화 없음, `remove`는 `uninstall` → `forget` → `dropExtension(true)` 순서, `dropTables: false`면 테이블 남음, 내장 확장 제거 거부 | §9-21 |
 | `pipeline.test.ts`(시작 옵션) | `safe mode and disable flag skip entry` | `startup.disabled`의 외부 확장은 import 0회, 내장 확장은 install 0회, 진단 `disabled_flag`·`safe_mode` | §9-22 |
 | `trust-resources.test.ts` | `bare dir needs no trust` | 빈 `.xeon`은 판정 불필요, `.xeon/extensions/` 있으면 필요, 홈의 `.agents/skills`는 제외 | §4.7.2 |
-| `external-loader.int.test.ts` | `a user extension loads and its on handler fires` | 임시 사용자 디렉터리의 플러그인이 `user` 등급으로 로드되고 핸들러가 호출된다. `@xeon/contracts`·`typebox`·`@xeon/group-kit`은 호스트와 같은 값이다 | §9-17 |
+| `external-loader.int.test.ts` | `a user extension loads and its on handler fires` | 임시 사용자 디렉터리의 플러그인이 `user` 등급으로 로드되고 핸들러가 호출된다. `@xeon/contracts`·`typebox`·`@xeon/group-sdk`은 호스트와 같은 값이다 | §9-17 |
 | | `safe mode skips user extensions` | 안전 모드에서 사용자 확장은 import되지 않고 `disabled`(`safe_mode`)다. L3 내장은 빠지고 L1·L2 내장은 남는다. 프로젝트는 탐색하지 않는다 | §9-23 |
 | | `bad manifests give diagnostics` | JSON 아님, 스키마 위반, 파일 없음이 진단만 남기고 다른 확장은 로드된다 | §9-24 |
 | | `entry failures reject only that extension` | 없는 엔트리, 함수 없음, import 중 예외, 루트 밖 심볼릭 링크 | §9-16 |

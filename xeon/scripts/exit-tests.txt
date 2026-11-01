@@ -63,9 +63,9 @@ X11 scripts release-smoke.test.ts
 # Y6 apps/host test/int/<파일>
 # Track T-XD and T-GK (drive-ask.test.ts, replay of a group that asks)
 # Y7 packages/ext-host test/drive-ask.test.ts
-# Y7 packages/group-kit <파일>
+# Y7 packages/group-sdk <파일>
 # Track T-AUTH (authoring.*)
-# Y8 packages/group-authoring <파일>
+# Y8 packages/plugin-builder <파일>
 # Track T-XD, T-WB, T-TRIAL (trial-pause.test.ts, trial.int.test.ts, trial.dev-only-locked)
 # Y9 packages/ext-host test/trial-pause.test.ts
 # Y9 apps/host test/int/trial.int.test.ts
@@ -77,7 +77,7 @@ X11 scripts release-smoke.test.ts
 # Y11 packages/ext-host <파일>
 # Track T-FIX and T-XD (the four code defects)
 # Y12 packages/ext-host <파일>
-# Y12 packages/group-kit <파일>
+# Y12 packages/group-sdk <파일>
 # Y12 apps/host <파일>
 # Track T-CAU1 and T-CAU2 (caustic-gaps.test.ts; the grep check is not a test file)
 # Y13 scripts caustic-gaps.test.ts

@@ -5,7 +5,7 @@ domain: extension-points
 kind: adr
 status: accepted
 depends_on: [adr.0007, adr.0013, adr.0015, F.extensions.spec, X.primitives.spec, X.loading-trust.spec, review.m3-design-inputs]
-binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xeon/packages/core-loop/**, xeon/packages/group-kit/**]
+binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xeon/packages/core-loop/**, xeon/packages/group-sdk/**]
 ---
 
 # ADR-0017 확장 지점 개정: 자체 이름 규칙, collect fold, 지점별 실패 정책, 수명주기·가드레일 지점, pi 어댑터 없음
@@ -102,7 +102,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xe
 1. [결정] 외부 확장은 자체 확장 API(`F.extensions.spec` 매니페스트, `ScopeApi`, 등록 연산)만 쓴다. pi 확장 어댑터(X.5), pi 가상 모듈(`pi-coding-agent` shim, `pi-agent-core`), pi 확장 디렉터리(`pi-extensions/`)와 설정 `x.loading-trust.piCompat`을 두지 않는다.
 2. [결정] M3 외부 확장 범위는 로더(자체 API 확장, `.xeon-plugin/plugin.json`)와 안전 모드다(D-M3-11 행 1 c).
 3. [가정] 비협조 확장 코드는 같은 프로세스의 한계를 받아들이고 자동 끄기로 보완한다. 그룹별 프로세스 격리는 M4에서 다시 본다(D-M3-11 행 5는 답이 없어 권고를 적었다).
-4. [제안] 기본 플러그인(Helm, D-M3-01 c)과 외부 확장이 import하는 Xeon 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`)은 X 로더가 가상 모듈로 등록한다(`X.loading-trust.spec` §4.10.6의 등록 수단을 자체 모듈에만 쓴다).
+4. [제안] 기본 플러그인(Helm, D-M3-01 c)과 외부 확장이 import하는 Xeon 모듈(`@xeon/contracts`, `@xeon/group-sdk`, `typebox`)은 X 로더가 가상 모듈로 등록한다(`X.loading-trust.spec` §4.10.6의 등록 수단을 자체 모듈에만 쓴다).
 
 ## 4. 결과
 

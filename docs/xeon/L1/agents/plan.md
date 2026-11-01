@@ -86,7 +86,7 @@ xeon/packages/core-agents/
 - core-persistence: 커밋 API, 자식 대화 재개, 자식 연결 kind(`agent.*`, F 요청 3 반영), `p_agents` 투영과 `TxView.agentByRequestId`, `ResumePlan.openChildren`(L1.persistence.plan PS-23).
 - core-loop: `runChildTurn` 진입점(L1.loop.plan LP15), 완료 게이트(`boundary.settle.before`)에서 L2.work 핸들러가 `judge`를 부르는 경로(L1.loop.plan).
 - core-models: 역할 `judge`, `subagent` 라우팅과 구조화 출력, 테이프(L1.models.plan).
-- ext-host: `loop.spawn` → `xeon.agents.spawn` 연결, 그룹 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-kit.plan).
+- ext-host: `loop.spawn` → `xeon.agents.spawn` 연결, 그룹 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-sdk.plan).
 
 ### 3.1 M2 구현 상태 (2026-10-24, 레인 L1B)
 
@@ -169,5 +169,5 @@ xeon/packages/core-agents/
 | F 카탈로그의 `agent.*` 코드 반영이 늦음 | contracts 코드에 `agent.*` 카탈로그 항목이 들어오기 전에는 AG-1을 시작하지 않는다. core-agents 소유 확장 kind는 쓸 수 없으므로(코어는 `x.` 접두를 쓰지 않는다) M2 시작 선행으로 둔다 |
 | core-loop의 자식 turn 진입점 구현이 늦음 | L1.loop.spec §3.1·§4.13에 `runChildTurn`이 정의되었고 구현은 L1.loop.plan LP15(M2)다. LP15가 끝나기 전에는 `testing/fakeLoop`로 core-agents를 먼저 구현·테스트한다 |
 | 백그라운드 자식이 동시 풀을 독점 | M3에서 풀 공유를 측정하고 [미결](L1.agents.spec §10) 결정에 따라 백그라운드 몫을 나눈다 |
-| 그룹 위임 래퍼(group-kit)와 필드 불일치 | L1.agents.spec §3.2 대응표를 L3.group-kit.spec에 수정 요청으로 냈다. M3 착수 전에 두 문서의 필드를 대조한다 |
+| 그룹 위임 래퍼(group-sdk)와 필드 불일치 | L1.agents.spec §3.2 대응표를 L3.group-sdk.spec에 수정 요청으로 냈다. M3 착수 전에 두 문서의 필드를 대조한다 |
 | 재개 때 끊긴 자식의 재실행이 중복 효과를 냄 | 자식 대화의 도구 효과는 자식 대화의 3단 기록과 `decideEffectRecovery`로 닫힌다(L1.persistence.spec). core-agents는 자식을 새로 만들지 않고 같은 대화를 재개한다(AG-6) |

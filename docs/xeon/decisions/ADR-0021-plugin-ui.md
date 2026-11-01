@@ -4,7 +4,7 @@ layer: adr
 domain: plugin-ui
 kind: adr
 status: accepted
-depends_on: [adr.0007, adr.0008, adr.0010, adr.0016, adr.0017, adr.0018, adr.0020, architecture.security.spec, F.extensions.spec, F.wire-settings.spec, X.loading-trust.spec, X.operations.spec, L3.group-kit.spec, L3.helm.spec, L3.authoring.spec, L4.desktop.spec, L4.desktop-ux.spec]
+depends_on: [adr.0007, adr.0008, adr.0010, adr.0016, adr.0017, adr.0018, adr.0020, architecture.security.spec, F.extensions.spec, F.wire-settings.spec, X.loading-trust.spec, X.operations.spec, L3.group-sdk.spec, L3.helm.spec, L3.authoring.spec, L4.desktop.spec, L4.desktop-ux.spec]
 binds: [xeon/apps/desktop/src/views/**, xeon/packages/client/**, xeon/packages/contracts/src/extensions/**]
 ---
 

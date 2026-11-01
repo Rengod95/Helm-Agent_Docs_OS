@@ -281,7 +281,7 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 | 컴파일 바이너리 크기(Bun 런타임 포함, 수치 미확인) | 데스크톱 번들이 커진다 | 단일 바이너리로 런타임 1벌만 둔다. 크기 상한은 `L4.desktop.plan`이 측정 뒤 정한다(ADR-0008 §6) |
 | 재전송 구현이 "등록과 head 읽기가 같은 JS 턴" 가정에 기댄다 | L0.store가 커밋을 워커 스레드로 옮기면 중복이나 누락이 생긴다 | `subscribe-replay-no-dup`를 커밋 위치별로 돌린다. L0.store 변경 때 이 가정을 리뷰 항목으로 둔다 |
 | 테스트의 `Bun.spawn`이 DR-07과 충돌한다(§5 `int`·`fault`) | `just verify`의 check-layers에서 막힌다 | `L4.desktop.plan` R10과 같은 결정 하나로 푼다(허용 목록 항목 또는 `platform-process/testing` 도우미). 사람 확인이 필요하고, 결정 전까지 M1 완료를 막는 항목으로 보고한다 |
-| 테스트용 그룹과 모델 테이프의 위치가 정해지지 않았다 | M1 scenario와 host 테스트가 같은 고정 자료를 공유하지 못한다 | 테스트용 그룹의 위치와 이름은 `L3.group-kit.plan`이 정한다. 그 전까지 host 테스트는 `test/fixtures/`에 자기 것을 둔다 |
+| 테스트용 그룹과 모델 테이프의 위치가 정해지지 않았다 | M1 scenario와 host 테스트가 같은 고정 자료를 공유하지 못한다 | 테스트용 그룹의 위치와 이름은 `L3.group-sdk.plan`이 정한다. 그 전까지 host 테스트는 `test/fixtures/`에 자기 것을 둔다 |
 
 ## 8. M2 구현 기록 (m2-plan HOST.1·HOST.2·HOST.3·HOST.4·HOST.5·HOST.6·HOST.7)
 
@@ -324,7 +324,7 @@ HOST.1·HOST.3·HOST.5는 브랜치 `m2/host`에서 했다. 다른 트랙(L1A.4 
 | HOST.2 | H17 | 구현 | `settings.set·reset·list`. user 파일 원자 교체, session 커밋, 신뢰한 작업 폴더의 project·local 파일(spec §4.14). 프로젝트 신뢰 조립(`assembly/trust.ts`). `test/handlers/settings.test.ts`, `test/int/settings-write.int.test.ts` |
 | HOST.4 | H18 | 구현 | `approval.respond`(restore → 응답, 소유 검사 3002), `approval.list`(spec §4.13), 쓰기 소유를 얻을 때 `restore`. A1 시험 `test/int/approval-restart.int.test.ts`(실제 자식 호스트 SIGKILL → 새 호스트 목록·열기·재개·응답), `test/int/approval.int.test.ts`, `test/handlers/approval.test.ts`. 허용 목록에 `DR-07/host-test-spawn`을 더했다 |
 | HOST.4 | H18 U-19 | 확인만 | env 주입 승인 증거는 F의 `CallContext.approval`(F 요청 13)과 L1.tools `RawCall.secretApproval`, cap-workspace의 `SecretEnvRequest.ctx.approval` 복사로 `withEnv`까지 이어져 있고 호스트가 더한 코드는 없다. 호스트 수준 종단 시험은 없다(§8.5 둘째 행) |
-| HOST.6 | (신규) | 구현 | core-agents(`parentToken`, 자식 thread 열고 닫는 감싸개), core-context(`createContextExtension`), cap-web, cap-knowledge(`projectTrust`), cap-mcp, cap-work, cap-dialog, group-kit(`xeon.groups`). 각 등록 뒤 CLI 테이프 스모크를 돌렸다. 능력마다 실제 엔진 시험이 있다(`test/int/agents·cap-web·cap-knowledge·cap-dialog·cap-work·cap-mcp·groups·retention.int.test.ts`) |
+| HOST.6 | (신규) | 구현 | core-agents(`parentToken`, 자식 thread 열고 닫는 감싸개), core-context(`createContextExtension`), cap-web, cap-knowledge(`projectTrust`), cap-mcp, cap-work, cap-dialog, group-sdk(`xeon.groups`). 각 등록 뒤 CLI 테이프 스모크를 돌렸다. 능력마다 실제 엔진 시험이 있다(`test/int/agents·cap-web·cap-knowledge·cap-dialog·cap-work·cap-mcp·groups·retention.int.test.ts`) |
 | HOST.7 | D-12 | 구현 | spec §3.3.1~§3.3.3을 코드에 맞췄다(`AssembleOptions`, `Engine.shutdown`, `AssembleIssue.plugin`, `EnginePorts`, `ConnectionHub`, `createWireHandlers`). 순서 규칙 정합: HS-18(`n`·`afterSeq`는 발신자 값), HS-21(구독 취소 창) |
 
 HOST.6에서 실제 엔진에 올리자 드러난 오류와 처리:

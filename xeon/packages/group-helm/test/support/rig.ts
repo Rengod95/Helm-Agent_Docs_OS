@@ -35,7 +35,7 @@ import {
   type TestHost,
   type TestHostOptions,
 } from "@xeon/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-kit";
+import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-sdk";
 import { helmGroup } from "../../src/index.ts";
 import { fakeService } from "./unsafe.ts";
 

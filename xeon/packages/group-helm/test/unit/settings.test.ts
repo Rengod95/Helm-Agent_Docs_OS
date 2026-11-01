@@ -23,7 +23,7 @@ test("settings.defs-pass-check", () => {
   expect(helmSettings.defs.maxLenses.range).toEqual({ min: 1, max: 8 });
   for (const def of defs) {
     expect(def.runtimeChange).toBe("nextTurn");
-    expect(def.allowedScopes).toEqual(["managed", "user", "project", "local", "session"]);
+    expect(def.allowedScopes).toEqual(["managed", "user", "project", "local", "launch"]);
     expect(def.ui?.tab).toBe("plugins");
   }
 });

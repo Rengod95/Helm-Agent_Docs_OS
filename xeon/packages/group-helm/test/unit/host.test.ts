@@ -209,7 +209,7 @@ test("restore.invalid-state-resets: session.start with an inconsistent state com
   await rig.t.host.closeThread(rig.thread);
   await rig.t.host.openThread(rig.thread);
   await rig.t.host.dispatch(
-    "session.start",
+    "thread.start",
     { reason: "resume", threadId: rig.thread },
     { threadId: rig.thread, dispatchKey: "ss" },
   );

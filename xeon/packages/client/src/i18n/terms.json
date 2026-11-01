@@ -443,7 +443,7 @@
       "en": "Plugin Builder"
     },
     "surfaces": ["workbench"],
-    "ids": ["group-authoring", "plugin-builder"],
+    "ids": ["plugin-builder"],
     "forbid": {
       "docs": ["제작 확장"]
     },
@@ -461,8 +461,8 @@
       "en": "Group SDK"
     },
     "surfaces": ["workbench"],
-    "ids": ["group-kit", "group-sdk", "defineGroup"],
-    "sources": ["adr.0022", "L3.group-kit.spec"],
+    "ids": ["group-sdk", "defineGroup"],
+    "sources": ["adr.0022", "L3.group-sdk.spec"],
     "status": "proposed"
   },
   "stages": {
@@ -477,7 +477,7 @@
     },
     "surfaces": ["workbench"],
     "ids": ["trigger", "fanOut", "fanIn", "apply"],
-    "sources": ["adr.0022", "L3.group-kit.spec"],
+    "sources": ["adr.0022", "L3.group-sdk.spec"],
     "status": "proposed"
   },
   "capability": {

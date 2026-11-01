@@ -44,10 +44,10 @@ interface PkgOptions {
 function pkg(dir: string, layer: string, deps: string[] = [], options: PkgOptions = {}): void {
   const base = dir.split("/")[1] ?? "";
   const name = `@xeon/${base}`;
-  // group-kit의 도메인은 접두를 뺀 kit이 아니라 group-kit이다(M3-35)
+  // group-sdk의 도메인은 접두를 뺀 kit이 아니라 group-sdk이다(M3-35)
   const domain =
     options.domain ??
-    (base === "group-kit" ? base : base.replace(/^(?:platform|core|cap|group)-/, ""));
+    (base === "group-sdk" ? base : base.replace(/^(?:platform|core|cap|group)-/, ""));
   const dependencies = Object.fromEntries(deps.map((d) => [d, "workspace:*"]));
   mkdirSync(join(root, dir, "src"), { recursive: true });
   writeFileSync(
@@ -97,7 +97,7 @@ test("expectedLayer maps directories to layers", () => {
 test("expectedDomain strips the layer prefix", () => {
   expect(expectedDomain("packages/core-loop")).toBe("loop");
   expect(expectedDomain("packages/platform-store")).toBe("store");
-  expect(expectedDomain("packages/group-kit")).toBe("group-kit");
+  expect(expectedDomain("packages/group-sdk")).toBe("group-sdk");
   expect(expectedDomain("packages/group-helm")).toBe("helm");
   expect(expectedDomain("packages/contracts")).toBe("contracts");
   expect(expectedDomain("packages/ext-host")).toBe("ext-host");
@@ -235,16 +235,16 @@ test("allowlist: a listed same-layer pair passes, an unlisted pair still fails",
 });
 
 test("allowlist: only the listed entry points are allowed", () => {
-  pkg("packages/group-helm", "L3", ["@xeon/group-kit"], {
-    files: { "src/a.ts": 'import "@xeon/group-kit";\nimport "@xeon/group-kit/internal";' },
+  pkg("packages/group-helm", "L3", ["@xeon/group-sdk"], {
+    files: { "src/a.ts": 'import "@xeon/group-sdk";\nimport "@xeon/group-sdk/internal";' },
   });
-  pkg("packages/group-kit", "L3");
+  pkg("packages/group-sdk", "L3");
   allowlist([
     {
-      id: "DR-02/group-kit-helm",
+      id: "DR-02/group-sdk-helm",
       rule: "DR-02",
       from: "packages/group-helm",
-      to: "@xeon/group-kit",
+      to: "@xeon/group-sdk",
     },
   ]);
   expect(lines()).toHaveLength(1);
@@ -252,19 +252,19 @@ test("allowlist: only the listed entry points are allowed", () => {
 });
 
 test("allowlist: the entry must match the rule and the importing package", () => {
-  pkg("packages/group-helm", "L3", ["@xeon/group-kit"], {
-    files: { "src/a.ts": 'import "@xeon/group-kit";' },
+  pkg("packages/group-helm", "L3", ["@xeon/group-sdk"], {
+    files: { "src/a.ts": 'import "@xeon/group-sdk";' },
   });
-  pkg("packages/group-learning", "L3", ["@xeon/group-kit"], {
-    files: { "src/a.ts": 'import "@xeon/group-kit";' },
+  pkg("packages/group-learning", "L3", ["@xeon/group-sdk"], {
+    files: { "src/a.ts": 'import "@xeon/group-sdk";' },
   });
-  pkg("packages/group-kit", "L3");
+  pkg("packages/group-sdk", "L3");
   allowlist([
     {
-      id: "DR-02/group-kit-helm",
+      id: "DR-02/group-sdk-helm",
       rule: "DR-02",
       from: "packages/group-helm",
-      to: "@xeon/group-kit",
+      to: "@xeon/group-sdk",
     },
   ]);
   const found = checkLayers(root).violations;
@@ -275,7 +275,7 @@ test("allowlist: the entry must match the rule and the importing package", () =>
 
 test("allowlist: a family pattern matches each package of the family and no deeper path", () => {
   expect(matchesFrom("packages/group-*", "packages/group-helm")).toBe(true);
-  expect(matchesFrom("packages/group-*", "packages/group-kit")).toBe(true);
+  expect(matchesFrom("packages/group-*", "packages/group-sdk")).toBe(true);
   expect(matchesFrom("packages/group-*", "packages/group-x/sub")).toBe(false);
   expect(matchesFrom("packages/group-*", "packages/core-loop")).toBe(false);
   expect(matchesFrom("packages/group-*", "packages/group-")).toBe(false);
@@ -283,27 +283,27 @@ test("allowlist: a family pattern matches each package of the family and no deep
   expect(matchesFrom("packages/group-helm", "packages/group-learning")).toBe(false);
 });
 
-test("allowlist: the group-kit family entry covers each group, its two entries and nothing else", () => {
-  pkg("packages/group-helm", "L3", ["@xeon/group-kit", "@xeon/group-learning"], {
+test("allowlist: the group-sdk family entry covers each group, its two entries and nothing else", () => {
+  pkg("packages/group-helm", "L3", ["@xeon/group-sdk", "@xeon/group-learning"], {
     files: {
       "src/a.ts": [
-        'import "@xeon/group-kit";',
-        'import "@xeon/group-kit/testing";',
-        'import "@xeon/group-kit/internal";',
+        'import "@xeon/group-sdk";',
+        'import "@xeon/group-sdk/testing";',
+        'import "@xeon/group-sdk/internal";',
         'import "@xeon/group-learning";',
       ].join("\n"),
     },
   });
-  pkg("packages/group-learning", "L3", ["@xeon/group-kit"], {
-    files: { "src/a.ts": 'import "@xeon/group-kit";' },
+  pkg("packages/group-learning", "L3", ["@xeon/group-sdk"], {
+    files: { "src/a.ts": 'import "@xeon/group-sdk";' },
   });
-  pkg("packages/group-kit", "L3");
+  pkg("packages/group-sdk", "L3");
   allowlist([
     {
-      id: "DR-02/group-kit",
+      id: "DR-02/group-sdk",
       rule: "DR-02",
       from: "packages/group-*",
-      to: "@xeon/group-kit",
+      to: "@xeon/group-sdk",
       entries: [".", "./testing"],
     },
   ]);
@@ -312,7 +312,7 @@ test("allowlist: the group-kit family entry covers each group, its two entries a
     .violations.filter((v) => v.file === "packages/group-helm/src/a.ts")
     .map(formatViolation);
   expect(sources).toEqual([
-    "packages/group-helm/src/a.ts:3 DR-02 L3 package @xeon/group-helm imports same-layer package @xeon/group-kit; share through F contracts or Cordis services",
+    "packages/group-helm/src/a.ts:3 DR-02 L3 package @xeon/group-helm imports same-layer package @xeon/group-sdk; share through F contracts or Cordis services",
     "packages/group-helm/src/a.ts:4 DR-02 L3 package @xeon/group-helm imports same-layer package @xeon/group-learning; share through F contracts or Cordis services",
   ]);
 });

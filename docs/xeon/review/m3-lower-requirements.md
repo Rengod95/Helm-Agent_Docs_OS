@@ -4,7 +4,7 @@ layer: meta
 domain: review
 kind: review
 status: draft
-depends_on: [review.m3-design-inputs, review.m3-plan, review.m4-plan, adr.0015, product.scope.spec, L3.helm.spec, L3.learning.spec, L3.group-kit.spec]
+depends_on: [review.m3-design-inputs, review.m3-plan, review.m4-plan, adr.0015, product.scope.spec, L3.helm.spec, L3.learning.spec, L3.group-sdk.spec]
 binds: []
 ---
 
@@ -14,7 +14,7 @@ binds: []
 
 - M3 설계 단계(2026-10-25 사용자 결정)의 세 번째 단계 산출물 중 하위 층 몫이다. M3 작업(L3 Helm, 학습 그룹, `review.m3-plan`의 서비스·원격, 능력 확장, 보안, 설정·UI, 데이터·운영, 릴리즈)이 F, X, L0, L1, L2에 요구하는 변경을 한 행씩 적는다.
 - 이 문서는 M3 구현 계획(/plan)의 입력이다. F·X·L* 문서 본문은 2026-10-26 사용자 결정으로 닫힌 [미결] 표기만 고쳤다. 각 행은 소유 문서를 고치는 작업 하나로 옮긴다.
-- 입력: `review.m3-design-inputs` §3(D-M3-01~32), §4.4(REQ-F·X·L1·L2), §5, ADR-0015, `review.m3-plan` M3-01~40, 범위별 수집 네 벌. L3 문서는 이 작업과 같은 변경 묶음의 `L3.helm.spec`, `L3.learning.spec`, `L3.group-kit.spec`이다. 이 세 문서는 절 번호와 항목 이름으로 인용한다. 본문이 바뀌면 §5 대응표의 "L3 근거" 칸을 다시 대조한다.
+- 입력: `review.m3-design-inputs` §3(D-M3-01~32), §4.4(REQ-F·X·L1·L2), §5, ADR-0015, `review.m3-plan` M3-01~40, 범위별 수집 네 벌. L3 문서는 이 작업과 같은 변경 묶음의 `L3.helm.spec`, `L3.learning.spec`, `L3.group-sdk.spec`이다. 이 세 문서는 절 번호와 항목 이름으로 인용한다. 본문이 바뀌면 §5 대응표의 "L3 근거" 칸을 다시 대조한다.
 - 번호: 요구는 `M3-REQ-NN`이다. `review.m3-design-inputs`의 `REQ-<층>-NN`은 §5에서 이 번호로 옮긴다. 원천 칸의 `A-NN`, `KN-NN`, `U-NN`, `C-NNN` 등은 수집 ID이고, `D-M3-NN`은 사용자 결정 묶음 번호다.
 - 상태 칸(§3 표의 마지막 칸): `M3a`는 M3a에서 끝난 행, `M3b`는 M3b에서 끝난 행(B6 마감 판정, §10), `M3b:<트랙 id>`는 `review.m3b-plan` §2의 그 트랙이 맡는 행, `M4`는 M4에서 끝난 행, `M4:<트랙 id>`는 `review.m4-plan` §2의 그 트랙이 맡는 행이다. 트랙 요구 목록에 없는 행은 `M3a`다. 그 가운데 03·25·30·33·68·76은 코드와 문서에서 근거를 확인했다(2026-10-28). 근거가 없었다면 `M3b:B3-L1M`(33은 `M3b:B4-GRP`)으로 옮겼을 행이다. M3b 마감에서 M4로 옮긴 행 16개는 §10의 사유와 함께 `M4:<트랙 id>`로 적었다. 검사는 `just req-ledger`가 한다. `M3b:<트랙 id>`의 트랙 id는 `review.m3b-plan` §2의, `M4:<트랙 id>`의 트랙 id는 `review.m4-plan` §2의 굵은 제목(`**B<n>-<ID>`, `**T-<ID>`)에 선언된 id여야 하며, 선언되지 않은 id(예: `B9-X`)는 검사에서 실패한다. §9와 §11 이월 표의 트랙 id 칸은 두 계획의 트랙 id이거나 `M4`, `M5: <사유>`, `삭제: <사유>`다.
 - 이미 정한 것:
@@ -120,11 +120,11 @@ binds: []
 | M3-REQ-36 | X | `X.operations.spec`, `L1.persistence.spec` | 필수 투영기 예외 격리 경로와 예외 주입 시험을 정한다 | M3-31, A-37, PS-08 | 1 | M3b |
 | M3-REQ-37 | X | `X.primitives.spec` | 웹 검색 플러그인 provider 등록 API를 둔다 | M3-12, WB-19 | 1 | M3b |
 | M3-REQ-38 | X | `X.loading-trust.spec` | 서비스 모드에서 프로젝트 확장 단위, 신뢰 프롬프트를 보낼 클라이언트, thread 없는 신뢰 발화 경로를 정한다 | A-60, M-12, M3-15 | 1 ← M3-REQ-19 | M3b |
-| M3-REQ-39 | X | `X.primitives.spec` | 계측·승격 집계용 내구 이벤트 조회(kind 접두 필터)와 도구 소유 scope 조회를 둔다 | `L3.group-kit.spec` §3.13 5번, G-IN-11, U-30, M3-new-09 | 2 ← M3-REQ-26 | M3b |
+| M3-REQ-39 | X | `X.primitives.spec` | 계측·승격 집계용 내구 이벤트 조회(kind 접두 필터)와 도구 소유 scope 조회를 둔다 | `L3.group-sdk.spec` §3.13 5번, G-IN-11, U-30, M3-new-09 | 2 ← M3-REQ-26 | M3b |
 | M3-REQ-40 | X | `X.operations.spec` | 기본 예산 값(30·10·5·1·2초)과 자동 끄기 기준을 실측으로 조정한다 | A-36, M3-29 | 4 | M4:T-PERF |
 | M3-REQ-41 | X | `X.primitives.spec` §4.4.1 | 탐구가 없는 turn마다 임대 부여·`idle` 반납이 생기는 비용이 측정으로 문제가 되면 후보 제외 조건을 둔다. 문제가 없으면 행을 닫는다 | H-IN-15, U-25. Helm §10 13 | 4 | M3b |
 | M3-REQ-108 | X | `X.primitives.spec` 디스패치 절 | `collect` fold 합성, 지점 선언의 실패 정책 적용(선언값 우선, 없으면 fold별 기본), 가드레일 지점의 fail-closed 디스패치, 수명주기 지점 디스패치(디스패치 키는 이벤트 id)를 구현 규칙으로 적는다 | adr.0017, D-M3-10, D-M3-30 행 1 | 1 ← M3-REQ-12, 101, 105, 107 | M3a |
-| M3-REQ-110 | X | `X.loading-trust.spec` §4.2, §4.4 | 자체 확장 SDK 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`)을 X 로더가 가상 모듈로 등록해 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 한다 [제안]. 릴리즈에 든 기본 플러그인(Helm)을 첫 실행 때 사용자 확장 위치(`<userDir>/extensions/helm/`)에 설치하는 경로와 앱 갱신 때 교체 규칙을 적는다 [제안]. 설치 위치가 `user`라 신뢰 상한은 `user`이고 안전 모드에서 실리지 않는다 | D-M3-01 c, D-M3-11 c, D-M3-07 a | 2 ← M3-REQ-34 | M3a |
+| M3-REQ-110 | X | `X.loading-trust.spec` §4.2, §4.4 | 자체 확장 SDK 모듈(`@xeon/contracts`, `@xeon/group-sdk`, `typebox`)을 X 로더가 가상 모듈로 등록해 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 한다 [제안]. 릴리즈에 든 기본 플러그인(Helm)을 첫 실행 때 사용자 확장 위치(`<userDir>/extensions/helm/`)에 설치하는 경로와 앱 갱신 때 교체 규칙을 적는다 [제안]. 설치 위치가 `user`라 신뢰 상한은 `user`이고 안전 모드에서 실리지 않는다 | D-M3-01 c, D-M3-11 c, D-M3-07 a | 2 ← M3-REQ-34 | M3a |
 
 ### 3.3 L0 (플랫폼)
 
@@ -206,7 +206,7 @@ binds: []
 
 | ID | 층 | 소유 문서 | 바꿀 내용 | 이유(원천) | 순서 | 상태 |
 |---|---|---|---|---|---|---|
-| M3-REQ-99 | F | `F.records.spec` 이벤트, F `services/groups.ts`(`F.capabilities.spec` §3.12), `X.primitives.spec` | 내구 이벤트 `lease.rejected`(페이로드 `groupId`, `reason`, 거부된 요청의 `requestSeq`) [제안]와 화면용 `GroupStatus.drive`의 `"rejected"` 값을 더한다. X는 대기 상한 거부 때 이벤트를 커밋하고 group-kit이 `GroupStatus`를 채운다(group-kit plan G-30). Helm 핸들러는 수명주기 지점(M3-REQ-101)으로만 읽는다. 대기 기본과 상한 뒤 거부는 [결정: review.m3-design-inputs D-M3-05 a]다 | Helm §4.13 D-M3-05, REQ-X-08, M3-REQ-28 | 0 ← M3-REQ-08, 101 | M3a |
+| M3-REQ-99 | F | `F.records.spec` 이벤트, F `services/groups.ts`(`F.capabilities.spec` §3.12), `X.primitives.spec` | 내구 이벤트 `lease.rejected`(페이로드 `groupId`, `reason`, 거부된 요청의 `requestSeq`) [제안]와 화면용 `GroupStatus.drive`의 `"rejected"` 값을 더한다. X는 대기 상한 거부 때 이벤트를 커밋하고 group-sdk이 `GroupStatus`를 채운다(group-sdk plan G-30). Helm 핸들러는 수명주기 지점(M3-REQ-101)으로만 읽는다. 대기 기본과 상한 뒤 거부는 [결정: review.m3-design-inputs D-M3-05 a]다 | Helm §4.13 D-M3-05, REQ-X-08, M3-REQ-28 | 0 ← M3-REQ-08, 101 | M3a |
 | M3-REQ-100 | F | `F.extensions.spec` §3.4 지점 페이로드 | 학습 REQ-LN-01: `AgentSettledPayload`에 `origin`, `status`, `hasFinalAnswer`, `lastItemId`를 더한다. `origin` 이름과 값은 M3-REQ-06과 같다. 도구 실행 문맥의 `caller.afterUntrusted`를 확장 도구 `execute`에도 넘긴다 | 학습 §8.1 REQ-LN-01, §4.2, §4.3. 학습 plan §3 선행 조건 | 0 ← M3-REQ-06 | M3a |
 | M3-REQ-101 | F | `F.extensions.spec`, `X.primitives.spec` | 학습 REQ-LN-02: 그룹이 코어 내구 이벤트(`agent.settled`, `lease.rejected`)를 받는 수단은 수명주기 지점이다 [결정: adr.0017]. 첫 목록은 L3 요구분(위임 정착, 임대 거부)이고 fold는 `tap`(fail-open)이다 [제안]. 핸들러는 재실행되는 코드이고 입력은 이벤트 페이로드뿐이다. 디스패치 키는 이벤트 id. 위임 주체가 그 scope인 이벤트만 넘긴다 | 학습 §8.1 REQ-LN-02, §10 "설계 질문" 10, D-M3-10. 학습 plan §3 선행 조건 | 0 ← M3-REQ-106 | M3a |
 | M3-REQ-102 | X | `X.primitives.spec` §4.6.5, §4.6.6 | 학습 REQ-LN-03·04: 구독 핸들러의 디스패치 구현. `recordPrivate`·`record`·`commit`을 확장 도구 `execute`와 명령 처리기에서 부를 때의 ambient(디스패치 키는 도구 호출 id 또는 명령 호출 id). 위임 자식 대화에서 실행된 도구의 기록은 도구가 실행된 대화에 쓴다 [제안] | 학습 §8.1 REQ-LN-03, REQ-LN-04, §3.5, §3.7 | 1 ← M3-REQ-101 | M3a |
@@ -231,7 +231,7 @@ binds: []
 | L3 학습(M3-new-03, M3-13, M3-18) | F 01, 02, 04, 06, 09, 10, 11, 13, 18, 100, 101 · X 22, 26, 27, 29, 30, 33, 39, 102 · L1 65, 66, 67, 68, 69, 70, 74, 77, 78, 86, 103 · L2 88, 89, 91, 104 |
 | ADR-0015 구현(M3-new-01) | F 01, 02, 03 · X 22, 27, 31 · L1 69, 76 · L2 88, 89 |
 | 확장 계약 개정(ADR-0017, 가드레일 지점) | F 12, 101, 105, 106, 107 · X 108 · L1 109 |
-| 그룹 공통(group-kit, M3-new-09, M3-17) | F 08, 12 · X 28, 33, 39 |
+| 그룹 공통(group-sdk, M3-new-09, M3-17) | F 08, 12 · X 28, 33, 39 |
 | 서비스 모드(M3-new-04) | F 19 · X 38 · L0 42, 43, 45 · L1 80, 81 |
 | 원격·알림(M3-new-05, M3-11) | F 16, 19 · L0 44, 50 · L2 92 |
 | 무인 실행(M3-06, M3-08, M3-16, M3-new-12) | L0 46 · L1 72, 73, 79 · L2 90, 93 |
@@ -250,30 +250,30 @@ binds: []
 | 입력 요구 | 이 문서 | L3 근거(절 번호와 항목 이름) |
 |---|---|---|
 | REQ-F-01 | M3-REQ-01 | Helm §4.5 능력 호출, 학습 §4.3 |
-| REQ-F-02 | M3-REQ-02 | Helm §4.5, group-kit §3.4 |
+| REQ-F-02 | M3-REQ-02 | Helm §4.5, group-sdk §3.4 |
 | REQ-F-03 | M3-REQ-03, 76(D-M3-31 행 1: `safe\|unsafe` 유지) | Helm §8 요구 표 |
 | REQ-F-04 | M3-REQ-04, 71 | Helm §4.6, §10 (닫힘) 쓰기 판정 메타 출처 |
 | REQ-F-05 | M3-REQ-05 | Helm §8 요구 표 |
 | REQ-F-06 | M3-REQ-06, 77 | 학습 §4.2 |
 | REQ-F-07 | M3-REQ-07 | — |
-| REQ-F-08 | M3-REQ-08 | group-kit §10 "임대 이벤트 이름" 항목 |
+| REQ-F-08 | M3-REQ-08 | group-sdk §10 "임대 이벤트 이름" 항목 |
 | REQ-F-09 | M3-REQ-09, 74(통합은 adr.0018) | — |
 | REQ-F-10 | M3-REQ-10, 78 | 학습 §4.3 도구 허용 |
 | REQ-X-01 | M3-REQ-22 | Helm §4.5, 학습 §4.3 |
 | REQ-X-02 | M3-REQ-23(직렬화만 남음) | Helm §4.1, §8 요구 표 |
 | REQ-X-03 | M3-REQ-24 | Helm §4.8, §8 요구 표 |
 | REQ-X-04 | M3-REQ-25 | Helm §4.5, §10 (닫힘) `leaseId` 유지 항목 |
-| REQ-X-05 | M3-REQ-26 | group-kit §3.7 |
+| REQ-X-05 | M3-REQ-26 | group-sdk §3.7 |
 | REQ-X-06 | 행 없음(이미 반영) | `X.primitives.spec` §4.6.5와 `xeon/packages/ext-host/src/primitives/state.ts`에 `recordPrivate`가 있다. Helm §8 요구 표도 "확정"이다. `review.m3-design-inputs`의 REQ-X-06·L-IN-14도 같은 취지로 고쳤다 |
 | REQ-X-07 | M3-REQ-27 | — |
-| REQ-X-08 | M3-REQ-28, 29, 99 | group-kit §10 "대기 vs 거부"와 "유휴 중 임대 부여" 항목, Helm §4.13 |
+| REQ-X-08 | M3-REQ-28, 29, 99 | group-sdk §10 "대기 vs 거부"와 "유휴 중 임대 부여" 항목, Helm §4.13 |
 | REQ-X-09 | M3-REQ-13, 30 | Helm §10 (닫힘) C1, 학습 §10 (닫힘) 서비스 키 항목 |
 | REQ-X-10 | M3-REQ-31 | — |
 | REQ-X-11 | M3-REQ-32 | — |
 | REQ-X-12 | M3-REQ-33 | — |
 | REQ-L1-01 | M3-REQ-69 | 학습 §4.3, §4.10, §9 5 |
 | REQ-L1-02 | M3-REQ-11, 65, 103 | 학습 §5 사례 5, §10 "사용자 결정" 3 |
-| REQ-L1-03 | M3-REQ-67 | group-kit §3.4 상한 |
+| REQ-L1-03 | M3-REQ-67 | group-sdk §3.4 상한 |
 | REQ-L1-04 | M3-REQ-68 | 학습 §10 (닫힘) 자식 대화 발화 항목, Helm §4.6 |
 | REQ-L1-05 | M3-REQ-11, 66 | 학습 §10 "사용자 결정" 2 |
 | REQ-L1-06 | M3-REQ-85 | — |
@@ -293,7 +293,7 @@ binds: []
 | REQ-LN-05 | M3-REQ-69 | 위임 멱등의 세션 DB 기록 |
 | REQ-LN-06 | M3-REQ-11, 65, 103 | 주체 단위 취소 |
 | REQ-LN-07 | M3-REQ-103 | `agent.settled` payload 필드 |
-| REQ-LN-08 | M3-REQ-11, 66 | `DelegateSpec.report` 선택화, `delegateStatus`, `cancelDelegates`(group-kit plan G-28, G-29) |
+| REQ-LN-08 | M3-REQ-11, 66 | `DelegateSpec.report` 선택화, `delegateStatus`, `cancelDelegates`(group-sdk plan G-28, G-29) |
 | REQ-LN-09 | M3-REQ-88, 89, 104 | `idempotent` 선언, `learning.queue` 증거, 프로젝트 범위 |
 | REQ-LN-10 | M3-REQ-18 | D-M3-32 a. 승인 화면이 두 대기열을 한 목록으로 합친다 |
 | REQ-LN-11 | M3-REQ-70, 78 | 검토 포크 도구 정책 |
@@ -339,7 +339,7 @@ binds: []
 |---|---|
 | `review/m3-plan.md` | §1에 이 문서를 M3 계획 입력으로 적는다. M3-01 선행에 M3-REQ-22~25, 69, 88을, M3-02 받는 문서에 M3-REQ-04·71을 더한다 |
 | `decisions/ADR-0015-replay-effects.md` | D-M3-31 행 1(`safe\|unsafe` 유지)과 행 8(on 핸들러 읽기 불허)로 §6 미결 둘이 닫힌다. ADR 묶음 작업이 고친다. §6 첫 미결(읽기 표지 이름)은 M3-REQ-01의 [제안] `readOnly`로 닫을 수 있다 |
-| `L3/helm/spec.md`, `L3/learning/spec.md`, `L3/group-kit/spec.md` | §8 요구 표의 [가정]·[미결] 칸에 해당 M3-REQ 번호를 단다(Helm: 04, 05, 22~25, 68, 99; 학습: 06, 11, 65, 66, 68, 70, 100~104; group-kit: 11, 28, 39, 99). 요구 번호가 확정된 뒤 L3 문서 개정에서 반영한다 |
+| `L3/helm/spec.md`, `L3/learning/spec.md`, `L3/group-sdk/spec.md` | §8 요구 표의 [가정]·[미결] 칸에 해당 M3-REQ 번호를 단다(Helm: 04, 05, 22~25, 68, 99; 학습: 06, 11, 65, 66, 68, 70, 100~104; group-sdk: 11, 28, 39, 99). 요구 번호가 확정된 뒤 L3 문서 개정에서 반영한다 |
 | `L3/README.md` | §10.2 미결 2(on 핸들러 효과)를 ADR-0015로 닫는다. 이 작업의 범위 밖 파일이라 고치지 않았다 |
 
 ## 8. 미결 사항
@@ -353,7 +353,7 @@ binds: []
 - 닫음: 외부 훅은 M3 밖이고 M4로 옮겼다(M3-REQ-34) [결정: 2026-10-28 사용자].
 - [미결] 지점 이름 규칙과 새 이름표(M3-REQ-106). 가드레일 지점·수명주기 지점의 이름도 이 표에서 정한다. 정하기 전에는 다른 행이 옛 pi 이름을 쓴다.
 - [미결] 가드레일 지점의 정확한 발화 위치(M3-REQ-109의 [제안] 세 곳). 특히 "출력 표시·실행 직전"이 스트리밍 중 부분 출력에도 걸리는지 `L1.loop.spec` 작업에서 정한다.
-- [가정] 플러그인 번들이 가상 모듈로 받은 `@xeon/group-kit`이 호스트 쪽 인스턴스와 같다(M3-REQ-110). `Bun.plugin` 모듈 등록의 프로세스 전역 동작에 기댄다. 스파이크로 확인한다.
+- [가정] 플러그인 번들이 가상 모듈로 받은 `@xeon/group-sdk`이 호스트 쪽 인스턴스와 같다(M3-REQ-110). `Bun.plugin` 모듈 등록의 프로세스 전역 동작에 기댄다. 스파이크로 확인한다.
 - [가정] D-M3-11 행 5, D-M3-19 행 2·3은 명시 답이 없어 권고를 적용했다(M3-REQ-34, 58, 97).
 - [가정] 절 번호는 2026-10-26 작업 트리 기준이다. L3 세 문서는 절 번호와 항목 이름으로 인용한다. 본문이 바뀌면 §5 "L3 근거" 칸을 다시 대조한다.
 
@@ -391,8 +391,8 @@ M3a 이월 목록(carryover)에서 m3b-plan §2가 트랙에 배정한 항목이
 | SIGKILL 자식 프로세스 장애 시험 | B4-GRP |
 | inquiry.finished 중복 제거(leaseId 바뀐 재시작 뒤) | B4-GRP |
 | Helm 삭제 뒤 기본 플러그인 재설치 표지 | B4-GRP |
-| group-kit 시험 틈(재생 하네스 thread id, capabilityWrite, callContext, scan-drive, 교차 scope) | B4-GRP |
-| depcruise group-kit 예외 정리 | B4-GRP |
+| group-sdk 시험 틈(재생 하네스 thread id, capabilityWrite, callContext, scan-drive, 교차 scope) | B4-GRP |
+| depcruise group-sdk 예외 정리 | B4-GRP |
 | LR-17 GroupMetrics 쓰기 API | B4-GRP |
 | 기본 플러그인 번들 위치(M3-27) | B5-REL |
 | @swc/core 데스크톱 번들 미포함 확인 | B5-REL |
@@ -508,7 +508,7 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | "1 blobs" 문구 | 데이터 | T-I18N |
 | cap-knowledge 고정 전 행 | 데이터 | T-RT2 |
 | cap-web 고정 해제→고정 틈 | 데이터 | T-RT2 |
-| group-kit `delegate`가 signal을 받고 무시 | 데이터 | T-GK |
+| group-sdk `delegate`가 signal을 받고 무시 | 데이터 | T-GK |
 | 검토 포크 system-prompt 공유(`SpawnRequest` 옵션)와 REQ-70 fork 사용량 귀속 | L1·그룹 | T-RT2 |
 | 컴팩션 뒤 skill 본문 재주입 없음 | L1·그룹 | T-RT2 |
 | M3-21 잔여 | L1·그룹 | T-RT2 |
@@ -546,7 +546,7 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | macOS 릴리즈 경로 미실행 | 성능·릴리즈 | M5: macOS 릴리즈 경로 실기(사용자 묶음, m4-plan §4 7번) |
 | `L0.os` §3.6·§10-3 번들 정책 문구 | 성능·릴리즈 | T-CLN |
 | host-service의 `xeon.domain` 거부(DR-03, L4 규칙 결정) | 정리·문서 | M5: 층 규칙 결정 대기(m3-plan §9.4 15번) |
-| cli가 `@xeon/group-kit`을 시험에만 씀(devDependencies로) | 정리·문서 | T-CLN |
+| cli가 `@xeon/group-sdk`을 시험에만 씀(devDependencies로) | 정리·문서 | T-CLN |
 | E-01·02·04·05, N-07(`requestKeyFor` 48 대 `requestCommitKey` 64), V-05 잔여 | 정리·문서 | T-CLN |
 | `F/README:207`의 `check-points-doc.ts` 없음 | 정리·문서 | T-CLN |
 | m3-design-inputs G-IN-13·H-IN-17 상태 칸 | 정리·문서 | T-CLN |

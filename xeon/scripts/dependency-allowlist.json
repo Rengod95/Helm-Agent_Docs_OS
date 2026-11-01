@@ -36,21 +36,21 @@
     "approvedBy": "adr.0020"
   },
   {
-    "id": "DR-02/group-kit",
+    "id": "DR-02/group-sdk",
     "rule": "DR-02",
     "from": "packages/group-*",
-    "to": "@xeon/group-kit",
+    "to": "@xeon/group-sdk",
     "entries": [".", "./testing"],
-    "reason": "Every L3 group (packages/group-<name>, group-kit excepted) uses the shared group definition helpers of group-kit through its entries \".\" and \"./testing\" only (review.decisions-2 U-15). Other group paths and other group-kit entries stay violations. The group templates (group-kit/templates) import the same entries.",
+    "reason": "Every L3 group (packages/group-<name>, group-sdk excepted) uses the shared group definition helpers of group-sdk through its entries \".\" and \"./testing\" only (review.decisions-2 U-15). Other group paths and other group-sdk entries stay violations. The group templates (group-sdk/templates) import the same entries.",
     "approvedBy": "review.decisions-2"
   },
   {
-    "id": "DR-07/group-kit-test-spawn",
+    "id": "DR-07/group-sdk-test-spawn",
     "rule": "DR-07",
-    "from": "packages/group-kit",
+    "from": "packages/group-sdk",
     "to": "Bun.spawn",
-    "reason": "The cross-group import test runs scripts/check-layers.ts on a fixture workspace and reads its DR-02 failure (L3.group-kit.plan G-21).",
-    "approvedBy": "L3.group-kit.plan",
+    "reason": "The cross-group import test runs scripts/check-layers.ts on a fixture workspace and reads its DR-02 failure (L3.group-sdk.plan G-21).",
+    "approvedBy": "L3.group-sdk.plan",
     "scope": "test"
   },
   {

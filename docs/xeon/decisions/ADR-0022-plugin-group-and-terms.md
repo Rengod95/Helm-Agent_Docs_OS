@@ -4,8 +4,8 @@ layer: adr
 domain: plugin-group-terms
 kind: adr
 status: accepted
-depends_on: [adr.0007, adr.0016, adr.0017, adr.0018, adr.0019, adr.0021, architecture.overview.spec, architecture.layers.spec, F.extensions.spec, F.conversation.spec, F.records.spec, F.capabilities.spec, F.wire-settings.spec, X.primitives.spec, X.loading-trust.spec, X.operations.spec, L0.process.spec, L0.secrets.spec, L1.loop.spec, L2.schedule.spec, L3.group-kit.spec, L3.authoring.spec, L4.desktop-ux.spec, eng.operations.glossary]
-binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/conversation/**, xeon/packages/ext-host/**, xeon/packages/group-kit/**, xeon/packages/client/**]
+depends_on: [adr.0007, adr.0016, adr.0017, adr.0018, adr.0019, adr.0021, architecture.overview.spec, architecture.layers.spec, F.extensions.spec, F.conversation.spec, F.records.spec, F.capabilities.spec, F.wire-settings.spec, X.primitives.spec, X.loading-trust.spec, X.operations.spec, L0.process.spec, L0.secrets.spec, L1.loop.spec, L2.schedule.spec, L3.group-sdk.spec, L3.authoring.spec, L4.desktop-ux.spec, eng.operations.glossary]
+binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/conversation/**, xeon/packages/ext-host/**, xeon/packages/group-sdk/**, xeon/packages/client/**]
 ---
 
 # ADR-0022 플러그인 그룹 모델과 도메인 용어 정리

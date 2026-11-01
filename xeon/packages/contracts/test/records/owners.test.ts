@@ -41,7 +41,7 @@ const LAYOUT_DOMAINS: readonly string[] = [
   "dialog",
   "artifacts",
   "schedule",
-  "group-kit",
+  "group-sdk",
   "helm",
   "learning",
   "slots",

@@ -28,7 +28,7 @@ export const learningSettings: SettingGroup<"l3.learning", LearningSettingDefs> 
       type: Type.Integer({ minimum: 0, maximum: 1000 }),
       default: 10,
       runtimeChange: "nextTurn",
-      allowedScopes: ["user", "project", "session"],
+      allowedScopes: ["user", "project", "launch"],
       ui: {
         tab: "plugins",
         widget: "number",
@@ -42,7 +42,7 @@ export const learningSettings: SettingGroup<"l3.learning", LearningSettingDefs> 
       type: Type.Integer({ minimum: 0, maximum: 1000 }),
       default: 10,
       runtimeChange: "nextTurn",
-      allowedScopes: ["user", "project", "session"],
+      allowedScopes: ["user", "project", "launch"],
       ui: {
         tab: "plugins",
         widget: "number",

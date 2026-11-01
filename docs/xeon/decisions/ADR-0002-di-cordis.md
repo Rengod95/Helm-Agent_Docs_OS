@@ -45,7 +45,7 @@ binds: [xeon/vendor/cordis/**, xeon/packages/ext-host/**]
      ```
 
      위 예의 `@xeon/ext-host` 패키지 이름과 `ScopeHandle` 타입 이름은 설명용이다. 실제 이름은 X 스펙이 정한다.
-   - [결정: review.decisions-2 U-17] X보다 위 층의 구현 패키지(L0~L2)가 `@xeon/ext-host`를 import하는 것은 `eng.dependency-rules.guide` DR-14의 예외로 허용한다. 범위는 서비스 등록·주입 API뿐이다. 4연산 API는 L3 `group-kit`이 쓴다. 다른 구현 패키지의 import는 계속 금지다.
+   - [결정: review.decisions-2 U-17] X보다 위 층의 구현 패키지(L0~L2)가 `@xeon/ext-host`를 import하는 것은 `eng.dependency-rules.guide` DR-14의 예외로 허용한다. 범위는 서비스 등록·주입 API뿐이다. 4연산 API는 L3 `group-sdk`이 쓴다. 다른 구현 패키지의 import는 계속 금지다.
 5. [결정] 층 사이 협력은 F 정의 + Cordis 서비스로만 한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 1, `_research/foundation-plan.md §3` 패키지 의존 규칙). 같은 층 패키지끼리 import하지 않는다.
 6. [결정] 켜기·끄기는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용하고 정리는 Cordis dispose로 실행한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 5. 원문 표기 "턴 경계"를 단계 경계로 읽는 것은 [결정: review.decisions-2 U-01], ADR-0007 §3.6).
 7. [결정] 연동 규칙: pi durable의 `Context`는 DI 기능이 없는 취소 토큰(`abortSignal` 전달)이다. 포크할 때 로컬 타입 `CancelScope`로 치환한다. Cordis의 `Context`(DI 루트)와 이름이 겹치므로 포크 코드에 Cordis `Context`를 들이지 않는다(`_research/durable-and-search-facts.md §A-4` 이름 충돌 주의). 정의와 위치는 ADR-0003이 정한다.

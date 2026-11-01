@@ -21,8 +21,8 @@ import { AgentServicePortKey } from "@xeon/contracts/services";
 import { Type } from "typebox";
 import { capabilityDefTable } from "@xeon/ext-host";
 import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-kit";
-import { fakeAgents, type FakeAgents } from "@xeon/group-kit/testing";
+import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-sdk";
+import { fakeAgents, type FakeAgents } from "@xeon/group-sdk/testing";
 import {
   createLearningBridge,
   createLearningGroup,

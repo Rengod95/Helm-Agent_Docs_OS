@@ -9,7 +9,7 @@ import {
   type SdkModules,
 } from "@xeon/ext-host";
 import type { TestHost } from "@xeon/ext-host/testing";
-import * as kit from "@xeon/group-kit";
+import * as kit from "@xeon/group-sdk";
 
 function isMissing(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
@@ -50,7 +50,7 @@ const realLoaderFs: LoaderFs = {
 };
 
 /** X가 직접 등록하지 못하는 L3 모듈만 호스트가 넘긴다(X.loading-trust.spec §4.4.6) */
-const SDK_MODULES: SdkModules = { "@xeon/group-kit": kit };
+const SDK_MODULES: SdkModules = { "@xeon/group-sdk": kit };
 
 export interface LoaderRig {
   readonly loader: ExtensionLoader;

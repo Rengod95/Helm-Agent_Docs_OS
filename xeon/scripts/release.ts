@@ -3,7 +3,7 @@
 // to it, then packs one archive per target:
 //   xeon-<version>-<triple>/
 //     xeon                         the compiled binary (the resource directory is its parent, hostResourceDir())
-//     group-kit/templates/         group templates for `xeon group new` (locateGroupTemplates)
+//     group-sdk/templates/         group templates for `xeon group new` (locateGroupTemplates)
 //     default-plugins/<name>/      default plugin bundles (installDefaultPlugins)
 //     binaries/<name> + binaries.lock.json   bundled external binaries (macOS only, L0.os.spec 3.6)
 //     THIRD-PARTY-NOTICES.txt, SHA256SUMS
@@ -297,7 +297,7 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   const templates = join(xeonRoot, config.value.templates);
   if (!existsSync(join(templates, "index.json")))
     return fail({ kind: "input.missing", path: templates });
-  copyTree(templates, join(stage, "group-kit", "templates"));
+  copyTree(templates, join(stage, "group-sdk", "templates"));
 
   const pluginSteps = await config.value.defaultPlugins.reduce<Promise<Result<true, ReleaseError>>>(
     async (previous, plugin) => {

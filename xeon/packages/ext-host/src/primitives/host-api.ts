@@ -172,7 +172,7 @@ function directAmbient(
   };
 }
 
-/** 조립 루트가 `xeon.settings`로 올리는 설정 읽기. L3 group-kit의 `GroupSettingsSource`와 같은 이름·모양이다 */
+/** 조립 루트가 `xeon.settings`로 올리는 설정 읽기. L3 group-sdk의 `GroupSettingsSource`와 같은 이름·모양이다 */
 const SETTINGS_READ_PORT: PortKey<{ value(key: string): unknown }> = { name: "xeon.settings" };
 
 export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S> {

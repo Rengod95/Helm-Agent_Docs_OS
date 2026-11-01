@@ -8,7 +8,7 @@ import {
   type LoadOptions,
   type LoaderPaths,
 } from "../../src/loading-trust/index.ts";
-import { fakeGroupKit, SDK, writePlugin } from "./support/plugin-fixture.ts";
+import { fakeGroupSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { createLoaderHarness, moduleOf, type LoaderHarness } from "./support/harness.ts";
 import { makeTempDir, putFile, realLoaderFs } from "./support/real-fs.ts";
 
@@ -23,7 +23,7 @@ beforeEach(async () => {
   userExtensions = join(paths.userDir, "extensions");
   project = join(temp.dir, "project");
   await mkdir(project, { recursive: true });
-  fakeGroupKit.seen.length = 0;
+  fakeGroupSdk.seen.length = 0;
 });
 
 afterEach(async () => {
@@ -65,13 +65,13 @@ test("a user extension loads from <userDir>/extensions and its on handler fires"
   );
   expect(harness.policy.tiers.get("hello")).toBe("user");
   await fire(harness);
-  // 플러그인이 받은 `@xeon/contracts`와 `typebox`는 호스트와 같은 값이고, `@xeon/group-kit`은 호스트 객체다
-  expect(fakeGroupKit.seen).toEqual(["hello:shared:true:true", "hello:fired"]);
+  // 플러그인이 받은 `@xeon/contracts`와 `typebox`는 호스트와 같은 값이고, `@xeon/group-sdk`은 호스트 객체다
+  expect(fakeGroupSdk.seen).toEqual(["hello:shared:true:true", "hello:fired"]);
 });
 
 test("a plugin importing a contracts subpath gets the host's module without the host registering it", async () => {
-  // 조립 루트는 group-kit만 넘긴다. `@xeon/contracts/*` 하위 경로는 X가 등록해 `instanceof CapabilityError`가 호스트와 맞는다
-  const kitSpecifier = ["@xeon", "group-kit"].join("/");
+  // 조립 루트는 group-sdk만 넘긴다. `@xeon/contracts/*` 하위 경로는 X가 등록해 `instanceof CapabilityError`가 호스트와 맞는다
+  const kitSpecifier = ["@xeon", "group-sdk"].join("/");
   await writePlugin(userExtensions, "sub", {
     name: "sub",
     points: [],
@@ -87,11 +87,11 @@ export const extension = ({ scope }) => {
 `,
   });
   const harness = await harnessOf({
-    loader: { sdkModules: { "@xeon/group-kit": fakeGroupKit } },
+    loader: { sdkModules: { "@xeon/group-sdk": fakeGroupSdk } },
   });
   const report = await harness.loader.loadAll(loadOptions(harness));
   expect(report.diagnostics).toEqual([]);
-  expect(fakeGroupKit.seen).toEqual(["sub:error:true", "sub:ok:function"]);
+  expect(fakeGroupSdk.seen).toEqual(["sub:error:true", "sub:ok:function"]);
 });
 
 test("safe mode skips user extensions without importing them", async () => {
@@ -105,7 +105,7 @@ test("safe mode skips user extensions without importing them", async () => {
   // 설정 키는 카탈로그에 남는다(X.operations.spec §4.6.3)
   expect(report.settingGroups.map((group) => group.namespace)).toEqual(["ext.hello"]);
   await fire(harness);
-  expect(fakeGroupKit.seen).toEqual([]);
+  expect(fakeGroupSdk.seen).toEqual([]);
   expect(harness.t.host.scope("hello")).toBeUndefined();
 });
 
@@ -177,7 +177,7 @@ test("bad manifests give diagnostics and the host continues", async () => {
   const missing = report.diagnostics.find((entry) => entry.code === "manifest_missing");
   expect(missing).toMatchObject({ extension: null, source: "user", severity: "warning" });
   await fire(harness);
-  expect(fakeGroupKit.seen).toEqual(["good:shared:true:true", "good:fired"]);
+  expect(fakeGroupSdk.seen).toEqual(["good:shared:true:true", "good:fired"]);
 });
 
 test("entry failures reject only that extension", async () => {
@@ -219,7 +219,7 @@ test("a user extension cannot ask for the builtin trust level", async () => {
   ]);
   expect(codesOf(report.diagnostics, "greedy")).toEqual(["trust_exceeds_source"]);
   await fire(harness);
-  expect(fakeGroupKit.seen).toEqual([]);
+  expect(fakeGroupSdk.seen).toEqual([]);
 });
 
 test("built-in names win over user extensions and user wins over project", async () => {
@@ -269,7 +269,7 @@ test("project extensions need project trust", async () => {
     ["proj", "project", "active"],
   ]);
   await fire(allowed);
-  expect(fakeGroupKit.seen).toEqual(["proj:shared:true:true", "proj:fired"]);
+  expect(fakeGroupSdk.seen).toEqual(["proj:shared:true:true", "proj:fired"]);
 });
 
 test("a project without extension resources needs no trust decision", async () => {
@@ -346,5 +346,5 @@ test("a project extension directory that links outside .xeon/extensions is not d
   expect(report.diagnostics.map((entry) => [entry.source, entry.code])).toEqual([
     ["project", "manifest_missing"],
   ]);
-  expect(fakeGroupKit.seen).toEqual([]);
+  expect(fakeGroupSdk.seen).toEqual([]);
 });

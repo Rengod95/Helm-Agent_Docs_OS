@@ -5,7 +5,7 @@ domain: replay-effects
 kind: adr
 status: accepted
 depends_on: [adr.0004, adr.0007, adr.0009, F.extensions.spec, F.capabilities.spec, X.primitives.spec]
-binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/capabilities/**, xeon/packages/ext-host/src/primitives/**, xeon/packages/group-kit/**, xeon/packages/group-helm/**, xeon/packages/group-learning/**]
+binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/capabilities/**, xeon/packages/ext-host/src/primitives/**, xeon/packages/group-sdk/**, xeon/packages/group-helm/**, xeon/packages/group-learning/**]
 ---
 
 # ADR-0015 재실행되는 확장 코드의 효과 목록: 선언형 허용(C안)
@@ -15,7 +15,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 - 상태: accepted
 - 날짜: 2026-10-26(결정 2026-10-25)
 - [결정] C안(선언형 허용)을 채택한다. `g.delegate`와 `loop.spawn`은 코어가 멱등을 보장한다. 능력 메서드는 F 정의에 `idempotent: true`를 선언하고 `requestId`를 받는 것만 허용한다. 읽기(replay safe) 메서드는 drive에서 허용한다. 선언 없는 쓰기는 요청 레코드와 워커를 거친다. 시험은 "재생 2회, 효과 1회"로 둔다(사용자 결정 2026-10-25, M3 설계 단계 순서 결정).
-- 이 ADR은 `review.m3-plan` M3-03과 마일스톤 재점검 G1-06을 닫는다. `adr.readme` §6의 G1-06 미결, `L3.helm.spec` §10 [미결 C2], `L3.learning.spec` §10 미결 2, `L3.group-kit.spec` §3.4·§10 공통 모순 2의 결정 근거다.
+- 이 ADR은 `review.m3-plan` M3-03과 마일스톤 재점검 G1-06을 닫는다. `adr.readme` §6의 G1-06 미결, `L3.helm.spec` §10 [미결 C2], `L3.learning.spec` §10 미결 2, `L3.group-sdk.spec` §3.4·§10 공통 모순 2의 결정 근거다.
 - 함께 닫는 사용자 결정: `product.scope.spec` §10 미결 4(Helm 내부 설계 착수 시점)는 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(이 ADR)"이다. 문서 반영은 §4.3 후속 작업에 적는다.
 - 개정: 2026-10-26 `review.m3-design-inputs` D-M3-31 행 1·8(§6 미결 두 항목을 닫음). §3.2 on 핸들러 읽기 불허 [제안]을 [결정]으로 올린다.
 
@@ -55,7 +55,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 | 능력 메서드: 멱등 쓰기(`idempotent: true`) | 허용 | 허용 | 능력 공급자(내구 기록) | `requestId` 필수, 결정적 명시 키(§3.4 3번) |
 | 능력 메서드: 읽기(`readOnly: true`) | 허용하지 않음 | 허용 | 필요 없음(효과 없음) | 결과를 고정하려면 상태에 커밋 |
 | 능력 메서드: 선언 없음 | 허용하지 않음 | 허용하지 않음 | 해당 없음 | §3.5 요청 레코드와 워커를 거친다 |
-| 그 밖의 I/O(직접 파일·네트워크, 시각, 난수) | 허용하지 않음 | 허용하지 않음 | 해당 없음 | 기존 결정성 규칙(`L3.group-kit.spec` lint) |
+| 그 밖의 I/O(직접 파일·네트워크, 시각, 난수) | 허용하지 않음 | 허용하지 않음 | 해당 없음 | 기존 결정성 규칙(`L3.group-sdk.spec` lint) |
 
 - [결정] `g.delegate`와 `loop.spawn`은 코어가 멱등을 보장한다. 같은 대화에서 같은 `requestId`의 두 번째 호출은 새 자식 대화나 위임을 만들지 않고 처음 결과(`duplicate` 또는 기록된 `SpawnOutcome`)를 돌려준다. 이 보장은 프로세스 재시작 뒤에도 유지된다(키를 세션 DB에 커밋한다).
 - [결정] 능력 메서드는 F 정의가 `idempotent: true`를 선언하고 `requestId`를 받을 때만 효과가 있는 호출로 허용한다.
@@ -81,7 +81,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 1. [제안] 재실행되는 코드가 넘기는 `requestId`는 결정적이어야 한다. 같은 커밋 상태와 같은 페이로드로 다시 실행하면 같은 키가 나와야 한다. 멱등이 "재생 2회, 효과 1회"를 지키는 전제다.
 2. [제안] 키의 재료로 쓸 수 있는 값: 커밋된 id(`turnId`, `stepId`), 커밋된 상태 문서의 값(예: 학습 그룹의 `epoch`, Helm 탐구 id), 디스패치 키. `Date.now`, `Math.random`, 클로저 지역 변수의 진행 값은 쓰지 않는다. `leaseId`는 재시작 뒤 바뀔 수 있어 `leaseId` 유지 규칙(REQ-X-04)이 닫히기 전에는 명시 키의 재료로 쓰지 않는다.
 3. [제안] 기본 키는 `loop.turn`과 `loop.spawn`에만 준다(`X.primitives.spec` §4.4.4의 `${leaseId}:${순번}`). 능력 호출 가운데 읽기는 멱등 키가 필요 없으므로 `requestId`를 생략해도 된다. `idempotent` 쓰기는 drive 함수 안에서도 기본 키를 받지 않고 명시 키를 요구한다. 이유는 재시작이나 재활성화 뒤 `leaseId`가 바뀔 수 있어(`L3.helm.spec` §4.5, 요구 REQ-X-04) 기본 키가 달라지면 공급자의 (대화, 메서드, `requestId`) 멱등이 깨져 효과가 두 번 날 수 있기 때문이다. on 핸들러 안의 `g.delegate`와 능력 쓰기도 명시 키를 요구한다. 명시 키는 다른 scope와 섞이지 않게 scope id로 시작한다(예: `learning:review:<epoch>`). `leaseId` 유지 규칙이 닫히면 drive의 쓰기에도 기본 키를 줄지 다시 본다(§6 미결).
-4. 길이와 형식은 `F.capabilities.spec` §3.1의 `requestId`(1~64자)를 따른다. `g.delegate`의 보고 키 접미사(`:report`)를 위해 위임 키는 48자 이하로 둔다(`L3.group-kit.spec` §3.4).
+4. 길이와 형식은 `F.capabilities.spec` §3.1의 `requestId`(1~64자)를 따른다. `g.delegate`의 보고 키 접미사(`:report`)를 위해 위임 키는 48자 이하로 둔다(`L3.group-sdk.spec` §3.4).
 
 ### 3.5 선언 없는 쓰기: 요청 레코드와 워커
 
@@ -97,7 +97,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 
 1. [결정] 재실행되는 코드와 멱등 메서드는 "재생 2회, 효과 1회" 시험을 둔다. 같은 커밋 상태와 같은 입력으로 두 번 실행해도 외부 효과는 한 번만 생겨야 한다.
 2. [제안] 시험 세 가지:
-   - 그룹 시험(`replayDrive` 확장, `L3.group-kit.plan` G-20): 기준 실행의 모든 커밋 지점에서 끊고 재개한다. 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행한다. 가짜 포트(`LoopPort`, 위임 서비스, 능력 공급자)의 효과 계수기로 turn, spawn, delegate, 능력 쓰기, post가 각각 한 번인지 확인한다. 반환값 비교만으로는 통과로 보지 않는다.
+   - 그룹 시험(`replayDrive` 확장, `L3.group-sdk.plan` G-20): 기준 실행의 모든 커밋 지점에서 끊고 재개한다. 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행한다. 가짜 포트(`LoopPort`, 위임 서비스, 능력 공급자)의 효과 계수기로 turn, spawn, delegate, 능력 쓰기, post가 각각 한 번인지 확인한다. 반환값 비교만으로는 통과로 보지 않는다.
    - 능력 적합성 시험(공급자 패키지마다): `idempotent: true` 메서드를 같은 `requestId`로 두 번 부르고, 사이에 저장소를 닫았다 다시 연다. 이벤트·행·외부 호출이 한 번이고 두 번째 결과가 처음 결과와 같아야 한다. `readOnly: true` 메서드는 호출 전후 세션 DB 이벤트 수가 같아야 한다.
    - X 래퍼 시험(`X.primitives.plan`): drive·on 문맥에서 선언 없는 메서드 호출은 `effect_not_allowed`로 거부되고 공급자가 불리지 않는다. on 문맥의 읽기 호출도 거부된다. 재실행되는 코드의 `idempotent` 호출에 `requestId`가 없으면 거부된다.
 3. [제안] 효과 계수 규칙은 `X.primitives.spec` §4.4.3의 `effects`에 맞춘다. 재생된 `loop.turn`·`loop.spawn`, `duplicate`인 `post`·`g.delegate`, 처음 결과를 돌려준 멱등 능력 호출은 효과로 세지 않는다. 읽기 호출도 효과가 아니다.
@@ -132,8 +132,8 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 | `L1.agents.spec` | `delegate`의 (부모 대화, `requestId`) 멱등이 재시작 뒤에도 유지된다는 문장과 시험 | 대기 |
 | L2 각 spec(`work`, `knowledge`, `web`, `dialog`, `mcp`, `workspace`) | 메서드마다 `readOnly`·`idempotent`·선언 없음 분류. 멱등 쓰기의 내구 기록 근거 | 반영(M3a A4 T-L2). `artifacts`, `schedule`은 정의가 없어 해당 패키지 구현 때 분류한다 |
 | L2 각 plan | 능력 적합성 시험(§3.6 2번 둘째 항목)을 공급자 패키지마다 단위 테스트 목록에 더한다 | 대기 |
-| `L3.group-kit.spec` §3.4, §10 | on 핸들러 `delegate` 허용, 공통 모순 2 닫음 | 반영 |
-| `L3.group-kit.spec` §3.10 / plan G-20 | `replayDrive`의 효과 계수 확인(§3.6 2번 첫째 항목), `delegateStatus`·`cancelDelegates`·`report?`·`GroupStatus.drive "rejected"` 작업 | 반영(group-kit plan G-20 확장, G-28~G-30 추가) |
+| `L3.group-sdk.spec` §3.4, §10 | on 핸들러 `delegate` 허용, 공통 모순 2 닫음 | 반영 |
+| `L3.group-sdk.spec` §3.10 / plan G-20 | `replayDrive`의 효과 계수 확인(§3.6 2번 첫째 항목), `delegateStatus`·`cancelDelegates`·`report?`·`GroupStatus.drive "rejected"` 작업 | 반영(group-sdk plan G-20 확장, G-28~G-30 추가) |
 | `L3.helm.spec` §4.5, §4.11, §10 C2 | `gatherContext`는 읽기, `linkWork`는 멱등 쓰기로 적고 C2를 닫는다 | 반영 |
 | `L3.learning.spec` §4.3, §4.10, §10 미결 2 | 대체안(요청 레코드 + L1-g 워커) 문단을 정리하고 미결 2를 닫는다 | 반영 |
 | `L3.slots.spec` §10 | 공통 모순 2를 닫음으로 적는다 | 반영 |

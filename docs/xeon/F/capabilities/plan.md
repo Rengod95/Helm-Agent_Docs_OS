@@ -18,7 +18,7 @@ binds: [xeon/packages/contracts/src/capabilities/**, xeon/packages/contracts/src
 |---|---|---|
 | M0 | `CapabilityId`·`SemVer`·`SemVerRange`·`ToolName` 스키마, `MethodDef`, `ToolSpec`(기계 이름 `name`과 표시 제목 `label` 포함), `CapabilityDef`, `defineCapability`, `ServiceKey`·`serviceKey`, `CapabilityError`, `validateCapability`·`validateCapabilitySet`, `toJsonSchema`, `toolOrderKey`·`orderTools`·`canonicalToolset`·`toolsetFingerprint`·`diffToolsets`, `web.search` 예시 픽스처, `./services`의 서비스 인터페이스 14종과 `SERVICE_NAMES`(스펙 §3.12, review.decisions-2 D-04) | X(ext-host 최소형), F.extensions(매니페스트가 ID 스키마를 import), L0 `platform-*`, L1 `core-*`(서비스 구현과 주입) |
 | M1 | 걷는 골격의 도구 `read`, `ls`, `bash`를 이 정의 형식으로 정의한다. 정의는 F.capabilities.spec §3.9의 배치 제안에 따라 `capabilities/defs/workspace.ts`에 둔다 | L1 core-tools(도구 어댑터, `AgentTool` 생성), L2 cap-workspace(provider) |
-| M2 이후 | 내장 L2 능력 정의 추가(`web.*`, `knowledge.*`, `mcp` 정적 메서드 등. 각 L2 plan이 정의 내용을 제공), 네임스페이스·충돌 규칙 확정 반영, Cordis 선언 병합 결정 반영 | 모든 L2, L3 group-kit |
+| M2 이후 | 내장 L2 능력 정의 추가(`web.*`, `knowledge.*`, `mcp` 정적 메서드 등. 각 L2 plan이 정의 내용을 제공), 네임스페이스·충돌 규칙 확정 반영, Cordis 선언 병합 결정 반영 | 모든 L2, L3 group-sdk |
 
 - 기계 이름·표시 제목 분리는 계획 v2에서 2차 항목이다(`_research/layer-plan-v2.json` F3). pi-ai `Tool.name`과 agent-core `AgentTool.label`에 이미 있으므로 M0에 같이 넣는다.
 - M1 스모크(`_research/foundation-plan.md` §5 P4)의 도구 3종은 이 형식을 거쳐야 한다. L1 core-tools가 `ToolSpec`을 `AgentTool`로 바꾸는 어댑터를 M1에 만든다(L1.tools.plan).

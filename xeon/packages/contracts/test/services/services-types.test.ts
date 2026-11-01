@@ -85,11 +85,11 @@ export type ResolutionIsPayload = Expect<
   >
 >;
 
-/** GroupService의 설정 범위는 SettingScope와 서로 대입 가능하다(L3.group-kit.spec §9 20) */
+/** GroupService의 설정 범위는 SettingScope와 서로 대입 가능하다(L3.group-sdk.spec §9 20) */
 type HolderScope = NonNullable<Parameters<GroupService["setDriveHolder"]>[1]>["scope"];
 export type HolderScopeIsSettingScope = Expect<Equal<NonNullable<HolderScope>, SettingScope>>;
 
-/** setDriveHolder는 쓸 thread를 옵션으로 받는다(L3.group-kit.spec §3.8, 통합 검토 L8) */
+/** setDriveHolder는 쓸 thread를 옵션으로 받는다(L3.group-sdk.spec §3.8, 통합 검토 L8) */
 type HolderOptions = NonNullable<Parameters<GroupService["setDriveHolder"]>[1]>;
 export type HolderOptionTargetsThread = Expect<
   Equal<HolderOptions["threadId"], ThreadId | undefined>

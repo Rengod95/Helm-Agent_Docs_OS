@@ -33,7 +33,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 - 확장 탐색, 로드 순서 결정, 매니페스트 검증 흐름, 신뢰 판정, 프로세스 격리, SDK 가상 모듈, 설정 키 `ext.<name>.enabled`·`ext.<name>.isolation`: X.loading-trust.spec
 - tier 값의 정의, 핸들러 시간 예산 값, 실패 격리와 자동 끄기, 확장 전용 저장 영역 정책, 이름 충돌 규칙, 안전 모드, 외부 훅 프로토콜, 설정 키 `x.operations.*`: X.operations.spec
 - 지점을 실제로 발화하는 코드와 boundary 최종 검증 로직: L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec [가정: 문서 이름은 `_routing/routes.yaml` layout 기준]
-- 임대 정책(어느 그룹에 기본 임대를 줄지 고르는 판단)의 그룹 측 구현 `DriveArbiter`: L3.group-kit.spec
+- 임대 정책(어느 그룹에 기본 임대를 줄지 고르는 판단)의 그룹 측 구현 `DriveArbiter`: L3.group-sdk.spec
 
 소유 경계 조정 [제안]: F.extensions.spec §1과 §4.2는 tier와 핸들러 시간 예산을 이 문서의 몫으로 적었다. `_research/layer-plan-v2.json` X-c와 eng.transactions.design §8은 둘 다 X.operations 소유로 둔다. 이 문서는 후자를 따른다. 디스패처는 tier 정렬 키와 시간 예산을 `DispatchPolicy`로 주입받는 인터페이스만 정의하고 값은 정하지 않는다(§3.4). F §1·§4.2 문구 수정을 요청한다(§10).
 
@@ -261,17 +261,17 @@ export interface ExtHost {
   /** `options.child`가 참이면 서브에이전트 자식 대화다. 확장은 켜지만 drive 임대는 받지 않는다(§4.4.1 3a) */
   openThread(threadId: ThreadId, options?: { readonly child?: boolean }): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
-  /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null. L3.group-kit.spec §3.13 요청 2의 답이다 */
+  /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null. L3.group-sdk.spec §3.13 요청 2의 답이다 */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
   /**
-   * scope 토글 요청·적용, 임대 부여·반납이 일어나면 알린다(L3.group-kit.spec §3.13 요청 3의 답).
+   * scope 토글 요청·적용, 임대 부여·반납이 일어나면 알린다(L3.group-sdk.spec §3.13 요청 3의 답).
    * 요청은 곧바로, 적용과 임대 변화는 경계 커밋 뒤에 부른다. 구독자의 예외는 `report`로 남기고 다른 구독자에게 이어 간다
    */
   onChange(listener: (change: ExtChange) => void): Unsubscribe;
   /** L4가 읽는 명령·키 조합·플래그·렌더러 표 */
   readonly resources: ResourceRegistry;
   /**
-   * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-kit.spec §3.13 요청 5). 호스트용이고 확장 scope에는 열지 않는다.
+   * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-sdk.spec §3.13 요청 5). 호스트용이고 확장 scope에는 열지 않는다.
    * 서비스 `xeon.session`의 `readBranch`(`SessionBranchPortKey`)가 없으면 `port_unavailable`, 접두가 비면 `invalid_prefix`다
    */
   queryEvents(threadId: ThreadId, query: EventPrefixQuery): Promise<Result<readonly DurableEventEnvelope[], EventQueryError>>;
@@ -988,15 +988,15 @@ lifecycle [결정: adr.0017]:
 3. 임대는 thread마다 하나다. 한 thread에서 동시에 임대를 가진 scope는 최대 하나다([결정] ADR-0007 §3.6). 임대 부여는 경계 훅(`step_end`, `turn_settled`, `idle`)과 `openThread`에서만 판단한다.
 3a. [결정: M3b B3-L1M, 오케스트레이터 기본값] `openThread(threadId, { child: true })`로 연 서브에이전트 자식 대화에는 임대를 부여하지 않는다. 자식 대화의 구동은 위임한 쪽(`loop.spawn`, 그룹 `delegate`)이 맡으므로 그 대화에서 drive 함수가 돌면 안 된다. 호스트는 자식 turn을 여는 감싸개에서 이 인자를 준다.
 4. 후보는 그 thread에서 켜져 있고 drive 등록이 있고 오류 상태가 아닌 scope다. 고르는 순서 [제안]:
-   - `LeaseArbiterPort`가 있으면 그 결과를 쓴다(L3.group-kit.spec의 `DriveArbiter`).
+   - `LeaseArbiterPort`가 있으면 그 결과를 쓴다(L3.group-sdk.spec의 `DriveArbiter`).
    - 없으면 후보가 하나일 때 그 scope를 고른다.
    - 둘 이상이면 설정 `x.primitives.activeDriveGroup`(thread 범위 값)이 가리키는 후보를 고른다. drive 보유 그룹을 고르는 설정은 이 키 하나다([결정: review.decisions-2 S-15]). 설정이 없거나 후보 밖이면 아무에게도 주지 않고 `drive_conflict` 경고를 낸다. 사용자는 L4 설정 화면에서 고른다(F.extensions.spec §5 5번).
    - 후보는 그 thread에서 켜진 scope만 센다(§4.5.2). 한 thread에서 꺼진 그룹은 다른 thread의 후보여도 이 thread의 후보가 아니다.
 5. 이미 임대가 있으면 중재자와 후보 수를 다시 묻지 않는다. 설정 `x.primitives.activeDriveGroup`이 다른 그룹을 가리킬 때만 예외다. 가리킨 그룹이 이 thread의 후보(켜져 있고 drive를 등록했고 오류 상태가 아니고 `idle`·`budget` 반납 뒤 대기 중이 아님)이면 현재 임대를 `revoked` 사유로 `releasing`으로 바꾼다. 반납은 다음 경계 커밋에서 기록되고, 그 커밋이 끝나면 곧바로 이어서 후보를 다시 판단해 가리킨 그룹에 `lease.acquired`를 기록한다. 가리킨 그룹이 후보가 아니면 현재 임대를 유지한다. 진행 중인 `loop.turn`은 끊지 않는다(§4.4.4). 설정이 `null`로 바뀌거나 중재자가 다른 그룹을 고르게 되어도 회수하지 않는다. 회수는 사용자가 이름을 지정한 경우의 동작이다([결정: P-22]).
 6. 부여: `leaseEpoch = 그 scope의 직전 차수 + 1`, `leaseId = ids`로 만든 불투명 문자열(40자 이하) [제안]. 경계 기여에 `lease.acquired { leaseId, scopeId, limits }`(F.records.spec §3.3)를 넣는다. 임대 상태는 `active`다.
 7. `lease.acquired`의 `leaseEpoch`(F `LeaseAcquiredPayload.leaseEpoch`, 선택 필드)에 부여한 차수를 싣는다. 재개 때는 `ExtThreadSnapshot.openLease.leaseEpoch`와 `leaseEpochs`로 같은 임대를 같은 `leaseId`·차수로 이어 간다(`restore`). 옛 기록처럼 필드가 없으면 활성 가지 위 scope별 `lease.acquired` 개수로 다시 센다. 되감은 뒤에는 버려진 가지의 차수 값이 다시 나올 수 있고, 펜싱과 멱등 키는 `leaseId`(임대마다 새로 발급)를 함께 쓰므로 섞이지 않는다.
-8. [제안, M3-REQ-28, D-M3-05 a] 대기와 거부. 임대를 받지 못한 후보(다른 그룹이 임대를 가졌거나 중재자가 다른 그룹을 골랐음)는 대기한다. X는 경계마다 후보별 대기를 세며 `turn_settled`와 `idle` 경계가 한 번 지날 때마다 1을 더한다(`step_end`는 세지 않는다). 값이 `x.primitives.leaseWaitLimit`(기본 8, §6)을 넘으면 그 경계 기여에 내구 이벤트 `lease.rejected { groupId, reason: "wait_limit", requestSeq }`를 싣는다. `requestSeq`는 thread 안에서 후보가 대기를 시작한 순번이다. 거부된 scope는 그 thread에서 다음 임대 반납이 커밋될 때까지 다시 세지 않고, 반납이 커밋되면 모든 후보가 새로 대기를 시작한다. 거부 이벤트의 커밋 키는 `lease:<대기 scope>:rejected:<임대를 가진 scope>.<그 임대 차수>`다. 둘 다 커밋된 값이라 thread를 다시 열어 `requestSeq`가 0부터 다시 시작해도 다른 임대 아래의 거부와 키가 겹쳐 사라지지 않는다. 같은 임대 아래의 같은 거부를 다시 열린 thread가 한 번 더 내면 `replayed`로 한 건만 남는다. 경계 커밋이 실패하면 그 경계가 올린 대기 계수를 되돌린다. 거부는 그룹의 `on`, `post`, `commit`을 막지 않는다. 이벤트가 커밋되면 `lifecycle.lease.rejected`가 발화한다(§4.11). `GroupStatus.drive "rejected"`를 채우는 일은 group-kit 몫이다.
-9. 역할 분담: `DriveArbiter`(group-kit)는 누가 받는지(정책)를, X는 대기 계수, 상한 집행, `lease.rejected` 커밋, 부여·반납 커밋(메커니즘)을 맡는다. 유휴 중 임대를 받은 그룹은 임대 상한 안에서 turn을 연다([결정: review.m3-design-inputs D-M3-06 a], §4.5.5).
+8. [제안, M3-REQ-28, D-M3-05 a] 대기와 거부. 임대를 받지 못한 후보(다른 그룹이 임대를 가졌거나 중재자가 다른 그룹을 골랐음)는 대기한다. X는 경계마다 후보별 대기를 세며 `turn_settled`와 `idle` 경계가 한 번 지날 때마다 1을 더한다(`step_end`는 세지 않는다). 값이 `x.primitives.leaseWaitLimit`(기본 8, §6)을 넘으면 그 경계 기여에 내구 이벤트 `lease.rejected { groupId, reason: "wait_limit", requestSeq }`를 싣는다. `requestSeq`는 thread 안에서 후보가 대기를 시작한 순번이다. 거부된 scope는 그 thread에서 다음 임대 반납이 커밋될 때까지 다시 세지 않고, 반납이 커밋되면 모든 후보가 새로 대기를 시작한다. 거부 이벤트의 커밋 키는 `lease:<대기 scope>:rejected:<임대를 가진 scope>.<그 임대 차수>`다. 둘 다 커밋된 값이라 thread를 다시 열어 `requestSeq`가 0부터 다시 시작해도 다른 임대 아래의 거부와 키가 겹쳐 사라지지 않는다. 같은 임대 아래의 같은 거부를 다시 열린 thread가 한 번 더 내면 `replayed`로 한 건만 남는다. 경계 커밋이 실패하면 그 경계가 올린 대기 계수를 되돌린다. 거부는 그룹의 `on`, `post`, `commit`을 막지 않는다. 이벤트가 커밋되면 `lifecycle.lease.rejected`가 발화한다(§4.11). `GroupStatus.drive "rejected"`를 채우는 일은 group-sdk 몫이다.
+9. 역할 분담: `DriveArbiter`(group-sdk)는 누가 받는지(정책)를, X는 대기 계수, 상한 집행, `lease.rejected` 커밋, 부여·반납 커밋(메커니즘)을 맡는다. 유휴 중 임대를 받은 그룹은 임대 상한 안에서 turn을 연다([결정: review.m3-design-inputs D-M3-06 a], §4.5.5).
 
 #### 4.4.2 상한
 
@@ -1238,7 +1238,7 @@ commit(next):
 - 이벤트 kind [제안]: 그룹은 `grp.<name>.state.committed`, 플러그인은 `x.<name>.state.committed`다. F.records.spec §3.2의 확장 kind 형식(`<x|grp>.<확장 이름>.<영역>.<이름>`)을 따른다. 영역 `state`는 X 예약이다. 확장은 `recordKinds`에 `.state.` 영역을 선언할 수 없다. [미결] 이 예약을 F `validateManifest`의 오류 코드로 둘지(`record_kind_reserved` 추가 요청).
 - 하위 scope도 같은 kind를 쓰고 payload의 `scopeId`로 구분한다.
 - payload [제안]: `{ scopeId, rev, prevEventId, version, doc }`. `prevEventId`는 같은 가지에서 그 scope의 바로 앞 상태 이벤트 id이고 첫 커밋이면 `null`이다. 상태 이벤트는 가지마다 `prevEventId`로 이어진 선형 이력을 이룬다.
-- 투영 [제안]: X 소유 투영기가 테이블 `x_<name의 하이픈을 밑줄로>_state`(열: `thread_id`, `scope_id`, `event_id`, `prev_event_id`, `rev`, `version`, `doc`, 기본 키 `event_id`)를 같은 `SessionWriter` 트랜잭션에서 갱신한다(eng.transactions.design TX-03, §4.2 `ProducerHandle`). 상태 이벤트와 투영 행이 한 트랜잭션이다. 행은 가지마다 쌓이고 덮어쓰지 않는다. 활성 가지의 상태는 활성 가지 사슬 위의 `event_id` 중 가장 나중 행이다. L3.group-kit.spec §3.6 `StateProjectionRow`도 이 열 이름을 쓴다.
+- 투영 [제안]: X 소유 투영기가 테이블 `x_<name의 하이픈을 밑줄로>_state`(열: `thread_id`, `scope_id`, `event_id`, `prev_event_id`, `rev`, `version`, `doc`, 기본 키 `event_id`)를 같은 `SessionWriter` 트랜잭션에서 갱신한다(eng.transactions.design TX-03, §4.2 `ProducerHandle`). 상태 이벤트와 투영 행이 한 트랜잭션이다. 행은 가지마다 쌓이고 덮어쓰지 않는다. 활성 가지의 상태는 활성 가지 사슬 위의 `event_id` 중 가장 나중 행이다. L3.group-sdk.spec §3.6 `StateProjectionRow`도 이 열 이름을 쓴다.
 - 활성 가지 규칙 [제안]:
   1. `loadThread(threadId)`는 현재 leaf에서 `parentId`를 따라 올라간 사슬 위의 `state.committed`, `scope.changed`, `lease.*`만 본다. 버려진 가지의 이벤트는 상태, 켜짐, 임대, 임대 차수 어디에도 들어가지 않는다. eng.events.design §9의 "확장 상태는 분기·되감기·재개를 따라간다"를 이 규칙으로 구현한다.
   2. `rev`는 (thread, scope)의 활성 가지 위 마지막 상태 이벤트의 `rev`다. 되감은 뒤 새 커밋은 그 가지의 `rev + 1`을 쓰므로 버려진 가지에서 이미 쓴 판 번호가 다시 나올 수 있다. 판 번호는 가지 안에서만 유일하고, 행의 신원은 `event_id`다.
@@ -1247,7 +1247,7 @@ commit(next):
   5. L1.persistence.spec §3.3의 `ext.loadThread` 구현은 이 규칙을 지켜야 한다. 가지를 구분하지 않는 `query.latestEvent`와 이벤트 순서로 갱신되는 `p_scopes`만으로는 버려진 가지의 마지막 값을 돌려줄 수 있다. 그래서 L1.persistence.spec §3.3은 `latestEvent`에 `onActiveBranch: true` 옵션을 두고 `branchItems`와 같은 사슬 조회를 한다.
 - 멱등 키 [제안]: on 핸들러 안에서는 `st:<scope 해시>:<dispatchKey>:<n>`, drive 함수 안에서는 `${leaseId}:${baseRev}.c<n>`이다. 핸들러가 소비 커밋 전 크래시로 다시 실행되면 같은 키가 나와 두 번째 커밋은 `replayed`가 된다(F.extensions.spec §4.3). `<scope 해시>`는 scope id의 SHA-256 앞 12자다. eng.transactions.design §4.7·§4.8의 키 표는 이 키를 쓴다. 키 형식 검사는 `COMMIT_KEY_PATTERN`이다([결정: review.decisions-2 U-13]).
 - 지문 규칙 [제안]: 상태 커밋의 지문 원천(`fingerprintSource`)은 키의 신원 부분(on: `{ scopeId, dispatchKey, n }`, drive: `{ scopeId, leaseId, baseRev, n }`)뿐이다. doc 본문과 기대 판은 넣지 않는다. 재실행 때는 상태 커밋이 이미 반영되어 기대 판이 한 칸 앞서 있고 핸들러가 계산한 doc도 처음과 다를 수 있다. 둘 중 하나라도 지문에 들어가면 정당한 재실행이 `key_reused`가 된다.
-- 재실행 규칙 [제안]: 소비 커밋 전 크래시 뒤 다시 실행된 핸들러는 이미 커밋된 상태 판을 본다. 재시작 뒤 캐시는 `loadThread`가 읽은 판 k+1이고, `ctx.state`와 `g.state()`도 그 값이다. 핸들러가 그 값으로 다시 계산한 `next`는 `replayed` 결과에서 버려지고, X는 `ExtCommitResult.stored`(저장된 판 k+1)를 캐시에 두고 `commit`의 반환값으로 돌려준다. 그래서 DB, 캐시, 핸들러가 받는 반환값은 같은 doc이다. 다만 `replayed` 이전에 핸들러가 `ctx.state`로 계산한 다른 부수 결과(post 본문, record payload)는 처음 실행과 다를 수 있다. 그래서 상태 갱신 함수는 이미 반영된 갱신을 다시 적용해도 결과가 같은 멱등 reducer로 쓴다(예: 판 번호나 처리한 입력 id를 doc에 두고 비교한다). L3.group-kit.spec §4.5 6번의 멱등 reducer 예제가 이 형태다.
+- 재실행 규칙 [제안]: 소비 커밋 전 크래시 뒤 다시 실행된 핸들러는 이미 커밋된 상태 판을 본다. 재시작 뒤 캐시는 `loadThread`가 읽은 판 k+1이고, `ctx.state`와 `g.state()`도 그 값이다. 핸들러가 그 값으로 다시 계산한 `next`는 `replayed` 결과에서 버려지고, X는 `ExtCommitResult.stored`(저장된 판 k+1)를 캐시에 두고 `commit`의 반환값으로 돌려준다. 그래서 DB, 캐시, 핸들러가 받는 반환값은 같은 doc이다. 다만 `replayed` 이전에 핸들러가 `ctx.state`로 계산한 다른 부수 결과(post 본문, record payload)는 처음 실행과 다를 수 있다. 그래서 상태 갱신 함수는 이미 반영된 갱신을 다시 적용해도 결과가 같은 멱등 reducer로 쓴다(예: 판 번호나 처리한 입력 id를 doc에 두고 비교한다). L3.group-sdk.spec §4.5 6번의 멱등 reducer 예제가 이 형태다.
 - 저장소 결과 변환: L1.persistence.spec §3.3이 `SessionWriter` 결과를 `ExtCommitResult`로 바꾼다. `ownership_lost` → `lease_lost`, `key_reused` → `invalid`, 쓰기 잠금 대기 초과 → `busy`, `disk_full`·`read_only` → `storage`다. 같은 키·같은 지문의 상태 커밋은 `replayed`와 저장된 상태(`stored`)를 돌려준다. L1.persistence.spec §3.3의 변환표가 이 규칙과 같다.
 - 같은 (thread, scope)에 커밋이 겹치면 `expectStateRev`로 뒤 커밋을 `state_conflict`로 거부한다. 호출자는 최신 `state()`를 읽고 다시 계산해야 한다.
 - 멱등 신원(키와 지문)은 `record`·`recordPrivate`와 같이 호출 시점에 호출 순서대로 받는다. 줄에서 기다리는 `commit`·`updateState`도 같다. `updateState`의 재시도는 같은 신원에 접미사 `.a1`을 붙인 키와 지문을 쓰고 호출 순번을 더 쓰지 않는다. 시간 예산을 넘겨 버려진 핸들러(좀비)나 닫힌 세션의 핸들러는 신원을 받을 때와 줄에서 실행될 때 `handler_aborted`로 거부되어 커밋하지 못한다(`commit`, `commitWith`, `updateState`, `record`, `recordPrivate`).
@@ -1296,7 +1296,7 @@ readRecords(query):
 
 #### 4.6.5 recordPrivate
 
-[결정: review.decisions-2 T-21] 비공개 기록 연산은 `ScopeApi.recordPrivate(kind, payload)`다(F.extensions.spec §3.2, §4.8). 다른 확장이 읽지 않는 자기 이력(예: L3.learning.spec §3.7.1의 `grp.learning.proposal.*`, L3.group-kit.spec의 `grp.<그룹>.metrics.recorded`)을 남긴다.
+[결정: review.decisions-2 T-21] 비공개 기록 연산은 `ScopeApi.recordPrivate(kind, payload)`다(F.extensions.spec §3.2, §4.8). 다른 확장이 읽지 않는 자기 이력(예: L3.learning.spec §3.7.1의 `grp.learning.proposal.*`, L3.group-sdk.spec의 `grp.<그룹>.metrics.recorded`)을 남긴다.
 
 ```text
 recordPrivate(kind, payload):
@@ -1501,8 +1501,8 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext` | L0 플랫폼 패키지 문서, L4.host-service.spec(조립 루트) |
 | `ExtHost.dispatch`, `DispatchOptions`, `DispatchOutcome`, `BoundaryHooks` | L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec, L2.mcp.spec(`thread.mcp.after`) |
 | `DispatchPolicy`(`onHandlerSettled`, `run` 포함), `HandlerGate`, `HandlerRunOutcome`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord` | X.operations.spec |
-| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 키(F 이름 재export, 정의는 F.extensions.spec §3.2.1), `ExtHostPortKey` | L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-kit.spec, X.operations.spec(`ExtHost.ports`로 조회) |
-| `hostOf`, `ScopeHostApi` | L1·L2 내장 확장, L3.group-kit.spec, X.loading-trust.spec(외부 확장 로더) |
+| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 키(F 이름 재export, 정의는 F.extensions.spec §3.2.1), `ExtHostPortKey` | L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, X.operations.spec(`ExtHost.ports`로 조회) |
+| `hostOf`, `ScopeHostApi` | L1·L2 내장 확장, L3.group-sdk.spec, X.loading-trust.spec(외부 확장 로더) |
 | `capabilityServiceName`, `providerServiceName` | F.capabilities.spec §3.5(위임 답), L2 전체 |
 | `ScopeInfo`, `ResourceRegistry`, 설정 키 `x.primitives.*` | L4.settings-ui.spec, L4.cli.spec, L4.desktop.spec |
 | `@xeon/ext-host/testing`의 테스트 호스트(인메모리 포트, 가짜 타이머 연결) | eng.testing.guide §1.2, L1·L3 테스트 |
@@ -1525,7 +1525,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | 탐색·로드 순서(`loadIndex`)·신뢰(`builtin`)·`ext.<name>.enabled` | X.loading-trust.spec |
 | tier 값, 시간 예산 값, 자동 끄기, 이름 충돌 판정 | X.operations.spec |
 | 단계 경계 훅 호출, `finalize` 검증, `whenIdle`, `runTurn` 멱등 | L1.loop.spec |
-| `DriveArbiter`(LeaseArbiterPort 구현) | L3.group-kit.spec §3.5 |
+| `DriveArbiter`(LeaseArbiterPort 구현) | L3.group-sdk.spec §3.5 |
 
 ## 9. 수용 기준
 
@@ -1585,14 +1585,14 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - [미결] 유휴 상태 post의 동작(보관, 시작, 오류)과 `start` 값 추가 여부(§4.7).
 - [미결] pi `triggerTurn: false` 대응 연산(§4.7).
 - 포트 정본 이전(해소, [결정: review.decisions-2 U-14, D-04]): 모든 호스트 포트, 리소스 등록 포트와 리소스 정의, 키는 F.extensions.spec §3.2.1 `ports.ts`에 있고, `RecordCommitPort`와 부속 타입(`ExtCommitRequest.visibility` 포함)은 F.records.spec §3.9에 있다. 이 문서는 §3.6·§3.9에서 F 이름을 다시 export만 하고, ext-host 고유 키는 `ExtHostPortKey`뿐이다. `queryRecords`의 셋째 인자 `reader`도 F.records.spec §3.9에 반영됐고 §4.6.4가 호출한 확장 이름을 넘긴다.
-- 서비스 인터페이스(해소, [결정: review.decisions-2 D-04]): 같은 서비스 이름의 포트를 부분형으로 포함하는 서비스 인터페이스(`LoopService`, `TaskService`, `ProcessService`, `ToolService`, `ModelService`, `McpService`, `GroupService`)는 F `@xeon/contracts/services`(F.capabilities.spec §3.12)에, `SessionService`와 `StoreService`는 F.records.spec §3.9에 있다(§3.6 규칙 6 표). L1.tools.spec, L1.models.spec, L2.mcp.spec §3.2, L3.group-kit.spec §3.8도 같은 구성을 쓴다.
+- 서비스 인터페이스(해소, [결정: review.decisions-2 D-04]): 같은 서비스 이름의 포트를 부분형으로 포함하는 서비스 인터페이스(`LoopService`, `TaskService`, `ProcessService`, `ToolService`, `ModelService`, `McpService`, `GroupService`)는 F `@xeon/contracts/services`(F.capabilities.spec §3.12)에, `SessionService`와 `StoreService`는 F.records.spec §3.9에 있다(§3.6 규칙 6 표). L1.tools.spec, L1.models.spec, L2.mcp.spec §3.2, L3.group-sdk.spec §3.8도 같은 구성을 쓴다.
 - F.extensions.spec §1·§4.2 문구(해소): tier 정의와 핸들러 시간 예산은 X.operations 소유이고 primitives는 `DispatchPolicy` 주입 구멍만 둔다(§1). F.extensions.spec §1과 §4.2가 이미 X.operations.spec을 가리킨다.
 - [미결] F `ScopeApi`에 `provide`를 넣을지, X `hostOf(g).provide`로 둘지(§3.8).
 - `LeaseAcquiredPayload.leaseEpoch`(해소, F M3a A2): 선택 필드로 추가되었고 X가 채운다(§4.4.1 7번).
 - [미결] F.extensions.spec §3.2 `TurnInput.requestId` 주석의 순번 정의를 `<상태 판>.<호출 안 일련번호>`로 구체화하는 문구 수정(§4.4.4).
 - [미결] 상태 이벤트 kind의 영역 `state` 예약을 F `validateManifest` 오류 코드(`record_kind_reserved`)로 둘지(§4.6.1).
 - F.extensions.spec §4.3 문구 보강(해소): 소비 커밋 전 재실행된 핸들러는 같은 페이로드를 받지만 `ctx.state`는 이미 커밋된 판일 수 있다는 규칙이 F.extensions.spec §4.3에 들어갔다(§4.6.1 재실행 규칙).
-- 고칠 문서 반영(해소, §4.6.1): L1.persistence.spec §3.3의 `ExtCommitResult` 변환표(`key_reused`·`busy`·`disk_full`·`read_only`), `fingerprintSource` 지문 규칙, `replayed`의 `stored`, `ext.loadThread`의 활성 가지 조회(`latestEvent`의 `onActiveBranch`)가 이 문서와 같다. L3.group-kit.spec §3.6 `StateProjectionRow` 열 이름과 §4.5 6번 멱등 reducer 예제도 반영됐다.
+- 고칠 문서 반영(해소, §4.6.1): L1.persistence.spec §3.3의 `ExtCommitResult` 변환표(`key_reused`·`busy`·`disk_full`·`read_only`), `fingerprintSource` 지문 규칙, `replayed`의 `stored`, `ext.loadThread`의 활성 가지 조회(`latestEvent`의 `onActiveBranch`)가 이 문서와 같다. L3.group-sdk.spec §3.6 `StateProjectionRow` 열 이름과 §4.5 6번 멱등 reducer 예제도 반영됐다.
 - [미결] thread 맥락 밖 post 허용과 F `PostOptions.threadId?` 추가(§4.6.3).
 - 서비스 모드의 thread별 켜짐 상태(해소, M2 X.1·F): thread마다 켜짐 집합과 요청을 두고 세대는 scope마다 하나를 공유한다(§4.5.2, P-28). `ExtThreadSnapshot`이 `scopeTransitions`(전이 횟수), `disabled`(끈 scope), `enabledAtSeq`(켜진 scope의 마지막 켜짐 seq)를 준다. `openThread`는 `flips`를 `scopeTransitions`로, `want`를 `disabled`의 꺼짐 요청으로 시작한다. 그래서 재시작 뒤에도 커밋 키가 겹치지 않고, 기본 켜짐 scope를 끈 thread는 다시 열어도 꺼진 채이며 `scope.changed`도 다시 쓰지 않는다. `replayed`를 보고 전이 횟수를 올려 다시 커밋하던 임시 방편(최대 64번 재시도)은 없앴다.
 - 공급자 재시작 뒤 소비자 setup 재실행(해소, [결정: D8]): 재적용 요청만 기록하고 다음 단계 경계에서 적용한다(§4.5.4). U-01의 예외를 두지 않는다.

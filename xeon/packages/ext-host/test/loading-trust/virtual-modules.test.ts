@@ -6,9 +6,9 @@ import {
   SDK_MODULE_SPECIFIERS,
 } from "../../src/loading-trust/index.ts";
 import { X_SDK_MODULES } from "../../src/loading-trust/virtual-modules.ts";
-import { fakeGroupKit, SDK } from "./support/plugin-fixture.ts";
+import { fakeGroupSdk, SDK } from "./support/plugin-fixture.ts";
 
-test("the SDK specifiers are contracts with its subpaths, group-kit and typebox", () => {
+test("the SDK specifiers are contracts with its subpaths, group-sdk and typebox", () => {
   expect([...SDK_MODULE_SPECIFIERS]).toEqual([
     "@xeon/contracts",
     "@xeon/contracts/capabilities",
@@ -18,23 +18,23 @@ test("the SDK specifiers are contracts with its subpaths, group-kit and typebox"
     "@xeon/contracts/services",
     "@xeon/contracts/settings",
     "@xeon/contracts/wire",
-    "@xeon/group-kit",
+    "@xeon/group-sdk",
     "typebox",
   ]);
-  // X가 직접 등록하는 모듈과 조립 루트가 넘기는 group-kit이 지정자 전체가 된다
-  expect([...Object.keys(X_SDK_MODULES), "@xeon/group-kit"].toSorted()).toEqual(
+  // X가 직접 등록하는 모듈과 조립 루트가 넘기는 group-sdk이 지정자 전체가 된다
+  expect([...Object.keys(X_SDK_MODULES), "@xeon/group-sdk"].toSorted()).toEqual(
     [...SDK_MODULE_SPECIFIERS].toSorted(),
   );
-  expect(Object.keys(SDK).toSorted()).toEqual(["@xeon/contracts", "@xeon/group-kit", "typebox"]);
+  expect(Object.keys(SDK).toSorted()).toEqual(["@xeon/contracts", "@xeon/group-sdk", "typebox"]);
 });
 
 test("registering the same objects again does nothing, another object is refused", () => {
   expect(registerSdkModules(SDK)).toEqual({ ok: true, value: undefined });
   expect(registerSdkModules(SDK)).toEqual({ ok: true, value: undefined });
-  const other = registerSdkModules({ "@xeon/group-kit": { marker: Symbol("other") } });
-  expect(other).toEqual({ ok: false, error: { kind: "conflict", specifier: "@xeon/group-kit" } });
+  const other = registerSdkModules({ "@xeon/group-sdk": { marker: Symbol("other") } });
+  expect(other).toEqual({ ok: false, error: { kind: "conflict", specifier: "@xeon/group-sdk" } });
   // 충돌은 아무것도 바꾸지 않는다: 처음 객체는 그대로 등록된 상태다
-  expect(registerSdkModules({ "@xeon/group-kit": fakeGroupKit })).toEqual({
+  expect(registerSdkModules({ "@xeon/group-sdk": fakeGroupSdk })).toEqual({
     ok: true,
     value: undefined,
   });

@@ -1068,7 +1068,7 @@ export const manifest = defineManifest({
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `DialogAsk`, `DialogCommands`, `DialogStatus`, `DialogAttachments`, `DialogAside`, `DialogStyles`, `DialogNotify`, 각 `*Key`, `DialogService`, `DialogServiceName` | L3 그룹 문서, L3.group-kit.spec, L2.work.spec(명령 등록), L4 |
+| `DialogAsk`, `DialogCommands`, `DialogStatus`, `DialogAttachments`, `DialogAside`, `DialogStyles`, `DialogNotify`, 각 `*Key`, `DialogService`, `DialogServiceName` | L3 그룹 문서, L3.group-sdk.spec, L2.work.spec(명령 등록), L4 |
 | `AskQuestion`, `AskAnswer`, `AskResult`, `AskApprovalSubjectSchema`, `validateAskAnswer`, `buildAskAnswerSchema`, `defaultAskAnswer` | L1.tools.spec(kind `question`의 대상·답 검사), L4 질문 화면, L2.mcp.spec(서버 주도 요청의 화면 모양 참고) |
 | `CommandInfo`, `CommandActionRegistry`, `CommandArg` | L4.cli.spec, L4.desktop.spec, L2.work.spec |
 | `StatusItem`, 휘발 `dialog.status` | L4 |

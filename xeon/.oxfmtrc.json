@@ -18,6 +18,6 @@
     "**/*.md",
     "**/*.html",
     "**/*.toml",
-    "packages/group-kit/templates/**"
+    "packages/group-sdk/templates/**"
   ]
 }

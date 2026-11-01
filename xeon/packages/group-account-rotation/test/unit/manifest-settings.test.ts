@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { validateManifest } from "@xeon/contracts/extensions";
 import { buildCatalog, checkSettingDef } from "@xeon/contracts/settings";
-import { checkGroup } from "@xeon/group-kit/testing";
+import { checkGroup } from "@xeon/group-sdk/testing";
 import {
   accountRotationGroup,
   accountRotationManifest,

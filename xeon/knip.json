@@ -10,7 +10,7 @@
     "packages/*": {
       "entry": ["test/**/*.test.ts"]
     },
-    "packages/group-kit": {
+    "packages/group-sdk": {
       "entry": ["test/**/*.test.ts"],
       "ignore": ["templates/**"]
     },

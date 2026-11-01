@@ -11,7 +11,7 @@
       "path": "../contracts"
     },
     {
-      "path": "../group-kit"
+      "path": "../group-sdk"
     },
     {
       "path": "../ext-host"

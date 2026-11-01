@@ -27,7 +27,7 @@ function isAutoStart(value: unknown): value is AutoStart {
 /** 한 탐구가 쓰는 렌즈 수의 설정 범위. 내장 렌즈 6개보다 크게 둔다(상태 `lenses` 상한 8개) */
 const MAX_LENSES_RANGE: { readonly min: 1; readonly max: 8 } = { min: 1, max: 8 };
 
-const ALL_SCOPES = ["managed", "user", "project", "local", "session"] as const;
+const ALL_SCOPES = ["managed", "user", "project", "local", "launch"] as const;
 
 const DRIVE_LIMITS_TYPE: TObject<{
   maxTurns: ReturnType<typeof Type.Optional<TInteger>>;
@@ -136,7 +136,7 @@ export type HelmSettingValues = {
 };
 
 /**
- * group-kit `g.settings()`가 돌려준 값(또는 설정 읽기 포트가 없을 때의 빈 값)을 `HelmSettings`로 옮긴다.
+ * group-sdk `g.settings()`가 돌려준 값(또는 설정 읽기 포트가 없을 때의 빈 값)을 `HelmSettings`로 옮긴다.
  * 빠졌거나 모양이 맞지 않는 키는 기본값을 쓴다. 순수 함수
  */
 export function helmSettingsOf(values: Readonly<Partial<HelmSettingValues>>): HelmSettings {

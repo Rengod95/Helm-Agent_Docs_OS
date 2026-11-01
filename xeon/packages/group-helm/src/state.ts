@@ -205,7 +205,7 @@ export const helmStateDecl: {
   version: HELM_STATE_VERSION,
 };
 
-/** 상태 문서 직렬화 예산. group-kit STATE_DOC_MAX_BYTES(64 KiB)에서 4 KiB를 남긴다 */
+/** 상태 문서 직렬화 예산. group-sdk STATE_DOC_MAX_BYTES(64 KiB)에서 4 KiB를 남긴다 */
 export const HELM_STATE_BUDGET_BYTES = 61_440;
 
 const encoder = new TextEncoder();

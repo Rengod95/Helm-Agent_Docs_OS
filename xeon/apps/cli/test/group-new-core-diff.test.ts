@@ -82,12 +82,12 @@ function filesUnder(root: string): number {
 test("templates are found from the CLI source tree", () => {
   expect(TEMPLATES).not.toBeNull();
   expect(TEMPLATES === null ? "" : join(TEMPLATES, "index.json")).toBe(
-    join(HERE, "..", "..", "..", "packages", "group-kit", "templates", "index.json"),
+    join(HERE, "..", "..", "..", "packages", "group-sdk", "templates", "index.json"),
   );
 });
 
 test("group-new.output-passes-core-diff-check-with-zero-lines", async () => {
-  if (TEMPLATES === null) throw new Error("group-kit templates not found");
+  if (TEMPLATES === null) throw new Error("group-sdk templates not found");
   const { repo, base } = freshRepo();
   const h = createHarness({
     cwd: repo,

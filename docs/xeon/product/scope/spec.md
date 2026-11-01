@@ -99,7 +99,7 @@ M0와 M1은 foundation-plan.md §5 P4 정의를 그대로 옮긴다. M2와 M3는
 |---|---|---|
 | M0 기반 | [결정: foundation-plan.md §5 P4] | `contracts`(F 전 도메인의 TypeBox 타입). `ext-host`(Cordis vendored, on/post/drive/scope 최소형). `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·세션 잠금). `platform-exec`(durable env 포크). |
 | M1 걸어 다니는 골격 | [결정: foundation-plan.md §5 P4] | `xeon chat` CLI에서 다음이 동작한다: pi-ai 모델 1개, 도구 `read`, `ls`, `bash`(sandbox), 이벤트 저장과 재개, SOPS 비밀 참조 1종, 테스트용 그룹이 on/post/drive를 사용. UC-1이 이 마일스톤이다. [제안] 도구 `read`, `ls`, `bash`의 본문은 `cap-workspace`(L2-a, ADR-0003 포크 위치)의 최소형으로 이 마일스톤에 만든다. |
-| M2 능력과 Helm | [결정: 사용자 확인 2026-10-22, 2026-10-25 개정] | L2 능력 `cap-web`, `cap-mcp`, `cap-knowledge`, `cap-work`, `cap-dialog`의 1차 구성요소. 승인 프로토콜 통합. 무료 검색 기본값 단계 구성(①~③, ④ 첫 실행 권장은 M3). 그룹 기반 `group-kit` 1차. Tauri 데스크톱과 엔진 사이드카(`apps/desktop`). 데스크톱 최소 설정 화면(키 등록, 모델 선택, 첫 실행 안내) [결정: review.m2-plan §9 D-b]. 비밀 관리 명령(목록, 등록, 삭제, 열람 `xeon secret reveal`, UC-6). 열람은 OS 인증 재확인이 가능한 곳에서 재확인한다 [결정: review.decisions-2 U-20]. MCP stdio 서버는 비밀 env가 없는 서버만 띄운다. 비밀 env를 쓰는 서버는 M3다 [결정: review.m2-plan §9 D-c]. Helm 본체(`group-helm`)와 UC-2는 M3로 옮겼다 [결정: review.m2-plan §9 D-a]. 이름의 "Helm"은 인용 때문에 그대로 둔다. |
+| M2 능력과 Helm | [결정: 사용자 확인 2026-10-22, 2026-10-25 개정] | L2 능력 `cap-web`, `cap-mcp`, `cap-knowledge`, `cap-work`, `cap-dialog`의 1차 구성요소. 승인 프로토콜 통합. 무료 검색 기본값 단계 구성(①~③, ④ 첫 실행 권장은 M3). 그룹 기반 `group-sdk` 1차. Tauri 데스크톱과 엔진 사이드카(`apps/desktop`). 데스크톱 최소 설정 화면(키 등록, 모델 선택, 첫 실행 안내) [결정: review.m2-plan §9 D-b]. 비밀 관리 명령(목록, 등록, 삭제, 열람 `xeon secret reveal`, UC-6). 열람은 OS 인증 재확인이 가능한 곳에서 재확인한다 [결정: review.decisions-2 U-20]. MCP stdio 서버는 비밀 env가 없는 서버만 띄운다. 비밀 env를 쓰는 서버는 M3다 [결정: review.m2-plan §9 D-c]. Helm 본체(`group-helm`)와 UC-2는 M3로 옮겼다 [결정: review.m2-plan §9 D-a]. 이름의 "Helm"은 인용 때문에 그대로 둔다. |
 | M3a | [결정: 2026-10-28 사용자] | 확장 지점과 계약, Helm, 학습 그룹. ADR-0015와 ADR-0017의 계약 개정, 확장 지점 개정과 가드레일 지점(ADR-0017), 클라이언트 패키지 `packages/client`(ADR-0020). Helm 본체(`group-helm` H-02~H-15)와 UC-2, Helm 기본 플러그인 패키징, 그 전제인 도구 메타(`risk`, `hints`, `caller`)와 on 핸들러 효과 목록 ADR [결정: review.m2-plan §9 D-a]. 학습 그룹(`group-learning`). 범위는 스킬 md와 메타인지 피드백 제안이고, 반복 작업 스크립트 제안은 2차다(4.5). 목표 판정(I11)의 구현은 L1 트랙에 둔다. 판정 조건은 M3b에서 본다(4.4 예외). |
 | M3b (첫 공개 릴리즈 후보) | [결정: 2026-10-28 사용자] | 서비스·원격·예약·알림, 설정 화면, cap 확장, i18n, 릴리즈. 공유 서비스 모드(`xeon service`). 예약, 원격, 알림(`cap-schedule`, `apps/host`, `platform-os`). 원격은 SSH 터널·사설망 연결 방식이다 [결정: review.decisions-2 U-11]. 원격 두 형태(자체 호스트 서버 접속, 자기 컴퓨터 실행)다 [결정: review.m3-design-inputs D-M3-17]. 웹 클라이언트는 M3에 넣지 않는다. 웹 UI는 M4다(4.2 N15). 목표 판정의 판정 조건(I11, 구현은 M3a). 설정 화면(settings-ui, 레이트 리밋·계정 회전 포함 [결정: review.decisions-2 U-21], 비밀 값 열람 화면 [결정: review.decisions-2 U-20]). 기본 브라우저 provider Stagehand(`web.browse`) [결정: review.m3-design-inputs D-M3-23]. 나머지 1차 구성요소(`cap-workspace`의 M1 밖 도구(write, edit, grep 등), `cap-artifacts`). i18n(ADR-0016, [결정: review.m3-design-inputs D-M3-27]). macOS·Linux 릴리즈 빌드(4.7). 모델 계정 풀과 위장 provider·계정 회전 플러그인(D-M3-22)은 M3b에 둔다 [결정: 2026-10-28 사용자]. 작업 목록은 `review.m3-plan`이다. |
 
@@ -212,8 +212,8 @@ foundation-plan.md §7에서 가져오고, 아키텍처 조사 노트(`_research
 |---|---|
 | M0 | on(tap, first, chain), post(steer, followUp, next), drive 임대, scope 켜기·끄기의 최소형. 지점 종류 input, request, tool, boundary, session의 선언. |
 | M1 | 테스트용 그룹이 on, post, drive를 실제 루프에서 사용한다. |
-| M2 | `group-kit`의 `defineGroup`, drive 임대 중재, 그룹 상태 레코드. M2에서는 테스트 그룹이 쓴다. |
-| M3 | Helm 본체가 `group-kit`을 쓴다(D-a). drive를 쓰지 않는 두 번째 기본 그룹(학습 그룹)과 Helm의 공존. [제안] 제2 그룹은 학습 그룹이고, 그 추가 시 코어 diff 0을 확인한다(`product.vision.spec` S1, 4.4 M3a). |
+| M2 | `group-sdk`의 `defineGroup`, drive 임대 중재, 그룹 상태 레코드. M2에서는 테스트 그룹이 쓴다. |
+| M3 | Helm 본체가 `group-sdk`을 쓴다(D-a). drive를 쓰지 않는 두 번째 기본 그룹(학습 그룹)과 Helm의 공존. [제안] 제2 그룹은 학습 그룹이고, 그 추가 시 코어 diff 0을 확인한다(`product.vision.spec` S1, 4.4 M3a). |
 
 ## 8. 다른 문서와의 인터페이스
 

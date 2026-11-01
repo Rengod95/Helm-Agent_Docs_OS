@@ -186,7 +186,7 @@ sequenceDiagram
 - [결정: review.decisions-2 U-01] `scope.disable`이 오면 다음 단계 경계에서 `lease.released`를 기록한다. 진행 중인 `loop.turn`은 끊지 않고 정착까지 진행하며, drive 함수에는 `lease.signal` abort로 알린다(`X.primitives.spec` §4.5.3).
 - `loop.turn`의 중복 실행은 `requestId`로 막는다. 파생 규칙(예: scope id와 턴 번호의 해시)은 `X.primitives.spec`이 정한다.
 - 알려진 한계: `drive`는 async 함수라 재생 규율을 어긴 코드를 타입으로 막을 수 없다. 클로저 지역 변수에 상태를 두면 재개 때 그 상태를 잃는다(`_research/ext-points.md` §5 안 1 "재생").
-  - [제안] 완화책: 그룹 상태는 `scope.doc`에만 둔다. `group-kit`의 `defineGroup`은 `drive` 함수에 상태를 인자로만 넘기고, 반환값이나 클로저 상태를 다음 호출에 넘기지 않는다.
+  - [제안] 완화책: 그룹 상태는 `scope.doc`에만 둔다. `group-sdk`의 `defineGroup`은 `drive` 함수에 상태를 인자로만 넘기고, 반환값이나 클로저 상태를 다음 호출에 넘기지 않는다.
   - [제안] L3-a "drive 재생 규율 검사"를 테스트 도구로 제공한다. 같은 `st`로 `drive`를 두 번 호출해 낸 효과 목록이 같은지 비교한다.
 - 비협조적 확장 코드는 프로세스 경계 없이 강제로 멈출 수 없다. 상한은 협조적 코드에만 유효하다(`_research/ext-points.md` §6.1 3번).
 

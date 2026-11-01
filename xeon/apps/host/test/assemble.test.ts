@@ -97,7 +97,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "ext-host",
     "group-account-rotation",
     "group-helm",
-    "group-kit",
+    "group-sdk",
     "group-learning",
     "host",
     "platform-exec",
@@ -132,7 +132,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "l2.mcp.callTimeoutMs",
     "l2.work.plans.requireApproval",
     "l2.dialog.ask.timeoutSec",
-    "l3.group-kit.instrumentation",
+    "l3.group-sdk.instrumentation",
     "l4.host-service.maxReplayEvents",
   ]) {
     expect(built.catalog.has(key)).toBe(true);

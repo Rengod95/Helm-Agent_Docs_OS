@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { ModelsPortKey, type ProviderResourceDef } from "@xeon/contracts/extensions";
 import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
-import { GroupSettingsSourceKey } from "@xeon/group-kit";
+import { GroupSettingsSourceKey } from "@xeon/group-sdk";
 import { providerAnthropicOauthGroup } from "../../src/index.ts";
 
 const ACK = "ext.provider-anthropic-oauth.acknowledgeRisk";

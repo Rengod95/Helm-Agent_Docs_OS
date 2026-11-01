@@ -17,18 +17,18 @@ import {
   type MemoryRecordStore,
   type TestHost,
 } from "@xeon/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-kit";
+import { GroupSettingsSourceKey, type GroupModule } from "@xeon/group-sdk";
 import {
   fakeAgents,
   type EffectCounts,
   type FakeAgents,
   type ReplayHarness,
-} from "@xeon/group-kit/testing";
+} from "@xeon/group-sdk/testing";
 import type { LearningQueueReader } from "../../src/index.ts";
 import { foldReader } from "./projection.ts";
 import { fakeKnowledge, type FakeKnowledge } from "./fake-knowledge.ts";
 
-// ADR-0015 재생 시험의 하니스(L3.learning.plan LR-25). group-kit의 재생 하니스는 drive 그룹을 경계 반복으로 돌리므로, on 핸들러 그룹용으로
+// ADR-0015 재생 시험의 하니스(L3.learning.plan LR-25). group-sdk의 재생 하니스는 drive 그룹을 경계 반복으로 돌리므로, on 핸들러 그룹용으로
 // 정해진 지점 발화 순서(스크립트)를 다시 돌린다. 복원은 기준 실행의 커밋 요청을 원래 `requestId`와 함께 앞부분만 다시 커밋한다:
 // 그래야 재발화한 핸들러의 기록과 커밋이 멱등 키로 한 번만 반영된다.
 
@@ -56,7 +56,7 @@ function normalizeIds(events: readonly JsonValue[]): JsonValue[] {
 
 /**
  * 계측 기록(`grp.<그룹>.metrics.recorded`)을 재생 비교에서 뺀다. 증가분은 프로세스가 뜬 뒤의 값이라 재시작한 실행마다 다르다
- * (L3.group-kit.spec §4.9). 상태 커밋과 효과 계수는 그대로 비교한다.
+ * (L3.group-sdk.spec §4.9). 상태 커밋과 효과 계수는 그대로 비교한다.
  */
 function comparable(events: readonly JsonValue[]): JsonValue[] {
   return events.filter((event) => {

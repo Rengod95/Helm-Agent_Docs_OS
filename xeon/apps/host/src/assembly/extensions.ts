@@ -65,7 +65,7 @@ import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
-import type { GroupCatalogEntry } from "@xeon/group-kit";
+import type { GroupCatalogEntry } from "@xeon/group-sdk";
 import type { SettingCatalog } from "@xeon/contracts/settings";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {

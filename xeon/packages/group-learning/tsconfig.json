@@ -14,7 +14,7 @@
       "path": "../ext-host"
     },
     {
-      "path": "../group-kit"
+      "path": "../group-sdk"
     }
   ]
 }

@@ -363,7 +363,7 @@ export interface LeaseReleasedPayload {
    *  revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리. 번호는 F.extensions.spec 절 */
   reason: "disabled" | "budget" | "error" | "idle" | "revoked" | "restart";
 }
-/** drive 임대 요청이 대기 상한 뒤 거부됐다 [결정: adr.0017, M3-REQ-99]. X가 커밋하고 group-kit이 `GroupStatus.drive: "rejected"`를 채운다 */
+/** drive 임대 요청이 대기 상한 뒤 거부됐다 [결정: adr.0017, M3-REQ-99]. X가 커밋하고 group-sdk이 `GroupStatus.drive: "rejected"`를 채운다 */
 export interface LeaseRejectedPayload {
   groupId: string;                // 요청한 그룹(ExtensionName)
   reason: string;                 // 거부 사유. 값 집합은 X.primitives.spec이 정한다 [미결]

@@ -44,7 +44,7 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-12 | 웹 검색 플러그인 provider를 등록할 X API와 헤더 비밀 해석 경로(`L2.web.plan` §8.5), 키 플러그인 첫 사용 고지. 자동 선택 순서는 설정 화면 드래그앤드롭(등록된 검색 도구 목록, 기본 웹 검색 도구 포함, 플러그인 기본 후순위), 여러 provider 동시 질의 기본 기능, robots.txt 기본 무시 + 옵션. Parallel·Jina는 넣지 않습니다 [결정: review.m3-design-inputs D-M3-23] | L2-06, A-14 | `X.primitives.spec`, `L0.secrets.spec`, `L2.web.spec`, `L4.settings-ui.spec`, `architecture.security.spec` T-08 |
 | M3-13 | 학습 그룹이 입력 출처(사용자, 예약, 원격)를 알 수 있는 지점 페이로드 | L3-05 | `F.extensions.spec`, `L1.loop.spec`, `L3.learning.spec` |
 | M3-14 | 샌드박스 네트워크 정책(SB-13)과 비격리 실행 감사 이벤트(`tool.sandbox_bypassed`)의 소유자, MCP stdio 서버별 샌드박스 정책. 네트워크는 기본 허용 + 차단 도메인 목록, 자격 파일 읽기는 기본 허용 + 옵션으로 막음, 샌드박스 밖 재시도는 기본 끔·매번 승인 [결정: review.m3-design-inputs D-M3-18]. MCP stdio 서버는 출처별 기본값(프로젝트 출처 켬, 사용자 출처 끔)이고 sampling은 지원하지 않습니다 [결정: review.m3-design-inputs D-M3-19] | L0-05, ADR-0011 §3.7 | `L0.sandbox.spec`, `L2.mcp.spec`, `eng.context-map.design` |
-| M3-15 | 외부 확장 로더(자체 확장 API, `.xeon-plugin/plugin.json`)와 안전 모드. pi 어댑터(X.5)는 만들지 않습니다(pi 호환 없음) [결정: review.m3-design-inputs D-M3-11 c]. 기본 플러그인 Helm을 싣는 경로와 가상 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`) 등록을 포함합니다. 외부 훅은 M3 밖이고 M4로 옮겼습니다(§7) [결정: 2026-10-28 사용자] | X-03, `review.m2-plan` §8 D9 | `X.loading-trust.plan`, `X.operations.spec`, `product.scope.spec` §4.4 M3 |
+| M3-15 | 외부 확장 로더(자체 확장 API, `.xeon-plugin/plugin.json`)와 안전 모드. pi 어댑터(X.5)는 만들지 않습니다(pi 호환 없음) [결정: review.m3-design-inputs D-M3-11 c]. 기본 플러그인 Helm을 싣는 경로와 가상 모듈(`@xeon/contracts`, `@xeon/group-sdk`, `typebox`) 등록을 포함합니다. 외부 훅은 M3 밖이고 M4로 옮겼습니다(§7) [결정: 2026-10-28 사용자] | X-03, `review.m2-plan` §8 D9 | `X.loading-trust.plan`, `X.operations.spec`, `product.scope.spec` §4.4 M3 |
 | M3-16 | 무인 경로(예약, 루프)의 명령 실행 안전 시간 상한. 일반 대화의 기본값은 0(제한 없음) | L0-16 | `L0.exec.spec` §10 6, `L2.workspace.spec`, `L2.schedule.spec` |
 | M3-17 | `xeon group new`와 그룹 템플릿을 2차로 확정하고, M3 S1 확인을 학습 그룹 변경의 diff 검사 스크립트 하나로 줄이기 | L3-07 | `L3.slots.plan`, `L4.cli.spec` |
 | M3-18 | 지식 제안 대기열 wire. 대기열은 둘(학습 그룹, L2.knowledge)이고 L4가 한 목록으로 합쳐 보입니다 [결정: review.m3-design-inputs D-M3-32 a] | A-22 | `F.wire-settings.spec`, `L2.knowledge.spec`, `L3.learning.spec` |
@@ -76,7 +76,7 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-32 | 관측성(`traceparent`, telemetry 설정), 확장 진단 배열 상한, 로깅 지침 | G2-15 | `L0.os.spec`, `L4.host-service.spec` |
 | M3-33 | MCP 평문 env 거부의 마찰(평문 허용 + 비밀 이름 패턴 거부), 프롬프트 명령, 서브에이전트 `tools.deny`와 확장 티어, 저장 이벤트의 비밀 사후 가림(표시·내보내기·모델 입력 단계, 원본 행 유지 [결정: review.m3-design-inputs D-M3-20 b]), 재개 시 모델 요청 재전송 정책, 포크 갱신 정책(현재 버전 고정 + 점진 업데이트 [결정: review.m3-design-inputs D-M3-29 행 1]), 샌드박스 호출 비격리 감사, 비샌드박스 실행 | G2-16, MC-07, AG-04 | 각 레인 spec |
 | M3-34 | 선언만 하고 동작 없는 설정 키 정리(`SettingDef.stage` 필드는 M2, D-b) | G5-04 | 각 소유 spec |
-| M3-35 | `xeon.domain`의 `kit`와 routes layout `group-kit` 맞추기. `host`와 `host-service`(U-48)도 함께 봅니다 | G5-05, U-48 | `_routing/routes.yaml`, `L3.group-kit.spec`, `architecture.layers.spec` |
+| M3-35 | `xeon.domain`의 `kit`와 routes layout `group-sdk` 맞추기. `host`와 `host-service`(U-48)도 함께 봅니다 | G5-05, U-48 | `_routing/routes.yaml`, `L3.group-sdk.spec`, `architecture.layers.spec` |
 | M3-36 | 대화 자동 제목(첫 입력 80자와 `thread.rename`은 M2) | G2-12 | `L1.persistence.spec` |
 | M3-37 | fork thread의 원본 history 연속성 구현(규칙은 M2) | G2-11 | `L1.persistence.spec` |
 | M3-38 | 데스크톱 `closeBehavior`, `EngineConfig::from_values` 호출처 | G2-09 | `L4.desktop.spec` |
@@ -98,7 +98,7 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-new-06 | 설정 화면 M3: 비밀 탭과 값 열람, 전용 편집기, 게이지, 첫 실행 권장, 관리 잠금 사유, `SettingsTab`, 검색 provider 순서 드래그앤드롭(M3-12). TUI 설정 화면은 만들지 않되 나중에 만들 수 있게 view-model을 `packages/client`에 둡니다 [결정: review.m3-design-inputs D-M3-30 행 3] | M-10, M-17, B-19, U-88, U-89, U-86 | `L4.settings-ui.spec` |
 | M3-new-07 | 모델 계정 풀과 레이트 리밋 | MD-08 | `L1.models.spec`, M3-new-23 |
 | M3-new-08 | 설정 파일 외부 변경 감시와 통지 | M-16, A-72 | `L0.os.spec`, `L4.host-service.spec` |
-| M3-new-09 | 그룹 계측과 승격 보고(G-17, G-18) | M-07, U-30 | `L3.group-kit.plan` |
+| M3-new-09 | 그룹 계측과 승격 보고(G-17, G-18) | M-07, U-30 | `L3.group-sdk.plan` |
 | M3-new-10 | `cap-workspace` `write`·`edit`·`grep`·`find`와 원자적 쓰기 | WS-10, WS-02 | `L2.workspace.spec` |
 | M3-new-11 | `cap-artifacts`(리뷰·diff 승인, 제목·라벨, 레코드 카탈로그) | AR-08, B-07 | `L2.artifacts.spec` |
 | M3-new-12 | `cap-schedule`(타이머, 파일 감시, 원격, 루프, cron 세션 종류). 놓친 실행은 1회 따라잡기(최소 간격 300초), 기존 세션 대상 예약은 제외 [결정: review.m3-design-inputs D-M3-13 행 3·4] | SC-08, KN-21, B-07 | `L2.schedule.spec` |
@@ -135,7 +135,7 @@ M2 Mac 실기(`review.macos-checklist` M-10~M-13, `xeon/foundation` `c8afa8b`)�
 
 ## 7. 미결 사항
 
-- M3 트랙 나눔 [결정: 2026-10-28 사용자]. M3a 트랙은 A0~A6이다. A0은 결정 기록, A1은 확장 지점 개정과 `packages/client`와 작은 정리, A2는 F 추가와 X 로더, A3는 X 원시 연산과 L1 에이전트(목표 판정 구현 포함)와 L1 도구·루프, A4는 L2와 group-kit, A5는 Helm과 학습, A6은 마감이다. M3b는 M3a 마감 때 계획한다.
+- M3 트랙 나눔 [결정: 2026-10-28 사용자]. M3a 트랙은 A0~A6이다. A0은 결정 기록, A1은 확장 지점 개정과 `packages/client`와 작은 정리, A2는 F 추가와 X 로더, A3는 X 원시 연산과 L1 에이전트(목표 판정 구현 포함)와 L1 도구·루프, A4는 L2와 group-sdk, A5는 Helm과 학습, A6은 마감이다. M3b는 M3a 마감 때 계획한다.
 - 닫음: `product.scope.spec` §10 미결 4(Helm 내부 설계 착수 시점)는 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(ADR-0015)"으로 닫았습니다.
 - 닫음: 외부 훅은 M3 밖이고 M4로 옮겼다(M3-15, ADR-0017 §6, `X.operations.spec` §10 21) [결정: 2026-10-28 사용자].
 - 닫음: 웹 클라이언트는 M3에 넣지 않는다. CLI와 데스크톱만 쓰고 웹 UI는 M4다. `packages/client`의 전송 계층은 브라우저 클라이언트가 쓸 수 있게 분리해 둔다 [결정: 2026-10-28 사용자].
@@ -156,7 +156,7 @@ M2 Mac 실기(`review.macos-checklist` M-10~M-13, `xeon/foundation` `c8afa8b`)�
 | T-F1 확장 지점 개정 | 충족 | 옛 이름 리터럴 0(grep), `contracts/test/extensions/points.doc.test.ts`가 `F.extensions.spec` §3.4 표와 일치 |
 | T-C `@xeon/client` | 충족 | CLI·데스크톱이 `@xeon/client`로 접속, 사이드카 e2e(E2·E3) 통과 |
 | T-X1 로더·안전 모드 | 충족 | `ext-host/test/loading-trust/external-loader.int.test.ts`, `group-helm/test/int/plugin.int.test.ts` |
-| T-X2·T-K 재생 2회 효과 1회 | 부분 | `group-kit/test/replay.test.ts`, Helm·학습 `replay.test.ts`. group-kit 하네스가 능력 쓰기 효과를 세지 않는다(Helm은 자체 하네스로 셈). M3b B4-GRP |
+| T-X2·T-K 재생 2회 효과 1회 | 부분 | `group-sdk/test/replay.test.ts`, Helm·학습 `replay.test.ts`. group-sdk 하네스가 능력 쓰기 효과를 세지 않는다(Helm은 자체 하네스로 셈). M3b B4-GRP |
 | T-L1a 위임·판정 | 충족 | `core-agents/test/delegate.test.ts`, `cap-work/test/goals-gate.test.ts`. 실제 core-loop 경로 시험은 M3b B1-NTF(X6) |
 | Mac 실기 | 부분 | 데스크톱에서 Helm 기본 플러그인 첫 실행 설치 확인. 데스크톱이 슬래시 명령을 `command.run`으로 보내지 않아 `/helm`이 채팅으로 갔다(M3b B3-SET). CLI에서 엔진 명령 목록에 `helm`·`learning` 확인, `/helm start` 뒤 drive가 다음 입력까지 멈추는 결함을 찾아 고쳤다(`e3ce1db`). 수정 뒤 Mac 재확인은 M3b 사용자 묶음 |
 
@@ -212,12 +212,12 @@ M2 Mac 실기(`review.macos-checklist` M-10~M-13, `xeon/foundation` `c8afa8b`)�
 | 모델·웹 | 회전 상태가 메모리 전용(`core_models_*` 표). `reservePct` 미공급. 위장 provider 와이어 동등성 래퍼(M-8). DR-09·`L1.models.spec` §3.11이 옛 결정을 서술. `routing.*` 문제 점검. Playwright MCP 도구 이름 실서버 확인. `orderUpdateOf` 부분 목록. 헤더 비밀 설정의 `ext.<ext>.<key>` 카탈로그. 첫 사용 고지가 호출 뒤 경고. 바이너리 본문 echo 검사. `browse-close` int 시험. 인증 종류 `query` 등록 거부와 F 스키마 불일치. 사용량 게이지가 메모리 전용이고 창·한도·계정 게이지는 비어 있음(HS §10-46) |
 | 보안·샌드박스 | 시작 승인 증거가 메모리 전용(재시작·다른 thread에서 다시 물음). 새 MCP 도구가 한 단계 늦게 보임. 비밀 메타가 `mcp.start:*`를 허용해야 함. 샌드박스 설정만 바꿔서는 막힌 서버가 풀리지 않음(L2 mcp §10-15). `wrapArgv`가 위반을 모으지 않음. srt `cleanupAfterCommand`가 프로세스 전역. macOS Seatbelt 실기. ADR-0011에 M3 재결정 주석. `lastError`가 성공 뒤 지워지지 않음. ext-host `restoreAs` 넓힌 캐스트(TY-06). `load-generated.ts`의 `as GroupModule`(TY-06 승인) |
 | 설정 | 설정 탭 13개와 spec 12개 불일치. managed `readFile`이 빈 읽기 전용을 돌려줌. `writeFile`이 provider 비밀을 다시 잇지 않음(HS-45). project·local 파일 감시 없음. 설정 쓰기 reducer·초안. `settings.invalidated`에 thread 필터 없음. `l4.ui.locale` 저장값을 엔진 연결 전에 읽지 않음. `unitKey`(contracts) |
-| 데이터 | 블롭 GC 기본 꺼짐(`blobGcEnabled=false`, 켜려면 넓은 감사와 긴 GC 시험). GC는 서비스 모드에서만(HS-40). 자동 제목 출처 메모리 전용. `L0.store` S-13·S-14와 export ENOENT 경합. `apps/cli`가 `@xeon/platform-store`를 import(spec은 host만). `cap.*` 투영기 격리(L1 §10-19). 진단 배열의 wire 소비자 없음. "1 blobs" 문구. cap-knowledge 고정 전 행. cap-web 고정 해제→고정 틈. group-kit `delegate`가 signal을 받고 무시 |
+| 데이터 | 블롭 GC 기본 꺼짐(`blobGcEnabled=false`, 켜려면 넓은 감사와 긴 GC 시험). GC는 서비스 모드에서만(HS-40). 자동 제목 출처 메모리 전용. `L0.store` S-13·S-14와 export ENOENT 경합. `apps/cli`가 `@xeon/platform-store`를 import(spec은 host만). `cap.*` 투영기 격리(L1 §10-19). 진단 배열의 wire 소비자 없음. "1 blobs" 문구. cap-knowledge 고정 전 행. cap-web 고정 해제→고정 틈. group-sdk `delegate`가 signal을 받고 무시 |
 | L1·그룹 | 검토 포크 system-prompt 공유(`SpawnRequest` 옵션)와 REQ-70 fork 사용량 귀속. 컴팩션 뒤 skill 본문 재주입 없음. M3-21 잔여. 저장된 자식 취소가 보고 입력을 큐에 넣지 않음. 재생 하네스 thread id 불일치 오류 종류(§3.10). `delegateStatus` 소유자 범위. 다중 thread 사용량 표시. 생성된 `package.json` 의존. 내장 그룹 이름이 `runtime.ts`에 복사됨. `test/.generated` 잔여. §3.3.5 편차. S-02 참조 정책 플러그인 미구현. 반복 감지 임계는 실제 테이프 필요, 전체 오류 연속 모호, 재개 때 연속 초기화, `storedOutcome`이 feed를 seq 0부터 훑음 |
 | 데스크톱 | `desktop_settings_read/write`. 트레이 아이콘·메뉴 없음. Mac 확인 항목(트레이 닫기 e2e D-10, 두 번째 실행 재열기 D-13, `RunEvent::Reopen` 컴파일, Finder PATH sops·age·rg와 `xeon secret add`, 디버그 로그 내용, §4.15 릴리즈 점검). Cmd+Q가 `ExitRequested`를 건너뛸 수 있음 [미확인]. Tauri 번들 자원 매핑. 인앱 업데이터. 화면 컴포넌트 전부(`M3b` 계획 §1.2) |
 | i18n | 하위 층 문장 통과: cap-dialog classify, cap-work commands, platform-os binaries requirements/resolve, web probe detail, group-account-rotation manifest, 하위 층 라벨 198줄. 데스크톱 `errorOf` 이슈 메시지. `db.ts:58` 영어 리터럴 |
 | 성능·릴리즈 | 서버 예산 수치(§9.4 사용자 결정). macOS 기준선. 재주입 파일 상한 8000과 `keepRecentTokens`. REQ-64 `synchronous=NORMAL` 비교와 `processStartFingerprint` 타이밍. 부하 중 측정한 수치는 참고용. SHA256SUMS 무서명. gitleaks가 xeon 워크플로에 없음(M3-30 절반). `release-sign.sh` 키체인 목록 복원 안 함. macOS 릴리즈 경로 미실행. `L0.os` §3.6·§10-3 번들 정책 문구 |
-| 정리·문서 | host-service의 `xeon.domain` 거부(DR-03, L4 규칙 결정). cli가 `@xeon/group-kit`을 시험에만 씀(devDependencies로). E-01·02·04·05, N-07(`requestKeyFor` 48 대 `requestCommitKey` 64), V-05 잔여. `F/README:207`의 `check-points-doc.ts` 없음. m3-design-inputs G-IN-13·H-IN-17 상태 칸. `Reflect.get` src 약 50곳(22 파일, L4 4곳)은 타입 있는 도우미 설계 필요. B5-DOC 미결: 설치 위치·PATH, `l0.os.dirs.override`, 로그 회전과 `OsDirs log`, `XEON_SAFE_MODE`·`/safe-mode`·`--disable-ext`, `engine.ts`가 `future_version`·`corrupt`·`migration_failed`를 구분하지 않음, 읽기 전용 열기 명령, 복원·`store.corrupt` 절차, `schedule/state.json` 복구 도구, 자동 비활성 확장 재활성 CLI, `secret add --provider` 허용값, `l2.web.cache.maxMegabytes` 미구현, `trust.json` 위치 불일치, 시험 메모리 상한 문서, docs-route 경고 6(operations id 이름) |
+| 정리·문서 | host-service의 `xeon.domain` 거부(DR-03, L4 규칙 결정). cli가 `@xeon/group-sdk`을 시험에만 씀(devDependencies로). E-01·02·04·05, N-07(`requestKeyFor` 48 대 `requestCommitKey` 64), V-05 잔여. `F/README:207`의 `check-points-doc.ts` 없음. m3-design-inputs G-IN-13·H-IN-17 상태 칸. `Reflect.get` src 약 50곳(22 파일, L4 4곳)은 타입 있는 도우미 설계 필요. B5-DOC 미결: 설치 위치·PATH, `l0.os.dirs.override`, 로그 회전과 `OsDirs log`, `XEON_SAFE_MODE`·`/safe-mode`·`--disable-ext`, `engine.ts`가 `future_version`·`corrupt`·`migration_failed`를 구분하지 않음, 읽기 전용 열기 명령, 복원·`store.corrupt` 절차, `schedule/state.json` 복구 도구, 자동 비활성 확장 재활성 CLI, `secret add --provider` 허용값, `l2.web.cache.maxMegabytes` 미구현, `trust.json` 위치 불일치, 시험 메모리 상한 문서, docs-route 경고 6(operations id 이름) |
 | 인프라 | caustic 비공개 submodule: CI에 `CAUSTIC_READ_TOKEN`(fine-grained PAT)을 Dependabot 비밀로도 등록, auto-merge와 필수 검사. Dependabot이 `bun.lock`을 갱신하지 않음(`just caustic-update`). 루트 lefthook·oxlint가 `apps/desktop/mockups`를 제외 |
 
 ### 9.4 사용자 결정 묶음과 알려진 불안정 시험

@@ -200,7 +200,7 @@ export interface HookProcessPort {
 export interface ProcessPort extends IsolationProcessPort, HookProcessPort {}
 export const ProcessPortKey: PortKey<ProcessPort> = { name: "xeon.process" };
 
-// ── 임대 정책 (서비스 xeon.groups, 제공 group-kit, 선택) ─────────────────
+// ── 임대 정책 (서비스 xeon.groups, 제공 group-sdk, 선택) ─────────────────
 
 export interface LeaseCandidate {
   readonly scopeId: ScopeId;

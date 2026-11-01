@@ -108,7 +108,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 - 관여 층과 패키지
   - F `contracts`(extensions), X `ext-host`, L0 `platform-store`
   - L1 `core-loop`, `core-tools`, `core-agents`
-  - L2 `cap-web`, `cap-knowledge`, `cap-work`, L3 `group-kit`, `group-helm`, L4 `apps/cli`, `apps/desktop`
+  - L2 `cap-web`, `cap-knowledge`, `cap-work`, L3 `group-sdk`, `group-helm`, L4 `apps/cli`, `apps/desktop`
 - 수용 기준
   - 첫 동작 마일스톤은 M3다(`product.scope.spec` §4.5, `review.m2-plan` §9 D-a).
   - 쓰기 도구는 파일을 바꿀 수 있는 도구 전부다. `write`, `edit`이 없는 마일스톤에서는 `bash`다.
@@ -138,7 +138,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 - 관여 층과 패키지
   - F `contracts`(records, extensions), X `ext-host`, L0 `platform-store`
   - L1 `core-agents`, `core-persistence`, L2 `cap-knowledge`
-  - L3 `group-kit`, `group-learning`, L4 `apps/desktop`(승인 대기열), `apps/cli`
+  - L3 `group-sdk`, `group-learning`, L4 `apps/desktop`(승인 대기열), `apps/cli`
 - 수용 기준
   - 카운터 임계를 넘는 테이프 세션을 실행하면 검토 포크가 백그라운드로 한 번 실행되고 후보가 대기열에 들어가며, 승인 전에는 스킬 디렉터리와 메모리 파일의 내용이 바뀌지 않는다.
   - Helm이 drive 임대를 가진 상태에서도 학습 그룹의 트리거와 검토 포크가 동작한다.
@@ -287,8 +287,8 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 | UC | F | X | L0 | L1 | L2 | L3 | L4 |
 |---|---|---|---|---|---|---|---|
 | UC-1 대화 | `contracts` | `ext-host` | `platform-exec`, `platform-sandbox`, `platform-store` | `core-tasks`, `core-loop`, `core-models`, `core-tools`, `core-context`, `core-persistence` | `cap-workspace` | 없음 | `apps/cli`, `apps/desktop`, `apps/host` |
-| UC-2 탐구 | `contracts` | `ext-host` | `platform-store` | `core-loop`, `core-tools`, `core-agents` | `cap-web`, `cap-knowledge`, `cap-work` | `group-kit`, `group-helm` | `apps/cli`, `apps/desktop` |
-| UC-3 학습 | `contracts` | `ext-host` | `platform-store` | `core-agents`, `core-persistence` | `cap-knowledge` | `group-kit`, `group-learning` | `apps/desktop`, `apps/cli` |
+| UC-2 탐구 | `contracts` | `ext-host` | `platform-store` | `core-loop`, `core-tools`, `core-agents` | `cap-web`, `cap-knowledge`, `cap-work` | `group-sdk`, `group-helm` | `apps/cli`, `apps/desktop` |
+| UC-3 학습 | `contracts` | `ext-host` | `platform-store` | `core-agents`, `core-persistence` | `cap-knowledge` | `group-sdk`, `group-learning` | `apps/desktop`, `apps/cli` |
 | UC-4 예약 | `contracts` | 없음 | `platform-process`, `platform-store`, `platform-os` | `core-tasks`, `core-agents`, `core-persistence` | `cap-schedule` | 없음 | `apps/host`, `apps/cli`, `apps/desktop` |
 | UC-5 원격 | `contracts` | 없음 | `platform-process`, `platform-os`, `platform-secrets` | `core-tools` | `cap-dialog` | 없음 | `apps/host`, settings-ui |
 | UC-6 비밀 | `contracts` | 없음 | `platform-secrets`, `platform-exec`, `platform-store` | `core-tools`, `core-context` | `cap-web` | 없음 | `apps/cli`, settings-ui |

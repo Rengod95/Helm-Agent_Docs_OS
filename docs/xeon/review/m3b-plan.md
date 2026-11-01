@@ -152,10 +152,10 @@ binds: []
 
 ### B4 그룹·i18n·데스크톱 정리 (B3 병합 뒤, 병렬 3)
 
-**B4-GRP 그룹 계측과 그룹 도구** · Sonnet medium · `ext-host`(X) → `group-kit`·`group-helm`·`group-learning`(L3) → `apps/cli`(L4) · M
+**B4-GRP 그룹 계측과 그룹 도구** · Sonnet medium · `ext-host`(X) → `group-sdk`·`group-helm`·`group-learning`(L3) → `apps/cli`(L4) · M
 - 요구: 39(내구 이벤트 접두 조회, 도구 소유 scope 조회), B0-LED가 미완으로 판정한 33.
 - 작업: M3-new-09(G-17, G-18), M3-17(`xeon group new`, 템플릿), LR-17 `GroupMetrics` 쓰기 API.
-- 이월: group-kit 시험 틈(재생 하네스 thread id 동일, `capabilityWrite` 계수 구현 또는 삭제, abort 때 `callContext`, scan-drive 위치, `delegateStatus`·`cancelDelegates` 교차 scope), 저장 상태 스키마 위반 재설정 경로, SIGKILL 자식 장애 시험, `inquiry.finished` 중복 제거, Helm 삭제 뒤 재설치 표지, depcruise group-kit 예외 정리.
+- 이월: group-sdk 시험 틈(재생 하네스 thread id 동일, `capabilityWrite` 계수 구현 또는 삭제, abort 때 `callContext`, scan-drive 위치, `delegateStatus`·`cancelDelegates` 교차 scope), 저장 상태 스키마 위반 재설정 경로, SIGKILL 자식 장애 시험, `inquiry.finished` 중복 제거, Helm 삭제 뒤 재설치 표지, depcruise group-sdk 예외 정리.
 - 끝 시험: `xeon group new` 생성물이 `core-diff-check`로 0줄, 승격 보고 값 비교.
 
 **B4-I18N i18n 이전** · Sonnet medium(설계) + Haiku xhigh(문자열 이전) · `client`(L4) → `apps/host` → `apps/cli` → `apps/desktop`(층마다 1커밋 이상) · L
@@ -183,7 +183,7 @@ binds: []
 - 끝 시험: `just bench` 결과가 `eng.performance.guide` 표에 기록되고 게이트 스크립트 시험 통과.
 
 **B5-CLN 기계적 정리** · Haiku xhigh · 시험 파일 여러 패키지, 문서 · M
-- 작업: 남은 `Reflect.get` 85곳(M3-41 잔여), `X/operations/plan.md` "pi 어댑터" 문구, M3-new-17 잔여(open-issues E-01~E-05, N-07, V-05, 린트 항목), M3-35(`kit`·`group-kit`, `host`·`host-service` 이름 맞춤), 학습 superseded 커밋 처리 확인.
+- 작업: 남은 `Reflect.get` 85곳(M3-41 잔여), `X/operations/plan.md` "pi 어댑터" 문구, M3-new-17 잔여(open-issues E-01~E-05, N-07, V-05, 린트 항목), M3-35(`kit`·`group-sdk`, `host`·`host-service` 이름 맞춤), 학습 superseded 커밋 처리 확인.
 - 패키지마다 1커밋입니다. 다른 트랙과 겹치지 않게 B5에 둡니다.
 - 끝 시험: `check-ts-rules`에서 `Reflect.get` 0, `docs-route` 통과.
 - 학습 superseded 커밋(확인 2026-10-29): `ecbc1f9a`와 `608713e0`은 `xeon/foundation` 이력에 없고 어떤 ref에도 닿지 않습니다. `608713e0`은 `m3a/learning` 리베이스의 reflog에만 남습니다. 같은 작업은 foundation의 `0d07cbe9`(group-learning)와 `dc920ae3`(host 학습 내장)으로 들어가 있어 이력을 고치지 않습니다(squash 없음) [결정: 오케스트레이터 기본값]
@@ -200,7 +200,7 @@ binds: []
 - 작업: `schedule.entries` 능력과 `schedule.create/list/cancel/fire` wire 메서드, `xeon schedule add|list|cancel|run`, 손상된 상태 파일 위에 쓰지 않는 보호, 예약 실행 thread 생성 키.
 - 끝 시험: X4 끝 시험 `service-schedule-wire.int.test.ts`.
 
-**B3-FIX cap 수정** · Sonnet medium · `cap-workspace`·`cap-knowledge`·`cap-web`·`group-kit` · S
+**B3-FIX cap 수정** · Sonnet medium · `cap-workspace`·`cap-knowledge`·`cap-web`·`group-sdk` · S
 - 작업: 블롭 고정(pin) 틈과 이미지 블롭을 고정하지 않는 근거의 시험·문서, 사용량 게이지 틈.
 
 **B3-SEC2 MCP stdio 샌드박스 연결** · Sonnet medium · `apps/host`(L4) · S

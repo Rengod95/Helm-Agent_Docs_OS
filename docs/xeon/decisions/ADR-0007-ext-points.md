@@ -5,7 +5,7 @@ domain: extension-points
 kind: adr
 status: accepted
 depends_on: [adr.0002, adr.0006]
-binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xeon/packages/group-kit/**]
+binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xeon/packages/group-sdk/**]
 ---
 
 # ADR-0007 확장 지점: on, post, drive, scope 네 연산

@@ -162,7 +162,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 |---|---|---|
 | pi 이벤트 41종 매핑 오류(줄 번호, fold, 페이로드 필드) | L1이 잘못된 합성으로 발화하거나 pi 확장 이식 시 동작이 달라진다 | `_research/notes/F-1.md` 대조 결과를 그대로 코드화하고, E4에서 npm 1.3.0 선언 파일로 다시 대조한다. `hooks.test.ts`의 이름 집합 테스트로 누락을 막는다 |
 | boundary fold가 chain 교체로 부족해 4번째 fold가 필요해짐 | `Fold`, `Handler`, `HOOKS` 구조가 바뀌어 X·L1 코드가 함께 바뀐다 | `CHAIN_RULES`와 `finalize` 표지로 pi 합성을 모두 표현할 수 있음을 `chain-rules.test.ts`로 고정한다. 사용자 결정이 바뀌면 `Fold`에 값을 추가하는 하위 호환 변경으로 처리할 수 있게 `Handler`를 조건부 타입 한 곳에 둔다 |
-| drive 재생 규율을 타입으로 막지 못함 | 클로저 상태를 쓰는 drive 함수가 재개 뒤 다르게 동작한다 | `loop.turn`·`loop.spawn` 기본 `requestId`를 결정적으로 정해 중복 실행을 막고, 결정성 lint는 L3.group-kit에 요청한다. 스펙 §4.6에 규율을 명시한다 |
+| drive 재생 규율을 타입으로 막지 못함 | 클로저 상태를 쓰는 drive 함수가 재개 뒤 다르게 동작한다 | `loop.turn`·`loop.spawn` 기본 `requestId`를 결정적으로 정해 중복 실행을 막고, 결정성 lint는 L3.group-sdk에 요청한다. 스펙 §4.6에 규율을 명시한다 |
 | 지점 이름 표기 불일치(snake_case 대 점 표기) | 문서·코드·조사 자료 사이에서 이름이 달라 검색과 대조가 실패한다 | 정본을 pi snake_case로 두고 `HookName` 타입 밖의 문자열은 컴파일 오류가 되게 한다. 별칭 허용 여부는 [미결]로 사용자 확인 |
 | first fail-closed가 `session_before_*`에서 과도함 | 결함 있는 확장 하나가 세션 전환·컴팩션을 계속 막는다 | 거부값을 `FIRST_DENY`에 지점별로 두어 결정이 바뀌면 값만 바꾸도록 한다. 반복 거부 기록은 X.operations의 안전 모드 근거로 넘긴다 |
 | F.records·F.conversation 이름(`DurableEventDraft`, `ExtensionEventKind`, ID 브랜드) 변경 | E2·E8의 import가 깨진다 | 이름은 두 spec에서 확정했다. 바뀌면 두 spec을 먼저 고치고 import만 바꾼다. 해당 필드를 `points/*.ts` 안의 타입 별칭 한 곳으로 모은다 |

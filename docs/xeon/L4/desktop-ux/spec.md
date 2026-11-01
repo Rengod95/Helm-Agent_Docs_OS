@@ -4,7 +4,7 @@ layer: L4
 domain: desktop-ux
 kind: spec
 status: draft
-depends_on: [product.usecases.spec, product.scope.spec, L4.desktop.spec, L4.settings-ui.spec, L4.cli.spec, L4.host-service.spec, F.wire-settings.spec, L3.helm.spec, L3.learning.spec, L2.artifacts.spec, L2.schedule.spec, L2.dialog.spec, L2.work.spec, L2.knowledge.spec, L2.web.spec, L1.models.spec, L1.agents.spec, L0.secrets.spec, adr.0016, adr.0018, adr.0020, adr.0021, F.extensions.spec, X.loading-trust.spec, X.operations.spec, X.primitives.spec, L3.group-kit.spec, L3.slots.spec, L3.authoring.spec]
+depends_on: [product.usecases.spec, product.scope.spec, L4.desktop.spec, L4.settings-ui.spec, L4.cli.spec, L4.host-service.spec, F.wire-settings.spec, L3.helm.spec, L3.learning.spec, L2.artifacts.spec, L2.schedule.spec, L2.dialog.spec, L2.work.spec, L2.knowledge.spec, L2.web.spec, L1.models.spec, L1.agents.spec, L0.secrets.spec, adr.0016, adr.0018, adr.0020, adr.0021, F.extensions.spec, X.loading-trust.spec, X.operations.spec, X.primitives.spec, L3.group-sdk.spec, L3.slots.spec, L3.authoring.spec]
 binds: [xeon/apps/desktop/src/views/**]
 ---
 
@@ -93,11 +93,11 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | SC-13 | 설정 바꾸기와 외부 변경 | X10, settings-ui §4.4~4.5 |
 | SC-14 | 웹 검색 provider 순서 정하기 | X9, ADR-0005 |
 | SC-15 | 대화에서 런타임 상태를 보고 작업대로 넘어가기 | [결정: 2026-10-30 사용자] 대화와 런타임 작업 둘 다 1급, ADR-0021 |
-| SC-16 | 플러그인·그룹 만들기 | `xeon group new`, `L3.group-kit.spec`, `L3.slots.spec` |
+| SC-16 | 플러그인·그룹 만들기 | `xeon group new`, `L3.group-sdk.spec`, `L3.slots.spec` |
 | SC-17 | 플러그인 설계: 연결 지점, 임대와 상한, 설정 | `F.extensions.spec` §3.1, `X.operations.spec` §4.2 |
-| SC-18 | 플러그인 적용: 켜기, 대화 범위, 신뢰 | `X.loading-trust.spec` §4.6, `L3.group-kit.spec` §3.8 |
-| SC-19 | 시험 실행: replay, 테이프, 시험 대화 | `L3.group-kit.spec` §3.10, `just bench --server` |
-| SC-20 | 평가와 측정: 지표, 비용, 핸들러 시간, 승격 보고, 코어 변경 검사 | `L3.group-kit.spec` §3.12, `X.operations.spec` §4.2, `scripts/core-diff-check.ts` |
+| SC-18 | 플러그인 적용: 켜기, 대화 범위, 신뢰 | `X.loading-trust.spec` §4.6, `L3.group-sdk.spec` §3.8 |
+| SC-19 | 시험 실행: replay, 테이프, 시험 대화 | `L3.group-sdk.spec` §3.10, `just bench --server` |
+| SC-20 | 평가와 측정: 지표, 비용, 핸들러 시간, 승격 보고, 코어 변경 검사 | `L3.group-sdk.spec` §3.12, `X.operations.spec` §4.2, `scripts/core-diff-check.ts` |
 | SC-21 | 묶기: 그룹 구성과 프로필 | `L3.slots.spec`, `x.primitives.activeDriveGroup` |
 | SC-22 | 제어: 켜기·끄기, 안전 모드, 자동 끄기 복구, 버전과 되돌리기 | `X.operations.spec` §4.3, §4.6 |
 | SC-23 | 플러그인 화면 쓰기(Helm 탐구 전체 화면) | ADR-0021 §3.9 |
@@ -1975,7 +1975,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 │  대화  (작업대)             │ 캐시 무효화 조사 · 실시간 · 14:03 기준 seq 9120                          [받]
 │ 맥락 [대화] 캐시 무효화 조사 v  │ ! review 자동 꺼짐 · 연속 5번 실패                  [다시 켜기]       [기]
 │                        │ ┌ 목록 ─────────┐  L3  [helm *drive]  [plan-first]  [review !]        [대]
-│>개요                     │ │L3 helm   drive  │  ── group-kit 레일 ───────────────────────
+│>개요                     │ │L3 helm   drive  │  ── group-sdk 레일 ───────────────────────
 │ 확장                 !1  │ │L3 plan-first    │  L2  [web] [knowledge] [work] [dialog] | 외부 [acme-notes !]
 │ 시험 실행              1*  │ │L3 review    !   │  L1  [core-loop] [tools] [models] [agents] [context]
 │ 측정                     │ │L2 web           │  L0  [sqlite] [exec] [sandbox] [secrets]
@@ -2002,7 +2002,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 #### 6.22.2 캔버스: 층 띠, 블록, 포트, 엣지
 
-- 층 띠는 위에서 아래로 L3, L2, L1, L0, X, F입니다. 위층이 아래층에 기대어 쌓이는 순서입니다. L2 띠 끝에 외부 plugin 칸(`layer: "plugin"`)을 둡니다. L3 띠 아래에 group-kit 레일(라이브러리라 고를 수 없음)을 둡니다.
+- 층 띠는 위에서 아래로 L3, L2, L1, L0, X, F입니다. 위층이 아래층에 기대어 쌓이는 순서입니다. L2 띠 끝에 외부 plugin 칸(`layer: "plugin"`)을 둡니다. L3 띠 아래에 group-sdk 레일(라이브러리라 고를 수 없음)을 둡니다.
 - X 띠 첫 줄은 지점 레일입니다. 지점 종류 일곱 칸(input 3, request 9, guard 3, tool 5, boundary 9, session 15, lifecycle 2, 합 46)에서 이 맥락에 핸들러가 걸린 지점만 이름, fold, 건 확장 수를 보입니다. 둘째 줄은 post 큐, drive 임대, scope, 운영, X 훅 블록입니다. F 띠는 계약 칸이고 읽기 전용입니다.
 - 블록 하나는 확장 하나입니다. 내용: 표시 이름과 mono id(DP-39), 둘째 줄(등급·버전, 제공 능력, 또는 "drive 보유 · 턴 1/4"), 상태 면(자동 꺼짐, 실패 수, drive 보유). 이 맥락에서 꺼진 블록은 윤곽만 그립니다.
 - 포트: 받는 능력(`requires` 꽉 참, `optional` 빔), 연산 on·post·drive. 매니페스트 `points`, `usesPost`, `usesDrive`, `requires`, `optional`이 있는 것만 그립니다.
@@ -2332,7 +2332,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 항목 | 출처 |
 |---|---|
 | 시험 목록(종류, 대상, 결과, 시각, 소요) | `ext.test.list` `[gap:W-29]` |
-| replay 결과(커밋 수, 절단마다 같음·다름(`cuts[].equal`), 처음 다른 위치 `firstDiff`, 효과 수 `EffectCounts`(turn, spawn, delegate, post), 실패 종류 `effects-doubled`·`effects-mismatch`·`max-commits-exceeded`·`no-commits`) | `ReplayDriveReport`(`group-kit/src/testing/replay/replay-drive.ts`) `[gap:W-29]` |
+| replay 결과(커밋 수, 절단마다 같음·다름(`cuts[].equal`), 처음 다른 위치 `firstDiff`, 효과 수 `EffectCounts`(turn, spawn, delegate, post), 실패 종류 `effects-doubled`·`effects-mismatch`·`max-commits-exceeded`·`no-commits`) | `ReplayDriveReport`(`group-sdk/src/testing/replay/replay-drive.ts`) `[gap:W-29]` |
 | bench 결과(지표, 값, 예산, 판정) | `scripts/bench-server.ts` 출력과 `bench-gate` 판정. 예산은 모두 미정("사용자 결정 대기") `[gap:W-30]` |
 | 코어 변경 검사(보호 경로 변경 파일) | `scripts/core-diff-check.ts` 종료 코드 0·1·2와 파일 목록 `[gap:W-30]` |
 | 시험 대화 | `thread.list`의 시험 표지 `[gap:W-34]` |
@@ -2377,7 +2377,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 항목 | 출처 |
 |---|---|
-| 확장별 지표(토큰 input·output·cacheRead·cacheWrite, `costUsd`, `leaseMs`, `leases`, `denies`, `chainPatches`, `handlerErrors`, `posts`, `spawns`, `delegates`, `commits`, `records`) | `group.metrics` `[gap:W-25]`. 기간 합은 `grp.<id>.metrics.recorded` 증가분. 계측이 꺼지면(`l3.group-kit.instrumentation = false`) "계측 꺼짐" |
+| 확장별 지표(토큰 input·output·cacheRead·cacheWrite, `costUsd`, `leaseMs`, `leases`, `denies`, `chainPatches`, `handlerErrors`, `posts`, `spawns`, `delegates`, `commits`, `records`) | `group.metrics` `[gap:W-25]`. 기간 합은 `grp.<id>.metrics.recorded` 증가분. 계측이 꺼지면(`l3.group-sdk.instrumentation = false`) "계측 꺼짐" |
 | 요약 | `GroupStatus.metrics`(`GroupMetricsSummary`: denies, posts, spawns, delegates, costUsd, leaseMs) |
 | 핸들러 시간과 예산 | `[gap:W-23]`. 예산 값은 `x.operations.budget.*` |
 | 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion` `[gap:W-26]`. 임시로 `/group status`의 "승격 후보" 줄 |
@@ -2428,7 +2428,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 층마다 띠 하나(X 외부 훅, L3 의도 그룹, plugin, L2 능력, L1 코어). 띠 안 블록마다 켜기·끄기·그대로(`SegmentedControl` xs). "그대로"는 enable·disable 어디에도 넣지 않습니다. core tier는 잠금 표시만.
 - 블록 줄에 "지금 <상태> → <바뀔 상태>"를 보입니다. 지금 상태는 맥락 칸의 대화(또는 전체) 기준입니다.
-- drive 임대 칸: `x.primitives.activeDriveGroup`은 한 그룹 또는 자동입니다. 바꾸면 적용 뒤 다음 경계에 지금 임대를 회수합니다(`L3.group-kit.spec` §3.5).
+- drive 임대 칸: `x.primitives.activeDriveGroup`은 한 그룹 또는 자동입니다. 바꾸면 적용 뒤 다음 경계에 지금 임대를 회수합니다(`L3.group-sdk.spec` §3.5).
 - first·chain 지점 순서는 (tier, loadIndex, 등록 순번)으로 정해지고 런타임에 순서 입력이 없습니다. 그래서 보기만 하고 "런타임에 순서 입력 없음" 배지를 답니다(DP-56).
 - 오른쪽 "실효 스택": 맥락 대화의 지금 값과 프로필을 합친 결과(바뀌는 확장, drive, 덮어쓰는 설정, 켜지는 지점 수)이고 `profile.preview`(W-44)의 결과입니다.
 - 동작: 이 대화에 적용(`profile.apply { id, threadId }`, W-46. 엔진이 원자적으로 쓰고 하나라도 실패하면 모두 되돌림), 새 시험 대화로(`thread.create { trial: true, profileId }`), 저장(`profile.put`).
@@ -2986,20 +2986,20 @@ export const palette = [
 |---|---|---|---|
 | X-1 | 매니페스트 `views` 필드(화면마다 `mode`: `declarative`·`frame`), `ViewContribution`, `FrameDecl`, 화면 트리 `ViewNode`, `ExtMethodDecl`, 다리 메시지 스키마 | `F.extensions.spec`(ADR-0021 §3.3, §3.4.2) | 없음 |
 | X-2 | 확장 wire 메서드 열기(`ext.<id>.<verb>` 확정, params·result 스키마 검사) | `F.wire-settings.spec` §4.2 | [제안] 상태 |
-| X-3 | 확장 메서드 등록 API `hostOf(g).registerMethod`, `g.registerMethod` | `X.primitives.spec`, `L3.group-kit.spec` | 없음 |
-| X-4 | 손으로 다시 켤 때 장부 비우기(`/group on`과 설정 토글이 `reenable`을 부름) | `X.operations.spec` §4.3.5, `L3.group-kit.spec` §3.9 | `/group on`은 scope만 켬. 다시 꺼지지 않는 상태가 남음(코드 결함, `operations/auto-disable.ts`의 `reenable`은 시험만 부름) |
+| X-3 | 확장 메서드 등록 API `hostOf(g).registerMethod`, `g.registerMethod` | `X.primitives.spec`, `L3.group-sdk.spec` | 없음 |
+| X-4 | 손으로 다시 켤 때 장부 비우기(`/group on`과 설정 토글이 `reenable`을 부름) | `X.operations.spec` §4.3.5, `L3.group-sdk.spec` §3.9 | `/group on`은 scope만 켬. 다시 꺼지지 않는 상태가 남음(코드 결함, `operations/auto-disable.ts`의 `reenable`은 시험만 부름) |
 | X-5 | 예산 등급 `view`와 확장 메서드 실패의 장부 반영 | `X.operations.spec` §3.2, §4.3 | 없음 |
 | X-6 | 핸들러 시간 기록(지점별 분포) | `X.operations.spec` §4.2.6 | 1초 넘는 지점 진단만 [제안]. 지금 핸들러 시간은 어디에도 기록되지 않음(코드 결함, X-15가 원천) |
 | X-7 | 화면 트리 파일과 프레임 선언 검사와 진단(`view_invalid`, `view_limit`, `view_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported`), 프레임 파일 제공 경로 | `X.loading-trust.spec` §4.3 | 없음 |
 | X-8 | 확장 버전 기록 보관(확장마다 5개, 설치 출처, 매니페스트 해시) | `X.loading-trust.spec` §4.4.7 | 기록 없음. M4에 되는 만큼, 대체 경로 §6.24.1 |
 | X-9 | Helm 화면 메서드 `ext.helm.status`·`inquiries`·`findings`와 기여 선언 | `L3.helm.spec` §3.9 | `/helm status` 명령만 |
-| X-10 | `replayDrive`의 런타임 하니스(테스트 대역 없이 설치된 그룹을 테이프로) | `L3.group-kit.spec` §3.10 | 시험 파일 전용 |
+| X-10 | `replayDrive`의 런타임 하니스(테스트 대역 없이 설치된 그룹을 테이프로) | `L3.group-sdk.spec` §3.10 | 시험 파일 전용 |
 | X-11 | 플러그인 화면의 승인 kind | ADR-0018 | 넷(tool, plan, question, review) |
 | X-12 | T-16 플러그인 화면 흉내 위협 행 | `architecture.security.spec` §4 | 없음 |
 | X-13 | `managed` 설치 위치가 tier `guard`가 되는 코드(`ext-host/src/operations/tier.ts` `assignTier`의 `case "managed"`)와 주석·문서의 상한 `user` 설명의 차이. 작업대가 tier를 보이므로 먼저 맞춰야 함 | `X.operations.spec` §3.1, `X.loading-trust.spec` §3.1 | 코드 결함 확인(2026-10-31). 주석은 "사용자 등급 상한"인데 `ok("guard")`를 돌려줌 |
 | X-14 | 시험 대화 표지(`ThreadSummary.trial`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 기본값은 제외 [제안] |
 | X-15 | 핸들러 계측 링 버퍼: 지점 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), `x.operations.trace.turnsPerThread`(기본 8) [제안] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 대화마다 작은 버퍼] |
-| X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-kit `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-kit.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
+| X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
 | X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 임대를 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 scope를 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |
 | X-18 | 프로필 타입(`Profile`)과 호스트 저장소, `profile.*` 메서드 | `F.wire-settings.spec` §3.3·§3.9, `L4.host-service.spec` | 없음 [결정: 2026-10-31 사용자] |
 | X-19 | 시험 대화 단계 경계 멈춤: 멈춤 표지가 있으면 다음 `step_end` 경계 뒤 새 turn과 drive 재호출을 열지 않음. 임대 유지, 사용자 입력은 큐에만 | `X.primitives.spec` §4.4.3, `L1.loop.spec` | 없음 [결정: 2026-10-31 사용자] |
@@ -3024,7 +3024,7 @@ export const palette = [
 | `L3.authoring.spec` | 제작 확장. 구성기 "새 그룹"과 시험 실행이 같은 서비스(`xeon.devkit`)를 씁니다 |
 | `review.m4-plan` | 이 문서의 화면과 간극을 트랙으로 나눈 M4 구현 계획입니다 |
 | `F.extensions.spec`, `X.loading-trust.spec`, `X.operations.spec` | 매니페스트, 신뢰 등급, 예산, 자동 끄기, 안전 모드를 받아 작업대에 놓습니다. §10.3 간극을 요구합니다 |
-| `L3.group-kit.spec`, `L3.slots.spec` | `GroupStatus`, `GroupMetrics`, `PromotionReport`, `replayDrive`, 템플릿을 받습니다 |
+| `L3.group-sdk.spec`, `L3.slots.spec` | `GroupStatus`, `GroupMetrics`, `PromotionReport`, `replayDrive`, 템플릿을 받습니다 |
 
 ### 11.2 수용 기준
 
@@ -3074,11 +3074,11 @@ export const palette = [
 | 15 | 닫음 [결정: 2026-10-31 사용자] 작업대 전부 M4. P-16·P-13·P-17 P0, 나머지 P1(§5). 옛 문장: 작업대를 P0로 올릴지. 이 문서는 P-16·P-17·P-18을 P1, 나머지를 P2로 둡니다. "둘 다 1급"을 M4 종료 필수로 읽으면 P-16·P-13·P-17을 P0로 올리고 W-15·W-20·W-24를 먼저 만들어야 합니다 | 사용자 |
 | 16 | 닫음 [결정: 2026-10-31 사용자] 두 모드(선언형, 격리 프레임), 모드는 에이전트가 고름(ADR-0021 개정) | 사용자, ADR-0021 §6 |
 | 17 | 닫음 [결정: 2026-10-31 사용자] 연결은 대화 주 내비에 남음(다섯) | 사용자 |
-| 18 | 닫음 [결정: 2026-10-31 사용자] 개발 모드에서만. 옛 문장: 배포 앱에서 replay·bench·코어 변경 검사를 돌릴지(W-29, W-30). 지금은 저장소 스크립트와 시험 파일 전용이라 개발 모드에서만 가능합니다 | 사용자, `L3.group-kit.spec`, `eng.toolchain.guide` |
+| 18 | 닫음 [결정: 2026-10-31 사용자] 개발 모드에서만. 옛 문장: 배포 앱에서 replay·bench·코어 변경 검사를 돌릴지(W-29, W-30). 지금은 저장소 스크립트와 시험 파일 전용이라 개발 모드에서만 가능합니다 | 사용자, `L3.group-sdk.spec`, `eng.toolchain.guide` |
 | 19 | 닫음 [결정: 2026-10-31 사용자] 런타임 호스트 저장, CLI·서비스와 공유(W-46, X-18) | 사용자, `F.wire-settings.spec` |
 | 20 | 시험 대화를 학습 그룹 리뷰에서 뺄지(X-14) | 사용자, `L3.learning.spec` |
 | 21 | 닫음 [결정: 2026-10-31 사용자] M4에 되는 만큼, 대체 경로 §6.24.1 | 사용자, `X.loading-trust.spec` |
-| 22 | 닫음 [결정: 2026-10-31 사용자] 템플릿 묶음을 고정하지 않고 제작 확장 카탈로그로 갱신(`L3.authoring.spec`) | 사용자, `L3.group-kit.spec` |
+| 22 | 닫음 [결정: 2026-10-31 사용자] 템플릿 묶음을 고정하지 않고 제작 확장 카탈로그로 갱신(`L3.authoring.spec`) | 사용자, `L3.group-sdk.spec` |
 | 23 | 이 문서 도메인과 작업대를 `L4/README.md`에 더하는 일, ADR-0021을 `decisions/README.md` 색인에 더하는 일. README는 이번 작업에서 고치지 않았습니다 | 오케스트레이터 |
 | 24 | 앱을 켤 때 누르는 키로 안전 모드에 들어가는 길(셸 쪽 확인 필요) | 사용자, `L4.desktop.spec` |
 | 25 | 닫음 [결정: 2026-10-31 사용자] M4는 요청 단위만, 자식 승인은 출처 표시. 옛 문장: 승인 기억을 그룹 단위로 둘지("이 그룹에서 항상"). 지금 기억 값은 `request.remember`가 주는 것뿐입니다(D-12). 자식 에이전트가 낸 승인을 부모 그룹 기억으로 묶을지도 함께 정합니다 | 사용자, adr.0018, `L1.tools.spec` |
@@ -3152,7 +3152,7 @@ export const palette = [
 | C-4 | 블록 배치 | [결정: 2026-10-31 사용자] 층마다 자동 배치. 층 안 순서 바꾸기는 기기마다 기억. 초기화 버튼 | §6.22.6 |
 | C-5 | 턴 재생 계측(X-15)을 늘 켤지 | [결정: 2026-10-31 사용자] 설정으로 켜고 끔, 기본 켬, 대화마다 작은 버퍼. 비용을 잼 | §6.22.5, X-15 |
 | C-6 | 구성과 만들기를 둘로 둘지 | [결정: 2026-10-31 사용자] "구성" 하나로 합침. "새 그룹" 동작 | §4.9.3, §6.28, §6.29 |
-| C-7 | 설치 그룹의 블록 분해를 누가 소유하는가 | [결정: 2026-10-31 사용자] 작성자가 매니페스트에 선언, group-kit이 채움. 선언 없으면 블록 하나 "구성 정보 없음" | §6.22.2, §6.28, X-16 |
+| C-7 | 설치 그룹의 블록 분해를 누가 소유하는가 | [결정: 2026-10-31 사용자] 작성자가 매니페스트에 선언, group-sdk이 채움. 선언 없으면 블록 하나 "구성 정보 없음" | §6.22.2, §6.28, X-16 |
 | C-8 | 사람 확인을 drive 원시로 둘지 | [결정: 2026-10-31 사용자] drive 원시(ADR-0018 승인 경유). 기다리는 동안 임대 반납 | §6.28.2, X-17 |
 | C-9 | 시험 "멈춤"이 화면 갱신만 멈출지, 실제로 멈출지 | [결정: 2026-10-31 사용자] 다음 단계 경계에서 실제로 멈춤(시험만), 임대 유지 | §6.26, §6.28.4, W-48, X-19 |
 

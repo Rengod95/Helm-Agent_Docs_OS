@@ -179,7 +179,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | L1 `core-persistence` | records, settings | `upcastEvent`, 재개 규칙, `resolveSetting` |
 | L1 `core-context`, `core-models` | capabilities, conversation | `orderTools`, `toolsetFingerprint`, `Message` |
 | L2 `cap-*` | capabilities | `CapabilityDef`, `defineCapability`, `CapabilityError` |
-| L3 `group-kit`, `group-helm`, `group-learning` | extensions, capabilities, records | 매니페스트, 지점, `ServiceKey`, `grp.*` kind |
+| L3 `group-sdk`, `group-helm`, `group-learning` | extensions, capabilities, records | 매니페스트, 지점, `ServiceKey`, `grp.*` kind |
 | L4 `apps/host`, `apps/cli`, `apps/desktop` | wire, settings | `HostConnection`, `WireHandlers`, `WIRE_METHODS`, `EventWire`, `checkSettingWrite` |
 | L4 설정 화면 | settings | `SettingDefWire`, `SettingsTab`, `EffectiveSetting` |
 | L0·L1 서비스 구현과 소비(L1~L4 `core-*`, `cap-*`, `group-*`, `apps/*`) | services | 서비스 인터페이스와 서비스 이름 상수(`F.capabilities.spec` §3.12). 구현 패키지는 인터페이스를 구현하고, 소비 쪽은 구현 패키지를 import하지 않고 이 인터페이스로 주입받는다 |

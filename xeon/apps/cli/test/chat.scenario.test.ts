@@ -10,7 +10,7 @@ import {
   type EventWire,
 } from "@xeon/contracts/wire";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@xeon/core-models/testing";
-import { smokeGroup } from "@xeon/group-kit/testing";
+import { smokeGroup } from "@xeon/group-sdk/testing";
 import { startInProcessHost } from "@xeon/host";
 import { createHostConnection } from "../src/host-client.ts";
 import {
@@ -264,7 +264,7 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       { clock: realTapeClock() },
     ),
   );
-  // 테스트 그룹(group-kit). 시험이 덧붙인 도구 호출 지점 처리기가 자기 scope를 끄도록 요청한다
+  // 테스트 그룹(group-sdk). 시험이 덧붙인 도구 호출 지점 처리기가 자기 scope를 끄도록 요청한다
   // (단계 안에서 요청하고, 적용은 단계 경계여야 한다)
   const group = smokeGroup({ followUps: 0, driveTurns: 1 });
   const hold: { handle: ScopeHandle | undefined } = { handle: undefined };

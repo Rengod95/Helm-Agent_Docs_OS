@@ -49,12 +49,12 @@ M3가 X1~X11을 썼으므로 M4는 Y를 씁니다. T-LED가 `product.scope.spec`
 | Y4 | 개요 나눔 보기: 목록과 캔버스 고름 동기화, 캔버스에 구조 편집 동작 없음, 층 안 순서 기억과 초기화, 턴 재생 시간이 `trace.turn`과 같음, 계측 끄면 턴 재생 잠김 | `canvas.selection-sync`, `canvas.no-edit-actions`, `canvas.order-persists-and-resets`, `replay-bar.matches-trace`, host int `trace-turn.int.test.ts` | T-CANVAS, T-XD |
 | Y5 | 플러그인 화면 두 모드: Helm `helm/inquiry`가 위젯 카탈로그 v1만으로 그려짐. 시험 프레임 플러그인이 격리 iframe에서 그려지고 Linux e2e에서 `__TAURI__` 없음, 네트워크 요청 실패, 프레임 안 승인 버튼 무효, 다리 메시지에 비밀 없음. 화면 실패 5번이면 그 화면만 `view_disabled` | `view-host.*`, desktop e2e `frame-isolation.e2e.test.ts`(Linux). macOS는 사용자 묶음 | T-VIEW |
 | Y6 | spec §10.1의 M4 wire(W-15, W-20~W-26, W-31, W-33~W-35, W-37~W-50)가 `WIRE_METHODS`와 wire 문서 표에 있고 메서드마다 host int 시험이 있음 | `wire-methods.doc.test.ts`, host int 시험 | T-F, T-WA, T-WB |
-| Y7 | drive 사람 확인: `loop.ask`가 승인을 만들고 임대를 `waiting`으로 반납, 답 뒤 같은 그룹이 임대를 다시 받고 같은 `requestId` 재호출이 기록된 답을 돌려줌. `replayDrive`가 ask를 포함한 그룹에서 통과 | ext-host `drive-ask.test.ts`, group-kit replay 시험 | T-XD, T-GK |
+| Y7 | drive 사람 확인: `loop.ask`가 승인을 만들고 임대를 `waiting`으로 반납, 답 뒤 같은 그룹이 임대를 다시 받고 같은 `requestId` 재호출이 기록된 답을 돌려줌. `replayDrive`가 ask를 포함한 그룹에서 통과 | ext-host `drive-ask.test.ts`, group-sdk replay 시험 | T-XD, T-GK |
 | Y8 | 제작 확장 `L3.authoring.spec` §9 A-1~A-7 | `authoring.*` 시험 | T-AUTH |
 | Y9 | 시험 대화 "멈춤" 뒤 다음 단계 경계 이후 새 turn·drive 호출이 없고 임대가 유지됨. "이어서"로 계속. 배포 형태에서 replay·bench·diff가 잠김 | ext-host `trial-pause.test.ts`, host int `trial.int.test.ts`, desktop `trial.dev-only-locked` | T-XD, T-WB, T-TRIAL |
 | Y10 | 프로필이 호스트에 저장되어 데스크톱이 저장한 프로필이 CLI `xeon profile list`에 보이고, `profile.apply`가 하나라도 실패하면 모든 키를 되돌림 | host int `profile.int.test.ts`, cli 테이프 | T-WB |
 | Y11 | 버전 탭: 전체 단계(기록 보관 + 되돌리기)이면 되돌리기 왕복 시험, 대체 단계이면 기본 플러그인 번들 버전 되돌리기 시험. 어느 단계로 냈는지 spec §6.24.1에 적음 | ext-host `version-history.test.ts` 또는 `bundled-revert.test.ts` | T-XV, T-BENCH |
-| Y12 | 코드 결함 넷: `/group on`과 설정 토글이 장부를 비움, managed 설치는 상한 `user` tier, 핸들러 시간이 지점별로 기록됨, 시작 실패 뒤 `host.status.suggestSafeMode`가 참. 안전 모드에서 X 훅이 실리지 않음 | ext-host·group-kit·host 시험 각 1개 이상 | T-FIX, T-XD |
+| Y12 | 코드 결함 넷: `/group on`과 설정 토글이 장부를 비움, managed 설치는 상한 `user` tier, 핸들러 시간이 지점별로 기록됨, 시작 실패 뒤 `host.status.suggestSafeMode`가 참. 안전 모드에서 X 훅이 실리지 않음 | ext-host·group-sdk·host 시험 각 1개 이상 | T-FIX, T-XD |
 | Y13 | caustic `xeon/m4-design`이 caustic `main`에 PR로 들어가고 submodule이 `main` 커밋을 가리킴. spec §9의 C 항목마다 상태(caustic 반영, 앱 조합, M5)가 있음. `grep -E '#[0-9a-fA-F]{3,6}\|rgb\('`가 `apps/desktop/src`에서 비어 있음 | `scripts/caustic-gaps.test.ts`(표 상태 검사), grep 검사 | T-CAU1, T-CAU2 |
 | Y14 | 모든 화면에서 axe 위반 0, 키보드만으로 spec §4.8 동작에 감, 라이트·다크 모두 | `a11y.axe-all-pages`, 키보드 경로 시험, 원격 점검 Phase 2 | T-A11Y |
 | Y15 | 하드코딩 한국어 검사가 `apps/desktop/src`와 하위 층에서 0이고, `ui.locale=en` 데스크톱 스모크 통과. `review.m3-plan` §9.3 i18n 행 닫음 | `xeon/hardcoded-korean` 규칙, desktop en 스모크 | T-I18N |
@@ -83,7 +83,7 @@ M3가 X1~X11을 썼으므로 M4는 Y를 씁니다. T-LED가 `product.scope.spec`
 - 커밋 순서: 매니페스트(`views`, `composition`) → drive(`ask`) → wire 확장 읽기 → 프로필·시험·계측 → devkit. 앞 둘이 X 트랙을 엽니다.
 - 끝 시험: 새 스키마 왕복 값 비교, `points.doc.test.ts`·wire 문서 시험이 spec 표와 일치.
 
-**T-FIX 설계 중 찾은 코드 결함** · Sonnet medium · `ext-host`(X) → `group-kit`(L3) → `apps/host`(L4) · S
+**T-FIX 설계 중 찾은 코드 결함** · Sonnet medium · `ext-host`(X) → `group-sdk`(L3) → `apps/host`(L4) · S
 - X-4: `/group on`과 `ext.<이름>.enabled` 토글이 `AutoDisabler.reenable`을 부르게 합니다.
 - X-13: `assignTier`의 `case "managed"`가 상한 `user` tier를 돌려주게 하고, 문서(`X.operations.spec` §3.1)와 맞춥니다. guard 목록 확장은 그대로입니다.
 - X-21: 시작 경로에서 `StartupHealthStore`와 `shouldSuggestSafeMode`를 부르고 `host.status`에 싣습니다(W-39).
@@ -113,13 +113,13 @@ M3가 X1~X11을 썼으므로 M4는 Y를 씁니다. T-LED가 `product.scope.spec`
 - 선행: T-F(drive 커밋), T-FIX(같은 `operations/` 폴더라 T-FIX 병합 뒤 rebase).
 - 끝 시험: Y7의 ext-host 부분, Y9의 ext-host 부분, Y12의 시간 기록·X 훅 부분, 계측 켜짐·꺼짐 디스패치 비용 bench 한 줄.
 
-**T-GK group-kit과 Helm** · Sonnet medium · `group-kit` → `group-helm`(L3) · M
+**T-GK group-sdk과 Helm** · Sonnet medium · `group-sdk` → `group-helm`(L3) · M
 - `defineGroup({ composition })`가 매니페스트를 채움(X-16), `g.registerMethod`(X-3), Helm `ext.helm.status`·`inquiries`·`findings`와 선언형 화면 기여 여섯(ADR-0021 §3.10, X-9), Helm `composition`과 `phases` 선언(`TRANSITIONS` 옮김), `replayDrive` 런타임 하니스(X-10, 개발 모드).
 - 이월(L1·그룹 행 중 그룹 몫): 재생 하네스 thread id 오류 종류, `delegateStatus` 소유자 범위, 내장 그룹 이름 복사.
 - 선행: T-XV(등록 API), T-XD(`loop.ask`가 있으면 Helm은 쓰지 않아도 replay 시험에 넣음).
 - 끝 시험: Helm 메서드 값 비교, Helm 화면 트리가 위젯 카탈로그 v1 검사 통과(트리 검사기는 T-VIEW와 공유하는 `packages/client/src/views`의 순수 함수), Y7 replay 부분.
 
-**T-AUTH 플러그인 제작 확장** · Sonnet medium · `contracts` 사용만 → `group-authoring`(L3) → `apps/host`(L4) → `apps/cli`(L4) · L
+**T-AUTH 플러그인 제작 확장** · Sonnet medium · `contracts` 사용만 → `plugin-builder`(L3) → `apps/host`(L4) → `apps/cli`(L4) · L
 - `L3.authoring.plan` AU-T1~AU-T9. 서비스 `xeon.devkit` 구현과 W-27·W-28·W-47·W-49, 그룹, 카탈로그 첫 판, AU 규칙, `xeon group new`의 서비스 호출 전환.
 - 선행: T-GK(템플릿과 `composition`), T-WB(시험 대화 W-34), T-XD(`loop.ask`). 화면 기여(AU-T7)는 T-VIEW 선언형 렌더러 병합 뒤 마지막 커밋으로 둡니다.
 - 끝 시험: Y8.
@@ -364,7 +364,7 @@ M4 착수 전이나 도중에 필요한 것과 마감 뒤 한 번에 묻는 것�
 - 캔버스 2차 시안 지연: T-CANVAS가 시각 값을 기다리면 임계 경로가 길어집니다. 동작과 데이터(spec §6.22)는 시각과 무관하게 먼저 만들고, 시각 값은 토큰 교체로 나중에 바꿉니다.
 - 이월 범위 확대: §9.3 표는 13행 100개 넘는 항목입니다. T-RT1·T-RT2는 먼저 분류만 하고, M4 완료로 고른 항목만 합니다. 분류 결과는 오케스트레이터가 확인합니다.
 - Haiku의 화면 코드 품질: caustic 규칙(§13, DP-08)과 TS 규칙을 어길 수 있습니다. 리드가 화면마다 `grep` 색 검사와 `check-ts-rules`를 끝 시험에 넣고, 시안 파일을 그대로 옮기는 단위로 작업을 나눕니다.
-- 템플릿 원천 둘: `group-kit/templates`와 제작 확장 카탈로그가 어긋날 수 있습니다. 카탈로그 항목은 템플릿 폴더를 가리키기만 하고, 적합성 시험(A-1, A-2)이 둘을 함께 검사합니다.
+- 템플릿 원천 둘: `group-sdk/templates`와 제작 확장 카탈로그가 어긋날 수 있습니다. 카탈로그 항목은 템플릿 폴더를 가리키기만 하고, 적합성 시험(A-1, A-2)이 둘을 함께 검사합니다.
 - 테스트 메모리: host int와 데스크톱 e2e가 자식 프로세스와 WebView를 띄웁니다. cgroup 상한 아래 패키지별 실행을 지킵니다.
 - 설계 브랜치 rebase: 이 문서와 desktop-ux 변경은 M3b 마감 전 지점에서 갈라졌습니다. `review.m3-plan` §9와 충돌하지 않지만, 병합 전 rebase에서 `docs-route`를 다시 돌립니다.
 

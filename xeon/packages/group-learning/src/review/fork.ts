@@ -1,6 +1,6 @@
 import type { ItemId, ThreadId } from "@xeon/contracts/conversation";
 import type { AgentSettledEventPayload } from "@xeon/contracts/records";
-import type { DelegateError, DelegateResult, DelegateSpec } from "@xeon/group-kit";
+import type { DelegateError, DelegateResult, DelegateSpec } from "@xeon/group-sdk";
 import type { LearningSettings } from "../settings.ts";
 import type { LearningState } from "../state.ts";
 import type { ReviewOutcome } from "../proposals/reader.ts";
@@ -17,7 +17,7 @@ const REVIEW_ID_PREFIX = "learning:review:";
 
 export type ReviewRequestId = `learning:review:${number}`;
 
-/** "learning:review:<epoch>" 형식. 1~48자. group-kit이 ":report"를 붙여 보고 키(64자 한도)로 쓰기 때문이다(L3.group-kit.spec §3.4) */
+/** "learning:review:<epoch>" 형식. 1~48자. group-sdk이 ":report"를 붙여 보고 키(64자 한도)로 쓰기 때문이다(L3.group-sdk.spec §3.4) */
 export function reviewRequestId(epoch: number): ReviewRequestId {
   return `${REVIEW_ID_PREFIX}${epoch}`;
 }

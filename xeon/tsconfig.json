@@ -71,7 +71,7 @@
       "path": "./packages/cap-schedule"
     },
     {
-      "path": "./packages/group-kit"
+      "path": "./packages/group-sdk"
     },
     {
       "path": "./packages/group-helm"

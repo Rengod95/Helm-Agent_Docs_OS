@@ -25,7 +25,7 @@ import { WORKSPACE_SETTING_DEFS } from "@xeon/cap-workspace";
 import { accountRotationManifest, accountRotationSettings } from "@xeon/group-account-rotation";
 import { helmManifest, helmSettings } from "@xeon/group-helm";
 import { learningSettings } from "@xeon/group-learning";
-import { groupKitSettings } from "@xeon/group-kit";
+import { groupSdkSettings } from "@xeon/group-sdk";
 import {
   loadingTrustSettings,
   operationsSettings,
@@ -86,7 +86,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("cap-work", "l2.work", WORK_SETTING_DEFS),
     ofDefs("cap-artifacts", "l2.artifacts", ARTIFACTS_SETTING_DEFS),
     ofDefs("cap-dialog", "l2.dialog", DIALOG_SETTING_DEFS),
-    ofGroup("group-kit", groupKitSettings),
+    ofGroup("group-sdk", groupSdkSettings),
     ofGroup("group-helm", helmSettings),
     ofGroup("group-learning", learningSettings),
     ofDefs("group-helm", "ext.helm", reservedExtensionSettings(helmManifest, "user").defs),

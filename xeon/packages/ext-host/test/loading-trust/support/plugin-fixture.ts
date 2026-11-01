@@ -5,8 +5,8 @@ import type { SdkModules } from "../../../src/loading-trust/index.ts";
 import * as typebox from "typebox";
 import { putFile } from "./real-fs.ts";
 
-/** 호스트 쪽 `@xeon/group-kit` 대역. 플러그인 번들이 import하면 같은 객체를 받아야 한다 */
-export const fakeGroupKit: {
+/** 호스트 쪽 `@xeon/group-sdk` 대역. 플러그인 번들이 import하면 같은 객체를 받아야 한다 */
+export const fakeGroupSdk: {
   readonly marker: symbol;
   readonly seen: string[];
   record(value: string): void;
@@ -15,14 +15,14 @@ export const fakeGroupKit: {
   /** 플러그인이 받은 typebox와 contracts가 호스트 것과 같은 값인지 기록한다 */
   verify(name: string, type: unknown, ok: unknown): void;
 } = {
-  marker: Symbol("host-group-kit"),
+  marker: Symbol("host-group-sdk"),
   seen: [],
   capabilityError: CapabilityError,
   record(value) {
-    fakeGroupKit.seen.push(value);
+    fakeGroupSdk.seen.push(value);
   },
   verify(name, type, ok) {
-    fakeGroupKit.seen.push(
+    fakeGroupSdk.seen.push(
       `${name}:shared:${String(type === typebox.Type)}:${String(ok === contracts.ok)}`,
     );
   },
@@ -31,7 +31,7 @@ export const fakeGroupKit: {
 /** 프로세스 전역 등록이라 모든 시험이 같은 객체를 넘긴다 */
 export const SDK: SdkModules = {
   "@xeon/contracts": contracts,
-  "@xeon/group-kit": fakeGroupKit,
+  "@xeon/group-sdk": fakeGroupSdk,
   typebox,
 };
 
@@ -49,7 +49,7 @@ export interface PluginFiles {
 /** `boundary.settle.after`에 `on` 핸들러를 걸고 호출 때 `<이름>:fired`를 기록하는 엔트리 */
 function defaultEntry(name: string): string {
   // 플러그인 본문은 문자열이다. 층 검사가 import로 읽지 않게 지정자를 조립한다
-  const kitSpecifier = ["@xeon", "group-kit"].join("/");
+  const kitSpecifier = ["@xeon", "group-sdk"].join("/");
   return `import * as kit from "${kitSpecifier}";
 import { ok } from "@xeon/contracts";
 import { Type } from "typebox";

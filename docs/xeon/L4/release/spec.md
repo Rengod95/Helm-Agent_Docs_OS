@@ -50,7 +50,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 ```
 xeon-<버전>-<triple>/
 ├── xeon                          컴파일된 엔진 (Windows는 xeon.exe)
-├── group-kit/templates/          `xeon group new`의 템플릿과 index.json
+├── group-sdk/templates/          `xeon group new`의 템플릿과 index.json
 ├── default-plugins/
 │   ├── helm/                     .xeon-plugin/plugin.json과 엔트리 번들
 │   └── account-rotation/         같은 구조
@@ -72,13 +72,13 @@ xeon-<버전>-<triple>/
 |---|---|---|---|
 | 번들 바이너리 목록 | `binaries.lock.json` | 번들 후보가 없으므로 시스템 후보를 찾습니다 | `xeon/packages/platform-os/src/binaries/resolve.ts` |
 | 기본 플러그인 | `default-plugins/<이름>/` | 설치하지 않고 `no_bundle`로 알립니다. 오류가 아닙니다 | `xeon/apps/host/src/assembly/default-plugins.ts`, `xeon/apps/host/src/assemble.ts`(`defaultPluginsDir`) |
-| 그룹 템플릿 | `group-kit/templates/index.json` | 환경 문제(종료 코드 3)로 끝납니다 | `xeon/apps/cli/src/group/fs-port.ts` |
+| 그룹 템플릿 | `group-sdk/templates/index.json` | 환경 문제(종료 코드 3)로 끝납니다 | `xeon/apps/cli/src/group/fs-port.ts` |
 
 그룹 템플릿의 탐색 순서는 `locateGroupTemplates`가 정합니다.
 
 1. 환경 변수 `XEON_GROUP_TEMPLATES_DIR`. 빈 값은 없는 것으로 다룹니다.
-2. `<자원 디렉터리>/group-kit/templates/index.json`이 있는 폴더. 컴파일 바이너리는 이 자리로 찾습니다.
-3. 시작 폴더 `from`에서 위로 올라가며 찾는 `packages/group-kit/templates/index.json`. 소스 실행(`bun run`)은 이 자리로 찾습니다.
+2. `<자원 디렉터리>/group-sdk/templates/index.json`이 있는 폴더. 컴파일 바이너리는 이 자리로 찾습니다.
+3. 시작 폴더 `from`에서 위로 올라가며 찾는 `packages/group-sdk/templates/index.json`. 소스 실행(`bun run`)은 이 자리로 찾습니다.
 
 Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므로 그 폴더가 자원 디렉터리가 됩니다. 템플릿과 기본 플러그인을 같은 폴더에 두는 매핑은 M4 패키징이 맡습니다([미결] §8).
 

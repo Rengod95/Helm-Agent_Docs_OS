@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { scanDriveSource } from "@xeon/group-kit/testing";
+import { scanDriveSource } from "@xeon/group-sdk/testing";
 
 // H-18: drive 함수 본문과 그 안에서 한 단계 부르는 같은 파일 함수에 시각·난수·직접 I/O가 없다
 

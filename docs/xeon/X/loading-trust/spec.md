@@ -32,7 +32,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 - 확장 설정 연결과 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, X 층 키 `x.loading-trust.*`
 - 신뢰 등급 4값의 뜻과 허용 연산 표, 프로젝트 신뢰 판정과 저장
 - 프로세스 격리(2차)의 전송, 프록시, 직렬화, 수명, 기록 경로
-- SDK 가상 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
+- SDK 가상 모듈(`@xeon/contracts`, `@xeon/group-sdk`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
 - `thread.trust.before`, `thread.resources` 지점의 발화 시점(F.extensions.spec §7)
 
 다루지 않는 것:
@@ -57,7 +57,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 내장 필수 확장 | `essential: true`로 등록된 내장 확장. 이 확장의 실패는 시작 실패다 |
 | 격리 확장 | `ext.<name>.isolation`이 `process`인 확장. 자식 프로세스에서 실행된다 |
 | 프록시 | 격리 확장 대신 호스트 프로세스에서 지점 핸들러와 리소스를 등록하는 대리 객체 |
-| SDK 가상 모듈 | 플러그인 번들이 import하는 `@xeon/contracts`, `@xeon/group-kit`, `typebox`를 호스트가 쓰는 모듈 객체로 돌려주는 등록(§4.4.6) |
+| SDK 가상 모듈 | 플러그인 번들이 import하는 `@xeon/contracts`, `@xeon/group-sdk`, `typebox`를 호스트가 쓰는 모듈 객체로 돌려주는 등록(§4.4.6) |
 | 기본 플러그인 | 릴리즈에 들어 있고 첫 실행 때 사용자 확장 위치에 복사되는 외부 확장 형식의 플러그인(Helm, §4.4.7) |
 
 ## 3. 인터페이스
@@ -368,7 +368,7 @@ export interface LoaderDeps {
   readonly clock: { now(): number };
   /**
    * 플러그인 번들에 줄 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트가 쓰는 모듈 객체(§4.4.6). `@xeon/contracts`와
-   * 하위 경로, `typebox`는 X가 등록한다. `@xeon/group-kit`은 L3라 X가 import할 수 없어 조립 루트가 넘기며, 없으면 그 import가 실패한다(`entry_import_failed`)
+   * 하위 경로, `typebox`는 X가 등록한다. `@xeon/group-sdk`은 L3라 X가 import할 수 없어 조립 루트가 넘기며, 없으면 그 import가 실패한다(`entry_import_failed`)
    */
   readonly sdkModules?: SdkModules;
   /** `thread.trust.before` 발화(§4.7.3 4번). 없으면 결정 없음으로 본다 */
@@ -606,7 +606,7 @@ export interface IsolationPolicy {
 ```ts
 // virtual-modules.ts
 /** 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 하는 지정자 */
-export const SDK_MODULE_SPECIFIERS: readonly ["@xeon/contracts", "@xeon/group-kit", "typebox"];
+export const SDK_MODULE_SPECIFIERS: readonly ["@xeon/contracts", "@xeon/group-sdk", "typebox"];
 /** 지정자 → 호스트의 모듈 객체(보통 `import * as ns`의 결과) */
 export type SdkModules = Readonly<Record<string, Readonly<Record<string, unknown>>>>;
 export type SdkRegisterError =
@@ -797,8 +797,8 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 #### 4.4.6 SDK 가상 모듈
 
-- [제안] 플러그인 번들은 `@xeon/contracts`와 그 하위 경로(`/capabilities`, `/conversation`, `/extensions`, `/records`, `/services`, `/settings`, `/wire`), `@xeon/group-kit`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof CapabilityError`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 이 밖의 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
-- `@xeon/contracts`와 하위 경로, `typebox`는 X가 자기 의존으로 직접 등록한다(`X_SDK_MODULES`). 조립 루트는 넘기지 않아도 된다. `@xeon/group-kit`은 L3 패키지라 X가 import할 수 없으므로 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. 조립 루트가 X 몫의 지정자를 다른 객체로 넘기면 `conflict`다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
+- [제안] 플러그인 번들은 `@xeon/contracts`와 그 하위 경로(`/capabilities`, `/conversation`, `/extensions`, `/records`, `/services`, `/settings`, `/wire`), `@xeon/group-sdk`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof CapabilityError`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 이 밖의 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
+- `@xeon/contracts`와 하위 경로, `typebox`는 X가 자기 의존으로 직접 등록한다(`X_SDK_MODULES`). 조립 루트는 넘기지 않아도 된다. `@xeon/group-sdk`은 L3 패키지라 X가 import할 수 없으므로 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. 조립 루트가 X 몫의 지정자를 다른 객체로 넘기면 `conflict`다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
 - 등록은 `Bun.plugin`이라 프로세스 전역이고 첫 import 뒤에는 바꿀 수 없다. 같은 지정자에 같은 객체를 다시 등록하면 아무 일도 하지 않고, 다른 객체를 등록하려 하면 `conflict`다. 이 오류는 외부 확장의 `entry_import_failed`로 보인다. Bun이 아닌 런타임에서는 `unavailable`이다.
 - 등록한 지정자는 같은 프로세스의 Xeon 패키지가 import해도 같은 객체를 받는다. 호스트가 넘긴 객체가 곧 호스트가 쓰는 모듈이므로 결과가 같다.
 
@@ -1189,7 +1189,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 14. 이 문서 §4.6.2 표의 각 행·열과 `TRUST_MATRIX` 상수가 같다(문서 대조 테스트).
 15. 외부 확장 매니페스트의 `trust.level: "builtin"`은 `trust_exceeds_source`로 거부된다.
 16. 외부 확장의 `entry`가 없는 파일이거나 함수 export가 없거나 import 중 던지면 그 확장만 `error`(`entry_not_found`, `entry_not_function`, `entry_import_failed`)이고 다른 확장의 로드는 계속된다.
-17. 사용자 위치의 외부 확장은 `<userDir>/extensions/<이름>/.xeon-plugin/plugin.json`에서 발견되어 `user` 등급, `user` tier로 로드되고 `on` 핸들러가 호출된다. 플러그인이 import한 `@xeon/contracts`, `typebox`, `@xeon/group-kit`은 호스트가 넘긴 값과 같다.
+17. 사용자 위치의 외부 확장은 `<userDir>/extensions/<이름>/.xeon-plugin/plugin.json`에서 발견되어 `user` 등급, `user` tier로 로드되고 `on` 핸들러가 호출된다. 플러그인이 import한 `@xeon/contracts`, `typebox`, `@xeon/group-sdk`은 호스트가 넘긴 값과 같다.
 18. 격리 자식이 `restartWindowSec` 안에 `maxRestarts + 1`번 끝나면 상태가 `error`(`isolation_restart_limit`)다.
 19. 로더는 Cordis를 import하지 않는다. 확장 엔트리는 `ExtHost.install`로만 실행되고(가짜 `ExtHost`의 호출 기록으로 확인), scope setup 본문의 `post`는 `setup_action`, 엔트리 본문 예외는 `entry_threw`가 된다.
 20. `policy.admit`이 `TierError`를 내면 그 확장은 install되지 않고 진단이 `tier_rejected`다.

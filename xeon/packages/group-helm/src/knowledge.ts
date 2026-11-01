@@ -5,7 +5,7 @@ import {
   WebSearchKey,
   type CapabilityId,
 } from "@xeon/contracts/capabilities";
-import type { GroupApi } from "@xeon/group-kit";
+import type { GroupApi } from "@xeon/group-sdk";
 import { failureOf, type HelmFailure } from "./failures.ts";
 import type { HelmSource, HelmState, InquiryId } from "./state.ts";
 

@@ -557,7 +557,7 @@ export interface HookProcessPort {
 export interface ProcessPort extends IsolationProcessPort, HookProcessPort {}
 export const ProcessPortKey: PortKey<ProcessPort>;                 // { name: "xeon.process" }
 
-// ── 임대 정책 (서비스 xeon.groups, 제공 group-kit, 선택) ─────────────
+// ── 임대 정책 (서비스 xeon.groups, 제공 group-sdk, 선택) ─────────────
 export interface LeaseCandidate {
   readonly scopeId: ScopeId;
   readonly extension: ExtensionName;
@@ -669,7 +669,7 @@ export interface TrustPrompter {
 | `ProjectorRegistryPort` | `xeon.session`(`projectors`) | core-persistence | `SessionService.projectors` | `X.primitives.spec` §3.6 |
 | `ScopedStorePort` | `xeon.store` | platform-store | `StoreService`(`F.records.spec` §3.9) | `X.primitives.spec` §3.6 |
 | `ProcessPort` | `xeon.process` | platform-process | `ProcessService extends ProcessPort` | `X.primitives.spec` §3.6, `X.loading-trust.spec` §3.8, `X.operations.spec` §3.7 |
-| `LeaseArbiterPort` | `xeon.groups` | group-kit | `GroupService extends LeaseArbiterPort`(`F.capabilities.spec` §3.12 `services/groups.ts`) | `X.primitives.spec` §3.6 |
+| `LeaseArbiterPort` | `xeon.groups` | group-sdk | `GroupService extends LeaseArbiterPort`(`F.capabilities.spec` §3.12 `services/groups.ts`) | `X.primitives.spec` §3.6 |
 | `ToolsPort` | `xeon.tools` | core-tools | `ToolService extends ToolsPort` | `X.primitives.spec` §3.9 |
 | `ModelsPort` | `xeon.models` | core-models | `ModelService extends ModelsPort` | `X.primitives.spec` §3.9 |
 | `McpPort` | `xeon.mcp` | cap-mcp | `McpService extends McpPort`(`F.capabilities.spec` §3.12 `services/mcp.ts`) | `X.primitives.spec` §3.9 |
@@ -1258,7 +1258,7 @@ chain의 보충 규칙 [제안]:
 - 재생 규율 [결정]: drive 함수는 경계마다 마지막 커밋 상태로 다시 호출되고, 효과는 §4.3 허용 효과 표의 drive 열로만 낸다(루프 효과는 `loop.turn`, `loop.spawn`, `post`. ADR-0015가 위임과 능력 호출을 더했다). 상태 변경은 `commit`으로만 한다.
   - 다시 호출되는 시점: 임대를 받을 때, 프로세스 재시작 뒤 재개할 때, `loop.turn()`이 끝난 뒤 함수가 반환했는데 그룹이 아직 활성일 때.
   - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${leaseId}:${순번}`이다. 능력 호출의 `idempotent` 쓰기는 기본 키를 받지 않고 명시 키를 요구한다(ADR-0015 §3.4 3번). 재호출된 함수가 같은 순서로 같은 호출을 하면 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다.
-  - 클로저 지역 변수에 진행 상태를 두는 drive 함수는 재개 뒤 다르게 동작한다. 이 위반은 타입으로 막을 수 없다. 결정성 검사(`Date.now`, `Math.random` 금지 등)는 L3.group-kit.spec의 lint 규칙으로 보완한다(`_research/packages.md` §4.6 L3-a).
+  - 클로저 지역 변수에 진행 상태를 두는 drive 함수는 재개 뒤 다르게 동작한다. 이 위반은 타입으로 막을 수 없다. 결정성 검사(`Date.now`, `Math.random` 금지 등)는 L3.group-sdk.spec의 lint 규칙으로 보완한다(`_research/packages.md` §4.6 L3-a).
 - 예산: [결정] 일반 대화 turn에는 기본 상한을 두지 않고 상한은 drive 임대에만 건다(`_research/decisions-log.md` 20행 "예산은 pi 방식"). `LeaseBudget`은 남은 양이고 `null`은 상한 없음이다. 상한에 이르면 `loop.turn`과 `loop.spawn`은 거부되고 임대는 `releasing`이 된다.
   - [결정: review.decisions-2 U-12] drive는 사용자 입력 없이 turn을 만들므로 pi 방식의 예외로 기본 상한을 둔다. 상한을 명시하지 않은 임대는 X 설정 `x.primitives.driveDefaultLimits`(기본 4/8/400000)를 쓰고, 그룹은 자기 설정(Helm은 `l3.helm.driveLimits`, 기본 4/8/400000)으로 덮어쓴다. 천장 `x.primitives.driveLimits`(기본 없음)를 넘지 못한다. 세 키 모두 설정 화면에서 조정한다(`X.primitives.spec` §4.4.2, §6).
 
@@ -1379,9 +1379,9 @@ chain의 보충 규칙 [제안]:
 |---|---|
 | `ExtensionManifest`, `ExtensionManifestSchema`, `defineManifest`, `validateManifest`, `validateUsage`, `validateManifestSet` | X.loading-trust.spec, 모든 확장 패키지 |
 | `HookName`, `HookSignatures`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `COLLECT_RULES`, `GUARD_HOOKS`, `LIFECYCLE_HOOKS`, 페이로드·결정·패치 타입 | X.primitives.spec, L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec |
-| `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ScopeFn`, `ExtensionEntry` | X.primitives.spec, L3.group-kit.spec, L3.helm.spec, L3.learning.spec |
+| `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ScopeFn`, `ExtensionEntry` | X.primitives.spec, L3.group-sdk.spec, L3.helm.spec, L3.learning.spec |
 | `GroupRecord`, `RecordKind`, `RecordKindDecl`, `RecordSubject`, `validateGroupRecord` | L3 전체, L1.persistence.spec |
-| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort` 포함), `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입, 각 `*PortKey`, `RecordCommitPort` 재노출 | X.primitives.spec, X.operations.spec, L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-kit.spec, F.capabilities.spec §3.12 |
+| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort` 포함), `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입, 각 `*PortKey`, `RecordCommitPort` 재노출 | X.primitives.spec, X.operations.spec, L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, F.capabilities.spec §3.12 |
 | `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `TrustPromptRequest`, `TrustOption`, `TrustUpdate`, `TrustChoice`, `TrustChoiceKind` | X.loading-trust.spec, L0.os.spec(구현), L4.cli.spec·L4.desktop.spec(프롬프트 구현) |
 
 요구:
@@ -1422,6 +1422,6 @@ chain의 보충 규칙 [제안]:
 - [미결] 능력·확장 이름 네임스페이스(예약 이름 목록, 외부 확장의 L2 도메인 이름 사용 금지). F.capabilities.spec §10과 함께 정한다.
 - [미결] 매니페스트 신뢰 필드 범위: `trust.level` 값 집합과 매니페스트가 요청할 수 있는 범위. X.loading-trust.spec과 함께 정한다.
 - 닫음: thread 지점 15종의 발화 문서 배정(§7 표, `L1.readme` §6).
-- [결정: review.decisions-2 U-07] 매니페스트 선택 필드 `storage`·`hooks`(`X.operations.spec` §10), 위임 선언 `delegates`(`L3.group-kit.spec`), `HandlerContext.ui` 포트는 M1에 넣지 않는다. M1 테스트 그룹은 on, post, drive, scope만 쓴다. 소비 문서는 이 필드에 의존하지 않는다.
+- [결정: review.decisions-2 U-07] 매니페스트 선택 필드 `storage`·`hooks`(`X.operations.spec` §10), 위임 선언 `delegates`(`L3.group-sdk.spec`), `HandlerContext.ui` 포트는 M1에 넣지 않는다. M1 테스트 그룹은 on, post, drive, scope만 쓴다. 소비 문서는 이 필드에 의존하지 않는다.
 - [결정: review.decisions-2 U-01] 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§4.5). F.conversation.spec §10 1번, F.readme §8 1번과 같은 항목이다.
 - [미결] Cordis dispose와 `onDispose`의 관계. 정리 동작을 Cordis effect로만 둘지 F 타입에 남길지(X.primitives.spec과 함께).

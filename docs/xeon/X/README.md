@@ -25,7 +25,7 @@ X가 정하지 않는 것:
 |---|---|
 | 지점 이름 46개, fold 배정, 페이로드·결정·패치 타입, `FIRST_DENY`, `CHAIN_RULES`, 매니페스트 스키마 | `F.extensions.spec` |
 | 지점을 실제로 발화하는 코드, boundary 최종 검증 | `L1.loop.spec`, `L1.tools.spec`, `L1.context.spec`, `L1.models.spec`, `L1.persistence.spec` |
-| 그룹 내부 설계(Helm의 탐구 흐름, 학습 그룹의 제안 대기열), 임대 정책의 그룹 측 판단 | `L3.group-kit.spec`, `L3.helm.spec`, `L3.learning.spec` |
+| 그룹 내부 설계(Helm의 탐구 흐름, 학습 그룹의 제안 대기열), 임대 정책의 그룹 측 판단 | `L3.group-sdk.spec`, `L3.helm.spec`, `L3.learning.spec` |
 | 세션 커밋 경로와 투영기 실행, 테이블 DDL 실행 | `L1.persistence.spec`, `L0.store.spec` |
 
 ## 2. 도메인
@@ -84,7 +84,7 @@ X가 정하지 않는 것:
 | L0 `platform-*` | `ExtHost.registerPlatform`(`PlatformModule`, `PlatformContext.providePort`)으로 포트 제공(`ScopedStorePort`, `ProcessPort` 등) | `X.primitives.spec` §3.2, §3.6 |
 | L1 `core-loop`, `core-tools`, `core-context`, `core-models`, `core-persistence` | `ExtHost.dispatch`(지점 발화), `ExtHost.boundary`(단계 경계 `prepare`/`settle`), 포트 제공(`LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort` 등, `hostOf(g).providePort`), 확장 투영기 등록 받기 | `X.primitives.spec` §3.2~§3.6, `X.operations.spec` §4.4.4 |
 | L2 `cap-*` | 능력 공급자 등록(`hostOf(g).provide`), 리소스 등록(도구, MCP 서버), on 핸들러 | `X.primitives.spec` §3.7~§3.9 |
-| L3 `group-kit`, `group-helm`, `group-learning` | scope(상태 문서, `commit`, `record`/`readRecords`), on, post, drive(Helm만, 학습 그룹은 쓰지 않음), `storageOf(g)`의 확장 전용 테이블 | `X.primitives.spec` §4.4~§4.7, `X.operations.spec` §3.4 |
+| L3 `group-sdk`, `group-helm`, `group-learning` | scope(상태 문서, `commit`, `record`/`readRecords`), on, post, drive(Helm만, 학습 그룹은 쓰지 않음), `storageOf(g)`의 확장 전용 테이블 | `X.primitives.spec` §4.4~§4.7, `X.operations.spec` §3.4 |
 | L4 `apps/host` | 조립: `createOperationsPolicy` → `createExtHost`(`policy`, `setupBudgetMs`, `resourcePolicy`) → `registerPlatform`(L0) → `createExtensionLoader({ host, policy, … })` → `loadAll`. 로더는 Cordis 서비스가 아니고 조립 루트가 직접 쥔다. `OperationsDeps.ports`·`ScopeControl` 늦은 연결, `x.*` 설정 그룹과 `LoadReport.settingGroups`의 `buildCatalog`, `StartupHealthStore`, 설정 소스 연결 | `X.primitives.spec` §3.2, `X.loading-trust.spec` §3.5, `X.operations.spec` §3.8 |
 | L4 `apps/cli`, `apps/desktop`, 설정 화면 | 활성화 토글(`ext.<name>.enabled`), 신뢰 대화상자(`TrustPrompter`), 안전 모드(`--safe-mode`, `--disable-ext`, 설정 항목), drive 임대 상한·구동 그룹 화면(`x.primitives.*`), 확장 목록·진단·자동 끄기 상태 | `X.loading-trust.spec` §6, `X.primitives.spec` §6, `X.operations.spec` §4.6.5, §6 |
 

@@ -25,7 +25,7 @@
         "@xeon/client": "workspace:*",
         "@xeon/contracts": "workspace:*",
         "@xeon/core-models": "workspace:*",
-        "@xeon/group-kit": "workspace:*",
+        "@xeon/group-sdk": "workspace:*",
         "@xeon/host": "workspace:*",
         "@xeon/platform-os": "workspace:*",
         "@xeon/platform-store": "workspace:*",
@@ -83,8 +83,8 @@
         "@xeon/ext-host": "workspace:*",
         "@xeon/group-account-rotation": "workspace:*",
         "@xeon/group-helm": "workspace:*",
-        "@xeon/group-kit": "workspace:*",
         "@xeon/group-learning": "workspace:*",
+        "@xeon/group-sdk": "workspace:*",
         "@xeon/platform-exec": "workspace:*",
         "@xeon/platform-os": "workspace:*",
         "@xeon/platform-process": "workspace:*",
@@ -373,7 +373,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@xeon/contracts": "workspace:*",
-        "@xeon/group-kit": "workspace:*",
+        "@xeon/group-sdk": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -386,7 +386,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@xeon/contracts": "workspace:*",
-        "@xeon/group-kit": "workspace:*",
+        "@xeon/group-sdk": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -395,25 +395,12 @@
         "@xeon/ext-host": "workspace:*",
       },
     },
-    "packages/group-kit": {
-      "name": "@xeon/group-kit",
-      "version": "0.0.0",
-      "dependencies": {
-        "@swc/core": "catalog:",
-        "@xeon/contracts": "workspace:*",
-        "@xeon/ext-host": "workspace:*",
-        "typebox": "catalog:",
-      },
-      "devDependencies": {
-        "@types/bun": "catalog:",
-      },
-    },
     "packages/group-learning": {
       "name": "@xeon/group-learning",
       "version": "0.0.0",
       "dependencies": {
         "@xeon/contracts": "workspace:*",
-        "@xeon/group-kit": "workspace:*",
+        "@xeon/group-sdk": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -426,12 +413,25 @@
       "version": "0.0.0",
       "dependencies": {
         "@xeon/contracts": "workspace:*",
-        "@xeon/group-kit": "workspace:*",
+        "@xeon/group-sdk": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
         "@xeon/ext-host": "workspace:*",
+      },
+    },
+    "packages/group-sdk": {
+      "name": "@xeon/group-sdk",
+      "version": "0.0.0",
+      "dependencies": {
+        "@swc/core": "catalog:",
+        "@xeon/contracts": "workspace:*",
+        "@xeon/ext-host": "workspace:*",
+        "typebox": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
       },
     },
     "packages/platform-exec": {
@@ -1183,11 +1183,11 @@
 
     "@xeon/group-helm": ["@xeon/group-helm@workspace:packages/group-helm"],
 
-    "@xeon/group-kit": ["@xeon/group-kit@workspace:packages/group-kit"],
-
     "@xeon/group-learning": ["@xeon/group-learning@workspace:packages/group-learning"],
 
     "@xeon/group-provider-anthropic-oauth": ["@xeon/group-provider-anthropic-oauth@workspace:packages/group-provider-anthropic-oauth"],
+
+    "@xeon/group-sdk": ["@xeon/group-sdk@workspace:packages/group-sdk"],
 
     "@xeon/host": ["@xeon/host@workspace:apps/host"],
 

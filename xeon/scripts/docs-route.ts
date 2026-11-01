@@ -32,7 +32,7 @@ interface LayoutEntry {
   package?: string;
   domains?: string[];
   path?: string;
-  /** Per-domain path overrides when one template does not fit (e.g. L3 group-kit, helm). */
+  /** Per-domain path overrides when one template does not fit (e.g. L3 group-sdk, helm). */
   paths?: Record<string, string>;
   docs?: string[];
 }

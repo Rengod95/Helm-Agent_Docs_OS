@@ -34,4 +34,4 @@ binds: []
 
 - 사용자 확인: `review/decisions-2.md` §2의 U-01~U-24.
 - 문서 안의 `[미결]` 중 결정 범위 밖 항목(각 문서 끝 "미결 사항")은 해당 plan의 M2 이후 작업에서 정한다. M0·M1 구현을 막는 항목은 없다.
-- X.operations §10 미결 4(`ScopeHandle.enable/disable` 사유 인자)와 L3.group-kit §3.13 X 요청 4개는 M2에서 정한다.
+- X.operations §10 미결 4(`ScopeHandle.enable/disable` 사유 인자)와 L3.group-sdk §3.13 X 요청 4개는 M2에서 정한다.

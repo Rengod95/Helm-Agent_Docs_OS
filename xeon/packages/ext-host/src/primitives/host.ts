@@ -198,17 +198,17 @@ export interface ExtHost {
   /** thread를 열 때(새로 만들거나 재개할 때, 되감기 뒤) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
   openThread(threadId: ThreadId, options?: ThreadOpenOptions): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
-  /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null(L3.group-kit.spec §3.13 요청 2) */
+  /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null(L3.group-sdk.spec §3.13 요청 2) */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
   /**
-   * scope 토글 요청, 적용, 임대 부여·반납이 일어나면 알린다(L3.group-kit.spec §3.13 요청 3). 적용과 임대 변화는 경계 커밋 뒤에 부른다.
+   * scope 토글 요청, 적용, 임대 부여·반납이 일어나면 알린다(L3.group-sdk.spec §3.13 요청 3). 적용과 임대 변화는 경계 커밋 뒤에 부른다.
    * 구독자의 예외는 진단으로 남기고 다른 구독자에게 전달을 이어 간다
    */
   onChange(listener: (change: ExtChange) => void): Unsubscribe;
   /** L4가 읽는 명령·키 조합·플래그·렌더러 표(X.primitives.spec §3.9) */
   readonly resources: ResourceRegistry;
   /**
-   * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-kit.spec §3.13 요청 5). `xeon.session`의 `readBranch` 포트가 없으면
+   * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-sdk.spec §3.13 요청 5). `xeon.session`의 `readBranch` 포트가 없으면
    * `port_unavailable`이다. 확장 scope에는 열지 않는 호스트용 조회다
    */
   queryEvents(

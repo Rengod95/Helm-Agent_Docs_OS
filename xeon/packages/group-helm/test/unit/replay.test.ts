@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { parse } from "@xeon/contracts";
 import type { DurableEventDraft } from "@xeon/contracts/records";
-import { NO_EFFECTS, replayDrive } from "@xeon/group-kit/testing";
+import { NO_EFFECTS, replayDrive } from "@xeon/group-sdk/testing";
 import { helmGroup } from "../../src/index.ts";
 import {
   dedupeInquiryFinished,

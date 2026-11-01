@@ -87,7 +87,7 @@ binds: []
 | 0012 | 실행 속도를 앱 크기보다 우선 | [ADR-0012-speed-over-size.md](ADR-0012-speed-over-size.md) | accepted | 시작·종료·응답 속도를 크기보다 먼저 봄. 사이드카 `--minify --bytecode`, 크기 상한 500 MiB는 회귀 검사용. 예산은 `eng.performance.guide` | 사용자 결정 2026-10-24 | L4(cli, desktop, host-service) |
 | 0013 | `post.when = next`와 `aside` | [ADR-0013-post-next-aside.md](ADR-0013-post-next-aside.md) | accepted | `next`는 붙기만 하고 turn을 열지 않음. `aside`는 L1·CLI 사용자 입력 전용. F `PostWhen` 변경 없음 | review.m2-plan §8 D7 | F(extensions), L1(tasks) |
 | 0014 | 단일 `xeon` 엔진 바이너리 | [ADR-0014-single-xeon-binary.md](ADR-0014-single-xeon-binary.md) | accepted | CLI와 데스크톱 사이드카가 같은 `xeon` 바이너리(`host --stdio`). 이름은 제품 이름 결정 때 한 번에 바꿈 | ADR-0001 §4.1, DESK.3 | L4(cli, desktop, host-service) |
-| 0015 | 재실행되는 확장 코드의 효과 목록 | [ADR-0015-replay-effects.md](ADR-0015-replay-effects.md) | accepted | C안(선언형 허용). `g.delegate`·`loop.spawn`은 코어가 멱등 보장. 능력 메서드는 F 정의 `idempotent: true` + `requestId`만 허용, 읽기(`readOnly`, [제안] 이름)는 drive에서 허용. 선언 없는 쓰기는 요청 레코드 + 워커. 시험은 재생 2회·효과 1회 | 사용자 결정 2026-10-25(M3-03, G1-06) | F(capabilities, extensions), X(primitives), L1(loop, agents), L2(전 능력), L3(group-kit, helm, learning) |
+| 0015 | 재실행되는 확장 코드의 효과 목록 | [ADR-0015-replay-effects.md](ADR-0015-replay-effects.md) | accepted | C안(선언형 허용). `g.delegate`·`loop.spawn`은 코어가 멱등 보장. 능력 메서드는 F 정의 `idempotent: true` + `requestId`만 허용, 읽기(`readOnly`, [제안] 이름)는 drive에서 허용. 선언 없는 쓰기는 요청 레코드 + 워커. 시험은 재생 2회·효과 1회 | 사용자 결정 2026-10-25(M3-03, G1-06) | F(capabilities, extensions), X(primitives), L1(loop, agents), L2(전 능력), L3(group-sdk, helm, learning) |
 | 0016 | 다국어와 로케일 | [ADR-0016-i18n.md](ADR-0016-i18n.md) | accepted | FormatJS(`@formatjs/intl` + `react-intl`), ICU MessageFormat, ko·en 카탈로그 JSON + 생성 TS id, `ui.locale` auto(OS)·en 폴백, Intl 날짜·숫자, UTC 저장, 오류는 kind+인자로 보내고 클라이언트가 문장화, 모델용 도구 설명은 영어 | 사용자 결정 2026-10-26(D-M3-27) | F(wire-settings), L4(cli, desktop, settings-ui, client) |
 | 0017 | 확장 지점 개정 | [ADR-0017-ext-points-revision.md](ADR-0017-ext-points-revision.md) | accepted | 0007 부분 대체. 자체 이름 규칙(pi snake_case 정본 삭제), 4번째 fold `collect`, 지점 선언이 정하는 실패 정책 표, 수명주기 지점, fail-closed 가드레일 지점 셋(내장 검사 없음), pi 어댑터 없음 | 사용자 결정 2026-10-26(D-M3-10, 11, 30 행 1) | F(extensions), X, L1(loop), L3 |
 | 0018 | 승인 프로토콜 하나 | [ADR-0018-approval-protocol.md](ADR-0018-approval-protocol.md) | accepted | 도구 승인, 계획 승인, 사용자 질문, 검토 승인(`review`)을 L1-d 승인 서비스 하나로. 만료와 무인 정책도 같은 규칙 | decisions-log 3차, 사용자 결정 2026-10-26(D-M3-31 행 7) | L1(tools), L2(dialog, work, artifacts), L4 |
@@ -206,7 +206,7 @@ flowchart LR
 | L1 `core-tasks`, `core-loop`, `core-persistence`, `core-agents` | 0003, 0004, 0007, 0009(`core-loop`) | `L1.tasks.spec`, `L1.loop.spec`, `L1.persistence.spec`, `L1.agents.spec`, `eng.events.design` |
 | L2 `cap-workspace` | 0003 | `L2.workspace.spec` |
 | L2 `cap-web` | 0005 | `L2.web.spec` |
-| L3 그룹(`group-kit`, `group-helm`, `group-learning`) | 0007, 0017, 0002, 0015 | `L3.group-kit.spec`, `F.extensions.spec` |
+| L3 그룹(`group-sdk`, `group-helm`, `group-learning`) | 0007, 0017, 0002, 0015 | `L3.group-sdk.spec`, `F.extensions.spec` |
 | L0 `platform-secrets` | 0019 | `L0.secrets.spec` |
 | L1 `core-tools` 승인, L2 `cap-dialog`·`cap-work`·`cap-artifacts` 승인 요청 | 0018 | `L1.tools.spec` |
 | L4 `apps/cli`, `apps/host` | 0006, 0016, 0020 | `L4.cli.spec`, `L4.host-service.spec` |

@@ -112,7 +112,7 @@ xeon/apps/cli/
 | C14 | 바이너리 빌드와 측정: 타깃 4개 빌드 레시피, 크기·기동 시간·시작 메모리 측정(§4.3) | C2 | S | M1 |
 | C15 | `doctor`. 검색 provider 상태 묶음(spec §4.7.1) 포함 | C1, 진단 경로 결정(spec §10 5번), `L2.web.spec` provider 상태 조회 | S | M2 |
 | C16 | 컴파일 바이너리의 `host --stdio` 진입: `runHostCommand({ kind: "host-stdio" })` 또는 `l4.cli.*` 그룹을 넘기는 `startStdioHost` 호출. M3b B2-RMT: 원격 주소가 있으면 `bridgeStdioToService`로 중계한다(HS-89) | C1, `L4.host-service.plan` H5(stdio 진입, M1 개발 진입은 이미 있음) | S | M2 |
-| C17 | `group new`(spec §3.8): 인자 파서(`--drive`·`--policy` 충돌, `--dir`, `--json`), 이름 검사(group-kit 값의 복사본), 색인 읽기와 치환, 대상 폴더 검사, 쓰기와 R4 되돌리기, 생성 결과 시험(실제 파일 시스템과 `scripts/core-diff-check.ts`) | C1, `L3.slots` S-01·S-04 | S | M3b |
+| C17 | `group new`(spec §3.8): 인자 파서(`--drive`·`--policy` 충돌, `--dir`, `--json`), 이름 검사(group-sdk 값의 복사본), 색인 읽기와 치환, 대상 폴더 검사, 쓰기와 R4 되돌리기, 생성 결과 시험(실제 파일 시스템과 `scripts/core-diff-check.ts`) | C1, `L3.slots` S-01·S-04 | S | M3b |
 
 순서(M1): C0 → C1 → C3 → C2 → C5 → C4 → C6 → C7 → C14.
 
@@ -295,8 +295,8 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 |---|---|---|
 | C17 `group new` | 구현: 플래그 충돌(R1), 이름 검사와 예약 이름(R2), 설치 이름 겹침(R2), 대상 폴더 검사(R3), 메모리 치환과 쓰기, F `validateManifest`와 되돌리기(R4), 안내와 `--json`(R5) | `src/cli/command.ts`(`parseGroup`), `src/commands/group.ts`, `src/group/rules.ts`, `src/group/fs-port.ts`, `src/io.ts`(`GroupTemplatesPort`), `src/runtime.ts`(조립), `src/main.ts`(분기), `src/commands/help.ts` |
 
-- 바뀐 점: 이름 상수와 색인 스키마는 `group-kit`을 import하지 않고 옮겨 적었다(DR-14). 시험이 원본 텍스트와 비교한다.
-- 바뀐 점: `apps/cli/package.json`의 `@xeon/group-kit` 의존은 그대로 두었다. 소스가 쓰지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 트랙 범위 밖이다([미결] spec §10 31번).
+- 바뀐 점: 이름 상수와 색인 스키마는 `group-sdk`을 import하지 않고 옮겨 적었다(DR-14). 시험이 원본 텍스트와 비교한다.
+- 바뀐 점: `apps/cli/package.json`의 `@xeon/group-sdk` 의존은 그대로 두었다. 소스가 쓰지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 트랙 범위 밖이다([미결] spec §10 31번).
 - 시험 결과: `just test apps/cli`가 554개 중 553개 통과, 1개 건너뜀(기존 건너뜀)이다. 이전에는 526개였다. `just check apps/cli`의 타입 검사 단계는 의존 패키지 `@xeon/core-persistence`의 시험 파일 오류(`MemoryRecordStore`에 `readBranch`가 없다)에서 멈춘다. 이 파일은 이 변경의 범위 밖이다. 대신 `tsc -p apps/cli`로 직접 확인하니 이 변경의 파일에는 타입 오류가 없었다. 나머지 오류는 빌드하지 않은 참조의 TS6305와 그에 딸린 `any` 오류이고, 손대지 않은 `doctor.ts`, `host.ts`, `engine.ts`, `errors.ts`에 있다.
 
 ## 5. 단위 테스트 목록
@@ -372,8 +372,8 @@ M3b C17 시험(`group new`). 이름은 시험 제목을 줄여 적었다. 정확
 | group-new.text-output-next-steps | `test/group-new.test.ts` | unit | 텍스트 출력은 파일 목록과 `bun install`, `bun test` 안내를 보인다 | M3b |
 | group-new.malformed-commands | `test/group-new.test.ts` | unit | `group`, `group new`, 인자 초과, `--dir ""`, 모르는 하위 명령은 사용법 오류다 | M3b |
 | group-new.help-lists-command | `test/group-new.test.ts` | unit | 도움말 개요에 `group new` 줄이 있다 | M3b |
-| group-rules.reserved-names-match-group-kit | `test/group-rules.test.ts` | unit | 예약 이름 목록이 group-kit `RESERVED_GROUP_NAMES`와 값과 순서가 같다 | M3b |
-| group-rules.pattern-matches-group-kit | `test/group-rules.test.ts` | unit | 이름 패턴이 group-kit `GROUP_NAME_PATTERN`과 같다 | M3b |
+| group-rules.reserved-names-match-group-sdk | `test/group-rules.test.ts` | unit | 예약 이름 목록이 group-sdk `RESERVED_GROUP_NAMES`와 값과 순서가 같다 | M3b |
+| group-rules.pattern-matches-group-sdk | `test/group-rules.test.ts` | unit | 이름 패턴이 group-sdk `GROUP_NAME_PATTERN`과 같다 | M3b |
 | group-rules.check-group-name | `test/group-rules.test.ts` | unit | 형식 위반과 예약 이름을 구분해 거부한다 | M3b |
 | group-rules.real-index | `test/group-rules.test.ts` | unit | 실제 `templates/index.json`이 파싱되고 종류별 파일 수가 10, 8, 9다 | M3b |
 | group-rules.index-refuses-other-version | `test/group-rules.test.ts` | unit | `schemaVersion`이 다르면 거부한다 | M3b |

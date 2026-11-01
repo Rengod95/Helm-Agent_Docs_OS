@@ -45,7 +45,7 @@ binds: []
 | K-01 | high | `F/records/spec.md` | 소비 층이 쓰는 `approval.*`, `input.*`, `agent.*`, `secret.*`, `turn.abort_requested`, `thread.resumed`, `scope.handler_failed`가 F 코어 카탈로그에 없어 `parseEventKind`가 `reserved_area`로 거부한다 | 부분. F.records §3.2·§3.3에 영역·kind·payload를 더했다(승인 kind는 F.wire-settings §4.6 A안 전제). 잔여: `L1/README.md` §7.1 표의 "F 상태: 요청" 6행, L1.tools·L1.tasks·L1.agents plan의 M1 표지 |
 | K-02 | high | `F/records/spec.md` | L2 도메인 kind(`work.`, `dialog.`, `artifact.`, `schedule.`)가 F 규칙상 거부 대상이고, L2.work는 이벤트와 `customType` 접두 규칙이 다르다 | 부분. F.records에 도메인 소유 카탈로그(`WORK_EVENT_CATALOG` 등), `TYPE_PREFIX_OWNERS`, 내장 패키지 예외를 두었다. 잔여: `L2/README.md` §5.9·§10 미결 13이 "F에 요청" 상태로 남음, `L2/work/spec.md`에 `customType`이 `x.cap-work.…`인 이유 문장 없음 |
 | K-03 | high | `L1/loop/spec.md` | 서비스 `xeon.loop`에 X `LoopPort`와 L1 `LoopService` 두 인터페이스가 있고 메서드·`status` 반환형·`leaseEpoch`가 다르다. 입력 큐 포트도 같다 | 부분. L1.loop `LoopService extends LoopPort`·`threadStatus`, L1.tasks `enqueue` 최상위 노출, F.extensions §3.2.1 `ports.ts` 표를 두었다. 잔여: `X/primitives/spec.md` §3.6이 "F에 포트 타입 없음 [미결]"과 자체 `primitives/ports.ts` 정의를 유지하고, §3.6 규칙 6 미결도 그대로다. 필드 이전은 F.extensions.plan 몫으로 남음 |
-| K-04 | high | `L3/group-kit/spec.md` | 확장 켜기 키가 `ext.<name>.enabled`(F·X)와 `l3.<이름>.enabled`(L3) 둘이고 범위·적용 시점도 다르다 | 부분. L3 문서는 `ext.<name>.enabled` 하나로 맞췄다. 잔여: `F/wire-settings/spec.md` §3.8.1 예시 `l3.helm.enabled`, `F/extensions/spec.md` §6 범위 "사용자, 프로젝트, 세션"(X는 managed~session, live), `L4/settings-ui/spec.md` 878행 "그룹 켜기·끄기 키도 일반 토글"(키가 `l3.*`라는 전제) |
+| K-04 | high | `L3/group-sdk/spec.md` | 확장 켜기 키가 `ext.<name>.enabled`(F·X)와 `l3.<이름>.enabled`(L3) 둘이고 범위·적용 시점도 다르다 | 부분. L3 문서는 `ext.<name>.enabled` 하나로 맞췄다. 잔여: `F/wire-settings/spec.md` §3.8.1 예시 `l3.helm.enabled`, `F/extensions/spec.md` §6 범위 "사용자, 프로젝트, 세션"(X는 managed~session, live), `L4/settings-ui/spec.md` 878행 "그룹 켜기·끄기 키도 일반 토글"(키가 `l3.*`라는 전제) |
 | K-05 | high | `engineering/events/design.md` | envelope 필드, kind 형식, 확장 접두 `_ext.`, `BlobRef`가 F와 다르다 | 해결. F 이름(kind/version/threadId, `x.`/`grp.`, `{type:'blob', sha256, mediaType}`)으로 바꿨다 |
 | K-06 | high | `engineering/domain-types/guide.md` | DT-06 두 글자 ID 접두, DT-08 `_ext.` 열린 유니온, DT-12 서브패스 순서가 F와 다르다 | 해결. F 8종 접두와 `IdPrefix`·`IdByPrefix`, `x.`/`grp.`, F.readme §3 순서를 따른다. `createIdFactory` 위치는 K-18 |
 | K-07 | medium | `engineering/transactions/design.md` | 커밋 표와 소유표가 `tool.intended`, `scope.toggled`, `drive.leased`, `_ext.helm.`, envelope `producer`를 쓴다 | 해결. F kind 이름으로 바꾸고 생산자 검사를 커밋 호출자 id 대조로 고쳤다 |
@@ -67,7 +67,7 @@ binds: []
 
 | 번호 | 심각도 | 경로 | 문제 | 조치 결과 |
 |---|---|---|---|---|
-| D-01 | high | `engineering/dependency-rules/guide.md` | 하위 층의 `@xeon/ext-host` import를 layers·ADR-0002·X·L0·L1은 허용하고 DR-14 예외 목록에는 없다. `xeon.ext` 인터페이스 이름(`ExtensionHost`)과 L0.os `XeonPlugin`도 X 정의(`ExtHost`, `PlatformModule`)와 다르다 | 미반영. DR-11·DR-14, `engineering/context-map/design.md` 339행, `L0/os/spec.md` 557행, `L3/group-kit/spec.md` 1119행 [미결] 그대로 |
+| D-01 | high | `engineering/dependency-rules/guide.md` | 하위 층의 `@xeon/ext-host` import를 layers·ADR-0002·X·L0·L1은 허용하고 DR-14 예외 목록에는 없다. `xeon.ext` 인터페이스 이름(`ExtensionHost`)과 L0.os `XeonPlugin`도 X 정의(`ExtHost`, `PlatformModule`)와 다르다 | 미반영. DR-11·DR-14, `engineering/context-map/design.md` 339행, `L0/os/spec.md` 557행, `L3/group-sdk/spec.md` 1119행 [미결] 그대로 |
 | D-02 | high | `architecture/layers/spec.md` | 4.2.2 지도가 DR-14가 금지하는 구현 패키지 사이 import 간선을 그린다 | 해결. 실선을 `contracts`·`ext-host`로 가는 간선으로 한정하고 4.2.1 표 아래에 DR-14 문장을 더했다 |
 | D-03 | medium | `architecture/overview/spec.md` | 4.1 그림이 L2→L1, L1→L0 구현 import를 실선으로 그린다 | 부분. 구현 import 실선은 지웠다. 잔여: `cap --> exthost` 간선을 D-01 결정 대기 [미결]로 둠 |
 | D-04 | high | `F/capabilities/spec.md` | DR-02·DR-14·CM-05가 유일한 협력 경로로 지정한 F의 서비스 인터페이스가 없다 | 부분. F.records §3.9에 `StoreService`·`SessionService`, F.capabilities에 비밀 서비스 형식을 두었다. 잔여: `TaskService`, `LoopService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService`, `ModelService`, `ToolService`, `ContextService`가 F 문서에 없음. L0 서비스 서브패스(`L0/README.md` 미결 2) 미정 |
@@ -78,7 +78,7 @@ binds: []
 | D-09 | medium | `engineering/dependency-rules/guide.md` | DR-07 소유표에 F의 pi 타입 재노출 예외가 없다 | 미반영 |
 | D-10 | medium | `F/extensions/spec.md` | 그룹 사이 레코드 payload 스키마가 F에 없고 §4.8 예시가 Helm이 `skill.proposed`를 읽는다고 적는다 | 미반영. 934행 예시와 `group-records.ts` 부재 그대로 |
 | D-11 | medium | `L2/knowledge/spec.md` | L2 기본값과 규칙이 L3 학습 그룹 이름(`learning.queue`)과 `group-*`를 안다 | 미반영. `L2/knowledge/spec.md` 1033행, `L2/dialog/spec.md` 944·955행, `L2/schedule/spec.md` 40·974행 그대로 |
-| D-12 | medium | `engineering/dependency-rules/guide.md` | 같은 층 예외(`apps/cli`→`apps/host`, `group-*`→`group-kit`)의 상태와 예외 목록 위치가 문서마다 다르다 | 부분(사용자). layers 3.2의 목록 위치를 허용 목록 파일로 고쳤다. 잔여: DR-10 본문, DR-14 예외 2, DR 가이드 4절 승인 예외 목록에 `DR-10/cli-host` 없음 |
+| D-12 | medium | `engineering/dependency-rules/guide.md` | 같은 층 예외(`apps/cli`→`apps/host`, `group-*`→`group-sdk`)의 상태와 예외 목록 위치가 문서마다 다르다 | 부분(사용자). layers 3.2의 목록 위치를 허용 목록 파일로 고쳤다. 잔여: DR-10 본문, DR-14 예외 2, DR 가이드 4절 승인 예외 목록에 `DR-10/cli-host` 없음 |
 | D-13 | medium | `architecture/layers/spec.md` | `plugins/*` 순위가 L1(layers·DR-01), L1·L2 사이 제안, `"layer": "plugin"`(L2.web plan) 셋이다 | 미반영. layers 95·214·409행, DR-09 365·699행, `L2/web/plan.md` 50행 그대로 |
 | D-14 | low | `architecture/layers/spec.md` | L3→`cap-*` 금지가 문서마다 [제안]·[미결]·원칙으로 다르다 | 해결. layers 102행에서 [결정: 계획 v2 규칙 2, DR-14]로 올렸다. `L3/README.md` 91행의 [제안] 표기는 내용 상충이 아니다 |
 | D-15 | low | `engineering/dependency-rules/guide.md` | DR-08은 `testing` 서브패스 소스의 교차 import를 허용하고 DR-14 예외 3은 테스트 파일만 허용한다 | 미반영. 537행 그대로 |
@@ -107,8 +107,8 @@ binds: []
 | T-17 | medium | `L1/persistence/spec.md` | 세션 생성 멱등이 없어 예약 실행이 세션을 중복 생성할 수 있다 | 부분. `creationKey`와 `thread_creation_keys`를 두었다. 잔여: `L2/schedule/spec.md` 1338행이 requestId 전역 멱등 [가정]을 유지 |
 | T-18 | high | `L0/store/spec.md` | 확장 테이블 접두 규칙이 X(하이픈 허용)와 다르고 접두 일치 삭제가 다른 확장 테이블을 지울 수 있다 | 부분. L0.store가 `ExtensionName`을 받고 `drop(name, tables)`와 `table_not_owned`로 바꿨다. 권고(접두 충돌 거부)와 다르게 지역 이름 밑줄 금지 규칙으로 소유를 판정한다(X.operations AC 18과 맞춤). 잔여: `engineering/context-map/design.md` 315·378행 `EXT_ID_PATTERN`, DT-08, eng.events §4.5 같은 정규식, `X/operations/spec.md` §4.4.7에 목록 전달 서술 없음 |
 | T-19 | medium | `X/primitives/spec.md` | on 핸들러 재실행 때 상태 커밋 재생 결과와 캐시가 어긋날 수 있고 거부 코드 변환이 없다 | 부분. X에 신원 지문, `replayed.stored`, 거부 코드 확장을 두었다. 권고와 다르게 지문에서 `rev`를 뺐고 근거를 §4.6.1에 적었다. 잔여: `L1/persistence/spec.md` §3.3 변환표(`key_reused`, `busy`, `disk_full`, `read_only`), `F/extensions/spec.md` §4.3 재실행 규칙 문장 |
-| T-20 | medium | `X/primitives/spec.md` | 분기·되감기 뒤 상태 복원이 가지를 구분하지 않고 상태 투영 열이 X와 group-kit에서 다르다 | 부분. X에 활성 가지 규칙과 `prev_event_id` 열을 두었다. 잔여: `L1/persistence/spec.md`에 `latestEvent` 가지 옵션 없음, `L3/group-kit/spec.md` 471~478행 `StateProjectionRow`(`session_id`, `doc_json`) 그대로 |
-| T-21 | medium | `L3/learning/spec.md` | 학습 그룹 비공개 이벤트(`_ext.learning.*`)를 쓸 X API가 없고 `_ext.`와 `grp.` 표기가 섞인다 | 부분. L3.learning을 `grp.learning.*` 9종으로 바꾸고 X 요청을 적었다. 잔여: `X/primitives/spec.md`에 `ScopeApi.recordPrivate` 없음(L3.learning 비공개 기록·AC 15·16은 [미결]), `L3/group-kit/spec.md` 188·448·454행과 `L3/helm/spec.md` 295·424행의 `_ext.<그룹>.*` |
+| T-20 | medium | `X/primitives/spec.md` | 분기·되감기 뒤 상태 복원이 가지를 구분하지 않고 상태 투영 열이 X와 group-sdk에서 다르다 | 부분. X에 활성 가지 규칙과 `prev_event_id` 열을 두었다. 잔여: `L1/persistence/spec.md`에 `latestEvent` 가지 옵션 없음, `L3/group-sdk/spec.md` 471~478행 `StateProjectionRow`(`session_id`, `doc_json`) 그대로 |
+| T-21 | medium | `L3/learning/spec.md` | 학습 그룹 비공개 이벤트(`_ext.learning.*`)를 쓸 X API가 없고 `_ext.`와 `grp.` 표기가 섞인다 | 부분. L3.learning을 `grp.learning.*` 9종으로 바꾸고 X 요청을 적었다. 잔여: `X/primitives/spec.md`에 `ScopeApi.recordPrivate` 없음(L3.learning 비공개 기록·AC 15·16은 [미결]), `L3/group-sdk/spec.md` 188·448·454행과 `L3/helm/spec.md` 295·424행의 `_ext.<그룹>.*` |
 | T-22 | medium | `engineering/transactions/design.md` | 격리 확장 outbox 행이 읽기 경로 없이 정의되고 X의 상태 저장 위치와 다르다 | 부분. eng.transactions §7을 호스트 대리인 전달과 `XEON_EXT_DATA` 커서로 고쳤다. 잔여: `X/operations/spec.md` 1164행 "자기 DB 파일, outbox로 반영" |
 | T-23 | medium | `F/records/spec.md` | `AppendBatch.durability`와 트랜잭션 없는 `runChunk`가 L0·L1 규칙과 다르다 | 해결 |
 | T-24 | low | `engineering/context-map/design.md` | CM-02 예제가 알림 안 동기 쓰기와 커서 누락을 보인다 | 해결. `queueMicrotask`와 커서 갱신 예로 바꿨다 |
@@ -131,7 +131,7 @@ binds: []
 | S-12 | medium | `product/scope/spec.md` | 비밀 열람 단계와 M1 비밀 검증 모드가 층마다 다르다 | 부분(사용자). scope UC-6에서 열람을 미결 10으로 나누고 미결 9에 근거를 더했다. 잔여: `L2/workspace/spec.md` 454행 env 모드 M1 검증, `L0/README.md` 미결 11 |
 | S-13 | medium | `engineering/dependency-rules/guide.md` | 위장 provider 플러그인의 import 규칙이 DR-09와 L1.models §3.11에서 반대다 | 미반영. DR-09 364행, `L1/README.md` 272행, `X/loading-trust/spec.md` 1166행 그대로 |
 | S-14 | low | `L1/agents/spec.md` | `l1.agents.*` 탭을 `agents`로 적었으나 F 12탭은 에이전트를 모델 탭에 합쳤다 | 미반영. 490·493·497·543행 그대로 |
-| S-15 | low | `X/primitives/spec.md` | drive 보유 그룹 설정이 `x.primitives.activeDriveGroup`과 `l3.group-kit.driveHolder` 둘이다 | 미반영. X 145·915·1285행 그대로, L4.settings-ui에 `driveHolder` 없음 |
+| S-15 | low | `X/primitives/spec.md` | drive 보유 그룹 설정이 `x.primitives.activeDriveGroup`과 `l3.group-sdk.driveHolder` 둘이다 | 미반영. X 145·915·1285행 그대로, L4.settings-ui에 `driveHolder` 없음 |
 | S-16 | low | `architecture/runtime-flow/design.md` | §4.6 service 열이 로컬 서비스 전송을 WebSocket으로 적는다 | 해결. 로컬 소켓과 원격 [미결]로 나눴다 |
 
 ### 3.5 집계
@@ -191,7 +191,7 @@ binds: []
 | `L2/dialog/spec.md` | K-19, D-11 |
 | `L2/schedule/spec.md` | D-11, T-17, S-08 |
 | `L2/workspace/spec.md` | D-08, S-12 |
-| `L3/group-kit/spec.md` | D-01, T-20, T-21 |
+| `L3/group-sdk/spec.md` | D-01, T-20, T-21 |
 | `L3/helm/spec.md` | T-21, S-07 |
 | `L3/slots/plan.md`, `L3/learning/plan.md` | D-16 |
 | `L4/settings-ui/spec.md` | K-04, S-10, S-11, S-15 |
@@ -254,7 +254,7 @@ binds: []
 |---|---|---|---|
 | U-13 | `engineering/transactions/design.md` T-7, `L1/persistence/spec.md` §10 6번 | 커밋 키 형식 정본을 `COMMIT_KEY_PATTERN`으로 확정할지, scope id `/` 치환 규칙 포함 | T-11 |
 | U-14 | `engineering/dependency-rules/guide.md` §1.1·758행 | X를 L0 아래(순위 1)에 두는 판정을 `architecture/layers/spec.md` 4.3.3 결론(순위 유지, 조건 3개)으로 닫을지 | D-06 |
-| U-15 | `engineering/dependency-rules/guide.md` 762행, `architecture/layers/spec.md` §10 408행 | 같은 층 예외(`apps/cli`→`apps/host` `DR-10/cli-host`, `group-*`→`group-kit`)를 둘지 | D-12 |
+| U-15 | `engineering/dependency-rules/guide.md` 762행, `architecture/layers/spec.md` §10 408행 | 같은 층 예외(`apps/cli`→`apps/host` `DR-10/cli-host`, `group-*`→`group-sdk`)를 둘지 | D-12 |
 | U-16 | `architecture/layers/spec.md` §10 409행 | `plugins/*` 순위와 위장 플러그인의 import 허용(DR-07·DR-09 예외) | D-13, S-13 |
 | U-17 | 구속 문서 개정 승인 | 작성자가 기준 문서라 손대지 않은 engineering 개정을 진행할지: DR-14 ext-host 예외(D-01), DR-07 F 예외(D-09), DR-08·DR-14 testing 정의(D-15), 서비스 모드 1차 표기(S-01), `EXT_ID_PATTERN`·DT-08 하이픈 허용(T-18) | D-01, D-09, D-15, S-01, T-18 |
 | U-18 | `engineering/context-map/design.md` 미결 C-6 | 확장 id에 밑줄·하이픈을 허용할지(ADR-0004, DT-08, X `ExtensionName`이 서로 다름) | T-18 |

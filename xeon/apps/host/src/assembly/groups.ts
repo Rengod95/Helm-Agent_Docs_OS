@@ -17,13 +17,13 @@ import {
   type GroupCatalogEntry,
   type HolderUnwritableReason,
   type HolderWriteError,
-} from "@xeon/group-kit";
+} from "@xeon/group-sdk";
 import { hostOf, type ExtHost, type ExtensionUnit } from "@xeon/ext-host";
 import { keyReusedBug } from "../store-error.ts";
 import type { SettingsStorePort, SettingsWriteFailure } from "../types.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 
-// m2-plan HOST.6, L3.group-kit.plan §8. group-kit은 서비스 팩토리(`createGroupService`)만 내놓고 확장 단위가 없다. 이 파일이 서비스를 올려
+// m2-plan HOST.6, L3.group-sdk.plan §8. group-sdk은 서비스 팩토리(`createGroupService`)만 내놓고 확장 단위가 없다. 이 파일이 서비스를 올려
 // X의 임대 중재 포트(`xeon.groups`, LeaseArbiterPort)로 낸다. 서비스가 받는 포트 셋을 실제 구현으로 잇는다:
 // - 그룹 목록(GroupCatalogPort): 설치한 단위 가운데 L3 매니페스트
 // - 구동 그룹 설정(DriveHolderSettingsPort): `x.primitives.activeDriveGroup`을 설정 엔진과 설정 저장소로 읽고 쓴다
@@ -178,7 +178,7 @@ export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
     scope(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const instrumentation = (): boolean =>
-        options.settings.value("l3.group-kit.instrumentation") !== false;
+        options.settings.value("l3.group-sdk.instrumentation") !== false;
       const service = createGroupService({
         host: options.ext,
         catalog: { groups: options.groups },

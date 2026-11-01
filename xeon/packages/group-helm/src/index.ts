@@ -1,4 +1,4 @@
-import { defineGroup, type GroupApi, type GroupModule } from "@xeon/group-kit";
+import { defineGroup, type GroupApi, type GroupModule } from "@xeon/group-sdk";
 import { helmDrive } from "./drive.ts";
 import { guardWrite } from "./guard.ts";
 import { injectLens } from "./inject.ts";
@@ -39,7 +39,7 @@ function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
   g.on("boundary.settle.after", (payload, ctx) =>
     settleTurn(payload, { threadId: ctx.threadId, state: ctx.state }),
   );
-  g.on("session.start", (payload, ctx) => restore(payload, ctx));
+  g.on("thread.start", (payload, ctx) => restore(payload, ctx));
   g.on("lifecycle.lease.rejected", (payload, ctx) => rejected(payload, ctx));
   // X는 임대를 받을 때 options.limits를 읽는다. getter라 설정 변경이 다음 임대(다음 탐구)부터 반영된다
   g.drive(helmDrive(g, settings), {

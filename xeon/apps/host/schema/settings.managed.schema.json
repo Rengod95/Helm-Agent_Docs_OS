@@ -5521,7 +5521,7 @@
         }
       }
     },
-    "l3.group-kit.instrumentation": {
+    "l3.group-sdk.instrumentation": {
       "default": true,
       "type": "boolean",
       "x-xeon": {

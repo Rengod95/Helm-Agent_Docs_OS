@@ -300,11 +300,19 @@ export const CATEGORIES: readonly Category[] = [
       "남은 단어 xeon/Xeon/XEON → fresnel/Fresnel/FRESNEL (저장소 경로·브랜치·작업 폴더는 보호)",
     protectPaths: true,
     rules: [
-      simple("(?<![A-Za-z])Xeon(?![a-z])", "Fresnel"),
-      simple("(?<![A-Za-z])xeon", "fresnel"),
-      simple("(?<![A-Za-z])XEON(?![A-Z])", "FRESNEL"),
-      simple("(?<=[a-z])Xeon", "Fresnel"),
-      simple("(?<=[a-z])xeon(?![a-z])", "fresnel"),
+      {
+        pattern: new RegExp("(?<![A-Za-z])Xeon(?![a-z])", "g"),
+        replace: "Fresnel",
+        skip: NO_MOCKUPS,
+      },
+      { pattern: new RegExp("(?<![A-Za-z])xeon", "g"), replace: "fresnel", skip: NO_MOCKUPS },
+      {
+        pattern: new RegExp("(?<![A-Za-z])XEON(?![A-Z])", "g"),
+        replace: "FRESNEL",
+        skip: NO_MOCKUPS,
+      },
+      { pattern: new RegExp("(?<=[a-z])Xeon", "g"), replace: "Fresnel", skip: NO_MOCKUPS },
+      { pattern: new RegExp("(?<=[a-z])xeon(?![a-z])", "g"), replace: "fresnel", skip: NO_MOCKUPS },
     ],
   },
   {
@@ -507,6 +515,27 @@ export const CATEGORIES: readonly Category[] = [
         ],
       },
     ],
+  },
+  {
+    id: "T7",
+    title:
+      "패키지 이름 group-kit → group-sdk, group-authoring → plugin-builder (식별자 GroupKit·groupKit·GROUP_KIT 포함, 문서 id L3.group-kit.* 포함)",
+    rules: [
+      {
+        pattern: new RegExp("(?<![A-Za-z0-9])group-kit", "g"),
+        replace: "group-sdk",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern: new RegExp("(?<![A-Za-z0-9])group-authoring", "g"),
+        replace: "plugin-builder",
+        skip: NO_MOCKUPS,
+      },
+      { pattern: new RegExp("GROUP_KIT", "g"), replace: "GROUP_SDK", skip: NO_MOCKUPS },
+      { pattern: new RegExp("GroupKit", "g"), replace: "GroupSdk", skip: NO_MOCKUPS },
+      { pattern: new RegExp("groupKit", "g"), replace: "groupSdk", skip: NO_MOCKUPS },
+    ],
+    pathRules: [{ pattern: /(?<![A-Za-z0-9])group-kit/g, replace: "group-sdk" }],
   },
   {
     id: "T6",

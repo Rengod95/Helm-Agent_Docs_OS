@@ -10,8 +10,8 @@ import {
   type MemoryLoopPort,
   type TestHost,
 } from "@xeon/ext-host/testing";
-import type { GroupModule } from "@xeon/group-kit";
-import type { ReplayHarness } from "@xeon/group-kit/testing";
+import type { GroupModule } from "@xeon/group-sdk";
+import type { ReplayHarness } from "@xeon/group-sdk/testing";
 import {
   DEFS,
   callCommand,
@@ -57,7 +57,7 @@ function normalizeIds(events: readonly JsonValue[]): JsonValue[] {
 
 /**
  * 계측 기록(`grp.<그룹>.metrics.recorded`)을 재생 비교에서 뺀다. 증가분은 프로세스가 뜬 뒤의 값이라 재시작한 실행마다 다르다
- * (L3.group-kit.spec §4.9). 상태 커밋과 효과 계수는 그대로 비교한다.
+ * (L3.group-sdk.spec §4.9). 상태 커밋과 효과 계수는 그대로 비교한다.
  */
 function comparable(events: readonly JsonValue[]): JsonValue[] {
   return events.filter((event) => {
@@ -97,7 +97,7 @@ export interface HelmReplay {
 }
 
 /**
- * Helm용 효과 계수 하니스(L3.group-kit.plan G-20). 기준 실행은 `/helm start`로 시작하고, 절단 실행은 복원한 이벤트에서 이어 간다.
+ * Helm용 효과 계수 하니스(L3.group-sdk.plan G-20). 기준 실행은 `/helm start`로 시작하고, 절단 실행은 복원한 이벤트에서 이어 간다.
  * 가짜 루프·큐·능력 세계가 기준 실행과 절단 실행 사이에 멱등 기억을 이어 쓴다. 명령 응답 알림은 drive 효과가 아니라 세지 않는다
  */
 export function createHelmReplay(

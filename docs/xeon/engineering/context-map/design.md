@@ -5,7 +5,7 @@ domain: context-map
 kind: design
 status: draft
 depends_on: [eng.dependency-rules.guide, eng.events.design, F.records.spec]
-binds: [xeon/packages/contracts/**, xeon/packages/ext-host/**, xeon/packages/platform-*/**, xeon/packages/core-*/**, xeon/packages/cap-*/**, xeon/packages/group-kit/**, xeon/packages/group-helm/**, xeon/packages/group-learning/**]
+binds: [xeon/packages/contracts/**, xeon/packages/ext-host/**, xeon/packages/platform-*/**, xeon/packages/core-*/**, xeon/packages/cap-*/**, xeon/packages/group-sdk/**, xeon/packages/group-helm/**, xeon/packages/group-learning/**]
 ---
 
 # 컨텍스트 지도
@@ -37,7 +37,7 @@ Xeon 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유 �
 협력 규칙:
 
 1. [결정] 컨텍스트 사이 협력은 F 정의, Cordis 서비스, 이벤트로만 한다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다(`_research/foundation-plan.md §3`, DR-02). DI는 Cordis 하나다(`_research/decisions-log.md` 2026-10-21 결정 3차).
-2. [제안] 다른 컨텍스트의 구현 패키지를 import하지 않는다. 층 순위상 허용되는 하위 층 패키지(DR-01)라도, 컨텍스트가 다르면 F에 둔 서비스 타입으로 주입받는다. 규칙 본문과 예외(F, 조립 루트 `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@xeon/ext-host`의 서비스 등록·주입 API, `group-kit` 허용 목록)는 `eng.dependency-rules.guide` DR-14가 정본이다. 이 문서는 4.1절 표로 "다른 컨텍스트"를 정한다. 이 규칙은 OS·환경별 구현을 바꿔 끼울 수 있게 한다(`_research/decisions-log.md` 2026-10-19 설계 규칙: 공통 인터페이스, 구현만 교체).
+2. [제안] 다른 컨텍스트의 구현 패키지를 import하지 않는다. 층 순위상 허용되는 하위 층 패키지(DR-01)라도, 컨텍스트가 다르면 F에 둔 서비스 타입으로 주입받는다. 규칙 본문과 예외(F, 조립 루트 `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@xeon/ext-host`의 서비스 등록·주입 API, `group-sdk` 허용 목록)는 `eng.dependency-rules.guide` DR-14가 정본이다. 이 문서는 4.1절 표로 "다른 컨텍스트"를 정한다. 이 규칙은 OS·환경별 구현을 바꿔 끼울 수 있게 한다(`_research/decisions-log.md` 2026-10-19 설계 규칙: 공통 인터페이스, 구현만 교체).
 3. [결정] 세션 코어(L1 persistence, 컨텍스트 `session-core`)가 세션 테이블과 투영을 소유한다. 확장과 그룹은 `x_<extKey>_` 접두사 테이블만 소유한다(`_research/decisions-log.md` 2026-10-21 결정 2차 "확장 접두사 테이블", 층 구성 계획 v2 X-c "확장 전용 저장 영역"). `extKey`는 확장 id의 `-`를 `_`로 바꾼 값이다([결정: review.decisions-2 U-18], 5.2절).
 4. [결정] Helm은 L3 기본 그룹이다. 학습 그룹도 L3 기본 그룹이며 drive를 쓰지 않는다(on, post, scope만). 두 그룹은 공존한다(`_research/decisions-log.md` 2026-10-21 계획 v2, 층 구성 계획 v2 L3-c).
 5. [결정] 학습 그룹의 저장(스킬, 메모리, 세션 검색, 변경 원장)은 L2 knowledge가 소유한다. 학습 그룹은 정책(트리거, 검토 포크, 제안)만 가진다(층 구성 계획 v2 "Hermes 학습 루프를 별도 그룹으로": "저장소인 스킬, 메모리, 세션 검색, 변경 원장은 L2-d에 남깁니다").
@@ -70,7 +70,7 @@ Xeon 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유 �
 | `dialog` | L2 | dialog | `cap-dialog` | 없음(예약 `cap_dialog_*`) | `dialog.` | `xeon.dialog` | `xeon.approvals`, `xeon.tools`, `xeon.os`(알림), `xeon.exec`(첨부·명령 파일 읽기, `L2.dialog.spec` §8) |
 | `artifacts` | L2 | artifacts | `cap-artifacts` | `cap_artifacts_*`(산출물 색인 투영) | `artifact.` | `xeon.artifacts` | `xeon.session`(제목 요청 포함), `xeon.store`, `xeon.tools` |
 | `schedule` | L2 | schedule | `cap-schedule` | `cap_schedule_*`(타이머, 루프 정의) | `schedule.` | `xeon.schedule` | `xeon.store`, `xeon.tasks`(post), `xeon.process`, `xeon.os` |
-| `group-kit` | L3 | group-kit, slots | `group-kit`(slots는 코드 없음) | 없음 | 없음(그룹 상태는 각 그룹의 `grp.<groupId>.`) | `xeon.groups` | `xeon.ext` |
+| `group-sdk` | L3 | group-sdk, slots | `group-sdk`(slots는 코드 없음) | 없음 | 없음(그룹 상태는 각 그룹의 `grp.<groupId>.`) | `xeon.groups` | `xeon.ext` |
 | `helm` | L3 | helm | `group-helm` | `x_helm_*` | `grp.helm.` | 없음 | `xeon.groups`, `xeon.ext`, L2 서비스(`xeon.web`, `xeon.knowledge`, `xeon.work`, `xeon.agents`) |
 | `learning` | L3 | learning | `group-learning` | `x_learning_*`(트리거 카운터) | `grp.learning.` | 없음 | `xeon.groups`, `xeon.ext`, `xeon.knowledge`, `xeon.agents`(백그라운드 위임) |
 | `clients` | L4 | cli, desktop, settings-ui | `apps/cli`, `apps/desktop`(`src/settings` 포함) | 설정 파일(스키마는 F wire-settings) | 없음 | 없음 | F5 wire(전송 계층). Cordis 서비스를 직접 쓰지 않는다 |
@@ -118,7 +118,7 @@ flowchart LR
     WS["workspace"]
   end
   subgraph L3["L3"]
-    GK["group-kit"]
+    GK["group-sdk"]
     HE["helm"]
     LE["learning"]
   end
@@ -173,7 +173,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  L4["L4 clients · host<br/>(host = 조립 루트)"] --> L3["L3 group-kit · helm · learning"]
+  L4["L4 clients · host<br/>(host = 조립 루트)"] --> L3["L3 group-sdk · helm · learning"]
   L3 --> L2["L2 workspace · mcp · web · knowledge · work · dialog · artifacts · schedule"]
   L2 --> L1["L1 session-core · run-engine · model-gateway · tool-runtime"]
   L1 --> L0["L0 platform-store · platform-execution · platform-secrets · platform-os"]
@@ -195,7 +195,7 @@ flowchart TD
 | 4 | 세션 제목(L2 artifacts "세션 제목과 메타") | 기능은 L2, 이벤트 `thread.updated`(제목)는 L1 `session-core` 소유 | artifacts가 `xeon.session`의 제목 변경 API를 부르고, 이벤트는 session-core가 쓴다 |
 | 5 | 학습 그룹(L3)의 저장 | 그룹의 산출물이 아래 층 컨텍스트(L2 knowledge) 테이블에 있다 | 3절 결정 5. 학습 그룹은 `x_learning_*`에 트리거 카운터만 둔다 |
 | 6 | `settings-ui`(L4) | layout 경로 `xeon/packages/client/src/settings/**`가 `client` 패키지 안이다(adr.0020). 화면은 `desktop`에 있다 | 두 도메인을 `clients` 컨텍스트로 묶는다. 설정 화면 생성은 F5 설정 스키마 하나에서 나온다 |
-| 7 | `slots`(L3) | layout 도메인이지만 코드가 없다(템플릿 문서만) | `group-kit` 컨텍스트에 둔다. 미결 C-2 |
+| 7 | `slots`(L3) | layout 도메인이지만 코드가 없다(템플릿 문서만) | `group-sdk` 컨텍스트에 둔다. 미결 C-2 |
 | 8 | `plugins/provider-anthropic-oauth` | L1 순위(`AGENTS.md`)이지만 layout 도메인 밖이고 배포판에서 빠진다 | `model-gateway` 컨텍스트에 속한다. layout `plugins` 항목이 `L1.models.spec`을 문서로 지정한다. import 규칙은 DR-09 |
 | 9 | F `records`의 이벤트 카탈로그 | L2 능력이 이벤트 type을 더할 때마다 F를 고친다 | 카탈로그 파일을 소유 컨텍스트별로 나눈다(`contracts/src/records/catalog/<컨텍스트>.ts`) [제안]. 소유는 5.1절 |
 | 10 | `sys_leases`(L0 store) | 임대 저장은 L0, 세션 임대의 뜻(자원 `session:<id>`)은 L1 session-core | L0은 일반 자원 임대만 제공하고, 자원 이름과 갱신 정책은 소유 컨텍스트가 정한다(`eng.transactions.design` 3.3절) |
@@ -236,10 +236,10 @@ flowchart TD
 | L2-f | 사용자 대화 | L2 dialog | `cap-dialog` | `dialog` |
 | L2-g | 산출물과 세션 | L2 artifacts | `cap-artifacts` | `artifacts` |
 | L2-h | 예약과 백그라운드 | L2 schedule | `cap-schedule` | `schedule` |
-| L3-a | 그룹 기반 | L3 group-kit | `group-kit` | `group-kit` |
+| L3-a | 그룹 기반 | L3 group-sdk | `group-sdk` | `group-sdk` |
 | L3-b | Helm(기본 그룹) | L3 helm | `group-helm` | `helm` |
 | L3-c | 학습 그룹(기본 그룹) | L3 learning | `group-learning` | `learning` |
-| L3-d | 추가 그룹 슬롯 | L3 slots | 없음(템플릿) | `group-kit` |
+| L3-d | 추가 그룹 슬롯 | L3 slots | 없음(템플릿) | `group-sdk` |
 | (계획 밖) | CLI | L4 cli | `apps/cli` | `clients` |
 | (계획 밖) | 데스크톱 | L4 desktop | `apps/desktop` | `clients` |
 | (계획 밖) | 설정 화면 | L4 settings-ui | `packages/client/src/settings` | `clients` |
@@ -288,7 +288,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 
 - kind 단위 예외 [제안]: `thread.compacted`는 컴팩션을 하는 `core.context`가 낸다(`L1.context.spec` §1). toolResult `item.recorded`는 E3 커밋에서 core-tools가 커밋하지만 초안은 루프의 생산자 핸들(`core.loop`)로 만든다(`L1.tools.spec`). 복구 합성 결과(`effect.result{synthesized: true}`와 `isError: true` toolResult `item.recorded`)는 `core.persistence`의 `recover`만 추가로 쓸 수 있다(`L1.persistence.spec` §3.9). `TYPE_PREFIX_OWNERS`는 이 셋을 kind 단위 예외 항목으로 적는다.
 - 확장 상태 커밋 kind `x.<name>.state.committed`, `grp.<name>.state.committed`는 그 확장의 접두 안이지만 영역 `state`는 X 예약이다. 생산자는 X가 대행하는 그 확장의 생산자 id다(`X.primitives.spec` §4.6.1).
-- `contracts`, `platform-*`, `group-kit`, `clients`, `host`는 이벤트 kind를 소유하지 않는다. group-kit이 다루는 그룹 상태는 각 그룹의 `grp.<groupId>.` kind다.
+- `contracts`, `platform-*`, `group-sdk`, `clients`, `host`는 이벤트 kind를 소유하지 않는다. group-sdk이 다루는 그룹 상태는 각 그룹의 `grp.<groupId>.` kind다.
 - "예약"은 이름 충돌을 막으려고 소유를 정해 둔 접두사다. kind를 실제로 더할 때 해당 spec의 카탈로그에 올린다.
 - `thread.resumed`, `input.*`, `turn.abort_requested`, `agent.*`, `approval.*`는 F 코어 카탈로그(`F.records.spec` §3.3)에 있다. payload 정본은 F다(`eng.events.design` 4.4절).
 
@@ -339,7 +339,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `xeon.models` | `ModelService`(services. `ModelsPort`를 확장한다) | `core-models` | 예 | run-engine, web |
 | `xeon.tools` | `ToolService`(services. `ToolsPort`를 확장한다) | `core-tools` | 예 | run-engine, L2 전체(도구 등록) |
 | `xeon.approvals` | `ApprovalService`(services) | `core-tools` | 예 | dialog, work, knowledge, host |
-| `xeon.ext` | `ExtHost`(X `primitives`의 공개 타입. F에는 이 인터페이스가 없다. DR-14 예외 4) | `ext-host` | 예 | run-engine, tool-runtime, group-kit, helm, learning, host |
+| `xeon.ext` | `ExtHost`(X `primitives`의 공개 타입. F에는 이 인터페이스가 없다. DR-14 예외 4) | `ext-host` | 예 | run-engine, tool-runtime, group-sdk, helm, learning, host |
 | `xeon.workspace` | `WorkspaceService`(capabilities) | `cap-workspace` | 아니오(묶음 이름) | 그룹 |
 | `xeon.mcp` | `McpService`(services. `McpPort`를 확장한다. 능력 정의 `McpClient`는 capabilities) | `cap-mcp` | 예 | 그룹, host |
 | `xeon.web` | `WebService`(capabilities) | `cap-web` | 아니오(묶음 이름) | helm, 그룹 |
@@ -348,7 +348,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `xeon.dialog` | `DialogService`(capabilities) | `cap-dialog` | 아니오(묶음 이름) | 그룹 |
 | `xeon.artifacts` | `ArtifactService`(capabilities) | `cap-artifacts` | 아니오(묶음 이름) | 그룹, host |
 | `xeon.schedule` | `ScheduleService`(capabilities) | `cap-schedule` | 아니오(묶음 이름) | 그룹, host |
-| `xeon.groups` | `GroupService`(services. `LeaseArbiterPort`를 확장한다, `F.capabilities.spec` §3.12 `services/groups.ts`) | `group-kit` | 예 | helm, learning, host |
+| `xeon.groups` | `GroupService`(services. `LeaseArbiterPort`를 확장한다, `F.capabilities.spec` §3.12 `services/groups.ts`) | `group-sdk` | 예 | helm, learning, host |
 
 - `helm`, `learning`, 사용자 확장은 서비스를 제공하지 않는다(3절 협력 규칙 7).
 - L4(`clients`, `host`)는 Cordis 서비스를 제공하지 않는다. `host`는 F5 wire 서버를 열고, `clients`는 그 wire로 접속한다.
@@ -581,15 +581,15 @@ const learned = ctx.get("learning").recentProposals();
 
 1. `routes.yaml` `layout`의 모든 도메인(F 5, X 3, L0 6, L1 7, L2 8, L3 4, L4 4, 합계 37)이 `CONTEXTS`의 `domains`에 정확히 한 번 나온다. 테스트가 `routes.yaml`을 읽어 대조한다.
 2. 이벤트 카탈로그의 모든 kind 접두와 모든 투영기 `ddl`·`scoped` 접두사가 `TYPE_PREFIX_OWNERS`·`TABLE_PREFIX_OWNERS`에 소유자를 가진다. 소유되지 않은 접두사가 0개다.
-3. 4.1절 표의 패키지 경로가 `routes.yaml` layout의 경로 규칙(`platform-{domain}`, `core-{domain}`, `cap-{domain}`, `group-kit`·`group-helm`·`group-learning`, `apps/*`)과 일치한다.
-4. DR-14 예외(F, `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@xeon/ext-host`의 서비스 등록·주입 API, `group-kit` 허용 목록) 밖에서 다른 컨텍스트의 패키지를 import하면 `check-layers.ts`가 `DR-14`로 실패한다(M1부터).
+3. 4.1절 표의 패키지 경로가 `routes.yaml` layout의 경로 규칙(`platform-{domain}`, `core-{domain}`, `cap-{domain}`, `group-sdk`·`group-helm`·`group-learning`, `apps/*`)과 일치한다.
+4. DR-14 예외(F, `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@xeon/ext-host`의 서비스 등록·주입 API, `group-sdk` 허용 목록) 밖에서 다른 컨텍스트의 패키지를 import하면 `check-layers.ts`가 `DR-14`로 실패한다(M1부터).
 5. 확장 id `focus_lens`, `core`를 가진 매니페스트는 로드되지 않는다. `focus-lens`는 로드되고 테이블 접두가 `x_focus_lens_`다. 이 확장이 지역 이름 `my_notes`로 테이블을 만들면 거부된다.
 6. `ext.helm` 생산자로 `effect.result`를 커밋하면 실패하고 행이 남지 않는다(`eng.events.design` 수용 기준 9와 같은 시험).
 
 ## 9. 미결 사항
 
 - [미결 C-1] 컨텍스트 이름과 식별자 정리. 층 구성 계획 v2·`_research/packages.md`의 하위 층 id(`L1-a`~`L1-g`, `L2-a`~`L2-h`)와 layout 도메인 이름이 다르게 읽히는 곳(L2-a "작업 도구" = `workspace`, L2-e "작업 관리" = `work`)과, 이 문서가 새로 붙인 컨텍스트 이름(`run-engine`, `session-core`, `tool-runtime`, `model-gateway`, `platform-execution`)을 문서 전체에서 어느 쪽으로 부를지 정한다. 이 문서는 코드·서비스·접두사에 layout 도메인 이름을, 묶음에 컨텍스트 이름을 쓴다.
-- [미결 C-2] `slots`의 위치. 코드가 없는 L3 도메인(그룹 템플릿 문서)을 `group-kit` 컨텍스트에 두었다. 템플릿이 `group-kit` 패키지의 스캐폴드 명령이 되면 그대로 두고, 독립 저장소 템플릿이 되면 layout에서 뺄지 정한다.
+- [미결 C-2] `slots`의 위치. 코드가 없는 L3 도메인(그룹 템플릿 문서)을 `group-sdk` 컨텍스트에 두었다. 템플릿이 `group-sdk` 패키지의 스캐폴드 명령이 되면 그대로 두고, 독립 저장소 템플릿이 되면 layout에서 뺄지 정한다.
 - [미결 C-3] L2 능력 테이블 접두사. 이 문서는 L2에 `cap_<도메인>_`, 설치형 확장에 `x_<extKey>_`를 쓴다. 내장 L2 능력도 사용자가 교체할 수 있는 플러그인이므로 `x_`로 통일할지 정한다.
-- [결정: review.decisions-2 U-15] C-5 `group-kit` 런타임 도우미를 그룹이 import하는 방식. 허용 목록 `DR-02/group-kit`(`from`은 `packages/group-*`)로 `group-*` → `group-kit` import를 허용한다(`eng.dependency-rules.guide` DR-02). 4.1절 `group-kit` 행의 서비스(`xeon.groups`)는 그대로 둔다.
+- [결정: review.decisions-2 U-15] C-5 `group-sdk` 런타임 도우미를 그룹이 import하는 방식. 허용 목록 `DR-02/group-sdk`(`from`은 `packages/group-*`)로 `group-*` → `group-sdk` import를 허용한다(`eng.dependency-rules.guide` DR-02). 4.1절 `group-sdk` 행의 서비스(`xeon.groups`)는 그대로 둔다.
 - [결정: review.decisions-2 U-18] C-6 확장 id 형식. `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이고 밑줄은 쓰지 않는다. 테이블 접두는 `x_<extKey>_`, 지역 테이블 이름에는 밑줄을 쓰지 않는다(5.2절, CM-07). adr.0004의 `[a-z0-9_]` 서술은 이 형식으로 고친다(decisions 문서 담당).

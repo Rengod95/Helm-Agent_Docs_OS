@@ -17,9 +17,9 @@ binds: []
 - 이미 정한 것:
   - [결정: adr.0015] M3-03 효과 목록은 C안(선언형 허용)이다. `g.delegate`·`loop.spawn`은 코어가 멱등을 보장한다. 능력 메서드는 F 정의에 `idempotent: true`를 선언하고 `requestId`를 받을 때만 허용한다. 읽기 메서드는 drive에서 허용한다. 선언 없는 쓰기는 요청 레코드와 워커를 거친다. 시험은 "재생 2회, 효과 1회"다.
   - [결정: 사용자 2026-10-25] `product.scope.spec` §10 미결 4(Helm 설계 착수 시점)는 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(ADR-0015)"으로 닫는다. 문서 반영은 2026-10-26 결정 반영 작업에서 했다.
-  - [결정 2026-10-26] §3의 D-M3-01~D-M3-32는 모두 답을 받았다(두 차례, 둘째 답이 첫째 답을 덮는다). 각 결정 아래 "[결정 2026-10-26]" 줄이 채택안이다. 선택지 표와 권고는 기록으로 남긴다. 반영 문서: ADR-0016~0020, `review.m3-plan`, `review.m3-lower-requirements`, L3 Helm·학습·group-kit·slots, `product.scope.spec`.
+  - [결정 2026-10-26] §3의 D-M3-01~D-M3-32는 모두 답을 받았다(두 차례, 둘째 답이 첫째 답을 덮는다). 각 결정 아래 "[결정 2026-10-26]" 줄이 채택안이다. 선택지 표와 권고는 기록으로 남긴다. 반영 문서: ADR-0016~0020, `review.m3-plan`, `review.m3-lower-requirements`, L3 Helm·학습·group-sdk·slots, `product.scope.spec`.
 - 번호: 사용자 결정은 `D-M3-NN`, 이 문서에서 새로 만든 M3 작업은 `M3-new-NN`, F·X·L1·L2 요구는 `REQ-<층>-NN`이다. 요구를 구현 계획 단위로 옮긴 번호는 `M3-REQ-NN`(`review.m3-lower-requirements`)이다. 수집 ID(`A-NN`, `KN-NN`, `U-NN`, 교차 행 번호 `C-NNN` 등)는 원천 추적용이다.
-- 원천 경로는 `docs/xeon/` 기준이다. `xeon/`으로 시작하면 코드 경로다. L3 Helm·학습·group-kit 문서는 이 작업과 함께 고쳐졌으므로 줄 번호 대신 절 번호와 항목 이름으로 인용한다. 번호가 붙은 §10 목록은 목록 이름과 번호를 함께 적는다(예: Helm §10 "사용자 결정 대기" 1).
+- 원천 경로는 `docs/xeon/` 기준이다. `xeon/`으로 시작하면 코드 경로다. L3 Helm·학습·group-sdk 문서는 이 작업과 함께 고쳐졌으므로 줄 번호 대신 절 번호와 항목 이름으로 인용한다. 번호가 붙은 §10 목록은 목록 이름과 번호를 함께 적는다(예: Helm §10 "사용자 결정 대기" 1).
 
 ## 2. 요약
 
@@ -101,7 +101,7 @@ binds: []
 
 - [결정 2026-10-26] a. 검토 결과는 부모 대화의 모델 입력에 넣지 않는다. 제안 대기열과 알림으로만 보인다. `DelegateSpec.report`는 선택 필드다.
 
-- 원천: `L3/learning/spec.md` §4.3 "완료 통지"와 §10 "사용자 결정" 2, `L3/group-kit/spec.md` §3.4 "완료 보고"와 §10 "완료 보고가 새 turn을 시작하는지" 항목, 수집 U-10. L3 차단: 학습.
+- 원천: `L3/learning/spec.md` §4.3 "완료 통지"와 §10 "사용자 결정" 2, `L3/group-sdk/spec.md` §3.4 "완료 보고"와 §10 "완료 보고가 새 turn을 시작하는지" 항목, 수집 U-10. L3 차단: 학습.
 - 전제: [결정: adr.0013] 확장 `post`의 `next`는 turn을 시작하지 않는다.
 
 | 안 | 내용 |
@@ -110,17 +110,17 @@ binds: []
 | b | `kind: "context"`, `display: false` 항목으로 넣고 turn은 열지 않는다(현 제안) |
 | c | 새 turn을 연다 |
 
-- 권고: a. 검토 결과는 사용자가 승인할 제안이고, 부모 입력에 넣으면 프롬프트 캐시가 깨지고 토큰이 는다. a를 고르면 group-kit `DelegateSpec.report`를 선택 필드로 바꾼다(REQ-L1-05).
+- 권고: a. 검토 결과는 사용자가 승인할 제안이고, 부모 입력에 넣으면 프롬프트 캐시가 깨지고 토큰이 는다. a를 고르면 group-sdk `DelegateSpec.report`를 선택 필드로 바꾼다(REQ-L1-05).
 
 #### D-M3-04 그룹을 끌 때 진행 중 위임과 검토 포크
 
 - [결정 2026-10-26] b. 그룹을 끄면 진행 중 위임과 검토 포크를 즉시 취소한다.
 
-- 원천: `L3/learning/spec.md` §5 사례 5와 §10 "사용자 결정" 3, `L3/group-kit/spec.md` §4.10 "위임 규칙"과 §10 "완료 보고가 새 turn을 시작하는지" 항목, 수집 U-09. L3 차단: 학습.
+- 원천: `L3/learning/spec.md` §5 사례 5와 §10 "사용자 결정" 3, `L3/group-sdk/spec.md` §4.10 "위임 규칙"과 §10 "완료 보고가 새 turn을 시작하는지" 항목, 수집 U-09. L3 차단: 학습.
 
 | 안 | 내용 |
 |---|---|
-| a | 완료까지 두고 보고를 그대로 넣는다(group-kit 제안) |
+| a | 완료까지 두고 보고를 그대로 넣는다(group-sdk 제안) |
 | b | 즉시 취소한다 |
 | c | 완료까지 두고 결과는 버린다 |
 
@@ -130,7 +130,7 @@ binds: []
 
 - [결정 2026-10-26] a. 대기한다. 앞 임대가 풀리면 다음 단계 경계에서 넘기고, 대기 상한을 넘으면 거부한다.
 
-- 원천: `product/vision/spec.md:97`(§10 3번, 교차 C-005), `L3/README.md` §7 "제3의 drive 그룹" 행과 §10.2 미결 5, `L3/group-kit/spec.md` §10 "대기 vs 거부" 항목. L3 차단: Helm.
+- 원천: `product/vision/spec.md:97`(§10 3번, 교차 C-005), `L3/README.md` §7 "제3의 drive 그룹" 행과 §10.2 미결 5, `L3/group-sdk/spec.md` §10 "대기 vs 거부" 항목. L3 차단: Helm.
 
 | 안 | 내용 |
 |---|---|
@@ -143,7 +143,7 @@ binds: []
 
 - [결정 2026-10-26] a. 유휴 중 임대를 받은 그룹은 임대 상한 안에서 turn을 연다.
 
-- 원천: `L3/group-kit/spec.md` §10 "유휴 중 임대 부여로 자율 turn" 항목, `L3/README.md` §10.2 미결 6, `X/primitives/spec.md` §4.5.5, 수집 U-07. L3 차단: Helm.
+- 원천: `L3/group-sdk/spec.md` §10 "유휴 중 임대 부여로 자율 turn" 항목, `L3/README.md` §10.2 미결 6, `X/primitives/spec.md` §4.5.5, 수집 U-07. L3 차단: Helm.
 
 | 안 | 내용 |
 |---|---|
@@ -569,7 +569,7 @@ L3 Helm·학습 세부 설계가 답해야 할 항목이다. "정하는 곳"이 
 | H-IN-11 | 재시작·재활성화 뒤 `leaseId`와 기본 `requestId` 재개 안전성 | `L3/helm/spec.md` §4.5, §10 (닫힘) `leaseId` 유지 항목 | X.primitives, ADR-0015 | REQ-X-01, REQ-X-04 |
 | H-IN-12 | drive 안 능력 호출: `gatherContext`는 읽기, `linkWork`는 멱등 쓰기(C2 닫힘) | `L3/helm/spec.md` §4.5, §4.11, §10 (닫힘) C2, ADR-0015 §4.3 | L2 work·knowledge 분류 | REQ-F-01, REQ-L2-01 |
 | H-IN-13 | 서비스 키 체계(C1) | `L3/helm/spec.md` §3.8, §10 (닫힘) C1 | §3.8 A-01 | REQ-X-09 |
-| H-IN-14 | 유휴 자율 turn, 임대 충돌, 안전 모드 | `L3/group-kit/spec.md` §10 "대기 vs 거부"와 "유휴 중 임대 부여" 항목, `X/operations/spec.md` §10 19 | D-M3-05, 06, 07 | REQ-X-08 |
+| H-IN-14 | 유휴 자율 turn, 임대 충돌, 안전 모드 | `L3/group-sdk/spec.md` §10 "대기 vs 거부"와 "유휴 중 임대 부여" 항목, `X/operations/spec.md` §10 19 | D-M3-05, 06, 07 | REQ-X-08 |
 | H-IN-15 | 탐구가 없을 때 turn마다 임대 부여·반납 비용 | `L3/helm/spec.md` §3.3, §10 "남은 내부 설계" 10 | L3 Helm 설계. 문제가 되면 X 후보 제외 조건 | — |
 | H-IN-16 | Helm 쓰기 거부와 샌드박스 강제 위치가 `tool_call` 지점에서 겹치는지 | `X/operations/spec.md:1339`, `X/README.md:139` | X.operations | REQ-X-11 |
 | H-IN-17 | `xeon.domain` 불일치(C3) | `L3/helm/spec.md` §10 (닫힘) C3 | M3-35 | — |
@@ -582,9 +582,9 @@ L3 Helm·학습 세부 설계가 답해야 할 항목이다. "정하는 곳"이 
 | L-IN-02 | 검토 포크 시작 규칙(on 핸들러의 `g.delegate`) | `L3/learning/spec.md` §4.3, §10 (닫힘) adr.0015 항목 | [결정: adr.0015] 허용. 학습 spec §4.3·§10에 반영했다(대체안 문단 삭제) | REQ-L1-01 |
 | L-IN-03 | 검토 결과 전달 | `L3/learning/spec.md` §10 "사용자 결정" 2 | D-M3-03 | REQ-L1-05 |
 | L-IN-04 | 그룹 끄기 때 검토 포크 | `L3/learning/spec.md` §10 "사용자 결정" 3 | D-M3-04 | REQ-L1-02 |
-| L-IN-05 | 자식 대화(검토 포크)에서 그룹 핸들러 발화 범위 | `L3/learning/spec.md` §10 (닫힘) 자식 대화 발화 항목, `L3/group-kit/spec.md` §7 "delegate" 문단 | L1.agents, X | REQ-L1-04 |
-| L-IN-06 | 그룹 간 이벤트 격리 | `L3/group-kit/spec.md` §3.7, `X/README.md:130`, `decisions/ADR-0007-ext-points.md:250` | X.primitives | REQ-X-05 |
-| L-IN-07 | 검토 포크 spawn 상한 귀속(임대 밖 위임) | `L3/README.md` §10.2 미결 7, `L3/group-kit/spec.md` §3.4 "상한" | L1.agents | REQ-L1-03 |
+| L-IN-05 | 자식 대화(검토 포크)에서 그룹 핸들러 발화 범위 | `L3/learning/spec.md` §10 (닫힘) 자식 대화 발화 항목, `L3/group-sdk/spec.md` §7 "delegate" 문단 | L1.agents, X | REQ-L1-04 |
+| L-IN-06 | 그룹 간 이벤트 격리 | `L3/group-sdk/spec.md` §3.7, `X/README.md:130`, `decisions/ADR-0007-ext-points.md:250` | X.primitives | REQ-X-05 |
+| L-IN-07 | 검토 포크 spawn 상한 귀속(임대 밖 위임) | `L3/README.md` §10.2 미결 7, `L3/group-sdk/spec.md` §3.4 "상한" | L1.agents | REQ-L1-03 |
 | L-IN-08 | 기존 스킬과 충돌하는 후보 병합 규칙 | `L3/learning/spec.md` §10 (닫힘) 병합 규칙 항목, `product/usecases/spec.md` §10 4 | L3 학습 설계 | — |
 | L-IN-09 | 제안 대기열 소유(L2 knowledge 대 L3 learning) | `L3/learning/spec.md` §10 "설계 질문" 8, `L2/knowledge/spec.md:1373` | [결정: D-M3-32 a] 대기열 둘, L4가 합쳐 보임. M3-18 | REQ-L2-02 |
 | L-IN-10 | 메모리 정본과 프로젝트 스킬 쓰기 | `L2/knowledge/spec.md:1371`, `:1383` | D-M3-08, 09 | — |
@@ -598,25 +598,25 @@ L3 Helm·학습 세부 설계가 답해야 할 항목이다. "정하는 곳"이 
 | L-IN-18 | 큐레이터 트리거 | `L3/learning/spec.md` §10 (닫힘) 큐레이터 항목 | M4 이후(2차) | — |
 | L-IN-19 | 학습 테스트의 scenario 계층 제한 | `L3/learning/plan.md` §5.2 "계층" 불릿 | L3 학습 계획 | — |
 
-### 4.3 group-kit과 slots
+### 4.3 group-sdk과 slots
 
 | ID | 질문 | 원천 | 정하는 곳·선행 | 요구 |
 |---|---|---|---|---|
-| G-IN-01 | 공통 모순 2(on 핸들러 효과) 반영 | `L3/group-kit/spec.md` §3.4·§10 공통 모순 2, `L3/README.md` §10.2 미결 2 | [결정: adr.0015]. group-kit §3.4·§3.10과 plan G-20·G-28~G-30은 이 작업에서 고쳤고 L3.readme만 남았다 | REQ-X-01 |
-| G-IN-02 | `replayDrive`의 효과 계수(모든 커밋 지점에서 끊고 두 번 실행) | ADR-0015 §4.3, `L3/group-kit/plan.md` G-20 | group-kit | — |
+| G-IN-01 | 공통 모순 2(on 핸들러 효과) 반영 | `L3/group-sdk/spec.md` §3.4·§10 공통 모순 2, `L3/README.md` §10.2 미결 2 | [결정: adr.0015]. group-sdk §3.4·§3.10과 plan G-20·G-28~G-30은 이 작업에서 고쳤고 L3.readme만 남았다 | REQ-X-01 |
+| G-IN-02 | `replayDrive`의 효과 계수(모든 커밋 지점에서 끊고 두 번 실행) | ADR-0015 §4.3, `L3/group-sdk/plan.md` G-20 | group-sdk | — |
 | G-IN-03 | 위임 래퍼와 L1.agents §3.2 필드 대조, delegate 스텁 해소 | `L1/agents/plan.md:172`, `xeon/packages/core-agents/src/service.ts:185` | L1.agents, M3-new-02 | REQ-L1-03 |
 | G-IN-04 | `DriveArbiter`(정책)와 X(메커니즘)의 분담 | `L3/README.md` §10.2 미결 5 | X.primitives, D-M3-05 | REQ-X-08 |
-| G-IN-05 | `GroupService`의 thread별 상태 노출 | `L3/group-kit/spec.md` §10 "`GroupService`가 thread별 상태를 보이는 방식" 항목 | L3 group-kit | — |
-| G-IN-06 | 임대 이벤트 이름(`lease.*` 대 `drive.leased`) | `L3/group-kit/spec.md` §10 "임대 이벤트 이름" 항목 | F 이름(`lease.*`)을 정본으로, context-map 정정 | REQ-F-08 |
+| G-IN-05 | `GroupService`의 thread별 상태 노출 | `L3/group-sdk/spec.md` §10 "`GroupService`가 thread별 상태를 보이는 방식" 항목 | L3 group-sdk | — |
+| G-IN-06 | 임대 이벤트 이름(`lease.*` 대 `drive.leased`) | `L3/group-sdk/spec.md` §10 "임대 이벤트 이름" 항목 | F 이름(`lease.*`)을 정본으로, context-map 정정 | REQ-F-08 |
 | G-IN-07 | 요청 레코드 워커 소유, `readOnly` 표지 이름, 외부 확장 `idempotent` 신뢰 조건 | ADR-0015 §6 | F·X 계약 트랙 | REQ-F-01, REQ-X-07, REQ-X-10 |
 | G-IN-08 | Cordis dispose와 `onDispose`의 관계(그룹 비활성화 정리) | `F/extensions/spec.md:1316` | X.primitives | REQ-X-12 |
 | G-IN-09 | `ScopeApi.provide` 위치 | `X/primitives/spec.md:1420` | X.primitives | REQ-X-09 |
-| G-IN-10 | 조립 루트 포트 연결(`GroupSettingsSourceKey`, `DriveHolderSettingsPort`, `GroupCatalogPort`) | `L3/group-kit/spec.md` §10 "M2 구현이 남긴 연결" 항목 | L4 host, M3 구현 | — |
-| G-IN-11 | 2차 조회(계측·승격 집계용) | `L3/group-kit/spec.md` §3.13 5번 | M3-new-09 | — |
-| G-IN-12 | `scanDriveSource`의 `@swc/core` import와 DR-07 행 | `L3/group-kit/spec.md` §3.11 파서 문단과 §10 `scanDriveSource` 항목 | eng.dependency-rules | — |
-| G-IN-13 | `xeon.domain` `kit` 대 `group-kit` | `L3/README.md` §3 `xeon.domain` 불릿, `L3/group-kit/spec.md` §10 공통 모순 3 | M3-35. 제안대로 `group-kit`으로 맞춘다 | — |
+| G-IN-10 | 조립 루트 포트 연결(`GroupSettingsSourceKey`, `DriveHolderSettingsPort`, `GroupCatalogPort`) | `L3/group-sdk/spec.md` §10 "M2 구현이 남긴 연결" 항목 | L4 host, M3 구현 | — |
+| G-IN-11 | 2차 조회(계측·승격 집계용) | `L3/group-sdk/spec.md` §3.13 5번 | M3-new-09 | — |
+| G-IN-12 | `scanDriveSource`의 `@swc/core` import와 DR-07 행 | `L3/group-sdk/spec.md` §3.11 파서 문단과 §10 `scanDriveSource` 항목 | eng.dependency-rules | — |
+| G-IN-13 | `xeon.domain` `kit` 대 `group-sdk` | `L3/README.md` §3 `xeon.domain` 불릿, `L3/group-sdk/spec.md` §10 공통 모순 3 | M3-35. 제안대로 `group-sdk`으로 맞춘다 | — |
 | G-IN-14 | L3.readme 표의 옛 tier·예산 소유 표기 | `X/README.md:125` | L3.readme 정정 | — |
-| G-IN-15 | 템플릿 위치, 정책 플러그인 kind 기준, `xeon group new` 소유 | `L3/README.md` §10.2 미결 11·12, `L3/slots/spec.md` §10 "템플릿 파일 위치" 항목 | M3-17. 제안대로 `group-kit/templates/` | — |
+| G-IN-15 | 템플릿 위치, 정책 플러그인 kind 기준, `xeon group new` 소유 | `L3/README.md` §10.2 미결 11·12, `L3/slots/spec.md` §10 "템플릿 파일 위치" 항목 | M3-17. 제안대로 `group-sdk/templates/` | — |
 | G-IN-16 | 외부 그룹 신뢰 등급 값 집합 | `L3/slots/spec.md` §10 "외부 그룹의 신뢰 등급" 항목, `X/primitives/spec.md:1434` | X.loading-trust, M3-15 | — |
 | G-IN-17 | 입출력 가드레일 | `L3/README.md` §10.2 미결 13 | [결정: D-M3-30 행 1] 내장 검사 없음, fail-closed 지점 셋(ADR-0017 §3.6) | REQ-F·X(가드 지점) |
 
@@ -650,7 +650,7 @@ L3 Helm·학습 세부 설계가 답해야 할 항목이다. "정하는 곳"이 
 | REQ-L1-02 | `L1.agents.spec` | 백그라운드 위임 취소 API, 부모 대화 삭제 때 보고 처리 | D-M3-04, AG-10 |
 | REQ-L1-03 | `L1.agents.spec`, `L1.tasks.spec` | 그룹 위임의 caller 표기, 포그라운드·백그라운드 풀 공유, 임대 밖 위임 상한 | AG-13, AG-02, U-08 |
 | REQ-L1-04 | `L1.agents.spec` | 자식 대화의 지점 발화와 그룹 핸들러 적용 범위 | U-02 |
-| REQ-L1-05 | `L1.agents.spec`, `L3.group-kit.spec` | D-M3-03 반영: `DelegateSpec.report` 선택화와 보고 경로 | U-10 |
+| REQ-L1-05 | `L1.agents.spec`, `L3.group-sdk.spec` | D-M3-03 반영: `DelegateSpec.report` 선택화와 보고 경로 | U-10 |
 | REQ-L1-06 | `L1.models.spec` | 그룹 정의 역할을 두지 않음을 [제안]으로 적는다 | MD-04 |
 | REQ-L2-01 | L2 각 spec(`work`, `knowledge`, `web`, `dialog`, `artifacts`, `schedule`, `mcp`, `workspace`) | 메서드마다 읽기·멱등·선언 없음 분류, 멱등 쓰기의 내구 기록 근거. `web.search`는 읽기이고 결과는 그룹이 커밋한다. `jobs.spawn`은 멱등 선언 | ADR-0015 §4.3, SC-04 |
 | REQ-L2-02 | `L2.knowledge.spec`, `L3.learning.spec`, `eng.context-map.design` §4.1 | [결정: D-M3-32 a] 대기열 둘을 유지하고 L4가 합쳐 보인다. M3-18 wire는 두 출처를 각각 조회한다 | KN-05, U-12, D-M3-32 |
@@ -716,7 +716,7 @@ M2 마감 때 `review.m3-plan`에 더한다. `product.scope.spec` §4.3에 이�
 | M3-new-06 | 설정 화면 M3: 비밀 탭과 값 열람, 전용 편집기, 게이지, 첫 실행 권장, 관리 잠금 사유, `SettingsTab` | M-10, M-17, B-19, U-88, U-89, U-86 | `review.decisions-2` U-20, U-21 |
 | M3-new-07 | 모델 계정 풀과 레이트 리밋. 계정 회전은 API 키·구독 계정 모두, 기본 꺼짐 + 첫 사용 고지(D-M3-22) | MD-08 | `review.decisions-2` U-21, D-M3-22 |
 | M3-new-08 | 설정 파일 외부 변경 감시와 통지 | M-16, A-72 | M3-07과 같은 감시 수단 |
-| M3-new-09 | 그룹 계측과 승격 보고(G-17, G-18) | M-07, U-30 | L3.group-kit.plan |
+| M3-new-09 | 그룹 계측과 승격 보고(G-17, G-18) | M-07, U-30 | L3.group-sdk.plan |
 | M3-new-10 | `cap-workspace` `write`·`edit`·`grep`·`find`와 원자적 쓰기 | WS-10, WS-02 | scope §4.3 |
 | M3-new-11 | `cap-artifacts`(리뷰·diff 승인, 제목·라벨, 레코드 카탈로그) | AR-08, B-07 | scope §4.3 |
 | M3-new-12 | `cap-schedule`(타이머, 파일 감시, 원격, 루프, cron 세션 종류) | SC-08, KN-21, B-07 | scope §4.3 |
@@ -734,7 +734,7 @@ M2 마감 때 `review.m3-plan`에 더한다. `product.scope.spec` §4.3에 이�
 | 항목 | 닫은 근거 | 정리할 위치 |
 |---|---|---|
 | `post.when = next` 시작 여부 | adr.0013 | `X/README.md:126`, `X/primitives/spec.md:1190`~`:1192`, `:1414`~`:1416`, `X/loading-trust/spec.md:1071`, `L1/README.md:362`, `L1/loop/spec.md:777`, `:778`, `L1/tasks/plan.md:74`, `:147`, `architecture/runtime-flow/design.md:131`, `:299`, `product/usecases/spec.md:35`, `:67`, `:82`, `product/vision/spec.md:53`, `decisions/ADR-0007-ext-points.md:53`, `:247`, `xeon/packages/contracts/src/records/catalog/input.ts:90` |
-| on 핸들러 효과 목록(G1-06) | adr.0015 | `L3/README.md` §10.2 미결 2, `F/README.md:277`(효과 목록 항목). L3 group-kit·Helm·학습·slots는 이 개정에서 닫았다 |
+| on 핸들러 효과 목록(G1-06) | adr.0015 | `L3/README.md` §10.2 미결 2, `F/README.md:277`(효과 목록 항목). L3 group-sdk·Helm·학습·slots는 이 개정에서 닫았다 |
 | Helm 설계 착수 시점 | 사용자 2026-10-25 | `review/m3-plan.md:93`, `product/scope/spec.md` §10 4, `product/vision/spec.md` §10 5 |
 | 엔진 바이너리 구성 | adr.0014 | `L4/desktop/spec.md:597`, `L4/host-service/spec.md:1149`, `:1150`, `L4/cli/spec.md:792` |
 | Linux·WSL 데스크톱 지원 수준 | `review.m2-plan` D-d | `L4/desktop/spec.md:461`, `:528`, `:605` |
@@ -751,7 +751,7 @@ M2 마감 때 `review.m3-plan`에 더한다. `product.scope.spec` §4.3에 이�
 | adr.0003 §6 원문 확인, R-9 spill | L0.exec spec §10 4 | `L0/exec/plan.md:145`, `:254` |
 | 닫힘 표기가 남은 항목 12건 | 각 행 본문 | `X/README.md:134`, `X/operations/spec.md:1311`, `:1316`, `:1320`, `:1324`, `:1331`, `:1335`~`:1337`, `X/loading-trust/spec.md:1261`, `:1273`, `F/records/spec.md:1200` |
 | open-issues 참조 주석(N-02, N-05, N-08) | 코드 반영 | `xeon/packages/contracts/src/extensions/ports.ts:101`, `xeon/packages/ext-host/src/operations/storage/errors.ts:18`, `xeon/packages/ext-host/src/primitives/scope.ts:236`, `xeon/packages/contracts/src/wire-settings/wire/methods.ts:339` |
-| L3 §10의 닫힘 항목 | 각 행 본문 | L3 Helm·학습·group-kit §10은 이 개정에서 (닫힘) 표기를 달았다. 남은 정리 대상은 `L3/README.md` §10.2 |
+| L3 §10의 닫힘 항목 | 각 행 본문 | L3 Helm·학습·group-sdk §10은 이 개정에서 (닫힘) 표기를 달았다. 남은 정리 대상은 `L3/README.md` §10.2 |
 | L4 §10·§8의 닫힘 항목 | 각 행 본문 | `L4/host-service/spec.md:1155`, `:1156`, `:1159`, `:1162`, `:1164`, `:1166`, `:1168`~`:1173`, `L4/desktop/spec.md:598`, `:599`, `:607`, `L4/settings-ui/spec.md:941`, `:952`, `L4/README.md:162`, `:166`, `:169`, `:171`~`:173`, `:175`, `:178`, `:180`, `:182`, `:183`, `:187`, `:189`, `:202` |
 | `secret.references`가 wire에 없다는 문구 | `F/wire-settings/spec.md:328` | `L4/cli/spec.md:805` |
 | 교차 문서의 닫힘 문장·정정 잔여 | `review.decisions-2` §2 등 | `architecture/layers/spec.md:308`, `engineering/anti-patterns/guide.md:508`, `engineering/typescript/guide.md:1434`, `:1156`, `:1438`, `decisions/README.md:164`, `:165`, `review/consistency-1.md:54`, `:63`, `:64`, `:70`, `:72`, `:75`, `:83`, `:128`, `:135` |
@@ -777,5 +777,5 @@ M2 마감 때 `review.m3-plan`에 더한다. `product.scope.spec` §4.3에 이�
   - D-M3-19 행 2·3과 D-M3-11 행 5는 명시 답이 없어 권고를 적용했다 [가정]. 사용자가 다르게 보면 다시 받는다.
   - 자체 지점 이름 표(ADR-0017 §3.2). M3 F 첫 작업에서 정한다.
   - 제품 이름 후보(D-M3-24는 시점만 정했다).
-- [가정] L3 밖 문서의 줄 번호 인용은 수집 시점(2026-10-26 작업 트리)의 값이다. L3 Helm·학습·group-kit 문서는 이 작업이 함께 고쳐 줄 번호가 달라졌으므로 모든 인용을 절 번호와 항목 이름으로 바꿨다. 이전에 적었던 표본 대조(13건)는 L3 줄 번호 인용이 바뀌기 전의 결과라 근거로 쓰지 않는다. L3 밖 줄 번호는 다시 대조하지 않았다.
+- [가정] L3 밖 문서의 줄 번호 인용은 수집 시점(2026-10-26 작업 트리)의 값이다. L3 Helm·학습·group-sdk 문서는 이 작업이 함께 고쳐 줄 번호가 달라졌으므로 모든 인용을 절 번호와 항목 이름으로 바꿨다. 이전에 적었던 표본 대조(13건)는 L3 줄 번호 인용이 바뀌기 전의 결과라 근거로 쓰지 않는다. L3 밖 줄 번호는 다시 대조하지 않았다.
 - [제안] §3.8의 작성자 결정은 해당 문서를 고칠 때 `[제안]`으로 적고, 사용자가 반대하면 D-M3 번호를 새로 받아 되돌린다.

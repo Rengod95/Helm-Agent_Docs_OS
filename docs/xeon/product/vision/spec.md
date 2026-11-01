@@ -94,7 +94,7 @@ Xeon(임시 이름)은 CLI와 데스크톱으로 배포하는 대화형 에이�
 ## 5. 실패와 경계 사례
 
 - 스킬이나 일반 플러그인으로 충분한 기능은 의도 그룹으로 만들지 않는다. 모델의 행동을 코드로 막거나 구동해야 할 때만 그룹을 쓴다(7절).
-- drive 임대는 한 번에 그룹 하나만 가진다(layer-plan-v2-notes.md 층 사이 규칙 4). 두 그룹이 동시에 drive를 요청하는 경우의 중재는 `L3.group-kit.spec`과 `X.primitives.spec`이 정한다. [미결] 대기와 거부 중 기본 동작.
+- drive 임대는 한 번에 그룹 하나만 가진다(layer-plan-v2-notes.md 층 사이 규칙 4). 두 그룹이 동시에 drive를 요청하는 경우의 중재는 `L3.group-sdk.spec`과 `X.primitives.spec`이 정한다. [미결] 대기와 거부 중 기본 동작.
 - 그룹 켜기·끄기는 step 중간에 적용하지 않는다. 사용자가 턴 중에 끄면 다음 단계 경계에서 적용된다. 진행 중인 `loop.turn`은 끊지 않는다(`X.primitives.spec` §4.5.3).
 - 비밀 출력 마스킹은 보조 수단이다. 분할, 재인코딩 같은 변형은 마스킹으로 잡지 못하므로 값이 모델 경로에 들어가지 않는 주입 모드를 기본으로 둔다(secrets.md §0, §6.3).
 
@@ -132,7 +132,7 @@ drive 함수는 경계마다 마지막으로 커밋된 상태로 다시 호출�
 
 [제안] 사용자가 "설계 검토 그룹"을 직접 만들어 붙이는 경우의 흐름이다. 그룹 이름 `review`는 예시다. 지점 이름(`request`, `tool.before`)은 7.2와 같은 의사코드 표기이며, 실제 지점 이름은 `F.extensions.spec`의 지점 선언 표를 따른다(ADR-0007 §3.3 [제안]에서는 `input.agent.before`, `tool.call.before`).
 
-1. 사용자가 `group-kit`의 `defineGroup`으로 `review` 그룹 패키지를 만든다. 코어 패키지(`contracts`, `ext-host`, `platform-*`, `core-*`)는 수정하지 않는다.
+1. 사용자가 `group-sdk`의 `defineGroup`으로 `review` 그룹 패키지를 만든다. 코어 패키지(`contracts`, `ext-host`, `platform-*`, `core-*`)는 수정하지 않는다.
 2. 그룹은 `scope("review", { state })` 안에서 `on("request", …)`(chain)으로 검토 관점을 주입하고, `on("tool.before", …)`(first)로 검토 중 쓰기를 막는다.
 3. 사용자가 설정 화면이나 명령에서 그룹을 켠다. 등록은 다음 단계 경계에서 활성화된다.
 4. Helm이 켜져 있으면 두 그룹의 chain 핸들러가 정해진 순서로 합성되고, first 핸들러는 먼저 거부한 쪽이 결과를 정한다. 합성 순서는 X 운영 규칙(실행 순서와 tier)을 따른다(`X.operations.spec`).
@@ -181,7 +181,7 @@ drive 함수는 경계마다 마지막으로 커밋된 상태로 다시 호출�
 |---|---|---|---|
 | 1 | 최종 제품 이름. 'Xeon'은 임시 이름이다(decisions-log 2026-10-21 3차). | 1.1 | 사용자 |
 | 2 | 위장 provider 별도 플러그인을 공개 배포할지, 본인 사용에만 둘지. | 4.3 f | 사용자 |
-| 3 | 두 그룹이 동시에 drive를 요청할 때 기본 동작(대기 또는 거부). | 5, 7.3 | `X.primitives.spec`, `L3.group-kit.spec` |
+| 3 | 두 그룹이 동시에 drive를 요청할 때 기본 동작(대기 또는 거부). | 5, 7.3 | `X.primitives.spec`, `L3.group-sdk.spec` |
 | 4 | Helm을 내장 그룹으로 넣을지 기본 플러그인으로 넣을지. | 1.1 | `L3.helm.spec` |
 | 5 | Helm 내부 설계 착수 시점. decisions-log 2026-10-21 2차는 "층 구성 계획 보완·합의 뒤 착수"로 적었다. | 7.2 | 사용자 |
 

@@ -9,7 +9,7 @@ import type {
   Unsubscribe,
 } from "../extensions/index.ts";
 
-// L3.group-kit.spec §3.8. 구현은 group-kit이다. GroupService는 X 포트 LeaseArbiterPort(F.extensions.spec §3.2.1)를 확장하고
+// L3.group-sdk.spec §3.8. 구현은 group-sdk이다. GroupService는 X 포트 LeaseArbiterPort(F.extensions.spec §3.2.1)를 확장하고
 // X가 그 포트로 주입받는다. settings를 import하지 않으므로 설정 범위는 SettingScope와 같은 모양의 리터럴 유니언으로 적는다.
 
 export const GroupServiceName = "xeon.groups" as const;
@@ -20,7 +20,7 @@ export type DriveHolderSetting = ScopeId | null;
 /** F.wire-settings의 SettingScope와 서로 대입 가능해야 한다 */
 type HolderSettingScope = "managed" | "user" | "project" | "local" | "launch";
 
-/** GroupStatus.metrics. group-kit GroupMetrics(L3.group-kit.spec §3.12)의 부분 필드와 같은 모양이다 */
+/** GroupStatus.metrics. group-sdk GroupMetrics(L3.group-sdk.spec §3.12)의 부분 필드와 같은 모양이다 */
 export interface GroupMetricsSummary {
   readonly denies: number;
   readonly posts: number;
@@ -56,7 +56,7 @@ export interface GroupStatus {
   readonly lastError: GroupError | null;
   /** 매니페스트 recordKinds의 kind 목록 */
   readonly recordKinds: readonly RecordKind[];
-  /** l3.group-kit.instrumentation이 false면 null */
+  /** l3.group-sdk.instrumentation이 false면 null */
   readonly metrics: GroupMetricsSummary | null;
 }
 
@@ -101,7 +101,7 @@ export interface HolderReceipt {
   /**
    * auto, 또는 지정한 그룹이 이미 holder면 now(현재 holder 유지). 임대가 없으면 nextStepBoundary.
    * 다른 그룹이 임대를 가졌고 지정한 그룹이 후보(켜짐, drive 등록, 오류 아님)이면 X가 다음 경계에서 회수하므로 nextStepBoundary,
-   * 후보가 아니면 현재 임대를 유지하므로 afterLeaseRelease(L3.group-kit.spec §3.8, X.primitives.spec P-22)
+   * 후보가 아니면 현재 임대를 유지하므로 afterLeaseRelease(L3.group-sdk.spec §3.8, X.primitives.spec P-22)
    */
   readonly appliesAt: "nextStepBoundary" | "now" | "afterLeaseRelease";
 }
@@ -117,7 +117,7 @@ export interface GroupService extends LeaseArbiterPort {
   /**
    * 설정 x.primitives.activeDriveGroup을 쓴다. holder "auto"는 null로 쓴다. scope 기본값 "session".
    * 이름을 지정하면 X가 다음 경계에서 현재 임대를 회수한다. 지정한 그룹이 후보가 아니면 현재 임대를 유지한다.
-   * "auto"(null)로 바꿔도 회수하지 않는다(L3.group-kit.spec §3.8, X.primitives.spec P-22). 진행 중인 loop.turn은 끊지 않는다
+   * "auto"(null)로 바꿔도 회수하지 않는다(L3.group-sdk.spec §3.8, X.primitives.spec P-22). 진행 중인 loop.turn은 끊지 않는다
    */
   setDriveHolder(
     holder: string,

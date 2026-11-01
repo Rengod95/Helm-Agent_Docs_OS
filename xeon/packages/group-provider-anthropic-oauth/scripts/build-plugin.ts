@@ -1,6 +1,6 @@
 // 위장 provider 플러그인 산출물을 만든다(B2-MDL, group-account-rotation의 build-plugin과 같은 모양이다).
 //   <outDir>/.xeon-plugin/plugin.json   providerAnthropicOauthManifest를 JSON으로 옮긴 것(엔트리는 ./dist/index.js)
-//   <outDir>/dist/index.js              엔트리 번들. 호스트가 같은 인스턴스를 주는 모듈(@xeon/contracts, @xeon/group-kit, typebox)은 외부 import로 둔다
+//   <outDir>/dist/index.js              엔트리 번들. 호스트가 같은 인스턴스를 주는 모듈(@xeon/contracts, @xeon/group-sdk, typebox)은 외부 import로 둔다
 // 사용: bun scripts/build-plugin.ts [outDir]   (기본 dist-plugin)
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -13,7 +13,7 @@ const PACKAGE_DIR = resolve(import.meta.dir, "..");
 const EXTERNAL_PATTERNS: readonly string[] = [
   "@xeon/contracts",
   "@xeon/contracts/*",
-  "@xeon/group-kit",
+  "@xeon/group-sdk",
   "typebox",
   "typebox/*",
 ];

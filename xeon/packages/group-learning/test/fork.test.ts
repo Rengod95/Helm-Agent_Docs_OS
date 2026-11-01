@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { fakeAgents } from "@xeon/group-kit/testing";
+import { fakeAgents } from "@xeon/group-sdk/testing";
 import { createTestHost } from "@xeon/ext-host/testing";
 import {
   buildReviewSpec,
@@ -75,7 +75,7 @@ test("fork.uses-item-fork-point: item fork, no report, read-only tool policy and
   ).toBe(false);
 });
 
-test("fork.request-ids: the key stays inside the 48 character limit group-kit allows", () => {
+test("fork.request-ids: the key stays inside the 48 character limit group-sdk allows", () => {
   expect(reviewRequestId(1)).toBe("learning:review:1");
   expect(manualReviewId(3)).toBe("learning:review:manual:3");
   expect(reviewRequestId(999_999_999).length).toBeLessThanOrEqual(48);

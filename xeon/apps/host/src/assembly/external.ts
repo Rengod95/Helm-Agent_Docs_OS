@@ -15,13 +15,13 @@ import {
   type SdkModules,
   type StartupOptions,
 } from "@xeon/ext-host";
-import * as groupKit from "@xeon/group-kit";
+import * as groupSdk from "@xeon/group-sdk";
 
 // X.loading-trust.spec §4.2, §4.4.6. 조립 루트가 외부 확장 로더를 만들어 사용자 확장 위치(<config>/extensions)를 싣는다.
 // 외부 플러그인 번들은 SDK 모듈을 외부 import로 남기므로 호스트가 같은 인스턴스를 가상 모듈로 등록한다. 조립 루트 코드(DR-14 예외 2).
 
 /** X가 직접 등록하지 못하는 L3 모듈만 넘긴다. `@xeon/contracts`(하위 경로 포함)와 `typebox`는 X가 등록한다(X.loading-trust.spec §4.4.6) */
-const HOST_SDK_MODULES: SdkModules = { "@xeon/group-kit": groupKit };
+const HOST_SDK_MODULES: SdkModules = { "@xeon/group-sdk": groupSdk };
 
 export interface ExternalLoadingDeps {
   readonly ext: ExtHost;

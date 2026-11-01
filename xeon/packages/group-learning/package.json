@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@xeon/contracts": "workspace:*",
-    "@xeon/group-kit": "workspace:*",
+    "@xeon/group-sdk": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {

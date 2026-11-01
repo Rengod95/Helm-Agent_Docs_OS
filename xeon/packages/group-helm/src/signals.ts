@@ -1,6 +1,6 @@
 import { assertNever, canonicalJson } from "@xeon/contracts";
 import type { JsonValue } from "@xeon/contracts/conversation";
-import type { GroupApi } from "@xeon/group-kit";
+import type { GroupApi } from "@xeon/group-sdk";
 import { jsonOf, type SignalDetectedPayload } from "./records.ts";
 import type { AutoStart, HelmSettings } from "./settings.ts";
 import type { HelmPending, HelmSignalKind, HelmState, HelmWatch } from "./state.ts";

@@ -42,7 +42,7 @@ test("the committed release-bundle.json parses into the bundle the release build
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.value).toEqual({
-    templates: "packages/group-kit/templates",
+    templates: "packages/group-sdk/templates",
     defaultPlugins: [
       { name: "helm", buildScript: "packages/group-helm/scripts/build-plugin.ts" },
       {
@@ -96,7 +96,7 @@ test("a bundle config with a bad value, an extra key or a missing field is confi
     ["uppercase binary name", '"name": "sops"', '"name": "Sops"'],
     ["empty license", '"license": "BSD-3-Clause"', '"license": ""'],
     ["unknown key", '"systemRequired": {', '"extra": 1,\n  "systemRequired": {'],
-    ["missing templates", '"templates": "packages/group-kit/templates",', ""],
+    ["missing templates", '"templates": "packages/group-sdk/templates",', ""],
     ["number platform", '"platform": "darwin"', '"platform": 7'],
     ["empty plugin name", '"name": "helm"', '"name": ""'],
   ];
@@ -180,11 +180,11 @@ test("sumsBody writes one `<sha256>  <path>` line per file, sorted by path", () 
     sumsBody([
       { path: "xeon", sha256: a },
       { path: "THIRD-PARTY-NOTICES.txt", sha256: b },
-      { path: "group-kit/templates/index.json", sha256: c },
+      { path: "group-sdk/templates/index.json", sha256: c },
       { path: "binaries/age", sha256: d },
     ]),
   ).toEqual(
-    `${d}  binaries/age\n${c}  group-kit/templates/index.json\n${b}  THIRD-PARTY-NOTICES.txt\n${a}  xeon\n`,
+    `${d}  binaries/age\n${c}  group-sdk/templates/index.json\n${b}  THIRD-PARTY-NOTICES.txt\n${a}  xeon\n`,
   );
 });
 
@@ -327,7 +327,7 @@ test("parseSums reads `<sha256>  <path>` lines and rejects a malformed line, a `
 test("requiredPaths asks for the lock and the bundled binaries only on macOS", () => {
   const common = [
     "xeon",
-    "group-kit/templates/index.json",
+    "group-sdk/templates/index.json",
     "default-plugins/helm/.xeon-plugin/plugin.json",
     "default-plugins/account-rotation/.xeon-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",

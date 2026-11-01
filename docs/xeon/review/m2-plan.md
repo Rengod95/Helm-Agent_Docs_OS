@@ -25,7 +25,7 @@ binds: []
 |---|---|---|
 | L2 능력 1차 | `cap-web`(검색 단계 ①~③, fetch), `cap-mcp`, `cap-knowledge`, `cap-work`(작업·계획 승인), `cap-dialog`(질문·명령·상태줄·첨부) | L2.web/mcp/knowledge/work/dialog.plan |
 | 승인 프로토콜 통합 | `approval.respond` 완성, U-19 env 주입 승인 증거 전달, 질문 도구·계획 승인·MCP 질문을 같은 `approval.requested` 레코드로 기록 | L1.tools.plan TL-5·TL-12, L4.host-service.plan H18, open-issues M-02 |
-| 그룹 기반 | `group-kit` M2 항목. `group-helm` H-02~H-15는 M3로 옮겼습니다(§9 D-a) | L3.group-kit.plan, L3.helm.plan |
+| 그룹 기반 | `group-sdk` M2 항목. `group-helm` H-02~H-15는 M3로 옮겼습니다(§9 D-a) | L3.group-sdk.plan, L3.helm.plan |
 | 데스크톱 | Tauri 셸, 엔진 사이드카(stdio 호스트), 승인 대기열, 최소 설정 화면(키 등록, 모델 선택, 첫 실행 안내, §9 D-b) | L4.desktop.plan, L4.host-service.plan |
 | 비밀 관리 명령 | `xeon secret list/add/rm/reveal`, reveal의 OS 재인증(가능한 곳) | L0.secrets.plan SC-14·SC-23, L4.cli.plan C9 |
 | 이 묶음이 의존하는 하위 층 | L1 승인·위임·영속, L0 stdio 전송, X 임대 중재·리소스 레지스트리 | 각 plan M2 행 |
@@ -73,7 +73,7 @@ binds: []
 | KN | `xeon/packages/cap-knowledge/**` | F 완료, L1A.4(K6만), L1B.1(K8만) | 29 |
 | WK | `xeon/packages/cap-work/**` | F 완료, L1A.4(T5·T6만) | 12 |
 | DG | `xeon/packages/cap-dialog/**`, `cap-workspace/**` | F 완료, L1A.4(D2만) | 15 |
-| GK | `xeon/packages/group-kit/**` | F 완료, X.1 | 20 |
+| GK | `xeon/packages/group-sdk/**` | F 완료, X.1 | 20 |
 | HM | `xeon/packages/group-helm/**` | GK 완료, L1A.6, L1B.4 | 18 |
 | HOST | `xeon/apps/host/**` | F 완료, PLT.1, L1A.4 | 17 |
 | CLI | `xeon/apps/cli/**` | F 완료, HOST.2·HOST.4 | 10 |
@@ -88,7 +88,7 @@ binds: []
 
 | ID | 내용 | 원천 | 선행 |
 |---|---|---|---|
-| F.1 | 공유 파일 일괄: catalog 정확 고정 추가(`@modelcontextprotocol/client` 2.3.1, `guarded-fetch` 0.1.6, `@mozilla/readability` 0.6.0, `linkedom` 0.18.13, `turndown` 7.2.4, `defuddle` 0.19.5, `age-encryption` 0.3.1, `@vscode/ripgrep`, `@opentelemetry/api` 1.10.0, React 19 패키지(결정 D2, 상태 관리 패키지는 상태 관리 결정 뒤), `@tauri-apps/cli` 2.12.3), lockfile 갱신, 허용 목록 `DR-02/group-kit-helm`·`DR-02/group-kit-learning`, WEB-R16 lint override와 check-layers 패턴, DR-07 소유 표 행(`@mozilla/readability`, `linkedom`), just 레시피 자리(`web-pricing`, `desktop-sidecar`, `desktop-run`, `desktop-build`) | open-issues M-04, L3.group-kit G-03, L2.web B6 비고, L4.desktop §2 | 없음 |
+| F.1 | 공유 파일 일괄: catalog 정확 고정 추가(`@modelcontextprotocol/client` 2.3.1, `guarded-fetch` 0.1.6, `@mozilla/readability` 0.6.0, `linkedom` 0.18.13, `turndown` 7.2.4, `defuddle` 0.19.5, `age-encryption` 0.3.1, `@vscode/ripgrep`, `@opentelemetry/api` 1.10.0, React 19 패키지(결정 D2, 상태 관리 패키지는 상태 관리 결정 뒤), `@tauri-apps/cli` 2.12.3), lockfile 갱신, 허용 목록 `DR-02/group-sdk-helm`·`DR-02/group-sdk-learning`, WEB-R16 lint override와 check-layers 패턴, DR-07 소유 표 행(`@mozilla/readability`, `linkedom`), just 레시피 자리(`web-pricing`, `desktop-sidecar`, `desktop-run`, `desktop-build`) | open-issues M-04, L3.group-sdk G-03, L2.web B6 비고, L4.desktop §2 | 없음 |
 | F.2 | L2 능력 정의: `capabilities/defs/web.ts`·`web-provider.ts`, `mcp.ts`, `knowledge.ts`, `work.ts`, `dialog.ts`(1차 4개 + 2차 정의만, 순수 함수 `checkAskQuestions` 등) 와 `validateCapability` 이슈 0건 시험 | WEB B1, MCP MC1, KN K1, WK T1, DG D1 | F.1 |
 | F.3 | 기록 카탈로그 `records/catalog/work.ts`(10종), `dialog.ts`, 내장 L2 카탈로그 병합 | F.records R11, WK T1, DG D1 | F.2 |
 | F.4 | 서비스·포트 추가: `HostedSearchPort`(services/models), `childDecision`(policy, F 요청 9), `CommandInfoSchema`(dialog D-2), L2 공통 `ApprovalsPort` 모양 확정(L2.readme §5.7) | L1.models M2, L1.tools TL-13, L2.dialog §7, L2.work W-1·W-2·W-4 | F.2 |
@@ -102,7 +102,7 @@ binds: []
 
 | ID | 내용 | 원천 | 선행 |
 |---|---|---|---|
-| X.1 | 그룹·MCP가 기다리는 항목: 임대 중재 설정(P-22), 상태 마이그레이션(P-23), 공급자 선택(P-27), thread별 scope 상태(P-28), group-kit 요청 4개(`LeaseCandidate.enabledAtSeq`, `leaseId` 조회, 변경 구독, 테스트 호스트 재시작), 확장 테이블 API `Result`화(N-08) | X.primitives P-22·P-23·P-27·P-28, L3.group-kit.spec §3.13, open-issues N-08 | F.2 |
+| X.1 | 그룹·MCP가 기다리는 항목: 임대 중재 설정(P-22), 상태 마이그레이션(P-23), 공급자 선택(P-27), thread별 scope 상태(P-28), group-sdk 요청 4개(`LeaseCandidate.enabledAtSeq`, `leaseId` 조회, 변경 구독, 테스트 호스트 재시작), 확장 테이블 API `Result`화(N-08) | X.primitives P-22·P-23·P-27·P-28, L3.group-sdk.spec §3.13, open-issues N-08 | F.2 |
 | X.2 | 리소스 레지스트리 전체(P-24)와 이름 정책(O-18, O-19), UI 포트 래핑(O-07) | X.primitives P-24, X.operations O-18·O-19·O-07 | X.1 |
 | X.3 | detached tap(P-25), 그룹 간 이벤트 격리(P-26), 재열기 `scope.changed` 중복(N-01), Cordis 재시작 재적용 시점(N-02, 결정 D8 (b)로 구현됨) | X.primitives P-25·P-26, open-issues N-01·N-02 | X.2 |
 | X.4 | 프로젝트 신뢰: `trust/store.ts`·`resources.ts`·`resolve.ts` 포크(L-15~L-17). MCP `.mcp.json`과 프로젝트 스킬이 씁니다 | X.loading-trust L-15~L-17 | X.3 |
@@ -226,7 +226,7 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 | 트랙 | 시험 | 종료 기준 |
 |---|---|---|
 | F | `validateCapability` 이슈 0건(능력 5종), 카탈로그 왕복, wire 스키마 시험 | E0. 정의 파일이 각 L2 spec §3과 같음 |
-| X | X.primitives·X.operations M2 표시 시험, group-kit 요청 4개 시험 | E0. GK가 [가정] 없이 X API를 씀 |
+| X | X.primitives·X.operations M2 표시 시험, group-sdk 요청 4개 시험 | E0. GK가 [가정] 없이 X API를 씀 |
 | SEC | L0.secrets.plan §6 5번, `reveal` 재인증 실패 시 값 미출력 시험 | E7(서비스 부분). WSL은 `tty-confirm` 경로만 확인하고 `os-auth`는 기록으로 남김 |
 | PLT | `transport-conformance.int.test.ts`(in-process, stdio 자식), `watchChildLease` 시험 | E2·E3의 전송 부분 |
 | L1A | TL-5·TL-12 시험, 재시작 뒤 승인 대기 복원, `runChildTurn` 멱등 | E5(레코드 스키마), E1 선행 |
@@ -237,8 +237,8 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 | KN | L2.knowledge.plan §6 1~7(승인 전 불변, 원장 롤백, FTS 멱등, 테스트 그룹 호출) | 종료 조건 직접 항목 없음. HM의 저하 없는 경로 |
 | WK | `plans-decision.int.test.ts`, `plans-mode.test.ts`, `plans-resume.fault.test.ts` | E5 |
 | DG | `ask-flow.test.ts`(같은 레코드 형식), `ask-restart.fault.test.ts` | E5 |
-| GK | L3.group-kit.plan §6 M2 행, `replayDrive` `ok: true` | E1 선행 |
-| HM | `uc2.write-deny-and-n-lenses`, `resume.after-kill-in-explore`, `contracts`·`ext-host`·`group-kit` diff 0 | E1 |
+| GK | L3.group-sdk.plan §6 M2 행, `replayDrive` `ok: true` | E1 선행 |
+| HM | `uc2.write-deny-and-n-lenses`, `resume.after-kill-in-explore`, `contracts`·`ext-host`·`group-sdk` diff 0 | E1 |
 | HOST | `transport-parity`(in-process와 같은 프로세스 안 스트림 쌍 stdio, 한 턴 포함, 컴파일 바이너리는 제외), `thread-locked-alternatives`, `forced-kill-resume`, `stdio-eof-checkpoint-exit`(`stdio-shutdown.int.test.ts`), 승인 응답 한 엔진 시험 | E2, E3(엔진 쪽), E5(wire) |
 | CLI | L4.cli.plan §5.1 M2 시험, `secret reveal` TTY 아님 → 거부 | E7(명령 부분) |
 | DESK | `test/e2e/sidecar.e2e.test.ts`(컴파일 사이드카: 소스 진입과 같은 응답·이벤트열, stdin EOF만으로 종료 0과 홈을 쥔 프로세스 없음, `host.shutdown` 응답 뒤 종료 0과 3초 안 종료), Rust 셸 시험(`just desktop-test`) | E2·E3(Tauri 부분). 환경 제약은 §6, 결정 D1 |
@@ -264,7 +264,7 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 | F·X 레인이 직렬이라 초반 병목 | L1·L2·L3 착수 지연 | SEC·PLT는 F.1 직후 시작합니다. F.2를 능력별 커밋으로 나눠 해당 능력이 병합되면 그 L2 트랙이 시작합니다. X.1을 X.2보다 먼저 병합해 GK를 앞당깁니다 |
 | 승인 프로토콜(L1A.4)에 WK·DG·MCP·KN·HOST가 걸림 | 다섯 트랙 동시 지연 | L1A의 첫 작업으로 둡니다. 소비 트랙은 `src/ports/approvals.ts`와 가짜 서비스로 먼저 시험합니다. payload 스키마는 F `records/catalog/approval.ts`가 정본입니다 |
 | 확장 레코드 쓰기 미구현(M-01) | 그룹 drive가 오류로 끝나 GK·HM 시험 불가 | L1B.1을 L1B 첫 작업으로 둡니다 |
-| Helm의 코어 diff 0 조건 | HM 중 F·X·group-kit 변경이 필요하면 조건 위반 | HM 착수 전 GK를 끝내고, HM이 찾은 계약 부족은 F·X·GK 작업으로 먼저 병합한 뒤 HM을 이어 갑니다 |
+| Helm의 코어 diff 0 조건 | HM 중 F·X·group-sdk 변경이 필요하면 조건 위반 | HM 착수 전 GK를 끝내고, HM이 찾은 계약 부족은 F·X·GK 작업으로 먼저 병합한 뒤 HM을 이어 갑니다 |
 | 조립 통합이 끝에 몰림 | 트랙 단위 시험은 통과하고 실제 엔진에서 실패 | HOST.6에서 트랙 병합 직후 하나씩 등록하고 CLI 테이프 스모크를 돌립니다 |
 | MCP SDK 2.3.1의 Bun 동작, guarded-fetch 0.1.6 성숙도 | MCP.1, WEB.2 재작업 | 각 트랙 첫 작업에서 확인합니다. guarded-fetch가 부족하면 request-filtering-agent로 바꿉니다(L2.web.plan §7) |
 | Tauri 빌드가 이 기기와 CI에서 다르게 동작 | macOS에서만 생기는 E2·E3 실패를 늦게 발견 | 결정 D1. 로컬 WSL 빌드로 반복하고, macOS는 `desktop-macos` job을 PR 라벨 `ci:macos`로 돌립니다. 엔진 쪽 종료·EOF 동작은 HOST.5와 PLT.1 시험으로 먼저 확인합니다 |
@@ -306,7 +306,7 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 
 | # | 결정 | 고른 안 | 반영 |
 |---|---|---|---|
-| D-a | E1(Helm UC-2)과 I7의 마일스톤 | M3로 옮깁니다. 함께 옮기는 항목은 G1-05 도구 메타(`risk`, `hints`, `caller`), G1-06 on 핸들러 효과 목록 ADR, G4-04 Helm 본체(H-02~H-15)입니다. M2의 그룹 작업은 `group-kit`까지입니다 | `product.scope.spec` §4.1 I7·§4.3·§4.4.1·§4.5, `product.usecases.spec` UC-2, `adr.readme` §6, `review.m3-plan` |
+| D-a | E1(Helm UC-2)과 I7의 마일스톤 | M3로 옮깁니다. 함께 옮기는 항목은 G1-05 도구 메타(`risk`, `hints`, `caller`), G1-06 on 핸들러 효과 목록 ADR, G4-04 Helm 본체(H-02~H-15)입니다. M2의 그룹 작업은 `group-sdk`까지입니다 | `product.scope.spec` §4.1 I7·§4.3·§4.4.1·§4.5, `product.usecases.spec` UC-2, `adr.readme` §6, `review.m3-plan` |
 | D-b | 데스크톱 최소 설정 화면 | M2에 넣습니다. 범위는 키 등록, 모델 선택, 첫 실행 안내입니다. 그래서 G5-04의 `SettingDef.stage`(선언만 하고 동작 없는 키를 화면에서 거르는 표지)도 M2로 당깁니다 | `product.scope.spec` §4.1 I14·§4.3, T7 DESK, T1 F |
 | D-c | 비밀 env를 쓰는 stdio MCP 서버 | M3로 미룹니다. M2는 `McpProcessPort` 병합과 D6 ADR만 합니다 | ADR-0011, `product.scope.spec` §4.3, `review.m3-plan` |
 | D-d | 지원 플랫폼 | macOS 우선, Linux 비공식, WSL은 개발 전용입니다 | `product.scope.spec` §4.7, `review.macos-checklist` |

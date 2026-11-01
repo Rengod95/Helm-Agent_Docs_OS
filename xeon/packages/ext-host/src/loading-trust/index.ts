@@ -216,7 +216,7 @@ export interface LoaderDeps {
   readonly coreCapabilities?: ReadonlyMap<CapabilityId, SemVer>;
   /**
    * 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 할 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트의 모듈 객체.
-   * `@xeon/contracts`와 하위 경로, `typebox`는 X가 등록하므로 넘기지 않아도 된다. `@xeon/group-kit`은 L3라 X가 import할 수 없어 조립 루트가 넘긴다(M3-REQ-110)
+   * `@xeon/contracts`와 하위 경로, `typebox`는 X가 등록하므로 넘기지 않아도 된다. `@xeon/group-sdk`은 L3라 X가 import할 수 없어 조립 루트가 넘긴다(M3-REQ-110)
    */
   readonly sdkModules?: SdkModules;
   /** `thread.trust.before` 발화(X.loading-trust.spec §4.7.3 4번). 없으면 결정 없음으로 본다 */
@@ -701,7 +701,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     if (module !== null) return unitOfBuiltin(module, manifest, loadIndex, initialEnabled);
     const root = record.candidate.root;
     if (root === null) return undefined;
-    // X가 쓰는 SDK 모듈(contracts와 하위 경로, typebox)은 항상 등록하고, 조립 루트가 넘긴 것(group-kit 등)을 더한다
+    // X가 쓰는 SDK 모듈(contracts와 하위 경로, typebox)은 항상 등록하고, 조립 루트가 넘긴 것(group-sdk 등)을 더한다
     const registered = registerSdkModules({ ...X_SDK_MODULES, ...deps.sdkModules });
     if (!registered.ok) {
       fail(

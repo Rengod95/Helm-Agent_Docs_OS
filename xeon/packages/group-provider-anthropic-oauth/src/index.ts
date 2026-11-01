@@ -1,4 +1,4 @@
-import { defineGroup, type GroupApi, type GroupModule } from "@xeon/group-kit";
+import { defineGroup, type GroupApi, type GroupModule } from "@xeon/group-sdk";
 import { providerAnthropicOauthManifest } from "./manifest.ts";
 import { providerAnthropicOauthSettings } from "./settings.ts";
 import { ANTHROPIC_OAUTH_PROVIDER_NAME, anthropicOauthProvider } from "./provider.ts";

@@ -12,7 +12,7 @@ on:
   pull_request:
     paths:
       - "xeon/scripts/release*"
-      - "xeon/packages/group-kit/templates/**"
+      - "xeon/packages/group-sdk/templates/**"
       - ".github/workflows/xeon-release.yml"
 
 concurrency:

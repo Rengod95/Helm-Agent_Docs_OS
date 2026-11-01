@@ -1,6 +1,6 @@
 import type { TSchema } from "typebox";
 import { defineManifest } from "@xeon/contracts/extensions";
-import type { GroupManifest } from "@xeon/group-kit";
+import type { GroupManifest } from "@xeon/group-sdk";
 import { HELM_RECORD_KINDS } from "./records.ts";
 
 function jsonSchemaOf(schema: TSchema): Record<string, unknown> {
@@ -27,7 +27,7 @@ export const helmManifest: GroupManifest = defineManifest({
     "tool.call.before",
     "tool.execution.after",
     "boundary.settle.after",
-    "session.start",
+    "thread.start",
     "lifecycle.lease.rejected",
   ],
   requires: [],

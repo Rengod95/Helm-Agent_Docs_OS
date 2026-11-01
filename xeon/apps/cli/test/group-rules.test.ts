@@ -12,31 +12,31 @@ import {
   targetPathOf,
 } from "../src/group/rules.ts";
 
-// L4.cli.spec §3.8: apps/cli는 group-kit을 import하지 않는다(DR-14). 그래서 이름 상수와 색인 형식을 복사해 두었다.
-// 이 시험은 group-kit 소스 텍스트와 비교해, 두 목록이 갈라지면 실패한다(L3.slots.spec §3.3.4 정본은 group-kit이다).
+// L4.cli.spec §3.8: apps/cli는 group-sdk을 import하지 않는다(DR-14). 그래서 이름 상수와 색인 형식을 복사해 두었다.
+// 이 시험은 group-sdk 소스 텍스트와 비교해, 두 목록이 갈라지면 실패한다(L3.slots.spec §3.3.4 정본은 group-sdk이다).
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const GROUP_KIT = join(HERE, "..", "..", "..", "packages", "group-kit");
+const GROUP_SDK = join(HERE, "..", "..", "..", "packages", "group-sdk");
 
-function groupKitSource(): string {
-  return readFileSync(join(GROUP_KIT, "src", "define-group.ts"), "utf8");
+function groupSdkSource(): string {
+  return readFileSync(join(GROUP_SDK, "src", "define-group.ts"), "utf8");
 }
 
-/** group-kit의 `RESERVED_GROUP_NAMES` 배열 리터럴에서 따옴표 안 값을 순서대로 뽑는다 */
-function reservedNamesInGroupKit(source: string): readonly string[] {
+/** group-sdk의 `RESERVED_GROUP_NAMES` 배열 리터럴에서 따옴표 안 값을 순서대로 뽑는다 */
+function reservedNamesInGroupSdk(source: string): readonly string[] {
   const block = /RESERVED_GROUP_NAMES: readonly string\[\] = \[([\s\S]*?)\];/.exec(source)?.[1];
   if (block === undefined) return [];
   return [...block.matchAll(/"([^"]*)"/g)].map((match) => match[1] ?? "");
 }
 
-test("the reserved group names match group-kit's RESERVED_GROUP_NAMES in value and order", () => {
-  const fromKit = reservedNamesInGroupKit(groupKitSource());
+test("the reserved group names match group-sdk's RESERVED_GROUP_NAMES in value and order", () => {
+  const fromKit = reservedNamesInGroupSdk(groupSdkSource());
   expect(fromKit).toHaveLength(23);
   expect([...RESERVED_GROUP_NAMES]).toEqual([...fromKit]);
 });
 
-test("the name pattern matches group-kit's GROUP_NAME_PATTERN", () => {
-  const match = /GROUP_NAME_PATTERN: string = "([^"]*)"/.exec(groupKitSource());
+test("the name pattern matches group-sdk's GROUP_NAME_PATTERN", () => {
+  const match = /GROUP_NAME_PATTERN: string = "([^"]*)"/.exec(groupSdkSource());
   expect(match?.[1]).toBe("^[a-z][a-z0-9-]{1,31}$");
   expect(GROUP_NAME_PATTERN).toBe(match?.[1] ?? "");
 });
@@ -68,7 +68,7 @@ test("checkGroupName accepts hyphenated names and names only the rules refuse", 
 });
 
 test("the real templates/index.json parses and lists 10, 8 and 9 files for drive, policy and observe", () => {
-  const text = readFileSync(join(GROUP_KIT, "templates", "index.json"), "utf8");
+  const text = readFileSync(join(GROUP_SDK, "templates", "index.json"), "utf8");
   const parsed = parseTemplateIndex(text);
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) return;

@@ -301,7 +301,7 @@ export interface HostCore {
   notify(change: ExtChange): void;
 }
 
-/** ExtHost.onChange가 알리는 변경(group-kit 요청 3) */
+/** ExtHost.onChange가 알리는 변경(group-sdk 요청 3) */
 export interface ExtChange {
   /** scope: 토글 요청·적용·오류 표시가 바뀜. lease: 임대 부여·반납이 커밋됨 */
   readonly kind: "scope" | "lease";

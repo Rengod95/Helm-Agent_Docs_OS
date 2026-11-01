@@ -5,7 +5,7 @@ import { defineManifest, type PortKey } from "@xeon/contracts/extensions";
 import { GroupServiceName, type GroupService } from "@xeon/contracts/services";
 import { hostOf } from "@xeon/ext-host";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
-import { GroupSettingsSourceKey, type GroupSettingsSource } from "@xeon/group-kit";
+import { GroupSettingsSourceKey, type GroupSettingsSource } from "@xeon/group-sdk";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import type { HostPluginModule } from "../../src/types.ts";
@@ -14,7 +14,7 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 import { testGroup } from "../fixtures/test-group.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// HOST.6 group-kit (int): 조립 루트가 그룹 서비스를 X의 임대 중재 포트(xeon.groups)로 내고, 서비스가 보는 그룹 목록·구동 그룹 설정·그룹 설정 읽기를
+// HOST.6 group-sdk (int): 조립 루트가 그룹 서비스를 X의 임대 중재 포트(xeon.groups)로 내고, 서비스가 보는 그룹 목록·구동 그룹 설정·그룹 설정 읽기를
 // 실제 구현으로 잇는다. 서비스는 확장이 포트로 얻어 쓴다(여기서는 포트를 붙잡아 두는 시험용 확장).
 
 const gate = await realEngineGate();

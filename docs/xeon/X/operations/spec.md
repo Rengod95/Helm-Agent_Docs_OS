@@ -1297,7 +1297,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `createOperationsPolicy`, `OperationsPolicy`(`admit`, `forget`, `setupBudgetMs`, `startupFilter`, `onHandlerSettled`, `run`), `createResourcePolicy` | L4.host-service.spec(조립), X.primitives.spec(`ExtHostDeps.policy`·`setupBudgetMs`), X.loading-trust.spec(`LoaderDeps.policy`) |
 | `BudgetGate`, `BudgetOutcome`, `runWithBudget`, `awaitUser`, `DEFAULT_BUDGETS_MS` | X.primitives.spec(디스패처, UI 포트 래핑) |
 | `HandlerOutcomeRecord`, `FailureLedger`, `AutoDisabler`, `ScopeChangeReason` | X.primitives.spec, L4.settings-ui.spec(상태 표시) |
-| `ExtStorage`, `ExtTables`, `ExtProjection`, `ExtTableDef`, `storageOf`, `extTablePrefix`, `parseExtTableName` | L3.group-kit.spec, L3.helm.spec, L3.learning.spec, 외부 확장 |
+| `ExtStorage`, `ExtTables`, `ExtProjection`, `ExtTableDef`, `storageOf`, `extTablePrefix`, `parseExtTableName` | L3.group-sdk.spec, L3.helm.spec, L3.learning.spec, 외부 확장 |
 | `ExtStorageAdmin` | X.loading-trust.spec §4.4.5(제거 흐름, `LoaderDeps.storageAdmin`), L4(확인 화면) |
 | `resolveNames`, `qualifiedName`, `ResourceClaim`, `createResourcePolicy` | X.primitives.spec(리소스 등록), X.loading-trust.spec(외부 확장 로더) |
 | `startupFilter`, `StartupOptions`, `allowedInSafeMode`, `StartupHealthStore`, `shouldSuggestSafeMode` | X.loading-trust.spec(`LoadOptions.startup`, 5a단계), L4.host-service.spec, L4.cli.spec |

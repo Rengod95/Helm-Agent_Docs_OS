@@ -6,7 +6,7 @@ import type {
   SpawnOutcome,
   TurnOutcome,
 } from "@xeon/contracts/extensions";
-import type { GroupApi } from "@xeon/group-kit";
+import type { GroupApi } from "@xeon/group-sdk";
 import { dedupeFindings } from "./findings.ts";
 import { failureOf, type FailureSite, type HelmFailure } from "./failures.ts";
 import { gatherContext } from "./knowledge.ts";

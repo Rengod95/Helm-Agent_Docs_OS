@@ -39,7 +39,7 @@ test("plugin.json is the manifest as JSON and the bundle keeps the host SDK modu
   expect(built.externals.filter((specifier) => !SDK_MODULE_SPECIFIERS.includes(specifier))).toEqual(
     [],
   );
-  expect(built.externals).toContain("@xeon/group-kit");
+  expect(built.externals).toContain("@xeon/group-sdk");
   const bundle = await Bun.file(join(built.outDir, "dist", "index.js")).text();
   expect(bundle).not.toContain("@xeon/ext-host");
 });

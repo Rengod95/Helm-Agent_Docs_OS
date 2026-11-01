@@ -188,9 +188,9 @@ export const CONTEXTS: readonly ContextDef[] = [
     services: ["xeon.schedule"],
   },
   {
-    id: "group-kit",
+    id: "group-sdk",
     layer: "L3",
-    domains: ["group-kit", "slots"],
+    domains: ["group-sdk", "slots"],
     producers: [],
     typePrefixes: [],
     tablePrefixes: [],

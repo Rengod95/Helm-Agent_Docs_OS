@@ -1,5 +1,5 @@
 import { assertNever, err, ok, type Result } from "@xeon/contracts";
-import type { GroupApi } from "@xeon/group-kit";
+import type { GroupApi } from "@xeon/group-sdk";
 import type { HelmCommandError } from "./failures.ts";
 import { inquiryIdFrom } from "./signals.ts";
 import {

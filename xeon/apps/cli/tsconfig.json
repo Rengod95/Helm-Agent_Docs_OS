@@ -20,7 +20,7 @@
       "path": "../host"
     },
     {
-      "path": "../../packages/group-kit"
+      "path": "../../packages/group-sdk"
     },
     {
       "path": "../../packages/platform-os"

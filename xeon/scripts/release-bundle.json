@@ -1,5 +1,5 @@
 {
-  "templates": "packages/group-kit/templates",
+  "templates": "packages/group-sdk/templates",
   "defaultPlugins": [
     { "name": "helm", "buildScript": "packages/group-helm/scripts/build-plugin.ts" },
     {

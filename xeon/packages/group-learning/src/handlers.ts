@@ -8,7 +8,7 @@ import {
   type Usage,
 } from "@xeon/contracts/conversation";
 import type { AgentSettledPayload, HandlerContext } from "@xeon/contracts/extensions";
-import type { GroupApi, GroupUsageDelta } from "@xeon/group-kit";
+import type { GroupApi, GroupUsageDelta } from "@xeon/group-sdk";
 import type { LearningDeps } from "./deps.ts";
 import type { LearningWriter } from "./proposals/ops.ts";
 import { eventKindOf, payloadOf } from "./proposals/events.ts";

@@ -4,7 +4,7 @@ layer: eng
 domain: operations
 kind: guide
 status: draft
-depends_on: [architecture.overview.spec, architecture.layers.spec, architecture.security.spec, F.conversation.spec, F.records.spec, F.capabilities.spec, F.extensions.spec, F.wire-settings.spec, X.primitives.spec, X.loading-trust.spec, X.operations.spec, L0.store.spec, L0.secrets.spec, L0.os.spec, L0.process.spec, L0.exec.spec, L0.sandbox.spec, L1.persistence.spec, L1.loop.spec, L1.tasks.spec, L1.tools.spec, L1.agents.spec, L1.models.spec, L1.context.spec, L2.schedule.spec, L2.dialog.spec, L2.work.spec, L2.knowledge.spec, L2.artifacts.spec, L2.web.spec, L3.group-kit.spec, L4.host-service.spec, L4.cli.spec, adr.0004, adr.0006, adr.0007, adr.0017, adr.0018, adr.0019]
+depends_on: [architecture.overview.spec, architecture.layers.spec, architecture.security.spec, F.conversation.spec, F.records.spec, F.capabilities.spec, F.extensions.spec, F.wire-settings.spec, X.primitives.spec, X.loading-trust.spec, X.operations.spec, L0.store.spec, L0.secrets.spec, L0.os.spec, L0.process.spec, L0.exec.spec, L0.sandbox.spec, L1.persistence.spec, L1.loop.spec, L1.tasks.spec, L1.tools.spec, L1.agents.spec, L1.models.spec, L1.context.spec, L2.schedule.spec, L2.dialog.spec, L2.work.spec, L2.knowledge.spec, L2.artifacts.spec, L2.web.spec, L3.group-sdk.spec, L4.host-service.spec, L4.cli.spec, adr.0004, adr.0006, adr.0007, adr.0017, adr.0018, adr.0019]
 binds: []
 ---
 
@@ -25,7 +25,7 @@ binds: []
 | 용어 | 뜻 | 정본 문서 |
 |---|---|---|
 | 가드레일 지점 | 모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전에 발화하는 확장 지점입니다. fold는 `first`이고 실패 정책은 fail-closed입니다. 결정은 통과 또는 차단뿐입니다 (M3-REQ-107) | adr.0017 |
-| 그룹 | `scope` 하나로 묶여 단계 경계에서 켜고 끄는 L3 플러그인 단위입니다(`kind: "group"`, `layer: "L3"`). Helm과 학습 그룹이 기본 그룹입니다 | architecture.overview.spec §2, L3.group-kit.spec §2 |
+| 그룹 | `scope` 하나로 묶여 단계 경계에서 켜고 끄는 L3 플러그인 단위입니다(`kind: "group"`, `layer: "L3"`). Helm과 학습 그룹이 기본 그룹입니다 | architecture.overview.spec §2, L3.group-sdk.spec §2 |
 | 기본 플러그인 | 릴리즈에 들어 있고 첫 실행 때 사용자 확장 위치에 복사되는 외부 확장 형식의 플러그인입니다. Helm이 여기에 듭니다 | X.loading-trust.spec §2 |
 | 내구 이벤트 | DB에 커밋되고 `seq`를 받는 이벤트입니다. 재생의 원본입니다 | F.records.spec §2 |
 | 단계 경계 | step이 끝나고 다음 step이 시작되기 전 시점입니다. 체크포인트 커밋, drive 임대 교대, scope 켜기·끄기 적용이 이 시점에 일어납니다 | F.conversation.spec §2 |
