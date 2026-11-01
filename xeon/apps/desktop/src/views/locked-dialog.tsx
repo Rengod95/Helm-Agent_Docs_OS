@@ -1,3 +1,4 @@
+import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
 import { useLocked, type LockedThread } from "../state/ui/index.ts";
@@ -6,13 +7,14 @@ import { useCommands } from "./commands.ts";
 // `thread.locked`(3002) 대화 상자(G2-09, L4.desktop.spec §5). 다른 프로세스(CLI 등)가 이 대화의 쓰기 소유를 쥐고 있을 때
 // 관찰만 하거나 분기해 이어 쓰는 길을 묻는다. 위임은 서비스 공급원에서만 있어 이 화면에는 없다.
 
-const OWNER_TEXT: Readonly<Record<string, string>> = {
-  cli: "터미널(fresnel CLI)",
-  desktop: "다른 데스크톱 창",
-};
+const OWNER_ID: ReadonlyMap<string, MessageId> = new Map<string, MessageId>([
+  ["cli", "desktop.lockedDialog.owner.cli"],
+  ["desktop", "desktop.lockedDialog.owner.desktop"],
+]);
 
 export function ownerText(ownerKind: string): string {
-  return OWNER_TEXT[ownerKind] ?? "다른 프로세스";
+  const id = OWNER_ID.get(ownerKind);
+  return id === undefined ? t("desktop.lockedDialog.owner.unknown") : t(id);
 }
 
 export function LockedDialog(): ReactNode {
@@ -72,30 +74,28 @@ export function LockedDialogView(props: {
         className="dialog"
         role="alertdialog"
         aria-modal="true"
-        aria-label="대화가 사용 중입니다"
+        aria-label={t("desktop.lockedDialog.inUse")}
       >
-        <h2>이 대화는 {ownerText(locked.ownerKind)}가 쓰고 있습니다</h2>
-        <p className="dim">
-          한 대화는 한 곳에서만 쓸 수 있습니다. 그쪽을 닫고 다시 보내거나, 아래에서 고르세요.
-        </p>
+        <h2>{t("desktop.lockedDialog.heading", { owner: ownerText(locked.ownerKind) })}</h2>
+        <p className="dim">{t("desktop.lockedDialog.hint")}</p>
         <div className="approval-actions">
           {locked.options.includes("observe") ? (
             <button type="button" disabled={busy} onClick={props.onObserve}>
-              관찰만 하기
+              {t("desktop.lockedDialog.observe.button")}
             </button>
           ) : null}
           {locked.options.includes("fork") ? (
             <button type="button" className="primary" disabled={busy} onClick={props.onFork}>
-              분기해서 이어 쓰기
+              {t("desktop.lockedDialog.fork.button")}
             </button>
           ) : null}
           <button type="button" disabled={busy} onClick={props.onClose}>
-            닫기
+            {t("desktop.lockedDialog.close.button")}
           </button>
         </div>
         {props.failed ? (
           <div className="error" role="alert">
-            실행하지 못했습니다. 다시 눌러 보세요.
+            {t("desktop.lockedDialog.failed")}
           </div>
         ) : null}
       </div>

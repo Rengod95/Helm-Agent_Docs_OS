@@ -1,3 +1,4 @@
+import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ItemId, ItemRecord } from "@fresnel/contracts/conversation";
 import { memo, useState, type NamedExoticComponent, type ReactNode } from "react";
@@ -15,7 +16,7 @@ function textOf(content: string | readonly Block[]): string {
   const parts: string[] = [];
   for (const block of content) {
     if ("text" in block && typeof block.text === "string") parts.push(block.text);
-    else if (block.type === "image") parts.push("[이미지]");
+    else if (block.type === "image") parts.push(t("desktop.item.imagePlaceholder"));
   }
   return parts.join("\n");
 }
@@ -63,13 +64,13 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
                 );
               case "thinking":
                 return (
-                  <Collapsible key={key} summary="생각">
+                  <Collapsible key={key} summary={t("desktop.item.thinking")}>
                     <div className="text dim">{block.thinking}</div>
                   </Collapsible>
                 );
               case "toolCall":
                 return (
-                  <Collapsible key={key} summary={`도구 호출: ${block.name}`}>
+                  <Collapsible key={key} summary={t("desktop.item.toolCall", { name: block.name })}>
                     <pre className="code">{clip(JSON.stringify(block.arguments))}</pre>
                   </Collapsible>
                 );
@@ -82,7 +83,11 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
     case "toolResult":
       return (
         <Collapsible
-          summary={`도구 결과: ${item.message.toolName}${item.message.isError ? " (오류)" : ""}`}
+          summary={
+            item.message.isError
+              ? t("desktop.item.toolResultError", { name: item.message.toolName })
+              : t("desktop.item.toolResult", { name: item.message.toolName })
+          }
         >
           <pre className="code">{clip(textOf(item.message.content))}</pre>
         </Collapsible>
@@ -96,12 +101,13 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
   }
 }
 
-const ROLE_LABEL: Readonly<Record<ItemRecord["kind"], string>> = {
-  user: "나",
-  assistant: "어시스턴트",
-  system: "시스템",
-  toolResult: "도구",
-  custom: "확장",
+/** 역할 이름의 키. 문장은 그릴 때 `t()`로 푼다(모듈을 읽을 때 풀면 로케일이 바뀌어도 옛 말이 남는다) */
+const ROLE_KEY: Readonly<Record<ItemRecord["kind"], MessageId>> = {
+  user: "desktop.item.role.user",
+  assistant: "desktop.item.role.assistant",
+  system: "desktop.item.role.system",
+  toolResult: "desktop.item.role.toolResult",
+  custom: "desktop.item.role.custom",
 };
 
 export const RecordedItem: NamedExoticComponent<{ readonly id: ItemId }> = memo(
@@ -122,10 +128,14 @@ export const RecordedItem: NamedExoticComponent<{ readonly id: ItemId }> = memo(
     }
     return (
       <article className={`item item-${item.kind}`} data-status={item.status}>
-        <header className="role">{ROLE_LABEL[item.kind]}</header>
+        <header className="role">{t(ROLE_KEY[item.kind])}</header>
         <RecordBody item={item} />
         {item.status === "failed" || item.status === "interrupted" ? (
-          <footer className="dim">{item.status === "failed" ? "실패" : "중단됨"}</footer>
+          <footer className="dim">
+            {item.status === "failed"
+              ? t("desktop.item.status.failed")
+              : t("desktop.item.status.interrupted")}
+          </footer>
         ) : null}
       </article>
     );
@@ -146,7 +156,10 @@ export const StreamingRow: NamedExoticComponent<{ readonly id: ItemId }> = memo(
     const openThreadId = useOpenThreadId();
     // 진행 목록은 모든 thread의 것을 담는다(design 6절). 열린 thread의 것만 그린다
     if (item === undefined || item.threadId !== openThreadId) return null;
-    const label = item.kind === "toolCall" ? `도구 호출: ${item.toolName ?? ""}` : "어시스턴트";
+    const label =
+      item.kind === "toolCall"
+        ? t("desktop.item.toolCall", { name: item.toolName ?? "" })
+        : t("desktop.item.role.assistant");
     return (
       <article className={`item item-${item.kind} live`}>
         <header className="role">{label}</header>

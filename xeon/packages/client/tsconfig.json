@@ -5,7 +5,13 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
-  "include": ["src", "src/i18n/locales/*.json", "src/i18n/terms.json", "test"],
+  "include": [
+    "src",
+    "src/i18n/locales/*.json",
+    "src/i18n/terms.json",
+    "src/i18n/terms.doc-only.json",
+    "test"
+  ],
   "references": [
     {
       "path": "../contracts"

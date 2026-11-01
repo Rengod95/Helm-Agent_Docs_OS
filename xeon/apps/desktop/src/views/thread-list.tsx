@@ -1,3 +1,4 @@
+import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { memo, useState, type ReactNode } from "react";
@@ -31,15 +32,25 @@ const ThreadRow = memo(function ThreadRow(props: { readonly id: ThreadId }): Rea
           commands.selectThread(props.id);
         }}
       >
-        <span className="thread-title">{thread.title ?? "제목 없음"}</span>
+        <span className="thread-title">{thread.title ?? t("desktop.threads.untitled")}</span>
         <span className="thread-meta">
-          {thread.status === "running" ? <span className="badge run">실행 중</span> : null}
-          {thread.status === "closed" ? <span className="badge">닫힘</span> : null}
-          {thread.resumable === null ? null : <span className="badge warn">이어서 실행</span>}
-          {thread.pendingApprovals > 0 ? (
-            <span className="badge warn">승인 {thread.pendingApprovals}</span>
+          {thread.status === "running" ? (
+            <span className="badge run">{t("desktop.threads.runningBadge")}</span>
           ) : null}
-          {unlisted > 0 ? <span className="dim">승인 대기 중, 목록을 불러오지 못함</span> : null}
+          {thread.status === "closed" ? (
+            <span className="badge">{t("desktop.threads.closedBadge")}</span>
+          ) : null}
+          {thread.resumable === null ? null : (
+            <span className="badge warn">{t("desktop.threads.resumableBadge")}</span>
+          )}
+          {thread.pendingApprovals > 0 ? (
+            <span className="badge warn">
+              {t("desktop.threads.approvalsBadge", { count: thread.pendingApprovals })}
+            </span>
+          ) : null}
+          {unlisted > 0 ? (
+            <span className="dim">{t("desktop.threads.unlistedApprovals")}</span>
+          ) : null}
         </span>
       </button>
     </li>
@@ -69,9 +80,9 @@ export function ThreadList(): ReactNode {
   };
 
   return (
-    <nav className="threads" aria-label="대화 목록">
+    <nav className="threads" aria-label={t("desktop.threads.listLabel")}>
       <label className="field">
-        <span>작업 폴더 (선택)</span>
+        <span>{t("desktop.threads.workspaceLabel")}</span>
         <input
           type="text"
           list="workspace-recent"
@@ -95,7 +106,7 @@ export function ThreadList(): ReactNode {
         onClick={() => detach(create(), rethrow)}
         disabled={creating || workspace.kind === "invalid"}
       >
-        새 대화
+        {t("desktop.threads.newButton")}
       </button>
       {error === null ? null : (
         <div className="error" role="alert">
@@ -103,23 +114,23 @@ export function ThreadList(): ReactNode {
         </div>
       )}
       {status === "loading" && ids.length === 0 ? (
-        <div className="dim pad">목록을 읽는 중…</div>
+        <div className="dim pad">{t("desktop.threads.loading")}</div>
       ) : null}
       {status === "error" ? (
         <div className="pad">
-          목록을 불러오지 못했습니다.{" "}
+          {t("desktop.threads.loadFailed")}{" "}
           <button
             type="button"
             onClick={() => {
               commands.reloadThreads();
             }}
           >
-            다시 읽기
+            {t("desktop.threads.reloadButton")}
           </button>
         </div>
       ) : null}
       {status === "ready" && ids.length === 0 ? (
-        <div className="dim pad">대화가 없습니다.</div>
+        <div className="dim pad">{t("desktop.threads.empty")}</div>
       ) : null}
       <ul>
         {ids.map((id) => (
