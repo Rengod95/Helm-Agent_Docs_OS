@@ -3,7 +3,7 @@ id: adr.0022
 layer: adr
 domain: plugin-group-terms
 kind: adr
-status: draft
+status: accepted
 depends_on: [adr.0007, adr.0016, adr.0017, adr.0018, adr.0019, adr.0021, architecture.overview.spec, architecture.layers.spec, F.extensions.spec, F.conversation.spec, F.records.spec, F.capabilities.spec, F.wire-settings.spec, X.primitives.spec, X.loading-trust.spec, X.operations.spec, L0.process.spec, L0.secrets.spec, L1.loop.spec, L2.schedule.spec, L3.group-kit.spec, L3.authoring.spec, L4.desktop-ux.spec, eng.operations.glossary]
 binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/conversation/**, xeon/packages/ext-host/**, xeon/packages/group-kit/**, xeon/packages/client/**]
 ---
@@ -12,13 +12,13 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 
 ## 1. 상태와 날짜
 
-- 상태: proposed(제안). 문서 검사(`docs-route`)의 상태 값에 proposed가 없어 프런트매터는 draft로 둡니다. 사용자가 §3.2를 확인하면 accepted로 올립니다.
+- 상태: accepted. 2026-11-01 사용자가 §3.2까지 승인했습니다. 화면 라벨 ko·en은 §6대로 용어 원본에서 따로 확정합니다.
 - 날짜: 2026-11-01
 - 근거 문서:
   - `_notes/domain-terms-review-2.md`(이하 "리뷰 2") §13 결정 목록. 저장소 밖 메모입니다.
   - `_notes/m4-decisions.md` "2026-11-01 user decisions (2)·(3)·(4)"
 - [결정: 2026-11-01 사용자] 리뷰 2 §13의 1~12번 제안을 승인합니다. 다만 §4.2(플러그인 그룹, scope, drive)는 설명을 더 들은 뒤 정합니다.
-- 작업대 이름은 리뷰 2 §13 13번에서 **Bench**로 정했으나, 같은 날 사용자가 측정 쪽 "bench"를 다른 단어로 바꾸라고 하면서 작업대 "Bench"도 바꿀지 확인 중입니다. [미결: 사용자 확인 대기] 상표 확인도 남아 있습니다.
+- [결정: 2026-11-01 사용자] 작업대 이름은 **LightCraft**이고 한국어 화면 표기는 **크래프트**입니다. 리뷰 2 §13 13번의 후보와 Bench를 대체합니다. 코드 id는 `workbench`로 둡니다. [결정: 2026-11-01 사용자] 제품 이름 Fresnel은 상표 확인 결과를 보고도 확정했고, 통상 이름은 "Fresnel Agent"처럼 수식어를 붙여 씁니다.
 - [결정: 2026-11-01 사용자] 리뷰 2 §13 6번 가운데 turn → Run은 **취소**합니다. Turn은 도메인 전체(코드, wire, 문서, 화면)에서 Turn으로 남습니다. 대화 모델은 Thread / Turn / Step / Item입니다.
 - [결정: 2026-11-01 사용자] 저장 문자열(`turn.*`, `scope.changed`, `lease.*`, `trn_`, `sys_leases`)은 바꾸지 않습니다. Item도 그대로 둡니다(Entry로 바꾸지 않음).
 - [결정: 2026-11-01 사용자] 기존 CLI 코드는 내부 도구로 남기고 `cli.*` 키도 남깁니다. 이름은 스크립트로 바꿉니다.
@@ -49,11 +49,11 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 3. [결정: 2026-11-01 사용자] 저장 문자열은 바꾸지 않습니다. 사용자 데이터에 남는 값(이벤트 kind `turn.*`·`scope.changed`·`lease.*`, id 접두 `trn_`, 테이블 이름 `sys_leases`)은 그대로이고, 코드 타입 이름만 필요하면 바꿉니다. 코드 이름과 저장 이름이 다른 곳은 F 문서에 대응을 적습니다.
 4. [결정: 2026-11-01 사용자] 용어 원본은 한 곳에 둡니다. 원본에서 i18n 카탈로그의 `term.*` 키, 용어집 표, 목업 용어 파일을 생성하고, 검사가 나머지 문자열을 대조합니다(§4.4).
 
-### 3.2 플러그인 그룹 모델 [미결: 사용자 확인 대기]
+### 3.2 플러그인 그룹 모델 [결정: 2026-11-01 사용자]
 
-리뷰 2 §4.2와 §13 3번입니다. 2026-11-01 사용자가 추가 설명을 요청했고, 아래는 그 설명을 담은 제안입니다. 사용자 확인 전에는 코드와 문서를 바꾸지 않습니다.
+리뷰 2 §4.2와 §13 3번입니다. 2026-11-01 사용자가 추가 설명을 듣고 세 항목을 모두 승인했습니다. 구현은 이름 변경과 별도 트랙으로 진행합니다.
 
-#### 3.2.1 확장, 플러그인, 플러그인 그룹 [미결: 사용자 확인 대기]
+#### 3.2.1 확장, 플러그인, 플러그인 그룹 [결정: 2026-11-01 사용자]
 
 ```
 Extension (확장)    = 설치·배포 단위 = manifest + 플러그인 1개 이상
@@ -67,7 +67,7 @@ Profile (프로필)    = 켤 플러그인·플러그인 그룹 목록 + 각 설�
 - 계약 변경: F 매니페스트 `kind: "plugin" | "group"`을 `plugins[]`와 선택적 `group` 선언으로 바꿉니다.
 - 화면의 "플러그인 그룹"은 이 묶음을 뜻합니다. Helm, 학습은 플러그인 그룹입니다.
 
-#### 3.2.2 Registration (지금 이름 scope) [미결: 사용자 확인 대기]
+#### 3.2.2 Registration (지금 이름 scope) [결정: 2026-11-01 사용자]
 
 `scope`를 **Registration**(등록)으로 바꿉니다. 엔진 내부 개념이며 화면에 쓰지 않습니다.
 
@@ -83,7 +83,7 @@ Profile (프로필)    = 켤 플러그인·플러그인 그룹 목록 + 각 설�
 - 자동으로 꺼지는 경우: 실패 횟수 상한을 넘을 때(`X.operations.spec` 자동 끄기), setup이 실패할 때, 안전 모드일 때입니다.
 - 이 동작은 지금 `X.primitives.spec` §4.5와 같습니다. 바뀌는 것은 이름입니다.
 
-#### 3.2.3 drive 넓히기 [미결: 사용자 확인 대기]
+#### 3.2.3 drive 넓히기 [결정: 2026-11-01 사용자]
 
 - drive 함수는 연출자 역할을 하는 플러그인 코드입니다. 별도 모델 루프를 띄우지 않습니다.
   - drive lock을 받을 때 마지막 커밋 상태를 들고 한 번 불리고, 이후 Turn이 정착할 때마다 다시 불립니다.
@@ -93,7 +93,7 @@ Profile (프로필)    = 켤 플러그인·플러그인 그룹 목록 + 각 설�
   - 반납 조건은 유휴 연속, 오류, 한도 소진, 끄기, `ask`입니다.
 - 드라이버가 없으면 L1 기본 루프가 평소처럼 응답합니다.
 - 넓히기: L3 그룹 외의 플러그인도 매니페스트에 `drives`를 선언할 수 있습니다. 허용 여부는 정책 `drive_requires_group`이 정합니다. 지금은 `kind`가 `group`이 아니면 항상 `drive_requires_group` 오류입니다(`X.primitives.spec` §4.4.1).
-- [제안] 정책의 기본값은 "그룹만 허용"으로 두고, 설정으로 풉니다. 설정 키 이름은 F가 정합니다.
+- [결정: 2026-11-01 사용자] 정책의 기본값은 "그룹만 허용"으로 두고, 설정으로 풉니다. 설정 키 이름은 F가 정합니다.
 - 한 thread에 drive lock은 하나뿐이라는 규칙(ADR-0007 §3.6)은 그대로입니다.
 
 #### 3.2.4 이 절이 accepted가 되면 바뀌는 것
@@ -111,7 +111,7 @@ Profile (프로필)    = 켤 플러그인·플러그인 그룹 목록 + 각 설�
 2. [결정: 2026-11-01 사용자, 리뷰 2 §13 4번] 화면은 덧씌운 결과만 보여 주고, 항목마다 출처 배지(전역 / 프로젝트 / 이 대화)를 붙입니다.
 3. [결정: 2026-11-01 사용자, 리뷰 2 §13 4번] 신뢰(trust)는 덧씌우기와 별개인 일회성 관문입니다. 프로젝트 폴더가 가져온 플러그인 코드가 있을 때만 한 번 묻습니다(`X.loading-trust.spec`). 신뢰 등급 넷(내장 / 사용자 설치 / 이 프로젝트 / 신뢰 안 함)은 출처 배지로만 보입니다.
 4. [결정: m4-decisions 2026-10-31 UX 5번] 프로필은 데스크톱보다 낮은 층(호스트 설정)에 저장하고 데스크톱·웹·앱이 호스트를 거쳐 함께 씁니다.
-5. [미결: 사용자 확인 대기] 덧씌우기 결과를 Registration의 thread별 켜짐 상태(§3.2.2)로 옮기는 규칙. §3.2와 함께 정합니다.
+5. [미결: 사용자 확인 대기] 덧씌우기 결과를 Registration의 thread별 켜짐 상태(§3.2.2)로 옮기는 규칙. §3.2 트랙에서 제안해 사용자 확인을 받습니다.
 
 ### 3.4 Hook, fold, post
 
@@ -162,13 +162,13 @@ Profile (프로필)    = 켤 플러그인·플러그인 그룹 목록 + 각 설�
     - Transport: 그대로.
     - **Background service**(백그라운드 서비스): 지금의 서비스 모드
     - **Embedded**(앱 내장): 지금의 사이드카. 화면은 "이 컴퓨터(앱 안)"입니다.
-11. [미결: 사용자 확인 대기] 작업대의 표시 이름은 **Bench**입니다(2026-11-01 사용자 (4)). 측정 쪽 `bench`를 다른 단어로 바꾸라는 결정과 함께 작업대 이름도 바꿀지 확인 중입니다. 바뀌면 §3.6 표의 작업대 한 줄만 고칩니다(코드 id는 `workbench` 그대로).
+11. [결정: 2026-11-01 사용자] 작업대의 표시 이름은 **LightCraft**, 한국어 화면 표기는 **크래프트**입니다. 코드 id는 `workbench`로 둡니다. 측정 쪽 `bench`는 `benchmark`로 바꿉니다.
 12. [결정: 2026-11-01 사용자, 리뷰 2 §13 11번] 용어집을 플랫폼 용어(Fresnel)와 플러그인 그룹 용어(Helm, 학습) 두 절로 나눕니다. 렌즈 같은 말은 Helm 화면 안에서만 씁니다.
 
 ### 3.6 이름 대응표
 
 - 열의 뜻: 지금 id는 코드·wire·설정의 현재 문자열입니다. 새 id는 바꾼 뒤의 코드 이름입니다. "그대로"는 바꾸지 않습니다. "저장 유지"는 §3.1 3번에 따라 저장 문자열을 두고 코드 이름만 바꿉니다.
-- 표지: 표지 없는 줄의 "그대로"는 이름을 바꾸지 않습니다. 줄 끝 [미결]은 §3.2 확인 대기, [제안]은 작성자 제안입니다. 표지가 없는 줄의 개념과 문서 용어는 [결정: 2026-11-01 사용자]입니다. 화면 라벨은 사용자가 `ui-terms-guide.md`를 검토 중이므로 모두 [제안]입니다.
+- 표지: 표지 없는 줄의 "그대로"는 이름을 바꾸지 않습니다. [제안]은 작성자 제안입니다. 표지가 없는 줄의 개념과 문서 용어는 [결정: 2026-11-01 사용자]입니다. 화면 라벨은 사용자가 `ui-terms-guide.md`를 검토 중이므로 모두 [제안]입니다.
 - 새 id 중 리뷰 2에 없는 코드 이름은 모두 [제안]이고 F 문서가 정본으로 정합니다.
 
 | 개념 | 지금 id | 새 id (코드) | 문서 용어 | 화면 ko | 화면 en | 근거 |
@@ -185,15 +185,15 @@ Profile (프로필)    = 켤 플러그인·플러그인 그룹 목록 + 각 설�
 | Hook handler | handler | 그대로 | Hook handler | 핸들러 | Handler | §13-5 |
 | fold | `Fold` `tap`·`first`·`chain`·`collect` | 그대로 | fold | 보기·막기·고치기·모으기 | Observe·Block·Modify·Collect | §13-5 |
 | post | `PostWhen` `steer`·`followUp`·`next` | 그대로 | post | 입력 넣기: 바로·끝난 뒤·다음 요청에 | Post: Now·After·Next request | ADR-0013 |
-| Registration [미결] | `host.scope`, `ScopeFn`, `ScopeHandle`, `ScopeStatus`, `ScopeId`, `ScopeInfo`, 이벤트 `scope.changed` | `host.register`, `RegistrationFn`, `RegistrationHandle`, `RegistrationStatus`, `RegistrationId`, `RegistrationInfo`, 이벤트 저장 유지 | Registration | (화면에 쓰지 않음) | — | §13-3 |
-| 플러그인 [미결] | 매니페스트 `kind: "plugin"` | `plugins[]` 항목 | Plugin | 플러그인 | Plugin | §13-3 |
-| 플러그인 그룹 [미결] | 매니페스트 `kind: "group"`, "의도 그룹" | `group` 선언 | Plugin Group | 플러그인 그룹 | Plugin group | §13-3 |
+| Registration | `host.scope`, `ScopeFn`, `ScopeHandle`, `ScopeStatus`, `ScopeId`, `ScopeInfo`, 이벤트 `scope.changed` | `host.register`, `RegistrationFn`, `RegistrationHandle`, `RegistrationStatus`, `RegistrationId`, `RegistrationInfo`, 이벤트 저장 유지 | Registration | (화면에 쓰지 않음) | — | §13-3 |
+| 플러그인 | 매니페스트 `kind: "plugin"` | `plugins[]` 항목 | Plugin | 플러그인 | Plugin | §13-3 |
+| 플러그인 그룹 | 매니페스트 `kind: "group"`, "의도 그룹" | `group` 선언 | Plugin Group | 플러그인 그룹 | Plugin group | §13-3 |
 | 확장 | `ExtensionManifest` | 그대로 | Extension | 확장 | Extension | §13-3 |
 | 프로필 | `Profile`, `profile.*`(T-F) | 그대로 | Profile | 프로필 | Profile | §13-4 |
 | 신뢰 | trust 등급 | 그대로 | Trust | 신뢰: 내장·사용자 설치·이 프로젝트·신뢰 안 함 | Trust: Built-in·Installed·This project·Untrusted | §13-4 |
 | Driver | drive 임대, `lease.acquired`·`lease.released`·`lease.rejected` | `DriveLock*` 타입, 이벤트 저장 유지 | Driver / drive lock | 주도 | Lead | §13-9 |
-| Driver 고르는 설정 [미결] | `x.primitives.activeDriveGroup` | `x.primitives.activeDriver` [제안] | — | 주도 플러그인 | Leading plugin | §13-3·9 |
-| drive 정책 [미결] | 오류 `drive_requires_group` | 정책 `drive_requires_group` | — | — | — | §4.2 설명 |
+| Driver 고르는 설정 | `x.primitives.activeDriveGroup` | `x.primitives.activeDriver` [제안] | — | 주도 플러그인 | Leading plugin | §13-3·9 |
+| drive 정책 | 오류 `drive_requires_group` | 정책 `drive_requires_group` | — | — | — | §4.2 설명 |
 | Drive limits | `driveLimits`, `driveDefaultLimits`, 임대 상한 | 그대로(문서 용어만) | Drive limits | 주도 한도 | Lead limits | §13-9 |
 | Process lock | `sys_leases`, 자원 임대 | 테이블 저장 유지, 코드 타입 `ProcessLock*` [제안] | Process lock | — | — | §13-9 |
 | Scheduler leader | `scheduler` 임대, 실행권 | 코드 타입 `SchedulerLeader*` [제안] | Scheduler leader | — | — | §13-9 |
@@ -223,7 +223,7 @@ Profile (프로필)    = 켤 플러그인·플러그인 그룹 목록 + 각 설�
 | Background service | 서비스 모드 | 그대로 | Background service | 이 컴퓨터(백그라운드) | This computer (background) | §13-2 |
 | Embedded | 사이드카 | 그대로 | Embedded | 이 컴퓨터(앱 안) | This computer (in app) | §13-2 |
 | 층 L0~L4, F, X | 플랫폼, 코어, 능력, 의도 그룹, 배포 런타임, 계약, 확장 체계 | 층 코드 그대로 | System, Agent Core, Capabilities, Orchestration, Apps, Contracts, Extension Runtime | 시스템, 에이전트 코어, 기능, 오케스트레이션, 앱, 계약, 확장 런타임 | System, Agent Core, Capabilities, Orchestration, Apps, Contracts, Extension Runtime | §13-1 |
-| 작업대 표시 이름 [미결: 사용자 확인 대기] | 작업대, i18n `desktop.workbench.*` 등 | 그대로(`workbench`) | Bench | Bench | Bench | §13-13. 이름이 바뀌면 이 한 줄(문서 용어·화면 ko·en)만 고칩니다. 코드 id는 표시 이름과 묶지 않습니다 |
+| 작업대 표시 이름 [결정: 2026-11-01 사용자] | 작업대, i18n `desktop.workbench.*` 등 | 그대로(`workbench`) | LightCraft | 크래프트 | LightCraft | §13-13을 대체합니다 |
 | 성능 측정 | `bench`(개발 모드 측정), 레시피 `just bench`·`bench-gate`, 스크립트 | `benchmark`, `just benchmark`·`benchmark-gate` [결정: 2026-11-01 사용자] | Benchmark | 성능 측정(개발 모드 라벨 `benchmark` mono) | Benchmark | 충돌 해소 |
 
 ## 4. 결과
@@ -275,7 +275,7 @@ Profile (프로필)    = 켤 플러그인·플러그인 그룹 목록 + 각 설�
 | `L1.loop.spec` | Turn, Step 용어 확인(이름 변경 없음) |
 | `L2.schedule.spec` | Schedule once / recurring, `loop` 종류 이름 |
 | `L3.group-kit.spec`, `L3.authoring.spec` | Group SDK, Stages, Plugin Builder |
-| `L4.desktop-ux.spec` | Bench, Plugin UI, Placement, Native UI, Plugin App, Test run, Trace, 화면 라벨 |
+| `L4.desktop-ux.spec` | LightCraft(크래프트), Plugin UI, Placement, Native UI, Plugin App, Test run, Trace, 화면 라벨 |
 | ADR-0007, ADR-0017, ADR-0021 | 상태 절에 "용어는 ADR-0022" 한 줄. ADR-0007은 §3.2 accepted 때 부분 대체 |
 | `eng.operations.glossary` | 항목 이름 교체, 플랫폼 용어와 플러그인 그룹 용어 두 절, M4 용어 추가, 화면 라벨 열은 생성 구역 |
 
@@ -315,9 +315,6 @@ Profile (프로필)    = 켤 플러그인·플러그인 그룹 목록 + 각 설�
 
 2026-11-01 사용자 결정으로 Turn 유지, 저장 문자열 유지, Item 유지, CLI 유지, 측정 `bench` → `benchmark`가 정해져 이 절에서 뺐습니다.
 
-1. [미결: 사용자 확인 대기] §3.2 전체(Plugin Group 모델, Registration, drive 넓히기와 `drive_requires_group` 기본값)와 §3.3 5번.
-2. [미결: 사용자 확인 대기] 작업대 표시 이름. 사용자가 "bench를 다른 단어로" 바꾸라고 했고, 작업대 "Bench"도 바꿀지 확인 중입니다(§3.5 11번). 측정 쪽은 `benchmark`로 정해졌으나 Bench와 Benchmark가 글자로 가까워 작업대 이름이 Bench로 남으면 화면에서 계속 비슷하게 읽힙니다.
 3. [미결] 화면에 층 숫자를 남길지(리뷰 2 §13 1번).
 4. [미결] 화면 라벨 ko·en 전부. 사용자가 `ui-terms-guide.md` 검토를 마치면 용어 원본에서 `decided`로 바꿉니다.
-5. [미결] Bench, Fresnel 상표 확인(KIPRIS, USPTO class 9·42). 작업대 이름이 바뀌면 새 이름으로 확인합니다.
 6. [가정] 리뷰 2 §11의 Replay test는 §13 목록에 없어 [제안]으로 둡니다.
