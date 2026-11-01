@@ -72,7 +72,7 @@ knip:
 docs-route +args:
     {{bun}} scripts/docs-route.ts {{args}}
 
-# 용어 검사 0단계: gen은 원본(packages/client/src/i18n/terms.ts)에서 카탈로그 term.* 키를 만들고(--mockups는 목업 파생물도), check는 T·C·M 규칙을 검사한다 (scripts/terms.ts)
+# 용어 검사 1~2단계: gen은 원본(packages/client/src/i18n/terms.json)에서 카탈로그 term.* 키를 만들고 표식 문장(locales/*.src.json)을 풀며(--mockups는 목업 파생물도), check는 T·C·M·S·D 규칙을 검사한다 (scripts/terms.ts)
 [group('local')]
 terms mode *flags:
     {{bun}} scripts/terms.ts {{mode}} {{flags}}

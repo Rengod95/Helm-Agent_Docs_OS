@@ -318,7 +318,7 @@ test("Reflect.get in test files fails; sources, comments and strings do not", ()
   ).toEqual([]);
 });
 
-test("a Hangul string literal in L4 src fails and comments, tests, tsx and lower layers pass", () => {
+test("a Hangul string literal in L4 src fails and comments, tests and lower layers pass", () => {
   const text = 'const a = "안녕";\n// 주석 한국어\nconst b = `값 ${x}`;\nconst c = "ok";';
   expect(scan("apps/cli/src/x.ts", text)).toEqual([
     "1 fresnel/hardcoded-korean",
@@ -327,8 +327,34 @@ test("a Hangul string literal in L4 src fails and comments, tests, tsx and lower
   expect(scan("packages/client/src/a/b.ts", 'f("한")')).toEqual(["1 fresnel/hardcoded-korean"]);
   expect(scan("apps/host/src/x.ts", '/* "한" */ const a = 1;')).toEqual([]);
   expect(scan("apps/cli/test/x.test.ts", text)).toEqual([]);
-  expect(scan("apps/desktop/src/views/a.tsx", text)).toEqual([]);
+  expect(scan("apps/desktop/src/views/a.tsx", text)).toEqual([
+    "1 fresnel/hardcoded-korean",
+    "3 fresnel/hardcoded-korean",
+  ]);
   expect(scan("packages/core-loop/src/x.ts", text)).toEqual([]);
+});
+
+test("Hangul text between JSX tags fails in tsx, including a line after a URL", () => {
+  const text = [
+    "export function A() {",
+    "  return (",
+    "    <div>",
+    "      <p>plain</p>",
+    "      <h1>설정</h1>",
+    "      <code>secret://이름</code>",
+    "      {/* 주석 */}",
+    '      <input title={t("a.b")} />',
+    "      /* 한 줄 블록 주석 */",
+    '      <span className="dim">{count}</span>',
+    "    </div>",
+    "  );",
+    "}",
+  ].join("\n");
+  expect(scan("apps/desktop/src/views/a.tsx", text)).toEqual([
+    "5 fresnel/hardcoded-korean",
+    "6 fresnel/hardcoded-korean",
+  ]);
+  expect(scan("apps/desktop/src/views/a.ts", text)).toEqual([]);
 });
 
 test("the Hangul rule honors the exemption comment", () => {

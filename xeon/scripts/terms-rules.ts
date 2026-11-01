@@ -317,7 +317,7 @@ export interface DocText {
 
 /** 기록 문서(검사하지 않는다): 조사 자료, 결정 기록, 검토 기록, 서식 */
 export function isRecordDoc(path: string): boolean {
-  return /^(_research|decisions|review|_templates)\//.test(path);
+  return /(^|\/)_research\//.test(path) || /^(decisions|review|_templates)\//.test(path);
 }
 
 function termKeys(term: TermDecl): string[] {
@@ -404,7 +404,7 @@ export function checkDocs(
       out.push({
         rule: "D-01",
         where: `docs/xeon/${doc.path}:${String(line + doc.bodyOffset)}`,
-        message: `term "${cell.replace(/`/g, "").slice(0, 40)}" in the §2 term table is neither in terms.json nor in the doc-only list`,
+        message: `term "${cell.replace(/`/g, "")}" in the §2 term table is neither in terms.json nor in the doc-only list`,
         fix: "add the concept to terms.json or the name to terms.doc-only.json",
       });
     }

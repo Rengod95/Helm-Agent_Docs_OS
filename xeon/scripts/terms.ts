@@ -4,14 +4,16 @@
 //   T-04 chat 노출 라벨에 내부 전용 말 없음  T-05 sources의 문서 id가 실제로 있음
 //   C-01 ko·en 키 집합이 같음  C-02 ICU 문법이 맞고 ko·en 인자 이름·종류가 같음
 //   C-03 `term.*` 키가 원본에서 생성한 값과 같음  C-06 en 문자열에 한글 없음
-//   [1단계, 경고] C-04 chat 문장의 내부 전용 말·금지 별칭  C-05 그 밖 문장의 금지 별칭  C-08 문체(라벨 명사구, 문장 해요체)
-//                 S-02 화면 소스의 영어 문자열  S-03 화면 소스에 쓴 원본 라벨  D-01 spec §2 용어표 첫 칸  D-02 문서의 금지 별칭
+//   [1단계] C-04 chat 문장의 내부 전용 말·금지 별칭  C-05 그 밖 문장의 금지 별칭  C-08 문체(라벨 명사구, 문장 해요체)
+//           S-02 화면 소스의 영어 문자열  S-03 화면 소스에 쓴 원본 라벨  D-01 spec §2 용어표 첫 칸  D-02 문서의 금지 별칭
+//   [2단계] 1단계 규칙은 모두 오류다. C-12 표식의 개념 id  C-13 조사 표식 위치  C-14 표식이 든 문장(locales/*.src.json)과 카탈로그가 같음
+//           S-01(check-ts-rules의 hardcoded-korean)은 `.tsx`까지 본다
 //   M-01 목업 용어 파생물(mockups/_shell/terms.generated.ts)이 있으면 원본과 같음
 //   D-03 용어집의 생성 구역(<!-- terms:begin --> … <!-- terms:end -->)이 있으면 원본과 같음
 // 사용:
-//   bun scripts/terms.ts gen [--mockups]      카탈로그 term.* 키를 갱신한다. --mockups는 목업 파생물도 쓴다(목업 트랙이 켠다)
+//   bun scripts/terms.ts gen [--mockups]      카탈로그 term.* 키와 표식이 든 문장(locales/*.src.json)을 갱신한다. --mockups는 목업 파생물도 쓴다(목업 트랙이 켠다)
 //   bun scripts/terms.ts check [--json]       전부 검사한다
-// 종료코드: 0 통과(경고만 있어도 0), 1 오류가 있음, 2 환경 문제(원본·카탈로그를 읽지 못함). 경고 수준 규칙은 WARN_RULES다.
+// 종료코드: 0 통과, 1 고칠 것이 있음, 2 환경 문제(원본·카탈로그를 읽지 못함).
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import {
@@ -19,6 +21,7 @@ import {
   loadShippedTerms,
   type TermDecl,
 } from "../packages/client/src/i18n/terms.ts";
+import { applyOverlay, checkOverlay, expandOverlay } from "./terms-markers.ts";
 import {
   CHAT_INTERNAL_WORDS,
   checkCatalogStyle,
@@ -35,17 +38,6 @@ const GLOSSARY_FILE = join(DOCS_DIR, "engineering/operations/glossary.md");
 const GLOSSARY_BEGIN = "<!-- terms:begin -->";
 const GLOSSARY_END = "<!-- terms:end -->";
 const MOCKUP_FILE = join(ROOT, "apps/desktop/mockups/_shell/terms.generated.ts");
-
-/** 1단계 규칙은 경고다. 2단계에서 이 목록을 비우고 오류로 올린다 */
-export const WARN_RULES: ReadonlySet<string> = new Set([
-  "C-04",
-  "C-05",
-  "C-08",
-  "S-02",
-  "S-03",
-  "D-01",
-  "D-02",
-]);
 
 export interface Violation {
   readonly rule: string;
@@ -579,6 +571,20 @@ export function readCatalog(locale: "ko" | "en"): Catalog | undefined {
   return out;
 }
 
+/** 표식이 든 문장의 덧씌움 원본(`locales/<로케일>.src.json`). 없으면 비어 있다 */
+function readOverlay(locale: "ko" | "en"): Catalog | undefined {
+  const path = join(LOCALES_DIR, `${locale}.src.json`);
+  if (!existsSync(path)) return {};
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== "string") return undefined;
+    out[key] = value;
+  }
+  return out;
+}
+
 function writeCatalog(locale: "ko" | "en", catalog: Catalog): void {
   writeFileSync(join(LOCALES_DIR, `${locale}.json`), `${JSON.stringify(catalog, null, 2)}\n`);
 }
@@ -606,10 +612,23 @@ function main(argv: readonly string[]): number {
     );
     return 2;
   }
+  const overlayKo = readOverlay("ko");
+  const overlayEn = readOverlay("en");
+  if (overlayKo === undefined || overlayEn === undefined) {
+    console.error("terms: locales/ko.src.json and en.src.json must be flat string maps");
+    return 2;
+  }
   if (command === "gen") {
     const generated = generateTermKeys(TERMS);
-    writeCatalog("ko", mergeTermKeys(ko, generated.ko));
-    writeCatalog("en", mergeTermKeys(en, generated.en));
+    const expandedKo = expandOverlay(overlayKo, TERMS, "ko");
+    const expandedEn = expandOverlay(overlayEn, TERMS, "en");
+    const broken = [...expandedKo.violations, ...expandedEn.violations];
+    if (broken.length > 0) {
+      for (const v of broken) console.log(`FAIL ${v.rule} ${v.where}: ${v.message} → ${v.fix}`);
+      return 1;
+    }
+    writeCatalog("ko", applyOverlay(mergeTermKeys(ko, generated.ko), expandedKo.expanded));
+    writeCatalog("en", applyOverlay(mergeTermKeys(en, generated.en), expandedEn.expanded));
     if (flags.includes("--mockups")) writeFileSync(MOCKUP_FILE, generateMockupTerms(TERMS));
     if (existsSync(GLOSSARY_FILE)) {
       const glossary = readFileSync(GLOSSARY_FILE, "utf8");
@@ -629,6 +648,7 @@ function main(argv: readonly string[]): number {
       ...checkTermSource(TERMS, collectDocIds(DOCS_DIR)),
       ...checkCatalogs(ko, en, TERMS),
       ...checkMockupTerms(TERMS, mockup),
+      ...checkOverlay(overlayKo, overlayEn, ko, en, TERMS),
       ...checkCatalogStyle(ko, en, TERMS),
       ...checkScreenSource(collectScreenSources(ROOT), TERMS),
       ...checkDocs(collectDocs(DOCS_DIR), TERMS, docOnly.value),
@@ -637,19 +657,13 @@ function main(argv: readonly string[]): number {
         existsSync(GLOSSARY_FILE) ? readFileSync(GLOSSARY_FILE, "utf8") : undefined,
       ),
     ];
-    const errors = violations.filter((v) => !WARN_RULES.has(v.rule));
-    const warnings = violations.filter((v) => WARN_RULES.has(v.rule));
     if (flags.includes("--json")) console.log(JSON.stringify(violations, null, 2));
     else
-      for (const v of violations) {
-        console.log(
-          `${WARN_RULES.has(v.rule) ? "WARN" : "FAIL"} ${v.rule} ${v.where}: ${v.message} → ${v.fix}`,
-        );
-      }
+      for (const v of violations) console.log(`FAIL ${v.rule} ${v.where}: ${v.message} → ${v.fix}`);
     console.log(
-      `terms check: ${String(Object.keys(TERMS).length)} terms, ${String(Object.keys(en).length)} keys, ${String(errors.length)} violations, ${String(warnings.length)} warnings`,
+      `terms check: ${String(Object.keys(TERMS).length)} terms, ${String(Object.keys(en).length)} keys, ${String(violations.length)} violations`,
     );
-    return errors.length === 0 ? 0 : 1;
+    return violations.length === 0 ? 0 : 1;
   }
   console.error("usage: bun scripts/terms.ts gen [--mockups] | check [--json]");
   return 2;
