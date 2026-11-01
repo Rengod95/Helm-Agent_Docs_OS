@@ -27,7 +27,12 @@ import {
   type L2ApprovalsPort,
   type ToolPolicyMeta,
 } from "@fresnel/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
+import {
+  hostOf,
+  PrimitiveError,
+  type ExtensionUnit,
+  type RegistrationHostApi,
+} from "@fresnel/ext-host";
 import { ARTIFACTS_EXTENSION_NAME, artifactsManifest } from "./manifest.ts";
 import type { ExecutionGuardPort, ReviewFilesPort, ReviewQueuePort } from "./ports.ts";
 import { createAnswerHandler } from "./reviews/answer.ts";
@@ -53,7 +58,7 @@ export interface ArtifactsPluginOptions {
   readonly settings?: ArtifactsSettingsSource;
 }
 
-function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
+function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | undefined {
   try {
     return host.port(key);
   } catch (caught) {
@@ -80,8 +85,8 @@ export function sessionRenamePolicy(
 
 export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit {
   const manifest = artifactsManifest();
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const session = host.port(SessionPortKey);
       const store = host.port(StoreServicePortKey);

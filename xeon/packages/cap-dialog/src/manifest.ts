@@ -17,30 +17,32 @@ export const DIALOG_EXTENSION_NAME = "cap-dialog";
  */
 export function dialogManifest(): ExtensionManifest {
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: DIALOG_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Dialog",
     description: "Questions, slash commands, status line, attachments and notices (L2).",
     defaultEnabled: true,
-    layer: "L2",
-    kind: "plugin",
     entry: "./src/index.ts",
-    provides: [DialogAsk, DialogCommands, DialogStatus, DialogAttachments, DialogNotify].map(
-      (def) => ({
-        id: def.id,
-        version: def.version,
-      }),
-    ),
-    requires: [{ id: WorkspaceImages.id, range: "^1.0.0" }],
-    points: [
-      "input.user.before",
-      "tool.execution.before",
-      "tool.execution.after",
-      "input.agent.before",
+    plugins: [
+      {
+        layer: "L2",
+        hooks: [
+          "input.user.before",
+          "tool.execution.before",
+          "tool.execution.after",
+          "input.agent.before",
+        ],
+        usesPost: false,
+        requires: [{ id: WorkspaceImages.id, range: "^1.0.0" }],
+        provides: [DialogAsk, DialogCommands, DialogStatus, DialogAttachments, DialogNotify].map(
+          (def) => ({
+            id: def.id,
+            version: def.version,
+          }),
+        ),
+      },
     ],
-    usesPost: false,
-    usesDrive: false,
     trust: { level: "builtin" },
   });
 }

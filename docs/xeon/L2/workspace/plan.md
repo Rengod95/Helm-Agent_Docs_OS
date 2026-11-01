@@ -41,8 +41,8 @@ xeon/packages/cap-workspace/
   UPSTREAM.json  PATCHES.md  LICENSE.pi          # ADR-0003 §3.4
   src/
     index.ts              # manifest, apply(ctx): 서비스 fresnel.workspace 등록
-    manifest.ts           # defineManifest({ name: "cap-workspace", layer: "L2", kind: "plugin",
-                          #   provides: [workspace.files, workspace.shell, workspace.images @1.0.0], usesDrive: false, points: [] })
+    manifest.ts           # defineManifest({ schemaVersion: 2, name: "cap-workspace",
+                          #   plugins: [{ layer: "L2", provides: [workspace.files, workspace.shell, workspace.images @1.0.0], hooks: [] }] })
     service.ts            # WorkspaceService 조립
     settings.ts           # defineSettings("l2.workspace", …)  (spec §6)
     roots.ts              # 허용 root 조회와 경로 해석(spec §4.3)

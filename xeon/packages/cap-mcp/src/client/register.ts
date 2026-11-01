@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { AgentTool, JsonValue } from "@fresnel/contracts/conversation";
 import type {
-  ScopeId,
+  RegistrationId,
   ToolRegisterError,
   ToolResourceDef,
   ToolsPort,
@@ -64,7 +64,7 @@ export function createToolServiceRegistrar(host: DirectToolHost): McpToolRegistr
 }
 
 /** X `ToolsPort`의 리소스 등록 경로 */
-export function createToolsPortRegistrar(port: ToolsPort, owner: ScopeId): McpToolRegistrar {
+export function createToolsPortRegistrar(port: ToolsPort, owner: RegistrationId): McpToolRegistrar {
   return {
     register(tool: McpDynamicTool) {
       const def: ToolResourceDef = {

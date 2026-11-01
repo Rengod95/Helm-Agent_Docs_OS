@@ -52,8 +52,8 @@ async function boot(options: { tools?: boolean } = {}) {
 /** 예약 기능을 requires로 쓰는 소비자 확장. 호스트가 넘긴 기능 API를 그대로 받는다 */
 function consumer() {
   const apis: { schedule?: CapabilityApi<typeof ScheduleEntries> } = {};
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       apis.schedule = g.capability(ScheduleEntriesKey);
     });
   };
@@ -61,15 +61,17 @@ function consumer() {
     apis,
     unit: {
       manifest: defineManifest({
-        schemaVersion: 1,
+        schemaVersion: 2,
         name: "schedule-consumer",
         version: "0.1.0",
-        layer: "L3",
-        kind: "plugin",
         entry: "./src/index.ts",
-        requires: [{ id: "schedule.entries", range: "^1.0.0" }],
-        points: [],
-        usesDrive: false,
+        plugins: [
+          {
+            layer: "L3",
+            hooks: [],
+            requires: [{ id: "schedule.entries", range: "^1.0.0" }],
+          },
+        ],
       }),
       entry,
       loadIndex: 1,
@@ -84,13 +86,14 @@ describe("manifest", () => {
     const checked = validateManifest(scheduleManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe("cap-schedule");
-    expect(checked.manifest?.layer).toBe("L2");
-    expect(checked.manifest?.kind).toBe("plugin");
-    expect(checked.manifest?.provides).toEqual([{ id: "schedule.entries", version: "1.0.0" }]);
+    expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
+    expect(checked.manifest?.plugins[0]?.provides).toEqual([
+      { id: "schedule.entries", version: "1.0.0" },
+    ]);
     const unit = schedulePlugin({ service: createHarness().service });
     expect(unit.builtin).toBe(true);
-    expect(unit.manifest.points).toEqual([]);
-    expect(unit.manifest.usesDrive).toBe(false);
+    expect(unit.manifest.plugins[0]?.hooks).toEqual([]);
+    expect(unit.manifest.plugins[0]?.drives).toBeUndefined();
   });
 });
 

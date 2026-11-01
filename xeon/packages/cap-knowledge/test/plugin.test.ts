@@ -139,8 +139,8 @@ function consumer() {
     ledger?: CapabilityApi<typeof KnowledgeLedger>;
     search?: CapabilityApi<typeof KnowledgeSearch>;
   } = {};
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       apis.skills = g.capability(KnowledgeSkillsKey);
       apis.ledger = g.capability(KnowledgeLedgerKey);
       apis.search = g.capability(KnowledgeSearchKey);
@@ -148,19 +148,21 @@ function consumer() {
   };
   const unit: ExtensionUnit = {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "kn-consumer",
       version: "0.1.0",
-      layer: "L3",
-      kind: "plugin",
       entry: "./src/index.ts",
-      requires: [
-        { id: "knowledge.skills", range: "^1.0.0" },
-        { id: "knowledge.ledger", range: "^1.0.0" },
-        { id: "knowledge.search", range: "^1.0.0" },
+      plugins: [
+        {
+          layer: "L3",
+          hooks: [],
+          requires: [
+            { id: "knowledge.skills", range: "^1.0.0" },
+            { id: "knowledge.ledger", range: "^1.0.0" },
+            { id: "knowledge.search", range: "^1.0.0" },
+          ],
+        },
       ],
-      points: [],
-      usesDrive: false,
     }),
     entry,
     loadIndex: 1,
@@ -174,8 +176,8 @@ describe("manifest", () => {
     const checked = validateManifest(knowledgeManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe(KNOWLEDGE_EXTENSION_NAME);
-    expect(checked.manifest?.layer).toBe("L2");
-    expect(checked.manifest?.provides).toEqual([
+    expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
+    expect(checked.manifest?.plugins[0]?.provides).toEqual([
       { id: "knowledge.skills", version: "1.0.0" },
       { id: "knowledge.memory", version: "1.0.0" },
       { id: "knowledge.search", version: "1.0.0" },
@@ -183,7 +185,11 @@ describe("manifest", () => {
     ]);
     const unit = knowledgePlugin({ settings: { layers: () => [] }, ids: fixedLocalIds() });
     expect(unit.builtin).toBe(true);
-    expect(unit.manifest.points).toEqual(["thread.start", "input.agent.before", "thread.shutdown"]);
+    expect(unit.manifest.plugins[0]?.hooks).toEqual([
+      "thread.start",
+      "input.agent.before",
+      "thread.shutdown",
+    ]);
   });
 });
 
@@ -332,7 +338,7 @@ describe("plugin", () => {
     const { installed } = await boot({ refuse: true });
     expect(installed.setups[0]).toMatchObject({
       status: "failed",
-      failure: { kind: "threw", code: "scope_setup_failed" },
+      failure: { kind: "threw", code: "registration_setup_failed" },
     });
   });
 

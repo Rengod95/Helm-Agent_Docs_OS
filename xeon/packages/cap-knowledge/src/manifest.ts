@@ -14,23 +14,25 @@ export const KNOWLEDGE_EXTENSION_NAME = "cap-knowledge";
  */
 export function knowledgeManifest(): ExtensionManifest {
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: KNOWLEDGE_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Knowledge and memory",
     description: "Skills, memory, session search and the change ledger (L2).",
     defaultEnabled: true,
-    layer: "L2",
-    kind: "plugin",
     entry: "./src/index.ts",
-    provides: [
-      { id: KnowledgeSkills.id, version: KnowledgeSkills.version },
-      { id: KnowledgeMemory.id, version: KnowledgeMemory.version },
-      { id: KnowledgeSearch.id, version: KnowledgeSearch.version },
-      { id: KnowledgeLedger.id, version: KnowledgeLedger.version },
+    plugins: [
+      {
+        layer: "L2",
+        hooks: ["thread.start", "input.agent.before", "thread.shutdown"],
+        provides: [
+          { id: KnowledgeSkills.id, version: KnowledgeSkills.version },
+          { id: KnowledgeMemory.id, version: KnowledgeMemory.version },
+          { id: KnowledgeSearch.id, version: KnowledgeSearch.version },
+          { id: KnowledgeLedger.id, version: KnowledgeLedger.version },
+        ],
+      },
     ],
-    points: ["thread.start", "input.agent.before", "thread.shutdown"],
-    usesDrive: false,
     trust: { level: "builtin" },
   });
 }

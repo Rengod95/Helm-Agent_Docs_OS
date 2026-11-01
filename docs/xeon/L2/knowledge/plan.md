@@ -246,7 +246,7 @@ xeon/packages/cap-knowledge/
 
 ### 3.5 구현 기록: KN.5 (K11)
 
-`m2/webkn` 브랜치의 구현이다. 훅 세 개(`thread.start`, `input.agent.before`, `thread.shutdown`)를 매니페스트 `points`에 올렸다.
+`m2/webkn` 브랜치의 구현이다. 훅 세 개(`thread.start`, `input.agent.before`, `thread.shutdown`)를 매니페스트 `points`(M4에서 `plugins[].hooks`)에 올렸다.
 
 | 작업 | 상태 | 구현 위치와 범위 |
 |---|---|---|
@@ -266,7 +266,7 @@ xeon/packages/cap-knowledge/
 | 파일 | 내용 |
 |---|---|
 | `delta.test.ts` | 비교와 문장(정렬, 10개 상한, 60자 설명), 첫 turn 메시지, `index delta next turn`(추가·변경·삭제가 다음 turn 메모 하나, 같은 변경은 한 번만), 본문만 바꾼 변경은 메모 없음, 모델 호출 여부 전환, 세션 독립과 `shutdown`, 재개한 세션, `startup` 말고는 재색인, 스킬·메모리를 끄면 메시지 없음 |
-| `plugin.test.ts` | 후크 경로: `thread.start` → 첫 turn 블록 → 변경 뒤 델타 → `thread.shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `points`. `thread.compact.after`를 보내도 다음 turn이 전체 블록을 다시 넣지 않고, 그 사이 바뀐 인덱스는 델타 하나로만 온다(M2 마감 재검토 결함 2, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
+| `plugin.test.ts` | 후크 경로: `thread.start` → 첫 turn 블록 → 변경 뒤 델타 → `thread.shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `plugins[].hooks`. `thread.compact.after`를 보내도 다음 turn이 전체 블록을 다시 넣지 않고, 그 사이 바뀐 인덱스는 델타 하나로만 온다(M2 마감 재검토 결함 2, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
 
 ## 4. 채택 코드
 

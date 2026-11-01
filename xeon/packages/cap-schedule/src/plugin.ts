@@ -2,7 +2,12 @@ import { err, ok } from "@fresnel/contracts";
 import { ScheduleEntries, ScheduleEntriesKey } from "@fresnel/contracts/capabilities";
 import type { ExtensionEntry, PortKey } from "@fresnel/contracts/extensions";
 import { ToolServicePortKey } from "@fresnel/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
+import {
+  hostOf,
+  PrimitiveError,
+  type ExtensionUnit,
+  type RegistrationHostApi,
+} from "@fresnel/ext-host";
 import { createScheduleApi } from "./api.ts";
 import { scheduleManifest } from "./manifest.ts";
 import type { ScheduleService } from "./types.ts";
@@ -15,7 +20,7 @@ export interface SchedulePluginOptions {
   readonly loadIndex?: number;
 }
 
-function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
+function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | undefined {
   try {
     return host.port(key);
   } catch (caught) {
@@ -26,8 +31,8 @@ function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefin
 
 export function schedulePlugin(options: SchedulePluginOptions): ExtensionUnit {
   const manifest = scheduleManifest();
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       host.provide(ScheduleEntriesKey, createScheduleApi(options.service));
       const tools = optionalPort(host, ToolServicePortKey);

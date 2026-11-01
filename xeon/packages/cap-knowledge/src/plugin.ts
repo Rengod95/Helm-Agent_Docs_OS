@@ -24,7 +24,12 @@ import {
   type ToolRegistration,
   type ToolService,
 } from "@fresnel/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
+import {
+  hostOf,
+  PrimitiveError,
+  type ExtensionUnit,
+  type RegistrationHostApi,
+} from "@fresnel/ext-host";
 import { createNodeFs } from "./fs/node-fs.ts";
 import type { KnowledgeFs } from "./fs/port.ts";
 import { knowledgeManifest } from "./manifest.ts";
@@ -85,7 +90,7 @@ export interface KnowledgePluginOptions {
 }
 
 /** 아직 제공되지 않은 포트는 undefined. 그 밖의 오류는 그대로 던진다 */
-function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
+function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | undefined {
   try {
     return host.port(key);
   } catch (caught) {
@@ -123,8 +128,8 @@ export function advertisedSkillsDef(): AnyCapabilityDef {
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit {
   const manifest = knowledgeManifest();
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, async (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, async (g) => {
       const host = hostOf(g);
       const os = host.port(OsPortKey);
       const store = host.port(StoreServicePortKey);

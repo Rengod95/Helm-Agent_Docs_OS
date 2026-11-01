@@ -67,7 +67,7 @@ cap-<domain>/
   package.json        # "fresnel": { "layer": "L2", "domain": "<domain>" }
   src/
     index.ts          # 플러그인 엔트리. manifest 상수와 apply(ctx) export
-    manifest.ts       # defineManifest({ layer: "L2", kind: "plugin", provides, requires, optional, ... })
+    manifest.ts       # defineManifest({ schemaVersion: 2, plugins: [{ layer: "L2", provides, requires, optional, ... }] })
     service.ts        # 기능별 API 객체 조립과 hostOf(g).provide(key, impl) 등록(§5.6)
     settings.ts       # defineSettings("l2.<domain>", { ... })
     <기능별 디렉터리>/  # 기능 하나당 디렉터리 하나. provider 구현
@@ -98,11 +98,11 @@ cap-<domain>/
 | 되감기, 체크포인트, 파일 복원, 세션 쓰기(`SessionWriter.commit`), `consumer_cursors` 테이블 | `L1.persistence.spec`, `eng.transactions.design` |
 | 프로세스 레지스트리, 샌드박스, 격리, 실행 환경(`ExecutionEnv`), 시크릿 저장과 주입, blob 저장 | `L0.process.spec`, `L0.sandbox.spec`, `L0.exec.spec`, `L0.secrets.spec`, `L0.store.spec` |
 | 서브에이전트 실행, 백그라운드 위임 | `L1.agents.spec` |
-| 학습 정책(언제, 무엇을 배울지), 탐구 정책(단계, drive 임대 사용) | L3 그룹 문서(`L3.readme`) |
+| 학습 정책(언제, 무엇을 배울지), 탐구 정책(단계, drive lock 사용) | L3 그룹 문서(`L3.readme`) |
 | 확장 로딩, 신뢰, provider 등록 API, 4연산 실행 | `X.loading-trust.spec`, `X.primitives.spec` |
 | 화면, 명령 표면, 설정 파일 위치 | `L4.settings-ui.spec`, `L4.cli.spec`, `L4.desktop.spec`, `L4.host-service.spec` |
 
-- L2는 drive를 쓰지 않는다. drive 임대는 L3 그룹만 갖는다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `fresnel.tasks` 경유 입력으로 한다(각 spec).
+- L2는 drive를 쓰지 않는다. drive lock은 L3 플러그인 그룹만 갖는다(정책 `x.primitives.driveRequiresGroup`이 기본값일 때. `_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `fresnel.tasks` 경유 입력으로 한다(각 spec).
 - [제안] 한 스레드에서 다음 턴을 투입하는 L2 주체는 하나다. 목표(`work.goals`)를 가진 루프(`schedule.loops`의 `goalId`)에서는 루프가 반복마다 다음 턴을 투입하고 `work.goals`는 판정만 기록하며 post하지 않는다. 이를 위해 목표는 `continuation` 값을 갖는다. `"self"`(기본)면 `work.goals`가 미충족 판정 뒤 post하고, `"external"`이면 판정만 기록한다. `schedule.loops.start`는 `goalId`의 목표가 `continuation: "external"`이 아니면 `invalid_input`(`detail.reason: "goal_continuation_self"`)으로 거부한다. 루프와 목표를 함께 거는 호출자(L4 명령, 그룹)는 `work.goals.set({ continuation: "external" })` 뒤 `schedule.loops.start({ goalId })`를 부른다(`L2.work.spec` §4.3.5, `L2.schedule.spec` §4.1.4). 확정은 §10 미결 18이다.
 - L3 그룹 이름은 이 층 문서에 쓰지 않는다. L2 설정의 기본값은 일반 이름으로 두고, 특정 그룹이 필요한 값은 L3가 설정으로 채운다 [결정: review.decisions-2 D-11].
 
@@ -184,7 +184,7 @@ export interface WebService {
 }
 ```
 
-- consumer는 `ScopeApi.capability(key)`로 기능 단위 API를 얻는다(`F.extensions.spec` §3.2). 반환 타입은 `ApiOf<typeof key>`다. consumer는 묶음 타입이나 `fresnel.<domain>` 이름을 쓰지 않는다.
+- consumer는 `RegistrationApi.capability(key)`로 기능 단위 API를 얻는다(`F.extensions.spec` §3.2). 반환 타입은 `ApiOf<typeof key>`다. consumer는 묶음 타입이나 `fresnel.<domain>` 이름을 쓰지 않는다.
 - 묶음 타입은 provider 패키지 안에서 기능별 API 객체를 한곳에 모을 때와 문서에서 도메인을 가리킬 때 쓴다. 속성 이름은 기능 id의 둘째 마디다. 예: `web.search` → `WebService.search`.
 - 도메인 묶음 타입 이름은 `eng.context-map.design` §5.3 표(`WorkspaceService`, `McpService`, `WebService`, `KnowledgeService`, `WorkService`, `DialogService`, `ArtifactService`, `ScheduleService`)를 따른다. 그 표의 `fresnel.<domain>` 행은 `fresnel.mcp`를 빼면 묶음 이름이고 Cordis 등록 이름이 아니다. `fresnel.mcp`는 Cordis 등록 이름이다.
 
@@ -269,7 +269,7 @@ L2 도메인의 내구·휘발 이벤트 카탈로그 형식은 `F.records.spec`
 
 ## 6. L2 사이 의존
 
-[제안] L2 사이 의존은 서비스 경유(`requires`/`optional` 선언 + `ScopeApi.capability(key)`)만 허용하고 방향은 아래 여섯뿐이다. 그중 둘(`dialog.commands`로 가는 간선)은 [미결]이다(§10 미결 16).
+[제안] L2 사이 의존은 서비스 경유(`requires`/`optional` 선언 + `RegistrationApi.capability(key)`)만 허용하고 방향은 아래 여섯뿐이다. 그중 둘(`dialog.commands`로 가는 간선)은 [미결]이다(§10 미결 16).
 
 ```mermaid
 flowchart LR

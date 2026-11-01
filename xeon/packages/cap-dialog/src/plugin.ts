@@ -19,7 +19,12 @@ import {
   SessionPortKey,
   StoreServicePortKey,
 } from "@fresnel/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
+import {
+  hostOf,
+  PrimitiveError,
+  type ExtensionUnit,
+  type RegistrationHostApi,
+} from "@fresnel/ext-host";
 import type { DialogDeps } from "./deps.ts";
 import { dialogManifest } from "./manifest.ts";
 import { createOsDelivery } from "./notify/os-delivery.ts";
@@ -62,7 +67,7 @@ export interface DialogPluginOptions {
 }
 
 /** 아직 제공되지 않은 포트는 undefined. 그 밖의 오류는 그대로 던진다 */
-function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
+function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | undefined {
   try {
     return host.port(key);
   } catch (caught) {
@@ -85,8 +90,8 @@ function optionalImages(capability: () => ImagesPort): ImagesPort | undefined {
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
   const manifest = dialogManifest();
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const exec = host.port(ExecPortKey);
       const os = host.port(OsPortKey);

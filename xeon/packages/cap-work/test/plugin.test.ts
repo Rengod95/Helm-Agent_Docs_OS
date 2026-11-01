@@ -139,26 +139,28 @@ async function boot(
 function consumer() {
   const apis: { tasks?: CapabilityApi<typeof WorkTasks>; plans?: CapabilityApi<typeof WorkPlans> } =
     {};
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       apis.tasks = g.capability(WorkTasksKey);
       apis.plans = g.capability(WorkPlansKey);
     });
   };
   const unit: ExtensionUnit = {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "work-consumer",
       version: "0.1.0",
-      layer: "L3",
-      kind: "plugin",
       entry: "./src/index.ts",
-      requires: [
-        { id: "work.tasks", range: "^1.0.0" },
-        { id: "work.plans", range: "^1.0.0" },
+      plugins: [
+        {
+          layer: "L3",
+          hooks: [],
+          requires: [
+            { id: "work.tasks", range: "^1.0.0" },
+            { id: "work.plans", range: "^1.0.0" },
+          ],
+        },
       ],
-      points: [],
-      usesDrive: false,
     }),
     entry,
     loadIndex: 1,
@@ -172,21 +174,20 @@ describe("manifest", () => {
     const checked = validateManifest(workManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe(WORK_EXTENSION_NAME);
-    expect(checked.manifest?.layer).toBe("L2");
-    expect(checked.manifest?.kind).toBe("plugin");
-    expect(checked.manifest?.provides).toEqual([
+    expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
+    expect(checked.manifest?.plugins[0]?.provides).toEqual([
       { id: "work.tasks", version: "1.0.0" },
       { id: "work.plans", version: "1.0.0" },
       { id: "work.goals", version: "1.0.0" },
       { id: "work.reports", version: "1.0.0" },
     ]);
-    expect(checked.manifest?.points).toEqual([
+    expect(checked.manifest?.plugins[0]?.hooks).toEqual([
       "input.agent.before",
       "thread.start",
       "boundary.step.after",
       "boundary.settle.before",
     ]);
-    expect(checked.manifest?.usesDrive).toBe(false);
+    expect(checked.manifest?.plugins[0]?.drives).toBeUndefined();
   });
 });
 
@@ -253,7 +254,7 @@ describe("plugin", () => {
     const { installed } = await boot({ refuse: "work.tasks" });
     expect(installed.setups[0]).toMatchObject({
       status: "failed",
-      failure: { kind: "threw", code: "scope_setup_failed" },
+      failure: { kind: "threw", code: "registration_setup_failed" },
     });
   });
 

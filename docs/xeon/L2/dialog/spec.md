@@ -1033,22 +1033,22 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 ```ts
 // xeon/packages/cap-dialog/src/manifest.ts
 export const manifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "cap-dialog",
   version: "0.1.0",
-  layer: "L2",
-  kind: "plugin",
   entry: "./src/index.ts",
-  provides: [
-    { id: "dialog.ask", version: "1.0.0" }, { id: "dialog.commands", version: "1.0.0" },
-    { id: "dialog.status", version: "1.0.0" }, { id: "dialog.attachments", version: "1.0.0" },
-    { id: "dialog.aside", version: "1.0.0" }, { id: "dialog.styles", version: "1.0.0" },
-    { id: "dialog.notify", version: "1.0.0" },
-  ],
-  requires: [{ id: "workspace.images", range: "^1.0.0" }],
-  points: ["input", "tool.execution.before", "tool.execution.after", "input.agent.before"],
-  usesPost: false,
-  usesDrive: false,
+  plugins: [{
+    layer: "L2",
+    provides: [
+      { id: "dialog.ask", version: "1.0.0" }, { id: "dialog.commands", version: "1.0.0" },
+      { id: "dialog.status", version: "1.0.0" }, { id: "dialog.attachments", version: "1.0.0" },
+      { id: "dialog.aside", version: "1.0.0" }, { id: "dialog.styles", version: "1.0.0" },
+      { id: "dialog.notify", version: "1.0.0" },
+    ],
+    requires: [{ id: "workspace.images", range: "^1.0.0" }],
+    hooks: ["input", "tool.execution.before", "tool.execution.after", "input.agent.before"],
+    usesPost: false,
+  }],
 });
 ```
 

@@ -14,23 +14,25 @@ export const ARTIFACTS_EXTENSION_NAME = "cap-artifacts";
  */
 export function artifactsManifest(): ExtensionManifest {
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: ARTIFACTS_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Artifacts and reviews",
     description: "Keep session artifacts and approve or reject file changes hunk by hunk (L2).",
     defaultEnabled: true,
-    layer: "L2",
-    kind: "plugin",
     entry: "./src/index.ts",
-    provides: [
-      { id: ArtifactsRegistry.id, version: ArtifactsRegistry.version },
-      { id: ArtifactsReviews.id, version: ArtifactsReviews.version },
-      { id: ArtifactsSessions.id, version: ArtifactsSessions.version },
+    plugins: [
+      {
+        layer: "L2",
+        hooks: [],
+        provides: [
+          { id: ArtifactsRegistry.id, version: ArtifactsRegistry.version },
+          { id: ArtifactsReviews.id, version: ArtifactsReviews.version },
+          { id: ArtifactsSessions.id, version: ArtifactsSessions.version },
+        ],
+        optional: [{ id: WorkspaceFiles.id, range: `^${WorkspaceFiles.version}` }],
+      },
     ],
-    optional: [{ id: WorkspaceFiles.id, range: `^${WorkspaceFiles.version}` }],
-    points: [],
-    usesDrive: false,
     trust: { level: "builtin" },
   });
 }

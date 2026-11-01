@@ -38,8 +38,8 @@ xeon/packages/cap-mcp/
   package.json          # "name": "@fresnel/cap-mcp", "fresnel": { "layer": "L2", "domain": "mcp" }
   src/
     index.ts            # manifest, apply(ctx): 서비스 fresnel.mcp 등록, 세션 시작·종료 연결
-    manifest.ts         # defineManifest({ name: "cap-mcp", layer: "L2", kind: "plugin",
-                        #   provides: [{ id: "mcp.client", version: "1.0.0" }], points: ["thread.mcp.after", "thread.trust.before"], usesDrive: false })
+    manifest.ts         # defineManifest({ schemaVersion: 2, name: "cap-mcp",
+                        #   plugins: [{ layer: "L2", provides: [{ id: "mcp.client", version: "1.0.0" }], hooks: ["thread.mcp.after", "thread.trust.before"] }] })
     settings.ts         # defineSettings("l2.mcp", …)  (spec §6)
     adapter.ts          # SDK 경계 어댑터. SDK 타입과 zod는 이 파일(+ transport/, oauth/, tasks/schemas.ts) 밖으로 나가지 않는다
     client/

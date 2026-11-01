@@ -915,15 +915,15 @@ import { defineManifest } from "@fresnel/contracts/extensions";
 import type { WebProviderRegistration } from "@fresnel/contracts/capabilities";
 
 export const manifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "web-exa",
   version: "0.1.0",
-  layer: "plugin",
-  kind: "plugin",
   entry: "./src/index.ts",
-  provides: [{ id: "web.search", version: "1.0.0" }, { id: "web.fetch", version: "1.0.0" }],
-  points: [],
-  usesDrive: false,
+  plugins: [{
+    layer: "plugin",
+    provides: [{ id: "web.search", version: "1.0.0" }, { id: "web.fetch", version: "1.0.0" }],
+    hooks: [],
+  }],
   userConfig: {
     apiKey: { setting: "ext.web-exa.apiKey", title: "Exa API 키", sensitive: true, required: true },
   },
@@ -1047,7 +1047,7 @@ export const WEB_CAPABILITIES = [WebSearch, WebFetch, WebBrowse, WebResearch] as
 ```
 
 - 묶음 값은 provider 체인을 거치는 앞단이다(§4.1, `L2.readme` §5.1). provider 플러그인은 이 묶음을 등록하지 않고 기능별 후보로 등록한다(§3.6).
-- consumer는 `ScopeApi.capability(WebSearchKey)`처럼 기능 단위 키로 API를 얻는다(`L2.readme` §5.6).
+- consumer는 `RegistrationApi.capability(WebSearchKey)`처럼 기능 단위 키로 API를 얻는다(`L2.readme` §5.6).
 
 ### 3.10 효과 분류 [결정: M3-REQ-88]
 

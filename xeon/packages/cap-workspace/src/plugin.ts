@@ -21,7 +21,12 @@ import {
   type ToolRegistration,
   type ToolService,
 } from "@fresnel/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
+import {
+  hostOf,
+  PrimitiveError,
+  type ExtensionUnit,
+  type RegistrationHostApi,
+} from "@fresnel/ext-host";
 import type { RgResolver, WorkspaceDeps } from "./deps.ts";
 import { envAtCwd } from "./env.ts";
 import { workspaceManifest } from "./manifest.ts";
@@ -45,7 +50,7 @@ export interface WorkspacePluginOptions {
 }
 
 /** 아직 제공되지 않은 포트는 undefined. 그 밖의 오류는 그대로 던진다 */
-function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
+function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | undefined {
   try {
     return host.port(key);
   } catch (caught) {
@@ -88,8 +93,8 @@ function rgResolver(os: OsService): RgResolver {
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit {
   const manifest = workspaceManifest();
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const exec = host.port(ExecPortKey);
       const os = host.port(OsPortKey);

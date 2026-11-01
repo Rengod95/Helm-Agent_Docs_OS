@@ -66,7 +66,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 - `CapabilityDef`, `defineCapability`, `serviceKey`, `CapabilityApi`, `CallOptions`, `CapabilityError`, `ToolContent`: F.capabilities.spec §3
 - `ApprovalId`, `ApprovalIdSchema`, `Brand`, `REQUEST_ID_PATTERN`, `deriveRequestId`: eng.domain-types.guide DT-06, eng.typescript.guide §1.2
 - `CatalogEntry`, `CoreArea`: F.records.spec §3.2·§3.3(`L2.readme` §5.9). `Projector`, `ProjectionTx`, `BlobRef`, `TYPE_PREFIX_OWNERS`: eng.events.design §4.1, §5.1
-- `PostItem`, `PostOptions`, `ScopeId`: F.extensions.spec §3.2
+- `PostItem`, `PostOptions`, `RegistrationId`: F.extensions.spec §3.2
 - 스레드와 세션: F.conversation.spec은 `ThreadId`를, eng.events.design은 `SessionId`를 쓴다. 이 문서는 서비스 API에 `ThreadId`를 쓰고 투영 테이블 열은 `session_id`로 둔다(eng.context-map.design §5.2). [가정] 두 ID는 같은 단위를 가리킨다.
 
 ## 3. 인터페이스
@@ -99,7 +99,7 @@ export const PlanIdSchema = Type.Unsafe<PlanId>(Type.String({ pattern: PLAN_ID_P
 export const GoalIdSchema = Type.Unsafe<GoalId>(Type.String({ pattern: GOAL_ID_PATTERN }));
 export const ReportIdSchema = Type.Unsafe<ReportId>(Type.String({ pattern: REPORT_ID_PATTERN }));
 
-/** owner 문자열: "main", 서브에이전트 이름, 그룹 scope id 등. 해석은 하지 않는다 */
+/** owner 문자열: "main", 서브에이전트 이름, 플러그인 그룹의 Registration id 등. 해석은 하지 않는다 */
 export const OWNER_PATTERN = "^[A-Za-z0-9][A-Za-z0-9_./:-]{0,63}$";
 export const OwnerSchema = Type.String({ pattern: OWNER_PATTERN });
 
@@ -483,7 +483,7 @@ export const GoalJudgeSpecSchema = Type.Union([
   }, { additionalProperties: false }),
   Type.Object({
     kind: Type.Literal("delegated"),
-    /** 판정을 넣을 주체의 scope id(F.extensions.spec ScopeId). 예: "<그룹 이름>" */
+    /** 판정을 넣을 주체의 Registration id(F.extensions.spec RegistrationId). 예: "<그룹 이름>" */
     owner: Type.String({ minLength: 1, maxLength: 64 }),
     /** 턴이 끝난 뒤 판정을 기다리는 시간. 생략하면 설정 l2.work.goal.delegatedTimeoutSec */
     timeoutSec: Type.Optional(Type.Integer({ minimum: 1, maximum: 3600 })),
@@ -699,7 +699,7 @@ export const WorkServiceName = "fresnel.work";
 export const WORK_CAPABILITIES = [WorkTasks, WorkPlans, WorkGoals, WorkReports] as const;
 ```
 
-- consumer는 `ScopeApi.capability(WorkTasksKey)`처럼 기능 단위 키로 API를 얻는다(`L2.readme` §5.6). L3 문서가 [가정]으로 적은 `work.task.create`는 이 문서의 `work.tasks`의 `create` 메서드다.
+- consumer는 `RegistrationApi.capability(WorkTasksKey)`처럼 기능 단위 키로 API를 얻는다(`L2.readme` §5.6). L3 문서가 [가정]으로 적은 `work.task.create`는 이 문서의 `work.tasks`의 `create` 메서드다.
 
 ### 3.7 이벤트 카탈로그
 
@@ -1299,29 +1299,29 @@ export interface JudgePort {
 ```ts
 // xeon/packages/cap-work/src/manifest.ts
 export const manifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "cap-work",
   version: "0.1.0",
-  layer: "L2",
-  kind: "plugin",
   entry: "./src/index.ts",
-  provides: [
-    { id: "work.tasks", version: "1.0.0" }, { id: "work.plans", version: "1.0.0" },
-    { id: "work.goals", version: "1.0.0" }, { id: "work.reports", version: "1.0.0" },
-  ],
-  optional: [
-    { id: "artifacts.registry", range: "^1.0.0" },
-    { id: "dialog.commands", range: "^1.0.0" },   // §6.2, [미결] W-10
-  ],
-  points: ["input.agent.before", "thread.start", "boundary.step.after", "boundary.settle.before"],
-  usesDrive: false,
+  plugins: [{
+    layer: "L2",
+    provides: [
+      { id: "work.tasks", version: "1.0.0" }, { id: "work.plans", version: "1.0.0" },
+      { id: "work.goals", version: "1.0.0" }, { id: "work.reports", version: "1.0.0" },
+    ],
+    optional: [
+      { id: "artifacts.registry", range: "^1.0.0" },
+      { id: "dialog.commands", range: "^1.0.0" },   // §6.2, [미결] W-10
+    ],
+    hooks: ["input.agent.before", "thread.start", "boundary.step.after", "boundary.settle.before"],
+  }],
 });
 ```
 
 - `input.agent.before`(collect): 방치 알림 메시지 추가(§4.1.6). 질의만 한다.
 - `boundary.step.after`(chain): 정착 직전 단계 id를 기억한다. 값을 바꾸지 않는다(§4.3.2 5번).
 - `boundary.settle.before`(chain): 완료 게이트. 활성 모델 판정자 목표를 판정하고 한 단계 더 돌지 turn을 끝낼지 정한다(§4.3.2).
-- drive: 쓰지 않는다. L2는 drive 임대를 갖지 않는다(`L2.readme` §4.2).
+- drive: 쓰지 않는다. L2는 drive lock을 갖지 않는다(`L2.readme` §4.2).
 - 피드 구독: 승인 해결 뒤 모드 복원(`approval.resolved`)은 `fresnel.session`의 내구 피드 구독으로 받는다. 훅은 쓰지 않는다(eng.events.design §4.6 `SessionFeed.subscribe`). 구독자는 `seq`로 중복을 거른다(EV-05).
 
 ### 7.2 도구 지점

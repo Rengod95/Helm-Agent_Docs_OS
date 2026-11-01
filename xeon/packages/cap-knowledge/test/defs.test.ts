@@ -42,7 +42,7 @@ describe("knowledge definitions", () => {
   });
 
   test("the manifest provides only what is implemented", () => {
-    expect(knowledgeManifest().provides?.map((entry) => entry.id)).toEqual([
+    expect(knowledgeManifest().plugins[0]?.provides?.map((entry) => entry.id)).toEqual([
       "knowledge.skills",
       "knowledge.memory",
       "knowledge.search",

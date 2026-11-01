@@ -197,18 +197,20 @@ async function boot(
   const images = fakeImages(blobs);
   const provider: ExtensionUnit = {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "fake-workspace",
       version: "0.1.0",
-      layer: "L2",
-      kind: "plugin",
       entry: "./src/index.ts",
-      provides: [{ id: "workspace.images", version: "1.0.0" }],
-      points: [],
-      usesDrive: false,
+      plugins: [
+        {
+          layer: "L2",
+          hooks: [],
+          provides: [{ id: "workspace.images", version: "1.0.0" }],
+        },
+      ],
     }),
-    entry: ({ manifest, scope }) => {
-      scope(manifest.name, {}, (g) => {
+    entry: ({ manifest, register }) => {
+      register(manifest.name, {}, (g) => {
         hostOf(g).provide(WorkspaceImagesKey, {
           register: images.register,
           load: () => Promise.reject(new Error("not used")),
@@ -268,24 +270,26 @@ function consumer(): { apis: Apis; unit: ExtensionUnit } {
   const apis: Apis = {};
   const unit: ExtensionUnit = {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "dialog-consumer",
       version: "0.1.0",
-      layer: "L3",
-      kind: "plugin",
       entry: "./src/index.ts",
-      requires: [
-        { id: "dialog.ask", range: "^1.0.0" },
-        { id: "dialog.commands", range: "^1.0.0" },
-        { id: "dialog.status", range: "^1.0.0" },
-        { id: "dialog.attachments", range: "^1.0.0" },
-        { id: "dialog.notify", range: "^1.0.0" },
+      plugins: [
+        {
+          layer: "L3",
+          hooks: [],
+          requires: [
+            { id: "dialog.ask", range: "^1.0.0" },
+            { id: "dialog.commands", range: "^1.0.0" },
+            { id: "dialog.status", range: "^1.0.0" },
+            { id: "dialog.attachments", range: "^1.0.0" },
+            { id: "dialog.notify", range: "^1.0.0" },
+          ],
+        },
       ],
-      points: [],
-      usesDrive: false,
     }),
-    entry: ({ manifest, scope }) => {
-      scope(manifest.name, {}, (g) => {
+    entry: ({ manifest, register }) => {
+      register(manifest.name, {}, (g) => {
         apis.ask = g.capability(DialogAskKey);
         apis.commands = g.capability(DialogCommandsKey);
         apis.status = g.capability(DialogStatusKey);
@@ -305,23 +309,23 @@ describe("manifest", () => {
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     const manifest = checked.manifest;
     expect(manifest?.name).toBe(DIALOG_EXTENSION_NAME);
-    expect(manifest?.layer).toBe("L2");
-    expect(manifest?.provides?.map((entry) => entry.id)).toEqual([
+    expect(manifest?.plugins[0]?.layer).toBe("L2");
+    expect(manifest?.plugins[0]?.provides?.map((entry) => entry.id)).toEqual([
       "dialog.ask",
       "dialog.commands",
       "dialog.status",
       "dialog.attachments",
       "dialog.notify",
     ]);
-    expect(manifest?.requires).toEqual([{ id: "workspace.images", range: "^1.0.0" }]);
-    expect(manifest?.points).toEqual([
+    expect(manifest?.plugins[0]?.requires).toEqual([{ id: "workspace.images", range: "^1.0.0" }]);
+    expect(manifest?.plugins[0]?.hooks).toEqual([
       "input.user.before",
       "tool.execution.before",
       "tool.execution.after",
       "input.agent.before",
     ]);
-    expect(manifest?.usesPost).toBe(false);
-    expect(manifest?.usesDrive).toBe(false);
+    expect(manifest?.plugins[0]?.usesPost).toBe(false);
+    expect(manifest?.plugins[0]?.drives).toBeUndefined();
   });
 });
 

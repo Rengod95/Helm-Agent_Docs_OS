@@ -145,8 +145,8 @@ function consumer() {
     shell?: CapabilityApi<typeof WorkspaceShell>;
     images?: CapabilityApi<typeof WorkspaceImages>;
   } = {};
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, {}, (g) => {
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(manifest.name, {}, (g) => {
       apis.files = g.capability(WorkspaceFilesKey);
       apis.shell = g.capability(WorkspaceShellKey);
       apis.images = g.capability(WorkspaceImagesKey);
@@ -154,19 +154,21 @@ function consumer() {
   };
   const unit: ExtensionUnit = {
     manifest: defineManifest({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "ws-consumer",
       version: "0.1.0",
-      layer: "L3",
-      kind: "plugin",
       entry: "./src/index.ts",
-      requires: [
-        { id: "workspace.files", range: "^1.0.0" },
-        { id: "workspace.shell", range: "^1.0.0" },
-        { id: "workspace.images", range: "^1.0.0" },
+      plugins: [
+        {
+          layer: "L3",
+          hooks: [],
+          requires: [
+            { id: "workspace.files", range: "^1.0.0" },
+            { id: "workspace.shell", range: "^1.0.0" },
+            { id: "workspace.images", range: "^1.0.0" },
+          ],
+        },
       ],
-      points: [],
-      usesDrive: false,
     }),
     entry,
     loadIndex: 1,
@@ -180,17 +182,16 @@ describe("manifest", () => {
     const checked = validateManifest(workspaceManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     expect(checked.manifest?.name).toBe(WORKSPACE_EXTENSION_NAME);
-    expect(checked.manifest?.layer).toBe("L2");
-    expect(checked.manifest?.kind).toBe("plugin");
-    expect(checked.manifest?.provides).toEqual([
+    expect(checked.manifest?.plugins[0]?.layer).toBe("L2");
+    expect(checked.manifest?.plugins[0]?.provides).toEqual([
       { id: "workspace.files", version: "1.0.0" },
       { id: "workspace.shell", version: "1.0.0" },
       { id: "workspace.images", version: "1.0.0" },
     ]);
     const unit = workspacePlugin({ settings: { layers: () => [] } });
     expect(unit.builtin).toBe(true);
-    expect(unit.manifest.points).toEqual([]);
-    expect(unit.manifest.usesDrive).toBe(false);
+    expect(unit.manifest.plugins[0]?.hooks).toEqual([]);
+    expect(unit.manifest.plugins[0]?.drives).toBeUndefined();
   });
 });
 
@@ -302,7 +303,7 @@ describe("plugin", () => {
     const { installed, unregistered } = await boot({ refuse: "workspace.shell" });
     expect(installed.setups[0]).toMatchObject({
       status: "failed",
-      failure: { kind: "threw", code: "scope_setup_failed" },
+      failure: { kind: "threw", code: "registration_setup_failed" },
     });
     expect(unregistered).toEqual(["workspace.files"]);
   });

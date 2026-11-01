@@ -10,23 +10,30 @@ export const WORK_EXTENSION_NAME = "cap-work";
  */
 export function workManifest(): ExtensionManifest {
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: WORK_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Work management",
     description: "Task list, plans and goals that survive across turns (L2).",
     defaultEnabled: true,
-    layer: "L2",
-    kind: "plugin",
     entry: "./src/index.ts",
-    provides: [
-      { id: WorkTasks.id, version: WorkTasks.version },
-      { id: WorkPlans.id, version: WorkPlans.version },
-      { id: WorkGoals.id, version: WorkGoals.version },
-      { id: WorkReports.id, version: WorkReports.version },
+    plugins: [
+      {
+        layer: "L2",
+        hooks: [
+          "input.agent.before",
+          "thread.start",
+          "boundary.step.after",
+          "boundary.settle.before",
+        ],
+        provides: [
+          { id: WorkTasks.id, version: WorkTasks.version },
+          { id: WorkPlans.id, version: WorkPlans.version },
+          { id: WorkGoals.id, version: WorkGoals.version },
+          { id: WorkReports.id, version: WorkReports.version },
+        ],
+      },
     ],
-    points: ["input.agent.before", "thread.start", "boundary.step.after", "boundary.settle.before"],
-    usesDrive: false,
     trust: { level: "builtin" },
   });
 }

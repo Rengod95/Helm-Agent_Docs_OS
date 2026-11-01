@@ -409,8 +409,8 @@ export interface McpService extends McpPort {
 - `registerServer(owner, name, config)`: 확장이 `hostOf(g).registerMcpServer(name, config)`로 부르면 X가 이 메서드를 부른다(`X.primitives.spec` §4.8). 규칙은 다음과 같다.
   - `name`은 서버 id이고 `MCP_SERVER_ID_PATTERN`을 따른다. `config`(`McpServerResourceDef`)는 `McpServerDefSchema`로 검사한다. 어긋나면 `CapabilityError("invalid_input")`을 던진다.
   - 같은 id가 설정(`l2.mcp.servers`)이나 `.mcp.json`에 있으면 `CapabilityError("invalid_input")`으로 거부한다. 확장끼리의 같은 이름 판정은 X `ResourcePolicy`가 먼저 한다(`X.primitives.spec` §4.8 등록 규칙 3).
-  - 출처(`McpServerStatusSchema.source`)는 `ext:<확장 이름>`이다. 확장 이름은 `owner`(`ScopeId`)의 첫 마디다. 허용·차단(§4.4)과 `secret://` 규칙(§4.3)은 설정 출처 서버와 같다.
-  - 돌려준 `Unsubscribe`를 부르면(scope가 꺼질 때 X가 자동으로 부른다) 다음 단계 경계에서 연결을 닫고 그 서버의 동적 도구를 해제한다.
+  - 출처(`McpServerStatusSchema.source`)는 `ext:<확장 이름>`이다. 확장 이름은 `owner`(`RegistrationId`)의 첫 마디다. 허용·차단(§4.4)과 `secret://` 규칙(§4.3)은 설정 출처 서버와 같다.
+  - 돌려준 `Unsubscribe`를 부르면(Registration이 꺼질 때 X가 자동으로 부른다) 다음 단계 경계에서 연결을 닫고 그 서버의 동적 도구를 해제한다.
 - `connect`, `reconnect`, `disable`, `callTool`은 `replay`를 생략해 `"unsafe"`다. `callTool`은 서버 쪽 효과를 알 수 없으므로 `unsafe`로 둔다.
 - 정적 도구 3개는 모두 읽기다 [제안]. 서버를 켜고 끄는 일은 사용자 명령과 설정 화면만 하고 모델 도구로 두지 않는다. 모델의 서버 도구 호출은 §3.3 동적 도구로 한다.
 - 서버 도구를 모델이 부르는 경로는 동적 도구이고, 그룹 코드가 부르는 경로는 `callTool` 메서드다. 두 경로 모두 §4.6 MRTR 규칙을 따른다.
@@ -760,7 +760,7 @@ sequenceDiagram
 8. annotations `readOnlyHint: true`인 서버 도구는 `trustAnnotations: true`일 때만 `hints.readOnly: true`로 광고된다.
 9. 서버 텍스트 결과는 모두 `<untrusted_mcp_content server="<id>">`로 감싸여 모델에 간다.
 10. `cap-mcp`의 `src/` 중 `adapter.ts`와 `src/transport/`, `src/testing/`, `src/oauth/` 밖에서 `@modelcontextprotocol/*` import가 0건이다(`eng.context-map.design` CM-03). `testing/`는 스텁 서버가 SDK의 인메모리 전송을 쓰기 때문에 허용 목록에 있다.
-11. 가짜 확장이 `hostOf(g).registerMcpServer("stub", def)`로 스텁 서버를 등록하면 `listServers`에 `source: "ext:<확장 이름>"`으로 나타나고, 그 확장의 scope를 끄면 다음 단계 경계에서 서버와 동적 도구가 모두 사라진다. 설정의 서버 id와 같은 이름이면 `invalid_input`으로 거부된다.
+11. 가짜 확장이 `hostOf(g).registerMcpServer("stub", def)`로 스텁 서버를 등록하면 `listServers`에 `source: "ext:<확장 이름>"`으로 나타나고, 그 확장의 Registration을 끄면 다음 단계 경계에서 서버와 동적 도구가 모두 사라진다. 설정의 서버 id와 같은 이름이면 `invalid_input`으로 거부된다.
 
 ## 10. 미결 사항
 

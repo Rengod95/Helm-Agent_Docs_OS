@@ -9,22 +9,24 @@ export const WORKSPACE_EXTENSION_NAME = "cap-workspace";
  */
 export function workspaceManifest(): ExtensionManifest {
   return defineManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: WORKSPACE_EXTENSION_NAME,
     version: "0.1.0",
     displayName: "Workspace tools",
     description: "File, shell and (later) image tools over the execution environment (L2).",
     defaultEnabled: true,
-    layer: "L2",
-    kind: "plugin",
     entry: "./src/index.ts",
-    provides: [
-      { id: WorkspaceFiles.id, version: WorkspaceFiles.version },
-      { id: WorkspaceShell.id, version: WorkspaceShell.version },
-      { id: WorkspaceImages.id, version: WorkspaceImages.version },
+    plugins: [
+      {
+        layer: "L2",
+        hooks: [],
+        provides: [
+          { id: WorkspaceFiles.id, version: WorkspaceFiles.version },
+          { id: WorkspaceShell.id, version: WorkspaceShell.version },
+          { id: WorkspaceImages.id, version: WorkspaceImages.version },
+        ],
+      },
     ],
-    points: [],
-    usesDrive: false,
     trust: { level: "builtin" },
   });
 }

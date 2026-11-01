@@ -25,7 +25,12 @@ import {
   type ApprovalService,
   type ToolService,
 } from "@fresnel/contracts/services";
-import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@fresnel/ext-host";
+import {
+  hostOf,
+  PrimitiveError,
+  type ExtensionUnit,
+  type RegistrationHostApi,
+} from "@fresnel/ext-host";
 import { registerWorkCommands } from "./commands.ts";
 import { createSettleGate } from "./goals/gate.ts";
 import { createGoals } from "./goals/service.ts";
@@ -70,7 +75,7 @@ export interface WorkPluginOptions {
 }
 
 /** 아직 제공되지 않은 포트는 undefined. 그 밖의 오류는 그대로 던진다 */
-function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
+function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | undefined {
   try {
     return host.port(key);
   } catch (caught) {
@@ -107,8 +112,8 @@ function toolRegistrations(): readonly ToolRegistration[] {
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
   const manifest = workManifest();
-  const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
-    scope(loaded.name, { defaultEnabled: true }, (g) => {
+  const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
+    register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const session = host.port(SessionPortKey);
       const reader = host.port(ScopedStorePortKey).scoped(WORK_PRODUCER);
