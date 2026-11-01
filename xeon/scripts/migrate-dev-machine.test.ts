@@ -120,6 +120,39 @@ test("apply moves directories, renames the DB family and sets the new marker", a
   expect(report.dbs[0]?.done).toBe(true);
 }, 60_000);
 
+test("apply moves stored settings.changed events from scope session to launch", async () => {
+  const { data } = seedLinux(OLD_APPLICATION_ID);
+  const seed = new Database(join(data, "xeon.db"));
+  seed.run(
+    "CREATE TABLE events (seq INTEGER PRIMARY KEY, kind TEXT NOT NULL, envelope TEXT NOT NULL)",
+  );
+  seed.run(
+    "CREATE TRIGGER events_no_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT, 'events are immutable'); END",
+  );
+  const rows = [
+    ["settings.changed", JSON.stringify({ payload: { key: "k", scope: "session", value: 1 } })],
+    ["settings.changed", JSON.stringify({ payload: { key: "k", scope: "user", value: 2 } })],
+    ["other.kind", JSON.stringify({ payload: { scope: "session" } })],
+  ] as const;
+  for (const [kind, envelope] of rows) {
+    seed.run("INSERT INTO events (kind, envelope) VALUES (?, ?)", [kind, envelope]);
+  }
+  seed.close();
+
+  await migrate(input({ apply: true }));
+
+  const db = new Database(join(home, ".local", "share", "fresnel", "fresnel.db"));
+  const scopes = db
+    .query<{ scope: string }, []>(
+      "SELECT json_extract(envelope, '$.payload.scope') AS scope FROM events ORDER BY seq",
+    )
+    .all()
+    .map((row) => row.scope);
+  expect(scopes).toEqual(["launch", "user", "session"]);
+  expect(() => db.run("UPDATE events SET kind = 'x'")).toThrow("events are immutable");
+  db.close();
+}, 60_000);
+
 test("an unknown marker is reported and the DB is left alone", async () => {
   const { data } = seedLinux(777);
   const report = await migrate(input({ apply: true }));

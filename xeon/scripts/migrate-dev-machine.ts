@@ -232,6 +232,26 @@ function dbFamily(dir: string): string[] {
   );
 }
 
+/**
+ * 저장된 settings.changed의 범위 이름 session을 launch로 옮긴다. 앱은 옛 이름을 읽지 않으므로, 옮기지 않으면
+ * 대화별 설정(권한 모드 등)이 조용히 무시된다. events는 불변 트리거가 지키므로 한 트랜잭션 안에서 잠깐 내린다.
+ */
+function rewriteSettingScope(db: Database): void {
+  const trigger = db
+    .query<{ sql: string }, []>(
+      "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'events_no_update'",
+    )
+    .get();
+  if (trigger === null) return;
+  db.transaction(() => {
+    db.run("DROP TRIGGER events_no_update");
+    db.run(
+      "UPDATE events SET envelope = json_set(envelope, '$.payload.scope', 'launch') WHERE kind = 'settings.changed' AND json_extract(envelope, '$.payload.scope') = 'session'",
+    );
+    db.run(trigger.sql);
+  })();
+}
+
 function migrateDb(dataDir: string, apply: boolean): DbReport[] {
   const names = dbFamily(dataDir);
   if (!names.includes(`${OLD_NAME}.db`)) return [];
@@ -268,14 +288,17 @@ function migrateDb(dataDir: string, apply: boolean): DbReport[] {
       join(dataDir, name.replace(`${OLD_NAME}.db`, `${NEW_NAME}.db`)),
     );
   }
-  if (action === "rename_and_set") {
-    const db = new Database(newPath);
-    try {
+  const db = new Database(newPath);
+  try {
+    if (action === "rename_and_set") {
       db.run("PRAGMA wal_checkpoint(TRUNCATE)");
       db.run(`PRAGMA application_id = ${String(NEW_APPLICATION_ID)}`);
-    } finally {
-      db.close();
     }
+    rewriteSettingScope(db);
+  } finally {
+    db.close();
+  }
+  if (action === "rename_and_set") {
     const after = readMarker(newPath);
     if (after !== NEW_APPLICATION_ID) {
       return [
