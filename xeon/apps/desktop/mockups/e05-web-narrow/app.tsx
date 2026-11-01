@@ -305,8 +305,8 @@ function RemoteWorkbench({ s, go, view }: { s: S; go: (a: A) => void; view: "ext
                   actions={[{ label: L2("권한 안내 복사", "Copy permission note"), primary: true }]}
                 >
                   {L2(
-                    `${extName("review")} 켜기를 build-box가 거부했어요 · 권한 없음(ext.manage). build-box의 Xeon 앱 › 연결 › 웹 접속에서 이 토큰에 "확장 관리"를 더하면 돼요.`,
-                    `build-box refused to turn on ${extName("review")} · missing permission (ext.manage). Add "Manage extensions" to this token in the Xeon app on build-box › Connection › Web access.`,
+                    `${extName("review")} 켜기를 build-box가 거부했어요 · 권한 없음(ext.manage). build-box의 ${T.productName} 앱 › 연결 › 웹 접속에서 이 토큰에 "확장 관리"를 더하면 돼요.`,
+                    `build-box refused to turn on ${extName("review")} · missing permission (ext.manage). Add "Manage extensions" to this token in the ${T.productName} app on build-box › Connection › Web access.`,
                   )}
                 </Alert>
               ) : (
@@ -463,8 +463,8 @@ export function App({ state }: { state: StateId }) {
       <BrowserFrame
         title={
           s.conn === "live" || s.conn === "reconnecting" || s.conn === "offline"
-            ? `${L("캐시 무효화 조사")} · Xeon`
-            : L2("Xeon · 연결", "Xeon · Connect")
+            ? `${L("캐시 무효화 조사")} · ${T.productName}`
+            : L2(`${T.productName} · 연결`, `${T.productName} · Connect`)
         }
       >
         {s.conn === "live" || s.conn === "reconnecting" || s.conn === "offline" ? (

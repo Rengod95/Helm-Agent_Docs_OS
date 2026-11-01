@@ -178,6 +178,7 @@ const T_KO = {
   readOnly: "읽기 전용", // 좁은 폭 작업대(계획에 없음 8)
   remoteTarget: "원격 대상", // 원격 엔진에 붙은 작업대(N-60)
   copyPath: "경로 복사", // 원격에서 "폴더 열기"·"파일 열기" 대신
+  productName: "Xeon", // 제품 이름(아직 정하는 중). 화면에 보이는 제품 이름은 모두 이 키로, 바꿀 때 여기 하나만
 } as const;
 
 export type TermKey = keyof typeof T_KO;

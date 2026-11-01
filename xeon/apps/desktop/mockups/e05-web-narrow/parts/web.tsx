@@ -61,7 +61,7 @@ export function WebLogin({
         }}
       >
         <div className="grid gap-1">
-          <h1 className="m-0 font-ui text-title-2 text-text-primary">Xeon</h1>
+          <h1 className="m-0 font-ui text-title-2 text-text-primary">{T.productName}</h1>
           <p className="m-0 text-ui-sm text-text-secondary">
             {L2(
               "다른 컴퓨터에서 도는 서비스에 붙어요. 대화와 승인은 그 컴퓨터에 남아요.",
@@ -87,8 +87,8 @@ export function WebLogin({
         <Field
           label={T.accessToken}
           hint={L2(
-            "토큰은 서비스를 켠 컴퓨터의 Xeon 앱 › 연결 › 웹 접속에서 만들어요.",
-            "Create a token in the Xeon app on the service computer › Connection › Web access.",
+            `토큰은 서비스를 켠 컴퓨터의 ${T.productName} 앱 › 연결 › 웹 접속에서 만들어요.`,
+            `Create a token in the ${T.productName} app on the service computer › Connection › Web access.`,
           )}
           error={
             s.conn === "authFailed"

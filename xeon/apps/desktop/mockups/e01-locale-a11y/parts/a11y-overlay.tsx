@@ -2,7 +2,7 @@
 // - regionOf/targetOf: 초점 정류장 다섯(§4.8, Y14)을 셸 DOM에서 찾는다(caustic data-slot과 셸 랜드마크).
 // - FocusOverlay: 정류장마다 점선 틀 + 번호표. 지금 정류장만 진한 번호표(accent 면 하나).
 // - LiveCaptions: 화면 낭독기가 읽는 문장을 개발용 자막으로(오른쪽 아래). 실제 읽기는 LiveRegion(sr-only, polite/alert)이 한다.
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { L, L2, STAGE_ID, T, type Area } from "../../_shell";
 import type { Cap } from "../flow";
@@ -20,7 +20,7 @@ export function stopLabel(n: number, area: Area): string {
     case 3:
       return L2("가운데", "Center");
     case 4:
-      return L2("오른쪽 well", "Right well");
+      return L2("오른쪽 패널", "Right panel");
     default:
       return L2("상태 표시줄", "Status bar");
   }
@@ -108,8 +108,14 @@ export function simFocus(el: HTMLElement | null): void {
   el.setAttribute("data-sim-focus", "");
 }
 
-/** 패널 머리의 작은 칸(영역 바꾸기, 보기 기준 칸)은 번호표가 글을 가리지 않게 틀 위에, 나머지는 틀 안 오른쪽 위에. */
-const outside = (n: number, area: Area) => n === 1 || (n === 2 && area === "workbench");
+/** 번호표 자리: 컨트롤을 가리지 않게 틀 왼쪽 위 바깥(점선 모서리 위). 예외 둘:
+ *  대화 영역 2(패널 본문은 스크롤 상자라 바깥이 잘림)는 틀 안 왼쪽 아래 빈 곳,
+ *  5(상태 표시줄은 overflow hidden)는 띠 바로 위 바깥(부모 열에 붙임). */
+function badgePlace(n: number, area: Area): string {
+  if (n === 2 && area === "chat") return "bottom-0.5 start-1";
+  if (n === 5) return "bottom-7 start-2";
+  return "-top-2.5 start-1";
+}
 
 /** 정류장마다 그 요소 안에 틀을 포털로 넣는다(측정 없이 CSS로 따라가게: 창 크기가 바뀌어도 맞음). 목업 전용. */
 export function FocusOverlay({ stop, area }: { stop: number; area: Area }) {
@@ -134,24 +140,36 @@ export function FocusOverlay({ stop, area }: { stop: number; area: Area }) {
         if (el === null) return null;
         const n = i + 1;
         const on = n === stop;
-        return createPortal(
-          <div
-            key={n}
+        const badge = (
+          <span
+            key={`b-${n}`}
             aria-hidden
-            data-focus-stop={n}
-            className={`pointer-events-none absolute inset-0 z-40 rounded-lg border border-dashed ${on ? "border-accent-graphic" : "border-border-strong"}`}
+            className={`pointer-events-none absolute z-40 ${badgePlace(n, area)} inline-flex h-4.5 items-center gap-1 rounded-full px-1.5 text-ui-xs font-semibold whitespace-nowrap shadow-1 ${
+              on ? "bg-accent-solid text-accent-on" : "bg-surface-raised text-text-secondary"
+            }`}
           >
-            <span
-              className={`absolute ${outside(n, area) ? "-top-2.5 start-1" : "top-0.5 end-0.5"} inline-flex h-4.5 items-center gap-1 rounded-full px-1.5 text-ui-xs font-semibold whitespace-nowrap shadow-1 ${
-                on ? "bg-accent-solid text-accent-on" : "bg-surface-raised text-text-secondary"
-              }`}
-            >
-              <span className="tabular-nums">{n}</span>
-              <span className="font-normal">{stopLabel(n, area)}</span>
-            </span>
-          </div>,
-          el,
-          `stop-${n}`,
+            <span className="tabular-nums">{n}</span>
+            <span className="font-normal">{stopLabel(n, area)}</span>
+          </span>
+        );
+        const host = n === 5 ? el.parentElement : null;
+        if (host !== null && getComputedStyle(host).position === "static")
+          host.style.position = "relative";
+        return (
+          <Fragment key={n}>
+            {createPortal(
+              <div
+                aria-hidden
+                data-focus-stop={n}
+                className={`pointer-events-none absolute inset-0 z-40 rounded-lg border border-dashed ${on ? "border-accent-graphic" : "border-border-strong"}`}
+              >
+                {host === null && badge}
+              </div>,
+              el,
+              `stop-${n}`,
+            )}
+            {host !== null && createPortal(badge, host, `badge-${n}`)}
+          </Fragment>
         );
       })}
     </>

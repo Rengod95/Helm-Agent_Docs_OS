@@ -164,4 +164,5 @@ export const T_EN: { readonly [K in TermKey]: string } = {
   readOnly: "Read-only",
   remoteTarget: "Remote target",
   copyPath: "Copy path",
+  productName: "Xeon",
 };

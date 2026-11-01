@@ -3,7 +3,7 @@
 import { AgentRequest, Badge, ListDescription, ListDescriptionRow } from "@caustic/react";
 import type { KeyboardEvent } from "react";
 import type { ToolApproval } from "../fixtures";
-import { L } from "../i18n";
+import { L, L2 } from "../i18n";
 
 /** 승인 카드 상태. once는 allowed가 되었다가 1초 뒤 gone. */
 export type Decision = "pending" | "allowed" | "always" | "denied" | "answered" | "gone";
@@ -101,7 +101,7 @@ export function ToolApprovalCard({
           // 카드가 이미 좌우 여백을 준다: 행의 좌우 여백은 0(DP-07). 이름표 열은 가장 긴 이름표(timeoutSeconds) 폭만큼.
           className="rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
         >
-          <ListDescriptionRow term={L("명령")} mono>
+          <ListDescriptionRow term={L2("명령", "Command")} mono>
             <span className="whitespace-pre-wrap break-all">{approval.command}</span>
           </ListDescriptionRow>
           <ListDescriptionRow term={L("위험도")}>
@@ -110,7 +110,7 @@ export function ToolApprovalCard({
             </Badge>
           </ListDescriptionRow>
           {approval.secrets.map((sec) => (
-            <ListDescriptionRow key={sec.env} term={L("비밀")} mono>
+            <ListDescriptionRow key={sec.env} term={L2("비밀", "Secret")} mono>
               <span className="break-all">
                 {sec.env} ← {sec.ref}
               </span>

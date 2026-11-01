@@ -100,7 +100,10 @@ export const UI_EN: Readonly<Record<string, string>> = {
   "이 대화에서 항상 허용": "Always allowed in this conversation",
   허용했어요: "Allowed",
   위험도: "Risk",
-  비밀: "Secret",
+  // "비밀"은 설정 탭 이름(Secrets). 승인 카드 이름표(Secret)는 L2로 따로 준다(원문 키 충돌, NOTES E-4).
+  비밀: "Secrets",
+  실패: "Failed",
+  켜짐: "On",
 
   // 공용 고정 데이터(사용자 내용 흉내)
   "캐시 무효화 조사": "Investigate cache invalidation",

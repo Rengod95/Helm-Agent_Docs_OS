@@ -4,7 +4,7 @@
 // 머리 앞 아이콘 자리에 회전하는 chevron을 둔다. 색과 모서리는 caustic 토큰과 ToolCall의 것을 그대로 따른다.
 import { ToolCall } from "@caustic/react";
 import { useId, useState } from "react";
-import { ChevronRight } from "../../_shell";
+import { ChevronRight, L, L2 } from "../../_shell";
 
 export interface ToolRowProps {
   name: string;
@@ -18,7 +18,11 @@ export function ToolRow({ name, detail, status, duration, output }: ToolRowProps
   const [open, setOpen] = useState(status === "failed");
   const bodyId = useId();
   const body =
-    output ?? `${detail} 읽기를 마쳤어요 (${duration}). 셸 목업이라 결과 본문은 비어 있어요.`;
+    output ??
+    L2(
+      `${detail} 읽기를 마쳤어요 (${duration}). 셸 목업이라 결과 본문은 비어 있어요.`,
+      `Finished reading ${detail} (${duration}). The result body is empty in the shell mockup.`,
+    );
   return (
     <div className="relative">
       <ToolCall
@@ -26,7 +30,7 @@ export function ToolRow({ name, detail, status, duration, output }: ToolRowProps
         detail={detail}
         status={status}
         duration={duration}
-        failedLabel={`실패 · ${duration}`}
+        failedLabel={`${L("실패")} · ${duration}`}
         icon={
           <ChevronRight
             className={
@@ -47,7 +51,10 @@ export function ToolRow({ name, detail, status, duration, output }: ToolRowProps
         type="button"
         aria-expanded={open}
         aria-controls={open ? bodyId : undefined}
-        aria-label={`도구 ${name} ${detail}, ${status === "failed" ? "실패" : "완료"}. 결과 ${open ? "접기" : "펼치기"}`}
+        aria-label={L2(
+          `도구 ${name} ${detail}, ${status === "failed" ? "실패" : "완료"}. 결과 ${open ? "접기" : "펼치기"}`,
+          `Tool ${name} ${detail}, ${status === "failed" ? "failed" : "done"}. ${open ? "Collapse" : "Expand"} result`,
+        )}
         onClick={() => setOpen(!open)}
         className="absolute inset-x-0 top-0 h-10 cursor-pointer rounded-xl outline-none hover:bg-fill-hover focus-visible:focus-ring"
       />

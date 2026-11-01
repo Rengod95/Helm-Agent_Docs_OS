@@ -227,7 +227,7 @@ function ApproveScreen({ s, go }: { s: S; go: (a: A) => void }) {
           aria-label={L2("승인 상세", "Approval details")}
           className="rounded-none [--cs-size-list-term:6.5rem] [&_[data-slot=list-description-row]]:px-0"
         >
-          <ListDescriptionRow term={L("명령")} mono>
+          <ListDescriptionRow term={L2("명령", "Command")} mono>
             <span className="break-all whitespace-pre-wrap">{a.command}</span>
           </ListDescriptionRow>
           <ListDescriptionRow term={L("위험도")}>
@@ -235,7 +235,7 @@ function ApproveScreen({ s, go }: { s: S; go: (a: A) => void }) {
               {a.risk}
             </Badge>
           </ListDescriptionRow>
-          <ListDescriptionRow term={L("비밀")} mono>
+          <ListDescriptionRow term={L2("비밀", "Secret")} mono>
             <span className="break-all">GH_TOKEN ← secret://github-token</span>
           </ListDescriptionRow>
           <ListDescriptionRow term="cwd" mono>
