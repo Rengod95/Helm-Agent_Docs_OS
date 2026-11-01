@@ -18,7 +18,7 @@ import {
 // `McpProcessPort`를 자기 포트로 선언해 두었고, 이 파일이 L0 platform-process의 구현(`createMcpProcessPort`)을 그 모양으로 건넨다.
 // 샌드박스를 요청한 서버는 `fresnel.sandbox`의 `wrapArgv` 명령줄로 뜨고, 격리할 수 없으면 `sandbox_unavailable`로 막힌다(P-15).
 // 종료 순서(stdin 닫기 → 유예 → SIGTERM → 유예 → SIGKILL)와 `BackgroundRegistry` 등록은 platform-process가 한다.
-// 비밀 env(`secret://`)를 쓰는 서버의 기동 승인 증거는 cap-mcp가 spawn 요청에 싣는다(`mcp-start.ts`, M3-05). 조립 루트 코드(DR-14 예외 2).
+// 시크릿 env(`secret://`)를 쓰는 서버의 기동 승인 증거는 cap-mcp가 spawn 요청에 싣는다(`mcp-start.ts`, M3-05). 조립 루트 코드(DR-14 예외 2).
 
 /** stdio 서버가 끝난 뒤 표준 출력이 닫히기를 기다리는 시간(ms) */
 const MCP_DRAIN_MS = 1000;

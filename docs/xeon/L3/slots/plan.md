@@ -17,7 +17,7 @@ slots는 코드 없는 도메인이다(`_routing/routes.yaml` layout L3). 그래
 
 ## 1. 목표와 마일스톤 배치
 
-목표: 사용자가 제2의 의도 그룹과 정책 플러그인을 코어 수정 없이 만들 수 있게 템플릿, 판정 기준, 정식 예를 갖춘다(`L3.slots.spec` §1).
+목표: 사용자가 제2의 플러그인 그룹과 정책 플러그인을 코어 수정 없이 만들 수 있게 템플릿, 판정 기준, 정식 예를 갖춘다(`L3.slots.spec` §1).
 
 | 마일스톤 | slots 작업 | 근거 |
 |---|---|---|
@@ -25,7 +25,7 @@ slots는 코드 없는 도메인이다(`_routing/routes.yaml` layout L3). 그래
 | M1 | 없음. 단 `group-sdk` 테스트 그룹(on·post·drive)이 drive 템플릿의 원형이 된다 | `L3.group-sdk.plan` M1 |
 | M2 | 없음. 단 Helm(`group-helm`)이 drive 그룹 골격의 실사용 예가 된다 | `product.scope.spec` §4.3 M2 |
 | M3 | 없음. 학습 그룹(`group-learning`)이 drive 없는 그룹(관찰·정책) 골격의 실사용 예가 된다 | `product.scope.spec` §4.3 M3 |
-| 2차 | S-01~S-08 전부 | [결정] `_research/layer-plan-v2.json` L3-d 세 항목(제2의 의도 그룹, 정책 플러그인, 그룹 템플릿) 모두 단계 "2차" |
+| 2차 | S-01~S-08 전부 | [결정] `_research/layer-plan-v2.json` L3-d 세 항목(제2의 플러그인 그룹, 정책 플러그인, 그룹 템플릿) 모두 단계 "2차" |
 
 - group-sdk 쪽 작업 id: S-01은 L3.group-sdk.plan G-24, S-02는 G-25, S-03은 G-26, S-04는 G-27과 짝이다. 파일은 group-sdk 패키지에 생기므로 group-sdk 계획에도 같은 항목을 둔다.
 - [제안] 템플릿 추출은 M3 학습 그룹 완료 뒤에 한다. M1 테스트 그룹, M2 Helm, M3 학습 그룹 세 구현에서 공통으로 남은 골격만 템플릿으로 옮긴다. 먼저 템플릿을 만들면 아직 검증되지 않은 `defineGroup` 사용 방식이 템플릿에 고정된다.

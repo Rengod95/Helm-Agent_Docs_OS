@@ -1,7 +1,7 @@
 import { Type, type Static, type TLiteral, type TObject, type TString, type TUnion } from "typebox";
 import { ThreadIdSchema, TurnIdSchema } from "../../conversation/index.ts";
 
-// guard 지점 셋(adr.0017 §3.6). 모델 요청 직전과 도구 호출 직전은 같은 대상의 일반 지점 페이로드
+// guard 훅 셋(adr.0017 §3.6). 모델 요청 직전과 도구 호출 직전은 같은 대상의 일반 지점 페이로드
 // (BeforeProviderRequestPayload, ToolCallPayload)를 그대로 쓴다. 출력 직전만 새 페이로드가 필요하다.
 
 const TEXT_MAX = 4_000_000;

@@ -19,8 +19,8 @@ import {
 import { ThreadIdSchema } from "../../conversation/index.ts";
 import { IsoTimeSchema } from "./notifications.ts";
 
-// 상태줄·첨부·알림 wire(M3-REQ-16, M3-20). 값 모양은 L2.dialog의 능력 정의(`dialog.status.list`, `dialog.attachments.add`,
-// `dialog.notify.list`)와 같다. wire는 thread 문맥을 더해 호스트가 능력 호출로 옮긴다(`L2.dialog.spec` §4.2.6).
+// 상태줄·첨부·알림 wire(M3-REQ-16, M3-20). 값 모양은 L2.dialog의 기능 정의(`dialog.status.list`, `dialog.attachments.add`,
+// `dialog.notify.list`)와 같다. wire는 thread 문맥을 더해 호스트가 기능 호출로 옮긴다(`L2.dialog.spec` §4.2.6).
 
 /** 상태줄 스냅숏. 재접속 뒤 다시 그리는 데 쓴다. 변경은 휘발 이벤트 `dialog.status`로 온다 */
 export const StatusListParamsSchema: TObject<{ threadId: typeof ThreadIdSchema }> = Type.Object(

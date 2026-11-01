@@ -40,14 +40,14 @@ const REPORT: BinaryCheckReport = {
       name: "sops",
       need: "required",
       usedBy: "secrets 기본 provider",
-      impact: "비밀을 읽고 쓸 수 없다",
+      impact: "시크릿을 읽고 쓸 수 없다",
       status: { kind: "missing", hint: "brew install sops" },
     },
     {
       name: "age",
       need: "required",
       usedBy: "secrets 키 생성",
-      impact: "새 비밀 키를 만들 수 없다",
+      impact: "새 시크릿 키를 만들 수 없다",
       status: { kind: "too_old", found: "1.0.0", required: "1.1.0" },
     },
     {
@@ -102,14 +102,14 @@ test("includeBinaries carries the check report with every status variant and no 
         name: "sops",
         need: "required",
         usedBy: "secrets 기본 provider",
-        impact: "비밀을 읽고 쓸 수 없다",
+        impact: "시크릿을 읽고 쓸 수 없다",
         status: { kind: "missing", hint: "brew install sops" },
       },
       {
         name: "age",
         need: "required",
         usedBy: "secrets 키 생성",
-        impact: "새 비밀 키를 만들 수 없다",
+        impact: "새 시크릿 키를 만들 수 없다",
         status: { kind: "too_old", found: "1.0.0", required: "1.1.0" },
       },
       {

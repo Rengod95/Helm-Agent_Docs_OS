@@ -50,13 +50,13 @@ export interface PipelineDeps {
   readonly retry: () => RetrySettings;
   readonly providerSetting: (providerId: string) => ProviderSetting | undefined;
   readonly usage: UsageRecorder;
-  /** 비밀 값 마스킹. 오류 문자열에 적용한다 */
+  /** 시크릿 값 마스킹. 오류 문자열에 적용한다 */
   readonly mask: (text: string) => string;
   readonly dispatcher: ProviderDispatcher | null;
   readonly failures: FailureLog;
   /** provider 등록부가 덧붙인 기본 주소·헤더 */
   readonly overlay: (providerId: string) => ProviderOverlay | undefined;
-  /** 헤더 값의 비밀 참조 해석 */
+  /** 헤더 값의 시크릿 참조 해석 */
   readonly resolver: SecretResolver;
   readonly logger?: Logger;
   /** 계정 회전 설정. null이면 회전하지 않는다(기본 꺼짐, L1.models.spec §4.8) */
@@ -192,12 +192,12 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
     return Object.fromEntries(values);
   }
 
-  /** 이 호출이 쓰는 지점 발화기. thread에 속하지 않는 내부 호출은 지점을 발화하지 않는다 */
+  /** 이 호출이 쓰는 훅 발화기. thread에 속하지 않는 내부 호출은 지점을 발화하지 않는다 */
   function dispatcherOf(spec: CallSpec): ProviderDispatcher | null {
     return spec.internal?.skipHooks === true ? null : deps.dispatcher;
   }
 
-  /** 비밀 참조에서 푼 헤더 이름(소문자). before_provider_headers에서 값을 가린다 */
+  /** 시크릿 참조에서 푼 헤더 이름(소문자). before_provider_headers에서 값을 가린다 */
   function secretHeaderNames(provider: string): ReadonlySet<string> {
     const declared = deps.overlay(provider)?.headers ?? {};
     return new Set(
@@ -248,7 +248,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
       ...(spec.options?.temperature === undefined ? {} : { temperature: spec.options.temperature }),
       ...(spec.options?.toolChoice === undefined ? {} : { toolChoice: spec.options.toolChoice }),
       ...(spec.apiKey === undefined ? {} : { apiKey: spec.apiKey }),
-      // 6: 헤더 확정 뒤. 등록부의 비밀 참조 헤더를 풀고, before_provider_headers에는 인증 값을 가린 사본을 보낸다
+      // 6: 헤더 확정 뒤. 등록부의 시크릿 참조 헤더를 풀고, before_provider_headers에는 인증 값을 가린 사본을 보낸다
       ...(hasOverlayHeaders || hasHeadersHook
         ? {
             transformHeaders: async (

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { type EngineProcess, HELLO, type Message } from "./harness.ts";
 
 // 모델 없이 돌릴 수 있는 요청열(G4-03). 컴파일 바이너리에는 테이프 모델을 넣을 길이 없어서(모델은 조립 때 정해진다) turn은 돌리지 않고,
-// wire의 나머지 표면(hello, 구독, thread, 설정, 비밀 목록, 승인 목록, 신뢰, 명령 목록)이 같은 바이트열을 내는지를 본다.
+// wire의 나머지 표면(hello, 구독, thread, 설정, 시크릿 목록, 승인 목록, 신뢰, 명령 목록)이 같은 바이트열을 내는지를 본다.
 // turn의 CLI 대 사이드카 같은 메시지열은 in-process와 stdio(같은 프로세스 쌍)를 견주는 apps/host의 transport-parity 시험이 맡는다.
 
 const DESKTOP = join(import.meta.dir, "..", "..");

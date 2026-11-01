@@ -12,7 +12,7 @@ import { rejection } from "./support/rejection.ts";
 import { fixedClock, manualScheduler } from "./support/time.ts";
 import { buildWorld, fakeFiles, startWorld } from "./support/world.ts";
 
-// M3-05, M3-REQ-97, L2.mcp.spec §4.3. 비밀 env stdio 서버는 기동 승인 뒤에만 뜨고, 승인 증거와 평문 env, 샌드박스 요청이 spawn에 실린다.
+// M3-05, M3-REQ-97, L2.mcp.spec §4.3. 시크릿 env stdio 서버는 기동 승인 뒤에만 뜨고, 승인 증거와 평문 env, 샌드박스 요청이 spawn에 실린다.
 
 const EVIDENCE = {
   approvalId: "evt_a",
@@ -91,7 +91,7 @@ describe("secret env start approval", () => {
       { server: "gh", state: "blocked", blockedReason: "approval_required" },
     ]);
     expect(spawned()).toEqual([]);
-    // 정의는 평문 env와 비밀 참조로 나뉘어 게이트에 간다. 값은 없다
+    // 정의는 평문 env와 시크릿 참조로 나뉘어 게이트에 간다. 값은 없다
     expect(gate.checks[0]?.definition).toEqual({
       server: "gh",
       source: "settings:user",

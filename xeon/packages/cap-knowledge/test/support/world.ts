@@ -89,7 +89,7 @@ export interface WorldOptions {
   readonly fs?: MemoryFs;
   /** 조립 루트가 선언하는 신뢰 증거 출처(`KnowledgePluginOptions.trustedEvidenceSources`와 같다) */
   readonly trustedEvidenceSources?: readonly string[];
-  /** 저장소 능력 판정을 덮어쓴다(FTS5 없음, 낡은 SQLite 시험) */
+  /** 저장소 기능 판정을 덮어쓴다(FTS5 없음, 낡은 SQLite 시험) */
   readonly capabilities?: { readonly fts5: boolean; readonly sqliteVersion: string };
   /** blob 유예 기간(ms). GC 시험이 시계를 조금 넘겨 지운다 */
   readonly blobGraceMs?: number;

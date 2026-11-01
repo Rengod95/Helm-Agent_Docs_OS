@@ -10,7 +10,7 @@ binds: []
 
 # 결정 기록(ADR) 색인
 
-이 디렉터리는 Xeon에서 되돌리기 어려운 선택과 그 근거를 담는다. 사용자 결정의 원문 메모는 `_research/decisions-log.md`에 있고, 승인된 실행 계획은 `_research/foundation-plan.md`에 있다. ADR은 그중 여러 층에 걸쳐 오래 유지되는 결정을 골라 맥락, 결과, 대안과 함께 고정한다.
+이 디렉터리는 Fresnel에서 되돌리기 어려운 선택과 그 근거를 담는다. 사용자 결정의 원문 메모는 `_research/decisions-log.md`에 있고, 승인된 실행 계획은 `_research/foundation-plan.md`에 있다. ADR은 그중 여러 층에 걸쳐 오래 유지되는 결정을 골라 맥락, 결과, 대안과 함께 고정한다.
 
 ## 1. ADR 규칙
 
@@ -78,7 +78,7 @@ binds: []
 | 0003 | pi durable 부분 포크 | [ADR-0003-pi-durable-fork.md](ADR-0003-pi-durable-fork.md) | accepted(§3.2 마지막 항목은 0009가 대체) | env·tools·images·truncate만 Chord 제거 포크(`CancelScope`로 치환), 커널 L1-a·b·f·g는 직접 구현하고 durable spec을 인용 | decisions-log 3차, foundation-plan §1 표 1번 | L0(exec), L1(tasks, loop, persistence, agents), L2(workspace) |
 | 0004 | 세션 저장 C안 | [ADR-0004-session-storage.md](ADR-0004-session-storage.md) | accepted | SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블(`x_<id>_`), 단계 경계 FULL, 도구별 효과 커밋(E1~E3), 세션 id OS 잠금 + `sys_leases.epoch` 펜싱 | decisions-log 2026-10-21 2차 | F(records), L0(store), L1(persistence) |
 | 0005 | 무료 웹 검색 기본값 | [ADR-0005-web-search-default.md](ADR-0005-web-search-default.md) | accepted | 모델용은 provider 내장 검색. 서비스 API `web.search`는 소형 모델 한 턴 래퍼(약 $0.011/회). SearXNG는 사용자가 주소를 설정했을 때만 래퍼보다 먼저 쓴다(자동 감지 없음, 2026-10-25 개정). 무료 크레딧 API(Exa 월 2,500건, Brave 약 1,000건)는 첫 실행 설정에서 플러그인으로 권장. 키 없는 DuckDuckGo 스크레이핑 제외 | decisions-log 3차, foundation-plan §1 표 6번 | L2(web), L4(첫 실행 설정) |
-| 0006 | 프로세스 구조와 서비스 모드 | [ADR-0006-process-service-mode.md](ADR-0006-process-service-mode.md) | accepted | 엔진 라이브러리 + 단일 호스트 계약 + 전송 교체(CLI in-process, 데스크톱 자식 엔진 stdio). 공유 서비스 모드 `xeon service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차. 원격 사용은 1차(SSH 터널·사설망), 내장 원격 전송은 2차. 세션 단위 OS 잠금 + `sys_leases` 소유 표시 | decisions-log 계획 v2·3차, foundation-plan §1 표 2번 | L0(process), L4(cli, host-service, desktop) |
+| 0006 | 프로세스 구조와 서비스 모드 | [ADR-0006-process-service-mode.md](ADR-0006-process-service-mode.md) | accepted | 엔진 라이브러리 + 단일 호스트 계약 + 전송 교체(CLI in-process, 데스크톱 자식 엔진 stdio). 공유 서비스 모드 `fresnel service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차. 원격 사용은 1차(SSH 터널·사설망), 내장 원격 전송은 2차. 세션 단위 OS 잠금 + `sys_leases` 소유 표시 | decisions-log 계획 v2·3차, foundation-plan §1 표 2번 | L0(process), L4(cli, host-service, desktop) |
 | 0007 | 확장 지점 4연산 | [ADR-0007-ext-points.md](ADR-0007-ext-points.md) | accepted(fold·지점 종류·이름·실패 정책·pi 대응은 0017이 대체) | on(fold tap/first/chain), post, drive(배타 임대, 기본 상한은 pi 방식의 예외), scope 4연산. 켜기·끄기와 임대 교대는 단계 경계. 지점 종류 5개와 지점 목록은 [제안](미합의) | decisions-log 2026-10-21 계획 v2 | F(extensions), X, L1, L3 |
 | 0008 | 데스크톱 Tauri 2 + 엔진 사이드카 | [ADR-0008-desktop-tauri.md](ADR-0008-desktop-tauri.md) | accepted | Tauri 2.12(시스템 WebView, 3플랫폼) + `bun build --compile` 엔진 사이드카 + stdio JSON-RPC | decisions-log 3차, foundation-plan §1 표 3번·§2 데스크톱 행 | L4(desktop, settings-ui) |
 | 0009 | 자체 에이전트 루프 | [ADR-0009-own-agent-loop.md](ADR-0009-own-agent-loop.md) | accepted | pi-agent-core 의존 제거. 1.3.0(MIT) 루프를 core-loop로 포크해 자체 루프로 재설계(진입점 `runTurn(entry)`, 단계 경계 커밋·확장 지점을 루프 코드가 직접 호출, 도구 단계는 core-tools 단계 계약). F가 `AgentMessage`·`AgentEvent`·`AgentTool`을 직접 정의. pi-ai는 유지 | 사용자 지시 2026-10-22, decisions-log 2026-10-21 첫 결정 | F(conversation), L1(loop, tools, models) |
@@ -86,7 +86,7 @@ binds: []
 | 0011 | MCP stdio 서버 비샌드박스 실행 | [ADR-0011-mcp-stdio-unsandboxed.md](ADR-0011-mcp-stdio-unsandboxed.md) | accepted | M2는 stdio 서버를 사용자 권한으로 실행. 프로젝트 정의는 프로젝트 신뢰 뒤에만 읽음. 비밀 env 서버는 M3. 샌드박스는 bwrap·Seatbelt 시험 뒤 M3에 다시 정함 | review.m2-plan §8 D6, §9 D-c | L0(process), L2(mcp) |
 | 0012 | 실행 속도를 앱 크기보다 우선 | [ADR-0012-speed-over-size.md](ADR-0012-speed-over-size.md) | accepted | 시작·종료·응답 속도를 크기보다 먼저 봄. 사이드카 `--minify --bytecode`, 크기 상한 500 MiB는 회귀 검사용. 예산은 `eng.performance.guide` | 사용자 결정 2026-10-24 | L4(cli, desktop, host-service) |
 | 0013 | `post.when = next`와 `aside` | [ADR-0013-post-next-aside.md](ADR-0013-post-next-aside.md) | accepted | `next`는 붙기만 하고 turn을 열지 않음. `aside`는 L1·CLI 사용자 입력 전용. F `PostWhen` 변경 없음 | review.m2-plan §8 D7 | F(extensions), L1(tasks) |
-| 0014 | 단일 `xeon` 엔진 바이너리 | [ADR-0014-single-xeon-binary.md](ADR-0014-single-xeon-binary.md) | accepted | CLI와 데스크톱 사이드카가 같은 `xeon` 바이너리(`host --stdio`). 이름은 제품 이름 결정 때 한 번에 바꿈 | ADR-0001 §4.1, DESK.3 | L4(cli, desktop, host-service) |
+| 0014 | 단일 `fresnel` 엔진 바이너리 | [ADR-0014-single-fresnel-binary.md](ADR-0014-single-fresnel-binary.md) | accepted | CLI와 데스크톱 사이드카가 같은 `fresnel` 바이너리(`host --stdio`). 이름은 제품 이름 결정 때 한 번에 바꿈 | ADR-0001 §4.1, DESK.3 | L4(cli, desktop, host-service) |
 | 0015 | 재실행되는 확장 코드의 효과 목록 | [ADR-0015-replay-effects.md](ADR-0015-replay-effects.md) | accepted | C안(선언형 허용). `g.delegate`·`loop.spawn`은 코어가 멱등 보장. 능력 메서드는 F 정의 `idempotent: true` + `requestId`만 허용, 읽기(`readOnly`, [제안] 이름)는 drive에서 허용. 선언 없는 쓰기는 요청 레코드 + 워커. 시험은 재생 2회·효과 1회 | 사용자 결정 2026-10-25(M3-03, G1-06) | F(capabilities, extensions), X(primitives), L1(loop, agents), L2(전 능력), L3(group-sdk, helm, learning) |
 | 0016 | 다국어와 로케일 | [ADR-0016-i18n.md](ADR-0016-i18n.md) | accepted | FormatJS(`@formatjs/intl` + `react-intl`), ICU MessageFormat, ko·en 카탈로그 JSON + 생성 TS id, `ui.locale` auto(OS)·en 폴백, Intl 날짜·숫자, UTC 저장, 오류는 kind+인자로 보내고 클라이언트가 문장화, 모델용 도구 설명은 영어 | 사용자 결정 2026-10-26(D-M3-27) | F(wire-settings), L4(cli, desktop, settings-ui, client) |
 | 0017 | 확장 지점 개정 | [ADR-0017-ext-points-revision.md](ADR-0017-ext-points-revision.md) | accepted | 0007 부분 대체. 자체 이름 규칙(pi snake_case 정본 삭제), 4번째 fold `collect`, 지점 선언이 정하는 실패 정책 표, 수명주기 지점, fail-closed 가드레일 지점 셋(내장 검사 없음), pi 어댑터 없음 | 사용자 결정 2026-10-26(D-M3-10, 11, 30 행 1) | F(extensions), X, L1(loop), L3 |
@@ -117,7 +117,7 @@ flowchart LR
   A11["0011 MCP stdio<br/>비샌드박스"]
   A12["0012 속도 우선"]
   A13["0013 next·aside"]
-  A14["0014 단일 xeon"]
+  A14["0014 단일 fresnel"]
   A15["0015 효과 목록<br/>선언형 허용"]
   A16["0016 다국어<br/>FormatJS"]
   A17["0017 확장 지점 개정"]

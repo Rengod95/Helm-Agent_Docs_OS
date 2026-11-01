@@ -46,7 +46,7 @@ export interface RawCall {
   readonly signal: AbortSignal;
   readonly onUpdate: AgentToolUpdateCallback;
   /**
-   * 호출이 비밀(`secretEnv`)을 쓸 때 사람이 승인한 증거(L1.tools.spec §4.12, U-19). 쓰지 않거나 증거를 얻지 못했으면 null.
+   * 호출이 시크릿(`secretEnv`)을 쓸 때 사람이 승인한 증거(L1.tools.spec §4.12, U-19). 쓰지 않거나 증거를 얻지 못했으면 null.
    * 도구 구현에는 F `CallContext.approval`로 전달한다(`entries.ts` callContext)
    */
   readonly secretApproval: ApprovalEvidence | null;
@@ -59,7 +59,7 @@ export interface RawCall {
 
 export interface RawOutcome {
   readonly result: RawToolResult;
-  /** 실행 중 중단되어 효과가 어디까지 났는지 모르는 결과(능력 오류 aborted 등) */
+  /** 실행 중 중단되어 효과가 어디까지 났는지 모르는 결과(기능 오류 aborted 등) */
   readonly interrupted: boolean;
 }
 
@@ -122,9 +122,9 @@ export interface CallState {
   readonly userShell: boolean;
   /** 실행 중 쥔 `tools` 풀 슬롯. 실행이 끝나면 놓는다. 자식을 기다리는 도구는 이 슬롯을 내려놓고 기다린다(`suspendWhile`) */
   slot: Slot | undefined;
-  /** 이 호출의 정책 승인을 사용자가 방금 허용했으면 그 approvalId. 비밀 사용 증거로 쓴다(U-19) */
+  /** 이 호출의 정책 승인을 사용자가 방금 허용했으면 그 approvalId. 시크릿 사용 증거로 쓴다(U-19) */
   userApprovalId: string | undefined;
-  /** 비밀 사용 승인 증거. 비밀을 쓰지 않거나 재실행이면 null */
+  /** 시크릿 사용 승인 증거. 시크릿을 쓰지 않거나 재실행이면 null */
   secretApproval: ApprovalEvidence | null;
   /** 재실행 시도 번호. 처음 실행은 0 */
   attempt: number;

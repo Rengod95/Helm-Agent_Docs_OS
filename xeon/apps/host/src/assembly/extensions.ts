@@ -168,7 +168,7 @@ function kindLookup(kind: string): CatalogEntry | undefined {
   return undefined;
 }
 
-/** 도구를 올리는 L2 능력. core-tools가 호출 때 공급자를 찾으려면 이 능력이 매니페스트에 선언되어 있어야 한다 */
+/** 도구를 올리는 L2 기능. core-tools가 호출 때 공급자를 찾으려면 이 기능이 매니페스트에 선언되어 있어야 한다 */
 const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   WebSearch,
   WebFetch,
@@ -185,7 +185,7 @@ const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
 ];
 
 /**
- * MCP 서버 도구가 쓰면 안 되는 기계 이름: 도구를 올리는 L2 능력의 도구와 코어 내장 도구. 같은 이름을 낸 서버 도구는 `name_conflict`로 숨는다
+ * MCP 서버 도구가 쓰면 안 되는 기계 이름: 도구를 올리는 L2 기능의 도구와 코어 내장 도구. 같은 이름을 낸 서버 도구는 `name_conflict`로 숨는다
  */
 function reservedToolNames(): ReadonlySet<string> {
   const names = new Set<string>(["read", "ls", "bash", "read_tool_output", "tool_search", "agent"]);
@@ -271,7 +271,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.ids,
           settings: toolsSource(settings),
           logger: deps.logger.child({ component: "core-tools" }),
-          // 이 능력들의 도구를 부르려면 core-tools가 매니페스트 optional로 선언해야 한다(ScopeHostApi.capability)
+          // 이 기능들의 도구를 부르려면 core-tools가 매니페스트 optional로 선언해야 한다(ScopeHostApi.capability)
           capabilities: L2_TOOL_CAPABILITIES,
           loadIndex,
         }),

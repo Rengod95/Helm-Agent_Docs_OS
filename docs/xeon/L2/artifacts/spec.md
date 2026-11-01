@@ -10,17 +10,17 @@ binds: [xeon/packages/cap-artifacts/**]
 
 # L2 산출물과 세션 (artifacts)
 
-패키지: `@fresnel/cap-artifacts`. 서비스 이름: `fresnel.artifacts`(`ArtifactService`). 능력 ID: `artifacts.registry`, `artifacts.reviews`, `artifacts.sessions`. 이벤트 접두사: `artifact.`(단수). 테이블 접두사: `cap_artifacts_`.
+패키지: `@fresnel/cap-artifacts`. 서비스 이름: `fresnel.artifacts`(`ArtifactService`). 기능 ID: `artifacts.registry`, `artifacts.reviews`, `artifacts.sessions`. 이벤트 접두사: `artifact.`(단수). 테이블 접두사: `cap_artifacts_`.
 
-이벤트 접두사는 단수 `artifact.`이고, 서비스 이름·능력 ID·테이블 접두사·설정 키는 복수 `artifacts`다. 이 차이는 의도한 것이다(`eng.context-map.design` §4.1 artifacts 행, §5.1 `artifact.` 행). 코드에서 `artifacts.registered` 같은 복수형 kind를 쓰면 접두사 소유 검사(`EventCatalog.owns`)가 거부한다.
+이벤트 접두사는 단수 `artifact.`이고, 서비스 이름·기능 ID·테이블 접두사·설정 키는 복수 `artifacts`다. 이 차이는 의도한 것이다(`eng.context-map.design` §4.1 artifacts 행, §5.1 `artifact.` 행). 코드에서 `artifacts.registered` 같은 복수형 kind를 쓰면 접두사 소유 검사(`EventCatalog.owns`)가 거부한다.
 
 ## 1. 목적과 범위
 
-계획 v2 하위 층 L2-g "산출물과 세션"(`_research/layer-plan-v2.json` L2-g)을 구현하는 능력 셋을 정한다. 대화 중에 생긴 결과물을 찾을 수 있게 등록하고, 파일 변경을 hunk 단위로 승인·거절하며, 세션 자체의 제목·라벨·이전·내보내기를 다룬다.
+계획 v2 하위 층 L2-g "산출물과 세션"(`_research/layer-plan-v2.json` L2-g)을 구현하는 기능 셋을 정한다. 대화 중에 생긴 결과물을 찾을 수 있게 등록하고, 파일 변경을 hunk 단위로 승인·거절하며, 세션 자체의 제목·라벨·이전·내보내기를 다룬다.
 
 정하는 것:
 
-- 능력 정의 3개의 TypeBox 완성형(§3.2~§3.4). 정의 파일은 F `xeon/packages/contracts/src/capabilities/defs/artifacts.ts`에 둔다(`F.capabilities.spec` §3.9 정의 위치 [제안]).
+- 기능 정의 3개의 TypeBox 완성형(§3.2~§3.4). 정의 파일은 F `xeon/packages/contracts/src/capabilities/defs/artifacts.ts`에 둔다(`F.capabilities.spec` §3.9 정의 위치 [제안]).
 - 산출물 레지스트리: 종류(kind), blob 참조, 버전, 출처 세션·턴, 미리보기 메타(§4.1).
 - 리뷰와 diff 승인: hunk 분할, hunk 단위 승인·거절, 줄 코멘트, 코멘트를 에이전트 입력으로 되돌리는 규칙(§4.2).
 - 세션 제목·라벨 메타와 메타 검색(§4.3). 자동 제목 생성의 트리거와 모델 용도.
@@ -31,7 +31,7 @@ binds: [xeon/packages/cap-artifacts/**]
 다루지 않는 것:
 
 - 미리보기 렌더링(표 그리기, Markdown 렌더, 이미지 표시, diff 화면): L4(`L4.desktop.spec`, `L4.cli.spec`). 이 층은 kind와 메타만 소유한다.
-- 챕터와 목차(C5): 헤딩 이벤트에서 파생하는 L4 기능이다(`_research/l2e.md` §3.3 C5 "API: 없음(헤딩 이벤트에서 파생)"). 이 능력은 C5용 API와 이벤트를 두지 않는다. L4가 `item.recorded`의 어시스턴트 텍스트에서 헤딩을 뽑는다. 산출물 본문(문서 kind)의 목차가 필요하면 L4가 `get`으로 본문을 받아 같은 방법으로 만든다.
+- 챕터와 목차(C5): 헤딩 이벤트에서 파생하는 L4 기능이다(`_research/l2e.md` §3.3 C5 "API: 없음(헤딩 이벤트에서 파생)"). 이 기능은 C5용 API와 이벤트를 두지 않는다. L4가 `item.recorded`의 어시스턴트 텍스트에서 헤딩을 뽑는다. 산출물 본문(문서 kind)의 목차가 필요하면 L4가 `get`으로 본문을 받아 같은 방법으로 만든다.
 - 되감기와 체크포인트(B3): `L1.persistence.spec` 소유다(`_research/l2e.md` §2 B3 "소유는 L1-f"). 이 층은 리뷰의 근거로 체크포인트 파일 상태를 읽고, 거절 적용 후보 하나로 L1 복원 호출을 쓸 수 있을 뿐이다(§4.2.5).
 - JSONL 내보내기: `L1.persistence.spec` 소유다(`_research/l2e.md` §2 C2 "세션 JSONL 내보내기 (L1-f)").
 - 세션 제목 이벤트: `L1.persistence.spec` 소유다(`eng.context-map.design` §4.4 4행). 이 층은 `fresnel.session`의 제목 변경 API를 부르기만 한다(§4.3).
@@ -40,7 +40,7 @@ binds: [xeon/packages/cap-artifacts/**]
 
 ### 1.1 소유 경계표
 
-[제안] 이 능력은 L0·L1·L4와 겹치는 부분이 많다. 아래 표로 경계를 고정한다. 표에 없는 동작을 더할 때는 이 표를 먼저 고친다.
+[제안] 이 기능은 L0·L1·L4와 겹치는 부분이 많다. 아래 표로 경계를 고정한다. 표에 없는 동작을 더할 때는 이 표를 먼저 고친다.
 
 | 이 층이 소유하는 것 | 호출만 하는 것 (소유자) | 다른 층이 소유하는 것 |
 |---|---|---|
@@ -816,7 +816,7 @@ export const ArtifactsSessionsKey = serviceKey(ArtifactsSessions);
 - `session_rename`과 `handoff` 도구는 `toContent`가 `structuredContent`를 채우지 않으므로 `outputSchema`를 두지 않는다(`F.capabilities.spec` §4.2 부속 규칙 3).
 - `LabelSchema`의 `\p{L}` 정규식은 `u` 플래그가 필요하다. [가정] TypeBox `Value.Check`와 L1.tools의 JSON Schema 검사기가 `pattern`을 `u` 플래그로 해석한다. 아니면 F `toJsonSchema` 규칙에 맞춰 ASCII와 한글 범위(`[0-9A-Za-z가-힣]`)로 좁힌다. 확인은 plan A1의 테스트로 한다.
 
-- [결정: M3b B2-ART] handoff·export와 handoff 도구는 2차라 정의에 넣지 않는다. 능력 설명에서도 두 항목을 뺀다.
+- [결정: M3b B2-ART] handoff·export와 handoff 도구는 2차라 정의에 넣지 않는다. 기능 설명에서도 두 항목을 뺀다.
 - [결정: M3b B2-ART] `setMeta`는 `idempotent: true`, `list`·`search`는 `readOnly: true`로 선언한다(§3.2와 같은 규칙).
 - [결정: M3b B2-ART] `LabelSchema`의 `\p{L}`은 그대로 둔다. TypeBox `Compile`과 `Value.Check`가 `u` 플래그로 해석함을 artifacts-defs.test가 확인한다. 한글과 확장 라틴 문자는 통과하고 첫 글자 `_`는 거부된다. 라벨은 `session_rename` 파라미터에 없어 모델 도구 스키마에 나오지 않는다. 그래서 ASCII·한글 대체 패턴은 쓰지 않는다. 위 [가정]의 TypeBox 부분은 이 테스트가 확인한다. L1.tools 쪽 확인은 남는다.
 
@@ -1043,7 +1043,7 @@ CREATE TABLE cap_artifacts_labels (
 
 ### 3.8 요구하는 하위 서비스 [가정]
 
-아래 시그니처는 이 능력이 쓰는 부분만 적은 것이다. 정본은 괄호 안 문서이고, 이름이 다르면 그 문서를 따른다.
+아래 시그니처는 이 기능이 쓰는 부분만 적은 것이다. 정본은 괄호 안 문서이고, 이름이 다르면 그 문서를 따른다.
 
 ```ts
 // L1.persistence.spec (fresnel.session) [가정]
@@ -1073,7 +1073,7 @@ interface TaskPostApi {
   post(threadId: ThreadId, item: PostItem, options: PostOptions): Promise<PostReceipt>;
 }
 // L1.tools.spec (fresnel.approvals) [가정]. 포트 모양은 L2.readme §5.7의 L2 공통 ApprovalsPort다.
-// 이 능력은 request(kind "review", answerSchema = ReviewAnswerSchema, blocking: false)와 get만 쓴다.
+// 이 기능은 request(kind "review", answerSchema = ReviewAnswerSchema, blocking: false)와 get만 쓴다.
 type ApprovalsPortUsedByArtifacts = Pick<ApprovalsPort, "request" | "get">;
 // L1.models.spec (fresnel.models) [가정]
 interface ModelPurposeApi {
@@ -1088,7 +1088,7 @@ interface ModelPurposeApi {
 
 ```ts
 // defs/artifacts.ts (끝부분)
-/** artifacts 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** artifacts 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface ArtifactService {
   readonly registry: CapabilityApi<typeof ArtifactsRegistry>;
   readonly reviews: CapabilityApi<typeof ArtifactsReviews>;
@@ -1099,8 +1099,8 @@ export const ArtifactServiceName = "fresnel.artifacts" as const;
 export const ARTIFACTS_CAPABILITIES = [ArtifactsRegistry, ArtifactsReviews, ArtifactsSessions] as const;
 ```
 
-- 인터페이스 이름 `ArtifactService`는 `eng.context-map.design` §5.3 표를 따른다. 서비스 이름과 능력 ID는 복수 `artifacts`다.
-- consumer는 `ScopeApi.capability(ArtifactsRegistryKey)`처럼 능력 단위 키로 API를 얻는다(`L2.readme` §5.6). 묶음 타입은 `cap-artifacts`의 `service.ts`가 조립할 때 쓴다.
+- 인터페이스 이름 `ArtifactService`는 `eng.context-map.design` §5.3 표를 따른다. 서비스 이름과 기능 ID는 복수 `artifacts`다.
+- consumer는 `ScopeApi.capability(ArtifactsRegistryKey)`처럼 기능 단위 키로 API를 얻는다(`L2.readme` §5.6). 묶음 타입은 `cap-artifacts`의 `service.ts`가 조립할 때 쓴다.
 
 ## 4. 동작 규칙
 
@@ -1186,7 +1186,7 @@ await registry.register(
 | `checkpoint` | L1 체크포인트의 파일 상태와 현재 파일 | `checkpointFile`로 기준 내용을 얻고 현재 내용은 `fresnel.exec`로 읽어 diff를 계산한다 |
 | `patch` | 호출자가 준 통합 diff | 그대로 정규화한다 |
 
-- [가정] `L2.workspace.spec`은 `edit`·`write` 도구 결과 `details`에 `{ diff: string; path: string }`(통합 diff, 컨텍스트 3줄)을 싣는다. 이 계약이 바뀌면 이 능력의 수집기도 바뀐다(`L2.artifacts.plan` §7 위험 2). 이 의존을 줄이려고 F에 `WorkspaceDiffDetailsSchema`를 두는 안을 §10 미결 6에 둔다.
+- [가정] `L2.workspace.spec`은 `edit`·`write` 도구 결과 `details`에 `{ diff: string; path: string }`(통합 diff, 컨텍스트 3줄)을 싣는다. 이 계약이 바뀌면 이 기능의 수집기도 바뀐다(`L2.artifacts.plan` §7 위험 2). 이 의존을 줄이려고 F에 `WorkspaceDiffDetailsSchema`를 두는 안을 §10 미결 6에 둔다.
 - 도구 결과는 이벤트(`tool.settled`)에서 읽는다. `p_tool_calls`는 다른 컨텍스트 테이블이라 읽지 않는다(CM-02). 1차 구현은 `fresnel.session.readEvents`로 그 턴 구간을 읽는다.
 
 #### 4.2.2 정규화와 hunk ID
@@ -1279,7 +1279,7 @@ export const ReviewAnswerSchema = Type.Object({
 - 리뷰 전체: 테스트를 함께 고쳐 달라.
 ```
 
-- 본문은 모델 컨텍스트에 그대로 들어간다. 코드 원문은 넣지 않고 경로·hunk ID·줄 번호만 넣는다. 모델이 원문을 다시 보려면 파일을 읽는다 [제안]. 토큰을 아끼고, 사용자가 코멘트로 붙인 비밀이 아닌 한 새 비밀이 대화에 들어가지 않게 하려는 것이다.
+- 본문은 모델 컨텍스트에 그대로 들어간다. 코드 원문은 넣지 않고 경로·hunk ID·줄 번호만 넣는다. 모델이 원문을 다시 보려면 파일을 읽는다 [제안]. 토큰을 아끼고, 사용자가 코멘트로 붙인 시크릿이 아닌 한 새 시크릿이 대화에 들어가지 않게 하려는 것이다.
 
 #### 4.2.7 자동 리뷰 요청
 
@@ -1299,13 +1299,13 @@ export const ReviewAnswerSchema = Type.Object({
 - 새 파일을 만든 hunk, 이름 바꿈, 삭제, 이진 파일은 되돌리지 않고 `skipped`로 기록한다.
 - 설정은 `l2.artifacts.maxPerSession`, `maxContentBytes`, `reviews.deliverAs`, `tools.reviewRequest`, `tools.sessionRename` 다섯 키만 읽는다(`xeon/packages/cap-artifacts/src/settings.ts`). 전달 모드는 `reviews.deliverAs`를 따르고 기본은 `followUp`이다. `tools.reviewRequest`가 거짓이면 `review_request` 도구를 등록하지 않는다. 도구 등록은 설치 때 한 번 하므로 바꾼 값은 다음 설치부터 적용된다 [미결].
 - 재시작 때 해결됐으나 반영하지 못한 승인은 다시 처리하지 않는다 [미결].
-- 검토 승인에 `allow`로 답하면 L1.tools의 응답 검사(`validateResponse`, 허용 결정은 `answer`·`deny`뿐)가 `decision_not_allowed`로 거부한다. 응답이 해결로 기록되지 않으므로 이 능력은 `allow`를 받지 않는다 [결정: L1.tools.spec §3.6].
+- 검토 승인에 `allow`로 답하면 L1.tools의 응답 검사(`validateResponse`, 허용 결정은 `answer`·`deny`뿐)가 `decision_not_allowed`로 거부한다. 응답이 해결로 기록되지 않으므로 이 기능은 `allow`를 받지 않는다 [결정: L1.tools.spec §3.6].
 
 ### 4.3 세션 제목과 메타
 
 #### 4.3.1 제목
 
-- `setMeta`의 `title`은 `fresnel.session.retitle({ threadId, title, source })`로만 기록한다. 이 능력은 제목 이벤트를 커밋하지 않는다. `source`는 서비스 경로면 `"user"`(L4 명령) 또는 호출 확장에 따라 `"user"`, 도구 경로(`session_rename`)면 `"model"`이다. 수용 기준 2가 확인한다.
+- `setMeta`의 `title`은 `fresnel.session.retitle({ threadId, title, source })`로만 기록한다. 이 기능은 제목 이벤트를 커밋하지 않는다. `source`는 서비스 경로면 `"user"`(L4 명령) 또는 호출 확장에 따라 `"user"`, 도구 경로(`session_rename`)면 `"model"`이다. 수용 기준 2가 확인한다.
 - `requestId`는 도구 경로면 `CallOptions.requestId`, 서비스 경로면 `retitle:<clientUlid>`(`eng.transactions.design` §4.8 표 마지막 행)다.
 - 투영은 L1의 제목 이벤트에서 `cap_artifacts_sessions.title`과 `title_source`를 복사한다.
 
@@ -1320,7 +1320,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 #### 4.3.3 라벨과 메타 검색
 
-- 라벨은 이 능력이 소유한다. `setMeta.labels`의 `set`·`add`·`remove`를 적용한 결과 전체를 `artifact.session_labeled { labels }`로 커밋한다. 라벨은 NFC로 정규화하고 앞뒤 공백을 지운다. 32개가 상한이다.
+- 라벨은 이 기능이 소유한다. `setMeta.labels`의 `set`·`add`·`remove`를 적용한 결과 전체를 `artifact.session_labeled { labels }`로 커밋한다. 라벨은 NFC로 정규화하고 앞뒤 공백을 지운다. 32개가 상한이다.
 - `search`는 제목과 라벨만 본다. 비교는 NFC 정규화 뒤 대소문자 무시 부분 문자열(SQLite `instr(lower(...))`, ASCII 범위만 소문자화)이다. FTS를 쓰지 않는다. 그래서 `knowledge.search`의 세션 본문 색인과 겹치지 않는다.
 - 경계 [제안]: 대화 내용으로 세션을 찾는 기능은 `knowledge.search`다. L4 세션 목록 화면이 두 결과를 함께 보여 줄 수 있지만, artifacts는 knowledge를 호출하지 않는다(`L2.readme` §6에 이 간선이 없다). knowledge도 라벨을 색인하지 않는다.
 
@@ -1335,7 +1335,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 - 라벨은 `artifact.session_labeled` 이벤트를 접어 얻는다. 같은 세션의 마지막 유효 이벤트가 이긴다. 투영 테이블은 두지 않는다. 목록과 찾기는 `artifact.registered`와 `artifact.session_labeled`를 한 번 읽어 모든 세션의 라벨과 산출물 수를 함께 접는다.
 - `setMeta`에서 `labels.set`은 `add`·`remove`와 함께 받지 않는다(`invalid_input`). 라벨이 바뀌지 않으면 이벤트를 쓰지 않는다. 같은 `requestId`의 재시도는 처음 요청의 변경을 지문으로 맞춰 새 이벤트를 만들지 않는다.
-- 제목은 `threads.setTitle(threadId, title, "retitle:<requestId>")`로만 쓴다. 이 능력은 `thread.updated`를 직접 커밋하지 않는다.
+- 제목은 `threads.setTitle(threadId, title, "retitle:<requestId>")`로만 쓴다. 이 기능은 `thread.updated`를 직접 커밋하지 않는다.
 - 제목 출처 [미결]: 제목 이벤트에 출처가 없어(§10 미결 2) 목록과 찾기는 제목이 있으면 `titleSource`를 `"user"`로 보인다. `setMeta` 응답만 호출 경로로 `"model"`(도구 경로)을 준다. 출처를 저장할 자리는 §10 미결 2에서 정한다.
 - 자동 제목(§4.3.2)과 보관 정리(`retentionDays`)는 구현하지 않는다 [미결]. 핸드오프와 내보내기는 2차다(§4.4, §4.5).
 - 목록은 닫히지 않은 세션만 본다(`threads.list`의 기본값). 정렬 시각이 같으면 `threadId` 오름차순이다. `threads.list`는 읽기가 실패하면 빈 쪽을 돌려주므로 목록도 비어 보일 수 있다 [미결].
@@ -1360,11 +1360,11 @@ export const ReviewAnswerSchema = Type.Object({
 
 #### 4.5.1 범위
 
-- 형식은 Markdown과 HTML이다. JSONL은 `L1.persistence.spec` 소유라 이 능력에 두지 않는다. HTML은 Markdown 렌더 결과를 단일 파일(인라인 CSS, 스크립트 없음)로 감싼 것이다 [제안].
+- 형식은 Markdown과 HTML이다. JSONL은 `L1.persistence.spec` 소유라 이 기능에 두지 않는다. HTML은 Markdown 렌더 결과를 단일 파일(인라인 CSS, 스크립트 없음)로 감싼 것이다 [제안].
 - 입력은 `fresnel.session.readEvents`로 읽은 현재 leaf까지의 경로다. 버려진 가지는 넣지 않는다.
 - 사용자·어시스턴트 메시지를 순서대로 쓰고, 도구 호출은 `toolOutput` 옵션에 따라 이름만(`none`), 이름과 첫 20줄(`summary`), 전체(`full`)로 쓴다. 기본은 `summary`다.
 - 산출물 본문은 부록으로 붙인다(`includeArtifacts`). 텍스트 kind만 본문을 넣고 나머지는 이름과 크기만 쓴다.
-- 비밀 값: 이벤트에는 이미 마스킹된 값만 있다(L1.tools 결과 경계화). 내보내기는 추가 마스킹을 하지 않는다 [가정: L0.secrets 마스킹이 기록 전에 적용됨].
+- 시크릿 값: 이벤트에는 이미 마스킹된 값만 있다(L1.tools 결과 경계화). 내보내기는 추가 마스킹을 하지 않는다 [가정: L0.secrets 마스킹이 기록 전에 적용됨].
 
 #### 4.5.2 결과 위치
 
@@ -1388,7 +1388,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 ### 4.6 공유 링크 (보류)
 
-호스팅 공유 링크는 이 능력의 범위에 넣지 않는다. 공유 링크는 내보낸 내용을 받아 두는 호스팅 서버가 있어야 하고 그 서버는 앱을 닫아도 살아 있어야 한다. 조사에서 opencode는 공유 기능을 중단하고 내보내기만 남겼고, Amp는 자사 클라우드에 의존한다(`_research/l2e.md` §1 7항). 상주 수준으로도 C2 공유 링크는 2이고 "개인 용도에서는 범위 밖 가능"으로 분류되었다(`_research/l2e.md` §6 C2 행). Fresnel은 첫 공개 릴리즈까지 운영 서버를 두지 않고, 3차 결정이 허용한 데몬도 사용자 기기의 `fresnel service`일 뿐 외부에서 접근하는 호스팅이 아니다(ADR-0006 §5 "원격 실행" 범위 밖). 그래서 1차·2차에는 Markdown·HTML 파일 내보내기로 공유를 대신하고, 공유 링크는 호스팅 방식(자가 호스팅 서버, 종단 간 암호화 릴레이)을 정할 때 다시 연다.
+호스팅 공유 링크는 이 기능의 범위에 넣지 않는다. 공유 링크는 내보낸 내용을 받아 두는 호스팅 서버가 있어야 하고 그 서버는 앱을 닫아도 살아 있어야 한다. 조사에서 opencode는 공유 기능을 중단하고 내보내기만 남겼고, Amp는 자사 클라우드에 의존한다(`_research/l2e.md` §1 7항). 상주 수준으로도 C2 공유 링크는 2이고 "개인 용도에서는 범위 밖 가능"으로 분류되었다(`_research/l2e.md` §6 C2 행). Fresnel은 첫 공개 릴리즈까지 운영 서버를 두지 않고, 3차 결정이 허용한 데몬도 사용자 기기의 `fresnel service`일 뿐 외부에서 접근하는 호스팅이 아니다(ADR-0006 §5 "원격 실행" 범위 밖). 그래서 1차·2차에는 Markdown·HTML 파일 내보내기로 공유를 대신하고, 공유 링크는 호스팅 방식(자가 호스팅 서버, 종단 간 암호화 릴레이)을 정할 때 다시 연다.
 
 ## 5. 실패와 경계 사례
 
@@ -1437,19 +1437,19 @@ export const ReviewAnswerSchema = Type.Object({
 
 - L4 노출 구분: "화면"은 설정 화면 항목(`ui`가 있음), "명령"은 CLI 명령(`/rename`, `/export`, `/handoff`, `fresnel session label`)이 같은 키나 메서드를 쓰는 경우, "파일만"은 `ui`를 두지 않는 키다(`F.wire-settings.spec` §3.8.2 `ui` 주석). 명령 이름은 `L4.cli.spec`이 정한다.
 - `autoTitle.purpose`가 존재하지 않는 용도 이름이면 L1.models가 기본 모델로 대신하는지 거부하는지는 `L1.models.spec`을 따른다. 거부하면 자동 제목을 건너뛴다.
-- 도구 노출 키(`l2.artifacts.tools.*`)는 L1.tools의 도구 켜기·끄기 규칙과 겹친다. [제안] 이 키는 능력의 기본 노출값이고, L1.tools의 사용자 규칙이 있으면 그것이 우선한다.
+- 도구 노출 키(`l2.artifacts.tools.*`)는 L1.tools의 도구 켜기·끄기 규칙과 겹친다. [제안] 이 키는 기능의 기본 노출값이고, L1.tools의 사용자 규칙이 있으면 그것이 우선한다.
 - M3b가 읽는 키는 `maxPerSession`, `maxContentBytes`, `reviews.deliverAs`, `tools.reviewRequest`, `tools.sessionRename` 다섯 개다. `autoTitle.*`, `retentionDays`, `reviews.autoRequest`, `reviews.fuzzLines`, `export.*`, `handoff.*`는 M3b에서 읽는 코드가 없어 선언하지 않는다 [미결].
 
-## 7. 확장 지점
+## 7. 훅
 
-| 지점 / 연산 | 이 능력의 쓰임 |
+| 지점 / 연산 | 이 기능의 쓰임 |
 |---|---|
 | `boundary.settle.after` (#26, tap) | 자동 제목(§4.3.2)과 자동 리뷰 요청(§4.2.7)의 트리거. 핸들러는 `dispatch: detached`로 등록하고 모델 호출은 커밋 밖에서 한다 |
 | `thread.info.after` (#31, tap) | 발사하지 않고 핸들러도 달지 않는다(§4.3.4) |
-| `tool.call.before` / `tool.result` (#13, #14) | 이 능력의 도구도 지난다. 이 능력이 핸들러를 달지는 않는다 |
+| `tool.call.before` / `tool.result` (#13, #14) | 이 기능의 도구도 지난다. 이 기능이 핸들러를 달지는 않는다 |
 | post | 직접 쓰지 않고 `fresnel.tasks.post`를 쓴다(코멘트 전달 §4.2.6, 핸드오프 입력 §4.4). 멱등 키 규칙은 `F.extensions.spec` §4.4와 같다 |
 | drive | 쓰지 않는다. L2는 drive를 쓰지 않는다(`L2.readme` §4.2) |
-| scope | 능력 켜기·끄기는 X의 scope 규칙을 따른다. 꺼지면 도구가 다음 단계 경계에서 빠지고 열린 리뷰는 그대로 남는다 |
+| scope | 기능 켜기·끄기는 X의 scope 규칙을 따른다. 꺼지면 도구가 다음 단계 경계에서 빠지고 열린 리뷰는 그대로 남는다 |
 
 - 그룹 사용 예: 탐구 그룹은 탐구 노트·비교표를 `register`로 등록하고, 출처를 `meta.sources`로 옮겨 적는다.
 

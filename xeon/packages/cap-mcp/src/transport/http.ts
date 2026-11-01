@@ -20,7 +20,7 @@ export interface HttpTransportInput {
   readonly fetch: FetchLike | undefined;
 }
 
-/** 비밀 해석 실패. 메시지에는 참조 이름만 있고 값은 없다 */
+/** 시크릿 해석 실패. 메시지에는 참조 이름만 있고 값은 없다 */
 class HeaderSecretFailure extends Error {
   readonly reason: "secret_missing" | "secret_denied" | "secret_unavailable";
 

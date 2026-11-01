@@ -63,7 +63,7 @@ export interface WorkPluginOptions {
   readonly artifacts?: PlanArtifactsPort;
   /**
    * `dialog.commands`의 동작 명령 등록부(선택 의존, spec §6.2·W-10). 있으면 `/plan`, `/tasks`를 등록한다.
-   * 능력 선택 의존이 확정되면(W-10) 매니페스트 `optional`로 받는다
+   * 기능 선택 의존이 확정되면(W-10) 매니페스트 `optional`로 받는다
    */
   readonly commands?: CommandActionRegistry;
   readonly loadIndex?: number;
@@ -79,7 +79,7 @@ function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefin
   }
 }
 
-/** 모델에 광고하는 도구 등록. 계획 도구는 WK.2·WK.3에서 같은 능력 묶음에 더한다 */
+/** 모델에 광고하는 도구 등록. 계획 도구는 WK.2·WK.3에서 같은 기능 묶음에 더한다 */
 function toolRegistrations(): readonly ToolRegistration[] {
   return [
     {

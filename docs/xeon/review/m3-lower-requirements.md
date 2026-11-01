@@ -96,7 +96,7 @@ binds: []
 | M3-REQ-20 | F | `F.conversation.spec` | pi 메시지 스키마를 TypeBox로 다시 정의해 깊은 검증을 한다 | A-12, M3-new-15, `product.scope.spec` §4.3 | 0 | M4:T-F |
 | M3-REQ-21 | F | `F.wire-settings.spec` `SettingUi` | `ui.label`·`ui.description`을 메시지 키(생성 TS id)로 바꾼다. ko·en 카탈로그(JSON)는 `xeon/packages/client`에 둔다 [제안]. wire 오류는 `kind`와 인자를 싣고 문장은 클라이언트가 만든다. 모델용 도구 설명은 영어 원문을 유지한다 [결정: adr.0016] | D-M3-27, U-87, WS-08, M3-39 | 0 ← M3-REQ-111 | M4:T-I18N |
 | M3-REQ-105 | F | `F.extensions.spec` §3.2, §3.4, §4.1 | 4번째 fold `collect`를 더한다 [결정: adr.0017]. 모든 핸들러의 반환값을 등록 순서대로 모으고, 예외를 낸 핸들러는 그 기여만 빼고 계속한다(fail-open). `Fold` 타입, `Handler` 시그니처, 지점 선언 표의 fold 배정을 고친다. 배정 후보는 `resources_discover`, `before_agent_start`의 message 수집, boundary 엔트리 추가다 [제안] | D-M3-10, A-21, A-23, `F.extensions.spec` §10 boundary fold 항목 | 0 ← M3-REQ-106 | M3a |
-| M3-REQ-106 | F | `F.extensions.spec` §3.4, §4.10, `xeon/packages/contracts/src/extensions/points/*`. 지점 이름을 인용하는 `L1.loop.spec`, `L1.tools.spec`, `X.primitives.spec`, L3 문서 | 지점 이름을 자체 규칙으로 정리한다. M3 F 첫 작업이다 [결정: adr.0017]. pi snake_case 정본 제약을 없애고, 규칙과 새 이름표(옛 pi 이름 대응 열 포함)를 `F.extensions.spec` §3.4에 둔다. 별칭은 두지 않는다 [제안]. 코드 `POINTS`와 문서 대조 스크립트(F.extensions.plan E9)를 함께 고친다 | D-M3-10, D-M3-11 c, `F.extensions.spec` §4.10 | 0 | M3a |
+| M3-REQ-106 | F | `F.extensions.spec` §3.4, §4.10, `xeon/packages/contracts/src/extensions/hooks/*`. 지점 이름을 인용하는 `L1.loop.spec`, `L1.tools.spec`, `X.primitives.spec`, L3 문서 | 지점 이름을 자체 규칙으로 정리한다. M3 F 첫 작업이다 [결정: adr.0017]. pi snake_case 정본 제약을 없애고, 규칙과 새 이름표(옛 pi 이름 대응 열 포함)를 `F.extensions.spec` §3.4에 둔다. 별칭은 두지 않는다 [제안]. 코드 `POINTS`와 문서 대조 스크립트(F.extensions.plan E9)를 함께 고친다 | D-M3-10, D-M3-11 c, `F.extensions.spec` §4.10 | 0 | M3a |
 | M3-REQ-107 | F | `F.extensions.spec` §3.4, §3.5 | 가드레일 지점 셋을 선언한다: 모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전 [결정: adr.0017]. fold는 `first`, 실패 정책은 fail-closed, 결정은 통과·차단만이고 값을 바꾸지 않는다 [제안]. 내장 검사는 두지 않는다 [결정: review.m3-design-inputs D-M3-30 행 1]. 이름은 M3-REQ-106의 규칙을 따른다 | D-M3-30 행 1, D-M3-10, G-IN-17 | 0 ← M3-REQ-106 | M3a |
 
 ### 3.2 X (확장 메커니즘)
@@ -441,7 +441,7 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | `resolveLaunchMode` managed 파일 위치 | 서비스·원격 | T-RT1 |
 | 프로젝트 확장의 공유 promise·AbortSignal | 서비스·원격 | T-RT1 |
 | 서비스에 붙은 상태의 `secret add/set/rotate/reveal`(서비스 쪽 입력 창이 필요: OS 대화상자·pinentry) | 서비스·원격 | T-RT1 |
-| TCP 토큰은 `XEON_REMOTE_TOKEN`만 | 서비스·원격 | T-RT1 |
+| TCP 토큰은 `FRESNEL_REMOTE_TOKEN`만 | 서비스·원격 | T-RT1 |
 | IPv6 리터럴 거부 | 서비스·원격 | T-RT1 |
 | 터널 SIGKILL 2000ms 시험 없음 | 서비스·원격 | T-RT1 |
 | 서비스 TCP 토큰 회전 명령 없음 | 서비스·원격 | T-RT1 |
@@ -554,7 +554,7 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | B5-DOC 미결: 설치 위치·PATH | 정리·문서 | T-CLN |
 | B5-DOC 미결: `l0.os.dirs.override` | 정리·문서 | T-CLN |
 | B5-DOC 미결: 로그 회전과 `OsDirs log` | 정리·문서 | T-RT1 |
-| B5-DOC 미결: `XEON_SAFE_MODE`·`/safe-mode`·`--disable-ext` | 정리·문서 | T-CLN |
+| B5-DOC 미결: `FRESNEL_SAFE_MODE`·`/safe-mode`·`--disable-ext` | 정리·문서 | T-CLN |
 | B5-DOC 미결: `engine.ts`가 `future_version`·`corrupt`·`migration_failed`를 구분하지 않음 | 정리·문서 | T-RT2 |
 | B5-DOC 미결: 읽기 전용 열기 명령 | 정리·문서 | T-RT2 |
 | B5-DOC 미결: 복원·`store.corrupt` 절차 | 정리·문서 | T-CLN |

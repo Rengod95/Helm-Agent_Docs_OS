@@ -10,7 +10,7 @@ binds: [xeon/**]
 
 # 안티패턴
 
-Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구속 문서다. 항목마다 증상, 문제가 되는 이유와 근거, 나쁜 예와 좋은 예, 감지 방법을 둔다. 같은 주제의 "기본 선택"은 `eng.best-practices.guide`(`../best-practices/guide.md`)에 있고, 짝이 되는 규칙은 항목마다 링크한다.
+Fresnel 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구속 문서다. 항목마다 증상, 문제가 되는 이유와 근거, 나쁜 예와 좋은 예, 감지 방법을 둔다. 같은 주제의 "기본 선택"은 `eng.best-practices.guide`(`../best-practices/guide.md`)에 있고, 짝이 되는 규칙은 항목마다 링크한다.
 
 ## 1. 적용 범위
 
@@ -22,7 +22,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   - 이벤트 종류, 내구·휘발 구분, 재생 규칙은 `eng.events.design`(`../events/design.md`)이, 원자성과 트랜잭션 경계는 `eng.transactions.design`(`../transactions/design.md`)이 정한다. AP-S의 저장 항목은 그 설계를 어기는 모양이다.
   - 도구 설정과 버전 고정은 `eng.toolchain.guide`(`../toolchain/guide.md`), 테스트 작성법은 `eng.testing.guide`(`../testing/guide.md`)가 정한다.
 - 규칙이 서로 다르게 읽히면 위 문서들의 규칙이 이 문서보다 앞선다. 이 문서의 예제는 그 규칙의 사례다.
-- 예제의 확장 지점 이름(`tool.call.before`, `tool.result`, `boundary.step.after` 등)은 `F.extensions.spec` §3.4 표의 이름이다. 지점 목록은 `F.extensions.spec`이 확정한다(ADR-0007 §3.3).
+- 예제의 훅 이름(`tool.call.before`, `tool.result`, `boundary.step.after` 등)은 `F.extensions.spec` §3.4 표의 이름이다. 지점 목록은 `F.extensions.spec`이 확정한다(ADR-0007 §3.3).
 - 예제의 `Result`, `ok`, `err`, 브랜드 타입, `Clock`, `IdFactory`, `RandomSource`는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06의 이름이다. 이벤트 kind와 envelope 필드(`DurableEventEnvelope`, `kind`, `version`, `payload`, `recordedAt`)는 `F.records.spec`과 `eng.events.design`, 세션 쓰기 경로(`SessionService.commit`, `CommitRequest`)는 `eng.transactions.design`과 `L1.persistence.spec` §3.2~§3.3, 서비스 이름은 `eng.context-map.design` 5.3절의 이름이다.
 
 ## 2. 안티패턴
@@ -49,7 +49,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 | [AP-C-05](#ap-c-05) | `Date.now`·`Math.random` 직접 호출 | BP-05 | 검사 스크립트 [제안] |
 | [AP-C-06](#ap-c-06) | 트랜잭션 안에서 외부 호출 await | BP-02, BP-08 | 리뷰 질문, 검사 스크립트 [제안] |
 | [AP-C-07](#ap-c-07) | 테스트 안 sleep | (eng.testing.guide) | 검사 스크립트 [제안] |
-| [AP-C-08](#ap-c-08) | 비밀 값 출력·로그 | BP-07 | gitleaks, 리뷰 질문 |
+| [AP-C-08](#ap-c-08) | 시크릿 값 출력·로그 | BP-07 | gitleaks, 리뷰 질문 |
 | [AP-C-09](#ap-c-09) | L0·L1에서 console이나 로거 직접 생성 | BP-12 | oxlint `no-console`, `no-restricted-imports` |
 | [AP-C-10](#ap-c-10) | 단언을 다른 모양으로 감춘 typed programming 안티패턴 | BP-01, BP-04 | oxlint `no-unnecessary-type-parameters`, `ban-ts-comment`, 리뷰 질문 |
 | [AP-C-11](#ap-c-11) | 예상 가능한 실패를 `Bug`로 던짐 | BP-04 | 검사 스크립트 [제안], 리뷰 질문 |
@@ -130,7 +130,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
 - 증상: `group-helm`이 `group-learning`을 import해 학습 결과를 읽거나, 학습 그룹의 내부 상태를 Cordis 서비스로 꺼내 Helm이 직접 바꾼다.
 - 왜 문제인가:
-  - [결정] 그룹끼리는 직접 참조하지 않는다(`architecture.layers.spec §3.1` 3행, `_research/layer-plan-v2-notes.md` "층 사이 규칙"). 그룹 사이 정보는 L2 능력의 레코드와 서비스(예: L2 knowledge 검색)로만 주고받는다(`eng.context-map.design` 3절 협력 규칙 7, CM-06).
+  - [결정] 그룹끼리는 직접 참조하지 않는다(`architecture.layers.spec §3.1` 3행, `_research/layer-plan-v2-notes.md` "층 사이 규칙"). 그룹 사이 정보는 L2 기능의 레코드와 서비스(예: L2 knowledge 검색)로만 주고받는다(`eng.context-map.design` 3절 협력 규칙 7, CM-06).
   - [결정: review.decisions-2 D-10] 그룹 사이 레코드의 스키마는 F에 두지 않는다. 그룹은 다른 그룹의 비공개 레코드(`grp.<다른 그룹>.*`)를 읽지 않는다.
   - 사용자가 그룹 간 강결합을 우려했다(`_research/decisions-log.md` 2026-10-21 사용자 의중). Helm과 학습 그룹은 따로 켜고 끌 수 있어야 하고, 학습 그룹은 Helm 없이도 동작해야 한다.
 - 나쁜 예:
@@ -160,7 +160,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 증상: 모든 상태 변경을 한 곳의 "커널 리듀서"로 모으고, 확장·도구·그룹이 상태를 바꾸려면 커널 명령을 만들어 보내도록 하는 구조를 다시 만든다. `docs/design/10-kernel.md`의 지시(`Directive`)나 커널 상태 검사를 옮겨 온다.
 - 왜 문제인가:
   - [결정] 사용자가 "커널만 상태 변경"에 이견을 밝혔고, 제품 방향을 대화형 런타임으로 바꿨다(`_research/decisions-log.md` 2026-10-19 이견 목록). 기존 `docs/design/01~26`은 커널·홈서버 데몬 전제라 그대로 따르지 않는다(`_research/README.md`).
-  - Xeon의 상태 변경 경로는 확장 지점 4연산과 서비스다(ADR-0007). 원자성은 단일 DB 트랜잭션이 보장한다(ADR-0004). 별도의 커널 관문을 두면 같은 보장을 두 번 구현하게 된다.
+  - Fresnel의 상태 변경 경로는 훅 4연산과 서비스다(ADR-0007). 원자성은 단일 DB 트랜잭션이 보장한다(ADR-0004). 별도의 커널 관문을 두면 같은 보장을 두 번 구현하게 된다.
 - 나쁜 예:
 
   ```ts
@@ -179,11 +179,11 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   ```ts
   // 그룹 상태는 그룹 scope의 상태 레코드가 소유하고, 커밋은 단일 DB 트랜잭션이 원자성을 맡는다.
   export const Helm = scope("helm", { state: doc<HelmState>() }, (g) => {
-    g.on("boundary.step.after", async (t, st) => { await g.commit(nextPhase(st, t)); }); // [가정] 지점 이름
+    g.on("boundary.step.after", async (t, st) => { await g.commit(nextPhase(st, t)); }); // [가정] 훅 이름
   });
   ```
 
-- 감지 방법: 감지 도구 없음. 리뷰 질문: "이 변경은 Xeon 문서(ADR-0004, ADR-0007)에 없는 중앙 상태 관문을 새로 만드는가? `docs/design/` 절을 근거로 들었다면 Xeon 문서가 같은 결정을 했는가?"
+- 감지 방법: 감지 도구 없음. 리뷰 질문: "이 변경은 Fresnel 문서(ADR-0004, ADR-0007)에 없는 중앙 상태 관문을 새로 만드는가? `docs/design/` 절을 근거로 들었다면 Fresnel 문서가 같은 결정을 했는가?"
 
 <a id="ap-a-05"></a>
 #### AP-A-05 구 설계 전제 복귀: 홈서버 데몬 필수
@@ -191,8 +191,8 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 증상: CLI가 시작하면서 고정 주소의 서버에 연결을 시도하고, 연결이 없으면 실패한다. 또는 엔진 코드가 `/srv/...` 같은 서버 경로, 상주 프로세스 존재, 단일 사용자 홈서버를 전제한다.
 - 왜 문제인가:
   - [결정] 사용자가 "나만 쓰는 로컬 홈서버 전제"에 이견을 밝혔다(`_research/decisions-log.md` 2026-10-19).
-  - [결정] 프로세스 구조는 엔진 라이브러리 + 단일 호스트 계약 + 전송 교체다. CLI는 in-process로 돌고, 데스크톱은 자식 엔진을 쓴다. 데몬은 `xeon service`(자동 기동, 유휴 종료)이고 예약·원격·알림 범위에서만 쓴다(`_research/foundation-plan.md §1` 2번, `_research/decisions-log.md` 계획 v2·3차, ADR-0006).
-  - M1 스모크는 데몬 없이 `xeon chat` 한 턴과 강제 종료 후 재개를 확인한다(`_research/foundation-plan.md §6`).
+  - [결정] 프로세스 구조는 엔진 라이브러리 + 단일 호스트 계약 + 전송 교체다. CLI는 in-process로 돌고, 데스크톱은 자식 엔진을 쓴다. 데몬은 `fresnel service`(자동 기동, 유휴 종료)이고 예약·원격·알림 범위에서만 쓴다(`_research/foundation-plan.md §1` 2번, `_research/decisions-log.md` 계획 v2·3차, ADR-0006).
+  - M1 스모크는 데몬 없이 `fresnel chat` 한 턴과 강제 종료 후 재개를 확인한다(`_research/foundation-plan.md §6`).
 - 나쁜 예:
 
   ```ts
@@ -281,11 +281,11 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 <a id="ap-a-08"></a>
 #### AP-A-08 격리 없이 신뢰 등급만 선언
 
-- 증상: 매니페스트에 신뢰 등급 2·3을 적은 외부 확장을 같은 프로세스, 같은 권한, 같은 Cordis 컨텍스트에 그대로 올린다. 능력 선언(필수·선택 능력)과 실제 접근 검사가 연결되어 있지 않다.
+- 증상: 매니페스트에 신뢰 등급 2·3을 적은 외부 확장을 같은 프로세스, 같은 권한, 같은 Cordis 컨텍스트에 그대로 올린다. 기능 선언(필수·선택 기능)과 실제 접근 검사가 연결되어 있지 않다.
 - 왜 문제인가:
   - 확장이 같은 프로세스·같은 권한으로 격리 없이 도는 구조를 신뢰 등급 2·3에 쓰지 않는다(`_research/ref-synthesis.md` "피할 것").
-  - [결정] 확장 프로세스 격리는 기본값으로 두지 않는다(`_research/decisions-log.md` 2차). 그래서 in-process 확장에는 등급이 실제 능력 범위를 줄여야 한다. 등급이 표시용이면 사용자는 보호를 받는다고 오해한다.
-  - 학습 산출물 쓰기도 같은 문제다. Hermes는 쓰기 승인과 스캔이 기본 꺼져 있어 학습 결과가 확인 없이 디스크에 쓰인다(`_research/ref-synthesis.md` "확장 지점" 5번).
+  - [결정] 확장 프로세스 격리는 기본값으로 두지 않는다(`_research/decisions-log.md` 2차). 그래서 in-process 확장에는 등급이 실제 기능 범위를 줄여야 한다. 등급이 표시용이면 사용자는 보호를 받는다고 오해한다.
+  - 학습 산출물 쓰기도 같은 문제다. Hermes는 쓰기 승인과 스캔이 기본 꺼져 있어 학습 결과가 확인 없이 디스크에 쓰인다(`_research/ref-synthesis.md` "훅" 5번).
 - 나쁜 예:
 
   ```ts
@@ -299,14 +299,14 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
   ```ts
   export async function loadExtension(manifest: ExtensionManifest, host: ExtHost) {
-    const granted = host.trust.grant(manifest.trust, manifest.capabilities); // 등급 → 허용 능력 집합
+    const granted = host.trust.grant(manifest.trust, manifest.capabilities); // 등급 → 허용 기능 집합
     if (!granted.ok) return granted;                                         // Result로 거부를 보고
     const mod: unknown = await import(manifest.entry);
     return host.activate(manifest.id, mod, granted.value);                   // 허용된 서비스만 보이는 하위 컨텍스트
   }
   ```
 
-- 감지 방법: 감지 도구 없음. 리뷰 질문: "신뢰 등급 2·3 확장이 받는 컨텍스트에서 선언하지 않은 능력(파일 쓰기, 네트워크, 비밀 lease)에 접근할 수 있는가?" 세부 등급 정의는 `X.loading-trust.spec`이 정한다.
+- 감지 방법: 감지 도구 없음. 리뷰 질문: "신뢰 등급 2·3 확장이 받는 컨텍스트에서 선언하지 않은 기능(파일 쓰기, 네트워크, 시크릿 lease)에 접근할 수 있는가?" 세부 등급 정의는 `X.loading-trust.spec`이 정한다.
 
 <a id="ap-a-09"></a>
 #### AP-A-09 `drive` 남용과 클로저 상태
@@ -388,7 +388,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 증상: 함수 본문 전체를 `try { ... } catch {}`로 감싸고 빈 catch나 `console.log`로 끝낸다. 실패가 기본값으로 바뀌어 호출자가 실패를 알 수 없다.
 - 왜 문제인가:
   - 저장소 오류를 삼키면 커밋 여부를 모른 채 다음 단계로 간다. 재개 규칙은 "결과 불명"을 기록하고 `requestId`로 다시 제출하는 것이다(`_research/notes/F-3.md §6`, durable spec 4826-4834).
-  - 확장 지점의 실패 정책은 fold가 정한다. `tap`은 기록 후 계속, `first`는 거부, `chain`은 그 핸들러만 건너뛴다(ADR-0007 §3.2). 핸들러 안에서 오류를 삼키면 `first` 지점의 fail-closed가 fail-open으로 바뀐다.
+  - 훅의 실패 정책은 fold가 정한다. `tap`은 기록 후 계속, `first`는 거부, `chain`은 그 핸들러만 건너뛴다(ADR-0007 §3.2). 핸들러 안에서 오류를 삼키면 `first` 지점의 fail-closed가 fail-open으로 바뀐다.
 - 나쁜 예:
 
   ```ts
@@ -421,7 +421,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 증상: "찾지 못함", "권한 거부", "이미 처리됨" 같은 예상 가능한 결과를 예외로 던지고 호출자가 `instanceof`로 분기한다.
 - 왜 문제인가:
   - 예상 가능한 실패는 `Result`로 돌려준다(`eng.best-practices.guide` BP-04). 던진 예외는 타입 시그니처에 나타나지 않아 호출자가 처리를 빠뜨린다.
-  - 예외는 확장 지점의 fold 규칙(`first`는 거부로 환산)과 섞여 의도와 다른 결과를 낸다(ADR-0007 §3.2).
+  - 예외는 훅의 fold 규칙(`first`는 거부로 환산)과 섞여 의도와 다른 결과를 낸다(ADR-0007 §3.2).
 - 나쁜 예:
 
   ```ts
@@ -485,9 +485,9 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
 - 증상: 이벤트 시각, ID, 재시도 지터, 임시 파일 이름을 `Date.now()`, `new Date()`, `Math.random()`, `crypto.randomUUID()`로 바로 만든다.
 - 왜 문제인가:
-  - 재생과 테스트가 결정적이지 않게 된다. Claude Code 워크플로가 `Date.now()`·`Math.random()`을 금지해 결정적 재생으로 재개하는 규칙은 Helm 구동 프로그램에 그대로 쓸 수 있다(`_research/ref-synthesis.md` "확장 지점" 4번).
+  - 재생과 테스트가 결정적이지 않게 된다. Claude Code 워크플로가 `Date.now()`·`Math.random()`을 금지해 결정적 재생으로 재개하는 규칙은 Helm 구동 프로그램에 그대로 쓸 수 있다(`_research/ref-synthesis.md` "훅" 4번).
   - `drive` 함수는 마지막 커밋 상태로 다시 호출되어도 같은 진행을 내야 한다(ADR-0007 §3.6). 함수 안의 난수와 현재 시각은 이 규율을 깨뜨린다.
-  - 구 설계도 커널에서 같은 호출을 금지했다(`docs/design/06-system-architecture.md §3.5.1` R5). Xeon은 대상을 L0·L1·L3 `drive`로 넓힌다 [제안].
+  - 구 설계도 커널에서 같은 호출을 금지했다(`docs/design/06-system-architecture.md §3.5.1` R5). Fresnel은 대상을 L0·L1·L3 `drive`로 넓힌다 [제안].
 - 나쁜 예:
 
   ```ts
@@ -569,13 +569,13 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 감지 방법: 테스트 파일(`**/*.test.ts`)에서 `Bun.sleep`, `setTimeout(` 프라미스 래퍼를 찾는 검사 스크립트 [제안]. 리뷰 질문: "이 테스트는 시간이 아닌 어떤 사건을 기다리는가?"
 
 <a id="ap-c-08"></a>
-#### AP-C-08 비밀 값 출력·로그
+#### AP-C-08 시크릿 값 출력·로그
 
-- 증상: 디버그 로그에 요청 헤더 전체를 남기거나, 오류 메시지에 API 키를 넣거나, 모델 컨텍스트에 비밀 값을 넣는다.
+- 증상: 디버그 로그에 요청 헤더 전체를 남기거나, 오류 메시지에 API 키를 넣거나, 모델 컨텍스트에 시크릿 값을 넣는다.
 - 왜 문제인가:
-  - [결정] 비밀 기본값은 SOPS(age)이고 에이전트는 값을 모른 채 참조로 쓴다(`_research/decisions-log.md` 2차).
+  - [결정] 시크릿 기본값은 SOPS(age)이고 에이전트는 값을 모른 채 참조로 쓴다(`_research/decisions-log.md` 2차).
   - 참조 형식은 `secret://<name>`이고 값은 lease 안에서만 다룬다(`_research/secrets.md §6.1`, 공급자 인터페이스 초안).
-  - 작업 규칙도 비밀 값을 출력하지 않는다.
+  - 작업 규칙도 시크릿 값을 출력하지 않는다.
 - 나쁜 예:
 
   ```ts
@@ -663,7 +663,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 왜 문제인가:
   - `Bug`는 코드를 고쳐야 사라지는 상태를 뜻한다(`eng.typescript.guide` TY-24). 운영 중 정상적으로 생기는 실패를 `Bug`로 던지면 호출자가 재시도, 세션 정지, 사용자 안내 중 하나를 고를 수 없다.
   - 메시지 문자열은 판별자가 아니므로 호출자가 `switch`와 `assertNever`로 처리할 수 없다(TY-12, TY-13).
-  - 확장 지점 fold에서 던진 예외는 거부로 환산되고(ADR-0007 §3.2), 저장소 실패가 런타임 전체 실패로 번진다(AP-S-06).
+  - 훅 fold에서 던진 예외는 거부로 환산되고(ADR-0007 §3.2), 저장소 실패가 런타임 전체 실패로 번진다(AP-S-06).
 - 나쁜 예:
 
   ```ts
@@ -954,8 +954,8 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   export function probeFts5(db: Database): Result<void, { readonly kind: "fts5_missing" }> {
     try {
       db.run("CREATE VIRTUAL TABLE temp.fts5_probe USING fts5(x)");
-      db.run("INSERT INTO temp.fts5_probe(x) VALUES ('xeon')");
-      const row: unknown = db.query("SELECT count(*) AS n FROM temp.fts5_probe WHERE fts5_probe MATCH 'xeon'").get();
+      db.run("INSERT INTO temp.fts5_probe(x) VALUES ('fresnel')");
+      const row: unknown = db.query("SELECT count(*) AS n FROM temp.fts5_probe WHERE fts5_probe MATCH 'fresnel'").get();
       db.run("DROP TABLE temp.fts5_probe");
       return typeof row === "object" && row !== null && "n" in row && row.n === 1 ? ok(undefined) : err({ kind: "fts5_missing" });
     } catch {
@@ -996,7 +996,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 | `just check-layers` (`xeon/scripts/check-layers.ts`) | 있음(DR-14 검사는 M1 [제안]) | 같은 층·상위 층 import, 선언되지 않은 워크스페이스 import, 패키지 밖 상대 경로, 컨텍스트가 다른 구현 패키지 import(DR-14) | AP-A-01, AP-A-02, AP-A-03, AP-A-07 |
 | `just depcruise` (dependency-cruiser 18) | 있음 | 층 순위 규칙 | AP-A-01, AP-A-02 |
 | `just knip` | 있음 | 쓰이지 않는 의존(Vitest, 포매터 등) | AP-S-07, AP-S-09 |
-| gitleaks (lefthook pre-commit) | 있음 | 커밋된 비밀 값 | AP-C-08 |
+| gitleaks (lefthook pre-commit) | 있음 | 커밋된 시크릿 값 | AP-C-08 |
 | 금지 호출 목록: `Date.now`, `new Date()`(인자 없음), `Math.random`, `process.exit`(apps 밖), 테스트 안 `Bun.sleep` | [제안] `check-layers.ts`에 추가 | 소스 텍스트 검사 | AP-C-05, AP-S-06, AP-C-07 |
 | `scripts/check-ts-rules.ts` 스캔 `fresnel/as-location`, `fresnel/catch-swallow`, `fresnel/bug-for-expected` | [제안] `eng.typescript.guide` 3.2절 | 허용 목록 밖 단언 주석, 삼킨 catch, 예상 가능한 실패 단어가 든 `Bug` 메시지 | AP-C-01, AP-C-02, AP-C-11 |
 | 의존 버전 형식 검사: 정확 버전, `catalog:`, `workspace:*`만 허용 | [제안] `check-layers.ts`에 추가 | `package.json` | AP-S-08 |
@@ -1012,11 +1012,11 @@ TS 7.0에는 안정 programmatic API가 없으므로(`_research/notes/eng-1.md �
 | 질문 | 항목 |
 |---|---|
 | 이 그룹은 다른 그룹이 꺼져 있어도 시작하고 동작하는가? | AP-A-03 |
-| Xeon 문서에 없는 중앙 상태 관문(커널 리듀서, 지시 계산)을 새로 만드는가? | AP-A-04 |
+| Fresnel 문서에 없는 중앙 상태 관문(커널 리듀서, 지시 계산)을 새로 만드는가? | AP-A-04 |
 | 상주 프로세스가 없을 때 이 기능은 무엇을 하는가? | AP-A-05 |
 | 새 의존이 자기 수명 관리(Layer, Scope, container)를 갖는가? | AP-A-06 |
 | 그룹 코드의 효과는 `on` 반환값, `post`, `drive`, `g.commit` 중 어디로 나가는가? | AP-A-07 |
-| 신뢰 등급 2·3 확장이 선언하지 않은 능력에 접근할 수 있는가? | AP-A-08 |
+| 신뢰 등급 2·3 확장이 선언하지 않은 기능에 접근할 수 있는가? | AP-A-08 |
 | `drive` 안에 `let` 진행 변수가 있는가? `on`과 `post`로 같은 일을 할 수 있는가? | AP-A-09 |
 | 이 `as`는 TY-06 허용 목록(A1 `parse` 구현, A2 브랜드 생성 함수, A3 타입 키 레지스트리 조회) 안에 있는가? 밖이면 타입 가드, `satisfies`, `parse`로 바꿨는가? | AP-C-01, AP-C-10 |
 | 이 catch는 무엇을 복구하는가? 받은 값을 `cause`로 넘기거나 Logger로 남기는가? | AP-C-02 |
@@ -1056,7 +1056,7 @@ TS 7.0에는 안정 programmatic API가 없으므로(`_research/notes/eng-1.md �
 
 ### 4.4 항목 추가 절차 [제안]
 
-- Xeon 구현 중 같은 실수가 두 번 나오면 이 문서에 항목 한 줄을 추가한다. 출처는 `docs/design/06-system-architecture.md §3.5`가 인용한 AGENTS.md 규칙("같은 실수가 두 번 나오면 한 줄 추가")이다.
+- Fresnel 구현 중 같은 실수가 두 번 나오면 이 문서에 항목 한 줄을 추가한다. 출처는 `docs/design/06-system-architecture.md §3.5`가 인용한 AGENTS.md 규칙("같은 실수가 두 번 나오면 한 줄 추가")이다.
 - 처음에는 요약 표에 한 줄(ID, 이름, 짝 규칙, 감지 수단 "리뷰 질문")과 3.3절 리뷰 질문 한 줄만 둔다. 본문(증상, 이유, 나쁜 예, 좋은 예, 감지)은 세 번째 발생 전까지 채운다.
 - 감지 도구를 만들 수 있으면 3.2절에 [제안]으로 올리고, 도구가 들어오면 표지를 지운다.
 - 새 항목에 짝이 되는 기본 선택이 없으면 `eng.best-practices.guide`에도 규칙을 추가하거나, 짝 규칙 칸을 비워 둔다.

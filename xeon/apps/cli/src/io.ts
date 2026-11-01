@@ -34,7 +34,7 @@ export interface CliIo {
   /** Tab 완성기를 바꾼다. 대화형 입력만 쓴다 [spec에 더한 필드: /set 자동 완성, §4.12] */
   setCompleter?(complete: (line: string) => readonly string[]): void;
   /**
-   * 가려진 입력 한 줄(비밀 값). 에코 없이 바이트로 받는다. EOF나 중단이면 null이다. TTY일 때만 쓴다 [spec에 더한 필드: §4.7]
+   * 가려진 입력 한 줄(시크릿 값). 에코 없이 바이트로 받는다. EOF나 중단이면 null이다. TTY일 때만 쓴다 [spec에 더한 필드: §4.7]
    * 값 문자열을 만들지 않으려고 바이트 배열로 돌려주고, 부른 쪽이 쓴 뒤 0으로 덮는다
    */
   readSecret(prompt: string, signal: AbortSignal): Promise<Uint8Array | null>;

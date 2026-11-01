@@ -1,5 +1,5 @@
-// 비밀 env를 쓰는 stdio 서버의 기동 승인 포트(L2.mcp.spec §4.3, M3-05). L1 core-tools의 `createMcpStartGate`와 같은 모양이다.
-// cap-mcp는 L1을 import하지 않으므로 필요한 모양을 선언하고 조립 루트가 잇는다. 비밀 값은 이 경계를 지나지 않는다(참조만).
+// 시크릿 env를 쓰는 stdio 서버의 기동 승인 포트(L2.mcp.spec §4.3, M3-05). L1 core-tools의 `createMcpStartGate`와 같은 모양이다.
+// cap-mcp는 L1을 import하지 않으므로 필요한 모양을 선언하고 조립 루트가 잇는다. 시크릿 값은 이 경계를 지나지 않는다(참조만).
 
 export interface McpStartDefinition {
   readonly server: string;

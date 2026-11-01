@@ -105,7 +105,7 @@ const REFERENCES_KEYS_MAX = 256;
 const REFERENCES_SESSIONS_MAX = 100;
 
 /**
- * 삭제 전에 이 비밀을 가리키는 곳을 보인다(`L0.secrets` `references`, `L4.cli.spec` §4.7 `secret rm`). 읽기 전용이다.
+ * 삭제 전에 이 시크릿을 가리키는 곳을 보인다(`L0.secrets` `references`, `L4.cli.spec` §4.7 `secret rm`). 읽기 전용이다.
  * 알 수 없는 이름은 `secret.notFound`다. 최근 사용 thread에서 thread id 모양이 아닌 항목은 뺀다
  */
 function createReferencesHandler(engine: Engine): WireHandler<"secret.references"> {

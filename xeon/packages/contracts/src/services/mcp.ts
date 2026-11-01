@@ -12,6 +12,6 @@ export const McpServiceName = "fresnel.mcp" as const;
  * L2 서비스 이름 중 Cordis에 등록하는 것은 이것 하나다.
  */
 export interface McpService extends McpPort {
-  /** 능력 API. 같은 객체를 cap:mcp.client 바인딩(g.capability(McpClientKey))으로도 얻는다 */
+  /** 기능 API. 같은 객체를 cap:mcp.client 바인딩(g.capability(McpClientKey))으로도 얻는다 */
   readonly client: CapabilityApi<typeof McpClient>;
 }

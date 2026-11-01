@@ -55,7 +55,7 @@ export interface OpenStoreOptions {
   readonly faults?: FaultInjector;
   /** 테스트 전용. 이 패키지 안(블롭, 임대, 마이그레이션)의 장애 주입 */
   readonly storeFaults?: StoreFaultInjector;
-  /** 테스트 전용. SQLite 능력 조사를 대신한다(FTS5 없는 SQLite를 흉내 낼 때) */
+  /** 테스트 전용. SQLite 기능 조사를 대신한다(FTS5 없는 SQLite를 흉내 낼 때) */
   readonly probe?: () => SqliteProbe;
   /** 테스트 전용. Database.setCustomSQLite를 대신한다(dlopen 실패를 어느 OS에서나 흉내 낼 때) */
   /** 테스트 전용. 마이그레이션 전 스냅샷 수단을 대신한다 */

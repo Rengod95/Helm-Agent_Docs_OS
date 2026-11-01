@@ -29,7 +29,7 @@ binds: [xeon/packages/core-tasks/**]
 
 ### 1.2 다루지 않는 것
 
-- 턴 실행, 단계 체크포인트, 확장 지점 발화: `L1.loop.spec`. `input` 지점도 loop가 발화한다(§7).
+- 턴 실행, 단계 체크포인트, 훅 발화: `L1.loop.spec`. `input` 지점도 loop가 발화한다(§7).
 - 도구 파이프라인, 효과 3단 기록, 키(realpath) 산출: `L1.tools.spec`.
 - 자식 세션 생성, 정의 파일, 깊이 상한, 권한 상한: `L1.agents.spec`.
 - 커밋 구현, 투영 테이블 DDL, 재개 절차 전체: `L1.persistence.spec`.
@@ -39,7 +39,7 @@ binds: [xeon/packages/core-tasks/**]
 
 - [결정] 커널(L1-a/b/f/g)은 직접 구현하고 durable `docs/spec.md`를 설계 근거로 인용한다. 소유 트리 1972-2200, requestId 2288-2301(`_research/foundation-plan.md` §1 표 1번).
 - [결정] DI는 Cordis 하나이고 Cordis는 ext-host 뒤에 둔다. core-tasks는 Cordis를 import하지 않는다(ADR-0002 §3 3·4번).
-- [결정] 확장 지점은 on, post, drive, scope 4연산이다. `post`는 입력 큐에 넣고, 같은 `requestId`는 한 번만 들어간다(adr.0007 §3.1).
+- [결정] 훅은 on, post, drive, scope 4연산이다. `post`는 입력 큐에 넣고, 같은 `requestId`는 한 번만 들어간다(adr.0007 §3.1).
 - [결정] Helm은 L3 기본 그룹이다. 학습 그룹도 L3 기본 그룹이며 drive를 쓰지 않는다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)"). 학습 그룹의 검토 포크는 백그라운드 위임으로 돈다(`eng.context-map.design` §3 협력 규칙 4).
 - 구성요소 판정: 범위 트리 자체, 취소 전파 설계, 병렬 도구 실행 그대로, 동시 실행 상한 자체, 내구 입력 큐 설계(`_research/packages.md` §4.3 L1-a 행).
 
@@ -605,7 +605,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 | 규칙 | 이 표에서 |
 |---|---|
 | D1 | 키가 `l1.tasks.`로 시작하고 `layer: "L1"`이다. 이름 부분 `limits.tools` 등은 낙타 표기 마디다 |
-| D2·D3 | 비밀 키가 없다 |
+| D2·D3 | 시크릿 키가 없다 |
 | D4 | 기본값 8, 16, 16은 각 range 안이다. 기본 문자열은 enum 안이다 |
 | D5 | min ≤ max. number 키에만 min·max, string 키에만 enum을 둔다 |
 | D6 | `type`은 `Type.Integer()`, `Type.String()`만 쓰고 제약은 `range`에만 둔다 |
@@ -625,7 +625,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 
 - L4 노출 [제안]: 동시 상한은 설정 화면(계획 v2 L1-a "동시 실행 상한" L4 "화면"), 큐 모드는 화면과 명령(계획 v2 L1-a "내구 입력 큐" L4 "명령", `_research/settings.md` §2.3 "명령만 (입력창 토글과 함께)"). CLI 명령 이름은 `L4.cli.spec`이 정한다.
 
-## 7. 확장 지점
+## 7. 훅
 
 - 이 도메인이 발화하는 지점은 없다. 발화 소유표(46개)에서 tasks 몫은 0이다.
 - `post`: `fresnel.tasks`가 `InputQueuePort`(`X.primitives.spec` §3.6)를 구현한다. `enqueue(EnqueueRequest)`를 `TaskService` 최상위에 두고, 안에서 `inputs.enqueue`를 부른다. X의 `ExtensionOps.post`(`F.extensions.spec` §3.2) 구현은 이 포트를 부른다. 대응은 `when` → `mode`, `requestId` → `requestId`, `item` → `item`, `source: { type: "extension", scopeId }`다. 결과 `EnqueueResult.duplicate`는 `EnqueueReceipt.duplicate`다.
@@ -633,11 +633,11 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 - `drive`: `LoopHandle.turn`은 `fresnel.loop`가 처리한다(`L1.loop.spec`). tasks는 drive turn에 turn 노드를 주고, 임대 회수 신호를 받지 않는다. 임대 신호 처리는 loop 몫이다.
 - `scope` 토글의 정리(`onDispose`)에서 진행 중 작업을 멈추려는 확장은 자기가 연 노드만 `abort`한다. 확장은 `fresnel.tasks`를 직접 받지 않고 X가 노출하는 API를 쓴다(X.primitives.spec).
 
-`input` 지점 발화 위치의 어긋남 [제안, 보고]:
+`input` 훅 발화 위치의 어긋남 [제안, 보고]:
 
 - 어긋남: `F.extensions.spec` §7 표는 `input` 종류 지점의 발화 문서를 `L1.loop.spec`으로 적었다. `architecture.runtime-flow.design` §4.1 그림은 `TASKS->>EXT: on input (chain)`으로 core-tasks가 발화하는 것처럼 그렸다.
 - 정한 것: `input`은 `L1.loop.spec`의 `LoopService.admit`이 발화한다. 순서는 runtime-flow 그림과 같게 "제출 → `input` chain → 큐 기록"이다. 그래서 F.extensions §7은 그대로 두고, runtime-flow §4.1 그림의 화살표를 `HOST->>LP: admit`, `LP->>EXT: on input (chain)`, `LP->>TASKS: enqueue`로 고치도록 요청한다. 두 문서(L1.tasks, L1.loop)가 같은 결정을 쓴다.
-- 이유: 지점 발화는 loop의 소유표 12개(input 포함)에 이미 들어가 있고, core-tasks는 확장 호스트(`fresnel.ext`)를 부르지 않는 하위 기계로 둔다. 그래야 core-tasks의 의존이 `fresnel.session` 하나로 줄어든다.
+- 이유: 훅 발화는 loop의 소유표 12개(input 포함)에 이미 들어가 있고, core-tasks는 확장 호스트(`fresnel.ext`)를 부르지 않는 하위 기계로 둔다. 그래야 core-tasks의 의존이 `fresnel.session` 하나로 줄어든다.
 - 확장 `post`는 `input` 지점을 지나지 않는다 [제안]. 확장이 넣은 입력이 다시 확장 핸들러를 부르는 순환을 막기 위해서다. `InputPayload.source`의 `"extension"` 값은 지금 쓰지 않는다. pi가 확장 메시지에 `input`을 발화하는지는 [가정]으로 남긴다(§10).
 
 ## 8. 다른 문서와의 인터페이스

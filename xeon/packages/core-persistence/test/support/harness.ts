@@ -1,5 +1,5 @@
 // 테스트 조립: 실제 SQLite 위에 SessionService를 올리고, L1 동료(loop, tools, tasks)가 하는 커밋을 흉내 내는 도우미.
-// 커밋 지점 이름(C1~X1)은 L1.persistence.spec §4.2를 따른다.
+// 커밋 훅 이름(C1~X1)은 L1.persistence.spec §4.2를 따른다.
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

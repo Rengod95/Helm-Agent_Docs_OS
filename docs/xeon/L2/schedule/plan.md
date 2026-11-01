@@ -17,7 +17,7 @@ binds: [xeon/packages/cap-schedule/**]
 마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M0·M1은 [결정: `_research/foundation-plan.md` §5 P4], M2·M3 배치는 [제안]이다.
 
 - `product.scope.spec` §4.1 I13에 따라 예약, 원격, 알림은 M3다. 이 패키지의 전체 범위가 M3다.
-- 계획 v2(`_research/layer-plan-v2.json` L2-h)의 단계 표기는 루프와 웨이크업, 백그라운드 작업 모니터, 다중 세션 관리가 2차이고, 예약 실행과 원격 제어가 보류다.[^v2] 3차 결정이 예약·원격·알림을 범위에 넣었으므로(`_research/decisions-log.md` 2026-10-21 결정(3차)) 이 계획은 다섯 능력 모두를 M3에 둔다. 루프는 서비스 모드가 필요 없지만 `cap-schedule` 묶음으로 함께 만든다(`product.scope.spec` §4.1 아래 해설).
+- 계획 v2(`_research/layer-plan-v2.json` L2-h)의 단계 표기는 루프와 웨이크업, 백그라운드 작업 모니터, 다중 세션 관리가 2차이고, 예약 실행과 원격 제어가 보류다.[^v2] 3차 결정이 예약·원격·알림을 범위에 넣었으므로(`_research/decisions-log.md` 2026-10-21 결정(3차)) 이 계획은 다섯 기능 모두를 M3에 둔다. 루프는 서비스 모드가 필요 없지만 `cap-schedule` 묶음으로 함께 만든다(`product.scope.spec` §4.1 아래 해설).
 
 [^v2]: `product.scope.spec` §4.1 I4 해설: "3차 결정이 범위에 넣은 항목(공유 서비스 모드, 예약 실행, 원격 제어, 사용자 알림)은 JSON 표기가 '2차' 또는 '보류'여도 1차로 본다." layer-plan-v2.json과 3차 결정이 다르면 3차 결정을 따른다. 루프·모니터·다중 세션의 '2차' 표기는 3차 결정이 직접 다루지 않았지만, 같은 패키지로 묶기 위해 M3로 당긴다 [제안].
 
@@ -108,7 +108,7 @@ xeon/packages/cap-schedule/
 
 | id | 내용 | 선행 | 규모 | 순서 |
 |---|---|---|---|---|
-| H1 | F `defs/schedule.ts` 정의 5개와 공통 스키마, 서비스 묶음 `ScheduleService`·`ScheduleServiceName`·`SCHEDULE_CAPABILITIES`(spec §3.11), F `records/catalog/schedule.ts` 15종 카탈로그(`CatalogEntry`, `F.records.spec` §3.3.2). ID 접두 `lop`·`wak`·`tmr`·`wch`는 F.conversation §3.2.1 `LocalIdPrefix`를 쓴다. 함께 요청할 F 변경: 도구 없는 능력 허용. `schedule` 영역, `TYPE_PREFIX_OWNERS` 행, `CallOptions.context`는 F에 이미 있으므로 확인만 한다. `validateCapability` 0건 테스트 | `F.capabilities.plan` M0, `F.records.plan` M0 | M | M2 |
+| H1 | F `defs/schedule.ts` 정의 5개와 공통 스키마, 서비스 묶음 `ScheduleService`·`ScheduleServiceName`·`SCHEDULE_CAPABILITIES`(spec §3.11), F `records/catalog/schedule.ts` 15종 카탈로그(`CatalogEntry`, `F.records.spec` §3.3.2). ID 접두 `lop`·`wak`·`tmr`·`wch`는 F.conversation §3.2.1 `LocalIdPrefix`를 쓴다. 함께 요청할 F 변경: 도구 없는 기능 허용. `schedule` 영역, `TYPE_PREFIX_OWNERS` 행, `CallOptions.context`는 F에 이미 있으므로 확인만 한다. `validateCapability` 0건 테스트 | `F.capabilities.plan` M0, `F.records.plan` M0 | M | M2 |
 | H2 | loops 모델: 종료 조건 4종 판정과 순서, 상한·만료, 반복 상태 기계, 셸 조건 실행 포트, `schedule.loop_*` 커밋, 투영(`cap_schedule_loops`), 재시작 정리 | H1, `L1.persistence.plan` 투영기 등록 | M | S1 |
 | H3 | `schedule_wakeup`·`loop_done` 도구와 post 연결: 웨이크업 대체 규칙, 정착 대기 뒤 투입, `wake:`·`loop:` 키, `interval.self` | H2, `L1.tasks` post | S | S1 |
 | H4 | jobs: 출처별 4상태 분류, 승인 대기 보조 투영, L0.process·L1.agents 어댑터, `spawn`·`stop`, 감시와 regex 부분 집합 검사, `schedule.watch_*` | H1, `L0.process.plan` 레지스트리·출력 구독, `L1.agents.plan` 백그라운드 위임 | M | S2 |
@@ -243,7 +243,7 @@ xeon/packages/cap-schedule/
 | › 동시 상한 | `maxConcurrent` 초과 `job_limit_reached` |
 | `watch.test.ts` › 일치와 상한 | 가짜 프로세스 출력이 regex에 맞으면 post 1회(`watch:<id>:1`), `maxMatches` 도달 시 `max_matches` |
 | › regex 거부 | `(a)\1`, `(?=x)`가 `pattern_rejected` |
-| › 출력 마스킹 | `excerpt`가 500자 이하이고 가짜 비밀 문자열이 없다 |
+| › 출력 마스킹 | `excerpt`가 500자 이하이고 가짜 시크릿 문자열이 없다 |
 
 ### 5.7 유휴 종료 조건 입력 (H7)
 
@@ -275,7 +275,7 @@ xeon/packages/cap-schedule/
 | `remote.policy.test.ts` › 꺼짐 | `remote.enabled: false`에서 `respond`가 `remote_disabled` |
 | › always 거부 | `remember: "always"`가 `remember_not_allowed` |
 | › 응답 전달과 감사 | 가짜 `fresnel.approvals`가 1회 호출되고 `remote_responded` 커밋 |
-| › 요약 마스킹 | `pending.summary`에 도구 인자 원문과 가짜 비밀 값이 없다 |
+| › 요약 마스킹 | `pending.summary`에 도구 인자 원문과 가짜 시크릿 값이 없다 |
 | `remote.auth.test.ts` › 토큰 없는 접속 | 가짜 원격 전송에서 토큰 없는 연결이 `host.hello` 처리 전에 닫힌다(L4 호스트 테스트 도우미 사용, 수용 기준 5) |
 | › 비루프백 무인증 기동 거부 | 비루프백 주소 + 인증 꺼짐 설정으로 서비스 시작이 실패한다 |
 | › 토큰 참조 | `tokenRef`가 `secret://` 형식이 아니면 설정 검사(D3)가 거부 |

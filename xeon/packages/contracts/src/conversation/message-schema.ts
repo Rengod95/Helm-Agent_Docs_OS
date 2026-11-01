@@ -244,7 +244,7 @@ const toolResultShape = open({
   timestamp: Type.Number(),
   durationMs: Type.Optional(NonNegativeNumber),
 });
-/** 끝까지 검사하는 JSON 값. 확장 지점 페이로드처럼 `$ref`가 필요 없는 곳에서 쓴다(M3-REQ-05) */
+/** 끝까지 검사하는 JSON 값. 훅 페이로드처럼 `$ref`가 필요 없는 곳에서 쓴다(M3-REQ-05) */
 export const DeepJsonValueSchema: TUnsafe<JsonValue> = Type.Unsafe<JsonValue>(jsonValueShape);
 export const DeepJsonObjectSchema: TUnsafe<JsonObject> = Type.Unsafe<JsonObject>(jsonObjectShape);
 
@@ -256,7 +256,7 @@ export const CheckedJsonObjectSchema: TUnsafe = Type.Unsafe(jsonObjectShape);
 export const CheckedJsonValueSchema: TUnsafe = Type.Unsafe(jsonValueShape);
 
 /**
- * 모든 JSON 값. 능력 정의의 JSON Schema 생성에도 쓰이므로 `$ref` 없는 얕은 스키마로 둔다.
+ * 모든 JSON 값. 기능 정의의 JSON Schema 생성에도 쓰이므로 `$ref` 없는 얕은 스키마로 둔다.
  * 메시지 안의 JSON 필드는 재귀 검사(jsonValueShape)를 쓴다(M3-REQ-20).
  */
 export const JsonValueSchema: TUnsafe<JsonValue> = Type.Unsafe<JsonValue>(Type.Unknown());

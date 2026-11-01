@@ -520,7 +520,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - 서브에이전트 기본 모델은 L1.models.spec의 역할 `subagent` 라우팅으로 설정한다. 이 문서는 키를 두지 않는다.
 - 정의 파일은 파일로만 편집한다. 설정 화면은 정의 목록과 출처를 읽기 전용으로 보인다(`_research/settings.md` §2.9 "파일만").
 
-## 7. 확장 지점
+## 7. 훅
 
 - core-agents는 지점을 소유하지 않는다(`L1.readme` §6 소유표).
 - 자식 대화 안의 지점(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 그룹 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
@@ -569,7 +569,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 - L1.loop.spec §3.1: `LoopService.runChildTurn(request: ChildTurnRequest)` 추가(§4.1 5번). 자식 thread의 turn을 주 대화와 같은 래퍼로 돌리되 시스템 프롬프트, 모델, `ToolRunContext` 값(caller, depth, ceiling, surfaceThreadId)을 요청에서 받는다. 반영됨: L1.loop.spec §3.1, §4.13.
 - eng.transactions.design §4.8 표: `agent.spawned` 키 `spawn:<toolCallId>`를 `<ownerRequestId>:spawn:<n>` 파생 규칙으로, 백그라운드 완료 키 `deleg:<childSessionId>:done`을 `<requestId>:report`로 고친다. `childSessionId`는 F 이름 `childThreadId`로 바꾼다. §7 표에 "백그라운드 위임 완료 보고 | outbox 불필요(`agent.settled`와 같은 커밋)" 행을 더한다.
-- L3.group-sdk.spec §3.4: `DelegateSpec` → `DelegateRequest` 필드 대응(§3.2 끝)을 반영하고 [가정] "`g.capability(AgentsDelegateKey)`"를 "X가 주입한 `fresnel.agents` 서비스"로 고친다. `fresnel.agents`는 능력 정의가 없는 코어 서비스이므로 `capability()` 경로를 쓰지 않는다(L3.learning.spec 96행과 같은 판단).
+- L3.group-sdk.spec §3.4: `DelegateSpec` → `DelegateRequest` 필드 대응(§3.2 끝)을 반영하고 [가정] "`g.capability(AgentsDelegateKey)`"를 "X가 주입한 `fresnel.agents` 서비스"로 고친다. `fresnel.agents`는 기능 정의가 없는 코어 서비스이므로 `capability()` 경로를 쓰지 않는다(L3.learning.spec 96행과 같은 판단).
 - L2 spec 전체: 도구 등록에 부류 표지(`classes`)를 선언한다. 질문·계획 도구는 `user_interaction`, 메모리·스킬 쓰기는 `shared_state_write`, 외부 메시지 발신은 `external_send`.
 
 ## 9. 수용 기준

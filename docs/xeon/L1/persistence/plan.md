@@ -38,7 +38,7 @@ binds: [xeon/packages/core-persistence/**]
 |---|---|---|---|
 | M0 | 스캐폴드만(`package.json`의 `fresnel.layer: "L1"`, `fresnel.domain: "persistence"`, 빈 `plugin.ts`). 계약 대응 표 확정과 F 변경 요청(PS-0) | §3.1 | contracts, platform-store |
 | M1 | writer(단일 커밋 경로), requests 멱등, 코어 투영(`p_threads`, `p_items`, `p_parts`, `p_effects`, `p_turns`, `p_inputs`, `step_checkpoints`, `p_blob_refs`), 단계 체크포인트, 효과 3단 기록 경로, 커밋 뒤 방출, 열 때 복구(표식, 마지막 체크포인트, 열린 효과 판정·합성), 재개 계획, `threads.create`, `openForWrite/openForRead`, 업캐스터 연결, 장애 주입 테스트 전체, 설정 `l1.persistence.maxResumeAttempts` | §3.2~§3.7, §4.1~§4.8, §4.11, §4.12, §4.14 | core-loop, core-tasks, core-tools, ext-host, apps/host, M1 스모크 |
-| M2 | 수명주기 API 전체(`list`, `close`, `remove`, `fork`, `revert`, `moveLeaf`, `setTitle`, `prepareSwitch`), 분기와 떠난 가지 요약 기록, 승인 대기 복원(`p_approvals`, A1 체크포인트), 자식 thread 연결(`p_agents`, `TxView.agentByRequestId`, `ResumePlan.openChildren`), 확장 접두 테이블 커밋 참여(등록 검사, `ProjectionTx` 소유 검사, `onFailure`), `p_scopes`, `p_settings`, `sessionSettings`, 확장 지점 7개 발화, 보관 정리와 `retention.*` 키, `ext` 포트 | §3.8, §4.5.2, §4.10, §6, §7 | L4 host(thread.* 메서드), X.operations, L2 artifacts, L3 그룹, core-agents |
+| M2 | 수명주기 API 전체(`list`, `close`, `remove`, `fork`, `revert`, `moveLeaf`, `setTitle`, `prepareSwitch`), 분기와 떠난 가지 요약 기록, 승인 대기 복원(`p_approvals`, A1 체크포인트), 자식 thread 연결(`p_agents`, `TxView.agentByRequestId`, `ResumePlan.openChildren`), 확장 접두 테이블 커밋 참여(등록 검사, `ProjectionTx` 소유 검사, `onFailure`), `p_scopes`, `p_settings`, `sessionSettings`, 훅 7개 발화, 보관 정리와 `retention.*` 키, `ext` 포트 | §3.8, §4.5.2, §4.10, §6, §7 | L4 host(thread.* 메서드), X.operations, L2 artifacts, L3 그룹, core-agents |
 | M3 | 서비스 모드 자동 재개(`l1.persistence.autoResume`, `AutoResumeVerdict`), 리플레이 커서(`replayFrom`, `oldestReplayableSeq` 갱신), 청크 재생성 | §4.8.3, §4.13.1, §4.5.3 | L4 host 서비스 모드 |
 | 2차 | 되감기(파일 스냅샷 복원), JSONL 내보내기(`pi-jsonl`, `fresnel-jsonl`), `SessionStore` 어댑터와 적합성 스위트, `fresnel debug verify-projections` | §3.11, §4.13.2, §4.13.3, §3.1 3번 | L4 cli, L2 workspace |
 
@@ -89,7 +89,7 @@ xeon/packages/core-persistence/
     auto-title.ts          # autoTitleThread(M3-REQ-83): 임시 판정, 활성 가지의 첫 텍스트, TitleModelPort 호출, sanitiseTitle, setTitle(autotitle:<threadId>)
     session-settings.ts    # SessionSettingsStore(settings.changed, p_settings)
     ext-port.ts            # RecordCommitPort 구현(SessionService.ext)
-    points.ts              # 확장 지점 7개 발화(ExtHost.dispatch)
+    points.ts              # 훅 7개 발화(ExtHost.dispatch)
     retention.ts           # 보관 정리(M2)
     settings.ts            # defineSettings("l1.persistence", …)
     replay-cursor.ts       # 2차(M3): replayFrom 해석, oldestReplayableSeq
@@ -99,7 +99,7 @@ xeon/packages/core-persistence/
       index.ts             # openTestSession, expectProjectionsRebuildable, faultAt, fakeGuard, fakeExtHost
   test/
     commit.fault.test.ts   # FaultPoint 전체
-    hooks.test.ts         # 확장 지점 7개 발화 시점
+    hooks.test.ts         # 훅 7개 발화 시점
     retention.test.ts      # 보관 정리
     restart.fault.test.ts  # K1~K6, 자식 프로세스 SIGKILL
     commit.test.ts
@@ -146,7 +146,7 @@ xeon/packages/core-persistence/
 | PS-14 | 설정 노출: `settings.ts`(`l1.persistence.*` 5키, 단계별 since), `session-settings.ts`(`settings.changed`, `p_settings`) | PS-2, contracts(`defineSettings`) | S | M1/M2 |
 | PS-15 | blob 분리: `blob.ts`(`detachLarge`, `hydrate`), `p_blob_refs`, `query.liveBlobRefs` | PS-3, L0.store.plan(`putBlob`, `readBlob`) | M | M1 |
 | PS-16 | 플러그인과 서비스 조립: `plugin.ts`(`fresnel.store` 주입, `fresnel.session` 제공, `producer` 한 번 받기 규칙), `index.ts`, `ext-port.ts`(M2) | PS-2, PS-12, X.primitives(플러그인 등록 API) | M | M1(ext-port M2) |
-| PS-17 | 확장 지점 7개 발화: `points.ts`. M1은 `thread.start`, `thread.shutdown`(F 표 M1 ● 지점), M2는 나머지 5개 | PS-16, X.primitives(`ExtHost.dispatch`) | M | M1/M2 |
+| PS-17 | 훅 7개 발화: `points.ts`. M1은 `thread.start`, `thread.shutdown`(F 표 M1 ● 지점), M2는 나머지 5개 | PS-16, X.primitives(`ExtHost.dispatch`) | M | M1/M2 |
 | PS-18 | 보관 정리: `retention.ts`, 제외 규칙, `retention.*` 키 연결. M3b B1-SVC: 지울 때 재전송 하한(`replay.floor`) 상승, `replay.ts`(`replayFrom`), `resend.ts`(재개 때 모델 요청 재전송 정책) | PS-9 | S | M2 |
 | PS-19 | 리플레이 커서: `replay-cursor.ts`(`replayFrom` 해석, `oldestReplayableSeq`) | PS-12, FR-P7 | S | M3 |
 | PS-20 | 되감기: `rewind.ts`(스냅샷 기록 `checkpoint.files`, `RewindPlan`, 복원 효과 3단) | PS-10, FR-P8, L1.tools(쓰기 분류) | L | 2차 |
@@ -286,7 +286,7 @@ xeon/packages/core-persistence/
 | `ddl_matches_spec_table` | `ddl.test.ts` | DDL 열 목록과 스펙 §3.10 표 대조 | PS-1 |
 | `restart_invariants_k1_to_k6` | `restart.fault.test.ts` | 자식 프로세스를 K1~K6에서 SIGKILL, 다시 열어 `recover`, 스펙 §4.14 불변식 | PS-6, PS-7 |
 | `events_update_and_stray_delete_blocked_by_trigger` | `ddl.test.ts` | `events` UPDATE는 트리거가 막고, `threads.remove` 경로 밖의 DELETE도 막는다(스펙 §9-21) | PS-1 |
-| `session_points_fire_at_spec_times` | `hooks.test.ts` | 지점 7개가 스펙 §7.1 시점에 발화한다. first 지점(`thread.switch.before`, `thread.fork.before`, `thread.tree.before`)의 거부·예외면 커밋이 없고, tap 지점은 커밋 뒤에만 발화한다. M1은 `thread.start`, `thread.shutdown`, M2는 나머지 5개 | PS-17 |
+| `session_points_fire_at_spec_times` | `hooks.test.ts` | 지점 7개가 스펙 §7.1 시점에 발화한다. first 훅(`thread.switch.before`, `thread.fork.before`, `thread.tree.before`)의 거부·예외면 커밋이 없고, tap 훅은 커밋 뒤에만 발화한다. M1은 `thread.start`, `thread.shutdown`, M2는 나머지 5개 | PS-17 |
 | `retention_prunes_only_eligible_threads` | `retention.test.ts` | `maxAgeDays`·`maxCount` 대상 중 표식이 남은 thread, 열린 turn이 있는 thread, 포크 출처, 쓰기 소유 중인 thread는 남고 나머지만 `threads.remove` 경로로 지워진다 | PS-18 |
 | `agent_by_request_id_finds_spawned_child` | `projector.test.ts` | `agent.spawned` 커밋 뒤 `TxView.agentByRequestId(부모, requestId)`가 그 자식을 돌려주고, `agent.settled` 뒤 `settled`가 채워진다. 재생성 뒤에도 같다(스펙 §9-22) | PS-23 |
 | `resume_lists_unsettled_children` | `resume.int.test.ts` | 자식 생성 커밋 뒤 SIGKILL, 다시 열면 `ResumePlan.openChildren`에 그 자식이 있고, 부모 turn에 취소 의도가 있으면 재개 대상에서 빠진다 | PS-23 |

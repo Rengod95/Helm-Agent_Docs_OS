@@ -147,7 +147,7 @@ export interface ResourceRegistry {
 const GOVERNED: ReadonlySet<ResourceKind> = new Set(["tool", "command", "shortcut", "flag"]);
 
 /**
- * 이름이 능력 ID(`web.search` 등)라서 여러 확장이 같은 이름을 낸다. 이 종류는 같은 scope 안의 중복만 거부하고,
+ * 이름이 기능 ID(`web.search` 등)라서 여러 확장이 같은 이름을 낸다. 이 종류는 같은 scope 안의 중복만 거부하고,
  * 다른 확장의 같은 이름은 모두 남긴다. 고르는 일은 소비자(cap-web)가 한다 [결정: 오케스트레이터 기본값]
  */
 const MULTI_OWNER_KINDS: ReadonlySet<ResourceKind> = new Set(["web_provider"]);
@@ -515,7 +515,7 @@ function flagDefault(def: Readonly<Record<string, unknown>>): { default?: boolea
   return typeof value === "boolean" || typeof value === "string" ? { default: value } : {};
 }
 
-/** 능력 ID가 셋 중 하나이고 `create`가 함수인지 본다. `create`가 돌려주는 공급자의 모양은 실행 때 검사하지 않는다 */
+/** 기능 ID가 셋 중 하나이고 `create`가 함수인지 본다. `create`가 돌려주는 공급자의 모양은 실행 때 검사하지 않는다 */
 function isWebProviderRegistration(def: unknown): def is WebProviderRegistration {
   return (
     isObject(def) &&

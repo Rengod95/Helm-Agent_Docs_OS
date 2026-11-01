@@ -11,8 +11,8 @@ import { createPluginHttp } from "@fresnel/platform-secrets";
 
 // L2.web.spec §3.6.1, L0.secrets.spec §3.6.1(M3-REQ-60). cap-web의 `HeaderSecretSender`를 L0 플러그인 HTTP 통로(`createPluginHttp`)로 옮긴다.
 // 설정 값은 `secret://<이름>` 참조 문자열이고 실제 값은 `SecretService.withHttp`가 전송 직전에 헤더에 넣는다. 이 파일은 값을 만들지 않는다.
-// 목적(purpose)은 세 능력이 같이 `web.search`다 [결정: 오케스트레이터 기본값]: 인터페이스가 능력별 목적을 받지 않으므로 메타 `use.tools`에
-// `web.search`를 허용하면 웹 검색·가져오기·브라우즈 provider의 헤더 비밀이 모두 쓸 수 있다.
+// 목적(purpose)은 세 기능이 같이 `web.search`다 [결정: 오케스트레이터 기본값]: 인터페이스가 기능별 목적을 받지 않으므로 메타 `use.tools`에
+// `web.search`를 허용하면 웹 검색·가져오기·브라우즈 provider의 헤더 시크릿이 모두 쓸 수 있다.
 
 /** `UseCtx.purpose`. 메타 `use.tools`에 이 값이 허용되어 있어야 한다 */
 export const WEB_SECRET_PURPOSE = "web.search";
@@ -36,7 +36,7 @@ function settingOfFailure(
 }
 
 /**
- * 비밀 값 자체는 오류에 싣지 않는다. `unset`은 참조가 없거나 형식이 틀리거나 제공자에 항목이 없는 경우이고, 나머지는 `unavailable`이다
+ * 시크릿 값 자체는 오류에 싣지 않는다. `unset`은 참조가 없거나 형식이 틀리거나 제공자에 항목이 없는 경우이고, 나머지는 `unavailable`이다
  * (잠긴 키, 승인 필요, 제공자 오류 등 모두).
  */
 function headerErrorOf(error: SecretError, setting: string): HeaderSecretError {

@@ -19,7 +19,7 @@ export type PayloadOf<N extends HookName> = HookSignatures[N]["payload"];
 
 interface DispatchOptionsBase {
   readonly threadId: ThreadId;
-  /** 결정적 키. 같은 지점이 같은 위치에서 다시 발화하면 같은 값. 예: "<stepId>:tool.call.before:<toolCallId>"(lifecycle 지점은 이벤트 id) */
+  /** 결정적 키. 같은 지점이 같은 위치에서 다시 발화하면 같은 값. 예: "<stepId>:tool.call.before:<toolCallId>"(lifecycle 훅은 이벤트 id) */
   readonly dispatchKey: string;
   /** 디스패치 전체의 취소 신호. 핸들러 ctx.signal의 부모다 */
   readonly signal?: AbortSignal;
@@ -42,7 +42,7 @@ export type DispatchOptions<N extends HookName> =
         }
       : DispatchOptionsBase;
 
-/** 지점 종류를 지운 옵션. 내부 디스패처가 쓴다 */
+/** 훅 종류를 지운 옵션. 내부 디스패처가 쓴다 */
 export interface AnyDispatchOptions extends DispatchOptionsBase {
   readonly initial?: unknown;
   readonly finalize?: (value: unknown) => unknown;
@@ -117,7 +117,7 @@ export type DispatchOutcome<N extends HookName> =
           ? CollectOutcome<V>
           : never;
 
-/** 지점 종류를 지운 결과 */
+/** 훅 종류를 지운 결과 */
 export type AnyDispatchOutcome =
   | TapOutcome
   | FirstOutcome<unknown>

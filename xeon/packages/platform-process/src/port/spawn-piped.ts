@@ -23,7 +23,7 @@ export interface PipedSpawnInput {
   readonly cwd: string | undefined;
   /** 자식 env 전체 */
   readonly env: Readonly<Record<string, string>>;
-  /** 로그와 오류 문구에 쓰는 이름. 비밀 값을 넣지 않는다 */
+  /** 로그와 오류 문구에 쓰는 이름. 시크릿 값을 넣지 않는다 */
   readonly label: string;
 }
 

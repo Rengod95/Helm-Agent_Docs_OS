@@ -16,7 +16,7 @@ export const SIGNAL_DEFAULTS: {
 
 export type SignalThresholds = typeof SIGNAL_DEFAULTS;
 
-/** 지식 검색 모델 도구의 이름. `tool.execution.after` 페이로드에는 능력 참조가 없어 이름으로 알아본다 */
+/** 지식 검색 모델 도구의 이름. `tool.execution.after` 페이로드에는 기능 참조가 없어 이름으로 알아본다 */
 const KNOWLEDGE_SEARCH_TOOL = "knowledge_search";
 
 const TERMS_MAX = 16;

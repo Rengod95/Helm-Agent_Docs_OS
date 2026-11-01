@@ -1,5 +1,5 @@
 /**
- * 능력 버전 범위 비교. F가 형식(isSemVerRange)만 검사하고 만족 계산은 X가 한다(F.capabilities.spec §4.1).
+ * 기능 버전 범위 비교. F가 형식(isSemVerRange)만 검사하고 만족 계산은 X가 한다(F.capabilities.spec §4.1).
  * 허용 형식: `x.y.z`, `^x.y.z`, `~x.y.z`, `>=x.y.z`, `>=x.y.z <a.b.c`. 사전 릴리스 태그는 낮은 버전으로 본다
  */
 type Triple = readonly [number, number, number];

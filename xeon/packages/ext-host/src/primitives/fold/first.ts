@@ -12,7 +12,7 @@ import type { FoldEnv } from "./env.ts";
 
 type ClosedFirstHookName = Exclude<FirstHookName, FailOpenFirstHookName>;
 
-/** 지점 선언의 failure가 closed인 first 지점. FIRST_DENY 항목이 있는 지점이다 */
+/** 훅 선언의 failure가 closed인 first 훅. FIRST_DENY 항목이 있는 지점이다 */
 function isClosed(point: FirstHookName): point is ClosedFirstHookName {
   return HOOKS[point].failure === "closed";
 }

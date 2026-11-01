@@ -47,7 +47,7 @@ export function methodKeyIsChecked(): void {
 /** ToolWire는 pi Tool에 대입 가능하다 */
 export type WireIsTool = Expect<Assignable<ToolWire, Tool>>;
 
-/** 비밀 메타: 스키마의 Static과 인터페이스는 서로 대입 가능하다(읽기 전용 차이는 허용) */
+/** 시크릿 메타: 스키마의 Static과 인터페이스는 서로 대입 가능하다(읽기 전용 차이는 허용) */
 type MutableValue<V> = V extends string
   ? V
   : V extends readonly (infer U)[]

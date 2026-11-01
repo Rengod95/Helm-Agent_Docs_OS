@@ -32,7 +32,7 @@ export interface ToolsDeps {
   readonly lockEnv: LockEnv | undefined;
   readonly truncator: OutputTruncator;
   readonly redactor: Redactor;
-  /** 비밀 사용 정책 판정(`check`). 없으면 `secretEnv`를 쓰는 호출은 거부한다 */
+  /** 시크릿 사용 정책 판정(`check`). 없으면 `secretEnv`를 쓰는 호출은 거부한다 */
   readonly secrets: SecretChecker | undefined;
   readonly ext: Pick<ExtHost, "dispatch">;
   readonly resolveCapability: CapabilityResolver;

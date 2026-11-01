@@ -104,7 +104,7 @@ function uniqueDefs(defs: readonly SettingDefWire[]): {
   return { defs: unique, duplicates };
 }
 
-/** 비밀 값은 SecretRef 문자열만 통과한다. 평문이면 null이다(§4.6.1) */
+/** 시크릿 값은 SecretRef 문자열만 통과한다. 평문이면 null이다(§4.6.1) */
 function refOf(value: unknown): string | null {
   const parsed = parse(SecretRef, value);
   return parsed.ok ? parsed.value : null;

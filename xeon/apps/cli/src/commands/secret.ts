@@ -21,7 +21,7 @@ import { withEngine, type CommandContext } from "./context.ts";
 // in-process 접속에서는 값 입력·열람 수단을 wire 밖(SecretOutOfBandPort)으로 호스트에 맡기고, wire에는 값 필드 없는
 // secret.beginEntry·beginReveal로 시작만 알린다. 값을 담은 바이트 배열은 넘긴 직후 0으로 덮는다. 문자열로 바꾸지 않는다.
 
-/** 비TTY stdin에서 받는 값의 상한. 비밀 값은 짧다. 이보다 크면 잘못된 입력이다 */
+/** 비TTY stdin에서 받는 값의 상한. 시크릿 값은 짧다. 이보다 크면 잘못된 입력이다 */
 const MAX_VALUE_BYTES = 64 * 1024;
 
 type InputFailure = "cancelled" | "empty" | "mismatch" | "tooLarge";
@@ -283,7 +283,7 @@ async function runLs(
       ...(command.meta ? { meta: true } : {}),
       ...(command.usage ? { usage: true } : {}),
     });
-    // 비밀 명령에는 메시지 탭을 붙이지 않는다. --json은 결과 객체만 쓴다(§4.7)
+    // 시크릿 명령에는 메시지 탭을 붙이지 않는다. --json은 결과 객체만 쓴다(§4.7)
     if (command.output === "json") {
       await ctx.io.stdout(`${JSON.stringify(listed.secrets, null, 2)}\n`);
       return EXIT.ok;
@@ -433,7 +433,7 @@ async function runRm(
     return EXIT.usage;
   }
   return withEngine(ctx, async (handle) => {
-    // 이 비밀을 가리키는 곳을 먼저 읽는다(secret.references). 이 메서드를 모르는 호스트는 사용 정책만 보인다
+    // 이 시크릿을 가리키는 곳을 먼저 읽는다(secret.references). 이 메서드를 모르는 호스트는 사용 정책만 보인다
     const references = handle.supports("secret.references")
       ? await handle.connection.request("secret.references", { name: command.name })
       : null;

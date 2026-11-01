@@ -15,7 +15,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 ## 1. 목표와 마일스톤 배치
 
 - 목표: Linux x86_64와 macOS arm64에서 같은 입력으로 릴리즈 아카이브를 만들고, 같은 스모크(X11)를 통과시킵니다(`m3b-plan` B5-REL).
-- 배치: M3b, B4 병합 뒤 병렬로 진행합니다. 서명과 공증의 실제 실행, 비밀 등록, Mac 실기 확인은 사용자 묶음이고 이 트랙의 완료 조건이 아닙니다.
+- 배치: M3b, B4 병합 뒤 병렬로 진행합니다. 서명과 공증의 실제 실행, 시크릿 등록, Mac 실기 확인은 사용자 묶음이고 이 트랙의 완료 조건이 아닙니다.
 
 ## 2. 패키지와 파일 배치
 
@@ -24,9 +24,9 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 | `xeon/scripts/release.ts` | 아카이브 조립, 번들 바이너리 버전 확인, 잠금 파일, 고지, 체크섬 |
 | `xeon/scripts/release-bundle.json` | 번들 버전, 라이선스, 출처, 기본 플러그인, 템플릿 위치, 시스템 요구 |
 | `xeon/scripts/release-smoke.ts`, `release-smoke.sh` | 아카이브 검사와 실행 검사(X11). 셸 스크립트는 두 OS에서 같은 입력을 쓴다 |
-| `xeon/scripts/release-sign.sh` | macOS 서명과 공증. 비밀이 없으면 건너뛴다 |
+| `xeon/scripts/release-sign.sh` | macOS 서명과 공증. 시크릿이 없으면 건너뛴다 |
 | `xeon/scripts/release.test.ts`, `workflow-pins.test.ts`, `release-smoke.test.ts` | 단위 시험과 X11 |
-| `.github/workflows/fresnel-release.yml` | 릴리즈 스모크 두 OS, 서명 비밀 전달 |
+| `.github/workflows/fresnel-release.yml` | 릴리즈 스모크 두 OS, 서명 시크릿 전달 |
 | `.github/workflows/fresnel-macos.yml` | macOS job의 릴리즈 스모크 단계 |
 | `xeon/justfile`, 루트 `justfile` | `release`, `release-smoke` 레시피 |
 | `xeon/apps/cli/src/group/fs-port.ts`, `runtime.ts` | 템플릿 탐색에 자원 디렉터리 단계를 더함 |
@@ -39,7 +39,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 |---|---|---|
 | R1 | 설정 파일과 번들 버전 고정, 버전 일치 시험 | 구현됨 |
 | R2 | 아카이브 조립, 잠금 파일, SHA256SUMS, 고지, `.sha256` | 구현됨 |
-| R3 | 서명과 공증 단계, 비밀이 없을 때 건너뛰기 | 구현됨. 실제 서명은 사용자 묶음 |
+| R3 | 서명과 공증 단계, 시크릿이 없을 때 건너뛰기 | 구현됨. 실제 서명은 사용자 묶음 |
 | R4 | 스모크 X11과 두 OS의 워크플로 단계 | 구현됨. 두 OS의 실행 결과 확인 대기 |
 | R5 | 템플릿 탐색의 자원 디렉터리 단계 | 구현됨 |
 | R6 | 액션 SHA 고정 회귀 시험(M3-30) | 구현됨 |
@@ -67,12 +67,12 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 - X11이 `just exit-tests`에서 통과하고 건너뜀이 0입니다(Linux CI의 `exit-tests` job, macOS job).
 - `just release-smoke`가 Linux x86_64와 macOS arm64에서 `release-smoke: ok`를 냅니다.
 - `just docs-route --check`와 `just req-ledger`가 통과합니다.
-- 서명과 공증은 비밀 등록 뒤 사용자가 실기로 확인합니다.
+- 서명과 공증은 시크릿 등록 뒤 사용자가 실기로 확인합니다.
 
 ## 7. 위험과 대응
 
 | 위험 | 대응 |
 |---|---|
 | X11이 아카이브를 만들어 시험 상한(300초)에 걸릴 수 있습니다 | 빌드 시간을 재고, 넘으면 X11을 별도 단계로 옮깁니다([제안]) |
-| 공증 실패는 비밀을 등록한 뒤에야 드러납니다 | 사용자 묶음에서 한 번 실행합니다 |
+| 공증 실패는 시크릿을 등록한 뒤에야 드러납니다 | 사용자 묶음에서 한 번 실행합니다 |
 | 고지 전문과 체크섬 출처는 사람이 판단할 항목입니다 | `L4.release.spec` §8 미결 3과 4로 넘깁니다 |

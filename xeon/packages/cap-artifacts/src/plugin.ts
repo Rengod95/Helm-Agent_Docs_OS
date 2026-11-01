@@ -69,7 +69,7 @@ async function deferred(work: () => Promise<void>): Promise<void> {
 }
 
 /**
- * `session_rename`의 도구 정책. 설정이 꺼져 있으면 없고, 그때는 `artifacts.sessions` 능력을 도구로 올리지 않는다
+ * `session_rename`의 도구 정책. 설정이 꺼져 있으면 없고, 그때는 `artifacts.sessions` 기능을 도구로 올리지 않는다
  * (`l2.artifacts.tools.sessionRename`, 기본 꺼짐).
  */
 export function sessionRenamePolicy(

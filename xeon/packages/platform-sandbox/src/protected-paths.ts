@@ -67,7 +67,7 @@ export interface ProtectedPathInput {
   readonly dirs: ProtectedDirs;
   /** SandboxProvider.defaultProtectedPaths(dirs) */
   readonly providerEntries: readonly ProtectedPathEntry[];
-  /** SecretService.protectedPaths(): 비밀 파일 절대 경로. 값 없음 */
+  /** SecretService.protectedPaths(): 시크릿 파일 절대 경로. 값 없음 */
   readonly secretPaths: readonly string[];
   /** 부모 env의 SOPS_AGE_KEY_FILE */
   readonly ageKeyFileEnv: string | undefined;
@@ -112,14 +112,14 @@ function dedupe(entries: readonly ProtectedPathEntry[]): ProtectedPathEntry[] {
 }
 
 /**
- * 기본 보호 경로(공통 표 + provider 항목 + 비밀 경로 + 설정 추가분). 작업 공간 root별 git 항목은 제외한다.
- * 더 구체적인 항목(비밀)을 앞에 둔다. matchProtectedPath는 맞는 첫 항목을 돌려주기 때문이다.
+ * 기본 보호 경로(공통 표 + provider 항목 + 시크릿 경로 + 설정 추가분). 작업 공간 root별 git 항목은 제외한다.
+ * 더 구체적인 항목(시크릿)을 앞에 둔다. matchProtectedPath는 맞는 첫 항목을 돌려주기 때문이다.
  */
 export function buildProtectedPaths(input: ProtectedPathInput): readonly ProtectedPathEntry[] {
   const { home, data, config } = input.dirs;
   const credentialAccess: ProtectedAccess = input.credentialReadAllowed ? "write" : "read_write";
   const entries: ProtectedPathEntry[] = [
-    // 비밀
+    // 시크릿
     pathEntry(posix.join(config, "secrets"), "prefix", "read_write", "secret_key"),
     ...input.secretPaths
       .filter((path) => posix.isAbsolute(path))

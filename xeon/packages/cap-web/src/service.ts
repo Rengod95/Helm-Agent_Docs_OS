@@ -10,7 +10,7 @@ import type { WebDeps } from "./deps.ts";
 import { createFetchApi } from "./fetch/pipeline.ts";
 import { createSearchApi } from "./search/search-api.ts";
 
-// 능력별 API 객체를 조립한다. 묶음(WebService)은 Cordis에 등록하지 않는다. 등록은 능력마다 한다(L2.readme §5.6).
+// 기능별 API 객체를 조립한다. 묶음(WebService)은 Cordis에 등록하지 않는다. 등록은 기능마다 한다(L2.readme §5.6).
 // browse는 `browse/service.ts`(B10)가 만든다. research는 2차라 그 메서드는 `unsupported`로 거부한다.
 
 function unsupported(capability: CapabilityId, method: string): Promise<never> {

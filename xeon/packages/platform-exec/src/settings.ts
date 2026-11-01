@@ -113,7 +113,7 @@ const group = defineSettings("l0.exec", {
       widget: "list",
       order: 120,
       label: "자식 프로세스에 넘길 추가 환경 변수",
-      help: "이름만 적는다. 비밀 값은 넣지 않는다",
+      help: "이름만 적는다. 시크릿 값은 넣지 않는다",
     },
     since: "0.1.0",
   },

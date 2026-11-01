@@ -149,7 +149,7 @@ function dispatcherOf(ext: ExtHost): ProviderDispatcher {
       );
     },
     async thinkingLevelSelect(input) {
-      // 지점 선언이 detached라 디스패치는 핸들러를 기다리지 않고 돌아온다
+      // 훅 선언이 detached라 디스패치는 핸들러를 기다리지 않고 돌아온다
       await ext.dispatch(
         "request.thinking.after",
         { role: input.role, level: input.level, previousLevel: input.previousLevel },

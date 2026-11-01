@@ -28,7 +28,7 @@ import {
   UsageSchema,
 } from "../../conversation/index.ts";
 
-/** 능力 도구 호출이 대응하는 능력과 메서드(F.capabilities.spec §7) */
+/** 능力 도구 호출이 대응하는 기능과 메서드(F.capabilities.spec §7) */
 export const CapabilityRefSchema: TObject<{
   id: typeof CapabilityIdTypedSchema;
   method: TString;
@@ -65,7 +65,7 @@ export const ToolCallPayloadSchema: TObject<{
     toolName: ToolNameSchema,
     /** 읽기 전용. 인자 변경은 지원하지 않는다(review.decisions-2 U-06) */
     input: ToolInputSchema,
-    /** 능력 도구면 대응 능력과 메서드 */
+    /** 기능 도구면 대응 기능과 메서드 */
     capability: Type.Optional(CapabilityRefSchema),
     /**
      * 도구의 효과 범위(미선언은 "exec"). 그룹 핸들러의 쓰기 판정에 쓴다(M3-REQ-04).
@@ -208,7 +208,7 @@ export const ToolExecutionEndPayloadSchema: TObject<{
   {
     toolCallId: Type.String({ minLength: 1, maxLength: 256 }),
     toolName: ToolNameSchema,
-    /** 호출 인자(비밀을 가린 값). 결과 한 건만으로 무엇을 실행했는지 알 수 있게 한다(M3-REQ-04). 선택이다: L1.tools가 채우기 전의 호출자가 컴파일되도록 열어 둔다 [제안] */
+    /** 호출 인자(시크릿을 가린 값). 결과 한 건만으로 무엇을 실행했는지 알 수 있게 한다(M3-REQ-04). 선택이다: L1.tools가 채우기 전의 호출자가 컴파일되도록 열어 둔다 [제안] */
     input: Type.Optional(ToolInputSchema),
     /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다. `input`과 같은 이유로 선택이다 [제안] */
     stepId: Type.Optional(StepIdSchema),

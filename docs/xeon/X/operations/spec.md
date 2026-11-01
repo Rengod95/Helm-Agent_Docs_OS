@@ -28,7 +28,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 정하는 것:
 
 - tier 집합과 순위, tier 부여 규칙, `DispatchPolicy`에 넣는 정렬 키 함수
-- 지점 종류별 핸들러 시간 예산, 사용자 응답 대기의 예산 제외, 예산 초과 처리
+- 훅 종류별 핸들러 시간 예산, 사용자 응답 대기의 예산 제외, 예산 초과 처리
 - 확장 단위 실패 집계, 자동 끄기와 다시 켜기 규칙
 - 확장 전용 테이블 API `ExtStorage`와 접두 밖 접근 차단 방식
 - 도구·명령·단축키·플래그의 네임스페이스와 충돌 해소
@@ -38,7 +38,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 
 다루지 않는 것:
 
-- 지점 이름, fold, 페이로드 타입, `FIRST_DENY`, `CHAIN_RULES`: `F.extensions.spec`(정본). 이 문서는 이름으로 인용하고 재정의하지 않는다.
+- 훅 이름, fold, 페이로드 타입, `FIRST_DENY`, `CHAIN_RULES`: `F.extensions.spec`(정본). 이 문서는 이름으로 인용하고 재정의하지 않는다.
 - 디스패처, post 큐, drive 임대 중재, scope 토글 적용, 리소스 등록 API, `DispatchPolicy` 인터페이스 자체: `X.primitives.spec`
 - 확장 탐색, 로드 순서, 매니페스트 검증 흐름, 신뢰 판정, 프로세스 격리, SDK 가상 모듈: `X.loading-trust.spec`
 - 세션 커밋 경로와 투영기 실행: `L1.persistence.spec`, `eng.transactions.design`
@@ -250,14 +250,14 @@ export interface HandlerOutcomeRecord {
   readonly tier: Tier;
   readonly point: HookName;
   readonly fold: Fold;
-  /** 그 지점 선언의 실패 정책. `HOOKS[point].failure`를 읽는다(F.extensions.spec §3.3, adr.0017) */
+  /** 그 훅 선언의 실패 정책. `HOOKS[point].failure`를 읽는다(F.extensions.spec §3.3, adr.0017) */
   readonly failure: FailurePolicy;
   readonly result: HandlerResultKind;
   /** 멈춘 시간을 뺀 실행 시간 */
   readonly activeMs: number;
   /** deps.now() */
   readonly at: number;
-  /** 오류 메시지 앞 500자. 비밀 마스킹은 L0.secrets.spec의 출력 마스킹을 거친다 */
+  /** 오류 메시지 앞 500자. 시크릿 마스킹은 L0.secrets.spec의 출력 마스킹을 거친다 */
   readonly message?: string;
 }
 
@@ -676,15 +676,15 @@ export interface HookInput<N extends HookHookName = HookHookName> {
   readonly threadId: ThreadId;
   readonly cwd: string;
   readonly payload: HookSignatures[N]["payload"];
-  /** chain 지점에서만. 앞 핸들러까지 누적된 값 */
+  /** chain 훅에서만. 앞 핸들러까지 누적된 값 */
   readonly current?: HookSignatures[N] extends { readonly value: infer V } ? V : never;
 }
 
 /** stdout JSON. 빈 출력은 {}와 같다 */
 export const HookOutputSchema = Type.Object({
-  /** first 지점. 지점의 결정 스키마(HOOKS[point].result)로 다시 검사한다 */
+  /** first 훅. 지점의 결정 스키마(HOOKS[point].result)로 다시 검사한다 */
   decision: Type.Optional(Type.Unknown()),
-  /** chain 지점. 지점의 패치 스키마로 다시 검사한다 */
+  /** chain 훅. 지점의 패치 스키마로 다시 검사한다 */
   patch: Type.Optional(Type.Unknown()),
   /** 진단용. 모델이나 대화에 넣지 않는다 */
   message: Type.Optional(Type.String({ maxLength: 2000 })),
@@ -833,7 +833,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 예 2 (`first`, `thread.trust.before`): 결정에 "신뢰함"이 있는 지점이다. 사용자 확장이 가드보다 바깥에 있으면 그 확장의 "신뢰함"이 가드를 건너뛴다. 그래서 가드는 가장 바깥 tier여야 한다.
 
-예 3 (`chain`, `input.agent.before`): `guard`가 시스템 프롬프트에 안전 문구를 더하고, `user` 확장이 시스템 프롬프트를 교체하면 안전 문구는 사라진다. chain은 안쪽 핸들러가 값을 고칠 수 있는 fold다. 그래서 [제안] 보안 불변식은 chain 지점에 두지 않는다. 보안 판정은 first 지점(`tool.call.before`, `input.bash.before`, `thread.trust.before`, `session_before_*`)과 L1의 최종 검증(`F.extensions.spec` §4.1 `finalize`, `L1.tools.spec`의 권한 판정)에 둔다. 가드 tier의 chain 핸들러는 기본값 제공 용도로만 쓴다.
+예 3 (`chain`, `input.agent.before`): `guard`가 시스템 프롬프트에 안전 문구를 더하고, `user` 확장이 시스템 프롬프트를 교체하면 안전 문구는 사라진다. chain은 안쪽 핸들러가 값을 고칠 수 있는 fold다. 그래서 [제안] 보안 불변식은 chain 훅에 두지 않는다. 보안 판정은 first 훅(`tool.call.before`, `input.bash.before`, `thread.trust.before`, `session_before_*`)과 L1의 최종 검증(`F.extensions.spec` §4.1 `finalize`, `L1.tools.spec`의 권한 판정)에 둔다. 가드 tier의 chain 핸들러는 기본값 제공 용도로만 쓴다.
 
 예 4 (`chain`, `tool.result`): `user` 확장 A가 `content`를 요약으로 바꾸고, `builtin`의 학습 그룹이 `details`만 바꾼다. `CHAIN_RULES.tool_result`는 필드별 병합이라 두 변경이 모두 남는다. 순서가 바뀌어도 결과가 같다.
 
@@ -877,7 +877,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 #### 4.2.2 기본값
 
-[제안] 지점 종류와 fold로 예산 등급을 정한다(`budgetClassOf`).
+[제안] 훅 종류와 fold로 예산 등급을 정한다(`budgetClassOf`).
 
 | 등급 | 대상 | 기본(ms) | 이유 |
 |---|---|---|---|
@@ -1171,7 +1171,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 #### 4.7.3 입력, 출력, 종료 코드
 
 - 입력: stdin에 `HookInput` JSON 한 줄과 개행을 쓰고 닫는다. `schemaVersion`은 `"fresnel.hook.v1"`이다(Hermes `hermes.observer.v1` 방식, `_research/item-catalog.md` X절 훅 페이로드 스키마 버전 행). payload 형식이 바뀌면 이 값을 올린다.
-- 출력: stdout 전체를 JSON 하나로 읽는다. 빈 출력은 `{}`다. first 지점은 `decision`, chain 지점은 `patch`만 읽고, 지점의 결정·패치 스키마(`HOOKS[point].result`)로 검사한다. tap 지점은 stdout을 읽지 않는다.
+- 출력: stdout 전체를 JSON 하나로 읽는다. 빈 출력은 `{}`다. first 훅은 `decision`, chain 훅은 `patch`만 읽고, 지점의 결정·패치 스키마(`HOOKS[point].result`)로 검사한다. tap 훅은 stdout을 읽지 않는다.
 - 종료 코드(`interpretHookRun`):
 
   | 결과 | tap | first | chain |
@@ -1186,7 +1186,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
   | stdout 10,000자 초과 | 실패(`hook_output`) | 실패(`hook_output`) → 거부 | 실패(`hook_output`) → 패치 버림 |
 
 - 거부는 그 지점의 `FIRST_DENY` 형식으로 만든다. exit 2의 거부는 `reason`만 stderr 내용으로 바꾼다.
-- 주의 사항 [제안]: Claude Code에서 exit 1은 비차단 오류이고 PreToolUse 시간 초과도 기본은 비차단이다(`_research/refs/claude-code.md` hooks 종료 코드 항목, `D:hooks:880`). Fresnel은 first 지점에서 0과 2 밖의 모든 비정상 종료를 거부로 환산한다(`F.extensions.spec` §4.1 fail-closed). 그래서 Claude Code용으로 쓴 훅 스크립트가 exit 1로 "경고만" 하던 경우 Fresnel에서는 도구 호출이 막힌다. 이 차이를 사용자 문서와 `fresnel doctor` 훅 점검에 적는다.
+- 주의 사항 [제안]: Claude Code에서 exit 1은 비차단 오류이고 PreToolUse 시간 초과도 기본은 비차단이다(`_research/refs/claude-code.md` hooks 종료 코드 항목, `D:hooks:880`). Fresnel은 first 훅에서 0과 2 밖의 모든 비정상 종료를 거부로 환산한다(`F.extensions.spec` §4.1 fail-closed). 그래서 Claude Code용으로 쓴 훅 스크립트가 exit 1로 "경고만" 하던 경우 Fresnel에서는 도구 호출이 막힌다. 이 차이를 사용자 문서와 `fresnel doctor` 훅 점검에 적는다.
 - 출력 상한: stdout과 stderr 각각 10,000자다(Claude Code와 같은 값). 넘는 부분은 읽지 않고 잘라낸다. stdout이 잘리면 위 표대로 실패다. stderr가 잘리는 것은 실패가 아니고 로그에 잘림 표시를 남긴다.
 
 #### 4.7.4 실행
@@ -1205,8 +1205,8 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
   1. `BASE_ENV_ALLOW`의 이름 중 부모 환경에 있는 것
   2. 훅 정의 `env`의 이름 중 `x.operations.hookEnvAllow`(관리·사용자 범위)에도 있는 것
   3. Fresnel이 넣는 값: `FRESNEL_HOOK_ID`, `FRESNEL_HOOK_HOOK`, `FRESNEL_THREAD_ID`, `FRESNEL_PROJECT_DIR`
-- 1·2의 이름이 `SECRET_ENV_PATTERN`에 맞으면 넘기지 않는다. 비밀 참조(`secret://`)는 풀지 않는다([결정] 에이전트는 값을 모른 채 참조로 사용, `_research/decisions-log.md` 2026-10-21 2차).
-- 프로젝트 범위 설정은 `x.operations.hookEnvAllow`를 바꿀 수 없다. 저장소에 든 설정이 비밀 변수를 꺼내지 못하게 하기 위해서다.
+- 1·2의 이름이 `SECRET_ENV_PATTERN`에 맞으면 넘기지 않는다. 시크릿 참조(`secret://`)는 풀지 않는다([결정] 에이전트는 값을 모른 채 참조로 사용, `_research/decisions-log.md` 2026-10-21 2차).
+- 프로젝트 범위 설정은 `x.operations.hookEnvAllow`를 바꿀 수 없다. 저장소에 든 설정이 시크릿 변수를 꺼내지 못하게 하기 위해서다.
 
 #### 4.7.6 신뢰와 tier
 
@@ -1235,7 +1235,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 1. 핸들러가 signal을 무시하고 계속 실행됨: 디스패처는 예산이 끝난 시점에 진행한다. 그 핸들러의 프로미스와 부수 효과(타이머, 네트워크)는 프로세스에 남는다. 같은 프로세스 안에서는 강제로 멈출 수 없다(adr.0007 §6 미결 "비협조적인 확장 코드의 강제 종료"). 반복되면 자동 끄기로 다음 경계부터 호출을 멈추고, 강제 종료가 필요한 확장은 프로세스 격리로 옮긴다.
 2. 예산이 끝난 뒤 핸들러가 값을 반환함: 버린다. 장부에는 `timeout`만 남는다.
 3. 대화상자를 연 채로 사용자가 응답하지 않음: 예산은 멈춰 있다. 사용자 중단(`outer` abort)이나 대화상자 자체 시간 제한이 끝낸다. 이 경우는 `aborted`이고 실패가 아니다.
-4. 가드 핸들러가 계속 실패함: 자동 끄기 대상이 아니다. first 지점은 거부가 계속되어 도구 호출이 막힌다. 알림이 계속 나가므로 사용자가 원인을 고친다. 가드를 끄는 설정은 두지 않는다.
+4. 가드 핸들러가 계속 실패함: 자동 끄기 대상이 아니다. first 훅은 거부가 계속되어 도구 호출이 막힌다. 알림이 계속 나가므로 사용자가 원인을 고친다. 가드를 끄는 설정은 두지 않는다.
 5. 자동 끄기 요청 뒤 경계 전에 같은 확장이 drive 임대를 받으려 함: 끄기 요청이 있는 scope에는 임대를 주지 않는다 [제안]. 중재는 `X.primitives.spec`이다.
 6. 확장 투영 `apply`가 오류를 돌려주거나 예외를 던짐: 코어 커밋 전체가 롤백되고 투영기 실패로 보고된다. 쓰려는 행이 선언과 다르면(`row_invalid`) `apply`가 그 오류를 돌려준다. [결정: 오케스트레이터 기본값, M3-REQ-36] 저장 영역의 `onFailure`를 받을 때 저장소는 그 확장 투영기를 이미 정지하고 커밋을 다시 시도한 뒤다(정지와 재시도는 `L1.persistence.spec`). X는 자동 끄기 판정만 한다. 면제가 아닌 확장은 `disableNow`가 끄고 `projectionFailed(…, true)`를 보낸다. 필수(`essential: true`) 확장은 끄지 않는다. 그 확장은 켜진 채 두고 `projectionFailed(…, false)`를 실패마다 보낸다. 그 투영기는 다음 쓰기 열기 때 다시 만들어질 때까지 정지 상태로 남는다(세션 진행은 막히지 않는다). 읽기 전용으로 여는 복구는 두지 않는다(§10 미결 6, 해소).
 7. 두 확장의 변환 이름이 같은 테이블 이름을 만듦: §4.4.2 규칙상 생기지 않는다. 소유 장부가 마지막 방어로 `table_owned`를 낸다.
@@ -1278,14 +1278,14 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
   - 파일: 범위별 설정 파일의 같은 키(`F.wire-settings.spec` §3.9, 경로는 `L4.host-service.spec`).
 - 확장 공통 키 `ext.<name>.enabled`, `ext.<name>.isolation`은 `X.loading-trust.spec`, `x.primitives.driveDefaultLimits`·`x.primitives.driveLimits`는 `X.primitives.spec` 소유다. 이 문서는 정의하지 않는다.
 
-## 7. 확장 지점
+## 7. 훅
 
-- 이 문서는 지점을 선언하지 않는다. 지점 선언은 `F.extensions.spec` §3.4가 정본이다.
+- 이 문서는 지점을 선언하지 않는다. 훅 선언은 `F.extensions.spec` §3.4가 정본이다.
 - on: 모든 on 디스패치에 정렬 키(§4.1), 시간 예산(§4.2), 실패 처리(§4.3)를 적용한다. 외부 훅은 on 핸들러의 한 종류로 같은 디스패치에 들어간다(§4.7).
 - post: 이 문서의 규칙이 적용되지 않는다. post는 커밋 단위 기록이고 시간 예산이 없다. 안전 모드에서 빠진 확장은 post를 쓸 수 없다(실리지 않으므로).
 - drive: 시간 예산 밖이다(§4.2.5). 자동 끄기가 drive 그룹에 적용되면 임대 반납이 함께 일어난다(§4.3.3).
 - scope: 자동 끄기와 안전 모드 끄기는 scope 끄기 경로(`ScopeControl`)를 쓴다. 토글 적용 시점은 `X.primitives.spec`과 `F.extensions.spec` §4.5를 따른다.
-- 확장 투영(`ExtProjection`)은 커밋 경로의 투영기이며 지점 선언 대상이 아니다.
+- 확장 투영(`ExtProjection`)은 커밋 경로의 투영기이며 훅 선언 대상이 아니다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1381,7 +1381,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 12. 안전 모드 키 위치(해소). `L4.settings-ui.spec` "plugins" 탭 행이 안전 모드를 `x.operations.*` 아래로 적어 이 문서의 `x.operations.safeMode.*`와 같다.
 13. [미결] 외부 훅 목록의 범위 병합 규칙(이어 붙이기)이 `F.wire-settings.spec` §4.7 우선순위(높은 범위가 값을 덮어씀)와 다르다. 배열 키의 병합 규칙을 F에 둘지, 이 키만 예외로 둘지.
 14. [미결] 기본 예산 값(30초·10초·5초·1초·2초)과 자동 끄기 기준(연속 5회, 창 50회 중 10회 이상이고 50% 이상)은 실측 전 값이다. M1 스모크와 pi 예제 확장 이식 뒤 조정한다.
-15. [결정: adr.0017] 실패 정책은 지점 선언이 정한다. `session_before_*`, `thread.trust.before`, 가드레일 지점은 fail-closed이고 `thread.compact.before`만 fail-open 예외다 [제안]. §4.2.4의 예산 초과 처리와 §4.7.3 표의 first 열은 지점 선언의 실패 정책 값을 따르게 고친다(`review.m3-lower-requirements` M3-REQ-108).
+15. [결정: adr.0017] 실패 정책은 훅 선언이 정한다. `session_before_*`, `thread.trust.before`, 가드레일 지점은 fail-closed이고 `thread.compact.before`만 fail-open 예외다 [제안]. §4.2.4의 예산 초과 처리와 §4.7.3 표의 first 열은 훅 선언의 실패 정책 값을 따르게 고친다(`review.m3-lower-requirements` M3-REQ-108).
 16. (해소) X.primitives.spec `DispatchPolicy`(§3.4)에 선택 메서드 `onHandlerSettled(entry, activeMs)`와 `run(entry, work, outer)`를 넣었다 [제안]. 이 문서의 `DispatchPolicyExtension`은 지웠고 `OperationsPolicy`가 두 메서드를 구현한다(§3.8, §4.2.3, §4.3.2).
 17. (해소, M2 O-19) `ResourcePolicy.exposeAll`(집합 판정)을 X.primitives.spec §3.9에 더했고 `createResourcePolicy`가 구현한다(§4.5).
 18. (해소) setup 시간 예산 키는 `x.operations.budget.setupMs`다. X.loading-trust.spec §4.3.1도 같은 이름을 쓴다. 값은 `OperationsPolicy.setupBudgetMs` → `ExtHostDeps.setupBudgetMs` 경로로 primitives의 scope setup에 걸린다.

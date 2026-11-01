@@ -8,7 +8,10 @@ import {
 } from "../packages/client/src/i18n/terms.ts";
 import {
   checkCatalogs,
+  checkGlossary,
   checkMockupTerms,
+  generateGlossaryZone,
+  replaceGlossaryZone,
   checkTermSource,
   collectDocIds,
   generateMockupTerms,
@@ -210,4 +213,21 @@ test("loadTerms accepts the shipped source and rejects a malformed entry", () =>
   expect(loadTerms(TERMS).ok).toBe(true);
   expect(loadTerms({ a: { kind: "concept" } }).ok).toBe(false);
   expect(loadTerms({ a: { ...term(), status: "final" } }).ok).toBe(false);
+});
+
+test("the glossary zone is generated from the source and checked when the markers exist", () => {
+  const terms = defineTerms({
+    a: term({ doc: { ko: "가", en: "A" }, ui: { ko: "하나", en: "one" }, ids: ["a.b"] }),
+    b: term({ doc: { ko: "나", en: "B" }, ui: null, surfaces: ["none"] }),
+  });
+  const zone = generateGlossaryZone(terms);
+  expect(zone).toContain("| 가 | 하나 | one | `a.b` | proposed |");
+  expect(zone).toContain("| 나 | — | — | — | proposed |");
+  const doc = `before\n<!-- terms:begin -->\nold\n<!-- terms:end -->\nafter`;
+  expect(replaceGlossaryZone(doc, zone)).toBe(`before\n${zone}\nafter`);
+  expect(replaceGlossaryZone("no markers", zone)).toBeUndefined();
+  expect(checkGlossary(terms, undefined)).toEqual([]);
+  expect(checkGlossary(terms, "no markers")).toEqual([]);
+  expect(checkGlossary(terms, `before\n${zone}\nafter`)).toEqual([]);
+  expect(checkGlossary(terms, doc).map((v) => v.rule)).toEqual(["D-03"]);
 });

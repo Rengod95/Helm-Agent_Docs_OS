@@ -92,13 +92,13 @@ async function seed(
 
 export interface HelmReplay {
   readonly harness: ReplayHarness;
-  /** 마지막으로 돌린 세계. 가짜 능력의 호출 수를 읽는다 */
+  /** 마지막으로 돌린 세계. 가짜 기능의 호출 수를 읽는다 */
   world(): World | undefined;
 }
 
 /**
  * Helm용 효과 계수 하니스(L3.group-sdk.plan G-20). 기준 실행은 `/helm start`로 시작하고, 절단 실행은 복원한 이벤트에서 이어 간다.
- * 가짜 루프·큐·능력 세계가 기준 실행과 절단 실행 사이에 멱등 기억을 이어 쓴다. 명령 응답 알림은 drive 효과가 아니라 세지 않는다
+ * 가짜 루프·큐·기능 세계가 기준 실행과 절단 실행 사이에 멱등 기억을 이어 쓴다. 명령 응답 알림은 drive 효과가 아니라 세지 않는다
  */
 export function createHelmReplay(
   options: { readonly answers?: LensAnswers; readonly topic?: string } = {},

@@ -136,7 +136,7 @@ describe("셸 주입 확인 게이트", () => {
     });
   });
 
-  test("input 지점 핸들러는 셸이 있는 템플릿을 치환하지 않는다", async () => {
+  test("input 훅 핸들러는 셸이 있는 템플릿을 치환하지 않는다", async () => {
     const plain = setup("hello $1");
     const thread = newThread();
     const signal = new AbortController().signal;

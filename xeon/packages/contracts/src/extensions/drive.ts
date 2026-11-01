@@ -53,7 +53,7 @@ export interface SpawnOutcome {
 
 /**
  * drive 함수가 루프에 효과를 내는 통로. 루프에 대한 효과는 `turn`과 `spawn`뿐이다(post와 scope commit 제외).
- * drive 함수가 낼 수 있는 효과의 전체 목록(위임, 능력 호출 포함)은 `REPLAY_EFFECT_TABLE`(ADR-0015 §3.2)이다
+ * drive 함수가 낼 수 있는 효과의 전체 목록(위임, 기능 호출 포함)은 `REPLAY_EFFECT_TABLE`(ADR-0015 §3.2)이다
  */
 export interface LoopHandle {
   turn(input: TurnInput): Promise<TurnOutcome>;

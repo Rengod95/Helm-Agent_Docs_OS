@@ -14,7 +14,7 @@ binds: [xeon/apps/desktop/src/views/**, xeon/packages/client/**, xeon/packages/c
 
 - 상태: accepted(방식). 스키마와 이름의 세부는 [제안]이고 정본은 F가 정합니다(§6).
 - 날짜: 2026-10-30 초안, 2026-10-31 개정
-- [결정: 2026-10-30 사용자] Xeon은 층별 플러그인(F, X, L0~L3)을 조립하고 적응시키는 대화형 에이전트 런타임입니다. Helm 같은 의도 그룹(에이전트 안의 에이전트 시스템)이 핵심 단위입니다.
+- [결정: 2026-10-30 사용자] Fresnel은 층별 플러그인(F, X, L0~L3)을 조립하고 적응시키는 대화형 에이전트 런타임입니다. Helm 같은 의도 그룹(에이전트 안의 에이전트 시스템)이 핵심 단위입니다.
 - [결정: 2026-10-30 사용자] 대화 화면과 런타임 작업이 둘 다 1급입니다. 원문: "핵심은 대화화면이라는 건 어쨋든 에이전트 런타임의 숙명이라고 봄. 그래서 둘다 1급인느낌."
 - [결정: 2026-10-30 사용자] 플러그인마다 클라이언트 안에서 자기 화면을 구성할 수 있어야 합니다. 원문: "플러그인 별로 우리 클라이언트 안에서 자기만의 ui 화면을 구성할 수 있는 시스템을 지원했으면 해, 단순 특정 파일을 렌더링 한다기 보다는, 어떤 플러그인을 어댑팅 했을 때, 이 플러그인이 만약 l3고 자기만의 워크플로우나 에이전틱한 흐름에서 대화창이 아닌 커스텀한 화면을 요구한다면 이를 지원할 수 있어야 해."
 - [결정: 2026-10-31 사용자] 두 모드를 모두 지원합니다. 선언형 모드(클라이언트가 caustic으로 그림)와 격리 iframe·웹 컴포넌트 모드입니다. 에이전트가 플러그인을 만들 때 어느 모드가 필요한지는 에이전트가 판단합니다(`L4.desktop-ux.spec` §12.3 U-1).
@@ -179,12 +179,12 @@ interface ExtMethodDecl {
 #### 3.6.2 프레임 격리
 
 1. [제안] 프레임은 `<iframe sandbox="allow-scripts">`입니다. `allow-same-origin`, `allow-popups`, `allow-modals`, `allow-forms`, `allow-top-navigation`, `allow-downloads`를 주지 않습니다. 그래서 프레임 문서의 origin은 불투명이고, 앱 문서의 DOM, 저장소, 쿠키에 닿지 못하며 창을 열거나 앱을 다른 곳으로 이동시키지 못합니다.
-2. [제안] 프레임 파일은 셸이 등록한 전용 URI 스킴(`xeon-view://<확장이름>/<버전>/<경로>`)으로만 제공합니다. 셸은 확장 패키지의 `frame.root` 아래 파일만 읽고, `..`, 폴더 밖을 가리키는 심볼릭 링크, 절대 경로를 거부합니다. 앱 자원과 다른 확장 파일은 이 스킴으로 나오지 않습니다.
-3. [제안] Tauri IPC(`window.__TAURI__`, invoke)는 프레임에 주입되지 않아야 합니다. 셸 capability 파일의 원격·iframe 허용 목록에 `xeon-view:`를 넣지 않습니다. 이 동작을 macOS(WKWebView)와 Linux(WebKitGTK)에서 e2e 시험으로 확인한 뒤에만 프레임 모드를 켭니다(§6 미결 1). 확인 전 빌드는 `x.views.frames`(기본 `true`) [제안]를 `false`로 고정합니다.
+2. [제안] 프레임 파일은 셸이 등록한 전용 URI 스킴(`fresnel-view://<확장이름>/<버전>/<경로>`)으로만 제공합니다. 셸은 확장 패키지의 `frame.root` 아래 파일만 읽고, `..`, 폴더 밖을 가리키는 심볼릭 링크, 절대 경로를 거부합니다. 앱 자원과 다른 확장 파일은 이 스킴으로 나오지 않습니다.
+3. [제안] Tauri IPC(`window.__TAURI__`, invoke)는 프레임에 주입되지 않아야 합니다. 셸 capability 파일의 원격·iframe 허용 목록에 `fresnel-view:`를 넣지 않습니다. 이 동작을 macOS(WKWebView)와 Linux(WebKitGTK)에서 e2e 시험으로 확인한 뒤에만 프레임 모드를 켭니다(§6 미결 1). 확인 전 빌드는 `x.views.frames`(기본 `true`) [제안]를 `false`로 고정합니다.
 
 #### 3.6.3 CSP
 
-- 앱 문서: 기존 `default-src 'self'`에 `frame-src xeon-view:`만 더합니다. `unsafe-eval`, 원격 `script-src`는 더하지 않습니다.
+- 앱 문서: 기존 `default-src 'self'`에 `frame-src fresnel-view:`만 더합니다. `unsafe-eval`, 원격 `script-src`는 더하지 않습니다.
 - 프레임 문서(셸이 응답 헤더로 붙임) [제안]: `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'none'; frame-src 'none'; worker-src 'self' blob:; form-action 'none'; base-uri 'none'`. 네트워크 요청, 다른 프레임 열기, `eval`은 막힙니다. 프레임 HTML의 `<meta>` CSP는 이 헤더보다 넓힐 수 없습니다.
 
 #### 3.6.4 wire 직접 연결 없음
@@ -210,7 +210,7 @@ interface ExtMethodDecl {
 
 #### 3.6.8 테마 토큰 전달
 
-- 셸은 처음과 테마가 바뀔 때 `push: "theme"`로 caustic 토큰 값(CSS 사용자 속성 이름과 값), 라이트·다크, 밀도, 로케일, `prefers-reduced-motion`, 한글 타이포 규칙(DP-11)을 보냅니다. 셸은 `xeon-view://_caustic/tokens.css`(앱에 든 `@caustic/tokens` 사본, 읽기 전용)도 제공합니다 [제안].
+- 셸은 처음과 테마가 바뀔 때 `push: "theme"`로 caustic 토큰 값(CSS 사용자 속성 이름과 값), 라이트·다크, 밀도, 로케일, `prefers-reduced-motion`, 한글 타이포 규칙(DP-11)을 보냅니다. 셸은 `fresnel-view://_caustic/tokens.css`(앱에 든 `@caustic/tokens` 사본, 읽기 전용)도 제공합니다 [제안].
 - 프레임 안 모양을 caustic에 맞추는 일은 플러그인 몫입니다. 셸은 머리와 상자 경계를 그려 프레임 화면이 앱 화면처럼 보이지 않게 합니다(§3.6.6).
 
 #### 3.6.9 위협 표

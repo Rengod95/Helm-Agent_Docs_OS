@@ -12,7 +12,7 @@ import { wireErrorOfStore } from "../store-error.ts";
 // 알림 목록(M3-REQ-16). 셋 다 읽거나 저장만 하고 thread의 쓰기 소유를 얻지 않는다. 서비스는 cap-dialog의 `dialog.status`·`dialog.attachments`·
 // `dialog.notify`다(assembly/dialog-wire.ts).
 
-/** 입력을 고치면 풀리는 능력 오류 코드. 첨부 원천이 없거나 한도를 넘었거나 형식을 못 읽는 경우 */
+/** 입력을 고치면 풀리는 기능 오류 코드. 첨부 원천이 없거나 한도를 넘었거나 형식을 못 읽는 경우 */
 const INPUT_CODES: ReadonlySet<string> = new Set([
   "invalid_input",
   "not_found",
@@ -42,7 +42,7 @@ function dialogFailure(failure: DialogWireFailure, method: DialogMethod): WireEr
     case "unavailable":
       return wireError("internal", { message: `${method}: the dialog service is not available` });
     case "rejected":
-      // 입력 문제는 -32602다. 나머지(저장소 실패 등)는 internal에 능력 오류 코드를 싣는다
+      // 입력 문제는 -32602다. 나머지(저장소 실패 등)는 internal에 기능 오류 코드를 싣는다
       return INPUT_CODES.has(failure.code)
         ? wireError("jsonrpc.invalidParams", {
             details: {

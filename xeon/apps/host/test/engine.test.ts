@@ -137,7 +137,7 @@ describe("real engine", () => {
       expect(await connection.request("secret.beginReveal", { name: name.value })).toEqual({
         started: false,
       });
-      // 통로는 처리기가 읽는 저장소와 같다: 맡긴 수단은 꺼내져 쓰이고(없는 비밀이라 오류), 다시 꺼낼 수 없다
+      // 통로는 처리기가 읽는 저장소와 같다: 맡긴 수단은 꺼내져 쓰이고(없는 시크릿이라 오류), 다시 꺼낼 수 없다
       host.secretOutOfBand.offerReveal({
         name: name.value,
         reauth: { method: "tty-confirm", verifiedAt: Date.now() },

@@ -55,7 +55,7 @@ const noopLogger: Logger = {
   child: () => noopLogger,
 };
 
-/** provider 코드가 던진 실패. 앞단(`failureOfThrown`)이 능력 오류로 바꾼다 */
+/** provider 코드가 던진 실패. 앞단(`failureOfThrown`)이 기능 오류로 바꾼다 */
 async function rejection(promise: Promise<unknown>): Promise<WebFailure> {
   const caught = await promise.then(
     () => undefined,

@@ -44,7 +44,7 @@ import {
 } from "../../src/testing/index.ts";
 import { fakeTasks, type FakeTasks } from "./fake-tasks.ts";
 
-// 테스트 조립. 실제 ext-host 테스트 호스트(디스패치)에 대역 세션·저장소·비밀·태스크를 붙인다.
+// 테스트 조립. 실제 ext-host 테스트 호스트(디스패치)에 대역 세션·저장소·시크릿·태스크를 붙인다.
 
 export const NOW = 1_767_571_200_000;
 
@@ -76,7 +76,7 @@ export interface Harness {
   readonly runtime: ToolRuntime;
   readonly deps: ToolsDeps;
   readonly thread: ThreadId;
-  /** 능력 서비스 API 대역 표(능력 id → API 객체) */
+  /** 기능 서비스 API 대역 표(기능 id → API 객체) */
   readonly apis: Map<string, unknown>;
   /** 파일 범위 설정 층을 바꾼다 */
   setLayers(layers: ScopeStack): void;
@@ -206,12 +206,12 @@ export function layer(
   };
 }
 
-/** bash·read·ls 능력 도구를 올리고 API 호출 기록을 돌려준다 */
+/** bash·read·ls 기능 도구를 올리고 API 호출 기록을 돌려준다 */
 export interface WorkspaceProbe {
   readonly calls: {
     readonly method: string;
     readonly input: unknown;
-    /** 능력 메서드가 받은 `CallOptions.context` */
+    /** 기능 메서드가 받은 `CallOptions.context` */
     readonly context?: CallContext;
   }[];
   /** run(bash) 응답을 바꾼다 */

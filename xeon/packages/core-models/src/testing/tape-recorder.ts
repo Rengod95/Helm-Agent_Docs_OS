@@ -20,7 +20,7 @@ import type {
 
 // 실제 provider 호출을 테이프로 남기는 녹화기(eng.testing.guide TS-04, M2 마감 G4-06, 결정 D-e).
 // pi-ai 요청 옵션 `fetch` 자리에 끼워 원본 SSE 덩어리와 도착 시각(ms)을 그대로 모은다. 요청 헤더는 저장하지 않고
-// (키가 실리는 자리다), 응답 헤더는 허용 목록만 남기며, 쓰기 직전에 비밀 패턴을 다시 훑어 하나라도 남으면 쓰지 않는다.
+// (키가 실리는 자리다), 응답 헤더는 허용 목록만 남기며, 쓰기 직전에 시크릿 패턴을 다시 훑어 하나라도 남으면 쓰지 않는다.
 
 /** 녹화기가 요청·응답 모양이 맞지 않을 때 던지는 시험 인프라 오류. 녹화는 사람이 손으로 돌리므로 바로 멈추는 편이 낫다 */
 export class TapeRecordError extends Bug {
@@ -35,7 +35,7 @@ const ALLOWED_RESPONSE_HEADERS: readonly string[] = [
   "retry-after",
 ];
 
-/** 한 번의 HTTP 교환. 비밀 치환 전의 원본이다 */
+/** 한 번의 HTTP 교환. 시크릿 치환 전의 원본이다 */
 export interface RecordedExchange {
   readonly wire: TapeWire;
   /** 응답 본문을 끝까지 받았는가. 중간에 끊겼으면 거짓 */
@@ -264,7 +264,7 @@ function responseOf(
 }
 
 /**
- * 덩어리 경계에 걸친 비밀. 덩어리마다 치환하면 앞뒤 조각이 남으므로 원본을 이어 붙여 찾고, 걸친 것이 있으면
+ * 덩어리 경계에 걸친 시크릿. 덩어리마다 치환하면 앞뒤 조각이 남으므로 원본을 이어 붙여 찾고, 걸친 것이 있으면
  * 치환으로 고치지 않고 녹화를 거절한다
  */
 function secretsAcrossChunks(
@@ -352,7 +352,7 @@ export function buildRecordedTape(input: RecordedTapeInput): Result<ModelTape, R
 
 /**
  * 테이프를 JSONL 텍스트로 만든다. 키 순서는 고정이라 같은 내용이면 같은 텍스트다. 쓰기 직전에 전체를 다시 훑어
- * 비밀 패턴이나 알려진 키 값이 남아 있으면 텍스트를 내지 않는다
+ * 시크릿 패턴이나 알려진 키 값이 남아 있으면 텍스트를 내지 않는다
  */
 export function renderRecordedTape(
   source: ModelTape,
@@ -360,7 +360,7 @@ export function renderRecordedTape(
 ): Result<string, RecordFailure> {
   const lines = [source.header, ...source.turns].map((line) => JSON.stringify(line));
   const text = `${lines.join("\n")}\n`;
-  // 덩어리 경계에 걸친 비밀은 덩어리마다 훑어서는 못 찾으므로 본문을 이어 붙여서도 훑는다
+  // 덩어리 경계에 걸친 시크릿은 덩어리마다 훑어서는 못 찾으므로 본문을 이어 붙여서도 훑는다
   const joined = source.turns.map((turn) => (turn.wire?.chunks ?? []).map((c) => c.data).join(""));
   const findings = [text, ...joined].flatMap((part) => findSecrets(part, secrets));
   if (findings.length > 0) return err({ kind: "secret_remains", findings });

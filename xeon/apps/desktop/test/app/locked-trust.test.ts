@@ -223,7 +223,7 @@ describe("settings screen wire", () => {
               {
                 name: "sops",
                 need: "required",
-                usedBy: "비밀 저장소",
+                usedBy: "시크릿 저장소",
                 impact: "키를 저장할 수 없다",
                 status: { kind: "missing", hint: "brew install sops" },
               },
@@ -252,7 +252,7 @@ describe("settings screen wire", () => {
         {
           name: "sops",
           need: "required",
-          usedBy: "비밀 저장소",
+          usedBy: "시크릿 저장소",
           ok: false,
           note: "brew install sops",
           impact: "키를 저장할 수 없다",
@@ -352,7 +352,7 @@ describe("settings screen wire", () => {
       results: { "settings.get": { settings: [] } },
     });
     const loaded = await app.commands.setup.load({ binaries: false });
-    // 비밀 목록을 읽지 못해도 설정 화면은 뜬다. 키 단계는 "확인할 수 없음"이다
+    // 시크릿 목록을 읽지 못해도 설정 화면은 뜬다. 키 단계는 "확인할 수 없음"이다
     expect(loaded.ok && loaded.value.secrets).toBeNull();
     await app.stop();
   });

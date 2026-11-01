@@ -81,7 +81,7 @@ export interface ModelTapeTurn {
 export interface TapeWireChunk {
   /** 요청을 보낸 시점부터 이 덩어리를 받은 시점까지의 ms */
   readonly t: number;
-  /** 원본 텍스트(비밀 패턴은 치환됨) */
+  /** 원본 텍스트(시크릿 패턴은 치환됨) */
   readonly data: string;
 }
 

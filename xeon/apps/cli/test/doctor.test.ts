@@ -53,7 +53,7 @@ test("doctor prints the engine checks and the three search provider lines (AC14)
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   const text = h.stdoutText();
   expect(text).toContain("[ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다");
-  expect(text).toContain("[ok]   비밀 저장소: 사용할 수 있다 (등록 0개)");
+  expect(text).toContain("[ok]   시크릿 저장소: 사용할 수 있다 (등록 0개)");
   expect(text).toContain("[참고] 서비스 모드: 사용 안 함 (in-process)");
   const block = text.slice(text.indexOf("검색 provider\n")).split("\n");
   expect(block.slice(0, 5)).toEqual([
@@ -211,7 +211,7 @@ test("a secret store that cannot be used is a warning with the fix, not a failur
   );
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   expect(h.stdoutText()).toContain(
-    "[경고] 비밀 저장소: 비밀 제공자(sops)를 쓸 수 없다 (not_found)",
+    "[경고] 시크릿 저장소: 시크릿 제공자(sops)를 쓸 수 없다 (not_found)",
   );
   expect(h.stdoutText()).toContain("해결: sops와 age를 설치하고 fresnel doctor로 확인한다");
 });
@@ -263,8 +263,8 @@ const READY_REPORT: HostBinaryReport = {
     {
       name: "sops",
       need: "required",
-      usedBy: "비밀 저장소",
-      impact: "비밀을 읽고 쓸 수 없다",
+      usedBy: "시크릿 저장소",
+      impact: "시크릿을 읽고 쓸 수 없다",
       status: { kind: "ok", version: "3.9.0", source: "system" },
     },
     {
@@ -308,7 +308,7 @@ test("doctor asks host.status for the binary report and prints one line per bina
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   expect(asked).toEqual([{ includeBinaries: true }]);
   const lines = h.stdoutText().split("\n");
-  expect(lines).toContain("  [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 비밀 저장소");
+  expect(lines).toContain("  [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 시크릿 저장소");
   expect(lines).toContain("  [ok]   외부 바이너리 rg: 14.1.0 (번들) — 파일 검색");
   expect(lines).toContain(
     "  [경고] 외부 바이너리 bwrap: 없다 (선택) — 명령을 샌드박스 없이 실행하지 못한다",
@@ -337,8 +337,8 @@ test("a required binary that cannot be used is a failed check and the environmen
             {
               name: "age",
               need: "required",
-              usedBy: "비밀 저장소",
-              impact: "비밀을 복호화할 수 없다",
+              usedBy: "시크릿 저장소",
+              impact: "시크릿을 복호화할 수 없다",
               status: { kind: "too_old", found: "1.0.0", required: "1.1.0" },
             },
             {
@@ -356,7 +356,7 @@ test("a required binary that cannot be used is a failed check and the environmen
   expect(await h.run(["doctor"])).toBe(EXIT.environment);
   const lines = h.stdoutText().split("\n");
   expect(lines).toContain(
-    "  [실패] 외부 바이너리 age: 버전이 낮다 (1.0.0, 필요 1.1.0) — 비밀을 복호화할 수 없다",
+    "  [실패] 외부 바이너리 age: 버전이 낮다 (1.0.0, 필요 1.1.0) — 시크릿을 복호화할 수 없다",
   );
   expect(lines).toContain("         해결: age을(를) 1.1.0 이상으로 올린다");
   expect(lines).toContain(

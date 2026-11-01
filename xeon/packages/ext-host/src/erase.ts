@@ -29,7 +29,7 @@ import type {
 import type { HandlerEntry } from "./primitives/registry.ts";
 
 // 타입 지움과 복원이 일어나는 유일한 파일이다(eng.typescript.guide TY-06 허용 목록 A3).
-// 이종 레지스트리(핸들러, 포트, 능력, scope 정의)는 값을 `unknown`이나 지운 타입으로 보관하고,
+// 이종 레지스트리(핸들러, 포트, 기능, scope 정의)는 값을 `unknown`이나 지운 타입으로 보관하고,
 // 키에 실린 타입 매개변수로만 되돌린다. 단언은 모두 이 파일에 있고 줄마다 사유를 단다.
 
 /** 서비스 키로 보관해 둔 값을 키의 타입으로 되돌린다. 공급자가 같은 키로 provide했다(F.capabilities.spec §3.5) */
@@ -44,7 +44,7 @@ export function portAs<Api>(_key: PortKey<Api>, service: unknown): Api {
   return service as Api;
 }
 
-/** 지점 종류를 지운 핸들러 함수. 디스패처가 HOOKS[point].fold에 맞는 인자로만 부른다(X.primitives.spec §4.2) */
+/** 훅 종류를 지운 핸들러 함수. 디스패처가 HOOKS[point].fold에 맞는 인자로만 부른다(X.primitives.spec §4.2) */
 export function eraseHandler<N extends HookName>(handler: Handler<N>): HandlerEntry["fn"] {
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 핸들러 시그니처는 fold별 조건부 타입이다 (eng.typescript.guide TY-06)
   return handler as unknown as HandlerEntry["fn"];
@@ -86,19 +86,19 @@ export function stateAs(doc: unknown): AnyState {
   return doc as AnyState;
 }
 
-/** 지점 종류를 지운 병합 규칙. 입력은 HookDecl.result 스키마 검사를 거친 값뿐이다(X.primitives.spec §4.2) */
+/** 훅 종류를 지운 병합 규칙. 입력은 HookDecl.result 스키마 검사를 거친 값뿐이다(X.primitives.spec §4.2) */
 export function chainRuleOf(point: ChainHookName): ChainRule<unknown, unknown> {
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 지점별 병합 규칙의 제네릭 인자를 지운다 (eng.typescript.guide TY-06)
   return CHAIN_RULES[point] as unknown as ChainRule<unknown, unknown>;
 }
 
-/** 지점 종류를 지운 collect 병합 규칙. 기여는 HookDecl.result 스키마 검사를 거친 값뿐이다 */
+/** 훅 종류를 지운 collect 병합 규칙. 기여는 HookDecl.result 스키마 검사를 거친 값뿐이다 */
 export function collectRuleOf(point: CollectHookName): CollectRule<unknown, unknown> {
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 지점별 병합 규칙의 제네릭 인자를 지운다 (eng.typescript.guide TY-06)
   return COLLECT_RULES[point] as unknown as CollectRule<unknown, unknown>;
 }
 
-/** 지점 이름 N이 옵션의 조건부 타입을 정한다. 지운 타입으로의 넓힘이라 단언이 필요 없다(X.primitives.spec §3.3) */
+/** 훅 이름 N이 옵션의 조건부 타입을 정한다. 지운 타입으로의 넓힘이라 단언이 필요 없다(X.primitives.spec §3.3) */
 export function eraseDispatchOptions<N extends HookName>(
   options: DispatchOptions<N>,
 ): AnyDispatchOptions {
@@ -110,7 +110,7 @@ export function restoreOutcome<N extends HookName>(
   outcome: Promise<AnyDispatchOutcome>,
   _point: N,
 ): Promise<DispatchOutcome<N>> {
-  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 복원: 결과의 fold가 지점 표와 일치한다 (eng.typescript.guide TY-06)
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 복원: 결과의 fold가 훅 표와 일치한다 (eng.typescript.guide TY-06)
   return outcome as unknown as Promise<DispatchOutcome<N>>;
 }
 

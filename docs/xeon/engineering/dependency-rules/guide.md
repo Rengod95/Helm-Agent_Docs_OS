@@ -10,7 +10,7 @@ binds: [xeon/packages/**, xeon/apps/**, xeon/plugins/**, xeon/scripts/check-laye
 
 # 의존 규칙 가이드
 
-Xeon 워크스페이스의 패키지가 무엇을 import할 수 있는지 정한다. 규칙마다 ID(`DR-NN`)를 붙이고, 위반 메시지에 이 ID가 나오게 한다. 도구 버전, `just verify` 순서, 종료코드 규약은 `eng.toolchain.guide`가 정한다. 테스트 파일의 배치와 가짜 규칙은 `eng.testing.guide`가 정한다.
+Fresnel 워크스페이스의 패키지가 무엇을 import할 수 있는지 정한다. 규칙마다 ID(`DR-NN`)를 붙이고, 위반 메시지에 이 ID가 나오게 한다. 도구 버전, `just verify` 순서, 종료코드 규약은 `eng.toolchain.guide`가 정한다. 테스트 파일의 배치와 가짜 규칙은 `eng.testing.guide`가 정한다.
 
 ## 1. 적용 범위
 
@@ -26,14 +26,14 @@ Xeon 워크스페이스의 패키지가 무엇을 import할 수 있는지 정한
 
 [결정] 순위와 의존 방향은 `_research/foundation-plan.md §3`(층 순위와 의존 방향)을 따른다.
 
-| 순위 | 층 | 패키지 디렉터리 | `"xeon".layer` 값 |
+| 순위 | 층 | 패키지 디렉터리 | `"fresnel".layer` 값 |
 |---|---|---|---|
 | 0 | F 계약 | `packages/contracts` | `F` |
 | 1 | X 확장 호스트 | `packages/ext-host` | `X` |
 | 2 | L0 플랫폼 | `packages/platform-*` | `L0` |
 | 3 | L1 코어 | `packages/core-*`, `plugins/*` | `L1` |
-| 4 | L2 능력 | `packages/cap-*` | `L2` |
-| 5 | L3 의도 그룹 | `packages/group-*` | `L3` |
+| 4 | L2 기능 | `packages/cap-*` | `L2` |
+| 5 | L3 플러그인 그룹 | `packages/group-*` | `L3` |
 | 6 | L4 배포 런타임 | `apps/*` | `L4` |
 | 제외 | 고정 외부 코드 | `vendor/*` | 없음 |
 
@@ -78,7 +78,7 @@ packages/core-loop/src/turn.ts:3 DR-01 L1 package @fresnel/core-loop imports hig
 
 이유:
 
-- 아래 층은 위 층보다 덜 바뀐다. 의존이 한 방향이면 위 층을 고치거나 교체해도 아래 층은 다시 빌드하거나 다시 테스트할 필요가 없다. 사용자가 L2 능력과 L3 그룹을 추가·교체할 수 있어야 한다는 결정(`_research/decisions-log.md` 2026-10-21 배포 단위 정정)이 이 성질을 전제한다.
+- 아래 층은 위 층보다 덜 바뀐다. 의존이 한 방향이면 위 층을 고치거나 교체해도 아래 층은 다시 빌드하거나 다시 테스트할 필요가 없다. 사용자가 L2 기능과 L3 그룹을 추가·교체할 수 있어야 한다는 결정(`_research/decisions-log.md` 2026-10-21 배포 단위 정정)이 이 성질을 전제한다.
 - `tsc -b` 프로젝트 참조와 turbo `--affected`가 패키지 그래프를 따라 일을 줄인다. 방향이 섞이면 영향 범위가 커진다.
 
 좋은 예:
@@ -113,7 +113,7 @@ export type { ExtHost } from "@fresnel/ext-host";  // DR-01: F는 어떤 워크�
 
 [결정] `_research/foundation-plan.md §3`. 같은 층의 협력은 F에 둔 정의(타입, 스키마, 서비스 이름)와 Cordis 서비스로만 한다. L3 그룹(`group-helm`, `group-learning`)끼리도 같다.
 
-- L1 코어끼리(`core-loop`와 `core-models` 등), L2 능력끼리, L3 그룹끼리, L4 앱끼리(DR-10) 모두 해당한다.
+- L1 코어끼리(`core-loop`와 `core-models` 등), L2 기능끼리, L3 그룹끼리, L4 앱끼리(DR-10) 모두 해당한다.
 - 협력 방법:
   1. 주고받을 타입과 서비스 이름을 F(`packages/contracts`)에 정의한다.
   2. 제공하는 쪽은 그 서비스를 Cordis 컨텍스트에 등록한다(`X.primitives.spec`이 등록 API를 정한다).
@@ -157,13 +157,13 @@ import { helmSignals } from "@fresnel/group-helm";       // DR-02: L3 그룹끼�
 
 - [결정: review.decisions-2 U-15] `group-sdk`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-sdk` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-sdk` 한 항목으로 기록한다. 그 항목의 `from`은 `packages/group-*` 패턴이고, 대상 진입점은 `.`와 `./testing`뿐이다. 다른 그룹과 `group-sdk`의 나머지 경로는 위반이다. `group-sdk`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
 
-### DR-03 모든 패키지는 `package.json`에 `"xeon": {"layer", "domain"}`을 두고, 값은 위치와 맞아야 한다
+### DR-03 모든 패키지는 `package.json`에 `"fresnel": {"layer", "domain"}`을 두고, 값은 위치와 맞아야 한다
 
 [결정] `_research/foundation-plan.md §3`: `check-layers.ts`와 dependency-cruiser가 이 값으로 위반을 거부한다.
 
 - `layer`는 `F`, `X`, `L0`, `L1`, `L2`, `L3`, `L4` 중 하나다. 디렉터리에서 나온 층(1.1 표)과 같아야 한다.
 - `domain`은 `_routing/routes.yaml`의 `layout.<층>.domains`에 있는 이름이어야 한다. 디렉터리 이름의 접두사를 뺀 값과 같다. 예: `packages/core-loop` → `"domain": "loop"`. 예외: `packages/group-sdk`은 `"domain": "group-sdk"`이다(M3-35, L3.group-sdk.spec §10 공통 모순 3). [제안] `plugins/*`는 디렉터리 이름 전체를 쓴다(`"domain": "provider-anthropic-oauth"`). `check-layers.ts`의 DR-03 검사가 `domain`을 보고, L0~L2는 routes 목록과도 맞춘다.
-- `vendor/*`는 `xeon` 필드를 두지 않는다.
+- `vendor/*`는 `fresnel` 필드를 두지 않는다.
 
 이유: 층 판정의 근거가 디렉터리 이름 하나뿐이면, 새 패키지를 잘못된 위치에 만들었을 때 아무 검사도 실패하지 않는다. 선언과 위치가 서로 확인하게 하면 둘 중 하나가 틀렸을 때 바로 드러난다. `domain`은 문서 라우팅(`docs-route`)이 코드 경로에서 문서를 고를 때 쓰는 이름과 같다.
 
@@ -188,7 +188,7 @@ import { helmSignals } from "@fresnel/group-helm";       // DR-02: L3 그룹끼�
 }
 ```
 
-`packages/core-*`는 L1이어야 한다. 웹 능력이면 `packages/cap-web` 안에 두거나 `cap-` 이름으로 만든다(DR-03 `layer-location`).
+`packages/core-*`는 L1이어야 한다. 웹 기능이면 `packages/cap-web` 안에 두거나 `cap-` 이름으로 만든다(DR-03 `layer-location`).
 
 ### DR-04 워크스페이스 의존은 선언하고, `tsconfig.json`의 `references`와 맞춘다
 
@@ -279,7 +279,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 
 ### DR-07 외부 모듈은 소유 패키지만 import한다
 
-[제안] 06 §3.5.1 R6·R7을 Xeon 패키지로 옮긴다. 소유 근거는 `_research/packages.md §4.2`(L0), `§4.3`(L1), `§4.4`(L2), `§4.5`(X)의 채택 판정이다.
+[제안] 06 §3.5.1 R6·R7을 Fresnel 패키지로 옮긴다. 소유 근거는 `_research/packages.md §4.2`(L0), `§4.3`(L1), `§4.4`(L2), `§4.5`(X)의 채택 판정이다.
 
 | 외부 모듈·바이너리 | 소유 패키지(이 패키지 밖에서 금지) | 근거 |
 |---|---|---|
@@ -288,7 +288,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `@earendil-works/pi-ai` | `core-models`, `plugins/provider-anthropic-oauth`(DR-09). F는 아래 예외 | packages.md §4.3 L1-c, foundation-plan §2 모델·루프 행, review.decisions-2 U-16 |
 | `@earendil-works/pi-agent-core` | 없음(전부 금지, 타입 import 포함). 루프는 그 1.3.0 루프를 포크한 core-loop 자체 코드다 | adr.0009 |
 | pi durable env 포크(`platform-exec` 안 소스) | `platform-exec` | foundation-plan §1 결정 1, §3 배치 |
-| `sops`, `age` 바이너리 호출 | `platform-secrets` | foundation-plan §2 비밀 행 |
+| `sops`, `age` 바이너리 호출 | `platform-secrets` | foundation-plan §2 시크릿 행 |
 | `@anthropic-ai/sandbox-runtime` | `platform-sandbox` | packages.md §4.2 L0-b |
 | `bun:ffi` | `platform-store`(`lock/posix.ts`, M2 이후 `lock/win32.ts`) | `L0.store.plan` §4 채택 코드 표(쓰기 잠금 `flock`) [결정: review.decisions-2 U-17] |
 | `node:child_process`, `Bun.spawn`, `Bun.spawnSync` | `platform-exec`, `platform-process`, `platform-sandbox`, `platform-secrets`, `platform-os` | 프로세스 실행은 L0 인터페이스 뒤에 둔다(DR-13). `platform-os`는 바이너리 `--version` 확인, 알림 명령, `mount` 조회에 쓴다(`L0.os.plan` §4) [결정: review.decisions-2 U-17] |
@@ -303,7 +303,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `@swc/core` | `group-sdk`의 `src/testing/**`(`./testing` 하위 경로, `scanDriveSource`)와 dependency-cruiser 파서. group-sdk의 다른 운영 소스는 import하지 않고, 사이드카·데스크톱·플러그인 번들에 넣지 않는다(번들 확인은 M3-27) | `L3.group-sdk.plan` §2(G-19, H-14·H-18 drive 정적 검사) [결정: 2026-10-28 사용자 승인] |
 | `@tauri-apps/*` | `apps/desktop` | foundation-plan §2 데스크톱 행 |
 | `react`, `react-dom`, `zustand` | `apps/desktop`. 앱 안 import 위치는 `eng.frontend-state.guide` FS-06이 더 좁힌다 | adr.0010 §3.3 [결정: 2026-10-24 사용자 지시] |
-| `@caustic/react`, `@caustic/tokens` | `apps/desktop`. 원본은 git submodule `xeon/external/caustic`(github.com/Rengod95/caustic, private, `main` 추적)이고 루트 워크스페이스가 두 패키지만 싣는다. caustic 내부 의존(Radix, lucide-react 등)은 caustic이 고르고 Xeon 패키지가 직접 import하지 않는다. 갱신은 Dependabot `gitsubmodule`이 PR로 올리고 CI 통과 뒤 자동 병합한다. 수동 갱신은 `just caustic-update` | [결정: 2026-10-29 사용자 지시] 데스크톱 디자인 시스템·컴포넌트는 caustic |
+| `@caustic/react`, `@caustic/tokens` | `apps/desktop`. 원본은 git submodule `xeon/external/caustic`(github.com/Rengod95/caustic, private, `main` 추적)이고 루트 워크스페이스가 두 패키지만 싣는다. caustic 내부 의존(Radix, lucide-react 등)은 caustic이 고르고 Fresnel 패키지가 직접 import하지 않는다. 갱신은 Dependabot `gitsubmodule`이 PR로 올리고 CI 통과 뒤 자동 병합한다. 수동 갱신은 `just caustic-update` | [결정: 2026-10-29 사용자 지시] 데스크톱 디자인 시스템·컴포넌트는 caustic |
 | `node:*`, `bun:*`, Bun 전역 | F(`contracts`)에서 금지 | 06 R4를 F에 한정해 옮긴다. F는 데스크톱 WebView에서도 import되므로 런타임 중립이어야 한다 [제안] |
 
 - [결정: review.decisions-2 U-17] F의 pi 타입 재노출 예외: `contracts`는 `@earendil-works/pi-ai`를 `import type`과 `export type`으로만 쓸 수 있다. 값 import는 금지다. 근거는 `F.readme` §1 허용 외부 의존과 `F.conversation.spec` §3.1 규칙 1이다. `check-layers.ts`는 F에서 이 모듈의 값 import를 `DR-07`로 거부한다. `@earendil-works/pi-agent-core`는 F에서도 타입 import까지 금지다(adr.0009).
@@ -321,7 +321,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 ```ts
 // packages/core-tools/src/read.ts  (L1)
 import { SecretServiceName, type SecretService } from "@fresnel/contracts/services";   // 서비스 이름은 eng.context-map.design 5.3절(fresnel.secrets), 위치는 L0.secrets.spec §8.3 R1-a
-// 비밀 값은 platform-secrets가 등록한 서비스로 참조만 받는다. sops를 직접 부르지 않는다.
+// 시크릿 값은 platform-secrets가 등록한 서비스로 참조만 받는다. sops를 직접 부르지 않는다.
 ```
 
 나쁜 예:
@@ -349,7 +349,7 @@ import { streamSimple } from "@earendil-works/pi-ai";   // DR-07: pi-ai는 core-
 - 테스트 파일: `src/**/*.test.ts`, `test/**`. 다른 패키지의 `testing` 서브패스를 import할 수 있는 파일은 테스트 파일뿐이다. 패키지 자신의 `src/testing/**`도 테스트 파일이 아니므로 다른 패키지의 `testing` 서브패스를 import하지 않는다.
 - 다른 패키지의 `testing` 서브패스를 쓰는 패키지는 그 패키지를 `devDependencies`에 둔다. 이미 `dependencies`에 있으면 그대로 쓴다. DR-01 순위는 테스트 파일에도 적용된다.
 
-이유: 가짜 구현(`ManualClock`, 메모리 비밀 저장소, 테이프 모델)이 운영 경로로 들어가면 실제 시각·비밀·모델 대신 가짜가 쓰이는 결함이 생긴다. 빌드된 바이너리 크기도 늘어난다. `src/testing/**`이 다른 패키지의 대역을 다시 내보내면 테스트 파일만 교차 import한다는 경계가 흐려진다.
+이유: 가짜 구현(`ManualClock`, 메모리 시크릿 저장소, 테이프 모델)이 운영 경로로 들어가면 실제 시각·시크릿·모델 대신 가짜가 쓰이는 결함이 생긴다. 빌드된 바이너리 크기도 늘어난다. `src/testing/**`이 다른 패키지의 대역을 다시 내보내면 테스트 파일만 교차 import한다는 경계가 흐려진다.
 
 좋은 예:
 
@@ -459,33 +459,33 @@ import type { ExtensionContext } from "@fresnel/contracts";   // F가 정의한 
 import type { Context } from "cordis";                      // DR-11
 ```
 
-### DR-12 L1의 확장 지점 선언은 F `extensions`에 두고, L1과 X가 공유한다
+### DR-12 L1의 훅 선언은 F `extensions`에 두고, L1과 X가 공유한다
 
-[결정] `_research/foundation-plan.md §3`: 지점 이름, fold, 페이로드 타입을 F4에 둔다.
+[결정] `_research/foundation-plan.md §3`: 훅 이름, fold, 페이로드 타입을 F4에 둔다.
 
-- 선언 위치: `packages/contracts/src/extensions/**`(`F.extensions.spec`). 선언 객체의 모양은 adr.0007 §3.7의 `PointDecl`(`name`, `kind`, `fold`, `payload`, `result`)이다. 지점 이름은 `<종류>.<대상>[.<시점>]` 규칙(`tool.call.before`, `boundary.step.after` 등, adr.0017 §3.2)을 따르고 목록은 `F.extensions.spec`이 정한다.
-- L1은 선언 객체를 import해 지점을 연다. X(`ext-host`)는 같은 선언을 import해 등록과 실행을 검사한다. 확장(L2·L3·플러그인)은 adr.0007 §3.7의 `g.on(<지점 이름>, handler)`로 처리기를 단다. 지점 이름 인자의 타입은 F 선언에서 만든 `PointName` 유니온이므로 선언에 없는 이름은 컴파일 오류다.
-- 금지: L1 패키지 안에서 지점 선언 객체나 지점 이름 문자열을 새로 만들기, X가 L1을 import해 지점 목록을 얻기(DR-01 위반이기도 하다).
+- 선언 위치: `packages/contracts/src/extensions/**`(`F.extensions.spec`). 선언 객체의 모양은 adr.0007 §3.7의 `HookDecl`(`name`, `kind`, `fold`, `payload`, `result`)이다. 훅 이름은 `<종류>.<대상>[.<시점>]` 규칙(`tool.call.before`, `boundary.step.after` 등, adr.0017 §3.2)을 따르고 목록은 `F.extensions.spec`이 정한다.
+- L1은 선언 객체를 import해 지점을 연다. X(`ext-host`)는 같은 선언을 import해 등록과 실행을 검사한다. 확장(L2·L3·플러그인)은 adr.0007 §3.7의 `g.on(<훅 이름>, handler)`로 처리기를 단다. 훅 이름 인자의 타입은 F 선언에서 만든 `HookName` 유니온이므로 선언에 없는 이름은 컴파일 오류다.
+- 금지: L1 패키지 안에서 훅 선언 객체나 훅 이름 문자열을 새로 만들기, X가 L1을 import해 지점 목록을 얻기(DR-01 위반이기도 하다).
 
 이유: X(순위 1)는 L1(순위 3)을 import할 수 없다. 지점 정의가 L1에 있으면 X가 지점의 fold와 페이로드를 검사할 방법이 없다. 정의를 둘 모두보다 아래인 F에 두면 두 쪽이 같은 값을 쓴다.
 
 좋은 예:
 
 ```ts
-// packages/contracts/src/extensions/points.ts  (F)
-export const ToolCallPoint = {
+// packages/contracts/src/extensions/hooks.ts  (F)
+export const ToolCallHook = {
   name: "tool.call.before",
   kind: "tool",
   fold: "first",
   payload: ToolCallPayloadSchema,      // TypeBox 스키마
   result: ToolCallResultSchema,        // Deny를 포함한다(adr.0007 §3.7)
-} as const satisfies PointDecl<"tool.call.before", typeof ToolCallPayloadSchema, typeof ToolCallResultSchema>;
+} as const satisfies HookDecl<"tool.call.before", typeof ToolCallPayloadSchema, typeof ToolCallResultSchema>;
 ```
 
 ```ts
 // packages/core-tools/src/pipeline.ts  (L1): 선언 객체로 지점을 연다
-import { ToolCallPoint } from "@fresnel/contracts/extensions";
-const verdict = await ext.dispatch(ToolCallPoint, payload);
+import { ToolCallHook } from "@fresnel/contracts/extensions";
+const verdict = await ext.dispatch(ToolCallHook, payload);
 ```
 
 ```ts
@@ -497,10 +497,10 @@ g.on("tool.call.before", (call, st) => (st.phase === "diverge" && isWrite(call) 
 
 ```ts
 // packages/core-tools/src/pipeline.ts  (L1)
-await ext.dispatch({ name: "tool.call.before", fold: "first" }, payload);   // DR-12: L1에서 지점 선언을 새로 만든다
+await ext.dispatch({ name: "tool.call.before", fold: "first" }, payload);   // DR-12: L1에서 훅 선언을 새로 만든다
 ```
 
-`PointDecl`, `PointName`, `g.on`은 adr.0007 §3.7 초안의 이름이다. `ToolCallPoint`, `ext.dispatch`(L1이 지점을 여는 호출)의 정확한 이름과 시그니처는 `F.extensions.spec`과 `X.primitives.spec`이 정한다. 위 예시의 이름은 설명용이다 [가정].
+`HookDecl`, `HookName`, `g.on`은 adr.0007 §3.7 초안의 이름이다. `ToolCallHook`, `ext.dispatch`(L1이 지점을 여는 호출)의 정확한 이름과 시그니처는 `F.extensions.spec`과 `X.primitives.spec`이 정한다. 위 예시의 이름은 설명용이다 [가정].
 
 ### DR-13 OS·환경 분기는 L0 구현 안에만 둔다
 
@@ -508,7 +508,7 @@ await ext.dispatch({ name: "tool.call.before", fold: "first" }, payload);   // D
 
 - 분기 표현: `process.platform`, `process.arch`, `os.platform()`, `os.type()`, `os.release()`, `navigator.platform`, WSL 판정(`WSL_DISTRO_NAME`, `/proc/version` 읽기), 플랫폼별 경로 상수(`"/usr/lib"`, `"C:\\"`, `"~/Library"`).
 - 허용 위치: `packages/platform-*/src/**`. 인터페이스는 F에 두고, L0 패키지가 OS별 구현을 고른다.
-- 소비자(X, L1~L4)는 인터페이스만 쓴다. 예: 경로는 `platform-os`의 서비스로, 프로세스는 `platform-exec`로, 비밀은 `platform-secrets`로 받는다.
+- 소비자(X, L1~L4)는 인터페이스만 쓴다. 예: 경로는 `platform-os`의 서비스로, 프로세스는 `platform-exec`로, 시크릿은 `platform-secrets`로 받는다.
 - `apps/desktop`의 Tauri Rust 코드(`src-tauri/`)는 이 규칙 밖이다. TS 쪽 UI 코드는 이 규칙을 따른다.
 
 이유: 첫 지원 OS는 macOS와 Linux(WSL 포함)이고 Windows 네이티브는 나중이다(`_research/decisions-log.md` 2026-10-19). OS 분기가 L0 밖에 흩어지면 Windows를 더할 때 고칠 곳을 찾을 수 없다.
@@ -521,8 +521,8 @@ export type DataDirError = { readonly kind: "unsupported_platform"; readonly pla
 
 export function dataDir(env: EnvReader): Result<string, DataDirError> {
   switch (process.platform) {
-    case "darwin": return ok(join(env.home(), "Library", "Application Support", "xeon"));
-    case "linux": return ok(join(env.xdgDataHome(), "xeon"));
+    case "darwin": return ok(join(env.home(), "Library", "Application Support", "fresnel"));
+    case "linux": return ok(join(env.xdgDataHome(), "fresnel"));
     // fresnel-disable-next-line fresnel/switch-default-never -- 지원 목록 밖 OS는 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default: return err({ kind: "unsupported_platform", platform: process.platform });
   }
@@ -542,8 +542,8 @@ const dir = os.dataDir();
 ```ts
 // packages/core-persistence/src/open.ts  (L1)
 const dir = process.platform === "darwin"
-  ? `${home}/Library/Application Support/xeon`
-  : `${home}/.local/share/xeon`;                  // DR-13
+  ? `${home}/Library/Application Support/fresnel`
+  : `${home}/.local/share/fresnel`;                  // DR-13
 ```
 
 ### DR-14 컨텍스트가 다른 패키지의 구현을 import하지 않는다
@@ -556,12 +556,12 @@ const dir = process.platform === "darwin"
   1. F(`contracts`)는 공유 커널이다. 모든 패키지가 import한다.
   2. 조립 루트 `apps/host`는 플러그인을 등록하려고 모든 패키지를 import한다. `apps/cli`는 엔진 조립 코드를 `apps/host`에서 가져온다(DR-10, 허용 목록 `DR-10/cli-host`).
   3. 테스트 파일(DR-08의 정의: `src/**/*.test.ts`, `test/**`)만 다른 컨텍스트 패키지의 `testing` 서브패스를 import한다. 공용 가짜가 L0 인터페이스 구현이기 때문이다(`eng.testing.guide` TS-05, TS-07). 패키지의 `src/testing/**` 소스는 이 예외에 들지 않는다.
-  4. X 위의 패키지(L0~L4, `plugins/*`)는 `@fresnel/ext-host`를 import할 수 있다. 쓸 수 있는 것은 서비스 등록·주입 API(`ExtHost.registerPlatform`, `PlatformModule`, `hostOf`, 포트 제공 등 `X.primitives.spec` §3.2가 공개한 이름)뿐이다. 확장 지점 디스패치와 4연산은 F 타입(DR-12)으로 쓴다.
+  4. X 위의 패키지(L0~L4, `plugins/*`)는 `@fresnel/ext-host`를 import할 수 있다. 쓸 수 있는 것은 서비스 등록·주입 API(`ExtHost.registerPlatform`, `PlatformModule`, `hostOf`, 포트 제공 등 `X.primitives.spec` §3.2가 공개한 이름)뿐이다. 훅 디스패치와 4연산은 F 타입(DR-12)으로 쓴다.
   5. 4절 허용 목록의 `DR-02/group-sdk` 항목은 DR-14도 허용한 것으로 본다.
 
 이유:
 
-- L0 구현은 OS마다, L2 능력은 provider마다 바뀐다. 소비자가 구현 패키지를 import하면 교체한 패키지가 원래 export 모양을 흉내 내야 한다. F 정의와 서비스 주입이면 F 계약만 맞추면 된다(DR-02와 같은 이유).
+- L0 구현은 OS마다, L2 기능은 provider마다 바뀐다. 소비자가 구현 패키지를 import하면 교체한 패키지가 원래 export 모양을 흉내 내야 한다. F 정의와 서비스 주입이면 F 계약만 맞추면 된다(DR-02와 같은 이유).
 - OS·환경별 구현만 바꾸는 설계 규칙(`_research/decisions-log.md` 2026-10-19 설계 규칙)을 하위 층 구현 패키지에도 적용한다.
 
 좋은 예:
@@ -590,7 +590,7 @@ import { openStore } from "@fresnel/platform-store";        // DR-14: 확장이 
 
 | 도구 | 버전 | 검사하는 것 | 실행 |
 |---|---|---|---|
-| `scripts/check-layers.ts` | 저장소 코드 | `package.json`의 `xeon` 필드와 의존 목록, 소스 import 문자열 스캔(정규식), 상대 경로 이탈, 외부 모듈 소유표, 테스트 전용 모듈 위치, OS 분기 표현, 허용 목록 | `just check-layers` |
+| `scripts/check-layers.ts` | 저장소 코드 | `package.json`의 `fresnel` 필드와 의존 목록, 소스 import 문자열 스캔(정규식), 상대 경로 이탈, 외부 모듈 소유표, 테스트 전용 모듈 위치, OS 분기 표현, 허용 목록 | `just check-layers` |
 | dependency-cruiser | 18.7.0 | 경로 기반 층 순위 `forbidden` 규칙, 동층 금지, 순환, vendor/cordis 접근, 선언되지 않은 npm 의존 | `just depcruise` |
 | oxlint | 1.89.0 | `no-restricted-imports`(깊은 import, 금지 모듈, 소유 모듈), `import/no-cycle`(파일 순환), `no-restricted-globals` | `just lint` |
 | `tsc -b` | TypeScript 7.0.2 | 프로젝트 참조 순환, 참조 누락으로 인한 타입 해석 실패 | `just typecheck` |
@@ -606,7 +606,7 @@ import { openStore } from "@fresnel/platform-store";        // DR-14: 확장이 
 export interface ModuleOwner {
   /** 외부 모듈 지정자. 끝이 "/*"이면 접두사 일치 */
   readonly module: string;
-  /** 소유 패키지 디렉터리(xeon 루트 기준). 빈 배열이면 전부 금지 */
+  /** 소유 패키지 디렉터리(fresnel 루트 기준). 빈 배열이면 전부 금지 */
   readonly owners: readonly string[];
   readonly rule: "DR-07" | "DR-11";
 }
@@ -638,7 +638,7 @@ export interface SourcePattern {
 |---|---|---|---|---|---|---|
 | DR-01 하향만 | ○ `package.json`과 import | ○ 경로 규칙 | | △ 참조 순환일 때 | | |
 | DR-02 동층 금지 | ○ | ○ | | | | |
-| DR-03 `xeon` 필드 | ○ | | | | | |
+| DR-03 `fresnel` 필드 | ○ | | | | | |
 | DR-04 선언·references | ○ | ○ `npm-no-pkg`, `npm-unknown` | | △ 참조 누락 시 타입 오류 | ○ 미사용 의존 | |
 | DR-05 exports만 | ○ 상대 경로 이탈 | △ `exportsFields` 해석 실패 | ○ `no-restricted-imports` 패턴 | △ 해석 실패 | | |
 | DR-06 순환 금지 | △ 패키지 그래프 [제안] | ○ `no-circular` | ○ `import/no-cycle`(값 import) | ○ 참조 순환 | | |
@@ -647,7 +647,7 @@ export interface SourcePattern {
 | DR-09 플러그인 import·배포 제외 | ○ 허용 import, 배포 의존 [제안] | ○ 동층 금지(L1) | | | | ○ 릴리즈 빌드 목록 |
 | DR-10 앱끼리 | ○ | ○ `DR-02-no-same-layer-import-L4` | | | | |
 | DR-11 cordis는 ext-host | ○ `MODULE_OWNERS` | ○ `DR-11-cordis-only-in-ext-host` | ○ 현재 패턴 | | | |
-| DR-12 확장 지점 선언 | △ 지점 선언 함수 이름이 정해지면 스캔 [제안] | | | | | ○ |
+| DR-12 훅 선언 | △ 훅 선언 함수 이름이 정해지면 스캔 [제안] | | | | | ○ |
 | DR-13 OS 분기 | ○ 호출 패턴 [제안] | | △ `no-restricted-globals`로는 `process` 전체만 막을 수 있다 | | | ○ |
 | DR-14 컨텍스트 사이 | ○ `CONTEXTS` 대조 [제안, M1부터] | | | | | ○ |
 
@@ -656,18 +656,18 @@ export interface SourcePattern {
 
 ### 3.3 06 §3.5 R1~R16 번역표
 
-기존 Helm 설계(`docs/design/06-system-architecture.md §3.5.1`)는 pnpm, ESLint, Node, TypeScript 컴파일러 API를 전제한다. Xeon은 Bun workspaces, oxlint, Bun, 정규식 스캔을 쓴다.
+기존 Helm 설계(`docs/design/06-system-architecture.md §3.5.1`)는 pnpm, ESLint, Node, TypeScript 컴파일러 API를 전제한다. Fresnel은 Bun workspaces, oxlint, Bun, 정규식 스캔을 쓴다.
 
-| 06 규칙 | 내용 요약 | 처리 | Xeon 규칙 | 도구 번역 |
+| 06 규칙 | 내용 요약 | 처리 | Fresnel 규칙 | 도구 번역 |
 |---|---|---|---|---|
 | R1 | 워크스페이스 의존은 허용 표의 부분집합 | 대체 | DR-01, DR-02, DR-04 | 패키지별 허용 표 대신 순위 비교. `architecture-rules.ts` → `check-layers.ts`의 `RANK` |
 | R2 | 하위 경로 제한(`store/write` 등) | 대체 | DR-05, DR-02 | 같은 층 협력은 서비스로 하므로 하위 경로로 쓰기 권한을 나누지 않는다. 필요해지면 해당 spec이 `exports` 서브패스와 허용 목록을 정한다 |
 | R3 | `testing` 하위 경로는 dev·테스트 파일만 | 채택 | DR-08 | `check-layers.ts`의 파일 위치 검사 |
 | R4 | 순수 패키지는 `node:*`·Node 전역 금지 | 채택(F 한정) | DR-07 마지막 행 | ESLint `no-restricted-imports`·`no-restricted-globals` → oxlint 같은 이름 규칙(1.89에 있음) |
 | R5 | 커널은 시각·난수·타이머 금지 | 대체 | `eng.testing.guide` TS-03, `eng.typescript.guide` | 커널이 없다. 결정성은 주입으로 확보한다. ESLint `no-restricted-syntax`는 oxlint에 없으므로 필요하면 `check-layers.ts` 패턴으로 옮긴다 |
-| R6 | 외부 모듈 소유 | 채택 | DR-07 | 소유표를 Xeon 패키지로 다시 쓴다. `better-sqlite3` → `bun:sqlite` |
+| R6 | 외부 모듈 소유 | 채택 | DR-07 | 소유표를 Fresnel 패키지로 다시 쓴다. `better-sqlite3` → `bun:sqlite` |
 | R7 | pi 코드 소유 | 채택 | DR-07(pi-ai, durable env 포크 행. agent-core는 adr.0009로 전부 금지) | 07 §3.9.1 표 대신 DR-07 표 |
-| R8 | 런타임 어댑터 폴더 제한 | 폐기 | — | Xeon에 외부 런타임 어댑터 구조가 없다 |
+| R8 | 런타임 어댑터 폴더 제한 | 폐기 | — | Fresnel에 외부 런타임 어댑터 구조가 없다 |
 | R9 | 깊은 import 금지 | 채택 | DR-05 | pnpm `exports` 해석 거부 → Bun도 `exports`를 따르지만 상대 경로 이탈은 막지 않으므로 `check-layers.ts` `relative-escape`와 oxlint 패턴을 둔다 |
 | R10 | 패키지 순환 금지 | 채택 | DR-06 | `tsc -b` 참조 순환 + depcruise `no-circular` + oxlint `import/no-cycle` |
 | R11 | `references` = 워크스페이스 의존 | 채택 | DR-04 | `check-layers.ts` 검사로 옮긴다 [제안] |
@@ -679,7 +679,7 @@ export interface SourcePattern {
 
 도구 전제의 번역:
 
-| 06 전제 | Xeon |
+| 06 전제 | Fresnel |
 |---|---|
 | pnpm 11, `pnpm-workspace.yaml`, 엄격한 `node_modules` | Bun 1.4.3 workspaces(`package.json`의 `workspaces`), catalog. 선언 안 된 import는 검사로 막는다(DR-04) |
 | ESLint flat config, typescript-eslint `strictTypeChecked` | oxlint 1.89.0 + oxlint-tsgolint 7.0.2004(type-aware) |
@@ -771,7 +771,7 @@ export const AllowList = Type.Array(AllowEntry);
     "rule": "DR-07",
     "from": "apps/cli",
     "to": "Bun.spawn",
-    "reason": "CLI scenario tests run the real xeon process and kill it to check resume (review.decisions-2 B-06).",
+    "reason": "CLI scenario tests run the real fresnel process and kill it to check resume (review.decisions-2 B-06).",
     "approvedBy": "review.decisions-2",
     "scope": "test"
   }

@@ -4,7 +4,7 @@ import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/exten
 export const WORK_EXTENSION_NAME = "cap-work";
 
 /**
- * 내장 L2 플러그인 매니페스트(L2.work.spec §7.1). 제공하는 능력은 `work.tasks`, `work.plans`(M2)와 `work.goals`, `work.reports`(M3)다.
+ * 내장 L2 플러그인 매니페스트(L2.work.spec §7.1). 제공하는 기능은 `work.tasks`, `work.plans`(M2)와 `work.goals`, `work.reports`(M3)다.
  * 선택 의존(`artifacts.registry`, `dialog.commands`)과 `usesPost`도 그때 더한다. 지금은 조립 루트가 포트 객체로 넘긴다
  * (`WorkPluginOptions.artifacts`, `commands`).
  */

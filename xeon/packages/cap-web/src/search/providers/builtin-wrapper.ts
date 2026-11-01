@@ -20,7 +20,7 @@ import { renderQueryText } from "./query-text.ts";
 
 // L2.web.spec §4.8.4, plan B9. 내장 검색 래퍼: 모델 provider의 hosted 검색(`HostedSearchPort`)을 단일 턴으로 불러
 // 결과를 `ProviderSearchResult`로 바꾼다. 네트워크는 직접 쓰지 않는다. 호출은 모두 L1.models 포트를 지나므로
-// 비밀, 재시도, 사용량 기록은 거기서 한다.
+// 시크릿, 재시도, 사용량 기록은 거기서 한다.
 
 export const BUILTIN_WRAPPER_PROVIDER_ID = "builtin-wrapper";
 

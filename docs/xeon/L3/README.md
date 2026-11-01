@@ -8,11 +8,11 @@ depends_on: [L3.group-sdk.spec, L3.helm.spec, L3.learning.spec, L3.slots.spec, F
 binds: [xeon/packages/group-sdk/**, xeon/packages/group-helm/**, xeon/packages/group-learning/**]
 ---
 
-# L3 의도 그룹 층
+# L3 플러그인 그룹 층
 
 ## 1. 목적
 
-L3는 확장 지점 4연산(`on`, `post`, `drive`, `scope`)과 L2 능력을 묶어 하나의 사상(의도)을 코드 수준으로 루프에 적용하는 그룹 플러그인 층이다. 그룹 하나는 `scope` 하나이고, 루프를 직접 구동하려면 `drive` 임대를 받는다(`_research/layer-plan-v2.json` L3 intro).
+L3는 훅 4연산(`on`, `post`, `drive`, `scope`)과 L2 기능을 묶어 하나의 사상(의도)을 코드 수준으로 루프에 적용하는 그룹 플러그인 층이다. 그룹 하나는 `scope` 하나이고, 루프를 직접 구동하려면 `drive` 임대를 받는다(`_research/layer-plan-v2.json` L3 intro).
 
 그룹이 필요한 이유:
 
@@ -27,7 +27,7 @@ L3는 확장 지점 4연산(`on`, `post`, `drive`, `scope`)과 L2 능력을 묶�
 |---|---|
 | 그룹 기반 | `group-sdk`. `defineGroup`, 그룹 서비스 `fresnel.groups`, drive 임대 정책(`DriveArbiter`), 전환 명령, 재생 검사 도구(`replayDrive`) |
 | 기본 그룹 둘 | Helm(`group-helm`, drive 사용), 학습 그룹(`group-learning`, drive 미사용). 함께 켤 수 있다. 학습 그룹은 내장 그룹이고, Helm은 같은 L3 그룹 코드를 기본 플러그인으로 배포한다 [결정: review.m3-design-inputs D-M3-01] |
-| 추가 그룹 슬롯 | `slots`. 코드 없음. 제2의 의도 그룹 기준, 정책 플러그인 정식 예, 그룹 템플릿을 문서로 정한다 |
+| 추가 그룹 슬롯 | `slots`. 코드 없음. 제2의 플러그인 그룹 기준, 정책 플러그인 정식 예, 그룹 템플릿을 문서로 정한다 |
 
 이 문서의 표는 공통 확정 이름과 네 도메인 spec(`L3.group-sdk.spec`, `L3.helm.spec`, `L3.learning.spec`, `L3.slots.spec`)의 현재 본문을 기준으로 맞췄다. 도메인 spec이 바뀌면 이 표를 함께 고친다.
 
@@ -48,15 +48,15 @@ L3는 확장 지점 4연산(`on`, `post`, `drive`, `scope`)과 L2 능력을 묶�
 도메인별 요약(각 spec §1 기준):
 
 - group-sdk: `defineGroup`으로 그룹을 선언하고(매니페스트, 선택 상태 스키마, 설정 스키마), `GroupApi<S>`(= F `ScopeApi<S>` + `settings()`, `delegate(spec)`, `metrics`, `registerTool`, `registerCommand`)를 그룹에 준다. `GroupService`(`fresnel.groups`, 타입은 F `services/groups.ts`)가 그룹 목록, 켜기·끄기 요청, 상태(`GroupStatus`), drive 임대 정책(`DriveArbiter`를 F `LeaseArbiterPort`로 제공)을 맡는다. 임대 메커니즘(부여, 반납, 상한 집행, 재호출, 임대 이벤트)은 `X.primitives.spec`이 맡는다. 2차에 재생 규율 검사(`replayDrive` 확장, `scanDriveSource`), 승격, 계측을 더한다.
-- helm: 탐구 신호 감지(tap), 관점·방법 주입(chain, post), 탐구 구동(drive, 병렬 서브에이전트), 지식 소비(L2 능력과 학습 그룹 레코드 읽기), 발견 기록과 작업 연결이다.
+- helm: 탐구 신호 감지(tap), 관점·방법 주입(chain, post), 탐구 구동(drive, 병렬 서브에이전트), 지식 소비(L2 기능과 학습 그룹 레코드 읽기), 발견 기록과 작업 연결이다.
 - learning: 학습 트리거(카운터 관찰), 검토 포크(`GroupApi.delegate`로 L1 백그라운드 위임), 승인 대기열, 2차의 큐레이터·학습 이력·스크립트 제안이다. 저장은 L2 knowledge가 소유한다.
-- slots: 제2의 의도 그룹 판정 기준과 추가 체크리스트, 정책 플러그인(drive 없이 on과 post만 쓰는 작은 그룹)의 정식 예 3종, 그룹 템플릿 3종이다.
+- slots: 제2의 플러그인 그룹 판정 기준과 추가 체크리스트, 정책 플러그인(drive 없이 on과 post만 쓰는 작은 그룹)의 정식 예 3종, 그룹 템플릿 3종이다.
 
 ## 3. 패키지 배치
 
 ```mermaid
 flowchart TD
-  subgraph L3["L3 의도 그룹"]
+  subgraph L3["L3 플러그인 그룹"]
     kit["group-sdk<br/>defineGroup · fresnel.groups · DriveArbiter"]
     helm["group-helm"]
     learn["group-learning"]
@@ -88,7 +88,7 @@ flowchart TD
 | `group-helm`, `group-learning` → `group-sdk` | 허용 [결정: review.decisions-2 U-15]. 허용 목록 `DR-02/group-sdk`(`from`은 `packages/group-*`) | `eng.dependency-rules.guide` DR-02 (b), 4절, `architecture.layers.spec` §3.2 |
 | `group-sdk` → 다른 그룹 | 금지 | DR-02 (b) "group-sdk은 다른 그룹을 import하지 않는다" |
 | 그룹 ↔ 그룹 (`group-helm` ↔ `group-learning`, 외부 그룹 포함) | 금지 [결정] | `F.extensions.spec` §4.8, `eng.context-map.design` CM-06 |
-| L3 → `cap-*`(L2) | 금지 [결정: 계획 v2 규칙 2, DR-14]. 능력은 F3 정의와 `g.capability(ServiceKey)`로 쓴다 | `architecture.layers.spec` §3.1 2행, §4.2.1 표 |
+| L3 → `cap-*`(L2) | 금지 [결정: 계획 v2 규칙 2, DR-14]. 기능은 F3 정의와 `g.capability(ServiceKey)`로 쓴다 | `architecture.layers.spec` §3.1 2행, §4.2.1 표 |
 | L3 → F `contracts` | 허용. `extensions`, `capabilities`, `records`, `settings` 서브패스 | DR-01 |
 | L3 → X `ext-host` | `group-sdk`만 허용. DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17]. 그룹 패키지는 X 타입을 F에서 가져오고, 연산은 `GroupApi`로 받는다 | DR-01, DR-14 |
 | L3 → L0 `platform-*` | 순위상 허용이나 DR-14로 구현 import 금지. 그룹은 저장소를 직접 열지 않는다 | `eng.dependency-rules.guide` DR-14 나쁜 예 |
@@ -120,7 +120,7 @@ flowchart TD
 | 설정 키(외부 그룹) | `ext.<id>.<이름>`. `ext.<id>.enabled`, `ext.<id>.isolation`은 X 로더 예약 키. 켜기 키 `ext.<id>.enabled`는 내장 그룹도 쓴다(`ext.helm.enabled`, `ext.learning.enabled`) | `F.wire-settings.spec` §3.8.3, `F.extensions.spec` §6 |
 | 명령 | `/group …`(group-sdk), `/<그룹 이름> …`(각 그룹) | `L3.group-sdk.spec`, 각 그룹 spec |
 | 서비스 이름 | `fresnel.groups`(`GroupService`, group-sdk 제공). 인터페이스 타입은 F `@fresnel/contracts/services`의 `services/groups.ts`에 두고 X `LeaseArbiterPort`를 확장한다 [결정: review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
-| 지점 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(`tool.call.before`, `boundary.settle.before`, `tool.result`, `input.user.before`, `boundary.step.after`, `boundary.settle.after` 등) | `F.extensions.spec` §3.4, §4.10 |
+| 훅 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(`tool.call.before`, `boundary.settle.before`, `tool.result`, `input.user.before`, `boundary.step.after`, `boundary.settle.after` 등) | `F.extensions.spec` §3.4, §4.10 |
 
 공통 확정 이름(L3 네 문서가 같은 문자열을 쓴다):
 
@@ -143,7 +143,7 @@ flowchart TD
 
 그룹이 소비하는 것(각 그룹 spec의 매니페스트 `points`, `requires`, `optional`, `readsRecordKinds` 기준):
 
-| 그룹 | F 타입 | X 연산 | L1 서비스 | L2 능력 | 다른 그룹 레코드 |
+| 그룹 | F 타입 | X 연산 | L1 서비스 | L2 기능 | 다른 그룹 레코드 |
 |---|---|---|---|---|---|
 | group-sdk | `ExtensionManifest`, `validateManifest`, `ScopeApi`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `SettingDef`, `defineSettings` | `scope`(그룹 등록), `drive` 등록 전달, `LeaseArbiterPort` 제공, `hostOf(g).registerTool`·`registerCommand` 전달 | `fresnel.ext`, `fresnel.agents`(`delegate` 구현) | 없음 | 없음 |
 | helm | `ScopeApi`, `LoopHandle`, `SpawnSpec`, `GroupRecord`, `RecordKindDecl`, `ServiceKey`, `ToolCallDecision`, `PostItem` | `on`(collect `input.agent.before`, first `tool.call.before`, tap `tool.execution.after`·`boundary.settle.after`·`thread.start`), `post`, `drive`, `scope` | `fresnel.agents`(`loop.spawn` 경유) | 모두 선택(`optional`): `web.search`, `web.fetch`, `knowledge.search`, `knowledge.skills`, `knowledge.memory`(읽기), `work.tasks` | 없음 |
@@ -157,7 +157,7 @@ flowchart TD
 | learning | `grp.learning.*` 8종 | 없음(L4 표시, 이력) | 이벤트 피드 | [결정: review.decisions-2 D-10] |
 | helm | `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished` | 없음(L4 표시, 이력) | 이벤트 피드 | [결정: review.decisions-2 D-10] |
 
-그룹 사이에는 직접 호출이 없고 레코드 읽기도 없다 [결정: review.decisions-2 D-10]. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 능력을 거쳐 helm에 전달된다.
+그룹 사이에는 직접 호출이 없고 레코드 읽기도 없다 [결정: review.decisions-2 D-10]. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 기능을 거쳐 helm에 전달된다.
 
 ```mermaid
 flowchart LR
@@ -173,7 +173,7 @@ flowchart LR
 ```
 
 - [결정] 그룹끼리 직접 참조하지 않는다(`F.extensions.spec` §4.8). 다른 그룹의 레코드도 읽지 않는다 [결정: review.decisions-2 D-10].
-- [제안] 그룹은 다른 그룹을 서비스로도 부르지 않는다. 두 그룹이 같은 능력을 필요로 하면 그 능력을 L2로 옮긴다(`eng.context-map.design` CM-06, 3절 협력 규칙 6·7).
+- [제안] 그룹은 다른 그룹을 서비스로도 부르지 않는다. 두 그룹이 같은 기능을 필요로 하면 그 기능을 L2로 옮긴다(`eng.context-map.design` CM-06, 3절 협력 규칙 6·7).
 
 ## 6. 층 경계
 
@@ -181,7 +181,7 @@ flowchart LR
 
 | # | 규칙 | L3 적용 | 표지 | 강제 수단 |
 |---|---|---|---|---|
-| 2 | L3 그룹은 L2 능력의 정의(F3)만 참조하고 provider 구현은 모른다 | 그룹은 `cap-*`를 import하지 않고 `g.capability(ServiceKey)`로 쓴다. 쓰는 능력은 매니페스트 `requires`, `optional`에 선언한다 | [결정] 원칙과 `cap-*` import 금지(계획 v2 규칙 2, DR-14) | depcruise `group-*` → `cap-*` 금지 [제안](`architecture.layers.spec` §9), `validateUsage` `capability_undeclared` |
+| 2 | L3 그룹은 L2 기능의 정의(F3)만 참조하고 provider 구현은 모른다 | 그룹은 `cap-*`를 import하지 않고 `g.capability(ServiceKey)`로 쓴다. 쓰는 기능은 매니페스트 `requires`, `optional`에 선언한다 | [결정] 원칙과 `cap-*` import 금지(계획 v2 규칙 2, DR-14) | depcruise `group-*` → `cap-*` 금지 [제안](`architecture.layers.spec` §9), `validateUsage` `capability_undeclared` |
 | 3 | 그룹끼리 직접 참조하지 않는다. 통신은 F4 스키마가 있는 이벤트와 레코드로만 한다 | `g.record`, `g.readRecords`만 쓴다. `recordKinds`, `readsRecordKinds` 선언 | [결정] | check-layers DR-02(같은 층 import), depcruise, `validateUsage` `record_kind_undeclared`·`read_kind_undeclared`, X 쓰기 시 `validateGroupRecord` |
 | 4 | drive 임대는 한 번에 그룹 하나만 가진다. on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다 | Helm만 기본 drive 그룹이다. 정책은 `DriveArbiter`(group-sdk), 메커니즘은 X | [결정] | ext-host 테스트, `validateManifestSet` `drive_conflict`, group-sdk 단위 테스트 |
 | 5 | 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다 | 적용 시점은 단계 경계. 비활성화 순서는 on 제외 → 임대 반납 → `onDispose` | [결정] 원칙, 단계 경계 해석은 [결정: review.decisions-2 U-01] | ext-host 테스트, M1 스모크(drive 그룹 토글) |
@@ -197,7 +197,7 @@ L3가 정하지 않는 것:
 
 | 대상 | 정하는 곳 |
 |---|---|
-| 4연산 타입, 지점 표, 매니페스트, 그룹 레코드 스키마 | `F.extensions.spec` |
+| 4연산 타입, 훅 표, 매니페스트, 그룹 레코드 스키마 | `F.extensions.spec` |
 | 4연산 실행, 임대 메커니즘, 유휴 시 토글 시점 | `X.primitives.spec` |
 | 디스패치 순서와 tier 정의 | `X.operations.spec` |
 | 확장 로딩, 신뢰 등급, 예약 키 `ext.<id>.enabled`·`ext.<id>.isolation` | `X.loading-trust.spec` |
@@ -253,7 +253,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 
 | 결정 | 근거 |
 |---|---|
-| [결정] 확장 지점은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 |
+| [결정] 훅은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 |
 | [결정] Helm과 학습 그룹은 L3 기본 그룹이다. 학습 그룹은 drive를 쓰지 않고 Helm과 공존한다. Helm은 내장 등록 대신 기본 플러그인(별도 패키지, 설치하면 켬)으로 배포하고 자체 확장 API만 쓴다 [결정: review.m3-design-inputs D-M3-01, D-M3-11] | `_research/decisions-log.md` 2026-10-21 계획 v2, `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `review.m3-design-inputs` §3 |
 | [결정] 그룹이 필요한 이유는 스킬·일반 플러그인에 모델 강제력이 없기 때문이다. 제2의 Helm도 붙였다 뗄 수 있어야 한다 | `_research/decisions-log.md` 2026-10-21 사용자 의중 |
 | [결정] 학습 저장은 L2 knowledge, 정책은 L3 학습 그룹 | `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로" |

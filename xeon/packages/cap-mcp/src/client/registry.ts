@@ -114,7 +114,7 @@ interface Entry {
   closing: boolean;
   /**
    * 연결 시도 중에 정해진 막힘. 정의 정책의 막힘(`blockedReason`)과 달리 다음 시도에서 다시 판정한다.
-   * approval_required는 비밀 env 서버가 사용자의 기동 승인을 기다리는 것이고,
+   * approval_required는 시크릿 env 서버가 사용자의 기동 승인을 기다리는 것이고,
    * sandbox_unavailable은 격리해야 하는 서버를 이 기기에서 격리할 수 없는 것이다(L0.process.spec §4.9)
    */
   dynamicBlock: "approval_required" | "sandbox_unavailable" | undefined;

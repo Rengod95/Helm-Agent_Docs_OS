@@ -75,7 +75,7 @@ type AttemptOutcome =
   /** 롤백했다. 초안의 큰 문자열을 blob으로 옮긴 뒤 같은 요청으로 다시 커밋해야 한다 */
   | { readonly kind: "needs_detach"; readonly plan: AppendPlan }
   /**
-   * 확장·능력 투영기 apply 예외로 롤백했다. 그 투영기를 정지하고 알린 뒤 같은 계획(build를 다시 부르지 않는다)으로 다시 커밋한다.
+   * 확장·기능 투영기 apply 예외로 롤백했다. 그 투영기를 정지하고 알린 뒤 같은 계획(build를 다시 부르지 않는다)으로 다시 커밋한다.
    * 코어 투영기 예외는 이 결과가 아니라 Bug로 던진다
    */
   | {
@@ -104,7 +104,7 @@ export interface WriterDeps {
   readonly putBlob?: PutBlob;
   /** 코어 투영기가 첫째, 그 뒤가 cap·ext 투영기(등록 순서). 커밋 7단계가 관심 kind만 적용한다 */
   readonly projectors: () => readonly Projector[];
-  /** 참이면 확장·능력 투영기의 문장이 소유 테이블 밖을 건드릴 때 Bug(store.prefix_not_owned)로 거부한다(테스트·디버그 빌드) */
+  /** 참이면 확장·기능 투영기의 문장이 소유 테이블 밖을 건드릴 때 Bug(store.prefix_not_owned)로 거부한다(테스트·디버그 빌드) */
   readonly guardProjectors?: boolean;
   /**
    * 확장 투영기 apply 예외로 커밋이 롤백된 뒤 커밋마다 한 번 부른다. 쓰기 보호 밖이고, 같은 커밋의 재시도 앞에 온다.
@@ -500,7 +500,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       if (caught === DETACH_MARKER && pending.plan !== null) {
         return ok({ kind: "needs_detach", plan: pending.plan });
       }
-      // 확장·능력 투영기 예외: 트랜잭션은 롤백됐다. 정지와 알림, 재시도는 runCommit이 한다.
+      // 확장·기능 투영기 예외: 트랜잭션은 롤백됐다. 정지와 알림, 재시도는 runCommit이 한다.
       // 코어 투영기 예외(failure가 null)는 Bug를 그대로 올린다
       if (projectorFailed.failure !== null && projectorFailed.plan !== null) {
         return ok({
@@ -534,7 +534,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
     request: CommitRequest,
     hooks: CommitHooks,
   ): Result<CommitOutcome, StoreError> => {
-    // 실패할 때마다 투영기 하나가 정지되므로 재시도는 시작할 때 활성인 확장·능력 투영기 수를 넘지 못한다(코어는 제외)
+    // 실패할 때마다 투영기 하나가 정지되므로 재시도는 시작할 때 활성인 확장·기능 투영기 수를 넘지 못한다(코어는 제외)
     let retriesLeft = deps.projectors().length - 1;
     let current: CommitRequest = request;
     let detached = false;
@@ -566,7 +566,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
         detached = true;
         continue;
       }
-      // 확장·능력 투영기 예외: 롤백은 끝났다. 알림(서비스가 여기서 투영기를 정지한다)을 한 번 하고 같은 계획으로 다시 낸다.
+      // 확장·기능 투영기 예외: 롤백은 끝났다. 알림(서비스가 여기서 투영기를 정지한다)을 한 번 하고 같은 계획으로 다시 낸다.
       // 한도를 넘는 실패는 정지할 투영기가 더 없다는 뜻이라 Bug다(정상 경로에서는 일어나지 않는다)
       deps.onProjectorFailure?.(outcome.failure);
       if (retriesLeft <= 0) {

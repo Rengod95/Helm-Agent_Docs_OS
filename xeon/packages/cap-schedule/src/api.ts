@@ -9,7 +9,7 @@ import {
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { ScheduleEntry, ScheduleService, StoreFailure, TriggerSpec } from "./types.ts";
 
-// L2.schedule.spec §4.4.9. 능력 `schedule.entries`(F)의 서비스 구현. 엔진의 `Result`를 경계에서 한 번 `CapabilityError`로 바꾼다.
+// L2.schedule.spec §4.4.9. 기능 `schedule.entries`(F)의 서비스 구현. 엔진의 `Result`를 경계에서 한 번 `CapabilityError`로 바꾼다.
 
 const CAPABILITY = "schedule.entries" as const;
 
@@ -48,7 +48,7 @@ function abortIf(method: string, signal: AbortSignal | undefined): void {
   if (signal?.aborted === true) throw reject(method, "aborted", "The call was aborted.");
 }
 
-/** 예약 서비스를 능력 API로 감싼다. 기대한 실패는 모두 `CapabilityError`다 */
+/** 예약 서비스를 기능 API로 감싼다. 기대한 실패는 모두 `CapabilityError`다 */
 export function createScheduleApi(service: ScheduleService): CapabilityApi<typeof ScheduleEntries> {
   return {
     async create(input, options) {

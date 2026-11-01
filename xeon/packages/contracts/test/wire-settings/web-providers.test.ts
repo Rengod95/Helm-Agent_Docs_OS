@@ -6,7 +6,7 @@ import {
   WebProvidersResultSchema,
 } from "../../src/wire-settings/wire/index.ts";
 
-// M3-REQ-96. 값을 왕복해 견주고, 거부 값을 확인한다. 결과에는 키나 토큰 같은 비밀 값 필드가 없다.
+// M3-REQ-96. 값을 왕복해 견주고, 거부 값을 확인한다. 결과에는 키나 토큰 같은 시크릿 값 필드가 없다.
 function roundTrip(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value));
 }

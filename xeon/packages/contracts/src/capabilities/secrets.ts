@@ -17,7 +17,7 @@ import { Bug, err, ok, parse, type Brand, type Result } from "../base/index.ts";
 // ── 사용 승인 증거 (L1.tools.spec §4.12, F 요청 13) ───────────────────────
 
 /**
- * 사람이 비밀 사용을 승인한 증거. L1.tools가 `CallContext.approval`에 채우고, 도구 구현(L2.workspace shell `run`)이
+ * 사람이 시크릿 사용을 승인한 증거. L1.tools가 `CallContext.approval`에 채우고, 도구 구현(L2.workspace shell `run`)이
  * `SecretEnvRequest.ctx.approval`에 옮긴다. 값은 `fresnel.secrets`가 `approvalId`·`scope`로 정책을 다시 검사한다.
  * 서비스 쪽 이름은 `ApprovalEvidence`(services/secrets.ts)이고 같은 모양이다. L2.knowledge의 `ApprovalEvidence`(`defs/knowledge.ts`)와는 다른 타입이다.
  */
@@ -31,15 +31,15 @@ export interface SecretApprovalEvidence {
 
 // ── 참조 형식 (F.capabilities.spec §3.10) ───────────────────────────────
 
-/** 비밀 이름. 소문자로 시작, 소문자·숫자·하이픈 2~64자 */
+/** 시크릿 이름. 소문자로 시작, 소문자·숫자·하이픈 2~64자 */
 export const SECRET_NAME_PATTERN: string = "^[a-z][a-z0-9-]{1,63}$";
-/** 비밀 참조. "secret://<이름>" */
+/** 시크릿 참조. "secret://<이름>" */
 export const SECRET_REF_PATTERN: string = "^secret://[a-z][a-z0-9-]{1,63}$";
 
-/** 검사를 통과한 비밀 이름 */
+/** 검사를 통과한 시크릿 이름 */
 export type SecretName = Brand<string, "SecretName">;
 export type SecretRef = `secret://${string}`;
-/** 검사를 통과한 비밀 참조. 런타임 모양은 SecretRef("secret://<name>")와 같다 */
+/** 검사를 통과한 시크릿 참조. 런타임 모양은 SecretRef("secret://<name>")와 같다 */
 export type SecretHandle = Brand<string, "SecretHandle">;
 
 /**
@@ -49,9 +49,9 @@ export type SecretHandle = Brand<string, "SecretHandle">;
 export const SecretNameSchema: TUnsafe<SecretName> = Type.Unsafe<SecretName>(
   Type.String({ pattern: SECRET_NAME_PATTERN, maxLength: 64 }),
 );
-/** 비밀 참조 문자열 스키마. 설정 키의 값 형식이다(F.wire-settings.spec §3.8.1). */
+/** 시크릿 참조 문자열 스키마. 설정 키의 값 형식이다(F.wire-settings.spec §3.8.1). */
 export const SecretRef: TString = Type.String({ pattern: SECRET_REF_PATTERN, maxLength: 75 });
-/** 검사를 통과한 비밀 참조를 SecretHandle로 들이는 스키마 */
+/** 검사를 통과한 시크릿 참조를 SecretHandle로 들이는 스키마 */
 export const SecretHandleSchema: TUnsafe<SecretHandle> = Type.Unsafe<SecretHandle>(
   Type.String({ pattern: SECRET_REF_PATTERN, maxLength: 75 }),
 );
@@ -69,7 +69,7 @@ const NAME_REGEX = new RegExp(SECRET_NAME_PATTERN);
 
 type ForeignSyntax = "env_var" | "template" | "percent" | "provider_uri";
 
-/** 문자열 전체가 다른 비밀 구문인가 */
+/** 문자열 전체가 다른 시크릿 구문인가 */
 function wholeForeignSyntax(input: string): ForeignSyntax | undefined {
   if (/^\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$/.test(input)) return "env_var";
   if (/^\{\{.*\}\}$/s.test(input)) return "template";
@@ -80,7 +80,7 @@ function wholeForeignSyntax(input: string): ForeignSyntax | undefined {
 }
 
 /**
- * 순수 함수. 문자열 하나가 비밀 참조이면 핸들과 이름을 돌려준다.
+ * 순수 함수. 문자열 하나가 시크릿 참조이면 핸들과 이름을 돌려준다.
  * 같은 입력에 같은 결과를 낸다. SecretName/SecretHandle은 검증(parse)을 거쳐서만 만든다.
  */
 export function parseSecretRef(
@@ -120,7 +120,7 @@ const FOREIGN_SCANNERS: readonly (readonly [ForeignSyntax, RegExp])[] = [
 ];
 
 /**
- * 순수 함수. 입력 단계 검사. 문자열 안의 다른 비밀 구문($VAR, {{…}}, %…%, op:// 등)을 찾아 거부 사유를 돌려준다.
+ * 순수 함수. 입력 단계 검사. 문자열 안의 다른 시크릿 구문($VAR, {{…}}, %…%, op:// 등)을 찾아 거부 사유를 돌려준다.
  * 종류마다 한 번만, env_var → template → percent → provider_uri 순으로 낸다.
  */
 export function findForeignSecretSyntax(text: string): readonly SecretRefError[] {

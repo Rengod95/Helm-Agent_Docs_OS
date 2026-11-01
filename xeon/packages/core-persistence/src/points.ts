@@ -1,5 +1,5 @@
-// 이 패키지가 발화하는 확장 지점 7개(L1.persistence.spec §7.1, PS-17). 발화는 ExtHost.dispatch로만 한다.
-// first 지점(session_before_*)은 커밋 전, 트랜잭션 밖에서 await하고, tap 지점은 커밋 뒤에 발화한다.
+// 이 패키지가 발화하는 훅 7개(L1.persistence.spec §7.1, PS-17). 발화는 ExtHost.dispatch로만 한다.
+// first 훅(session_before_*)은 커밋 전, 트랜잭션 밖에서 await하고, tap 훅은 커밋 뒤에 발화한다.
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   SessionBeforeForkDecision,
@@ -15,7 +15,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { ExtHost } from "@fresnel/ext-host";
 
-/** 지점 발화에 필요한 ExtHost의 부분 */
+/** 훅 발화에 필요한 ExtHost의 부분 */
 export type SessionDispatcher = Pick<ExtHost, "dispatch">;
 
 /** 결정이 취소면 그 이유를 돌려주고, 계속이면 undefined */

@@ -12,7 +12,7 @@ binds: []
 
 ## 1. 이 디렉터리의 성격
 
-- 이 디렉터리의 문서는 모든 Xeon 구현 작업에 적용되는 구속 문서다. 대상 코드는 `xeon/**`이고, 층 문서(spec, plan)보다 먼저 읽는다.
+- 이 디렉터리의 문서는 모든 Fresnel 구현 작업에 적용되는 구속 문서다. 대상 코드는 `xeon/**`이고, 층 문서(spec, plan)보다 먼저 읽는다.
 - 문서 선택은 `docs/xeon/_routing/routes.yaml`의 `by_task`가 정한다. `implement`(코드를 쓰거나 고치는 모든 작업), `data`(저장·이벤트·재생·원자성을 건드리는 작업, implement에 더함), `review`(정합성 검토) 묶음이 이 디렉터리의 문서를 자동으로 고른다. `xeon/scripts/docs-route.ts`가 그 목록을 출력한다.
 
 ## 2. 문서 목록
@@ -25,12 +25,12 @@ binds: []
 | 4 | `toolchain/guide.md` | `eng.toolchain.guide` | guide | Bun, tsgo, oxlint·oxfmt, turbo, CI와 버전 고정 | 필수 | | |
 | 5 | `testing/guide.md` | `eng.testing.guide` | guide | 단위 테스트 우선, 테이프 기반 모델 가짜, 통합 최소화 | 필수 | | |
 | 6 | `anti-patterns/guide.md` | `eng.anti-patterns.guide` | guide | 아키텍처·코드·스택 단위 안티패턴(AP-A, AP-C, AP-S)과 감지 수단 | 필수 | | |
-| 7 | `best-practices/guide.md` | `eng.best-practices.guide` | guide | 기본 선택 규칙(BP): 계약 먼저, 확장 지점 선택, 오류·주입·설정·비밀·이벤트·로깅 | 필수 | | |
+| 7 | `best-practices/guide.md` | `eng.best-practices.guide` | guide | 기본 선택 규칙(BP): 계약 먼저, 훅 선택, 오류·주입·설정·시크릿·이벤트·로깅 | 필수 | | |
 | 8 | `context-map/design.md` | `eng.context-map.design` | design | 바운디드 컨텍스트 지도와 소유 경계 | | 필수 | 필수 |
 | 9 | `events/design.md` | `eng.events.design` | design | 이벤트 종류, 내구·휘발, 순서, 재생 | | 필수 | |
 | 10 | `transactions/design.md` | `eng.transactions.design` | design | 정합성·원자성, 단일 DB, outbox, 멱등 | | 필수 | |
 | 11 | `frontend-state/guide.md` | `eng.frontend-state.guide` | guide | UI 전역 상태(React 19 + Zustand 5): 스토어 구성, reducer 단계, 스트리밍, 재동기화, 선택자 | | | |
-| 12 | `performance/guide.md` | `eng.performance.guide` | guide | 속도 예산표, `just bench` 측정 규칙(ADR-0012) | | | |
+| 12 | `performance/guide.md` | `eng.performance.guide` | guide | 속도 예산표, `just benchmark` 측정 규칙(ADR-0012) | | | |
 | 13 | `onboarding/guide.md` | `eng.onboarding.guide` | guide | 기여자 첫날 순서: 도구, setup·verify, 시험, 라우팅, 커밋, 종료코드, macOS | | | |
 
 - `review` 묶음에는 이 디렉터리 밖의 `architecture.layers.spec`도 들어 있다(`routes.yaml` `by_task.review`).

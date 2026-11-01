@@ -11,7 +11,7 @@ import type {
 import type { SecretChecker } from "./secret-gate.ts";
 import { sha256HexSync } from "./util.ts";
 
-// L1.tools.spec §4.12.1 (M3-05, M3-REQ-75). 비밀 env를 쓰는 stdio MCP 서버의 기동 승인. 승인은 서버 정의 해시마다 한 번이고
+// L1.tools.spec §4.12.1 (M3-05, M3-REQ-75). 시크릿 env를 쓰는 stdio MCP 서버의 기동 승인. 승인은 서버 정의 해시마다 한 번이고
 // 정의가 바뀌면 해시가 달라져 다시 묻는다. 승인 요청(kind `tool`)의 본문에 정의 해시를 싣는다(`argsHash`와 `args.definitionHash`).
 // 서버는 도구 호출이 아니라 연결 때 뜨므로 이 승인은 호출 안이 아닌 대화(`threadId`)에 묶인 비차단 요청이다.
 // 승인 UI는 L4, 증거를 받아 쓰는 일은 L2.mcp와 L0.process가 한다. 값은 이 파일에 오지 않는다.
@@ -23,7 +23,7 @@ export const MCP_START_RULE_ID = "mcp.start";
 const PURPOSE_PREFIX = "mcp.start:";
 const TITLE_MAX = 120;
 
-/** 기동 승인 대상 정의. 비밀 값은 없고 참조만 있다 */
+/** 기동 승인 대상 정의. 시크릿 값은 없고 참조만 있다 */
 export interface McpStartDefinition {
   readonly server: string;
   /** 정의 출처(`settings:user`, `mcpjson:project`, `ext:<이름>` 등) */
@@ -56,7 +56,7 @@ export interface McpStartGate {
 export interface McpStartGateDeps {
   readonly approvals: Pick<ApprovalService, "open" | "wait">;
   readonly secrets: SecretChecker | undefined;
-  /** 정의 해시(SHA-256 hex). 키 순서와 무관하고 비밀 값이 들어가지 않는다. L0 `mcpDefinitionHash`를 조립 루트가 넘긴다 */
+  /** 정의 해시(SHA-256 hex). 키 순서와 무관하고 시크릿 값이 들어가지 않는다. L0 `mcpDefinitionHash`를 조립 루트가 넘긴다 */
   readonly hash: (definition: McpStartDefinition) => string;
   readonly clock: Clock;
   readonly logger: Logger | undefined;
@@ -190,7 +190,7 @@ export function createMcpStartGate(deps: McpStartGateDeps): McpStartGate {
       approval: null,
     };
     for (const handle of handles) {
-      // eslint-disable-next-line no-await-in-loop -- 앞 비밀이 거부면 뒤는 묻지 않는다
+      // eslint-disable-next-line no-await-in-loop -- 앞 시크릿이 거부면 뒤는 묻지 않는다
       const checked = await deps.secrets.check(handle, ctx);
       if (!checked.ok) return `${handle}: ${checked.error.kind}`;
       if (checked.value.kind === "deny") return `${handle}: ${checked.value.reason}`;

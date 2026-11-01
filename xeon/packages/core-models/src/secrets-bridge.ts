@@ -5,10 +5,10 @@ import type { SecretRefString, SecretService, UseCtx } from "@fresnel/contracts/
 
 // L1.models.spec §3.9, §4.7, L1.models.plan M-6. core-models 내부이고 공개하지 않는다.
 // 값은 read() 안에서만 얻어 반환 객체에만 둔다. 캐시하지 않고, 요청 직전(Models.getAuth가 부를 때)마다 해석한다.
-// 오류와 로그에는 비밀 이름이나 오류 종류만 싣고 값은 싣지 않는다.
+// 오류와 로그에는 시크릿 이름이나 오류 종류만 싣고 값은 싣지 않는다.
 
 export interface ProviderCredentialRefs {
-  /** providerId → 비밀 참조. l1.models.providers 설정에서 만든다 */
+  /** providerId → 시크릿 참조. l1.models.providers 설정에서 만든다 */
   get(providerId: string): SecretRefString | null;
   /** 참조가 있는 provider id. list()가 메타만 돌려주는 데 쓴다(spec의 인터페이스에 더한 메서드) */
   ids(): readonly string[];
@@ -56,7 +56,7 @@ export function oauthGuardFailure(providerId: string): CredentialFailure {
   };
 }
 
-/** 비밀 참조를 요청 직전에 해석한다. 값은 반환 값에만 있고 어디에도 남기지 않는다 */
+/** 시크릿 참조를 요청 직전에 해석한다. 값은 반환 값에만 있고 어디에도 남기지 않는다 */
 export interface SecretResolver {
   /** purpose는 `model.provider:<id>` 같은 사용 목적, providerId는 목적지 조회에 쓴다 */
   resolve(
@@ -156,7 +156,7 @@ export function secretBackedCredentialStore(
       return Promise.resolve(infos);
     },
     modify() {
-      // 키 등록과 삭제는 비밀 관리 경로(just secret-add, 설정 화면 secrets 탭)로만 한다
+      // 키 등록과 삭제는 시크릿 관리 경로(just secret-add, 설정 화면 secrets 탭)로만 한다
       return Promise.reject(
         new ModelsError("auth", "credentials are managed through secret references only"),
       );

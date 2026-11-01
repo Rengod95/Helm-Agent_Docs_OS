@@ -24,7 +24,7 @@ export const NO_PROVIDER_LINKS: ProviderLinker = {
   grantFor: () => undefined,
 };
 
-// 비밀 관리 서비스(platform-secrets의 admin)의 메모리 대역. 호스트의 secret.* 처리기와 SecretsPort(기본 메타, 맡긴 수단 저장소)는
+// 시크릿 관리 서비스(platform-secrets의 admin)의 메모리 대역. 호스트의 secret.* 처리기와 SecretsPort(기본 메타, 맡긴 수단 저장소)는
 // 실제 코드를 쓰고, L0.secrets 쪽만 바꾼다. 값은 길이와 호출 기록으로만 남기고, 시험이 "값이 새지 않았다"를 확인할 수 있게
 // 받은 값을 `received`에 둔다(시험 전용).
 

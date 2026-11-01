@@ -148,7 +148,7 @@ describe.skipIf(!real)("first write on a clean machine (spec §4.8)", () => {
 
   test("two clients of one user (CLI state dir and sidecar state dir) see one secret store", async () => {
     const dir = await workdir();
-    // 저장소는 사용자 config 디렉터리 하나다. 클라이언트마다 다른 것은 state 디렉터리(`state/cli` 등)뿐이고 비밀은 거기 쓰지 않는다
+    // 저장소는 사용자 config 디렉터리 하나다. 클라이언트마다 다른 것은 state 디렉터리(`state/cli` 등)뿐이고 시크릿은 거기 쓰지 않는다
     const config = dir.join("config");
     const cli = client(config, dir.path);
     const sidecar = client(config, dir.path);

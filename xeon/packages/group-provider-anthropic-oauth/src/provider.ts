@@ -4,7 +4,7 @@ import type { ProviderResourceDef } from "@fresnel/contracts/extensions";
 export const ANTHROPIC_OAUTH_PROVIDER_NAME: string = "anthropic-oauth";
 
 /**
- * 위장 provider의 JSON 정의(kind `config`). 키는 설정의 비밀 참조만 받는다(리터럴은 포트가 거부한다).
+ * 위장 provider의 JSON 정의(kind `config`). 키는 설정의 시크릿 참조만 받는다(리터럴은 포트가 거부한다).
  * provider id가 기본 `anthropic`이 아니므로 core-models 가드(L1.models.spec §3.9)는 이 등록을 막지 않는다.
  * 요청 모양은 pi-ai 내장 OAuth 분기가 정한다. 와이어 동등 래퍼는 만들지 않는다 [미결 M-8].
  * 모델 세 개는 pi-ai 1.3.0 내장 카탈로그(providers/data/anthropic.json)에서 옮겼다. 비용은 기본 구간 값이다.

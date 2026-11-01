@@ -8,8 +8,8 @@ import { sha256Hex } from "./util/hash.ts";
 // 도메인·URL 승인 요청을 `fresnel.approvals`의 도구 승인 body(`ToolApprovalDetail`, additionalProperties:false)로 옮긴다.
 // 도메인 대상을 body로 바꾸는 규칙은 cap-*가 가진다(core-tools `l2ApprovalsPort` 주석).
 //
-// - toolName은 능력 id(`web.fetch`)이고 capability.method는 그 능력의 메서드 이름이다.
-// - risk는 `ToolRisk`("read"|"write"|"exec") 안에서만 고를 수 있다. 웹 능력은 읽기라 "read"다. 허용 목록에 없는 값은
+// - toolName은 기능 id(`web.fetch`)이고 capability.method는 그 기능의 메서드 이름이다.
+// - risk는 `ToolRisk`("read"|"write"|"exec") 안에서만 고를 수 있다. 웹 기능은 읽기라 "read"다. 허용 목록에 없는 값은
 //   core-tools가 body를 읽지 못해 요청을 거부한다.
 // - args는 `{ host, reasons }`이고 argsHash는 그 정규화 JSON의 sha256이다. ruleId는 도메인 규칙이 아니라 웹 정책이 낸 질문이라 null이다.
 

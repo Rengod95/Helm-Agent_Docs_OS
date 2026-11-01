@@ -17,9 +17,9 @@ import {
 import { ambient, withoutAmbient, type Ambient } from "./ambient.ts";
 
 /**
- * 능력 id로 정의를 찾는다. `g.capability`가 돌려주는 서비스는 호출 때 메서드의 효과 분류(`idempotent`, `readOnly`)를 알아야 하는데
+ * 기능 id로 정의를 찾는다. `g.capability`가 돌려주는 서비스는 호출 때 메서드의 효과 분류(`idempotent`, `readOnly`)를 알아야 하는데
  * `ServiceKey`는 id와 버전만 싣는다. 그래서 조립 루트가 정의 표를 `ExtHostDeps.capabilityDefs`로 넘긴다(X.primitives.spec §4.4.7).
- * 정의를 못 찾으면 그 능력의 모든 메서드를 선언 없음으로 본다(재실행되는 코드에서는 거부)
+ * 정의를 못 찾으면 그 기능의 모든 메서드를 선언 없음으로 본다(재실행되는 코드에서는 거부)
  */
 export type CapabilityDefLookup = (id: CapabilityId) => AnyCapabilityDef | undefined;
 
@@ -82,7 +82,7 @@ function effectLabel(effect: ReplayEffect): string {
 }
 
 /**
- * 능력 서비스를 감싼다(ADR-0015 §3.1 2번, §3.2). on 핸들러와 drive 함수 안의 호출만 검사한다.
+ * 기능 서비스를 감싼다(ADR-0015 §3.1 2번, §3.2). on 핸들러와 drive 함수 안의 호출만 검사한다.
  * 효과 분류는 정의의 메서드 선언에서 온다. 거부는 서비스 메서드의 실패 규약대로 `CapabilityError`(코드 `effect_not_allowed`)로
  * 거부(reject)하고 공급자를 부르지 않는다. 검사를 통과한 호출에는 호출 문맥(`CallOptions.context`)을 채운다
  */
@@ -149,7 +149,7 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
     ]);
   }
   if (def !== undefined) {
-    // 정의 밖 멤버(예: `dialog.commands` 공급자의 TS 메서드 `registerAction`)는 능력 메서드가 아니므로 그대로 넘긴다
+    // 정의 밖 멤버(예: `dialog.commands` 공급자의 TS 메서드 `registerAction`)는 기능 메서드가 아니므로 그대로 넘긴다
     for (const name of memberNames(service)) {
       if (name in def.service.methods) continue;
       const member = service[name];

@@ -1,6 +1,6 @@
 import type { CredentialFailure } from "./secrets-bridge.ts";
 
-// 비밀 해석 실패의 짧은 기록. pi-ai Models는 CredentialStore.read가 던진 오류의 원인을 종결 메시지에 싣지 않고
+// 시크릿 해석 실패의 짧은 기록. pi-ai Models는 CredentialStore.read가 던진 오류의 원인을 종결 메시지에 싣지 않고
 // "Credential store read failed for <provider>"로 바꾼다. 파이프라인이 호출 시작 때 표를 받아 두고, 오류 종결 뒤
 // 그 사이에 같은 provider의 해석 실패가 있었는지 보아 secret_unresolved 종결 메시지를 만든다(L1.models.spec §4.7).
 

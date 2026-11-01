@@ -49,7 +49,7 @@ xeon/packages/platform-process/
     port/
       hook-run.ts                 # ProcessPort.run: 셸 없는 실행, 출력 상한, signal 중단 시 트리 종료 (PR-21)
       spawn-piped.ts              # 파이프 자식 기동: 셸 없음, 새 프로세스 그룹, 종료와 stdout 닫힘을 함께 기다림 (PR-23)
-      mcp-spawn.ts                # McpProcessPort: 비밀 env 주입, 레지스트리 등록, stdin 닫기 → SIGTERM → SIGKILL (PR-23)
+      mcp-spawn.ts                # McpProcessPort: 시크릿 env 주입, 레지스트리 등록, stdin 닫기 → SIGTERM → SIGKILL (PR-23)
       isolation.ts                # ProcessPort.spawn: 격리 확장 자식 기동과 레지스트리 등록 (PR-22, 2차)
     service/
       registration.ts             # ServiceRegistrationSchema, RegistrationStore (0600, 임시 파일 + rename, 미지 필드 보존)

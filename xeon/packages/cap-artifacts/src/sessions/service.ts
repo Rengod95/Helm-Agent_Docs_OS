@@ -269,7 +269,7 @@ export function createSessions(deps: SessionsDeps): SessionsRuntime {
     }
   }
 
-  /** 제목 쓰기의 실패를 능력 거부로 바꾼다. 이 호출 경로에서 올 수 없는 종류는 `internal`이다 */
+  /** 제목 쓰기의 실패를 기능 거부로 바꾼다. 이 호출 경로에서 올 수 없는 종류는 `internal`이다 */
   function titleFailure(method: string, error: LifecycleError): CapabilityError {
     if (error.kind === "key_reused") {
       deps.logger.error("artifacts.sessions_key_reused", { method });

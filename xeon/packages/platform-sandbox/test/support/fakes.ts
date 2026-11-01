@@ -322,7 +322,7 @@ export function selfTestShell(fail: ReadonlySet<SelfTestItemId> = new Set()): Re
   });
 }
 
-/** env 모드 비밀 참조 하나를 담은 요청(값은 없다) */
+/** env 모드 시크릿 참조 하나를 담은 요청(값은 없다) */
 export function secretEnvRequest(purpose: string): SecretEnvRequest {
   return {
     refs: { GH_TOKEN: "secret://gh-token" },

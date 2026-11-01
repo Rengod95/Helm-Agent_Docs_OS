@@ -17,7 +17,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 마일스톤 | 범위 | 소비자 |
 |---|---|---|
 | M0 | 내장 패키지 `manifest` 상수 로딩, `validateManifest`·`validateManifestSet`·`validateUsage` 연결, 같은 프로세스 로딩(`ExtHost.install` 위임, `InstallResult` → 진단 변환), tier 등록(`policy.admit`), 실패 격리(한 확장 실패가 시작을 막지 않음, 내장 필수 예외), 로드 순서, 진단 레코드, 신뢰 등급 상수(`TRUST_MATRIX`) | L4.host-service 조립 3단계, X.primitives(`ExtHost.install`) |
-| M1 | 걷는 골격 연결: 테스트용 그룹 하나를 로드해 `fresnel chat`에서 on/post/drive가 돈다(`_research/foundation-plan.md` §5 P4 M1). 예약 키 `ext.<name>.enabled` 반영(5a단계, `ensureLoaded`), `settingsFromManifest`·`buildCatalog` 연결과 `foreignNamespace` 거부, 능력 요구 충족(6단계, 연쇄 실패) | L4.host-service 조립 5단계, 테스트 그룹 |
+| M1 | 걷는 골격 연결: 테스트용 그룹 하나를 로드해 `fresnel chat`에서 on/post/drive가 돈다(`_research/foundation-plan.md` §5 P4 M1). 예약 키 `ext.<name>.enabled` 반영(5a단계, `ensureLoaded`), `settingsFromManifest`·`buildCatalog` 연결과 `foreignNamespace` 거부, 기능 요구 충족(6단계, 연쇄 실패) | L4.host-service 조립 5단계, 테스트 그룹 |
 | M2 이후 | 외부 확장 탐색(`.fresnel-plugin/plugin.json`, 관리·사용자·프로젝트 위치), 프로젝트 신뢰 포크(pi `trust-manager.ts`·`project-trust.ts`)와 `thread.trust.before` 발화, 제거 흐름(확인 2단계), 안전 모드·`--disable-ext`(5a단계), SDK 가상 모듈, 기본 플러그인 설치, 프로세스 격리(2차), 핫 리로드(개발용) | L4.cli·L4.desktop(신뢰 프롬프트), L0.os(파일·경로 포트), L0.process(격리) |
 
 - [제안] 신뢰 판정은 프로젝트 확장이 처음 생기는 시점(M2)에 맞춘다. M0·M1에는 내장 확장만 있으므로 판정 대상이 없다. 다만 `TRUST_MATRIX`와 `TrustLevel`은 M0에 두어 X.primitives가 연산 허용 검사에 쓸 수 있게 한다.
@@ -91,7 +91,7 @@ xeon/packages/ext-host/
 | L-08 | `index.ts`: `createExtensionLoader(deps)`, `loadAll`(내장만), `list`, `diagnostics`, `dispose`(역순 scope 정리). `LoaderDeps` 필수 항목(`host`, `policy`, `fs`, `paths`, `trustBackend`) 확인(없으면 시작 실패). 로더 포트 타입은 F `ports.ts` 이름을 다시 export하고 자기 정의를 두지 않는다 | L-07, F.E10(로더 포트) | S | M0 |
 | L-09 | `settings-keys.ts`: `reservedExtensionSettings`(`enabled`, `isolation`), `loadingTrustSettings`(`defineSettings("x.loading-trust", …)`), 5단계(`settingsFromManifest` 결과 이슈 → `rejected`), userConfig 예약 이름 충돌(`settings_reserved_key`), `LoadReport.settingGroups`와 재조립 | L-07, F.wire-settings.plan(`defineSettings`, `settingsFromManifest`, `buildCatalog`) | M | M1 |
 | L-10 | 5a단계: `ext.<name>.enabled` 유효 값 확인(거짓이면 엔트리 미실행 `disabled`), 필수 userConfig(`config_required`). 실행 중 값 변경 구독 → `ensureLoaded` 또는 scope 끄기 요청. 안전 모드·`--disable-ext`는 L-29(M2) | L-09, P-09(scope 켜기·끄기), L1.persistence 설정 변경 통지 [가정] | M | M1 |
-| L-11 | 6단계: 능력 요구 충족 판정(매니페스트 `provides` + 코어 능력 레지스트리, 범위 비교), 9단계 뒤 provider 실패 연쇄(`capability_provider_failed`) | L-07, F.capabilities.plan(범위 비교 함수), P-17(능력 바인딩) | M | M1 |
+| L-11 | 6단계: 기능 요구 충족 판정(매니페스트 `provides` + 코어 기능 레지스트리, 범위 비교), 9단계 뒤 provider 실패 연쇄(`capability_provider_failed`) | L-07, F.capabilities.plan(범위 비교 함수), P-17(기능 바인딩) | M | M1 |
 | L-12 | 걷는 골격 연결: 조립 루트(L4 host)의 `extraPlugins`로 테스트 그룹 모듈을 넘겨 로드, `host.status`용 진단 노출. 이 문서 binds 밖 파일 변경은 L4.host-service.plan 작업자와 조율 | L-08, L-10, L-11, L4.host-service.plan | S | M1 |
 | L-13 | `discover.ts` 외부 부분: 관리·사용자·`x.loading-trust.paths` 위치의 `.fresnel-plugin/plugin.json` 한 단계 탐색, 심볼릭 링크 정규화, 위치 우선순위와 `name_conflict`, `manifest_missing`·`manifest_parse` | L-05, L0.os 포트 구현 [가정] | M | M3 (결정 D9) |
 | L-14 | `entry-loader.ts` 외부 경로: 엔트리 절대 경로 계산, `realpath`가 확장 루트 안인지 확인, `import()`(L-01 결과 방식), `default`·`extension` export 판별, `ExtensionUnit`으로 `install`(L-06 경로) | L-01, L-06, L-13 | M | M3 (결정 D9) |
@@ -111,7 +111,7 @@ xeon/packages/ext-host/
 | L-28 | `remove.ts` 제거 흐름(스펙 §4.4.5): `previewRemoval`(`dropExtension(name, false)`), `remove`(`ExtHost.uninstall` → `policy.forget` → `dropTables`면 `dropExtension(name, true)`), 내장 확장 제거 거부. `storageAdmin`은 가짜로 먼저 테스트하고 O-25에서 실제 구현과 연결 | L-08, P-13(`uninstall`), O-03(`forget`) | S | M3 (결정 D9) |
 | L-29 | 5a단계 시작 옵션: `LoadOptions.startup`을 `policy.startupFilter`에 넘겨 빠진 확장을 `disabled`(`safe_mode`, `disabled_flag`)로 두기. 외부 확장은 import 생략, 내장 확장은 install 생략 | L-10, O-20(`startupFilter`, `OperationsPolicy.startupFilter`) | S | M3 (결정 D9) |
 
-- 가장 큰 작업은 L-19, L-22, L-23이다. L-19는 지점별 결과 변환표를 지점 종류(input, request, tool, boundary, session) 단위로 나눠 PR을 쪼갤 수 있다.
+- 가장 큰 작업은 L-19, L-22, L-23이다. L-19는 지점별 결과 변환표를 훅 종류(input, request, tool, boundary, session) 단위로 나눠 PR을 쪼갤 수 있다.
 - M0에 필요한 X.primitives 산출물은 `ExtHost.install`·`uninstall`과 `InstallResult`(P-13)다. 늦으면 L-06은 같은 인터페이스의 가짜 `ExtHost`로 먼저 끝내고 연결만 나중에 한다. `policy.admit`(O-03)도 같다.
 
 ## 4. 채택 코드
@@ -174,7 +174,7 @@ xeon/packages/ext-host/
 | | `foreign namespace rejects load` | userConfig `setting: "l1.loop.maxSteps"` → `rejected`(`settings_rejected`), `settingGroups`에 없음 | §9-12 |
 | | `reserved key in userConfig` | userConfig 키 `enabled` → `settings_reserved_key` | §4.5.1 |
 | | `reserved defs shape` | `ext.<name>.enabled`·`isolation`의 타입, 기본값, `allowedScopes`, `runtimeChange`가 스펙 §6 표와 같고 `checkSettingDef`를 통과한다. 내장 확장에는 `isolation` 정의가 없다 | §4.5.2 |
-| `pipeline.test.ts`(능력) | `missing capability provider diagnosed` | `requires web.search ^1.0.0`, provider 없음 → 엔트리 미실행, `capability_missing`, 진단에 능력 ID | §9-9 |
+| `pipeline.test.ts`(기능) | `missing capability provider diagnosed` | `requires web.search ^1.0.0`, provider 없음 → 엔트리 미실행, `capability_missing`, 진단에 기능 ID | §9-9 |
 | | `provider failure cascades` | provider 확장이 9단계에서 실패하면 소비 확장도 `capability_provider_failed` | §4.3.2 |
 | `discover.test.ts` | `name conflict precedence` | 사용자·프로젝트 같은 이름 → 사용자 `active`, 프로젝트 `rejected`(`name_conflict`) | §9-13 |
 | | `one level only and symlink dedupe` | 두 단계 아래 매니페스트는 무시, 같은 실제 경로 심볼릭 링크는 후보 하나 | §4.2.1 |
@@ -209,7 +209,7 @@ xeon/packages/ext-host/
 | | `pi table matches PI_COMPAT_TABLE` | 스펙 §4.10.4 표의 항목·등급과 상수가 같다 | §4.10.4 |
 
 - 표의 테스트는 53개다. M0·M1 몫은 22개이고 나머지는 M2 이후 신뢰·제거·시작 옵션·pi·격리 몫이다. 수용 기준 §9-1~22가 모두 하나 이상의 테스트에 대응한다. 필수로 정한 항목(신뢰 저장 파일 손상, 로드 순서 결정성, pi 지원 표 각 행, 프록시 연결 끊김)은 `trust-store`, `load-order`, `pi-compat-table`, `isolation-proxy` 파일에 있다.
-- 마일스톤별 필수: M0는 `pipeline`(능력 제외), `load-order`, `levels`, `docs-consistency`의 신뢰 표. M1은 `settings-keys`, 능력 테스트. 나머지는 M2 이후.
+- 마일스톤별 필수: M0는 `pipeline`(기능 제외), `load-order`, `levels`, `docs-consistency`의 신뢰 표. M1은 `settings-keys`, 기능 테스트. 나머지는 M2 이후.
 
 통합 테스트 1개:
 

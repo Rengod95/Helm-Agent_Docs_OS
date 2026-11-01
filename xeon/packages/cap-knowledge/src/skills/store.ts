@@ -110,7 +110,7 @@ function toFileState(row: SqlRow): FileStateRow | undefined {
   };
 }
 
-/** 이 능력이 마지막으로 확인한 파일 상태. 처음 보는 파일이면 undefined */
+/** 이 기능이 마지막으로 확인한 파일 상태. 처음 보는 파일이면 undefined */
 export function getFileState(tx: SqlTx, path: string): FileStateRow | undefined {
   const row = tx.get("SELECT * FROM cap_knowledge_files WHERE path = ?", [path]);
   return row === undefined ? undefined : toFileState(row);

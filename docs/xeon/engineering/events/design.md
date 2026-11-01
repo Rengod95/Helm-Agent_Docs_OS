@@ -14,11 +14,11 @@ binds: [xeon/packages/contracts/src/records/**, xeon/packages/platform-store/**,
 
 이 문서는 구속 문서다. 마지막 절 "구현 작업자 규칙"(EV-NN)은 `xeon/packages/contracts/src/records/**`, `platform-store`, `core-persistence`, `ext-host`의 모든 구현에 적용된다. 이름(kind, 필드, ID, 테이블)은 F 문서와 `L1.persistence.spec` §2.1 이름 대응표를 따른다.
 
-기존 Helm 설계 `docs/design/09-event-store.md`와 `12-runtime-engine.md`는 커널·홈서버 데몬 전제다. 이 문서는 그 규칙을 Xeon(대화형 런타임, 단일 DB, 프로세스 여럿)에 맞게 줄여 쓴다. 해시 체인, HMAC 체크포인트, 관찰 에이전트, 데몬 단일 쓰기 잠금은 범위에서 뺐다(12절 미결 참조).
+기존 Helm 설계 `docs/design/09-event-store.md`와 `12-runtime-engine.md`는 커널·홈서버 데몬 전제다. 이 문서는 그 규칙을 Fresnel(대화형 런타임, 단일 DB, 프로세스 여럿)에 맞게 줄여 쓴다. 해시 체인, HMAC 체크포인트, 관찰 에이전트, 데몬 단일 쓰기 잠금은 범위에서 뺐다(12절 미결 참조).
 
 ## 1. 문제
 
-Xeon 세션 저장소는 세 가지 일을 한다(`_research/session-storage.md` 서두).
+Fresnel 세션 저장소는 세 가지 일을 한다(`_research/session-storage.md` 서두).
 
 1. 모델에 보낼 대화 이력을 다시 조립하는 원천이다.
 2. 크래시나 재시작 뒤 이어서 실행하는 근거다.
@@ -35,7 +35,7 @@ Xeon 세션 저장소는 세 가지 일을 한다(`_research/session-storage.md`
 
 ## 2. 선택지 비교
 
-`_research/session-storage.md`의 다섯 방식 비교를 Xeon 요구에 맞춰 줄였다.
+`_research/session-storage.md`의 다섯 방식 비교를 Fresnel 요구에 맞춰 줄였다.
 
 | 기준 | A. JSONL 로그 | B. JSONL 트리 | C. SQLite 이벤트 소싱 + 투영 | D. SQLite 체크포인트 | E. 외부 내구 실행 엔진 |
 |---|---|---|---|---|---|
@@ -138,7 +138,7 @@ envelope 밖에 두는 값:
 - 저장소는 커밋 때 각 초안의 kind 접두가 그 초안의 생산자 id가 소유한 접두에 속하는지 검사한다. 소유표는 `eng.context-map.design` 5.1절이고, 코드 상수는 `xeon/packages/contracts/src/records/owners.ts`의 `TYPE_PREFIX_OWNERS`다 [제안]. 위반은 `Bug("store.prefix_not_owned")`다.
 - envelope 정규화 JSON은 256 KiB(262,144바이트) 이하다(`F.records.spec` §3.4 규칙 3, `ENVELOPE_MAX_BYTES`). 그보다 큰 값은 blob으로 옮기고 payload에는 `BlobRef` 또는 자리표시만 둔다(EV-04).
 - payload 안의 시각은 ms 정수다. 문자열 시각은 L4 표시 경계에서 만든다.
-- [미결] 해시 체인(`prevHash`, `hash`)과 HMAC 체크포인트는 넣지 않는다. 기존 09 §3.10은 커널을 거치지 않은 편집을 찾으려고 두었지만, Xeon은 개인 데스크톱 런타임이라 같은 위협 모델을 전제하지 않는다. 넣을지는 12절 미결 E-3이고 `F.records.spec` §10 미결 1과 같은 항목이다. 넣게 되면 저장 열(`prev_hash`, `hash`)로 더하고 envelope에는 해시 필드를 두지 않는다. envelope 모양 변경은 DB 마이그레이션으로 처리한다(`F.records.spec` §3.1.1 `v` 행).
+- [미결] 해시 체인(`prevHash`, `hash`)과 HMAC 체크포인트는 넣지 않는다. 기존 09 §3.10은 커널을 거치지 않은 편집을 찾으려고 두었지만, Fresnel은 개인 데스크톱 런타임이라 같은 위협 모델을 전제하지 않는다. 넣을지는 12절 미결 E-3이고 `F.records.spec` §10 미결 1과 같은 항목이다. 넣게 되면 저장 열(`prev_hash`, `hash`)로 더하고 envelope에는 해시 필드를 두지 않는다. envelope 모양 변경은 DB 마이그레이션으로 처리한다(`F.records.spec` §3.1.1 `v` 행).
 
 `BlobRef`의 정본은 `F.records.spec` §3.4다. 기준 크기는 EV-04다.
 
@@ -193,7 +193,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 | `thread.leaf_moved` | 내구 | session-core | `{ leafEventId, reason: "branch" \| "rewind" \| "restore" }` | 투영, 재개 |
 | `thread.compacted` | 내구 | run-engine (`core.context`) | 요약, `firstKeptEventId`, `tokensBefore` | 투영, 컨텍스트 조립 |
 | `thread.branch_summarized` | 내구 | session-core | 떠난 가지 요약 | 투영, 컨텍스트 조립 |
-| `turn.started` | 내구 | run-engine (`core.loop`) | 입력 item id들, `requestId` | 투영, UI, 확장(on `boundary.step.before` [지점 이름은 `F.extensions.spec` §3.4 표, adr.0017]) |
+| `turn.started` | 내구 | run-engine (`core.loop`) | 입력 item id들, `requestId` | 투영, UI, 확장(on `boundary.step.before` [훅 이름은 `F.extensions.spec` §3.4 표, adr.0017]) |
 | `turn.updated` | 휘발 | run-engine (`core.loop`) | 상태 | UI |
 | `turn.completed` | 내구 | run-engine (`core.loop`) | 종결 상태(`completed`·`interrupted`·`failed`), step 수, 사용량, 오류 | 투영, UI, 학습 그룹 |
 | `step.started` | 내구 | run-engine (`core.loop`) | `stepIndex` | 투영 |
@@ -210,7 +210,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 | `scope.changed` | 내구 | extension-host (`xh`) | `scopeId`, `status`(enabled·disabled) | 투영, ext-host |
 | `lease.acquired` | 내구 | extension-host (`xh`) | `leaseId`, `scopeId`, 상한 `limits` | 투영, ext-host 재개 |
 | `lease.released` | 내구 | extension-host (`xh`) | `leaseId`, `scopeId`, 사유 | 투영, ext-host |
-| `settings.changed` | 내구 | session-core (`core.persistence`) | `key`, `scope`, 값(비밀은 참조만) | 투영, loop |
+| `settings.changed` | 내구 | session-core (`core.persistence`) | `key`, `scope`, 값(시크릿은 참조만) | 투영, loop |
 
 - `effect.result.status` 값은 `ok`, `error`, `interrupted`, `abandoned` 네 개이고 복구 규칙이 만든 결과는 `synthesized: true`다(`F.records.spec` §3.5). 이 문서의 이전 판에 있던 6값(`completed`, `failed`, `denied`, `not_executed`, `interrupted`, `outcome_uncertain`)은 쓰지 않는다. 대응은 `L1.persistence.spec` §2.1 표다. `effect.intent`가 있는 호출마다 `effect.result`는 0 또는 1건이다. `effect.intent` 전에 거부된 호출(`tool.call.before` 핸들러 거부, 정책·승인 거부)은 효과 이벤트 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`). 기록 규칙은 `eng.transactions.design` 5절이다.
 - `turn.completed.status`는 `completed`, `interrupted`, `failed` 세 값이다(`F.conversation.spec` §3.5.3 `TurnCompletedPayload`). 승인 대기는 turn을 닫지 않는다. turn은 열린 상태(`TurnStatus` `waiting`)로 남고 `checkpoint.step`의 `pendingToolCalls[].waiting: "approval"`로 표시한다(`L1.persistence.spec` §4.2 A1). 그래서 복구 표식이 남고 재개 대상이 된다.
@@ -218,7 +218,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 - toolResult `item.recorded`는 `effect.result`와 한 커밋(E3)에 들어간다. 커밋은 tool-runtime이 내고, item 초안은 루프의 생산자 핸들로 만든다(`L1.tools.spec` `ToolRunContext.drafts`).
 - `drive` 임대 차수(`leaseEpoch`)는 `LeaseAcquiredPayload`에 필드가 없다. X는 thread 이벤트에서 scope별 `lease.acquired` 개수로 다시 계산한다(`X.primitives.spec` §4.4.1 7번). payload에 더할지는 그 문서의 [미결]이다.
 - L1이 쓰는 다음 kind는 F 코어 카탈로그에 있다(`F.records.spec` §3.3): `input.queued`·`input.placed`·`input.withdrawn`(`core.tasks`, `L1.tasks.spec`), `turn.abort_requested`(`core.loop`), `approval.requested`·`approval.resolved`(`core.tools`, `L1.tools.spec` §8.3. 승인 방식은 [결정: review.decisions-2 U-02] A안), `agent.spawned`·`agent.settled`·`agent.judged`(`core.agents`, `L1.agents.spec` §8.3), `thread.resumed`(`core.persistence`, `L1.persistence.spec`). `post.accepted`는 retire했다([결정: review.decisions-2 U-05]). 확장 post도 `input.queued`(`source.type: "extension"`)로 남는다. payload 정본은 F다.
-- L2 능력의 이벤트(`work.*`, `artifact.*`, `schedule.*`, `dialog.*`)와 확장 이벤트(`x.<extId>.*`, `grp.<groupId>.*`)는 각 소유 spec과 확장 매니페스트가 카탈로그를 둔다. 확장 kind는 `EventKindRegistry`로 등록한다(`F.records.spec` §3.2). 접두 소유는 `eng.context-map.design` 5.1절이다.
+- L2 기능의 이벤트(`work.*`, `artifact.*`, `schedule.*`, `dialog.*`)와 확장 이벤트(`x.<extId>.*`, `grp.<groupId>.*`)는 각 소유 spec과 확장 매니페스트가 카탈로그를 둔다. 확장 kind는 `EventKindRegistry`로 등록한다(`F.records.spec` §3.2). 접두 소유는 `eng.context-map.design` 5.1절이다.
 - thread 메타(제목)는 session-core만 쓴다. L2 artifacts가 자동 제목을 만들면 session-core 서비스 API(`threads.setTitle`)로 요청하고, 이벤트는 session-core가 쓴다.
 
 카탈로그 항목의 코드 모양은 `F.records.spec` §3.3 `CatalogEntry { kind, version, durable, payload, retired? }`와 §3.2 `EventKindRegistration`이다. 이 문서의 이전 판에 있던 `EventTypeDef`(생산자 필드 포함)는 쓰지 않는다. 생산자 소유는 카탈로그 항목에 두지 않고 `TYPE_PREFIX_OWNERS`(`eng.context-map.design` 5.4절)로 판정한다.
@@ -228,7 +228,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 kind 이름 규칙의 정본은 `F.records.spec` §3.2다. 요약:
 
 1. 코어 kind는 `<영역>.<이름>`이다. 점은 하나, 소문자 `snake_case`다. 영역은 `CoreArea`(`thread`, `turn`, `step`, `item`, `part`, `effect`, `checkpoint`, `scope`, `lease`, `post`, `settings`)다. 예: `effect.result`, `thread.leaf_moved`.
-2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 의도 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 금지. [결정: review.decisions-2 U-18])이다. 예: `grp.helm.phase.changed`, `grp.learning.counter.advanced`. 열린 유니온의 일반 규칙은 `eng.domain-types.guide` DT-08이다.
+2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 플러그인 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 금지. [결정: review.decisions-2 U-18])이다. 예: `grp.helm.phase.changed`, `grp.learning.counter.advanced`. 열린 유니온의 일반 규칙은 `eng.domain-types.guide` DT-08이다.
 3. 내구·휘발은 이름이 아닌 카탈로그 항목의 `durable`로 정한다. 같은 kind가 내구와 휘발을 함께 갖지 않는다.
 4. 금지 접두사: `ui.`, `notification.`, `projection.`. 화면 갱신과 알림은 이벤트가 아니다 [제안].
 5. 벤더 이름(`pi`, `anthropic`, `openai`)을 코어 kind에 넣지 않는다.
@@ -281,7 +281,7 @@ export interface SessionService {
 2. 투영은 같은 커밋 트랜잭션 안에서 갱신한다. 투영 예외는 커밋 전체를 롤백한다. 투영 실패는 버그로 보고 이벤트를 저장하지 않는다.
 3. 투영 테이블은 모두 지우고 `events` 전체를 재생해 다시 만들 수 있어야 한다. 투영에만 있고 이벤트에서 나오지 않는 값은 두지 않는다.
 4. 투영 스키마 버전(`Projector.version`)은 이벤트 payload 버전과 독립이다. 투영 규칙이나 테이블 모양이 바뀌면 투영 버전만 올리고, 다음 열기 때 그 투영기의 테이블만 다시 만든다(09 §3.13.2, `F.records.spec` §3.7 규칙 5).
-5. 투영기는 자기 소유 테이블만 쓴다. 코어 투영기 `core`는 `p_*`와 `step_checkpoints`, L2 능력 투영기 `cap.<도메인>`은 `cap_<도메인>_*`, 확장 투영기 `ext.<확장 이름>`은 `x_<확장 이름의 '-'를 '_'로>_*`다. 지역 테이블 이름에는 밑줄을 쓰지 않는다(`eng.context-map.design` 5.2절, `L1.persistence.spec` §4.5.2).
+5. 투영기는 자기 소유 테이블만 쓴다. 코어 투영기 `core`는 `p_*`와 `step_checkpoints`, L2 기능 투영기 `cap.<도메인>`은 `cap_<도메인>_*`, 확장 투영기 `ext.<확장 이름>`은 `x_<확장 이름의 '-'를 '_'로>_*`다. 지역 테이블 이름에는 밑줄을 쓰지 않는다(`eng.context-map.design` 5.2절, `L1.persistence.spec` §4.5.2).
 6. 투영기는 어떤 kind의 이벤트든 읽을 수 있다. 예를 들어 학습 그룹 투영기는 `effect.result`를 세어 `x_learning_*`에 쓴다. 다른 컨텍스트의 테이블은 읽지도 쓰지도 않는다.
 7. 단계 체크포인트는 내구 이벤트 `checkpoint.step`이다(`F.records.spec` §3.6). 커밋 계획에 체크포인트가 있으면 저장소가 `checkpoint.step` 초안을 그 커밋 끝에 붙이고, 코어 투영기가 `step_checkpoints` 행을 갱신한다(`L1.persistence.spec` §4.1 8단계). `step_checkpoints`는 다른 투영 테이블과 같이 재생으로 다시 만들 수 있다. 체크포인트 레코드의 `schemaVersion`(`STEP_CHECKPOINT_SCHEMA_VERSION`)이 현재와 다르면 그 체크포인트를 쓰지 않고 이전 이벤트를 재생해 루프 상태를 만든다.
 
@@ -384,11 +384,11 @@ rebuild(projector P):                         // thread 열기 전, 또는 관�
 - 열기 때 `projector_state.version ≠ P.version`이거나 `last_seq ≠ head seq`이면 그 투영기만 재생성한다(`L1.persistence.spec` §4.5.3). 이벤트가 많을 때의 청크 재생성도 그 절이 정한다.
 - 이벤트가 많아 재생성이 길어지면 진행률은 운영 로그로 낸다. thread가 열리기 전이라 휘발 이벤트 구독자가 없다.
 
-[제안] 불일치 검출(opencode v2 방식의 Xeon 판):
+[제안] 불일치 검출(opencode v2 방식의 Fresnel 판):
 
 1. 재전송 검사: 4.6절의 같은 `seq` 바이트 비교(가져오기 경로만). 다르면 `replay_diverged`.
 2. 투영 대조: `verifyProjections(projector)`가 메모리 DB에 같은 DDL로 빈 테이블을 만들고 `events`를 재생한 뒤, 운영 DB의 소유 테이블과 행을 기본 키 순으로 정렬해 해시를 비교한다. 다르면 투영기 버그다.
-3. 투영 대조는 `core-persistence`와 각 투영기 패키지의 단위 테스트 도우미(`@fresnel/core-persistence/testing`의 `expectProjectionsRebuildable`)로 모든 투영 테스트 끝에 실행한다. 운영 명령(`xeon debug verify-projections`)은 2차다.
+3. 투영 대조는 `core-persistence`와 각 투영기 패키지의 단위 테스트 도우미(`@fresnel/core-persistence/testing`의 `expectProjectionsRebuildable`)로 모든 투영 테스트 끝에 실행한다. 운영 명령(`fresnel debug verify-projections`)은 2차다.
 
 ## 6. 분기와 되감기
 
@@ -423,7 +423,7 @@ flowchart LR
 
 1. 재생은 도구를 다시 실행하지 않는다. 종결된 효과는 기록된 `effect.result`로 상태만 재구성한다.
 2. 재개(새 쓰기 소유자가 thread를 열어 실행을 잇는 일) 때에만 열린 효과(`effect.intent`가 있고 `effect.result`가 없는 효과)에 재생 정책을 적용한다. 결정표의 정본은 `F.records.spec` §3.5 `decideEffectRecovery`이고, 재실행 상한을 더한 판정은 `L1.persistence.spec` §3.7 `decideOpenEffect`다. 기록 규칙은 `eng.transactions.design` 5절이다.
-3. `on` 핸들러(fold `tap`, `first`, `chain`)는 재실행해도 되는 질의여야 한다. 이 절과 EV-08의 지점 이름(`tool.call.before`, `boundary.step.after`)은 `F.extensions.spec` §3.4 표의 이름이다(adr.0017). 재생 때 과거 이벤트에 대해 핸들러를 다시 부르지 않는다. 특히 재개 때 열린 효과를 다시 실행해도 `tool.call.before`류(`first` 지점)를 다시 부르지 않고 `effect.intent`에 저장된 최종 인자를 쓴다(durable `spec.md` 2636-2660 훅 표의 "a crash before the consuming commit may rerun them", 3136-3170의 "Recovery does not rerun `beforeTool`"). 크래시가 소비 커밋 전에 났다면 그 지점은 아직 커밋되지 않았으므로 정상 경로로 핸들러가 다시 불린다. 의도 없는 toolCall이 재개 때 정상 파이프라인을 다시 지나는 경우가 이것이다(`L1.persistence.spec` §4.7.4). 그래서 핸들러는 재실행 가능한 질의여야 한다.
+3. `on` 핸들러(fold `tap`, `first`, `chain`)는 재실행해도 되는 질의여야 한다. 이 절과 EV-08의 훅 이름(`tool.call.before`, `boundary.step.after`)은 `F.extensions.spec` §3.4 표의 이름이다(adr.0017). 재생 때 과거 이벤트에 대해 핸들러를 다시 부르지 않는다. 특히 재개 때 열린 효과를 다시 실행해도 `tool.call.before`류(`first` 지점)를 다시 부르지 않고 `effect.intent`에 저장된 최종 인자를 쓴다(durable `spec.md` 2636-2660 훅 표의 "a crash before the consuming commit may rerun them", 3136-3170의 "Recovery does not rerun `beforeTool`"). 크래시가 소비 커밋 전에 났다면 그 지점은 아직 커밋되지 않았으므로 정상 경로로 핸들러가 다시 불린다. 의도 없는 toolCall이 재개 때 정상 파이프라인을 다시 지나는 경우가 이것이다(`L1.persistence.spec` §4.7.4). 그래서 핸들러는 재실행 가능한 질의여야 한다.
 4. `drive` 함수는 마지막으로 커밋된 scope 상태로 다시 호출할 수 있어야 한다(`_research/ext-points.md §5` 안 1, 재생·토글 보장). 재개 때 ext-host는 열린 임대(`lease.acquired` 뒤 `lease.released`가 없음)가 있는 scope의 drive 함수를 다음 경계에서 그 상태로 다시 부른다(`X.primitives.spec` §4.4.3). 클로저 지역 변수에 둔 상태는 잃는다(EV-09).
 5. `post`는 (scopeId, requestId)로 멱등이다(`X.primitives.spec` `InputQueuePort`). 재개 뒤 같은 `post`가 다시 와도 입력이 두 번 들어가지 않는다.
 6. 확장 투영기가 없는(제거된) 확장의 이벤트는 재생 때 코어 투영기가 건너뛴다. 그 확장의 `x_*` 테이블은 갱신되지 않는다. 확장을 다시 설치하면 그 투영기만 재생성한다.
@@ -494,7 +494,7 @@ export function upcastEvent(event: DurableEventEnvelope, registry: UpcasterRegis
 
 | 경우 | 동작 |
 |---|---|
-| 코어 영역(접두 없음)의 모르는 kind | thread를 쓰기 모드로 열지 않는다. 읽기 전용으로 열고 "더 새 Xeon이 쓴 세션"을 알린다(`StoreError` `{ kind: "read_only", reason: "unknown_event_kind" }`, `L1.persistence.spec` §3.2) |
+| 코어 영역(접두 없음)의 모르는 kind | thread를 쓰기 모드로 열지 않는다. 읽기 전용으로 열고 "더 새 Fresnel이 쓴 세션"을 알린다(`StoreError` `{ kind: "read_only", reason: "unknown_event_kind" }`, `L1.persistence.spec` §3.2) |
 | 카탈로그보다 높은 `version` | 같다(`{ kind: "read_only", reason: "newer_event_version" }`) |
 | 설치되지 않은 확장의 `x.<extId>.*`, `grp.<groupId>.*` kind | thread를 쓰기 모드로 연다. 코어는 그 이벤트를 건너뛴다. 확장 상태는 확장이 다시 설치될 때 재생성한다 |
 | 설치된 확장보다 높은 확장 `version` | 그 확장만 이 thread에서 끈다(`scope.changed` 없이 메모리에서). thread는 쓰기 모드로 연다 |
@@ -713,7 +713,7 @@ export const TurnCompletedVersioning: KindVersioning = { current: 1, upcasters: 
 
 이유: 핸들러는 소비 커밋 전에 크래시가 나면 다시 불린다. 핸들러 안에서 외부 효과를 내면 재실행 때 두 번 일어난다. 효과는 `post`((scopeId, requestId) 멱등)나 확장 이벤트 커밋으로만 낸다.
 
-강제: `X.primitives.spec`의 지점 선언이 `first`·`chain` 결과를 데이터로 받는다. 리뷰. 2차에 L3-a "drive 재생 규율 검사" lint로 확장한다.
+강제: `X.primitives.spec`의 훅 선언이 `first`·`chain` 결과를 데이터로 받는다. 리뷰. 2차에 L3-a "drive 재생 규율 검사" lint로 확장한다.
 
 좋은 예:
 
@@ -796,6 +796,6 @@ session.emitVolatile({ durable: false, kind: "item.updated", threadId, turnId, n
 
 - [미결 E-1] 휘발 이벤트 부분 출력의 크래시 복구용 scratch 보존(09 §3.5 `volatile_scratch`)을 둘지. 두면 `outcome_unknown` 합성 결과에 마지막 출력 조각을 붙일 수 있으나, 운영 테이블 하나와 1초 주기 쓰기가 늘어난다.
 - [미결 E-2] JSONL 내보내기 형식. pi 세션 JSONL과 호환할지(packages.md §4.3 L1-f "JSONL 내보내기: pi 세션 JSONL 형식(호환 목표)"), envelope을 그대로 줄마다 쓸지.
-- [미결 E-3] 해시 체인·HMAC 도입 여부. 기존 09 §3.10은 데몬 단일 쓰기와 감사 요구를 전제한다. Xeon 범위에서 필요한지, 필요하면 저장 열로 더할지 정한다(`F.records.spec` §10 미결 1).
+- [미결 E-3] 해시 체인·HMAC 도입 여부. 기존 09 §3.10은 데몬 단일 쓰기와 감사 요구를 전제한다. Fresnel 범위에서 필요한지, 필요하면 저장 열로 더할지 정한다(`F.records.spec` §10 미결 1).
 - 이전 판의 미결 E-5(F 카탈로그 추가 요청 kind의 수용)는 닫았다. `F.records.spec` §3.3에 들어갔다(4.4절).
 - 이전 판의 미결 E-4(세션 사이 커서 `pos`)는 닫았다. `seq`가 DB 전역 단조이므로 `pos`를 따로 두지 않는다(`F.records.spec` §4.1, `L1.persistence.spec` §2.1).

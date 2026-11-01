@@ -46,9 +46,9 @@ export interface SessionDeps {
   readonly faults?: FaultInjector;
   /** 확장 kind 등록부. 없으면 코어·도메인 카탈로그만 안다 */
   readonly eventKinds?: EventKindRegistry;
-  /** 확장 지점 발화(session_start 등 7개). 없으면 발화하지 않는다 */
+  /** 훅 발화(session_start 등 7개). 없으면 발화하지 않는다 */
   readonly points?: ThreadHooks;
-  /** 참이면 확장·능력 투영기가 소유 테이블 밖을 건드리는 문장을 거부한다. 테스트·디버그 빌드용이고 운영은 생략한다(L1.persistence.spec §4.5.2) */
+  /** 참이면 확장·기능 투영기가 소유 테이블 밖을 건드리는 문장을 거부한다. 테스트·디버그 빌드용이고 운영은 생략한다(L1.persistence.spec §4.5.2) */
   readonly guardProjectors?: boolean;
   /** 현재 설정 값. 호출 때마다 읽는다(`live` 키). 생략하면 기본값 */
   readonly settings?: () => PersistenceSettings;

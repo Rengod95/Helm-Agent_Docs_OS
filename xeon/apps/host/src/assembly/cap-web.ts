@@ -66,7 +66,7 @@ import type { WebStatusHolder } from "./web-providers.ts";
 // 체인에 든다(ADR-0005 개정, L2.web.spec §4.8).
 // 지점 구독(결과를 바꾸지 않는 tap): `input.user.before`(나온 URL), `thread.shutdown`(닫힌 세션의 보관 원문 정리와 브라우저 세션 닫기).
 // 설정이 바뀌면 탐침 기억을 지운다: SearXNG를 새로 띄우거나 주소를 바꾼 뒤 실패 탐침의 30초를 기다리지 않게 한다.
-// M3b(B2-WEB): 플러그인 provider 등록(`registrations`, `web_provider` 기록)과 헤더 비밀(`headerSecrets`), 브라우저 MCP(`browserMcp`,
+// M3b(B2-WEB): 플러그인 provider 등록(`registrations`, `web_provider` 기록)과 헤더 시크릿(`headerSecrets`), 브라우저 MCP(`browserMcp`,
 // `playwright` 서버), 브라우저 도구(`web_browse_*`)를 잇는다. `browseConfirm`은 아직 잇지 않아 확인이 필요한 브라우저 동작은 거부된다 [미결].
 // `modelTool` 판정(`boundary.step.before`)은 L1.models의 hosted 경로가 연결된 뒤에 한다. 조립 루트 코드(DR-14 예외 2).
 
@@ -88,7 +88,7 @@ export interface HostWebOptions {
    * 등록 기록을 읽는 자리(`ExtHost.resources`). 플러그인 provider는 `web_provider` 기록으로 남고 cap-web이 여기서 읽는다(M3-REQ-37)
    */
   readonly resources: () => ResourceRegistry | undefined;
-  /** 설정 키의 유효 값. `ext.<이름>.<키>`(플러그인 설정)과 헤더 비밀 참조가 여기서 읽힌다 */
+  /** 설정 키의 유효 값. `ext.<이름>.<키>`(플러그인 설정)과 헤더 시크릿 참조가 여기서 읽힌다 */
   readonly settingValue: (key: string) => unknown;
   /** 웹 런타임 자리. `web.providers` 처리기가 읽는다. 런타임이 생기면 채우고 확장을 끄면 비운다 */
   readonly status: WebStatusHolder;
@@ -105,7 +105,7 @@ function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefin
   }
 }
 
-/** 아직 제공되지 않은 능력 공급자는 undefined. 매니페스트 `optional`로 선언한 능력에만 부른다 */
+/** 아직 제공되지 않은 기능 공급자는 undefined. 매니페스트 `optional`로 선언한 기능에만 부른다 */
 function optionalCapability<Api>(
   scope: Pick<ScopeApi<unknown>, "capability">,
   key: ServiceKey<Api>,
@@ -120,7 +120,7 @@ function optionalCapability<Api>(
 }
 
 /**
- * 플러그인이 낸 `web_provider` 기록을 cap-web의 등록 목록으로 옮긴다(M3-REQ-37). 모양이 어긋난 기록(다른 종류, 능력 ID가 셋이 아님,
+ * 플러그인이 낸 `web_provider` 기록을 cap-web의 등록 목록으로 옮긴다(M3-REQ-37). 모양이 어긋난 기록(다른 종류, 기능 ID가 셋이 아님,
  * `create`가 함수가 아님)은 `webProviderRegistrationOf`가 거르므로 여기서도 빠진다. 공급자 ID는 `plugin:<확장 이름>`이다
  */
 export function webRegistrationSource(
@@ -170,7 +170,7 @@ const RecordedSourcesSchema = Type.Object({
 
 /**
  * 세션의 웹 도구 결과가 실은 Source를 이벤트에서 읽는다(L2.web.spec §4.2.1). 도구 결과는 `effect.result`의
- * `output.structuredContent`에 남는다. `sources`를 가진 것만 웹 능력의 결과다
+ * `output.structuredContent`에 남는다. `sources`를 가진 것만 웹 기능의 결과다
  */
 function sessionSourcesOf(session: Pick<SessionService, "readBranch">): WebSessionSourcesPort {
   return {

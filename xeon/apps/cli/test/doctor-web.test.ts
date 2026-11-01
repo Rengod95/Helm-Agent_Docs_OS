@@ -15,7 +15,7 @@ import {
 } from "./support/web-providers.ts";
 
 // X9(M3-12, M3-REQ-96): `fresnel doctor`의 "검색 provider"와 "웹 provider" 블록이 `web.providers`의 view-model 값을 그대로 옮기는지 본다.
-// 블록 전체를 줄 단위 값으로 비교한다. 상세 문구(detail)와 비밀 값은 출력에 없어야 한다.
+// 블록 전체를 줄 단위 값으로 비교한다. 상세 문구(detail)와 시크릿 값은 출력에 없어야 한다.
 
 const harnesses: Harness[] = [];
 afterEach(() => {

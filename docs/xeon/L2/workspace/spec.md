@@ -17,7 +17,7 @@ binds: [xeon/packages/cap-workspace/**]
 ### 1.1 정하는 것
 
 - 파일·셸 도구셋 7종: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`(`_research/layer-plan-v2.json` L2-a "파일·셸 도구셋").
-- 위 도구가 환원되는 능력 3개의 정의: `workspace.files`, `workspace.shell`, `workspace.images`. 정의 데이터는 F `capabilities/defs/workspace.ts`에 들어간다(`L2.readme` §5.1).
+- 위 도구가 환원되는 기능 3개의 정의: `workspace.files`, `workspace.shell`, `workspace.images`. 정의 데이터는 F `capabilities/defs/workspace.ts`에 들어간다(`L2.readme` §5.1).
 - 편집 방식: 정확 일치, 퍼지 일치, `edits` 배열, 실패 코드. 줄 해시 편집은 2차 설계 메모만 둔다.
 - 이미지와 첨부 처리: 이미지 읽기, 크기 맞춤, blob 등록, 모델에 참조로 전달.
 - 출력 절단: 한도, 이어 읽기 정보, 절단 코드의 위치.
@@ -32,12 +32,12 @@ binds: [xeon/packages/cap-workspace/**]
 | OS 샌드박스 정책, 쓰기 허용 경로의 커널 수준 강제, 보호 경로 목록 | `L0.sandbox.spec` |
 | 권한 모드, 권한 규칙, 승인 프로토콜, 도구 실행 파이프라인, 결과 경계화 | `L1.tools.spec` |
 | 되감기와 파일 복원, 체크포인트 | `L1.persistence.spec` |
-| 비밀 주입과 출력 마스킹 | `L0.secrets.spec`, `L1.tools.spec` |
+| 시크릿 주입과 출력 마스킹 | `L0.secrets.spec`, `L1.tools.spec` |
 | blob 저장 구현(`sys_blobs`, 파일 배치) | `L0.store.spec` |
 | 첨부 입력 경로(붙여넣기, URL 첨부, 사용자 입력과의 결합) | `L2.dialog.spec` |
 | 변경 리뷰(hunk 승인, 코멘트) | `L2.artifacts.spec` |
 
-AST·LSP [결정: 보류]: 구문 트리 검색·편집(omp `crates/pi-ast`)과 언어 서버 진단(vscode-jsonrpc 9.0.3)은 계획 v2에서 보류다(`_research/layer-plan-v2.json` L2-a "AST·LSP", `_research/packages.md` §4.4 L2-a 4행). 대규모 리팩터링 비중이 커지면 다시 다룬다. 다시 다룰 때는 이 도메인에 새 능력(`workspace.code` 같은 id)을 더하는 방식을 [제안]하고, 기존 세 능력의 정의는 바꾸지 않는다. 언어 서버는 장수 자식 프로세스라 상주 수준 1(`L2.readme` §8)이 되고 `fresnel.process`를 쓴다.
+AST·LSP [결정: 보류]: 구문 트리 검색·편집(omp `crates/pi-ast`)과 언어 서버 진단(vscode-jsonrpc 9.0.3)은 계획 v2에서 보류다(`_research/layer-plan-v2.json` L2-a "AST·LSP", `_research/packages.md` §4.4 L2-a 4행). 대규모 리팩터링 비중이 커지면 다시 다룬다. 다시 다룰 때는 이 도메인에 새 기능(`workspace.code` 같은 id)을 더하는 방식을 [제안]하고, 기존 세 기능의 정의는 바꾸지 않는다. 언어 서버는 장수 자식 프로세스라 상주 수준 1(`L2.readme` §8)이 되고 `fresnel.process`를 쓴다.
 
 ## 2. 용어
 
@@ -395,7 +395,7 @@ export const RunInput = Type.Object({
   cwd: Type.Optional(PathParam),
   /** 참이면 0이 아닌 종료 코드를 exit_nonzero 오류로 낸다. 모델 도구는 항상 참이다 */
   failOnNonZero: Type.Optional(Type.Boolean()),
-  /** 그룹 코드가 비밀을 명시적으로 넘길 때만 쓴다. 값 주입은 fresnel.exec가 실행 직전에 한다 */
+  /** 그룹 코드가 시크릿을 명시적으로 넘길 때만 쓴다. 값 주입은 fresnel.exec가 실행 직전에 한다 */
   secretEnv: Type.Optional(Type.Record(EnvName, SecretRefParam)),
 });
 export const RunOutput = Type.Object({
@@ -454,7 +454,7 @@ export const WorkspaceShellKey = serviceKey(WorkspaceShell);
 ```
 
 - 모델 도구의 0 아닌 종료 코드: pi durable `bash`는 0이 아닌 종료를 출력이 담긴 오류 결과로 낸다(`packages/durable/src/tools/bash.ts` `runCommand`). [제안] 같은 동작을 F 환원 규칙 안에서 내기 위해 도구 `toInput`이 `failOnNonZero: true`를 넣고, 메서드가 `exit_nonzero` `CapabilityError`를 낸다. `message`는 `"exit code <n>\n<출력 꼬리>"`이고 `detail`은 `RunOutput`이다. 그래서 모델은 `isError: true` 결과에서 출력을 그대로 본다. 그룹 코드는 `failOnNonZero`를 생략하고 `exitCode`를 직접 읽는다.
-- `secretEnv`는 모델 도구 파라미터에 없다. M1의 비밀 참조 검증(`product.scope.spec` §4.4 M1)은 `env` 주입 모드(bash 도구, 실행마다 승인)로 `fresnel.exec`와 `fresnel.secrets`가 처리한다 [결정: review.decisions-2 U-19]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)과 `SECRET_REF_PATTERN`의 정본은 F `capabilities/secrets.ts`다(U-08). 출력 마스킹은 저장 전에 L0.secrets·L1.tools가 한다.
+- `secretEnv`는 모델 도구 파라미터에 없다. M1의 시크릿 참조 검증(`product.scope.spec` §4.4 M1)은 `env` 주입 모드(bash 도구, 실행마다 승인)로 `fresnel.exec`와 `fresnel.secrets`가 처리한다 [결정: review.decisions-2 U-19]. 시크릿 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)과 `SECRET_REF_PATTERN`의 정본은 F `capabilities/secrets.ts`다(U-08). 출력 마스킹은 저장 전에 L0.secrets·L1.tools가 한다.
 - `bash`를 `sequential`로 둔 이유 [제안]: 명령의 부수 효과 순서를 모델이 적은 순서와 같게 한다. core-loop(pi-agent-core 1.3.0 배치 규칙을 옮긴 `loop/tool-batch.ts`, adr.0009)는 한 배치에 `sequential` 도구가 하나라도 있으면 그 배치를 순차로 돈다(`_research/refs/pi-durable.md` 도구 라운드 병렬/순차). `write`, `edit`는 `parallel`로 두고 같은 경로의 변경은 포크한 `file-mutation-queue.ts`가 경로별로 줄 세운다.
 
 ### 3.4 `workspace.images`
@@ -495,7 +495,7 @@ export const WorkspaceImages = defineCapability({
 export const WorkspaceImagesKey = serviceKey(WorkspaceImages);
 ```
 
-- 도구가 없는 능력이다. 모델은 `read`로 이미지 파일을 읽고, 첨부는 `dialog.attachments`가 `register`를 부른다. 도구 없는 능력의 허용은 `F.capabilities.spec` §4.4 [미결]이다(§10 미결 5).
+- 도구가 없는 기능이다. 모델은 `read`로 이미지 파일을 읽고, 첨부는 `dialog.attachments`가 `register`를 부른다. 도구 없는 기능의 허용은 `F.capabilities.spec` §4.4 [미결]이다(§10 미결 5).
 - `load`와 `resize`는 `readOnly`다. 파일이나 이미 등록된 blob에서 같은 바이트의 사본을 만들 뿐이고 원본은 남는다. `register`는 붙여넣은 데이터가 유일한 사본인 blob을 저장하므로 읽기가 아니고, `requestId`를 기억하지 않아 선언 없음(`replay: "unsafe"`)이다 [결정: M3-REQ-88, 분류 표는 §3.7이다.
 
 ### 3.5 도메인 서비스
@@ -506,7 +506,7 @@ import type { CapabilityApi } from "../index.ts";
 
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
 export const WorkspaceServiceName = "fresnel.workspace" as const;
-/** workspace 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** workspace 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface WorkspaceService {
   readonly files: CapabilityApi<typeof WorkspaceFiles>;
   readonly shell: CapabilityApi<typeof WorkspaceShell>;
@@ -514,8 +514,8 @@ export interface WorkspaceService {
 }
 ```
 
-- `L2.readme` §5.6의 대응 규칙을 따른다. consumer는 `WorkspaceFilesKey` 등 능력 단위 키로 API를 얻는다.
-- provider는 `cap-workspace` 하나다. provider 선택 체인(`L2.readme` §5.2)과 `l2.workspace.<능력>.provider` 키를 두지 않는다.
+- `L2.readme` §5.6의 대응 규칙을 따른다. consumer는 `WorkspaceFilesKey` 등 기능 단위 키로 API를 얻는다.
+- provider는 `cap-workspace` 하나다. provider 선택 체인(`L2.readme` §5.2)과 `l2.workspace.<기능>.provider` 키를 두지 않는다.
 
 ### 3.6 이벤트와 레코드
 
@@ -736,12 +736,12 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 - 이미지 한도의 기본값은 durable `DEFAULT_IMAGE_LIMITS`와 같다. 모델 provider별 한도가 더 작으면 L1.models가 요청 조립 때 다시 줄인다 [가정].
 - UI 위젯: integer 키는 `number`, boolean은 `toggle`, string은 `text`. `ui.label`은 한국어로 둔다(예: `read.maxLines` → "읽기 최대 줄 수").
 
-## 7. 확장 지점
+## 7. 훅
 
 - 이 문서는 지점을 새로 정의하지 않는다.
 - 7개 도구 호출은 `tool.call.before`(fold first), `tool.result`(fold chain), `tool.execution.before`·`update`·`end`(tap)를 지난다(`F.extensions.spec` §3.4 13~17번). 페이로드의 `capability: { id, method }`로 대상을 고를 수 있다(`F.capabilities.spec` §7).
 - 사용 예: L3 그룹은 쓰기를 막는 단계에서 `tool.call.before`의 `first` 핸들러로 `workspace.files`의 `write`·`edit`과 `workspace.shell`의 `run`을 거부한다(`product.scope.spec` §4.4 M2 종료 조건). 판정 근거는 도구 이름 대신 `capability.id`와 `hints.readOnly`를 쓰는 쪽을 [제안]한다.
-- 그룹 코드가 `WorkspaceFilesKey`로 서비스를 직접 부르면 tool 지점을 지나지 않는다(`F.capabilities.spec` §3.9 그룹 경로). 이때도 §4.3 경로 검사와 §4.2 샌드박스는 그대로 적용된다. 승인 파이프라인(L1.tools)은 거치지 않는다.
+- 그룹 코드가 `WorkspaceFilesKey`로 서비스를 직접 부르면 tool 훅을 지나지 않는다(`F.capabilities.spec` §3.9 그룹 경로). 이때도 §4.3 경로 검사와 §4.2 샌드박스는 그대로 적용된다. 승인 파이프라인(L1.tools)은 거치지 않는다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -784,10 +784,10 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 D-08] 절단 함수 위치. 포크 원본은 `platform-exec`에 두고 `cap-workspace`는 F 서비스(`ExecutionEnv`)로 호출한다(§4.5).
-2. [결정: review.m2-plan DG.3] `workspace.images` 최소형(처리기 없음)을 M2에 둔다. JSON은 "이미지와 첨부 처리" 2차이고 `dialog.attachments`(M2)는 이 능력을 필수로 쓴다(`L2.readme` §2 각주). 구현은 §4.6.
+2. [결정: review.m2-plan DG.3] `workspace.images` 최소형(처리기 없음)을 M2에 둔다. JSON은 "이미지와 첨부 처리" 2차이고 `dialog.attachments`(M2)는 이 기능을 필수로 쓴다(`L2.readme` §2 각주). 구현은 §4.6.
 3. [미결] `ImageBlobRefSchema`의 중복. F capabilities는 records를 import하지 않으므로 같은 모양을 적었다. `BlobRef`를 conversation이나 base로 내려 공유할지 F 문서가 정한다. 그 전까지는 두 스키마의 JSON이 같은지 테스트로 확인한다.
 4. [결정: 오케스트레이터 기본값] 원자적 쓰기와 동시 변경 감지. 포크 원본은 직접 덮어쓰므로 임시 파일 + 이름 바꾸기로 바꾸고, `edit`는 읽은 내용 비교로 동시 변경을 감지한다(§4.4).
-5. [미결] 도구 없는 능력(`workspace.images`) 허용(`F.capabilities.spec` §4.4).
+5. [미결] 도구 없는 기능(`workspace.images`) 허용(`F.capabilities.spec` §4.4).
 6. [결정: 오케스트레이터 기본값] `find`의 엔진은 `rg --files --glob`이다. pi coding-agent `find`는 `fd`를 내려받아 쓰므로(`core/tools/find.ts` `ensureTool("fd")`) 내려받기를 피한다. glob 의미는 rg의 `--glob`을 따른다. 슬래시가 없는 패턴은 어느 깊이의 같은 이름과도 맞고(`*.ts`), 슬래시가 있으면 검색 기준 디렉터리에 상대적이며(`src/*.ts`), `**`는 디렉터리를 가로지른다(`**/*.spec.ts`). `test/find.test.ts`와 `test/rg.int.test.ts`가 이 의미를 고정한다. §4.5의 교차 규칙을 따른다.
 7. [미결] 허용 root 조회 API의 이름과 모양(`L1.tools.spec`). M1은 cwd 하나, M2는 대화의 작업 폴더 하나로 둔다(§4.3, open-issues M-06). 추가 디렉터리와 사용자가 승인해 넓힌 경로는 L1.tools의 API가 정해진 뒤에 더한다.
 8. [미결] `bash` `executionMode: "sequential"`의 비용. 같은 라운드의 읽기 도구까지 순차가 된다. 실측 뒤 `parallel`로 바꿀지 정한다.

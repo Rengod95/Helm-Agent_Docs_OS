@@ -2,7 +2,7 @@ import { failure, type KnowledgeFailure } from "../errors.ts";
 import { sha256Hex } from "../hash.ts";
 
 // M3-REQ-88 review. 쓰기의 멱등 키는 (대화, 메서드, requestId)다. 같은 키에 다른 입력이 오면 첫 결과를 돌려주지 않고 `key_reused`로 거부한다
-// (work 능력의 커밋 키와 같은 규칙, ADR-0015 §3.3 6). 키는 원장·대기열의 `request_id` 열에, 입력 지문은 `request_fp` 열에 남는다.
+// (work 기능의 커밋 키와 같은 규칙, ADR-0015 §3.3 6). 키는 원장·대기열의 `request_id` 열에, 입력 지문은 `request_fp` 열에 남는다.
 
 export interface Idem {
   /** `request_id` 열 값: `<threadId 또는 ->:<메서드>:<requestId>` */

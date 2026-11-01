@@ -60,22 +60,22 @@ binds: []
 ### 1.4 근거 요구 id
 
 - 근거 요구 id는 `M3-REQ-NN`의 `NN`입니다. 예를 들어 `01`은 M3-REQ-01입니다.
-- M2에서 끝난 항목(예: `xeon secret`, `xeon config`)은 M3 장부에 없으므로 이 표에 넣지 않았습니다.
+- M2에서 끝난 항목(예: `fresnel secret`, `fresnel config`)은 M3 장부에 없으므로 이 표에 넣지 않았습니다.
 
 ## 2. 층별 상태 표
 
 | 층/도메인 | 기능 | 상태 | 근거 요구 id |
 |---|---|---|---|
-| F/계약 | 능력 멱등·읽기 표지, 도구 없는 능력, 승인 kind `review` | 구현됨 (M3a) | 01, 07, 09 |
-| F/계약 | 지점 실패 정책 표, `collect` fold, 지점 이름 규칙, 가드레일 지점 | 구현됨 (M3a) | 12, 105, 106, 107 |
+| F/계약 | 기능 멱등·읽기 표지, 도구 없는 기능, 승인 kind `review` | 구현됨 (M3a) | 01, 07, 09 |
+| F/계약 | 지점 실패 정책 표, `collect` fold, 훅 이름 규칙, 가드레일 지점 | 구현됨 (M3a) | 12, 105, 106, 107 |
 | F/계약 | 도구 호출 `risk`·`hints`, 입력 출처 `origin`, 임대 차수, 학습 이벤트 타입 | 구현됨 (M3a) | 04, 06, 08, 99, 100 |
 | F/계약 | 위임 자식 생성 자리, 완료 통지 수단, 지식 제안 대기열 wire | 구현됨 (M3a) | 10, 11, 18 |
-| F/계약 | 메시지 스키마 깊은 검증, 설정 파일 읽기·쓰기 wire, 알림·상태 wire, 비밀 wire, 서비스 인증 wire, 레코드 카탈로그 | 확인 안 됨 (B0-F) | 05, 14, 15, 16, 17, 19, 20 |
+| F/계약 | 메시지 스키마 깊은 검증, 설정 파일 읽기·쓰기 wire, 알림·상태 wire, 시크릿 wire, 서비스 인증 wire, 레코드 카탈로그 | 확인 안 됨 (B0-F) | 05, 14, 15, 16, 17, 19, 20 |
 | F/계약 | `ui.label`·`ui.description`의 메시지 키 전환 | 확인 안 됨 (B0-F). `label`·`help` 제거는 M4 이월 | 21 |
 | X/로더 | 자체 확장 API만 로드, 안전 모드, 확장용 SDK 가상 모듈 | 구현됨 (M3a) | 29, 34, 110 |
 | X/로더 | 외부 훅(셸 JSON 프로토콜) | M4 이월 | 34 |
 | X/로더 | 비협조 확장 코드의 프로세스 격리 | M4 이월 | 34 |
-| X/런타임 | 능력 래퍼, CAS 상태 판, 임대 충돌 대기, 그룹 이벤트 격리, 요청 레코드 워커, dispose 순서, 구독 디스패치, 가드레일 실패 정책 합성 | 구현됨 (M3a) | 22, 23, 24, 25, 26, 27, 28, 30, 33, 102, 108 |
+| X/런타임 | 기능 래퍼, CAS 상태 판, 임대 충돌 대기, 그룹 이벤트 격리, 요청 레코드 워커, dispose 순서, 구독 디스패치, 가드레일 실패 정책 합성 | 구현됨 (M3a) | 22, 23, 24, 25, 26, 27, 28, 30, 33, 102, 108 |
 | X/신뢰 | 외부 확장 `idempotent` 선언을 믿는 조건, 샌드박스 강제 위치와 `tool_call` 처리 순서 | 부분 (B3-SEC) | 31, 32 |
 | X/알림 | 자동 끄기 알림 `scope.handler_failed` 발신 | 부분 (B1-NTF) | 35 |
 | X/투영기 | 필수 투영기 예외 격리 경로와 예외 주입 시험 | 부분 (B3-DATA) | 36 |
@@ -92,10 +92,10 @@ binds: []
 | L0/os | 워크트리 연산, 감시 root, 설정 파일 감시, `NotifierProvider`, `fileLock`, 번들 바이너리 탐색, 제품 이름 상수, 감사 파일 잠금 | 확인 안 됨 (B0-OS) | 48, 49, 50, 51, 53, 54, 61 |
 | L0/os | 로그 회전, `traceparent`, 진단 배열 상한 | 부분 (B0-OS). 회전 sink는 호스트 조립에 연결되지 않음 | 52 |
 | L0/sandbox | 네트워크 차단 도메인, 브라우저용 중첩 네임스페이스, MCP stdio 샌드박스 | 부분 (B3-SEC2 이월과 겹침) | 55, 56, 57 |
-| L0/secrets | 비밀 env 서버의 기동 승인 증거(해시 단위) | 부분 (B3-SEC 이월: 비밀 메타의 `mcp.start:*` 허용) | 58 |
-| L0/secrets | 이미 기록된 이벤트의 비밀 사후 가림, 헤더 비밀 치환 | 확인 안 됨 (B0-SBX) | 59, 60 |
+| L0/secrets | 시크릿 env 서버의 기동 승인 증거(해시 단위) | 부분 (B3-SEC 이월: 시크릿 메타의 `mcp.start:*` 허용) | 58 |
+| L0/secrets | 이미 기록된 이벤트의 시크릿 사후 가림, 헤더 시크릿 치환 | 확인 안 됨 (B0-SBX) | 59, 60 |
 | L0/store | 참조 없는 블롭 GC, `pinBlob`, 보존 기본값 | 부분 (B3-DATA). GC는 기본 꺼짐 | 62 |
-| L0/store, L4/cli | DB 내보내기 `xeon db export`. `future_version` 읽기 전용 열기는 스펙 표기가 없습니다 | `xeon db export`는 구현됨 표기 있음 (`M3b B3-DATA`). 이월 있음 → 부분. 읽기 전용 열기는 확인 안 됨 | 63 |
+| L0/store, L4/cli | DB 내보내기 `fresnel db export`. `future_version` 읽기 전용 열기는 스펙 표기가 없습니다 | `fresnel db export`는 구현됨 표기 있음 (`M3b B3-DATA`). 이월 있음 → 부분. 읽기 전용 열기는 확인 안 됨 | 63 |
 | L0/os, L0/store | macOS `fullfsync` 기본값, 접두 밖 문장 거부 운영 적용, `processStartFingerprint` | 부분 (B5-PERF). macOS 측정 대기 | 64 |
 | L1/loop | 승인 만료, 무인 승인 정책, 승인 프로토콜 구현, 도구 위험과 호출 주체 기록, 재실행 횟수 | 구현됨 (M3a) | 71, 72, 73, 74, 76 |
 | L1/agents | 백그라운드 위임 스텁 해소, 완료 통지, 보고 처리, `(thread, requestId)` 멱등 | 구현됨 (M3a) | 65, 66, 69 |
@@ -117,17 +117,17 @@ binds: []
 | L2/artifacts | 리뷰·diff 승인, 제목·라벨 메타, 레코드 카탈로그 | 부분 (B2-ART) | 95 |
 | L2/web | `web.browse`의 브라우저 provider | 부분 (B2-WEB). Stagehand 의존 승인 대기 | 96 |
 | L2/web | 검색 provider 체인과 키 플러그인 첫 사용 고지 | 부분 (B2-WEB). 고지는 호출 뒤 경고로 나감 | — |
-| L2/mcp | 정의 `env`·`headers` 평문 허용 거부와 비밀 이름 패턴 | 부분 (B3-SEC) | 97 |
+| L2/mcp | 정의 `env`·`headers` 평문 허용 거부와 시크릿 이름 패턴 | 부분 (B3-SEC) | 97 |
 | L2/knowledge | 인덱스 예산과 `LIKE` 탐색 범위 | 부분 (B5-PERF). 측정 완료, 예산 수치 대기 | 98 |
 | F/계약, L1/agents | 그룹이 코어 내구 이벤트(`lease.rejected`, `agent.settled`)를 받는 수단 | 구현됨 (M3a) | 101, 103 |
 | L3/learning, L3/helm | 그룹 본체. 이월: 저장 상태 스키마 위반 재설정, 재설치 표지, 그룹 시험 틈, SIGKILL 장애 시험 | 부분 (B4-GRP) | — |
-| L4/cli | `xeon service start`, `status`, `stop`, `--safe-mode`, `--listen-tcp` | 구현됨 표기 있음 (`M3b B1-SVC`). 이월 있음 → 부분 | — |
-| L4/cli | `xeon chat -p --auto-approve`: 도구 승인만 허용 | 부분 (B1-SCH) | — |
-| L4/cli | `xeon schedule add/list/cancel/run` | 구현됨 표기 있음 (`M3b B1-SCH2`). 이월 있음 → 부분 | 93 |
+| L4/cli | `fresnel service start`, `status`, `stop`, `--safe-mode`, `--listen-tcp` | 구현됨 표기 있음 (`M3b B1-SVC`). 이월 있음 → 부분 | — |
+| L4/cli | `fresnel chat -p --auto-approve`: 도구 승인만 허용 | 부분 (B1-SCH) | — |
+| L4/cli | `fresnel schedule add/list/cancel/run` | 구현됨 표기 있음 (`M3b B1-SCH2`). 이월 있음 → 부분 | 93 |
 | L4/cli | `--remote`, `tcp://`, `ssh://` 원격 주소 | 부분 (B2-RMT) | 44 |
-| L4/cli | `xeon group new` 템플릿 | 구현됨 표기 있음 (`M3b B4-GRP`). 이월 있음 → 부분 | — |
+| L4/cli | `fresnel group new` 템플릿 | 구현됨 표기 있음 (`M3b B4-GRP`). 이월 있음 → 부분 | — |
 | L4/settings-ui | 설정 키와 탭 집합(스키마와 view-model 키 대조) | 부분 (B3-SET). 쓰는 곳 없는 키 26개, 탭 13개 대 스펙 12개 | 15 |
-| L4/settings-ui, L4/desktop | 설정 화면, 비밀 탭, 승인·제안 목록, 모델 계정 화면, 게이지, 첫 실행 화면 | M4 이월 | — |
+| L4/settings-ui, L4/desktop | 설정 화면, 시크릿 탭, 승인·제안 목록, 모델 계정 화면, 게이지, 첫 실행 화면 | M4 이월 | — |
 | L4/desktop | view-model, 상태 논리, 입력 라우팅, 사이드카, 패키징 | 부분 (B4-DSK, B3-SET) | — |
 | L4/desktop | 데스크톱 슬래시 명령을 `command.run`으로 보내기 | 구현됨 (이월 목록: done, B3-SET) | — |
 | L4/desktop | 데스크톱 설정 읽기·쓰기 wire, 트레이 아이콘·메뉴 | M4 이월 | — |
@@ -142,7 +142,7 @@ binds: []
 
 | 항목 | 근거 |
 |---|---|
-| 화면 컴포넌트 전부: 설정 화면의 시각 부분, 비밀 탭, 승인·제안 목록 화면, 모델 계정 화면, 검색 provider 드래그앤드롭, 게이지, 첫 실행 권장 화면. caustic 디자인 시스템과 함께 만듭니다 | `review.m3b-plan` §1.2 |
+| 화면 컴포넌트 전부: 설정 화면의 시각 부분, 시크릿 탭, 승인·제안 목록 화면, 모델 계정 화면, 검색 provider 드래그앤드롭, 게이지, 첫 실행 권장 화면. caustic 디자인 시스템과 함께 만듭니다 | `review.m3b-plan` §1.2 |
 | 접근성(M3-39의 a11y 부분). i18n은 M3b에 남습니다 | `review.m3b-plan` §1.2 |
 | 외부 훅(셸 JSON 프로토콜) | M3-REQ-34 본문 `[결정: 2026-10-28 사용자]` |
 | 웹 클라이언트, 웹 UI | M3-REQ-44 본문 `[결정: 2026-10-28 사용자]` |
@@ -155,7 +155,7 @@ binds: []
 
 ## 4. 제품 이름 상수
 
-- 제품 이름에 묶인 값(앱 디렉터리 이름, 설정 파일 이름, 대행 UA)의 소유 문서는 아직 정하지 않았습니다. M3 값은 `xeon`입니다. M4 전 개명 작업 전에 정합니다(M3-REQ-54 `[미결]`).
+- 제품 이름에 묶인 값(앱 디렉터리 이름, 설정 파일 이름, 대행 UA)의 소유 문서는 아직 정하지 않았습니다. M3 값은 `fresnel`입니다. M4 전 개명 작업 전에 정합니다(M3-REQ-54 `[미결]`).
 
 ## 5. 알려진 한계 (이월 목록 요약)
 
@@ -163,7 +163,7 @@ binds: []
 
 **서비스·원격 (B1-SVC, B2-RMT)**
 - 터널이 끊긴 뒤 재연결해도 구독 재전송(replay)이 없습니다. replay 배선(`createReplayResolver`, `modelRequestResendOf`의 호스트 연결)이 끝나지 않았습니다.
-- 서비스에 붙은 연결에서 `xeon secret add`, `set`, `rotate`, `reveal`은 값 입력 창이 없어 두 줄 오류로 끝납니다(`L4.cli.spec` §10 22번).
+- 서비스에 붙은 연결에서 `fresnel secret add`, `set`, `rotate`, `reveal`은 값 입력 창이 없어 두 줄 오류로 끝납니다(`L4.cli.spec` §10 22번).
 - 비루프백 리스너 정책(`--listen-tcp`)은 사용자 결정 대기입니다.
 - SSH 터널 강제 종료 시험이 없고, IPv6 리터럴 주소는 거부합니다.
 - 서비스 모드의 프로젝트 확장은 적재되지 않습니다. 관리 설정 파일 위치는 정해지지 않았습니다.

@@ -22,7 +22,7 @@ import { createHostMcpProcessPort } from "../../src/assembly/mcp-process.ts";
 import { createManualScheduler } from "../fixtures/manual-scheduler.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
-// G1-04, ADR-0011: 조립 루트가 L0의 McpProcessPort를 만든다. 레지스트리는 fresnel.process의 것이고, 비밀 env 서버는 기동 승인 지점이 없어
+// G1-04, ADR-0011: 조립 루트가 L0의 McpProcessPort를 만든다. 레지스트리는 fresnel.process의 것이고, 시크릿 env 서버는 기동 승인 지점이 없어
 // secret_denied로 끝난다(자식을 띄우지 않는다).
 // P-15: 샌드박스를 요청한 서버(`sandbox: true`)는 fresnel.sandbox의 `wrapArgv` 명령줄로 뜬다. fresnel.sandbox는 이 포트보다 늦게 올라오므로
 // spawn 때마다 찾고, 없거나 격리할 수 없으면 `sandbox_unavailable`로 막힌다. 자식이 떴는지는 표식 파일로 본다.

@@ -8,7 +8,7 @@ import { metaOf } from "./support/meta.ts";
 import { handleOf } from "./support/names.ts";
 import { fakeValue, seededRandom } from "./support/random.ts";
 
-// M3-REQ-60. 웹 검색 플러그인 provider 경로의 헤더 비밀 치환. 값은 전송 직전에만 읽는다.
+// M3-REQ-60. 웹 검색 플러그인 provider 경로의 헤더 시크릿 치환. 값은 전송 직전에만 읽는다.
 
 const HANDLE = handleOf("exa-api-key");
 const CALL: PluginHttpCall = {

@@ -10,7 +10,7 @@ import type { SecretError } from "@fresnel/contracts/services";
 import { errorCode } from "./errors.ts";
 import { handleForName } from "./ref.ts";
 
-// L0.secrets.spec §3.2. 메타 파일은 비밀 하나에 YAML 파일 하나(`<dir>/<name>.yaml`)이고 값이 없다.
+// L0.secrets.spec §3.2. 메타 파일은 시크릿 하나에 YAML 파일 하나(`<dir>/<name>.yaml`)이고 값이 없다.
 // 1차는 사용자 범위 디렉터리 하나만 읽는다. 프로젝트 저장소 안의 메타는 읽지 않는다.
 // 쓰기(마일스톤 M2, SC-02)는 0600 임시 파일을 fsync한 뒤 이름을 바꿔 들이는 원자 쓰기다.
 
@@ -21,7 +21,7 @@ export type MetaEntry =
   | { readonly kind: "invalid"; readonly error: MetaInvalid };
 
 export interface MetaStore {
-  /** 읽을 수 없거나 스키마에 맞지 않는 파일은 invalid 항목이 되고 다른 비밀을 막지 않는다 */
+  /** 읽을 수 없거나 스키마에 맞지 않는 파일은 invalid 항목이 되고 다른 시크릿을 막지 않는다 */
   list(): Promise<readonly MetaEntry[]>;
   get(name: SecretName): Promise<MetaEntry | null>;
   /**
@@ -39,7 +39,7 @@ export interface MetaStore {
 const EXTENSION = ".yaml";
 const FILE_MODE = 0o600;
 const DIR_MODE = 0o700;
-const HEADER = "# Fresnel 비밀 메타. 값은 들어 있지 않다. `fresnel secret meta`로 고친다.\n";
+const HEADER = "# Fresnel 시크릿 메타. 값은 들어 있지 않다. `fresnel secret meta`로 고친다.\n";
 let tempCounter = 0;
 
 function invalid(name: string, path: string, errors: readonly string[]): MetaEntry {

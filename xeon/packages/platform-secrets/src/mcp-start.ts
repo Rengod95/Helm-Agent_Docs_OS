@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import type { SecretHandle } from "@fresnel/contracts/capabilities";
 import type { ApprovalEvidence, UseCtx } from "@fresnel/contracts/services";
 
-// L0.secrets.spec §4.3.1 (M3-REQ-58). 비밀 env를 쓰는 MCP stdio 서버의 기동 승인은 서버 정의 해시 단위로 한 번 받는다.
+// L0.secrets.spec §4.3.1 (M3-REQ-58). 시크릿 env를 쓰는 MCP stdio 서버의 기동 승인은 서버 정의 해시 단위로 한 번 받는다.
 // 정의가 바뀌면 해시가 달라져 다시 받는다. 승인 UI와 승인 레코드(정의 해시 포함)는 L1·L2(M3-REQ-75, 97)가 맡고,
-// 이 파일은 해시 계산, 기동용 사용 맥락, 해시에 묶인 증거 보관만 한다. 비밀 값은 이 파일을 지나지 않는다.
+// 이 파일은 해시 계산, 기동용 사용 맥락, 해시에 묶인 증거 보관만 한다. 시크릿 값은 이 파일을 지나지 않는다.
 
 /** 기동 승인에 쓰는 `UseCtx.purpose` 접두. 메타 `use.tools`에 `mcp.start:*` 같은 패턴으로 허용한다 */
 export const MCP_START_PURPOSE_PREFIX = "mcp.start:";
@@ -18,7 +18,7 @@ export interface McpStartDefinition {
   readonly cwd: string | null;
   /** 평문 env. 값은 정의의 일부이므로 해시에 들어간다(정의 파일에 이미 평문으로 있다) */
   readonly env: Readonly<Record<string, string>>;
-  /** env 이름 → 비밀 핸들. 핸들(이름)만 해시에 들어가고 값은 알지 못한다 */
+  /** env 이름 → 시크릿 참조. 핸들(이름)만 해시에 들어가고 값은 알지 못한다 */
   readonly secretEnv: Readonly<Record<string, SecretHandle>>;
 }
 
@@ -33,7 +33,7 @@ function canonical(value: unknown): string {
 
 /**
  * 서버 정의의 SHA-256 hex. 키 순서와 무관하다. `serverId`는 해시에 넣지 않는다(같은 정의를 다른 id로 옮겨도 새 승인을 받으려면
- * 승인 보관이 id를 함께 키로 쓴다). 비밀 env는 핸들만 들어 있어 비밀 값을 바꾸는 회전은 해시를 바꾸지 않는다.
+ * 승인 보관이 id를 함께 키로 쓴다). 시크릿 env는 핸들만 들어 있어 시크릿 값을 바꾸는 회전은 해시를 바꾸지 않는다.
  */
 export function mcpDefinitionHash(def: McpStartDefinition): string {
   const text = canonical({
@@ -47,7 +47,7 @@ export function mcpDefinitionHash(def: McpStartDefinition): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
-/** `withEnv`에 넘길 사용 맥락(mode 제외). 비밀 핸들마다 같은 맥락을 쓴다 */
+/** `withEnv`에 넘길 사용 맥락(mode 제외). 시크릿 참조마다 같은 맥락을 쓴다 */
 export function mcpStartContext(
   def: McpStartDefinition,
   base: Pick<UseCtx, "actor" | "threadId" | "toolCallId" | "projectId">,

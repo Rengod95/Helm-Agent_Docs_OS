@@ -8,21 +8,21 @@ depends_on: [product.vision.spec, product.scope.spec, adr.0001, adr.0002, adr.00
 binds: [xeon/**]
 ---
 
-# Xeon 전체 구조
+# Fresnel 전체 구조
 
 ## 1. 목적과 범위
 
-Xeon 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 문서다. 층별 세부 규칙은 `architecture.layers.spec`, 한 턴이 실행되는 순서는 `architecture.runtime-flow.design`에 있다. 이 문서는 두 문서와 ADR이 어떤 관계인지 한 장에 정리한다.
+Fresnel 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 문서다. 층별 세부 규칙은 `architecture.layers.spec`, 한 턴이 실행되는 순서는 `architecture.runtime-flow.design`에 있다. 이 문서는 두 문서와 ADR이 어떤 관계인지 한 장에 정리한다.
 
 - 정하는 것: 구성 단위(엔진, 호스트 계약, 전송, 층, 그룹)와 그 관계, 핵심 결정 목록, 기존 Helm 저장소·설계 정본과의 관계, 문서 지도.
 - 다루지 않는 것: 각 층의 인터페이스 세부(층별 `spec.md`), 의존 규칙의 검사 방법(`eng.dependency-rules.guide`), 구현 순서(층별 `plan.md`).
 
 ### 1.1 한 장 요약
 
-1. Xeon은 대화형 에이전트 런타임이다. CLI와 데스크톱 앱을 같은 엔진으로 제공한다(`product.vision.spec`).
+1. Fresnel은 대화형 에이전트 런타임이다. CLI와 데스크톱 앱을 같은 엔진으로 제공한다(`product.vision.spec`).
 2. 엔진은 프로세스 정책(데몬 여부, 전송, 유휴 종료)을 포함하지 않는 라이브러리다. 데몬을 띄울지, 자식 프로세스로 띄울지는 L4 호스트(`xeon/apps/host`)가 정한다 [결정: ADR-0006].
 3. UI는 엔진 객체를 직접 다루지 않고 호스트 계약 하나만 쓴다. 계약 스키마는 F5(`xeon/packages/contracts`)에 둔다 [결정: ADR-0006].
-4. 전송은 세 가지다. CLI 기본은 in-process, 데스크톱은 자식 프로세스 stdio JSON-RPC, 공유 서비스는 `xeon service`다. 전송을 바꿔도 호스트 계약과 DB 스키마는 바뀌지 않는다 [결정: ADR-0006, ADR-0008].
+4. 전송은 세 가지다. CLI 기본은 in-process, 데스크톱은 자식 프로세스 stdio JSON-RPC, 공유 서비스는 `fresnel service`다. 전송을 바꿔도 호스트 계약과 DB 스키마는 바뀌지 않는다 [결정: ADR-0006, ADR-0008].
 5. 코드는 층 F → X → L0 → L1 → L2 → L3 → L4 순서로 쌓인다. 패키지는 자기보다 순위가 낮은 층만 import한다 [결정: `_research/foundation-plan.md` §3].
 6. 확장은 `on`(fold `tap`/`first`/`chain`), `post`, `drive`(배타 임대), `scope` 네 연산으로 루프에 붙는다. Helm과 학습 그룹은 이 연산을 쓰는 L3 기본 그룹이다 [결정: ADR-0007].
 7. 세션 기록은 SQLite 파일 하나에 저장한다. 불변 이벤트와 조회용 투영, 확장별 접두사 테이블을 단계 경계마다 한 트랜잭션으로 커밋한다 [결정: ADR-0004]. 도구 효과는 호출마다 의도·실행 시작·결과를 따로 커밋한다 [결정: review.decisions-2 U-10].
@@ -38,8 +38,8 @@ Xeon 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 문�
 | 전송 | 호스트 계약을 실어 나르는 수단. in-process, stdio, service 셋 | `L4.host-service.spec` |
 | 층 | 의존 순위가 같은 패키지 묶음. F, X, L0, L1, L2, L3, L4 | `architecture.layers.spec` |
 | 그룹 | `scope` 하나로 묶여 단계 경계에서 켜고 끄는 L3 플러그인 단위. Helm, 학습 그룹, 추가 그룹 | `L3.group-sdk.spec` |
-| 능력(cap) | 서비스 API와 모델 도구를 쌍으로 제공하는 L2 단위(`cap-*`). 정의는 F3에 있다 | `F.capabilities.spec` |
-| 확장 지점 | 루프가 확장을 부르는 자리. 각 지점의 fold는 지점 선언이 정한다. 종류를 `input`, `request`, `tool`, `boundary`, `session` 다섯으로 나누는 안은 [제안]이고 사용자 합의 전이다(ADR-0007 3.3) | `F.extensions.spec`, `X.primitives.spec` |
+| 기능(cap) | 서비스 API와 모델 도구를 쌍으로 제공하는 L2 단위(`cap-*`). 정의는 F3에 있다 | `F.capabilities.spec` |
+| 훅 | 루프가 확장을 부르는 자리. 각 지점의 fold는 훅 선언이 정한다. 종류를 `input`, `request`, `tool`, `boundary`, `session` 다섯으로 나누는 안은 [제안]이고 사용자 합의 전이다(ADR-0007 3.3) | `F.extensions.spec`, `X.primitives.spec` |
 | 임대 | `drive`가 얻는 루프 구동 권한. 한 번에 그룹 하나가 갖고 상한 `{maxTurns, maxSpawns, maxTokens}`가 붙는다 | `X.primitives.spec` |
 | 투영 | 이벤트에서 만든 조회용 테이블(메시지, 파트 등). 이벤트와 같은 트랜잭션에서 갱신한다 | `L1.persistence.spec` |
 | 내구 이벤트 | DB에 커밋되는 이벤트. `seq`, `parentId`, 종류, 버전을 갖는다 | `F.records.spec` |
@@ -51,14 +51,14 @@ Xeon 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 문�
 
 | 전송 | 쓰는 곳 | 엔진 프로세스 | 연결 | 인증 | 단계 |
 |---|---|---|---|---|---|
-| in-process | CLI 기본(`xeon chat`) | CLI 프로세스 자신 | 메모리 채널 | 필요 없음 | 1차 |
+| in-process | CLI 기본(`fresnel chat`) | CLI 프로세스 자신 | 메모리 채널 | 필요 없음 | 1차 |
 | 자식 프로세스 stdio | 데스크톱(Tauri 2) | `bun build --compile` 사이드카 | stdin/stdout JSON-RPC | 필요 없음(부모-자식 파이프) | 데스크톱 M2 이후 |
-| 서비스(로컬) | `xeon service`(자동 기동, 유휴 종료), CLI·앱이 함께 접속 | 공유 서비스 프로세스 | 로컬 Unix 소켓 | 파일 권한 | 1차, OS 서비스 등록은 2차 |
+| 서비스(로컬) | `fresnel service`(자동 기동, 유휴 종료), CLI·앱이 함께 접속 | 공유 서비스 프로세스 | 로컬 Unix 소켓 | 파일 권한 | 1차, OS 서비스 등록은 2차 |
 | 서비스(원격) | 다른 기기의 원격 클라이언트 | 공유 서비스 프로세스 | 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결 | SSH·사설망 인증과 소켓 파일 권한 | 1차(M3) [결정: review.decisions-2 U-11] |
 | 서비스(원격, 내장) | 터널 없이 접속하는 원격 클라이언트 | 공유 서비스 프로세스 | TLS + WebSocket | 무작위 토큰, `initialize` 전에 검사. 비루프백 무인증 기동 금지 | 2차 [결정: review.decisions-2 U-11] |
 
 - 근거: `_research/process.md` §6.1(구조 1안), §6.2(단계 도입 경로), §6.4(서비스 모드 체크리스트). 서비스 전송의 인증 규칙은 ADR-0006 3.3절과 3.7절 5번이다. 결정은 [ADR-0006](../../decisions/ADR-0006-process-service-mode.md), [ADR-0008](../../decisions/ADR-0008-desktop-tauri.md)에 있다.
-- process.md는 서비스 명령을 `helm service`로 적었다. 제품 명령은 `xeon service`다.
+- process.md는 서비스 명령을 `helm service`로 적었다. 제품 명령은 `fresnel service`다.
 - process.md §6.2는 공유 서비스를 단계 2(선택 모드)로 두었다. [결정: `_research/foundation-plan.md` §1 2번] 예약·원격·알림을 범위에 넣는 결정에 따라 공유 서비스 모드는 1차로 올라갔고, OS 서비스 등록은 2차다. 원격 사용은 1차(M3)에 넣되 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식으로 하고, 단계 3의 내장 원격 전송(TLS + 토큰 WebSocket)은 2차로 둔다 [결정: review.decisions-2 U-11].
 - 불변식 [결정: ADR-0006]: 호스트 계약과 DB 스키마는 전송이 바뀌어도 변하지 않는다. 전송 전환으로 바뀌는 것은 "어느 프로세스가 엔진을 소유하는가" 하나다(`_research/process.md` §6.2 마지막 줄).
 - 같은 세션에 쓰는 프로세스는 세션 id 키 OS 잠금으로 하나만 둔다. 잠금을 얻은 프로세스는 `sys_leases.epoch` 펜싱으로 커밋마다 소유를 다시 확인한다 [결정: review.decisions-2 U-09]. 잠금을 얻지 못한 프로세스는 위임, 관찰, 분기 중 하나로 동작한다(`_research/process.md` §6.3, 흐름은 `architecture.runtime-flow.design` 4.4절).
@@ -104,7 +104,7 @@ flowchart TB
     desktop["apps/desktop"]
     host["apps/host"]
   end
-  subgraph L3["L3 의도 그룹"]
+  subgraph L3["L3 플러그인 그룹"]
     ghelm["packages/group-helm"]
     glearn["packages/group-learning"]
     gkit["packages/group-sdk"]
@@ -151,7 +151,7 @@ flowchart TB
 - `apps/desktop`은 `apps/host`를 import하지 않는다. `bun build --compile`로 만든 엔진 바이너리를 사이드카로 실행한다(ADR-0008).
 - `apps/cli`의 in-process 전송은 같은 층(L4)인 `apps/host`의 코드를 같은 프로세스에서 쓴다. 같은 층 예외 `DR-10/cli-host`로 허용한다 [결정: review.decisions-2 U-15].
 - `group-helm`·`group-learning`이 `group-sdk`을 import하는 간선도 같은 층 예외 `DR-02/group-sdk`로 허용한다 [결정: review.decisions-2 U-15]. 예외 목록은 `architecture.layers.spec` 3.2절과 `eng.dependency-rules.guide` 허용 목록에 있다.
-- [결정: 계획 v2 '층 사이 규칙' 2, DR-14] L3 그룹은 `cap-*`를 import하지 않는다. L2 능력은 F3 정의와 Cordis 서비스로만 쓴다(`architecture.layers.spec` 3.1절 2행).
+- [결정: 계획 v2 '층 사이 규칙' 2, DR-14] L3 그룹은 `cap-*`를 import하지 않는다. L2 기능은 F3 정의와 Cordis 서비스로만 쓴다(`architecture.layers.spec` 3.1절 2행).
 - `cap --> exthost` 간선은 L2의 플러그인 등록 경로다. 하위 층은 `@fresnel/ext-host`의 서비스 등록·주입 API만 import한다(DR-14 예외) [결정: review.decisions-2 U-17].
 - 서비스 주입 점선의 F 서비스 인터페이스(`TaskService`, `LoopService`, `ModelService`, `ToolService`, `ContextService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService` 등)와 서비스 이름 상수는 F `@fresnel/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 §3 D-04].
 
@@ -166,30 +166,30 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 | [ADR-0003](../../decisions/ADR-0003-pi-durable-fork.md) | [결정] pi durable 부분 포크 | env, tools, images, truncate만 Chord 의존을 걷어 내고 포크한다. 커널(L1-a/b/f/g)은 직접 구현하고 durable `docs/spec.md`를 설계 근거로 인용한다 |
 | [ADR-0004](../../decisions/ADR-0004-session-storage.md) | [결정] 세션 저장 C안 | SQLite 이벤트 소싱과 투영, 단일 DB 파일, 확장별 접두사 테이블. 단계 경계 커밋은 `synchronous=FULL` |
 | [ADR-0005](../../decisions/ADR-0005-web-search-default.md) | [결정] 무료 웹 검색 기본값 | 모델 도구는 provider 내장 검색, 서비스 API `web.search`는 내장 검색 래퍼, SearXNG 감지 시 우선, 무료 크레딧 API는 플러그인 권장. 키 없는 스크레이핑 제외 |
-| [ADR-0006](../../decisions/ADR-0006-process-service-mode.md) | [결정] 프로세스 구조와 서비스 모드 | 엔진 라이브러리, 호스트 계약 하나, 전송 교체. `xeon service`는 1차, OS 서비스 등록은 2차 |
-| [ADR-0007](../../decisions/ADR-0007-ext-points.md) | [결정] 확장 지점 4연산 | `on`(fold `tap`/`first`/`chain`), `post`(`steer`/`followUp`/`next`), `drive`(배타 임대, 상한 `{maxTurns, maxSpawns, maxTokens}`), `scope`(단계 경계 토글). 지점 종류와 이름 목록은 [제안](미합의) |
+| [ADR-0006](../../decisions/ADR-0006-process-service-mode.md) | [결정] 프로세스 구조와 서비스 모드 | 엔진 라이브러리, 호스트 계약 하나, 전송 교체. `fresnel service`는 1차, OS 서비스 등록은 2차 |
+| [ADR-0007](../../decisions/ADR-0007-ext-points.md) | [결정] 훅 4연산 | `on`(fold `tap`/`first`/`chain`), `post`(`steer`/`followUp`/`next`), `drive`(배타 임대, 상한 `{maxTurns, maxSpawns, maxTokens}`), `scope`(단계 경계 토글). 훅 종류와 이름 목록은 [제안](미합의) |
 | [ADR-0008](../../decisions/ADR-0008-desktop-tauri.md) | [결정] 데스크톱 Tauri 2 | 시스템 WebView, 3플랫폼. 엔진은 `bun build --compile` 사이드카, UI와 stdio JSON-RPC로 연결 |
 
 ### 4.3 기존 저장소·docs/design과의 관계
 
-[결정: `_research/foundation-plan.md` Context] 기존 Helm 설계 정본 `docs/design/01~26`은 홈서버 데몬과 커널 중심 설계를 전제로 한다. Xeon은 이 문서들을 참고 자료로 인용만 하고, 정본 병합은 하지 않는다. Xeon 문서에서 `docs/design`의 문장을 규칙으로 옮길 때는 Xeon 문서에 다시 쓰고 원문 절을 근거로 단다.
+[결정: `_research/foundation-plan.md` Context] 기존 Helm 설계 정본 `docs/design/01~26`은 홈서버 데몬과 커널 중심 설계를 전제로 한다. Fresnel은 이 문서들을 참고 자료로 인용만 하고, 정본 병합은 하지 않는다. Fresnel 문서에서 `docs/design`의 문장을 규칙으로 옮길 때는 Fresnel 문서에 다시 쓰고 원문 절을 근거로 단다.
 
-아래 표는 `_research/repo-survey.md` §3.4에서 Xeon에 쓸 만한 절을 옮긴 것이다. 각 항목의 마지막 열은 그대로 따르지 않는 이유다.
+아래 표는 `_research/repo-survey.md` §3.4에서 Fresnel에 쓸 만한 절을 옮긴 것이다. 각 항목의 마지막 열은 그대로 따르지 않는 이유다.
 
-| 원문 | 참고하는 내용 | 그대로 따르지 않는 이유 | 받는 Xeon 문서 |
+| 원문 | 참고하는 내용 | 그대로 따르지 않는 이유 | 받는 Fresnel 문서 |
 |---|---|---|---|
-| `docs/design/18-security.md` §3.10, §3.11 | 비밀 저장·주입·마스킹, 도구 실행 격리와 권한 기준선 | 18은 데몬 시작 시 비밀을 메모리에 주입하는 설계(결정 45)이고, Xeon은 SOPS(age) 파일과 `secret://` 참조를 쓴다 | `L0.secrets.spec`, `L0.sandbox.spec` |
-| `docs/design/13-tools-and-execution.md` §3.5, §3.6 | 쓰기 범위 검사, bash 우회 방지, 격리 수준 표 | 13의 S0~S2는 bubblewrap을 직접 다루는 설계이고, Xeon은 `@anthropic-ai/sandbox-runtime`을 그대로 쓴다 | `L0.sandbox.spec`, `L1.tools.spec` |
-| `docs/design/12-runtime-engine.md` §3.4 | 루프 포크 `@helm/agent`와 커널 연결점(`beforeToolCall`, `afterToolCall`, `prepareRequest`, `finishTurn`) | 12는 커널 검사를 루프 훅에 거는 포크 설계이고, Xeon은 커널 없이 pi-agent-core 1.3.0 루프를 포크한 core-loop 자체 루프(ADR-0009)와 `on` 지점(종류 5개는 [제안], ADR-0007 3.3)을 쓴다 | `L1.loop.spec`, `X.primitives.spec` |
-| `docs/design/09-event-store.md` §3.2 | 이벤트 envelope, 카테고리, 이름 규칙 | 09는 해시 체인과 HMAC 체크포인트를 포함한 정본 이벤트 저장이고, Xeon은 C안(이벤트 + 투영 + 단계 체크포인트, 해시 체인 없음)이다 | `F.records.spec`, `eng.events.design` |
-| `docs/design/19-client-protocol.md` §3.3 | JSON-RPC 2.0 규칙(배치 거부, `<영역>.<동사>` 메서드, params 객체, 중첩 깊이 제한) | 19는 데몬과 WebSocket 하나를 전제로 한 핸드셰이크·재전송 설계이고, Xeon은 in-process·stdio·service 세 전송이 같은 계약을 쓴다 | `F.wire-settings.spec`, `L4.host-service.spec` |
-| `docs/design/07-pi-reuse-and-fork.md` §3.4, §3.5 | pi-agent-core 파일 계획, 수정 사항 A1~A7 | 07은 pi v1.1.0을 vendor 포크하는 설계이고, Xeon은 pi-agent-core에 의존하지 않고 그 1.3.0 루프를 core-loop로 포크해 다시 설계한다(ADR-0009). durable은 4개 영역만 포크한다(ADR-0003) | `L1.loop.spec`, `L0.exec.spec`, `L2.workspace.spec` |
-| `docs/design/22-testing-strategy.md` §3.5.4 | 모델 테이프(가짜 모델 재생) | 22는 Vitest와 커널 테스트 계층을 전제로 하고, Xeon은 `bun test`와 패키지 단위 테스트를 기본으로 한다 | `eng.testing.guide` |
+| `docs/design/18-security.md` §3.10, §3.11 | 시크릿 저장·주입·마스킹, 도구 실행 격리와 권한 기준선 | 18은 데몬 시작 시 시크릿을 메모리에 주입하는 설계(결정 45)이고, Fresnel은 SOPS(age) 파일과 `secret://` 참조를 쓴다 | `L0.secrets.spec`, `L0.sandbox.spec` |
+| `docs/design/13-tools-and-execution.md` §3.5, §3.6 | 쓰기 범위 검사, bash 우회 방지, 격리 수준 표 | 13의 S0~S2는 bubblewrap을 직접 다루는 설계이고, Fresnel은 `@anthropic-ai/sandbox-runtime`을 그대로 쓴다 | `L0.sandbox.spec`, `L1.tools.spec` |
+| `docs/design/12-runtime-engine.md` §3.4 | 루프 포크 `@helm/agent`와 커널 연결점(`beforeToolCall`, `afterToolCall`, `prepareRequest`, `finishTurn`) | 12는 커널 검사를 루프 훅에 거는 포크 설계이고, Fresnel은 커널 없이 pi-agent-core 1.3.0 루프를 포크한 core-loop 자체 루프(ADR-0009)와 `on` 지점(종류 5개는 [제안], ADR-0007 3.3)을 쓴다 | `L1.loop.spec`, `X.primitives.spec` |
+| `docs/design/09-event-store.md` §3.2 | 이벤트 envelope, 카테고리, 이름 규칙 | 09는 해시 체인과 HMAC 체크포인트를 포함한 정본 이벤트 저장이고, Fresnel은 C안(이벤트 + 투영 + 단계 체크포인트, 해시 체인 없음)이다 | `F.records.spec`, `eng.events.design` |
+| `docs/design/19-client-protocol.md` §3.3 | JSON-RPC 2.0 규칙(배치 거부, `<영역>.<동사>` 메서드, params 객체, 중첩 깊이 제한) | 19는 데몬과 WebSocket 하나를 전제로 한 핸드셰이크·재전송 설계이고, Fresnel은 in-process·stdio·service 세 전송이 같은 계약을 쓴다 | `F.wire-settings.spec`, `L4.host-service.spec` |
+| `docs/design/07-pi-reuse-and-fork.md` §3.4, §3.5 | pi-agent-core 파일 계획, 수정 사항 A1~A7 | 07은 pi v1.1.0을 vendor 포크하는 설계이고, Fresnel은 pi-agent-core에 의존하지 않고 그 1.3.0 루프를 core-loop로 포크해 다시 설계한다(ADR-0009). durable은 4개 영역만 포크한다(ADR-0003) | `L1.loop.spec`, `L0.exec.spec`, `L2.workspace.spec` |
+| `docs/design/22-testing-strategy.md` §3.5.4 | 모델 테이프(가짜 모델 재생) | 22는 Vitest와 커널 테스트 계층을 전제로 하고, Fresnel은 `bun test`와 패키지 단위 테스트를 기본으로 한다 | `eng.testing.guide` |
 
-- `docs/design/00-README.md`의 설계 결정 23, 27, 28, 29, 30, 31은 Xeon의 결정과 영역이 겹친다. Xeon에서는 ADR-0001~0008이 우선한다.
+- `docs/design/00-README.md`의 설계 결정 23, 27, 28, 29, 30, 31은 Fresnel의 결정과 영역이 겹친다. Fresnel에서는 ADR-0001~0008이 우선한다.
 - `docs/design/24-adr.md`를 인용하지 않는다.[^adr24]
 
-[^adr24]: `docs/design/00-README.md`, `docs/design/06-system-architecture.md`, `docs/design/process/00-design-brief.md`가 `docs/design/24-adr.md`를 가리키지만, 이 파일은 `archive/design-process/24-adr.md`로 옮겨졌다. `process/rulings-stage2a.md`, `process/implementation-readiness.md`도 같은 이유로 깨진 참조다(`_research/repo-survey.md` §6.1 7번). Xeon 문서는 이 경로를 인용하지 않는다.
+[^adr24]: `docs/design/00-README.md`, `docs/design/06-system-architecture.md`, `docs/design/process/00-design-brief.md`가 `docs/design/24-adr.md`를 가리키지만, 이 파일은 `archive/design-process/24-adr.md`로 옮겨졌다. `process/rulings-stage2a.md`, `process/implementation-readiness.md`도 같은 이유로 깨진 참조다(`_research/repo-survey.md` §6.1 7번). Fresnel 문서는 이 경로를 인용하지 않는다.
 
 ### 4.4 레거시 코드와 커밋 범위
 
@@ -213,9 +213,9 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 
 해당 없음. 설정 키는 `F.wire-settings.spec`, 설정 화면은 `L4.settings-ui.spec`이 정한다.
 
-## 7. 확장 지점
+## 7. 훅
 
-1.1절 6번의 요약만 둔다. 연산 정의는 ADR-0007, `X.primitives.spec`, 지점 선언은 `F.extensions.spec`이 정한다.
+1.1절 6번의 요약만 둔다. 연산 정의는 ADR-0007, `X.primitives.spec`, 훅 선언은 `F.extensions.spec`이 정한다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -224,7 +224,7 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 
 | 질문 | 읽을 문서 |
 |---|---|
-| Xeon이 무엇이고 누구를 위한 것인가 | `product.vision.spec`, `product.usecases.spec`, `product.scope.spec` |
+| Fresnel이 무엇이고 누구를 위한 것인가 | `product.vision.spec`, `product.usecases.spec`, `product.scope.spec` |
 | 어떤 패키지가 어느 층이고 무엇을 import할 수 있는가 | `architecture.layers.spec`, `eng.dependency-rules.guide` |
 | 한 턴이 어디서 입력을 받고 어디서 커밋되며, 크래시 뒤 어디서 이어지는가 | `architecture.runtime-flow.design` |
 | 이벤트·트랜잭션·재생 규칙은 무엇인가 | `eng.events.design`, `eng.transactions.design`, `F.records.spec`, `L1.persistence.spec` |
@@ -245,6 +245,6 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 
 ## 10. 미결 사항
 
-- [미결] 패키지 스코프 이름. 현재 `xeon/` 패키지는 모두 `@fresnel/*`를 쓴다. Xeon은 임시 이름이므로 공개 릴리스 때 스코프를 바꿀지, npm 스코프를 확보할지 정해야 한다.
+- [미결] 패키지 스코프 이름. 현재 `xeon/` 패키지는 모두 `@fresnel/*`를 쓴다. Fresnel은 임시 이름이므로 공개 릴리스 때 스코프를 바꿀지, npm 스코프를 확보할지 정해야 한다.
 - [미결] L4 앱 디렉터리 이름. `_research/foundation-plan.md` §3은 `apps/{cli,host,desktop}`, `_routing/routes.yaml`의 L4 domains는 `cli`, `desktop`, `host-service`, `settings-ui`다. routes.yaml은 `host-service`를 `xeon/apps/host/**`로, `settings-ui`를 `xeon/packages/client/src/settings/**`로 대응시킨다. 실제 `xeon/apps/host/package.json`의 `fresnel.domain`은 `host`다. 도메인 이름을 `host`로 맞출지 `host-service`로 맞출지, 설정 화면은 별도 앱 없이 `packages/client`(view-model)와 데스크톱(렌더러)에 둔다 [결정: adr.0020].
 - [미결] 데스크톱 전송을 stdio로 유지할지 로컬 소켓으로 바꿀지. 장수명 엔진에서 stdio 파이프의 버퍼링과 종료 처리를 spike로 확인해야 한다(`_research/notes/arch-2.md` §5 6행).

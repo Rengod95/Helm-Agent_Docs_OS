@@ -20,7 +20,7 @@ binds: [xeon/packages/cap-mcp/**, xeon/packages/platform-process/**]
 
 ## 2. 맥락
 
-- stdio MCP 서버는 Xeon이 띄우는 자식 프로세스입니다. 서버 정의의 `command`, `args`, `env`가 실행할 프로그램을 정합니다(`L2.mcp.spec` §4.2·§4.3).
+- stdio MCP 서버는 Fresnel이 띄우는 자식 프로세스입니다. 서버 정의의 `command`, `args`, `env`가 실행할 프로그램을 정합니다(`L2.mcp.spec` §4.2·§4.3).
 - 서버 정의는 두 곳에서 옵니다.
   - 사용자 설정 `l2.mcp.servers`: 사용자가 직접 씁니다.
   - 프로젝트 파일 `.mcp.json`, `.fresnel/mcp.json`: 저장소를 받으면 같이 옵니다. 신뢰하지 않은 저장소의 파일은 임의 명령 실행과 같습니다(`architecture.security.spec` §4 T-03).
@@ -31,12 +31,12 @@ binds: [xeon/packages/cap-mcp/**, xeon/packages/platform-process/**]
 
 ## 3. 결정
 
-1. [결정] M2의 stdio MCP 서버는 샌드박스 없이 Xeon 엔진과 같은 OS 사용자 권한으로 실행합니다.
+1. [결정] M2의 stdio MCP 서버는 샌드박스 없이 Fresnel 엔진과 같은 OS 사용자 권한으로 실행합니다.
 2. [결정] 프로젝트 정의(`.mcp.json`, `.fresnel/mcp.json`)는 프로젝트 신뢰가 `allow`일 때만 읽습니다. 신뢰가 없으면 서버 정의를 읽지 않고 진단만 남깁니다(`X.loading-trust.spec` §4.7.2). 사용자 설정의 정의는 신뢰 판정 없이 읽습니다.
 3. [결정] M2는 `env`에 `secret://` 참조가 있는 stdio 서버를 띄우지 않습니다. 그 서버만 건너뛰고 진단을 남깁니다. 진단 이름은 `L2.mcp.spec`이 정합니다 [제안]. 다른 서버는 영향을 받지 않습니다.
 4. [제안] 서버 정의 `env`·`headers`의 평문 값은 계속 거부합니다(`L2.mcp.spec` §10 미결 4). 3번과 합치면 M2의 stdio 서버는 비밀 없는 서버뿐입니다. HTTP 서버의 `headers` 비밀 참조는 `GuardedHttp` 주입 경로라서 이 결정의 범위 밖입니다.
 5. [제안] 자식 프로세스 기동과 종료는 `McpProcessPort`(L0.process)가 맡습니다. 종료 순서(stdin 닫기, 신호, 유예, 강제 종료)는 `L0.process.spec`이 정합니다. cap-mcp는 `Bun.spawn`을 직접 부르지 않습니다(`eng.dependency-rules.guide` DR-07).
-6. [제안] `xeon doctor`와 `host.status`의 MCP 항목은 stdio 서버마다 "샌드박스 없음"을 표시합니다.
+6. [제안] `fresnel doctor`와 `host.status`의 MCP 항목은 stdio 서버마다 "샌드박스 없음"을 표시합니다.
 7. [결정] 다시 정하는 시점은 M3입니다. 조건은 두 가지입니다. bwrap·socat이 설치된 CI에서 샌드박스 int 시험이 돌고, macOS Seatbelt 확인 결과가 `review.macos-checklist`에 기록되어야 합니다. 그때 서버별 쓰기 경로·네트워크 정책과 비밀 env 서버의 기동 승인을 함께 정합니다(`review.m3-plan`).
 
 ## 4. 결과
@@ -69,4 +69,4 @@ binds: [xeon/packages/cap-mcp/**, xeon/packages/platform-process/**]
 - [결정: review.m3-design-inputs D-M3-19 행 1] M3의 stdio 서버 샌드박스 기본값은 출처별입니다. 프로젝트 출처 서버는 켜고, 사용자 출처 서버는 끕니다. 서버별 설정으로 바꿉니다. 이 ADR의 M2 결정(사용자 권한 실행)은 사용자 출처 서버의 기본값으로 남습니다.
 - [미결] 서버별 샌드박스 정책의 설정 모양(쓰기 경로, 네트워크 차단 도메인). 네트워크 기본값은 `L0.sandbox.spec`(D-M3-18)을 따릅니다.
 - [결정: review.m3-design-inputs D-M3-19 행 4] MCP sampling은 지원하지 않습니다. 2026-07-28 MCP 명세 개정에서 Deprecated입니다(SEP-2577).
-- [가정] 3번의 진단은 서버 목록 화면과 `xeon doctor`에 보입니다. 표시 문구는 L4가 정합니다.
+- [가정] 3번의 진단은 서버 목록 화면과 `fresnel doctor`에 보입니다. 표시 문구는 L4가 정합니다.

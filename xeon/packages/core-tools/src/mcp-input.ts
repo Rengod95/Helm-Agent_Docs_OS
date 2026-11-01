@@ -48,7 +48,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 
 /**
  * 출력이 `status: "input_required"` 변형이면 종류를 가린다. 아니면 undefined(일반 결과).
- * 판별 필드는 `status`이고 L2 능력(dialog.ask, work.plans)은 자기가 올린 승인의 `approvalId`를 싣는다. `approvalId`가 없으면
+ * 판별 필드는 `status`이고 L2 기능(dialog.ask, work.plans)은 자기가 올린 승인의 `approvalId`를 싣는다. `approvalId`가 없으면
  * MCP의 `McpInputRequired`여야 하고, 그 모양이 아니면 invalid다(일반 결과로 흘려 보내지 않는다)
  */
 export function inputRequestOf(output: unknown): InputRequest | undefined {

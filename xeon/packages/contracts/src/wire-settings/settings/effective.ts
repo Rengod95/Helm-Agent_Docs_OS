@@ -120,7 +120,7 @@ function isSecretRefString(value: unknown): boolean {
 /**
  * 순수 함수. 한 키의 유효 값을 계산한다. 값 검사를 통과하지 못한 층의 값은 건너뛰고 issues에 남긴다.
  * 병합 단위는 키 하나다(깊은 병합 없음). allowedScopes에 없는 범위의 값은 무시하고 issues에 남긴다.
- * 비밀 키는 secret:// 참조 문자열만 적용하고 평문 값은 건너뛴다(값은 issues에도 싣지 않는다).
+ * 시크릿 키는 secret:// 참조 문자열만 적용하고 평문 값은 건너뛴다(값은 issues에도 싣지 않는다).
  * pendingUntil은 "이 키의 변경이 적용되는 시점"이다. 적용된 값을 모르는 F는 실제 대기 여부를 알 수 없다.
  */
 export function resolveSetting(
@@ -204,7 +204,7 @@ export type WriteCheck =
 
 /**
  * 순수 함수. 쓰기 전에 키·구현 단계·범위·잠금·값을 이 순서로 검사한다. settings.set과 CLI config set이 같은 함수를 쓴다.
- * 오류 details에는 값을 싣지 않는다(비밀 값 비표시 규칙, F.wire-settings.spec §4.9).
+ * 오류 details에는 값을 싣지 않는다(시크릿 값 비표시 규칙, F.wire-settings.spec §4.9).
  */
 export function checkSettingWrite(
   catalog: ReadonlyMap<SettingKey, SettingDef>,

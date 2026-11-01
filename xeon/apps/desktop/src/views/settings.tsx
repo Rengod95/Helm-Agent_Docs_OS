@@ -209,7 +209,7 @@ export function SettingsBody(props: {
         <h2>모델 키</h2>
         <p className="dim">
           키 값은 등록 창에 한 번 입력하면 바로 지워지고 엔진 연결을 지나지 않습니다. 앱이 번들된
-          <code>fresnel</code>으로 비밀 저장소에 두고, 설정에는 <code>secret://이름</code> 참조만
+          <code>fresnel</code>으로 시크릿 저장소에 두고, 설정에는 <code>secret://이름</code> 참조만
           남습니다.
         </p>
         <label className="field">
@@ -232,7 +232,7 @@ export function SettingsBody(props: {
           <p className="dim">provider 이름은 소문자, 숫자, 점, 밑줄, 하이픈만 쓸 수 있습니다.</p>
         ) : (
           <p>
-            비밀 이름 <code>{secretName}</code> ·{" "}
+            시크릿 이름 <code>{secretName}</code> ·{" "}
             <span data-registered={registered ? "yes" : "no"}>
               {registered ? "등록됨" : "등록되지 않음"}
             </span>

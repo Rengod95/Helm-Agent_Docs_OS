@@ -96,7 +96,7 @@ export type WidgetVM =
   | { readonly kind: "secret" }
   | { readonly kind: "readonly" };
 
-/** 비밀 참조 상태. 저장소 상태(registered·missing)는 L0 상태를 받을 때 더한다(§4.6.2) */
+/** 시크릿 참조 상태. 저장소 상태(registered·missing)는 L0 상태를 받을 때 더한다(§4.6.2) */
 export type SecretStatus = "unset" | "referenced";
 
 export interface SecretFieldVM {

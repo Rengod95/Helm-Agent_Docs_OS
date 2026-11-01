@@ -11,7 +11,7 @@ export const SettingsChangedPayloadSchema: TObject<{
   {
     key: Type.String({ minLength: 3, maxLength: 128 }),
     scope: Type.String({ minLength: 1, maxLength: 16 }),
-    /** 비밀 값은 기록하지 않고 secret:// 참조만 기록한다. 값이 없으면 null */
+    /** 시크릿 값은 기록하지 않고 secret:// 참조만 기록한다. 값이 없으면 null */
     value: JsonValueSchema,
   },
   { additionalProperties: false },

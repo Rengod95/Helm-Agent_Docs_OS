@@ -14,10 +14,10 @@ binds: [xeon/packages/platform-process/**, xeon/apps/host/**, xeon/apps/cli/**]
 
 - 상태: accepted
 - 날짜: 2026-10-21
-- [결정] 공유 서비스 모드 `xeon service`(자동 기동, 유휴 종료)를 1차로 둔다. OS 서비스 등록은 2차다(`_research/foundation-plan.md §1` 결정표 2번).
+- [결정] 공유 서비스 모드 `fresnel service`(자동 기동, 유휴 종료)를 1차로 둔다. OS 서비스 등록은 2차다(`_research/foundation-plan.md §1` 결정표 2번).
 - [결정] 예약·원격·알림을 제품 범위에 넣고 데몬을 허용한다(`_research/decisions-log.md` 2026-10-21 결정(3차)).
 - [결정] 프로세스 구조는 "엔진 라이브러리 + 단일 호스트 계약 + 전송 교체(CLI in-process, 데스크톱 자식 엔진)"다(`_research/decisions-log.md` 2026-10-21 "계획 v2"). 계획 v2는 공유 서비스 모드를 2차로 두었으나 3차 결정이 1차로 올렸다.
-- 표기: `_research/process.md`의 `helm service`는 이 문서에서 `xeon service`로 바꿔 쓴다.
+- 표기: `_research/process.md`의 `helm service`는 이 문서에서 `fresnel service`로 바꿔 쓴다.
 - 개정: 2026-10-21 `review.decisions-2` U-09(§3.6 1·4번 쓰기 소유 펜싱과 소유 표시), U-11(§3.3·§3.5 원격 사용 단계). 결정을 뒤집지 않고 미결과 세부를 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 두 항목은 사용자 확인을 거친 [결정]이다(2026-10-22). U-09 세부 정정은 `review.decisions-2` U-09 행을 따른다.
 - 개정: 2026-10-26 `review.m3-design-inputs` D-M3-13 행 1·2·5(§3.5 단계 1.5, §3.6 규칙 5, §3.7 체크리스트 4번, §6), D-M3-16 c(서비스 소켓 인증: Unix 소켓은 파일 권한, TCP로 열 때만 토큰), D-M3-17(원격 형태 두 가지: 자체 호스트 서버에 켜 둔 호스트에 다른 기기의 데스크톱·CLI가 접속, 자기 컴퓨터에서 클라이언트가 호스트를 켬). 미결을 정한 보충이다.
 
@@ -75,10 +75,10 @@ binds: [xeon/packages/platform-process/**, xeon/apps/host/**, xeon/apps/cli/**]
 |---|---|---|---|---|
 | in-process | CLI 기본 | 메모리 채널 | CLI 프로세스 | 1차 |
 | stdio | 데스크톱(자식 엔진) | 자식 프로세스 stdin/stdout, 줄 단위 JSON | 데스크톱 앱(ADR-0008 `./ADR-0008-desktop-tauri.md`) | 1차 |
-| service | `xeon service`에 접속하는 CLI·데스크톱 | 로컬 Unix 소켓 | 서비스 프로세스 | 1차(OS 등록은 2차) |
+| service | `fresnel service`에 접속하는 CLI·데스크톱 | 로컬 Unix 소켓 | 서비스 프로세스 | 1차(OS 등록은 2차) |
 
 - [결정: review.decisions-2 U-11] 원격 사용은 1차(M3)에 넣는다. 다른 기기의 클라이언트는 service 전송의 로컬 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 전송 종류와 호스트 계약은 service와 같고, 인증은 SSH·사설망 인증과 소켓 파일 권한이 맡는다. 내장 TLS + 토큰 WebSocket 전송은 2차다. 인증서 관리와 외부 노출 위험이 큰 내장 서버 없이 원격 사용을 얻기 위해서다.
-- [결정: review.m3-design-inputs D-M3-17] M3 원격 사용 형태는 둘이다. (1) 자체 호스트 서버에서 `xeon` 호스트를 켜 두고 다른 기기의 데스크톱 앱과 CLI가 접속해 개발한다. (2) 자기 컴퓨터에서 데스크톱이나 CLI가 호스트를 켜서 쓴다. 웹 클라이언트는 M3에 넣지 않는다. 웹 UI는 M4다 [결정: 2026-10-28 사용자]. 웹·모바일 알림은 후순위다.
+- [결정: review.m3-design-inputs D-M3-17] M3 원격 사용 형태는 둘이다. (1) 자체 호스트 서버에서 `fresnel` 호스트를 켜 두고 다른 기기의 데스크톱 앱과 CLI가 접속해 개발한다. (2) 자기 컴퓨터에서 데스크톱이나 CLI가 호스트를 켜서 쓴다. 웹 클라이언트는 M3에 넣지 않는다. 웹 UI는 M4다 [결정: 2026-10-28 사용자]. 웹·모바일 알림은 후순위다.
 
 [제안] 호스트 쪽 전송 인터페이스는 다음 형태로 둔다. 메시지 타입 `HostMessage`는 F `wire-settings`가 정한다.
 
@@ -97,7 +97,7 @@ export interface HostTransport {
 export type TransportCloseReason = "peer-eof" | "local-close" | "error";
 ```
 
-### 3.4 서비스 모드 `xeon service`
+### 3.4 서비스 모드 `fresnel service`
 
 [결정] 서비스 모드는 다음 요소로 이루어진다(`_research/foundation-plan.md §1` 2번, `_research/process.md §6.2` 단계 2).
 
@@ -126,24 +126,24 @@ export type ServiceRegistration = Static<typeof ServiceRegistration>;
 
 | 명령 [제안] | 동작 | 단계 |
 |---|---|---|
-| `xeon service start` | 서비스를 `detached`로 기동한다. 이미 있으면 아무것도 하지 않는다 | 1차 |
-| `xeon service status` | 등록 파일, 도달 여부, pid, 버전, 연결 수, live task 수를 보여 준다 | 1차 |
-| `xeon service stop` | 종료 협조 절차(체크리스트 7번)로 멈춘다 | 1차 |
-| `xeon service install` / `uninstall` | launchd 사용자 에이전트 또는 systemd 사용자 유닛을 등록·해제한다. 명시 동의 뒤에만 실행한다 | 2차 |
+| `fresnel service start` | 서비스를 `detached`로 기동한다. 이미 있으면 아무것도 하지 않는다 | 1차 |
+| `fresnel service status` | 등록 파일, 도달 여부, pid, 버전, 연결 수, live task 수를 보여 준다 | 1차 |
+| `fresnel service stop` | 종료 협조 절차(체크리스트 7번)로 멈춘다 | 1차 |
+| `fresnel service install` / `uninstall` | launchd 사용자 에이전트 또는 systemd 사용자 유닛을 등록·해제한다. 명시 동의 뒤에만 실행한다 | 2차 |
 
 - CLI와 데스크톱은 서비스 사용 설정이 켜져 있으면 시작할 때 `ensure`를 부르고 service 전송으로 접속한다. 꺼져 있으면 각자의 기본 전송(in-process, stdio)을 쓴다.
 - 설정 노출: `L4.settings-ui.spec`의 "실행과 서비스" 탭에 공유 서비스 모드 켜기와 끄기를 둔다(`_research/layer-plan-v2-notes.md` "L4 설정 화면 구성안").
 
-### 3.5 단계 표와 Xeon 배치
+### 3.5 단계 표와 Fresnel 배치
 
-`_research/process.md §6.2`의 단계 0~3을 옮긴다. 마지막 열의 Xeon 배치는 [제안]이다.
+`_research/process.md §6.2`의 단계 0~3을 옮긴다. 마지막 열의 Fresnel 배치는 [제안]이다.
 
-| 단계 | 상태 | 추가되는 것 | 얻는 기능 | 아직 안 되는 것 | Xeon 배치 [제안] |
+| 단계 | 상태 | 추가되는 것 | 얻는 기능 | 아직 안 되는 것 | Fresnel 배치 [제안] |
 |---|---|---|---|---|---|
-| 0 | 데몬 없음. CLI = in-process, 앱 = 자식 엔진 | 호스트 계약, 세션 소유 잠금, 열 때 복구(§3.6) | 크래시 재개, 분기, 승인 대기 복구, 이력 검색 | 앱을 닫고 계속 실행, 예약, 다중 클라이언트 쓰기 | M1(`xeon chat` in-process) |
+| 0 | 데몬 없음. CLI = in-process, 앱 = 자식 엔진 | 호스트 계약, 세션 소유 잠금, 열 때 복구(§3.6) | 크래시 재개, 분기, 승인 대기 복구, 이력 검색 | 앱을 닫고 계속 실행, 예약, 다중 클라이언트 쓰기 | M1(`fresnel chat` in-process) |
 | 1 | 단계 0 + 자식 엔진 수명 임대 | stdin EOF 임대(opencode standalone 방식), 앱 종료 시 진행 중 턴을 안전 경계에서 멈추고 체크포인트 | 앱이 비정상 종료돼도 자식이 남지 않음. 다음 실행 때 "이어서 실행" 제안 | 앱 종료 뒤 계속 실행 | M2(데스크톱 스캐폴드와 함께) |
-| 2 | 선택 모드 `xeon service` | 등록 파일, `ensure`, 이중 기동 방지, 유휴 종료, 앱·CLI의 서비스 발견과 접속 | 앱을 닫아도 작업 지속, 앱·CLI 동시 접속, 입력 위임 | 재부팅 뒤 자동 시작, 예약, 원격 | 1차 |
-| 3 | 선택 모드: OS 서비스 등록 + 원격 | `xeon service install`(명시 동의), 예약 작업 테이블과 틱, 알림, 원격 전송(TLS + 토큰 WebSocket, 비루프백 무인증 금지) | 예약 실행, 원격·폰, 알림 | 클라우드 실행(범위 밖) | OS 등록은 2차. 예약 틱과 알림은 1차 서비스 모드 안에서 동작. 원격 사용은 1차(M3)에 SSH 터널·사설망 연결로 두고, 내장 원격 전송(TLS + 토큰 WebSocket)은 2차 [결정: review.decisions-2 U-11] |
+| 2 | 선택 모드 `fresnel service` | 등록 파일, `ensure`, 이중 기동 방지, 유휴 종료, 앱·CLI의 서비스 발견과 접속 | 앱을 닫아도 작업 지속, 앱·CLI 동시 접속, 입력 위임 | 재부팅 뒤 자동 시작, 예약, 원격 | 1차 |
+| 3 | 선택 모드: OS 서비스 등록 + 원격 | `fresnel service install`(명시 동의), 예약 작업 테이블과 틱, 알림, 원격 전송(TLS + 토큰 WebSocket, 비루프백 무인증 금지) | 예약 실행, 원격·폰, 알림 | 클라우드 실행(범위 밖) | OS 등록은 2차. 예약 틱과 알림은 1차 서비스 모드 안에서 동작. 원격 사용은 1차(M3)에 SSH 터널·사설망 연결로 두고, 내장 원격 전송(TLS + 토큰 WebSocket)은 2차 [결정: review.decisions-2 U-11] |
 
 - [결정] 불변식: 호스트 계약과 DB 스키마는 단계가 바뀌어도 변하지 않는다. 단계 전환은 엔진 프로세스를 누가 소유하는지만 바꾼다(`_research/process.md §6.2` 끝 문단).
 - [제안] 예약 틱은 서비스 프로세스 안에서 돈다. 대기 예약이 있으면 유휴 종료 조건이 성립하지 않으므로 서비스가 살아 있는 동안 예약이 실행된다. 재부팅 뒤에는 2차 OS 등록 전까지 사용자가 앱이나 CLI를 열어 `ensure`가 실행될 때 서비스가 다시 뜬다. 그 사이 놓친 예약을 따라잡을지 건너뛸지는 `L2.schedule.spec`이 정한다 [미결: L2.schedule.spec].

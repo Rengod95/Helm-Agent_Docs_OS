@@ -14,7 +14,7 @@ binds: []
 
 ## 1. 목적과 범위
 
-계획 v2 L3-d의 구성요소 3개(제2의 의도 그룹, 정책 플러그인, 그룹 템플릿)를 정한다(`_research/layer-plan-v2.json` L3-d, 세 항목 모두 2차).
+계획 v2 L3-d의 구성요소 3개(제2의 플러그인 그룹, 정책 플러그인, 그룹 템플릿)를 정한다(`_research/layer-plan-v2.json` L3-d, 세 항목 모두 2차).
 
 근거:
 
@@ -31,7 +31,7 @@ binds: []
 다루지 않는 것:
 
 - `defineGroup`, `GroupApi<S>`, `GroupService`, `DriveArbiter`, `replayDrive`의 정의: `L3.group-sdk.spec`
-- 4연산 타입, 지점 표, 매니페스트 스키마, 검증 함수: `F.extensions.spec`
+- 4연산 타입, 훅 표, 매니페스트 스키마, 검증 함수: `F.extensions.spec`
 - 확장 로딩, 신뢰 등급, 예약 키 `ext.<id>.enabled`·`ext.<id>.isolation`의 정의: `X.loading-trust.spec`
 - `fresnel group new` 명령의 실행(인자 해석, 파일 쓰기, 출력): `L4.cli.spec`
 - Helm과 학습 그룹의 내부: `L3.helm.spec`, `L3.learning.spec`
@@ -45,8 +45,8 @@ binds: []
 
 | 용어 | 뜻 |
 |---|---|
-| 의도 그룹 | `kind: "group"`, `layer: "L3"`인 확장. scope 하나로 지점 핸들러, post, drive, 상태를 묶어 켜고 끈다(`F.extensions.spec` §2) |
-| 제2의 의도 그룹 | Helm, 학습 그룹 밖에 사용자가 추가하는 의도 그룹 |
+| 플러그인 그룹 | `kind: "group"`, `layer: "L3"`인 확장. scope 하나로 지점 핸들러, post, drive, 상태를 묶어 켜고 끈다(`F.extensions.spec` §2) |
+| 제2의 플러그인 그룹 | Helm, 학습 그룹 밖에 사용자가 추가하는 플러그인 그룹 |
 | 외부 그룹 | 저장소의 `xeon/packages` 밖에서 설치되는 그룹. 설정 네임스페이스는 `ext.<id>.`다 |
 | 정책 플러그인 | drive 없이 `on`과 `post`만 쓰는 작은 확장. 상태·레코드·토글 필요에 따라 `kind: "group"` 또는 `kind: "plugin"`이다(4.2절) |
 | 정책 그룹 | `kind: "group"`인 정책 플러그인 |
@@ -57,20 +57,20 @@ binds: []
 
 ## 3. 인터페이스
 
-### 3.1 제2의 의도 그룹
+### 3.1 제2의 플러그인 그룹
 
 #### 3.1.1 그룹으로 만들지 판정하는 기준
 
-[결정] 스킬이나 일반 플러그인으로 충분한 기능은 의도 그룹으로 만들지 않는다. 모델의 행동을 코드로 막거나 구동해야 할 때만 그룹을 쓴다(`product.vision.spec` §5, §7.1).
+[결정] 스킬이나 일반 플러그인으로 충분한 기능은 플러그인 그룹으로 만들지 않는다. 모델의 행동을 코드로 막거나 구동해야 할 때만 그룹을 쓴다(`product.vision.spec` §5, §7.1).
 
 [제안] 판정 순서:
 
 | 순서 | 질문 | 예이면 |
 |---|---|---|
 | 1 | 모델에게 알려 주기만 하면 되는가(지시, 절차, 참고 지식) | 스킬. 그룹을 만들지 않는다 |
-| 2 | 새 도구나 서비스 API(다른 그룹도 쓸 수 있는 능력)가 필요한가 | L2 능력 provider 플러그인. 그룹 안에 능력을 두지 않는다(`eng.context-map.design` 3절 협력 규칙 6, CM-06) |
+| 2 | 새 도구나 서비스 API(다른 그룹도 쓸 수 있는 기능)가 필요한가 | L2 기능 provider 플러그인. 그룹 안에 기능을 두지 않는다(`eng.context-map.design` 3절 협력 규칙 6, CM-06) |
 | 3 | 도구 호출을 막거나(first), 모델 요청·결과를 바꾸거나(chain), 입력을 넣어야(post) 하는가. drive는 쓰지 않는가 | 정책 플러그인(3.2절). 상태·레코드·토글 필요로 group과 plugin을 고른다(4.2.1) |
-| 4 | 여러 턴에 걸친 진행(단계, 병렬 서브에이전트, 결과 커밋 뒤 적용 턴)을 런타임이 구동해야 하는가 | drive 의도 그룹(drive 템플릿) |
+| 4 | 여러 턴에 걸친 진행(단계, 병렬 서브에이전트, 결과 커밋 뒤 적용 턴)을 런타임이 구동해야 하는가 | drive 플러그인 그룹(drive 템플릿) |
 | 5 | 관찰과 기록만 하는가(카운터, 신호, 레코드 공개) | 관찰 전용 그룹(observe 템플릿). 토글과 레코드가 필요 없으면 plugin |
 
 #### 3.1.2 그룹 추가 체크리스트
@@ -86,7 +86,7 @@ binds: []
 | C5 | 설정 키는 `ext.<id>.<이름>`만 쓴다. `enabled`, `isolation`은 선언하지 않는다(X 로더 예약) | `buildCatalog`(`foreignNamespace`, `duplicateKey`) |
 | C6 | 단위 테스트: 각 핸들러의 결정·패치, 켜기·끄기, 설정 기본값 | `bun test` |
 | C7 | 재생 테스트: drive 그룹이면 `replayDrive`로 모든 커밋 지점에서 끊고 재개한다 | `replayDrive`(`L3.group-sdk.spec`) |
-| C8 | 다른 그룹 패키지를 import하지 않는다. 능력은 `requires`·`optional`과 `g.capability(ServiceKey)`로 쓴다 | check-layers `DR-02`, `validateUsage`(`capability_undeclared`) |
+| C8 | 다른 그룹 패키지를 import하지 않는다. 기능은 `requires`·`optional`과 `g.capability(ServiceKey)`로 쓴다 | check-layers `DR-02`, `validateUsage`(`capability_undeclared`) |
 | C9 | `contracts`, `ext-host`, `platform-*`, `core-*`를 수정하지 않는다 | 변경 diff 검사(`product.vision.spec` S1) |
 
 #### 3.1.3 공존 규칙
@@ -94,7 +94,7 @@ binds: []
 - [결정] drive 임대는 한 번에 그룹 하나만 가진다. on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4).
 - [제안] drive 그룹이 둘 이상 켜지면 임대는 `DriveArbiter`(`L3.group-sdk.spec`)의 정책과 `x.primitives.activeDriveGroup` 설정에 따라 한 그룹에 간다. 임대를 받지 못한 그룹은 대기하고, 그동안 on 핸들러와 post는 동작한다. 대기와 거부 가운데 기본 동작의 확정은 `L3.group-sdk.spec`의 [미결]을 따른다.
 - [결정] 그룹 사이 통신은 F4 스키마가 있는 레코드로만 한다(`F.extensions.spec` §4.8). 다른 그룹의 비공개 상태와 기록(`x_<id>_*` 테이블, `grp.<id>.state.committed`, `recordPrivate`로 쓴 `grp.<id>.*`)은 읽지 않는다.
-- 핸들러 실행 순서(tier)는 `X.primitives.spec`이 정한다. 새 그룹은 순서에 기대는 동작을 만들지 않는다 [제안]. 예: first 지점에서 다른 그룹보다 먼저 결정해야 동작하는 정책.
+- 핸들러 실행 순서(tier)는 `X.primitives.spec`이 정한다. 새 그룹은 순서에 기대는 동작을 만들지 않는다 [제안]. 예: first 훅에서 다른 그룹보다 먼저 결정해야 동작하는 정책.
 
 #### 3.1.4 외부 그룹의 신뢰와 설정 네임스페이스
 
@@ -117,8 +117,8 @@ binds: []
 | P1 | 매니페스트 `usesDrive: false`. `drive`를 호출하지 않는다 |
 | P2 | 상태는 선택이다. 상태가 있으면 `kind: "group"`으로 둔다(4.2.1) |
 | P3 | 쓰는 연산은 `on`과 `post`다. 레코드 공개가 필요하면 `record`를 더한다 |
-| P4 | 지점 fold별 용도: tap은 관찰, first는 차단, chain은 형성(`F.extensions.spec` §2, `_research/layer-plan-v2-notes.md` 확장 지점 절) |
-| P5 | 지점 종류 5종(input, request, tool, boundary, session) 모두 쓸 수 있다. 정식 예는 input, tool, boundary 지점을 쓴다 |
+| P4 | 지점 fold별 용도: tap은 관찰, first는 차단, chain은 형성(`F.extensions.spec` §2, `_research/layer-plan-v2-notes.md` 훅 절) |
+| P5 | 훅 종류 5종(input, request, tool, boundary, session) 모두 쓸 수 있다. 정식 예는 input, tool, boundary 훅을 쓴다 |
 | P6 | 핸들러는 다시 실행해도 되는 질의다. 외부 효과는 `post`(멱등 키 필수), `commit`, `record`로만 낸다(`F.extensions.spec` §4.3) |
 | P7 | first 핸들러의 예외는 그 지점의 거부값(`FIRST_DENY`)이 된다. 정책은 의도하지 않은 거부를 막으려면 예외를 안에서 잡고 결정으로 바꾼다 |
 
@@ -255,7 +255,7 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
 | 도구 호출 가드 | 도구 실행 직전. `tool.call.before` 지점의 결정 뒤 실행이 남은 호출만 받는다 [제안] | first(차단 결정) | fail-closed |
 | 출력 가드 | 모델 출력이 사용자에게 표시되거나 다른 실행 경로(명령, 산출물 적용)로 넘어가기 직전 | first(차단 결정) | fail-closed |
 
-- 지점 이름은 ADR-0017의 자체 이름 규칙으로 M3 F 첫 작업이 정한다. 아래 코드는 F 상수 `GUARD_HOOKS`(`request`, `tool`, `output`) [제안]로 이름을 가리킨다.
+- 훅 이름은 ADR-0017의 자체 이름 규칙으로 M3 F 첫 작업이 정한다. 아래 코드는 F 상수 `GUARD_HOOKS`(`request`, `tool`, `output`) [제안]로 이름을 가리킨다.
 - 가드 지점의 결정은 차단 하나다(`{ block: true, reason }`). 값을 바꾸지 않는다. 핸들러 예외와 결정 스키마 위반은 차단으로 처리한다.
 
 참고한 사실과 판정 모델(`_research/item-catalog.md` 121~123행, `_research/ext-points.md` §4.5):
@@ -518,7 +518,7 @@ export const __ID__Settings: SettingGroup<"ext.__ID__", { blockedTools: SettingD
 ```
 
 - drive 템플릿은 `"usesDrive": true`, `"points": ["boundary.settle.after"]`, observe 템플릿은 `"points": ["boundary.settle.after"]`, `"recordKinds"`에 `grp.__ID__.turn.counted` 선언을 둔다.
-- 관찰 지점 권장안 [제안]: 관찰은 tap 지점(`boundary.settle.after`, 도구 단위가 필요하면 `tool.execution.after`)에서 하고 상태 커밋은 turn당 한 번(`boundary.settle.after`)으로 둔다. `boundary.step.after`는 chain이고 경계 엔트리를 다루는 지점이라 관찰 자리로 쓰지 않는다(`L3.helm.spec` §7, `L3.group-sdk.spec` §4.5 4번).
+- 관찰 지점 권장안 [제안]: 관찰은 tap 훅(`boundary.settle.after`, 도구 단위가 필요하면 `tool.execution.after`)에서 하고 상태 커밋은 turn당 한 번(`boundary.settle.after`)으로 둔다. `boundary.step.after`는 chain이고 경계 엔트리를 다루는 지점이라 관찰 자리로 쓰지 않는다(`L3.helm.spec` §7, `L3.group-sdk.spec` §4.5 4번).
 - `plugin.json` JSON import에는 템플릿 `tsconfig.json`의 `resolveJsonModule`이 필요하다 [가정: `tsconfig.base.json`이 켜 두지 않으면 템플릿 쪽에서 켠다].
 - [제안] 템플릿의 `defaultEnabled`는 `false`다. 새 그룹은 사용자가 켜기 전에는 루프에 영향을 주지 않는다.
 
@@ -577,7 +577,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 ## 4. 동작 규칙
 
-### 4.1 제2의 의도 그룹
+### 4.1 제2의 플러그인 그룹
 
 - 새 그룹은 3.1.2 체크리스트 C1~C9를 모두 통과해야 기본 그룹과 같은 경로로 로드된다.
 - [결정] 켜기·끄기는 단계 경계에서 적용되고 정리는 Cordis dispose로 실행된다(`F.extensions.spec` §4.5). 새 그룹도 예외가 없다.
@@ -593,7 +593,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | 필요 | 이유 |
 |---|---|
 | scope 상태 | 상태 문서와 마이그레이션은 그룹 기반(`defineGroup`)의 `StateDecl` 경로로 다룬다 |
-| 그룹 레코드 공개 | `recordKinds`의 접두가 `grp.<id>.`이어야 다른 그룹이 의도 그룹 레코드로 읽는다 |
+| 그룹 레코드 공개 | `recordKinds`의 접두가 `grp.<id>.`이어야 다른 그룹이 플러그인 그룹 레코드로 읽는다 |
 | `/group` 토글과 상태줄 표시 | `GroupService`(`fresnel.groups`)는 `kind: "group"`만 목록에 올린다 [가정] |
 
 - 플러그인도 scope를 하나 만들고 `ext.<id>.enabled`로 켜고 끈다(`F.extensions.spec` §3.2 마지막 항목). 차이는 그룹 기반 기능(`GroupApi`의 `settings()`, `delegate`, `metrics`, `/group` 명령)을 쓰는지다.
@@ -646,8 +646,8 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | 3 | 그룹 이름에 밑줄이나 대문자가 있거나, 예약 이름임 | 생성 명령이 거부한다. 직접 쓴 매니페스트는 X 로더가 확장 id 규칙(review.decisions-2 U-18)과 `RESERVED_EXT_IDS`로 거부한다(CM-07) |
 | 4 | 정책 플러그인(`kind: "plugin"`)이 `usesDrive: true`를 선언함 | `validateManifest`가 `drive_requires_group` 오류를 낸다 |
 | 5 | 정책 그룹이 `usesDrive: false`인데 `g.drive`를 호출함 | `validateUsage`가 `drive_undeclared` 오류를 낸다. 로드가 실패한다 |
-| 6 | 정책이 first 지점(`tool.call.before`)에서 예외를 냄 | 그 도구 호출은 `FIRST_DENY.tool_call`로 거부된다(fail-closed). 뒤 핸들러는 실행되지 않는다 |
-| 7 | 정책이 chain 지점에서 예외를 냄 | 그 핸들러의 패치만 버린다. reviewgate면 그 턴은 검토 없이 정착한다 |
+| 6 | 정책이 first 훅(`tool.call.before`)에서 예외를 냄 | 그 도구 호출은 `FIRST_DENY.tool_call`로 거부된다(fail-closed). 뒤 핸들러는 실행되지 않는다 |
+| 7 | 정책이 chain 훅에서 예외를 냄 | 그 핸들러의 패치만 버린다. reviewgate면 그 턴은 검토 없이 정착한다 |
 | 8 | `reviewgate`의 `continue`를 L1이 승인하지 않음(`canContinue` 거짓) | 검토 입력은 큐에 남는다. 다음 입력과 함께 모델에 들어간다 |
 | 9 | 두 정책 그룹이 같은 `tool.call.before`에 first 핸들러를 둠 | 순서상 먼저 결정한 쪽이 결과를 정한다. 순서는 `X.primitives.spec`의 tier 규칙이다 |
 | 10 | 템플릿의 설정 파일이 `ext.__ID__.enabled`를 선언함 | 예약 키라 거부된다(`F.wire-settings.spec` §3.8.3 규칙 1). 템플릿은 이 키를 두지 않는다 |
@@ -666,7 +666,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 - `SettingDef.ui.tab`은 `"plugins"`로 고정한다. `layer`는 매니페스트 `layer`를 따른다(group은 `"L3"`, plugin은 [가정] `"L2"`)(`F.wire-settings.spec` §3.8.3).
 - 정책 설정의 `runtimeChange`는 `"nextTurn"`을 기본으로 한다 [제안]. 핸들러가 디스패치마다 `g.settings()`를 읽으므로 다음 턴부터 반영된다.
 
-## 7. 확장 지점
+## 7. 훅
 
 | 구성요소 | on (지점, fold) | post | drive | scope |
 |---|---|---|---|---|
@@ -677,7 +677,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | commitguard | `tool.call.before`(first), `tool.result`(chain) | 안 씀 | 안 씀 | 상태 있음 |
 | guardrail | 가드 지점 셋(first, fail-closed) | 씀 | 안 씀 | 상태 없음(plugin) |
 
-- 지점 이름과 fold는 `F.extensions.spec` §3.4 표를 따른다. 정식 예가 쓰는 지점은 `boundary.settle.after`를 빼면 모두 M1 정확화 지점이다(`input.user.before`, `tool.call.before`, `tool.result`, `boundary.settle.before`; `boundary.settle.after`도 M1 ●). `guardrail`이 쓰는 가드 지점 셋은 M3 F 작업이 더한다(ADR-0017).
+- 훅 이름과 fold는 `F.extensions.spec` §3.4 표를 따른다. 정식 예가 쓰는 지점은 `boundary.settle.after`를 빼면 모두 M1 정확화 지점이다(`input.user.before`, `tool.call.before`, `tool.result`, `boundary.settle.before`; `boundary.settle.after`도 M1 ●). `guardrail`이 쓰는 가드 지점 셋은 M3 F 작업이 더한다(ADR-0017).
 
 ## 8. 다른 문서와의 인터페이스
 

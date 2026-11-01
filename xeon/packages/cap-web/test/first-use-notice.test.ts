@@ -28,7 +28,7 @@ afterEach(releaseStores);
 const SPA = new Uint8Array(readFileSync(new URL("./fixtures/html/spa.html", import.meta.url)));
 const HTML = { "content-type": "text/html; charset=utf-8" };
 
-/** 인증 방식이 헤더 비밀인 플러그인 매니페스트 */
+/** 인증 방식이 헤더 시크릿인 플러그인 매니페스트 */
 function keyed(name: string, services: WebProviderManifest["services"]): WebProviderManifest {
   return fakeManifest(name, {
     services,

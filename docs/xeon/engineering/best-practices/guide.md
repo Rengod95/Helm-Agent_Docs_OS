@@ -10,7 +10,7 @@ binds: [xeon/**]
 
 # 모범 사례: 기본 선택 규칙
 
-Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 문서다. 규칙마다 이유, 좋은 예, 나쁜 예를 둔다. 같은 주제의 잘못된 모양은 `eng.anti-patterns.guide`(`../anti-patterns/guide.md`)에 있고, 짝이 되는 항목을 규칙마다 링크한다.
+Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 문서다. 규칙마다 이유, 좋은 예, 나쁜 예를 둔다. 같은 주제의 잘못된 모양은 `eng.anti-patterns.guide`(`../anti-patterns/guide.md`)에 있고, 짝이 되는 항목을 규칙마다 링크한다.
 
 ## 1. 적용 범위
 
@@ -24,7 +24,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
   - 층 순위와 import 규칙은 `eng.dependency-rules.guide`(`../dependency-rules/guide.md`)가 정한다.
   - 이 문서는 위 규칙을 바꾸지 않는다. 위 문서와 다르게 읽히는 곳이 있으면 위 문서가 앞선다.
 - 예제 표기:
-  - [가정] 예제의 확장 지점 이름(`tool.call.before`, `tool.result`, `boundary.step.after`, `input.agent.before`, `tool.execution.after`)은 `F.extensions.spec` §3.4 표의 이름이다. 지점 이름 목록과 fold는 `F.extensions.spec`이 정한다(ADR-0007 §3.3).
+  - [가정] 예제의 훅 이름(`tool.call.before`, `tool.result`, `boundary.step.after`, `input.agent.before`, `tool.execution.after`)은 `F.extensions.spec` §3.4 표의 이름이다. 훅 이름 목록과 fold는 `F.extensions.spec`이 정한다(ADR-0007 §3.3).
   - [가정] `scope`, `GroupApi`, `LoopHandle`, `Deny`, `PostWhen`, `ScopeId`는 ADR-0007 §3.7 인터페이스 초안의 이름이다. 최종 이름은 `X.primitives.spec`이 정한다. 멱등 키 `requestId`는 브랜드 없는 문자열이다(`F.conversation.spec` §3.5).
   - [가정] `Result`, `ok`, `err`는 `eng.typescript.guide`가 정한 이름이다. 예제는 `{ ok: true; value } | { ok: false; error }` 모양을 쓴다.
   - 이벤트 kind 이름과 envelope 필드(`kind`, `version`, `threadId`, `payload`, `recordedAt`)는 `F.records.spec` §3.1~§3.3과 `eng.events.design` 4.1·4.4·4.5절을 따른다. 쓰기 경로는 `SessionService.commit`이다(`eng.transactions.design` 4.2절, `L1.persistence.spec` §3.3).
@@ -37,11 +37,11 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 |---|---|---|
 | [BP-01](#bp-01) | 계약 먼저: F 타입·스키마부터 정한다 | AP-C-01, AP-C-10, AP-A-02 |
 | [BP-02](#bp-02) | 작은 순수 함수 + 얇은 어댑터, 부수효과는 L0 인터페이스 뒤 | AP-C-04, AP-C-06, AP-S-05, AP-S-10 |
-| [BP-03](#bp-03) | 확장 지점은 선택 표로 고른다 | AP-A-03, AP-A-04, AP-A-07, AP-A-08, AP-A-09 |
+| [BP-03](#bp-03) | 훅은 선택 표로 고른다 | AP-A-03, AP-A-04, AP-A-07, AP-A-08, AP-A-09 |
 | [BP-04](#bp-04) | 예상 가능한 실패는 `Result`, 오류는 `kind` 판별 유니온 | AP-C-02, AP-C-03, AP-C-10, AP-C-11, AP-S-06 |
 | [BP-05](#bp-05) | 의존은 Cordis 서비스로 주입, 시간·ID·난수·Logger도 주입 | AP-A-06, AP-C-04, AP-C-05 |
 | [BP-06](#bp-06) | 설정은 F `wire-settings` 스키마 키로 읽고 기본값은 스키마에 둔다 | AP-A-05 |
-| [BP-07](#bp-07) | 비밀은 참조로 쓰고 값을 출력·로그에 남기지 않는다 | AP-C-08 |
+| [BP-07](#bp-07) | 시크릿은 참조로 쓰고 값을 출력·로그에 남기지 않는다 | AP-C-08 |
 | [BP-08](#bp-08) | 이벤트는 과거형 사실, 큰 값은 blob 참조, 투영은 같은 트랜잭션 | AP-S-01, AP-S-02, AP-S-03, AP-A-04 |
 | [BP-09](#bp-09) | 공개 API는 작게, 서브패스 export로 노출 | AP-A-01, AP-S-04 |
 | [BP-10](#bp-10) | 문서와 코드는 같은 변경에서 고친다 | (없음) |
@@ -53,8 +53,8 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
 - 규칙: 새 기능은 `xeon/packages/contracts`(F)에 TypeBox 스키마와 타입을 먼저 정한다. 구현 패키지는 그 타입을 import해서 쓴다. 경계에서 들어오는 값(도구 인자, 이벤트 `payload`, 설정)은 그 스키마로 검증한다. 그룹의 비공개 레코드(`grp.<그룹>.*`) 스키마는 F에 두지 않고 그 그룹이 소유한다([결정: review.decisions-2 D-10]).
 - 이유:
-  - 같은 층 협력은 F 정의를 통해서만 한다. 그룹 사이 정보는 L2 능력의 레코드와 서비스로 주고받는다(`_research/foundation-plan.md §3`, `architecture.layers.spec §3.1`). F에 타입이 없으면 같은 층 패키지가 서로를 import하게 된다.
-  - 확장 지점 선언(이름, fold, 페이로드 타입)도 F4에 둔다(ADR-0007 §3.3). L1과 X가 같은 선언을 공유한다.
+  - 같은 층 협력은 F 정의를 통해서만 한다. 그룹 사이 정보는 L2 기능의 레코드와 서비스로 주고받는다(`_research/foundation-plan.md §3`, `architecture.layers.spec §3.1`). F에 타입이 없으면 같은 층 패키지가 서로를 import하게 된다.
+  - 훅 선언(이름, fold, 페이로드 타입)도 F4에 둔다(ADR-0007 §3.3). L1과 X가 같은 선언을 공유한다.
   - `isolatedDeclarations` 아래에서 `export const X = Type.Object(...)`는 TS9010으로 실패한다. 공개 스키마는 명시 타입 주석을 단다(`_research/notes/eng-2.md` Compile 항목). 세부는 `eng.typescript.guide`와 `eng.domain-types.guide`가 정한다.
 - 좋은 예:
 
@@ -104,7 +104,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
     return call.name === "write" || call.name === "edit" || (call.name === "bash" && !isReadOnlyCommand(call.args));
   }
 
-  // 어댑터: 판정 결과를 확장 지점 반환값으로 바꾼다
+  // 어댑터: 판정 결과를 훅 반환값으로 바꾼다
   export function setup(g: GroupApi<HelmState>) {
     g.on("tool.call.before", (call, st) => (st.phase === "diverge" && isWriteCall(call) ? { deny: "helm.readonly_phase" } : undefined));
   }
@@ -124,7 +124,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 - 짝: [AP-C-04](../anti-patterns/guide.md#ap-c-04), [AP-C-06](../anti-patterns/guide.md#ap-c-06), [AP-S-05](../anti-patterns/guide.md#ap-s-05), [AP-S-10](../anti-patterns/guide.md#ap-s-10).
 
 <a id="bp-03"></a>
-### BP-03 확장 지점은 선택 표로 고른다
+### BP-03 훅은 선택 표로 고른다
 
 - 규칙: 확장(L3 그룹, 플러그인)이 루프에 개입할 때는 아래 표에서 목적에 맞는 연산 하나를 고른다. 위 행으로 해결되면 아래 행을 쓰지 않는다. 표에 없는 경로(DB 직접 쓰기, 루프 내부 객체 변경)는 쓰지 않는다.
 
@@ -234,7 +234,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
   - Cordis 직접 사용은 `ext-host`에 한정된다. 다른 패키지는 ext-host 래퍼가 넘긴 `deps`만 본다.
 - 이유:
   - [결정] DI는 Cordis 하나다(ADR-0002 §3). 현재 lint 설정도 `cordis` import를 `packages/ext-host` 밖에서 막는다(`xeon/.oxlintrc.json`).
-  - 주입된 시계와 ID는 재생과 테스트를 결정적으로 만든다. 구동 프로그램에서 `Date.now()`·`Math.random()`을 금지해 결정적 재생으로 재개하는 선례가 있다(`_research/ref-synthesis.md` "확장 지점" 4번).
+  - 주입된 시계와 ID는 재생과 테스트를 결정적으로 만든다. 구동 프로그램에서 `Date.now()`·`Math.random()`을 금지해 결정적 재생으로 재개하는 선례가 있다(`_research/ref-synthesis.md` "훅" 4번).
   - `Clock`, `Scheduler`, `RandomSource`, `IdFactory`의 이름과 위치는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06이 정했다. 운영 구현은 `Clock`·`Scheduler`·`RandomSource`가 L0 `platform-os`다. `IdFactory` 인터페이스는 `F.conversation.spec` §3.2에 있고, 구현(`createIdFactory`)은 `platform-os`다. 테스트 구현 `manualClock`, `seededRandom`, `fixedIdFactory`는 각 패키지 `test/` 안에 둔다(`eng.testing.guide` TS-03, [결정: review.decisions-2 U-03]).
   - `Logger` 인터페이스는 F 루트 base에 둔다(`F.readme` §3). 메서드 모양은 `L0.os.spec`이 확정한다.
 - 좋은 예:
@@ -298,7 +298,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
   ```ts
   export function createToolRunner() {
-    const limit = Number(process.env.XEON_MAX_TOOLS ?? 4);   // 스키마 밖 키, 기본값 하드코딩
+    const limit = Number(process.env.FRESNEL_MAX_TOOLS ?? 4);   // 스키마 밖 키, 기본값 하드코딩
     return (calls: readonly ToolCall[]) => runWithLimit(calls, limit);
   }
   ```
@@ -306,15 +306,15 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 - 짝: [AP-A-05](../anti-patterns/guide.md#ap-a-05)(데몬 주소 같은 환경 전제를 코드에 두는 문제).
 
 <a id="bp-07"></a>
-### BP-07 비밀은 참조로 쓰고 값을 출력·로그에 남기지 않는다
+### BP-07 시크릿은 참조로 쓰고 값을 출력·로그에 남기지 않는다
 
 - 규칙:
-  - 코드, 설정, 모델 컨텍스트, 이벤트에는 비밀 참조(`secret://<name>`)만 둔다.
-  - 값이 필요한 곳은 비밀 서비스에서 lease를 받아 그 안에서만 쓴다. 값을 변수에 오래 두거나 다른 객체로 복사하지 않는다.
+  - 코드, 설정, 모델 컨텍스트, 이벤트에는 시크릿 참조(`secret://<name>`)만 둔다.
+  - 값이 필요한 곳은 시크릿 서비스에서 lease를 받아 그 안에서만 쓴다. 값을 변수에 오래 두거나 다른 객체로 복사하지 않는다.
   - 로그와 오류에는 참조 이름만 남긴다.
   - 새 키 등록은 작업 규칙의 `just secret-add <키> [env]`로 한다.
 - 이유:
-  - [결정] 비밀 기본값은 SOPS(age)이고, 에이전트는 값을 모른 채 참조로 쓴다(`_research/decisions-log.md` 2차). age 키는 `SOPS_AGE_KEY_CMD`로 OS 키체인에서 읽는다(`_research/foundation-plan.md §2` 비밀 행).
+  - [결정] 시크릿 기본값은 SOPS(age)이고, 에이전트는 값을 모른 채 참조로 쓴다(`_research/decisions-log.md` 2차). age 키는 `SOPS_AGE_KEY_CMD`로 OS 키체인에서 읽는다(`_research/foundation-plan.md §2` 시크릿 행).
   - 참조 형식과 lease 인터페이스는 `_research/secrets.md §6.1`과 공급자 인터페이스 초안을 따른다. 확정은 `L0.secrets.spec`이 한다.
 - 좋은 예:
 
@@ -349,7 +349,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
   - 큰 값(도구 출력, 이미지, 파일 내용)은 blob으로 빼고 이벤트에는 `BlobRef`만 둔다. blob 파일은 커밋 전에 쓴다(`eng.events.design` EV-04, `eng.transactions.design` TX-04).
   - 세션 쓰기는 `SessionService.commit` 한 경로로만 한다(`eng.transactions.design` TX-07). 투영(`p_*`, `cap_*`, `x_*`)은 그 커밋 안에서 투영기가 같은 트랜잭션으로 갱신한다. 코드가 투영 테이블에 직접 쓰지 않는다. 투영은 이벤트에서 다시 만들 수 있어야 한다.
   - 스트리밍 델타는 휘발 이벤트(`session.emitVolatile`, kind `item.updated`)로만 흘린다.
-  - 확장 기록은 `x.<extId>.*`(플러그인)·`grp.<groupId>.*`(의도 그룹) 이벤트로 남기고, 같은 DB의 `x_<확장 id의 '-'를 '_'로>_*` 테이블은 그 확장의 투영기만 쓴다(`eng.context-map.design` 5.1·5.2절).
+  - 확장 기록은 `x.<extId>.*`(플러그인)·`grp.<groupId>.*`(플러그인 그룹) 이벤트로 남기고, 같은 DB의 `x_<확장 id의 '-'를 '_'로>_*` 테이블은 그 확장의 투영기만 쓴다(`eng.context-map.design` 5.1·5.2절).
 - 이유:
   - [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블이다. 큰 출력은 blob + 해시, 토큰 델타는 저장하지 않는다(ADR-0004 §3.1~§3.3).
   - 이벤트는 이미 일어난 일의 기록이라 재생 때 다시 실행하지 않는다. 재생 규칙과 내구·휘발 구분은 `eng.events.design`이 정한다.
@@ -444,8 +444,8 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
   ```text
   변경 1개 (한 커밋):
-    xeon/packages/contracts/src/extensions/points.ts   지점 `before_subagent_spawn` 추가
-    docs/xeon/F/extensions/spec.md                      §3 지점 표에 한 행 추가, 수용 기준 1줄 추가
+    xeon/packages/contracts/src/extensions/hooks.ts   지점 `before_subagent_spawn` 추가
+    docs/xeon/F/extensions/spec.md                      §3 훅 표에 한 행 추가, 수용 기준 1줄 추가
     just docs-route --check                             → 오류 0
   ```
 
@@ -491,7 +491,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 - 규칙:
   - L0·L1 패키지는 주입받은 `Logger` 인터페이스만 쓴다. `console`과 로거 라이브러리를 import하지 않는다. L2·L3도 같은 방식을 기본으로 한다 [제안].
   - 로그 메시지는 고정된 이벤트 이름(`turn.finished`)이고, 값은 구조화 필드로 넘긴다. 문자열 보간으로 메시지를 만들지 않는다.
-  - 필드에는 세션 ID, 턴 번호, 도구 호출 ID처럼 상관관계를 찾을 수 있는 값을 넣는다. 비밀 값은 넣지 않는다(BP-07).
+  - 필드에는 세션 ID, 턴 번호, 도구 호출 ID처럼 상관관계를 찾을 수 있는 값을 넣는다. 시크릿 값은 넣지 않는다(BP-07).
   - 로거 구현과 출력 위치(파일, stderr, 데스크톱 UI)는 L4 진입점이 정한다.
 - 이유:
   - CLI in-process, 데스크톱 사이드카(stdio JSON-RPC), 서비스 모드는 출력 위치가 다르다(`_research/foundation-plan.md §1` 3번, ADR-0006). stdout에 쓰는 `console.log`는 사이드카 프로토콜과 섞인다.
@@ -519,7 +519,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
   const log = pino();                                                   // 모듈마다 로거 생성
   export function onToolDone(call: ToolCall, ms: number) {
     log.info(`tool ${call.name} finished in ${ms}ms`);                  // 문자열 보간
-    console.log("args", JSON.stringify(call.args));                     // 인자에 비밀 참조가 풀려 있을 수 있다
+    console.log("args", JSON.stringify(call.args));                     // 인자에 시크릿 참조가 풀려 있을 수 있다
   }
   ```
 
@@ -554,7 +554,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
 ## 5. 미결 사항
 
-- [미결] 확장 지점 이름 목록. 예제의 `tool.call.before`, `tool.result`, `boundary.step.after`, `input.agent.before`, `tool.execution.after`는 [가정]이며 `F.extensions.spec`이 확정한다. fold에 `collect`를 더할지도 같은 문서에서 정한다(`_research/notes/F-1.md §7`).
+- [미결] 훅 이름 목록. 예제의 `tool.call.before`, `tool.result`, `boundary.step.after`, `input.agent.before`, `tool.execution.after`는 [가정]이며 `F.extensions.spec`이 확정한다. fold에 `collect`를 더할지도 같은 문서에서 정한다(`_research/notes/F-1.md §7`).
 - `Logger` 인터페이스는 F 루트 base(`F.readme` §3 루트 진입점)에 있고 운영 구현은 `platform-os`다. BP-05, BP-12 예제의 메서드 모양은 `L0.os.spec`이 확정한다. `Clock`, `Scheduler`, `IdFactory`, `RandomSource`는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06이 정했다([결정: review.decisions-2 U-03]).
 - [미결] BP-12를 L2·L3까지 강제할지(현재 [제안]).
 - [미결] BP-11의 "한 PR"이 커밋 단위 로컬 작업(push 전)에도 적용되는지.

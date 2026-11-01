@@ -1,6 +1,6 @@
 // `LoopService.runUserBash`의 시험용 얇은 껍데기. core-loop의 `runUserBash`는 아직 오류 값을 돌려주는 자리표시라(F.8, L1.loop 작업)
 // 그 아래 실제 경로를 확인할 수 없다. 이 껍데기는 loop가 할 일 가운데 turn 문맥 만들기와 결과 옮기기만 하고, 정책 평가, `tool.call.before` 지점,
-// 효과 3단 기록, 도구 실행은 core-tools의 실제 `ToolService.runUserShell`이 한다. 셸 능력(`workspace.shell`)만 대역 프로브다.
+// 효과 3단 기록, 도구 실행은 core-tools의 실제 `ToolService.runUserShell`이 한다. 셸 기능(`workspace.shell`)만 대역 프로브다.
 import { Bug, ok } from "@fresnel/contracts";
 import {
   WorkspaceShell,
@@ -24,7 +24,7 @@ export interface RealUserBash {
   readonly loop: Pick<LoopService, "runUserBash">;
   readonly session: FakeSession;
   readonly l1: RealTools;
-  /** 셸 능력이 받은 명령 */
+  /** 셸 기능이 받은 명령 */
   readonly commands: string[];
   /** 다음 실행의 출력과 종료 코드 */
   reply(output: string, exitCode?: number): void;

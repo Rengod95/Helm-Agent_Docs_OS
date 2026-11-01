@@ -220,7 +220,14 @@ export const THREAD_HOOK_TAILS = [
   "prompt\\.after",
 ] as const;
 
-const NO_MOCKUPS = ["xeon/apps/desktop/mockups/"] as const;
+/** 마일스톤 검토 기록은 제품 이름도 당시 그대로 둔다 */
+const NO_REVIEW = ["xeon/apps/desktop/mockups/", "docs/xeon/review/"] as const;
+/** 기록 문서(마일스톤 계획·검토·결정)는 용어도 당시 이름 그대로 둔다 */
+const NO_RECORDS = [
+  "xeon/apps/desktop/mockups/",
+  "docs/xeon/review/",
+  "docs/xeon/decisions/",
+] as const;
 
 export const CATEGORIES: readonly Category[] = [
   {
@@ -320,16 +327,16 @@ export const CATEGORIES: readonly Category[] = [
       {
         pattern: new RegExp("(?<![A-Za-z])Xeon(?![a-z])", "g"),
         replace: "Fresnel",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
-      { pattern: new RegExp("(?<![A-Za-z])xeon", "g"), replace: "fresnel", skip: NO_MOCKUPS },
+      { pattern: new RegExp("(?<![A-Za-z])xeon", "g"), replace: "fresnel", skip: NO_REVIEW },
       {
         pattern: new RegExp("(?<![A-Za-z])XEON(?![A-Z])", "g"),
         replace: "FRESNEL",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
-      { pattern: new RegExp("(?<=[a-z])Xeon", "g"), replace: "Fresnel", skip: NO_MOCKUPS },
-      { pattern: new RegExp("(?<=[a-z])xeon(?![a-z])", "g"), replace: "fresnel", skip: NO_MOCKUPS },
+      { pattern: new RegExp("(?<=[a-z])Xeon", "g"), replace: "Fresnel", skip: NO_REVIEW },
+      { pattern: new RegExp("(?<=[a-z])xeon(?![a-z])", "g"), replace: "fresnel", skip: NO_REVIEW },
     ],
   },
   {
@@ -340,7 +347,7 @@ export const CATEGORIES: readonly Category[] = [
       {
         pattern: /(?<![A-Za-z0-9_])[A-Za-z0-9_]*(?:Point|POINT)[A-Za-z0-9_]*/g,
         replace: (matched) => hookIdentifier(matched),
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
     ],
   },
@@ -352,7 +359,7 @@ export const CATEGORIES: readonly Category[] = [
       {
         pattern: new RegExp(`(?<=["'\`])session\\.(${THREAD_HOOK_TAILS.join("|")})(?=["'\`])`, "g"),
         replace: "thread.$1",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /(?<=\bkind: |\| )"session"/g,
@@ -457,35 +464,35 @@ export const CATEGORIES: readonly Category[] = [
       {
         pattern: /(?<="(?:managed|user|project|local)"(?:, | \| ))"session"/g,
         replace: '"launch"',
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /"session"(?=(?:, | \| )"(?:managed|user|project|local)")/g,
         replace: '"launch"',
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /\bscope(: ?| === | !== | == | != )"session"/g,
         replace: (_m, op) => `scope${op}"launch"`,
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /Exclude<SettingScope, "session">/g,
         replace: 'Exclude<SettingScope, "launch">',
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       // 줄을 나눠 적은 범위 목록: local 다음 줄의 "session", managed 다음 줄의 "session"
       {
         pattern: /(Type\.Literal\("local"\),\n\s*)Type\.Literal\("session"\)/g,
         replace: '$1Type.Literal("launch")',
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /(TLiteral<"local">,\n\s*)TLiteral<"session">/g,
         replace: '$1TLiteral<"launch">',
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
-      { pattern: /("managed",\n\s*)"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
+      { pattern: /("managed",\n\s*)"session"/g, replace: '$1"launch"', skip: NO_REVIEW },
       // 문서 표의 따옴표 없는 범위 목록: managed, user, local, session
       {
         pattern: /(?<=\b(?:managed|user|project|local), )session(?![A-Za-z0-9_])/g,
@@ -500,16 +507,16 @@ export const CATEGORIES: readonly Category[] = [
       {
         pattern: /(?<=[sS]copes(?:\([^()]*\))?\)?(?:\.not)?\.toContain\()"session"/g,
         replace: '"launch"',
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
-      { pattern: /(?<=\.\.\.[A-Z_]*SCOPES, )"session"/g, replace: '"launch"', skip: NO_MOCKUPS },
-      { pattern: /\bscopes: \["session"/g, replace: 'scopes: ["launch"', skip: NO_MOCKUPS },
-      { pattern: /(\blayer\()"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
-      { pattern: /(\bKEY, )"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
+      { pattern: /(?<=\.\.\.[A-Z_]*SCOPES, )"session"/g, replace: '"launch"', skip: NO_REVIEW },
+      { pattern: /\bscopes: \["session"/g, replace: 'scopes: ["launch"', skip: NO_REVIEW },
+      { pattern: /(\blayer\()"session"/g, replace: '$1"launch"', skip: NO_REVIEW },
+      { pattern: /(\bKEY, )"session"/g, replace: '$1"launch"', skip: NO_REVIEW },
       {
         pattern: /allowedScopes\.includes\("session"\)/g,
         replace: 'allowedScopes.includes("launch")',
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
     ],
   },
@@ -541,16 +548,16 @@ export const CATEGORIES: readonly Category[] = [
       {
         pattern: new RegExp("(?<![A-Za-z0-9])group-kit", "g"),
         replace: "group-sdk",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: new RegExp("(?<![A-Za-z0-9])group-authoring", "g"),
         replace: "plugin-builder",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
-      { pattern: new RegExp("GROUP_KIT", "g"), replace: "GROUP_SDK", skip: NO_MOCKUPS },
-      { pattern: new RegExp("GroupKit", "g"), replace: "GroupSdk", skip: NO_MOCKUPS },
-      { pattern: new RegExp("groupKit", "g"), replace: "groupSdk", skip: NO_MOCKUPS },
+      { pattern: new RegExp("GROUP_KIT", "g"), replace: "GROUP_SDK", skip: NO_REVIEW },
+      { pattern: new RegExp("GroupKit", "g"), replace: "GroupSdk", skip: NO_REVIEW },
+      { pattern: new RegExp("groupKit", "g"), replace: "groupSdk", skip: NO_REVIEW },
     ],
     pathRules: [{ pattern: /(?<![A-Za-z0-9])group-kit/g, replace: "group-sdk" }],
   },
@@ -559,46 +566,46 @@ export const CATEGORIES: readonly Category[] = [
     title:
       "i18n 키 이름 session → threads, point → hook (cli.sessions.*, cli.errors.point.* 등). 신뢰 선택지(trustSession 등)와 설정 탭 sessions는 그대로",
     rules: [
-      { pattern: /(?<=["'`.])cli\.sessions\./g, replace: "cli.threads.", skip: NO_MOCKUPS },
+      { pattern: /(?<=["'`.])cli\.sessions\./g, replace: "cli.threads.", skip: NO_REVIEW },
       {
         pattern: /(?<=["'`.])cli\.errors\.sessions\./g,
         replace: "cli.errors.threads.",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /(?<=["'`.])cli\.usage\.sessions\./g,
         replace: "cli.usage.threads.",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /(?<=["'`.])cli\.usage\.sessionId\./g,
         replace: "cli.usage.threadId.",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /(?<=["'`.])cli\.chat\.switchedSession(?![A-Za-z])/g,
         replace: "cli.chat.switchedThread",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /(?<=["'`.])cli\.errors\.chat\.noSession(?=[A-Za-z]*(["'`.]))/g,
         replace: "cli.errors.chat.noThread",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /(?<=["'`.])cli\.secret\.references\.sessionsMore(?![A-Za-z])/g,
         replace: "cli.secret.references.threadsMore",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /(?<=["'`.])cli\.errors\.point\./g,
         replace: "cli.errors.hook.",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
       {
         pattern: /(?<=["'`.])cli\.render\.trust\.via\.point(?![A-Za-z])/g,
         replace: "cli.render.trust.via.hook",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
     ],
   },
@@ -609,16 +616,42 @@ export const CATEGORIES: readonly Category[] = [
       {
         pattern: /`session:\$\{(?=[A-Za-z0-9_.]*(?:[tT]hreadId|childId|ghost|THREAD))/g,
         replace: "`thread:${",
-        skip: NO_MOCKUPS,
+        skip: NO_REVIEW,
       },
-      { pattern: /(?<=leases\.\w+\()`session:\$\{/g, replace: "`thread:${", skip: NO_MOCKUPS },
-      { pattern: /(?<=resource: ["`])session:(?=thr|\$\{)/g, replace: "thread:", skip: NO_MOCKUPS },
-      { pattern: /(?<=["'`])session:(?=thr_|not-a-thread)/g, replace: "thread:", skip: NO_MOCKUPS },
+      { pattern: /(?<=leases\.\w+\()`session:\$\{/g, replace: "`thread:${", skip: NO_REVIEW },
+      { pattern: /(?<=resource: ["`])session:(?=thr|\$\{)/g, replace: "thread:", skip: NO_REVIEW },
+      { pattern: /(?<=["'`])session:(?=thr_|not-a-thread)/g, replace: "thread:", skip: NO_REVIEW },
       {
         pattern:
           /(?<![A-Za-z0-9_])session:<(threadId|childId|child|id|childThreadId|parentThreadId)>/g,
         replace: "thread:<$1>",
         only: ["docs/xeon/", "xeon/packages/"],
+      },
+    ],
+  },
+  {
+    id: "D",
+    title:
+      "용어 정리(ADR-0022 §3.6): 지점→훅(훅 문맥만), 비밀→시크릿, 능력→기능, 의도 그룹→플러그인 그룹, 작업대→LightCraft(문서). 세션·임대·루프·시험처럼 뜻이 나뉘는 말은 건드리지 않는다",
+    rules: [
+      { pattern: /확장 지점/g, replace: "훅", skip: NO_RECORDS },
+      {
+        pattern:
+          /(?<=\b(?:first|tap|chain|collect|tool|input|request|boundary|lifecycle|guard|thread|fail-closed|fail-open|fold) )지점/g,
+        replace: "훅",
+        skip: NO_RECORDS,
+      },
+      { pattern: /지점(?= (?:선언|이름|종류|발화|소유|표))/g, replace: "훅", skip: NO_RECORDS },
+      { pattern: /비밀 핸들/g, replace: "시크릿 참조", skip: NO_RECORDS },
+      { pattern: /비밀로(?![가-힣])/g, replace: "시크릿으로", skip: NO_RECORDS },
+      { pattern: /비밀(?!번호|리)/g, replace: "시크릿", skip: NO_RECORDS },
+      { pattern: /(?<![가-힣])능력/g, replace: "기능", skip: NO_RECORDS },
+      { pattern: /의도 그룹/g, replace: "플러그인 그룹", skip: NO_RECORDS },
+      {
+        pattern: /(?<![가-힣])작업대(?=[이가은는을를의에와과로도만]|[\s,.)`·:/\]]|$)/gm,
+        replace: "LightCraft",
+        only: ["docs/xeon/"],
+        skip: NO_RECORDS,
       },
     ],
   },

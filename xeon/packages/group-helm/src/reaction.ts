@@ -25,7 +25,7 @@ function sourceOfCapability(id: string): HelmSource {
 
 /**
  * HelmFailure kind별 처리(L3.helm.spec §4.12 표). 순수 함수.
- * `source`는 같은 능력이 두 출처를 맡을 때(`knowledge.search`의 스킬·세션) 호출한 쪽이 알려 준다
+ * `source`는 같은 기능이 두 출처를 맡을 때(`knowledge.search`의 스킬·세션) 호출한 쪽이 알려 준다
  */
 export function reactionOf(
   failure: HelmFailure,

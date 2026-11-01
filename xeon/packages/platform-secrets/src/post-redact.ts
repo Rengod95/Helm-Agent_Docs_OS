@@ -2,7 +2,7 @@ import type { RedactionHit } from "@fresnel/contracts/capabilities";
 import type { Redactor } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §3.5.1 (M3-REQ-59). 이미 기록된 이벤트의 사후 가림. 표시, 내보내기, 모델 입력 단계가 읽는 시점에 Redactor를 적용한다.
-// 저장된 원본 행은 바꾸지 않는다(maskDeep은 새 값을 돌려준다). 그래서 나중에 값을 등록한 비밀도 이전 기록의 표시와 내보내기에서 가려진다.
+// 저장된 원본 행은 바꾸지 않는다(maskDeep은 새 값을 돌려준다). 그래서 나중에 값을 등록한 시크릿도 이전 기록의 표시와 내보내기에서 가려진다.
 // 가림은 보조 수단이다(§3.5 한계). 값이 이미 모델이나 외부에 나갔다면 가려도 되돌릴 수 없어 키 회전 안내를 함께 돌려준다.
 
 export type PostHocStage = "display" | "export" | "model-input";
@@ -10,7 +10,7 @@ export type PostHocStage = "display" | "export" | "model-input";
 /** 하위 층은 문장을 만들지 않는다. L4가 kind와 이름으로 안내문을 만든다 */
 export interface RotateKeyAdvice {
   readonly kind: "rotate_key";
-  /** 가려진 알려진 비밀 이름(중복 없음, 정렬) */
+  /** 가려진 알려진 시크릿 이름(중복 없음, 정렬) */
   readonly names: readonly string[];
   /** 이름 없이 패턴(접두, 키-값)으로 가려진 개수 */
   readonly patternHits: number;

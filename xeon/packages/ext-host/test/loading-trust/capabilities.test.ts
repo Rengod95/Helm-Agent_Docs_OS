@@ -97,7 +97,7 @@ test("capabilities: a core capability satisfies a requirement", async () => {
       ),
     ]),
   );
-  // 코어 능력은 레지스트리에 있지만 서비스는 아직 없다: 엔트리는 실행되고 setup이 능력 부재로 실패한다
+  // 코어 기능은 레지스트리에 있지만 서비스는 아직 없다: 엔트리는 실행되고 setup이 기능 부재로 실패한다
   expect(report.diagnostics.some((entry) => entry.code === "capability_missing")).toBe(true);
   expect(report.diagnostics.some((entry) => entry.stage === "capabilities")).toBe(false);
 });

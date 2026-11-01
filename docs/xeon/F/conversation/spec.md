@@ -28,8 +28,8 @@ binds: [xeon/packages/contracts/src/conversation/**]
 ### 1.2 다루지 않는 것
 
 - 이벤트 envelope, 내구/휘발 규칙, 이벤트 카탈로그, 영속, 체크포인트: `F.records.spec`.
-- 도구 기계 이름과 표시 제목 분리 규칙, 능력 정의: `F.capabilities.spec`.
-- 확장 지점 선언 표, 열거형 확장 예약 규칙, 확장 id 형식: `F.extensions.spec`.
+- 도구 기계 이름과 표시 제목 분리 규칙, 기능 정의: `F.capabilities.spec`.
+- 훅 선언 표, 열거형 확장 예약 규칙, 확장 id 형식: `F.extensions.spec`.
 - 클라이언트 와이어 표현(시각 형식, 프레임, 커서): `F.wire-settings.spec`.
 - `AgentEvent`를 알림으로 바꾸는 구현: `L1.loop.spec`(L1-b). F는 함수 시그니처만 둔다.
 
@@ -47,7 +47,7 @@ binds: [xeon/packages/contracts/src/conversation/**]
 ### 2.1 turn과 step 용어 충돌 [결정: review.decisions-2 U-01]
 
 - pi의 turn은 Fresnel의 step이다. pi의 run(`agent_start`~`agent_end`)이 Fresnel의 turn이다.
-- 확장 지점 이름은 pi 이벤트 이름을 그대로 쓴다(`F.extensions.spec`의 지점 선언 표). 그래서 `turn_start`·`turn_end` 지점은 Fresnel의 step 경계에서 발화한다. 지점 이름과 Fresnel 계층 이름이 다르다는 점을 지점 선언 표의 설명 열에 적는다.
+- 훅 이름은 pi 이벤트 이름을 그대로 쓴다(`F.extensions.spec`의 훅 선언 표). 그래서 `turn_start`·`turn_end` 지점은 Fresnel의 step 경계에서 발화한다. 훅 이름과 Fresnel 계층 이름이 다르다는 점을 훅 선언 표의 설명 열에 적는다.
 - `_research/foundation-plan.md` §6 M1 스모크가 정한 drive 그룹 켜기·끄기의 적용 시점은 단계 경계다. 턴은 여러 단계로 이어질 수 있어 턴이 끝날 때까지 기다리면 긴 턴에서 토글이 늦게 적용된다. 단계 경계는 커밋된 상태만 보이는 가장 이른 안전 지점이고, 턴의 끝은 그 부분집합이다. 모든 문서는 적용 시점을 "단계 경계"로 쓴다.
 - 이 매핑은 `review.decisions-2` U-01의 결정이다(2026-10-22 사용자 확인). 번복하면 이 절과 §10 1번을 고친다.
 
@@ -162,7 +162,7 @@ export interface AgentContext {
   readonly tools: readonly AgentTool[];
 }
 
-/** 루프 이벤트. 변형 이름은 pi와 같다(확장 지점 이름, §3.5.4) */
+/** 루프 이벤트. 변형 이름은 pi와 같다(훅 이름, §3.5.4) */
 export type AgentEvent =
   | { readonly type: "agent_start" }
   | { readonly type: "agent_end"; readonly messages: readonly AgentMessage[] }
@@ -258,7 +258,7 @@ export type LocalIdPrefix =
   | "wcl" | "wbr" | "wrs"                  // L2.web: 호출, 브라우저, 결과
   | "knl" | "knp"                          // L2.knowledge: 원장, 제안
   | "bgp"                                  // L0.process: 백그라운드 프로세스
-  | "sls";                                 // L0.secrets: 비밀 임대
+  | "sls";                                 // L0.secrets: 시크릿 임대
 
 export type LocalId<P extends LocalIdPrefix> = `${P}_${string}`;
 export function localIdPattern(prefix: LocalIdPrefix): string;          // `^${prefix}_${ULID_PATTERN}$`
@@ -278,7 +278,7 @@ export interface LocalIdFactory {
 
 pi 타입은 TS 인터페이스라 런타임 스키마가 없다. 이벤트 payload 검증(`F.records.spec`의 `item.recorded` 등)에는 런타임 검증이 필요하다. 방식은 다음으로 정한다.
 
-- role(또는 `type`) 판별 + 깊은 검증을 하는 TypeBox 스키마를 직접 쓰고 `Type.Unsafe<PiType>(...)`로 감싼다. 정적 타입은 pi 타입 그대로이고, 런타임 검증은 판별 필드, 필수 필드, 선택 필드의 타입(서명, `diagnostics`, `deferred`, `nestedCalls`, `toolsAdded`·`sections`)과 JSON 필드(`ToolCall.arguments`, `details`, `data`)의 재귀 값까지 본다. 재귀 JSON 스키마(`DeepJsonValueSchema`, `DeepJsonObjectSchema`)는 `$ref`를 쓰므로 능력 정의의 JSON Schema에는 쓰지 않는다. 그쪽은 얕은 `JsonValueSchema`를 유지한다.
+- role(또는 `type`) 판별 + 깊은 검증을 하는 TypeBox 스키마를 직접 쓰고 `Type.Unsafe<PiType>(...)`로 감싼다. 정적 타입은 pi 타입 그대로이고, 런타임 검증은 판별 필드, 필수 필드, 선택 필드의 타입(서명, `diagnostics`, `deferred`, `nestedCalls`, `toolsAdded`·`sections`)과 JSON 필드(`ToolCall.arguments`, `details`, `data`)의 재귀 값까지 본다. 재귀 JSON 스키마(`DeepJsonValueSchema`, `DeepJsonObjectSchema`)는 `$ref`를 쓰므로 기능 정의의 JSON Schema에는 쓰지 않는다. 그쪽은 얕은 `JsonValueSchema`를 유지한다.
 - 모든 객체 스키마는 `additionalProperties: true`다. pi가 minor에서 선택 필드를 더해도 옛 기록과 새 기록이 모두 통과한다.
 - 파일: `src/conversation/message-schema.ts`. `pi.ts`는 타입 전용으로 둔다(값 import 검사를 단순하게 하려는 선택).
 
@@ -667,7 +667,7 @@ export const ToolResultRecordSchema: Schema<ToolResultRecord>;
 export function resultStatusOf(record: Pick<ToolResultRecord, "status">): ResultStatus;
 export function toToolResultRecord(result: AgentToolResult<JsonValue | undefined>): ToolResultRecord;
 
-/** 결과가 불명인 효과를 다시 실행해도 되는지. 기본은 "unsafe". 효과 기록(F.records.spec §3.5)과 능력 정의(F.capabilities.spec §3.2)가 함께 쓴다. */
+/** 결과가 불명인 효과를 다시 실행해도 되는지. 기본은 "unsafe". 효과 기록(F.records.spec §3.5)과 기능 정의(F.capabilities.spec §3.2)가 함께 쓴다. */
 export type ReplayPolicy = "safe" | "unsafe";
 export const ReplayPolicySchema: Schema<ReplayPolicy>;
 
@@ -727,9 +727,9 @@ export * from "./tool-result.ts";
 
 이 도메인은 사용자 설정 키를 두지 않는다.
 
-## 7. 확장 지점
+## 7. 훅
 
-- 지점 `turn_start`, `turn_end`, `message_start`, `message_update`, `message_end`, `tool_execution_*`은 pi 이벤트 이름을 그대로 쓴다. 선언(fold 종류, 페이로드 타입)은 `F.extensions.spec`의 지점 선언 표가 정한다. 페이로드 타입은 이 문서의 `AgentEvent`(§3.1.1) 변형과 알림 타입을 참조한다.
+- 지점 `turn_start`, `turn_end`, `message_start`, `message_update`, `message_end`, `tool_execution_*`은 pi 이벤트 이름을 그대로 쓴다. 선언(fold 종류, 페이로드 타입)은 `F.extensions.spec`의 훅 선언 표가 정한다. 페이로드 타입은 이 문서의 `AgentEvent`(§3.1.1) 변형과 알림 타입을 참조한다.
 - `turn_start`·`turn_end` 지점은 Fresnel step 경계에서 발화한다(§2.1).
 - 확장은 `FresnelCustomMessage.customType`으로 구분한다. `AgentMessage`는 닫힌 유니온이고 선언 병합은 없다(§3.1.1, adr.0009).
 - post로 들어온 내용이 대화에 남을 때는 `custom` item으로 기록된다. post 수용 기록은 `F.records.spec`의 `input.queued`(`source.type: "extension"`)다(`post.accepted` retire, review.decisions-2 U-05).
@@ -740,7 +740,7 @@ export * from "./tool-result.ts";
 |---|---|
 | `F.records.spec` | 제공: 8개 ID와 스키마, `ItemRecord`, `PartRecord`, 수명주기 페이로드 스키마, `ToolResultRecord`, `ReplayPolicy`·`toReplayPolicy`. 요구: envelope의 `threadId`/`turnId`/`stepId` 이름이 `LifecycleScope`와 같을 것 |
 | `F.capabilities.spec` | 제공: `ReplayPolicy`, `ResultStatus`, `InputRequiredInfo`, pi-ai 재노출 타입, `AgentTool`·`AgentToolResult`·`ToolExecutionMode`(§3.1.1). 요구: `Tool.name`/`AgentTool.label` 분리 규칙 |
-| `F.extensions.spec` | 요구: 지점 선언 표에 §2.1 매핑 표기, `customType` 접두 규칙, 열거형 확장 예약 |
+| `F.extensions.spec` | 요구: 훅 선언 표에 §2.1 매핑 표기, `customType` 접두 규칙, 열거형 확장 예약 |
 | `F.wire-settings.spec` | 제공: 알림 유니온. 요구: 와이어 표현은 그쪽이 정한다 |
 | `L1.loop.spec` (L1-b) | 제공: §3.1.1 에이전트 루프 타입. 요구: `CreateAgentEventMapper` 구현, 자체 루프가 `AgentEvent`를 낸다 |
 | `L1.persistence.spec` (L1-f), `L0.store.spec` (L0-e) | 요구: `IdFactory` 구현, ULID 단조성. `storeId`(`sto_`) 발급은 `L0.store.spec`(§3.2.1 ①) |

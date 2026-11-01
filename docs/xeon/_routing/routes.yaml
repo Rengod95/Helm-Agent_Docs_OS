@@ -18,7 +18,7 @@ by_task:
     - eng.transactions.design
     - eng.events.design
     - eng.context-map.design
-  extension:          # 확장 지점, 플러그인, 그룹을 건드리는 작업
+  extension:          # 훅, 플러그인, 그룹을 건드리는 작업
     - X.readme
     - X.primitives.spec
     - F.extensions.spec
@@ -172,7 +172,7 @@ manifest:
     - adr.0004   # 세션 저장 C안(SQLite 이벤트 소싱 + 투영, 단일 DB)
     - adr.0005   # 무료 웹 검색 기본값
     - adr.0006   # 프로세스 구조와 서비스 모드(데몬)
-    - adr.0007   # 확장 지점 4연산(on/post/drive/scope)
+    - adr.0007   # 훅 4연산(on/post/drive/scope)
     - adr.0008   # 데스크톱 Tauri 2 + 엔진 사이드카
     - adr.0009   # 자체 에이전트 루프(pi-agent-core 루프 포크, 의존 제거)
     - adr.0010   # 데스크톱 프런트엔드 React 19 + Zustand 5
@@ -182,9 +182,9 @@ manifest:
     - adr.0014   # 엔진 바이너리는 단일 fresnel
     - adr.0015   # 재실행되는 확장 코드의 효과 목록: 선언형 허용(C안)
     - adr.0016   # 다국어와 로케일: FormatJS, ICU, ko·en
-    - adr.0017   # 확장 지점 개정: 자체 이름, collect, 실패 정책 표, 수명주기·가드레일 지점, pi 어댑터 없음
+    - adr.0017   # 훅 개정: 자체 이름, collect, 실패 정책 표, 수명주기·가드레일 지점, pi 어댑터 없음
     - adr.0018   # 승인 프로토콜 하나(도구·계획·질문·검토)
-    - adr.0019   # 비밀 기본 저장소 SOPS(age)
+    - adr.0019   # 시크릿 기본 저장소 SOPS(age)
     - adr.0020   # L4 공유 클라이언트 패키지 packages/client
     - adr.0021   # 플러그인 화면 기여: 선언형 모드와 격리 프레임 모드(화면마다 선언)
     - adr.0022   # 플러그인 그룹 모델과 도메인 용어 정리(proposed, §3.2 사용자 확인 대기)

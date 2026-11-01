@@ -23,8 +23,8 @@ import { createSkillWrites } from "./skills/write.ts";
 import { createWriter, type Writer } from "./write/pipeline.ts";
 import type { ReindexResult } from "./skills/reindex.ts";
 
-// 능력별 API 객체를 조립한다. 묶음(KnowledgeService)은 Cordis에 등록하지 않는다. 등록은 plugin.ts가 능력마다 한다
-// (L2.readme §5.6). 이 단계(KN.3)가 제공하는 능력은 knowledge.skills(읽기와 쓰기), knowledge.memory, knowledge.ledger다.
+// 기능별 API 객체를 조립한다. 묶음(KnowledgeService)은 Cordis에 등록하지 않는다. 등록은 plugin.ts가 기능마다 한다
+// (L2.readme §5.6). 이 단계(KN.3)가 제공하는 기능은 knowledge.skills(읽기와 쓰기), knowledge.memory, knowledge.ledger다.
 
 export interface KnowledgeDeps extends SkillsDeps {
   /** `fresnel.secrets` 마스킹 등록부 판정. 서비스가 없으면 undefined */

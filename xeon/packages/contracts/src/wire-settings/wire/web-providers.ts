@@ -14,7 +14,7 @@ import {
 import { Nullable } from "../../base/index.ts";
 import { IsoDateSchema, ProviderIdSchema } from "../../capabilities/index.ts";
 
-// 웹 provider 상태 목록(M3-REQ-96, `web.providers`). 읽기 전용이고 비밀 값을 싣지 않는다.
+// 웹 provider 상태 목록(M3-REQ-96, `web.providers`). 읽기 전용이고 시크릿 값을 싣지 않는다.
 // 호스트가 cap-web의 카탈로그와 탐침 캐시에서 채운다(L4.host-service). `unavailable.reason`은 `ProviderUnavailableReason` 문자열이다.
 
 /** web.providers params. 선택 필드가 없고 `_meta`만 레지스트리가 더한다 */
@@ -24,7 +24,7 @@ export const WebProvidersParamsSchema: TObject<{}> = Type.Object(
 );
 export type WebProvidersParams = Static<typeof WebProvidersParamsSchema>;
 
-/** 웹 능력 가운데 provider가 맡는 셋 */
+/** 웹 기능 가운데 provider가 맡는 셋 */
 export const WebProviderCapabilitySchema: TUnion<
   [TLiteral<"web.search">, TLiteral<"web.fetch">, TLiteral<"web.browse">]
 > = Type.Union([Type.Literal("web.search"), Type.Literal("web.fetch"), Type.Literal("web.browse")]);

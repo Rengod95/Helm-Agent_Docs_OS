@@ -26,7 +26,7 @@ import type { CallSpec } from "./pipeline.ts";
 import type { ThinkingBudgetSettings } from "./settings.ts";
 
 // L2.web.spec §4.8.4, L1.models.plan L1C.3. 모델 provider의 서버 도구 검색(Anthropic web_search)을 단일 턴으로 요청하는
-// HostedSearchPort 구현이다. 요청은 기존 호출 파이프라인(비밀 해석, 재시도, 사용량, 가드)을 지나고, pi-ai가 싣지 않는
+// HostedSearchPort 구현이다. 요청은 기존 호출 파이프라인(시크릿 해석, 재시도, 사용량, 가드)을 지나고, pi-ai가 싣지 않는
 // 서버 도구 블록은 어댑터의 원시 스트림 이벤트에서 다시 모은다. 대화 기록에 남지 않고 요청 지점도 발화하지 않는다.
 
 const THREAD_SENTINEL: unknown = "thr_00000000000000000000000000";

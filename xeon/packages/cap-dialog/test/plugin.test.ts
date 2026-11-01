@@ -56,7 +56,7 @@ import { memoryCommandFiles, type MemoryCommandFiles } from "./support/memory-co
 import { manualTimers } from "./support/timers.ts";
 import { turnCompleted } from "./support/notices.ts";
 
-// 플러그인 조립: L0·L1 포트를 가짜로 제공하고 실제 ExtHost에 올려 능력, 지점 핸들러, 피드 구독을 확인한다.
+// 플러그인 조립: L0·L1 포트를 가짜로 제공하고 실제 ExtHost에 올려 기능, 지점 핸들러, 피드 구독을 확인한다.
 
 const ids = fixedIdFactory(100);
 
@@ -122,7 +122,7 @@ async function boot(
     secrets?: boolean;
   } = {},
 ) {
-  // 능력 정의 표가 있어야 호스트가 정의의 메서드만 감싼다. 구독 같은 정의 밖 멤버는 그대로 넘긴다(조립 루트와 같다)
+  // 기능 정의 표가 있어야 호스트가 정의의 메서드만 감싼다. 구독 같은 정의 밖 멤버는 그대로 넘긴다(조립 루트와 같다)
   const t = await createTestHost({
     without: ["records"],
     capabilityDefs: capabilityDefTable([...DIALOG_CAPABILITIES, WorkspaceImages]),
@@ -258,7 +258,7 @@ interface Apis {
   notify?: CapabilityApi<typeof DialogNotify> & NoticeFeed;
 }
 
-/** 구독까지 보이는 알림 능력 키(런타임 키는 DialogNotifyKey와 같다) */
+/** 구독까지 보이는 알림 기능 키(런타임 키는 DialogNotifyKey와 같다) */
 const NotifyFeedKey: ServiceKey<CapabilityApi<typeof DialogNotify> & NoticeFeed> = {
   capability: DialogNotify.id,
   version: DialogNotify.version,
@@ -300,7 +300,7 @@ function consumer(): { apis: Apis; unit: ExtensionUnit } {
 }
 
 describe("manifest", () => {
-  test("매니페스트가 validateManifest를 통과하고 M2 능력 넷을 제공한다", () => {
+  test("매니페스트가 validateManifest를 통과하고 M2 기능 넷을 제공한다", () => {
     const checked = validateManifest(dialogManifest());
     expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
     const manifest = checked.manifest;
@@ -328,7 +328,7 @@ describe("manifest", () => {
 const failingTrust = (): Promise<boolean> => Promise.reject(new Error("store unreadable"));
 
 describe("plugin", () => {
-  test("설치하면 능력 넷이 제공되고 소비자가 부를 수 있다", async () => {
+  test("설치하면 기능 넷이 제공되고 소비자가 부를 수 있다", async () => {
     const { t, installed, approvals } = await boot();
     expect(installed.setups[0]?.status).toBe("applied");
     expect(installed.issues.filter((issue) => issue.severity === "error")).toEqual([]);

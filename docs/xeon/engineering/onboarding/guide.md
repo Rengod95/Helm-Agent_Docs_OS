@@ -12,7 +12,7 @@ binds: []
 
 ## 1. 적용 범위
 
-- Xeon 저장소에서 처음 코드를 고치는 사람과 에이전트가 첫날에 할 일을 순서대로 적습니다. 마일스톤 재점검 G3-05의 M2 부분입니다. 운영 런북, 용어집, 구현 상태 지도는 M3입니다(`review.m3-plan`).
+- Fresnel 저장소에서 처음 코드를 고치는 사람과 에이전트가 첫날에 할 일을 순서대로 적습니다. 마일스톤 재점검 G3-05의 M2 부분입니다. 운영 런북, 용어집, 구현 상태 지도는 M3입니다(`review.m3-plan`).
 - 규칙의 정본은 각 engineering 문서입니다. 이 문서는 순서와 연결만 둡니다.
 
 ## 2. 규칙
@@ -25,7 +25,7 @@ binds: []
 
 | 도구 | 쓰는 곳 | 없으면 |
 |---|---|---|
-| `sops` 3.13.3, `age` 1.3.2 | 비밀 기본 provider, `platform-secrets` 실제 시험(E7) | 실제 시험이 건너뛰어지고 `just exit-tests`가 실패 |
+| `sops` 3.13.3, `age` 1.3.2 | 시크릿 기본 provider, `platform-secrets` 실제 시험(E7) | 실제 시험이 건너뛰어지고 `just exit-tests`가 실패 |
 | `bubblewrap`, `socat`(Linux) | 샌드박스 `bash`(M1 종료 조건) | 셸 도구가 꺼짐, 샌드박스 int 시험 종료코드 2 |
 | `rg` | 파일 검색(`@vscode/ripgrep`이 기본 제공) | 내장 바이너리 사용 |
 | Tauri 시스템 패키지(Linux `libwebkit2gtk-4.1`) | `just desktop-*` | 종료코드 2 |
@@ -78,7 +78,7 @@ just docs-route --task docs L1/loop
 |---|---|
 | 1 | 고칩니다 |
 | 2 | 환경 문제입니다. 코드를 고치지 않고 보고합니다 |
-| 3 | 사람이 확인한 뒤 `--yes`로 다시 부릅니다(`just tape-record`, `just bench --first-token`) |
+| 3 | 사람이 확인한 뒤 `--yes`로 다시 부릅니다(`just tape-record`, `just benchmark --first-token`) |
 
 ### ON-07 macOS 작업은 원격으로 한다
 
@@ -91,4 +91,4 @@ just docs-route --task docs L1/loop
 
 ## 4. 예외와 미결 사항
 
-- [미결] `xeon/README.md`와 `xeon/AGENTS.md`의 검사 명령 표를 이 문서에 맞출지. 두 파일은 Z 트랙 소유가 아니어서 이번에 고치지 않았습니다(open-issues D-14).
+- [미결] `fresnel/README.md`와 `xeon/AGENTS.md`의 검사 명령 표를 이 문서에 맞출지. 두 파일은 Z 트랙 소유가 아니어서 이번에 고치지 않았습니다(open-issues D-14).

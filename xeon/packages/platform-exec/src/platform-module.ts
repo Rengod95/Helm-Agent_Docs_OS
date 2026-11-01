@@ -22,14 +22,14 @@ export interface ExecPlatformModuleConfig {
 }
 
 /**
- * `fresnel.secrets`가 먼저 등록되어 있으면 env 모드 비밀 주입을 켠다. 없으면 `secretEnv`가 있는 호출은
+ * `fresnel.secrets`가 먼저 등록되어 있으면 env 모드 시크릿 주입을 켠다. 없으면 `secretEnv`가 있는 호출은
  * `secret_unavailable`이다(L0.exec.spec §3.6). 등록 순서는 조립 루트가 정한다.
  */
 export function createExecPlatformModule(config: ExecPlatformModuleConfig): PlatformModule {
   return {
     name: "platform-exec",
     setup(ctx) {
-      // ctx.port는 포트가 없으면 던진다. 비밀 서비스가 없는 구성도 정상이라 값으로 받는다
+      // ctx.port는 포트가 없으면 던진다. 시크릿 서비스가 없는 구성도 정상이라 값으로 받는다
       const found = attempt((): SecretEnvSource => ctx.port(SecretsPortKey));
       const secrets: SecretEnvSource | undefined = found.ok ? found.value : undefined;
       const service = createExecService(config.options, {

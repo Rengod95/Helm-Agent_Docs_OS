@@ -3,7 +3,7 @@ import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { EnqueueError, PostItem, PostWhen } from "@fresnel/contracts/extensions";
 import type { GuardExecutionOutcome, LoopError } from "@fresnel/contracts/services";
 
-// L2.artifacts.spec §3.8. 리뷰가 쓰는 하위 서비스의 좁은 모양. 플러그인이 실제 포트와 능력에서 만들고, 시험은 직접 넘긴다.
+// L2.artifacts.spec §3.8. 리뷰가 쓰는 하위 서비스의 좁은 모양. 플러그인이 실제 포트와 기능에서 만들고, 시험은 직접 넘긴다.
 
 /** 파일 되돌림 실패의 이유. `code`는 workspace.files 오류 코드나 이 패키지의 사유 코드다 */
 interface ReplaceFailure {

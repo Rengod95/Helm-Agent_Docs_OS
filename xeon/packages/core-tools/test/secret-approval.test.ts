@@ -28,7 +28,7 @@ import {
   type Harness,
 } from "./support/harness.ts";
 
-// L1A.4: 비밀을 쓰는 호출(secretEnv)의 `needs_approval`이 승인 요청으로 이어지고, 받은 증거가 호출에 실린다(TL-18, L1.tools.spec §4.12, U-19)
+// L1A.4: 시크릿을 쓰는 호출(secretEnv)의 `needs_approval`이 승인 요청으로 이어지고, 받은 증거가 호출에 실린다(TL-18, L1.tools.spec §4.12, U-19)
 
 const TOKEN = "secret://github-token";
 const TOKEN_HANDLE = expectOk(parseSecretRef(TOKEN)).handle;
@@ -114,7 +114,7 @@ test("the approval of the bash call itself is the per-use evidence: one request,
     kind: "tool",
     tool: { toolName: "bash", ruleId: "default.bash-ask" },
   });
-  // 이 승인이 비밀 사용의 증거이므로 제목이 비밀 참조를 말한다(승인 카드의 제목만 보고 허용해도 무엇을 내주는지 안다)
+  // 이 승인이 시크릿 사용의 증거이므로 제목이 시크릿 참조를 말한다(승인 카드의 제목만 보고 허용해도 무엇을 내주는지 안다)
   expect(request?.title).toBe(`Allow "bash" to use ${TOKEN}?`);
   await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });
   expect((await done).blocked).toBeUndefined();
@@ -285,7 +285,7 @@ test("a per-session requirement is satisfied by the same per-use evidence", asyn
   expect(probe.runs[0]?.evidence).toMatchObject({ scope: "per-use", expiresAt: null });
 });
 
-/** secretEnv를 받는 시험용 셸 능력. 모델 도구 bash는 secretEnv를 광고하지 않으므로(L1.tools.spec §10) 그룹 코드가 쓰는 모양만 흉내 낸다 */
+/** secretEnv를 받는 시험용 셸 기능. 모델 도구 bash는 secretEnv를 광고하지 않으므로(L1.tools.spec §10) 그룹 코드가 쓰는 모양만 흉내 낸다 */
 const ProbeShellInput = Type.Object({
   command: Type.String(),
   secretEnv: Type.Optional(Type.Record(Type.String(), Type.String())),

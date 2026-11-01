@@ -17,7 +17,7 @@ import {
 } from "./support/world.ts";
 
 // M3-REQ-91(D-M3-32 a): 지식 대기열은 그대로 두고, 합친 승인 목록(`proposal.list`·`proposal.decide`)이 부를 조회·결정 어댑터를 둔다.
-// 학습 대기열은 이 패키지 밖이다. 어댑터는 `knowledge.ledger` 능력 API만 쓴다.
+// 학습 대기열은 이 패키지 밖이다. 어댑터는 `knowledge.ledger` 기능 API만 쓴다.
 
 afterEach(closeWorlds);
 

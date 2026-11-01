@@ -14,14 +14,14 @@ import type {
 } from "@fresnel/contracts/services";
 import { isJsonObject } from "./util.ts";
 
-// L1.tools.spec §4.12, L0.secrets.spec §4.2. 도구 호출이 비밀을 쓰면(`secretEnv`) 실행 전에 `fresnel.secrets.check`로 정책을 본다.
+// L1.tools.spec §4.12, L0.secrets.spec §4.2. 도구 호출이 시크릿을 쓰면(`secretEnv`) 실행 전에 `fresnel.secrets.check`로 정책을 본다.
 // `needs_approval`이면 사람의 승인이 필요하고, 받은 증거(`ApprovalEvidence`)를 호출에 실어 `fresnel.exec`의 `withEnv`가 `lease`에 넣는다(U-19).
 // 값은 이 파일에 오지 않는다. 참조(`secret://<name>`)만 다룬다.
 
 /** secrets 서비스 중 이 파일이 쓰는 메서드 */
 export type SecretChecker = Pick<SecretService, "check">;
 
-/** 도구 인자의 `secretEnv`(env 이름 → 비밀 참조)가 가리키는 비밀과 명령줄 */
+/** 도구 인자의 `secretEnv`(env 이름 → 시크릿 참조)가 가리키는 시크릿과 명령줄 */
 interface SecretEnvUse {
   readonly handles: readonly SecretHandle[];
   readonly command: string | undefined;
@@ -33,8 +33,8 @@ interface SecretEnvRefError {
 }
 
 /**
- * `args.secretEnv`에서 비밀 참조를 모은다. 인자에 `secretEnv`가 없으면 ok(undefined)다.
- * `$VAR`, `{{secret:x}}` 같은 남의 구문과 틀린 참조는 오류 값으로 돌려준다(L0.secrets.spec §3.1: 비밀 인자로 선언된 필드에만 거부한다)
+ * `args.secretEnv`에서 시크릿 참조를 모은다. 인자에 `secretEnv`가 없으면 ok(undefined)다.
+ * `$VAR`, `{{secret:x}}` 같은 남의 구문과 틀린 참조는 오류 값으로 돌려준다(L0.secrets.spec §3.1: 시크릿 인자로 선언된 필드에만 거부한다)
  */
 function scanSecretEnv(args: JsonObject): Result<SecretEnvUse | undefined, SecretEnvRefError> {
   const declared = args["secretEnv"];
@@ -57,14 +57,14 @@ function scanSecretEnv(args: JsonObject): Result<SecretEnvUse | undefined, Secre
 /** 승인 제목의 길이 상한(`ApprovalRequestInput.title`) */
 const TITLE_MAX = 120;
 
-/** 호출 인자의 `secretEnv`가 가리키는 비밀. 참조가 틀리거나 `secretEnv`가 없으면 빈 목록이다(틀린 참조는 `checkSecretUse`가 거부한다) */
+/** 호출 인자의 `secretEnv`가 가리키는 시크릿. 참조가 틀리거나 `secretEnv`가 없으면 빈 목록이다(틀린 참조는 `checkSecretUse`가 거부한다) */
 export function secretHandlesOf(args: JsonObject): readonly SecretHandle[] {
   const scanned = scanSecretEnv(args);
   return scanned.ok && scanned.value !== undefined ? scanned.value.handles : [];
 }
 
 /**
- * 비밀을 쓰는 호출의 승인 제목. 사용자가 이 승인으로 어떤 비밀을 내주는지 제목에서 알아야 하므로 비밀 참조를 앞에 둔다.
+ * 시크릿을 쓰는 호출의 승인 제목. 사용자가 이 승인으로 어떤 시크릿을 내주는지 제목에서 알아야 하므로 시크릿 참조를 앞에 둔다.
  * 제목 길이를 넘으면 들어가는 만큼만 적고 나머지는 개수로 알린다
  */
 export function secretUseTitle(toolName: string, handles: readonly SecretHandle[]): string {
@@ -113,7 +113,7 @@ function errorDetail(error: SecretError): string {
 }
 
 /**
- * 호출이 쓰는 비밀마다 `check`를 부른다(증거 없이). 하나라도 거부면 거부, `needs_approval`이 있으면 승인이 필요하다.
+ * 호출이 쓰는 시크릿마다 `check`를 부른다(증거 없이). 하나라도 거부면 거부, `needs_approval`이 있으면 승인이 필요하다.
  * 승인이 더 엄격한 쪽(per-use)을 따른다.
  */
 export async function checkSecretUse(
@@ -175,7 +175,7 @@ interface Tally {
   readonly perUse: boolean;
 }
 
-/** 비밀을 차례로 확인한다. 거부가 나오면 거기서 멈추고 거부를 돌려준다 */
+/** 시크릿을 차례로 확인한다. 거부가 나오면 거기서 멈추고 거부를 돌려준다 */
 async function tallyChecks(
   secrets: SecretChecker,
   handles: readonly SecretHandle[],

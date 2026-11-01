@@ -77,9 +77,9 @@ binds: []
 |---|---|---|---|
 | B-02 | pi-agent-core에 의존하지 않는다. 루프를 포크해 core-loop의 자체 에이전트 루프로 재설계한다. pi-ai는 provider 층 의존으로 남긴다. | pi 판이 오를 때마다 훅 래핑을 다시 맞춰야 한다. 단계 경계 커밋과 확장 지점을 층 설계에 맞게 둘 수 있다. | ADR-0009, L1.loop, F.conversation(다른 작업이 맡는다) |
 | B-04 | 출력 절단 함수는 D-08대로 `platform-exec`에 둔다. `ExecService`에 `truncateHead`·`formatSize`를 더한다. cap-workspace와 apps/host의 사본은 지운다. | 구현이 한 곳이어야 L1·L2가 같은 한도로 자른다. | L0.exec.spec §1·§3.1·§3.3.1, L0.exec.plan EX-21, L1.tools, L2.workspace.plan |
-| B-05 | 모델 provider API 키는 M1부터 `runtime-http` 모드로 lease한다. core-models가 프로세스 안 HTTP 클라이언트에 넘기고, 값은 모델 컨텍스트, 이벤트, DB에 들어가지 않는다. bash 도구는 `env` 모드 그대로다(U-19). | 실제 키로 chat을 돌리려면 provider 호출 경로의 모드가 정해져 있어야 한다. | F.capabilities `SecretUseModeSchema` 주석, L0.secrets §4.3·§8.3 R6·§9 14번, L0.secrets.plan, L1.models |
+| B-05 | 모델 provider API 키는 M1부터 `runtime-http` 모드로 lease한다. core-models가 프로세스 안 HTTP 클라이언트에 넘기고, 값은 모델 컨텍스트, 이벤트, DB에 들어가지 않는다. bash 도구는 `env` 모드 그대로다(U-19). | 실제 키로 chat을 돌리려면 provider 호출 경로의 모드가 정해져 있어야 한다. | F.capabilities `InjectionModeSchema` 주석, L0.secrets §4.3·§8.3 R6·§9 14번, L0.secrets.plan, L1.models |
 | B-06 | DR-07에 테스트 한정 행을 둔다. `Bun.spawn`·`Bun.spawnSync`·`node:child_process`는 허용 목록 `scope: "test"` 항목이 있는 패키지의 테스트 파일에서만 쓸 수 있다. `check-layers.ts`가 범위를 검사한다. | 엔진 재개와 stdio 적합성은 실제 프로세스로 시험해야 한다. 운영 소스의 금지는 그대로다. | eng.dependency-rules DR-07·§4·§5, L4.desktop.plan |
-| B-07 | `@fresnel/host`에 `resolveHostStatePaths()`를 둔다. CLI 상태 파일은 `OsDirs.state` 아래 `cli/state.json`이다. `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남긴다. | CLI는 경로를 계산하지 않는다(DR-13). 환경 변수가 없으면 `--continue`가 동작하지 않던 M1 상태를 고친다. | L4.host-service.spec §3.3.6, L4.host-service.plan H21, L4.cli.spec §3.3·§10-1, L4.cli.plan C4, L4.readme |
+| B-07 | `@fresnel/host`에 `resolveHostStatePaths()`를 둔다. CLI 상태 파일은 `OsDirs.state` 아래 `cli/state.json`이다. `FRESNEL_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남긴다. | CLI는 경로를 계산하지 않는다(DR-13). 환경 변수가 없으면 `--continue`가 동작하지 않던 M1 상태를 고친다. | L4.host-service.spec §3.3.6, L4.host-service.plan H21, L4.cli.spec §3.3·§10-1, L4.cli.plan C4, L4.readme |
 
 ## 5. 구현 후속
 

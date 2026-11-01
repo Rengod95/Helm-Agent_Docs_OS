@@ -3,8 +3,8 @@ import { SecretProviderIdSchema } from "@fresnel/contracts/capabilities";
 import { defineSettings, type SettingDef } from "@fresnel/contracts/settings";
 import { DEFAULT_SECRETS_CONFIG } from "./config.ts";
 
-// L0.secrets.spec §6.1. 모두 layer L0, since 0.1.0이다. 비밀 값을 담는 키는 없다(D2, D3).
-// project, local, session 범위는 받지 않는다: 저장소 안 파일이 비밀 정책을 넓히지 못하게 한다.
+// L0.secrets.spec §6.1. 모두 layer L0, since 0.1.0이다. 시크릿 값을 담는 키는 없다(D2, D3).
+// project, local, session 범위는 받지 않는다: 저장소 안 파일이 시크릿 정책을 넓히지 못하게 한다.
 // 기본값은 config.ts의 DEFAULT_SECRETS_CONFIG 한 곳에서 가져온다(BP-06).
 
 const PROVIDER_IDS = ["sops", "op", "bws", "keychain"];
@@ -17,7 +17,7 @@ const group = defineSettings("l0.secrets", {
     default: [...DEFAULTS.providers],
     runtimeChange: "restart",
     allowedScopes: MANAGED_USER,
-    ui: { tab: "secrets", widget: "list", order: 10, label: "비밀 제공자 목록" },
+    ui: { tab: "secrets", widget: "list", order: 10, label: "시크릿 제공자 목록" },
     since: "0.1.0",
   },
   defaultProvider: {
@@ -26,7 +26,7 @@ const group = defineSettings("l0.secrets", {
     range: { enum: PROVIDER_IDS },
     runtimeChange: "live",
     allowedScopes: MANAGED_USER,
-    ui: { tab: "secrets", widget: "select", order: 20, label: "기본 비밀 제공자" },
+    ui: { tab: "secrets", widget: "select", order: 20, label: "기본 시크릿 제공자" },
     since: "0.1.0",
   },
   "sops.files": {
@@ -95,7 +95,7 @@ const group = defineSettings("l0.secrets", {
     range: { enum: ["none", "per-session", "per-use"] },
     runtimeChange: "nextTurn",
     allowedScopes: MANAGED_USER,
-    ui: { tab: "permissions", widget: "select", order: 200, label: "비밀 사용 승인 기본값" },
+    ui: { tab: "permissions", widget: "select", order: 200, label: "시크릿 사용 승인 기본값" },
     since: "0.1.0",
   },
   "approval.writeHosts": {
@@ -113,7 +113,7 @@ const group = defineSettings("l0.secrets", {
     range: { min: 1, max: 86_400 },
     runtimeChange: "live",
     allowedScopes: MANAGED_USER,
-    ui: { tab: "secrets", widget: "number", order: 60, label: "비밀 임대 시간", unit: "초" },
+    ui: { tab: "secrets", widget: "number", order: 60, label: "시크릿 임대 시간", unit: "초" },
     since: "0.1.0",
   },
   "lease.maxUses": {

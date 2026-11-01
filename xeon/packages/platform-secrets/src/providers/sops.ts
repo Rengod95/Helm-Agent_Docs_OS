@@ -183,7 +183,7 @@ const LOCK_TIMEOUT_MS = 60_000;
 
 /** sops 제공자. put은 `sops set --value-stdin` 지원을 확인한 뒤에만 켜진다(refreshCapabilities) */
 export interface SopsProvider extends SecretProvider {
-  /** 바이너리의 `set --help`를 읽어 put 지원을 다시 판정하고 현재 능력을 돌려준다 */
+  /** 바이너리의 `set --help`를 읽어 put 지원을 다시 판정하고 현재 기능을 돌려준다 */
   refreshCapabilities(): Promise<SecretProviderCapabilities>;
   /** put이 꺼져 있는 이유. sops 바이너리를 쓸 수 없으면 그 오류, 아니면 `read_only_provider`(`set --value-stdin` 미지원) */
   readOnlyReason(): Promise<SecretError>;

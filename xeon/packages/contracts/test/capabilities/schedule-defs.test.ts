@@ -20,7 +20,7 @@ import {
   type ScheduleTrigger,
 } from "../../src/capabilities/index.ts";
 
-// M3b B1-SCH2. 능력 `schedule.entries`(L2.schedule.spec §4.4.9)의 정의를 값으로 고정한다.
+// M3b B1-SCH2. 기능 `schedule.entries`(L2.schedule.spec §4.4.9)의 정의를 값으로 고정한다.
 // 트리거와 항목 모양은 cap-schedule의 TriggerSpec, ScheduleEntry, RunRecord와 같은 필드다.
 
 const SCH = "sch_01ARZ3NDEKTSV4RRFFQ69G5FAV";

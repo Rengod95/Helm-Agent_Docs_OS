@@ -8,7 +8,7 @@ const group: GroupModule = defineGroup<State>({
   state: { schema: stateSchema, initial: initialState, version: 1 },
   settings,
   setup(g) {
-    // tap 지점: 관찰만 한다. 반환값은 쓰지 않는다. 턴마다 커밋 한 번과 기록 한 번을 낸다
+    // tap 훅: 관찰만 한다. 반환값은 쓰지 않는다. 턴마다 커밋 한 번과 기록 한 번을 낸다
     g.on("boundary.settle.after", async (p) => {
       const next = { count: g.state().count + 1 };
       await g.commit(next);

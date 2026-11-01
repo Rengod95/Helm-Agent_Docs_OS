@@ -16,8 +16,8 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 
 | 마일스톤 | 범위 | 확인 방법 | 소비자 |
 |---|---|---|---|
-| M0 | Cordis 래퍼(`cordis-bridge.ts`: 루트, scope fiber, effect, dispose, 포트 inject), 레지스트리와 스냅샷, 세대 가드, fold 디스패처 tap·first·chain(시간 예산 포함, `DEFAULT_DISPATCH_POLICY`, `DispatchPolicy`의 선택 메서드 `run`·`onHandlerSettled`), X.operations 정책 결합(P-20), 인메모리 포트로 동작하는 post(멱등), drive 단일 그룹(임대 부여·상한·재호출·반납), scope enable/disable 최소형(경계 훅 `prepare`/`settle`, 유휴 적용), 상태 문서 `state()`/`commit()`(마이그레이션 제외), `createExtHost`·`install`(시작 적용, `InstallResult`)·`registerPlatform`·`ExtHost.ports`·`hostOf`(provide·port만), `@fresnel/ext-host/testing`의 인메모리 포트·가짜 타이머 | §5 단위 테스트 중 M0 표시 항목 | L1 core-loop·core-tools 구현자(지점 발화), X.loading-trust(L-06), X.operations(O-03, O-06), M1 스모크 |
-| M1 | 걷는 골격: 테스트용 그룹이 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓰고, drive 그룹의 켜기·끄기가 단계 경계에서 적용됨을 모델 테이프 스모크로 확인한다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 실제 L1 포트(`fresnel.loop`, `fresnel.tasks`, `fresnel.session`)와 연결, 포트 계약 스위트, `record`/`readRecords`, 능력 바인딩(공급자 하나), 설정 `x.primitives.driveLimits`, 재개(`openThread`의 열린 임대·상태 판 복원), 투영기 등록·접두 테이블·프로세스 포트 키(P-30) | M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 저장소 1개), 포트 계약 스위트를 L1 구현이 통과 | L3 테스트 그룹, X.operations(O-14) |
+| M0 | Cordis 래퍼(`cordis-bridge.ts`: 루트, scope fiber, effect, dispose, 포트 inject), 레지스트리와 스냅샷, 세대 가드, fold 디스패처 tap·first·chain(시간 예산 포함, `DEFAULT_DISPATCH_POLICY`, `DispatchPolicy`의 선택 메서드 `run`·`onHandlerSettled`), X.operations 정책 결합(P-20), 인메모리 포트로 동작하는 post(멱등), drive 단일 그룹(임대 부여·상한·재호출·반납), scope enable/disable 최소형(경계 훅 `prepare`/`settle`, 유휴 적용), 상태 문서 `state()`/`commit()`(마이그레이션 제외), `createExtHost`·`install`(시작 적용, `InstallResult`)·`registerPlatform`·`ExtHost.ports`·`hostOf`(provide·port만), `@fresnel/ext-host/testing`의 인메모리 포트·가짜 타이머 | §5 단위 테스트 중 M0 표시 항목 | L1 core-loop·core-tools 구현자(훅 발화), X.loading-trust(L-06), X.operations(O-03, O-06), M1 스모크 |
+| M1 | 걷는 골격: 테스트용 그룹이 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓰고, drive 그룹의 켜기·끄기가 단계 경계에서 적용됨을 모델 테이프 스모크로 확인한다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 실제 L1 포트(`fresnel.loop`, `fresnel.tasks`, `fresnel.session`)와 연결, 포트 계약 스위트, `record`/`readRecords`, 기능 바인딩(공급자 하나), 설정 `x.primitives.driveLimits`, 재개(`openThread`의 열린 임대·상태 판 복원), 투영기 등록·접두 테이블·프로세스 포트 키(P-30) | M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 저장소 1개), 포트 계약 스위트를 L1 구현이 통과 | L3 테스트 그룹, X.operations(O-14) |
 | M2 이후 | 임대 중재 설정(`x.primitives.activeDriveGroup`, `LeaseArbiterPort`, `revoked`), 상태 마이그레이션 훅, 리소스 등록 전체(도구·명령·키 조합·플래그·provider·MCP·렌더러, `ResourceRegistry`, `ResourcePolicy`), 진짜 detached tap, 그룹 간 이벤트 격리(호스트 안쪽 휘발 버스), 공급자 여럿의 선택 설정(`x.primitives.capabilityProviders`), thread별 scope 켜짐 상태(서비스 모드) | §5의 M2 표시 항목 | L3 Helm·학습 그룹, X.loading-trust(외부 확장 로더), L4 설정 화면 |
 
 - M0에서 `dispatch: "detached"` 지점(5개)은 await 방식으로 실행했다 [제안]. 결과와 실패 규칙은 같고 지연만 다르다. 진짜 detached 실행은 M2(P-25)에서 구현했다.
@@ -36,7 +36,7 @@ xeon/packages/ext-host/
       index.ts             # 이 도메인의 모든 export(패키지 내부용 포함)
       errors.ts            # PrimitiveError, PrimitiveErrorCode
       ports.ts             # F ports.ts 포트·키·부속 타입의 재export(정의 없음)와 ExtHostPortKey
-      services.ts          # capabilityServiceName, providerServiceName, isReservedServiceName, 능력 바인딩
+      services.ts          # capabilityServiceName, providerServiceName, isReservedServiceName, 기능 바인딩
       cordis-bridge.ts     # Cordis import는 이 파일 하나. 루트 Context, scope fiber, effect, provide/inject, 포트 주입 플러그인
       ambient.ts           # AsyncLocalStorage 기반 thread·디스패치 맥락
       registry.ts          # HandlerRegistry, 항목, 등록 순번, 스냅샷, 세대 필터
@@ -99,7 +99,7 @@ xeon/packages/ext-host/
 | P-14 | `testing/host.ts`: `createTestHost`와 경계 도우미(`stepEnd`, `turnSettled`, `idle`) | P-13 | S | M0 |
 | P-15 | `state.ts` 확장: `record`(`validateGroupRecord`), `readRecords`(읽기 선언 검사, `queryRecords`의 셋째 인자 `reader`에 호출한 확장 이름을 넘겨 다른 확장의 비공개 행 제외, `record_version_unknown` 진단), `recordPrivate`(자기 접두·`state` 영역·공개 kind 중복 검사, `visibility: "private"` 커밋, `record`와 같은 멱등 키, spec §4.6.5, [결정: review.decisions-2 T-21]). `testing/ports.ts`의 `RecordCommitPort` 가짜에 `visibility`와 `reader` 필터를 더한다(F.records.spec §3.9 비공개 기록 규칙 3) | P-12, F E6(`ScopeApi.recordPrivate`), F E9 | S | M1 |
 | P-16 | 재개: `openThread`가 `ExtThreadSnapshot`으로 켜짐 상태·상태 판·열린 임대·차수를 복원하고 첫 경계에서 drive 재호출 또는 `restart` 반납 | P-11, P-12 | M | M1 |
-| P-17 | `services.ts` 능력 바인딩(공급자 하나): `hostOf(g).provide` → `providerServiceName` provide, 바인딩 플러그인이 `capabilityServiceName`으로 다시 provide, scope fiber의 `inject`를 `requires`에서 계산, `capability(key)` 구현(`optional`은 루트 조회) | P-07, P-13 | M | M1 |
+| P-17 | `services.ts` 기능 바인딩(공급자 하나): `hostOf(g).provide` → `providerServiceName` provide, 바인딩 플러그인이 `capabilityServiceName`으로 다시 provide, scope fiber의 `inject`를 `requires`에서 계산, `capability(key)` 구현(`optional`은 루트 조회) | P-07, P-13 | M | M1 |
 | P-18 | `settings.ts`: `primitivesSettings`(`driveDefaultLimits`, `driveLimits`, `activeDriveGroup`, `capabilityProviders`) 선언과 `PrimitivesSettingsSource` 기본 구현(`driveDefaultLimits` 기본 4/8/400000, 천장 없음, review.decisions-2 U-12) | P-13, F.wire-settings.plan(`defineSettings`) | S | M1 |
 | P-19 | `testing/port-contract.ts`: `runPortContract`(runTurn 멱등, `leaseEpoch` 펜싱, `whenIdle` 중 turn 시작 차단, enqueue 멱등, `expectStateRev` 충돌). L1 core-loop·core-tasks·core-persistence가 자기 테스트에서 돌린다 | P-03, P-13 | M | M1 |
 | P-20 | `DispatchPolicy` 결합: X.operations 구현을 `ExtHostDeps.policy`로 받는 통합 테스트(tier 정렬, `run` 위임 예산, 실패·성공 보고) | P-06, O-03, O-06 | S | M0 |
@@ -113,12 +113,12 @@ xeon/packages/ext-host/
 | P-28 | thread별 scope 켜짐 상태와 fiber 수명(한 thread 이상 켜짐 동안 유지) | P-09, P-16 | M | M2 |
 | P-29 | `ExtHost.registerPlatform`(`PlatformModule`, `PlatformContext`, L0 fiber, dispose 역순)과 `ExtHost.ports`(`PortLookup`) | P-07, P-13 | S | M0 |
 | P-30 | 포트 키 재export 추가: `ProjectorRegistryPortKey`(`fresnel.session`의 `projectors`), `ScopedStorePortKey`(`fresnel.store`), `ProcessPortKey`(`fresnel.process`)와 `testing/ports.ts`의 가짜 구현(`register`는 `Result<{ dispose }, ProjectorRegisterError>`, `scoped(owner)`). O-14(저장 영역), O-23(외부 훅), L-22(격리)의 선행 | P-02, P-29 | S | M1 |
-| P-32 | 능력 래퍼 문맥 검사(`capability-guard.ts`, `ExtHostDeps.capabilityDefs`), drive 멱등 쓰기 기본 키 [제안] (M3-REQ-22) | P-13 | M | M3a |
+| P-32 | 기능 래퍼 문맥 검사(`capability-guard.ts`, `ExtHostDeps.capabilityDefs`), drive 멱등 쓰기 기본 키 [제안] (M3-REQ-22) | P-13 | M | M3a |
 | P-33 | 효과 워커(`effect-worker.ts`, `requestEffect`, `EffectWorkerPort`) (M3-REQ-27) | P-32 | M | M3a |
 | P-34 | 상태 커밋 줄, `updateState`, `commitWith` (M3-REQ-23·24) | P-13 | M | M3a |
 | P-35 | 임대 대기 상한과 `lease.rejected`, `leaseEpoch` 기록 (M3-REQ-25·28) | P-10 | M | M3a |
 | P-36 | 수명주기 지점 디스패치(`lifecycle.ts`, `fresnel.session` 피드, 소유 scope 거르기), 이벤트 버스 제거 (M3-REQ-26·102·108) | P-06 | M | M3a |
-| P-37 | 도구 `execute`·명령 처리기의 ambient(디스패치 키는 도구 호출 id·명령 호출 id), 능력 래퍼의 재실행 검사 제외 (M3-REQ-102) | P-13, P-24 | S | M3a |
+| P-37 | 도구 `execute`·명령 처리기의 ambient(디스패치 키는 도구 호출 id·명령 호출 id), 기능 래퍼의 재실행 검사 제외 (M3-REQ-102) | P-13, P-24 | S | M3a |
 | P-31 | 포트 재export 확인: `primitives/ports.ts`·`resources.ts`, loading-trust의 로더 포트, operations의 훅 포트에 자기 정의가 없고 모두 F `ports.ts` 이름을 다시 export하는지(spec §3.6, §3.9, [결정: review.decisions-2 U-14, D-04]), `src/index.ts` 공개 이름이 spec §3.1 표와 같은지 타입 테스트로 확인 | P-02, P-30, F.extensions.plan E10 | S | M1 |
 
 순서 요약: P-01 → P-02 → (P-03, P-04, P-05, P-07 병렬) → P-06 → P-08 → P-09 → P-12 → P-10 → P-11 → P-13 → P-29 → P-14 → P-20 (M0 끝) → P-15~P-19, P-21, P-30 (M1) → P-22~P-28 (M2 이후).
@@ -196,11 +196,11 @@ xeon/packages/ext-host/
 | | `effects dispose concurrently` | 같은 fiber의 effect 두 개 해제가 순차 실행되지 않고 동시에 시작된다(`onDispose` 묶음 근거) | M0 |
 | `ambient.contract.test.ts` | `context survives await` | `AsyncLocalStorage` 값이 `await`·`setTimeout`(가짜 아님, 0ms 한 번)·`queueMicrotask`를 넘어 유지된다 | M0 |
 | `resources.test.ts` | `registerWebProvider records under the capability id` | `registerWebProvider({capability: "web.search"})`가 `web_provider` 기록(이름 `web.search`, 확장 이름)을 남기고, `webProviderRegistrationOf`가 같은 등록 객체를 돌려준다(수용 54) | M3b |
-| | `web capability twice in one scope` | 같은 scope의 같은 능력 두 번째 등록은 `resource_conflict`이다(수용 54) | M3b |
-| | `one scope registers web.search and web.fetch` | 한 scope가 두 능력을 함께 등록한다 | M3b |
+| | `web capability twice in one scope` | 같은 scope의 같은 기능 두 번째 등록은 `resource_conflict`이다(수용 54) | M3b |
+| | `one scope registers web.search and web.fetch` | 한 scope가 두 기능을 함께 등록한다 | M3b |
 | | `disabling removes the web provider record` | scope를 끄면 기록이 사라지고 구독자가 `removed`를 받는다(수용 54) | M3b |
-| | `two extensions share a web capability name` | 다른 확장의 같은 능력 등록은 거부되지 않고 둘 다 남는다(§3.9.1 [결정: 오케스트레이터 기본값]) | M3b |
-| | `webProviderRegistrationOf rejects other kinds and malformed defs` | 다른 종류 기록, `create` 없는 def, 알 수 없는 능력, `null` def는 `undefined`다(수용 54) | M3b |
+| | `two extensions share a web capability name` | 다른 확장의 같은 기능 등록은 거부되지 않고 둘 다 남는다(§3.9.1 [결정: 오케스트레이터 기본값]) | M3b |
+| | `webProviderRegistrationOf rejects other kinds and malformed defs` | 다른 종류 기록, `create` 없는 def, 알 수 없는 기능, `null` def는 `undefined`다(수용 54) | M3b |
 
 - `cordis.contract.test.ts`는 Cordis 판본을 바꿀 때 가장 먼저 실패해야 하는 파일이다. 결과가 바뀌면 spec §4.3 표를 다시 확인한다(adr.0002 §6 제안 절차).
 - `ambient.contract.test.ts`의 0ms 타이머 한 번은 TS-03 예외 조건(런타임 동작 확인)으로 둔다 [제안]. 허용되지 않으면 `queueMicrotask`와 `await`만 확인한다.

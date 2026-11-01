@@ -82,7 +82,7 @@ export const UserConfigEntrySchema: TObject<{
     setting: Type.String({ minLength: 1, maxLength: 128 }),
     title: Type.String({ minLength: 1, maxLength: 64 }),
     description: Type.Optional(Type.String({ maxLength: 1024 })),
-    /** 참이면 값은 비밀 참조(secret://)로만 저장한다(L0.secrets.spec) */
+    /** 참이면 값은 시크릿 참조(secret://)로만 저장한다(L0.secrets.spec) */
     sensitive: Type.Optional(Type.Boolean()),
     required: Type.Optional(Type.Boolean()),
   },

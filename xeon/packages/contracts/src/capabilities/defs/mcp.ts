@@ -28,7 +28,7 @@ import { ImageBlobRefSchema } from "./workspace.ts";
 export const MCP_SERVER_ID_PATTERN: string = "^[a-z][a-z0-9-]{0,31}$";
 export const McpServerIdSchema: TString = Type.String({ pattern: MCP_SERVER_ID_PATTERN });
 
-/** secret:// 참조 또는 평문. 참조 형식과 비밀 이름 패턴 검사는 cap-mcp가 정의를 읽을 때 한다(L2.mcp.spec §3.1) */
+/** secret:// 참조 또는 평문. 참조 형식과 시크릿 이름 패턴 검사는 cap-mcp가 정의를 읽을 때 한다(L2.mcp.spec §3.1) */
 const McpValue = Type.String({ maxLength: 8192 });
 const EnvName = Type.String({ pattern: "^[A-Za-z_][A-Za-z0-9_]{0,127}$" });
 const HeaderName = Type.String({ pattern: "^[A-Za-z0-9-]{1,128}$" });
@@ -130,7 +130,7 @@ export const McpServerDefSchema: TUnsafe<McpServerDef> = Type.Unsafe<McpServerDe
   mcpServerDefShape satisfies SchemaProof<McpServerDef, typeof mcpServerDefShape>,
 );
 
-// ── 능력 정의 mcp.client (§3.2) ────────────────────────────────────────
+// ── 기능 정의 mcp.client (§3.2) ────────────────────────────────────────
 
 export const McpServerStateSchema: TUnion<
   [
@@ -152,7 +152,7 @@ export const McpServerStateSchema: TUnion<
 export type McpServerState = Static<typeof McpServerStateSchema>;
 
 /**
- * 서버가 막힌 사유(McpServerStatus.blockedReason). approval_required는 비밀 env가 있는 stdio 서버가
+ * 서버가 막힌 사유(McpServerStatus.blockedReason). approval_required는 시크릿 env가 있는 stdio 서버가
  * 사용자의 기동 승인을 기다리는 경우다(L2.mcp.spec §4.3). sandbox_unavailable은 샌드박스에 넣어야 하는 stdio 서버를
  * 이 기기에서 격리할 수 없어 띄우지 않은 경우다(L0.process.spec §4.9).
  */
@@ -187,7 +187,7 @@ export type McpServerStatus = {
   toolCount: number;
   promptCount: number;
   resourceCount?: number;
-  /** 비밀 값을 담지 않는다 */
+  /** 시크릿 값을 담지 않는다 */
   lastError?: { code: string; message: string; at: number };
   /** blocked일 때 사유: "denied_by_policy" | "not_in_allowlist" | "managed_only" | "untrusted_project" | "approval_required" | "sandbox_unavailable" */
   blockedReason?: McpBlockedReason;

@@ -23,7 +23,7 @@ export type PlannedBodyIsAQuestionBody = Expect<Assignable<McpQuestionBody, Ques
 export type QuestionBodyIsAPlannedBody = Expect<Assignable<QuestionBody, McpQuestionBody>>;
 export type AnswerMatchesTheService = Expect<Assignable<QuestionAnswer, McpQuestionAnswer>>;
 export type ServiceMatchesTheAnswer = Expect<Assignable<McpQuestionAnswer, QuestionAnswer>>;
-// 연속 정보는 능력 입력(McpContinuation)과 호출 옵션(CallContinuation)에서 같은 모양이다
+// 연속 정보는 기능 입력(McpContinuation)과 호출 옵션(CallContinuation)에서 같은 모양이다
 export type ContinuationFitsTheInput = Expect<Assignable<CallContinuation, McpContinuation>>;
 export type InputFitsTheContinuation = Expect<Assignable<McpContinuation, CallContinuation>>;
 export type OptionsCarryTheContinuation = Expect<

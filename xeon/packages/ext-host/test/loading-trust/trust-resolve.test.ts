@@ -168,7 +168,7 @@ test("session only is not persisted and remembered for the next decision", async
   expect(await summary(first)).toEqual({ trusted: true, verdict: "allow", via: "prompt" });
   expect(first.backend.calls.updates).toBe(0);
   expect(memory.get(ROOT)).toBe("allow");
-  // 같은 호스트의 다음 판정은 프롬프트와 지점 발화 없이 세션 기억이다
+  // 같은 호스트의 다음 판정은 프롬프트와 훅 발화 없이 세션 기억이다
   const second = harness({ choice: { kind: "session", verdict: "deny" }, sessionMemory: memory });
   expect(await summary(second)).toEqual({ trusted: true, verdict: "allow", via: "sessionMemory" });
   expect(second.prompts).toHaveLength(0);

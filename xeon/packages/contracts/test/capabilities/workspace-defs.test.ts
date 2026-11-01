@@ -30,7 +30,7 @@ describe("workspace definitions (M1)", () => {
   });
 
   test("seven tools are declared: read write edit ls grep find bash", () => {
-    // 능력 ID 순(workspace.files < workspace.shell), 그 안에서 이름 순
+    // 기능 ID 순(workspace.files < workspace.shell), 그 안에서 이름 순
     expect(orderTools(DEFS).map((t) => t.name)).toEqual([
       "edit",
       "find",

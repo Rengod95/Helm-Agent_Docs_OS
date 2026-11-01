@@ -25,7 +25,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 2. 크래시나 재시작 뒤 이어서 실행하는 근거(continuation: replay·resume)
 3. 학습·검색·UI가 과거 대화를 읽는 자료
 
-여기에 Xeon 고유 요구가 붙는다. 확장(L3 그룹)의 기록을 세션 기록과 한 커밋으로 저장해야 하고, 앱·CLI·서비스가 같은 세션을 열 수 있어야 한다(ADR-0006).
+여기에 Fresnel 고유 요구가 붙는다. 확장(L3 그룹)의 기록을 세션 기록과 한 커밋으로 저장해야 하고, 앱·CLI·서비스가 같은 세션을 열 수 있어야 한다(ADR-0006).
 
 다섯 방식을 비교했다(`_research/session-storage.md` 다섯 방식, 기준별 비교).
 
@@ -52,7 +52,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 
 - opencode v2는 이벤트와 투영을 한 트랜잭션에서 갱신하고, 같은 seq가 다시 들어오면 ID·타입·created·데이터가 완전히 같을 때만 무시하고 다르면 "Replay diverged" 결함으로 처리한다(`_research/refs/opencode.md §3.8`).
 - pi durable은 의도 커밋 → 외부 효과 → 결과 커밋의 "효과 샌드위치"와 도구별 `replay: "safe" | "unsafe"`(기본 unsafe)를 둔다. durable `docs/spec.md` 1917-1927(효과 샌드위치), 2082-2108(orphaned, replay-unsafe), 3136-3170(재생 시 정책 해석)이 근거다(`_research/refs/pi-durable.md §3.8`, `_research/durable-and-search-facts.md §A-6`). 이 줄 번호는 `_ref` 사본 기준이다(ADR-0003 §3.2).
-- 기존 Helm 설계 `docs/design/09-event-store.md`는 이벤트 envelope(§3.2), 정규화 JSON과 해시(§3.2.1, §3.2.2), 이벤트 카탈로그(§3.4)를 정했다. Xeon은 이벤트 이름 규칙과 카탈로그 분류만 참고하고, 해시 체인과 정본 envelope은 가져오지 않는다. 커널 단독 상태 변경 전제(`_research/decisions-log.md` 2026-10-19 이견)가 Xeon과 다르기 때문이다.
+- 기존 Helm 설계 `docs/design/09-event-store.md`는 이벤트 envelope(§3.2), 정규화 JSON과 해시(§3.2.1, §3.2.2), 이벤트 카탈로그(§3.4)를 정했다. Fresnel은 이벤트 이름 규칙과 카탈로그 분류만 참고하고, 해시 체인과 정본 envelope은 가져오지 않는다. 커널 단독 상태 변경 전제(`_research/decisions-log.md` 2026-10-19 이견)가 Fresnel과 다르기 때문이다.
 
 ## 3. 결정
 
@@ -149,7 +149,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 | D. SQLite 체크포인트 | 재개는 빠르지만 실행 상태를 덮어써 중간 이력이 사라진다. 상태 레코드 마이그레이션이 필요하다. 장점은 C 위의 단계 체크포인트 테이블로 얻는다. pi durable 구현은 NORMAL이고 이벤트 저널이 비목표다(ADR-0003) |
 | E. 외부 내구 실행 엔진 | Postgres나 상주 서버가 필요하다. 개인 데스크톱 앱에서 시작해 배포하는 런타임에는 운영 부담이 크다 |
 | 확장별 DB 파일 + `ATTACH` | WAL 모드에서 여러 파일에 걸친 원자성을 보장하지 않는다. 세션 기록과 확장 기록을 한 번에 커밋할 수 없다. outbox를 쓰면 가능하지만 모든 확장에 outbox를 강제하는 비용이 크다(`_research/session-storage.md` 놓치기 쉬운 제약) |
-| Helm 설계 09 해시 체인 + 정본 envelope | 커널 단독 상태 변경과 감사용 정본 기록을 전제로 한 설계다. Xeon은 그 전제를 버렸으므로 해시 계산과 정규화 JSON 비용을 들일 이유가 없다 |
+| Helm 설계 09 해시 체인 + 정본 envelope | 커널 단독 상태 변경과 감사용 정본 기록을 전제로 한 설계다. Fresnel은 그 전제를 버렸으므로 해시 계산과 정규화 JSON 비용을 들일 이유가 없다 |
 
 ## 6. 미결 사항
 

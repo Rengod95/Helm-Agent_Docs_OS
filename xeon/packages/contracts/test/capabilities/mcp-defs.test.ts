@@ -27,7 +27,7 @@ import {
 import { McpServiceName, type McpService } from "../../src/services/index.ts";
 import type { Equal, Expect } from "../types/expect.ts";
 
-/** McpService는 능력 API를 client 필드로 싣는다(L2.mcp.spec §3.2) */
+/** McpService는 기능 API를 client 필드로 싣는다(L2.mcp.spec §3.2) */
 export type McpServiceCarriesClient = Expect<
   Equal<McpService["client"], CapabilityApi<typeof McpClient>>
 >;

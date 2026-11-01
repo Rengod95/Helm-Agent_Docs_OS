@@ -7,7 +7,7 @@ afterEach(closeWorlds);
 
 // 쓰기 경로의 위협 검사(spec §4.4.1 5단계, §4.6.2). 규칙 자체는 scan.test.ts가 시험한다.
 
-/** 비밀 형태의 시험 값은 소스에 한 덩어리로 두지 않는다(저장소 비밀 검사가 시험 값도 잡는다) */
+/** 시크릿 형태의 시험 값은 소스에 한 덩어리로 두지 않는다(저장소 시크릿 검사가 시험 값도 잡는다) */
 function fake(...parts: string[]): string {
   return parts.join("");
 }

@@ -10,9 +10,9 @@ type SelectedBy = "call" | "setting" | "auto";
 export interface SelectionInput {
   readonly candidates: readonly ProviderCandidate[];
   readonly callProvider?: string;
-  /** `l2.web.<능력>.provider`. "auto" 또는 provider id */
+  /** `l2.web.<기능>.provider`. "auto" 또는 provider id */
   readonly settingProvider: string;
-  /** `l2.web.<능력>.order`. 후보에 없는 id는 건너뛴다 */
+  /** `l2.web.<기능>.order`. 후보에 없는 id는 건너뛴다 */
   readonly order: readonly string[];
 }
 

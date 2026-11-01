@@ -23,7 +23,7 @@ import { resolvedVerdict, checkUrlSyntax } from "./ssrf.ts";
 import { transportFailureToWeb } from "./transport-errors.ts";
 
 // L2.web.spec §3.6, §3.6.1, §4.6.5. 플러그인과 내장 provider가 쓰는 HTTP. 요청 호스트가 그 provider의 manifest.endpoints에
-// 있을 때만 보낸다. 비밀 헤더(header, bearer)는 `HeaderSecretSender.send`의 콜백 안에서만 값이 붙고, 값은 provider에 돌아가지
+// 있을 때만 보낸다. 시크릿 헤더(header, bearer)는 `HeaderSecretSender.send`의 콜백 안에서만 값이 붙고, 값은 provider에 돌아가지
 // 않는다. 응답 에코가 감지되면 본문과 헤더를 버린다. 사용자 도메인 정책은 적용하지 않는다(콘텐츠 URL 규칙과 다르다).
 // 리다이렉트는 따르지 않는다(3xx 응답을 그대로 돌려준다).
 
@@ -65,7 +65,7 @@ export class WebHttpError extends Error {
 export interface ProviderHttpDeps {
   readonly resolver: DnsResolver;
   readonly transport: HttpTransport;
-  /** 없으면 비밀 헤더가 있는 provider의 요청은 no-key로 거부한다. 조립 쪽 어댑터가 L0 `withHttp` 경로로 채운다 */
+  /** 없으면 시크릿 헤더가 있는 provider의 요청은 no-key로 거부한다. 조립 쪽 어댑터가 L0 `withHttp` 경로로 채운다 */
   readonly secrets: HeaderSecretSender | undefined;
   readonly guard: OutboundSecretGuard | undefined;
 }
@@ -136,7 +136,7 @@ interface SecretAttempt extends HeaderSendResponse {
 }
 
 /**
- * manifest 인증 선언을 비밀 헤더 목록으로 바꾼다. `none`은 빈 목록이다. `query`는 지원하지 않으므로 undefined이고,
+ * manifest 인증 선언을 시크릿 헤더 목록으로 바꾼다. `none`은 빈 목록이다. `query`는 지원하지 않으므로 undefined이고,
  * 헤더 이름이 없는 `header`도 undefined다. 레지스트리가 둘 다 등록 때 거부하므로 여기에 오면 조립 결함이다.
  */
 function secretHeadersOf(auth: WebProviderManifest["auth"]): readonly SecretHeader[] | undefined {
@@ -161,7 +161,7 @@ function textBodyOf(sent: TransportResponse): string | null {
   return textual ? new TextDecoder().decode(sent.body) : null;
 }
 
-/** provider가 준 헤더에 비밀 헤더를 덮어 쓴다. 같은 이름의 provider 헤더는 버려진다 */
+/** provider가 준 헤더에 시크릿 헤더를 덮어 쓴다. 같은 이름의 provider 헤더는 버려진다 */
 function withSecretHeaders(
   headers: Readonly<Record<string, string>>,
   secretValues: Readonly<Record<string, string>>,
@@ -292,7 +292,7 @@ export function createBoundProviderHttp(
 
     const secrets = deps.secrets;
     if (secrets === undefined) return err(noKey(bound.name));
-    // 비밀 값은 `send` 콜백 안에서만 헤더에 붙는다. 콜백은 전송 결과를 값으로 돌려주고, 실패한 전송도 값으로 싣는다
+    // 시크릿 값은 `send` 콜백 안에서만 헤더에 붙는다. 콜백은 전송 결과를 값으로 돌려주고, 실패한 전송도 값으로 싣는다
     const outcome = await secrets.send(
       secretHeaders,
       { method: req.method, url: url.href, body: req.body ?? null },
@@ -310,7 +310,7 @@ export function createBoundProviderHttp(
     );
     if (!outcome.ok) return err(noKey(bound.name, outcome.error.setting));
     const { response, echoed } = outcome.value;
-    // 응답이 비밀 값을 되돌렸다. 본문과 헤더는 provider에 돌려주지 않는다(L2.web.spec §5)
+    // 응답이 시크릿 값을 되돌렸다. 본문과 헤더는 provider에 돌려주지 않는다(L2.web.spec §5)
     if (echoed) {
       return err({
         code: "upstream_error",
@@ -319,7 +319,7 @@ export function createBoundProviderHttp(
       });
     }
     if (!response.sent.ok) return err(transportFailureToWeb(response.sent.error, host));
-    // 응답 URL에는 질의 비밀이 들어갈 수 없다(질의 인증은 지원하지 않는다). 요청 URL 그대로 돌려준다
+    // 응답 URL에는 질의 시크릿이 들어갈 수 없다(질의 인증은 지원하지 않는다). 요청 URL 그대로 돌려준다
     return ok({
       status: response.sent.value.status,
       url: url.href,

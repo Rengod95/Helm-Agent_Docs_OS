@@ -14,6 +14,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 
 - 상태: accepted. 2026-11-01 사용자가 §3.2까지 승인했습니다. 화면 라벨 ko·en은 §6대로 용어 원본에서 따로 확정합니다.
 - 날짜: 2026-11-01
+- 실행: 2026-11-02 이름 변경 트랙(브랜치 `m4/rename`)이 이 ADR의 이름 변경 부분(§3.1, §3.3~§3.6 가운데 §3.2 밖의 이름)과 제품 이름 변경을 코드와 문서에 반영했습니다. §3.2(플러그인 그룹 모델, Registration, drive 넓히기)와 [제안] 코드 이름(`ProcessLock*`, `DriveLock*`, `SchedulerLeader*`, `testRun`, `ui`·`placement`·`native`·`app`, `stages`)은 별도 트랙입니다. 디렉터리 이동은 M4 마감 뒤입니다.
 - 근거 문서:
   - `_notes/domain-terms-review-2.md`(이하 "리뷰 2") §13 결정 목록. 저장소 밖 메모입니다.
   - `_notes/m4-decisions.md` "2026-11-01 user decisions (2)·(3)·(4)"

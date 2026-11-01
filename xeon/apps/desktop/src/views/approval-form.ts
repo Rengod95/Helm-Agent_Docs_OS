@@ -35,7 +35,7 @@ export type ToolApprovalView = {
   readonly argsTruncated: boolean;
   /** 큰 인자라 본문이 별도 저장소에 있다 */
   readonly argsStored: boolean;
-  /** `secretEnv`로 쓰려는 비밀. 비어 있으면 비밀을 쓰지 않는다 */
+  /** `secretEnv`로 쓰려는 시크릿. 비어 있으면 시크릿을 쓰지 않는다 */
   readonly secrets: readonly SecretUse[];
 };
 
@@ -62,7 +62,7 @@ function clip(text: string, max: number): { readonly text: string; readonly clip
     : { text: text.slice(0, max), clipped: true };
 }
 
-/** 도구 승인 본문을 카드가 그리는 값으로 바꾼다. 사용자는 실행될 명령, 인자, 쓸 비밀 핸들을 보고 허용한다 */
+/** 도구 승인 본문을 카드가 그리는 값으로 바꾼다. 사용자는 실행될 명령, 인자, 쓸 시크릿 참조을 보고 허용한다 */
 export function toolApprovalView(body: ToolApprovalBody): ToolApprovalView {
   const base = { toolName: body.toolName, risk: body.risk };
   const { args } = body;

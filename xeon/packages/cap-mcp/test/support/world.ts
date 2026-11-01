@@ -20,7 +20,7 @@ import { captureLogger } from "./logger.ts";
 import { layer } from "./layers.ts";
 import { fixedClock, manualScheduler, type FakeClock, type ManualScheduler } from "./time.ts";
 
-/** 알려진 비밀 문자열을 가리는 마스커 */
+/** 알려진 시크릿 문자열을 가리는 마스커 */
 export function maskerFor(secrets: readonly string[]): McpMasker {
   return {
     mask: (text) => secrets.reduce((acc, secret) => acc.split(secret).join("[REDACTED]"), text),

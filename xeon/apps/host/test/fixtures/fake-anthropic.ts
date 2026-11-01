@@ -1,4 +1,4 @@
-// 시험용 가짜 Anthropic Messages 서버(로컬 HTTP). 모델 호출이 실제 HTTP 경로로 나가 비밀 lease가 열려야만 키가 도착한다.
+// 시험용 가짜 Anthropic Messages 서버(로컬 HTTP). 모델 호출이 실제 HTTP 경로로 나가 시크릿 lease가 열려야만 키가 도착한다.
 // 받은 요청의 키 헤더를 기록한다(가짜 값뿐이다). 응답은 짧은 텍스트 SSE 한 번이다.
 
 function sse(event: string, data: unknown): string {
@@ -41,7 +41,7 @@ function textStream(text: string): string {
 export interface FakeAnthropic {
   /** `http://127.0.0.1:<port>`. `l1.models.providers`의 baseUrl로 쓴다 */
   readonly url: string;
-  /** 호스트:포트. 비밀 사용 정책의 호스트 항목과 같은 값이다 */
+  /** 호스트:포트. 시크릿 사용 정책의 호스트 항목과 같은 값이다 */
   readonly hostPort: string;
   /** 받은 요청마다 키를 담은 헤더(`x-api-key` 또는 `authorization`)의 값 */
   keys(): readonly string[];

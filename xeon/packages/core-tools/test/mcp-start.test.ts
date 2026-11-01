@@ -6,7 +6,7 @@ import { createMcpStartGate, type McpStartDefinition } from "../src/mcp-start.ts
 import { fakeApprovals, fakeSecretChecker } from "../src/testing/index.ts";
 import { expectOk, until } from "./support/harness.ts";
 
-// M3-05, M3-REQ-75, L1.tools.spec §4.12.1. 비밀 env stdio 서버의 기동 승인: 정의 해시마다 한 번, 승인 레코드에 정의 해시가 실린다.
+// M3-05, M3-REQ-75, L1.tools.spec §4.12.1. 시크릿 env stdio 서버의 기동 승인: 정의 해시마다 한 번, 승인 레코드에 정의 해시가 실린다.
 
 const REF = "secret://gh-token";
 const HANDLE = expectOk(parseSecretRef(REF)).handle;

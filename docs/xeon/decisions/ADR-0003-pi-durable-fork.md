@@ -96,7 +96,7 @@ durable `docs/spec.md` 인용 범위:
 
 ### 3.4 포크 기록 규칙 [제안]
 
-`docs/design/07 §3.3.1`의 vendor 배치(`UPSTREAM.json`, `PATCHES.md`, `LICENSES/`, 패치 표지)를 참고한다. 그대로 따르지는 않는다. Xeon은 포크 코드를 `vendor/` 대신 포크를 소비하는 패키지 안에 둔다(`_research/foundation-plan.md §3` "exec = pi durable env 포크").
+`docs/design/07 §3.3.1`의 vendor 배치(`UPSTREAM.json`, `PATCHES.md`, `LICENSES/`, 패치 표지)를 참고한다. 그대로 따르지는 않는다. Fresnel은 포크 코드를 `vendor/` 대신 포크를 소비하는 패키지 안에 둔다(`_research/foundation-plan.md §3` "exec = pi durable env 포크").
 
 - 포크 원본 경로와 고정 커밋: `https://github.com/earendil-works/pi`(원문 URL은 `L0.exec.plan`에서 확인), 경로 `packages/durable/src/{env,tools,images,truncate.ts}`, 커밋 `cdaf6c2`.
 - 포크 코드 위치: 각 패키지의 `src/upstream/` 아래. 우리가 새로 쓴 연결 코드(`index.ts`, 타입 재export)는 `src/upstream/` 밖에 둔다.

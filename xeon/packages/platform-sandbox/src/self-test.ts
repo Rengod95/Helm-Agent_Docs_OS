@@ -57,7 +57,7 @@ async function exists(path: string): Promise<boolean> {
 
 /**
  * srt가 샌드박스 안 프록시 클라이언트용으로 직접 내보내는 env 이름 가운데 `SENSITIVE_ENV_PATTERNS`에 걸리는 것.
- * 값은 srt가 프로세스마다 새로 만드는 자체 프록시의 인증 토큰이고 사용자 비밀이 아니다(srt 0.0.79 `CLOUDSDK_PROXY_PASSWORD`).
+ * 값은 srt가 프로세스마다 새로 만드는 자체 프록시의 인증 토큰이고 사용자 시크릿이 아니다(srt 0.0.79 `CLOUDSDK_PROXY_PASSWORD`).
  * 실제 srt로 시험하면 이 이름 하나 때문에 `env_allowlist`가 항상 실패하므로 이 이름만 센 대상에서 뺀다 (마감 G4-01).
  * srt를 올릴 때 `sandbox.int.test.ts`가 새로 걸리는 이름을 잡는다.
  */

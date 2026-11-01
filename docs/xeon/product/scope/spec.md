@@ -14,7 +14,7 @@ binds: []
 
 ### 1.1 정하는 것
 
-이 문서는 Xeon 범위와 마일스톤의 기준이다. 다른 문서의 일정 표기가 이 문서와 다르면 이 문서를 따른다.
+이 문서는 Fresnel 범위와 마일스톤의 기준이다. 다른 문서의 일정 표기가 이 문서와 다르면 이 문서를 따른다.
 
 - 범위에 포함하는 항목과 각 항목의 첫 마일스톤
 - 비범위 항목과 다시 다루는 시점(2차, 보류, 제외)
@@ -48,18 +48,18 @@ binds: []
 
 | # | 항목 | 첫 마일스톤 | 근거 |
 |---|---|---|---|
-| I1 | 대화형 런타임 CLI(`xeon chat`) | M1 | [결정: decisions-log 2026-10-19] foundation-plan.md §5 P4 M1 |
+| I1 | 대화형 런타임 CLI(`fresnel chat`) | M1 | [결정: decisions-log 2026-10-19] foundation-plan.md §5 P4 M1 |
 | I2 | 데스크톱 앱: Tauri 2, 메모리 우선, 3플랫폼 지원 기술, 엔진 사이드카와 stdio JSON-RPC | M2 | [결정: decisions-log 2026-10-21 3차, ADR-0008] foundation-plan.md §1 결정 3 |
-| I3 | 확장 지점 4연산(on, post, drive, scope) | M0 | [결정: decisions-log 2026-10-21 계획 v2, ADR-0007] |
+| I3 | 훅 4연산(on, post, drive, scope) | M0 | [결정: decisions-log 2026-10-21 계획 v2, ADR-0007] |
 | I4 | 층 F~L3 전체의 1차 구성요소 | M3 | [결정: decisions-log 2026-10-21 배포 단위 정정] |
 | I5 | 세션 저장 C안(SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블) | M0 | [결정: decisions-log 2026-10-21 2차, ADR-0004] |
-| I6 | 비밀 SOPS(age) 기본값과 `secret://` 참조 | M1 | [결정: decisions-log 2026-10-21 2차] |
+| I6 | 시크릿 SOPS(age) 기본값과 `secret://` 참조 | M1 | [결정: decisions-log 2026-10-21 2차] |
 | I7 | Helm 그룹 | M3 | [결정: decisions-log 2026-10-21 배포 단위 정정]. 첫 마일스톤은 M2였으나 M3로 옮겼다 [결정: review.m2-plan §9 D-a]. 형태는 기본 플러그인이다. 별도 패키지로 릴리즈에 넣고 설치되어 있으면 켠다 [결정: review.m3-design-inputs D-M3-01] |
 | I8 | 학습 그룹 | M3 | [결정: decisions-log 2026-10-21 계획 v2] |
 | I9 | 승인 프로토콜 통합(질문 도구와 계획 승인을 L1-d 하나로) | M2 | [결정: decisions-log 2026-10-21 3차] foundation-plan.md §1 결정 5 |
 | I10 | 무료 검색 기본값 단계 구성 | M2(①~③), M3(④ 첫 실행 권장) | [결정: decisions-log 2026-10-21 3차, ADR-0005] foundation-plan.md §1 결정 6. ③은 사용자가 SearXNG 주소를 설정했을 때만 쓴다. 자동 감지는 없다 [결정: review.m2-plan §9 H1] |
 | I11 | 목표 판정(별도 판정 모델 + 실행 횟수 상한) | M3a(구현)/M3b(판정) | [결정: decisions-log 2026-10-21 3차] foundation-plan.md §1 결정 4 |
-| I12 | 공유 서비스 모드(`xeon service`, 자동 기동, 유휴 종료) | M3 | [결정: decisions-log 2026-10-21 3차, ADR-0006] foundation-plan.md §1 결정 2 |
+| I12 | 공유 서비스 모드(`fresnel service`, 자동 기동, 유휴 종료) | M3 | [결정: decisions-log 2026-10-21 3차, ADR-0006] foundation-plan.md §1 결정 2 |
 | I13 | 예약, 원격, 알림(데몬 허용) | M3 | [결정: decisions-log 2026-10-21 3차] foundation-plan.md §1 결정 2. 원격은 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식으로 M3에 넣고, 내장 TLS + 토큰 WebSocket 전송은 2차다 [결정: review.decisions-2 U-11] |
 | I14 | L4 설정 화면(추론 예산, 라우팅, 레이트 리밋, 계정 회전) | M3. 데스크톱 최소 설정 화면(키 등록, 모델 선택, 첫 실행 안내)은 M2 | [결정: decisions-log 2026-10-21 2차]. 최소 화면 [결정: review.m2-plan §9 D-b] |
 
@@ -72,7 +72,7 @@ binds: []
 
 | # | 항목 | 다시 다루는 시점 | 근거 |
 |---|---|---|---|
-| N1 | 내장 입출력 가드레일 검사 | 제외. 대신 가드레일 플러그인이 붙을 fail-closed 지점 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 M3에 둔다(ADR-0017 §3.6) [결정: review.m3-design-inputs D-M3-30 행 1]. | layer-plan-v2-notes.md "입출력 가드레일은 필요한가", decisions-log 2026-10-21 계획 v2 |
+| N1 | 내장 입출력 가드레일 검사 | 제외. 대신 가드레일 플러그인이 붙을 fail-closed 훅 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 M3에 둔다(ADR-0017 §3.6) [결정: review.m3-design-inputs D-M3-30 행 1]. | layer-plan-v2-notes.md "입출력 가드레일은 필요한가", decisions-log 2026-10-21 계획 v2 |
 | N2 | 확장 프로세스 격리 | 2차 선택 기능. 기본은 같은 프로세스 로드다. | decisions-log 2026-10-21 2차, layer-plan-v2-notes.md "확장 프로세스 격리는 기본값이 아니어도 된다" |
 | N3 | OS 서비스 등록(launchd, systemd) | 2차 | decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 2 |
 | N4 | Windows 네이티브 지원 | 나중(2차 이후) | decisions-log 2026-10-19 |
@@ -93,18 +93,18 @@ binds: []
 
 M0와 M1은 foundation-plan.md §5 P4 정의를 그대로 옮긴다. M2와 M3는 계획에 정의가 없어 이 문서가 [제안]으로 처음 정했고, 2026-10-22 사용자 확인으로 [결정]이 되었다.
 
-이 문서에서 M3는 M3a와 M3b를 합친 말이다. 첫 공개 릴리즈 후보는 M3b가 끝난 시점이다. M3a는 확장 지점과 계약, Helm, 학습 그룹을 담고, M3b는 서비스·원격·예약·알림, 설정 화면, cap 확장, i18n, 릴리즈를 담는다 [결정: 2026-10-28 사용자].
+이 문서에서 M3는 M3a와 M3b를 합친 말이다. 첫 공개 릴리즈 후보는 M3b가 끝난 시점이다. M3a는 훅과 계약, Helm, 학습 그룹을 담고, M3b는 서비스·원격·예약·알림, 설정 화면, cap 확장, i18n, 릴리즈를 담는다 [결정: 2026-10-28 사용자].
 
 | 마일스톤 | 표지 | 내용 |
 |---|---|---|
 | M0 기반 | [결정: foundation-plan.md §5 P4] | `contracts`(F 전 도메인의 TypeBox 타입). `ext-host`(Cordis vendored, on/post/drive/scope 최소형). `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·세션 잠금). `platform-exec`(durable env 포크). |
-| M1 걸어 다니는 골격 | [결정: foundation-plan.md §5 P4] | `xeon chat` CLI에서 다음이 동작한다: pi-ai 모델 1개, 도구 `read`, `ls`, `bash`(sandbox), 이벤트 저장과 재개, SOPS 비밀 참조 1종, 테스트용 그룹이 on/post/drive를 사용. UC-1이 이 마일스톤이다. [제안] 도구 `read`, `ls`, `bash`의 본문은 `cap-workspace`(L2-a, ADR-0003 포크 위치)의 최소형으로 이 마일스톤에 만든다. |
-| M2 능력과 Helm | [결정: 사용자 확인 2026-10-22, 2026-10-25 개정] | L2 능력 `cap-web`, `cap-mcp`, `cap-knowledge`, `cap-work`, `cap-dialog`의 1차 구성요소. 승인 프로토콜 통합. 무료 검색 기본값 단계 구성(①~③, ④ 첫 실행 권장은 M3). 그룹 기반 `group-sdk` 1차. Tauri 데스크톱과 엔진 사이드카(`apps/desktop`). 데스크톱 최소 설정 화면(키 등록, 모델 선택, 첫 실행 안내) [결정: review.m2-plan §9 D-b]. 비밀 관리 명령(목록, 등록, 삭제, 열람 `xeon secret reveal`, UC-6). 열람은 OS 인증 재확인이 가능한 곳에서 재확인한다 [결정: review.decisions-2 U-20]. MCP stdio 서버는 비밀 env가 없는 서버만 띄운다. 비밀 env를 쓰는 서버는 M3다 [결정: review.m2-plan §9 D-c]. Helm 본체(`group-helm`)와 UC-2는 M3로 옮겼다 [결정: review.m2-plan §9 D-a]. 이름의 "Helm"은 인용 때문에 그대로 둔다. |
-| M3a | [결정: 2026-10-28 사용자] | 확장 지점과 계약, Helm, 학습 그룹. ADR-0015와 ADR-0017의 계약 개정, 확장 지점 개정과 가드레일 지점(ADR-0017), 클라이언트 패키지 `packages/client`(ADR-0020). Helm 본체(`group-helm` H-02~H-15)와 UC-2, Helm 기본 플러그인 패키징, 그 전제인 도구 메타(`risk`, `hints`, `caller`)와 on 핸들러 효과 목록 ADR [결정: review.m2-plan §9 D-a]. 학습 그룹(`group-learning`). 범위는 스킬 md와 메타인지 피드백 제안이고, 반복 작업 스크립트 제안은 2차다(4.5). 목표 판정(I11)의 구현은 L1 트랙에 둔다. 판정 조건은 M3b에서 본다(4.4 예외). |
-| M3b (첫 공개 릴리즈 후보) | [결정: 2026-10-28 사용자] | 서비스·원격·예약·알림, 설정 화면, cap 확장, i18n, 릴리즈. 공유 서비스 모드(`xeon service`). 예약, 원격, 알림(`cap-schedule`, `apps/host`, `platform-os`). 원격은 SSH 터널·사설망 연결 방식이다 [결정: review.decisions-2 U-11]. 원격 두 형태(자체 호스트 서버 접속, 자기 컴퓨터 실행)다 [결정: review.m3-design-inputs D-M3-17]. 웹 클라이언트는 M3에 넣지 않는다. 웹 UI는 M4다(4.2 N15). 목표 판정의 판정 조건(I11, 구현은 M3a). 설정 화면(settings-ui, 레이트 리밋·계정 회전 포함 [결정: review.decisions-2 U-21], 비밀 값 열람 화면 [결정: review.decisions-2 U-20]). 기본 브라우저 provider Stagehand(`web.browse`) [결정: review.m3-design-inputs D-M3-23]. 나머지 1차 구성요소(`cap-workspace`의 M1 밖 도구(write, edit, grep 등), `cap-artifacts`). i18n(ADR-0016, [결정: review.m3-design-inputs D-M3-27]). macOS·Linux 릴리즈 빌드(4.7). 모델 계정 풀과 위장 provider·계정 회전 플러그인(D-M3-22)은 M3b에 둔다 [결정: 2026-10-28 사용자]. 작업 목록은 `review.m3-plan`이다. |
+| M1 걸어 다니는 골격 | [결정: foundation-plan.md §5 P4] | `fresnel chat` CLI에서 다음이 동작한다: pi-ai 모델 1개, 도구 `read`, `ls`, `bash`(sandbox), 이벤트 저장과 재개, SOPS 시크릿 참조 1종, 테스트용 그룹이 on/post/drive를 사용. UC-1이 이 마일스톤이다. [제안] 도구 `read`, `ls`, `bash`의 본문은 `cap-workspace`(L2-a, ADR-0003 포크 위치)의 최소형으로 이 마일스톤에 만든다. |
+| M2 기능과 Helm | [결정: 사용자 확인 2026-10-22, 2026-10-25 개정] | L2 기능 `cap-web`, `cap-mcp`, `cap-knowledge`, `cap-work`, `cap-dialog`의 1차 구성요소. 승인 프로토콜 통합. 무료 검색 기본값 단계 구성(①~③, ④ 첫 실행 권장은 M3). 그룹 기반 `group-sdk` 1차. Tauri 데스크톱과 엔진 사이드카(`apps/desktop`). 데스크톱 최소 설정 화면(키 등록, 모델 선택, 첫 실행 안내) [결정: review.m2-plan §9 D-b]. 시크릿 관리 명령(목록, 등록, 삭제, 열람 `fresnel secret reveal`, UC-6). 열람은 OS 인증 재확인이 가능한 곳에서 재확인한다 [결정: review.decisions-2 U-20]. MCP stdio 서버는 시크릿 env가 없는 서버만 띄운다. 시크릿 env를 쓰는 서버는 M3다 [결정: review.m2-plan §9 D-c]. Helm 본체(`group-helm`)와 UC-2는 M3로 옮겼다 [결정: review.m2-plan §9 D-a]. 이름의 "Helm"은 인용 때문에 그대로 둔다. |
+| M3a | [결정: 2026-10-28 사용자] | 훅과 계약, Helm, 학습 그룹. ADR-0015와 ADR-0017의 계약 개정, 훅 개정과 가드레일 지점(ADR-0017), 클라이언트 패키지 `packages/client`(ADR-0020). Helm 본체(`group-helm` H-02~H-15)와 UC-2, Helm 기본 플러그인 패키징, 그 전제인 도구 메타(`risk`, `hints`, `caller`)와 on 핸들러 효과 목록 ADR [결정: review.m2-plan §9 D-a]. 학습 그룹(`group-learning`). 범위는 스킬 md와 메타인지 피드백 제안이고, 반복 작업 스크립트 제안은 2차다(4.5). 목표 판정(I11)의 구현은 L1 트랙에 둔다. 판정 조건은 M3b에서 본다(4.4 예외). |
+| M3b (첫 공개 릴리즈 후보) | [결정: 2026-10-28 사용자] | 서비스·원격·예약·알림, 설정 화면, cap 확장, i18n, 릴리즈. 공유 서비스 모드(`fresnel service`). 예약, 원격, 알림(`cap-schedule`, `apps/host`, `platform-os`). 원격은 SSH 터널·사설망 연결 방식이다 [결정: review.decisions-2 U-11]. 원격 두 형태(자체 호스트 서버 접속, 자기 컴퓨터 실행)다 [결정: review.m3-design-inputs D-M3-17]. 웹 클라이언트는 M3에 넣지 않는다. 웹 UI는 M4다(4.2 N15). 목표 판정의 판정 조건(I11, 구현은 M3a). 설정 화면(settings-ui, 레이트 리밋·계정 회전 포함 [결정: review.decisions-2 U-21], 시크릿 값 열람 화면 [결정: review.decisions-2 U-20]). 기본 브라우저 provider Stagehand(`web.browse`) [결정: review.m3-design-inputs D-M3-23]. 나머지 1차 구성요소(`cap-workspace`의 M1 밖 도구(write, edit, grep 등), `cap-artifacts`). i18n(ADR-0016, [결정: review.m3-design-inputs D-M3-27]). macOS·Linux 릴리즈 빌드(4.7). 모델 계정 풀과 위장 provider·계정 회전 플러그인(D-M3-22)은 M3b에 둔다 [결정: 2026-10-28 사용자]. 작업 목록은 `review.m3-plan`이다. |
 
 - 이번 실행(foundation-plan.md P4)은 M0~M1을 구현하고, Tauri 데스크톱, L2 웹·MCP, Helm 본체는 스캐폴드까지만 만든다.
-- [가정] M2와 M3의 순서는 의존 방향을 따른다. Helm은 L2 웹·지식 능력을 쓰므로 원래 같은 M2에 두었다. 2026-10-25에 도구 메타와 효과 목록 결정이 없어 M3로 옮겼다(`review.m2-plan` §9 D-a). 학습 그룹은 L2 지식 저장소와 백그라운드 위임이 안정된 뒤인 M3에 둔다.
+- [가정] M2와 M3의 순서는 의존 방향을 따른다. Helm은 L2 웹·지식 기능을 쓰므로 원래 같은 M2에 두었다. 2026-10-25에 도구 메타와 효과 목록 결정이 없어 M3로 옮겼다(`review.m2-plan` §9 D-a). 학습 그룹은 L2 지식 저장소와 백그라운드 위임이 안정된 뒤인 M3에 둔다.
 - M0~M3 밖의 마일스톤 이름(예: "M1.5")은 없다. 통합 검토 L1~L9와 후속 N-1~N-6, 마일스톤 재점검 G1~G5 수정은 모두 M2 안의 작업이다(`review.m2-plan` §10).
 
 ### 4.4 마일스톤별 종료 조건
@@ -114,11 +114,11 @@ M0와 M1은 foundation-plan.md §5 P4 정의를 그대로 옮긴다. M2와 M3는
 | 마일스톤 | 종료 조건 |
 |---|---|
 | M0 | `contracts`의 TypeBox 스키마가 예시 레코드를 왕복 검증한다. `ext-host` 단위 테스트에서 first 핸들러의 거부가 뒤 핸들러 호출을 막고, chain 핸들러 예외는 그 핸들러만 건너뛰며, 같은 `requestId`의 `post`는 한 번만 큐에 들어가고, 동시에 요청된 drive 임대는 하나만 승인된다. `platform-store`에서 이벤트 추가와 투영 갱신이 한 트랜잭션으로 커밋되고, 쓰기 중인 자식 프로세스를 SIGKILL한 뒤 다시 열면 마지막 커밋까지 보존되며, 두 번째 프로세스의 세션 잠금 시도는 실패한다. 시작 검사가 FTS5 유무를 탐침한다. `platform-exec` 포크 테스트가 통과하고 `CancelScope` 취소가 실행 중 명령을 멈춘다. |
-| M1 | 모델 테이프로 `xeon chat` 한 턴을 실행한다. 프로세스를 강제 종료한 뒤 재개하면 이벤트가 이어진다. drive 그룹을 켜고 끄는 동작이 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용된다. foundation-plan 원문의 "턴 경계"를 단계 경계로 읽는다 [결정: review.decisions-2 U-01](`F.conversation.spec` §2.1). SOPS 비밀 참조 1종을 쓰는 도구 호출에서 값이 이벤트 DB와 모델 요청 본문에 나타나지 않는다. 이 검증은 `env` 주입 모드(`_research/secrets.md` §6.2의 M1 모드)로 한다 [결정: review.decisions-2 U-19]. M1 마일스톤의 도구가 `read`, `ls`, `bash`뿐이고 `sentinel`·`runtime-http` 모드는 프록시나 HTTP 도구가 필요하기 때문이다. 승인 없는 `env` 주입은 금지이므로 이 호출은 승인과 명령 패턴을 갖춘 `bash` 호출이고, 출력에 나타난 값은 저장 전에 가려진다. 샌드박스 `bash`가 작업 폴더 밖 쓰기를 거부한다. |
+| M1 | 모델 테이프로 `fresnel chat` 한 턴을 실행한다. 프로세스를 강제 종료한 뒤 재개하면 이벤트가 이어진다. drive 그룹을 켜고 끄는 동작이 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용된다. foundation-plan 원문의 "턴 경계"를 단계 경계로 읽는다 [결정: review.decisions-2 U-01](`F.conversation.spec` §2.1). SOPS 시크릿 참조 1종을 쓰는 도구 호출에서 값이 이벤트 DB와 모델 요청 본문에 나타나지 않는다. 이 검증은 `env` 주입 모드(`_research/secrets.md` §6.2의 M1 모드)로 한다 [결정: review.decisions-2 U-19]. M1 마일스톤의 도구가 `read`, `ls`, `bash`뿐이고 `sentinel`·`runtime-http` 모드는 프록시나 HTTP 도구가 필요하기 때문이다. 승인 없는 `env` 주입은 금지이므로 이 호출은 승인과 명령 패턴을 갖춘 `bash` 호출이고, 출력에 나타난 값은 저장 전에 가려진다. 샌드박스 `bash`가 작업 폴더 밖 쓰기를 거부한다. |
 | M2 | 아래 4.4.1 표의 E0, E2~E7. E1은 M3로 옮겼다 [결정: review.m2-plan §9 D-a]. |
 | M3a | E1(4.4.1)을 확인한다. 학습 그룹이 카운터 임계에서 검토 포크를 백그라운드로 실행해 스킬 md와 메타인지 피드백 후보를 만들고, 승인 전에는 스킬·메모리 파일이 바뀌지 않으며, Helm drive 임대 중에도 동작한다(UC-3). [제안] 학습 그룹(`group-learning`)을 추가하는 변경에서 `contracts`, `ext-host`, `platform-*`, `core-*` 경로의 diff가 0이고, 학습 그룹이 쓰는 연산(`on`, `post`, `scope`)이 통합 테스트에서 호출된다(`product.vision.spec` S1). 학습 그룹은 `drive`를 쓰지 않으므로 S1의 `drive` 호출은 M1의 테스트 그룹이 확인한다. |
-| M3b (첫 공개 릴리즈 후보) | X4 서비스 모드에서 클라이언트를 모두 종료해도 예약 실행 이벤트가 기록되고, 연결 0·live task 0·대기 예약 0일 때만 유예 뒤 종료한다(UC-4). X5 SSH 터널로 서비스 소켓을 연결한 다른 기기의 클라이언트가 세션 목록을 보고 입력을 위임하며, 서비스는 비루프백 리스너를 열지 않는다(UC-5). X6 목표 판정이 실행 횟수 상한(`l1.agents.judge.maxRuns`)에서 멈춘다. X7 설정 화면에서 레이트 리밋과 계정 회전을 바꾸면 F5 설정 파일에 같은 키로 저장된다(I14). X8 설정 화면의 비밀 탭이 재인증 뒤 값을 보인다(UC-6). X9 설정 화면 "도구와 웹" 탭과 `xeon doctor` 출력이 검색 provider 상태, SearXNG 주소 입력, 키 플러그인 권장 목록(Exa, Brave)을 보인다(I10 ④, ADR-0005 §3.1). X10 설정 화면 항목, 설정 파일 키, 설정 명령이 같은 F5 스키마에서 생성된다(스키마 키 집합과 화면 항목 집합이 같다). X11 macOS와 Linux 릴리즈 빌드가 같은 스모크를 통과한다. 조건 번호는 `review.m3b-plan` §1.1을 따른다 [결정: 오케스트레이터 기본값]. 재범위: UI 화면은 M4로 옮긴다 [결정: 2026-10-28 사용자 지시]. X7·X8·X10은 view-model과 설정 파일 값으로 확인하고 화면 렌더는 M4다. X9는 `xeon doctor` 부분을 출력 시험으로 확인하고 탭 부분은 view-model로 확인한다. |
-| M4 | [결정: 오케스트레이터 기본값] 번호와 조건은 `review.m4-plan` §1.3을 따릅니다. Y1 대화 영역 P0 화면(S-01~S-04, P-01, P-02, P-03, P-09, P-10, O-01~O-07)이 caustic 부품으로 그려지고 화면마다 여섯 상태를 보입니다. 승인 카드 네 종류는 트랜스크립트, 끝 영역, P-03에서 같은 부품이고 `approval.resolved`로 함께 사라집니다. Y2 작업대 P-13, P-15~P-21이 가짜 엔진 위에서 여섯 상태를 보입니다. 대화와 작업대를 오가도 같은 대화, 스크롤, 오른쪽 탭으로 돌아갑니다. Y3 맥락 칸의 값 하나가 모든 작업대 화면의 맥락을 바꾸고, 따라가기와 고정은 spec §4.9.3대로 동작합니다. Y4 개요 나눔 보기에서 목록과 캔버스 선택이 맞춰집니다. 캔버스에는 구조 편집 동작이 없고, 층 안 순서를 기억하며 초기화할 수 있습니다. 턴 재생 시간은 `trace.turn`과 같고, 계측을 끄면 턴 재생이 잠깁니다. Y5 플러그인 화면은 두 모드로 그려집니다. Helm `helm/inquiry`는 위젯 카탈로그 v1만으로 그려집니다. 시험 프레임 플러그인은 격리 iframe에서 그려지고, Linux e2e에서 `__TAURI__`가 없고 네트워크 요청이 실패하며 프레임 안 승인 버튼이 무효입니다. 다리 메시지에는 비밀이 없습니다. 화면 실패가 5번이면 그 화면만 `view_disabled`가 됩니다. Y6 spec §10.1의 M4 wire 메서드가 `WIRE_METHODS`와 wire 문서 표에 있고, 메서드마다 host 통합 시험이 있습니다. Y7 drive 사람 확인에서 `loop.ask`가 승인을 만들고 임대를 `waiting`으로 반납합니다. 답 뒤 같은 그룹이 임대를 다시 받고, 같은 `requestId`의 재호출은 기록된 답을 돌려줍니다. `replayDrive`는 ask를 포함한 그룹을 통과합니다. Y8 제작 확장은 `L3.authoring.spec` §9 A-1~A-7을 만족합니다. Y9 시험 대화를 "멈춤"하면 다음 단계 경계 뒤에 새 turn과 drive 호출이 없고 임대가 유지됩니다. "이어서"로 계속합니다. 배포 형태에서는 replay, bench, diff가 잠깁니다. Y10 프로필은 호스트에 저장되고, 데스크톱이 저장한 프로필이 CLI `xeon profile list`에 보입니다. `profile.apply`가 하나라도 실패하면 모든 키를 되돌립니다. Y11 버전 탭은 낸 단계에 따라 되돌리기 왕복(전체 단계) 또는 기본 플러그인 번들 버전 되돌리기(대체 단계)를 시험합니다. 단계는 spec §6.24.1에 적습니다. Y12 코드 결함 넷을 고칩니다. `/group on`과 설정 토글은 장부를 비우고, managed 설치는 상한 `user` tier를 쓰며, 핸들러 시간은 지점별로 기록되고, 시작 실패 뒤 `host.status.suggestSafeMode`가 참입니다. 안전 모드에서는 X 훅이 실리지 않습니다. Y13 caustic `xeon/m4-design`이 caustic `main`에 PR로 들어가고 submodule이 `main` 커밋을 가리킵니다. spec §9의 C 항목마다 상태(caustic 반영, 앱 조합, M5)가 있고, `apps/desktop/src`에 색 값을 직접 쓰지 않습니다. Y14 모든 화면에서 axe 위반이 0이고, 키보드만으로 spec §4.8 동작을 할 수 있으며, 라이트와 다크 테마 모두에서 확인됩니다. Y15 하드코딩 한국어 검사가 `apps/desktop/src`와 하위 층에서 0이고, `ui.locale=en` 데스크톱 스모크가 통과합니다. Y16 `review.m3-plan` §9.3 이월 표의 모든 항목이 요구 장부에 상태(M4 완료, M5 이월과 사유, 삭제와 사유)를 가지고, `just req-ledger` 문제가 0입니다. Y17 데스크톱 첫 화면 시간과 유휴 메모리, 릴리즈 앱 크기(500MB 이하)를 재서 `eng.performance.guide` 표에 기록합니다. 계측(X-15)을 켠 턴과 끈 턴의 비용 차이도 기록합니다. 수치 기준은 사용자 결정 뒤에 정하고, 그 전에는 "기록됨"으로 판정합니다. |
+| M3b (첫 공개 릴리즈 후보) | X4 서비스 모드에서 클라이언트를 모두 종료해도 예약 실행 이벤트가 기록되고, 연결 0·live task 0·대기 예약 0일 때만 유예 뒤 종료한다(UC-4). X5 SSH 터널로 서비스 소켓을 연결한 다른 기기의 클라이언트가 세션 목록을 보고 입력을 위임하며, 서비스는 비루프백 리스너를 열지 않는다(UC-5). X6 목표 판정이 실행 횟수 상한(`l1.agents.judge.maxRuns`)에서 멈춘다. X7 설정 화면에서 레이트 리밋과 계정 회전을 바꾸면 F5 설정 파일에 같은 키로 저장된다(I14). X8 설정 화면의 시크릿 탭이 재인증 뒤 값을 보인다(UC-6). X9 설정 화면 "도구와 웹" 탭과 `fresnel doctor` 출력이 검색 provider 상태, SearXNG 주소 입력, 키 플러그인 권장 목록(Exa, Brave)을 보인다(I10 ④, ADR-0005 §3.1). X10 설정 화면 항목, 설정 파일 키, 설정 명령이 같은 F5 스키마에서 생성된다(스키마 키 집합과 화면 항목 집합이 같다). X11 macOS와 Linux 릴리즈 빌드가 같은 스모크를 통과한다. 조건 번호는 `review.m3b-plan` §1.1을 따른다 [결정: 오케스트레이터 기본값]. 재범위: UI 화면은 M4로 옮긴다 [결정: 2026-10-28 사용자 지시]. X7·X8·X10은 view-model과 설정 파일 값으로 확인하고 화면 렌더는 M4다. X9는 `fresnel doctor` 부분을 출력 시험으로 확인하고 탭 부분은 view-model로 확인한다. |
+| M4 | [결정: 오케스트레이터 기본값] 번호와 조건은 `review.m4-plan` §1.3을 따릅니다. Y1 대화 영역 P0 화면(S-01~S-04, P-01, P-02, P-03, P-09, P-10, O-01~O-07)이 caustic 부품으로 그려지고 화면마다 여섯 상태를 보입니다. 승인 카드 네 종류는 트랜스크립트, 끝 영역, P-03에서 같은 부품이고 `approval.resolved`로 함께 사라집니다. Y2 LightCraft P-13, P-15~P-21이 가짜 엔진 위에서 여섯 상태를 보입니다. 대화와 LightCraft를 오가도 같은 대화, 스크롤, 오른쪽 탭으로 돌아갑니다. Y3 맥락 칸의 값 하나가 모든 LightCraft 화면의 맥락을 바꾸고, 따라가기와 고정은 spec §4.9.3대로 동작합니다. Y4 개요 나눔 보기에서 목록과 캔버스 선택이 맞춰집니다. 캔버스에는 구조 편집 동작이 없고, 층 안 순서를 기억하며 초기화할 수 있습니다. 턴 재생 시간은 `trace.turn`과 같고, 계측을 끄면 턴 재생이 잠깁니다. Y5 플러그인 화면은 두 모드로 그려집니다. Helm `helm/inquiry`는 위젯 카탈로그 v1만으로 그려집니다. 시험 프레임 플러그인은 격리 iframe에서 그려지고, Linux e2e에서 `__TAURI__`가 없고 네트워크 요청이 실패하며 프레임 안 승인 버튼이 무효입니다. 다리 메시지에는 시크릿이 없습니다. 화면 실패가 5번이면 그 화면만 `view_disabled`가 됩니다. Y6 spec §10.1의 M4 wire 메서드가 `WIRE_METHODS`와 wire 문서 표에 있고, 메서드마다 host 통합 시험이 있습니다. Y7 drive 사람 확인에서 `loop.ask`가 승인을 만들고 임대를 `waiting`으로 반납합니다. 답 뒤 같은 그룹이 임대를 다시 받고, 같은 `requestId`의 재호출은 기록된 답을 돌려줍니다. `replayDrive`는 ask를 포함한 그룹을 통과합니다. Y8 제작 확장은 `L3.authoring.spec` §9 A-1~A-7을 만족합니다. Y9 시험 대화를 "멈춤"하면 다음 단계 경계 뒤에 새 turn과 drive 호출이 없고 임대가 유지됩니다. "이어서"로 계속합니다. 배포 형태에서는 replay, benchmark, diff가 잠깁니다. Y10 프로필은 호스트에 저장되고, 데스크톱이 저장한 프로필이 CLI `fresnel profile list`에 보입니다. `profile.apply`가 하나라도 실패하면 모든 키를 되돌립니다. Y11 버전 탭은 낸 단계에 따라 되돌리기 왕복(전체 단계) 또는 기본 플러그인 번들 버전 되돌리기(대체 단계)를 시험합니다. 단계는 spec §6.24.1에 적습니다. Y12 코드 결함 넷을 고칩니다. `/group on`과 설정 토글은 장부를 비우고, managed 설치는 상한 `user` tier를 쓰며, 핸들러 시간은 지점별로 기록되고, 시작 실패 뒤 `host.status.suggestSafeMode`가 참입니다. 안전 모드에서는 X 훅이 실리지 않습니다. Y13 caustic `xeon/m4-design`이 caustic `main`에 PR로 들어가고 submodule이 `main` 커밋을 가리킵니다. spec §9의 C 항목마다 상태(caustic 반영, 앱 조합, M5)가 있고, `apps/desktop/src`에 색 값을 직접 쓰지 않습니다. Y14 모든 화면에서 axe 위반이 0이고, 키보드만으로 spec §4.8 동작을 할 수 있으며, 라이트와 다크 테마 모두에서 확인됩니다. Y15 하드코딩 한국어 검사가 `apps/desktop/src`와 하위 층에서 0이고, `ui.locale=en` 데스크톱 스모크가 통과합니다. Y16 `review.m3-plan` §9.3 이월 표의 모든 항목이 요구 장부에 상태(M4 완료, M5 이월과 사유, 삭제와 사유)를 가지고, `just req-ledger` 문제가 0입니다. Y17 데스크톱 첫 화면 시간과 유휴 메모리, 릴리즈 앱 크기(500MB 이하)를 재서 `eng.performance.guide` 표에 기록합니다. 계측(X-15)을 켠 턴과 끈 턴의 비용 차이도 기록합니다. 수치 기준은 사용자 결정 뒤에 정하고, 그 전에는 "기록됨"으로 판정합니다. |
 
 - M3b 계획은 M3a 마감 때 세운다 [결정: 2026-10-28 사용자].
 - 예외: I11(목표 판정)은 구현을 M3a의 L1 트랙에서 하고, 실행 횟수 상한 판정(`l1.agents.judge.maxRuns`에서 멈춤)만 M3b에서 본다 [결정: 2026-10-28 사용자].
@@ -137,7 +137,7 @@ E 번호는 이 표가 정본이다. `review.m2-plan`과 각 층 plan은 이 번
 | E4 | 사용자가 SearXNG 주소를 설정하지 않으면 `web.search`가 내장 검색 래퍼를 쓰고, 설정하면 SearXNG를 쓴다. 실제 조립 엔진에서 확인한다 [결정: review.m2-plan §9 H1] | M2 | host int 시험 |
 | E5 | 질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다 | M2 | host 값 비교 시험 |
 | E6 | 테스트 MCP 서버(HTTP와 stdio)의 도구가 실제 엔진의 도구 목록에 노출된다 | M2 | host int 시험 |
-| E7 | 비밀 관리 명령(목록, 등록, 삭제, 열람)과 열람의 재인증이 동작한다 | M2 | platform-secrets int 시험, CLI 시험, macOS 확인 목록(`review.macos-checklist`) |
+| E7 | 시크릿 관리 명령(목록, 등록, 삭제, 열람)과 열람의 재인증이 동작한다 | M2 | platform-secrets int 시험, CLI 시험, macOS 확인 목록(`review.macos-checklist`) |
 
 - 종료 조건 시험이 환경 때문에 건너뛰어지면 그 조건은 확인되지 않은 것이다. CI는 건너뛴 수를 출력하고 실패한다(`just exit-tests`, `eng.toolchain.guide`).
 - 실제 provider 테이프 녹화와 D11 측정은 M2 마감 전에 각각 한 번 한다 [결정: review.m2-plan §9 D-e]. 종료 조건 번호는 붙이지 않는다.
@@ -151,7 +151,7 @@ E 번호는 이 표가 정본이다. `review.m2-plan`과 각 층 plan은 이 번
 | UC-3 학습 | M3 | 2차: 큐레이터, 학습 이력 보기, 반복 작업 스크립트 제안(layer-plan-v2.json L3-c 단계 '2차') |
 | UC-4 예약 | M3 | 2차: OS 서비스 등록 뒤 재부팅 후 자동 시작 |
 | UC-5 원격 | M3(SSH 터널·사설망 연결) | 2차: OS 서비스 등록, 내장 원격 전송(TLS + 토큰 WebSocket) |
-| UC-6 비밀 사용 | M1(에이전트 참조 1종, 마스킹, `env` 주입 검증 [결정: review.decisions-2 U-19]) | M2 관리 명령(목록, 등록, 삭제, 열람 `xeon secret reveal`), M3 설정 화면의 비밀 탭(열람 포함) [결정: review.decisions-2 U-20] |
+| UC-6 시크릿 사용 | M1(에이전트 참조 1종, 마스킹, `env` 주입 검증 [결정: review.decisions-2 U-19]) | M2 관리 명령(목록, 등록, 삭제, 열람 `fresnel secret reveal`), M3 설정 화면의 시크릿 탭(열람 포함) [결정: review.decisions-2 U-20] |
 
 서비스 모드 '1차' 표기와의 관계:
 
@@ -187,7 +187,7 @@ E 번호는 이 표가 정본이다. `review.m2-plan`과 각 층 plan은 이 번
 | Windows 네이티브 | 지원 안 함 | N4와 같다 | 없음 |
 
 - 한글 IME, 접근성, 로케일 확인은 macOS 우선 지원 범위에서 한다. IME 확인은 M2(`review.macos-checklist`), 접근성과 로케일은 M3다(`review.m3-plan`).
-- 임시 이름 `xeon`은 미결 2번이 정해질 때까지 바이너리·디렉터리 이름으로 쓴다(ADR-0014). M3는 `xeon`으로 내고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b].
+- 임시 이름 `fresnel`은 미결 2번이 정해질 때까지 바이너리·디렉터리 이름으로 쓴다(ADR-0014). M3는 `fresnel`으로 내고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b].
 - 지원 언어는 한국어와 영어다. 로케일은 OS 설정을 따르고 지원하지 않으면 영어다(ADR-0016) [결정: review.m3-design-inputs D-M3-27].
 
 ## 5. 실패와 경계 사례: 위험 요약
@@ -206,11 +206,11 @@ foundation-plan.md §7에서 가져오고, 아키텍처 조사 노트(`_research
 
 해당 없음. 범위에 포함한 설정 화면(I14)의 탭과 키는 `L4.settings-ui.spec`과 `F.wire-settings.spec`이 정한다.
 
-## 7. 확장 지점
+## 7. 훅
 
-| 마일스톤 | 확장 지점 도입 |
+| 마일스톤 | 훅 도입 |
 |---|---|
-| M0 | on(tap, first, chain), post(steer, followUp, next), drive 임대, scope 켜기·끄기의 최소형. 지점 종류 input, request, tool, boundary, session의 선언. |
+| M0 | on(tap, first, chain), post(steer, followUp, next), drive 임대, scope 켜기·끄기의 최소형. 훅 종류 input, request, tool, boundary, session의 선언. |
 | M1 | 테스트용 그룹이 on, post, drive를 실제 루프에서 사용한다. |
 | M2 | `group-sdk`의 `defineGroup`, drive 임대 중재, 그룹 상태 레코드. M2에서는 테스트 그룹이 쓴다. |
 | M3 | Helm 본체가 `group-sdk`을 쓴다(D-a). drive를 쓰지 않는 두 번째 기본 그룹(학습 그룹)과 Helm의 공존. [제안] 제2 그룹은 학습 그룹이고, 그 추가 시 코어 diff 0을 확인한다(`product.vision.spec` S1, 4.4 M3a). |
@@ -235,8 +235,8 @@ foundation-plan.md §7에서 가져오고, 아키텍처 조사 노트(`_research
 
 | # | 항목 | 관련 절 | 확인 대상 |
 |---|---|---|---|
-| 2 | 제품 이름. 'Xeon'은 임시 이름이다(decisions-log 2026-10-21 3차). 바꾸는 시점은 정했다: M3는 `xeon`으로 내고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b]. 남은 것은 이름 후보다. | 1, 4.7 | 사용자 |
+| 2 | 제품 이름. 'Fresnel'은 임시 이름이다(decisions-log 2026-10-21 3차). 바꾸는 시점은 정했다: M3는 `fresnel`으로 내고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b]. 남은 것은 이름 후보다. | 1, 4.7 | 사용자 |
 | 6 | 하위 층 수(41/33)와 구성요소 수(163/182) 불일치. 원 문서를 JSON 실측으로 정정할지 | 4.6 | 사용자 |
 | 7 | layer-plan-v2.json 단계 표기를 3차 결정에 맞게 갱신할지(공유 서비스 모드, 예약 실행, 원격 제어, 사용자 알림) | 4.1 | 사용자 |
 
-- 1번(M2·M3 정의 확정)은 2026-10-22 사용자 확인으로 지웠다(4.3). 5번(레이트 리밋·계정 회전 단계), 8번(원격 전송 단계), 9번(M1 비밀 검증 모드), 10번(비밀 값 열람 단계와 경로)은 `review.decisions-2` U-21, U-11, U-19, U-20으로 정해 지웠다. 3번(위장 provider 별도 플러그인 배포)은 별도 플러그인으로 지원하고 기본 꺼짐 + 첫 사용 고지로 정해 지웠다 [결정: review.m3-design-inputs D-M3-22](4.2 N6). 4번(Helm 내부 설계 착수 시점)은 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(ADR-0015)"으로 닫아 지웠다 [결정: 사용자 2026-10-25]. 남은 항목의 번호는 다른 문서의 인용 때문에 바꾸지 않는다.
+- 1번(M2·M3 정의 확정)은 2026-10-22 사용자 확인으로 지웠다(4.3). 5번(레이트 리밋·계정 회전 단계), 8번(원격 전송 단계), 9번(M1 시크릿 검증 모드), 10번(시크릿 값 열람 단계와 경로)은 `review.decisions-2` U-21, U-11, U-19, U-20으로 정해 지웠다. 3번(위장 provider 별도 플러그인 배포)은 별도 플러그인으로 지원하고 기본 꺼짐 + 첫 사용 고지로 정해 지웠다 [결정: review.m3-design-inputs D-M3-22](4.2 N6). 4번(Helm 내부 설계 착수 시점)은 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(ADR-0015)"으로 닫아 지웠다 [결정: 사용자 2026-10-25]. 남은 항목의 번호는 다른 문서의 인용 때문에 바꾸지 않는다.

@@ -88,7 +88,7 @@ export function probeFts5(driver: ProbeDriver): Result<void, Fts5ProbeError> {
       "SELECT count(*) AS n FROM temp.fts5_probe WHERE fts5_probe MATCH 'fresnel'",
     );
   });
-  // no such module: fts5 등 어떤 SQLite 오류든 능력 없음으로 본다. 판정은 예외가 아니라 값으로 돌려준다
+  // no such module: fts5 등 어떤 SQLite 오류든 기능 없음으로 본다. 판정은 예외가 아니라 값으로 돌려준다
   if (!probed.ok) return err({ kind: "fts5_missing" });
   return hasCountOfOne(probed.value) ? ok(undefined) : err({ kind: "fts5_missing" });
 }
@@ -101,7 +101,7 @@ export interface SqliteProbe {
   readonly compileOptionFts5: boolean;
 }
 
-/** 임시 :memory: 연결로 SQLite 능력을 조사한다 */
+/** 임시 :memory: 연결로 SQLite 기능을 조사한다 */
 export function probeSqlite(): SqliteProbe {
   const db = newDatabase(":memory:");
   try {

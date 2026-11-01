@@ -20,7 +20,7 @@ binds: [xeon/packages/core-loop/**, xeon/packages/core-persistence/**, xeon/pack
 - 도구 효과와 확장 기록이 서로 다른 시점에 저장되어, 크래시 뒤 상태가 어긋난다.
 - 전송(in-process, stdio, service)마다 흐름이 달라져 같은 기능을 두 번 만들게 된다(`_research/process.md` §3, Goose 사례).
 
-이 문서는 흐름과 경계를 정한다. 레코드 필드는 `F.records.spec`, 지점 선언은 `F.extensions.spec`, 연산 의미는 `X.primitives.spec`, 커밋 구현은 `L1.persistence.spec`이 정한다.
+이 문서는 흐름과 경계를 정한다. 레코드 필드는 `F.records.spec`, 훅 선언은 `F.extensions.spec`, 연산 의미는 `X.primitives.spec`, 커밋 구현은 `L1.persistence.spec`이 정한다.
 
 ## 2. 선택지 비교
 
@@ -44,8 +44,8 @@ binds: [xeon/packages/core-loop/**, xeon/packages/core-persistence/**, xeon/pack
 ## 3. 선택과 근거
 
 - [결정: ADR-0004] 커밋 단위는 2.1의 B안 가운데 ADR-0004가 정한 부분이다. 단계 경계에서 한 트랜잭션으로 커밋하고, 그 커밋은 `synchronous=FULL`로 디스크까지 보장한다. 도구 실행은 의도 → 실행 → 결과 세 이벤트로 기록한다. 세션 저장 C안(이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블)에 단계 체크포인트 테이블을 더해 D안의 빠른 재개를 얻는다.
-- [결정: review.decisions-2 U-10] B안의 나머지 부분인 도구별 커밋 시점은 ADR-0004 §3.2 3번 보충이다. 도구마다 의도(E1 `effect.intent`), 실행 시작(E2 `effect.exec`), 결과(E3 `effect.result` + toolResult `item.recorded`)를 각각 별도 트랜잭션으로 커밋한다. 단계당 커밋 수는 `3 + 3n`(n은 도구 호출 수)이다. 커밋 지점 표의 정본은 `L1.persistence.spec` §4.2다.
-- [결정: ADR-0007] 확장은 `on`, `post`, `drive`, `scope` 네 연산으로만 흐름에 끼어든다. 지점의 fold는 지점 선언이 정한다.
+- [결정: review.decisions-2 U-10] B안의 나머지 부분인 도구별 커밋 시점은 ADR-0004 §3.2 3번 보충이다. 도구마다 의도(E1 `effect.intent`), 실행 시작(E2 `effect.exec`), 결과(E3 `effect.result` + toolResult `item.recorded`)를 각각 별도 트랜잭션으로 커밋한다. 단계당 커밋 수는 `3 + 3n`(n은 도구 호출 수)이다. 커밋 훅 표의 정본은 `L1.persistence.spec` §4.2다.
+- [결정: ADR-0007] 확장은 `on`, `post`, `drive`, `scope` 네 연산으로만 흐름에 끼어든다. 지점의 fold는 훅 선언이 정한다.
 - [결정: ADR-0006] 재개는 2.2의 b안(후보 제시)이 기본이다. 같은 세션에 쓰는 프로세스는 세션 id OS 잠금으로 하나만 둔다.
 - [결정: review.decisions-2 U-09] 쓰기 소유 판정은 OS 잠금(생존 판정)과 `sys_leases.epoch` 펜싱으로 한다. 커밋 트랜잭션마다 `sys_leases` 행의 epoch를 대조해, 잠금을 잃은 이전 소유자의 늦은 쓰기를 거부한다(`L1.persistence.spec` §3.6, `L0.store.spec` §3.1).
 - [제안] 자동 재개는 기본 꺼짐이고 서비스 모드에서만 `l1.persistence.autoResume`으로 켠다. 재개 시도 상한은 `l1.persistence.maxResumeAttempts`다. 기본값은 ADR-0006 6절 [미결]이다.
@@ -55,7 +55,7 @@ binds: [xeon/packages/core-loop/**, xeon/packages/core-persistence/**, xeon/pack
 
 ### 4.1 한 턴 흐름
 
-화살표 라벨의 괄호는 그 동작을 맡는 하위 층과 패키지다. `on` 화살표의 라벨은 지점 이름과 fold다. 지점 이름, 종류, fold 배정은 `F.extensions.spec`의 지점 선언 표가 정한다(ADR-0017). 한 종류에 fold가 다른 지점이 섞여 있다(예: `tool` 종류의 `tool.call.before`은 `first`, `tool.result`는 `chain`).
+화살표 라벨의 괄호는 그 동작을 맡는 하위 층과 패키지다. `on` 화살표의 라벨은 훅 이름과 fold다. 훅 이름, 종류, fold 배정은 `F.extensions.spec`의 훅 선언 표가 정한다(ADR-0017). 한 종류에 fold가 다른 지점이 섞여 있다(예: `tool` 종류의 `tool.call.before`은 `first`, `tool.result`는 `chain`).
 
 ```mermaid
 sequenceDiagram
@@ -112,8 +112,8 @@ sequenceDiagram
   PERS->>DB: 트랜잭션
 ```
 
-- 루프는 pi-agent-core 1.3.0 루프를 포크해 다시 설계한 core-loop 자체 루프다(L1-b, adr.0009). 단계 함수가 커밋 지점과 확장 지점을 순서대로 부른다. 모델 호출은 pi-ai 게이트웨이(L1-c)가 맡는다.
-- 그림의 C1~C6, E1~E3은 `L1.persistence.spec` §4.2 커밋 지점 이름이다. 그림에서 C2b, S1, A1, X1, C7은 생략했다.
+- 루프는 pi-agent-core 1.3.0 루프를 포크해 다시 설계한 core-loop 자체 루프다(L1-b, adr.0009). 단계 함수가 커밋 지점과 훅을 순서대로 부른다. 모델 호출은 pi-ai 게이트웨이(L1-c)가 맡는다.
+- 그림의 C1~C6, E1~E3은 `L1.persistence.spec` §4.2 커밋 훅 이름이다. 그림에서 C2b, S1, A1, X1, C7은 생략했다.
 - `input` 지점은 L1.loop가 발화한다(`F.extensions.spec` §7). L1.tasks는 입력을 큐에 넣고(C1) 루프에 넘긴다.
 - 복구 표식(`p_threads.running_since`)은 별도 쓰기 없이 C2의 `turn.started`에서 나온다(`L1.persistence.spec` §4.8).
 - 모델 요청에는 별도의 의도 커밋이 없다. 직전 단계 체크포인트가 의도 역할을 하고, 재개하면 요청을 다시 보낸다(`_research/notes/F-3.md` §1).
@@ -122,7 +122,7 @@ sequenceDiagram
 
 ### 4.2 단계별 규칙
 
-근거는 `_research/ext-points.md` §5 안 1(재생·토글 보장)과 `_research/layer-plan-v2-notes.md` "확장 지점"이다.
+근거는 `_research/ext-points.md` §5 안 1(재생·토글 보장)과 `_research/layer-plan-v2-notes.md` "훅"이다.
 
 | 항목 | 규칙 | 표지 |
 |---|---|---|
@@ -239,7 +239,7 @@ flowchart TB
   - 재생 시 정책 해석: durable spec 3136-3170.
   - 멱등 제출: durable spec 2288-2301.
 - [결정: ADR-0006] 세션 실행을 시작하려는 프로세스는 세션 id 키 OS 잠금을 얻어야 한다. 프로세스가 죽으면 커널이 잠금을 해제한다. 읽기는 잠금 없이 한다(SQLite WAL).
-- [결정: review.decisions-2 U-09] 잠금을 얻은 프로세스는 `sys_leases` 행(`session:<threadId>`)의 epoch를 올려 `LeaseToken`을 받는다. 커밋마다 트랜잭션 안에서 epoch를 대조하고, 맞지 않으면 `ownership_lost`로 롤백한다(`L1.persistence.spec` §3.6, `L0.store.spec` §3.1).
+- [결정: review.decisions-2 U-09] 잠금을 얻은 프로세스는 `sys_leases` 행(`thread:<threadId>`)의 epoch를 올려 `LeaseToken`을 받는다. 커밋마다 트랜잭션 안에서 epoch를 대조하고, 맞지 않으면 `ownership_lost`로 롤백한다(`L1.persistence.spec` §3.6, `L0.store.spec` §3.1).
 - [결정: ADR-0006] 잠금을 얻지 못하면 위임, 관찰, 분기 셋 중 하나로 동작한다. 서비스가 있으면 위임이 기본이다.
 - [결정: ADR-0004] 결과가 없는 `effect.intent`는 기본적으로 재실행하지 않고 "중단됨" 결과로 합성한다. 선언이 `unsafe`(기본값)이거나 선언이 없는 도구가 여기에 해당한다.
 - [결정: ADR-0004] 예외로, 저장된 정책과 현재 선언이 모두 `replay: safe`인 도구만 재실행한다. 재생 정책 값 집합은 `F.records.spec`이 정한다.
@@ -260,7 +260,7 @@ flowchart TB
 
 같은 흐름에서 전송에 따라 달라지는 부분만 적는다. 4.1~4.5의 순서와 커밋은 전송과 무관하다 [결정: ADR-0006].
 
-| 항목 | in-process (CLI) | stdio (데스크톱 사이드카) | service (`xeon service`) |
+| 항목 | in-process (CLI) | stdio (데스크톱 사이드카) | service (`fresnel service`) |
 |---|---|---|---|
 | 엔진 소유와 잠금 | CLI 프로세스 | 사이드카 프로세스 | 서비스 프로세스 |
 | 입력 제출 | 메모리 호출 | UI가 stdin으로 JSON-RPC 요청 | 클라이언트가 로컬 Unix 소켓(JSON Lines)으로 요청, 잠금 없는 클라이언트는 위임 |
@@ -288,13 +288,13 @@ flowchart TB
 ## 6. 다른 문서와의 인터페이스
 
 - 제공: 흐름 순서, 커밋 시점, 재개 순서. `L1.loop.spec`, `L1.persistence.spec`, `L1.tools.spec`, `X.primitives.spec`, `L4.host-service.spec`이 이 순서를 따른다.
-- 요구: 레코드와 이벤트 이름(`F.records.spec`), 지점 선언 표(`F.extensions.spec`), 호스트 계약(`F.wire-settings.spec`), 트랜잭션 규칙(`eng.transactions.design`), 이벤트 규칙(`eng.events.design`).
-- 마일스톤: M1 스모크(모델 테이프로 `xeon chat` 한 턴, 강제 종료 뒤 재개, drive 그룹 토글의 경계 적용)가 이 문서의 4.1, 4.3, 4.4를 확인한다(`_research/foundation-plan.md` §6). 원문의 "턴 경계"는 단계 경계로 읽는다 [결정: review.decisions-2 U-01]. 유즈케이스 대응은 `product.usecases.spec`이 정한다.
+- 요구: 레코드와 이벤트 이름(`F.records.spec`), 훅 선언 표(`F.extensions.spec`), 호스트 계약(`F.wire-settings.spec`), 트랜잭션 규칙(`eng.transactions.design`), 이벤트 규칙(`eng.events.design`).
+- 마일스톤: M1 스모크(모델 테이프로 `fresnel chat` 한 턴, 강제 종료 뒤 재개, drive 그룹 토글의 경계 적용)가 이 문서의 4.1, 4.3, 4.4를 확인한다(`_research/foundation-plan.md` §6). 원문의 "턴 경계"는 단계 경계로 읽는다 [결정: review.decisions-2 U-01]. 유즈케이스 대응은 `product.usecases.spec`이 정한다.
 
 ## 7. 미결 사항
 
 - [미결] `boundary` 지점의 "엔트리 추가 + 계속" 합성이 `chain` 하나로 표현되는가(`_research/ext-points.md` §6.1). `_research/notes/F-1.md` §3.1은 표현된다고 판정했다. 단, 세 조건이 붙는다. 엔트리는 누적이 아닌 교체(전체 목록 반환)로 쓴다. 최종 검증은 fold 종료 훅으로 분리한다. continue 승인은 fold 밖에서 호스트가 다시 검사한다. 이 조건을 `F.extensions.spec`에 넣을지 확인이 필요하다.
-- [결정: adr.0017] fold에 `collect`를 더했다. 배정은 `input.agent.before`와 `session.resources`다(`F.extensions.spec` §3.4).
+- [결정: adr.0017] fold에 `collect`를 더했다. 배정은 `input.agent.before`와 `thread.resources`다(`F.extensions.spec` §3.4).
 - [미결] 자동 재개 기본값(ADR-0006 6절). 이 문서는 꺼짐을 [제안]으로 쓴다.
 - [미결] `post.when = next`가 요청을 스스로 시작하는지(ADR-0007 6절).
 - [미결] 재생 정책 값 집합. process.md는 `safe`/`unsafe`, agent-core 1.3.0은 `"never" | "safe"`를 쓴다(`_research/notes/F-2.md` §5 6번).

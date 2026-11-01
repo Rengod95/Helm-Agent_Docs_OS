@@ -116,7 +116,7 @@ export interface Pipeline {
 const ARGS_INLINE_MAX_BYTES = 192 * 1024;
 /** 닫은 결과를 기억할 호출 수. 같은 호출을 두 번 닫아도 같은 결과를 돌려준다 */
 const CLOSED_OUTCOME_LIMIT = 4096;
-/** 비밀 사용 승인 요청의 규칙 id. 정책 규칙이 아니라 비밀 사용 승인임을 화면과 기록에 보인다 */
+/** 시크릿 사용 승인 요청의 규칙 id. 정책 규칙이 아니라 시크릿 사용 승인임을 화면과 기록에 보인다 */
 const SECRET_USE_RULE_ID = "secret.use";
 /** 사용자 셸(`!명령`)을 실행하는 도구 이름 */
 const USER_SHELL_TOOL = "bash";
@@ -262,8 +262,8 @@ function outcomeOf(
 }
 
 /**
- * 정책 승인의 제목. 호출이 `secretEnv`로 비밀을 쓰면 이 승인이 비밀 사용의 증거가 될 수 있으므로(U-19, `approveSecretUse`)
- * 제목에 비밀 참조를 적는다. 그렇지 않으면 도구 이름만 적는다
+ * 정책 승인의 제목. 호출이 `secretEnv`로 시크릿을 쓰면 이 승인이 시크릿 사용의 증거가 될 수 있으므로(U-19, `approveSecretUse`)
+ * 제목에 시크릿 참조를 적는다. 그렇지 않으면 도구 이름만 적는다
  */
 function policyTitle(toolName: string, args: JsonObject): string {
   const handles = secretHandlesOf(args);
@@ -273,7 +273,7 @@ function policyTitle(toolName: string, args: JsonObject): string {
 /** `untrustedTurns`에 기억하는 turn 수 상한. 넘으면 가장 오래된 것부터 잊는다 */
 const UNTRUSTED_TURN_LIMIT = 512;
 
-/** 결과가 외부 내용인 도구: 웹 능력(`web.*`)과 MCP 서버 도구. 결과를 읽은 모델은 지시 주입을 받았을 수 있다(L1.tools.spec §4.3) */
+/** 결과가 외부 내용인 도구: 웹 기능(`web.*`)과 MCP 서버 도구. 결과를 읽은 모델은 지시 주입을 받았을 수 있다(L1.tools.spec §4.3) */
 function isUntrustedSource(entry: ToolEntry): boolean {
   return entry.mcpServer !== undefined || (entry.capability?.id.startsWith("web.") ?? false);
 }
@@ -361,7 +361,7 @@ export function createPipeline(
   }
 
   // ── tap 3종(tool_execution_*) ─────────────────────────────────────────
-  // 탭 지점은 실패해도 기록하고 계속한다. payload는 비밀을 가린 값이다.
+  // 탭 지점은 실패해도 기록하고 계속한다. payload는 시크릿을 가린 값이다.
 
   async function tapStart(run: ToolRunContext, call: AgentToolCall): Promise<void> {
     try {
@@ -610,11 +610,11 @@ export function createPipeline(
     return denied(denialReason(resolution));
   }
 
-  // ── 5c' 비밀 사용 승인(L1.tools.spec §4.12) ────────────────────────────
+  // ── 5c' 시크릿 사용 승인(L1.tools.spec §4.12) ────────────────────────────
 
   /**
-   * 호출이 `secretEnv`로 비밀을 쓰면 `fresnel.secrets.check`가 `needs_approval`을 낼 때 승인 증거를 만든다. 이 호출의 정책 승인을 사용자가
-   * 방금 허용했으면 그 승인이 실행마다의 승인(U-19)이라 같은 승인을 증거로 쓴다. 아니면(규칙이 허용, 모드가 허용, thread 기억) 비밀 사용을 따로 묻는다
+   * 호출이 `secretEnv`로 시크릿을 쓰면 `fresnel.secrets.check`가 `needs_approval`을 낼 때 승인 증거를 만든다. 이 호출의 정책 승인을 사용자가
+   * 방금 허용했으면 그 승인이 실행마다의 승인(U-19)이라 같은 승인을 증거로 쓴다. 아니면(규칙이 허용, 모드가 허용, thread 기억) 시크릿 사용을 따로 묻는다
    */
   async function approveSecretUse(
     state: CallState,
@@ -701,7 +701,7 @@ export function createPipeline(
   // ── 효과 없이 닫는 호출의 결과 기록 ────────────────────────────────────
 
   /**
-   * 효과(intent) 없이 끝난 호출의 결과를 toolResult item 하나로 기록한다. 비밀 마스킹을 거친다.
+   * 효과(intent) 없이 끝난 호출의 결과를 toolResult item 하나로 기록한다. 시크릿 마스킹을 거친다.
    * item 커밋이 실패하면 itemId는 null이고 루프가 run을 끝낸다.
    */
   async function recordWithoutEffect(
@@ -1054,7 +1054,7 @@ export function createPipeline(
     const { run, entry, intent } = state;
     if (intent === undefined) throw new Bug("tools.intent_missing: finish without effect.intent");
 
-    // 비밀 마스킹은 tool_result 지점, 경계화, blob, 커밋보다 앞이다(§4.12)
+    // 시크릿 마스킹은 tool_result 지점, 경계화, blob, 커밋보다 앞이다(§4.12)
     const first = maskResult(deps.redactor, input);
     addHits(state.maskedHits, first.hits);
     const terminate = input.terminate;
@@ -1250,7 +1250,7 @@ export function createPipeline(
     } catch (error) {
       forget(state);
       if (error instanceof Bug) throw error;
-      // 결과를 기록하는 중 예상하지 못한 오류. 비밀이 새지 않는 오류 결과를 돌려주고 기록하지 못한 것으로 표시한다
+      // 결과를 기록하는 중 예상하지 못한 오류. 시크릿이 새지 않는 오류 결과를 돌려주고 기록하지 못한 것으로 표시한다
       deps.logger?.error("tools.after_failed", { toolCallId: call.id, message: messageOf(error) });
       const failed = await recordWithoutEffect(run, call, {
         state: "executed",

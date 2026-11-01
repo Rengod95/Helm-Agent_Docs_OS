@@ -16,7 +16,7 @@ binds: [xeon/packages/core-context/**]
 
 목표: `L1.context.spec`의 `fresnel.context`를 구현한다. 같은 가지와 도구 집합이면 접두 바이트가 같고, 컴팩션은 원본 이벤트를 지우지 않으며, 오버플로우 복구는 단계당 한 번이어야 한다.
 
-마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 능력과 Helm, M3는 첫 공개 릴리즈 후보다. 그 문서의 M2·M3 정의는 [제안]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
+마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 기능과 Helm, M3는 첫 공개 릴리즈 후보다. 그 문서의 M2·M3 정의는 [제안]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
@@ -72,7 +72,7 @@ xeon/packages/core-context/
 | C-6 | 임계 계산: `shouldCompactTokens`(`>` 비교), 카탈로그 `contextWindow` 연결, 기본값 한 곳(`settings.ts`) | C-0 | 소 | M2 |
 | C-7 | `thread.compacted` 생성과 조립 반영: 한 커밋에 `thread.compacted` + 새 접두 system item, `details.fresnel`, 조립 때 머리 적용, `summarizeBranch` 초안 | C-1, C-5 | 중 | M2 |
 | C-8 | 오버플로우 복구: `recoverOverflow`, 같은 단계 판정, M1의 `fail(disabled)` 경로 | C-7, `L1.models.plan` M-1(`classify`) | 소 | M1(disabled 경로) → M2 |
-| C-9 | 지점 발화 6개: `context`(M1), `request.system.before`, `thread.compact.before`, `thread.compact.after`, `thread.compact.failed`, `request.cache.before`(선언과 발화 자리만, 실제 발화는 2차 워밍) | C-1, C-7, X 디스패치 | 중 | M1 → M2 |
+| C-9 | 훅 발화 6개: `context`(M1), `request.system.before`, `thread.compact.before`, `thread.compact.after`, `thread.compact.failed`, `request.cache.before`(선언과 발화 자리만, 실제 발화는 2차 워밍) | C-1, C-7, X 디스패치 | 중 | M1 → M2 |
 | C-10 | 도구 결과 선제 제거 | C-7 | 소 | 2차 |
 | C-11 | 컴팩션 후 재주입. 스킬 색인·메모리 스냅샷 블록(`knowledge.context`, `knowledge.index-delta`)은 M2 마감에 구현(spec §4.9a). 최근 파일·스킬 본문은 2차 | C-7 | 중 | M2 마감(블록), 2차(파일) |
 
@@ -146,11 +146,11 @@ xeon/packages/core-context/
 | 3 | 캐시 표식 위치가 provider마다 다르다 | `fresnel.models`의 캐시 정책 객체가 provider 차이(`maxBreakpoints`, `midConversation*`)를 흡수한다. core-context는 정책을 읽고 위치만 계산한다 |
 | 4 | 토큰 추정 방식 차이(pi 컴팩션 4자/토큰, pi-ai 3.5자/토큰)로 pi 테스트 기대값이 맞지 않는다 | 골든 픽스처의 기대 인덱스를 3.5자 기준으로 다시 계산하고, 원래 값과 차이를 픽스처 주석에 남긴다 |
 | 5 | `context`·`request.system.before` 핸들러가 결정적이지 않으면 접두 바이트 고정이 깨진다 | 계약으로 둔다(`F.extensions.spec` §4.3). 디버그 빌드에서 같은 입력 두 번 디스패치 결과를 비교해 다르면 경고를 남기는 검사를 [제안]한다 |
-| 6 | 컴팩션 지점 발화 주체를 context로 옮기는 F 수정이 늦어진다 | F 수정 전에도 core-context가 발화한다. `F.extensions.spec` §7 표 수정은 P2 정합성 검토 항목으로 올린다 |
+| 6 | 컴팩션 훅 발화 주체를 context로 옮기는 F 수정이 늦어진다 | F 수정 전에도 core-context가 발화한다. `F.extensions.spec` §7 표 수정은 P2 정합성 검토 항목으로 올린다 |
 
 ## 8. 구현 상태 (M2, m2/l1c)
 
-- C-2(도구 변경 비교와 `append`·`defer`), C-3(캐시 표식 위치), C-4(컷 포인트), C-5(요약 호출과 롤링 갱신), C-6(임계), C-7(`thread.compacted`와 새 접두를 한 커밋으로, 떠난 가지 요약 초안), C-8(오버플로우 복구), C-9(지점 발화)를 구현했다. `request.cache.before`은 선언만 있고 발화하지 않는다.
+- C-2(도구 변경 비교와 `append`·`defer`), C-3(캐시 표식 위치), C-4(컷 포인트), C-5(요약 호출과 롤링 갱신), C-6(임계), C-7(`thread.compacted`와 새 접두를 한 커밋으로, 떠난 가지 요약 초안), C-8(오버플로우 복구), C-9(훅 발화)를 구현했다. `request.cache.before`은 선언만 있고 발화하지 않는다.
 - 설정은 `contextSettingsOf`가 조립 루트의 `ContextSettingsSource`를 대신하고, 확장은 `createContextExtension({ settings, ids })`다. 기본 `extension`은 id 발급이 없어 컴팩션이 꺼져 있다. 호스트 조립이 `createContextExtension`에 설정과 `ids`를 넘겨야 컴팩션이 켜진다(HOST 트랙 요청).
 - M1 고정값(컴팩션 꺼짐, 임계·유지 토큰 상수)은 설정 `l1.context.autoCompact`, `reserveTokens`, `keepRecentTokens`, `compactionInstructions`를 읽는 코드로 바꿨다(`review.open-issues` M-07의 core-context 몫). 같은 항목의 core-tasks limiter, BlobRef 생산자(core-tools), detached 필드(core-persistence 쓰기 경로)는 이 패키지 밖이다.
 - 섹션 갱신 item, 모델 전환 경고, `near_window` 경고, `request.system.before`, volatile 계층도 이 단계에서 구현했다.

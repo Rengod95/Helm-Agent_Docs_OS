@@ -53,7 +53,7 @@ export interface DiscoveryRecordedPayload {
   confidence: Confidence;
   /** 중복 제거 키. HelmFinding.id */
   findingId: string;
-  /** work 능력으로 만든 작업 id. 없으면 생략 */
+  /** work 기능으로 만든 작업 id. 없으면 생략 */
   taskId?: string;
 }
 const discoveryShape = Type.Object({

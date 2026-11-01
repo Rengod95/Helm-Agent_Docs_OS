@@ -16,7 +16,7 @@ binds: []
 
 1. 작업 유형 묶음을 고른다(`routes.yaml`의 `by_task`).
    - 코드를 쓰면 `implement`를 고른다.
-   - 저장·이벤트를 건드리면 `data`를 더하고, 확장 지점을 건드리면 `extension`을 더한다.
+   - 저장·이벤트를 건드리면 `data`를 더하고, 훅을 건드리면 `extension`을 더한다.
    - 문서를 쓰면 `docs`, 정합성을 검토하면 `review`를 고른다.
 2. 고칠 코드 경로와 `binds`가 맞는 문서를 더한다. 보통 해당 도메인의 `spec.md`와 `plan.md`이고, 층 `README.md`도 함께 든다.
 3. 2에서 고른 문서의 `depends_on`을 한 단계 펼친다.

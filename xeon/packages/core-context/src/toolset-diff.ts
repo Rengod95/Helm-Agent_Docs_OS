@@ -23,7 +23,7 @@ const NO_CHANGE: ToolsetChange = { decision: null, pending: null, message: null,
 
 /**
  * 직전 광고 목록(접두의 toolsAdded에 뒤따른 도구 변경 item을 적용한 결과)을 OrderedTool로 되살린다.
- * 광고에는 능력 ID가 없으므로 이번 집합에 같은 이름이 있으면 그 능력 ID를 빌려 정렬 키를 맞춘다
+ * 광고에는 기능 ID가 없으므로 이번 집합에 같은 이름이 있으면 그 기능 ID를 빌려 정렬 키를 맞춘다
  */
 function advertisedTools(
   advertised: SystemMessage["toolsAdded"],

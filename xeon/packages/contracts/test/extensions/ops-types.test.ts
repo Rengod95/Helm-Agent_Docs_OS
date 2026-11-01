@@ -22,7 +22,7 @@ import type { Assignable, Equal, Expect } from "../types/expect.ts";
 
 type Ctx = HandlerContext<unknown>;
 
-/** first 지점: 반환은 결정 또는 undefined(Promise 포함) */
+/** first 훅: 반환은 결정 또는 undefined(Promise 포함) */
 export type ToolCallReturn = Expect<
   Equal<
     ReturnType<Handler<"tool.call.before">>,
@@ -33,7 +33,7 @@ export type ToolCallParams = Expect<
   Equal<Parameters<Handler<"tool.call.before">>, [payload: Readonly<ToolCallPayload>, ctx: Ctx]>
 >;
 
-/** chain 지점: (payload, current, ctx)를 받아 패치 또는 undefined를 반환 */
+/** chain 훅: (payload, current, ctx)를 받아 패치 또는 undefined를 반환 */
 export type TurnEndParams = Expect<
   Equal<
     Parameters<Handler<"boundary.step.after">>,
@@ -47,7 +47,7 @@ export type TurnEndReturn = Expect<
   >
 >;
 
-/** tap 지점: 반환값이 없다 */
+/** tap 훅: 반환값이 없다 */
 export type SessionStartReturn = Expect<
   Equal<ReturnType<Handler<"thread.start">>, void | Promise<void>>
 >;
@@ -57,7 +57,7 @@ export type StateFlows = Expect<
   Equal<Parameters<Handler<"thread.start", { n: number }>>[1]["state"], Readonly<{ n: number }>>
 >;
 
-/** collect 지점: 핸들러는 payload와 ctx만 받고 기여(또는 undefined)를 반환한다. current는 없다 */
+/** collect 훅: 핸들러는 payload와 ctx만 받고 기여(또는 undefined)를 반환한다. current는 없다 */
 export type CollectParams = Expect<
   Equal<
     Parameters<Handler<"input.agent.before">>,
@@ -77,7 +77,7 @@ export function wrongReturnsAreRejected(g: ExtensionOps<unknown>): void {
   g.on("thread.start", () => ({ block: true, reason: "x" }));
   // @ts-expect-error -- first 핸들러는 패치가 아니라 결정을 반환한다 (F.extensions.spec §9 5)
   g.on("tool.call.before", () => ({ continue: true }));
-  // @ts-expect-error -- 지점 이름은 표의 46개뿐이다 (F.extensions.spec §4.10)
+  // @ts-expect-error -- 훅 이름은 표의 46개뿐이다 (F.extensions.spec §4.10)
   g.on("tool.before", () => undefined);
   // @ts-expect-error -- collect 핸들러는 current를 받지 않는다(두 번째 인자는 ctx다)
   g.on("input.agent.before", (_payload, current) => ({ systemPrompt: current.systemPrompt }));

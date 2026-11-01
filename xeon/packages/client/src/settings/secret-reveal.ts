@@ -8,7 +8,7 @@ import {
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import { WireError, type WireParams, type WireResult } from "@fresnel/contracts/wire";
 
-// 비밀 값 열람 view-model(M3-REQ-17, L4.settings-ui.spec §4.6.3 "값 보기", §4.6.4). 열람은 사람 전용이고 재인증을 거친다.
+// 시크릿 값 열람 view-model(M3-REQ-17, L4.settings-ui.spec §4.6.3 "값 보기", §4.6.4). 열람은 사람 전용이고 재인증을 거친다.
 // 상태는 hidden → reauth → revealed | failed 한 줄이다. 값은 `revealed` 상태에서만 존재하고, 숨기거나 시한이 지나거나
 // 다른 이름을 열면 0으로 덮어 지운다. 값은 `RevealedValue` 안에만 있고 직렬화(JSON.stringify), 로그, 오류에는 실리지 않는다.
 // 값을 화면이 받는 길은 셸 포트(`SecretRevealPort`)가 정한다. wire만 쓰는 연결은 `secret.beginReveal`로 호스트가 값을 OS 창에 보이고

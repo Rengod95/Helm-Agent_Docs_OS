@@ -358,7 +358,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         if (outcome.turnId !== null) return { ok: true, turnId: outcome.turnId };
         throw new Bug("loop.admit returned a duplicate without a turn");
       case "queued":
-        // 유휴 thread에서 queued가 나오는 것은 input 지점이 입력을 보류했을 때다. 접수된 turn이 없다
+        // 유휴 thread에서 queued가 나오는 것은 input 훅이 입력을 보류했을 때다. 접수된 turn이 없다
         if (outcome.runningTurnId !== null) {
           return { ok: false, reason: "busy", turnId: outcome.runningTurnId };
         }

@@ -134,7 +134,7 @@ export const ApprovalEvidenceSchema: TUnsafe<ApprovalEvidence> = Type.Unsafe<App
 export type ScanFinding = {
   rule: string;
   severity: "block" | "warn";
-  /** 걸린 위치(줄 번호). 걸린 문자열은 담지 않는다(비밀 재노출 방지) */
+  /** 걸린 위치(줄 번호). 걸린 문자열은 담지 않는다(시크릿 재노출 방지) */
   line?: number;
 };
 const scanFindingShape = Type.Object({
@@ -1298,7 +1298,7 @@ export const DecideOutputSchema: TUnsafe<DecideOutput> = Type.Unsafe<DecideOutpu
   decideOutputShape satisfies SchemaProof<DecideOutput, typeof decideOutputShape>,
 );
 
-// ── 능력 정의 ──────────────────────────────────────────────────────────
+// ── 기능 정의 ──────────────────────────────────────────────────────────
 
 type SkillsMethods = {
   readonly list: MethodDef<typeof SkillListInputSchema, typeof SkillListOutputSchema>;
@@ -1603,7 +1603,7 @@ type LedgerMethods = {
   readonly decide: MethodDef<typeof DecideInputSchema, typeof DecideOutputSchema>;
 };
 
-/** 모델 도구가 없는 능력이다. 원장 열람, 되돌림, 대기열 결정은 사람(L4 화면·명령)과 그룹이 한다 */
+/** 모델 도구가 없는 기능이다. 원장 열람, 되돌림, 대기열 결정은 사람(L4 화면·명령)과 그룹이 한다 */
 export const KnowledgeLedger: CapabilityDef<LedgerMethods, readonly []> = defineCapability({
   id: "knowledge.ledger",
   version: "1.0.0",
@@ -1677,7 +1677,7 @@ export const KnowledgeLedgerKey: ServiceKey<CapabilityApi<typeof KnowledgeLedger
 
 // ── 서비스 묶음 (§3.7) ─────────────────────────────────────────────────
 
-/** knowledge 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** knowledge 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface KnowledgeService {
   readonly skills: CapabilityApi<typeof KnowledgeSkills>;
   readonly memory: CapabilityApi<typeof KnowledgeMemory>;

@@ -14,7 +14,7 @@ import { claimWrite } from "./owner.ts";
 // 읽고 실행한다. 실행 결과는 `dialog.commands.run`의 출력 그대로다: `not_command`, `expanded`(turn.start로 보낼 최종 텍스트),
 // `needs_confirmation`(셸 주입 확인), `done`(동작 명령의 메시지와 구조 값).
 
-/** 입력 문제로 거절한 능력 오류 코드. 사용자가 줄을 고치거나 설정을 바꾸면 풀린다 */
+/** 입력 문제로 거절한 기능 오류 코드. 사용자가 줄을 고치거나 설정을 바꾸면 풀린다 */
 const INPUT_CODES: ReadonlySet<string> = new Set([
   "invalid_input",
   "command_args_invalid",
@@ -29,7 +29,7 @@ function commandFailure(
     case "unavailable":
       return wireError("internal", { message: `${method}: the command service is not available` });
     case "rejected":
-      // 입력 문제는 -32602(`path: "text"`)다. wire에 명령 전용 오류 kind가 없어 나머지(셸 거부, 사용 불가 등)는 internal에 능력 오류 코드를 싣는다
+      // 입력 문제는 -32602(`path: "text"`)다. wire에 명령 전용 오류 kind가 없어 나머지(셸 거부, 사용 불가 등)는 internal에 기능 오류 코드를 싣는다
       return INPUT_CODES.has(failure.code)
         ? wireError("jsonrpc.invalidParams", {
             details: { issues: [{ path: "text", message: failure.message }] },

@@ -192,7 +192,7 @@ xeon/packages/group-sdk/
 | 그룹 기반 전체 | 자체 | `_research/packages.md` §4.6: L3-a 구성요소는 모두 자체 구현이고 판정 변경이 없다. 그대로 쓰는 패키지는 없다 |
 | `@cordisjs/plugin-group` | 쓰지 않음 | 이름만 겹치는 3줄 설정 그룹 재수출(`group/src/index.ts`)이다(`_research/packages.md` §4.6). 의미가 다르고 Cordis 직접 import도 DR-11 위반이다 |
 | `create-cordis` 스캐폴딩 방식 | 참고만 | 추가 그룹 템플릿의 스캐폴드 방식 참고 자료다. `create-cordis` 코드는 들이지 않는다. 템플릿 파일 자체는 L3.slots.plan §2.1 후보 a에 따라 이 패키지의 `templates/`에 둔다(G-24). 위치의 최종 확정은 `eng.context-map.design` C-2 [미결]과 함께 한다 |
-| 결정성 규칙(Date.now·Math.random 금지) | 읽기 자료 | Claude Code 워크플로 문서와 pi durable tasks를 근거로 규칙만 가져온다(`_research/packages.md` §4.6, `_research/ref-synthesis.md` 확장 지점 발견 4). 코드는 들이지 않는다 |
+| 결정성 규칙(Date.now·Math.random 금지) | 읽기 자료 | Claude Code 워크플로 문서와 pi durable tasks를 근거로 규칙만 가져온다(`_research/packages.md` §4.6, `_research/ref-synthesis.md` 훅 발견 4). 코드는 들이지 않는다 |
 | `typebox` 1.3.27 | 그대로(catalog) | 상태 스키마 검사(`Value.Check`). DR-07상 소유 제한 없음 |
 | `@swc/core` 1.16.18 | 그대로(catalog, 2차) | `scanDriveSource` 파서. dependency-cruiser가 이미 같은 버전을 쓴다(`eng.toolchain.guide` 1.1절). DR-07 행 추가 필요 |
 | Cordis vendored(`df4431eb43086bd1f8263a0e8c03e9b7c5233b68`) | 직접 사용 안 함 | ext-host가 감싼 API만 쓴다(ADR-0002) |
@@ -237,7 +237,7 @@ xeon/packages/group-sdk/
 | `settings.no-drive-holder-key` | `l3.group-sdk` 묶음에 키가 `instrumentation`, `statusLine` 둘뿐이고 `checkSettingDef`를 통과한다. 구동 그룹 선택 키는 X 키를 읽는다 | M2 |
 | `replay.cut-at-every-commit-yields-same-events` | EV-09 좋은 예 그룹에서 모든 절단 지점의 digest가 기준과 같다 | M2 |
 | `replay.detects-closure-state` | EV-09 나쁜 예 그룹에서 `ok: false`이고 `firstDiff`가 채워진다 | M2 |
-| `replay.effects-counted-once-per-cut` | 모든 절단 지점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, post)가 기준 실행과 같다. [결정: 오케스트레이터 기본값] `capabilityWrite`는 뺐다. 능력 쓰기 계수는 X 테스트(`replay-effects.test.ts`)가 다룬다 | M3 |
+| `replay.effects-counted-once-per-cut` | 모든 절단 지점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, post)가 기준 실행과 같다. [결정: 오케스트레이터 기본값] `capabilityWrite`는 뺐다. 기능 쓰기 계수는 X 테스트(`replay-effects.test.ts`)가 다룬다 | M3 |
 | `replay.detects-doubled-effect` | 같은 `requestId`를 쓰지 않고 효과를 두 번 내는 나쁜 그룹에서 `ok: false`, `failure: "effects-doubled"`이다 | M3 |
 | `replay.every-run-uses-the-baseline-thread-id` | 기준 실행과 모든 절단 실행이 같은 thread id를 쓴다(`threadMismatches`). 이벤트열 비교는 ID를 지우므로 따로 본다 | M3 |
 | `replay.thread-check-reports-a-run-on-another-thread` | 세 번째 실행의 thread만 바꾸면 검사가 번호 2를 돌려준다(검사가 물린다) | M3 |

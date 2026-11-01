@@ -18,15 +18,15 @@ export interface SecretHeader {
   readonly scheme?: "Bearer";
 }
 
-/** 비밀 헤더를 실을 요청의 나머지 부분. 헤더 값은 `SecretHeader`가 정한다 */
+/** 시크릿 헤더를 실을 요청의 나머지 부분. 헤더 값은 `SecretHeader`가 정한다 */
 export interface HeaderSecretTarget {
   readonly method: "GET" | "POST";
-  /** 질의 비밀을 두지 않는다. 호스트는 조립 쪽이 전송 대상 바인딩으로 검사한다 */
+  /** 질의 시크릿을 두지 않는다. 호스트는 조립 쪽이 전송 대상 바인딩으로 검사한다 */
   readonly url: string;
   readonly body: string | Uint8Array | null;
 }
 
-/** 전송 응답 가운데 비밀 에코 검사에 쓰는 부분 */
+/** 전송 응답 가운데 시크릿 에코 검사에 쓰는 부분 */
 export interface HeaderSendResponse {
   readonly status: number;
   /** 이름은 소문자 */
@@ -40,13 +40,13 @@ export type HeaderSecretError =
   | { readonly kind: "unavailable"; readonly setting: string };
 
 /**
- * 플러그인 provider의 헤더 비밀을 전송 직전에만 치환하는 통로. cap-web은 값을 얻지 않는다. 구현은 L0의 플러그인 HTTP 통로
+ * 플러그인 provider의 헤더 시크릿을 전송 직전에만 치환하는 통로. cap-web은 값을 얻지 않는다. 구현은 L0의 플러그인 HTTP 통로
  * (`createPluginHttp(...).send`, `SecretService.withHttp`)를 감싸 조립 쪽 어댑터가 맡는다(L4 후속 유닛).
  */
 export interface HeaderSecretSender {
   /**
    * 각 `setting`을 확인하고 `send`를 한 번 부른다. `send`에 든 헤더 값은 `send` 안에서만 살아 있다. `echoed`는 응답 본문이나 헤더가
-   * 비밀 값을 되돌려 줬을 때 참이다. 설정이 비었거나 참조를 풀 수 없으면 `unset`·`unavailable`이고 `send`는 불리지 않는다.
+   * 시크릿 값을 되돌려 줬을 때 참이다. 설정이 비었거나 참조를 풀 수 없으면 `unset`·`unavailable`이고 `send`는 불리지 않는다.
    */
   send<T extends HeaderSendResponse>(
     secretHeaders: readonly SecretHeader[],

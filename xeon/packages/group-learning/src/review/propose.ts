@@ -23,7 +23,7 @@ import type { LearningSettings, SettingsUnavailable } from "../settings.ts";
 import { LEARNING_PROPOSE_TOOL } from "./policy.ts";
 
 // L3.learning.spec §3.5 제안 도구. 이 도구는 파일을 바꾸지 않는다. 후보 행을 대기열에 넣는 것만 한다(§4.5 규칙 1).
-// 도구 execute는 재실행되는 코드가 아니므로 능력 읽기를 직접 부를 수 있다(ADR-0015 §3.1 1번).
+// 도구 execute는 재실행되는 코드가 아니므로 기능 읽기를 직접 부를 수 있다(ADR-0015 §3.1 1번).
 
 /** 한 검토에서 받을 후보 수 상한 [제안, §3.5] */
 const MAX_CANDIDATES_PER_REVIEW = 8;
@@ -79,7 +79,7 @@ type ProposeRefusal =
   | "limit"
   /** create인데 같은 이름의 스킬이 있음. patch와 baseHash로 다시 제안하라는 안내(§4.5 규칙 4) */
   | "name_exists"
-  /** 지식 능력이 없거나 일시 실패, 설정을 읽지 못함. 후보 없음 */
+  /** 지식 기능이 없거나 일시 실패, 설정을 읽지 못함. 후보 없음 */
   | "unavailable";
 
 export type ProposeResult =
@@ -232,7 +232,7 @@ function unavailableGuard(failure: KnowledgeFailure): Guard {
   };
 }
 
-/** 읽기 선행 가드(`baseHash`)와 같은 이름 검사, 유사 스킬 표시(§4.5 규칙 4). 능력 읽기는 도구 execute에서만 부른다 */
+/** 읽기 선행 가드(`baseHash`)와 같은 이름 검사, 유사 스킬 표시(§4.5 규칙 4). 기능 읽기는 도구 execute에서만 부른다 */
 async function guardOf(
   knowledge: KnowledgePort,
   input: ProposeInput,

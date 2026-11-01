@@ -28,7 +28,7 @@ export interface WriteApprovalRequest {
   readonly context: CallContext;
   /** 같은 대화에서 같은 요청을 구분하는 키(1~48자). 같은 키의 두 번째 요청은 기존 요청이다 */
   readonly requestKey: string;
-  /** 도구 이름. 모델 도구 경로면 `skill_manage`·`memory_manage`, 그 밖이면 능력 id */
+  /** 도구 이름. 모델 도구 경로면 `skill_manage`·`memory_manage`, 그 밖이면 기능 id */
   readonly toolName: string;
   readonly capability: { readonly id: CapabilityId; readonly method: string };
   readonly op: LedgerOp;

@@ -10,11 +10,11 @@ binds: [xeon/packages/cap-work/**]
 
 # L2 작업 관리 (work)
 
-패키지: `xeon/packages/cap-work`. 서비스: `fresnel.work`. 능력: `work.tasks`, `work.plans`, `work.goals`, `work.reports`. 이벤트 접두사: `work.`. 테이블 접두사: `cap_work_`. 생산자 id: `cap.work`.
+패키지: `xeon/packages/cap-work`. 서비스: `fresnel.work`. 기능: `work.tasks`, `work.plans`, `work.goals`, `work.reports`. 이벤트 접두사: `work.`. 테이블 접두사: `cap_work_`. 생산자 id: `cap.work`.
 
 ## 1. 목적과 범위
 
-작업 관리 능력의 서비스 API, 모델 도구, 이벤트, 투영, 설정을 정한다. 이 능력은 대화 안에서 작업 목록을 유지하고, 계획을 승인받은 뒤 실행하게 하고, 완료 조건을 걸어 둔 작업을 별도 판정 모델의 판정으로 이어 가게 한다.
+작업 관리 기능의 서비스 API, 모델 도구, 이벤트, 투영, 설정을 정한다. 이 기능은 대화 안에서 작업 목록을 유지하고, 계획을 승인받은 뒤 실행하게 하고, 완료 조건을 걸어 둔 작업을 별도 판정 모델의 판정으로 이어 가게 한다.
 
 L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5, A6, A7) → `work`, L2-e2 사용자 대화(B1, B2 노출, B4, B5, B7, B8, B9, B10, D5) → `dialog`(`L2.dialog.spec`). A3 작업 보드와 A4 외부 트래커는 보류다.
 
@@ -35,7 +35,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 - 턴 시작·정착, 입력 큐: `L1.loop.spec`, `L1.tasks.spec`.
 - 슬래시 명령 해석: `L2.dialog.spec`. 이 문서는 등록할 명령 목록만 정한다(§6.2).
 - 산출물 저장: `L2.artifacts.spec`. 이 문서는 선택 의존으로 등록만 요청한다.
-- 작업 보드(칸반 보기)는 L4 화면이다. 데이터는 `work.tasks.list`를 읽는다. 외부 트래커(GitHub, Linear, Jira) 연동은 X 플러그인이 자기 능력으로 제공한다(`_research/l2e.md` §3.1 A3·A4). 둘 다 보류다.
+- 작업 보드(칸반 보기)는 L4 화면이다. 데이터는 `work.tasks.list`를 읽는다. 외부 트래커(GitHub, Linear, Jira) 연동은 X 플러그인이 자기 기능으로 제공한다(`_research/l2e.md` §3.1 A3·A4). 둘 다 보류다.
 
 결정 반영:
 
@@ -593,7 +593,7 @@ export const WorkGoalsKey = serviceKey(WorkGoals);
 ```
 
 - [결정] 모델 자가 판정은 채택하지 않는다(`_research/decisions-log.md` 2026-10-21 결정(3차) "목표 판정은 별도 판정 모델+상한", §4.3.1). 그래서 `work.goals`에는 모델 도구가 없다. `_research/l2e.md` §3.1 A5가 제안한 `goal_complete`(자가 판정일 때만)는 정의하지 않는다. 이름은 예약만 해 둔다.
-- `tools: []`는 F.capabilities.spec §4.4의 "도구 없는 능력"에 기댄다. 그 문서에서 아직 [미결]이다(`L2.readme` §10 미결 8). 허용되지 않으면 §10 W-3의 대안을 쓴다.
+- `tools: []`는 F.capabilities.spec §4.4의 "도구 없는 기능"에 기댄다. 그 문서에서 아직 [미결]이다(`L2.readme` §10 미결 8). 허용되지 않으면 §10 W-3의 대안을 쓴다.
 - `judge` 메서드가 판정 주입 인터페이스다. 함수 객체를 넘기는 주입은 JSON 스키마로 표현할 수 없고 재개 때 다시 붙일 수도 없다. 그래서 판정 방식은 데이터(`GoalJudgeSpec`)로 목표에 기록하고, `delegated` 판정자는 턴이 끝난 뒤 `judge`로 결과를 넣는다 [제안]. L3 그룹의 기준 검사기는 이 경로로 기본 판정 모델을 대신한다(§7.3).
 
 ### 3.5 `work.reports`
@@ -687,7 +687,7 @@ export const WorkReportsKey = serviceKey(WorkReports);
 
 ```ts
 // defs/work.ts (6/6)
-/** work 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** work 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface WorkService {
   readonly tasks: CapabilityApi<typeof WorkTasks>;
   readonly plans: CapabilityApi<typeof WorkPlans>;
@@ -699,7 +699,7 @@ export const WorkServiceName = "fresnel.work";
 export const WORK_CAPABILITIES = [WorkTasks, WorkPlans, WorkGoals, WorkReports] as const;
 ```
 
-- consumer는 `ScopeApi.capability(WorkTasksKey)`처럼 능력 단위 키로 API를 얻는다(`L2.readme` §5.6). L3 문서가 [가정]으로 적은 `work.task.create`는 이 문서의 `work.tasks`의 `create` 메서드다.
+- consumer는 `ScopeApi.capability(WorkTasksKey)`처럼 기능 단위 키로 API를 얻는다(`L2.readme` §5.6). L3 문서가 [가정]으로 적은 `work.task.create`는 이 문서의 `work.tasks`의 `create` 메서드다.
 
 ### 3.7 이벤트 카탈로그
 
@@ -1130,7 +1130,7 @@ stateDiagram-v2
 
 - 스레드마다 활성 목표는 하나다. 활성 목표가 있는데 `set`을 부르면 `goal_active`다. `replace: true`면 이전 목표를 `cleared`로 끝내고 새 목표를 같은 커밋에 건다.
 - `set` 시점에 `judge` 생략값은 `{ kind: "model" }`, `continuation` 생략값은 `"self"`다. 값은 `work.goal_set`에 기록한다.
-- 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다(L1.agents 소유, 기본 3, `(threadId, goalRef)`마다) [결정: review.decisions-2 S-06]. 이 능력은 상한 키를 따로 두지 않고 목표별 상한 인자도 받지 않는다. `goalRef`는 `goalId`다. `Goal.maxRuns`는 목표 설정 시점의 값을 표시용으로 기록한 것이다.
+- 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다(L1.agents 소유, 기본 3, `(threadId, goalRef)`마다) [결정: review.decisions-2 S-06]. 이 기능은 상한 키를 따로 두지 않고 목표별 상한 인자도 받지 않는다. `goalRef`는 `goalId`다. `Goal.maxRuns`는 목표 설정 시점의 값을 표시용으로 기록한 것이다.
 - [결정: M3-new-02, D-M3-15] 판정 계기: 완료 게이트다. cap-work는 `boundary.settle.before` chain 핸들러를 하나 건다(L1.loop.spec §4.9). turn이 정착하려 할 때(`outcome: "completed"`) 활성 목표가 있고 판정자가 `model`이면 이 핸들러가 판정한다. 사용자가 끊은 turn(`aborted`)과 실패한 turn(`error`)은 판정하지 않는다 [제안: 계속할 수 없는 단계의 판정은 상한만 소모한다]. `delegated` 목표는 이 지점이 판정하지 않고 `work.goals.judge`로 판정이 들어온다. 이전 설계의 `turn.completed` 피드 구독 러너는 쓰지 않는다.
 - 판정 순서(핸들러 안):
   1. 활성 목표를 투영에서 읽는다. 없으면 아무것도 하지 않는다.
@@ -1148,7 +1148,7 @@ stateDiagram-v2
 
 #### 4.3.3 기본 판정자: 판정 모델
 
-- 판정 모델 호출은 L1.agents의 `judge`(`L1.agents.spec` §3.4, §4.8)로 한다. L1.agents가 L1.models 역할 표의 `judge` 역할(설정 `l1.models.routing.judge`, 대체 순서 `review` → `main`)로 모델을 고르고, 상한 `l1.agents.judge.maxRuns`를 세며, `agent.judged`를 자기 커밋으로 남긴다 [결정: review.decisions-2 S-06]. 이 능력은 판정 역할 키를 따로 두지 않는다.
+- 판정 모델 호출은 L1.agents의 `judge`(`L1.agents.spec` §3.4, §4.8)로 한다. L1.agents가 L1.models 역할 표의 `judge` 역할(설정 `l1.models.routing.judge`, 대체 순서 `review` → `main`)로 모델을 고르고, 상한 `l1.agents.judge.maxRuns`를 세며, `agent.judged`를 자기 커밋으로 남긴다 [결정: review.decisions-2 S-06]. 이 기능은 판정 역할 키를 따로 두지 않는다.
 - 증거(`GoalEvidence`) [제안]:
 
 ```ts
@@ -1269,7 +1269,7 @@ export interface JudgePort {
 | `l2.work.tasks.autoStart` | boolean | false | — | nextTurn | user, project, local, launch | tools | false | 화면, 파일 |
 | `l2.work.tasks.reminderTurns` | integer | 0(끔) | min 0, max 50 | nextTurn | user, project, local, launch | tools | false | 화면, 파일 |
 
-- 판정 상한과 판정 모델 역할은 이 능력의 키가 아니다. 상한은 `l1.agents.judge.maxRuns`(L1.agents.spec §6, `ui.tab` `models`), 역할 라우팅은 `l1.models.routing.judge`(L1.models.spec)다 [결정: review.decisions-2 S-06].
+- 판정 상한과 판정 모델 역할은 이 기능의 키가 아니다. 상한은 `l1.agents.judge.maxRuns`(L1.agents.spec §6, `ui.tab` `models`), 역할 라우팅은 `l1.models.routing.judge`(L1.models.spec)다 [결정: review.decisions-2 S-06].
 - `requireApproval`을 `managed`에서 잠그면 조직이 계획 승인을 강제할 수 있다.
 - `l1.agents.judge.maxRuns`는 runtimeChange `nextTurn`이라 진행 중인 목표에도 다음 판정부터 적용된다. `Goal.maxRuns`는 설정 시점의 표시값이다.
 - `requireApproval`, `exitOnApprove`는 `permissions` 탭에 둔다. 계획 승인 강제는 권한 성격이라 이 탭이 맞다고 본다 [제안]. `L2.readme` §7.2 표의 `permissions` 행이 이 두 키를 적는다. 확정은 L4.settings-ui.spec이 한다(§10 W-8).
@@ -1288,11 +1288,11 @@ export interface JudgePort {
 | `/plan approve` · `/plan reject [사유]` · `/plan revise <피드백>` | 사유·피드백 | `plans.approve` · `plans.reject` · `plans.revise` |
 | `/tasks` | 없음 | `tasks.list({})` 결과 표시 |
 
-- [결정: WK.3] 구현은 `/plan`, `/plan exit`, `/plan approve|reject|revise`, `/tasks`까지다(`src/commands.ts`). `/goal`은 `work.goals`(M3)와 함께 더한다. `approve`·`reject`·`revise`에 계획 ID를 받지 않는다: 승인 대기 중인 가장 최근 판에 적용한다. 서비스 거부(`CapabilityError`)는 예외 대신 `[<코드>] <메시지>` 한 줄 응답으로 바꾼다. 등록부(`CommandActionRegistry`)는 조립 루트가 `WorkPluginOptions.commands`로 넘길 때만 쓴다. 능력 선택 의존(W-10)이 확정되면 매니페스트 `optional`로 받는다.
+- [결정: WK.3] 구현은 `/plan`, `/plan exit`, `/plan approve|reject|revise`, `/tasks`까지다(`src/commands.ts`). `/goal`은 `work.goals`(M3)와 함께 더한다. `approve`·`reject`·`revise`에 계획 ID를 받지 않는다: 승인 대기 중인 가장 최근 판에 적용한다. 서비스 거부(`CapabilityError`)는 예외 대신 `[<코드>] <메시지>` 한 줄 응답으로 바꾼다. 등록부(`CommandActionRegistry`)는 조립 루트가 `WorkPluginOptions.commands`로 넘길 때만 쓴다. 기능 선택 의존(W-10)이 확정되면 매니페스트 `optional`로 받는다.
 - 명령 실행의 `requestId`는 클라이언트 입력 키(`in:<clientUlid>`)에서 파생한다(eng.transactions.design §4.8 사용자 입력 행).
 - 이 등록은 work → `dialog.commands` 선택 의존을 만든다. `L2.readme` §6 표에 [미결] 간선으로 올라 있다(§10 W-10, `L2.readme` §10 미결 16).
 
-## 7. 확장 지점
+## 7. 훅
 
 ### 7.1 cap-work 매니페스트
 
@@ -1322,7 +1322,7 @@ export const manifest = defineManifest({
 - `boundary.step.after`(chain): 정착 직전 단계 id를 기억한다. 값을 바꾸지 않는다(§4.3.2 5번).
 - `boundary.settle.before`(chain): 완료 게이트. 활성 모델 판정자 목표를 판정하고 한 단계 더 돌지 turn을 끝낼지 정한다(§4.3.2).
 - drive: 쓰지 않는다. L2는 drive 임대를 갖지 않는다(`L2.readme` §4.2).
-- 피드 구독: 승인 해결 뒤 모드 복원(`approval.resolved`)은 `fresnel.session`의 내구 피드 구독으로 받는다. 확장 지점은 쓰지 않는다(eng.events.design §4.6 `SessionFeed.subscribe`). 구독자는 `seq`로 중복을 거른다(EV-05).
+- 피드 구독: 승인 해결 뒤 모드 복원(`approval.resolved`)은 `fresnel.session`의 내구 피드 구독으로 받는다. 훅은 쓰지 않는다(eng.events.design §4.6 `SessionFeed.subscribe`). 구독자는 `seq`로 중복을 거른다(EV-05).
 
 ### 7.2 도구 지점
 
@@ -1380,7 +1380,7 @@ export const manifest = defineManifest({
 
 - W-1 닫힘. 호출 문맥은 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`다(`L2.readme` §5.8).
 - W-2 [해결: WK.3 통합] L1.tools.spec과의 약속 세 가지: (a) `input_required` 출력 변형의 판별 필드 이름은 F 정의의 `status: "input_required"`다. (b) 승인 해결 뒤 같은 입력·같은 `requestId`로 도구를 다시 호출하는 재시도 규칙은 L1A.4의 `input_required` 재호출(최대 8회)로 구현되었고, 시험은 `plans-decision.int.test.ts`·`plans-resume.fault.test.ts`가 실제 승인 서비스 위에서 확인한다. (c) `approval.resolved` payload의 결정 필드: 계획 승인은 `allow`·`deny`만 받으므로 수정 요청은 `deny` + `{ feedback }`로 옮겼다(§4.2.3). 취소는 `resolvedBy` `cancelled`·`superseded`이고 `withdrawn`이다.
-- W-3 [미결] 도구 없는 능력(`work.goals`, `work.reports`). F.capabilities.spec §4.4가 허용하지 않으면 두 능력의 메서드를 `work.tasks`나 `work.plans`에 옮기지 않고, 관리용 읽기 도구(`goal_status`)를 하나 두는 안을 쓴다. 이 경우에도 판정 결과를 쓰는 도구는 두지 않는다.
+- W-3 [미결] 도구 없는 기능(`work.goals`, `work.reports`). F.capabilities.spec §4.4가 허용하지 않으면 두 기능의 메서드를 `work.tasks`나 `work.plans`에 옮기지 않고, 관리용 읽기 도구(`goal_status`)를 하나 두는 안을 쓴다. 이 경우에도 판정 결과를 쓰는 도구는 두지 않는다.
 - W-4 [미결] 이벤트 카탈로그 형식은 `F.records.spec` §3.3.2(`records/catalog/work.ts`, `WORK_EVENT_CATALOG`, `TYPE_PREFIX_OWNERS`)로 정해졌다. 남은 것은 records 카탈로그가 capabilities 정의를 import할 수 있는지이고 F.records.plan이 정한다.
 - W-5 [미결] 되감기 뒤 cap 투영. M2는 활성 가지 기준 재생성을 제안한다. 조회 시점에 가지로 거르는 방식이 eng.events.design §6에 맞는지 L1.persistence.spec과 정한다.
 - W-6 [미결] `goals.judge` 호출자 확인. `owner`와 `CallOptions.context.caller.extension`을 대조한다(§4.3.4). X의 capability 래퍼가 그룹 호출에 이 값을 채운다(`F.capabilities.spec` §3.2 주석). 채우는 값이 그룹 이름인지 scope id인지는 `X.primitives.spec`과 맞춘다.
@@ -1389,7 +1389,7 @@ export const manifest = defineManifest({
 - W-9 [미결] `work.reports` 마일스톤. 이 문서와 `L2.readme` §2는 목표 종결 보고 때문에 M3로 둔다. JSON의 2차 표기와 다른 배치이므로 `L2.readme` §10 미결 17에서 사용자가 확인한다.
 - W-10 [미결] work → `dialog.commands` 선택 의존. `L2.readme` §6 표에 [미결] 간선으로 올렸다(`L2.readme` §10 미결 16). 순환은 생기지 않는다(dialog는 work를 부르지 않고 등록된 처리기만 실행한다, `L2.dialog.spec` §4.3). 넣지 않으면 명령 등록을 L4 클라이언트가 직접 한다.
 - W-11 [미결] 작업 상태 5종의 확정(`failed` 포함 여부)과 `failed` 선행 작업이 막힘을 유지하는 규칙.
-- W-12 [결정: review.decisions-2 S-06] 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다. 이 능력은 판정 상한 키와 판정 역할 키를 두지 않는다(§6.1).
+- W-12 [결정: review.decisions-2 S-06] 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다. 이 기능은 판정 상한 키와 판정 역할 키를 두지 않는다(§6.1).
 - W-13 [미결] 목표의 `continuation` 필드와 루프 결합 규칙(§4.3.5). `L2.readme` §10 미결 18과 같은 항목이다.
 - W-14 [미결] 작업 오류의 `detail.opIndex`: `write`만 싣고 단일 연산 메서드(`create`, `update`, `link`)는 싣지 않는다(WK.1 구현). 정의 파일의 `TaskErrors.detail`은 `task_` 오류의 고유 필드만 선언하고, `opIndex`는 선언 밖의 덧붙임이다. F `defs/work.ts`가 `opIndex`를 선언에 넣을지 F 레인과 정한다.
 - W-15 [해결: WK.3 통합] 승인 포트의 실제 어댑터. F `ApprovalService`에 `open`·`wait`·`get`이 올라왔고(F 요청 11), `src/ports/approvals.ts`의 `planApprovalsOver(approvals)`가 `fresnel.approvals`를 출처별 `L2ApprovalsPort`로 감싼다. `workPlugin`은 `WorkPluginOptions.approvals`가 없으면 `fresnel.approvals` 포트로 이 어댑터를 만든다. 어댑터는 서비스의 메모리 대기 목록이 비어 있는 재시작 직후에 모르는 `approvalId`를 만나면 그 대화의 `restore`를 먼저 부른다.

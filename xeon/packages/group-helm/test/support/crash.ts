@@ -21,7 +21,7 @@ import {
   type World,
 } from "./rig.ts";
 
-/** 프로세스 강제 종료 뒤 같은 기록 저장소·루프·큐·능력 세계로 다시 시작해 탐구를 끝낸다 */
+/** 프로세스 강제 종료 뒤 같은 기록 저장소·루프·큐·기능 세계로 다시 시작해 탐구를 끝낸다 */
 export async function crashAndResume(crash: {
   readonly taskCall?: number;
   readonly post?: boolean;

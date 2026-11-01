@@ -44,11 +44,11 @@ binds: [xeon/apps/desktop/**, xeon/apps/host/**]
 | 호출 | Rust `app.shell().sidecar("<name>")`(파일명만), JS `Command.sidecar("binaries/<name>")`(externalBin 문자열 전체) | `§7-F` 호출 행 |
 | 빌드 타깃 | `bun build --compile --target=bun-<os>-<arch>`. 공식 타깃 8개 | `§7-C` 타깃 행 |
 
-[제안] 사이드카 이름은 `xeon`이고, CLI와 같은 바이너리를 `host --stdio` 인자로 실행한다. 같은 엔진 바이너리를 CLI도 쓰므로(`_research/process.md §6.1`) 데스크톱 전용 엔진 빌드를 따로 두지 않는다. 최종 이름과 인자는 `L4.desktop.spec`과 `L4.host-service.spec`이 정한다.
+[제안] 사이드카 이름은 `fresnel`이고, CLI와 같은 바이너리를 `host --stdio` 인자로 실행한다. 같은 엔진 바이너리를 CLI도 쓰므로(`_research/process.md §6.1`) 데스크톱 전용 엔진 빌드를 따로 두지 않는다. 최종 이름과 인자는 `L4.desktop.spec`과 `L4.host-service.spec`이 정한다.
 
 ```jsonc
 // src-tauri/tauri.conf.json (발췌)
-{ "bundle": { "externalBin": ["binaries/xeon"] } }
+{ "bundle": { "externalBin": ["binaries/fresnel"] } }
 ```
 
 ```jsonc
@@ -59,7 +59,7 @@ binds: [xeon/apps/desktop/**, xeon/apps/host/**]
   "permissions": [
     {
       "identifier": "shell:allow-spawn",
-      "allow": [{ "name": "binaries/xeon", "sidecar": true, "args": ["host", "--stdio"] }]
+      "allow": [{ "name": "binaries/fresnel", "sidecar": true, "args": ["host", "--stdio"] }]
     }
   ]
 }
@@ -116,7 +116,7 @@ binds: [xeon/apps/desktop/**, xeon/apps/host/**]
 | Electrobun 2.0.4 | Bun 기반 셸, 기본 시스템 WebView, `bundleCEF`로 Chromium 번들 선택 | 탈락 | 작고 빠르다는 수치가 자체 주장이다(벤더). 코드 서명·노타리제이션 공식 문서가 없고 생태계가 성숙하지 않았다. Windows 11 ARM64는 beta, Ubuntu 24.04 외 Linux는 커뮤니티 지원이다(`§7-H`) |
 | Node 사이드카(`@yao-pkg/pkg`) | Tauri 공식 Node 가이드 방식 | 탈락 | 공식 가이드가 있으나 Bun 스택(ADR-0001)과 맞지 않는다. `bun:sqlite` 같은 Bun API를 쓰는 엔진을 Node로 묶을 수 없다(`§7-F` Node 엔진 묶기 행) |
 | 엔진을 UI 프로세스 안에 내장 | 별도 프로세스 없이 셸 안에서 엔진 실행 | 탈락 | 확장의 블로킹·크래시가 UI를 멈춘다(`_research/process.md §6.1`). CLI와 같은 바이너리를 쓸 수 없다 |
-| 웹 UI만 + 서비스 모드 접속 | 브라우저에서 `xeon service`에 접속 | 보조 | 셸 설치가 없지만 서비스 모드가 항상 필요하고, 비루프백 접속이면 인증·TLS 설계가 선행되어야 한다(ADR-0006 체크리스트 5번). 원격 전송을 만들 때 다시 검토한다 |
+| 웹 UI만 + 서비스 모드 접속 | 브라우저에서 `fresnel service`에 접속 | 보조 | 셸 설치가 없지만 서비스 모드가 항상 필요하고, 비루프백 접속이면 인증·TLS 설계가 선행되어야 한다(ADR-0006 체크리스트 5번). 원격 전송을 만들 때 다시 검토한다 |
 
 ### 5.2 셸 비교 요약
 

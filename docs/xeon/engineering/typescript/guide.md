@@ -10,13 +10,13 @@ binds: [xeon/**/*.ts, xeon/**/*.tsx]
 
 # TypeScript 작성 규칙
 
-Xeon의 모든 TypeScript 코드에 적용하는 언어 차원 규칙이다. 금지 구문, 브랜드 ID, `Result`, 판별 유니온, unknown 경계, 비결정성 주입, Promise 처리를 정한다. 스키마·DTO·버전·확장 유니온 규칙은 짝 문서 `eng.domain-types.guide`가 소유한다.
+Fresnel의 모든 TypeScript 코드에 적용하는 언어 차원 규칙이다. 금지 구문, 브랜드 ID, `Result`, 판별 유니온, unknown 경계, 비결정성 주입, Promise 처리를 정한다. 스키마·DTO·버전·확장 유니온 규칙은 짝 문서 `eng.domain-types.guide`가 소유한다.
 
 ## 1. 적용 범위
 
 - 대상 코드: `xeon/` 아래 모든 `.ts`, `.tsx` 파일. `packages/*`, `apps/*`, `plugins/*`, `scripts/*`를 포함한다.
 - 제외: `xeon/vendor/**`(Cordis 커밋 고정본, `.oxlintrc.json` `ignorePatterns`에 있다), 생성 산출물(`dist/**`).
-- 포크 코드: pi durable 포크(`platform-exec`, `cap-workspace`의 `upstream/`)와 pi agent-core에서 가져온 코드도 이 규칙을 그대로 따른다. 업스트림 병합 비용은 단언·`!`·억제 주석의 예외 사유가 아니다. 지킬 수 없는 줄은 우회하지 않고 `[미결] TY-NN <위치> <이유>`로 보고한다. 스캔 `fresnel/directive-format`이 "업스트림 모양", "원본 포크 코드의 모양", "병합 비용" 같은 이유를 단 억제 주석(oxlint, 스캔 모두)을 실패시킨다. 순차 `await`가 함수의 목적이면 `@fresnel/contracts`의 `repeatAsync`·`eachAsync`(1.2절)로 옮긴다. 에이전트 루프는 pi agent-core를 참고 자료로만 쓰고 Xeon 코드로 다시 쓴다(`adr.0009`).
+- 포크 코드: pi durable 포크(`platform-exec`, `cap-workspace`의 `upstream/`)와 pi agent-core에서 가져온 코드도 이 규칙을 그대로 따른다. 업스트림 병합 비용은 단언·`!`·억제 주석의 예외 사유가 아니다. 지킬 수 없는 줄은 우회하지 않고 `[미결] TY-NN <위치> <이유>`로 보고한다. 스캔 `fresnel/directive-format`이 "업스트림 모양", "원본 포크 코드의 모양", "병합 비용" 같은 이유를 단 억제 주석(oxlint, 스캔 모두)을 실패시킨다. 순차 `await`가 함수의 목적이면 `@fresnel/contracts`의 `repeatAsync`·`eachAsync`(1.2절)로 옮긴다. 에이전트 루프는 pi agent-core를 참고 자료로만 쓰고 Fresnel 코드로 다시 쓴다(`adr.0009`).
 - 테스트 코드: 규칙은 같다. 경로 단위로 완화한 항목은 4.3절 표에 적힌 것만 허용한다.
 - 근거 자료:
   - 스택과 tsconfig 옵션: `_research/foundation-plan.md §2` 언어·타입 검사 행 [결정], `decisions/ADR-0001-stack.md`
@@ -110,7 +110,7 @@ export function eachAsync<I, T>(items: Iterable<I>, step: (item: I) => Promise<{
 
 - `ThreadId`, `EventId`, `TurnId`, `ItemId`, `EffectId` 같은 브랜드 ID 타입과 `IdFactory`는 `F.conversation.spec` §3.2가 정의하고 `@fresnel/contracts/conversation`에 둔다. `parse`, `ParseError`는 `eng.domain-types.guide` DT-05가 정의한다. 멱등 키(`requestId`, 커밋 키)에는 브랜드가 없다(DT-06).
 - 구현 위치 [결정: review.decisions-2 U-03]: F에는 `Clock`·`Scheduler`·`RandomSource`·`IdFactory` 인터페이스만 둔다. `Clock`, `RandomSource`, `Scheduler`의 운영 구현과 `IdFactory` 구현 `createIdFactory(clock, random)`은 L0 `platform-os`에 두고 Cordis 서비스로 주입한다. `createIdFactory`는 주입받은 `Clock`·`RandomSource`로 ID를 만든다(TY-06 허용 목록 A2). F에는 `./testing` 서브패스가 없고, 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(`F.readme` §1, `eng.domain-types.guide` DT-06).
-- [제안] `Scheduler`, `TimerHandle`은 이 절이 정한다. `Clock`에 타이머를 넣지 않는 이유: 시각만 읽는 코드(투영 입력, envelope 도장)가 타이머 능력까지 받지 않게 한다.
+- [제안] `Scheduler`, `TimerHandle`은 이 절이 정한다. `Clock`에 타이머를 넣지 않는 이유: 시각만 읽는 코드(투영 입력, envelope 도장)가 타이머 기능까지 받지 않게 한다.
 - `CancelScope`(`{ readonly abortSignal: AbortSignal | undefined }`)는 F `services`(`@fresnel/contracts/services`의 `services/exec.ts`)에 둔다(`L0.exec.spec` §3.2, `F.capabilities.spec` §3.12) [결정: review.decisions-2 D-04]. pi durable 포크 코드(`platform-exec`, L2 `cap-workspace`)와 그 직접 소비자만 쓴다. 그 밖의 API는 `AbortSignal`을 받는다. 다른 곳에서 이 이름을 새로 정의하지 않는다(TY-22).
 
 ### 1.3 구현자 체크리스트 (구속)
@@ -338,7 +338,7 @@ export default function (deps: ToolRegistryDeps): ToolRegistry {
 |---|---|---|---|
 | A1 | `packages/contracts/src/base/parse.ts`의 `parse` 구현 | 검증을 통과한 값을 `Static<S>`로 | 검증기의 `Check`가 참을 돌려준 뒤에만. 검증기가 타입 가드를 돌려주면 단언을 지운다. 현재 구현은 타입 가드(`matches`)라 단언이 없고 행만 남아 있다 |
 | A2 | 브랜드 생성 함수: `packages/platform-os/src/ids.ts`의 `createIdFactory`, 테스트 대역 `fixedIdFactory`(`test/`, `src/testing/` 안) | 새로 만든 문자열을 `IdByPrefix[P]`로 | 문자열을 그 함수 안에서 만들었을 때만. 받은 문자열에 브랜드를 붙이는 일은 `parse(XxxIdSchema, input)`으로 한다 |
-| A3 | 타입 지움·복원 한 파일: `packages/ext-host/src/erase.ts` | 이종 레지스트리(핸들러, 포트, 능력, scope 정의, 확장 테이블 핸들)의 값을 지운 타입으로 보관하거나, `ServiceKey<T>`·`PortKey<T>`·테이블 정의 `D`에 실린 타입으로 되돌릴 때 | 등록 함수가 같은 키의 타입 매개변수로만 값을 받는다. ext-host의 단언은 모두 이 파일의 함수 하나씩이고 호출 쪽은 단언이 없다. 시험이 `PlatformContext` 대역을 만들 때는 `@fresnel/ext-host/testing`의 `portAs`를 쓴다 |
+| A3 | 타입 지움·복원 한 파일: `packages/ext-host/src/erase.ts` | 이종 레지스트리(핸들러, 포트, 기능, scope 정의, 확장 테이블 핸들)의 값을 지운 타입으로 보관하거나, `ServiceKey<T>`·`PortKey<T>`·테이블 정의 `D`에 실린 타입으로 되돌릴 때 | 등록 함수가 같은 키의 타입 매개변수로만 값을 받는다. ext-host의 단언은 모두 이 파일의 함수 하나씩이고 호출 쪽은 단언이 없다. 시험이 `PlatformContext` 대역을 만들 때는 `@fresnel/ext-host/testing`의 `portAs`를 쓴다 |
 | A4 | 모양을 유지하는 깊은 변환: `packages/platform-secrets/src/redactor.ts`의 `maskDeep`, 그 대역 `packages/core-tools/src/testing/fake-secrets.ts` | 문자열만 바꾼 값을 입력과 같은 타입 `T`로 | 키, 배열 길이, 비문자열 값을 그대로 둘 때만. F `Redactor.maskDeep<T>` 시그니처가 `T`를 요구한다 |
 | A5 | 선언 함수의 키별 리터럴 복원: `packages/contracts/src/wire-settings/settings/define.ts`의 `defineSettings` | 입력 `D`에서 오는 키별 타입으로 만든 결과를 `SettingGroup<N, D>`로 | 위 루프가 모든 키를 채운 뒤에만(`F.readme` §1 예외 4). 새 `define*`가 같은 사유로 단언이 필요하면 행을 더하기 전에 `[미결]`로 보고한다 |
 | A6 | 시험의 타입 어김 주입기: 패키지당 시험 지원 파일 하나(`packages/ext-host/test/primitives/fixtures/support.ts`, `apps/host/test/fixtures/unsafe.ts`) | 스키마·가드가 막는지 확인하려고 `unsafeInput`, `returning`, `partial`, `asFrame`이 값을 다른 타입으로 | 시험이 JS 호출자나 서버의 잘못된 값을 흉내 낼 때만. 시험 본문에는 단언을 쓰지 않고 이 함수를 거친다 |
@@ -1052,7 +1052,7 @@ export function isToolCall(v: unknown): v is ToolCall {
 - 하위 함수가 `Result`로 돌려준 실패를 상위 함수가 `Bug`로 바꾸지 않는다. 처리할 수 없으면 자기 오류 유니온에 변형을 더해 위로 돌려준다.
 - 테스트는 예상 가능한 실패를 `expect(...).toThrow()`로 확인하지 않는다. 돌려받은 `Result`의 `error.kind`를 확인한다. `toThrow(Bug)`는 버그 경로 테스트에만 쓴다.
 
-이유: `Bug`는 "코드를 고쳐야 사라지는 상태"라는 신호다. 예상 가능한 실패를 `Bug`로 던지면 호출자는 재시도·세션 정지·사용자 안내를 고를 수 없고, 확장 지점 fold는 실패를 거부로 환산하며, 로그와 경보가 실제 버그와 운영 실패를 구분하지 못한다. 디스크 가득 참 하나로 런타임 전체가 버그 경로를 탄다(`eng.anti-patterns.guide` AP-S-06).
+이유: `Bug`는 "코드를 고쳐야 사라지는 상태"라는 신호다. 예상 가능한 실패를 `Bug`로 던지면 호출자는 재시도·세션 정지·사용자 안내를 고를 수 없고, 훅 fold는 실패를 거부로 환산하며, 로그와 경보가 실제 버그와 운영 실패를 구분하지 못한다. 디스크 가득 참 하나로 런타임 전체가 버그 경로를 탄다(`eng.anti-patterns.guide` AP-S-06).
 
 좋은 예:
 
@@ -1095,7 +1095,7 @@ expect(() => append(store, draft)).toThrow(Bug);
 `catch` 블록과 `.catch()` 콜백은 아래 셋 중 하나를 한다.
 
 1. 변환: 받은 값을 `cause` 필드에 담아 `kind`가 있는 오류 값으로 돌려준다(`return err({ kind: "io", cause: caught })`).
-2. 기록 후 계속: 문서가 "실패해도 계속"을 정한 자리(확장 지점 `tap` fold, 정리 단계 dispose, 최선 노력 캐시)에서만 쓴다. 주입된 `Logger`로 고정 메시지와 구조화 필드(`cause`, 관련 ID)를 남긴다(`eng.best-practices.guide` BP-12). 그 자리의 근거 문서와 절을 주석에 적는다.
+2. 기록 후 계속: 문서가 "실패해도 계속"을 정한 자리(훅 `tap` fold, 정리 단계 dispose, 최선 노력 캐시)에서만 쓴다. 주입된 `Logger`로 고정 메시지와 구조화 필드(`cause`, 관련 ID)를 남긴다(`eng.best-practices.guide` BP-12). 그 자리의 근거 문서와 절을 주석에 적는다.
 3. 다시 던지기: 받은 값을 그대로 던진다(`throw caught`). 감싸야 하면 `new Bug(msg, { cause: caught })`이고, 이 경우는 버그일 때뿐이다(TY-24).
 
 금지:
@@ -1106,7 +1106,7 @@ expect(() => append(store, draft)).toThrow(Bug);
 - 함수 본문 전체를 감싸는 광역 `try`. `try`는 실패할 수 있는 호출 하나를 감싼다(`eng.anti-patterns.guide` AP-C-02).
 - `console`로 찍고 계속하기(L0·L1, BP-12).
 
-이유: 삼킨 오류는 호출자에게도 로그에도 남지 않는다. 저장소 쓰기 실패를 삼키면 커밋 여부를 모른 채 진행하고, 확장 지점 `first` 핸들러에서 삼키면 fail-closed가 fail-open이 된다(`eng.anti-patterns.guide` AP-C-02).
+이유: 삼킨 오류는 호출자에게도 로그에도 남지 않는다. 저장소 쓰기 실패를 삼키면 커밋 여부를 모른 채 진행하고, 훅 `first` 핸들러에서 삼키면 fail-closed가 fail-open이 된다(`eng.anti-patterns.guide` AP-C-02).
 
 좋은 예:
 
@@ -1167,7 +1167,7 @@ void flush().catch(() => undefined);
 | U2 | 외부(pi-ai) 타입을 거울처럼 비춘 스키마 | pi가 타입을 소유하고 선택 필드가 많다. 스키마는 판별 필드와 필수 최상위 필드만 검사하고 열린 객체라 pi가 필드를 더해도 옛 기록이 통과한다. 이 얕음은 알고 쓴다: 정적 타입이 약속하는 선택 필드는 런타임에 검사하지 않는다 | `conversation/message-schema.ts`(pi 메시지, 내용 블록, 이벤트), `conversation/agent-schema.ts`(`AgentToolResult`, `details` 키 하나가 정적 타입과 다르다) |
 | U4 | 시험 코드와 시험 지원 코드 | 시험이 스키마를 만드는 도우미를 시험한다 | `test/`, `*.test.ts`, `testing/`, `scripts/` |
 
-- 객체로 된 Xeon 소유 타입(`SandboxPolicy`, `AgentDefinition`, `PolicyRule`, `CapabilityErrorData`, `ModelBinding` 등)은 U5를 쓴다. U5 도입 때 증명이 실제 불일치를 네 곳에서 잡았다: `CapabilityErrorData.capability`와 `ModelBinding.thinkingLevel`이 평범한 문자열을 받았고, `PolicyRule.resource.caller`가 템플릿 리터럴 타입에 평범한 문자열을 받았으며, `CapabilityErrorData.detail`이 `JsonValue` 대신 `unknown`을 받았다.
+- 객체로 된 Fresnel 소유 타입(`SandboxPolicy`, `AgentDefinition`, `PolicyRule`, `CapabilityErrorData`, `ModelBinding` 등)은 U5를 쓴다. U5 도입 때 증명이 실제 불일치를 네 곳에서 잡았다: `CapabilityErrorData.capability`와 `ModelBinding.thinkingLevel`이 평범한 문자열을 받았고, `PolicyRule.resource.caller`가 템플릿 리터럴 타입에 평범한 문자열을 받았으며, `CapabilityErrorData.detail`이 `JsonValue` 대신 `unknown`을 받았다.
 - `SchemaProof`는 중첩 객체의 키 누락을 확인하지 않는다(최상위 키만). 중첩 선택 필드를 빠뜨리지 않는 일은 스키마를 쓰는 사람의 몫이다.
 - U2 행에 새 파일을 더하려면 이 표를 먼저 고치고 리뷰어 승인을 받는다. 구현 작업 중에는 행을 더하지 않고 `[미결] TY-26 <위치> <이유>`로 보고한다. 목록은 줄어드는 방향으로만 관리한다.
 - 위 모양에 맞지 않는 호출은 실제 `Type.Object` 스키마로 바꾼다. 어렵다면 줄 위에 `// fresnel-disable-next-line fresnel/type-unsafe -- <이유> (eng.typescript.guide TY-26)`를 단다.
@@ -1331,7 +1331,7 @@ typed programming 안티패턴을 막는 규칙 전체다. `xeon/.oxlintrc.json`
 - 대상: `packages/**`, `apps/**`, `plugins/**`, `scripts/**`의 `.ts`, `.tsx`. `vendor/**`, `dist/**`, `node_modules/**` 제외.
 - 파서: TS 7.0에는 안정 programmatic API가 없다(`_research/stack-status.md §2`). 줄 단위 정규식 검출로 시작했고 `new Bug(` 인자만 괄호 짝을 센다. 오탐이 문제가 되면 별도 파서로 바꾼다 [미결].
 - 별도 파일로 둔다. 층 검사(`check-layers.ts`)와 구문 검사는 실패 원인이 다르다.
-- 규칙 이름은 `xeon/<이름>` 형식이다. 3.1절 표의 스캔 열이 전체 목록이다.
+- 규칙 이름은 `fresnel/<이름>` 형식이다. 3.1절 표의 스캔 열이 전체 목록이다.
 - 종료 코드: 위반 1건 이상이면 1. 설정 파일을 읽지 못하면 2(`~/.claude/CLAUDE.md`의 종료 코드 규약).
 
 ### 3.3 리뷰 항목
@@ -1361,7 +1361,7 @@ PR 리뷰에서 확인한다. 자동 검사가 없는 항목만 적는다.
 | oxlint 규칙 | `// oxlint-disable-next-line <규칙> -- <이유> (<이슈 URL>)` |
 | 같은 줄 끝 | `<코드> // oxlint-disable-line <규칙> -- <이유> (<이슈 URL>)` |
 | tsc 오류 | `// @ts-expect-error -- <이유> (<이슈 URL>)` |
-| 스캔 규칙 | `// fresnel-disable-next-line xeon/<규칙> -- <이유> (<이슈 URL>)` |
+| 스캔 규칙 | `// fresnel-disable-next-line fresnel/<규칙> -- <이유> (<이슈 URL>)` |
 
 - 이슈 URL 정규식: `https://github\.com/[^/\s]+/[^/\s]+/issues/\d+` [제안].
 - 구속 문서가 미리 허용한 위치·경우의 예외(TY-06 허용 목록 A1~A3, TY-14 열린 외부 값, 각 guide가 허용한 항목)는 이슈 URL 대신 `(<문서 id> <규칙 ID>)`를 쓴다. 예: `(eng.typescript.guide TY-06)`, `(eng.anti-patterns.guide AP-C-05)`.

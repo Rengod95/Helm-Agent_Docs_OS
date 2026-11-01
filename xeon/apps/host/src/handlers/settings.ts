@@ -22,7 +22,7 @@ import type { Engine, SettingsFileFailure, SettingsWriteFailure } from "../types
 import { threadLocked } from "./owner.ts";
 
 // L4.host-service.spec §3.4. settings.get(M1)과 settings.set, settings.reset, settings.list(M2, HOST.2).
-// 값 검사는 F의 checkSettingWrite가 한다. 오류 details에는 값을 싣지 않는다(F wire §4.9 비밀 값 비표시 규칙 4).
+// 값 검사는 F의 checkSettingWrite가 한다. 오류 details에는 값을 싣지 않는다(F wire §4.9 시크릿 값 비표시 규칙 4).
 
 /** 모르는 thread는 3001이다. threadId가 없으면 검사하지 않는다 */
 function requireThreadIfGiven(engine: Engine, threadId: ThreadId | undefined, where: string): void {
@@ -48,7 +48,7 @@ export function createSettingsGetHandler(engine: Engine): WireHandler<"settings.
       }
       const resolved = resolveSetting(def, layers);
       for (const issue of resolved.issues) {
-        // 값은 싣지 않는다(비밀 값 비표시 규칙). 건너뛴 범위와 이유만 남긴다
+        // 값은 싣지 않는다(시크릿 값 비표시 규칙). 건너뛴 범위와 이유만 남긴다
         ports.log.info("settings.value_skipped", {
           key,
           scope: issue.scope,
@@ -191,7 +191,7 @@ export function createSettingsSetHandler(engine: Engine): WireHandler<"settings.
     requireKnownModel(engine, key, checked.value);
     const written = await ports.settings.write(scope, key, checked.value, threadId);
     if (!written.ok) throw writeFailure(written.error, def, scope);
-    // 사용자 범위의 provider 키 연결은 사람의 허용이다: 그 비밀에 모델 provider 사용 하나를 더한다(HS-45)
+    // 사용자 범위의 provider 키 연결은 사람의 허용이다: 그 시크릿에 모델 provider 사용 하나를 더한다(HS-45)
     if (key === "l1.models.providers" && scope === "user") await ports.secrets.linkModelProviders();
     return { setting: effectiveOf(engine, def, threadId) };
   };
@@ -268,7 +268,7 @@ function fileInvalid(scope: SettingsFileScope, issues: readonly FileIssue[]): Wi
 /**
  * 파일 원문을 그 범위의 스키마로 검사한다(F wire §3.3.1). JSON 객체여야 하고, 카탈로그에 있는 키는 값 검사를 통과해야 한다.
  * 카탈로그에 없는 키는 보존하는 키라 통과한다. 읽는 코드가 없는 `reserved` 키와 그 범위가 허용하지 않는 키는 `settings.set`이
- * 막는 것이지 파일의 스키마가 막는 것이 아니라서(`settingsJsonSchema`) 통과한다. 비밀 키의 값은 이슈에 싣지 않는다.
+ * 막는 것이지 파일의 스키마가 막는 것이 아니라서(`settingsJsonSchema`) 통과한다. 시크릿 키의 값은 이슈에 싣지 않는다.
  */
 function checkFileText(
   engine: Engine,

@@ -8,12 +8,12 @@ import {
 } from "@fresnel/contracts/services";
 import { isValidEnvName } from "./env-builder.ts";
 
-// L0.exec.spec §3.6. 에이전트 env 모드(M1)의 비밀 주입 지점. 값은 이 파일의 지역 변수와 spawn 인자에만 있다.
+// L0.exec.spec §3.6. 에이전트 env 모드(M1)의 시크릿 주입 지점. 값은 이 파일의 지역 변수와 spawn 인자에만 있다.
 
 /** secrets 서비스 중 exec가 쓰는 메서드. platform-secrets를 import하지 않고 F 인터페이스로만 받는다(DR-02) */
 export type SecretEnvSource = Pick<SecretService, "withEnv">;
 
-/** 빌려 온 비밀 값. 폐기하면 lease를 닫는다 */
+/** 빌려 온 시크릿 값. 폐기하면 lease를 닫는다 */
 export interface SecretEnvLeases {
   /** env 이름 → 값. 호출이 끝나면 버린다 */
   readonly values: Readonly<Record<string, string>>;

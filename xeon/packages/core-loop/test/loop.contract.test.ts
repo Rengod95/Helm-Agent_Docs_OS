@@ -13,7 +13,7 @@ const text = (value: string): ScriptedResponse => ({
   stopReason: "stop",
 });
 
-// 자체 루프(adr.0009) 계약: 확장 지점·커밋 순서, import 검사, 의존 제거(L1.loop.plan §5)
+// 자체 루프(adr.0009) 계약: 훅·커밋 순서, import 검사, 의존 제거(L1.loop.plan §5)
 
 const answer = {
   kind: "message",

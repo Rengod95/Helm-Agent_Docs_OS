@@ -55,7 +55,7 @@ xeon/packages/cap-dialog/
       registry.ts                                 # 출처별 명령 표, 우선순위, 동작 명령 처리기
       loader.ts                                   # 명령 파일 읽기(포트 경유), 진단
       shell.ts                                    # !{…} 찾기, 확인 게이트, 실행 결과 치환
-      input-handler.ts                            # input 지점 핸들러(템플릿 치환만)
+      input-handler.ts                            # input 훅 핸들러(템플릿 치환만)
       advertise.ts                                # 명령 목록 광고 조각
       service.ts                                  # register, list, expand, run
     status/
@@ -138,7 +138,7 @@ xeon/packages/cap-dialog/
 
 | 테스트 파일 | 테스트 이름 | 확인할 동작 |
 |---|---|---|
-| `test/idempotency.conformance.test.ts` | 능력 적합성 | ADR-0015 §3.6, M3-REQ-88·89. 일곱 능력의 분류와 `replay`가 spec 효과 분류 표와 같다. `ask`를 같은 `requestId`로 재시작을 사이에 두고 두 번 부르면 승인 요청이 하나이고 결과가 같다. 다른 `requestId`는 다른 요청이고 `requestId`가 없으면 요청 전에 `invalid_input`이다. `notify.emit`의 requestId 멱등은 `test/notify-service.test.ts`가 본다. 선언 상향은 [미결](spec §3.6) |
+| `test/idempotency.conformance.test.ts` | 기능 적합성 | ADR-0015 §3.6, M3-REQ-88·89. 일곱 기능의 분류와 `replay`가 spec 효과 분류 표와 같다. `ask`를 같은 `requestId`로 재시작을 사이에 두고 두 번 부르면 승인 요청이 하나이고 결과가 같다. 다른 `requestId`는 다른 요청이고 `requestId`가 없으면 요청 전에 `invalid_input`이다. `notify.emit`의 requestId 멱등은 `test/notify-service.test.ts`가 본다. 선언 상향은 [미결](spec §3.6) |
 | `test/ask-schema.test.ts` | 질문 스키마 검증 | 질문 0개·5개, 선택지 1개·9개 거부. 같은 질문 id, 추천 둘 이상, 선택지 id 중복은 `checkAskQuestions` 이슈 |
 | `test/ask-schema.test.ts` | 답 검증 | `validateAskAnswer`의 이슈 6종이 각각 나오는 사례와 통과 사례. `buildAskAnswerSchema` 결과로 JSON Schema 검사한 결과가 구조 규칙과 같다 |
 | `test/ask-defaults.test.ts` | 선택지 추천·시간 제한 기본값 | 모든 질문에 추천이 있으면 `defaultAskAnswer`가 답을 만들고 하나라도 없으면 null. 입력 `timeoutSec` 생략 시 설정값, 0이면 만료 없음 |
@@ -158,7 +158,7 @@ xeon/packages/cap-dialog/
 | `test/notify-service.test.ts` | 알림 emit, list, 구독, 묶음 | emit 뒤 list가 같은 값을 돌려주고 같은 requestId 재호출은 같은 seq다. list는 kinds 필터, afterSeq·nextSeq 이어 읽기, limit 기본 100과 상한 500, 한 호출이 훑는 행의 상한을 지킨다. 구독은 turn.completed와 approval.requested를 파생 알림으로 받고 kinds 필터와 해제를 지킨다. 같은 스레드·같은 kind는 1초 안에 한 번만 가고 창 밖이면 다시 간다. list는 묶음과 무관하다 |
 | `test/notify-classify.test.ts` | 알림 분류 | §4.7.1 표의 원인 이벤트마다 kind가 맞고 `interrupted` 턴은 null. `INPUT_NEEDED_KINDS`가 둘이다 |
 | `test/notify-os.test.ts` | OS 알림 전달 | 다섯 종류가 L0의 네 종류로 옮겨지고 제목 80자, 본문 400자로 자르며 자르기 전에 가린다. `notify.os`와 종류별 키가 꺼지면 보내지 않고 설정은 대화 범위로 읽는다. `disabled`는 디버그 로그, `unavailable`·`failed`·`cancelled`는 경고, 거부된 Promise는 잡아서 로그에 남긴다. 실제 알림 서비스를 거치면 같은 스레드·같은 종류 둘째는 1초 안에 한 번만 간다. `test/plugin.test.ts`의 OS 알림 시험은 피드의 턴이 `notify`로 가고, 설정이 꺼지거나 `fresnel.secrets`가 없으면 보내지 않으며, 제거하면 신호가 중단되는지 본다 |
-| `test/defs.contract.test.ts` | 정의 검증 | 일곱 정의 `validateCapability` 이슈 0건(도구 없는 능력 [미결] 동안은 그 이슈만 허용 목록), `validateCapabilitySet`에 도구 이름 충돌 없음, `DialogAttachments.requires`가 `workspace.images` |
+| `test/defs.contract.test.ts` | 정의 검증 | 일곱 정의 `validateCapability` 이슈 0건(도구 없는 기능 [미결] 동안은 그 이슈만 허용 목록), `validateCapabilitySet`에 도구 이름 충돌 없음, `DialogAttachments.requires`가 `workspace.images` |
 | `test/catalog.contract.test.ts` | 카탈로그 | `DIALOG_EVENT_CATALOG`에서 `dialog.status`가 `durable: false`이고 `VOLATILE_TYPE_PATTERN`, `dialog.notified`가 `durable: true`이고 `EVENT_TYPE_PATTERN`을 만족하며 `TYPE_PREFIX_OWNERS`의 `dialog.` 소유가 `cap.dialog` |
 
 ## 6. 완료 기준
@@ -225,7 +225,7 @@ M3:
 - 지점 핸들러는 `input.user.before`, `tool.execution.before`, `tool.execution.after`, `input.agent.before`이다. 알림용 지점은 없다.
 - M3 `notify/`는 `classify.ts`, `service.ts`, `os-delivery.ts`를 둔다. 길이 자르기 `clip`은 `util.ts`에 두고 분류와 OS 전달이 같이 쓴다. 구독 묶음과 `NoticeFeed`는 `service.ts`에 있고 `feed.ts`는 만들지 않았다. 알림 포트는 `ports/notices.ts`다(`session.ts`는 바꾸지 않았다). `sessionNoticePort`가 `session-adapter.ts`에서 `fresnel.session`의 `commit`과 `feed`를 감싼다. `read`는 `{events, scannedTo}`를 돌려준다. 훑은 마지막 seq가 `nextSeq`의 근거라서 §3과 다르다.
 
-테스트 대응(§5)은 파일 이름이 같다. 추가로 `plugin.test.ts`(실제 ExtHost에 올려 능력, 지점, 구독 정리 확인. 프로젝트 신뢰가 없거나 판정이 실패하면 프로젝트 명령 0개와 경고 한 번, 신뢰는 대화의 작업 폴더로 묻고 작업 폴더가 없는 대화는 엔진 cwd로 내려가지 않음: G1-03, G2-02), `session-adapter.test.ts`(휘발 봉투), `status-core.test.ts`, `settings.test.ts`, `fork-records.test.ts`를 두었다. `ask-restart.fault.test.ts`는 같은 이벤트 로그 위에 새 `ApprovalService`(메모리 대기 목록이 빈 것)와 새 ask 서비스를 세우는 것으로 재시작을 흉내 낸다. 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`)과 SIGKILL 재개는 통합 단계(HOST.4)에서 확인한다.
+테스트 대응(§5)은 파일 이름이 같다. 추가로 `plugin.test.ts`(실제 ExtHost에 올려 기능, 지점, 구독 정리 확인. 프로젝트 신뢰가 없거나 판정이 실패하면 프로젝트 명령 0개와 경고 한 번, 신뢰는 대화의 작업 폴더로 묻고 작업 폴더가 없는 대화는 엔진 cwd로 내려가지 않음: G1-03, G2-02), `session-adapter.test.ts`(휘발 봉투), `status-core.test.ts`, `settings.test.ts`, `fork-records.test.ts`를 두었다. `ask-restart.fault.test.ts`는 같은 이벤트 로그 위에 새 `ApprovalService`(메모리 대기 목록이 빈 것)와 새 ask 서비스를 세우는 것으로 재시작을 흉내 낸다. 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`)과 SIGKILL 재개는 통합 단계(HOST.4)에서 확인한다.
 
 통합 단계(HOST.6)에서 실제 구현으로 바꿀 포트:
 

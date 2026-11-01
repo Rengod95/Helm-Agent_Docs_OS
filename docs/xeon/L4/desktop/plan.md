@@ -371,7 +371,7 @@ D6(UI 셸)과 D7(승인 대기열)의 구현 결과다. 상태 설계는 `L4.des
 
 실제 창 확인(WSLg, 디버그, 가짜 엔진 `FRESNEL_DESKTOP_ENGINE_BIN`): WebKitGTK 창에서 연결됨, 목록 읽기, 승인 복원(`approval.list`), 대화 열기(`thread.read`), 입력 → 토큰 스트리밍 → 확정, 승인 응답 → 대기열에서 사라짐, 새 대화 만들기가 끝까지 동작했다. CSP 위반은 없었다. 마우스·키보드 입력은 DOM 이벤트로 흉내 냈고 한글 IME 조합은 확인하지 못했다. macOS와 Windows는 확인하지 못했다.
 
-M2 마감 반영(T7 DESK, TS만): 도구 승인 카드가 명령, 인자, 비밀 핸들을 보이고(`src/views/approval-form.ts`), 질문 카드가 선택지와 `allowFreeText`를 따르며 `QuestionAnswer`를 만든다. 실패 표시는 `approval.respond`의 `reason`·`detail`로 `failed`, `invalid`, `closed`, `unapplied`로 나뉜다(`src/app/approval-outcome.ts`). 프로젝트 신뢰 카드(`src/views/trust.tsx`, `trust-model.ts`)는 `trust.get`·`trust.decide`를 부른다. `thread.locked`는 `src/app/command-error.ts`가 대안을 읽고 `src/views/locked-dialog.tsx`가 묻는다(G2-09). 시험은 `test/views/*`(서버 렌더와 순수 로직)와 `test/app/locked-trust.test.ts`(가짜 셸과 가짜 엔진)다. `trust.get`·`trust.decide`는 실제 host와 맞춘 종단 시험이 있다(`test/e2e/sidecar.e2e.test.ts`, 아래 재실행 기록). `thread.open observe`는 다른 프로세스가 쓰기 소유를 쥔 상태가 필요해 종단 시험이 없고 가짜 셸 시험만 있다.
+M2 마감 반영(T7 DESK, TS만): 도구 승인 카드가 명령, 인자, 시크릿 참조을 보이고(`src/views/approval-form.ts`), 질문 카드가 선택지와 `allowFreeText`를 따르며 `QuestionAnswer`를 만든다. 실패 표시는 `approval.respond`의 `reason`·`detail`로 `failed`, `invalid`, `closed`, `unapplied`로 나뉜다(`src/app/approval-outcome.ts`). 프로젝트 신뢰 카드(`src/views/trust.tsx`, `trust-model.ts`)는 `trust.get`·`trust.decide`를 부른다. `thread.locked`는 `src/app/command-error.ts`가 대안을 읽고 `src/views/locked-dialog.tsx`가 묻는다(G2-09). 시험은 `test/views/*`(서버 렌더와 순수 로직)와 `test/app/locked-trust.test.ts`(가짜 셸과 가짜 엔진)다. `trust.get`·`trust.decide`는 실제 host와 맞춘 종단 시험이 있다(`test/e2e/sidecar.e2e.test.ts`, 아래 재실행 기록). `thread.open observe`는 다른 프로세스가 쓰기 소유를 쥔 상태가 필요해 종단 시험이 없고 가짜 셸 시험만 있다.
 
 M2 마감 반영(T7 DESK, 최소 설정 화면 G2-08): 구조와 규칙은 spec §4.14다. 파일은 `src/settings/{model,diagnostics}.ts`(순수 로직), `src/app/setup.ts`(wire), `src/views/settings.tsx`, `setup-banner.tsx`다. 시험은 `test/settings/*`(검사, 첫 실행 단계, 보고서 변환), `test/views/settings.test.tsx`(서버 렌더: 값 입력란이 없음, 안내 문구), `test/app/locked-trust.test.ts`의 "settings screen wire"(`settings.get`·`settings.set`·`secret.*` 요청 모양, `settings.invalidated` 필터)다. 사이드카가 키 값을 받을 수 없다는 한계가 남아 있다(spec §10 15번). 점검 결과를 전하는 길은 `host.status`의 `binaries`로 닫혔다(아래 G2-07 기록). `settings.set`·`settings.invalidated`·`secret.beginEntry`는 실제 host와 맞춘 종단 시험이 있다(아래 재실행 기록).
 
@@ -457,7 +457,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 - 패키지: AppImage, deb [제안]. rpm은 요청이 있을 때 더한다.
 - 의존: WebKitGTK. [가정] Tauri 2는 `libwebkit2gtk-4.1`을 쓴다. deb에는 런타임 의존으로 선언하고, AppImage는 시스템 WebKitGTK를 쓴다(번들하지 않는다) [가정]. 최소 배포판은 spec §10 미결 10.
 
-#### 비밀 주입
+#### 시크릿 주입
 
 - 서명·공증 자격(인증서, 암호, API 키)은 SOPS로 암호화한 참조로 저장하고 CI에서 복호화해 환경 변수로 주입한다. 값은 저장소, 로그, 문서에 쓰지 않는다. 새 키는 `just secret-add <키> [env]`로 더한다.
 

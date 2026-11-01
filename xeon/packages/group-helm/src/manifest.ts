@@ -15,7 +15,7 @@ export const helmManifest: GroupManifest = defineManifest({
   name: "helm",
   version: "0.1.0",
   displayName: "Helm",
-  description: "탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 의도 그룹",
+  description: "탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 플러그인 그룹",
   layer: "L3",
   kind: "group",
   entry: "./dist/index.js",

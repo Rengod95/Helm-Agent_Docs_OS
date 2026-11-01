@@ -35,7 +35,7 @@ function isMode(value: string): value is PermissionMode {
   return value === "default" || value === "acceptEdits" || value === "plan" || value === "bypass";
 }
 
-/** 기록 수준 body(JSON)를 서비스 타입의 ApprovalBody로 되돌린다. 모르는 등급·능력·모드가 있으면 undefined */
+/** 기록 수준 body(JSON)를 서비스 타입의 ApprovalBody로 되돌린다. 모르는 등급·기능·모드가 있으면 undefined */
 function bodyOfJson(body: ApprovalBodyJson): ApprovalBody | undefined {
   switch (body.kind) {
     case "tool": {
@@ -184,7 +184,7 @@ function createL2ApprovalsPort(
   };
 }
 
-/** 출처가 없는 요청(능력이 도구 호출 밖에서 묻는 경우)의 출처. 대기 체크포인트 없이 승인 이벤트만 남는다 */
+/** 출처가 없는 요청(기능이 도구 호출 밖에서 묻는 경우)의 출처. 대기 체크포인트 없이 승인 이벤트만 남는다 */
 function bareOrigin(threadId: ThreadId): ApprovalOrigin {
   return { threadId, turnId: null, stepId: null, toolCallId: null, caller: "main" };
 }

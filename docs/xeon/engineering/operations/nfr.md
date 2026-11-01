@@ -19,13 +19,13 @@ binds: []
 ### 1.1 예산 상태
 
 - 모든 예산 칸은 `[미결]`이고 사용자 결정 대기입니다(`eng.performance.guide` §2, §2.1). 2026-10-29 기준입니다.
-- 예산을 정하면 `xeon/scripts/bench.ts`의 `BUDGET_MS`(§2)와 `xeon/scripts/bench-server.ts`의 `SERVER_BUDGET`(§2.1)을 같은 커밋에서 고칩니다(`eng.performance.guide` PF-03).
-- M3에서 예산을 넘으면 실패하는 게이트로 바꿉니다(`eng.performance.guide` §1). `just bench-gate`는 `--strict`가 없으면 예산 대기를 실패로 보지 않습니다. `--strict`를 주면 예산 대기도 실패로 봅니다(`eng.performance.guide` §4).
+- 예산을 정하면 `xeon/scripts/benchmark.ts`의 `BUDGET_MS`(§2)와 `xeon/scripts/benchmark-server.ts`의 `SERVER_BUDGET`(§2.1)을 같은 커밋에서 고칩니다(`eng.performance.guide` PF-03).
+- M3에서 예산을 넘으면 실패하는 게이트로 바꿉니다(`eng.performance.guide` §1). `just benchmark-gate`는 `--strict`가 없으면 예산 대기를 실패로 보지 않습니다. `--strict`를 주면 예산 대기도 실패로 봅니다(`eng.performance.guide` §4).
 
 ### 1.2 측정 레시피
 
-- `just bench`: 콜드 스타트와 첫 토큰을 잽니다. `just bench --server`: 서버 측정을 돌립니다. `just bench-gate`: 서버 측정 결과로 게이트를 돌립니다(`eng.performance.guide` §1).
-- `just bench --first-token`은 실제 provider를 부릅니다. 비용과 키가 들어가므로 사람이 확인한 뒤 `--yes`로 한 번만 돌립니다(`eng.performance.guide` PF-02).
+- `just benchmark`: 콜드 스타트와 첫 토큰을 잽니다. `just benchmark --server`: 서버 측정을 돌립니다. `just benchmark-gate`: 서버 측정 결과로 게이트를 돌립니다(`eng.performance.guide` §1).
+- `just benchmark --first-token`은 실제 provider를 부릅니다. 비용과 키가 들어가므로 사람이 확인한 뒤 `--yes`로 한 번만 돌립니다(`eng.performance.guide` PF-02).
 - 측정 기기와 날짜는 표 바로 위에 적었습니다. 기기가 다르면 값을 비교하지 않습니다(`eng.performance.guide` PF-03).
 
 ### 1.3 참고 수치: 콜드 스타트와 첫 토큰 (`eng.performance.guide` §2)
@@ -34,9 +34,9 @@ binds: []
 
 | 지표 | 뜻 | 측정 | 기준선 | 예산 | 비고 | 표지 |
 |---|---|---|---|---|---|---|
-| `cold_start_cli` | `bun apps/cli/src/main.ts version --json` 시작부터 종료까지 | `just bench` | WSL2 중앙값 143.6 ms(3회, 2026-10-25). 서버(WSL2) 중앙값 189.8 ms(2026-10-27) | [미결] | 번들 전 소스 진입. 모듈 적재 비용을 봅니다 | 참고 수치(indicative) |
-| `cold_start_sidecar` | 컴파일한 사이드카 `xeon-<triple> version --json` 시작부터 종료까지 | `just desktop-sidecar host` 뒤 `just bench` | WSL2 약 131 ms(`--bytecode`, `L4.desktop.plan` §3 spike S2). 서버(WSL2) 중앙값 46.9 ms(2026-10-27) | [미결] | macOS 값은 `review.macos-checklist` M-07 | 참고 수치(indicative) |
-| `first_token` | `xeon chat -p` 시작부터 첫 `stream.chunk` 알림까지 | `just bench --first-token --yes` | 서버(WSL2) 1289.5 ms(1회, 실제 provider, 2026-10-27) | [미결] | 실제 모델 호출. 사용자 확인 뒤 1회(결정 D-e) | 참고 수치(indicative) |
+| `cold_start_cli` | `bun apps/cli/src/main.ts version --json` 시작부터 종료까지 | `just benchmark` | WSL2 중앙값 143.6 ms(3회, 2026-10-25). 서버(WSL2) 중앙값 189.8 ms(2026-10-27) | [미결] | 번들 전 소스 진입. 모듈 적재 비용을 봅니다 | 참고 수치(indicative) |
+| `cold_start_sidecar` | 컴파일한 사이드카 `fresnel-<triple> version --json` 시작부터 종료까지 | `just desktop-sidecar host` 뒤 `just benchmark` | WSL2 약 131 ms(`--bytecode`, `L4.desktop.plan` §3 spike S2). 서버(WSL2) 중앙값 46.9 ms(2026-10-27) | [미결] | macOS 값은 `review.macos-checklist` M-07 | 참고 수치(indicative) |
+| `first_token` | `fresnel chat -p` 시작부터 첫 `stream.chunk` 알림까지 | `just benchmark --first-token --yes` | 서버(WSL2) 1289.5 ms(1회, 실제 provider, 2026-10-27) | [미결] | 실제 모델 호출. 사용자 확인 뒤 1회(결정 D-e) | 참고 수치(indicative) |
 | 사이드카 크기 | triple별 바이너리 크기 | `just desktop-sidecar <triple>` | WSL2 `x86_64-unknown-linux-gnu` 109.8 MiB(T7, `L4.desktop.plan` 구현 기록), macOS 26.5.2 `aarch64-apple-darwin` 91.0 MiB(`ws mac` 작업 20261025-224508-0141) | 500 MiB(회귀 상한) | ADR-0012 §3 2번. 줄이는 목표가 아닙니다. macOS 값은 `review.macos-checklist` M-07 | 참고 수치(indicative) |
 
 
@@ -109,7 +109,7 @@ binds: []
 - macOS Seatbelt는 실기 확인 전입니다(이월 B3-SEC2). 근거 상태 "실측"은 실제 바이너리와 OS로 시험했다는 뜻입니다(`architecture.security.spec` §2).
 - 프로젝트 신뢰: 판정 전에는 프로젝트 확장, MCP 정의, 스킬, 설정을 읽지 않습니다. 판정 순서와 결과 저장은 `X.loading-trust.spec` §4.7이 정합니다(T-03).
 - 확장 권한: 신뢰 등급과 허용 연산 표로 확장이 할 수 있는 일을 정합니다. 외부 확장 로더는 M3에 있습니다. 비협조 확장 코드의 격리는 M4입니다(T-09, M3-REQ-34).
-- 비밀: 참조만 넘기고 값은 넘기지 않습니다. 로그, 이벤트, 모델 입력, 외부 전송은 마스킹 계층을 거칩니다. `reveal`의 재인증 증거는 60초 안이어야 합니다(`L0.secrets.spec` §3.8, §4.4, T-05, T-06). `os-auth`는 macOS에서 실기 확인 전입니다.
+- 시크릿: 참조만 넘기고 값은 넘기지 않습니다. 로그, 이벤트, 모델 입력, 외부 전송은 마스킹 계층을 거칩니다. `reveal`의 재인증 증거는 60초 안이어야 합니다(`L0.secrets.spec` §3.8, §4.4, T-05, T-06). `os-auth`는 macOS에서 실기 확인 전입니다.
 - 네트워크: 웹 가져오기는 기본 승인이고 대화에 나온 URL만 허용합니다. 사설망과 메타데이터 주소를 막습니다(`L2.web.spec` §4.6, T-01, T-07).
 - 원격: 서비스는 비루프백 리스너를 만들지 않습니다. 원격 접속은 SSH 터널이나 사설망입니다(T-10, HS-87). `--listen-tcp`의 비루프백 허용 정책은 사용자 결정 대기입니다(이월 목록, P-13).
 - 전체 위협 열람: `architecture.security.spec`. 개인정보 관점의 저장과 전송은 `eng.operations.data-privacy`를 봅니다.
@@ -141,7 +141,7 @@ binds: []
 - 로그 수준은 `l0.os.log.level`입니다. 기본은 `info`이고 바꾸면 다음 줄부터 반영합니다(`eng.operations.runbook` §3.1).
 - 로그 회전 sink는 스펙에 있지만 호스트 조립에 연결되지 않았습니다. 로그는 한 파일에 계속 덧붙습니다(`eng.operations.runbook` §3.1 미결 3).
 - 텔레메트리(OpenTelemetry)는 기본으로 꺼져 있습니다. `l0.os.telemetry.enabled`로 켭니다(`L0.os.spec` §3.9, §6).
-- 진단은 `xeon doctor`가 봅니다. 종료 코드와 `--json` 형식은 `eng.operations.runbook` §4가 정합니다.
+- 진단은 `fresnel doctor`가 봅니다. 종료 코드와 `--json` 형식은 `eng.operations.runbook` §4가 정합니다.
 
 ## 8. 접근성
 

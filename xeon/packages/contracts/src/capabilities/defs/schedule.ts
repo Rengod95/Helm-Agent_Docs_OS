@@ -18,7 +18,7 @@ import { defineCapability } from "../capability.ts";
 import { serviceKey, type ServiceKey } from "../service-key.ts";
 import type { ToolSpec } from "../tool-spec.ts";
 
-// L2.schedule.spec §4.4.9 (M3b B1-SCH2). 능력 ID는 `schedule.entries`다. §3.5의 `schedule.timers`(cron 식)와는 다른 능력이다.
+// L2.schedule.spec §4.4.9 (M3b B1-SCH2). 기능 ID는 `schedule.entries`다. §3.5의 `schedule.timers`(cron 식)와는 다른 기능이다.
 // 트리거와 항목, 실행 기록 모양은 `@fresnel/cap-schedule`의 `TriggerSpec`, `ScheduleEntry`, `RunRecord`와 같은 필드 이름을 쓴다.
 // F는 cap-schedule을 import하지 않는다(층 순서). 엔진과 같은 모양인지는 호스트가 엔진 포트를 조립할 때 타입으로 확인한다 [미결: 호스트 조립 커밋].
 // 간격 최소값 300초는 엔진이 `interval_too_short`로 거부한다. 이 스키마는 그 값을 두지 않는다.
@@ -449,14 +449,14 @@ function createTextOf(entry: ScheduleEntryView): string {
   return `schedule ${entry.id} next=${next}`;
 }
 
-// L2.schedule.spec §4.4.9. 능력 정의는 이 파일 하나다.
+// L2.schedule.spec §4.4.9. 기능 정의는 이 파일 하나다.
 // ADR-0015 분류(값으로 고정한다, test/capabilities/l2-effect-classes.test.ts):
 // - list는 읽기 전용이다. 항목을 바꾸지 않으므로 `readOnly`와 `replay: "safe"`를 단다.
 // - create, cancel, fire는 효과가 있는 쓰기다. 재생 정책과 분류를 달지 않는다(unsafe).
 //   create는 `requestId` 기억이 아직 없어 `idempotent`가 될 수 없다. 같은 요청을 두 번 받으면 항목이 두 개 생긴다.
 //   cancel과 fire도 같은 이유로 선언하지 않는다. 필요해지면 requestId 기억을 만든 뒤 바꾼다.
 
-/** 예약 항목의 만들기, 목록, 취소, 원격 실행(M3b). cron 식이 없는 상태 기계 위의 능력이다 */
+/** 예약 항목의 만들기, 목록, 취소, 원격 실행(M3b). cron 식이 없는 상태 기계 위의 기능이다 */
 export const ScheduleEntries: CapabilityDef<
   ScheduleMethods,
   readonly [ToolSpec<"create", typeof ScheduleCreateToolParams, ScheduleMethods["create"]>]
@@ -464,7 +464,7 @@ export const ScheduleEntries: CapabilityDef<
   id: "schedule.entries",
   version: "1.0.0",
   description:
-    "예약 항목(무인 새 세션에서 프롬프트를 실행)의 만들기, 목록, 취소, 원격 실행. cron 식이 없고 schedule.timers와 다른 능력이다.",
+    "예약 항목(무인 새 세션에서 프롬프트를 실행)의 만들기, 목록, 취소, 원격 실행. cron 식이 없고 schedule.timers와 다른 기능이다.",
   service: {
     methods: {
       // ADR-0015: 효과가 있는 쓰기다. requestId 기억이 없어 분류하지 않는다(멱등이 아니다)

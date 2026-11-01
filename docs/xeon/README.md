@@ -8,11 +8,11 @@ depends_on: []
 binds: []
 ---
 
-# Xeon 문서
+# Fresnel 문서
 
-Xeon(임시 이름)은 대화형 에이전트 런타임이다. 층(F~L3)으로 나눈 런타임 전체를 배포하고, 사용자는 층마다 플러그인과 의도 그룹을 추가하거나 교체한다. Helm은 L3 의도 그룹으로 기본 제공된다.
+Fresnel(임시 이름)은 대화형 에이전트 런타임이다. 층(F~L3)으로 나눈 런타임 전체를 배포하고, 사용자는 층마다 플러그인과 플러그인 그룹을 추가하거나 교체한다. Helm은 L3 플러그인 그룹으로 기본 제공된다.
 
-이 디렉터리는 Xeon의 제품 기획, 층별 스펙과 구현 계획, 구속력 있는 엔지니어링 규칙을 담는다. 사람과 에이전트가 같은 구조로 읽고 쓴다.
+이 디렉터리는 Fresnel의 제품 기획, 층별 스펙과 구현 계획, 구속력 있는 엔지니어링 규칙을 담는다. 사람과 에이전트가 같은 구조로 읽고 쓴다.
 
 ## 층 지도
 
@@ -22,8 +22,8 @@ Xeon(임시 이름)은 대화형 에이전트 런타임이다. 층(F~L3)으로 �
 | X | 확장 체계: on·post·drive·scope, 로딩, 신뢰 | `X/` | `xeon/packages/ext-host` |
 | L0 | 플랫폼: OS별 구현이 바뀌는 부분 | `L0/` | `xeon/packages/platform-*` |
 | L1 | 코어: 거의 바뀌지 않는 코어 플러그인 | `L1/` | `xeon/packages/core-*` |
-| L2 | 능력: 서비스 API와 모델 도구 쌍 | `L2/` | `xeon/packages/cap-*` |
-| L3 | 의도 그룹: Helm, 학습 그룹, 추가 그룹 | `L3/` | `xeon/packages/group-*` |
+| L2 | 기능: 서비스 API와 모델 도구 쌍 | `L2/` | `xeon/packages/cap-*` |
+| L3 | 플러그인 그룹: Helm, 학습 그룹, 추가 그룹 | `L3/` | `xeon/packages/group-*` |
 | L4 | 배포 런타임: CLI, 데스크톱, 서비스, 설정 화면 | `L4/` | `xeon/apps/*` |
 
 층 순위(의존 방향)는 F → X → L0 → L1 → L2 → L3 → L4다. 자세한 규칙은 `engineering/dependency-rules/guide.md`에 있다.

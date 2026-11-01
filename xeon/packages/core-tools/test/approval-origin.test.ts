@@ -12,7 +12,7 @@ import {
   type Harness,
 } from "./support/harness.ts";
 
-// 통합 검토 M1(M2 마감 G1-09). 능력 어댑터는 CallContext에서 origin을 만들어 stepId가 없다. 승인 서비스가 활성 호출에서 채운다.
+// 통합 검토 M1(M2 마감 G1-09). 기능 어댑터는 CallContext에서 origin을 만들어 stepId가 없다. 승인 서비스가 활성 호출에서 채운다.
 
 const QUESTION: ApprovalBody = {
   kind: "question",

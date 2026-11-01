@@ -16,15 +16,15 @@ binds: [xeon/packages/core-tools/**]
 
 목표: L1.tools.spec의 `fresnel.tools`, `fresnel.approvals`를 구현한다. M1 스모크에서 bash 호출 한 건이 `effect.intent` → `effect.exec` → `effect.result` 3단으로 기록되고, 강제 종료 뒤 재개가 그 기록으로 이어져야 한다.
 
-마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 능력과 Helm(승인 프로토콜 통합 포함), M3는 첫 공개 릴리즈 후보(학습 그룹, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이고 확정은 [미결]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
+마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 기능과 Helm(승인 프로토콜 통합 포함), M3는 첫 공개 릴리즈 후보(학습 그룹, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이고 확정은 [미결]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
 | M0 | core-tools 코드 없음. 선행 조건만: contracts에 L1.tools.spec §8.3 F 요청 1·4·6의 타입이 들어가야 한다(F.capabilities.plan, F.extensions.plan, `@fresnel/contracts/services`). 요청 3의 `approval.*` kind는 F.records 카탈로그에 있다 | `_research/foundation-plan.md` §5 P4 M0 범위 |
-| M1 | 어댑터와 파이프라인(agent-core 훅 연결), tool 범위 노드와 키 큐 연결(잠금 키 산출 포함), 2계층 비밀 마스킹, 의도·실행·결과 커밋, 최소 정책(티어 default·user, resource는 `tool` glob과 `args` 패턴만), 내장 규칙(read·ls allow, bash ask), 권한 모드 `default`만, 결과 경계화(`fresnel.exec` 절단 + blob), 최소 승인 대기(kind `tool`만, CLI 한 곳에서 응답), 대기 내구화와 재개 복원 | `_research/foundation-plan.md` §5 P4 M1(도구 read, ls, bash), product.scope.spec M1 종료 조건(승인과 명령 패턴을 갖춘 bash 호출) |
+| M1 | 어댑터와 파이프라인(agent-core 훅 연결), tool 범위 노드와 키 큐 연결(잠금 키 산출 포함), 2계층 시크릿 마스킹, 의도·실행·결과 커밋, 최소 정책(티어 default·user, resource는 `tool` glob과 `args` 패턴만), 내장 규칙(read·ls allow, bash ask), 권한 모드 `default`만, 결과 경계화(`fresnel.exec` 절단 + blob), 최소 승인 대기(kind `tool`만, CLI 한 곳에서 응답), 대기 내구화와 재개 복원 | `_research/foundation-plan.md` §5 P4 M1(도구 read, ls, bash), product.scope.spec M1 종료 조건(승인과 명령 패턴을 갖춘 bash 호출) |
 | M2 | 정책 티어 4종 전체와 resource 전 필드, 코어 규칙 등록(`registerRules`), `tools` 풀 슬롯(C3 순서), 모드 4종(`acceptEdits`, `plan`, `bypass`, managed 금지), 승인·질문·계획 승인 통합 프로토콜(`kind: plan`, `question`, wire `approval.respond`), 도구 지연 노출(`tool_search`), `read_tool_output`, 서브에이전트 ceiling 연결 | product.scope.spec M2 종료 조건 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다", L1.agents.plan M2 |
 | M3 | 서비스 모드의 승인 대기 처리(runtime-flow §7 [미결] 결정 뒤), 원격 클라이언트 응답 | product.scope.spec M3 |
-| 2차(M3 이후) | 항상 허용 캐시(`core_tools_approvals`), 셸 명령 접두 규칙, 인자 변경용 별도 chain 지점(`tool.call.before`은 인자 변경 없음, review.decisions-2 U-06), 확장 티어 규칙 등록 | `_research/layer-plan-v2.json` L1-d 2차 행 |
+| 2차(M3 이후) | 항상 허용 캐시(`core_tools_approvals`), 셸 명령 접두 규칙, 인자 변경용 별도 chain 훅(`tool.call.before`은 인자 변경 없음, review.decisions-2 U-06), 확장 티어 규칙 등록 | `_research/layer-plan-v2.json` L1-d 2차 행 |
 | 보류 | 자동 분류 모드, 자동 승인 리뷰어와 연속 거부 서킷브레이커, 모델 자가 위험도 | `_research/item-catalog.md` L1-d "보류" 행 |
 
 - [제안] M1 정책의 resource에 `args` 패턴을 넣는다. product.scope.spec M1이 "승인과 명령 패턴을 갖춘 bash 호출"을 종료 조건으로 두었기 때문이다. 나머지 필드(`capability`, `mcpServer`, `classes`, `risk`, `caller`, `minDepth`, `mode`)는 M2다.
@@ -97,7 +97,7 @@ xeon/packages/core-tools/
 | TL-15 | `settleRejected`: 중단으로 실행하지 않는 호출을 `not_executed`로, `length` 절단 응답의 호출을 `truncated`로 닫기(adr.0009 §3.4, 이전 이름 `closeUnexecuted`) | TL-2 | S | M1 |
 | TL-16 | `runUserShell`: 사용자 셸 경로(L1.loop.spec `runUserBash`가 부름), caller `main` 대화형 평가 (완료 2026-10-24: `pipeline.ts` `runUserShell`. loop의 `runUserBash`는 L1F에서 완료, 실행 전에 닫힌 호출의 레코드는 `details.code: "not_executed"`) | TL-2, TL-4 | S | M2 |
 | TL-17 | 태스크 엔진 연결: tool 범위 노드(`find("turn")`, `openScope` kind `tool`, `track`), 잠금 키 산출(`ToolSpec.locks` → `fresnel.exec.canonicalPath` → `${env.id}\0${realpath}`, shared·exclusive), `locks.run` 획득(M1), `limiter("tools")` 슬롯과 C3 순서, 자식 대기 때 `suspendWhile`(M2), 대기 중 취소 처리 | TL-1, L1.tasks.plan TK-1·TK-3(M1)·TK-4(M2), L0.exec `canonicalPath` (M2 완료 2026-10-24: `limiter("tools")` 슬롯을 키 잠금 뒤에 얻고, `ToolServiceInternal.suspendWhile`은 F 요청 14) | M | M1(노드·키 큐), M2(풀) |
-| TL-18 | 비밀 경계(L1.tools.spec §4.12): 2계층 마스킹(`Redactor.maskDeep`, 8단계 뒤·9단계 전, 휘발 갱신 전, 경계화·blob 전), `secret.masked` 기록, `findForeignSecretSyntax` 호출, `check`의 `needs_approval` → 승인 요청 연결 (M2 완료 2026-10-24: `secret-gate.ts`, 증거는 L1F에서 `CallContext.approval`로 도구 구현에 전달) | TL-2, L0.secrets 서비스 인터페이스 | S | M1(마스킹), M2(승인 연결) |
+| TL-18 | 시크릿 경계(L1.tools.spec §4.12): 2계층 마스킹(`Redactor.maskDeep`, 8단계 뒤·9단계 전, 휘발 갱신 전, 경계화·blob 전), `secret.masked` 기록, `findForeignSecretSyntax` 호출, `check`의 `needs_approval` → 승인 요청 연결 (M2 완료 2026-10-24: `secret-gate.ts`, 증거는 L1F에서 `CallContext.approval`로 도구 구현에 전달) | TL-2, L0.secrets 서비스 인터페이스 | S | M1(마스킹), M2(승인 연결) |
 
 선행 관계 요약: TL-0 → {TL-1, TL-3, TL-6, TL-9} → TL-2 → {TL-5, TL-14, TL-15} → TL-12. TL-1 → TL-17 → TL-14. TL-2 → TL-18. TL-2·TL-4 → TL-16. TL-3 → {TL-4, TL-7, TL-8}. TL-7 → TL-10.
 
@@ -110,7 +110,7 @@ xeon/packages/core-tools/
 - platform-store: `fresnel.store.putBlob`, `readBlob`(L0.store.plan).
 - platform-sandbox: bash 실행 인터페이스. core-tools는 직접 부르지 않고 L2.workspace의 bash 도구가 쓴다. M1 스모크의 선행으로만 둔다.
 - core-loop: `ToolRunContext` 생성과 `drafts`, 배치 스케줄(순차·병렬, 중단, `terminate`, `length`)과 `prepare`·`execute`·`settleRejected` 호출, 재개 때 `runTurn({ kind: "tools" })`로 대기 호출 재실행(L1.loop.spec §3.3, §4.5).
-- ext-host: tool 지점 디스패치(first·chain 규칙, 핸들러 스냅샷)(X.primitives.plan).
+- ext-host: tool 훅 디스패치(first·chain 규칙, 핸들러 스냅샷)(X.primitives.plan).
 
 ## 4. 채택 코드
 
@@ -192,7 +192,7 @@ xeon/packages/core-tools/
 | `lock_wait_abort_leaves_no_exec` | 잠금 대기 중 turn 취소면 그 호출에 `effect.exec`가 없고 중단 결과다 | TL-17 |
 | `tools_pool_cap_waits_after_lock` | `limits.tools = 1`이면 두 번째 실행이 첫 실행의 반납 뒤 시작하고, 기록된 순서가 키 잠금 → 슬롯이다(C3) | TL-17 |
 | `tool_result_masked_before_commit_and_points` | 가짜 `Redactor`에 등록한 값이 `effect.result`, toolResult item, blob, `tool.result`·`tool.execution.update` 페이로드에 없고 `secret.masked` 1건이 남는다 | TL-18 |
-| `capability_tool_subagent_name_reaches_the_approval_caller`, `direct_tool_subagent_name_reaches_the_approval_caller` | 서브에이전트 호출의 `CallContext.caller`가 `agentName`을 싣고 `approvalCallerOf`가 `subagent:<이름>`을 낸다. 능력 도구와 직접 등록 도구가 같다(`test/call-context.test.ts`, M2 마감 G1-09) | TL-12 |
+| `capability_tool_subagent_name_reaches_the_approval_caller`, `direct_tool_subagent_name_reaches_the_approval_caller` | 서브에이전트 호출의 `CallContext.caller`가 `agentName`을 싣고 `approvalCallerOf`가 `subagent:<이름>`을 낸다. 기능 도구와 직접 등록 도구가 같다(`test/call-context.test.ts`, M2 마감 G1-09) | TL-12 |
 | `after-untrusted.test.ts`: `afterUntrusted is false for an extension tool when the turn read no untrusted result`, `afterUntrusted is true for an extension tool after an MCP tool result in the same turn`, `afterUntrusted is true after a web capability tool result`, `afterUntrusted does not carry over to the next turn`, `a subagent caller keeps its name next to afterUntrusted` | 확장 도구 `execute`의 `ctx.caller`와 `ctx.toolCallId`. 웹·MCP 결과 뒤에서만 `afterUntrusted: true`(M3-REQ-100, 명세 §9 38) |
 | `a client that asks for always on a bash request is refused, because always is not offered` | 도구 승인이 `always`를 제안하지 않고, 보낸 응답은 `answer_invalid`이며 요청은 대기 그대로다. `an adapter request that offers always ...`는 `thread`로 낮추고 `requestedRemember`를 남긴다(`test/approvals.test.ts`, M2 마감 G2-10) | TL-12 |
 | `an origin without stepId gets the active call's step ...` | `origin.stepId`가 없는 요청이 활성 호출의 단계로 채워져 payload와 이벤트 봉투가 일치한다. 서브에이전트 정책 승인의 `origin.caller`는 `subagent:<이름>`이다(`test/approval-origin.test.ts`, M2 마감 G1-09) | TL-12 |
@@ -205,7 +205,7 @@ xeon/packages/core-tools/
 - 출력 한도를 넘는 bash 출력이 스모크 테이프 하나에 들어 있고 blob과 미리보기로 기록된다.
 - `just verify`가 종료코드 0이다(oxfmt, oxlint type-aware, tsc -b, check-layers, depcruise, knip, 영향 범위 테스트).
 - check-layers: core-tools가 다른 `core-*`, `cap-*`, `group-*` 패키지와 `cordis`, `@earendil-works/*`를 import하지 않는다. contracts의 capabilities 소스도 `@earendil-works/pi-agent-core`를 import하지 않는다(DR-07, L1.tools.spec §9-21).
-- M1 비밀 종료 조건(`product.scope.spec` §4.4 M1 행)의 L1.tools 몫은 `tool_result_masked_before_commit_and_points`와 bash 명령 패턴 규칙(`args` 패턴, 승인)이다. 주입과 lease는 L0.exec.plan·L0.secrets.plan이 맡고, 세 몫을 함께 확인하는 것은 `apps/cli` M1 스모크 시나리오다(L1.tools.spec §4.12).
+- M1 시크릿 종료 조건(`product.scope.spec` §4.4 M1 행)의 L1.tools 몫은 `tool_result_masked_before_commit_and_points`와 bash 명령 패턴 규칙(`args` 패턴, 승인)이다. 주입과 lease는 L0.exec.plan·L0.secrets.plan이 맡고, 세 몫을 함께 확인하는 것은 `apps/cli` M1 스모크 시나리오다(L1.tools.spec §4.12).
 - M1 키 큐 사용(`L1.tasks.plan` M1의 "도구 병렬과 파일 직렬화")의 구현 주체는 이 계획의 TL-17이고 확인 테스트는 `same_realpath_writes_serialized`다.
 - M2 완료: product.scope.spec M2 종료 조건 중 "질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록된다"를 `question_and_plan_approval_share_request_shape`와 L2.dialog·L2.work 통합 테스트 훅으로 확인한다.
 
@@ -215,7 +215,7 @@ xeon/packages/core-tools/
 |---|---|
 | 정책 규칙 언어 과설계 | M1은 allow·ask·deny, 도구명 glob, 인자 패턴만 둔다(§1). 티어 4종과 나머지 resource 필드는 M2. 셸 접두 규칙은 2차 |
 | 승인 대기 중 서비스 유휴 종료 정책 미정(architecture.runtime-flow.design §7) | M2까지 [미결]로 두고 테스트에서 대기 세션을 live로 취급한다. M3 서비스 모드 작업 전에 사용자 결정을 받는다 |
-| 인자 재작성 지점 없음(pi-agent-core 1.3.0 `BeforeToolCallResult`에도 없었다) | `tool.call.before`에서는 인자 변경을 지원하지 않는다 [결정: review.decisions-2 U-06]. 2차에 별도 chain 지점을 더할 때 다룬다. 도입 방법은 아래 |
+| 인자 재작성 지점 없음(pi-agent-core 1.3.0 `BeforeToolCallResult`에도 없었다) | `tool.call.before`에서는 인자 변경을 지원하지 않는다 [결정: review.decisions-2 U-06]. 2차에 별도 chain 훅을 더할 때 다룬다. 도입 방법은 아래 |
 | 병렬 배치에서 승인 대기가 다른 호출 준비를 막음 | 한 배치의 승인은 차례로 낸다(L1.tools.spec §4.2). 체감 문제가 확인되면 L4 화면이 `pending()`으로 묶어 보인다 |
 | `tool.result` 처리 예외가 결과를 오류로 덮음(원본 `afterToolCall` 래퍼, agent-loop.ts:897-900) | `execute`의 마감에서 핸들러 하나의 실패는 그 패치만 버리고, 디스패처 자체가 실패하면 경고를 남기고 원래 결과를 쓴다. 테스트 `tool_result_handler_throw_skipped` |
 | 질문 도구가 실행 중 대기하므로 재개 때 `unsafe`면 결과 불명으로 닫힘 | 질문·계획 도구에 `replay: "safe"` 선언을 L2에 요청한다(L1.tools.spec §8.4). 선언이 없으면 등록 때 경고 진단 |
@@ -225,5 +225,5 @@ xeon/packages/core-tools/
 
 인자 재작성 도입 방법 [제안]:
 
-- 루프가 자체 코드라(adr.0009) 포크가 필요 없다. 2차 chain 지점의 결과로 인자를 바꾸면 `prepare` 안에서 core-tools `validate.ts`로 다시 검증하고 `PreparedCall.args`와 `effect.intent.args`에 같은 값을 넣는다(L1.tools.spec §4.10).
+- 루프가 자체 코드라(adr.0009) 포크가 필요 없다. 2차 chain 훅의 결과로 인자를 바꾸면 `prepare` 안에서 core-tools `validate.ts`로 다시 검증하고 `PreparedCall.args`와 `effect.intent.args`에 같은 값을 넣는다(L1.tools.spec §4.10).
 - 이전 판의 포크 비용 추정(npm `dist` 패치 또는 agent `src` 포크)은 pi-agent-core 의존을 전제로 했으므로 지웠다.

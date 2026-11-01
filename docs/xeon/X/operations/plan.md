@@ -18,7 +18,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 
 | 마일스톤 | 범위 | 스펙 절 | 소비자 |
 |---|---|---|---|
-| M0 | tier 정렬 키(`TIERS`, `orderKeyOf`, `compareOrderKey`, `assignTier`, `TierTable`)와 `DispatchPolicy.tierOf`·`budgetMs`·`onHandlerFailure`·`onHandlerSettled`·`run` 연결(X.primitives.spec §3.4). 핸들러 시간 예산(`runWithBudget`, `BudgetGate`, `awaitUser`, `budgetClassOf`, `DEFAULT_BUDGETS_MS`)과 UI 대기 제외. 예산 초과·예외의 fold별 처리(tap 기록, first `FIRST_DENY`, chain 패치 버림)를 primitives 디스패처에 연결. 확장 단위 실패 집계(`FailureLedger`)와 `HandlerOutcomeRecord` 기록. 1차 설정 키 중 예산 키 | §3.1~§3.3, §4.1~§4.2, §4.3.1~§4.3.2, §6 | X.primitives 디스패처, L1 지점 발화 |
+| M0 | tier 정렬 키(`TIERS`, `orderKeyOf`, `compareOrderKey`, `assignTier`, `TierTable`)와 `DispatchPolicy.tierOf`·`budgetMs`·`onHandlerFailure`·`onHandlerSettled`·`run` 연결(X.primitives.spec §3.4). 핸들러 시간 예산(`runWithBudget`, `BudgetGate`, `awaitUser`, `budgetClassOf`, `DEFAULT_BUDGETS_MS`)과 UI 대기 제외. 예산 초과·예외의 fold별 처리(tap 기록, first `FIRST_DENY`, chain 패치 버림)를 primitives 디스패처에 연결. 확장 단위 실패 집계(`FailureLedger`)와 `HandlerOutcomeRecord` 기록. 1차 설정 키 중 예산 키 | §3.1~§3.3, §4.1~§4.2, §4.3.1~§4.3.2, §6 | X.primitives 디스패처, L1 훅 발화 |
 | M1 | `ExtStorage` 최소형: 접두 테이블 정의·DDL, 확장 투영으로 코어 커밋과 같은 트랜잭션 쓰기, 읽기, 소유 장부 `xh_ext_tables`. 테스트 그룹이 이를 사용한다. 자동 끄기(`judgeAutoDisable`, `AutoDisabler`, `ScopeControl` 연결)와 알림. 자동 끄기 설정 키 | §3.3~§3.4, §4.3.3~§4.3.5, §4.4.1~§4.4.5, §4.4.8 | M1 스모크 테스트 그룹, L3 group-sdk |
 | M2 이후 | 이름 충돌 네임스페이스(`resolveNames`). 안전 모드와 `--disable-ext`, 연속 시작 실패 제안. 외부 훅 프로토콜(설정, 실행, 해석, 환경 정리)은 M4로 옮겼다 [결정: 2026-10-28 사용자]. 접두 밖 접근 차단 강화(`checkStatement` 상시화 검토, authorizer 조사), `ExtQuery` 범위 조건. 확장 테이블 삭제(`ExtStorageAdmin`). 보존 테이블과 열 추가 마이그레이션(스펙 §10 미결 8 결정 뒤) | §3.5~§3.7, §4.4.6~§4.4.7, §4.5~§4.7 | X.loading-trust(제거, 로더), L4 host·cli·settings-ui |
 
@@ -164,7 +164,7 @@ xeon/packages/ext-host/
 | 29 | `hooks: exit code table` | 스펙 §4.7.3 표의 모든 칸(0+빈 출력, 0+유효, 0+무효, 2, 1, 137 신호, 시작 실패, 시간 초과, 큰 출력) × tap·first·chain | §9-24~§9-26 |
 | 30 | `hooks: output cap truncates at 10000 chars` | stdout 10,001자 → 10,000자로 잘림, `hook_output` 실패. stderr 초과는 실패 아님 | §9-26 |
 | 31 | `hooks: stdin carries schemaVersion` | `HookInput`의 `schemaVersion`, `point`, `fold`, `payload`, chain의 `current` | §9-27 |
-| 32 | `hooks: env allowlist and secret filter` | 허용 목록 밖·비밀 패턴 변수 제외, 프로젝트 범위 `hookEnvAllow` 무시 | §9-28 |
+| 32 | `hooks: env allowlist and secret filter` | 허용 목록 밖·시크릿 패턴 변수 제외, 프로젝트 범위 `hookEnvAllow` 무시 | §9-28 |
 | 33 | `hooks: project hook requires trust` | 신뢰 전 실행 0회, 신뢰 뒤 실행 | §9-29 |
 | 34 | `settings: x.operations keys pass catalog` | `buildCatalog` 통과, 기본값이 상수와 같음 | §9-30 |
 | 35 | `docs: constants match spec tables` | 스펙 §4.2.2·§6 표의 기본값, §3.1 `TIERS`를 문서에서 읽어 코드 상수와 대조 | 완료 기준 4 |
@@ -175,7 +175,7 @@ xeon/packages/ext-host/
 ## 6. 완료 기준
 
 1. 위 테스트가 패키지 단위 `bun test`에서 통과하고 `just verify`가 종료 코드 0이다.
-2. 저장 영역 계약 시나리오(`ext-storage.contract.ts`)가 X `test/`의 자체 저장 대역(F 인터페이스)에서 통과한다. X 테스트에는 L0 import가 0건이다. 실제 bun:sqlite 저장소에서의 통과는 L0.store.plan ST-23(L0.store.spec §9 18번)이 확인한다. 장애 주입 지점 이름은 L0.store와 같은 문자열(`after_ext_projection:<n>` 등)을 쓴다.
+2. 저장 영역 계약 시나리오(`ext-storage.contract.ts`)가 X `test/`의 자체 저장 대역(F 인터페이스)에서 통과한다. X 테스트에는 L0 import가 0건이다. 실제 bun:sqlite 저장소에서의 통과는 L0.store.plan ST-23(L0.store.spec §9 18번)이 확인한다. 장애 주입 훅 이름은 L0.store와 같은 문자열(`after_ext_projection:<n>` 등)을 쓴다.
 3. `settings-keys.ts`의 키가 F.wire-settings 카탈로그 검사(`buildCatalog`, `checkSettingDef` D1~D9)를 통과한다.
 4. 문서-코드 상수가 일치한다. 대상은 기본 예산(`DEFAULT_BUDGETS_MS`), 자동 끄기 기본값(`DEFAULT_AUTO_DISABLE`), tier 이름과 순서(`TIERS`), 훅 상수(`HOOK_SCHEMA_VERSION`, `HOOK_OUTPUT_MAX_CHARS`, `HOOK_EXIT_DENY`, M2)다. `doc-constants.test.ts`가 확인한다.
 5. M0 끝: primitives 디스패처가 `createOperationsPolicy`를 받아 실행 순서와 예산을 적용한다. operations 쪽 기본 구현 없이 primitives만으로 디스패치하는 경로가 남지 않는다.
@@ -189,7 +189,7 @@ xeon/packages/ext-host/
 | 비협조적 핸들러는 예산이 멈추지 못한다 | signal을 무시하는 핸들러의 타이머·네트워크 작업이 프로세스에 남는다 | 예산은 디스패치 진행만 보장한다고 스펙 §5 1번에 적었다. 자동 끄기로 다음 경계부터 호출을 멈춘다. 강제 종료가 필요하면 격리 경로(`X.loading-trust.spec`, 2차)로 옮긴다. adr.0007 §6 미결과 같은 항목이다 |
 | 접두 차단 우회 | 확장이 세션 테이블을 읽거나 고친다 | 원시 SQL을 열지 않는다(쿼리 래퍼). 식별자는 정규식 + 인용, 값은 바인딩. 테스트·디버그 빌드의 `checkStatement`와 L0 `ProjectionTx` 검사를 겹친다. 우회 시도 문자열 모음을 회귀 테스트로 키운다. 같은 프로세스 코드의 메모리 접근은 막지 못한다는 한계를 스펙에 적었다 |
 | 자동 끄기 오탐으로 필수 확장이 꺼진다 | 보안 가드나 코어 기본 동작이 빠진다 | `guard`, `core` tier를 면제한다(`AUTO_DISABLE_EXEMPT_TIERS`). 기준값은 실측 전 값이므로 설정 키로 조정하고 M1 스모크 뒤 다시 정한다(스펙 §10 미결 14). 끄기는 프로세스 단위라 재시작으로 되돌아온다 |
-| 외부 훅 프로세스의 비밀 노출 | 환경 변수의 API 키가 훅 스크립트와 그 로그로 나간다 | 환경을 비우고 허용 목록만 넣는다. 비밀 이름 패턴은 허용 목록에 있어도 뺀다. 프로젝트 범위는 허용 목록을 바꾸지 못한다. 비밀 참조는 풀지 않는다 |
+| 외부 훅 프로세스의 시크릿 노출 | 환경 변수의 API 키가 훅 스크립트와 그 로그로 나간다 | 환경을 비우고 허용 목록만 넣는다. 시크릿 이름 패턴은 허용 목록에 있어도 뺀다. 프로젝트 범위는 허용 목록을 바꾸지 못한다. 시크릿 참조는 풀지 않는다 |
 | F 매니페스트 필드(`storage`, `hooks`)와 F.records 필드(`reason`, `scope.handler_failed`) 추가가 늦어진다 | 설치 전 검토와 사유 기록이 빠진다 | 테이블 선언은 코드(`defineTables`)가 정본이고 매니페스트는 검토용이라 M1은 필드 없이 동작한다. 필드가 늦어지면 확장 루트의 임시 구성 파일 `.fresnel-plugin/operations.json`을 X가 읽는다. 사유는 운영 로그로 남긴다(O-09, O-11) |
 | primitives의 `DispatchPolicy`(X.primitives.spec §3.4) 모양이 구현 중에 바뀐다 | O-03, O-06 연결을 다시 쓴다 | `createOperationsPolicy` 내부를 `orderKey`, `run`, `report` 세 함수로 나눠 두어 모양이 바뀌어도 어댑터만 고친다. P-06·P-20과 같은 M0에서 함께 확인한다 |
 | 투영 `apply` 예외가 세션 커밋을 계속 막는다 | 확장 하나의 결함으로 세션이 진행되지 않는다 | 스펙 §5 6번의 복구 경로(투영기 해제와 확장 끄기 뒤 재시도)를 L1.persistence.plan과 정한다(스펙 §10 미결 6). 그 전에는 M1 테스트 그룹 투영을 단순한 삽입 하나로 제한한다 |

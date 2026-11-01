@@ -283,7 +283,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "이름만 적는다. 비밀 값은 넣지 않는다",
+          "help": "이름만 적는다. 시크릿 값은 넣지 않는다",
           "label": "자식 프로세스에 넘길 추가 환경 변수",
           "order": 120,
           "tab": "execution",
@@ -930,7 +930,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "비밀 사용 승인 기본값",
+          "label": "시크릿 사용 승인 기본값",
           "order": 200,
           "tab": "permissions",
           "widget": "select"
@@ -1005,7 +1005,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "기본 비밀 제공자",
+          "label": "기본 시크릿 제공자",
           "order": 20,
           "tab": "secrets",
           "widget": "select"
@@ -1050,7 +1050,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "비밀 임대 시간",
+          "label": "시크릿 임대 시간",
           "order": 60,
           "tab": "secrets",
           "unit": "초",
@@ -1096,7 +1096,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "비밀 제공자 목록",
+          "label": "시크릿 제공자 목록",
           "order": 10,
           "tab": "secrets",
           "widget": "list"

@@ -55,7 +55,7 @@ describe("createRunCommand (실제 자식 프로세스)", () => {
     expect(await pending).toEqual(err({ kind: "cancelled" }));
   });
 
-  posix("부모의 비밀 환경 변수를 자식에게 넘기지 않는다", async () => {
+  posix("부모의 시크릿 환경 변수를 자식에게 넘기지 않는다", async () => {
     process.env["FRESNEL_TEST_SECRET_VALUE"] = "do-not-leak";
     try {
       const out = await run(["env"], { signal: new AbortController().signal });

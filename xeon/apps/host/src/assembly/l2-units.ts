@@ -22,17 +22,17 @@ import { hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 // 질문·계획 승인 포트와 사용자 셸은 두 패키지의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `fresnel.approvals`와
 // `fresnel.loop`를 감싸므로 조립 루트가 따로 잇지 않는다. 조립 루트 코드(DR-14 예외 2).
 
-/** `dialog.commands` 능력의 서비스 API(목록, 실행). 호스트의 `command.*` 처리기가 쓴다 */
+/** `dialog.commands` 기능의 서비스 API(목록, 실행). 호스트의 `command.*` 처리기가 쓴다 */
 export type CommandsApi = CapabilityApi<typeof DialogCommands>;
-/** `dialog.status` 능력의 서비스 API. 호스트의 `status.list` 처리기가 쓴다 */
+/** `dialog.status` 기능의 서비스 API. 호스트의 `status.list` 처리기가 쓴다 */
 export type StatusApi = CapabilityApi<typeof DialogStatus>;
-/** `dialog.attachments` 능력의 서비스 API. 호스트의 `attachments.add` 처리기가 쓴다 */
+/** `dialog.attachments` 기능의 서비스 API. 호스트의 `attachments.add` 처리기가 쓴다 */
 export type AttachmentsApi = CapabilityApi<typeof DialogAttachments>;
-/** `dialog.notify` 능력의 서비스 API와 같은 프로세스 구독. 알림 목록(`notify.list`)과 알림 전달(`notify.delivered`)이 쓴다 */
+/** `dialog.notify` 기능의 서비스 API와 같은 프로세스 구독. 알림 목록(`notify.list`)과 알림 전달(`notify.delivered`)이 쓴다 */
 export type NotifyApi = CapabilityApi<typeof DialogNotify> & NoticeFeed;
 
 /**
- * 동작 명령 등록부와 대화 능력 API(명령, 상태줄, 첨부, 알림)를 나중에 채우는 자리. 브리지 확장이 채우고 cap-work가 등록 시점에(`current`),
+ * 동작 명령 등록부와 대화 기능 API(명령, 상태줄, 첨부, 알림)를 나중에 채우는 자리. 브리지 확장이 채우고 cap-work가 등록 시점에(`current`),
  * 호스트의 `command.*`·`status.list`·`attachments.add` 처리기가 호출 시점에(`api`, `status`, `attachments`) 읽는다
  */
 export interface CommandRegistryHolder {
@@ -55,8 +55,8 @@ function publishNotify(holder: CommandRegistryHolder, api: NotifyApi | undefined
 }
 
 /**
- * `dialog.commands` 능력의 동작 명령 등록부. cap-work가 `/plan`, `/tasks`를 등록할 때 쓴다. 능력 선택 의존(W-10)이 확정되기 전이라
- * 브리지 확장(`dialogBridgePlugin`)이 능력을 얻어 이 자리에 채운다. cap-work는 브리지보다 뒤에 싣는다: 등록 시점에 비어 있으면
+ * `dialog.commands` 기능의 동작 명령 등록부. cap-work가 `/plan`, `/tasks`를 등록할 때 쓴다. 기능 선택 의존(W-10)이 확정되기 전이라
+ * 브리지 확장(`dialogBridgePlugin`)이 기능을 얻어 이 자리에 채운다. cap-work는 브리지보다 뒤에 싣는다: 등록 시점에 비어 있으면
  * 명령 없이 올라간다
  */
 export function lazyCommandRegistry(holder: CommandRegistryHolder): CommandActionRegistry {
@@ -68,7 +68,7 @@ export function lazyCommandRegistry(holder: CommandRegistryHolder): CommandActio
   };
 }
 
-/** `dialog.commands` 공급자는 능력 메서드 밖의 TS 메서드 `registerAction`을 가진다(F `CommandActionRegistry`). 실제로 있는지 본다 */
+/** `dialog.commands` 공급자는 기능 메서드 밖의 TS 메서드 `registerAction`을 가진다(F `CommandActionRegistry`). 실제로 있는지 본다 */
 function isCommandRegistry(value: unknown): value is CommandActionRegistry {
   return (
     typeof value === "object" &&
@@ -78,7 +78,7 @@ function isCommandRegistry(value: unknown): value is CommandActionRegistry {
   );
 }
 
-/** 목록과 실행 메서드를 가진 명령 서비스 API인가. 공급자가 다른 능력 구현이면 호스트 명령이 없다 */
+/** 목록과 실행 메서드를 가진 명령 서비스 API인가. 공급자가 다른 기능 구현이면 호스트 명령이 없다 */
 function isCommandsApi(value: unknown): value is CommandsApi {
   return (
     typeof value === "object" &&
@@ -123,10 +123,10 @@ const DIALOG_BRIDGE_NAME = "host-dialog-bridge";
 
 /**
  * cap-dialog 곁에 싣는 조립 확장 하나가 맡는 두 가지:
- * - 질문 도구(`ask_user`)를 L1.tools에 올린다. cap-dialog는 `dialog.ask` 능력만 제공하고 도구 등록은 하지 않는다.
+ * - 질문 도구(`ask_user`)를 L1.tools에 올린다. cap-dialog는 `dialog.ask` 기능만 제공하고 도구 등록은 하지 않는다.
  *   질문은 사용자 응답을 기다리므로 `user_interaction` 부류를 달아 서브에이전트에서 막을 수 있게 한다(L1.agents.spec §4.6)
- * - `dialog.commands` 능력의 동작 명령 등록부를 `holder`에 채운다(cap-work의 `/plan`, `/tasks`)
- * - 상태줄, 첨부, 알림 능력 API를 `holder`에 채운다(`status.list`, `attachments.add`, M3-REQ-16)
+ * - `dialog.commands` 기능의 동작 명령 등록부를 `holder`에 채운다(cap-work의 `/plan`, `/tasks`)
+ * - 상태줄, 첨부, 알림 기능 API를 `holder`에 채운다(`status.list`, `attachments.add`, M3-REQ-16)
  */
 export function dialogBridgePlugin(
   holder: CommandRegistryHolder,

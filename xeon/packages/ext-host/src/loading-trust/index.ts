@@ -212,7 +212,7 @@ export interface LoaderDeps {
   readonly process?: IsolationProcessPort;
   readonly clock: { now(): number };
   readonly settings?: LoaderSettingsSource;
-  /** 코어가 제공하는 능력과 버전. 6단계가 매니페스트 provides와 함께 본다 [가정: 코어 능력 레지스트리 API는 X.primitives] */
+  /** 코어가 제공하는 기능과 버전. 6단계가 매니페스트 provides와 함께 본다 [가정: 코어 기능 레지스트리 API는 X.primitives] */
   readonly coreCapabilities?: ReadonlyMap<CapabilityId, SemVer>;
   /**
    * 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 할 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트의 모듈 객체.
@@ -637,7 +637,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return true;
   }
 
-  /** 능력 요구 충족: 같은 집합에서 살아 있는 확장의 provides 또는 코어 능력(X.loading-trust.spec §4.8) */
+  /** 기능 요구 충족: 같은 집합에서 살아 있는 확장의 provides 또는 코어 기능(X.loading-trust.spec §4.8) */
   function checkCapabilities(alive: ExtRecord[]): void {
     let changed = true;
     while (changed) {
@@ -675,7 +675,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     }
   }
 
-  /** 요구한 능력을 공급하기로 한 확장이 모두 활성화되지 못했으면 그 능력 id를 돌려준다 */
+  /** 요구한 기능을 공급하기로 한 확장이 모두 활성화되지 못했으면 그 기능 id를 돌려준다 */
   function deadProvider(record: ExtRecord): CapabilityId | undefined {
     for (const requirement of record.manifest?.requires ?? []) {
       const potential = order.some(
@@ -794,7 +794,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     }
   }
 
-  /** 9단계 뒤: 능력을 공급하기로 한 확장이 활성화되지 못했으면 그 능력을 요구한 확장도 내린다 */
+  /** 9단계 뒤: 기능을 공급하기로 한 확장이 활성화되지 못했으면 그 기능을 요구한 확장도 내린다 */
   async function cascadeProviderFailures(): Promise<void> {
     const orphan = order
       .filter((candidate) => candidate.state === "active")
@@ -896,7 +896,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       .map(infoOf);
   }
 
-  /** 한 묶음의 1~9단계. 묶음 안에서 순서대로 설치하고 마지막에 능력 연쇄 실패를 정리한다 */
+  /** 한 묶음의 1~9단계. 묶음 안에서 순서대로 설치하고 마지막에 기능 연쇄 실패를 정리한다 */
   async function processBatch(
     candidates: readonly ExtensionCandidate[],
     signal: AbortSignal,

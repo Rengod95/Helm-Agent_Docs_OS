@@ -368,7 +368,7 @@ export type SessionSettingsError =
 export interface SessionSettingsStore {
   /** session 범위 층. resolveSetting의 ScopeStack에 넣는다(F.wire-settings.spec §3.9) */
   layer(threadId: ThreadId): SessionSettingsLayer;
-  /** checkSettingWrite 통과 뒤 settings.changed 커밋. 비밀 키는 SecretRef만 */
+  /** checkSettingWrite 통과 뒤 settings.changed 커밋. 시크릿 키는 SecretRef만 */
   set(
     threadId: ThreadId,
     key: string,

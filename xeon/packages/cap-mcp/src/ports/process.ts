@@ -14,16 +14,16 @@ export interface McpSpawnSpec {
    * 참조가 아닌 값은 서버 정의 검사에서 이미 걸러진다.
    */
   readonly secretEnv: Readonly<Record<string, string>>;
-  /** 평문 환경 변수(비밀 이름 패턴은 정의를 읽을 때 이미 거부했다, M3-REQ-97) */
+  /** 평문 환경 변수(시크릿 이름 패턴은 정의를 읽을 때 이미 거부했다, M3-REQ-97) */
   readonly env?: Readonly<Record<string, string>>;
-  /** 비밀 env의 기동 승인 증거(정의 해시마다 한 번 받은 것). `secretEnv`가 있을 때 쓴다 */
+  /** 시크릿 env의 기동 승인 증거(정의 해시마다 한 번 받은 것). `secretEnv`가 있을 때 쓴다 */
   readonly approval?: McpStartEvidence | null;
   /**
    * 샌드박스에 넣어 띄우는가(출처별 기본값과 서버별 설정으로 정한 값, L2.mcp.spec §4.3).
    * 참이면 격리를 쓸 수 없을 때 띄우지 않고 `sandbox_unavailable`을 돌려받는다
    */
   readonly sandbox?: boolean;
-  /** 화면 표시. 비밀 값을 넣지 않는다 */
+  /** 화면 표시. 시크릿 값을 넣지 않는다 */
   readonly label: string;
   /** BackgroundOwner.ref에 들어가는 서버 id */
   readonly server: string;

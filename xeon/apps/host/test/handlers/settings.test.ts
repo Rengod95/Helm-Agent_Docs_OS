@@ -535,7 +535,7 @@ test("settings.set tells the secret service about provider links only for the us
     scope: "user",
   });
   expect(host.fake.secrets.linkCalls()).toBe(1);
-  // 다른 키, 다른 범위는 연결이 아니다: 프로젝트 파일이 비밀의 사용 정책을 넓히지 못한다
+  // 다른 키, 다른 범위는 연결이 아니다: 프로젝트 파일이 시크릿의 사용 정책을 넓히지 못한다
   await connection.request("settings.set", {
     key: "l1.models.default",
     value: "tape/tape-1",

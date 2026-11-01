@@ -184,7 +184,7 @@ export interface CollectSig<P, V, C> {
   readonly contribution: C;
 }
 
-/** 지점 이름 → 정적 시그니처. F.extensions.spec §3.4 표와 같은 46행 */
+/** 훅 이름 → 정적 시그니처. F.extensions.spec §3.4 표와 같은 46행 */
 export interface HookSignatures {
   "input.user.before": ChainSig<InputPayload, InputValue, InputPatch>;
   "input.bash.before": FirstSig<UserBashPayload, UserBashDecision>;
@@ -260,7 +260,7 @@ export type TapHookName = {
   [N in HookName]: HookSignatures[N]["fold"] extends "tap" ? N : never;
 }[HookName];
 
-/** §3.4 표 순서(번호 1~46)의 지점 이름 */
+/** §3.4 표 순서(번호 1~46)의 훅 이름 */
 export const HOOK_NAMES: readonly HookName[] = [
   "input.user.before",
   "input.bash.before",
@@ -331,7 +331,7 @@ export type FoldFailure<F extends Fold> = F extends "tap" | "collect"
 export type FailOpenFirstHookName = "thread.compact.before";
 
 export interface PiSource {
-  /** 옛 pi 이벤트명. 지점 이름과 다르다(지점 이름은 `name`) */
+  /** 옛 pi 이벤트명. 훅 이름과 다르다(훅 이름은 `name`) */
   readonly event: string;
   /** 정의 위치. 예: "types.ts:1228/1426" */
   readonly def: string;
@@ -351,7 +351,7 @@ export interface HookDecl<N extends HookName = HookName> {
   readonly payload: TSchema;
   /** first: decision 스키마, chain: patch 스키마, collect: contribution 스키마, tap: 없음 */
   readonly result?: TSchema;
-  /** boundary 지점의 최종 검증 여부(§4.1) */
+  /** boundary 훅의 최종 검증 여부(§4.1) */
   readonly finalize?: "boundary";
   /**
    * 참이면 thread 없이 호스트 수준에서 발화하는 지점이다(§7). 페이로드에 threadId가 없고 발화 문맥에도 thread가 없다.
@@ -369,7 +369,7 @@ function pi(event: string, def: string, emit: string, piFold: PiSource["piFold"]
 }
 
 /**
- * 지점 선언 표. 46행 모두 fold, kind, payload, failure를 가진다. pi 출처는 pi에서 온 41행만 가진다.
+ * 훅 선언 표. 46행 모두 fold, kind, payload, failure를 가진다. pi 출처는 pi에서 온 41행만 가진다.
  * 이 표와 F.extensions.spec §3.4 표가 일치하는지는 test/extensions/hooks.doc.test.ts가 대조한다.
  */
 export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
@@ -892,7 +892,7 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
   },
 };
 
-/** guard 지점 셋(adr.0017 §3.6). 키는 발화 시점의 대상이다 */
+/** guard 훅 셋(adr.0017 §3.6). 키는 발화 시점의 대상이다 */
 export const GUARD_HOOKS: {
   readonly request: "guard.model.before";
   readonly tool: "guard.tool.before";
@@ -904,8 +904,8 @@ export const GUARD_HOOKS: {
 };
 
 /**
- * lifecycle 지점과 내구 이벤트 kind의 대응. 디스패치 키는 이벤트 id이고, 레코드 kind에서 지점 이름으로 가는 길은 이 표 하나다.
- * 이름이 다른 이유: kind는 내구 이벤트의 이름 공간(`<영역>.<이름>`)이고 지점 이름은 `<종류>.<대상>.<시점>` 규칙을 따른다
+ * lifecycle 훅과 내구 이벤트 kind의 대응. 디스패치 키는 이벤트 id이고, 레코드 kind에서 훅 이름으로 가는 길은 이 표 하나다.
+ * 이름이 다른 이유: kind는 내구 이벤트의 이름 공간(`<영역>.<이름>`)이고 훅 이름은 `<종류>.<대상>.<시점>` 규칙을 따른다
  */
 export const LIFECYCLE_HOOKS: {
   readonly "agent.settled": "lifecycle.agent.settled";
@@ -918,7 +918,7 @@ export type LifecycleEventKind = keyof typeof LIFECYCLE_HOOKS;
 
 const DENY_REASON = "extension handler failed";
 
-/** fail-closed first 지점의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open 지점(FailOpenFirstHookName)은 거부값이 없다 */
+/** fail-closed first 훅의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open 훅(FailOpenFirstHookName)은 거부값이 없다 */
 export const FIRST_DENY: {
   readonly [N in Exclude<FirstHookName, FailOpenFirstHookName>]: HookSignatures[N]["decision"];
 } = {
@@ -946,7 +946,7 @@ export class ChainMergeError extends Error {
   }
 }
 
-/** chain 지점의 병합·중단 규칙. 순수 함수 */
+/** chain 훅의 병합·중단 규칙. 순수 함수 */
 export interface ChainRule<V, X> {
   readonly merge: (current: V, patch: X) => V;
   readonly stop?: (value: V) => boolean;
@@ -1049,7 +1049,7 @@ export const CHAIN_RULES: {
   "boundary.settle.before": boundaryRule,
 };
 
-/** collect 지점의 병합 규칙. initial에 모은 기여를 등록 순서대로 한 번 합친다. 순수 함수 */
+/** collect 훅의 병합 규칙. initial에 모은 기여를 등록 순서대로 한 번 합친다. 순수 함수 */
 export interface CollectRule<V, C> {
   readonly merge: (initial: V, contributions: readonly C[]) => V;
 }

@@ -12,9 +12,9 @@ import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { SECRET_REF, SECRET_TOOL, startSecretEnvScenario } from "../fixtures/secret-env.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle, until } from "../fixtures/wire-client.ts";
 
-// M2 E5 (HOST.6): 질문 도구(cap-dialog), 계획 승인(cap-work), MCP 서버 주도 질문(cap-mcp), 도구 승인(L1.tools)과 비밀 사용 승인(L1.tools)이
+// M2 E5 (HOST.6): 질문 도구(cap-dialog), 계획 승인(cap-work), MCP 서버 주도 질문(cap-mcp), 도구 승인(L1.tools)과 시크릿 사용 승인(L1.tools)이
 // 같은 승인 요청 레코드 모양으로 기록되고, 출처(origin)의 turnId, stepId, toolCallId, caller가 같은 규칙의 값을 갖는다.
-// 능력들은 L2 층끼리 import할 수 없어 한 패키지의 시험으로 비교할 수 없으므로, 모두 올리는 호스트에서 같은 승인 서비스가 쓴 레코드를 맞댄다.
+// 기능들은 L2 층끼리 import할 수 없어 한 패키지의 시험으로 비교할 수 없으므로, 모두 올리는 호스트에서 같은 승인 서비스가 쓴 레코드를 맞댄다.
 // 키 이름만 맞추면 값이 다른 것(예전에는 질문·계획이 stepId를 null로, 서브에이전트 이름을 잃은 caller로 남겼다)을 못 잡아서 값도 비교한다.
 // MCP 질문은 D5 (a) 경로의 끝에서 끝까지 시험도 겸한다: 서버가 input_required를 내고, L1.tools가 질문 승인으로 올리고, 답이 연속 정보로 돌아가 도구가 끝난다.
 
@@ -123,7 +123,7 @@ function outline(asked: EventWire) {
 }
 
 /**
- * 비밀 사용 승인(규칙이 bash를 허용한 호출의 `secret.use` 요청). 다른 시나리오와 엔진 홈을 번갈아 쓰므로 끝까지 돌리고 닫은 뒤 요청만 돌려준다
+ * 시크릿 사용 승인(규칙이 bash를 허용한 호출의 `secret.use` 요청). 다른 시나리오와 엔진 홈을 번갈아 쓰므로 끝까지 돌리고 닫은 뒤 요청만 돌려준다
  */
 async function runSecretScenario(): Promise<Scenario> {
   const scenario = await startSecretEnvScenario({ allowBashByRule: true });
@@ -143,7 +143,7 @@ async function runSecretScenario(): Promise<Scenario> {
 
 /**
  * 출처 값 규칙: turnId는 요청한 turn, stepId는 그 turn의 단계(이벤트 봉투와 같은 값), toolCallId는 모델이 낸 호출 id, caller는 주 대화다.
- * 어느 능력이 어느 어댑터로 올렸든 같다.
+ * 어느 기능이 어느 어댑터로 올렸든 같다.
  */
 function expectOriginValues(
   asked: EventWire,
@@ -274,7 +274,7 @@ realTest(
       const mcpBody = recordOf(recordOf(recordOf(mcp.asked.payload)["body"])["question"]);
       expect(keysOf(mcpBody)).toEqual(keysOf(questionBody));
 
-      // 도구 승인과 비밀 사용 승인도 봉투, payload, 출처의 모양이 같다. 본문은 tool이고 기억 범위는 요청마다 정한다
+      // 도구 승인과 시크릿 사용 승인도 봉투, payload, 출처의 모양이 같다. 본문은 tool이고 기억 범위는 요청마다 정한다
       const secretOutline = outline(secret.asked);
       for (const other of [toolOutline, secretOutline]) {
         expect(other.bodyKind).toBe("tool");

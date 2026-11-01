@@ -15,7 +15,7 @@ import { SettingKeySchema, type SettingKey, type SettingScope } from "@fresnel/c
 import { checkGroupName, type GroupTemplateKind } from "../group/rules.ts";
 import { titleProblem } from "../threads.ts";
 
-// L4.cli.spec §3.2. 명령 모델과 인자 파서. 순수 함수이고 외부 라이브러리를 쓰지 않는다: 비밀 값 argv 금지 같은 규칙을
+// L4.cli.spec §3.2. 명령 모델과 인자 파서. 순수 함수이고 외부 라이브러리를 쓰지 않는다: 시크릿 값 argv 금지 같은 규칙을
 // 파서 안에 둬야 하기 때문이다.
 
 export type OutputMode = "text" | "json";

@@ -605,7 +605,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     await register("platform-secrets", secretsPlatform(secrets.service));
     redact.current = (line) => secrets.service.redactor.mask(line).text;
 
-    // stdio MCP 서버를 띄우는 포트(결정 D6, 사용자 권한). 레지스트리와 트리 종료는 platform-process가, 비밀 env는 secrets가 준다
+    // stdio MCP 서버를 띄우는 포트(결정 D6, 사용자 권한). 레지스트리와 트리 종료는 platform-process가, 시크릿 env는 secrets가 준다
     const mcpProcess = createHostMcpProcessPort({
       ext,
       secrets: secrets.service,

@@ -45,7 +45,7 @@ export interface HarnessOptions {
   readonly scopeEnabled?: (scopeId: string) => boolean;
   /** 계정 회전 플러그인이 켜졌는가. 없으면 꺼짐 */
   readonly rotationEnabled?: boolean;
-  /** 비밀 저장소에 넣을 값. 기본은 tape-key 하나 */
+  /** 시크릿 저장소에 넣을 값. 기본은 tape-key 하나 */
   readonly secretValues?: Readonly<Record<string, string>>;
 }
 

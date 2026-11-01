@@ -23,9 +23,9 @@ import { writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 import type { EventCollector } from "../fixtures/wire-client.ts";
 
-// M2 Mac 실기 1번: 새로 등록한 비밀은 사용 정책이 비어 모델 호출 lease가 denied였다. provider에 연결하면(사용자 범위 `l1.models.providers`의
+// M2 Mac 실기 1번: 새로 등록한 시크릿은 사용 정책이 비어 모델 호출 lease가 denied였다. provider에 연결하면(사용자 범위 `l1.models.providers`의
 // `settings.set`) 호스트가 그 호출 하나(runtime-http, model.provider:<id>, provider 호스트)만 허용하고, env 모드와 도구는 계속 막힌다.
-// 모델 호출은 가짜 Anthropic 서버로 실제 HTTP를 나간다. 비밀 서비스만 메모리 대역이고 정책 판정은 운영 구현이다.
+// 모델 호출은 가짜 Anthropic 서버로 실제 HTTP를 나간다. 시크릿 서비스만 메모리 대역이고 정책 판정은 운영 구현이다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -79,7 +79,7 @@ afterEach(async () => {
 });
 
 interface StartOptions {
-  /** 시작 때 이미 등록돼 있는(예전 버전이 빈 정책으로 만든) 비밀 */
+  /** 시작 때 이미 등록돼 있는(예전 버전이 빈 정책으로 만든) 시크릿 */
   readonly existing?: SecretMeta;
   /** 시작 때 사용자 설정 파일에 이미 있는 provider 목록 */
   readonly linkedAtStart?: boolean;
@@ -133,7 +133,7 @@ function providersOf(server: FakeAnthropic) {
       id: "anthropic",
       enabled: true,
       apiKeyRef: `secret://${KEY_NAME}`,
-      // 가짜 서버로 보낸다. 이 호스트:포트가 비밀 사용 정책의 호스트 항목이 된다
+      // 가짜 서버로 보낸다. 이 호스트:포트가 시크릿 사용 정책의 호스트 항목이 된다
       baseUrl: server.url,
     },
   ];
@@ -154,7 +154,7 @@ async function chat(scenario: Scenario): Promise<EventWire> {
   );
 }
 
-/** 데스크톱 "키 등록"과 같은 길로 비밀을 만든다 */
+/** 데스크톱 "키 등록"과 같은 길로 시크릿을 만든다 */
 async function register(scenario: Scenario): Promise<void> {
   scenario.host.secretOutOfBand.offerEntry({
     name: KEY_NAME,
@@ -329,11 +329,11 @@ realTest(
   "a link before the secret exists is skipped without error, and a secret with another name gets nothing",
   async () => {
     const s = await start();
-    // 비밀이 아직 없다: 연결은 건너뛰고(오류 없이) 설정만 저장된다
+    // 시크릿이 아직 없다: 연결은 건너뛰고(오류 없이) 설정만 저장된다
     await link(s);
     const listed = await s.connection.request("secret.list", { meta: true });
     expect(listed.secrets).toEqual([]);
-    // 다른 이름의 비밀에는 허용이 붙지 않는다
+    // 다른 이름의 시크릿에는 허용이 붙지 않는다
     s.host.secretOutOfBand.offerEntry({
       name: nameOf("exa-key"),
       action: "add",

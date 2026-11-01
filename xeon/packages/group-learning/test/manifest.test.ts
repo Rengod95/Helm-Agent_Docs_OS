@@ -37,7 +37,7 @@ test("manifest.validates", async () => {
   // setup이 선언한 등록만 쓰는지 본다: 선언 없는 지점, post, drive, 레코드 kind가 있으면 오류다
   const rig = await createRig();
   expect(rig.installIssues.filter((found) => found.severity === "error")).toEqual([]);
-  // 지식 능력이 없는 호스트에서는 X가 setup 전에 거부한다(capability_unavailable). 선언과 무관한 사용 오류는 없다
+  // 지식 기능이 없는 호스트에서는 X가 setup 전에 거부한다(capability_unavailable). 선언과 무관한 사용 오류는 없다
   const bare = await checkGroup(group());
   expect(bare.map((found) => found.code)).not.toContain("point_undeclared");
   expect(bare.map((found) => found.code)).not.toContain("drive_undeclared");

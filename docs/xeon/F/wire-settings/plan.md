@@ -205,11 +205,11 @@ xeon/packages/contracts/
 | | `scope-limited key ignored in project file` | `allowedScopes: ["managed","user"]` 키가 project 층에 있으면 무시되고 issue가 남음 | |
 | | `invalid file value skipped` | 스키마 위반 값은 건너뛰고 다음 순위 값을 씀 | |
 | | `no deep merge` | 객체 값은 통째로 바뀜 | |
-| | `secret value never resolved` | 비밀 키 유효 값이 `secret://` 문자열 또는 `null`. 평문 쓰기 → `settings.secretValue`, details에 값 없음 | S8 |
+| | `secret value never resolved` | 시크릿 키 유효 값이 `secret://` 문자열 또는 `null`. 평문 쓰기 → `settings.secretValue`, details에 값 없음 | S8 |
 | `jsonschema.test.ts` | `draft 2020-12 header` | `$schema` 값 | |
 | | `range merged` | `range.min/max/enum`이 `minimum/maximum/enum`으로 들어감 | |
 | | `scope filter` | project 스키마에 user 전용 키가 없음 | S7 |
-| | `secret has no default` | 비밀 키 속성에 `default`가 없고 `pattern`이 있음 | S1 |
+| | `secret has no default` | 시크릿 키 속성에 `default`가 없고 `pattern`이 있음 | S1 |
 | | `deterministic output` | 같은 입력 두 번 → 같은 문자열 | S10 |
 | | `same verdict as validateSettingValue` | 무작위 값 생성(정수 경계, 문자열, 잘못된 타입) 1,000개에서 JSON Schema 검사와 `validateSettingValue` 결과가 같음 | S6 |
 | | `cli parse same verdict` | CLI식 문자열 해석(JSON 우선, 실패 시 문자열) 뒤 `checkSettingWrite` 결과가 파일 검사와 같음 | S6 |

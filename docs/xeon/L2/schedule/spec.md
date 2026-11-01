@@ -10,17 +10,17 @@ binds: [xeon/packages/cap-schedule/**]
 
 # L2 예약과 백그라운드 (schedule)
 
-패키지: `@fresnel/cap-schedule`. 서비스 이름: `fresnel.schedule`(`ScheduleService`). 능력 ID: `schedule.loops`, `schedule.jobs`, `schedule.sessions`, `schedule.timers`, `schedule.remote`. 이벤트 접두사: `schedule.`. 테이블 접두사: `cap_schedule_`.
+패키지: `@fresnel/cap-schedule`. 서비스 이름: `fresnel.schedule`(`ScheduleService`). 기능 ID: `schedule.loops`, `schedule.jobs`, `schedule.sessions`, `schedule.timers`, `schedule.remote`. 이벤트 접두사: `schedule.`. 테이블 접두사: `cap_schedule_`.
 
 ## 1. 목적과 범위
 
-계획 v2 하위 층 L2-h "예약과 백그라운드"(`_research/layer-plan-v2.json` L2-h)의 능력 다섯 개를 정한다. 시간이 지나면 다시 일하는 기능(루프, 웨이크업, 예약)과 백그라운드 작업의 상태를 보는 기능(작업 모니터, 세션 목록), 다른 기기에서 답하는 기능(원격 승인)을 묶는다.
+계획 v2 하위 층 L2-h "예약과 백그라운드"(`_research/layer-plan-v2.json` L2-h)의 기능 다섯 개를 정한다. 시간이 지나면 다시 일하는 기능(루프, 웨이크업, 예약)과 백그라운드 작업의 상태를 보는 기능(작업 모니터, 세션 목록), 다른 기기에서 답하는 기능(원격 승인)을 묶는다.
 
 이 도메인의 기능은 공유 서비스 모드(`fresnel service`, ADR-0006)가 필요한지로 둘로 나뉜다. 계획 v2의 L2-h 메모가 이 구분을 적었다: "앱이 켜져 있는 동안만 도는 항목(루프, 모니터)은 데몬 없이 됩니다. 앱을 닫아도 도는 항목(예약, 분리 실행, 원격)은 L0-d 공유 서비스 모드가 필요합니다." 이 문서는 기능마다 상주 수준을 적고(§1.2), 서비스 모드가 꺼졌을 때의 동작을 정한다(§4.4.6).
 
 정하는 것:
 
-- 능력 정의 5개의 TypeBox 완성형(§3.2~§3.6). 정의 파일은 F `xeon/packages/contracts/src/capabilities/defs/schedule.ts`다.
+- 기능 정의 5개의 TypeBox 완성형(§3.2~§3.6). 정의 파일은 F `xeon/packages/contracts/src/capabilities/defs/schedule.ts`다.
 - 루프와 웨이크업: 종료 조건 4종, 상한, 만료, 같은 세션 반복 규칙(§4.1).
 - 작업 상태 분류(작업 중, 입력 필요, 완료, 중지)와 감시(§4.2).
 - 세션 목록과 세션별 작업 디렉터리, 워크트리 연산의 노출(§4.3).
@@ -61,7 +61,7 @@ binds: [xeon/packages/cap-schedule/**]
 
 [제안] `_research/l2e.md` §6의 기준이다. 0은 요청 처리 중 메모리만 쓴다. 1은 앱(세션 프로세스)이 살아 있어야 한다. 2는 앱을 닫아도 독립 프로세스가 있어야 하므로 서비스 모드가 필요하다. `L2.readme` §8 표와 같다.
 
-| 기능 | 능력 | 상주 수준 | 서비스 모드 꺼짐일 때 | 근거 |
+| 기능 | 기능 | 상주 수준 | 서비스 모드 꺼짐일 때 | 근거 |
 |---|---|---|---|---|
 | 루프 | `schedule.loops` | 1 | 앱이 켜져 있는 동안 돈다. 앱을 닫으면 멈춘다 | `_research/l2e.md` §6 D2 |
 | 웨이크업 | `schedule.loops` | 1 | 같다 | `_research/l2e.md` §6 D2 |
@@ -852,7 +852,7 @@ export const PendingRequestSchema = Type.Object({
   threadId: ThreadIdSchema,
   /** approval.requested의 종류. L2가 쓰는 kind 넷(L2.readme §5.7). review는 L1.tools 요청([미결] L2.readme §10 미결 14) */
   kind: Type.Union([Type.Literal("tool"), Type.Literal("question"), Type.Literal("plan"), Type.Literal("review")]),
-  /** 원격 화면용 요약. 비밀 값과 도구 출력 원문을 담지 않는다(§4.5.2) */
+  /** 원격 화면용 요약. 시크릿 값과 도구 출력 원문을 담지 않는다(§4.5.2) */
   summary: Type.String({ maxLength: 500 }),
   requestedAt: EpochMsSchema,
 });
@@ -905,7 +905,7 @@ export const ScheduleRemote = defineCapability({
 export const ScheduleRemoteKey = serviceKey(ScheduleRemote);
 ```
 
-- `schedule.remote`는 도구가 없는 능력이다. 도구 없는 능력의 허용은 `F.capabilities.spec` §4.4 [미결]이다. 허용되지 않으면 이 능력은 서비스 정의 없이 `cap-schedule` 내부 API(`SchedulerHost`, §3.9)로 옮긴다(§10 미결 8).
+- `schedule.remote`는 도구가 없는 기능이다. 도구 없는 기능의 허용은 `F.capabilities.spec` §4.4 [미결]이다. 허용되지 않으면 이 기능은 서비스 정의 없이 `cap-schedule` 내부 API(`SchedulerHost`, §3.9)로 옮긴다(§10 미결 8).
 - `respond`의 입력은 F wire `approval.respond` params(`F.wire-settings.spec` §3.3.1)에 `clientId`를 더한 모양이다.
 
 ### 3.7 이벤트 카탈로그 (`schedule.*`)
@@ -1090,7 +1090,7 @@ CREATE INDEX cap_schedule_runs_open ON cap_schedule_runs(status) WHERE status IN
 
 ### 3.9 호스트 연동 인터페이스 (`SchedulerHost`)
 
-[제안] 틱 시작·정지와 대기 예약 수는 능력 메서드로 두지 않는다. 모델이나 그룹이 부를 일이 아니고, 호스트가 동기로 읽어야 하기 때문이다(`L4.host-service.spec` `ActivityPort.snapshot()`은 동기). `cap-schedule`이 패키지 export로 내고 조립 루트(`apps/host`)만 import한다(`eng.context-map.design` §4.3 "조립 루트만: 모든 패키지 import").
+[제안] 틱 시작·정지와 대기 예약 수는 기능 메서드로 두지 않는다. 모델이나 그룹이 부를 일이 아니고, 호스트가 동기로 읽어야 하기 때문이다(`L4.host-service.spec` `ActivityPort.snapshot()`은 동기). `cap-schedule`이 패키지 export로 내고 조립 루트(`apps/host`)만 import한다(`eng.context-map.design` §4.3 "조립 루트만: 모든 패키지 import").
 
 ```ts
 // xeon/packages/cap-schedule/src/tick/host.ts
@@ -1113,7 +1113,7 @@ export function createSchedulerHost(deps: SchedulerHostDeps): SchedulerHost;
 
 ### 3.10 요구하는 하위 서비스 [가정]
 
-이 능력이 쓰는 부분만 적는다. 정본은 괄호 안 문서다.
+이 기능이 쓰는 부분만 적는다. 정본은 괄호 안 문서다.
 
 ```ts
 // L0.store.spec §3.1 (fresnel.store) — 임대. 동기 Result를 돌려준다
@@ -1164,7 +1164,7 @@ type OsUsedBySchedule = Pick<OsService, "time" | "watch">;
 
 ```ts
 // defs/schedule.ts (끝부분)
-/** schedule 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** schedule 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface ScheduleService {
   readonly loops: CapabilityApi<typeof ScheduleLoops>;
   readonly jobs: CapabilityApi<typeof ScheduleJobs>;
@@ -1177,7 +1177,7 @@ export const ScheduleServiceName = "fresnel.schedule" as const;
 export const SCHEDULE_CAPABILITIES = [ScheduleLoops, ScheduleJobs, ScheduleSessions, ScheduleTimers, ScheduleRemote] as const;
 ```
 
-- 인터페이스 이름 `ScheduleService`는 `eng.context-map.design` §5.3 표를 따른다. consumer는 `ScopeApi.capability(ScheduleLoopsKey)`처럼 능력 단위 키로 API를 얻는다(`L2.readme` §5.6). `SchedulerHost`(§3.9)는 이 묶음에 넣지 않는다. 호스트 연동용이고 능력 API가 아니기 때문이다.
+- 인터페이스 이름 `ScheduleService`는 `eng.context-map.design` §5.3 표를 따른다. consumer는 `ScopeApi.capability(ScheduleLoopsKey)`처럼 기능 단위 키로 API를 얻는다(`L2.readme` §5.6). `SchedulerHost`(§3.9)는 이 묶음에 넣지 않는다. 호스트 연동용이고 기능 API가 아니기 때문이다.
 
 ## 4. 동작 규칙
 
@@ -1220,7 +1220,7 @@ export const SCHEDULE_CAPABILITIES = [ScheduleLoops, ScheduleJobs, ScheduleSessi
 
 - `goalId`를 주면 `work.goals`를 선택 의존(`optional`)으로 부른다(`L2.readme` §6). provider가 없으면 `goal_unavailable`이다.
 - [제안] 한 스레드에서 다음 턴을 투입하는 L2 주체는 하나다. `goalId`를 가진 루프(`schedule.loops`)에서는 루프가 반복마다 다음 턴을 투입하고 `work.goals`는 판정만 기록하며 post하지 않는다. 목표의 `continuation`이 `"external"`이면 이 규칙이 적용되고, `schedule.loops.start`는 `continuation: "self"` 목표를 거부한다(`L2.readme` §4.2, `L2.work.spec` §4.3.5). 그래서 `goal:<goalId>:<n>` post와 `loop:<loopId>:<iteration>` post가 같은 스레드에 함께 들어가지 않는다. `start`는 `work.goals.status({ goalId })`의 `goal.continuation`이 `"external"`이 아니면 `invalid_input`(`detail.reason: "goal_continuation_self"`)이다.
-- 반복 정착 뒤 `work.goals.status({ goalId })`가 완료(판정 통과)를 돌려주면 `goal` 사유로 멈춘다. 판정 모델 호출과 판정 횟수 상한은 `work.goals`의 것이다(`foundation-plan.md` §1 결정 4). 이 능력은 결과만 읽는다.
+- 반복 정착 뒤 `work.goals.status({ goalId })`가 완료(판정 통과)를 돌려주면 `goal` 사유로 멈춘다. 판정 모델 호출과 판정 횟수 상한은 `work.goals`의 것이다(`foundation-plan.md` §1 결정 4). 이 기능은 결과만 읽는다.
 - 루프는 목표 판정을 직접 하지 않는다. `goalId`가 없으면 목표와 무관하게 위 4종 조건으로만 멈춘다.
 
 #### 4.1.5 앱 종료와 서비스 모드
@@ -1274,7 +1274,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 ### 4.3 다중 세션과 워크트리
 
-- `list`는 세션의 실행 상태(소유자 표시, idle·working·needs_input, 작업 수, 마지막 활동)를 돌려준다. 제목과 라벨은 `artifacts.sessions`가 소유하고, 두 능력은 서로 부르지 않는다. L4 세션 목록 화면이 `threadId`로 두 결과를 합친다 [제안].
+- `list`는 세션의 실행 상태(소유자 표시, idle·working·needs_input, 작업 수, 마지막 활동)를 돌려준다. 제목과 라벨은 `artifacts.sessions`가 소유하고, 두 기능은 서로 부르지 않는다. L4 세션 목록 화면이 `threadId`로 두 결과를 합친다 [제안].
 - 상태 계산: 진행 중 turn이 있으면 working, 해결되지 않은 승인 요청이 있으면 needs_input(우선), 그 밖에 idle이다. turn 진행 여부는 `turn.started`·`turn.completed`(또는 `turn.ended`) 이벤트 투영으로 센다.
 - 소유자 표시는 그 세션의 `sys_leases` 행(`kind`, `host`, `epoch`)에서 온다. 별도 소유자 표시 열은 두지 않는다 [결정: review.decisions-2 U-09]. 표시값은 틀릴 수 있으며 판단 근거로 쓰지 않는다. 읽는 경로는 `fresnel.session`의 조회 API다 [가정].
 - `create`의 `worktree`는 워크트리를 만든 뒤 그 경로를 `workspace`로 세션을 만든다. 워크트리 연산(만들기, 목록, 지우기)은 `L0.os.spec`에 없다. [미결] L0.os에 연산 추가를 요청할지, `fresnel.exec`로 `git worktree`를 실행할지 정한다(§10 미결 13). 워크트리 격리(파일 시스템 경계, 샌드박스 허용 경로)는 L0(`L0.os.spec`, `L0.sandbox.spec`)의 것이다.
@@ -1373,12 +1373,12 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 #### 4.4.8 예약 세션과 L3 그룹의 경계
 
 - Hermes는 cron 세션에서 학습 관련 동작(메모리 쓰기 등)을 제한한다(`_research/refs/hermes.md` 91행 자식 차단 도구 목록의 `cronjob_manage`, `memory`). Fresnel에서 "예약 세션에서는 학습 검토를 끈다" 같은 규칙은 L3 그룹 소관이다.
-- 이 능력이 하는 일은 표식뿐이다. 실행 세션의 첫 이벤트로 `schedule.run_started { origin: "timer" }`를 남긴다. L3 그룹은 자기 투영기에서 이 kind를 읽어 그 세션을 예약 세션으로 알아본다. `fresnel.session.create`의 `origin: "timer"`도 같은 정보를 세션 메타에 남긴다 [가정].
-- 이 능력은 L3 그룹을 부르지 않고 L3 그룹의 설정도 읽지 않는다. 이 문서는 L3 그룹 이름을 쓰지 않는다 [결정: review.decisions-2 D-11].
+- 이 기능이 하는 일은 표식뿐이다. 실행 세션의 첫 이벤트로 `schedule.run_started { origin: "timer" }`를 남긴다. L3 그룹은 자기 투영기에서 이 kind를 읽어 그 세션을 예약 세션으로 알아본다. `fresnel.session.create`의 `origin: "timer"`도 같은 정보를 세션 메타에 남긴다 [가정].
+- 이 기능은 L3 그룹을 부르지 않고 L3 그룹의 설정도 읽지 않는다. 이 문서는 L3 그룹 이름을 쓰지 않는다 [결정: review.decisions-2 D-11].
 
 #### 4.4.9 M3b 구현 범위: 트리거 상태 기계 [결정: 오케스트레이터 기본값, M3b B1-SCH]
 
-`xeon/packages/cap-schedule`은 M3b에서 능력 정의(F)와 cron 식 없이 포트 뒤의 상태 기계로 먼저 들어간다. 트리거는 다섯 종류다.
+`xeon/packages/cap-schedule`은 M3b에서 기능 정의(F)와 cron 식 없이 포트 뒤의 상태 기계로 먼저 들어간다. 트리거는 다섯 종류다.
 
 | 종류 | 기한 | 비고 |
 |---|---|---|
@@ -1393,10 +1393,10 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 놓친 기한은 `once`로 1회만 따라잡는다. 가장 늦은 기한이 제때(120초 안)면 그것만 실행하고, 놓쳤으면 24시간 안일 때만 `missed`로 하나를 실행한다. 나머지는 요약 한 건(`skippedCount`)으로 `skipped` 기록한다. 최소 간격 300초와 시간당 실행 상한(20)은 `file_watch`·`remote` 포함 모든 트리거에 적용하고 루프의 반복 사이에는 최소 간격을 따로 두지 않는다.
 - 같은 항목의 이전 실행이 `claimed`·`started`이면 새 기한은 `overlap`으로 건너뛴다.
 - 상태(항목, 실행 기록)는 `ScheduleStore` 포트로 저장한다. claim을 저장하지 못하면 실행을 시작하지 않는다. 재시작하면 `claimed`는 같은 키(`<scheduleId>:<dueAt>`)로 다시 시작하고 `started`는 `host_exit`로 닫으며, 실행 중이던 루프는 `host_exit`로 멈추고 다시 시작하지 않는다. 재시작 뒤 thread가 둘 생기던 문제는 세션 생성 키로 닫혔다 [결정: 오케스트레이터 기본값, M3b B1-SCH2]. 다시 시작한 `claimed` 실행은 `timer:<scheduleId>:<dueAt>:create`(§4.4.4 둘째 장치)로 처음 만든 thread를 되찾으므로 같은 기한의 thread는 하나다.
-- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 능력 정의와 와이어가 들어왔다. 능력 ID는 `schedule.entries`(F `capabilities/defs/schedule.ts`)이고, §3.5의 cron 기반 `schedule.timers`와 다른 능력이다. 메서드는 `create`, `list`, `cancel`, `fire`이고 모델 도구는 `schedule_create` 하나다. wire는 `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`(F `wire/schedule.ts`)다. 분류는 `list`만 읽기 전용이다. `create`, `cancel`, `fire`는 효과가 있는 쓰기로 분류하지 않는다(`requestId` 기억 전까지 멱등이 아니다, ADR-0015 §3.3).
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 기능 정의와 와이어가 들어왔다. 기능 ID는 `schedule.entries`(F `capabilities/defs/schedule.ts`)이고, §3.5의 cron 기반 `schedule.timers`와 다른 기능이다. 메서드는 `create`, `list`, `cancel`, `fire`이고 모델 도구는 `schedule_create` 하나다. wire는 `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`(F `wire/schedule.ts`)다. 분류는 `list`만 읽기 전용이다. `create`, `cancel`, `fire`는 효과가 있는 쓰기로 분류하지 않는다(`requestId` 기억 전까지 멱등이 아니다, ADR-0015 §3.3).
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 저장소는 처음 쓰일 때 한 번 읽는다(`open()`, 지연 읽기). 읽기가 실패하면(상태 파일이 손상되어 해석하지 못하는 경우를 포함한다) `create`·`cancel`·`fire`·`start`는 `store_failed`를 돌려주고 아무것도 쓰지 않으며, `start`는 틱과 감시를 켜지 않는다. 엔진은 읽지 못한 파일을 빈 상태로 덮어쓰지 않는다. 사용자가 파일을 고치거나 지워야 한다. 실패는 기억하지 않으므로 다음 호출이 다시 읽는다.
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 모델 도구 `schedule_create`는 실행 등급 `exec`로 등록한다(`tools.register`의 정책 `{ schedule_create: { risk: "exec" } }`). 예약은 사용자 없이 나중의 실행을 만들므로 기본 모드에서 승인을 묻는다.
-- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 플러그인 `cap-schedule`(`schedulePlugin`)은 능력 `schedule.entries`(1.0.0)를 제공하고, 서비스는 호스트가 만들어 `schedulePlugin({ service })`로 넘긴다. 틱과 상태 저장소는 호스트가 맡고 플러그인은 서비스를 시작하지 않는다. 도구 서비스가 없으면 능력만 올리고 도구는 올리지 않으며 예외를 던지지 않는다. 능력 API(`createScheduleApi`)는 엔진의 `Result` 실패를 `CapabilityError`의 `code`로 바꾼다.
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 플러그인 `cap-schedule`(`schedulePlugin`)은 기능 `schedule.entries`(1.0.0)를 제공하고, 서비스는 호스트가 만들어 `schedulePlugin({ service })`로 넘긴다. 틱과 상태 저장소는 호스트가 맡고 플러그인은 서비스를 시작하지 않는다. 도구 서비스가 없으면 기능만 올리고 도구는 올리지 않으며 예외를 던지지 않는다. 기능 API(`createScheduleApi`)는 엔진의 `Result` 실패를 `CapabilityError`의 `code`로 바꾼다.
 - 이 단계에 없는 것: cron 식과 시간대, `schedule.*` 기록(이벤트)의 생산자, 임대 기반 다중 프로세스 틱, CLI 예약 명령. 호스트가 파일 저장소와 단일 프로세스 틱으로 조립하고 나머지는 [미결]로 둔다.
 
 ### 4.5 원격 제어
@@ -1415,19 +1415,19 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 4. `respond`는 정책을 검사한다: `l2.schedule.remote.enabled`가 거짓이면 `remote_disabled`, `l2.schedule.remote.allowRespond`가 거짓이면 `respond_not_allowed`, `remember: "always"`는 `remember_not_allowed`다. "항상 허용" 같은 영구 정책 변경은 로컬에서만 하게 하려는 것이다 [제안].
 5. 통과하면 `fresnel.approvals`에 응답하고, 승인 요청이 있던 세션에 `schedule.remote_responded`를 커밋한다.
 - 질문 도구(`dialog.ask`)와 계획 승인(`work.plans`), 리뷰(`artifacts.reviews`, kind `review`는 [미결] `L2.readme` §10 미결 14)는 모두 같은 승인 프로토콜을 쓰므로 원격 답도 같은 경로다(결정 5, `product.usecases.spec` "질문·계획 승인" 행).
-- `pending.summary`는 승인 요청의 표시용 요약에서 만든다. 도구 인자 원문과 출력 원문, 비밀 값을 넣지 않는다. 원격 화면이 잃어버리거나 엿보이는 기기에 있을 수 있기 때문이다.
+- `pending.summary`는 승인 요청의 표시용 요약에서 만든다. 도구 인자 원문과 출력 원문, 시크릿 값을 넣지 않는다. 원격 화면이 잃어버리거나 엿보이는 기기에 있을 수 있기 때문이다.
 
 #### 4.5.3 인증 요구
 
 - 비루프백 주소의 무인증 리스너는 금지다. 서비스는 그런 설정으로 기동하지 않는다(ADR-0006 §3.7 5번, `product.usecases.spec` UC-5). 1차는 비루프백 리스너 자체를 열지 않는다(U-11).
 - 토큰은 설정에 값으로 두지 않고 `secret://` 참조로만 둔다(`l2.schedule.remote.tokenRef`, `F.wire-settings.spec` §3.8.1 `SecretRef`, D2·D3 규칙).
 - 토큰 없는 원격 접속은 초기화(`host.hello`) 전에 끊긴다. 거부는 운영 로그에 남긴다.
-- `l2.schedule.remote.enabled`의 기본은 거짓이다. 켜도 서비스 모드가 꺼져 있으면 `status.transport`는 `unavailable`이다. 터널·사설망 설정은 사용자 몫이고 이 능력은 열지 않는다.
+- `l2.schedule.remote.enabled`의 기본은 거짓이다. 켜도 서비스 모드가 꺼져 있으면 `status.transport`는 `unavailable`이다. 터널·사설망 설정은 사용자 몫이고 이 기능은 열지 않는다.
 - 이 설정의 `allowedScopes`는 `managed`, `user`다. 저장소의 프로젝트 파일이 원격 접속을 켜지 못하게 하려는 것이다(`F.wire-settings.spec` §4.7 4번의 범위 제한 키 예와 같은 이유).
 
 #### 4.5.4 알림과 푸시 [미결]
 
-- OS 알림은 L0.os, 알림 라우팅(연결이 없을 때 OS 알림)은 L4.host-service HS-42다. 이 능력은 알림 대상 이벤트(`schedule.run_finished`, `schedule.run_stalled`, 작업이 needs_input으로 바뀜)를 낼 뿐이다.
+- OS 알림은 L0.os, 알림 라우팅(연결이 없을 때 OS 알림)은 L4.host-service HS-42다. 이 기능은 알림 대상 이벤트(`schedule.run_finished`, `schedule.run_stalled`, 작업이 needs_input으로 바뀜)를 낼 뿐이다.
 - 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 다른 후보는 `schedule.remote`가 원격 클라이언트 등록과 함께 푸시 채널도 소유하는 안이다. 알림 채널이 한 곳에 있어야 무엇을 어디로 받을지 정하는 사용자 설정이 하나로 모이므로 앞의 안을 제안한다(§10 미결 3).
 
 ## 5. 실패와 경계 사례
@@ -1483,7 +1483,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `l2.schedule.service.ensureOnCreate` | boolean | true | — | live | managed, user | execution | false | 화면. 서비스 모드 연동 |
 | `l2.schedule.remote.enabled` | boolean | false | — | restart | managed, user | execution | false | 화면, 명령(`fresnel service remote on`) |
 | `l2.schedule.remote.allowRespond` | boolean | true | — | live | managed, user | execution | false | 화면 |
-| `l2.schedule.remote.tokenRef` | string(`SecretRef`) | 없음 | — | restart | managed, user | secrets | true | 화면(비밀 탭). 값은 `secret://<name>` |
+| `l2.schedule.remote.tokenRef` | string(`SecretRef`) | 없음 | — | restart | managed, user | secrets | true | 화면(시크릿 탭). 값은 `secret://<name>` |
 | `l2.schedule.tools.timers` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_*` 도구 노출 |
 | `l2.schedule.tools.wakeup` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_wakeup`, `loop_done` |
 | `l2.schedule.tools.jobs` | boolean | false | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `job_*`, `monitor_start` |
@@ -1495,16 +1495,16 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - `l2.schedule.remote.enabled`와 서비스 사용 설정(`l0.process.service.enabled`, `L0.process.spec` §6)은 다른 키다. 서비스 로컬 소켓 위치는 설정 키가 없고 `L0.process.spec` §4.4가 `<runtimeDir>/fresnel.sock`으로 정한다.
 - L4 노출 구분: "화면"은 설정 화면 항목, "명령"은 CLI 명령(`/loop`, `/schedule`, `/jobs`, `/worktree`, `fresnel service remote`)이 같은 서비스 메서드를 쓰는 경우, "파일만"은 `ui`가 없는 키다. 명령 이름은 `L4.cli.spec`이 정한다.
 
-## 7. 확장 지점
+## 7. 훅
 
-| 지점 / 연산 | 이 능력의 쓰임 |
+| 지점 / 연산 | 이 기능의 쓰임 |
 |---|---|
 | `boundary.settle.after` (#26, tap) | 루프 반복 경계, 웨이크업 투입 시점, 예약 실행 결과(§4.1.1, §4.1.3, §4.4.5). `dispatch: detached` |
 | `thread.start` (#30, tap) | 재시작 정리(§4.1.5) |
 | `thread.shutdown` (#39, tap) | 이 세션의 메모리 타이머를 지운다. 이벤트는 쓰지 않는다(다음 열기 때 정리) |
 | post | `fresnel.tasks.post`로 반복·웨이크업·감시·예약 입력을 넣는다. 키 형식 `loop:`, `wake:`, `watch:`, `timer:` |
 | drive | 쓰지 않는다. 다음 턴 시작은 post로만 한다(`L2.readme` §4.2) |
-| scope | 능력이 꺼지면 도구가 다음 단계 경계에서 빠진다. 도는 루프는 멈추지 않는다 [제안]. 끄려면 `stop`을 쓴다 |
+| scope | 기능이 꺼지면 도구가 다음 단계 경계에서 빠진다. 도는 루프는 멈추지 않는다 [제안]. 끄려면 `stop`을 쓴다 |
 
 - 그룹 사용 예: 탐구 그룹은 "제2 관점 재검토" 루프를 `count` 조건과 `goalId`로 시작하고, 매주 문헌 점검을 `timers.create`로 만든다(`_research/l2e.md` §3.4 D1·D2 L3 예).
 
@@ -1549,7 +1549,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 3. 같은 DB를 연 두 프로세스가 동시에 `startTick`을 불러도 한 기한의 실행은 하나다: `cap_schedule_runs`에 그 기한 행이 하나이고, 실행 세션이 하나이고, 입력 큐 투입이 하나다. 임대를 잃은 쪽이 늦게 claim을 시도하면 펜싱으로 거부된다.
 4. 루프가 종료 조건 4종 각각에서 멈춘다: `count: 3`은 세 번째 반복 뒤, `duration`은 가짜 시계가 기한을 넘긴 뒤, `shell`은 가짜 실행 환경이 종료 코드 0을 낸 반복 뒤, `model`은 `loop_done`이 불린 반복 뒤에 `schedule.loop_stopped`가 그 사유로 기록되고 다음 반복이 투입되지 않는다.
 5. 원격 연결에 토큰 없이 접속하면 `host.hello` 처리 전에 연결이 끊기고, 비루프백 주소와 인증 꺼짐 설정으로는 서비스가 기동하지 않는다. `l2.schedule.remote.enabled`가 거짓이면 `schedule.remote.respond`가 `remote_disabled`다.
-6. `ScheduleLoops`, `ScheduleJobs`, `ScheduleSessions`, `ScheduleTimers`, `ScheduleRemote` 다섯 정의 각각에 `validateCapability`를 돌리면 이슈 0건이다(경고 포함). 도구 없는 `ScheduleRemote`가 F의 도구 없는 능력 허용(F.capabilities.spec §4.4 [미결])과 함께 확정된다.
+6. `ScheduleLoops`, `ScheduleJobs`, `ScheduleSessions`, `ScheduleTimers`, `ScheduleRemote` 다섯 정의 각각에 `validateCapability`를 돌리면 이슈 0건이다(경고 포함). 도구 없는 `ScheduleRemote`가 F의 도구 없는 기능 허용(F.capabilities.spec §4.4 [미결])과 함께 확정된다.
 7. `continuation: "external"` 목표의 `goalId`로 루프를 돌리면 반복 경계마다 입력 큐 투입이 `loop:<loopId>:<iteration>` 키 하나이고 `goal:` 키 투입이 없다. `continuation: "self"` 목표의 `goalId`로 `start`하면 `invalid_input`이다(이중 투입 검사, `L2.work.spec` §9-11과 공동).
 
 ## 10. 미결 사항
@@ -1561,7 +1561,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 5. 닫힘. 세션 생성 멱등은 `L1.persistence.spec` §4.10.1의 `creationKey`(`thread_creation_keys`)로 한다(§4.4.4 둘째 장치).
 6. [미결] 예약 실행 세션의 승인 정책(§4.4.5): 대기(제안, 알림·원격으로 답함) 또는 거부(Hermes cron 방식). L1.tools.spec에 세션 origin 기반 설정을 요청한다.
 7. [미결] `jobs.spawn`의 replay 정책. L1.agents·L0.process가 `requestId` 멱등을 보장하면 `"safe"`로 넓힌다.
-8. [미결] 도구 없는 능력(`schedule.remote`)의 허용(F.capabilities.spec §4.4). 허용되지 않으면 `cap-schedule` 내부 API로 옮긴다.
+8. [미결] 도구 없는 기능(`schedule.remote`)의 허용(F.capabilities.spec §4.4). 허용되지 않으면 `cap-schedule` 내부 API로 옮긴다.
 9. [미결] 긴 bash 자동 백그라운드 전환의 책임(§4.2.4): L1.tools, L2.workspace.shell(제안), schedule.jobs.
 10. [결정: 오케스트레이터 기본값, M3b B1-SCH] 기본 `once`와 최소 간격 300초로 구현했다(§4.4.9). 사용자 확인은 남아 있다. 원래 항목: 놓친 실행 기본 정책 `once`와 최소 간격 300초 같은 기본값의 사용자 확인. ADR-0006 §3.5가 이 문서에 넘긴 [미결: L2.schedule.spec](놓친 예약 따라잡기 여부)은 §4.4.4 표로 제안하고 확정은 사용자에게 받는다.
 11. [결정: 오케스트레이터 기본값, M3b B1-SCH] 넣는다(M3-10, `liveSchedulerTasks`). 원래 항목: 루프를 `ActivitySnapshot.liveTasks`에 넣을지(§3.9, §4.1.5). 넣으면 서비스 모드에서 루프가 도는 동안 유휴 종료하지 않는다. `L4.host-service.spec` `ActivitySnapshot` 정의와 맞춘다.

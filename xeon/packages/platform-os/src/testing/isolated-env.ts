@@ -8,7 +8,7 @@ export interface IsolatedEnv {
   readonly vars: Readonly<Record<string, string>>;
 }
 
-/** 비밀·계정 변수: eng.testing.guide TS-03 표 */
+/** 시크릿·계정 변수: eng.testing.guide TS-03 표 */
 const SECRET_NAME_PATTERNS: readonly RegExp[] = [
   /_API_KEY$/,
   /^ANTHROPIC_/,

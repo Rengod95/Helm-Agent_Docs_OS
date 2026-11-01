@@ -11,7 +11,7 @@ import {
   type SecretRevealPort,
 } from "../../src/settings/index.ts";
 
-// X8 (review.m3b-plan §1.1, UC-6): 비밀 view-model이 재인증 결과를 받아 값 상태로 바뀐다. 화면(탭)은 M4라 이 시험은 view-model과 가짜 재인증
+// X8 (review.m3b-plan §1.1, UC-6): 시크릿 view-model이 재인증 결과를 받아 값 상태로 바뀐다. 화면(탭)은 M4라 이 시험은 view-model과 가짜 재인증
 // 포트로 확인한다. 값은 가짜다(실제 키를 쓰지 않는다).
 
 const FAKE = "fake-secret-for-tests-0001";

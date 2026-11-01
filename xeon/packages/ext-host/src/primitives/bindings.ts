@@ -5,7 +5,7 @@ import type { ExtDiagnostic } from "./errors.ts";
 import { eachInOrder } from "./sequence.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
 
-/** 능력 바인딩(X.primitives.spec §3.7): 공급자 서비스를 inject해 `cap:<id>`로 다시 provide하는 내부 fiber */
+/** 기능 바인딩(X.primitives.spec §3.7): 공급자 서비스를 inject해 `cap:<id>`로 다시 provide하는 내부 fiber */
 export interface CapabilityBindings {
   /** 공급자 등록. 돌려주는 함수가 등록을 지운다(scope fiber의 effect 해제기로 쓴다) */
   addProvider(
@@ -38,7 +38,7 @@ function majorOf(version: string): string {
 export function createCapabilityBindings(
   bridge: CordisBridge,
   report: (diagnostic: ExtDiagnostic) => void,
-  /** x.primitives.capabilityProviders. 공급자가 여럿일 때 능력마다 고른 확장을 읽는다(P-27) */
+  /** x.primitives.capabilityProviders. 공급자가 여럿일 때 기능마다 고른 확장을 읽는다(P-27) */
   selection: () => Readonly<Record<string, ExtensionName>> = () => ({}),
 ): CapabilityBindings {
   const providers = new Map<CapabilityId, ProviderInfo[]>();

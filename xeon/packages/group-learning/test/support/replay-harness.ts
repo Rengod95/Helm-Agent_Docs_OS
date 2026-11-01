@@ -29,7 +29,7 @@ import { foldReader } from "./projection.ts";
 import { fakeKnowledge, type FakeKnowledge } from "./fake-knowledge.ts";
 
 // ADR-0015 재생 시험의 하니스(L3.learning.plan LR-25). group-sdk의 재생 하니스는 drive 그룹을 경계 반복으로 돌리므로, on 핸들러 그룹용으로
-// 정해진 지점 발화 순서(스크립트)를 다시 돌린다. 복원은 기준 실행의 커밋 요청을 원래 `requestId`와 함께 앞부분만 다시 커밋한다:
+// 정해진 훅 발화 순서(스크립트)를 다시 돌린다. 복원은 기준 실행의 커밋 요청을 원래 `requestId`와 함께 앞부분만 다시 커밋한다:
 // 그래야 재발화한 핸들러의 기록과 커밋이 멱등 키로 한 번만 반영된다.
 
 const ID_PATTERN = /^[a-z]{3}_[0-9A-Z]{26}$/;

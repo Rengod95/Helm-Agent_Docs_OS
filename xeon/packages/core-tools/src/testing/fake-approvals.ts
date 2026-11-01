@@ -22,7 +22,7 @@ export interface FakeApprovals {
   readonly ids: IdFactory;
   /** 요청의 출처로 쓸 수 있는 턴 밖 출처 */
   originOf(threadId: ThreadId): ApprovalOrigin;
-  /** 이 대화에서 확장 지점을 쏠 수 있게 연다 */
+  /** 이 대화에서 훅을 쏠 수 있게 연다 */
   openThread(threadId: ThreadId): Promise<void>;
 }
 

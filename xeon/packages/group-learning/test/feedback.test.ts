@@ -51,7 +51,7 @@ test("replay.no-capability-calls-in-handlers: the trigger and subscription handl
   await rig.settle(review.requestId, "completed");
   await rig.turn();
   expect(rig.knowledge.calls()).toBe(baseline);
-  // 도구 execute가 능력을 부르는 것은 재실행되는 코드가 아니라 허용된다
+  // 도구 execute가 기능을 부르는 것은 재실행되는 코드가 아니라 허용된다
   await submit(review, { ...FEEDBACK, target: "user/work-style" });
   expect(rig.knowledge.calls()).toBeGreaterThan(baseline);
 });

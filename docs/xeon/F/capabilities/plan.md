@@ -8,7 +8,7 @@ depends_on: [F.capabilities.spec, F.conversation.plan]
 binds: [xeon/packages/contracts/src/capabilities/**, xeon/packages/contracts/src/services/**]
 ---
 
-# F 능력 계약 구현 계획
+# F 기능 계약 구현 계획
 
 대상 스펙: F.capabilities.spec. 패키지: `@fresnel/contracts`, 서브패스 `./capabilities`, `./services`(스펙 §3.12).
 
@@ -18,7 +18,7 @@ binds: [xeon/packages/contracts/src/capabilities/**, xeon/packages/contracts/src
 |---|---|---|
 | M0 | `CapabilityId`·`SemVer`·`SemVerRange`·`ToolName` 스키마, `MethodDef`, `ToolSpec`(기계 이름 `name`과 표시 제목 `label` 포함), `CapabilityDef`, `defineCapability`, `ServiceKey`·`serviceKey`, `CapabilityError`, `validateCapability`·`validateCapabilitySet`, `toJsonSchema`, `toolOrderKey`·`orderTools`·`canonicalToolset`·`toolsetFingerprint`·`diffToolsets`, `web.search` 예시 픽스처, `./services`의 서비스 인터페이스 14종과 `SERVICE_NAMES`(스펙 §3.12, review.decisions-2 D-04) | X(ext-host 최소형), F.extensions(매니페스트가 ID 스키마를 import), L0 `platform-*`, L1 `core-*`(서비스 구현과 주입) |
 | M1 | 걷는 골격의 도구 `read`, `ls`, `bash`를 이 정의 형식으로 정의한다. 정의는 F.capabilities.spec §3.9의 배치 제안에 따라 `capabilities/defs/workspace.ts`에 둔다 | L1 core-tools(도구 어댑터, `AgentTool` 생성), L2 cap-workspace(provider) |
-| M2 이후 | 내장 L2 능력 정의 추가(`web.*`, `knowledge.*`, `mcp` 정적 메서드 등. 각 L2 plan이 정의 내용을 제공), 네임스페이스·충돌 규칙 확정 반영, Cordis 선언 병합 결정 반영 | 모든 L2, L3 group-sdk |
+| M2 이후 | 내장 L2 기능 정의 추가(`web.*`, `knowledge.*`, `mcp` 정적 메서드 등. 각 L2 plan이 정의 내용을 제공), 네임스페이스·충돌 규칙 확정 반영, Cordis 선언 병합 결정 반영 | 모든 L2, L3 group-sdk |
 
 - 기계 이름·표시 제목 분리는 계획 v2에서 2차 항목이다(`_research/layer-plan-v2.json` F3). pi-ai `Tool.name`과 agent-core `AgentTool.label`에 이미 있으므로 M0에 같이 넣는다.
 - M1 스모크(`_research/foundation-plan.md` §5 P4)의 도구 3종은 이 형식을 거쳐야 한다. L1 core-tools가 `ToolSpec`을 `AgentTool`로 바꾸는 어댑터를 M1에 만든다(L1.tools.plan).
@@ -39,7 +39,7 @@ xeon/packages/contracts/
     ordering.ts       # toolOrderKey, orderTools, canonicalToolset, toolsetFingerprint, diffToolsets, MAX_TOOLS_PER_REQUEST
     secrets.ts        # SecretRef·SecretName(브랜드) 형식, SecretRefError, parseSecretRef·secretRef·findForeignSecretSyntax, SecretMeta·SecretUsePolicy·SecretAuditRecord와 부속 타입(스펙 §3.10)
     provider.ts       # ProviderId, ProviderSelectionMeta, orderProviderCandidates(스펙 §3.11)
-    defs/             # M1부터. 내장 능력 정의(workspace.ts …). M0에는 만들지 않는다
+    defs/             # M1부터. 내장 기능 정의(workspace.ts …). M0에는 만들지 않는다
     index.ts          # 위 공개 이름 재export
   src/services/       # 스펙 §3.12. 서브패스 "./services"
     names.ts          # SERVICE_NAMES, ServiceName
@@ -88,7 +88,7 @@ P6 해시 선택 [제안]:
 | Cordis | — | F에서 import하지 않는다 |
 
 - 포크 없음.
-- 참고만 하는 코드: pi durable `ToolRegistration`(`~/projects/_ref/pi-src/packages/durable/src/harness/types.ts`). 서비스와 도구를 한 쌍으로 정의한 선례가 없어 형식은 자체 설계다(`_research/packages.md` §4.1 F3 능력 정의 행).
+- 참고만 하는 코드: pi durable `ToolRegistration`(`~/projects/_ref/pi-src/packages/durable/src/harness/types.ts`). 서비스와 도구를 한 쌍으로 정의한 선례가 없어 형식은 자체 설계다(`_research/packages.md` §4.1 F3 기능 정의 행).
 - TypeBox 버전은 [미결]이다. pi-ai·agent-core 1.3.0이 `typebox` 1.3.27을 정확 고정하므로 1.3.27를 쓰면 설치본이 두 벌일 수 있다(`_research/notes/F-2.md` §5.3, §7). F가 쓰는 `TSchema`, `Static` 선언은 두 버전에서 같다. 결정 전까지 catalog 값(1.3.27)을 따르고, 두 벌 설치 여부를 P2에서 `bun pm ls`로 확인해 보고한다.
 
 ## 5. 단위 테스트 목록
@@ -103,7 +103,7 @@ P6 해시 선택 [제안]:
 | | `CapabilityError data` | `data`가 `CapabilityErrorDataSchema`를 통과. `DEFAULT_RETRYABLE.rate_limited === true` |
 | `tool-order.test.ts` | `permutation invariant` | 정의 3개·도구 7개의 모든 순열에서 `orderTools` 결과가 같다 |
 | | `byte order` | `web.search`가 `web.search-x`보다 앞, `a_b`가 `ab`보다 앞(코드 단위 비교) |
-| | `stable on equal capability` | 같은 능력의 도구는 name 순 |
+| | `stable on equal capability` | 같은 기능의 도구는 name 순 |
 | | `duplicate key throws` | 같은 (capability, name) 두 개면 예외 |
 | `fingerprint.test.ts` | `same set same fingerprint` | 순열이 달라도 같은 값 |
 | | `label and hints excluded` | `label`, `hints`, `replay`만 바꾸면 값이 같다 |
@@ -113,11 +113,11 @@ P6 해시 선택 [제안]:
 | | `format` | 값이 `sha256:` + 소문자 hex 64자 |
 | `validate.test.ts` | `method missing` | `tools[0].method = "nope"`(타입 단언으로 우회)이면 `method_missing` |
 | | `duplicate tool name` | 한 정의 안 중복은 `tool_name_duplicate` |
-| | `invalid tool name` | `web:search`, 65자 이름은 `tool_name_invalid`. 내장 능력 도구의 `WebSearch`, `web-search`는 `tool_name_style` 경고. 확장 도구 `web-exa__search`는 경고 없음 |
+| | `invalid tool name` | `web:search`, 65자 이름은 `tool_name_invalid`. 내장 기능 도구의 `WebSearch`, `web-search`는 `tool_name_style` 경고. 확장 도구 `web-exa__search`는 경고 없음 |
 | | `input mismatch` | `toInput` 없이 파라미터가 다르면 `tool_input_mismatch`. `toInput`이 있으면 통과 |
 | | `replay widened` | 메서드 생략·도구 `safe`이면 `replay_widened` |
 | | `schema limits` | 33 KiB 파라미터, 깊이 13 스키마, 외부 `$ref`는 각각 오류. `Type.Cyclic`은 경고 |
-| | `set conflicts` | 두 능력의 같은 도구 이름은 `tool_name_conflict`, 같은 id는 `capability_duplicate` |
+| | `set conflicts` | 두 기능의 같은 도구 이름은 `tool_name_conflict`, 같은 id는 `capability_duplicate` |
 | | `web.search fixture clean` | 픽스처 이슈 0건 |
 | `jsonschema.test.ts` | `object params emit 2020-12 JSON` | `Type.Object` 파라미터의 `toJsonSchema` 결과에 `~` 접두 키, 함수, `$schema`가 없고 `type: "object"`가 있다 |
 | | `lossless against Value.Check` | 표본 입력 20개에 대해 TypeBox `Value.Check`(원본 스키마)와 `toJsonSchema` 결과를 다시 TypeBox로 감싼 스키마의 판정이 같다. refine 없는 스키마로 한정 |
@@ -150,7 +150,7 @@ P6 해시 선택 [제안]:
 |---|---|---|
 | 도구 이름 네임스페이스(`플러그인:이름`)와 provider 도구 이름 허용 문자 충돌 | 외부 플러그인 도구가 provider 요청에서 거부되거나, 충돌 해소 규칙이 늦게 정해져 이름 변경(major)이 생긴다 | M0는 `TOOL_NAME_WIRE_PATTERN`만 오류로 강제하고 충돌은 `tool_name_conflict` 오류로 등록을 막는다. 접두 규칙은 [미결]로 사용자 확인 뒤 M2에 반영 |
 | Cordis 타입 결합 요구가 F 순수성과 충돌 | 그룹 코드가 `ctx.get` 직접 호출로 타입 없이 서비스를 쓰게 된다 | `ScopeApi.capability(key)` 경로만 문서화하고, X에 `ctx.get` 직접 사용 금지 lint를 제안한다. 선언 병합 여부는 [미결] |
-| 능력 정의 선례 없음 | `ToolSpecFor` 분배 타입의 추론이 기대와 다르거나 컴파일 비용이 크다 | P4를 별도 작업으로 두고 타입 테스트로 먼저 고정한다. dur `ToolRegistration`은 형태 참고만 한다 |
+| 기능 정의 선례 없음 | `ToolSpecFor` 분배 타입의 추론이 기대와 다르거나 컴파일 비용이 크다 | P4를 별도 작업으로 두고 타입 테스트로 먼저 고정한다. dur `ToolRegistration`은 형태 참고만 한다 |
 | TypeBox 두 벌 설치 | `TSchema` 동일성 검사(`instanceof`, 심볼 키)가 버전 사이에서 어긋날 수 있다 | F 코드는 TypeBox 내부 심볼에 의존하지 않고 JSON 구조만 읽는다. 버전 [미결] 해소 전까지 P2에서 설치 상태를 보고 |
 | `isolatedDeclarations`와 추론형 정의 | export 상수마다 타입 주석이 필요해 정의 파일이 길어진다 | `xeon/tsconfig.base.json`에서 contracts 전체에 켜져 있다(`_research/foundation-plan.md` §2). 정의 파일도 예외 없이 명시 주석을 단다. 주석이 지나치게 길면 메서드·도구 스키마를 별도 export 상수로 나누고 `typeof`로 참조한다 |
 | 크기 한도 수치의 근거 부족 | provider가 실제로는 더 작은 한도를 둘 수 있다 | 한도 상수를 한곳(`validate.ts`)에 두고 L1.models 계약 테스트에서 provider별 한도를 확인한다 |

@@ -78,7 +78,7 @@ export interface AssembleOptions {
   /** 테스트용 그룹, 모델 테이프 provider */
   readonly extraPlugins?: readonly HostPluginModule[];
   /**
-   * 확장이 공급하는 능력의 정의. 내장 L2 정의 표에 더해 능력 래퍼에 넘긴다(X.primitives.spec §4.4.7).
+   * 확장이 공급하는 기능의 정의. 내장 L2 정의 표에 더해 기능 래퍼에 넘긴다(X.primitives.spec §4.4.7).
    * 정의에 `idempotent`·`readOnly`가 없는 메서드는 on 핸들러와 drive 함수에서 거부된다
    */
   readonly extraCapabilityDefs?: readonly AnyCapabilityDef[];
@@ -93,7 +93,7 @@ export interface AssembleOptions {
    */
   readonly agentDefinitions?: readonly AgentDefinition[];
   /**
-   * 테스트 주입: 웹 능력의 DNS 해석기와 HTTP 전송. 운영은 생략한다(시스템 해석기와 guarded-fetch 전송).
+   * 테스트 주입: 웹 기능의 DNS 해석기와 HTTP 전송. 운영은 생략한다(시스템 해석기와 guarded-fetch 전송).
    * 루프백은 정책이 항상 거부하므로 시험이 공개 주소로 풀리는 이름과 가짜 전송을 넣는다
    */
   readonly webPorts?: {
@@ -103,7 +103,7 @@ export interface AssembleOptions {
     readonly hostedSearch?: HostedSearchPort;
   };
   /**
-   * 테스트 주입: 비밀 서비스(와 관리 서비스)를 만드는 함수. 운영은 생략하고 그러면 sops 제공자를 가진 `createSecretsRuntime`을 쓴다.
+   * 테스트 주입: 시크릿 서비스(와 관리 서비스)를 만드는 함수. 운영은 생략하고 그러면 sops 제공자를 가진 `createSecretsRuntime`을 쓴다.
    * 시험은 `memorySecrets`(`@fresnel/platform-secrets/testing`)를 돌려줘 sops와 age 키 없이 `secretEnv` 호출의 승인 증거를 끝에서 끝까지 본다.
    * 받은 deps의 시계, 스케줄러, id 발급은 엔진의 것이다
    */
@@ -373,7 +373,7 @@ export interface TurnPort {
 export type CommandFailure =
   /** 명령 서비스(`dialog.commands`)를 가진 확장이 올라와 있지 않다 */
   | { readonly kind: "unavailable" }
-  /** 명령 서비스가 입력을 거절했다. `code`는 능력 오류 코드(`command_args_invalid`, `command_shell_disabled`, `denied` 등) */
+  /** 명령 서비스가 입력을 거절했다. `code`는 기능 오류 코드(`command_args_invalid`, `command_shell_disabled`, `denied` 등) */
   | { readonly kind: "rejected"; readonly code: string; readonly message: string };
 
 /**
@@ -398,12 +398,12 @@ export interface CommandPort {
 export type DialogWireFailure =
   /** 상태줄 서비스(`dialog.status`)나 첨부 서비스(`dialog.attachments`)를 가진 확장이 올라와 있지 않다 */
   | { readonly kind: "unavailable" }
-  /** 능력이 입력을 거절했다. `code`는 능력 오류 코드(`attachment_too_large`, `not_found` 등)다 */
+  /** 기능이 입력을 거절했다. `code`는 기능 오류 코드(`attachment_too_large`, `not_found` 등)다 */
   | { readonly kind: "rejected"; readonly code: string; readonly message: string };
 
 /**
  * 상태줄 세그먼트 스냅숏과 첨부 추가(M3-REQ-16, M3-20). 명령과 같이 호스트가 사람의 입력으로 부르고(호출자 `host`) thread가 있으면 그
- * 문맥을 싣는다. 첨부 원천의 상대 경로를 thread의 작업 폴더 기준으로 풀지는 능력이 정한다(L4.host-service.spec §10 미결)
+ * 문맥을 싣는다. 첨부 원천의 상대 경로를 thread의 작업 폴더 기준으로 풀지는 기능이 정한다(L4.host-service.spec §10 미결)
  */
 export interface DialogWirePort {
   /** thread의 상태줄 세그먼트 전체. 목록만 읽으므로 쓰기 소유를 얻지 않는다 */
@@ -432,7 +432,7 @@ export interface DialogWirePort {
 }
 
 /**
- * 웹 provider 상태와 웹 설정 값(`web.providers`, F wire-settings, M3-REQ-96). 읽기 전용이고 비밀 값을 싣지 않는다. cap-web이 올라와 있지 않으면
+ * 웹 provider 상태와 웹 설정 값(`web.providers`, F wire-settings, M3-REQ-96). 읽기 전용이고 시크릿 값을 싣지 않는다. cap-web이 올라와 있지 않으면
  * provider 목록은 비고 설정 값은 설정 층에서 읽는다(assembly/web-providers.ts)
  */
 export interface WebPort {
@@ -636,7 +636,7 @@ export interface UserNotifyPort {
 }
 
 /**
- * `secret.*` 처리기가 쓰는 비밀 관리 포트(HOST.3). 관리 서비스(`fresnel.secretAdmin`)는 사람 전용이라 L4 진입점인 이 포트에만 주고
+ * `secret.*` 처리기가 쓰는 시크릿 관리 포트(HOST.3). 관리 서비스(`fresnel.secretAdmin`)는 사람 전용이라 L4 진입점인 이 포트에만 주고
  * 확장과 모델 도구에는 주지 않는다(L0.secrets.spec §3.8).
  */
 export interface SecretsPort {
@@ -644,13 +644,13 @@ export interface SecretsPort {
   /** CLI가 맡긴 값 입력·열람 수단. 처리기가 꺼내 쓰고, 맡기는 쪽은 `InProcessHost.secretOutOfBand`다 */
   readonly offers: SecretOfferStore;
   /**
-   * `secret.beginEntry { action: "add" }`가 만들 비밀의 기본 메타. wire에 메타 필드가 없어 호스트가 설정에서 정한다.
+   * `secret.beginEntry { action: "add" }`가 만들 시크릿의 기본 메타. wire에 메타 필드가 없어 호스트가 설정에서 정한다.
    * 사용 정책은 비어 있어(사용 불가) `secret.meta`로 정책을 정하기 전에는 에이전트가 쓸 수 없다. 제공자 파일이 설정되지 않았으면 undefined.
    */
   newMeta(name: SecretName): SecretMeta | undefined;
   /**
-   * 사용자 범위 `l1.models.providers`에 연결된 비밀에 모델 provider 사용 하나를 허용으로 더한다(HS-45 [결정: M2 Mac 실기]).
-   * `settings.set`이 그 키를 쓴 뒤 부른다. 비밀이 아직 없으면 건너뛰고(만들 때 `newMeta`가 더한다) 실패는 경고로만 남긴다
+   * 사용자 범위 `l1.models.providers`에 연결된 시크릿에 모델 provider 사용 하나를 허용으로 더한다(HS-45 [결정: M2 Mac 실기]).
+   * `settings.set`이 그 키를 쓴 뒤 부른다. 시크릿이 아직 없으면 건너뛰고(만들 때 `newMeta`가 더한다) 실패는 경고로만 남긴다
    */
   linkModelProviders(): Promise<void>;
 }

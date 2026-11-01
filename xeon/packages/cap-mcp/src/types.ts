@@ -5,7 +5,7 @@ import type { McpBlockedReason, McpServerDef } from "@fresnel/contracts/capabili
 /** 서버 정의 출처 표기(McpServerStatus.source). 예: "settings:user", "mcpjson:project", "ext:helm" */
 type ServerSource = string;
 
-/** 서버가 막히는 이유(McpServerStatus.blockedReason). `approval_required`는 비밀 env 서버가 기동 승인을 기다리는 상태다 */
+/** 서버가 막히는 이유(McpServerStatus.blockedReason). `approval_required`는 시크릿 env 서버가 기동 승인을 기다리는 상태다 */
 export type BlockedReason = McpBlockedReason;
 
 /** 이름이 정해진 서버 정의 하나 */

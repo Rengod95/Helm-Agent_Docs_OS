@@ -102,7 +102,7 @@ const DENY = (): Result<"allow" | "deny", BrowseConfirmError> => ok("deny");
 const UNAVAILABLE = (): Result<"allow" | "deny", BrowseConfirmError> =>
   err({ kind: "unavailable", message: "the approval channel is down" });
 
-/** provider가 `open`에서 던지는 능력 오류 */
+/** provider가 `open`에서 던지는 기능 오류 */
 function failure(code: string, retryable: boolean): CapabilityError {
   return new CapabilityError({
     capability: "web.browse",

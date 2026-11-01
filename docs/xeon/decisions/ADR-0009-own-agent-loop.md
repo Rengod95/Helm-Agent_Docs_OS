@@ -14,20 +14,20 @@ binds: [xeon/packages/core-loop/**, xeon/packages/contracts/src/conversation/**]
 
 - 상태: accepted
 - 날짜: 2026-10-22
-- [결정] pi-agent-core에 의존하지 않는다. pi-agent-core 1.3.0(MIT)의 루프를 core-loop로 포크해 Xeon 자체 에이전트 루프로 다시 설계한다. pi-agent-core는 구현·설계 참고로만 쓴다. pi-ai는 provider 층 의존으로 유지하고 부족분만 포크한다(사용자 지시 2026-10-22, 열린 차단 항목 응답 "pi agent core는 포크 떠서 Xeon 자체 에이전트 루프로 재설계").
+- [결정] pi-agent-core에 의존하지 않는다. pi-agent-core 1.3.0(MIT)의 루프를 core-loop로 포크해 Fresnel 자체 에이전트 루프로 다시 설계한다. pi-agent-core는 구현·설계 참고로만 쓴다. pi-ai는 provider 층 의존으로 유지하고 부족분만 포크한다(사용자 지시 2026-10-22, 열린 차단 항목 응답 "pi agent core는 포크 떠서 Fresnel 자체 에이전트 루프로 재설계").
 - 근거 기록: `_research/decisions-log.md` 2026-10-21 첫 결정 "pi agent-core 루프는 고정 커밋으로 가져와 자체 유지"와 같은 방향이다. `_research/foundation-plan.md` §2 모델·루프 행의 "pi-agent-core 1.3.0 정확 고정 + 훅 래핑"은 이 ADR이 대체한다.
 - 대체 범위: ADR-0003 §3.2 마지막 항목(L1-b 모델 호출부의 `pi-agent-core` 정확 고정 + 훅 래핑)을 대체한다. ADR-0003의 나머지 결정(durable env·tools·images·truncate 포크, 커널 직접 구현)은 그대로다.
 
 ## 2. 맥락
 
-M1 구현(`bcd77b4`)은 `@earendil-works/pi-agent-core` 1.3.0의 `runAgentLoop`를 turn 하나의 실행 본체로 쓰고, Xeon 동작은 훅 7종과 이벤트 싱크로 붙였다(`L1.loop.spec` §3.2 이전 판). 구현에서 드러난 사실은 다음과 같다.
+M1 구현(`bcd77b4`)은 `@earendil-works/pi-agent-core` 1.3.0의 `runAgentLoop`를 turn 하나의 실행 본체로 쓰고, Fresnel 동작은 훅 7종과 이벤트 싱크로 붙였다(`L1.loop.spec` §3.2 이전 판). 구현에서 드러난 사실은 다음과 같다.
 
 ### 2.1 래퍼 비용
 
 - `core-loop/src/agent-wrapper.ts`가 1,395줄이다. 커밋 지점 T2·T3는 싱크(`emit`)의 `switch` 안에서, T4는 `finishTurn` 훅 안에서 커밋한다. 루프의 단계 순서가 훅 호출 순서에 묶여 있어 커밋 순서를 코드에서 한눈에 읽을 수 없다.
 - agent-core는 단계 중간부터 시작할 수 없다. 그래서 재개 `next: "tools"`·`await_input` 경로는 래퍼가 `runToolCall`로 도구 단계를 따로 돈다(`replayTools`, `runPendingCall`). 같은 도구 단계 규칙이 두 벌 있다.
 - 재개 `request` 진입은 `step.started`가 이미 기록된 단계를 다시 열 때 `adoptFirstStep` 표시로 싱크의 T2를 건너뛴다. 루프 바깥 상태로 루프 안 동작을 고친다.
-- steer 배치는 T4 커밋 결과를 `state.placedSteer`에 담아 두고 `getSteeringMessages` 콜백이 꺼내 가는 방식이다. 큐 의미를 Xeon이 정하는데 전달은 pi 콜백 시점을 따른다.
+- steer 배치는 T4 커밋 결과를 `state.placedSteer`에 담아 두고 `getSteeringMessages` 콜백이 꺼내 가는 방식이다. 큐 의미를 Fresnel이 정하는데 전달은 pi 콜백 시점을 따른다.
 - `runAgentLoop([], { messages: [], tools: [] }, …)`로 빈 문맥을 넘기고 `prepareRequest` 훅에서 문맥을 바꿔 끼운다. 루프가 가진 메모리 배열(`context.messages`)은 쓰지 않는데 루프는 그 배열에 계속 push한다(판정표 A1).
 - 중단 시 순차·병렬 모두 `break`로 남은 호출에 결과가 없다(판정표 A3). 래퍼가 단계 끝에서 `closeUnexecuted`로 메운다.
 - `finishTurn` 결정은 `stopReason`이 `error`·`aborted`일 때 무시된다. 래퍼는 이를 알고 판정 순서를 맞춘다.
@@ -43,12 +43,12 @@ M1 구현(`bcd77b4`)은 `@earendil-works/pi-agent-core` 1.3.0의 `runAgentLoop`�
 
 - pi-agent-core는 pi-ai와 typebox를 정확 고정한다(1.3.0 `package.json`: `@earendil-works/pi-ai` 1.3.0, `typebox` 1.3.27). pi-ai를 올리면 agent-core도 같은 판으로 올려야 하고, 그때마다 훅 7종의 시그니처·호출 위치·이벤트 순서를 다시 대조해야 한다(`L1.loop.plan` §4 업그레이드 체크리스트 8단계).
 - 훅 의미는 문서 주석으로만 정해져 있고 CHANGELOG에 빈 절이 있다(`_research/notes/L1-1.md` §2). 의미가 바뀌어도 타입 검사에 걸리지 않는다.
-- Xeon 계층 설계(단계 경계 커밋 S1·C3·E1~E3·C5, 확장 지점 on·post·drive·scope, drive 임대)는 pi 루프 바깥에서 붙인 것이라, pi 판이 바뀔 때마다 래퍼를 다시 맞춰야 한다.
+- Fresnel 계층 설계(단계 경계 커밋 S1·C3·E1~E3·C5, 확장 지점 on·post·drive·scope, drive 임대)는 pi 루프 바깥에서 붙인 것이라, pi 판이 바뀔 때마다 래퍼를 다시 맞춰야 한다.
 
 ### 2.4 포크 대상의 크기
 
 - agent-core 1.3.0 TS 원본은 2,519줄이다(`agent-loop.ts` 949, `agent.ts` 613, `types.ts` 539, `proxy.ts` 393, `stream-fn.ts` 20, `index.ts` 5). 1.3.0 `dist/*.js.map`의 `sourcesContent`는 1.1.0 소스(`~/projects/_ref/pi-src/packages/agent/src`)와 바이트 동일하다(`_research/notes/L1-1.md` §0). tarball sha1은 `aec4d26bf7cdab5bca2a129f6a6dffc606c892db`다.
-- Xeon이 쓰는 부분은 `agent-loop.ts`의 `runLoop`, `streamAssistantResponse`, 도구 배치 실행(순차·병렬), `failToolCallsFromTruncatedMessage`와 `types.ts`의 메시지·도구·이벤트 타입이다. `Agent` 클래스, `proxy.ts`, `stream-fn.ts`(전역 기본 streamFn), `agentLoop`·`agentLoopContinue`의 `EventStream` 포장은 쓰지 않는다.
+- Fresnel이 쓰는 부분은 `agent-loop.ts`의 `runLoop`, `streamAssistantResponse`, 도구 배치 실행(순차·병렬), `failToolCallsFromTruncatedMessage`와 `types.ts`의 메시지·도구·이벤트 타입이다. `Agent` 클래스, `proxy.ts`, `stream-fn.ts`(전역 기본 streamFn), `agentLoop`·`agentLoopContinue`의 `EventStream` 포장은 쓰지 않는다.
 - 루프가 부르는 pi-ai 값 함수는 6개다: `EventStream`, `getCurrentTools`, `getToolStateChanges`, `normalizeContext`, `toToolDeclaration`, `validateToolArguments`(`agent-loop.ts:6-17`). DR-07에 따라 pi-ai 값 import는 core-models만 한다.
 - 라이선스는 MIT다(`Copyright (c) 2025 Mario Zechner`, pi 저장소 루트 `LICENSE`). npm tarball에는 LICENSE 파일이 없고 `package.json`의 `"license": "MIT"`만 있다.
 
@@ -66,7 +66,7 @@ M1 구현(`bcd77b4`)은 `@earendil-works/pi-agent-core` 1.3.0의 `runAgentLoop`�
 
 | 이름 | 처리 |
 |---|---|
-| `AgentMessage` | F 정의. `Message \| XeonCustomMessage` 닫힌 유니온. 선언 병합(`CustomAgentMessages`)은 없앤다. 확장 구분은 지금처럼 `customType`으로 한다 |
+| `AgentMessage` | F 정의. `Message \| FresnelCustomMessage` 닫힌 유니온. 선언 병합(`CustomAgentMessages`)은 없앤다. 확장 구분은 지금처럼 `customType`으로 한다 |
 | `AgentEvent` | F 정의. 변형 `type` 이름은 pi와 같게 둔다(확장 지점 이름과 `F.conversation.spec` §3.5.4 대응표가 이 이름을 쓴다). `any` 필드는 `JsonObject`, `AgentToolResult`, `JsonValue`로 좁힌다 |
 | `AgentTool`, `AgentToolResult`, `AgentToolCall`, `AgentToolUpdateCallback`, `ToolExecutionMode`, `AgentContext` | F 정의. `AgentTool`은 pi-ai `Tool`을 확장한다. `TDetails` 기본값은 `JsonValue`다 |
 | `BeforeToolCall*`, `AfterToolCall*`, `AgentToolHooks`, `CustomAgentMessages` | 없앤다. 도구 실행은 §3.4의 `ToolService` 단계 계약으로 넘긴다 |
@@ -76,11 +76,11 @@ M1 구현(`bcd77b4`)은 `@earendil-works/pi-agent-core` 1.3.0의 `runAgentLoop`�
 
 ### 3.3 core-loop 자체 루프
 
-[결정] turn 하나는 Xeon 루프 함수 호출 하나다. 루프는 진입점, 단계 순서, 커밋 지점, 확장 지점 발화, 취소, 입력 큐 소비를 직접 정한다. 훅 콜백으로 바깥 동작을 끼우지 않는다.
+[결정] turn 하나는 Fresnel 루프 함수 호출 하나다. 루프는 진입점, 단계 순서, 커밋 지점, 확장 지점 발화, 취소, 입력 큐 소비를 직접 정한다. 훅 콜백으로 바깥 동작을 끼우지 않는다.
 
 옮겨 오는 것(포크, 원본 구조 유지):
 
-| 원본(`agent-loop.ts`, 1.3.0) | Xeon 위치 | 바꾸는 점 |
+| 원본(`agent-loop.ts`, 1.3.0) | Fresnel 위치 | 바꾸는 점 |
 |---|---|---|
 | `runLoop` 안쪽 반복(163-321): 도구 호출이 있거나 대기 메시지가 있으면 다음 요청 | `core-loop/src/loop/run-turn.ts` | 바깥 반복(follow-up 큐)은 뺀다. followUp은 새 turn이다(`F.extensions.spec` §4.4). 단계 경계마다 커밋 지점을 명시 단계로 부른다 |
 | `streamAssistantResponse`(381-476): 부분 메시지 교체, `done`·`error`에서 최종 메시지, 시작 이벤트 없는 응답 처리 | `core-loop/src/loop/stream-response.ts` | 문맥 배열에 push하지 않는다. 결과 메시지와 이벤트만 낸다. `getApiKey`·`apiKey` 처리는 없앤다(core-models가 키를 임대한다) |
@@ -91,7 +91,7 @@ M1 구현(`bcd77b4`)은 `@earendil-works/pi-agent-core` 1.3.0의 `runAgentLoop`�
 
 다시 설계하는 것:
 
-| 주제 | pi 방식 | Xeon 루프 |
+| 주제 | pi 방식 | Fresnel 루프 |
 |---|---|---|
 | 진입점 | `runAgentLoop`(새 프롬프트), `runAgentLoopContinue`(마지막이 assistant면 거부) | `runTurn(entry)` 하나. `entry.kind`가 `fresh`, `request`(다음 또는 끊긴 단계 요청), `tools`(T3 뒤 도구 단계 중간), `turn_end`다. 재개 `next` 판별자가 그대로 진입점이 된다(`L1.loop.spec` §4.5) |
 | 단계 경계 커밋 | 없음(래퍼가 싱크·훅에서 커밋) | 루프 단계 함수가 순서대로 부른다: T1/C2 → S1(`step.started`) → 요청 → `message_end` chain → C3(응답, `next:"tools"` 체크포인트) → 도구 배치(E1~E3는 core-tools) → `turn_end`·`agent_before_settle` chain → C5(`step.completed` + 체크포인트 + 엔트리 + 배치) → … → C6. 커밋 실패는 값(`Result`)으로 돌아와 run을 끝낸다 |
@@ -147,7 +147,7 @@ export interface ToolStepPort {
 [결정] 포크 기록은 ADR-0003 §3.4 규칙을 따른다.
 
 - 원본: `https://github.com/earendil-works/pi`, `packages/agent/src/{agent-loop.ts,types.ts}`, npm `@earendil-works/pi-agent-core@1.3.0`(tarball sha1 `aec4d26bf7cdab5bca2a129f6a6dffc606c892db`)의 `dist/*.js.map` `sourcesContent`. 1.1.0 소스와 바이트 동일하다.
-- `core-loop/UPSTREAM.json`: `upstream`, `version: "1.3.0"`, `license: "MIT"`, `copiedPaths`(원본 함수 → Xeon 파일), `notCopied`(`agent.ts`, `proxy.ts`, `stream-fn.ts`, `agentLoop`, `agentLoopContinue`, `declareToolChanges`), `modifications`.
+- `core-loop/UPSTREAM.json`: `upstream`, `version: "1.3.0"`, `license: "MIT"`, `copiedPaths`(원본 함수 → Fresnel 파일), `notCopied`(`agent.ts`, `proxy.ts`, `stream-fn.ts`, `agentLoop`, `agentLoopContinue`, `declareToolChanges`), `modifications`.
 - `core-loop/LICENSE.pi`: pi 저장소 루트 `LICENSE`(MIT) 원문 사본.
 - 옮긴 함수가 있는 파일 머리에 출처 주석을 단다: `// Derived from pi-agent-core 1.3.0 agent-loop.ts <함수 이름> (MIT, Copyright (c) 2025 Mario Zechner). See LICENSE.pi.`
 - 원본 구조에서 벗어난 줄에는 `// XEON-PATCH: <id>`를 단다. 자체 설계로 새로 쓴 파일(`step-end.ts` 등)에는 달지 않는다.
@@ -173,7 +173,7 @@ export interface ToolStepPort {
 
 - 루프 코드를 직접 유지한다. 원본 기준 약 600줄(`runLoop`, `streamAssistantResponse`, 도구 배치)을 옮기고, 래퍼 1,395줄을 다시 나눈다.
 - pi 루프의 버그 수정을 자동으로 받지 않는다. §3.7의 수동 추종만 있다.
-- pi 생태계 확장(pi-coding-agent 확장 등)이 pi-agent-core 타입을 기대하면 그대로 붙지 않는다. Xeon 확장 API는 F 타입을 쓰므로 영향은 X 가상 모듈(`X.loading-trust.spec` §4 가상 모듈 표의 `@earendil-works/pi-agent-core` 행)에 한정된다. 제공 여부는 §6 미결로 둔다.
+- pi 생태계 확장(pi-coding-agent 확장 등)이 pi-agent-core 타입을 기대하면 그대로 붙지 않는다. Fresnel 확장 API는 F 타입을 쓰므로 영향은 X 가상 모듈(`X.loading-trust.spec` §4 가상 모듈 표의 `@earendil-works/pi-agent-core` 행)에 한정된다. 제공 여부는 §6 미결로 둔다.
 - 이행 중 core-loop, core-tools, contracts, core-models가 한 묶음으로 바뀐다. 이행 순서는 `L1.loop.plan` §3 LP16~LP21이다.
 
 ## 5. 대안

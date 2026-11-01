@@ -153,7 +153,7 @@ const echoText = Type.Object(
 );
 const echoOut = Type.String();
 
-/** 시험용 능력 `demo.echo`: `echo`는 멱등 쓰기, `peek`는 읽기, `poke`는 선언 없는 쓰기 */
+/** 시험용 기능 `demo.echo`: `echo`는 멱등 쓰기, `peek`는 읽기, `poke`는 선언 없는 쓰기 */
 const echoCapability = defineCapability({
   id: "demo.echo",
   version: "1.0.0",

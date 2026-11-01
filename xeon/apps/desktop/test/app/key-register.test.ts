@@ -85,14 +85,14 @@ describe("registering a model key from the settings screen", () => {
         registerError: {
           kind: "rejected",
           exitCode: 1,
-          detail: "비밀 제공자(sops)를 쓸 수 없다 (not_registered)",
+          detail: "시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
         },
       }),
     );
     const outcome = await submitKey(app.commands.setup, name, "add", inputOf(FAKE).field);
     expect(outcome).toEqual({
       kind: "failed",
-      text: "키를 저장하지 못했습니다. 비밀 제공자(sops)를 쓸 수 없다 (not_registered)",
+      text: "키를 저장하지 못했습니다. 시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
     });
     expect(JSON.stringify(outcome)).not.toContain(FAKE);
     await app.stop();

@@ -17,7 +17,7 @@ import { TapeMismatchError, type TapePlayer, type TapeStream } from "./tape.ts";
 
 // 테이프 재생기를 pi-ai Provider로 감싼다. core-models의 ModelService, 다른 L1·L2 패키지 테스트가 실제 모델 대신
 // 이 provider를 `createModels({ credentials }).setProvider(...)`에 더해 쓴다(eng.testing.guide TS-04, plan §2).
-// pi-ai provider와 같은 길(auth 해석 → onPayload → 스트림)을 지나므로 키 해석과 지점 발화도 함께 시험된다.
+// pi-ai provider와 같은 길(auth 해석 → onPayload → 스트림)을 지나므로 키 해석과 훅 발화도 함께 시험된다.
 
 export interface TapeModelDef {
   readonly id: string;

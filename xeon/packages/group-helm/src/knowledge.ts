@@ -26,7 +26,7 @@ type KnowledgeApi = Pick<GroupApi<HelmState>, "capability">;
 type SourceFailure = Extract<HelmFailure, { kind: "capability" | "lease_lost" }>;
 
 /**
- * 출처 하나의 호출 결과. 예외를 받아 HelmFailure로 바꾼다. 능력 실패와 임대 회수만 값으로 돌려주고
+ * 출처 하나의 호출 결과. 예외를 받아 HelmFailure로 바꾼다. 기능 실패와 임대 회수만 값으로 돌려주고
  * 그 밖의 예외(타입 위반, Bug)는 다시 던진다. 오류를 삼키지 않는다
  */
 export async function callSource<T>(

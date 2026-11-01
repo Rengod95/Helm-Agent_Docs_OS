@@ -40,14 +40,14 @@ describe("정의 검증", () => {
     expect((manifest.requires ?? []).map((entry) => entry.id)).toEqual(["workspace.images"]);
   });
 
-  test("매니페스트가 제공하는 능력이 구현한 정의와 같다", () => {
+  test("매니페스트가 제공하는 기능이 구현한 정의와 같다", () => {
     const provided = (dialogManifest().provides ?? []).map(
       (entry) => `${entry.id}@${entry.version}`,
     );
     expect(provided).toEqual([...M2, DialogNotify].map((def) => `${def.id}@${def.version}`));
   });
 
-  test("모델 도구는 ask_user 하나이고 나머지 능력에는 도구가 없다", () => {
+  test("모델 도구는 ask_user 하나이고 나머지 기능에는 도구가 없다", () => {
     expect(orderTools(M2).map((tool) => tool.name)).toEqual(["ask_user"]);
     for (const def of [DialogCommands, DialogStatus, DialogAttachments]) {
       expect(def.tools).toEqual([]);

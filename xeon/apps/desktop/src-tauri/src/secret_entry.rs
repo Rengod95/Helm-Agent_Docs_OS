@@ -173,7 +173,7 @@ impl TauriEntryLauncher {
 
 impl EntryLauncher for TauriEntryLauncher {
     fn launch(&self, args: &[OsString]) -> Result<Launched, LaunchError> {
-        // 엔진과 같은 작업 폴더, 같은 환경이다. 그래서 같은 홈과 같은 비밀 저장소(설정 폴더의 메타, SOPS 파일, age 키)를 본다.
+        // 엔진과 같은 작업 폴더, 같은 환경이다. 그래서 같은 홈과 같은 시크릿 저장소(설정 폴더의 메타, SOPS 파일, age 키)를 본다.
         let engine = TauriLauncher::new(self.app.clone(), self.runtime.clone());
         let cwd = engine.working_dir()?;
         let shell = self.app.shell();
@@ -491,7 +491,7 @@ mod tests {
         let launcher = FakeLauncher::new(Script::Exit(
             1,
             vec![
-                "비밀 제공자(sops)를 쓸 수 없다 ".to_string(),
+                "시크릿 제공자(sops)를 쓸 수 없다 ".to_string(),
                 "(not_registered)\n".to_string(),
             ],
         ));
@@ -502,7 +502,7 @@ mod tests {
             result,
             Err(SecretEntryError::Rejected {
                 exit_code: Some(1),
-                detail: "비밀 제공자(sops)를 쓸 수 없다 (not_registered)".into(),
+                detail: "시크릿 제공자(sops)를 쓸 수 없다 (not_registered)".into(),
             })
         );
     }

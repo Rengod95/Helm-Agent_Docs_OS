@@ -56,19 +56,19 @@ export interface ThinkingLevelSelectInput extends HookInput {
 
 /**
  * 요청 지점을 발화하는 쪽. beforeProviderRequest 외에는 선택이라 없으면 그 지점을 발화하지 않는다.
- * 핸들러가 던진 실패는 X가 지점 종류별 규칙(skip, record)으로 흡수한다
+ * 핸들러가 던진 실패는 X가 훅 종류별 규칙(skip, record)으로 흡수한다
  */
 export interface ProviderDispatcher {
-  /** chain 지점. 핸들러 패치를 적용한 최종 페이로드를 돌려준다 */
+  /** chain 훅. 핸들러 패치를 적용한 최종 페이로드를 돌려준다 */
   beforeProviderRequest(input: BeforeProviderRequestInput): Promise<unknown>;
   /**
-   * guard 지점(`guard.model.before`, M3-REQ-109). `beforeProviderRequest`의 최종 페이로드로 부른다. 차단이면 `{ block: true, reason }`,
+   * guard 훅(`guard.model.before`, M3-REQ-109). `beforeProviderRequest`의 최종 페이로드로 부른다. 차단이면 `{ block: true, reason }`,
    * 의견이 없으면 undefined다. 필수다: 가드를 조용히 건너뛰는 발화기를 만들 수 없게 한다. 던지면 차단으로 본다(fail-closed)
    */
   guardProviderRequest(
     input: BeforeProviderRequestInput,
   ): Promise<{ readonly block: true; readonly reason: string } | undefined>;
-  /** chain 지점. 패치를 적용한 최종 헤더(소문자 이름)를 돌려준다. 값이 없는 이름은 삭제된 것이다 */
+  /** chain 훅. 패치를 적용한 최종 헤더(소문자 이름)를 돌려준다. 값이 없는 이름은 삭제된 것이다 */
   beforeProviderHeaders?(
     input: BeforeProviderHeadersInput,
   ): Promise<Readonly<Record<string, string>>>;
@@ -107,7 +107,7 @@ export interface HeaderPlan {
 }
 
 /**
- * 요청 헤더를 핸들러에 보여 줄 사본과 되돌리기 함수로 나눈다. extraSensitive는 등록부가 비밀 참조에서 푼 헤더 이름(소문자)이다.
+ * 요청 헤더를 핸들러에 보여 줄 사본과 되돌리기 함수로 나눈다. extraSensitive는 등록부가 시크릿 참조에서 푼 헤더 이름(소문자)이다.
  * 이름 대소문자는 원래 것을 되살린다(HTTP 헤더는 대소문자를 구분하지 않으므로 의미는 같다)
  */
 export function planHeaders(

@@ -45,7 +45,7 @@ const goalExtension: ExtensionEntry = ({ manifest: loaded, scope }) => {
   });
 };
 
-/** 목표 설정 확장의 모듈. 확장이 쓰는 능력(`work.goals`)을 `requires`에 적는다 */
+/** 목표 설정 확장의 모듈. 확장이 쓰는 기능(`work.goals`)을 `requires`에 적는다 */
 function goalProbe(): HostPluginModule {
   const manifest = defineManifest({
     schemaVersion: 1,

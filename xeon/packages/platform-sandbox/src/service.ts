@@ -60,7 +60,7 @@ const BASENAME_SEARCH_DEPTH = 3;
 export interface SandboxServiceDeps {
   /** fresnel.os 서비스에서 쓰는 부분 */
   readonly os: Pick<OsService, "dirs" | "time" | "logger" | "resolveBinary">;
-  /** fresnel.secrets 서비스에서 쓰는 부분. 없으면 비밀 파일 경로 없이 기본 보호 경로만 쓴다 */
+  /** fresnel.secrets 서비스에서 쓰는 부분. 없으면 시크릿 파일 경로 없이 기본 보호 경로만 쓴다 */
   readonly secrets?: Pick<SecretService, "protectedPaths">;
   /** 현재 유효 설정(l0.sandbox.*). 호출마다 읽으므로 nextTurn 변경이 다음 호출부터 반영된다 */
   readonly settings: () => SandboxSettings;

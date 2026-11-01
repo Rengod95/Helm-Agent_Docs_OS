@@ -40,7 +40,7 @@ export interface TestHostOptions {
   /** thread마다 다른 값을 돌려주는 설정 읽기. 있으면 settings 대신 쓴다(session 범위 값을 시험한다) */
   readonly settingsSource?: PrimitivesSettingsSource;
   readonly loop?: MemoryLoopOptions;
-  /** 능력 정의 조회(`ExtHostDeps.capabilityDefs`) */
+  /** 기능 정의 조회(`ExtHostDeps.capabilityDefs`) */
   readonly capabilityDefs?: CapabilityDefLookup;
   /** 다른 호스트와 나눠 쓸 대역. 프로세스 재시작을 흉내 낼 때 같은 저장소를 새 호스트에 넘긴다 */
   readonly shared?: {
@@ -77,7 +77,7 @@ export interface TestHost {
   /** 새 thread id */
   newThread(): ThreadId;
   boundary(threadId: ThreadId): TestBoundary;
-  /** 백그라운드 작업(drive 호출, 유휴 적용, 능력 바인딩)이 모두 끝나기를 기다린다 */
+  /** 백그라운드 작업(drive 호출, 유휴 적용, 기능 바인딩)이 모두 끝나기를 기다린다 */
   settled(): Promise<void>;
   /**
    * 프로세스 재시작을 흉내 낸다(L3.group-sdk.spec §3.13 요청 4). 같은 기록 저장소·루프·큐를 쓰는 새 호스트를 만든다.

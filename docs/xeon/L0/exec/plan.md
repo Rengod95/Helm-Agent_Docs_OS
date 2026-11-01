@@ -12,12 +12,12 @@ binds: [xeon/packages/platform-exec/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: pi durable env를 포크해 `fresnel.exec`(`ExecService`)를 세우고, 그 위에 env 허용 목록, 데코레이션 가능한 `Shell`, 백그라운드 실행을 얹는다. 비밀 주입 지점은 M1이다(`L0.exec.spec` §3.6, review.decisions-2 U-19).
+목표: pi durable env를 포크해 `fresnel.exec`(`ExecService`)를 세우고, 그 위에 env 허용 목록, 데코레이션 가능한 `Shell`, 백그라운드 실행을 얹는다. 시크릿 주입 지점은 M1이다(`L0.exec.spec` §3.6, review.decisions-2 U-19).
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
 | M0 | 포크 5파일과 적합성 자산 복사, 포크 기록 3종, CancelScope 치환(P1), Result 정리(P2), 오류 클래스 F 이동(P6), 테스트 포팅(P4, P5), 플랫폼 provider 추출(P3, darwin·linux), 적합성 스위트 Linux 통과, Bun 동작 스파이크 | [결정: `_research/foundation-plan.md` §5 P4 M0 "`platform-exec`(durable env 포크)"] |
-| M1 | env 허용 목록 빌더, sandbox 데코레이터 접점(조립 시험), `secretEnv` 비밀 주입 지점(EX-13), `fresnel.exec` 서비스 등록, 설정 정의, `fakeExec`·`memoryFs`, 적합성 macOS 통과 | [결정: foundation-plan §5 M1 "도구 read, ls, bash(sandbox)"]. M1의 "SOPS 비밀 참조 1종"은 bash 도구의 env 주입(실행마다 승인)으로 검증한다 [결정: review.decisions-2 U-19] |
+| M1 | env 허용 목록 빌더, sandbox 데코레이터 접점(조립 시험), `secretEnv` 시크릿 주입 지점(EX-13), `fresnel.exec` 서비스 등록, 설정 정의, `fakeExec`·`memoryFs`, 적합성 macOS 통과 | [결정: foundation-plan §5 M1 "도구 read, ls, bash(sandbox)"]. M1의 "SOPS 시크릿 참조 1종"은 bash 도구의 env 주입(실행마다 승인)으로 검증한다 [결정: review.decisions-2 U-19] |
 | M2 | 백그라운드 실행 `startBackground`(EX-20), 포크 정리 단계 Logger(P16, open-issues N-10), spill 위치를 상태 디렉터리로(EX-22, P19) | [제안: `L0.exec.spec` §1 범위 표], [제안: m2-plan PLT.3] |
 | M2 이후 | Windows provider 보강과 Windows CI, Docker 어댑터, git worktree 격리(2차), SSH(보류) | [제안: `L0.exec.spec` §1 범위 표] |
 
@@ -251,4 +251,4 @@ export function fakeExec(
 | R-6 Windows 경로·셸 변수(드라이브 문자, `\`, `%ProgramFiles(x86)%`, Git Bash 탐색, CRLF) | Windows provider 오동작 | M1은 win32 provider를 원본 동작 그대로 옮기고 단위 시험만 둔다. 실제 확인은 M2 Windows CI | `providers.test.ts`의 win32 사례(후보 경로 문자열, taskkill argv)와 M2 Windows CI 적합성 결과 |
 | R-7 원본 줄 번호가 GitHub 같은 커밋과 다름 [가정: adr.0003 §3.2] | 패치 표 위치 오기 | EX-01에서 `git ls-remote`와 파일 해시 대조 | `UPSTREAM.json`에 파일별 sha256 기록 후 원격 파일과 비교 |
 | R-8 env 허용 목록이 좁아 도구 체인이 깨짐(예: `NVM_DIR`, `JAVA_HOME`, 프록시 변수) | 사용자 명령 실패 | `l0.exec.envAllowlist.extra`로 더하기 허용, `env_denied` 메시지에 이름과 설정 키 안내 | `service.int.test.ts`의 `extra` 사례, M1 스모크에서 `node`·`git`·`rg` 실행 |
-| R-9 spill 파일에 env 모드 비밀이 원문으로 남음 | 디스크 노출 | env 모드가 M1이므로 EX-13 착수 전에 `L0.exec.spec` §10 [미결] 4를 정한다. 정하기 전에는 `secretEnv`가 있는 호출의 spill을 끈다 [제안]. M2 PLT.3이 결정 없이 이 제안을 적용했다(spec §10 4번) | EX-13 시험에서 임시 디렉터리에 `pi-output-*` 파일의 값 문자열 검색 0건 |
+| R-9 spill 파일에 env 모드 시크릿이 원문으로 남음 | 디스크 노출 | env 모드가 M1이므로 EX-13 착수 전에 `L0.exec.spec` §10 [미결] 4를 정한다. 정하기 전에는 `secretEnv`가 있는 호출의 spill을 끈다 [제안]. M2 PLT.3이 결정 없이 이 제안을 적용했다(spec §10 4번) | EX-13 시험에서 임시 디렉터리에 `pi-output-*` 파일의 값 문자열 검색 0건 |

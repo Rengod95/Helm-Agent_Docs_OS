@@ -86,7 +86,7 @@ export interface ToolPolicyMeta {
 export interface ToolMeta extends Required<Pick<ToolPolicyMeta, "risk" | "classes">> {
   readonly name: ToolName;
   readonly label: string;
-  /** 순서 키(능력 ID 또는 ext.<이름>, mcp.<서버>) */
+  /** 순서 키(기능 ID 또는 ext.<이름>, mcp.<서버>) */
   readonly ref: ToolRef;
   readonly capability?: { readonly id: CapabilityId; readonly method: string };
   readonly mcpServer?: string;
@@ -100,7 +100,7 @@ export interface ToolMeta extends Required<Pick<ToolPolicyMeta, "risk" | "classe
   readonly outputLimits: Required<OutputLimits> | "self";
 }
 
-/** 능력 도구: 정의 + 서비스 키. 실행 함수는 어댑터가 만든다 */
+/** 기능 도구: 정의 + 서비스 키. 실행 함수는 어댑터가 만든다 */
 export interface CapabilityToolsRegistration {
   readonly kind: "capability";
   readonly def: AnyCapabilityDef;
@@ -111,7 +111,7 @@ export interface CapabilityToolsRegistration {
   readonly outputLimits?: Readonly<Record<string, OutputLimits | "self">>;
 }
 
-/** 능력 밖 도구: 확장 도구, MCP 서버 도구, core-tools·core-agents 내장 도구 */
+/** 기능 밖 도구: 확장 도구, MCP 서버 도구, core-tools·core-agents 내장 도구 */
 export interface DirectToolRegistration {
   readonly kind: "direct";
   /** 순서 키 접두. "ext.<확장 이름>" | "mcp.<서버 이름>" | "core.<L1 도메인>" */
@@ -124,14 +124,14 @@ export interface DirectToolRegistration {
   /**
    * 서버 주도 입력 요청(MCP `input_required`)을 낼 수 있는 도구의 실행. 있으면 `tool.execute` 대신 이것으로 부른다.
    * 결과가 `status: "input_required"`이면 L1.tools가 `details.round`·`details.questions`와 `inputRequired`로 질문 승인(kind `question`)을
-   * 올리고, 답을 `continuation`에 실어 같은 `toolCallId`로 다시 부른다(결정 D5 (a), 능력 도구의 `CallOptions.continuation`과 같은 규칙).
+   * 올리고, 답을 `continuation`에 실어 같은 `toolCallId`로 다시 부른다(결정 D5 (a), 기능 도구의 `CallOptions.continuation`과 같은 규칙).
    * 첫 호출에는 `continuation`이 없다
    */
   readonly executeWithContinuation?: (call: {
     /** 호출이 속한 대화. `context.threadId`와 같은 값이다. 도구 경로의 호출은 항상 대화가 있어 따로 둔다 */
     readonly threadId: ThreadId;
     /**
-     * 능력 도구가 받는 호출 문맥과 같은 값이다(`threadId`, `turnId`, `toolCallId`, `caller`, `interactive`, 비밀 승인 증거).
+     * 기능 도구가 받는 호출 문맥과 같은 값이다(`threadId`, `turnId`, `toolCallId`, `caller`, `interactive`, 시크릿 승인 증거).
      * 직접 등록 도구도 호출 주체와 대화를 알아야 승인 origin과 대화 범위 설정을 바르게 쓴다 [결정: m2c G1-09, A-08]
      */
     readonly context: CallContext;
@@ -256,7 +256,7 @@ export interface ArgCondition {
 export interface PolicyResource {
   /** 도구 기계 이름 glob. "*"와 "?"만 쓴다. 생략하면 모든 도구 */
   readonly tool?: string;
-  /** 능력 ID glob */
+  /** 기능 ID glob */
   readonly capability?: string;
   /** MCP 서버 이름 glob */
   readonly mcpServer?: string;

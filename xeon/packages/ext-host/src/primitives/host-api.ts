@@ -74,7 +74,7 @@ export interface ScopeCallContext {
 export interface ScopeHostApi<S = unknown> {
   readonly scopeId: ScopeId;
   readonly extension: ExtensionName;
-  /** 능력 공급자 등록. key.capability는 매니페스트 provides에 있어야 한다. fiber effect로 추적한다 */
+  /** 기능 공급자 등록. key.capability는 매니페스트 provides에 있어야 한다. fiber effect로 추적한다 */
   provide<Api>(key: ServiceKey<Api>, impl: Api): void;
   /** 포트 제공. builtin 확장만 */
   providePort<Api>(key: PortKey<Api>, impl: Api): void;
@@ -97,12 +97,12 @@ export interface ScopeHostApi<S = unknown> {
   /**
    * 선언 없는 쓰기 요청(ADR-0015 §3.5, M3-REQ-27 [제안]). 요청 레코드를 커밋하고 효과 워커가 재실행되지 않는 문맥에서 실행한다.
    * 재실행돼도 같은 `key`라 요청은 한 번만 남는다. 결과는 `<kind 접두>effect.settled` 레코드로 `readRecords`에서 읽는다.
-   * 능력은 매니페스트 requires나 optional에 있어야 한다
+   * 기능은 매니페스트 requires나 optional에 있어야 한다
    */
   requestEffect(request: EffectRequest): Promise<void>;
   /**
    * 호출한 scope의 on 핸들러나 drive 함수 안이면 그 문맥(thread, 취소 신호, on이면 지점). setup, 명령 처리기, 도구 `execute`,
-   * 능력 공급자 안, drive의 turn·spawn 안처럼 재실행되지 않는 곳과 다른 scope의 문맥에서는 undefined다
+   * 기능 공급자 안, drive의 turn·spawn 안처럼 재실행되지 않는 곳과 다른 scope의 문맥에서는 undefined다
    */
   callContext(): ScopeCallContext | undefined;
   commitWith(next: S, records: readonly RecordInput[]): Promise<Readonly<S>>;
@@ -127,8 +127,8 @@ export interface ScopeHostApi<S = unknown> {
   registerMcpServer(name: string, config: McpServerResourceDef): void;
   registerMessageRenderer(customType: RecordKind, renderer: RendererResourceDef): void;
   /**
-   * 웹 provider 등록(M3-REQ-37). 이름은 능력 ID다("web.search" | "web.fetch" | "web.browse"). 같은 scope가 같은 능력을
-   * 두 번 등록하면 resource_conflict다. 다른 확장의 같은 능력 등록은 함께 남는다. 소비자(cap-web)가 `resources.list("web_provider")`로 읽는다
+   * 웹 provider 등록(M3-REQ-37). 이름은 기능 ID다("web.search" | "web.fetch" | "web.browse"). 같은 scope가 같은 기능을
+   * 두 번 등록하면 resource_conflict다. 다른 확장의 같은 기능 등록은 함께 남는다. 소비자(cap-web)가 `resources.list("web_provider")`로 읽는다
    */
   registerWebProvider(registration: WebProviderRegistration): void;
   /**

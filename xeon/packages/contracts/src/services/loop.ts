@@ -23,7 +23,7 @@ import type { AdvertisedToolset, CallerId, PolicyCeiling } from "./tools.ts";
 
 export const LoopServiceName = "fresnel.loop" as const;
 
-/** `fresnel.loop` 전체 모양(LoopService)의 포트 키. 제공 core-loop. 확장 지점이 부분형만 볼 때는 extensions의 `LoopPortKey`다 */
+/** `fresnel.loop` 전체 모양(LoopService)의 포트 키. 제공 core-loop. 훅이 부분형만 볼 때는 extensions의 `LoopPortKey`다 */
 export const LoopServicePortKey: PortKey<LoopService> = { name: LoopServiceName };
 
 export interface AdmitRequest {
@@ -45,10 +45,10 @@ export type AdmitResult =
       readonly runningTurnId: TurnId | null;
     }
   | { readonly status: "duplicate"; readonly inputId: EventId; readonly turnId: TurnId | null }
-  /** input 지점 chain이 handled로 끝났다. 아무것도 기록하지 않는다 */
+  /** input 훅 chain이 handled로 끝났다. 아무것도 기록하지 않는다 */
   | { readonly status: "handled" };
 
-/** 사용자 셸(`!명령`, `!!명령`) 실행 요청. L1.loop.spec §3.1 `runUserBash`, 확장 지점 `input.bash.before` */
+/** 사용자 셸(`!명령`, `!!명령`) 실행 요청. L1.loop.spec §3.1 `runUserBash`, 훅 `input.bash.before` */
 export interface UserBashRequest {
   readonly threadId: ThreadId;
   /** 접두 `!`·`!!`를 뗀 명령줄 */
@@ -154,7 +154,7 @@ export type LoopError =
  * LoopPort.status는 threadStatus(threadId).phase가 "idle"이면 "idle", 아니면 "running"이다.
  */
 export interface LoopService extends LoopPort {
-  /** 사용자 입력 제출. input 지점(chain)을 발화하고 fresnel.tasks 큐에 넣는다 */
+  /** 사용자 입력 제출. input 훅(chain)을 발화하고 fresnel.tasks 큐에 넣는다 */
   admit(request: AdmitRequest): Promise<Result<AdmitResult, LoopError>>;
   /** 자식 thread turn. 주 대화와 같은 래퍼로 돈다. 같은 requestId면 기록된 결과를 돌려주거나 열린 turn을 이어 끝낸다 */
   runChildTurn(request: ChildTurnRequest): Promise<Result<LoopTurnResult, LoopError>>;

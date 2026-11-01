@@ -10,7 +10,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 # L3 플러그인 제작 확장 (authoring)
 
-에이전트가 층별 플러그인과 의도 그룹을 만들 때 쓰는 제작 확장입니다. 뼈대 만들기, 구성 검사, 시험, 재생, 패키징을 한 흐름으로 묶습니다. 고정된 템플릿 묶음 대신, 구현과 보안 항목이 바뀔 때마다 갱신되는 "종류 카탈로그"를 둡니다.
+에이전트가 층별 플러그인과 플러그인 그룹을 만들 때 쓰는 제작 확장입니다. 뼈대 만들기, 구성 검사, 시험, 재생, 패키징을 한 흐름으로 묶습니다. 고정된 템플릿 묶음 대신, 구현과 보안 항목이 바뀔 때마다 갱신되는 "종류 카탈로그"를 둡니다.
 
 - [결정: 2026-10-31 사용자] 템플릿 묶음을 고정하지 않습니다. 구현과 보안 항목이 들어올 때마다 계속 갱신합니다. 정적 템플릿보다 "플러그인을 만드는 플러그인"(에이전트가 뼈대, 검사, 시험에 쓰는 제작 확장이나 그룹)을 우선합니다(`L4.desktop-ux.spec` §12.3 U-8).
 - [결정: 2026-10-31 사용자] 플러그인 화면 모드(선언형, 격리 프레임)는 플러그인을 만드는 에이전트가 고릅니다(ADR-0021 §3.5).
@@ -20,8 +20,8 @@ binds: [xeon/packages/plugin-builder/**]
 
 ### 1.1 정하는 것
 
-- 제작 확장의 역할과 형태(L3 의도 그룹 하나, 이름 `authoring`)
-- 제작 확장이 쓰는 능력: 뼈대 만들기, 구성 검사, 시험 대화, 개발 모드 재생, 패키징, 설치 연결
+- 제작 확장의 역할과 형태(L3 플러그인 그룹 하나, 이름 `authoring`)
+- 제작 확장이 쓰는 기능: 뼈대 만들기, 구성 검사, 시험 대화, 개발 모드 재생, 패키징, 설치 연결
 - 종류 카탈로그(kind catalog)의 모양, 갱신 규칙, 열린 확장 방식
 - 데스크톱 구성기(`L4.desktop-ux.spec` P-21)와 플러그인 화면 모드(ADR-0021)와의 관계
 - 제작 중 안전 규칙(쓰기 범위, 사람 확인, 등급)
@@ -36,7 +36,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 ### 1.3 이 도메인을 L3에 두는 이유
 
-- 제작 흐름은 의도 그룹의 모양 그대로입니다. 모델 도구로 작업하고, 작업 단계를 상태로 커밋하고, 위험한 단계(설치, 패키징) 앞에서 사람 확인을 받고, 제작 중 쓰기 범위를 `on`(first) 가드로 막아야 합니다. 이 강제는 스킬 문서로는 할 수 없습니다(`L3.readme` §1 "모델의 행동을 코드로 막거나 구동해야 할 때만 그룹").
+- 제작 흐름은 플러그인 그룹의 모양 그대로입니다. 모델 도구로 작업하고, 작업 단계를 상태로 커밋하고, 위험한 단계(설치, 패키징) 앞에서 사람 확인을 받고, 제작 중 쓰기 범위를 `on`(first) 가드로 막아야 합니다. 이 강제는 스킬 문서로는 할 수 없습니다(`L3.readme` §1 "모델의 행동을 코드로 막거나 구동해야 할 때만 그룹").
 - 데스크톱 화면 안의 기능으로만 두면 CLI와 서비스 모드에서 에이전트가 같은 흐름을 쓸 수 없습니다. 제작 확장은 런타임 부품이고 화면은 그 위의 보기입니다.
 - 별도 도메인 문서(spec, plan)와 `routes.yaml` layout 항목이 있어야 구현 작업자가 `docs-route`로 이 문서를 받습니다. `L3.slots.spec`(코드 없음, 템플릿 규칙)과 겹치지 않게, slots는 템플릿 내용 규칙을, 이 문서는 템플릿을 고르고 채우고 검사하고 시험하는 흐름을 맡습니다.
 - `L3/README.md` 도메인 표에 이 도메인을 더하는 일은 README 수정 금지라 사용자 몫으로 남깁니다(§10 미결 1).
@@ -47,7 +47,7 @@ binds: [xeon/packages/plugin-builder/**]
 |---|---|
 | 제작 확장 | 이 문서의 L3 그룹 `authoring`. 사용자 화면에서는 "제작"이라 부릅니다 |
 | 제작 세션 | 플러그인 하나를 만드는 동안의 상태(대상 폴더, 종류, 구성 초안, 검사 결과, 시험 기록). 대화 하나에 묶입니다 |
-| 종류(kind) | 만들 수 있는 플러그인 모양 하나. 예: 의도 그룹 drive, 정책 플러그인, L2 provider, 선언형 화면, 프레임 화면 |
+| 종류(kind) | 만들 수 있는 플러그인 모양 하나. 예: 플러그인 그룹 drive, 정책 플러그인, L2 provider, 선언형 화면, 프레임 화면 |
 | 종류 카탈로그 | 종류 항목의 목록과 각 항목의 템플릿, 필수 검사, 보안 메모, 지원 범위 |
 | 구성 초안 | 매니페스트 `composition`(`L4.desktop-ux.spec` §10.3 X-16)과 같은 모양의 블록 목록. 구성기와 제작 확장이 같은 형식을 씁니다 |
 | 제작 검사 | `AU-NNN` 번호를 가진 검사 규칙. F 검사 함수 결과에 제작 전용 규칙을 더합니다 |
@@ -65,7 +65,7 @@ binds: [xeon/packages/plugin-builder/**]
 | 패키지 | `xeon/packages/plugin-builder` |
 | 층과 종류 | `layer: "L3"`, `kind: "group"` |
 | 신뢰 | `builtin`(앱에 듦). 학습 그룹과 같은 배포 방식 |
-| 기본 켜짐 | 꺼짐. 작업대 구성의 "새 그룹", 슬래시 명령 `/author`, 모델 도구 첫 사용 안내로 켭니다 |
+| 기본 켜짐 | 꺼짐. LightCraft 구성의 "새 그룹", 슬래시 명령 `/author`, 모델 도구 첫 사용 안내로 켭니다 |
 | drive | 씀. 제작 세션 단계 머신(§4.1)을 drive로 돌립니다. 사람 확인은 drive 원시 `loop.ask`(X-17)를 씁니다 |
 | 지점 | `tool.call.before`(first, 쓰기 범위 가드), `thread.start`(tap, 세션 복원) |
 | 화면 기여 | 선언형 `page` "제작"(세션 단계, 검사, 시험 결과), `well` "제작"(요약), `card` `authoring/result`(검사·시험 결과), `command` 둘 |
@@ -110,7 +110,7 @@ interface DevkitService {
 
 - `validate`는 F `validateManifest`, `validateUsage`, `validateComposition`, group-sdk `scanDriveSource`, ADR-0021 화면 규칙, 카탈로그 항목의 필수 검사를 차례로 돌린 결과입니다.
 - `trial`은 시험 대화를 만듭니다(`thread.create { trial: true }`, W-34). 시험 대화는 대상 확장을 `session` 범위로 켜고, 학습 그룹 리뷰에서 빠지며(X-14), 단계 경계 멈춤(W-48)을 쓸 수 있습니다.
-- `pack`은 확장 폴더를 설치 가능한 묶음(폴더 사본 또는 tar)으로 만들고 파일 목록과 SHA-256을 돌려줍니다. 원본 폴더 밖 파일, 비밀처럼 보이는 파일(`.env`, 키 파일 이름 패턴)을 넣지 않습니다.
+- `pack`은 확장 폴더를 설치 가능한 묶음(폴더 사본 또는 tar)으로 만들고 파일 목록과 SHA-256을 돌려줍니다. 원본 폴더 밖 파일, 시크릿처럼 보이는 파일(`.env`, 키 파일 이름 패턴)을 넣지 않습니다.
 
 ### 3.4 종류 카탈로그
 
@@ -142,7 +142,7 @@ M4 첫 카탈로그 [제안]:
 | `group.observe` | L3 | stable | observe | |
 | `view.declarative` | 화면 | stable | 화면 트리 뼈대 | 다른 종류에 덧붙는 종류 |
 | `view.frame` | 화면 | preview | 프레임 폴더 뼈대, 다리 래퍼 | ADR-0021 §6 미결 1 확인 전에는 blocked |
-| `plugin.l2-provider` | L2 | preview | provider 뼈대 | 능력 계약(`F.capabilities.spec`)의 provider 등록 |
+| `plugin.l2-provider` | L2 | preview | provider 뼈대 | 기능 계약(`F.capabilities.spec`)의 provider 등록 |
 | `plugin.tool` | plugin | preview | 도구 등록 뼈대 | |
 | `x.hook` | X | blocked | 없음 | 외부 훅 프로토콜(M4 N14) 확정 뒤 |
 
@@ -158,12 +158,12 @@ M4 첫 카탈로그 [제안]:
 | AU-001 | 이름 규칙과 예약 이름, 설치된 이름과의 충돌 | 오류 |
 | AU-002 | 요청 신뢰 등급이 `builtin`이면 거부(외부 제작물은 `user`나 `project`) | 오류 |
 | AU-003 | `composition`이 매니페스트 `points`, `usesDrive`, `usesPost`, `requires`, `optional`과 맞음 | 오류 |
-| AU-004 | drive 블록 둘(`drive_duplicate`), on 핸들러의 능력 호출(`on_capability_call`), 필수 능력의 제공자 없음(`capability_missing`) | 오류, 오류, 경고 |
+| AU-004 | drive 블록 둘(`drive_duplicate`), on 핸들러의 기능 호출(`on_capability_call`), 필수 기능의 제공자 없음(`capability_missing`) | 오류, 오류, 경고 |
 | AU-005 | 화면: `frame`은 `page`·`well`만, `frame.reason` 있음, `widgets`·`bridge` 범위가 지금 앱과 맞음 | 오류 |
 | AU-006 | 화면: 요청 등급 `project`인데 `frame` 사용 | 경고(설치 환경의 `x.views.allowProjectFrames`에 따름) |
 | AU-007 | 화면: 프레임 화면에 `fallback`도 `cli.command`도 없음 | 경고 |
 | AU-008 | 화면: 위젯 카탈로그로 그릴 수 있는 모양을 프레임으로 냄(트리 후보가 있음) | 정보 |
-| AU-009 | 비밀: 설정에 비밀처럼 보이는 키가 `secret: true` 없이 있음, 소스에 비밀 리터럴 패턴 | 오류 |
+| AU-009 | 시크릿: 설정에 시크릿처럼 보이는 키가 `secret: true` 없이 있음, 소스에 시크릿 리터럴 패턴 | 오류 |
 | AU-010 | 사람 확인이 필요한 단계(외부 쓰기, 비용)에 `loop.ask` 또는 `approval: true`가 없음 | 경고 |
 | AU-011 | 상태 스키마 `version`과 마이그레이션 훅(`L3.group-sdk.spec` §4.7) | 경고 |
 | AU-012 | 재생 규율: `scanDriveSource` 위반 | 오류 |
@@ -209,7 +209,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 [결정: 2026-10-31 사용자] 템플릿 묶음은 고정하지 않고 구현·보안 변경에 맞춰 갱신합니다. 갱신 규칙 [제안]:
 
 1. 카탈로그는 제작 확장 패키지와 같은 버전으로 배포합니다. `catalogVersion`이 화면 머리와 `authoring_kinds` 결과에 보입니다.
-2. 적합성 시험: 카탈로그 시험은 모든 항목을 실제로 뼈대로 만들고 `validate`를 통과하는지 봅니다. F 지점 표(`HOOKS`), 매니페스트 스키마, 위젯 카탈로그, 다리 버전이 바뀌어 항목이 깨지면 시험이 실패합니다. F·X·L4 트랙은 이 시험을 끝 시험에 넣습니다.
+2. 적합성 시험: 카탈로그 시험은 모든 항목을 실제로 뼈대로 만들고 `validate`를 통과하는지 봅니다. F 훅 표(`HOOKS`), 매니페스트 스키마, 위젯 카탈로그, 다리 버전이 바뀌어 항목이 깨지면 시험이 실패합니다. F·X·L4 트랙은 이 시험을 끝 시험에 넣습니다.
 3. 보안 항목이 들어오면(`architecture.security.spec` §4의 새 T 행, X 등급 규칙 변경) 같은 커밋에서 `AU-NNN` 규칙이나 항목의 `security` 메모를 더합니다. 검토 담당은 T 행마다 대응 AU 규칙이 있는지 확인합니다.
 4. 지원 범위가 바뀐 항목은 상태를 `preview` → `stable`, `stable` → `deprecated`로 옮기고 `since`를 갱신합니다. 지우지 않습니다.
 5. 사용자 로컬 카탈로그: `~/.fresnel/authoring/kinds/*.json`(경로는 `L0.os.spec` 데이터 폴더 규칙) [제안]. 에이전트가 새 모양을 만들면 여기에 `status: "preview"`, `origin: "local"` 항목을 더할 수 있습니다. 로컬 항목은 내장 항목을 가리지 못하고, 같은 id면 내장이 이깁니다.
@@ -241,7 +241,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | `l3.authoring.fixLoopLimit` | `3` | user, launch | 같은 검사 오류가 남는 고치기 반복 한도 |
 | `l3.authoring.localCatalog` | `true` | user | 사용자 로컬 카탈로그 읽기 |
 
-## 7. 확장 지점
+## 7. 훅
 
 | 지점 | fold | 쓰임 |
 |---|---|---|

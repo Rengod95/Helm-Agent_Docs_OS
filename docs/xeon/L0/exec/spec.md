@@ -20,7 +20,7 @@ binds: [xeon/packages/platform-exec/**]
 - 출력 절단: pi durable `truncate.ts` 포크와 `ExecService.truncateHead`·`formatSize`(3.1절 끝, 3.3.1절) [결정: review.decisions-2 D-08]
 - 포크 범위, 포크 기록, 바꿀 점(패치 표, 3.3절)
 - OS 분기 인터페이스 `ExecPlatformProvider`와 선택 지점 `select.ts`(3.4절)
-- 포크 위에 얹는 Fresnel 연결 코드: 자식 프로세스 환경 변수 허용 목록 빌더, 비밀 주입 지점 `ShellExecOptions.secretEnv`(M1), 데코레이션 가능한 `Shell` 요구(3.5절~3.7절), 백그라운드 실행 `startBackground`(3.9절)
+- 포크 위에 얹는 Fresnel 연결 코드: 자식 프로세스 환경 변수 허용 목록 빌더, 시크릿 주입 지점 `ShellExecOptions.secretEnv`(M1), 데코레이션 가능한 `Shell` 요구(3.5절~3.7절), 백그라운드 실행 `startBackground`(3.9절)
 - 동작 보장 표(포크 원본 주석의 보장과 변경 여부, 4절), 플랫폼별 제약(5.2절), 설정 키(6절), 수용 기준(9절)
 
 다루지 않는 것:
@@ -30,7 +30,7 @@ binds: [xeon/packages/platform-exec/**]
 | 도구 본문(`D/src/tools/*`), 이미지 처리(`D/src/images/*`)의 포크 | `L2.workspace.spec`, `L2.workspace.plan`. 이 문서는 env 5파일과 출력 절단 `D/src/truncate.ts`를 포크한다 [결정: adr.0003 §3.1, review.decisions-2 D-08] |
 | OS 샌드박스, 보호 경로, 자동 허용 판정 | `L0.sandbox.spec` |
 | 장시간 백그라운드 프로세스 레지스트리, 엔진 프로세스 수명 | `L0.process.spec`. 레지스트리에 넘길 pid와 정지 수단은 이 문서의 `startBackground`(3.9절)가 만든다 |
-| 비밀 해석(lease), 마스킹, 사용 감사 | `L0.secrets.spec` |
+| 시크릿 해석(lease), 마스킹, 사용 감사 | `L0.secrets.spec` |
 | 사용자 디렉터리 질의, `Clock`·`Scheduler`·`RandomSource` 구현 | `L0.os.spec` |
 | 앱 설정·스킬·플러그인 디렉터리 감시 | `L0.os.spec` §3.8. 파일 감시 책임 경계: 작업 공간 파일 감시는 `fresnel.exec`의 `ExecutionEnv.watch`가 맡고, 앱 설정·스킬·플러그인 디렉터리 감시는 `fresnel.os`의 `FileWatcher`가 맡는다. 판정은 경로 기준이다. `OsDirs`(config, data, state) 아래 경로는 os, 작업 공간 루트 아래 경로(프로젝트 안 `.fresnel/` 포함)는 exec다 [미결: `L0.os.spec` 10절 2번과 같은 문장] |
 | 도구 승인, 권한 모드, 명령 패턴 규칙 | `L1.tools.spec` |
@@ -40,7 +40,7 @@ binds: [xeon/packages/platform-exec/**]
 | 구성요소 | 단계 | 표지 |
 |---|---|---|
 | 로컬 `NodeExecutionEnv`(포크) + Fresnel 연결 코드 | 1차, M0(포크·적합성), M1(env 빌더·서비스 등록) | [결정: `_research/foundation-plan.md` §5 P4 M0 `platform-exec`] |
-| 비밀 주입 지점 `secretEnv`(에이전트 env 모드) | 1차, M1. M1 비밀 검증 경로다(3.6절) | [결정: review.decisions-2 U-19] |
+| 시크릿 주입 지점 `secretEnv`(에이전트 env 모드) | 1차, M1. M1 시크릿 검증 경로다(3.6절) | [결정: review.decisions-2 U-19] |
 | 백그라운드 실행 `startBackground` | 1차, 구현은 M2(소비자 L1 tools 백그라운드 셸, L2 mcp) | [제안] |
 | Docker 어댑터(`ExecutionEnv`의 컨테이너 구현) | 1차 목표, 구현은 M2 이후 | [제안, `_research/layer-plan-v2.json` L0-a "Docker만 어댑터"] |
 | SSH 원격 워크스페이스 | 보류. `@earendil-works/pi-env` 1.3.0을 채택 후보로 둔다 | [결정: 계획 v2 L0-a "보류"], `_research/packages.md` §4.2 158행 |
@@ -54,13 +54,13 @@ binds: [xeon/packages/platform-exec/**]
 | `ExecutionEnv` | 파일 연산(`FileSystem`)과 명령 실행(`Shell`)을 합친 인터페이스. 원본 `D/src/env/index.ts:324` |
 | 포크 원본 | `~/projects/_ref/pi-src/packages/durable/src/`(이하 `D/src/`), 저장소 `https://github.com/earendil-works/pi`, 커밋 `cdaf6c227d4718a72b59ccd02152c9614df44cfc`(약칭 `cdaf6c2`), 패키지 버전 1.1.0. 줄 번호는 이 사본 기준이다 [가정: adr.0003 §3.2] |
 | 포크 코드 | `platform-exec/src/upstream/` 아래에 복사한 원본 파일. 바꾼 줄에는 `// FRESNEL-PATCH: <id>`를 단다 |
-| 연결 코드 | `src/upstream/` 밖에 Fresnel이 새로 쓴 코드. 서비스 등록, env 빌더, 비밀 주입, provider |
+| 연결 코드 | `src/upstream/` 밖에 Fresnel이 새로 쓴 코드. 서비스 등록, env 빌더, 시크릿 주입, provider |
 | `CancelScope` | 취소 신호 하나만 담는 객체 `{ readonly abortSignal }`. Chord `Context`(`chord/src/types.ts:15-16`)와 같은 모양이다 |
 | spill | 명령 출력이 임계(바이트 또는 줄)를 넘으면 전체 원출력을 임시 파일에 쓰는 동작 |
 | window | 호출자가 출력의 꼬리만 남길 때 넘기는 범위. 구현은 범위 밖 출력을 건너뛰고 `skipped`로 알린다 |
 | 소유자 | `ExecutionEnv` 인스턴스를 만든 쪽. 서비스 인스턴스의 소유자는 `platform-exec` Cordis 플러그인이다 |
 | 허용 목록 env | 자식 프로세스에 넘기는 환경 변수를 이름 목록으로 고른 결과. 부모 `process.env` 전체를 넘기지 않는다 |
-| lease | `fresnel.secrets`가 돌려주는 비밀 값 보관 객체. 사용 후 폐기한다(`_research/secrets.md` §6.2) |
+| lease | `fresnel.secrets`가 돌려주는 시크릿 값 보관 객체. 사용 후 폐기한다(`_research/secrets.md` §6.2) |
 
 ## 3. 인터페이스
 
@@ -185,7 +185,7 @@ export interface ShellExecOptions {
   onOutput?: (text: string, context: CancelScope, info: ShellOutputInfo) => void;
   spill?: ShellSpillOptions;
   window?: ShellOutputWindow;
-  /** [제안] Fresnel 추가, M1. env 이름 → 비밀 참조와 사용 맥락. 값은 spawn 직전에만 env에 들어간다(3.6절) */
+  /** [제안] Fresnel 추가, M1. env 이름 → 시크릿 참조와 사용 맥락. 값은 spawn 직전에만 env에 들어간다(3.6절) */
   secretEnv?: SecretEnvRequest;
 }
 
@@ -199,7 +199,7 @@ export interface SecretEnvRequest {
 export interface ShellExecResult {
   exitCode: number;
   spillPath?: string;
-  /** [제안] Fresnel 추가. 데코레이터가 붙인 실행 정보. 값(비밀, 파일 내용)은 싣지 않는다. 모양은 L0.sandbox.spec §3.1 */
+  /** [제안] Fresnel 추가. 데코레이터가 붙인 실행 정보. 값(시크릿, 파일 내용)은 싣지 않는다. 모양은 L0.sandbox.spec §3.1 */
   sandbox?: SandboxRunReport;
 }
 
@@ -431,22 +431,22 @@ export function buildChildEnv(input: {
 | `fixed` | `TERM=dumb`, `NO_COLOR=1`, `CI=1`. `LANG`이 부모에 없으면 `LANG=C.UTF-8` |
 | `deny` | `*_TOKEN`, `*_KEY`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY`, `SOPS_*`, `SOPS_AGE_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `AWS_*`, `ANTHROPIC_*`, `OPENAI_*`, `GEMINI_*`, `OPENROUTER_*`, `FRESNEL_*`, `SSH_AUTH_SOCK`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `WSL_INTEROP`, `WSL_DISTRO_NAME`, `NODE_OPTIONS`, `BUN_OPTIONS` |
 
-- [제안] 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@fresnel/contracts/services`의 `services/exec.ts`, `F.capabilities.spec` §3.12) 하나다. 위 `deny` 행이 그 값이고 `BASE_ENV_POLICY.deny`는 이 상수를 그대로 쓴다. `L0.sandbox.spec`의 자가 시험(env 허용 목록 항목)과 `L0.secrets.spec` §4.5(sops 호출 env)도 같은 상수를 쓴다. secrets 서비스에는 별도 거부 목록(`childEnvPolicy`)을 두지 않으므로 `fresnel.exec`는 `fresnel.secrets`가 없어도 같은 목록으로 동작한다. 비밀 제공자 변수(`SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_*` 아래 `FRESNEL_SECRET_*`)가 모두 이 목록에 들어 있다.
+- [제안] 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@fresnel/contracts/services`의 `services/exec.ts`, `F.capabilities.spec` §3.12) 하나다. 위 `deny` 행이 그 값이고 `BASE_ENV_POLICY.deny`는 이 상수를 그대로 쓴다. `L0.sandbox.spec`의 자가 시험(env 허용 목록 항목)과 `L0.secrets.spec` §4.5(sops 호출 env)도 같은 상수를 쓴다. secrets 서비스에는 별도 거부 목록(`childEnvPolicy`)을 두지 않으므로 `fresnel.exec`는 `fresnel.secrets`가 없어도 같은 목록으로 동작한다. 시크릿 제공자 변수(`SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_*` 아래 `FRESNEL_SECRET_*`)가 모두 이 목록에 들어 있다.
 
 규칙:
 
 1. 결과 = (`inherit`이면 `pass` ∪ `extraPass` 이름의 부모 값) ⊕ `fixed` ⊕ `requested`. 뒤가 앞을 덮는다.
 2. `deny` 패턴에 맞는 이름은 `pass`·`extraPass`에 있어도 옮기지 않는다. `requested`에 있으면 `err({ kind: "env_denied", names })`이고 연결 코드는 `ExecutionError("env_denied")`로 돌려준다. 명령은 실행되지 않는다.
 3. `l0.exec.envAllowlist.extra`에 `deny` 패턴에 맞는 이름을 적으면 설정 검증에서 거부한다(6절). 목록은 더하기만 할 수 있고 `pass`를 줄일 수 없다.
-4. `secretEnv`(3.6절)로 넣는 이름만 `deny` 규칙을 따르지 않는다. 비밀을 넣는 명시 경로가 이것 하나다.
+4. `secretEnv`(3.6절)로 넣는 이름만 `deny` 규칙을 따르지 않는다. 시크릿을 넣는 명시 경로가 이것 하나다.
 5. `inheritEnv: false`이면 `pass`·`extraPass`를 옮기지 않고 `fixed`와 `requested`만 쓴다. 어떤 경우에도 부모 `process.env` 전체를 넘기지 않는다.
 6. 원본 생성 옵션 `shellEnv`(`node.ts:612`)는 쓰지 않는다(`undefined`).
 
-### 3.6 비밀 주입 지점 `ShellExecOptions.secretEnv` (M1)
+### 3.6 시크릿 주입 지점 `ShellExecOptions.secretEnv` (M1)
 
 [제안] 계획 v2 L0-c "값은 도구를 실행하기 직전에만 풀리고 … 도구 자식 프로세스의 기본 env에는 들어가지 않는다"(`_research/layer-plan-v2.json` L0-c note)와 `_research/secrets.md` §6.2 M1 env 모드(M1은 사용 모드 번호다)를 구현하는 지점이다.
 
-단계 [결정: review.decisions-2 U-19]: 마일스톤 M1의 비밀 검증 경로는 bash 도구의 env 주입(실행마다 승인)이다. 그래서 이 주입 지점과 `SecretEnvRequest`, `secret_unavailable` 코드를 M1에 둔다. `L0.secrets.spec` §3.6 `withEnv`, `L2.workspace.spec` §3.3과 같은 배치다.
+단계 [결정: review.decisions-2 U-19]: 마일스톤 M1의 시크릿 검증 경로는 bash 도구의 env 주입(실행마다 승인)이다. 그래서 이 주입 지점과 `SecretEnvRequest`, `secret_unavailable` 코드를 M1에 둔다. `L0.secrets.spec` §3.6 `withEnv`, `L2.workspace.spec` §3.3과 같은 배치다.
 
 구현의 전제 [제안]:
 
@@ -498,7 +498,7 @@ export interface ExecServiceOptions {
   readonly now?: () => number;                  // 상한 사용량 캐시의 시계(epoch ms). 시험이 주입한다. 없으면 Date.now
 }
 
-/** 포크 NodeExecutionEnv와 provider, env 빌더, 비밀 주입을 묶는다. Cordis 등록은 ext-host API로 한다 */
+/** 포크 NodeExecutionEnv와 provider, env 빌더, 시크릿 주입을 묶는다. Cordis 등록은 ext-host API로 한다 */
 export function createExecService(
   options: ExecServiceOptions,
   deps: { readonly platform: ExecPlatformProvider; readonly secrets: SecretService | undefined; readonly parentEnv: Readonly<Record<string, string | undefined>> },
@@ -547,7 +547,7 @@ export function createExecService(
 - `context.abortSignal`이 취소되면 `stop("force")`와 같다.
 - 결과 모양이 `BackgroundStopper`(`L0.process.spec` §3.1)와 같으므로 등록자(L1 tools, L2 mcp)는 `{ label, owner, pid: handle.pid, stopper: handle }`로 `BackgroundRegistry.register`를 부른다. `platform-exec`는 레지스트리를 부르지 않는다(DR-02).
 - 서비스 dispose 때 서비스 `cleanup`이 아직 살아 있는 백그라운드 프로세스도 끝낸다. 파생 env(`withCwd`)에는 `startBackground`가 없다.
-- `secretEnv`는 `exec`와 같은 규칙으로 받는다. 비밀 lease는 spawn이 끝난 직후 폐기하고(값은 spawn 인자로 이미 복사됐다) 프로세스가 사는 동안 쥐지 않는다. `onOutput`이 던지면 전달만 멈추고 프로세스는 계속 둔다(원인은 Logger `exec.background_output_failed`). `window`는 포크 `exec`와 같이 이 계층에서 쓰지 않는다.
+- `secretEnv`는 `exec`와 같은 규칙으로 받는다. 시크릿 lease는 spawn이 끝난 직후 폐기하고(값은 spawn 인자로 이미 복사됐다) 프로세스가 사는 동안 쥐지 않는다. `onOutput`이 던지면 전달만 멈추고 프로세스는 계속 둔다(원인은 Logger `exec.background_output_failed`). `window`는 포크 `exec`와 같이 이 계층에서 쓰지 않는다.
 - 단계: 1차 계약, M2(PLT.3)에 구현했다(`L0.exec.plan` EX-20). stdin 파이프가 필요한 MCP stdio 서버를 이 계약으로 띄울지는 10절 9번이다.
 
 ## 4. 동작 규칙
@@ -671,10 +671,10 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 - `range`: `defaultTimeoutMs` 0~2,147,483,647, `unattendedTimeoutMs` 1,000~2,147,483,647, `outputSpillBytes` 0~1,073,741,824, `spillRetentionDays` 0~3,650, `spillMaxBytes` 0~1,099,511,627,776.
 - `l0.exec.shell`과 `l0.exec.envAllowlist.extra`는 `project` 범위를 받지 않는다 [제안]. 저장소 파일이 실행 셸을 바꾸거나 부모 env를 자식에 열면 저장소를 여는 것만으로 코드 실행이나 정보 노출이 생긴다(`_research/notes/L0-1.md` §3.6과 같은 신뢰 원칙).
-- `envAllowlist.extra`는 더하기만 가능하다. `deny` 패턴(3.5절)에 맞는 이름은 쓰기 검사(`checkSettingWrite`)에서 거부하고, 그 이유를 화면에 보인다. 비밀 값은 `secretEnv`로만 넣고 이 키로는 넣지 않는다.
+- `envAllowlist.extra`는 더하기만 가능하다. `deny` 패턴(3.5절)에 맞는 이름은 쓰기 검사(`checkSettingWrite`)에서 거부하고, 그 이유를 화면에 보인다. 시크릿 값은 `secretEnv`로만 넣고 이 키로는 넣지 않는다.
 - [제안] L4 탭 이름 '실행'은 F `SettingsTab`의 `"execution"`이다(`F.wire-settings.spec` §3.8.2, `_research/settings.md` §4 10번 "실행과 알림").
 
-## 7. 확장 지점
+## 7. 훅
 
 - `fresnel.exec`는 `on` 지점을 선언하지 않는다. 도구 실행 전후 지점(`tool.call.before`, `tool.result`)은 L1이 선언한다(`F.extensions.spec`).
 - `post`, `drive`와 관계가 없다. drive 임대 반납·단계 경계 비활성화가 진행 중 명령을 끝낼 때는 L1이 `CancelScope.abortSignal`을 취소한다(B-17).
@@ -710,7 +710,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 | 서비스 | 쓰는 곳 | 요구 내용 |
 |---|---|---|
-| `fresnel.secrets`(`SecretService`) | 3.6절 비밀 주입(M1) | env 모드 lease 메서드 `withEnv(handle, ctx)`(`L0.secrets.spec` §3.6). 값은 lease 안에만. 실패는 `Result` |
+| `fresnel.secrets`(`SecretService`) | 3.6절 시크릿 주입(M1) | env 모드 lease 메서드 `withEnv(handle, ctx)`(`L0.secrets.spec` §3.6). 값은 lease 안에만. 실패는 `Result` |
 | `fresnel.os`(`OsService`) | 3.4절 WSL 판정 | WSL 판정 기준은 `L0.os.spec` §3.1이 정본이다(`WSL_DISTRO_NAME` 또는 `/proc/version`의 `microsoft`·`WSL`). exec `select.ts`는 같은 기준을 쓴다 |
 | ext-host 서비스 등록 API | 3.8절 | 서비스 이름 상수로 등록, dispose 콜백(`X.primitives.spec`) |
 | 조립 도우미 | 3.7절 | 파일 메서드는 원래 env, `exec`·`cleanup`은 감싼 `Shell`에 위임하는 `ExecutionEnv` 조립. 위치는 `L1.tools.spec`이 정한다 |
@@ -737,11 +737,11 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 1. [미결] `abortSignal`의 `undefined` 허용 여부와 `eng.typescript.guide` §1.2·TY-22 문구 정정. 위치는 F `services/exec.ts`로 정해졌다([결정: review.decisions-2 D-04], 3.2절).
 2. [미결] `ExecService.withCwd` 추가와 `eng.context-map.design` §5.3 표 정정(3.1절). 공유 서비스 모드에서 세션별 cwd를 어떻게 줄지 `L0.process.spec`과 함께 정한다.
 3. [미결] 포크 업그레이드 정책(정기 diff 또는 보안·버그 수정 때만). adr.0003 §6을 이어받는다.
-4. [결정: m2 마감 G2-05] spill 파일 위치는 `ExecServiceOptions.tempDir`(조립 루트가 `<dirs.state>/spill`)이고 소유자 전용이다(디렉터리 0700, 파일 0600). 원본은 OS 임시 디렉터리에 남겼다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다.
+4. [결정: m2 마감 G2-05] spill 파일 위치는 `ExecServiceOptions.tempDir`(조립 루트가 `<dirs.state>/spill`)이고 소유자 전용이다(디렉터리 0700, 파일 0600). 원본은 OS 임시 디렉터리에 남겼다. env 모드 시크릿이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다.
    [결정: review.m3-design-inputs D-M3-21 a, 오케스트레이터 기본값, M3-REQ-47] 삭제 시점은 기본으로 세션 종료 때도 지우지 않는다. 보관 기간은 `l0.exec.spillRetentionDays`(기본 0, 지우지 않음)로 정하고 `pruneSpill`이 지운다. 디스크 상한은 `l0.exec.spillMaxBytes`(기본 1 GiB, 0이면 없음)로 정하고, 사용량이 상한 이상이면 새 spill을 시작하지 않는다. 세부는 3.8.2절이다.
    [해소 M3-REQ-47] 조립 루트(apps/host)가 `tempDir`, `spillMaxBytes`를 넘기고 `pruneSpill`을 부른다(L4.host-service §4.18, HS-101). 두 키의 `stage: reserved`는 1b 커밋에서 해제했다. 정리 호출 시점은 열 때 한 번과 하루마다다.
 5. [미결] 적합성 스위트의 watch 사례(사례당 최대 30초)를 `int` 파일 10초 상한(`eng.testing.guide` TS-01)에 맞추는 방법: 파일 분할, 별도 태그, 상한 예외 중 하나.
 6. [결정: review.m3-lower-requirements M3-REQ-46] `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지하고 무인 경로 상한은 3.8.1절의 `withUnattendedTimeout`이 건다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.
 7. [미결] Windows 네이티브 적합성 기대 표(5.2절)는 실행하지 않은 [가정]이다. M2 이후 Windows CI에서 확인한다.
-8. [결정: review.decisions-2 U-19] 마일스톤 M1의 비밀 경로는 에이전트 env 모드(`secretEnv`, bash 도구, 실행마다 승인)다. `L0.secrets.spec` §3.6에 `withEnv`를 두고 EX-13을 M1에 둔다.
+8. [결정: review.decisions-2 U-19] 마일스톤 M1의 시크릿 경로는 에이전트 env 모드(`secretEnv`, bash 도구, 실행마다 승인)다. `L0.secrets.spec` §3.6에 `withEnv`를 두고 EX-13을 M1에 둔다.
 9. [미결] stdin 파이프가 필요한 장시간 프로세스(MCP stdio 서버)를 `startBackground`로 띄울지, 옵션에 stdin 스트림을 더할지. `L2.mcp.spec`, `L0.process.spec` 미결 P-4와 함께 정한다.

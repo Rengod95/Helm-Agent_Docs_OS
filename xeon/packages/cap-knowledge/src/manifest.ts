@@ -9,7 +9,7 @@ import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/exten
 export const KNOWLEDGE_EXTENSION_NAME = "cap-knowledge";
 
 /**
- * 내장 L2 플러그인 매니페스트(L2.knowledge.plan §2 manifest.ts). 제공하는 능력은 `knowledge.skills`(읽기, 쓰기, 재색인),
+ * 내장 L2 플러그인 매니페스트(L2.knowledge.plan §2 manifest.ts). 제공하는 기능은 `knowledge.skills`(읽기, 쓰기, 재색인),
  * `knowledge.memory`, `knowledge.search`(스킬·메모리·세션 전문 검색), `knowledge.ledger`다.
  */
 export function knowledgeManifest(): ExtensionManifest {

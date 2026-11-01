@@ -114,7 +114,7 @@ export function applyPrompt(state: Readonly<HelmState>): PostItem {
   };
 }
 
-/** explorer 과제 문장. 외부 텍스트 방어 규칙을 포함한다. `unavailable`은 쓸 수 없는 능력의 고지다 */
+/** explorer 과제 문장. 외부 텍스트 방어 규칙을 포함한다. `unavailable`은 쓸 수 없는 기능의 고지다 */
 export function explorerTask(
   state: Readonly<HelmState>,
   lens: Pick<HelmLens, "id">,

@@ -16,7 +16,7 @@ binds: [xeon/packages/cap-workspace/**]
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
-| M0 | 없음. 선행 조건만 준비된다: `contracts`의 능력 계약(F.capabilities.plan M0), `platform-exec`(durable env 포크) | `_research/foundation-plan.md` §5 P4 M0 |
+| M0 | 없음. 선행 조건만 준비된다: `contracts`의 기능 계약(F.capabilities.plan M0), `platform-exec`(durable env 포크) | `_research/foundation-plan.md` §5 P4 M0 |
 | M1 | F `defs/workspace.ts`의 정의 3개 전체(도구 7개 선언 포함). 구현은 `read`, `ls`, `bash` 3개. `fresnel.workspace` 서비스 등록, L1.tools 어댑터 연결. 걸어 다니는 골격 스모크에서 이 세 도구가 호출된다 | [결정] `_research/foundation-plan.md` §5 P4 M1, `F.capabilities.plan` M1, `product.scope.spec` §4.3 M1 |
 | M2 | `workspace.images` 최소형(`register`, `load`. 처리기 없이 형식·크기 검사와 blob 등록)과 `read`의 이미지 분기. `dialog.attachments`의 필수 의존. 대화별 작업 폴더 root(`thread.started.workspace`, open-issues M-06) (구현 2026-10-24, §8 기록) | [제안] `L2.readme` §2 각주 ws, §10 미결 10 |
 | M3 | `write`, `edit`(정확·퍼지 일치, `edits` 배열), `grep`, `find` | `product.scope.spec` §4.3 M3 "`cap-workspace`의 M1 밖 도구" |
@@ -27,7 +27,7 @@ M3 이후(2차·보류) 표:
 |---|---|---|
 | photon 이미지 처리(리사이즈, 방향 보정, 형식 변환), `images.resize` | 2차(`_research/layer-plan-v2.json` L2-a "이미지와 첨부 처리") | durable `images/` 포크 전체와 워커 스레드 |
 | 줄 해시 편집 | 2차(L2-a "편집 방식"의 줄 해시 부분) | W9 설계 메모를 바탕으로 TS 재작성 |
-| AST·LSP | 보류(L2-a "AST·LSP") | 조건이 생기면 새 능력으로 |
+| AST·LSP | 보류(L2-a "AST·LSP") | 조건이 생기면 새 기능으로 |
 | PowerShell 도구 | 보류 | Windows 네이티브는 나중이다(`product.scope.spec` §4.2 N4). 포크 원본의 `createPowerShellTool`은 복사만 하고 등록하지 않는다 |
 
 - 계획 v2는 "편집 방식"(정확·퍼지·줄 해시)을 통째로 2차로 적었다. 정확·퍼지 일치는 `edit-diff.ts` 한 파일에 함께 있어 `edit` 도구와 분리할 수 없으므로 M3 `edit`과 같이 들어온다 [제안]. 줄 해시만 2차로 남는다.
@@ -107,7 +107,7 @@ xeon/packages/cap-workspace/
 | W1 | F `src/capabilities/defs/workspace.ts`: spec §3.1~§3.5의 스키마, `WorkspaceFiles`, `WorkspaceShell`, `WorkspaceImages`, 각 `…Key`, `WorkspaceService`, `WorkspaceServiceName`. 명시 타입 주석(`isolatedDeclarations`). `validateCapability`·`validateCapabilitySet` 테스트 | F.capabilities.plan M0(P1~P7) | M |
 | W2 | 도구 타입 추출: `D/harness/types.ts`·`define.ts`에서 `src/upstream/tool-types.ts`(100~200줄), `harness/output.ts`의 필요 함수. `UPSTREAM.json`·`PATCHES.md`·`LICENSE.pi` 골격 | W1과 병렬 가능. `CancelScope`는 L0.exec.plan의 F 추가 작업 | S |
 | W3 | `read`, `ls`, `bash` 포크와 `ExecutionEnv` 연결: `src/roots.ts`(경로 해석, M1은 cwd 하나), `src/errors.ts`, `src/files/read.ts`·`list.ts`, `src/shell/run.ts`(샌드박스 래핑, `exit_nonzero`), `src/truncate/paging.ts`. 절단 함수는 L1.tools.plan의 결정 위치에서 import | W1, W2, L0.exec.plan(env 포크), L0.sandbox.plan(래핑 API), L1.tools.plan(절단 함수 위치 결정) | L |
-| W4 | provider 등록과 L1.tools 어댑터 연결 확인: `src/index.ts`·`manifest.ts`·`service.ts`, 능력별 `hostOf(g).provide(key, impl)` 등록(X가 `cap:<id>` 바인딩을 만든다), L1.tools가 `ToolSpec` 7개 중 구현된 3개로 `AgentTool`을 만드는지, 미구현 도구는 노출하지 않는지 확인 | W3, X.primitives.plan(서비스 등록 API), L1.tools.plan(도구 어댑터) | M |
+| W4 | provider 등록과 L1.tools 어댑터 연결 확인: `src/index.ts`·`manifest.ts`·`service.ts`, 기능별 `hostOf(g).provide(key, impl)` 등록(X가 `cap:<id>` 바인딩을 만든다), L1.tools가 `ToolSpec` 7개 중 구현된 3개로 `AgentTool`을 만드는지, 미구현 도구는 노출하지 않는지 확인 | W3, X.primitives.plan(서비스 등록 API), L1.tools.plan(도구 어댑터) | M |
 | W5 | `write`, `edit`과 `edit-diff` 포크: `FileChange` 계산, 고유 오류 코드, 퍼지 규칙 E1~E17 테스트, 경로별 줄 세우기 | W3 | L |
 | W6 | `grep`(ripgrep 연결, `rg --json` 파싱), `find`(`rg --files --glob`) | W3 | M |
 | W7 | images 포크와 blob 등록: M2는 `image.ts`·`image-processor.ts`와 `register`·`load` 최소형, blob 연결(`src/ports/blobs.ts`와 `src/images/prepare.ts`), `read`의 이미지 분기. 2차는 photon 처리기, 워커, `resize`, 시작 탐침 (M2 완료 2026-10-24) | W3, L0.store.plan(blob API). 자리표시 치환은 L1.context.plan | M(최소형), L(2차) |
@@ -147,7 +147,7 @@ Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키�
 | 파일 | 테스트 | 확인할 동작 |
 |---|---|---|
 | `test/defs.test.ts` | `workspace defs have no issues` | 정의 3개의 `validateCapability` 이슈 0건, `validateCapabilitySet` 이슈 0건 |
-| `test/read-only.conformance.test.ts` | `the declared classes are the reads and the undeclared writes`, `read, list and images.load leave every file as it was` | 능력 적합성(ADR-0015 §3.6, M3-REQ-88·89). workspace 열 메서드의 분류와 `replay`가 spec 효과 분류 표와 같다. `read`·`list`·`images.load`를 되풀이한 뒤 파일 내용과 목록이 같고 exec 호출이 늘지 않는다. workspace에는 멱등 쓰기가 없다. `grep`·`find`의 호출 시험은 구현(M3-new-10)이 들어올 때 더한다 |
+| `test/read-only.conformance.test.ts` | `the declared classes are the reads and the undeclared writes`, `read, list and images.load leave every file as it was` | 기능 적합성(ADR-0015 §3.6, M3-REQ-88·89). workspace 열 메서드의 분류와 `replay`가 spec 효과 분류 표와 같다. `read`·`list`·`images.load`를 되풀이한 뒤 파일 내용과 목록이 같고 exec 호출이 늘지 않는다. workspace에는 멱등 쓰기가 없다. `grep`·`find`의 호출 시험은 구현(M3-new-10)이 들어올 때 더한다 |
 | | `replay and execution policy declared` | `read`·`ls`·`grep`·`find`: 메서드·도구 `replay: "safe"`, `executionMode: "parallel"`, `hints.readOnly: true`. `write`·`edit`·`bash`: `replay: "unsafe"` |
 | | `tool order is stable` | `orderTools([WorkspaceShell, WorkspaceImages, WorkspaceFiles])`가 `edit, find, grep, ls, read, write, bash` 순 |
 | | `edit toInput repairs shapes` | 문자열 `edits`, 단일 객체 `edits`, 최상위 `oldText`/`newText`가 같은 `EditInput`이 된다 |

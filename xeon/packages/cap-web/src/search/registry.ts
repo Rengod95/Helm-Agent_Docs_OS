@@ -17,7 +17,7 @@ import type {
   WebProviderCatalog,
 } from "../ports/providers.ts";
 
-// L2.web.plan B7. 능력별 provider 후보 레지스트리: 플러그인 등록(X가 넘기는 `WebProviderRegistration`)을 provider로 만들고,
+// L2.web.plan B7. 기능별 provider 후보 레지스트리: 플러그인 등록(X가 넘기는 `WebProviderRegistration`)을 provider로 만들고,
 // 내장 provider와 함께 `WebProviderCatalog`로 낸다. 후보 등록·조회 API의 이름은 X가 정한다 [가정]. 여기서는 목록 포트를 받는다.
 
 export interface PluginRegistration {
@@ -41,7 +41,7 @@ export interface ProviderRegistryDeps {
   readonly http: ProviderHttpDeps;
   readonly clock: Clock;
   readonly logger: Logger;
-  /** `ext.<extension>.<key>` 설정 읽기. 비밀 키는 SecretRef 문자열만 보인다 */
+  /** `ext.<extension>.<key>` 설정 읽기. 시크릿 키는 SecretRef 문자열만 보인다 */
   readonly extensionSetting: (extension: string, key: string) => unknown;
 }
 
@@ -93,7 +93,7 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): WebProviderC
         reject("service_not_declared");
         return undefined;
       }
-      // 질의 인증(`query`)은 지원하지 않는다. 비밀 값이 URL에 들어가 로그와 리퍼러로 샐 수 있어서다(L2.web.spec §3.6.1)
+      // 질의 인증(`query`)은 지원하지 않는다. 시크릿 값이 URL에 들어가 로그와 리퍼러로 샐 수 있어서다(L2.web.spec §3.6.1)
       if (manifest.value.auth.kind === "query") {
         reject("auth_kind_unsupported");
         return undefined;

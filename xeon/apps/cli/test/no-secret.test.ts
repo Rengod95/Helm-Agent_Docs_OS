@@ -6,7 +6,7 @@ import type { TurnContext } from "./support/fake-server.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { itemId } from "./support/ids.ts";
 
-// L4.cli.spec AC5의 CLI 쪽 절반. 비밀 값의 마스킹은 호스트(L0.secrets)가 하고, 호스트는 가린 필드를 redactions로 알린다.
+// L4.cli.spec AC5의 CLI 쪽 절반. 시크릿 값의 마스킹은 호스트(L0.secrets)가 하고, 호스트는 가린 필드를 redactions로 알린다.
 // CLI는 그 자리를 "[redacted]"로 보일 뿐 값을 만들거나 복원하지 않는다. 실제 SOPS 참조 한 턴(통합 시험)은 엔진과 모델 테이프가 필요하다.
 
 const harnesses: Harness[] = [];

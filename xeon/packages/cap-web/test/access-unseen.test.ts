@@ -6,7 +6,7 @@ import { PUBLIC_IP, makeWorld, reasonOfFailure } from "./support/world.ts";
 import { threadIdOf } from "./support/ids.ts";
 
 const HOSTS = { "known.example": [PUBLIC_IP], "new.example": [PUBLIC_IP] };
-// 키 모양 문자열은 소스에 한 덩어리로 적지 않는다(비밀 스캐너가 시험 값을 유출로 읽는다)
+// 키 모양 문자열은 소스에 한 덩어리로 적지 않는다(시크릿 스캐너가 시험 값을 유출로 읽는다)
 const awsLikeKey = ["AKIA", "ABCDEFGHIJKLMNOP"].join("");
 const MODEL = { kind: "model", agent: "main" } as const;
 

@@ -8,7 +8,7 @@ depends_on: [L0.secrets.spec, L0.exec.spec, eng.testing.guide]
 binds: [xeon/packages/platform-secrets/**]
 ---
 
-# L0 비밀 (platform-secrets) 구현 계획
+# L0 시크릿 (platform-secrets) 구현 계획
 
 패키지: `xeon/packages/platform-secrets` (현재 스캐폴드: `package.json`, `src/index.ts`, `test/smoke.test.ts`, `fresnel.layer = "L0"`, `fresnel.domain = "secrets"`). 이 계획은 코드를 바꾸지 않는다. 구현 작업자가 이 순서대로 만든다.
 
@@ -16,13 +16,13 @@ binds: [xeon/packages/platform-secrets/**]
 
 목표: `L0.secrets.spec`의 `fresnel.secrets`(`SecretService`)와 `fresnel.secretAdmin`(`SecretAdminService`, [결정: review.decisions-2 D-04])을 구현한다. 값은 부모 프로세스의 lease 안에만 있고, 모델 컨텍스트·이벤트·로그·도구 자식 env에 나오지 않아야 한다.
 
-[결정] 마일스톤 M1에 "SOPS 비밀 참조 1종"이 `fresnel chat` 도구 호출에서 해석된다(`_research/foundation-plan.md` §5 P4 M1). `L0.readme` §2.2도 M1에 secrets(SOPS 참조 1종)를 둔다.
+[결정] 마일스톤 M1에 "SOPS 시크릿 참조 1종"이 `fresnel chat` 도구 호출에서 해석된다(`_research/foundation-plan.md` §5 P4 M1). `L0.readme` §2.2도 M1에 secrets(SOPS 참조 1종)를 둔다.
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
 | M0 | 코드 없음. 선행 조건: contracts에 spec 8.3절 R1의 참조 형식·순수 함수·값 타입(`capabilities/secrets.ts`, `F.capabilities.spec` §3.10, `F.capabilities.plan` P8)과 R1-a·R2의 서비스 인터페이스·이름 상수(`services/secrets.ts`, `services/secret-admin.ts`, `F.capabilities.spec` §3.12, `F.capabilities.plan` P9)가 들어간다. `platform-os`의 경로·Clock·RandomSource 최소형(`L0.readme` §2.2 os M0 행) | `_research/foundation-plan.md` §5 P4 M0 |
 | M1 | `SecretProvider` 인터페이스 구현 틀, SOPS 제공자(목록·lease), 메타 파일 읽기, lease, 모드 M1 에이전트 env 주입(`withEnv`, bash 도구, 실행마다 승인. exec 쪽은 `L0.exec.plan` EX-13) [결정: review.decisions-2 U-19], 모드 M3(`withHttp`), 마스킹 기본 계층(`Redactor` 규칙 1~3, 계층 2·4·5 연결), 자식 env 필터, 감사 훅(`onAudit`), 키 획득은 OS 1종 이상 + 파일 폴백, `diagnose()` 안내문 | spec §4.3 단계 열, `_research/foundation-plan.md` §5, review.decisions-2 U-19 |
-| M2 | 관리 서비스 전체(`ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `run`, `references`, `usage`, `reveal`. `reveal`은 CLI `fresnel secret reveal`이 먼저 쓰고 데스크톱 화면은 M3다 [결정: review.decisions-2 U-20]), 모드 M4(`withBrowserInput`), 마스킹 5계층 전체 연결(1·3계층 포함), 키체인 provider 3 OS(Windows는 [미결] 해소 뒤), 감사 파일 | `product.scope.spec` §4.4 M2 행(비밀 관리 명령), spec §6.3 |
+| M2 | 관리 서비스 전체(`ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `run`, `references`, `usage`, `reveal`. `reveal`은 CLI `fresnel secret reveal`이 먼저 쓰고 데스크톱 화면은 M3다 [결정: review.decisions-2 U-20]), 모드 M4(`withBrowserInput`), 마스킹 5계층 전체 연결(1·3계층 포함), 키체인 provider 3 OS(Windows는 [미결] 해소 뒤), 감사 파일 | `product.scope.spec` §4.4 M2 행(시크릿 관리 명령), spec §6.3 |
 | 후속 | 모드 M2 sentinel 프록시(`fresnel.sandbox` 프록시 훅 `L0.sandbox.plan` SB-16, TLS 종단), 값 저장 제공자 플러그인(1Password `op`, Bitwarden `bws`, 키체인 `keychain`) | spec §4.3, §10 6·7번 |
 
 - [제안] M1 키 획득: Linux(Secret Service)와 파일 폴백을 먼저 만든다. 개발과 CI가 Linux·WSL이고, WSL에는 Secret Service가 대부분 없기 때문이다. macOS Keychain은 M1 안에서 명령 구성만 만들고 실기 확인은 M2 완료 기준에 둔다.
@@ -71,7 +71,7 @@ xeon/packages/platform-secrets/
     sops-keys.test.ts  sops.int.test.ts  key-select.test.ts  env-filter.test.ts  audit.test.ts
     service.test.ts  http-mode.test.ts  admin.test.ts  no-leak.test.ts  static-checks.test.ts
     protected-paths.test.ts
-    fixtures/                  # SOPS 형식 픽스처. 값 자리는 가짜 ENC[...] 문자열뿐. 실제 키·비밀 없음
+    fixtures/                  # SOPS 형식 픽스처. 값 자리는 가짜 ENC[...] 문자열뿐. 실제 키·시크릿 없음
 ```
 
 - `memorySecrets`(TS-05): `SecretService`와 `SecretAdminService`를 구현하는 메모리 가짜다. 테스트가 넣은 가짜 값만 다루고, 정책 판정·lease·`Redactor`는 운영 구현을 그대로 쓴다. 그래서 다른 패키지 테스트도 마스킹과 호스트 거부를 실제 규칙으로 확인한다.
@@ -82,7 +82,7 @@ xeon/packages/platform-secrets/
 | id | 내용 | 선행 | 규모 | 단계 |
 |---|---|---|---|---|
 | SC-01 | 참조 입력 검사: F 순수 함수 `parseSecretRef`, `secretRef`(위반 시 `Bug`), `findForeignSecretSyntax`(구현은 `F.capabilities.plan` P8)를 메타 `name`과 설정 값 검사에 연결하고, spec §3.1 표 결과를 이 패키지 입력 경로로 다시 확인한다 | F R1 | S | M1 |
-| SC-02 | 메타 스키마와 파일 읽기·쓰기: TypeBox 검증, 비밀별 YAML 파일, 0600 쓰기, 사용자 범위만 읽기, `meta_invalid` 격리 | SC-01 | M | M1(읽기), M2(쓰기) |
+| SC-02 | 메타 스키마와 파일 읽기·쓰기: TypeBox 검증, 시크릿별 YAML 파일, 0600 쓰기, 사용자 범위만 읽기, `meta_invalid` 격리 | SC-01 | M | M1(읽기), M2(쓰기) |
 | SC-03 | sops 호출 래퍼와 오류 매핑: `fresnel.os`로 경로 해석, `--version` 파싱(3.10.0 하한), `decrypt --extract`, 종료 코드·stderr → `provider_unavailable`(`binary_missing`, `version_too_old`) / `key_unavailable` / `decrypt_failed`. stderr 마스킹 | SC-11 | M | M1 |
 | SC-04 | 키 이름 목록: SOPS YAML·JSON·dotenv 평문 파싱, `ENC[` 값만, `sops` 블록 제외, 중첩 경로, `sops:<env>/<KEY>` 참조 생성. sops를 부르지 않는다 | SC-02 | S | M1 |
 | SC-05 | `SOPS_AGE_KEY_CMD` 구성과 OS별 명령 3종: `KeyProvider`, shlex 인용 함수, darwin·linux 명령, win32 스텁, `select.ts`(auto·keychain·file) | — | M | M1(linux, darwin 구성), M2(darwin 실기, win32 [미결]) |
@@ -95,7 +95,7 @@ xeon/packages/platform-secrets/
 | SC-12 | 서비스 등록: `PlatformModule`(ext-host `registerPlatform`), `l0.secrets.*` 설정 정의, 제공자 레지스트리, `testing` 서브패스(`memorySecrets`, `fakeSopsBinary`) | SC-10 | S | M1 |
 | SC-13 | 키 파일 폴백: `age-encryption` 0.3.1로 identity 생성, 0600 쓰기, 소유 uid·모드 검사, 고지 문구, 첫 사용 확인 플래그 | SC-05 | S | M1 |
 | SC-14 | 관리 명령 서비스 메서드: `ls`, `usage`, `add`, `set`, `meta`, `rotate`(lease 폐기), `references`, `rm`(`in_use`), `test`(길이·해시 8자), `run`(사람 전용 M1) | SC-10, SC-09 | L | M2 |
-| SC-15 | exec 연동 테스트: `L0.exec`가 F 상수 `SENSITIVE_ENV_PATTERNS`로 비밀 제공자 변수를 지우는지 `fakeExec`가 아닌 실제 자식 프로세스로 확인(int, spec §9 1번). 시험 파일은 `platform-exec`에 둔다(DR-02). `withEnv` 주입 경로 연동은 SC-22 | SC-11, `L0.exec.plan` EX-12 | S | M1 |
+| SC-15 | exec 연동 테스트: `L0.exec`가 F 상수 `SENSITIVE_ENV_PATTERNS`로 시크릿 제공자 변수를 지우는지 `fakeExec`가 아닌 실제 자식 프로세스로 확인(int, spec §9 1번). 시험 파일은 `platform-exec`에 둔다(DR-02). `withEnv` 주입 경로 연동은 SC-22 | SC-11, `L0.exec.plan` EX-12 | S | M1 |
 | SC-16 | `just secret-add` 안내문과 doctor 점검: `diagnose()`가 sops 유무·버전, 키 provider 상태, 파일 폴백 고지, 메타 없는 키(`orphaned`), 등록 경로 두 줄 안내를 낸다 | SC-03, SC-05, SC-10 | S | M1 |
 | SC-17 | M4 `withBrowserInput`: origin 정확 일치, `fill` 콜백만 값 수신, 콜백 뒤 0 덮기 | SC-07 | S | M2 |
 | SC-18 | SOPS `put`·`remove`: sops `set`의 stdin 입력 지원 확인 뒤에만 켠다(spec §10 5번). 지원이 없으면 `capabilities().put = false` | SC-03, [미결] | M | M2 |
@@ -128,7 +128,7 @@ xeon/packages/platform-secrets/
 
 ## 5. 단위 테스트 목록
 
-모든 비밀 값은 테스트 안에서 `seededRandom`으로 만든 가짜 값이다. 픽스처 파일에 값이나 키를 쓰지 않는다.
+모든 시크릿 값은 테스트 안에서 `seededRandom`으로 만든 가짜 값이다. 픽스처 파일에 값이나 키를 쓰지 않는다.
 
 | 파일 | 테스트 이름 | 확인할 동작 |
 |---|---|---|
@@ -136,7 +136,7 @@ xeon/packages/platform-secrets/
 | | `rejects bad names and schemes` | spec §3.1 표의 `invalid_ref` 행 전부 |
 | | `rejects foreign syntaxes` | `$VAR`, `${VAR}`, `{{secret:x}}`, `%x%`, `op://…`, `sops:dev/KEY`가 `unsupported_ref_syntax` |
 | | `secretRef throws Bug on invalid name` | 호출 결함은 `Bug` |
-| `meta.test.ts` | `validates schema and isolates invalid file` | 잘못된 메타 하나가 다른 비밀 목록을 막지 않는다 |
+| `meta.test.ts` | `validates schema and isolates invalid file` | 잘못된 메타 하나가 다른 시크릿 목록을 막지 않는다 |
 | | `ignores project-scoped meta locations` | 저장소 안 메타 디렉터리를 읽지 않는다 |
 | | `writes with mode 0600` | 쓰기 권한 |
 | `sops-keys.test.ts` | `lists keys without decrypt` | YAML·JSON·dotenv 픽스처에서 `ENC[` 키만, `sops` 블록 제외 |
@@ -161,7 +161,7 @@ xeon/packages/platform-secrets/
 | `redactor.test.ts` | `masks known value variants` | 원문, base64 표준·URL-safe·무패딩, Basic 인증 정렬 3종, URL 인코딩, hex 대소문자, JSON 이스케이프 |
 | | `masks prefix patterns and kv context` | 18 §3.10.4 규칙 2·3 예 |
 | | `does not apply entropy check to tool output` | UUID·git 해시가 그대로 남는다 |
-| | `registerKnown rejects short values` | 7바이트 → `value_too_short`, 같은 비밀의 `env` lease → `mode_not_allowed` |
+| | `registerKnown rejects short values` | 7바이트 → `value_too_short`, 같은 시크릿의 `env` lease → `mode_not_allowed` |
 | `redactor.prop.test.ts` | `no registered value survives mask` | 고정 시드 무작위 값과 무작위 앞뒤 문맥에서 원문과 변형이 남지 않는다 |
 | `env-filter.test.ts` | `strips SOPS_AGE_ and provider tokens` | sops 호출 env에서 `SOPS_AGE_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_SECRET_*` 제거. 거른 기준이 F `SENSITIVE_ENV_PATTERNS`와 같은 값 |
 | | `sops env carries exactly one key variable` | sops 호출 env에 키 변수가 하나뿐 |
@@ -185,7 +185,7 @@ xeon/packages/platform-secrets/
    - 시험 명령이 기대한 값을 받았다고 보고한다(종료 코드 0).
    - 이벤트 DB 전체, blob, 운영 로그, 모델 요청 본문(테이프 기록), CLI stdout·stderr에 값과 변형(base64, URL, hex, JSON 이스케이프)이 없다.
    - 승인을 거부한 같은 시나리오는 `secret.denied`(`approval_missing`) 레코드를 남기고 자식 프로세스를 띄우지 않는다. 명령 패턴 밖 명령은 `command_mismatch`다.
-3. 픽스처: gitleaks 대상 경로(`test/fixtures/**`)에 실제 비밀과 age 키가 없다. lefthook pre-commit gitleaks가 통과한다.
+3. 픽스처: gitleaks 대상 경로(`test/fixtures/**`)에 실제 시크릿과 age 키가 없다. lefthook pre-commit gitleaks가 통과한다.
 4. spec §9 수용 기준 1~14가 아래 표의 테스트로 대응된다.
 
 | spec §9 | 테스트 |
@@ -253,7 +253,7 @@ xeon/packages/platform-secrets/
 - `meta`: `use`, `approval`, `scope`, `expiresAt`가 바뀌면 활성 lease를 닫는다. 좁힌 정책이 이미 열린 lease에 적용되지 않는 틈을 없애기 위해서다. `ttlSeconds`와 `maxUses` 변경은 새 lease에만 적용한다.
 - `run`: 사람이 명령을 입력한 것을 승인으로 보아 사용 정책(모드, 도구, 대상, 승인)을 건너뛰고 만료만 검사한다. `secret.used`(`mode: "env"`, `threadId: null`)는 남긴다. 자식 프로세스를 띄우지 못하면 종료 코드 127을 돌려준다. 환경 변수 이름 규칙 위반은 `invalid_ref`(`name_pattern`)로 돌려준다.
 - `ls --usage`: 감사 파일에서 마지막 사용 시각만 채운다. 결정별 개수를 실을 필드가 `SecretListing`에 없어 `usage()`로 따로 센다.
-- 감사 파일의 `secret.used`·`secret.denied`·`secret.approved`·`secret.masked`도 같은 파일에 쓴다(spec §3.9 제안). 이 쓰기는 대기열에 넣고 실패를 로그에만 남겨 비밀 사용 경로를 막지 않는다. `reveal`만 기록이 실패하면 값을 보이지 않는다.
+- 감사 파일의 `secret.used`·`secret.denied`·`secret.approved`·`secret.masked`도 같은 파일에 쓴다(spec §3.9 제안). 이 쓰기는 대기열에 넣고 실패를 로그에만 남겨 시크릿 사용 경로를 막지 않는다. `reveal`만 기록이 실패하면 값을 보이지 않는다.
 - 문체: 이 문서와 `_templates/README.md`가 한다체이므로 같은 문체로 적었다.
 
 ### 8.4 다른 레인에 요청 (F 계약)
@@ -266,7 +266,7 @@ xeon/packages/platform-secrets/
 | (해소, M2 F 레인) `SecretError`에 "키 파일을 만들 수 없음 또는 덮어쓰기 거부" 변형 | 반영됨. `provision`이 `write_failed{target:"key_file", path, code}`를 돌려주고 덮어쓰기 거부는 `code: "EEXIST"`다 | spec §3.10, §4.7 |
 | `SecretError`에 환경 변수 이름 오류 변형 | `invalid_ref`(`name_pattern`) | spec §3.10, §4.7 |
 | `SecretListing`에 결정별 사용 개수(`--usage`) | 없음. `usage()`로 센다 | spec §4.9 `ls` |
-| 설정 저장소의 비밀 참조 조회(`references`의 `settingKeys`) | `settingKeysFor` 주입(기본은 빈 목록) | spec §3.8 |
+| 설정 저장소의 시크릿 참조 조회(`references`의 `settingKeys`) | `settingKeysFor` 주입(기본은 빈 목록) | spec §3.8 |
 | 조립 루트(HOST.3)에 `createSecretsRuntime`의 `osAuthAvailable`, `settingKeysFor` 연결 | 기본값 `false`와 빈 목록 | m2-plan HOST.3 |
 
 ### 8.5 M2 첫 실행 기록 (m2r sec)
@@ -280,5 +280,5 @@ macOS 깨끗한 기기의 첫 실행에서 `fresnel secret add`가 `not_register
 | SC-24 키와 수신자 | `key/recipient.ts`가 수신자 기록을 읽고 쓴다. `assemble.ts`의 `recipient()`가 기록 → `provision` 순으로 수신자를 얻는다. 실패 뒤 재시도, 기록 없는 키, 확인 전 파일 폴백을 `first-write.int.test.ts`가 본다 |
 | SC-24 macOS `provision` | `key/darwin.ts`. `security -i` stdin으로 항목을 만든다. 가짜 `security`로 호출 순서, argv에 identity 없음, stdin 0 덮기, EEXIST, add_failed를 본다. `key-darwin-provision.test.ts`. 실기 확인은 [미결] |
 | SC-24 잠금 | `providers/lock.ts`의 `SecretFileLock`을 조립 루트가 `OsServiceHandle.fileLock`으로 채운다. 없으면 프로세스 안 직렬화다. 동시 첫 `add` 두 개가 키와 파일을 하나만 만든다(`first-write.int.test.ts`). 프로세스 사이 잠금 자체의 시험은 `L0.os`가 한다 |
-| 두 클라이언트 공유 | `OsDirs`가 사용자 하나에 하나라 메타, 감사 파일, 키, 기본 파일이 같다(spec §4.8). CLI용·사이드카용 두 조립이 한 비밀을 등록·교체·열람하는 시험이 `first-write.int.test.ts`에 있다 |
+| 두 클라이언트 공유 | `OsDirs`가 사용자 하나에 하나라 메타, 감사 파일, 키, 기본 파일이 같다(spec §4.8). CLI용·사이드카용 두 조립이 한 시크릿을 등록·교체·열람하는 시험이 `first-write.int.test.ts`에 있다 |
 | 오류 정확도 | sops가 없을 때 `put` 불가를 `read_only_provider`가 아닌 `binary_missing`으로 돌려준다(`readOnlyReason`). F의 `write_failed.target`에 `key_store`, `sops_file`을 더했다 |

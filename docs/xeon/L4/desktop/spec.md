@@ -269,7 +269,7 @@ export interface DesktopSettingsStore {
 - 파일 위치는 Tauri 앱 설정 디렉터리(`app_config_dir`)의 `desktop-settings.json`이고, 범위는 `user` 하나다. 형식은 전체 설정 키를 쓰는 평평한 JSON 객체다. 예: `{"l4.desktop.window.closeBehavior":"tray","l4.desktop.engine.shutdownGraceMs":5000,"l4.desktop.engine.restartLimit":2}`. 셸은 시작할 때 한 번 읽는다(§4.2 1단계). 구현은 `src-tauri/src/desktop_settings.rs`다.
 - 읽기 규칙. 파일이 없으면 기본값이고 진단은 없다. 파일이 64 KiB를 넘거나, JSON이 아니거나, 최상위가 객체가 아니면 모든 키를 기본값으로 쓰고 진단을 한 줄 남긴다. 값 하나가 타입이나 범위에 맞지 않으면 그 키만 기본값을 쓰고 진단을 한 줄 남긴다. 범위는 `closeBehavior`가 `"quit"`·`"tray"`, `shutdownGraceMs`가 정수 1000~180000, `restartLimit`이 정수 0~10이다. 알 수 없는 키는 진단 없이 무시한다. 진단은 키 이름과 이유만 담고 값은 담지 않는다(E11).
 - 쓰기는 아직 없다. 셸이 파일을 쓰는 명령 `desktop_settings_read`, `desktop_settings_write`는 M4 설정 화면(B3-SET) 때 더한다 [미결: M4 settings-ui / B3-SET]. 그 전까지 파일은 직접 고친다.
-- 이 저장소는 비밀 키를 두지 않는다. `l4.desktop.*`에는 `secret: true` 키가 없다.
+- 이 저장소는 시크릿 키를 두지 않는다. `l4.desktop.*`에는 `secret: true` 키가 없다.
 
 ### 3.7 메모리 측정 인터페이스
 
@@ -313,7 +313,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 | E8 | 세션 DB는 바이너리에 임베드하지 않는다. DB 위치는 엔진이 `L0.os.spec`의 사용자 데이터 디렉터리에서 정하고, 셸은 DB 경로를 넘기지 않는다. 그래야 CLI와 데스크톱이 같은 DB를 연다 | adr.0008 §3.3 제안 5, `_research/stack-status.md §7-C` 임베디드 SQLite 행 | [제안] |
 | E9 | 엔진의 손자 프로세스는 엔진과 같은 프로세스 그룹에 남아야 한다. 엔진 쪽 실행 코드가 손자를 새 그룹이나 새 세션으로 떼어 내면 E3의 그룹 종료가 그 손자에 미치지 않는다. 떼어 낸 손자는 엔진이 EOF·shutdown 처리 때 직접 정리한다 | arch-2 §3.2 그룹 범위 행 | [제안]. `L0.process.spec`에 요구 |
 | E10 | stdout은 JSON Lines 전용이다. 엔진 로그는 stderr로 쓰고, 셸은 stderr를 줄 단위로 앱 로그 파일에 남긴다. stderr 줄 길이는 8 KiB에서 자른다 | `F.wire-settings.spec` §3.1 프레이밍 | [제안] |
-| E11 | 셸 로그와 릴레이는 프레임 내용을 기록하지 않는다. 바이트 수, 프레임 수, 세대 번호만 남긴다. 비밀 값은 프레임에 실리지 않지만(`L4.readme` §4 비밀 행) 다른 결함으로 실리더라도 셸 로그에 남지 않는다. 키 등록 명령(`secret_register`, §4.14.1)의 본문은 값을 싣지만 로그에는 이름과 결과 종류만 쓰고, 자식 출력은 값이 들어 있으면 버린다 | `F.wire-settings.spec` §4.9 비밀 값 비표시 규칙 2, §3.8.1 SecretRef, `L0.secrets.spec` §8.3 R4(값 없는 `secret.*`) | [제안] |
+| E11 | 셸 로그와 릴레이는 프레임 내용을 기록하지 않는다. 바이트 수, 프레임 수, 세대 번호만 남긴다. 시크릿 값은 프레임에 실리지 않지만(`L4.readme` §4 시크릿 행) 다른 결함으로 실리더라도 셸 로그에 남지 않는다. 키 등록 명령(`secret_register`, §4.14.1)의 본문은 값을 싣지만 로그에는 이름과 결과 종류만 쓰고, 자식 출력은 값이 들어 있으면 버린다 | `F.wire-settings.spec` §4.9 시크릿 값 비표시 규칙 2, §3.8.1 SecretRef, `L0.secrets.spec` §8.3 R4(값 없는 `secret.*`) | [제안] |
 
 - E5의 체크포인트 시한: 엔진은 EOF 뒤 `l0.process.shutdown.timeoutMs`(기본 3000ms) 안에 종료한다(`L0.process.spec` §6, `L4.host-service.spec` HS-31, HS-32). S4 측정(WSL2, 20회)에서 idle 호스트의 EOF → 종료는 중앙값 약 28 ms, 최대 61 ms였다. 기본값은 종료 경로에 충분하고, 진행 중 turn이 있을 때의 체크포인트 시간은 [미확인]이다(`L4.desktop.plan` §3.1.1 S4).
 - E8의 확인: `L0.os.spec`이 CLI와 엔진 사이드카에 같은 데이터 디렉터리를 돌려주는지는 그 문서의 수용 기준에 요구한다.
@@ -515,7 +515,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 
 - 승인 대기열: [가정] A안에서는 대기 상태가 저장소에 있으므로 새로고침·재기동 뒤에도 §4.6 재개로 대기열이 다시 채워진다. B안(서버 → 클라이언트 요청)으로 정해지면 대기열 복구 규칙을 다시 쓴다.
 - 승인 카드 [결정: M2 검토 M2, 마감 G2-10]:
-  - 도구 승인은 도구 이름과 위험도에 더해 `command` 문자열 전체, `args` 전체(접힘, 4000자 상한), `secretEnv`로 쓸 비밀 핸들(`이름 ← secret://…`)을 보인다. 이 승인이 비밀 사용의 증거가 되므로 사용자가 내용을 보고 허용해야 한다. 핸들은 참조이고 값이 아니며, 참조 모양이 아닌 값은 이름만 보인다. 인자가 BlobRef면 "별도 저장소에 있다"만 보인다.
+  - 도구 승인은 도구 이름과 위험도에 더해 `command` 문자열 전체, `args` 전체(접힘, 4000자 상한), `secretEnv`로 쓸 시크릿 참조(`이름 ← secret://…`)을 보인다. 이 승인이 시크릿 사용의 증거가 되므로 사용자가 내용을 보고 허용해야 한다. 핸들은 참조이고 값이 아니며, 참조 모양이 아닌 값은 이름만 보인다. 인자가 BlobRef면 "별도 저장소에 있다"만 보인다.
   - 질문 승인은 선택지를 그린다(`multiSelect`면 체크박스, 아니면 라디오. `header`, `description`, `recommended` 표시). 자유 입력은 `allowFreeText`가 참인 질문에만 둔다. 모든 질문에 선택이나 자유 입력이 하나 있어야 "답하기"가 켜지고, 보내는 값은 `L1.tools.spec` §3.6이 받는 `QuestionAnswer`(`{ [질문 id]: { selected, text? } }`)다. "거부"는 질문에도 있다.
   - 응답이 적용되지 않으면 `approval.respond` 결과의 `reason`으로 이유별 문장을 보인다(`src/app/approval-outcome.ts`). `answer_invalid`는 `invalid`(host가 준 `detail` 한 줄을 덧붙인다), `already_resolved`와 `unknown_approval`은 `closed`, `commit_failed`와 연결 오류는 `failed`, 이유가 없으면 `unapplied`다. 스키마에 맞지 않는 질문 답의 `-32602`도 `invalid`로 읽는다.
 - 프로젝트 신뢰 카드 [결정: M2 마감 G1-03]: 신뢰하지 않은 프로젝트는 `.mcp.json`, 프로젝트 스킬, 프로젝트 슬래시 명령, 프로젝트 설정을 읽지 않는다. 열린 대화의 작업 폴더(`ThreadSummary.workspace`)에 대해 연결이 `live`가 되면 `trust.get { workspace }`를 부르고, 신뢰가 필요한 자원이 있고(`required`) 허용이 아니면(`verdict`가 `undecided` 또는 `deny`) 입력창 위에 카드를 보인다. 카드는 프로젝트 경로, 불러오려는 자원, host가 만든 선택지(`TrustOption`)를 버튼으로 둔다. 버튼 문구는 `label` 식별자(`trust-folder` 등)를 `src/views/trust-model.ts` 표로 옮기고 모르는 식별자는 그대로 보인다. 선택은 `trust.decide { workspace, choice }`로 보내고, 돌아온 판정으로 카드를 바꾼다(신뢰하면 사라진다). 판정은 이벤트가 아니라 요청 결과라 거울에 넣지 않고 부품의 로컬 상태에 둔다(`eng.frontend-state.guide` FS-03, FS-04). 거부한 프로젝트는 바꿀 수 있게 카드가 남는다. 메서드가 없는 host의 `-32601`은 `unsupported`로 읽고 카드를 그리지 않는다.
@@ -526,20 +526,20 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 확장 이벤트(`x.<확장id>.*`)는 M2에서 일반 item(종류 이름과 요약)으로만 보인다. 확장별 화면은 범위 밖이다.
 - `display: false`인 확장 item(`kind: "custom"`, 예: `x.knowledge.context`)은 모델 문맥 전용이라 트랜스크립트에 그리지 않는다(`F.conversation.spec` §3.5.2). `display: true`만 위 규칙으로 보인다.
 - `kind: "system"` item(요청 앞에 붙는 시스템 프롬프트, 예: "You are Fresnel, a helpful coding assistant.")는 모델 문맥 전용이라 그리지 않는다 [결정: M2 Mac 실기]. 사용자가 쓴 말과 모델의 응답이 아니고 F 명세도 화면 표시를 요구하지 않는다. 내용 없이 `failed`로 끝난 어시스턴트 item도 그리지 않는다: 보일 내용이 없고 실패 원인은 트랜스크립트 아래 `role="alert"` 한 곳에만 보인다(실패가 두 번 보이지 않게 한다). 내용이 있는 `failed`·`interrupted` item은 내용과 상태 표지를 그대로 보인다.
-- 실패 문장은 host가 준 `turn.completed.error`를 그대로 보인다. 모델을 해석하지 못했으면 `model_unavailable: model_not_found: model <ref> is not in the catalog`처럼 종류와 모델이 보이고(`L1.loop.spec` §4.3), 비밀을 열지 못했으면 `secret_unresolved: ... could not be leased (denied: <사유>)`로 사유가 보인다(`L1.models.spec` §3.9).
+- 실패 문장은 host가 준 `turn.completed.error`를 그대로 보인다. 모델을 해석하지 못했으면 `model_unavailable: model_not_found: model <ref> is not in the catalog`처럼 종류와 모델이 보이고(`L1.loop.spec` §4.3), 시크릿을 열지 못했으면 `secret_unresolved: ... could not be leased (denied: <사유>)`로 사유가 보인다(`L1.models.spec` §3.9).
 - 입력창 Enter [결정: M2 Mac 실기]: 한글 조합 중의 Enter는 보내지 않는다. WebKit(Safari, WKWebView)은 `compositionend`를 Enter keydown보다 먼저 내고 그 keydown의 `isComposing`이 거짓이라, `isComposing`, `keyCode === 229`, `compositionend` 직후 50ms 안의 Enter를 모두 조합 확정으로 본다(`src/views/composer-model.ts`). 전송은 동기 잠금(ref)으로 한 번에 하나만 나가고, 보내는 즉시 입력을 비우며 실패하면 입력을 돌려준다.
 - 입력창 잠금 [결정: M2 Mac 실기]: 모델 키와 기본 모델이 끝나지 않았으면(시작 안내 띠와 같은 판단) 입력창을 잠그고 안내 문장을 보인다.
 - turn 실패 표시 [결정: M2 Mac 실기]: `turn.completed`가 `status: "failed"`이면 `error`를 해당 대화의 트랜스크립트 아래에 `role="alert"`로 보이고(거울의 `turnFailures`), 다음 `turn.started`에 지운다. `error`가 없으면 카탈로그 기본 문장(`desktop.engine.turnFailureUnknown`, §10 18번)을 씁니다.
 
 ### 4.14 최소 설정 화면 [결정: M2 마감 D-b, G2-08]
 
-`L4.settings-ui.spec`의 전체 화면(12탭, 비밀 관리 패널)은 M3다. M2에는 데스크톱에서 첫 대화를 시작하는 데 필요한 것만 둔다. 상태 표시줄의 "설정" 단추가 연다(`Screen = "settings"`, `src/views/settings.tsx`). 판단과 변환은 `@fresnel/client/settings`(`xeon/packages/client/src/settings/`)의 순수 함수가 하고, wire 호출은 `src/app/setup.ts`가 한다.
+`L4.settings-ui.spec`의 전체 화면(12탭, 시크릿 관리 패널)은 M3다. M2에는 데스크톱에서 첫 대화를 시작하는 데 필요한 것만 둔다. 상태 표시줄의 "설정" 단추가 연다(`Screen = "settings"`, `src/views/settings.tsx`). 판단과 변환은 `@fresnel/client/settings`(`xeon/packages/client/src/settings/`)의 순수 함수가 하고, wire 호출은 `src/app/setup.ts`가 한다.
 
 | 영역 | 내용 | 쓰는 wire |
 |---|---|---|
-| 시작 안내 | 세 단계(외부 도구 점검, 모델 키 등록, 기본 모델 선택)의 완료 여부. 키 단계는 "활성 provider의 `apiKeyRef`가 가리키는 비밀이 등록되어 있다"일 때, 모델 단계는 "기본 모델의 provider가 키를 가진 provider와 같다"일 때 끝난다. 기본 모델 설정에 `problem`이 있으면(카탈로그에 없는 id, `L4.host-service.spec` HS-80) 기본 모델이 없는 것으로 보고 모델 단계를 끝내지 않는다 | `settings.get`, `secret.list` |
+| 시작 안내 | 세 단계(외부 도구 점검, 모델 키 등록, 기본 모델 선택)의 완료 여부. 키 단계는 "활성 provider의 `apiKeyRef`가 가리키는 시크릿이 등록되어 있다"일 때, 모델 단계는 "기본 모델의 provider가 키를 가진 provider와 같다"일 때 끝난다. 기본 모델 설정에 `problem`이 있으면(카탈로그에 없는 id, `L4.host-service.spec` HS-80) 기본 모델이 없는 것으로 보고 모델 단계를 끝내지 않는다 | `settings.get`, `secret.list` |
 | 외부 도구 | 필수/선택 바이너리의 사용 가능 여부, 버전 또는 해야 할 일, 못 쓸 때의 영향(L0.os.spec §3.6.1 `BinaryCheckReport`에서 경로만 뺀 `HostBinaryReport`) | `host.status { includeBinaries: true }` |
-| 모델 키 | provider 입력(후보 목록은 편의), 기본 비밀 이름 `<provider>-api-key`, 등록 여부, 키 등록/바꾸기(사이드카에서는 화면 안 등록 창, §4.14.1), provider에 연결 | `secret.list`, `secret.beginEntry`, `settings.get`·`settings.set` (`l1.models.providers`), 셸 명령 `secret_register` |
+| 모델 키 | provider 입력(후보 목록은 편의), 기본 시크릿 이름 `<provider>-api-key`, 등록 여부, 키 등록/바꾸기(사이드카에서는 화면 안 등록 창, §4.14.1), provider에 연결 | `secret.list`, `secret.beginEntry`, `settings.get`·`settings.set` (`l1.models.providers`), 셸 명령 `secret_register` |
 | 기본 모델 | `provider/모델[:추론 레벨]` 입력(형식만 검사), 저장 | `settings.set` (`l1.models.default`) |
 
 - 쓰기 범위는 `user`다. `l1.models.providers`는 목록 전체가 한 키이므로(병합 단위는 키 하나) 현재 값을 읽어 해당 provider 원소만 바꾼 목록을 보낸다. baseUrl은 그대로 둔다.
@@ -560,14 +560,14 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 | 서비스 쪽 OS 입력 창(M3) | OS 입력 창과 L0.secrets | 서비스 모드가 있어야 한다. M2에는 없다 |
 | Rust 셸이 번들된 `fresnel secret`을 실행하고 stdin에 한 번 쓴다(채택) | WebView 입력란, Tauri IPC 본문, 셸의 요청 버퍼, 자식 stdin 파이프 | 값이 DOM과 IPC를 지난다(`L4.settings-ui.spec` §4.6.4 B안과 같은 약점). 아래 약점 항목 |
 
-채택한 경로는 비밀 저장 로직을 Rust에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `fresnel` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
+채택한 경로는 시크릿 저장 로직을 Rust에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `fresnel` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
 
 흐름(`src-tauri/src/secret_entry.rs`, `xeon/packages/client/src/settings/key-entry.ts`):
 
 1. 화면이 "키 등록"에서 값 없는 `secret.beginEntry`를 먼저 부른다. `started: true`(값을 호스트가 받음)면 기존 흐름대로 provider에 연결한다. `started: false`이거나 메서드가 없으면(`unsupported`) 화면 안에 등록 창을 연다.
 2. 등록 창은 제어하지 않는 `type="password"` 입력란이다. 값은 DOM 노드에만 있고 React 상태, zustand 거울, props에 들어가지 않는다. 저장을 누르면 `submitKey`가 첫 `await` 전에 입력란을 읽고 곧바로 비우며, 앞뒤 공백과 줄바꿈을 지운 뒤 UTF-8 바이트 배열 하나로 바꾼다. 취소와 창이 사라지는 것도 입력란을 비운다.
 3. WebView가 `secret_register`를 원시 바이트 본문 `<동작> <이름>\n<값>`으로 부른다(JSON 문자열에 싣지 않는다). 호출이 끝나면 그 바이트 배열을 0으로 덮는다.
-4. 셸은 본문을 검사한다(동작은 `add`·`set`, 이름은 `^[a-z][a-z0-9-]{1,63}$`라서 `-`로 시작하는 옵션이 될 수 없다, 값은 1바이트 이상 8 KiB 이하). 번들된 사이드카를 인자 `secret <동작> <이름>`으로 실행한다. 작업 폴더와 환경은 엔진과 같다(홈, `BUN_OPTIONS` 제거, PATH 보강은 E7). 그러므로 CLI와 사이드카가 같은 OS 디렉터리를 보고 같은 비밀 저장소(설정 폴더의 비밀 메타 `<config>/secrets/meta`, SOPS 파일, age 키)를 쓴다. 상태 폴더의 `cli/state.json`은 CLI의 자체 상태 파일이고 비밀 저장소가 아니다.
+4. 셸은 본문을 검사한다(동작은 `add`·`set`, 이름은 `^[a-z][a-z0-9-]{1,63}$`라서 `-`로 시작하는 옵션이 될 수 없다, 값은 1바이트 이상 8 KiB 이하). 번들된 사이드카를 인자 `secret <동작> <이름>`으로 실행한다. 작업 폴더와 환경은 엔진과 같다(홈, `BUN_OPTIONS` 제거, PATH 보강은 E7). 그러므로 CLI와 사이드카가 같은 OS 디렉터리를 보고 같은 시크릿 저장소(설정 폴더의 시크릿 메타 `<config>/secrets/meta`, SOPS 파일, age 키)를 쓴다. 상태 폴더의 `cli/state.json`은 CLI의 자체 상태 파일이고 시크릿 저장소가 아니다.
 5. 셸은 요청 본문의 값 조각을 복사하지 않고 자식 stdin에 한 번 쓰고 닫는다(EOF). CLI는 stdin이 TTY가 아니면 EOF까지 읽고 끝의 줄바꿈 하나를 지운다(`L4.cli.spec` §4.7, 상한 64 KiB). 셸 쪽 값 상한 8 KiB는 파이프 버퍼보다 작게 두어 자식이 읽지 않고 끝나도 쓰기가 막히지 않게 한다.
 6. 셸은 자식이 끝나기를 30초까지 기다린다. 넘으면 프로세스 그룹째 끝낸다(자식이 부른 sops와 age 포함). 종료 코드 0이면 성공이다. 아니면 `rejected`이고 `detail`에 자식 stderr의 앞부분(600자)을 싣는다. CLI의 오류 문구는 값을 담지 않는다. 그래도 자식 출력에 값이 그대로 들어 있으면 `detail`을 비운다.
 7. 성공하면 화면은 provider를 연결하고 `secret.list`를 다시 읽어 "등록됨"을 보인다.
@@ -594,7 +594,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | 부분 | 내용 | 코드 |
 |---|---|---|
 | 로그 파일 | `tauri-plugin-log`의 `LogDir` 대상(`fresnel-desktop-debug.log`)과 표준 출력. 수준 info, 파일 하나, 2 MB에서 새로 시작(`KeepOne`). 들어가는 줄은 셸 로그(`applog.rs`)와 같은 줄이고, 시작할 때 `fresnel-desktop <버전> started` 한 줄이 먼저 온다 | `main.rs` `debug_log_plugin`, `applog.rs` `AppLog::line` |
-| 상태 덤프 | 줄 단위 JSON-RPC 2.0 `state.dump`: 앱 이름·버전·pid·가동 시간, 엔진 상태(IPC 상태 채널과 같은 직렬화), 릴레이 세대, 메인 창 크기·가시·포커스·최소화, 로그 폴더. 대화 내용과 비밀 값은 싣지 않는다 | `src-tauri/src/inspect/mod.rs`, `probe.rs` |
+| 상태 덤프 | 줄 단위 JSON-RPC 2.0 `state.dump`: 앱 이름·버전·pid·가동 시간, 엔진 상태(IPC 상태 채널과 같은 직렬화), 릴레이 세대, 메인 창 크기·가시·포커스·최소화, 로그 폴더. 대화 내용과 시크릿 값은 싣지 않는다 | `src-tauri/src/inspect/mod.rs`, `probe.rs` |
 | 뷰포트 스냅샷 | `viewport.snapshot`: WKWebView가 보이는 영역을 PNG로 `<LogDir>/snapshots/viewport-<ms>.png`에 저장하고 `{ path, bytes, mime }`을 돌려준다. 이미지 바이트는 응답에 없다. macOS만 되고 그 밖은 오류(-32000)다 | `inspect/snapshot_macos.rs` |
 | 듣는 곳 | Unix 도메인 소켓 하나(기본 `<LogDir>/inspect.sock`, 환경 변수 `FRESNEL_DESKTOP_INSPECT_SOCKET`으로 바꾼다). 소켓 파일 0600. 소켓 폴더는 없으면 앱이 0700으로 만들고(위쪽 폴더는 기본 권한), 이미 있으면 권한을 바꾸지 않는다. 이미 있는 폴더는 앱 사용자 소유이고 other 쓰기가 없을 때만 쓰며, `/tmp` 같은 공용 폴더는 `PermissionDenied`로 거절하고 소켓을 열지 않는다(M2 마감 재검토 11). 동시 접속 4개, 요청 줄 16 KiB 상한. 모르는 메서드는 -32601이고 읽기 전용이다 | `inspect/server.rs` |
 
@@ -622,7 +622,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | 사례 | 처리 |
 |---|---|
 | 사이드카 바이너리가 번들에 없거나 triple이 맞지 않음 | `failed`로 두고 진단 화면에 바이너리 경로와 triple을 보인다. 재기동하지 않는다 |
-| 엔진이 기동 직후 반복 종료 | §4.4 재기동 정책. 상한을 넘으면 `failed`, stderr 마지막 20줄을 진단 화면에 보인다(비밀 값 마스킹은 엔진 로그 규칙을 따른다) |
+| 엔진이 기동 직후 반복 종료 | §4.4 재기동 정책. 상한을 넘으면 `failed`, stderr 마지막 20줄을 진단 화면에 보인다(시크릿 값 마스킹은 엔진 로그 규칙을 따른다) |
 | 프레임이 1 MiB를 넘음 | WebView의 `StdioTransportFactory` 구현이 그 줄을 버리고 `-32600`을 처리한다. 셸은 크기를 검사하지 않는다 |
 | 셸 → WebView 채널이 밀림(WebView가 느림) | 신용 창 4 MiB(§3.3)가 차면 셸은 더 보내지 않고 엔진 stdout 읽기가 멈춘다. 셸이 쥐는 데이터는 줄 하나의 꼬리뿐이다. 줄 끝 없이 2 MiB를 넘은 줄은 프레임 한도(1 MiB) 위반이라 버리고 다음 줄 끝에서 다시 맞춘다(바이트 수만 로그에 남긴다). 엔진 쪽 송신 큐 한도는 `F.wire-settings.spec` §3.4.3 lowWater를 따른다 |
 | `engine_write`의 세대가 현재와 다름 | 거부한다. 이전 페이지의 늦은 쓰기가 새 연결에 섞이지 않게 한다 |
@@ -663,7 +663,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 노출 위치: 설정 화면(`L4.settings-ui.spec`)이 엔진 `settings.list` 결과와 `DesktopSettingsStore.defs()`를 합쳐 탭별로 보인다. 파일은 데스크톱 설정 파일, 명령은 없다(CLI `fresnel config`는 엔진 카탈로그만 다룬다).
 
-## 7. 확장 지점
+## 7. 훅
 
 - 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다. 데스크톱은 엔진 밖 프로세스이고 Cordis 서비스를 쓰지 않는다(`eng.context-map.design` `clients` 컨텍스트 행).
 - 확장의 영향은 wire로만 들어온다.
@@ -695,7 +695,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - D-05. 엔진을 강제 종료하면 셸이 재기동 정책에 따라 다시 띄우고, WebView가 저장한 위치부터 재구독한다. 10분 안에 `restartLimit + 1`번째 종료가 오면 `failed`가 되고 자동 재기동하지 않는다.
 - D-06. 3플랫폼 빌드 산출물 각각이 자기 triple의 사이드카(`fresnel-<triple>`)를 포함하고, 다른 triple의 사이드카를 포함하지 않는다.
 - D-07. M1: WebView 쪽에서 쓸 `StdioTransportFactory` 구현과 `HostConnection`으로 엔진 바이너리(실제 프로세스 stdin/stdout)에 대해 `WIRE_CONFORMANCE_CASES`가 모두 통과한다.
-- D-08. 셸 로그와 앱 로그 파일에 프레임 내용이 없다. 비밀 참조를 담은 `settings.get` 응답을 릴레이한 뒤 로그에 `secret://` 문자열과 그 해석 값이 없다.
+- D-08. 셸 로그와 앱 로그 파일에 프레임 내용이 없다. 시크릿 참조를 담은 `settings.get` 응답을 릴레이한 뒤 로그에 `secret://` 문자열과 그 해석 값이 없다.
 - D-09. `engine_write`에 이전 세대 번호를 주면 거부되고 엔진 stdin에 아무것도 쓰이지 않는다.
 - D-10. 트레이 유지 모드에서 창을 닫으면 WebView 엔진 프로세스가 0개가 되고, 진행 중 turn은 계속되며, 창을 다시 열면 D-04와 같이 이어진다.
 - D-11. 엔진 프로세스 환경에 `BUN_OPTIONS`가 없고 cwd가 절대 경로다. PATH에 Finder 기본 경로 뒤로 도구 디렉터리가 붙고(E7), 이미 있는 항목은 중복되지 않는다.

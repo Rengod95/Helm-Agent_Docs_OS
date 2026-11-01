@@ -8,7 +8,7 @@ import { secretName } from "./ids.ts";
 import type { FakeHandlers } from "./fake-server.ts";
 import type { Harness } from "./harness.ts";
 
-// 가짜 비밀 관리 처리기. 맡긴 값 입력·열람 수단(Harness.outOfBand)을 호스트처럼 꺼내 쓴다.
+// 가짜 시크릿 관리 처리기. 맡긴 값 입력·열람 수단(Harness.outOfBand)을 호스트처럼 꺼내 쓴다.
 // 값은 이 파일 안의 stored에만 둔다. 와이어 응답에는 싣지 않는다.
 
 export interface FakeSecretStore {
@@ -104,7 +104,7 @@ export function fakeSecrets(
             status: "valid",
             meta: {
               name: secretName(name),
-              desc: "새 비밀",
+              desc: "새 시크릿",
               provider: "sops",
               ref: `dev/${name.toUpperCase()}`,
               scope: "user",

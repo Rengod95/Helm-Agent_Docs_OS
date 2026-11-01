@@ -18,7 +18,7 @@ import type { TurnStartPlanned } from "./turn-start.ts";
 import type { LoopSettingsSource } from "./settings.ts";
 import type { ThreadGate } from "./thread-gate.ts";
 
-/** 루프가 `fresnel.ext`에서 쓰는 부분: 지점 발화와 단계 경계 훅 */
+/** 루프가 `fresnel.ext`에서 쓰는 부분: 훅 발화와 단계 경계 훅 */
 export type LoopExtHost = Pick<ExtHost, "dispatch" | "boundary">;
 
 /** `RecoverDeps.hostMode`와 같은 값 */

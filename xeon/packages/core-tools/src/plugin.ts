@@ -35,7 +35,7 @@ import { readScalarConfig, type ToolsSettingsSource } from "./settings.ts";
 // L1.tools.plan TL-8 plugin.ts. ext-host의 내장 확장 단위로 fresnel.tools, fresnel.approvals를 제공한다.
 // 이 패키지는 Cordis를 import하지 않는다(DR-11). 서비스 등록은 hostOf(g).providePort로 한다.
 
-/** 도구 어댑터가 서비스 API를 얻도록 매니페스트 optional에 올리는 내장 능력(L2.workspace) */
+/** 도구 어댑터가 서비스 API를 얻도록 매니페스트 optional에 올리는 내장 기능(L2.workspace) */
 const BUILTIN_CAPABILITIES: readonly AnyCapabilityDef[] = [
   WorkspaceFiles,
   WorkspaceShell,
@@ -56,7 +56,7 @@ export interface ToolsPluginOptions {
   /** 파일 범위(managed, user, project, local) 설정 층. 세션 범위는 fresnel.session에서 읽는다 */
   readonly settings: ToolsSettingsSource;
   readonly logger?: Logger;
-  /** 매니페스트 optional에 더할 능력(워크스페이스 능력 밖의 L2 능력 도구를 쓸 때) */
+  /** 매니페스트 optional에 더할 기능(워크스페이스 기능 밖의 L2 기능 도구를 쓸 때) */
   readonly capabilities?: readonly AnyCapabilityDef[];
   readonly loadIndex?: number;
 }

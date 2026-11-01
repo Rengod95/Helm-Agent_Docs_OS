@@ -13,7 +13,7 @@ import { metaOf } from "./support/meta.ts";
 import { handleOf } from "./support/names.ts";
 import { fakeValue, seededRandom } from "./support/random.ts";
 
-// M3-REQ-58. 비밀 env MCP 서버의 기동 승인은 정의 해시마다 한 번이고, 정의가 바뀌면 다시 받는다.
+// M3-REQ-58. 시크릿 env MCP 서버의 기동 승인은 정의 해시마다 한 번이고, 정의가 바뀌면 다시 받는다.
 
 const HANDLE = handleOf("search-api-key");
 

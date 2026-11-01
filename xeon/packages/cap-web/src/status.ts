@@ -21,7 +21,7 @@ import type { WebSettings } from "./settings.ts";
 // 읽기 전용이다. 키 값, 주입 위치, 헤더 이름은 행에 싣지 않는다(provider가 돌려준 탐침 사유만 옮긴다).
 // 탐침이 예외로 끝나면 그 provider 한 행만 `unreachable`로 적고, 나머지 행은 그대로 돌려준다.
 
-/** 행 하나를 만드는 입력. 세 능력의 후보를 같은 모양으로 맞춘다 */
+/** 행 하나를 만드는 입력. 세 기능의 후보를 같은 모양으로 맞춘다 */
 interface StatusSource {
   readonly capability: WebProviderCapability;
   readonly origin: ProviderOrigin;

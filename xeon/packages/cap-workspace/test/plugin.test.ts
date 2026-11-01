@@ -138,7 +138,7 @@ async function boot(
   return { t, env, installed, registered, unregistered, lines, resolved };
 }
 
-/** workspace 능력을 requires로 쓰는 소비자 확장. 사용 예(L3 그룹 경로: 서비스를 직접 부른다) */
+/** workspace 기능을 requires로 쓰는 소비자 확장. 사용 예(L3 그룹 경로: 서비스를 직접 부른다) */
 function consumer() {
   const apis: {
     files?: CapabilityApi<typeof WorkspaceFiles>;

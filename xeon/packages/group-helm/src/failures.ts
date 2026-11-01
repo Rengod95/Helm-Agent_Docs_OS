@@ -19,7 +19,7 @@ export type HelmFailure =
   | { readonly kind: "storage" }
   /** 그룹이 꺼짐 */
   | { readonly kind: "disabled" }
-  /** 능력 호출 실패 */
+  /** 기능 호출 실패 */
   | {
       readonly kind: "capability";
       readonly capability: CapabilityId;
@@ -73,7 +73,7 @@ function isCommonCode(code: string): code is CommonErrorCode {
 }
 
 /**
- * X의 PrimitiveError와 능력의 CapabilityError를 HelmFailure로 바꾼다. 둘 다 아니면 undefined(호출자가 다시 던진다).
+ * X의 PrimitiveError와 기능의 CapabilityError를 HelmFailure로 바꾼다. 둘 다 아니면 undefined(호출자가 다시 던진다).
  * ext-host를 import하지 않으므로 PrimitiveError는 이름과 code로 알아본다. 순수 함수
  */
 export function failureOf(error: unknown, at: FailureSite): HelmFailure | undefined {

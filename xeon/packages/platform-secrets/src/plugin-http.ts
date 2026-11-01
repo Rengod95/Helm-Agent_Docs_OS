@@ -11,7 +11,7 @@ import type {
 import { findHandleTokens } from "./ref.ts";
 import { planHttp } from "./service.ts";
 
-// L0.secrets.spec §3.6.1 (M3-REQ-60). 웹 검색 플러그인 provider가 헤더 비밀을 쓰는 좁은 통로다. 플러그인은 설정에 `secret://<이름>`만 적고,
+// L0.secrets.spec §3.6.1 (M3-REQ-60). 웹 검색 플러그인 provider가 헤더 시크릿을 쓰는 좁은 통로다. 플러그인은 설정에 `secret://<이름>`만 적고,
 // 이 통로의 `send`가 전송 직전에 `SecretService.withHttp`로 값을 읽어 헤더에 치환한다. 설정을 읽는 시점에는 값을 읽지 않는다.
 // 치환은 헤더만이다: URL에 핸들이 있으면 거부하고, 호스트는 메타 `use.hosts`에 맞아야 한다(withHttp 규칙).
 
@@ -30,7 +30,7 @@ export interface PluginHttpCall {
 
 export interface PluginHttp {
   /**
-   * 헤더에 쓰인 비밀 핸들을 돌려준다. 값을 읽지 않는다(설정 검사와 doctor 점검용).
+   * 헤더에 쓰인 시크릿 참조을 돌려준다. 값을 읽지 않는다(설정 검사와 doctor 점검용).
    * 헤더 값이 `[스킴 ]secret://<이름>` 모양이 아니거나 이름 규칙에 어긋나면 `invalid_ref`다.
    */
   headerHandles(

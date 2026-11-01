@@ -26,14 +26,14 @@ const REPORT: HostBinaryReport = {
     {
       name: "sops",
       need: "required",
-      usedBy: "비밀 저장소",
+      usedBy: "시크릿 저장소",
       impact: "키를 저장할 수 없다",
       status: { kind: "too_old", found: "3.7.0", required: "3.8.0" },
     },
     {
       name: "age",
       need: "required",
-      usedBy: "비밀 저장소",
+      usedBy: "시크릿 저장소",
       impact: "복호화 불가",
       status: { kind: "unusable", reason: "not_executable" },
     },

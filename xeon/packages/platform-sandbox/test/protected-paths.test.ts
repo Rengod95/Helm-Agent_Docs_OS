@@ -157,7 +157,7 @@ describe("protected paths", () => {
       reason: "secret_key",
     });
     expect(entries.some((entry) => entry.path === "not-absolute")).toBe(false);
-    // 비밀 항목은 <config> 항목보다 앞에 있어 읽기 거부 사유가 secret_key로 나온다
+    // 시크릿 항목은 <config> 항목보다 앞에 있어 읽기 거부 사유가 secret_key로 나온다
     expect(matchProtectedPath(entries, join(secrets, "age", "keys.txt"), "read")?.reason).toBe(
       "secret_key",
     );

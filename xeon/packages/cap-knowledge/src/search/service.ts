@@ -41,7 +41,7 @@ const DEFAULT_READ_LIMIT = 50;
 const DEFAULT_LIST_LIMIT = 20;
 const SNIPPET_TOKENS = 48;
 
-/** 검색 표가 쓸 수 있는지. 능력 판정과 투영기 등록 결과를 합친 값이다 */
+/** 검색 표가 쓸 수 있는지. 기능 판정과 투영기 등록 결과를 합친 값이다 */
 export interface SearchAvailability {
   /** 세션 FTS(`sessionfts`, `sessiondocs`)와 소비자를 쓸 수 있다 */
   readonly sessions: boolean;

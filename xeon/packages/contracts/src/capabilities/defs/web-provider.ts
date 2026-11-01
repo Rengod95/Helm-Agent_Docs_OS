@@ -20,7 +20,7 @@ import {
   type RenderMode,
 } from "./web.ts";
 
-// L2.web.spec §3.6. 플러그인 provider는 능력 API 전체가 아니라 이 좁은 인터페이스만 구현한다.
+// L2.web.spec §3.6. 플러그인 provider는 기능 API 전체가 아니라 이 좁은 인터페이스만 구현한다.
 // 앞단(cap-web)이 정책, 캐시, 비용, 인용 처리를 공통으로 감싼다.
 
 /** ADR-0005 §3.4. 웹 provider의 탐침 실패 사유 */
@@ -96,7 +96,7 @@ export type WebProviderManifest = {
   endpoints: string[];
   auth: {
     kind: "none" | "header" | "bearer" | "query";
-    /** 비밀 설정 키와 주입 위치. 값은 GuardedHttp가 전송 직전에 치환한다 */
+    /** 시크릿 설정 키와 주입 위치. 값은 GuardedHttp가 전송 직전에 치환한다 */
     secrets: { setting: string; header?: string; query?: string }[];
     keyless?: { rateNote: string };
   };
@@ -182,7 +182,7 @@ export const WebProviderManifestSchema: TUnsafe<WebProviderManifest> =
     >,
   );
 
-/** 앞단이 provider에게 주는 HTTP. 정책, SSRF, endpoints, 비밀 치환, 바이트 상한을 거친다 */
+/** 앞단이 provider에게 주는 HTTP. 정책, SSRF, endpoints, 시크릿 치환, 바이트 상한을 거친다 */
 export interface GuardedHttpRequest {
   readonly method: "GET" | "POST";
   readonly url: string;
@@ -204,7 +204,7 @@ export interface GuardedHttp {
 export interface WebProviderContext {
   readonly http: GuardedHttp;
   readonly clock: Clock;
-  /** 자기 확장의 ext.<name>.* 설정 읽기. 비밀 키는 SecretRef 문자열만 보인다 */
+  /** 자기 확장의 ext.<name>.* 설정 읽기. 시크릿 키는 SecretRef 문자열만 보인다 */
   readonly setting: (key: string) => unknown;
 }
 
@@ -349,7 +349,7 @@ export type WebProviderRegistration =
       readonly create: (ctx: WebProviderContext) => WebBrowseProvider;
     };
 
-/** 등록이 가리키는 능력 ID. 같은 확장 안에서 능력 ID와 등록의 짝을 검사할 때 쓴다. 순수 함수 */
+/** 등록이 가리키는 기능 ID. 같은 확장 안에서 기능 ID와 등록의 짝을 검사할 때 쓴다. 순수 함수 */
 export function webRegistrationCapability(reg: WebProviderRegistration): CapabilityId {
   return reg.capability;
 }

@@ -20,7 +20,7 @@ binds: [xeon/packages/core-loop/**]
 |---|---|---|
 | M0(선행, 다른 패키지) | `contracts`의 F 타입(`AgentEventMapper` 시그니처, `StepCheckpoint`, `HOOKS`, `BoundaryValue`), `platform-store`, `core-persistence` 커밋 API, `ext-host` 디스패치 최소형 | — |
 | M1 걸어 다니는 골격 | 자체 루프(진입점 `runTurn(entry)`, 단계 함수, 도구 배치), 이벤트 매퍼, 커밋 지점 T1~T4·T6, 단계 체크포인트, 재개 진입(`next` 판별자 전부), 입력 admit(`input` 지점), 모델 테이프 한 턴과 강제 종료 뒤 재개(`_research/foundation-plan.md` §6 M1 스모크), `l1.loop.maxSteps` | 턴 사이클(1차), 예산 pi 방식의 단계 상한·중단(1차), 단계 전 준비 훅(1차) |
-| M2 L2 능력과 Helm(`product.scope.spec` §4.3) | 완료 게이트 횟수 상한(`l1.loop.gate.maxContinues`), drive 연동(`loop.turn` 멱등)의 정식 테스트, 추론 예산 설정 연결(`thinkingBudgets`), `input.bash.before` 진입점, `await_input` 재진입의 승인 응답 연결, 자식 thread turn 진입점 `runChildTurn`(L1.agents M2) | 완료 게이트(2차 구성요소의 앞당김), 예산의 추론 레벨별 토큰 예산(1차) |
+| M2 L2 기능과 Helm(`product.scope.spec` §4.3) | 완료 게이트 횟수 상한(`l1.loop.gate.maxContinues`), drive 연동(`loop.turn` 멱등)의 정식 테스트, 추론 예산 설정 연결(`thinkingBudgets`), `input.bash.before` 진입점, `await_input` 재진입의 승인 응답 연결, 자식 thread turn 진입점 `runChildTurn`(L1.agents M2) | 완료 게이트(2차 구성요소의 앞당김), 예산의 추론 레벨별 토큰 예산(1차) |
 | M3 | 목표 판정 소비 지점(`boundary.settle.before` 핸들러 계약, `L2.work.spec`·`L1.agents.spec`과 함께) | (L2-e 목표 지속과 연결) |
 | 2차(M3 이후) | 반복 감지(`l1.loop.repeat.*`) | 반복 감지(2차) |
 | 제외 | 입출력 가드레일. 이름만 예약한다(`L1.loop.spec` §4.11) | 입출력 가드레일(보류) |
@@ -85,7 +85,7 @@ xeon/packages/core-loop/
     drive.test.ts
     child-turn.int.test.ts
     user-bash.test.ts
-    loop.contract.test.ts            # 확장 지점·커밋 순서, import 검사 (이전 agent-wrapper.contract.test.ts)
+    loop.contract.test.ts            # 훅·커밋 순서, import 검사 (이전 agent-wrapper.contract.test.ts)
 ```
 
 - 모델 테이프 가짜는 `eng.testing.guide` TS-04가 정한 `@fresnel/core-models/testing`(`loadTape`, `tape`, `tapePlayer`, `contextHash`, `t`)을 테스트 파일에서만 import한다(DR-08, DR-14 예외 3). 테이프 파일은 `core-loop/test/tapes/`에 둔다(TS-06).
@@ -108,7 +108,7 @@ xeon/packages/core-loop/
 | LP6 | 예산·상한 처리: `maxSteps`, drive turn 신호, `canContinue`, `l1.loop.*` 설정 정의, `thinkingBudgets` 전달(M2) (M2 완료 2026-10-24: 시험 `thinking_budgets_passed_through`) | LP4 | S | M1(maxSteps), M2(추론 예산) |
 | LP7 | 완료 게이트: 정착 후보 판정, `boundary.settle.before` 발화 위치(`endStep`), 게이트 계속 상한과 휘발 알림 (M2 완료 2026-10-24: 설정 `l1.loop.gate.maxContinues`, 시험 `completion-gate.test.ts`. 상한 알림 `turn.updated.notice` gate_limit은 L1F에서 연결: `gate_limit_notice`) | LP4, LP6 | M | M1(발화), M2(상한) |
 | LP8 | boundary 최종 검증: `finalizeBoundary` 규칙 1~5와 진단 로그 | LP4 | S | M1 |
-| LP9 | `input` 지점 발화 위치 확정: `admit`의 input chain → `inputs.enqueue` 순서, 확장 post 비경유. runtime-flow 그림 수정 요청(FR-L7)과 L1.tasks.spec §7 일치 확인 | LP1, L1.tasks.plan TK-5 | S | M1 |
+| LP9 | `input` 훅 발화 위치 확정: `admit`의 input chain → `inputs.enqueue` 순서, 확장 post 비경유. runtime-flow 그림 수정 요청(FR-L7)과 L1.tasks.spec §7 일치 확인 | LP1, L1.tasks.plan TK-5 | S | M1 |
 | LP10 | drive 연동: `runTurn`의 T1 build 안 `turnByRequestId` 조회와 `leaseEpoch` 펜싱, 열린 turn 이어 끝내기, thread 취소 신호 처리, `LoopTurnResult.usage` (M2 완료 2026-10-24: 시험 `drive-budget.test.ts`. 횟수 상한은 X가 거부하고 토큰은 `loop.budget`으로 보고한다) | LP5, LP6, M0: ext-host drive 최소형 | M | M1(최소), M2(정식 테스트) |
 | LP11 | `stopAtSafeBoundary`: T4 뒤 결정 `end`, T6 생략, 시한 처리 | LP4 | S | M1 |
 | LP12 | `input.bash.before` 진입점과 `await_input` 재진입의 승인 응답 연결 (`await_input` 재진입 완료 2026-10-24: 시험 `await_input_resumes_after_approval_response`, 열린 turn을 닫을 때 그 turn의 미해결 승인 취소. `input.bash.before`는 L1F에서 완료: `user-bash.ts`, 시험 `user-bash.test.ts`) | LP5, L1.tools 승인 프로토콜 | M | M2 |
@@ -122,7 +122,7 @@ xeon/packages/core-loop/
 | LP20 | (완료 2026-10-23) 정리: `agent-wrapper.ts`, `pi-bridge.ts`, `streams.ts`의 pi 대응 부분 삭제. `core-loop`·`contracts`의 `package.json`과 bun catalog에서 `@earendil-works/pi-agent-core` 제거, `bun.lock` 갱신. `check-layers.ts` `MODULE_OWNERS`의 pi-agent-core 행을 owners `[]`로. `plugin.ts` 설명 문구 수정 | LP19 | S | 이행 4 |
 | LP21 | (완료 2026-10-23) 시험 이행: §5의 이행 시험 추가, `agent-wrapper.contract.test.ts` → `loop.contract.test.ts`(이름과 `runAgentLoop` 사례 교체), 기존 테이프·결정성 시험이 그대로 통과하는지 확인 | LP19 | M | 이행 4 |
 
-선행 요약: contracts(F.conversation 매퍼 타입, F.records 체크포인트·휘발 envelope, F.extensions 지점 표), core-persistence 커밋 API, core-tools 파이프라인 인터페이스, core-tasks 서비스(L1.tasks.plan TK-1, TK-5, TK-6).
+선행 요약: contracts(F.conversation 매퍼 타입, F.records 체크포인트·휘발 envelope, F.extensions 훅 표), core-persistence 커밋 API, core-tools 파이프라인 인터페이스, core-tasks 서비스(L1.tasks.plan TK-1, TK-5, TK-6).
 
 순서: LP0 → LP2 → LP3 → LP1 → LP4 → LP8 → LP9 → LP5 → LP6 → LP7 → LP10 → LP11(M1 완료). 자체 루프 이행은 LP16 → LP18 → LP17 → LP19 → LP20·LP21이고 M2 작업(LP12, LP15)보다 먼저 한다. 이행 동안 기존 시험(테이프, 결정성, 재개, 장애 주입)은 계속 통과해야 한다.
 

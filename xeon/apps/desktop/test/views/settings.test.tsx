@@ -54,7 +54,7 @@ describe("settings screen", () => {
     expect(out).toContain("anthropic-api-key");
     expect(out).toContain("등록되지 않음");
     expect(out).toContain("키 등록");
-    // 등록 창을 열기 전에는 입력란이 provider와 모델 둘뿐이다. 비밀 값을 받는 password 입력이 없다
+    // 등록 창을 열기 전에는 입력란이 provider와 모델 둘뿐이다. 시크릿 값을 받는 password 입력이 없다
     expect(out).not.toContain('type="password"');
     expect(out.match(/<input/g)?.length).toBe(2);
   });
@@ -129,7 +129,7 @@ describe("external tools table", () => {
         {
           name: "sops",
           need: "required",
-          usedBy: "비밀 저장소",
+          usedBy: "시크릿 저장소",
           impact: "키를 저장할 수 없다",
           status: { kind: "missing", hint: "brew install sops" },
         },

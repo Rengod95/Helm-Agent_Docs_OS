@@ -10,11 +10,11 @@ binds: [xeon/packages/cap-dialog/**]
 
 # L2 사용자 대화 (dialog)
 
-패키지: `xeon/packages/cap-dialog`. 서비스: `fresnel.dialog`. 능력: `dialog.ask`, `dialog.commands`, `dialog.status`, `dialog.attachments`, `dialog.aside`, `dialog.styles`, `dialog.notify`. 이벤트 접두사: `dialog.`(휘발 `status`). 테이블: 없음. 생산자 id: `cap.dialog`.
+패키지: `xeon/packages/cap-dialog`. 서비스: `fresnel.dialog`. 기능: `dialog.ask`, `dialog.commands`, `dialog.status`, `dialog.attachments`, `dialog.aside`, `dialog.styles`, `dialog.notify`. 이벤트 접두사: `dialog.`(휘발 `status`). 테이블: 없음. 생산자 id: `cap.dialog`.
 
 ## 1. 목적과 범위
 
-사용자와 에이전트 사이의 입출력 채널을 능력으로 정한다. 모델이 사용자에게 묻는 질문 도구, 사용자가 쓰는 슬래시 명령, 진행 표시, 입력 첨부, 곁가지 질문, 출력 스타일, 알림 분류가 대상이다.
+사용자와 에이전트 사이의 입출력 채널을 기능으로 정한다. 모델이 사용자에게 묻는 질문 도구, 사용자가 쓰는 슬래시 명령, 진행 표시, 입력 첨부, 곁가지 질문, 출력 스타일, 알림 분류가 대상이다.
 
 L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5, A6, A7) → `work`(`L2.work.spec`), L2-e2 사용자 대화(B1, B2 노출, B4, B5, B7, B8, B9, B10, D5) → `dialog`.
 
@@ -36,7 +36,7 @@ L2-e 묶음 대응(`_research/l2e.md` §5): L2-e1 작업 관리(A1, A2, A2b, A5,
 - 이미지 형식 검사·리사이즈: `L2.workspace.spec`(`workspace.images`).
 - 원격 클라이언트의 승인·질문 응답 중계: `L2.schedule.spec`(`schedule.remote`). 모바일 푸시 채널은 이 문서 소관이다(§4.7.2). 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다.
 - 화면 그리기(질문 대화상자, 상태줄, 명령 자동완성): L4.
-- 음성 입력: L4 입력 어댑터로 보류한다. 마이크 스트림을 받아 텍스트로 바꾸는 일은 클라이언트가 하고, 결과는 일반 사용자 입력으로 들어온다. 웨이크워드는 상주 리스너가 필요하므로(`_research/l2e.md` §6) 범위 밖이다. 이 문서는 음성 입력용 능력을 두지 않는다.
+- 음성 입력: L4 입력 어댑터로 보류한다. 마이크 스트림을 받아 텍스트로 바꾸는 일은 클라이언트가 하고, 결과는 일반 사용자 입력으로 들어온다. 웨이크워드는 상주 리스너가 필요하므로(`_research/l2e.md` §6) 범위 밖이다. 이 문서는 음성 입력용 기능을 두지 않는다.
 
 결정 반영:
 
@@ -368,7 +368,7 @@ export const DialogCommands = defineCapability({
 export const DialogCommandsKey = serviceKey(DialogCommands);
 ```
 
-동작 명령 등록은 함수(처리기)를 넘기므로 JSON 메서드로 표현할 수 없다. `dialog.commands` 능력 바인딩(`cap:dialog.commands`)이 돌려주는 API 객체에 TS 메서드로 더한다 [제안].
+동작 명령 등록은 함수(처리기)를 넘기므로 JSON 메서드로 표현할 수 없다. `dialog.commands` 기능 바인딩(`cap:dialog.commands`)이 돌려주는 API 객체에 TS 메서드로 더한다 [제안].
 
 ```ts
 // defs/dialog.ts (3/7)
@@ -625,12 +625,12 @@ export const DialogNotify = defineCapability({
 });
 export const DialogNotifyKey = serviceKey(DialogNotify);
 
-/** 같은 프로세스 소비자용 밀어주기 구독. JSON 메서드로 표현할 수 없어 dialog.notify 능력 API 객체에 TS 메서드로 둔다 */
+/** 같은 프로세스 소비자용 밀어주기 구독. JSON 메서드로 표현할 수 없어 dialog.notify 기능 API 객체에 TS 메서드로 둔다 */
 export interface NoticeFeed {
   subscribe(filter: { readonly kinds?: readonly NoticeKind[] }, listener: (threadId: ThreadId, notice: Notice) => void): () => void;
 }
 
-/** dialog 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** dialog 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface DialogService {
   readonly ask: CapabilityApi<typeof DialogAsk>;
   readonly commands: CapabilityApi<typeof DialogCommands> & CommandActionRegistry;
@@ -646,7 +646,7 @@ export const DIALOG_CAPABILITIES = [DialogAsk, DialogCommands, DialogStatus, Dia
 ```
 
 - 브리프의 `subscribe`는 리스너 함수를 받으므로 서비스 객체의 TS API(`NoticeFeed.subscribe`)로 둔다. JSON 소비자(L4 wire, 원격 클라이언트)는 `list`로 당겨 읽는다 [제안].
-- `dialog.aside`, `dialog.styles`, `dialog.notify`, `dialog.status`, `dialog.commands`, `dialog.attachments`는 모델 도구가 없다. F.capabilities.spec §4.4의 도구 없는 능력 [미결]에 기댄다(`L2.readme` §10 미결 8).
+- `dialog.aside`, `dialog.styles`, `dialog.notify`, `dialog.status`, `dialog.commands`, `dialog.attachments`는 모델 도구가 없다. F.capabilities.spec §4.4의 도구 없는 기능 [미결]에 기댄다(`L2.readme` §10 미결 8).
 
 ### 3.7 이벤트 카탈로그
 
@@ -861,11 +861,11 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 #### 4.2.6 클라이언트 선언
 
 - 클라이언트는 `list`로 `CommandInfo[]`를 받아 자동완성을 만든다. 명령 목록이 바뀌면 다음 `list`에서 반영된다.
-- wire 노출 [결정: m2c G1-01]. 명령은 코어 wire 메서드 `command.list`, `command.run`이다(`F.wire-settings.spec` §3.3.1). `CommandInfo`와 `CommandRunOutput`은 이 능력 정의의 스키마를 그대로 쓴다. 상태줄(`status.list`)과 첨부(`attachments.add`)의 wire 메서드는 M3에서 코어 표에 들었다(`L4.host-service.spec` HS-93, `F.wire-settings.spec` §3.3.1). 알림(`notify.list`, M3)과 곁가지 질문(`aside.ask`, 2차)의 wire 메서드는 아직 없고 [미결]이다(§10 D-2).
+- wire 노출 [결정: m2c G1-01]. 명령은 코어 wire 메서드 `command.list`, `command.run`이다(`F.wire-settings.spec` §3.3.1). `CommandInfo`와 `CommandRunOutput`은 이 기능 정의의 스키마를 그대로 쓴다. 상태줄(`status.list`)과 첨부(`attachments.add`)의 wire 메서드는 M3에서 코어 표에 들었다(`L4.host-service.spec` HS-93, `F.wire-settings.spec` §3.3.1). 알림(`notify.list`, M3)과 곁가지 질문(`aside.ask`, 2차)의 wire 메서드는 아직 없고 [미결]이다(§10 D-2).
 
-### 4.3 동작 명령과 다른 L2 능력
+### 4.3 동작 명령과 다른 L2 기능
 
-- cap-dialog는 동작 명령을 등록한 능력(예: cap-work)을 호출하지 않는다. 등록할 때 받은 처리기만 실행한다. 그래서 dialog → work 서비스 의존이 생기지 않고, work → dialog(선택)와 mcp → dialog(선택)의 한 방향만 있다. 두 간선은 `L2.readme` §6 표의 [미결] 간선이다(`L2.work.spec` §10 W-10, `L2.readme` §10 미결 16).
+- cap-dialog는 동작 명령을 등록한 기능(예: cap-work)을 호출하지 않는다. 등록할 때 받은 처리기만 실행한다. 그래서 dialog → work 서비스 의존이 생기지 않고, work → dialog(선택)와 mcp → dialog(선택)의 한 방향만 있다. 두 간선은 `L2.readme` §6 표의 [미결] 간선이다(`L2.work.spec` §10 W-10, `L2.readme` §10 미결 16).
 
 ### 4.4 상태줄
 
@@ -887,7 +887,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
   - 피드 구독은 구독한 뒤 커밋되는 이벤트만 받는다. 재시작 전 누적 사용량은 따라잡지 않는다 [미결: 재시작 뒤 `core.usage` 복원 정책].
   - 세그먼트 id 소유자 확인(D-4)은 아직 하지 않는다. `setItem`은 어떤 id든 받는다.
 - 재생 대상이 아니다. 재접속한 클라이언트는 `list`로 다시 그린다. 상태줄 정보는 정본이 아니므로 놓쳐도 내구 이벤트만으로 같은 최종 화면을 만들 수 있어야 한다는 규칙(eng.events.design EV-10)을 어기지 않는다.
-- F.extensions.spec의 `thread.prompt.before`, `thread.prompt.after` 지점(41종 표 40·41번)과의 구분: 두 지점은 확장 UI 대화상자가 열리고 닫히는 것을 관찰하는 tap 지점이다. `dialog.status`는 표시 항목을 등록하는 서비스 API다. 질문 도구의 대기는 `approval.*` 이벤트로 드러나며 `ui_prompt_*`를 발화하지 않는다 [제안]. L1이 승인 대기에 `ui_prompt_*`를 발화할지는 L1.tools.spec이 정한다.
+- F.extensions.spec의 `thread.prompt.before`, `thread.prompt.after` 지점(41종 표 40·41번)과의 구분: 두 지점은 확장 UI 대화상자가 열리고 닫히는 것을 관찰하는 tap 훅이다. `dialog.status`는 표시 항목을 등록하는 서비스 API다. 질문 도구의 대기는 `approval.*` 이벤트로 드러나며 `ui_prompt_*`를 발화하지 않는다 [제안]. L1이 승인 대기에 `ui_prompt_*`를 발화할지는 L1.tools.spec이 정한다.
 
 ### 4.5 첨부
 
@@ -1022,13 +1022,13 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `l2.dialog.notify.backgroundCompleted` | boolean | true | — | live | user, project, local | execution | false | 화면 |
 
 - 질문 기본 시간 제한 0은 Claude Code의 기본(제한 없음)과 같고, 시간 제한은 옵션이다(`_research/l2e.md` §3.2 B1).
-- `segments` 기본값의 `"*"`는 내장 셋 뒤에 다른 모든 세그먼트(그룹·확장 세그먼트)를 보인다는 뜻이다. 이 능력은 L3 그룹 이름을 기본값에 쓰지 않는다. 특정 그룹 세그먼트만 보이려면 L3나 사용자가 설정으로 목록을 채운다 [결정: review.decisions-2 D-11].
+- `segments` 기본값의 `"*"`는 내장 셋 뒤에 다른 모든 세그먼트(그룹·확장 세그먼트)를 보인다는 뜻이다. 이 기능은 L3 그룹 이름을 기본값에 쓰지 않는다. 특정 그룹 세그먼트만 보이려면 L3나 사용자가 설정으로 목록을 채운다 [결정: review.decisions-2 D-11].
 - `shellInjection`을 `managed`에서 `off`로 잠그면 조직이 명령 파일의 셸 실행을 막을 수 있다.
 - `styles.active`의 값 검사는 등록된 스타일 목록과 대조하는 의미 검사라 `range.enum`으로 두지 않는다. 모르는 값이면 `default`로 적용하고 진단을 남긴다.
 - 알림 분류별 켜기·끄기를 키 다섯 개로 나눈 이유: 설정 화면이 토글 목록으로 그리기 쉽고, `range`가 문자열 배열을 다루지 않기 때문이다(F.wire-settings.spec D5).
 - `l2.dialog.notify.*` 여섯 키는 M3b D11부터 읽힌다. OS 전달(§4.7.2)이 `notify.os`와 종류별 키를 보고, 값은 알림마다 대화 범위로 읽는다. `styles.active`만 2차 기능이 읽을 때까지 선언만 있다 [구현: M3b D11].
 
-## 7. 확장 지점
+## 7. 훅
 
 ```ts
 // xeon/packages/cap-dialog/src/manifest.ts
@@ -1079,7 +1079,7 @@ export const manifest = defineManifest({
 
 | 이름 | 출처 |
 |---|---|
-| `defineCapability`, `CallOptions`(`context: CallContext`, `L2.readme` §5.8), 도구 없는 능력 허용 | F.capabilities.spec |
+| `defineCapability`, `CallOptions`(`context: CallContext`, `L2.readme` §5.8), 도구 없는 기능 허용 | F.capabilities.spec |
 | `InputRequiredInfo`, `ResultStatus`, `TextContent`, `ImageContent` | F.conversation.spec |
 | wire `approval.respond`, 메서드 표 추가(§4.2.6), 설정 정의 형식 | F.wire-settings.spec |
 | 승인 프로토콜(kind `question`, 요청 멱등, 만료 관리, `input_required` 재시도), 사용자 개시 셸 실행 | L1.tools.spec |
@@ -1097,7 +1097,7 @@ export const manifest = defineManifest({
 2. 답이 기록된 뒤 프로세스를 강제 종료하고 재개하면 도구 결과의 완료 커밋(`tool:<toolCallId>:result`)이 정확히 한 번 있다. 재시도 호출이 여러 번 일어나도 승인 요청은 하나다.
 3. 인자 치환 표 테스트: §4.2.2 표의 여섯 표기와 pi 테스트(`prompt-templates.test.ts`의 `substituteArgs` 묶음)를 옮긴 사례가 모두 통과한다.
 4. `dialog.status` 이벤트는 `events` 테이블에 저장되지 않고, 투영 재생성과 `readEvents` 결과에 나타나지 않는다. 재접속 뒤 `list`가 현재 세그먼트를 돌려준다.
-5. §3의 일곱 정의가 `validateCapability` 이슈 0건이다(도구 없는 능력 허용이 [미결]인 동안 그 검사만 제외).
+5. §3의 일곱 정의가 `validateCapability` 이슈 0건이다(도구 없는 기능 허용이 [미결]인 동안 그 검사만 제외).
 6. 알림 분류 5종이 §4.7.1 표로 정의되고, `classifyNotice`가 표의 원인 이벤트마다 해당 kind를 내며 `interrupted` 턴에는 null을 낸다.
 7. 셸 주입이 있는 템플릿은 `confirmShell` 없이 `run`하면 아무 명령도 실행하지 않고 `needs_confirmation`을 낸다.
 8. 프로젝트와 사용자에 같은 이름의 명령 파일이 있으면 프로젝트 것이 쓰이고, 사용자 것은 `includeHidden`에서만 보인다.
@@ -1107,7 +1107,7 @@ export const manifest = defineManifest({
 ## 10. 미결 사항
 
 - D-1 닫힘. 호출 문맥은 `F.capabilities.spec` §3.2 `CallOptions.context`다(`L2.readme` §5.8).
-- D-2 [일부 닫힘, m2c G1-01] wire 메서드 추가. 닫힌 것: 명령 목록과 실행은 코어 표의 `command.list`, `command.run`이고 `CommandInfo`는 어긋나지 않는다. [결정: M3-REQ-16, M3-20] `status.list`와 `attachments.add`는 코어 표에 두었고 호스트 처리기가 능력을 부른다(HS-93). 상대 경로는 `threadId`의 작업 폴더로 푼다(§4.5, F wire §3.3.1, M3-REQ-92). `L4.host-service.spec` §10 45번은 이 변경으로 닫혔다. [구현: M3b B1-NTF H4] `notify.list`도 코어 표에 두었다(HS-94). 남은 것 [미결]: `aside.ask`를 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지.
+- D-2 [일부 닫힘, m2c G1-01] wire 메서드 추가. 닫힌 것: 명령 목록과 실행은 코어 표의 `command.list`, `command.run`이고 `CommandInfo`는 어긋나지 않는다. [결정: M3-REQ-16, M3-20] `status.list`와 `attachments.add`는 코어 표에 두었고 호스트 처리기가 기능을 부른다(HS-93). 상대 경로는 `threadId`의 작업 폴더로 푼다(§4.5, F wire §3.3.1, M3-REQ-92). `L4.host-service.spec` §10 45번은 이 변경으로 닫혔다. [구현: M3b B1-NTF H4] `notify.list`도 코어 표에 두었다(HS-94). 남은 것 [미결]: `aside.ask`를 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지.
 - D-3 닫힘(구현 일부는 M3, review.m2-plan DG.1) L1.tools.spec과의 약속. 닫힌 것: 승인 요청 멱등(같은 `requestKey`, core-tools `open`), `input_required` 재시도(`status: "input_required"`에 `approvalId`, L1A.4), 질문에 `allow` 응답 거부(`applied: false`), 응답 모양(`QuestionAnswer`, §4.1.1). 닫힌 것(m2 F.8): (2) 비대화형 판정(`CallContext.interactive`), (3) `QuestionItem.header`, `QuestionOption.recommended`, (4) F `ApprovalService`의 비차단 `open`·`wait`·`get`(L1.tools.spec §8.3 F 요청 11). (4)로 정식 `ApprovalsPortFactory`(`questionApprovalsOver`)를 만들었고 실제 `ApprovalService` 위에서 시험한다. 같은 키의 서비스 쪽 내용 비교와 재시작 뒤 재요청이 처음 요청의 body를 돌려주는 것은 L1A 쪽 한계로 남았다(어댑터가 메모리 안에서 비교한다). 닫힘(m2c G1-11): (1) 만료 시각과 만료 결과의 계약 필드(`ApprovalRequestInput.expiresAt`·`onExpire`, `L2ApprovalRequest`의 같은 이름 필드, `resolvedBy: "expired"`)는 F에 들어갔다. 만료 타이머와 이 어댑터가 `expiresAt`을 채우는 구현은 M3다(`review.m3-plan` M3-06). 닫힘(m2c G1-09): 승인 origin의 `caller`는 `approvalCallerOf(CallContext.caller)`로 만든다. 이 어댑터는 자기 변환을 두지 않고, 호출 문맥이 없는 요청은 `host`로 본다(`F.records.spec` §3.3.1).
 - D-4 [미결] 상태줄 id와 `dialog.notify.emit`의 `origin` 확인. `CallOptions.context.caller.extension`(`L2.readme` §5.8)과 대조한다. X의 capability 래퍼가 채우는 값이 확장 이름인지 scope id인지 `X.primitives.spec`과 맞춘다(`L2.work.spec` W-6과 같은 문제).
 - D-5 [미결] 곁가지 질문의 기록 위치와 사용량 집계(2차).

@@ -51,7 +51,7 @@ interface TrustCommands {
  */
 export interface SetupCommands {
   /**
-   * 설정, 비밀 목록을 읽는다. `binaries`가 참이면 `host.status { includeBinaries: true }`로 외부 도구도 점검한다.
+   * 설정, 시크릿 목록을 읽는다. `binaries`가 참이면 `host.status { includeBinaries: true }`로 외부 도구도 점검한다.
    * 점검은 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 참이다. 시작 안내 띠는 거짓이다.
    * 거짓이면 `binaries`와 `toolsReady`는 비어 있다.
    */

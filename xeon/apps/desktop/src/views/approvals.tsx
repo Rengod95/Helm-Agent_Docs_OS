@@ -18,7 +18,7 @@ import { useCommands } from "./commands.ts";
 
 // 승인 대기열. 항목은 거울의 approvals를 읽고, 응답을 보낸 직후의 표시는 UI 스토어가 가진다(FS-02).
 // 대기열에서 빠지는 일은 approval.resolved 이벤트가 한다.
-// 도구 승인은 실행될 명령, 인자, 쓸 비밀 핸들을 보이고(M2 검토 M2: 승인이 비밀 사용의 증거가 되므로 사용자가 내용을 알고 허용해야 한다),
+// 도구 승인은 실행될 명령, 인자, 쓸 시크릿 참조을 보이고(M2 검토 M2: 승인이 시크릿 사용의 증거가 되므로 사용자가 내용을 알고 허용해야 한다),
 // 질문은 선택지를 그리고 `allowFreeText`를 따르며 서비스가 받는 모양의 답만 보낸다.
 
 const FAILURE_TEXT: Readonly<Record<Exclude<ApprovalSend, "sending">, string>> = {
@@ -43,7 +43,7 @@ function ToolDetails(props: { readonly view: ToolApprovalView }): ReactNode {
       )}
       {view.secrets.length === 0 ? null : (
         <div className="approval-secrets" role="note">
-          <div>이 호출이 사용할 비밀</div>
+          <div>이 호출이 사용할 시크릿</div>
           <ul>
             {view.secrets.map((secret) => (
               <li key={secret.name}>

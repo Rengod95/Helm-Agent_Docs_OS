@@ -15,7 +15,7 @@ import {
   WEB_SECRET_PURPOSE,
 } from "../../src/assembly/web-header-secrets.ts";
 
-// L2.web.spec §3.6.1. 헤더 비밀은 전송 직전에만 값이 된다. 가짜 `withHttp`가 템플릿을 받고 `send`에 값을 준다.
+// L2.web.spec §3.6.1. 헤더 시크릿은 전송 직전에만 값이 된다. 가짜 `withHttp`가 템플릿을 받고 `send`에 값을 준다.
 // 값은 `send` 콜백 인자 말고는 템플릿, 호출 문맥, 오류 어디에도 나오면 안 된다.
 
 const SECRET = "sk-live-VALUE-0123456789";

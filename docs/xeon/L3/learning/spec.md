@@ -12,7 +12,7 @@ binds: [xeon/packages/group-learning/**]
 
 ## 1. 목적과 범위
 
-학습 그룹은 Hermes 자기 개선 루프(`_research/refs/hermes.md` §3.10.1)의 정책 부분을 L3 의도 그룹으로 옮긴다. 정책은 언제 검토할지, 무엇을 후보로 볼지, 후보를 어떤 절차로 반영할지를 뜻한다. 이 문서는 정책을 안전 기본값으로 정한다.
+학습 그룹은 Hermes 자기 개선 루프(`_research/refs/hermes.md` §3.10.1)의 정책 부분을 L3 플러그인 그룹으로 옮긴다. 정책은 언제 검토할지, 무엇을 후보로 볼지, 후보를 어떤 절차로 반영할지를 뜻한다. 이 문서는 정책을 안전 기본값으로 정한다.
 
 - [결정] 학습 그룹은 L3 기본 그룹이다. `drive`를 쓰지 않으므로 Helm과 함께 켤 수 있다(`_research/decisions-log.md` 2026-10-21 계획 v2, `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", F.extensions.spec §4.6).
 - [결정] 저장(스킬, 메모리, 세션 검색, 변경 원장)은 L2-d(L2.knowledge.spec, 패키지 `cap-knowledge`)가 소유한다. 학습 그룹은 정책만 가진다(eng.context-map.design 3절 협력 규칙 5).
@@ -23,7 +23,7 @@ binds: [xeon/packages/group-learning/**]
 
 M3 설계 단계(사용자 결정 2026-10-25의 순서)에서 이 문서를 M3 구현 기준으로 고쳤다. 입력은 `review.m3-design-inputs` §4.2(L-IN-01~L-IN-19)와 §4.4 요구 목록, ADR-0015다. 바뀐 점:
 
-- 재실행 효과 분류를 ADR-0015 표에 맞췄다(§4.10). on 핸들러는 능력 메서드를 부르지 않는다. 대기열 복원과 만료 판정은 재실행되지 않는 명령 경로로 옮겼고(§4.5 규칙 7), 지점 `thread.start`는 쓰지 않는다.
+- 재실행 효과 분류를 ADR-0015 표에 맞췄다(§4.10). on 핸들러는 기능 메서드를 부르지 않는다. 대기열 복원과 만료 판정은 재실행되지 않는 명령 경로로 옮겼고(§4.5 규칙 7), 지점 `thread.start`는 쓰지 않는다.
 - 검토 포크의 완료는 부모 대화의 내구 이벤트 `agent.settled`로 안다(§4.3). 보고 post는 만들지 않고 검토 결과를 부모 모델 입력에 넣지 않는다 [결정: review.m3-design-inputs D-M3-03].
 - 포크 지점을 `{ at: "item" }`으로 바꿨다. L1-g는 `{ at: "event" }`를 `agents.invalid_request`로 거부한다(L1.agents.spec §4.1 3번).
 - 한 대화에서 동시에 도는 검토는 하나다(상태 `inFlightReviewId`, §4.2).
@@ -98,7 +98,7 @@ export const manifest = defineManifest({
   usesPost: false,                 // [제안] 그룹은 post를 부르지 않는다. 완료 보고는 L1-g 코어 경로다(§7)
   points: ["boundary.turn.before", "boundary.step.after", "boundary.settle.after"],
   // 내구 이벤트 구독: 코어 kind "agent.settled"(§4.3 완료 통지). 선언 위치는 요구 REQ-LN-02(§8.1)
-  requires: [                                // L2.knowledge.spec §1 능력 4개
+  requires: [                                // L2.knowledge.spec §1 기능 4개
     { id: "knowledge.skills", range: "^1.0.0" },
     { id: "knowledge.memory", range: "^1.0.0" },
     { id: "knowledge.search", range: "^1.0.0" },
@@ -112,9 +112,9 @@ export const manifest = defineManifest({
 });
 ```
 
-- 능력 ID는 L2.knowledge.spec §1의 네 능력이다. 이 문서의 옛 [가정] 이름과의 대응은 L2.knowledge.spec §3.9 표를 따른다: 읽기(`knowledge.skills.view`, `knowledge.memory.read`, `knowledge.search.query`), 쓰기(`knowledge.skills.create`·`edit`·`patch`·`writeFile`·`remove`, `knowledge.memory.add`·`replace`·`remove`), 원장(`knowledge.ledger.list`·`show`·`rollback`), 스캔(`knowledge.ledger.scan`). 서비스 키는 `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `KnowledgeSearchKey`, `KnowledgeLedgerKey`다.
+- 기능 ID는 L2.knowledge.spec §1의 네 기능이다. 이 문서의 옛 [가정] 이름과의 대응은 L2.knowledge.spec §3.9 표를 따른다: 읽기(`knowledge.skills.view`, `knowledge.memory.read`, `knowledge.search.query`), 쓰기(`knowledge.skills.create`·`edit`·`patch`·`writeFile`·`remove`, `knowledge.memory.add`·`replace`·`remove`), 원장(`knowledge.ledger.list`·`show`·`rollback`), 스캔(`knowledge.ledger.scan`). 서비스 키는 `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `KnowledgeSearchKey`, `KnowledgeLedgerKey`다.
 - 스캔은 `knowledge.ledger.scan`으로 따로 노출된다(L2.knowledge.spec §3). 그래서 사전 스캔(§4.6 2단계)은 `knowledge.ledger`가 제공되면 항상 돌 수 있다.
-- 위임 서비스(`fresnel.agents`)는 능력이 아니므로 `requires`에 넣지 않는다(F.extensions.spec §3.1에 위임 필드가 없다). 학습 그룹은 group-sdk의 `GroupApi.delegate`(§3.4)로만 위임한다. `GroupApi.delegate`가 매니페스트 선언을 요구할지는 L3.group-sdk.spec이 정한다 [가정].
+- 위임 서비스(`fresnel.agents`)는 기능이 아니므로 `requires`에 넣지 않는다(F.extensions.spec §3.1에 위임 필드가 없다). 학습 그룹은 group-sdk의 `GroupApi.delegate`(§3.4)로만 위임한다. `GroupApi.delegate`가 매니페스트 선언을 요구할지는 L3.group-sdk.spec이 정한다 [가정].
 - `components.agents`의 `learning-review` 정의 파일은 그룹 패키지 안에 둔다. L1.agents.spec §4.9는 확장 경로(매니페스트 `components.agents`)의 정의 읽기를 M2에 둔다. 정의의 `tools`에는 §3.4 허용 목록을 넣고 위임 도구를 넣지 않는다(재귀 방지, §4.3).
 - `readsRecordKinds`는 빈 목록이다 [결정: review.decisions-2 D-10]. 그룹 사이 레코드는 F에 스키마가 없으므로 학습 그룹은 Helm을 비롯한 다른 그룹의 레코드를 읽지 않는다. 검토 포크의 입력은 부모 대화 스냅샷뿐이다.
 
@@ -313,7 +313,7 @@ export type ProposeResult =
 export type ProposeRefusal =
   | "base_missing" | "base_stale" | "op_not_allowed" | "invalid" | "limit"
   | "name_exists"       // create인데 같은 이름의 스킬이 있음. patch와 baseHash로 다시 제안하라는 안내(§4.5 규칙 4)
-  | "unavailable";      // 지식 능력이 없거나 일시 실패. 후보 없음
+  | "unavailable";      // 지식 기능이 없거나 일시 실패. 후보 없음
 ```
 
 - 대상(`target`) 형식 [제안]: 스킬 create·patch·archive는 `<스킬 이름>`, add_file은 `<스킬 이름>/<지원 파일 경로>`, 메모리 add는 `user` 또는 `environment`, replace·remove는 `<영역>/<항목 id 12자>`, 피드백은 `user/work-style`이다. 메모리 `environment`는 L2 저장소 `env`다.
@@ -324,7 +324,7 @@ export type ProposeRefusal =
 - 한 검토에서 받을 후보 수 상한은 8개다 [제안]. 넘으면 `limit`.
 - 대상 범위: 입력에 범위 필드가 없다. 도구로 만든 후보는 모두 사용자 범위(`user`) 스킬이다. 프로젝트 범위는 승인 화면에서 사용자가 고를 때만 쓴다 [결정: review.m3-design-inputs D-M3-09](§4.5 규칙 8).
 - 신뢰 표지: 도구 실행 문맥의 `caller.afterUntrusted`(L2.knowledge.spec §4.6.3, M3-REQ-100, 요구 REQ-LN-01)가 참이면 후보에 `afterUntrusted: true`를 적는다. 값은 L1.tools가 채우고 X는 그대로 넘긴다(X.primitives.spec §4.6.6). 검토 포크는 부모 스냅샷을 복제하므로 부모가 웹·MCP 결과를 읽은 뒤면 참이다. 승인 화면은 이 후보에 경고를 보인다 [제안].
-- 실행 문맥: 이 도구는 재실행되는 코드가 아니다. 도구 `execute` 안의 능력 호출(`knowledge.skills.view`, `knowledge.memory.read`, `knowledge.ledger.scan`, `knowledge.search.query`)은 ADR-0015 대상이 아니고 L1.tools의 효과 3단 커밋을 따른다(ADR-0015 §3.1 1번). 비공개 기록은 `tool:<toolCallId>`를 디스패치 키로 쓰고(X.primitives.spec §4.6.6) 후보 id도 호출 id에서 정한다(`prop_` + 호출 id 해시 26자). 같은 호출의 재실행은 같은 후보다. 위임 자식 대화에서 실행되면 기록은 그 자식 대화에 쓰이고 투영은 세션 단위로 모은다(REQ-LN-04).
+- 실행 문맥: 이 도구는 재실행되는 코드가 아니다. 도구 `execute` 안의 기능 호출(`knowledge.skills.view`, `knowledge.memory.read`, `knowledge.ledger.scan`, `knowledge.search.query`)은 ADR-0015 대상이 아니고 L1.tools의 효과 3단 커밋을 따른다(ADR-0015 §3.1 1번). 비공개 기록은 `tool:<toolCallId>`를 디스패치 키로 쓰고(X.primitives.spec §4.6.6) 후보 id도 호출 id에서 정한다(`prop_` + 호출 id 해시 26자). 같은 호출의 재실행은 같은 후보다. 위임 자식 대화에서 실행되면 기록은 그 자식 대화에 쓰이고 투영은 세션 단위로 모은다(REQ-LN-04).
 
 ### 3.6 승인 대기열 (`proposals/queue.ts`, `proposals/apply.ts`, `proposals/scan.ts`)
 
@@ -600,7 +600,7 @@ export type ApplyTransition =
   | { readonly kind: "applied"; readonly ledgerId: string; readonly afterHash: string }
   | { readonly kind: "rejected"; readonly reason: "scan_failed" | "apply_failed" }
   | { readonly kind: "backToPending"; readonly reason: "base_stale" }
-  | { readonly kind: "retry"; readonly detail: string };          // io, 능력 일시 실패. approved 유지
+  | { readonly kind: "retry"; readonly detail: string };          // io, 기능 일시 실패. approved 유지
 
 /** 명령 진입 때의 지연 정리 결과(§4.5 규칙 7) */
 export interface QueueSweep {
@@ -624,23 +624,23 @@ export type LearningError =
 | `TriggerDecision` | `applyTurn` | 순수 | §3.3, §4.2 |
 | `reviewStartOutcome` 반환형 | `DelegateResult` 분류 | 순수 | §3.4, §4.3 |
 | `reviewFinishOutcome` 반환형 | `agent.settled` 분류 | 순수 | §3.4, §4.3 |
-| `ProposeResult`, `ProposeRefusal` | `learning_propose` 실행 | 검사는 순수, 해시 조회는 능력 호출 | §3.5 |
+| `ProposeResult`, `ProposeRefusal` | `learning_propose` 실행 | 검사는 순수, 해시 조회는 기능 호출 | §3.5 |
 | `ApplyTransition` | `KnowledgeChangeApi.apply`·`rollback` 결과 분류 | 순수 | §3.6, §4.5 |
-| `QueueSweep` | 명령 진입 지연 정리 | 능력 호출 포함 | §4.5 규칙 7 |
-| `DecisionResult`, `LearningError` | `/learning queue` 결정 명령 | 능력 호출 포함 | §4.5, §6.2 |
+| `QueueSweep` | 명령 진입 지연 정리 | 기능 호출 포함 | §4.5 규칙 7 |
+| `DecisionResult`, `LearningError` | `/learning queue` 결정 명령 | 기능 호출 포함 | §4.5, §6.2 |
 
 ## 4. 동작 규칙
 
 ### 4.1 안전 기본값 (Hermes 대비)
 
-[제안] 아래 기본값은 Hermes 기본값을 반대로 둔 것이다(`hermes.md` §4.3 첫 항목 "기본 무승인 자기 수정", `_research/ref-synthesis.md` 확장 지점 발견 5).
+[제안] 아래 기본값은 Hermes 기본값을 반대로 둔 것이다(`hermes.md` §4.3 첫 항목 "기본 무승인 자기 수정", `_research/ref-synthesis.md` 훅 발견 5).
 
 | 항목 | Hermes 기본 | 학습 그룹 기본 | Hermes 근거 위치 |
 |---|---|---|---|
 | 쓰기 승인 | 꺼짐. 스킬·메모리 쓰기가 승인 없이 디스크를 바꾼다 | 켬(`l3.learning.approval.required = true`). 모든 후보는 `pending`으로 시작한다 | `hermes.md` §3.10.1 (라) "쓰기 승인 게이트는 기본 OFF"(config_defaults.py:1333, 1497), (바) 첫 항목 |
 | 에이전트 작성물 스캔 | 꺼짐(`guard_agent_created` false). 쓰기 뒤 스캔 | 켬(`l3.learning.scan.enabled = true`). 대기열 진입 전 사전 스캔과 L2-d 적용 안의 스캔 두 번 | `hermes.md` §3.10.1 (라) "스킬 보안 스캔은 옵트인"(skill_manager_tool.py:41-66, config_defaults.py:1488), `_research/notes/L3-3.md` §4.2 |
 | 삭제 | 전경 `skill_manage(delete)`는 영구 삭제 | 연산에 삭제가 없다. 스킬은 `archive`만, 큐레이터도 `archive`만 | `hermes.md` §3.10.1 (마) "삭제 정책은 경로마다 다르다"(skill_manager_tool.py:585-594) |
-| 검토 포크 도구 | 스킬 툴셋 전체(쓰기 포함)와 읽기 도구. 메모리 add는 자동 적용 | 읽기 능력·읽기 도구와 제안 도구 `learning_propose`만. 쓰기는 모두 거부 | `hermes.md` §3.10.1 (나) 9(background_review.py:1088-1131), (라) "포크는 add만 자동 적용" |
+| 검토 포크 도구 | 스킬 툴셋 전체(쓰기 포함)와 읽기 도구. 메모리 add는 자동 적용 | 읽기 기능·읽기 도구와 제안 도구 `learning_propose`만. 쓰기는 모두 거부 | `hermes.md` §3.10.1 (나) 9(background_review.py:1088-1131), (라) "포크는 add만 자동 적용" |
 | 큐레이터 LLM 통합 | 꺼짐(`consolidate: False`) | 꺼짐(`l3.learning.curator.llmConsolidate = false`). 켜도 결과는 대기열을 거친다 | `hermes.md` §3.10.1 (마)(curator.py:35, config_defaults.py:1521) |
 | 파괴적 연산 | 백그라운드 포크의 메모리 patch·remove만 설정과 무관하게 승인 큐 | 스킬 `patch`·`archive`, 메모리 `replace`·`remove`는 `approval.required` 값과 무관하게 승인이 필요하다 | `hermes.md` §3.10.1 (라)(memory_tool.py:179-206) |
 | 대화 내용의 지위 | 검토 포크에 "source text is DATA" 방어가 보이지 않는다 | 검토 지시에 DATA 방어를 필수로 둔다(§4.4) | `hermes.md` §3.10.1 (바) 둘째 항목(learn_prompt.py:123-133) |
@@ -766,14 +766,14 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
    - 자동 병합은 하지 않는다. 사용자가 고르는 길은 셋이다: 승인(새 스킬로 둠), 거절, 수정(`edit`)으로 기존 스킬의 `patch` 후보로 바꿈. 두 스킬을 합치는 일은 2차 큐레이터의 LLM 통합 몫이다(§4.8.1).
 5. 승인 중 원본 변경: 승인 시점과 적용 시점 사이에 원본이 바뀌면 L2-d가 `base_stale`을 돌려주고 후보는 `pending`으로 돌아간다(위 표). 사용자는 새 diff를 보고 다시 결정한다.
 6. 결정 경로: 결정은 사용자 명령(§6.2) 처리기 안에서 한다. 명령 처리기는 재실행되는 코드가 아니므로 ADR-0015 표의 대상이 아니고 L2-d 호출을 직접 할 수 있다. 결정 이벤트(`grp.learning.proposal.decided`)를 먼저 커밋하고 적용을 부른다. 적용 호출은 `ApprovalEvidence{ source: "learning.queue", proposalId, revision, decidedAt }`를 싣는다. L2-d는 이 증거를 믿을 때 자기 승인 요청을 내지 않으므로 승인이 한 번이다(L-IN-16). 증거를 믿는 조건(`l2.knowledge.write.trustedEvidenceSources`에 `learning.queue`가 있음)은 요구 REQ-LN-09다. 믿지 않으면 L2-d가 승인 요청을 한 번 더 내고, 학습 그룹은 그 결과를 `approval_required`로 받아 `approved`에 둔다.
-7. 지연 정리 [제안]: `/learning` 명령 처리기는 진입 때마다 먼저 `sweepQueue`를 돌린다. (1) `approved`이고 `applied`가 아닌 행의 적용을 같은 `idempotencyKey`로 다시 부른다. (2) 만료 시각이 지난 `pending` 행을 `expired`로 바꾼다. (3) `inFlightReviewId`가 있고 구독 경로가 없으면 §4.3 대체 조회를 한다. 시각은 명령 문맥의 주입 시계를 쓴다. L4 승인 화면은 목록을 `/learning queue --json`으로 받으므로 화면을 열 때도 정리가 돈다. 옛 `thread.start` 복원은 on 핸들러 안의 읽기와 능력 쓰기라 ADR-0015 §3.2에서 허용되지 않는다(능력 쓰기는 `idempotent: true` 선언이 있으면 허용되지만 대상 행을 고르는 읽기가 막힌다). `approved` 미적용 행은 결정 명령 도중 프로세스가 끝날 때만 생기므로 다음 명령까지 미뤄도 사용자가 보는 상태와 어긋나지 않는다.
+7. 지연 정리 [제안]: `/learning` 명령 처리기는 진입 때마다 먼저 `sweepQueue`를 돌린다. (1) `approved`이고 `applied`가 아닌 행의 적용을 같은 `idempotencyKey`로 다시 부른다. (2) 만료 시각이 지난 `pending` 행을 `expired`로 바꾼다. (3) `inFlightReviewId`가 있고 구독 경로가 없으면 §4.3 대체 조회를 한다. 시각은 명령 문맥의 주입 시계를 쓴다. L4 승인 화면은 목록을 `/learning queue --json`으로 받으므로 화면을 열 때도 정리가 돈다. 옛 `thread.start` 복원은 on 핸들러 안의 읽기와 기능 쓰기라 ADR-0015 §3.2에서 허용되지 않는다(기능 쓰기는 `idempotent: true` 선언이 있으면 허용되지만 대상 행을 고르는 읽기가 막힌다). `approved` 미적용 행은 결정 명령 도중 프로세스가 끝날 때만 생기므로 다음 명령까지 미뤄도 사용자가 보는 상태와 어긋나지 않는다.
 8. 범위 선택 [결정: review.m3-design-inputs D-M3-09]: 스킬 후보의 기본 범위는 `user`다. `approve`에 `scope: "project"`가 있으면 적용 어댑터가 `KnowledgeChange.scope = "project"`로 부른다. 메모리·피드백 후보에 `project`를 주면 `learning.scopeNotAllowed`다. 모델 도구 경로(`learning_propose`, `skill_manage`)는 프로젝트 범위를 고를 수 없다.
 
 ### 4.6 사전 스캔 (`proposals/scan.ts`)
 
 1. 학습 그룹 자체 검사(항상): 크기 한도, 대상 이름 형식, 연산과 종류 조합(§3.6 `ProposalOpSchema` 주석), 파괴적 연산의 `baseHash` 존재.
-2. L2-d 스캔(`l3.learning.scan.enabled`가 참이고 `knowledge.ledger`가 제공될 때. `knowledge.ledger.scan`): 비밀 패턴, 주입 패턴, 유출 패턴. `block` 결과가 하나라도 있으면 `rejected/scan_failed`다.
-3. 스캔 규칙의 정본은 L2-d다. 학습 그룹은 결과만 쓴다. 스캔 결과의 `findings`는 `x_learning_proposals`에 규칙 이름만 남기고, 걸린 문자열은 남기지 않는다(비밀 재노출 방지).
+2. L2-d 스캔(`l3.learning.scan.enabled`가 참이고 `knowledge.ledger`가 제공될 때. `knowledge.ledger.scan`): 시크릿 패턴, 주입 패턴, 유출 패턴. `block` 결과가 하나라도 있으면 `rejected/scan_failed`다.
+3. 스캔 규칙의 정본은 L2-d다. 학습 그룹은 결과만 쓴다. 스캔 결과의 `findings`는 `x_learning_proposals`에 규칙 이름만 남기고, 걸린 문자열은 남기지 않는다(시크릿 재노출 방지).
 4. `scan.enabled = false`여도 L2-d `apply` 안의 스캔은 L2-d 설정을 따른다. 학습 설정으로 L2-d 스캔을 끌 수 없다.
 
 ### 4.7 메타인지 피드백 (`feedback.ts`, M3)
@@ -827,7 +827,7 @@ M3 1차 범위 밖이고 M4 이후에 둔다(`product/scope/spec.md` 4.5, `_rese
 | `boundary.settle.after` | `g.commit(next)` | `commit` 허용 | X 상태 커밋 멱등 키(재실행은 `replayed`) |
 | `agent.settled` 구독 | `recordPrivate`(`fork.finished`), `record`(`review.finished`), `commit` | 모두 허용 | 디스패치 키(구독한 이벤트 id) 기반 커밋 키 |
 
-- 능력 메서드: on 핸들러는 능력 메서드를 부르지 않는다. 읽기도 부르지 않는다(ADR-0015 §3.2, [결정: review.m3-design-inputs D-M3-31] 행 8). 능력 호출은 도구 `execute`(§3.5)와 명령 처리기(§4.5)에만 있다.
+- 기능 메서드: on 핸들러는 기능 메서드를 부르지 않는다. 읽기도 부르지 않는다(ADR-0015 §3.2, [결정: review.m3-design-inputs D-M3-31] 행 8). 기능 호출은 도구 `execute`(§3.5)와 명령 처리기(§4.5)에만 있다.
 - 선언 없는 쓰기: 없다. 요청 레코드와 워커(ADR-0015 §3.5)를 쓰지 않는다.
 - `post`: 부르지 않는다(`usesPost: false`). 완료 보고 post도 없다 [결정: review.m3-design-inputs D-M3-03].
 - 결정적 키: `requestId`의 재료는 커밋된 `epoch`뿐이다. 집계표, 시각, 난수는 쓰지 않는다.
@@ -839,7 +839,7 @@ M3 1차 범위 밖이고 M4 이후에 둔다(`product/scope/spec.md` 4.5, `_rese
 |---|---|---|
 | 1 | 포크 실패(모델 오류) 또는 취소 | `grp.learning.fork.finished{outcome: "error" \| "aborted"}`. 이미 제출된 후보는 그대로 둔다. 후보가 없으면 아무것도 대기열에 넣지 않는다. 카운터는 시작 때 이미 0이므로 다음 임계에서 다시 시도한다(UC-3 대안 흐름) |
 | 2 | 포크가 예산이나 반복 상한에 걸림 | `outcome: "budget"`. 사례 1과 같게 처리한다 |
-| 3 | 사전 스캔 또는 적용 스캔 실패(비밀 포함 등) | 후보는 `rejected/scan_failed`. 본문을 레코드와 로그에 남기지 않는다 |
+| 3 | 사전 스캔 또는 적용 스캔 실패(시크릿 포함 등) | 후보는 `rejected/scan_failed`. 본문을 레코드와 로그에 남기지 않는다 |
 | 4 | 승인과 적용 사이 원본 스킬 변경 | L2-d `base_stale` → `pending`으로 되돌림, 새 diff 표시(§4.5 규칙 5) |
 | 5 | 학습 그룹 비활성화 중 포크 진행 | [결정: review.m3-design-inputs D-M3-04] 즉시 취소: 비활성화 적용 때 `onDispose`에서 `g.cancelDelegates("group_disabled")`를 부르고 끝나지 않은 검토 행을 `aborted`로 닫는다. `onDispose`에는 ambient가 없어 상태를 커밋하지 못한다(REQ-X-12 [가정]이 아직 없다). `inFlightReviewId`는 다시 켠 뒤 첫 turn의 `boundary.settle.after` 핸들러가 닫힌 검토 행으로 비운다(§4.3 진행 중 표지 정리). `g.cancelDelegates`가 `onDispose`에서 동작하도록 group-sdk이 위임 서비스를 setup에서 잡아 둔다(L3.group-sdk.spec §4.10). L1-g는 이 scope가 주체인 백그라운드 자식을 모두 취소하고 `agent.settled{ status: "aborted" }`를 커밋한다. 학습 그룹이 꺼져 있으므로 구독 핸들러는 돌지 않는다. 취소 전에 제출된 후보는 `pending`으로 남고, 다시 켜면 대기열을 그대로 보인다. |
 | 6 | 재개 뒤 같은 지점 재발화 | 같은 `requestId`로 `g.delegate` → `duplicate`. 포크는 하나만 있다(§4.3) |
@@ -848,7 +848,7 @@ M3 1차 범위 밖이고 M4 이후에 둔다(`product/scope/spec.md` 4.5, `_rese
 | 9 | 포크가 `baseHash` 없이 patch 제안 | `learning_propose`가 `base_missing`을 돌려준다. 후보 없음 |
 | 10 | 분기로 이전 지점으로 되돌아감 | scope 상태가 그 지점 값으로 돌아간다(`inFlightReviewId` 포함). 같은 `epoch`가 다시 나와 `requestId`가 겹치면 `duplicate`로 포크를 시작하지 않는다. 되돌아간 상태에 남은 `inFlightReviewId`는 그 검토의 `agent.settled`가 이미 커밋되어 있으면 다음 명령 진입의 대체 조회로 비운다. 대기열 행은 세션 단위이므로 분기와 무관하게 남는다 [제안] |
 | 11 | 설정 읽기 실패 | 검토를 시작하지 않는다(fail-closed, §4.1). 대기열 적용도 미룬다 |
-| 12 | L2-d 능력 미제공(`requires` 미충족) | 트리거와 포크를 시작하지 않는다. `/learning queue`는 "지식 저장소 없음"을 보여 준다. 로드 거부 여부는 X.loading-trust.spec이 정한다 |
+| 12 | L2-d 기능 미제공(`requires` 미충족) | 트리거와 포크를 시작하지 않는다. `/learning queue`는 "지식 저장소 없음"을 보여 준다. 로드 거부 여부는 X.loading-trust.spec이 정한다 |
 | 13 | 같은 대상에 대한 두 후보가 동시에 `pending` | 둘 다 둔다. 하나가 `applied`가 되면 다른 하나는 다음 적용 때 `base_stale`로 `pending`에 머문다 |
 | 14 | 검토가 진행 중인데 임계에 다시 도달 | `skip/in_flight`. 카운터는 계속 센다. 검토가 끝나 `inFlightReviewId`가 비면 다음 `boundary.settle.after`에서 판정한다(§4.2 규칙 0) |
 | 15 | `agent.settled` 구독 경로가 없음(REQ-LN-02 미반영) | `inFlightReviewId`가 남아 새 검토가 시작되지 않는다. `/learning` 명령 진입 때 `g.delegateStatus`로 조회해 비운다(§4.3 대체). 명령을 쓰지 않으면 검토가 한 번만 돈다. 그래서 REQ-LN-02는 M3 학습 그룹 착수의 선행 조건이다(L3.learning.plan §3) |
@@ -899,7 +899,7 @@ F.wire-settings.spec §3.8의 `SettingDef`로 선언한다(`settings.ts`, `defin
 - F `CommandResourceDef.handler`는 `void`나 `CommandOutput`을 돌려줄 수 있다(X.primitives.spec §3.9). 이 명령의 처리기는 값을 돌려주지 않는다. 구현은 결과(`CommandReport`)를 조립 루트가 넘기는 `report(report, invocationId)` 콜백으로 낸다. 호출 id(`invocationId`)는 L4가 명령 호출마다 정하고 같은 호출을 다시 실행하면 같은 값을 넘긴다(X.primitives.spec §4.6.6). 호스트 처리기는 `proposal.decide`를 `decisionCommandLine`으로 만든 명령 줄로 실행하고 `invocationId`로 자기 결과를 찾는다. 명령은 후보의 부모 대화에서, 그 대화가 이 호스트에서 열려 있지 않으면 가장 최근에 연 대화에서 실행한다. 열린 대화가 없으면 쓰기 명령은 `learning.noConversation`이고 목록은 투영을 읽는다. 승인 화면은 목록을 wire `proposal.list`로 읽고 결정을 `proposal.decide`로 보낸다(L4 호스트 처리기, REQ-LN-10).
 - 모든 하위 명령은 진입 때 지연 정리(§4.5 규칙 7)를 먼저 하고, 결과를 `DecisionResult`·`QueueSweep`(§3.9) 값으로 돌려준다. `--json` 출력은 이 값을 그대로 직렬화한다.
 
-## 7. 확장 지점
+## 7. 훅
 
 | 연산 | 사용 | 내용 |
 |---|---|---|
@@ -942,7 +942,7 @@ F.wire-settings.spec §3.8의 `SettingDef`로 선언한다(`settings.ts`, `defin
 | `defineGroup`, `GroupDef<S>`, `GroupApi<S>`(`settings()`, `delegate(spec)`, `metrics`, `registerTool`, `registerCommand`), `DelegateSpec`, `DelegateResult`. 비공개 기록 연산은 X `ScopeApi.recordPrivate`를 그대로 전달받는다(§3.7.1, review.decisions-2 T-21) | L3.group-sdk.spec §3.2, §3.4 |
 | 백그라운드 위임 접수·완료·취소(§3.3 `AgentService`), 스냅샷 복제(`ForkPoint`), 도구 정책(`ChildToolPolicy`), 상한(`ChildLimits`), `learning-review` 정의 적재(§4.9), 사용량 부모 귀속, 캐시 접두 공유 | L1.agents.spec |
 | 실행 시점 도구 허용 검사와 거부 결과 | L1.tools.spec |
-| `knowledge.*` 능력 ID, 서비스 키, `KnowledgeChangeApi` 대응 메서드, 스캔, 원장, 롤백, "에이전트 생성" 표시 | L2.knowledge.spec |
+| `knowledge.*` 기능 ID, 서비스 키, `KnowledgeChangeApi` 대응 메서드, 스캔, 원장, 롤백, "에이전트 생성" 표시 | L2.knowledge.spec |
 | 비공개 기록 연산 `ScopeApi.recordPrivate`(§3.7.1, review.decisions-2 T-21) | X.primitives.spec §4.6.5, F.extensions.spec §3.2 |
 | 확장 kind 형식, 테이블 접두 규칙 | F.records.spec §3.2, eng.context-map.design 5.2절 |
 
@@ -984,7 +984,7 @@ F.wire-settings.spec §3.8의 `SettingDef`로 선언한다(`settings.ts`, `defin
 16. `diff`가 16 KiB를 넘는 제안을 만들고 프로세스를 재시작해 재생하면 `x_learning_proposals`의 `diff`가 원문과 같고, 승인된 제안의 재적용과 만료 판정 결과가 재시작 전과 같다.
 17. (ADR-0015 재생 2회, 효과 1회) 검토를 시작하는 `boundary.settle.after` 핸들러를 같은 커밋 상태와 같은 페이로드로 두 번 실행하고 그 사이 프로세스를 재시작해도, 가짜 위임 서비스의 자식 생성 계수는 1이고 `grp.learning.fork.started` 행은 1개이며 상태 커밋은 한 번만 반영된다.
 18. (ADR-0015) `agent.settled` 구독 핸들러를 같은 이벤트로 두 번 실행해도 `grp.learning.fork.finished`, `grp.learning.review.finished`가 각 1개이고 `inFlightReviewId`는 null이다.
-19. 학습 그룹의 on 핸들러와 구독 핸들러 실행 중 `g.capability` 호출은 0회다(능력 래퍼 계측).
+19. 학습 그룹의 on 핸들러와 구독 핸들러 실행 중 `g.capability` 호출은 0회다(기능 래퍼 계측).
 20. `inFlightReviewId`가 있는 동안 임계를 넘어도 `g.delegate` 호출은 0회이고, 검토가 끝난 뒤 다음 `boundary.settle.after`에서 한 번 불린다.
 21. ([결정: review.m3-design-inputs D-M3-03]) 검토가 끝난 뒤 부모 대화의 다음 모델 요청 입력에 `grp.learning.review.result` 항목이 없고, 부모 대화에 `input.queued{ source.type: "delegation" }`이 없다.
 22. ([결정: review.m3-design-inputs D-M3-04]) 검토 포크가 도는 중 학습 그룹을 끄면 그 자식의 `agent.settled{ status: "aborted" }`가 커밋되고, 그 뒤 자식 대화에 새 모델 요청이 없다.

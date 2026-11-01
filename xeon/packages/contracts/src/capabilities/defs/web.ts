@@ -1392,7 +1392,7 @@ export const WebResearchKey: ServiceKey<CapabilityApi<typeof WebResearch>> =
 
 // ── 서비스 묶음 (§3.9) ─────────────────────────────────────────────────
 
-/** web 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** web 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface WebService {
   readonly search: CapabilityApi<typeof WebSearch>;
   readonly fetch: CapabilityApi<typeof WebFetch>;

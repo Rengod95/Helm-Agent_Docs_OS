@@ -332,7 +332,7 @@ function typeName(json: unknown): string | undefined {
 
 /**
  * SettingDef 하나를 규칙 D1~D8로 검사한다. 순수 함수. 하나라도 어기면 정의를 거부해야 한다.
- * D3의 ui는 선택이다: ui가 있을 때만 widget이 "secret"이어야 한다(화면에 두지 않는 비밀 키는 파일·명령으로만 쓴다).
+ * D3의 ui는 선택이다: ui가 있을 때만 widget이 "secret"이어야 한다(화면에 두지 않는 시크릿 키는 파일·명령으로만 쓴다).
  */
 export function checkSettingDef(def: SettingDef): readonly SettingDefIssue[] {
   const issues: SettingDefIssue[] = [];

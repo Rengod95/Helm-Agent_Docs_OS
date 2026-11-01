@@ -28,10 +28,10 @@ binds: [xeon/packages/platform-sandbox/**]
 
 | 대상 | 정하는 곳 |
 |---|---|
-| 셸 실행, 자식 env 허용 목록, 비밀 주입 | `L0.exec.spec` |
+| 셸 실행, 자식 env 허용 목록, 시크릿 주입 | `L0.exec.spec` |
 | 승인 UI, 권한 모드, 명령 패턴 규칙, 자동 허용 판정의 적용 | `L1.tools.spec` |
 | 파일 도구(read, write, edit, ls, grep, find)의 경로 검사 | `L2.workspace.spec` §4.3 (이 문서는 보호 경로 목록과 판정 함수만 준다) |
-| 비밀 lease, sentinel 프록시, 마스킹 | `L0.secrets.spec` |
+| 시크릿 lease, sentinel 프록시, 마스킹 | `L0.secrets.spec` |
 | 사용자·앱 디렉터리 질의 | `L0.os.spec` |
 | doctor 명령과 종료 코드 | `L4.cli.spec` |
 
@@ -264,7 +264,7 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 |---|---|---|---|---|
 | `<fresnelData>/` 전체(단일 DB, WAL, blob) | prefix | 읽기·쓰기 | `fresnel_data` | `/srv/volumes/**` 대체. bash로 DB·blob을 직접 고치는 우회 쓰기(13 §3.5.1 W-3)와 다른 세션 내용 읽기를 막는다 |
 | `<fresnelConfig>/` 전체 | prefix | 쓰기 | `fresnel_config` | `~/.config/helm/**` 대체. 다음 시작 때 설정·플러그인으로 코드가 실행된다 |
-| `<fresnelConfig>/secrets/` 전체(메타 파일, 감사 파일, 파일 폴백 age 키 기본 위치 `<fresnelConfig>/secrets/age/keys.txt`) | prefix | 읽기·쓰기 | `secret_key` | 새 행. `<fresnelConfig>/` 행은 쓰기만 막으므로 비밀 파일의 읽기를 따로 막는다(`L0.secrets.spec` §3.2·§4.7) |
+| `<fresnelConfig>/secrets/` 전체(메타 파일, 감사 파일, 파일 폴백 age 키 기본 위치 `<fresnelConfig>/secrets/age/keys.txt`) | prefix | 읽기·쓰기 | `secret_key` | 새 행. `<fresnelConfig>/` 행은 쓰기만 막으므로 시크릿 파일의 읽기를 따로 막는다(`L0.secrets.spec` §3.2·§4.7) |
 | `SecretService.protectedPaths()`가 돌려주는 절대 경로(설정한 SOPS 파일, `l0.secrets.ageKey.filePath`로 바꾼 파일 폴백 age 키) | exact | 읽기·쓰기 | `secret_key` | SOPS 원본 행 대체. 등록 API를 두지 않고 sandbox가 상태 탐지 때와 `l0.secrets.*` 변경 뒤에 이 목록을 다시 읽는다 [제안] |
 | `<home>/.config/sops/` | prefix | 읽기·쓰기 | `secret_key` | 같음 |
 | age 키 파일: `<home>/.config/sops/age/keys.txt`, macOS `<home>/Library/Application Support/sops/age/keys.txt`, 부모 env `SOPS_AGE_KEY_FILE` 값 | exact | 읽기·쓰기 | `secret_key` | `**/keys.txt` 대체. macOS 기본 위치는 [가정: sops 문서 확인 필요] |
@@ -288,7 +288,7 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 exec와 sandbox는 서로 import하지 않고 F의 `Shell` 인터페이스로만 만난다. `fresnel.sandbox`의 `wrapShell`은 F `Shell`을 받아 F `Shell`을 돌려주고, 두 서비스의 조립은 L1 tools 또는 apps/host가 한다.
 
 - `wrapShell`이 기대하는 `Shell`의 성질은 `L0.exec.spec` §3.7(옵션 전달, argv 실행, 결과 필드 보존)이다.
-- 비밀 값(`secretEnv`)은 `wrapShell`이 해석하지 않는다. 래핑 뒤 아래 `Shell`이 spawn 직전에 넣는다(`L0.exec.spec` §3.6).
+- 시크릿 값(`secretEnv`)은 `wrapShell`이 해석하지 않는다. 래핑 뒤 아래 `Shell`이 spawn 직전에 넣는다(`L0.exec.spec` §3.6).
 
 ### 3.5 OS 분기: `SandboxProvider`
 
@@ -494,9 +494,9 @@ export function selectSandboxProvider(input: {
 - 넓히는 키(`enabled` 끄기, `onUnavailable`, `writeRoots.extra`, `escapeRetry`, `credentialFiles`, `nestedNamespaces`)는 `project` 범위를 받지 않는다. 좁히는 키(`protectedPaths.extra`, `network.blockedDomains`)만 프로젝트 파일에서 받는다 [제안: 저장소를 여는 것만으로 격리가 풀리지 않게 한다, `_research/notes/L0-1.md` §3.6].
 - 네트워크 키는 srt가 프로세스당 정책 하나라 `restart`다(`_research/notes/L0-1.md` §8). 실행 중 변경(`updateConfig`)은 2차에서 다시 본다.
 - 탭: `_research/settings.md` §4의 5번 탭 '샌드박스와 네트워크'에 둔다. F `SettingsTab`(`F.wire-settings.spec` §3.8.2)에 해당 값이 없어 `"sandbox"` 추가를 F에 요청한다(8.2절). 추가 전까지는 `"permissions"`에 둔다 [제안].
-- 비밀 값 키는 없다.
+- 시크릿 값 키는 없다.
 
-## 7. 확장 지점
+## 7. 훅
 
 - `fresnel.sandbox`는 `on` 지점을 선언하지 않는다. 도구 실행 지점(`tool.call.before` first, `tool.result` chain)은 L1이 선언하고(`F.extensions.spec`), 자동 허용 판정 결과를 쓰는 곳도 L1이다.
 - `post`, `drive`와 관계없다.
@@ -526,7 +526,7 @@ export function selectSandboxProvider(input: {
 | 대상 | 요구 |
 |---|---|
 | `fresnel.os`(`OsService`, `L0.os.spec`) | `OsDirs.home`, `OsDirs.config`, `OsDirs.data`(DB·blob 포함), `OsDirs.tmp`의 절대 경로(`L0.os.spec` §3.2). `resolveBinary("rg" \| "bwrap" \| "socat")`(§3.6) |
-| `fresnel.secrets`(`SecretService`, `L0.secrets.spec`) | `protectedPaths()`: 비밀 파일 절대 경로 목록(값 없음, `L0.secrets.spec` §3.6). 보호 경로 `secret_key` 행. 후속에서 sentinel 모드의 프록시 훅 요구를 받는다(10절 9번) |
+| `fresnel.secrets`(`SecretService`, `L0.secrets.spec`) | `protectedPaths()`: 시크릿 파일 절대 경로 목록(값 없음, `L0.secrets.spec` §3.6). 보호 경로 `secret_key` 행. 후속에서 sentinel 모드의 프록시 훅 요구를 받는다(10절 9번) |
 | `fresnel.exec`(`L0.exec.spec`) | `SENSITIVE_ENV_PATTERNS`를 F에 두는 것(자가 시험 `env_allowlist`), `Shell` 데코레이션 성질(§3.7) |
 | `L1.tools.spec` | (1) 셸 도구 실행 경로에서 `wrapShell`로 감싼 `Shell`을 쓰는 조립. (2) `onUnavailable` 표(4.5절)의 도구 광고·승인 처리. (3) `autoAllow` 판정의 적용. (4) 파일 도구가 `protectedPaths()`와 `matchProtectedPath`로 realpath 검사(18 R-12). (5) 격리 없이 실행한 호출의 기록(이벤트 소유 [미결]) |
 | `L2.workspace.spec` | §4.3 6번 보호 경로 검사에 `matchProtectedPath` 사용. 쓰기 루트를 `defaultPolicy` 입력과 같은 값으로 쓰기 |
@@ -545,7 +545,7 @@ export function selectSandboxProvider(input: {
 7. Windows provider(가짜 `process.platform = "win32"`)에서 `status()`가 `{ level: "none", reason: "unsupported_os" }`이고, 기본 설정에서 `wrapShell(...).exec`는 자식 프로세스를 만들지 않고 `sandbox_unavailable`을 돌려준다. `run_unsandboxed`로 바꾸면 실행되고 `unsandboxedBy: "run_unsandboxed"`가 붙는다.
 8. `autoAllow`가 4.3절 조건 조합별 판정표(조건 5개의 참·거짓 32조합)에서 기대 결과와 `blocks` 목록을 낸다.
 9. 성공한 샌드박스 실행의 `ShellExecResult.sandbox.sandboxed`가 참이고, M1 스모크의 bash 도구 호출 이벤트 details에서 이 값을 확인할 수 있다.
-10. `wrapShell`이 넘긴 `secretEnv` 참조는 아래 `Shell`에 그대로 도착하고, `SandboxRunReport`와 시작 로그에 비밀 값이 없다.
+10. `wrapShell`이 넘긴 `secretEnv` 참조는 아래 `Shell`에 그대로 도착하고, `SandboxRunReport`와 시작 로그에 시크릿 값이 없다.
 11. srt 래핑이 throw하면 `sandbox_failed`이고 `cleanupAfterCommand` 호출이 0회다.
 12. 실제 srt와 OS 격리(Linux bubblewrap, macOS Seatbelt)로 `sandbox.int.test.ts`가 다음을 확인한다. 각 거부 시험은 같은 명령을 감싸지 않은 Shell로 돌려 성공함을 보이는 대조를 함께 둔다. (a) 쓰기 루트 안 쓰기는 성공하고 `sandbox.sandboxed`가 참이다. (b) 쓰기 루트 밖 쓰기가 종료 코드 0이 아니고 파일이 생기지 않는다(M1 종료 조건). (c) 쓰기 루트 안의 `.git/hooks` 쓰기가 거부된다. (d) `<fresnelData>/selftest/canary` 읽기가 거부된다. (e) 호출자 `readDeny`·`writeDeny`가 비어도 (c)와 `protectedPaths.extra` 경로 읽기 거부가 그대로다. (f) 로컬 TCP 서버로 가는 `/dev/tcp` 연결이 거부되고 서버가 연결을 받지 못한다. (g) 자가 시험 여섯 항목이 모두 통과한다.
 13. 12번 시험의 필수 바이너리(Linux: `bwrap`, `socat`, `rg` / macOS: `rg`)가 없으면, 환경 변수 `FRESNEL_REQUIRE_SANDBOX=1`이거나 `CI=true`일 때 종료 코드 2(환경 문제)로 끝나고 stderr에 `ENV sandbox.int: missing <이름>. <설치 안내>`를 쓴다. 그 밖의 기기에서는 건너뛰고 stderr에 `SKIPPED ENV sandbox.int: …`를 한 줄 남긴다. CI가 이 파일을 건너뛴 채 통과하지 않게 하는 쪽은 Z 트랙(G4-07)이 `test-capped.sh`의 종료 코드 전달과 건너뜀 수 출력으로 잇는다.
@@ -561,7 +561,7 @@ export function selectSandboxProvider(input: {
 4. [결정: review.m3-design-inputs D-M3-18 행 3] 샌드박스 밖 재시도(`l0.sandbox.escapeRetry`)를 둔다. 기본은 끔이고, 켜도 재시도마다 승인을 받는다(`_research/notes/L0-1.md` §9).
 5. [미결] x64·arm64 밖 Linux 지원. seccomp 필터가 번들되지 않아 `select.ts`는 `unsupported_os`를 돌려준다. 지금은 `fresnel.os`가 해당 arch를 등록 실패로 처리하므로 운영 경로가 없다(3.5절). 지원을 넓히면 두 문서를 함께 고친다.
 6. [결정: 오케스트레이터 기본값] 중첩 사용자 네임스페이스. 기본 브라우저 provider는 Stagehand다([결정: review.m3-design-inputs D-M3-23]). srt 0.0.79에는 `allowNestedUserNamespaces`가 없어 `enableWeakerNestedSandbox`로 허용하고 설정 `l0.sandbox.nestedNamespaces`(기본 거짓, `restart`)로 켠다(§4.8). 쓰기 거부가 약해질 수 있다(`_research/notes/L0-1.md` §6). 켠 상태에서 브라우저가 실제로 뜨는지는 실기 확인이 필요하다.
-7. [결정: review.m3-design-inputs D-M3-18 행 2] 자격 파일 행(`~/.npmrc`, `~/.config/gh` 등)은 기본으로 읽기를 허용하고, 설정 `l0.sandbox.credentialFiles`(`allow`·`deny`)로 거부할 수 있다(§3.3). 이전 질문: 자격 파일 행의 읽기 거부 기본값. 안전하지만 `gh`, 사설 레지스트리 `npm`이 샌드박스 안에서 인증 없이 돈다. 비밀 env 주입(`L0.exec.spec` §3.6)으로 대신할 수 있는지 `L0.secrets.spec`과 함께 정한다.
+7. [결정: review.m3-design-inputs D-M3-18 행 2] 자격 파일 행(`~/.npmrc`, `~/.config/gh` 등)은 기본으로 읽기를 허용하고, 설정 `l0.sandbox.credentialFiles`(`allow`·`deny`)로 거부할 수 있다(§3.3). 이전 질문: 자격 파일 행의 읽기 거부 기본값. 안전하지만 `gh`, 사설 레지스트리 `npm`이 샌드박스 안에서 인증 없이 돈다. 시크릿 env 주입(`L0.exec.spec` §3.6)으로 대신할 수 있는지 `L0.secrets.spec`과 함께 정한다.
 8. [미결] `SettingsTab`의 `"sandbox"` 추가(F 변경).
 9. [미결] 프록시 훅(후속, sentinel 모드). `L0.secrets.spec` §4.3 M2 sentinel 설계는 자식 HTTPS가 `fresnel.sandbox` 프록시를 지나고 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 요구한다. 이 문서는 아직 그 훅을 정하지 않았다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안을 `L0.sandbox.plan` SB-16에서 비교하고 TLS 종단(`L0.secrets.spec` §10 6번)과 함께 정한다.
 10. [미결] `wrapArgv`의 위반 수집. 장수 프로세스는 위반 줄을 언제 모을지 정해야 한다(종료 때 한 번, 주기적으로 등). 1차는 모으지 않고, `SandboxedArgv`에도 위반 필드가 없다(4.9절).

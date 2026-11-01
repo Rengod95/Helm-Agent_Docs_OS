@@ -33,7 +33,7 @@ export type KeyEnv = Readonly<Record<string, string>>;
 
 /**
  * sops 호출 env. 거른 부모 env + 키 변수 하나(SOPS_AGE_KEY_CMD 또는 SOPS_AGE_KEY_FILE).
- * 키 변수 외의 이름이 오면 무시한다(sops 자식에 다른 비밀 변수가 끼지 않게 한다).
+ * 키 변수 외의 이름이 오면 무시한다(sops 자식에 다른 시크릿 변수가 끼지 않게 한다).
  */
 export function buildSopsEnv(
   parent: Readonly<Record<string, string | undefined>>,

@@ -3,7 +3,7 @@ import { CapabilityError } from "@fresnel/contracts/capabilities";
 import type { WebFailure } from "./errors.ts";
 import { WebHttpError } from "./policy/guarded-http.ts";
 
-// provider 코드(플러그인)가 던진 값을 능력 오류 값으로 바꾼다. provider는 외부 코드라 무엇이든 던질 수 있다.
+// provider 코드(플러그인)가 던진 값을 기능 오류 값으로 바꾼다. provider는 외부 코드라 무엇이든 던질 수 있다.
 // 던진 원인은 호출한 쪽이 주입된 Logger로 기록한다(TY-25).
 
 function isAbortError(caught: unknown): boolean {

@@ -3,7 +3,7 @@ import { hostOf, type PlatformContext } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { rejectionOf, makeUnit, type ManifestInput } from "./fixtures/support.ts";
 
-// X.primitives.spec §4.9, P-26, M3-REQ-26. 확장 사이의 통신은 그룹 레코드와 능력 서비스뿐이다(범용 이벤트 버스 없음, ADR-0017 §3.7).
+// X.primitives.spec §4.9, P-26, M3-REQ-26. 확장 사이의 통신은 그룹 레코드와 기능 서비스뿐이다(범용 이벤트 버스 없음, ADR-0017 §3.7).
 // 그룹 사이 격리는 kind 접두 필터다: 자기 접두는 읽고, 다른 접두는 readsRecordKinds가 덮을 때만 읽는다
 
 /** Cordis 이벤트·컨텍스트 API의 이름. 확장에 주는 어떤 객체에도 없어야 한다 */

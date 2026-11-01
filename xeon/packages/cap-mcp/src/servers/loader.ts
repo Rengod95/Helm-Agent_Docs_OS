@@ -95,7 +95,7 @@ const McpJsonFileSchema = Type.Object({ mcpServers: Type.Record(Type.String(), T
 export type McpJsonParseError = { readonly kind: "invalid_json" } | { readonly kind: "no_servers" };
 
 /**
- * `.mcp.json` 텍스트를 서버 정의로 바꾼다. 이름 형식이 어긋나거나 먼저 있는 id와 겹치거나 평문 비밀이 든 항목은
+ * `.mcp.json` 텍스트를 서버 정의로 바꾼다. 이름 형식이 어긋나거나 먼저 있는 id와 겹치거나 평문 시크릿이 든 항목은
  * 그 서버만 건너뛰고 진단을 남긴다. `taken`은 이미 정해진 id다(설정 정의가 이긴다).
  */
 export function parseMcpJson(

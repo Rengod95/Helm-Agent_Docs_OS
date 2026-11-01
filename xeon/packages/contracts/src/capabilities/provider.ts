@@ -37,9 +37,9 @@ export interface ProviderCandidate {
 export interface ProviderOrderInput {
   readonly candidates: readonly ProviderCandidate[];
   readonly callProvider?: ProviderId;
-  /** 설정 l2.<domain>.<능력>.provider. "auto" 또는 provider id */
+  /** 설정 l2.<domain>.<기능>.provider. "auto" 또는 provider id */
   readonly settingProvider: ProviderId;
-  /** 설정 l2.<domain>.<능력>.pluginOrder */
+  /** 설정 l2.<domain>.<기능>.pluginOrder */
   readonly pluginOrder: readonly ProviderId[];
 }
 

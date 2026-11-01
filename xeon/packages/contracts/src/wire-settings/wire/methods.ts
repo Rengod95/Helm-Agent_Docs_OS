@@ -1128,8 +1128,8 @@ export const SecretTestResultSchema: TObject<{
 export type SecretTestResult = Static<typeof SecretTestResultSchema>;
 
 /**
- * secret.references result(`L0.secrets.spec`의 `SecretReferenceReport`). 삭제 전에 이 비밀을 가리키는 곳을 보이는 데 쓴다.
- * `settingKeys`는 이 핸들을 값으로 가진 설정 키, `activeLeases`는 지금 열려 있는 임대 수, `sessions`는 최근에 이 비밀을 쓴 thread다.
+ * secret.references result(`L0.secrets.spec`의 `SecretReferenceReport`). 삭제 전에 이 시크릿을 가리키는 곳을 보이는 데 쓴다.
+ * `settingKeys`는 이 핸들을 값으로 가진 설정 키, `activeLeases`는 지금 열려 있는 임대 수, `sessions`는 최근에 이 시크릿을 쓴 thread다.
  */
 export const SecretReferencesResultSchema: TObject<{
   settingKeys: TArray<typeof SettingKeySchema>;

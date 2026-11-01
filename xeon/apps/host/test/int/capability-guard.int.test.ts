@@ -15,7 +15,7 @@ import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// 능력 래퍼(X.primitives.spec §4.4.7)가 실제 조립에서 도는지 본다. drive 함수가 읽기 능력을 부르면 공급자까지 닿고,
+// 기능 래퍼(X.primitives.spec §4.4.7)가 실제 조립에서 도는지 본다. drive 함수가 읽기 기능을 부르면 공급자까지 닿고,
 // 선언 없는 쓰기와 키 없는 멱등 쓰기는 공급자를 부르지 않고 거부된다. 정의 표는 조립 루트가 넘긴다(ExtHostDeps.capabilityDefs).
 
 const gate = await realEngineGate();

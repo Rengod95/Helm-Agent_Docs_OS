@@ -64,7 +64,7 @@ function isAbortError(caught: unknown): boolean {
   return caught instanceof Error && caught.name === "AbortError";
 }
 
-/** 던져진 값을 이 능력 메서드의 CapabilityError로 바꾼다. 버그(Bug)와 이미 바뀐 오류는 그대로 둔다 */
+/** 던져진 값을 이 기능 메서드의 CapabilityError로 바꾼다. 버그(Bug)와 이미 바뀐 오류는 그대로 둔다 */
 export function toCapabilityError(
   capability: CapabilityId,
   method: string,

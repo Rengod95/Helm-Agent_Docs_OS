@@ -3,7 +3,7 @@ import * as capabilities from "@fresnel/contracts/capabilities";
 import { capabilityEffectOf } from "@fresnel/contracts/extensions";
 import { BUILTIN_CAPABILITY_DEFS, capabilityDefsOf } from "../../src/assembly/capability-defs.ts";
 
-// 능력 래퍼가 읽는 내장 정의 표(X.primitives.spec §4.4.7)가 contracts가 내보내는 능력 정의를 빠짐없이 담는다.
+// 기능 래퍼가 읽는 내장 정의 표(X.primitives.spec §4.4.7)가 contracts가 내보내는 기능 정의를 빠짐없이 담는다.
 
 function defIdOf(value: unknown): string | undefined {
   if (typeof value !== "object" || value === null) return undefined;

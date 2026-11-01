@@ -30,7 +30,7 @@ export interface BackgroundStopper {
 }
 
 export interface RegisterBackgroundInput {
-  /** 화면 표시. 비밀 값을 넣지 않는다 */
+  /** 화면 표시. 시크릿 값을 넣지 않는다 */
   readonly label: string;
   readonly owner: BackgroundOwner;
   readonly pid: number;

@@ -23,8 +23,8 @@ import type { CliIo, DoctorProbes } from "../io.ts";
 import { CLI_VERSION } from "./version.ts";
 import { connectOrReportQuiet, type CommandContext } from "./context.ts";
 
-// L4.cli.spec §3.1 doctor, §4.7.1. 진단 항목: 엔진 조립(FTS5, 데이터 디렉터리), 비밀 저장소(sops·age), 외부 바이너리 점검,
-// 서비스 도달, 터미널 능력, 검색 provider 상태 묶음. FTS5 검사는 platform-store 안에만 있어(TC-11) 엔진을 열어 보는 것으로 확인한다 [spec §10 5번 진단 경로의
+// L4.cli.spec §3.1 doctor, §4.7.1. 진단 항목: 엔진 조립(FTS5, 데이터 디렉터리), 시크릿 저장소(sops·age), 외부 바이너리 점검,
+// 서비스 도달, 터미널 기능, 검색 provider 상태 묶음. FTS5 검사는 platform-store 안에만 있어(TC-11) 엔진을 열어 보는 것으로 확인한다 [spec §10 5번 진단 경로의
 // 임시 결정: 조립 진입점이 진단 함수를 내기 전까지 CLI가 조립 결과와 wire 조회로 판정한다].
 
 type CheckStatus = "ok" | "warn" | "fail" | "info";

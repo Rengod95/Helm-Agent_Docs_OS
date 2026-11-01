@@ -96,7 +96,7 @@ import { Value } from "typebox/value";
 const valid = Value.Check(ThreadIdSchema, input);
 ```
 
-- [미결] pi-ai가 고정한 TypeBox 1.3.27(pi-agent-core는 adr.0009로 의존하지 않는다)과 Xeon catalog의 1.3.27가 한 트리에 함께 있을 때 스키마 값 호환(`Compile`이 다른 버전 스키마를 받는지). 1.3.27로 통일하면 pi 포크 코드의 호환을 따로 확인해야 한다(`_research/notes/eng-2.md §11`).
+- [미결] pi-ai가 고정한 TypeBox 1.3.27(pi-agent-core는 adr.0009로 의존하지 않는다)과 Fresnel catalog의 1.3.27가 한 트리에 함께 있을 때 스키마 값 호환(`Compile`이 다른 버전 스키마를 받는지). 1.3.27로 통일하면 pi 포크 코드의 호환을 따로 확인해야 한다(`_research/notes/eng-2.md §11`).
 
 ### DT-02 스키마가 단일 진실 원천이다. 타입을 따로 손으로 쓰지 않는다
 
@@ -423,7 +423,7 @@ const key = `rq_${ulid()}`;
 나쁜 예:
 
 ```ts
-// 스캔 xeon/contracts-discriminant 실패 [제안]: 판별자 이름이 변형마다 다름
+// 스캔 fresnel/contracts-discriminant 실패 [제안]: 판별자 이름이 변형마다 다름
 export const NoticeSchema: TUnion<[typeof InfoNoticeSchema, typeof WarnNoticeSchema]> = Type.Union([
   InfoNoticeSchema, // { level: "info", ... }
   WarnNoticeSchema, // { severity: "warn", ... }
@@ -435,7 +435,7 @@ export const NoticeSchema: TUnion<[typeof InfoNoticeSchema, typeof WarnNoticeSch
 [제안]
 
 - 확장이 변형을 더할 수 있는 유니온(열린 유니온)은 F가 정한 알려진 변형 목록에 열린 변형 하나를 더해 정의한다.
-- 열린 변형의 판별자 값 형식은 플러그인 `x.<extId>.<name>`, 의도 그룹 `grp.<groupId>.<name>`이다(`F.records.spec` §3.2, `F.extensions.spec` §4.9). 예: `kind: "grp.helm.phase.changed"`(이벤트), `kind: "grp.helm.lens_missing"`(오류), `type: "x.mermaid.diagram"`(데이터).
+- 열린 변형의 판별자 값 형식은 플러그인 `x.<extId>.<name>`, 플러그인 그룹 `grp.<groupId>.<name>`이다(`F.records.spec` §3.2, `F.extensions.spec` §4.9). 예: `kind: "grp.helm.phase.changed"`(이벤트), `kind: "grp.helm.lens_missing"`(오류), `type: "x.mermaid.diagram"`(데이터).
   - `extId`·`groupId`는 확장 매니페스트의 이름이고 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 소문자·숫자·하이픈, 밑줄 금지)이다(`F.extensions.spec` §3.1, [결정: review.decisions-2 U-18]). 생산자 id는 `ext.<확장 이름>`, 확장 테이블 접두는 `x_<확장 이름의 '-'를 '_'로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다(`eng.context-map.design` 5.1·5.2절, `X.operations.spec` §4.4.2).
   - 패턴: `^(?:x|grp)\.[a-z][a-z0-9-]{1,31}\.[a-z][a-z0-9_.]{0,63}$`
   - `_` 접두 값은 코어 열거형 확장 예약으로만 남는다(`F.extensions.spec` §4.9). 이 문서의 이전 판에 있던 `_ext.` 접두는 쓰지 않는다.
@@ -621,14 +621,14 @@ color: Type.String({ minLength: 1, maxLength: 16 }),
 
 ### DT-10 payload 버전은 kind마다 두고, envelope 모양 변경은 DB 마이그레이션으로 한다
 
-`docs/design/09-event-store.md §3.13.3`의 버전 규칙 여섯 개를 Xeon에 옮긴다. envelope 필드 이름과 카탈로그의 정본은 `F.records.spec` §3.1·§3.3이고, 운용은 `eng.events.design`이 정한다. 여기서는 규칙만 정한다.
+`docs/design/09-event-store.md §3.13.3`의 버전 규칙 여섯 개를 Fresnel에 옮긴다. envelope 필드 이름과 카탈로그의 정본은 `F.records.spec` §3.1·§3.3이고, 운용은 `eng.events.design`이 정한다. 여기서는 규칙만 정한다.
 
 1. payload 버전은 이벤트 `kind`마다 따로 올리는 정수 `version`이다(1부터, 09의 `typeVersion`). envelope 형식 버전 필드(09의 `v`)는 두지 않는다. envelope 모양을 바꾸면 DB 마이그레이션으로 처리한다(`F.records.spec` §3.1.1 `v` 행, §3.7 규칙 1).
 2. 저장된 이벤트를 제자리에서 고쳐 쓰지 않는다(DT-11).
 3. 형식 변환은 업캐스터로, 데이터 정정은 새 이벤트로 한다. 둘을 섞지 않는다. 업캐스터 안에서 값의 옳고 그름을 판단해 고치지 않는다.
 4. 투영 스키마(SQLite 투영 테이블)는 이벤트 스키마와 독립된 버전을 가진다. 투영은 버전이 바뀌면 이벤트에서 다시 만든다(`eng.events.design`).
-5. 프로세스 밖 상대(L4 클라이언트, 엔진 사이드카, 공유 서비스 모드의 다른 클라이언트)는 연결할 때 지원하는 와이어 프로토콜 버전 범위를 서로 알린다(`F.wire-settings.spec`). 09의 handshake 규칙을 Xeon 전송 계층에 옮긴 것이다.
-6. 저장소에 이 앱이 모르는 코어 `kind`나 이 앱보다 높은 `version`이 있으면 엔진은 그 thread를 쓰기 모드로 열지 않는다. 읽기 전용 내보내기는 허용한다. 예외: 확장 접두(`x.`, `grp.`, DT-08) kind는 모르는 kind로 세지 않는다. 그 확장이 설치되지 않았거나 꺼진 상태에서도 코어 투영은 이 이벤트를 건너뛰고 thread를 연다 [제안: Xeon에서 더한 예외. 확장 on/off가 thread 열기를 막지 않게 한다. `F.records.spec` §10 미결 5].
+5. 프로세스 밖 상대(L4 클라이언트, 엔진 사이드카, 공유 서비스 모드의 다른 클라이언트)는 연결할 때 지원하는 와이어 프로토콜 버전 범위를 서로 알린다(`F.wire-settings.spec`). 09의 handshake 규칙을 Fresnel 전송 계층에 옮긴 것이다.
+6. 저장소에 이 앱이 모르는 코어 `kind`나 이 앱보다 높은 `version`이 있으면 엔진은 그 thread를 쓰기 모드로 열지 않는다. 읽기 전용 내보내기는 허용한다. 예외: 확장 접두(`x.`, `grp.`, DT-08) kind는 모르는 kind로 세지 않는다. 그 확장이 설치되지 않았거나 꺼진 상태에서도 코어 투영은 이 이벤트를 건너뛰고 thread를 연다 [제안: Fresnel에서 더한 예외. 확장 on/off가 thread 열기를 막지 않게 한다. `F.records.spec` §10 미결 5].
 
 이유: envelope 형식(seq, id, 시각 필드)은 저장소와 재생 코드 전체가 의존하므로 거의 바뀌지 않아야 하고, payload는 이벤트 종류마다 독립적으로 바뀐다. 한 버전 번호로 묶으면 payload 하나의 변경이 전체 envelope 버전을 올리게 된다. 규칙 6은 다운그레이드한 앱이 모르는 데이터를 건너뛰고 투영해 틀린 상태 위에 쓰기를 받는 것을 막는다(09 §3.13.3 규칙 6의 이유).
 
@@ -696,7 +696,7 @@ export type DurableEventEnvelope = Static<typeof DurableEventEnvelopeSchema>;
 - envelope에는 `v`, `type`, `typeVersion`, `sessionId`, `producer`, `requestId`, `category`가 없다(`F.records.spec` §3.1.1). 커밋 키는 저장 열 `events.request_id`, 생산자 id는 커밋 초안(`StampedDraft.producer`)에 둔다(`eng.events.design` 4.1절).
 - 휘발 envelope(`durable: false`, `n`, `afterSeq`)과 판별 유니온 `EventEnvelopeSchema`도 같은 방식으로 적는다(`F.records.spec` §3.1).
 - payload를 `Type.Unknown()`으로 두고 kind별로 2차 검증하는 방식은 09가 `Type.Record(Type.String(), Type.Unknown())`로 둔 것을 바꾼 것이다(`eng.events.design` 4.1절과 같음).
-- `AuthorityBasis` 같은 패턴 문자열 필드는 Xeon envelope에 없다. 패턴 필드를 둘 때는 09의 `AUTHORITY_PATTERN`처럼 길이 상한을 패턴 안에 둔다(`{1,200}`, DT-15).
+- `AuthorityBasis` 같은 패턴 문자열 필드는 Fresnel envelope에 없다. 패턴 필드를 둘 때는 09의 `AUTHORITY_PATTERN`처럼 길이 상한을 패턴 안에 둔다(`{1,200}`, DT-15).
 
 ### DT-11 저장된 데이터는 제자리에서 고치지 않는다. 형식 변환은 업캐스터 순수 함수로 한다
 
@@ -835,7 +835,7 @@ import { DurableEventEnvelopeSchema } from "../records/envelope.ts";
 - 확장 설정은 `ext.<extId>.<이름>`이다. 예: `ext.helm.explorationDepth`. `extId`는 DT-08과 같은 값(`ExtensionName`)이다. 기록 kind 접두(`x.`·`grp.`)와 설정 키 접두(`ext.`)가 다른 이유는 `F.readme` §4다. 확장은 자기 `ext.<id>.` 아래 키만 정의한다.
 - 단위가 있는 수치는 키 이름 끝에 단위를 붙인다: `Ms`, `Bytes`, `Tokens`, `Usd`.
 - 불리언은 `enabled`, `allow<무엇>` 형태다. 부정형(`disable…`, `no…`)은 쓰지 않는다.
-- 비밀 값은 설정에 직접 두지 않고 비밀 참조 문자열로 둔다(L0 `platform-secrets`, `L0.secrets.spec`).
+- 시크릿 값은 설정에 직접 두지 않고 시크릿 참조 문자열로 둔다(L0 `platform-secrets`, `L0.secrets.spec`).
 
 이유: 설정은 L4 설정 화면, 설정 파일, 명령줄이 같은 키로 다룬다(`_research/decisions-log.md` 2026-10-21 "L4 클라이언트 설정 화면에서 조작 가능"). 키 형식이 고정되면 화면 그룹화, 검색, 확장별 설정 분리가 키 문자열만으로 된다.
 
@@ -884,7 +884,7 @@ timeoutMs: Type.Optional(Type.Integer({ minimum: 1, maximum: 3_600_000 })),
 나쁜 예:
 
 ```ts
-// 리뷰 DT-14, 스캔 xeon/contracts-no-date 실패 [제안]: Date 객체와 ISO 문자열을 섞음
+// 리뷰 DT-14, 스캔 fresnel/contracts-no-date 실패 [제안]: Date 객체와 ISO 문자열을 섞음
 startedAt: Type.Unsafe<Date>(Type.String({ format: "date-time" })),
 ```
 
@@ -921,7 +921,7 @@ tags: Type.Array(TagSchema, { maxItems: 32 }),
 나쁜 예:
 
 ```ts
-// 스캔 xeon/contracts-bounded-string 실패 [제안]: 상한 없는 문자열과 배열
+// 스캔 fresnel/contracts-bounded-string 실패 [제안]: 상한 없는 문자열과 배열
 reason: Type.String(),
 tags: Type.Array(TagSchema),
 ```
@@ -965,14 +965,14 @@ label: Type.Optional(Nullable(Type.String({ maxLength: 200 }))),
 
 [제안] `Type.Object(..., { additionalProperties: false })`를 기본으로 한다. 열린 내용은 이름 있는 `Type.Unknown()` 필드(`data`, `payload`, `input`) 하나로 모은다.
 
-이유: 열린 객체는 오타 필드를 조용히 통과시키고, 정규화 JSON 해시에 스키마가 모르는 키를 넣는다. 닫힌 객체에서 확장 지점은 DT-08의 `data` 필드 하나로 정해진다.
+이유: 열린 객체는 오타 필드를 조용히 통과시키고, 정규화 JSON 해시에 스키마가 모르는 키를 넣는다. 닫힌 객체에서 훅은 DT-08의 `data` 필드 하나로 정해진다.
 
 좋은 예: DT-08, DT-11의 스키마.
 
 나쁜 예:
 
 ```ts
-// 스캔 xeon/contracts-closed-object 실패 [제안]: additionalProperties 미지정
+// 스캔 fresnel/contracts-closed-object 실패 [제안]: additionalProperties 미지정
 export const NoticeSchema: TObject<{ text: TString }> = Type.Object({ text: Type.String({ maxLength: 500 }) });
 ```
 
@@ -1018,11 +1018,11 @@ export const NoticeSchema: TObject<{ text: TString }> = Type.Object({ text: Type
 
 | 규칙 | 검사 | 관련 |
 |---|---|---|
-| `xeon/contracts-annotated-schema` | `export const <이름> = Type.` 형태(주석 없음) 검출. tsc TS9010과 같은 대상이며 `isolatedDeclarations` 범위가 줄어도 남는다 | DT-03 |
-| `xeon/contracts-bounded-string` | `Type.String(` 인자에 `maxLength`나 `pattern`이 없으면 실패. `Type.Array(` 인자에 `maxItems`가 없으면 실패 | DT-15 |
-| `xeon/contracts-closed-object` | `Type.Object(` 두 번째 인자에 `additionalProperties`가 없으면 실패 | DT-17 |
-| `xeon/contracts-no-date` | `Type.Date`, `Type.BigInt`, `Unsafe<Date>`, `format: "date-time"` 검출 | DT-14 |
-| `xeon/contracts-discriminant` | 유니온 변형의 판별자 이름이 `type`·`kind` 밖이거나 변형마다 다르면 실패 | DT-07 |
+| `fresnel/contracts-annotated-schema` | `export const <이름> = Type.` 형태(주석 없음) 검출. tsc TS9010과 같은 대상이며 `isolatedDeclarations` 범위가 줄어도 남는다 | DT-03 |
+| `fresnel/contracts-bounded-string` | `Type.String(` 인자에 `maxLength`나 `pattern`이 없으면 실패. `Type.Array(` 인자에 `maxItems`가 없으면 실패 | DT-15 |
+| `fresnel/contracts-closed-object` | `Type.Object(` 두 번째 인자에 `additionalProperties`가 없으면 실패 | DT-17 |
+| `fresnel/contracts-no-date` | `Type.Date`, `Type.BigInt`, `Unsafe<Date>`, `format: "date-time"` 검출 | DT-14 |
+| `fresnel/contracts-discriminant` | 유니온 변형의 판별자 이름이 `type`·`kind` 밖이거나 변형마다 다르면 실패 | DT-07 |
 | 서브패스 순서 | `check-layers.ts`가 `packages/contracts/src/<소스 디렉터리>/` 사이 import를 `F.readme` §3 순서 표로 검사 | DT-12 |
 
 - 정규식 스캔은 여러 줄 호출에서 오탐·누락이 있다. 파서 선택은 `eng.typescript.guide` 6절 [미결]과 같다.

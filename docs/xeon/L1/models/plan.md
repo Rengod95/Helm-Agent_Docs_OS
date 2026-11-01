@@ -17,14 +17,14 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: `L1.models.spec`의 `fresnel.models`를 구현한다. M1 스모크의 한 턴이 테이프 모델로 재생되고, 비밀 참조가 요청 직전에만 해석되며, 위장 플러그인 없이 core-models 테스트가 통과해야 한다.
+목표: `L1.models.spec`의 `fresnel.models`를 구현한다. M1 스모크의 한 턴이 테이프 모델로 재생되고, 시크릿 참조가 요청 직전에만 해석되며, 위장 플러그인 없이 core-models 테스트가 통과해야 한다.
 
-마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 능력과 Helm, M3는 첫 공개 릴리즈 후보(학습 그룹, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
+마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M1은 걸어 다니는 골격(`_research/foundation-plan.md` §5 P4), M2는 L2 기능과 Helm, M3는 첫 공개 릴리즈 후보(학습 그룹, 공유 서비스 모드, 목표 판정 등)다. 그 문서의 M2·M3 정의는 [제안]이다. 계획 JSON의 "2차"는 M3 이후에 둔다 [제안].
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
 | M0 | core-models 코드 없음. 선행: contracts에 `L1.models.spec` §3.2·§3.3의 F 요청 타입(`ModelRole`, `ModelRef`, `parseModelRef`, `ModelBinding`, `CachePolicy`, 그리고 `@fresnel/contracts/services`의 `ModelService`·`ModelServiceName`)이 들어가야 한다. platform-secrets의 `SecretService` 인터페이스가 F에 있어야 한다 | `_research/foundation-plan.md` §5 P4 M0 |
-| M1 | pi-ai 모델 1개 호출(`stream`, `complete`, `streamFn`), 사용량 합산(중단 응답 포함), 모델 테이프 가짜(`@fresnel/core-models/testing`), 비밀 참조 해석 연결(`secretBackedCredentialStore`), `l1.models.default`·`providers`·`retry` 설정, 지점 `request.provider.before` | `_research/foundation-plan.md` §5 P4 M1 "pi-ai 모델 1개", `eng.testing.guide` TS-04 |
+| M1 | pi-ai 모델 1개 호출(`stream`, `complete`, `streamFn`), 사용량 합산(중단 응답 포함), 모델 테이프 가짜(`@fresnel/core-models/testing`), 시크릿 참조 해석 연결(`secretBackedCredentialStore`), `l1.models.default`·`providers`·`retry` 설정, 지점 `request.provider.before` | `_research/foundation-plan.md` §5 P4 M1 "pi-ai 모델 1개", `eng.testing.guide` TS-04 |
 | M2 | 역할 표와 라우팅(6역할, 그룹 덮어쓰기), 추론 레벨·레벨별 토큰 예산 설정과 체크포인트 고정, 캐시 정책 객체와 표식 적용, provider 등록 API, 나머지 지점 5개, 허용·차단 목록. 별도 작업 줄기: 위장 provider 플러그인(방안 A 스파이크, 회귀 테스트, 배포 제외 CI 검사) | 계획 v2 L1-c 1차 행, `L1.agents.plan` M2(서브에이전트 역할) |
 | M3 | 구조화 출력 최소형(목표 판정용, 재시도 루프와 횟수 상한), 레이트 리밋과 계정 회전(설정은 M3 설정 화면) | `L1.models.spec` §3.10·§4.8, `L1.agents.spec` §4.8, review.decisions-2 U-21 |
 | 2차(M3 이후) | 폴백 체인, 구조화 출력 전체 | 계획 v2 L1-c 2차 행 |
@@ -58,7 +58,7 @@ xeon/packages/core-models/
     testing/
       index.ts                 # loadTape, tape, tapePlayer, contextHash, t (eng.testing.guide TS-04)
       tape.ts
-      tape-wire.ts             # 요청 정규화·해시, 비밀 찾기·치환, tapeFetch(녹화 wire 재생) (M-15)
+      tape-wire.ts             # 요청 정규화·해시, 시크릿 찾기·치환, tapeFetch(녹화 wire 재생) (M-15)
       tape-recorder.ts         # recordingFetch, buildRecordedTape, renderRecordedTape (M-15)
       fake-secrets.ts          # 메모리 SecretService(가짜 키 문자열 고정)
   scripts/
@@ -104,20 +104,20 @@ xeon/plugins/provider-anthropic-oauth/
 | M-8 | 위장 래퍼 방안 A 스파이크: `_research/notes/L1-2.md` §5 S1~S6을 따른다. A2(Api id 유지, provider id `anthropic-oauth`)로 시작. 와이어 동등성 테스트(S5)를 통과하지 못하거나 `L1.models.spec` §4.11.2 전환 조건에 걸리면 방안 B 결정 기록을 남긴다 | M-4 | 대 | M2 별도 줄기 |
 | M-9 | 회귀 테스트 복사: pi-ai `test/anthropic-oauth.test.ts`(로그인·갱신, 7개), `anthropic-tool-name-normalization.test.ts`(실 API 왕복, 키 없으면 건너뜀, 4개). 복사본은 실행 전 내용을 검토한다. 두 파일은 요청 형태를 보증하지 않으므로 M-8의 동등성 테스트가 주 검증이다 | M-8 | 소 | M2 |
 | M-10 | 배포 제외 CI 검사: `xeon/scripts/check-release.ts`와 `.github/workflows/fresnel-ci.yml`의 L1 job 항목(`L1.models.spec` §4.11.4 1~4). `just verify`에도 넣는다 | M-8 | 소 | M2 |
-| M-11 | 나머지 지점 5개(`request.headers.before`, `request.provider.after`, `request.stream`, `request.model.after`, `request.thinking.after`), 비밀 헤더 가림, 바인딩 변경 감지 | M-1, M-2 | 중 | M2 |
+| M-11 | 나머지 지점 5개(`request.headers.before`, `request.provider.after`, `request.stream`, `request.model.after`, `request.thinking.after`), 시크릿 헤더 가림, 바인딩 변경 감지 | M-1, M-2 | 중 | M2 |
 | M-12 | 구조화 출력 최소형: `completeStructured`, `validateToolArguments` 재시도 루프, 시도 상한 | M-1 | 소 | M3 |
 | M-13 | 레이트 리밋·계정 회전: 별도 설계 문서 먼저(§7 위험 4), `core_models_*` 테이블, 계정 선택, 대기·전환, M3 설정 화면 키(`accounts`, `rateLimit`) | M-6, 설계 문서 | 대 | M3 |
 | M-14 | 폴백 체인: `overloaded`·`provider_unavailable`에서만, 콘텐츠 전 요청만 | M-1, M-2 | 중 | 2차 |
 | M-15 | 테이프 녹화기(M2 마감 G4-06, 결정 D-e): `scripts/record-tape.ts <scenario> <out>`와 `testing/tape-recorder.ts`, `testing/tape-wire.ts`. 규칙은 아래 "녹화기" 절 | M-1 | 중 | M2 마감 |
 
-- 구현 상태(M2, m2/l1c): M-2(역할 표 해석기, 허용·차단 목록), M-4(provider 등록부), M-5(캐시 정책 객체와 표식 적용), M-6의 `sk-ant-oat` 가드, M-7의 M2 키 11개를 구현했다. 설정 읽기는 `modelsSettingsOf`가 조립 루트의 `ModelsSettingsSource`를 대신한다. 나머지 지점 5개와 비밀 헤더 가림, 바인딩 변경 감지(M-11)도 구현했다. M1 고정값(추론 레벨 `medium`, 캐시 보존 `short`, 토큰 예산 null)은 설정 `l1.models.thinkingLevel`, `cacheRetention`, `thinkingBudgets`를 읽는 코드로 바꿨다(`review.open-issues` M-07의 core-models 몫). `HostedSearchPort`는 L1C.3에서 구현했다(spec §3.12).
+- 구현 상태(M2, m2/l1c): M-2(역할 표 해석기, 허용·차단 목록), M-4(provider 등록부), M-5(캐시 정책 객체와 표식 적용), M-6의 `sk-ant-oat` 가드, M-7의 M2 키 11개를 구현했다. 설정 읽기는 `modelsSettingsOf`가 조립 루트의 `ModelsSettingsSource`를 대신한다. 나머지 지점 5개와 시크릿 헤더 가림, 바인딩 변경 감지(M-11)도 구현했다. M1 고정값(추론 레벨 `medium`, 캐시 보존 `short`, 토큰 예산 null)은 설정 `l1.models.thinkingLevel`, `cacheRetention`, `thinkingBudgets`를 읽는 코드로 바꿨다(`review.open-issues` M-07의 core-models 몫). `HostedSearchPort`는 L1C.3에서 구현했다(spec §3.12).
 - 녹화기(M-15) 규칙. 형식은 `fresnel.model-tape.v1`을 그대로 쓰고, 차례(`ModelTapeTurn`)에 선택 필드 `wire`(`TapeWire`)를 더했다.
   - 주입 지점은 pi-ai 요청 옵션 `fetch`(1.3.0 `ProviderRequestOptions.fetch`)이고 전역 fetch는 바꾸지 않는다. 1.3.0 dist에서 확인한 결과, `anthropic-messages`, `openai-completions`, `openai-responses`, `azure-openai-responses`, `openai-codex-responses`, `mistral-conversations`, `pi-messages`는 `fetch`를 쓴다. `google-generative-ai`와 `google-vertex`는 사용자 정의 fetch를 오류로 거부하고 `bedrock`은 읽지 않는다. 이 셋은 `wire` 재생 대상이 아니다. 첫 시나리오(`hello-text`, `read-tool-call`)는 `anthropic` provider의 `claude-haiku-5-5`를 추론 수준 `xhigh`로 쓴다(2026-10-25 사용자 지시). 출력 상한 16000은 추론 토큰을 포함한다.
   - `wire`에는 메서드, 경로(쿼리·호스트 없음), 정규화한 요청 본문의 sha256(`requestHash`), 요청 요약(모델, 메시지 수, 도구 이름), 상태 코드, 허용 목록 응답 헤더(`content-type`, `request-id`, `x-request-id`, `retry-after`), 원본 SSE 덩어리 배열(`t`는 요청 후 ms, `data`는 텍스트)을 담는다. 요청 헤더는 저장하지 않는다. `response`는 같은 교환의 파싱 결과(`message`)이며, `tapeFetch`로 재생한 결과와 같아야 한다(`wire_replay_matches_recorded_response`).
   - 녹화 요청에는 `accept-encoding: identity`를 강제하고, 응답이 다른 `content-encoding`을 달면 녹화를 멈춘다.
   - 요청 본문 정규화는 키 순서를 정렬하고 `user`, `prompt_cache_key`, `safety_identifier`, `metadata.user_id`를 뺀다. 매칭 열쇠는 (메서드, 경로, `requestHash`)이고, 같은 열쇠는 테이프 순서대로 하나씩 소비한다. 헤더는 매칭에 쓰지 않는다.
   - `tapeFetch`는 짝이 없는 요청에 `TapeMismatchError`를 던지면서 `misses()`에도 남긴다. SDK가 fetch 오류를 삼켜도 `assertExhausted()`가 실패한다. 소비되지 않은 항목이 남아도 `TapeLeftoverError`로 실패한다. 재생은 기본으로 지연이 없고, `sleep`을 주면 녹화한 간격을 따른다.
-  - 비밀: 키는 환경 변수(`ANTHROPIC_API_KEY`, `secrets run dev -- …`가 주입)에서만 읽고 파일과 인자로 받지 않는다. 없으면 종료코드 2와 `just secret-add ANTHROPIC_API_KEY` 안내를 낸다. 구독 OAuth 토큰, 8자 미만 키, `CI` 환경도 종료코드 2다. 본문의 `sk-ant-`, `sk-proj-`, `sk-`, `Bearer `, `AKIA`, `ghp_` 계열 패턴과 실제 키 값은 `[REDACTED]`로 바꾸고, 쓰기 직전에 텍스트 전체를 다시 훑어 하나라도 남으면 파일을 쓰지 않는다. 키가 덩어리 경계에 걸치면 치환으로 고치지 않고 녹화를 거절한다. 요청 본문에 키 패턴이 있으면 요청을 보내기 전에 멈춘다.
+  - 시크릿: 키는 환경 변수(`ANTHROPIC_API_KEY`, `secrets run dev -- …`가 주입)에서만 읽고 파일과 인자로 받지 않는다. 없으면 종료코드 2와 `just secret-add ANTHROPIC_API_KEY` 안내를 낸다. 구독 OAuth 토큰, 8자 미만 키, `CI` 환경도 종료코드 2다. 본문의 `sk-ant-`, `sk-proj-`, `sk-`, `Bearer `, `AKIA`, `ghp_` 계열 패턴과 실제 키 값은 `[REDACTED]`로 바꾸고, 쓰기 직전에 텍스트 전체를 다시 훑어 하나라도 남으면 파일을 쓰지 않는다. 키가 덩어리 경계에 걸치면 치환으로 고치지 않고 녹화를 거절한다. 요청 본문에 키 패턴이 있으면 요청을 보내기 전에 멈춘다.
   - 녹화는 사람이 손으로만 한다(`just tape-record <scenario> --yes`, `--yes` 없이는 종료코드 3). 한 차례가 HTTP 요청을 하나 넘게 만들었거나(재시도), 2xx가 아니거나, 오류로 끝났으면 테이프를 만들지 않는다. 대상 파일이 있으면 덮어쓰지 않으므로 다시 녹화하려면 먼저 지운다.
 - 선행 외부 작업: contracts(F 요청 타입), platform-secrets 서비스 인터페이스(`L0.secrets.spec`), X 지점 디스패치(`X.primitives.plan`), core-loop의 `streamFn` 사용(`L1.loop.plan`).
 - M-2는 순수 함수라 M1에서 먼저 만들어도 된다. M1 경로는 `main` 역할과 `l1.models.default`만 쓴다.
@@ -157,7 +157,7 @@ xeon/plugins/provider-anthropic-oauth/
 | `record_tape_entry` | `test/record-tape.test.ts` | unit | 키 없음·`CI`·구독 토큰은 종료코드 2와 안내, 잘못된 인자는 1, 성공 시 `origin: "recorded"` 테이프 내용 비교, 이미 있는 테이프는 덮어쓰지 않음, provider 오류는 테이프 없음(가짜 fetch, 네트워크 없음) | M2 마감 |
 | `stream_fn_records_usage_with_context` | `test/service.test.ts` | unit | `streamFn(ctx)` 호출의 `UsageRecord`에 `threadId`, `turnId`, `role`, `scopeId`가 그대로 실림 | M1 |
 | `before_provider_request_rerun_same_result` | `test/pipeline.test.ts` | unit | `onPayload`를 두 번 부르면(재시도 모사) 같은 페이로드가 나옴 | M1 |
-| `settings_defs_pass_checks` | `test/settings.test.ts` | unit | `l1.models.*` 정의가 `checkSettingDef`·`buildCatalog` 통과. 비밀 값 기본값 없음 | M1 |
+| `settings_defs_pass_checks` | `test/settings.test.ts` | unit | `l1.models.*` 정의가 `checkSettingDef`·`buildCatalog` 통과. 시크릿 값 기본값 없음 | M1 |
 | `structured_output_retries_until_cap` | `test/structured-output.test.ts` | unit | 스키마 위반 응답 두 번 뒤 통과면 `attempts: 3`. 상한이면 `schema_mismatch` | M3 |
 | `oauth_wrapper_rewrites_system_and_tool_names` | 플러그인 `test/payload-rewrite.test.ts` | unit | identity 블록 삽입과 `cache_control` 복사, beta 조건 분기 세 경우(`null`, 값 있음, 없음), 도구명 세 곳 치환, placeholder 이름 보존 | M2 |
 | `oauth_wrapper_unmaps_tool_names_in_response` | 플러그인 `test/stream-unmap.test.ts` | unit | `toolcall_start`에서 되돌린 이름이 후속 이벤트와 `done` 메시지에 반영 | M2 |

@@ -20,7 +20,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, 
 - pi-ai를 그대로 쓰는 범위와 그 위에 Fresnel이 정하는 세 가지: 캐시 정책 객체(`CachePolicy`), 용도별 라우팅(역할 표), 설정 노출.
 - 역할 표의 역할 목록, 해석 순서, 모델 참조 문자열 형식 `provider/modelId[:thinkingLevel]`.
 - 추론 레벨과 레벨별 토큰 예산, 단계 체크포인트(`StepCheckpoint.model`) 고정 규칙.
-- 비밀 참조(`secret://`)를 요청 직전에만 해석하는 규칙.
+- 시크릿 참조(`secret://`)를 요청 직전에만 해석하는 규칙.
 - 발화 지점 6개: `request.provider.before`, `request.headers.before`, `request.provider.after`, `request.stream`, `request.model.after`, `request.thinking.after`.
 - M3: 레이트 리밋과 계정 회전(설정은 M3 설정 화면, review.decisions-2 U-21). 2차: 폴백 체인, 구조화 출력.
 - 위장 provider 플러그인의 분리 방식(방안 A 우선, 방안 B 전환 조건), 배포 제외 검사, 위험 고지.
@@ -32,11 +32,11 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, 
 |---|---|
 | 메시지·스트림 이벤트·`Usage`·`ModelThinkingLevel` 타입 | `F.conversation.spec` §3.1 (pi 재노출) |
 | 단계 체크포인트 레코드 모양 | `F.records.spec` §3.6 |
-| 지점 선언 표, fold, 페이로드 형태 규칙 | `F.extensions.spec` §3.3~§3.5 |
+| 훅 선언 표, fold, 페이로드 형태 규칙 | `F.extensions.spec` §3.3~§3.5 |
 | 컨텍스트 조립, 캐시 표식 위치 계산, 컴팩션 | `L1.context.spec` |
 | 자체 루프(adr.0009)와의 연결, 예산(단계·비용 상한 없음) | `L1.loop.spec` |
 | 서브에이전트 정의 파일의 `model` 필드, 목표 판정 실행 | `L1.agents.spec` |
-| 비밀 저장, 해석 구현, 마스킹 | `L0.secrets.spec` |
+| 시크릿 저장, 해석 구현, 마스킹 | `L0.secrets.spec` |
 | 설정 화면 렌더링 | `L4.settings-ui.spec` |
 | 내장 검색 래퍼의 검색 절차 | `L2.web.spec` (이 문서는 `search` 역할의 모델 해석만 정한다) |
 
@@ -71,7 +71,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**, 
 | 토큰 추정, 오버플로우 감지 | `estimateMessageTokens`, `estimateContextTokens`, `calculateContextTokens`, `isContextOverflow` | `utils/estimate.ts`, `utils/overflow.ts:137` | `L1.context.spec`에 서비스로 위임(§3.3) |
 | 인자 검증 | `validateToolArguments` | `utils/validation.ts:317` | 2차 구조화 출력 재시도 루프(§4.10) |
 | 요청 변형 훅 | `onPayload`, `onResponse`, `onProviderStreamEvent`, `ModelsRequestTransforms.transformHeaders` | `types.ts:178`, `182`, `219-223`, `models.ts:112-115` | 지점 디스패치(§7) |
-| 자격 증명 | `CredentialStore`(provider당 1건), `Models.getAuth` | `auth/types.ts:65-94`, `auth/resolve.ts:19-25` | 비밀 다리(§3.9) |
+| 자격 증명 | `CredentialStore`(provider당 1건), `Models.getAuth` | `auth/types.ts:65-94`, `auth/resolve.ts:19-25` | 시크릿 다리(§3.9) |
 
 포크 판정 목록 [제안]. 판정 기준은 "공개 API와 훅으로 표현되는가"다. 표현되면 포크하지 않는다.
 
@@ -163,7 +163,7 @@ export interface ModelService extends ModelsPort {
 
   /** 카탈로그 조회. 허용·차단 목록을 적용한 결과 */
   list(filter?: ModelListFilter): readonly ModelInfo[];
-  /** provider 요청의 목적지(baseUrl 설정 → 등록부 → provider 기본 주소). 모르거나 해석할 수 없으면 null. 비밀 lease의 `target`과 같은 값이다(§3.9) [결정: M2 Mac 실기] */
+  /** provider 요청의 목적지(baseUrl 설정 → 등록부 → provider 기본 주소). 모르거나 해석할 수 없으면 null. 시크릿 lease의 `target`과 같은 값이다(§3.9) [결정: M2 Mac 실기] */
   providerTarget(providerId: string): ProviderTarget | null;
   /** provider 등록. 플러그인은 F provider 인터페이스(ProviderDef)로 이 메서드를 부른다(§3.7, §3.11) */
   addProvider(owner: ScopeId, name: string, def: ProviderDef): Result<Unsubscribe, ModelError>;
@@ -370,7 +370,7 @@ export interface ProviderConfigDef {
   readonly api?: Api;
   /** 키는 참조만 받는다. 리터럴, $ENV, !command 형식은 거부한다(pi ProviderConfig.apiKey와 다른 점) */
   readonly apiKey?: SecretRefString;
-  readonly headers?: Readonly<Record<string, string>>;   // 비밀 금지. 값에 secret:// 를 쓰면 요청 직전 해석
+  readonly headers?: Readonly<Record<string, string>>;   // 시크릿 금지. 값에 secret:// 를 쓰면 요청 직전 해석
   readonly models?: readonly ProviderModelDef[];
 }
 export interface ProviderModelDef {
@@ -418,7 +418,7 @@ export type ModelErrorKind =
 
 export interface ModelError {
   readonly kind: ModelErrorKind;
-  readonly message: string;           // 비밀 값 마스킹을 거친 문자열
+  readonly message: string;           // 시크릿 값 마스킹을 거친 문자열
   readonly role?: ModelRole;
   readonly ref?: ModelRefString;
   readonly retryAfterMs?: number;
@@ -441,7 +441,7 @@ export interface ModelError {
 
 - 5~8의 문구 판정은 pi-ai 정규식을 쓰고 Fresnel 정규식을 새로 만들지 않는다. pi-ai에 없는 구분(5와 6)은 `errorMessage`의 HTTP 상태 접두에서 읽는다 [가정: pi-ai 오류 메시지가 상태 코드를 담는다. M-1 테스트에서 확인].
 
-### 3.9 비밀 다리
+### 3.9 시크릿 다리
 
 ```ts
 // xeon/packages/core-models/src/secrets-bridge.ts (core-models 내부, 공개하지 않음)
@@ -449,7 +449,7 @@ import type { CredentialStore } from "@earendil-works/pi-ai";
 import type { SecretService } from "@fresnel/contracts/services";   // fresnel.secrets, F.capabilities.spec §3.12 규칙 7
 
 export interface ProviderCredentialRefs {
-  /** providerId → 비밀 참조. l1.models.providers 설정에서 만든다 */
+  /** providerId → 시크릿 참조. l1.models.providers 설정에서 만든다 */
   get(providerId: string): SecretRefString | null;
 }
 /** pi-ai CredentialStore 구현. read()가 요청마다 참조를 해석한다. list()는 메타만, modify·delete는 거부 */
@@ -458,9 +458,9 @@ export function secretBackedCredentialStore(refs: ProviderCredentialRefs, secret
 
 - 해석 시점: pi-ai `Models.getAuth`가 요청마다 `CredentialStore.read(providerId)`를 부른다(`auth/types.ts:65-70`). 이 함수 안에서만 `fresnel.secrets`로 값을 얻고, 값은 반환 객체 안에만 있다. 캐시하지 않는다 [제안](`_research/secrets.md` §6.2 "실행 직전 해석").
 - 값은 요청 헤더로만 나간다. `ModelCallRequest`, `ResolvedModel`, 이벤트, 로그, 지점 페이로드에 싣지 않는다(§7.2 헤더 가림).
-- 사용 모드: `runtime-http`(`L0.secrets.spec` §4.3 M3)로 `lease`한다. purpose는 `model.provider:<id>`, `target`은 provider 기본 URL의 호스트다. 마일스톤 M1부터 이 모드를 쓴다. 값은 프로세스 안 HTTP 클라이언트에만 있고 모델 컨텍스트, 이벤트, DB에 들어가지 않는다(review.decisions-2 U-19 보충). bash 도구의 비밀 주입은 `env` 모드 그대로다.
-- 사용 정책의 근원 [결정: M2 Mac 실기]: 새로 등록한 비밀의 사용 정책은 비어 있어(`L4.host-service.spec` HS-45) 위 `lease`는 `denied`다. 비밀을 provider에 연결하는 사람의 행위(사용자 범위 `l1.models.providers`의 `apiKeyRef` 쓰기. 데스크톱 "provider에 연결"과 `fresnel config set`은 모두 `settings.set`이다)가 이 호출 하나만 허용하는 정책을 비밀 메타에 더한다. 허용은 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [providerTarget(<id>)의 호스트]`뿐이다. `env` 모드, 도구, 다른 호스트는 열지 않는다. 호스트 쪽 규칙은 `L4.host-service.spec` HS-45 [결정: M2 Mac 실기]다. `providerTarget`은 이 호스트 값을 호출과 같은 규칙으로 구하기 위한 조회다.
-- `modify`, `delete`는 `ModelsError("auth")`를 던진다. 키 등록과 삭제는 비밀 관리 경로(`just secret-add`, 설정 화면 secrets 탭)로만 한다.
+- 사용 모드: `runtime-http`(`L0.secrets.spec` §4.3 M3)로 `lease`한다. purpose는 `model.provider:<id>`, `target`은 provider 기본 URL의 호스트다. 마일스톤 M1부터 이 모드를 쓴다. 값은 프로세스 안 HTTP 클라이언트에만 있고 모델 컨텍스트, 이벤트, DB에 들어가지 않는다(review.decisions-2 U-19 보충). bash 도구의 시크릿 주입은 `env` 모드 그대로다.
+- 사용 정책의 근원 [결정: M2 Mac 실기]: 새로 등록한 시크릿의 사용 정책은 비어 있어(`L4.host-service.spec` HS-45) 위 `lease`는 `denied`다. 시크릿을 provider에 연결하는 사람의 행위(사용자 범위 `l1.models.providers`의 `apiKeyRef` 쓰기. 데스크톱 "provider에 연결"과 `fresnel config set`은 모두 `settings.set`이다)가 이 호출 하나만 허용하는 정책을 시크릿 메타에 더한다. 허용은 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [providerTarget(<id>)의 호스트]`뿐이다. `env` 모드, 도구, 다른 호스트는 열지 않는다. 호스트 쪽 규칙은 `L4.host-service.spec` HS-45 [결정: M2 Mac 실기]다. `providerTarget`은 이 호스트 값을 호출과 같은 규칙으로 구하기 위한 조회다.
+- `modify`, `delete`는 `ModelsError("auth")`를 던진다. 키 등록과 삭제는 시크릿 관리 경로(`just secret-add`, 설정 화면 secrets 탭)로만 한다.
 - `list()`는 provider 이름과 참조 유무만 돌려준다(pi 계약: "must not execute configured API-key commands while listing").
 - 오류 문자열은 `fresnel.secrets`의 마스킹 함수를 지난다 [가정: L0.secrets.spec이 마스킹 API를 서비스로 제공한다].
 - `lease`가 정책으로 거부되면(`denied`) 종결 메시지의 사유 문장에 거부 사유를 싣는다: `secret_unresolved: secret <이름> could not be leased (denied: mode_not_allowed)`. 사람이 어디를 고칠지(사용 모드, 호스트) 알 수 있다 [결정: M2 Mac 실기].
@@ -523,13 +523,13 @@ export function setup(g: ScopeApi<unknown>): void;
 내장 검색 래퍼(`L2.web.spec` §4.8.4)가 쓰는 `ModelService.hostedSearch`(F `HostedSearchPort`, `@fresnel/contracts/services`)의 구현이다 [구현: M2, L1C.3]. 타입은 F가 정했고 이 절은 구현 규칙만 적는다.
 
 - 모델: `HostedSearchRequest.model`이 `auto`이면 역할 `search`의 해석 결과(`l1.models.routing.search` → `summary` → `main` → default)이고, 아니면 그 모델 참조를 역할 `search`로 해석한다(허용·차단 목록을 거친다). 해석에 실패하면 `support`는 `no_model`, `search`는 `unsupported_model`(provider·모델 null)이다.
-- 지원 판정(`support`): 모델 API가 `anthropic-messages`이고 provider가 `anthropic`이거나 기본 주소의 호스트가 `anthropic.com`이면 지원한다. 같은 API를 쓰는 타사 호환 서버는 지원하지 않는다(`no_hosted_search`). 판정은 모델 호출도 비밀 해석도 하지 않는다.
-- 요청: 기존 호출 파이프라인을 지난다(비밀 참조 해석, `sk-ant-oat` 가드, 재시도, 사용량). 추가로 `onPayload` 훅이 페이로드에 서버 도구 `{ type: "web_search_20250305", name: "web_search", max_uses: 1 }`을 넣는다. 시스템 프롬프트는 `request.system`, 사용자 메시지는 `request.query` 한 줄, 출력 상한은 `maxOutputTokens`, 추론은 끈다. 캐시는 역할 `search`라 보존 없음이다.
+- 지원 판정(`support`): 모델 API가 `anthropic-messages`이고 provider가 `anthropic`이거나 기본 주소의 호스트가 `anthropic.com`이면 지원한다. 같은 API를 쓰는 타사 호환 서버는 지원하지 않는다(`no_hosted_search`). 판정은 모델 호출도 시크릿 해석도 하지 않는다.
+- 요청: 기존 호출 파이프라인을 지난다(시크릿 참조 해석, `sk-ant-oat` 가드, 재시도, 사용량). 추가로 `onPayload` 훅이 페이로드에 서버 도구 `{ type: "web_search_20250305", name: "web_search", max_uses: 1 }`을 넣는다. 시스템 프롬프트는 `request.system`, 사용자 메시지는 `request.query` 한 줄, 출력 상한은 `maxOutputTokens`, 추론은 끈다. 캐시는 역할 `search`라 보존 없음이다.
 - 도메인: `allow`가 있으면 `allowed_domains`만, 없고 `deny`가 있으면 `blocked_domains`만 넘긴다(Anthropic은 둘을 함께 받지 않는다). 둘 다 있으면 `deny`는 넘기지 않고 로그 `hosted_search.deny_not_sent`를 남긴다. 호출자가 결과를 다시 거른다.
 - 응답: pi-ai anthropic 어댑터는 서버 도구 블록을 `AssistantMessage`에 싣지 않으므로 어댑터가 `onProviderStreamEvent`로 넘기는 원시 SSE 이벤트를 `anthropic-stream.ts`가 다시 모은다. `web_search_tool_result`의 `url`, `title`, `page_age`가 `results`, 텍스트 블록의 `web_search_result_location`이 `citations`, 텍스트가 `text`다. `encrypted_content`, `encrypted_index`는 응답에 담지 않는다. 사용량은 입력·출력 토큰과 `server_tool_use.web_search_requests`다.
 - 종료 사유: `message_delta`의 `stop_reason`을 `end_turn`, `pause_turn`, `max_tokens`, `refusal`로 옮기고 그 밖의 값은 `end_turn`이다. 종료 사유를 받았으면 `refusal`처럼 pi-ai가 오류로 끝낸 경우도 정상 응답이다.
 - 이어 요청: `pause_turn`이면 직전 응답의 content 블록 전체(`encrypted_content` 포함)를 JSON으로 직렬화해 `hs1:<base64url>` 문자열로 `continuation`에 담는다. 호출자는 읽거나 저장하지 않는다. 다음 요청의 `continuation`은 페이로드 `messages` 끝에 assistant 메시지로 되돌려 보낸다. 해석할 수 없는 문자열은 `upstream`(`status: null`)이고 요청을 보내지 않는다.
-- 오류(`HostedSearchError`): 신호가 중단됐으면 `cancelled`. HTTP 400이고 메시지에 web search와 organization·admin·disabled·not enabled 계열 단어가 함께 있으면 `org_disabled` [가정: 오류 문구는 실제 응답으로 확인하지 못했다]. 429나 도구 결과의 `too_many_requests`는 `rate_limited`(`retryAfterMs: null`). provider·모델 없음은 `unsupported_model`. 그 밖은 `upstream`이고 `status`는 메시지에서 읽은 HTTP 상태, `message`는 비밀 마스킹을 거친 문자열이다. 결과가 없고 도구 결과가 `web_search_tool_result_error`면 `upstream`이다.
+- 오류(`HostedSearchError`): 신호가 중단됐으면 `cancelled`. HTTP 400이고 메시지에 web search와 organization·admin·disabled·not enabled 계열 단어가 함께 있으면 `org_disabled` [가정: 오류 문구는 실제 응답으로 확인하지 못했다]. 429나 도구 결과의 `too_many_requests`는 `rate_limited`(`retryAfterMs: null`). provider·모델 없음은 `unsupported_model`. 그 밖은 `upstream`이고 `status`는 메시지에서 읽은 HTTP 상태, `message`는 시크릿 마스킹을 거친 문자열이다. 결과가 없고 도구 결과가 `web_search_tool_result_error`면 `upstream`이다.
 - thread에 속하지 않는 호출이다. 요청 지점(`request.provider.before` 등)과 `request.model.after`는 발화하지 않는다. 사용량은 예약 thread id(`HOSTED_SEARCH_THREAD`)에 역할 `search`로 쌓인다.
 - 시험: 어댑터 원시 이벤트를 테이프 차례의 `rawEvents`로 재생한다(`@fresnel/core-models/testing`의 테이프 provider). 네트워크 호출은 없다.
 - 범위 밖: 이 포트는 대화 기록에 남지 않는 단일 턴 요청이다. 메인 모델의 일반 턴 요청에 서버 도구를 넣는 일(`L2.web.spec` §4.8.1 A안)은 M2에 구현하지 않았다. 사유는 §10 12번이다.
@@ -603,7 +603,7 @@ export function resolveRole(input: {
 | 4 | 재시도 수치: `maxRetries`, `maxRetryDelayMs` | `ProviderRequestOptions` |
 | 5 | 페이로드 확정 뒤: 캐시 표식 적용(anthropic-messages만) → `request.provider.before` 디스패치 | `onPayload` |
 | 5b | `request.provider.before` 체인이 끝난 최종 페이로드로 `guard.model.before`(first, fail-closed) 디스패치 [결정: M3-REQ-109]. 차단이면 `[fresnel:denied_by_guard] <사유>` 오류를 던져 요청을 보내지 않고, pi-ai가 오류 응답(`stopReason: "error"`)으로 바꾼다. 핸들러·디스패처 예외도 차단이다. 내장 검사는 없다 | `onPayload` |
-| 6 | 헤더 확정 뒤: `request.headers.before` 디스패치(비밀 헤더 가림) | `transformHeaders` |
+| 6 | 헤더 확정 뒤: `request.headers.before` 디스패치(시크릿 헤더 가림) | `transformHeaders` |
 | 7 | 자격 증명 해석(요청 직전) | `CredentialStore.read` |
 | 8 | 응답 수신: `request.provider.after` 디스패치 | `onResponse` |
 | 9 | 원시 스트림 이벤트: `request.stream` 디스패치(지원하는 어댑터만) | `onProviderStreamEvent` |
@@ -633,7 +633,7 @@ export function resolveRole(input: {
 - 요약·판정·검색 호출은 `retention: "none"`이다. 주 대화의 캐시 키(`sessionId`)를 공유하지 않는다.
 - [미결] 캐시 TTL 기본값. pi-ai 기본은 `short`다(`types.ts:240-243`). 1시간 보존(`long`)은 쓰기 단가가 높아 기본으로 두지 않는 쪽을 제안한다.
 
-### 4.7 비밀 해석 시점
+### 4.7 시크릿 해석 시점
 
 - 설정에는 `secret://<name>` 참조만 저장한다(`F.wire-settings.spec` §3.8.1 D3, `_research/secrets.md` §6.1).
 - 해석은 §3.9 `CredentialStore.read` 안에서만 한다. 시작할 때 모든 키를 미리 해석하지 않는다.
@@ -733,7 +733,7 @@ export function resolveRole(input: {
 
 - [가정] Anthropic 서버가 래퍼 경로 요청을 받아들이고 구독 OAuth 토큰을 이 방식으로 쓸 수 있다고 보고 설계한다. 둘 다 확인하지 않았다(`_research/notes/L1-2.md` §6). 공개 배포 여부를 정하기 전에 확인한다.
 - [미결] 별도 플러그인 배포 여부(`product.scope.spec` N6).
-- 구현 위치 [결정: 오케스트레이터 기본값]: 위장 provider 플러그인은 `xeon/packages/group-provider-anthropic-oauth`에 둡니다. kind `group`, layer L3, `defaultEnabled: false`, scope id `provider-anthropic-oauth`입니다. 설정 `ext.provider-anthropic-oauth.acknowledgeRisk`(boolean, 기본 false)와 `ext.provider-anthropic-oauth.credential`(비밀 참조 또는 null, 기본 null)이 모두 참일 때만 setup이 provider `anthropic-oauth`(api `anthropic-messages`, 모델 3개)를 등록합니다. 하나라도 어긋나면 아무것도 등록하지 않으므로 `anthropic-oauth/…` 참조는 `provider_unavailable`이 됩니다. 등록은 setup에서만 일어나므로 설정을 바꾼 뒤에는 scope를 다시 켜야 반영됩니다. 위장은 pi-ai 내장 OAuth 분기에 맡기고 provider id가 `anthropic`이 아니므로 §3.9 가드 밖에서 동작합니다. 와이어 동등 래퍼는 만들지 않았습니다.
+- 구현 위치 [결정: 오케스트레이터 기본값]: 위장 provider 플러그인은 `xeon/packages/group-provider-anthropic-oauth`에 둡니다. kind `group`, layer L3, `defaultEnabled: false`, scope id `provider-anthropic-oauth`입니다. 설정 `ext.provider-anthropic-oauth.acknowledgeRisk`(boolean, 기본 false)와 `ext.provider-anthropic-oauth.credential`(시크릿 참조 또는 null, 기본 null)이 모두 참일 때만 setup이 provider `anthropic-oauth`(api `anthropic-messages`, 모델 3개)를 등록합니다. 하나라도 어긋나면 아무것도 등록하지 않으므로 `anthropic-oauth/…` 참조는 `provider_unavailable`이 됩니다. 등록은 setup에서만 일어나므로 설정을 바꾼 뒤에는 scope를 다시 켜야 반영됩니다. 위장은 pi-ai 내장 OAuth 분기에 맡기고 provider id가 `anthropic`이 아니므로 §3.9 가드 밖에서 동작합니다. 와이어 동등 래퍼는 만들지 않았습니다.
 - [미결] M-8 와이어 동등 래퍼를 쓸지 정하지 않았습니다. 고지 동의가 없을 때 진단 메시지를 내라는 위 사용자 확인 `[제안]`은 구현하지 않았습니다. 그룹 API에는 진단 경로가 없어 setup은 조용히 등록을 건너뜁니다.
 - [미결] `xeon/plugins/provider-anthropic-oauth` 스텁을 남길지 정하지 않았습니다. 이 위치는 §3.11이 가리키는 옛 경로입니다.
 
@@ -760,7 +760,7 @@ export function resolveRole(input: {
 | 모델이 지원하지 않는 레벨 요청 | `clampThinkingLevel`로 낮춘다. `request.thinking.after`는 실제 쓰인 레벨로 발화한다 |
 | 체크포인트의 모델이 없어짐 | `rebind` 오류 → 새로 해석, `request.model.after`(`restore`) |
 | 그룹 덮어쓰기의 scopeId가 꺼진 그룹 | 덮어쓰기를 무시한다. 꺼진 그룹은 호출을 일으키지 않으므로 정상 경로에서는 생기지 않는다 |
-| 비밀 참조 해석 실패 | `secret_unresolved` 오류 종결 메시지. 재시도하지 않는다 |
+| 시크릿 참조 해석 실패 | `secret_unresolved` 오류 종결 메시지. 재시도하지 않는다 |
 | 기본 `anthropic` provider에 `sk-ant-oat` 키 | `oauth_token_on_default_provider`. 요청을 보내지 않는다 |
 | 같은 이름 provider 두 번 등록 | 두 번째가 `provider_conflict` |
 | `request.provider.before` 핸들러가 페이로드를 망가뜨림 | 그 핸들러 패치를 버리고(skip) 다음으로 간다. 최종 페이로드가 provider에서 거부되면 `provider_error` 종결 |
@@ -795,12 +795,12 @@ export function resolveRole(input: {
 | `l1.models.fallbackChains` | `{ [role]: ModelRefString[] }`(역할당 최대 3) | `{}` | M U P | nextTurn | models / table | 2차 |
 | `l1.models.structuredOutputAttempts` | `integer 1~5` | `3` | M U P | nextTurn | advanced / number | 2차 |
 
-- 비밀 값은 저장하지 않는다. `apiKeyRef`, `AccountDef.credential`은 `SecretRef` 문자열 패턴(`^secret://[a-z][a-z0-9-]{1,63}$`)을 지난 참조다. 참조 자체는 비밀이 아니므로 `secret: true`(D2, D3) 대상이 아니다 [제안].
+- 시크릿 값은 저장하지 않는다. `apiKeyRef`, `AccountDef.credential`은 `SecretRef` 문자열 패턴(`^secret://[a-z][a-z0-9-]{1,63}$`)을 지난 참조다. 참조 자체는 시크릿이 아니므로 `secret: true`(D2, D3) 대상이 아니다 [제안].
 - `routing.*`를 역할마다 키 하나로 나눈 이유는 범위별 덮어쓰기를 역할 단위로 하기 위해서다. `groupRouting`은 scopeId에 하이픈이 들어갈 수 있어 키 이름 마디(`[a-z][A-Za-z0-9]*`)로 쓸 수 없으므로 표 값 하나로 둔다.
 - 명령: `fresnel config set l1.models.default anthropic/claude-sonnet-4-6:high`, 대화 중 `/model`(세션 범위 쓰기), `/thinking <레벨>`(세션 범위 `l1.models.thinkingLevel`).
 - 위장 플러그인 키: `ext.provider-anthropic-oauth.enabled`(X 예약, 기본 false), `ext.provider-anthropic-oauth.acknowledgeRisk`(userConfig), `ext.provider-anthropic-oauth.credential`(userConfig, `sensitive: true` → 참조). 탭은 plugins.
 
-## 7. 확장 지점
+## 7. 훅
 
 ### 7.1 발화하는 지점
 
@@ -817,7 +817,7 @@ fold와 페이로드는 `F.extensions.spec` §3.4~§3.5를 인용만 한다. 이
 
 - 발화 구현 [구현: M2, m2/l1c]:
   - `request.model.after`와 `request.thinking.after`는 요청을 보내기 직전에 같은 thread·역할·scope의 직전 호출 바인딩과 비교해 발화한다. 요청을 보내지 못한 호출(provider 없음, 가드)은 비교도 발화도 하지 않는다. 직전 호출이 없으면(처음이거나 프로세스를 다시 띄운 뒤) `previous: null`인 `request.model.after`를 한 번 낸다. provider·모델이 다르면 `request.model.after`만, 레벨만 다르면 `request.thinking.after`만 낸다. `source`는 체크포인트로 다시 묶은 해석 결과면 `restore`, 그 밖은 `route`다. `set`(사용자 `/model`)과 `fallback`은 이 서비스가 구분하지 못하므로 쓰지 않는다.
-  - `request.headers.before`는 pi-ai `transformHeaders`에서 발화한다. 핸들러에는 소문자 이름으로 바꾼 사본을 주고, 이름에 `authorization`, `api-key`, `token`, `secret`, `cookie`가 들어 있거나 비밀 참조에서 푼 헤더의 값은 `"[secret]"`로 가린다. 핸들러가 낸 최종 헤더 중 가린 헤더는 어떤 패치도 받지 않고 원래 값을 쓴다(바꾸거나 지우려 하면 로그 `model.auth_header_patch_ignored`에 이름만 남긴다). 새 인증 헤더를 만드는 패치도 같다. 가리지 않은 헤더는 패치대로 바뀌고, 최종 값에 없는 이름은 삭제된다.
+  - `request.headers.before`는 pi-ai `transformHeaders`에서 발화한다. 핸들러에는 소문자 이름으로 바꾼 사본을 주고, 이름에 `authorization`, `api-key`, `token`, `secret`, `cookie`가 들어 있거나 시크릿 참조에서 푼 헤더의 값은 `"[secret]"`로 가린다. 핸들러가 낸 최종 헤더 중 가린 헤더는 어떤 패치도 받지 않고 원래 값을 쓴다(바꾸거나 지우려 하면 로그 `model.auth_header_patch_ignored`에 이름만 남긴다). 새 인증 헤더를 만드는 패치도 같다. 가리지 않은 헤더는 패치대로 바뀌고, 최종 값에 없는 이름은 삭제된다.
   - `request.provider.after`의 헤더에서는 `authorization`, `api-key`, `cookie`가 든 이름을 뺀다.
   - `request.stream`는 어댑터가 원시 이벤트를 넘길 때마다 발화한다. 디스패치 키는 호출 키에 이벤트 순번을 붙인다.
   - 한 호출의 키는 `<stepId|turnId|threadId>:<지점>:<순번>`이고 순번은 호출마다 하나다. 같은 호출의 재시도는 같은 키를 쓴다.
@@ -883,7 +883,7 @@ export interface ThinkingLevelSelectPayload {
 |---|---|
 | `Message`, `AssistantMessage`, `Usage`, `StopReason`, `ModelThinkingLevel` | `F.conversation.spec` §3.1 |
 | `StepCheckpoint.model` | `F.records.spec` §3.6 |
-| 지점 선언(`HOOKS`), 페이로드 타입, `ScopeId` | `F.extensions.spec` |
+| 훅 선언(`HOOKS`), 페이로드 타입, `ScopeId` | `F.extensions.spec` |
 | `SettingDef`, `defineSettings`, `SecretRef`, `resolveSetting` | `F.wire-settings.spec` §3.8~§3.9 |
 | `fresnel.secrets`(`SecretService`): 참조 해석, 마스킹 | `L0.secrets.spec` [가정: 메서드 이름] |
 | `fresnel.ext`: 지점 디스패치 | `X.primitives.spec` |

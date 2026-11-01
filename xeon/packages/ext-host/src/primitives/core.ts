@@ -291,9 +291,9 @@ export interface HostCore {
    * abandoned가 참이면 whenSettled가 기다리지 않는다(시간 예산을 넘겨 버려진 setup의 뒤처리처럼 끝나지 않을 수 있는 작업)
    */
   track(task: Promise<unknown>, options?: { readonly abandoned?: boolean }): void;
-  /** 추적 중인 작업, 능력 바인딩, Cordis 상태 전이가 모두 끝나기를 기다린다 */
+  /** 추적 중인 작업, 기능 바인딩, Cordis 상태 전이가 모두 끝나기를 기다린다 */
   whenSettled(): Promise<void>;
-  /** 능력 바인딩 변경이 끝나기를 기다린다 */
+  /** 기능 바인딩 변경이 끝나기를 기다린다 */
   flushBindings(): Promise<void>;
   /** thread에서 scope의 핸들러가 디스패치되는가. 열지 않은 thread(M0 시험)는 세대가 열려 있으면 참이다 */
   activeIn(threadId: ThreadId, scopeId: ScopeId): boolean;

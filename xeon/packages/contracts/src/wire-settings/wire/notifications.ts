@@ -155,7 +155,7 @@ export const StreamChunkParamsSchema: TObject<{ event: typeof VolatileEventWireS
 export type StreamChunkParams = Static<typeof StreamChunkParamsSchema>;
 
 /**
- * 설정 값이 바뀌었을 수 있다는 신호(F.wire-settings.spec §3.3.4). 값이 없어서 비밀이 실릴 수 없다.
+ * 설정 값이 바뀌었을 수 있다는 신호(F.wire-settings.spec §3.3.4). 값이 없어서 시크릿이 실릴 수 없다.
  * 클라이언트는 받으면 `settings.get`으로 다시 읽는다. `keys`가 비면 어느 키인지 모르는 변경(파일 통째 교체)이다.
  */
 export const SettingsInvalidatedParamsSchema: TObject<{

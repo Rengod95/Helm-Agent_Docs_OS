@@ -71,7 +71,7 @@ binds: [xeon/packages/platform-store/**]
 
 ### 3.1 F에 둘 인터페이스 초안 (records)
 
-[제안] 아래 타입은 `@fresnel/contracts/records`에 둔다(§8.1 FR-S1~FR-S5). `eng.transactions.design` §4.2의 `StoreDb`, `SqlTx`, `StoreService` 초안을 기준으로 임대·표식·마이그레이션·능력 조회를 더했다. records는 wire·capabilities를 import하지 않는다(`F.readme` §3 순서 표).
+[제안] 아래 타입은 `@fresnel/contracts/records`에 둔다(§8.1 FR-S1~FR-S5). `eng.transactions.design` §4.2의 `StoreDb`, `SqlTx`, `StoreService` 초안을 기준으로 임대·표식·마이그레이션·기능 조회를 더했다. records는 wire·capabilities를 import하지 않는다(`F.readme` §3 순서 표).
 
 ```ts
 // xeon/packages/contracts/src/records/sql.ts
@@ -645,7 +645,7 @@ macOS `fullfsync` [제안]:
   5. 모든 DDL 문장은 §4.5 접두사 검사를 운영 빌드에서도 거친다.
   6. 남은 단계가 있고 그 owner의 DB 버전이 1 이상이면(기존 스키마를 올리는 경우) 4번 전에 §4.6.1의 스냅샷을 만든다. 만들지 못하면 어떤 단계도 실행하지 않고 오류를 돌려준다.
 - 체크섬: `sha256Hex(steps[i].sql.join("\n;\n"))`. 공백 정규화를 하지 않는다. 한 번 배포한 단계의 SQL은 고치지 않고 새 단계를 더한다.
-- 처리 정책 [제안]: owner가 `sys`·`core.persistence`면 오류는 열기 실패다(호출자가 읽기 전용 열기를 고를 수 있게 `migration_future_version`은 따로 구분한다). `cap.*`, `ext.*`면 호출자(X 로딩, L2 플러그인)가 그 능력이나 확장을 끄고 나머지는 계속 연다.
+- 처리 정책 [제안]: owner가 `sys`·`core.persistence`면 오류는 열기 실패다(호출자가 읽기 전용 열기를 고를 수 있게 `migration_future_version`은 따로 구분한다). `cap.*`, `ext.*`면 호출자(X 로딩, L2 플러그인)가 그 기능이나 확장을 끄고 나머지는 계속 연다.
 - 청크 마이그레이션 `runChunked(owner, m)`: `sys_migration_cursors`에서 커서를 읽고(없으면 `initialCursor`), 청크마다 `write` 안에서 `m.runChunk(tx, cursor, {maxRows})`와 커서 갱신을 한 트랜잭션으로 한다. `next === null`이면 `cursor = NULL`로 완료를 기록한다. 청크 사이에 `await`로 이벤트 루프를 양보하고 `signal`을 확인한다. 기본 `maxRows`는 500 [제안]. `F.records.spec` §3.7 규칙 6을 구현한다.
 
 #### 4.6.1 마이그레이션 전 스냅샷 [결정: m2 마감 G2-06]
@@ -878,7 +878,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
   - cap-workspace 이미지(`packages/cap-workspace/src/images/prepare.ts`)는 고정하지 않는다 [해소 S-15]. 근거는 둘이다. (1) cap-workspace는 블롭 참조를 자기 표나 상태에 적지 않는다. `prepareImage`가 돌려주는 `BlobRef`는 `register`, `load`, `read`의 결과로 호출자에게만 가고, 커밋되는 쪽에는 `blob:sha256:<hex>` 자리표시로만 남는다(`packages/contracts/src/capabilities/defs/workspace.ts`의 `renderRead`, cap-dialog 입력 파트). (2) 고정을 풀 시점(이미지 폐기, 턴 소비)을 이 패키지가 알 수 없어 고정하면 풀리지 않는 고정이 된다. 시험은 `packages/cap-workspace/test/images.test.ts`의 "블롭 고정은 하지 않는다" 묶음이다.
   - [미결] core-tools 도구 출력과 `pipeline.ts`의 블롭이 이벤트 참조로만 살아 있는지 확인한다. 고정이 없어도 이벤트가 참조하면 `p_blob_refs`로 보존된다. 이 보존은 `effect.result.blobRef`로 적힌 블롭과 payload의 자리표시(`blob:sha256:<hex>`)로 남은 블롭에 성립한다(S-15 해소).
 
-## 7. 확장 지점
+## 7. 훅
 
 - 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다.
 - 확장(L3 그룹, 사용자 플러그인)과의 관계는 둘이다.

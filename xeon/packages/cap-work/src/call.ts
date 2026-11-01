@@ -5,7 +5,7 @@ import { commitKeyPart, type ReadFailure, type StoreError } from "@fresnel/contr
 import { abortedError, invalidInput, storeRejection } from "./errors.ts";
 import { sha256Hex } from "./hash.ts";
 
-// 능력 서비스 메서드가 공통으로 하는 입력 검사. 호출 문맥의 스레드와 requestId는 쓰기 메서드에서 필수다(spec §3.1).
+// 기능 서비스 메서드가 공통으로 하는 입력 검사. 호출 문맥의 스레드와 requestId는 쓰기 메서드에서 필수다(spec §3.1).
 
 export interface CallScope {
   readonly threadId: ThreadId;

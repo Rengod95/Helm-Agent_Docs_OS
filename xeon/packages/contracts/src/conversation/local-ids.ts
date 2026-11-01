@@ -30,7 +30,7 @@ export type LocalIdPrefix =
   | "knl"
   | "knp" // L2.knowledge: 원장, 제안
   | "bgp" // L0.process: 백그라운드 프로세스
-  | "sls"; // L0.secrets: 비밀 임대
+  | "sls"; // L0.secrets: 시크릿 임대
 
 /** 등록된 지역 접두와 소유 문서. 새 접두는 이 표에 행을 더해서만 쓴다(데이터 상수) */
 export const LOCAL_ID_PREFIXES: Readonly<Record<LocalIdPrefix, { readonly owner: string }>> = {

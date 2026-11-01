@@ -2,7 +2,7 @@ import { attempt, err, ok, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { WebSessionSourcesPort } from "../ports/session-sources.ts";
 
-// L2.web.spec §4.6.6. "대화에 나온 URL" 집합: 웹 능력이 돌려준 URL(검색 결과, fetch의 links, 리다이렉트 to)과
+// L2.web.spec §4.6.6. "대화에 나온 URL" 집합: 웹 기능이 돌려준 URL(검색 결과, fetch의 links, 리다이렉트 to)과
 // 사용자 입력 텍스트에서 뽑은 URL. 세션별 메모리 집합이고, 재시작 뒤에는 이벤트에서 다시 채운다.
 
 const URL_IN_TEXT = /https?:\/\/[^\s<>"'`]+/gi;
@@ -46,7 +46,7 @@ const keyOf = seenKeyOf;
 export type SeenUrlsError = { readonly kind: "session_read_failed"; readonly cause: string };
 
 export interface SeenUrls {
-  /** 웹 능력이 돌려준 URL이나 사용자 입력 URL을 더한다 */
+  /** 웹 기능이 돌려준 URL이나 사용자 입력 URL을 더한다 */
   note(threadId: ThreadId, urls: readonly string[]): void;
   /** 사용자 입력 텍스트에서 URL을 뽑아 더한다 */
   noteText(threadId: ThreadId, text: string): void;

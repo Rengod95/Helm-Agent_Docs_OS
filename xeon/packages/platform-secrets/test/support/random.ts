@@ -16,7 +16,7 @@ const PLAIN = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 /** 인코딩 변형이 원문과 달라지게 하는 글자를 섞는다: URL 예약 문자, JSON 이스케이프 대상, 공백 */
 const AWKWARD = `${PLAIN}+/=&"\\ %`;
 
-/** 테스트 전용 가짜 비밀 값. 실제 비밀이 아니다 */
+/** 테스트 전용 가짜 시크릿 값. 실제 시크릿이 아니다 */
 export function fakeValue(random: RandomSource, length = 24, awkward = false): string {
   const alphabet = awkward ? AWKWARD : PLAIN;
   let out = "";

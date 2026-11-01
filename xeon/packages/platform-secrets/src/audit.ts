@@ -33,7 +33,7 @@ export function createAuditBus(deps: { readonly logger: Logger }): AuditBus {
         try {
           sink(record);
         } catch (error: unknown) {
-          // 수신자 하나의 실패가 비밀 사용 경로를 막지 않는다. 기록에는 오류 이름만 남긴다
+          // 수신자 하나의 실패가 시크릿 사용 경로를 막지 않는다. 기록에는 오류 이름만 남긴다
           deps.logger.warn("secrets.audit.sink_failed", {
             recordType: record.type,
             error: error instanceof Error ? error.name : "unknown",

@@ -93,8 +93,8 @@ function fieldOf(object: object, name: string): unknown {
 }
 
 /**
- * 도구 승인에서 인자 요약 120자가 가리는 내용을 따로 보인다(M2 검토 M2): 실행할 명령(`command` 문자열) 전체와, `secretEnv`로 쓸 비밀 핸들.
- * 승인이 비밀 사용의 증거가 되므로 사용자가 명령과 핸들을 보고 허용해야 한다. 핸들은 `secret://` 참조이고 값이 아니다.
+ * 도구 승인에서 인자 요약 120자가 가리는 내용을 따로 보인다(M2 검토 M2): 실행할 명령(`command` 문자열) 전체와, `secretEnv`로 쓸 시크릿 참조.
+ * 승인이 시크릿 사용의 증거가 되므로 사용자가 명령과 핸들을 보고 허용해야 한다. 핸들은 `secret://` 참조이고 값이 아니다.
  * 참조 모양이 아닌 값은 이름만 보인다
  */
 function toolDetailLines(args: object): string[] {
@@ -356,7 +356,7 @@ export function opsOfEvent(event: EventWire, ctx: EventContext): readonly Render
   if (kind === "settings.changed") {
     const parsed = parse(SettingsChangedPayloadSchema, payload);
     if (!parsed.ok) return unreadable(kind);
-    // 값은 보이지 않는다: 비밀 참조일 수 있고, 키와 범위만으로 충분하다
+    // 값은 보이지 않는다: 시크릿 참조일 수 있고, 키와 범위만으로 충분하다
     return [
       {
         kind: "notice",

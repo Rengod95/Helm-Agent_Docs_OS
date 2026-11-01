@@ -131,7 +131,7 @@ export interface FakeEngine {
   setRunningTurn(turnId: TurnId | undefined): void;
   /** 다음 turn.start를 루프가 거부한 것으로 만든다 */
   setRejection(error: LoopError | undefined): void;
-  /** 비밀 관리 서비스 대역과 맡긴 수단 저장소 */
+  /** 시크릿 관리 서비스 대역과 맡긴 수단 저장소 */
   readonly secrets: FakeSecrets;
   readonly submitted: { readonly threadId: ThreadId; readonly requestId: string | undefined }[];
   readonly held: ReadonlySet<ThreadId>;

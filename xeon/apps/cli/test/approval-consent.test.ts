@@ -24,7 +24,7 @@ import { createHarness, type Harness } from "./support/harness.ts";
 import { threadId, turnId } from "./support/ids.ts";
 import { scriptedInput, type Reply } from "./support/script.ts";
 
-// G2-10: 승인 카드의 동의 표시. 명령 전체, 비밀 핸들, 요청 주체, 만료를 보이고, 적용 범위가 낮춰지거나 사용자 응답이 아닌 해결은
+// G2-10: 승인 카드의 동의 표시. 명령 전체, 시크릿 참조, 요청 주체, 만료를 보이고, 적용 범위가 낮춰지거나 사용자 응답이 아닌 해결은
 // 사실대로 알린다. approval.respond가 적용하지 못한 이유(answer_invalid, commit_failed 등)는 이유별로 다룬다.
 
 const harnesses: Harness[] = [];
@@ -84,7 +84,7 @@ test("secretEnv handles are shown by name and secret:// reference, never as a va
       secretEnv: { TOKEN: "secret://github-token", BAD: "plain-looking-value" },
     }),
   });
-  expect(body).toContain("비밀: TOKEN=secret://github-token, BAD=(참조 형식이 올바르지 않음)");
+  expect(body).toContain("시크릿: TOKEN=secret://github-token, BAD=(참조 형식이 올바르지 않음)");
   expect(body.join("\n")).not.toContain("plain-looking-value");
 });
 

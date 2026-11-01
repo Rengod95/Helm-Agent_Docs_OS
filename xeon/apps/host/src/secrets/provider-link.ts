@@ -15,13 +15,13 @@ import { resolveSetting, type SettingCatalog } from "@fresnel/contracts/settings
 import { Type } from "typebox";
 import type { SettingsEngine } from "../assembly/settings-engine.ts";
 
-// L4.host-service.spec HS-45 [결정: M2 Mac 실기]. 비밀을 모델 provider에 연결하는 사람의 행위가 그 호출 하나만 허용하는 사용 정책을
-// 비밀 메타에 더한다. 허용은 모드 runtime-http, 목적 `model.provider:<id>`, provider 요청의 호스트뿐이다. env 모드, 도구, 다른 호스트는 열지 않는다.
+// L4.host-service.spec HS-45 [결정: M2 Mac 실기]. 시크릿을 모델 provider에 연결하는 사람의 행위가 그 호출 하나만 허용하는 사용 정책을
+// 시크릿 메타에 더한다. 허용은 모드 runtime-http, 목적 `model.provider:<id>`, provider 요청의 호스트뿐이다. env 모드, 도구, 다른 호스트는 열지 않는다.
 // 연결은 사용자 범위 `l1.models.providers`의 `apiKeyRef`다. 프로젝트·로컬 범위의 설정은 연결로 세지 않는다(저장소 안 파일이 정책을 넓히지 못한다).
 
 const PROVIDERS_KEY = "l1.models.providers";
 
-/** `model.provider:<id>`. core-models의 비밀 다리가 lease에 싣는 purpose와 같은 문자열이다(L1.models.spec §3.9) */
+/** `model.provider:<id>`. core-models의 시크릿 다리가 lease에 싣는 purpose와 같은 문자열이다(L1.models.spec §3.9) */
 export function modelProviderPurpose(providerId: string): string {
   return `model.provider:${providerId}`;
 }
@@ -121,11 +121,11 @@ export function linkPatchOf(
 
 export interface ProviderLinker {
   /**
-   * 사용자 범위에 연결된 모든 provider의 비밀에 허용을 더한다. 비밀이 아직 없으면 건너뛴다(만들 때 `grantFor`가 더한다).
+   * 사용자 범위에 연결된 모든 provider의 시크릿에 허용을 더한다. 시크릿이 아직 없으면 건너뛴다(만들 때 `grantFor`가 더한다).
    * 설정 쓰기는 이미 끝난 뒤라 실패해도 쓰기를 되돌리지 않고 경고만 남긴다
    */
   link(): Promise<void>;
-  /** 새 비밀 `name`이 이미 provider에 연결돼 있으면 처음부터 가질 정책. 연결이 없으면 undefined */
+  /** 새 시크릿 `name`이 이미 provider에 연결돼 있으면 처음부터 가질 정책. 연결이 없으면 undefined */
   grantFor(
     name: SecretName,
   ): { readonly use: SecretUsePolicy; readonly approval: "none" } | undefined;

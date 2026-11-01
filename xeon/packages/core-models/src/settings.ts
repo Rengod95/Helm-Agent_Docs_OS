@@ -171,7 +171,7 @@ const providersSchema = Type.Array(
     {
       id: Type.String({ pattern: "^[a-z0-9][a-z0-9._-]{0,63}$", maxLength: 64 }),
       enabled: Type.Boolean(),
-      // 참조 자체는 비밀이 아니다. 값은 요청 직전에만 해석한다(L1.models.spec §4.7)
+      // 참조 자체는 시크릿이 아니다. 값은 요청 직전에만 해석한다(L1.models.spec §4.7)
       apiKeyRef: Nullable(SecretRef),
       baseUrl: Nullable(Type.String({ minLength: 1, maxLength: 2048 })),
     },

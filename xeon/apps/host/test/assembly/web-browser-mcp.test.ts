@@ -11,7 +11,7 @@ import type { StoreService } from "@fresnel/contracts/records";
 import type { BrowserMcpPort } from "@fresnel/cap-web";
 import { createBrowserMcpPort } from "../../src/assembly/web-browser-mcp.ts";
 
-// L2.web.spec §4.10.4a. 브라우저 MCP 포트를 `mcp.client` 능력의 목록과 호출로 맞춘다. 서버 이름은 `playwright`다.
+// L2.web.spec §4.10.4a. 브라우저 MCP 포트를 `mcp.client` 기능의 목록과 호출로 맞춘다. 서버 이름은 `playwright`다.
 
 const PNG_BYTES = new TextEncoder().encode("PNGDATA");
 const PNG_BASE64 = "UE5HREFUQQ==";

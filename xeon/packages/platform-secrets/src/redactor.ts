@@ -160,7 +160,7 @@ function maskKv(text: string, hits: Map<string, number>): string {
 }
 
 export interface RedactorImpl extends Redactor {
-  /** 등록된 비밀 이름 수. 값은 돌려주지 않는다 */
+  /** 등록된 시크릿 이름 수. 값은 돌려주지 않는다 */
   knownCount(): number;
 }
 

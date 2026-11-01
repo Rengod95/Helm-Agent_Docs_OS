@@ -5,7 +5,7 @@ import { Type } from "typebox";
 import type { BinaryView } from "./diagnostics.ts";
 
 // 최소 설정 화면의 순수 로직(G2-08, L4.desktop.spec §4.14). 화면이 보이는 값을 wire 값에서 만들고, 보내는 값을 입력에서 만든다.
-// 키 값은 어디에도 없다. 이 모듈이 다루는 비밀은 이름(`secret://<이름>` 참조의 이름)뿐이다.
+// 키 값은 어디에도 없다. 이 모듈이 다루는 시크릿은 이름(`secret://<이름>` 참조의 이름)뿐이다.
 
 /** 설정 키. `core-models`의 `l1.models.*` 선언(L1.models.spec §6)과 같다 */
 export const DEFAULT_MODEL_KEY = "l1.models.default";
@@ -72,7 +72,7 @@ export function checkProviderId(input: string): Result<string, InputError> {
 }
 
 /**
- * provider의 기본 비밀 이름: `<provider>-api-key`. 비밀 이름은 소문자로 시작하고 소문자·숫자·하이픈 2~64자라서
+ * provider의 기본 시크릿 이름: `<provider>-api-key`. 시크릿 이름은 소문자로 시작하고 소문자·숫자·하이픈 2~64자라서
  * provider id의 점과 밑줄은 하이픈으로 바꾼다. 규칙에 맞는 이름을 만들 수 없으면 오류다.
  */
 export function providerSecretName(providerId: string): Result<SecretName, InputError> {
@@ -117,7 +117,7 @@ export type SetupStep = {
 export type SetupInput = {
   readonly providers: readonly ProviderEntry[];
   readonly defaultModel: string | null;
-  /** null이면 비밀 목록을 읽지 못했다 */
+  /** null이면 시크릿 목록을 읽지 못했다 */
   readonly secrets: readonly SecretRow[] | null;
   /** null이면 점검 결과를 받지 못했다 */
   readonly toolsReady: boolean | null;
@@ -126,7 +126,7 @@ export type SetupInput = {
 /** `SetupCommands.load`가 돌려주는 값. 점검 없이 읽었으면 `binaries`는 null이다 */
 export type SetupSnapshot = SetupInput & { readonly binaries: BinaryView | null };
 
-/** 키 참조가 가리키는 비밀이 등록되어 있는 provider id 목록 */
+/** 키 참조가 가리키는 시크릿이 등록되어 있는 provider id 목록 */
 function providersWithKey(input: SetupInput): readonly string[] {
   const registered = new Set((input.secrets ?? []).filter((s) => s.registered).map((s) => s.name));
   return input.providers

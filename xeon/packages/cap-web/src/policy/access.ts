@@ -26,7 +26,7 @@ export interface AccessDeps {
   readonly resolver: DnsResolver;
   readonly settings: (threadId: ThreadId | undefined) => WebSettings;
   readonly seen: SeenUrls;
-  /** 없으면 비밀 값 검사를 건너뛴다(L0.secrets가 없는 조립) */
+  /** 없으면 시크릿 값 검사를 건너뛴다(L0.secrets가 없는 조립) */
   readonly guard: OutboundSecretGuard | undefined;
   /** 없으면 ask 판정은 모두 거부한다 */
   readonly asker: WebAskPort | undefined;
@@ -52,7 +52,7 @@ export interface ApprovedTarget {
 }
 
 export interface Access {
-  /** 검색어·URL 문자열에 등록된 비밀 값이 있으면 `denied`(secret_in_query). §4.1 3단계 */
+  /** 검색어·URL 문자열에 등록된 시크릿 값이 있으면 `denied`(secret_in_query). §4.1 3단계 */
   checkOutboundText(text: string): WebFailure | undefined;
   /** 처음 요청하는 콘텐츠 URL의 전체 검사 */
   authorize(rawUrl: string, ctx: AccessContext): Promise<Result<ApprovedTarget, WebFailure>>;
@@ -81,7 +81,7 @@ function decodedPathAndQuery(url: URL): string {
   return decoded.ok ? decoded.value : raw;
 }
 
-/** 쿼리 문자열이나 경로에 비밀 패턴(키 접두 sk-, ghp_, AKIA, JWT 형태)이 보이는가(§4.6.6) */
+/** 쿼리 문자열이나 경로에 시크릿 패턴(키 접두 sk-, ghp_, AKIA, JWT 형태)이 보이는가(§4.6.6) */
 export function hasSecretPattern(url: URL): boolean {
   const text = decodedPathAndQuery(url);
   return SECRET_PATTERNS.some((pattern) => pattern.test(text));

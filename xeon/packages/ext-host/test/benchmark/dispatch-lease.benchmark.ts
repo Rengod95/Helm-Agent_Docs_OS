@@ -1,5 +1,5 @@
 // M3-REQ-41, M3-REQ-40 (M3b B5-PERF). 탐구가 없는 턴마다 생기는 임대 부여·idle 반납의 비용(lease_turn_overhead, lease_records_per_turn),
-// tap 지점 핸들러 하나를 시간 예산 아래에서 실행할 때 더해지는 시간(dispatch_overhead_per_handler), 기본 예산 값(budget_default_<class>)을 잰다.
+// tap 훅 핸들러 하나를 시간 예산 아래에서 실행할 때 더해지는 시간(dispatch_overhead_per_handler), 기본 예산 값(budget_default_<class>)을 잰다.
 // 실행(fresnel/에서): bash ../scripts/guard.sh run -- bun packages/ext-host/test/benchmark/dispatch-lease.benchmark.ts
 // 출력은 scripts/benchmark-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 benchmark-server.ts와 benchmark-gate.ts가 한다.
 // 샘플 하나는 배치 평균(ms)이다. 배치는 호출을 여러 번 한 번에 부르고 나눈다. 빼는 기준은 기준 배치 평균들의 평균이고 음수도 그대로 낸다.
@@ -153,7 +153,7 @@ async function measureLease(): Promise<void> {
   });
 }
 
-// ── 2. 예산 래퍼: tap 지점 핸들러 하나를 디스패치하는 비용 ───────────────────
+// ── 2. 예산 래퍼: tap 훅 핸들러 하나를 디스패치하는 비용 ───────────────────
 
 /** 디스패치 배치 하나의 핸들러 하나당 평균 시간(ms). budgeted가 참이면 OperationsPolicy(기본 예산) 경로다 */
 async function dispatchBatch(budgeted: boolean): Promise<number> {
@@ -239,9 +239,9 @@ const BUDGET_CLASSES: readonly BudgetClass[] = [
 
 // budgetClassOf(budget.ts)의 분류를 따른다. setup과 hook은 그 함수를 거치지 않는다
 const BUDGET_NOTES: Readonly<Record<BudgetClass, string>> = {
-  first: "fold first 지점",
-  chain: "fold chain·collect 지점",
-  tap: "fold tap 지점 중 streamTap과 shutdown을 뺀 것",
+  first: "fold first 훅",
+  chain: "fold chain·collect 훅",
+  tap: "fold tap 훅 중 streamTap과 shutdown을 뺀 것",
   streamTap: "고빈도 관찰 지점 boundary.message.update, request.stream, tool.execution.update",
   shutdown: "session.shutdown 지점",
   setup: "확장 scope setup 시간(OperationsPolicy.setupBudgetMs)",

@@ -184,7 +184,7 @@ export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
   "lifecycle.lease.rejected": PAYLOAD_FIXTURES["lease.rejected"],
 };
 
-/** first·chain 지점의 결정·패치 표본 */
+/** first·chain 훅의 결정·패치 표본 */
 export const RESULT_SAMPLES: Readonly<Record<string, unknown>> = {
   "input.user.before": { action: "transform", text: "hello" },
   "input.bash.before": { type: "deny", reason: "no" },

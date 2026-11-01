@@ -1,4 +1,4 @@
-// 확장 지점 발화를 기록하는 ThreadHooks 대역(L1.persistence.spec §7.1). first 지점은 설정한 대로 취소하거나 요약을 준다.
+// 훅 발화를 기록하는 ThreadHooks 대역(L1.persistence.spec §7.1). first 훅은 설정한 대로 취소하거나 요약을 준다.
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ThreadHooks } from "../../src/index.ts";
 
@@ -9,7 +9,7 @@ export interface PointCall {
 }
 
 export interface RecordingHooksOptions {
-  /** 지점 이름 → 취소 이유. 있으면 그 first 지점이 취소를 결정한다 */
+  /** 훅 이름 → 취소 이유. 있으면 그 first 훅이 취소를 결정한다 */
   readonly cancel?: Readonly<
     Partial<Record<"thread.switch.before" | "thread.fork.before" | "thread.tree.before", string>>
   >;

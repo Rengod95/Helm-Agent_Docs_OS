@@ -110,7 +110,7 @@ async function runPrint(
 }
 
 /**
- * 자동 응답 한 건을 사람에게 알리는 한 줄(print 모드, §4.11 4번). 제목만 쓴다: 명령과 비밀 핸들은 싣지 않는다.
+ * 자동 응답 한 건을 사람에게 알리는 한 줄(print 모드, §4.11 4번). 제목만 쓴다: 명령과 시크릿 참조은 싣지 않는다.
  * `--auto-approve`의 허용과 기본·질문·계획·검토의 거부를 다른 문구로 가른다
  */
 function autoNotice(view: { readonly title: string }, result: AutoResult): string {

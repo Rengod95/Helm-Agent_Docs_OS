@@ -5,7 +5,7 @@ import { t } from "../i18n/index.ts";
 // 모델 계정과 레이트 리밋 설정의 순수 로직(L1.models.spec §3.10, §4.8, L4.settings-ui.spec §4.2.3). 화면은 이 값을 보여 주고 바꾼다.
 // L1(core-models)을 import하지 않는다. 키와 모양은 core-models `accountsSchema`·`rateLimitSchema`를 typebox로 다시 적은 것이고,
 // 같은지는 시험 x7.test.ts가 `MODELS_SETTING_DEFS`와 `validateSettingValue`로 확인한다.
-// 값은 설정 파일에서 오므로 읽을 때 검사한다(TY-10). 비밀 값은 다루지 않는다. 계정 참조 `secret://<이름>`만 있다.
+// 값은 설정 파일에서 오므로 읽을 때 검사한다(TY-10). 시크릿 값은 다루지 않는다. 계정 참조 `secret://<이름>`만 있다.
 
 /** 계정 목록 설정 키 */
 export const ACCOUNTS_KEY = "l1.models.accounts";

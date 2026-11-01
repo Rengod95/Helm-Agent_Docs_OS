@@ -21,7 +21,7 @@ binds: [xeon/packages/group-learning/**]
 |---|---|---|
 | M0 | 없음. 패키지 골격(`export {};`)만 있다 | F 계약 골격, check-layers |
 | M1 | 없음 | F.extensions 지점 타입, X `on`·`post`·`scope` 구현, 이벤트 저장 |
-| M2 | 없음. group-sdk M2 완료가 선행 조건이다 | L3.group-sdk.plan M2(`defineGroup`, `GroupApi`, 도구·명령 등록 `registerTool`·`registerCommand`(G-22)), L2.knowledge.plan(읽기 능력) |
+| M2 | 없음. group-sdk M2 완료가 선행 조건이다 | L3.group-sdk.plan M2(`defineGroup`, `GroupApi`, 도구·명령 등록 `registerTool`·`registerCommand`(G-22)), L2.knowledge.plan(읽기 기능) |
 | M3 | 1차 구성요소 전부(LR-01~LR-18, LR-23~LR-28). UC-3 스모크 | M3-new-01(ADR-0015 구현), spec §8.1 REQ-LN-01~11, L1.agents.plan 백그라운드 위임(M3-new-02), L2.knowledge.plan 쓰기·원장·스캔 API, L4.settings-ui.plan 설정 화면, L4 승인 화면 계약 |
 | M4 이후(2차) | 큐레이터, 학습 이력, 스크립트 제안(LR-19~LR-22) | L2-h 예약(큐레이터 트리거를 예약으로 정할 때), L2-d 백업 API |
 
@@ -116,11 +116,11 @@ xeon/packages/group-learning/
 선행 조건(다른 층):
 
 - spec §8.1의 REQ-LN-01~REQ-LN-11. 이 중 REQ-LN-01(`AgentSettledPayload` 필드), REQ-LN-02(`agent.settled` 구독), REQ-LN-05(위임 멱등 내구화), REQ-LN-08(`report` 선택화와 위임 조회·취소)이 없으면 검토 포크가 시작되지 않거나 한 번만 돈다. 학습 그룹 착수(LR-05) 전에 F·X·L1 계약 트랙이 끝나 있어야 한다.
-- M3-new-01(ADR-0015 구현): X 능력 래퍼의 on 핸들러 문맥 검사와 코어 멱등의 내구 기록.
+- M3-new-01(ADR-0015 구현): X 기능 래퍼의 on 핸들러 문맥 검사와 코어 멱등의 내구 기록.
 
 - group-sdk M2: `defineGroup`, `GroupApi<S>`의 `settings()`, `delegate(spec)`(M2는 입력 검사만, 호출은 M3의 G-14), `metrics`, `registerTool`·`registerCommand`(G-22)(L3.group-sdk.plan). 비공개 기록 경로는 X `ScopeApi.recordPrivate`다(review.decisions-2 T-21, spec §3.7.1). group-sdk은 이 연산을 그대로 전달한다(L3.group-sdk.spec §3.2). 그래서 LR-08이 X 구현을 선행으로 갖는다.
 - L1.agents 백그라운드 위임: 접수 결과(`accepted`/`duplicate`), 부모 대화 범위 `requestId` 멱등, 스냅샷 복제, 실행 시점 도구 허용 검사, 반복·토큰 상한, 사용량 부모 귀속, 취소, 완료 통지(L1.agents.plan).
-- L2.knowledge 쓰기·원장·승인 API: 읽기 능력 4종, `apply`(멱등 키, 승인 증거, `base_stale`), 스캔, 롤백, "에이전트 생성" 표시(L2.knowledge.plan).
+- L2.knowledge 쓰기·원장·승인 API: 읽기 기능 4종, `apply`(멱등 키, 승인 증거, `base_stale`), 스캔, 롤백, "에이전트 생성" 표시(L2.knowledge.plan).
 - L4 승인 화면 계약: `ProposalView`와 `/learning queue` 명령 호출 경로(L4.desktop, L4.cli), 설정 화면 `plugins` 탭(L4.settings-ui.plan).
 
 ## 4. 채택 코드
@@ -228,7 +228,7 @@ xeon/packages/group-learning/
    | 16 큰 diff 재생 | `queue.projection-rebuild-equal`(큰 diff와 재시작 사례 포함) |
    | 17 재생 2회 위임 1회 | `replay.agent-settled-twice-one-delegate`, `fork.requestid-dedup-after-restart` |
    | 18 구독 재생 기록 1회 | `settled.finish-records-once` |
-   | 19 핸들러 능력 호출 0 | `replay.no-capability-calls-in-handlers` |
+   | 19 핸들러 기능 호출 0 | `replay.no-capability-calls-in-handlers` |
    | 20 진행 중 검토 | `triggers.in-flight-blocks-second-review` |
    | 21 보고 미주입(D-M3-03 a) | `uc3.threshold-review-queue-and-helm-coexist` 확인 (4), `fork.uses-item-fork-point` |
    | 22 끄기 취소(D-M3-04 b) | `dispose.cancels-in-flight-review` |

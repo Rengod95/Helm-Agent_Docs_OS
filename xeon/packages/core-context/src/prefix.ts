@@ -68,7 +68,7 @@ export function prefixHash(message: SystemMessage): string {
 
 /**
  * 접두가 광고한 도구 목록의 지문. 기록된 접두에서도 계산해야 해서 접두의 toolsAdded에서 만든다.
- * 지문은 능력 ID를 쓰지 않으므로(canonicalToolset) capability는 비워 둔다
+ * 지문은 기능 ID를 쓰지 않으므로(canonicalToolset) capability는 비워 둔다
  */
 export function prefixToolset(message: SystemMessage): Promise<ToolsetFingerprint> {
   const advertised: OrderedTool[] = (message.toolsAdded ?? []).map((tool) => ({

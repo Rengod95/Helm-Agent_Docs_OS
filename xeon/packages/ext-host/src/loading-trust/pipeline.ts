@@ -122,7 +122,7 @@ export interface LoadDiagnostic {
   readonly stage: LoadStage;
   readonly severity: "error" | "warning" | "info";
   readonly code: LoadDiagnosticCode;
-  /** 사람이 읽는 문장. 비밀 값과 파일 내용을 넣지 않는다 */
+  /** 사람이 읽는 문장. 시크릿 값과 파일 내용을 넣지 않는다 */
   readonly message: string;
   readonly path?: string;
   readonly issues?: readonly ManifestIssue[];

@@ -5,7 +5,7 @@ import {
   type CapabilityId,
 } from "../../src/capabilities/index.ts";
 
-/** 메서드 하나(run)와 지정한 이름의 도구들을 가진 최소 능력 정의 */
+/** 메서드 하나(run)와 지정한 이름의 도구들을 가진 최소 기능 정의 */
 export function makeDef(id: CapabilityId, toolNames: readonly string[]): AnyCapabilityDef {
   const input = Type.Object({ q: Type.String({ maxLength: 10 }) }, { additionalProperties: false });
   const output = Type.Object({ ok: Type.Boolean() }, { additionalProperties: false });

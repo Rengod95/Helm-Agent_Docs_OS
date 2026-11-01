@@ -37,14 +37,14 @@ const SOPS: BinaryRequirement = {
   name: "sops",
   need: "required",
   usedBy: "secrets 기본 provider",
-  impact: "비밀을 읽고 쓸 수 없다",
+  impact: "시크릿을 읽고 쓸 수 없다",
   minVersion: SOPS_MIN_VERSION,
 };
 const AGE: BinaryRequirement = {
   name: "age",
   need: "required",
   usedBy: "secrets 키 생성",
-  impact: "새 비밀 키를 만들 수 없다",
+  impact: "새 시크릿 키를 만들 수 없다",
 };
 const GIT: BinaryRequirement = {
   name: "git",

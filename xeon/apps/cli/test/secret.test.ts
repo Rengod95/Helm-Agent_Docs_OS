@@ -205,7 +205,7 @@ test("secret ls prints names and statuses; --meta adds metadata; --json is the r
   const json = setup({}, [entry("api-key")]);
   expect(await json.h.run(["secret", "ls", "--json"])).toBe(EXIT.ok);
   expect(JSON.parse(json.h.stdoutText())).toMatchObject([{ name: "api-key", status: "valid" }]);
-  // 비밀 명령에는 메시지 탭이 붙지 않는다
+  // 시크릿 명령에는 메시지 탭이 붙지 않는다
   expect(json.h.stdoutText()).not.toContain("jsonrpc");
 });
 
@@ -213,7 +213,7 @@ test("secret ls with nothing registered says so on stderr", async () => {
   const s = setup();
   expect(await s.h.run(["secret", "ls"])).toBe(EXIT.ok);
   expect(s.h.stdoutText()).toBe("");
-  expect(s.h.stderrText()).toContain("등록된 비밀이 없다");
+  expect(s.h.stderrText()).toContain("등록된 시크릿이 없다");
 });
 
 test("secret test shows decryptability, length and the first 8 hex of the SHA-256, never the value", async () => {
@@ -287,7 +287,7 @@ test("secret rm --yes removes; without --yes a pipe is refused; a terminal asks 
   expect(tty.h.stdoutText()).toContain(
     "api-key: 참조하는 설정 키 없음 / 활성 lease 0개 / 최근 사용한 세션 없음\n",
   );
-  expect(asked[0]).toContain("비밀 api-key을(를) 지울까요?");
+  expect(asked[0]).toContain("시크릿 api-key을(를) 지울까요?");
 
   const declined = setup({ terminal: TTY, readLine: () => Promise.resolve("") }, [
     entry("api-key"),
@@ -329,7 +329,7 @@ test("secret rm with an active lease explains it and never asks or removes", asy
     { "api-key": { settingKeys: [], activeLeases: 2, sessions: [] } },
   );
   expect(await s.h.run(["secret", "rm", "api-key"])).toBe(EXIT.error);
-  expect(s.h.stderrText()).toContain("fresnel: 사용 중인 비밀이라 지울 수 없다 (활성 lease 2개)");
+  expect(s.h.stderrText()).toContain("fresnel: 사용 중인 시크릿이라 지울 수 없다 (활성 lease 2개)");
   expect(asked).toEqual([]);
   expect(s.h.server().requests.some((r) => r.method === "secret.remove")).toBe(false);
 });
@@ -355,11 +355,11 @@ test("secret rm of a secret in use or a missing one maps to readable errors", as
     remove: wireError("internal", { details: { secret: { kind: "in_use", activeLeases: 2 } } }),
   });
   expect(await busy.h.run(["secret", "rm", "api-key", "--yes"])).toBe(EXIT.error);
-  expect(busy.h.stderrText()).toContain("사용 중인 비밀이라 지울 수 없다 (활성 lease 2개)");
+  expect(busy.h.stderrText()).toContain("사용 중인 시크릿이라 지울 수 없다 (활성 lease 2개)");
 
   const missing = setup();
   expect(await missing.h.run(["secret", "rm", "nothing-here", "--yes"])).toBe(EXIT.error);
-  expect(missing.h.stderrText()).toContain("그 이름의 비밀이 없다");
+  expect(missing.h.stderrText()).toContain("그 이름의 시크릿이 없다");
 });
 
 test("a missing sops or age is an environment error (exit 3)", async () => {
@@ -380,7 +380,7 @@ test("a missing sops or age is an environment error (exit 3)", async () => {
   });
   harnesses.push(broken);
   expect(await broken.run(["secret", "add", "github-token"])).toBe(EXIT.environment);
-  expect(broken.stderrText()).toContain("비밀 제공자(sops)를 쓸 수 없다 (not_found)");
+  expect(broken.stderrText()).toContain("시크릿 제공자(sops)를 쓸 수 없다 (not_found)");
   expect(broken.stderrText()).toContain("sops와 age를 설치하고");
 });
 

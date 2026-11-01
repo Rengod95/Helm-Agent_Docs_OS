@@ -407,7 +407,7 @@ test("secret.references reports the setting keys, the active leases and the rece
     activeLeases: 1,
     sessions: [thread],
   });
-  // 읽기 전용이다: 비밀은 그대로 있다
+  // 읽기 전용이다: 시크릿은 그대로 있다
   expect(host.fake.secrets.records.has(EXA)).toBe(true);
   expect(host.fake.secrets.calls).toEqual(["references exa-key"]);
   await connection.close();

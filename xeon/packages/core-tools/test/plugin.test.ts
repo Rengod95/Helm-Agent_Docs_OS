@@ -127,7 +127,7 @@ test("installing provides fresnel.tools and fresnel.approvals ports and runs a c
   expect(denied.blocked).toContain("noninteractive_ask_denied");
   expect(seenThreads).toEqual([]);
 
-  // 읽기 도구 능력은 매니페스트 optional에 올라 있어 g.capability로 해석된다(공급자가 없으면 unavailable 결과)
+  // 읽기 도구 기능은 매니페스트 optional에 올라 있어 g.capability로 해석된다(공급자가 없으면 unavailable 결과)
   tools.register({ kind: "capability", def: WorkspaceFiles, key: WorkspaceFilesKey });
   tools.register({ kind: "capability", def: WorkspaceShell, key: WorkspaceShellKey });
   const read = await callTool(tools, run, { id: "r1", name: "read", args: { path: "a" } });

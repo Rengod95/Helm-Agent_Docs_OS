@@ -10,7 +10,7 @@ import type { WebDeps } from "../deps.ts";
 import { failureOfThrown } from "../provider-errors.ts";
 import type { FetchCandidate } from "../ports/providers.ts";
 
-// L2.web.spec §4.9.1 6단계 승격. 로컬 결과가 비었거나 챌린지를 만났거나 로컬 변환기가 없는 형식이면 fetch 능력의
+// L2.web.spec §4.9.1 6단계 승격. 로컬 결과가 비었거나 챌린지를 만났거나 로컬 변환기가 없는 형식이면 fetch 기능의
 // 플러그인 후보를 `l2.web.fetch.pluginOrder` 순으로 쓴다. 브라우저 승격은 web.browse가 들어오는 B10에서 연결한다.
 // 챌린지를 우회하지 않는다(UA를 바꿔 다시 시도하지 않고 승격만 한다).
 

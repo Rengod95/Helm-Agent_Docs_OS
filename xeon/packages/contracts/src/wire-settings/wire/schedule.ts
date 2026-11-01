@@ -7,7 +7,7 @@ import {
 } from "../../capabilities/index.ts";
 
 // 예약 항목 메서드(M3b B1-SCH2, L2.schedule.spec §4.4.9): `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`.
-// params는 능력 입력과 같고 레지스트리(`methods.ts`)가 `_meta`를 더한다. 기대한 실패(없음, 원격 아님, 꺼짐, 상한, 저장 실패)는
+// params는 기능 입력과 같고 레지스트리(`methods.ts`)가 `_meta`를 더한다. 기대한 실패(없음, 원격 아님, 꺼짐, 상한, 저장 실패)는
 // JSON-RPC 오류가 아니라 `ok: false`의 `error` 값이다(`proposal.decide`와 같다).
 
 /** 실패 값 공통 모양 */

@@ -17,7 +17,7 @@ import {
   rejectionOf,
 } from "./fixtures/support.ts";
 
-// ADR-0015 §3.2, §3.4, §3.6: 재실행되는 코드의 능력 호출 검사와 "재생 2회, 효과 1회"
+// ADR-0015 §3.2, §3.4, §3.6: 재실행되는 코드의 기능 호출 검사와 "재생 2회, 효과 1회"
 
 interface Svc {
   echo(input: { text?: string }, options?: CallOptions): Promise<string>;
@@ -498,7 +498,7 @@ function isRecordLike(value: unknown): value is Readonly<Record<string, unknown>
   return typeof value === "object" && value !== null;
 }
 
-// M3-REQ-31, X.loading-trust.spec §4.6.4: 외부 확장이 공급하는 능력의 `idempotent` 선언은 재실행되는 코드에서 믿지 않는다
+// M3-REQ-31, X.loading-trust.spec §4.6.4: 외부 확장이 공급하는 기능의 `idempotent` 선언은 재실행되는 코드에서 믿지 않는다
 
 async function replayCodes(providerBuiltin: boolean): Promise<Record<string, string>> {
   const t = await createTestHost({ capabilityDefs: echoDefs });

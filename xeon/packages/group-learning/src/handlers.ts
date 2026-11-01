@@ -26,7 +26,7 @@ import type { LearningSettings, LearningSettingDefs, SettingsUnavailable } from 
 import type { LearningState } from "./state.ts";
 import { advanceCounters, afterDelegateFailure, applyTurn, type TurnTally } from "./triggers.ts";
 
-// L3.learning.spec §4.2~§4.3, §4.10. 재실행되는 코드는 on 핸들러 셋과 `agent.settled` 구독 핸들러뿐이다. 핸들러는 능력 메서드를 부르지 않는다(ADR-0015 §3.2).
+// L3.learning.spec §4.2~§4.3, §4.10. 재실행되는 코드는 on 핸들러 셋과 `agent.settled` 구독 핸들러뿐이다. 핸들러는 기능 메서드를 부르지 않는다(ADR-0015 §3.2).
 // 쓰기는 모두 ambient 안의 `g.recordPrivate`·`g.record`·`g.commit`이다(핸들러는 디스패치 키, 명령 처리기는 호출 id가 멱등 키다).
 
 export type LearningApi = GroupApi<LearningState, LearningSettingDefs>;
@@ -168,7 +168,7 @@ export function registerTriggers(env: HandlerEnv): void {
     });
   });
 
-  // chain 지점이지만 값을 바꾸지 않고 undefined를 돌려준다: 시스템 프롬프트와 컨텍스트에 영향이 없다(캐시 접두 보존)
+  // chain 훅이지만 값을 바꾸지 않고 undefined를 돌려준다: 시스템 프롬프트와 컨텍스트에 영향이 없다(캐시 접두 보존)
   g.on("boundary.step.after", (payload, _current, hctx) => {
     const open = tallies.get(hctx.threadId) ?? {
       turnId: null,

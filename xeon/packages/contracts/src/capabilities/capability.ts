@@ -26,7 +26,7 @@ export interface CapabilityDef<
   readonly service: ServiceDef<Ms>;
   /** 모델 도구 목록. 빈 배열 허용 */
   readonly tools: Ts;
-  /** 이 능력의 정의가 전제하는 다른 능력. provider 등록 시 X가 해석한다 */
+  /** 이 기능의 정의가 전제하는 다른 기능. provider 등록 시 X가 해석한다 */
   readonly requires?: readonly CapabilityId[];
 }
 

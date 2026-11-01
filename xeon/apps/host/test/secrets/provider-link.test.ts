@@ -21,7 +21,7 @@ import {
 } from "../../src/secrets/provider-link.ts";
 import { createFakeSecrets, sampleMeta } from "../fixtures/fake-secrets.ts";
 
-// HS-45 [결정: M2 Mac 실기]. 모델 provider 연결이 비밀 메타에 더하는 허용은 정확히 그 호출 하나다: runtime-http, `model.provider:<id>`, provider 호스트.
+// HS-45 [결정: M2 Mac 실기]. 모델 provider 연결이 시크릿 메타에 더하는 허용은 정확히 그 호출 하나다: runtime-http, `model.provider:<id>`, provider 호스트.
 
 const scratch = mkdtempSync(join(tmpdir(), "xh-link-"));
 afterAll(() => {
@@ -190,7 +190,7 @@ test("the linker patches an existing secret once and leaves a missing secret for
       approval: "none",
     },
   ]);
-  // 두 번째 호출은 이미 허용돼 있어 아무것도 쓰지 않는다. 없는 비밀(other-key)은 경고 없이 건너뛴다
+  // 두 번째 호출은 이미 허용돼 있어 아무것도 쓰지 않는다. 없는 시크릿(other-key)은 경고 없이 건너뛴다
   await linker.link();
   expect(patches).toHaveLength(1);
   expect(warnings).toEqual([]);

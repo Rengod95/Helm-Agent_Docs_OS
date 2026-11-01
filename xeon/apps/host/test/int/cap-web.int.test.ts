@@ -81,7 +81,7 @@ realTest(
     const done = await collector.waitFor((event) => event.kind === "turn.completed");
     expect(done.payload).toMatchObject({ status: "completed" });
     expect(toolResultTexts(collector.events).join("\n")).toContain("hello from the fixture page");
-    // 승인 요청은 웹 능력의 도구 승인 body다
+    // 승인 요청은 웹 기능의 도구 승인 body다
     const asked = collector.events.filter((event) => event.kind === "approval.requested");
     expect(asked.length).toBeGreaterThan(0);
     expect(JSON.stringify(asked)).toContain("web.fetch");

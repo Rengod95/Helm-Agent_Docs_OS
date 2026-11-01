@@ -6,7 +6,7 @@ import { afterEach, expect, test } from "bun:test";
 import { EXIT } from "../src/exit-codes.ts";
 import { createRealCli, type RealCli } from "./support/real-host.ts";
 
-// G1-07: 실제 호스트와 실제 비밀 저장소(sops, age) 위의 secret 명령. test/secret.test.ts의 가짜 처리기를 실제 secret.* 처리기로 바꿔
+// G1-07: 실제 호스트와 실제 시크릿 저장소(sops, age) 위의 secret 명령. test/secret.test.ts의 가짜 처리기를 실제 secret.* 처리기로 바꿔
 // 등록, 목록, 시험 출력(길이와 해시 앞 8자), 삭제 전 참조 표시를 한 저장소에서 잇는다. 값은 어느 출력, 요청, 파일에도 없어야 한다.
 
 const clis: RealCli[] = [];
@@ -133,7 +133,7 @@ test("a secret is added, listed, tested and removed on the real store without it
     sha256Prefix: null,
   });
 
-  // 지우기 전에 이 비밀을 가리키는 곳을 보이고 묻는다. n이면 지우지 않는다
+  // 지우기 전에 이 시크릿을 가리키는 곳을 보이고 묻는다. n이면 지우지 않는다
   harness.stdout.length = 0;
   expect(await harness.run(["secret", "rm", "github-token"])).toBe(EXIT.error);
   expect(cli.sent("secret.references")).toEqual([
@@ -175,6 +175,6 @@ test("secret rm --yes removes without asking and a name that does not exist is a
 
   cli.harness.stderr.length = 0;
   expect(await cli.harness.run(["secret", "rm", "api-key", "--yes"])).toBe(EXIT.error);
-  expect(cli.harness.stderrText()).toContain("fresnel: 그 이름의 비밀이 없다");
+  expect(cli.harness.stderrText()).toContain("fresnel: 그 이름의 시크릿이 없다");
   expectNoValue(cli);
 }, 120_000);

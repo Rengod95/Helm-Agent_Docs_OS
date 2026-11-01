@@ -1,7 +1,7 @@
 import type { ScanFinding, ScanSummary } from "@fresnel/contracts/capabilities";
 
 // L2.knowledge.spec §4.6 위협 패턴 검사. 순수 함수다. 걸린 문자열은 결과에 담지 않고 규칙 이름과 줄 번호만 담는다
-// (비밀 재노출 방지). 규칙을 더하거나 바꾸면 SCAN_RULESET_VERSION을 올린다.
+// (시크릿 재노출 방지). 규칙을 더하거나 바꾸면 SCAN_RULESET_VERSION을 올린다.
 
 export const SCAN_RULESET_VERSION = "1.0.0";
 
@@ -81,7 +81,7 @@ const PATTERN_RULES: readonly PatternRule[] = [
     strictOnly: true,
     pattern: /\b(?:env|printenv|set)\s*\|\s*(?:curl|wget|nc|ncat|netcat)\b/g,
   },
-  // 비밀 값 형태
+  // 시크릿 값 형태
   { rule: "secret.api_key", severity: "block", pattern: /\bsk-[A-Za-z0-9_-]{20,}/g },
   { rule: "secret.github_token", severity: "block", pattern: /\bgh[pousr]_[A-Za-z0-9]{36,}/g },
   { rule: "secret.aws_access_key", severity: "block", pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g },

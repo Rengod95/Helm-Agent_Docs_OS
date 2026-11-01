@@ -29,7 +29,7 @@ export function checkSettingRef(value: string): Result<ParsedHandle, SecretRefEr
   return parseSecretRef(value);
 }
 
-/** 비밀 인자로 선언된 도구 인자 필드의 입력 검사. 다른 비밀 구문($VAR, {{…}}, %…%, op:// 등)을 거부한다 */
+/** 시크릿 인자로 선언된 도구 인자 필드의 입력 검사. 다른 시크릿 구문($VAR, {{…}}, %…%, op:// 등)을 거부한다 */
 export function checkSecretArgument(value: string): Result<ParsedHandle, SecretRefError> {
   const whole = parseSecretRef(value);
   if (whole.ok) return whole;

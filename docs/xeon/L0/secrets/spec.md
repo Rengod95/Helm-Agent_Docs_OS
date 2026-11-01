@@ -8,7 +8,7 @@ depends_on: [F.wire-settings.spec, F.records.spec, L0.exec.spec, L0.os.spec, L0.
 binds: [xeon/packages/platform-secrets/**]
 ---
 
-# L0 비밀 (platform-secrets)
+# L0 시크릿 (platform-secrets)
 
 ## 1. 목적과 범위
 
@@ -33,7 +33,7 @@ binds: [xeon/packages/platform-secrets/**]
 | 런타임 HTTP 요청 전송(`GuardedHttp`) | `L2.web.spec`. 이 문서는 치환 함수만 제공한다 |
 | 브라우저 드라이버 | `L2.web.spec`(`web.browse`) |
 | `fresnel secret` 명령줄 파싱, 프롬프트, 출력 형식 | `L4.cli.spec` |
-| 비밀 탭 화면, 값 입력·열람 창 | `L4.settings-ui.spec`, `L4.desktop.spec` |
+| 시크릿 탭 화면, 값 입력·열람 창 | `L4.settings-ui.spec`, `L4.desktop.spec` |
 | 설정 키 문법, `SettingDef` 검사(D2, D3) | `F.wire-settings.spec` |
 | 외부 바이너리 경로 해석과 설치 안내 | `L0.os.spec`(`fresnel.os`) |
 
@@ -93,7 +93,7 @@ import {
 | `%github-token%` | `unsupported_ref_syntax`(`percent`) | Stagehand 형식(`_research/secrets.md` §1.2) |
 | `op://vault/item/field`, `sops:dev/KEY` | `unsupported_ref_syntax`(`provider_uri`) | 제공자 참조는 메타 파일에만 둔다 |
 
-- "입력 단계"는 모델 도구 인자, 설정 값(`F.wire-settings.spec` §4.8), 메타 파일의 `name`이다. 도구 인자 검사는 `L1.tools.spec`이 도구 인자 검증 때 `findForeignSecretSyntax`를 부른다 [가정: L1.tools 검증 단계에 훅이 있다]. `$VAR` 거부는 비밀 인자로 선언된 필드에만 한다. bash 명령 본문 전체에 적용하면 일반 셸 변수를 막기 때문이다 [제안].
+- "입력 단계"는 모델 도구 인자, 설정 값(`F.wire-settings.spec` §4.8), 메타 파일의 `name`이다. 도구 인자 검사는 `L1.tools.spec`이 도구 인자 검증 때 `findForeignSecretSyntax`를 부른다 [가정: L1.tools 검증 단계에 훅이 있다]. `$VAR` 거부는 시크릿 인자로 선언된 필드에만 한다. bash 명령 본문 전체에 적용하면 일반 셸 변수를 막기 때문이다 [제안].
 
 ### 3.2 메타 (`meta.ts`)
 
@@ -113,8 +113,8 @@ import {
   - `use.modes`는 번호(`M2`, `M3`) 대신 모드 이름을 쓴다(§2).
   - `approval`의 `never`를 `none`(승인 필요 없음)으로 바꾼다. `never`는 "항상 거부"로도 읽히기 때문이다.
   - `use.origins`를 더한다. M4는 호스트가 아닌 origin으로 바인딩한다(§4.3).
-- 메타 파일 형식과 위치 [제안]: 비밀 하나에 YAML 파일 하나, `<OsDirs.config>/secrets/meta/<name>.yaml`. `OsDirs.config`는 `fresnel.os`가 정하고 이미 `fresnel`으로 끝난다(`L0.os.spec` §3.2. 예: Linux `~/.config/fresnel/secrets/meta/`). 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키 기본 위치, 수신자 기록, 기본 SOPS 파일)은 모두 `<OsDirs.config>/secrets/` 아래에 둔다. 파일에는 값이 없으므로 평문이고 권한은 0600으로 쓴다. 파싱은 [가정] Bun 1.4 내장 YAML 파서를 쓴다. 쓸 수 없으면 같은 스키마의 JSON 파일로 바꾼다.
-- 범위 규칙 [제안]: 1차는 사용자 범위 메타만 읽는다. 프로젝트 저장소 안의 메타는 읽지 않는다. 저장소를 받는 것만으로 사용자 비밀의 허용 호스트가 넓어지지 않게 하기 위해서다(`F.wire-settings.spec` §4.7 규칙 4의 "범위 제한 키"와 같은 이유). `scope: project:<id>`는 "그 프로젝트의 세션에서만 쓸 수 있다"는 제한으로만 작동한다.
+- 메타 파일 형식과 위치 [제안]: 시크릿 하나에 YAML 파일 하나, `<OsDirs.config>/secrets/meta/<name>.yaml`. `OsDirs.config`는 `fresnel.os`가 정하고 이미 `fresnel`으로 끝난다(`L0.os.spec` §3.2. 예: Linux `~/.config/fresnel/secrets/meta/`). 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키 기본 위치, 수신자 기록, 기본 SOPS 파일)은 모두 `<OsDirs.config>/secrets/` 아래에 둔다. 파일에는 값이 없으므로 평문이고 권한은 0600으로 쓴다. 파싱은 [가정] Bun 1.4 내장 YAML 파서를 쓴다. 쓸 수 없으면 같은 스키마의 JSON 파일로 바꾼다.
+- 범위 규칙 [제안]: 1차는 사용자 범위 메타만 읽는다. 프로젝트 저장소 안의 메타는 읽지 않는다. 저장소를 받는 것만으로 사용자 시크릿의 허용 호스트가 넓어지지 않게 하기 위해서다(`F.wire-settings.spec` §4.7 규칙 4의 "범위 제한 키"와 같은 이유). `scope: project:<id>`는 "그 프로젝트의 세션에서만 쓸 수 있다"는 제한으로만 작동한다.
 
 ### 3.3 사용 맥락과 lease (`lease.ts`)
 
@@ -199,7 +199,7 @@ export interface SecretProvider {
 ```
 
 - §6.8과 다른 점 [제안]: `list()`는 `SecretMeta[]` 대신 `ProviderEntry[]`를 돌려준다. `SecretProvider` 인터페이스는 설명, 허용 호스트, 승인 정책을 입력으로 받지 않는다. `SecretMeta`는 `SecretService.list()`가 메타 파일과 제공자 목록을 합쳐 만든다.
-- 제공자 단계 [결정: `_research/decisions-log.md` 2026-10-21 2차 "비밀 기본값은 SOPS(age)", 층 구성 계획 v2 L0-c "1Password·Bitwarden·키체인은 플러그인"]:
+- 제공자 단계 [결정: `_research/decisions-log.md` 2026-10-21 2차 "시크릿 기본값은 SOPS(age)", 층 구성 계획 v2 L0-c "1Password·Bitwarden·키체인은 플러그인"]:
 
 | 제공자 | 단계 | 목록 | lease | put/remove | 위치 |
 |---|---|---|---|---|---|
@@ -246,14 +246,14 @@ export interface Redactor {
 
 - 18과 다른 점 [제안]: 접두 패턴 표지에서 SHA-256 앞 8자를 뺀다. 감사 기록에 값의 해시를 남기지 않는 규칙(§3.9)과 같은 기준을 쓰기 위해서다. 같은 값이 여러 번 나왔는지는 `count`로만 안다.
 - 등록 시점: lease가 값을 처음 풀 때 `SecretService`가 `registerKnown`을 부른다. 등록부는 부모 프로세스 메모리에만 있고 직렬화하지 않는다. 변형 문자열도 값과 같은 수준으로 다룬다.
-- 8바이트 미만 값: `registerKnown`이 `value_too_short`를 돌려준다. 이런 비밀은 `env` 모드 lease를 거부하고(`mode_not_allowed`), `runtime-http`·`browser-input`만 허용한다 [제안]. `env`는 출력에 값이 나올 수 있는데 가릴 수 없기 때문이다. `add`는 8바이트 미만 값을 받지 않는다.
+- 8바이트 미만 값: `registerKnown`이 `value_too_short`를 돌려준다. 이런 시크릿은 `env` 모드 lease를 거부하고(`mode_not_allowed`), `runtime-http`·`browser-input`만 허용한다 [제안]. `env`는 출력에 값이 나올 수 있는데 가릴 수 없기 때문이다. `add`는 8바이트 미만 값을 받지 않는다.
 - 한계: 마스킹은 보조 수단이다. 값을 비인접 조각으로 나눈 출력, 등록하지 않은 인코딩(rot13, gzip 변환, 역순, 모델의 재인코딩)은 잡지 못한다(`_research/secrets.md` §2.3, [S28][S30]). 보장은 값이 모델과 셸에 들어오는 경로를 없애는 M3·M4 모드 설계에서 나온다. 문서와 화면은 마스킹을 "보조"로 표기한다.
 
 ### 3.5.1 사후 가림 적용 지점 (`post-redact.ts`) [결정: review.m3-design-inputs D-M3-20 b, M3-REQ-59]
 
 - 이미 기록된 이벤트 행은 바꾸지 않는다. 표시(`display`), 내보내기(`export`), 모델 입력(`model-input`) 세 단계가 행을 읽는 시점에 `createPostHocRedaction(redactor).apply(stage, value)`를 부른다. 결과 `PostHocResult`는 가려진 새 값(`value`), `hits`, 키 회전 안내(`advice`)를 가진다. 입력 객체는 바뀌지 않는다(`Redactor.maskDeep`은 새 값을 돌려준다).
-- 값이 기록된 뒤에 등록된 비밀(예: 기록 뒤 처음 lease가 풀린 값)도 이후 표시와 내보내기에서 가려진다. 반대로 등록 전에는 알 수 없어 가릴 수 없다. 프로세스가 다시 시작되면 등록부가 비므로, 단계 호출자는 필요할 때 목록(`list`)의 비밀을 먼저 lease해 등록한다 [가정].
-- 키 회전 안내는 문장이 아니라 값이다. `advice`는 `{ kind: "rotate_key", names, patternHits }`이고 가려진 것이 없으면 null이다. `names`는 `known:<이름>`으로 가려진 비밀 이름(중복 없음, 정렬), `patternHits`는 이름 없이 패턴으로 가려진 개수다. 문구는 L4가 이 값으로 만든다(i18n, `eng.context-map.design` 하위 층 문장 금지). 이미 모델이나 외부에 나간 값은 가려도 되돌릴 수 없으므로 안내는 "원본 키를 회전한다"(`fresnel secret rotate`)가 기본이다.
+- 값이 기록된 뒤에 등록된 시크릿(예: 기록 뒤 처음 lease가 풀린 값)도 이후 표시와 내보내기에서 가려진다. 반대로 등록 전에는 알 수 없어 가릴 수 없다. 프로세스가 다시 시작되면 등록부가 비므로, 단계 호출자는 필요할 때 목록(`list`)의 시크릿을 먼저 lease해 등록한다 [가정].
+- 키 회전 안내는 문장이 아니라 값이다. `advice`는 `{ kind: "rotate_key", names, patternHits }`이고 가려진 것이 없으면 null이다. `names`는 `known:<이름>`으로 가려진 시크릿 이름(중복 없음, 정렬), `patternHits`는 이름 없이 패턴으로 가려진 개수다. 문구는 L4가 이 값으로 만든다(i18n, `eng.context-map.design` 하위 층 문장 금지). 이미 모델이나 외부에 나간 값은 가려도 되돌릴 수 없으므로 안내는 "원본 키를 회전한다"(`fresnel secret rotate`)가 기본이다.
 - 호출 지점은 L1 persistence의 내보내기, L1 context의 모델 입력 투영(4계층), L4의 표시다. 이 문서는 호출 지점을 정하지 않고 적용 함수만 제공한다. `secret.masked` 감사 레코드는 단계 호출자가 필요하면 낸다.
 
 ### 3.6 서비스 (`service.ts`)
@@ -327,7 +327,7 @@ export interface SecretService {
     fill: (value: SecretValueView) => Promise<T>,
   ): Promise<Result<T, SecretError>>;
 
-  /** 샌드박스 읽기·쓰기 거부 대상인 비밀 파일 절대 경로(SOPS 파일, 메타 디렉터리, 감사 파일, 파일 폴백 age 키). 값 없음. L0.sandbox.spec §3.3 */
+  /** 샌드박스 읽기·쓰기 거부 대상인 시크릿 파일 절대 경로(SOPS 파일, 메타 디렉터리, 감사 파일, 파일 폴백 age 키). 값 없음. L0.sandbox.spec §3.3 */
   protectedPaths(): readonly string[];
 
   registerProvider(provider: SecretProvider): Result<Disposable, SecretError>;
@@ -339,7 +339,7 @@ export interface SecretService {
 ```
 
 - `withHttp` 규칙: `template.url`의 호스트와 포트가 메타 `use.hosts`에 맞을 때만 치환한다. URL에 핸들이 있으면 `invalid_ref`로 거부한다(쿼리 문자열은 로그와 리퍼러로 새기 쉽다) [제안]. 치환된 `ConcreteHttpRequest`는 `send` 안에서만 쓰고, 호출자는 이를 로그·이벤트에 싣지 않는다.
-- `withEnv` 규칙 [결정: review.decisions-2 U-19]: 마일스톤 M1의 비밀 검증 경로는 bash 도구의 `env` 주입이고 실행마다 승인을 받는다. `withEnv`는 `mode: "env"`로 `lease(handle, ctx)`와 같은 판정(§4.2)을 한다. `ctx`는 `purpose`(예: `"bash:gh"`), `toolCallId`, `target: { kind: "command", argv0, commandLine }`, `approval`(`per-use` `ApprovalEvidence`)을 싣는다. `target`이 `command`가 아니면 `denied`(`mode_not_allowed`)다. exec는 `ShellExecOptions.secretEnv`(`SecretEnvRequest`의 `ctx`)로 받은 값에 `target`을 채워 이 메서드를 부른다(`L0.exec.spec` §3.6). 사람 직접 실행(`secret run`)은 §3.8의 관리 서비스가 맡는다.
+- `withEnv` 규칙 [결정: review.decisions-2 U-19]: 마일스톤 M1의 시크릿 검증 경로는 bash 도구의 `env` 주입이고 실행마다 승인을 받는다. `withEnv`는 `mode: "env"`로 `lease(handle, ctx)`와 같은 판정(§4.2)을 한다. `ctx`는 `purpose`(예: `"bash:gh"`), `toolCallId`, `target: { kind: "command", argv0, commandLine }`, `approval`(`per-use` `ApprovalEvidence`)을 싣는다. `target`이 `command`가 아니면 `denied`(`mode_not_allowed`)다. exec는 `ShellExecOptions.secretEnv`(`SecretEnvRequest`의 `ctx`)로 받은 값에 `target`을 채워 이 메서드를 부른다(`L0.exec.spec` §3.6). 사람 직접 실행(`secret run`)은 §3.8의 관리 서비스가 맡는다.
 - 플러그인 provider 통로 [결정: M3-REQ-60]: 웹 검색 플러그인 provider는 `createPluginHttp(service, { purpose: "web.search" })`(`src/plugin-http.ts`)를 쓴다. 설정에는 `secret://<이름>`만 적고, `headerHandles(headers)`가 값을 읽지 않고 쓰인 핸들만 돌려준다(설정 검사, doctor). `send(template, call, send)`가 `withHttp`로 전송 직전에 헤더 값을 치환한다. 이 통로는 본문 치환을 열지 않는다(본문에 핸들이 있으면 값을 읽기 전에 `invalid_ref`). URL 핸들 거부, 호스트 바인딩, 응답 에코 검사는 `withHttp` 규칙을 그대로 따른다. 메타 `use.tools`에 `web.search`가 있어야 한다.
 - 자식 env 거부 목록은 이 서비스에 두지 않는다. 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`L0.exec.spec` §3.5)다(§4.5).
 - [가정] `Disposable`은 TS 표준 `Disposable`(`Symbol.dispose`)이다.
@@ -471,7 +471,7 @@ export type SecretError =
   | { readonly kind: "read_only_provider"; readonly provider: SecretProviderId }
   | { readonly kind: "reauth_required" }
   | { readonly kind: "audit_unwritable"; readonly path: string; readonly code: string }       // 감사 파일을 쓸 수 없다. 열람처럼 기록 없이는 진행하면 안 되는 동작이 멈춘다
-  | { readonly kind: "write_failed"; readonly target: "key_file" | "key_store" | "sops_file"; readonly path: string; readonly code: string }  // 쓰기 실패. key_file은 키 파일(덮어쓰기 거부는 code가 EEXIST), key_store는 OS 키 저장소, sops_file은 SOPS 비밀 파일을 만들거나 쓰던 중
+  | { readonly kind: "write_failed"; readonly target: "key_file" | "key_store" | "sops_file"; readonly path: string; readonly code: string }  // 쓰기 실패. key_file은 키 파일(덮어쓰기 거부는 code가 EEXIST), key_store는 OS 키 저장소, sops_file은 SOPS 시크릿 파일을 만들거나 쓰던 중
   | { readonly kind: "cancelled" };                                  // 서비스가 닫혀 진행 중인 sops 호출·바이너리 해석이 중단됐다
 export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "win32-credential" | "file";
 ```
@@ -506,7 +506,7 @@ export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "
 | 6 | 승인: 메타 `approval`이 `none`이 아니면 `ctx.approval`이 있고 범위와 만료가 맞는다. `env` 모드는 메타가 `none`이어도 `per-use` 승인을 요구한다 | `approval_missing` |
 
 - 호스트 일치 [제안]: 소문자 비교, `*.example.com`은 한 단계 이상의 하위 도메인만 맞는다(`example.com` 자신은 아니다). IP 리터럴과 `localhost`는 메타에 그대로 적혀 있을 때만 맞는다. 포트가 메타에 없으면 443만 맞는다.
-- 모델 provider 키의 정책 [결정: M2 Mac 실기]: 새 비밀의 정책은 비어 있어(`L4.host-service.spec` HS-45) 모델 호출 lease(`runtime-http`, `model.provider:<id>`, 호스트는 provider 주소)가 거부된다. 정책은 이 패키지가 정하지 않는다. 호스트가 사람의 provider 연결 행위를 근거로 `secret.meta`와 같은 경로(`SecretAdminService.meta`)로 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [provider 호스트]`만 더한다. 이 판정(§4.2)은 바꾸지 않는다.
+- 모델 provider 키의 정책 [결정: M2 Mac 실기]: 새 시크릿의 정책은 비어 있어(`L4.host-service.spec` HS-45) 모델 호출 lease(`runtime-http`, `model.provider:<id>`, 호스트는 provider 주소)가 거부된다. 정책은 이 패키지가 정하지 않는다. 호스트가 사람의 provider 연결 행위를 근거로 `secret.meta`와 같은 경로(`SecretAdminService.meta`)로 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [provider 호스트]`만 더한다. 이 판정(§4.2)은 바꾸지 않는다.
 - 승인 기본값 [제안, `_research/secrets.md` §6.4]: 읽기 호스트는 `per-session`, 쓰기·배포 호스트는 `per-use`. 메타를 만들 때 사람이 고르고, 고르지 않으면 `l0.secrets.approval.default`를 쓴다.
 - `check`가 `needs_approval`을 돌려주면 L1이 `fresnel.approvals`로 사람에게 묻고, 받은 `ApprovalEvidence`를 넣어 `lease`를 다시 부른다. L0는 L1 승인 서비스를 부르지 않는다(층 순위).
 - 승인 결과를 받은 L1은 `secret.approved` 레코드를 `SecretService`에 알리지 않는다. 대신 `lease`가 승인 증거를 처음 본 때 `secret.approved`를 낸다 [제안]. 레코드 생산 위치를 한 곳으로 두기 위해서다.
@@ -517,7 +517,7 @@ export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "
 
 | 모드 | 대상 | 모델과 셸에 보이는 것 | 실제 값의 위치 | 통제 수단 | 단계 |
 |---|---|---|---|---|---|
-| M1 env | 승인된 CLI 명령(`gh`, `kubectl` 등) | 값(자식 env). 셸이 `env`로 출력할 수 있다 | 도구 자식 프로세스 env | 명령 패턴, `per-use` 승인, 출력 마스킹(2계층) | 에이전트용(bash 도구, 실행마다 승인)은 마일스톤 M1이고 M1 비밀 검증 경로다 [결정: review.decisions-2 U-19]. 사람 직접 실행 `secret run`은 마일스톤 M2 |
+| M1 env | 승인된 CLI 명령(`gh`, `kubectl` 등) | 값(자식 env). 셸이 `env`로 출력할 수 있다 | 도구 자식 프로세스 env | 명령 패턴, `per-use` 승인, 출력 마스킹(2계층) | 에이전트용(bash 도구, 실행마다 승인)은 마일스톤 M1이고 M1 시크릿 검증 경로다 [결정: review.decisions-2 U-19]. 사람 직접 실행 `secret run`은 마일스톤 M2 |
 | M2 sentinel | HTTPS 토큰을 쓰는 CLI와 도구 | sentinel 문자열 | 런타임 프록시 메모리. 전송 직전 헤더에서 치환 | 호스트 바인딩, TLS 종단 | 설계만 이 문서에서 정하고 구현은 후속 |
 | M3 런타임 HTTP | 런타임 내장 HTTP 경로(`GuardedHttp`, 모델 provider 호출, 테스트 그룹 HTTP 도구) | 핸들 | 부모 프로세스. `withHttp`가 전송 직전 헤더·본문에서 치환. 모델 provider 키는 core-models가 `lease`(purpose `model.provider:<id>`)로 열어 프로세스 안 HTTP 클라이언트에만 넘긴다 | 호스트 바인딩, 응답 에코 검사 | 마일스톤 M1(모델 provider 키, review.decisions-2 U-19 보충), 기본 안전 모드. 값은 모델 컨텍스트, 이벤트, DB에 들어가지 않는다 |
 | M4 브라우저 입력 | 로그인 폼 | 핸들 | 부모 프로세스. 드라이버가 입력할 때만 | origin 바인딩, 스크린샷 마스킹 | 마일스톤 M2, 기본 안전 모드 |
@@ -535,7 +535,7 @@ M3 규칙:
 
 M1 규칙 중 MCP stdio 서버 기동(`src/mcp-start.ts`) [결정: review.m3-design-inputs D-M3-19 행 2, M3-REQ-58]:
 
-1. 비밀 env를 쓰는 stdio MCP 서버의 기동 승인은 서버 정의 해시 단위로 한 번 받는다. `mcpDefinitionHash(def)`는 출처, 명령, 인자, cwd, 평문 env, 비밀 env(env 이름 → 핸들)의 SHA-256 hex다. 키 순서와 무관하고 비밀 값은 들어가지 않으므로 값 회전은 해시를 바꾸지 않는다.
+1. 시크릿 env를 쓰는 stdio MCP 서버의 기동 승인은 서버 정의 해시 단위로 한 번 받는다. `mcpDefinitionHash(def)`는 출처, 명령, 인자, cwd, 평문 env, 시크릿 env(env 이름 → 핸들)의 SHA-256 hex다. 키 순서와 무관하고 시크릿 값은 들어가지 않으므로 값 회전은 해시를 바꾸지 않는다.
 2. `mcpStartContext(def, base, approval)`이 `withEnv`에 넘길 맥락을 만든다. `purpose`는 `mcp.start:<서버 id>`, `target`은 `{ kind: "command", argv0: 명령, commandLine: "mcp:<서버 id>" }`다. 메타 `use.tools`에 `mcp.start:*`, `use.commands`에 `mcp:<서버 id>` 패턴을 적어야 허용된다.
 3. 일반 env 모드는 실행마다 승인(`per-use`)이다. `purpose`가 `mcp.start:`로 시작하는 env 호출은 `per-session` 증거로 충분하다(§4.2 판정). 그래서 같은 정의로 서버를 다시 기동해도 같은 승인을 쓴다.
 4. `createMcpStartApprovals(clock)`는 사람이 받은 승인 증거를 서버 id와 정의 해시에 묶어 프로세스 안에 둔다. `evidenceFor(def)`는 지금 정의의 해시가 기록된 것과 같고 만료 전일 때만 증거를 돌려준다. 정의가 바뀌면 null이고 다시 받아야 한다. 정의를 되돌리면 같은 승인이 다시 맞는다. 영속 보관과 승인 UI, 승인 레코드의 정의 해시 필드(M3-REQ-75)는 L1·L2가 한다(B3-SEC).
@@ -574,11 +574,11 @@ M2 설계(후속 구현):
 1. 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@fresnel/contracts/services`, `L0.exec.spec` §3.5) 하나다. 이 서비스는 별도 목록(`childEnvPolicy`)을 두지 않는다 [제안]. `L0.exec.spec`은 도구 자식 프로세스 env를 만들 때 이 상수에 맞는 이름을 모두 지운다. 그래서 부모 env에 우연히 있던 `SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `FRESNEL_SECRET_*`(상수의 `FRESNEL_*`), 제공자 토큰(`*_TOKEN`)이 `fresnel.secrets` 유무와 관계없이 도구로 넘어가지 않는다.
 2. `platform-secrets`가 sops를 부를 때도 같은 상수로 거른 env에 `KeyProvider.sopsKeyEnv()`의 변수 하나만 더한다.
 3. 거부 목록은 허용 목록 기반 env 구성(`L0.exec.spec` §3.5)을 대신하지 않는다. 허용 목록 위에 거는 거부 목록이다.
-4. 비밀 제공자가 새 env 이름을 쓰게 되면(2차 플러그인 제공자 등) `SENSITIVE_ENV_PATTERNS`에 패턴을 더하는 F 변경으로 반영한다. 이 문서에는 따로 목록을 두지 않는다.
+4. 시크릿 제공자가 새 env 이름을 쓰게 되면(2차 플러그인 제공자 등) `SENSITIVE_ENV_PATTERNS`에 패턴을 더하는 F 변경으로 반영한다. 이 문서에는 따로 목록을 두지 않는다.
 
 ### 4.6 SOPS 제공자
 
-[결정] sops 바이너리와 age, `SOPS_AGE_KEY_CMD`로 OS 키체인을 쓴다(`_research/foundation-plan.md` §2 비밀 행).
+[결정] sops 바이너리와 age, `SOPS_AGE_KEY_CMD`로 OS 키체인을 쓴다(`_research/foundation-plan.md` §2 시크릿 행).
 
 [결정] 취소: `sops`와 바이너리 해석 호출은 서비스 수명 신호를 받는다. 서비스가 닫히면(`Symbol.dispose`) 신호가 중단되어 실행 중인 자식 프로세스를 죽이고 `err({ kind: "cancelled" })`를 돌려준다. `ProcessRunner`의 `RunRequest`가 `signal`을 가지며, 중단으로 끝난 호출의 잘린 출력은 결과로 쓰지 않는다(`eng.typescript.guide` TY-22).
 
@@ -608,7 +608,7 @@ M2 설계(후속 구현):
 
 ### 4.8 사용자 등록 경로
 
-[결정: m2r sec, adr.0019] 기본 SOPS 파일. 비밀 기본 저장소가 SOPS(age)라는 결정과 이 기본 파일은 adr.0019로 승격했다(`review.m3-design-inputs` D-M3-31 행 6). `l0.secrets.sops.files`가 비어 있으면 항목 하나 `{ env: "user", path: "<OsDirs.config>/secrets/sops/user.yaml" }`를 쓴다(`withDefaultSopsFile`). 사람이 파일을 한 줄이라도 적으면 기본 파일은 쓰지 않는다(섞지 않는다). 위치를 `<OsDirs.config>/secrets/` 아래로 정한 이유는 셋이다. 첫째, 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키)이 모두 이 아래라 한 곳만 보호하면 된다. 둘째, 샌드박스 보호 행(`<fresnelConfig>/secrets/`)이 이미 덮는다. 셋째, `OsDirs`는 사용자 하나에 하나이고 클라이언트(CLI, 데스크톱 사이드카)마다 나뉘지 않는다(`L0.os.spec` §3.2. 클라이언트마다 다른 것은 `OsDirs.state` 아래 `cli/state.json` 같은 클라이언트 상태뿐이다). 그래서 메타(`<config>/secrets/meta/`), 감사 파일, age 키, 수신자 기록, 기본 SOPS 파일이 모든 클라이언트에서 같고, 한 클라이언트가 등록한 비밀을 다른 클라이언트가 바로 본다. 사용자의 `secrets` 도구(`just secret-add`)가 쓰는 파일과는 별개이며 이 기본값은 그 도구에 의존하지 않는다. 그 도구의 파일을 쓰려면 사람이 `l0.secrets.sops.files`에 적는다(아래 (b)).
+[결정: m2r sec, adr.0019] 기본 SOPS 파일. 시크릿 기본 저장소가 SOPS(age)라는 결정과 이 기본 파일은 adr.0019로 승격했다(`review.m3-design-inputs` D-M3-31 행 6). `l0.secrets.sops.files`가 비어 있으면 항목 하나 `{ env: "user", path: "<OsDirs.config>/secrets/sops/user.yaml" }`를 쓴다(`withDefaultSopsFile`). 사람이 파일을 한 줄이라도 적으면 기본 파일은 쓰지 않는다(섞지 않는다). 위치를 `<OsDirs.config>/secrets/` 아래로 정한 이유는 셋이다. 첫째, 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키)이 모두 이 아래라 한 곳만 보호하면 된다. 둘째, 샌드박스 보호 행(`<fresnelConfig>/secrets/`)이 이미 덮는다. 셋째, `OsDirs`는 사용자 하나에 하나이고 클라이언트(CLI, 데스크톱 사이드카)마다 나뉘지 않는다(`L0.os.spec` §3.2. 클라이언트마다 다른 것은 `OsDirs.state` 아래 `cli/state.json` 같은 클라이언트 상태뿐이다). 그래서 메타(`<config>/secrets/meta/`), 감사 파일, age 키, 수신자 기록, 기본 SOPS 파일이 모든 클라이언트에서 같고, 한 클라이언트가 등록한 시크릿을 다른 클라이언트가 바로 본다. 사용자의 `secrets` 도구(`just secret-add`)가 쓰는 파일과는 별개이며 이 기본값은 그 도구에 의존하지 않는다. 그 도구의 파일을 쓰려면 사람이 `l0.secrets.sops.files`에 적는다(아래 (b)).
 
 첫 `add`는 설정 없이 동작한다: SOPS 파일과 age 키가 없으면 §4.6 8번과 §4.7 7번대로 만들고 값을 쓴다. 설정에 적은 파일이 아직 없을 때도 같다.
 
@@ -659,7 +659,7 @@ M2 설계(후속 구현):
 | 두 클라이언트가 동시에 첫 `add` | 파일 잠금이 차례로 하게 한다. 키와 SOPS 파일은 하나만 생기고 두 값이 모두 들어간다 |
 | 키 파일 권한이 0600이 아니다 | `key_unavailable`(`file_mode`). 권한을 고치는 명령을 안내한다 |
 | 복호화 실패(수신자 불일치, 파일 손상) | `decrypt_failed`. stderr는 마스킹 뒤 500자 |
-| 메타 파일 스키마 오류 | 그 비밀만 `meta_invalid`로 목록에 보이고 lease는 거부한다. 다른 비밀은 영향이 없다 |
+| 메타 파일 스키마 오류 | 그 시크릿만 `meta_invalid`로 목록에 보이고 lease는 거부한다. 다른 시크릿은 영향이 없다 |
 | 메타가 가리키는 키가 SOPS 파일에 없다 | 목록 상태 `missing`, lease는 `secret_missing`(`provider`) |
 | 허용 호스트 밖 주입 | `denied`(`host_mismatch`), 제공자를 부르지 않는다. `secret.denied` |
 | 승인 없이 env 모드 요청 | `denied`(`approval_missing`) |
@@ -688,7 +688,7 @@ M2 설계(후속 구현):
 
 ### 6.1 설정 키 `l0.secrets.*`
 
-키 형식은 `F.wire-settings.spec` §3.8.1이다. 비밀 값을 담는 키는 없다. 다른 층의 비밀 키 값은 `SecretRef`만 저장한다(D2, D3).
+키 형식은 `F.wire-settings.spec` §3.8.1이다. 시크릿 값을 담는 키는 없다. 다른 층의 시크릿 키 값은 `SecretRef`만 저장한다(D2, D3).
 
 | 키 | 타입 | 기본값 | 범위(allowedScopes) | runtimeChange | L4 노출 |
 |---|---|---|---|---|---|
@@ -706,13 +706,13 @@ M2 설계(후속 구현):
 | `l0.secrets.audit.retentionDays` | integer, 1~3650 | `90` [제안] | managed, user | live | secrets 탭 number |
 
 - `ui.tab`은 `l0.secrets.sops.binary`만 `advanced`이고 나머지 키는 `secrets` 또는 `permissions`다(`F.wire-settings.spec` §3.8.2 `SettingsTab`).
-- `project`, `local`, `session` 범위는 받지 않는다. 저장소 안 파일이 비밀 정책을 넓히지 못하게 한다(§3.2 범위 규칙).
+- `project`, `local`, `session` 범위는 받지 않는다. 저장소 안 파일이 시크릿 정책을 넓히지 못하게 한다(§3.2 범위 규칙).
 - `l0.secrets.redaction.enabled`는 끄는 값을 거부한다. [제안] 키를 두는 이유는 화면이 "마스킹 켜짐(보조 수단)"을 보이게 하기 위해서다.
 - 읽기·쓰기 호스트 구분: 메타에 `approval`이 비어 있을 때 `use.hosts`가 쓰기 호스트로 분류되면 `writeHosts`, 아니면 `default`를 쓴다. 분류는 메타를 만들 때 사람이 체크한다 [제안]. 자동 분류(HTTP 메서드 기반)는 하지 않는다.
 
 ### 6.2 화면과 파일
 
-- 설정 화면은 설정 키만 다룬다. 메타 파일(§3.2), SOPS 파일(사용자 소유), 감사 파일(§3.9)과 비밀 목록·메타·사용 이력은 secrets 탭의 비밀 관리 패널(`L4.settings-ui.spec` §4.6.3)이 `fresnel.secretAdmin`으로 다룬다.
+- 설정 화면은 설정 키만 다룬다. 메타 파일(§3.2), SOPS 파일(사용자 소유), 감사 파일(§3.9)과 시크릿 목록·메타·사용 이력은 secrets 탭의 시크릿 관리 패널(`L4.settings-ui.spec` §4.6.3)이 `fresnel.secretAdmin`으로 다룬다.
 - 화면 공통: 값 열이 없다. 마스킹을 언급하는 문구는 "보조"로 표기한다.
 
 ### 6.3 명령·화면 경계
@@ -735,12 +735,12 @@ M2 설계(후속 구현):
 
 - 명령의 wire 경로(`secret.*` 메서드)는 F에 없다(`L4.cli.spec` §10 3번). 8.3절에 요청한다.
 
-## 7. 확장 지점
+## 7. 훅
 
-- `platform-secrets`는 on 지점, post, drive를 선언하지 않는다. 확장 지점 선언은 L1과 X가 F4에 둔다(`_research/foundation-plan.md` §3).
-- 제공자 추가는 확장 지점 대신 서비스 메서드 `registerProvider`로 한다. 등록할 수 있는 확장의 신뢰 등급은 `X.loading-trust.spec`이 정한다 [가정]. 같은 `id`의 제공자는 하나만 등록되고, `sops`는 내장이라 교체할 수 없다 [제안].
-- 감사 수신은 `onAudit` 콜백이다. 확장이 비밀 사용을 관찰하려면 tool-runtime이 기록한 세션 이벤트(§3.9)를 읽는다. 감사 수신자를 확장에 직접 열지 않는다 [제안].
-- drive와의 관계: 없음. Helm과 학습 그룹(L3 기본 그룹)은 비밀을 직접 lease하지 않고 L2 능력(`fresnel.web` 등)을 거쳐 쓴다.
+- `platform-secrets`는 on 지점, post, drive를 선언하지 않는다. 훅 선언은 L1과 X가 F4에 둔다(`_research/foundation-plan.md` §3).
+- 제공자 추가는 훅 대신 서비스 메서드 `registerProvider`로 한다. 등록할 수 있는 확장의 신뢰 등급은 `X.loading-trust.spec`이 정한다 [가정]. 같은 `id`의 제공자는 하나만 등록되고, `sops`는 내장이라 교체할 수 없다 [제안].
+- 감사 수신은 `onAudit` 콜백이다. 확장이 시크릿 사용을 관찰하려면 tool-runtime이 기록한 세션 이벤트(§3.9)를 읽는다. 감사 수신자를 확장에 직접 열지 않는다 [제안].
+- drive와의 관계: 없음. Helm과 학습 그룹(L3 기본 그룹)은 시크릿을 직접 lease하지 않고 L2 기능(`fresnel.web` 등)을 거쳐 쓴다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -752,10 +752,10 @@ M2 설계(후속 구현):
 | `L1.loop.spec` | 1계층 `Redactor.mask`(사람 입력) |
 | `L1.context.spec` | 4계층 `Redactor.maskDeep`(모델 투영), 사후 가림 `createPostHocRedaction`(§3.5.1) |
 | `L1.models.spec` | `lease`(`runtime-http`, purpose `model.provider:<id>`)와 `use`, 오류 문자열 `Redactor.mask`, 3계층 `containsKnown` |
-| `L2.web.spec` | `createPluginHttp`(웹 검색 플러그인 provider의 헤더 비밀, §3.6), `withHttp`(M3, `GuardedHttp`), `withBrowserInput`(M4), 3계층 `containsKnown`(`secret_in_query`) |
-| `L2.mcp.spec` | `mcpDefinitionHash`, `mcpStartContext`, `createMcpStartApprovals`(비밀 env 서버 기동 승인, §4.3), `lease`·`use`로 MCP 서버 env·헤더 값 해석, `secret_missing` 오류 코드, 서버 stderr 마스킹 |
+| `L2.web.spec` | `createPluginHttp`(웹 검색 플러그인 provider의 헤더 시크릿, §3.6), `withHttp`(M3, `GuardedHttp`), `withBrowserInput`(M4), 3계층 `containsKnown`(`secret_in_query`) |
+| `L2.mcp.spec` | `mcpDefinitionHash`, `mcpStartContext`, `createMcpStartApprovals`(시크릿 env 서버 기동 승인, §4.3), `lease`·`use`로 MCP 서버 env·헤더 값 해석, `secret_missing` 오류 코드, 서버 stderr 마스킹 |
 | `L0.exec.spec` | env 모드 `withEnv`(§3.6, 마일스톤 M1). 자식 env 거부 목록은 F 상수 `SENSITIVE_ENV_PATTERNS`(정본, `L0.exec.spec` §3.5)이고 이 패키지도 같은 상수를 쓴다(§4.5) |
-| `L0.sandbox.spec` | `protectedPaths()`: 보호 경로 `secret_key` 행에 넣을 비밀 파일 절대 경로(SOPS 파일, `<OsDirs.config>/secrets/`, 파일 폴백 age 키) |
+| `L0.sandbox.spec` | `protectedPaths()`: 보호 경로 `secret_key` 행에 넣을 시크릿 파일 절대 경로(SOPS 파일, `<OsDirs.config>/secrets/`, 파일 폴백 age 키) |
 | `L4.cli.spec`, `L4.settings-ui.spec` | `fresnel.secretAdmin` 메서드, 5계층(Logger 구현이 출력 직전에 `mask`), `diagnose()` 안내문 |
 | `F.wire-settings.spec` | `SecretRef` 소비 확인(`settings.secretValue` 진단과 같은 형식) |
 
@@ -767,7 +767,7 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 |---|---|---|
 | `fresnel.os`(`OsService`) | `dirs.config`, `resolveBinary("sops" \| "security" \| "secret-tool")`, `time.clock`, `time.random`, `logger` | `L0.os.spec` §3.2·§3.6·§3.10의 이름. `eng.context-map.design` 4.1절 `platform-secrets` 행의 (d) "없음"을 `fresnel.os`로 고쳐야 한다 |
 | `fresnel.exec`(`ExecutionEnv`) | 없음. `platform-secrets`는 sops를 직접 실행한다(DR-07 표에서 `Bun.spawn` 소유 허용) | 해당 없음 |
-| `fresnel.sandbox`(`SandboxService`) | 프록시 훅(후속, sentinel 모드 요구, `L0.sandbox.plan` SB-16). 비밀 파일 경로의 읽기 거부는 등록 API 대신 sandbox가 이 서비스의 `protectedPaths()`를 읽는다 | 후속(sentinel 모드) |
+| `fresnel.sandbox`(`SandboxService`) | 프록시 훅(후속, sentinel 모드 요구, `L0.sandbox.plan` SB-16). 시크릿 파일 경로의 읽기 거부는 등록 API 대신 sandbox가 이 서비스의 `protectedPaths()`를 읽는다 | 후속(sentinel 모드) |
 | `fresnel.approvals` | 부르지 않는다. L1이 승인 증거를 `UseCtx`로 넘긴다 | 해당 없음 |
 
 ### 8.3 F에 요청
@@ -785,7 +785,7 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 ## 9. 수용 기준
 
 1. 도구 자식 env: F 상수 `SENSITIVE_ENV_PATTERNS`(`@fresnel/contracts/services`)가 `SOPS_AGE_KEY_CMD`, `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY`, `AGE_X`, `OP_SERVICE_ACCOUNT_TOKEN`, `BWS_ACCESS_TOKEN`, `BW_SESSION`, `FRESNEL_SECRET_X`에 모두 맞는다. 부모 env에 이 이름들을 넣고 `L0.exec`로 띄운 도구 자식 프로세스의 env를 덤프하면 그중 어느 것도 없다(실제 자식 프로세스, `L0.secrets.plan` SC-15). 이 패키지가 sops를 부를 때의 env에도 없다.
-2. 호스트 바인딩: `use.hosts: ["api.example.test"]`인 비밀로 `withHttp`를 `https://other.example.test`에 부르면 `denied`(`host_mismatch`)가 돌아오고, `send`와 제공자 `lease`가 한 번도 불리지 않으며, `secret.denied` 레코드가 정확히 하나 나온다.
+2. 호스트 바인딩: `use.hosts: ["api.example.test"]`인 시크릿으로 `withHttp`를 `https://other.example.test`에 부르면 `denied`(`host_mismatch`)가 돌아오고, `send`와 제공자 `lease`가 한 번도 불리지 않으며, `secret.denied` 레코드가 정확히 하나 나온다.
 3. 값 비노출(5계층 각각): 가짜 값 `S`(무작위 24바이트)를 `memorySecrets`에 넣고 각 계층 입력에 `S`, base64(`S`), base64url(`S`), URL 인코딩(`S`), hex(`S`), JSON 이스케이프(`S`), Basic 인증 형태 base64(`"user:" + S`)를 넣으면 계층 출력에 어느 형태도 남지 않는다. 계층 다섯 개를 테스트 다섯 개로 따로 확인한다.
 4. 감사 기록·오류·직렬화: `SecretLease`를 `JSON.stringify`, `Bun.inspect`, 템플릿 문자열, `Error` cause에 넣은 결과와 모든 `SecretAuditRecord`, 모든 `SecretError`에 `S`와 변형이 없다. 감사 레코드에 `S`의 SHA-256 hex의 어떤 16자 이상 부분 문자열도 없다.
 5. 복호화 없는 목록: 가짜 sops 실행 파일(호출 횟수를 기록)과 SOPS 형식 픽스처로 `list()`를 부르면 키 이름이 나오고 sops 호출 횟수는 0이다.
@@ -794,10 +794,10 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 8. 거부 구문: §3.1 표의 입력이 표의 결과를 낸다.
 9. 승인 없는 env: `mode: "env"`, `approval: null`인 `lease`는 메타 `approval: "none"`이어도 `approval_missing`이다.
 10. argv 경로 없음: `SecretAdminService`의 `add`, `set`, `rotate` 시그니처에 문자열 값 인자가 없고, 패키지 소스에서 sops 호출 인자 배열에 lease 값이 들어가는 경로가 없다(정적 검사 테스트).
-11. 8바이트 미만: 7바이트 값의 `registerKnown`은 `value_too_short`, 같은 비밀의 `env` lease는 `mode_not_allowed`다.
+11. 8바이트 미만: 7바이트 값의 `registerKnown`은 `value_too_short`, 같은 시크릿의 `env` lease는 `mode_not_allowed`다.
 12. 플랫폼 선택: `process.platform` 참조가 `src/select.ts` 밖에 없다(`check-layers` DR-13 검사).
-13. env 모드(마일스톤 M1): `use.modes: ["env"]`, `use.commands: ["gh api *"]`인 비밀로 `withEnv`를 `target: { kind: "command", argv0: "gh", commandLine: "gh api user" }`와 `per-use` 승인 증거로 부르면 lease가 열린다. 같은 호출을 `commandLine: "curl …"`로 부르면 `denied`(`command_mismatch`)이고 제공자 `lease`가 불리지 않는다. `target.kind`가 `host`면 `mode_not_allowed`다.
-14. 모델 provider 키(`runtime-http`, 마일스톤 M1): `use.modes: ["runtime-http"]`, `use.hosts: ["api.example.test"]`인 비밀로 `lease`를 `mode: "runtime-http"`, purpose `model.provider:example`, `target: { kind: "host", host: "api.example.test", port: null }`, `approval: null`로 부르면 lease가 열린다. 같은 호출을 다른 호스트로 하면 `denied`(`host_mismatch`)이고 제공자 `lease`가 불리지 않는다. `use.modes`에 `runtime-http`가 없으면 `mode_not_allowed`다(`policy.test.ts`, review.decisions-2 U-19 보충).
+13. env 모드(마일스톤 M1): `use.modes: ["env"]`, `use.commands: ["gh api *"]`인 시크릿으로 `withEnv`를 `target: { kind: "command", argv0: "gh", commandLine: "gh api user" }`와 `per-use` 승인 증거로 부르면 lease가 열린다. 같은 호출을 `commandLine: "curl …"`로 부르면 `denied`(`command_mismatch`)이고 제공자 `lease`가 불리지 않는다. `target.kind`가 `host`면 `mode_not_allowed`다.
+14. 모델 provider 키(`runtime-http`, 마일스톤 M1): `use.modes: ["runtime-http"]`, `use.hosts: ["api.example.test"]`인 시크릿으로 `lease`를 `mode: "runtime-http"`, purpose `model.provider:example`, `target: { kind: "host", host: "api.example.test", port: null }`, `approval: null`로 부르면 lease가 열린다. 같은 호출을 다른 호스트로 하면 `denied`(`host_mismatch`)이고 제공자 `lease`가 불리지 않는다. `use.modes`에 `runtime-http`가 없으면 `mode_not_allowed`다(`policy.test.ts`, review.decisions-2 U-19 보충).
 
 ## 10. 미결 사항
 

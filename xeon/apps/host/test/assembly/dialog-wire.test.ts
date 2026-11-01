@@ -18,7 +18,7 @@ import type {
   StatusApi,
 } from "../../src/assembly/l2-units.ts";
 
-// M3-REQ-16: 호스트는 상태줄 스냅숏과 첨부 추가를 호출자 `host`로, thread가 있으면 그 문맥을 달아 능력에 넘긴다. 능력 오류는 실패 값이고
+// M3-REQ-16: 호스트는 상태줄 스냅숏과 첨부 추가를 호출자 `host`로, thread가 있으면 그 문맥을 달아 기능에 넘긴다. 기능 오류는 실패 값이고
 // 결함은 그대로 던진다. 처리기 쪽 오류 옮김은 test/handlers/dialog.test.ts다.
 
 const ids = fixedIdFactory(640);

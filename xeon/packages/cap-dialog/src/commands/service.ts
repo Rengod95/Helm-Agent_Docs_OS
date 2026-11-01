@@ -33,7 +33,7 @@ type ExpandOutput = Awaited<ReturnType<CommandsApi["expand"]>>;
 const CAPABILITY = DialogCommands.id;
 const MAX_ADVERTISED = 50;
 
-/** `dialog.commands` 능력 API에 TS 메서드를 더한 모양(spec §3.2). 클라이언트 고유 명령 선언도 같은 객체에 둔다 */
+/** `dialog.commands` 기능 API에 TS 메서드를 더한 모양(spec §3.2). 클라이언트 고유 명령 선언도 같은 객체에 둔다 */
 export interface CommandsServiceApi extends CommandsApi, CommandActionRegistry {
   /** 클라이언트(L4)가 `builtin` 출처 명령을 선언한다. 실행은 클라이언트가 한다. 반환 함수로 해제한다 */
   declareBuiltin(commands: readonly BuiltinCommandDecl[]): () => void;

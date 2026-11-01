@@ -170,5 +170,5 @@ export function wireErrorOfSecret(error: SecretError, where: string): WireError 
   }
 }
 
-/** 오류 details 문자열 상한(F wire §3.5.2 비밀 오류) */
+/** 오류 details 문자열 상한(F wire §3.5.2 시크릿 오류) */
 const DETAIL_MAX = 64;

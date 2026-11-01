@@ -13,9 +13,9 @@ export type { GroupMetricsSummary } from "@fresnel/contracts/services";
 export interface GroupMetrics extends GroupMetricsSummary {
   readonly groupId: GroupId;
   readonly threadId: ThreadId | null;
-  /** first 지점에서 이 그룹 핸들러가 결정(거부)을 돌려준 횟수 */
+  /** first 훅에서 이 그룹 핸들러가 결정(거부)을 돌려준 횟수 */
   readonly denies: number;
-  /** chain 지점에서 이 그룹 핸들러가 돌려준 패치 수 */
+  /** chain 훅에서 이 그룹 핸들러가 돌려준 패치 수 */
   readonly chainPatches: number;
   /** 핸들러가 던진 횟수 */
   readonly handlerErrors: number;

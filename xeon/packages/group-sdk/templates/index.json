@@ -18,7 +18,7 @@
       "usesDrive": true
     },
     "policy": {
-      "description": "정책 그룹. tool.call.before의 first 지점에서 설정한 도구 호출을 막는다. 상태가 없다",
+      "description": "정책 그룹. tool.call.before의 first 훅에서 설정한 도구 호출을 막는다. 상태가 없다",
       "files": [
         "common/package.json",
         "common/tsconfig.json",

@@ -22,6 +22,7 @@ binds: [xeon/packages/**, xeon/apps/**, xeon/scripts/check-layers.ts]
 | 용어 | 뜻 |
 |---|---|
 | 층 | 의존 순위가 같은 패키지 묶음. F, X, L0, L1, L2, L3, L4 |
+| 층 표시 이름 | 층 코드(`L1` 등)는 문서와 의존 규칙에 남기고, 부르는 이름은 F Contracts, X Extension Runtime, L0 System, L1 Agent Core, L2 Capabilities, L3 Orchestration, L4 Apps다(ADR-0022 §3.5 9번). 화면에 층 숫자를 남길지는 사용자가 정한다 [미결] |
 | 순위 | 층의 import 순서를 나타내는 숫자. `check-layers.ts`의 `RANK` 값이다(4.1절) |
 | 하위 층 | `_research/layer-plan-v2.json`이 층 안을 나눈 단위. 예: L1-b 에이전트 루프 |
 | 같은 층 import | 순위가 같은 두 패키지 사이의 import. 기본 규칙 2가 금지한다(3절) |
@@ -33,7 +34,7 @@ binds: [xeon/packages/**, xeon/apps/**, xeon/scripts/check-layers.ts]
 
 1. 패키지는 자기보다 순위가 낮은 층의 패키지만 import한다.
 2. 같은 층의 패키지끼리는 import하지 않는다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다.
-3. 각 패키지의 `package.json`에 `"xeon": {"layer": "<층>", "domain": "<도메인>"}`을 둔다. `xeon/scripts/check-layers.ts`와 dependency-cruiser(`xeon/.dependency-cruiser.cjs`)가 이 값으로 위반을 거부한다.
+3. 각 패키지의 `package.json`에 `"fresnel": {"layer": "<층>", "domain": "<도메인>"}`을 둔다. `xeon/scripts/check-layers.ts`와 dependency-cruiser(`xeon/.dependency-cruiser.cjs`)가 이 값으로 위반을 거부한다.
 
 `package.json` 필드의 타입은 다음과 같다. `Layer`와 `RANK`는 `check-layers.ts`에 이미 있는 이름이다.
 
@@ -42,8 +43,8 @@ binds: [xeon/packages/**, xeon/apps/**, xeon/scripts/check-layers.ts]
 export const RANK = { F: 0, X: 1, L0: 2, L1: 3, L2: 4, L3: 5, L4: 6 } as const;
 export type Layer = keyof typeof RANK;
 
-/** package.json의 "xeon" 필드. */
-export interface XeonPackageField {
+/** package.json의 "fresnel" 필드. */
+export interface FresnelPackageField {
   readonly layer: Layer;
   /** routes.yaml layout.<층>.domains의 값. */
   readonly domain: string;
@@ -54,10 +55,10 @@ export interface XeonPackageField {
 
 `_research/layer-plan-v2-notes.md` "층 사이 규칙"의 7개 조항을 위 규칙과 대응시킨다.
 
-| # | 계획 v2 조항 | Xeon 규칙 | 강제 수단 |
+| # | 계획 v2 조항 | Fresnel 규칙 | 강제 수단 |
 |---|---|---|---|
 | 1 | 의존은 위에서 아래로만 흐른다. 같은 층의 다른 부품은 F 정의를 통해서만 참조한다 | 기본 규칙 1, 2 | `check-layers.ts`, dependency-cruiser |
-| 2 | L3 그룹은 L2 능력의 정의(F3)만 참조하고 provider 구현을 import하지 않는다 | L3 패키지는 `cap-*`를 import하지 않는다. 능력은 `contracts`의 F3 정의와 Cordis 서비스 주입으로 쓴다 [결정: 계획 v2 '층 사이 규칙' 2, `eng.dependency-rules.guide` DR-14] | `check-layers.ts`의 DR-14 컨텍스트 검사(M1부터). DR-14 도입 전 M0 구간은 dependency-cruiser의 `group-*` 경로 규칙 하나가 `cap-*`를 `forbidden`에 넣어 막는다 [제안] |
+| 2 | L3 그룹은 L2 기능의 정의(F3)만 참조하고 provider 구현을 import하지 않는다 | L3 패키지는 `cap-*`를 import하지 않는다. 기능은 `contracts`의 F3 정의와 Cordis 서비스 주입으로 쓴다 [결정: 계획 v2 '층 사이 규칙' 2, `eng.dependency-rules.guide` DR-14] | `check-layers.ts`의 DR-14 컨텍스트 검사(M1부터). DR-14 도입 전 M0 구간은 dependency-cruiser의 `group-*` 경로 규칙 하나가 `cap-*`를 `forbidden`에 넣어 막는다 [제안] |
 | 3 | 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4에 스키마가 있는 이벤트와 레코드로만 한다 | `group-helm`과 `group-learning` 사이 import 금지. 그룹 레코드는 F4 `GroupRecord` 형식과 kind 규칙(`grp.<그룹>.*`)을 따르고, payload 스키마는 F에 두지 않고 그룹 매니페스트 `recordKinds`(`RecordKindDecl`)에 둔다. 그룹은 다른 그룹의 비공개 레코드를 읽지 않는다 [결정: review.decisions-2 §3 D-10]. 예: Helm은 학습 결과를 L2-d 지식 검색으로 읽는다 | `check-layers.ts`(같은 층 금지) |
 | 4 | `drive` 임대는 한 번에 그룹 하나만 가진다. `on`, `post`, 백그라운드 위임은 여러 그룹이 함께 쓴다 | 실행 규칙. `X.primitives.spec`과 `L3.group-sdk.spec`이 정한다 | ext-host 테스트 |
 | 5 | 켜기와 끄기는 턴 경계(계획 v2 원문의 표기)에서 적용되고, 정리는 Cordis dispose로 실행된다 | 실행 규칙. 원문의 "턴 경계"는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)로 읽는다. drive 임대 교대도 같은 시점이다 [결정: review.decisions-2 U-01]. `architecture.runtime-flow.design` 4.2절 | ext-host 테스트 |
@@ -89,12 +90,12 @@ export interface XeonPackageField {
 
 | 층 | 순위 | 책임 | 하위 층 (layer-plan-v2.json id, name) | 코드 위치 (routes.yaml layout) |
 |---|---|---|---|---|
-| F 계약 | 0 | 모든 층이 공유하는 타입, 스키마, 규약. 실행 코드를 거의 두지 않는다 | F1 대화 모델, F2 기록 계약, F3 능력 계약, F4 확장 계약, F5 연결·설정 계약 | `xeon/packages/contracts/src/{domain}/**` |
+| F 계약 | 0 | 모든 층이 공유하는 타입, 스키마, 규약. 실행 코드를 거의 두지 않는다 | F1 대화 모델, F2 기록 계약, F3 기능 계약, F4 확장 계약, F5 연결·설정 계약 | `xeon/packages/contracts/src/{domain}/**` |
 | X 확장 체계 | 1 | Cordis 위의 `on`/`post`/`drive`/`scope`, 확장 로딩과 신뢰, 운영 규칙 | X-a 로딩과 신뢰, X-b 원시 연산 네 개, X-c 운영 규칙 | `xeon/packages/ext-host/src/{domain}/**` |
-| L0 플랫폼 | 2 | OS·환경마다 구현이 바뀌는 부분. `os.*` provider 공통 인터페이스 뒤에 둔다 | L0-a 실행 환경, L0-b 격리, L0-c 비밀, L0-d 프로세스, L0-e 저장 기반, L0-f OS 연동 | `xeon/packages/platform-{domain}/**` |
+| L0 플랫폼 | 2 | OS·환경마다 구현이 바뀌는 부분. `os.*` provider 공통 인터페이스 뒤에 둔다 | L0-a 실행 환경, L0-b 격리, L0-c 시크릿, L0-d 프로세스, L0-e 저장 기반, L0-f OS 연동 | `xeon/packages/platform-{domain}/**` |
 | L1 코어 | 3 | 거의 바뀌지 않는 코어 플러그인. 태스크, 루프, 모델, 도구, 컨텍스트, 영속성, 서브에이전트 | L1-a 태스크 엔진, L1-b 에이전트 루프, L1-c 모델 게이트웨이, L1-d 도구 실행과 권한, L1-e 컨텍스트와 컴팩션, L1-f 영속성과 복구, L1-g 서브에이전트 | `xeon/packages/core-{domain}/**` |
-| L2 능력 | 4 | 서비스 API와 모델 도구 쌍. 능력 정의는 F3에 있다 | L2-a 작업 도구, L2-b MCP 통합, L2-c 웹, L2-d 지식과 기억 (저장소), L2-e 작업 관리, L2-f 사용자 대화, L2-g 산출물과 세션, L2-h 예약과 백그라운드 | `xeon/packages/cap-{domain}/**` |
-| L3 의도 그룹 | 5 | `scope`로 묶인 의도 그룹. Helm과 학습 그룹이 기본 그룹이다 | L3-a 그룹 기반, L3-b Helm (기본 그룹), L3-c 학습 그룹 (기본 그룹), L3-d 추가 그룹 슬롯 | `xeon/packages/group-sdk/**`, `xeon/packages/group-helm/**`, `xeon/packages/group-learning/**` (slots는 코드 없음) |
+| L2 기능 | 4 | 서비스 API와 모델 도구 쌍. 기능 정의는 F3에 있다 | L2-a 작업 도구, L2-b MCP 통합, L2-c 웹, L2-d 지식과 기억 (저장소), L2-e 작업 관리, L2-f 사용자 대화, L2-g 산출물과 세션, L2-h 예약과 백그라운드 | `xeon/packages/cap-{domain}/**` |
+| L3 플러그인 그룹 | 5 | `scope`로 묶인 플러그인 그룹. Helm과 학습 그룹이 기본 그룹이다 | L3-a 그룹 기반, L3-b Helm (기본 그룹), L3-c 학습 그룹 (기본 그룹), L3-d 추가 그룹 슬롯 | `xeon/packages/group-sdk/**`, `xeon/packages/group-helm/**`, `xeon/packages/group-learning/**` (slots는 코드 없음) |
 | L4 배포 런타임 | 6 | 엔진 조립과 배포 단위. CLI, 데스크톱, 호스트·서비스, 설정 화면, 클라이언트 공유 코드 | 계획 v2 데이터에 하위 층이 없다. 도메인은 4.7절 | `xeon/apps/cli/**`, `xeon/apps/desktop/**`, `xeon/apps/host/**`, `xeon/packages/client/**`([결정: adr.0020]) |
 
 - `xeon/plugins/provider-anthropic-oauth`는 L1-c의 배포 제외 구성요소(Anthropic OAuth 위장 provider)다. `check-layers.ts`는 `plugins/*`를 L1로 본다 [결정: review.decisions-2 U-16]. `core-*`를 import하지 않고 F provider 인터페이스로 `core-models` 서비스에 등록한다(3.2절). 배포판에는 넣지 않는다 [결정: `_research/decisions-log.md` 2026-10-21 결정(2차)].
@@ -109,8 +110,8 @@ export interface XeonPackageField {
 ```mermaid
 flowchart TB
   L4["L4 배포 런타임 (6)"]
-  L3["L3 의도 그룹 (5)"]
-  L2["L2 능력 (4)"]
+  L3["L3 플러그인 그룹 (5)"]
+  L2["L2 기능 (4)"]
   L1["L1 코어 (3)"]
   L0["L0 플랫폼 (2)"]
   X["X 확장 체계 (1)"]
@@ -227,7 +228,7 @@ flowchart TB
 |---|---|---|
 | F1 | 대화 모델 | `contracts` (`src/conversation`) |
 | F2 | 기록 계약 | `contracts` (`src/records`) |
-| F3 | 능력 계약 | `contracts` (`src/capabilities`) |
+| F3 | 기능 계약 | `contracts` (`src/capabilities`) |
 | F4 | 확장 계약 | `contracts` (`src/extensions`) |
 | F5 | 연결·설정 계약 | `contracts` (`src/wire-settings`) |
 | X-a | 로딩과 신뢰 | `ext-host` (`src/loading-trust`) |
@@ -235,7 +236,7 @@ flowchart TB
 | X-c | 운영 규칙 | `ext-host` (`src/operations`) |
 | L0-a | 실행 환경 | `platform-exec` |
 | L0-b | 격리 | `platform-sandbox` |
-| L0-c | 비밀 | `platform-secrets` |
+| L0-c | 시크릿 | `platform-secrets` |
 | L0-d | 프로세스 | `platform-process` |
 | L0-e | 저장 기반 | `platform-store` |
 | L0-f | OS 연동 | `platform-os` |
@@ -272,7 +273,7 @@ flowchart TB
 
 - F(0)가 맨 아래다. F에는 타입, TypeBox 스키마, 규약만 있어 다른 층에 의존할 것이 없다. pi-ai 타입의 재노출(`import type`·`export type`)과 TypeBox만 외부 의존으로 둔다. 에이전트 루프 타입은 F가 직접 정의하고 pi-agent-core에는 의존하지 않는다(adr.0009).
 - X(1)가 L0 아래다. `ext-host`는 Cordis 위에서 `on`/`post`/`drive`/`scope`와 로딩·신뢰를 제공한다. L0~L3의 모든 패키지는 Cordis 플러그인으로 로드되어 서비스를 제공하고(`ctx.provide`), 지점을 구독하며, `dispose`로 정리된다. 그래서 L0 이상은 X의 플러그인 정의 API를 import한다. Cordis는 `ext-host` 뒤에 숨긴다 [결정: ADR-0002 3번]. Cordis를 직접 import하는 경로는 `ext-host` 하나로 제한한다 [제안: ADR-0002 4번].
-- 지점 선언(지점 이름, fold, 페이로드 타입)은 F4에 있다. L1 루프는 F4 선언으로 지점을 디스패치하고, X는 F4 선언으로 fold를 적용한다. 두 층이 같은 선언을 공유하므로 X는 L1을 import하지 않는다 [결정: `_research/foundation-plan.md` §3].
+- 훅 선언(훅 이름, fold, 페이로드 타입)은 F4에 있다. L1 루프는 F4 선언으로 지점을 디스패치하고, X는 F4 선언으로 fold를 적용한다. 두 층이 같은 선언을 공유하므로 X는 L1을 import하지 않는다 [결정: `_research/foundation-plan.md` §3].
 - L4는 엔진을 조립하는 최상위다. `apps/host`가 모든 층의 플러그인을 Cordis에 등록하고 전송을 연다.
 
 #### 4.3.2 대안 비교
@@ -315,12 +316,12 @@ flowchart TB
 서비스 이름은 [제안]이다. 최종 이름과 메서드는 각 층의 `spec.md`가 정한다.
 
 - F 계약
-  - 제공: F1 메시지·스트림 타입(pi-ai 재노출), F2 이벤트·효과·체크포인트 레코드, F3 능력 정의, F4 지점 선언 표·호스트 포트·그룹 레코드 형식(`GroupRecord`), F5 호스트 계약과 설정 스키마, 층별 서비스 인터페이스(`@fresnel/contracts/services`).
+  - 제공: F1 메시지·스트림 타입(pi-ai 재노출), F2 이벤트·효과·체크포인트 레코드, F3 기능 정의, F4 훅 선언 표·호스트 포트·그룹 레코드 형식(`GroupRecord`), F5 호스트 계약과 설정 스키마, 층별 서비스 인터페이스(`@fresnel/contracts/services`).
   - 요구: 없음. pi-ai 타입과 TypeBox만 외부 의존이다.
   - Cordis 서비스: 없음.
 - X 확장 체계
   - 제공: `on`, `post`, `drive`, `scope`, 리소스 등록, 확장 로딩·매니페스트 검증·프로젝트 신뢰, 실행 순서와 실패 격리.
-  - 요구: F4 지점 선언, 저장소와 루프는 서비스 주입.
+  - 요구: F4 훅 선언, 저장소와 루프는 서비스 주입.
   - Cordis 서비스: `ext`.
 - L0 플랫폼
   - 제공: `os.*` provider 공통 인터페이스. [결정: `_research/decisions-log.md` 2026-10-19 설계 규칙] OS별 구현만 바꾸고, 소비자 코드에서 OS 분기를 하지 않는다.
@@ -330,18 +331,18 @@ flowchart TB
   - 제공: 입력 큐와 범위 트리, 턴 사이클, 모델 호출, 도구 파이프라인과 승인 프로토콜, 컨텍스트 조립과 컴팩션, 이벤트 저장·투영·재개, 서브에이전트.
   - 요구: L0 서비스, X 지점 디스패치, F 레코드.
   - Cordis 서비스: `tasks`, `loop`, `models`, `tools`, `context`, `persistence`, `agents`.
-- L2 능력
-  - 제공: 능력마다 서비스 API와 모델 도구 쌍. 예: `web.search`는 그룹 코드가 모델 턴 밖에서 부르는 서비스 API다.
-  - 요구: F3 능력 정의, L1 `tools`·`persistence`, L0 서비스.
+- L2 기능
+  - 제공: 기능마다 서비스 API와 모델 도구 쌍. 예: `web.search`는 그룹 코드가 모델 턴 밖에서 부르는 서비스 API다.
+  - 요구: F3 기능 정의, L1 `tools`·`persistence`, L0 서비스.
   - Cordis 서비스: `workspace`, `mcp`, `web`, `knowledge`, `work`, `dialog`, `artifacts`, `schedule`.
-- L3 의도 그룹
+- L3 플러그인 그룹
   - 제공: `scope` 단위 그룹. Helm(L3-b)과 학습 그룹(L3-c)이 기본 그룹이다.
-  - 요구: X 연산, F3 능력 정의, F4 그룹 레코드 형식. 그룹별 레코드 payload 스키마는 그 그룹 매니페스트가 선언한다.
+  - 요구: X 연산, F3 기능 정의, F4 그룹 레코드 형식. 그룹별 레코드 payload 스키마는 그 그룹 매니페스트가 선언한다.
   - [결정: `_research/decisions-log.md` 계획 v2] `drive`는 배타 임대이고, 학습 그룹은 `drive`를 쓰지 않으며 Helm과 공존한다. 임대를 한 번에 그룹 하나만 갖는 규칙의 문구는 `_research/layer-plan-v2-notes.md` "층 사이 규칙" 4번이다.
   - [제안: `_research/layer-plan-v2-notes.md`] 학습 그룹은 L1-g 백그라운드 위임으로 검토 포크를 돌린다. 그래서 Helm이 임대를 쥐고 있어도 학습 그룹을 함께 켤 수 있다.
   - Cordis 서비스: `groups`(`group-sdk`, 그룹 목록·전환·임대 중재).
 - L4 배포 런타임
-  - 제공: `xeon` CLI, 데스크톱 앱, `xeon service`, 설정 화면.
+  - 제공: `fresnel` CLI, 데스크톱 앱, `fresnel service`, 설정 화면.
   - 요구: 호스트 계약(F5), 모든 층 플러그인(조립).
   - Cordis 서비스: 없음. 호스트는 Cordis 루트 컨텍스트를 만든다.
 
@@ -393,7 +394,7 @@ flowchart TB
 
 해당 없음. 층 규칙은 사용자 설정으로 바꾸지 않는다.
 
-## 7. 확장 지점
+## 7. 훅
 
 해당 없음. 확장 연산(`on`, `post`, `drive`, `scope`)이 놓이는 층은 4.4절 X 항목에 있고, 연산 정의는 `X.primitives.spec`과 `F.extensions.spec`이 정한다.
 

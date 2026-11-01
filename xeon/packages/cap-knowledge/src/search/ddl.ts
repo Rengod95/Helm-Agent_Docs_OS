@@ -9,7 +9,7 @@ export const KNOWLEDGE_PROJECTOR_NAME = "cap.knowledge";
 
 /** FTS5와 trigram을 쓸 수 있을 때의 투영 버전 */
 export const KNOWLEDGE_PROJECTOR_VERSION = 1;
-/** 쓸 수 없을 때(FTS 표 없이 세션 목록만)의 버전. 능력이 바뀌면 투영을 다시 만든다 */
+/** 쓸 수 없을 때(FTS 표 없이 세션 목록만)의 버전. 기능이 바뀌면 투영을 다시 만든다 */
 export const KNOWLEDGE_PROJECTOR_VERSION_NO_FTS = 1001;
 
 const SESSIONS = `CREATE TABLE cap_knowledge_sessions (

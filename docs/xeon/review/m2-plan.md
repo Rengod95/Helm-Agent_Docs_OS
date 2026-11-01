@@ -217,7 +217,7 @@ M2 종료 조건 번호의 정본은 `product.scope.spec` §4.4.1입니다. 아�
 
 E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습니다. E2는 `apps/host`의 `transport-parity.contract.test.ts`와 `apps/desktop`의 `sidecar.e2e.test.ts`, E3는 `apps/host`의 `stdio-shutdown.int.test.ts`와 같은 e2e 파일을 돌리고, 건너뛴 시험이 하나라도 있으면 실패합니다. `exit-tests`는 이 기기의 사이드카가 없으면 `just desktop-sidecar host`로 먼저 빌드하므로(CI의 `exit-tests` job과 `desktop-macos` job도 같은 경로) 바이너리 시험이 조용히 건너뛰어지지 않습니다.
 
-컴파일 바이너리가 모델 테이프를 받는 길은 없습니다(모델은 조립 때 정해지고, 운영 진입에 시험 전용 환경 변수 관문을 두지 않습니다. `XEON_SCENARIO_TAPE`는 `apps/cli/test/fixtures/scenario-main.ts`라는 시험 진입이 읽습니다). 그래서 E2의 "같은 테이프로 같은 메시지 열" 비교는 `turn`을 포함한 in-process 대 stdio 쌍(`transport-parity`)이 맡고, 컴파일 바이너리에는 `turn` 없이 같은 요청열의 응답·이벤트열이 소스 진입과 같음을 e2e가 확인합니다. 바이너리의 한 턴 비교는 [미결]입니다(`L4.desktop.plan` 미결 사항).
+컴파일 바이너리가 모델 테이프를 받는 길은 없습니다(모델은 조립 때 정해지고, 운영 진입에 시험 전용 환경 변수 관문을 두지 않습니다. `FRESNEL_SCENARIO_TAPE`는 `apps/cli/test/fixtures/scenario-main.ts`라는 시험 진입이 읽습니다). 그래서 E2의 "같은 테이프로 같은 메시지 열" 비교는 `turn`을 포함한 in-process 대 stdio 쌍(`transport-parity`)이 맡고, 컴파일 바이너리에는 `turn` 없이 같은 요청열의 응답·이벤트열이 소스 진입과 같음을 e2e가 확인합니다. 바이너리의 한 턴 비교는 [미결]입니다(`L4.desktop.plan` 미결 사항).
 - E4: SearXNG 주소를 설정하지 않으면 `web.search`가 내장 검색 래퍼, 설정하면 SearXNG. 실제 조립 엔진에서 확인(§9 H1).
 - E5: 질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록됨.
 - E6: 테스트 MCP 서버(HTTP, stdio)의 도구가 실제 엔진 도구 목록에 노출됨.

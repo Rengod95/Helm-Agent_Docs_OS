@@ -1,6 +1,6 @@
 import { Type, type TString, type TUnsafe } from "typebox";
 
-/** 능력 ID. 점으로 이은 소문자 세그먼트 2~4개. 예: "web.search", "knowledge.memory.read" */
+/** 기능 ID. 점으로 이은 소문자 세그먼트 2~4개. 예: "web.search", "knowledge.memory.read" */
 export type CapabilityId = `${string}.${string}`;
 export const CAPABILITY_ID_PATTERN: string = "^[a-z][a-z0-9-]{0,31}(\\.[a-z][a-z0-9-]{0,31}){1,3}$";
 export const CapabilityIdSchema: TString = Type.String({
@@ -12,7 +12,7 @@ export const CapabilityIdTypedSchema: TUnsafe<CapabilityId> = Type.Unsafe<Capabi
   Type.String({ pattern: CAPABILITY_ID_PATTERN, maxLength: 96 }),
 );
 
-/** 예약된 첫 세그먼트. 외부 능력 ID가 쓸 수 없다. */
+/** 예약된 첫 세그먼트. 외부 기능 ID가 쓸 수 없다. */
 export const RESERVED_CAPABILITY_PREFIXES: readonly string[] = ["core", "ext", "grp", "x"];
 
 /** semver 2.0 정확 버전. 예: "1.2.0" */
@@ -27,7 +27,7 @@ export const SemVerRangeSchema: TString = Type.String({ minLength: 1, maxLength:
 
 /** 도구 기계 이름 */
 export type ToolName = string;
-/** 내장 능력 도구의 작성 규칙(경고 기준) */
+/** 내장 기능 도구의 작성 규칙(경고 기준) */
 export const TOOL_NAME_PATTERN: string = "^[a-z][a-z0-9_]{0,63}$";
 /** provider 허용 문자(오류 기준) */
 export const TOOL_NAME_WIRE_PATTERN: string = "^[a-zA-Z0-9_-]{1,64}$";
@@ -38,7 +38,7 @@ export const ToolNameSchema: TString = Type.String({ pattern: TOOL_NAME_WIRE_PAT
 const CAPABILITY_ID_REGEX = new RegExp(CAPABILITY_ID_PATTERN);
 const SEMVER_REGEX = new RegExp(SEMVER_PATTERN);
 
-/** 능력 ID 문자열 검사. 동적 입력(매니페스트, 와이어)에서 쓴다 */
+/** 기능 ID 문자열 검사. 동적 입력(매니페스트, 와이어)에서 쓴다 */
 export function isCapabilityId(value: string): value is CapabilityId {
   return value.length <= 96 && CAPABILITY_ID_REGEX.test(value);
 }

@@ -45,7 +45,7 @@ export type ApplyTransition =
   | { readonly kind: "applied"; readonly ledgerId: string; readonly afterHash: string }
   | { readonly kind: "rejected"; readonly reason: "scan_failed" | "apply_failed" }
   | { readonly kind: "backToPending"; readonly reason: "base_stale" }
-  /** io, 능력 일시 실패, 승인 요구. approved 유지 */
+  /** io, 기능 일시 실패, 승인 요구. approved 유지 */
   | { readonly kind: "retry"; readonly detail: string };
 
 /** 명령 진입 때의 지연 정리 결과(§4.5 규칙 7) */

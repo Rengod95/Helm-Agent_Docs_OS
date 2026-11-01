@@ -7,7 +7,7 @@ import { createScheduleApi } from "./api.ts";
 import { scheduleManifest } from "./manifest.ts";
 import type { ScheduleService } from "./types.ts";
 
-// L2.schedule.spec §4.4.9. 호스트가 만든 예약 서비스를 능력 `schedule.entries`로 내놓고 모델 도구 `schedule_create`를 올린다.
+// L2.schedule.spec §4.4.9. 호스트가 만든 예약 서비스를 기능 `schedule.entries`로 내놓고 모델 도구 `schedule_create`를 올린다.
 // 틱과 저장소는 호스트가 맡는다. 이 플러그인은 서비스를 시작하지 않는다.
 
 export interface SchedulePluginOptions {

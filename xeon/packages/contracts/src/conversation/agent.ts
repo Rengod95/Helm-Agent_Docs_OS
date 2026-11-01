@@ -61,7 +61,7 @@ export interface AgentContext {
   readonly tools: readonly AgentTool[];
 }
 
-/** 루프 이벤트. 변형 이름은 pi와 같다(확장 지점 이름, F.conversation.spec §3.5.4) */
+/** 루프 이벤트. 변형 이름은 pi와 같다(훅 이름, F.conversation.spec §3.5.4) */
 export type AgentEvent =
   | { readonly type: "agent_start" }
   | { readonly type: "agent_end"; readonly messages: readonly AgentMessage[] }

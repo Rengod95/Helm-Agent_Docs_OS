@@ -40,7 +40,7 @@ import { createHttpTransport } from "./transport/http-transport.ts";
 import { createSystemResolver } from "./transport/system-resolver.ts";
 import { describeWebProviders } from "./status.ts";
 
-// 조립. 포트(저장소, 승인, 세션 이벤트, 비밀 판정, provider 후보 목록)를 받아 `WebService`와 `WebDeps`를 만든다.
+// 조립. 포트(저장소, 승인, 세션 이벤트, 시크릿 판정, provider 후보 목록)를 받아 `WebService`와 `WebDeps`를 만든다.
 // 실제 포트 연결은 HOST 트랙의 조립이 한다(m2-plan HOST.6). 포트를 주지 않은 항목은 안전한 쪽으로 동작한다:
 // 저장소가 없으면 디스크 캐시와 rawRef가 없고, 승인 포트가 없으면 ask 판정은 거부한다.
 
@@ -59,7 +59,7 @@ export interface WebRuntimeOptions {
   readonly store?: WebStorePort;
   readonly asker?: WebAskPort;
   readonly guard?: OutboundSecretGuard;
-  /** 플러그인 provider의 헤더 비밀 통로(L2.web.spec §3.6.1). 조립 쪽이 L0 `withHttp` 경로로 채운다. 없으면 비밀 헤더 provider는 no-key다 */
+  /** 플러그인 provider의 헤더 시크릿 통로(L2.web.spec §3.6.1). 조립 쪽이 L0 `withHttp` 경로로 채운다. 없으면 시크릿 헤더 provider는 no-key다 */
   readonly headerSecrets?: HeaderSecretSender;
   /** 브라우저 동작의 사람 확인(L2.web.spec §4.10.3). 없으면 확인이 필요한 동작은 거부한다 */
   readonly browseConfirm?: BrowseConfirmPort;

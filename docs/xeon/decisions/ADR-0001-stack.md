@@ -22,7 +22,7 @@ binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base
 - 저장소에는 서로 다른 관례가 두 개 있다(`_research/repo-survey.md §0` 2번, `§6.1` 1·2번).
   - Helm 설계 정본(`docs/design/06`)은 Node 24, TypeScript 6.0 strict ESM, pnpm 11, Vitest, ESLint flat config, `tsc -b`, TypeBox, better-sqlite3를 정했다.
   - 현재 미커밋 구현 코드는 JavaScript(`.mjs`), npm workspaces, `node --test`이고 린트·포맷·tsconfig 설정이 없다.
-- Xeon은 `xeon/` 독립 워크스페이스로 시작하므로(`_research/foundation-plan.md §1` 코드 위치 행) 두 관례 어느 쪽도 그대로 물려받을 이유가 없다. 스택을 새로 정해야 한다.
+- Fresnel은 `xeon/` 독립 워크스페이스로 시작하므로(`_research/foundation-plan.md §1` 코드 위치 행) 두 관례 어느 쪽도 그대로 물려받을 이유가 없다. 스택을 새로 정해야 한다.
 - 사용자 지시는 런타임 Bun 1.4와 개별 도구 툴체인이다(`_research/decisions-log.md` 3차).
 - 2026-10-21 기준 도구 상태(`_research/stack-status.md`):
   - TypeScript 7.0은 2026-07-08 GA다. npm 최신은 7.0.2다. 7.0에는 안정 programmatic API가 없고 새 API는 7.1 예정이다(`§2`).
@@ -91,7 +91,7 @@ binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base
 
 ### 4.3 되돌림 조건
 
-이 결정은 다음 중 하나가 생기면 새 ADR로 다시 검토한다. Bun 1.4 계열에서 `bun:sqlite`나 `bun build --compile`의 결함이 M1 걸어 다니는 골격(`xeon chat` 한 턴, 강제 종료 후 재개)을 막고 우회가 없을 때, Playwright·MCP SDK·pi-ai 중 둘 이상이 Bun에서 동작하지 않아 Node 자식 프로세스 우회가 런타임 핵심 경로로 번질 때, oxfmt 제외 파일이 워크스페이스의 상당 부분(예: 10% 이상)으로 늘 때, 또는 tsgolint가 TypeScript 7.x 보안 패치를 한 달 넘게 따라오지 못할 때다. 되돌릴 때 우선 후보는 대안 표의 Node 24 + pnpm + Vitest 조합이다. 이 경우 `bun:sqlite` 테스트는 `node:sqlite` 또는 better-sqlite3로 옮겨야 하므로 `L0.store` 구현 교체가 함께 따른다. 결정 뒤 되돌림은 새 ADR을 쓰고 이 ADR을 superseded로 표시하는 절차를 따른다(`adr.readme` §1).
+이 결정은 다음 중 하나가 생기면 새 ADR로 다시 검토한다. Bun 1.4 계열에서 `bun:sqlite`나 `bun build --compile`의 결함이 M1 걸어 다니는 골격(`fresnel chat` 한 턴, 강제 종료 후 재개)을 막고 우회가 없을 때, Playwright·MCP SDK·pi-ai 중 둘 이상이 Bun에서 동작하지 않아 Node 자식 프로세스 우회가 런타임 핵심 경로로 번질 때, oxfmt 제외 파일이 워크스페이스의 상당 부분(예: 10% 이상)으로 늘 때, 또는 tsgolint가 TypeScript 7.x 보안 패치를 한 달 넘게 따라오지 못할 때다. 되돌릴 때 우선 후보는 대안 표의 Node 24 + pnpm + Vitest 조합이다. 이 경우 `bun:sqlite` 테스트는 `node:sqlite` 또는 better-sqlite3로 옮겨야 하므로 `L0.store` 구현 교체가 함께 따른다. 결정 뒤 되돌림은 새 ADR을 쓰고 이 ADR을 superseded로 표시하는 절차를 따른다(`adr.readme` §1).
 
 ## 5. 대안
 

@@ -32,7 +32,7 @@ import type { LoopContext } from "../types.ts";
 // L1.loop.spec §3.2 `runTurn(entry)`. turn 하나의 실행: 진입 분기 → 단계 반복 → 정착 → T6.
 // FRESNEL-PATCH: entry-points — 원본의 새 프롬프트·이어가기 두 진입점을 재개 판별자 네 가지(fresh, request, tools, turn_end)로 바꿨다.
 // FRESNEL-PATCH: no-outer-loop — 원본의 follow-up 바깥 반복은 없다. followUp은 새 turn이다.
-// FRESNEL-PATCH: step-functions — 단계 경계마다 커밋 지점과 확장 지점을 명시 단계 함수가 부른다(콜백 훅 없음).
+// FRESNEL-PATCH: step-functions — 단계 경계마다 커밋 지점과 훅을 명시 단계 함수가 부른다(콜백 훅 없음).
 
 function toolCallsOf(message: AssistantMessage): AgentToolCall[] {
   return message.content.filter((block): block is AgentToolCall => block.type === "toolCall");

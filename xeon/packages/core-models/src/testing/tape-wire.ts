@@ -67,7 +67,7 @@ export function summarizeRequest(body: string): TapeWire["request"] {
   };
 }
 
-// ── 비밀 ────────────────────────────────────────────────────────────────
+// ── 시크릿 ────────────────────────────────────────────────────────────────
 
 interface SecretPattern {
   readonly kind: string;
@@ -91,7 +91,7 @@ const SECRET_PATTERNS: readonly SecretPattern[] = [
   { kind: "google-api-key", pattern: /AIza[0-9A-Za-z_-]{30,}/g, replacement: REDACTED },
 ];
 
-/** 이보다 짧은 값은 비밀로 다루지 않는다(치환이 본문을 망가뜨린다). 녹화기는 이보다 짧은 키를 받지 않는다 */
+/** 이보다 짧은 값은 시크릿으로 다루지 않는다(치환이 본문을 망가뜨린다). 녹화기는 이보다 짧은 키를 받지 않는다 */
 export const MIN_SECRET_LENGTH = 8;
 
 /** 발견 하나. 어디서 어떤 종류가 나왔는지만 있고 값은 없다 */
@@ -108,7 +108,7 @@ function knownValues(values: readonly string[]): string[] {
     .toSorted((a, b) => b.length - a.length);
 }
 
-/** 본문에 남은 비밀 패턴과 알려진 비밀 값의 위치. 값은 돌려주지 않는다 */
+/** 본문에 남은 시크릿 패턴과 알려진 시크릿 값의 위치. 값은 돌려주지 않는다 */
 export function findSecrets(text: string, values: readonly string[]): readonly SecretFinding[] {
   const found: SecretFinding[] = [];
   for (const value of knownValues(values)) {
@@ -125,7 +125,7 @@ export function findSecrets(text: string, values: readonly string[]): readonly S
   return found.toSorted((a, b) => a.at - b.at);
 }
 
-/** 알려진 비밀 값과 비밀 패턴을 `[REDACTED]`로 바꾼다 */
+/** 알려진 시크릿 값과 시크릿 패턴을 `[REDACTED]`로 바꾼다 */
 export function scrubSecrets(text: string, values: readonly string[]): string {
   let out = text;
   for (const value of knownValues(values)) out = out.replaceAll(value, REDACTED);

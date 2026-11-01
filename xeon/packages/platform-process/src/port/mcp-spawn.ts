@@ -17,7 +17,7 @@ import { spawnPiped, type PipedChild, type PipedExit } from "./spawn-piped.ts";
 // 이 파일은 그 모양에 구조로 맞는 구현이다(조립 루트가 잇는다).
 //
 // 1. 자식 env는 부모 env의 허용 목록 이름(거부 패턴 제외)에 정의의 평문 `env`와 `secretEnv`를 더해 만든다(M3-REQ-97).
-//    평문 env는 정의 파일에 이미 평문으로 있는 값이다. 비밀 이름 패턴 거부는 정의를 읽는 L2가 했다.
+//    평문 env는 정의 파일에 이미 평문으로 있는 값이다. 시크릿 이름 패턴 거부는 정의를 읽는 L2가 했다.
 // 2. `secretEnv`의 `secret://` 참조는 spawn 직전에 `SecretService.withEnv`로 푼다. 값은 이 함수의 지역 변수와 spawn 인자에만 있고
 //    spawn이 끝나면 lease를 닫는다. 오류와 로그에는 참조 이름만 쓴다. 사용 목적은 `mcp.start:<서버 id>`이고 대상은
 //    `mcp:<서버 id>` 명령줄이다. 정의 해시마다 한 번 받은 기동 승인 증거(`approval`)를 그대로 넘긴다(L0.secrets.spec §4.3.1, M3-REQ-58).
@@ -39,9 +39,9 @@ export interface McpSpawnSpec {
    * 격리 없이 띄우고 경고 `mcp.sandbox_not_enforced`를 남긴다(L0.process.spec §4.9)
    */
   readonly sandbox?: boolean;
-  /** 비밀 env의 기동 승인 증거(정의 해시마다 한 번 받은 것). 비밀 env가 없으면 쓰지 않는다 */
+  /** 시크릿 env의 기동 승인 증거(정의 해시마다 한 번 받은 것). 시크릿 env가 없으면 쓰지 않는다 */
   readonly approval?: ApprovalEvidence | null;
-  /** 화면 표시. 비밀 값을 넣지 않는다 */
+  /** 화면 표시. 시크릿 값을 넣지 않는다 */
   readonly label: string;
   /** BackgroundOwner.ref에 들어가는 서버 id */
   readonly server: string;
@@ -159,7 +159,7 @@ async function acquireSecretEnv(
   if (secrets === undefined) {
     return spawnFailed("secret_unavailable", "Secrets service is not available");
   }
-  // 비밀 메타의 use.commands에는 `mcp:<서버 id>` 패턴을 적는다(L0.secrets.spec §4.3.1 2번)
+  // 시크릿 메타의 use.commands에는 `mcp:<서버 id>` 패턴을 적는다(L0.secrets.spec §4.3.1 2번)
   const target = {
     kind: "command",
     argv0: spec.command,
@@ -233,9 +233,9 @@ function childEnv(
     if (value !== undefined) env[name] = value;
   }
   if (!("LANG" in env)) env["LANG"] = DEFAULT_LANG;
-  // 평문 env는 정의가 이름과 값을 정한 것이라 거부 패턴을 거치지 않는다(비밀 이름 패턴은 L2가 정의를 읽을 때 거부했다)
+  // 평문 env는 정의가 이름과 값을 정한 것이라 거부 패턴을 거치지 않는다(시크릿 이름 패턴은 L2가 정의를 읽을 때 거부했다)
   Object.assign(env, plain);
-  // 비밀 값은 거부 패턴(`*_TOKEN` 등)을 거치지 않는다: 사용자가 이름을 골라 정책을 통과한 값이다(exec와 같다)
+  // 시크릿 값은 거부 패턴(`*_TOKEN` 등)을 거치지 않는다: 사용자가 이름을 골라 정책을 통과한 값이다(exec와 같다)
   return Object.assign(env, secretValues);
 }
 
@@ -329,7 +329,7 @@ export function createMcpProcessPort(deps: McpProcessDeps): McpProcessPort {
           return spawnFailed("env_denied", `Invalid environment variable name: ${name}`);
         }
       }
-      // 샌드박스는 비밀을 풀기 전에 정한다. 막힌 서버가 비밀 lease를 열지 않게 한다
+      // 샌드박스는 시크릿을 풀기 전에 정한다. 막힌 서버가 시크릿 lease를 열지 않게 한다
       const sandboxed = await wrapForSandbox(spec, signal);
       if (!sandboxed.ok) return sandboxed;
       const wrapped = sandboxed.value;

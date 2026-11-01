@@ -18,7 +18,7 @@ binds: [xeon/apps/cli/**]
 |---|---|---|
 | M0 | 없음. 현재 스캐폴드(`xeon/apps/cli`)를 유지한다 | M0 범위는 `contracts`, `ext-host`, `platform-store`, `platform-exec`다(`_research/foundation-plan.md` §5 P4). CLI 작업은 M1에 시작한다 |
 | M1 | 걸어 다니는 골격의 입구. 모델 테이프로 `fresnel chat` 한 턴, 강제 종료 뒤 재개 | `main.ts` 명령 분기, `chat -p`(in-process), `--json`, `--continue`/`--resume`, 최소 대화형, `config get`, `config schema`(로컬 명령), `version`, 저장소 유일의 scenario 테스트, 바이너리 빌드와 측정 |
-| M2 | 세션·설정·비밀 관리와 승인 | `sessions`, `config set/reset/list`, `secret` 명령, `--set`, 슬래시 명령, 승인 프롬프트, `thread.locked` 프롬프트, `turn.interrupt` 연결, `host --stdio`(컴파일 바이너리 서브커맨드), `doctor`, TUI 채택 스파이크와 pi-tui 화면 |
+| M2 | 세션·설정·시크릿 관리와 승인 | `sessions`, `config set/reset/list`, `secret` 명령, `--set`, 슬래시 명령, 승인 프롬프트, `thread.locked` 프롬프트, `turn.interrupt` 연결, `host --stdio`(컴파일 바이너리 서브커맨드), `doctor`, TUI 채택 스파이크와 pi-tui 화면 |
 | M3 | 서비스 | `service start/status/stop/ensure/launch-mode/run`, (선택) TUI 설정 목록, `db export`(M3-REQ-63, M3b B3-DATA) |
 
 - [제안] M1 host 처리기는 다섯(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`)이다(`F.wire-settings.spec` §3.3.1의 [제안]. M1 범위는 `_research/foundation-plan.md` §5 P4). 그래서 M1 CLI는 이 다섯 메서드와 wire 없는 로컬 명령 `config schema`만 쓴다.
@@ -96,7 +96,7 @@ xeon/apps/cli/
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
 | C0 | 스캐폴드 정리: §2.2 표의 `package.json`, `tsconfig.json` references, `bunfig.toml`, `src/main.ts` 골격, `exit-codes.ts`, `settings.ts`(`l4.cli.*` 4키) | `F.wire-settings.plan` W12(전송 타입), settings `defineSettings` | S | M1 |
-| C1 | 인자 파서와 명령 분기: `parseArgv`(spec §3.2) 전체 문법, 모드 결정(spec §4.2), 설정 키 형식 검사(`SETTING_KEY_PATTERN`, F wire §4.11), 비밀 값 argv 거부. M1 밖 명령은 "M2에서 제공" 한 줄과 1 | C0 | M | M1 |
+| C1 | 인자 파서와 명령 분기: `parseArgv`(spec §3.2) 전체 문법, 모드 결정(spec §4.2), 설정 키 형식 검사(`SETTING_KEY_PATTERN`, F wire §4.11), 시크릿 값 argv 거부. M1 밖 명령은 "M2에서 제공" 한 줄과 1 | C0 | M | M1 |
 | C2 | `chat -p`(in-process): `connectEngine`(spec §3.3, `startInProcessHost` + `createHostConnection` 조합, `AssembleError` → `EngineStartError` 변환), `thread.create`, `events.subscribe`, `turn.start`, 종료 판정(spec §3.6), `devWireRoundTrip` → `devChecks` 전달, `--json` 탭 연결 | C1, C3, `L4.host-service.plan` H2(`assemble`)·H3(`createHostConnection`)·H4(처리기) | M | M1 |
 | C3 | renderer: `applyBatch`·`applyChunk`(내구·휘발 분리, 구간 검사, seq 중복 제거, `afterSeq` 지연), 도구 결과 3채널 규칙, `text-sink`, `json-tap` | C0 | M | M1 |
 | C4 | 재개: `--continue`/`--resume`, CLI 상태 파일(spec §3.7, 경로는 `@fresnel/host` `resolveHostStatePaths`, review.decisions-2 B-07) 원자 쓰기, `replay.outOfRange` 처리, 대화형의 접힌 이전 기록 | C2, C3 | M | M1 |
@@ -245,9 +245,9 @@ xeon/apps/cli/
 | C10 `sessions` | 구현: `ls`(쪽 단위, `--all`, `--limit`, `--json`), `show`(`events.subscribe` → 머리까지 → `events.unsubscribe`), `fork --at`, `rm`(`--yes`, 비TTY는 2) | `src/commands/sessions.ts` |
 | C11 승인·잠금·중단 | 구현: 도구·계획·질문 프롬프트(kind별 `answer` 모양), `approval.list` 복원, `approval.resolved`로 프롬프트 닫기, `thread.locked` 프롬프트(관찰·분기), Ctrl+C `turn.interrupt` | `src/render/approval.ts`, `src/render/lock.ts`, `src/commands/chat-session.ts`, `src/commands/chat.ts`, `src/signals.ts` |
 | C13 `config set/reset/list`, `--set`, 슬래시 | 구현. 사전 검사는 하지 않는다(spec §10 13번). 슬래시는 `/set`, `/model`, `/resume`, `/help`, `/quit`와 Tab 완성 | `src/commands/config.ts`, `src/commands/overrides.ts`, `src/slash.ts`, `src/tui/minimal.ts` |
-| C15 `doctor` | 구현: 엔진·저장소·비밀 저장소·외부 바이너리·서비스·터미널과 검색 provider 세 줄. 바이너리는 `host.status { includeBinaries: true }`로 받는다(M2 마감 G2-07). SearXNG는 설정한 주소 하나만 탐침한다(자동 감지 삭제, M2 마감 H1). 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
+| C15 `doctor` | 구현: 엔진·저장소·시크릿 저장소·외부 바이너리·서비스·터미널과 검색 provider 세 줄. 바이너리는 `host.status { includeBinaries: true }`로 받는다(M2 마감 G2-07). SearXNG는 설정한 주소 하나만 탐침한다(자동 감지 삭제, M2 마감 H1). 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
 | C16 `host --stdio` | 구현: `startStdioHost`에 `l4.cli.*` 그룹을 넘긴다. stdout은 `CliIo.stdoutStream` 전용. M3b B2-RMT: 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 중계한다 | `src/commands/host.ts` |
-| 비밀 오류 해결 줄 (m2r sec) | 구현: `provider_unavailable`, `key_unavailable`, `write_failed`의 해결 줄을 원인별로 나눴다(spec §4.7). 깨끗한 기기의 첫 `secret add`가 `not_registered`에 "sops와 age를 설치"를 보이던 문제를 고쳤다. `test/errors-wire.test.ts`, `test/secret-first-write.int.test.ts`(실제 호스트, 설정 없이 첫 `add`, 같은 홈의 두 클라이언트가 한 비밀을 봄) |
+| 시크릿 오류 해결 줄 (m2r sec) | 구현: `provider_unavailable`, `key_unavailable`, `write_failed`의 해결 줄을 원인별로 나눴다(spec §4.7). 깨끗한 기기의 첫 `secret add`가 `not_registered`에 "sops와 age를 설치"를 보이던 문제를 고쳤다. `test/errors-wire.test.ts`, `test/secret-first-write.int.test.ts`(실제 호스트, 설정 없이 첫 `add`, 같은 홈의 두 클라이언트가 한 시크릿을 봄) |
 
 - 호스트가 아직 구현하지 않은 메서드와의 호환: `thread.list`는 -32601이면 상태 파일로, `thread.open`·`turn.interrupt`·`approval.list`·`events.unsubscribe`는 `host.hello`의 `features`에 없으면 쓰지 않는다. HOST.2·HOST.4가 병합되기 전의 `xeon/foundation`에서도 `just verify`가 통과한다.
 - 컴파일 바이너리 확인(2026-10-24, WSL2 linux-x64, 한 번씩): `just desktop-sidecar host`가 만든 바이너리에 `host.hello`와 `settings.get`을 JSON Lines로 보내면 응답 둘이 305 ms 안에 오고(새 데이터 디렉터리의 첫 기동 포함), 응답을 받은 뒤 stdin을 닫으면 0으로 끝난다. `fresnel version`은 0.036초, `fresnel doctor`는 1.8초다(당시 구현의 SearXNG 후보 네 곳 병렬 탐침 포함, 지금은 자동 감지가 없다). `secret reveal`은 stdin이 TTY가 아니어서 2로 끝났다. 이 확인은 일회성 수동 실행이고, 같은 경로를 소스 진입으로 돌리는 `host-stdio.int.test.ts`와 번들을 만드는 `entry-bundle.test.ts`가 회귀를 막는다.
@@ -258,11 +258,11 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 
 | 항목 | 상태 | 구현 위치 |
 |---|---|---|
-| 오류 문구 | 구현: `secret.*` 전용 kind, `thread.closed`, `settings.reserved`, `store.corrupt`, 슬래시 명령 능력 오류(`cap.dialog.commands.*`). 시험은 값으로 비교한다 | `src/errors.ts`, `test/errors-wire.test.ts` |
+| 오류 문구 | 구현: `secret.*` 전용 kind, `thread.closed`, `settings.reserved`, `store.corrupt`, 슬래시 명령 기능 오류(`cap.dialog.commands.*`). 시험은 값으로 비교한다 | `src/errors.ts`, `test/errors-wire.test.ts` |
 | 슬래시 명령 실행(G1-01) | 구현: 내장도 별칭도 아닌 이름을 `command.run`으로 보내 `done`(메시지·구조 값), `expanded`(turn으로 전송), `needs_confirmation`(`[y/N]` 뒤 `confirmShell`), `not_command`를 처리한다. `command.list`는 `/help`와 Tab 완성에 쓴다. `command.list`에는 연 세션의 `threadId`를 보내고(호스트가 프로젝트 명령을 그 세션의 작업 폴더 기준으로 읽는다) `/resume`으로 세션을 바꾸면 다시 읽는다. 가짜 호스트 시험은 `slash-commands.test.ts`, 실제 호스트 종단 시험은 `slash-commands-host.int.test.ts` | `src/slash.ts`, `src/tui/minimal.ts`, `test/slash-commands.test.ts` |
 | 끊긴 turn 이어 실행(G1-02) | 구현: 기존 세션을 연 대화형이 `thread.list`에서 요약을 찾아 `resumable`이 있으면 `[y/N]`을 묻고 `turn.resume`을 부른다. 결과 세 모양(`resumed`, `closed`, `nothing`)을 문구로 보이고 `resumed`는 turn이 끝날 때까지 기다린다. 가짜 호스트 시험은 `turn-resume.test.ts`, 실제 호스트 종단 시험은 `turn-resume-host.int.test.ts` | `src/commands/resume-turn.ts`, `src/threads.ts`, `src/commands/chat-session.ts`(`resumeTurn`), `test/turn-resume.test.ts` |
 | 프로젝트 신뢰(G1-03) | 구현: `fresnel trust [status\|allow\|deny]`(`trust.get`, `trust.decide`)와 대화형 `chat` 시작 카드. `m2/fx-apps`의 `trust.pending`·`projectRoot` 가정은 버리고 F의 `trust.get { workspace }`와 `TrustStatus`로 다시 썼다(포트 `TrustClient`는 없앴다). 가짜 처리기 시험은 `trust.test.ts`, 실제 처리기(`trust.json` 쓰기)와의 종단 시험은 `trust-host.int.test.ts` | `src/commands/trust.ts`, `src/render/trust.ts`, `src/cli/command.ts`(`parseTrust`), `test/trust.test.ts` |
-| 비밀 참조·시험 출력(G1-07) | 구현: `secret rm`이 `secret.references`로 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 지우기를 보내지 않는다. `secret test`는 `decryptable`, 길이, SHA-256 앞 8자를 보이고 복호화할 수 없으면 1이다(C9의 "`state`만 보인다"를 대체). 값은 어디에도 없다는 검사(`expectNoValue`)를 `test`에도 건다. 가짜 처리기 시험은 `secret.test.ts`, 실제 sops·age 저장소와의 종단 시험은 `secret-host.int.test.ts` | `src/commands/secret.ts`, `test/secret.test.ts`, `test/support/secrets.ts` |
+| 시크릿 참조·시험 출력(G1-07) | 구현: `secret rm`이 `secret.references`로 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 지우기를 보내지 않는다. `secret test`는 `decryptable`, 길이, SHA-256 앞 8자를 보이고 복호화할 수 없으면 1이다(C9의 "`state`만 보인다"를 대체). 값은 어디에도 없다는 검사(`expectNoValue`)를 `test`에도 건다. 가짜 처리기 시험은 `secret.test.ts`, 실제 sops·age 저장소와의 종단 시험은 `secret-host.int.test.ts` | `src/commands/secret.ts`, `test/secret.test.ts`, `test/support/secrets.ts` |
 | 동의 표시(G2-10) | 구현: 도구 카드가 `command` 전체와 `secretEnv` 핸들(`Reflect.get` 없이 다시 씀), 요청 주체(`origin.caller`), 만료(`expiresAt`, `onExpire`)를 보인다. `approval.resolved`의 `requestedRemember`와 `remember`가 다르면(`always`→`thread`) 낮춰 적용했음을, `resolvedBy`가 `user`가 아니면 이유를 보인다. `approval.respond`의 `reason`에 따라 `answer_invalid`·`commit_failed`는 다시 묻고(3번까지) `already_resolved`·`unknown_approval`은 프롬프트를 닫는다. 요건의 정본(`L1.tools.spec`)과 `always` 숨김은 T4 소관이다 | `src/render/transcript.ts`, `src/render/text-sink.ts`, `src/render/approval.ts`, `src/commands/chat.ts`, `test/approval-consent.test.ts` |
 | 수동 컴팩션(G2-01) | 구현: `/compact [<지침>]`이 `thread.compact`를 보낸다. `compacted`는 요약 전 토큰 수, `skipped`는 이유 한 줄을 보인다. 확장 차단(3006), 요약 실패(3008), 진행 중 turn(3003), 닫힌 세션(3007), 취소는 두 줄 오류로 알리고 입력을 이어 받는다. 이름이 같은 엔진 명령보다 내장이 앞선다. `thread.compact`가 없는 호스트에는 보내지 않는다 | `src/slash.ts`, `src/errors.ts`, `test/slash-commands.test.ts`, `test/errors-wire.test.ts` |
 | 세션 제목(G2-12) | 구현: `sessions rename <id> <제목>`과 `/rename <제목>`이 `thread.rename`을 보낸다(1~200자 검사는 `titleProblem` 한 곳). 목록의 제목 표시는 M2에 이미 있었고 `(제목 없음)`이 호스트가 제목을 채우면 사라진다. 첫 입력 80자 제목은 T2(호스트)가 정하므로 CLI에는 두지 않았다 | `src/commands/sessions.ts`, `src/slash.ts`, `src/threads.ts`, `src/cli/command.ts`, `test/rename.test.ts` |
@@ -319,7 +319,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | usage-error-two-lines | `test/usage-error.test.ts` | unit | 사용법 오류 코드 각각에서 stderr 출력이 `fresnel: …`와 `  해결: …` 두 줄이고 종료 코드가 2다(spec AC12, §4.10) | M1 |
 | sigint-once-interrupts-turn | `test/signals.test.ts` | unit | 주입한 시계로 Ctrl+C 1회(turn 진행 중)는 M2에서 `turn.interrupt`를 한 번 보내고, 2초 안 2회는 종료 요청과 130, 3회는 강제 종료다. M1 설정에서는 1회가 종료 요청이다 | M1, M2 |
 | transcript-replay-from-cursor | `test/transcript.test.ts` | unit | 위치 k에서 시작한 `applyBatch`가 seq ≤ k 이벤트를 무시하고, `from` 불일치에 `gap`을 돌려주고, 같은 item의 `item.recorded`가 오면 진행 줄을 지운다. `afterSeq` 지연 조각이 위치 도달 뒤 적용된다 | M1 |
-| no-secret-in-output | `test/no-secret.int.test.ts` | int | 비밀 참조 1종을 쓰는 테이프 한 턴과(M1) `secret add/test/ls`(M2)에서 값과 base64·hex 형태가 stdout·stderr·임시 DB 파일·상태 파일에 없다(spec AC5) | M1, M2 |
+| no-secret-in-output | `test/no-secret.int.test.ts` | int | 시크릿 참조 1종을 쓰는 테이프 한 턴과(M1) `secret add/test/ls`(M2)에서 값과 base64·hex 형태가 stdout·stderr·임시 DB 파일·상태 파일에 없다(spec AC5) | M1, M2 |
 
 M2 CLI.1~CLI.4에서 더한 시험(가짜 호스트 서버 위, `test/support/fake-server.ts`의 `handlers`로 M2 메서드를 시험이 정한다):
 

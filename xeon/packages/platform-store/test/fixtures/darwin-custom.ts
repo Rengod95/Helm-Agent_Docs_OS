@@ -3,7 +3,7 @@ import { openStore } from "../../src/index.ts";
 import { DEFAULT_STORE_SETTINGS } from "../../src/settings.ts";
 import { fixedIdFactory } from "../support/clock.ts";
 
-/** 자식이 표준 출력에 한 줄 JSON으로 남기는 값: 열린 저장소의 능력 */
+/** 자식이 표준 출력에 한 줄 JSON으로 남기는 값: 열린 저장소의 기능 */
 export type DarwinCustomReport = StoreCapabilities;
 
 // 인자: <db 경로> <커스텀 SQLite 경로> [fail-load]. fail-load면 로더가 dlopen 실패처럼 던진다(어느 OS에서나 같은 경로를 탄다). macOS 정책으로 열면 setCustomSQLite가 첫 Database 전에 불리고 경로가 기록된다

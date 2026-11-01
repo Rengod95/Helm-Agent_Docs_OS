@@ -264,7 +264,7 @@ test("mcp_input_direct_tool: a directly registered server tool is retried with t
   const out = await done;
   expect(out.isError).toBe(false);
   expect(textOf(out.result)).toContain("direct done");
-  // 직접 등록 도구도 능력 도구와 같은 호출 문맥을 받는다: 두 라운드 모두 같은 대화, 호출 id, 주 대화 호출자다
+  // 직접 등록 도구도 기능 도구와 같은 호출 문맥을 받는다: 두 라운드 모두 같은 대화, 호출 id, 주 대화 호출자다
   expect(seen).toHaveLength(2);
   for (const call of seen) {
     expect(call.threadId).toBe(run.threadId);

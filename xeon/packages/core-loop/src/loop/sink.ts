@@ -13,7 +13,7 @@ import {
   type TurnRun,
 } from "./turn-run.ts";
 
-// 이벤트 싱크(adr.0009 §3.2). 매퍼에 이벤트를 먹여 휘발 알림을 내고 tap 지점을 발화한다. 커밋하지 않는다.
+// 이벤트 싱크(adr.0009 §3.2). 매퍼에 이벤트를 먹여 휘발 알림을 내고 tap 훅을 발화한다. 커밋하지 않는다.
 
 /** 매퍼가 만든 알림을 휘발로 낸다. 내구 알림(step.*, turn.completed)은 커밋한 쪽이 다룬다 */
 export function emitEvent(run: TurnRun, event: AgentEvent): void {

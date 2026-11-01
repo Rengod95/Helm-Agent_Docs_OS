@@ -42,7 +42,7 @@ function keyStoreFailure(code: string): SecretError {
 type Lookup = "found" | "absent";
 
 /**
- * 항목 존재만 본다. `secret-tool lookup`은 비밀을 stdout에 쓰므로 stdout을 버리고 종료 코드만 본다.
+ * 항목 존재만 본다. `secret-tool lookup`은 시크릿을 stdout에 쓰므로 stdout을 버리고 종료 코드만 본다.
  * 이 코드는 identity 바이트를 받지 않는다. 종료 코드 0은 있음, 1은 없음(Secret Service가 없을 때도 1이라 만든 뒤 다시 확인한다)
  */
 async function lookup(

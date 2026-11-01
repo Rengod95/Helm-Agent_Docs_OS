@@ -8,24 +8,24 @@ depends_on: [L2.workspace.spec, L2.mcp.spec, L2.web.spec, L2.knowledge.spec, L2.
 binds: [xeon/packages/cap-*/**]
 ---
 
-# L2 능력 층
+# L2 기능 층
 
 ## 1. 목적
 
-L2는 F3 능력 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provider 모음이다. 같은 능력이 서비스 API와 모델 도구로 함께 노출되므로, L3 그룹은 도구 호출 없이 코드에서 서비스를 바로 호출한다(`_research/layer-plan-v2.json` L2 intro, `F.capabilities.spec` §1).
+L2는 F3 기능 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provider 모음이다. 같은 기능이 서비스 API와 모델 도구로 함께 노출되므로, L3 그룹은 도구 호출 없이 코드에서 서비스를 바로 호출한다(`_research/layer-plan-v2.json` L2 intro, `F.capabilities.spec` §1).
 
 - 층 순위는 4다. F(0) → X(1) → L0(2) → L1(3) → L2(4) → L3(5) → L4(6)이다(`_research/foundation-plan.md` §3, `architecture.layers.spec` §4.1).
 - L2 패키지는 F, X, L0, L1만 import한다. L2 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02).
 - 같은 층 협력은 F의 `ServiceKey`와 매니페스트 `requires`/`optional` 선언으로만 한다. 협력 방향은 §6에 모았다.
 - L3는 L2의 정의(F3)만 참조하고 `cap-*` 패키지를 import하지 않는다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 2, `architecture.layers.spec` §3.1 2행).
-- 능력 정의의 내용(메서드, 도구, 스키마)은 각 `L2.<domain>.spec`이 정하고, 정의 데이터는 F `xeon/packages/contracts/src/capabilities/defs/<domain>.ts`에 둔다(`F.capabilities.spec` §3.9).
+- 기능 정의의 내용(메서드, 도구, 스키마)은 각 `L2.<domain>.spec`이 정하고, 정의 데이터는 F `xeon/packages/contracts/src/capabilities/defs/<domain>.ts`에 둔다(`F.capabilities.spec` §3.9).
 - 유료 provider(Exa, Parallel, Brave, Firecrawl 등)는 사용자가 키를 등록하는 플러그인이다. 공통 계약은 플러그인에도 그대로 적용된다(`_research/layer-plan-v2.json` L2-c note). 학습 정책은 L3가 갖고 L2-d는 저장과 조회만 맡는다(`_research/layer-plan-v2.json` L2-d note).
 
 ## 2. 도메인
 
-`routes.yaml` `layout.L2.domains`의 8개 도메인이 계획 v2의 하위 층 8개(L2-a~L2-h)에 1:1로 대응한다. 표의 패키지·능력 ID·서비스 이름·이벤트 접두사·테이블 접두사 값은 L2 문서 전체가 쓰는 공통 규약이다. 바꾸려면 §10에 [미결]로 올리고 다른 문자열을 쓰지 않는다.
+`routes.yaml` `layout.L2.domains`의 8개 도메인이 계획 v2의 하위 층 8개(L2-a~L2-h)에 1:1로 대응한다. 표의 패키지·기능 ID·서비스 이름·이벤트 접두사·테이블 접두사 값은 L2 문서 전체가 쓰는 공통 규약이다. 바꾸려면 §10에 [미결]로 올리고 다른 문자열을 쓰지 않는다.
 
-| 하위 층 id | 계획 v2 이름 | 도메인 | 패키지 | 능력 ID | 묶음 이름(§5.6) | 이벤트 접두사 | 테이블 접두사 | 마일스톤 | 문서 id |
+| 하위 층 id | 계획 v2 이름 | 도메인 | 패키지 | 기능 ID | 묶음 이름(§5.6) | 이벤트 접두사 | 테이블 접두사 | 마일스톤 | 문서 id |
 |---|---|---|---|---|---|---|---|---|---|
 | L2-a | 작업 도구 | workspace | cap-workspace | workspace.files, workspace.shell, workspace.images | fresnel.workspace | workspace.(예약) | cap_workspace_(예약) | M1(read, ls, bash), M3(write, edit, grep, find)[^ws] | `L2.workspace.spec`, `L2.workspace.plan` |
 | L2-b | MCP 통합 | mcp | cap-mcp | mcp.client | fresnel.mcp | mcp.(휘발, 예약) | cap_mcp_ | M2(브리지, 서버 정의, 서버 주도 요청)[^mcp] | `L2.mcp.spec`, `L2.mcp.plan` |
@@ -40,7 +40,7 @@ L2는 F3 능력 정의(서비스 API + 모델 도구 한 쌍)를 구현한 provi
 - 이벤트 접두사의 "예약"은 소유만 정해 둔 접두사다. type을 실제로 더할 때 해당 spec의 카탈로그에 올린다(`eng.context-map.design` §5.1). artifacts 도메인의 이벤트 접두사는 단수 `artifact.`이고 테이블 접두사와 서비스 이름은 복수(`cap_artifacts_`, `fresnel.artifacts`)다.
 - dialog의 테이블 접두사 "없음"은 이 층 공통 규약 값이다. `eng.context-map.design` §4.1은 같은 칸을 "없음(예약 `cap_dialog_*`)"으로 적었다. 예약을 둘지는 §10 미결 6이다.
 - 생산자 id는 `cap.<도메인>`이다(`eng.context-map.design` §5.1).
-- "묶음 이름" 열의 `fresnel.<domain>`은 도메인 묶음 타입(§5.6)을 가리키는 이름이다. 능력의 Cordis 바인딩은 능력마다 하나이고 이름은 `cap:<능력 id>`다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). `fresnel.mcp`만 Cordis 서비스로도 등록한다. X `McpPort`(`registerServer`)를 받는 서비스 이름이기 때문이다(§5.6, `F.capabilities.spec` §3.5, `X.primitives.spec` §3.6 규칙 6). 나머지 `fresnel.<domain>`은 Cordis에 등록하지 않는다.
+- "묶음 이름" 열의 `fresnel.<domain>`은 도메인 묶음 타입(§5.6)을 가리키는 이름이다. 기능의 Cordis 바인딩은 기능마다 하나이고 이름은 `cap:<기능 id>`다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). `fresnel.mcp`만 Cordis 서비스로도 등록한다. X `McpPort`(`registerServer`)를 받는 서비스 이름이기 때문이다(§5.6, `F.capabilities.spec` §3.5, `X.primitives.spec` §3.6 규칙 6). 나머지 `fresnel.<domain>`은 Cordis에 등록하지 않는다.
 
 마일스톤 칸은 `product.scope.spec` §4.3을 따른다. 계획 v2 JSON의 구성요소 단계(1차/2차/보류)와 다른 곳은 아래 각주에 적는다. 단계와 마일스톤은 다른 구분이다. 단계 '1차'는 첫 사용 버전(M3 종료)에 들어간다는 뜻이고 마일스톤은 그 안의 순서다(`product.scope.spec` §2).
 
@@ -68,9 +68,9 @@ cap-<domain>/
   src/
     index.ts          # 플러그인 엔트리. manifest 상수와 apply(ctx) export
     manifest.ts       # defineManifest({ layer: "L2", kind: "plugin", provides, requires, optional, ... })
-    service.ts        # 능력별 API 객체 조립과 hostOf(g).provide(key, impl) 등록(§5.6)
+    service.ts        # 기능별 API 객체 조립과 hostOf(g).provide(key, impl) 등록(§5.6)
     settings.ts       # defineSettings("l2.<domain>", { ... })
-    <능력별 디렉터리>/  # 능력 하나당 디렉터리 하나. provider 구현
+    <기능별 디렉터리>/  # 기능 하나당 디렉터리 하나. provider 구현
     upstream/         # 포크 코드가 있을 때만(ADR-0003 §3.4)
     testing/          # 공용 가짜(필요할 때, eng.testing.guide TS-06)
   test/
@@ -85,8 +85,8 @@ cap-<domain>/
 
 ### 4.1 L2가 소유하는 것
 
-- 능력 정의의 내용(메서드·도구·스키마·고유 오류 코드). 정의 데이터의 저장 위치는 F다.
-- provider 구현과 provider 선택 체인(§5.2). `F.readme` §6 "능력 provider 구현과 선택" 행이 이 층을 가리킨다.
+- 기능 정의의 내용(메서드·도구·스키마·고유 오류 코드). 정의 데이터의 저장 위치는 F다.
+- provider 구현과 provider 선택 체인(§5.2). `F.readme` §6 "기능 provider 구현과 선택" 행이 이 층을 가리킨다.
 - 각 도메인의 세션 투영(`cap.<도메인>` 투영기, `cap_<도메인>_` 테이블)과 세션 밖 상태.
 - `l2.<domain>.*` 설정 키 선언(§7).
 
@@ -96,7 +96,7 @@ cap-<domain>/
 |---|---|
 | 권한 모드, 권한 규칙, 승인 프로토콜(`fresnel.approvals`, `approval.*` 이벤트), 도구 실행 파이프라인, 도구 노출 켜기·끄기, 결과 경계화 | `L1.tools.spec` |
 | 되감기, 체크포인트, 파일 복원, 세션 쓰기(`SessionWriter.commit`), `consumer_cursors` 테이블 | `L1.persistence.spec`, `eng.transactions.design` |
-| 프로세스 레지스트리, 샌드박스, 격리, 실행 환경(`ExecutionEnv`), 비밀 저장과 주입, blob 저장 | `L0.process.spec`, `L0.sandbox.spec`, `L0.exec.spec`, `L0.secrets.spec`, `L0.store.spec` |
+| 프로세스 레지스트리, 샌드박스, 격리, 실행 환경(`ExecutionEnv`), 시크릿 저장과 주입, blob 저장 | `L0.process.spec`, `L0.sandbox.spec`, `L0.exec.spec`, `L0.secrets.spec`, `L0.store.spec` |
 | 서브에이전트 실행, 백그라운드 위임 | `L1.agents.spec` |
 | 학습 정책(언제, 무엇을 배울지), 탐구 정책(단계, drive 임대 사용) | L3 그룹 문서(`L3.readme`) |
 | 확장 로딩, 신뢰, provider 등록 API, 4연산 실행 | `X.loading-trust.spec`, `X.primitives.spec` |
@@ -114,18 +114,18 @@ cap-<domain>/
 
 - [결정] 정의는 F3에 있고 provider는 그 정의를 구현한다(`_research/decisions-log.md` 2026-10-21 계획 v2, `_research/layer-plan-v2.json` L2 intro).
 - 정의는 F `capabilities/defs/<domain>.ts`에 `defineCapability`로 둔다. 각 spec의 "인터페이스" 절이 TypeBox 완성형을 적고 plan 첫 작업이 이 파일을 만든다.
-- 구현은 `cap-<domain>`이 능력마다 `hostOf(g).provide(key, impl)`로 등록한다. X가 공급자 이름(`cap:<id>@<확장 이름>`)과 능력 바인딩(`cap:<id>`)을 만든다(`X.primitives.spec` §3.7). 내장 패키지는 매니페스트에 `provides: [{ id, version }]`을 둔다(`F.extensions.spec` §3.1).
-- 외부 플러그인도 같은 능력 id의 provider가 될 수 있다. 플러그인 매니페스트의 `provides`에 내장 능력 id(예: `web.search`)를 적는다(`F.capabilities.spec` §3.1 네임스페이스 규칙 [제안]). 정의의 major와 플러그인이 선언한 버전의 major가 다르면 X가 등록을 거부한다(`F.capabilities.spec` §5 1항).
-- [제안] 능력 하나에 provider가 여럿일 때, 내장 `cap-<domain>`은 consumer가 받는 서비스 객체(앞단)를 등록하고, 플러그인 provider는 그 능력의 후보로 등록된다. 앞단이 §5.2 체인으로 후보를 고른다. 그래서 consumer는 어떤 provider가 응답했는지 몰라도 된다. 능력 id별 후보 목록을 얻는 X API는 `X.primitives.spec`이 정한다 [가정]. `X.primitives.spec` §3.7 규칙 2는 공급자가 여럿이면 설정 `x.primitives.capabilityProviders`로 하나를 고르고, 설정이 없으면 `capability_ambiguous` 진단을 낸다. 이 절의 앞단 방식과 맞추려면 플러그인 후보는 능력 바인딩의 공급자에 들지 않고 앞단 후보 목록에만 들어야 한다 [미결](§10 미결 19).
-- [제안] provider가 하나뿐인 능력(예: `workspace.files`)은 §5.2 체인을 생략하고 앞단이 곧 구현이다. 설정 키 `l2.<domain>.<능력>.provider`도 두지 않는다.
+- 구현은 `cap-<domain>`이 기능마다 `hostOf(g).provide(key, impl)`로 등록한다. X가 공급자 이름(`cap:<id>@<확장 이름>`)과 기능 바인딩(`cap:<id>`)을 만든다(`X.primitives.spec` §3.7). 내장 패키지는 매니페스트에 `provides: [{ id, version }]`을 둔다(`F.extensions.spec` §3.1).
+- 외부 플러그인도 같은 기능 id의 provider가 될 수 있다. 플러그인 매니페스트의 `provides`에 내장 기능 id(예: `web.search`)를 적는다(`F.capabilities.spec` §3.1 네임스페이스 규칙 [제안]). 정의의 major와 플러그인이 선언한 버전의 major가 다르면 X가 등록을 거부한다(`F.capabilities.spec` §5 1항).
+- [제안] 기능 하나에 provider가 여럿일 때, 내장 `cap-<domain>`은 consumer가 받는 서비스 객체(앞단)를 등록하고, 플러그인 provider는 그 기능의 후보로 등록된다. 앞단이 §5.2 체인으로 후보를 고른다. 그래서 consumer는 어떤 provider가 응답했는지 몰라도 된다. 기능 id별 후보 목록을 얻는 X API는 `X.primitives.spec`이 정한다 [가정]. `X.primitives.spec` §3.7 규칙 2는 공급자가 여럿이면 설정 `x.primitives.capabilityProviders`로 하나를 고르고, 설정이 없으면 `capability_ambiguous` 진단을 낸다. 이 절의 앞단 방식과 맞추려면 플러그인 후보는 기능 바인딩의 공급자에 들지 않고 앞단 후보 목록에만 들어야 한다 [미결](§10 미결 19).
+- [제안] provider가 하나뿐인 기능(예: `workspace.files`)은 §5.2 체인을 생략하고 앞단이 곧 구현이다. 설정 키 `l2.<domain>.<기능>.provider`도 두지 않는다.
 
 ### 5.2 provider 선택 체인 (b)
 
-[제안] provider가 여럿인 능력은 다음 공통형으로 고른다.
+[제안] provider가 여럿인 기능은 다음 공통형으로 고른다.
 
 1. 호출 인자 `provider`: 메서드 입력에 `provider` 필드가 있고 값이 주어지면 그 provider만 쓴다.
-2. 설정 `l2.<domain>.<능력>.provider`: 값이 `"auto"`가 아니면 그 provider만 쓴다.
-3. `"auto"` 체인: 설정 `l2.<domain>.<능력>.order`(사용자가 끌어 옮긴 목록, 내장 포함 전부 대상)의 순서 → 목록에 없는 후보를 사용자가 주소를 설정한 로컬 provider(origin `detected`) → 내장 기본 provider → 플러그인 순으로 늘어놓는다(`web.search`, `web.browse`. D-M3-23 행 1). `web.fetch`는 `pluginOrder`를 그대로 쓴다. 후보에는 사용자가 설정한 provider만 들어간다. 로컬 주소를 찾아 나서는 자동 감지는 없다(ADR-0005 §3.3 개정, 사용자 결정 H1).
+2. 설정 `l2.<domain>.<기능>.provider`: 값이 `"auto"`가 아니면 그 provider만 쓴다.
+3. `"auto"` 체인: 설정 `l2.<domain>.<기능>.order`(사용자가 끌어 옮긴 목록, 내장 포함 전부 대상)의 순서 → 목록에 없는 후보를 사용자가 주소를 설정한 로컬 provider(origin `detected`) → 내장 기본 provider → 플러그인 순으로 늘어놓는다(`web.search`, `web.browse`. D-M3-23 행 1). `web.fetch`는 `pluginOrder`를 그대로 쓴다. 후보에는 사용자가 설정한 provider만 들어간다. 로컬 주소를 찾아 나서는 자동 감지는 없다(ADR-0005 §3.3 개정, 사용자 결정 H1).
 
 - 각 provider는 `isAvailable(signal)` 탐침을 갖는다. 탐침이 실패하면 다음 후보로 내려가고 사유를 결과의 `meta.fallbacks`에 남긴다.
 - 1·2번처럼 명시로 고른 provider는 다른 후보로 내려가지 않는다. 탐침이 실패하면 `unavailable` 오류를 내고 `detail`에 사유를 싣는다. 사용자가 고른 것을 조용히 바꾸지 않기 위해서다.
@@ -141,7 +141,7 @@ cap-<domain>/
 ### 5.3 도구 노출 (c)
 
 - 모델 도구는 서비스 메서드의 얇은 어댑터다. `ToolSpec`은 `L1.tools`의 어댑터가 서비스 호출로 바꾼다(`F.capabilities.spec` §4.2 환원 규칙 1~5). `toInput`, `toContent`는 순수 함수다.
-- 도구의 켜기·끄기와 능력 자체의 켜기·끄기는 단계 경계에서 적용된다. 실행 중인 도구 호출은 끝까지 실행된다(`F.extensions.spec` §4.5, `F.capabilities.spec` §5 5항).
+- 도구의 켜기·끄기와 기능 자체의 켜기·끄기는 단계 경계에서 적용된다. 실행 중인 도구 호출은 끝까지 실행된다(`F.extensions.spec` §4.5, `F.capabilities.spec` §5 5항).
 - 도구 순서와 대화 중간 추가·제거는 `orderTools`, `diffToolsets`를 쓴다(`F.capabilities.spec` §4.5). 정적 정의로 표현하지 못하는 동적 도구(MCP 서버 도구)는 X 리소스 등록으로 광고하고 순서 키 `mcp.<서버>`를 쓴다(`F.capabilities.spec` §5 6항, `L2.mcp.spec`).
 - 모든 도구에 `replay`, `executionMode`, `hints`를 명시한다. 생략하면 `replay`는 `"unsafe"`이고 `executionMode`는 L1.tools 기본값이다. 명시하면 리뷰와 정합성 검사에서 의도가 보인다 [제안].
 - 외부에서 온 텍스트(웹 페이지, MCP 서버 결과, 첨부 URL 내용)는 `toContent`에서 신뢰하지 않는 내용 표지로 감싼다. 표지 이름은 도메인마다 `<untrusted_<출처>_content>`로 쓴다(예: `F.capabilities.spec` §3.9 `<untrusted_web_content>`) [제안].
@@ -165,11 +165,11 @@ cap-<domain>/
 - 고유 코드는 공통 코드와 같은 이름을 쓸 수 없다(`error_code_shadow`). 고유 코드 이름은 `<도메인 명사>_<상태>` 형식을 권한다(예: `edit_not_found`) [제안].
 - 도구 경로에서는 L1.tools가 `CapabilityError`를 `isError: true` 결과로 바꾼다. `aborted`는 중단 결과다(`F.capabilities.spec` §4.2 규칙 5).
 - `input_required`는 오류가 아니다. 출력 스키마의 변형으로 표현하고 도구 어댑터가 `ToolResultRecord.status`로 옮긴다(`F.capabilities.spec` §3.6, `F.conversation.spec` §3.6).
-- 외부 오류(파일 시스템, 프로세스, HTTP, SDK)는 각 패키지의 경계에서 공통 코드로 바꾼다. 원래 오류 객체를 `detail`에 그대로 넣지 않는다. `detail`은 `JsonValue`이고 비밀 값을 담지 않는다.
+- 외부 오류(파일 시스템, 프로세스, HTTP, SDK)는 각 패키지의 경계에서 공통 코드로 바꾼다. 원래 오류 객체를 `detail`에 그대로 넣지 않는다. `detail`은 `JsonValue`이고 시크릿 값을 담지 않는다.
 
 ### 5.6 도메인 서비스와 `ServiceKey`의 대응 (f)
 
-Cordis 바인딩은 능력 단위다. X가 능력마다 `cap:<능력 id>` 바인딩 하나를 만든다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). 도메인 서비스 묶음 타입은 같은 도메인 능력 API를 모은 TypeScript 타입이고 Cordis 서비스로 등록하지 않는다(`F.capabilities.spec` §3.5). 예외는 `fresnel.mcp` 하나다 [결정: review.decisions-2 D-04]. X가 확장의 MCP 서버 등록을 `McpPort`(`registerServer(owner, name, config)`, `F.extensions.spec` §3.2.1)로 넘기므로, `cap-mcp`는 `McpService extends McpPort`를 Cordis 서비스 `fresnel.mcp`에 등록한다(`F.capabilities.spec` §3.5, `L2.mcp.spec` §3.2). `McpService`와 `McpServiceName`은 다른 묶음 타입과 달리 F `services/mcp.ts`에 있다(`F.capabilities.spec` §3.12 규칙 7). 능력 API(`mcp.client`)는 다른 도메인과 같이 `cap:mcp.client` 바인딩으로 얻는다.
+Cordis 바인딩은 기능 단위다. X가 기능마다 `cap:<기능 id>` 바인딩 하나를 만든다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). 도메인 서비스 묶음 타입은 같은 도메인 기능 API를 모은 TypeScript 타입이고 Cordis 서비스로 등록하지 않는다(`F.capabilities.spec` §3.5). 예외는 `fresnel.mcp` 하나다 [결정: review.decisions-2 D-04]. X가 확장의 MCP 서버 등록을 `McpPort`(`registerServer(owner, name, config)`, `F.extensions.spec` §3.2.1)로 넘기므로, `cap-mcp`는 `McpService extends McpPort`를 Cordis 서비스 `fresnel.mcp`에 등록한다(`F.capabilities.spec` §3.5, `L2.mcp.spec` §3.2). `McpService`와 `McpServiceName`은 다른 묶음 타입과 달리 F `services/mcp.ts`에 있다(`F.capabilities.spec` §3.12 규칙 7). 기능 API(`mcp.client`)는 다른 도메인과 같이 `cap:mcp.client` 바인딩으로 얻는다.
 
 ```ts
 // 예: 웹 도메인 묶음 타입. 정의 파일 defs/web.ts에 둔다
@@ -184,8 +184,8 @@ export interface WebService {
 }
 ```
 
-- consumer는 `ScopeApi.capability(key)`로 능력 단위 API를 얻는다(`F.extensions.spec` §3.2). 반환 타입은 `ApiOf<typeof key>`다. consumer는 묶음 타입이나 `fresnel.<domain>` 이름을 쓰지 않는다.
-- 묶음 타입은 provider 패키지 안에서 능력별 API 객체를 한곳에 모을 때와 문서에서 도메인을 가리킬 때 쓴다. 속성 이름은 능력 id의 둘째 마디다. 예: `web.search` → `WebService.search`.
+- consumer는 `ScopeApi.capability(key)`로 기능 단위 API를 얻는다(`F.extensions.spec` §3.2). 반환 타입은 `ApiOf<typeof key>`다. consumer는 묶음 타입이나 `fresnel.<domain>` 이름을 쓰지 않는다.
+- 묶음 타입은 provider 패키지 안에서 기능별 API 객체를 한곳에 모을 때와 문서에서 도메인을 가리킬 때 쓴다. 속성 이름은 기능 id의 둘째 마디다. 예: `web.search` → `WebService.search`.
 - 도메인 묶음 타입 이름은 `eng.context-map.design` §5.3 표(`WorkspaceService`, `McpService`, `WebService`, `KnowledgeService`, `WorkService`, `DialogService`, `ArtifactService`, `ScheduleService`)를 따른다. 그 표의 `fresnel.<domain>` 행은 `fresnel.mcp`를 빼면 묶음 이름이고 Cordis 등록 이름이 아니다. `fresnel.mcp`는 Cordis 등록 이름이다.
 
 ### 5.7 질문과 승인
@@ -194,7 +194,7 @@ export interface WebService {
 - L2는 승인을 요청하고 결과 이벤트를 받는다. 승인 대기 중에는 루프가 승인 대기 상태를 단계 체크포인트로 커밋하고 멈춘다(`architecture.runtime-flow.design` §4.5). 대기 중에 도는 프로세스는 없다.
 - L2가 쓰는 kind는 넷이다. `eng.events.design` §4.4의 `approval.requested` kind는 `tool | question | plan` 셋이므로 `review` 추가는 `L1.tools.spec`에 올리는 변경 요청이다(§10 미결 14).
 
-| kind | 쓰는 능력 | 대상(`subject`)·답 스키마를 정하는 문서 | 비고 |
+| kind | 쓰는 기능 | 대상(`subject`)·답 스키마를 정하는 문서 | 비고 |
 |---|---|---|---|
 | `question` | `dialog.ask`, `mcp.client`(MCP 서버 주도 요청) | `L2.dialog.spec` §4.1, `L2.mcp.spec` §4.6 | mcp는 L1.tools가 올리는 안과 `cap-mcp`가 포트로 직접 부르는 안이 [미결]이다(`L2.mcp.spec` §10 미결 2) |
 | `plan` | `work.plans` | `L2.work.spec` §4.2.2 | 차단 요청(턴이 기다린다) |
@@ -236,7 +236,7 @@ export interface ApprovalsPort {
 }
 ```
 
-- 능력마다 쓰는 메서드만 쓴다. `request`·`get`은 모두 쓰고, `wait`는 그룹 경로에서 결과를 기다리는 `work.plans`·`dialog.ask`가, `cancel`은 `work.plans`가, `respond`는 `work.plans`의 편의 메서드와 `schedule.remote`가 쓴다.
+- 기능마다 쓰는 메서드만 쓴다. `request`·`get`은 모두 쓰고, `wait`는 그룹 경로에서 결과를 기다리는 `work.plans`·`dialog.ask`가, `cancel`은 `work.plans`가, `respond`는 `work.plans`의 편의 메서드와 `schedule.remote`가 쓴다.
 
 ### 5.8 호출 문맥 (`CallOptions.context`)
 
@@ -281,7 +281,7 @@ flowchart LR
   mcp_client["mcp.client(프롬프트 명령)"] -.->|"optional [미결]"| dialog_commands
 ```
 
-| 의존하는 능력 | 대상 능력 | 종류 | 쓰임 | 선언 위치 |
+| 의존하는 기능 | 대상 기능 | 종류 | 쓰임 | 선언 위치 |
 |---|---|---|---|---|
 | `dialog.attachments` | `workspace.images` | requires | 붙여넣은 이미지의 형식·크기 검사와 blob 등록 | `cap-dialog` 매니페스트 `requires`, 정의 `requires` |
 | `work.plans` | `artifacts.registry` | optional | 제출된 계획의 각 판을 산출물로 등록(`L2.work.spec` §4.2.4) | `cap-work` 매니페스트 `optional` |
@@ -290,7 +290,7 @@ flowchart LR
 | `work`(cap-work 시작 시) | `dialog.commands` | optional, [미결] | `/goal`, `/plan`, `/tasks` 동작 명령 등록(`L2.work.spec` §6.2, W-10) | `cap-work` 매니페스트 `optional` |
 | `mcp.client` | `dialog.commands` | optional, [미결] | MCP 프롬프트를 슬래시 명령으로 등록(`L2.mcp.spec` §1.2) | `cap-mcp` 매니페스트 `optional` |
 
-- 순환이 없다. 능력 단위로 보면 간선 여섯의 끝점(`workspace.images`, `artifacts.registry`, `work.goals`, `workspace.files`, `dialog.commands`)은 어느 L2 능력에도 의존하지 않는다. 도메인 단위로 묶으면 의존하는 쪽은 schedule → work, work → artifacts, work → dialog, mcp → dialog, artifacts → workspace, dialog → workspace다. workspace는 다른 L2 도메인에 의존하지 않고, artifacts와 dialog는 workspace에만, work는 artifacts와 dialog에만, schedule은 work에만, mcp는 dialog에만 의존한다. 이 순서(workspace → artifacts·dialog → work·mcp → schedule)를 거꾸로 가는 간선이 없으므로 사슬은 닫히지 않는다. dialog는 등록된 명령 처리기를 실행할 뿐 work나 mcp의 서비스를 부르지 않는다(`L2.dialog.spec` §4.3).
+- 순환이 없다. 기능 단위로 보면 간선 여섯의 끝점(`workspace.images`, `artifacts.registry`, `work.goals`, `workspace.files`, `dialog.commands`)은 어느 L2 기능에도 의존하지 않는다. 도메인 단위로 묶으면 의존하는 쪽은 schedule → work, work → artifacts, work → dialog, mcp → dialog, artifacts → workspace, dialog → workspace다. workspace는 다른 L2 도메인에 의존하지 않고, artifacts와 dialog는 workspace에만, work는 artifacts와 dialog에만, schedule은 work에만, mcp는 dialog에만 의존한다. 이 순서(workspace → artifacts·dialog → work·mcp → schedule)를 거꾸로 가는 간선이 없으므로 사슬은 닫히지 않는다. dialog는 등록된 명령 처리기를 실행할 뿐 work나 mcp의 서비스를 부르지 않는다(`L2.dialog.spec` §4.3).
 - 알림은 간선을 만들지 않는다. 알림 채널은 `dialog.notify`가 소유하고 `schedule`은 알림 대상 이벤트만 낸다(§8, §10 미결 15). `dialog.notify`가 `work.*`·`schedule.*` 이벤트를 분류하는 것은 이벤트 구독이고 서비스 의존이 아니다.
 - 필수 의존(`requires`)은 정의의 `CapabilityDef.requires`에도 적는다. 선택 의존(`optional`)은 매니페스트에만 적고, 호출 전에 사용 가능 여부를 확인한다(`F.capabilities.spec` §5 2항).
 - 위 표에 없는 L2 사이 의존이 필요해지면 이 절을 먼저 고친다. 새 간선이 순환을 만들면 넣지 않는다. 공통 데이터가 필요하면 F에 타입을 두고 서비스를 거친다(DR-02).
@@ -302,8 +302,8 @@ flowchart LR
 
 - 키는 `l2.<도메인>.<이름>`이다. 도메인은 layout 이름이고, 이름 부분은 소문자 낙타 표기이며 점으로 더 나눌 수 있다(`F.wire-settings.spec` §3.8.1 `SETTING_KEY_PATTERN`). 예: `l2.web.search.provider`, `l2.workspace.read.maxLines`.
 - 이름 부분의 각 마디는 `[a-z][A-Za-z0-9]*`라서 하이픈을 쓰지 않는다.
-- provider 체인 키 [제안]: `l2.<domain>.<능력>.provider`(`"auto"` 또는 `ProviderId`, 기본 `"auto"`)와 `l2.<domain>.<능력>.order`(`ProviderId` 목록, `web.search`·`web.browse`) 또는 `pluginOrder`(`web.fetch`). `<능력>`은 능력 id의 두 번째 마디다. 예외는 `web.fetch` 하나다. fetch는 내장 로컬 파이프라인이 항상 먼저 돌고 플러그인 후보는 빈 결과의 승격 경로에서만 쓰므로(`L2.web.spec` §4.9.1) `l2.web.fetch.provider`를 두지 않고 `pluginOrder`만 둔다.
-- 비밀은 값을 저장하지 않고 `secret://<name>` 참조로만 저장한다(`F.wire-settings.spec` §3.8.1 `SecretRef`, D2·D3 규칙).
+- provider 체인 키 [제안]: `l2.<domain>.<기능>.provider`(`"auto"` 또는 `ProviderId`, 기본 `"auto"`)와 `l2.<domain>.<기능>.order`(`ProviderId` 목록, `web.search`·`web.browse`) 또는 `pluginOrder`(`web.fetch`). `<기능>`은 기능 id의 두 번째 마디다. 예외는 `web.fetch` 하나다. fetch는 내장 로컬 파이프라인이 항상 먼저 돌고 플러그인 후보는 빈 결과의 승격 경로에서만 쓰므로(`L2.web.spec` §4.9.1) `l2.web.fetch.provider`를 두지 않고 `pluginOrder`만 둔다.
+- 시크릿은 값을 저장하지 않고 `secret://<name>` 참조로만 저장한다(`F.wire-settings.spec` §3.8.1 `SecretRef`, D2·D3 규칙).
 - 외부 플러그인 provider의 설정(API 키 등)은 `ext.<확장 이름>.*`이고 L2 키가 아니다(`F.wire-settings.spec` §3.8.3 확장 규칙).
 - 각 spec의 "설정 노출" 절은 다음 열로 표를 쓴다: 키, 타입, 기본값, range, runtimeChange, allowedScopes, ui.tab, secret. L4 노출(화면, 파일, 명령)이나 단위 같은 설명이 필요하면 마지막에 "비고" 열 하나를 더할 수 있다.
 - 표 값 표기 [제안]: allowedScopes는 범위 이름 전체를 쉼표로 늘어놓는다(`managed, user, project, local, launch`). 약어를 쓰지 않는다. secret은 `true`/`false`다. range는 수 범위면 `min <최소>, max <최대>`(한쪽만 있으면 그쪽만), 열거형이면 `enum <값>, <값>`, 없으면 `—`다.
@@ -331,9 +331,9 @@ flowchart LR
 
 ## 8. 상주 수준
 
-`_research/l2e.md` §6의 기준을 L2 능력에 적용한다 [제안]. 0은 요청 처리 중 메모리만 쓴다. 1은 앱(세션 프로세스)이 살아 있어야 한다. 2는 앱을 닫아도 독립 프로세스가 살아 있어야 하므로 공유 서비스 모드(`fresnel service`, ADR-0006)가 필요하다.
+`_research/l2e.md` §6의 기준을 L2 기능에 적용한다 [제안]. 0은 요청 처리 중 메모리만 쓴다. 1은 앱(세션 프로세스)이 살아 있어야 한다. 2는 앱을 닫아도 독립 프로세스가 살아 있어야 하므로 공유 서비스 모드(`fresnel service`, ADR-0006)가 필요하다.
 
-| 수준 | 능력 | 이유 |
+| 수준 | 기능 | 이유 |
 |---|---|---|
 | 0 | `workspace.files`, `workspace.shell`, `workspace.images`, `web.search`, `web.fetch`, `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`, `work.tasks`, `work.plans`, `work.reports`, `dialog.ask`, `dialog.commands`, `dialog.attachments`, `dialog.styles`, `artifacts.registry`, `artifacts.reviews`, `artifacts.sessions` | 호출 안에서 끝난다. 승인 대기는 내구 상태라 프로세스가 필요 없다 |
 | 1 | `mcp.client`(stdio 서버 자식 프로세스, 연결), `web.browse`(브라우저 프로세스), `web.research`(앱 안 루프), `work.goals`(다음 턴 시작), `dialog.status`, `dialog.aside`, `dialog.notify`의 OS 알림, `schedule.loops`, `schedule.sessions`의 목록 | 앱이 켜져 있는 동안만 동작하면 된다 |
@@ -348,7 +348,7 @@ flowchart LR
 
 | 결정 | 근거 |
 |---|---|
-| [결정] L2 능력은 F3 정의를 구현한 provider이고 그룹은 서비스를 코드에서 바로 호출한다 | `_research/layer-plan-v2.json` L2 intro |
+| [결정] L2 기능은 F3 정의를 구현한 provider이고 그룹은 서비스를 코드에서 바로 호출한다 | `_research/layer-plan-v2.json` L2 intro |
 | [결정] 같은 층 패키지는 import하지 않는다. 협력은 F 정의와 Cordis 서비스로만 한다 | `_research/foundation-plan.md` §3, `eng.dependency-rules.guide` DR-02 |
 | [결정] 유료 웹 API는 플러그인, 기본은 로컬 도구 | `_research/decisions-log.md` 2026-10-21 결정(2차) |
 | [결정] 질문 도구와 계획 승인은 승인 프로토콜 하나 | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 5번 |
@@ -359,14 +359,14 @@ flowchart LR
 
 ## 10. 미결 사항
 
-1. 닫힘. 도메인 서비스 묶음과 `ServiceKey`의 대응(§5.6). `F.capabilities.spec` §3.5와 `X.primitives.spec` §3.7이 능력마다 `cap:<id>` 바인딩 하나로 정했다. 묶음 타입은 등록하지 않는다. 예외로 `fresnel.mcp`는 `McpPort`를 확장하는 `McpService`(F `services/mcp.ts`)로 등록한다(`F.capabilities.spec` §3.5·§3.12, `X.primitives.spec` §3.6 규칙 6, §3.9).
+1. 닫힘. 도메인 서비스 묶음과 `ServiceKey`의 대응(§5.6). `F.capabilities.spec` §3.5와 `X.primitives.spec` §3.7이 기능마다 `cap:<id>` 바인딩 하나로 정했다. 묶음 타입은 등록하지 않는다. 예외로 `fresnel.mcp`는 `McpPort`를 확장하는 `McpService`(F `services/mcp.ts`)로 등록한다(`F.capabilities.spec` §3.5·§3.12, `X.primitives.spec` §3.6 규칙 6, §3.9).
 2. 닫힘. provider 공통 타입(§5.2)은 F `capabilities/provider.ts`에 있다(`F.capabilities.spec` §3.11).
 3. 닫힘. provider 메타 출력 모양은 `meta: ProviderSelectionMeta`다. `F.capabilities.spec` §3.9 예시의 최상위 `provider`는 간추린 표기다(`F.capabilities.spec` §3.11).
 4. [미결] 명시 선택 provider의 실패 처리(§5.2). 명시 선택은 내려가지 않는다는 제안과 ADR-0005 §3.3 문구("앞 provider가 실패하면 내려간다")의 적용 범위가 같은지 확인한다.
 5. [미결] `artifacts.reviews` → `workspace.files` 선택 의존(§6). 리뷰가 도구 결과 `details`의 diff만으로 충분하면 간선을 없앤다(`L2.workspace.spec`, `L2.artifacts.spec`).
 6. [미결] dialog의 테이블 접두사. 공통 규약은 "없음"이고 `eng.context-map.design` §4.1은 "예약 `cap_dialog_*`"다. 예약을 둘지 정한다.
-7. [미결] `eng.context-map.design` 미결 C-1(하위 층 이름과 layout 이름)과 C-3(내장 L2 능력 테이블 접두사를 `cap_<도메인>_`으로 둘지 설치형 확장 접두 `x_<extKey>_`로 통일할지). 설치형 확장 접두 `x_<extKey>_`는 [결정: review.decisions-2 U-18]로 정해졌다(`eng.context-map.design` §5.2). 이 층은 C-1의 현재 방침(코드에 layout 이름)과 C-3의 현재 값(`cap_<도메인>_`)을 따른다.
-8. [미결] 도구 없는 능력(`F.capabilities.spec` §4.4 [미결]). `workspace.images`처럼 그룹과 다른 능력만 쓰는 능력이 있다. 허용되지 않으면 해당 능력에 관리용 도구를 두어야 한다.
+7. [미결] `eng.context-map.design` 미결 C-1(하위 층 이름과 layout 이름)과 C-3(내장 L2 기능 테이블 접두사를 `cap_<도메인>_`으로 둘지 설치형 확장 접두 `x_<extKey>_`로 통일할지). 설치형 확장 접두 `x_<extKey>_`는 [결정: review.decisions-2 U-18]로 정해졌다(`eng.context-map.design` §5.2). 이 층은 C-1의 현재 방침(코드에 layout 이름)과 C-3의 현재 값(`cap_<도메인>_`)을 따른다.
+8. [미결] 도구 없는 기능(`F.capabilities.spec` §4.4 [미결]). `workspace.images`처럼 그룹과 다른 기능만 쓰는 기능이 있다. 허용되지 않으면 해당 기능에 관리용 도구를 두어야 한다.
 9. [결정: review.decisions-2 U-23] 상주 수준 2 기능의 서비스 모드 꺼짐 처리(§8). 서비스 자동 기동을 시도하고, 실패하면 `unavailable` + `service_mode_off`와 조치 안내로 거부한다. 예약 생성의 기본값 이름은 `autoStart`다.
 10. [미결] `workspace.images` 최소형을 M2에 두는 배치(§2 각주 ws). JSON의 "이미지와 첨부 처리 2차"와 `dialog.attachments` 1차(M2) 사이의 차이를 사용자가 확인한다.
 11. [결정: 사용자 확인 2026-10-22] 마일스톤 M2·M3 정의가 확정됐다(`product.scope.spec` §4.3). 이 문서의 마일스톤 칸도 그 정의를 따른다.
@@ -377,4 +377,4 @@ flowchart LR
 16. [미결] `dialog.commands`로 가는 선택 의존 둘(§6): `work`의 동작 명령 등록(`L2.work.spec` W-10)과 `mcp.client`의 프롬프트 명령 등록(`L2.mcp.spec` §1.2). 넣지 않으면 두 경로 모두 L4 클라이언트가 명령을 직접 등록한다.
 17. [미결] 1차 구성요소의 마일스톤 배치 차이(§2). `work.reports`를 JSON의 2차 대신 M3에 두는 것(`L2.work.spec` W-9)과 `web.browse`를 M2 후반~M3 초입에 두는 것(`L2.web.plan` §1.2)을 사용자가 확인한다. artifacts·schedule의 정의·카탈로그만 M2에 두는 배치(`L2.artifacts.plan` A1, `L2.schedule.plan` H1)도 함께 확인한다.
 18. [미결] 다음 턴 투입 주체(§4.2). 목표가 있는 루프에서 루프만 투입하고 `work.goals`는 `continuation: "external"`로 판정만 기록하는 규칙(`L2.work.spec` §4.3.5, `L2.schedule.spec` §4.1.4)을 확정한다.
-19. [미결] 여러 provider 능력의 등록 방식(§5.1). 앞단(`cap-<domain>`)만 능력 바인딩 공급자로 두고 플러그인 provider는 앞단 후보 목록에만 넣는 방식과, `X.primitives.spec` §3.7 규칙 2(공급자 여럿이면 `x.primitives.capabilityProviders` 설정 선택, 없으면 `capability_ambiguous`)를 맞춘다. `X.primitives.spec`과 함께 정한다.
+19. [미결] 여러 provider 기능의 등록 방식(§5.1). 앞단(`cap-<domain>`)만 기능 바인딩 공급자로 두고 플러그인 provider는 앞단 후보 목록에만 넣는 방식과, `X.primitives.spec` §3.7 규칙 2(공급자 여럿이면 `x.primitives.capabilityProviders` 설정 선택, 없으면 `capability_ambiguous`)를 맞춘다. `X.primitives.spec`과 함께 정한다.

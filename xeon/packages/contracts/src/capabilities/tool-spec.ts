@@ -85,7 +85,7 @@ export type { ToolReference };
 
 /** 순서·fingerprint 계산에 쓰는 도구 참조 */
 export interface ToolRef {
-  /** 능력 ID. 능력 밖 도구는 순서 키 접두("ext.<확장 이름>", "mcp.<서버 이름>")를 쓴다 */
+  /** 기능 ID. 기능 밖 도구는 순서 키 접두("ext.<확장 이름>", "mcp.<서버 이름>")를 쓴다 */
   readonly capability: string;
   readonly name: ToolName;
 }

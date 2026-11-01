@@ -10,7 +10,7 @@ binds: [xeon/**/*.test.ts, xeon/**/test/**, xeon/packages/*/src/testing/**]
 
 # 테스트 가이드
 
-Xeon 코드의 테스트를 어떻게 쓰고, 어디에 두고, 어떻게 돌리는지 정한다. 규칙마다 ID(`TS-NN`)를 붙인다. 테스트 실행기와 `just verify` 순서는 `eng.toolchain.guide`가, 테스트 전용 모듈의 import 규칙은 `eng.dependency-rules.guide` DR-08이 정한다. 이벤트·투영·재생의 의미는 `eng.events.design`, 트랜잭션 단계는 `eng.transactions.design`이 소유한다. 이 문서는 그 규칙을 시험하는 방법만 정한다.
+Fresnel 코드의 테스트를 어떻게 쓰고, 어디에 두고, 어떻게 돌리는지 정한다. 규칙마다 ID(`TS-NN`)를 붙인다. 테스트 실행기와 `just verify` 순서는 `eng.toolchain.guide`가, 테스트 전용 모듈의 import 규칙은 `eng.dependency-rules.guide` DR-08이 정한다. 이벤트·투영·재생의 의미는 `eng.events.design`, 트랜잭션 단계는 `eng.transactions.design`이 소유한다. 이 문서는 그 규칙을 시험하는 방법만 정한다.
 
 ## 1. 적용 범위
 
@@ -55,24 +55,24 @@ Xeon 코드의 테스트를 어떻게 쓰고, 어디에 두고, 어떻게 돌리
 
 ### TS-01 테스트 계층과 태그
 
-[제안] `docs/design/22-testing-strategy.md §3.1.1`의 15개 계층을 Xeon에 필요한 7개로 줄인다. 한 테스트 파일은 태그 하나를 가진다. 태그는 파일 이름 접미사로 정한다. `unit`은 아래 여섯 접미사(`.prop`, `.contract`, `.int`, `.fault`, `.scenario`, `.e2e`) 중 어느 것도 `.test.ts` 앞에 붙지 않은 파일이다.
+[제안] `docs/design/22-testing-strategy.md §3.1.1`의 15개 계층을 Fresnel에 필요한 7개로 줄인다. 한 테스트 파일은 태그 하나를 가진다. 태그는 파일 이름 접미사로 정한다. `unit`은 아래 여섯 접미사(`.prop`, `.contract`, `.int`, `.fault`, `.scenario`, `.e2e`) 중 어느 것도 `.test.ts` 앞에 붙지 않은 파일이다.
 
 | 태그 | 파일 이름 | 확인하는 것 | 격리 | 모델 | 결정성 | `just verify` |
 |---|---|---|---|---|---|---|
 | `unit` | 접미사 없는 `*.test.ts` | 함수·모듈 하나의 입력과 출력, 규칙 하나의 통과·실패 | 같은 프로세스, I/O 없음 또는 임시 디렉터리 | 없음 | D0 | 넣는다 |
 | `prop` | `*.prop.test.ts` | 무작위 입력열에서 항상 성립해야 하는 성질 | 같은 프로세스 | 없음 | D0(고정 시드) | 넣는다 |
-| `contract` | `*.contract.test.ts` | 외부 코드(pi-ai 1.3.0, Cordis vendored, durable env 포크, 자체 루프의 pi-agent-core 루프 포크)와 F 스키마·확장 지점 선언의 약속 | 같은 프로세스 | 테이프 | D0 | 넣는다 |
+| `contract` | `*.contract.test.ts` | 외부 코드(pi-ai 1.3.0, Cordis vendored, durable env 포크, 자체 루프의 pi-agent-core 루프 포크)와 F 스키마·훅 선언의 약속 | 같은 프로세스 | 테이프 | D0 | 넣는다 |
 | `int` | `*.int.test.ts` | 한 패키지 안에서 실제 SQLite 파일, 실제 자식 프로세스, 실제 파일 시스템을 쓰는 동작 | 임시 디렉터리 | 테이프 | D0/D1 | 넣는다(파일당 10초 이하) |
 | `fault` | `*.fault.test.ts` | 트랜잭션 고장 주입 지점, 강제 종료 뒤 재개, 손상 파일 | 같은 프로세스 또는 자식 프로세스 | 테이프 | D0/D1 | 넣는다 |
-| `scenario` | `*.scenario.test.ts` | 모델 테이프로 `xeon chat` 한 턴 + 강제 종료 뒤 재개(스모크). 저장소 전체에 1개 | `apps/cli`의 자식 프로세스 | 테이프 | D1 | 넣는다(M1부터) |
+| `scenario` | `*.scenario.test.ts` | 모델 테이프로 `fresnel chat` 한 턴 + 강제 종료 뒤 재개(스모크). 저장소 전체에 1개 | `apps/cli`의 자식 프로세스 | 테이프 | D1 | 넣는다(M1부터) |
 | `e2e` | `*.e2e.test.ts` | 데스크톱 앱(Tauri 셸 + 엔진 사이드카) | 앱 프로세스 | 테이프 | D1 | 넣지 않는다(데스크톱 이후) |
 
 버린 계층과 이유:
 
 | 22의 계층 | 처리 | 이유 |
 |---|---|---|
-| `conf` 적합성 | `contract`로 합친다 | 세 리스너 동등성 같은 다중 구현 비교가 Xeon M0·M1에 없다. 전송 교체(in-process, stdio, service)의 동등성은 `L4.host-service.spec`이 `contract` 테스트로 정한다 |
-| `sec` 보안·격리 | `int`로 합친다 | 샌드박스와 비밀 마스킹은 L0 패키지(`platform-sandbox`, `platform-secrets`)의 `int` 테스트다. 별도 레시피가 필요 없다 |
+| `conf` 적합성 | `contract`로 합친다 | 세 리스너 동등성 같은 다중 구현 비교가 Fresnel M0·M1에 없다. 전송 교체(in-process, stdio, service)의 동등성은 `L4.host-service.spec`이 `contract` 테스트로 정한다 |
+| `sec` 보안·격리 | `int`로 합친다 | 샌드박스와 시크릿 마스킹은 L0 패키지(`platform-sandbox`, `platform-secrets`)의 `int` 테스트다. 별도 레시피가 필요 없다 |
 | `ui` 부품 | 보류 | 데스크톱 UI는 M2 이후다. `L4.desktop.spec`이 다시 정한다 |
 | `visual` 시각 회귀 | 보류 | 같은 이유 |
 | `perf` 성능 | 버린다(verify 밖) | D2 등급이라 verify에 넣을 수 없다. 측정이 필요하면 해당 plan이 별도 레시피로 둔다 |
@@ -134,7 +134,7 @@ test("projection looks right", () => {
 
 ### TS-03 비결정 요소는 주입하고, 테스트 안에서 실제 시간을 기다리지 않는다
 
-[제안] `docs/design/22-testing-strategy.md §3.5.1`의 주입 대상을 Xeon 패키지로 옮긴다.
+[제안] `docs/design/22-testing-strategy.md §3.5.1`의 주입 대상을 Fresnel 패키지로 옮긴다.
 
 | 대상 | 운영 | 테스트 | 제공 |
 |---|---|---|---|
@@ -187,7 +187,7 @@ export declare function withIsolatedEnv<T>(
 - 우리 코드는 `ManualClock`을 주입받아 시험한다. Bun의 가짜 시계는 다음 경우에만 쓴다(`_research/notes/eng-3.md §3`).
   - `setSystemTime(date)`: `Date.now()`와 `new Date()`를 직접 읽는 경계 코드(L0의 `Clock` 구현 자신)를 시험할 때. `afterEach`에서 인자 없이 `setSystemTime()`을 불러 되돌린다.
   - `jest.useFakeTimers()`와 `jest.advanceTimersByTime(ms)`: 주입을 받지 않는 외부 코드(예: pi-ai의 재시도 대기)가 `setTimeout`을 쓸 때. `afterEach`에서 `jest.useRealTimers()`를 부른다. `useFakeTimers`만으로 `Date`가 바뀌는지는 확인하지 않았다 [가정: 바뀌지 않는다고 보고 `setSystemTime`을 함께 쓴다].
-- 테스트 preload: [제안] 각 패키지의 `bunfig.toml`이 `[test] preload = ["../../scripts/test-preload.ts"]`를 둔다. `xeon/scripts/test-preload.ts`는 `TZ`, `LANG`을 고정하고, 비밀 환경 변수를 지우고, `globalThis.fetch`와 `globalThis.WebSocket`을 루프백 외 주소에서 예외를 던지는 함수로 바꾼다. 소켓 수준(`Bun.connect`, `node:net`)은 막지 못한다 [가정]. 그 구멍은 리뷰로 막고, 보완 수단은 6절 [미결]이다.
+- 테스트 preload: [제안] 각 패키지의 `bunfig.toml`이 `[test] preload = ["../../scripts/test-preload.ts"]`를 둔다. `xeon/scripts/test-preload.ts`는 `TZ`, `LANG`을 고정하고, 시크릿 환경 변수를 지우고, `globalThis.fetch`와 `globalThis.WebSocket`을 루프백 외 주소에서 예외를 던지는 함수로 바꾼다. 소켓 수준(`Bun.connect`, `node:net`)은 막지 못한다 [가정]. 그 구멍은 리뷰로 막고, 보완 수단은 6절 [미결]이다.
 
 좋은 예:
 
@@ -359,8 +359,8 @@ export declare const t: {
 
 녹화(`origin: "recorded"`):
 
-- 녹화는 실제 모델과 네트워크를 쓰므로 `just verify`와 CI에서 돌지 않는다. 레시피 `just tape-record <scenario>`(`xeon/scripts/tape-record.ts`)는 `--yes` 없이는 계획만 보이고 종료코드 3으로 끝난다. 사람이 확인한 뒤 `--yes`로 다시 부르면 `packages/core-models/scripts/record-tape.ts <scenario> <out>`을 부르고, 결과는 `packages/core-models/test/tapes/recorded/<scenario>.tape.jsonl`이다. 녹화기는 pi-ai 요청 옵션 `fetch`로 주입해 원본 SSE 덩어리를 차례의 `wire` 필드에 남기고(요청 헤더 없음, 응답 헤더 허용 목록, 비밀 치환과 쓰기 전 재검사), 재생은 `tapeFetch`가 한다. 규칙과 필드는 `L1.models.plan` M-15에 있다. 키는 환경 변수 `ANTHROPIC_API_KEY`에서만 읽고 없으면 종료코드 2다. M2 마감 전에 한 번 녹화한다(`review.m2-plan` §9 D-e).
-- 저장소에 넣기 전에 gitleaks로 비밀 패턴을 검사하고, 홈 디렉터리 절대 경로와 실제 사용자 이름이 없는지 확인한다. 하나라도 있으면 넣지 않는다.
+- 녹화는 실제 모델과 네트워크를 쓰므로 `just verify`와 CI에서 돌지 않는다. 레시피 `just tape-record <scenario>`(`xeon/scripts/tape-record.ts`)는 `--yes` 없이는 계획만 보이고 종료코드 3으로 끝난다. 사람이 확인한 뒤 `--yes`로 다시 부르면 `packages/core-models/scripts/record-tape.ts <scenario> <out>`을 부르고, 결과는 `packages/core-models/test/tapes/recorded/<scenario>.tape.jsonl`이다. 녹화기는 pi-ai 요청 옵션 `fetch`로 주입해 원본 SSE 덩어리를 차례의 `wire` 필드에 남기고(요청 헤더 없음, 응답 헤더 허용 목록, 시크릿 치환과 쓰기 전 재검사), 재생은 `tapeFetch`가 한다. 규칙과 필드는 `L1.models.plan` M-15에 있다. 키는 환경 변수 `ANTHROPIC_API_KEY`에서만 읽고 없으면 종료코드 2다. M2 마감 전에 한 번 녹화한다(`review.m2-plan` §9 D-e).
+- 저장소에 넣기 전에 gitleaks로 시크릿 패턴을 검사하고, 홈 디렉터리 절대 경로와 실제 사용자 이름이 없는지 확인한다. 하나라도 있으면 넣지 않는다.
 - 헤더의 `recordedFrom.piAi`로 pi-ai 판을 남긴다. pi-ai를 올리면 녹화 테이프를 재생해 스키마 실패가 없는지 본다.
 - 테이프에 모델 문장의 품질 기대를 두지 않는다. 기대값은 이벤트 저장 결과(타입과 핵심 필드)다.
 
@@ -399,7 +399,7 @@ test("answers", async () => {
 
 [제안]
 
-- 가짜가 필요한 외부 경계(프로세스 실행, 비밀, 파일 시스템, OS 정보, 저장)는 L0 인터페이스(F 정의)를 구현한 가짜를 `testing` 서브패스로 제공한다(1.2 표). 테스트는 그 가짜를 생성자나 Cordis 서비스로 주입한다.
+- 가짜가 필요한 외부 경계(프로세스 실행, 시크릿, 파일 시스템, OS 정보, 저장)는 L0 인터페이스(F 정의)를 구현한 가짜를 `testing` 서브패스로 제공한다(1.2 표). 테스트는 그 가짜를 생성자나 Cordis 서비스로 주입한다.
 - `mock.module()`로 `@fresnel/*` 패키지나 같은 패키지의 상대 경로 모듈을 바꾸지 않는다.
   - 이유 1: 주입 지점이 없는 설계를 가린다. 주입 지점이 없으면 운영 코드도 교체할 수 없다.
   - 이유 2: `bun test` 기본 실행에서 `mock.module`은 파일 사이에 새어 다른 테스트 파일을 깨뜨린다. `--isolate`나 `--parallel`에서만 막힌다(`_research/notes/eng-3.md §3.2`). `mock.restore()`는 `mock.module`을 되돌리지 않는다.
@@ -468,7 +468,7 @@ const text = await Bun.file("packages/core-tools/test/fixtures/a.txt").text();  
 - 이벤트·투영·체크포인트·잠금을 건드리는 테스트는 `bun:sqlite`의 `:memory:` 또는 `tempDir()` 안 임시 파일로 실제 SQLite를 연다. `@fresnel/platform-store/testing`의 `openTestStore()`를 쓴다.
 - 저장소 가짜(배열이나 `Map`으로 흉내 낸 저장소)를 만들지 않는다. SQL 제약, 트랜잭션 롤백, `SQLITE_BUSY` 같은 동작은 실제 SQLite에서만 확인된다.
 - WAL, 잠금, `busy_timeout`, 파일 손상 시험은 임시 파일을 쓴다. `:memory:`는 WAL과 다른 연결을 시험하지 못한다.
-- 임시 파일 시험은 `scripts/test-preload.ts`(각 패키지 `bunfig.toml`의 `preload`)가 `TMPDIR`을 `/dev/shm` 아래 디렉터리로 돌린 상태에서 돈다. 파일, SQLite, 잠금, 자식 프로세스는 실제 그대로이고 디스크 fsync 지연만 없다. 내구성 자체를 보는 시험은 `XEON_TEST_DISK_TMP=1`로 디스크에서 돌린다. `/dev/shm`이 없으면 훅은 아무것도 하지 않는다.
+- 임시 파일 시험은 `scripts/test-preload.ts`(각 패키지 `bunfig.toml`의 `preload`)가 `TMPDIR`을 `/dev/shm` 아래 디렉터리로 돌린 상태에서 돈다. 파일, SQLite, 잠금, 자식 프로세스는 실제 그대로이고 디스크 fsync 지연만 없다. 내구성 자체를 보는 시험은 `FRESNEL_TEST_DISK_TMP=1`로 디스크에서 돌린다. `/dev/shm`이 없으면 훅은 아무것도 하지 않는다.
 - 연결은 `PRAGMA busy_timeout = 5000`을 명시한다(`eng.toolchain.guide` TC-11). 잠금 경합 테스트는 실제 대기 대신 `busy_timeout = 0`과 `SQLITE_BUSY` 오류 코드로 확인한다.
 - 오류 판정은 `SQLiteError`의 `code`(예: `SQLITE_CONSTRAINT_UNIQUE`)로 한다. 메시지 문자열로 판정하지 않는다(`_research/notes/eng-3.md §2.2`).
 
@@ -528,7 +528,7 @@ class FakeEventStore { events: unknown[] = []; append(e: unknown) { this.events.
 2. 트랜잭션 고장 주입: `eng.transactions.design` 4.2절 `FaultPoint`의 10개 지점(`after_begin`, `after_lease_check`, `after_request_check`, `after_event_insert:<n>`, `after_projection:<n>`, `after_ext_projection:<n>`, `before_checkpoint`, `before_request_insert`, `before_commit`, `after_commit`)마다 `FaultInjector.hit`에서 예외를 던지고 그 문서 4.6절의 불변식을 확인한다.
    - 커밋 전 9개 지점: `events`, `p_*`, `cap_*`, `x_*`(확장 테이블, review.decisions-2 U-18), `requests`, `step_checkpoints`의 행 수와 내용이 주입 전과 같다(부분 커밋 없음). seq에 빈칸이 없다. 같은 `requestId`로 다시 제출하면 처음 시도와 같은 결과로 성공한다.
    - `after_commit`: 모든 행이 남는다. 같은 `requestId`로 다시 제출하면 `replayed: true`이고 이벤트 수가 늘지 않는다.
-3. 강제 종료 뒤 재개: 자식 프로세스로 엔진을 띄우고 이름 붙은 종료 지점에서 `SIGKILL`한 뒤 같은 데이터 디렉터리로 다시 띄운다. 기대값은 불변식 성립이다. 특정 이벤트열을 비교하지 않는다(D1). [제안] 종료 지점은 환경 변수 `XEON_TEST_KILLPOINT=<이름>[:<n>]`로 고르고, `XEON_TEST_HOOKS=1`이며 데이터 디렉터리가 임시 디렉터리일 때만 켜진다. 지점 이름 목록은 `L1.persistence.spec`이 정한다.
+3. 강제 종료 뒤 재개: 자식 프로세스로 엔진을 띄우고 이름 붙은 종료 지점에서 `SIGKILL`한 뒤 같은 데이터 디렉터리로 다시 띄운다. 기대값은 불변식 성립이다. 특정 이벤트열을 비교하지 않는다(D1). [제안] 종료 지점은 환경 변수 `FRESNEL_TEST_KILLHOOK=<이름>[:<n>]`로 고르고, `FRESNEL_TEST_HOOKS=1`이며 데이터 디렉터리가 임시 디렉터리일 때만 켜진다. 훅 이름 목록은 `L1.persistence.spec`이 정한다.
 4. 장애 뒤 공통 검사: 수락된 요청이 모두 저장되어 있다, seq 빈칸 없음, 도구 실행 의도마다 종결 기록이 하나, 증분 투영 = 재구성 투영. 정확한 목록은 `eng.events.design`의 불변식을 따른다.
 
 좋은 예:

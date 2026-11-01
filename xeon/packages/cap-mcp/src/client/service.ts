@@ -73,7 +73,7 @@ import {
 import { createRegistry, type ServerRegistry, type ServerSnapshot } from "./registry.ts";
 import { createStateStore, type StateStore } from "./state-store.ts";
 
-// L2.mcp.spec §3.2 `mcp.client` 능력 구현과 `fresnel.mcp`(McpService)의 조립. 서버 목록의 변화는 메모리에 모아
+// L2.mcp.spec §3.2 `mcp.client` 기능 구현과 `fresnel.mcp`(McpService)의 조립. 서버 목록의 변화는 메모리에 모아
 // 단계 경계(`applyBoundary`)에서 한 번에 도구 표에 반영한다(§4.9).
 
 export interface McpDeps {
@@ -107,7 +107,7 @@ export interface McpDeps {
   readonly store: McpStorePort | undefined;
   /** 내장 도구 이름 등 서버 도구가 쓰면 안 되는 기계 이름 */
   readonly reservedToolNames: () => ReadonlySet<string>;
-  /** `thread.mcp.after` 지점 발화(tap). 서버 상태나 도구 집합이 바뀐 단계 경계에서 한 번 부른다 */
+  /** `thread.mcp.after` 훅 발화(tap). 서버 상태나 도구 집합이 바뀐 단계 경계에서 한 번 부른다 */
   readonly onServersChange: ((payload: McpServersChangePayload) => void) | undefined;
   readonly client: { readonly name: string; readonly version: string };
   /** stdio 서버 종료 유예(SIGTERM 뒤 SIGKILL 전) */

@@ -143,7 +143,7 @@ export function createLearningWiring(deps: LearningRunnerDeps): LearningWiring {
 const BRIDGE_NAME = "host-proposals-bridge";
 
 /**
- * `knowledge.ledger` 능력으로 L2.knowledge 제안 대기열 어댑터를 만들어 `holder`에 채우는 조립 확장. `proposal.list`·`proposal.decide`가
+ * `knowledge.ledger` 기능으로 L2.knowledge 제안 대기열 어댑터를 만들어 `holder`에 채우는 조립 확장. `proposal.list`·`proposal.decide`가
  * 호스트(사용자) 호출 문맥으로 부른다. 안전 모드에서도 L2는 싣기 때문에 이 확장도 싣는다
  */
 export function proposalsBridgePlugin(

@@ -8,7 +8,7 @@ import type { MetricsCounter } from "./counter.ts";
 export type AfterRun = (args: readonly unknown[]) => Promise<void>;
 
 /**
- * on 핸들러를 감싸 계수를 올린다(L3.group-sdk.spec §4.9). first 지점의 정의 반환은 `denies`, chain 지점의 정의 반환은
+ * on 핸들러를 감싸 계수를 올린다(L3.group-sdk.spec §4.9). first 훅의 정의 반환은 `denies`, chain 훅의 정의 반환은
  * `chainPatches`, 던진 오류는 `handlerErrors`다. 값과 오류는 바꾸지 않는다: 오류는 그대로 다시 던진다.
  * `afterRun`이 있으면 핸들러가 정상으로 끝난 뒤 그 호출 안에서 부른다. 그 오류도 `handlerErrors`로 세고 다시 던진다.
  *

@@ -22,7 +22,7 @@ import { memoryLogger, sequentialLocalIds } from "./support/fakes.ts";
 import { realScheduler, waitFor } from "./support/real-time.ts";
 import { fakeSandbox } from "./support/sandbox-fake.ts";
 
-// L0.process.plan PR-23, spec §4.9: 실제 자식 프로세스로 McpProcessPort.spawn과 spawnPiped를 확인한다(사용자 권한 실행, 비밀 주입, 그룹 종료).
+// L0.process.plan PR-23, spec §4.9: 실제 자식 프로세스로 McpProcessPort.spawn과 spawnPiped를 확인한다(사용자 권한 실행, 시크릿 주입, 그룹 종료).
 
 const MCP_CHILD = `${import.meta.dir}/fixtures/mcp-child.ts`;
 const TREE_CHILD = `${import.meta.dir}/fixtures/hook-child.ts`;

@@ -38,11 +38,11 @@ React 19와 Zustand 5(adr.0010)로 UI 전역 상태를 만들 때 따르는 구�
 - Zustand 5.0.16 소스·타입·문서와 실제 제품 저장소 조사: `L4/desktop/_research/state-management.md`, 그리고 같은 날 조사한 Zustand 내부 구조, 제품 사례, 관측성 요약(이 문서 1.3절 표의 출처 열). 표의 사실은 그 조사가 읽은 소스 경로와 URL을 그대로 적는다.
 - 스파이크(2026-10-24, 저장소 밖): `L4.desktop.design` §12 골격을 tsgo 7.0.2, 저장소 `.oxlintrc.json`(oxlint 1.89 type-aware), `bun test`로 검사했다. 오류 0건이고 시험 62건이 통과했다. 검토에서 고친 결함 일곱 건은 `L4.desktop.design` §12 머리말에 있다.
 
-### 1.3 제품 코드의 관행과 Xeon의 선택
+### 1.3 제품 코드의 관행과 Fresnel의 선택
 
-Zustand를 제품 수준으로 쓰는 저장소와 공식 문서가 반복하는 선택을 모았다. "Xeon" 열이 이 문서의 결론이고, 규칙 번호가 그 이유를 단다.
+Zustand를 제품 수준으로 쓰는 저장소와 공식 문서가 반복하는 선택을 모았다. "Fresnel" 열이 이 문서의 결론이고, 규칙 번호가 그 이유를 단다.
 
-| 주제 | 관행 | 출처 | Xeon |
+| 주제 | 관행 | 출처 | Fresnel |
 |---|---|---|---|
 | 스토어 경계 | 공식 Flux 가이드는 전역 상태를 단일 스토어에 둔다. TkDodo는 작은 스토어 여러 개와 커스텀 훅을 권한다. lobehub는 액션 슬라이스 13개 안팎을 한 스토어에 합친다 | zustand `docs/learn/guides/flux-inspired-practice.md`, TkDodo "Working with Zustand"(2022-11-20), lobehub `src/store/chat/store.ts` | 엔진 사실은 단일 거울, 화면 상태는 UI 스토어(FS-01) |
 | 인스턴스 | Context에는 스토어 인스턴스만 넣고 `useState(() => createStore(...))`로 한 번 만든다 | xyflow `ReactFlowProvider`, dify `createWorkflowStore`, TkDodo "Zustand and React Context"(2024-04-14) | 부트스트랩에서 만들고 Context로 넘긴다(FS-05) |
@@ -366,7 +366,7 @@ const item = event.payload.item; // TY-02·TY-10: unknown 멤버 접근(typescri
 - 정상 적용된 휘발 조각(`chunk`, `note: applied`)은 기록하지 않고, 델타만 있는 빠른 커밋(8 ms 이하)은 `flush` 항목도 남기지 않는다. `stale`·`duplicate` 조각과 느린 커밋은 남긴다.
 - 크기는 [제안] 1,000항목이다. 내보내기는 사용자가 진단 화면에서 고를 때만 한다(`L4.desktop.design` §11). 진단 묶음(`buildDiagnostics`)은 고정 필드만 고르는 반환 타입을 쓰고 상태를 펼치지 않는다.
 
-이유: 기록 대상을 고정 필드로 정하면 가림(redaction) 단계가 필요 없고, 비밀이 섞일 경로가 없다(`L4.desktop.spec` E11, `eng.best-practices.guide` BP-07). 델타는 초당 수십 건이라 모두 남기면 1,000칸이 17~20초 안에 차서 구멍·재설정 항목이 밀려나고, 충돌 보고의 마지막 50항목이 델타로만 채워진다. 고정 크기라 오래 켜 둔 앱에서도 메모리가 늘지 않는다. Redux DevTools 확장의 기본 `maxAge`는 50인데 이는 상태 스냅샷 기준이고, 메타데이터 항목은 수십 바이트라 더 길게 둔다.
+이유: 기록 대상을 고정 필드로 정하면 가림(redaction) 단계가 필요 없고, 시크릿이 섞일 경로가 없다(`L4.desktop.spec` E11, `eng.best-practices.guide` BP-07). 델타는 초당 수십 건이라 모두 남기면 1,000칸이 17~20초 안에 차서 구멍·재설정 항목이 밀려나고, 충돌 보고의 마지막 50항목이 델타로만 채워진다. 고정 크기라 오래 켜 둔 앱에서도 메모리가 늘지 않는다. Redux DevTools 확장의 기본 `maxAge`는 50인데 이는 상태 스냅샷 기준이고, 메타데이터 항목은 수십 바이트라 더 길게 둔다.
 
 좋은 예:
 
@@ -714,7 +714,7 @@ export function observed<
 | `devtools(persist(immer(...)))` 기본 조합 | 운영에서 상태 전체가 확장으로 나가고, set마다 동기 저장이 돈다 | FS-11 |
 | `set`을 감싸는 로깅 미들웨어 | 단언이 필요하고, `api.setState` 직접 호출을 놓친다 | FS-10, FS-11 |
 | 리스너 안에서 `await`와 예외 방치 | 뒤 리스너가 건너뛰어지고 Promise 거부가 버려진다 | FS-22 |
-| journal에 입력 전체를 직렬화 | 대화 내용과 비밀 참조가 진단 파일로 나간다 | FS-13 |
+| journal에 입력 전체를 직렬화 | 대화 내용과 시크릿 참조가 진단 파일로 나간다 | FS-13 |
 | reducer 안에서 재구독 | 순수성이 깨지고 시험이 네트워크를 요구한다 | FS-09, FS-17 |
 
 ## 6. 미결 사항

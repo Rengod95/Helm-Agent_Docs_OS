@@ -11,12 +11,12 @@ import { pinBlobs, putTree, unpinBlobs } from "./manifest.ts";
 import { insertRecord, manifestForHash } from "./rows.ts";
 import { hashOfTarget, type ChangeTarget } from "./target.ts";
 
-// L2.knowledge.spec §4.3.5 바깥 편집. 이 능력 밖에서 파일이 바뀐 것을 원장에 `external` 항목으로 남기고 파일 상태를 새 내용으로
+// L2.knowledge.spec §4.3.5 바깥 편집. 이 기능 밖에서 파일이 바뀐 것을 원장에 `external` 항목으로 남기고 파일 상태를 새 내용으로
 // 맞춘다. 행위자는 `external`이다. 스킬 재색인(`skills/reindex.ts`)은 같은 항목을 자기 트랜잭션 안에서 직접 만든다.
 
 export interface ExternalChange {
   readonly target: ChangeTarget;
-  /** 이 능력이 마지막으로 확인한 해시. 처음 보는 파일이면 null */
+  /** 이 기능이 마지막으로 확인한 해시. 처음 보는 파일이면 null */
   readonly previousHash: string | null;
   /** 지금 내용. 파일이 없어졌으면 null */
   readonly current: Tree | null;

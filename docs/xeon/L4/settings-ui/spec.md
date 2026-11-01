@@ -25,7 +25,7 @@ binds: [xeon/packages/client/src/settings/**]
 - `SettingWidget` 8값과 화면 부품의 대응, `range`·`ui.unit`·`ui.help`·`ui.order` 반영 규칙(§4.2).
 - 항목 공통 표시: 범위 배지, `runtimeChange` 배지와 `pendingUntil`, 잠금, 가려진 값, 저장 파일 경로, 기본값 복귀, 폐기 배지, 쓰기 범위 선택(§4.3).
 - 쓰기 흐름: 편집, 클라이언트 즉시 검사, `settings.set`, 오류 코드의 필드 문구 변환, 변경 수신, 재시작 안내(§4.4, §4.5).
-- 비밀 화면: 참조와 상태 표시, 값 입력과 열람 경로의 비교와 제안(§4.6).
+- 시크릿 화면: 참조와 상태 표시, 값 입력과 열람 경로의 비교와 제안(§4.6).
 - 첫 실행 권장 화면: 검색 provider 상태, SearXNG 주소, 무료 크레딧 API 플러그인 권장 목록(§4.10, ADR-0005 ④, `product.scope.spec` I10 M3).
 - 도구와 웹 탭의 view-model(`@fresnel/client/web`): `web.providers` 결과에서 provider 행, 현재·고정 표시, 추천 키 플러그인 상태를 만들고, 끌어 옮긴 순서를 `settings.set` 값으로 바꾸는 규칙(§3.6, §4.11, M3-12 비시각 부분).
 - 상태 게이지 자리(§4.7), 접근성과 문구 규칙(§4.8), 코드 위치(§4.9).
@@ -38,8 +38,8 @@ binds: [xeon/packages/client/src/settings/**]
 - `fresnel config get/set/reset/list` 명령: `L4.cli.spec`(같은 표).
 - 설정 병합, 파일 감시, 파일 쓰기: `L1.persistence.spec`, `L4.host-service.spec`.
 - 셸 창, 엔진 사이드카 수명, 전송, 패키징: `L4.desktop.spec`. 경계는 "화면 생성·검증·표시는 settings-ui, 셸·수명·전송·패키징은 desktop"이다 [제안](`L4.desktop.spec` §1.2 첫 항목, `L4.readme` §2).
-- 비밀 값 저장, 해석, 마스킹, 승인: `L0.secrets.spec`.
-- 승인 요청 화면(비밀 사용 승인 포함): 대화 화면 쪽이다. [가정] 승인은 `F.wire-settings.spec` §4.6 A안(내구 이벤트 + `approval.respond`)을 따르고, 설정 화면은 승인 요청을 띄우지 않는다.
+- 시크릿 값 저장, 해석, 마스킹, 승인: `L0.secrets.spec`.
+- 승인 요청 화면(시크릿 사용 승인 포함): 대화 화면 쪽이다. [가정] 승인은 `F.wire-settings.spec` §4.6 A안(내구 이벤트 + `approval.respond`)을 따르고, 설정 화면은 승인 요청을 띄우지 않는다.
 - 표시 설정(테마, 글꼴, 키 바인딩) 키의 정의: `L4.desktop.spec`의 `l4.desktop.*`와 `L4.cli.spec`의 `l4.cli.*`.
 
 ## 2. 용어
@@ -104,7 +104,7 @@ export interface SettingsHostPort {
   /** 재시작이 필요한 변경을 적용하려고 호스트 재시작을 요청한다. 수명 관리는 desktop 몫이다.
    *  [가정] desktop이 L4.desktop.spec §10 미결 2의 host.shutdown {reason: "restart"}와 재기동으로 구현한다. */
   requestHostRestart(): Promise<void>;
-  /** 비밀 탭에서 L0.secrets 흐름으로 넘긴다. M3 전까지는 없을 수 있다(§4.6.4). */
+  /** 시크릿 탭에서 L0.secrets 흐름으로 넘긴다. M3 전까지는 없을 수 있다(§4.6.4). */
   readonly openSecretFlow?: (request: SecretFlowRequest) => Promise<SecretFlowOutcome>;
 }
 
@@ -229,7 +229,7 @@ export type WidgetVM =
   | { readonly kind: "secret" }
   | { readonly kind: "readonly" };
 
-/** 비밀 참조 상태. "registered"·"missing"은 L0.secrets 상태를 받을 수 있을 때만 쓴다(§4.6.2). */
+/** 시크릿 참조 상태. "registered"·"missing"은 L0.secrets 상태를 받을 수 있을 때만 쓴다(§4.6.2). */
 export type SecretStatus = "unset" | "referenced" | "registered" | "missing";
 export interface SecretFieldVM {
   readonly ref: SecretRef | null;
@@ -376,7 +376,7 @@ export interface ValueIssue { readonly path: string; readonly message: string }
  *  F.wire-settings.spec §4.10 3번과 같은 규칙이다. F가 같은 함수를 제공하면 그것으로 바꾼다(§10 미결 7). */
 export declare function toValueJsonSchema(def: SettingDefWire): JsonSchemaObject;
 
-/** typebox/schema의 Check로 검사한다. 범위 허용은 함께 본다. 잠금·비밀 값 판정은 하지 않는다(서버 전용). */
+/** typebox/schema의 Check로 검사한다. 범위 허용은 함께 본다. 잠금·시크릿 값 판정은 하지 않는다(서버 전용). */
 export declare function checkClientValue(def: SettingDefWire, value: unknown): Result<unknown, readonly ValueIssue[]>;
 
 /** 위젯 입력을 값으로 바꾼다. number는 Number 변환, text는 문자열 그대로,
@@ -390,7 +390,7 @@ import type { WireParams } from "@fresnel/contracts/wire";
 
 export type WritePlan =
   | { readonly kind: "send"; readonly params: WireParams<"settings.set"> }
-  | { readonly kind: "blocked"; readonly error: FieldError };   // 잠금, 범위 밖, 클라이언트 검사 실패, 비밀 비참조
+  | { readonly kind: "blocked"; readonly error: FieldError };   // 잠금, 범위 밖, 클라이언트 검사 실패, 시크릿 비참조
 
 /** 초안을 settings.set params로 바꾸거나 막는다. 순수 함수. */
 export declare function planWrite(
@@ -514,10 +514,10 @@ export declare function orderUpdateOf(
 export declare function moveInOrder(ids: readonly string[], from: number, to: number): readonly string[];
 ```
 
-- `toolsWebViewOf`는 결과가 스키마를 통과했다고 보고 다시 검사하지 않는다(연결이 검사한다). 비밀 값과 헤더 이름은 wire에 없고 이 모듈이 만들지도 않는다.
+- `toolsWebViewOf`는 결과가 스키마를 통과했다고 보고 다시 검사하지 않는다(연결이 검사한다). 시크릿 값과 헤더 이름은 wire에 없고 이 모듈이 만들지도 않는다.
 - `orderUpdateOf`와 `moveInOrder`의 규칙은 §4.11이 정한다. 값이 맞는지는 `test/web/tools-web.test.ts`가 값 비교로 확인한다.
 
-### 3.7 명령, 제안, 비밀 열람 view-model (M3b B3-SET)
+### 3.7 명령, 제안, 시크릿 열람 view-model (M3b B3-SET)
 
 `@fresnel/client/settings`의 순수 함수다. 호출과 화면은 앱이 맡는다. 시험은 `test/settings/`의 같은 이름 파일이다.
 
@@ -552,8 +552,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `models` | 모델 | L1-c `l1.models.*`(기본 모델, 용도별 라우팅, 폴백 체인, 추론 레벨, 레벨별 토큰 예산, 허용 목록), L1-g `l1.agents.*`(`maxDepth`, `maxConcurrent`, `resultMaxChars`, `judge.maxRuns`. review.decisions-2 S-14) | 폼 + 전용 편집기(역할 표, 폴백 체인, M3) | 없음 |
 | `budgets` | 예산과 한도 | L1-b `l1.loop.*`(단계 상한, 완료 게이트, 반복 감지), L1-c `l1.models.rateLimit`(레이트 리밋 정책, M3) | 폼(number, select) | 있음(자리만, §4.7) |
 | `providers` | 계정과 제공자 | L1-c `l1.models.*` 중 제공자 연결, `l1.models.accounts`(계정 풀, 우선순위, 예약 %, 계정 회전, M3), 확장 제공자 `ext.<id>.*` 중 키 참조 | 목록·표 편집기, 키는 `secret` 위젯(참조만) | 있음(자리만, §4.7) |
-| `secrets` | 비밀 | L0-c `l0.secrets.*` 중 `ui.tab: "secrets"`인 키(제공자 기본값 등) + 비밀 관리 패널(§4.6) | 폼 + `SecretsTab` 전용 패널 | 없음 |
-| `permissions` | 권한과 샌드박스 | L1-d 승인·권한 규칙(소유 문서 `L1.tools.spec`, `l1.tools.*`), L0-c `l0.secrets.approval.*`(비밀 승인 기본 정책, 쓰기 허용 호스트), L0-b `l0.sandbox.*`(켜기·끄기, 쓰기 경로, 허용 도메인, 프록시) | 규칙 편집기, 목록 편집기(M3) | 없음 |
+| `secrets` | 시크릿 | L0-c `l0.secrets.*` 중 `ui.tab: "secrets"`인 키(제공자 기본값 등) + 시크릿 관리 패널(§4.6) | 폼 + `SecretsTab` 전용 패널 | 없음 |
+| `permissions` | 권한과 샌드박스 | L1-d 승인·권한 규칙(소유 문서 `L1.tools.spec`, `l1.tools.*`), L0-c `l0.secrets.approval.*`(시크릿 승인 기본 정책, 쓰기 허용 호스트), L0-b `l0.sandbox.*`(켜기·끄기, 쓰기 경로, 허용 도메인, 프록시) | 규칙 편집기, 목록 편집기(M3) | 없음 |
 | `sessions` | 세션과 컨텍스트 | L1-e `l1.context.*`(자동 컴팩션, 임계), L1-f `l1.persistence.*`(보관 기간, 내보내기, 자동 재개), L2-d `l2.knowledge.*`(메모리) | 토글과 폼. 삭제성 동작은 확인 단계 | 없음 |
 | `tools` | 도구와 웹 | L2 `l2.mcp.*`, `l2.web.*`, `l2.workspace.*`, `l2.knowledge.*`(스킬), `l2.dialog.*` 중 질문·명령·첨부 키, 그 밖의 `l2.*` | 목록 토글, 선택 | 없음 |
 | `plugins` | 플러그인과 그룹 | X `x.loading-trust.*`(신뢰, 격리), `x.operations.*`(핸들러 시한, 자동 끄기, 안전 모드), `x.primitives.driveDefaultLimits`(drive 기본 상한, review.decisions-2 U-12), `x.primitives.driveLimits`(천장), `x.primitives.activeDriveGroup`(구동 그룹 선택, review.decisions-2 S-15), `x.primitives.capabilityProviders`, 그룹 켜기 키 `ext.<id>.enabled`, L3 `l3.group-sdk.*`, `l3.helm.*`, `l3.learning.*`, 확장 `ext.<id>.*`(userConfig에서 온 키는 `plugins` 고정, `F.wire-settings.spec` §3.8.3) | 목록 토글과 그룹별 묶음 | 없음 |
@@ -568,7 +568,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 #### 4.1.2 초안 탭과 F 12값의 대응
 
-`_research/settings.md` §4의 13개 초안과 `_research/layer-plan-v2-notes.md` L4 설정 화면 구성안의 8탭이 `SettingsTab` 12값으로 합쳐진 대응이다. `F.wire-settings.spec` §4.9는 "에이전트를 모델에 합침, 비밀과 외관을 따로 둠"만 적었다. 나머지 합침(권한+샌드박스, 플러그인+그룹)은 8탭안의 묶음을 따른 것으로 이 문서가 읽어 낸 결과다 [제안].
+`_research/settings.md` §4의 13개 초안과 `_research/layer-plan-v2-notes.md` L4 설정 화면 구성안의 8탭이 `SettingsTab` 12값으로 합쳐진 대응이다. `F.wire-settings.spec` §4.9는 "에이전트를 모델에 합침, 시크릿과 외관을 따로 둠"만 적었다. 나머지 합침(권한+샌드박스, 플러그인+그룹)은 8탭안의 묶음을 따른 것으로 이 문서가 읽어 낸 결과다 [제안].
 
 | `SettingsTab` | settings.md §4 초안(13) | layer-plan-v2 8탭 | 비고 |
 |---|---|---|---|
@@ -576,7 +576,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `models` | 1. 모델 + 9. 에이전트 | 모델 | 8탭안의 모델 탭은 서브에이전트를 포함한다 |
 | `budgets` | 2. 예산과 한도 | 없음(모델·계정 탭에 흩어짐) | 레이트 리밋 정책은 이 탭, 계정 풀과 회전은 providers |
 | `providers` | 3. 계정과 제공자 | 계정과 provider | 사용량 게이지 자리 |
-| `secrets` | 없음(3번 안의 "키는 등록 전용") | 비밀 | 8탭안에서 가져옴 |
+| `secrets` | 없음(3번 안의 "키는 등록 전용") | 시크릿 | 8탭안에서 가져옴 |
 | `permissions` | 4. 권한 + 5. 샌드박스와 네트워크 | 권한과 샌드박스 | 8탭안 묶음을 따름 |
 | `sessions` | 6. 세션과 컨텍스트 | 세션과 컨텍스트 | |
 | `tools` | 7. 도구와 확장 | 도구와 웹 | 라벨은 8탭안의 것 |
@@ -585,7 +585,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `appearance` | 없음(§2.13 층 밖 항목) | 없음 | `SettingLayer`에 L4를 넣은 이유와 같다(`F.wire-settings.spec` §3.8.1) |
 | `advanced` | 12. 고급 | 없음 | |
 
-- 합계: 13 − 3(에이전트, 샌드박스, 그룹을 합침) + 2(비밀, 외관 추가) = 12.
+- 합계: 13 − 3(에이전트, 샌드박스, 그룹을 합침) + 2(시크릿, 외관 추가) = 12.
 - [제안] 현재 `SettingsTab` enum은 바꾸지 않는다. 탭별 전용 편집기(§4.2.4)가 새 탭을 요구하면 F 부 버전 변경 요청으로 올린다(§10 미결 8).
 
 #### 4.1.3 두 원천 합치기
@@ -749,7 +749,7 @@ sequenceDiagram
   V->>M: edit(key, raw)
   M->>M: coerceInput, checkClientValue
   V->>M: commit(key)
-  M->>M: planWrite (잠금·범위·검사·비밀)
+  M->>M: planWrite (잠금·범위·검사·시크릿)
   alt blocked
     M-->>V: FieldError (전송 없음)
   else send
@@ -778,7 +778,7 @@ sequenceDiagram
 1. [제안] 값 검사는 `typebox/schema`의 `Check`로 `toValueJsonSchema(def)` 결과를 검사한다. `SettingDefWire.type`에는 `range`가 합쳐져 있지 않으므로 `range.min` → `minimum`, `range.max` → `maximum`, `range.enum` → `enum`을 합친다(`F.wire-settings.spec` §4.10 규칙 3).
 2. `range`만 보는 경량 검사는 쓰지 않는다. `pattern`, `minLength`, `items`를 놓치기 때문이다(L4-3 §3 Q3).
 3. 범위 허용(`allowedScopes`)은 클라이언트가 미리 막는다(§4.3.6).
-4. 잠금과 비밀 값 거부의 최종 판정은 서버 전용이다. 화면은 `locked`로 편집을 막고, secret 위젯은 참조 형식이 아닌 입력을 받지 않을 뿐이다.
+4. 잠금과 시크릿 값 거부의 최종 판정은 서버 전용이다. 화면은 `locked`로 편집을 막고, secret 위젯은 참조 형식이 아닌 입력을 받지 않을 뿐이다.
 5. 서버가 권위다. 클라이언트 검사가 통과해도 서버가 거부하면 서버 결과를 보인다. 클라이언트 검사가 실패하면 전송하지 않는다.
 6. [제안] 새 검사기를 만들지 않는다. 서버 `validateSettingValue`와 같은 스키마(type + range)를 같은 검사 엔진(TypeBox 1.3.27)으로 검사한다. 일치는 계약 테스트(`client-check-matches-server`, plan §5)로 확인한다.
 7. `Check`는 불리언만 돌려준다. 필드 문구는 정의의 `range`와 `type` 키워드에서 만든다(§4.4.4). [가정] `typebox/schema`에 오류 목록 함수가 있으면 첫 오류 경로를 함께 보인다. 없으면 정의에서 만든 문구만 쓴다.
@@ -801,7 +801,7 @@ sequenceDiagram
 | `settings.scopeNotAllowed` | `scopeNotAllowed` | "{범위} 범위에는 저장할 수 없어요" | `details.allowedScopes`로 후보를 다시 계산하고 `settings.list`를 다시 읽는다(`reloadCatalog`) |
 | `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"` | `scopeNotAllowed` | "열린 프로젝트가 없어 {범위} 범위에는 저장할 수 없어요" | 초안 유지, `followUp: "none"`. 카탈로그를 다시 읽지 않는다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]) |
 | `settings.locked` | `locked` | "관리 정책으로 잠겨 있어 바꿀 수 없어요" | `settings.get`으로 그 키를 다시 읽는다(`refreshValue`) |
-| `settings.secretValue` | `secretValue` | "비밀 값은 여기에 넣을 수 없어요. 비밀 탭에서 등록한 뒤 참조를 골라 주세요" | 초안을 버린다. 오류에 값을 남기지 않는다 |
+| `settings.secretValue` | `secretValue` | "시크릿 값은 여기에 넣을 수 없어요. 시크릿 탭에서 등록한 뒤 참조를 골라 주세요" | 초안을 버린다. 오류에 값을 남기지 않는다 |
 | `settings.unknownKey` | `unknownKey` | "이 설정을 찾을 수 없어요. 목록을 새로 불러왔어요" | `reloadCatalog` |
 | `host.shuttingDown`, `request.cancelled`, 연결 종료 | `transient` | "엔진과 연결이 끊겼어요. 다시 연결되면 저장해 주세요" | 초안 유지 |
 | `jsonrpc.invalidParams`, `internal`, 그 밖 | `internal` | "저장하지 못했어요. 추적 번호: {traceId}" | 초안 유지 |
@@ -821,14 +821,14 @@ sequenceDiagram
 1. `load()`가 `events.subscribe({from: "head", filter: {kindPrefixes: ["settings."]}})`로 구독한다. `threadIds` 필터는 두지 않는다.
 2. `settings.changed` 이벤트가 오면 `payload.key`, `payload.scope`, 이벤트의 `threadId`로 `SettingsChangeSignal`을 만든다.
 3. 신호를 받으면 그 키만 `settings.get({keys: [key], threadId: 현재 thread})`로 다시 읽는다. 같은 틱에 여러 신호가 오면 키를 모아 한 번에 읽는다.
-4. 이벤트 `payload.value`는 쓰지 않는다. 유효 값은 다른 범위(managed 등)에 가려질 수 있고, 비밀 키 값은 참조만 담기지만 화면 상태를 값 원천 하나로 두기 위해서다 [제안].
+4. 이벤트 `payload.value`는 쓰지 않는다. 유효 값은 다른 범위(managed 등)에 가려질 수 있고, 시크릿 키 값은 참조만 담기지만 화면 상태를 값 원천 하나로 두기 위해서다 [제안].
 5. 카탈로그에 없는 키의 신호는 `settings.list`를 다시 읽는다(확장 설치·제거 뒤).
 6. 구독이 `replay.outOfRange`로 끝나면 `from: "head"`로 다시 구독하고 전체를 `settings.get`으로 다시 읽는다(`F.wire-settings.spec` §3.4.3 복구 절차).
 
 #### 4.5.2 범위의 빈틈
 
 - `settings.changed`는 세션 동작에 영향을 주는 변경만 기록하는 thread 내구 이벤트다(`F.records.spec` §3.3 표 "세션 범위 설정 변경", 같은 절 [제안]). `EventWire.threadId`는 null이 될 수 없다. 그래서 CLI가 `fresnel config set`으로 user·project 파일을 바꾸거나 사용자가 파일을 직접 고친 변경은 이 이벤트로 오지 않을 수 있다.
-- [제안] F 변경 요청: 서버 알림 `settings.invalidated`(params `{ keys: SettingKey[], scopes: SettingScope[], threadId: ThreadId | null }`, 값 없음)를 `ServerNotificationMap`에 더한다. 호스트는 모든 범위의 쓰기와 파일 감시 결과에 이 알림을 보낸다. 값이 없으므로 비밀이 실릴 수 없다(§10 미결 1).
+- [제안] F 변경 요청: 서버 알림 `settings.invalidated`(params `{ keys: SettingKey[], scopes: SettingScope[], threadId: ThreadId | null }`, 값 없음)를 `ServerNotificationMap`에 더한다. 호스트는 모든 범위의 쓰기와 파일 감시 결과에 이 알림을 보낸다. 값이 없으므로 시크릿이 실릴 수 없다(§10 미결 1).
 - 알림이 생기기 전 [제안]: 설정 화면이 다시 보일 때(창 포커스, 탭 전환) 전체 `settings.get`을 한 번 부른다. 이 동작은 알림이 생긴 뒤에도 남겨 둔다.
 - 어긋남이 있으면 `L4.host-service.spec`의 정의를 따른다(`L4.readme` §8 어긋남 표 머리말).
 
@@ -837,17 +837,17 @@ sequenceDiagram
 - 초안이 없는 항목은 다시 읽은 값으로 바로 바꾼다.
 - 초안이 있는 항목은 초안을 지우지 않고 `remoteChanged: true`로 "다른 곳에서 값이 바뀌었어요" 안내와 새 값을 함께 보인다. 사용자가 저장하면 나중 쓰기가 남는다(서버 기준). 별도 충돌 검사는 두지 않는다 [제안]. `settings.set`에 버전 조건이 없기 때문이다.
 
-### 4.6 비밀 화면
+### 4.6 시크릿 화면
 
-`F.wire-settings.spec` §4.9 비밀 값 비표시 규칙 1~4와 `_research/secrets.md` §6.7을 따른다.
+`F.wire-settings.spec` §4.9 시크릿 값 비표시 규칙 1~4와 `_research/secrets.md` §6.7을 따른다.
 
-#### 4.6.1 설정 항목의 비밀 키(`secret` 위젯)
+#### 4.6.1 설정 항목의 시크릿 키(`secret` 위젯)
 
-1. 비밀 키의 값은 `secret://<이름>` 참조이거나 null이다. 화면은 참조 이름과 상태만 보인다.
-2. secret 위젯에는 값 입력란이 없다. 입력은 등록된 비밀 이름 목록에서 고르거나 이름을 적는 참조 선택기다. 적은 이름은 `SecretRef` 패턴(`^secret://[a-z][a-z0-9-]{1,63}$`)에 맞아야 하고, 맞지 않는 입력은 초안 상태에 남기지 않고 버린다(`reduceSettings`의 `draftEdited`).
+1. 시크릿 키의 값은 `secret://<이름>` 참조이거나 null이다. 화면은 참조 이름과 상태만 보인다.
+2. secret 위젯에는 값 입력란이 없다. 입력은 등록된 시크릿 이름 목록에서 고르거나 이름을 적는 참조 선택기다. 적은 이름은 `SecretRef` 패턴(`^secret://[a-z][a-z0-9-]{1,63}$`)에 맞아야 하고, 맞지 않는 입력은 초안 상태에 남기지 않고 버린다(`reduceSettings`의 `draftEdited`).
 3. secret 위젯의 항목은 정의의 `ui.tab`에 있다(예: providers 탭의 API 키 참조). secrets 탭은 이 키들의 참조 위치 목록을 바로 가기로만 보인다(§4.1 규칙 2).
-4. view-model, 로그, 오류 객체, 상태 직렬화(`JSON.stringify(state)`)에 참조 아닌 비밀 문자열이 없다. 이것을 테스트로 확인한다(plan §5 `secret-never-holds-value`).
-5. [결정: M2 Mac 실기] 참조 선택기로 provider의 키 참조를 저장하는 것(사용자 범위 `l1.models.providers`의 `settings.set`)이 "provider에 연결"이고, 그 비밀의 사용을 허용하는 행위이기도 하다. 호스트가 이 쓰기를 보고 비밀 메타에 모델 provider 호출 하나(runtime-http, `model.provider:<id>`, provider 호스트)만 허용한다(`L4.host-service.spec` HS-45). 화면은 `secret.meta`를 부르지 않고 사용 정책을 직접 고르게 하지 않는다. 연결이 이미 되어 있어도 같은 저장을 다시 하면 허용이 다시 맞춰진다.
+4. view-model, 로그, 오류 객체, 상태 직렬화(`JSON.stringify(state)`)에 참조 아닌 시크릿 문자열이 없다. 이것을 테스트로 확인한다(plan §5 `secret-never-holds-value`).
+5. [결정: M2 Mac 실기] 참조 선택기로 provider의 키 참조를 저장하는 것(사용자 범위 `l1.models.providers`의 `settings.set`)이 "provider에 연결"이고, 그 시크릿의 사용을 허용하는 행위이기도 하다. 호스트가 이 쓰기를 보고 시크릿 메타에 모델 provider 호출 하나(runtime-http, `model.provider:<id>`, provider 호스트)만 허용한다(`L4.host-service.spec` HS-45). 화면은 `secret.meta`를 부르지 않고 사용 정책을 직접 고르게 하지 않는다. 연결이 이미 되어 있어도 같은 저장을 다시 하면 허용이 다시 맞춰진다.
 6. [결정: M2 Mac 실기] `settings.set`이 3102로 거절하면(예: 모르는 모델 id, `L4.host-service.spec` HS-78) 화면은 `details.issues[0].message`를 그대로 보인다.
 
 #### 4.6.2 상태 표시
@@ -856,12 +856,12 @@ sequenceDiagram
 |---|---|---|
 | `unset` | 키에 참조가 없다(value null) | `EffectiveSetting.value` |
 | `referenced` | 참조는 있으나 저장소 등록 여부는 아직 확인하지 않았다 | `EffectiveSetting.value` |
-| `registered` | 참조가 가리키는 비밀이 저장소에 있다 | L0.secrets 상태. 현재 wire 경로 없음 |
-| `missing` | 참조가 가리키는 비밀이 저장소에 없다 | 같음 |
+| `registered` | 참조가 가리키는 시크릿이 저장소에 있다 | L0.secrets 상태. 현재 wire 경로 없음 |
+| `missing` | 참조가 가리키는 시크릿이 저장소에 없다 | 같음 |
 
-- [제안] M2와 wire 경로가 생기기 전에는 `unset`과 `referenced`만 쓴다. `F.wire-settings.spec` §4.9 규칙 3의 "등록됨, 없음"은 비밀 상태 조회 경로(§10 미결 3)가 생긴 뒤에 채운다.
+- [제안] M2와 wire 경로가 생기기 전에는 `unset`과 `referenced`만 쓴다. `F.wire-settings.spec` §4.9 규칙 3의 "등록됨, 없음"은 시크릿 상태 조회 경로(§10 미결 3)가 생긴 뒤에 채운다.
 
-#### 4.6.3 비밀 관리 패널(SecretsTab)
+#### 4.6.3 시크릿 관리 패널(SecretsTab)
 
 `_research/secrets.md` §6.7의 화면 요소를 둔다. 모두 L0.secrets 데이터가 필요하고 현재 wire 메서드가 없다(§10 미결 3).
 
@@ -884,14 +884,14 @@ sequenceDiagram
 
 | 안 | 흐름 | 값이 지나는 곳 | 장점 | 단점 | F 변경 |
 |---|---|---|---|---|---|
-| A. wire 전용 메서드 | WebView 입력란 → `secret.put {name, value}` → 호스트 → L0.secrets | WebView DOM, JSON-RPC 프레임, 호스트 메모리 | 구현이 단순하다. CLI와 데스크톱이 같은 메서드를 쓴다 | 값이 DOM과 wire를 지난다. 요청 로그·추적·개발 검사에서 가림 규칙을 따로 지켜야 한다. "비밀 키의 DOM에 값 없음" 기준을 만족하지 못한다 | 값을 싣는 메서드 추가, 로그 가림 규칙 |
-| B. Tauri command | WebView 입력란 → Rust command → sops·키체인 직접 호출 | WebView DOM, Tauri IPC, Rust 프로세스 | wire를 지나지 않는다 | 값이 DOM을 지난다. 비밀 저장 로직이 L0.secrets(TS)와 Rust 두 곳에 생긴다. 메타·감사 기록이 엔진 밖에서 생긴다 | 없음(대신 desktop에 비밀 로직) |
+| A. wire 전용 메서드 | WebView 입력란 → `secret.put {name, value}` → 호스트 → L0.secrets | WebView DOM, JSON-RPC 프레임, 호스트 메모리 | 구현이 단순하다. CLI와 데스크톱이 같은 메서드를 쓴다 | 값이 DOM과 wire를 지난다. 요청 로그·추적·개발 검사에서 가림 규칙을 따로 지켜야 한다. "시크릿 키의 DOM에 값 없음" 기준을 만족하지 못한다 | 값을 싣는 메서드 추가, 로그 가림 규칙 |
+| B. Tauri command | WebView 입력란 → Rust command → sops·키체인 직접 호출 | WebView DOM, Tauri IPC, Rust 프로세스 | wire를 지나지 않는다 | 값이 DOM을 지난다. 시크릿 저장 로직이 L0.secrets(TS)와 Rust 두 곳에 생긴다. 메타·감사 기록이 엔진 밖에서 생긴다 | 없음(대신 desktop에 시크릿 로직) |
 | C. L0.secrets 흐름 위임 | WebView는 `secret.beginEntry {name, action}` 같은 값 없는 요청만 보낸다 → 호스트의 L0.secrets가 OS 보안 입력(키체인 대화상자, pinentry 등)이나 터미널 프롬프트를 띄워 값을 직접 받는다 → 결과 상태만 돌려준다 | L0.secrets와 OS 입력 창 | 값이 DOM, wire, 이벤트 어디에도 없다. 열람(`secret.beginReveal`)도 같은 경로로 OS 창에 한 번 보이고 닫힌다. CLI의 `secret add`(stdin) 흐름과 소유 위치가 같다(`_research/secrets.md` §6.6) | OS별 보안 입력 구현이 필요하다(L0.os·L0.secrets). Linux에 pinentry가 없으면 대체 경로가 필요하다 | 값 없는 메서드 추가 |
 
-- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)의 사이드카 연결에는 호스트가 값을 받을 수단이 없다(HS-44). 이 연결의 최소 설정 화면은 C안 대신 B안의 변형을 쓴다 [결정: M2 첫 실행 M-12]: 화면 안의 등록 창이 값을 한 번 받아 Rust 셸에 넘기고, 셸은 번들된 `fresnel secret add|set`을 실행해 stdin에 한 번 쓴다. 비밀 저장 로직은 Rust에 새로 생기지 않고 CLI의 것을 그대로 쓴다. 약점은 B안과 같다(값이 DOM과 Tauri IPC를 지난다). 규칙과 약점은 `L4.desktop.spec` §4.14.1이다. 셸 경로가 없으면 `fresnel secret add <이름>` 명령 안내로 돌아간다(이 명령은 stdin으로 값을 받는다, `_research/secrets.md` §6.6). M3의 비밀 탭은 C안을 쓴다.
+- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)의 사이드카 연결에는 호스트가 값을 받을 수단이 없다(HS-44). 이 연결의 최소 설정 화면은 C안 대신 B안의 변형을 쓴다 [결정: M2 첫 실행 M-12]: 화면 안의 등록 창이 값을 한 번 받아 Rust 셸에 넘기고, 셸은 번들된 `fresnel secret add|set`을 실행해 stdin에 한 번 쓴다. 시크릿 저장 로직은 Rust에 새로 생기지 않고 CLI의 것을 그대로 쓴다. 약점은 B안과 같다(값이 DOM과 Tauri IPC를 지난다). 규칙과 약점은 `L4.desktop.spec` §4.14.1이다. 셸 경로가 없으면 `fresnel secret add <이름>` 명령 안내로 돌아간다(이 명령은 stdin으로 값을 받는다, `_research/secrets.md` §6.6). M3의 시크릿 탭은 C안을 쓴다.
 - [결정: review.decisions-2 U-20] 값 열람 경로는 M2 CLI `fresnel secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다.
 - [제안] C안에서 셸 포트 `openSecretFlow`는 desktop이 호스트 메서드를 불러 구현한다. settings-ui는 결과 상태(`SecretFlowOutcome`)만 받는다.
-- C안이 OS에서 불가능한 경우의 대체로 A안을 쓸지는 [미결]이다(§10 미결 2). A안을 쓰면 값이 wire를 지나므로 `L4.readme` §4 비밀 행, `L4.desktop.spec` E11, `L0.secrets.spec` §8.3 R4의 전제를 함께 고쳐야 한다. 그때도 입력란은 한 번 쓰고 비우는 별도 창에 두고, view-model 상태에는 넣지 않는다.
+- C안이 OS에서 불가능한 경우의 대체로 A안을 쓸지는 [미결]이다(§10 미결 2). A안을 쓰면 값이 wire를 지나므로 `L4.readme` §4 시크릿 행, `L4.desktop.spec` E11, `L0.secrets.spec` §8.3 R4의 전제를 함께 고쳐야 한다. 그때도 입력란은 한 번 쓰고 비우는 별도 창에 두고, view-model 상태에는 넣지 않는다.
 - 어느 안이든 F 메서드 추가가 필요하므로 F 변경 요청 여부를 §10 미결 2, 3에 둔다.
 
 ### 4.7 상태 게이지
@@ -981,12 +981,12 @@ sequenceDiagram
 | 그 밖의 사유 | 사유 코드 그대로 |
 
 - [제안] 세 사유(`json-disabled`, `org-disabled`, `unsupported-model`)의 한국어 문구는 이 문서가 정한다. wire에는 문구가 없다. 소스에서는 `client.web.note.*` 메시지 id로 두고, 같은 id의 영어 문구를 `packages/client`의 en 카탈로그에 함께 둔다(ADR-0016).
-- 추천 키 플러그인(`recommendations`): [결정: ADR-0005 §3.1 ④, review.m3-design-inputs D-M3-23] Exa(`plugin:web-exa`, 비밀 이름 `exa-api-key`)와 Brave(`plugin:web-brave`, `brave-api-key`) 둘이다. Parallel과 Jina는 넣지 않는다. 상태는 다음과 같다.
+- 추천 키 플러그인(`recommendations`): [결정: ADR-0005 §3.1 ④, review.m3-design-inputs D-M3-23] Exa(`plugin:web-exa`, 시크릿 이름 `exa-api-key`)와 Brave(`plugin:web-brave`, `brave-api-key`) 둘이다. Parallel과 Jina는 넣지 않는다. 상태는 다음과 같다.
   - 행이 없으면 `not-installed`이고 hint는 "플러그인을 설치한다"다.
-  - `no-key`면 `needs-key`이고 hint는 `fresnel secret add <비밀 이름>`이다.
+  - `no-key`면 `needs-key`이고 hint는 `fresnel secret add <시크릿 이름>`이다.
   - 쓸 수 있으면 `ready`이고 hint는 빈 문자열이다.
   - 그 밖의 사유면 `unavailable`이고 hint는 사유 코드다 [미결: §10 20].
-- 순서 끌어 옮기기: 끌어 옮긴 뒤 같은 탭의 전체 id 목록을 `orderUpdateOf(capability, ids, view)`에 넘긴다. 같은 탭에 보이지 않는 id(다른 능력의 id 포함)는 `unknown_id`로, 두 번 나온 id는 `duplicate_id`로 값 거부한다. 성공하면 `{ key, value }`를 `settings.set` 한 번으로 보낸다. 키는 `l2.web.search.order` 또는 `l2.web.browse.order`다(`L2.web.spec` §4.8.2). 빠진 id는 지금 거부하지 않는다 [미결: §10 21].
+- 순서 끌어 옮기기: 끌어 옮긴 뒤 같은 탭의 전체 id 목록을 `orderUpdateOf(capability, ids, view)`에 넘긴다. 같은 탭에 보이지 않는 id(다른 기능의 id 포함)는 `unknown_id`로, 두 번 나온 id는 `duplicate_id`로 값 거부한다. 성공하면 `{ key, value }`를 `settings.set` 한 번으로 보낸다. 키는 `l2.web.search.order` 또는 `l2.web.browse.order`다(`L2.web.spec` §4.8.2). 빠진 id는 지금 거부하지 않는다 [미결: §10 21].
 - `moveInOrder(ids, from, to)`는 `from` 자리 항목을 빼고 `to`가 가리키는 자리에 넣는다. `to`는 옮긴 뒤 그 항목이 갖는 자리다. 범위 밖이거나 정수가 아닌 입력이면 바꾸지 않은 복사본을 돌려준다.
 - 로봇(`robots`): `value`를 그대로 보인다. `follows`는 `value`가 `never`가 아닐 때 참이다. 기본값 `never`는 robots.txt를 따르지 않는다(D-M3-23 행 4, `L2.web.spec` §4.7).
 - 병렬 질의 수(`parallel`)는 `settings.searchParallel`이다. 기본값은 1이다(`L2.web.spec` §4.8.2).
@@ -1021,10 +1021,10 @@ sequenceDiagram
 - 다른 층의 키는 이 문서가 읽는 입력이다. 각 층 spec의 "설정 노출" 표(키, 타입, 기본값, range, runtimeChange, allowedScopes, ui.tab, secret)가 화면 배치를 정한다(`F.wire-settings.spec` §6).
 - 화면에서 쓴 엔진 원천 값은 `settings.set`을 통해 호스트가 파일에 저장하고, desktop 원천 값은 `DesktopSettingsStore.set`으로 셸이 저장한다. 같은 키를 `fresnel config set`(CLI)과 설정 파일로도 바꿀 수 있다(`F.wire-settings.spec` §4.9 표).
 
-## 7. 확장 지점
+## 7. 훅
 
 - 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다. L4 앱 코드라 확장 호스트에 참여하지 않는다.
-- 확장(외부 의도 그룹 포함)의 설정은 `ExtensionManifest.userConfig` → `settingsFromManifest` → 카탈로그 → `settings.list` 경로로 들어오고, `ui.tab`이 `plugins`로 고정된다(`F.wire-settings.spec` §3.8.3 규칙 1). 설정 화면은 이 정의를 다른 정의와 같은 규칙으로 그린다.
+- 확장(외부 플러그인 그룹 포함)의 설정은 `ExtensionManifest.userConfig` → `settingsFromManifest` → 카탈로그 → `settings.list` 경로로 들어오고, `ui.tab`이 `plugins`로 고정된다(`F.wire-settings.spec` §3.8.3 규칙 1). 설정 화면은 이 정의를 다른 정의와 같은 규칙으로 그린다.
 - L3 기본 그룹(Helm, 학습 그룹)의 키는 `l3.helm.*`, `l3.learning.*`이다(같은 절 규칙 3). 그룹 켜기·끄기 키는 X 로더 예약 키 `ext.<name>.enabled` 하나다(내장 그룹도 `ext.helm.enabled`, `ext.learning.enabled`) [결정: review.decisions-2 K-04]. 범위는 X 정의(managed~session), `runtimeChange`는 `live`이고 적용은 다음 단계 경계다(`X.loading-trust.spec` §6). 설정 화면은 이 키를 일반 토글로 그리고, 실행 중이면 "다음 단계 경계에 적용" 배지를 보인다.
 - drive 보유 그룹 선택은 X 키 `x.primitives.activeDriveGroup`(`select`, 후보는 drive를 등록한 scope, 빈 값은 "자동") 하나다 [결정: review.decisions-2 S-15]. group-sdk은 별도 키를 두지 않는다(`L3.group-sdk.spec` §6).
 - [제안] 확장이 설정 화면에 자기 화면 부품(맞춤 패널)을 넣는 것은 M3 범위에 두지 않는다(§10 미결 13).
@@ -1034,12 +1034,12 @@ sequenceDiagram
 | 방향 | 문서 | 내용 |
 |---|---|---|
 | 요구 | `F.wire-settings.spec` | `HostConnection`, `WireParams`, `WireResult`, `WireError`, `WireErrorData`, `EventWire`, `Unsubscribe`, 메서드 `settings.list/get/set/reset`, `events.subscribe/unsubscribe`, `SettingDefWire`, `EffectiveSetting`, `SettingsTab`, `SettingWidget`, `SettingScope`, `RuntimeChange`, `SecretRef`, 오류 kind 3101~3105, §4.10 병합 규칙 |
-| 요구(변경 요청) | `F.wire-settings.spec` | 알림 `settings.invalidated`(§4.5.2), 검사용 병합 함수 `toValueJsonSchema(def: SettingDefWire)`(L4-3 P1), 파일 메서드 `settings.readFile`·`settings.writeFile`(§4.2.3), 값 없는 비밀 메서드(§4.6.4), 사용량 메서드(§4.7), 잠금 사유 필드(§4.8.3), `SettingUi` 편집기 힌트(§4.2.4). 모두 §10 미결 |
+| 요구(변경 요청) | `F.wire-settings.spec` | 알림 `settings.invalidated`(§4.5.2), 검사용 병합 함수 `toValueJsonSchema(def: SettingDefWire)`(L4-3 P1), 파일 메서드 `settings.readFile`·`settings.writeFile`(§4.2.3), 값 없는 시크릿 메서드(§4.6.4), 사용량 메서드(§4.7), 잠금 사유 필드(§4.8.3), `SettingUi` 편집기 힌트(§4.2.4). 모두 §10 미결 |
 | 요구 | `F.records.spec` | `settings.changed` kind와 `SettingsChangedPayload { key, scope, value }` |
 | 요구 | `L4.host-service.spec` | 설정 처리기(`L4.host-service.plan` H8 `settings.get`, H17 `settings.set/reset/list`), 쓰기 때 `settings.changed` 기록 범위, 재시작 의미, project·local 범위의 프로젝트 해석(`workspaceRequired`). 이 문서와 어긋나면 host-service가 우선한다(`L4.readme` §8) |
 | 요구 | `L4.desktop.spec` | D6 UI 셸: `SettingsHostPort` 구현(연결, `DesktopSettingsStore`, 현재 thread, `requestHostRestart`, `openSecretFlow`), 화면 프레임워크(React 19, adr.0010), 색 토큰, CSP, 모듈 경계 W3·W4 |
 | 제공 | `L4.desktop.spec` | `createSettingsController`, `SettingsController`, `SettingsHostPort`, `SecretFlowRequest`, `SecretFlowOutcome`, `SecretStatus` |
-| 요구 | `L0.secrets.spec` | 비밀 목록·메타·정책·감사 이력·등록·회전·열람 흐름과 값 없는 상태 조회(§4.6). 값 입력은 L0.secrets가 직접 받는다(C안 제안) |
+| 요구 | `L0.secrets.spec` | 시크릿 목록·메타·정책·감사 이력·등록·회전·열람 흐름과 값 없는 상태 조회(§4.6). 값 입력은 L0.secrets가 직접 받는다(C안 제안) |
 | 요구 | `L1.models.spec` | 사용량 투영(게이지 자리, §4.7), 라우팅·폴백·계정 풀 키 모양(전용 편집기, §4.2.4) |
 | 요구 | 각 층 spec(X, L0~L4) | "설정 노출" 표의 `ui` 필드. 탭 배치는 §4.1.1 안내를 참고한다 |
 | 제공 | `L4.cli.spec` | 없음. view-model 공유는 §10 미결 12 |
@@ -1053,7 +1053,7 @@ sequenceDiagram
 - AC3. 같은 탭 안 항목 순서는 `ui.order` 오름차순, 같으면 `key` 오름차순이고 입력 순서를 섞어도 결과가 같다.
 - AC4. `SettingWidget` 8값 각각이 `resolveWidget`에서 같은 `kind`의 `WidgetVM`으로 바뀌고, 렌더러가 8종 모두를 그린다. `number`는 `range.min`·`max`·`ui.unit`을, `select`는 `range.enum`을 담는다.
 - AC5. `locked: true`인 항목은 `editable: false`, `writableScopes: []`, `canReset: false`다. 이 항목에 `commit`을 불러도 `settings.set`이 나가지 않는다.
-- AC6. 비밀 키에 참조 아닌 문자열을 `edit`한 뒤의 상태를 `JSON.stringify`한 결과, 컨트롤러가 남긴 로그, `FieldError` 객체, 렌더링 결과 DOM 어디에도 그 문자열이 없다.
+- AC6. 시크릿 키에 참조 아닌 문자열을 `edit`한 뒤의 상태를 `JSON.stringify`한 결과, 컨트롤러가 남긴 로그, `FieldError` 객체, 렌더링 결과 DOM 어디에도 그 문자열이 없다.
 - AC7. 쓰기 범위 선택지는 `allowedScopes`에서 managed를 뺀 집합의 부분집합이다. `allowedScopes`에 없는 범위는 선택지에 없다. thread가 없으면 session이 없다. 기본 선택은 user(있을 때)다.
 - AC8. `settings.changed` 이벤트를 받으면 그 키를 `settings.get`으로 다시 읽고 `FieldVM.value`와 배지가 새 `EffectiveSetting`으로 바뀐다. 이벤트 `payload.value`는 상태에 들어가지 않는다.
 - AC9. `settings.set` 실패의 `data.kind` 다섯 가지(`settings.invalidValue`, `settings.scopeNotAllowed`, `settings.locked`, `settings.secretValue`, `settings.unknownKey`)와 `settings.scopeNotAllowed`의 `details.reason: "workspaceRequired"`가 각각 §4.4.4 표의 `FieldError.kind`와 뒤따르는 동작으로 바뀐다. 서버 `message` 문자열은 `FieldError.message`에 없다.
@@ -1062,16 +1062,16 @@ sequenceDiagram
 - AC12. `deprecated` 정의에 사용자 값이 있으면 폐기 배지와 대체 키 라벨이 보이고, 값이 기본값이면 항목이 보이지 않는다.
 - AC13. `model/**` 파일은 DOM 전역과 `views/**`를 참조하지 않고 `bun test`로 돈다.
 - AC14. `l4.desktop.*` 정의는 로컬 저장소로, 나머지 정의는 `settings.*` 메서드로 읽고 쓴다. 엔진 연결이 없을 때도 desktop 원천 항목의 쓰기가 성공한다.
-- AC15. 키 플러그인이 없고 `l2.web.search.searxng.url`이 비어 있는 fixture로 첫 실행 권장 화면 view-model을 만들면 provider 상태 행, SearXNG 주소 입력란, Exa·Brave 권장 항목 셋이 있고, 어느 항목에도 비밀 값 필드가 없다(§4.10).
+- AC15. 키 플러그인이 없고 `l2.web.search.searxng.url`이 비어 있는 fixture로 첫 실행 권장 화면 view-model을 만들면 provider 상태 행, SearXNG 주소 입력란, Exa·Brave 권장 항목 셋이 있고, 어느 항목에도 시크릿 값 필드가 없다(§4.10).
 - AC16. 테스트 카탈로그 fixture에서 `x.primitives.activeDriveGroup`과 `ext.helm.enabled`는 plugins 탭, `l1.agents.judge.maxRuns`는 models 탭, `l2.dialog.notify.os`는 execution 탭, `l0.secrets.approval.default`는 permissions 탭에 나타난다(§4.1.1, 소유 층 `ui.tab`).
 - AC17. `web.providers` 결과 fixture로 `toolsWebViewOf`를 만들면 검색과 브라우즈 행은 `autoRank` 순서이고, 설정이 provider를 고정하면 그 행만 `current`다. `orderUpdateOf`는 보이지 않는 id와 중복 id를 값으로 거부한다. 추천 키 플러그인 상태는 없음, 키 없음, 준비됨, 그 밖의 사유 넷을 낸다(§3.6, §4.11, `test/web/tools-web.test.ts`).
 
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-04] 변경 신호 범위. `settings.changed`는 thread 내구 이벤트라 user·project 파일 변경이 오지 않을 수 있다. 값 없는 서버 알림 `settings.invalidated`(§4.5.2)는 M1에 넣지 않고 M2 계획에서 정한다. 그때까지 F.wire-settings 미결이고 화면은 §4.5.2의 다시 읽기 규칙을 쓴다.
-2. [미결] 비밀 값 입력·열람 경로(M2 최소 화면의 사이드카 연결은 닫힘: `L4.desktop.spec` §10 15번, 셸이 CLI를 실행하는 B안 변형). 제안은 C안(L0.secrets 흐름 위임, 값 없는 `secret.beginEntry`·`secret.beginReveal`). CLI도 같은 C안을 쓴다. C안이 불가능한 OS에서 A안(wire 전용 메서드)을 대체로 쓸지(§4.6.4). F 변경 요청.
-3. (닫힘) 비밀 관리 데이터의 wire 경로. `secret.list { meta?, usage? }`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`는 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4). 열람 시작 `secret.beginReveal`의 F 추가는 M2 계획에서 정한다(review.decisions-2 U-04, U-20). 정본 표는 `L4.readme` §8.1이다.
-4. [미결] secrets 탭과 비밀 관리 명령(M2, `product.scope.spec` UC-6)의 순서. 명령이 M2이고 화면이 M3이므로 M2 화면은 명령 안내만 보인다.
+2. [미결] 시크릿 값 입력·열람 경로(M2 최소 화면의 사이드카 연결은 닫힘: `L4.desktop.spec` §10 15번, 셸이 CLI를 실행하는 B안 변형). 제안은 C안(L0.secrets 흐름 위임, 값 없는 `secret.beginEntry`·`secret.beginReveal`). CLI도 같은 C안을 쓴다. C안이 불가능한 OS에서 A안(wire 전용 메서드)을 대체로 쓸지(§4.6.4). F 변경 요청.
+3. (닫힘) 시크릿 관리 데이터의 wire 경로. `secret.list { meta?, usage? }`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`는 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4). 열람 시작 `secret.beginReveal`의 F 추가는 M2 계획에서 정한다(review.decisions-2 U-04, U-20). 정본 표는 `L4.readme` §8.1이다.
+4. [미결] secrets 탭과 시크릿 관리 명령(M2, `product.scope.spec` UC-6)의 순서. 명령이 M2이고 화면이 M3이므로 M2 화면은 명령 안내만 보인다.
 5. [결정: review.decisions-2 U-04, U-21] 레이트 리밋·계정 회전 설정은 M3 화면에 넣는다. 사용량 wire 메서드와 게이지 채우기 시점은 M2 계획에서 정한다(§4.7).
 6. [결정: review.decisions-2 U-04] 파일 단위 편집기의 `settings.readFile`·`settings.writeFile`, 모르는 키 목록, "파일 열기" 동작 제공 여부(§4.2.3, §4.3.5)는 M1에 넣지 않고 M2 계획에서 정한다.
 7. [미결] 검사용 병합 함수 `toValueJsonSchema`를 F에 둘지, `settings.list`가 병합한 `type`을 실을지(`_research/notes/L4-3.md` §4 P1, `L4.host-service.spec` §10 미결 11과 같은 항목). 두면 settings-ui의 같은 이름 함수를 지우고 F 것을 쓴다. 그 전까지는 settings-ui에 두고 계약 테스트로 F `settingsJsonSchema`와 같은지 확인한다.

@@ -32,7 +32,7 @@ const TITLE_MAX_TOKENS = 256;
 /** 제목 모델을 쓸 수 없는 이유. 같은 이유는 프로세스당 한 번만 기록한다 */
 export interface TitleModelSkip {
   readonly kind: "no_model" | "no_credentials";
-  /** 모델 참조(`provider/modelId`)나 해석 오류 종류. 비밀 값이 아니다 */
+  /** 모델 참조(`provider/modelId`)나 해석 오류 종류. 시크릿 값이 아니다 */
   readonly detail: string;
 }
 

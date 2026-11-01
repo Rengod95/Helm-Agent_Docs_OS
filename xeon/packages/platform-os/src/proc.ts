@@ -52,7 +52,7 @@ async function readTail(stream: ReadableStream<Uint8Array>, limit: number): Prom
   return new TextDecoder().decode(tail);
 }
 
-/** 비밀이 든 부모 환경을 자식에게 넘기지 않는다. PATH와 로케일만 준다 */
+/** 시크릿이 든 부모 환경을 자식에게 넘기지 않는다. PATH와 로케일만 준다 */
 function childEnv(): Record<string, string> {
   return { PATH: process.env["PATH"] ?? "", LC_ALL: "C" };
 }

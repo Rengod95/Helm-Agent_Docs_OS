@@ -12,7 +12,7 @@ interface HookSighting {
 export interface Recorder {
   readonly unit: ExtensionUnit;
   readonly sightings: HookSighting[];
-  /** 지점 이름만(같은 지점이 이어지면 하나로 줄인다) */
+  /** 훅 이름만(같은 지점이 이어지면 하나로 줄인다) */
   order(): string[];
 }
 

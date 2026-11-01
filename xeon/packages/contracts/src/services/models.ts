@@ -251,7 +251,7 @@ export interface ModelListFilter {
   readonly reasoning?: boolean;
 }
 
-/** 비밀을 쓰는 provider 요청의 목적지. 호스트 일치 정책(`L0.secrets.spec` §4.2)이 본다 */
+/** 시크릿을 쓰는 provider 요청의 목적지. 호스트 일치 정책(`L0.secrets.spec` §4.2)이 본다 */
 export interface ProviderTarget {
   readonly host: string;
   /** URL에 포트가 없으면 null */
@@ -367,7 +367,7 @@ export interface ProviderConfigDef {
   readonly api?: Api;
   /** 키는 참조만 받는다. 리터럴, $ENV, !command 형식은 거부한다 */
   readonly apiKey?: SecretRefString;
-  /** 비밀 금지. 값에 secret:// 를 쓰면 요청 직전 해석 */
+  /** 시크릿 금지. 값에 secret:// 를 쓰면 요청 직전 해석 */
   readonly headers?: Readonly<Record<string, string>>;
   readonly models?: readonly ProviderModelDef[];
 }
@@ -409,7 +409,7 @@ const ModelDefSchema = Type.Object(
   { additionalProperties: false },
 );
 
-/** registerProvider(포트 경로)가 config를 검사하는 스키마. 키는 비밀 참조만 받는다 */
+/** registerProvider(포트 경로)가 config를 검사하는 스키마. 키는 시크릿 참조만 받는다 */
 const providerConfigDefShape = Type.Object(
   {
     kind: Type.Literal("config"),
@@ -454,7 +454,7 @@ export type ModelErrorKind =
 
 export interface ModelError {
   readonly kind: ModelErrorKind;
-  /** 비밀 값 마스킹을 거친 문자열 */
+  /** 시크릿 값 마스킹을 거친 문자열 */
   readonly message: string;
   readonly role?: ModelRole;
   readonly ref?: ModelRefString;
@@ -574,7 +574,7 @@ export interface ModelService extends ModelsPort {
   list(filter?: ModelListFilter): readonly ModelInfo[];
   /**
    * provider 요청의 목적지(baseUrl 설정 덮어쓰기 → 등록부 덮어쓰기 → provider 기본 주소 순). 주소를 모르거나 해석할 수 없으면 null이다.
-   * 모델 호출의 비밀 lease가 쓰는 목적지와 같은 값이라 사람이 provider에 키를 연결할 때 이 호스트만 허용하는 데 쓴다(`L1.models.spec` §3.9)
+   * 모델 호출의 시크릿 lease가 쓰는 목적지와 같은 값이라 사람이 provider에 키를 연결할 때 이 호스트만 허용하는 데 쓴다(`L1.models.spec` §3.9)
    */
   providerTarget(providerId: string): ProviderTarget | null;
   /** provider 등록. 플러그인은 F provider 인터페이스(ProviderDef)로 이 메서드를 부른다 */

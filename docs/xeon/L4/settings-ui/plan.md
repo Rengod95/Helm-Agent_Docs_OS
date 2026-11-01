@@ -35,7 +35,7 @@ binds: [xeon/packages/client/src/settings/**]
 ### 1.4 M3: 화면 전체
 
 - 12탭 전체에 실제 키 배치 확인, 탭별 전용 편집기(spec §4.2.4).
-- 비밀 탭(`SecretsTab`): F·L0.secrets의 값 없는 메서드가 생긴 뒤(spec §10 미결 2, 3).
+- 시크릿 탭(`SecretsTab`): F·L0.secrets의 값 없는 메서드가 생긴 뒤(spec §10 미결 2, 3).
 - 상태 게이지 자리(budgets, providers). 레이트 리밋(`l1.models.rateLimit`)과 계정 풀·회전(`l1.models.accounts`) 설정 항목은 M3에 넣는다(review.decisions-2 U-21).
 - 첫 실행 권장 화면(spec §4.10, ADR-0005 ④).
 - 접근성 점검(spec §4.8.1).
@@ -64,7 +64,7 @@ xeon/packages/client/src/settings/          # settings-ui 소유 (binds, view-mo
     SettingsShell.*        # 탭 목록, 재시작 띠, 진단 표시
     TabPage.*              # 탭 하나: 항목 목록, 게이지 자리, 빈 탭 문구
     Field.*                # 일반 항목: 라벨, 배지, 위젯 부품, 범위 선택, 오류
-    SecretsTab.*           # 비밀 관리 패널 (M3)
+    SecretsTab.*           # 시크릿 관리 패널 (M3)
     FileEditor.*           # advanced 탭 파일 편집기
     editors/               # 탭별 전용 편집기 (M3, U10)
   test/
@@ -99,7 +99,7 @@ xeon/packages/client/test/web/
 | U6 | `settings.changed` 반영: `reduceSettings` 전체, 키별 요청 번호, 원격 변경 표시, `SettingsClient.onChange`(events.subscribe 필터, `replay.outOfRange` 복구), 창 포커스 때 전체 재조회 | `model/state.ts`, `connection.ts`, `index.ts` | U2, U4, U5, H8(`settings.get`), H17(`settings.set/reset`이 남기는 `settings.changed`) | M | M2 |
 | U7 | 일반 Field 렌더러와 셸: `SettingsShell`, `TabPage`, `Field`, 위젯 부품 8종, 범위 선택·"이번 대화에만 적용", 기본값 복귀, 재시작 띠, `createSettingsController` | `views/SettingsShell.*`, `views/TabPage.*`, `views/Field.*`, `index.ts` | U2~U6, D6 | M | M2 |
 | U8 | `FileEditor`: M2는 키 단위 JSON 편집기(파일 전용 키, 위젯 불일치 키), 범위별 스키마 검사. M3는 F 변경(`settings.readFile`·`settings.writeFile`)이 받아들여지면 파일 단위 편집기 | `views/FileEditor.*`, `model/validate.ts` | U5, U7 | M(M2) + M(M3) | M2, M3 |
-| U9 | `SecretsTab`: 목록, 추가, 값 보기, 메타 편집, 사용 이력, 정책 편집, 삭제(참조 표시). 값 입력·열람은 `openSecretFlow` 포트로만. M2는 명령 안내만 | `views/SecretsTab.*`, `index.ts` | U7, 비밀 입력 경로 미결 해소(spec §10 미결 2, 3), `L0.secrets.plan`의 관리 흐름 | L | M3 |
+| U9 | `SecretsTab`: 목록, 추가, 값 보기, 메타 편집, 사용 이력, 정책 편집, 삭제(참조 표시). 값 입력·열람은 `openSecretFlow` 포트로만. M2는 명령 안내만 | `views/SecretsTab.*`, `index.ts` | U7, 시크릿 입력 경로 미결 해소(spec §10 미결 2, 3), `L0.secrets.plan`의 관리 흐름 | L | M3 |
 | U10 | 탭별 전용 편집기: 모델 역할 표, 폴백 체인, 권한 규칙 편집기, 샌드박스 경로·도메인 목록, 계정 풀(`_research/settings.md` §5 "UI 필요" 항목). 각 편집기는 일반 렌더러 위에 얹고 키 하나를 통째로 쓴다 | `views/editors/*` | U7, 소유 층의 키 정의(`L1.models.spec`, `L1.tools.spec`, `L0.sandbox.spec`) | L | M3 |
 | U11 | 게이지 자리: budgets·providers 탭의 `GaugeSlotVM`(`unavailable`)과 문구 | `model/group-by-tab.ts`, `views/TabPage.*` | U7 | S | M3 |
 | U13 | 첫 실행 권장 화면(spec §4.10): provider 상태, SearXNG 주소 입력, 권장 목록과 키 등록 버튼(C안). "다시 보지 않음"은 desktop 로컬 값 | `model/first-run.ts`, `views/FirstRun.*` | U7, U9(키 등록 경로), `L2.web.spec` provider 설정 키 | S | M3 |
@@ -157,7 +157,7 @@ xeon/packages/client/test/web/
 | `web-order-update` | `orderUpdateOf`는 보이는 id의 끌어 옮기기를 `settings.set` 값으로 바꾸고, 보이지 않는 id와 중복 id는 값으로 거부한다 | `test/web/tools-web.test.ts` |
 | `web-move-in-order` | `moveInOrder`는 앞에서 뒤, 뒤에서 앞, 같은 자리 이동을 표 값으로 맞추고, 범위 밖이나 정수가 아닌 입력은 바꾸지 않은 복사본을 낸다 | `test/web/tools-web.test.ts` |
 
-- [미결] 화면 부품 테스트(`ui` 태그)와 시각 회귀(`visual`)는 `eng.testing.guide` TS-01에서 보류다. 위젯 8종 렌더링과 비밀 키의 DOM 확인(spec AC4, AC6)을 어떤 형식으로 자동화할지는 desktop의 프레임워크 결정 뒤에 정한다. 그 전까지는 M3 완료 기준의 수동 확인 항목으로 둔다.
+- [미결] 화면 부품 테스트(`ui` 태그)와 시각 회귀(`visual`)는 `eng.testing.guide` TS-01에서 보류다. 위젯 8종 렌더링과 시크릿 키의 DOM 확인(spec AC4, AC6)을 어떤 형식으로 자동화할지는 desktop의 프레임워크 결정 뒤에 정한다. 그 전까지는 M3 완료 기준의 수동 확인 항목으로 둔다.
 - 커버리지 임계는 desktop 패키지의 L4 값(lines 0.5, functions 0.5, TS-10)을 따른다. [제안] `model/`은 위 테스트로 줄 단위 0.9 이상을 목표로 한다. 패키지 단위 임계라 강제하지 않는다.
 
 ## 6. 완료 기준
@@ -173,7 +173,7 @@ M2:
 M3:
 
 - 12탭 모두에 실제 키가 하나 이상 보인다. 비어 있는 탭은 `emptyText`로 이유를 보인다(예: 키 소유 층이 아직 키를 정하지 않음).
-- 비밀 탭이 값 없이 동작한다. 목록·메타·정책·이력·삭제가 보이고, 값 입력·열람은 `openSecretFlow` 경로로만 일어나며, 그 사이 WebView DOM과 상태 직렬화와 앱 로그에 값이 없다(수동 확인 또는 미결 해소 뒤 `ui` 테스트).
+- 시크릿 탭이 값 없이 동작한다. 목록·메타·정책·이력·삭제가 보이고, 값 입력·열람은 `openSecretFlow` 경로로만 일어나며, 그 사이 WebView DOM과 상태 직렬화와 앱 로그에 값이 없다(수동 확인 또는 미결 해소 뒤 `ui` 테스트).
 - 전용 편집기 5종(U10)이 각 키를 일반 렌더러와 같은 결과로 저장한다.
 - budgets·providers 탭에 게이지 자리와 문구가 보인다.
 - 도구와 웹 view-model(U14, `@fresnel/client/web`)의 값 비교 시험이 통과한다. 이 값은 `fresnel doctor`와 M4 설정 화면이 그대로 쓴다(spec §3.6).
@@ -187,7 +187,7 @@ M3:
 |---|---|---|
 | 프런트엔드 프레임워크 미결(`L4.desktop.spec` §10 미결 11) | `views/` 재작업 | `model/`을 프레임워크 무관으로 분리하고 모든 판단을 `model/`에 둔다. `views/`는 `SettingsView`를 그리기만 한다 |
 | F `SettingsTab`·`SettingUi` 변경 | 탭 표와 `TAB_SPECS` 수정 | `TAB_SPECS`를 `Record<SettingsTab, TabSpec>`로 두어 enum 변경이 컴파일 오류로 드러나게 한다. 모르는 탭 값은 advanced로 보내 화면이 깨지지 않게 한다 |
-| 비밀 입력 wire 경로 미정(spec §10 미결 2, 3) | U9 착수 불가 | M2는 명령 안내로 대신한다. U9는 미결 해소 뒤 M3에 착수한다. 값을 받는 입력란은 어떤 경우에도 view-model 상태에 넣지 않는다 |
+| 시크릿 입력 wire 경로 미정(spec §10 미결 2, 3) | U9 착수 불가 | M2는 명령 안내로 대신한다. U9는 미결 해소 뒤 M3에 착수한다. 값을 받는 입력란은 어떤 경우에도 view-model 상태에 넣지 않는다 |
 | 사용량 wire 부재(spec §10 미결 5) | 게이지를 채우지 못함 | M3는 자리만 둔다(U11). `product.scope.spec` §10 미결 5와 함께 정한다 |
 | 탭별 전용 편집기 규모 증가 | M3 일정 | 일반 렌더러(U7)를 먼저 끝내 모든 키를 편집할 수 있게 한 뒤 U10을 얹는다. 전용 편집기는 키 소유 층의 키가 정해진 것부터 한다 |
 | 클라이언트 즉시 검사와 서버 검사 불일치 | 화면은 통과인데 저장 실패, 또는 반대 | 서버 권위 원칙(spec §4.4.2 5번). 같은 스키마·같은 TypeBox 사본을 쓰고 `client-check-matches-server` 계약 테스트로 확인한다. 불일치가 나면 서버 결과를 보이고 테스트를 고친다 |

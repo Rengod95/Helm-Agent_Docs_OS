@@ -153,7 +153,7 @@ export interface IsolationSpawnSpec {
   readonly main: string;
   readonly args: readonly string[];
   readonly cwd: string;
-  /** 허용 목록으로만 만든다. DB 경로와 비밀은 넣지 않는다(X.loading-trust.spec §4.9.6) */
+  /** 허용 목록으로만 만든다. DB 경로와 시크릿은 넣지 않는다(X.loading-trust.spec §4.9.6) */
   readonly env: Readonly<Record<string, string>>;
   /** "ext:<name>:<generation>" */
   readonly label: string;

@@ -93,7 +93,7 @@ export interface WorldOptions {
   readonly webError?: string;
 }
 
-/** 가짜 능력 서비스와 계수기. 재시작을 흉내 내는 시험은 한 세계를 여러 호스트가 나눠 쓴다(멱등 기억이 이어진다) */
+/** 가짜 기능 서비스와 계수기. 재시작을 흉내 내는 시험은 한 세계를 여러 호스트가 나눠 쓴다(멱등 기억이 이어진다) */
 export interface World {
   readonly fakes: Fakes;
   /** 시험이 프로세스 강제 종료를 흉내 내는 지점. 그 번째 호출이 던진다 */
@@ -235,7 +235,7 @@ function providerUnit<Api>(
 
 export type Provided = "web" | "knowledge" | "memory" | "work";
 
-/** 세계의 능력 공급자를 호스트에 올린다. 다음 loadIndex를 돌려준다 */
+/** 세계의 기능 공급자를 호스트에 올린다. 다음 loadIndex를 돌려준다 */
 export async function installWorld(
   t: TestHost,
   world: World,
@@ -304,7 +304,7 @@ export function scriptedLoop(
 export interface RigOptions extends WorldOptions {
   readonly answers?: LensAnswers;
   readonly host?: TestHostOptions;
-  /** 제공하지 않을 능력 */
+  /** 제공하지 않을 기능 */
   readonly without?: readonly Provided[];
   /** 설정 `ext.helm.*` 값. 주면 내장 신뢰판 그룹으로 올려 g.settings()가 이 값을 읽는다 */
   readonly settings?: Readonly<Record<string, unknown>>;

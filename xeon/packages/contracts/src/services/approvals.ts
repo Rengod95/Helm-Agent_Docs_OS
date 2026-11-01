@@ -297,7 +297,7 @@ export interface ApprovalService {
 export const L2_APPROVAL_REQUEST_ID_MAX: number = 48;
 
 /**
- * L2 능력이 승인 프로토콜을 쓰는 공통 포트 모양. cap-*가 `fresnel.approvals`(ApprovalService)를 이 모양으로 감싸 쓴다.
+ * L2 기능이 승인 프로토콜을 쓰는 공통 포트 모양. cap-*가 `fresnel.approvals`(ApprovalService)를 이 모양으로 감싸 쓴다.
  * L2 패키지끼리 import하지 않으므로 F가 이 모양을 한 번만 정의한다. 구현(어댑터)은 각 cap-*의 `src/ports/approvals.ts`가 맡고,
  * 도메인 대상(subject)을 ApprovalBody로, 응답(answer)을 도메인 답으로 바꾸는 규칙은 그 어댑터가 가진다.
  *

@@ -34,7 +34,7 @@ type McpFailureCode =
   | "server_error"
   | "connect_failed";
 
-/** 서버 호출 실패. 비밀 값을 담지 않는다고 가정하지 않는다: 저장 전에 호출자가 마스킹한다 */
+/** 서버 호출 실패. 시크릿 값을 담지 않는다고 가정하지 않는다: 저장 전에 호출자가 마스킹한다 */
 export interface McpFailure {
   readonly code: McpFailureCode;
   readonly message: string;
@@ -126,7 +126,7 @@ interface RawListOptions {
 export interface McpConnection {
   /** 협상된 사양 버전. 알 수 없으면 undefined */
   readonly protocolVersion: string | undefined;
-  /** 서버가 선언한 능력 이름(tools, prompts, resources 등) */
+  /** 서버가 선언한 기능 이름(tools, prompts, resources 등) */
   readonly serverCapabilities: readonly string[];
   listTools(options: RawListOptions): Promise<Result<readonly RawTool[], McpFailure>>;
   listPrompts(options: RawListOptions): Promise<Result<readonly RawPrompt[], McpFailure>>;
@@ -232,7 +232,7 @@ function continuationParams(continuation: RawContinuation | undefined): Record<s
 // ── 연결 ─────────────────────────────────────────────────────────────────
 
 /**
- * 전송 위에서 클라이언트를 만들고 연결한다. 능력은 elicitation form·url만 선언한다(§4.1). MRTR은 수동 모드라
+ * 전송 위에서 클라이언트를 만들고 연결한다. 기능은 elicitation form·url만 선언한다(§4.1). MRTR은 수동 모드라
  * `input_required`가 호출 결과로 돌아온다(자동 처리는 재시작 뒤 이어지지 않는다).
  */
 export async function connectMcp(

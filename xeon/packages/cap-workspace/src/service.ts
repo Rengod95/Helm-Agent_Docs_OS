@@ -12,7 +12,7 @@ import { createImagesApi } from "./images/service.ts";
 import { scopedDeps } from "./scope.ts";
 import { createShellApi } from "./shell/run.ts";
 
-// 능력별 API 객체를 조립한다. 묶음(WorkspaceService)은 Cordis에 등록하지 않는다. 등록은 plugin.ts가 능력마다 한다
+// 기능별 API 객체를 조립한다. 묶음(WorkspaceService)은 Cordis에 등록하지 않는다. 등록은 plugin.ts가 기능마다 한다
 // (L2.readme §5.6, F defs/workspace.ts WorkspaceService).
 
 // 호출마다 호출한 대화의 작업 폴더로 의존을 맞춘다(scopedDeps, open-issues M-06).

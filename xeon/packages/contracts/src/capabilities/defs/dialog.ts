@@ -679,7 +679,7 @@ type CommandsMethods = {
   readonly run: MethodDef<typeof CommandRunInput, typeof CommandRunOutput>;
 };
 
-/** 모델 도구가 없는 능력이다. 모델은 명령을 호출하지 않는다. 목록은 광고만 한다(§4.2.5) */
+/** 모델 도구가 없는 기능이다. 모델은 명령을 호출하지 않는다. 목록은 광고만 한다(§4.2.5) */
 export const DialogCommands: CapabilityDef<CommandsMethods, readonly []> = defineCapability({
   id: "dialog.commands",
   version: "1.0.0",
@@ -804,7 +804,7 @@ type StatusMethods = {
   readonly list: MethodDef<typeof EmptyInput, typeof StatusListOutput>;
 };
 
-/** 모델 도구가 없는 능력이다 */
+/** 모델 도구가 없는 기능이다 */
 export const DialogStatus: CapabilityDef<StatusMethods, readonly []> = defineCapability({
   id: "dialog.status",
   version: "1.0.0",
@@ -951,7 +951,7 @@ type AttachmentsMethods = {
   readonly add: MethodDef<typeof AttachmentAddInput, typeof AttachmentAddOutput>;
 };
 
-/** 모델 도구가 없는 능력이다 */
+/** 모델 도구가 없는 기능이다 */
 export const DialogAttachments: CapabilityDef<AttachmentsMethods, readonly []> = defineCapability({
   id: "dialog.attachments",
   version: "1.0.0",
@@ -1014,7 +1014,7 @@ type AsideMethods = {
   readonly ask: MethodDef<typeof AsideAskInput, typeof AsideAskOutput>;
 };
 
-/** 2차. 모델 도구가 없는 능력이다 */
+/** 2차. 모델 도구가 없는 기능이다 */
 export const DialogAside: CapabilityDef<AsideMethods, readonly []> = defineCapability({
   id: "dialog.aside",
   version: "1.0.0",
@@ -1085,7 +1085,7 @@ type StylesMethods = {
   readonly select: MethodDef<typeof StyleSelectInput, typeof StyleSelectOutput>;
 };
 
-/** 2차. 모델 도구가 없는 능력이다 */
+/** 2차. 모델 도구가 없는 기능이다 */
 export const DialogStyles: CapabilityDef<StylesMethods, readonly []> = defineCapability({
   id: "dialog.styles",
   version: "1.0.0",
@@ -1214,7 +1214,7 @@ type NotifyMethods = {
   readonly list: MethodDef<typeof NotifyListInput, typeof NotifyListOutput>;
 };
 
-/** 모델 도구가 없는 능력이다 */
+/** 모델 도구가 없는 기능이다 */
 export const DialogNotify: CapabilityDef<NotifyMethods, readonly []> = defineCapability({
   id: "dialog.notify",
   version: "1.0.0",
@@ -1241,7 +1241,7 @@ export const DialogNotify: CapabilityDef<NotifyMethods, readonly []> = defineCap
 export const DialogNotifyKey: ServiceKey<CapabilityApi<typeof DialogNotify>> =
   serviceKey(DialogNotify);
 
-/** 같은 프로세스 소비자용 밀어주기 구독. JSON 메서드로 표현할 수 없어 dialog.notify 능력 API 객체에 TS 메서드로 둔다 */
+/** 같은 프로세스 소비자용 밀어주기 구독. JSON 메서드로 표현할 수 없어 dialog.notify 기능 API 객체에 TS 메서드로 둔다 */
 export interface NoticeFeed {
   subscribe(
     filter: { readonly kinds?: readonly NoticeKind[] },
@@ -1251,7 +1251,7 @@ export interface NoticeFeed {
 
 // ── 서비스 묶음 ────────────────────────────────────────────────────────
 
-/** dialog 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** dialog 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface DialogService {
   readonly ask: CapabilityApi<typeof DialogAsk>;
   readonly commands: CapabilityApi<typeof DialogCommands> & CommandActionRegistry;

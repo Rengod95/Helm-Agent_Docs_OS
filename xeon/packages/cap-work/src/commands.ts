@@ -12,7 +12,7 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { PlansRuntime } from "./plans/service.ts";
 
 // L2.work.spec §6.2. 계획 모드와 작업 목록의 슬래시 명령. 목표 명령(/goal)은 work.goals와 함께 M3에서 더한다.
-// 등록은 dialog.commands의 동작 명령 등록부(CommandActionRegistry)로 한다. 그 능력은 선택 의존이라(W-10) 조립 루트가 등록부를 넘길 때만 등록한다.
+// 등록은 dialog.commands의 동작 명령 등록부(CommandActionRegistry)로 한다. 그 기능은 선택 의존이라(W-10) 조립 루트가 등록부를 넘길 때만 등록한다.
 
 export const WORK_COMMAND_ORIGIN = "cap-work";
 

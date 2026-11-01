@@ -649,7 +649,7 @@ describe("M2 method schemas are written out", () => {
           name: "sops",
           need: "required",
           usedBy: "secrets 기본 provider",
-          impact: "비밀을 읽고 쓸 수 없다",
+          impact: "시크릿을 읽고 쓸 수 없다",
           status: { kind: "missing", hint: "brew install sops" },
         },
         {

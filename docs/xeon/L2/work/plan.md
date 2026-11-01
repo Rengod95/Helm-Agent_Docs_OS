@@ -97,7 +97,7 @@ xeon/packages/cap-work/
 | T4 | 계획 객체와 버전: 상태 모델, `work.plan_submitted`·`work.plan_withdrawn` 커밋, 투영(`cap_work_plans`)의 `approval.requested`·`approval.resolved` 반영, `versions` | T3(투영기 골격) | M | M2 |
 | T5 | `enterMode`/`exitMode`와 `PermissionModePort`(L1.tools 권한 모드 연결). `requireApproval` 검사, 대기 버전 철회 | T4, L1.tools 권한 모드 API | M | M2 |
 | T6 | `submit_plan` → `fresnel.approvals`(kind `plan`) 연결: `ApprovalsPort`, 제출 흐름(§4.2.4), `input_required`/`decided` 출력, `approve`/`reject`/`revise` 편의 메서드, 승인 해결 뒤 모드 복원 리스너, 재개 절차의 계획 부분 | T4, T5, L1.tools 승인 프로토콜 | L | M2 |
-| T7 | 계획 산출물 등록(`artifacts.registry` 선택 의존, 제출 시점): 사용 가능 확인, 첫 판 `register`·다음 판 `update`(requestId `plan:<planId>:<planVersion>`), 실패 시 `artifact: null` | T6, L2.artifacts 정의 | S | M2(산출물 능력이 없으면 비활성 경로만 테스트) |
+| T7 | 계획 산출물 등록(`artifacts.registry` 선택 의존, 제출 시점): 사용 가능 확인, 첫 판 `register`·다음 판 `update`(requestId `plan:<planId>:<planVersion>`), 실패 시 `artifact: null` | T6, L2.artifacts 정의 | S | M2(산출물 기능이 없으면 비활성 경로만 테스트) |
 | T8 | 설정 키 6개(`settings.ts`), 명령 등록(`dialog.commands` 선택 의존, §6.2) | T3, T6, L2.dialog D5 | S | M2(명령은 W-10 확정 뒤) |
 | T9 | 목표 저장과 상태 머신: `set`/`status`/`clear`, `continuation` 필드, `work.goal_set`·`work.goal_settled`, 투영(`cap_work_goals`, `cap_work_judgments`) | T3, T8 | M | M3(완료: M3a A4) |
 | T10 | 판정자와 증거: `GoalEvidence` 수집(정착 지점 컨텍스트와 투영 읽기), `fresnel.agents.judge` 호출과 `JudgeOutcome` 대응, `delegated` 판정자와 `judge` 메서드(대기 시간 제한은 제외, spec §4.3.5) | T9, L1.agents `judge` | L | M3(완료: M3a A4) |
@@ -148,10 +148,10 @@ xeon/packages/cap-work/
 | `test/plans-decision.int.test.ts` | 같은 레코드 형식 | `submit`이 만든 승인 요청이 kind `plan`이고 대상이 `PlanApprovalSubjectSchema`를 통과한다(`L2.dialog.plan`의 질문 테스트와 같은 payload 스키마 검사) |
 | `test/plans-mode.test.ts` | 승인 전 실행 단계 진입 금지 | `requireApproval = true`에서 승인 전 `exitMode`는 `plan_not_approved`이고 `restore` 호출이 없다. 승인 뒤 `exitOnApprove`면 `restore` 한 번 |
 | `test/plans-resume.fault.test.ts` | 승인 대기 중 재시작 복원 | `work.plan_submitted` 커밋 직후 강제 종료(고장 주입) → 재개 시 같은 키로 승인 요청이 한 번만 있다. 대기 중 재시작 뒤 응답하면 `submit` 재호출이 `decided`를 한 번 낸다 |
-| `test/plans-artifact.test.ts` | 산출물 선택 의존 | 능력이 없으면 `artifact: null`, 등록 실패여도 제출은 성공. 등록 requestId가 `plan:<planId>:<planVersion>`이고, 등록 뒤 커밋 전 종료 후 재시도해도 등록 호출의 결과가 같다(가짜 registry의 멱등) |
+| `test/plans-artifact.test.ts` | 산출물 선택 의존 | 기능이 없으면 `artifact: null`, 등록 실패여도 제출은 성공. 등록 requestId가 `plan:<planId>:<planVersion>`이고, 등록 뒤 커밋 전 종료 후 재시도해도 등록 호출의 결과가 같다(가짜 registry의 멱등) |
 | `test/goals-service.int.test.ts` | `set`·`status`·`clear`·`judge`, 보고 | 실제 SQLite와 세션 위에서 목표 기본값과 판정 상한 값, `goal_active`와 `replace`(종결 보고가 같은 커밋), `clear`의 보고와 `goal_closed`, 같은 `requestId`는 처음 결과와 같은 거부를 되풀이하고 이벤트를 쓰지 않음, 위임 판정(`goal_not_delegated`, 소유자만, `goal_turn_stale`, 같은 턴은 첫 판정, `met`·`limit_reached` 종결과 보고), `reports.build`(턴 사용량 합계, 남은 작업, 알 수 없는 대상) |
 | `test/goals-gate.test.ts` | 완료 게이트 | 가짜 `fresnel.agents.judge`로 `boundary.settle.before` 핸들러를 직접 부른다. `not_met`·`undecidable`은 지시 항목과 `continue: true`, 증거(최종 텍스트, 도구 호출, 작업, 직전 판정), `met`은 종결과 보고, `capped`는 판정 기록 없이 `limit_reached`와 안내 항목, 마지막 허용 실행의 미충족은 바로 종결, 판정 실패(`failed`, 던짐, `fresnel.agents` 없음)는 `judge_failed`와 stop, 중단·오류 turn·위임 목표·판정 중 해제는 끼어들지 않음, 단계 id가 없으면 엔트리 없이 결정만, 같은 답이 다시 오면 이벤트가 늘지 않음 |
-| `test/idempotency.conformance.test.ts` | 능력 적합성 | ADR-0015 §3.6, M3-REQ-88·89. 멱등 쓰기 아홉 개(`tasks.create`·`update`·`link`·`write`, `plans.submit`, `goals.set`·`clear`·`judge`, `reports.build`)를 같은 `requestId`로 저장소를 닫았다 다시 열고 두 번 부른다. 결과가 같고 이벤트 수와 `cap_work_` 표가 그대로다. 분류 값이 spec 표와 같고, 계획 결정(`approve`·`reject`·`revise`)은 `requestId`를 기억하지 않아 같은 키의 반복이 `plan_closed`임을 고정한다 |
+| `test/idempotency.conformance.test.ts` | 기능 적합성 | ADR-0015 §3.6, M3-REQ-88·89. 멱등 쓰기 아홉 개(`tasks.create`·`update`·`link`·`write`, `plans.submit`, `goals.set`·`clear`·`judge`, `reports.build`)를 같은 `requestId`로 저장소를 닫았다 다시 열고 두 번 부른다. 결과가 같고 이벤트 수와 `cap_work_` 표가 그대로다. 분류 값이 spec 표와 같고, 계획 결정(`approve`·`reject`·`revise`)은 `requestId`를 기억하지 않아 같은 키의 반복이 `plan_closed`임을 고정한다 |
 | `test/defs.contract.test.ts` | 정의 검증 | 네 정의의 `validateCapability` 이슈 0건(W-3 확정 전에는 `tools: []` 관련 이슈만 허용 목록), `validateCapabilitySet`에서 도구 이름 충돌 없음 |
 | `test/catalog.contract.test.ts` | 카탈로그 일치 | `WORK_EVENT_CATALOG`의 kind가 `parseEventKind`를 통과하고 `TYPE_PREFIX_OWNERS`의 `work.` 소유가 `cap.work`이며 스펙 §3.7 표와 집합이 같다 |
 
@@ -196,7 +196,7 @@ M3:
 | 승인 프로토콜 인터페이스가 L1.tools 작성 중이라 바뀜 | 포트 한 곳(`src/ports/approvals.ts`)에 격리하고 가짜 포트로 테스트한다. 실제 이름이 정해지면 포트만 고친다 |
 | 작업 이벤트 증가에 따른 투영 비용 | 작업 수 상한 500, `write` 연산 50개 상한. 투영은 행 단위 갱신만 한다. 재생성 비용은 `projection.int.test`에서 이벤트 10,000개 기준 시간을 기록해 둔다 |
 | 판정과 사용자 턴의 경합 | 판정 중 새 턴이 시작되면 post를 생략한다. post 키를 `goal:<goalId>:<n>`으로 고정해 중복 투입을 막는다 |
-| 도구 없는 능력이 F에서 거부됨(W-3) | `goal_status` 읽기 도구 하나를 두는 대안을 준비한다. 판정 결과를 쓰는 도구는 두지 않는다 |
+| 도구 없는 기능이 F에서 거부됨(W-3) | `goal_status` 읽기 도구 하나를 두는 대안을 준비한다. 판정 결과를 쓰는 도구는 두지 않는다 |
 
 ## 8. M2 구현 기록
 
@@ -229,7 +229,7 @@ M3:
 | `tasks-write.test.ts` | write 전부 또는 전무, 임시 참조, 자동 시작, 상한, 이벤트 payload가 카탈로그 스키마를 통과 |
 | `tasks-service.int.test.ts` | 같은 requestId 재호출, 거부의 되풀이, `key_reused`, 효과 없는 호출, 직렬 큐, 스레드 분리 |
 | `projection.int.test.ts` | 재생성 동일성(무작위 연산열 3개 시드), 투영 행과 계획 상태의 일치, `cap_work_meta` |
-| `reminder.test.ts`, `plugin.test.ts` | 방치 알림(질의만, 이벤트를 쓰지 않음), 능력 제공, 도구 등록, 등록 거부 |
+| `reminder.test.ts`, `plugin.test.ts` | 방치 알림(질의만, 이벤트를 쓰지 않음), 기능 제공, 도구 등록, 등록 거부 |
 | `defs.contract.test.ts`, `catalog.contract.test.ts`, `settings.test.ts` | 정의·카탈로그·설정 선언 |
 
 미충족과 통합 때 바꿀 것:

@@ -91,7 +91,7 @@ type DecideFailure = Extract<ProposalDecideResult, { ok: false }>;
 type DecideReason = DecideFailure["reason"];
 
 /**
- * 능력 오류 코드 → 결정 실패 이유. 표에 없는 코드는 `unavailable`이다. wire의 이유 집합(`PROPOSAL_DECIDE_FAILURES`)에
+ * 기능 오류 코드 → 결정 실패 이유. 표에 없는 코드는 `unavailable`이다. wire의 이유 집합(`PROPOSAL_DECIDE_FAILURES`)에
  * `name_conflict`·`patch_mismatch`·`rollback_conflict`를 따로 둘 자리가 없어 모두 `base_stale`로 옮긴다(대상이 제안 뒤에 바뀜).
  * 구별은 `detail` 문장에 남는다 [제안]
  */
@@ -149,7 +149,7 @@ export interface KnowledgeProposalWire {
   decide(params: ProposalDecideParams, options: CallOptions): Promise<ProposalDecideResult>;
 }
 
-/** 호스트가 `knowledge.ledger` 능력 API로 만든다. 결정은 호스트(사용자) 문맥으로만 받는다(`ledger.decide`의 규칙) */
+/** 호스트가 `knowledge.ledger` 기능 API로 만든다. 결정은 호스트(사용자) 문맥으로만 받는다(`ledger.decide`의 규칙) */
 export function createKnowledgeProposalWire(ledger: LedgerApi): KnowledgeProposalWire {
   return {
     async list(input, options) {

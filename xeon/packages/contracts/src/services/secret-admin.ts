@@ -114,7 +114,7 @@ export interface SecretRevealOffer {
 }
 
 /**
- * in-process 접속이 비밀 값 입력·열람 수단을 wire 밖으로 호스트에 맡기는 통로.
+ * in-process 접속이 시크릿 값 입력·열람 수단을 wire 밖으로 호스트에 맡기는 통로.
  * wire 메서드 `secret.beginEntry`·`secret.beginReveal`은 값 필드 없이 시작만 알리고, 호스트 처리기가 같은 이름의
  * 맡긴 수단 하나를 꺼내 L0.secrets(`SecretAdminService`)에 넘긴다. 맡긴 수단이 없으면 처리기는 `started: false`를 돌려준다.
  * 서비스 접속에는 이 통로가 없고 호스트 쪽 L0.secrets가 OS 입력 창을 쓴다(L4.settings-ui.spec §4.6.4 C안).

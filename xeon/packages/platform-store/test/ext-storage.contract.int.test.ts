@@ -10,7 +10,7 @@ afterEach(releaseOwned);
 /**
  * 확장 저장 영역 계약 시나리오를 실제 bun:sqlite 팩토리로 돌린다(L0.store.plan ST-23, spec §9 18번).
  * X.operations.plan O-15가 만드는 `ext-storage.contract.ts`는 아직 없다. 그 파일이 생기면 이 시나리오 모음을
- * 테스트 파일 교차 import로 바꿔 건다. 지점 이름(`after_ext_projection:<n>`)은 X와 같은 문자열이다.
+ * 테스트 파일 교차 import로 바꿔 건다. 훅 이름(`after_ext_projection:<n>`)은 X와 같은 문자열이다.
  */
 interface StoreFactory {
   open(faults?: FaultInjector): Promise<TestStore>;

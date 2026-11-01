@@ -5,6 +5,7 @@
 //   C-01 ko·en 키 집합이 같음  C-02 ICU 문법이 맞고 ko·en 인자 이름·종류가 같음
 //   C-03 `term.*` 키가 원본에서 생성한 값과 같음  C-06 en 문자열에 한글 없음
 //   M-01 목업 용어 파생물(mockups/_shell/terms.generated.ts)이 있으면 원본과 같음
+//   D-03 용어집의 생성 구역(<!-- terms:begin --> … <!-- terms:end -->)이 있으면 원본과 같음
 // 사용:
 //   bun scripts/terms.ts gen [--mockups]      카탈로그 term.* 키를 갱신한다. --mockups는 목업 파생물도 쓴다(목업 트랙이 켠다)
 //   bun scripts/terms.ts check [--json]       전부 검사한다
@@ -16,6 +17,9 @@ import { loadShippedTerms, type TermDecl } from "../packages/client/src/i18n/ter
 const ROOT = join(import.meta.dir, "..");
 const LOCALES_DIR = join(ROOT, "packages/client/src/i18n/locales");
 const DOCS_DIR = join(ROOT, "..", "docs/xeon");
+const GLOSSARY_FILE = join(DOCS_DIR, "engineering/operations/glossary.md");
+const GLOSSARY_BEGIN = "<!-- terms:begin -->";
+const GLOSSARY_END = "<!-- terms:end -->";
 const MOCKUP_FILE = join(ROOT, "apps/desktop/mockups/_shell/terms.generated.ts");
 
 export interface Violation {
@@ -390,6 +394,55 @@ export function checkCatalogs(
   return out;
 }
 
+// --- 용어집 생성 구역 D-03 -----------------------------------------------------------------------------------
+
+/** 용어집의 생성 구역(표지 줄 두 개 사이)에 들어갈 표. 문서 용어, 화면 라벨 ko·en, 함께 보이는 기계 id */
+export function generateGlossaryZone(terms: Readonly<Record<string, TermDecl>>): string {
+  const rows = Object.keys(terms)
+    .toSorted()
+    .flatMap((id) => {
+      const term = terms[id];
+      if (term === undefined) return [];
+      const ui = term.ui === null ? ["—", "—"] : [term.ui.ko, term.ui.en];
+      const ids = (term.ids ?? []).map((value) => `\`${value}\``).join(", ");
+      return [
+        `| ${term.doc.ko} | ${ui[0] ?? "—"} | ${ui[1] ?? "—"} | ${ids === "" ? "—" : ids} | ${term.status} |`,
+      ];
+    });
+  return [
+    GLOSSARY_BEGIN,
+    "| 문서 용어 | 화면 라벨 ko | 화면 라벨 en | 기계 id | 상태 |",
+    "|---|---|---|---|---|",
+    ...rows,
+    GLOSSARY_END,
+  ].join("\n");
+}
+
+/** 구역을 새 표로 바꾼다. 표지가 없으면 undefined */
+export function replaceGlossaryZone(text: string, zone: string): string | undefined {
+  const begin = text.indexOf(GLOSSARY_BEGIN);
+  const end = text.indexOf(GLOSSARY_END);
+  if (begin < 0 || end < begin) return undefined;
+  return `${text.slice(0, begin)}${zone}${text.slice(end + GLOSSARY_END.length)}`;
+}
+
+export function checkGlossary(
+  terms: Readonly<Record<string, TermDecl>>,
+  text: string | undefined,
+): Violation[] {
+  if (text === undefined) return [];
+  const replaced = replaceGlossaryZone(text, generateGlossaryZone(terms));
+  if (replaced === undefined || replaced === text) return [];
+  return [
+    {
+      rule: "D-03",
+      where: "docs/xeon/engineering/operations/glossary.md",
+      message: "the generated term table differs from the source",
+      fix: "run `just terms gen`",
+    },
+  ];
+}
+
 // --- 목업 파생물 M-01 ---------------------------------------------------------------------------------------
 
 export function generateMockupTerms(terms: Readonly<Record<string, TermDecl>>): string {
@@ -488,6 +541,11 @@ function main(argv: readonly string[]): number {
     writeCatalog("ko", mergeTermKeys(ko, generated.ko));
     writeCatalog("en", mergeTermKeys(en, generated.en));
     if (flags.includes("--mockups")) writeFileSync(MOCKUP_FILE, generateMockupTerms(TERMS));
+    if (existsSync(GLOSSARY_FILE)) {
+      const glossary = readFileSync(GLOSSARY_FILE, "utf8");
+      const replaced = replaceGlossaryZone(glossary, generateGlossaryZone(TERMS));
+      if (replaced !== undefined && replaced !== glossary) writeFileSync(GLOSSARY_FILE, replaced);
+    }
     console.log(`terms gen: ${String(Object.keys(generated.en).length)} term keys`);
     return 0;
   }
@@ -501,6 +559,10 @@ function main(argv: readonly string[]): number {
       ...checkTermSource(TERMS, collectDocIds(DOCS_DIR)),
       ...checkCatalogs(ko, en, TERMS),
       ...checkMockupTerms(TERMS, mockup),
+      ...checkGlossary(
+        TERMS,
+        existsSync(GLOSSARY_FILE) ? readFileSync(GLOSSARY_FILE, "utf8") : undefined,
+      ),
     ];
     if (flags.includes("--json")) console.log(JSON.stringify(violations, null, 2));
     else

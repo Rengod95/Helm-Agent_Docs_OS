@@ -60,13 +60,13 @@ export interface LinkWorkResult {
   readonly tasks: ReadonlyMap<string, string>;
   /** 임대가 회수돼 남은 호출을 멈췄다 */
   readonly leaseLost: boolean;
-  /** 능력 실패로 건너뛴 발견 수 */
+  /** 기능 실패로 건너뛴 발견 수 */
   readonly skipped: number;
 }
 
 /**
  * followUp이 있는 발견마다 work.tasks.create를 부른다. 멱등 쓰기이고 requestId는 탐구 id와 발견 id에서 만든다.
- * 능력 실패는 그 발견만 건너뛰고, 임대 회수면 남은 호출을 멈춘다
+ * 기능 실패는 그 발견만 건너뛰고, 임대 회수면 남은 호출을 멈춘다
  */
 export async function linkWork(
   g: Pick<OutputApi, "capability">,

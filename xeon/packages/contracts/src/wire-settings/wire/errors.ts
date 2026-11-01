@@ -33,7 +33,7 @@ export const WireErrorDataSchema: TObject<{
     details: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
     /**
      * 문장에 끼울 인자(M3-REQ-21). 문장은 클라이언트가 `kind`를 메시지 키로 카탈로그에서 만든다. `message`는 개발자용 영어로 남는다.
-     * 값은 문자열·숫자·불리언·null이고 비밀 값을 싣지 않는다
+     * 값은 문자열·숫자·불리언·null이고 시크릿 값을 싣지 않는다
      */
     args: Type.Optional(
       Type.Record(
@@ -409,7 +409,7 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
-  // 3200~3299: 비밀 관리(`secret.*` 메서드). 어느 details에도 값, 값의 일부, 외부 도구의 출력이 없다
+  // 3200~3299: 시크릿 관리(`secret.*` 메서드). 어느 details에도 값, 값의 일부, 외부 도구의 출력이 없다
   "secret.notFound": {
     code: 3201,
     kind: "secret.notFound",
@@ -647,7 +647,7 @@ export interface WireCodeRange {
   readonly kindPrefix?: string;
 }
 
-/** 능력(L2) 오류는 코드 4000 하나로 싣는다. kind는 `cap.<CapabilityId>.<code>`, details는 CapabilityErrorData다 */
+/** 기능(L2) 오류는 코드 4000 하나로 싣는다. kind는 `cap.<CapabilityId>.<code>`, details는 CapabilityErrorData다 */
 export const WIRE_CAPABILITY_ERROR_CODE: number = 4000;
 
 export const WIRE_CODE_RANGES: readonly WireCodeRange[] = [
@@ -666,7 +666,7 @@ export const WIRE_CODE_RANGES: readonly WireCodeRange[] = [
     from: 4000,
     to: 4999,
     owner: "L2",
-    purpose: "능력 오류는 4000 하나. 4001~4999는 예비",
+    purpose: "기능 오류는 4000 하나. 4001~4999는 예비",
     kindPrefix: "cap.",
   },
   { name: "host", from: 5000, to: 5999, owner: "L4", purpose: "호스트 상태, 취소, 서비스 모드" },

@@ -40,7 +40,7 @@ export interface ScopeInfo {
   readonly status: ScopeStatus;
   /** 꺼져 있으면 마지막 세대 */
   readonly generation: number;
-  /** requires 능력이 없어 켜지지 못한 경우의 부족 능력 */
+  /** requires 기능이 없어 켜지지 못한 경우의 부족 기능 */
   readonly waiting: readonly CapabilityId[];
   readonly drive: "none" | "registered" | "holding" | "error";
   readonly lastError?: { readonly code: PrimitiveErrorCode; readonly message: string };
@@ -231,7 +231,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       stale: false,
       closing: false,
     };
-    // 공급자 연쇄가 끝나기를 기다린 뒤 의존 능력이 있는지 본다
+    // 공급자 연쇄가 끝나기를 기다린 뒤 의존 기능이 있는지 본다
     await core.flushBindings();
     await core.bridge.quiesce();
     const missing = missingCapabilities(record);
@@ -627,7 +627,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
         generation.closing = true;
         txn.closing.push(record);
       }
-      // 켜기는 로드 순서대로 하나씩: 공급자가 먼저 켜져야 소비자의 능력 의존이 채워진다
+      // 켜기는 로드 순서대로 하나씩: 공급자가 먼저 켜져야 소비자의 기능 의존이 채워진다
       await eachInOrder(records, async (record) => {
         if (!wantedBy(thread, record)) return "continue";
         const existing = record.generation;

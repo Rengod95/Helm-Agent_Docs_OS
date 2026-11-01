@@ -95,8 +95,8 @@ export interface ExtHostDeps {
   /** 참이면 페이로드·패치·결정 스키마 검사와 페이로드 동결을 켠다. 기본 참 */
   readonly strict?: boolean;
   /**
-   * 능력 정의 조회. 능력 래퍼가 재실행되는 코드(on 핸들러, drive 함수)의 호출을 메서드의 `idempotent`·`readOnly` 선언으로 검사한다
-   * (ADR-0015 §3.2). 없으면 정의를 모르는 능력이므로 그 문맥의 모든 호출을 거부한다
+   * 기능 정의 조회. 기능 래퍼가 재실행되는 코드(on 핸들러, drive 함수)의 호출을 메서드의 `idempotent`·`readOnly` 선언으로 검사한다
+   * (ADR-0015 §3.2). 없으면 정의를 모르는 기능이므로 그 문맥의 모든 호출을 거부한다
    */
   readonly capabilityDefs?: CapabilityDefLookup;
   /** 선언 없는 쓰기 요청 워커(ADR-0015 §3.5). 없으면 X의 기본 워커 */
@@ -242,7 +242,7 @@ export interface LeaseInfo {
 /** 패키지 안(testing, loading-trust, operations)에서만 쓰는 호스트 내부 */
 export interface ExtHostInternals {
   readonly core: HostCore;
-  /** 추적 중인 작업(drive 호출, 유휴 적용, 능력 바인딩)이 모두 끝나기를 기다린다 */
+  /** 추적 중인 작업(drive 호출, 유휴 적용, 기능 바인딩)이 모두 끝나기를 기다린다 */
   whenSettled(): Promise<void>;
   /** 토글 요청을 사유와 함께 기록한다(X.operations ScopeControl의 바탕). threadId가 있으면 그 thread만의 요청이다 */
   requestScope(

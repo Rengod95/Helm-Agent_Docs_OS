@@ -49,7 +49,7 @@ async function boot(options: { tools?: boolean } = {}) {
   return { t, installed, registered };
 }
 
-/** 예약 능력을 requires로 쓰는 소비자 확장. 호스트가 넘긴 능력 API를 그대로 받는다 */
+/** 예약 기능을 requires로 쓰는 소비자 확장. 호스트가 넘긴 기능 API를 그대로 받는다 */
 function consumer() {
   const apis: { schedule?: CapabilityApi<typeof ScheduleEntries> } = {};
   const entry: ExtensionEntry = ({ manifest, scope }) => {

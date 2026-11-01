@@ -16,9 +16,9 @@ import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 
-// M3-05, M3-REQ-75 (B3-SEC 끝 시험). 비밀 env를 쓰는 stdio MCP 서버는 사용자의 기동 승인 한 번 뒤에 뜬다. 승인 전에는 프로세스가 없고,
+// M3-05, M3-REQ-75 (B3-SEC 끝 시험). 시크릿 env를 쓰는 stdio MCP 서버는 사용자의 기동 승인 한 번 뒤에 뜬다. 승인 전에는 프로세스가 없고,
 // 서버 정의가 바뀌면 정의 해시가 달라져 다시 승인을 받아야 뜬다. 승인 레코드(approval.requested)에 정의 해시가 실린다.
-// 비밀 서비스만 메모리 대역(sops 없음)이고 정책 판정, lease, 감사 기록은 운영 구현이다.
+// 시크릿 서비스만 메모리 대역(sops 없음)이고 정책 판정, lease, 감사 기록은 운영 구현이다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -150,7 +150,7 @@ realTest(
     expect(firstBody).not.toContain(SECRET_VALUE);
     expect(existsSync(pidFile)).toBe(false);
 
-    // 2. 승인 한 번: 서버가 뜨고 도구가 비밀 env와 평문 env를 받은 채 돈다
+    // 2. 승인 한 번: 서버가 뜨고 도구가 시크릿 env와 평문 env를 받은 채 돈다
     expect(
       await connection.request("approval.respond", { approvalId: first.id, decision: "allow" }),
     ).toEqual({ applied: true });

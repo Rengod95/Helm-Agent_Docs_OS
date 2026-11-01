@@ -112,7 +112,7 @@ xeon/packages/platform-store/
 | ST-20 | `lock/win32.ts`: named mutex 또는 `LockFileEx` bun:ffi 실측과 구현(미결 S-5) | ST-11 | M | M2 이후 |
 | ST-21 | [macOS 26 실측으로 FTS5가 시스템 SQLite에 있어 필요성이 낮아짐(ST-02, 2026-10-25). 구버전 macOS·FTS5 부재 시의 대비책으로 남긴다] macOS 동봉 SQLite 배포 경로: FTS5 포함 dylib 빌드 스크립트, `L0.os` `resourceDir()` 연동, `L4.desktop.plan`·`L4.cli.plan`과 패키징 합의 | ST-02 | L | M2 이후 |
 | ST-22 | 운영 빌드 접두사 검사 확대 판단(ST-07 측정 결과), 블롭 해시 재검증 운영 적용 판단 | ST-07, ST-14 | S | M2 이후 |
-| ST-23 | 확장 저장 영역 계약 스위트(`ext-storage.contract.int.test.ts`): X `test/operations/storage/ext-storage.contract.ts`의 시나리오 모음을 테스트 파일 교차 import로 가져와 `openTestStore` 기반 저장소 팩토리(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 돌린다. 장애 주입 지점 이름은 X와 같은 문자열(`after_ext_projection:<n>` 등)을 쓴다. 시나리오 파일은 `X.operations.plan` O-15가 만든다 [결정: review.decisions-2 D-05, U-17] | ST-08, ST-09 | S | M1 |
+| ST-23 | 확장 저장 영역 계약 스위트(`ext-storage.contract.int.test.ts`): X `test/operations/storage/ext-storage.contract.ts`의 시나리오 모음을 테스트 파일 교차 import로 가져와 `openTestStore` 기반 저장소 팩토리(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 돌린다. 장애 주입 훅 이름은 X와 같은 문자열(`after_ext_projection:<n>` 등)을 쓴다. 시나리오 파일은 `X.operations.plan` O-15가 만든다 [결정: review.decisions-2 D-05, U-17] | ST-08, ST-09 | S | M1 |
 | ST-24 | 마이그레이션 전 스냅샷: `snapshot.ts`(`snapshotBeforeMigration`, 보관 3개), `migrations.ts` 연결, `StoreWarning`의 `migration_snapshot`·`snapshot_prune_failed`. `migration-snapshot.int.test.ts`가 올리기 전 상태 복사, 모드, 보관 수, 실패 시 단계 미실행을 확인. `spec` §4.6.1 | ST-06 | S | M2 |
 
 ## 4. 채택 코드

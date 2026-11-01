@@ -7,12 +7,12 @@ import { EXIT } from "../src/exit-codes.ts";
 
 test("dedicated secret.* kinds map to the same phrases as the legacy internal details", () => {
   expect(failureOfWire(wireError("secret.notFound", { details: { where: "meta" } }))).toEqual({
-    message: "그 이름의 비밀이 없다",
+    message: "그 이름의 시크릿이 없다",
     fix: "fresnel secret ls로 이름을 확인하거나 fresnel secret add <이름>으로 만든다",
     code: EXIT.error,
   });
   expect(failureOfWire(wireError("secret.inUse", { details: { activeLeases: 2 } }))).toEqual({
-    message: "사용 중인 비밀이라 지울 수 없다 (활성 lease 2개)",
+    message: "사용 중인 시크릿이라 지울 수 없다 (활성 lease 2개)",
     fix: "사용이 끝난 뒤 다시 지운다. 값만 바꾸려면 fresnel secret rotate <이름>을 쓴다",
     code: EXIT.error,
   });
@@ -23,7 +23,7 @@ test("dedicated secret.* kinds map to the same phrases as the legacy internal de
       }),
     ),
   ).toEqual({
-    message: "비밀 제공자(sops)를 쓸 수 없다 (binary_missing)",
+    message: "시크릿 제공자(sops)를 쓸 수 없다 (binary_missing)",
     fix: "sops와 age를 설치하고 fresnel doctor로 확인한다",
     code: EXIT.environment,
   });
@@ -35,7 +35,7 @@ test("dedicated secret.* kinds map to the same phrases as the legacy internal de
   expect(failureOfWire(wireError("secret.reauthRequired")).message).toBe(
     "사람 확인이 끝나지 않아 거부되었다",
   );
-  expect(failureOfWire(wireError("secret.cancelled")).message).toBe("비밀 입력을 취소했다");
+  expect(failureOfWire(wireError("secret.cancelled")).message).toBe("시크릿 입력을 취소했다");
   expect(
     failureOfWire(
       wireError("secret.writeFailed", { details: { target: "key_file", code: "EACCES" } }),
@@ -47,7 +47,7 @@ test("the legacy internal details.secret path still works", () => {
   const failure = failureOfWire(
     wireError("internal", { details: { secret: { kind: "in_use", activeLeases: 1 } } }),
   );
-  expect(failure.message).toBe("사용 중인 비밀이라 지울 수 없다 (활성 lease 1개)");
+  expect(failure.message).toBe("사용 중인 시크릿이라 지울 수 없다 (활성 lease 1개)");
 });
 
 test("thread.closed, settings.reserved and store.corrupt have their own phrases", () => {
@@ -136,7 +136,7 @@ test("not_registered points at the provider setting, not at installing sops and 
       details: { provider: "sops", reason: "not_registered" },
     }),
   );
-  expect(failure.message).toBe("비밀 제공자(sops)를 쓸 수 없다 (not_registered)");
+  expect(failure.message).toBe("시크릿 제공자(sops)를 쓸 수 없다 (not_registered)");
   expect(failure.fix).toContain("l0.secrets.defaultProvider");
   expect(failure.fix).toContain("l0.secrets.sops.files");
   expect(failure.fix).not.toContain("설치");
@@ -176,18 +176,18 @@ const sopsFile = (code: string) =>
 
 test("write failures name what could not be prepared and why", () => {
   expect(sopsFile("sops_encrypt_failed")).toEqual({
-    message: "기본 비밀 파일을 준비하지 못했다 (sops_encrypt_failed)",
+    message: "기본 시크릿 파일을 준비하지 못했다 (sops_encrypt_failed)",
     fix: "sops가 파일을 암호화하지 못했다. sops 버전을 확인하고 fresnel doctor로 진단한다",
     code: EXIT.environment,
   });
   expect(sopsFile("recipient_unknown").fix).toContain("l0.secrets.sops.files");
   expect(sopsFile("unsupported_format").fix).toContain(".yaml");
   expect(sopsFile("lock_timeout").fix).toBe(
-    "다른 fresnel이 같은 비밀 파일에 쓰고 있다. 끝난 뒤 다시 실행한다",
+    "다른 fresnel이 같은 시크릿 파일에 쓰고 있다. 끝난 뒤 다시 실행한다",
   );
   // OS 오류 코드는 권한과 디스크를 보게 한다
   expect(sopsFile("EACCES")).toEqual({
-    message: "기본 비밀 파일을 준비하지 못했다 (EACCES)",
+    message: "기본 시크릿 파일을 준비하지 못했다 (EACCES)",
     fix: "fresnel 설정 디렉터리의 secrets/sops 폴더 권한과 디스크 상태를 확인한다",
     code: EXIT.environment,
   });

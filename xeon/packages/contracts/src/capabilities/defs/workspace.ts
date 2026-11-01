@@ -653,7 +653,7 @@ export const RunInput: TObject<{
     cwd: Type.Optional(PathParam),
     /** 참이면 0이 아닌 종료 코드를 exit_nonzero 오류로 낸다. 모델 도구는 항상 참이다 */
     failOnNonZero: Type.Optional(Type.Boolean()),
-    /** 그룹 코드가 비밀을 명시적으로 넘길 때만 쓴다. 값 주입은 fresnel.exec가 실행 직전에 한다 */
+    /** 그룹 코드가 시크릿을 명시적으로 넘길 때만 쓴다. 값 주입은 fresnel.exec가 실행 직전에 한다 */
     secretEnv: Type.Optional(Type.Record(EnvName, SecretRefParam)),
   },
   { additionalProperties: false },
@@ -830,7 +830,7 @@ type ImagesMethods = {
   readonly register: MethodDef<typeof RegisterImageInput, typeof WorkspaceImageSchema>;
 };
 
-/** 도구가 없는 능력이다. 모델은 read로 이미지 파일을 읽고, 첨부는 dialog.attachments가 register를 부른다. */
+/** 도구가 없는 기능이다. 모델은 read로 이미지 파일을 읽고, 첨부는 dialog.attachments가 register를 부른다. */
 export const WorkspaceImages: CapabilityDef<ImagesMethods, readonly []> = defineCapability({
   id: "workspace.images",
   version: "1.0.0",
@@ -872,7 +872,7 @@ export const WorkspaceImagesKey: ServiceKey<CapabilityApi<typeof WorkspaceImages
 /** 묶음 이름. eng.context-map.design §5.3 표의 이름이고 Cordis 등록 이름이 아니다 */
 export const WorkspaceServiceName = "fresnel.workspace" as const;
 
-/** workspace 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** workspace 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface WorkspaceService {
   readonly files: CapabilityApi<typeof WorkspaceFiles>;
   readonly shell: CapabilityApi<typeof WorkspaceShell>;

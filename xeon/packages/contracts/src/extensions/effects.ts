@@ -1,6 +1,6 @@
 /**
  * 재실행되는 확장 코드(on 핸들러, drive 함수)의 허용 효과 표. ADR-0015 §3.2가 정본이고 이 표는 그 코드 표현이다.
- * 검사는 X의 연산 래퍼와 능력 래퍼가 하고, F는 표의 값만 둔다.
+ * 검사는 X의 연산 래퍼와 기능 래퍼가 하고, F는 표의 값만 둔다.
  */
 
 /** 재실행되는 문맥 두 가지 */
@@ -84,7 +84,7 @@ export function isEffectAllowed(effect: ReplayEffect, context: ReplayContext): b
   return REPLAY_EFFECT_TABLE[effect][context] === "allowed";
 }
 
-/** 능력 메서드의 선언에서 표의 행을 고른다. 선언이 없으면(`replay` 값과 무관하게) `capability.undeclared` */
+/** 기능 메서드의 선언에서 표의 행을 고른다. 선언이 없으면(`replay` 값과 무관하게) `capability.undeclared` */
 export function capabilityEffectOf(method: {
   readonly idempotent?: true;
   readonly readOnly?: true;

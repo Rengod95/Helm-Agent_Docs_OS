@@ -66,7 +66,7 @@ function tool(capability: string, name: string): OrderedTool {
   };
 }
 
-/** 정렬된 순서(능력 ID, 이름)로 적은 도구 세 개 */
+/** 정렬된 순서(기능 ID, 이름)로 적은 도구 세 개 */
 export const sortedTools: readonly OrderedTool[] = [
   tool("workspace.bash", "bash"),
   tool("workspace.list", "ls"),

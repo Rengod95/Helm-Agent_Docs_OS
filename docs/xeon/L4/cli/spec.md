@@ -10,7 +10,7 @@ binds: [xeon/apps/cli/**]
 
 # L4 CLI (`fresnel`)
 
-이 문서는 L4 배포 런타임 중 CLI 앱(`xeon/apps/cli`)의 스펙이다. 사용자가 터미널에서 Fresnel과 대화하고, 세션·설정·비밀·서비스를 다루는 명령 체계를 정한다.
+이 문서는 L4 배포 런타임 중 CLI 앱(`xeon/apps/cli`)의 스펙이다. 사용자가 터미널에서 Fresnel과 대화하고, 세션·설정·시크릿·서비스를 다루는 명령 체계를 정한다.
 
 ## 1. 목적과 범위
 
@@ -22,14 +22,14 @@ binds: [xeon/apps/cli/**]
 - 화면: TUI 라이브러리 선택, 내구·휘발 이벤트의 렌더링 규칙, 승인·잠금 프롬프트, 슬래시 명령.
 - 종료 코드와 신호 처리.
 - CLI가 소유하는 설정 키 `l4.cli.*`.
-- 비밀 명령의 입력·출력 규칙.
+- 시크릿 명령의 입력·출력 규칙.
 
 ### 1.2 다루지 않는 것
 
 - 엔진 조립(Cordis 호스트, 플러그인 등록, 저장소 열기), 전송 구현, 서비스 수명(등록 파일, `ensure`, 유휴 종료): `L4.host-service.spec`.
 - 설정 화면(데스크톱 12탭): `L4.settings-ui.spec`. CLI의 TUI 설정 화면은 지금 만들지 않되, 나중에 만들 수 있게 view-model을 `packages/client`에 둔다 [결정: review.m3-design-inputs D-M3-30 행 3, adr.0020](§4.9, §10).
 - 데스크톱 셸: `L4.desktop.spec`.
-- 비밀 값의 저장·해석·마스킹: `L0.secrets.spec`. CLI는 명령 입구와 출력 규칙만 정한다.
+- 시크릿 값의 저장·해석·마스킹: `L0.secrets.spec`. CLI는 명령 입구와 출력 규칙만 정한다.
 - 승인 요청 payload의 모양: `L1.tools.spec`. CLI는 표시와 응답 규칙만 정한다.
 - 개발용 justfile 종료코드 규칙(`eng.toolchain.guide` 3.2절). 이 문서의 종료 코드는 제품 CLI의 것이며 개발 레시피 규칙과 별개다(§3.6).
 
@@ -86,7 +86,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel config reset <key> [--scope …]` | 그 범위의 값을 지운다 | `settings.reset` | M2 |
 | `fresnel config list [--prefix p] [--deprecated] [--json]` | 정의 목록과 유효 값 | `settings.list`, `settings.get` | M2 |
 | `fresnel config schema --scope <managed\|user\|project\|local> [--out <path>] [--core-only]` | 설정 파일 JSON Schema 출력. `--out`이 없으면 stdout에 쓴다. 엔진 연결 없이 로컬 명령으로 돈다(`L4.host-service.spec` §6.2) | 없음. `runHostCommand({ kind: "config-schema" })` | M1 |
-| `fresnel secret ls [--meta] [--usage]` | 비밀 목록. 값은 없다 | `secret.list`(`F.wire-settings.spec` §4, M2) | M2 |
+| `fresnel secret ls [--meta] [--usage]` | 시크릿 목록. 값은 없다 | `secret.list`(`F.wire-settings.spec` §4, M2) | M2 |
 | `fresnel secret add <name> [--provider sops] [--desc …] [--hosts …] [--expires …]` | 생성. 값은 stdin이나 프롬프트로만 받는다(§4.7) | `secret.beginEntry { name, action: "add" }`. 값 필드 없음 | M2 |
 | `fresnel secret set <name>` | 값 교체. 값은 stdin이나 프롬프트로만 받는다(§4.7) | `secret.beginEntry { name, action: "set" }`. 값 필드 없음 | M2 |
 | `fresnel secret meta <name> [--desc …] [--scope …] [--expires …] [--hosts …]` | 메타 수정. 값과 무관하다 | `secret.meta` | M2 |
@@ -105,12 +105,12 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
 | `fresnel service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 자기 바이너리를 detached로 띄울 때 붙이는 인자다(`L4.host-service.spec` §3.2, SV-06). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-run", safeMode, tcp? })`. `--safe-mode`·`--listen-tcp`를 받는다 | M3(구현됨) |
 | `fresnel host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 원격 서비스에 중계한다(HS-89). 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표). 원격이면 `resolveRemoteEndpoint`, `bridgeStdioToService` | M2(컴파일 바이너리 서브커맨드, 구현됨) |
-| `fresnel doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`, `web.providers`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
+| `fresnel doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 기능, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`, `web.providers`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
 | `fresnel db export <폴더> [--json]` | 저장소 파일(데이터 디렉터리의 `fresnel.db`)을 엔진을 띄우지 않고 읽기 전용으로 `<폴더>`에 내보낸다. 엔진이 떠 있어도 된다. 상대 경로는 작업 폴더(`-C`) 기준이다(§4.13). 종료코드: 성공 0, 폴더 인자 누락과 비어 있지 않은 대상 2, 저장소·디스크 오류와 데이터 디렉터리 위치 실패 3(§4.10) | 없음. `deps.exportDatabase`(`L0.store.spec` §4.10)와 `deps.resolveDataDir`(`resolveOsDirs`)를 부른다 | M3(구현됨, M3b B3-DATA) |
 | `fresnel group new <이름> [--drive\|--policy] [--dir <폴더>] [--json]` | 그룹 골격을 만든다. 기본은 observe 템플릿, `--drive`는 drive, `--policy`는 policy 템플릿이다. 두 플래그를 함께 주면 사용법 오류(2)다. 대상 폴더는 비어 있어야 하고 기본은 작업 폴더의 `<이름>`이다. 엔진에 연결하지 않고 템플릿 파일만 읽는다(§3.8) | 없음. 파일 작업(`CliDeps.groupTemplates`) | M3b(구현됨, M3b B4-GRP) |
 | `fresnel version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
 
-- 근거: 명령 모양은 omp `config list/get/set/reset`(`_research/settings.md` §1, §3 [S36]), pi 모드 4종(TUI, print, JSON, RPC: `_research/refs/pi.md` "같은 AgentSession을 네 모드가 쓴다", `~/projects/_ref/pi-src/packages/coding-agent/src/modes/`), 비밀 명령은 `_research/secrets.md` §6.6, 서비스 명령은 adr.0006 §3.4다.
+- 근거: 명령 모양은 omp `config list/get/set/reset`(`_research/settings.md` §1, §3 [S36]), pi 모드 4종(TUI, print, JSON, RPC: `_research/refs/pi.md` "같은 AgentSession을 네 모드가 쓴다", `~/projects/_ref/pi-src/packages/coding-agent/src/modes/`), 시크릿 명령은 `_research/secrets.md` §6.6, 서비스 명령은 adr.0006 §3.4다.
 - [결정] 서비스 모드는 1차이고 OS 서비스 등록은 2차다(adr.0006 §1). [제안] CLI의 `service` 명령은 M3에 둔다. M1·M2는 in-process와 stdio로 충분하고, 서비스 본체는 `L4.host-service.plan`의 일정을 따른다.
 - [제안] M1 host 처리기는 `host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get` 다섯이다(`F.wire-settings.spec` §3.3.1의 [제안]. M1 범위는 `_research/foundation-plan.md` §5 P4). 그래서 M1의 `config`는 `get`과 로컬 명령 `schema`만 있고, `sessions ls`는 `thread.list`가 생기는 M2다.
 - M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `fresnel host --stdio` 서브커맨드는 M2다. 데스크톱의 M1 적합성 테스트는 개발 진입을 쓴다(`L4.desktop.plan` D1).
@@ -249,7 +249,7 @@ export declare function parseArgv(
 ```
 
 - [제안] 설정 키 인자(`config get/set/reset`, `--set`)는 파서 단계에서 `SettingKey` 스키마(`SETTING_KEY_PATTERN`)로 형식만 검사한다. 키의 존재와 값 검사는 host가 한다(§4.8, `F.wire-settings.spec` §4.11).
-- [제안] 파서는 외부 라이브러리를 쓰지 않고 직접 쓴다. 명령 수가 적고, 비밀 값 argv 금지(§4.7) 같은 규칙을 파서 안에 둬야 하기 때문이다.
+- [제안] 파서는 외부 라이브러리를 쓰지 않고 직접 쓴다. 명령 수가 적고, 시크릿 값 argv 금지(§4.7) 같은 규칙을 파서 안에 둬야 하기 때문이다.
 
 ### 3.3 엔진 연결: `@fresnel/host` API 조합
 
@@ -447,7 +447,7 @@ export const EXIT: {
 |---|---|---|
 | 0 | 정상 | turn이 `completed`로 끝났다. 명령이 성공했다 |
 | 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 세션, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1, `schedule`의 기대한 실패(없는 예약, 원격 아님, 꺼진 예약, 간격 미달, 상한, 지난 시각) |
-| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 비밀 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`) |
+| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 시크릿 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`) |
 | 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`)와 데이터 디렉터리 위치를 정하지 못함. `schedule`의 `store_failed`(예약 상태 파일) |
 | 4 | 세션 잠금 실패 후 사용자 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않았다. M1은 프롬프트 없이 바로 4다 |
 | 129 | SIGHUP | 터미널이 닫혔다(pi print 모드와 같은 값, `~/projects/_ref/pi-src/packages/coding-agent/src/modes/print-mode.ts:60`) |
@@ -589,7 +589,7 @@ export interface GroupTemplatesPort {
 | `item.recorded`(custom) | `display: true`면 `content`의 텍스트를 보이고, `false`면 보이지 않는다 |
 | `turn.completed` | 상태가 `interrupted`·`failed`면 한 줄 알림. print 모드 종료 코드 결정(§3.6) |
 | `step.*`, `checkpoint.step`, `lease.*`, `scope.changed`, retire된 `post.accepted`(M1 개발 DB에 남은 행) | 트랜스크립트에 그리지 않는다. 대화형 상태 줄에만 반영할 수 있다 |
-| `settings.changed` | 대화형에서 한 줄 알림. 값이 비밀 참조면 참조 문자열만 보인다 |
+| `settings.changed` | 대화형에서 한 줄 알림. 값이 시크릿 참조면 참조 문자열만 보인다 |
 | 확장 kind(`x.<id>.*`, `grp.<id>.*`) | 그리지 않는다. 확장이 보일 내용은 `custom` item으로 낸다(F conversation §3.5.2) |
 | `stream.chunk` `item.updated{part_delta}` | 진행 줄에 텍스트를 이어 붙인다 |
 | `stream.chunk` `item.updated{tool_progress}` | 진행 줄에 도구 진행을 한 줄로 바꿔 쓴다 |
@@ -642,15 +642,15 @@ export interface GroupTemplatesPort {
 - [제안] M1에서 Ctrl+C 1회를 종료 요청으로 두는 이유: `turn.interrupt`가 M2 메서드이고(F wire §3.3.1), CLI는 엔진 객체를 직접 중단할 수 없다. M1 안에서 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1로 당기는 F 변경이 필요하다 [미결 §10 2번].
 - TUI가 raw 모드면 Ctrl+C는 신호 대신 입력 바이트(`\x03`)로 온다(`~/projects/_ref/pi-src/packages/tui/README.md` Quick Start 주석). 두 경로를 같은 처리기로 보낸다.
 
-### 4.7 비밀 명령의 입력과 출력
+### 4.7 시크릿 명령의 입력과 출력
 
 - 값은 stdin이나 프롬프트로만 받는다. argv로 받지 않는다(`_research/secrets.md` §6.6).
-  - [제안] 값은 wire 프레임에 싣지 않는다(`L4.readme` §4 비밀 행, `L0.secrets.spec` §8.3 R4). `add`·`set`·`rotate`는 값 필드가 없는 `secret.beginEntry { name, action }`으로 시작한다. 서비스 접속이면 서비스 쪽 L0.secrets가 OS 입력 창으로 값을 받는다(`L4.settings-ui.spec` §4.6.4 C안). in-process이면 CLI가 아래 규칙으로 읽은 값을 같은 프로세스의 L0.secrets에 wire 밖 경로로 넘긴다. 이 경로의 API는 `InProcessHost.secretOutOfBand`(`SecretOutOfBandPort`)다: CLI가 `offerEntry`·`offerReveal`로 수단을 맡기면 호스트 처리기가 다음 `beginEntry`·`beginReveal` 한 번에 그것을 꺼내 쓰고, CLI는 끝난 뒤 쓰이지 않은 수단을 거둔다. wire 메서드 `secret.list`·`meta`·`remove`·`test`·`beginEntry`는 F 표에 M2로 있다.
+  - [제안] 값은 wire 프레임에 싣지 않는다(`L4.readme` §4 시크릿 행, `L0.secrets.spec` §8.3 R4). `add`·`set`·`rotate`는 값 필드가 없는 `secret.beginEntry { name, action }`으로 시작한다. 서비스 접속이면 서비스 쪽 L0.secrets가 OS 입력 창으로 값을 받는다(`L4.settings-ui.spec` §4.6.4 C안). in-process이면 CLI가 아래 규칙으로 읽은 값을 같은 프로세스의 L0.secrets에 wire 밖 경로로 넘긴다. 이 경로의 API는 `InProcessHost.secretOutOfBand`(`SecretOutOfBandPort`)다: CLI가 `offerEntry`·`offerReveal`로 수단을 맡기면 호스트 처리기가 다음 `beginEntry`·`beginReveal` 한 번에 그것을 꺼내 쓰고, CLI는 끝난 뒤 쓰이지 않은 수단을 거둔다. wire 메서드 `secret.list`·`meta`·`remove`·`test`·`beginEntry`는 F 표에 M2로 있다.
   - 파서는 `secret add|set|rotate`의 이름 뒤 위치 인자, `--value`, `<name>=<값>` 형식을 `secretValueInArgv` 사용법 오류(2)로 거부한다. 오류 메시지에 그 인자를 다시 쓰지 않는다.
   - TTY면 에코 없는 프롬프트로 두 번 받아 비교한다. TTY가 아니면 stdin을 EOF까지 읽고 끝의 줄바꿈 하나를 지운다.
   - `rotate`는 TTY 프롬프트만 받는다 [제안]. 사람이 직접 입력하는 동작으로 두기 위해서다(`_research/secrets.md` §6.6 "사람이 입력").
 - 값은 stdout, stderr, 이벤트, 로그, 오류 `details`, JSON 모드 출력 어디에도 없다.
-  - [제안] 비밀 명령에는 `--json` 메시지 탭을 붙이지 않는다. `secret ls`, `secret test`의 `--json`은 결과 객체만 쓴다.
+  - [제안] 시크릿 명령에는 `--json` 메시지 탭을 붙이지 않는다. `secret ls`, `secret test`의 `--json`은 결과 객체만 쓴다.
   - 값을 담은 바이트 배열은 L0.secrets에 넘긴 직후 0으로 덮는다. 문자열로 바꾸지 않는다 [제안].
 - `secret test`는 존재, 복호화 가능 여부, 길이, SHA-256 hex 앞 8자만 출력한다 [결정: m2c G1-07]. wire 결과는 `state`, `decryptable`, `length`, `sha256Prefix`다(`L0.secrets.spec`의 `SecretTestResult`). 글은 `<이름>: registered (복호화 가능, 길이 <n>바이트, sha256 앞 8자 <hex>)`이고, 복호화할 수 없으면 `registered (복호화할 수 없다)`, 없으면 `missing`이다. `registered`이면서 복호화할 수 있을 때만 0이고 나머지는 1이다. `--json`은 `{ name, state, decryptable, length, sha256Prefix }`를 한 줄로 쓴다. 앞 8자는 사람이 같은 값인지 견주는 데만 쓰고 기록하지 않는다.
 - 입력 규칙 (구현):
@@ -658,12 +658,12 @@ export interface GroupTemplatesPort {
   - TTY면 `readSecret`으로 두 번 받아 상수 시간으로 비교한다. 다르면 아무것도 저장하지 않고 1이다. Ctrl+C·Ctrl+D는 취소(1)다.
   - 값을 읽는 때는 호스트가 맡긴 수단의 `read()`를 부르는 순간이다. 읽은 바이트 배열은 `secret.beginEntry`가 끝나면 성공·실패와 관계없이 0으로 덮는다.
   - `add`의 `--desc`, `--scope`, `--expires`, `--hosts`는 값을 저장한 뒤 `secret.meta`로 적용한다. `--hosts`는 기존 사용 정책을 `secret.list { meta: true }`로 읽어 `hosts`만 바꾼다. 메타 적용이 실패하면 값은 저장된 상태라고 알린다. `--provider`는 `sops`만 받는다(wire에 제공자 선택이 없다). `secret meta`는 플래그가 하나도 없으면 2다.
-  - `rm`은 먼저 `secret.references { name }`로 이 비밀을 가리키는 곳을 읽는다 [결정: m2c G1-07]. `--yes` 없이 비TTY면 2다.
+  - `rm`은 먼저 `secret.references { name }`로 이 시크릿을 가리키는 곳을 읽는다 [결정: m2c G1-07]. `--yes` 없이 비TTY면 2다.
     - `--yes`가 없으면 `secret.list { meta: true }`의 사용 정책(허용 도구·호스트)과 `<이름>: 참조하는 설정 키 <키…> / 활성 lease <n>개 / 최근 사용한 세션 <id…>` 한 줄(없으면 `없음`, 세션은 5개까지, 나머지는 `외 <n>개`)을 보인 뒤 `[y/N]`로 묻는다.
-    - 활성 lease가 하나라도 있으면 묻지 않고 "사용 중인 비밀이라 지울 수 없다 (활성 lease <n>개)"로 1로 끝낸다. `secret.remove`는 보내지 않는다.
+    - 활성 lease가 하나라도 있으면 묻지 않고 "사용 중인 시크릿이라 지울 수 없다 (활성 lease <n>개)"로 1로 끝낸다. `secret.remove`는 보내지 않는다.
     - `--yes`는 묻지 않고 지우되, 참조가 하나라도 있으면 같은 한 줄을 stderr에 남긴다. 활성 lease는 호스트가 거부하고(`secret.inUse`) CLI는 활성 lease 수를 보인다.
     - `host.hello`의 `features`에 `secret.references`가 없는 호스트에서는 사용 정책만 보인다.
-  - 비밀 오류는 F 오류 표의 전용 kind(`secret.notFound`~`secret.writeFailed`, 3201~3212)로 온다. 전용 kind가 생기기 전의 호스트는 `internal`의 `details.secret.kind`에 실었으므로 CLI는 두 길을 같은 문구 표로 모은다. 문구와 종료 코드는 제공자·키 문제가 3, 나머지가 1이다. [결정: m2r sec] 같은 kind라도 원인별로 해결 줄을 나눈다: `provider_unavailable`은 `binary_missing`이면 "sops와 age를 설치", `version_too_old`면 버전을 올리라고, `not_registered`면 `l0.secrets.defaultProvider`와 `l0.secrets.sops.files`를 보라고 한다(SOPS 파일이 없는 것은 원인이 아니다: 기본 파일은 첫 `secret add`가 만든다, `L0.secrets.spec` §4.8). `key_unavailable`(`file`, `access_denied`)는 `l0.secrets.ageKey.source`를 `file`로 저장하라고 한다. `write_failed`는 `target`(`sops_file`, `key_store`, `key_file`)과 `code`를 문구에 싣고 `code`별로 고칠 곳을 말한다.
+  - 시크릿 오류는 F 오류 표의 전용 kind(`secret.notFound`~`secret.writeFailed`, 3201~3212)로 온다. 전용 kind가 생기기 전의 호스트는 `internal`의 `details.secret.kind`에 실었으므로 CLI는 두 길을 같은 문구 표로 모은다. 문구와 종료 코드는 제공자·키 문제가 3, 나머지가 1이다. [결정: m2r sec] 같은 kind라도 원인별로 해결 줄을 나눈다: `provider_unavailable`은 `binary_missing`이면 "sops와 age를 설치", `version_too_old`면 버전을 올리라고, `not_registered`면 `l0.secrets.defaultProvider`와 `l0.secrets.sops.files`를 보라고 한다(SOPS 파일이 없는 것은 원인이 아니다: 기본 파일은 첫 `secret add`가 만든다, `L0.secrets.spec` §4.8). `key_unavailable`(`file`, `access_denied`)는 `l0.secrets.ageKey.source`를 `file`로 저장하라고 한다. `write_failed`는 `target`(`sops_file`, `key_store`, `key_file`)과 `code`를 문구에 싣고 `code`별로 고칠 곳을 말한다.
 - `reveal` (구현): 확인 문구로 이름을 다시 입력받고(`tty-confirm`, `verifiedAt`은 엔진 시계) 열람 수단을 맡긴 뒤 `secret.beginReveal`을 보낸다. 값은 `show` 콜백에서 바이트 그대로 `stdoutStream`에 한 번 쓰고, 문자열로 바꾸지 않는다. `os-auth`는 L0.os가 제공하기 전까지 쓰지 않는다. 호스트가 `started: false`를 돌려주면(재확인 만료·취소) 값을 보이지 않고 1이다.
 - 값 열람 [결정: review.decisions-2 U-20]: 열람 경로는 M2 CLI `fresnel secret reveal <name>`과 M3 데스크톱 화면(`L4.settings-ui.spec`) 둘이다. 에이전트 경로(모델 도구, 확장 API)에는 열람이 없다.
   - [제안] `reveal`은 stdin과 stdout이 모두 TTY일 때만 동작한다. 아니면 `revealRequiresTty` 사용법 오류(2)다. `--json`을 받지 않는다.
@@ -682,17 +682,17 @@ export interface GroupTemplatesPort {
   - 웹 provider 목록을 읽지 못했으면 `검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)`다.
 - 줄 2: 설정한 SearXNG 주소의 상태. 자동 감지는 없다 [결정: m2c H1, `L2.web.spec` §4.8.3]. 주소(`l2.web.search.searxng.url`)가 비어 있으면 어디에도 요청하지 않고 "주소를 설정하지 않았다"와 `fresnel config set l2.web.search.searxng.url <주소>`를 보인다. 주소가 있으면 그 주소 하나만 탐침해 응답함, JSON 형식 꺼짐, 응답 없음 중 하나를 보인다. 응답이 없으면 검색이 내장 래퍼로 내려간다는 말을 덧붙인다.
 - 줄 3: 키 플러그인 권장. Exa와 Brave(`plugin:web-exa`, `plugin:web-brave`, `L2.web.spec` §4.8)의 상태에서 만든다. 둘 다 쓸 수 있으면 `키 플러그인: Exa, Brave 모두 쓸 수 있다`다. 아니면 `권장 키 플러그인: ` 뒤에 쓸 수 없는 항목을 쉼표로 잇는다. 항목은 `<표시>(<상태> — <해결>)`이다 [결정: 오케스트레이터 기본값: 해결 문구를 항목 괄호 안에 둔다].
-  - `needs-key`: `Exa(키 필요 — fresnel secret add exa-api-key)`처럼 등록 명령 `fresnel secret add <비밀 이름>`을 보인다.
+  - `needs-key`: `Exa(키 필요 — fresnel secret add exa-api-key)`처럼 등록 명령 `fresnel secret add <시크릿 이름>`을 보인다.
   - `not-installed`(행이 없다): `Brave(설치 필요 — 플러그인을 설치한다)`.
   - `unavailable`: `Brave(사용 불가 — <사유 코드>)`.
   - 웹 provider 목록을 읽지 못했으면 `키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)`다.
-- 값은 키 이름과 참조 문자열만 보인다. 비밀 값은 없다.
+- 값은 키 이름과 참조 문자열만 보인다. 시크릿 값은 없다.
 - 키 이름과 provider 목록의 정본은 `L2.web.spec`이다. 이 출력은 그 값을 읽기만 한다.
 - 웹 provider 블록 [제안]: 줄 3 뒤에 `웹 provider` 머리 줄을 내고, 검색, 브라우즈, 가져오기 섹션의 모든 행을 이 순서로 한 줄씩 보인다. 각 섹션 안에서는 view-model의 순서다.
-  - 줄 형식: `  <표시> <id>  <출처> · <능력> · <순위>[ · 현재][ · 고정] · <문구>[ · 첫 사용 고지 대기][ · 가격표 오래됨(<기준일>)]`
+  - 줄 형식: `  <표시> <id>  <출처> · <기능> · <순위>[ · 현재][ · 고정] · <문구>[ · 첫 사용 고지 대기][ · 가격표 오래됨(<기준일>)]`
   - 표시: 쓸 수 있으면 `[ok]  `, 못 쓰면 `[경고]`.
   - 출처: `builtin`은 내장, `plugin`은 플러그인, `detected`는 사용자 설정.
-  - 능력: `web.search`는 검색, `web.browse`는 브라우저, `web.fetch`는 가져오기.
+  - 기능: `web.search`는 검색, `web.browse`는 브라우저, `web.fetch`는 가져오기.
   - 순위: `autoRank`에 1을 더한 `순위 N`. 순위가 없는 행(가져오기)은 `순위 없음`.
   - `현재`는 다음 호출이 쓸 행, `고정`은 설정이 고정한 행이다.
   - 문구는 view-model의 `note`다. 상세 문구(`detail`)는 출력하지 않는다.
@@ -705,8 +705,8 @@ export interface GroupTemplatesPort {
   진단
     [ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다
     [ok]   상태 디렉터리: <경로>
-    [ok]   비밀 저장소: 사용할 수 있다 (등록 0개)
-    [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 비밀 저장소
+    [ok]   시크릿 저장소: 사용할 수 있다 (등록 0개)
+    [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 시크릿 저장소
     [경고] 외부 바이너리 bwrap: 없다 (선택) — 명령을 샌드박스 없이 실행하지 못한다
            해결: bubblewrap 패키지를 설치한다
     [참고] 서비스 모드: 사용 안 함 (in-process)
@@ -729,13 +729,13 @@ export interface GroupTemplatesPort {
   - `missing`, `too_old`, `unusable`은 `need`가 `required`이면 `[실패]`, `optional`이면 `[경고]`다. 해결 줄은 `missing`이면 호스트가 준 `hint`, `too_old`이면 필요한 버전 이상으로 올리라는 말, `unusable`이면 설치와 실행 권한을 확인하라는 말이다.
   - 보고서의 `ready`가 거짓(필수 바이너리를 쓸 수 없음)이면 종료 코드는 3(환경 문제)이다. 선택 바이너리만 빠졌으면 0이다. HS-69가 "종료코드 2 계열"이라 적은 자리는 CLI 종료 코드 표(§3.6)에서 환경 문제인 3으로 읽는다.
   - `host.hello`의 `features`에 `host.status`가 없거나 응답에 `binaries`가 없으면 "점검 결과를 알리지 않는다"를 `[참고]`로 한 줄 낸다. 점검 요청이 실패하면(`request.cancelled` 등) `[경고]` 한 줄로 알리고 doctor는 이어 간다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고, 등록 여부는 `web.providers` 행의 상태가 준다(줄 3).
-- 설정의 비밀 키(`secret: true`)는 `config get`이 참조 문자열(`secret://<name>`)이나 `null`만 보인다(F wire §4.9).
+- 설정의 시크릿 키(`secret: true`)는 `config get`이 참조 문자열(`secret://<name>`)이나 `null`만 보인다(F wire §4.9).
 
 ### 4.8 설정 명령과 세션 덮어쓰기
 
 - 값 해석(`config set`, `--set`, `/set`): `raw`를 먼저 JSON으로 해석하고, 실패하면 문자열로 본다(F wire §4.11).
 - 최종 판정은 host의 `settings.set`이다. host는 `checkSettingWrite`로 범위·잠금·값을 검사한다(F wire §3.9). CLI는 오류 `kind`를 §4.10 표의 문구로 바꾼다.
-- [제안] 미리 검사: `config set`은 `settings.list`의 `SettingDefWire`로 같은 값을 먼저 검사해 왕복 없이 범위 오류를 알린다. 이때 `type`에 `range`를 병합한 스키마(F wire §4.10 3번 규칙)를 `typebox/schema`의 `Check`로 검사한다(`_research/notes/L4-3.md`). 잠금과 비밀 값 거부는 host만 판정한다. 병합 함수는 F에 공통으로 두자는 제안을 따른다 [미결 §10 4번]. M2 구현은 이 사전 검사를 하지 않고 호스트의 `settings.set` 판정과 오류 문구(§4.10)만 쓴다 [미결 §10 13번].
+- [제안] 미리 검사: `config set`은 `settings.list`의 `SettingDefWire`로 같은 값을 먼저 검사해 왕복 없이 범위 오류를 알린다. 이때 `type`에 `range`를 병합한 스키마(F wire §4.10 3번 규칙)를 `typebox/schema`의 `Check`로 검사한다(`_research/notes/L4-3.md`). 잠금과 시크릿 값 거부는 host만 판정한다. 병합 함수는 F에 공통으로 두자는 제안을 따른다 [미결 §10 4번]. M2 구현은 이 사전 검사를 하지 않고 호스트의 `settings.set` 판정과 오류 문구(§4.10)만 쓴다 [미결 §10 13번].
 - `config get` 출력 형식(텍스트):
 
   ```text
@@ -803,9 +803,9 @@ export interface GroupTemplatesPort {
 | `settings.invalidValue` | 값이 형식이나 범위에 맞지 않다(`issues` 첫 항목) | 허용 범위를 확인한다 | 2 |
 | `settings.scopeNotAllowed` | 그 범위에 쓸 수 없는 키 | 허용 범위: `allowedScopes` | 2 |
 | `settings.locked` | 관리 설정이 잠근 키 | 관리자에게 요청한다 | 1 |
-| `settings.secretValue` | 비밀 키에는 참조만 쓸 수 있다 | `fresnel secret add <name>` 뒤 `secret://<name>`을 쓴다 | 2 |
+| `settings.secretValue` | 시크릿 키에는 참조만 쓸 수 있다 | `fresnel secret add <name>` 뒤 `secret://<name>`을 쓴다 | 2 |
 | `settings.reserved` | 아직 읽는 코드가 없는 예약 키다 | `fresnel config list`로 쓸 수 있는 키를 확인한다 | 2 |
-| `secret.*` | 비밀 오류별 문구(없음, 사용 중, 제공자·키 없음, 복호화 실패, 재확인 필요 등). 값은 싣지 않는다 | 오류별 한 줄(§4.7) | 제공자·키·쓰기 문제 3, 나머지 1 |
+| `secret.*` | 시크릿 오류별 문구(없음, 사용 중, 제공자·키 없음, 복호화 실패, 재확인 필요 등). 값은 싣지 않는다 | 오류별 한 줄(§4.7) | 제공자·키·쓰기 문제 3, 나머지 1 |
 | `store.corrupt` | 저장된 데이터가 스키마와 다르다(`where`) | `fresnel doctor`를 실행하고 보고한다. 복원하기 전에 데이터 디렉터리를 복사해 둔다 | 1 |
 | `cap.dialog.commands.*` | 슬래시 명령 실패. `command_args_invalid`는 인자 선언과 다르다, `command_shell_disabled`는 셸 주입 설정이 꺼져 있다 | `/help`로 사용법을 확인한다. 셸 주입은 `l2.dialog.commands.shellInjection`을 확인한다 | 인자 오류 2, 나머지 1 |
 | `protocol.unsupported` | CLI와 엔진의 계약 버전이 다르다 | 같은 버전의 바이너리를 쓰거나 서비스를 다시 띄운다 | 3 |
@@ -848,7 +848,7 @@ export interface GroupTemplatesPort {
      - `approval.resolved`가 먼저 오면 "다른 곳에서 이미 답한 승인이다"를 보이고 프롬프트를 닫는다.
      - `approval.respond`가 `applied: false`이면 `reason`에 따라 처리를 나눈다 [결정: m2c G2-10]. `answer_invalid`는 `detail`을 보이고 같은 질문을 다시 묻는다(요청이 아직 대기 중이다). `commit_failed`는 "승인 응답을 기록하지 못했다"를 알리고 다시 묻는다. 두 이유로 3번 적용되지 않으면 이 승인을 대기로 남기고 포기한다(재시작 뒤 `approval.list`가 다시 묻는다). `already_resolved`와 이유를 알리지 않는 호스트는 "다른 곳에서 이미 답한 승인이다", `unknown_approval`은 "host가 모르는 승인이다. 재시작으로 사라졌을 수 있다"를 보이고 프롬프트를 닫는다. print 모드의 자동 거부가 적용되지 않으면 이유를 stderr에 남긴다.
   7. 동의 표시 [결정: m2c G2-10. 요건의 정본은 `L1.tools.spec`이고 CLI는 아래를 보인다]: 사용자가 허용하는 것이 무엇인지 카드에서 알 수 있어야 한다.
-     - 도구 카드는 인자 요약(120자) 아래에 실행할 `command` 전체(40줄까지, 넘으면 "…(n줄 생략)")와 `secretEnv`의 비밀 핸들(`이름=secret://…`)을 보인다. 승인이 비밀 사용의 증거라서 명령과 핸들을 보고 허용해야 한다. `secret://` 참조 모양이 아닌 값은 값을 보이지 않고 "(참조 형식이 올바르지 않음)"만 쓴다. 인자가 BlobRef면 상세 줄이 없다.
+     - 도구 카드는 인자 요약(120자) 아래에 실행할 `command` 전체(40줄까지, 넘으면 "…(n줄 생략)")와 `secretEnv`의 시크릿 참조(`이름=secret://…`)을 보인다. 승인이 시크릿 사용의 증거라서 명령과 핸들을 보고 허용해야 한다. `secret://` 참조 모양이 아닌 값은 값을 보이지 않고 "(참조 형식이 올바르지 않음)"만 쓴다. 인자가 BlobRef면 상세 줄이 없다.
      - 요청 주체(`origin.caller`)가 `main`이 아니면 첫 줄에 보인다: `background`는 백그라운드 작업, `host`는 호스트, `subagent:<이름>`은 서브에이전트, `ext:<이름>`은 확장이다.
      - `expiresAt`이 있으면 "만료: <ISO 시각> (그때까지 답하지 않으면 거부로 처리한다)"를 보인다. `onExpire`가 `answer`면 "정해 둔 답으로 처리한다"다.
      - `approval.resolved`의 `requestedRemember`와 적용한 `remember`가 다르면(2차 전에는 `always`가 `thread`로 낮춰진다) "항상 허용을 골랐지만 이 세션 동안 허용으로 낮춰 적용했다"를 보인다. `resolvedBy`가 `user`가 아니면(`expired`, `noninteractive`, `cancelled`, `superseded`) 이유를 한 줄로 보인다. 사용자가 직접 답했고 요청한 범위 그대로면 아무것도 보이지 않는다.
@@ -885,7 +885,7 @@ export interface GroupTemplatesPort {
     - 결과 `expanded`는 템플릿을 펼친 최종 텍스트다. 사용자가 그 텍스트를 친 것처럼 `turn.start`로 보낸다(`command.run`은 turn을 만들지 않는다).
     - 결과 `needs_confirmation`은 셸 주입이 있는 템플릿이다. 실행할 셸 명령을 보이고 `[y/N]`로 묻는다. `y`면 `confirmShell: true`로 한 번 더 부르고, 그 밖의 입력은 "실행하지 않았다"를 알리고 끝낸다.
     - 결과 `not_command`는 모르는 슬래시 명령으로 처리한다.
-    - 실패는 능력 오류(`cap.dialog.commands.*`)와 `thread.notFound`로 온다. 문구는 §4.10 표다.
+    - 실패는 기능 오류(`cap.dialog.commands.*`)와 `thread.notFound`로 온다. 문구는 §4.10 표다.
     - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 `command.list { threadId }`로 읽는다 [결정: m2c G1-01]. 호스트가 프로젝트 명령(`.fresnel/commands`)을 그 세션의 작업 폴더 기준으로 읽게 하려는 것이다. 대화형을 시작할 때 한 번 읽고, `/resume`으로 세션을 바꾸면 새 세션의 id로 다시 읽는다.
     - `host.hello`의 `features`에 `command.run`이 없는 호스트에서는 부르지 않고 모르는 명령으로 처리한다.
 - 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다. 현재 별칭은 `/model` → `l1.models.default` 하나다.
@@ -961,7 +961,7 @@ $ echo $?
 | 사례 | 처리 |
 |---|---|
 | FTS5가 없는 SQLite(macOS 시스템 SQLite) | `@fresnel/host`가 `AssembleError { code: "store" }`를 던지고 `connectEngine`이 `fts5Missing`으로 바꾼다. 3으로 끝내고 해결 한 줄을 보인다(`eng.toolchain.guide` TC-11). 운영 처리(시작 거부 또는 검색 비활성)는 `L0.store.spec` 결정을 따른다 |
-| sops·age가 없다 | 비밀이 필요한 명령에서만 `sopsMissing`, 3. `chat`은 비밀 참조를 쓰는 도구 호출이 실패로 기록될 뿐 시작은 한다 [제안] |
+| sops·age가 없다 | 시크릿이 필요한 명령에서만 `sopsMissing`, 3. `chat`은 시크릿 참조를 쓰는 도구 호출이 실패로 기록될 뿐 시작은 한다 [제안] |
 | 강제 종료(SIGKILL) 뒤 `--continue` | 저장된 위치부터 구독한다. 엔진이 열 때 쓴 복구 기록과 새 turn이 이어진다(§4.4) |
 | 상태 파일이 깨졌다 | 버리고 진단 한 줄을 stderr에 쓴다. `--continue`는 1 |
 | `events.batch`의 `from`이 기대와 다르다 | 마지막 `to`부터 다시 구독한다(F wire §4.5) |
@@ -996,9 +996,9 @@ $ echo $?
 - 서비스 사용 설정은 `l0.process.service.enabled`다(`L0.process.spec` §6 소유). 설정 화면에서는 "실행" 탭(`SettingsTab` `"execution"`)이다(adr.0006 §3.4 마지막 항목).
 - 노출 경로: 설정 파일(`L4.host-service.spec`의 파일 위치), `fresnel config`, `/set`(session 허용 키만), 데스크톱 설정 화면(`L4.settings-ui.spec`).
 
-## 7. 확장 지점
+## 7. 훅
 
-- CLI는 on·post·drive·scope 지점을 선언하지 않는다. 확장 지점은 엔진 안에 있고 CLI는 호스트 계약만 쓴다(adr.0006 §3.2).
+- CLI는 on·post·drive·scope 지점을 선언하지 않는다. 훅은 엔진 안에 있고 CLI는 호스트 계약만 쓴다(adr.0006 §3.2).
 - 확장과의 관계:
   - 확장이 사용자에게 보일 내용은 `custom` item(`display: true`)으로 오고, CLI는 텍스트로 그린다(§4.5).
   - drive 임대(`lease.acquired`/`lease.released`)와 scope 변경(`scope.changed`)은 상태 줄에 활성 그룹 이름으로 보일 수 있다 [제안]. 트랜스크립트에는 그리지 않는다.
@@ -1013,7 +1013,7 @@ $ echo $?
 | 요구 | `F.conversation.spec` | `ThreadId`, `ItemId`, `ItemRecord`, `ToolResultRecord` 3채널, `FresnelCustomMessage.display` |
 | 요구 | `F.records.spec` | 코어 kind 카탈로그, `EffectResult.synthesized`, `redactions` 규칙 |
 | 요구 | `L4.host-service.spec` | `resolveLaunchMode`, `startInProcessHost`, `startStdioHost`, `ensureService`, `connectServiceTransport`, `createHostConnection`, `runHostCommand`와 `HostCommand`·`CommandIo`(§3.3.4, §3.3.5), `AssembleError`·`EnsureResult` 코드, 엔진 바이너리 이름과 서브커맨드(§3.2), 서비스 사용 설정 키, `turn.start` 암묵 획득(HS-28), 테스트용 조립(테이프 모델 주입) |
-| 요구 | `L0.secrets.spec` | 비밀 관리 동작(`secret.*`의 의미, §8.3 R4의 값 없는 메서드), 값 비노출 규칙, `secret test`의 해시 규칙 |
+| 요구 | `L0.secrets.spec` | 시크릿 관리 동작(`secret.*`의 의미, §8.3 R4의 값 없는 메서드), 값 비노출 규칙, `secret test`의 해시 규칙 |
 | 요구 | `L1.tools.spec` | `approval.requested` payload |
 | 요구 | `L1.models.spec` | `/model` 별칭이 가리킬 설정 키 |
 | 요구 | `L2.schedule.spec` | `schedule.create`·`list`·`cancel`·`fire`의 입력과 오류 값(§4.4.9), 서비스 모드가 꺼졌을 때의 `service_mode_off` 경고 |
@@ -1030,7 +1030,7 @@ $ echo $?
 - AC2. 같은 시나리오에서 turn 진행 중 자식 프로세스를 SIGKILL한 뒤 `fresnel chat --continue -p "<입력>" --json`을 실행하면, 같은 `threadId`의 이벤트가 이어서 온다. 첫 실행에서 받은 마지막 seq보다 큰 seq만 새로 출력되고 seq 중복이 없으며, 새 turn이 `completed`로 끝난다. 이전 turn이 `interrupted`로 닫히는지는 엔진 복구 규칙(`L1.persistence.spec`, adr.0006 §3.6 규칙 5)을 따른다 [가정].
 - AC3. `fresnel config get <key> --json`의 출력이 같은 연결에서 `settings.get { keys: [key] }`가 돌려준 `settings` 배열과 같다. 텍스트 출력에는 `source.scope`가 있고, 파일 범위면 `source.path`도 있다.
 - AC4. `--json` 출력의 각 줄을 JSON으로 해석한 열이, `observe` 탭이 받은 `JsonRpcMessage` 열과 순서·내용 모두 같다.
-- AC5. 비밀 값 `S`(길이 16 이상의 무작위 문자열)로 `secret add`를 stdin 입력으로 실행하고 `secret test`, `secret ls --json`, `chat -p` 한 턴을 돌리면, stdout·stderr·이벤트 DB·CLI 상태 파일 어디에도 `S`, `S`의 base64, `S`의 hex가 없다(M2). M1에서는 같은 검사를 `chat -p` 한 턴(SOPS 비밀 참조 1종, `product.scope.spec` M1 행)에 적용한다.
+- AC5. 시크릿 값 `S`(길이 16 이상의 무작위 문자열)로 `secret add`를 stdin 입력으로 실행하고 `secret test`, `secret ls --json`, `chat -p` 한 턴을 돌리면, stdout·stderr·이벤트 DB·CLI 상태 파일 어디에도 `S`, `S`의 base64, `S`의 hex가 없다(M2). M1에서는 같은 검사를 `chat -p` 한 턴(SOPS 시크릿 참조 1종, `product.scope.spec` M1 행)에 적용한다.
 - AC6. `secret add <name> <값>`, `secret set <name> --value <값>`은 2로 끝나고, stderr에 `<값>`이 없다.
 - AC7. stdout이 TTY가 아니면 출력에 ESC(0x1B) 바이트가 없다. stdin이 TTY가 아니면 대화형 화면을 열지 않고 print 모드로 동작한다.
 - AC8. `thread.locked`를 받은 M1 실행은 4로 끝난다. M2 프롬프트에서 아무것도 고르지 않으면 4다.
@@ -1038,7 +1038,7 @@ $ echo $?
 - AC10. `applyBatch`는 같은 seq를 두 번 받으면 두 번째를 무시하고, `from`이 위치와 다르면 `gap`을 돌려준다.
 - AC11. 개발 빌드의 in-process 연결에서 `devWireRoundTrip: true`가 `AssembleOptions.devChecks`로 전달된다(§3.3). 컴파일 바이너리에서는 `false`다.
 - AC12. 사용법 오류 출력은 두 줄(무엇, 해결)이고 종료 코드는 2다.
-- AC13. stdout이 TTY가 아닐 때 `fresnel secret reveal <name>`은 2로 끝나고, stdout·stderr·이벤트 DB 어디에도 그 비밀 값이 없다. TTY에서 열람하면 감사 기록이 한 건 늘고 그 기록에 값이 없다.
+- AC13. stdout이 TTY가 아닐 때 `fresnel secret reveal <name>`은 2로 끝나고, stdout·stderr·이벤트 DB 어디에도 그 시크릿 값이 없다. TTY에서 열람하면 감사 기록이 한 건 늘고 그 기록에 값이 없다.
 - AC14. 키 플러그인이 없고 SearXNG 주소를 설정하지 않은 설정에서 `fresnel doctor`는 검색 provider 묶음 세 줄을 내고, 권장 목록에 Exa와 Brave가 있다. 주소가 비어 있으면 어떤 주소에도 탐침을 보내지 않는다. 옛 후보 주소(`127.0.0.1`·`localhost`의 8888, 8080)에서 SearXNG가 응답해도 쓰지 않는다.
 - AC24. `fresnel doctor`는 `host.status { includeBinaries: true }`를 한 번 보내 바이너리마다 한 줄을 낸다. 필수 바이너리를 쓸 수 없으면 종료 코드 3이고 선택 바이너리만 빠졌으면 0이다. `--json`의 `binaries`는 호스트가 준 보고서와 같다.
 - AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`, 검토는 `ReviewAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
@@ -1059,9 +1059,9 @@ $ echo $?
 
 1. [결정: review.decisions-2 U-15] `apps/cli` → `@fresnel/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1). 남은 [미결]: 엔진 바이너리 이름 `fresnel`([제안], 같은 문서 §10 미결 2). `EngineHandle.paths.cliStateFile`의 원천은 정했다 [결정: review.decisions-2 B-07]: `@fresnel/host`의 `resolveHostStatePaths()`가 L0.os `OsDirs.state` 아래 `cli/state.json`을 돌려준다(`L4.host-service.spec` §3.3.6). CLI는 경로를 계산하지 않는다(DR-13). 환경 변수 `FRESNEL_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남는다.
 2. [미결] M1 중단의 wire 지원. `turn.interrupt`가 M2라서 M1의 Ctrl+C 1회가 종료 요청이다(§4.6). M1에 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기는 F 변경 요청이 필요하다. 기존 세션의 쓰기 소유를 `turn.start`가 얻는 동작은 `L4.host-service.spec` HS-28로 확정되어 이 항목에서 닫았다(§4.3).
-3. [미결] 비밀 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `fresnel secret reveal`로 정했다 [결정: review.decisions-2 U-20]. F의 `secret.beginReveal`과 in-process 값 전달 통로(`InProcessHost.secretOutOfBand`)는 구현되어 CLI가 쓴다(§4.7). 남은 것: `secret run -- <cmd>`를 둘지.
+3. [미결] 시크릿 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `fresnel secret reveal`로 정했다 [결정: review.decisions-2 U-20]. F의 `secret.beginReveal`과 in-process 값 전달 통로(`InProcessHost.secretOutOfBand`)는 구현되어 CLI가 쓴다(§4.7). 남은 것: `secret run -- <cmd>`를 둘지.
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.
-5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 비밀 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정]. M3b(B2-WEB)에서 검색 provider 줄과 웹 provider 블록은 `web.providers`(view-model)로 판정하도록 바꿨다. 설정 키는 SearXNG 주소 하나만 `settings.get`으로 읽는다(§4.7.1).
+5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 시크릿 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정]. M3b(B2-WEB)에서 검색 provider 줄과 웹 provider 블록은 `web.providers`(view-model)로 판정하도록 바꿨다. 설정 키는 SearXNG 주소 하나만 `settings.get`으로 읽는다(§4.7.1).
 6. [결정: review.m2-plan §8 D10] pi-tui 채택은 M2 스파이크의 한글 IME·CJK 폭 확인 통과를 조건으로 한다(§4.9.2). 실패하면 최소 renderer로 유지한다. M2 종료 조건이 아니다. 스파이크 결과(2026-10-24, `L4.cli.plan` §4.4): CJK 폭, IME 확정 입력, 하드웨어 커서 위치, 줄바꿈의 자동 확인은 모두 통과했다. 실제 터미널(macOS·Linux·WSL)의 한국어 IME 확인과 Bun 1.4.3 `--compile` 실행 확인이 남아 채택을 보류하고 최소 renderer를 유지한다. 최소 renderer의 진행 줄이 문자 수로 잘리던 문제는 칸 수 기준으로 고쳤다.
 7. [결정: review.m3-design-inputs D-M3-25 행 4] 릴리즈 형태는 단일 파일이다. native 모듈이 꼭 필요하면 옆 디렉터리를 쓴다. 이전 질문: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
 8. [결정: M2] print 모드에서 승인 요청이 오면 거부로 답하고 stderr에 한 줄 알린다(§4.11 4번). [결정: review.m3-design-inputs D-M3-14] M3 기본은 L1.tools 사전 허용 규칙만 적용하고 나머지는 거부한다. [결정: 오케스트레이터 기본값, M3b B1-SCH] 옵션 플래그는 `--auto-approve`다(이전 [제안] `--yes-all`은 쓰지 않는다). print 모드에서만 쓰고, 도구 승인만 한 번 허용한다. D-M3-14 b의 "모두 허용 포함" 범위는 도구 승인으로 좁힌다. 질문·계획·검토 승인은 이 플래그로도 거부한다(§4.11 4번).
@@ -1070,7 +1070,7 @@ $ echo $?
 11. [미결] stdout EPIPE의 종료 코드(0 제안)와 129·143 추가.
 12. [결정: m2c G1-07] `secret test`의 출력. F 결과에 `decryptable`, `length`, `sha256Prefix`가 더해져서 §4.7대로 출력한다.
 13. [미결] 설정 값 사전 검사(§4.8). `settings.list`의 `SettingDefWire`는 `type`이 JSON Schema 객체라 `validateSettingValue`(TSchema 입력)를 바로 부를 수 없고, CLI에서 `Type.Unsafe(json)`을 쓰면 TY-26을 어긴다. F가 `SettingDefWire`를 받는 검사 함수를 내면 `config set`이 왕복 전에 범위 오류를 알릴 수 있다. 그 전까지 값 판정은 호스트의 `settings.set`이 한다(오류 문구는 §4.10 표).
-14. [결정: m2c G1-07] 비밀 삭제 전 참조 표시. `secret.references`로 설정 키, 활성 lease 수, 최근 사용한 세션을 보인다(§4.7 `rm`).
+14. [결정: m2c G1-07] 시크릿 삭제 전 참조 표시. `secret.references`로 설정 키, 활성 lease 수, 최근 사용한 세션을 보인다(§4.7 `rm`).
 15. [미결] 끊긴 turn을 연 세션의 질문 순서. 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(`L4.host-service.spec` HS-52) 승인 카드가 `이어서 실행할까요? [y/N]`보다 먼저 선다. 이어 실행을 먼저 묻고 승인 카드를 그 뒤로 미루려면 승인 프롬프트를 이어 실행 질문이 끝날 때까지 붙잡는 장치가 CLI에 필요하다. 지금은 두 질문이 같은 입력 줄을 순서대로 쓰고 어느 쪽으로도 잘못 응답되지 않는다(`turn-resume-host.int.test.ts`). 작성자 결정.
 16. [미결] `settings.invalidated` 구독(M2 마감 재검토 T6 메모). 이 문서가 M2에 요구하는 동작은 "시작할 때 `settings.list`와 `command.list`를 한 번 읽는다"(§4.12)이고 CLI는 알림을 구독하지 않는다. 대화 중에 다른 연결이 설정이나 신뢰를 바꾸면 Tab 완성의 키 목록과 엔진 명령 목록이 낡는다. 알림을 받아 두 목록을 다시 읽는 일은 M3에 한다(`L4.cli.plan` §4.6 끝 항목).
 17. [결정: adr.0016] CLI 출력 문장은 `packages/client`의 ko·en 카탈로그 id로 만들고 현재 로케일로 풉니다. 포맷은 `Intl` 기반 포트(`packages/client/src/i18n/format.ts`, ICU MessageFormat 부분집합)입니다. ADR-0016 §3.1의 FormatJS(`@formatjs/intl`)는 승인 전이라 쓰지 않습니다 [결정: 오케스트레이터 기본값]. 로케일은 `ui.locale`(기본 auto, OS 로케일, 영어 폴백)을 따릅니다. 표시 언어 설정 키는 `l4.ui.locale`이고(`packages/client`의 `uiSettings`, `cliSettingGroups`로 엔진 조립에 넘깁니다), `runCli`는 시작할 때 OS 단서(`LC_ALL`, `LC_MESSAGES`, `LANG`)로, `chat`의 `--set l4.ui.locale=<값>`이 있으면 그 값으로 현재 로케일을 정합니다. 단서가 없으면 처음 값 `en`을 씁니다. CLI 문장의 한국어 이전은 M3b B4-I18N에서 끝났습니다. L4 `src`(apps/host, apps/cli, apps/desktop, packages/client)의 한국어 문자열 리터럴은 `fresnel/hardcoded-korean` 규칙(`xeon/scripts/check-ts-rules.ts`)이 막습니다(시험과 `.tsx` 뷰는 제외). 테이프 스모크 `apps/cli/test/chat.scenario.test.ts`의 scenario-4는 `--set l4.ui.locale=en`이면 print 모드 턴의 거부 문장이 영어이고, 설정이 없으면 같은 테이프가 한국어로 나오는지 실제 자식 프로세스로 확인합니다.

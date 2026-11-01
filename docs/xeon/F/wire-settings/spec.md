@@ -28,7 +28,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 - JSON Lines stdio 전송(`createStdioTransport`, 줄 프레이밍). Bun·Node API 없이 웹 스트림만 쓰고 서버 쪽(`@fresnel/platform-process`, `@fresnel/host`)과 클라이언트가 같은 코드를 쓴다 [결정: m2 F.8].
 - 이벤트 구독의 seq 커서, 재전송 계약, 휘발 스트림 규칙.
 - 오류 객체 모양과 오류 코드 구간, `_meta`와 추적 컨텍스트 전파 규약.
-- 계약 버전 정책과 기능 수명주기(Active, Deprecated, Removed, 실험 opt-in, 능력 탐지).
+- 계약 버전 정책과 기능 수명주기(Active, Deprecated, Removed, 실험 opt-in, 기능 탐지).
 - 설정 정의 스키마 `SettingDef`와 선언 함수 `defineSettings`, 키 네임스페이스 규칙.
 - 설정 계층(관리, 사용자, 프로젝트, 로컬, 세션)의 우선순위, 잠금, 유효 값과 출처의 모양.
 - 같은 `SettingDef`에서 L4 화면, 설정 파일, 명령을 만들 때 F가 보장하는 출력 규약(JSON Schema 출력).
@@ -41,7 +41,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 - 설정 파일 위치, 파일 감시, 병합 실행: `L1.persistence.spec`과 `L4.host-service.spec` [가정. 아래 §4.9 참조].
 - 설정 화면 생성 코드: `L4.settings-ui.spec`.
 - 각 층의 설정 키 목록(카탈로그): 각 층 spec의 "설정 노출" 절이 소유한다. F는 F 자신의 키만 둔다(§6).
-- 비밀 값 저장과 해석: `L0.secrets.spec`. F는 `secret://` 참조 문자열의 모양만 정한다.
+- 시크릿 값 저장과 해석: `L0.secrets.spec`. F는 `secret://` 참조 문자열의 모양만 정한다.
 
 ### 1.3 이식 원칙
 
@@ -86,7 +86,7 @@ thread, turn, step, item 용어는 `F.conversation.spec`을 따른다. 이 문�
   - `F.extensions.spec`: `ExtensionName`(`EXTENSION_NAME_PATTERN` `^[a-z][a-z0-9-]{1,31}$`), `ExtensionManifest`(`userConfig`, `layer`, `defaultEnabled` 필드), `UserConfigEntrySchema`
   - 이름이 확정본과 다르면 이 문서를 고친다(§10 미결 7).
 - wire의 JSON-RPC 요청 id 타입은 `RpcId`다. `F.conversation.spec`의 `requestId`(submission 중복 제거 키)와 섞이지 않게 `RequestId`라는 이름을 쓰지 않는다.
-- wire 레지스트리 이름에는 `Wire` 접두를 붙인다(`WireMethodMap`, `WIRE_METHODS`). `F.capabilities.spec`의 `MethodMap`, `MethodDef`(능력 서비스 메서드)와 구분하기 위해서다.
+- wire 레지스트리 이름에는 `Wire` 접두를 붙인다(`WireMethodMap`, `WIRE_METHODS`). `F.capabilities.spec`의 `MethodMap`, `MethodDef`(기능 서비스 메서드)와 구분하기 위해서다.
 
 ### 3.1 호스트 계약 1부: 연결과 전송
 
@@ -360,11 +360,11 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - 실패는 오류 값이다. 확장이 `thread.compact.before`에서 막으면 `thread.cancelledByExtension`(3006, `point: "thread.compact.before"`), 요약을 만들거나 커밋하지 못하면 `thread.compactFailed`(3008, `reason`)다. 요청이 취소되면 `request.cancelled`(5001)다. 저장소 오류는 `store.*`(5003~5007)다. 오류에 모델 출력이나 제공자 응답 본문은 싣지 않는다.
 - [결정: m2c G2-12] `thread.rename`은 대화 제목을 바꾼다. 목록이 모두 "제목 없음"으로 보이는 문제(`L1.persistence.spec` §4.10.5 `setTitle`)를 클라이언트가 풀 길이다. 호스트는 `thread.updated { title }`를 커밋하고 그 위치를 `position`으로 돌려준다. 제목은 1~200자이며(`ThreadSummary.title`, `thread.create`의 `title`과 같은 상한) 지우는 길은 없다. 쓰기 소유가 필요해서 `turn.start`처럼 암묵 획득을 한 번 시도하고 실패하면 `thread.locked`(3002)다. 없는 thread는 `thread.notFound`(3001), 닫힌 thread는 `thread.closed`(3007)다. 진행 중인 turn이 있어도 바꿀 수 있다.
   - 첫 입력에서 제목을 정하는 규칙(M2): 첫 `turn.start` 입력의 앞 80자(줄바꿈은 공백 하나로)를 제목으로 쓴다. 정하는 주체는 호스트이고 이 메서드와 같은 커밋 경로를 쓴다. 이미 제목이 있는 thread는 바꾸지 않는다. 모델이 만드는 자동 제목은 M3다.
-- [결정: m2c G1-07] 비밀 wire 보강 네 가지다(`L4.host-service.spec` §10 19번, 23번).
+- [결정: m2c G1-07] 시크릿 wire 보강 네 가지다(`L4.host-service.spec` §10 19번, 23번).
   - `secret.test`의 결과는 `state`에 `decryptable`, `length`, `sha256Prefix`를 더했다(`L0.secrets.spec`의 `SecretTestResult`). `length`는 값의 바이트 수, `sha256Prefix`는 SHA-256 hex 앞 8자(소문자)이고 값이 없거나 풀 수 없으면 둘 다 null이다. 값은 어디에도 싣지 않는다. 앞 8자는 사람이 같은 값인지 견주는 표시용이고 감사 기록과 로그에는 남기지 않는다. 필드는 모두 필수라 옛 모양(`state`만)은 거부한다.
-  - `secret.references { name }`는 삭제 전에 이 비밀을 가리키는 곳을 보인다(`L0.secrets.spec` `references`, `L4.cli.spec` §4.7 `secret rm`). 결과는 `{ settingKeys, activeLeases, sessions }`다. 메서드는 읽기 전용이다. 활성 임대가 있으면 `secret.remove`가 `secret.inUse`로 거부한다.
-  - 비밀 오류 kind를 3201~3212로 나눴다(§3.5.2). `SecretError`의 입력 오류(`invalid_ref`, `unsupported_ref_syntax`, `meta_invalid`, `value_too_short`)는 새 kind 없이 `jsonrpc.invalidParams`로 간다. 나머지 `SecretError.kind`는 camelCase로 바꾼 `secret.<kind>`로 1:1 대응한다(`secret_missing` → `secret.notFound`). `details`는 안전한 필드(이름이 아닌 제공자, 사유 코드, 종료 코드, 임대 수)만 싣고 `stderrMasked` 같은 외부 도구 출력은 싣지 않는다. 이전의 `internal` + `details.secret` 대용(`L4.host-service.spec` HS-47)은 이 kind로 바뀐다.
-  - [결정: m2r sec] `secret.writeFailed`의 `target`에 `key_store`(OS 키 저장소에 age 키를 만들지 못함)와 `sops_file`(기본 SOPS 비밀 파일을 만들지 못함)을 더했다. 첫 `secret add`가 키와 파일을 자동으로 준비하게 되면서(`L0.secrets.spec` §4.8) 준비 실패를 "sops와 age를 설치하라"가 아닌 실제 원인으로 알려야 하기 때문이다. `code`는 OS 오류 코드 또는 `sops_encrypt_failed`, `recipient_unknown`, `unsupported_format`, `lock_timeout` 같은 이름이다.
+  - `secret.references { name }`는 삭제 전에 이 시크릿을 가리키는 곳을 보인다(`L0.secrets.spec` `references`, `L4.cli.spec` §4.7 `secret rm`). 결과는 `{ settingKeys, activeLeases, sessions }`다. 메서드는 읽기 전용이다. 활성 임대가 있으면 `secret.remove`가 `secret.inUse`로 거부한다.
+  - 시크릿 오류 kind를 3201~3212로 나눴다(§3.5.2). `SecretError`의 입력 오류(`invalid_ref`, `unsupported_ref_syntax`, `meta_invalid`, `value_too_short`)는 새 kind 없이 `jsonrpc.invalidParams`로 간다. 나머지 `SecretError.kind`는 camelCase로 바꾼 `secret.<kind>`로 1:1 대응한다(`secret_missing` → `secret.notFound`). `details`는 안전한 필드(이름이 아닌 제공자, 사유 코드, 종료 코드, 임대 수)만 싣고 `stderrMasked` 같은 외부 도구 출력은 싣지 않는다. 이전의 `internal` + `details.secret` 대용(`L4.host-service.spec` HS-47)은 이 kind로 바뀐다.
+  - [결정: m2r sec] `secret.writeFailed`의 `target`에 `key_store`(OS 키 저장소에 age 키를 만들지 못함)와 `sops_file`(기본 SOPS 시크릿 파일을 만들지 못함)을 더했다. 첫 `secret add`가 키와 파일을 자동으로 준비하게 되면서(`L0.secrets.spec` §4.8) 준비 실패를 "sops와 age를 설치하라"가 아닌 실제 원인으로 알려야 하기 때문이다. `code`는 OS 오류 코드 또는 `sops_encrypt_failed`, `recipient_unknown`, `unsupported_format`, `lock_timeout` 같은 이름이다.
   - `thread.closed`(3007)는 닫힌 thread에 쓰기나 수명 주기 호출을 했을 때의 오류다. 이전에는 `thread.notFound`로 알렸다. 닫힌 thread의 읽기와 삭제는 허용한다.
   - [결정: M3-REQ-17] `SecretEntryOffer`의 `add`용 메타를 받았다. `SecretEntryMeta`(`capabilities/secrets.ts`)는 `SecretMetaParams`에서 `name`을 뺀 값 없는 메타(`desc`, `scope`, `expiresAt`, `use`, `approval`, `ttlSeconds`, `maxUses`, 모두 선택)이고 `SecretEntryOffer.meta`와 `secret.beginEntry`의 `meta`가 같은 모양으로 싣는다. 생략하면 호스트의 기본 메타다. `secret.test`의 길이·해시 앞 8자 확장은 위 첫 항목대로 이미 있고, 값 열람 경로는 `secret.beginReveal`과 `SecretRevealOffer`(wire 밖 전달)로 정해져 있어 더 두지 않는다.
 - [결정: m2c G1-03] `trust.get`·`trust.decide`는 프로젝트 신뢰(`X.loading-trust.spec` §4.7)를 클라이언트가 묻고 정하는 메서드다. 이름과 모양은 `m2/fx-host`의 구현을 정본으로 하고 `m2/fx-apps`의 `trust.pending`·`trust.decide { projectRoot, choice }` 가정은 버린다. 이유는 둘이다. 첫째, wire에는 서버가 클라이언트에 보내는 요청이 없어서 대기 목록(`trust.pending`)은 호스트가 프롬프트를 쥐고 기다리는 구조를 전제한다. 둘째, 폴더는 클라이언트가 먼저 알고 있다(`workspace`). 호스트는 프롬프트를 띄울 화면이 없고(`headless`), 결정이 없는 폴더는 `undecided`라 불신으로 다룬다(fail-closed). 그래서 `.mcp.json`, 프로젝트 스킬, `.fresnel/settings.json`, `.fresnel/commands`는 사람이 정하기 전에는 적용되지 않는다. 클라이언트는 폴더에서 thread를 만들거나 열기 전에 `trust.get { workspace }`를 부르고, `verdict`가 `undecided`이고 `required`가 참이면 `options`로 선택지를 보여 준 뒤 `trust.decide`로 보낸다.
@@ -372,22 +372,22 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - `trust.decide`의 `choice`가 그 폴더의 `options`에 없으면 `jsonrpc.invalidParams`(`path: "choice"`)다. `session`은 저장하지 않고 그 호스트 프로세스 동안만 유지한다. `workspace`가 절대 경로가 아니면 `jsonrpc.invalidParams`(`path: "workspace"`)이고, 결정을 저장하지 못하면(손상된 저장 파일, 쓰기 실패) `store.io`(`details.code: "trust_store"`)다. `trust.get`은 아무것도 바꾸지 않는다. 신뢰 필요 자원이 없는 폴더도 `trust.decide`로 미리 정할 수 있다.
   - 결정 뒤 호스트는 그 폴더의 project·local 설정 파일 층을 다시 읽고 `settings.invalidated`(§3.3.2)를 보낸다. 프로젝트 스킬은 다음 thread를 열 때, MCP 서버 정의는 다음 서버 로드 때 반영된다. 이미 열린 thread가 새 결정을 모두 받게 하려면 결정을 thread 열기 전에 한다.
   - 저장 파일 `trust.json`은 두 클라이언트(CLI의 `fresnel trust`, 데스크톱 카드)가 같은 호스트를 거쳐 쓴다. 프로세스 사이 쓰기 충돌은 L0.os의 `fileLock`이 막는다(`review.m2-plan` G1-10). wire는 이 잠금을 드러내지 않는다.
-  - `thread.trust.before` 확장 지점은 이 메서드와 별개다. 확장이 결정을 내는 길이고 thread 없이 호스트 수준에서 발화한다(`F.extensions.spec` §7). M2에는 그 지점에 핸들러를 거는 확장이 없어 호스트는 발화하지 않고 저장소 판정만 쓴다.
+  - `thread.trust.before` 훅은 이 메서드와 별개다. 확장이 결정을 내는 길이고 thread 없이 호스트 수준에서 발화한다(`F.extensions.spec` §7). M2에는 그 지점에 핸들러를 거는 확장이 없어 호스트는 발화하지 않고 저장소 판정만 쓴다.
 - [결정: m2c G1-02] `turn.resume`은 프로세스 종료로 끊긴 turn을 이어 실행하는 메서드다(`L1.loop.spec` §4.6 `LoopService.resume`, `L4.host-service.spec` §10 21번). `thread.list`가 `ThreadSummary.resumable`로 후보를 알리고(§3.3.1 아래 코드), 클라이언트가 사용자 확인 뒤 이 메서드를 부른다. 호스트는 자동 재개를 하지 않는다. 한 thread에 열린 turn은 하나라서 `turnId`를 받지 않는다.
   - 결과 세 모양은 `ResumeResult`(`services/loop.ts`)와 같아 변환이 없다. `resumed`는 이어 실행을 접수했다는 뜻이고 진행은 `events.subscribe`의 이벤트로 온다. `from`은 이어 시작한 단계다. 승인을 기다리던 turn은 `tools`로 이어지고 `approval.list`의 대기 승인이 다시 응답을 받는다.
   - `closed`는 이어 실행하지 않고 닫았다는 뜻이다. 끊기기 전에 중단 요청이 있었으면 `abort_requested`, 소유자가 취소했으면 `owner_cancelled`다. `nothing`은 열린 turn이 없다는 뜻이다. 둘 다 오류가 아니다.
   - `turn.start`처럼 쓰기 소유가 필요하고 암묵 획득을 한 번 시도한다. 소유하지 못하면 `thread.locked`(3002), 없는 thread는 `thread.notFound`(3001), 이미 도는 turn이 있으면 `turn.busy`(3003)다. 저장소 오류는 `store.*`다.
-- [결정: m2c G1-01] `command.list`와 `command.run`은 엔진에 등록된 슬래시 명령(`dialog.commands`, `F.capabilities.spec` §3.9)을 클라이언트가 부르는 길이다. `/plan`, `/tasks`, `/goal`, `/helm start`처럼 L2·L3 코드가 등록한 동작 명령은 엔진 안에서만 돌 수 있어, 이 메서드가 없으면 클라이언트에서 실행되지 않는다. `CommandInfo`와 `CommandRunOutput`은 능력 정의 파일(`capabilities/defs/dialog.ts`)의 스키마를 그대로 쓴다. 호스트는 `command.list`를 `dialog.commands.list`로, `command.run`을 `dialog.commands.run`으로 옮기고 `threadId`를 호출 문맥에 싣는다.
+- [결정: m2c G1-01] `command.list`와 `command.run`은 엔진에 등록된 슬래시 명령(`dialog.commands`, `F.capabilities.spec` §3.9)을 클라이언트가 부르는 길이다. `/plan`, `/tasks`, `/goal`, `/helm start`처럼 L2·L3 코드가 등록한 동작 명령은 엔진 안에서만 돌 수 있어, 이 메서드가 없으면 클라이언트에서 실행되지 않는다. `CommandInfo`와 `CommandRunOutput`은 기능 정의 파일(`capabilities/defs/dialog.ts`)의 스키마를 그대로 쓴다. 호스트는 `command.list`를 `dialog.commands.list`로, `command.run`을 `dialog.commands.run`으로 옮기고 `threadId`를 호출 문맥에 싣는다.
   - 출력은 `CommandRunOutput`의 `done`이 싣는다. `message`는 사람이 읽는 텍스트(4,000자까지)이고 `result`는 구조 값이다. 클라이언트는 `message`를 화면에 내고 `result`는 해석하지 않아도 된다.
   - `expanded`의 `text`는 템플릿을 펼친 최종 입력이다. 클라이언트가 `turn.start`로 보낸다. `command.run`은 turn을 만들지 않는다.
   - `needs_confirmation`을 받으면 클라이언트가 `shell` 목록을 보이고 사용자 확인을 받은 뒤 `confirmShell: true`로 같은 `text`를 다시 보낸다.
-  - 명령 실패는 능력 오류 구간(코드 4000, kind `cap.dialog.commands.<code>`: `command_args_invalid`, `command_shell_disabled`)과 `thread.notFound`로 돌아온다. 새 wire 오류 kind는 없다.
+  - 명령 실패는 기능 오류 구간(코드 4000, kind `cap.dialog.commands.<code>`: `command_args_invalid`, `command_shell_disabled`)과 `thread.notFound`로 돌아온다. 새 wire 오류 kind는 없다.
   - 이름 없는 입력은 오류가 아니라 `{ status: "not_command" }`다. 클라이언트는 이 값을 받으면 `turn.start`로 보낸다.
-  - [결정: M3-REQ-16, M3-20] `status.list`·`attachments.add`·`notify.list`를 코어 표에 둔다(`L2.dialog.spec` §10 D-2의 선택). 값 모양은 능력 정의(`dialog.status.list`, `dialog.attachments.add`, `dialog.notify.list`)의 스키마를 그대로 쓰고 wire는 `threadId`를 더한다. `status.list`는 재접속 뒤 상태줄을 다시 그리는 스냅숏이고 변경은 휘발 이벤트 `dialog.status`로 온다. `attachments.add`의 결과 `parts`를 `turn.start`의 `input`에 넣고, 상대 경로는 `threadId`의 작업 폴더 기준이다. `notify.list`는 `afterSeq` 뒤의 알림을 당겨 읽는다.
+  - [결정: M3-REQ-16, M3-20] `status.list`·`attachments.add`·`notify.list`를 코어 표에 둔다(`L2.dialog.spec` §10 D-2의 선택). 값 모양은 기능 정의(`dialog.status.list`, `dialog.attachments.add`, `dialog.notify.list`)의 스키마를 그대로 쓰고 wire는 `threadId`를 더한다. `status.list`는 재접속 뒤 상태줄을 다시 그리는 스냅숏이고 변경은 휘발 이벤트 `dialog.status`로 온다. `attachments.add`의 결과 `parts`를 `turn.start`의 `input`에 넣고, 상대 경로는 `threadId`의 작업 폴더 기준이다. `notify.list`는 `afterSeq` 뒤의 알림을 당겨 읽는다.
   - [결정: M3-REQ-16, review.m3-design-inputs D-M3-17] 알림 전달: 호스트는 `notify.delivered`를 연결된 클라이언트 모두에 보낸다. 클라이언트 창이 앞에 있어도 기본으로 보내고, 보낼지는 호스트의 설정 키로 조정한다. OS 토스트와 앱 안 표시는 클라이언트가 한다. 웹·모바일 푸시는 후순위다. 알림은 내구 이벤트 `dialog.notified`에서 나오므로 놓친 클라이언트는 `notify.list`로 따라잡는다.
   - [결정: M3-REQ-19] 재접속용 목록: `thread.open`에 `includeItems: true`를 주면 결과에 현재 가지의 item 목록(`items`, `hasMore`)과 그것이 반영한 `asOfSeq`를 싣는다. `asOfSeq` 뒤의 이벤트는 `events.subscribe`로 이어 받는다(§3.4.6). 대기 승인은 `approval.list`(`position`)가 같은 규칙으로 준다. 안전 모드로 떠 있으면 `host.status`의 `safeMode`가 참이라 화면이 표시한다.
 - [결정: m2c G1-01 후속] `command.list`의 `threadId`는 선택이다. 주면 프로젝트 명령(`.fresnel/commands`)을 그 thread의 작업 폴더 기준으로 읽고(신뢰 게이트 포함), 생략하면 thread 문맥 없이 읽는다. 작업 폴더가 없는 thread는 프로젝트 명령 없이 나온다. 없는 thread는 `thread.notFound`(3001)다. 목록만 읽으므로 `command.run`과 달리 쓰기 소유를 얻지 않는다. `dialog.commands.list`의 입력 스키마는 바뀌지 않고, 호스트가 `threadId`를 입력에서 떼어 호출 문맥에 싣는다. 근거: `L4.host-service.spec` §10 29.
-- [결정: M3-REQ-96] `web.providers`는 웹 provider 상태와 웹 설정의 유효 값을 읽는 메서드다(`wire/web-providers.ts`). 읽기 전용이고 비밀 값을 싣지 않는다. 키 값, 주입 위치, 헤더 이름은 결과 어디에도 없다. 호스트는 `cap-web`의 provider 카탈로그와 탐침 캐시에서 값을 채운다(`L4.host-service.spec`).
+- [결정: M3-REQ-96] `web.providers`는 웹 provider 상태와 웹 설정의 유효 값을 읽는 메서드다(`wire/web-providers.ts`). 읽기 전용이고 시크릿 값을 싣지 않는다. 키 값, 주입 위치, 헤더 이름은 결과 어디에도 없다. 호스트는 `cap-web`의 provider 카탈로그와 탐침 캐시에서 값을 채운다(`L4.host-service.spec`).
   - `providers`는 provider마다 한 항목이고 최대 64개다. 항목은 `id`(`ProviderId`, 최대 96자), `capability`(`web.search`, `web.fetch`, `web.browse`), `origin`(`plugin`, `detected`, `builtin`), `displayName`(1~64자), `auth`(`none`, `header`, `bearer`, `query`), `status`, `pricingAsOf`, `pricingStale`, `firstUseNoticed`, `autoRank`를 싣는다.
   - `autoRank`는 자동 선택(`auto`)이 provider를 시도하는 순서에서의 0부터 센 자리다. 설정 provider가 `auto`가 아니어도 이 값은 자동 순서 기준이고, `search.parallel`과 설정 provider 값에 따라 바뀌지 않는다. `web.search`와 `web.browse` 행에만 값이 있고, `web.fetch` 행은 사용자 순서가 없어서 `null`이다. 자동 순서의 규칙은 `L2.web.spec` §4.8.2다. 클라이언트는 이 값으로 순서를 다시 계산하지 않는다.
   - `status.kind`는 `ok` 또는 `unavailable`이다. `unavailable`은 `reason`에 웹 provider의 `ProviderUnavailableReason` 문자열을 싣고(최대 64자), `detail`(최대 512자)을 더할 수 있다.
@@ -402,7 +402,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   }, { additionalProperties: false });
   ```
 
-- [결정: M3b B1-SCH2] `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`는 예약 항목을 만들고, 읽고, 끄고, 원격으로 한 번 실행하는 메서드다(`wire/schedule.ts`, `L2.schedule.spec` §4.4.9). 능력 `schedule.entries`(`capabilities/defs/schedule.ts`)가 입력과 모델 도구를 정하고, params는 그 능력 입력에 `_meta`를 더한 것이다. 능력 ID는 §3.5의 `schedule.timers`(cron 식)와 다른 능력이다.
+- [결정: M3b B1-SCH2] `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`는 예약 항목을 만들고, 읽고, 끄고, 원격으로 한 번 실행하는 메서드다(`wire/schedule.ts`, `L2.schedule.spec` §4.4.9). 기능 `schedule.entries`(`capabilities/defs/schedule.ts`)가 입력과 모델 도구를 정하고, params는 그 기능 입력에 `_meta`를 더한 것이다. 기능 ID는 §3.5의 `schedule.timers`(cron 식)와 다른 기능이다.
   - 기대한 실패는 JSON-RPC 오류가 아니라 `ok: false`의 `error`(`kind`)다. `proposal.decide`와 같은 규칙이다. `kind`는 `interval_too_short`, `at_in_past`, `invalid_trigger`, `limit_reached`, `not_found`, `not_remote`, `disabled`, `store_failed` 여덟이고, `ScheduleError`는 엔진의 `CreateError`, `CancelError`, `FireError`의 합집합이다.
   - 트리거는 `interval`, `at`, `file_watch`, `remote`, `loop` 다섯 모양이고 각 모양은 정해진 필드만 받는다. 간격 최소값 300초와 켜진 예약 수 상한은 스키마가 아니라 엔진이 검사한다.
   - `schedule.list`만 읽기 전용이다(`readOnly`, `replay: "safe"`). `create`, `cancel`, `fire`는 효과가 있는 쓰기이고 `requestId` 기억이 없어 멱등으로 분류하지 않는다(ADR-0015 §3.3). 같은 생성 요청을 두 번 받으면 항목이 두 개 생긴다.
@@ -476,7 +476,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     | `commit_failed` | 응답은 맞았으나 `approval.resolved` 커밋이 실패했다 | 대기 그대로 | 다시 보낼 수 있다 |
 
     `reason`이 없는 `applied: false`는 이유를 알리지 않는 구현이다. 클라이언트는 `answer_invalid`가 아닌 모든 값을 "다시 보내도 같다"로 다룬다. `applied: true`에는 `reason`이 없다. 요청이 속한 thread의 쓰기 소유가 없으면 결과 대신 3002 오류가 난다(§4.6).
-  - L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)는 wire에 나오지 않는다. 클라이언트는 `QuestionBody`를 그려서 답을 `QuestionAnswer`로 만들고, 능력 쪽 어댑터(cap-dialog)가 `AskAnswer`와 서로 옮긴다(`L2.dialog.spec` §4.1.1). 선택지가 없는 질문은 `selected: []`와 `text`로 답한다.
+  - L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)는 wire에 나오지 않는다. 클라이언트는 `QuestionBody`를 그려서 답을 `QuestionAnswer`로 만들고, 기능 쪽 어댑터(cap-dialog)가 `AskAnswer`와 서로 옮긴다(`L2.dialog.spec` §4.1.1). 선택지가 없는 질문은 `selected: []`와 `text`로 답한다.
 
 #### 3.3.2 알림 표
 
@@ -578,7 +578,7 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 
 | 요청 | 판정 | 계약 | 구현 | 사유와 대체 경로 |
 |---|---|---|---|---|
-| `settings.invalidated` 알림(`L4.readme` §8 14번) | 받음 | M2 알림 표 | M2 | 파일 범위 변경을 다른 클라이언트와 MCP 정의 재적재가 알아야 한다. 값이 없어 비밀이 실리지 않는다 |
+| `settings.invalidated` 알림(`L4.readme` §8 14번) | 받음 | M2 알림 표 | M2 | 파일 범위 변경을 다른 클라이언트와 MCP 정의 재적재가 알아야 한다. 값이 없어 시크릿이 실리지 않는다 |
 | `settings.list`의 `range` 병합(15번) | 받음 | F 공통 함수 `toValueJsonSchema` | M3 | [결정: M3-REQ-15] `settings.list`는 `type`과 `range`를 따로 싣고, 합치는 일은 F의 `toValueJsonSchema(def: SettingDefWire)`가 한다(§4.10). 클라이언트와 호스트와 파일 검사가 한 규칙을 쓴다 |
 | `settings.readFile`·`settings.writeFile`(36번) | 받음 | M3 메서드 표 | M3 | [결정: M3-REQ-15] 파일 단위 편집기가 쓴다. 파일 쓰기는 호스트 한 곳이다. 아래 "설정 파일 메서드" 설명을 본다 |
 | `SettingsTab`·`SettingUi` 필드(37번) | 받음 | §3.8.2 | M3 | [결정: M3-REQ-15] `SettingsTab`에 `sandbox`를 더하고 `SettingUi`에 선택 필드 `editor`(전용 편집기 힌트)를 더한다 |
@@ -744,7 +744,7 @@ export const StreamChunkParams = Obj({ event: VolatileEventWire });
 |---|---|---|
 | `recordedAt` | ms 정수 | ISO 8601 UTC 문자열(`IsoTime`) |
 | `detached` | blob으로 옮긴 필드 목록. payload 자리에는 `blob:sha256:<hex>` 자리표시 | 그대로 싣는다. 클라이언트가 blob 내용을 받는 메서드는 M2 이후 [제안] |
-| `redactions` | 없음(`F.records.spec` §3.1.1이 wire로 이관) | 2차 방어로 가린 payload 필드 이름. 1차 방어는 "payload에 비밀 값을 넣지 않는다"는 기록 규칙이다 |
+| `redactions` | 없음(`F.records.spec` §3.1.1이 wire로 이관) | 2차 방어로 가린 payload 필드 이름. 1차 방어는 "payload에 시크릿 값을 넣지 않는다"는 기록 규칙이다 |
 | 그 밖의 필드(`id`, `kind`, `version`, `durable`, `seq`, `parentId`, `threadId`, `turnId`, `stepId`, `causationId`, `correlationId`, `payload`) | `F.records.spec` §3.1 | 이름과 값 그대로 |
 
 ```ts
@@ -860,11 +860,11 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3102 | `settings.invalidValue` | false | 값이 스키마나 range에 맞지 않는다 | `key`, `issues` |
 | 3103 | `settings.scopeNotAllowed` | false | 그 범위에 쓸 수 없는 키 | `key`, `scope`, `allowedScopes` |
 | 3104 | `settings.locked` | false | 관리 범위가 잠근 키 | `key`, `lockedBy: "managed"` |
-| 3105 | `settings.secretValue` | false | 비밀 키에 참조가 아닌 값을 넣었다 | `key` |
+| 3105 | `settings.secretValue` | false | 시크릿 키에 참조가 아닌 값을 넣었다 | `key` |
 | 3106 | `settings.reserved` | false | 읽는 코드가 아직 없는 `stage: "reserved"` 키에 쓰려 했다(§3.8.2) | `key` |
 | 3107 | `settings.fileConflict` | false | `settings.writeFile`의 `baseSha256`이 지금 파일과 다르다. 다시 읽고 합친 뒤 보낸다 | `scope` |
 | 3108 | `settings.fileInvalid` | false | `settings.writeFile`의 `text`가 JSON 객체가 아니거나 그 범위의 스키마에 맞지 않는다 | `scope`, `issues: {path, message}[]` |
-| 3201 | `secret.notFound` | false | 그 이름의 비밀이 메타(`meta`)나 제공자(`provider`)에 없다. `secret.remove`는 이미 없는 이름이면 오류 없이 `removed: false`다 | `where` |
+| 3201 | `secret.notFound` | false | 그 이름의 시크릿이 메타(`meta`)나 제공자(`provider`)에 없다. `secret.remove`는 이미 없는 이름이면 오류 없이 `removed: false`다 | `where` |
 | 3202 | `secret.denied` | false | 사용 정책이 거부했다(`SecretDenyReason`) | `reason` |
 | 3203 | `secret.providerUnavailable` | false | 제공자를 쓸 수 없다(바이너리 없음, 버전이 낮음, 등록 안 됨) | `provider`, `reason` |
 | 3204 | `secret.keyUnavailable` | false | 복호화 키를 쓸 수 없다(키체인 잠금, 항목 없음, 접근 거부, 파일 모드) | `key`, `reason` |
@@ -875,7 +875,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3209 | `secret.reauthRequired` | false | 사람 재확인이 끝나지 않았다 | - |
 | 3210 | `secret.cancelled` | false | 사람이 입력이나 확인을 취소했다. 아무것도 저장되지 않았다 | - |
 | 3211 | `secret.auditUnwritable` | false | 감사 기록을 쓸 수 없어 동작을 멈췄다 | `code` |
-| 3212 | `secret.writeFailed` | false | 키 파일, OS 키 저장소, 기본 SOPS 비밀 파일 쓰기에 실패했다. 값과 경로는 싣지 않는다 | `target`(`key_file`, `key_store`, `sops_file`), `code` |
+| 3212 | `secret.writeFailed` | false | 키 파일, OS 키 저장소, 기본 SOPS 시크릿 파일 쓰기에 실패했다. 값과 경로는 싣지 않는다 | `target`(`key_file`, `key_store`, `sops_file`), `code` |
 | 5001 | `request.cancelled` | false | `$/cancelRequest`로 취소했다 | - |
 | 5002 | `host.shuttingDown` | true | 호스트가 종료 중이다 | `retryAfterMs` |
 | 5003 | `store.busy` | true | 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 | - |
@@ -892,13 +892,13 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 1000 ~ 1999 | F wire | 연결, 핸드셰이크, 버전 |
 | 2000 ~ 2999 | F wire | 이벤트, 구독, 재전송 |
 | 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 나머지 L1 예비 |
-| 4000 ~ 4999 | 능력(L2) | 능력 오류는 code 4000 하나로 싣는다. `kind`는 `cap.<CapabilityId>.<code>`, `details`는 `CapabilityErrorData`(`F.capabilities.spec` §3.6)다. 능력의 오류 코드는 문자열이라 숫자 블록을 배정하지 않는다. 4001~4999는 예비 |
+| 4000 ~ 4999 | 기능(L2) | 기능 오류는 code 4000 하나로 싣는다. `kind`는 `cap.<CapabilityId>.<code>`, `details`는 `CapabilityErrorData`(`F.capabilities.spec` §3.6)다. 기능의 오류 코드는 문자열이라 숫자 블록을 배정하지 않는다. 4001~4999는 예비 |
 | 5000 ~ 5999 | 호스트(L4) | 호스트 상태, 취소, 서비스 모드 |
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |
 
-- [결정: M3-REQ-21, M3-REQ-112, adr.0016] 오류 문장은 wire에 싣지 않는다. 오류는 `kind`와 인자로 가고 문장은 클라이언트가 `kind`를 메시지 키로 ko·en 카탈로그(`@fresnel/client`, JSON [제안])에서 만든다. 문장에 끼울 값은 `WireErrorData.args`(문자열·숫자·불리언·null, 비밀 값 금지)다. `details`는 구조 정보로 그대로 둔다. `message`는 개발자용 영어 한 줄로 남고 화면에 쓰지 않는다. 설정 라벨과 설명은 `SettingUi.labelKey`·`helpKey`(`MessageKey`)로 싣고 `label`·`help`는 키가 없을 때의 대체 문구다. 모델용 도구 설명은 영어 원문을 유지한다. 시각은 UTC로 저장하고 날짜·숫자 표시는 클라이언트의 `Intl`이 한다.
+- [결정: M3-REQ-21, M3-REQ-112, adr.0016] 오류 문장은 wire에 싣지 않는다. 오류는 `kind`와 인자로 가고 문장은 클라이언트가 `kind`를 메시지 키로 ko·en 카탈로그(`@fresnel/client`, JSON [제안])에서 만든다. 문장에 끼울 값은 `WireErrorData.args`(문자열·숫자·불리언·null, 시크릿 값 금지)다. `details`는 구조 정보로 그대로 둔다. `message`는 개발자용 영어 한 줄로 남고 화면에 쓰지 않는다. 설정 라벨과 설명은 `SettingUi.labelKey`·`helpKey`(`MessageKey`)로 싣고 `label`·`help`는 키가 없을 때의 대체 문구다. 모델용 도구 설명은 영어 원문을 유지한다. 시각은 UTC로 저장하고 날짜·숫자 표시는 클라이언트의 `Intl`이 한다.
 - [제안] 클라이언트는 분기 판단에 `code`보다 `kind`를 쓴다. 확장 구간은 코드가 겹칠 수 있기 때문이다.
-- [결정: m2-plan F.5] 구간 표는 코드 상수 `WIRE_CODE_RANGES`(`wire/errors.ts`)다. 순수 함수 `codeRangeOf(code)`는 코드가 속한 구간을 돌려주고, 어느 구간에도 속하지 않는 코드(0~999, 6000~9999, 20000 이상, 정수가 아닌 값)는 `null`이다. `wireErrorCodeMatchesKind(code, kind)`는 능력 구간의 `cap.`, 확장 구간의 `ext.` 접두를 `kind`가 지키는지 검사한다. 능력 오류 코드 4000은 `WIRE_CAPABILITY_ERROR_CODE`다. 등록된 `WIRE_ERRORS`의 모든 코드는 시험이 이 두 함수로 확인한다.
+- [결정: m2-plan F.5] 구간 표는 코드 상수 `WIRE_CODE_RANGES`(`wire/errors.ts`)다. 순수 함수 `codeRangeOf(code)`는 코드가 속한 구간을 돌려주고, 어느 구간에도 속하지 않는 코드(0~999, 6000~9999, 20000 이상, 정수가 아닌 값)는 `null`이다. `wireErrorCodeMatchesKind(code, kind)`는 기능 구간의 `cap.`, 확장 구간의 `ext.` 접두를 `kind`가 지키는지 검사한다. 기능 오류 코드 4000은 `WIRE_CAPABILITY_ERROR_CODE`다. 등록된 `WIRE_ERRORS`의 모든 코드는 시험이 이 두 함수로 확인한다.
 - 근거: MCP `JSON_RPC_ERROR_CODES`(`_research/packages.md` §4.1 F5 "오류 코드 구간"), 19 §3.3.4.
 
 ### 3.6 `_meta`와 추적 컨텍스트
@@ -959,7 +959,7 @@ export declare function isCompatible(client: SemVer, server: SemVer): boolean;
 | 상태 | `experimental` → `active` → `deprecated` → `removed`. `experimental`은 `active`를 거치지 않고 바로 제거할 수 있다 | [제안] |
 | 폐기 기간 | `deprecated`가 된 날부터 12개월 뒤 또는 다음 주 버전 중 늦은 쪽에 `removed`가 될 수 있다. MCP 12개월 폐기 창을 참고했다(`_research/item-catalog.md` F절) | [미결] |
 | 실험 opt-in | `experimental` 기능은 `host.hello`의 `experimental` 목록에 이름을 넣은 연결에만 열린다. opt-in 없이 부르면 `-32601` | [제안] |
-| 능력 탐지 | 클라이언트는 `host.hello` 결과의 `features`로 기능 유무와 상태를 확인한다. 별도 프로브 메서드는 두지 않는다 | [제안] |
+| 기능 탐지 | 클라이언트는 `host.hello` 결과의 `features`로 기능 유무와 상태를 확인한다. 별도 프로브 메서드는 두지 않는다 | [제안] |
 | 모르는 것 무시 | 클라이언트는 모르는 알림, 아는 알림의 모르는 필드, 모르는 오류 kind를 무시하거나 일반 오류로 처리한다(19 §3.12) | [제안] |
 | 설정 키 수명 | `SettingDef.since`, `SettingDef.deprecated`가 같은 상태 규칙을 따른다. 폐기된 키를 쓰면 값은 적용하고 경고를 남긴다 | [제안] |
 
@@ -988,11 +988,11 @@ export { SecretRef } from "../../capabilities/secrets.ts";   // 형식 정본은
 - 키 문법 [제안]
   - 코어 키: `<층>.<도메인>.<이름>`. 층은 소문자(`f`, `x`, `l0`~`l4`), 도메인은 `_routing/routes.yaml` layout의 도메인 이름이다. 예: `l1.loop.maxSteps`, `l3.helm.driveLimits`. 확장과 L3 그룹의 켜기 키는 코어 키로 두지 않고 `ext.<name>.enabled` 하나만 쓴다(§3.8.3).
   - 확장 키: `ext.<확장id>.<이름>`. 예: `ext.web-exa.apiKey`.
-  - [제안] 확장 접두는 `ext.`다. `F.records.spec`의 이벤트 kind는 확장에 `x.`, 의도 그룹에 `grp.`를 쓰지만, 설정 키에서 `x.`는 X 층 코어 키(`x.loading-trust.…`)와 겹친다. 그래서 설정 키와 wire 확장 메서드는 확장과 외부 의도 그룹 모두 `ext.<id>.`를 쓴다. 대응은 `x.<id>.…`(kind) ↔ `ext.<id>.…`(설정·메서드)다.
+  - [제안] 확장 접두는 `ext.`다. `F.records.spec`의 이벤트 kind는 확장에 `x.`, 플러그인 그룹에 `grp.`를 쓰지만, 설정 키에서 `x.`는 X 층 코어 키(`x.loading-trust.…`)와 겹친다. 그래서 설정 키와 wire 확장 메서드는 확장과 외부 플러그인 그룹 모두 `ext.<id>.`를 쓴다. 대응은 `x.<id>.…`(kind) ↔ `ext.<id>.…`(설정·메서드)다.
   - 이름 부분은 소문자 낙타 표기이고 점으로 더 나눌 수 있다. 예: `l1.models.routing.review`.
 - 키 접두와 `layer` 필드는 일치해야 한다(`l1.` ↔ `"L1"`). 확장 키의 `layer`는 그 확장 매니페스트가 선언한 층이다.
 - `SettingLayer`에 L4를 포함한다. [제안] 테마, 키 바인딩 같은 표시 설정(`_research/settings.md` §2.13 "층 밖 항목")의 소유자가 L4이기 때문이다. 브리프의 "F..L3"보다 범위를 넓혔다.
-- [결정] 비밀 참조 형식은 `secret://<name>`이다(`_research/secrets.md` §6.1, `_research/decisions-log.md` 2026-10-21 2차 "에이전트는 값을 모른 채 참조로 사용").
+- [결정] 시크릿 참조 형식은 `secret://<name>`이다(`_research/secrets.md` §6.1, `_research/decisions-log.md` 2026-10-21 2차 "에이전트는 값을 모른 채 참조로 사용").
 
 #### 3.8.2 SettingDef
 
@@ -1084,7 +1084,7 @@ export const SettingDefWire = Obj({
 | # | 규칙 | 근거 |
 |---|---|---|
 | D1 | `key`가 `SETTING_KEY_PATTERN`에 맞고 접두가 `layer`와 맞는다 | §3.8.1 |
-| D2 | `secret: true`이면 `default`가 없어야 한다 | 비밀 값이 코드·스키마 출력에 남지 않게 한다 |
+| D2 | `secret: true`이면 `default`가 없어야 한다 | 시크릿 값이 코드·스키마 출력에 남지 않게 한다 |
 | D3 | `secret: true`이면 `type`은 `SecretRef`와 같은 문자열 스키마이고 `ui.widget`은 `"secret"`이다 | 값 대신 참조만 저장한다 |
 | D4 | `default`가 있으면 `type`과 `range`를 통과한다 | 기본값이 스스로 무효가 되지 않게 한다 |
 | D5 | `range.min ≤ range.max`. `range.min`·`max`는 `type`이 number·integer일 때만, `range.enum`은 string·number일 때만 쓴다 | |
@@ -1154,7 +1154,7 @@ export const loopSettings: SettingGroup<"l1.loop", { maxSteps: SettingDefInput<T
    - 현재 `UserConfigEntrySchema`에는 값 스키마가 없고 `setting` 필드(형식 `ext.<name>.<key>`)가 설정 키를 가리킨다. JSON 매니페스트만 있는 외부 확장도 값 검사를 받으려면 항목에 `type`(JSON Schema), `default`, `range`, `runtimeChange`, `allowedScopes`가 있어야 한다. [제안] `F.extensions.spec`에 이 필드 추가를 요청하고, `setting` 필드는 위 대응 규칙으로 유도되므로 생략하거나 `ext.<name>.<key>`와 같아야 하는 검사용 값으로 둔다. 키 접두는 `ext.`로 맞췄다(`F.extensions.spec` §3.1 `UserConfigEntry.setting`, §6). 값 스키마 필드 추가 여부는 §10 미결 8로 남긴다.
    - 확장 공통 키 [제안]: `ext.<name>.enabled`, `ext.<name>.isolation`(`F.extensions.spec` §6)은 예약하고 X 로더가 정의한다(소유 문서 `X.loading-trust.spec`). 켜기 키는 플러그인과 L3 그룹(내장 Helm·학습 그룹 포함) 모두 `ext.<name>.enabled` 하나이고, 범위와 적용 시점은 X 정의(`managed`~`session`, `live`)를 따른다 [결정: review.decisions-2 K-04]. userConfig는 이 이름을 쓸 수 없다. drive 임대 상한은 X 층 키 `x.primitives.driveLimits`다(소유 문서 `X.primitives.spec`, `F.extensions.spec` §6). 예전 제안 키 `extensions.<name>.*`, `groups.drive.limits`는 키 문법(§3.8.1)에 맞지 않아 쓰지 않는다.
 2. 확장은 코어 네임스페이스(`f.`~`l4.`)와 다른 확장의 `ext.<id>.`에 키를 더할 수 없다. 어기면 `foreignNamespace`로 그 확장의 설정 전체를 거부한다. 확장 로딩 자체를 막을지는 `X.loading-trust.spec`이 정한다.
-3. L3 기본 그룹(Helm, 학습 그룹)은 내장 패키지이므로 자기 설정에 코어 네임스페이스 `l3.helm.`, `l3.learning.`을 쓴다. 켜기 키만은 예외로 `ext.helm.enabled`, `ext.learning.enabled`를 쓴다(1번의 확장 공통 키). 외부 의도 그룹은 확장이므로 `ext.<id>.`를 쓴다.
+3. L3 기본 그룹(Helm, 학습 그룹)은 내장 패키지이므로 자기 설정에 코어 네임스페이스 `l3.helm.`, `l3.learning.`을 쓴다. 켜기 키만은 예외로 `ext.helm.enabled`, `ext.learning.enabled`를 쓴다(1번의 확장 공통 키). 외부 플러그인 그룹은 확장이므로 `ext.<id>.`를 쓴다.
 4. 확장이 제거되면 그 키는 카탈로그에서 빠진다. 파일에 남은 값은 "모르는 키"로 보존하고 적용하지 않는다(§4.8).
 
 ### 3.9 설정 계층과 유효 값
@@ -1290,7 +1290,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 
 - 설정 파일을 읽을 때 각 값은 `validateSettingValue`로 검사한다. 실패한 값은 그 범위에서 없는 것으로 치고 다음 순위로 넘어간다. 실패는 진단으로 남기고 시작을 막지 않는다.
 - 카탈로그에 없는 키(제거된 확장, 오타)는 파일에서 지우지 않고 보존한다. 화면과 `config list`는 "모르는 키"로 보인다.
-- 비밀 키 값이 `secret://` 참조가 아니면 그 값을 적용하지 않고 `settings.secretValue` 진단을 남긴다. 파일에 평문 비밀이 있었다는 사실만 기록하고 값은 로그에 쓰지 않는다.
+- 시크릿 키 값이 `secret://` 참조가 아니면 그 값을 적용하지 않고 `settings.secretValue` 진단을 남긴다. 파일에 평문 시크릿이 있었다는 사실만 기록하고 값은 로그에 쓰지 않는다.
 
 ### 4.9 생성 규칙: 화면, 파일, 명령
 
@@ -1302,11 +1302,11 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 | 설정 파일 JSON Schema | `L4.host-service.spec`(생성 명령) | `settingsJsonSchema` 출력 규약(§4.10) |
 | 명령 | `L4.cli.spec`(`fresnel config get/set/reset/list`), wire `settings.*` | `checkSettingWrite`, `validateSettingValue`, `EffectiveSetting` |
 
-- 탭 [제안]: `SettingsTab`의 13개 값(M3-REQ-15가 `sandbox`를 더했다). `_research/settings.md` §4의 13개 탭 초안에서 "에이전트"를 "모델"에 합치고(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안의 모델 탭이 서브에이전트를 포함한다), "비밀"(같은 구성안)과 "외관"(층 밖 항목)을 따로 둔 결과다. 최종 배치는 `L4.settings-ui.spec`이 정하고 enum 변경은 F 버전 정책(부 버전)을 따른다.
+- 탭 [제안]: `SettingsTab`의 13개 값(M3-REQ-15가 `sandbox`를 더했다). `_research/settings.md` §4의 13개 탭 초안에서 "에이전트"를 "모델"에 합치고(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안의 모델 탭이 서브에이전트를 포함한다), "시크릿"(같은 구성안)과 "외관"(층 밖 항목)을 따로 둔 결과다. 최종 배치는 `L4.settings-ui.spec`이 정하고 enum 변경은 F 버전 정책(부 버전)을 따른다.
 - 화면 공통 규칙(`_research/settings.md` §4)에서 F 데이터로 보장하는 것: 범위 배지(`EffectiveSetting.source.scope`), 세션 중 변경 가능 여부(`runtimeChange`, `allowedScopes`에 `session` 포함 여부), 관리 잠금(`locked`), 저장 파일 경로(`source.path`).
-- 비밀 값 비표시 규칙 [제안]
-  1. 설정에는 비밀 값이 없다. 비밀 키의 값은 `secret://<name>` 참조 문자열뿐이다.
-  2. `settings.get`, `EffectiveSetting`, JSON Schema 출력, 로그, 이벤트 어디에도 해석한 비밀 값을 싣지 않는다. 참조 문자열만 싣는다.
+- 시크릿 값 비표시 규칙 [제안]
+  1. 설정에는 시크릿 값이 없다. 시크릿 키의 값은 `secret://<name>` 참조 문자열뿐이다.
+  2. `settings.get`, `EffectiveSetting`, JSON Schema 출력, 로그, 이벤트 어디에도 해석한 시크릿 값을 싣지 않는다. 참조 문자열만 싣는다.
   3. 화면은 참조 이름과 상태(등록됨, 없음)만 보인다. 값 등록·열람은 `L0.secrets.spec`의 흐름으로 하고 설정 화면은 그 화면으로 이동만 한다.
   4. `settings.set`에 참조가 아닌 문자열이 오면 `settings.secretValue`(3105)로 거부하고, 오류 `details`에도 그 값을 넣지 않는다.
 
@@ -1329,7 +1329,7 @@ export declare function settingsJsonSchema(catalog: SettingCatalog, options: Set
 3. `properties[key]`는 `def.type`의 JSON Schema에 `range`를 합친 것이다(`minimum`, `maximum`, `enum`). 변환은 `F.capabilities.spec`의 `toJsonSchema(schema)`(TypeBox → JSON Schema 2020-12, `~` 접두 키 제거)를 쓴다.
 4. 그 범위가 `allowedScopes`에 없는 키는 `properties`에 넣지 않는다. 그래서 편집기 자동 완성과 검사가 범위 제한을 그대로 보인다.
 5. `additionalProperties: true`다. 모르는 키를 보존하기 위해서다(§4.8). 편집기 경고는 `x-fresnel-unknownKeys: "warn"`로 표시한다.
-6. `default`는 `def.default`가 있을 때만 싣는다. 비밀 키는 `default`가 없고 `pattern`이 `SecretRef`와 같다.
+6. `default`는 `def.default`가 있을 때만 싣는다. 시크릿 키는 `default`가 없고 `pattern`이 `SecretRef`와 같다.
 7. `deprecated`가 있으면 JSON Schema `deprecated: true`와 `description`에 대체 키를 적는다.
 8. 확장 정보는 `x-fresnel` 객체에 싣는다: `{ layer, runtimeChange, allowedScopes, secret, since, ui }`.
 9. 같은 카탈로그와 같은 옵션이면 출력은 바이트 단위로 같다(키 정렬). CI가 커밋본과 diff할 수 있게 하기 위해서다.
@@ -1365,13 +1365,13 @@ export declare function settingsJsonSchema(catalog: SettingCatalog, options: Set
 - wire 한도(`maxReplayEvents`, 연결당 구독 수, 프레임 크기)를 사용자에게 열지는 `L4.host-service.spec`이 정하고, 연다면 키도 그 문서가 소유한다(`l4.host-service.*`).
 - 이 문서가 정하는 것은 다른 층이 설정을 노출하는 형식(§3.8~§4.11)이다. 각 층 spec의 "설정 노출" 절은 `defineSettings` 선언과 같은 열(키, 타입, 기본값, range, runtimeChange, allowedScopes, ui.tab, secret)로 표를 쓴다.
 
-## 7. 확장 지점
+## 7. 훅
 
 - 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다.
 - 확장과의 관계는 둘이다.
   - 확장 설정: `ExtensionManifest.userConfig` → `settingsFromManifest` → 카탈로그(§3.8.3).
   - 확장 메서드와 오류: 확장 wire 메서드는 M2 이후(§4.2), 확장 오류 코드는 10000~19999와 `ext.<id>.` kind(§3.5.3).
-- [제안] 설정 변경 통지를 확장 지점(post)으로 둘지는 `X.primitives.spec`과 `L1.persistence.spec`이 정한다. F는 변경 이벤트의 payload로 `EffectiveSetting`을 쓸 수 있게 해 둔다.
+- [제안] 설정 변경 통지를 훅(post)으로 둘지는 `X.primitives.spec`과 `L1.persistence.spec`이 정한다. F는 변경 이벤트의 payload로 `EffectiveSetting`을 쓸 수 있게 해 둔다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1416,7 +1416,7 @@ wire:
 - A16. `createHostConnection`과 `createStdioTransport`는 `@fresnel/contracts/wire`의 같은 구현을 CLI, 호스트, 데스크톱이 쓴다. 이 구현의 소스는 Bun·Node 모듈을 import하지 않는다. `HostConnection.notify`는 `$/connectionReset`을 id 없는 알림으로 보낸다.
 - A17. `approval.respond`의 `answer`는 `QuestionAnswer`, `{ mode?, note? }`, `{ feedback }`, `ReviewAnswer` 가운데 하나여야 한다. 질문 id 아래 문자열 하나만 둔 값이나 `AskAnswer` 배열 모양은 `-32602`다.
 - A18. `web.providers`의 결과는 값으로 왕복한다. `capability`가 `web.search`, `web.fetch`, `web.browse`가 아니거나 `status.kind`가 `ok`, `unavailable`이 아니거나 필드가 빠지면 거부된다. 결과와 항목의 속성 이름에는 키나 토큰을 담을 이름이 없고, 알 수 없는 필드는 거부된다(M3-REQ-96).
-- A19. `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`의 params는 능력 입력에 `_meta`를 더한 모양이고 알 수 없는 필드를 거부한다. 트리거 다섯 모양은 정해진 필드만 받고 `atMs: 0`은 거부된다. 결과의 `ok: false`는 `ScheduleError`의 여덟 `kind`를 모두 왕복한다. 네 메서드는 단계 M3다(M3b B1-SCH2).
+- A19. `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`의 params는 기능 입력에 `_meta`를 더한 모양이고 알 수 없는 필드를 거부한다. 트리거 다섯 모양은 정해진 필드만 받고 `atMs: 0`은 거부된다. 결과의 `ok: false`는 `ScheduleError`의 여덟 `kind`를 모두 왕복한다. 네 메서드는 단계 M3다(M3b B1-SCH2).
 
 settings:
 
@@ -1427,7 +1427,7 @@ settings:
 - S5. managed가 없을 때 같은 키를 user, project, local, launch이 모두 정하면 유효 값은 session 값이고 `shadowed`는 local, project, user 순이다.
 - S6. 같은 `SettingDef`에 대해, 임의 값 v의 `validateSettingValue(def, v).ok`와 `settingsJsonSchema`가 낸 `properties[key]`로 v를 검사한 결과가 같다(속성 기반 테스트 포함). CLI 파서도 같은 결과를 낸다.
 - S7. `settingsJsonSchema({scope: "project"})`에는 `allowedScopes`에 `project`가 없는 키가 없다.
-- S8. 비밀 키의 `EffectiveSetting.value`는 `secret://` 문자열이거나 `null`이다. 참조가 아닌 값 쓰기는 `settings.secretValue`이고 오류 `details`에 그 값이 없다.
+- S8. 시크릿 키의 `EffectiveSetting.value`는 `secret://` 문자열이거나 `null`이다. 참조가 아닌 값 쓰기는 `settings.secretValue`이고 오류 `details`에 그 값이 없다.
 - S9. 두 그룹이 같은 키를 정의하면 `buildCatalog`가 `duplicateKey`를 돌려준다. 확장 매니페스트가 `l1.` 키를 정의하면 `foreignNamespace`다.
 - S10. `settingsJsonSchema`는 같은 입력에 바이트 단위로 같은 출력을 낸다.
 
@@ -1444,4 +1444,4 @@ settings:
 9. [결정: m2-plan F.6] `ThreadSummary`의 필드는 §3.3.1 아래 코드로 정했다. 이어서 실행 후보는 전용 메서드 없이 `resumable` 필드로 알린다.
 10. [결정: m2c G1-08] U-04가 미룬 호스트 계약 요청은 §3.3.4 판정표로 하나씩 받거나 보류하거나 반려했다. 보류 항목은 M3 계획이 받는다. 이전에 받은 항목은 그대로다: 이어서 실행 후보는 `ThreadSummary.resumable`(미결 9), thread 오류 kind 3004~3006(§3.5.2), `secret.beginReveal`(§3.3.1 표).
 11. [결정: m2 F.2] L4.desktop 상태 설계 §14의 1번(스냅샷), 2번과 13번(대기 승인 목록)을 `thread.read`, `approval.list`로 받았다(§3.3.1, §3.4.6). 12번(로딩 신호)은 새 신호 없이 클라이언트가 요청 수명주기로 얻는다(§3.4.6 6항).
-12. [미결: M3b B1-SCH2] `schedule.create`의 `warnings` 값이다. 능력 입력과 wire는 `service_mode_off`만 받도록 정했다. `L2.schedule.spec` §4.4.6은 `keepWithWarning`의 경고를 `runs_only_while_app_open`이라 적는다. 두 이름을 하나로 맞출지(경고 값을 늘릴지, L2 문서를 고칠지) 사용자가 정한다.
+12. [미결: M3b B1-SCH2] `schedule.create`의 `warnings` 값이다. 기능 입력과 wire는 `service_mode_off`만 받도록 정했다. `L2.schedule.spec` §4.4.6은 `keepWithWarning`의 경고를 `runs_only_while_app_open`이라 적는다. 두 이름을 하나로 맞출지(경고 값을 늘릴지, L2 문서를 고칠지) 사용자가 정한다.

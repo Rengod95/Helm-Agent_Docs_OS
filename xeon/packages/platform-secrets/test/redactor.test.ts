@@ -77,7 +77,7 @@ describe("Redactor patterns", () => {
     fakeValue(rand, n)
       .toUpperCase()
       .replaceAll(/[^A-Z0-9]/g, "A");
-  // 저장소의 비밀 스캐너가 소스 리터럴로 오인하지 않게 토큰은 조각을 이어 만든다
+  // 저장소의 시크릿 스캐너가 소스 리터럴로 오인하지 않게 토큰은 조각을 이어 만든다
   const tokens: readonly [string, string][] = [
     ["anthropic_key", ["sk", "-ant-", alnum(30)].join("")],
     ["openai_key", ["sk", "-proj-", alnum(30)].join("")],

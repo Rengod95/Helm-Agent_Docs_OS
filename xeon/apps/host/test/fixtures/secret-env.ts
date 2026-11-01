@@ -31,8 +31,8 @@ import {
   type EventCollector,
 } from "./wire-client.ts";
 
-// U-19 종단 시험의 조립: 모델 테이프가 `secretEnv`를 쓰는 bash 호출을 내고, 호스트가 비밀 사용 승인을 올린다.
-// 비밀 서비스는 `AssembleOptions.secretsRuntime`으로 바꾼 메모리 대역(`memorySecrets`)이다: sops와 age 키는 쓰지 않고
+// U-19 종단 시험의 조립: 모델 테이프가 `secretEnv`를 쓰는 bash 호출을 내고, 호스트가 시크릿 사용 승인을 올린다.
+// 시크릿 서비스는 `AssembleOptions.secretsRuntime`으로 바꾼 메모리 대역(`memorySecrets`)이다: sops와 age 키는 쓰지 않고
 // 정책 판정, lease, 감사 기록은 운영 구현 그대로다. 명령은 실제로 실행된다(샌드박스는 끈다).
 
 const parsedRef = parseSecretRef("secret://github-token");
@@ -135,7 +135,7 @@ export interface SecretEnvScenario {
   readonly collector: EventCollector;
   readonly threadId: ThreadId;
   readonly turnId: TurnId;
-  /** 첫 `approval.requested`. 정책 승인이거나(`allowBashByRule` false) 비밀 사용 승인이다 */
+  /** 첫 `approval.requested`. 정책 승인이거나(`allowBashByRule` false) 시크릿 사용 승인이다 */
   readonly asked: EventWire;
   readonly secrets: MemorySecrets;
   /** 승인을 허용하고 turn이 끝날 때까지 기다린다 */
@@ -146,7 +146,7 @@ export interface SecretEnvScenario {
 }
 
 export interface SecretEnvOptions {
-  /** true면 사용자 규칙이 bash를 허용해, 비밀 사용을 묻는 승인(규칙 `secret.use`)이 따로 올라온다 */
+  /** true면 사용자 규칙이 bash를 허용해, 시크릿 사용을 묻는 승인(규칙 `secret.use`)이 따로 올라온다 */
   readonly allowBashByRule?: boolean;
 }
 

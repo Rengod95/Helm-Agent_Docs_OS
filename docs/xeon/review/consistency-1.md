@@ -103,13 +103,13 @@ binds: []
 | T-13 | medium | `L1/persistence/spec.md` | drive 턴 멱등 조회(`turnByRequestId`)와 `p_turns.scope_id`가 없다 | 부분. L1.persistence에 조회·열·색인을 두고 L1.loop가 T1 `build` 안에서 조회한다. 잔여: `F/conversation/spec.md` 413행 `TurnStartedPayload`에 `scopeId` 없음(FR-L8·FR-P10) |
 | T-14 | medium | `L1/persistence/spec.md` | 컴팩션 커밋 지점이 C5 포함(eng·L1)과 직접 커밋(L1.context)으로 다르다 | 해결. 별도 지점 C7과 키 `compact:<threadId>:<stepId>:<reason>`로 정하고 eng 쪽 행을 지웠다 |
 | T-15 | medium | `L1/agents/spec.md` | 백그라운드 위임의 `agent.settled`와 보고 입력이 다른 커밋이라 보고가 유실될 수 있다 | 해결. 한 커밋으로 묶었다 |
-| T-16 | medium | `L1/agents/spec.md` | 자식 대화의 쓰기 소유 획득·전파 규칙이 없다 | 해결. 부모 소유자의 `session:<childThreadId>` 임대, `inheritOwnerFrom`, 재개 시 재획득을 적었다. 조립 배선은 [가정](L4) |
+| T-16 | medium | `L1/agents/spec.md` | 자식 대화의 쓰기 소유 획득·전파 규칙이 없다 | 해결. 부모 소유자의 `thread:<childThreadId>` 임대, `inheritOwnerFrom`, 재개 시 재획득을 적었다. 조립 배선은 [가정](L4) |
 | T-17 | medium | `L1/persistence/spec.md` | 세션 생성 멱등이 없어 예약 실행이 세션을 중복 생성할 수 있다 | 부분. `creationKey`와 `thread_creation_keys`를 두었다. 잔여: `L2/schedule/spec.md` 1338행이 requestId 전역 멱등 [가정]을 유지 |
 | T-18 | high | `L0/store/spec.md` | 확장 테이블 접두 규칙이 X(하이픈 허용)와 다르고 접두 일치 삭제가 다른 확장 테이블을 지울 수 있다 | 부분. L0.store가 `ExtensionName`을 받고 `drop(name, tables)`와 `table_not_owned`로 바꿨다. 권고(접두 충돌 거부)와 다르게 지역 이름 밑줄 금지 규칙으로 소유를 판정한다(X.operations AC 18과 맞춤). 잔여: `engineering/context-map/design.md` 315·378행 `EXT_ID_PATTERN`, DT-08, eng.events §4.5 같은 정규식, `X/operations/spec.md` §4.4.7에 목록 전달 서술 없음 |
 | T-19 | medium | `X/primitives/spec.md` | on 핸들러 재실행 때 상태 커밋 재생 결과와 캐시가 어긋날 수 있고 거부 코드 변환이 없다 | 부분. X에 신원 지문, `replayed.stored`, 거부 코드 확장을 두었다. 권고와 다르게 지문에서 `rev`를 뺐고 근거를 §4.6.1에 적었다. 잔여: `L1/persistence/spec.md` §3.3 변환표(`key_reused`, `busy`, `disk_full`, `read_only`), `F/extensions/spec.md` §4.3 재실행 규칙 문장 |
 | T-20 | medium | `X/primitives/spec.md` | 분기·되감기 뒤 상태 복원이 가지를 구분하지 않고 상태 투영 열이 X와 group-sdk에서 다르다 | 부분. X에 활성 가지 규칙과 `prev_event_id` 열을 두었다. 잔여: `L1/persistence/spec.md`에 `latestEvent` 가지 옵션 없음, `L3/group-sdk/spec.md` 471~478행 `StateProjectionRow`(`session_id`, `doc_json`) 그대로 |
 | T-21 | medium | `L3/learning/spec.md` | 학습 그룹 비공개 이벤트(`_ext.learning.*`)를 쓸 X API가 없고 `_ext.`와 `grp.` 표기가 섞인다 | 부분. L3.learning을 `grp.learning.*` 9종으로 바꾸고 X 요청을 적었다. 잔여: `X/primitives/spec.md`에 `ScopeApi.recordPrivate` 없음(L3.learning 비공개 기록·AC 15·16은 [미결]), `L3/group-sdk/spec.md` 188·448·454행과 `L3/helm/spec.md` 295·424행의 `_ext.<그룹>.*` |
-| T-22 | medium | `engineering/transactions/design.md` | 격리 확장 outbox 행이 읽기 경로 없이 정의되고 X의 상태 저장 위치와 다르다 | 부분. eng.transactions §7을 호스트 대리인 전달과 `XEON_EXT_DATA` 커서로 고쳤다. 잔여: `X/operations/spec.md` 1164행 "자기 DB 파일, outbox로 반영" |
+| T-22 | medium | `engineering/transactions/design.md` | 격리 확장 outbox 행이 읽기 경로 없이 정의되고 X의 상태 저장 위치와 다르다 | 부분. eng.transactions §7을 호스트 대리인 전달과 `FRESNEL_EXT_DATA` 커서로 고쳤다. 잔여: `X/operations/spec.md` 1164행 "자기 DB 파일, outbox로 반영" |
 | T-23 | medium | `F/records/spec.md` | `AppendBatch.durability`와 트랜잭션 없는 `runChunk`가 L0·L1 규칙과 다르다 | 해결 |
 | T-24 | low | `engineering/context-map/design.md` | CM-02 예제가 알림 안 동기 쓰기와 커서 누락을 보인다 | 해결. `queueMicrotask`와 커서 갱신 예로 바꿨다 |
 

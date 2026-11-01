@@ -24,7 +24,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xe
 - ADR-0007은 연산 4개(`on`, `post`, `drive`, `scope`)와 fold 3종(`tap`, `first`, `chain`)을 [결정]으로, 지점 종류 5개, 지점 이름(pi 이벤트명 snake_case), 지점별 fold 배정을 [제안]으로 두었다. 미결은 넷이었다: fold 3종으로 충분한지, `first` 실패를 모든 지점에서 거부로 볼지, 지점 목록 합의, 그룹 간 이벤트 격리(ADR-0007 §6).
 - pi 이벤트 41종의 fold 분포는 tap 22, 제자리 변경 tap 1, first 7, chain 9, collect 2다(`F.extensions.spec` §3.4, `_research/notes/F-1.md` §2.6). F는 collect 2종과 boundary 엔트리 추가를 chain 교체와 `finalize` 표지로 표현했다(`F.extensions.spec` §4.1).
 - pi는 `session_before_*`와 `project_trust`에서 핸들러 예외를 모으고 계속한다(fail-open). F 표는 `first` 전부를 fail-closed로 두었다.
-- L3 Helm·학습 설계는 지점 밖 Xeon 고유 이벤트(위임 정착 `agent.settled`, 임대 거부 `lease.rejected`)를 구독해야 한다(`L3.learning.spec` §8.1 REQ-LN-02, `review.m3-lower-requirements` M3-REQ-99).
+- L3 Helm·학습 설계는 지점 밖 Fresnel 고유 이벤트(위임 정착 `agent.settled`, 임대 거부 `lease.rejected`)를 구독해야 한다(`L3.learning.spec` §8.1 REQ-LN-02, `review.m3-lower-requirements` M3-REQ-99).
 - pi 확장 어댑터(X.5)는 M2 이후 범위로 설계만 있었다(`X.loading-trust.spec` §4.10). pi 이름을 정본으로 둔 이유는 pi 확장을 거의 수정 없이 올리기 위해서였다(ADR-0007 §4.1). 이 목표를 두지 않으면 pi 이름에 묶일 이유가 없다.
 - 2026-10-26 조사: pi, Claude Code, Codex CLI는 내장 콘텐츠 가드레일이 없다. 셋 다 훅·확장 이벤트와 권한·샌드박스로 막는다. OpenAI Agents SDK는 입력·출력·도구 가드레일 프레임워크를 둔다(`L3.slots.spec` §3.2.4).
 
@@ -43,10 +43,10 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xe
 
 ### 3.2 이름 규칙
 
-1. [결정] 지점 이름은 pi 이벤트명(snake_case)을 정본으로 두지 않는다. Xeon 자체 규칙으로 정리한다.
+1. [결정] 지점 이름은 pi 이벤트명(snake_case)을 정본으로 두지 않는다. Fresnel 자체 규칙으로 정리한다.
 2. [결정] 새 이름 표는 M3 F 첫 작업이 `F.extensions.spec` §3.4에 정한다. 코드 `POINTS`와 L1·X·L3 문서의 지점 이름은 같은 작업에서 바꾼다.
 3. [제안] 규칙 초안: 소문자 점 표기 `<종류>.<대상>[.<시점>]`이다. 시점 단어는 `before`, `after`다. 예: `tool_call` → `tool.call.before`, `tool_result` → `tool.result`, `before_agent_start` → `input.agent.before`, `turn_end` → `boundary.step.after`. 점 표기는 레코드 kind(`grp.<id>.<영역>.<이름>`)와 같은 모양이라 읽기 규칙이 하나다. 별칭은 두지 않는다.
-4. [제안] Xeon 용어(turn, step)와 pi 용어(agent, turn)가 다른 곳은 Xeon 용어를 쓴다(`F.extensions.spec` §3.4 "pi와 차이" 열의 대응을 따른다).
+4. [제안] Fresnel 용어(turn, step)와 pi 용어(agent, turn)가 다른 곳은 Fresnel 용어를 쓴다(`F.extensions.spec` §3.4 "pi와 차이" 열의 대응을 따른다).
 
 ### 3.3 fold 네 종류
 
@@ -78,14 +78,14 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xe
 
 ### 3.5 수명주기 지점
 
-1. [결정] 루프 밖 Xeon 고유 수명주기 이벤트를 지점으로 연다. 새 종류 `lifecycle`을 둔다.
+1. [결정] 루프 밖 Fresnel 고유 수명주기 이벤트를 지점으로 연다. 새 종류 `lifecycle`을 둔다.
 2. [결정] 첫 목록은 L3 요구에서 나온 것만 연다. 위임 정착(`agent.settled`, `L3.learning.spec` REQ-LN-02)과 임대 거부(`lease.rejected`, M3-REQ-99)다. 다른 수명주기 이벤트는 요구가 생길 때 더한다.
 3. [제안] 수명주기 지점은 `tap`(관찰, fail-open)이다. 페이로드는 커밋된 내구 이벤트의 payload이고, 핸들러는 재실행되는 코드라 ADR-0015 표를 따른다.
 4. 이 결정으로 `review.m3-design-inputs` §3.8 A-22("지점 5종 밖 고유 이벤트는 내구 이벤트 구독으로 다룬다")를 대체한다.
 
 ### 3.6 가드레일 지점
 
-1. [결정] Xeon은 내장 콘텐츠 검사를 두지 않는다. 대신 가드레일 플러그인이 붙을 fail-closed 지점 셋을 제공한다.
+1. [결정] Fresnel은 내장 콘텐츠 검사를 두지 않는다. 대신 가드레일 플러그인이 붙을 fail-closed 지점 셋을 제공한다.
 
 | 지점(개념 이름) | 발화 시점 | fold | 실패 정책 | 결정 |
 |---|---|---|---|---|
@@ -102,13 +102,13 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/ext-host/**, xe
 1. [결정] 외부 확장은 자체 확장 API(`F.extensions.spec` 매니페스트, `ScopeApi`, 등록 연산)만 쓴다. pi 확장 어댑터(X.5), pi 가상 모듈(`pi-coding-agent` shim, `pi-agent-core`), pi 확장 디렉터리(`pi-extensions/`)와 설정 `x.loading-trust.piCompat`을 두지 않는다.
 2. [결정] M3 외부 확장 범위는 로더(자체 API 확장, `.fresnel-plugin/plugin.json`)와 안전 모드다(D-M3-11 행 1 c).
 3. [가정] 비협조 확장 코드는 같은 프로세스의 한계를 받아들이고 자동 끄기로 보완한다. 그룹별 프로세스 격리는 M4에서 다시 본다(D-M3-11 행 5는 답이 없어 권고를 적었다).
-4. [제안] 기본 플러그인(Helm, D-M3-01 c)과 외부 확장이 import하는 Xeon 모듈(`@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`)은 X 로더가 가상 모듈로 등록한다(`X.loading-trust.spec` §4.10.6의 등록 수단을 자체 모듈에만 쓴다).
+4. [제안] 기본 플러그인(Helm, D-M3-01 c)과 외부 확장이 import하는 Fresnel 모듈(`@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`)은 X 로더가 가상 모듈로 등록한다(`X.loading-trust.spec` §4.10.6의 등록 수단을 자체 모듈에만 쓴다).
 
 ## 4. 결과
 
 ### 4.1 좋은 점
 
-- 지점 이름이 Xeon 용어와 같은 모양이 되어 turn·step 대응을 따로 외울 필요가 없다.
+- 지점 이름이 Fresnel 용어와 같은 모양이 되어 turn·step 대응을 따로 외울 필요가 없다.
 - 누적 지점(`collect`)이 chain 교체로 흉내 내지 않고 바로 표현된다.
 - 실패 정책이 지점 선언 한 곳에 있어 pi와의 차이(`session_before_compact`)를 예외로 기록할 수 있다.
 - 학습·Helm이 쓰는 수명주기 이벤트를 같은 `on` 연산으로 받는다. 별도 구독 API가 필요 없다.

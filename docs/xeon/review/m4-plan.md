@@ -81,7 +81,7 @@ M3가 X1~X11을 썼으므로 M4는 Y를 씁니다. T-LED가 `product.scope.spec`
 - wire 레지스트리: W-15, W-20~W-26, W-31~W-35, W-37~W-50과 대화 영역 W-01·W-02·W-05~W-07·W-16 스키마. `ThreadSummary.trial`(X-14), `Profile`과 `profile.*`(X-18), `trial.*`, `trace.turn` 결과 타입.
 - 서비스 계약 `fresnel.devkit`(X-22).
 - 커밋 순서: 매니페스트(`views`, `composition`) → drive(`ask`) → wire 확장 읽기 → 프로필·시험·계측 → devkit. 앞 둘이 X 트랙을 엽니다.
-- 끝 시험: 새 스키마 왕복 값 비교, `points.doc.test.ts`·wire 문서 시험이 spec 표와 일치.
+- 끝 시험: 새 스키마 왕복 값 비교, `hooks.doc.test.ts`·wire 문서 시험이 spec 표와 일치.
 
 **T-FIX 설계 중 찾은 코드 결함** · Sonnet medium · `ext-host`(X) → `group-sdk`(L3) → `apps/host`(L4) · S
 - X-4: `/group on`과 `ext.<이름>.enabled` 토글이 `AutoDisabler.reenable`을 부르게 합니다.

@@ -65,7 +65,7 @@ function describeDeprecation(def: SettingDef): string {
 function propertyOf(def: SettingDef): JsonObject {
   const property: JsonObject = effectiveSchemaJson(def);
   if (def.default !== undefined && def.secret !== true) {
-    // default는 def.default가 있을 때만 싣는다. 비밀 키에는 default가 없다.
+    // default는 def.default가 있을 때만 싣는다. 시크릿 키에는 default가 없다.
     const converted = toJsonValue(def.default);
     if (converted !== undefined) property["default"] = converted;
   }

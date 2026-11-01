@@ -33,7 +33,7 @@ binds: [xeon/packages/platform-os/**]
 |---|---|
 | 작업 공간 파일 감시 | `L0.exec.spec`(`ExecutionEnv.watch`) |
 | 설정 파일 위치 결정과 읽기 | L4. 이 패키지는 `OsDirs.config` 경로만 준다 |
-| 비밀 마스킹 규칙 | `L0.secrets.spec`. 이 패키지의 로거는 마스킹 함수를 주입받는다 |
+| 시크릿 마스킹 규칙 | `L0.secrets.spec`. 이 패키지의 로거는 마스킹 함수를 주입받는다 |
 | 로그 출력 위치 선택(stderr, 파일, 데스크톱 UI) | L4 진입점(`eng.best-practices.guide` BP-12) |
 | sops·age 실행, srt 실행 | `L0.secrets.spec`, `L0.sandbox.spec`. 이 패키지는 바이너리 경로만 해석한다 |
 | 서비스 소켓·등록 파일 형식 | `L0.process.spec`. 이 패키지는 `OsDirs.runtime` 디렉터리만 준다 |
@@ -229,7 +229,7 @@ export function classifyFs(info: OsInfo, probe: FsProbe): FsKind;
 
 - 쓰임: `L0.store.spec`이 DB 파일 위치의 WAL 가능 여부를 판단할 때 묻는다. `network`, `drvfs`, `unknown`의 처리(거부, 경고, 저널 모드 변경)는 store가 정한다.
 - `FsKind` 값 집합(`local`, `network`, `drvfs`, `unknown`)은 F 정본이고 `L0.store.spec`도 같은 타입을 쓴다. store는 동기 열기 경로에서 쓰므로 조립 루트가 DB 디렉터리에 대해 이 메서드를 미리 불러 결과 값을 `StoreEnvironment.dbDirFsKind`로 넘긴다(`L0.store.spec` §3.2). 오류(`FsKindError`)이면 조립 루트가 `unknown`으로 넘긴다 [제안].
-- [가정] Bun의 `node:fs` `statfs`가 Linux에서 `type`(f_type)을 돌려준다. macOS의 `f_fstypename`은 `statfs` 결과에 없으므로 `mount` 명령 출력에서 마운트 지점 표를 읽어 가장 긴 접두사로 고른다 [제안]. 이 표는 서비스 수명 동안 한 번 읽고 캐시한다. Windows 수단은 2차에 정한다.
+- [가정] Bun의 `node:fs` `statfs`가 Linux에서 `type`(f_type)을 돌려준다. macOS의 `f_fstypename`은 `statfs` 결과에 없으므로 `mount` 명령 출력에서 마운트 훅 표를 읽어 가장 긴 접두사로 고른다 [제안]. 이 표는 서비스 수명 동안 한 번 읽고 캐시한다. Windows 수단은 2차에 정한다.
 - 경로가 아직 없으면 가장 가까운 상위 디렉터리로 판정한다. 루트까지 없으면 `not_found`다.
 
 ### 3.4 시계, 타이머, 난수
@@ -412,8 +412,8 @@ export type BinaryError =
 | 이름 | macOS | Linux·WSL | Windows | 쓰는 곳 | 없을 때 |
 |---|---|---|---|---|---|
 | `rg` | 필수(번들 우선) | 필수(번들 우선) | 필수 | sandbox(srt), 작업 공간 파일 검색 | 파일 검색과 샌드박스 시작이 동작하지 않는다 |
-| `sops` | 필수 | 필수 | 필수 | secrets 기본 provider (3.10.0 이상) | 비밀을 읽고 쓸 수 없다 |
-| `age` | 필수 | 필수 | 필수 | secrets 키 생성 | 새 비밀 키를 만들 수 없다 |
+| `sops` | 필수 | 필수 | 필수 | secrets 기본 provider (3.10.0 이상) | 시크릿을 읽고 쓸 수 없다 |
+| `age` | 필수 | 필수 | 필수 | secrets 키 생성 | 새 시크릿 키를 만들 수 없다 |
 | `git` | 선택 | 선택 | 선택 | 작업 공간 git 기능 | git 상태 표시와 작업 트리 기능만 빠진다 |
 | `bwrap` | 쓰지 않음(Seatbelt) | 필수(0.4.0 이상) | 쓰지 않음 | sandbox | 샌드박스를 쓸 수 없다. 설정 `onUnavailable`에 따라 bash가 거부되거나 격리 없이 돈다 |
 | `socat` | 쓰지 않음 | 필수 | 쓰지 않음 | sandbox 네트워크 중계 | 위와 같다 |
@@ -467,7 +467,7 @@ export function buildNotifyCommand(info: OsInfo, n: OsNotification): readonly st
 
 - 선택: L4가 환경 provider를 넘기면 그것을 쓴다. 넘기지 않으면 `select.ts`가 OS provider를 고른다. 선택 기준은 배포 환경이 먼저이고 OS가 다음이다.
 - 켜기·끄기: 이 패키지는 알림 켜기·종류 설정을 두지 않는다. 알림을 보낼지는 호출자(`cap-dialog`)가 `l2.dialog.notify.os`와 종류별 키(`l2.dialog.notify.<kind>`)로 정하고, 이 패키지는 받은 알림을 그대로 내보낸다 [결정: review.decisions-2 S-04]. `notify`가 `disabled`를 돌려주는 경우는 M3 이전 빌드와 조립 루트가 provider `none`을 고른 경우뿐이다.
-- 비밀: 알림 본문과 제목은 OS 알림 센터에 남는다. 호출자는 마스킹한 문자열만 넘기고, `platform-os`도 보내기 전에 로거와 같은 `redact`를 한 번 더 적용한다 [제안]. 도구 인자, 프롬프트 본문 원문은 넣지 않는다.
+- 시크릿: 알림 본문과 제목은 OS 알림 센터에 남는다. 호출자는 마스킹한 문자열만 넘기고, `platform-os`도 보내기 전에 로거와 같은 `redact`를 한 번 더 적용한다 [제안]. 도구 인자, 프롬프트 본문 원문은 넣지 않는다.
 - WSL [결정: M3-REQ-50]: linux provider가 그대로 쓰이며 `notify-send`가 없으면 `unavailable`이다. Windows 토스트 상호운용(`powershell.exe` 호출)은 쓰지 않는다. `win32` provider는 M3 범위 밖이라 `createOsNotifierProvider`가 undefined를 돌려주고 `notify`는 `disabled`다.
 - 구현 값: `createOsNotifierProvider({ info, run, logger, binaryFs, pathEnv, linuxCommand? })`가 provider를, `createNotify({ provider, clock, redact })`가 `OsService.notify`를 만든다. `available()`은 darwin에서 PATH에 `osascript` 실행 파일이 있는지만 보고 판단한다(§3.6의 PATH 탐색과 같은 `lookupOnPath`를 쓰고 `osascript`를 실행하지 않는다). 없으면 `false`다 [제안]. linux argv는 `notify-send --app-name=<표시 이름> -- <title> <body>`이고 `--`는 `-`로 시작하는 문자열이 옵션으로 읽히지 않게 한다. 제목 80자, 본문 400자로 자르고 마스킹은 자르기 전에 적용한다. 같은 `kind`·`threadId` 알림은 1초 안에 하나만 보내고 둘째부터는 `ok`로 건너뛴다(보내기에 실패하면 기록하지 않아 재시도할 수 있다). `PlatformOsConfig.notifier`는 provider를 주입하고(`desktop-tauri` 등), `null`이면 provider none이다. 클라이언트 창이 앞에 있어도 기본으로 보내고 끄는 설정은 호출자(`cap-dialog`)가 갖는다.
 - 같은 `threadId`·`kind` 알림이 1초 안에 반복되면 하나만 보낸다(`Scheduler` 기반 디바운스) [제안].
@@ -545,7 +545,7 @@ export interface OsTelemetry {
 - 기본 꺼짐(`l0.os.telemetry.enabled = false`). 켜면 `@opentelemetry/sdk-trace-node` 2.12.0의 트레이서 provider를 만들고 `pi-telemetry` 1.3.0 어댑터로 pi-ai의 `pi.ai.request` 스팬을 함께 받는다(`_research/packages.md` §4.2 L0-f).
 - 내보내기 대상(`l0.os.telemetry.exporter`): `file`은 `state/telemetry/spans-<날짜>.jsonl`에 OTLP JSON 한 줄씩, `otlp-http`는 `l0.os.telemetry.endpoint`로 보낸다.
 - 스팬 이름 규칙 [제안]: `fresnel.<층 소문자>.<도메인>.<동작>`. 예: `fresnel.l1.loop.step`, `fresnel.l1.tools.call`, `fresnel.l0.store.commit`. pi-ai 스팬은 원래 이름을 유지한다.
-- 속성 규칙 [제안]: 속성에는 id(`threadId`, `turnId`, `stepId`), 도구 이름, 모델 id, 토큰 수, 지연 시간만 싣는다. 비밀 값, 비밀 참조 해석 결과, 프롬프트·응답 본문, 도구 인자·출력 원문은 싣지 않는다. 내보내기 직전에 문자열 속성 값에 `redact`를 적용한다.
+- 속성 규칙 [제안]: 속성에는 id(`threadId`, `turnId`, `stepId`), 도구 이름, 모델 id, 토큰 수, 지연 시간만 싣는다. 시크릿 값, 시크릿 참조 해석 결과, 프롬프트·응답 본문, 도구 인자·출력 원문은 싣지 않는다. 내보내기 직전에 문자열 속성 값에 `redact`를 적용한다.
 - SDK는 켜질 때만 동적 import로 지연 로드한다. 꺼져 있을 때 SDK 모듈을 로드하지 않는다.
 - [가정] `@opentelemetry/sdk-trace-node`가 Bun에서 동작한다. `AsyncLocalStorage` 기반 컨텍스트 전파가 Bun에서 Node와 같게 동작하는지는 실측이 필요하다.
 - wire `_meta.traceparent` 전파(`F.wire-settings.spec` §3.6)는 L4 host가 이 `Tracer`로 한다. L0이 맡는 부분은 설정 키 `l0.os.telemetry.*`(§6)와 꺼짐 기본 `OsTelemetry`뿐이고, 직렬화 함수는 F, 전파는 L4다. SDK 연결(`OS-15`)은 새 의존 승인 뒤다 [미결 10].
@@ -737,7 +737,7 @@ export interface WorktreeOps {
 - `dirs.override`: 사용자 설정 파일은 `config` 디렉터리 안에 있으므로 사용자 범위에서 이 값을 읽을 수 없다(순환). 그래서 관리 범위만 허용한다 [제안]. 관리 설정 파일 위치는 L4가 정한다.
 - 이 표의 키 이름은 F 키 문법(`^l0\.os(\.[a-z][A-Za-z0-9]*)+$`)을 지킨다.
 
-## 7. 확장 지점
+## 7. 훅
 
 - 이 패키지는 on 지점을 구독하지 않고, post·drive·scope를 쓰지 않는다(`L0.readme` §1).
 - X에서 쓰는 것은 `PlatformModule`(`setup`), `PlatformContext.providePort`, `onDispose`(4절 6번)다. 등록은 조립 루트가 `ExtHost.registerPlatform`으로 한다(`X.primitives.spec` §3.2). `@fresnel/ext-host` import는 이 등록 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17].

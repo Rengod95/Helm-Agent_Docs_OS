@@ -26,7 +26,7 @@ import { spillUsageBytes, type SpillError } from "./spill-store.ts";
 import { getShellConfig, NodeExecutionEnv, resolvePath } from "./upstream/env/node.ts";
 import { formatSize, truncateHead, truncateHeadOf } from "./upstream/truncate.ts";
 
-// L0.exec.spec §3.8, §3.8.2. 포크 NodeExecutionEnv와 provider, env 빌더, 비밀 주입을 묶는다.
+// L0.exec.spec §3.8, §3.8.2. 포크 NodeExecutionEnv와 provider, env 빌더, 시크릿 주입을 묶는다.
 // Cordis 등록은 ext-host의 서비스 등록 API로 한다(조립 루트). 이 파일은 Cordis를 import하지 않는다(DR-11).
 
 /** 상한 사용량 측정 결과를 재사용하는 기간(L0.exec.spec §3.8.2 [결정: M3-REQ-47]) */
@@ -70,11 +70,11 @@ export interface ExecServiceDeps {
   readonly secrets: SecretEnvSource | undefined;
   /** 부모 env의 읽기 전용 사본. 허용 목록 빌더가 여기서 이름을 골라 옮긴다 */
   readonly parentEnv: Readonly<Record<string, string | undefined>>;
-  /** 값은 싣지 않는다. 비밀은 참조 이름만 로그에 남긴다 */
+  /** 값은 싣지 않는다. 시크릿은 참조 이름만 로그에 남긴다 */
   readonly logger?: Logger;
 }
 
-/** exec와 startBackground가 같은 규칙으로 만드는 실행 준비물: 완성된 자식 env와 비밀 lease 폐기 수단 */
+/** exec와 startBackground가 같은 규칙으로 만드는 실행 준비물: 완성된 자식 env와 시크릿 lease 폐기 수단 */
 interface PreparedRun {
   readonly childEnv: Record<string, string>;
   readonly secretRequest: SecretEnvRequest | undefined;
@@ -129,7 +129,7 @@ export function createExecService(options: ExecServiceOptions, deps: ExecService
     return (await spillCapReached()) ? undefined : requested;
   }
 
-  /** 1. 허용 목록 env, 2. 취소 확인, 3. 비밀 lease. 하나라도 실패하면 얻은 것을 모두 폐기하고 실행하지 않는다 */
+  /** 1. 허용 목록 env, 2. 취소 확인, 3. 시크릿 lease. 하나라도 실패하면 얻은 것을 모두 폐기하고 실행하지 않는다 */
   async function prepareRun(
     command: string | readonly string[],
     execOptions: Pick<ShellExecOptions, "env" | "inheritEnv" | "secretEnv"> | undefined,
@@ -191,7 +191,7 @@ export function createExecService(options: ExecServiceOptions, deps: ExecService
       if (!prepared.ok) return prepared;
       try {
         const { childEnv, secretRequest } = prepared.value;
-        // 비밀이 출력에 섞이면 spill 파일에 원문이 남는다. spill 위치가 정해지기 전에는 끈다(L0.exec.plan R-9).
+        // 시크릿이 출력에 섞이면 spill 파일에 원문이 남는다. spill 위치가 정해지기 전에는 끈다(L0.exec.plan R-9).
         const spill = secretRequest === undefined ? await spillFor(execOptions) : undefined;
         const timeout = execOptions?.timeout ?? defaultTimeout(options);
         // 4. 포크 exec에는 항상 inheritEnv: false와 완성된 env를 넘긴다.

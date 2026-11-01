@@ -29,11 +29,11 @@ M3 착수 조건(선행):
 | 선행 | 내용 | 막는 작업 |
 |---|---|---|
 | M3-02 | `ToolCallPayload`의 `risk`·`hints`·`caller`, `tool.execution.after`의 `input`(REQ-F-04) | H-05(`repeat`), H-08 |
-| M3-new-01 | ADR-0015 구현: F `MethodDef.idempotent`·읽기 표지(REQ-F-01), F 효과 목록 문장(REQ-F-02), X 능력 래퍼 문맥 검사와 `effects` 계수(REQ-X-01), L1 spawn 멱등의 내구 기록(REQ-L1-01), L2 메서드 분류(REQ-L2-01), group-sdk `replayDrive` 효과 계수(G-20) | H-10, H-11, H-19 |
+| M3-new-01 | ADR-0015 구현: F `MethodDef.idempotent`·읽기 표지(REQ-F-01), F 효과 목록 문장(REQ-F-02), X 기능 래퍼 문맥 검사와 `effects` 계수(REQ-X-01), L1 spawn 멱등의 내구 기록(REQ-L1-01), L2 메서드 분류(REQ-L2-01), group-sdk `replayDrive` 효과 계수(G-20) | H-10, H-11, H-19 |
 | 사용자 결정(받음, 2026-10-26) | D-M3-01 c(기본 플러그인), D-M3-05 a(대기, 상한 뒤 거부), D-M3-06 a(유휴 자율 turn 허용), D-M3-07 a(안전 모드 적재 안 함), D-M3-11 c(자체 확장 API만). 동작은 L3.helm.spec §4.13 표 | H-02(`defaultEnabled`, `trust.level`), H-20(대기 거부), H-22(패키징) |
 | M3-15 | X 외부 확장 로더(자체 API), 자체 패키지 가상 모듈 등록, 기본 플러그인 첫 실행 설치 | H-22, H-15 |
 
-학습 그룹과의 관계 [결정: review.decisions-2 D-10]: Helm은 다른 그룹의 레코드를 읽지 않는다. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 능력(`knowledge.search`, `knowledge.skills`, `knowledge.memory`)으로 얻는다. 그래서 학습 그룹이 M3에 들어와도 Helm 코드는 바뀌지 않고, M3에는 공존 확인(H-16)만 둔다.
+학습 그룹과의 관계 [결정: review.decisions-2 D-10]: Helm은 다른 그룹의 레코드를 읽지 않는다. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 기능(`knowledge.search`, `knowledge.skills`, `knowledge.memory`)으로 얻는다. 그래서 학습 그룹이 M3에 들어와도 Helm 코드는 바뀌지 않고, M3에는 공존 확인(H-16)만 둔다.
 
 ## 2. 패키지와 파일 배치
 
@@ -74,7 +74,7 @@ xeon/packages/group-helm/
     fault/
       resume.fault.test.ts   # 프로세스 강제 종료 뒤 재개(§5.2)
     tapes/                # *.tape.jsonl (eng.testing.guide TS-04 fresnel.model-tape.v1)
-    fixtures/             # 가짜 explorer 응답표, 학습 레코드 픽스처, 가짜 능력 provider
+    fixtures/             # 가짜 explorer 응답표, 학습 레코드 픽스처, 가짜 기능 provider
 ```
 
 - import 규칙: 소스는 `@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`만 import한다. `group-sdk`은 DR-02 허용 목록 `DR-02/group-sdk`으로 허용된 유일한 같은 층 대상이다(eng.dependency-rules.guide DR-02, [결정: review.decisions-2 U-15]). `group-learning`, `cap-*`, `core-*`, `ext-host`는 소스에서 import하지 않는다(CM-06, DR-01·DR-02).
@@ -104,7 +104,7 @@ xeon/packages/group-helm/
 | H-19 | 재생 2회, 효과 1회 시험(스펙 §4.11): `replayDrive` 효과 계수로 모든 커밋 지점에서 끊고 drive·on 핸들러를 두 번 실행. `apply` 분기 안 두 지점 추가 | H-14, L3.group-sdk.plan G-20(효과 계수 확장, M3-new-01) | M |
 | H-20 | 실패 값: `failures.ts`(`HelmFailure`, `failureOf`, `reactionOf`, `HelmCommandError`), `updateState`의 `Result` 반환과 `state_conflict` 1회 재시도, 대기 거부 처리(스펙 §4.13 D-M3-05 a: `lease.rejected` 구독 핸들러) | H-03, 내구 이벤트 `lease.rejected`와 구독 수단(없으면 대기 거부 경로만 빼고 진행) | M |
 | H-22 | 기본 플러그인 패키징(D-M3-01): `.fresnel-plugin/plugin.json` 생성(매니페스트 대조 테스트), 엔트리 번들 빌드(`@fresnel/contracts`·`@fresnel/group-sdk`·`typebox`는 외부 import), 릴리즈 자원 배치, 첫 실행 설치와 갱신 규칙(원본 해시 일치 때만 교체), 외부 로더 적재 int 테스트(`user` 등급, 안전 모드 미적재) | H-13, X.loading-trust 외부 확장 로더와 가상 모듈 등록(M3-15), L4 릴리즈(M3-27) | M |
-| H-21 | 효과 등급 적합 시험: 선언 없는 메서드를 가진 가짜 provider로 X 래퍼 거부와 저하 동작 확인, on 핸들러의 능력 호출 0 확인(스펙 §9 21번) | H-10, H-11, X.primitives 능력 래퍼 문맥 검사(REQ-X-01) | S |
+| H-21 | 효과 등급 적합 시험: 선언 없는 메서드를 가진 가짜 provider로 X 래퍼 거부와 저하 동작 확인, on 핸들러의 기능 호출 0 확인(스펙 §9 21번) | H-10, H-11, X.primitives 기능 래퍼 문맥 검사(REQ-X-01) | S |
 | H-15 | 통합 테스트: UC-2 테이프 재생(int)과 강제 종료 뒤 재개(fault) | H-13, `@fresnel/ext-host/testing`, `@fresnel/core-models/testing`, 가짜 서브에이전트 | M |
 | H-16 | 학습 그룹 공존 확인: `grp.learning.*` 레코드 픽스처가 있어도 `gatherContext`가 다른 그룹 레코드를 읽지 않는지 검사([결정: review.decisions-2 D-10]), 학습 그룹과 공존 통합 확인 | H-10, L3.learning M3 | S |
 | H-17 | 문서 대조: 스펙 §4.2 전이표, §3.4 kind 목록, §6 설정 표와 코드 상수 대조 테스트 | H-04, H-06, H-02 | S |
@@ -121,10 +121,10 @@ xeon/packages/group-helm/
 | 임대 부여·`idle` 반납, `LeaseBudget`, 상한 집행, `lease.*` 이벤트 | X.primitives.plan | H-09 |
 | `loop.spawn`, 그룹 제공 에이전트 정의 로딩 | L1.agents.plan | H-09, H-15 |
 | `web.search` 최소형(내장 검색 래퍼 또는 SearXNG) | L2.web.plan | H-10 |
-| `knowledge.search`, `knowledge.skills`, `knowledge.memory` 읽기 능력 | L2.knowledge.plan | H-10(없으면 저하 동작) |
+| `knowledge.search`, `knowledge.skills`, `knowledge.memory` 읽기 기능 | L2.knowledge.plan | H-10(없으면 저하 동작) |
 | `work.tasks`의 `create` | L2.work.plan | H-11(없으면 건너뜀) |
 | `ToolCallPayload.risk`·`hints`·`caller`, `tool_execution_end.input` | F.records·F.extensions, L1.tools.plan(M3-02, REQ-F-04) | H-05, H-08 |
-| `MethodDef.idempotent`·읽기 표지, `effect_not_allowed`, X 능력 래퍼 문맥 검사 | F.capabilities.plan, X.primitives.plan(M3-new-01, REQ-F-01, REQ-X-01) | H-10, H-11, H-21 |
+| `MethodDef.idempotent`·읽기 표지, `effect_not_allowed`, X 기능 래퍼 문맥 검사 | F.capabilities.plan, X.primitives.plan(M3-new-01, REQ-F-01, REQ-X-01) | H-10, H-11, H-21 |
 | `loop.spawn` (thread, `requestId`) 멱등의 세션 DB 기록 | L1.agents.plan(REQ-L1-01) | H-15 fault, H-19 |
 | L2 메서드 효과 등급 선언(`web.search`, `knowledge.*` 읽기, `work.tasks.create` 멱등) | L2.web·knowledge·work plan(REQ-L2-01) | H-10, H-11 |
 | `replayDrive` 효과 계수(G-20 확장) | L3.group-sdk.plan | H-19 |
@@ -146,7 +146,7 @@ xeon/packages/group-helm/
 
 ## 5. 단위 테스트 목록
 
-테스트 가짜: 모델은 테이프(`@fresnel/core-models/testing`, eng.testing.guide TS-04), 서브에이전트는 렌즈별 응답표를 받는 가짜 `loop.spawn`, 능력은 `ServiceKey`별 가짜 provider(`WebSearchKey`, `KnowledgeSearchKey`, `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `WorkTasksKey`. L3.helm.spec §3.8), 시계·ID는 `test/` 안의 대역(F `Clock`·`IdFactory` 구현)이다. 실제 네트워크와 모델을 쓰지 않는다.
+테스트 가짜: 모델은 테이프(`@fresnel/core-models/testing`, eng.testing.guide TS-04), 서브에이전트는 렌즈별 응답표를 받는 가짜 `loop.spawn`, 기능은 `ServiceKey`별 가짜 provider(`WebSearchKey`, `KnowledgeSearchKey`, `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `WorkTasksKey`. L3.helm.spec §3.8), 시계·ID는 `test/` 안의 대역(F `Clock`·`IdFactory` 구현)이다. 실제 네트워크와 모델을 쓰지 않는다.
 
 ### 5.1 단위 테스트
 
@@ -163,7 +163,7 @@ xeon/packages/group-helm/
 | 7 | `signals.stuck-after-n-same-errors` | 같은 도구의 같은 오류 3회 연속이면 `stuck` 1건, 중간에 성공이 끼면 0건 |
 | 8 | `signals.repeat-after-n-same-calls` | 같은 도구·같은 정규화 인자 3회 연속이면 `repeat` 1건, 인자 키 순서만 다르면 같은 호출로 센다 |
 | 9 | `signals.newdomain-on-knowledge-misses` | 한 turn 지식 검색 빈 결과 2회면 `boundary.settle.after`에서 `newDomain` 1건, 다음 turn에서 카운터가 0 |
-| 10 | `signals.pure-query-no-side-effect` | 같은 페이로드로 핸들러를 두 번 실행해도 집계표, 커밋된 `watch`, 기록 수가 한 번 실행과 같고, 능력 호출·post 호출 수가 0(suggest 아닌 경우). `boundary.settle.after` 재실행의 커밋·기록은 `replayed`다 |
+| 10 | `signals.pure-query-no-side-effect` | 같은 페이로드로 핸들러를 두 번 실행해도 집계표, 커밋된 `watch`, 기록 수가 한 번 실행과 같고, 기능 호출·post 호출 수가 0(suggest 아닌 경우). `boundary.settle.after` 재실행의 커밋·기록은 `replayed`다 |
 | 10a | `signals.commit-once-per-turn` | 도구 호출 5회가 있는 turn에서 `g.commit`은 `boundary.settle.after`의 1회이고 `tool.execution.after`·`input.agent.before`는 커밋하지 않는다 |
 | 11 | `signals.autostart-modes` | `off`는 기록만, `suggest`는 `when: "next"` post 1건(같은 turn 재실행 시 `duplicate: true`, 유휴 thread에서 turn을 열지 않음), `auto`는 `pending` 커밋 뒤 Helm이 다시 임대 후보가 된다(테스트 호스트에서 다음 경계에 `lease.acquired`) |
 | 12 | `transitions.table-covers-all-phase-pairs` | 모든 (단계, 이벤트) 쌍을 열거해 표에 있으면 표의 다음 단계, 없으면 같은 상태 |
@@ -173,7 +173,7 @@ xeon/packages/group-helm/
 | 16 | `guard.exception-becomes-deny` | 메타 조회가 예외를 내면 테스트 호스트의 first 디스패치 결과가 `FIRST_DENY["tool.call.before"]` |
 | 17 | `guard.unknown-meta-is-write` | `risk`가 없는 도구는 확산 단계에서 거부. `hints.readOnly: true`여도 `risk: exec`면 거부. `caller`가 `subagent:explorer`가 아닌 서브에이전트면 허용 |
 | 18 | `inject.one-lens-at-a-time` | 어느 단계에서도 시스템 프롬프트 블록에 렌즈 본문이 둘 이상 들어가지 않는다 |
-| 19 | `inject.appends-to-current` | 핸들러가 받은 원본 `payload.systemPrompt` 뒤에 Helm 블록이 붙는다(collect 지점이라 다른 핸들러의 패치를 보지 않는다) |
+| 19 | `inject.appends-to-current` | 핸들러가 받은 원본 `payload.systemPrompt` 뒤에 Helm 블록이 붙는다(collect 훅이라 다른 핸들러의 패치를 보지 않는다) |
 | 20 | `inject.requestid-dedup` | `postRequestId`가 같은 (inquiryId, phase, round)에 같은 값, 64자 이하. 같은 알림 두 번 post면 두 번째가 `duplicate: true` |
 | 21 | `drive.recall-from-committed-state-spawns-once` | `replayDrive`로 각 커밋 뒤 drive를 다시 호출해도 렌즈별 spawn 1회, 적용 turn 1회 |
 | 22 | `drive.n-lenses-n-spawns-then-one-apply-turn` | 렌즈 N(1, 3, 8)개면 spawn N회, 모든 결과 커밋 이벤트 뒤 적용 turn 1회 |
@@ -261,4 +261,4 @@ eng.testing.guide TS-01의 `scenario` 태그는 저장소 전체에 1개(`apps/c
 | 8 | `record`와 `commit` 사이 강제 종료로 발견 기록이 중복된다 | `findingId` 중복 제거 키, 읽는 쪽 중복 제거 규칙. 원자 API(REQ-X-03)가 생기면 바꾼다 |
 | 9 | 도구 메타가 비어 확산 단계에서 읽기 도구까지 거부된다 | M3-02를 H-08의 선행으로 둔다. 메타가 없는 도구 목록을 `/helm status`에 보여 준다 |
 | 10 | 기본 플러그인 적재 경로(외부 로더, 가상 모듈 등록, 첫 실행 설치)가 M3-15·M3-27보다 늦어진다 | H-02~H-21은 `defineGroup` 단위 테스트와 `@fresnel/ext-host/testing`으로 진행한다. 적재 경로가 늦으면 E1 통합 시험(H-15)만 테스트 하네스의 직접 설치로 돌리고, H-22 int 테스트는 로더가 들어온 뒤 한다 |
-| 11 | 읽기 능력 호출이 재생마다 다시 불려 비용이 는다 | `converge` 한 분기에서만 부르고 결과를 `converged` 커밋으로 고정한다. 재생 횟수는 커밋 지점 사이 끊김 수만큼이라 정상 운영에서는 0이다 |
+| 11 | 읽기 기능 호출이 재생마다 다시 불려 비용이 는다 | `converge` 한 분기에서만 부르고 결과를 `converged` 커밋으로 고정한다. 재생 횟수는 커밋 지점 사이 끊김 수만큼이라 정상 운영에서는 0이다 |

@@ -46,7 +46,7 @@ import { unattendedPlan } from "./unattended.ts";
 import { invalidDetail, requestIssue, validateResponse } from "./protocol.ts";
 
 // L1.tools.spec §3.6, §4.7 승인 대기. 도구 승인(tool), 계획 승인(plan), 질문(question)이 하나의 대기 형식을 쓴다.
-// L2 능력은 자기 도구의 실행 안에서 `request`(또는 비차단 `open`+`wait`)를 부른다.
+// L2 기능은 자기 도구의 실행 안에서 `request`(또는 비차단 `open`+`wait`)를 부른다.
 
 /** 승인을 일으킨 도구 호출의 활성 상태. 대기 체크포인트 초안과 비대화형 판정에 쓴다 */
 interface ActiveCall {
@@ -448,7 +448,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     const timeoutAt = unattended?.silent === false ? unattended.timeoutAt : null;
     const expiresAt = input.expiresAt ?? timeoutAt ?? undefined;
     const onExpire = input.onExpire;
-    // 능력 어댑터는 CallContext에서 origin을 만들고 거기에 stepId가 없다. 활성 호출이 알면 그 단계로 채워 모든 승인 기록의 origin이 같은 값을 갖게 한다
+    // 기능 어댑터는 CallContext에서 origin을 만들고 거기에 stepId가 없다. 활성 호출이 알면 그 단계로 채워 모든 승인 기록의 origin이 같은 값을 갖게 한다
     const stepId = input.origin.stepId ?? call?.run.stepId ?? null;
     const origin: ApprovalOrigin =
       stepId === input.origin.stepId ? input.origin : { ...input.origin, stepId };
@@ -475,7 +475,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
 
     // 비대화형 실행의 요청은 사람이 없다. 요청과 거부 해결을 한 커밋에 남기고 바로 거부한다(§4.7 7번, 감사 기록).
     // 정책의 ask는 비대화형에서 deny로 바뀌어 도구 승인이 나오지 않는 것이 보통이지만, 정책이 허용한 뒤에 파이프라인이 다시 묻는
-    // 비밀 사용 승인과 능력 서비스가 올리는 도구 승인(도메인 승인 등)은 정책을 지나지 않는다. 그래서 kind를 가리지 않는다.
+    // 시크릿 사용 승인과 기능 서비스가 올리는 도구 승인(도메인 승인 등)은 정책을 지나지 않는다. 그래서 kind를 가리지 않는다.
     // 턴 밖의 요청(call 없음)은 대화형으로 본다
     const silent = unattended?.silent === true;
     const requestedId = deps.ids.next("evt");

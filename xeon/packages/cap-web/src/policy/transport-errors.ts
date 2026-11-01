@@ -3,7 +3,7 @@ import type { WebFailure } from "../errors.ts";
 import { deniedFailure } from "../errors.ts";
 import type { TransportFailure } from "../ports/transport.ts";
 
-/** 전송 실패를 능력 오류 값으로 바꾼다. 연결 시점 검사가 거부한 주소는 `denied`다(§4.6.3) */
+/** 전송 실패를 기능 오류 값으로 바꾼다. 연결 시점 검사가 거부한 주소는 `denied`다(§4.6.3) */
 export function transportFailureToWeb(failure: TransportFailure, host: string): WebFailure {
   switch (failure.kind) {
     case "blocked":

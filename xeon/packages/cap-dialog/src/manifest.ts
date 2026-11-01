@@ -11,7 +11,7 @@ import { defineManifest, type ExtensionManifest } from "@fresnel/contracts/exten
 export const DIALOG_EXTENSION_NAME = "cap-dialog";
 
 /**
- * 내장 L2 플러그인 매니페스트(L2.dialog.spec §7). 제공하는 능력은 `dialog.ask`, `dialog.commands`, `dialog.status`,
+ * 내장 L2 플러그인 매니페스트(L2.dialog.spec §7). 제공하는 기능은 `dialog.ask`, `dialog.commands`, `dialog.status`,
  * `dialog.attachments`, `dialog.notify`다. `dialog.aside`, `dialog.styles`는 2차다. `dialog.notify`는 지점을 더하지 않는다
  * (구독은 내구 피드로 받는다).
  */

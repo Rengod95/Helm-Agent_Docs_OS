@@ -7,7 +7,7 @@ const group: GroupModule = defineGroup({
   manifest: groupManifest(manifestJson),
   settings,
   setup(g) {
-    // first 지점: 차단 결정을 낸다. 핸들러가 던지면 이 도구 호출은 거부된다(fail-closed)
+    // first 훅: 차단 결정을 낸다. 핸들러가 던지면 이 도구 호출은 거부된다(fail-closed)
     g.on("tool.call.before", (p) => {
       return g.settings().blockedTools.includes(p.toolName)
         ? { block: true, reason: "__TITLE__ 정책이 이 도구를 막았다" }

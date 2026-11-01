@@ -3,7 +3,7 @@ import type { WebAskPort, WebAskRequest } from "../ports/ask.ts";
 import type { HeaderSecretSender, OutboundSecretGuard } from "../ports/secrets.ts";
 import type { RecordedSource, WebSessionSourcesPort } from "../ports/session-sources.ts";
 
-// 시험용 포트 대역. 비밀 값은 시험 코드가 넘긴 가짜 문자열이다.
+// 시험용 포트 대역. 시크릿 값은 시험 코드가 넘긴 가짜 문자열이다.
 
 export interface FakeAsker extends WebAskPort {
   readonly requests: WebAskRequest[];
@@ -24,13 +24,13 @@ export function fakeAsker(answer: "allow" | "deny" | "unavailable"): FakeAsker {
   };
 }
 
-/** 등록된 비밀 값 목록. 목록의 문자열이 들어 있으면 containsKnown이 참이다 */
+/** 등록된 시크릿 값 목록. 목록의 문자열이 들어 있으면 containsKnown이 참이다 */
 export function fakeSecretGuard(values: readonly string[]): OutboundSecretGuard {
   return { containsKnown: (text) => values.some((value) => text.includes(value)) };
 }
 
 /**
- * 설정 키 → 값 표의 헤더 비밀 대역. 표에 없는 설정은 unset이다. `send`에는 값을 붙인 헤더를 넘기고(Bearer 접두 포함),
+ * 설정 키 → 값 표의 헤더 시크릿 대역. 표에 없는 설정은 unset이다. `send`에는 값을 붙인 헤더를 넘기고(Bearer 접두 포함),
  * 응답에 쓰인 값이 본문 텍스트나 헤더 값에 있으면 `echoed`가 참이다(L0 withHttp의 에코 검사와 같은 대상).
  */
 export function fakeHeaderSecrets(values: Readonly<Record<string, string>>): HeaderSecretSender {

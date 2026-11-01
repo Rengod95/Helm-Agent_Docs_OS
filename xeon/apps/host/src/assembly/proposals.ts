@@ -48,7 +48,7 @@ export interface ProposalPortDeps {
   readonly learning: () => LearningQueueApi | undefined;
   /** 결정과 지연 정리를 `/learning` 명령으로 실행한다(기록을 쓰므로 대화가 필요하다) */
   readonly runner: LearningRunner;
-  /** 지식 능력이 있으면 대기열 어댑터, 없으면 undefined */
+  /** 지식 기능이 있으면 대기열 어댑터, 없으면 undefined */
   readonly knowledge: () => KnowledgeProposalWire | undefined;
   /** 오류 기록(결정에 쓰지 않는 실패: 정리, 알 수 없는 오류 코드) */
   readonly report: (message: string, fields: LogFields) => void;

@@ -14,7 +14,7 @@ binds: []
 
 ### 1.1 정하는 것
 
-- Xeon의 주 유즈케이스 6개(UC-1~UC-6)와 보조 유즈케이스 4개
+- Fresnel의 주 유즈케이스 6개(UC-1~UC-6)와 보조 유즈케이스 4개
 - 유즈케이스마다 행위자, 사전 조건, 주 흐름, 대안·실패 흐름, 관여 층과 패키지, 수용 기준
 - 유즈케이스 x 층 매트릭스
 
@@ -34,7 +34,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 | 입력 큐 | 사용자 입력과 `post` 항목이 들어가는 내구 큐. L1-a(`core-tasks`)가 소유한다. |
 | 큐 모드 | `post`의 `when` 값. 정의는 ADR-0007 §3.1 표를 따른다. `steer`는 다음 도구 라운드 뒤 입력으로 들어간다. `followUp`은 에이전트 정착 뒤 입력으로 들어간다. `next`는 경계 뒤 정확히 한 요청에 들어간다. `next`가 그 요청을 스스로 시작하는지는 [미결](ADR-0007 §6)이다. |
 | 단계 경계 | step(모델 요청 한 번과 그 도구 실행)이 끝나고 다음 step이 시작하기 전의 지점이다. `boundary.step.after` 지점 처리 직후이며 한 턴 안에 여러 번 있다. 그룹 켜기·끄기, drive 임대 부여, 임대 반납이 여기서 적용된다(`F.conversation.spec` §2.1, `F.extensions.spec` §4.5). 사용자 결정 원문의 '턴 경계'는 이 지점으로 읽는다 [결정: review.decisions-2 U-01]. |
-| 공유 서비스 모드 | `xeon service`. 클라이언트가 없으면 자동 기동하고 연결과 작업이 없으면 유휴 종료하는 엔진 프로세스. ADR-0006. |
+| 공유 서비스 모드 | `fresnel service`. 클라이언트가 없으면 자동 기동하고 연결과 작업이 없으면 유휴 종료하는 엔진 프로세스. ADR-0006. |
 | 모델 테이프 | 기록해 둔 모델 응답을 재생하는 테스트용 가짜 모델. `eng.testing.guide`. |
 
 패키지 이름은 `_routing/routes.yaml`의 layout을 따른다. L4 앱은 `apps/cli`, `apps/desktop`, `apps/host`, 설정 화면은 view-model `packages/client/src/settings`와 렌더러 `apps/desktop/src/views`(이하 settings-ui)다.
@@ -54,7 +54,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
   - 모델 provider 하나가 설정되어 있다. 키는 `secret://` 참조로 등록되어 있다(UC-6).
   - 작업 폴더가 정해져 있다. OS 샌드박스가 켜져 있다(기본값).
 - 주 흐름
-  1. 사용자가 CLI(`xeon chat`) 또는 데스크톱에서 입력한다. 두 클라이언트는 같은 호스트 계약으로 엔진에 입력을 보낸다.
+  1. 사용자가 CLI(`fresnel chat`) 또는 데스크톱에서 입력한다. 두 클라이언트는 같은 호스트 계약으로 엔진에 입력을 보낸다.
   2. 입력이 입력 큐에 들어가고, 실행 중인 턴이 없으면 새 턴이 시작된다.
   3. 컨텍스트가 조립되고 모델 요청이 나간다. request 종류 지점(`input.agent.before` 등)의 chain 핸들러가 있으면 요청이 형성된다.
   4. 모델이 도구를 호출하면 `tool.call.before` 지점(tool 종류)의 first 핸들러와 정책 엔진을 거쳐 실행된다. 기본 도구는 `read`, `ls`, `bash`다. `bash`는 OS 샌드박스 안에서 실행되며, 샌드박스 범위 안의 명령은 매번 묻지 않는다(layer-plan-v2-notes.md "OS 샌드박스가 왜 필요한가").
@@ -77,7 +77,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
   - L1 `core-tasks`, `core-loop`, `core-models`, `core-tools`, `core-context`, `core-persistence`
   - L2 `cap-workspace`, L4 `apps/cli`, `apps/desktop`, `apps/host`
 - 수용 기준
-  - 모델 테이프로 `xeon chat` 한 턴을 실행하면 `read`, `ls`, `bash` 호출과 결과가 이벤트로 저장되고, 같은 DB를 다시 열었을 때 투영에서 같은 대화가 복원된다.
+  - 모델 테이프로 `fresnel chat` 한 턴을 실행하면 `read`, `ls`, `bash` 호출과 결과가 이벤트로 저장되고, 같은 DB를 다시 열었을 때 투영에서 같은 대화가 복원된다.
   - 도구 실행 중 `steer`로 넣은 입력은 그 턴의 다음 모델 요청에 포함된다.
   - `next`로 넣은 입력의 수용 기준은 ADR-0007 §6 [미결](`next`가 요청을 스스로 시작하는지)이 정해진 뒤에 쓴다.
 
@@ -122,7 +122,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 - 행위자: 학습 그룹, 백그라운드 서브에이전트(검토 포크), 사용자
 - 사전 조건
   - 학습 그룹이 켜져 있다. Helm과 동시에 켜져 있어도 된다. 학습 그룹은 drive를 쓰지 않기 때문이다.
-  - L2 지식 능력(`cap-knowledge`)의 저장소(스킬, 메모리, 세션 검색, 변경 원장)가 열려 있다.
+  - L2 지식 기능(`cap-knowledge`)의 저장소(스킬, 메모리, 세션 검색, 변경 원장)가 열려 있다.
 - 주 흐름
   1. 학습 그룹의 tap 핸들러가 턴과 세션 경계에서 카운터를 갱신한다(학습 트리거).
   2. 카운터가 임계에 이르면 검토 포크를 L1-g 백그라운드 위임(`core-agents`)으로 실행한다. 주 대화의 턴은 막히지 않는다.
@@ -133,7 +133,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 - 대안·실패 흐름
   - 검토 포크 실패나 취소: 후보를 만들지 않고 실패를 기록한다. 카운터는 다음 임계에서 다시 시도한다.
   - 후보가 기존 스킬과 충돌: 대기열에 diff로 표시한다. [가정] 병합 규칙은 `L3.learning.spec`이 정한다.
-  - 쓰기 스캔 실패(비밀 포함 등): L2-d 쓰기 승인과 스캔이 거부하고 후보를 거절 상태로 둔다.
+  - 쓰기 스캔 실패(시크릿 포함 등): L2-d 쓰기 승인과 스캔이 거부하고 후보를 거절 상태로 둔다.
   - 승인한 변경을 되돌림: 변경 원장으로 롤백한다.
 - 관여 층과 패키지
   - F `contracts`(records, extensions), X `ext-host`, L0 `platform-store`
@@ -147,7 +147,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 
 반복·예약 작업과 백그라운드 실행이다. 근거는 foundation-plan.md §1 결정 2, process.md §1.3, §6.2 단계 2~3, l2e.md §6이다.
 
-- 행위자: 사용자, 서비스 프로세스(`xeon service`), 모델
+- 행위자: 사용자, 서비스 프로세스(`fresnel service`), 모델
 - 사전 조건
   - 앱을 닫아도 계속 실행되어야 하는 작업이면 공유 서비스 모드가 켜져 있다. [결정: decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 2] 공유 서비스 모드는 1차 범위이고 자동 기동과 유휴 종료를 한다.
 - 실행 형태 구분
@@ -161,7 +161,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 - 주 흐름(예약 실행)
   1. 사용자가 대화나 명령으로 예약을 만든다(시각 또는 주기, 프롬프트, 대상 세션).
   2. 예약이 DB의 예약 테이블에 저장된다.
-  3. 클라이언트가 서비스를 찾고, 없으면 `xeon service`를 기동한다(ensure).
+  3. 클라이언트가 서비스를 찾고, 없으면 `fresnel service`를 기동한다(ensure).
   4. 서비스가 틱마다 만기 예약을 꺼내 세션 실행을 시작한다. 세션 잠금은 서비스가 쥔다.
   5. 사용자가 앱을 닫아도 서비스는 계속 실행된다. 유휴 종료는 연결 0, live task 0, 대기 예약 0일 때만 일어난다(process.md §6.4).
   6. 실행 결과는 이벤트로 저장되고 알림이 나간다. 다음에 앱을 열면 결과를 본다.
@@ -207,17 +207,17 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
   - SSH 소켓 포워딩으로 연결한 클라이언트가 세션 목록을 받고, 비루프백 주소 바인드 설정으로는 서비스가 기동하지 않는다.
   - 터널로 접속한 원격 클라이언트가 승인 요청에 `approval.respond`로 답하면 대기 중인 도구 호출이 실행된다.
 
-### UC-6 비밀 사용
+### UC-6 시크릿 사용
 
-사용자는 키체인이나 Bitwarden처럼 비밀을 관리하고, 에이전트는 값을 모른 채 참조만 쓴다. 근거는 decisions-log 2026-10-21 2차, secrets.md §6이다.
+사용자는 키체인이나 Bitwarden처럼 시크릿을 관리하고, 에이전트는 값을 모른 채 참조만 쓴다. 근거는 decisions-log 2026-10-21 2차, secrets.md §6이다.
 
 - 행위자: 사용자, 모델, 도구 실행 파이프라인
 - 사전 조건
-  - [결정: decisions-log 2026-10-21 2차] 기본 provider는 SOPS(age)다. age 키는 `SOPS_AGE_KEY_CMD`로 OS 키체인에서 받는다(foundation-plan.md §2 비밀 행).
+  - [결정: decisions-log 2026-10-21 2차] 기본 provider는 SOPS(age)다. age 키는 `SOPS_AGE_KEY_CMD`로 OS 키체인에서 받는다(foundation-plan.md §2 시크릿 행).
 - 주 흐름(사용자 관리)
-  1. 목록: 사용자가 비밀 목록을 연다. 이름, provider, 설명, 허용 호스트, 마지막 사용, 만료가 보이고 값 열은 없다.
+  1. 목록: 사용자가 시크릿 목록을 연다. 이름, provider, 설명, 허용 호스트, 마지막 사용, 만료가 보이고 값 열은 없다.
   2. 등록: 이름과 메타를 입력하고 값은 가린 입력란이나 stdin으로 넣는다. 명령 인자로 값을 받지 않는다.
-  3. 열람: 사용자가 재인증한 뒤 값을 한 번 보고, 값은 자동으로 다시 가려진다. 열람은 감사 이벤트로 남는다. 에이전트 경로에는 열람이 없다. 경로는 M2 CLI `xeon secret reveal`(OS 인증 재확인이 가능한 곳은 재확인)과 M3 데스크톱 설정 화면 둘이다 [결정: review.decisions-2 U-20].
+  3. 열람: 사용자가 재인증한 뒤 값을 한 번 보고, 값은 자동으로 다시 가려진다. 열람은 감사 이벤트로 남는다. 에이전트 경로에는 열람이 없다. 경로는 M2 CLI `fresnel secret reveal`(OS 인증 재확인이 가능한 곳은 재확인)과 M3 데스크톱 설정 화면 둘이다 [결정: review.decisions-2 U-20].
   4. 삭제: 참조하는 정책과 세션을 보여 준 뒤 확인을 받는다.
 - 주 흐름(에이전트 사용)
   1. 모델은 도구 인자에 `secret://github-token` 같은 참조만 쓴다. 참조는 값이 아니므로 대화와 이벤트에 남아도 된다.
@@ -231,13 +231,13 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
   - 사용자가 대화에 값을 붙여 넣음: 입력 단계에서 알려진 값과 일치하면 저장 전에 가린다.
   - 허용 호스트 밖으로 주입하려 함: 주입이 실패하고 거부 이벤트가 남는다.
   - 값이 분할되거나 재인코딩되어 출력됨: 마스킹이 잡지 못한다. 이 경로는 값이 모델 경로에 들어오지 않는 `sentinel`·`runtime-http` 모드로 막고, 승인 없는 `env` 모드 주입은 금지한다(secrets.md §6.3 한계).
-  - 사용 중인 비밀을 삭제하려 함: 거부한다.
+  - 사용 중인 시크릿을 삭제하려 함: 거부한다.
   - SOPS 복호화 실패(키체인 잠김 등): 도구 호출이 실패로 끝나고 값 없는 오류 코드만 남는다.
 - 관여 층과 패키지
   - F `contracts`(records), L0 `platform-secrets`, `platform-exec`, `platform-store`
   - L1 `core-tools`, `core-context`(모델 투영 마스킹), L2 `cap-web`(HTTP 치환), L4 `apps/cli`, settings-ui
 - 수용 기준
-  - 테스트 비밀을 참조하는 도구 호출을 모델 테이프로 실행하면 실제 값이 이벤트 DB, 로그, 모델 요청 본문 어디에도 나타나지 않는다.
+  - 테스트 시크릿을 참조하는 도구 호출을 모델 테이프로 실행하면 실제 값이 이벤트 DB, 로그, 모델 요청 본문 어디에도 나타나지 않는다.
   - 도구 출력에 등록된 값(원문, base64 형태)이 포함되면 저장된 이벤트에는 가린 문자열과 마스킹 이벤트만 남는다.
 
 ## 5. 보조 유즈케이스와 공통 실패
@@ -253,7 +253,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 
 ### 5.2 공통 실패 규칙
 
-- 모든 UC에서 확장 핸들러 실패는 fold별 정책을 따른다. tap은 기록 후 계속, first는 거부, chain은 그 핸들러만 건너뛴다(layer-plan-v2-notes.md 확장 지점 4연산).
+- 모든 UC에서 확장 핸들러 실패는 fold별 정책을 따른다. tap은 기록 후 계속, first는 거부, chain은 그 핸들러만 건너뛴다(layer-plan-v2-notes.md 훅 4연산).
 - 모든 UC에서 결과 불명 도구 호출은 기본적으로 재개 때 다시 실행하지 않고 "중단됨" 결과로 합성한다. `replay` 선언이 `unsafe`(기본값)이거나 선언이 없는 도구가 여기에 해당한다. 예외로, 저장된 정책과 현재 선언이 모두 `safe`인 도구만 다시 실행한다(ADR-0004 §3.2 3번).
 
 ## 6. 설정 노출
@@ -265,9 +265,9 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 | UC-1 | 모델, 권한과 샌드박스, 실행과 서비스(큐 기본 모드) |
 | UC-2, UC-3 | 플러그인과 그룹(그룹 토글, drive 임대 상한) |
 | UC-4, UC-5 | 실행과 서비스(공유 서비스 모드, 알림) |
-| UC-6 | 비밀 |
+| UC-6 | 시크릿 |
 
-## 7. 확장 지점
+## 7. 훅
 
 | UC | on(tap) | on(first) | on(chain) | post | drive | scope |
 |---|---|---|---|---|---|---|
@@ -276,7 +276,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 | UC-3 | 학습 카운터 | 없음 | 없음 | 제안 알림 | 쓰지 않음 | 학습 그룹 |
 | UC-4 | 없음 | 없음 | 없음 | 예약 실행 입력 | 없음 | 없음 |
 | UC-5 | 없음 | 없음 | 없음 | 원격 입력 | 없음 | 없음 |
-| UC-6 | 없음 | [가정] 비밀 정책 거부는 정책 엔진에서 처리한다 | 없음 | 없음 | 없음 | 없음 |
+| UC-6 | 없음 | [가정] 시크릿 정책 거부는 정책 엔진에서 처리한다 | 없음 | 없음 | 없음 | 없음 |
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -291,7 +291,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 | UC-3 학습 | `contracts` | `ext-host` | `platform-store` | `core-agents`, `core-persistence` | `cap-knowledge` | `group-sdk`, `group-learning` | `apps/desktop`, `apps/cli` |
 | UC-4 예약 | `contracts` | 없음 | `platform-process`, `platform-store`, `platform-os` | `core-tasks`, `core-agents`, `core-persistence` | `cap-schedule` | 없음 | `apps/host`, `apps/cli`, `apps/desktop` |
 | UC-5 원격 | `contracts` | 없음 | `platform-process`, `platform-os`, `platform-secrets` | `core-tools` | `cap-dialog` | 없음 | `apps/host`, settings-ui |
-| UC-6 비밀 | `contracts` | 없음 | `platform-secrets`, `platform-exec`, `platform-store` | `core-tools`, `core-context` | `cap-web` | 없음 | `apps/cli`, settings-ui |
+| UC-6 시크릿 | `contracts` | 없음 | `platform-secrets`, `platform-exec`, `platform-store` | `core-tools`, `core-context` | `cap-web` | 없음 | `apps/cli`, settings-ui |
 
 ### 8.2 제공과 요구
 

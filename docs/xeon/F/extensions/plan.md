@@ -16,7 +16,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 
 | 마일스톤 | 범위 | 소비자 |
 |---|---|---|
-| M0 | 지점 종류 7·fold 4 타입, `HookSignatures`·`HookDecl`·`HOOKS` 46행 전체(M3 개정, adr.0017), `FIRST_DENY`, `CHAIN_RULES`, M1 지점(스펙 §3.4 M1 열 ●: `input.user.before`, `request.context.before`, `request.provider.before`, `tool.call.before`, `tool.result`, `boundary.step.before`, `boundary.step.after`, `boundary.settle.before`, `boundary.settle.after`, `thread.start`, `thread.shutdown`)의 페이로드·결정·패치 정확화, 4연산 타입(`ExtensionOps`, `Handler`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`), `ExtensionManifest`, `validateManifest`, `validateUsage`, `validateManifestSet`, `GroupRecord`·`RecordKindDecl`과 `grp.`/`x.` 접두 검증, 문서 표 대조 검사 | X ext-host 최소형(on/post/drive/scope), L1 core-loop·core-tools의 지점 발화 |
+| M0 | 훅 종류 7·fold 4 타입, `HookSignatures`·`HookDecl`·`HOOKS` 46행 전체(M3 개정, adr.0017), `FIRST_DENY`, `CHAIN_RULES`, M1 지점(스펙 §3.4 M1 열 ●: `input.user.before`, `request.context.before`, `request.provider.before`, `tool.call.before`, `tool.result`, `boundary.step.before`, `boundary.step.after`, `boundary.settle.before`, `boundary.settle.after`, `thread.start`, `thread.shutdown`)의 페이로드·결정·패치 정확화, 4연산 타입(`ExtensionOps`, `Handler`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`), `ExtensionManifest`, `validateManifest`, `validateUsage`, `validateManifestSet`, `GroupRecord`·`RecordKindDecl`과 `grp.`/`x.` 접두 검증, 문서 표 대조 검사 | X ext-host 최소형(on/post/drive/scope), L1 core-loop·core-tools의 훅 발화 |
 | M1 | 걷는 골격 스모크: 테스트용 그룹이 이 타입으로 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓴다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 이 그룹의 매니페스트는 `validateManifest`와 `validateUsage`를 통과해야 한다. 스모크에서 드러난 페이로드 누락을 반영한다 | X, L1, L3 테스트 그룹 |
 | M2 이후 | M1 밖 지점의 페이로드 중 `Type.Unknown()`으로 둔 필드 정확화(F.records의 투영 타입, 컴팩션 타입이 정해진 뒤), 열거형 확장 예약(파트·이벤트 종류 접두, 선언 병합 규칙), 격리 필드(`isolation: "process"`)의 와이어 직렬화 요구 반영, 미결 사항 결정 반영 | X.loading-trust(격리), L3 전체 |
 
@@ -76,7 +76,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | E9 | `validate.ts`: `validateManifest`(알 수 없는 키 제거 포함), `validateUsage`, `validateManifestSet`(`drive_conflict`), `validateGroupRecord`. 문서 표와 코드 `HOOKS` 일치 검사 스크립트(`check-points-doc.ts`): 스펙 §3.4 표에서 `` | <n> | `<이름>` | <kind> | <fold> | `` 행을 읽어 이름·kind·fold·M1 표시를 `HOOKS`와 비교한다 | E4, E7, E8 | M |
 
 - E2가 가장 크다. M1 지점부터 끝내고 E4로 넘긴 뒤 나머지 30개 페이로드를 채우는 순서로 나눌 수 있다.
-- 합성 규칙 형식은 pi durable 훅 표(`~/projects/_ref/pi-src/packages/durable/docs/spec.md` 2636-2660)처럼 "지점 이름 → 합성 → 실패"를 한 표로 둔다. `HOOKS`와 `CHAIN_RULES`가 그 표의 코드형이다.
+- 합성 규칙 형식은 pi durable 훅 표(`~/projects/_ref/pi-src/packages/durable/docs/spec.md` 2636-2660)처럼 "훅 이름 → 합성 → 실패"를 한 표로 둔다. `HOOKS`와 `CHAIN_RULES`가 그 표의 코드형이다.
 
 ## 4. 채택 코드
 
@@ -99,7 +99,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | `hooks.test.ts` | `every row has fold and payload` | `HOOKS` 46행 모두 `fold`, `kind`, `payload`, `failure`, `dispatch`가 있다(`pi`는 pi 출처 41행만) |
 | | `failure follows the fold default except the declared exception` | tap·collect→`open`, first→`closed`, chain→`skip`. 다른 행은 `thread.compact.before`(`open`) 하나 |
 | | `names unique and complete` | 이름 중복이 없고 pi 41개 이름 목록(테스트 안 상수, `types.ts:1377-1409`를 펼친 것)과 집합이 같다 |
-| | `pi mapping complete` | 모든 행의 `pi.event`가 지점 이름과 같고 `pi.def`, `pi.emit`이 비어 있지 않다 |
+| | `pi mapping complete` | 모든 행의 `pi.event`가 훅 이름과 같고 `pi.def`, `pi.emit`이 비어 있지 않다 |
 | | `kind and fold counts` | kind 3/9/5/9/15, fold tap 22·first 7·chain 12 |
 | | `first and chain tables` | first 행은 모두 `FIRST_DENY`에, chain 행은 모두 `CHAIN_RULES`에 있고 그 밖의 키는 없다 |
 | | `detached only for tap` | `dispatch: "detached"`인 행은 모두 tap이고 5개다 |
@@ -129,7 +129,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | | `user config invalid` | `userConfig` 항목의 빈 `setting`은 `user_config_invalid` |
 | | `isolation and trust values` | `isolation: "vm"`은 `isolation_invalid`, `trust.level: "root"`는 `trust_invalid` |
 | | `name conflict` | 같은 `name`의 매니페스트 둘을 `validateManifestSet`에 넣으면 `name_conflict` |
-| | `capability unprovided` | `requires` 능력을 집합 안의 누구도 `provides`하지 않으면 `capability_unprovided` 경고 |
+| | `capability unprovided` | `requires` 기능을 집합 안의 누구도 `provides`하지 않으면 `capability_unprovided` 경고 |
 | `group-record.test.ts` | `prefix violation rejected` | 그룹 `learning`이 `grp.helm.item.tagged`를 선언하면 `record_kind_prefix`, 플러그인이 `grp.` 접두를 쓰면 같은 오류, 3마디 `grp.learning.proposed`도 같은 오류 |
 | | `record kind is event kind` | `grp.learning.skill.proposed`, `x.acme-notes.note.synced`가 `RECORD_KIND_PATTERN`과 F.records `parseEventKind`를 모두 통과한다 |
 | | `read pattern` | `grp.learning.*`, `grp.learning.skill.*`는 통과, `grp.*`와 형식 위반은 `read_kind_invalid` |
@@ -163,6 +163,6 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | pi 이벤트 41종 매핑 오류(줄 번호, fold, 페이로드 필드) | L1이 잘못된 합성으로 발화하거나 pi 확장 이식 시 동작이 달라진다 | `_research/notes/F-1.md` 대조 결과를 그대로 코드화하고, E4에서 npm 1.3.0 선언 파일로 다시 대조한다. `hooks.test.ts`의 이름 집합 테스트로 누락을 막는다 |
 | boundary fold가 chain 교체로 부족해 4번째 fold가 필요해짐 | `Fold`, `Handler`, `HOOKS` 구조가 바뀌어 X·L1 코드가 함께 바뀐다 | `CHAIN_RULES`와 `finalize` 표지로 pi 합성을 모두 표현할 수 있음을 `chain-rules.test.ts`로 고정한다. 사용자 결정이 바뀌면 `Fold`에 값을 추가하는 하위 호환 변경으로 처리할 수 있게 `Handler`를 조건부 타입 한 곳에 둔다 |
 | drive 재생 규율을 타입으로 막지 못함 | 클로저 상태를 쓰는 drive 함수가 재개 뒤 다르게 동작한다 | `loop.turn`·`loop.spawn` 기본 `requestId`를 결정적으로 정해 중복 실행을 막고, 결정성 lint는 L3.group-sdk에 요청한다. 스펙 §4.6에 규율을 명시한다 |
-| 지점 이름 표기 불일치(snake_case 대 점 표기) | 문서·코드·조사 자료 사이에서 이름이 달라 검색과 대조가 실패한다 | 정본을 pi snake_case로 두고 `HookName` 타입 밖의 문자열은 컴파일 오류가 되게 한다. 별칭 허용 여부는 [미결]로 사용자 확인 |
+| 훅 이름 표기 불일치(snake_case 대 점 표기) | 문서·코드·조사 자료 사이에서 이름이 달라 검색과 대조가 실패한다 | 정본을 pi snake_case로 두고 `HookName` 타입 밖의 문자열은 컴파일 오류가 되게 한다. 별칭 허용 여부는 [미결]로 사용자 확인 |
 | first fail-closed가 `session_before_*`에서 과도함 | 결함 있는 확장 하나가 세션 전환·컴팩션을 계속 막는다 | 거부값을 `FIRST_DENY`에 지점별로 두어 결정이 바뀌면 값만 바꾸도록 한다. 반복 거부 기록은 X.operations의 안전 모드 근거로 넘긴다 |
 | F.records·F.conversation 이름(`DurableEventDraft`, `ExtensionEventKind`, ID 브랜드) 변경 | E2·E8의 import가 깨진다 | 이름은 두 spec에서 확정했다. 바뀌면 두 spec을 먼저 고치고 import만 바꾼다. 해당 필드를 `points/*.ts` 안의 타입 별칭 한 곳으로 모은다 |

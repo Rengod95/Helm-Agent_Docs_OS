@@ -88,7 +88,7 @@ test("exposure_order_deterministic: any registration order gives the same list a
     expect(toolset.tools.map((tool) => tool.name)).toEqual(baseline.tools.map((tool) => tool.name));
     expect(toolset.fingerprint).toBe(baseline.fingerprint);
   }
-  // 순서는 순서 키(능력 id 또는 접두)와 이름의 바이트 순이다. 내장 도구(core.tools)가 맨 앞에 선다
+  // 순서는 순서 키(기능 id 또는 접두)와 이름의 바이트 순이다. 내장 도구(core.tools)가 맨 앞에 선다
   expect(baseline.tools.map((tool) => `${tool.capability}/${tool.name}`)).toEqual([
     "core.tools/read_tool_output",
     "ext.k0/charlie",

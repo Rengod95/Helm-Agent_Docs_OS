@@ -4,7 +4,7 @@ import { probeFts } from "./probe.ts";
 import { createKnowledgeProjector } from "./projector.ts";
 import type { SearchAvailability } from "./service.ts";
 
-// L2.knowledge.spec §4.8.5. 능력을 판정하고 투영기 `cap.knowledge`를 등록한 뒤, 표를 실제로 읽을 수 있는지 확인해 검색 기능의
+// L2.knowledge.spec §4.8.5. 기능을 판정하고 투영기 `cap.knowledge`를 등록한 뒤, 표를 실제로 읽을 수 있는지 확인해 검색 기능의
 // 가용성을 정한다. 쓸 수 없으면 시작을 막지 않고 그 기능만 끈다(세션 검색은 `unavailable`, 스킬·메모리 검색은 LIKE 경로).
 
 export interface SearchSetup {

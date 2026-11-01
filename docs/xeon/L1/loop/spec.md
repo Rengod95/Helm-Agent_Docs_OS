@@ -30,7 +30,7 @@ binds: [xeon/packages/core-loop/**]
 ### 1.2 다루지 않는 것
 
 - 입력 큐 저장, 범위 트리, 취소 순서, 동시 상한: `L1.tasks.spec`.
-- 도구 파이프라인, `tool.call.before`·`tool.result` 지점 발화, 효과 3단 커밋 순서, 승인 대기: `L1.tools.spec`.
+- 도구 파이프라인, `tool.call.before`·`tool.result` 훅 발화, 효과 3단 커밋 순서, 승인 대기: `L1.tools.spec`.
 - 컨텍스트 조립, 컴팩션, `context`·`request.system.before` 지점: `L1.context.spec`.
 - 모델 선택, provider 요청 지점, 추론 레벨별 토큰 예산 값: `L1.models.spec`.
 - 커밋 구현, 투영, 열 때 복구, 재개 횟수 상한: `L1.persistence.spec`.
@@ -54,14 +54,14 @@ binds: [xeon/packages/core-loop/**]
 | thread 구동기 | thread 하나의 turn 시작을 차례로 세우는 core-loop 내부 모듈. 큐 입력과 drive turn 요청을 받는다 |
 | 커밋 지점 | 이 문서가 정한 turn 안의 커밋 위치 T1~T6(§3.5) |
 | 정착 후보 단계 | 도구 호출이 없거나 배치가 `terminate`로 끝났고, 선택된 steer가 없는 단계. 이어질 요청이 없으면 turn이 정착한다 |
-| 게이트 계속 | 정착 후보 단계에서 boundary 지점의 `continue`가 만든 추가 요청 |
+| 게이트 계속 | 정착 후보 단계에서 boundary 훅의 `continue`가 만든 추가 요청 |
 | 안전 경계 | 단계 경계. `stopAtSafeBoundary`가 멈추는 위치 |
 
 ### 2.1 Fresnel turn/step과 pi 이름
 
 `F.conversation.spec` §2.1, `F.extensions.spec` §2를 그대로 따른다. `AgentEvent` 변형 이름은 pi와 같게 두었다(adr.0009 §3.2).
 
-| Fresnel | pi agent-core(참고) | 자체 루프 단계 | 지점 이름 |
+| Fresnel | pi agent-core(참고) | 자체 루프 단계 | 훅 이름 |
 |---|---|---|---|
 | turn 시작 | run 시작, `agent_start` | `runTurn` 시작 | `input.agent.before`(시작 전), `boundary.turn.before` |
 | step 시작 | `turn_start` | `openStep`(S1 뒤) | `boundary.step.before` |
@@ -107,7 +107,7 @@ export type AdmitResult =
   | { readonly status: "started"; readonly inputId: EventId; readonly turnId: TurnId }
   | { readonly status: "queued"; readonly inputId: EventId; readonly mode: InputMode; readonly runningTurnId: TurnId | null }
   | { readonly status: "duplicate"; readonly inputId: EventId; readonly turnId: TurnId | null }
-  /** input 지점 chain이 handled로 끝났다. 아무것도 기록하지 않는다 */
+  /** input 훅 chain이 handled로 끝났다. 아무것도 기록하지 않는다 */
   | { readonly status: "handled" };
 
 // drive의 LoopHandle.turn 진입점은 LoopPort.runTurn(LoopTurnRequest)이다(X.primitives.spec §3.6, 이 문서 §4.8).
@@ -188,7 +188,7 @@ export type LoopError =
  * 포트 메서드는 Result를 쓰지 않는다. turn을 열기 전 실패(stale_lease, StoreError)는 Promise를 LoopError 값으로 거부한다 [제안].
  */
 export interface LoopService extends LoopPort {
-  /** 사용자 입력 제출. input 지점(chain)을 발화하고 fresnel.tasks 큐에 넣는다(§4.1) */
+  /** 사용자 입력 제출. input 훅(chain)을 발화하고 fresnel.tasks 큐에 넣는다(§4.1) */
   admit(request: AdmitRequest): Promise<Result<AdmitResult, LoopError>>;
   /** 자식 thread turn. 주 대화와 같은 루프로 돈다. 같은 requestId면 기록된 결과를 돌려주거나 열린 turn을 이어 끝낸다(§4.13) */
   runChildTurn(request: ChildTurnRequest): Promise<Result<LoopTurnResult, LoopError>>;
@@ -226,7 +226,7 @@ export interface LoopService extends LoopPort {
 [결정] turn 하나는 core-loop 자체 루프의 `runTurn(entry)` 호출 하나다(adr.0009). 루프는 pi-agent-core 1.3.0(MIT) `agent-loop.ts`의 `runLoop`, `streamAssistantResponse`, 도구 배치 실행을 포크해 다시 설계한 것이다. pi-agent-core는 import하지 않는다. 원본 줄 번호는 `~/projects/_ref/pi-src/packages/agent/src`(1.1.0 = 1.3.0 바이트 동일) 기준이고 대조용으로만 인용한다.
 
 - 루프는 메시지 배열을 들고 있지 않다. 요청마다 `fresnel.context`가 커밋된 이벤트에서 컨텍스트를 다시 만든다. 단계 안에서 나온 메시지(응답, 도구 결과, 배치된 입력)는 커밋된 뒤에만 다음 요청에 들어간다.
-- 커밋 지점(§3.5)과 확장 지점(§7)은 루프 단계 함수가 차례로 부른다. 콜백 훅으로 바깥 동작을 끼우지 않는다.
+- 커밋 지점(§3.5)과 훅(§7)은 루프 단계 함수가 차례로 부른다. 콜백 훅으로 바깥 동작을 끼우지 않는다.
 - 이벤트 싱크는 매퍼(§3.4)와 tap 발화만 한다. 싱크는 커밋하지 않는다.
 - 한 thread에서 동시에 실행되는 turn은 하나다(`F.conversation.spec` §3.5.1). thread 구동기가 이를 지킨다. 루프 안에서 다른 turn을 시작하지 않는다.
 - 예상 가능한 실패(커밋 `busy`·`err`, 모델 해석 실패, 컨텍스트 조립 실패, 도구 거부)는 `Result`나 판별 유니온으로 돌려준다. `Bug`는 루프 불변식 위반에만 던진다(`eng.typescript.guide` TY-11).
@@ -279,7 +279,7 @@ export type LoopFailure =
 | 순서 | 루프 단계 | 하는 일 | 원본 대응 |
 |---|---|---|---|
 | 1 | `openStep` | 바인딩 결정(`fresnel.models`), 도구 광고(`fresnel.tools.advertise`, 단계 경계에 적용된 scope 토글 반영), S1(T2) 커밋, `boundary.step.before` tap | `turn_start` 이벤트, `prepareNextTurn` |
-| 2 | `prepareRequest` | `fresnel.context`가 커밋된 이벤트로 컨텍스트 조립. request 지점은 L1.context·L1.models가 발화 | `prepareRequest`, `transformContext`, `convertToLlm` |
+| 2 | `prepareRequest` | `fresnel.context`가 커밋된 이벤트로 컨텍스트 조립. request 훅은 L1.context·L1.models가 발화 | `prepareRequest`, `transformContext`, `convertToLlm` |
 | 3 | `streamResponse` | `modelCalls` 슬롯을 잡고 streamFn 호출, 부분 메시지와 휘발 이벤트, `boundary.message.before`·`boundary.message.update` tap | `streamAssistantResponse`(381-476) |
 | 4 | `commitResponse` | `boundary.message.after` chain, 도구 선언 차이 system item과 응답을 C3(T3) 커밋, 도구 호출이 있으면 `next:"tools"` 체크포인트 | `message_end` 이벤트 |
 | 5 | `runToolBatch` | 도구 배치(§3.3). `stopReason: "length"`면 실행하지 않고 전부 실패 결과 | `executeToolCalls*`(508-660), `failToolCallsFromTruncatedMessage`(478-506) |
@@ -315,7 +315,7 @@ pi 루프 대비 처리표. 이전 판의 훅 판정표(07 §3.5 A1~A7)를 자�
 | A1 컨텍스트 복사 | `runAgentLoopContinue`(144), `prepareNextTurn`(188), `prepareRequest`(228)가 받은 배열에 push | 해당 없음. 루프는 문맥 배열을 들고 있지 않다 |
 | A2 실행 여부·거부 이유·실행 인자 | `tool.execution.after`에 필드 없음 | `tools.prepare`·`execute`가 돌려주는 `ToolCallOutcome`에 상태(실행됨, 거부 코드, 실행 인자)가 있다. 매퍼와 기록은 이 값을 쓴다 |
 | A3 중단 시 남은 호출 결과 | `break`로 남은 호출에 결과 없음(575-577, 613-615, 641-643) | §3.3 규칙 4. 같은 배치 안에서 `not_executed`로 닫는다 |
-| A4 실행 인자 교체 | `BeforeToolCallResult`에 인자 필드 없음 | 1차 미지원(review.decisions-2 U-06). 2차 chain 지점을 더할 때 `tools.prepare`의 반환 인자로 넣는다. 포크 조건은 없다 |
+| A4 실행 인자 교체 | `BeforeToolCallResult`에 인자 필드 없음 | 1차 미지원(review.decisions-2 U-06). 2차 chain 훅을 더할 때 `tools.prepare`의 반환 인자로 넣는다. 포크 조건은 없다 |
 | A5 실행 직전 이벤트 | 없음 | `tools.execute` 진입 때 휘발 `item.updated`(도구 진행)를 낸다 |
 | A6 전역 기본 streamFn | `streamFn ?? getDefaultStreamFn()` | 해당 없음. streamFn은 항상 인자다 |
 | A7 `finishTurn` 결정 무시(error/aborted), `replay` 미사용 | 원본 245-256 | `endStep`이 `stopReason`을 먼저 보고 `StepNext`를 고른다. `replay`는 L1.tools가 쓴다 |
@@ -449,7 +449,7 @@ admit({ threadId, content, requestId, via, whenBusy }):
      실행 중이면 { status: "queued", runningTurnId }
 ```
 
-- `input` 지점 발화 위치 [제안, `L1.tasks.spec` §7과 같은 결정]: `F.extensions.spec` §7은 loop, `architecture.runtime-flow.design` §4.1 그림은 tasks로 적어 어긋난다. `LoopService.admit`이 발화하고 순서는 runtime-flow 그림의 "제출 → input → 큐"를 지킨다. runtime-flow §4.1 그림 수정을 요청한다(FR-L7).
+- `input` 훅 발화 위치 [제안, `L1.tasks.spec` §7과 같은 결정]: `F.extensions.spec` §7은 loop, `architecture.runtime-flow.design` §4.1 그림은 tasks로 적어 어긋난다. `LoopService.admit`이 발화하고 순서는 runtime-flow 그림의 "제출 → input → 큐"를 지킨다. runtime-flow §4.1 그림 수정을 요청한다(FR-L7).
 - 확장 `post`와 drive turn 입력은 `input` 지점을 지나지 않는다. drive turn 입력은 큐를 거치지 않고 T1에서 바로 배치된다(§4.8).
 - 유휴 판정과 turn 시작은 thread 구동기 하나가 한다. 구동기는 `inputs.onQueued`와 turn 정착을 듣고 `turnStart` 배치 선택(`L1.tasks.spec` §4.6)으로 다음 turn을 연다. 큐 입력과 drive turn 요청이 함께 기다리면 큐 입력을 먼저 연다 [제안]. 임대 중재와 맞물리는 최종 규칙은 X.primitives.spec과 함께 정한다(§10).
 
@@ -470,7 +470,7 @@ sequenceDiagram
   WR->>EXT: on agent_start (tap)
   WR->>SES: T2 step.started
   WR->>EXT: on turn_start (tap)
-  WR->>CTX: prepareRequest: 커밋된 이벤트로 조립 (request 지점은 L1.context·L1.models)
+  WR->>CTX: prepareRequest: 커밋된 이벤트로 조립 (request 훅은 L1.context·L1.models)
   CTX-->>WR: 휘발 토큰 델타 (item.updated)
   WR->>EXT: on message_start / message_update (tap)
   WR->>EXT: on message_end (chain)
@@ -542,7 +542,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 | `turn.started`만 있고 `step.started` 없음 | 체크포인트 없음 | T1 이후부터 다시 한다. `input.agent.before`는 기록된 item이 없을 때만 다시 발화한다. `runTurn({ kind: "fresh" })` | `turn_start` 진입 |
 | `step.started`는 있고 T3 없음(스트리밍 중 끊김, K1) | 앞 체크포인트 `next: "request"` 또는 체크포인트 없음 | 같은 단계의 모델 요청을 다시 보낸다. 컨텍스트는 커밋된 이벤트로만 만들므로 요청 본문이 같다. 매퍼 `startStepIndex`는 그 단계 번호, 단계 id는 기록된 `step.started`의 것 | `request` |
 | `next: "request"` | T4 체크포인트 | 다음 단계를 연다. `startStepIndex = stepIndex + 1`. `runTurn({ kind: "request" })` | `request` |
-| `next: "tools"` | T3 체크포인트 | `pendingToolCalls`마다: `effect.result`가 있으면 그 결과, intent만 있으면 L1.tools의 복구 판정 결과, intent가 없으면 L1.tools 파이프라인으로 새로 실행(`tool.call.before` 지점 발화 포함). 모든 결과가 모이면 T4를 커밋하고 `next`에 따라 계속한다. `runTurn({ kind: "tools" })`로 들어가 주 경로와 같은 `runToolBatch`·`endStep`을 쓴다. 새 실행은 `tools.prepare`·`execute` 단계 계약이다(L1.tools.spec §3.3) | `tools` |
+| `next: "tools"` | T3 체크포인트 | `pendingToolCalls`마다: `effect.result`가 있으면 그 결과, intent만 있으면 L1.tools의 복구 판정 결과, intent가 없으면 L1.tools 파이프라인으로 새로 실행(`tool.call.before` 훅 발화 포함). 모든 결과가 모이면 T4를 커밋하고 `next`에 따라 계속한다. `runTurn({ kind: "tools" })`로 들어가 주 경로와 같은 `runToolBatch`·`endStep`을 쓴다. 새 실행은 `tools.prepare`·`execute` 단계 계약이다(L1.tools.spec §3.3) | `tools` |
 | `next: "await_input"` | 승인 대기 커밋(A1)의 체크포인트(L1.tools.spec §4.7 2번)이거나 `deferred` 응답의 T4 체크포인트, `pendingToolCalls[].waiting`. 승인 대기 체크포인트의 `next`는 이 값 하나다(review.open-issues D-06) | 모델을 부르지 않는다. 승인·`input_required` 응답을 기다리는 상태로 둔다. `waiting: "approval"` 호출은 `ApprovalService.restore` 뒤 `runTurn({ kind: "tools", awaitInput: true })`로 다시 `tools.prepare`를 거쳐 같은 승인 요청을 이어 기다린다(L1.tools.spec §4.7). 응답이 기록되면 `tools` 행처럼 이어간다 | `await_input` |
 | `next: "turn_end"` | T4 체크포인트 | 요청을 보내지 않는다. T6가 없으면 소유 작업 정착을 확인하고 T6를 커밋한 뒤 `boundary.turn.after`, `boundary.settle.after`를 발화한다 | `turn_end` 진입 |
 | `turn.abort_requested` 있음, 또는 소유 사슬에 취소 의도 | `L1.tasks.spec` §4.8 3항 | 재개하지 않는다. 열린 효과를 결과 불명·`not_executed`로 닫은 뒤 T6 `interrupted` | `closed` |
@@ -588,7 +588,7 @@ runTurn(req: LoopTurnRequest):
      - view.scopeLeaseEpoch(threadId, req.scopeId) > req.leaseEpoch 이면 reject("stale_lease")   // 펜싱
      - view.turnByRequestId(threadId, req.scopeId, req.requestId)가 있으면 reject("turn_exists")  // 멱등
      - 아니면 입력 item(PostItem user → user item, context → custom item) → turn.started{ requestId, scopeId }
-     input 지점은 발화하지 않는다
+     input 훅은 발화하지 않는다
   3. 거부 처리
      - stale_lease: Promise를 LoopError{ kind: "stale_lease" }로 거부한다
      - turn_exists: 기록된 turn이 turn.completed를 가졌으면 기록된 결과로 { outcome, usage, replayed: true }
@@ -662,7 +662,7 @@ runChildTurn(req):
      - 열린 turn이면 resume으로 끝까지 이어간 뒤 결과를 돌려준다
   2. turn 노드: fresnel.tasks.openScope(req.scope, { kind: "turn", id: turnId, abortIntent })
   3. T1: req.input을 item으로 기록(user → user item, context → custom item) → turn.started{ requestId: req.requestId }
-     input 지점은 발화하지 않는다(사용자 입력이 아니다. drive turn과 같다). before_agent_start는 주 대화와 같이 발화한다
+     input 훅은 발화하지 않는다(사용자 입력이 아니다. drive turn과 같다). before_agent_start는 주 대화와 같이 발화한다
   4. 바인딩과 조립: fresnel.models가 req.model을 해석한다. fresnel.context 조립의 기본 프롬프트는 req.systemPrompt다
   5. ToolRunContext: caller, depth, ceiling, surfaceThreadId, interactive를 req.tools에서 그대로 쓴다.
      광고 목록은 fresnel.tools.advertise({ run, allow: req.tools.allow, keepParentList: req.tools.keepParentList })
@@ -673,7 +673,7 @@ runChildTurn(req):
 
 - `subagents` 풀 슬롯은 core-agents가 이 호출 동안 쥔다(L1.tasks.spec §4.5 표). core-loop는 `modelCalls` 슬롯만 다룬다.
 - 취소: `req.signal`과 `req.scope`의 신호가 turn 노드에 전파된다. 부모 turn 취소는 소유 사슬로 자식 turn 노드에 이른다(L1.tasks.spec §4.2).
-- 자식 대화의 확장 지점은 주 대화와 같은 규칙으로 발화하고 `HandlerContext.threadId`는 자식 thread다(L1.agents.spec §7).
+- 자식 대화의 훅은 주 대화와 같은 규칙으로 발화하고 `HandlerContext.threadId`는 자식 thread다(L1.agents.spec §7).
 - 결과의 `usage`는 자식 turn 합계다. 부모 `turn.completed`에는 더하지 않는다(L1.agents.spec §3.5 사용량 귀속).
 - 구현 [결정: L1A.6]:
   - `model`이 `ModelRole` 이름(`main`, `review`, `summary`, `subagent`, `judge`, `search`)이면 그 역할로 `resolve`하고, 아니면 모델 참조(`provider/id[:레벨]`)로 `main` 역할의 `ref`를 덮어쓴다.
@@ -717,9 +717,9 @@ runChildTurn(req):
 - `l1.loop.maxSteps`는 `F.wire-settings.spec` §3.8.3 사용 예와 같은 정의다.
 - 추론 레벨별 토큰 예산은 이 네임스페이스에 두지 않는다. 값은 `l1.models.*`(L4 models 탭) 소유이고 loop는 `fresnel.models`가 준 `thinkingBudgets`를 넘기기만 한다(§4.7) [가정: L1.models.spec이 키를 정한다].
 - 자동 재개 키는 L1.persistence 소유다(§4.6).
-- D1~D9 대조: 키 접두 `l1.loop.` ↔ `layer: "L1"`(D1). 비밀 없음(D2·D3). 기본값이 range 안(D4). number에만 min·max(D5). 제약은 `range`에만(D6). `restart` 키 없음(D7). integer ↔ number, boolean ↔ toggle(D8). `deprecated` 없음(D9).
+- D1~D9 대조: 키 접두 `l1.loop.` ↔ `layer: "L1"`(D1). 시크릿 없음(D2·D3). 기본값이 range 안(D4). number에만 min·max(D5). 제약은 `range`에만(D6). `restart` 키 없음(D7). integer ↔ number, boolean ↔ toggle(D8). `deprecated` 없음(D9).
 
-## 7. 확장 지점
+## 7. 훅
 
 이 도메인은 발화 지점 12개를 소유한다. 이름·kind·fold·페이로드는 `F.extensions.spec` §3.4~§3.5 표를 인용하고 새로 정의하지 않는다.
 
@@ -808,7 +808,7 @@ runChildTurn(req):
 
 - [미결] `post.when = next`의 시작 여부(adr.0007 §6). loop는 `L1.tasks.spec` §4.9의 B안을 전제로 §4.4를 썼다.
 - [미결] `aside` 위치(L1 전용 모드인지 F `PostWhen` 변경인지). `L1.tasks.spec` §4.9.
-- [결정: review.decisions-2 U-06] `tool.call.before` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 그래서 A4(실행 인자 교체)는 1차에 필요 없다. 2차에 별도 chain 지점을 더할 때 `tools.prepare`의 반환 인자로 넣는다(§3.3 처리표 A4).
+- [결정: review.decisions-2 U-06] `tool.call.before` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 그래서 A4(실행 인자 교체)는 1차에 필요 없다. 2차에 별도 chain 훅을 더할 때 `tools.prepare`의 반환 인자로 넣는다(§3.3 처리표 A4).
 - [미결] 도구 선언 차이 system item을 C3에 둘지 S1에 둘지(adr.0009 §6). 지금은 C3다.
 - [미결] 유휴 thread의 입력 수락을 `input.queued`와 T1 두 커밋으로 둘지, `eng.transactions.design` §4.1 C1처럼 한 커밋으로 합칠지(§3.5).
 - [미결] T3 체크포인트(`next: "tools"`)를 F가 받아들일지(FR-L3).

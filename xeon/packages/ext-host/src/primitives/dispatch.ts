@@ -359,7 +359,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
   };
 }
 
-/** 지점 이름이 N인 타입 있는 호출로 좁힌다. 타입은 지점 표가 보장하고 런타임 값은 그대로다 */
+/** 훅 이름이 N인 타입 있는 호출로 좁힌다. 타입은 훅 표가 보장하고 런타임 값은 그대로다 */
 export function typedDispatch<N extends HookName>(
   dispatcher: Dispatcher,
   point: N,

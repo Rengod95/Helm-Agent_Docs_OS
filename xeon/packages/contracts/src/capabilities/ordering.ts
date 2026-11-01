@@ -7,13 +7,13 @@ import { toJsonSchema } from "./validate.ts";
 export const MAX_TOOLS_PER_REQUEST: number = 128;
 
 function compareBytes(a: string, b: string): -1 | 0 | 1 {
-  // 도구 이름과 능력 ID는 ASCII로 제한되므로 코드 단위 비교는 UTF-8 바이트 순과 같다. localeCompare는 쓰지 않는다.
+  // 도구 이름과 기능 ID는 ASCII로 제한되므로 코드 단위 비교는 UTF-8 바이트 순과 같다. localeCompare는 쓰지 않는다.
   if (a < b) return -1;
   if (a > b) return 1;
   return 0;
 }
 
-/** 도구 순서 비교 함수. 능력 ID, 그다음 도구 name을 바이트 순으로 비교한다 */
+/** 도구 순서 비교 함수. 기능 ID, 그다음 도구 name을 바이트 순으로 비교한다 */
 export function toolOrderKey(a: ToolRef, b: ToolRef): -1 | 0 | 1 {
   const byCapability = compareBytes(a.capability, b.capability);
   return byCapability !== 0 ? byCapability : compareBytes(a.name, b.name);

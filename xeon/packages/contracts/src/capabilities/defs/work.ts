@@ -1077,7 +1077,7 @@ type GoalsMethods = {
   readonly judge: MethodDef<typeof GoalJudgeInput, typeof GoalJudgeOutput>;
 };
 
-/** 모델 도구가 없는 능력이다. 모델 자가 판정은 채택하지 않는다(§4.3.1) */
+/** 모델 도구가 없는 기능이다. 모델 자가 판정은 채택하지 않는다(§4.3.1) */
 export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapability({
   id: "work.goals",
   version: "1.0.0",
@@ -1288,7 +1288,7 @@ type ReportsMethods = {
   readonly build: MethodDef<typeof ReportBuildInput, typeof ReportBuildOutput>;
 };
 
-/** 모델 도구가 없는 능력이다. 턴 결과 형식이다 */
+/** 모델 도구가 없는 기능이다. 턴 결과 형식이다 */
 export const WorkReports: CapabilityDef<ReportsMethods, readonly []> = defineCapability({
   id: "work.reports",
   version: "1.0.0",
@@ -1312,7 +1312,7 @@ export const WorkReportsKey: ServiceKey<CapabilityApi<typeof WorkReports>> =
 
 // ── 서비스 묶음 (§3.6) ─────────────────────────────────────────────────
 
-/** work 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 능력마다 cap:<id> 바인딩이다 */
+/** work 도메인 묶음 타입(L2.readme §5.6). Cordis에 등록하지 않는다. 등록은 기능마다 cap:<id> 바인딩이다 */
 export interface WorkService {
   readonly tasks: CapabilityApi<typeof WorkTasks>;
   readonly plans: CapabilityApi<typeof WorkPlans>;

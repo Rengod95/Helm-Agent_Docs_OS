@@ -432,7 +432,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 - 명령: `/compact [지침]`(수동 컴팩션), `fresnel config set l1.context.autoCompact false`.
 - 요약 모델은 `l1.models.routing.summary`(models 탭)다.
 
-## 7. 확장 지점
+## 7. 훅
 
 ### 7.1 발화하는 지점
 

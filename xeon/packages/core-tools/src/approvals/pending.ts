@@ -34,7 +34,7 @@ function isMode(value: string): value is PermissionMode {
   return PERMISSION_MODE_STRICTNESS.some((mode) => mode === value);
 }
 
-/** 기록된 body(JSON 수준)를 서비스 타입의 ApprovalBody로 되돌린다. 모르는 등급·능력·모드가 있으면 undefined */
+/** 기록된 body(JSON 수준)를 서비스 타입의 ApprovalBody로 되돌린다. 모르는 등급·기능·모드가 있으면 undefined */
 export function approvalBodyOf(body: ApprovalBodyJson): ApprovalBody | undefined {
   switch (body.kind) {
     case "tool": {

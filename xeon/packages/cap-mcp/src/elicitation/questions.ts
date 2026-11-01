@@ -7,7 +7,7 @@ import { asJsonObject, stringOf } from "../json.ts";
 // elicitation(form, url)만 선언했으므로 선언하지 않은 종류(sampling, roots)가 오면 `input_unsupported`다.
 // sampling은 지원하지 않는다(MCP 2026-07-28 Deprecated, M3-REQ-97). 서버가 보내면 거부 오류로 답한다.
 
-/** 폼 필드 이름이 비밀처럼 보일 때 질문 앞에 붙이는 경고(사양: 비밀은 form 모드로 받지 않는다) */
+/** 폼 필드 이름이 시크릿처럼 보일 때 질문 앞에 붙이는 경고(사양: 시크릿은 form 모드로 받지 않는다) */
 export const SECRET_FIELD_WARNING = "[주의] 이 양식에 비밀번호, 키, 토큰을 입력하지 마십시오.";
 
 const SECRET_NAME =

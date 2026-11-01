@@ -9,7 +9,7 @@ import type { CommandFailure, CommandPort } from "../types.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
 
 // G1-01. 엔진에 등록한 슬래시 명령을 wire로 낸다: 클라이언트가 목록을 읽고(`command.list`) 한 줄을 실행한다(`command.run`).
-// 명령 서비스는 cap-dialog의 `dialog.commands` 능력이고, host-dialog-bridge 확장이 그 API를 `holder`에 채운다(l2-units.ts).
+// 명령 서비스는 cap-dialog의 `dialog.commands` 기능이고, host-dialog-bridge 확장이 그 API를 `holder`에 채운다(l2-units.ts).
 // 호출 문맥의 호출자는 `host`다: 사람이 클라이언트에서 직접 친 명령이라 모델이나 확장의 호출이 아니다(승인 origin의 caller도 `host`).
 // 조립 루트 코드(DR-14 예외 2).
 
@@ -18,10 +18,10 @@ export interface CommandPortDeps {
   readonly ids: IdFactory;
 }
 
-/** 능력 오류 메시지의 상한. 명령 줄(사용자 입력)이 섞일 수 있어 길게 싣지 않는다 */
+/** 기능 오류 메시지의 상한. 명령 줄(사용자 입력)이 섞일 수 있어 길게 싣지 않는다 */
 const MESSAGE_MAX = 200;
 
-/** 능력이 던진 값을 실패로 바꾼다. 능력 오류가 아니면(결함) 그대로 다시 던진다 */
+/** 기능이 던진 값을 실패로 바꾼다. 기능 오류가 아니면(결함) 그대로 다시 던진다 */
 function failureOf(caught: unknown): CommandFailure {
   if (isCapabilityError(caught)) {
     return {

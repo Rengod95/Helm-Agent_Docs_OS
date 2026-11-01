@@ -107,7 +107,7 @@ export type GroupDefIssueCode =
   | "state_version" // version이 1 이상의 정수가 아니거나, state가 없는데 migrations가 있음
   | "state_initial_invalid" // initial이 schema를 통과하지 못함
   | "state_migration_missing" // version ≥ 2인데 migrations에 빠진 출발 버전이 있음
-  | "delegate_capability" // delegate를 쓰는데 매니페스트 requires/optional에 위임 능력이 없음(M3, checkGroup)
+  | "delegate_capability" // delegate를 쓰는데 매니페스트 requires/optional에 위임 기능이 없음(M3, checkGroup)
   | "setup_threw"; // checkGroup이 setup을 실행하다 예외를 만남(스펙 코드 목록에 더한 값)
 
 export interface GroupDefIssue {

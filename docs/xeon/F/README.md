@@ -12,7 +12,7 @@ binds: [xeon/packages/contracts/**]
 
 ## 1. 목적
 
-F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 확장, 호스트 계약, 설정의 타입과 스키마와 규약을 한 패키지 `@fresnel/contracts`에 둔다. 다른 층 문서와 코드는 이름을 F 문서에서 가져온다(`_templates/README.md` 문체 규칙 마지막 항목).
+F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 확장, 호스트 계약, 설정의 타입과 스키마와 규약을 한 패키지 `@fresnel/contracts`에 둔다. 다른 층 문서와 코드는 이름을 F 문서에서 가져온다(`_templates/README.md` 문체 규칙 마지막 항목).
 
 - F에는 타입, TypeBox 스키마, 상수, 규약만 있다. 런타임 로직은 두지 않는다.
 - 런타임 로직 예외 [제안]: 아래 다섯 종류는 F에 둘 수 있다. 공통 조건은 셋이다. 입출력, 시계, 난수, 전역 가변 상태를 쓰지 않는다. 여러 층이 같은 규칙을 써야 해서 F보다 위에 두면 같은 층끼리 import가 생긴다. 함수 하나가 한 규칙만 계산한다.
@@ -37,8 +37,8 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 |---|---|---|---|---|---|
 | conversation | 브랜드 ID 8종, pi 메시지·스트림·도구 타입 재노출과 런타임 스키마, 파트 id, thread/turn/step/item 계층과 수명주기 알림, 도구 결과 3채널, 재생 정책 `ReplayPolicy` | F1 대화 모델 | `@fresnel/contracts/conversation` | `F.conversation.spec`, `F.conversation.plan` | 포함 |
 | records | 이벤트 envelope(내구/휘발), kind 이름 규칙과 코어 카탈로그, blob 분리, 효과 3단과 복구 규칙, 단계 체크포인트, 업캐스터·마이그레이션 | F2 기록 계약 | `@fresnel/contracts/records` | `F.records.spec`, `F.records.plan` | 포함(`SessionStore`는 2차) |
-| capabilities | 능력 정의(서비스 메서드 + 모델 도구 쌍), `ServiceKey`, 도구 이름·제목, 결정적 도구 순서, 능력 오류, 정적 검증 | F3 능력 계약 | `@fresnel/contracts/capabilities` | `F.capabilities.spec`, `F.capabilities.plan` | 포함(내장 능력 정의는 M1부터) |
-| extensions | 확장 매니페스트, 지점 선언 표(on fold, post, drive, scope), 그룹 레코드 형식(kind 접두, `GroupRecord`, 종류 등록), 열거형 확장 예약 | F4 확장 계약 | `@fresnel/contracts/extensions` | `F.extensions.spec`, `F.extensions.plan` | 포함(열거형 확장 예약은 2차) |
+| capabilities | 기능 정의(서비스 메서드 + 모델 도구 쌍), `ServiceKey`, 도구 이름·제목, 결정적 도구 순서, 기능 오류, 정적 검증 | F3 기능 계약 | `@fresnel/contracts/capabilities` | `F.capabilities.spec`, `F.capabilities.plan` | 포함(내장 기능 정의는 M1부터) |
+| extensions | 확장 매니페스트, 훅 선언 표(on fold, post, drive, scope), 그룹 레코드 형식(kind 접두, `GroupRecord`, 종류 등록), 열거형 확장 예약 | F4 확장 계약 | `@fresnel/contracts/extensions` | `F.extensions.spec`, `F.extensions.plan` | 포함(열거형 확장 예약은 2차) |
 | wire-settings | 호스트 계약(JSON-RPC, 메서드 레지스트리, seq 커서, 오류, 전송 인터페이스, 버전 정책)과 설정 스키마 단일 원천(`SettingDef`, 범위 우선순위, JSON Schema 출력) | F5 연결·설정 계약 | `@fresnel/contracts/wire`, `@fresnel/contracts/settings` | `F.wire-settings.spec`, `F.wire-settings.plan` | 포함(오류 구간, `_meta`, 소켓 전송은 M2) |
 
 - 서비스 인터페이스 서브패스 `@fresnel/contracts/services`는 도메인을 새로 만들지 않는다. L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수를 모으는 서브패스이고 정의는 `F.capabilities.spec` §3.12가 정한다 [결정: review.decisions-2 D-04]. 층 사이 협력은 이 인터페이스로만 한다(DR-02, DR-14, CM-05).
@@ -107,17 +107,17 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | 도메인 지역 ID | `<세 글자>_<ULID>`(`LocalIdPrefix`, `LOCAL_ID_PREFIXES` 표). 순번·해시형 ID는 접두 없음 | `F.conversation.spec` §3.2.1 |
 | 멱등 키 `requestId` | 브랜드 없는 문자열(1~64자). `RequestId` 타입 이름은 두지 않는다. wire의 JSON-RPC id는 `RpcId`다 | `F.conversation.spec` §3.5, `F.wire-settings.spec` §3.0 |
 | 스키마 상수 | 타입 `X`, 스키마 `XSchema` | `F.conversation.spec` §3 |
-| 이벤트 kind | 코어 `<영역>.<이름>`(snake_case, 점 하나). 내장 L2 도메인 `<도메인 영역>.<이름>`(`DomainArea`: `work`, `dialog`, `artifact`, `schedule`). 확장 `x.<extId>.<영역>.<이름>`, 의도 그룹 `grp.<groupId>.<영역>.<이름>`(`ExtensionEventKind`) | `F.records.spec` §3.2, §3.3.2 |
+| 이벤트 kind | 코어 `<영역>.<이름>`(snake_case, 점 하나). 내장 L2 도메인 `<도메인 영역>.<이름>`(`DomainArea`: `work`, `dialog`, `artifact`, `schedule`). 확장 `x.<extId>.<영역>.<이름>`, 플러그인 그룹 `grp.<groupId>.<영역>.<이름>`(`ExtensionEventKind`) | `F.records.spec` §3.2, §3.3.2 |
 | 그룹 레코드 kind, 커스텀 메시지 `customType` | 확장 이벤트 kind와 같은 형식(`RecordKind` = `ExtensionEventKind`). 예: `grp.learning.skill.proposed` | `F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2 |
 | 확장 이름 | `^[a-z][a-z0-9-]{1,31}$`(`ExtensionName`, 소문자·숫자·하이픈, 밑줄 없음). 매니페스트 `kind`는 `plugin` 또는 `group`. 확장 테이블 접두는 `x_<이름의 하이픈을 밑줄로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다 [결정: review.decisions-2 U-18] | `F.extensions.spec` §3.1 |
-| 확장 지점 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(예: `tool.call.before`, `boundary.step.before`)이고 pi 이름은 별칭 없이 대응 열에만 남긴다 [결정: adr.0017]. 46종, 지점 종류 input·request·tool·boundary·session·lifecycle·guard. fold는 tap, first, chain, collect. 실패 정책은 지점 선언의 `failure` 필드 | `F.extensions.spec` §3.3~§3.4 |
-| 능력 id | `<도메인>.<이름>` 소문자·하이픈, 2~4마디(예: `web.search`) | `F.capabilities.spec` §3.1 |
-| 도구 이름 | 내장 능력 작성 규칙 `^[a-z][a-z0-9_]{0,63}$`, 확장 도구 `<확장 이름>__<이름>`, 허용 문자 `^[a-zA-Z0-9_-]{1,64}$`. 표시 제목은 `label` | `F.capabilities.spec` §3.1, §3.3 |
+| 훅 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(예: `tool.call.before`, `boundary.step.before`)이고 pi 이름은 별칭 없이 대응 열에만 남긴다 [결정: adr.0017]. 46종, 훅 종류 input·request·tool·boundary·session·lifecycle·guard. fold는 tap, first, chain, collect. 실패 정책은 훅 선언의 `failure` 필드 | `F.extensions.spec` §3.3~§3.4 |
+| 기능 id | `<도메인>.<이름>` 소문자·하이픈, 2~4마디(예: `web.search`) | `F.capabilities.spec` §3.1 |
+| 도구 이름 | 내장 기능 작성 규칙 `^[a-z][a-z0-9_]{0,63}$`, 확장 도구 `<확장 이름>__<이름>`, 허용 문자 `^[a-zA-Z0-9_-]{1,64}$`. 표시 제목은 `label` | `F.capabilities.spec` §3.1, §3.3 |
 | wire 메서드 | `<영역>.<동사>` 소문자 낙타, `$/` 제어 예약, 확장은 `ext.<id>.<동사>`(M2 이후) | `F.wire-settings.spec` §3.2 |
 | 설정 키 | `<층>.<도메인>.<이름>`(층은 `f`, `x`, `l0`~`l4`), 확장·외부 그룹은 `ext.<name>.<이름>`. 확장 공통 키 `ext.<name>.enabled`, `ext.<name>.isolation`, drive 상한 `x.primitives.driveDefaultLimits`(기본값)·`x.primitives.driveLimits`(천장) | `F.wire-settings.spec` §3.8.1, §3.8.3, `F.extensions.spec` §6 |
-| 비밀 참조 | `secret://<name>`, name은 `[a-z][a-z0-9-]{1,63}`(`SECRET_REF_PATTERN`) | `F.capabilities.spec` §3.10(정본), `F.wire-settings.spec` §3.8.1(재노출), `_research/secrets.md` §6.1 |
+| 시크릿 참조 | `secret://<name>`, name은 `[a-z][a-z0-9-]{1,63}`(`SECRET_REF_PATTERN`) | `F.capabilities.spec` §3.10(정본), `F.wire-settings.spec` §3.8.1(재노출), `_research/secrets.md` §6.1 |
 
-확장 접두가 두 가지인 이유: 기록 쪽 이름(이벤트 kind, 그룹 레코드 kind, `customType`)은 `x.`/`grp.`로 확장과 그룹을 나눈다. 설정 키에서 `x.`는 X 층 코어 키와 겹치므로 설정 키, wire 메서드, wire 오류 kind는 확장과 외부 그룹 모두 `ext.<id>.`를 쓴다(`F.wire-settings.spec` §3.8.1, §3.5.3). 도구 순서 키의 능력 자리도 확장 도구는 `ext.<확장 이름>`이다(`F.capabilities.spec` §4.5). 대응은 `x.<id>.…`(기록) ↔ `ext.<id>.…`(설정·메서드)다.
+확장 접두가 두 가지인 이유: 기록 쪽 이름(이벤트 kind, 그룹 레코드 kind, `customType`)은 `x.`/`grp.`로 확장과 그룹을 나눈다. 설정 키에서 `x.`는 X 층 코어 키와 겹치므로 설정 키, wire 메서드, wire 오류 kind는 확장과 외부 그룹 모두 `ext.<id>.`를 쓴다(`F.wire-settings.spec` §3.8.1, §3.5.3). 도구 순서 키의 기능 자리도 확장 도구는 `ext.<확장 이름>`이다(`F.capabilities.spec` §4.5). 대응은 `x.<id>.…`(기록) ↔ `ext.<id>.…`(설정·메서드)다.
 
 ### 4.1 대화 계층 용어
 
@@ -129,7 +129,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | item | 입출력 단위(메시지, 도구 호출, 도구 결과) | message, tool_execution |
 | part | 어시스턴트 메시지 블록 하나의 id 레코드 | `contentIndex` |
 
-[결정: review.decisions-2 U-01] pi turn = Fresnel step이다. 지점 이름은 pi 이름을 그대로 쓰므로 `boundary.step.before` 지점은 Fresnel step 경계에서 발화한다. 켜기·끄기와 drive 임대 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
+[결정: review.decisions-2 U-01] pi turn = Fresnel step이다. 훅 이름은 pi 이름을 그대로 쓰므로 `boundary.step.before` 지점은 Fresnel step 경계에서 발화한다. 켜기·끄기와 drive 임대 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
 
 ### 4.2 대표 타입
 
@@ -149,13 +149,13 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | `DurableEventDraft`, `decideEffectRecovery`, `StepCheckpoint`, `upcastEvent` | 초안·효과 복구·체크포인트·마이그레이션 | records |
 | `StoreDb`, `SqlTx`, `StoreService`, `CommitRequest`, `SessionService`, `Projector` | 저장·투영 포트 | records |
 | `TaskService`, `LoopService`, `ModelService`, `ToolService`, `ApprovalService`, `AgentService`, `ContextService`, `ExecService`(`ExecutionEnv` 확장), `SandboxService`, `ProcessService`, `OsService`, `SecretService`, `SecretAdminService`, `McpService`, `GroupService`, `SERVICE_NAMES` | L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`·`GroupService`, 서비스 이름 상수 | services(`./services`) |
-| `CapabilityDef`, `MethodDef`, `ToolSpec`, `defineCapability` | 능력 정의 | capabilities |
+| `CapabilityDef`, `MethodDef`, `ToolSpec`, `defineCapability` | 기능 정의 | capabilities |
 | `ServiceKey`, `serviceKey`, `ApiOf` | 서비스 키 | capabilities |
 | `CapabilityError`, `CapabilityErrorData`, `validateCapability`, `orderTools`, `toJsonSchema` | 오류·검증·순서 | capabilities |
-| `CallOptions`, `CallContext`, `SecretRef`, `SecretName`, `SecretRefError`, `parseSecretRef`, `ProviderSelectionMeta`, `orderProviderCandidates` | 호출 문맥·비밀 참조·provider 선택 | capabilities |
+| `CallOptions`, `CallContext`, `SecretRef`, `SecretName`, `SecretRefError`, `parseSecretRef`, `ProviderSelectionMeta`, `orderProviderCandidates` | 호출 문맥·시크릿 참조·provider 선택 | capabilities |
 | `SemVer`, `SemVerSchema` | 버전 문자열 | capabilities |
 | `ExtensionManifest`, `ExtensionManifestSchema`, `ExtensionName`, `defineManifest`, `validateManifest` | 확장 매니페스트 | extensions |
-| `HOOKS`, `HookName`, `HookDecl`, `Handler`, `FIRST_DENY`, `CHAIN_RULES` | 지점 선언 표와 fold 규칙 | extensions |
+| `HOOKS`, `HookName`, `HookDecl`, `Handler`, `FIRST_DENY`, `CHAIN_RULES` | 훅 선언 표와 fold 규칙 | extensions |
 | `ExtensionOps`, `DriveLease`, `ScopeApi`, `PostItem` | 4연산 타입 | extensions |
 | `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `HookProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `RecordCommitPort`(재노출) | X 호스트 포트와 로더 포트(`ports.ts`, `F.extensions.spec` §3.2.1) | extensions |
 | `GroupRecord`, `RecordKind`, `RecordKindDecl` | 그룹 간 레코드 | extensions |
@@ -170,11 +170,11 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 
 | 소비 층·도메인 | 주로 쓰는 F 도메인 | 대표 이름 |
 |---|---|---|
-| X `ext-host` | extensions, records, capabilities, settings | `ExtensionManifest`, 지점 선언 표, 호스트 포트(`ports.ts`), `EventKindRegistration`, `ServiceKey`, `settingsFromManifest`, `buildCatalog` |
+| X `ext-host` | extensions, records, capabilities, settings | `ExtensionManifest`, 훅 선언 표, 호스트 포트(`ports.ts`), `EventKindRegistration`, `ServiceKey`, `settingsFromManifest`, `buildCatalog` |
 | L0 `platform-store` | records, conversation | `DurableEventEnvelopeSchema`, `CORE_EVENT_CATALOG`, `StepCheckpointSchema`, `BlobRef`, ID 타입, `StoreDb`·`SqlTx`·`StoreService` |
 | L0 `platform-os` | base(루트), conversation | `Clock`, `Scheduler`, `RandomSource`, `Logger`, `IdFactory`, `LocalIdFactory` |
 | L0 `platform-secrets` | capabilities, services | `SecretRef`, `SECRET_REF_PATTERN`, `SecretName`, `SecretNameSchema`, `parseSecretRef`, `SecretRefError`, `SecretService`, `SecretAdminService`, `SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`(review.decisions-2 U-08) |
-| L1 `core-loop` | conversation, records, extensions | `AgentEvent`, `LifecycleEvent`, `PartDelta`, 효과 3단, 지점 이름 |
+| L1 `core-loop` | conversation, records, extensions | `AgentEvent`, `LifecycleEvent`, `PartDelta`, 효과 3단, 훅 이름 |
 | L1 `core-tools` | capabilities, conversation, records | `ToolSpec`, `AgentToolResult`, `ResultStatus`, `ReplayPolicy` |
 | L1 `core-persistence` | records, settings | `upcastEvent`, 재개 규칙, `resolveSetting` |
 | L1 `core-context`, `core-models` | capabilities, conversation | `orderTools`, `toolsetFingerprint`, `Message` |
@@ -195,7 +195,7 @@ F가 정하지 않는 것:
 | 저장 구현(테이블, DDL, PRAGMA, 잠금, blob 파일, seq 발급) | `L0.store.spec`, `L1.persistence.spec` |
 | ID 발급 구현(시계, 난수, ULID 단조성) | L0·L1 |
 | 도구 실행, 권한, 승인 프로토콜 | `L1.tools.spec` |
-| 능력 provider 구현과 선택 | 각 `L2.<domain>.spec` |
+| 기능 provider 구현과 선택 | 각 `L2.<domain>.spec` |
 | 설정 키 카탈로그(어떤 키가 있는지) | 각 층 spec의 "설정 노출" 절. F 자신의 키는 없다 |
 | 전송 구현, 메서드 처리기, 설정 파일 위치·읽기 | L4(`L4.host-service.spec`, `L4.cli.spec`, `L4.desktop.spec`) |
 | 설정 화면과 UI | `L4.settings-ui.spec` |
@@ -204,7 +204,7 @@ F가 정하지 않는 것:
 
 - F 변경은 모든 층에 영향이 있다. 변경은 `F.wire-settings.spec` §3.7의 버전 정책(semver, 상태 Active·Deprecated·Removed, 폐기 기간)을 따른다.
 - 이름을 바꾸거나 지울 때는 F 문서를 먼저 고치고, 소비 층 문서와 코드를 같은 변경에서 고친다. 이벤트 kind는 이름을 바꾸지 않고 `version`과 업캐스터로 진화한다(`F.records.spec` §3.2 규칙 5).
-- 문서 표와 코드 표의 일치 검사가 있다. 이벤트 카탈로그(`catalog-doc.test.ts`, `F.records.plan`), 지점 선언 표(`check-points-doc.ts`, `F.extensions.plan` E9), wire 메서드 표(`F.wire-settings.plan` W15).
+- 문서 표와 코드 표의 일치 검사가 있다. 이벤트 카탈로그(`catalog-doc.test.ts`, `F.records.plan`), 훅 선언 표(`check-points-doc.ts`, `F.extensions.plan` E9), wire 메서드 표(`F.wire-settings.plan` W15).
 
 ## 7. 결정 근거
 
@@ -213,7 +213,7 @@ F가 정하지 않는 것:
 | [결정] pi-ai provider와 타입은 그대로 쓰고 부족분만 포크한다. F는 pi 타입을 재노출만 한다 | `_research/decisions-log.md` 2026-10-21 결정(2차), `_research/foundation-plan.md` §2 모델·루프 행 |
 | [결정] 스키마는 TypeBox 하나로 쓰고 JSON Schema와 TS 타입의 단일 원천으로 삼는다 | `_research/foundation-plan.md` §2 스키마 행, `_research/layer-plan-v2.json` F3 도구 스키마 |
 | [결정] 세션 저장은 C안이다. SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블 | `_research/decisions-log.md` 2026-10-21 결정(2차) |
-| [결정] 확장 지점은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다 | `_research/decisions-log.md` 2026-10-21 계획 v2 |
+| [결정] 훅은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다 | `_research/decisions-log.md` 2026-10-21 계획 v2 |
 | [결정] DI는 Cordis 하나다. F는 Cordis를 import하지 않는다 | `_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md` §1 1번 |
 | [결정] 호스트 계약은 하나이고 전송만 바꾼다(CLI in-process, 데스크톱 stdio) | `_research/foundation-plan.md` §1 3번, `_research/decisions-log.md` 2026-10-21 계획 v2 |
 | [결정] 모든 설정은 F5 스키마 하나에서 화면·파일·명령을 만든다 | `_research/layer-plan-v2-notes.md` 층 사이 규칙 6 |

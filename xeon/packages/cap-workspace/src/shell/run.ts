@@ -28,7 +28,7 @@ function isSecretRef(value: string): value is SecretRef {
   return value.startsWith("secret://");
 }
 
-/** 비밀 사용 목적 표지 `bash:<argv0>`. 경로와 특수 문자를 걷어 감사 기록에 안전한 이름만 남긴다 */
+/** 시크릿 사용 목적 표지 `bash:<argv0>`. 경로와 특수 문자를 걷어 감사 기록에 안전한 이름만 남긴다 */
 function purposeOf(command: string): string {
   const first = command.trim().split(/\s+/)[0] ?? "";
   const name = (first.split("/").at(-1) ?? "").replace(/[^A-Za-z0-9._+-]/g, "").slice(0, 48);

@@ -297,7 +297,7 @@ describe("wrapShell", () => {
     expect(JSON.stringify(f.os.log.entries)).not.toContain(secretValue);
     expect(JSON.stringify(result.ok ? result.value.sandbox : undefined)).not.toContain(secretValue);
     expect(JSON.stringify(f.srt.wrapCalls)).not.toContain(secretValue);
-    // 비밀 참조는 아래 Shell에 그대로 도착한다
+    // 시크릿 참조는 아래 Shell에 그대로 도착한다
     expect(shell.calls[0]?.options?.secretEnv).toBe(secretEnv);
     expect(shell.calls[0]?.options?.env?.["SOME_VALUE"]).toBe(secretValue);
   });

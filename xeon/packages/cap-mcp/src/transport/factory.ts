@@ -53,7 +53,7 @@ export interface DefaultTransportDeps {
   readonly scheduler: Scheduler;
   readonly fetch: FetchLike | undefined;
   readonly stdioGraceMs: number;
-  /** 비밀 env stdio 서버의 기동 승인. 없으면 비밀 env 서버는 승인 증거 없이 띄우려다 `secret_denied`가 된다 */
+  /** 시크릿 env stdio 서버의 기동 승인. 없으면 시크릿 env 서버는 승인 증거 없이 띄우려다 `secret_denied`가 된다 */
   readonly startGate?: McpStartGate | undefined;
 }
 

@@ -212,7 +212,7 @@ describe("provider http", () => {
       SIGNAL,
     );
     expect(header.transport.requests.at(-1)?.headers["x-api-key"]).toBe("key-value-123");
-    // 비밀 이름이 아닌 provider 헤더는 그대로 간다
+    // 시크릿 이름이 아닌 provider 헤더는 그대로 간다
     expect(header.transport.requests.at(-1)?.headers["authorization"]).toBe("Bearer provider");
 
     const bearer = setup({
@@ -356,7 +356,7 @@ describe("provider http", () => {
   });
 
   test("the GuardedHttp face rejects with a WebHttpError", async () => {
-    // 비밀 값은 8바이트 이상이다(L0 register 규칙). 짧은 값은 본문 글자와 겹쳐 에코로 잘못 잡힌다
+    // 시크릿 값은 8바이트 이상이다(L0 register 규칙). 짧은 값은 본문 글자와 겹쳐 에코로 잘못 잡힌다
     const { bound } = setup({ key: "key-value-123" });
     const rejected = await bound.http
       .request({ method: "GET", url: "https://other.example/x" }, SIGNAL)

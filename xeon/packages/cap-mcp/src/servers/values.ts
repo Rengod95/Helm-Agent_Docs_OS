@@ -1,12 +1,12 @@
 import type { McpServerDef } from "@fresnel/contracts/capabilities";
 
 // L2.mcp.spec §4.2 [결정: M3-REQ-97, D-M3-19 행 3]. 서버 정의의 env·headers 값은 `secret://` 참조이거나 평문이다.
-// 평문은 허용하되 이름이 비밀처럼 보이면(KEY, TOKEN, SECRET 등) 거부한다. `secret://`로 시작하는 값은 참조 형식이어야 한다
+// 평문은 허용하되 이름이 시크릿처럼 보이면(KEY, TOKEN, SECRET 등) 거부한다. `secret://`로 시작하는 값은 참조 형식이어야 한다
 // (오타 난 참조가 평문으로 전송되는 일을 막는다).
 
 const SECRET_REF = /^secret:\/\/[a-z][a-z0-9-]{1,63}$/;
 
-/** 이름을 이루는 낱말이 이 중 하나면 비밀 이름이다. `MAX_TOKENS`의 TOKENS처럼 복수형은 비밀이 아니다 */
+/** 이름을 이루는 낱말이 이 중 하나면 시크릿 이름이다. `MAX_TOKENS`의 TOKENS처럼 복수형은 시크릿이 아니다 */
 const SECRET_WORDS: ReadonlySet<string> = new Set([
   "KEY",
   "APIKEY",
@@ -33,7 +33,7 @@ function wordsOf(name: string): string[] {
     .filter((word) => word.length > 0);
 }
 
-/** 이름이 비밀처럼 보이는가 */
+/** 이름이 시크릿처럼 보이는가 */
 export function looksLikeSecretName(name: string): boolean {
   return wordsOf(name).some((word) => SECRET_WORDS.has(word));
 }

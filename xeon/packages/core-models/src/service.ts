@@ -61,7 +61,7 @@ export type ModelsSettingsSource = () => ModelsSettings;
 
 export interface ModelServiceDeps {
   /**
-   * pi-ai 모델 모음을 만든다. 서비스가 만든 CredentialStore(비밀 참조 다리)를 받아야 하므로 팩토리로 받는다.
+   * pi-ai 모델 모음을 만든다. 서비스가 만든 CredentialStore(시크릿 참조 다리)를 받아야 하므로 팩토리로 받는다.
    * 운영은 builtinModels({ credentials }), 테스트는 createModels({ credentials })에 테이프 provider를 더한 것이다
    */
   readonly buildModels: (credentials: CredentialStore) => MutableModels;
@@ -87,7 +87,7 @@ function modelError(kind: ModelError["kind"], message: string, ref?: string): Mo
 
 function targetOfUrl(baseUrl: string): SecretTarget | null {
   const parsed = attempt(() => new URL(baseUrl));
-  // 해석할 수 없는 주소는 비밀 사용 대상을 정할 수 없다. 호출자가 null을 받아 비밀 없는 호출로 처리한다
+  // 해석할 수 없는 주소는 시크릿 사용 대상을 정할 수 없다. 호출자가 null을 받아 시크릿 없는 호출로 처리한다
   if (!parsed.ok) return null;
   const url = parsed.value;
   return { host: url.hostname, port: url.port === "" ? null : Number(url.port) };

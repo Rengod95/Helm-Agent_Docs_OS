@@ -10,11 +10,11 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 
 # 트랜잭션 설계
 
-세션 기록의 원자성, 내구성, 쓰기 소유, 멱등, 결과 불명 처리, 취소 전파, outbox를 정한다. 이 문서는 커밋 키(`requestId`) 형식과 파생 규칙, outbox, 결과 불명 처리의 커밋 규칙, 단계 경계 `synchronous=FULL`의 정본이다. envelope 필드, kind 카탈로그, 효과 3단 레코드와 복구 결정표(`decideEffectRecovery`)는 `F.records.spec`이 정본이다. `seq`, 내구·휘발, 투영, 재생, 스키마 버전 운용은 `eng.events.design`이 정본이다. 테이블과 이벤트 kind 접두의 소유는 `eng.context-map.design`이 정본이다. 커밋 지점 표와 커밋 API 타입의 상세는 `L1.persistence.spec` §3.2~§3.7, §4.2가 정하고, 이 문서는 그 표를 일반 규칙과 함께 인용한다. 이름은 F 이름을 쓴다(`L1.persistence.spec` §2.1 대응표).
+세션 기록의 원자성, 내구성, 쓰기 소유, 멱등, 결과 불명 처리, 취소 전파, outbox를 정한다. 이 문서는 커밋 키(`requestId`) 형식과 파생 규칙, outbox, 결과 불명 처리의 커밋 규칙, 단계 경계 `synchronous=FULL`의 정본이다. envelope 필드, kind 카탈로그, 효과 3단 레코드와 복구 결정표(`decideEffectRecovery`)는 `F.records.spec`이 정본이다. `seq`, 내구·휘발, 투영, 재생, 스키마 버전 운용은 `eng.events.design`이 정본이다. 테이블과 이벤트 kind 접두의 소유는 `eng.context-map.design`이 정본이다. 커밋 훅 표와 커밋 API 타입의 상세는 `L1.persistence.spec` §3.2~§3.7, §4.2가 정하고, 이 문서는 그 표를 일반 규칙과 함께 인용한다. 이름은 F 이름을 쓴다(`L1.persistence.spec` §2.1 대응표).
 
 이 문서는 구속 문서다. 마지막 절 "구현 작업자 규칙"(TX-NN)은 `platform-store`, `core-persistence`, `cap-schedule`과 세션에 쓰는 모든 코드에 적용된다.
 
-기존 Helm 설계 `docs/design/09-event-store.md §3.8~3.9`, `12-runtime-engine.md §3.7~3.8`은 데몬 하나가 DB의 유일한 쓰기 주체라는 전제다. Xeon은 CLI(같은 프로세스 엔진), 데스크톱(자식 엔진), 공유 서비스 모드(1차. OS 서비스 등록만 2차)가 같은 DB 파일을 열 수 있다(`_research/foundation-plan.md §1` 결정 2·3, [결정: review.decisions-2 S-01]). 그래서 데몬 단일 쓰기 잠금과 부팅 epoch 펜싱 대신 세션 단위 소유(OS 잠금 + 임대 행 epoch)를 쓴다. 해시 체인과 HMAC은 범위에서 뺐다(`eng.events.design` 미결 E-3).
+기존 Helm 설계 `docs/design/09-event-store.md §3.8~3.9`, `12-runtime-engine.md §3.7~3.8`은 데몬 하나가 DB의 유일한 쓰기 주체라는 전제다. Fresnel은 CLI(같은 프로세스 엔진), 데스크톱(자식 엔진), 공유 서비스 모드(1차. OS 서비스 등록만 2차)가 같은 DB 파일을 열 수 있다(`_research/foundation-plan.md §1` 결정 2·3, [결정: review.decisions-2 S-01]). 그래서 데몬 단일 쓰기 잠금과 부팅 epoch 펜싱 대신 세션 단위 소유(OS 잠금 + 임대 행 epoch)를 쓴다. 해시 체인과 HMAC은 범위에서 뺐다(`eng.events.design` 미결 E-3).
 
 ## 1. 문제
 
@@ -41,7 +41,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 
 | 안 | 내용 | 장점 | 단점 |
 |---|---|---|---|
-| A. 데몬 단일 쓰기 잠금(09 §3.8.1) | 프로세스 하나만 쓰기 연결을 연다 | 단순 | Xeon은 CLI·데스크톱이 각자 엔진을 띄운다. 공유 서비스 모드(1차)가 켜져 있어도 CLI가 같은 프로세스 엔진으로 같은 DB를 열 수 있다 |
+| A. 데몬 단일 쓰기 잠금(09 §3.8.1) | 프로세스 하나만 쓰기 연결을 연다 | 단순 | Fresnel은 CLI·데스크톱이 각자 엔진을 띄운다. 공유 서비스 모드(1차)가 켜져 있어도 CLI가 같은 프로세스 엔진으로 같은 DB를 열 수 있다 |
 | B. OS 파일 잠금(세션 id별) | `flock`류 | DB 밖에서 빠르게 판정 | OS·WSL마다 동작이 다르다. 쓰기 트랜잭션 안에서 확인할 수 없다 |
 | C. DB 임대 행 + 하트비트 | `sys_leases` 행에 소유자와 epoch를 두고 쓰기마다 확인 | 쓰기와 같은 트랜잭션에서 확인(펜싱). OS 무관 | 크래시 뒤 만료까지 대기(하트비트 주기) |
 | D. 잠금 없음 | `BEGIN IMMEDIATE` 직렬화만 | 가장 단순 | 두 프로세스가 같은 세션 루프를 번갈아 진행할 수 있다 |
@@ -105,7 +105,7 @@ PRAGMA application_id = 1179799116;  -- 0x46524E4C 'FRNL'. 새 파일에서만 �
 
 ```sql
 CREATE TABLE sys_leases (
-  resource     TEXT PRIMARY KEY,        -- 'session:<threadId>' | 'scheduler' | 'service'
+  resource     TEXT PRIMARY KEY,        -- 'thread:<threadId>' | 'scheduler' | 'service'
   holder_id    TEXT NOT NULL,
   epoch        INTEGER NOT NULL CHECK (epoch >= 1),
   kind         TEXT NOT NULL CHECK (kind IN ('cli', 'app', 'service')),
@@ -159,7 +159,7 @@ CREATE TABLE sys_leases (
 
 - 체크포인트는 단계 경계(C5)와 승인 대기(A1)에만 쓴다(`L1.persistence.spec` §4.2). A1은 `step.completed` 없는 체크포인트라 `F.records.spec` §3.6에 예외를 적도록 요청 중이다(`L1.persistence.spec` FR-P4). `L1.loop.spec` T3은 도구 호출이 있으면 C3에 `next: "tools"` 체크포인트를 요청한다. 이 요청은 F의 결정 뒤 이 표에 반영한다 [미결](`L1.readme` §13 (j)).
 - 확장 기여: 그 지점의 `on` 핸들러(`chain`, `first`)가 돌려준 확장 이벤트 초안과 X의 경계 기여(`scope.changed`, `lease.acquired`, `lease.released`, `X.primitives.spec` 용어표)다. 핸들러는 커밋 전에 트랜잭션 밖에서 실행하고(await 허용), 결과 초안만 커밋에 넣는다. `tap` 핸들러는 커밋 뒤에 실행하고, 기록이 필요하면 자기 커밋 키로 따로 커밋한다.
-- 확장 지점 이름(`tool.call.before`, `boundary.step.after`, `input.agent.before`)은 `F.extensions.spec` §3.4 표의 이름이다. 목록은 `F.extensions.spec`이 확정한다.
+- 훅 이름(`tool.call.before`, `boundary.step.after`, `input.agent.before`)은 `F.extensions.spec` §3.4 표의 이름이다. 목록은 `F.extensions.spec`이 확정한다.
 - `tool.call.before`(`first`)은 C3 뒤, E1 전에 실행한다. `tool.call.before`은 허용·거부·결과 대체만 하고 인자를 바꾸지 않는다([결정: review.decisions-2 U-06]). 통과한 호출은 모델이 낸 인자 그대로 `effect.intent`를 남긴다. 거부된 호출은 `effect.intent`도 `effect.result`도 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`). 재개 때는 `effect.intent`의 인자를 쓰고 핸들러를 다시 부르지 않는다(`eng.events.design` 7.1절).
 - 진행 중 스트리밍 응답은 C3 전까지 저장하지 않는다. C3 전에 크래시가 나면 같은 단계의 모델 요청을 다시 보낸다.
 - 이전 판의 C4(도구 정착 한 커밋)는 E1~E3으로 나눴으므로 쓰지 않는다.
@@ -346,7 +346,7 @@ commit(req: CommitRequest): Result<CommitResult, StoreError> {
 
 ### 4.6 장애 주입 지점과 불변식
 
-[제안] `FaultInjector.hit(point)`가 예외를 던지게 해서 각 지점을 시험한다(09 §3.8.4 고장 주입 지점, helm-kernel-v02 `faultInjector`를 Xeon 단계에 맞춤).
+[제안] `FaultInjector.hit(point)`가 예외를 던지게 해서 각 지점을 시험한다(09 §3.8.4 고장 주입 지점, helm-kernel-v02 `faultInjector`를 Fresnel 단계에 맞춤).
 
 | 지점 | 그 지점에서 예외가 났을 때 성립해야 하는 것 |
 |---|---|
@@ -365,7 +365,7 @@ commit(req: CommitRequest): Result<CommitResult, StoreError> {
 
 ### 4.7 커밋 키와 지문
 
-[제안] 09 §3.9.1을 Xeon에 맞게 줄였다.
+[제안] 09 §3.9.1을 Fresnel에 맞게 줄였다.
 
 - 범위: 커밋 키는 thread 하나 안에서 유일하다. `requests` 테이블의 기본 키는 `(thread_id, request_id)`다(`L1.persistence.spec` §3.10).
 - 형식: 정규식 `COMMIT_KEY_PATTERN` = `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$`(1~200자)를 이 문서의 정본으로 둔다. 코드 상수는 F `records/commit.ts`(`F.records.spec` §3.9)에 두고 `L1.persistence.spec` §3.2는 인용한다 [결정: review.decisions-2 U-13]. L1과 X는 이 상수 하나로 키를 검사한다. 이전 판의 `REQUEST_ID_PATTERN`(`<종류>:<부분>`)은 X의 키(`${leaseId}:…`, `st:<해시>:…`, `X.primitives.spec` §4.4.4·§4.6.1)를 받지 못해 쓰지 않는다. 키는 대부분 `<종류>:<부분>[:<부분>…]` 꼴이지만, 형식 검사는 위 정규식 하나다. 저장소가 커밋 처리 전에 검사한다(`L1.persistence.spec` §4.4).
@@ -536,7 +536,7 @@ export function decideOpenEffect(input: OpenEffectInput): EffectRecovery;
 
 ### 6.1 소유 트리
 
-[제안] durable `spec.md` 1972-2200(§5.4 소유 순회, §5.5 구조적 동시성)을 Xeon 단위로 옮긴다. 층 구성 계획 v2 L1-a "범위 트리: app > conversation > turn > tool·subagent".
+[제안] durable `spec.md` 1972-2200(§5.4 소유 순회, §5.5 구조적 동시성)을 Fresnel 단위로 옮긴다. 층 구성 계획 v2 L1-a "범위 트리: app > conversation > turn > tool·subagent".
 
 ```mermaid
 flowchart TD
@@ -604,10 +604,10 @@ CREATE TABLE consumer_cursors (
 
 격리 확장 규칙 [제안]:
 
-1. 격리 프로세스는 세션 DB를 열지 않는다. 자식 환경 변수에 DB 경로와 비밀을 넣지 않는다(`X.loading-trust.spec` §4.9.6). 호스트 쪽 대리인이 그 확장의 매니페스트 `readsRecordKinds`로 허용된 kind만 RPC 알림으로 `seq` 순서대로 전달한다. 전달은 at-least-once이고 확장은 `seq`로 중복을 거른다.
-2. 확장이 마지막으로 처리한 `seq`는 `XEON_EXT_DATA` 안 확장의 개인 보관소에 자기 반영과 같은 트랜잭션으로 저장한다. 재시작 뒤 그 `seq` 다음부터 다시 받는다.
+1. 격리 프로세스는 세션 DB를 열지 않는다. 자식 환경 변수에 DB 경로와 시크릿을 넣지 않는다(`X.loading-trust.spec` §4.9.6). 호스트 쪽 대리인이 그 확장의 매니페스트 `readsRecordKinds`로 허용된 kind만 RPC 알림으로 `seq` 순서대로 전달한다. 전달은 at-least-once이고 확장은 `seq`로 중복을 거른다.
+2. 확장이 마지막으로 처리한 `seq`는 `FRESNEL_EXT_DATA` 안 확장의 개인 보관소에 자기 반영과 같은 트랜잭션으로 저장한다. 재시작 뒤 그 `seq` 다음부터 다시 받는다.
 3. 격리 확장의 `commit`·`record`·`post`는 항상 호스트 `OutboxAgent`를 거쳐 세션 커밋 경로로 들어가 세션 이벤트(`x.<name>.state.committed` 등)로 남는다(`X.loading-trust.spec`). 확장 상태의 정본은 세션 DB의 이벤트이고, 개인 보관소는 확장이 자기 용도로 두는 사본과 커서다. 격리 프로세스가 세션 테이블에 직접 쓰지 않는다.
-4. `X.operations.spec` §4.7.7 표의 격리 확장 "상태: 자기 DB 파일, outbox로 반영" 문구는 이 규칙에 맞추어 "개인 보관소(`XEON_EXT_DATA`)"로 고치도록 요청한다.
+4. `X.operations.spec` §4.7.7 표의 격리 확장 "상태: 자기 DB 파일, outbox로 반영" 문구는 이 규칙에 맞추어 "개인 보관소(`FRESNEL_EXT_DATA`)"로 고치도록 요청한다.
 
 ## 8. 결과로 생기는 제약
 
@@ -803,7 +803,7 @@ storeDb.write((tx) => tx.run("INSERT INTO p_inputs …", [/* … */]));   // 소
 
 효과는 경계가 아니다. 도구 호출마다 E1(의도), E2(실행 시작), E3(결과)를 각각 커밋한다. 의도는 실행 전에 디스크에 있어야 하고(TX-02), 실행 시작을 따로 남겨야 `not_started`와 `outcome_unknown`을 구분한다(`F.records.spec` §3.5 기록 순서 2). C3과 E1 사이 크래시로 생기는 "의도 없는 toolCall"은 효과가 일어나지 않은 상태이고, `L1.persistence.spec` §4.7.4가 그 호출을 정상 파이프라인으로 다시 돌린다.
 
-강제: 4.1절 커밋 지점 표를 `core-loop`의 단위 테스트가 커밋 횟수로 확인한다(한 단계 도구 n개에 `3 + 3n`, `L1.persistence.spec` 수용 기준 23).
+강제: 4.1절 커밋 훅 표를 `core-loop`의 단위 테스트가 커밋 횟수로 확인한다(한 단계 도구 n개에 `3 + 3n`, `L1.persistence.spec` 수용 기준 23).
 
 좋은 예:
 

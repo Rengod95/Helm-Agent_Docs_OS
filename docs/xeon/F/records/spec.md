@@ -223,7 +223,7 @@ export interface EventKindRegistry {
 규칙 [제안]:
 
 1. 코어 kind는 `<영역>.<이름>`이다. 점은 하나, 소문자 `snake_case`다(09 §3.3 규칙 1을 따른다).
-2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 의도 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `F.extensions.spec` §3.1의 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, review.decisions-2 U-18)이다. 셋째 마디(영역)는 `[a-z][a-z0-9_]{0,31}`이다. `L2.artifacts.spec`의 확장 `ArtifactKind`(`x.<확장 이름>.<종류>`) 셋째 마디와 같은 규칙이다. 같은 형식을 그룹 레코드 kind(`F.extensions.spec` §3.6 `RecordKind`)와 확장 커스텀 메시지 `customType`(`F.conversation.spec` §3.5.2)도 쓴다. 설정 키와 wire 메서드는 `ext.` 접두를 쓰는 다른 규칙이다(`F.wire-settings.spec` §3.8.1).
+2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 플러그인 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `F.extensions.spec` §3.1의 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, review.decisions-2 U-18)이다. 셋째 마디(영역)는 `[a-z][a-z0-9_]{0,31}`이다. `L2.artifacts.spec`의 확장 `ArtifactKind`(`x.<확장 이름>.<종류>`) 셋째 마디와 같은 규칙이다. 같은 형식을 그룹 레코드 kind(`F.extensions.spec` §3.6 `RecordKind`)와 확장 커스텀 메시지 `customType`(`F.conversation.spec` §3.5.2)도 쓴다. 설정 키와 wire 메서드는 `ext.` 접두를 쓰는 다른 규칙이다(`F.wire-settings.spec` §3.8.1).
 3. 확장은 접두 없는 kind를 쓸 수 없다. 코어 영역 이름(`CoreArea`)도 접두 뒤에서는 쓸 수 있다(예: `grp.helm.item.tagged`). 예외는 내장 패키지 둘이다. `core-*` 패키지는 코어 영역을, 내장 `cap-*` 패키지는 §3.3.2 소유 카탈로그에 등록된 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 매니페스트가 있는 내장 `cap-*`도 이벤트 kind는 이 예외를 따르고, 그룹 레코드 kind와 커스텀 메시지 `customType`은 `RecordKind` 형식(`x.<확장 이름>.…`)을 그대로 쓴다(`F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2). 외부 확장은 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓸 수 없다.
 4. 벤더 이름(pi, claude, codex)을 코어 kind에 넣지 않는다(09 §3.3 규칙 5).
 5. 이름은 바꾸지 않는다. 의미가 바뀌면 `version`을 올리고 업캐스터를 둔다. 없앤 kind는 카탈로그에 `retired: true`로 남긴다.
@@ -299,9 +299,9 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `agent.spawned` | 예 | `AgentSpawnedPayloadSchema` | 자식 thread 생성과 소유 간선 |
 | `agent.settled` | 예 | `AgentSettledEventPayloadSchema` | 자식 turn 종결, 보고, 사용량 |
 | `agent.judged` | 예 | `AgentJudgedPayloadSchema` | 목표 판정 모델 결과 |
-| `secret.used` | 예 | `SecretUsedPayloadSchema` | 비밀 사용 허용(값 없음) |
-| `secret.denied` | 예 | `SecretDeniedPayloadSchema` | 비밀 사용 거부와 사유 |
-| `secret.approved` | 예 | `SecretApprovedPayloadSchema` | 비밀 사용 승인 증거 |
+| `secret.used` | 예 | `SecretUsedPayloadSchema` | 시크릿 사용 허용(값 없음) |
+| `secret.denied` | 예 | `SecretDeniedPayloadSchema` | 시크릿 사용 거부와 사유 |
+| `secret.approved` | 예 | `SecretApprovedPayloadSchema` | 시크릿 사용 승인 증거 |
 | `secret.masked` | 예 | `SecretMaskedPayloadSchema` | 마스킹 계층과 적중 수 |
 | `tool.sandbox_bypassed` | 예 | `ToolSandboxBypassedPayloadSchema` | 샌드박스 밖에서 실행한 도구 호출(`reason`: `escape`·`run_unsandboxed`·`disabled`). 명령과 출력 값은 싣지 않는다 |
 | `tool.untrusted_read` | 예 | `ToolUntrustedReadPayloadSchema` | 턴 안에서 웹·MCP 도구 결과를 읽은 기록(`afterUntrusted`의 재시작 유지). 결과 본문은 싣지 않는다 |
@@ -384,11 +384,11 @@ export interface PostAcceptedPayload {
 export interface SettingsChangedPayload { key: string; scope: string; value: JsonValue | null }
 ```
 
-- [제안] `settings.changed`는 세션 동작에 영향을 주는 변경(예: 모델, 추론 수준)만 기록한다. 비밀 값은 기록하지 않고 참조만 기록한다(결정 로그 2차 "에이전트는 값을 모른 채 참조로 사용").
+- [제안] `settings.changed`는 세션 동작에 영향을 주는 변경(예: 모델, 추론 수준)만 기록한다. 시크릿 값은 기록하지 않고 참조만 기록한다(결정 로그 2차 "에이전트는 값을 모른 채 참조로 사용").
 
 #### 3.3.1 L0·L1·X 요청으로 더한 코어 kind
 
-[제안] L1·L0·X 문서가 "F에 요청"으로 남긴 kind를 한 번에 받는다. 받은 요청: `L1.tools.spec` §8.3 F 요청 3과 `F.wire-settings.spec` §4.6(승인, A안 [결정: review.decisions-2 U-02]), `L1.tasks.spec` FR-T1·FR-T2(입력 큐, 취소 의도), `L1.agents.spec` §8.3 3(자식 대화), `L1.persistence.spec` FR-P3(재개), `L0.secrets.spec` §8.3 R3 (a)안(비밀 사용), `X.operations.spec` §10 미결 4(`scope.handler_failed`, `ScopeChangedPayload.reason`). 생산자 소유(`TYPE_PREFIX_OWNERS`)는 `eng.context-map.design` §5.1을 따른다.
+[제안] L1·L0·X 문서가 "F에 요청"으로 남긴 kind를 한 번에 받는다. 받은 요청: `L1.tools.spec` §8.3 F 요청 3과 `F.wire-settings.spec` §4.6(승인, A안 [결정: review.decisions-2 U-02]), `L1.tasks.spec` FR-T1·FR-T2(입력 큐, 취소 의도), `L1.agents.spec` §8.3 3(자식 대화), `L1.persistence.spec` FR-P3(재개), `L0.secrets.spec` §8.3 R3 (a)안(시크릿 사용), `X.operations.spec` §10 미결 4(`scope.handler_failed`, `ScopeChangedPayload.reason`). 생산자 소유(`TYPE_PREFIX_OWNERS`)는 `eng.context-map.design` §5.1을 따른다.
 
 records는 capabilities·extensions보다 낮은 순서라(`F.readme` §3) 그 도메인 타입을 import하지 않고 같은 모양을 JSON 수준으로 적는다(`extension-ops.ts`와 같은 방식). 하위 모양의 필드 뜻은 괄호 안 소유 문서를 따르고, 소유 문서와 이 블록이 다르면 이 블록을 고친 뒤 소유 문서를 맞춘다.
 
@@ -573,11 +573,11 @@ export interface ToolUntrustedReadPayload {
   | `threadId` | 호출이 일어난 대화. 자식 대화면 자식의 id다. 이벤트를 기록하는 대화(`surfaceThreadId`)와 다를 수 있다 | 호출 문맥 `CallContext.threadId` |
   | `turnId` | 활성 turn. 호스트가 turn 밖에서 직접 낸 호출이면 null | 호출 문맥 `CallContext.turnId` |
   | `toolCallId` | 도구 경로의 호출 id. 도구를 거치지 않은 요청이면 null | 호출 문맥 `CallContext.toolCallId` |
-  | `stepId` | `toolCallId`로 찾은 활성 호출의 단계. 활성 호출이 없으면 null. 능력 포트의 `CallContext`에는 `stepId`가 없어 L2 어댑터는 이 값을 채우지 않고 승인 서비스가 채운다 | 승인 서비스 |
+  | `stepId` | `toolCallId`로 찾은 활성 호출의 단계. 활성 호출이 없으면 null. 기능 포트의 `CallContext`에는 `stepId`가 없어 L2 어댑터는 이 값을 채우지 않고 승인 서비스가 채운다 | 승인 서비스 |
   | `caller` | `approvalCallerOf(CallContext.caller)`. 형식은 `APPROVAL_CALLER_PATTERN` | 변환 함수 하나 |
 
   - 같은 호출에서 L1.tools가 올린 요청과 L2 어댑터가 올린 요청은 이 규칙으로 같은 값이 된다. E5(M2 종료 조건)의 "같은 승인 요청 레코드"는 `turnId`, `stepId`, `toolCallId`, `caller` 값이 같다는 뜻이다. 키 이름만 같은 것은 통과가 아니다.
-  - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·그룹 코드가 능력을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
+  - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·그룹 코드가 기능을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
 
 - [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 세션 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 세션 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
 - [결정: 오케스트레이터 기본값] `tool.sandbox_bypassed`는 내구 kind이고 생산자는 `core.tools`(tool-runtime)다(`L0.sandbox.spec` §10 2번). 명령과 출력을 싣지 않으며 같은 호출은 `toolCallId`로 잇는다.
@@ -601,7 +601,7 @@ export interface ToolUntrustedReadPayload {
 
 1. 각 파일은 `CatalogEntry[]`를 export한다. 휘발 kind는 `durable: false`다. 이름은 §3.2 규칙 1(점 하나, snake_case)을 따른다.
 2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 43종만 담는다. `catalog-doc.test.ts`는 코어 표(§3.3)만 대조하고, 도메인 문서의 카탈로그 표는 대조하지 않는다.
-3. 접두 표기: 이벤트 영역은 단수 `artifact`다. 능력 id·서비스·테이블의 복수 `artifacts`(`cap.artifacts`, `L2.artifacts.spec`)는 그대로 두고 둘의 대응은 위 표가 정한다(`L2.readme` §2 표 주석).
+3. 접두 표기: 이벤트 영역은 단수 `artifact`다. 기능 id·서비스·테이블의 복수 `artifacts`(`cap.artifacts`, `L2.artifacts.spec`)는 그대로 두고 둘의 대응은 위 표가 정한다(`L2.readme` §2 표 주석).
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
 6. 외부 확장이 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓰면 `reserved_area`다. 외부 확장이 L2 도메인 이름을 확장 이름으로 쓰는 경우는 `F.extensions.spec` §4.7 `name_reserved`가 막는다.
@@ -1214,9 +1214,9 @@ export interface RecordCommitPort {
 
 이 도메인은 사용자 설정 키를 두지 않는다. 저장 설정(WAL, synchronous, 보관 기간, 내보내기)은 `L0.store.spec`과 `L1.persistence.spec`이 노출한다.
 
-## 7. 확장 지점
+## 7. 훅
 
-- 확장과 의도 그룹은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
+- 확장과 플러그인 그룹은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
 - X의 네 연산 중 scope, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool.result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool.call.before` 지점은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
 - 그룹 간 레코드 형식은 `F.extensions.spec`이 정한다.
 

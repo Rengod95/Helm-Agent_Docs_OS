@@ -27,7 +27,7 @@ function violationOf(sql: string, owned: ReadonlySet<string>): string | null {
 
 /**
  * 커밋 트랜잭션의 SqlTx를 투영기용 핸들로 감싼다. 투영기는 변경 건수를 보지 않는다.
- * `ownedTables`를 주면(테스트·디버그 빌드의 확장·능력 투영기) 소유하지 않은 테이블을 건드리는 문장을
+ * `ownedTables`를 주면(테스트·디버그 빌드의 확장·기능 투영기) 소유하지 않은 테이블을 건드리는 문장을
  * `Bug("store.prefix_not_owned")`로 거부하고 커밋 전체가 롤백된다(L1.persistence.spec §4.5.2)
  */
 export function toProjectionTx(tx: SqlTx, ownedTables?: readonly string[]): ProjectionTx {

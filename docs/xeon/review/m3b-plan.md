@@ -52,7 +52,7 @@ binds: []
 - 요구: M3-REQ-05(Unknown 페이로드 정밀화), 14(artifact·schedule 레코드), 15(`settings.readFile`·`writeFile`, range 병합, `SettingsTab`, `SettingUi`, 관리 잠금), 16(`status.list`, `attachments.add`, `notify.list`, 알림 전달), 17(`SecretEntryOffer` 메타, `secret.test` 확장, 열람 경로), 19(서비스 인증, `host.authFailed`, 재접속용 목록), 20(pi 메시지 깊은 검증, M3-new-15), 21(라벨을 메시지 키로, wire 오류 kind+인자).
 - 작업: M3-19, M3-20, M3-m2c-02 계약(모델 목록 또는 유효성 필드), 이월 `InputDraft.origin`(input.queued가 origin을 실음).
 - 커밋 순서: 05·20 → 14 → 15·17·m2c-02 → 16·19 → 21. 21은 라벨 생성 방식을 바꾸므로 마지막입니다.
-- 끝 시험: 새 스키마 왕복 값 비교 시험, `points.doc.test.ts`·wire 문서 시험이 spec 표와 일치.
+- 끝 시험: 새 스키마 왕복 값 비교 시험, `hooks.doc.test.ts`·wire 문서 시험이 spec 표와 일치.
 
 **B0-OS platform-os** · Sonnet medium · `platform-os` · M
 - 요구: 48(워크트리 연산, 감시 root 완화), 49(설정 파일 외부 변경 감시), 50(`NotifierProvider` macOS·Linux, WSL 토스트 없음), 51(`fileLock`), 52(로그 수준 잔여, 로그 회전, `traceparent`, 진단 배열 상한), 53(번들 바이너리 경로 탐색), 54(제품 이름 상수 한 곳), 61(감사 파일 정리 잠금).

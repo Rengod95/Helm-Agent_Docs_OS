@@ -53,7 +53,7 @@ export { learningSettings } from "./settings.ts";
 export { manifest as learningManifest } from "./manifest.ts";
 export type { LearningDeps } from "./deps.ts";
 
-/** 지식 능력 네 개로 지식 저장소 면을 만든다. 능력이 없거나 일시 실패면 오류 값이다(§5 사례 12) */
+/** 지식 기능 네 개로 지식 저장소 면을 만든다. 기능이 없거나 일시 실패면 오류 값이다(§5 사례 12) */
 function knowledgeOf(g: LearningApi): Result<KnowledgePort, KnowledgeFailure> {
   const apis = attempt(() => ({
     skills: g.capability(KnowledgeSkillsKey),

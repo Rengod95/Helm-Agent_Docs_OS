@@ -17,7 +17,7 @@ import type { DialogDeps } from "./deps.ts";
 import { createNotifyService, type NotifyService } from "./notify/service.ts";
 import { createStatusService, type StatusService } from "./status/service.ts";
 
-// 능력별 API 객체를 조립한다. 묶음(DialogService)은 Cordis에 등록하지 않는다. 등록은 plugin.ts가 능력마다 한다
+// 기능별 API 객체를 조립한다. 묶음(DialogService)은 Cordis에 등록하지 않는다. 등록은 plugin.ts가 기능마다 한다
 // (L2.readme §5.6). M2는 ask, commands, status, attachments 넷이고, M3에서 notify가 더해진다. aside, styles는 2차다.
 
 interface DialogApis {

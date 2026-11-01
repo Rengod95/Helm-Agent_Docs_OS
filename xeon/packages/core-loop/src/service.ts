@@ -570,7 +570,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     const wasBusy = thread.running !== null || thread.starting !== null;
     const mode: InputMode = wasBusy ? (request.whenBusy ?? "followUp") : "followUp";
 
-    // input 지점(chain): 확장이 바꾸거나 처리 끝(handled)을 낸다. handled면 아무것도 기록하지 않는다
+    // input 훅(chain): 확장이 바꾸거나 처리 끝(handled)을 낸다. handled면 아무것도 기록하지 않는다
     const flat =
       typeof request.content === "string"
         ? { text: request.content, images: [] }
@@ -922,7 +922,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     runTurn,
     spawn,
     whenIdle: (threadId, fn) => runtimeOf(threadId).gate.run(1, fn),
-    // user_bash 지점 발화, fresnel.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
+    // user_bash 훅 발화, fresnel.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
     runUserBash: (request) => userBash.run(request),
     guardExecution: (request) => guardExecution.run(request),
     admit,

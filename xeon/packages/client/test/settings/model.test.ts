@@ -41,7 +41,7 @@ describe("provider and model input", () => {
   test("the secret name is <provider>-api-key with dots and underscores turned into hyphens", () => {
     expect(nameOf("anthropic")).toBe("anthropic-api-key");
     expect(nameOf("my.corp_llm")).toBe("my-corp-llm-api-key");
-    // 숫자로 시작하는 provider id는 비밀 이름 규칙(소문자로 시작)에 맞지 않는다
+    // 숫자로 시작하는 provider id는 시크릿 이름 규칙(소문자로 시작)에 맞지 않는다
     expect(providerSecretName("9router").ok).toBe(false);
   });
 });

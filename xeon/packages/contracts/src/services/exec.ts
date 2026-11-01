@@ -259,7 +259,7 @@ export interface ShellOutputInfo {
 
 /** secrets의 env 모드 lease(L0.secrets.spec §3.6 withEnv)에 넘길 맥락을 함께 싣는다 [제안, M1] */
 export interface SecretEnvRequest {
-  /** env 이름 → 비밀 참조 */
+  /** env 이름 → 시크릿 참조 */
   readonly refs: Readonly<Record<string, SecretRef>>;
   /** mode는 "env", target은 연결 코드가 명령줄에서 채운다. purpose, toolCallId, approval(ApprovalEvidence)은 호출자(L1 tools)가 채운다 */
   readonly ctx: Omit<UseCtx, "mode" | "target">;
@@ -276,14 +276,14 @@ export interface ShellExecOptions {
   onOutput?: (text: string, context: CancelScope, info: ShellOutputInfo) => void;
   spill?: ShellSpillOptions;
   window?: ShellOutputWindow;
-  /** [제안] Fresnel 추가, M1. env 이름 → 비밀 참조와 사용 맥락. 값은 spawn 직전에만 env에 들어간다 */
+  /** [제안] Fresnel 추가, M1. env 이름 → 시크릿 참조와 사용 맥락. 값은 spawn 직전에만 env에 들어간다 */
   secretEnv?: SecretEnvRequest;
 }
 
 export interface ShellExecResult {
   exitCode: number;
   spillPath?: string;
-  /** [제안] Fresnel 추가. 데코레이터가 붙인 실행 정보. 값(비밀, 파일 내용)은 싣지 않는다 */
+  /** [제안] Fresnel 추가. 데코레이터가 붙인 실행 정보. 값(시크릿, 파일 내용)은 싣지 않는다 */
   sandbox?: SandboxRunReport;
 }
 
