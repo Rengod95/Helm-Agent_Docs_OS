@@ -739,7 +739,7 @@
   "client.settings.tabs.sandbox.empty": "This tab has no sandbox settings yet",
   "client.settings.tabs.secrets": "Secrets",
   "client.settings.tabs.secrets.empty": "This tab has no secret settings yet",
-  "client.settings.tabs.sessions": "Sessions and context",
+  "client.settings.tabs.sessions": "Conversations and context",
   "client.settings.tabs.sessions.empty": "This tab has no session settings yet",
   "client.settings.tabs.tools": "Tools and web",
   "client.settings.tabs.tools.empty": "This tab has no tool or web settings yet",

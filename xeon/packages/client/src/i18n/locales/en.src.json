@@ -1,0 +1,4 @@
+{
+  "client.settings.scope.launch": "[[launchScope]]",
+  "client.settings.tabs.sessions": "[[thread]]s and context"
+}
